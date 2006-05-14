@@ -1241,8 +1241,6 @@ void msrSetSoft(MSR msr,double dSoft)
 void msrDomainDecomp(MSR msr,int iRung,int bGreater,int bSplitVA) {
     struct inDomainDecomp in;
     struct outCalcBound outcb;
-    struct inCountVA inCtVA;
-    struct outCountVA outCtVA;
     int j;
     double sec,dsec;
 
@@ -1340,16 +1338,6 @@ void msrDomainDecomp(MSR msr,int iRung,int bGreater,int bSplitVA) {
     in.bSplitVA = bSplitVA;
     pstDomainDecomp(msr->pst,&in,sizeof(in),NULL,NULL);
     msr->bDoneDomainDecomp = 1; 
-
-    if (bSplitVA) {
-	/*
-	** Here we don't really care how many VAs are on either side of a split, but
-	** we want to set the pst->nVeryActive variable correctly for all pst-tree nodes.
-	*/
-	inCtVA.iSplitDim = 0;
-	inCtVA.fSplit = 0.0;
-	pstCountVA(msr->pst,&inCtVA,sizeof(inCtVA),&outCtVA,NULL);
-	}
 
     if (msr->param.bVDetails) {
 	dsec = msrTime() - sec;
@@ -2566,8 +2554,6 @@ void msrTopStepKDK(MSR msr,
 	    */
 	    bSplitVA = 1;
 	    msrDomainDecomp(msr,iKickRung,1,bSplitVA);
-
-	    mdlassert(msr->mdl,mdlThreads(msr->mdl) == 1);
 
 	    if (msr->param.bVDetails)
 		printf("Building exclude very active tree: iRung: %d\n", iRung);

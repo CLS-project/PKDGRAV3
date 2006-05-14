@@ -2,18 +2,16 @@
 # Makefile for pkdgrav2
 #
 
-CC = gcc -Wall 
-#CC = mpicc -Wall
-#CC = pgcc -Wall
-#CC = gcc -mwide-multiply
-#CC = icc 
+MY_CC = gcc
+MY_CFLAGS = -O3
+#MY_CC = pgcc
+#MY_CFLAGS = -fastsse
+#CC = icc
+#MY_CFLAGS = -D__GNUC__ -D_REENTRANT -O3
 
-#EXE = pkdgrav2.pthread64.testhyp
-EXE = pkdgrav2.mpi64
-#EXE = pkdgrav2.scampi.E
-#EXE = pkdgrav2.null64.CM
+EXE = pkdgrav2.mpi32
 
-#CODEDEF = -DCHANGESOFT
+CODEDEF = -DCHANGESOFT
 #CODEDEF = -DRELAXATION -DGROUPFIND 
 #CODEDEF = -DCHANGESOFT -DSOFTLINEAR
 #CODEDEF = -DCOLLISIONS -DSLIDING_PATCH
@@ -27,14 +25,8 @@ EXE = pkdgrav2.mpi64
 #       NULL defines
 #
 NULL_MDL		= ../mdl/null
-NULL_CFLAGS		= -D__GNUC__ -O3 -static -Wall -I$(NULL_MDL) $(CODEDEF)
+NULL_CFLAGS		= $(MY_CFLAGS) -Wall -I$(NULL_MDL) $(CODEDEF)
 
-#ev6 flags:
-#NULL_CFLAGS		= -O3 -g3 -fast -arch ev6 -I$(NULL_MDL) $(CODEDEF)
-#NULL_CFLAGS		= -O3 -fast -arch ev6 -I$(NULL_MDL) $(CODEDEF)
-#NULL_CFLAGS            = -fast -I$(NULL_MDL) $(CODEDEF)
-NULL_CFLAGS		= -O4 -I$(NULL_MDL) $(CODEDEF)
-#NULL_CFLAGS		= -g -I$(NULL_MDL) $(CODEDEF)
 #NULL_LD_FLAGS	= -Wl,-s
 NULL_XOBJ		= 
 NULL_LIBMDL		= $(NULL_MDL)/mdl.o -lm
@@ -76,14 +68,14 @@ LAM_LIBMDL              = -L$(LAM_DIR)/lib $(LAM_MDL)/mdl.o -lmpi -ltstdio -lt -
 LAM_MDL_CFLAGS  = -fast -I$(LAM_MDL) $(CODEDEF) -DMPI_LINUX  -I$(LAM_DIR)/include 
 
 #
-#       SP1/2 defines
+#       MPI defines
 #
 SPX_MDL			= ../mdl/mpi
-SPX_CFLAGS		= -fastsse -mcmodel=medium -I$(SPX_MDL) $(CODEDEF)
+SPX_CFLAGS		= $(MY_CFLAGS) -I$(SPX_MDL) $(CODEDEF)
 SPX_LD_FLAGS	=
 SPX_XOBJ		= 
 SPX_LIBMDL		= $(SPX_MDL)/mdl.o -lm
-SPX_MDL_CFLAGS	= -fastsse -mcmodel=medium
+SPX_MDL_CFLAGS	= $(MY_CFLAGS)
 
 #
 #		PVM defines
@@ -228,8 +220,8 @@ lam_mpi:
 mpi: spx
 
 spx:
-	cd $(SPX_MDL); make CC="mpicc -cc=pgcc" "CC_FLAGS=$(SPX_MDL_CFLAGS)"
-	make $(EXE) CC="mpicc -cc=pgcc" "CFLAGS=$(SPX_CFLAGS)" "LD_FLAGS=$(SPX_LD_FLAGS)"\
+	cd $(SPX_MDL); make CC="mpicc -cc=$(MY_CC)" "CC_FLAGS=$(SPX_MDL_CFLAGS)"
+	make $(EXE) CC="mpicc -cc=$(MY_CC)" "CFLAGS=$(SPX_CFLAGS)" "LD_FLAGS=$(SPX_LD_FLAGS)"\
 		"MDL=$(SPX_MDL)" "XOBJ=$(SPX_XOBJ)" "LIBMDL=$(SPX_LIBMDL)"
 
 t3d:

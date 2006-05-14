@@ -85,6 +85,7 @@ enum pst_service {
     PST_CALCEANDLEXT,
     PST_DRIFT,
     PST_DRIFTINACTIVE,
+    PST_CACHEBARRIER,
     PST_ROPARTICLECACHE,
     PST_PARTICLECACHEFINISH,
     PST_STEPVERYACTIVE,
@@ -417,6 +418,9 @@ void pstROParticleCache(PST, void *, int, void *, int *);
 /* PST_PARTICLECACHEFINISH */
 
 void pstParticleCacheFinish(PST, void *, int, void *, int *);
+
+/* PST_CACHEBARRIER */
+void pstCacheBarrier(PST, void *, int, void *, int *);
 
 /* PST_STEPVERYACTIVE */
 struct inStepVeryActive 

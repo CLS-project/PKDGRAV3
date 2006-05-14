@@ -112,6 +112,9 @@ void pstAddServices(PST pst,MDL mdl)
     mdlAddService(mdl,PST_DRIFTINACTIVE,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstDriftInactive,
 		  sizeof(struct inDrift),0);
+    mdlAddService(mdl,PST_CACHEBARRIER,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstCacheBarrier,
+		  0,0);
     mdlAddService(mdl,PST_STEPVERYACTIVE,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstStepVeryActiveKDK,
 		  sizeof(struct inStepVeryActive),
@@ -705,14 +708,15 @@ void _pstRootSplit(PST pst,int iSplitDim,double dMass,int bDoRootFind,int bDoSpl
 	    pstCountVA(pst,&inCtVA,sizeof(inCtVA),&outCtVA,NULL);
 	    if (outCtVA.nHigh > outCtVA.nLow) {
 		pst->iVASplitSide = 1;
+		pst->pstLower->nVeryActive = 0;
 		}
 	    else {
 		pst->iVASplitSide = -1;
+		pst->pstLower->nVeryActive = outCtVA.nLow + outCtVA.nHigh;
 		}
 	    }
 	else {
 	    pst->iVASplitSide = 0;
-	    pst->nVeryActive = 0;
 	    }
 	     
 	mdlPrintTimer(pst->mdl,"TIME active split _pstRootSplit ",&t);
@@ -2434,6 +2438,22 @@ void pstDriftInactive(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     if (pnOut) *pnOut = 0;
     }
 
+void pstCacheBarrier(PST pst,void *vin,int nIn,void *vout,int *pnOut)
+    {
+    LCL *plcl = pst->plcl;
+
+    mdlassert(pst->mdl,nIn == 0);
+    if (pst->nLeaves > 1) {
+	mdlReqService(pst->mdl,pst->idUpper,PST_CACHEBARRIER,NULL,0);
+	pstCacheBarrier(pst->pstLower,NULL,0,NULL,NULL);
+	mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
+	}
+    else {
+	mdlCacheBarrier(pst->mdl,CID_CELL);
+	}
+    if (pnOut) *pnOut = 0;
+    }
+
 void pstStepVeryActiveKDK(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     {
     LCL *plcl = pst->plcl;
@@ -2442,10 +2462,14 @@ void pstStepVeryActiveKDK(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 
     mdlassert(pst->mdl,nIn == sizeof(struct inStepVeryActive));
     if (pst->nLeaves > 1) {
-	if(pst->pstLower->nVeryActive > 0)
+	if(pst->pstLower->nVeryActive > 0) {
+	    mdlReqService(pst->mdl,pst->idUpper,PST_CACHEBARRIER,NULL,0);
 	    pstStepVeryActiveKDK(pst->pstLower,in,nIn,vout,NULL);
+	    mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
+	    }
 	else {
 	    mdlReqService(pst->mdl,pst->idUpper,PST_STEPVERYACTIVE,in,nIn);
+	    pstCacheBarrier(pst->pstLower,NULL,0,NULL,NULL);
 	    mdlGetReply(pst->mdl,pst->idUpper,vout,NULL);
 	    }
 	}
@@ -2453,6 +2477,7 @@ void pstStepVeryActiveKDK(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 	in->param.csm = &in->csm;
 	pkdStepVeryActiveKDK(plcl->pkd,in->dStep,in->dTime,in->dDelta,
 			     in->iRung, in->iRung, 1, in->param, &out->nMaxRung);
+	mdlCacheBarrier(pst->mdl,CID_CELL);
 	}
     if (pnOut) *pnOut = sizeof(*out);
     }
@@ -3068,6 +3093,7 @@ void pstFof(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 	}
     if (pnOut) *pnOut = 0;
     }
+
 void pstGroupMerge(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     {
     struct inGroupMerge *in = vin;
