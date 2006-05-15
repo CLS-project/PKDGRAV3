@@ -462,9 +462,9 @@ int pkdGravWalk(PKD pkd,int nReps,int bEwald,double fEwCut,
 		    ilp[nPart].x = rCheck[0];
 		    ilp[nPart].y = rCheck[1];
 		    ilp[nPart].z = rCheck[2];
-		    ilp[nPart].vx = 0; /* What the hell should we set here?? */
-		    ilp[nPart].vy = 0;
-		    ilp[nPart].vz = 0;
+		    ilp[nPart].vx = pkdc->v[0];
+		    ilp[nPart].vy = pkdc->v[1];
+		    ilp[nPart].vz = pkdc->v[2];
 #ifdef SOFTLINEAR
 		    ilp[nPart].h = sqrt(pkdc->fSoft2);
 #endif
@@ -735,9 +735,6 @@ void pkdLocalWalk(PKD pkd,int iParticle,int bRep,FLOAT rOffset[3],
 		    ilp[nPart].fourh2 = 4*p[pj].fSoft*p[pj].fSoft;
 #endif
 		    }
-
-		/* What should we do here??? */
-
 		/*
 		** ...and we need to consider it in the timestepping part so place this cell
 		** onto the particle-bucket list. This list is not used for force evaluation 
@@ -747,21 +744,22 @@ void pkdLocalWalk(PKD pkd,int iParticle,int bRep,FLOAT rOffset[3],
 		    *nMaxPartBucket += 500;
 		    ilpb = realloc(ilpb,*nMaxPartBucket*sizeof(ILPB));
 		    assert(ilpb != NULL);
-			    }
-			ilpb[nPartBucket].x = rOffset[0];
-			ilpb[nPartBucket].y = rOffset[1];
-			ilpb[nPartBucket].z = rOffset[2];
-			ilpb[nPartBucket].m = 0;   /* we really only need the mass here */
+		    }
+		ilpb[nPartBucket].x = x[0];
+		ilpb[nPartBucket].y = x[1];
+		ilpb[nPartBucket].z = x[2];
+		ilpb[nPartBucket].m = pkdn->mom.m;
 #ifdef SOFTLINEAR
-		        ilpb[nPartBucket].h = 0;
+		ilpb[nPartBucket].h = sqrt(pkdn->fSoft2);
 #endif
 #ifdef SOFTSQUARE
-		        ilpb[nPartBucket].twoh2 = 0;
+		ilpb[nPartBucket].twoh2 = 2*pkdn->fSoft2;
 #endif
 #if !defined(SOFTLINEAR) && !defined(SOFTSQUARE)
-		        ilpb[nPartBucket].fourh2 = 0;
+		ilpb[nPartBucket].fourh2 = 4*pkdn->fSoft2;
 #endif
-			++nPartBucket;
+		++nPartBucket;
+
 		while(iCell & 1) {
 		    iCell = pkdn->iParent;
 		    pkdn = &pkd->kdNodes[iCell];
@@ -801,9 +799,9 @@ void pkdLocalWalk(PKD pkd,int iParticle,int bRep,FLOAT rOffset[3],
 	    ilp[nPart].x = x[0];
 	    ilp[nPart].y = x[1];
 	    ilp[nPart].z = x[2];
-	    ilp[nPart].vx = 0; /* What should we set here ?? */
-	    ilp[nPart].vy = 0;
-	    ilp[nPart].vz = 0;
+	    ilp[nPart].vx = pkdn->v[0];
+	    ilp[nPart].vy = pkdn->v[1];
+	    ilp[nPart].vz = pkdn->v[2];
 	    ilp[nPart].m = pkdn->mom.m;
 #ifdef SOFTLINEAR
 	    ilp[nPart].h = sqrt(pkdn->fSoft2);
@@ -942,9 +940,6 @@ void pkdRemoteWalk(PKD pkd,int iParticle,int id,FLOAT rOffset[3],
 		    mdlRelease(pkd->mdl,CID_PARTICLE,p);
 		    }
 
-
-		/* ????? */
-
 		/*
 		** ...and we need to consider it in the timestepping part so place this cell
 		** onto the particle-bucket list. This list is not used for force evaluation 
@@ -955,20 +950,21 @@ void pkdRemoteWalk(PKD pkd,int iParticle,int id,FLOAT rOffset[3],
 		    ilpb = realloc(ilpb,*nMaxPartBucket*sizeof(ILPB));
 		    assert(ilpb != NULL);
 		    }
-		ilpb[nPartBucket].x = 0;
-		ilpb[nPartBucket].y = 0;
-		ilpb[nPartBucket].z = 0;
-		ilpb[nPartBucket].m = 0;   /* we really only need the mass here */
+		ilpb[nPartBucket].x = x[0];
+		ilpb[nPartBucket].y = x[1];
+		ilpb[nPartBucket].z = x[2];
+		ilpb[nPartBucket].m = pkdn->mom.m;   /* we really only need the mass here */
 #ifdef SOFTLINEAR
-		ilpb[nPartBucket].h = 0;
+		ilpb[nPartBucket].h = sqrt(pkdn->fSoft2);
 #endif
 #ifdef SOFTSQUARE
-		ilpb[nPartBucket].twoh2 = 0;
+		ilpb[nPartBucket].twoh2 = 2*pkdn->fSoft2;
 #endif
 #if !defined(SOFTLINEAR) && !defined(SOFTSQUARE)
-		ilpb[nPartBucket].fourh2 = 0;
+		ilpb[nPartBucket].fourh2 = 4*pkdn->fSoft2;
 #endif
 		++nPartBucket;
+
 		while(iCell & 1) {
 		    iCell = pkdn->iParent;
 		    mdlRelease(pkd->mdl,CID_CELL,pkdn);
@@ -1012,9 +1008,9 @@ void pkdRemoteWalk(PKD pkd,int iParticle,int id,FLOAT rOffset[3],
 	    ilp[nPart].x = x[0];
 	    ilp[nPart].y = x[1];
 	    ilp[nPart].z = x[2];
-	    ilp[nPart].vx = 0; /* What should one set here */
-	    ilp[nPart].vy = 0;
-	    ilp[nPart].vz = 0;
+	    ilp[nPart].vx = pkdn->v[0];
+	    ilp[nPart].vy = pkdn->v[1];
+	    ilp[nPart].vz = pkdn->v[2];
 	    ilp[nPart].m = pkdn->mom.m;
 #ifdef SOFTLINEAR
 	    ilp[nPart].h = sqrt(pkdn->fSoft2);
@@ -1179,9 +1175,9 @@ void pkdParticleWalk(PKD pkd,int iParticle,int nReps, ILP **pilp, int *pnPart, i
 			    ilp[nPart].x = x[0];
 			    ilp[nPart].y = x[1];
 			    ilp[nPart].z = x[2];
-			    ilp[nPart].vx = 0; /* What should one set here */
-			    ilp[nPart].vy = 0;
-			    ilp[nPart].vz = 0;
+			    ilp[nPart].vx = pkdn->v[0];
+			    ilp[nPart].vy = pkdn->v[1];
+			    ilp[nPart].vz = pkdn->v[2];
 			    ilp[nPart].m = pkdn->mom.m;
 #ifdef SOFTLINEAR
 			    ilp[nPart].h = sqrt(pkdn->fSoft2);

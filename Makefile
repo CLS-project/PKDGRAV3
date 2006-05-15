@@ -3,7 +3,7 @@
 #
 
 MY_CC = gcc
-MY_CFLAGS = -O3
+MY_CFLAGS = -O3 -Wall #-mcmodel=medium
 #MY_CC = pgcc
 #MY_CFLAGS = -fastsse
 #CC = icc
@@ -95,7 +95,7 @@ PVM_LIBMDL	= $(PVM_MDL)/$(PVM_ARCH)/mdl.o $(PVMLIB) $(ARCHLIB) -lm
 #       PTHREAD defines
 #
 PTHREAD_MDL			= ../mdl/pthread
-PTHREAD_CFLAGS		= -fast -mcmodel=medium -I$(PTHREAD_MDL) $(CODEDEF)
+PTHREAD_CFLAGS		= -fast -I$(PTHREAD_MDL) $(CODEDEF)
 PTHREAD_LD_FLAGS 	= 
 PTHREAD_XOBJ		=
 PTHREAD_LIBMDL 		= $(PTHREAD_MDL)/mdl.o -lm -lpthread
