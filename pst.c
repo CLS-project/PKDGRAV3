@@ -702,21 +702,16 @@ void _pstRootSplit(PST pst,int iSplitDim,double dMass,int bDoRootFind,int bDoSpl
 	** We have now found a new split. We need to decide which side of this split
 	** we want to put the very active particles.
 	*/
-	if (bSplitVA) {
-	    inCtVA.iSplitDim = d;
-	    inCtVA.fSplit = fm;
-	    pstCountVA(pst,&inCtVA,sizeof(inCtVA),&outCtVA,NULL);
-	    if (outCtVA.nHigh > outCtVA.nLow) {
-		pst->iVASplitSide = 1;
-		pst->pstLower->nVeryActive = 0;
-		}
-	    else {
-		pst->iVASplitSide = -1;
-		pst->pstLower->nVeryActive = outCtVA.nLow + outCtVA.nHigh;
-		}
+	inCtVA.iSplitDim = d;
+	inCtVA.fSplit = fm;
+	pstCountVA(pst,&inCtVA,sizeof(inCtVA),&outCtVA,NULL);
+	if (outCtVA.nHigh > outCtVA.nLow) {
+	    pst->iVASplitSide = 1;
+	    pst->pstLower->nVeryActive = 0;
 	    }
 	else {
-	    pst->iVASplitSide = 0;
+	    pst->iVASplitSide = -1;
+	    pst->pstLower->nVeryActive = outCtVA.nLow + outCtVA.nHigh;
 	    }
 	     
 	mdlPrintTimer(pst->mdl,"TIME active split _pstRootSplit ",&t);
@@ -758,7 +753,7 @@ void _pstRootSplit(PST pst,int iSplitDim,double dMass,int bDoRootFind,int bDoSpl
     inWtWrap.fSplit = fm;	
     inWtWrap.fSplit2 = pst->fSplit;
     inWtWrap.ittr = 0;
-    inWtWrap.iVASplitSide = pst->iVASplitSide;
+    inWtWrap.iVASplitSide = (bSplitVA)?pst->iVASplitSide:0;
     inWtWrap.iSplitSide = 1;
     mdlReqService(pst->mdl,pst->idUpper,PST_WEIGHTWRAP,&inWtWrap,sizeof(inWtWrap));
     inWtWrap.iSplitSide = 0;
@@ -809,7 +804,7 @@ void _pstRootSplit(PST pst,int iSplitDim,double dMass,int bDoRootFind,int bDoSpl
 	    inWtWrap.fSplit = fm;	
 	    inWtWrap.fSplit2 = pst->fSplit;
 	    inWtWrap.ittr = ittr;
-	    inWtWrap.iVASplitSide = pst->iVASplitSide;
+	    inWtWrap.iVASplitSide = (bSplitVA)?pst->iVASplitSide:0;
 	    inWtWrap.iSplitSide = 1;
 	    mdlReqService(pst->mdl,pst->idUpper,PST_WEIGHTWRAP,&inWtWrap,sizeof(inWtWrap));
 	    inWtWrap.iSplitSide = 0;
@@ -886,7 +881,7 @@ void _pstRootSplit(PST pst,int iSplitDim,double dMass,int bDoRootFind,int bDoSpl
 	    inWtWrap.fSplit = fm;
 	    inWtWrap.fSplit2 = pst->fSplit;
 	    inWtWrap.ittr = ittr;
-	    inWtWrap.iVASplitSide = pst->iVASplitSide;
+	    inWtWrap.iVASplitSide = (bSplitVA)?pst->iVASplitSide:0;
 	    inWtWrap.iSplitSide = 1;
 	    mdlReqService(pst->mdl,pst->idUpper,PST_WEIGHTWRAP,&inWtWrap,sizeof(inWtWrap));
 	    inWtWrap.iSplitSide = 0;
@@ -964,7 +959,7 @@ void _pstRootSplit(PST pst,int iSplitDim,double dMass,int bDoRootFind,int bDoSpl
 	    inWtWrap.fSplit = fm;	
 	    inWtWrap.fSplit2 = pst->fSplit;
 	    inWtWrap.ittr = ittr;
-	    inWtWrap.iVASplitSide = pst->iVASplitSide;
+	    inWtWrap.iVASplitSide = (bSplitVA)?pst->iVASplitSide:0;
 	    inWtWrap.iSplitSide = 1;
 	    mdlReqService(pst->mdl,pst->idUpper,PST_WEIGHTWRAP,&inWtWrap,sizeof(inWtWrap));
 	    inWtWrap.iSplitSide = 0;
@@ -1033,7 +1028,7 @@ void _pstRootSplit(PST pst,int iSplitDim,double dMass,int bDoRootFind,int bDoSpl
 	    inWtWrap.fSplit = fm;
 	    inWtWrap.fSplit2 = pst->fSplit;
 	    inWtWrap.ittr = ittr;
-	    inWtWrap.iVASplitSide = pst->iVASplitSide;
+	    inWtWrap.iVASplitSide = (bSplitVA)?pst->iVASplitSide:0;
 	    inWtWrap.iSplitSide = 1;
 	    mdlReqService(pst->mdl,pst->idUpper,PST_WEIGHTWRAP,&inWtWrap,sizeof(inWtWrap));
 	    inWtWrap.iSplitSide = 0;
@@ -2438,10 +2433,7 @@ void pstDriftInactive(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     if (pnOut) *pnOut = 0;
     }
 
-void pstCacheBarrier(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
-    LCL *plcl = pst->plcl;
-
+void pstCacheBarrier(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     mdlassert(pst->mdl,nIn == 0);
     if (pst->nLeaves > 1) {
 	mdlReqService(pst->mdl,pst->idUpper,PST_CACHEBARRIER,NULL,0);

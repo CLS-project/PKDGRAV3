@@ -1331,11 +1331,14 @@ void msrDomainDecomp(MSR msr,int iRung,int bGreater,int bSplitVA) {
 
     if (msr->param.bVDetails) {
 	printf("Domain Decomposition: nActive (Rung %d) %d\n",iRungDD,msr->nActive);
-	printf("Domain Decomposition...\n");
+	printf("Domain Decomposition... \n");
 	sec = msrTime();
 	}
 
     in.bSplitVA = bSplitVA;
+    if (bSplitVA) {
+	printf("*** Splitting very active particles!\n");	
+	}
     pstDomainDecomp(msr->pst,&in,sizeof(in),NULL,NULL);
     msr->bDoneDomainDecomp = 1; 
 
@@ -1367,7 +1370,7 @@ void _BuildTree(MSR msr,double dMass,int bExcludeVeryActive) {
     KDN *pkdn;
     int iDum,nCell;
 
-    if (msr->param.bVDetails) printf("Building local trees...\n");
+    if (msr->param.bVDetails) printf("Building local trees...\n\ny");
 
     in.nBucket = msr->param.nBucket;
     in.diCrit2 = 1/(msr->dCrit*msr->dCrit);
@@ -2422,15 +2425,14 @@ void msrRungStats(MSR msr)
 	struct outRungStats out;
 	int i;
 
-	printf("Rung distribution: (");
+	printf("Rung distribution:\n");
 	for (i=0;i<msr->param.iMaxRung;++i) {
-	    if (i != 0) printf(",");
 	    in.iRung = i;
 	    pstRungStats(msr->pst,&in,sizeof(in),&out,NULL);
 	    msr->nRung[i] = out.nParticles;
-	    printf("%d",out.nParticles);
+	    printf("   rung:%d %d\n",i,out.nParticles);
 	    }
-	printf(")\n");
+	printf("\n");
 	}
     }
 
