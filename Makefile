@@ -9,7 +9,7 @@ MY_CFLAGS = -O3 -Wall #-mcmodel=medium
 #CC = icc
 #MY_CFLAGS = -D__GNUC__ -D_REENTRANT -O3
 
-EXE = pkdgrav2.mpi32
+EXE = pkdgrav2.null32
 
 CODEDEF = -DCHANGESOFT
 #CODEDEF = -DRELAXATION -DGROUPFIND 

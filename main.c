@@ -249,6 +249,12 @@ int main(int argc,char **argv) {
 		    strncat(achFile,".den",256);
 		    msrOutArray(msr,achFile,OUT_DENSITY_ARRAY);
 		    }
+		if (msr->param.bDoRungOutput) {
+		    msrReorder(msr);
+		    sprintf(achFile,achBaseMask,msrOutName(msr),iStep);
+		    strncat(achFile,".rung",256);
+		    msrOutArray(msr,achFile,OUT_RUNG_ARRAY);
+		    }
 		if (msr->param.bDoSoftOutput) {
 		    msrReorder(msr);
 		    sprintf(achFile,achBaseMask,msrOutName(msr),iStep);

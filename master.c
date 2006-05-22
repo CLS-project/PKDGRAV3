@@ -207,6 +207,9 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv)
     msr->param.bDoSoftOutput = 0;
     prmAddParam(msr->prm,"bDoSoftOutput",0,&msr->param.bDoSoftOutput,sizeof(int),
 		"softout","enable/disable soft outputs = -softout");
+    msr->param.bDoRungOutput = 0;
+    prmAddParam(msr->prm,"bDoRungOutput",0,&msr->param.bDoRungOutput,sizeof(int),
+		"rungout","enable/disable rung outputs = -rungout");
     msr->param.dDelta = 0.0;
     prmAddParam(msr->prm,"dDelta",2,&msr->param.dDelta,sizeof(double),"dt",
 		"<time step>");

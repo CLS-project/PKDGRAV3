@@ -35,6 +35,7 @@ struct parameters {
     int nTruncateRung;
     int bDoDensity;
     int bDodtOutput;
+    int bDoRungOutput;
     int bDoGravity;
     int bAntiGrav;
     int nBucket;
