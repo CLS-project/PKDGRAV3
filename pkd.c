@@ -1356,7 +1356,7 @@ pkdDrift(PKD pkd,double dTime,double dDelta,FLOAT fCenter[3],int bPeriodic,int b
 	/*
 	** Detailed output for particles (nPartsDets) at dTime + dDelta/2
 	*/
-	if (p[i].iOrder < pkd->param.nPartsDets && dDelta != 0) {
+	if ((p[i].iOrder < pkd->param.nPartsDets && dDelta != 0) || p[i].iOrder == A_VERY_ACTIVE) {
       	    px = p[i].r[0] + dDelta/2*p[i].v[0];
 	    py = p[i].r[1] + dDelta/2*p[i].v[1];
 	    pz = p[i].r[2] + dDelta/2*p[i].v[2];
@@ -1458,7 +1458,7 @@ pkdDriftActive(PKD pkd,double dTime,double dDelta) {
 	/*
 	** Detailed output for particles (nPartsDets) at dTime + dDelta/2
 	*/
-	if (p[i].iOrder < pkd->param.nPartsDets && dDelta != 0) {
+	if ((p[i].iOrder < pkd->param.nPartsDets && dDelta != 0) || p[i].iOrder == A_VERY_ACTIVE) {
 	    px = p[i].r[0] + dDelta/2*p[i].v[0];
 	    py = p[i].r[1] + dDelta/2*p[i].v[1];
 	    pz = p[i].r[2] + dDelta/2*p[i].v[2];
