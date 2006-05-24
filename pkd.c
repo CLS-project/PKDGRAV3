@@ -1411,7 +1411,7 @@ pkdDriftInactive(PKD pkd,double dTime, double dDelta,FLOAT fCenter[3],int bPerio
 	** Detailed output for particles (nPartsDets) at dTime + dDelta
 	** Inactive Drift => dDelta is already a half step! No correction needed!
 	*/
-	if (p[i].iOrder < pkd->param.nPartsDets && dDelta != 0) {
+	if ((p[i].iOrder < pkd->param.nPartsDets && dDelta != 0) || p[i].iOrder == A_VERY_ACTIVE) {
 	    printf("PDID %d %g %g %d %g %g %g %g %g %g %g %g %g %g %g %g\n",p[i].iOrder,dTime+dDelta/2,dDelta,
 		   p[i].iRung,p[i].dt,p[i].r[0],p[i].r[1],p[i].r[2],p[i].v[0],p[i].v[1],p[i].v[2],p[i].a[0],p[i].a[1],p[i].a[2],p[i].fPot,p[i].fMass);
 	    }
