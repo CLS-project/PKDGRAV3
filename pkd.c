@@ -1474,8 +1474,7 @@ pkdDriftActive(PKD pkd,double dTime,double dDelta) {
     }
 
 void
-pkdGravityVeryActive(PKD pkd, int bEwald, int nReps, double fEwhCut, int iEwOrder, double dStep)
-    {
+pkdGravityVeryActive(PKD pkd, int bEwald, int nReps, double fEwhCut, int iEwOrder, double dStep) {
     ILP *ilp;
     ILC *ilc;
     ILPB *ilpb;
@@ -1506,7 +1505,7 @@ pkdGravityVeryActive(PKD pkd, int bEwald, int nReps, double fEwhCut, int iEwOrde
     assert(ilpb != NULL);
 
     if (bEwald) {
-	pkdEwaldInit(pkd,fEwhCut,iEwOrder);	/* ignored in Flop count! */
+	/* pkdEwaldInit(pkd,fEwhCut,iEwOrder);	we want to do this better! *//* ignored in Flop count! */ 
 	}
     /* Tree Walk VeryActive particles */
     for (i=0;i<pkd->nVeryActive;++i) {
@@ -1516,7 +1515,7 @@ pkdGravityVeryActive(PKD pkd, int bEwald, int nReps, double fEwhCut, int iEwOrde
 	/* Interact */
 	kdnVActive.pUpper = i;
 	kdnVActive.pLower = i;
-	/* we shoud still set consistent values for the bucket quantities in particular the
+	/* we should still set consistent values for the bucket quantities in particular the
 	   center of mass and the moments. This is very ugly to have to do each time so 
 	   maybe we should have a template kdnVActive structure in the pkd context instead.
 	*/
@@ -1629,9 +1628,12 @@ pkdStepVeryActiveKDK(PKD pkd, double dStep, double dTime, double dDelta,
 	}
     else {
 	if (param.bVDetails)
-	    printf("VeryActive Drift at iRung: %d, drifting %d with dDelta: %g\n",
+	    printf("VeryActive Drift at iRung: %d, drifting %d and higher with dDelta: %g\n",
 		   iRung, param.nRungVeryActive+1, dDelta);
-	pkdActiveRung(pkd,param.nRungVeryActive+1,1);
+	/*
+	** This should drift *all* very actives!
+	*/
+	pkdActiveRung(pkd,param.nRungVeryActive,1); /* no plus 1 here it really mean greater-than */
 	/*
 	** We need to account for cosmological drift factor here!
 	** Normally this is done at the MASTER level in msrDrift.
@@ -1658,7 +1660,7 @@ pkdStepVeryActiveKDK(PKD pkd, double dStep, double dTime, double dDelta,
 	    pkdInitAccel(pkd);
 
 	    if(param.bVDetails)
-		printf("\t GravityVA: iRung %d\n", iRung);
+		printf("\t GravityVA: iRung %d iKickRung %d\n",iRung,iKickRung);
 
 	    if(param.bDoGravity) {
 		pkdActiveRung(pkd,iKickRung,1);

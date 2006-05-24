@@ -199,6 +199,20 @@ typedef struct bndBound {
 	}\
     }
 
+#if (0)
+#define SWAP(A,B,T) { T = A; A = B; B = T; }
+#define PARTITION(P,T,ELEM,i,j,CMPL,CMPU) \
+{\
+    while (i <= j && ((P[i] ELEM) CMPL)) { ++i; } \
+    while (i <= j && ((P[j] ELEM) CMPU)) { --j; } \
+    while (i < j) { \
+        SWAP(P[i], P[j], T); \
+        while ((P[++i] ELEM) CMPL) { } \
+        while ((P[--j] ELEM) CMPU) { } \
+    }\
+}
+#endif
+
 typedef struct kdTemp {
     BND bnd;
     int iLower;
