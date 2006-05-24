@@ -36,7 +36,7 @@
 /*
 ** This is useful for debugging the very-active force calculation.
 */
-#define A_VERY_ACTIVE  100
+#define A_VERY_ACTIVE  1
 
 
 #define MAX_TIMERS		10

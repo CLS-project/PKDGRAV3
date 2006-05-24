@@ -1355,6 +1355,7 @@ pkdDrift(PKD pkd,double dTime,double dDelta,FLOAT fCenter[3],int bPeriodic,int b
 	    }
 	/*
 	** Detailed output for particles (nPartsDets) at dTime + dDelta/2
+	** Correct positons & mass for dDelta/2 step
 	*/
 	if ((p[i].iOrder < pkd->param.nPartsDets && dDelta != 0) || p[i].iOrder == A_VERY_ACTIVE) {
       	    px = p[i].r[0] + dDelta/2*p[i].v[0];
@@ -1408,10 +1409,9 @@ pkdDriftInactive(PKD pkd,double dTime, double dDelta,FLOAT fCenter[3],int bPerio
 	    }
 	/*
 	** Detailed output for particles (nPartsDets) at dTime + dDelta
-	** Inactive Drift => half step!
+	** Inactive Drift => dDelta is already a half step! No correction needed!
 	*/
 	if (p[i].iOrder < pkd->param.nPartsDets && dDelta != 0) {
-
 	    printf("PDID %d %g %g %d %g %g %g %g %g %g %g %g %g %g %g %g\n",p[i].iOrder,dTime+dDelta/2,dDelta,
 		   p[i].iRung,p[i].dt,p[i].r[0],p[i].r[1],p[i].r[2],p[i].v[0],p[i].v[1],p[i].v[2],p[i].a[0],p[i].a[1],p[i].a[2],p[i].fPot,p[i].fMass);
 	    }
@@ -1457,6 +1457,7 @@ pkdDriftActive(PKD pkd,double dTime,double dDelta) {
 	    }
 	/*
 	** Detailed output for particles (nPartsDets) at dTime + dDelta/2
+	** Correct positons & mass for dDelta/2 step
 	*/
 	if ((p[i].iOrder < pkd->param.nPartsDets && dDelta != 0) || p[i].iOrder == A_VERY_ACTIVE) {
 	    px = p[i].r[0] + dDelta/2*p[i].v[0];
@@ -1580,6 +1581,7 @@ pkdStepVeryActiveKDK(PKD pkd, double dStep, double dTime, double dDelta,
     {
     int nMaxRung;
     int nPartMaxRung;
+    double dDriftFac;
     
     nMaxRung = *pnMaxRung;
     if(iAdjust && (iRung < param.iMaxRung-1)) {
@@ -1630,7 +1632,20 @@ pkdStepVeryActiveKDK(PKD pkd, double dStep, double dTime, double dDelta,
 	    printf("VeryActive Drift at iRung: %d, drifting %d with dDelta: %g\n",
 		   iRung, param.nRungVeryActive+1, dDelta);
 	pkdActiveRung(pkd,param.nRungVeryActive+1,1);
-	pkdDriftActive(pkd,dTime,dDelta);
+	/*
+	** We need to account for cosmological drift factor here!
+	** Normally this is done at the MASTER level in msrDrift.
+	** Note that for kicks we have written new "master-like" functions
+	** KickOpen and KickClose which do this same job at PKD level.
+	*/
+	if (param.bCannonical) {
+	    dDriftFac = csmComoveDriftFac(param.csm,dTime,dDelta);
+	    }
+	else {
+	    dDriftFac = dDelta;
+	    }
+
+	pkdDriftActive(pkd,dTime,dDriftFac);
 	dTime += dDelta;
 	dStep += 1.0/(1 << iRung);
 

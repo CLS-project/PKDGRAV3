@@ -651,6 +651,7 @@ void msrLogParams(MSR msr,FILE *fp)
 	fprintf(fp," dEta: %g",msr->param.dEta);
 	fprintf(fp," iMaxRung: %d",msr->param.iMaxRung);
 	fprintf(fp," nRungVeryActive: %d",msr->param.nRungVeryActive);
+	fprintf(fp," bDoRungOutput: %d",msr->param.bDoRungOutput);
 	fprintf(fp,"\n# bGravStep: %d",msr->param.bGravStep);
 	fprintf(fp," bEpsAccStep: %d",msr->param.bEpsAccStep);
 	fprintf(fp," bSqrtPhiStep: %d",msr->param.bSqrtPhiStep);
@@ -2634,6 +2635,7 @@ msrStepVeryActiveKDK(MSR msr, double dStep, double dTime, double dDelta,
     in.dTime = dTime;
     in.dDelta = dDelta;
     in.iRung = iRung;
+    in.nMaxRung = *pnMaxRung;
     in.param = msr->param;
     in.csm = *msr->param.csm;
     

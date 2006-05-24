@@ -429,6 +429,7 @@ struct inStepVeryActive
     double dTime;
     double dDelta;
     int iRung;
+    int nMaxRung;
     struct parameters param;
     struct csmContext csm;
     };

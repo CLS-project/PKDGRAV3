@@ -2456,17 +2456,18 @@ void pstStepVeryActiveKDK(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     if (pst->nLeaves > 1) {
 	if(pst->pstLower->nVeryActive > 0) {
 	    mdlReqService(pst->mdl,pst->idUpper,PST_CACHEBARRIER,NULL,0);
-	    pstStepVeryActiveKDK(pst->pstLower,in,nIn,vout,NULL);
+	    pstStepVeryActiveKDK(pst->pstLower,in,nIn,out,NULL);
 	    mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
 	    }
 	else {
 	    mdlReqService(pst->mdl,pst->idUpper,PST_STEPVERYACTIVE,in,nIn);
 	    pstCacheBarrier(pst->pstLower,NULL,0,NULL,NULL);
-	    mdlGetReply(pst->mdl,pst->idUpper,vout,NULL);
+	    mdlGetReply(pst->mdl,pst->idUpper,out,NULL);
 	    }
 	}
     else {
 	in->param.csm = &in->csm;
+	out->nMaxRung = in->nMaxRung;
 	pkdStepVeryActiveKDK(plcl->pkd,in->dStep,in->dTime,in->dDelta,
 			     in->iRung, in->iRung, 1, in->param, &out->nMaxRung);
 	mdlCacheBarrier(pst->mdl,CID_CELL);
