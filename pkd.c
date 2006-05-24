@@ -1583,6 +1583,7 @@ pkdStepVeryActiveKDK(PKD pkd, double dStep, double dTime, double dDelta,
     double dDriftFac;
     
     nMaxRung = *pnMaxRung;
+    printf("%d ---- very active before adjust: iRung %d nRungVA %d nMaxRung %d iAdjust %d\n",mdlSelf(pkd->mdl),iRung,param.nRungVeryActive,nMaxRung,iAdjust);
     if(iAdjust && (iRung < param.iMaxRung-1)) {
 	pkdActiveRung(pkd, iRung, 1);
 	pkdActiveType(pkd,TYPE_ALL,TYPE_TREEACTIVE|TYPE_SMOOTHACTIVE);
@@ -1602,6 +1603,7 @@ pkdStepVeryActiveKDK(PKD pkd, double dStep, double dTime, double dDelta,
 	    }
 	nMaxRung = pkdDtToRung(pkd,iRung,dDelta, param.iMaxRung, 1, &nPartMaxRung);
 	}
+    printf(" ---- very active before KickOpen: iRung %d nRungVA %d nMaxRung %d\n",iRung,param.nRungVeryActive,nMaxRung);
     if(iRung > param.nRungVeryActive) {	/* skip this if we are
 					   entering for the first
 					   time: Kick is taken care of
@@ -1633,7 +1635,7 @@ pkdStepVeryActiveKDK(PKD pkd, double dStep, double dTime, double dDelta,
 	/*
 	** This should drift *all* very actives!
 	*/
-	pkdActiveRung(pkd,param.nRungVeryActive,1); /* no plus 1 here it really mean greater-than */
+	pkdActiveRung(pkd,param.nRungVeryActive+1,1);
 	/*
 	** We need to account for cosmological drift factor here!
 	** Normally this is done at the MASTER level in msrDrift.
@@ -1656,16 +1658,13 @@ pkdStepVeryActiveKDK(PKD pkd, double dStep, double dTime, double dDelta,
 						   time: Kick is taken care of
 						   in master(). 
 						*/
-	    pkdActiveMaskRung(pkd,TYPE_ACTIVE,iKickRung,1);
-	    pkdInitAccel(pkd);
 
 	    if(param.bVDetails)
-		printf("\t GravityVA: iRung %d iKickRung %d\n",iRung,iKickRung);
+		printf("\t GravityVA: iRung %d Gravity for rungs %d to %d\n",iRung,iKickRung,nMaxRung);
 
-	    if(param.bDoGravity) {
-		pkdActiveRung(pkd,iKickRung,1);
-		pkdGravityVeryActive(pkd, param.bEwald && param.bPeriodic, param.nReplicas, param.dEwhCut, param.iEwOrder, dStep);
-		}
+	    pkdActiveRung(pkd,iKickRung,1);
+	    pkdInitAccel(pkd);
+	    pkdGravityVeryActive(pkd, param.bEwald && param.bPeriodic, param.nReplicas, param.dEwhCut, param.iEwOrder, dStep);
 	    }
 	}
     if(iKickRung > param.nRungVeryActive) {	/* skip this if we are

@@ -1374,7 +1374,7 @@ void _BuildTree(MSR msr,double dMass,int bExcludeVeryActive) {
     KDN *pkdn;
     int iDum,nCell;
 
-    if (msr->param.bVDetails) printf("Building local trees...\n\ny");
+    if (msr->param.bVDetails) printf("Building local trees...\n\n");
 
     in.nBucket = msr->param.nBucket;
     in.diCrit2 = 1/(msr->dCrit*msr->dCrit);
@@ -2506,7 +2506,7 @@ void msrTopStepKDK(MSR msr,
 	}
     else if(msrCurrMaxRung(msr) == iRung) {
 	/* This Drifts everybody */
-	if (msr->param.bVDetails) printf("Drift, iRung: %d\n", iRung);
+	if (msr->param.bVDetails) printf("Drift, iRung: %d -- we should never get here for VA set small enough\n", iRung);
 	msrDrift(msr,dTime,dDelta);
 	dTime += dDelta;
 	dStep += 1.0/(1 << iRung);
