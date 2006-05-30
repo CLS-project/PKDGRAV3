@@ -1398,8 +1398,16 @@ void _BuildTree(MSR msr,double dMass,int bExcludeVeryActive) {
 	}
     pstDistribCells(msr->pst,pkdn,nCell*sizeof(KDN),NULL,NULL);
     free(pkdn);
-    pstCalcRoot(msr->pst,NULL,0,&root,&iDum);
-    pstDistribRoot(msr->pst,&root,sizeof(struct ioCalcRoot),NULL,NULL);
+    if (!bExcludeVeryActive) {
+	/*
+	** For simplicity we will skip calculating the Root for all particles 
+	** with exclude very active since there are missing particles which 
+	** could add to the mass and because it probably is not important to 
+	** update the root so frequently.
+	*/
+	pstCalcRoot(msr->pst,NULL,0,&root,&iDum);
+	pstDistribRoot(msr->pst,&root,sizeof(struct ioCalcRoot),NULL,NULL);
+	}
     }
 
 void msrBuildTree(MSR msr,double dMass) {

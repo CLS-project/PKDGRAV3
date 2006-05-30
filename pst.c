@@ -2476,7 +2476,7 @@ void pstStepVeryActiveKDK(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 	    }
 	}
     else {
-	assert(pst->nVeryActive > 0);
+	assert(plcl->pkd->nVeryActive > 0);
 	in->param.csm = &in->csm;
 	out->nMaxRung = in->nMaxRung;
 	pkdStepVeryActiveKDK(plcl->pkd,in->dStep,in->dTime,in->dDelta,

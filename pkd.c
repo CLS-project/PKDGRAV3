@@ -1474,7 +1474,7 @@ pkdDriftActive(PKD pkd,double dTime,double dDelta) {
     }
 
 void
-pkdGravityVeryActive(PKD pkd, int bEwald, int nReps, double fEwhCut, int iEwOrder, double dStep) {
+pkdGravityVeryActive(PKD pkd, int bEwald, int nReps, double fEwCut, double dStep) {
     ILP *ilp;
     ILC *ilc;
     ILPB *ilpb;
@@ -1504,9 +1504,6 @@ pkdGravityVeryActive(PKD pkd, int bEwald, int nReps, double fEwhCut, int iEwOrde
     ilpb = malloc(nMaxPartBucket*sizeof(ILPB));
     assert(ilpb != NULL);
 
-    if (bEwald) {
-	/* pkdEwaldInit(pkd,fEwhCut,iEwOrder);	we want to do this better! *//* ignored in Flop count! */ 
-	}
     /* Tree Walk VeryActive particles */
     for (i=0;i<pkd->nVeryActive;++i) {
 	if (!TYPEQueryACTIVE(&p[i])) continue;
@@ -1562,7 +1559,7 @@ pkdGravityVeryActive(PKD pkd, int bEwald, int nReps, double fEwhCut, int iEwOrde
     ** constant cost into the load balancing weights.
     */
     if (bEwald) {
-	/* *pdFlop += pkdBucketEwald(pkd,iCell,nReps,fEwCut,4); XXX need to change interface */
+	dFlop += pkdBucketEwald(pkd,&kdnVActive,nReps,fEwCut,4);
 	}
     assert(nActive > 0);
     fWeight = dFlop/nActive;
@@ -1664,7 +1661,7 @@ pkdStepVeryActiveKDK(PKD pkd, double dStep, double dTime, double dDelta,
 
 	    pkdActiveRung(pkd,iKickRung,1);
 	    pkdInitAccel(pkd);
-	    pkdGravityVeryActive(pkd, param.bEwald && param.bPeriodic, param.nReplicas, param.dEwhCut, param.iEwOrder, dStep);
+	    pkdGravityVeryActive(pkd, param.bEwald && param.bPeriodic,param.nReplicas,param.dEwCut,dStep);
 	    }
 	}
     if(iKickRung > param.nRungVeryActive) {	/* skip this if we are

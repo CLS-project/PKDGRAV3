@@ -600,7 +600,7 @@ int pkdGravWalk(PKD pkd,int nReps,int bEwald,double fEwCut,
 	** constant cost into the load balancing weights.
 	*/
 	if (bEwald) {
-	    *pdFlop += pkdBucketEwald(pkd,iCell,nReps,fEwCut,4);
+	    *pdFlop += pkdBucketEwald(pkd,&pkd->kdNodes[iCell],nReps,fEwCut,4);
 	    }
 	if (nActive) {
 	    fWeight = (*pdFlop-tempI)/nActive;
