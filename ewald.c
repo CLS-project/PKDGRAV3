@@ -9,9 +9,8 @@
 #include "moments.h"
 
 
-int pkdBucketEwald(PKD pkd,int iBucket,int nReps,double fEwCut,int iOrder)
+int pkdBucketEwald(PKD pkd,KDN *pkdn,int nReps,double fEwCut,int iOrder)
 {
-	KDN *pkdn = &pkd->kdNodes[iBucket];
 	PARTICLE *p;
 	MOMC mom = pkd->momRoot;
 	double Q4xx,Q4xy,Q4xz,Q4yy,Q4yz,Q4zz,Q4,Q3x,Q3y,Q3z,Q2;
