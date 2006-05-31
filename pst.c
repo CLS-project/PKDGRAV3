@@ -717,8 +717,9 @@ void _pstRootSplit(PST pst,int iSplitDim,double dMass,int bDoRootFind,int bDoSpl
 	    pst->iVASplitSide = 1;
 	    pst->pstLower->nVeryActive = outCtVA.nLow + outCtVA.nHigh;
 	    }
-	printf("%d pst->iVASplitSide:%d setting pst->pstLower->nVeryActive:%d\n",
-	       mdlSelf(pst->mdl),pst->iVASplitSide,pst->pstLower->nVeryActive);
+
+/* 	printf("%d pst->iVASplitSide:%d setting pst->pstLower->nVeryActive:%d\n", */
+/* 	       mdlSelf(pst->mdl),pst->iVASplitSide,pst->pstLower->nVeryActive); */
 	     
 	mdlPrintTimer(pst->mdl,"TIME active split _pstRootSplit ",&t);
 	}
@@ -1448,8 +1449,8 @@ void pstCountVA(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     else {
 	pkdCountVA(plcl->pkd,in->iSplitDim,in->fSplit,&out->nLow,&out->nHigh);
 	pst->nVeryActive = out->nLow + out->nHigh;
-	printf("%d:pstCountVA()  nLow:%d nHigh:%d\n",mdlSelf(pst->mdl),
-	       out->nLow,out->nHigh);
+/* 	printf("%d:pstCountVA()  nLow:%d nHigh:%d\n",mdlSelf(pst->mdl), */
+/* 	       out->nLow,out->nHigh); */
 	}
     if (pnOut) *pnOut = sizeof(struct outCountVA); 
     }
@@ -2549,7 +2550,7 @@ void pstKick(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     else {
 	pkdKick(plcl->pkd,in->dvFacOne,in->dvFacTwo,
 		in->dvPredFacOne,in->dvPredFacTwo,in->duDelta,in->duPredDelta,
-		in->iGasModel,in->z,in->duDotLimit,in->dTimeold);
+		in->iGasModel,in->z,in->duDotLimit);
 	out->Time = pkdGetTimer(plcl->pkd,1);
 	out->MaxTime = out->Time;
 	out->SumTime = out->Time;

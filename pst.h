@@ -466,7 +466,6 @@ struct inKick {
     double duDotLimit;
     int iGasModel;
     double z;
-    double dTimeold; /* Mirror stuff */
     };
 struct outKick {
     double Time;

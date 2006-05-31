@@ -104,7 +104,7 @@ int BuildTemp(PKD pkd,int M,int bSqueeze,int bExcludeVeryActive)
 		}
 	    }
 	pkd->nVeryActive = i;
-	printf("%d:nVeryActive = %d\n",mdlSelf(pkd->mdl),pkd->nVeryActive);
+/* 	printf("%d:nVeryActive = %d\n",mdlSelf(pkd->mdl),pkd->nVeryActive); */
 	pkd->kdTemp[0].pLower = 0;
 	pkd->kdTemp[0].pUpper = i - 1;
 	pkd->kdTemp[0].iLower = 0;

@@ -567,7 +567,7 @@ void pkdStepVeryActiveKDK(PKD pkd, double dStep, double dTime, double dDelta,
 			  struct parameters param, int *pnMaxRung);
 void pkdKickKDKOpen(PKD pkd,double dTime,double dDelta, struct parameters param);
 void pkdKickKDKClose(PKD pkd,double dTime,double dDelta, struct parameters param);
-void pkdKick(PKD pkd,double,double, double, double, double, double, int, double, double, double); /* mirror trick */
+void pkdKick(PKD pkd,double,double, double, double, double, double, int, double, double);
 void pkdSwapAll(PKD pkd, int idSwap);
 void pkdInitStep(PKD pkd, struct parameters *p);
 void pkdSetRung(PKD pkd, int iRung);

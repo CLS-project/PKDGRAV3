@@ -946,8 +946,8 @@ double msrReadTipsy(MSR msr)
 	dTime = csmExp2Time(msr->param.csm,h.time);
 	z = 1.0/h.time - 1.0;
 	if (msr->param.bVStart)
-	    printf("Input file, Time:%g Redshift:%g Expansion factor:%g\n",
-		   dTime,z,h.time);
+	    printf("Input file, Time:%g Redshift:%g Expansion factor:%g iStartStep:%d\n",
+		   dTime,z,h.time,msr->param.iStartStep);
 	if (prmSpecified(msr->prm,"dRedTo")) {
 	    if (!prmArgSpecified(msr->prm,"nSteps") &&
 		prmArgSpecified(msr->prm,"dDelta")) {
@@ -1031,8 +1031,8 @@ double msrReadTipsy(MSR msr)
 	}
     else {
 	dTime = h.time;
-	if (msr->param.bVStart) printf("Input file, Time:%g\n",dTime);
-	tTo = dTime + msr->param.nSteps*msr->param.dDelta;
+	if (msr->param.bVStart) printf("Input file, Time:%g iStartStep:%d\n",dTime,msr->param.iStartStep);
+	tTo = dTime + (msr->param.nSteps - msr->param.iStartStep)*msr->param.dDelta;
 	if (msr->param.bVStart) {
 	    printf("Simulation to Time:%g\n",tTo);
 	    printf("Reading file...\nN:%d nDark:%d nGas:%d nStar:%d Time:%g\n",
@@ -1940,12 +1940,10 @@ void msrKickKDKOpen(MSR msr,double dTime,double dDelta)
     double H,a;
     struct inKick in;
     struct outKick out;
-    double dTimeold = dTime; /* Mirror stuff */
 	
     if (msr->param.bCannonical) {
 	in.dvFacOne = 1.0;		/* no hubble drag, man! */
 	in.dvFacTwo = csmComoveKickFac(msr->param.csm,dTime,dDelta);
-	in.dTimeold = dTimeold;
 	}
     else {
 	/*
@@ -1958,12 +1956,10 @@ void msrKickKDKOpen(MSR msr,double dTime,double dDelta)
 	H = csmTime2Hub(msr->param.csm,dTime);
 	in.dvFacOne = (1.0 - H*dDelta)/(1.0 + H*dDelta);
 	in.dvFacTwo = dDelta/pow(a,3.0)/(1.0 + H*dDelta);
-	in.dTimeold = dTimeold;
 	}
     if (msr->param.bAntiGrav) {
 	in.dvFacTwo = -in.dvFacTwo;
 	in.dvPredFacTwo = -in.dvPredFacTwo;
-	in.dTimeold = dTimeold;
 	}
     pstKick(msr->pst,&in,sizeof(in),&out,NULL);
     if (msr->param.bVDetails)
@@ -1983,7 +1979,6 @@ void msrKickKDKClose(MSR msr,double dTime,double dDelta)
     if (msr->param.bCannonical) {
 	in.dvFacOne = 1.0; /* no hubble drag, man! */
 	in.dvFacTwo = csmComoveKickFac(msr->param.csm,dTime,dDelta);
-	in.dTimeold = -5.0;
 	}
     else {
 	/*
@@ -1996,12 +1991,10 @@ void msrKickKDKClose(MSR msr,double dTime,double dDelta)
 	H = csmTime2Hub(msr->param.csm,dTime);
 	in.dvFacOne = (1.0 - H*dDelta)/(1.0 + H*dDelta);
 	in.dvFacTwo = dDelta/pow(a,3.0)/(1.0 + H*dDelta);
-	in.dTimeold = -5.0;
 	}
     if (msr->param.bAntiGrav) {
 	in.dvFacTwo = -in.dvFacTwo;
 	in.dvPredFacTwo = -in.dvPredFacTwo;
-	in.dTimeold = -5.0;
 	}
     pstKick(msr->pst,&in,sizeof(in),&out,NULL);
     if (msr->param.bVDetails)

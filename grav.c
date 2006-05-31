@@ -20,20 +20,6 @@
 
 #define NMAXPLD 16
 
-#define ID 432384
-
-/*
-double Zeit() {
-    struct timeval tv;
-    struct timezone tz;
-
-    tz.tz_minuteswest=0; 
-    tz.tz_dsttime=0;
-    gettimeofday(&tv,NULL);
-    return (tv.tv_sec+(tv.tv_usec*1e-6));
-    }
-*/
-
 double softmassweight(double m1,double fourh12,double m2,double fourh22){
     return((m1+m2)*(fourh12*fourh22)/(fourh22*m1+fourh12*m2));
     }
@@ -136,15 +122,14 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,ILP *ilp,int nPart,ILC *ilc,int nCell,I
     /*
     ** Determine particle numbers and sizes of time-step lists
     */
-    nC = nCell+nPartBucket; /* total number of cells */
-    nN = nPart+pkdn->pUpper-pkdn->pLower; /* total number of neighbouring particles */
-    nSC  = (int) (0.005*nCell);
-    nSPB = (int) (0.005*nPartBucket);
-    nSCmin  = (nCell < 2)?nCell:2;
-    nSPBmin = (nPartBucket < 1)?nPartBucket:1;
-    nSC  = (nSC < nSCmin)?nSCmin:nSC;
-    nSPB = (nSPB < nSPBmin)?nSPBmin:nSPB;
-    if (pkd->param.iTimeStepCrit == 0) nSPB = 0;
+    nC = nCell+nPartBucket;                     /* total number of cells */
+    nN = nPart+pkdn->pUpper-pkdn->pLower;       /* total number of neighbouring particles (without particle itself) */
+    nSC  = (int) (0.005*nCell);                 /* estimate of number of cells to check for maximum */
+    nSPB = (int) (0.005*nPartBucket);           /* estimate of number of particle-buckets to check for maximum */
+    nSCmin  = (nCell < 2)?nCell:2;              /* minimum number of cells to check for maximum */
+    nSPBmin = (nPartBucket < 1)?nPartBucket:1;  /* minimum number of particle-buckets to check for maximum */
+    nSC  = (nSC < nSCmin)?nSCmin:nSC;           /* final number of cells to check for maximum */
+    nSPB = (nSPB < nSPBmin)?nSPBmin:nSPB;       /* final number of particle-buckets to check for maximum */
     /*
     ** Allocate time-step lists
     */
@@ -227,7 +212,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,ILP *ilp,int nPart,ILC *ilc,int nCell,I
 	    ax += xx + xxx + tx - x*dir2;
 	    ay += xy + xxy + ty - y*dir2;
 	    az += xz + xxz + tz - z*dir2;
-	    } /* end of cell loop */
+	    } /* end of cell list gravity loop */
 
 	if(pkd->param.bGravStep) {
 	    /*
@@ -248,7 +233,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,ILP *ilp,int nPart,ILC *ilc,int nCell,I
 		fourh2 *= fourh2;
 #endif		       
 #if !defined(SOFTLINEAR) && !defined(SOFTSQUARE) 
-		/* fourh2 = ilpb[k].fourh2;  */
+		/* fourh2 = ilpb[k].fourh2; old softening */
 		fourh2 = softmassweight(p[i].fMass,4*p[i].fSoft*p[i].fSoft,ilpb[k].m,ilpb[k].fourh2);
 #endif
 		if (d2 > fourh2) {
@@ -271,7 +256,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,ILP *ilp,int nPart,ILC *ilc,int nCell,I
 		rhoenc[j].rhoenc = ilpb[k].m*dir2;
 		}
 	    /*
-	    ** Determine the nSC top cells in the cell list
+	    ** Determine the nSC maximum cells in the cell list
 	    */
 	    if (nCell > 0) {
 		for (j=0;j<nCell;++j) {
@@ -284,9 +269,9 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,ILP *ilp,int nPart,ILC *ilc,int nCell,I
 		    }
 		}
 	    /*
-	    ** Determine the nSPB top cells in the particle-bucket list
+	    ** Determine the nSPB maximum cells in the particle-bucket list
 	    */
-	    if (nPartBucket > 0 && pkd->param.iTimeStepCrit > 0) {
+	    if (nPartBucket > 0) {
 		for (j=0;j<nPartBucket;++j) {
 		    heapstruct[j].index = rhoenc[nCell+j].index;
 		    heapstruct[j].rhoenc = rhoenc[nCell+j].rhoenc;
@@ -311,7 +296,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,ILP *ilp,int nPart,ILC *ilc,int nCell,I
 		    }
 		}
 	    assert(rhocadd >= 0);
-	    } /* end of cell & particle-bucket list loop */
+	    } /* end of cell & particle-bucket list time-step loop */
 
 	mdlCacheCheck(pkd->mdl);
 
@@ -331,7 +316,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,ILP *ilp,int nPart,ILC *ilc,int nCell,I
 	    fourh2 *= fourh2;
 #endif		       
 #if !defined(SOFTLINEAR) && !defined(SOFTSQUARE) 
-	    /* fourh2 = ilp[j].fourh2; */
+	    /* fourh2 = ilp[j].fourh2; old softening */
 	    fourh2 = softmassweight(p[i].fMass,4*p[i].fSoft*p[i].fSoft,ilp[j].m,ilp[j].fourh2);
 #endif
 	    rholocal[j].m = ilp[j].m;	
@@ -356,7 +341,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,ILP *ilp,int nPart,ILC *ilc,int nCell,I
 	    /*
 	    ** Eccentricity correction
 	    */
-	    if(pkd->param.bGravStep && pkd->param.iTimeStepCrit > 1 && 
+	    if(pkd->param.bGravStep && pkd->param.iTimeStepCrit > 0 && 
 	       (ilp[j].iOrder < pkd->param.nPColl || p[i].iOrder < pkd->param.nPColl)) {
 		vx = p[i].v[0] - ilp[j].vx;
 		vy = p[i].v[1] - ilp[j].vy;
@@ -371,18 +356,17 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,ILP *ilp,int nPart,ILC *ilc,int nCell,I
 		rhopmaxlocal = (p[i].fMass+ilp[j].m)*dir2;
 		eccfac = (2*ecc + 1)/fabs(1-ecc);
 		eccfac = (eccfac > ECCFACMAX)?ECCFACMAX:eccfac;
-		if(pkd->param.iTimeStepCrit == 3) eccfac = 1;
+		if(pkd->param.iTimeStepCrit == 2) eccfac = 1;
 		rhopmaxlocal *= eccfac; 
 		rhopmax = (rhopmaxlocal > rhopmax)?rhopmaxlocal:rhopmax;
 /*  		printf("PP iOrder: %d iOrder %d mu: %g Etot: %g L2: %g ecc: %g eccfac: %g\n",p[i].iOrder,p[j].iOrder,mu,Etot,L2,ecc,eccfac); */
 		}
-
 	    dir2 *= ilp[j].m;
 	    fPot -= ilp[j].m*dir;
 	    ax -= x*dir2;
 	    ay -= y*dir2;
 	    az -= z*dir2;
-	    } /* of j-loop */
+	    } /* end of particle list gravity loop */
 	p[i].fPot += fPot;
 	p[i].a[0] += ax;
 	p[i].a[1] += ay;
@@ -405,7 +389,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,ILP *ilp,int nPart,ILC *ilc,int nCell,I
 		k += 1;
 		}
 	    /*
-	    ** Add local density from particle list to cell criterion.
+	    ** Add local density from particle list to mean field value.
 	    ** Calculate local density only in the case of more than 1 neighbouring particle! 
 	    */
 	    if (nN > 1) {
@@ -424,13 +408,13 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,ILP *ilp,int nPart,ILC *ilc,int nCell,I
 	    rhocadd += rholoc;
 	    p[i].dtGrav = (rhocadd > p[i].dtGrav)?rhocadd:p[i].dtGrav;
 	    /*
-	    ** Cell criterion is now set.
-	    ** Check if PP interaction with black holes dominate!
+	    ** Mean field value from cells including local density is now set.
+	    ** Check if particle-particle interaction with nPColl particles (e.g. black holes) dominate!
 	    */
-	    if(pkd->param.iTimeStepCrit > 1) {
+	    if(pkd->param.iTimeStepCrit > 0) {
 		p[i].dtGrav = (rhopmax > p[i].dtGrav)?rhopmax:p[i].dtGrav;
 		}
-	    } /* end of particle-particle list loop */
+	    } /* end of particle-particle list time-step loop */
 	} /* end of i-loop cells & particles */
     /*
     ** Free time-step lists
@@ -474,7 +458,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,ILP *ilp,int nPart,ILC *ilc,int nCell,I
 	    fourh2*= fourh2;
 #endif		       
 #if !defined(SOFTLINEAR) && !defined(SOFTSQUARE) 
-	    /* fourh2 = 4*pj->fSoft*pj->fSoft; */
+	    /* fourh2 = 4*pj->fSoft*pj->fSoft; old softening */
 	    fourh2 = softmassweight(pi->fMass,4*pi->fSoft*pi->fSoft,pj->fMass,4*pj->fSoft*pj->fSoft);
 #endif
 	    if (d2 > fourh2) {
@@ -506,7 +490,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,ILP *ilp,int nPart,ILC *ilc,int nCell,I
 	    /*
 	    ** Eccentricity correction
 	    */
-	    if(pkd->param.bGravStep && pkd->param.iTimeStepCrit > 1 && 
+	    if(pkd->param.bGravStep && pkd->param.iTimeStepCrit > 0 && 
 	       (pj->iOrder < pkd->param.nPColl || pi->iOrder < pkd->param.nPColl)) {
 		vx = pi->v[0] - pj->v[0];
 		vy = pi->v[1] - pj->v[1];
@@ -521,12 +505,11 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,ILP *ilp,int nPart,ILC *ilc,int nCell,I
 		rhopmaxlocal = (pi->fMass+pj->fMass)*dir2;
 		eccfac = (2*ecc + 1)/fabs(1-ecc); /* scaling of error at pericentre */
 		eccfac = (eccfac > ECCFACMAX)?ECCFACMAX:eccfac;
-		if(pkd->param.iTimeStepCrit == 3) eccfac = 1;
+		if(pkd->param.iTimeStepCrit == 2) eccfac = 1;
 		rhopmaxlocal *= eccfac; 
-		rhopmax = (rhopmaxlocal > rhopmax)?rhopmaxlocal:rhopmax;
 /*  		printf("Active-Active iOrderA: %d IOrderA: %d mu: %g Etot: %g L2: %g ecc: %g eccfac: %g\n",pi->iOrder,pj->iOrder,mu,Etot,L2,ecc,eccfac); */
-		pi->dtGrav = (rhopmax > pi->dtGrav)?rhopmax:pi->dtGrav;
-		pj->dtGrav = (rhopmax > pj->dtGrav)?rhopmax:pj->dtGrav; 
+		pi->dtGrav = (rhopmaxlocal > pi->dtGrav)?rhopmaxlocal:pi->dtGrav;
+		pj->dtGrav = (rhopmaxlocal > pj->dtGrav)?rhopmaxlocal:pj->dtGrav; 
 		}
 	    } /* end of j-loop */
 	pi->fPot -= fPot;
@@ -560,7 +543,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,ILP *ilp,int nPart,ILC *ilc,int nCell,I
 	    fourh2*= fourh2;
 #endif		       
 #if !defined(SOFTLINEAR) && !defined(SOFTSQUARE) 
-	    /* fourh2 = 4*pj->fSoft*pj->fSoft; */
+	    /* fourh2 = 4*pj->fSoft*pj->fSoft; old softening */
 	    fourh2 = softmassweight(pi->fMass,4*pi->fSoft*pi->fSoft,pj->fMass,4*pj->fSoft*pj->fSoft);
 #endif
 	    if (d2 > fourh2) {
@@ -588,7 +571,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,ILP *ilp,int nPart,ILC *ilc,int nCell,I
 	    /*
 	    ** Eccentricity correction
 	    */
-	    if(pkd->param.bGravStep && pkd->param.iTimeStepCrit > 1 && 
+	    if(pkd->param.bGravStep && pkd->param.iTimeStepCrit > 0 && 
 	       (pj->iOrder < pkd->param.nPColl || pi->iOrder < pkd->param.nPColl)) {
 		vx = pi->v[0] - pj->v[0];
 		vy = pi->v[1] - pj->v[1];
@@ -603,11 +586,10 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,ILP *ilp,int nPart,ILC *ilc,int nCell,I
 		rhopmaxlocal = (pi->fMass+pj->fMass)*dir2;
 		eccfac = (2*ecc + 1)/fabs(1-ecc); /* scaling of error at pericentre */
 		eccfac = (eccfac > ECCFACMAX)?ECCFACMAX:eccfac;
-		if(pkd->param.iTimeStepCrit == 3) eccfac = 1;
+		if(pkd->param.iTimeStepCrit == 2) eccfac = 1;
 		rhopmaxlocal *= eccfac; 
-		rhopmax = (rhopmaxlocal > rhopmax)?rhopmaxlocal:rhopmax;
 /*  		printf("Active-Inactive iOrderA: %d iOrderI: %d mu: %g Etot: %g L2: %g ecc: %g eccfac: %g\n",pi->iOrder,pj->iOrder,mu,Etot,L2,ecc,eccfac); */
-		pi->dtGrav = (rhopmax > pi->dtGrav)?rhopmax:pi->dtGrav;
+		pi->dtGrav = (rhopmaxlocal > pi->dtGrav)?rhopmaxlocal:pi->dtGrav;
 		}
 	    } /* end of j-loop */
 	pi->fPot -= fPot;

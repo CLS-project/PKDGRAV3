@@ -2,14 +2,16 @@
 # Makefile for pkdgrav2
 #
 
-MY_CC = gcc
-MY_CFLAGS = -O3 -Wall #-mcmodel=medium
-#MY_CC = pgcc
-#MY_CFLAGS = -fastsse
-#CC = icc
+#MY_CC = gcc
+#MY_CFLAGS = -O3 -Wall #-mcmodel=medium
+MY_CC = pgcc
+MY_CFLAGS = -fastsse -tp athlonxp
+#MY_CC = icc
 #MY_CFLAGS = -D__GNUC__ -D_REENTRANT -O3
 
-EXE = pkdgrav2.null32
+#EXE = pkdgrav2.$(MY_CC).null32
+EXE = pkdgrav2.$(MY_CC).mpi32
+#EXE = pkdgrav2.$(MY_CC).mpi64
 
 CODEDEF = -DCHANGESOFT
 #CODEDEF = -DRELAXATION -DGROUPFIND 
@@ -25,7 +27,7 @@ CODEDEF = -DCHANGESOFT
 #       NULL defines
 #
 NULL_MDL		= ../mdl/null
-NULL_CFLAGS		= $(MY_CFLAGS) -Wall -I$(NULL_MDL) $(CODEDEF)
+NULL_CFLAGS		= $(MY_CFLAGS) -I$(NULL_MDL) $(CODEDEF)
 
 #NULL_LD_FLAGS	= -Wl,-s
 NULL_XOBJ		= 
@@ -176,8 +178,8 @@ $(XDIR):
 	-mkdir $(XDIR)
 
 null:
-	cd $(NULL_MDL); make "CC=$(CC)" "CFLAGS=$(NULL_CFLAGS)"
-	make $(EXE) "CFLAGS=$(NULL_CFLAGS)" "LD_FLAGS=$(NULL_LD_FLAGS)"\
+	cd $(NULL_MDL); rm *.o; make "CC=$(MY_CC)" "CFLAGS=$(NULL_CFLAGS)"
+	make $(EXE) "CC=$(MY_CC)" "CFLAGS=$(NULL_CFLAGS)" "LD_FLAGS=$(NULL_LD_FLAGS)"\
 		"MDL=$(NULL_MDL)" "XOBJ=$(NULL_XOBJ)" "LIBMDL=$(NULL_LIBMDL)"
 
 sgi:
@@ -192,8 +194,8 @@ pvm:
 	mv -f $(EXE) $(XDIR)
 
 pthread:
-	cd $(PTHREAD_MDL); make "CC=$(CC)" "CFLAGS=$(CFLAGS)"
-	make $(EXE) "CFLAGS=$(PTHREAD_CFLAGS)" "LD_FLAGS=$(PTHREAD_LD_FLAGS)"\
+	cd $(PTHREAD_MDL); rm *.o; make "CC=$(MY_CC)" "CFLAGS=$(CFLAGS)"
+	make $(EXE) "CC=$(MY_CC)" "CFLAGS=$(PTHREAD_CFLAGS)" "LD_FLAGS=$(PTHREAD_LD_FLAGS)"\
 		"MDL=$(PTHREAD_MDL)" "XOBJ=$(PTHREAD_XOBJ)" "LIBMDL=$(PTHREAD_LIBMDL)"
 
 pthread_dec:
@@ -220,7 +222,7 @@ lam_mpi:
 mpi: spx
 
 spx:
-	cd $(SPX_MDL); make CC="mpicc -cc=$(MY_CC)" "CC_FLAGS=$(SPX_MDL_CFLAGS)"
+	cd $(SPX_MDL); rm *o; make CC="mpicc -cc=$(MY_CC)" "CC_FLAGS=$(SPX_MDL_CFLAGS)"
 	make $(EXE) CC="mpicc -cc=$(MY_CC)" "CFLAGS=$(SPX_CFLAGS)" "LD_FLAGS=$(SPX_LD_FLAGS)"\
 		"MDL=$(SPX_MDL)" "XOBJ=$(SPX_XOBJ)" "LIBMDL=$(SPX_LIBMDL)"
 

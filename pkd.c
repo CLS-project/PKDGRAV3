@@ -1580,7 +1580,7 @@ pkdStepVeryActiveKDK(PKD pkd, double dStep, double dTime, double dDelta,
     double dDriftFac;
     
     nMaxRung = *pnMaxRung;
-    printf("%d ---- very active before adjust: iRung %d nRungVA %d nMaxRung %d iAdjust %d\n",mdlSelf(pkd->mdl),iRung,param.nRungVeryActive,nMaxRung,iAdjust);
+/*     printf("%d ---- very active before adjust: iRung %d nRungVA %d nMaxRung %d iAdjust %d\n",mdlSelf(pkd->mdl),iRung,param.nRungVeryActive,nMaxRung,iAdjust); */
     if(iAdjust && (iRung < param.iMaxRung-1)) {
 	pkdActiveRung(pkd, iRung, 1);
 	pkdActiveType(pkd,TYPE_ALL,TYPE_TREEACTIVE|TYPE_SMOOTHACTIVE);
@@ -1600,7 +1600,7 @@ pkdStepVeryActiveKDK(PKD pkd, double dStep, double dTime, double dDelta,
 	    }
 	nMaxRung = pkdDtToRung(pkd,iRung,dDelta, param.iMaxRung, 1, &nPartMaxRung);
 	}
-    printf(" ---- very active before KickOpen: iRung %d nRungVA %d nMaxRung %d\n",iRung,param.nRungVeryActive,nMaxRung);
+/*     printf(" ---- very active before KickOpen: iRung %d nRungVA %d nMaxRung %d\n",iRung,param.nRungVeryActive,nMaxRung); */
     if(iRung > param.nRungVeryActive) {	/* skip this if we are
 					   entering for the first
 					   time: Kick is taken care of
@@ -1685,7 +1685,6 @@ void pkdKickKDKOpen(PKD pkd,double dTime,double dDelta, struct parameters param)
     {
     double H,a;
     double dvFacOne, dvFacTwo;
-    double dTimeold = dTime; /* just needed for mirror stuff */
 	
     if (param.bCannonical) {
 	dvFacOne = 1.0;		/* no hubble drag, man! */
@@ -1703,7 +1702,7 @@ void pkdKickKDKOpen(PKD pkd,double dTime,double dDelta, struct parameters param)
 	dvFacOne = (1.0 - H*dDelta)/(1.0 + H*dDelta);
 	dvFacTwo = dDelta/pow(a,3.0)/(1.0 + H*dDelta);
 	}
-    pkdKick(pkd, dvFacOne, dvFacTwo, 0.0, 0.0, 0.0, 0.0, 0, 0.0, 0.0, dTimeold); /* just needed for mirror stuff */
+    pkdKick(pkd, dvFacOne, dvFacTwo, 0.0, 0.0, 0.0, 0.0, 0, 0.0, 0.0);
     }
 
 void pkdKickKDKClose(PKD pkd,double dTime,double dDelta, struct parameters param)
@@ -1727,18 +1726,15 @@ void pkdKickKDKClose(PKD pkd,double dTime,double dDelta, struct parameters param
 	dvFacOne = (1.0 - H*dDelta)/(1.0 + H*dDelta);
 	dvFacTwo = dDelta/pow(a,3.0)/(1.0 + H*dDelta);
 	}
-    pkdKick(pkd, dvFacOne, dvFacTwo, 0.0, 0.0, 0.0, 0.0, 0, 0.0, 0.0, -5.0); /* just needed for mirror stuff */
+    pkdKick(pkd, dvFacOne, dvFacTwo, 0.0, 0.0, 0.0, 0.0, 0, 0.0, 0.0);
     }
 
 void pkdKick(PKD pkd, double dvFacOne, double dvFacTwo, double dvPredFacOne,
 	     double dvPredFacTwo, double duDelta, double duPredDelta, int iGasModel,
-	     double z, double duDotLimit, double dTimeold)
+	     double z, double duDotLimit)
     {
     PARTICLE *p;
     int i,j,n;
-
-    double Step,Diff,eps;
-    int iStep;
 
     pkdClearTimer(pkd,1);
     pkdStartTimer(pkd,1);
@@ -1747,20 +1743,6 @@ void pkdKick(PKD pkd, double dvFacOne, double dvFacTwo, double dvPredFacOne,
     n = pkdLocal(pkd);
     for (i=0;i<n;++i,++p) {
 	if (TYPEQueryACTIVE(p)) {
-	    /*
-	    ** Mirror stuff
-	    */
-/*  	    Step = dTimeold/(2.0*pkd->param.dDelta); */
-/*  	    iStep = (int) Step; */
-/*  	    Diff = Step-iStep; */
-/*  	    eps = 1e-10; */
-/*  	    if (dTimeold > 0.0 && (Diff < eps || Diff > 1.0-eps )) { */
-/*  		printf("FlipVel! dTimeold: %g dDelta: %g Step: %g iStep: %d Diff: %g\n",dTimeold,pkd->param.dDelta,Step,iStep,Diff); */
-/*  		for (j=0;j<3;++j) { */
-/*  		    p->v[j] = -p->v[j]; */
-/*  		    } */
-/*  		} */
-
 	    for (j=0;j<3;++j) {
 		p->v[j] = p->v[j]*dvFacOne + p->a[j]*dvFacTwo;
 		}
