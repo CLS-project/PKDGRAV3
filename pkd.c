@@ -8,6 +8,7 @@
 #include <assert.h>
 #include <errno.h>
 #include <sys/time.h>
+#include <time.h> /* added MZ */
 
 #include <rpc/types.h>
 #include <rpc/xdr.h>
@@ -22,6 +23,15 @@
 #include "parameters.h"
 #include "cosmo.h"
 
+double Zeit() { /* added MZ */
+    struct timeval tv;
+    struct timezone tz;
+
+    tz.tz_minuteswest=0; 
+    tz.tz_dsttime=0;
+    gettimeofday(&tv,NULL);
+    return (tv.tv_sec+(tv.tv_usec*1e-6));
+    }
 
 double pkdGetTimer(PKD pkd,int iTimer)
     {
@@ -1578,6 +1588,8 @@ pkdStepVeryActiveKDK(PKD pkd, double dStep, double dTime, double dDelta,
     int nMaxRung;
     int nPartMaxRung;
     double dDriftFac;
+
+    double time1,time2; /* added MZ 1.6.2006 */
     
     nMaxRung = *pnMaxRung;
 /*     printf("%d ---- very active before adjust: iRung %d nRungVA %d nMaxRung %d iAdjust %d\n",mdlSelf(pkd->mdl),iRung,param.nRungVeryActive,nMaxRung,iAdjust); */
@@ -1658,10 +1670,13 @@ pkdStepVeryActiveKDK(PKD pkd, double dStep, double dTime, double dDelta,
 
 	    if(param.bVDetails)
 		printf("\t GravityVA: iRung %d Gravity for rungs %d to %d\n",iRung,iKickRung,nMaxRung);
-
+	    time1 = Zeit(); /* added MZ 1.6.2006 */
 	    pkdActiveRung(pkd,iKickRung,1);
 	    pkdInitAccel(pkd);
 	    pkdGravityVeryActive(pkd, param.bEwald && param.bPeriodic,param.nReplicas,param.dEwCut,dStep);
+	    time2 = Zeit();
+	    if(param.bVDetails)
+		printf("\t GravityVA Time: %g\n",time2-time1);
 	    }
 	}
     if(iKickRung > param.nRungVeryActive) {	/* skip this if we are

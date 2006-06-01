@@ -9,8 +9,8 @@ MY_CFLAGS = -fastsse -tp athlonxp
 #MY_CC = icc
 #MY_CFLAGS = -D__GNUC__ -D_REENTRANT -O3
 
-#EXE = pkdgrav2.$(MY_CC).null32
-EXE = pkdgrav2.$(MY_CC).mpi32
+EXE = pkdgrav2.$(MY_CC).null32
+#EXE = pkdgrav2.$(MY_CC).mpi32
 #EXE = pkdgrav2.$(MY_CC).mpi64
 
 CODEDEF = -DCHANGESOFT
