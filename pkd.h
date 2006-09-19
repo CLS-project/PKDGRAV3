@@ -109,6 +109,9 @@ typedef struct particle {
    msrAddDelParticles(); */
 #define TYPE_DELETED           (1<<12)
 
+/* A particle whose coordinates are output very frequently */
+#define TYPE_TRACKER		   (1<<14)
+
 #define TYPE_VERYACTIVE         (1<<13)
 /* Combination Masks */
 #define TYPE_ALLACTIVE			(TYPE_ACTIVE|TYPE_TREEACTIVE|TYPE_SMOOTHACTIVE)

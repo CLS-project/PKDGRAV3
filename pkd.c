@@ -284,6 +284,13 @@ void pkdReadTipsy(PKD pkd,char *pszFileName,int nStart,int nLocal,
     float fTmp;
     double dTmp;
     float mass=0.0;
+    /*
+    ** Variables for particle tracking
+    */
+    FILE *fpTrack = NULL;
+    char aTrack[256];
+    int nBodies,nGas,nStar,iRet;
+    int iTracker;	
 
     pkd->nLocal = nLocal;
     pkd->nActive = nLocal;
@@ -307,7 +314,39 @@ void pkdReadTipsy(PKD pkd,char *pszFileName,int nStart,int nLocal,
     ** Seek to right place in file.
     */
     pkdSeek(pkd,fp,nStart,bStandard,bDoublePos);
-	
+    /*
+    ** See if the user has specified a .track file.
+    */
+    iTracker = nStart-1;
+/*     sprintf(aTrack,"%s.track",msr->param.achDataSubPath,msr->param.achOutName); /\* NEW VERSION, DOESN'T WORK *\/ */
+    sprintf(aTrack,"%s.track",pszFileName); /* old working version */
+    printf("File: %s\n",aTrack);
+    fpTrack = fopen(aTrack,"r");
+    if (fpTrack) {
+	printf("TRACK Particles: ON \n");
+	/*
+	** Get to the right place in the file.
+	*/
+	iRet = fscanf(fpTrack,"%d %d %d",&nBodies,&nGas,&nStar);
+	if (!iRet || iRet == EOF) {
+	    fclose(fpTrack);
+	    goto SkipCheck;
+	    }
+	while (1) {
+	    iRet = fscanf(fpTrack,"%d",&iTracker);
+	    iTracker = iTracker - 1;
+	    if (!iRet || iRet == EOF) {
+		fclose(fpTrack);
+		iTracker = nStart-1;
+		break;
+		}
+	    if (iTracker >= nStart) break;
+	    }
+	}
+    else { 
+	printf("TRACK Particles Off \n"); 
+	} 
+SkipCheck:
     /*
     ** Read Stuff!
     */
@@ -318,6 +357,15 @@ void pkdReadTipsy(PKD pkd,char *pszFileName,int nStart,int nLocal,
 	for (i=0;i<nLocal;++i) {
 	    p = &pkd->pStore[i];
 	    p->iOrder = nStart + i;
+	    if (p->iOrder == iTracker) {
+		TYPESet(p,TYPE_TRACKER);
+		iRet = fscanf(fpTrack,"%d",&iTracker);
+		iTracker = iTracker-1;
+		if (!iRet || iRet == EOF) {
+		    fclose(fpTrack);
+		    iTracker = nStart-1;
+		    }
+		}
 	    if (pkdIsDark(pkd,p)) {
 		xdr_float(&xdrs,&fTmp);
 		p->fMass = fTmp;
@@ -420,6 +468,15 @@ void pkdReadTipsy(PKD pkd,char *pszFileName,int nStart,int nLocal,
 	for (i=0;i<nLocal;++i) {
 	    p = &pkd->pStore[i];
 	    p->iOrder = nStart + i;
+	    if (p->iOrder == iTracker) {
+		TYPESet(p,TYPE_TRACKER);
+		iRet = fscanf(fpTrack,"%d",&iTracker);
+		iTracker = iTracker -1;
+		if (!iRet || iRet == EOF) {
+		    fclose(fpTrack);
+		    iTracker = nStart-1;
+		    }
+		}
 	    if (pkdIsDark(pkd,p)) {
 		fread(&dp,sizeof(struct dark_particle),1,fp);
 		for (j=0;j<3;++j) {
@@ -1341,6 +1398,7 @@ pkdDrift(PKD pkd,double dTime,double dDelta,FLOAT fCenter[3],int bPeriodic,int b
 	 FLOAT fCentMass) {
     PARTICLE *p;
     int i,j,n;
+    int ipt; /* tracking */
     double px,py,pz,pm;
     double dDeltaM;
     
@@ -1364,15 +1422,16 @@ pkdDrift(PKD pkd,double dTime,double dDelta,FLOAT fCenter[3],int bPeriodic,int b
 	    p[i].fMass += dDeltaM;
 	    }
 	/*
-	** Detailed output for particles (nPartsDets) at dTime + dDelta/2
+	** Detailed output for particles that are tracked at dTime + dDelta/2
 	** Correct positons & mass for dDelta/2 step
 	*/
-	if ((p[i].iOrder < pkd->param.nPartsDets && dDelta != 0) || p[i].iOrder == A_VERY_ACTIVE) {
+	if (TYPETest(p+i,TYPE_TRACKER)) {
       	    px = p[i].r[0] + dDelta/2*p[i].v[0];
 	    py = p[i].r[1] + dDelta/2*p[i].v[1];
 	    pz = p[i].r[2] + dDelta/2*p[i].v[2];
 	    pm = p[i].fMass - dDeltaM/2;
-	    printf("PDID %d %g %g %d %g %g %g %g %g %g %g %g %g %g %g %g\n",p[i].iOrder,dTime+dDelta/2,dDelta,
+	    ipt = p[i].iOrder + 1; /* to be consistent with Andrea */
+	    printf("PDID %d %g %g %d %g %g %g %g %g %g %g %g %g %g %g %g\n",ipt,dTime+dDelta/2,dDelta,
 		   p[i].iRung,p[i].dt,px,py,pz,p[i].v[0],p[i].v[1],p[i].v[2],p[i].a[0],p[i].a[1],p[i].a[2],p[i].fPot,pm);
 	    }
 	for (j=0;j<3;++j) {
@@ -1395,6 +1454,7 @@ pkdDriftInactive(PKD pkd,double dTime, double dDelta,FLOAT fCenter[3],int bPerio
 		 int bFandG, FLOAT fCentMass) {
     PARTICLE *p;
     int i,j,n;
+    int ipt; /* tracking */
     double dDeltaM;
     
     mdlDiag(pkd->mdl, "Into pkdDriftInactive\n");
@@ -1418,11 +1478,12 @@ pkdDriftInactive(PKD pkd,double dTime, double dDelta,FLOAT fCenter[3],int bPerio
 	    p[i].fMass += dDeltaM;
 	    }
 	/*
-	** Detailed output for particles (nPartsDets) at dTime + dDelta
+	** Detailed output for particles that are tracked at dTime + dDelta
 	** Inactive Drift => dDelta is already a half step! No correction needed!
 	*/
-	if ((p[i].iOrder < pkd->param.nPartsDets && dDelta != 0) || p[i].iOrder == A_VERY_ACTIVE) {
-	    printf("PDID %d %g %g %d %g %g %g %g %g %g %g %g %g %g %g %g\n",p[i].iOrder,dTime+dDelta/2,dDelta,
+	if (TYPETest(p+i,TYPE_TRACKER)) {
+	    ipt = p[i].iOrder + 1; /* to be consistent with Andrea */
+	    printf("PDID %d %g %g %d %g %g %g %g %g %g %g %g %g %g %g %g\n",ipt,dTime+dDelta/2,dDelta,
 		   p[i].iRung,p[i].dt,p[i].r[0],p[i].r[1],p[i].r[2],p[i].v[0],p[i].v[1],p[i].v[2],p[i].a[0],p[i].a[1],p[i].a[2],p[i].fPot,p[i].fMass);
 	    }
 	for (j=0;j<3;++j) {
@@ -1444,6 +1505,7 @@ void
 pkdDriftActive(PKD pkd,double dTime,double dDelta) {
     PARTICLE *p;
     int i,j,n;
+    int ipt; /* tracking */
     double px,py,pz,pm;
     double dDeltaM;
     
@@ -1466,15 +1528,16 @@ pkdDriftActive(PKD pkd,double dTime,double dDelta) {
 	    p[i].fMass += dDeltaM;
 	    }
 	/*
-	** Detailed output for particles (nPartsDets) at dTime + dDelta/2
+	** Detailed output for particles that are tracked at dTime + dDelta/2
 	** Correct positons & mass for dDelta/2 step
 	*/
-	if ((p[i].iOrder < pkd->param.nPartsDets && dDelta != 0) || p[i].iOrder == A_VERY_ACTIVE) {
+	if (TYPETest(p+i,TYPE_TRACKER)) {
 	    px = p[i].r[0] + dDelta/2*p[i].v[0];
 	    py = p[i].r[1] + dDelta/2*p[i].v[1];
 	    pz = p[i].r[2] + dDelta/2*p[i].v[2];
 	    pm = p[i].fMass - dDeltaM/2;
-	    printf("PDID %d %g %g %d %g %g %g %g %g %g %g %g %g %g %g %g\n",p[i].iOrder,dTime+dDelta/2,dDelta,
+	    ipt = p[i].iOrder + 1; /* to be consistent with Andrea */
+	    printf("PDID %d %g %g %d %g %g %g %g %g %g %g %g %g %g %g %g\n",ipt,dTime+dDelta/2,dDelta,
 		   p[i].iRung,p[i].dt,px,py,pz,p[i].v[0],p[i].v[1],p[i].v[2],p[i].a[0],p[i].a[1],p[i].a[2],p[i].fPot,pm);
 	    }
 	for (j=0;j<3;++j) {
@@ -1498,6 +1561,9 @@ pkdGravityVeryActive(PKD pkd, int bEwald, int nReps, double fEwCut, double dStep
     int i,j;
     int nActive = 0;
 
+    double time1,time2,time3;
+    double dFlop1,dFlop2,dFlop3;
+
     /*
     ** Allocate initial interaction lists.
     */
@@ -1514,11 +1580,14 @@ pkdGravityVeryActive(PKD pkd, int bEwald, int nReps, double fEwCut, double dStep
     ilpb = malloc(nMaxPartBucket*sizeof(ILPB));
     assert(ilpb != NULL);
 
+    time1 = Zeit();
+    dFlop1 = dFlop;
+
     /* Tree Walk VeryActive particles */
     for (i=0;i<pkd->nVeryActive;++i) {
 	if (!TYPEQueryACTIVE(&p[i])) continue;
 	nActive++;
-	pkdParticleWalk(pkd, i, nReps, &ilp, &nPart, &nMaxPart, &ilc, &nCell, &nMaxCell, &ilpb, &nPartBucket, & nMaxPartBucket);
+	pkdParticleWalk(pkd, i, nReps, &ilp, &nPart, &nMaxPart, &ilc, &nCell, &nMaxCell, &ilpb, &nPartBucket, &nMaxPartBucket);
 	/* Interact */
 	kdnVActive.pUpper = i;
 	kdnVActive.pLower = i;
@@ -1557,13 +1626,28 @@ pkdGravityVeryActive(PKD pkd, int bEwald, int nReps, double fEwCut, double dStep
 
 	pkdGravInteract(pkd, &kdnVActive, ilp, nPart, ilc, nCell, ilpb, nPartBucket, &dFlop);
 	}
+    
+    time2 = Zeit();
+    dFlop2 = dFlop;
+
     /* Self interaction N.B. that we have zero length interaction
        lists since these have been taken care of above.
     */
     kdnVActive.pUpper = pkd->nVeryActive-1;
     kdnVActive.pLower = 0;
+
+    printf("pUpper %d pLower %d\n",kdnVActive.pUpper,kdnVActive.pLower);
     
     pkdGravInteract(pkd, &kdnVActive, ilp, 0, ilc, 0, ilpb, 0, &dFlop);
+
+    time3 = Zeit();
+    dFlop3 = dFlop;
+
+    printf("dFlop needed for tree interaction  : %g\n",dFlop2-dFlop1);
+    printf("dFlop nedded for bucket interaction: %g\n",dFlop3-dFlop2);
+    printf("Gravity time needed for tree interaction  : %g\n",time2-time1);
+    printf("Gravity time nedded for bucket interaction: %g\n",time3-time2);
+
     /*
     ** Note that if Ewald is being performed we need to factor this
     ** constant cost into the load balancing weights.
@@ -1671,6 +1755,8 @@ pkdStepVeryActiveKDK(PKD pkd, double dStep, double dTime, double dDelta,
 	    if(param.bVDetails)
 		printf("\t GravityVA: iRung %d Gravity for rungs %d to %d\n",iRung,iKickRung,nMaxRung);
 	    time1 = Zeit(); /* added MZ 1.6.2006 */
+	    printf("iKickRung %d\n",iKickRung);
+
 	    pkdActiveRung(pkd,iKickRung,1);
 	    pkdInitAccel(pkd);
 	    pkdGravityVeryActive(pkd, param.bEwald && param.bPeriodic,param.nReplicas,param.dEwCut,dStep);
@@ -1690,6 +1776,7 @@ pkdStepVeryActiveKDK(PKD pkd, double dStep, double dTime, double dDelta,
 		   iRung, 0.5*dDelta);
 	pkdKickKDKClose(pkd,dTime,0.5*dDelta, param);
 	}
+    printf("nMaxRung %d\n",nMaxRung);
     *pnMaxRung = nMaxRung;
     }
 

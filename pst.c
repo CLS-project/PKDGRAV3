@@ -2463,8 +2463,8 @@ void pstStepVeryActiveKDK(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 
     mdlassert(pst->mdl,nIn == sizeof(struct inStepVeryActive));
     if (pst->nLeaves > 1) {
-	printf("%d pst->nVeryActive:%d\n",
-		   mdlSelf(pst->mdl),pst->nVeryActive);
+/* 	printf("%d pst->nVeryActive:%d\n", */
+/* 		   mdlSelf(pst->mdl),pst->nVeryActive); */
 	if(pst->pstLower->nVeryActive > 0) {
 	    mdlReqService(pst->mdl,pst->idUpper,PST_CACHEBARRIER,NULL,0);
 	    pstStepVeryActiveKDK(pst->pstLower,in,nIn,out,NULL);

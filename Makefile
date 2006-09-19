@@ -3,15 +3,18 @@
 #
 
 #MY_CC = gcc
-#MY_CFLAGS = -O3 -Wall #-mcmodel=medium
+#MY_CFLAGS = -O3 -Wall
 MY_CC = pgcc
-MY_CFLAGS = -fastsse -tp athlonxp
+#MY_CFLAGS = -fastsse -tp athlonxp # zBox1
+MY_CFLAGS = -fastsse -mcmodel=medium # zBox2
 #MY_CC = icc
-#MY_CFLAGS = -D__GNUC__ -D_REENTRANT -O3
+#MY_CFLAGS = -fast -D__GNUC__ -D_REENTRANT
 
-EXE = pkdgrav2.$(MY_CC).null32
+#EXE = pkdgrav2.$(MY_CC).null32
+#EXE = pkdgrav2.$(MY_CC).null64
 #EXE = pkdgrav2.$(MY_CC).mpi32
 #EXE = pkdgrav2.$(MY_CC).mpi64
+EXE = pkdgrav.$(MY_CC).test
 
 CODEDEF = -DCHANGESOFT
 #CODEDEF = -DRELAXATION -DGROUPFIND 
