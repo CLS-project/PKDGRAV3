@@ -2637,6 +2637,7 @@ msrStepVeryActiveKDK(MSR msr, double dStep, double dTime, double dDelta,
     in.dDelta = dDelta;
     in.iRung = iRung;
     in.nMaxRung = *pnMaxRung;
+    in.diCrit2 = 1/(msr->dCrit*msr->dCrit);   /* could set a stricter opening criterion here */
     in.param = msr->param;
     in.csm = *msr->param.csm;
     

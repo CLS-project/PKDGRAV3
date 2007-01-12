@@ -7,67 +7,23 @@
 #include "moments.h"
 #include "floattype.h"
 
-typedef struct pLite {
-    FLOAT r[3];
-    int i;
-    unsigned int iActive;
-    } PLITE;
-
-/*
-** M is the bucket size.
-*/
-int BuildTemp(PKD pkd,int M,int bSqueeze,int bExcludeVeryActive)
-    {
-    PLITE *p;
+void InitializeParticles(PKD pkd,int bExcludeVeryActive) {
+    PLITE *p = pkd->pLite;
     PLITE t;
-    FLOAT fSplit;
-    FLOAT fMin[3],fMax[3];
-    BND *pbnd;
-    int *S;		/* this is the stack */
-    int s,ns;
-    int iNode,iLeft,iRight;
-    int nNodes,nMaxNodes;
-    int d,i,j;
-    int nr,nl;
-    int nBucket = 0;
-    PARTICLE Temp;
-    int iNew,iTemp;
+    int i,j;
 
     /*
-    ** Allocate and initialize the temporary particles.
+    ** Initialize the temporary particles.
     */
-    p = malloc(pkd->nLocal*sizeof(PLITE));
-    assert(p != NULL);
     for (i=0;i<pkd->nLocal;++i) {
 	for (j=0;j<3;++j) p[i].r[j] = pkd->pStore[i].r[j];
 	p[i].i = i;
 	p[i].iActive = pkd->pStore[i].iActive;
 	}
-    /*
-    ** Allocate stack!
+    /* 
+    **It is only forseen that there are 4 reserved nodes at present 0-NULL, 1-ROOT, 2-UNUSED, 3-VAROOT.
     */
-    ns = floor(log(((double)(pkd->nLocal+1))/(M+1))/log(2.0));
-    if (ns < 1) ns = 1;	/* want to allocate something! */	
-    s = 0;
-    S = malloc(ns*sizeof(int));
-    assert(S != NULL);
-    /*
-    ** Allocate initial node storage.
-    */
-    nMaxNodes = 10000;
-    pkd->kdTemp = malloc(nMaxNodes*sizeof(KDT));
-    assert(pkd->kdTemp != NULL);
-    /*
-    ** Make sure we don't have buckets which are larger than the 
-    ** pointer arrays for actives and inactives!
-    */
-    if (M > pkd->nMaxBucketActive) {
-	pkd->nMaxBucketActive = M;
-	pkd->piActive = realloc(pkd->piActive,pkd->nMaxBucketActive*sizeof(PARTICLE *));
-	mdlassert(pkd->mdl,pkd->piActive != NULL);
-	pkd->piInactive = realloc(pkd->piInactive,pkd->nMaxBucketActive*sizeof(PARTICLE *));
-	mdlassert(pkd->mdl,pkd->piInactive != NULL);
-	}
+    pkd->nNodes = NRESERVED_NODES;  
     /*
     ** If we want to split out very active particles from the tree
     ** we do it here, collecting them in Node index 0 as a bucket
@@ -81,11 +37,11 @@ int BuildTemp(PKD pkd,int M,int bSqueeze,int bExcludeVeryActive)
 	i = 0;
 	j = pkd->nLocal - 1;
 	while (i <= j) {
-	    if (p[i].iActive & TYPE_VERYACTIVE) ++i;
+	    if (!(p[i].iActive & TYPE_VERYACTIVE)) ++i;
 	    else break;
 	    }
 	while (i <= j) {
-	    if (!(p[j].iActive & TYPE_VERYACTIVE)) --j;
+	    if (p[j].iActive & TYPE_VERYACTIVE) --j;
 	    else break;
 	    }
 	if (i < j) {
@@ -93,8 +49,8 @@ int BuildTemp(PKD pkd,int M,int bSqueeze,int bExcludeVeryActive)
 	    p[i] = p[j];
 	    p[j] = t;
 	    while (1) {
-		while (p[++i].iActive & TYPE_VERYACTIVE);
-		while (!(p[--j].iActive & TYPE_VERYACTIVE));
+		while (!(p[++i].iActive & TYPE_VERYACTIVE));
+		while (p[--j].iActive & TYPE_VERYACTIVE);
 		if (i < j) {
 		    t = p[i];
 		    p[i] = p[j];
@@ -103,37 +59,71 @@ int BuildTemp(PKD pkd,int M,int bSqueeze,int bExcludeVeryActive)
 		else break;
 		}
 	    }
-	pkd->nVeryActive = i;
-/* 	printf("%d:nVeryActive = %d\n",mdlSelf(pkd->mdl),pkd->nVeryActive); */
-	pkd->kdTemp[0].pLower = 0;
-	pkd->kdTemp[0].pUpper = i - 1;
-	pkd->kdTemp[0].iLower = 0;
-	pkd->kdTemp[0].iParent = 0;
-	pkd->kdTemp[0].nGas = 0;	    
-	if (pkd->nVeryActive > pkd->nMaxBucketActive) {
-	    pkd->nMaxBucketActive = pkd->nVeryActive;
-	    pkd->piActive = realloc(pkd->piActive,pkd->nMaxBucketActive*sizeof(PARTICLE *));
-	    mdlassert(pkd->mdl,pkd->piActive != NULL);
-	    pkd->piInactive = realloc(pkd->piInactive,pkd->nMaxBucketActive*sizeof(PARTICLE *));
-	    mdlassert(pkd->mdl,pkd->piInactive != NULL);
-	    }
+	pkd->nVeryActive = pkd->nLocal - i;
+
+ 	printf("%d:nVeryActive = %d\n",mdlSelf(pkd->mdl),pkd->nVeryActive);
+	/*
+	** Set up the very active root node.
+	*/
+	pkd->kdTemp[VAROOT].iLower = 0;
+	pkd->kdTemp[VAROOT].iParent = 0;
+	pkd->kdTemp[VAROOT].pLower = pkd->nLocal - pkd->nVeryActive;
+	pkd->kdTemp[VAROOT].pUpper = pkd->nLocal - 1;
+	}
+    /*
+    ** Set up the root node.
+    */
+    pkd->kdTemp[ROOT].iLower = 0;
+    pkd->kdTemp[ROOT].iParent = 0;
+    pkd->kdTemp[ROOT].pLower = 0;
+    pkd->kdTemp[ROOT].pUpper = pkd->nLocal - pkd->nVeryActive - 1;
+    }
+
+/*
+** M is the bucket size.
+*/
+void BuildTemp(PKD pkd,int iNode,int M,int bSqueeze) {
+    PLITE *p = pkd->pLite;
+    PLITE t;
+    FLOAT fSplit;
+    FLOAT fMin[3],fMax[3];
+    BND *pbnd;
+    int *S;		/* this is the stack */
+    int s,ns;
+    int iLeft,iRight;
+    int d,i,j;
+    int nr,nl;
+    int nBucket = 0;
+
+    /*
+    ** Allocate stack!
+    */
+    ns = floor(log(((double)(pkd->nLocal+1))/(M+1))/log(2.0));
+    if (ns < 1) ns = 1;	/* want to allocate something! */	
+    s = 0;
+    S = malloc(ns*sizeof(int));
+    assert(S != NULL);
+    /*
+    ** Make sure we don't have buckets which are larger than the 
+    ** pointer arrays for actives and inactives!
+    */
+    if (M > pkd->nMaxBucketActive) {
+	pkd->nMaxBucketActive = M;
+	pkd->piActive = realloc(pkd->piActive,pkd->nMaxBucketActive*sizeof(PARTICLE *));
+	mdlassert(pkd->mdl,pkd->piActive != NULL);
+	pkd->piInactive = realloc(pkd->piInactive,pkd->nMaxBucketActive*sizeof(PARTICLE *));
+	mdlassert(pkd->mdl,pkd->piInactive != NULL);
+	}
 #ifdef GASOLINE
 	/*
 	** No support for gasoline here quite yet.
 	*/
 	assert(0);
 #endif
-	}
     /*
     ** First set up the root node.
     ** Allocate it, set it's bounds and pointers.
     */
-    nNodes = 1;
-    iNode = nNodes++;
-    pkd->kdTemp[iNode].iLower = 0;
-    pkd->kdTemp[iNode].iParent = 0;
-    pkd->kdTemp[iNode].pLower = pkd->nVeryActive;
-    pkd->kdTemp[iNode].pUpper = pkd->nLocal-1;
     i = pkd->kdTemp[iNode].pLower;
     for (j=0;j<3;++j) {
 	fMin[j] = p[i].r[j];
@@ -151,6 +141,7 @@ int BuildTemp(PKD pkd,int M,int bSqueeze,int bExcludeVeryActive)
 	}
     if (pkd->kdTemp[iNode].pUpper - pkd->kdTemp[iNode].pLower + 1 <= M) 
 	goto DonePart;
+
     while (1) {
 	/*
 	** Begin new stage!
@@ -201,20 +192,20 @@ int BuildTemp(PKD pkd,int M,int bSqueeze,int bExcludeVeryActive)
 	    ** Allocate 2 new tree nodes making sure that we have
 	    ** allocated enough storage.
 	    */
-	    if (nNodes+2 > nMaxNodes) {
-		nMaxNodes += 10000;
+	    if (pkd->nNodes+2 > pkd->nMaxNodes) {
+		pkd->nMaxNodes += 10000;
 		/*
 		** Allocate two extra locations to cover the next
 		** two nodes we will need.
 		*/
-		pkd->kdTemp = realloc(pkd->kdTemp,nMaxNodes*sizeof(KDT));
+		pkd->kdTemp = realloc(pkd->kdTemp,pkd->nMaxNodes*sizeof(KDT));
 		assert(pkd->kdTemp != NULL);
 		}
-	    iLeft = nNodes++;
+	    iLeft = pkd->nNodes++;
 	    pkd->kdTemp[iLeft].iParent = iNode;
 	    pkd->kdTemp[iLeft].pLower = pkd->kdTemp[iNode].pLower;
 	    pkd->kdTemp[iLeft].pUpper = i-1;
-	    iRight = nNodes++;
+	    iRight = pkd->nNodes++;
 	    assert(iRight & 1);
 	    pkd->kdTemp[iRight].iParent = iNode;
 	    pkd->kdTemp[iRight].pLower = i;
@@ -377,65 +368,55 @@ int BuildTemp(PKD pkd,int M,int bSqueeze,int bExcludeVeryActive)
 	    }
 	}
     DonePart:
+    free(S);
+    /* printf("nBucket:%d AvgM:%g\n",nBucket,pkd->nLocal/(double)nBucket); */
+    }
+
+
+/*
+** If this is called with iStart being the index of the first very active particle
+** then it reshuffles only the very actives. This is again a bit ugly, but will 
+** do for now.
+*/
+void ShuffleParticles(PKD pkd,int iStart) {
+    PARTICLE Temp;
+    int i,iNew,iTemp;
+
     /*
     ** Now we move the particles in one go using the temporary
     ** particles which have been shuffled.
     */
-    iTemp = 0;
+    iTemp = iStart;
     while (1) {
 	Temp = pkd->pStore[iTemp];
 	i = iTemp;
-	iNew = p[i].i;
+	iNew = pkd->pLite[i].i;
 	while (iNew != iTemp) {
 	    pkd->pStore[i] = pkd->pStore[iNew];
-	    p[i].i = 0;
+	    pkd->pLite[i].i = 0;
 	    i = iNew;
-	    iNew = p[i].i;
+	    iNew = pkd->pLite[i].i;
 	    }
 	pkd->pStore[i] = Temp;
-	p[i].i = 0;
-	while (!p[iTemp].i) {
-	    if (++iTemp == pkd->nLocal) goto Done;
+	pkd->pLite[i].i = 0;
+	while (!pkd->pLite[iTemp].i) {
+	    if (++iTemp == pkd->nLocal) return;
 	    }
 	}
-    Done:
-    free(p);
-    free(S);
-    /* printf("nBucket:%d AvgM:%g\n",nBucket,pkd->nLocal/(double)nBucket); */
-    return nNodes;
     }
 
 
-void Create(PKD pkd,FLOAT diCrit2,int bTempBound)
-    {
+void Create(PKD pkd,int iNode,FLOAT diCrit2,int bTempBound) {
     PARTICLE *p = pkd->pStore;
     KDT *t = pkd->kdTemp;
     KDN *c = pkd->kdNodes;
     KDN *pkdn,*pkdl,*pkdu;
     MOMR mom;
     FLOAT m,fMass,x,y,z,vx,vy,vz,ft,d2,d2Max,dih2;
-    int iNode,pj,d,nDepth;
+    int pj,d,nDepth;
 
     nDepth = 1;
     pkd->nMaxDepth = 1;
-    if (pkd->nVeryActive > 0) {
-	/*
-	** Copy bucket-0 which possibly contains a number of very active particles.
-	** We don't need any moment or bounds information for the very active particles
-	** (this will change on a much shorter timescale anyway) so we just keep the 
-	** particle pointers in this special bucket-0.
-	*/
-	iNode = 0;
-	pkdn = &c[iNode];
-	pkdn->iLower = t[iNode].iLower;
-	pkdn->iParent = t[iNode].iParent;
-	pkdn->pLower = t[iNode].pLower;
-	pkdn->pUpper = t[iNode].pUpper;
-	}
-    /*
-    ** Create the root node of the real tree!
-    */
-    iNode = ROOT;
     while (1) {
 	while (t[iNode].iLower) {
 	    iNode = t[iNode].iLower;
@@ -600,8 +581,7 @@ void Create(PKD pkd,FLOAT diCrit2,int bTempBound)
 
 
 
-void pkdCombineCells(KDN *pkdn,KDN *p1,KDN *p2,int bCombineBound)
-    {
+void pkdCombineCells(KDN *pkdn,KDN *p1,KDN *p2,int bCombineBound) {
     MOMR mom;
     FLOAT m1,m2,x,y,z,ifMass;
 
@@ -637,7 +617,7 @@ void pkdCombineCells(KDN *pkdn,KDN *p1,KDN *p2,int bCombineBound)
     */
     if (bCombineBound) {
 	BND_COMBINE(pkdn->bnd,p1->bnd,p2->bnd);
-	}
+        }
 #ifdef GASOLINE
     BND_COMBINE(pkdn->bndBall,p1->bndBall,p2->bndBall);
     pkdn->nGas = p1->nGas + p2->nGas;
@@ -645,9 +625,42 @@ void pkdCombineCells(KDN *pkdn,KDN *p1,KDN *p2,int bCombineBound)
     }
 
 
-void pkdTreeBuild(PKD pkd,int nBucket,FLOAT diCrit2,KDN *pkdn, int bSqueeze, int bExcludeVeryActive)
-    {
-    int nCells;
+void pkdVATreeBuild(PKD pkd,int nBucket,FLOAT diCrit2,int bSqueeze) {
+    int i,j,iStart;
+    int nMaxNodes;
+
+    iStart = pkd->nLocal - pkd->nVeryActive;
+    /*
+    ** First initialize the very active temporary particles.
+    */
+    for (i=iStart;i<pkd->nLocal;++i) {
+	for (j=0;j<3;++j) pkd->pLite[i].r[j] = pkd->pStore[i].r[j];
+	pkd->pLite[i].i = i;
+	pkd->pLite[i].iActive = pkd->pStore[i].iActive;
+	}
+    /*
+    ** Then clear the VA tree by setting the node index back to one node past the end
+    ** of the non VA tree.
+    */
+    pkd->nNodes = pkd->nNonVANodes;
+    nMaxNodes = pkd->nMaxNodes;
+    BuildTemp(pkd,VAROOT,nBucket,bSqueeze);
+    /*
+    ** Make sure the total number of nodes allocated did not increase in this step,
+    ** otherwise we would not have enough locations in the real tree (not the temp)
+    ** for the Create call below! If this happens we need to increase the nNodeEst
+    ** in pkdTreeBuild!
+    */
+    mdlassert(pkd->mdl,nMaxNodes == pkd->nMaxNodes);
+
+    ShuffleParticles(pkd,iStart);
+    
+    Create(pkd,VAROOT,diCrit2,bSqueeze);
+    }
+
+
+void pkdTreeBuild(PKD pkd,int nBucket,FLOAT diCrit2,KDN *pkdn,int bSqueeze,int bExcludeVeryActive) {
+    int iStart,nNodesEst;
 
     if (pkd->kdNodes) {
 	/*
@@ -659,20 +672,45 @@ void pkdTreeBuild(PKD pkd,int nBucket,FLOAT diCrit2,KDN *pkdn, int bSqueeze, int
 
     pkdClearTimer(pkd,0);
     pkdStartTimer(pkd,0);
-    nCells = BuildTemp(pkd,nBucket,bSqueeze,bExcludeVeryActive);
+
+    InitializeParticles(pkd,bExcludeVeryActive);
+
+    BuildTemp(pkd,ROOT,nBucket,bSqueeze);
+    if (bExcludeVeryActive) {
+	pkd->nNonVANodes = pkd->nNodes;
+	}
+    else {
+	pkd->nNodesFull = pkd->nNodes;
+	}
+    iStart = 0;
+    ShuffleParticles(pkd,iStart);
+
     pkdStopTimer(pkd,0);
     /* 
        printf("Temp Tree Build wallclock: %g secs\n",
        pkdGetWallClockTimer(pkd,0));
-       printf("Number of Cells: %d\n",nCells);
+       printf("Number of Cells: %d\n",pkd->nNodes);
     */
+    if (bExcludeVeryActive) {
+	/*
+	** Here we need to make a conservative upper guess for the number of cells
+	** that could be needed including a very active tree. Currently pkd->nMaxNodes
+	** has enough storage for the entire tree with the very active particles 
+	** but if the very active tree becomes more skewed we need to account for this
+	** here. We set the worst case to be that the number of very active nodes 
+	** doubles within one very active phase of timestepping.
+	*/
+	nNodesEst = 2*pkd->nNodesFull - pkd->nNodes;
+	if (nNodesEst > pkd->nMaxNodes) {
+	    pkd->nMaxNodes = nNodesEst;
+	    pkd->kdTemp = realloc(pkd->kdTemp,pkd->nMaxNodes*sizeof(KDT));
+	    assert(pkd->kdTemp != NULL);
+	    }
+	}
     /*
-    ** Now allocate the cell storage using mdlMalloc!
-    ** Allocate one extra because cell-id 0 is a dummy
-    ** cell.
+    ** Now allocate the cell storage using mdlMalloc, allocate the max anticipated!
     */
-    pkd->nNodes = nCells + 1;
-    pkd->kdNodes = mdlMalloc(pkd->mdl,pkd->nNodes*sizeof(KDN));
+    pkd->kdNodes = mdlMalloc(pkd->mdl,pkd->nMaxNodes*sizeof(KDN));
     assert(pkd->kdNodes != NULL);
     /*
     ** Now create the real tree from the temporary tree.
@@ -680,7 +718,7 @@ void pkdTreeBuild(PKD pkd,int nBucket,FLOAT diCrit2,KDN *pkdn, int bSqueeze, int
     */
     pkdClearTimer(pkd,0);
     pkdStartTimer(pkd,0);
-    Create(pkd,diCrit2,bSqueeze);
+    Create(pkd,ROOT,diCrit2,bSqueeze);
     pkdStopTimer(pkd,0);
     /*
       printf("Create Tree wallclock: %g secs\n",
@@ -689,9 +727,16 @@ void pkdTreeBuild(PKD pkd,int nBucket,FLOAT diCrit2,KDN *pkdn, int bSqueeze, int
     */
     /*
     ** Free up the temporary tree, why not!
+    ** In the very active code it is bad to free up the temprary tree here, since
+    ** we still want to use the upper end of this tree storage for building the 
+    ** very active tree. This is all a bit ugly and should be reworked by getting
+    ** rid of the temporary tree and also allowing walk to use seperate contiguous
+    ** memory segments for the normal tree and very active tree. Note that an 
+    ** mdlMalloc is not needed for the very active tree.
+    ** 
+    ** free(pkd->kdTemp);
+    ** pkd->kdTemp = NULL;
     */
-    free(pkd->kdTemp);
-    pkd->kdTemp = NULL;
     /*
     ** Finally activate a read only cache for remote access.
     */
@@ -824,10 +869,9 @@ void pkdCalcBoundBall(PKD pkd,double fBallFactor,BND *pbnd)
     }
 
 
-void pkdDistribBoundBall(PKD pkd,int nCell,BND *pbnd)
-    {
-    KDN *c;
-    int i;
+void pkdDistribBoundBall(PKD pkd,int nCell,BND *pbnd) {
+KDN *c;
+int i;
 
     assert(pkd->kdTop != NULL);
     c = pkd->kdTop;

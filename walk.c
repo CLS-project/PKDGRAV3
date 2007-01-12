@@ -28,7 +28,7 @@ typedef struct CheckStack {
 /*
 ** Returns total number of active particles for which gravity was calculated.
 */
-int pkdGravWalk(PKD pkd,int nReps,int bEwald,double fEwCut,
+int pkdGravWalk(PKD pkd,int nReps,int bEwald,int bVeryActive,double fEwCut,
 		double *pdFlop,double *pdPartSum,double *pdCellSum)
     {
     PARTICLE *p = pkd->pStore;
@@ -56,6 +56,13 @@ int pkdGravWalk(PKD pkd,int nReps,int bEwald,double fEwCut,
     int nPartBucket,nMaxPartBucket;
 
     /*
+    ** If we are doing the very active gravity then check that there is a very active tree!
+    */
+    if (bVeryActive) {
+	assert(pkd->nVeryActive != 0);
+	assert(pkd->nVeryActive == pkd->kdNodes[0].pUpper - pkd->kdNodes[0].pLower + 1);
+	}	
+    /*
     ** Initially we set our cell pointer to 
     ** point to the top tree.
     */
@@ -82,7 +89,7 @@ int pkdGravWalk(PKD pkd,int nReps,int bEwald,double fEwCut,
     nMaxCheck = 2*nReps+1;
     nMaxCheck = nMaxCheck*nMaxCheck*nMaxCheck;	/* all replicas */
     iCell = pkd->iTopRoot;
-    while (iCell = c[iCell].iParent) ++nMaxCheck; /* all top tree siblings */
+    while ((iCell = c[iCell].iParent)) ++nMaxCheck; /* all top tree siblings */
     nMaxCheck = (nMaxCheck>1000)?nMaxCheck:1000;
     Check = malloc(nMaxCheck*sizeof(CELT));
     assert(Check != NULL);
@@ -108,46 +115,58 @@ int pkdGravWalk(PKD pkd,int nReps,int bEwald,double fEwCut,
 	    for (iz=-nReps;iz<=nReps;++iz) {
 		rOffset[2] = iz*pkd->fPeriod[2];
 		bRep = ix || iy || iz;
-		if (!bRep) continue;
-		Check[nCheck].iCell = ROOT;
-		/* If leaf of top tree, use root of
-		   local tree.
-		*/
-		if (c[ROOT].iLower) {
-		    Check[nCheck].id = -1;
+		if (bRep || bVeryActive) {
+		    Check[nCheck].iCell = ROOT;
+		    /* If leaf of top tree, use root of
+		       local tree.
+		    */
+		    if (c[ROOT].iLower) {
+			Check[nCheck].id = -1;
+			}
+		    else {
+			Check[nCheck].id = c[ROOT].pLower;
+			}				    
+		    for (j=0;j<3;++j) Check[nCheck].rOffset[j] = rOffset[j];
+		    ++nCheck;
 		    }
-		else {
-		    Check[nCheck].id = c[ROOT].pLower;
+		if (bRep && bVeryActive) {
+		    /*
+		    ** Add the images of the very active tree to the checklist.
+		    */
+		    Check[nCheck].iCell = VAROOT;
+		    Check[nCheck].id = mdlSelf(pkd->mdl);
+		    for (j=0;j<3;++j) Check[nCheck].rOffset[j] = rOffset[j];
+		    ++nCheck;
 		    }
-				    
-		for (j=0;j<3;++j) Check[nCheck].rOffset[j] = rOffset[j];
-		++nCheck;
 		}
 	    }
 	}
-    iCell = pkd->iTopRoot;
-    iSib = SIBLING(iCell);
-    while (iSib) {
-	if (c[iSib].iLower) {
-	    Check[nCheck].iCell = iSib;
-	    Check[nCheck].id = -1;
-	    }
-	else {
-	    /* If leaf of top tree, use root of local tree */
-	    Check[nCheck].iCell = ROOT;
-	    Check[nCheck].id = c[iSib].pLower;
-	    }
-	for (j=0;j<3;++j) Check[nCheck].rOffset[j] = 0.0;
-	++nCheck;
-	iCell = c[iCell].iParent;
+    if (!bVeryActive) {
+	iCell = pkd->iTopRoot;
 	iSib = SIBLING(iCell);
+	while (iSib) {
+	    if (c[iSib].iLower) {
+		Check[nCheck].iCell = iSib;
+		Check[nCheck].id = -1;
+		}
+	    else {
+		/* If leaf of top tree, use root of local tree */
+		Check[nCheck].iCell = ROOT;
+		Check[nCheck].id = c[iSib].pLower;
+		}
+	    for (j=0;j<3;++j) Check[nCheck].rOffset[j] = 0.0;
+	    ++nCheck;
+	    iCell = c[iCell].iParent;
+	    iSib = SIBLING(iCell);
+	    }
 	}
     /*
     ** Now switch the cell pointer to point to 
     ** the local tree.
     */
     c = pkd->kdNodes;
-    iCell = ROOT;
+    if (bVeryActive) iCell = VAROOT;
+    else iCell = ROOT;
     while (1) {
 	while (1) {
 	    /*

@@ -165,10 +165,17 @@ void pkdInitialize(PKD *ppkd,MDL mdl,int nStore,FLOAT *fPeriod,
     */
     pkd->pStore = mdlMalloc(pkd->mdl,(nStore+1)*sizeof(PARTICLE));
     mdlassert(mdl,pkd->pStore != NULL);
+    pkd->pLite = malloc((nStore+1)*sizeof(PLITE));
+    mdlassert(mdl,pkd->pLite != NULL);
     pkd->nNodes = 0;
     pkd->kdNodes = NULL;
-    pkd->kdTemp = NULL;
     pkd->kdTop = NULL;
+    /*
+    ** Allocate initial temporary node storage.
+    */
+    pkd->nMaxNodes = 10000;
+    pkd->kdTemp = malloc(pkd->nMaxNodes*sizeof(KDT));
+    mdlassert(mdl,pkd->kdTemp != NULL);
     /*
     ** Ewald stuff!
     */
@@ -199,6 +206,7 @@ void pkdFinish(PKD pkd)
     if (pkd->kdTop) free(pkd->kdTop);
     free(pkd->ewt);
     mdlFree(pkd->mdl,pkd->pStore);
+    free(pkd->pLite);
     free(pkd);
     }
 
@@ -1257,8 +1265,10 @@ void pkdPhysicalSoft(PKD pkd,double dSoftMax,double dFac,int bSoftMaxMul)
     else {
 	mdlassert(pkd->mdl,dSoftMax > 0);
 	for (i=0;i<n;++i) {
+	    mdlassert(pkd->mdl,p[i].fSoft0 > 0);
 	    p[i].fSoft = p[i].fSoft0*dFac;
 	    if (p[i].fSoft > dSoftMax) p[i].fSoft = dSoftMax;
+	    mdlassert(pkd->mdl,p[i].fSoft > 0);
 	    }
 	}
     }
@@ -1326,6 +1336,8 @@ pkdGravAll(PKD pkd,int nReps,int bPeriodic,int iOrder,int bEwald,int iEwOrder,
 	   double *pdPartSum,double *pdCellSum,CASTAT *pcs,
 	   double *pdFlop)
     {
+    int bVeryActive = 0;
+
     pkdClearTimer(pkd,1);
     pkdClearTimer(pkd,2);
     pkdClearTimer(pkd,3);
@@ -1347,7 +1359,7 @@ pkdGravAll(PKD pkd,int nReps,int bPeriodic,int iOrder,int bEwald,int iEwOrder,
     *pdPartSum = 0.0;
     *pdCellSum = 0.0;
     pkdStartTimer(pkd,1);
-    *nActive = pkdGravWalk(pkd,nReps,bPeriodic && bEwald,fEwCut,pdFlop,pdPartSum,pdCellSum);
+    *nActive = pkdGravWalk(pkd,nReps,bPeriodic && bEwald,bVeryActive,fEwCut,pdFlop,pdPartSum,pdCellSum);
     pkdStopTimer(pkd,1);
     /*
     ** Get caching statistics.
@@ -1546,8 +1558,24 @@ pkdDriftActive(PKD pkd,double dTime,double dDelta) {
 	}
     }
 
+
+void pkdGravityVeryActive(PKD pkd, int bEwald, int nReps, double fEwCut, double dStep) {
+    int nActive;
+    int bVeryActive = 1;
+    double dFlop,dPartSum,dCellSum;
+
+    /*
+    ** Calculate newtonian gravity for the very active particles ONLY, including replicas if any.
+    */
+    dFlop = 0.0;
+    dPartSum = 0.0;
+    dCellSum = 0.0;
+    nActive = pkdGravWalk(pkd,nReps,bEwald,bVeryActive,fEwCut,&dFlop,&dPartSum,&dCellSum);
+    }
+
+
 void
-pkdGravityVeryActive(PKD pkd, int bEwald, int nReps, double fEwCut, double dStep) {
+pkdOldGravityVeryActive(PKD pkd, int bEwald, int nReps, double fEwCut, double dStep) {
     ILP *ilp;
     ILC *ilc;
     ILPB *ilpb;
@@ -1666,7 +1694,7 @@ pkdGravityVeryActive(PKD pkd, int bEwald, int nReps, double fEwCut, double dStep
 
 void
 pkdStepVeryActiveKDK(PKD pkd, double dStep, double dTime, double dDelta,
-		     int iRung, int iKickRung, int iAdjust,
+		     int iRung, int iKickRung, int iAdjust, double diCrit2,
 		     struct parameters param, int *pnMaxRung)
     {
     int nMaxRung;
@@ -1714,12 +1742,12 @@ pkdStepVeryActiveKDK(PKD pkd, double dStep, double dTime, double dDelta,
 	** Recurse.
 	*/
 	pkdStepVeryActiveKDK(pkd,dStep,dTime,0.5*dDelta,iRung+1,iRung+1,0,
-			     param, &nMaxRung);
+			     diCrit2,param, &nMaxRung);
 	dStep += 1.0/(2 << iRung);
 	dTime += 0.5*dDelta;
 	pkdActiveRung(pkd,iRung,0);
 	pkdStepVeryActiveKDK(pkd,dStep,dTime,0.5*dDelta,iRung+1,iKickRung,1,
-			     param, &nMaxRung);
+			     diCrit2,param, &nMaxRung);
 	}
     else {
 	if (param.bVDetails)
@@ -1759,6 +1787,7 @@ pkdStepVeryActiveKDK(PKD pkd, double dStep, double dTime, double dDelta,
 
 	    pkdActiveRung(pkd,iKickRung,1);
 	    pkdInitAccel(pkd);
+	    pkdVATreeBuild(pkd,param.nBucket,diCrit2,0);
 	    pkdGravityVeryActive(pkd, param.bEwald && param.bPeriodic,param.nReplicas,param.dEwCut,dStep);
 	    time2 = Zeit();
 	    if(param.bVDetails)

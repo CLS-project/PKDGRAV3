@@ -100,10 +100,11 @@ PVM_LIBMDL	= $(PVM_MDL)/$(PVM_ARCH)/mdl.o $(PVMLIB) $(ARCHLIB) -lm
 #       PTHREAD defines
 #
 PTHREAD_MDL			= ../mdl/pthread
-PTHREAD_CFLAGS		= -fast -I$(PTHREAD_MDL) $(CODEDEF)
+PTHREAD_CFLAGS		= $(MY_CFLAGS) -I$(PTHREAD_MDL) $(CODEDEF)
 PTHREAD_LD_FLAGS 	= 
 PTHREAD_XOBJ		=
 PTHREAD_LIBMDL 		= $(PTHREAD_MDL)/mdl.o -lm -lpthread
+PTHREAD_MDL_CFLAGS = $(MY_CFLAGS)
 
 #
 #       PTHREAD_SGI defines
@@ -197,7 +198,7 @@ pvm:
 	mv -f $(EXE) $(XDIR)
 
 pthread:
-	cd $(PTHREAD_MDL); rm *.o; make "CC=$(MY_CC)" "CFLAGS=$(CFLAGS)"
+	cd $(PTHREAD_MDL); rm *.o; make "CC=$(MY_CC)" "CFLAGS=$(PTHREAD_MDL_CFLAGS)"
 	make $(EXE) "CC=$(MY_CC)" "CFLAGS=$(PTHREAD_CFLAGS)" "LD_FLAGS=$(PTHREAD_LD_FLAGS)"\
 		"MDL=$(PTHREAD_MDL)" "XOBJ=$(PTHREAD_XOBJ)" "LIBMDL=$(PTHREAD_LIBMDL)"
 

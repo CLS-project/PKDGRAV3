@@ -19,10 +19,17 @@
 #define CID_RM		3
 #define CID_BIN		4
 /*
+** Here we define some special reserved nodes. Node-0 is a sentinel or null node, node-1
+** is here defined as the ROOT of the local tree (or top tree), node-2 is unused and 
+** node-3 is the root node for the very active tree.
+*/
+#define VAROOT          3
+#define ROOT		1
+#define NRESERVED_NODES 4
+/*
 ** These macros implement the index manipulation tricks we use for moving
 ** around in the top-tree. Note: these do NOT apply to the local-tree!
 */
-#define ROOT		1
 #define LOWER(i)	(i<<1)
 #define UPPER(i)	((i<<1)+1)
 #define PARENT(i)	(i>>1)
@@ -41,6 +48,12 @@
 
 #define MAX_TIMERS		10
 
+
+typedef struct pLite {
+    FLOAT r[3];
+    int i;
+    unsigned int iActive;
+    } PLITE;
 
 typedef struct particle {
     int iOrder;
@@ -438,16 +451,20 @@ typedef struct pkdContext {
     int nMaxOrderDark;
     int nMaxOrderGas;
     FLOAT fPeriod[3];
+    int nMaxNodes;   /* for kdTemp */
     KDT *kdTemp;
     KDN *kdTop;
     int iTopRoot;
     int nNodes;
+    int nNodesFull;     /* number of nodes in the full tree (including very active particles) */
     int nMaxDepth;	/* gives the maximum depth of the local tree */
+    int nNonVANodes;    /* number of nodes *not* in Very Active Tree, or index to the start of the VA nodes (except VAROOT) */
     KDN *kdNodes;
     PARTICLE *pStore;
     int nMaxBucketActive;
     PARTICLE **piActive;
     PARTICLE **piInactive;
+    PLITE *pLite;
     /*
     ** Ewald summation setup.
     */
@@ -497,6 +514,7 @@ typedef struct CacheStatistics {
 /*
 ** From tree.c:
 */
+void pkdVATreeBuild(PKD pkd,int nBucket,FLOAT diCrit2,int bSqueeze);
 void pkdTreeBuild(PKD pkd,int nBucket,FLOAT dCrit,KDN *pkdn,int bSqueeze,int bExcludeVeryActive);
 void pkdCombineCells(KDN *pkdn,KDN *p1,KDN *p2,int bCombineBound);
 void pkdDistribCells(PKD,int,KDN *);
@@ -567,7 +585,7 @@ void pkdDriftInactive(PKD pkd,double dTime,double dDelta,FLOAT fCenter[3],int bP
 		      int bFandG, FLOAT fCentMass);
 void pkdStepVeryActiveKDK(PKD pkd, double dStep, double dTime, double dDelta,
 			  int iRung, int iKickRung, int iAdjust,
-			  struct parameters param, int *pnMaxRung);
+			  double diCrit2,struct parameters param, int *pnMaxRung);
 void pkdKickKDKOpen(PKD pkd,double dTime,double dDelta, struct parameters param);
 void pkdKickKDKClose(PKD pkd,double dTime,double dDelta, struct parameters param);
 void pkdKick(PKD pkd,double,double, double, double, double, double, int, double, double);
