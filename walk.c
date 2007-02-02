@@ -60,7 +60,7 @@ int pkdGravWalk(PKD pkd,int nReps,int bEwald,int bVeryActive,double fEwCut,
     */
     if (bVeryActive) {
 	assert(pkd->nVeryActive != 0);
-	assert(pkd->nVeryActive == pkd->kdNodes[0].pUpper - pkd->kdNodes[0].pLower + 1);
+	assert(pkd->nVeryActive == pkd->kdNodes[VAROOT].pUpper - pkd->kdNodes[VAROOT].pLower + 1);
 	}	
     /*
     ** Initially we set our cell pointer to 

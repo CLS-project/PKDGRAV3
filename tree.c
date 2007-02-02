@@ -61,7 +61,8 @@ void InitializeParticles(PKD pkd,int bExcludeVeryActive) {
 	    }
 	pkd->nVeryActive = pkd->nLocal - i;
 
- 	printf("%d:nVeryActive = %d\n",mdlSelf(pkd->mdl),pkd->nVeryActive);
+	if (pkd->nVeryActive > 0) 
+	    printf("%d:nVeryActive = %d\n",mdlSelf(pkd->mdl),pkd->nVeryActive);
 	/*
 	** Set up the very active root node.
 	*/
@@ -651,6 +652,7 @@ void pkdVATreeBuild(PKD pkd,int nBucket,FLOAT diCrit2,int bSqueeze) {
     ** for the Create call below! If this happens we need to increase the nNodeEst
     ** in pkdTreeBuild!
     */
+    printf("nMaxNodes in VATreeBuild:%d\n",pkd->nMaxNodes);
     mdlassert(pkd->mdl,nMaxNodes == pkd->nMaxNodes);
 
     ShuffleParticles(pkd,iStart);
@@ -700,7 +702,9 @@ void pkdTreeBuild(PKD pkd,int nBucket,FLOAT diCrit2,KDN *pkdn,int bSqueeze,int b
 	** here. We set the worst case to be that the number of very active nodes 
 	** doubles within one very active phase of timestepping.
 	*/
-	nNodesEst = 2*pkd->nNodesFull - pkd->nNodes;
+	nNodesEst = pkd->nNodes + 
+	    3*(int)ceil(pkd->nVeryActive/(nBucket-sqrt(nBucket)));
+	printf("%d:nVeryActive:%d nNodes:%d nNodesEst:%d nMaxNodes:%d\n",mdlSelf(pkd->mdl),pkd->nVeryActive,pkd->nNodes,nNodesEst,pkd->nMaxNodes);
 	if (nNodesEst > pkd->nMaxNodes) {
 	    pkd->nMaxNodes = nNodesEst;
 	    pkd->kdTemp = realloc(pkd->kdTemp,pkd->nMaxNodes*sizeof(KDT));

@@ -707,20 +707,13 @@ void _pstRootSplit(PST pst,int iSplitDim,double dMass,int bDoRootFind,int bDoSpl
 	pstCountVA(pst,&inCtVA,sizeof(inCtVA),&outCtVA,NULL);
 	if (outCtVA.nLow == 0 && outCtVA.nHigh == 0) {
 	    pst->iVASplitSide = 0;
-	    pst->pstLower->nVeryActive = 0;
 	    }
 	else if (outCtVA.nHigh > outCtVA.nLow) {
 	    pst->iVASplitSide = -1;
-	    pst->pstLower->nVeryActive = 0;
 	    }
 	else {
 	    pst->iVASplitSide = 1;
-	    pst->pstLower->nVeryActive = outCtVA.nLow + outCtVA.nHigh;
 	    }
-
-/* 	printf("%d pst->iVASplitSide:%d setting pst->pstLower->nVeryActive:%d\n", */
-/* 	       mdlSelf(pst->mdl),pst->iVASplitSide,pst->pstLower->nVeryActive); */
-	     
 	mdlPrintTimer(pst->mdl,"TIME active split _pstRootSplit ",&t);
 	}
 
@@ -1444,13 +1437,9 @@ void pstCountVA(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	mdlGetReply(pst->mdl,pst->idUpper,&outCt,NULL);
 	out->nLow += outCt.nLow;
 	out->nHigh += outCt.nHigh;
-	pst->nVeryActive = out->nLow + out->nHigh;
 	}
     else {
 	pkdCountVA(plcl->pkd,in->iSplitDim,in->fSplit,&out->nLow,&out->nHigh);
-	pst->nVeryActive = out->nLow + out->nHigh;
-/* 	printf("%d:pstCountVA()  nLow:%d nHigh:%d\n",mdlSelf(pst->mdl), */
-/* 	       out->nLow,out->nHigh); */
 	}
     if (pnOut) *pnOut = sizeof(struct outCountVA); 
     }
@@ -2463,21 +2452,25 @@ void pstStepVeryActiveKDK(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 
     mdlassert(pst->mdl,nIn == sizeof(struct inStepVeryActive));
     if (pst->nLeaves > 1) {
-/* 	printf("%d pst->nVeryActive:%d\n", */
-/* 		   mdlSelf(pst->mdl),pst->nVeryActive); */
-	if(pst->pstLower->nVeryActive > 0) {
+	if(pst->iVASplitSide > 0) {
 	    mdlReqService(pst->mdl,pst->idUpper,PST_CACHEBARRIER,NULL,0);
 	    pstStepVeryActiveKDK(pst->pstLower,in,nIn,out,NULL);
 	    mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
 	    }
-	else {
+	else if (pst->iVASplitSide < 0) {
 	    mdlReqService(pst->mdl,pst->idUpper,PST_STEPVERYACTIVE,in,nIn);
 	    pstCacheBarrier(pst->pstLower,NULL,0,NULL,NULL);
 	    mdlGetReply(pst->mdl,pst->idUpper,out,NULL);
 	    }
+	else {
+	    mdlassert(pst->mdl,pst->iVASplitSide != 0);
+	    }
 	}
     else {
+	printf("pstStepVeryActive %d:at pst leaf plcl->pkd->nVeryActive:%d\n",mdlSelf(pst->mdl),plcl->pkd->nVeryActive);
+
 	assert(plcl->pkd->nVeryActive > 0);
+	
 	in->param.csm = &in->csm;
 	out->nMaxRung = in->nMaxRung;
 	pkdStepVeryActiveKDK(plcl->pkd,in->dStep,in->dTime,in->dDelta,

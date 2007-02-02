@@ -328,7 +328,9 @@ void pkdReadTipsy(PKD pkd,char *pszFileName,int nStart,int nLocal,
     iTracker = nStart-1;
 /*     sprintf(aTrack,"%s.track",msr->param.achDataSubPath,msr->param.achOutName); /\* NEW VERSION, DOESN'T WORK *\/ */
     sprintf(aTrack,"%s.track",pszFileName); /* old working version */
+/*
     printf("File: %s\n",aTrack);
+*/
     fpTrack = fopen(aTrack,"r");
     if (fpTrack) {
 	printf("TRACK Particles: ON \n");
@@ -351,9 +353,6 @@ void pkdReadTipsy(PKD pkd,char *pszFileName,int nStart,int nLocal,
 	    if (iTracker >= nStart) break;
 	    }
 	}
-    else { 
-	printf("TRACK Particles Off \n"); 
-	} 
 SkipCheck:
     /*
     ** Read Stuff!

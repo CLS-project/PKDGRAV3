@@ -44,7 +44,6 @@ typedef struct pstContext {
     FLOAT fSplit;
     FLOAT fSplitInactive;
     int nTotal;
-    int nVeryActive;
     int iVASplitSide;
     } * PST;
 
