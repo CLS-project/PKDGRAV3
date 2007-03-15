@@ -234,9 +234,6 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv)
     msr->param.nPColl = 0;
     prmAddParam(msr->prm,"nPColl",1,&msr->param.nPColl,sizeof(int),
 		"npcoll", "<Number of particles in collisional regime>");
-    msr->param.nPartsDets = 0;
-    prmAddParam(msr->prm,"nPartsDets",1,&msr->param.nPartsDets,sizeof(int),
-		"npd", "<Number of particles for detailed ouput>");
     msr->param.nTruncateRung = 0;
     prmAddParam(msr->prm,"nTruncateRung",1,&msr->param.nTruncateRung,sizeof(int),"nTR",
 		"<number of MaxRung particles to delete MaxRung> = 0");
@@ -659,7 +656,6 @@ void msrLogParams(MSR msr,FILE *fp)
 	fprintf(fp," nTruncateRung: %d",msr->param.nTruncateRung);
 	fprintf(fp,"\n# iTimeStepCrit: %d",msr->param.iTimeStepCrit);
 	fprintf(fp," nPColl: %d", msr->param.nPColl);
-	fprintf(fp," nPartsDets: %d",msr->param.nPartsDets);
 	fprintf(fp,"\n# bDoGravity: %d",msr->param.bDoGravity);
 	fprintf(fp," dCentMass: %g",msr->param.dCentMass);
 	fprintf(fp,"\n# dFracNoTreeSqueeze: %g",msr->param.dFracNoTreeSqueeze);

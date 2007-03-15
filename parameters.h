@@ -31,7 +31,6 @@ struct parameters {
     int bDensityStep;
     int iTimeStepCrit;
     int nPColl;
-    int nPartsDets;
     int nTruncateRung;
     int bDoDensity;
     int bDodtOutput;

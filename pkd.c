@@ -1407,9 +1407,10 @@ void pkdCalcEandL(PKD pkd,double *T,double *U,double *Eth,double L[])
 void
 pkdDrift(PKD pkd,double dTime,double dDelta,FLOAT fCenter[3],int bPeriodic,int bFandG,
 	 FLOAT fCentMass) {
+
     PARTICLE *p;
     int i,j,n;
-    int ipt; /* tracking */
+    int ipt;
     double px,py,pz,pm;
     double dDeltaM;
     
@@ -1433,18 +1434,8 @@ pkdDrift(PKD pkd,double dTime,double dDelta,FLOAT fCenter[3],int bPeriodic,int b
 	    p[i].fMass += dDeltaM;
 	    }
 	/*
-	** Detailed output for particles that are tracked at dTime + dDelta/2
-	** Correct positons & mass for dDelta/2 step
+	** Update particle positions
 	*/
-	if (TYPETest(p+i,TYPE_TRACKER)) {
-      	    px = p[i].r[0] + dDelta/2*p[i].v[0];
-	    py = p[i].r[1] + dDelta/2*p[i].v[1];
-	    pz = p[i].r[2] + dDelta/2*p[i].v[2];
-	    pm = p[i].fMass - dDeltaM/2;
-	    ipt = p[i].iOrder + 1; /* to be consistent with Andrea */
-	    printf("PDID %d %g %g %d %g %g %g %g %g %g %g %g %g %g %g %g\n",ipt,dTime+dDelta/2,dDelta,
-		   p[i].iRung,p[i].dt,px,py,pz,p[i].v[0],p[i].v[1],p[i].v[2],p[i].a[0],p[i].a[1],p[i].a[2],p[i].fPot,pm);
-	    }
 	for (j=0;j<3;++j) {
 	    p[i].r[j] += dDelta*p[i].v[j];
 	    if (bPeriodic) {
@@ -1456,6 +1447,19 @@ pkdDrift(PKD pkd,double dTime,double dDelta,FLOAT fCenter[3],int bPeriodic,int b
 		    }
 		}
 	    }
+	/*
+	** Detailed output for particles that are tracked at dTime + dDelta/2
+	** Correct positons & mass for dDelta/2 step which is done before the actual update
+	*/
+	if (TYPETest(p+i,TYPE_TRACKER)) {
+      	    px = p[i].r[0] - dDelta/2*p[i].v[0];
+	    py = p[i].r[1] - dDelta/2*p[i].v[1];
+	    pz = p[i].r[2] - dDelta/2*p[i].v[2];
+	    pm = p[i].fMass - dDeltaM/2;
+	    ipt = p[i].iOrder + 1; /* to be consistent with Tipsy numbering */
+	    printf("PDID %d %g %g %d %g %g %g %g %g %g %g %g %g %g %g %g\n",ipt,dTime+dDelta/2,dDelta,
+		   p[i].iRung,p[i].dt,px,py,pz,p[i].v[0],p[i].v[1],p[i].v[2],p[i].a[0],p[i].a[1],p[i].a[2],p[i].fPot,pm);
+	    }
 	}
     mdlDiag(pkd->mdl, "Out of pkdDrift\n");
     }
@@ -1463,9 +1467,10 @@ pkdDrift(PKD pkd,double dTime,double dDelta,FLOAT fCenter[3],int bPeriodic,int b
 void
 pkdDriftInactive(PKD pkd,double dTime, double dDelta,FLOAT fCenter[3],int bPeriodic,
 		 int bFandG, FLOAT fCentMass) {
+
     PARTICLE *p;
     int i,j,n;
-    int ipt; /* tracking */
+    int ipt;
     double dDeltaM;
     
     mdlDiag(pkd->mdl, "Into pkdDriftInactive\n");
@@ -1489,14 +1494,8 @@ pkdDriftInactive(PKD pkd,double dTime, double dDelta,FLOAT fCenter[3],int bPerio
 	    p[i].fMass += dDeltaM;
 	    }
 	/*
-	** Detailed output for particles that are tracked at dTime + dDelta
-	** Inactive Drift => dDelta is already a half step! No correction needed!
+	** Update particle positions
 	*/
-	if (TYPETest(p+i,TYPE_TRACKER)) {
-	    ipt = p[i].iOrder + 1; /* to be consistent with Andrea */
-	    printf("PDID %d %g %g %d %g %g %g %g %g %g %g %g %g %g %g %g\n",ipt,dTime+dDelta/2,dDelta,
-		   p[i].iRung,p[i].dt,p[i].r[0],p[i].r[1],p[i].r[2],p[i].v[0],p[i].v[1],p[i].v[2],p[i].a[0],p[i].a[1],p[i].a[2],p[i].fPot,p[i].fMass);
-	    }
 	for (j=0;j<3;++j) {
 	    p[i].r[j] += dDelta*p[i].v[j];
 	    if (bPeriodic) {
@@ -1508,18 +1507,30 @@ pkdDriftInactive(PKD pkd,double dTime, double dDelta,FLOAT fCenter[3],int bPerio
 		    }
 		}
 	    }
+	/*
+	** Detailed output for particles that are tracked at dTime + dDelta
+	** Inactive Drift => dDelta is already a half step! No correction needed!
+	*/
+	if (TYPETest(p+i,TYPE_TRACKER)) {
+	    ipt = p[i].iOrder + 1; /* to be consistent with Tipsy numbering */
+	    printf("PDID %d %g %g %d %g %g %g %g %g %g %g %g %g %g %g %g\n",ipt,dTime+dDelta/2,dDelta,
+		   p[i].iRung,p[i].dt,p[i].r[0],p[i].r[1],p[i].r[2],p[i].v[0],p[i].v[1],p[i].v[2],p[i].a[0],p[i].a[1],p[i].a[2],p[i].fPot,p[i].fMass);
+	    }
 	}
     mdlDiag(pkd->mdl, "Out of pkdDriftInactive\n");
     }
 
 void
 pkdDriftActive(PKD pkd,double dTime,double dDelta) {
+
     PARTICLE *p;
     int i,j,n;
-    int ipt; /* tracking */
+    int ipt;
     double px,py,pz,pm;
     double dDeltaM;
     
+    mdlDiag(pkd->mdl, "Into pkdDriftActive\n");
+
     if (dTime >= pkd->param.dGrowStartT && dTime < pkd->param.dGrowEndT) {
 	dDeltaM = pkd->param.dGrowDeltaM*dDelta/
 	    (pkd->param.dGrowEndT - pkd->param.dGrowStartT);
@@ -1539,24 +1550,27 @@ pkdDriftActive(PKD pkd,double dTime,double dDelta) {
 	    p[i].fMass += dDeltaM;
 	    }
 	/*
+	** Update particle positions
+	*/
+	for (j=0;j<3;++j) {
+	    p[i].r[j] += dDelta*p[i].v[j];
+	    }
+	/*
 	** Detailed output for particles that are tracked at dTime + dDelta/2
 	** Correct positons & mass for dDelta/2 step
 	*/
 	if (TYPETest(p+i,TYPE_TRACKER)) {
-	    px = p[i].r[0] + dDelta/2*p[i].v[0];
-	    py = p[i].r[1] + dDelta/2*p[i].v[1];
-	    pz = p[i].r[2] + dDelta/2*p[i].v[2];
+	    px = p[i].r[0] - dDelta/2*p[i].v[0];
+	    py = p[i].r[1] - dDelta/2*p[i].v[1];
+	    pz = p[i].r[2] - dDelta/2*p[i].v[2];
 	    pm = p[i].fMass - dDeltaM/2;
-	    ipt = p[i].iOrder + 1; /* to be consistent with Andrea */
+	    ipt = p[i].iOrder + 1; /* to be consistent with Tipsy numbering */
 	    printf("PDID %d %g %g %d %g %g %g %g %g %g %g %g %g %g %g %g\n",ipt,dTime+dDelta/2,dDelta,
 		   p[i].iRung,p[i].dt,px,py,pz,p[i].v[0],p[i].v[1],p[i].v[2],p[i].a[0],p[i].a[1],p[i].a[2],p[i].fPot,pm);
 	    }
-	for (j=0;j<3;++j) {
-	    p[i].r[j] += dDelta*p[i].v[j];
-	    }
 	}
+    mdlDiag(pkd->mdl, "Out of pkdDriftActive\n");
     }
-
 
 void pkdGravityVeryActive(PKD pkd, int bEwald, int nReps, double fEwCut, double dStep) {
     int nActive;
