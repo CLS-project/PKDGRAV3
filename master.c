@@ -814,6 +814,7 @@ void msrOneNodeReadTipsy(MSR msr, struct inReadTipsy *in)
     PST pst0;
     LCL *plcl;
     char achInFile[PST_FILENAME_SIZE];
+    char achOutName[PST_FILENAME_SIZE];
     int nid;
     int inswap;
     struct inSetParticleTypes intype;
@@ -837,6 +838,7 @@ void msrOneNodeReadTipsy(MSR msr, struct inReadTipsy *in)
     ** Add the local Data Path to the provided filename.
     */
     _msrMakePath(plcl->pszDataPath,in->achInFile,achInFile);
+    _msrMakePath(plcl->pszDataPath,in->achOutName,achOutName);
 
     nStart = nParts[0];
     assert(msr->pMap[0] == 0);
@@ -846,7 +848,7 @@ void msrOneNodeReadTipsy(MSR msr, struct inReadTipsy *in)
 	 * Read particles into the local storage.
 	 */
 	assert(plcl->pkd->nStore >= nParts[id]);
-	pkdReadTipsy(plcl->pkd,achInFile,nStart,nParts[id],
+	pkdReadTipsy(plcl->pkd,achInFile,achOutName,nStart,nParts[id],
 		     in->bStandard,in->dvFac,in->dTuFac,in->bDoublePos);
 	nStart += nParts[id];
 	/* 
@@ -861,7 +863,7 @@ void msrOneNodeReadTipsy(MSR msr, struct inReadTipsy *in)
     /* 
      * Now read our own particles.
      */
-    pkdReadTipsy(plcl->pkd,achInFile,0,nParts[0],in->bStandard,in->dvFac,
+    pkdReadTipsy(plcl->pkd,achInFile,achOutName,0,nParts[0],in->bStandard,in->dvFac,
 		 in->dTuFac,in->bDoublePos);
     pstSetParticleTypes(msr->pst,&intype,sizeof(intype),NULL,NULL);
     }
@@ -1043,8 +1045,8 @@ double msrReadTipsy(MSR msr)
     in.nStar = msr->nStar;
     in.bStandard = msr->param.bStandard;
     in.bDoublePos = msr->param.bDoublePos;
-
     in.dTuFac = 1.0;
+    strcpy(in.achOutName,msr->param.achOutName); 
     /*
     ** Since pstReadTipsy causes the allocation of the local particle
     ** store, we need to tell it the percentage of extra storage it

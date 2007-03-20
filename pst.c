@@ -413,6 +413,7 @@ void pstReadTipsy(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     struct inReadTipsy *in = vin;
     int nFileStart,nFileEnd,nFileTotal,nFileSplit,nStore;
     char achInFile[PST_FILENAME_SIZE];
+    char achOutName[PST_FILENAME_SIZE];
 
     mdlassert(pst->mdl,nIn == sizeof(struct inReadTipsy));
     nFileStart = in->nFileStart;
@@ -433,18 +434,22 @@ void pstReadTipsy(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 	** Add the local Data Path to the provided filename.
 	*/
 	achInFile[0] = 0;
+	achOutName[0] = 0;
 	if (plcl->pszDataPath) {
 	    strcat(achInFile,plcl->pszDataPath);
 	    strcat(achInFile,"/");
+	    strcat(achOutName,plcl->pszDataPath);
+	    strcat(achOutName,"/");
 	    }
 	strcat(achInFile,in->achInFile);
+	strcat(achOutName,in->achOutName);
 	/*
 	** Determine the size of the local particle store.
 	*/
 	nStore = nFileTotal + (int)ceil(nFileTotal*in->fExtraStore);
 	pkdInitialize(&plcl->pkd,pst->mdl,nStore,in->fPeriod,
 		      in->nDark,in->nGas,in->nStar);
-	pkdReadTipsy(plcl->pkd,achInFile,nFileStart,nFileTotal,in->bStandard,
+	pkdReadTipsy(plcl->pkd,achInFile,achOutName,nFileStart,nFileTotal,in->bStandard,
 		     in->dvFac,in->dTuFac,in->bDoublePos);
 	}
     if (pnOut) *pnOut = 0;

@@ -280,7 +280,7 @@ void IOCheck(int nout) {
 	}
     }
 
-void pkdReadTipsy(PKD pkd,char *pszFileName,int nStart,int nLocal,
+void pkdReadTipsy(PKD pkd,char *pszFileName, char *achOutName, int nStart,int nLocal,
 		  int bStandard,double dvFac,double dTuFac,int bDoublePos)
     {
     FILE *fp;
@@ -326,14 +326,10 @@ void pkdReadTipsy(PKD pkd,char *pszFileName,int nStart,int nLocal,
     ** See if the user has specified a .track file.
     */
     iTracker = nStart-1;
-/*     sprintf(aTrack,"%s.track",msr->param.achDataSubPath,msr->param.achOutName); /\* NEW VERSION, DOESN'T WORK *\/ */
-    sprintf(aTrack,"%s.track",pszFileName); /* old working version */
-/*
-    printf("File: %s\n",aTrack);
-*/
+    sprintf(aTrack,"%s.track",achOutName);
     fpTrack = fopen(aTrack,"r");
     if (fpTrack) {
-	printf("TRACK Particles: ON \n");
+	printf("Particle tracking on for particles read from file %s\n",aTrack);
 	/*
 	** Get to the right place in the file.
 	*/
@@ -1451,14 +1447,14 @@ pkdDrift(PKD pkd,double dTime,double dDelta,FLOAT fCenter[3],int bPeriodic,int b
 	** Detailed output for particles that are tracked at dTime + dDelta/2
 	** Correct positons & mass for dDelta/2 step which is done before the actual update
 	*/
-	if (TYPETest(p+i,TYPE_TRACKER)) {
+	if (TYPETest(&p[i],TYPE_TRACKER)) {
       	    px = p[i].r[0] - dDelta/2*p[i].v[0];
 	    py = p[i].r[1] - dDelta/2*p[i].v[1];
 	    pz = p[i].r[2] - dDelta/2*p[i].v[2];
 	    pm = p[i].fMass - dDeltaM/2;
 	    ipt = p[i].iOrder + 1; /* to be consistent with Tipsy numbering */
-	    printf("PDID %d %g %g %d %g %g %g %g %g %g %g %g %g %g %g %g\n",ipt,dTime+dDelta/2,dDelta,
-		   p[i].iRung,p[i].dt,px,py,pz,p[i].v[0],p[i].v[1],p[i].v[2],p[i].a[0],p[i].a[1],p[i].a[2],p[i].fPot,pm);
+	    printf("PDID %d %g %g %d %g %g %g %g %g %g %g %g %g %g %g %g %g\n",ipt,dTime+dDelta/2,dDelta,
+		   p[i].iRung,p[i].dt,px,py,pz,p[i].v[0],p[i].v[1],p[i].v[2],p[i].a[0],p[i].a[1],p[i].a[2],p[i].fPot,pm,p[i].fSoft);
 	    }
 	}
     mdlDiag(pkd->mdl, "Out of pkdDrift\n");
@@ -1511,10 +1507,10 @@ pkdDriftInactive(PKD pkd,double dTime, double dDelta,FLOAT fCenter[3],int bPerio
 	** Detailed output for particles that are tracked at dTime + dDelta
 	** Inactive Drift => dDelta is already a half step! No correction needed!
 	*/
-	if (TYPETest(p+i,TYPE_TRACKER)) {
+	if (TYPETest(&p[i],TYPE_TRACKER)) {
 	    ipt = p[i].iOrder + 1; /* to be consistent with Tipsy numbering */
-	    printf("PDID %d %g %g %d %g %g %g %g %g %g %g %g %g %g %g %g\n",ipt,dTime+dDelta/2,dDelta,
-		   p[i].iRung,p[i].dt,p[i].r[0],p[i].r[1],p[i].r[2],p[i].v[0],p[i].v[1],p[i].v[2],p[i].a[0],p[i].a[1],p[i].a[2],p[i].fPot,p[i].fMass);
+	    printf("PDID %d %g %g %d %g %g %g %g %g %g %g %g %g %g %g %g %g\n",ipt,dTime+dDelta/2,dDelta,
+		   p[i].iRung,p[i].dt,p[i].r[0],p[i].r[1],p[i].r[2],p[i].v[0],p[i].v[1],p[i].v[2],p[i].a[0],p[i].a[1],p[i].a[2],p[i].fPot,p[i].fMass,p[i].fSoft);
 	    }
 	}
     mdlDiag(pkd->mdl, "Out of pkdDriftInactive\n");
@@ -1559,14 +1555,14 @@ pkdDriftActive(PKD pkd,double dTime,double dDelta) {
 	** Detailed output for particles that are tracked at dTime + dDelta/2
 	** Correct positons & mass for dDelta/2 step
 	*/
-	if (TYPETest(p+i,TYPE_TRACKER)) {
+	if (TYPETest(&p[i],TYPE_TRACKER)) {
 	    px = p[i].r[0] - dDelta/2*p[i].v[0];
 	    py = p[i].r[1] - dDelta/2*p[i].v[1];
 	    pz = p[i].r[2] - dDelta/2*p[i].v[2];
 	    pm = p[i].fMass - dDeltaM/2;
 	    ipt = p[i].iOrder + 1; /* to be consistent with Tipsy numbering */
-	    printf("PDID %d %g %g %d %g %g %g %g %g %g %g %g %g %g %g %g\n",ipt,dTime+dDelta/2,dDelta,
-		   p[i].iRung,p[i].dt,px,py,pz,p[i].v[0],p[i].v[1],p[i].v[2],p[i].a[0],p[i].a[1],p[i].a[2],p[i].fPot,pm);
+	    printf("PDID %d %g %g %d %g %g %g %g %g %g %g %g %g %g %g %g %g\n",ipt,dTime+dDelta/2,dDelta,
+		   p[i].iRung,p[i].dt,px,py,pz,p[i].v[0],p[i].v[1],p[i].v[2],p[i].a[0],p[i].a[1],p[i].a[2],p[i].fPot,pm,p[i].fSoft);
 	    }
 	}
     mdlDiag(pkd->mdl, "Out of pkdDriftActive\n");

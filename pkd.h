@@ -538,7 +538,7 @@ void pkdStartTimer(PKD,int);
 void pkdStopTimer(PKD,int);
 void pkdInitialize(PKD *,MDL,int,FLOAT *,int,int,int);
 void pkdFinish(PKD);
-void pkdReadTipsy(PKD,char *,int,int,int,double,double,int);
+void pkdReadTipsy(PKD,char *,char *,int,int,int,double,double,int);
 void pkdSetSoft(PKD pkd,double dSoft);
 void pkdCalcBound(PKD,BND *);
 

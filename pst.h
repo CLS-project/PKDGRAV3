@@ -165,6 +165,7 @@ struct inReadTipsy {
     double dTuFac;
     int bDoublePos;
     char achInFile[PST_FILENAME_SIZE];
+    char achOutName[PST_FILENAME_SIZE];
     };
 void pstReadTipsy(PST,void *,int,void *,int *);
 
