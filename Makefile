@@ -13,9 +13,9 @@ MY_CFLAGS = -fastsse -mcmodel=medium # zBox2
 #EXE = pkdgrav2.$(MY_CC).null32
 #EXE = pkdgrav2.$(MY_CC).null64
 #EXE = pkdgrav2.$(MY_CC).mpi32
-EXE = pkdgrav2.$(MY_CC).mpi64
+EXE = pkdgrav2.$(MY_CC).mpi64-1
 
-#CODEDEF = -DCHANGESOFT
+CODEDEF = -DCHANGESOFT
 #CODEDEF = -DRELAXATION -DGROUPFIND 
 #CODEDEF = -DCHANGESOFT -DSOFTLINEAR
 #CODEDEF = -DCOLLISIONS -DSLIDING_PATCH

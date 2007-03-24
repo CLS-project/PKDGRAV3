@@ -584,7 +584,7 @@ void pkdDrift(PKD,double,double,FLOAT *,int,int,FLOAT);
 void pkdDriftInactive(PKD pkd,double dTime,double dDelta,FLOAT fCenter[3],int bPeriodic,
 		      int bFandG, FLOAT fCentMass);
 void pkdStepVeryActiveKDK(PKD pkd, double dStep, double dTime, double dDelta,
-			  int iRung, int iKickRung, int iAdjust,
+			  int iRung, int iKickRung, int iRungVeryActive,int iAdjust,
 			  double diCrit2,struct parameters param, int *pnMaxRung);
 void pkdKickKDKOpen(PKD pkd,double dTime,double dDelta, struct parameters param);
 void pkdKickKDKClose(PKD pkd,double dTime,double dDelta, struct parameters param);
@@ -599,9 +599,8 @@ void pkdGravStep(PKD pkd, double dEta, double dRhoFac);
 void pkdAccelStep(PKD pkd, double dEta, double dVelFac, double
 		  dAccFac, int bDoGravity, int bEpsAcc, int bSqrtPhi, double dhMinOverSoft);
 void pkdDensityStep(PKD pkd, double dEta, double dRhoFac);
-int pkdDtToRung(PKD pkd, int iRung, double dDelta, int iMaxRung, int bAll, int *pnMaxRung);
+int pkdDtToRung(PKD pkd,int iRung, double dDelta, int iMaxRung, int bAll, int *nRungCount);
 void pkdInitDt(PKD pkd, double dDelta);
-int pkdRungParticles(PKD,int);
 void pkdInitAccel(PKD);
 int pkdOrdWeight(PKD,int,int,int,int,int *,int *);
 void pkdDeleteParticle(PKD pkd, PARTICLE *p);

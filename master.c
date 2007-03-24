@@ -242,7 +242,10 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv)
 		"mrung", "<maximum timestep rung>");
     msr->param.nRungVeryActive = 31;
     prmAddParam(msr->prm,"nRungVeryActive",1,&msr->param.nRungVeryActive,
-		sizeof(int), "nvactrung", "<timestep rung to use n^2>");
+		sizeof(int), "nvactrung", "<timestep rung to use very active timestepping>");
+    msr->param.nPartVeryActive = 0;
+    prmAddParam(msr->prm,"nPartVeryActive",1,&msr->param.nPartVeryActive,
+		sizeof(int), "nvactpart", "<number of particles to use very active timestepping>");
     msr->param.dEwCut = 2.6;
     prmAddParam(msr->prm,"dEwCut",2,&msr->param.dEwCut,sizeof(double),"ew",
 		"<dEwCut> = 2.6");
@@ -562,9 +565,6 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv)
     assert(msr->pMap != NULL);
     inGM.nStart = 0;
     pstGetMap(msr->pst,&inGM,sizeof(inGM),msr->pMap,NULL);
-    /*
-    ** Initialize tree type to none.
-    */
     msr->iCurrMaxRung = 0;
     /*
     ** Mark the Domain Decompositon as not done
@@ -2398,11 +2398,16 @@ msrInitDt(MSR msr)
     pstInitDt(msr->pst,&in,sizeof(in),NULL,NULL);
     }
 
-void msrDtToRung(MSR msr, int iRung, double dDelta, int bAll)
-    {
+/*
+** Returns the Very Active rung based on the number of very active particles desired,
+** or the fixed rung that was specified in the parameters.
+*/
+int msrDtToRung(MSR msr, int iRung, double dDelta, int bAll) {
     struct inDtToRung in;
     struct outDtToRung out;
-    
+    int iTempRung,iOutMaxRung,iRungVeryActive,sum;
+    char c;
+
     in.iRung = iRung;
     in.dDelta = dDelta;
     in.iMaxRung = msrMaxRung(msr);
@@ -2410,33 +2415,54 @@ void msrDtToRung(MSR msr, int iRung, double dDelta, int bAll)
 
     pstDtToRung(msr->pst, &in, sizeof(in), &out, NULL);
 
-    if (out.nMaxRung <= msr->param.nTruncateRung && out.iMaxRung > iRung) {
+    iTempRung =msrMaxRung(msr)-1;
+    while (out.nRungCount[iTempRung] == 0 && iTempRung > 0) --iTempRung;
+    iOutMaxRung = iTempRung;
+
+    while (out.nRungCount[iOutMaxRung] <= msr->param.nTruncateRung && iOutMaxRung > iRung) {
 	if (msr->param.bVDetails) printf("n_CurrMaxRung = %d  (iCurrMaxRung = %d):  Promoting particles to iCurrMaxrung = %d\n",
-					 out.nMaxRung,out.iMaxRung,out.iMaxRung-1);
+					 out.nRungCount[iOutMaxRung],iOutMaxRung,iOutMaxRung-1);
 
-	in.iMaxRung = out.iMaxRung; /* Note this is the forbidden rung so no -1 here */
+	in.iMaxRung = iOutMaxRung; /* Note this is the forbidden rung so no -1 here */
 	pstDtToRung(msr->pst, &in, sizeof(in), &out, NULL);
+
+	iTempRung =msrMaxRung(msr)-1;
+	while (out.nRungCount[iTempRung] == 0 && iTempRung > 0) --iTempRung;
+	iOutMaxRung = iTempRung;
 	}
-    msr->iCurrMaxRung = out.iMaxRung;
-    }
+    /*
+    ** Now we want to make a suggestion for the current very active rung based on the number of 
+    ** particles in the deepest rungs.
+    */
+    if (msr->param.nPartVeryActive > 0) {
+	iRungVeryActive = msrMaxRung(msr);
+	sum = 0;
+	while (sum < msr->param.nPartVeryActive && iRungVeryActive > 0) {
+	    sum += out.nRungCount[--iRungVeryActive];
+	    }
+	}
+    else {
+	iRungVeryActive = msr->param.nRungVeryActive;
+	}
+	
+    msr->iCurrMaxRung = iOutMaxRung;
 
-
-void msrRungStats(MSR msr)
-    {
     if (msr->param.bVRungStat) {
-	struct inRungStats in;
-	struct outRungStats out;
-	int i;
-
-	printf("Rung distribution:\n");
-	for (i=0;i<msr->param.iMaxRung;++i) {
-	    in.iRung = i;
-	    pstRungStats(msr->pst,&in,sizeof(in),&out,NULL);
-	    msr->nRung[i] = out.nParticles;
-	    printf("   rung:%d %d\n",i,out.nParticles);
+    	printf("Rung distribution:\n");
+	for (iTempRung=0;iTempRung <= msr->iCurrMaxRung;++iTempRung) {
+	    if (out.nRungCount[iTempRung] == 0) continue;
+	    if (iTempRung > iRungVeryActive) c = 'v';
+	    else c = ' ';
+	    printf(" %c rung:%d %d\n",c,iTempRung,out.nRungCount[iTempRung]);
 	    }
 	printf("\n");
 	}
+    
+    /*
+     * Set VeryActive particles
+     */
+    msrActiveMaskRung(msr, TYPE_VERYACTIVE, iRungVeryActive+1, 1);
+    return(iRungVeryActive);
     }
 
 
@@ -2447,6 +2473,10 @@ void msrTopStepKDK(MSR msr,
 		   int iRung,		/* Rung level */
 		   int iKickRung,	/* Gravity on all rungs from iRung
 					   to iKickRung */
+		   int iRungVeryActive,  /* current setting for iRungVeryActive */
+		   /*
+		   ** Note that iRungVeryActive is one less than the first rung with VA particles!
+		   */
 		   int iAdjust,		/* Do an adjust? */
 		   double *pdActiveSum,
 		   double *pdWMax,
@@ -2457,9 +2487,12 @@ void msrTopStepKDK(MSR msr,
     double dMass = -1.0;
     int nActive;
     int bSplitVA;
+    int i;
 
     if(iAdjust && (iRung < msrMaxRung(msr)-1)) {
-	if (msr->param.bVDetails) printf("Adjust, iRung: %d\n",iRung);
+	if (msr->param.bVDetails) {
+	    printf("%*cAdjust, iRung: %d\n",2*iRung+2,' ',iRung);
+	    }
 	msrActiveRung(msr, iRung, 1);
 	msrActiveType(msr,TYPE_ALL,TYPE_TREEACTIVE|TYPE_SMOOTHACTIVE);
 	msrInitDt(msr);
@@ -2476,36 +2509,32 @@ void msrTopStepKDK(MSR msr,
 	    msrBuildTree(msr,dMass);
 	    msrDensityStep(msr,dTime);
 	    }
-	msrDtToRung(msr,iRung,dDelta,1);
-	if (iRung == 0) {
-	    /*
-	      msrReorder(msr);
-	      msrOutArray(msr,"test.dt",OUT_DT_ARRAY);
-	      msrActiveOrder(msr);
-	    */
-	    msrRungStats(msr);
-	    }
+	iRungVeryActive = msrDtToRung(msr,iRung,dDelta,1);
 	}
-    if (msr->param.bVDetails) printf("msrKickOpen at iRung: %d 0.5*dDelta: %g\n",
-				     iRung, 0.5*dDelta);
+    if (msr->param.bVDetails) {
+	printf("%*cmsrKickOpen  at iRung: %d 0.5*dDelta: %g\n",
+	       2*iRung+2,' ',iRung,0.5*dDelta);
+	}
     msrActiveRung(msr,iRung,0);
     msrActiveType(msr,TYPE_ALL,TYPE_TREEACTIVE|TYPE_SMOOTHACTIVE );
     msrKickKDKOpen(msr,dTime,0.5*dDelta);
-    if ((msrCurrMaxRung(msr) > iRung) && (msr->param.nRungVeryActive > iRung)) {
+    if ((msrCurrMaxRung(msr) > iRung) && (iRungVeryActive > iRung)) {
 	/*
 	** Recurse.
 	*/
-	msrTopStepKDK(msr,dStep,dTime,0.5*dDelta,iRung+1,iRung+1,0,
+	msrTopStepKDK(msr,dStep,dTime,0.5*dDelta,iRung+1,iRung+1,iRungVeryActive,0,
 		      pdActiveSum,pdWMax,pdIMax,pdEMax,piSec);
 	dTime += 0.5*dDelta;
 	dStep += 1.0/(2 << iRung);
 	msrActiveRung(msr,iRung,0);
-	msrTopStepKDK(msr,dStep,dTime,0.5*dDelta,iRung+1,iKickRung,1,
+	msrTopStepKDK(msr,dStep,dTime,0.5*dDelta,iRung+1,iKickRung,iRungVeryActive,1,
 		      pdActiveSum,pdWMax,pdIMax,pdEMax,piSec);
 	}
     else if(msrCurrMaxRung(msr) == iRung) {
 	/* This Drifts everybody */
-	if (msr->param.bVDetails) printf("Drift, iRung: %d -- we should never get here for VA set small enough\n", iRung);
+	if (msr->param.bVDetails) {
+	    printf("%*cDrift, iRung: %d -- we should never get here for VA set small enough\n",2*iRung+2,' ',iRung);
+	    }
 	msrDrift(msr,dTime,dDelta);
 	dTime += dDelta;
 	dStep += 1.0/(1 << iRung);
@@ -2519,15 +2548,15 @@ void msrTopStepKDK(MSR msr,
 	    msrActiveRung(msr,iKickRung,1);
 	    msrUpdateSoft(msr,dTime);
 	    msrActiveType(msr,TYPE_ALL,TYPE_TREEACTIVE);
-	    if (msr->param.bVDetails)
-		printf("Gravity, iRung: %d to %d\n", iRung, iKickRung);
+	    if (msr->param.bVDetails) {
+		printf("%*cGravity, iRung: %d to %d\n",iRung,' ',2*iRung+2,iKickRung);
+		}
 	    msrBuildTree(msr,dMass);
 	    msrGravity(msr,dStep,piSec,pdWMax,pdIMax,pdEMax,&nActive);
 	    *pdActiveSum += (double)nActive/msr->N;
 	    }
 	}
     else {
-	int nMaxRungVeryActive;
 	double dDeltaTmp;
 	int i;
 	
@@ -2535,18 +2564,16 @@ void msrTopStepKDK(MSR msr,
 	 * We have more rungs to go, but we've hit the very active limit.
 	 */
 	/*
-	 * Determine VeryActive particles
-	 */
-	msrActiveMaskRung(msr, TYPE_VERYACTIVE, iRung+1, 1);
-	/*
 	 * Activate VeryActives
 	 */
 	msrActiveType(msr, TYPE_VERYACTIVE, TYPE_ACTIVE);
 	/*
 	 * Drift the non-VeryActive particles forward 1/2 timestep
 	 */
-	if (msr->param.bVDetails)
-	    printf("InActiveDrift at iRung: %d, 0.5*dDelta: %g\n", iRung, 0.5*dDelta);
+	if (msr->param.bVDetails) {
+	    printf("%*cInActiveDrift at iRung: %d, 0.5*dDelta: %g\n",
+		   2*iRung+2,' ',iRung,0.5*dDelta);
+	    }
 	msrDriftInactive(msr, dTime, 0.5*dDelta);
 	/*
 	 * Build a tree out of them for use by the VeryActives
@@ -2558,25 +2585,27 @@ void msrTopStepKDK(MSR msr,
 	    ** placed here shortly.
 	    */
 	    bSplitVA = 1;
-	    msrDomainDecomp(msr,iKickRung,1,bSplitVA);
+	    msrDomainDecomp(msr,iRung,1,bSplitVA);
 
-	    if (msr->param.bVDetails)
-		printf("Building exclude very active tree: iRung: %d\n", iRung);
+	    if (msr->param.bVDetails) {
+		printf("%*cBuilding exclude very active tree: iRung: %d\n",
+		       2*iRung+2,' ',iRung);
+		}
 	    msrBuildTreeExcludeVeryActive(msr,dMass);
 	    }
 	/*
 	 * Perform timestepping on individual processors.
 	 */
-	if (msr->param.bVDetails)
-	    printf("VeryActive at iRung: %d\n", iRung);
-	msrStepVeryActiveKDK(msr, dStep, dTime, dDelta, iRung, &nMaxRungVeryActive);
+	msrStepVeryActiveKDK(msr, dStep, dTime, dDelta, iRung);
 	dTime += dDelta;
 	dStep += 1.0/(1 << iRung);
 	/*
 	 * Move Inactives to the end of the step.
 	 */
-	if (msr->param.bVDetails)
-	    printf("InActiveDrift at iRung: %d, 0.5*dDelta: %g\n", iRung, 0.5*dDelta);
+	if (msr->param.bVDetails) {
+	    printf("%*cInActiveDrift at iRung: %d, 0.5*dDelta: %g\n",
+		   2*iRung+2,' ',iRung,0.5*dDelta);
+	    }
 	msrActiveType(msr, TYPE_VERYACTIVE, TYPE_ACTIVE);
 	/* 
 	** The inactives are half time step behind the actives. 
@@ -2596,36 +2625,42 @@ void msrTopStepKDK(MSR msr,
 	    msrActiveRung(msr,iKickRung,1);
 	    msrUpdateSoft(msr,dTime);
 	    msrActiveType(msr,TYPE_ALL,TYPE_TREEACTIVE);
-	    if (msr->param.bVDetails)
-		printf("Gravity, iRung: %d to %d\n", nMaxRungVeryActive, iKickRung);
+	    if (msr->param.bVDetails) {
+		printf("%*cGravity, iRung: %d to %d\n",
+		       2*iRung+2,' ',iKickRung,msrCurrMaxRung(msr));
+		}
 	    msrBuildTree(msr,dMass);
 	    msrGravity(msr,dStep,piSec,pdWMax,pdIMax,pdEMax,&nActive);
 	    *pdActiveSum += (double)nActive/msr->N;
 	    }
 	dDeltaTmp = dDelta;
-	for(i = nMaxRungVeryActive; i > iRung; i--)
+	for(i = msrCurrMaxRung(msr); i > iRung; i--)
 	    dDeltaTmp *= 0.5;
 	
-	for(i = nMaxRungVeryActive; i > iRung; i--) { /* close off all
+	for(i = msrCurrMaxRung(msr); i > iRung; i--) { /* close off all
 							 the VeryActive Kicks
 						      */
-	    if (msr->param.bVDetails) printf("VeryActive msrKickClose at iRung: %d, 0.5*dDelta: %g\n",
-					     i, 0.5*dDeltaTmp);
+	    if (msr->param.bVDetails) {
+		printf("%*cVeryActive msrKickClose at iRung: %d, 0.5*dDelta: %g\n",
+		       2*iRung+2,' ',i, 0.5*dDeltaTmp);
+		}
 	    msrActiveRung(msr,i,0);
-	    msrKickKDKClose(msr,dTime,0.5*dDeltaTmp);
+	    msrKickKDKClose(msr,dTime - 0.5*dDeltaTmp,0.5*dDeltaTmp);
 	    dDeltaTmp *= 2.0;
 	    }
 	}
     
-    if (msr->param.bVDetails) printf("KickClose, iRung: %d, 0.5*dDelta: %g\n",
-				     iRung, 0.5*dDelta);
+    if (msr->param.bVDetails) {
+	printf("%*cKickClose, iRung: %d, 0.5*dDelta: %g\n",
+	       2*iRung+2,' ',iRung, 0.5*dDelta);
+	}
     msrActiveRung(msr,iRung,0);
-    msrKickKDKClose(msr,dTime,0.5*dDelta);
+    msrKickKDKClose(msr,dTime - 0.5*dDelta,0.5*dDelta);
     }
 
 void
 msrStepVeryActiveKDK(MSR msr, double dStep, double dTime, double dDelta,
-		     int iRung, int *pnMaxRung)
+		     int iRung)
     {
     struct inStepVeryActive in;
     struct outStepVeryActive out;
@@ -2634,9 +2669,9 @@ msrStepVeryActiveKDK(MSR msr, double dStep, double dTime, double dDelta,
     in.dTime = dTime;
     in.dDelta = dDelta;
     in.iRung = iRung;
-    in.nMaxRung = *pnMaxRung;
     in.diCrit2 = 1/(msr->dCrit*msr->dCrit);   /* could set a stricter opening criterion here */
     in.param = msr->param;
+    in.nMaxRung = msrCurrMaxRung(msr);
     in.csm = *msr->param.csm;
     
     /*
@@ -2650,7 +2685,7 @@ msrStepVeryActiveKDK(MSR msr, double dStep, double dTime, double dDelta,
      * Finish Particle Cache on all nodes
      */
     pstParticleCacheFinish(msr->pst, NULL, 0, NULL, NULL);
-    *pnMaxRung = out.nMaxRung;
+    msr->iCurrMaxRung = out.nMaxRung;
     }
 
 int
@@ -2750,7 +2785,6 @@ void msrInitTimeSteps(MSR msr,double dTime,double dDelta)
 	msrDensityStep(msr,dTime);
 	}
     msrDtToRung(msr,0,dDelta,1);
-    msrRungStats(msr);
     }
 
 

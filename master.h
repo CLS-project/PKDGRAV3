@@ -101,6 +101,7 @@ void msrTopStepKDK(MSR msr,
 		   int iRung,		/* Rung level */
 		   int iKickRung,	/* Gravity on all rungs from iRung
 					   to iKickRung */
+		   int iRungVeryActive, /* rung *below which* very active particles are */
 		   int iAdjust,		/* Do an adjust? */
 		   double *pdActiveSum,
 		   double *pdWMax,
@@ -108,10 +109,8 @@ void msrTopStepKDK(MSR msr,
 		   double *pdEMax,
 		   int *piSec);
 void msrStepVeryActiveKDK(MSR msr, double dStep, double dTime, double dDelta,
-			  int iRung, int *pnMaxRung);
+			  int iRung);
 void msrBuildTreeInactive(MSR msr, double dMass);
-
-void msrRungStats(MSR);
 
 void msrBallMax(MSR msr, int iRung, int bGreater);
 /*------------------*/
@@ -140,7 +139,7 @@ void msrGravStep(MSR msr, double dTime);
 void msrAccelStep(MSR msr, double dTime);
 void msrDensityStep(MSR msr, double dTime);
 void msrInitDt(MSR msr);
-void msrDtToRung(MSR msr, int iRung, double dDelta, int bAll);
+int msrDtToRung(MSR msr, int iRung, double dDelta, int bAll);
 
 /*
 ** Interface functions.

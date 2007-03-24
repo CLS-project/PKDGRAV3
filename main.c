@@ -154,11 +154,9 @@ int main(int argc,char **argv) {
 	    lSec = time(0);
 
 	    msrTopStepKDK(msr,iStep-1,dTime,
-			  msrDelta(msr),0,0,1,
+			  msrDelta(msr),0,0,msrMaxRung(msr),1,
 			  &dMultiEff,&dWMax,&dIMax,
 			  &dEMax,&iSec);
-
-	    msrRungStats(msr);
 
 	    dTime += msrDelta(msr);
 	    /*
@@ -317,7 +315,7 @@ int main(int argc,char **argv) {
 	    bGasOnly = 0;
 	    bSymmetric = 1;
 	    msrSmooth(msr,dTime,SMX_DENSITY,bGasOnly,bSymmetric);
-
+	    msrReorder(msr);
 	    sprintf(achFile,"%s.den",msrOutName(msr));
 	    msrOutArray(msr,achFile,OUT_DENSITY_ARRAY);
 	    } 

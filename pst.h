@@ -106,7 +106,6 @@ enum pst_service {
     PST_GRAVSTEP,
     PST_ACCELSTEP,
     PST_DENSITYSTEP,
-    PST_RUNGSTATS,
     PST_GETMAP,
     PST_ACTIVEEXACTTYPE,
     PST_ACTIVETYPE,
@@ -593,15 +592,6 @@ struct inDensityStep {
     };
 void pstDensityStep(PST,void *,int,void *,int *);
 
-/* PST_RUNGSTATS */
-struct inRungStats {
-    int iRung;
-    };
-struct outRungStats {
-    int nParticles;
-    };
-void pstRungStats(PST,void *,int,void *,int *);
-
 /* PST_GETMAP */
 struct inGetMap {
     int nStart;
@@ -658,8 +648,7 @@ struct inDtToRung {
     int bAll;
     };
 struct outDtToRung {
-    int iMaxRung;
-    int nMaxRung;
+    int nRungCount[256];
     };
 void pstDtToRung(PST,void *,int,void *,int *);
 

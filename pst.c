@@ -175,9 +175,6 @@ void pstAddServices(PST pst,MDL mdl)
     mdlAddService(mdl,PST_DENSITYSTEP,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstDensityStep,
 		  sizeof(struct inDensityStep),0);
-    mdlAddService(mdl,PST_RUNGSTATS,pst,
-		  (void (*)(void *,void *,int,void *,int *)) pstRungStats,
-		  sizeof(struct inRungStats),sizeof(struct outRungStats));
     mdlAddService(mdl,PST_GETMAP,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstGetMap,
 		  sizeof(struct inGetMap),nThreads*sizeof(int));
@@ -270,6 +267,7 @@ void pstInitialize(PST *ppst,MDL mdl,LCL *plcl)
     pst->nLower = 0;
     pst->nUpper = 0;
     pst->iSplitDim = -1;
+    pst->iVASplitSide = 0;
     }
 
 
@@ -599,10 +597,6 @@ void _pstRootSplit(PST pst,int iSplitDim,double dMass,int bDoRootFind,int bDoSpl
     mdlGetReply(pst->mdl,pst->idUpper,&outFree,NULL);
     nUpperStore = outFree.nFreeStore;
 
-    /*
-    ** Particles are ordered into active-inactive order in pstDomainDecomp.
-    */
-
     mdlprintf(pst->mdl,"_pstRootSplit: id %d Level %d\n",pst->mdl->idSelf,pst->iLvl);
     mdlPrintTimer(pst->mdl,"TIME START _pstRootSplit ",&t);
     mdlprintf(pst->mdl,"_pstRootSplit: fA0 %f fIA0 %f RS? %d DC? %d\n",
@@ -626,7 +620,7 @@ void _pstRootSplit(PST pst,int iSplitDim,double dMass,int bDoRootFind,int bDoSpl
     fm = pst->fSplit;
     ittr = -1;
 	
-    if (bDoRootFind || fm<fl || fm>fu ) {
+    if (bDoRootFind || fm<fl || fm>fu || (bSplitVA && (pst->iVASplitSide == 0))) {
 	/*
 	** First order the particles into active/inactive order...
 	*/
@@ -1196,23 +1190,11 @@ void pstDomainDecomp(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 
     pst->bnd = in->bnd;
     if (pst->nLeaves > 1) {
-	/*
-	** First order the particles into active/inactive order...
-	*/
-	/*
-	  { 
-	  int nActive;
-	  pstActiveOrder(pst, NULL, 0, &nActive, NULL); 
-	  }
-	*/
-
 	if (pst->iSplitDim != -1 && in->nActive < NMINFORROOTFIND) {
 	    mdlprintf(pst->mdl,"Aborting RootFind -- too few actives.\n");
 	    in->bDoSplitDimFind = 0;
 	    in->bDoRootFind = 0;
 	    }
-
-	mdlPrintTimer(pst->mdl,"TIME active order done in pstDomainDecomp",&t);
 
 	/*
 	** Next determine the longest axis based on the bounds.
@@ -2472,14 +2454,13 @@ void pstStepVeryActiveKDK(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 	    }
 	}
     else {
-	printf("pstStepVeryActive %d:at pst leaf plcl->pkd->nVeryActive:%d\n",mdlSelf(pst->mdl),plcl->pkd->nVeryActive);
-
 	assert(plcl->pkd->nVeryActive > 0);
 	
 	in->param.csm = &in->csm;
 	out->nMaxRung = in->nMaxRung;
 	pkdStepVeryActiveKDK(plcl->pkd,in->dStep,in->dTime,in->dDelta,
-			     in->iRung, in->iRung, 1, in->diCrit2,in->param, &out->nMaxRung);
+			     in->iRung, in->iRung, in->iRung, 0, in->diCrit2,
+			     in->param, &out->nMaxRung);
 	mdlCacheBarrier(pst->mdl,CID_CELL);
 	}
     if (pnOut) *pnOut = sizeof(*out);
@@ -2740,28 +2721,22 @@ pstDensityStep(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 void pstDtToRung(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     {
     LCL *plcl = pst->plcl;
+    struct outDtToRung outTemp;
     struct inDtToRung *in = vin;
     struct outDtToRung *out = vout;
-    int iMaxRung, nMaxRung;
+    int i;
 
     mdlassert(pst->mdl,nIn == sizeof(*in));
     if (pst->nLeaves > 1) {
 	mdlReqService(pst->mdl,pst->idUpper,PST_DTTORUNG,vin,nIn);
 	pstDtToRung(pst->pstLower,vin,nIn,vout,pnOut);
-	iMaxRung = out->iMaxRung;
-	nMaxRung = out->nMaxRung;
-	mdlGetReply(pst->mdl,pst->idUpper,vout,pnOut);
-	if(iMaxRung > out->iMaxRung) {
-	    out->iMaxRung = iMaxRung;
-	    out->nMaxRung = nMaxRung;
+	mdlGetReply(pst->mdl,pst->idUpper,&outTemp,pnOut);
+	for (i=0;i<in->iMaxRung;++i) {
+	    out->nRungCount[i] += outTemp.nRungCount[i];
 	    }
-	else if (iMaxRung == out->iMaxRung) 
-	    out->nMaxRung += nMaxRung;
-		        
 	}
     else {
-	out->iMaxRung = pkdDtToRung(plcl->pkd, in->iRung,
-				    in->dDelta, in->iMaxRung, in->bAll, &(out->nMaxRung));
+	pkdDtToRung(plcl->pkd,in->iRung,in->dDelta, in->iMaxRung, in->bAll, out->nRungCount);
 	}
     if (pnOut) *pnOut = sizeof(*out);
     }
@@ -2781,26 +2756,6 @@ void pstInitDt(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 	pkdInitDt(plcl->pkd,in->dDelta);
 	}
     if (pnOut) *pnOut = 0;
-    }
-
-void pstRungStats(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
-    LCL *plcl = pst->plcl;
-    struct inRungStats *in = vin;
-    struct outRungStats *out = vout;
-    int nParticles;
-
-    if (pst->nLeaves > 1) {
-	mdlReqService(pst->mdl,pst->idUpper,PST_RUNGSTATS,vin,nIn);
-	pstRungStats(pst->pstLower,vin,nIn,out,NULL);
-	nParticles = out->nParticles;
-	mdlGetReply(pst->mdl,pst->idUpper,out,NULL);
-	out->nParticles += nParticles;
-	}
-    else {
-	out->nParticles = pkdRungParticles(plcl->pkd,in->iRung);
-	}
-    if (pnOut) *pnOut = sizeof(struct outRungStats);
     }
 
 

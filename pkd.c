@@ -329,7 +329,6 @@ void pkdReadTipsy(PKD pkd,char *pszFileName, char *achOutName, int nStart,int nL
     sprintf(aTrack,"%s.track",achOutName);
     fpTrack = fopen(aTrack,"r");
     if (fpTrack) {
-	printf("Particle tracking on for particles read from file %s\n",aTrack);
 	/*
 	** Get to the right place in the file.
 	*/
@@ -526,7 +525,6 @@ SkipCheck:
 		}
 	    }
 	}
-    /*fprintf(stdout,"my id %i ,nStart %i, mass: %f \n",pkd->idSelf,nStart,mass); */
     fclose(fp);
     }
 
@@ -1685,7 +1683,7 @@ pkdOldGravityVeryActive(PKD pkd, int bEwald, int nReps, double fEwCut, double dS
     printf("Gravity time needed for tree interaction  : %g\n",time2-time1);
     printf("Gravity time nedded for bucket interaction: %g\n",time3-time2);
 
-    /*
+  /*
     ** Note that if Ewald is being performed we need to factor this
     ** constant cost into the load balancing weights.
     */
@@ -1703,17 +1701,15 @@ pkdOldGravityVeryActive(PKD pkd, int bEwald, int nReps, double fEwCut, double dS
 
 void
 pkdStepVeryActiveKDK(PKD pkd, double dStep, double dTime, double dDelta,
-		     int iRung, int iKickRung, int iAdjust, double diCrit2,
-		     struct parameters param, int *pnMaxRung)
+		     int iRung, int iKickRung, int iRungVeryActive,int iAdjust, double diCrit2,
+		     struct parameters param,int *pnMaxRung)
     {
-    int nMaxRung;
-    int nPartMaxRung;
+    int nRungCount[256];
     double dDriftFac;
+    int i;
 
     double time1,time2; /* added MZ 1.6.2006 */
     
-    nMaxRung = *pnMaxRung;
-/*     printf("%d ---- very active before adjust: iRung %d nRungVA %d nMaxRung %d iAdjust %d\n",mdlSelf(pkd->mdl),iRung,param.nRungVeryActive,nMaxRung,iAdjust); */
     if(iAdjust && (iRung < param.iMaxRung-1)) {
 	pkdActiveRung(pkd, iRung, 1);
 	pkdActiveType(pkd,TYPE_ALL,TYPE_TREEACTIVE|TYPE_SMOOTHACTIVE);
@@ -1731,41 +1727,47 @@ pkdStepVeryActiveKDK(PKD pkd, double dStep, double dTime, double dDelta,
 	    pkdAccelStep(pkd,param.dEta, dVelFac, dAccFac, param.bDoGravity,
 			 param.bEpsAccStep, param.bSqrtPhiStep, dhMinOverSoft);
 	    }
-	nMaxRung = pkdDtToRung(pkd,iRung,dDelta, param.iMaxRung, 1, &nPartMaxRung);
+	*pnMaxRung = pkdDtToRung(pkd,iRung,dDelta, param.iMaxRung-1, 1, nRungCount);
+    
+	if (param.bVDetails) {
+	    printf("%*cAdjust at iRung: %d, nMaxRung:%d nRungCount[%d]=%d\n",
+		   2*iRung+2,' ',iRung,*pnMaxRung,*pnMaxRung,nRungCount[*pnMaxRung]);
 	}
-/*     printf(" ---- very active before KickOpen: iRung %d nRungVA %d nMaxRung %d\n",iRung,param.nRungVeryActive,nMaxRung); */
-    if(iRung > param.nRungVeryActive) {	/* skip this if we are
+	
+	}
+    if(iRung > iRungVeryActive) {	/* skip this if we are
 					   entering for the first
 					   time: Kick is taken care of
 					   in master(). 
 					*/
 	pkdActiveRung(pkd,iRung,0);
-	if (param.bVDetails)
-	    printf("VeryActive pkdKickOpen at iRung: %d, 0.5*dDelta: %g\n",
-		   iRung, 0.5*dDelta);
+	if (param.bVDetails) {
+	    printf("%*cVeryActive pkdKickOpen  at iRung: %d, 0.5*dDelta: %g\n",
+		   2*iRung+2,' ',iRung,0.5*dDelta);
+	    }
 	pkdKickKDKOpen(pkd, dTime, 0.5*dDelta, param);
 	}
-    
-    if (nMaxRung > iRung) {
+    if (*pnMaxRung > iRung) {
 	/*
 	** Recurse.
 	*/
-	pkdStepVeryActiveKDK(pkd,dStep,dTime,0.5*dDelta,iRung+1,iRung+1,0,
-			     diCrit2,param, &nMaxRung);
+	pkdStepVeryActiveKDK(pkd,dStep,dTime,0.5*dDelta,iRung+1,iRung+1,iRungVeryActive,0,
+			     diCrit2,param, pnMaxRung);
 	dStep += 1.0/(2 << iRung);
 	dTime += 0.5*dDelta;
 	pkdActiveRung(pkd,iRung,0);
-	pkdStepVeryActiveKDK(pkd,dStep,dTime,0.5*dDelta,iRung+1,iKickRung,1,
-			     diCrit2,param, &nMaxRung);
+	pkdStepVeryActiveKDK(pkd,dStep,dTime,0.5*dDelta,iRung+1,iKickRung,iRungVeryActive,1,
+			     diCrit2,param,pnMaxRung);
 	}
     else {
-	if (param.bVDetails)
-	    printf("VeryActive Drift at iRung: %d, drifting %d and higher with dDelta: %g\n",
-		   iRung, param.nRungVeryActive+1, dDelta);
+	if (param.bVDetails) {
+	    printf("%*cVeryActive Drift at iRung: %d, drifting %d and higher with dDelta: %g\n",
+		   2*iRung+2,' ',iRung,iRungVeryActive+1,dDelta);
+	    }
 	/*
 	** This should drift *all* very actives!
 	*/
-	pkdActiveRung(pkd,param.nRungVeryActive+1,1);
+	pkdActiveRung(pkd,iRungVeryActive+1,1);
 	/*
 	** We need to account for cosmological drift factor here!
 	** Normally this is done at the MASTER level in msrDrift.
@@ -1783,16 +1785,18 @@ pkdStepVeryActiveKDK(PKD pkd, double dStep, double dTime, double dDelta,
 	dTime += dDelta;
 	dStep += 1.0/(1 << iRung);
 
-	if(iKickRung > param.nRungVeryActive) {	/* skip this if we are
+	if(iKickRung > iRungVeryActive) {	/* skip this if we are
 						   entering for the first
 						   time: Kick is taken care of
 						   in master(). 
 						*/
 
-	    if(param.bVDetails)
-		printf("\t GravityVA: iRung %d Gravity for rungs %d to %d\n",iRung,iKickRung,nMaxRung);
+	    if(param.bVDetails) {
+		printf("%*cGravityVA: iRung %d Gravity for rungs %d to %d ... ",
+		       2*iRung+2,' ',iRung,iKickRung,*pnMaxRung);
+		}
+
 	    time1 = Zeit(); /* added MZ 1.6.2006 */
-	    printf("iKickRung %d\n",iKickRung);
 
 	    pkdActiveRung(pkd,iKickRung,1);
 	    pkdInitAccel(pkd);
@@ -1800,22 +1804,21 @@ pkdStepVeryActiveKDK(PKD pkd, double dStep, double dTime, double dDelta,
 	    pkdGravityVeryActive(pkd, param.bEwald && param.bPeriodic,param.nReplicas,param.dEwCut,dStep);
 	    time2 = Zeit();
 	    if(param.bVDetails)
-		printf("\t GravityVA Time: %g\n",time2-time1);
+		printf("Time: %g\n",time2-time1);
 	    }
 	}
-    if(iKickRung > param.nRungVeryActive) {	/* skip this if we are
+    if(iKickRung > iRungVeryActive) {	/* skip this if we are
 						   entering for the first
 						   time: Kick is taken care of
 						   in master(). 
 						*/
 	pkdActiveRung(pkd,iRung,0);
-	if (param.bVDetails)
-	    printf("VeryActive pkdKickClose at iRung: %d, 0.5*dDelta: %g\n",
-		   iRung, 0.5*dDelta);
+	if (param.bVDetails) {
+	    printf("%*cVeryActive pkdKickClose at iRung: %d, 0.5*dDelta: %g\n",
+		   2*iRung+2,' ',iRung,0.5*dDelta);
+	    }
 	pkdKickKDKClose(pkd,dTime,0.5*dDelta, param);
 	}
-    printf("nMaxRung %d\n",nMaxRung);
-    *pnMaxRung = nMaxRung;
     }
 
 /*
@@ -2009,15 +2012,13 @@ void pkdDensityStep(PKD pkd,double dEta,double dRhoFac) {
 	}
     }
 
-int pkdDtToRung(PKD pkd,int iRung,double dDelta,int iMaxRung,int bAll, int *pnMaxRung) {
+int pkdDtToRung(PKD pkd,int iRung,double dDelta,int iMaxRung,int bAll,int *nRungCount) {
     int i;
-    int iMaxRungOut;
     int iTempRung;
     int iSteps;
     int nMaxRung;
     
-    iMaxRungOut = 0;
-    nMaxRung = 0;
+    for (i=0;i<iMaxRung;++i) nRungCount[i] = 0;
     for(i=0;i<pkdLocal(pkd);++i) {
 	if(pkd->pStore[i].iRung >= iRung) {
 	    mdlassert(pkd->mdl,TYPEQueryACTIVE(&(pkd->pStore[i])));
@@ -2051,15 +2052,14 @@ int pkdDtToRung(PKD pkd,int iRung,double dDelta,int iMaxRung,int bAll, int *pnMa
 		    }
                 }
 	    }
-	if(pkd->pStore[i].iRung > iMaxRungOut) {
-	    iMaxRungOut = pkd->pStore[i].iRung;
-	    nMaxRung = 1;
-	    }
-	else if (pkd->pStore[i].iRung == iMaxRungOut) 
-	    nMaxRung ++;
+	/*
+	** Now produce a count of particles in rungs.
+	*/
+	nRungCount[pkd->pStore[i].iRung] += 1;
 	}
-    *pnMaxRung = nMaxRung;
-    return iMaxRungOut;
+    iTempRung = iMaxRung-1;
+    while (nRungCount[iTempRung] == 0 && iTempRung > 0) --iTempRung;
+    return iTempRung;
     }
 
 void pkdInitDt(PKD pkd,double dDelta) {
@@ -2071,15 +2071,6 @@ void pkdInitDt(PKD pkd,double dDelta) {
 	}
     }
     
-int pkdRungParticles(PKD pkd,int iRung) {
-    int i,n;
-    
-    n = 0;
-    for (i=0;i<pkdLocal(pkd);++i) {
-	if (pkd->pStore[i].iRung == iRung) ++n;
-	}
-    return n;
-    }
 
 void pkdDeleteParticle(PKD pkd, PARTICLE *p) {
     p->iOrder = -2 - p->iOrder;
