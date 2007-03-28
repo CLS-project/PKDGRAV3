@@ -93,7 +93,7 @@ _msrMakePath(const char *dir,const char *base,char *path)
 void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv)
     {
     MSR msr;
-    int j,ret;
+    int i,j,ret;
     int id,nDigits;
     struct inSetAdd inAdd;
     struct inLevelize inLvl;
