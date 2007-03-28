@@ -574,6 +574,7 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv)
     msr->iLastRungSD = -1;
     msr->nRung = (int *) malloc( (msr->param.iMaxRung+1)*sizeof(int) );
     assert(msr->nRung != NULL);
+    for (i=0;i<=msr->param.iMaxRung;++i) msr->nRung[i] = 0;
     }
 
 
@@ -1313,6 +1314,12 @@ void msrDomainDecomp(MSR msr,int iRung,int bGreater,int bSplitVA) {
 	}
     else iRungDD = iRung;
 
+    if (msr->bDoneDomainDecomp && msr->iLastRungDD == iRungDD) {
+	    if (msr->param.bVRungStat) printf("Skipping Root Finder (nActive = %d/%d, iRung %d/%d/%d)\n",msr->nActive,msr->N,iRung,iRungDD,msr->iLastRungDD);
+	    in.bDoRootFind = 0;
+	    in.bDoSplitDimFind = 0;
+	    }
+	
     if (in.bDoRootFind && msr->bDoneDomainDecomp && iRungDD > iRungSD && msr->iLastRungSD >= iRungSD) {
 	if (msr->param.bVRungStat) printf("Skipping Split Dim Finding (nActive = %d/%d, iRung %d/%d/%d/%d)\n",msr->nActive,msr->N,iRung,iRungDD,iRungSD,msr->iLastRungSD);
 	in.bDoSplitDimFind = 0;
