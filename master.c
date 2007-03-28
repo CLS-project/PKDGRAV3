@@ -2438,6 +2438,10 @@ int msrDtToRung(MSR msr, int iRung, double dDelta, int bAll) {
 	iOutMaxRung = iTempRung;
 	}
     /*
+    ** Now copy the rung distribution to the msr structure!
+    */
+    for (iTempRung=0;iTempRung < msrMaxRung(msr);++iTempRung) msr->nRung[iTempRung] = out.nRungCount[iTempRung];
+    /*
     ** Now we want to make a suggestion for the current very active rung based on the number of 
     ** particles in the deepest rungs.
     */
@@ -2556,7 +2560,7 @@ void msrTopStepKDK(MSR msr,
 	    msrUpdateSoft(msr,dTime);
 	    msrActiveType(msr,TYPE_ALL,TYPE_TREEACTIVE);
 	    if (msr->param.bVDetails) {
-		printf("%*cGravity, iRung: %d to %d\n",iRung,' ',2*iRung+2,iKickRung);
+		printf("%*cGravity, iRung: %d to %d\n",2*iRung+2,' ',iKickRung,iRung);
 		}
 	    msrBuildTree(msr,dMass);
 	    msrGravity(msr,dStep,piSec,pdWMax,pdIMax,pdEMax,&nActive);
