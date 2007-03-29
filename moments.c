@@ -505,6 +505,113 @@ void momShiftMomr(MOMR *m,momFloat x,momFloat y,momFloat z)
 
 
 /*
+ ** This function shifts a reduced local expansion (LOCR) to a new center of expansion.
+ ** <x,y,z> := d := rexp(new) - rexp(old).
+ **
+ ** Op Count (*,+) = (97,100) = 197
+ */
+void momShiftLocr(LOCR *l,momFloat x,momFloat y,momFloat z)
+{
+  const momFloat onethird = 1.0/3.0;
+  momFloat L,Lx,Ly,Lz,Lxx,Lxy,Lxz,Lyy,Lyz,Lxxx,Lxxy,Lxxz,Lxyy,Lxyz,Lyyy,Lyyz,hx,hy,hz;
+
+  L = l->x*x + l->y*y + l->z*z; 
+  l->m += L;
+
+  hx = 0.5*x;
+  hy = 0.5*x;
+  hz = 0.5*x;
+
+  Lx = l->xx*x + l->xy*y + l->xz*z;
+  Ly = l->xy*x + l->yy*y + l->yz*z;
+  Lz = l->xz*x + l->yz*y - (l->xx + l->yy)*z;
+  L = Lx*hx + Ly*hy + Lz*hz;
+  l->x += Lx;
+  l->y += Ly;
+  l->z += Lz;
+  l->m += L;
+
+  Lxx = l->xxx*x + l->xxy*y + l->xxz*z;
+  Lxy = l->xxy*x + l->xyy*y + l->xyz*z;
+  Lxz = l->xxz*x + l->xyz*y - (l->xxx + l->xyy)*z;
+  Lyy = l->xyy*x + l->yyy*y + l->yyz*z;
+  Lyz = l->xyz*x + l->yyz*y - (l->xxy + l->yyy)*z;
+  Lx = Lxx*hx + Lxy*hy + Lxz*hz;
+  Ly = Lxy*hx + Lyy*hy + Lyz*hz;
+  Lz = Lxz*hx + Lyz*hy - (Lxx + Lyy)*hz;
+
+  l->xx += Lxx;
+  l->xy += Lxy;
+  l->xz += Lxz;
+  l->yy += Lyy;
+  l->yz += Lyz;
+  l->x += Lx;
+  l->y += Ly;
+  l->z += Lz;
+
+  Lxxx = l->xxxx*x + l->xxxy*y + l->xxxz*z;
+  Lxxy = l->xxxy*x + l->xxyy*y + l->xxyz*z;
+  Lxxz = l->xxxz*x + l->xxyz*y - (l->xxxx + l->xxyy)*z;
+  Lxyy = l->xxyy*x + l->xyyy*y + l->xyyz*z;
+  Lxyz = l->xxyz*x + l->xyyz*y - (l->xxxy + l->xyyy)*z;
+  Lyyy = l->xyyy*x + l->yyyy*y + l->yyyz*z;
+  Lyyz = l->xyyz*x + l->yyyz*y - (l->xxyy + l->yyyy)*z;
+  Lxx = Lxxx*hx + Lxxy*hy + Lxxz*hz;
+  Lxy = Lxxy*hx + Lxyy*hy + Lxyz*hz;
+  Lxz = Lxxz*hx + Lxyz*hy - (Lxxx + Lxyy)*hz;
+  Lyy = Lxyy*hx + Lyyy*hy + Lyyz*hz;
+  Lyz = Lxyz*hx + Lyyz*hy - (Lxxy + Lyyy)*hz;
+  x *= onethird;
+  y *= onethird;
+  z *= onethird;
+  L = Lx*x + Ly*y + Lz*z;  /* note here we use the old Lx,Ly,Lz */
+  l->m += L;
+  Lx = Lxx*x + Lxy*y + Lxz*z;
+  Ly = Lxy*x + Lyy*y + Lyz*z;
+  Lz = Lxz*x + Lyz*y - (Lxx + Lyy)*z;
+  L = Lx*hx + Ly*hy + Lz*hz;
+
+  l->xxx += Lxxx;
+  l->xxy += Lxxy;
+  l->xxz += Lxxz;
+  l->xyy += Lxyy;
+  l->xyz += Lxyz;
+  l->yyy += Lyyy;
+  l->yyz += Lyyz;
+  l->xx += Lxx;
+  l->xy += Lxy;
+  l->xz += Lxz;
+  l->yy += Lyy;
+  l->yz += Lyz;
+  l->x += Lx;
+  l->y += Ly;
+  l->z += Lz;
+  l->m += 0.5*L;
+}
+
+
+/*
+ ** This function shifts a reduced local expansion of 2ND ORDER (quadrupole) to a new center of expansion.
+ ** <x,y,z> := d := rexp(new) - rexp(old).
+ */
+void momShiftLocr2(LOCR *l,momFloat x,momFloat y,momFloat z)
+{
+  momFloat L,Lx,Ly,Lz;
+
+  L = l->x*x + l->y*y + l->z*z; 
+  l->m += L;
+  Lx = l->xx*x + l->xy*y + l->xz*z;
+  Ly = l->xy*x + l->yy*y + l->yz*z;
+  Lz = l->xz*x + l->yz*y - (l->xx + l->yy)*z;
+  L = Lx*x + Ly*y + Lz*z;
+  l->x += Lx;
+  l->y += Ly;
+  l->z += Lz;
+  l->m += 0.5*L;
+}
+
+
+/*
  ** This function converts a complete multipole (MOMC) to a reduced one (MOMR).
  */
 void momReduceMomc(MOMC *mc,MOMR *mr)
@@ -625,7 +732,11 @@ void momReduceLocc(LOCC *mc,LOCR *mr)
  ** This version is nearly two times as fast as a naive
  ** implementation.
  **
- ** OpCount = (*,+) = (103,72) = 175 - 8 = 167
+ ** March 23, 2007: This function now uses unit vectors 
+ ** which reduces the required precision in the exponent
+ ** since the highest power of r is now 5 (g4 ~ r^(-5)).
+ **
+ ** OpCount = (*,+) = (105,72) = 177 - 8 = 169
  */
 void momEvalMomr(MOMR *m,momFloat dir,momFloat x,momFloat y,momFloat z,
 				 momFloat *fPot,momFloat *ax,momFloat *ay,momFloat *az)
@@ -633,20 +744,21 @@ void momEvalMomr(MOMR *m,momFloat dir,momFloat x,momFloat y,momFloat z,
 	const momFloat onethird = 1.0/3.0;
 	momFloat xx,xy,xz,yy,yz,zz;
 	momFloat xxx,xxy,xxz,xyy,yyy,yyz,xyz;
-	momFloat tx,ty,tz,dir2,g2,g3,g4;
+	momFloat tx,ty,tz,g0,g2,g3,g4;
 
-	dir = -dir;
-	dir2 = dir*dir;
-	g2 = 3*dir*dir2*dir2;
-	g3 = -5*g2*dir2;
-	g4 = -7*g3*dir2;
+	g2 = -3*dir*dir*dir;
+	g3 = -5*g2*dir;
+	g4 = -7*g3*dir;
 	/*
 	 ** Calculate the funky distance terms.
 	 */
+	x *= dir;
+	y *= dir;
+	z *= dir;
 	xx = 0.5*x*x;
 	xy = x*y;
 	xz = x*z;
-    yy = 0.5*y*y;
+	yy = 0.5*y*y;
 	yz = y*z;
 	zz = 0.5*z*z;
 	xxx = x*(onethird*xx - zz);
@@ -673,12 +785,79 @@ void momEvalMomr(MOMR *m,momFloat dir,momFloat x,momFloat y,momFloat z,
 	xy = g2*(m->yy*y + m->xy*x + m->yz*z);
 	xz = g2*(-(m->xx + m->yy)*z + m->xz*x + m->yz*y);
 	g2 = 0.5*(xx*x + xy*y + xz*z);
-	dir *= m->m;
-	dir2 *= -(dir + 5*g2 + 7*g3 + 9*g4);
-	*fPot += dir + g2 + g3 + g4;
-	*ax += xx + xxx + tx + x*dir2;
-	*ay += xy + xxy + ty + y*dir2;
-	*az += xz + xxz + tz + z*dir2;
+	g0 = m->m*dir;
+	*fPot += g2 + g3 + g4 - g0;
+	g0 -= 5*g2 + 7*g3 + 9*g4;
+	*ax += dir*(xx + xxx + tx + x*g0);
+	*ay += dir*(xy + xxy + ty + y*g0);
+	*az += dir*(xz + xxz + tz + z*g0);
+	}
+
+
+/*
+ ** This is a new version of EvalMomr which is designed to be 
+ ** less sensitive to the size of the exponent in single precision.
+ ** Highest direct power of r is 2 (as it should be for a force)
+ ** when using scaled moments (providing a scale factor of s, some size
+ ** of the cell).
+ **
+ ** OpCount = (*,+) = (108,73) = 181 - 8 = 173
+ */
+void momEvalMomrs(MOMR *m,momFloat s,momFloat dir,
+		  momFloat x,momFloat y,momFloat z,
+		  momFloat *fPot,momFloat *ax,momFloat *ay,momFloat *az)
+{
+	const momFloat onethird = 1.0/3.0;
+	momFloat xx,xy,xz,yy,yz,zz;
+	momFloat xxx,xxy,xxz,xyy,yyy,yyz,xyz;
+	momFloat tx,ty,tz,sir,g0,g2,g3,g4;
+
+	sir = s*dir;
+	g2 = -3*dir*sir*sir;
+	g3 = -5*g2*sir;
+	g4 = -7*g3*sir;
+	/*
+	 ** Calculate the funky distance terms.
+	 */
+	x *= dir;
+	y *= dir;
+	z *= dir;
+	xx = 0.5*x*x;
+	xy = x*y;
+	xz = x*z;
+	yy = 0.5*y*y;
+	yz = y*z;
+	zz = 0.5*z*z;
+	xxx = x*(onethird*xx - zz);
+	xxz = z*(xx - onethird*zz);
+	yyy = y*(onethird*yy - zz);
+	yyz = z*(yy - onethird*zz);
+	xx -= zz;
+	yy -= zz;
+	xxy = y*xx;
+	xyy = x*yy;
+	xyz = xy*z;
+	/*
+	 ** Now calculate the interaction up to Hexadecapole order.
+	 */
+	tx = g4*(m->xxxx*xxx + m->xyyy*yyy + m->xxxy*xxy + m->xxxz*xxz + m->xxyy*xyy + m->xxyz*xyz + m->xyyz*yyz);
+	ty = g4*(m->xyyy*xyy + m->xxxy*xxx + m->yyyy*yyy + m->yyyz*yyz + m->xxyy*xxy + m->xxyz*xxz + m->xyyz*xyz);
+	tz = g4*(-m->xxxx*xxz - (m->xyyy + m->xxxy)*xyz - m->yyyy*yyz + m->xxxz*xxx + m->yyyz*yyy - m->xxyy*(xxz + yyz) + m->xxyz*xxy + m->xyyz*xyy);
+	g4 = 0.25*(tx*x + ty*y + tz*z);
+	xxx = g3*(m->xxx*xx + m->xyy*yy + m->xxy*xy + m->xxz*xz + m->xyz*yz);
+	xxy = g3*(m->xyy*xy + m->xxy*xx + m->yyy*yy + m->yyz*yz + m->xyz*xz);
+	xxz = g3*(-(m->xxx + m->xyy)*xz - (m->xxy + m->yyy)*yz + m->xxz*xx + m->yyz*yy + m->xyz*xy);
+	g3 = onethird*(xxx*x + xxy*y + xxz*z);
+	xx = g2*(m->xx*x + m->xy*y + m->xz*z);
+	xy = g2*(m->yy*y + m->xy*x + m->yz*z);
+	xz = g2*(-(m->xx + m->yy)*z + m->xz*x + m->yz*y);
+	g2 = 0.5*(xx*x + xy*y + xz*z);
+	g0 = m->m*dir;
+	*fPot += g2 + g3 + g4 - g0;
+	g0 -= 5*g2 + 7*g3 + 9*g4;
+	*ax += dir*(xx + xxx + tx + x*g0);
+	*ay += dir*(xy + xxy + ty + y*g0);
+	*az += dir*(xz + xxz + tz + z*g0);
 	}
 
 
@@ -751,33 +930,6 @@ void momClearLocr(LOCR *l)
 	l->yyyz = 0;
 	}
 
-void momClearMomr(MOMR *l)
-{
-	l->m = 0;
-	l->xx = 0;
-	l->xy = 0;
-	l->yy = 0;
-	l->xz = 0;
-	l->yz = 0;
-	l->xxx = 0;
-	l->xxy = 0;
-	l->xyy = 0;
-	l->yyy = 0;
-	l->xxz = 0;
-	l->xyz = 0;
-	l->yyz = 0;
-	l->xxxx = 0;
-	l->xxxy = 0;
-	l->xxyy = 0;
-	l->xyyy = 0;
-	l->yyyy = 0;
-	l->xxxz = 0;
-	l->xxyz = 0;
-	l->xyyz = 0;
-	l->yyyz = 0;
-	}
-
-
 
 void momMomr2Momc(MOMR *ma,MOMC *mc)
 {
@@ -815,10 +967,284 @@ void momMomr2Momc(MOMR *ma,MOMC *mc)
 	mc->zzzz = -(mc->xxzz + mc->yyzz);
 	}
 
+/*
+** Op Count (*,+) = (240,188) = 428
+** Op Count per Multipole = 214
+*/
+void momSymLocrAddMomr(LOCR *l1,LOCR *l2,MOMR *q1,MOMR *q2,momFloat dir,momFloat x,momFloat y,momFloat z) {
+    const momFloat onethird = 1.0/3.0;
+    momFloat xx,xy,xz,yy,yz,zz;
+    momFloat m1,m2,Ax,Ay,Az,A,Bx,By,Bz,B,C1,C2,R,T,t,f,t3xx,t3yy,t4xx,t4yy;
+    momFloat g0,g1,t2,g2,g2t,t3,g3,g3t,t4,g4;
 
-void momLoccAddMomr(LOCC *l,MOMC *m,momFloat g0,momFloat x,momFloat y,momFloat z)
+    g0 = -dir;
+    g1 = -g0*dir;
+    t2 = -3*dir;
+    g2 = t2*g1;
+    g2t = g2*dir;
+    t3 = -5*dir;
+    g3 = t3*g2;
+    g3t = g3*dir;
+    t4 = -7*dir;
+
+    x *= dir;
+    y *= dir;
+    z *= dir;
+    xx = 0.5*x*x;
+    xy = x*y;
+    yy = 0.5*y*y;
+    xz = x*z;
+    yz = y*z;
+    zz = 0.5*z*z;
+    xx -= zz;
+    yy -= zz;
+
+    Ax = x*q2->xx + y*q2->xy + z*q2->xz;
+    Ay = x*q2->xy + y*q2->yy + z*q2->yz;
+    Az = x*q2->xz + y*q2->yz - z*(q2->xx + q2->yy);
+    A = 0.5*g2*(x*Ax + y*Ay + z*Az);
+    Ax *= g2t;
+    Ay *= g2t;
+    Az *= g2t;
+
+    Bx = xx*q2->xxx + xy*q2->xxy + xz*q2->xxz + yy*q2->xyy + yz*q2->xyz;
+    By = xx*q2->xxy + xy*q2->xyy + xz*q2->xyz + yy*q2->yyy + yz*q2->yyz;
+    Bz = xx*q2->xxz + xy*q2->xyz - xz*(q2->xxx + q2->xyy) + yy*q2->yyz - yz*(q2->xxy + q2->yyy);
+    B = onethird*g3*(x*Bx + y*By + z*Bz);
+    Bx *= g3t;
+    By *= g3t;
+    Bz *= g3t;
+
+    l1->m += g0*q2->m + A + B;
+
+    A *= t3;
+
+    m2 = g1*q2->m;
+    R = m2 + A + t4*B;
+    l1->x += Ax + Bx + x*R;
+    l1->y += Ay + By + y*R;
+    l1->z += Az + Bz + z*R;
+
+    Ax *= t3;
+    Ay *= t3;
+    Az *= t3;
+
+    T = dir*(m2 + A);
+    m2 *= t2;
+    R = m2 + t4*A;
+    l1->xx += T + (R*x + 2*Ax)*x;
+    l1->yy += T + (R*y + 2*Ay)*y;
+    l1->xy += R*xy + (Ax*y + Ay*x);
+    l1->xz += R*xz + (Ax*z + Az*x);
+    l1->yz += R*yz + (Ay*z + Az*y);
+
+    Ax = x*q1->xx + y*q1->xy + z*q1->xz;
+    Ay = x*q1->xy + y*q1->yy + z*q1->yz;
+    Az = x*q1->xz + y*q1->yz - z*(q1->xx + q1->yy);
+    A = 0.5*g2*(x*Ax + y*Ay + z*Az);
+
+
+    Bx = xx*q1->xxx + xy*q1->xxy + xz*q1->xxz + yy*q1->xyy + yz*q1->xyz;
+    By = xx*q1->xxy + xy*q1->xyy + xz*q1->xyz + yy*q1->yyy + yz*q1->yyz;
+    Bz = xx*q1->xxz + xy*q1->xyz - xz*(q1->xxx + q1->xyy) + yy*q1->yyz - yz*(q1->xxy + q1->yyy);
+    B = onethird*g3*(x*Bx + y*By + z*Bz);
+
+    l2->m += g0*q1->m + A - B;
+
+    A *= t3;
+
+    m1 = g1*q1->m;
+    R = m1 + A - t4*B;
+    l2->x += -Ax + Bx - x*R;
+    l2->y += -Ay + By - y*R;
+    l2->z += -Az + Bz - z*R;
+
+    Ax *= t3;
+    Ay *= t3;
+    Az *= t3;
+
+    T = dir*(m1 + A);
+    m1 *= t2;
+    R = m1 + t4*A;
+    l2->xx += T + (R*x + 2*Ax)*x;
+    l2->yy += T + (R*y + 2*Ay)*y;
+    l2->xy += R*xy + (Ax*y + Ay*x);
+    l2->xz += R*xz + (Ax*z + Az*x);
+    l2->yz += R*yz + (Ay*z + Az*y);
+
+    /*
+    ** No more A's and no more B's used here!
+    */
+    t = xx*xx - xz*xz;     C1 =  t*q2->xxxx; C2 =  t*q1->xxxx;
+    t = yy*yy - yz*yz;     C1 += t*q2->yyyy; C2 += t*q1->yyyy; 
+    t = 2*xx*xz;           C1 += t*q2->xxxz; C2 += t*q1->xxxz; 
+    t = 2*yy*yz;           C1 += t*q2->yyyz; C2 += t*q1->yyyz; 
+    t = 6*yy*xx - 4*zz*zz; C1 += t*q2->xxyy; C2 += t*q1->xxyy;
+    xx = x*x;
+    yy = y*y;
+    zz *= 2;
+    t = (3*xx - zz)*yz;    C1 += t*q2->xxyz; C2 += t*q1->xxyz;
+    t = (3*yy - zz)*xz;    C1 += t*q2->xyyz; C2 += t*q1->xyyz;
+    zz *= 3;
+    t = xy*(xx - zz);      C1 += t*q2->xxxy; C2 += t*q1->xxxy;
+    t = xy*(yy - zz);      C1 += t*q2->xyyy; C2 += t*q1->xyyy; 
+
+    g4 = (7.0/6.0)*g3t;
+    l1->m += g4*C1;
+    l2->m += g4*C2;
+
+    m1 *= dir;
+    m2 *= dir;
+    t3xx = -5*xx;
+    t3yy = -5*yy;
+    t = (3 + t3xx)*x; l1->xxx += t*m2; l2->xxx -= t*m1;
+    t = (3 + t3yy)*y; l1->yyy += t*m2; l2->yyy -= t*m1;
+    f = (1 + t3xx);
+    t = f*y;          l1->xxy += t*m2; l2->xxy -= t*m1;
+    t = f*z;          l1->xxz += t*m2; l2->xxz -= t*m1;
+    f = (1 + t3yy);
+    t = f*x;          l1->xyy += t*m2; l2->xyy -= t*m1;
+    t = f*z;          l1->yyz += t*m2; l2->yyz -= t*m1;
+    t = -5*xy*z;      l1->xyz += t*m2; l2->xyz -= t*m1;
+
+    m1 *= dir;
+    m2 *= dir;
+    t4xx = t4*xx;
+    t4yy = t4*yy;
+    t = (3 + (6 + t4xx)*t3xx);        l1->xxxx += t*m2; l2->xxxx += t*m1;
+    t = (1 + t3xx + t3yy*(1 + t4xx)); l1->xxyy += t*m2; l2->xxyy += t*m1;
+    t = (3 + (6 + t4yy)*t3yy);        l1->yyyy += t*m2; l2->yyyy += t*m1;
+    m1 *= -5;
+    m2 *= -5;
+    f = (3 + t4xx);
+    t = f*xy;                         l1->xxxy += t*m2; l2->xxxy += t*m1;
+    t = f*xz;                         l1->xxxz += t*m2; l2->xxxz += t*m1;
+    f = (3 + t4yy);
+    t = f*xy;                         l1->xyyy += t*m2; l2->xyyy += t*m1;
+    t = f*yz;                         l1->yyyz += t*m2; l2->yyyz += t*m1;
+    t = (1 + t4xx)*yz;                l1->xxyz += t*m2; l2->xxyz += t*m1;
+    t = (1 + t4yy)*xz;                l1->xyyz += t*m2; l2->xyyz += t*m1;
+    }
+
+/*
+** Op Count (*,+) = (154,105) = 259 
+*/
+void momLocrAddMomr(LOCR *l,MOMR *q,momFloat dir,momFloat x,momFloat y,momFloat z) {
+    const momFloat onethird = 1.0/3.0;
+    momFloat xx,xy,xz,yy,yz,zz;
+    momFloat Ax,Ay,Az,A,Bx,By,Bz,B,C,R,T;
+    momFloat g0,g1,g2,g2t,g3,g3t,m,t2,t3,t4,t3xx,t3yy,t4xx,t4yy,f;
+
+    g0 = -dir;
+    g1 = -g0*dir;
+    t2 = -3*dir;
+    g2 = t2*g1;
+    g2t = g2*dir;
+    t3 = -5*dir;
+    g3 = t3*g2;
+    g3t = g3*dir;
+    t4 = -7*dir;
+
+    x *= dir;
+    y *= dir;
+    z *= dir;
+    xx = 0.5*x*x;
+    xy = x*y;
+    yy = 0.5*y*y;
+    xz = x*z;
+    yz = y*z;
+    zz = 0.5*z*z;
+    xx -= zz;
+    yy -= zz;
+
+    Ax = x*q->xx + y*q->xy + z*q->xz;
+    Ay = x*q->xy + y*q->yy + z*q->yz;
+    Az = x*q->xz + y*q->yz - z*(q->xx + q->yy);
+    A = 0.5*g2*(x*Ax + y*Ay + z*Az);
+    Ax *= g2t;
+    Ay *= g2t;
+    Az *= g2t;
+
+    Bx = xx*q->xxx + xy*q->xxy + xz*q->xxz + yy*q->xyy + yz*q->xyz;
+    By = xx*q->xxy + xy*q->xyy + xz*q->xyz + yy*q->yyy + yz*q->yyz;
+    Bz = xx*q->xxz + xy*q->xyz - xz*(q->xxx + q->xyy) + yy*q->yyz - yz*(q->xxy + q->yyy);
+    B = onethird*g3*(x*Bx + y*By + z*Bz);
+    Bx *= g3t;
+    By *= g3t;
+    Bz *= g3t;
+
+    l->m += g0*q->m + A + B;
+
+    A *= t3;
+
+    m = g1*q->m;
+    R = m + A + t4*B;
+    l->x += Ax + Bx + x*R;
+    l->y += Ay + By + y*R;
+    l->z += Az + Bz + z*R;
+    /*
+    ** No more B's used here!
+    */
+    Ax *= t3;
+    Ay *= t3;
+    Az *= t3;
+
+    T = dir*(m + A);
+    m *= t2;
+    R = m + t4*A;
+    l->xx += T + (R*x + 2*Ax)*x;
+    l->yy += T + (R*y + 2*Ay)*y;
+    l->xy += R*xy + (Ax*y + Ay*x);
+    l->xz += R*xz + (Ax*z + Az*x);
+    l->yz += R*yz + (Ay*z + Az*y);
+    /*
+    ** No more A's and no more B's used here!
+    */
+    C = (xx*xx - xz*xz)*q->xxxx + (yy*yy - yz*yz)*q->yyyy + 
+      2*(xx*xz*q->xxxz + yy*yz*q->yyyz) + (6*yy*xx - 4*zz*zz)*q->xxyy;
+    xx = x*x;
+    yy = y*y;
+    zz *= 2;
+    C += (3*xx - zz)*yz*q->xxyz  + (3*yy - zz)*xz*q->xyyz;
+    zz *= 3;
+    C += xy*((xx - zz)*q->xxxy + (yy - zz)*q->xyyy); 
+
+    l->m -= (7.0/6.0)*g3t*C;
+
+    m *= dir;
+    t3xx = -5*xx;
+    t3yy = -5*yy;
+    l->xxx += (3 + t3xx)*x*m;
+    l->yyy += (3 + t3yy)*y*m;
+    f = m*(1 + t3xx);
+    l->xxy += f*y;
+    l->xxz += f*z;
+    f = m*(1 + t3yy);
+    l->xyy += f*x;
+    l->yyz += f*z;
+    l->xyz += -5*xy*z*m;
+
+    m *= dir;
+    t4xx = -7*xx;
+    t4yy = -7*yy;
+    l->xxxx += (3 + (6 + t4xx)*t3xx)*m;
+    l->xxyy += (1 + t3xx + t3yy*(1 + t4xx))*m;
+    l->yyyy += (3 + (6 + t4yy)*t3yy)*m;
+    m *= -5;
+    f = m*(3 + t4xx);
+    l->xxxy += f*xy;
+    l->xxxz += f*xz;
+    f = m*(3 + t4yy);
+    l->xyyy += f*xy;
+    l->yyyz += f*yz;
+    l->xxyz += (1 + t4xx)*yz*m;
+    l->xyyz += (1 + t4yy)*xz*m;
+    }
+
+
+void momLoccAddMomrAccurate(LOCC *l,MOMC *m,momFloat g0,momFloat x,momFloat y,momFloat z)
 {
-	const momFloat onethird = 1.0/3.0;
+        const momFloat onethird = 1.0/3.0;
 	momFloat dir2,g1,g2,g3,g4,g5,g6,g7,g8;
 	momFloat R,R2,Rx,Ry,Rz,Rxx,Rxy,Ryy,Rxz,Ryz,Rzz;
 	momFloat Rxxx,Rxxy,Rxyy,Ryyy,Rxxz,Rxyz,Ryyz,Rxzz,Ryzz,Rzzz;
@@ -1000,7 +1426,7 @@ void momLoccAddMomr(LOCC *l,MOMC *m,momFloat g0,momFloat x,momFloat y,momFloat z
 	}
 
 
-void momLocrAddMomr(LOCR *l,MOMR *m,momFloat g0,momFloat x,momFloat y,momFloat z)
+void momLocrAddMomrAccurate(LOCR *l,MOMR *m,momFloat g0,momFloat x,momFloat y,momFloat z)
 {
 	const momFloat onethird = 1.0/3.0;
 	momFloat dir2,g1,g2,g3,g4,g5,g6,g7,g8;
@@ -1149,8 +1575,55 @@ void momLocrAddMomr(LOCR *l,MOMR *m,momFloat g0,momFloat x,momFloat y,momFloat z
 	}
 
 
-void momEvalLocc(LOCC *l,momFloat x,momFloat y,momFloat z,
+void momEvalLocr(LOCR *l,momFloat x,momFloat y,momFloat z,
 				 momFloat *fPot,momFloat *ax,momFloat *ay,momFloat *az)
+{
+	const momFloat onethird = 1.0/3.0;
+	momFloat xx,xy,xz,yy,yz,zz,xxx,xxz,yyy,yyz,xxy,xyy,xyz,tx,ty,tz,g1,g2,g3,g4;
+
+	/*
+	 ** Calculate the funky distance terms.
+	 */
+	xx = 0.5*x*x;
+	xy = x*y;
+	xz = x*z;
+	yy = 0.5*y*y;
+	yz = y*z;
+	zz = 0.5*z*z;
+	xxx = x*(onethird*xx - zz);
+	xxz = z*(xx - onethird*zz);
+	yyy = y*(onethird*yy - zz);
+	yyz = z*(yy - onethird*zz);
+	xx -= zz;
+	yy -= zz;
+	xxy = y*xx;
+	xyy = x*yy;
+	xyz = xy*z;
+	/*
+	 ** Now calculate the interaction up to Hexadecapole order.
+	 */
+	tx = l->xxxx*xxx + l->xyyy*yyy + l->xxxy*xxy + l->xxxz*xxz + l->xxyy*xyy + l->xxyz*xyz + l->xyyz*yyz;
+	ty = l->xyyy*xyy + l->xxxy*xxx + l->yyyy*yyy + l->yyyz*yyz + l->xxyy*xxy + l->xxyz*xxz + l->xyyz*xyz;
+	tz = -l->xxxx*xxz - (l->xyyy + l->xxxy)*xyz - l->yyyy*yyz + l->xxxz*xxx + l->yyyz*yyy - l->xxyy*(xxz + yyz) + l->xxyz*xxy + l->xyyz*xyy;
+	g4 = 0.25*(tx*x + ty*y + tz*z);
+	xxx = l->xxx*xx + l->xyy*yy + l->xxy*xy + l->xxz*xz + l->xyz*yz;
+	xxy = l->xyy*xy + l->xxy*xx + l->yyy*yy + l->yyz*yz + l->xyz*xz;
+	xxz = -(l->xxx + l->xyy)*xz - (l->xxy + l->yyy)*yz + l->xxz*xx + l->yyz*yy + l->xyz*xy;
+	g3 = onethird*(xxx*x + xxy*y + xxz*z);
+	xx = l->xx*x + l->xy*y + l->xz*z;
+	xy = l->yy*y + l->xy*x + l->yz*z;
+	xz = -(l->xx + l->yy)*z + l->xz*x + l->yz*y;
+	g2 = 0.5*(xx*x + xy*y + xz*z);
+	g1 = x*l->x + y*l->y + z*l->z;
+	*ax += l->x + xx + xxx + tx;
+	*ay += l->y + xy + xxy + ty;
+	*az += l->z + xz + xxz + tz;
+	*fPot += l->m + g1 + g2 + g3 + g4;
+	}
+
+
+void momEvalLocc(LOCC *l,momFloat x,momFloat y,momFloat z,
+		 momFloat *fPot,momFloat *ax,momFloat *ay,momFloat *az)
 {
 	const momFloat sixth = 1.0/6.0;
 	const momFloat third = 1.0/3.0;
@@ -1255,15 +1728,13 @@ void momPrintMomc(MOMC *m) {
 
 void momPrintMomr(MOMR *m) {
 	printf("MOMR:%20.15g\n",(double)m->m);
-	printf("  xx:%20.15g   yy:%20.15g\n",(double)m->xx,(double)m->yy);
-    printf("  xy:%20.15g   yz:%20.15g   xz:%20.15g\n",(double)m->xy,(double)m->yz,(double)m->xz);
-	printf(" xxx:%20.15g  xyy:%20.15g\n",(double)m->xxx,(double)m->xyy);
-    printf(" xxy:%20.15g  yyy:%20.15g\n",(double)m->xxy,(double)m->yyy);
-	printf(" xxz:%20.15g  yyz:%20.15g\n",(double)m->xxz,(double)m->yyz);
-	printf(" xyz:%20.15g\n",(double)m->xyz);
+	printf("  xx:%20.15g   xy:%20.15g   xy:%20.15g\n",(double)m->xx,(double)m->xy,(double)m->xz);
+	printf("  yy:%20.15g   yz:%20.15g  xxx:%20.15g\n",(double)m->yy,(double)m->yz,(double)m->xxx);
+	printf(" xxy:%20.15g  xxz:%20.15g  xyy:%20.15g\n",(double)m->xxy,(double)m->xxz,(double)m->xyy);
+	printf(" xyz:%20.15g  yyy:%20.15g  yyz:%20.15g\n",(double)m->xyz,(double)m->yyy,(double)m->yyz);
 	printf("xxxx:%20.15g xxxy:%20.15g xxxz:%20.15g\n",(double)m->xxxx,(double)m->xxxy,(double)m->xxxz);
-	printf("xyyy:%20.15g yyyy:%20.15g yyyz:%20.15g\n",(double)m->xyyy,(double)m->yyyy,(double)m->yyyz);
-	printf("xxyy:%20.15g xxyz:%20.15g xyyz:%20.15g\n",(double)m->xxyy,(double)m->xxyz,(double)m->xyyz);
+	printf("xxyy:%20.15g xxyz:%20.15g xyyy:%20.15g\n",(double)m->xxyy,(double)m->xxyz,(double)m->xyyy);
+	printf("xyyz:%20.15g yyyy:%20.15g yyyz:%20.15g\n",(double)m->xyyz,(double)m->yyyy,(double)m->yyyz);
 	}
 
 
@@ -1287,15 +1758,13 @@ void momPrintLocc(LOCC *m) {
 void momPrintLocr(LOCR *m) {
 	printf("LOCR:%20.15g\n",(double)m->m);
 	printf("   x:%20.15g    y:%20.15g    z:%20.15g\n",(double)m->x,(double)m->y,(double)m->z);
-	printf("  xx:%20.15g   yy:%20.15g\n",(double)m->xx,(double)m->yy);
-    printf("  xy:%20.15g   yz:%20.15g   xz:%20.15g\n",(double)m->xy,(double)m->yz,(double)m->xz);
-	printf(" xxx:%20.15g  xyy:%20.15g\n",(double)m->xxx,(double)m->xyy);
-    printf(" xxy:%20.15g  yyy:%20.15g\n",(double)m->xxy,(double)m->yyy);
-	printf(" xxz:%20.15g  yyz:%20.15g\n",(double)m->xxz,(double)m->yyz);
-	printf(" xyz:%20.15g\n",(double)m->xyz);
+	printf("  xx:%20.15g   xy:%20.15g   xy:%20.15g\n",(double)m->xx,(double)m->xy,(double)m->xz);
+	printf("  yy:%20.15g   yz:%20.15g  xxx:%20.15g\n",(double)m->yy,(double)m->yz,(double)m->xxx);
+	printf(" xxy:%20.15g  xxz:%20.15g  xyy:%20.15g\n",(double)m->xxy,(double)m->xxz,(double)m->xyy);
+	printf(" xyz:%20.15g  yyy:%20.15g  yyz:%20.15g\n",(double)m->xyz,(double)m->yyy,(double)m->yyz);
 	printf("xxxx:%20.15g xxxy:%20.15g xxxz:%20.15g\n",(double)m->xxxx,(double)m->xxxy,(double)m->xxxz);
-	printf("xyyy:%20.15g yyyy:%20.15g yyyz:%20.15g\n",(double)m->xyyy,(double)m->yyyy,(double)m->yyyz);
-	printf("xxyy:%20.15g xxyz:%20.15g xyyz:%20.15g\n",(double)m->xxyy,(double)m->xxyz,(double)m->xyyz);
+	printf("xxyy:%20.15g xxyz:%20.15g xyyy:%20.15g\n",(double)m->xxyy,(double)m->xxyz,(double)m->xyyy);
+	printf("xyyz:%20.15g yyyy:%20.15g yyyz:%20.15g\n",(double)m->xyyz,(double)m->yyyy,(double)m->yyyz);
 	}
 
 

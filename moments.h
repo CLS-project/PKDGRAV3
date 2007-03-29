@@ -1,6 +1,8 @@
 #ifndef MOMENTS_INCLUDED
 #define MOMENTS_INCLUDED
 
+#define QUAD
+
 #ifdef QUAD
 typedef long double momFloat;
 #define sqrt(x)	sqrtl(x)
@@ -69,13 +71,14 @@ momFloat momMakeMomr(MOMR *,momFloat,momFloat,momFloat,momFloat);
 void momOldMakeMomr(MOMR *,momFloat,momFloat,momFloat,momFloat);
 void momShiftMomc(MOMC *,momFloat,momFloat,momFloat);
 void momShiftMomr(MOMR *,momFloat,momFloat,momFloat);
+void momShiftLocr(LOCR *,momFloat,momFloat,momFloat);
+void momShiftLocr2(LOCR *,momFloat,momFloat,momFloat);
 void momReduceMomc(MOMC *,MOMR *);
 void momReduceLocc(LOCC *,LOCR *);
 void momEvalMomr(MOMR *,momFloat,momFloat,momFloat,momFloat,
 				 momFloat *,momFloat *,momFloat *,momFloat *);
 void momClearLocc(LOCC *);
 void momClearLocr(LOCR *);
-void momClearMomr(MOMR *);
 void momMomr2Momc(MOMR *,MOMC *);
 void momLoccAddMomr(LOCC *,MOMC *,momFloat,momFloat,momFloat,momFloat);
 void momLocrAddMomr(LOCR *,MOMR *,momFloat,momFloat,momFloat,momFloat);
@@ -86,5 +89,11 @@ void momPrintMomc(MOMC *);
 void momPrintMomr(MOMR *);
 void momPrintLocc(LOCC *);
 void momPrintLocr(LOCR *);
+
+/*
+** from newloc.c
+*/
+void momSymLocrAddMomr(LOCR *l1,LOCR *l2,MOMR *q1,MOMR *q2,momFloat dir,momFloat x,momFloat y,momFloat z);
+void momNewLocrAddMomr(LOCR *l,MOMR *q,momFloat dir,momFloat x,momFloat y,momFloat z);
 
 #endif
