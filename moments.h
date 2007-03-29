@@ -1,8 +1,6 @@
 #ifndef MOMENTS_INCLUDED
 #define MOMENTS_INCLUDED
 
-#define QUAD
-
 #ifdef QUAD
 typedef long double momFloat;
 #define sqrt(x)	sqrtl(x)
