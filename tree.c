@@ -358,7 +358,6 @@ void BuildTemp(PKD pkd,int iNode,int M,int bSqueeze) {
 	}
     DonePart:
     free(S);
-    printf("nBucket:%d AvgM:%g AvgActive:%g\n",nBucket,pkd->nLocal/(double)nBucket,nActive/(double)nBucket);
     }
 
 
