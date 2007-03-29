@@ -622,14 +622,8 @@ int pkdGravWalk(PKD pkd,int nReps,int bEwald,int bVeryActive,double fEwCut,
 	    *pdFlop += pkdBucketEwald(pkd,&pkd->kdNodes[iCell],nReps,fEwCut,4);
 	    }
 	if (nActive) {
-/*
 	    fWeight = (*pdFlop-tempI)/nActive;
-*/
-	    fWeight = 1.0;
 	    pkdBucketWeight(pkd,iCell,fWeight);
-/*
-  printf("%6d nPart:%5d nCell:%5d\n",iCell,nPart,nCell);
-*/
 	    *pdPartSum += nActive*nPart;
 	    *pdCellSum += nActive*nCell;
 	    nTotActive += nActive;
