@@ -2,8 +2,9 @@
 #define GRAV_HINCLUDED
 
 #include "pkd.h"
+#include "moments.h"
 
-int pkdGravInteract(PKD pkd,KDN *pBucket,ILP *ilp,int nPart,ILC *ilc,int nCell,ILPB *ilpb,int nPartBucket,double *pdFlop);
+int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *l,ILP *ilp,int nPart,ILC *ilc,int nCell,ILPB *ilpb,int nPartBucket,double *pdFlop);
 
 #endif
 

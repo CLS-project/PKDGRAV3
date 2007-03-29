@@ -1659,7 +1659,7 @@ pkdOldGravityVeryActive(PKD pkd, int bEwald, int nReps, double fEwCut, double dS
 	kdnVActive.mom.xxyz = 0;
 	kdnVActive.mom.xyyz = 0;
 
-	pkdGravInteract(pkd, &kdnVActive, ilp, nPart, ilc, nCell, ilpb, nPartBucket, &dFlop);
+	pkdGravInteract(pkd, &kdnVActive, NULL, ilp, nPart, ilc, nCell, ilpb, nPartBucket, &dFlop);
 	}
     
     time2 = Zeit();
@@ -1673,7 +1673,7 @@ pkdOldGravityVeryActive(PKD pkd, int bEwald, int nReps, double fEwCut, double dS
 
     printf("pUpper %d pLower %d\n",kdnVActive.pUpper,kdnVActive.pLower);
     
-    pkdGravInteract(pkd, &kdnVActive, ilp, 0, ilc, 0, ilpb, 0, &dFlop);
+    pkdGravInteract(pkd, &kdnVActive, NULL, ilp, 0, ilc, 0, ilpb, 0, &dFlop);
 
     time3 = Zeit();
     dFlop3 = dFlop;

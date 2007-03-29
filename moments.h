@@ -84,6 +84,8 @@ void momLoccAddMomr(LOCC *,MOMC *,momFloat,momFloat,momFloat,momFloat);
 void momLocrAddMomr(LOCR *,MOMR *,momFloat,momFloat,momFloat,momFloat);
 void momEvalLocc(LOCC *,momFloat,momFloat,momFloat,
 				 momFloat *,momFloat *,momFloat *,momFloat *); 
+void momEvalLocr(LOCR *,momFloat,momFloat,momFloat,
+				 momFloat *,momFloat *,momFloat *,momFloat *); 
 void momSubLocc(LOCC *,LOCC *);
 void momPrintMomc(MOMC *);
 void momPrintMomr(MOMR *);

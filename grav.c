@@ -95,7 +95,7 @@ void HEAPrholocal(int n, int k, RHOLOCAL ra[]) {
 ** v_sqrt's and such.
 ** Returns nActive.
 */
-int pkdGravInteract(PKD pkd,KDN *pBucket,ILP *ilp,int nPart,ILC *ilc,int nCell,ILPB *ilpb,int nPartBucket,double *pdFlop) {
+int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,int nCell,ILPB *ilpb,int nPartBucket,double *pdFlop) {
     PARTICLE *p = pkd->pStore;
     PARTICLE *pi,*pj;
     KDN *pkdn = pBucket;

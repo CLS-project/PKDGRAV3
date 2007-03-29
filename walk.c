@@ -613,7 +613,7 @@ int pkdGravWalk(PKD pkd,int nReps,int bEwald,int bVeryActive,double fEwCut,
 	** Now calculate gravity on this bucket!
 	*/
 	tempI = *pdFlop;
-	nActive = pkdGravInteract(pkd,pkdc,ilp,nPart,ilc,nCell,ilpb,nPartBucket,pdFlop);
+	nActive = pkdGravInteract(pkd,pkdc,NULL,ilp,nPart,ilc,nCell,ilpb,nPartBucket,pdFlop);
 	/*
 	** Note that if Ewald is being performed we need to factor this
 	** constant cost into the load balancing weights.
