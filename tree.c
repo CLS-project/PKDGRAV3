@@ -80,13 +80,15 @@ void InitializeParticles(PKD pkd,int bExcludeVeryActive) {
     pkd->kdTemp[ROOT].pUpper = pkd->nLocal - pkd->nVeryActive - 1;
     }
 
+#define MIN_SRATIO    0.05
+
 /*
 ** M is the bucket size.
 */
 void BuildTemp(PKD pkd,int iNode,int M,int bSqueeze) {
     PLITE *p = pkd->pLite;
     PLITE t;
-    FLOAT fSplit;
+    FLOAT fSplit,sRatio;
     FLOAT fMin[3],fMax[3];
     BND *pbnd;
     int *S;		/* this is the stack */
@@ -95,6 +97,7 @@ void BuildTemp(PKD pkd,int iNode,int M,int bSqueeze) {
     int d,i,j;
     int nr,nl;
     int nBucket = 0;
+    int nActive = 0;
 
     /*
     ** Allocate stack!
@@ -109,32 +112,36 @@ void BuildTemp(PKD pkd,int iNode,int M,int bSqueeze) {
     ** pointer arrays for actives and inactives!
     */
     if (M > pkd->nMaxBucketActive) {
-	pkd->nMaxBucketActive = M;
+        pkd->nMaxBucketActive = M;
 	pkd->piActive = realloc(pkd->piActive,pkd->nMaxBucketActive*sizeof(PARTICLE *));
 	mdlassert(pkd->mdl,pkd->piActive != NULL);
 	pkd->piInactive = realloc(pkd->piInactive,pkd->nMaxBucketActive*sizeof(PARTICLE *));
 	mdlassert(pkd->mdl,pkd->piInactive != NULL);
 	}
+    
 #ifdef GASOLINE
-	/*
-	** No support for gasoline here quite yet.
-	*/
-	assert(0);
+    /*
+    ** No support for gasoline here quite yet.
+    */
+    assert(0);
 #endif
     /*
     ** First set up the root node.
     ** Allocate it, set it's bounds and pointers.
+    ** Also find out how many active particles there are.
     */
     i = pkd->kdTemp[iNode].pLower;
     for (j=0;j<3;++j) {
 	fMin[j] = p[i].r[j];
 	fMax[j] = p[i].r[j];
+	if (p[i].iActive & TYPE_ACTIVE) ++nActive;
 	}
     for (++i;i<=pkd->kdTemp[iNode].pUpper;++i) {
 	for (j=0;j<3;++j) {
 	    if (p[i].r[j] < fMin[j]) fMin[j] = p[i].r[j];
 	    else if (p[i].r[j] > fMax[j]) fMax[j] = p[i].r[j];
 	    }
+	if (p[i].iActive & TYPE_ACTIVE) ++nActive;
 	}
     for (j=0;j<3;++j) {
 	pkd->kdTemp[iNode].bnd.fCenter[j] = 0.5*(fMax[j] + fMin[j]);
@@ -143,8 +150,48 @@ void BuildTemp(PKD pkd,int iNode,int M,int bSqueeze) {
     if (pkd->kdTemp[iNode].pUpper - pkd->kdTemp[iNode].pLower + 1 <= M) 
 	goto DonePart;
 
+    sRatio = nActive/(pkd->kdTemp[iNode].pUpper - pkd->kdTemp[iNode].pLower + 1.0);
+    if (sRatio > 0.5) sRatio = 1.0 - sRatio;
+    if (sRatio > MIN_SRATIO) {
+      /*
+      ** This means we want to do an active/inactive split to form the first 2 children of ROOT.
+      ** This should improve the average number of actives per bucket we achieve.
+      */
+	/*
+	** Now start the partitioning of the particles.
+	*/
+	i = pkd->kdTemp[iNode].pLower;
+	j = pkd->kdTemp[iNode].pUpper;
+	while (i <= j) {
+	    if (!(p[i].iActive & TYPE_ACTIVE)) ++i;
+	    else break;
+	    }
+	while (i <= j) {
+	    if (p[j].iActive & TYPE_ACTIVE) --j;
+	    else break;
+	    }
+	if (i < j) {
+	    t = p[i];
+	    p[i] = p[j];
+	    p[j] = t;
+	    while (1) {
+		while (!(p[++i].iActive & TYPE_ACTIVE));
+		while (p[--j].iActive & TYPE_ACTIVE);
+		if (i < j) {
+		    t = p[i];
+		    p[i] = p[j];
+		    p[j] = t;
+		    }
+		else break;
+		}
+	    }
+	d = -1;
+	goto JumpInFromActiveInactive;
+    }
+
     while (1) {
 	/*
+
 	** Begin new stage!
 	** Calculate the appropriate fSplit.
 	** Pick longest dimension and split it in half.
@@ -186,6 +233,7 @@ void BuildTemp(PKD pkd,int iNode,int M,int bSqueeze) {
 		else break;
 		}
 	    }
+    JumpInFromActiveInactive:
 	nl = i - pkd->kdTemp[iNode].pLower;
 	nr = pkd->kdTemp[iNode].pUpper - i + 1;
 	if (nl > 0 && nr > 0) {
@@ -249,10 +297,12 @@ void BuildTemp(PKD pkd,int iNode,int M,int bSqueeze) {
 		}
 	    else {
 		pkd->kdTemp[iLeft].bnd = pkd->kdTemp[iNode].bnd;
-		pkd->kdTemp[iLeft].bnd.fMax[d] *= 0.5;
 		pkd->kdTemp[iRight].bnd = pkd->kdTemp[iLeft].bnd;
-		pkd->kdTemp[iLeft].bnd.fCenter[d] -= pkd->kdTemp[iLeft].bnd.fMax[d];
-		pkd->kdTemp[iRight].bnd.fCenter[d] += pkd->kdTemp[iRight].bnd.fMax[d];
+		if (d >= 0 && d < 3) {    /* otherwise we have done some other kind of splitting and we don't cut the bounds */
+		  pkd->kdTemp[iLeft].bnd.fMax[d] *= 0.5;
+		  pkd->kdTemp[iLeft].bnd.fCenter[d] -= pkd->kdTemp[iLeft].bnd.fMax[d];
+		  pkd->kdTemp[iRight].bnd.fCenter[d] += pkd->kdTemp[iRight].bnd.fMax[d];
+		}
 		}
 	    }
 	else {
@@ -262,15 +312,15 @@ void BuildTemp(PKD pkd,int iNode,int M,int bSqueeze) {
 	    ** Change the bounds!
 	    */
 	    assert(!bSqueeze);
-	    pbnd->fMax[d] *= 0.5;
+	    if (d >= 0 && d < 3) pbnd->fMax[d] *= 0.5;
 	    if (nl > 0) {
-		pbnd->fCenter[d] -= pbnd->fMax[d];
-		iLeft = iNode;
-		}
+	      if (d >= 0 && d < 3) pbnd->fCenter[d] -= pbnd->fMax[d];
+	      iLeft = iNode;
+	    }
 	    else {
-		pbnd->fCenter[d] += pbnd->fMax[d];
-		iRight = iNode;
-		}
+	      if (d >= 0 && d < 3) pbnd->fCenter[d] += pbnd->fMax[d];
+	      iRight = iNode;
+	    }
 	    }
 	/*
 	** Now figure out which subfile to process next.
@@ -292,37 +342,6 @@ void BuildTemp(PKD pkd,int iNode,int M,int bSqueeze) {
 	    else if (nl > 0) {
 		pkd->kdTemp[iLeft].iLower = 0;
 		++nBucket;
-#ifdef GASOLINE
-		/*
-		** Now start the partitioning of the particles into (Gas,Other) order.
-		*/
-		i = pkd->kdTemp[iLeft].pLower;
-		j = pkd->kdTemp[iLeft].pUpper;
-		while (i <= j) {
-		    if (p[i].iActive & TYPE_GAS) ++i;
-		    else break;
-		    }
-		while (i <= j) {
-		    if (!(p[j].iActive & TYPE_GAS)) --j;
-		    else break;
-		    }
-		if (i < j) {
-		    t = p[i];
-		    p[i] = p[j];
-		    p[j] = t;
-		    while (1) {
-			while (p[++i].iActive & TYPE_GAS);
-			while (!(p[--j].iActive & TYPE_GAS));
-			if (i < j) {
-			    t = p[i];
-			    p[i] = p[j];
-			    p[j] = t;
-			    }
-			else break;
-			}
-		    }
-		pkd->kdTemp[iLeft].nGas = i - pkd->kdTemp[iLeft].pLower;
-#endif
 		}
 	    if (nr > M) {
 		iNode = iRight;		/* process upper subfile */
@@ -330,37 +349,6 @@ void BuildTemp(PKD pkd,int iNode,int M,int bSqueeze) {
 	    else if (nr > 0) {
 		pkd->kdTemp[iRight].iLower = 0;
 		++nBucket;
-#ifdef GASOLINE
-		/*
-		** Now start the partitioning of the particles into (Gas,Other) order.
-		*/
-		i = pkd->kdTemp[iRight].pLower;
-		j = pkd->kdTemp[iRight].pUpper;
-		while (i <= j) {
-		    if (p[i].iActive & TYPE_GAS) ++i;
-		    else break;
-		    }
-		while (i <= j) {
-		    if (!(p[j].iActive & TYPE_GAS)) --j;
-		    else break;
-		    }
-		if (i < j) {
-		    t = p[i];
-		    p[i] = p[j];
-		    p[j] = t;
-		    while (1) {
-			while (p[++i].iActive & TYPE_GAS);
-			while (!(p[--j].iActive & TYPE_GAS));
-			if (i < j) {
-			    t = p[i];
-			    p[i] = p[j];
-			    p[j] = t;
-			    }
-			else break;
-			}
-		    }
-		pkd->kdTemp[iRight].nGas = i - pkd->kdTemp[iRight].pLower;
-#endif
 		}
 	    }
 	if (nl <= M && nr <= M) {
@@ -370,7 +358,7 @@ void BuildTemp(PKD pkd,int iNode,int M,int bSqueeze) {
 	}
     DonePart:
     free(S);
-    /* printf("nBucket:%d AvgM:%g\n",nBucket,pkd->nLocal/(double)nBucket); */
+    printf("nBucket:%d AvgM:%g AvgActive:%g\n",nBucket,pkd->nLocal/(double)nBucket,nActive/(double)nBucket);
     }
 
 
