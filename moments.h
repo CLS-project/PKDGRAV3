@@ -77,6 +77,7 @@ void momEvalMomr(MOMR *,momFloat,momFloat,momFloat,momFloat,
 				 momFloat *,momFloat *,momFloat *,momFloat *);
 void momClearLocc(LOCC *);
 void momClearLocr(LOCR *);
+void momClearMomr(MOMR *);
 void momMomr2Momc(MOMR *,MOMC *);
 void momLoccAddMomr(LOCC *,MOMC *,momFloat,momFloat,momFloat,momFloat);
 void momLocrAddMomr(LOCR *,MOMR *,momFloat,momFloat,momFloat,momFloat);
