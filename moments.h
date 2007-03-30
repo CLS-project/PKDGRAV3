@@ -1,6 +1,7 @@
 #ifndef MOMENTS_INCLUDED
 #define MOMENTS_INCLUDED
 
+
 #ifdef QUAD
 typedef long double momFloat;
 #define sqrt(x)	sqrtl(x)
@@ -79,8 +80,20 @@ void momClearLocc(LOCC *);
 void momClearLocr(LOCR *);
 void momClearMomr(MOMR *);
 void momMomr2Momc(MOMR *,MOMC *);
-void momLoccAddMomr(LOCC *,MOMC *,momFloat,momFloat,momFloat,momFloat);
+/*
+** All the variants of LocrAddMomr...
+*/
+void momSymLocrAddMomr(LOCR *l1,LOCR *l2,MOMR *q1,MOMR *q2,momFloat dir,momFloat x,momFloat y,momFloat z);
 void momLocrAddMomr(LOCR *,MOMR *,momFloat,momFloat,momFloat,momFloat);
+void momGenLocrAddMomr(LOCR *l,MOMR *q,momFloat dir,
+		       momFloat g0,momFloat t1,momFloat t2,momFloat t3r,momFloat t4r,
+		       momFloat x,momFloat y,momFloat z);
+void momEwaldLocrAddMomr(LOCR *l,MOMR *m,momFloat r2,int bInHole,momFloat x,momFloat y,momFloat z);
+void momNooptLocrAddMomr(LOCR *l,MOMR *m,momFloat dir,momFloat x,momFloat y,momFloat z);
+void momLoccAddMomrAccurate(LOCC *l,MOMC *m,momFloat g0,momFloat x,momFloat y,momFloat z);
+void momLocrAddMomrAccurate(LOCR *l,MOMR *m,momFloat g0,momFloat x,momFloat y,momFloat z);
+
+
 void momEvalLocc(LOCC *,momFloat,momFloat,momFloat,
 				 momFloat *,momFloat *,momFloat *,momFloat *); 
 void momEvalLocr(LOCR *,momFloat,momFloat,momFloat,
@@ -91,10 +104,5 @@ void momPrintMomr(MOMR *);
 void momPrintLocc(LOCC *);
 void momPrintLocr(LOCR *);
 
-/*
-** from newloc.c
-*/
-void momSymLocrAddMomr(LOCR *l1,LOCR *l2,MOMR *q1,MOMR *q2,momFloat dir,momFloat x,momFloat y,momFloat z);
-void momNewLocrAddMomr(LOCR *l,MOMR *q,momFloat dir,momFloat x,momFloat y,momFloat z);
 
 #endif

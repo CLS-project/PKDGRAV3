@@ -1268,6 +1268,348 @@ void momLocrAddMomr(LOCR *l,MOMR *q,momFloat dir,momFloat x,momFloat y,momFloat 
     l->xyyz += (1 + t4yy)*xz*m;
     }
 
+/*
+** Op Count (*,+) = (154,105) = 259 
+**  
+**    Below an explanation to the factors that are passed to this function and their definitions
+**    for the Newtonian Green's function. They can be set to perform the Ewald summation terms
+**    as well.
+**
+**    g0 = -dir;
+**    g1 = -g0*dir;
+**    g2 = -3*g1*dir;
+**    g3 = -5*g2*dir;
+**    g4 = -7*g3*dir;
+**
+**    t1 = g1/g0 = -dir;
+**    t2 = g2/g1 = -3*dir;
+**    t3 = g3/g2 = -5*dir;
+**    t4 = g4/g3 = -7*dir;
+**
+**    t3r = t3*r = -5;
+**    t4r = t4*r = -7;
+**
+**    This is how we would calculate these factors for part of the Ewald
+**    summation. This gets a little complicated, but it is equivalent to 
+**    the existing code.
+** 
+**	L = 1.0;
+**	alpha = 2.0/L;
+**	alpha2 = alpha*alpha;
+**	ka = 2.0*alpha/sqrt(M_PI);
+**	a = exp(-r2*alpha2);
+**	a *= ka*dir;
+**	alpha /= dir;
+**	alpha2 /= dir;
+**	if (bInHole) g0 = -erf(alpha);
+**	else g0 = erfc(alpha);
+**	g0 *= dir;
+**	g1 = g0*dir + a;
+**	alphan = 2*alpha2;
+**	g2 = 3*g1*dir + alphan*a;
+**	alphan *= 2*alpha2/dir;
+**	g3r = 5*g2 + alphan*a;
+**	g3 = g3r*dir;
+**	alphan *= 2*alpha2;
+**	g4r = 7*g3 + alphan*a;
+**	g4 = g4r*dir;
+**
+**	t1 = g1/g0;
+**	t2 = g2/g1;
+**	t3r = g3r/g2;
+**	t4r = g4r/g3;
+*/
+void momGenLocrAddMomr(LOCR *l,MOMR *q,momFloat dir,
+		       momFloat g0,momFloat t1,momFloat t2,momFloat t3r,momFloat t4r,
+		       momFloat x,momFloat y,momFloat z) {
+    const momFloat onethird = 1.0/3.0;
+    momFloat xx,xy,xz,yy,yz,zz;
+    momFloat Ax,Ay,Az,A,Bx,By,Bz,B,C,R,T;
+    momFloat g1,g2,g3,g2t,g3t,m,t3,t4,t3xx,t3yy,t4xx,t4yy,f;
+
+    t3 = t3r*dir;
+    t4 = t4r*dir;
+    g1 = t1*g0;
+    g2 = t2*g1;
+    g3 = t3*g2;
+    g2t = g2*dir;
+    g3t = g3*dir;
+
+    x *= dir;
+    y *= dir;
+    z *= dir;
+    xx = 0.5*x*x;
+    xy = x*y;
+    yy = 0.5*y*y;
+    xz = x*z;
+    yz = y*z;
+    zz = 0.5*z*z;
+    xx -= zz;
+    yy -= zz;
+
+    Ax = x*q->xx + y*q->xy + z*q->xz;
+    Ay = x*q->xy + y*q->yy + z*q->yz;
+    Az = x*q->xz + y*q->yz - z*(q->xx + q->yy);
+    A = 0.5*g2*(x*Ax + y*Ay + z*Az);
+    Ax *= g2t;
+    Ay *= g2t;
+    Az *= g2t;
+
+    Bx = xx*q->xxx + xy*q->xxy + xz*q->xxz + yy*q->xyy + yz*q->xyz;
+    By = xx*q->xxy + xy*q->xyy + xz*q->xyz + yy*q->yyy + yz*q->yyz;
+    Bz = xx*q->xxz + xy*q->xyz - xz*(q->xxx + q->xyy) + yy*q->yyz - yz*(q->xxy + q->yyy);
+    B = onethird*g3*(x*Bx + y*By + z*Bz);
+    Bx *= g3t;
+    By *= g3t;
+    Bz *= g3t;
+    l->m += g0*q->m + A + B;
+
+    A *= t3;
+
+    m = g1*q->m;
+    R = m + A + t4*B;
+    l->x += Ax + Bx + x*R;
+    l->y += Ay + By + y*R;
+    l->z += Az + Bz + z*R;
+    /*
+    ** No more B's used here!
+    */
+    Ax *= t3;
+    Ay *= t3;
+    Az *= t3;
+
+    T = dir*(m + A);
+    m *= t2;
+    R = m + t4*A;
+    l->xx += T + (R*x + 2*Ax)*x;
+    l->yy += T + (R*y + 2*Ay)*y;
+    l->xy += R*xy + (Ax*y + Ay*x);
+    l->xz += R*xz + (Ax*z + Az*x);
+    l->yz += R*yz + (Ay*z + Az*y);
+    /*
+    ** No more A's and no more B's used here!
+    */
+    C = (xx*xx - xz*xz)*q->xxxx + (yy*yy - yz*yz)*q->yyyy + 
+      2*(xx*xz*q->xxxz + yy*yz*q->yyyz) + (6*yy*xx - 4*zz*zz)*q->xxyy;
+    xx = x*x;
+    yy = y*y;
+    zz *= 2;
+    C += (3*xx - zz)*yz*q->xxyz  + (3*yy - zz)*xz*q->xyyz;
+    zz *= 3;
+    C += xy*((xx - zz)*q->xxxy + (yy - zz)*q->xyyy); 
+
+    l->m += (1.0/6.0)*t4*g3*C;
+
+    m *= dir;
+    t3xx = t3r*xx;
+    t3yy = t3r*yy;
+    l->xxx += (3 + t3xx)*x*m;
+    l->yyy += (3 + t3yy)*y*m;
+    f = m*(1 + t3xx);
+    l->xxy += f*y;
+    l->xxz += f*z;
+    f = m*(1 + t3yy);
+    l->xyy += f*x;
+    l->yyz += f*z;
+    l->xyz += t3r*xy*z*m;
+
+    m *= dir;
+    t4xx = t4r*xx;
+    t4yy = t4r*yy;
+    l->xxxx += (3 + (6 + t4xx)*t3xx)*m;
+    l->xxyy += (1 + t3xx + t3yy*(1 + t4xx))*m;
+    l->yyyy += (3 + (6 + t4yy)*t3yy)*m;
+    m *= t3r;
+    f = m*(3 + t4xx);
+    l->xxxy += f*xy;
+    l->xxxz += f*xz;
+    f = m*(3 + t4yy);
+    l->xyyy += f*xy;
+    l->yyyz += f*yz;
+    l->xxyz += (1 + t4xx)*yz*m;
+    l->xyyz += (1 + t4yy)*xz*m;
+    }
+
+
+void momEwaldLocrAddMomr(LOCR *l,MOMR *m,momFloat r2,int bInHole,momFloat x,momFloat y,momFloat z) {
+    const momFloat onethird = 1.0/3.0;
+    momFloat xx,xy,xz,yy,yz,zz;
+    momFloat Ax,Ay,Az,A,Bx,By,Bz,B,C,R,T;
+    momFloat g0,g1,g2,g3,g4,dir,dir2,a,alphan,alpha,alpha2,ka,L;
+
+    L = 1.0;
+    alpha = 2.0/L;
+    alpha2 = alpha*alpha;
+    ka = 2.0*alpha/sqrt(M_PI);
+
+    dir = 1.0/sqrt(r2);
+    dir2 = dir*dir;
+    a = exp(-r2*alpha2);
+    a *= ka*dir2;
+    if (bInHole) g0 = -erf(alpha/dir);
+    else g0 = erfc(alpha/dir);
+    g0 *= dir;
+    g1 = g0*dir2 + a;
+    alphan = 2*alpha2;
+    g2 = 3*g1*dir2 + alphan*a;
+    alphan *= 2*alpha2;
+    g3 = 5*g2*dir2 + alphan*a;
+    alphan *= 2*alpha2;
+    g4 = 7*g3*dir2 + alphan*a;
+
+    printf("g0:%.20g g1:%.20g g2:%.20g g3:%.20g g4:%.20g\n",
+	   g0,g1,g2,g3,g4);
+
+    xx = 0.5*x*x;
+    xy = x*y;
+    yy = 0.5*y*y;
+    xz = x*z;
+    yz = y*z;
+    zz = 0.5*z*z;
+    xx -= zz;
+    yy -= zz;
+
+    Ax = x*m->xx + y*m->xy + z*m->xz;
+    Ay = x*m->xy + y*m->yy + z*m->yz;
+    Az = x*m->xz + y*m->yz - z*(m->xx + m->yy);
+    A = x*Ax + y*Ay + z*Az;
+
+    Bx = xx*m->xxx + xy*m->xxy + xz*m->xxz + yy*m->xyy + yz*m->xyz;
+    By = xx*m->xxy + xy*m->xyy + xz*m->xyz + yy*m->yyy + yz*m->yyz;
+    Bz = xx*m->xxz + xy*m->xyz - xz*(m->xxx + m->xyy) + yy*m->yyz - yz*(m->xxy + m->yyy);
+    B = x*Bx + y*By + z*Bz;
+
+    l->m += g0*m->m + 0.5*g2*A + (1/3.0)*g3*B;
+
+    R = g1*m->m + 0.5*g3*A + (1/3.0)*g4*B;
+    l->x += g2*Ax + g3*Bx + x*R;
+    l->y += g2*Ay + g3*By + y*R;
+    l->z += g2*Az + g3*Bz + z*R;
+    /*
+    ** No more B's used here!
+    */
+    T = g1*m->m + 0.5*g3*A;
+    R = g2*m->m + 0.5*g4*A;
+    l->xx += T + (R*x + 2*g3*Ax)*x;
+    l->xy += R*xy + g3*(Ax*y + Ay*x);
+    l->yy += T + (R*y + 2*g3*Ay)*y;
+    l->xz += R*xz + g3*(Ax*z + Az*x);
+    l->yz += R*yz + g3*(Ay*z + Az*y);
+    /*
+    ** No more A's and no more B's used here!
+    */
+    C = (xx*xx - xz*xz)*m->xxxx + (yy*yy - yz*yz)*m->yyyy + 2*(xx*xz*m->xxxz + yy*yz*m->yyyz) + (6*yy*xx - 4*zz*zz)*m->xxyy;
+    xx = x*x;
+    yy = y*y;
+    zz *= 2;
+    C += (3*xx - zz)*yz*m->xxyz  + (3*yy - zz)*xz*m->xyyz;
+    zz *= 3;
+    C += xy*((xx - zz)*m->xxxy + (yy - zz)*m->xyyy); 
+
+    l->m += (1/6.0)*g4*C;
+
+    l->xxx += (3*g2 + g3*x*x)*x*m->m;
+    l->xxy += (g2 + g3*x*x)*y*m->m;
+    l->xyy += (g2 + g3*y*y)*x*m->m;
+    l->yyy += (3*g2 + g3*y*y)*y*m->m;
+    l->xxz += (g2 + g3*x*x)*z*m->m;
+    l->xyz += g3*x*y*z*m->m;
+    l->yyz += (g2 + g3*y*y)*z*m->m;
+
+    l->xxxx += (3*g2 + (6*g3 + g4*x*x)*x*x)*m->m;
+    l->xxxy += (3*g3 + g4*x*x)*x*y*m->m;
+    l->xxyy += (g2 + g3*(x*x + y*y) + g4*x*x*y*y)*m->m;
+    l->xyyy += (3*g3 + g4*y*y)*x*y*m->m;
+    l->yyyy += (3*g2 + (6*g3 + g4*y*y)*y*y)*m->m;
+    l->xxxz += (3*g3 + g4*x*x)*x*z*m->m;
+    l->xxyz += (g3 + g4*x*x)*y*z*m->m;
+    l->xyyz += (g3 + g4*y*y)*x*z*m->m;
+    l->yyyz += (3*g3 + g4*y*y)*y*z*m->m;
+    }
+
+
+
+void momNooptLocrAddMomr(LOCR *l,MOMR *m,momFloat dir,momFloat x,momFloat y,momFloat z) {
+    const momFloat onethird = 1.0/3.0;
+    momFloat xx,xy,xz,yy,yz,zz;
+    momFloat Ax,Ay,Az,A,Bx,By,Bz,B,C,R,T;
+    momFloat g0,g1,g2,g3,g4,dir2;
+
+    g0 = -dir;
+    dir2 = dir*dir;
+    g1 = -g0*dir2;
+    g2 = -3*g1*dir2;
+    g3 = -5*g2*dir2;
+    g4 = -7*g3*dir2;
+
+    xx = 0.5*x*x;
+    xy = x*y;
+    yy = 0.5*y*y;
+    xz = x*z;
+    yz = y*z;
+    zz = 0.5*z*z;
+    xx -= zz;
+    yy -= zz;
+
+    Ax = x*m->xx + y*m->xy + z*m->xz;
+    Ay = x*m->xy + y*m->yy + z*m->yz;
+    Az = x*m->xz + y*m->yz - z*(m->xx + m->yy);
+    A = x*Ax + y*Ay + z*Az;
+
+    Bx = xx*m->xxx + xy*m->xxy + xz*m->xxz + yy*m->xyy + yz*m->xyz;
+    By = xx*m->xxy + xy*m->xyy + xz*m->xyz + yy*m->yyy + yz*m->yyz;
+    Bz = xx*m->xxz + xy*m->xyz - xz*(m->xxx + m->xyy) + yy*m->yyz - yz*(m->xxy + m->yyy);
+    B = x*Bx + y*By + z*Bz;
+
+    l->m += g0*m->m + 0.5*g2*A + (1/3.0)*g3*B;
+
+    R = g1*m->m + 0.5*g3*A + (1/3.0)*g4*B;
+    l->x += g2*Ax + g3*Bx + x*R;
+    l->y += g2*Ay + g3*By + y*R;
+    l->z += g2*Az + g3*Bz + z*R;
+    /*
+    ** No more B's used here!
+    */
+    T = g1*m->m + 0.5*g3*A;
+    R = g2*m->m + 0.5*g4*A;
+    l->xx += T + (R*x + 2*g3*Ax)*x;
+    l->xy += R*xy + g3*(Ax*y + Ay*x);
+    l->yy += T + (R*y + 2*g3*Ay)*y;
+    l->xz += R*xz + g3*(Ax*z + Az*x);
+    l->yz += R*yz + g3*(Ay*z + Az*y);
+    /*
+    ** No more A's and no more B's used here!
+    */
+    C = (xx*xx - xz*xz)*m->xxxx + (yy*yy - yz*yz)*m->yyyy + 2*(xx*xz*m->xxxz + yy*yz*m->yyyz) + (6*yy*xx - 4*zz*zz)*m->xxyy;
+    xx = x*x;
+    yy = y*y;
+    zz *= 2;
+    C += (3*xx - zz)*yz*m->xxyz  + (3*yy - zz)*xz*m->xyyz;
+    zz *= 3;
+    C += xy*((xx - zz)*m->xxxy + (yy - zz)*m->xyyy); 
+
+    l->m += (1/6.0)*g4*C;
+
+    l->xxx += (3*g2 + g3*x*x)*x*m->m;
+    l->xxy += (g2 + g3*x*x)*y*m->m;
+    l->xyy += (g2 + g3*y*y)*x*m->m;
+    l->yyy += (3*g2 + g3*y*y)*y*m->m;
+    l->xxz += (g2 + g3*x*x)*z*m->m;
+    l->xyz += g3*x*y*z*m->m;
+    l->yyz += (g2 + g3*y*y)*z*m->m;
+
+    l->xxxx += (3*g2 + (6*g3 + g4*x*x)*x*x)*m->m;
+    l->xxxy += (3*g3 + g4*x*x)*x*y*m->m;
+    l->xxyy += (g2 + g3*(x*x + y*y) + g4*x*x*y*y)*m->m;
+    l->xyyy += (3*g3 + g4*y*y)*x*y*m->m;
+    l->yyyy += (3*g2 + (6*g3 + g4*y*y)*y*y)*m->m;
+    l->xxxz += (3*g3 + g4*x*x)*x*z*m->m;
+    l->xxyz += (g3 + g4*x*x)*y*z*m->m;
+    l->xyyz += (g3 + g4*y*y)*x*z*m->m;
+    l->yyyz += (3*g3 + g4*y*y)*y*z*m->m;
+    }
+
+
 
 void momLoccAddMomrAccurate(LOCC *l,MOMC *m,momFloat g0,momFloat x,momFloat y,momFloat z)
 {
