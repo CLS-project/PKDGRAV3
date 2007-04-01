@@ -1338,14 +1338,13 @@ void momGenLocrAddMomr(LOCR *l,MOMR *q,momFloat dir,
     x *= dir;
     y *= dir;
     z *= dir;
-    xx = 0.5*x*x;
+
+    zz = z*z;
+    yy = 0.5*(y*y - zz);
+    xx = 0.5*(x*x - zz);
     xy = x*y;
-    yy = 0.5*y*y;
     xz = x*z;
     yz = y*z;
-    zz = 0.5*z*z;
-    xx -= zz;
-    yy -= zz;
 
     Ax = x*q->xx + y*q->xy + z*q->xz;
     Ay = x*q->xy + y*q->yy + z*q->yz;
@@ -1390,10 +1389,9 @@ void momGenLocrAddMomr(LOCR *l,MOMR *q,momFloat dir,
     ** No more A's and no more B's used here!
     */
     C = (xx*xx - xz*xz)*q->xxxx + (yy*yy - yz*yz)*q->yyyy + 
-      2*(xx*xz*q->xxxz + yy*yz*q->yyyz) + (6*yy*xx - 4*zz*zz)*q->xxyy;
+      2*(xx*xz*q->xxxz + yy*yz*q->yyyz) + (6*yy*xx - zz*zz)*q->xxyy;
     xx = x*x;
     yy = y*y;
-    zz *= 2;
     C += (3*xx - zz)*yz*q->xxyz  + (3*yy - zz)*xz*q->xyyz;
     zz *= 3;
     C += xy*((xx - zz)*q->xxxy + (yy - zz)*q->xyyy); 
