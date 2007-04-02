@@ -23,6 +23,10 @@
 #include "parameters.h"
 #include "cosmo.h"
 
+#ifdef BSC
+#include "mpitrace_user_events.h"
+#endif
+
 double Zeit() { /* added MZ */
     struct timeval tv;
     struct timezone tz;
@@ -1334,6 +1338,11 @@ pkdGravAll(PKD pkd,int nReps,int bPeriodic,int iOrder,int bEwald,int iEwOrder,
     pkdClearTimer(pkd,1);
     pkdClearTimer(pkd,2);
     pkdClearTimer(pkd,3);
+
+#ifdef BSC
+    MPItrace_event(10000,0);
+#endif
+
     /*
     ** Set up Ewald tables and stuff.
     */
@@ -1354,6 +1363,13 @@ pkdGravAll(PKD pkd,int nReps,int bPeriodic,int iOrder,int bEwald,int iEwOrder,
     pkdStartTimer(pkd,1);
     *nActive = pkdGravWalk(pkd,nReps,bPeriodic && bEwald,bVeryActive,fEwCut,pdFlop,pdPartSum,pdCellSum);
     pkdStopTimer(pkd,1);
+
+#ifdef BSC
+    /*MPItrace_event(10001, (int)(pkdGetWallClockTimer(pkd,1)*1000000) );*/
+    /*MPItrace_event(10001, (int)(pkd->nActive/(pkd->nLocal/100)) );*/
+    MPItrace_event(10001, 3 );
+#endif
+
     /*
     ** Get caching statistics.
     */
@@ -1417,6 +1433,10 @@ pkdDrift(PKD pkd,double dTime,double dDelta,FLOAT fCenter[3],int bPeriodic,int b
     else {
 	dDeltaM = 0;
 	}
+
+#ifdef BSC
+    MPItrace_event(10000,0);
+#endif
     
     p = pkd->pStore;
     n = pkdLocal(pkd);
@@ -1441,6 +1461,8 @@ pkdDrift(PKD pkd,double dTime,double dDelta,FLOAT fCenter[3],int bPeriodic,int b
 		    }
 		}
 	    }
+
+
 	/*
 	** Detailed output for particles that are tracked at dTime + dDelta/2
 	** Correct positons & mass for dDelta/2 step which is done before the actual update
@@ -1455,6 +1477,10 @@ pkdDrift(PKD pkd,double dTime,double dDelta,FLOAT fCenter[3],int bPeriodic,int b
 		   p[i].iRung,p[i].dt,px,py,pz,p[i].v[0],p[i].v[1],p[i].v[2],p[i].a[0],p[i].a[1],p[i].a[2],p[i].fPot,pm,p[i].fSoft);
 	    }
 	}
+
+#ifdef BSC
+    MPItrace_event(10001,4);
+#endif
     mdlDiag(pkd->mdl, "Out of pkdDrift\n");
     }
 

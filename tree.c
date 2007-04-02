@@ -7,6 +7,10 @@
 #include "moments.h"
 #include "floattype.h"
 
+#ifdef BSC
+#include "mpitrace_user_events.h"
+#endif
+
 void InitializeParticles(PKD pkd,int bExcludeVeryActive) {
     PLITE *p = pkd->pLite;
     PLITE t;
@@ -658,6 +662,10 @@ void pkdTreeBuild(PKD pkd,int nBucket,FLOAT diCrit2,KDN *pkdn,int bSqueeze,int b
 	mdlFree(pkd->mdl,pkd->kdNodes);
 	}
 
+#ifdef BSC
+    MPItrace_event(10000, 0 );
+#endif
+
     pkdClearTimer(pkd,0);
     pkdStartTimer(pkd,0);
 
@@ -712,6 +720,10 @@ void pkdTreeBuild(PKD pkd,int nBucket,FLOAT diCrit2,KDN *pkdn,int bSqueeze,int b
     pkdStartTimer(pkd,0);
     Create(pkd,ROOT,diCrit2,bSqueeze);
     pkdStopTimer(pkd,0);
+#ifdef BSC
+    MPItrace_event(10001, 1 );
+#endif
+
     /*
       printf("Create Tree wallclock: %g secs\n",
       pkdGetWallClockTimer(pkd,0));
@@ -737,6 +749,7 @@ void pkdTreeBuild(PKD pkd,int nBucket,FLOAT diCrit2,KDN *pkdn,int bSqueeze,int b
     ** Copy the root node for the top-tree construction.
     */
     *pkdn = pkd->kdNodes[ROOT];
+
     }
 
 
