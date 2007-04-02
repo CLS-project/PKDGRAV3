@@ -10,6 +10,35 @@
 #include "master.h"
 #include "outtype.h"
 #include "smoothfcn.h"
+#ifdef USE_MDL_IO
+#include "io.h"
+#endif
+
+#ifdef USE_MDL_IO
+static void main_io(MDL mdl) {
+    IO io;
+
+    ioInitialize(&io,mdl);
+    ioAddServices(io,mdl);
+
+    if ( mdlSelf(mdl) == 0 ) {
+	mdlSetComm(mdl,1);
+    }
+
+    mdlprintf( mdl, "I/O thread %d started\n", mdlSelf(mdl) );
+    mdlHandler(mdl);
+    mdlprintf( mdl, "I/O thread %d terminated\n", mdlSelf(mdl) );
+
+    if ( mdlSelf(mdl) == 0 ) {
+	int id;
+	mdlSetComm(mdl,0);
+	for( id=1; id<mdl->nIO; ++id ) {
+	    mdlReqService(mdl,id,SRV_STOP,NULL,0);
+	    mdlGetReply(mdl,id,NULL,NULL);
+	}
+    }
+}
+#endif
 
 void main_ch(MDL mdl) {
     PST pst;
@@ -71,7 +100,11 @@ int main(int argc,char **argv) {
 #endif
 
     lStart=time(0);
+#ifdef USE_MDL_IO
+    mdlInitialize(&mdl,argv,main_ch,main_io);
+#else
     mdlInitialize(&mdl,argv,main_ch);
+#endif
     for(argc = 0; argv[argc]; argc++); /* some MDLs can trash argv */
     msrInitialize(&msr,mdl,argc,argv);
 
