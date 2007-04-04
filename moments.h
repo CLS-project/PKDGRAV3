@@ -20,6 +20,27 @@ typedef struct momReduced {
 	} MOMR;
 
 /*
+ ** vector moment tensor components for reduced multipoles.
+ */
+#ifdef __GNUC__
+typedef float v4sf __attribute__ ((vector_size(16)));
+#else
+typedef float v4sf[4];
+#endif
+
+typedef union {
+    v4sf p;
+    float f[4];
+} momPacked;
+
+typedef struct momVectorReduced {
+	momPacked m;
+	momPacked xx,yy,xy,xz,yz;
+	momPacked xxx,xyy,xxy,yyy,xxz,yyz,xyz;
+	momPacked xxxx,xyyy,xxxy,yyyy,xxxz,yyyz,xxyy,xxyz,xyyz;
+	} VMOMR;
+
+/*
  ** moment tensor components for complete multipoles.
  */
 typedef struct momComplete {
