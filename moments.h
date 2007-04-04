@@ -40,6 +40,19 @@ typedef struct momVectorReduced {
 	momPacked xxxx,xyyy,xxxy,yyyy,xxxz,yyyz,xxyy,xxyz,xyyz;
 	} VMOMR;
 
+typedef struct momGenLocrAddMomrArray {
+  VMOMR q;
+  momPacked dir;
+  momPacked g0;
+  momPacked t1;
+  momPacked t2;
+  momPacked t3r;
+  momPacked t4r;
+  momPacked x;
+  momPacked y;
+  momPacked z;
+} GLAM;
+
 /*
  ** moment tensor components for complete multipoles.
  */
@@ -95,8 +108,17 @@ void momShiftLocr(LOCR *,momFloat,momFloat,momFloat);
 void momShiftLocr2(LOCR *,momFloat,momFloat,momFloat);
 void momReduceMomc(MOMC *,MOMR *);
 void momReduceLocc(LOCC *,LOCR *);
-void momEvalMomr(MOMR *,momFloat,momFloat,momFloat,momFloat,
-				 momFloat *,momFloat *,momFloat *,momFloat *);
+/*
+** All the variants of EvalMomr...
+*/
+void momEvalMomr(MOMR *m,momFloat dir,momFloat x,momFloat y,momFloat z,
+		 momFloat *fPot,momFloat *ax,momFloat *ay,momFloat *az);
+void momGenEvalMomr(MOMR *m,momFloat dir,momFloat g0,momFloat t1,momFloat t2,
+		    momFloat t3r,momFloat t4r,momFloat x,momFloat y,momFloat z,
+		    momFloat *fPot,momFloat *ax,momFloat *ay,momFloat *az);
+void momGenEvalVMomr(int n,GLAM *p,
+		     momFloat *fPot,momFloat *ax,momFloat *ay,momFloat *az);
+
 void momClearLocc(LOCC *);
 void momClearLocr(LOCR *);
 void momClearMomr(MOMR *);
@@ -109,6 +131,7 @@ void momLocrAddMomr(LOCR *,MOMR *,momFloat,momFloat,momFloat,momFloat);
 void momGenLocrAddMomr(LOCR *l,MOMR *q,momFloat dir,
 		       momFloat g0,momFloat t1,momFloat t2,momFloat t3r,momFloat t4r,
 		       momFloat x,momFloat y,momFloat z);
+void momGenLocrAddVMomr(LOCR *l,int n,GLAM *p);
 void momEwaldLocrAddMomr(LOCR *l,MOMR *m,momFloat r2,int bInHole,momFloat x,momFloat y,momFloat z);
 void momNooptLocrAddMomr(LOCR *l,MOMR *m,momFloat dir,momFloat x,momFloat y,momFloat z);
 void momLoccAddMomrAccurate(LOCC *l,MOMC *m,momFloat g0,momFloat x,momFloat y,momFloat z);
