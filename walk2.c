@@ -28,9 +28,56 @@ typedef struct CheckStack {
     int nCheck;
     CELT *Check;
     LOCR L;
+    double fWeight;
     } CSTACK;
 
 #define WALK_MINMULTIPOLE	3
+
+#ifndef NO_TIMING
+typedef struct {
+    double fTimer;
+    struct timeval tv1;
+} TIMER;
+
+void startTimer(TIMER *t) {
+    struct timezone tz;
+    gettimeofday(&t->tv1, &tz);
+}
+
+void clearTimer(TIMER *t) {
+    t->fTimer = 0.0;
+    startTimer(t);
+}
+
+float stopTimer(TIMER *t) {
+    struct timezone tz;
+    struct timeval tv2;
+
+    gettimeofday(&tv2, &tz);
+    tv2.tv_sec -= t->tv1.tv_sec;
+    if ( tv2.tv_usec < t->tv1.tv_usec ) {
+	tv2.tv_sec--;
+	tv2.tv_usec += 1000000;
+    }
+    tv2.tv_usec -= t->tv1.tv_usec;
+    t->fTimer += tv2.tv_sec + (float)tv2.tv_usec/1000000.0;
+    return t->fTimer;
+}
+
+float getTimer(TIMER *t) {
+    struct timezone tz;
+    struct timeval tv2;
+
+    gettimeofday(&tv2, &tz);
+    tv2.tv_sec -= t->tv1.tv_sec;
+    if ( tv2.tv_usec < t->tv1.tv_usec ) {
+	tv2.tv_sec--;
+	tv2.tv_usec += 1000000;
+    }
+    tv2.tv_usec -= t->tv1.tv_usec;
+    return t->fTimer + tv2.tv_sec + (float)tv2.tv_usec/1000000.0;
+}
+#endif
 
 /*
 ** Returns total number of active particles for which gravity was calculated.
@@ -48,7 +95,7 @@ int pkdGravWalk(PKD pkd,int nReps,int bEwald,int bVeryActive,double fEwCut,
     ILP *ilp;
     ILC *ilc;
     ILPB *ilpb;
-    double fWeight;
+    double fWeight = 0.0;
     double tempI;
     FLOAT dMin,dMax,min2,max2,d2,h2;
     FLOAT rCheck[3];
@@ -65,10 +112,8 @@ int pkdGravWalk(PKD pkd,int nReps,int bEwald,int bVeryActive,double fEwCut,
     int nCell,nMaxCell;
     int nPartBucket,nMaxPartBucket;
 #ifndef NO_TIMING
-    struct timeval tv1, tv2;
-    struct timezone tz;
+    TIMER tv;
 #endif
-
 
     /*
     ** If we are doing the very active gravity then check that there is a very active tree!
@@ -191,6 +236,13 @@ int pkdGravWalk(PKD pkd,int nReps,int bEwald,int bVeryActive,double fEwCut,
 	    /*
 	    ** Process the Checklist.
 	    */
+
+#ifndef NO_TIMING
+	    clearTimer(&tv);
+#else
+	    tempI = *pdFlop;
+#endif
+
 	    ii = 0;
 	    for (i=0;i<nCheck;++i) {
 		id = Check[i].id;
@@ -204,7 +256,13 @@ int pkdGravWalk(PKD pkd,int nReps,int bEwald,int bVeryActive,double fEwCut,
 		    n = WALK_MINMULTIPOLE;  /* See check below */
 		    }
 		else {
+#ifndef NO_TIMING
+		    stopTimer(&tv);
+#endif
 		    pkdc = mdlAquire(pkd->mdl,CID_CELL,Check[i].iCell,id);
+#ifndef NO_TIMING
+		    startTimer(&tv);
+#endif
 		    n = pkdc->pUpper - pkdc->pLower + 1;
 		    }
 		for (j=0;j<3;++j) rCheck[j] = pkdc->r[j] + Check[i].rOffset[j];
@@ -377,6 +435,9 @@ int pkdGravWalk(PKD pkd,int nReps,int bEwald,int bVeryActive,double fEwCut,
 				ilp = realloc(ilp,nMaxPart*sizeof(ILP));
 				assert(ilp != NULL);	
 				}
+#ifndef NO_TIMING
+			    stopTimer(&tv);
+#endif
 			    for (pj=pkdc->pLower;pj<=pkdc->pUpper;++pj) {
 				pRemote = mdlAquire(pkd->mdl,CID_PARTICLE,pj,id);
 				ilp[nPart].iOrder = pRemote->iOrder;
@@ -399,6 +460,9 @@ int pkdGravWalk(PKD pkd,int nReps,int bEwald,int bVeryActive,double fEwCut,
 				++nPart;
 				mdlRelease(pkd->mdl,CID_PARTICLE,pRemote);
 				}
+#ifndef NO_TIMING
+			    startTimer(&tv);
+#endif
 			    }
 			/*
 			** ...and we need to consider it in the timestepping part so place this cell
@@ -432,11 +496,7 @@ int pkdGravWalk(PKD pkd,int nReps,int bEwald,int bVeryActive,double fEwCut,
 		  ** LocrAddMomr(locr,pkdc);
 		  */
 		  dir = 1.0/sqrt(d2);
-		  t1 = -dir;
-		  t2 = -3*dir;
-		  t3r = -5;
-		  t4r = -7;
-		  momGenLocrAddMomr(&L,&pkdc->mom,dir,-dir,t1,t2,t3r,t4r,dx[0],dx[1],dx[2]);
+		  *pdFlop += momLocrAddMomr(&L,&pkdc->mom,dir,dx[0],dx[1],dx[2]);
 		}
 		else if (iOpen == -2) {
 		    /*
@@ -563,8 +623,7 @@ int pkdGravWalk(PKD pkd,int nReps,int bEwald,int bVeryActive,double fEwCut,
 		    /*
 		    ** Sibling is active as well.
 		    ** Push Checklist for the sibling onto the stack
-		    ** before proceeding deeper in the tree.
-		    */
+		    ** before proceeding deeper in the tree.		    */
 		    ++iStack;
 		    S[iStack].nPart = nPart;
 		    S[iStack].nCell = nCell;
@@ -577,6 +636,11 @@ int pkdGravWalk(PKD pkd,int nReps,int bEwald,int bVeryActive,double fEwCut,
 				 c[iCell+1].r[0] - xParent,
 				 c[iCell+1].r[1] - yParent,
 				 c[iCell+1].r[2] - zParent);
+#ifndef NO_TIMING
+		    S[iStack].fWeight = getTimer(&tv);
+#else
+		    S[iStack].fWeight = (*pdFlop-tempI);
+#endif
 		    }
 		}
 	    else {
@@ -612,11 +676,6 @@ int pkdGravWalk(PKD pkd,int nReps,int bEwald,int bVeryActive,double fEwCut,
 	** Now calculate gravity on this bucket!
 	*/
 
-#ifndef NO_TIMING
-	gettimeofday(&tv1, &tz);
-#endif
-
-	tempI = *pdFlop;
 	nActive = pkdGravInteract(pkd,pkdc,&L,ilp,nPart,ilc,nCell,ilpb,nPartBucket,pdFlop);
 	/*
 	** Note that if Ewald is being performed we need to factor this
@@ -624,21 +683,18 @@ int pkdGravWalk(PKD pkd,int nReps,int bEwald,int bVeryActive,double fEwCut,
 	*/
 	if (bEwald) {
 	    *pdFlop += pkdBucketEwald(pkd,&pkd->kdNodes[iCell],nReps,fEwCut,4);
-	    }
-	if (nActive) {
-	    fWeight = (*pdFlop-tempI)/nActive;
+	}
 
 #ifndef NO_TIMING
-	    gettimeofday(&tv2, &tz);
-	    tv2.tv_sec -= tv1.tv_sec;
-	    if ( tv2.tv_usec < tv1.tv_usec ) {
-		tv2.tv_sec--;
-		tv2.tv_usec += 1000000;
-	    }
-	    tv2.tv_usec -= tv1.tv_usec;
-	    fWeight = tv2.tv_sec + (float)tv2.tv_usec/1000000.0;
-	    if ( fWeight == 0.0 ) fWeight = 0.000001;
+	fWeight += getTimer(&tv);
+#else
+	fWeight += (*pdFlop-tempI);
+#endif
+	if (nActive) {
+#ifndef NO_TIMING
 	    fWeight /= nActive;
+#else
+	    fWeight = (*pdFlop-tempI)/nActive;
 #endif
 	    pkdBucketWeight(pkd,iCell,fWeight);
 /*
@@ -686,6 +742,13 @@ int pkdGravWalk(PKD pkd,int nReps,int bEwald,int bVeryActive,double fEwCut,
 	nCheck = S[iStack].nCheck;
 	for (i=0;i<nCheck;++i) Check[i] = S[iStack].Check[i];
 	L = S[iStack].L;
+#ifndef NO_TIMING
+	fWeight = S[iStack].fWeight;
+	clearTimer(&tv);
+#else
+	fWeight = S[iStack].fWeight;
+	tempI = *pdFlop;
+#endif
 	--iStack;
 	}
     }
