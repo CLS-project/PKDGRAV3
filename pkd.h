@@ -55,6 +55,12 @@ typedef struct pLite {
     unsigned int iActive;
     } PLITE;
 
+typedef struct pIO {
+    FLOAT r[3];
+    FLOAT v[3];
+    FLOAT fMass;
+} PIO;
+
 typedef struct particle {
     int iOrder;
     unsigned int iActive;  
@@ -625,5 +631,6 @@ void pkdSetNParts(PKD pkd, int nGas, int nDark, int nStar, int nMaxOrderGas,
 #ifdef RELAXATION
 void pkdInitRelaxation(PKD pkd);
 #endif
+int pkdPackIO(PKD pkd,PIO *io,int nStart,int nMax);
 #endif
 

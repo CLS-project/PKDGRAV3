@@ -249,6 +249,12 @@ void pstAddServices(PST pst,MDL mdl)
     mdlAddService(mdl,PST_INITRELAXATION,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstInitRelaxation,0,0);
 #endif
+    mdlAddService(mdl,PST_FINDIOS,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstFindIOS,
+		  sizeof(struct inFindIOS),sizeof(struct outFindIOS));
+    mdlAddService(mdl,PST_STARTIO,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstStartIO,
+		  sizeof(struct inStartIO),0);
     }
 
 void pstInitialize(PST *ppst,MDL mdl,LCL *plcl)
@@ -268,6 +274,8 @@ void pstInitialize(PST *ppst,MDL mdl,LCL *plcl)
     pst->nUpper = 0;
     pst->iSplitDim = -1;
     pst->iVASplitSide = 0;
+    pst->nLowTot = 0;
+    pst->nHighTot = 0;
     }
 
 
@@ -1080,6 +1088,9 @@ void _pstRootSplit(PST pst,int iSplitDim,double dMass,int bDoRootFind,int bDoSpl
     mdlassert(pst->mdl, nLowTot <= nLowerStore);
     mdlassert(pst->mdl, nHighTot <= nUpperStore);
 
+    pst->nLowTot = nLowTot;
+    pst->nHighTot = nHighTot;
+
     mdlPrintTimer(pst->mdl,"TIME Total Split _pstRootSplit ",&t);
 	
     mdlprintf(pst->mdl, "id: %d (%d) Chose reverse split: %f (%f,%f)\n",
@@ -1109,40 +1120,6 @@ void _pstRootSplit(PST pst,int iSplitDim,double dMass,int bDoRootFind,int bDoSpl
 	
     mdlPrintTimer(pst->mdl,"TIME Collected Rejects _pstRootSplit ",&t);
 	
-#ifdef PARANOID_CHECK
-    /*
-    ** This paranoid check no longer works for Active particles, need
-    ** to modify or remove this!
-    */
-    iLowSum = 0;
-    iHighSum = 0;
-    for (i=0;i<pst->nLower;++i) {
-	iLowSum += pLowerRej[i].nLocal;
-	iHighSum += pLowerRej[i].nRejects;
-	}
-    for (i=0;i<pst->nUpper;++i) {
-	iHighSum += pUpperRej[i].nLocal;
-	iLowSum += pUpperRej[i].nRejects;
-	}
-    mdlprintf(pst->mdl,"%d l:%d Paranoid Check Final nLow:%d == %d, nHigh:%d == %d\n",pst->idSelf,pst->iLvl,
-	      nLowTot,iLowSum,nHighTot,iHighSum);
-    iLowSum = 0;
-    iHighSum = 0;
-    for (i=0;i<pst->nLower;++i) {
-	iLowSum += pLowerRej[i].nLocal;
-	iHighSum += pLowerRej[i].nRejects;
-	}
-    mdlprintf(pst->mdl,"%d l:%d Paranoid Check Low: nLow:%d == %d, nHigh(rejects):%d == %d\n",pst->idSelf,pst->iLvl,
-	      outWtLow.nLow,iLowSum,outWtLow.nHigh,iHighSum);
-    iLowSum = 0;
-    iHighSum = 0;
-    for (i=0;i<pst->nUpper;++i) {
-	iHighSum += pUpperRej[i].nLocal;
-	iLowSum += pUpperRej[i].nRejects;
-	}
-    mdlprintf(pst->mdl,"%d l:%d Paranoid Check High: nLow(rejects):%d == %d, nHigh:%d == %d\n",pst->idSelf,pst->iLvl,
-	      outWtHigh.nLow,iLowSum,outWtHigh.nHigh,iHighSum);
-#endif
 	
     ittr = 0;
     while (1) {
@@ -1940,6 +1917,92 @@ void pstWriteTipsy(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 	strcat(achOutFile,in->achOutFile);
 	pkdWriteTipsy(plcl->pkd,achOutFile,plcl->nWriteStart,
 		      in->bStandard,in->dvFac,in->duTFac,in->bDoublePos);
+	}
+    if (pnOut) *pnOut = 0;
+    }
+
+void pstFindIOS(PST pst,void *vin,int nIn,void *vout,int *pnOut)
+    {
+    LCL *plcl = pst->plcl;
+    struct inFindIOS *in = vin;
+    struct outFindIOS *out = vout;
+    int i;
+
+    mdlassert(pst->mdl,nIn == sizeof(struct inFindIOS));
+    mdlassert(pst->mdl,mdlIO(pst->mdl)<=MDL_MAX_IO_PROCS);
+    if (pst->nLeaves > 1) {
+	struct outFindIOS right;
+	mdlassert(pst->mdl,pst->nLowTot != 0 && pst->nHighTot != 0);
+	in->nLower += pst->nLowTot;
+	mdlReqService(pst->mdl,pst->idUpper,PST_FINDIOS,in,nIn);
+	in->nLower -= pst->nLowTot;
+	pstFindIOS(pst->pstLower,in,nIn,vout,pnOut);
+	mdlGetReply(pst->mdl,pst->idUpper,&right,pnOut);
+	for( i=0; i<MDL_MAX_IO_PROCS; i++ )
+	    out->nCount[i] += right.nCount[i];
+	}
+    else {
+	mdlassert(pst->mdl,in->N>mdlIO(pst->mdl));
+	pst->ioIndex = in->nLower / (in->N / mdlIO(pst->mdl) );
+	mdlassert(pst->mdl,pst->ioIndex >= 0 && pst->ioIndex < mdlIO(pst->mdl));
+	for( i=0; i<MDL_MAX_IO_PROCS; i++ )
+	    out->nCount[i] = 0;
+	out->nCount[pst->ioIndex] = pkdLocal(plcl->pkd);
+        }
+    if (pnOut) *pnOut = sizeof(struct outFindIOS);
+    }
+
+typedef struct ctxIO {
+    PST pst;
+    int nStart;
+} * CTXIO;
+
+static int pstPackIO(void *vctx, int nSize, void *vBuff)
+{
+    CTXIO ctx = vctx;
+    LCL *plcl = ctx->pst->plcl;
+    PIO *io = (PIO *)vBuff;
+    int nPack;
+
+    nPack = pkdPackIO(plcl->pkd, io, ctx->nStart, nSize/sizeof(PIO));
+    ctx->nStart += nPack;
+    return nPack * sizeof(PIO);
+}
+
+
+
+void pstStartIO(PST pst,void *vin,int nIn,void *vout,int *pnOut)
+    {
+    LCL *plcl = pst->plcl;
+    struct inStartIO *in = vin;
+    struct ctxIO ctx;
+    char achOutFile[PST_FILENAME_SIZE];
+
+    mdlassert(pst->mdl,nIn == sizeof(struct inStartIO));
+    if (pst->nLeaves > 1) {
+	mdlReqService(pst->mdl,pst->idUpper,PST_STARTIO,in,nIn);
+	pstStartIO(pst->pstLower,in,nIn,NULL,NULL);
+	mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
+	}
+    else {
+
+	ctx.pst = pst;
+	ctx.nStart = 0;
+	mdlSetComm(pst->mdl,1);
+	mdlSend(pst->mdl,pst->ioIndex,pstPackIO,&ctx);
+	mdlSetComm(pst->mdl,0);
+
+	/*
+	** Add the local Data Path to the provided filename.
+	*/
+	achOutFile[0] = 0;
+	if (plcl->pszDataPath) {
+	    strcat(achOutFile,plcl->pszDataPath);
+	    strcat(achOutFile,"/");
+	    }
+	strcat(achOutFile,in->achOutFile);
+	/*	pkdWriteTipsy(plcl->pkd,achOutFile,plcl->nWriteStart,
+		in->bStandard,in->dvFac,in->duTFac,in->bDoublePos);*/
 	}
     if (pnOut) *pnOut = 0;
     }

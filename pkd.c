@@ -1031,6 +1031,31 @@ void pkdLocalOrder(PKD pkd)
     qsort(pkd->pStore,pkdLocal(pkd),sizeof(PARTICLE),cmpParticles);
     }
 
+int pkdPackIO(PKD pkd,PIO *io,int nStart,int nMax)
+{
+    int nCopy, i, d;
+
+    mdlassert(pkd->mdl,nStart<=pkd->nLocal);
+
+    /* Calculate the number of particles to copy to the output buffer */
+    nCopy = pkd->nLocal - nStart;
+    if ( nCopy > nMax ) nCopy = nMax;
+
+    for( i=0; i<nCopy; i++ ) {
+	if ( pkdIsDark(pkd,pkd->pStore+nStart+i) ) {
+	}
+	for( d=0; d<3; d++ ) {
+	    io[i].r[d] = pkd->pStore[nStart+i].r[d];
+	    io[i].v[d] = pkd->pStore[nStart+i].v[d];
+	}
+	io[i].fMass = pkd->pStore[nStart+i].fMass;
+    }
+
+    return nCopy;
+}
+
+
+
 
 void pkdWriteTipsy(PKD pkd,char *pszFileName,int nStart,
 		   int bStandard,double dvFac,double duTFac,int bDoublePos) {

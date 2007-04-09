@@ -45,6 +45,9 @@ typedef struct pstContext {
     FLOAT fSplitInactive;
     int nTotal;
     int iVASplitSide;
+    int nLowTot;    /* total number of particles in the lower subset of processors */
+    int nHighTot;   /* total number of particles in the upper subset of processors */
+    int ioIndex;
     } * PST;
 
 
@@ -132,6 +135,8 @@ enum pst_service {
     PST_GROUPPROFILES,
     PST_INITRELAXATION,
     PST_CLEARTIMER,
+    PST_FINDIOS,
+    PST_STARTIO,
     };
 
 void pstAddServices(PST,MDL);
@@ -297,6 +302,27 @@ struct inWriteTipsy {
     char achOutFile[PST_FILENAME_SIZE];
     };
 void pstWriteTipsy(PST,void *,int,void *,int *);
+
+/* PST_FINDIOS */
+struct inFindIOS {
+    int nLower; /* Number of particles to the left */
+    int N;
+    };
+struct outFindIOS {
+    int nCount[MDL_MAX_IO_PROCS];
+    };
+void pstFindIOS(PST,void *,int,void *,int *);
+
+/* PST_STARTIO */
+struct inStartIO {
+    int nCount[MDL_MAX_IO_PROCS];
+    double dvFac;
+    double duTFac;
+    double dTime;
+    int bDoublePos;
+    char achOutFile[PST_FILENAME_SIZE];
+    };
+void pstStartIO(PST,void *,int,void *,int *);
 
 /* PST_BUILDTREE */
 struct inBuildTree {
