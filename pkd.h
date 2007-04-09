@@ -247,6 +247,7 @@ typedef struct kdTemp {
 
 typedef struct kdNode {
     BND bnd;
+    double dTimeStamp;
     FLOAT fOpen2;
     FLOAT fSoft2;
     FLOAT r[3];
@@ -329,7 +330,7 @@ typedef struct ilPart {
 */
 
 typedef struct ilCell {
-    double x,y,z;
+  double x,y,z,vx,vy,vz;
     MOMR mom;
     } ILC;
 
@@ -520,8 +521,8 @@ typedef struct CacheStatistics {
 /*
 ** From tree.c:
 */
-void pkdVATreeBuild(PKD pkd,int nBucket,FLOAT diCrit2,int bSqueeze);
-void pkdTreeBuild(PKD pkd,int nBucket,FLOAT dCrit,KDN *pkdn,int bSqueeze,int bExcludeVeryActive);
+void pkdVATreeBuild(PKD pkd,int nBucket,FLOAT diCrit2,int bSqueeze,double dTimeStamp);
+void pkdTreeBuild(PKD pkd,int nBucket,FLOAT dCrit,KDN *pkdn,int bSqueeze,int bExcludeVeryActive,double dTimeStamp);
 void pkdCombineCells(KDN *pkdn,KDN *p1,KDN *p2,int bCombineBound);
 void pkdDistribCells(PKD,int,KDN *);
 void pkdCalcRoot(PKD,MOMC *);
@@ -582,7 +583,7 @@ int pkdNodes(PKD);
 int pkdColOrdRejects(PKD,int,int);
 void pkdLocalOrder(PKD);
 void pkdWriteTipsy(PKD,char *,int,int,double,double,int);
-void pkdGravAll(PKD,int,int,int,int,int,double,double,int,double *,int *,
+void pkdGravAll(PKD,double,int,int,int,int,int,double,double,int,double *,int *,
 		double *,double *,CASTAT *,double *);
 void pkdCalcE(PKD,double *,double *,double *);
 void pkdCalcEandL(PKD,double *,double *,double *,double []);

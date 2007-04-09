@@ -1353,7 +1353,7 @@ void pkdBucketWeight(PKD pkd,int iBucket,FLOAT fWeight)
 
 
 void
-pkdGravAll(PKD pkd,int nReps,int bPeriodic,int iOrder,int bEwald,int iEwOrder,
+pkdGravAll(PKD pkd,double dTime,int nReps,int bPeriodic,int iOrder,int bEwald,int iEwOrder,
 	   double fEwCut,double fEwhCut,int bDoSun,double *aSun,int *nActive,
 	   double *pdPartSum,double *pdCellSum,CASTAT *pcs,
 	   double *pdFlop)
@@ -1386,7 +1386,7 @@ pkdGravAll(PKD pkd,int nReps,int bPeriodic,int iOrder,int bEwald,int iEwOrder,
     *pdPartSum = 0.0;
     *pdCellSum = 0.0;
     pkdStartTimer(pkd,1);
-    *nActive = pkdGravWalk(pkd,nReps,bPeriodic && bEwald,bVeryActive,fEwCut,pdFlop,pdPartSum,pdCellSum);
+    *nActive = pkdGravWalk(pkd,dTime,nReps,bPeriodic && bEwald,bVeryActive,fEwCut,pdFlop,pdPartSum,pdCellSum);
     pkdStopTimer(pkd,1);
 
 #ifdef BSC
@@ -1617,7 +1617,7 @@ pkdDriftActive(PKD pkd,double dTime,double dDelta) {
     mdlDiag(pkd->mdl, "Out of pkdDriftActive\n");
     }
 
-void pkdGravityVeryActive(PKD pkd, int bEwald, int nReps, double fEwCut, double dStep) {
+void pkdGravityVeryActive(PKD pkd,double dTime,int bEwald,int nReps,double fEwCut,double dStep) {
     int nActive;
     int bVeryActive = 1;
     double dFlop,dPartSum,dCellSum;
@@ -1628,7 +1628,7 @@ void pkdGravityVeryActive(PKD pkd, int bEwald, int nReps, double fEwCut, double 
     dFlop = 0.0;
     dPartSum = 0.0;
     dCellSum = 0.0;
-    nActive = pkdGravWalk(pkd,nReps,bEwald,bVeryActive,fEwCut,&dFlop,&dPartSum,&dCellSum);
+    nActive = pkdGravWalk(pkd,dTime,nReps,bEwald,bVeryActive,fEwCut,&dFlop,&dPartSum,&dCellSum);
     }
 
 
@@ -1851,8 +1851,8 @@ pkdStepVeryActiveKDK(PKD pkd, double dStep, double dTime, double dDelta,
 
 	    pkdActiveRung(pkd,iKickRung,1);
 	    pkdInitAccel(pkd);
-	    pkdVATreeBuild(pkd,param.nBucket,diCrit2,0);
-	    pkdGravityVeryActive(pkd, param.bEwald && param.bPeriodic,param.nReplicas,param.dEwCut,dStep);
+	    pkdVATreeBuild(pkd,param.nBucket,diCrit2,0,dTime);
+	    pkdGravityVeryActive(pkd,dTime,param.bEwald && param.bPeriodic,param.nReplicas,param.dEwCut,dStep);
 	    time2 = Zeit();
 	    if(param.bVDetails)
 		printf("Time: %g\n",time2-time1);

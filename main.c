@@ -163,9 +163,9 @@ int main(int argc,char **argv) {
 	msrActiveType(msr,TYPE_ALL,TYPE_ACTIVE|TYPE_TREEACTIVE);
 	msrUpdateSoft(msr,dTime);
 	msrActiveType(msr,TYPE_ALL,TYPE_ACTIVE|TYPE_TREEACTIVE);
-	msrBuildTree(msr,dMass);
+	msrBuildTree(msr,dMass,dTime);
 	if (msrDoGravity(msr)) {
-	    msrGravity(msr,0.0,&iSec,&dWMax,&dIMax,&dEMax,&nActive);
+	  msrGravity(msr,dTime,0.0,&iSec,&dWMax,&dIMax,&dEMax,&nActive);
 	    msrCalcEandL(msr,MSR_INIT_E,dTime,&E,&T,&U,&Eth,L);
 	    dMultiEff = 1.0;
 	    if (msrLogInterval(msr)) {
@@ -209,7 +209,7 @@ int main(int argc,char **argv) {
 	    if ( msr->param.bTraceRelaxation) {
 		msrActiveType(msr,TYPE_ALL,TYPE_ACTIVE|TYPE_TREEACTIVE|TYPE_SMOOTHACTIVE);
 		msrDomainDecomp(msr,0,1,0);
-		msrBuildTree(msr,dMass);
+		msrBuildTree(msr,dMass,dTime);
 		msrRelaxation(msr,dTime,msrDelta(msr),SMX_RELAXATION,0);
 		}
 #endif	
@@ -231,7 +231,7 @@ int main(int argc,char **argv) {
 		if (msrDoDensity(msr)) {
 		    msrActiveType(msr,TYPE_ALL,TYPE_ACTIVE|TYPE_TREEACTIVE|TYPE_SMOOTHACTIVE);
 		    msrDomainDecomp(msr,0,1,0);
-		    msrBuildTree(msr,dMass);
+		    msrBuildTree(msr,dMass,dTime);
 		    bGasOnly = 0;
 		    bSymmetric = 0; /* FOR TESTING!!*/
 		    msrSmooth(msr,dTime,SMX_DENSITY,bGasOnly,bSymmetric);
@@ -243,7 +243,7 @@ int main(int argc,char **argv) {
 		    */	
 		    msrActiveType(msr,TYPE_ALL,TYPE_ACTIVE);
 		    msrDomainDecomp(msr,0,1,0);
-		    msrBuildTree(msr,dMass);
+		    msrBuildTree(msr,dMass,dTime);
 		    msrFof(msr,nFOFsDone,SMX_FOF,0);
 		    msrGroupMerge(msr);
 		    if(msr->param.nBins > 0) msrGroupProfiles(msr,nFOFsDone,SMX_FOF,0);
@@ -333,10 +333,10 @@ int main(int argc,char **argv) {
 
 	msrDomainDecomp(msr,0,1,0);
 	msrUpdateSoft(msr,dTime);
-	msrBuildTree(msr,dMass);
+	msrBuildTree(msr,dMass,dTime);
 
 	if (msrDoGravity(msr)) {
-	    msrGravity(msr,0.0,&iSec,&dWMax,&dIMax,&dEMax,&nActive);
+	  msrGravity(msr,dTime,0.0,&iSec,&dWMax,&dIMax,&dEMax,&nActive);
 	    msrReorder(msr);
 	    sprintf(achFile,"%s.accg",msrOutName(msr));
 	    msrOutVector(msr,achFile,OUT_ACCEL_VECTOR);
@@ -359,7 +359,7 @@ int main(int argc,char **argv) {
 	    */
 	    msrActiveType(msr,TYPE_ALL,TYPE_ACTIVE);
 	    msrDomainDecomp(msr,0,1,0);
-	    msrBuildTree(msr,dMass);
+	    msrBuildTree(msr,dMass,dTime);
 	    msrFof(msr,nFOFsDone,SMX_FOF,0);
 	    msrGroupMerge(msr);
 	    if(msr->param.nBins > 0) msrGroupProfiles(msr,nFOFsDone,SMX_FOF,0);

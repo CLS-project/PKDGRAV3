@@ -326,8 +326,9 @@ void pstStartIO(PST,void *,int,void *,int *);
 
 /* PST_BUILDTREE */
 struct inBuildTree {
-    int nBucket;
     double diCrit2;
+    double dTimeStamp;
+    int nBucket;
     int iCell;
     int nCell;
     int bTreeSqueeze;
@@ -374,6 +375,7 @@ void pstSmooth(PST,void *,int,void *,int *);
 
 /* PST_GRAVITY */
 struct inGravity {
+  double dTime;
     int nReps;
     int bPeriodic;
     int bEwald;

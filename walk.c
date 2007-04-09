@@ -28,7 +28,7 @@ typedef struct CheckStack {
 /*
 ** Returns total number of active particles for which gravity was calculated.
 */
-int pkdGravWalk(PKD pkd,int nReps,int bEwald,int bVeryActive,double fEwCut,
+int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double fEwCut,
 		double *pdFlop,double *pdPartSum,double *pdCellSum)
     {
     PARTICLE *p = pkd->pStore;
@@ -40,6 +40,7 @@ int pkdGravWalk(PKD pkd,int nReps,int bEwald,int bVeryActive,double fEwCut,
     ILP *ilp;
     ILC *ilc;
     ILPB *ilpb;
+    double dDriftFac;
     double fWeight;
     double tempI;
     FLOAT dMin,dMax,min2,max2,d2,h2;
@@ -188,7 +189,33 @@ int pkdGravWalk(PKD pkd,int nReps,int bEwald,int bVeryActive,double fEwCut,
 		    pkdc = mdlAquire(pkd->mdl,CID_CELL,Check[i].iCell,id);
 		    n = pkdc->pUpper - pkdc->pLower + 1;
 		    }
-		for (j=0;j<3;++j) rCheck[j] = pkdc->r[j] + Check[i].rOffset[j];
+		/*
+		** If the cell is not time synchronous, then work out a drift factor
+		** for this cell.
+		*/
+		if (pkdc->dTimeStamp != dTime) {
+		  /*
+		  ** We need to account for cosmological drift factor here!
+		  */
+		  if (pkd->param.bCannonical) {
+		    /*
+		    ** This might get called quite a bit in this code. Better might
+		    ** be to store a dDriftFac within the CheckElt structure, thereby
+		    ** reducing the number of calls to csmComoveDriftFac. Otherwise
+		    ** we may need to speed this function up.
+		    */
+		    dDriftFac = csmComoveDriftFac(pkd->param.csm,pkdc->dTimeStamp,dTime - pkdc->dTimeStamp);
+		  }
+		  else {
+		    dDriftFac = dTime - pkdc->dTimeStamp;
+		  }
+		  for (j=0;j<3;++j) rCheck[j] = pkdc->r[j] + 
+		    dDriftFac*pkdc->v[j] + Check[i].rOffset[j];
+		}
+		else {
+		  dDriftFac = 0.0;
+		  for (j=0;j<3;++j) rCheck[j] = pkdc->r[j] + Check[i].rOffset[j];
+		}
 		if (c[iCell].iLower) {
 		    /*
 		    ** If this cell is not a bucket calculate the min distance
@@ -357,7 +384,8 @@ int pkdGravWalk(PKD pkd,int nReps,int bEwald,int bVeryActive,double fEwCut,
 		    else {
 			/*
 			** Now I am trying to open a bucket, which means I place particles on the ilp
-			** interaction list.
+			** interaction list. I also have to make sure that I place the
+			** particles in time synchronous positions.
 			*/
 			if (id == pkd->idSelf) {
 			    /*
@@ -372,9 +400,9 @@ int pkdGravWalk(PKD pkd,int nReps,int bEwald,int bVeryActive,double fEwCut,
 			    for (pj=pkdc->pLower;pj<=pkdc->pUpper;++pj) {
 				ilp[nPart].iOrder = p[pj].iOrder;
 				ilp[nPart].m = p[pj].fMass;
-				ilp[nPart].x = p[pj].r[0] + Check[i].rOffset[0];
-				ilp[nPart].y = p[pj].r[1] + Check[i].rOffset[1];
-				ilp[nPart].z = p[pj].r[2] + Check[i].rOffset[2];
+				ilp[nPart].x = p[pj].r[0] + dDriftFac*p[pj].v[0] + Check[i].rOffset[0];
+				ilp[nPart].y = p[pj].r[1] + dDriftFac*p[pj].v[1] + Check[i].rOffset[1];
+				ilp[nPart].z = p[pj].r[2] + dDriftFac*p[pj].v[2] + Check[i].rOffset[2];
 				ilp[nPart].vx = p[pj].v[0]; 
 				ilp[nPart].vy = p[pj].v[1];
 				ilp[nPart].vz = p[pj].v[2];
@@ -404,9 +432,9 @@ int pkdGravWalk(PKD pkd,int nReps,int bEwald,int bVeryActive,double fEwCut,
 				pRemote = mdlAquire(pkd->mdl,CID_PARTICLE,pj,id);
 				ilp[nPart].iOrder = pRemote->iOrder;
 				ilp[nPart].m = pRemote->fMass;
-				ilp[nPart].x = pRemote->r[0] + Check[i].rOffset[0];
-				ilp[nPart].y = pRemote->r[1] + Check[i].rOffset[1];
-				ilp[nPart].z = pRemote->r[2] + Check[i].rOffset[2];
+				ilp[nPart].x = pRemote->r[0] + dDriftFac*pRemote->v[0] + Check[i].rOffset[0];
+				ilp[nPart].y = pRemote->r[1] + dDriftFac*pRemote->v[1] + Check[i].rOffset[1];
+				ilp[nPart].z = pRemote->r[2] + dDriftFac*pRemote->v[2] + Check[i].rOffset[2];
 				ilp[nPart].vx = pRemote->v[0]; 
 				ilp[nPart].vy = pRemote->v[1];
 				ilp[nPart].vz = pRemote->v[2];

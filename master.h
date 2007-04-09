@@ -73,7 +73,8 @@ double msrReadTipsy(MSR);
 void msrWriteTipsy(MSR,char *,double);
 void msrSetSoft(MSR msr,double);
 void msrDomainDecomp(MSR,int iRung,int bGreater,int bSplitVA);
-void msrBuildTree(MSR,double);
+void msrBuildTree(MSR msr,double dMass,double dTime);
+void msrBuildTreeExcludeVeryActive(MSR msr,double dMass,double dTime);
 
 #ifdef GASOLINE
 void msrCalcBallBound(MSR,double fBallFactor);
@@ -86,7 +87,7 @@ void msrOutVector(MSR,char *,int);
 void msrSmooth(MSR,double,int,int,int);
 void msrReSmooth(MSR,double,int,int,int);
 void msrUpdateSoft(MSR,double);
-void msrGravity(MSR,double,int *,double *,double *,double *,int *);
+void msrGravity(MSR,double,double,int *,double *,double *,double *,int *);
 void msrCalcEandL(MSR,int,double,double *,double *,double *,double *,double *);
 void msrDrift(MSR,double,double);
 void msrKick(MSR,double,double);
@@ -110,7 +111,6 @@ void msrTopStepKDK(MSR msr,
 		   int *piSec);
 void msrStepVeryActiveKDK(MSR msr, double dStep, double dTime, double dDelta,
 			  int iRung);
-void msrBuildTreeInactive(MSR msr, double dMass);
 
 void msrBallMax(MSR msr, int iRung, int bGreater);
 /*------------------*/

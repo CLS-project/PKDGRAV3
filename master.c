@@ -1373,7 +1373,7 @@ void msrDomainDecomp(MSR msr,int iRung,int bGreater,int bSplitVA) {
 ** This the meat of the tree build, but will be called by differently named
 ** functions in order to implement special features without recoding...
 */
-void _BuildTree(MSR msr,double dMass,int bExcludeVeryActive) {
+void _BuildTree(MSR msr,double dMass,double dTimeStamp,int bExcludeVeryActive) {
     struct inBuildTree in;
     struct ioCalcRoot root;
     KDN *pkdn;
@@ -1390,6 +1390,7 @@ void _BuildTree(MSR msr,double dMass,int bExcludeVeryActive) {
     in.nCell = nCell;
     in.bTreeSqueeze = (msr->nActive > msr->N*msr->param.dFracNoTreeSqueeze);
     in.bExcludeVeryActive = bExcludeVeryActive;
+    in.dTimeStamp = dTimeStamp;
     if (msr->param.bVDetails) {
 	double sec,dsec;
 	sec = msrTime();
@@ -1415,12 +1416,12 @@ void _BuildTree(MSR msr,double dMass,int bExcludeVeryActive) {
 	}
     }
 
-void msrBuildTree(MSR msr,double dMass) {
-    _BuildTree(msr,dMass,0);
+void msrBuildTree(MSR msr,double dMass,double dTime) {
+  _BuildTree(msr,dMass,dTime,0);
     }
 
-void msrBuildTreeExcludeVeryActive(MSR msr,double dMass) {
-    _BuildTree(msr,dMass,1);
+void msrBuildTreeExcludeVeryActive(MSR msr,double dMass,double dTime) {
+  _BuildTree(msr,dMass,dTime,1);
     }
 
 
@@ -1741,20 +1742,20 @@ void msrUpdateSoft(MSR msr,double dTime) {
 	if (msr->param.bSoftByType) {
 	    if (msr->nDark) {
 		msrActiveType(msr,TYPE_DARK,TYPE_TREEACTIVE|TYPE_SMOOTHACTIVE);
-		msrBuildTree(msr,-1.0);
+		msrBuildTree(msr,-1.0,dTime);
 		bGasOnly = 0;
 		assert(0); /* can't do this yet! */
 		msrSmooth(msr,dTime,SMX_NULL,bGasOnly,bSymmetric);
 		}
 	    if (msr->nGas) {
 		msrActiveType(msr,TYPE_GAS,TYPE_TREEACTIVE|TYPE_SMOOTHACTIVE);
-		msrBuildTree(msr,-1.0);
+		msrBuildTree(msr,-1.0,dTime);
 		bGasOnly = 1;
 		msrSmooth(msr,dTime,SMX_NULL,bGasOnly,bSymmetric);
 		}
 	    if (msr->nStar) {
 		msrActiveType(msr,TYPE_STAR,TYPE_TREEACTIVE|TYPE_SMOOTHACTIVE);
-		msrBuildTree(msr,-1.0);
+		msrBuildTree(msr,-1.0,dTime);
 		bGasOnly = 0;
 		assert(0); /* can't do this yet! */
 		msrSmooth(msr,dTime,SMX_NULL,bGasOnly,bSymmetric);
@@ -1762,7 +1763,7 @@ void msrUpdateSoft(MSR msr,double dTime) {
 	    }
 	else {
 	    msrActiveType(msr,TYPE_ALL,TYPE_TREEACTIVE|TYPE_SMOOTHACTIVE);
-	    msrBuildTree(msr,-1.0);
+	    msrBuildTree(msr,-1.0,dTime);
 	    bGasOnly = 0;
 	    msrSmooth(msr,dTime,SMX_NULL,bGasOnly,bSymmetric);
 	    }
@@ -1775,7 +1776,7 @@ void msrUpdateSoft(MSR msr,double dTime) {
     }
 
 
-void msrGravity(MSR msr,double dStep,int *piSec,double *pdWMax,double *pdIMax,
+void msrGravity(MSR msr,double dTime,double dStep,int *piSec,double *pdWMax,double *pdIMax,
 		double *pdEMax,int *pnActive)
     {
     struct inGravity in;
@@ -1784,6 +1785,7 @@ void msrGravity(MSR msr,double dStep,int *piSec,double *pdWMax,double *pdIMax,
     double sec,dsec;
 
     if (msr->param.bVStep) printf("Calculating Gravity, Step:%f\n",dStep);
+    in.dTime = dTime;
     in.nReps = msr->param.nReplicas;
     in.bPeriodic = msr->param.bPeriodic;
     in.bEwald = msr->param.bEwald;
@@ -2517,7 +2519,7 @@ void msrTopStepKDK(MSR msr,
 	    bSplitVA = 0;
 	    msrDomainDecomp(msr,iRung,1,bSplitVA);
 	    msrActiveRung(msr,iRung,1);
-	    msrBuildTree(msr,dMass);
+	    msrBuildTree(msr,dMass,dTime);
 	    msrDensityStep(msr,dTime);
 	    }
 	iRungVeryActive = msrDtToRung(msr,iRung,dDelta,1);
@@ -2562,8 +2564,8 @@ void msrTopStepKDK(MSR msr,
 	    if (msr->param.bVDetails) {
 		printf("%*cGravity, iRung: %d to %d\n",2*iRung+2,' ',iKickRung,iRung);
 		}
-	    msrBuildTree(msr,dMass);
-	    msrGravity(msr,dStep,piSec,pdWMax,pdIMax,pdEMax,&nActive);
+	    msrBuildTree(msr,dMass,dTime);
+	    msrGravity(msr,dTime,dStep,piSec,pdWMax,pdIMax,pdEMax,&nActive);
 	    *pdActiveSum += (double)nActive/msr->N;
 	    }
 	}
@@ -2602,7 +2604,7 @@ void msrTopStepKDK(MSR msr,
 		printf("%*cBuilding exclude very active tree: iRung: %d\n",
 		       2*iRung+2,' ',iRung);
 		}
-	    msrBuildTreeExcludeVeryActive(msr,dMass);
+	    msrBuildTreeExcludeVeryActive(msr,dMass,dTime + 0.5*dDelta);
 	    }
 	/*
 	 * Perform timestepping on individual processors.
@@ -2640,8 +2642,8 @@ void msrTopStepKDK(MSR msr,
 		printf("%*cGravity, iRung: %d to %d\n",
 		       2*iRung+2,' ',iKickRung,msrCurrMaxRung(msr));
 		}
-	    msrBuildTree(msr,dMass);
-	    msrGravity(msr,dStep,piSec,pdWMax,pdIMax,pdEMax,&nActive);
+	    msrBuildTree(msr,dMass,dTime);
+	    msrGravity(msr,dTime,dStep,piSec,pdWMax,pdIMax,pdEMax,&nActive);
 	    *pdActiveSum += (double)nActive/msr->N;
 	    }
 	dDeltaTmp = dDelta;
@@ -2792,7 +2794,7 @@ void msrInitTimeSteps(MSR msr,double dTime,double dDelta)
     if (msr->param.bDensityStep) {
 	msrDomainDecomp(msr,0,1,0);
 	msrActiveType(msr,TYPE_ALL,TYPE_ACTIVE|TYPE_TREEACTIVE|TYPE_SMOOTHACTIVE);
-	msrBuildTree(msr,dMass);
+	msrBuildTree(msr,dMass,dTime);
 	msrDensityStep(msr,dTime);
 	}
     msrDtToRung(msr,0,dDelta,1);

@@ -2075,7 +2075,7 @@ void pstBuildTree(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 	** Passing a null bounds pointer forces pkdTreeBuild to
 	** compute the bounds of the root cell before starting.
 	*/
-	pkdTreeBuild(plcl->pkd,in->nBucket,in->diCrit2,&pkdn[iCell],in->bTreeSqueeze,in->bExcludeVeryActive);
+	pkdTreeBuild(plcl->pkd,in->nBucket,in->diCrit2,&pkdn[iCell],in->bTreeSqueeze,in->bExcludeVeryActive,in->dTimeStamp);
 	pkdn[iCell].iLower = 0;
 	pkdn[iCell].pLower = pst->idSelf;
 	pkdn[iCell].pUpper = 1;
@@ -2390,7 +2390,7 @@ void pstGravity(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 	out->dcTSum += outUp.dcTSum;
 	}
     else {
-	pkdGravAll(plcl->pkd,in->nReps,in->bPeriodic,4,in->bEwald,
+      pkdGravAll(plcl->pkd,in->dTime,in->nReps,in->bPeriodic,4,in->bEwald,
 		   in->iEwOrder,in->dEwCut,in->dEwhCut,in->bDoSun,out->aSun,
 		   &out->nActive,&out->dPartSum,&out->dCellSum,
 		   &cs,&out->dFlop);

@@ -11,6 +11,7 @@
 #include "mpitrace_user_events.h"
 #endif
 
+
 void InitializeParticles(PKD pkd,int bExcludeVeryActive) {
     PLITE *p = pkd->pLite;
     PLITE t;
@@ -398,7 +399,7 @@ void ShuffleParticles(PKD pkd,int iStart) {
     }
 
 
-void Create(PKD pkd,int iNode,FLOAT diCrit2,int bTempBound) {
+void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp,int bTempBound) {
     PARTICLE *p = pkd->pStore;
     KDT *t = pkd->kdTemp;
     KDN *c = pkd->kdNodes;
@@ -511,6 +512,10 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,int bTempBound) {
 	*/
 	d2Max *= FOPEN_FACTOR*diCrit2;
 	pkdn->fOpen2 = d2Max;
+	/*
+	** Set the timestamp for the node.
+	*/
+	pkdn->dTimeStamp = dTimeStamp;
 #ifdef GASOLINE
 	pkdn->nGas = t[iNode].nGas;
 #endif
@@ -574,18 +579,44 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,int bTempBound) {
 
 
 void pkdCombineCells(KDN *pkdn,KDN *p1,KDN *p2,int bCombineBound) {
+    KDN *t;
     MOMR mom;
     FLOAT m1,m2,x,y,z,ifMass;
+    FLOAT r1[3],r2[3];
+    int j;
 
+    for (j=0;j<3;++j) {
+      r1[j] = p1->r[j];
+      r2[j] = p2->r[j];
+    }
+    if (p1->dTimeStamp > p2->dTimeStamp) {
+      /*
+      ** Shift r2 to be time synchronous to p1->dTimeStamp.
+      */
+      pkdn->dTimeStamp = p1->dTimeStamp;
+      assert(0);  /* need to code the shift y*/
+    }
+    else if (p1->dTimeStamp < p2->dTimeStamp) {
+      /*
+      ** Shift r1 to be time synchronous to p2->dTimeStamp.
+      */
+      pkdn->dTimeStamp = p2->dTimeStamp;
+      assert(0); /* need to code the shift */
+    }
+    else {
+      /*
+      ** Both child cells are tiume synchronous so we don't need to 
+      ** shift either of them and we can also use the timestamp of either.
+      */
+      pkdn->dTimeStamp = p1->dTimeStamp;
+    }
     m1 = p1->mom.m;
     m2 = p2->mom.m;
     ifMass = 1/(m1 + m2);
-    pkdn->r[0] = ifMass*(m1*p1->r[0] + m2*p2->r[0]);
-    pkdn->r[1] = ifMass*(m1*p1->r[1] + m2*p2->r[1]);
-    pkdn->r[2] = ifMass*(m1*p1->r[2] + m2*p2->r[2]);
-    pkdn->v[0] = ifMass*(m1*p1->v[0] + m2*p2->v[0]);
-    pkdn->v[1] = ifMass*(m1*p1->v[1] + m2*p2->v[1]);
-    pkdn->v[2] = ifMass*(m1*p1->v[2] + m2*p2->v[2]);
+    for (j=0;j<3;++j) {
+      pkdn->r[j] = ifMass*(m1*r1[j] + m2*r2[j]);
+      pkdn->v[j] = ifMass*(m1*p1->v[j] + m2*p2->v[j]);
+    }
     pkdn->fSoft2 = 1.0/(ifMass*(m1/p1->fSoft2 + m2/p2->fSoft2));
     pkdn->iActive = (p1->iActive | p2->iActive);
     /*
@@ -594,14 +625,14 @@ void pkdCombineCells(KDN *pkdn,KDN *p1,KDN *p2,int bCombineBound) {
     ** to the CoM of this cell and add them up.
     */
     pkdn->mom = p1->mom;
-    x = p1->r[0] - pkdn->r[0];
-    y = p1->r[1] - pkdn->r[1];
-    z = p1->r[2] - pkdn->r[2];
+    x = r1[0] - pkdn->r[0];
+    y = r1[1] - pkdn->r[1];
+    z = r1[2] - pkdn->r[2];
     momShiftMomr(&pkdn->mom,x,y,z);
     mom = p2->mom;
-    x = p2->r[0] - pkdn->r[0];
-    y = p2->r[1] - pkdn->r[1];
-    z = p2->r[2] - pkdn->r[2];
+    x = r2[0] - pkdn->r[0];
+    y = r2[1] - pkdn->r[1];
+    z = r2[2] - pkdn->r[2];
     momShiftMomr(&mom,x,y,z);
     momAddMomr(&pkdn->mom,&mom);
     /*
@@ -617,7 +648,7 @@ void pkdCombineCells(KDN *pkdn,KDN *p1,KDN *p2,int bCombineBound) {
     }
 
 
-void pkdVATreeBuild(PKD pkd,int nBucket,FLOAT diCrit2,int bSqueeze) {
+void pkdVATreeBuild(PKD pkd,int nBucket,FLOAT diCrit2,int bSqueeze,double dTimeStamp) {
     int i,j,iStart;
     int nMaxNodes;
 
@@ -647,11 +678,11 @@ void pkdVATreeBuild(PKD pkd,int nBucket,FLOAT diCrit2,int bSqueeze) {
 
     ShuffleParticles(pkd,iStart);
     
-    Create(pkd,VAROOT,diCrit2,bSqueeze);
+    Create(pkd,VAROOT,diCrit2,dTimeStamp,bSqueeze);
     }
 
 
-void pkdTreeBuild(PKD pkd,int nBucket,FLOAT diCrit2,KDN *pkdn,int bSqueeze,int bExcludeVeryActive) {
+void pkdTreeBuild(PKD pkd,int nBucket,FLOAT diCrit2,KDN *pkdn,int bSqueeze,int bExcludeVeryActive,double dTimeStamp) {
     int iStart,nNodesEst;
 
     if (pkd->kdNodes) {
@@ -718,7 +749,7 @@ void pkdTreeBuild(PKD pkd,int nBucket,FLOAT diCrit2,KDN *pkdn,int bSqueeze,int b
     */
     pkdClearTimer(pkd,0);
     pkdStartTimer(pkd,0);
-    Create(pkd,ROOT,diCrit2,bSqueeze);
+    Create(pkd,ROOT,diCrit2,dTimeStamp,bSqueeze);
     pkdStopTimer(pkd,0);
 #ifdef BSC
     MPItrace_event(10001, 1 );
