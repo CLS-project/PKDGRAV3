@@ -798,13 +798,15 @@ void momEvalMomr(MOMR *m,momFloat dir,momFloat x,momFloat y,momFloat z,
 ** The generalized version of the above.
  */
 void momGenEvalMomr(MOMR *m,momFloat dir,momFloat g0,momFloat t1,momFloat t2,
-		    momFloat t3r,momFloat t4r,momFloat x,momFloat y,momFloat z,
-		    momFloat *fPot,momFloat *ax,momFloat *ay,momFloat *az)
+		    momFloat t3r,momFloat t4r,momFloat t5r,
+		    momFloat x,momFloat y,momFloat z,
+		    momFloat *fPot,momFloat *ax,momFloat *ay,momFloat *az,
+		    momFloat *rhoenc)
 {
 	const momFloat onethird = 1.0/3.0;
 	momFloat xx,xy,xz,yy,yz,zz;
 	momFloat xxx,xxy,xxz,xyy,yyy,yyz,xyz;
-	momFloat tx,ty,tz,g0,g2,g3,g4;
+	momFloat tx,ty,tz,g2,g3,g4;
 
 	g2 = t2*t1*g0;
 	g3 = t3r*dir*g2;
@@ -845,79 +847,14 @@ void momGenEvalMomr(MOMR *m,momFloat dir,momFloat g0,momFloat t1,momFloat t2,
 	xy = g2*(m->yy*y + m->xy*x + m->yz*z);
 	xz = g2*(-(m->xx + m->yy)*z + m->xz*x + m->yz*y);
 	g2 = 0.5*(xx*x + xy*y + xz*z);
-	g0 = m->m*dir;
-	*fPot += g2 + g3 + g4 - g0;
-	g0 -= 5*g2 + 7*g3 + 9*g4;
+	g0 *= m->m;
+	*fPot += g0 + g2 + g3 + g4;
+	g0 += t3r*g2 + t4r*g3 + t5r*g4;
 	*ax += dir*(xx + xxx + tx + x*g0);
 	*ay += dir*(xy + xxy + ty + y*g0);
 	*az += dir*(xz + xxz + tz + z*g0);
+	*rhoenc = g0*dir*dir;
 	}
-
-/*
-** And this the vector version of the above...
-*/
-void momGenEvalVMomr(int n,GLAM *p,
-		    momFloat *fPot,momFloat *ax,momFloat *ay,momFloat *az)
-{
-	const float onethird = 1.0/3.0;
-	float xx,xy,xz,yy,yz,zz;
-	float xxx,xxy,xxz,xyy,yyy,yyz,xyz;
-	float tx,ty,tz,g0,g2,g3,g4;
-	float dir;
-	int i,ii,j;
-
-	for (ii=0;ii<n;++ii) {
-	  i = ii>>2;
-	  j = ii&3;
-	  dir = p[i].dir[j];
-	  g0 = p[i].g0[j];
-	  g2 = p[i].t2[j]*p[i].t1[j]*g0;
-	  g3 = p[i].t3r[j]*dir*g2;
-	  g4 = p[i].t4r[j]*dir*g3;
-	  /*
-	  ** Calculate the funky distance terms.
-	  */
-	  x *= dir;
-	  y *= dir;
-	  z *= dir;
-	  xx = 0.5*x*x;
-	  xy = x*y;
-	  xz = x*z;
-	  yy = 0.5*y*y;
-	  yz = y*z;
-	  zz = 0.5*z*z;
-	  xxx = x*(onethird*xx - zz);
-	  xxz = z*(xx - onethird*zz);
-	  yyy = y*(onethird*yy - zz);
-	  yyz = z*(yy - onethird*zz);
-	  xx -= zz;
-	  yy -= zz;
-	  xxy = y*xx;
-	  xyy = x*yy;
-	  xyz = xy*z;
-	  /*
-	  ** Now calculate the interaction up to Hexadecapole order.
-	  */
-	  tx = g4*(p[i].q[j].xxxx*xxx + p[i].q[j].xyyy*yyy + p[i].q[j].xxxy*xxy + p[i].q[j].xxxz*xxz + p[i].q[j].xxyy*xyy + p[i].q[j].xxyz*xyz + p[i].q[j].xyyz*yyz);
-	  ty = g4*(p[i].q[j].xyyy*xyy + p[i].q[j].xxxy*xxx + p[i].q[j].yyyy*yyy + p[i].q[j].yyyz*yyz + p[i].q[j].xxyy*xxy + p[i].q[j].xxyz*xxz + p[i].q[j].xyyz*xyz);
-	  tz = g4*(-p[i].q[j].xxxx*xxz - (p[i].q[j].xyyy + p[i].q[j].xxxy)*xyz - p[i].q[j].yyyy*yyz + p[i].q[j].xxxz*xxx + p[i].q[j].yyyz*yyy - p[i].q[j].xxyy*(xxz + yyz) + p[i].q[j].xxyz*xxy + p[i].q[j].xyyz*xyy);
-	  g4 = 0.25*(tx*x + ty*y + tz*z);
-	  xxx = g3*(p[i].q[j].xxx*xx + p[i].q[j].xyy*yy + p[i].q[j].xxy*xy + p[i].q[j].xxz*xz + p[i].q[j].xyz*yz);
-	  xxy = g3*(p[i].q[j].xyy*xy + p[i].q[j].xxy*xx + p[i].q[j].yyy*yy + p[i].q[j].yyz*yz + p[i].q[j].xyz*xz);
-	  xxz = g3*(-(p[i].q[j].xxx + p[i].q[j].xyy)*xz - (p[i].q[j].xxy + p[i].q[j].yyy)*yz + p[i].q[j].xxz*xx + p[i].q[j].yyz*yy + p[i].q[j].xyz*xy);
-	  g3 = onethird*(xxx*x + xxy*y + xxz*z);
-	  xx = g2*(p[i].q[j].xx*x + p[i].q[j].xy*y + p[i].q[j].xz*z);
-	  xy = g2*(p[i].q[j].yy*y + p[i].q[j].xy*x + p[i].q[j].yz*z);
-	  xz = g2*(-(p[i].q[j].xx + p[i].q[j].yy)*z + p[i].q[j].xz*x + p[i].q[j].yz*y);
-	  g2 = 0.5*(xx*x + xy*y + xz*z);
-	  g0 = p[i].q[j].m*dir;
-	  *fPot += g2 + g3 + g4 - g0;
-	  g0 -= 5*g2 + 7*g3 + 9*g4;
-	  *ax += dir*(xx + xxx + tx + x*g0);
-	  *ay += dir*(xy + xxy + ty + y*g0);
-	  *az += dir*(xz + xxz + tz + z*g0);
-	}
-}
 
 
 /*
@@ -1555,61 +1492,128 @@ void momGenLocrAddMomr(LOCR *l,MOMR *q,momFloat dir,
     }
 
 
-void momGenLocrAddVMomr(LOCR *l,int n,GLAM *p) {
-  const float onethird = 1.0/3.0;
-  float xx,xy,xz,yy,yz,zz;
-  float Ax,Ay,Az,A,Bx,By,Bz,B,C,R,T;
-  float g1,g2,g3,g2t,g3t,m,t3,t4,t3xx,t3yy,t4xx,t4yy,f;
-  float dir;
-  int i,ii,j;
 
-  for (ii=0;i<n,++i) {
-    i = ii>>2;
-    j = ii&3;
-    dir = p[i].dir[j];
-    t3 = p[i].t3r[j]*dir;
-    t4 = p[i].t4r[j]*dir;
-    g1 = p[i].t1[j]*p[i].g0[j];
-    g2 = p[i].t2[j]*g1;
+void momGenLocrAddVMomr(LOCR *l,int n,GLAM *p) {
+  const v4sf onethird = {1.0/3.0,1.0/3.0,1.0/3.0,1.0/3.0};
+  const v4sf onehalf = {0.5,0.5,0.5,0.5};
+  const v4sf zero = {0,0,0,0};
+  const v4sf one = {1,1,1,1};
+  const v4sf two = {2,2,2,2};
+  const v4sf three = {3,3,3,3};
+  const v4sf six = {6,6,6,6};
+  v4sf x,y,z,xx,xy,xz,yy,yz,zz;
+  v4sf Ax,Ay,Az,A,Bx,By,Bz,B,C,R,T;
+  v4sf g1,g2,g3,g2t,g3t,m,t3,t4,t3xx,t3yy,t4xx,t4yy,f;
+  v4sf dir,t;
+  momPacked lm,lx,ly,lz,lxx,lxy,lxz,lyy,lyz,lxxx,lxxy,lxxz,lxyy,lxyz,lyyy,lyyz;
+  momPacked lxxxx,lxxxy,lxxxz,lxxyy,lxxyz,lxyyy,lxyyz,lyyyy,lyyyz;
+  int i,j;
+
+  /*
+  ** Zero the temporary accumulators.
+  */
+  lm.p = zero;
+  lx.p = zero;
+  ly.p = zero;
+  lz.p = zero;
+  lxx.p = zero;
+  lxy.p = zero;
+  lxz.p = zero;
+  lyy.p = zero;
+  lyz.p = zero;
+  lxxx.p = zero;
+  lxxy.p = zero;
+  lxxz.p = zero;
+  lxyy.p = zero;
+  lxyz.p = zero;
+  lyyy.p = zero;
+  lyyz.p = zero;
+  lxxxx.p = zero;
+  lxxxy.p = zero;
+  lxxxz.p = zero;
+  lxxyy.p = zero;
+  lxxyz.p = zero;
+  lxyyy.p = zero;
+  lxyyz.p = zero;
+  lyyyy.p = zero;
+  lyyyz.p = zero;
+  /*
+  ** Pad out the moments.
+  */
+  i = n>>2;
+  for (j=n-4*i;j>0&&j<4;++j) {
+    p[i].q.m.f[j] = 0;
+    p[i].q.xx.f[j] = 0;
+    p[i].q.xy.f[j] = 0;
+    p[i].q.xz.f[j] = 0;
+    p[i].q.yy.f[j] = 0;
+    p[i].q.yz.f[j] = 0;
+    p[i].q.xxx.f[j] = 0;
+    p[i].q.xxy.f[j] = 0;
+    p[i].q.xxz.f[j] = 0;
+    p[i].q.xyy.f[j] = 0;
+    p[i].q.xyz.f[j] = 0;
+    p[i].q.yyy.f[j] = 0;
+    p[i].q.yyz.f[j] = 0;
+    p[i].q.xxxx.f[j] = 0;
+    p[i].q.xxxy.f[j] = 0;
+    p[i].q.xxxz.f[j] = 0;
+    p[i].q.xxyy.f[j] = 0;
+    p[i].q.xxyz.f[j] = 0;
+    p[i].q.xyyy.f[j] = 0;
+    p[i].q.xyyz.f[j] = 0;
+    p[i].q.yyyy.f[j] = 0;
+    p[i].q.yyyz.f[j] = 0;
+  }
+  /*
+  ** Now loop over the vectors.
+  */
+  for (i=0;i<=(n>>2);++i) {
+    dir = p[i].dir.p;
+    t3 = p[i].t3r.p*dir;
+    t4 = p[i].t4r.p*dir;
+    g1 = p[i].t1.p*p[i].g0.p;
+    g2 = p[i].t2.p*g1;
     g3 = t3*g2;
     g2t = g2*dir;
     g3t = g3*dir;
 
-    x *= dir;
-    y *= dir;
-    z *= dir;
+    x = p[i].x.p*dir;
+    y = p[i].y.p*dir;
+    z = p[i].z.p*dir;
 
     zz = z*z;
-    yy = 0.5*(y*y - zz);
-    xx = 0.5*(x*x - zz);
+    yy = onehalf*(y*y - zz);
+    xx = onehalf*(x*x - zz);
     xy = x*y;
     xz = x*z;
     yz = y*z;
 
-    Ax = x*p[i].q[j].xx + y*p[i].q[j].xy + z*p[i].q[j].xz;
-    Ay = x*p[i].q[j].xy + y*p[i].q[j].yy + z*p[i].q[j].yz;
-    Az = x*p[i].q[j].xz + y*p[i].q[j].yz - z*(p[i].q[j].xx + p[i].q[j].yy);
-    A = 0.5*g2*(x*Ax + y*Ay + z*Az);
+    Ax = x*p[i].q.xx.p + y*p[i].q.xy.p + z*p[i].q.xz.p;
+    Ay = x*p[i].q.xy.p + y*p[i].q.yy.p + z*p[i].q.yz.p;
+    Az = x*p[i].q.xz.p + y*p[i].q.yz.p - z*(p[i].q.xx.p + p[i].q.yy.p);
+    A = onehalf*g2*(x*Ax + y*Ay + z*Az);
     Ax *= g2t;
     Ay *= g2t;
     Az *= g2t;
 
-    Bx = xx*p[i].q[j].xxx + xy*p[i].q[j].xxy + xz*p[i].q[j].xxz + yy*p[i].q[j].xyy + yz*p[i].q[j].xyz;
-    By = xx*p[i].q[j].xxy + xy*p[i].q[j].xyy + xz*p[i].q[j].xyz + yy*p[i].q[j].yyy + yz*p[i].q[j].yyz;
-    Bz = xx*p[i].q[j].xxz + xy*p[i].q[j].xyz - xz*(p[i].q[j].xxx + p[i].q[j].xyy) + yy*p[i].q[j].yyz - yz*(p[i].q[j].xxy + p[i].q[j].yyy);
+    Bx = xx*p[i].q.xxx.p + xy*p[i].q.xxy.p + xz*p[i].q.xxz.p + yy*p[i].q.xyy.p + yz*p[i].q.xyz.p;
+    By = xx*p[i].q.xxy.p + xy*p[i].q.xyy.p + xz*p[i].q.xyz.p + yy*p[i].q.yyy.p + yz*p[i].q.yyz.p;
+    Bz = xx*p[i].q.xxz.p + xy*p[i].q.xyz.p - xz*(p[i].q.xxx.p + p[i].q.xyy.p) + yy*p[i].q.yyz.p - yz*(p[i].q.xxy.p + p[i].q.yyy.p);
     B = onethird*g3*(x*Bx + y*By + z*Bz);
     Bx *= g3t;
     By *= g3t;
     Bz *= g3t;
-    l->m += p[i].g0[j]*p[i].q[j].m + A + B;
+    m = p[i].q.m.p;
+    lm.p += p[i].g0.p*m + A + B;
 
     A *= t3;
 
-    m = g1*p[i].q[j].m;
+    m *= g1;
     R = m + A + t4*B;
-    l->x += Ax + Bx + x*R;
-    l->y += Ay + By + y*R;
-    l->z += Az + Bz + z*R;
+    lx.p += Ax + Bx + x*R; 
+    ly.p += Ay + By + y*R;
+    lz.p += Az + Bz + z*R;
     /*
     ** No more B's used here!
     */
@@ -1618,55 +1622,83 @@ void momGenLocrAddVMomr(LOCR *l,int n,GLAM *p) {
     Az *= t3;
 
     T = dir*(m + A);
-    m *= t2;
+    m *= p[i].t2.p;
     R = m + t4*A;
-    l->xx += T + (R*x + 2*Ax)*x;
-    l->yy += T + (R*y + 2*Ay)*y;
-    l->xy += R*xy + (Ax*y + Ay*x);
-    l->xz += R*xz + (Ax*z + Az*x);
-    l->yz += R*yz + (Ay*z + Az*y);
+    lxx.p += T + (R*x + two*Ax)*x;
+    lyy.p += T + (R*y + two*Ay)*y;
+    lxy.p += R*xy + (Ax*y + Ay*x);
+    lxz.p += R*xz + (Ax*z + Az*x);
+    lyz.p += R*yz + (Ay*z + Az*y);
     /*
     ** No more A's and no more B's used here!
     */
-    C = (xx*xx - xz*xz)*p[i].q[j].xxxx + (yy*yy - yz*yz)*p[i].q[j].yyyy + 
-      2*(xx*xz*p[i].q[j].xxxz + yy*yz*p[i].q[j].yyyz) + (6*yy*xx - zz*zz)*p[i].q[j].xxyy;
+    C = (xx*xx - xz*xz)*p[i].q.xxxx.p + (yy*yy - yz*yz)*p[i].q.yyyy.p + 
+      two*(xx*xz*p[i].q.xxxz.p + yy*yz*p[i].q.yyyz.p) + (six*yy*xx - zz*zz)*p[i].q.xxyy.p;
     xx = x*x;
     yy = y*y;
-    C += (3*xx - zz)*yz*p[i].q[j].xxyz  + (3*yy - zz)*xz*p[i].q[j].xyyz;
-    zz *= 3;
-    C += xy*((xx - zz)*p[i].q[j].xxxy + (yy - zz)*p[i].q[j].xyyy); 
+    C += (three*xx - zz)*yz*p[i].q.xxyz.p  + (three*yy - zz)*xz*p[i].q.xyyz.p;
+    zz *= three;
+    C += xy*((xx - zz)*p[i].q.xxxy.p + (yy - zz)*p[i].q.xyyy.p); 
 
-    l->m += (1.0/6.0)*t4*g3*C;
-
-    m *= dir;
-    t3xx = p[i].t3r[j]*xx;
-    t3yy = p[i].t3r[j]*yy;
-    l->xxx += (3 + t3xx)*x*m;
-    l->yyy += (3 + t3yy)*y*m;
-    f = m*(1 + t3xx);
-    l->xxy += f*y;
-    l->xxz += f*z;
-    f = m*(1 + t3yy);
-    l->xyy += f*x;
-    l->yyz += f*z;
-    l->xyz += t3r*xy*z*m;
+    lm.p += onehalf*onethird*t4*g3*C;
 
     m *= dir;
-    t4xx = p[i].t4r[j]*xx;
-    t4yy = p[i].t4r[j]*yy;
-    l->xxxx += (3 + (6 + t4xx)*t3xx)*m;
-    l->xxyy += (1 + t3xx + t3yy*(1 + t4xx))*m;
-    l->yyyy += (3 + (6 + t4yy)*t3yy)*m;
-    m *= p[i].t3r[j];
-    f = m*(3 + t4xx);
-    l->xxxy += f*xy;
-    l->xxxz += f*xz;
-    f = m*(3 + t4yy);
-    l->xyyy += f*xy;
-    l->yyyz += f*yz;
-    l->xxyz += (1 + t4xx)*yz*m;
-    l->xyyz += (1 + t4yy)*xz*m;
+    t3xx = p[i].t3r.p*xx;
+    t3yy = p[i].t3r.p*yy;
+    lxxx.p += (three + t3xx)*x*m;
+    lyyy.p += (three + t3yy)*y*m;
+    f = m*(one + t3xx);
+    lxxy.p += f*y;
+    lxxz.p += f*z;
+    f = m*(one + t3yy);
+    lxyy.p += f*x;
+    lyyz.p += f*z;
+    lxyz.p += p[i].t3r.p*xy*z*m;
+
+    m *= dir;
+    t4xx = p[i].t4r.p*xx;
+    t4yy = p[i].t4r.p*yy;
+    lxxxx.p += (three + (six + t4xx)*t3xx)*m;
+    lxxyy.p += (one + t3xx + t3yy*(one + t4xx))*m;
+    lyyyy.p += (three + (six + t4yy)*t3yy)*m;
+    m *= p[i].t3r.p;
+    f = m*(three + t4xx);
+    lxxxy.p += f*xy;
+    lxxxz.p += f*xz;
+    f = m*(three + t4yy);
+    lxyyy.p += f*xy;
+    lyyyz.p += f*yz;
+    lxxyz.p += (one + t4xx)*yz*m;
+    lxyyz.p += (one + t4yy)*xz*m;
   }
+  /*
+  ** Finally "horizontally" accumulate the local expansions.
+  */
+  l->m += V4SUM(lm);
+  l->x += V4SUM(lx);
+  l->y += V4SUM(ly);
+  l->z += V4SUM(lz);
+  l->xx += V4SUM(lxx);
+  l->xy += V4SUM(lxy);
+  l->xz += V4SUM(lxz);
+  l->yy += V4SUM(lyy);
+  l->yz += V4SUM(lyz);
+  l->xxx += V4SUM(lxxx);
+  l->xxy += V4SUM(lxxy);
+  l->xxz += V4SUM(lxxz);
+  l->xyy += V4SUM(lxyy);
+  l->xyz += V4SUM(lxyz);
+  l->yyy += V4SUM(lyyy);
+  l->yyz += V4SUM(lyyz);
+  l->xxxx += V4SUM(lxxxx);
+  l->xxxy += V4SUM(lxxxy);
+  l->xxxz += V4SUM(lxxxz);
+  l->xxyy += V4SUM(lxxyy);
+  l->xxyz += V4SUM(lxxyz);
+  l->xyyy += V4SUM(lxyyy);
+  l->xyyz += V4SUM(lxyyz);
+  l->yyyy += V4SUM(lyyyy);
+  l->yyyz += V4SUM(lyyyz);
 }
 
 

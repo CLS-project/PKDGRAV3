@@ -33,6 +33,11 @@ typedef union {
     float f[4];
 } momPacked;
 
+/*
+** V4SUM takes a momPacked and adds horizontally all the elements of the packed vector.
+*/
+#define V4SUM(A) ((A).f[0] + (A).f[1] + (A).f[2] + (A).f[3])
+
 typedef struct momVectorReduced {
 	momPacked m;
 	momPacked xx,yy,xy,xz,yz;
@@ -114,8 +119,10 @@ void momReduceLocc(LOCC *,LOCR *);
 void momEvalMomr(MOMR *m,momFloat dir,momFloat x,momFloat y,momFloat z,
 		 momFloat *fPot,momFloat *ax,momFloat *ay,momFloat *az);
 void momGenEvalMomr(MOMR *m,momFloat dir,momFloat g0,momFloat t1,momFloat t2,
-		    momFloat t3r,momFloat t4r,momFloat x,momFloat y,momFloat z,
-		    momFloat *fPot,momFloat *ax,momFloat *ay,momFloat *az);
+		    momFloat t3r,momFloat t4r,momFloat t5r,
+		    momFloat x,momFloat y,momFloat z,
+		    momFloat *fPot,momFloat *ax,momFloat *ay,momFloat *az,
+		    momFloat *rhoenc);
 void momGenEvalVMomr(int n,GLAM *p,
 		     momFloat *fPot,momFloat *ax,momFloat *ay,momFloat *az);
 
