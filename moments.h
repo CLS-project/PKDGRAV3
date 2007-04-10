@@ -134,7 +134,7 @@ void momMomr2Momc(MOMR *,MOMC *);
 ** All the variants of LocrAddMomr...
 */
 void momSymLocrAddMomr(LOCR *l1,LOCR *l2,MOMR *q1,MOMR *q2,momFloat dir,momFloat x,momFloat y,momFloat z);
-void momLocrAddMomr(LOCR *,MOMR *,momFloat,momFloat,momFloat,momFloat);
+double momLocrAddMomr(LOCR *,MOMR *,momFloat,momFloat,momFloat,momFloat);
 void momGenLocrAddMomr(LOCR *l,MOMR *q,momFloat dir,
 		       momFloat g0,momFloat t1,momFloat t2,momFloat t3r,momFloat t4r,
 		       momFloat x,momFloat y,momFloat z);

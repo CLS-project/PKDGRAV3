@@ -1218,8 +1218,12 @@ void momSymLocrAddMomr(LOCR *l1,LOCR *l2,MOMR *q1,MOMR *q2,momFloat dir,momFloat
 
 /*
 ** Op Count (*,+) = (154,105) = 259 
+** Op Count (*,+) = (151,92) = 243
+** via: gcc -c -S -03 t.c
+**      grep mul t.s|wc
+**      grep 'add.*xmm' t.s|wc
 */
-void momLocrAddMomr(LOCR *l,MOMR *q,momFloat dir,momFloat x,momFloat y,momFloat z) {
+double momLocrAddMomr(LOCR *l,MOMR *q,momFloat dir,momFloat x,momFloat y,momFloat z) {
     const momFloat onethird = 1.0/3.0;
     momFloat xx,xy,xz,yy,yz,zz;
     momFloat Ax,Ay,Az,A,Bx,By,Bz,B,C,R,T;
@@ -1329,6 +1333,8 @@ void momLocrAddMomr(LOCR *l,MOMR *q,momFloat dir,momFloat x,momFloat y,momFloat 
     l->yyyz += f*yz;
     l->xxyz += (1 + t4xx)*yz*m;
     l->xyyz += (1 + t4yy)*xz*m;
+
+    return 243.0;
     }
 
 /*
