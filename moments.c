@@ -1515,6 +1515,7 @@ void momGenLocrAddVMomr(LOCR *l,int n,GLAM *p) {
   momPacked lxxxx,lxxxy,lxxxz,lxxyy,lxxyz,lxyyy,lxyyz,lyyyy,lyyyz;
   int i,j;
 
+  if (n==0) return; 
   /*
   ** Zero the temporary accumulators.
   */
