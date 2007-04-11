@@ -648,6 +648,11 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 		}
 	    nCheck = ii;
 	    /*
+	    ** Evaluate the GLAM list here.
+	    */
+	    momGenLocrAddVMomr(&L,nGlam,ilglam);
+	    nGlam = 0;
+	    /*
 	    ** Done processing of the Checklist.
 	    ** Now prepare to proceed to the next deeper
 	    ** level of the tree.
@@ -669,11 +674,6 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 		    assert(S[ism].Check != NULL);
 		    }
 		}
-	    /*
-	    ** Evaluate the GLAM list here.
-	    */
-	    momGenLocrAddVMomr(&L,nGlam,ilglam);
-	    nGlam = 0;
 	    /*
 	    ** Check iCell is active. We eventually want to just to a 
 	    ** rung check here when we start using tree repair, but 
