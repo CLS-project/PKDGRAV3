@@ -530,8 +530,8 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 		  */
 		  if (nGlam == nMaxGlam) {
 		    nMaxGlam += 100;
-		    ilgalm = realloc(ilglam,nMaxGlam*sizeof(GLAM));
-		    assert(ilgalm != 0);
+		    ilglam = realloc(ilglam,nMaxGlam*sizeof(GLAM));
+		    assert(ilglam != 0);
 		  }
 		  ig = nGlam>>2;
 		  iv = nGlam&3;
