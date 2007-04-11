@@ -114,6 +114,9 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
     int nCell,nMaxCell;
     int nPartBucket,nMaxPartBucket;
     int nGlam,nMaxGlam,ig,iv;
+#ifdef GLAM_STATS
+    int nTotGlam=0, nAvgGlam=0;
+#endif
 #ifndef NO_TIMING
     TIMER tv;
 #endif
@@ -272,6 +275,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 #endif
 		    n = pkdc->pUpper - pkdc->pLower + 1;
 		    }
+#if 0
 		/*
 		** If the cell is not time synchronous, then work out a drift factor
 		** for this cell.
@@ -299,6 +303,10 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 		  dDriftFac = 0.0;
 		  for (j=0;j<3;++j) rCheck[j] = pkdc->r[j] + Check[i].rOffset[j];
 		}
+#else
+		dDriftFac = 0.0;
+		for (j=0;j<3;++j) rCheck[j] = pkdc->r[j] + Check[i].rOffset[j];
+#endif
 		/*
 		** If this cell is not a bucket calculate the distance
 		** between the center of masses of this cell and the check
@@ -535,6 +543,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 		  }
 		  ig = nGlam>>2;
 		  iv = nGlam&3;
+		  dir = 1.0/sqrt(d2);
 		  ilglam[ig].q.m.f[iv] = pkdc->mom.m;
 		  ilglam[ig].q.xx.f[iv] = pkdc->mom.xx;
 		  ilglam[ig].q.xy.f[iv] = pkdc->mom.xy;
@@ -557,7 +566,6 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 		  ilglam[ig].q.xyyz.f[iv] = pkdc->mom.xyyz;
 		  ilglam[ig].q.yyyy.f[iv] = pkdc->mom.yyyy;
 		  ilglam[ig].q.yyyz.f[iv] = pkdc->mom.yyyz;
-		  dir = 1.0/sqrt(d2);
 		  ilglam[ig].dir.f[iv] = dir;
 		  ilglam[ig].g0.f[iv] = -dir;
 		  ilglam[ig].t1.f[iv] = -dir;
@@ -650,7 +658,11 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 	    /*
 	    ** Evaluate the GLAM list here.
 	    */
-	    momGenLocrAddVMomr(&L,nGlam,ilglam);
+	    *pdFlop += momGenLocrAddVMomr(&L,nGlam,ilglam);
+#ifdef GLAM_STATS
+	    nAvgGlam += nGlam;
+	    nTotGlam++;
+#endif
 	    nGlam = 0;
 	    /*
 	    ** Done processing of the Checklist.
@@ -786,6 +798,11 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 	InactiveAscend:
 	    iCell = c[iCell].iParent;
 	    if (!iCell) {
+#ifdef GLAM_STATS
+		printf( "%d: nCalls=%d, AvgGlam=%f\n",
+			mdlSelf(pkd->mdl),
+			nTotGlam, (float)nAvgGlam/nTotGlam);
+#endif
 		/*
 		** Make sure stack is empty and free its storage.
 		*/
