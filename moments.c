@@ -1571,6 +1571,19 @@ void momGenLocrAddVMomr(LOCR *l,int n,GLAM *p) {
     p[i].q.xyyz.f[j] = 0;
     p[i].q.yyyy.f[j] = 0;
     p[i].q.yyyz.f[j] = 0;
+    /*
+    ** Also pad the greens functions 
+    ** and distances with some safe values.
+    */
+    p[i].dir.f[j] = 1.0;
+    p[i].g0.f[j] = 1.0;
+    p[i].t1.f[j] = 1.0;
+    p[i].t2.f[j] = 1.0;
+    p[i].t3r.f[j] = 1.0;
+    p[i].t4r.f[j] = 1.0;
+    p[i].x.f[j] = 1.0;
+    p[i].y.f[j] = 1.0;
+    p[i].z.f[j] = 1.0;
   }
   /*
   ** Now loop over the vectors.
