@@ -2004,8 +2004,10 @@ void pkdGravStep(PKD pkd,double dEta,double dRhoFac) {
 	if (TYPEQueryACTIVE(&(pkd->pStore[i]))) {
 	    mdlassert(pkd->mdl, pkd->pStore[i].dtGrav > 0);
 	    dT = dEta/sqrt(pkd->pStore[i].dtGrav*dRhoFac);
-	    if (dT < pkd->pStore[i].dt)
+	    if (dT < pkd->pStore[i].dt) {
 		pkd->pStore[i].dt = dT;
+		mdlassert(pkd->mdl,dT>0);
+	        }
 	    }
 	}
     }
@@ -2027,7 +2029,9 @@ void pkdAccelStep(PKD pkd,double dEta,double dVelFac,double dAccFac,int bDoGravi
 		}
 	    mdlassert(pkd->mdl,vel >= 0);
 	    vel = sqrt(vel)*dVelFac;
+	    mdlassert(pkd->mdl,acc >= 0);
 	    acc = sqrt(acc)*dAccFac;
+	    mdlassert(pkd->mdl,acc > 0);
 	    dT = FLOAT_MAXVAL;
 	    if (bEpsAcc && acc>0) {
 		dT = dEta*sqrt(pkd->pStore[i].fSoft/acc);
@@ -2043,8 +2047,10 @@ void pkdAccelStep(PKD pkd,double dEta,double dVelFac,double dAccFac,int bDoGravi
 		if (dtemp < dT)
 		    dT = dtemp;
 		}
-	    if (dT < pkd->pStore[i].dt)
+	    if (dT < pkd->pStore[i].dt) {
 		pkd->pStore[i].dt = dT;
+		mdlassert(pkd->mdl,dT>0);
+	        }
 	    }
 	}
     }
@@ -2057,8 +2063,10 @@ void pkdDensityStep(PKD pkd,double dEta,double dRhoFac) {
     for (i=0;i<pkdLocal(pkd);++i) {
 	if (TYPEQueryACTIVE(&(pkd->pStore[i]))) {
 	    dT = dEta/sqrt(pkd->pStore[i].fDensity*dRhoFac);
-	    if (dT < pkd->pStore[i].dt)
+	    if (dT < pkd->pStore[i].dt) {
 		pkd->pStore[i].dt = dT;
+		mdlassert(pkd->mdl,dT>0);
+	        }
 	    }
 	}
     }
@@ -2117,8 +2125,10 @@ void pkdInitDt(PKD pkd,double dDelta) {
     int i;
     
     for(i=0;i<pkdLocal(pkd);++i) {
-	if(TYPEQueryACTIVE(&(pkd->pStore[i])))
+	if(TYPEQueryACTIVE(&(pkd->pStore[i]))) {
 	    pkd->pStore[i].dt = dDelta;
+	    mdlassert(pkd->mdl,dDelta>0);
+	    }
 	}
     }
     

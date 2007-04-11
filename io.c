@@ -48,6 +48,10 @@ static hid_t newSet(hid_t fileID, const char *group, const char *name,
     iDims[1] = 1;
     H5assert( H5Pset_chunk( dataProperties, nDims>1?2:1, iDims ));
 
+    /* Also request the FLETCHER checksum */
+    H5assert( H5Pset_filter( dataProperties, H5Z_FILTER_FLETCHER32, 0, 0, NULL ));
+
+
     /* And the dataspace */
     iDims[0] = count;
     iDims[1] = nDims;
@@ -172,11 +176,15 @@ void ioStartSave(IO io,void *vin,int nIn,void *vout,int *pnOut)
     mdlSetComm(io->mdl,0); /* Talk to our peers */
     recv.dTime = save->dTime;
     for( id=1; id<mdlIO(io->mdl); id++ ) {
+#ifdef IO_SPLIT
 	recv.nCount = save->nCount[id];
+#endif
 	mdlReqService(io->mdl,id,IO_START_RECV,&recv,sizeof(recv));
     }
 
+#ifdef IO_SPLIT
     recv.nCount = save->nCount[0];
+#endif
     ioStartRecv(io,&recv,sizeof(recv),NULL,0);
 
     for( id=1; id<mdlIO(io->mdl); id++ ) {
@@ -218,7 +226,7 @@ void ioStartRecv(IO io,void *vin,int nIn,void *vout,int *pnOut)
     char testFilename[200];
 
     mdlassert(io->mdl,sizeof(struct inStartRecv)==nIn);
-    io->nExpected = recv->nCount;
+    io->nExpected = 0; //JDP:FIXFIXrecv->nCount;
     io->nReceived = 0;
 
     if ( io->nExpected > io->N ) {
@@ -239,6 +247,6 @@ void ioStartRecv(IO io,void *vin,int nIn,void *vout,int *pnOut)
 
 
     sprintf(testFilename, "testout.%02d.%05d.h5", mdlSelf(io->mdl), 12 );
-    ioSave(io, testFilename, recv->dTime, 0 );
+    ioSave(io, testFilename, recv->dTime, 1 );
 
 }

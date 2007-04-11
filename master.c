@@ -19,6 +19,11 @@
 #include "tipsydefs.h"
 #include "outtype.h"
 #include "smoothfcn.h"
+#include "io.h"
+
+#ifdef BSC
+#include "mpitrace_user_events.h"
+#endif
 
 #define LOCKFILE ".lockfile"	/* for safety lock */
 #define STOPFILE "STOP"			/* for user interrupt */
@@ -575,6 +580,9 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv)
     msr->nRung = (int *) malloc( (msr->param.iMaxRung+1)*sizeof(int) );
     assert(msr->nRung != NULL);
     for (i=0;i<=msr->param.iMaxRung;++i) msr->nRung[i] = 0;
+
+    /* There is no pending save */
+    msr->bSavePending = 0;
     }
 
 
@@ -790,13 +798,28 @@ msrCheckForStop(MSR msr)
 
 void msrFinish(MSR msr)
     {
+#ifdef OLD_STOP
     int id;
+#endif
 
+    /*
+    ** It is possible that a previous save is still pending on the I/O processor.  Wait for it.
+    */
+    if ( msr->bSavePending ) {
+	mdlSetComm(msr->mdl,1);
+	mdlGetReply(msr->mdl,0,NULL,NULL);
+	mdlSetComm(msr->mdl,0);
+    }
+
+#ifdef OLD_STOP
     for (id=1;id<msr->nThreads;++id) {
 	if (msr->param.bVDetails) printf("Stopping thread %d\n",id);		
 	mdlReqService(msr->mdl,id,SRV_STOP,NULL,0);
 	mdlGetReply(msr->mdl,id,NULL,NULL);
 	}
+#else
+    mdlStop(msr->mdl);
+#endif
     pstFinish(msr->pst);
     csmFinish(msr->param.csm);
     /*
@@ -1083,6 +1106,85 @@ double msrReadTipsy(MSR msr)
     }
 
 
+void msrIOWrite(MSR msr, const char *FileName, double dTime)
+{
+#ifdef IO_SPLIT
+    struct inFindIOS inFind;
+    struct outFindIOS outFind;
+    int nFind;
+    int i;
+#endif
+    struct inStartIO inStart;
+    struct inStartSave save;
+
+
+#ifdef IO_SPLIT
+    printf( "Finding number of particles\n" );
+
+    /* Find the number of particles to expect for each I/O processor */
+    inFind.nLower = 0;
+    inFind.N = msr->N;
+    pstFindIOS( msr->pst, &inFind, sizeof(inFind), &outFind, &nFind );
+
+    if (msr->param.bVDetails) {
+	printf("Particle distribution on I/O nodes:\n");
+	for( i=0; i<mdlIO(msr->mdl); i++ ) {
+	    printf( "%4d: %d\n", i, outFind.nCount[i]);
+	}
+    }
+#endif
+
+    /* Ask the I/O processors to start a save operation */
+    save.dTime = dTime;
+#ifdef IO_SPLIT
+    for( i=0; i<MDL_MAX_IO_PROCS; i++ )
+	save.nCount[i] = outFind.nCount[i];
+#endif
+
+    mdlSetComm(msr->mdl,1);
+    if ( msr->bSavePending )
+	mdlGetReply(msr->mdl,0,NULL,NULL);
+    mdlReqService(msr->mdl,0,IO_START_SAVE,&save,sizeof(save));
+    msr->bSavePending = 1;
+    mdlSetComm(msr->mdl,0);
+
+    /* Execute a save operation on the worker processors */
+
+#ifdef IO_SPLIT
+    for( i=0; i<MDL_MAX_IO_PROCS; i++ )
+	inStart.nCount[i] = outFind.nCount[i];
+#endif
+    
+    if (msr->param.csm->bComove) {
+	inStart.dTime = csmTime2Exp(msr->param.csm,dTime);
+	if (msr->param.bCannonical) {
+	    inStart.dvFac = 1.0/(inStart.dTime*inStart.dTime);
+	    }
+	else {
+	    inStart.dvFac = 1.0;
+	    }
+	}
+    else {
+	inStart.dTime = dTime;
+	inStart.dvFac = 1.0;
+	}
+    inStart.duTFac = 1.0;
+    inStart.bDoublePos = msr->param.bDoublePos;
+
+
+    /*char achOutFile[PST_FILENAME_SIZE];*/
+    pstStartIO( msr->pst, &inStart, sizeof(inStart), NULL, NULL );
+
+#if 0
+    /* Get the reply from the I/O processor */
+    mdlSetComm(msr->mdl,1);
+    mdlGetReply(msr->mdl,0,NULL,NULL);
+    mdlSetComm(msr->mdl,0);
+#endif
+}
+
+
+
 /*
 ** This function makes some DANGEROUS assumptions!!!
 ** Main problem is that it calls pkd level routines, bypassing the
@@ -1152,7 +1254,7 @@ void msrCalcWriteStart(MSR msr)
     }
 
 
-void msrWriteTipsy(MSR msr,char *pszFileName,double dTime)
+void _msrWriteTipsy(MSR msr,char *pszFileName,double dTime)
     {
     FILE *fp;
     struct dump h;
@@ -1229,6 +1331,23 @@ void msrWriteTipsy(MSR msr,char *pszFileName,double dTime)
     if (msr->param.bVDetails)
 	puts("Output file has been successfully written.");
     }
+
+
+void msrWriteTipsy(MSR msr,char *pszFileName,double dTime)
+{
+#if 1
+    /* If we are using I/O processors, then we do it totally differently */
+    if ( mdlIO(msr->mdl) ) {
+	msrIOWrite(msr,pszFileName,dTime);
+    }
+    else {
+#endif
+	_msrWriteTipsy(msr,pszFileName,dTime);
+#if 1
+    }
+#endif
+}
+
 
 
 void msrSetSoft(MSR msr,double dSoft)
@@ -1338,6 +1457,9 @@ void msrDomainDecomp(MSR msr,int iRung,int bGreater,int bSplitVA) {
 	pstRungDDWeight(msr->pst,&inRDD,sizeof(struct inRungDDWeight),NULL,NULL);
 	}
 
+#ifdef BSC
+    MPItrace_event(10000, 0 );
+#endif
     if (msr->param.bVDetails) {
 	printf("Domain Decomposition: nActive (Rung %d) %d\n",iRungDD,msr->nActive);
 	printf("Domain Decomposition... \n");
@@ -1351,6 +1473,9 @@ void msrDomainDecomp(MSR msr,int iRung,int bGreater,int bSplitVA) {
     pstDomainDecomp(msr->pst,&in,sizeof(in),NULL,NULL);
     msr->bDoneDomainDecomp = 1; 
 
+#ifdef BSC
+    MPItrace_event(10001, 2 );
+#endif
     if (msr->param.bVDetails) {
 	dsec = msrTime() - sec;
 	printf("Domain Decomposition complete, Wallclock: %f secs\n\n",dsec);
@@ -2500,7 +2625,6 @@ void msrTopStepKDK(MSR msr,
     double dMass = -1.0;
     int nActive;
     int bSplitVA;
-    int i;
 
     if(iAdjust && (iRung < msrMaxRung(msr)-1)) {
 	if (msr->param.bVDetails) {

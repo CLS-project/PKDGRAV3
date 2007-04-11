@@ -33,14 +33,18 @@ enum io_services {
 /* IO_START_SAVE */
 struct inStartSave {
     double dTime;
+#ifdef IO_SPLIT
     int nCount[MDL_MAX_IO_PROCS];
+#endif
     };
 void ioStartSave(IO,void *,int,void *,int *);
 
 /* IO_START_RECV */
 struct inStartRecv {
     double dTime;
+#ifdef IO_SPLIT
     int nCount;
+#endif
     };
 void ioStartRecv(IO,void *,int,void *,int *);
 

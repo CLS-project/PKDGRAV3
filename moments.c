@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <math.h>
+#include <assert.h>
 #include "moments.h"
 
 
@@ -1497,9 +1498,7 @@ void momGenLocrAddMomr(LOCR *l,MOMR *q,momFloat dir,
     l->xyyz += (1 + t4yy)*xz*m;
     }
 
-
-
-void momGenLocrAddVMomr(LOCR *l,int n,GLAM *p) {
+double momGenLocrAddVMomr(LOCR *l,int n,GLAM *p) {
   const v4sf onethird = {1.0/3.0,1.0/3.0,1.0/3.0,1.0/3.0};
   const v4sf onehalf = {0.5,0.5,0.5,0.5};
   const v4sf zero = {0,0,0,0};
@@ -1515,7 +1514,7 @@ void momGenLocrAddVMomr(LOCR *l,int n,GLAM *p) {
   momPacked lxxxx,lxxxy,lxxxz,lxxyy,lxxyz,lxyyy,lxyyz,lyyyy,lyyyz;
   int i,j;
 
-  if (n==0) return; 
+  if (n==0) return 0.0; 
   /*
   ** Zero the temporary accumulators.
   */
@@ -1588,7 +1587,7 @@ void momGenLocrAddVMomr(LOCR *l,int n,GLAM *p) {
   /*
   ** Now loop over the vectors.
   */
-  for (i=0;i<=(n>>2);++i) {
+  for (i=0;i<=((n-1)>>2);++i) {
     dir = p[i].dir.p;
     t3 = p[i].t3r.p*dir;
     t4 = p[i].t4r.p*dir;
@@ -1694,6 +1693,7 @@ void momGenLocrAddVMomr(LOCR *l,int n,GLAM *p) {
   /*
   ** Finally "horizontally" accumulate the local expansions.
   */
+
   l->m += V4SUM(lm);
   l->x += V4SUM(lx);
   l->y += V4SUM(ly);
@@ -1719,6 +1719,7 @@ void momGenLocrAddVMomr(LOCR *l,int n,GLAM *p) {
   l->xyyz += V4SUM(lxyyz);
   l->yyyy += V4SUM(lyyyy);
   l->yyyz += V4SUM(lyyyz);
+  return 243.0 * n;
 }
 
 

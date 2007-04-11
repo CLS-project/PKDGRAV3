@@ -315,7 +315,9 @@ void pstFindIOS(PST,void *,int,void *,int *);
 
 /* PST_STARTIO */
 struct inStartIO {
+#ifdef IO_SPLIT
     int nCount[MDL_MAX_IO_PROCS];
+#endif
     double dvFac;
     double duTFac;
     double dTime;

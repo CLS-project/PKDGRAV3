@@ -62,6 +62,9 @@ typedef struct msrContext {
     int nGroups;
     int nBins;
     int bAntiGrav;
+
+    int bSavePending;
+
     } * MSR;
 
 void msrInitialize(MSR *,MDL,int,char **);
@@ -157,6 +160,8 @@ int msrDoDensity(MSR);
 int msrDoGravity(MSR msr);
 void msrInitStep(MSR msr);
 void msrSetRung(MSR msr, int iRung);
+int msrMaxRung(MSR msr);
+
 void msrInitAccel(MSR msr);
 void msrSwitchTheta(MSR msr,double);
 int msrMaxOrder(MSR msr);

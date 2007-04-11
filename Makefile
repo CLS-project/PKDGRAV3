@@ -2,18 +2,28 @@
 # Makefile for pkdgrav2
 #
 
-MY_CC = gcc
-MY_CFLAGS = -O3 -Wall
+#MY_CC = gcc
+#MY_CFLAGS = -O3 -Wall
 #MY_CC = pgcc
 #MY_CFLAGS = -fastsse -tp athlonxp # zBox1
 #MY_CFLAGS = -fastsse -mcmodel=medium # zBox2
 #MY_CC = icc
 #MY_CFLAGS = -fast -D__GNUC__ -D_REENTRANT
+#MY_CFLAGS = -O3 -qstrict -qtune=ppc970 -qarch=ppc970 -qcache=auto -I/gpfs/apps/HDF5/1.4.4/include/ -I/gpfs/apps/CEPBATOOLS/64.hwc/include/
+#LIBS = -L/home/bsc41/bsc41127/uv17934/mpitrace_stable/lib -lmpitrace_burst
+#MY_CFLAGS = -O3 -I/usr/include/openmpi/
+#MY_CFLAGS = -O3 -Wall -DUSE_MDL_IO
+
+#MY_CC = pgcc
+#MY_CFLAGS = -fastsse -mcmodel=medium -DUSE_MDL_IO -DNO_TIMING -g
+MY_CC = gcc
+MY_CFLAGS = -O3 -Wall -mcmodel=medium -DUSE_MDL_IO -DNO_TIMING -DSINGLE -g
 
 #EXE = pkdgrav2.$(MY_CC).null32
 #EXE = pkdgrav2.$(MY_CC).null64
 #EXE = pkdgrav2.$(MY_CC).mpi32
-EXE = pkdgrav2.$(MY_CC).mpi64
+#EXE = pkdgrav2.$(MY_CC).mpi64-1
+EXE = pkdgrav2
 
 CODEDEF = -DCHANGESOFT
 #CODEDEF = -DRELAXATION -DGROUPFIND 
@@ -70,6 +80,18 @@ LAM_XOBJ                =
 LAM_LIBMDL              = -L$(LAM_DIR)/lib $(LAM_MDL)/mdl.o -lmpi -ltstdio -lt -largs -ltrillium -ltstdio -lmpi++ -lm -I$(LAM_DIR)/include
 #LAM_MDL_CFLAGS = -O3 -malign-double -mstack-align-double -mpentiumpro -I$(LAM_MDL) $(CODEDEF) -DMPI_LINUX  -I$(LAM_DIR)/include 
 LAM_MDL_CFLAGS  = -fast -I$(LAM_MDL) $(CODEDEF) -DMPI_LINUX  -I$(LAM_DIR)/include 
+
+#
+#       BSC defines
+#
+BSC_MDL		= ../bsc/mpi
+BSC_CFLAGS	= $(MY_CFLAGS) -I$(BSC_MDL) $(CODEDEF)
+BSC_LD_FLAGS	=
+BSC_XOBJ	= 
+BSC_LIBMDL	= $(BSC_MDL)/mdl.o $(BSC_MDL)/bt.o -lm
+BSC_MDL_CFLAGS	= $(MY_CFLAGS)
+
+
 
 #
 #       MPI defines
@@ -155,8 +177,8 @@ KSR_LD_FLAGS	= -para
 KSR_XOBJ		=
 KSR_LIBMDL		= $(KSR_MDL)/mdl.o -lm -lrpc
 
-OBJ	= main.o master.o param.o outtype.o pkd.o pst.o grav.o tree.o \
-	  ewald.o walk.o smooth.o smoothfcn.o moments.o cosmo.o romberg.o
+OBJ	= main.o master.o param.o outtype.o pkd.o pst.o grav2.o tree.o \
+	  ewald.o walk2.o smooth.o smoothfcn.o moments.o cosmo.o romberg.o io.o
 
 EXTRA_OBJ =
 
@@ -217,17 +239,23 @@ sca_mpi:
 		"MDL=$(SCA_MDL)" "XOBJ=$(SCA_XOBJ)" "LIBMDL=$(SCA_LIBMDL)"
 
 lam_mpi:
-	cd $(LAM_MDL); make CC=pgcc "CC_FLAGS=$(LAM_MDL_CFLAGS)"
-	make $(EXE) CC=pgcc "CFLAGS=$(LAM_CFLAGS)" "LD_FLAGS=$(LAM_LD_FLAGS)"\
+	cd $(LAM_MDL); make CC=$(MY_CC) "CC_FLAGS=$(LAM_MDL_CFLAGS)"
+	make $(EXE) CC=$(MY_CC) "CFLAGS=$(LAM_CFLAGS)" "LD_FLAGS=$(LAM_LD_FLAGS)"\
 		"MDL=$(LAM_MDL)" "XOBJ=$(LAM_XOBJ)" "LIBMDL=$(LAM_LIBMDL)"
 
 
 mpi: spx
 
 spx:
-	cd $(SPX_MDL); rm *o; make CC="mpicc -cc=$(MY_CC)" "CC_FLAGS=$(SPX_MDL_CFLAGS)"
-	make $(EXE) CC="mpicc -cc=$(MY_CC)" "CFLAGS=$(SPX_CFLAGS)" "LD_FLAGS=$(SPX_LD_FLAGS)"\
+	cd $(SPX_MDL); rm *o; make CC="mpicc " "CC_FLAGS=$(SPX_MDL_CFLAGS)"
+	make $(EXE) CC="mpicc " "CFLAGS=$(SPX_CFLAGS)" "LD_FLAGS=$(SPX_LD_FLAGS)"\
 		"MDL=$(SPX_MDL)" "XOBJ=$(SPX_XOBJ)" "LIBMDL=$(SPX_LIBMDL)"
+
+bsc:
+	cd $(BSC_MDL); rm *o; make CC="mpicc -cc=$(MY_CC)" "CC_FLAGS=$(BSC_MDL_CFLAGS)"
+	make $(EXE) CC="mpicc -cc=$(MY_CC)" "CFLAGS=$(BSC_CFLAGS)" "LD_FLAGS=$(BSC_LD_FLAGS)"\
+		"MDL=$(BSC_MDL)" "XOBJ=$(BSC_XOBJ)" "LIBMDL=$(BSC_LIBMDL)"
+
 
 t3d:
 	cd $(T3D_MDL); make
@@ -250,15 +278,14 @@ ksr:
 		"MDL=$(KSR_MDL)" "XOBJ=$(KSR_XOBJ)" "LIBMDL=$(KSR_LIBMDL)"
 
 $(EXE): $(OBJ) $(XOBJ)
-	$(CC) $(CFLAGS) $(LD_FLAGS) -o $@ $(OBJ) $(XOBJ) $(LIBMDL)
-
+	$(CC) $(CFLAGS) $(LD_FLAGS) -o $@ $(OBJ) $(XOBJ) $(LIBMDL) -L/gpfs/apps/HDF5/1.4.4/lib/ -lhdf5 -lz -lrt $(LIBS) 
 $(OBJ) $(EXTRA_OBJ): Makefile
 
 # DO NOT DELETE
 
 collision.o: pkd.h floattype.h
 ewald.o: ewald.h pkd.h floattype.h meval.h qeval.h
-grav.o: pkd.h floattype.h grav.h meval.h qeval.h
+grav2.o: pkd.h floattype.h grav.h meval.h qeval.h
 main.o: pst.h pkd.h floattype.h smoothfcn.h master.h param.h
 main.o: parameters.h outtype.h
 master.o: master.h param.h pst.h pkd.h floattype.h smoothfcn.h
@@ -267,10 +294,11 @@ outtype.o: pkd.h floattype.h outtype.h
 param.o: param.h
 pkd.o: pkd.h floattype.h ewald.h grav.h walk.h tipsydefs.h
 pst.o: pst.h pkd.h floattype.h smoothfcn.h outtype.h smooth.h
+io.o: io.h
 qqsmooth.o: smooth.h pkd.h floattype.h smoothfcn.h
 smooth.o: smooth.h pkd.h floattype.h smoothfcn.h
 smoothfcn.o: smoothfcn.h pkd.h floattype.h
-walk.o: walk.h pkd.h floattype.h
+walk2.o: walk.h pkd.h floattype.h
 
 
 

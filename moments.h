@@ -5,6 +5,8 @@
 #ifdef QUAD
 typedef long double momFloat;
 #define sqrt(x)	sqrtl(x)
+#elif defined(SINGLE)
+typedef float momFloat;
 #else
 typedef double momFloat;
 #endif
@@ -138,7 +140,7 @@ double momLocrAddMomr(LOCR *,MOMR *,momFloat,momFloat,momFloat,momFloat);
 void momGenLocrAddMomr(LOCR *l,MOMR *q,momFloat dir,
 		       momFloat g0,momFloat t1,momFloat t2,momFloat t3r,momFloat t4r,
 		       momFloat x,momFloat y,momFloat z);
-void momGenLocrAddVMomr(LOCR *l,int n,GLAM *p);
+double momGenLocrAddVMomr(LOCR *l,int n,GLAM *p);
 void momEwaldLocrAddMomr(LOCR *l,MOMR *m,momFloat r2,int bInHole,momFloat x,momFloat y,momFloat z);
 void momNooptLocrAddMomr(LOCR *l,MOMR *m,momFloat dir,momFloat x,momFloat y,momFloat z);
 void momLoccAddMomrAccurate(LOCC *l,MOMC *m,momFloat g0,momFloat x,momFloat y,momFloat z);

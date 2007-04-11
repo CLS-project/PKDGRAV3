@@ -7,6 +7,7 @@
 #include <time.h>
 #include <assert.h>
 #include "mdl.h"
+#include "bt.h"
 #include "master.h"
 #include "outtype.h"
 #include "smoothfcn.h"
@@ -93,6 +94,8 @@ int main(int argc,char **argv) {
 	}
     first = 0;
 #endif /* TINY_PTHREAD_STACK */
+
+    bt_initialize();
 
 #ifndef CCC
     /* no stdout buffering */
