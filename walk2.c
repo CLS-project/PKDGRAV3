@@ -95,6 +95,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
     ILP *ilp;
     ILC *ilc;
     ILPB *ilpb;
+    GLAM *ilglam;
     double fWeight = 0.0;
     double tempI;
     FLOAT dMin,dMax,min2,max2,d2,h2;
@@ -112,6 +113,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
     int nPart,nMaxPart;
     int nCell,nMaxCell;
     int nPartBucket,nMaxPartBucket;
+    int nGlam,nMaxGlam,ig,iv;
 #ifndef NO_TIMING
     TIMER tv;
 #endif
@@ -144,6 +146,10 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
     nMaxPartBucket = 500;
     ilpb = malloc(nMaxPartBucket*sizeof(ILPB));
     assert(ilpb != NULL);
+    nMaxGlam = 100;
+    ilglam = malloc(nMaxGlam*sizeof(GLAM));
+    assert(ilglam != 0);
+    nGlam = 0;
     /*
     ** Allocate Checklist.
     */
@@ -520,10 +526,48 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 		else if (iOpen == -1) {
 		  /*
 		  ** Local expansion accepted!
-		  ** LocrAddMomr(locr,pkdc);
+		  ** Add to the GLAM list to be evaluated later.
 		  */
+		  if (nGlam == nMaxGlam) {
+		    nMaxGlam += 100;
+		    ilgalm = realloc(ilglam,nMaxGlam*sizeof(GLAM));
+		    assert(ilgalm != 0);
+		  }
+		  ig = nGlam>>2;
+		  iv = nGlam&3;
+		  ilglam[ig].q.m.f[iv] = pkdc->mom.m;
+		  ilglam[ig].q.xx.f[iv] = pkdc->mom.xx;
+		  ilglam[ig].q.xy.f[iv] = pkdc->mom.xy;
+		  ilglam[ig].q.xz.f[iv] = pkdc->mom.xz;
+		  ilglam[ig].q.yy.f[iv] = pkdc->mom.yy;
+		  ilglam[ig].q.yz.f[iv] = pkdc->mom.yz;
+		  ilglam[ig].q.xxx.f[iv] = pkdc->mom.xxx;
+		  ilglam[ig].q.xxy.f[iv] = pkdc->mom.xxy;
+		  ilglam[ig].q.xxz.f[iv] = pkdc->mom.xxz;
+		  ilglam[ig].q.xyy.f[iv] = pkdc->mom.xyy;
+		  ilglam[ig].q.xyz.f[iv] = pkdc->mom.xyz;
+		  ilglam[ig].q.yyy.f[iv] = pkdc->mom.yyy;
+		  ilglam[ig].q.yyz.f[iv] = pkdc->mom.yyz;
+		  ilglam[ig].q.xxxx.f[iv] = pkdc->mom.xxxx;
+		  ilglam[ig].q.xxxy.f[iv] = pkdc->mom.xxxy;
+		  ilglam[ig].q.xxxz.f[iv] = pkdc->mom.xxxz;
+		  ilglam[ig].q.xxyy.f[iv] = pkdc->mom.xxyy;
+		  ilglam[ig].q.xxyz.f[iv] = pkdc->mom.xxyz;
+		  ilglam[ig].q.xyyy.f[iv] = pkdc->mom.xyyy;
+		  ilglam[ig].q.xyyz.f[iv] = pkdc->mom.xyyz;
+		  ilglam[ig].q.yyyy.f[iv] = pkdc->mom.yyyy;
+		  ilglam[ig].q.yyyz.f[iv] = pkdc->mom.yyyz;
 		  dir = 1.0/sqrt(d2);
-		  *pdFlop += momLocrAddMomr(&L,&pkdc->mom,dir,dx[0],dx[1],dx[2]);
+		  ilglam[ig].dir.f[iv] = dir;
+		  ilglam[ig].g0.f[iv] = -dir;
+		  ilglam[ig].t1.f[iv] = -dir;
+		  ilglam[ig].t2.f[iv] = -3*dir;
+		  ilglam[ig].t3r.f[iv] = -5;
+		  ilglam[ig].t4r.f[iv] = -7;
+		  ilglam[ig].x.f[iv] = dx[0];
+		  ilglam[ig].y.f[iv] = dx[1];
+		  ilglam[ig].z.f[iv] = dx[2];
+		  ++nGlam;
 		}
 		else if (iOpen == -2) {
 		    /*
@@ -626,6 +670,11 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 		    }
 		}
 	    /*
+	    ** Evaluate the GLAM list here.
+	    */
+	    momGenLocrAddVMomr(&L,nGlam,ilglam);
+	    nGlam = 0;
+	    /*
 	    ** Check iCell is active. We eventually want to just to a 
 	    ** rung check here when we start using tree repair, but 
 	    ** for now this is just as good.
@@ -693,6 +742,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 	** Checklist should be empty! Calculate gravity on this
 	** Bucket!
 	*/
+	assert(nGlam == 0);
 	assert(nCheck == 0);
 	/*
 	** We no longer add *this bucket to any interaction list, this is now done with an 
