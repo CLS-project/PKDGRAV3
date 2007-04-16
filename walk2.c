@@ -658,7 +658,11 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 	    /*
 	    ** Evaluate the GLAM list here.
 	    */
+#ifdef USE_SIMD
+	    *pdFlop += momGenLocrAddSIMDMomr(&L,nGlam,ilglam);
+#else
 	    *pdFlop += momGenLocrAddVMomr(&L,nGlam,ilglam);
+#endif
 #ifdef GLAM_STATS
 	    nAvgGlam += nGlam;
 	    nTotGlam++;
