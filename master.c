@@ -805,11 +805,13 @@ void msrFinish(MSR msr)
     /*
     ** It is possible that a previous save is still pending on the I/O processor.  Wait for it.
     */
+#ifdef USE_MDL_IO
     if ( msr->bSavePending ) {
 	mdlSetComm(msr->mdl,1);
 	mdlGetReply(msr->mdl,0,NULL,NULL);
 	mdlSetComm(msr->mdl,0);
     }
+#endif
 
 #ifdef OLD_STOP
     for (id=1;id<msr->nThreads;++id) {
@@ -1116,6 +1118,7 @@ double msrReadTipsy(MSR msr)
     }
 
 
+#ifdef USE_MDL_IO
 void msrIOWrite(MSR msr, const char *FileName, double dTime)
 {
 #ifdef IO_SPLIT
@@ -1192,7 +1195,7 @@ void msrIOWrite(MSR msr, const char *FileName, double dTime)
     mdlSetComm(msr->mdl,0);
 #endif
 }
-
+#endif
 
 
 /*
@@ -1345,7 +1348,7 @@ void _msrWriteTipsy(MSR msr,char *pszFileName,double dTime)
 
 void msrWriteTipsy(MSR msr,char *pszFileName,double dTime)
 {
-#if 1
+#ifdef USE_MDL_IO
     /* If we are using I/O processors, then we do it totally differently */
     if ( mdlIO(msr->mdl) ) {
 	msrIOWrite(msr,pszFileName,dTime);
@@ -1353,7 +1356,7 @@ void msrWriteTipsy(MSR msr,char *pszFileName,double dTime)
     else {
 #endif
 	_msrWriteTipsy(msr,pszFileName,dTime);
-#if 1
+#ifdef USE_MDL_IO
     }
 #endif
 }

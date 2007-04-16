@@ -303,6 +303,8 @@ struct inWriteTipsy {
     };
 void pstWriteTipsy(PST,void *,int,void *,int *);
 
+#ifdef USE_MDL_IO
+
 /* PST_FINDIOS */
 struct inFindIOS {
     int nLower; /* Number of particles to the left */
@@ -325,6 +327,7 @@ struct inStartIO {
     char achOutFile[PST_FILENAME_SIZE];
     };
 void pstStartIO(PST,void *,int,void *,int *);
+#endif
 
 /* PST_BUILDTREE */
 struct inBuildTree {
