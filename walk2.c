@@ -120,6 +120,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 #ifndef NO_TIMING
     TIMER tv;
 #endif
+    double dSyncDelta;
 
     /*
     ** If we are doing the very active gravity then check that there is a very active tree!
@@ -128,6 +129,12 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 	assert(pkd->nVeryActive != 0);
 	assert(pkd->nVeryActive == pkd->kdNodes[VAROOT].pUpper - pkd->kdNodes[VAROOT].pLower + 1);
 	}	
+    /*
+    ** SyncDelta is used to compare the current time to the time of a cell to decide
+    ** if they are synchronous. We need some sort of sensible minimum difference
+    ** and we can use the maximum rung for this purpose.
+    */
+    dSyncDelta = pkd->param.dDelta*pow(2.0,-(pkd->param.iMaxRung+2.0));
     /*
     ** Initially we set our cell pointer to 
     ** point to the top tree.
@@ -275,12 +282,12 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 #endif
 		    n = pkdc->pUpper - pkdc->pLower + 1;
 		    }
-#if 0
+#if 1
 		/*
 		** If the cell is not time synchronous, then work out a drift factor
 		** for this cell.
 		*/
-		if (pkdc->dTimeStamp != dTime) {
+		if (fabs(pkdc->dTimeStamp-dTime) > dSyncDelta) {
 		  /*
 		  ** We need to account for cosmological drift factor here!
 		  */
