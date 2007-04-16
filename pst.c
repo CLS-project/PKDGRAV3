@@ -3,6 +3,7 @@
 #include <stddef.h>
 #include <string.h>
 #include <malloc.h>
+#include <alloca.h>
 #include <assert.h>
 #include "mdl.h"
 #include "pst.h"
@@ -249,12 +250,14 @@ void pstAddServices(PST pst,MDL mdl)
     mdlAddService(mdl,PST_INITRELAXATION,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstInitRelaxation,0,0);
 #endif
+#ifdef USE_MDL_IO
     mdlAddService(mdl,PST_FINDIOS,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstFindIOS,
 		  sizeof(struct inFindIOS),sizeof(struct outFindIOS));
     mdlAddService(mdl,PST_STARTIO,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstStartIO,
 		  sizeof(struct inStartIO),0);
+#endif
     }
 
 void pstInitialize(PST *ppst,MDL mdl,LCL *plcl)
@@ -350,7 +353,7 @@ void pstGetMap(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 
     mdlassert(pst->mdl,nIn == sizeof(struct inGetMap));
     if (pst->nLeaves > 1) {
-	tmp = malloc(mdlThreads(pst->mdl)*sizeof(int));
+	tmp = alloca(mdlThreads(pst->mdl)*sizeof(int));
 	mdlassert(pst->mdl,tmp != NULL);
 	pstGetMap(pst->pstLower,in,nIn,vout,pnOut);
 	in->nStart += pst->nLower;
@@ -360,7 +363,7 @@ void pstGetMap(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 	    out[in->nStart+i] = tmp[in->nStart+i];
 	    }
 	in->nStart -= pst->nLower;
-	free(tmp);
+	/* Now alloca: free(tmp); */
 	}
     else {
 	out[in->nStart] = pst->idSelf;
@@ -1921,6 +1924,7 @@ void pstWriteTipsy(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     if (pnOut) *pnOut = 0;
     }
 
+#ifdef USE_MDL_IO
 void pstFindIOS(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     {
     LCL *plcl = pst->plcl;
@@ -2006,7 +2010,7 @@ void pstStartIO(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 	}
     if (pnOut) *pnOut = 0;
     }
-
+#endif
 
 void pstSetSoft(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     {
