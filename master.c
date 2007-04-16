@@ -971,6 +971,10 @@ double msrReadTipsy(MSR msr)
 	    printf("Input file, Time:%g Redshift:%g Expansion factor:%g iStartStep:%d\n",
 		   dTime,z,h.time,msr->param.iStartStep);
 	if (prmSpecified(msr->prm,"dRedTo")) {
+	  if (msr->param.dRedTo <= -1.0) {
+	    printf("Badly specified final redshift (zTo <= -1.0), check -zto parameter.\n");
+	    _msrExit(msr,1);
+	  }
 	    if (!prmArgSpecified(msr->prm,"nSteps") &&
 		prmArgSpecified(msr->prm,"dDelta")) {
 		aTo = 1.0/(msr->param.dRedTo + 1.0);
@@ -983,6 +987,9 @@ double msrReadTipsy(MSR msr)
 		    _msrExit(msr,1);
 		    }
 		msr->param.nSteps = (int)ceil((tTo-dTime)/msr->param.dDelta);
+		msr->param.dDelta =
+		  (tTo-dTime)/(msr->param.nSteps -
+			       msr->param.iStartStep);
 		}
 	    else if (!prmArgSpecified(msr->prm,"dDelta") &&
 		     prmArgSpecified(msr->prm,"nSteps")) {
@@ -1015,6 +1022,9 @@ double msrReadTipsy(MSR msr)
 		    _msrExit(msr,1);
 		    }
 		msr->param.nSteps = (int)ceil((tTo-dTime)/msr->param.dDelta);
+		msr->param.dDelta =
+		  (tTo-dTime)/(msr->param.nSteps -
+			       msr->param.iStartStep);
 		}
 	    else if (!prmSpecified(msr->prm,"dDelta") &&
 		     prmFileSpecified(msr->prm,"nSteps")) {
