@@ -246,7 +246,7 @@ void ioStartRecv(IO io,void *vin,int nIn,void *vout,int *pnOut)
     }
 
     mdlSetComm(io->mdl,1); /* Talk to the work process */
-    mdlRecv(io->mdl,MPI_ANY_SOURCE,ioUnpackIO,io);
+    mdlRecv(io->mdl,-1,ioUnpackIO,io);
     mdlSetComm(io->mdl,0);
 
 
