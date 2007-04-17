@@ -4,9 +4,9 @@ bin_PROGRAMS = pkdgrav2m_mpi pkdgrav2m_pthread
 pthread		: pkdgrav2m_pthread
 mpi		: pkdgrav2m_mpi
 
-SOURCES = cosmo.c grav2.c io.c master.c momGenLocrAddSIMDMomr.c param.c pst.c\
- smooth.c tree.c walk.c ewald.c grav.c main.c moments.c outtype.c pkd.c\
- romberg.c smoothfcn.c walk2.c
+SOURCES = cosmo.c io.c master.c param.c pst.c smooth.c tree.c walk.c ewald.c\
+ grav.c main.c moments.c outtype.c pkd.c romberg.c smoothfcn.c\
+ ../bsc/grav2.c ../bsc/walk2.c ../bsc/momGenLocrAddSIMDMomr.c
 
 AM_CFLAGS = -msse3
 
