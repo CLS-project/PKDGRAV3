@@ -8,11 +8,12 @@ SOURCES = cosmo.c io.c master.c param.c pst.c smooth.c tree.c walk.c ewald.c\
  grav.c main.c moments.c outtype.c pkd.c romberg.c smoothfcn.c\
  ../bsc/grav2.c ../bsc/walk2.c ../bsc/momGenLocrAddSIMDMomr.c
 
-AM_CFLAGS = -msse3
+AM_CFLAGS = -msse3 -DSINGLE
 
 pkdgrav2m_mpi_SOURCES = $(SOURCES) ../bsc/mpi/mdl.c
-pkdgrav2m_mpi_CFLAGS = -DMDL_MPI -I../bsc/mpi/
+pkdgrav2m_mpi_CC = mpicc
+pkdgrav2m_mpi_CFLAGS = -DMDL_MPI -I../bsc/mpi/ $(AM_CFLAGS)
 
 pkdgrav2m_pthread_SOURCES = $(SOURCES) ../mdl/pthread/mdl.c
-pkdgrav2m_pthread_CFLAGS = -DMDL_PTHREAD -I../mdl/pthread/
+pkdgrav2m_pthread_CFLAGS = -DMDL_PTHREAD -I../mdl/pthread/ $(AM_CFLAGS)
 
