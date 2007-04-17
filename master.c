@@ -1,3 +1,7 @@
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+
 #define _LARGEFILE_SOURCE
 #define _FILE_OFFSET_BITS 64
 #include <stdio.h>

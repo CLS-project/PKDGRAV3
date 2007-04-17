@@ -1,3 +1,7 @@
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+
 #include <malloc.h>
 #include <alloca.h>
 #include <hdf5.h>
