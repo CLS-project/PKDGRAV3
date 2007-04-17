@@ -226,7 +226,7 @@ void ioStartRecv(IO io,void *vin,int nIn,void *vout,int *pnOut)
     char testFilename[200];
 
     mdlassert(io->mdl,sizeof(struct inStartRecv)==nIn);
-    io->nExpected = 0; //JDP:FIXFIXrecv->nCount;
+    io->nExpected = 0; /*JDP:FIXFIXrecv->nCount;*/
     io->nReceived = 0;
 
     if ( io->nExpected > io->N ) {
