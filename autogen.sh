@@ -4,7 +4,7 @@ autoheader
 # touch NEWS README AUTHORS ChangeLog
 # touch stamp-h
 aclocal
-autoconf
-automake
+autoconf -i
+automake -a
 # ./configure
 # make
