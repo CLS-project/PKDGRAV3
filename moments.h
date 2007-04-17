@@ -1,6 +1,7 @@
 #ifndef MOMENTS_INCLUDED
 #define MOMENTS_INCLUDED
 
+#include <xmmintrin.h>
 
 #ifdef QUAD
 typedef long double momFloat;
@@ -25,7 +26,8 @@ typedef struct momReduced {
  ** vector moment tensor components for reduced multipoles.
  */
 #ifdef __GNUC__
-typedef float v4sf __attribute__ ((vector_size(16)));
+/*typedef float v4sf __attribute__ ((vector_size(16)));*/
+typedef __m128 v4sf;
 #else
 typedef float v4sf[4];
 #endif
