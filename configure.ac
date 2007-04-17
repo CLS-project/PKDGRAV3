@@ -14,8 +14,19 @@ AC_PROG_MAKE_SET
 # Optional features
 AC_ARG_ENABLE(mdl-io, 
   [  --enable-mdl-io                enable dedicated I/O processors (MPI/pthread)],
-  [AC_DEFINE([USE_MDL_IO], 1,
+  [USE_MDL_IO=true
+   AC_DEFINE([USE_MDL_IO], 1,
  	[Define if MDL style I/O should be used.])])
+AM_CONDITIONAL(USE_MDL_IO, test "x$USE_MDL_IO" = "xtrue")
+
+# Enable SIMD version (SSE,Altivec)
+AC_ARG_ENABLE(simd,
+  [  --enable-simd                  enable SIMD optimizations],
+  [USE_SIMD=true
+   AC_DEFINE([USE_SIMD], 1,
+ 	[Define if SIMD optimizations should be used.])])
+AM_CONDITIONAL(USE_SIMD, test "x$USE_SIMD" = "xtrue")
+
 
 # Checks for libraries.
 AC_CHECK_LIB([hdf5], [H5open])
