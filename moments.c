@@ -742,9 +742,11 @@ void momReduceLocc(LOCC *mc,LOCR *mr)
  ** since the highest power of r is now 5 (g4 ~ r^(-5)).
  **
  ** OpCount = (*,+) = (105,72) = 177 - 8 = 169
+ **
+ ** CAREFUL: this function no longer accumulates on fPot,ax,ay,az!
  */
 void momEvalMomr(MOMR *m,momFloat dir,momFloat x,momFloat y,momFloat z,
-				 momFloat *fPot,momFloat *ax,momFloat *ay,momFloat *az)
+		 momFloat *fPot,momFloat *ax,momFloat *ay,momFloat *az,momFloat *magai)
 {
 	const momFloat onethird = 1.0/3.0;
 	momFloat xx,xy,xz,yy,yz,zz;
@@ -792,20 +794,23 @@ void momEvalMomr(MOMR *m,momFloat dir,momFloat x,momFloat y,momFloat z,
 	xz = g2*(-(m->xx + m->yy)*z + m->xz*x + m->yz*y);
 	g2 = 0.5*(xx*x + xy*y + xz*z);
 	g0 *= m->m;
-	*fPot += g0 + g2 + g3 + g4;
+	*fPot = g0 + g2 + g3 + g4;
 	g0 += -5*g2 - 7*g3 - 9*g4;
-	*ax += dir*(xx + xxx + tx + x*g0);
-	*ay += dir*(xy + xxy + ty + y*g0);
-	*az += dir*(xz + xxz + tz + z*g0);
+	*ax = dir*(xx + xxx + tx + x*g0);
+	*ay = dir*(xy + xxy + ty + y*g0);
+	*az = dir*(xz + xxz + tz + z*g0);
+	*magai = -g0*dir;
 	}
 
 
 /*
 ** The generalized version of the above.
- */
+**
+** CAREFUL: this function no longer accumulates on fPot,ax,ay,az!
+*/
 void momGenEvalMomr(MOMR *m,momFloat dir,momFloat g0,momFloat t1,momFloat t2,
 		    momFloat t3r,momFloat t4r,momFloat x,momFloat y,momFloat z,
-		    momFloat *fPot,momFloat *ax,momFloat *ay,momFloat *az)
+		    momFloat *fPot,momFloat *ax,momFloat *ay,momFloat *az,momFloat *magai)
 {
 	const momFloat onethird = 1.0/3.0;
 	momFloat xx,xy,xz,yy,yz,zz;
@@ -852,11 +857,12 @@ void momGenEvalMomr(MOMR *m,momFloat dir,momFloat g0,momFloat t1,momFloat t2,
 	xz = g2*(-(m->xx + m->yy)*z + m->xz*x + m->yz*y);
 	g2 = 0.5*(xx*x + xy*y + xz*z);
 	g0 *= m->m;
-	*fPot += g0 + g2 + g3 + g4;
+	*fPot = g0 + g2 + g3 + g4;
 	g0 += t3r*g2 + t4r*g3;      /* for exact deriv + t5r*g4 */
-	*ax += dir*(xx + xxx + tx + x*g0);
-	*ay += dir*(xy + xxy + ty + y*g0);
-	*az += dir*(xz + xxz + tz + z*g0);
+	*ax = dir*(xx + xxx + tx + x*g0);
+	*ay = dir*(xy + xxy + ty + y*g0);
+	*az = dir*(xz + xxz + tz + z*g0);
+	*magai = -g0*dir;
 	}
 
 
