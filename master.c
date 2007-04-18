@@ -802,7 +802,7 @@ msrCheckForStop(MSR msr)
 
 void msrFinish(MSR msr)
     {
-#ifdef OLD_STOP
+#ifndef USE_MDL_IO
     int id;
 #endif
 
@@ -817,14 +817,14 @@ void msrFinish(MSR msr)
     }
 #endif
 
-#ifdef OLD_STOP
+#ifdef USE_MDL_IO
+    mdlStop(msr->mdl);
+#else
     for (id=1;id<msr->nThreads;++id) {
 	if (msr->param.bVDetails) printf("Stopping thread %d\n",id);		
 	mdlReqService(msr->mdl,id,SRV_STOP,NULL,0);
 	mdlGetReply(msr->mdl,id,NULL,NULL);
 	}
-#else
-    mdlStop(msr->mdl);
 #endif
     pstFinish(msr->pst);
     csmFinish(msr->param.csm);
