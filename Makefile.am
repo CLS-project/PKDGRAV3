@@ -4,9 +4,9 @@ bin_PROGRAMS = pkdgrav2m_mpi pkdgrav2m_pthread
 pthread		: pkdgrav2m_pthread
 mpi		: pkdgrav2m_mpi
 
-SOURCES = cosmo.c master.c param.c pst.c smooth.c tree.c ewald.c\
- main.c moments.c outtype.c pkd.c romberg.c smoothfcn.c\
- ../bsc/grav2.c ../bsc/walk2.c
+SOURCES  = cosmo.c master.c param.c pst.c smooth.c tree.c ewald.c
+SOURCES += main.c moments.c outtype.c pkd.c romberg.c smoothfcn.c
+SOURCES += ../bsc/grav2.c ../bsc/walk2.c
 if USE_MDL_IO
 SOURCES += io.c
 endif
