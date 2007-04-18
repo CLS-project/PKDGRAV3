@@ -126,8 +126,8 @@ void momGenEvalMomr(MOMR *m,momFloat dir,momFloat g0,momFloat t1,momFloat t2,
 		    momFloat t3r,momFloat t4r,momFloat x,momFloat y,momFloat z,
 		    momFloat *fPot,momFloat *ax,momFloat *ay,momFloat *az,
 		    momFloat *magai);
-double momGenEvalVMomr(int n,GLAM *p,
-		     momFloat *fPot,momFloat *ax,momFloat *ay,momFloat *az,
+double momGenEvalVMomr(int n,GLAM *p,momFloat ax,momFloat ay,momFloat az,
+		     momFloat *fPot,momFloat *aix,momFloat *aiy,momFloat *aiz,
 		     momFloat *rhosum,momFloat *maisum);
 
 void momClearLocc(LOCC *);
@@ -142,8 +142,8 @@ double momLocrAddMomr(LOCR *,MOMR *,momFloat,momFloat,momFloat,momFloat);
 void momGenLocrAddMomr(LOCR *l,MOMR *q,momFloat dir,
 		       momFloat g0,momFloat t1,momFloat t2,momFloat t3r,momFloat t4r,
 		       momFloat x,momFloat y,momFloat z);
-double momGenLocrAddVMomr(LOCR *l,int n,GLAM *p);
-double momGenLocrAddSIMDMomr(LOCR *l,int n,GLAM *p);
+double momGenLocrAddVMomr(LOCR *l,int n,GLAM *p,momFloat ax,momFloat ay,momFloat az,momFloat *rhosum,momFloat *maisum);
+double momGenLocrAddSIMDMomr(LOCR *l,int n,GLAM *p,momFloat ax,momFloat ay,momFloat az,momFloat *rhosum,momFloat *maisum);
 void momEwaldLocrAddMomr(LOCR *l,MOMR *m,momFloat r2,int bInHole,momFloat x,momFloat y,momFloat z);
 void momNooptLocrAddMomr(LOCR *l,MOMR *m,momFloat dir,momFloat x,momFloat y,momFloat z);
 void momLoccAddMomrAccurate(LOCC *l,MOMC *m,momFloat g0,momFloat x,momFloat y,momFloat z);
