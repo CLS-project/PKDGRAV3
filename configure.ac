@@ -11,8 +11,16 @@ AC_CONFIG_HEADER([config.h])
 AC_PROG_CC([pgcc icc gcc cc])
 AC_PROG_MAKE_SET
 
-# Optional features
-AC_ARG_ENABLE(mdl-io, 
+# Local expansions
+AC_ARG_ENABLE(local-expansion,
+  [  --enable-local-expansion       enable local expansion code (experimental)],
+  [LOCAL_EXPANSION=true
+   AC_DEFINE([LOCAL_EXPANSION], 1,
+ 	[Define if local expansions should be used.])])
+AM_CONDITIONAL(LOCAL_EXPANSION, test "x$LOCAL_EXPANSION" = "xtrue")
+
+# MDL dedicated I/O
+AC_ARG_ENABLE(mdl-io,
   [  --enable-mdl-io                enable dedicated I/O processors (MPI/pthread)],
   [USE_MDL_IO=true
    AC_DEFINE([USE_MDL_IO], 1,
@@ -28,7 +36,7 @@ AC_ARG_ENABLE(simd,
 AM_CONDITIONAL(USE_SIMD, test "x$USE_SIMD" = "xtrue")
 
 # Relaxation
-AC_ARG_ENABLE(relaxation, 
+AC_ARG_ENABLE(relaxation,
   [  --enable-relaxation            enable relaxation],
   [RELAXATION=true
    AC_DEFINE([RELAXATION], 1,
@@ -36,8 +44,8 @@ AC_ARG_ENABLE(relaxation,
 AM_CONDITIONAL(RELAXATION, test "x$RELAXATION" = "xtrue")
 
 # Soft Linear
-AC_ARG_ENABLE(soft-linear, 
-  [  --enable-soft-linear            enable soft linear],
+AC_ARG_ENABLE(soft-linear,
+  [  --enable-soft-linear           enable soft linear],
   [SOFTLINEAR=true
    AC_DEFINE([SOFTLINEAR], 1,
  	[Define if SOFTLINEAR should be used.])])
@@ -45,7 +53,7 @@ AM_CONDITIONAL(SOFTLINEAR, test "x$SOFTLINEAR" = "xtrue")
 
 # Relaxation
 AC_ARG_ENABLE(soft-square,
-  [  --enable-soft-square            enable soft square],
+  [  --enable-soft-square           enable soft square],
   [SOFTSQUARE=true
    AC_DEFINE([SOFTSQUARE], 1,
  	[Define if SOFTSQUARE should be used.])])

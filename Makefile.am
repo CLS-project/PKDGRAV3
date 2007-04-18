@@ -6,14 +6,17 @@ mpi		: pkdgrav2m_mpi
 
 SOURCES  = cosmo.c master.c param.c pst.c smooth.c tree.c ewald.c
 SOURCES += main.c moments.c outtype.c pkd.c romberg.c smoothfcn.c
+if LOCAL_EXPANSION
 SOURCES += ../bsc/grav2.c ../bsc/walk2.c
-if USE_MDL_IO
-SOURCES += io.c
-endif
 if USE_SIMD
 SOURCES += ../bsc/momGenLocrAddSIMDMomr.c
 endif
-
+else
+SOURCES += grav.c walk.c
+endif
+if USE_MDL_IO
+SOURCES += io.c
+endif
 AM_CFLAGS = -msse3 -DSINGLE
 
 pkdgrav2m_mpi_SOURCES = $(SOURCES) ../bsc/mpi/mdl.c
