@@ -27,6 +27,29 @@ AC_ARG_ENABLE(simd,
  	[Define if SIMD optimizations should be used.])])
 AM_CONDITIONAL(USE_SIMD, test "x$USE_SIMD" = "xtrue")
 
+# Relaxation
+AC_ARG_ENABLE(relaxation, 
+  [  --enable-relaxation            enable relaxation],
+  [RELAXATION=true
+   AC_DEFINE([RELAXATION], 1,
+ 	[Define if RELAXATION should be used.])])
+AM_CONDITIONAL(RELAXATION, test "x$RELAXATION" = "xtrue")
+
+# Soft Linear
+AC_ARG_ENABLE(soft-linear, 
+  [  --enable-soft-linear            enable soft linear],
+  [SOFTLINEAR=true
+   AC_DEFINE([SOFTLINEAR], 1,
+ 	[Define if SOFTLINEAR should be used.])])
+AM_CONDITIONAL(SOFTLINEAR, test "x$SOFTLINEAR" = "xtrue")
+
+# Relaxation
+AC_ARG_ENABLE(soft-square,
+  [  --enable-soft-square            enable soft square],
+  [SOFTSQUARE=true
+   AC_DEFINE([SOFTSQUARE], 1,
+ 	[Define if SOFTSQUARE should be used.])])
+AM_CONDITIONAL(SOFTSQUARE, test "x$SOFTSQUARE" = "xtrue")
 
 # Checks for libraries.
 AC_CHECK_LIB([hdf5], [H5open])
