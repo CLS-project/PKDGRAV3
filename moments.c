@@ -751,6 +751,7 @@ void momEvalMomr(MOMR *m,momFloat dir,momFloat x,momFloat y,momFloat z,
 	momFloat xxx,xxy,xxz,xyy,yyy,yyz,xyz;
 	momFloat tx,ty,tz,g0,g2,g3,g4;
 
+	g0 = -dir;
 	g2 = -3*dir*dir*dir;
 	g3 = -5*g2*dir;
 	g4 = -7*g3*dir;
@@ -790,9 +791,9 @@ void momEvalMomr(MOMR *m,momFloat dir,momFloat x,momFloat y,momFloat z,
 	xy = g2*(m->yy*y + m->xy*x + m->yz*z);
 	xz = g2*(-(m->xx + m->yy)*z + m->xz*x + m->yz*y);
 	g2 = 0.5*(xx*x + xy*y + xz*z);
-	g0 = m->m*dir;
-	*fPot += g2 + g3 + g4 - g0;
-	g0 -= 5*g2 + 7*g3 + 9*g4;
+	g0 *= m->m;
+	*fPot += g0 + g2 + g3 + g4;
+	g0 += -5*g2 - 7*g3 - 9*g4;
 	*ax += dir*(xx + xxx + tx + x*g0);
 	*ay += dir*(xy + xxy + ty + y*g0);
 	*az += dir*(xz + xxz + tz + z*g0);
@@ -803,10 +804,8 @@ void momEvalMomr(MOMR *m,momFloat dir,momFloat x,momFloat y,momFloat z,
 ** The generalized version of the above.
  */
 void momGenEvalMomr(MOMR *m,momFloat dir,momFloat g0,momFloat t1,momFloat t2,
-		    momFloat t3r,momFloat t4r,momFloat t5r,
-		    momFloat x,momFloat y,momFloat z,
-		    momFloat *fPot,momFloat *ax,momFloat *ay,momFloat *az,
-		    momFloat *rhoenc)
+		    momFloat t3r,momFloat t4r,momFloat x,momFloat y,momFloat z,
+		    momFloat *fPot,momFloat *ax,momFloat *ay,momFloat *az)
 {
 	const momFloat onethird = 1.0/3.0;
 	momFloat xx,xy,xz,yy,yz,zz;
@@ -854,11 +853,10 @@ void momGenEvalMomr(MOMR *m,momFloat dir,momFloat g0,momFloat t1,momFloat t2,
 	g2 = 0.5*(xx*x + xy*y + xz*z);
 	g0 *= m->m;
 	*fPot += g0 + g2 + g3 + g4;
-	g0 += t3r*g2 + t4r*g3 + t5r*g4;
+	g0 += t3r*g2 + t4r*g3;      /* for exact deriv + t5r*g4 */
 	*ax += dir*(xx + xxx + tx + x*g0);
 	*ay += dir*(xy + xxy + ty + y*g0);
 	*az += dir*(xz + xxz + tz + z*g0);
-	*rhoenc = g0*dir*dir;
 	}
 
 
