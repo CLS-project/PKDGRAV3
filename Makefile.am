@@ -16,13 +16,16 @@ SOURCES += grav.c walk.c
 endif
 if USE_MDL_IO
 SOURCES += io.c
+MDL=../bsc
+else
+MDL=../mdl
 endif
 AM_CFLAGS = -msse3 -DSINGLE
 
-pkdgrav2m_mpi_SOURCES = $(SOURCES) ../bsc/mpi/mdl.c
+pkdgrav2m_mpi_SOURCES = $(SOURCES) $(MDL)/mpi/mdl.c
 pkdgrav2m_mpi_CC = mpicc
-pkdgrav2m_mpi_CFLAGS = -DMDL_MPI -I../bsc/mpi/ $(AM_CFLAGS)
+pkdgrav2m_mpi_CFLAGS = -DMDL_MPI -I$(MDL)/mpi/ $(AM_CFLAGS)
 
-pkdgrav2m_pthread_SOURCES = $(SOURCES) ../mdl/pthread/mdl.c
+pkdgrav2m_pthread_SOURCES = $(SOURCES) $(MDL)/pthread/mdl.c
 pkdgrav2m_pthread_CFLAGS = -DMDL_PTHREAD -I../mdl/pthread/ $(AM_CFLAGS)
 
