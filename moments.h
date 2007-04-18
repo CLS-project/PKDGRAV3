@@ -123,8 +123,7 @@ void momReduceLocc(LOCC *,LOCR *);
 void momEvalMomr(MOMR *m,momFloat dir,momFloat x,momFloat y,momFloat z,
 		 momFloat *fPot,momFloat *ax,momFloat *ay,momFloat *az,momFloat *magai);
 void momGenEvalMomr(MOMR *m,momFloat dir,momFloat g0,momFloat t1,momFloat t2,
-		    momFloat t3r,momFloat t4r,momFloat t5r,
-		    momFloat x,momFloat y,momFloat z,
+		    momFloat t3r,momFloat t4r,momFloat x,momFloat y,momFloat z,
 		    momFloat *fPot,momFloat *ax,momFloat *ay,momFloat *az,
 		    momFloat *magai);
 double momGenEvalVMomr(int n,GLAM *p,
