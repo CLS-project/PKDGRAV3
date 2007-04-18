@@ -3,7 +3,9 @@
 #endif
 
 #include <malloc.h>
+#ifdef HAVE_ALLOCA_H
 #include <alloca.h>
+#endif
 #include <hdf5.h>
 #include "pst.h"
 #include "io.h"
@@ -30,17 +32,28 @@ static hid_t newSet(hid_t fileID, const char *group, const char *name,
 {
     hid_t dataProperties, dataSpace, dataSet;
     hsize_t iDims[2];
+#ifdef HAVE_ALLOCA
     char *nameBuffer;
-
+#else
+    char nameBuffer[500];
+#endif
     /* Construct the name of this object */
     if ( group && group[0] ) {
+#ifdef HAVE_ALLOCA
         nameBuffer = alloca( strlen(group) + strlen(name) + 4 );
+#else
+	assert( strlen(group) + strlen(name) + 4 <= sizeof(nameBuffer) );
+#endif
         strcpy( nameBuffer, "/" );
         strcat( nameBuffer, group );
         strcat( nameBuffer, "/" );
     }
     else {
+#ifdef HAVE_ALLOCA
         nameBuffer = alloca( strlen(name) + 2 );
+#else
+	assert( strlen(name) + 2 <= sizeof(nameBuffer) );
+#endif
         strcpy( nameBuffer, "/" );
     }
     strcat( nameBuffer, name );

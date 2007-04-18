@@ -7,7 +7,9 @@
 #include <stddef.h>
 #include <string.h>
 #include <malloc.h>
+#ifdef HAVE_ALLOCA_H
 #include <alloca.h>
+#endif
 #include <assert.h>
 #include "mdl.h"
 #include "pst.h"
@@ -357,7 +359,11 @@ void pstGetMap(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 
     mdlassert(pst->mdl,nIn == sizeof(struct inGetMap));
     if (pst->nLeaves > 1) {
+#ifdef HAVE_ALLOCA
 	tmp = alloca(mdlThreads(pst->mdl)*sizeof(int));
+#else
+	tmp = malloc(mdlThreads(pst->mdl)*sizeof(int));
+#endif
 	mdlassert(pst->mdl,tmp != NULL);
 	pstGetMap(pst->pstLower,in,nIn,vout,pnOut);
 	in->nStart += pst->nLower;
@@ -367,7 +373,9 @@ void pstGetMap(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 	    out[in->nStart+i] = tmp[in->nStart+i];
 	    }
 	in->nStart -= pst->nLower;
-	/* Now alloca: free(tmp); */
+#ifndef HAVE_ALLOCA
+	free(tmp);
+#endif
 	}
     else {
 	out[in->nStart] = pst->idSelf;
