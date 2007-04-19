@@ -1737,7 +1737,6 @@ pkdStepVeryActiveKDK(PKD pkd, double dStep, double dTime, double dDelta,
 	    time1 = Zeit(); /* added MZ 1.6.2006 */
 
 	    pkdActiveRung(pkd,iKickRung,1);
-	    pkdInitAccel(pkd);
 	    pkdVATreeBuild(pkd,pkd->param.nBucket,diCrit2,0,dTime);
 	    pkdGravityVeryActive(pkd,dTime,pkd->param.bEwald && pkd->param.bPeriodic,pkd->param.nReplicas,pkd->param.dEwCut,dStep);
 	    time2 = Zeit();
@@ -2296,21 +2295,6 @@ void pkdSetParticleTypes(PKD pkd)
 	if (pkdIsStar(pkd,p)) iSetMask |= TYPE_STAR;
 
 	TYPESet(p,iSetMask);
-	}
-    }
-
-void pkdInitAccel(PKD pkd)
-    {
-    int i,j;
-    
-    for(i=0;i<pkdLocal(pkd);++i) {
-	if (TYPEQueryACTIVE(&(pkd->pStore[i]))) {
-	    pkd->pStore[i].fPot = 0;
-	    pkd->pStore[i].dtGrav = 0;
-	    for (j=0;j<3;++j) {
-		pkd->pStore[i].a[j] = 0;
-		}
-	    }
 	}
     }
 

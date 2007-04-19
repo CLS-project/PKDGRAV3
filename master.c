@@ -2697,7 +2697,6 @@ void msrTopStepKDK(MSR msr,
 	msrActiveMaskRung(msr,TYPE_ACTIVE,iKickRung,1);
 	bSplitVA = 0;
 	msrDomainDecomp(msr,iKickRung,1,bSplitVA);
-	msrInitAccel(msr);
 
 	if(msrDoGravity(msr)) {
 	    msrActiveRung(msr,iKickRung,1);
@@ -2779,7 +2778,6 @@ void msrTopStepKDK(MSR msr,
 	msrActiveMaskRung(msr,TYPE_ACTIVE,iKickRung,1);
 	bSplitVA = 0;
 	msrDomainDecomp(msr,iKickRung,1,bSplitVA);
-	msrInitAccel(msr);
 
 	if(msrDoGravity(msr)) {
 	    msrActiveRung(msr,iKickRung,1);
@@ -2922,11 +2920,6 @@ int msrDoDensity(MSR msr)
 int msrDoGravity(MSR msr)
     {
     return(msr->param.bDoGravity);
-    }
-
-void msrInitAccel(MSR msr)
-    {
-    pstInitAccel(msr->pst,NULL,0,NULL,NULL);
     }
 
 void msrInitTimeSteps(MSR msr,double dTime,double dDelta) 

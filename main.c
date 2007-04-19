@@ -167,11 +167,8 @@ int main(int argc,char **argv) {
 	*/
 	msrActiveType(msr,TYPE_ALL,TYPE_ACTIVE);
 	msrDomainDecomp(msr,0,1,0);
-	msrActiveType(msr,TYPE_ALL,TYPE_ACTIVE);
-	msrInitAccel(msr);
 	msrActiveType(msr,TYPE_ALL,TYPE_ACTIVE|TYPE_TREEACTIVE);
 	msrUpdateSoft(msr,dTime);
-	msrActiveType(msr,TYPE_ALL,TYPE_ACTIVE|TYPE_TREEACTIVE);
 	msrBuildTree(msr,dMass,dTime);
 	if (msrDoGravity(msr)) {
 	  msrGravity(msr,dTime,msr->param.iStartStep,&iSec,&dWMax,&dIMax,&dEMax,&nActive);
@@ -336,7 +333,6 @@ int main(int argc,char **argv) {
 
 	in.dDelta = 1e37;		/* large number */
 	pstInitDt(msr->pst,&in,sizeof(in),NULL,NULL);
-	msrInitAccel(msr);
     
 	fprintf(stderr,"Initialized Accel and dt\n");
 

@@ -669,9 +669,6 @@ void pstReSmooth(PST,void *,int,void *,int *);
 void pstReSmoothWalk(PST,void *,int,void *,int *);
 #endif
 
-/* PST_INITACCEL */
-void pstInitAccel(PST,void *,int,void *,int *);
-
 /* PST_DTTORUNG */
 struct inDtToRung {
     int iRung;

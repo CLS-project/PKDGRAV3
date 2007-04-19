@@ -609,7 +609,6 @@ void pkdAccelStep(PKD pkd, double dEta, double dVelFac, double
 void pkdDensityStep(PKD pkd, double dEta, double dRhoFac);
 int pkdDtToRung(PKD pkd,int iRung, double dDelta, int iMaxRung, int bAll, int *nRungCount);
 void pkdInitDt(PKD pkd, double dDelta);
-void pkdInitAccel(PKD);
 int pkdOrdWeight(PKD,int,int,int,int,int *,int *);
 void pkdDeleteParticle(PKD pkd, PARTICLE *p);
 void pkdNewParticle(PKD pkd, PARTICLE *p);

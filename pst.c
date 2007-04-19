@@ -223,8 +223,6 @@ void pstAddServices(PST pst,MDL mdl)
 		  (void (*)(void *,void *,int,void *,int *)) pstReSmoothWalk,
 		  sizeof(struct inReSmooth),0);
 #endif
-    mdlAddService(mdl,PST_INITACCEL,pst,
-		  (void (*)(void *,void *,int,void *,int *)) pstInitAccel,0,0);
     mdlAddService(mdl,PST_DTTORUNG,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstDtToRung,
 		  sizeof(struct inDtToRung),sizeof(struct outDtToRung));
@@ -3002,23 +3000,6 @@ void pstSetParticleTypes(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 	}
     else {
 	pkdSetParticleTypes(plcl->pkd);
-	}
-    if (pnOut) *pnOut = 0;
-    }
-
-
-void pstInitAccel(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
-    LCL *plcl = pst->plcl;
-	
-    mdlassert(pst->mdl,nIn == 0);
-    if (pst->nLeaves > 1) {
-	mdlReqService(pst->mdl,pst->idUpper,PST_INITACCEL,vin,nIn);
-	pstInitAccel(pst->pstLower,vin,nIn,NULL,NULL);
-	mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
-	}
-    else {
-	pkdInitAccel(plcl->pkd);
 	}
     if (pnOut) *pnOut = 0;
     }
