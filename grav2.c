@@ -104,7 +104,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
     PARTICLE *pi,*pj;
     KDN *pkdn = pBucket;
     const double onethird = 1.0/3.0;
-    double ax,ay,az,fPot;
+    momFloat ax,ay,az,fPot;
     double x,y,z,d2,dir,dir2,g2,g3,g4;
     double xx,xy,xz,yy,yz,zz;
     double xxx,xxz,yyy,yyz,xxy,xyy,xyz;
