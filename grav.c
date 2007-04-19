@@ -13,6 +13,80 @@
 #include "moments.h"
 #include "grav.h"
 
+/*
+ ** This is a new fast version of QEVAL which evaluates
+ ** the interaction due to the reduced moment 'm'.
+ ** This version is nearly two times as fast as a naive
+ ** implementation.
+ **
+ ** March 23, 2007: This function now uses unit vectors 
+ ** which reduces the required precision in the exponent
+ ** since the highest power of r is now 5 (g4 ~ r^(-5)).
+ **
+ ** OpCount = (*,+) = (105,72) = 177 - 8 = 169
+ **
+ ** CAREFUL: this function no longer accumulates on fPot,ax,ay,az!
+ **
+ ** NOTE: This function is a carbon copy to the one in moments.c, but we
+ ** want to inline it!
+ */
+inline void momEvalMomrInline(MOMR *m,momFloat dir,momFloat x,momFloat y,momFloat z,
+		 momFloat *fPot,momFloat *ax,momFloat *ay,momFloat *az,momFloat *magai)
+{
+	const momFloat onethird = 1.0/3.0;
+	momFloat xx,xy,xz,yy,yz,zz;
+	momFloat xxx,xxy,xxz,xyy,yyy,yyz,xyz;
+	momFloat tx,ty,tz,g0,g2,g3,g4;
+
+	g0 = -dir;
+	g2 = -3*dir*dir*dir;
+	g3 = -5*g2*dir;
+	g4 = -7*g3*dir;
+	/*
+	 ** Calculate the funky distance terms.
+	 */
+	x *= dir;
+	y *= dir;
+	z *= dir;
+	xx = 0.5*x*x;
+	xy = x*y;
+	xz = x*z;
+	yy = 0.5*y*y;
+	yz = y*z;
+	zz = 0.5*z*z;
+	xxx = x*(onethird*xx - zz);
+	xxz = z*(xx - onethird*zz);
+	yyy = y*(onethird*yy - zz);
+	yyz = z*(yy - onethird*zz);
+	xx -= zz;
+	yy -= zz;
+	xxy = y*xx;
+	xyy = x*yy;
+	xyz = xy*z;
+	/*
+	 ** Now calculate the interaction up to Hexadecapole order.
+	 */
+	tx = g4*(m->xxxx*xxx + m->xyyy*yyy + m->xxxy*xxy + m->xxxz*xxz + m->xxyy*xyy + m->xxyz*xyz + m->xyyz*yyz);
+	ty = g4*(m->xyyy*xyy + m->xxxy*xxx + m->yyyy*yyy + m->yyyz*yyz + m->xxyy*xxy + m->xxyz*xxz + m->xyyz*xyz);
+	tz = g4*(-m->xxxx*xxz - (m->xyyy + m->xxxy)*xyz - m->yyyy*yyz + m->xxxz*xxx + m->yyyz*yyy - m->xxyy*(xxz + yyz) + m->xxyz*xxy + m->xyyz*xyy);
+	g4 = 0.25*(tx*x + ty*y + tz*z);
+	xxx = g3*(m->xxx*xx + m->xyy*yy + m->xxy*xy + m->xxz*xz + m->xyz*yz);
+	xxy = g3*(m->xyy*xy + m->xxy*xx + m->yyy*yy + m->yyz*yz + m->xyz*xz);
+	xxz = g3*(-(m->xxx + m->xyy)*xz - (m->xxy + m->yyy)*yz + m->xxz*xx + m->yyz*yy + m->xyz*xy);
+	g3 = onethird*(xxx*x + xxy*y + xxz*z);
+	xx = g2*(m->xx*x + m->xy*y + m->xz*z);
+	xy = g2*(m->yy*y + m->xy*x + m->yz*z);
+	xz = g2*(-(m->xx + m->yy)*z + m->xz*x + m->yz*y);
+	g2 = 0.5*(xx*x + xy*y + xz*z);
+	g0 *= m->m;
+	*fPot = g0 + g2 + g3 + g4;
+	g0 += -5*g2 - 7*g3 - 9*g4;
+	*ax = dir*(xx + xxx + tx + x*g0);
+	*ay = dir*(xy + xxy + ty + y*g0);
+	*az = dir*(xz + xxz + tz + z*g0);
+	*magai = -g0*dir;
+}
+
 #define SQRT1(d2,dir)\
     {\
     dir = 1/sqrt(d2);\
@@ -105,10 +179,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
     KDN *pkdn = pBucket;
     const double onethird = 1.0/3.0;
     double ax,ay,az,fPot;
-    double x,y,z,d2,dir,dir2,g2,g3,g4;
-    double xx,xy,xz,yy,yz,zz;
-    double xxx,xxz,yyy,yyz,xxy,xyy,xyz;
-    double tx,ty,tz;
+    double x,y,z,d2,dir,dir2;
     double fourh2;
     double rhocadd,rhocaddlocal,rholoc,rhopmax,rhopmaxlocal,costheta;
     double vx,vy,vz,v2,mu,Etot,L2,ecc,eccfac;
@@ -154,6 +225,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
     for (i=pkdn->pLower;i<=pkdn->pUpper;++i) {
 	if (!TYPEQueryACTIVE(&p[i])) continue;
 	++nActive;
+	p[i].dtGrav = 0.0;
 	fPot = 0;
 	ax = 0;
 	ay = 0;
@@ -168,7 +240,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	    z = p[i].r[2] - ilc[j].z;
 	    d2 = x*x + y*y + z*z;
 	    SQRT1(d2,dir);
-	    momEvalMomr(&ilc[j].mom,dir,x,y,z,&tPot,&tax,&tay,&taz,&magai);
+	    momEvalMomrInline(&ilc[j].mom,dir,x,y,z,&tPot,&tax,&tay,&taz,&magai);
 	    rhoenc[j].index = j;
 	    rhoenc[j].x = x;
 	    rhoenc[j].y = y;
@@ -222,46 +294,48 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 		rhoenc[j].dir = dir;
 		rhoenc[j].rhoenc = ilpb[k].m*dir2;
 		}
-	    /*
-	    ** Determine the nSC maximum cells in the cell list
-	    */
-	    if (nCell > 0) {
+	    if (pkd->param.iTimeStepCrit >= 0) {
+	      /*
+	      ** Determine the nSC maximum cells in the cell list
+	      */
+	      if (nCell > 0) {
 		for (j=0;j<nCell;++j) {
-		    heapstruct[j].index = rhoenc[j].index;
-		    heapstruct[j].rhoenc = rhoenc[j].rhoenc;
-		    }
+		  heapstruct[j].index = rhoenc[j].index;
+		  heapstruct[j].rhoenc = rhoenc[j].rhoenc;
+		}
 		HEAPheapstruct(nCell,nSC,heapstruct);
 		for (j=0;j<nSC;++j) {
-		    jmax[j] = heapstruct[nCell-1-j].index;
-		    }
+		  jmax[j] = heapstruct[nCell-1-j].index;
 		}
-	    /*
-	    ** Determine the nSPB maximum cells in the particle-bucket list
-	    */
-	    if (nPartBucket > 0) {
+	      }
+	      /*
+	      ** Determine the nSPB maximum cells in the particle-bucket list
+	      */
+	      if (nPartBucket > 0) {
 		for (j=0;j<nPartBucket;++j) {
-		    heapstruct[j].index = rhoenc[nCell+j].index;
-		    heapstruct[j].rhoenc = rhoenc[nCell+j].rhoenc;
-		    }
+		  heapstruct[j].index = rhoenc[nCell+j].index;
+		  heapstruct[j].rhoenc = rhoenc[nCell+j].rhoenc;
+		}
 		HEAPheapstruct(nPartBucket,nSPB,heapstruct);
 		for (j=0;j<nSPB;++j) {
-		    jmax[nSC+j] = heapstruct[nPartBucket-1-j].index;
-		    }
+		  jmax[nSC+j] = heapstruct[nPartBucket-1-j].index;
 		}
-	    /*
-	    ** Determine the maximum of the rhocadd values
-	    */
-	    if (nC > 0) {
+	      }
+	      /*
+	      ** Determine the maximum of the rhocadd values
+	      */
+	      if (nC > 0) {
 		for (j=0;j<(nSC+nSPB);++j) {
-		    l = jmax[j];
-		    rhocaddlocal = 0;
-		    for (k=0;k<nC;++k) {
-			costheta = (rhoenc[l].x*rhoenc[k].x + rhoenc[l].y*rhoenc[k].y + rhoenc[l].z*rhoenc[k].z)*rhoenc[l].dir*rhoenc[k].dir;
-			if (costheta > CAcceptAngle && 2*rhoenc[k].dir > rhoenc[l].dir) rhocaddlocal += rhoenc[k].rhoenc;
-			}
-		    rhocadd = (rhocaddlocal > rhocadd)?rhocaddlocal:rhocadd;
-		    }
+		  l = jmax[j];
+		  rhocaddlocal = 0;
+		  for (k=0;k<nC;++k) {
+		    costheta = (rhoenc[l].x*rhoenc[k].x + rhoenc[l].y*rhoenc[k].y + rhoenc[l].z*rhoenc[k].z)*rhoenc[l].dir*rhoenc[k].dir;
+		    if (costheta > CAcceptAngle && 2*rhoenc[k].dir > rhoenc[l].dir) rhocaddlocal += rhoenc[k].rhoenc;
+		  }
+		  rhocadd = (rhocaddlocal > rhocadd)?rhocaddlocal:rhocadd;
 		}
+	      }
+	    }
 	    assert(rhocadd >= 0);
 	    } /* end of cell & particle-bucket list time-step loop */
 	
@@ -334,11 +408,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	    ay -= y*dir2;
 	    az -= z*dir2;
 	    } /* end of particle list gravity loop */
-	p[i].fPot += fPot;
-	p[i].a[0] += ax;
-	p[i].a[1] += ay;
-	p[i].a[2] += az;
-	
+
 	if(pkd->param.bGravStep) {
 	    /*
 	    ** Add bucket particles to the array rholocal as well!
@@ -382,7 +452,16 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 		p[i].dtGrav = (rhopmax > p[i].dtGrav)?rhopmax:p[i].dtGrav;
 		}
 	    } /* end of particle-particle list time-step loop */
-	} /* end of i-loop cells & particles */
+	/*
+	** Finally set new acceleration and potential.
+	** Note that after this point we cannot use the new timestepping criterion since we
+	** overwrite the acceleration.
+	*/
+	p[i].fPot = fPot;
+	p[i].a[0] = ax;
+	p[i].a[1] = ay;
+	p[i].a[2] = az;
+	} /* end of i-loop over particles in the bucket */
     /*
     ** Free time-step lists
     */ 

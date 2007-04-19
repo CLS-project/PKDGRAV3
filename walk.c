@@ -656,6 +656,9 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 	/*
 	** Note that if Ewald is being performed we need to factor this
 	** constant cost into the load balancing weights.
+	**
+	** CAREFUL: pkdBucketEwald MUST follow pkdGravInteract since we want to use the 
+	** particle's old acceleration in pkdGravInteract!
 	*/
 	if (bEwald) {
 	    *pdFlop += pkdBucketEwald(pkd,&pkd->kdNodes[iCell],nReps,fEwCut,4);
