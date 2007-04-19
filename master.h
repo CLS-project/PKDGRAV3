@@ -162,7 +162,6 @@ void msrInitStep(MSR msr);
 void msrSetRung(MSR msr, int iRung);
 int msrMaxRung(MSR msr);
 
-void msrInitAccel(MSR msr);
 void msrSwitchTheta(MSR msr,double);
 int msrMaxOrder(MSR msr);
 
