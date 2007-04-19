@@ -174,7 +174,7 @@ int main(int argc,char **argv) {
 	msrActiveType(msr,TYPE_ALL,TYPE_ACTIVE|TYPE_TREEACTIVE);
 	msrBuildTree(msr,dMass,dTime);
 	if (msrDoGravity(msr)) {
-	  msrGravity(msr,dTime,0.0,&iSec,&dWMax,&dIMax,&dEMax,&nActive);
+	  msrGravity(msr,dTime,msr->param.iStartStep,&iSec,&dWMax,&dIMax,&dEMax,&nActive);
 	    msrCalcEandL(msr,MSR_INIT_E,dTime,&E,&T,&U,&Eth,L);
 	    dMultiEff = 1.0;
 	    if (msrLogInterval(msr)) {
@@ -345,7 +345,7 @@ int main(int argc,char **argv) {
 	msrBuildTree(msr,dMass,dTime);
 
 	if (msrDoGravity(msr)) {
-	  msrGravity(msr,dTime,0.0,&iSec,&dWMax,&dIMax,&dEMax,&nActive);
+	  msrGravity(msr,dTime,msr->param.iStartStep,&iSec,&dWMax,&dIMax,&dEMax,&nActive);
 	    msrReorder(msr);
 	    sprintf(achFile,"%s.accg",msrOutName(msr));
 	    msrOutVector(msr,achFile,OUT_ACCEL_VECTOR);
