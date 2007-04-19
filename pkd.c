@@ -1744,6 +1744,11 @@ pkdStepVeryActiveKDK(PKD pkd, double dStep, double dTime, double dDelta,
 	    if(pkd->param.bVDetails)
 		printf("Time: %g\n",time2-time1);
 	    }
+	/*
+	 * move time back to 1/2 step so that KickClose can integrate
+	 * from 1/2 through the timestep to the end.
+	 */
+	dTime -= 0.5*dDelta;
 	}
     if(iKickRung > iRungVeryActive) {	/* skip this if we are
 						   entering for the first

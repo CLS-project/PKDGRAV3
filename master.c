@@ -2710,6 +2710,11 @@ void msrTopStepKDK(MSR msr,
 	    msrGravity(msr,dTime,dStep,piSec,pdWMax,pdIMax,pdEMax,&nActive);
 	    *pdActiveSum += (double)nActive/msr->N;
 	    }
+	/*
+	 * move time back to 1/2 step so that KickClose can integrate
+	 * from 1/2 through the timestep to the end.
+	 */
+	dTime -= 0.5*dDelta;
 	}
     else {
 	double dDeltaTmp;
@@ -2803,6 +2808,11 @@ void msrTopStepKDK(MSR msr,
 	    msrKickKDKClose(msr,dTime - 0.5*dDeltaTmp,0.5*dDeltaTmp);
 	    dDeltaTmp *= 2.0;
 	    }
+	/*
+	 * move time back to 1/2 step so that KickClose can integrate
+	 * from 1/2 through the timestep to the end.
+	 */
+	dTime -= 0.5*dDelta;
 	}
     
     if (msr->param.bVDetails) {
@@ -2810,7 +2820,7 @@ void msrTopStepKDK(MSR msr,
 	       2*iRung+2,' ',iRung, 0.5*dDelta);
 	}
     msrActiveRung(msr,iRung,0);
-    msrKickKDKClose(msr,dTime - 0.5*dDelta,0.5*dDelta);
+    msrKickKDKClose(msr,dTime,0.5*dDelta);
     }
 
 void
