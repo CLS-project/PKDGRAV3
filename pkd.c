@@ -215,6 +215,7 @@ void pkdFinish(PKD pkd)
     free(pkd->ewt);
     mdlFree(pkd->mdl,pkd->pStore);
     free(pkd->pLite);
+    csmFinish(pkd->param.csm);
     free(pkd);
     }
 
@@ -1639,7 +1640,7 @@ void pkdGravityVeryActive(PKD pkd,double dTime,int bEwald,int nReps,double fEwCu
 void
 pkdStepVeryActiveKDK(PKD pkd, double dStep, double dTime, double dDelta,
 		     int iRung, int iKickRung, int iRungVeryActive,int iAdjust, double diCrit2,
-		     struct parameters param,int *pnMaxRung)
+		     int *pnMaxRung)
     {
     int nRungCount[256];
     double dDriftFac;
@@ -1647,26 +1648,26 @@ pkdStepVeryActiveKDK(PKD pkd, double dStep, double dTime, double dDelta,
 
     double time1,time2; /* added MZ 1.6.2006 */
     
-    if(iAdjust && (iRung < param.iMaxRung-1)) {
+    if(iAdjust && (iRung < pkd->param.iMaxRung-1)) {
 	pkdActiveRung(pkd, iRung, 1);
 	pkdActiveType(pkd,TYPE_ALL,TYPE_TREEACTIVE|TYPE_SMOOTHACTIVE);
-	pkdInitDt(pkd, param.dDelta);
-	if (param.bGravStep) {
-	    double a = csmTime2Exp(param.csm,dTime);
+	pkdInitDt(pkd, pkd->param.dDelta);
+	if (pkd->param.bGravStep) {
+	    double a = csmTime2Exp(pkd->param.csm,dTime);
 	    double dRhoFac = 1.0/(a*a*a);
-	    pkdGravStep(pkd, param.dEta, dRhoFac);
+	    pkdGravStep(pkd,pkd->param.dEta,dRhoFac);
 	    }
-	if (param.bAccelStep) {
-	    double a = csmTime2Exp(param.csm,dTime);
+	if (pkd->param.bAccelStep) {
+	    double a = csmTime2Exp(pkd->param.csm,dTime);
 	    double dVelFac = 1.0/(a*a);
 	    double dAccFac = 1.0/(a*a*a);
 	    double dhMinOverSoft = 0;
-	    pkdAccelStep(pkd,param.dEta, dVelFac, dAccFac, param.bDoGravity,
-			 param.bEpsAccStep, param.bSqrtPhiStep, dhMinOverSoft);
+	    pkdAccelStep(pkd,pkd->param.dEta, dVelFac,dAccFac,pkd->param.bDoGravity,
+			 pkd->param.bEpsAccStep,pkd->param.bSqrtPhiStep,dhMinOverSoft);
 	    }
-	*pnMaxRung = pkdDtToRung(pkd,iRung,dDelta, param.iMaxRung-1, 1, nRungCount);
+	*pnMaxRung = pkdDtToRung(pkd,iRung,dDelta,pkd->param.iMaxRung-1, 1, nRungCount);
     
-	if (param.bVDetails) {
+	if (pkd->param.bVDetails) {
 	    printf("%*cAdjust at iRung: %d, nMaxRung:%d nRungCount[%d]=%d\n",
 		   2*iRung+2,' ',iRung,*pnMaxRung,*pnMaxRung,nRungCount[*pnMaxRung]);
 	}
@@ -1678,26 +1679,26 @@ pkdStepVeryActiveKDK(PKD pkd, double dStep, double dTime, double dDelta,
 					   in master(). 
 					*/
 	pkdActiveRung(pkd,iRung,0);
-	if (param.bVDetails) {
+	if (pkd->param.bVDetails) {
 	    printf("%*cVeryActive pkdKickOpen  at iRung: %d, 0.5*dDelta: %g\n",
 		   2*iRung+2,' ',iRung,0.5*dDelta);
 	    }
-	pkdKickKDKOpen(pkd, dTime, 0.5*dDelta, param);
+	pkdKickKDKOpen(pkd, dTime, 0.5*dDelta);
 	}
     if (*pnMaxRung > iRung) {
 	/*
 	** Recurse.
 	*/
 	pkdStepVeryActiveKDK(pkd,dStep,dTime,0.5*dDelta,iRung+1,iRung+1,iRungVeryActive,0,
-			     diCrit2,param, pnMaxRung);
+			     diCrit2,pnMaxRung);
 	dStep += 1.0/(2 << iRung);
 	dTime += 0.5*dDelta;
 	pkdActiveRung(pkd,iRung,0);
 	pkdStepVeryActiveKDK(pkd,dStep,dTime,0.5*dDelta,iRung+1,iKickRung,iRungVeryActive,1,
-			     diCrit2,param,pnMaxRung);
+			     diCrit2,pnMaxRung);
 	}
     else {
-	if (param.bVDetails) {
+	if (pkd->param.bVDetails) {
 	    printf("%*cVeryActive Drift at iRung: %d, drifting %d and higher with dDelta: %g\n",
 		   2*iRung+2,' ',iRung,iRungVeryActive+1,dDelta);
 	    }
@@ -1711,8 +1712,8 @@ pkdStepVeryActiveKDK(PKD pkd, double dStep, double dTime, double dDelta,
 	** Note that for kicks we have written new "master-like" functions
 	** KickOpen and KickClose which do this same job at PKD level.
 	*/
-	if (param.bCannonical) {
-	    dDriftFac = csmComoveDriftFac(param.csm,dTime,dDelta);
+	if (pkd->param.bCannonical) {
+	    dDriftFac = csmComoveDriftFac(pkd->param.csm,dTime,dDelta);
 	    }
 	else {
 	    dDriftFac = dDelta;
@@ -1728,7 +1729,7 @@ pkdStepVeryActiveKDK(PKD pkd, double dStep, double dTime, double dDelta,
 						   in master(). 
 						*/
 
-	    if(param.bVDetails) {
+	    if(pkd->param.bVDetails) {
 		printf("%*cGravityVA: iRung %d Gravity for rungs %d to %d ... ",
 		       2*iRung+2,' ',iRung,iKickRung,*pnMaxRung);
 		}
@@ -1737,10 +1738,10 @@ pkdStepVeryActiveKDK(PKD pkd, double dStep, double dTime, double dDelta,
 
 	    pkdActiveRung(pkd,iKickRung,1);
 	    pkdInitAccel(pkd);
-	    pkdVATreeBuild(pkd,param.nBucket,diCrit2,0,dTime);
-	    pkdGravityVeryActive(pkd,dTime,param.bEwald && param.bPeriodic,param.nReplicas,param.dEwCut,dStep);
+	    pkdVATreeBuild(pkd,pkd->param.nBucket,diCrit2,0,dTime);
+	    pkdGravityVeryActive(pkd,dTime,pkd->param.bEwald && pkd->param.bPeriodic,pkd->param.nReplicas,pkd->param.dEwCut,dStep);
 	    time2 = Zeit();
-	    if(param.bVDetails)
+	    if(pkd->param.bVDetails)
 		printf("Time: %g\n",time2-time1);
 	    }
 	}
@@ -1750,25 +1751,25 @@ pkdStepVeryActiveKDK(PKD pkd, double dStep, double dTime, double dDelta,
 						   in master(). 
 						*/
 	pkdActiveRung(pkd,iRung,0);
-	if (param.bVDetails) {
+	if (pkd->param.bVDetails) {
 	    printf("%*cVeryActive pkdKickClose at iRung: %d, 0.5*dDelta: %g\n",
 		   2*iRung+2,' ',iRung,0.5*dDelta);
 	    }
-	pkdKickKDKClose(pkd,dTime,0.5*dDelta, param);
+	pkdKickKDKClose(pkd,dTime,0.5*dDelta);
 	}
     }
 
 /*
  * Stripped down versions of routines from master.c
  */
-void pkdKickKDKOpen(PKD pkd,double dTime,double dDelta, struct parameters param)
+void pkdKickKDKOpen(PKD pkd,double dTime,double dDelta)
     {
     double H,a;
     double dvFacOne, dvFacTwo;
 	
-    if (param.bCannonical) {
+    if (pkd->param.bCannonical) {
 	dvFacOne = 1.0;		/* no hubble drag, man! */
-	dvFacTwo = csmComoveKickFac(param.csm,dTime,dDelta);
+	dvFacTwo = csmComoveKickFac(pkd->param.csm,dTime,dDelta);
 	}
     else {
 	/*
@@ -1777,22 +1778,22 @@ void pkdKickKDKOpen(PKD pkd,double dTime,double dDelta, struct parameters param)
 	** cased in some way.
 	*/
 	dTime += dDelta/2.0;
-	a = csmTime2Exp(param.csm,dTime);
-	H = csmTime2Hub(param.csm,dTime);
+	a = csmTime2Exp(pkd->param.csm,dTime);
+	H = csmTime2Hub(pkd->param.csm,dTime);
 	dvFacOne = (1.0 - H*dDelta)/(1.0 + H*dDelta);
 	dvFacTwo = dDelta/pow(a,3.0)/(1.0 + H*dDelta);
 	}
     pkdKick(pkd, dvFacOne, dvFacTwo, 0.0, 0.0, 0.0, 0.0, 0, 0.0, 0.0);
     }
 
-void pkdKickKDKClose(PKD pkd,double dTime,double dDelta, struct parameters param)
+void pkdKickKDKClose(PKD pkd,double dTime,double dDelta)
     {
     double H,a;
     double dvFacOne, dvFacTwo;
 	
-    if (param.bCannonical) {
+    if (pkd->param.bCannonical) {
 	dvFacOne = 1.0; /* no hubble drag, man! */
-	dvFacTwo = csmComoveKickFac(param.csm,dTime,dDelta);
+	dvFacTwo = csmComoveKickFac(pkd->param.csm,dTime,dDelta);
 	}
     else {
 	/*
@@ -1801,8 +1802,8 @@ void pkdKickKDKClose(PKD pkd,double dTime,double dDelta, struct parameters param
 	** cased in some way.
 	*/
 	dTime += dDelta/2.0;
-	a = csmTime2Exp(param.csm,dTime);
-	H = csmTime2Hub(param.csm,dTime);
+	a = csmTime2Exp(pkd->param.csm,dTime);
+	H = csmTime2Hub(pkd->param.csm,dTime);
 	dvFacOne = (1.0 - H*dDelta)/(1.0 + H*dDelta);
 	dvFacTwo = dDelta/pow(a,3.0)/(1.0 + H*dDelta);
 	}
@@ -1834,8 +1835,14 @@ void pkdKick(PKD pkd, double dvFacOne, double dvFacTwo, double dvPredFacOne,
     }
 
 
-void pkdInitStep(PKD pkd, struct parameters *p) {
+void pkdInitStep(PKD pkd, struct parameters *p, CSM csm) {
     pkd->param = *p;
+    /*
+    ** Need to be careful to correctly copy the cosmo
+    ** parameters. This is very ugly!
+    */
+    csmInitialize(&pkd->param.csm);
+    *pkd->param.csm = *csm;
     }
 
 

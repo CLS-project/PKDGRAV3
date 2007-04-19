@@ -208,7 +208,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 		  /*
 		  ** We need to account for cosmological drift factor here!
 		  */
-		  if (pkd->param.bCannonical) {
+		  if (pkd->param.csm->bComove && pkd->param.bCannonical) {
 		    /*
 		    ** This might get called quite a bit in this code. Better might
 		    ** be to store a dDriftFac within the CheckElt structure, thereby

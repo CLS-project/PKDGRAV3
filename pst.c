@@ -2535,11 +2535,10 @@ void pstStepVeryActiveKDK(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     else {
 	assert(plcl->pkd->nVeryActive > 0);
 	
-	in->param.csm = &in->csm;
 	out->nMaxRung = in->nMaxRung;
 	pkdStepVeryActiveKDK(plcl->pkd,in->dStep,in->dTime,in->dDelta,
 			     in->iRung, in->iRung, in->iRung, 0, in->diCrit2,
-			     in->param, &out->nMaxRung);
+			     &out->nMaxRung);
 	mdlCacheBarrier(pst->mdl,CID_CELL);
 	}
     if (pnOut) *pnOut = sizeof(*out);
@@ -2693,7 +2692,7 @@ pstInitStep(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 	mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
 	}
     else {
-	pkdInitStep(plcl->pkd, &in->param);
+      pkdInitStep(plcl->pkd,&in->param,&in->csm);
 	}
     if (pnOut) *pnOut = 0;
     }

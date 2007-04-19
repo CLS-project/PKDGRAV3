@@ -463,8 +463,6 @@ struct inStepVeryActive
     int iRung;
     int nMaxRung;
     double diCrit2;
-    struct parameters param;
-    struct csmContext csm;
     };
 struct outStepVeryActive
     {
@@ -565,6 +563,7 @@ void pstSetRung(PST,void *,int,void *,int *);
 /* PST_INITSTEP */
 struct inInitStep {
     struct parameters param;
+    struct csmContext csm;
     };
 void pstInitStep(PST,void *,int,void *,int *);
 

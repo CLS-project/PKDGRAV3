@@ -2314,6 +2314,7 @@ msrInitStep(MSR msr) {
     ** initialized for each processor.
     */
     in.param = msr->param;
+    in.csm = *msr->param.csm;
     pstInitStep(msr->pst, &in, sizeof(in), NULL, NULL);
     
     /*
@@ -2824,9 +2825,7 @@ msrStepVeryActiveKDK(MSR msr, double dStep, double dTime, double dDelta,
     in.dDelta = dDelta;
     in.iRung = iRung;
     in.diCrit2 = 1/(msr->dCrit*msr->dCrit);   /* could set a stricter opening criterion here */
-    in.param = msr->param;
     in.nMaxRung = msrCurrMaxRung(msr);
-    in.csm = *msr->param.csm;
     
     /*
      * Start Particle Cache on all nodes (could be done as part of

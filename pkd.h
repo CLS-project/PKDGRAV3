@@ -7,6 +7,7 @@
 #include "parameters.h"
 
 #include "moments.h"
+#include "cosmo.h"
 
 /*
 ** The following sort of definition should really be in a global
@@ -592,12 +593,12 @@ void pkdDriftInactive(PKD pkd,double dTime,double dDelta,FLOAT fCenter[3],int bP
 		      int bFandG, FLOAT fCentMass);
 void pkdStepVeryActiveKDK(PKD pkd, double dStep, double dTime, double dDelta,
 			  int iRung, int iKickRung, int iRungVeryActive,int iAdjust,
-			  double diCrit2,struct parameters param, int *pnMaxRung);
-void pkdKickKDKOpen(PKD pkd,double dTime,double dDelta, struct parameters param);
-void pkdKickKDKClose(PKD pkd,double dTime,double dDelta, struct parameters param);
+			  double diCrit2,int *pnMaxRung);
+void pkdKickKDKOpen(PKD pkd,double dTime,double dDelta);
+void pkdKickKDKClose(PKD pkd,double dTime,double dDelta);
 void pkdKick(PKD pkd,double,double, double, double, double, double, int, double, double);
 void pkdSwapAll(PKD pkd, int idSwap);
-void pkdInitStep(PKD pkd, struct parameters *p);
+void pkdInitStep(PKD pkd,struct parameters *p,CSM csm);
 void pkdSetRung(PKD pkd, int iRung);
 void pkdBallMax(PKD pkd, int iRung, int bGreater, double ddHonHLimit);
 int pkdActiveRung(PKD pkd, int iRung, int bGreater);
