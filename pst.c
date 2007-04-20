@@ -599,9 +599,6 @@ void _pstRootSplit(PST pst,int iSplitDim,double dMass,int bDoRootFind,int bDoSpl
 
     mdlTimer t;
 
-#ifdef PARANOID_CHECK
-    int i,iLowSum,iHighSum;
-#endif
     int pFlag;					/* 0 => we are splitting all particles at once. 
 						   1 => we first split active, and then inactive. */
     int nTotalActive;

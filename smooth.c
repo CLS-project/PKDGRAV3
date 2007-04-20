@@ -489,7 +489,7 @@ PQ *pqSearchRemote(SMX smx,PQ *pq,int id,FLOAT r[3])
     FLOAT dx,dy,dz,min1,min2,fDist2;
     FLOAT *Smin = smx->Smin;
     int *S = smx->S;
-    int j,pj,pWant,pEnd,iCell;
+    int pj,pWant,pEnd,iCell;
     int sp = 0;
     int sm = 0;
     int idSelf = smx->pkd->idSelf;
@@ -1037,7 +1037,7 @@ void smGatherLocal(SMX smx,FLOAT fBall2,FLOAT r[3])
     FLOAT min2,dx,dy,dz,fDist2;
     int *S = smx->S;
     int sp = 0;
-    int iCell,j,pj,nCnt,pEnd;
+    int iCell,pj,nCnt,pEnd;
     int idSelf;
 
     idSelf = smx->pkd->idSelf;
@@ -1109,7 +1109,7 @@ void smGatherRemote(SMX smx,FLOAT fBall2,FLOAT r[3],int id)
     FLOAT min2,dx,dy,dz,fDist2;
     int *S = smx->S;
     int sp = 0;
-    int j,pj,nCnt,pEnd;
+    int pj,nCnt,pEnd;
     int iCell;
 
     assert(id != smx->pkd->idSelf);
@@ -1188,7 +1188,7 @@ void smGather(SMX smx,FLOAT fBall2,FLOAT r[3])
     int idSelf = smx->pkd->idSelf;
     int *S = smx->ST;
     FLOAT min2;
-    int j,iCell,id;
+    int iCell,id;
     int sp = 0;
 
     iCell = ROOT;
