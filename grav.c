@@ -294,7 +294,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	    rhoenc[j].x = x;
 	    rhoenc[j].y = y;
 	    rhoenc[j].z = z;
-	    rhoenc[j].dir = dir;
+	    rhoenc[j].dir = olddir;
 	    rhoenc[j].rhoenc = dir2;
 	    adotai = p[i].a[0]*tax + p[i].a[1]*tay + p[i].a[2]*taz; 
 	    if (adotai > 0) {
