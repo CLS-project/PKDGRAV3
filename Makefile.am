@@ -23,7 +23,6 @@ endif
 AM_CFLAGS = -msse3 -DSINGLE
 
 pkdgrav2m_mpi_SOURCES = $(SOURCES) $(MDL)/mpi/mdl.c
-pkdgrav2m_mpi_CC = mpicc
 pkdgrav2m_mpi_CFLAGS = -DMDL_MPI -I$(MDL)/mpi/ $(AM_CFLAGS)
 
 pkdgrav2m_pthread_SOURCES = $(SOURCES) $(MDL)/pthread/mdl.c
