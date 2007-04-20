@@ -8,7 +8,9 @@
 #include <assert.h>
 #include "pkd.h"
 #include "outtype.h"
+#ifndef HAVE_CONFIG_H
 #include "floattype.h"
+#endif
 #include "tipsydefs.h"
 #include <rpc/types.h>
 #include <rpc/xdr.h>

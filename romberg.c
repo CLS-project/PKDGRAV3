@@ -6,7 +6,9 @@
 #include <stdlib.h>
 #include <limits.h>
 #include <assert.h>
+#ifndef HAVE_CONFIG_H
 #include "floattype.h"
+#endif
 
 #define MAXLEV 13
 
