@@ -14,54 +14,86 @@ AC_PROG_MAKE_SET
 # Local expansions
 AC_ARG_ENABLE(local-expansion,
   [  --enable-local-expansion       enable local expansion code (experimental)],
-  [LOCAL_EXPANSION=true
+  [LOCAL_EXPANSION=yes
    AC_DEFINE([LOCAL_EXPANSION], 1,
  	[Define if local expansions should be used.])])
-AM_CONDITIONAL(LOCAL_EXPANSION, test "x$LOCAL_EXPANSION" = "xtrue")
+AM_CONDITIONAL(LOCAL_EXPANSION, test "x$LOCAL_EXPANSION" = "xyes")
+
+# HDF5 I/O
+AC_ARG_ENABLE(hdf5,
+  [  --enable-hdf5                  enable I/O using HDF5 libraries],
+  [USE_HDF5=yes
+   AC_DEFINE([USE_HDF5], 1,
+ 	[Define if HDF5 I/O should be available.])])
 
 # MDL dedicated I/O
 AC_ARG_ENABLE(mdl-io,
   [  --enable-mdl-io                enable dedicated I/O processors (MPI/pthread)],
-  [USE_MDL_IO=true
+  [USE_MDL_IO=yes
+   USE_HDF5=yes
+   AC_DEFINE([USE_HDF5], 1,
+ 	[Define if HDF5 I/O should be available.])
    AC_DEFINE([USE_MDL_IO], 1,
  	[Define if MDL style I/O should be used.])
    AC_DEFINE([MDL_MAX_IO_PROCS],128,[The maximum number of IO processors])])
-AM_CONDITIONAL(USE_MDL_IO, test "x$USE_MDL_IO" = "xtrue")
+AM_CONDITIONAL(USE_MDL_IO, test "x$USE_MDL_IO" = "xyes")
+AM_CONDITIONAL(USE_HDF5, test "x$USE_HDF5" = "xyes")
 
 # Enable SIMD version (SSE,Altivec)
 AC_ARG_ENABLE(simd,
   [  --enable-simd                  enable SIMD optimizations],
-  [USE_SIMD=true
+  [USE_SIMD=yes
    AC_DEFINE([USE_SIMD], 1,
  	[Define if SIMD optimizations should be used.])])
-AM_CONDITIONAL(USE_SIMD, test "x$USE_SIMD" = "xtrue")
+AM_CONDITIONAL(USE_SIMD, test "x$USE_SIMD" = "xyes")
+
+# Change softening
+CHANGESOFT=yes
+AC_ARG_ENABLE(change-softening,
+  [  --disable-change-softening     disable softening change],
+  [if test "x$enableval" = "xno" ; then CHANGESOFT=no ; fi])
+if test "x$CHANGESOFT" = "xyes" ; then
+AC_DEFINE([CHANGESOFT], 1,
+ 	[Define if softening can be changed.])
+fi
+AM_CONDITIONAL(CHANGESOFT, test "x$CHANGESOFT" = "xyes")
+
+# HSHRINK M4 Kernel
+AC_ARG_ENABLE(hshrink,
+  [  --enable-hshrink               enable HSHRINK M4 Kernel],
+  [HSHRINK=yes
+   AC_DEFINE([HSHRINK], 1,
+ 	[Define if SHRINK H4 kernel should be used.])])
+AM_CONDITIONAL(HSHRINK, test "x$HSHRINK" = "xyes")
 
 # Relaxation
 AC_ARG_ENABLE(relaxation,
   [  --enable-relaxation            enable relaxation],
-  [RELAXATION=true
+  [RELAXATION=yes
    AC_DEFINE([RELAXATION], 1,
  	[Define if RELAXATION should be used.])])
-AM_CONDITIONAL(RELAXATION, test "x$RELAXATION" = "xtrue")
+AM_CONDITIONAL(RELAXATION, test "x$RELAXATION" = "xyes")
 
 # Soft Linear
 AC_ARG_ENABLE(soft-linear,
   [  --enable-soft-linear           enable soft linear],
-  [SOFTLINEAR=true
+  [SOFTLINEAR=yes
    AC_DEFINE([SOFTLINEAR], 1,
  	[Define if SOFTLINEAR should be used.])])
-AM_CONDITIONAL(SOFTLINEAR, test "x$SOFTLINEAR" = "xtrue")
+AM_CONDITIONAL(SOFTLINEAR, test "x$SOFTLINEAR" = "xyes")
 
 # Relaxation
 AC_ARG_ENABLE(soft-square,
   [  --enable-soft-square           enable soft square],
-  [SOFTSQUARE=true
+  [SOFTSQUARE=yes
    AC_DEFINE([SOFTSQUARE], 1,
  	[Define if SOFTSQUARE should be used.])])
-AM_CONDITIONAL(SOFTSQUARE, test "x$SOFTSQUARE" = "xtrue")
+AM_CONDITIONAL(SOFTSQUARE, test "x$SOFTSQUARE" = "xyes")
 
 # Checks for libraries.
-AC_CHECK_LIB([hdf5], [H5open])
+if test "x$USE_HDF5" = "xyes" ; then
+  AC_CHECK_LIB([hdf5], [H5open])
+fi
 AC_CHECK_LIB([m], [fabs])
 AC_CHECK_LIB([mpi], [MPI_Init])
 AC_CHECK_LIB([pthread], [pthread_create])
