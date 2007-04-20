@@ -11,6 +11,16 @@ AC_CONFIG_HEADER([config.h])
 AC_PROG_CC([pgcc icc gcc cc])
 AC_PROG_MAKE_SET
 
+# The floating point data type - This should be detected and --with-float added
+AC_DEFINE([FLOAT],double,
+	[This defines the base floating point type for particles.])
+AC_DEFINE([FLOAT_MAXVAL],HUGE,
+	[This defines the maximum value that a FLOAT can represent.])
+
+# The floating point data type for moments
+AC_DEFINE([MOMFLOAT],float,
+	[This defines the base floating point type for moments.])
+
 # Local expansions
 AC_ARG_ENABLE(local-expansion,
   [  --enable-local-expansion       enable local expansion code (experimental)],
