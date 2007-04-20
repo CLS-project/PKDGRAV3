@@ -103,7 +103,6 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
     ILPB *ilpb;
     GLAM *ilglam;
     double fWeight = 0.0;
-    double tempI;
     FLOAT dMin,dMax,min2,max2,d2,h2;
     double dDriftFac;
     FLOAT rCheck[3];
@@ -125,6 +124,8 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 #endif
 #ifndef NO_TIMING
     TIMER tv;
+#else
+    double tempI;
 #endif
     double dSyncDelta;
 
