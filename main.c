@@ -418,7 +418,7 @@ int main(int argc,char **argv) {
 	msrOutArray(msr,achFile,OUT_DT_ARRAY);
 	if(msr->param.bDensityStep || msrDoGravity(msr)) {
 	    msrDtToRung(msr,0,msrDelta(msr),1);
-	    msrRungStats(msr);
+	    /*msrRungStats(msr);*/
 	    }
 	}
 	
