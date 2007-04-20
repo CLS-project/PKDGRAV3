@@ -3,13 +3,15 @@
 
 #include <xmmintrin.h>
 
-#ifdef QUAD
+#ifdef HAVE_CONFIG_H
+typedef MOMFLOAT momFloat;
+#else
+#ifdef MOMQUAD
 typedef long double momFloat;
 #define sqrt(x)	sqrtl(x)
-#elif defined(SINGLE)
-typedef float momFloat;
 #else
 typedef double momFloat;
+#endif
 #endif
 
 /*
