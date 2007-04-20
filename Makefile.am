@@ -9,6 +9,7 @@ SOURCES += main.c moments.c outtype.c pkd.c romberg.c smoothfcn.c
 if LOCAL_EXPANSION
 SOURCES += ../bsc/grav2.c ../bsc/walk2.c
 if USE_SIMD
+AM_CFLAGS = -msse3
 SOURCES += ../bsc/momGenLocrAddSIMDMomr.c
 endif
 else
@@ -20,7 +21,6 @@ MDL=../bsc
 else
 MDL=../mdl
 endif
-AM_CFLAGS = -msse3 -DSINGLE
 
 pkdgrav2m_mpi_SOURCES = $(SOURCES) $(MDL)/mpi/mdl.c
 pkdgrav2m_mpi_CFLAGS = -DMDL_MPI -I$(MDL)/mpi/ $(AM_CFLAGS)
