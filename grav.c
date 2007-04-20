@@ -183,7 +183,8 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
     double fourh2;
     double rhocadd,rhocaddlocal,rholoc,rhopmax,rhopmaxlocal,costheta;
     double vx,vy,vz,v2,mu,Etot,L2,ecc,eccfac;
-    momFloat tPot,tax,tay,taz,magai;
+    momFloat tPot,tax,tay,taz,magai,adotai;
+    double rhosum,maisum;
 #ifdef SOFTSQUARE
     double ptwoh2;
 #endif
@@ -233,6 +234,8 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	rhocadd = 0;
 	rholoc = 0;
 	rhopmax = 0;
+	rhosum = 0;
+	maisum = 0;
 	
 	for (j=0;j<nCell;++j) {
 	    x = p[i].r[0] - ilc[j].x;
@@ -247,13 +250,18 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	    rhoenc[j].z = z;
 	    rhoenc[j].dir = dir;
 	    rhoenc[j].rhoenc = magai*dir;
+	    adotai = p[i].a[0]*tax + p[i].a[1]*tay + p[i].a[2]*taz; 
+	    if (adotai > 0) {
+	      rhosum += adotai*dir;
+	      maisum += magai;
+	    }
 	    fPot += tPot;
 	    ax += tax;
 	    ay += tay;
 	    az += taz;
 	    } /* end of cell list gravity loop */
 	
-	if(pkd->param.bGravStep) {
+	if(pkd->param.bGravStep && pkd->param.iTimeStepCrit >= 0) {
 	    /*
 	    ** Add particle-bucket stuff
 	    */
@@ -292,48 +300,47 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 		    dir2 *= 1.0 + d2*(1.5 + d2*(135.0/16.0));
 		    }
 		rhoenc[j].dir = dir;
-		rhoenc[j].rhoenc = ilpb[k].m*dir2;
+		dir2 *=  ilpb[k].m;
+		rhoenc[j].rhoenc = dir2;
 		}
-	    if (pkd->param.iTimeStepCrit >= 0) {
-	      /*
-	      ** Determine the nSC maximum cells in the cell list
-	      */
-	      if (nCell > 0) {
-		for (j=0;j<nCell;++j) {
-		  heapstruct[j].index = rhoenc[j].index;
-		  heapstruct[j].rhoenc = rhoenc[j].rhoenc;
-		}
-		HEAPheapstruct(nCell,nSC,heapstruct);
-		for (j=0;j<nSC;++j) {
-		  jmax[j] = heapstruct[nCell-1-j].index;
-		}
+	    /*
+	    ** Determine the nSC maximum cells in the cell list
+	    */
+	    if (nCell > 0) {
+	      for (j=0;j<nCell;++j) {
+		heapstruct[j].index = rhoenc[j].index;
+		heapstruct[j].rhoenc = rhoenc[j].rhoenc;
 	      }
-	      /*
-	      ** Determine the nSPB maximum cells in the particle-bucket list
-	      */
-	      if (nPartBucket > 0) {
-		for (j=0;j<nPartBucket;++j) {
-		  heapstruct[j].index = rhoenc[nCell+j].index;
-		  heapstruct[j].rhoenc = rhoenc[nCell+j].rhoenc;
-		}
-		HEAPheapstruct(nPartBucket,nSPB,heapstruct);
-		for (j=0;j<nSPB;++j) {
-		  jmax[nSC+j] = heapstruct[nPartBucket-1-j].index;
-		}
+	      HEAPheapstruct(nCell,nSC,heapstruct);
+	      for (j=0;j<nSC;++j) {
+		jmax[j] = heapstruct[nCell-1-j].index;
 	      }
-	      /*
-	      ** Determine the maximum of the rhocadd values
-	      */
-	      if (nC > 0) {
-		for (j=0;j<(nSC+nSPB);++j) {
-		  l = jmax[j];
-		  rhocaddlocal = 0;
-		  for (k=0;k<nC;++k) {
-		    costheta = (rhoenc[l].x*rhoenc[k].x + rhoenc[l].y*rhoenc[k].y + rhoenc[l].z*rhoenc[k].z)*rhoenc[l].dir*rhoenc[k].dir;
-		    if (costheta > CAcceptAngle && 2*rhoenc[k].dir > rhoenc[l].dir) rhocaddlocal += rhoenc[k].rhoenc;
-		  }
-		  rhocadd = (rhocaddlocal > rhocadd)?rhocaddlocal:rhocadd;
+	    }
+	    /*
+	    ** Determine the nSPB maximum cells in the particle-bucket list
+	    */
+	    if (nPartBucket > 0) {
+	      for (j=0;j<nPartBucket;++j) {
+		heapstruct[j].index = rhoenc[nCell+j].index;
+		heapstruct[j].rhoenc = rhoenc[nCell+j].rhoenc;
+	      }
+	      HEAPheapstruct(nPartBucket,nSPB,heapstruct);
+	      for (j=0;j<nSPB;++j) {
+		jmax[nSC+j] = heapstruct[nPartBucket-1-j].index;
+	      }
+	    }
+	    /*
+	    ** Determine the maximum of the rhocadd values
+	    */
+	    if (nC > 0) {
+	      for (j=0;j<(nSC+nSPB);++j) {
+		l = jmax[j];
+		rhocaddlocal = 0;
+		for (k=0;k<nC;++k) {
+		  costheta = (rhoenc[l].x*rhoenc[k].x + rhoenc[l].y*rhoenc[k].y + rhoenc[l].z*rhoenc[k].z)*rhoenc[l].dir*rhoenc[k].dir;
+		  if (costheta > CAcceptAngle && 2*rhoenc[k].dir > rhoenc[l].dir) rhocaddlocal += rhoenc[k].rhoenc;
 		}
+		rhocadd = (rhocaddlocal > rhocadd)?rhocaddlocal:rhocadd;
 	      }
 	    }
 	    assert(rhocadd >= 0);
@@ -365,11 +372,13 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	    if (d2 > fourh2) {
 		SQRT1(d2,dir);
 		dir2 = dir*dir*dir;
+		magai = dir*dir;
 		}
 	    else {
 		/*
 		** This uses the Dehnen K1 kernel function now, it's fast!
-		*/
+		*/	
+	        magai = sqrt(d2);
 		SQRT1(fourh2,dir);
 		dir2 = dir*dir;
 		d2 *= dir2;
@@ -377,6 +386,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 		d2 = 1 - d2;
 		dir *= 1.0 + d2*(0.5 + d2*(3.0/8.0 + d2*(45.0/32.0)));
 		dir2 *= 1.0 + d2*(1.5 + d2*(135.0/16.0));
+		magai *= dir2;
 		++nSoft;
 		}
 	    /*
@@ -403,13 +413,21 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 /*  		printf("PP iOrder: %d iOrder %d mu: %g Etot: %g L2: %g ecc: %g eccfac: %g\n",p[i].iOrder,p[j].iOrder,mu,Etot,L2,ecc,eccfac); */
 		}
 	    dir2 *= ilp[j].m;
+	    tax = -x*dir2;
+	    tay = -y*dir2;
+	    taz = -z*dir2;
+	    adotai = p[i].a[0]*tax + p[i].a[1]*tay + p[i].a[2]*taz;
+	    if (adotai > 0) {
+	      rhosum += adotai*dir;
+	      maisum += ilp[j].m*magai;
+	    }
 	    fPot -= ilp[j].m*dir;
-	    ax -= x*dir2;
-	    ay -= y*dir2;
-	    az -= z*dir2;
+	    ax += tax;
+	    ay += tay;
+	    az += taz;
 	    } /* end of particle list gravity loop */
 
-	if(pkd->param.bGravStep) {
+	if(pkd->param.bGravStep && pkd->param.iTimeStepCrit >= 0) {
 	    /*
 	    ** Add bucket particles to the array rholocal as well!
 	    ** Not including yourself!!
@@ -452,6 +470,12 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 		p[i].dtGrav = (rhopmax > p[i].dtGrav)?rhopmax:p[i].dtGrav;
 		}
 	    } /* end of particle-particle list time-step loop */
+	/*
+	** Set the density value using the new timestepping formula.
+	*/
+	if (pkd->param.bGravStep && pkd->param.iTimeStepCrit == -1) {
+	  p[i].dtGrav = rhosum/maisum;
+	}
 	/*
 	** Finally set new acceleration and potential.
 	** Note that after this point we cannot use the new timestepping criterion since we

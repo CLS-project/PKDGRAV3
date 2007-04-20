@@ -165,13 +165,15 @@ int main(int argc,char **argv) {
 	/*
 	** Build tree, activating all particles first (just in case).
 	*/
-	msrActiveType(msr,TYPE_ALL,TYPE_ACTIVE);
-	msrDomainDecomp(msr,0,1,0);
 	msrActiveType(msr,TYPE_ALL,TYPE_ACTIVE|TYPE_TREEACTIVE);
+	msrDomainDecomp(msr,0,1,0);
 	msrUpdateSoft(msr,dTime);
 	msrBuildTree(msr,dMass,dTime);
 	if (msrDoGravity(msr)) {
 	  msrGravity(msr,dTime,msr->param.iStartStep,&iSec,&dWMax,&dIMax,&dEMax,&nActive);
+	  if (msr->param.bGravStep && msr->param.iTimeStepCrit == -1) {
+	    msrGravity(msr,dTime,msr->param.iStartStep,&iSec,&dWMax,&dIMax,&dEMax,&nActive);
+	  }
 	    msrCalcEandL(msr,MSR_INIT_E,dTime,&E,&T,&U,&Eth,L);
 	    dMultiEff = 1.0;
 	    if (msrLogInterval(msr)) {
