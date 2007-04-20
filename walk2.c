@@ -10,7 +10,9 @@
 #include "pkd.h"
 #include "walk.h"
 #include "grav.h"
+#ifndef HAVE_CONFIG_H
 #include "floattype.h"
+#endif
 #include "ewald.h"
 #include "moments.h"
 #ifndef NO_TIMING
@@ -670,9 +672,9 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 	    ** Evaluate the GLAM list here.
 	    */
 #ifdef USE_SIMD
-	    *pdFlop += momGenLocrAddSIMDMomr(&L,nGlam,ilglam);
+	    *pdFlop += momGenLocrAddSIMDMomr(&L,nGlam,ilglam,0,0,0,0,0);
 #else
-	    *pdFlop += momGenLocrAddVMomr(&L,nGlam,ilglam);
+	    *pdFlop += momGenLocrAddVMomr(&L,nGlam,ilglam,0,0,0,0,0);
 #endif
 #ifdef GLAM_STATS
 	    nAvgGlam += nGlam;
