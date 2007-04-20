@@ -24,7 +24,8 @@ AC_ARG_ENABLE(mdl-io,
   [  --enable-mdl-io                enable dedicated I/O processors (MPI/pthread)],
   [USE_MDL_IO=true
    AC_DEFINE([USE_MDL_IO], 1,
- 	[Define if MDL style I/O should be used.])])
+ 	[Define if MDL style I/O should be used.])
+   AC_DEFINE([MDL_MAX_IO_PROCS],128,[The maximum number of IO processors])])
 AM_CONDITIONAL(USE_MDL_IO, test "x$USE_MDL_IO" = "xtrue")
 
 # Enable SIMD version (SSE,Altivec)
