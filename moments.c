@@ -1507,7 +1507,6 @@ void momGenLocrAddMomr(LOCR *l,MOMR *q,momFloat dir,
     }
 
 void momEwaldLocrAddMomr(LOCR *l,MOMR *m,momFloat r2,int bInHole,momFloat x,momFloat y,momFloat z) {
-    const momFloat onethird = 1.0/3.0;
     momFloat xx,xy,xz,yy,yz,zz;
     momFloat Ax,Ay,Az,A,Bx,By,Bz,B,C,R,T;
     momFloat g0,g1,g2,g3,g4,dir,dir2,a,alphan,alpha,alpha2,ka,L;
@@ -1605,7 +1604,6 @@ void momEwaldLocrAddMomr(LOCR *l,MOMR *m,momFloat r2,int bInHole,momFloat x,momF
 
 
 void momNooptLocrAddMomr(LOCR *l,MOMR *m,momFloat dir,momFloat x,momFloat y,momFloat z) {
-    const momFloat onethird = 1.0/3.0;
     momFloat xx,xy,xz,yy,yz,zz;
     momFloat Ax,Ay,Az,A,Bx,By,Bz,B,C,R,T;
     momFloat g0,g1,g2,g3,g4,dir2;
