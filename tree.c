@@ -9,7 +9,9 @@
 #include <assert.h>
 #include "pkd.h"
 #include "moments.h"
+#ifndef HAVE_CONFIG_H
 #include "floattype.h"
+#endif
 
 #ifdef BSC
 #include "mpitrace_user_events.h"

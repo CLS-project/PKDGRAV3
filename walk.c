@@ -10,7 +10,9 @@
 #include "pkd.h"
 #include "walk.h"
 #include "grav.h"
+#ifndef HAVE_CONFIG_H
 #include "floattype.h"
+#endif
 #include "ewald.h"
 
 typedef struct CheckElt {
