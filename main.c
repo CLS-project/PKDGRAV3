@@ -344,6 +344,9 @@ int main(int argc,char **argv) {
 
 	if (msrDoGravity(msr)) {
 	  msrGravity(msr,dTime,msr->param.iStartStep,&iSec,&dWMax,&dIMax,&dEMax,&nActive);
+	  if (msr->param.bGravStep && msr->param.iTimeStepCrit == -1) {
+	    msrGravity(msr,dTime,msr->param.iStartStep,&iSec,&dWMax,&dIMax,&dEMax,&nActive);
+	  }
 	    msrReorder(msr);
 	    sprintf(achFile,"%s.accg",msrOutName(msr));
 	    msrOutVector(msr,achFile,OUT_ACCEL_VECTOR);
@@ -385,9 +388,6 @@ int main(int argc,char **argv) {
 	    nFOFsDone++;	
 	    }	
 	if (msr->param.nFindGroups > 0) msrDeleteGroups(msr);
-	msrFinish(msr);
-	mdlFinish(mdl);
-	return 0;
 	if (msrDoDensity(msr)) {
 	    msrReorder(msr);
 	    sprintf(achFile,"%s.den",msrOutName(msr));
@@ -403,22 +403,15 @@ int main(int argc,char **argv) {
 		msrAccelStep(msr,dTime);
 		}
 	    }
-
 	if (msr->param.bDensityStep) {
 	    fprintf(stderr,"Adding DensStep dt\n");
 	    msrDensityStep(msr,dTime);
 	    }
-
-	/*
-	  msrDtToRung(msr,0,msrDelta(msr),1);
-	  msrRungStats(msr);
-	*/
 	msrReorder(msr);
 	sprintf(achFile,"%s.dt",msrOutName(msr));
 	msrOutArray(msr,achFile,OUT_DT_ARRAY);
 	if(msr->param.bDensityStep || msrDoGravity(msr)) {
 	    msrDtToRung(msr,0,msrDelta(msr),1);
-	    /*msrRungStats(msr);*/
 	    }
 	}
 	
