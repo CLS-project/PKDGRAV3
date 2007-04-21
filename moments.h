@@ -1,7 +1,8 @@
 #ifndef MOMENTS_INCLUDED
 #define MOMENTS_INCLUDED
-
+#ifdef USE_SIMD
 #include <xmmintrin.h>
+#endif
 
 #ifdef HAVE_CONFIG_H
 typedef MOMFLOAT momFloat;
@@ -27,6 +28,7 @@ typedef struct momReduced {
 /*
  ** vector moment tensor components for reduced multipoles.
  */
+#ifdef USE_SIMD
 #ifdef __GNUC__
 /*typedef float v4sf __attribute__ ((vector_size(16)));*/
 typedef __m128 v4sf;
@@ -63,6 +65,7 @@ typedef struct momGenLocrAddMomrArray {
   momPacked y;
   momPacked z;
 } GLAM;
+#endif
 
 /*
  ** moment tensor components for complete multipoles.
@@ -128,10 +131,11 @@ void momGenEvalMomr(MOMR *m,momFloat dir,momFloat g0,momFloat t1,momFloat t2,
 		    momFloat t3r,momFloat t4r,momFloat x,momFloat y,momFloat z,
 		    momFloat *fPot,momFloat *ax,momFloat *ay,momFloat *az,
 		    momFloat *magai);
+#ifdef USE_SIMD
 double momGenEvalVMomr(int n,GLAM *p,momFloat ax,momFloat ay,momFloat az,
 		     momFloat *fPot,momFloat *aix,momFloat *aiy,momFloat *aiz,
 		     momFloat *rhosum,momFloat *maisum);
-
+#endif
 void momClearLocc(LOCC *);
 void momClearLocr(LOCR *);
 void momClearMomr(MOMR *);
@@ -144,8 +148,10 @@ double momLocrAddMomr(LOCR *,MOMR *,momFloat,momFloat,momFloat,momFloat);
 void momGenLocrAddMomr(LOCR *l,MOMR *q,momFloat dir,
 		       momFloat g0,momFloat t1,momFloat t2,momFloat t3r,momFloat t4r,
 		       momFloat x,momFloat y,momFloat z);
+#ifdef USE_SIMD
 double momGenLocrAddVMomr(LOCR *l,int n,GLAM *p,momFloat ax,momFloat ay,momFloat az,momFloat *rhosum,momFloat *maisum);
 double momGenLocrAddSIMDMomr(LOCR *l,int n,GLAM *p,momFloat ax,momFloat ay,momFloat az,momFloat *rhosum,momFloat *maisum);
+#endif
 void momEwaldLocrAddMomr(LOCR *l,MOMR *m,momFloat r2,int bInHole,momFloat x,momFloat y,momFloat z);
 void momNooptLocrAddMomr(LOCR *l,MOMR *m,momFloat dir,momFloat x,momFloat y,momFloat z);
 void momLoccAddMomrAccurate(LOCC *l,MOMC *m,momFloat g0,momFloat x,momFloat y,momFloat z);
