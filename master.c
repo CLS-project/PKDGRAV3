@@ -2691,7 +2691,7 @@ void msrTopStepKDK(MSR msr,
     else if(msrCurrMaxRung(msr) == iRung) {
 	/* This Drifts everybody */
 	if (msr->param.bVDetails) {
-	    printf("%*cDrift, iRung: %d -- we should never get here for VA set small enough\n",2*iRung+2,' ',iRung);
+	    printf("%*cDrift, iRung: %d\n",2*iRung+2,' ',iRung);
 	    }
 	msrDrift(msr,dTime,dDelta);
 	dTime += dDelta;
