@@ -179,7 +179,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
     KDN *pkdn = pBucket;
     const double onethird = 1.0/3.0;
     double ax,ay,az,fPot;
-    double x,y,z,d2,dir,dir2,g2,g3,g4,olddir;
+    double x,y,z,d2,dir,dir2,g2,g3,g4;
     double xx,xy,xz,yy,yz,zz;
     double xxx,xxz,yyy,yyz,xxy,xyy,xyz;
     double tx,ty,tz;
@@ -246,7 +246,6 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	    z = p[i].r[2] - ilc[j].z;
 	    d2 = x*x + y*y + z*z;
 	    SQRT1(d2,dir);
-	    olddir = dir;
 	    dir2 = dir*dir;
 	    g2 = 3*dir*dir2*dir2;
 	    g3 = 5*g2*dir2;
@@ -284,21 +283,21 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	    xy = g2*(ilc[j].mom.yy*y + ilc[j].mom.xy*x + ilc[j].mom.yz*z);
 	    xz = g2*(-(ilc[j].mom.xx + ilc[j].mom.yy)*z + ilc[j].mom.xz*x + ilc[j].mom.yz*y);
 	    g2 = 0.5*(xx*x + xy*y + xz*z);
+	    rhoenc[j].index = j;
+	    rhoenc[j].x = x;
+	    rhoenc[j].y = y;
+	    rhoenc[j].z = z;
+	    rhoenc[j].dir = dir;
 	    dir *= ilc[j].mom.m;
 	    dir2 *= dir + 5*g2 + 7*g3 + 9*g4;
 	    fPot -= dir + g2 + g3 + g4;
 	    tax = xx + xxx + tx - x*dir2;
 	    tay = xy + xxy + ty - y*dir2;
 	    taz = xz + xxz + tz - z*dir2;
-	    rhoenc[j].index = j;
-	    rhoenc[j].x = x;
-	    rhoenc[j].y = y;
-	    rhoenc[j].z = z;
-	    rhoenc[j].dir = olddir;
 	    rhoenc[j].rhoenc = dir2;
 	    adotai = p[i].a[0]*tax + p[i].a[1]*tay + p[i].a[2]*taz; 
-	    if (adotai > 0) {
-	      rhosum += adotai*olddir;
+	    if (adotai >= 0) {
+	      rhosum += adotai*rhoenc[j].dir;
 	      maisum += sqrt(tax*tax + tay*tay + taz*taz);
 	    }
 	    ax += tax;
@@ -463,7 +462,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	    taz = -z*dir2;
 #if 0
 	    adotai = p[i].a[0]*tax + p[i].a[1]*tay + p[i].a[2]*taz;
-	    if (adotai > 0) {
+	    if (adotai >= 0) {
 	      rhosum += adotai*dir;
 	      maisum += ilp[j].m*magai;
 	    }
@@ -520,9 +519,9 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	/*
 	** Set the density value using the new timestepping formula.
 	*/
-	if (pkd->param.bGravStep && pkd->param.iTimeStepCrit == -1) {
-	  p[i].dtGrav = rhosum/maisum;
-	}
+	if (pkd->param.bGravStep && pkd->param.iTimeStepCrit == -1 && rhosum > 0) {
+	    p[i].dtGrav = rhosum/maisum;
+	    }
 	/*
 	** Finally set new acceleration and potential.
 	** Note that after this point we cannot use the new timestepping criterion since we
