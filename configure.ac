@@ -8,8 +8,9 @@ AC_CONFIG_SRCDIR([main.c])
 AC_CONFIG_HEADER([config.h])
 
 # Checks for programs.
-AC_PROG_CC([pgcc icc gcc cc])
+AC_PROG_CC
 AC_PROG_MAKE_SET
+AC_CHECK_PROG([MPICC],mpicc,mpicc,no)
 
 # The floating point data type - This should be detected and --with-float added
 AC_DEFINE([FLOAT],double,
@@ -100,13 +101,28 @@ AC_ARG_ENABLE(soft-square,
  	[Define if SOFTSQUARE should be used.])])
 AM_CONDITIONAL(SOFTSQUARE, test "x$SOFTSQUARE" = "xyes")
 
+# Check if pthread is available
+AC_CHECK_LIB([pthread], [pthread_create],[HAVE_PTHREAD=yes],[HAVE_PTHREAD=no])
+if test "x$HAVE_PTHREAD" = "xyes" ; then
+  AC_CHECK_HEADER([pthread.h],[HAVE_PTHREAD=yes],[HAVE_PTHREAD=no])
+fi
+AM_CONDITIONAL(HAVE_PTHREAD,test "x$HAVE_PTHREAD" = "xyes")
+
+# Check if mpi is available
+if test "x$MPICC" != "xno" ; then
+  HAVE_MPI=yes
+#  AC_CHECK_LIB([mpi], [MPI_Init],[HAVE_MPI=yes],[HAVE_MPI=no])
+#  if test "x$HAVE_MPI" = "xyes" ; then
+#    AC_CHECK_HEADER([mpi.h],[HAVE_MPI=yes],[HAVE_MPI=no])
+#  fi
+fi
+AM_CONDITIONAL(HAVE_MPI,test "x$HAVE_MPI" = "xyes")
+
 # Checks for libraries.
 if test "x$USE_HDF5" = "xyes" ; then
   AC_CHECK_LIB([hdf5], [H5open])
 fi
 AC_CHECK_LIB([m], [fabs])
-AC_CHECK_LIB([mpi], [MPI_Init])
-AC_CHECK_LIB([pthread], [pthread_create])
 # FIXME: Replace `main' with a function in `-lrt':
 #AC_CHECK_LIB([rt], [main])
 # FIXME: Replace `main' with a function in `-lz':
@@ -123,6 +139,7 @@ AC_C_INLINE
 AC_TYPE_OFF_T
 AC_TYPE_SIZE_T
 AC_HEADER_TIME
+AC_SYS_LARGEFILE
 
 # Checks for library functions.
 AC_FUNC_MALLOC
