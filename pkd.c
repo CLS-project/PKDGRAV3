@@ -1497,7 +1497,7 @@ pkdDrift(PKD pkd,double dTime,double dDelta,FLOAT fCenter[3],int bPeriodic,int b
 	** Detailed output for particles that are tracked at dTime + dDelta/2
 	** Correct positons & mass for dDelta/2 step which is done before the actual update
 	*/
-	if (TYPETest(&p[i],TYPE_TRACKER)) {
+	if (TYPETest(&p[i],TYPE_TRACKER) && dDelta != 0) {
       	    px = p[i].r[0] - dDelta/2*p[i].v[0];
 	    py = p[i].r[1] - dDelta/2*p[i].v[1];
 	    pz = p[i].r[2] - dDelta/2*p[i].v[2];
@@ -1561,7 +1561,7 @@ pkdDriftInactive(PKD pkd,double dTime, double dDelta,FLOAT fCenter[3],int bPerio
 	** Detailed output for particles that are tracked at dTime + dDelta
 	** Inactive Drift => dDelta is already a half step! No correction needed!
 	*/
-	if (TYPETest(&p[i],TYPE_TRACKER)) {
+	if (TYPETest(&p[i],TYPE_TRACKER) && dDelta != 0) {
 	    ipt = p[i].iOrder + 1; /* to be consistent with Tipsy numbering */
 	    printf("PDID %d %g %g %d %g %g %g %g %g %g %g %g %g %g %g %g %g\n",ipt,dTime+dDelta/2,dDelta,
 		   p[i].iRung,p[i].dt,p[i].r[0],p[i].r[1],p[i].r[2],p[i].v[0],p[i].v[1],p[i].v[2],p[i].a[0],p[i].a[1],p[i].a[2],p[i].fPot,p[i].fMass,p[i].fSoft);
@@ -1609,7 +1609,7 @@ pkdDriftActive(PKD pkd,double dTime,double dDelta) {
 	** Detailed output for particles that are tracked at dTime + dDelta/2
 	** Correct positons & mass for dDelta/2 step
 	*/
-	if (TYPETest(&p[i],TYPE_TRACKER)) {
+	if (TYPETest(&p[i],TYPE_TRACKER) && dDelta != 0) {
 	    px = p[i].r[0] - dDelta/2*p[i].v[0];
 	    py = p[i].r[1] - dDelta/2*p[i].v[1];
 	    pz = p[i].r[2] - dDelta/2*p[i].v[2];
