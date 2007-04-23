@@ -48,7 +48,6 @@ pkdgrav2m_null_CFLAGS = -I$(MDL)/null/ $(AM_CFLAGS)
 if HAVE_MPI
 pkdgrav2m_mpi_SOURCES = $(SOURCES) $(MDL)/mpi/mdl.c
 pkdgrav2m_mpi_CFLAGS = -I$(MDL)/mpi/ $(AM_CFLAGS)
-pkdgrav2m_mpi_LINK = mpicc $(AM_CFLAGS) $(CFLAGS) $(AM_LDFLAGS) $(LDFLAGS) -o $@
 endif
 
 if HAVE_PTHREAD
