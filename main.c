@@ -39,7 +39,7 @@ static void main_io(MDL mdl) {
     if ( mdlSelf(mdl) == 0 ) {
 	int id;
 	mdlSetComm(mdl,0);
-	for( id=1; id<mdl->nIO; ++id ) {
+	for( id=1; id<mdlIO(mdl); ++id ) {
 	    mdlReqService(mdl,id,SRV_STOP,NULL,0);
 	    mdlGetReply(mdl,id,NULL,NULL);
 	}
