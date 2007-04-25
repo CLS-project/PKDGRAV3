@@ -1,17 +1,22 @@
 #ifndef MDL_HINCLUDED
 #define MDL_HINCLUDED
 #include <stdio.h>
+#include <pthread.h>
 #include <assert.h>
-#include "mpi.h"
 
+#ifdef __osf__
+#define vsnprintf(a,b,c,d) vsprintf((a),(c),(d))
+#endif
 
-#define SRV_STOP		0
-
-#define MDL_CACHE_SIZE		64000000
+#define MDL_CACHE_SIZE		2000000
 #define MDL_CACHELINE_BITS	3
 #define MDL_CACHELINE_ELTS	(1<<MDL_CACHELINE_BITS)
 #define MDL_CACHE_MASK		(MDL_CACHELINE_ELTS-1)
 #define MDL_INDEX_MASK		(~MDL_CACHE_MASK)
+
+#define MDL_MBX_RING_SZ	8
+
+#define SRV_STOP		0
 
 typedef struct cacheTag {
 	int iKey;
@@ -20,37 +25,57 @@ typedef struct cacheTag {
 	int iLink;
 	} CTAG;
 
-/*
- ** This structure should be "maximally" aligned, with 4 ints it
- ** should align up to at least QUAD word, which should be enough.
- */
 typedef struct cacheHeader {
 	int cid;
 	int mid;
 	int id;
 	int iLine;
+        int iSeq;
 	} CAHEAD;
 
+typedef struct mbxStruct {
+    pthread_mutex_t mux;
+	pthread_cond_t sigReq;
+	pthread_cond_t sigRpl;
+	pthread_cond_t sigRel;
+	int bReq;
+    int bRpl;
+    int bRel;
+    int sid;
+    int nBytes;
+    char *pszIn;
+    char *pszOut;
+    } MBX;
+
+typedef struct swxStruct {
+    pthread_mutex_t mux;
+	pthread_cond_t sigRel;
+	pthread_cond_t sigRec;
+	pthread_cond_t sigSnd;
+	int bRel;
+	int bRec;
+    size_t nInBytes;
+	size_t nOutBufBytes;
+	char *pszBuf;
+    } SWX;
 
 typedef struct cacheSpace {
 	int iType;
 	char *pData;
 	int iDataSize;
 	int nData;
+	size_t pDataMax;
 	int iLineSize;
 	int nLines;
-    int iLine;
 	int nTrans;
 	int iTransMask;
-        int iKeyShift;
-        int iInvKeyShift;
-        int iIdMask;
+	int iIdMask;
+	int iKeyShift;
+	int iInvKeyShift;
 	int *pTrans;
 	CTAG *pTag;
 	char *pLine;
-	int nCheckIn;
 	int nCheckOut;
-	CAHEAD caReq;
 	void (*init)(void *);
 	void (*combine)(void *,void *);
 	/*	
@@ -65,11 +90,12 @@ typedef struct cacheSpace {
 	char *pbKey;
 	} CACHE;
 
+
 typedef struct serviceRec {
 	int nInBytes;
 	int nOutBytes;
 	void *p1;
-	void (*fcnService)(void *,void *,int,void *,int *);	
+	void (*fcnService)(void *,void *,int,void *,int *);
 	} SERVICE;
 
 
@@ -78,34 +104,33 @@ typedef struct mdlContext {
 	int idSelf;
 	int bDiag;
 	FILE *fpDiag;
-	int dontcare;
-	int allgrp;
+	pthread_t *pt;
+	struct mdlContext **pmdl;
 	/*
 	 ** Services stuff!
 	 */
 	int nMaxServices;
-	int nMaxSrvBytes;
+	int nMaxInBytes;
+	int nMaxOutBytes;
 	SERVICE *psrv;
-	char *pszIn;
-	char *pszOut;
-	char *pszBuf;
+	MBX mbxOwn;
 	/*
-	 ** Swapping buffer.
+	 ** Swapping Box.
 	 */
-	char *pszTrans;
+	SWX swxOwn;
 	/*
 	 ** Caching stuff!
 	 */
+	MBX mbxCache[MDL_MBX_RING_SZ];
+        pthread_mutex_t muxRing;
+        int iRingHd;
+        int iRingTl;
+        int iRecSeq[128];
+        int iSndSeq[128];
 	unsigned long uRand;
-	int iMaxDataSize;
 	int iCaBufSize;
-	char *pszRcv;
-	int *pmidRpl;
-	MPI_Request *pReqRpl;
-	MPI_Request ReqRcv;
-	char **ppszRpl;
-	char *pszFlsh;
 	int nMaxCacheIds;
+	int iMaxDataSize;
 	CACHE *cache;
 	} * MDL;
 
@@ -138,23 +163,16 @@ typedef struct mdlContext {
 void mdlprintf( MDL mdl, const char *format, ... );
 
 #ifdef MDLASSERT
-#ifdef __ANSI_CPP__
-#define mdlassert(mdl,expr) \
-    { \
-      if (!(expr)) { \
-             mdlprintf( mdl, "%s:%d Assertion `%s' failed.\n", __FILE__, __LINE__, # expr ); \
-             assert( expr ); \
-             } \
-    }
-#else
-#define mdlassert(mdl,expr) \
-    { \
-      if (!(expr)) { \
-             mdlprintf( mdl, "%s:%d Assertion `%s' failed.\n", __FILE__, __LINE__, "expr" ); \
-             assert( expr ); \
-             } \
-    }
+#ifndef __STRING
+#define __STRING( arg )   (("arg"))
 #endif
+#define mdlassert(mdl,expr) \
+    { \
+      if (!(expr)) { \
+             mdlprintf( mdl, "%s:%d Assertion `%s' failed.\n", __FILE__, __LINE__, __STRING(expr) ); \
+             assert( expr ); \
+             } \
+    }
 #else
 #define mdlassert(mdl,expr)  assert(expr)
 #endif
@@ -207,10 +225,9 @@ void mdlROcache(MDL,int,void *,int,int);
 void mdlCOcache(MDL,int,void *,int,int,
 				void (*)(void *),void (*)(void *,void *));
 void mdlFinishCache(MDL,int);
-void mdlCacheCheck(MDL);
-void mdlCacheBarrier(MDL,int);
 void *mdlAquire(MDL,int,int,int);
 void mdlRelease(MDL,int,void *);
+void mdlCacheCheck(MDL);
 /*
  ** Cache statistics functions.
  */

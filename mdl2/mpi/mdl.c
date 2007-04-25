@@ -1193,6 +1193,44 @@ void mdlFinishCache(MDL mdl,int cid)
 	}
 
 
+void mdlCacheBarrier(MDL mdl,int cid) {
+    CACHE *c = &mdl->cache[cid];
+    CAHEAD caOut;
+    int id;
+
+    /*
+    ** THIS IS A SYNCHRONIZE!!!
+    */
+    caOut.cid = cid;
+    caOut.mid = MDL_MID_CACHEOUT;
+    caOut.id = mdl->idSelf;
+    if(mdl->idSelf == 0) {
+	++c->nCheckOut;
+	while(c->nCheckOut < mdl->nThreads) {
+	    mdlCacheReceive(mdl, NULL);
+	    }
+	}
+    else {
+	MPI_Send(&caOut,sizeof(CAHEAD),MPI_BYTE, 0,
+		 MDL_TAG_CACHECOM, MPI_COMM_WORLD);
+	}
+    if(mdl->idSelf == 0) {
+	for(id = 1; id < mdl->nThreads; id++) {
+	    MPI_Send(&caOut,sizeof(CAHEAD),MPI_BYTE, id,
+		     MDL_TAG_CACHECOM, MPI_COMM_WORLD);
+	    }
+	}
+    else {
+	c->nCheckOut = 0;
+	while (c->nCheckOut == 0) {
+	    mdlCacheReceive(mdl,NULL);
+	    }	
+	}	
+    c->nCheckOut = 0;
+    MPI_Barrier(MPI_COMM_WORLD);
+    }
+
+
 void mdlCacheCheck(MDL mdl)
 {
     int flag;
@@ -1302,6 +1340,7 @@ void *mdlAquire(MDL mdl,int cid,int iIndex,int id)
 		goto GotVictim;
 	  }
 	}
+
 	if (!iVictim) {
 		/*
 		 ** Cache Failure!
