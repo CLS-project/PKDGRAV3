@@ -39,7 +39,7 @@ if USE_MDL_IO
 SOURCES += io.c
 MDL=../bsc
 else
-MDL=../mdl
+MDL=@MDL_PATH@
 endif
 
 pkdgrav2m_null_SOURCES = $(SOURCES) $(MDL)/null/mdl.c

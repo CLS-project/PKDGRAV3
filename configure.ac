@@ -37,6 +37,10 @@ AC_ARG_ENABLE(hdf5,
    AC_DEFINE([USE_HDF5], 1,
  	[Define if HDF5 I/O should be available.])])
 
+AC_CHECK_FILE([../mdl2],
+	AC_SUBST([MDL_PATH],../mdl2),
+	AC_SUBST([MDL_PATH],../mdl))
+
 # MDL dedicated I/O
 AC_ARG_ENABLE(mdl-io,
   [  --enable-mdl-io                enable dedicated I/O processors (MPI/pthread)],
