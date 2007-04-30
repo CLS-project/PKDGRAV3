@@ -2200,7 +2200,7 @@ void momPrintLocc(LOCC *m) {
 void momPrintLocr(LOCR *m) {
 	printf("LOCR:%20.15g\n",(double)m->m);
 	printf("   x:%20.15g    y:%20.15g    z:%20.15g\n",(double)m->x,(double)m->y,(double)m->z);
-	printf("  xx:%20.15g   xy:%20.15g   xy:%20.15g\n",(double)m->xx,(double)m->xy,(double)m->xz);
+	printf("  xx:%20.15g   xy:%20.15g   xz:%20.15g\n",(double)m->xx,(double)m->xy,(double)m->xz);
 	printf("  yy:%20.15g   yz:%20.15g  xxx:%20.15g\n",(double)m->yy,(double)m->yz,(double)m->xxx);
 	printf(" xxy:%20.15g  xxz:%20.15g  xyy:%20.15g\n",(double)m->xxy,(double)m->xxz,(double)m->xyy);
 	printf(" xyz:%20.15g  yyy:%20.15g  yyz:%20.15g\n",(double)m->xyz,(double)m->yyy,(double)m->yyz);
