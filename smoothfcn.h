@@ -2,7 +2,9 @@
 #define SMOOTHFCN_INCLUDED
 
 #include "pkd.h"
+#ifndef HAVE_CONFIG_H
 #include "floattype.h"
+#endif
 
 typedef struct smfParameters {
 	double H;
