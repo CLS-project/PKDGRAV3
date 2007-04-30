@@ -5,7 +5,9 @@
 #include "pst.h"
 #include "mdl.h"
 #include "parameters.h"
+#ifndef HAVE_CONFIG_H
 #include "floattype.h"
+#endif
 
 #define MSR_INIT_E		1
 #define MSR_STEP_E		0

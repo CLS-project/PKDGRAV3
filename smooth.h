@@ -3,7 +3,9 @@
 
 #include "pkd.h"
 #include "smoothfcn.h"
+#ifndef HAVE_CONFIG_H
 #include "floattype.h"
+#endif
 
 #define NNLIST_INCREMENT	100		/* number of extra neighbor elements added to nnList */
 

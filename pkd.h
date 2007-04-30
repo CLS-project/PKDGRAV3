@@ -3,7 +3,9 @@
 
 #include <sys/resource.h>
 #include "mdl.h"
+#ifndef HAVE_CONFIG_H
 #include "floattype.h"
+#endif
 #include "parameters.h"
 
 #include "moments.h"
