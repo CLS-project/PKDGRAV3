@@ -1,7 +1,8 @@
 #ifndef MOMENTS_INCLUDED
 #define MOMENTS_INCLUDED
+
 #ifdef USE_SIMD
-#include <xmmintrin.h>
+#include "simd.h"
 #endif
 
 #ifdef HAVE_CONFIG_H
@@ -25,16 +26,10 @@ typedef struct momReduced {
 	momFloat xxxx,xyyy,xxxy,yyyy,xxxz,yyyz,xxyy,xxyz,xyyz;
 	} MOMR;
 
+#ifdef USE_SIMD
 /*
  ** vector moment tensor components for reduced multipoles.
  */
-#ifdef USE_SIMD
-#ifdef __GNUC__
-/*typedef float v4sf __attribute__ ((vector_size(16)));*/
-typedef __m128 v4sf;
-#else
-typedef float v4sf[4];
-#endif
 
 typedef union {
     v4sf p;
