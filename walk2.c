@@ -601,10 +601,41 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 			ilc = realloc(ilc,nMaxCell*sizeof(ILC));
 			assert(ilc != NULL);
 			}
+#ifdef USE_SIMD
+		    ig = nCell >> 2;
+		    iv = nCell&3;
+		    
+		    ilc[ig].x[iv] = rCheck[0];
+		    ilc[ig].y[iv] = rCheck[1];
+		    ilc[ig].z[iv] = rCheck[2];
+		    ilc[ig].m.f[iv] = pkdc->mom.m;
+		    ilc[ig].xx.f[iv] = pkdc->mom.xx;
+		    ilc[ig].yy.f[iv] = pkdc->mom.yy;
+		    ilc[ig].xy.f[iv] = pkdc->mom.xy;
+		    ilc[ig].xz.f[iv] = pkdc->mom.xz;
+		    ilc[ig].yz.f[iv] = pkdc->mom.yz;
+		    ilc[ig].xxx.f[iv] = pkdc->mom.xxx;
+		    ilc[ig].xyy.f[iv] = pkdc->mom.xyy;
+		    ilc[ig].xxy.f[iv] = pkdc->mom.xxy;
+		    ilc[ig].yyy.f[iv] = pkdc->mom.yyy;
+		    ilc[ig].xxz.f[iv] = pkdc->mom.xxz;
+		    ilc[ig].yyz.f[iv] = pkdc->mom.yyz;
+		    ilc[ig].xyz.f[iv] = pkdc->mom.xyz;
+		    ilc[ig].xxxx.f[iv] = pkdc->mom.xxxx;
+		    ilc[ig].xyyy.f[iv] = pkdc->mom.xyyy;
+		    ilc[ig].xxxy.f[iv] = pkdc->mom.xxxy;
+		    ilc[ig].yyyy.f[iv] = pkdc->mom.yyyy;
+		    ilc[ig].xxxz.f[iv] = pkdc->mom.xxxz;
+		    ilc[ig].yyyz.f[iv] = pkdc->mom.yyyz;
+		    ilc[ig].xxyy.f[iv] = pkdc->mom.xxyy;
+		    ilc[ig].xxyz.f[iv] = pkdc->mom.xxyz;
+		    ilc[ig].xyyz.f[iv] = pkdc->mom.xyyz;
+#else
 		    ilc[nCell].x = rCheck[0];
 		    ilc[nCell].y = rCheck[1];
 		    ilc[nCell].z = rCheck[2];
 		    ilc[nCell].mom = pkdc->mom;
+#endif
 		    ++nCell;
 		    }
 		else if (iOpen == -3) {
@@ -672,7 +703,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 	    /*
 	    ** Evaluate the GLAM list here.
 	    */
-#ifdef USE_SIMD
+#ifdef USE_xSIMD
 	    *pdFlop += momGenLocrAddSIMDMomr(&L,nGlam,ilglam,0,0,0,0,0);
 #else
 	    *pdFlop += momGenLocrAddVMomr(&L,nGlam,ilglam,0,0,0,0,0);
@@ -865,6 +896,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 	}
     }
 
+#if 0
 void pkdLocalWalk(PKD pkd,int iParticle,int bRep,FLOAT rOffset[3],
 		  ILC **pilc, int *pnCell, int *nMaxCell, ILP **pilp, int *pnPart, int *nMaxPart, ILPB **pilpb, int *pnPartBucket, int *nMaxPartBucket)
     {
@@ -1443,3 +1475,4 @@ void pkdParticleWalk(PKD pkd,int iParticle,int nReps, ILP **pilp, int *pnPart, i
     *pnPartBucket = nPartBucket;
     *pnMaxPartBucket = nMaxPartBucket;
     }
+#endif

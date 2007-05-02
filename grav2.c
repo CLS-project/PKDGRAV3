@@ -94,6 +94,8 @@ void HEAPrholocal(int n, int k, RHOLOCAL ra[]) {
 	}
     }
 
+
+
 /*
 ** This version of grav.c does all the operations inline, including 
 ** v_sqrt's and such.
@@ -114,6 +116,9 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
     double vx,vy,vz,v2,mu,Etot,L2,ecc,eccfac;
 #ifdef SOFTSQUARE
     double ptwoh2;
+#endif
+#ifdef USE_SIMD
+    int nCellILC;
 #endif
     int i,j,k,l,nN,nC,nSP,nSC,nSCmin,nSPB,nSPBmin,na,nia,nSoft,nActive;
     /*
@@ -145,6 +150,13 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
     assert(heapstruct != NULL);
     jmax = malloc((nSC+nSPB)*sizeof(int));
     assert(jmax != NULL);
+
+#ifdef USE_SIMD
+    nCellILC = nCell;
+    momPadSIMDMomr( nCellILC, ilc );
+#endif
+
+
     /*
     ** Now process the two interaction lists for each active particle.
     */
@@ -168,7 +180,10 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	y = p[i].r[1] - pkdn->r[1];
 	z = p[i].r[2] - pkdn->r[2];
 	momEvalLocr(pLoc,x,y,z,&fPot,&ax,&ay,&az);
-	
+
+#ifdef USE_SIMD
+	momEvalSIMDMomr( nCellILC, ilc, p[i].r );
+#else
 	for (j=0;j<nCell;++j) {
 	    x = p[i].r[0] - ilc[j].x;
 	    y = p[i].r[1] - ilc[j].y;
@@ -225,6 +240,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	    ay += xy + xxy + ty - y*dir2;
 	    az += xz + xxz + tz - z*dir2;
 	    } /* end of cell list gravity loop */
+#endif
 	
 	if(pkd->param.bGravStep) {
 	    /*
