@@ -26,8 +26,10 @@ SOURCES += main.c moments.c outtype.c pkd.c romberg.c smoothfcn.c
 if LOCAL_EXPANSION
 SOURCES += ../bsc/grav2.c ../bsc/walk2.c
 if USE_SIMD
-AM_CFLAGS = -msse3
+AM_CFLAGS = -msse3 -I../bsc/
 SOURCES += ../bsc/momGenLocrAddSIMDMomr.c
+SOURCES += ../bsc/momGenLocrAddVMomr.c
+SOURCES += ../bsc/momEvalSIMDMomr.c
 endif
 else
 SOURCES += grav.c walk.c
