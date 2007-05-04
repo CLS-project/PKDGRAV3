@@ -63,6 +63,25 @@ typedef struct momGenLocrAddMomrArray {
 #endif
 
 /*
+** components required for evaluating a multipole interaction.
+*/
+
+#ifdef USE_SIMD
+typedef struct ilCell {   
+    double x[4], y[4], z[4];
+    momPacked xxxx,xxxy,xxxz,xxyz,xxyy,yyyz,xyyz,xyyy,yyyy;
+    momPacked xxx,xyy,xxy,yyy,xxz,yyz,xyz;
+    momPacked xx,xy,xz,yy,yz;
+    momPacked m;
+} ILC;
+#else
+typedef struct ilCell {
+    double x,y,z; /*,vx,vy,vz;*/
+    MOMR mom;
+    } ILC;
+#endif
+
+/*
  ** moment tensor components for complete multipoles.
  */
 typedef struct momComplete {
