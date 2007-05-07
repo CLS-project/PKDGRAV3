@@ -149,6 +149,10 @@ void momGenEvalMomr(MOMR *m,momFloat dir,momFloat g0,momFloat t1,momFloat t2,
 double momGenEvalVMomr(int n,GLAM *p,momFloat ax,momFloat ay,momFloat az,
 		     momFloat *fPot,momFloat *aix,momFloat *aiy,momFloat *aiz,
 		     momFloat *rhosum,momFloat *maisum);
+void momPadSIMDMomr( int *nCell, ILC *ilc );
+void momEvalSIMDMomr( int nCell, ILC *ilc, const double *r,
+		      float *ax, float *ay, float *az,
+		      float *fPot );
 #endif
 void momClearLocc(LOCC *);
 void momClearLocr(LOCR *);
