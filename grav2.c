@@ -153,7 +153,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 
 #ifdef USE_SIMD
     nCellILC = nCell;
-    momPadSIMDMomr( nCellILC, ilc );
+    momPadSIMDMomr( &nCellILC, ilc );
 #endif
 
 
@@ -182,7 +182,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	momEvalLocr(pLoc,x,y,z,&fPot,&ax,&ay,&az);
 
 #ifdef USE_SIMD
-	momEvalSIMDMomr( nCellILC, ilc, p[i].r );
+	momEvalSIMDMomr( nCellILC, ilc, p[i].r, &ax, &ay, &az, &fPot );
 #else
 	for (j=0;j<nCell;++j) {
 	    x = p[i].r[0] - ilc[j].x;
