@@ -101,7 +101,6 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
     ILP *ilp;
     ILC *ilc;
     ILPB *ilpb;
-    GLAM *ilglam;
     double fWeight = 0.0;
     FLOAT dMin,dMax,min2,max2,d2,h2;
     double dDriftFac;
@@ -118,9 +117,14 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
     int nPart,nMaxPart;
     int nCell,nMaxCell;
     int nPartBucket,nMaxPartBucket;
+#ifdef USE_SIMD
+    GLAM *ilglam;
     int nGlam,nMaxGlam,ig,iv;
 #ifdef GLAM_STATS
     int nTotGlam=0, nAvgGlam=0;
+#endif
+#else
+    momFloat t1, t2, t3r, t4r;
 #endif
 #ifndef NO_TIMING
     TIMER tv;
@@ -167,10 +171,13 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
     nMaxPartBucket = 500;
     ilpb = malloc(nMaxPartBucket*sizeof(ILPB));
     assert(ilpb != NULL);
+#ifdef USE_SIMD
     nMaxGlam = 100;
     ilglam = malloc(nMaxGlam*sizeof(GLAM));
     assert(ilglam != 0);
     nGlam = 0;
+#endif
+
     /*
     ** Allocate Checklist.
     */
@@ -554,6 +561,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 		  ** Local expansion accepted!
 		  ** Add to the GLAM list to be evaluated later.
 		  */
+#ifdef USE_SIMD
 		  if (nGlam == nMaxGlam) {
 		    nMaxGlam += 100;
 		    ilglam = realloc(ilglam,nMaxGlam*sizeof(GLAM));
@@ -594,6 +602,15 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 		  ilglam[ig].y.f[iv] = dx[1];
 		  ilglam[ig].z.f[iv] = dx[2];
 		  ++nGlam;
+#else
+		  dir = 1.0/sqrt(d2);
+		  t1 = -dir;
+		  t2 = -3*dir;
+		  t3r = -5;
+		  t4r = -7;
+		  momGenLocrAddMomr(&L,&pkdc->mom,dir,-dir,
+				    t1,t2,t3r,t4r,dx[0],dx[1],dx[2]);
+#endif
 		}
 		else if (iOpen == -2) {
 		    /*
@@ -711,16 +728,15 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 	    /*
 	    ** Evaluate the GLAM list here.
 	    */
-#ifdef USE_xSIMD
-	    *pdFlop += momGenLocrAddSIMDMomr(&L,nGlam,ilglam,0,0,0,0,0);
-#else
+#ifdef USE_SIMD
+	    /**pdFlop += momGenLocrAddSIMDMomr(&L,nGlam,ilglam,0,0,0,0,0);*/
 	    *pdFlop += momGenLocrAddVMomr(&L,nGlam,ilglam,0,0,0,0,0);
-#endif
 #ifdef GLAM_STATS
 	    nAvgGlam += nGlam;
 	    nTotGlam++;
 #endif
 	    nGlam = 0;
+#endif
 	    /*
 	    ** Done processing of the Checklist.
 	    ** Now prepare to proceed to the next deeper
@@ -811,7 +827,9 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 	** Checklist should be empty! Calculate gravity on this
 	** Bucket!
 	*/
+#ifdef USE_SIMD
 	assert(nGlam == 0);
+#endif
 	assert(nCheck == 0);
 	/*
 	** We no longer add *this bucket to any interaction list, this is now done with an 
@@ -855,7 +873,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 	InactiveAscend:
 	    iCell = c[iCell].iParent;
 	    if (!iCell) {
-#ifdef GLAM_STATS
+#if defined(USE_SIMD) && defined(GLAM_STATS)
 		printf( "%d: nCalls=%d, AvgGlam=%f\n",
 			mdlSelf(pkd->mdl),
 			nTotGlam, (float)nAvgGlam/nTotGlam);
