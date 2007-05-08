@@ -62,6 +62,21 @@ AC_ARG_ENABLE(simd,
  	[Define if SIMD optimizations should be used.])])
 AM_CONDITIONAL(USE_SIMD, test "x$USE_SIMD" = "xyes")
 
+AC_ARG_ENABLE(simd-momr,
+  [  --disable-simd-momr            disable MOMR SIMD optimizations],
+  [if test "x$enableval" = "xyes" ; then
+     USE_SIMD_MOMR="yes"
+   elif test "x$enableval" = "xno" ; then
+     USE_SIMD_MOMR="no"
+   else
+     USE_SIMD_MOMR="$USE_SIMD"
+   fi])
+if test "x$USE_SIMD_MOMR" != "xno" -a "x$USE_SIMD" = "xyes" ; then
+  AC_DEFINE([USE_SIMD_MOMR],1, 
+ 	[Define if SIMD optimizations should be used for MOMRs.])
+fi
+AM_CONDITIONAL(USE_SIMD_MOMR,test "x$USE_SIMD_MOMR" = "xyes")
+
 # Change softening
 CHANGESOFT=yes
 AC_ARG_ENABLE(change-softening,

@@ -29,7 +29,9 @@ if USE_SIMD
 AM_CFLAGS = -msse3 -I../bsc/
 SOURCES += ../bsc/momGenLocrAddSIMDMomr.c
 SOURCES += ../bsc/momGenLocrAddVMomr.c
+if USE_SIMD_MOMR
 SOURCES += ../bsc/momEvalSIMDMomr.c
+endif
 endif
 else
 SOURCES += grav.c walk.c

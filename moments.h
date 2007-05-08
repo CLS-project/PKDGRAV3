@@ -66,7 +66,7 @@ typedef struct momGenLocrAddMomrArray {
 ** components required for evaluating a multipole interaction.
 */
 
-#ifdef USE_SIMD
+#ifdef USE_SIMD_MOMR
 typedef struct ilCell {   
     double x[4], y[4], z[4];
     momPacked xxxx,xxxy,xxxz,xxyz,xxyy,yyyz,xyyz,xyyy,yyyy;
