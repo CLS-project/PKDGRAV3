@@ -157,7 +157,11 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
     assert(ilp != NULL);
     nCell = 0;
     nMaxCell = 500;
+#ifdef USE_SIMD_MOMR
+    ilc = malloc(nMaxCell/4*sizeof(ILC));
+#else
     ilc = malloc(nMaxCell*sizeof(ILC));
+#endif
     assert(ilc != NULL);
     nPartBucket = 0;
     nMaxPartBucket = 500;
@@ -598,10 +602,14 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 		    */
 		    if (nCell == nMaxCell) {
 			nMaxCell += 500;
+#ifdef USE_SIMD_MOMR
+			ilc = realloc(ilc,nMaxCell/4*sizeof(ILC));
+#else
 			ilc = realloc(ilc,nMaxCell*sizeof(ILC));
+#endif
 			assert(ilc != NULL);
 			}
-#ifdef USE_SIMD
+#ifdef USE_SIMD_MOMR
 		    ig = nCell >> 2;
 		    iv = nCell&3;
 		    

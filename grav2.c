@@ -117,7 +117,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 #ifdef SOFTSQUARE
     double ptwoh2;
 #endif
-#ifdef USE_SIMD
+#ifdef USE_SIMD_MOMR
     int nCellILC;
 #endif
     int i,j,k,l,nN,nC,nSP,nSC,nSCmin,nSPB,nSPBmin,na,nia,nSoft,nActive;
@@ -151,7 +151,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
     jmax = malloc((nSC+nSPB)*sizeof(int));
     assert(jmax != NULL);
 
-#ifdef USE_SIMD
+#ifdef USE_SIMD_MOMR
     nCellILC = nCell;
     momPadSIMDMomr( &nCellILC, ilc );
 #endif
@@ -181,7 +181,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	z = p[i].r[2] - pkdn->r[2];
 	momEvalLocr(pLoc,x,y,z,&fPot,&ax,&ay,&az);
 
-#ifdef USE_SIMD
+#ifdef USE_SIMD_MOMR
 	momEvalSIMDMomr( nCellILC, ilc, p[i].r, &ax, &ay, &az, &fPot );
 #else
 	for (j=0;j<nCell;++j) {
