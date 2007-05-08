@@ -107,18 +107,20 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
     KDN *pkdn = pBucket;
     const double onethird = 1.0/3.0;
     momFloat ax,ay,az,fPot;
-    double x,y,z,d2,dir,dir2,g2,g3,g4;
+    double x,y,z,d2,dir,dir2;
+#ifndef USE_SIMD
+    double g2,g3,g4;
     double xx,xy,xz,yy,yz,zz;
     double xxx,xxz,yyy,yyz,xxy,xyy,xyz;
     double tx,ty,tz;
+#else
+    int nCellILC;
+#endif
     double fourh2;
     double rhocadd,rhocaddlocal,rholoc,rhopmax,rhopmaxlocal,costheta;
     double vx,vy,vz,v2,mu,Etot,L2,ecc,eccfac;
 #ifdef SOFTSQUARE
     double ptwoh2;
-#endif
-#ifdef USE_SIMD_MOMR
-    int nCellILC;
 #endif
     int i,j,k,l,nN,nC,nSP,nSC,nSCmin,nSPB,nSPBmin,na,nia,nSoft,nActive;
     /*
