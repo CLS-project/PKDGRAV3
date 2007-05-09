@@ -36,11 +36,6 @@ typedef union {
     float f[4];
 } momPacked;
 
-/*
-** V4SUM takes a momPacked and adds horizontally all the elements of the packed vector.
-*/
-#define V4SUM(A) ((A).f[0] + (A).f[1] + (A).f[2] + (A).f[3])
-
 typedef struct momVectorReduced {
 	momPacked m;
 	momPacked xx,yy,xy,xz,yz;
