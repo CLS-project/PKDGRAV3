@@ -160,10 +160,11 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
     ilp = malloc(nMaxPart*sizeof(ILP));
     assert(ilp != NULL);
     nCell = 0;
-    nMaxCell = 500;
 #ifdef USE_SIMD_MOMR
-    ilc = malloc(nMaxCell/4*sizeof(ILC));
+    nMaxCell = 4000;
+    ilc = _mm_malloc(nMaxCell/4*sizeof(ILC),sizeof(v4sf));
 #else
+    nMaxCell = 500;
     ilc = malloc(nMaxCell*sizeof(ILC));
 #endif
     assert(ilc != NULL);
@@ -172,8 +173,8 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
     ilpb = malloc(nMaxPartBucket*sizeof(ILPB));
     assert(ilpb != NULL);
 #ifdef USE_SIMD
-    nMaxGlam = 100;
-    ilglam = malloc(nMaxGlam*sizeof(GLAM));
+    nMaxGlam = 1000;
+    ilglam = _mm_malloc(nMaxGlam*sizeof(GLAM),sizeof(v4sf));
     assert(ilglam != 0);
     nGlam = 0;
 #endif
@@ -564,7 +565,8 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 #ifdef USE_SIMD
 		  if (nGlam == nMaxGlam) {
 		    nMaxGlam += 100;
-		    ilglam = realloc(ilglam,nMaxGlam*sizeof(GLAM));
+		    ilglam = 0; /*realloc(ilglam,nMaxGlam*sizeof(GLAM));*/
+		    printf( "Reallocated GLAM: %p\n", ilglam );
 		    assert(ilglam != 0);
 		  }
 		  ig = nGlam>>2;
@@ -620,7 +622,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 		    if (nCell == nMaxCell) {
 			nMaxCell += 500;
 #ifdef USE_SIMD_MOMR
-			ilc = realloc(ilc,nMaxCell/4*sizeof(ILC));
+			ilc = NULL; /*realloc(ilc,nMaxCell/4*sizeof(ILC));*/
 #else
 			ilc = realloc(ilc,nMaxCell*sizeof(ILC));
 #endif
@@ -729,8 +731,8 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 	    ** Evaluate the GLAM list here.
 	    */
 #ifdef USE_SIMD
-	    /**pdFlop += momGenLocrAddSIMDMomr(&L,nGlam,ilglam,0,0,0,0,0);*/
-	    *pdFlop += momGenLocrAddVMomr(&L,nGlam,ilglam,0,0,0,0,0);
+	    *pdFlop += momGenLocrAddSIMDMomr(&L,nGlam,ilglam,0,0,0,0,0);
+	    /**pdFlop += momGenLocrAddVMomr(&L,nGlam,ilglam,0,0,0,0,0);*/
 #ifdef GLAM_STATS
 	    nAvgGlam += nGlam;
 	    nTotGlam++;
@@ -894,7 +896,11 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 		** Free interaction lists.
 		*/
 		free(ilp);
+#ifdef USE_SIMD
+		_mm_free(ilc);
+#else
 		free(ilc);
+#endif
 		free(ilpb);
 		return(nTotActive);
 		}
