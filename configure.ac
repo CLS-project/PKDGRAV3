@@ -75,7 +75,7 @@ if test "x$USE_SIMD_MOMR" != "xno" -a "x$USE_SIMD" = "xyes" ; then
   AC_DEFINE([USE_SIMD_MOMR],1, 
  	[Define if SIMD optimizations should be used for MOMRs.])
 fi
-AM_CONDITIONAL(USE_SIMD_MOMR,test "x$USE_SIMD_MOMR" = "xyes")
+AM_CONDITIONAL(USE_SIMD_MOMR,test "x$USE_SIMD_MOMR" != "xno")
 
 # Change softening
 CHANGESOFT=yes
