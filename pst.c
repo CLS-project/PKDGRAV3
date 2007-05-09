@@ -573,7 +573,7 @@ int _pstRejMatch(PST pst,int n1,OREJ *p1,int n2,OREJ *p2,int *pidSwap)
 #define MASS_EPS	1e-11
 #define PARANOID_CHECK
 
-void _pstRootSplit(PST pst,int iSplitDim,double dMass,int bDoRootFind,int bDoSplitDimFind,
+void _pstRootSplit(PST pst,int iSplitDim,int bDoRootFind,int bDoSplitDimFind,
 		   int bSplitVA) {
     int NUM_SAFETY = 4;			/* slop space when filling up memory */
     int nSafeTot;				/* total slop space we have to play with */
@@ -1166,7 +1166,6 @@ void pstDomainDecomp(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     {
     int d=0,j,nBndWrapd;
     double dimsize;
-    double dMass;
     struct inDomainDecomp *in = vin;
     double l,u;
 	
@@ -1212,7 +1211,7 @@ void pstDomainDecomp(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 	    }
 
 	mdlPrintTimer(pst->mdl,"TIME Mass Check done in pstDomainDecomp",&t);
-	_pstRootSplit(pst,d,dMass,in->bDoRootFind,in->bDoSplitDimFind,in->bSplitVA);
+	_pstRootSplit(pst,d,in->bDoRootFind,in->bDoSplitDimFind,in->bSplitVA);
 	mdlPrintTimer(pst->mdl,"TIME RootSplit done in pstDomainDecomp",&t);
 
 	mdlPrintTimer(pst->mdl,"TIME Mass Check done in pstDomainDecomp",&t);
