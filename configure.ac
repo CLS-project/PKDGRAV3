@@ -18,10 +18,6 @@ AC_DEFINE([FLOAT],double,
 AC_DEFINE([FLOAT_MAXVAL],HUGE,
 	[This defines the maximum value that a FLOAT can represent.])
 
-# The floating point data type for moments
-AC_DEFINE([MOMFLOAT],float,
-	[This defines the base floating point type for moments.])
-
 # Local expansions
 AC_ARG_ENABLE(local-expansion,
   [  --enable-local-expansion       enable local expansion code (experimental)],
@@ -76,6 +72,15 @@ if test "x$USE_SIMD_MOMR" != "xno" -a "x$USE_SIMD" = "xyes" ; then
  	[Define if SIMD optimizations should be used for MOMRs.])
 fi
 AM_CONDITIONAL(USE_SIMD_MOMR,test "x$USE_SIMD_MOMR" != "xno")
+
+# The floating point data type for moments
+if test "x$USE_SIMD" = "xyes" ; then
+AC_DEFINE([MOMFLOAT],float,
+	[This defines the base floating point type for moments.])
+else
+AC_DEFINE([MOMFLOAT],double,
+	[This defines the base floating point type for moments.])
+fi
 
 # Change softening
 CHANGESOFT=yes
