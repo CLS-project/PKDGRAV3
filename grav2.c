@@ -49,9 +49,6 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 #ifdef SOFTSQUARE
     double ptwoh2;
 #endif
-#ifdef USE_SIMD
-    int nCellILC;
-#endif
     int i,j,k,l,na,nia,nSoft,nActive;
 #ifdef USE_SIMD_MOMR
     nCellILC = nCell;
@@ -204,10 +201,17 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	if (pkd->param.bGravStep && rhosum > 0) {
 	    p[i].dtGrav = rhosum/maisum;
 	    }
-	p[i].fPot += fPot;
-	p[i].a[0] += ax;
-	p[i].a[1] += ay;
-	p[i].a[2] += az;	
+
+        /*
+        ** Finally set new acceleration and potential.
+        ** Note that after this point we cannot use the new timestepping criteri
+on since we
+        ** overwrite the acceleration.
+        */
+	p[i].fPot = fPot;
+	p[i].a[0] = ax;
+	p[i].a[1] = ay;
+	p[i].a[2] = az;	
 	} /* end of i-loop cells & particles */
     *pdFlop += nActive*(nPart*40 + nCell*200) + nSoft*15;
     return(nActive);
