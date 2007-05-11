@@ -100,6 +100,9 @@ int main(int argc,char **argv) {
 	}
     first = 0;
 #endif /* TINY_PTHREAD_STACK */
+
+    printf("%s\n", PACKAGE_STRING );
+
 #ifdef USE_BT
     bt_initialize();
 #endif
