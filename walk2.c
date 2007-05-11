@@ -396,8 +396,8 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 		  h2 = 4*pkdc->fSoft2;
 		  if (max2 < h2) iOpen = -3; 
 		  else if (min2 < h2) iOpen = (c[iCell].iLower)?0:-3;
-		}
 #endif
+		}
 		if (!c[iCell].iLower) assert(iOpen != 0);
 /*
   printf("   i:%6d iCheck:%6d id:%2d iOpen:%2d\n",i,Check[i].iCell,id,iOpen);
@@ -834,10 +834,44 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 #endif
 	assert(nCheck == 0);
 	/*
-	** We no longer add *this bucket to any interaction list, this is now done with an 
-	** N(N-1)/2 loop in pkdBucketInteract().
+	** Add Bucket self interactions.
 	*/
 	pkdc = &c[iCell];
+	/*
+	** Local Self-Bucket Interaction.
+	** Interact += Pacticles(pkdc);
+	*/
+	n = pkdc->pUpper - pkdc->pLower + 1;
+	if (nPart + n > nMaxPart) {
+	    nMaxPart += 500 + n;
+	    ilp = realloc(ilp,nMaxPart*sizeof(ILP));
+	    assert(ilp != NULL);	
+	}
+	for (pj=pkdc->pLower;pj<=pkdc->pUpper;++pj) {
+	    ilp[nPart].iOrder = p[pj].iOrder;
+	    ilp[nPart].m = p[pj].fMass;
+	    /*
+	    ** We will assume that all the particles in my bucket are at the same time here so 
+	    ** we will not have a drift factor to worry about.
+	    */
+	    ilp[nPart].x = p[pj].r[0];
+	    ilp[nPart].y = p[pj].r[1];
+	    ilp[nPart].z = p[pj].r[2];
+	    ilp[nPart].vx = p[pj].v[0]; 
+	    ilp[nPart].vy = p[pj].v[1];
+	    ilp[nPart].vz = p[pj].v[2];
+#ifdef SOFTLINEAR
+	    ilp[nPart].h = p[pj].fSoft;
+#endif
+#ifdef SOFTSQUARE
+	    ilp[nPart].twoh2 = 2*p[pj].fSoft*p[pj].fSoft;
+#endif
+#if !defined(SOFTLINEAR) && !defined(SOFTSQUARE)
+	    ilp[nPart].fourh2 = 4*p[pj].fSoft*p[pj].fSoft;
+#endif
+	    ++nPart;
+	}
+
 	/*
 	** Now calculate gravity on this bucket!
 	*/
