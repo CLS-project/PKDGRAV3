@@ -36,6 +36,8 @@ struct parameters {
     int bDodtOutput;
     int bDoRungOutput;
     int bDoGravity;
+    int bHermite;
+    int bHeliocentric;
     int bAntiGrav;
     int nBucket;
     int iOutInterval;

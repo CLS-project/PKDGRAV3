@@ -134,7 +134,11 @@ int main(int argc,char **argv) {
     ** Read in the binary file, this may set the number of timesteps or
     ** the size of the timestep when the zto parameter is used.
     */
-    dTime = msrReadTipsy(msr);
+      if(msr->param.bHeliocentric){
+	dTime = msrReadSS(msr); /* must use "Solar System" (SS) I/O format... */
+    }else{
+      dTime = msrReadTipsy(msr);  /*read initial conditions */
+    } 
     msrInitStep(msr);
     if (prmSpecified(msr->prm,"dSoft")) msrSetSoft(msr,msrSoft(msr));
     /*

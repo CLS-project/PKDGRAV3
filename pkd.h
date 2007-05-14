@@ -96,6 +96,14 @@ typedef struct particle {
 #ifdef RELAXATION
     FLOAT fRelax;
 #endif
+  /* Heliocentric start (collision stuff)*/
+    int iOrgIdx;		/* for tracking of mergers, aggregates etc. */
+    FLOAT w[3];			/* spin vector */
+    int iColor;			/* handy color tag */
+    int iColflag;	        /* handy collision tag 1 for c1, 2 for c2*/
+    int iOrderCol;              /* iOrder of colliding oponent.*/
+  /* Heliocentric end */
+
     } PARTICLE;
 
 /* Active Type Masks */

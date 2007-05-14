@@ -262,6 +262,15 @@ void pstAddServices(PST pst,MDL mdl)
 		  (void (*)(void *,void *,int,void *,int *)) pstStartIO,
 		  sizeof(struct inStartIO),0);
 #endif
+
+/* Heliocentric begin */
+    mdlAddService(mdl,PST_READSS,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstReadSS,
+				  sizeof(struct inReadSS),0);
+    mdlAddService(mdl,PST_WRITESS,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstWriteSS,
+				  sizeof(struct inWriteSS),0);
+/* Heliocentric end */
     }
 
 void pstInitialize(PST *ppst,MDL mdl,LCL *plcl)
@@ -3173,3 +3182,80 @@ void pstInitRelaxation(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     if (pnOut) *pnOut = 0;
     }
 #endif /* RELAXATION */
+/* Heliocentric begin */
+
+void
+pstReadSS(PST pst,void *vin,int nIn,void *vout,int *pnOut)
+{
+	LCL *plcl = pst->plcl;
+	struct inReadSS *in = vin;
+	int nFileStart,nFileEnd,nFileTotal,nFileSplit,nStore;
+	char achInFile[PST_FILENAME_SIZE];
+
+	mdlassert(pst->mdl,nIn == sizeof(struct inReadSS));
+	nFileStart = in->nFileStart;
+	nFileEnd = in->nFileEnd;
+	nFileTotal = nFileEnd - nFileStart + 1;
+	if (pst->nLeaves > 1) {
+		nFileSplit = nFileStart + pst->nLower*(nFileTotal/pst->nLeaves);
+		in->nFileStart = nFileSplit;
+		mdlReqService(pst->mdl,pst->idUpper,PST_READSS,vin,nIn);
+		in->nFileStart = nFileStart;
+		in->nFileEnd = nFileSplit - 1;
+		pstReadSS(pst->pstLower,vin,nIn,NULL,NULL);
+		in->nFileEnd = nFileEnd;
+		mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
+		}
+	else {
+		/*
+		 ** Add the local Data Path to the provided filename.
+		 */
+		achInFile[0] = 0;
+		if (plcl->pszDataPath) {
+			strcat(achInFile,plcl->pszDataPath);
+			strcat(achInFile,"/");
+			}
+		strcat(achInFile,in->achInFile);
+		/*
+		 ** Determine the size of the local particle store.
+		 */
+		nStore = nFileTotal + (int)ceil(nFileTotal*in->fExtraStore);
+		pkdInitialize(&plcl->pkd,pst->mdl,nStore,in->fPeriod,
+		      in->nDark,in->nGas,in->nStar);		
+		pkdReadSS(plcl->pkd,achInFile,nFileStart,nFileTotal);
+		}
+	if (pnOut) *pnOut = 0;
+	}
+
+void
+pstWriteSS(PST pst,void *vin,int nIn,void *vout,int *pnOut)
+{
+	LCL *plcl = pst->plcl;
+	struct inWriteSS *in = vin;
+	char achOutFile[PST_FILENAME_SIZE];
+
+	mdlassert(pst->mdl,nIn == sizeof(struct inWriteSS));
+	if (pst->nLeaves > 1) {
+		mdlReqService(pst->mdl,pst->idUpper,PST_WRITESS,vin,nIn);
+		pstWriteSS(pst->pstLower,vin,nIn,NULL,NULL);
+		mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
+		}
+	else {
+		/*
+		 ** Add the local Data Path to the provided filename.
+		 */
+		achOutFile[0] = 0;
+		if (plcl->pszDataPath) {
+			strcat(achOutFile,plcl->pszDataPath);
+			strcat(achOutFile,"/");
+			}
+		strcat(achOutFile,in->achOutFile);
+		pkdWriteSS(plcl->pkd,achOutFile,plcl->nWriteStart);
+		}
+	if (pnOut) *pnOut = 0;
+	}
+
+/* Heliocentric end */
+
+
+

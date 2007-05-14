@@ -23,6 +23,7 @@
 #include "grav.h"
 #include "mdl.h"
 #include "tipsydefs.h"
+#include "ssio.h"
 
 #include "parameters.h"
 #include "cosmo.h"
@@ -2325,3 +2326,97 @@ void pkdInitRelaxation(PKD pkd)
     }
 
 #endif /* RELAXATION */
+
+/* Heliocentric begin */
+void
+pkdReadSS(PKD pkd,char *pszFileName,int nStart,int nLocal)
+{
+	SSIO ssio;
+	SSDATA data;
+	PARTICLE *p;
+	int i,j, iSetMask;
+
+	pkd->nLocal = nLocal;
+	pkd->nActive = nLocal;
+	/*
+	 ** General initialization (modeled after pkdReadTipsy()).
+	 */
+	for (i=0;i<nLocal;++i) {
+		p = &pkd->pStore[i];
+		TYPEClear(p);
+		p->iRung = 0;
+		p->fWeight = 1.0;
+		p->fDensity = 0.0;		
+		}
+	/*
+	 ** Seek past the header and up to nStart.
+	 */
+	if (ssioOpen(pszFileName,&ssio,SSIO_READ))
+		mdlassert(pkd->mdl,0); /* unable to open ss file */
+	if (ssioSetPos(&ssio,SSHEAD_SIZE + nStart*SSDATA_SIZE))
+		mdlassert(pkd->mdl,0); /* unable to seek in ss file */
+	/*
+	 ** Read Stuff!
+	 */
+	for (i=0;i<nLocal;++i) {
+		p = &pkd->pStore[i];
+		p->iOrder = nStart + i;
+		iSetMask = TYPE_DARK;
+		if (ssioData(&ssio,&data))
+			mdlassert(pkd->mdl,0); /* error during read in ss file */
+		p->iOrgIdx = data.org_idx;
+		p->fMass = data.mass;
+		p->fSoft = data.radius;
+		for (j=0;j<3;++j) p->r[j] = data.pos[j];
+		for (j=0;j<3;++j) p->v[j] = data.vel[j];
+		for (j=0;j<3;++j) p->w[j] = data.spin[j];
+		p->iColor = data.color;
+#ifdef NEED_VPRED
+		for (j=0;j<3;++j) p->vPred[j] = p->v[j];
+#endif
+		TYPESet(p,iSetMask);
+		}
+	if (ssioClose(&ssio))
+		mdlassert(pkd->mdl,0); /* unable to close ss file */
+	}
+
+void
+pkdWriteSS(PKD pkd,char *pszFileName,int nStart)
+{
+	SSIO ssio;
+	SSDATA data;
+	PARTICLE *p;
+	int i,j;
+
+	/*
+	 ** Seek past the header and up to nStart.
+	 */
+	if (ssioOpen(pszFileName,&ssio,SSIO_UPDATE))
+		mdlassert(pkd->mdl,0); /* unable to open ss file */
+	if (ssioSetPos(&ssio,SSHEAD_SIZE + nStart*SSDATA_SIZE))
+		mdlassert(pkd->mdl,0); /* unable to seek in ss file */
+	/* 
+	 ** Write Stuff!
+	 */
+	for (i=0;i<pkdLocal(pkd);++i) {
+		p = &pkd->pStore[i];
+		if (!pkdIsDark(pkd,p))
+			mdlassert(pkd->mdl,0); /* only dark particles allowed in ss file */
+		data.org_idx = p->iOrgIdx;
+		data.mass = p->fMass;
+		data.radius = p->fSoft;
+		for (j=0;j<3;++j) data.pos[j]  = p->r[j];
+		for (j=0;j<3;++j) data.vel[j]  = p->v[j];
+		for (j=0;j<3;++j) data.spin[j] = p->w[j];
+		data.color = p->iColor;
+		if (ssioData(&ssio,&data))
+			mdlassert(pkd->mdl,0); /* unable to write in ss file */
+		}
+	if (ssioClose(&ssio))
+		mdlassert(pkd->mdl,0); /* unable to close ss file */
+	}
+/* Heliocentric end */
+
+
+
+

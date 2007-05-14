@@ -139,6 +139,8 @@ enum pst_service {
     PST_CLEARTIMER,
     PST_FINDIOS,
     PST_STARTIO,
+    PST_READSS,
+    PST_WRITESS,
     };
 
 void pstAddServices(PST,MDL);
@@ -779,4 +781,27 @@ void pstGroupProfiles(PST,void *,int,void *,int *);
 void pstInitRelaxation(PST,void *,int,void *,int *);
 #endif
 
+/* Heliocentric begin */
+
+/* PST_WRITESS */
+struct inWriteSS {
+	char achOutFile[PST_FILENAME_SIZE];
+	};
+void pstWriteSS(PST,void *,int,void *,int *);
+
+/* PST_READSS */
+struct inReadSS {
+	int nFileStart;
+	int nFileEnd;
+	int nDark;
+	int nGas;			/* always zero */
+	int nStar;			/* always zero */
+	int iOrder;
+	float fExtraStore;
+	FLOAT fPeriod[3];	/* for compatability */
+	char achInFile[PST_FILENAME_SIZE];
+	};
+void pstReadSS(PST,void *,int,void *,int *);
+
+/* Heliocentric end */
 #endif

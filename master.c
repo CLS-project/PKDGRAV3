@@ -24,6 +24,7 @@
 #include "outtype.h"
 #include "smoothfcn.h"
 #include "io.h"
+#include "ssio.h"
 
 #ifdef BSC
 #include "mpitrace_user_events.h"
@@ -358,6 +359,12 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv)
     prmAddParam(msr->prm,"dRungDDWeight",2,&msr->param.dRungDDWeight,sizeof(int),
 		"RungDDWeight","<Rung Domain Decomp Weight> = 1.0");
     msr->param.dCentMass = 1.0;
+msr->param.bHermite = 0;
+    prmAddParam(msr->prm,"bHermite",0,&msr->param.bHermite,
+		sizeof(int),"hrm","<Hermite integratot>");
+    msr->param.bHeliocentric = 0;
+	prmAddParam(msr->prm,"bHeliocentric",0,&msr->param.bHeliocentric,
+		    sizeof(int),"hc","use/don't use Heliocentric coordinates = -hc");
     prmAddParam(msr->prm,"dCentMass",2,&msr->param.dCentMass,sizeof(double),
 		"fgm","specifies the central mass for Keplerian orbits");
     msr->param.iWallRunTime = 0;
@@ -673,6 +680,8 @@ void msrLogParams(MSR msr,FILE *fp)
 	fprintf(fp,"\n# iTimeStepCrit: %d",msr->param.iTimeStepCrit);
 	fprintf(fp," nPColl: %d", msr->param.nPColl);
 	fprintf(fp,"\n# bDoGravity: %d",msr->param.bDoGravity);
+	fprintf(fp," bHermite: %d",msr->param.bHermite);
+	fprintf(fp," bHeliocentric: %d",msr->param.bHeliocentric);
 	fprintf(fp," dCentMass: %g",msr->param.dCentMass);
 	fprintf(fp,"\n# dFracNoTreeSqueeze: %g",msr->param.dFracNoTreeSqueeze);
 	fprintf(fp,"\n# dFracNoDomainDecomp: %g",msr->param.dFracNoDomainDecomp);
@@ -3163,3 +3172,260 @@ void msrRelaxation(MSR msr,double dTime,double deltaT,int iSmoothType,int bSymme
 	}
     }
 #endif /* RELAXATION */
+/* Heliocentric begin */
+
+void
+msrOneNodeReadSS(MSR msr,struct inReadSS *in)
+{
+    int i,id;
+    int *nParts;
+    int nStart;
+    PST pst0;
+    LCL *plcl;
+    char achInFile[PST_FILENAME_SIZE];
+    int nid;
+    int inswap;
+
+    nParts = malloc(msr->nThreads*sizeof(*nParts));
+    for (id=0;id<msr->nThreads;++id) {
+		nParts[id] = -1;
+		}
+
+    pstOneNodeReadInit(msr->pst,in,sizeof(*in),nParts,&nid);
+    assert(nid == msr->nThreads*sizeof(*nParts));
+    for (id=0;id<msr->nThreads;++id) {
+		assert(nParts[id] > 0);
+		}
+
+    pst0 = msr->pst;
+    while(pst0->nLeaves > 1)
+		pst0 = pst0->pstLower;
+    plcl = pst0->plcl;
+    /*
+     ** Add the local Data Path to the provided filename.
+     */
+	_msrMakePath(plcl->pszDataPath,in->achInFile,achInFile);
+
+    nStart = nParts[0];
+	assert(msr->pMap[0] == 0);
+    for (i=1;i<msr->nThreads;++i) {
+		id = msr->pMap[i];
+		/* 
+		 * Read particles into the local storage.
+		 */
+		assert(plcl->pkd->nStore >= nParts[id]);
+		pkdReadSS(plcl->pkd,achInFile,nStart,nParts[id]);
+		nStart += nParts[id];
+		/* 
+		 * Now shove them over to the remote processor.
+		 */
+		inswap = 0;
+		mdlReqService(pst0->mdl,id,PST_SWAPALL,&inswap,sizeof(inswap));
+		pkdSwapAll(plcl->pkd, id);
+		mdlGetReply(pst0->mdl,id,NULL,NULL);
+    	}
+    assert(nStart == msr->N);
+    /* 
+     * Now read our own particles.
+     */
+    pkdReadSS(plcl->pkd,achInFile,0,nParts[0]);
+    }
+
+double
+msrReadSS(MSR msr)
+{
+	SSIO ssio;
+	SSHEAD head;
+	struct inReadSS in;
+	struct inSetParticleTypes intype;
+	char achInFile[PST_FILENAME_SIZE];
+	LCL *plcl = msr->pst->plcl;
+	double dTime;
+
+	if (msr->param.achInFile[0]) {
+		/*
+		 ** Add Data Subpath for local and non-local names.
+		 */
+		_msrMakePath(msr->param.achDataSubPath,msr->param.achInFile,in.achInFile);
+		/*
+		 ** Add local Data Path.
+		 */
+		_msrMakePath(plcl->pszDataPath,in.achInFile,achInFile);
+
+		if (ssioOpen(achInFile,&ssio,SSIO_READ)) {
+			printf("Could not open InFile:%s\n",achInFile);
+			_msrExit(msr,1);
+			}
+		}
+	else {
+		printf("No input file specified\n");
+		_msrExit(msr,1);
+		}
+
+	/* Read header */
+
+	if (ssioHead(&ssio,&head)) {
+		printf("Could not read header of InFile:%s\n",achInFile);
+		_msrExit(msr,1);
+		}
+	if (ssioClose(&ssio)) {
+		printf("Could not close InFile:%s\n",achInFile);
+		_msrExit(msr,1);
+		}
+
+	msr->N = msr->nDark = head.n_data;
+	msr->nGas = msr->nStar = 0;
+	msr->nMaxOrder = msr->N - 1;
+	msr->nMaxOrderGas = msr->nGas - 1; /* always -1 */
+	msr->nMaxOrderDark = msr->nDark - 1;
+        msr->nPlanets = head.n_planets;        
+
+	dTime = head.time;
+	if (msr->param.bVStart) {
+		double tTo;
+		printf("Input file...N=%i,Time=%g\n",msr->N,dTime);
+		tTo = dTime + msr->param.nSteps*msr->param.dDelta;
+		printf("Simulation to Time:%g\n",tTo);
+		}
+
+	in.nFileStart = 0;
+	in.nFileEnd = msr->N - 1;
+	in.nDark = msr->nDark;
+	in.nGas = msr->nGas;	/* always zero */
+	in.nStar = msr->nStar;	/* always zero */
+	in.iOrder = msr->param.iOrder;
+	/*
+	 ** Since pstReadSS causes the allocation of the local particle
+	 ** store, we need to tell it the percentage of extra storage it
+	 ** should allocate for load balancing differences in the number of
+	 ** particles.
+	 */
+	in.fExtraStore = msr->param.dExtraStore;
+
+	in.fPeriod[0] = msr->param.dxPeriod;
+	in.fPeriod[1] = msr->param.dyPeriod;
+	in.fPeriod[2] = msr->param.dzPeriod;
+
+	if (msr->param.bParaRead)
+	    pstReadSS(msr->pst,&in,sizeof(in),NULL,NULL);
+	else
+	    msrOneNodeReadSS(msr,&in);
+	pstSetParticleTypes(msr->pst,&intype,sizeof(intype),NULL,NULL);
+	if (msr->param.bVDetails) puts("Input file successfully read.");
+
+	/*
+	 ** Now read in the output points, passing the initial time.
+	 ** We do this only if nSteps is not equal to zero.
+	 */
+	if (msrSteps(msr) > 0) msrReadOuts(msr,dTime);
+	/*
+	 ** Set up the output counter.
+	 */
+	for (msr->iOut=0;msr->iOut<msr->nOuts;++msr->iOut) {
+		if (dTime < msr->pdOutTime[msr->iOut]) break;
+		}
+	return(dTime);
+	}
+
+void
+msrOneNodeWriteSS(MSR msr,struct inWriteSS *in)
+{
+    int i,id;
+    int nStart;
+    PST pst0;
+    LCL *plcl;
+    char achOutFile[PST_FILENAME_SIZE];
+    int inswap;
+
+    pst0 = msr->pst;
+    while(pst0->nLeaves > 1)
+		pst0 = pst0->pstLower;
+    plcl = pst0->plcl;
+    /*
+     ** Add the local Data Path to the provided filename.
+     */
+	_msrMakePath(plcl->pszDataPath,in->achOutFile,achOutFile);
+
+    /* 
+     * First write our own particles.
+     */
+    pkdWriteSS(plcl->pkd,achOutFile,plcl->nWriteStart);
+    nStart = plcl->pkd->nLocal;
+	assert(msr->pMap[0] == 0);
+    for (i=1;i<msr->nThreads;++i) {
+		id = msr->pMap[i];
+		/* 
+		 * Swap particles with the remote processor.
+		 */
+		inswap = 0;
+		mdlReqService(pst0->mdl,id,PST_SWAPALL,&inswap,sizeof(inswap));
+		pkdSwapAll(plcl->pkd,id);
+		mdlGetReply(pst0->mdl,id,NULL,NULL);
+		/* 
+		 * Write the swapped particles.
+		 */
+		pkdWriteSS(plcl->pkd,achOutFile,nStart);
+		nStart += plcl->pkd->nLocal;
+		/* 
+		 * Swap them back again.
+		 */
+		inswap = 0;
+		mdlReqService(pst0->mdl,id,PST_SWAPALL,&inswap,sizeof(inswap));
+		pkdSwapAll(plcl->pkd, id);
+		mdlGetReply(pst0->mdl,id,NULL,NULL);
+    	}
+    assert(nStart == msr->N);
+    }
+
+void
+msrWriteSS(MSR msr,char *pszFileName,double dTime)
+{
+	SSIO ssio;
+	SSHEAD head;
+	struct inWriteSS in;
+	char achOutFile[PST_FILENAME_SIZE];
+	LCL *plcl = msr->pst->plcl;
+
+	/*
+	 ** Calculate where each processor should start writing.
+	 ** This sets plcl->nWriteStart.
+	 */
+	msrCalcWriteStart(msr);
+	/*
+	 ** Add Data Subpath for local and non-local names.
+	 */
+	_msrMakePath(msr->param.achDataSubPath,pszFileName,in.achOutFile);
+	/*
+	 ** Add local Data Path.
+	 */
+	_msrMakePath(plcl->pszDataPath,in.achOutFile,achOutFile);
+	
+	if (ssioOpen(achOutFile,&ssio,SSIO_WRITE)) {
+		printf("Could not open OutFile:%s\n",achOutFile);
+		_msrExit(msr,1);
+		}
+
+	/* Write header */
+
+	head.time = dTime;
+	head.n_data = msr->N;
+	head.n_planets = msr->nPlanets;
+
+	if (ssioHead(&ssio,&head)) {
+		printf("Could not write header of OutFile:%s\n",achOutFile);
+		_msrExit(msr,1);
+		}
+	if (ssioClose(&ssio)) {
+		printf("Could not close OutFile:%s\n",achOutFile);
+		_msrExit(msr,1);
+		}
+
+	if(msr->param.bParaWrite)
+	    pstWriteSS(msr->pst,&in,sizeof(in),NULL,NULL);
+	else
+		msrOneNodeWriteSS(msr,&in);
+
+	if (msr->param.bVDetails) puts("Output file successfully written.");
+	}
+
+/* Heliocentric end */
