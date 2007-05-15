@@ -100,9 +100,6 @@ int main(int argc,char **argv) {
 	}
     first = 0;
 #endif /* TINY_PTHREAD_STACK */
-
-    printf("%s\n", PACKAGE_STRING );
-
 #ifdef USE_BT
     bt_initialize();
 #endif
@@ -118,6 +115,9 @@ int main(int argc,char **argv) {
     mdlInitialize(&mdl,argv,main_ch);
 #endif
     for(argc = 0; argv[argc]; argc++); /* some MDLs can trash argv */
+
+    printf("%s\n", PACKAGE_STRING );
+
     msrInitialize(&msr,mdl,argc,argv);
 
     (void) strncpy(achBaseMask,msr->param.achDigitMask,256);
