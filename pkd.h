@@ -102,6 +102,8 @@ typedef struct particle {
     int iColor;			/* handy color tag */
     int iColflag;	        /* handy collision tag 1 for c1, 2 for c2*/
     int iOrderCol;              /* iOrder of colliding oponent.*/
+
+    FLOAT ad[3];
   /* Heliocentric end */
 
     } PARTICLE;
@@ -594,7 +596,8 @@ void pkdDriftInactive(PKD pkd,double dTime,double dDelta,FLOAT fCenter[3],int bP
 		      int bFandG, FLOAT fCentMass);
 void pkdStepVeryActiveKDK(PKD pkd, double dStep, double dTime, double dDelta,
 			  int iRung, int iKickRung, int iRungVeryActive,int iAdjust,
-			  double diCrit2,int *pnMaxRung);
+			  double diCrit2,int *pnMaxRung,
+			  double aSunInact[3], double adSunInact[3], double dSunMass);
 void pkdKickKDKOpen(PKD pkd,double dTime,double dDelta);
 void pkdKickKDKClose(PKD pkd,double dTime,double dDelta);
 void pkdKick(PKD pkd,double,double, double, double, double, double, int, double, double);
@@ -634,5 +637,10 @@ void pkdSetNParts(PKD pkd, int nGas, int nDark, int nStar, int nMaxOrderGas,
 void pkdInitRelaxation(PKD pkd);
 #endif
 int pkdPackIO(PKD pkd,PIO *io,int nStart,int nMax);
+
+/* Heliocentric start*/
+void pkdSunIndirect(PKD, double [], double [], int);
+void pkdGravSun(PKD,double *,double *,double);
+/* Heliocentric end */
 #endif
 

@@ -1641,11 +1641,14 @@ void pkdGravityVeryActive(PKD pkd,double dTime,int bEwald,int nReps,double fEwCu
 void
 pkdStepVeryActiveKDK(PKD pkd, double dStep, double dTime, double dDelta,
 		     int iRung, int iKickRung, int iRungVeryActive,int iAdjust, double diCrit2,
-		     int *pnMaxRung)
+		     int *pnMaxRung, double aSunInact[], double adSunInact[], double dSunMass)
     {
     int nRungCount[256];
     double dDriftFac;
     int i;
+
+    double aSun[3], adSun[3];
+    int j;
 
     double time1,time2; /* added MZ 1.6.2006 */
     
@@ -1691,12 +1694,12 @@ pkdStepVeryActiveKDK(PKD pkd, double dStep, double dTime, double dDelta,
 	** Recurse.
 	*/
 	pkdStepVeryActiveKDK(pkd,dStep,dTime,0.5*dDelta,iRung+1,iRung+1,iRungVeryActive,0,
-			     diCrit2,pnMaxRung);
+			     diCrit2,pnMaxRung,aSunInact,adSunInact,dSunMass);
 	dStep += 1.0/(2 << iRung);
 	dTime += 0.5*dDelta;
 	pkdActiveRung(pkd,iRung,0);
 	pkdStepVeryActiveKDK(pkd,dStep,dTime,0.5*dDelta,iRung+1,iKickRung,iRungVeryActive,1,
-			     diCrit2,pnMaxRung);
+			     diCrit2,pnMaxRung,aSunInact,adSunInact,dSunMass);
 	}
     else {
 	if (pkd->param.bVDetails) {
@@ -1740,6 +1743,22 @@ pkdStepVeryActiveKDK(PKD pkd, double dStep, double dTime, double dDelta,
 	    pkdActiveRung(pkd,iKickRung,1);
 	    pkdVATreeBuild(pkd,pkd->param.nBucket,diCrit2,0,dTime);
 	    pkdGravityVeryActive(pkd,dTime,pkd->param.bEwald && pkd->param.bPeriodic,pkd->param.nReplicas,pkd->param.dEwCut,dStep);
+
+	    /* Sun's gravity */
+           if(pkd->param.bHeliocentric){
+	       /* Sun's indirect gravity due to very active particles*/
+	   pkdActiveRung(pkd,iRungVeryActive+1,1);
+	   pkdSunIndirect(pkd,aSun,adSun,1); 
+           for (j=0;j<3;++j)
+	       	{                 
+                 aSun[j] += aSunInact[j];
+		 adSun[j] += adSunInact[j];
+	       	}
+	    pkdActiveRung(pkd,iKickRung,1);
+	    pkdGravSun(pkd,aSun,adSun,dSunMass); 
+           }
+
+
 	    time2 = Zeit();
 	    if(pkd->param.bVDetails)
 		printf("Time: %g\n",time2-time1);
@@ -2415,6 +2434,86 @@ pkdWriteSS(PKD pkd,char *pszFileName,int nStart)
 	if (ssioClose(&ssio))
 		mdlassert(pkd->mdl,0); /* unable to close ss file */
 	}
+
+ void pkdSunIndirect(PKD pkd,double aSun[],double adSun[],int iFlag)
+ {
+     PARTICLE *p;
+     FLOAT r2,r1i,r3i,r5i,rv;
+     int i,j,n;
+   
+     for (j=0;j<3;++j)
+	       	{                 
+                 aSun[j] = 0;
+		 adSun[j] = 0;
+	       	}
+     p = pkd->pStore;
+     n = pkdLocal(pkd); 
+     for (i=0;i<n;++i) {
+       
+       if (iFlag == 2){ 
+	 if (TYPEQueryACTIVE(&p[i])) continue; /* inactive */
+       }else if(iFlag == 1){
+	 if (!TYPEQueryACTIVE(&p[i])) continue; /* active */
+       }
+
+	 r2 = 0;
+	 rv = 0;
+	 for (j=0;j<3;++j)
+	       	{ 
+                 r2 += p[i].r[j]*p[i].r[j];
+                 rv += p[i].v[j]*p[i].r[j];
+	       	}
+	 r1i = (r2 == 0 ? 0 : 1/sqrt(r2));
+	 r3i = p[i].fMass*r1i*r1i*r1i;
+         r5i = 3.0*rv*r3i*r1i*r1i; 
+	 for (j=0;j<3;++j)
+	       	{ 
+                 aSun[j] += p[i].r[j]*r3i;
+                 adSun[j] += p[i].v[j]*r3i-p[i].r[j]*r5i;
+	       	}	
+ }
+ } 
+
+void pkdGravSun(PKD pkd,double *aSun,double *adSun,double dSunMass)
+{
+	PARTICLE *p;
+	double r2,v2,r1i,r3i;
+        double aai,aa3i,idt2;
+        double rv, r5i; 
+	int i,j,n;
+
+	p = pkd->pStore;
+	n = pkdLocal(pkd);
+	for (i=0;i<n;++i) {
+		if (TYPEQueryACTIVE(&(p[i]))) {
+			r2 = 0;
+                        v2 = 0;
+                        rv = 0;
+			for (j=0;j<3;++j)
+			{ 
+                        r2 += p[i].r[j]*p[i].r[j];
+                        v2 += p[i].v[j]*p[i].v[j];
+                        rv += p[i].v[j]*p[i].r[j];
+			}
+			r1i = (r2 == 0 ? 0 : 1/sqrt(r2)); /* gravity at origin = zero */
+			p[i].fPot -= dSunMass*r1i;
+			r3i = dSunMass*r1i*r1i*r1i;
+                        r5i = 3.0*rv*r3i*r1i*r1i;
+			/* time step is determined by semimajor axis, not the heliocentric distance*/ 
+                        aai =  -v2+2.0*r1i; 	              
+                        aa3i = aai*aai*aai;
+			idt2 = (p[i].fMass + dSunMass)*aa3i;
+			/*if (p[i].dtSun > p[i].dtGrav) p[i].dtGrav = p[i].dtSun;*/
+			if (idt2 > p[i].dtGrav) p[i].dtGrav = idt2;
+				   
+				for (j=0;j<3;++j) {					
+					p[i].a[j] -= (aSun[j] + p[i].r[j]*r3i);
+                                        p[i].ad[j] -= (adSun[j] + p[i].v[j]*r3i-p[i].r[j]*r5i);
+					}				
+			}
+		}
+	}
+
 /* Heliocentric end */
 
 

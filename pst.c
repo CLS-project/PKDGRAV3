@@ -270,6 +270,12 @@ void pstAddServices(PST pst,MDL mdl)
     mdlAddService(mdl,PST_WRITESS,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstWriteSS,
 				  sizeof(struct inWriteSS),0);
+    mdlAddService(mdl,PST_SUNINDIRECT,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstSunIndirect,
+		  sizeof(struct inSunIndirect),sizeof(struct outSunIndirect));
+    mdlAddService(mdl,PST_GRAVSUN,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstGravSun,
+		  sizeof(struct inGravSun),0);
 /* Heliocentric end */
     }
 
@@ -2543,7 +2549,8 @@ void pstStepVeryActiveKDK(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 	out->nMaxRung = in->nMaxRung;
 	pkdStepVeryActiveKDK(plcl->pkd,in->dStep,in->dTime,in->dDelta,
 			     in->iRung, in->iRung, in->iRung, 0, in->diCrit2,
-			     &out->nMaxRung);
+			     &out->nMaxRung, in->aSunInact, in->adSunInact, 
+			     in->dSunMass);
 	mdlCacheBarrier(pst->mdl,CID_CELL);
 	}
     if (pnOut) *pnOut = sizeof(*out);
@@ -3254,6 +3261,49 @@ pstWriteSS(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 		}
 	if (pnOut) *pnOut = 0;
 	}
+
+void pstSunIndirect(PST pst,void *vin,int nIn,void *vout,int *pnOut)
+    {
+    /* calculate acceralation on Sun by direct summation */
+    LCL *plcl = pst->plcl;
+    struct inSunIndirect *in = vin;
+    struct outSunIndirect *out = vout;
+    struct outSunIndirect outLcl;
+    int k;
+
+    mdlassert(pst->mdl,nIn == sizeof(struct inSunIndirect));
+    if (pst->nLeaves > 1) {
+	mdlReqService(pst->mdl,pst->idUpper,PST_SUNINDIRECT,vin,nIn);
+	pstSunIndirect(pst->pstLower,vin,nIn,out,NULL);
+	mdlGetReply(pst->mdl,pst->idUpper,&outLcl,NULL);
+	for (k=0;k<3;k++){ 
+         out->aSun[k] += outLcl.aSun[k];
+	 out->adSun[k] += outLcl.adSun[k];
+	 }
+	}
+    else {
+	pkdSunIndirect(plcl->pkd,out->aSun,out->adSun,in->iFlag);
+	}
+    if (pnOut) *pnOut = sizeof(struct outSunIndirect);
+     }
+
+void pstGravSun(PST pst,void *vin,int nIn,void *vout,int *pnOut)
+    {
+    LCL *plcl = pst->plcl;
+    struct inGravSun *in = vin;
+
+    mdlassert(pst->mdl,nIn == sizeof(struct inGravSun));
+    if (pst->nLeaves > 1) {
+	mdlReqService(pst->mdl,pst->idUpper,PST_GRAVSUN,vin,nIn);
+	pstGravSun(pst->pstLower,vin,nIn,NULL,NULL);
+	mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
+    }
+    else {
+      pkdGravSun(plcl->pkd,in->aSun,in->adSun,in->dSunMass);
+    }
+    if (pnOut) *pnOut = 0;
+    }
+
 
 /* Heliocentric end */
 

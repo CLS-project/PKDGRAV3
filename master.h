@@ -29,8 +29,7 @@ typedef struct msrContext {
     int N;
     int nDark;
     int nGas;
-    int nStar;
-    int nPlanets; /* currently not used */  
+    int nStar;   
     int nMaxOrder;		/* Order number of last particle */
     int nMaxOrderGas;
     int nMaxOrderDark;
@@ -67,6 +66,12 @@ typedef struct msrContext {
     int bAntiGrav;
 
     int bSavePending;
+     
+    /* Heliocentric begin */
+    int nPlanets; /* currently not used */ 
+    double dEcoll;
+    double dSunMass;
+    /* Heliocenteic end */
 
     } * MSR;
 
@@ -183,6 +188,7 @@ void msrRelaxation(MSR msr,double dTime,double deltaT,int iSmoothType,int bSymme
 /* Heliocentric begin */
 double msrReadSS(MSR msr);
 void msrWriteSS(MSR msr, char *pszFileName, double dTime);
+void msrGravSun(MSR msr);
 /* Heliocentric end */
 
 #endif

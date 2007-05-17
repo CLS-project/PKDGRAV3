@@ -358,13 +358,13 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv)
     msr->param.dRungDDWeight = 1.0;
     prmAddParam(msr->prm,"dRungDDWeight",2,&msr->param.dRungDDWeight,sizeof(int),
 		"RungDDWeight","<Rung Domain Decomp Weight> = 1.0");
-    msr->param.dCentMass = 1.0;
-msr->param.bHermite = 0;
+    msr->param.bHermite = 0;
     prmAddParam(msr->prm,"bHermite",0,&msr->param.bHermite,
 		sizeof(int),"hrm","<Hermite integratot>");
     msr->param.bHeliocentric = 0;
 	prmAddParam(msr->prm,"bHeliocentric",0,&msr->param.bHeliocentric,
 		    sizeof(int),"hc","use/don't use Heliocentric coordinates = -hc");
+    msr->param.dCentMass = 1.0;
     prmAddParam(msr->prm,"dCentMass",2,&msr->param.dCentMass,sizeof(double),
 		"fgm","specifies the central mass for Keplerian orbits");
     msr->param.iWallRunTime = 0;
@@ -1496,9 +1496,9 @@ void msrDomainDecomp(MSR msr,int iRung,int bGreater,int bSplitVA) {
 	}
 
     in.bSplitVA = bSplitVA;
-    if (bSplitVA) {
+    /*if (bSplitVA) {
 	printf("*** Splitting very active particles!\n");	
-	}
+	}*/
     pstDomainDecomp(msr->pst,&in,sizeof(in),NULL,NULL);
     msr->bDoneDomainDecomp = 1; 
 
@@ -2721,6 +2721,11 @@ void msrTopStepKDK(MSR msr,
 	    msrGravity(msr,dTime,dStep,piSec,pdWMax,pdIMax,pdEMax,&nActive);
 	    *pdActiveSum += (double)nActive/msr->N;
 	    }
+
+	/* Sun's direct and indirect gravity */
+	if(msr->param.bHeliocentric) {
+	  msrGravSun(msr);
+	    }
 	/*
 	 * move time back to 1/2 step so that KickClose can integrate
 	 * from 1/2 through the timestep to the end.
@@ -2803,6 +2808,12 @@ void msrTopStepKDK(MSR msr,
 	    msrGravity(msr,dTime,dStep,piSec,pdWMax,pdIMax,pdEMax,&nActive);
 	    *pdActiveSum += (double)nActive/msr->N;
 	    }
+
+	/* Sun's direct and indirect gravity */
+	if(msr->param.bHeliocentric) {
+	  msrGravSun(msr);
+	    }
+
 	dDeltaTmp = dDelta;
 	for(i = msrCurrMaxRung(msr); i > iRung; i--)
 	    dDeltaTmp *= 0.5;
@@ -2840,13 +2851,27 @@ msrStepVeryActiveKDK(MSR msr, double dStep, double dTime, double dDelta,
     struct inStepVeryActive in;
     struct outStepVeryActive out;
     
+    struct inSunIndirect ins;
+    struct outSunIndirect outs;
+
+    if(msr->param.bHeliocentric){
+      int k;        
+
+      ins.iFlag = 2; /* for inactive particles */ 
+      pstSunIndirect(msr->pst,&ins,sizeof(ins),&outs,NULL); 
+	for (k=0;k<3;k++){ 
+        in.aSunInact[k] = outs.aSun[k];
+	in.adSunInact[k] = outs.adSun[k];
+	}
+      }
+
     in.dStep = dStep;
     in.dTime = dTime;
     in.dDelta = dDelta;
     in.iRung = iRung;
     in.diCrit2 = 1/(msr->dCrit*msr->dCrit);   /* could set a stricter opening criterion here */
     in.nMaxRung = msrCurrMaxRung(msr);
-    
+    in.dSunMass = msr->dSunMass;
     /*
      * Start Particle Cache on all nodes (could be done as part of
      * tree build)
@@ -3279,6 +3304,9 @@ msrReadSS(MSR msr)
 	msr->nMaxOrderGas = msr->nGas - 1; /* always -1 */
 	msr->nMaxOrderDark = msr->nDark - 1;
         msr->nPlanets = head.n_planets;        
+	msr->dEcoll = head.dEcoll;        
+        msr->dSunMass = head.dSunMass;        
+
 
 	dTime = head.time;
 	if (msr->param.bVStart) {
@@ -3410,6 +3438,8 @@ msrWriteSS(MSR msr,char *pszFileName,double dTime)
 	head.time = dTime;
 	head.n_data = msr->N;
 	head.n_planets = msr->nPlanets;
+	head.dEcoll = msr->dEcoll;
+	head.dSunMass = msr->dSunMass;
 
 	if (ssioHead(&ssio,&head)) {
 		printf("Could not write header of OutFile:%s\n",achOutFile);
@@ -3428,4 +3458,26 @@ msrWriteSS(MSR msr,char *pszFileName,double dTime)
 	if (msr->param.bVDetails) puts("Output file successfully written.");
 	}
 
+void msrGravSun(MSR msr)
+{
+	struct inGravSun in;
+
+	struct inSunIndirect ins;
+	struct outSunIndirect outs;
+
+	int j;
+
+	/* Calculate Sun's indirect gravity */
+	ins.iFlag = 0;	/* for all particles */
+	pstSunIndirect(msr->pst,&ins,sizeof(ins),&outs,NULL); 
+	for (j=0;j<3;++j){ 
+                in.aSun[j] = outs.aSun[j];
+		in.adSun[j] = outs.adSun[j];
+		}
+
+	in.dSunMass = msr->dSunMass;
+
+	pstGravSun(msr->pst,&in,sizeof(in),NULL,NULL);
+
+}
 /* Heliocentric end */

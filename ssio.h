@@ -31,10 +31,11 @@ typedef struct ss_head {
 	double	time;
 	int		n_data;
         int		n_planets;  /* currently not used */
-        double          dEcoll; /* kinetic energy change in collisions so far*/    
+        double          dEcoll; /* kinetic energy change in collisions so far*/  
+        double          dSunMass; /*Sun's mass*/   
 	} SSHEAD;
 
-#define SSHEAD_SIZE 24	/* XDR assumes 8-byte doubles and 4-byte ints */
+#define SSHEAD_SIZE 32	/* XDR assumes 8-byte doubles and 4-byte ints */
 
 typedef struct ss_data {
 	double	mass;

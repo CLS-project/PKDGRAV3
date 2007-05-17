@@ -63,6 +63,7 @@ ssioHead(SSIO *ssio,SSHEAD *head)
 	if (!xdr_int(&ssio->xdrs,&head->n_data)) return 1;
 	if (!xdr_int(&ssio->xdrs,&head->n_planets)) return 1;
 	if (!xdr_double(&ssio->xdrs,&head->dEcoll)) return 1;
+	if (!xdr_double(&ssio->xdrs,&head->dSunMass)) return 1;
 	return 0;
 	}
 

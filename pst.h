@@ -141,6 +141,8 @@ enum pst_service {
     PST_STARTIO,
     PST_READSS,
     PST_WRITESS,
+    PST_SUNINDIRECT,
+    PST_GRAVSUN,
     };
 
 void pstAddServices(PST,MDL);
@@ -467,6 +469,9 @@ struct inStepVeryActive
     int iRung;
     int nMaxRung;
     double diCrit2;
+    double aSunInact[3];
+    double adSunInact[3];
+    double dSunMass;
     };
 struct outStepVeryActive
     {
@@ -802,6 +807,24 @@ struct inReadSS {
 	char achInFile[PST_FILENAME_SIZE];
 	};
 void pstReadSS(PST,void *,int,void *,int *);
+
+/* PST_SUNINDIRECT */
+struct inSunIndirect{
+      int iFlag;
+     }; 
+struct outSunIndirect{
+      double aSun[3];
+      double adSun[3];
+     }; 
+void pstSunIndirect(PST,void *,int,void *,int *);
+
+/* PST_GRAVSUN */
+struct inGravSun{
+      double aSun[3];
+      double adSun[3];
+      double dSunMass;
+      };
+void pstGravSun(PST,void *,int,void *,int *);
 
 /* Heliocentric end */
 #endif
