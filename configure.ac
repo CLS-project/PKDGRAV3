@@ -73,6 +73,24 @@ if test "x$USE_SIMD_MOMR" != "xno" -a "x$USE_SIMD" = "xyes" ; then
 fi
 AM_CONDITIONAL(USE_SIMD_MOMR,test "x$USE_SIMD_MOMR" != "xno")
 
+AC_ARG_ENABLE(simd-pp,
+  [  --disable-simd-pp              disable PP SIMD optimizations],
+  [if test "x$enableval" = "xyes" ; then
+     USE_SIMD_PP="yes"
+   elif test "x$enableval" = "xno" ; then
+     USE_SIMD_PP="no"
+   else
+     USE_SIMD_PP="$USE_SIMD"
+   fi])
+if test "x$USE_SIMD_PP" != "xno" -a "x$USE_SIMD" = "xyes" ; then
+  AC_DEFINE([USE_SIMD_PP],1, 
+ 	[Define if SIMD optimizations should be used for PP interactions.])
+fi
+AM_CONDITIONAL(USE_SIMD_PP,test "x$USE_SIMD_PP" != "xno")
+
+
+
+
 # The floating point data type for moments
 if test "x$USE_SIMD" = "xyes" ; then
 AC_DEFINE([MOMFLOAT],float,

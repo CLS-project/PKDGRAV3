@@ -139,6 +139,11 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	    } /* end of cell list gravity loop */
 #endif		
 	mdlCacheCheck(pkd->mdl);
+
+#ifdef USE_SIMD_PP
+	PPInteractSIMD( nPart,ilp,p[i].r,p[i].a,p[i].fMass,p[i].fSoft,
+			&ax, &ay, &az, &fPot );
+#else
 	
 #ifdef SOFTSQUARE
 	ptwoh2 = 2*p[i].fSoft*p[i].fSoft;
@@ -195,6 +200,8 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	    ay += tay;
 	    az += taz;
 	    } /* end of particle list gravity loop */
+#endif
+
 	/*
 	** Set the density value using the new timestepping formula.
 	*/
