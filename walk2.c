@@ -118,8 +118,11 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
     int nCell,nMaxCell;
     int nPartBucket,nMaxPartBucket;
 #ifdef USE_SIMD
+    __m128 vdir;
+    float  sdir;
+    int nGlam,nMaxGlam;
+    int ig,iv;
     GLAM *ilglam;
-    int nGlam,nMaxGlam,ig,iv;
 #ifdef GLAM_STATS
     int nTotGlam=0, nAvgGlam=0;
 #endif
@@ -161,7 +164,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
     assert(ilp != NULL);
     nCell = 0;
 #ifdef USE_SIMD_MOMR
-    nMaxCell = 40000;
+    nMaxCell = 1000;
     ilc = SIMD_malloc(nMaxCell/4*sizeof(ILC));
 #else
     nMaxCell = 500;
@@ -173,7 +176,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
     ilpb = malloc(nMaxPartBucket*sizeof(ILPB));
     assert(ilpb != NULL);
 #ifdef USE_SIMD
-    nMaxGlam = 10000;
+    nMaxGlam = 1000;
     ilglam = SIMD_malloc(nMaxGlam*sizeof(GLAM));
     assert(ilglam != 0);
     nGlam = 0;
@@ -571,58 +574,42 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 		  ** Add to the GLAM list to be evaluated later.
 		  */
 #ifdef USE_SIMD
-		  if (nGlam == nMaxGlam) {
-		    nMaxGlam += 100;
-		    ilglam = SIMD_realloc( ilglam, (nMaxGlam-500)*sizeof(GLAM),
-					  nMaxGlam*sizeof(GLAM));
-		    assert(ilglam != 0);
-		  }
-		  ig = nGlam>>2;
-		  iv = nGlam&3;
-		  dir = 1.0/sqrt(d2);
-		  ilglam[ig].q.m.f[iv] = pkdc->mom.m;
-		  ilglam[ig].q.xx.f[iv] = pkdc->mom.xx;
-		  ilglam[ig].q.xy.f[iv] = pkdc->mom.xy;
-		  ilglam[ig].q.xz.f[iv] = pkdc->mom.xz;
-		  ilglam[ig].q.yy.f[iv] = pkdc->mom.yy;
-		  ilglam[ig].q.yz.f[iv] = pkdc->mom.yz;
-		  ilglam[ig].q.xxx.f[iv] = pkdc->mom.xxx;
-		  ilglam[ig].q.xxy.f[iv] = pkdc->mom.xxy;
-		  ilglam[ig].q.xxz.f[iv] = pkdc->mom.xxz;
-		  ilglam[ig].q.xyy.f[iv] = pkdc->mom.xyy;
-		  ilglam[ig].q.xyz.f[iv] = pkdc->mom.xyz;
-		  ilglam[ig].q.yyy.f[iv] = pkdc->mom.yyy;
-		  ilglam[ig].q.yyz.f[iv] = pkdc->mom.yyz;
-		  ilglam[ig].q.xxxx.f[iv] = pkdc->mom.xxxx;
-		  ilglam[ig].q.xxxy.f[iv] = pkdc->mom.xxxy;
-		  ilglam[ig].q.xxxz.f[iv] = pkdc->mom.xxxz;
-		  ilglam[ig].q.xxyy.f[iv] = pkdc->mom.xxyy;
-		  ilglam[ig].q.xxyz.f[iv] = pkdc->mom.xxyz;
-		  ilglam[ig].q.xyyy.f[iv] = pkdc->mom.xyyy;
-		  ilglam[ig].q.xyyz.f[iv] = pkdc->mom.xyyz;
-		  ilglam[ig].q.yyyy.f[iv] = pkdc->mom.yyyy;
-		  ilglam[ig].q.yyyz.f[iv] = pkdc->mom.yyyz;
-		  ilglam[ig].dir.f[iv] = dir;
-		  ilglam[ig].g0.f[iv] = -dir;
-		  ilglam[ig].t1.f[iv] = -dir;
-		  ilglam[ig].t2.f[iv] = -3*dir;
-		  ilglam[ig].t3r.f[iv] = -5;
-		  ilglam[ig].t4r.f[iv] = -7;
-		  ilglam[ig].x.f[iv] = dx[0];
-		  ilglam[ig].y.f[iv] = dx[1];
-		  ilglam[ig].z.f[iv] = dx[2];
-		  ++nGlam;
+		    if (nGlam == nMaxGlam) {
+			nMaxGlam += 1000;
+			ilglam = SIMD_realloc(ilglam,
+					      (nMaxGlam-1000)*sizeof(GLAM),
+					      nMaxGlam*sizeof(GLAM));
+			assert(ilglam != 0);
+		    }
+
+		    vdir = _mm_rsqrt_ss(_mm_set_ss(d2));
+		    sdir = _mm_cvtss_f32(vdir);
+		    sdir *= ((3.0 - sdir * sdir * (float)d2) * 0.5);
+		    //dir = 1.0/sqrt(d2);
+
+		    ilglam[nGlam].q = pkdc->mom;
+		    ilglam[nGlam].dir = sdir;
+		    ilglam[nGlam].g0 = -sdir;
+		    ilglam[nGlam].t1 = -sdir;
+		    ilglam[nGlam].t2 = -3*sdir;
+		    ilglam[nGlam].t3r = -5;
+		    ilglam[nGlam].t4r = -7;
+		    ilglam[nGlam].x = dx[0];
+		    ilglam[nGlam].y = dx[1];
+		    ilglam[nGlam].z = dx[2];
+		    ilglam[nGlam].zero = 0.0;
+		    ++nGlam;
 #else
 #if 1
-		  dir = 1.0/sqrt(d2);
-		  t1 = -dir;
-		  t2 = -3*dir;
-		  t3r = -5;
-		  t4r = -7;
-		  momGenLocrAddMomr(&L,&pkdc->mom,dir,-dir,
-				    t1,t2,t3r,t4r,dx[0],dx[1],dx[2]);
+		    dir = 1.0/sqrt(d2);
+		    t1 = -dir;
+		    t2 = -3*dir;
+		    t3r = -5;
+		    t4r = -7;
+		    momGenLocrAddMomr(&L,&pkdc->mom,dir,-dir,
+				      t1,t2,t3r,t4r,dx[0],dx[1],dx[2]);
 #else
-		  momLocrAddMomr(&L,&pkdc->mom,dir,dx[0],dx[1],dx[2]);
+		    momLocrAddMomr(&L,&pkdc->mom,dir,dx[0],dx[1],dx[2]);
 #endif
 #endif
 		}
@@ -635,7 +622,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 			nMaxCell += 500;
 #ifdef USE_SIMD_MOMR
 			ilc = SIMD_realloc(ilc, (nMaxCell-500)/4*sizeof(ILC),
-					  nMaxCell/4*sizeof(ILC));
+					   nMaxCell/4*sizeof(ILC));
 #else
 			ilc = realloc(ilc,nMaxCell*sizeof(ILC));
 #endif
@@ -749,7 +736,6 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 	    */
 #ifdef USE_SIMD
 	    *pdFlop += momGenLocrAddSIMDMomr(&L,nGlam,ilglam,0,0,0,0,0);
-	    /**pdFlop += momGenLocrAddVMomr(&L,nGlam,ilglam,0,0,0,0,0);*/
 #ifdef GLAM_STATS
 	    nAvgGlam += nGlam;
 	    nTotGlam++;
