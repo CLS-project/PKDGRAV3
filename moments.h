@@ -19,6 +19,7 @@ typedef double momFloat;
 /*
  ** moment tensor components for reduced multipoles.
  */
+/* IMPORTANT: The order of the fields MUST match with VMOMR */
 typedef struct momReduced {
 	momFloat m;
 	momFloat xx,yy,xy,xz,yz;
@@ -36,26 +37,46 @@ typedef union {
     float f[4];
 } momPacked;
 
+/* IMPORTANT: The order of the fields MUST match with MOMR */
 typedef struct momVectorReduced {
-	momPacked m;
-	momPacked xx,yy,xy,xz,yz;
-	momPacked xxx,xyy,xxy,yyy,xxz,yyz,xyz;
-	momPacked xxxx,xyyy,xxxy,yyyy,xxxz,yyyz,xxyy,xxyz,xyyz;
-	} VMOMR;
+    momPacked m;
+    momPacked xx,yy,xy,xz,yz;
+    momPacked xxx,xyy,xxy,yyy,xxz,yyz,xyz;
+    momPacked xxxx,xyyy,xxxy,yyyy,xxxz,yyyz,xxyy,xxyz,xyyz;
+} VMOMR;
 
-typedef struct momGenLocrAddMomrArray {
-  VMOMR q;
-  momPacked dir;
-  momPacked g0;
-  momPacked t1;
-  momPacked t2;
-  momPacked t3r;
-  momPacked t4r;
-  momPacked x;
-  momPacked y;
-  momPacked z;
-} GLAM;
+/* IMPORTANT: The order of the fields MUST match with GLAM  */
+/* IMPORTANT: The size of this structure must aligned by 16 */
+typedef struct momGenLocrAddMomrSIMDArray {
+    VMOMR q;
+    momPacked dir;
+    momPacked g0;
+    momPacked t1;
+    momPacked t2;
+    momPacked t3r;
+    momPacked t4r;
+    momPacked x;
+    momPacked y;
+    momPacked z;
+    momPacked zero;
+} VGLAM;
 #endif
+
+/* IMPORTANT: The order of the fields MUST match with VGLAM */
+/* IMPORTANT: The size of this structure must aligned by 16 */
+typedef struct momGenLocrAddMomrArray {
+    MOMR q;
+    momFloat dir;
+    momFloat g0;
+    momFloat t1;
+    momFloat t2;
+    momFloat t3r;
+    momFloat t4r;
+    momFloat x;
+    momFloat y;
+    momFloat z;
+    momFloat zero; /* 32 floats here */
+} GLAM;
 
 /*
 ** components required for evaluating a multipole interaction.
