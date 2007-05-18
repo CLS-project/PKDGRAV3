@@ -161,8 +161,8 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
     assert(ilp != NULL);
     nCell = 0;
 #ifdef USE_SIMD_MOMR
-    nMaxCell = 4000;
-    ilc = _mm_malloc(nMaxCell/4*sizeof(ILC),sizeof(v4sf));
+    nMaxCell = 40000;
+    ilc = SIMD_malloc(nMaxCell/4*sizeof(ILC));
 #else
     nMaxCell = 500;
     ilc = malloc(nMaxCell*sizeof(ILC));
@@ -173,8 +173,8 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
     ilpb = malloc(nMaxPartBucket*sizeof(ILPB));
     assert(ilpb != NULL);
 #ifdef USE_SIMD
-    nMaxGlam = 1000;
-    ilglam = _mm_malloc(nMaxGlam*sizeof(GLAM),sizeof(v4sf));
+    nMaxGlam = 10000;
+    ilglam = SIMD_malloc(nMaxGlam*sizeof(GLAM));
     assert(ilglam != 0);
     nGlam = 0;
 #endif
@@ -472,14 +472,18 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 				assert(ilp != NULL);	
 				}
 			    for (pj=pkdc->pLower;pj<=pkdc->pUpper;++pj) {
+#ifndef USE_SIMD
 				ilp[nPart].iOrder = p[pj].iOrder;
+#endif
 				ilp[nPart].m = p[pj].fMass;
 				ilp[nPart].x = p[pj].r[0] + dDriftFac*p[pj].v[0] + Check[i].rOffset[0];
 				ilp[nPart].y = p[pj].r[1] + dDriftFac*p[pj].v[1] + Check[i].rOffset[1];
 				ilp[nPart].z = p[pj].r[2] + dDriftFac*p[pj].v[2] + Check[i].rOffset[2];
+#ifndef USE_SIMD
 				ilp[nPart].vx = p[pj].v[0]; 
 				ilp[nPart].vy = p[pj].v[1];
 				ilp[nPart].vz = p[pj].v[2];
+#endif
 #ifdef SOFTLINEAR
 				ilp[nPart].h = p[pj].fSoft;
 #endif
@@ -507,14 +511,18 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 #endif
 			    for (pj=pkdc->pLower;pj<=pkdc->pUpper;++pj) {
 				pRemote = mdlAquire(pkd->mdl,CID_PARTICLE,pj,id);
+#ifndef USE_SIMD
 				ilp[nPart].iOrder = pRemote->iOrder;
+#endif
 				ilp[nPart].m = pRemote->fMass;
 				ilp[nPart].x = pRemote->r[0] + dDriftFac*pRemote->v[0] + Check[i].rOffset[0];
 				ilp[nPart].y = pRemote->r[1] + dDriftFac*pRemote->v[1] + Check[i].rOffset[1];
 				ilp[nPart].z = pRemote->r[2] + dDriftFac*pRemote->v[2] + Check[i].rOffset[2];
+#ifndef USE_SIMD
 				ilp[nPart].vx = pRemote->v[0]; 
 				ilp[nPart].vy = pRemote->v[1];
 				ilp[nPart].vz = pRemote->v[2];
+#endif
 #ifdef SOFTLINEAR
 				ilp[nPart].h = pRemote->fSoft;
 #endif
@@ -565,8 +573,8 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 #ifdef USE_SIMD
 		  if (nGlam == nMaxGlam) {
 		    nMaxGlam += 100;
-		    ilglam = 0; /*realloc(ilglam,nMaxGlam*sizeof(GLAM));*/
-		    printf( "Reallocated GLAM: %p\n", ilglam );
+		    ilglam = SIMD_realloc( ilglam, (nMaxGlam-500)*sizeof(GLAM),
+					  nMaxGlam*sizeof(GLAM));
 		    assert(ilglam != 0);
 		  }
 		  ig = nGlam>>2;
@@ -605,6 +613,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 		  ilglam[ig].z.f[iv] = dx[2];
 		  ++nGlam;
 #else
+#if 1
 		  dir = 1.0/sqrt(d2);
 		  t1 = -dir;
 		  t2 = -3*dir;
@@ -612,6 +621,9 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 		  t4r = -7;
 		  momGenLocrAddMomr(&L,&pkdc->mom,dir,-dir,
 				    t1,t2,t3r,t4r,dx[0],dx[1],dx[2]);
+#else
+		  momLocrAddMomr(&L,&pkdc->mom,dir,dx[0],dx[1],dx[2]);
+#endif
 #endif
 		}
 		else if (iOpen == -2) {
@@ -622,7 +634,8 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 		    if (nCell == nMaxCell) {
 			nMaxCell += 500;
 #ifdef USE_SIMD_MOMR
-			ilc = NULL; /*realloc(ilc,nMaxCell/4*sizeof(ILC));*/
+			ilc = SIMD_realloc(ilc, (nMaxCell-500)/4*sizeof(ILC),
+					  nMaxCell/4*sizeof(ILC));
 #else
 			ilc = realloc(ilc,nMaxCell*sizeof(ILC));
 #endif
@@ -676,14 +689,18 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 			ilp = realloc(ilp,nMaxPart*sizeof(ILP));
 			assert(ilp != NULL);	
 			}
+#ifndef USE_SIMD
 		    ilp[nPart].iOrder = -1; /* set iOrder to negative value for time step criterion */
+#endif
 		    ilp[nPart].m = pkdc->mom.m;
 		    ilp[nPart].x = rCheck[0];
 		    ilp[nPart].y = rCheck[1];
 		    ilp[nPart].z = rCheck[2];
+#ifndef USE_SIMD
 		    ilp[nPart].vx = pkdc->v[0];
 		    ilp[nPart].vy = pkdc->v[1];
 		    ilp[nPart].vz = pkdc->v[2];
+#endif
 #ifdef SOFTLINEAR
 		    ilp[nPart].h = sqrt(pkdc->fSoft2);
 #endif
@@ -848,7 +865,9 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 	    assert(ilp != NULL);	
 	}
 	for (pj=pkdc->pLower;pj<=pkdc->pUpper;++pj) {
+#ifndef USE_SIMD
 	    ilp[nPart].iOrder = p[pj].iOrder;
+#endif
 	    ilp[nPart].m = p[pj].fMass;
 	    /*
 	    ** We will assume that all the particles in my bucket are at the same time here so 
@@ -857,9 +876,11 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 	    ilp[nPart].x = p[pj].r[0];
 	    ilp[nPart].y = p[pj].r[1];
 	    ilp[nPart].z = p[pj].r[2];
+#ifndef USE_SIMD
 	    ilp[nPart].vx = p[pj].v[0]; 
 	    ilp[nPart].vy = p[pj].v[1];
 	    ilp[nPart].vz = p[pj].v[2];
+#endif
 #ifdef SOFTLINEAR
 	    ilp[nPart].h = p[pj].fSoft;
 #endif
@@ -931,7 +952,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 		*/
 		free(ilp);
 #ifdef USE_SIMD
-		_mm_free(ilc);
+		SIMD_free(ilc);
 #else
 		free(ilc);
 #endif
