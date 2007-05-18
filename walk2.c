@@ -339,7 +339,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 		** list cell (d2). If this distance is larger than the sum of 
 		** opening radii of the two cells (they are well 
 		** seperated) then we accept the interaction.
-		** If max2 <= CeckCell.fOpen2, then this Checkcell must be
+		** If max2 <= CeckCell.fOpen^2, then this Checkcell must be
 		** opened since no subcell of the current cell will ever be 
 		** to accept the Checkcell as an interaction. If neither 
 		** condition is met then we need to keep this cell on the 
@@ -360,15 +360,15 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 		/*
 		** First test to see if we for sure open the checkcell. iOpen = 1;
 		*/
-		if (((c[iCell].iLower)?max2:min2) <= pkdc->fOpen2 || n < WALK_MINMULTIPOLE) iOpen = 1;
+		if (((c[iCell].iLower)?max2:min2) <= pkdc->fOpen*pkdc->fOpen || n < WALK_MINMULTIPOLE) iOpen = 1;
 		/*
 		** Second test to see if the checkcell can be accepted as a local expansion. iOpen = -1;
 		*/
-		else if (d2 > (sqrt(pkdc->fOpen2) + sqrt(c[iCell].fOpen2))*(sqrt(pkdc->fOpen2) + sqrt(c[iCell].fOpen2))) iOpen = -1;
+		else if (d2 > (pkdc->fOpen + c[iCell].fOpen)*(pkdc->fOpen + c[iCell].fOpen)) iOpen = -1;
 		/*
 		** Third test applies if the current cell is already a bucket, then test if it is an acceptable multipole (P-C). iOpen = -2;
 		*/
-		else if (!c[iCell].iLower && min2 > pkdc->fOpen2) iOpen = -2;
+		else if (!c[iCell].iLower && min2 > pkdc->fOpen*pkdc->fOpen) iOpen = -2;
 		/*
 		** Otherwise we can't make a decision at this level in the tree and the cell must remain on the checklist. iOpen = 0;
 		*/

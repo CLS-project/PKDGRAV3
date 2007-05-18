@@ -517,7 +517,11 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp,int bTempBound) {
 	** Now determine the opening radius for gravity.
 	*/
 	d2Max *= FOPEN_FACTOR*diCrit2;
+#ifdef LOCAL_EXPANSION
+	pkdn->fOpen = sqrt(d2Max);
+#else
 	pkdn->fOpen2 = d2Max;
+#endif
 	/*
 	** Set the timestamp for the node.
 	*/
@@ -572,7 +576,11 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp,int bTempBound) {
 		** Now determine the opening radius for gravity.
 		*/
 		d2Max *= FOPEN_FACTOR*diCrit2;
+#ifdef LOCAL_EXPANSION
+		pkdn->fOpen = sqrt(d2Max);
+#else
 		pkdn->fOpen2 = d2Max;
+#endif
 		}
 	    else {
 		CALCOPEN(pkdn,diCrit2);

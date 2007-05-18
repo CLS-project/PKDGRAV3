@@ -261,7 +261,11 @@ typedef struct kdTemp {
 typedef struct kdNode {
     BND bnd;
     double dTimeStamp;
+#ifdef LOCAL_EXPANSION
+    FLOAT fOpen;
+#else
     FLOAT fOpen2;
+#endif
     FLOAT fSoft2;
     FLOAT r[3];
     FLOAT v[3];
@@ -281,6 +285,7 @@ typedef struct kdNode {
 
 #define FOPEN_FACTOR	4.0/3.0
 
+#ifdef LOCAL_EXPANSION
 #define CALCOPEN(pkdn,diCrit2)\
 {\
 	FLOAT CALCOPEN_d2 = 0;\
@@ -290,8 +295,21 @@ typedef struct kdNode {
 			(pkdn)->bnd.fMax[CALCOPEN_j];\
 		CALCOPEN_d2 += CALCOPEN_d*CALCOPEN_d;\
 		}\
-	(pkdn)->fOpen2 = CALCOPEN_d2*(diCrit2);\
+	(pkdn)->fOpen = sqrt(CALCOPEN_d2*(diCrit2));	\
 	}
+#else
+#define CALCOPEN(pkdn,diCrit2)\
+{\
+	FLOAT CALCOPEN_d2 = 0;\
+	int CALCOPEN_j;\
+	for (CALCOPEN_j=0;CALCOPEN_j<3;++CALCOPEN_j) {\
+		FLOAT CALCOPEN_d = fabs((pkdn)->bnd.fCenter[CALCOPEN_j] - (pkdn)->r[CALCOPEN_j]) +\
+			(pkdn)->bnd.fMax[CALCOPEN_j];\
+		CALCOPEN_d2 += CALCOPEN_d*CALCOPEN_d;\
+		}\
+	(pkdn)->fOpen2 = CALCOPEN_d2*(diCrit2);	\
+	}
+#endif
 
 #define CALCAXR(fMax,axr)\
 {\
@@ -325,8 +343,13 @@ typedef struct kdNode {
 */
 
 typedef struct ilPart {
+#ifndef USE_SIMD
     int iOrder;
-    double m,x,y,z,vx,vy,vz;
+#endif
+    double m,x,y,z;
+#ifndef USE_SIMD
+    double vx,vy,vz;
+#endif
 #ifdef SOFTLINEAR
     double h;
 #endif
