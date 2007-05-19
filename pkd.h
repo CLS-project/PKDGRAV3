@@ -96,6 +96,8 @@ typedef struct particle {
 #ifdef RELAXATION
     FLOAT fRelax;
 #endif
+
+#ifdef HELIOCENTRIC
   /* Heliocentric start (collision stuff)*/
     int iOrgIdx;		/* for tracking of mergers, aggregates etc. */
     FLOAT w[3];			/* spin vector */
@@ -105,7 +107,7 @@ typedef struct particle {
 
     FLOAT ad[3];
   /* Heliocentric end */
-
+#endif
     } PARTICLE;
 
 /* Active Type Masks */
@@ -662,8 +664,12 @@ void pkdInitRelaxation(PKD pkd);
 int pkdPackIO(PKD pkd,PIO *io,int nStart,int nMax);
 
 /* Heliocentric start*/
+#ifdef HELIOCENTRIC
 void pkdSunIndirect(PKD, double [], double [], int);
 void pkdGravSun(PKD,double *,double *,double);
+void pkdReadSS(PKD pkd,char *pszFileName,int nStart,int nLocal);
+void pkdWriteSS(PKD pkd,char *pszFileName,int nStart);
+#endif
 /* Heliocentric end */
 #endif
 

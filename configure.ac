@@ -143,6 +143,14 @@ AC_ARG_ENABLE(soft-square,
  	[Define if SOFTSQUARE should be used.])])
 AM_CONDITIONAL(SOFTSQUARE, test "x$SOFTSQUARE" = "xyes")
 
+# Heliocentric
+AC_ARG_ENABLE(heliocentric,
+  [  --enable-heliocentric          enable heliocentric],
+  [HELIOCENTRIC=yes
+   AC_DEFINE([HELIOCENTIC], 1,
+ 	[Define if heliocentric should be used.])])
+AM_CONDITIONAL(HELIOCENTRIC, test "x$HELIOCENTRIC" = "xyes")
+
 # Check if pthread is available
 AC_CHECK_LIB([pthread], [pthread_create],[HAVE_PTHREAD=yes],[HAVE_PTHREAD=no])
 if test "x$HAVE_PTHREAD" = "xyes" ; then

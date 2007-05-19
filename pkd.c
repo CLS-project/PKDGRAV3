@@ -1744,20 +1744,21 @@ pkdStepVeryActiveKDK(PKD pkd, double dStep, double dTime, double dDelta,
 	    pkdVATreeBuild(pkd,pkd->param.nBucket,diCrit2,0,dTime);
 	    pkdGravityVeryActive(pkd,dTime,pkd->param.bEwald && pkd->param.bPeriodic,pkd->param.nReplicas,pkd->param.dEwCut,dStep);
 
+#ifdef HELIOCENTRIC
 	    /* Sun's gravity */
-           if(pkd->param.bHeliocentric){
-	       /* Sun's indirect gravity due to very active particles*/
-	   pkdActiveRung(pkd,iRungVeryActive+1,1);
-	   pkdSunIndirect(pkd,aSun,adSun,1); 
-           for (j=0;j<3;++j)
+	    if(pkd->param.bHeliocentric){
+	      /* Sun's indirect gravity due to very active particles*/
+	      pkdActiveRung(pkd,iRungVeryActive+1,1);
+	      pkdSunIndirect(pkd,aSun,adSun,1); 
+	      for (j=0;j<3;++j)
 	       	{                 
                  aSun[j] += aSunInact[j];
 		 adSun[j] += adSunInact[j];
 	       	}
-	    pkdActiveRung(pkd,iKickRung,1);
-	    pkdGravSun(pkd,aSun,adSun,dSunMass); 
-           }
-
+	      pkdActiveRung(pkd,iKickRung,1);
+	      pkdGravSun(pkd,aSun,adSun,dSunMass); 
+	    }
+#endif
 
 	    time2 = Zeit();
 	    if(pkd->param.bVDetails)
@@ -2347,6 +2348,7 @@ void pkdInitRelaxation(PKD pkd)
 #endif /* RELAXATION */
 
 /* Heliocentric begin */
+#ifdef HELIOCENTRIC
 void
 pkdReadSS(PKD pkd,char *pszFileName,int nStart,int nLocal)
 {
@@ -2513,9 +2515,5 @@ void pkdGravSun(PKD pkd,double *aSun,double *adSun,double dSunMass)
 			}
 		}
 	}
-
+#endif
 /* Heliocentric end */
-
-
-
-

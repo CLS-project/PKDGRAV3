@@ -263,6 +263,7 @@ void pstAddServices(PST pst,MDL mdl)
 		  sizeof(struct inStartIO),0);
 #endif
 
+#ifdef HELIOCENTRIC
 /* Heliocentric begin */
     mdlAddService(mdl,PST_READSS,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstReadSS,
@@ -277,6 +278,7 @@ void pstAddServices(PST pst,MDL mdl)
 		  (void (*)(void *,void *,int,void *,int *)) pstGravSun,
 		  sizeof(struct inGravSun),0);
 /* Heliocentric end */
+#endif
     }
 
 void pstInitialize(PST *ppst,MDL mdl,LCL *plcl)
@@ -3189,8 +3191,9 @@ void pstInitRelaxation(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     if (pnOut) *pnOut = 0;
     }
 #endif /* RELAXATION */
-/* Heliocentric begin */
 
+/* Heliocentric begin */
+#ifdef HELIOCENTRIC
 void
 pstReadSS(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 {
@@ -3303,9 +3306,5 @@ void pstGravSun(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     }
     if (pnOut) *pnOut = 0;
     }
-
-
+#endif
 /* Heliocentric end */
-
-
-

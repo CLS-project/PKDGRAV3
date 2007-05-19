@@ -67,12 +67,13 @@ typedef struct msrContext {
 
     int bSavePending;
      
+#ifdef HELIOCENTRIC
     /* Heliocentric begin */
     int nPlanets; /* currently not used */ 
     double dEcoll;
     double dSunMass;
     /* Heliocenteic end */
-
+#endif
     } * MSR;
 
 void msrInitialize(MSR *,MDL,int,char **);
@@ -185,10 +186,12 @@ void msrInitRelaxation(MSR msr);
 void msrRelaxation(MSR msr,double dTime,double deltaT,int iSmoothType,int bSymmetric);
 #endif /* RELAXATION  */
 
+#ifdef HELIOCENTRIC
 /* Heliocentric begin */
 double msrReadSS(MSR msr);
 void msrWriteSS(MSR msr, char *pszFileName, double dTime);
 void msrGravSun(MSR msr);
 /* Heliocentric end */
+#endif
 
 #endif

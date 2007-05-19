@@ -134,9 +134,12 @@ int main(int argc,char **argv) {
     ** Read in the binary file, this may set the number of timesteps or
     ** the size of the timestep when the zto parameter is used.
     */
+#ifdef HELIOCENTRIC
     if(msr->param.bHeliocentric){
       dTime = msrReadSS(msr); /* must use "Solar System" (SS) I/O format... */
-    }else{
+    }else
+#endif
+    {
       dTime = msrReadTipsy(msr);  /*read initial conditions */
     } 
     msrInitStep(msr);
@@ -191,10 +194,11 @@ int main(int argc,char **argv) {
 			       dMultiEff);
 		}
 	    }
+#ifdef HELIOCENTRIC
 	if(msr->param.bHeliocentric){
 	  msrGravSun(msr);
 	}
-
+#endif
 #ifdef RELAXATION
 	msrInitRelaxation(msr);
 #endif
@@ -246,10 +250,12 @@ int main(int argc,char **argv) {
 
 		msrReorder(msr);
 		sprintf(achFile,msr->param.achDigitMask,msrOutName(msr),iStep);
-
+#ifdef HELIOCENTRIC
 		if(msr->param.bHeliocentric){
 		  msrWriteSS(msr,achFile,dTime);
-		}else{
+		}else
+#endif
+		{
 		  msrWriteTipsy(msr,achFile,dTime);
 		} 
 	     

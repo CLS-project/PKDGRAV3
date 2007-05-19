@@ -2722,10 +2722,12 @@ void msrTopStepKDK(MSR msr,
 	    *pdActiveSum += (double)nActive/msr->N;
 	    }
 
+#ifdef HELIOCENTRIC
 	/* Sun's direct and indirect gravity */
 	if(msr->param.bHeliocentric) {
 	  msrGravSun(msr);
 	    }
+#endif
 	/*
 	 * move time back to 1/2 step so that KickClose can integrate
 	 * from 1/2 through the timestep to the end.
@@ -2809,10 +2811,12 @@ void msrTopStepKDK(MSR msr,
 	    *pdActiveSum += (double)nActive/msr->N;
 	    }
 
+#ifdef HELIOCENTRIC
 	/* Sun's direct and indirect gravity */
 	if(msr->param.bHeliocentric) {
 	  msrGravSun(msr);
 	    }
+#endif
 
 	dDeltaTmp = dDelta;
 	for(i = msrCurrMaxRung(msr); i > iRung; i--)
@@ -2854,6 +2858,7 @@ msrStepVeryActiveKDK(MSR msr, double dStep, double dTime, double dDelta,
     struct inSunIndirect ins;
     struct outSunIndirect outs;
 
+#ifdef HELIOCENTRIC
     if(msr->param.bHeliocentric){
       int k;        
 
@@ -2864,6 +2869,7 @@ msrStepVeryActiveKDK(MSR msr, double dStep, double dTime, double dDelta,
 	in.adSunInact[k] = outs.adSun[k];
 	}
       }
+#endif
 
     in.dStep = dStep;
     in.dTime = dTime;
@@ -2871,7 +2877,9 @@ msrStepVeryActiveKDK(MSR msr, double dStep, double dTime, double dDelta,
     in.iRung = iRung;
     in.diCrit2 = 1/(msr->dCrit*msr->dCrit);   /* could set a stricter opening criterion here */
     in.nMaxRung = msrCurrMaxRung(msr);
+#ifdef HELIOCENTRIC
     in.dSunMass = msr->dSunMass;
+#endif
     /*
      * Start Particle Cache on all nodes (could be done as part of
      * tree build)
@@ -3197,8 +3205,9 @@ void msrRelaxation(MSR msr,double dTime,double deltaT,int iSmoothType,int bSymme
 	}
     }
 #endif /* RELAXATION */
-/* Heliocentric begin */
 
+/* Heliocentric begin */
+#ifdef HELIOCENTRIC
 void
 msrOneNodeReadSS(MSR msr,struct inReadSS *in)
 {
@@ -3481,3 +3490,4 @@ void msrGravSun(MSR msr)
 
 }
 /* Heliocentric end */
+#endif
