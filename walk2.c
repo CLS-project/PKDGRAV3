@@ -2,6 +2,13 @@
 #include "config.h"
 #endif
 
+#ifdef PROFILE_GRAVWALK
+#include "VtuneApi.h"
+#endif
+#ifdef __SSE__
+#include <xmmintrin.h>
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <malloc.h>
@@ -135,6 +142,10 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
     double tempI;
 #endif
     double dSyncDelta;
+
+#ifdef PROFILE_GRAVWALK
+    VTResume();
+#endif
 
     /*
     ** If we are doing the very active gravity then check that there is a very active tree!
@@ -285,6 +296,13 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 	    ii = 0;
 	    for (i=0;i<nCheck;++i) {
 		id = Check[i].id;
+
+#ifdef __SSE__strange
+		    /* Does nothing */
+		    _mm_prefetch( (char *)(c+iCell)+0,_MM_HINT_T0 );
+		    _mm_prefetch( (char *)(c+iCell)+64,_MM_HINT_T0 );
+		    _mm_prefetch( (char *)(c+iCell)+128,_MM_HINT_T0 );
+#endif
 		if (id == pkd->idSelf) {
 		    pkdc = &pkd->kdNodes[Check[i].iCell];
 		    n = pkdc->pUpper - pkdc->pLower + 1;
@@ -943,6 +961,9 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 		free(ilc);
 #endif
 		free(ilpb);
+#ifdef PROFILE_GRAVWALK
+    VTPause();
+#endif
 		return(nTotActive);
 		}
 	    }
