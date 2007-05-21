@@ -34,7 +34,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
     const double onethird = 1.0/3.0;
     momFloat ax,ay,az,fPot;
     double x,y,z,d2,dir,dir2;
-    double rhosum,maisum;
+    float rhosum,maisum;
     momFloat magai,adotai;
     momFloat tax,tay,taz,tmon;
 #ifndef USE_SIMD
@@ -77,7 +77,8 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	momEvalLocr(pLoc,x,y,z,&fPot,&ax,&ay,&az);
 
 #ifdef USE_SIMD_MOMR
-	momEvalSIMDMomr( nCellILC, ilc, p[i].r, &ax, &ay, &az, &fPot );
+	momEvalSIMDMomr( nCellILC, ilc, p[i].r, p[i].a,
+			 &ax, &ay, &az, &fPot, &rhosum, &maisum );
 #else
 	for (j=0;j<nCell;++j) {
 	    x = p[i].r[0] - ilc[j].x;
@@ -142,7 +143,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 
 #ifdef USE_SIMD_PP
 	PPInteractSIMD( nPart,ilp,p[i].r,p[i].a,p[i].fMass,p[i].fSoft,
-			&ax, &ay, &az, &fPot );
+			&ax, &ay, &az, &fPot, &rhosum, &maisum );
 #else
 	
 #ifdef SOFTSQUARE
