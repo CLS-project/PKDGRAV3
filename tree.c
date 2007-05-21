@@ -73,7 +73,7 @@ void InitializeParticles(PKD pkd,int bExcludeVeryActive) {
 	pkd->nVeryActive = pkd->nLocal - i;
 
 	if (pkd->nVeryActive > 0) 
-	  /* printf("%d:nVeryActive = %d\n",mdlSelf(pkd->mdl),pkd->nVeryActive);*/
+	  /*   printf("%d:nVeryActive = %d\n",mdlSelf(pkd->mdl),pkd->nVeryActive);*/
 	/*
 	** Set up the very active root node.
 	*/

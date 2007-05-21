@@ -1784,6 +1784,303 @@ pkdStepVeryActiveKDK(PKD pkd, double dStep, double dTime, double dDelta,
 	}
     }
 
+#ifdef HERMITE
+/* Hermite */
+void
+pkdStepVeryActiveHermite(PKD pkd, double dStep, double dTime, double dDelta,
+		     int iRung, int iKickRung, int iRungVeryActive,int iAdjust, double diCrit2,
+		     int *pnMaxRung, double aSunInact[], double adSunInact[], double dSunMass)
+    {
+    int nRungCount[256];
+    double dDriftFac;
+    int i;
+
+    double aSun[3], adSun[3];
+    int j;
+
+    double time1,time2; /* added MZ 1.6.2006 */
+    
+    if(iAdjust && (iRung < pkd->param.iMaxRung-1)) {
+	pkdActiveRung(pkd, iRung, 1);
+	pkdActiveType(pkd,TYPE_ALL,TYPE_TREEACTIVE|TYPE_SMOOTHACTIVE);
+	pkdInitDt(pkd, pkd->param.dDelta);
+	if (pkd->param.bGravStep) {
+	    double a = csmTime2Exp(pkd->param.csm,dTime);
+	    double dRhoFac = 1.0/(a*a*a);
+	    pkdGravStep(pkd,pkd->param.dEta,dRhoFac);
+	    }
+	if (pkd->param.bAccelStep) {
+	    double a = csmTime2Exp(pkd->param.csm,dTime);
+	    double dVelFac = 1.0/(a*a);
+	    double dAccFac = 1.0/(a*a*a);
+	    double dhMinOverSoft = 0;
+	    pkdAccelStep(pkd,pkd->param.dEta, dVelFac,dAccFac,pkd->param.bDoGravity,
+			 pkd->param.bEpsAccStep,pkd->param.bSqrtPhiStep,dhMinOverSoft);
+	    }
+	*pnMaxRung = pkdDtToRung(pkd,iRung,dDelta,pkd->param.iMaxRung-1, 1, nRungCount);
+    
+	if (pkd->param.bVDetails) {
+	    printf("%*cAdjust at iRung: %d, nMaxRung:%d nRungCount[%d]=%d\n",
+		   2*iRung+2,' ',iRung,*pnMaxRung,*pnMaxRung,nRungCount[*pnMaxRung]);
+	}
+	
+	}
+   
+    if (*pnMaxRung > iRung) {
+	/*
+	** Recurse.
+	*/
+	pkdStepVeryActiveHermite(pkd,dStep,dTime,0.5*dDelta,iRung+1,iRung+1,iRungVeryActive,0,
+			     diCrit2,pnMaxRung,aSunInact,adSunInact,dSunMass);
+	dStep += 1.0/(2 << iRung);
+	dTime += 0.5*dDelta;
+	pkdActiveRung(pkd,iRung,0);
+	pkdStepVeryActiveHermite(pkd,dStep,dTime,0.5*dDelta,iRung+1,iKickRung,iRungVeryActive,1,
+			     diCrit2,pnMaxRung,aSunInact,adSunInact,dSunMass);
+	}
+    else {
+	if (pkd->param.bVDetails) {
+	    printf("%*cVeryActive Predictor at iRung: %d, drifting %d and higher with dDelta: %g\n",
+		   2*iRung+2,' ',iRung,iRungVeryActive+1,dDelta);
+	    }
+	/*
+	** This should predict *all* very actives!
+	*/
+	pkdActiveRung(pkd,iRungVeryActive+1,1);
+	/*
+	** We need to account for cosmological drift factor here!
+	** Normally this is done at the MASTER level in msrDrift.
+	** Note that for kicks we have written new "master-like" functions
+	** KickOpen and KickClose which do this same job at PKD level.
+	*/
+	/*if (pkd->param.bCannonical) {
+	    dDriftFac = csmComoveDriftFac(pkd->param.csm,dTime,dDelta);
+	    }
+	else {
+	    dDriftFac = dDelta;
+	    }*/
+
+	dTime += dDelta;
+	dStep += 1.0/(1 << iRung);
+
+	pkdPredictor(pkd,dTime);
+
+	if(iKickRung > iRungVeryActive) {	/* skip this if we are
+						   entering for the first
+						   time: Kick is taken care of
+						   in master(). 
+						*/
+
+	    if(pkd->param.bVDetails) {
+		printf("%*cGravityVA: iRung %d Gravity for rungs %d to %d ... ",
+		       2*iRung+2,' ',iRung,iKickRung,*pnMaxRung);
+		}
+
+	    time1 = Zeit(); /* added MZ 1.6.2006 */
+
+	    pkdActiveRung(pkd,iKickRung,1);
+	    pkdVATreeBuild(pkd,pkd->param.nBucket,diCrit2,0,dTime);
+	    pkdGravityVeryActive(pkd,dTime,pkd->param.bEwald && pkd->param.bPeriodic,pkd->param.nReplicas,pkd->param.dEwCut,dStep);
+
+	    /* Sun's gravity */
+           if(pkd->param.bHeliocentric){
+	       /* Sun's indirect gravity due to very active particles*/
+	   pkdActiveRung(pkd,iRungVeryActive+1,1);
+	   pkdSunIndirect(pkd,aSun,adSun,1); 
+           for (j=0;j<3;++j)
+	       	{                 
+                 aSun[j] += aSunInact[j];
+		 adSun[j] += adSunInact[j];
+	       	}
+	    pkdActiveRung(pkd,iKickRung,1);
+	    pkdGravSun(pkd,aSun,adSun,dSunMass); 
+           }
+
+
+	   if (pkd->param.bVDetails) {
+	     printf("%*cVeryActive pkdCorrector at iRung: %d, 0.5*dDelta: %g\n",
+		    2*iRung+2,' ',iRung,0.5*dDelta);
+	    }
+	   pkdCorrector(pkd,dTime);
+
+	   if(pkd->param.bHeliocentric){
+	     int nite = 0;
+	     int nitemax = 3;                                                    
+	     do{    
+	       nite += 1;
+	       pkdSunCorrector(pkd,dTime,dSunMass);  		
+	     }while(nite < nitemax);
+           }
+
+	   pkdCopy0(pkd,dTime); 
+
+	   time2 = Zeit();
+	   if(pkd->param.bVDetails)
+	     printf("Time: %g\n",time2-time1);
+	    
+	}
+      }   
+    }
+
+void
+pkdCopy0(PKD pkd,double dTime) 
+{  
+    PARTICLE *p;
+    int i,j,n;
+    
+    mdlDiag(pkd->mdl, "Into pkdCopy0\n");
+            
+    p = pkd->pStore;
+    n = pkdLocal(pkd);
+    for (i=0;i<n;++i) {	
+            if (TYPEQueryACTIVE(&p[i])) { 		
+              p[i].dTime0 = dTime;
+	    for (j=0;j<3;++j) {    
+	      p[i].r0[j] = p[i].r[j];
+	      p[i].v0[j] = p[i].v[j];
+	      p[i].a0[j] = p[i].a[j];	         	       
+	      p[i].ad0[j] = p[i].ad[j];	         	       
+		}	    
+	    }
+	}
+    mdlDiag(pkd->mdl, "Out of pkdCopy0\n");
+    }
+
+void
+pkdPredictor(PKD pkd,double dTime) 
+{
+    PARTICLE *p;
+    int i,j,n;
+    double dt; /* time since last evaluation of force */
+    
+    mdlDiag(pkd->mdl, "Into pkdPredictor\n");
+
+    if (pkd->param.bVDetails) printf("Into pkdPredictor\n");      
+
+    p = pkd->pStore;
+    n = pkdLocal(pkd);
+    for (i=0;i<n;++i) {		
+      if (TYPEQueryACTIVE(&p[i])) { 	
+      dt =  dTime - p[i].dTime0; 
+      /*if (pkd->param.bVDetails)
+	{
+         printf("Particle=%d iRung=%d dt=%g \n",p[i].iOrder,p[i].iRung,dt);
+	 }*/
+	    for (j=0;j<3;++j) {                
+		p[i].r[j] = p[i].r0[j] + dt*(p[i].v0[j] + 0.5*dt*(p[i].a0[j]+dt*p[i].ad0[j]/3.0));
+		p[i].v[j] = p[i].v0[j] + dt*(p[i].a0[j]+0.5*dt*p[i].ad0[j]);   
+                p[i].rp[j] = p[i].r[j];
+                p[i].vp[j] = p[i].v[j];  	       
+		}
+           }	    
+	}
+    mdlDiag(pkd->mdl, "Out of pkdPredictor\n");
+    }
+
+void
+pkdCorrector(PKD pkd,double dTime) 
+{
+    PARTICLE *p;
+    int i,j,n;
+    double dt, add, addd, am; 
+    /*double alpha = 7.0/6.0;*/    
+
+    mdlDiag(pkd->mdl, "Into pkdCorrector\n");
+
+    if (pkd->param.bVDetails) printf("Into pkdCorrector\n");
+
+    p = pkd->pStore;
+    n = pkdLocal(pkd);
+    for (i=0;i<n;++i) {	
+            if (TYPEQueryACTIVE(&p[i])) {	
+	      dt =  dTime - p[i].dTime0;  
+	     	    
+	    for (j=0;j<3;++j) { 	  
+              am = p[i].a0[j]-p[i].a[j];	      
+              add = 16.0*am+(13.0*p[i].ad0[j]+3.0*p[i].ad[j])*dt;
+	      addd = 6.0*am+(5.0*p[i].ad0[j]+p[i].ad[j])*dt;
+		p[i].r[j] = p[i].rp[j] - add/120.0*dt*dt;
+		p[i].v[j] = p[i].vp[j] - addd/12.0*dt;     	       
+		}
+	    }	    
+	}
+    mdlDiag(pkd->mdl, "Out of pkdCorrector\n");
+    }
+
+void
+pkdSunCorrector(PKD pkd,double dTime,double dSunMass) 
+{
+  /* iteratively correct only sun's direct gravity */
+    PARTICLE *p;
+    int i,j,n;
+    double dt;
+    double add, addd, r2,r3i,r5i,rv, am;
+    /*double alpha = 7.0/6.0;*/   
+
+    mdlDiag(pkd->mdl, "Into pkdSunCorrector\n");
+            
+    p = pkd->pStore;
+    n = pkdLocal(pkd);
+    for (i=0;i<n;++i) {	
+            if (TYPEQueryACTIVE(&p[i])) { 		
+	      dt =  dTime - p[i].dTime0;
+	      r2  = 0.0;
+              rv  = 0.0;  
+             for (j=0;j<3;++j) {       
+	       r2 += p[i].r[j]*p[i].r[j];
+               rv += p[i].r[j]*p[i].v[j];     
+	       }              
+	     r2 = 1.0/r2;
+               r3i = r2*sqrt(r2)*dSunMass;
+	       r5i = 3.0*r3i*r2*rv;
+
+	    for (j=0;j<3;++j) {   	   
+	      p[i].a[j] = -p[i].r[j]*r3i + p[i].app[j];
+	      p[i].ad[j] = -(p[i].v[j]*r3i - p[i].r[j]*r5i) + p[i].adpp[j];
+	      am = p[i].a0[j]-p[i].a[j];
+	      add = 16.0*am+(13.0*p[i].ad0[j]+3.0*p[i].ad[j])*dt;
+	      addd = 6.0*am+(5.0*p[i].ad0[j]+p[i].ad[j])*dt;
+		p[i].r[j] = p[i].rp[j] - add/120.0*dt*dt;
+		p[i].v[j] = p[i].vp[j] - addd/12.0*dt;     
+	                        
+		}	    
+	    }
+	}
+    mdlDiag(pkd->mdl, "Out of pkdSunCorrector\n");
+    }
+
+void
+pkdPredictorInactive(PKD pkd,double dTime) 
+{
+    PARTICLE *p;
+    int i,j,n;
+    double dt; /* time since last evaluation of force */
+    
+    mdlDiag(pkd->mdl, "Into pkdPredictorInactive\n");
+
+    if (pkd->param.bVDetails) printf("Into pkdPredictorInactive\n");      
+
+    p = pkd->pStore;
+    n = pkdLocal(pkd);
+    for (i=0;i<n;++i) {		
+      if (TYPEQueryACTIVE(&p[i])) continue;	
+      dt =  dTime - p[i].dTime0; 
+      /*if (pkd->param.bVDetails)
+	{
+         printf("Particle=%d iRung=%d dt=%g \n",p[i].iOrder,p[i].iRung,dt);
+	 }*/
+	    for (j=0;j<3;++j) {                
+		p[i].r[j] = p[i].r0[j] + dt*(p[i].v0[j] + 0.5*dt*(p[i].a0[j]+dt*p[i].ad0[j]/3.0));
+		p[i].v[j] = p[i].v0[j] + dt*(p[i].a0[j]+0.5*dt*p[i].ad0[j]);   
+                p[i].rp[j] = p[i].r[j];
+                p[i].vp[j] = p[i].v[j];  	       
+		}	    
+	}
+    mdlDiag(pkd->mdl, "Out of pkdPredictorInactive\n");
+    }
+/* Hermite end */
+#endif
+
 /*
  * Stripped down versions of routines from master.c
  */
@@ -2452,8 +2749,8 @@ pkdWriteSS(PKD pkd,char *pszFileName,int nStart)
      n = pkdLocal(pkd); 
      for (i=0;i<n;++i) {
        
-       if (iFlag == 2){ 
-	 if (TYPEQueryACTIVE(&p[i])) continue; /* inactive */
+        if (iFlag == 2){ 
+	 if (TYPEQueryACTIVE(&p[i])) continue;  /* inactive */
        }else if(iFlag == 1){
 	 if (!TYPEQueryACTIVE(&p[i])) continue; /* active */
        }
@@ -2476,7 +2773,7 @@ pkdWriteSS(PKD pkd,char *pszFileName,int nStart)
  }
  } 
 
-void pkdGravSun(PKD pkd,double *aSun,double *adSun,double dSunMass)
+void pkdGravSun(PKD pkd,double aSun[],double adSun[],double dSunMass)
 {
 	PARTICLE *p;
 	double r2,v2,r1i,r3i;
@@ -2489,7 +2786,7 @@ void pkdGravSun(PKD pkd,double *aSun,double *adSun,double dSunMass)
 	for (i=0;i<n;++i) {
 		if (TYPEQueryACTIVE(&(p[i]))) {
 			r2 = 0;
-                        v2 = 0;
+                       v2 = 0;
                         rv = 0;
 			for (j=0;j<3;++j)
 			{ 
@@ -2497,7 +2794,8 @@ void pkdGravSun(PKD pkd,double *aSun,double *adSun,double dSunMass)
                         v2 += p[i].v[j]*p[i].v[j];
                         rv += p[i].v[j]*p[i].r[j];
 			}
-			r1i = (r2 == 0 ? 0 : 1/sqrt(r2)); /* gravity at origin = zero */
+		       
+			r1i = (r2 == 0 ? 0 : 1/sqrt(r2)); /*gravity at origin = zero */
 			p[i].fPot -= dSunMass*r1i;
 			r3i = dSunMass*r1i*r1i*r1i;
                         r5i = 3.0*rv*r3i*r1i*r1i;
@@ -2508,7 +2806,9 @@ void pkdGravSun(PKD pkd,double *aSun,double *adSun,double dSunMass)
 			/*if (p[i].dtSun > p[i].dtGrav) p[i].dtGrav = p[i].dtSun;*/
 			if (idt2 > p[i].dtGrav) p[i].dtGrav = idt2;
 				   
-				for (j=0;j<3;++j) {					
+				for (j=0;j<3;++j) {		
+				   p[i].app[j] = p[i].a[j] - aSun[j]; /* perturbation force*/
+				   p[i].adpp[j] = p[i].ad[j] - adSun[j];
 					p[i].a[j] -= (aSun[j] + p[i].r[j]*r3i);
                                         p[i].ad[j] -= (adSun[j] + p[i].v[j]*r3i-p[i].r[j]*r5i);
 					}				

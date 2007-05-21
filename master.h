@@ -123,6 +123,31 @@ void msrTopStepKDK(MSR msr,
 		   int *piSec);
 void msrStepVeryActiveKDK(MSR msr, double dStep, double dTime, double dDelta,
 			  int iRung);
+#ifdef HERMITE
+/* Hermite */
+void msrTopStepHermite(MSR msr,
+		       double dStep,	/* Current step */
+		       double dTime,	/* Current time */
+		       double dDelta,	/* Time step */
+		       int iRung,		/* Rung level */
+		       int iKickRung,	/* Gravity on all rungs from iRung
+					   to iKickRung */
+		       int iRungVeryActive,  /* current setting for iRungVeryActive */
+		       int iAdjust,		/* Do an adjust? */
+		       double *pdActiveSum,
+		       double *pdWMax,
+		       double *pdIMax,
+		       double *pdEMax,
+		       int *piSec);
+void msrStepVeryActiveHermite(MSR msr, double dStep, double dTime, double dDelta,
+			 int iRung);
+void msrCopy0(MSR msr,double dTime);
+void msrPredictor(MSR msr,double dTime);
+void msrCorrector(MSR msr,double dTime);
+void msrSunCorrector(MSR msr,double dTime);
+void msrPredictorInactive(MSR msr,double dTime);
+/* Hermite end */
+#endif
 
 void msrBallMax(MSR msr, int iRung, int bGreater);
 /*------------------*/

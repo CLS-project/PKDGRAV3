@@ -126,6 +126,27 @@ void pstAddServices(PST pst,MDL mdl)
 		  (void (*)(void *,void *,int,void *,int *)) pstStepVeryActiveKDK,
 		  sizeof(struct inStepVeryActive),
 		  sizeof(struct outStepVeryActive));
+#ifdef HERMITE
+    mdlAddService(mdl,PST_STEPVERYACTIVEH,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstStepVeryActiveHermite,
+		  sizeof(struct inStepVeryActiveH),
+		  sizeof(struct outStepVeryActiveH));
+    mdlAddService(mdl,PST_COPY0,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstCopy0,
+		  sizeof(struct inCopy0),0);
+    mdlAddService(mdl,PST_PREDICTOR,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstPredictor,
+		  sizeof(struct inPredictor),0);
+    mdlAddService(mdl,PST_CORRECTOR,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstCorrector,
+		  sizeof(struct inCorrector),0);
+    mdlAddService(mdl,PST_SUNCORRECTOR,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstSunCorrector,
+		  sizeof(struct inSunCorrector),0);
+    mdlAddService(mdl,PST_PREDICTORINACTIVE,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstPredictorInactive,
+		  sizeof(struct inPredictorInactive),0);
+#endif
     mdlAddService(mdl,PST_ROPARTICLECACHE,pst,
 		  (void (*)(void *,void *,int,void *,int *))pstROParticleCache,
 		  0,0);
@@ -2376,7 +2397,6 @@ void pstGravity(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 	/*
 	** Here we need to determine which domain is closest, or containing,
 	** coordinate (0,0,0), the location of the Sun!
-	*/
 	if (pst->fSplit < 0) { 
 	    bSunLower = 0;
 	    bSunUpper = in->bDoSun;
@@ -2385,14 +2405,17 @@ void pstGravity(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 	    bSunLower = in->bDoSun;
 	    bSunUpper = 0;
 	    }
-	in->bDoSun = bSunUpper;
+	in->bDoSun = bSunUpper; */
+
 	mdlReqService(pst->mdl,pst->idUpper,PST_GRAVITY,in,nIn);
 	in->bDoSun = bSunLower;
 	pstGravity(pst->pstLower,in,nIn,out,NULL);
 	mdlGetReply(pst->mdl,pst->idUpper,&outUp,NULL);
-	if (bSunUpper) {
+
+	/*if (bSunUpper) {
 	    for (j=0;j<3;++j) out->aSun[j] = outUp.aSun[j];
-	    }
+	    }*/
+
 	out->dPartSum += outUp.dPartSum;
 	out->dCellSum += outUp.dCellSum;
 	out->dFlop += outUp.dFlop;
@@ -2417,7 +2440,7 @@ void pstGravity(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 	out->dcMSum += outUp.dcMSum;
 	out->dcCSum += outUp.dcCSum;
 	out->dcTSum += outUp.dcTSum;
-	}
+    }
     else {
       pkdGravAll(plcl->pkd,in->dTime,in->nReps,in->bPeriodic,4,in->bEwald,
 		   in->iEwOrder,in->dEwCut,in->dEwhCut,in->bDoSun,out->aSun,
@@ -2557,6 +2580,130 @@ void pstStepVeryActiveKDK(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 	}
     if (pnOut) *pnOut = sizeof(*out);
     }
+
+#ifdef HERMITE
+/* Hermite */
+void pstStepVeryActiveHermite(PST pst,void *vin,int nIn,void *vout,int *pnOut)
+    {
+    LCL *plcl = pst->plcl;
+    struct inStepVeryActiveH *in = vin;
+    struct outStepVeryActiveH *out = vout;
+
+    mdlassert(pst->mdl,nIn == sizeof(struct inStepVeryActiveH));
+    if (pst->nLeaves > 1) {
+	if(pst->iVASplitSide > 0) {
+	    mdlReqService(pst->mdl,pst->idUpper,PST_CACHEBARRIER,NULL,0);
+	    pstStepVeryActiveHermite(pst->pstLower,in,nIn,out,NULL);
+	    mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
+	    }
+	else if (pst->iVASplitSide < 0) {
+	    mdlReqService(pst->mdl,pst->idUpper,PST_STEPVERYACTIVEH,in,nIn);
+	    pstCacheBarrier(pst->pstLower,NULL,0,NULL,NULL);
+	    mdlGetReply(pst->mdl,pst->idUpper,out,NULL);
+	    }
+	else {
+	    mdlassert(pst->mdl,pst->iVASplitSide != 0);
+	    }
+	}
+    else {
+	assert(plcl->pkd->nVeryActive > 0);
+	
+	out->nMaxRung = in->nMaxRung;
+	pkdStepVeryActiveHermite(plcl->pkd,in->dStep,in->dTime,in->dDelta,
+			     in->iRung, in->iRung, in->iRung, 0, in->diCrit2,
+			     &out->nMaxRung, in->aSunInact, in->adSunInact, 
+			     in->dSunMass);
+	mdlCacheBarrier(pst->mdl,CID_CELL);
+	}
+    if (pnOut) *pnOut = sizeof(*out);
+    }
+
+void pstCopy0(PST pst,void *vin,int nIn,void *vout,int *pnOut)
+    {
+    LCL *plcl = pst->plcl;
+    struct inCopy0 *in = vin;
+
+    mdlassert(pst->mdl,nIn == sizeof(struct inCopy0));
+    if (pst->nLeaves > 1) {
+	mdlReqService(pst->mdl,pst->idUpper,PST_COPY0,in,nIn);
+	pstCopy0(pst->pstLower,in,nIn,NULL,NULL);
+	mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
+	}
+    else {
+	pkdCopy0(plcl->pkd,in->dTime);
+	}
+    if (pnOut) *pnOut = 0;
+    }
+
+void pstPredictor(PST pst,void *vin,int nIn,void *vout,int *pnOut)
+    {
+    LCL *plcl = pst->plcl;
+    struct inPredictor *in = vin;
+
+    mdlassert(pst->mdl,nIn == sizeof(struct inPredictor));
+    if (pst->nLeaves > 1) {
+	mdlReqService(pst->mdl,pst->idUpper,PST_PREDICTOR,in,nIn);
+	pstPredictor(pst->pstLower,in,nIn,NULL,NULL);
+	mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
+	}
+    else {
+	pkdPredictor(plcl->pkd,in->dTime);
+	}
+    if (pnOut) *pnOut = 0;
+    }
+
+void pstCorrector(PST pst,void *vin,int nIn,void *vout,int *pnOut)
+    {
+    LCL *plcl = pst->plcl;
+    struct inCorrector *in = vin;
+
+    mdlassert(pst->mdl,nIn == sizeof(struct inCorrector));
+    if (pst->nLeaves > 1) {
+	mdlReqService(pst->mdl,pst->idUpper,PST_CORRECTOR,in,nIn);
+	pstCorrector(pst->pstLower,in,nIn,NULL,NULL);
+	mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
+	}
+    else {
+	pkdCorrector(plcl->pkd,in->dTime);
+	}
+    if (pnOut) *pnOut = 0;
+    }
+
+void pstSunCorrector(PST pst,void *vin,int nIn,void *vout,int *pnOut)
+    {
+    LCL *plcl = pst->plcl;
+    struct inSunCorrector *in = vin;
+
+    mdlassert(pst->mdl,nIn == sizeof(struct inSunCorrector));
+    if (pst->nLeaves > 1) {
+	mdlReqService(pst->mdl,pst->idUpper,PST_SUNCORRECTOR,in,nIn);
+	pstSunCorrector(pst->pstLower,in,nIn,NULL,NULL);
+	mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
+	}
+    else {
+	pkdSunCorrector(plcl->pkd,in->dTime,in->dSunMass);
+	}
+    if (pnOut) *pnOut = 0;
+    }
+
+void pstPredictorInactive(PST pst,void *vin,int nIn,void *vout,int *pnOut)
+    {
+    LCL *plcl = pst->plcl;
+    struct inPredictorInactive *in = vin;
+
+    mdlassert(pst->mdl,nIn == sizeof(struct inPredictorInactive));
+    if (pst->nLeaves > 1) {
+	mdlReqService(pst->mdl,pst->idUpper,PST_PREDICTORINACTIVE,in,nIn);
+	pstPredictorInactive(pst->pstLower,in,nIn,NULL,NULL);
+	mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
+	}
+    else {
+	pkdPredictorInactive(plcl->pkd,in->dTime);
+	}
+    if (pnOut) *pnOut = 0;
+    }
+/* Hermite end */
+#endif
 
 void pstROParticleCache(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     {

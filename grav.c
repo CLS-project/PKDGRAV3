@@ -188,6 +188,13 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
     double vx,vy,vz,v2,mu,Etot,L2,ecc,eccfac;
     momFloat tax,tay,taz,magai,adotai;
     double rhosum,maisum;
+#ifdef HERMITE
+    /* Hermite */
+    double adx,ady,adz;
+    double rv,dir5;
+    /* Hermite end */
+#endif
+
 #ifdef SOFTSQUARE
     double ptwoh2;
 #endif
@@ -234,6 +241,9 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	ax = 0;
 	ay = 0;
 	az = 0;
+	adx = 0;
+	ady = 0;
+	adz = 0;
 	rhocadd = 0;
 	rholoc = 0;
 	rhopmax = 0;
@@ -400,6 +410,15 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	    y = p[i].r[1] - ilp[j].y;
 	    z = p[i].r[2] - ilp[j].z;
 	    d2 = x*x + y*y + z*z;
+#ifdef HERMITE
+	    /* Hermite */
+	    vx = p[i].v[0] - ilp[j].vx;
+	    vy = p[i].v[1] - ilp[j].vy;
+	    vz = p[i].v[2] - ilp[j].vz;
+            rv = x*vx + y*vy + z*vz;
+            v2 = vx*vx + vy*vy + vz*vz;          
+	    /* Hermite end */
+#endif
 #ifdef SOFTSQUARE
 	    fourh2 = ptwoh2 + ilp[j].twoh2;
 #endif
@@ -471,6 +490,17 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	    ax += tax;
 	    ay += tay;
 	    az += taz;
+#ifdef HERMITE
+	    /* Hermite */
+	    adx -= vx*dir2;
+	    ady -= vy*dir2;
+	    adz -= vz*dir2;
+	    dir5  = 3.0*rv*dir2*dir*dir;
+	    adx += x*dir5;
+	    ady += y*dir5;
+	    adz += z*dir5;
+	    /* Hermite end */
+#endif
 	    } /* end of particle list gravity loop */
 
 	if(pkd->param.bGravStep && pkd->param.iTimeStepCrit >= 0) {
@@ -531,6 +561,9 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	p[i].a[0] = ax;
 	p[i].a[1] = ay;
 	p[i].a[2] = az;
+	p[i].ad[0] = adx;
+	p[i].ad[1] = ady;
+	p[i].ad[2] = adz;
 	} /* end of i-loop over particles in the bucket */
     /*
     ** Free time-step lists
@@ -556,6 +589,13 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	ax = 0;
 	ay = 0;
 	az = 0;
+#ifdef HERMITE
+	/* Hermite */
+	adx = 0;
+	ady = 0;
+	adz = 0;
+	/* Hermite end */
+#endif
 	pi = pkd->piActive[i];
 #ifdef SOFTSQUARE
 	ptwoh2 = 2*pi->fSoft*pi->fSoft;
@@ -566,6 +606,15 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	    y = pi->r[1] - pj->r[1];
 	    z = pi->r[2] - pj->r[2];
 	    d2 = x*x + y*y + z*z;
+#ifdef HERMITE
+	    /* Hermite */
+	    vx = pi->v[0] - pj->v[0];
+	    vy = pi->v[1] - pj->v[1];
+	    vz = pi->v[2] - pj->v[2];	
+            rv = x*vx+ y*vy + z*vz;
+	    v2 = vx*vx + vy*vy + vz*vz;
+	    /* Hermite end */
+#endif
 #ifdef SOFTSQUARE
 	    fourh2 = ptwoh2 + 2*pj->fSoft*pj->fSoft;
 #endif
@@ -603,6 +652,17 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	    pj->a[0] += x*dir2*pi->fMass;
 	    pj->a[1] += y*dir2*pi->fMass;
 	    pj->a[2] += z*dir2*pi->fMass;
+#ifdef HERMITE	    
+	    /* Hermite */
+	    dir5 = 3.0*rv*dir2*dir*dir;
+	    adx += (vx*dir2-x*dir5)*pj->fMass;
+	    ady += (vy*dir2-y*dir5)*pj->fMass;
+	    adz += (vz*dir2-z*dir5)*pj->fMass;
+	    pj->ad[0] += (vx*dir2-x*dir5)*pi->fMass;
+	    pj->ad[1] += (vy*dir2-y*dir5)*pi->fMass;
+	    pj->ad[2] += (vz*dir2-z*dir5)*pi->fMass;
+	    /* Hermite */
+#endif
 	    /*
 	    ** Eccentricity correction
 	    */
@@ -632,6 +692,13 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	pi->a[0] -= ax;
 	pi->a[1] -= ay;
 	pi->a[2] -= az;
+#ifdef HERMITE
+	/* Hermite */
+	pi->ad[0] -= adx;
+	pi->ad[1] -= ady;
+	pi->ad[2] -= adz;
+	/* Hermite end */
+#endif
 	} /* end of i-loop active-active */
     /*
     ** Active-Inactive interactions.
@@ -641,6 +708,13 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	ax = 0;
 	ay = 0;
 	az = 0;
+#ifdef HERMITE
+	/* Hermite */
+	adx = 0;
+	ady = 0;
+	adz = 0;
+	/* Hermite end*/
+#endif
 	pi = pkd->piActive[i];
 #ifdef SOFTSQUARE
 	ptwoh2 = 2*pi->fSoft*pi->fSoft;
@@ -651,6 +725,15 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	    y = pi->r[1] - pj->r[1];
 	    z = pi->r[2] - pj->r[2];
 	    d2 = x*x + y*y + z*z;
+#ifdef HERMITE	    
+	    /* Hermite */
+	    vx = pi->v[0] - pj->v[0];
+	    vy = pi->v[1] - pj->v[1];
+	    vz = pi->v[2] - pj->v[2];            
+            rv = vx*x + vy*y + vz*z;
+	    v2 = vx*vx + vy*vy + vz*vz;
+	    /* Hermite end */
+#endif
 #ifdef SOFTSQUARE
 	    fourh2 = ptwoh2 + 2*pj->fSoft*pj->fSoft;
 #endif
@@ -684,6 +767,14 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	    ax += x*dir2*pj->fMass;
 	    ay += y*dir2*pj->fMass;
 	    az += z*dir2*pj->fMass;
+#ifdef HERMITE	    
+	    /* Hermite */ 
+	    dir5 = 3.0*rv*dir2*dir*dir;
+	    adx += (vx*dir2-x*dir5)*pj->fMass;
+	    ady += (vy*dir2-y*dir5)*pj->fMass;
+	    adz += (vz*dir2-z*dir5)*pj->fMass;
+	    /* Hermite end */ 
+#endif
 	    /*
 	    ** Eccentricity correction
 	    */
@@ -712,6 +803,13 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	pi->a[0] -= ax;
 	pi->a[1] -= ay;
 	pi->a[2] -= az;
+#ifdef HERMITE
+	/* Hermite */
+	pi->ad[0] -= adx;
+	pi->ad[1] -= ady;
+	pi->ad[2] -= adz;
+	/* Hermite */
+#endif	
 	} /* end of i-loop active-inactive */
     *pdFlop += nActive*(nPart*40 + nCell*200) + nSoft*15;
     return(nActive);

@@ -2894,6 +2894,338 @@ msrStepVeryActiveKDK(MSR msr, double dStep, double dTime, double dDelta,
     msr->iCurrMaxRung = out.nMaxRung;
     }
 
+#ifdef HERMITE
+/* Hermite */
+void msrTopStepHermite(MSR msr,
+				   double dStep,	/* Current step */
+				   double dTime,	/* Current time */
+				   double dDelta,	/* Time step */
+				   int iRung,		/* Rung level */
+				   int iKickRung,	/* Gravity on all rungs from iRung
+									   to iKickRung */
+		                   int iRungVeryActive,  /* current setting for iRungVeryActive */
+				   int iAdjust,		/* Do an adjust? */
+				   double *pdActiveSum,
+				   double *pdWMax,
+				   double *pdIMax,
+				   double *pdEMax,
+				   int *piSec)
+{
+    double dMass = -1.0;
+    int nActive;
+    int bSplitVA;
+
+    if(iAdjust && (iRung < msrMaxRung(msr)-1)) {
+        if (msr->param.bVDetails) {
+	  printf("%*cAdjust, iRung: %d\n",2*iRung+2,' ',iRung);
+           }
+	msrActiveRung(msr, iRung, 1);
+	msrActiveType(msr,TYPE_ALL,TYPE_TREEACTIVE|TYPE_SMOOTHACTIVE);
+	msrInitDt(msr);
+	if (msr->param.bGravStep) {
+	    msrGravStep(msr,dTime);
+	    }
+	if (msr->param.bAccelStep) {
+	    msrAccelStep(msr,dTime);
+	    }
+	if (msr->param.bDensityStep) {
+	    bSplitVA = 0;
+	    msrDomainDecomp(msr,iRung,1,bSplitVA);
+	    msrActiveRung(msr,iRung,1);
+	    msrBuildTree(msr,dMass,dTime);
+	    msrDensityStep(msr,dTime);
+	    }
+	iRungVeryActive = msrDtToRung(msr,iRung,dDelta,1);
+	}
+	
+                /* probably unnecessary 
+		msrActiveRung(msr,iRung,0);
+                msrActiveType(msr,TYPE_ALL,TYPE_TREEACTIVE|TYPE_SMOOTHACTIVE); */
+
+    if ((msrCurrMaxRung(msr) > iRung) && (iRungVeryActive > iRung)) 
+      {
+		/*
+		 ** Recurse.
+		 */
+		msrTopStepHermite(msr,dStep,dTime,0.5*dDelta,iRung+1,iRung+1,iRungVeryActive,0,
+					  pdActiveSum,pdWMax,pdIMax,pdEMax,piSec);
+		dTime += 0.5*dDelta;
+		dStep += 1.0/(2 << iRung);
+		/*msrActiveRung(msr,iRung,0);*/
+		msrTopStepHermite(msr,dStep,dTime,0.5*dDelta,iRung+1,iKickRung,iRungVeryActive,1,
+					  pdActiveSum,pdWMax,pdIMax,pdEMax,piSec);
+		}
+    else if(msrCurrMaxRung(msr) == iRung) {
+	
+                dTime += dDelta;
+		dStep += 1.0/(1 << iRung);
+
+         /* 
+           This Predicts everybody 
+           dt = dTime - dTime0(pkd)     
+           x = x0 + v0*dt + 0.5*a0*dt*dt+ ad0*dt*dt*dt/6.0
+           v = v0 + a0*dt + 0.5*ad0*dt*dt
+          */
+		if (msr->param.bVDetails){
+		  printf("%*cPredict, iRung: %d\n",2*iRung+2,' ',iRung);                          
+		}
+                msrActiveRung(msr,0,1);/* activate everybody*/
+                msrPredictor(msr,dTime);     
+            
+		msrActiveMaskRung(msr,TYPE_ACTIVE,iKickRung,1);
+		bSplitVA = 0;
+		msrDomainDecomp(msr,iKickRung,1,bSplitVA);
+	
+		if(msrDoGravity(msr)) {
+		  msrActiveRung(msr,iKickRung,1);
+		  msrUpdateSoft(msr,dTime);
+		  msrActiveType(msr,TYPE_ALL,TYPE_TREEACTIVE);
+		  if (msr->param.bVDetails) {
+		    printf("%*cGravity, iRung: %d to %d\n",2*iRung+2,' ',iKickRung,iRung);
+		  }
+		  msrBuildTree(msr,dMass,dTime);
+		  msrGravity(msr,dTime,dStep,piSec,pdWMax,pdIMax,pdEMax,&nActive);
+		  *pdActiveSum += (double)nActive/msr->N;
+		}
+#ifdef HELIOCENTRIC
+		/* Sun's direct and indirect gravity */
+		if(msr->param.bHeliocentric) {
+		  msrGravSun(msr);
+		}
+#endif                               
+		 msrActiveRung(msr,iKickRung,1); /*just in case*/
+		/* 
+		  Corrector step 
+		    (see Kokubo and Makino 2004 for the optimal coefficients) 
+		     add = -6.D0*(a0-a)/(dt*dt)-2.0*(2.0*ad0+ad)/dt
+                    addd = 12.0*(a0-a)/(dt*dt*dt)+6.0*(ad0+ad)/(dt*dt) 
+		     x = x + add*dt**4/24.0+addd*dt**5*alpha/120.0 
+		     v = v + add*dt**3/6.0+addd*dt**4/24.0 
+	        */
+		 msrCorrector(msr,dTime);    
+ 
+		 if (msr->param.bVDetails){
+		  printf("%*cCorrect, iRung: %d\n",2*iRung+2,' ',iRung);                          
+		}
+#ifdef HELIOCENTRIC	    
+                if(msr->param.bHeliocentric){                      		
+		/*
+		Here is a step for correcting the Sun's direct gravity.
+		a is recalculated using the correctors' position and 
+		velocity.  
+		*/          
+		int nite = 0;
+                int nitemax = 3; 
+                /* number of interation for correcting the Sun's gravity 
+                   P(EC)'^(nitemax) scheme (see Kokubo et al 1998)*/           
+                do{    
+                nite += 1;
+                msrSunCorrector(msr,dTime);  		
+                }while(nite < nitemax);
+                }
+#endif 
+		/* 
+		Copy the present values of activated particles as the initial values 
+		x_0 = x, v_0 = v, a_0 = a, dTime0 = dTime
+		*/ 
+                msrCopy0(msr,dTime); 
+    }
+
+else {        
+   	double dDeltaTmp;
+	int i;
+
+	/*
+	 * We have more rungs to go, but we've hit the very active limit.
+	 */
+	/*
+	 * Activate VeryActives
+	 */
+	msrActiveType(msr, TYPE_VERYACTIVE, TYPE_ACTIVE);
+	/*
+	 * Predict the non-VeryActive particles forward 1/2 timestep
+	 */
+	if (msr->param.bVDetails)
+	  	if (msr->param.bVDetails) {
+	    printf("%*cInActivePredict at iRung: %d, 0.5*dDelta: %g\n",
+		   2*iRung+2,' ',iRung,0.5*dDelta);
+	    }
+	    
+	msrPredictorInactive(msr, dTime + 0.5*dDelta);
+	/*
+	 * Build a tree out of them for use by the VeryActives
+	 */
+	if(msrDoGravity(msr)) {
+	    msrUpdateSoft(msr,dTime + 0.5*dDelta);
+	    /*
+	    ** Domain decomposition for parallel exclude very active is going to be 
+	    ** placed here shortly.
+	    */
+	    bSplitVA = 1;
+	    msrDomainDecomp(msr,iRung,1,bSplitVA);
+
+	    if (msr->param.bVDetails) {
+		printf("%*cBuilding exclude very active tree: iRung: %d\n",
+		       2*iRung+2,' ',iRung);
+		}
+	    msrBuildTreeExcludeVeryActive(msr,dMass,dTime + 0.5*dDelta);
+	    }
+	/*
+	 * Perform timestepping on individual processors.
+	 */
+	if (msr->param.bVDetails)
+	    printf("VeryActive at iRung: %d\n", iRung);
+	msrStepVeryActiveHermite(msr, dStep, dTime, dDelta, iRung);
+	dTime += dDelta;
+	dStep += 1.0/(1 << iRung);
+	/*
+	 * Move Inactives to the end of the step.
+	 */
+	if (msr->param.bVDetails) {
+	    printf("%*cInActivePredictor at iRung: %d, 0.5*dDelta: %g\n",
+		   2*iRung+2,' ',iRung,0.5*dDelta);
+	    }
+	msrActiveType(msr, TYPE_VERYACTIVE, TYPE_ACTIVE);
+	/* 
+	** The inactives are half time step behind the actives. 
+	** Move them a half time step ahead to synchronize everything again.
+	*/	
+	msrPredictorInactive(msr, dTime);
+
+	/*
+	 * Regular Tree gravity
+	 */
+	msrActiveMaskRung(msr,TYPE_ACTIVE,iKickRung,1);
+	bSplitVA = 0;
+	msrDomainDecomp(msr,iKickRung,1,bSplitVA);
+
+	if(msrDoGravity(msr)) {
+	    msrActiveRung(msr,iKickRung,1);
+	    msrUpdateSoft(msr,dTime);
+	    msrActiveType(msr,TYPE_ALL,TYPE_TREEACTIVE);
+	    if (msr->param.bVDetails) {
+		printf("%*cGravity, iRung: %d to %d\n",
+		       2*iRung+2,' ',iKickRung,msrCurrMaxRung(msr));
+		}
+	    msrBuildTree(msr,dMass,dTime);
+	    msrGravity(msr,dTime,dStep,piSec,pdWMax,pdIMax,pdEMax,&nActive);
+	    *pdActiveSum += (double)nActive/msr->N;
+	    }
+#ifdef HELIOCENTRIC
+	/* Sun's direct and indirect gravity */
+		if(msr->param.bHeliocentric) {
+		  msrGravSun(msr);
+		}
+#endif 
+	if (msr->param.bVDetails) {
+		printf("%*cVeryActive msrCorrector at iRung: %d, 0.5*dDelta: %g\n",
+		       2*iRung+2,' ',i, 0.5*dDeltaTmp);
+		}	
+	        msrCorrector(msr,dTime);   
+
+#ifdef HELIOCENTRIC        
+                if(msr->param.bHeliocentric){          		
+		int nite = 0;
+                int nitemax = 3;                                                     
+                do{    
+                nite += 1;
+                msrSunCorrector(msr,dTime);  		
+                }while(nite < nitemax);
+                }
+#endif
+                msrCopy0(msr,dTime);
+           }
+         }
+
+void
+msrStepVeryActiveHermite(MSR msr, double dStep, double dTime, double dDelta,
+		     int iRung)
+    {
+    struct inStepVeryActiveH in;
+    struct outStepVeryActiveH out;
+    
+    struct inSunIndirect ins;
+    struct outSunIndirect outs;
+
+#ifdef HELIOCENTRIC
+    if(msr->param.bHeliocentric){
+      int k;        
+
+      ins.iFlag = 2; /* for inactive particles */ 
+      pstSunIndirect(msr->pst,&ins,sizeof(ins),&outs,NULL); 
+	for (k=0;k<3;k++){ 
+        in.aSunInact[k] = outs.aSun[k];
+	in.adSunInact[k] = outs.adSun[k];
+	}
+      }
+#endif
+
+    in.dStep = dStep;
+    in.dTime = dTime;
+    in.dDelta = dDelta;
+    in.iRung = iRung;
+    in.diCrit2 = 1/(msr->dCrit*msr->dCrit);   /* could set a stricter opening criterion here */
+    in.nMaxRung = msrCurrMaxRung(msr);
+#ifdef HELIOCENTRIC
+    in.dSunMass = msr->dSunMass;
+#endif
+    /*
+     * Start Particle Cache on all nodes (could be done as part of
+     * tree build)
+     */
+    pstROParticleCache(msr->pst, NULL, 0, NULL, NULL);
+    
+    pstStepVeryActiveHermite(msr->pst, &in, sizeof(in), &out, NULL);
+    /*
+     * Finish Particle Cache on all nodes
+     */
+    pstParticleCacheFinish(msr->pst, NULL, 0, NULL, NULL);
+    msr->iCurrMaxRung = out.nMaxRung;
+    }
+
+void msrCopy0(MSR msr,double dTime)
+{
+	struct inCopy0 in;
+
+	in.dTime = dTime;
+	pstCopy0(msr->pst,&in,sizeof(in),NULL,NULL);
+	}
+
+void msrPredictor(MSR msr,double dTime)
+{
+	struct inPredictor in;
+	
+	in.dTime = dTime;
+	pstPredictor(msr->pst,&in,sizeof(in),NULL,NULL);
+	}
+
+void msrCorrector(MSR msr,double dTime)
+{
+	struct inCorrector in;
+
+	in.dTime = dTime;
+	pstCorrector(msr->pst,&in,sizeof(in),NULL,NULL);
+	}
+
+void msrSunCorrector(MSR msr,double dTime)
+{
+	struct inSunCorrector in;
+	
+	in.dTime = dTime;
+	in.dSunMass = msr->dSunMass;
+	pstSunCorrector(msr->pst,&in,sizeof(in),NULL,NULL);
+	}
+
+void msrPredictorInactive(MSR msr,double dTime)
+{
+	struct inPredictorInactive in;
+	
+	in.dTime = dTime;
+	pstPredictorInactive(msr->pst,&in,sizeof(in),NULL,NULL);
+	}
+/* Hermite end*/
+#endif
+
 int
 msrMaxOrder(MSR msr)
     {
@@ -3483,11 +3815,14 @@ void msrGravSun(MSR msr)
                 in.aSun[j] = outs.aSun[j];
 		in.adSun[j] = outs.adSun[j];
 		}
+	/* printf("asun = %e %e %e adsun = %e %e %e \n",in.aSun[0],in.aSun[1],in.aSun[2],in.adSun[0],in.adSun[1],in.adSun[2]); */
 
 	in.dSunMass = msr->dSunMass;
 
 	pstGravSun(msr->pst,&in,sizeof(in),NULL,NULL);
 
 }
+
+
 /* Heliocentric end */
 #endif

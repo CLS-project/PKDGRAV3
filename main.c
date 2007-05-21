@@ -202,18 +202,33 @@ int main(int argc,char **argv) {
 #ifdef RELAXATION
 	msrInitRelaxation(msr);
 #endif
+#ifdef HERMITE
+	if(msr->param.bHermite){
+	  	msrActiveType(msr,TYPE_ALL,TYPE_ACTIVE);
+		msrCopy0(msr, dTime);
+	}
+#endif
 	for (iStep=msr->param.iStartStep+1;iStep<=msrSteps(msr);++iStep) {
 	    if (msrComove(msr)) {
 		msrSwitchTheta(msr,dTime);
 		}
 	    dMultiEff = 0.0;
 	    lSec = time(0);
-
+#ifdef HERMITE
+	    if(msr->param.bHermite){
+	    msrTopStepHermite(msr,iStep-1,dTime,
+			  msrDelta(msr),0,0,msrMaxRung(msr),1,
+			  &dMultiEff,&dWMax,&dIMax,
+			  &dEMax,&iSec);
+	    }else
+#endif
+	    {
 	    msrTopStepKDK(msr,iStep-1,dTime,
 			  msrDelta(msr),0,0,msrMaxRung(msr),1,
 			  &dMultiEff,&dWMax,&dIMax,
 			  &dEMax,&iSec);
-
+	      }
+	    
 	    dTime += msrDelta(msr);
 	    /*
 	    ** Output a log file line if requested.

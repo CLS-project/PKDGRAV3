@@ -93,6 +93,12 @@ enum pst_service {
     PST_ROPARTICLECACHE,
     PST_PARTICLECACHEFINISH,
     PST_STEPVERYACTIVE,
+    PST_STEPVERYACTIVEH,
+    PST_COPY0,
+    PST_PREDICTOR,
+    PST_CORRECTOR,
+    PST_SUNCORRECTOR,
+    PST_PREDICTORINACTIVE,
     PST_KICK,
     PST_SETSOFT,
     PST_PHYSICALSOFT,
@@ -478,6 +484,58 @@ struct outStepVeryActive
     int nMaxRung;
     };
 void pstStepVeryActiveKDK(PST,void *,int,void *,int *);
+
+/* Hermite */
+/* PST_STEPVERYACTIVEH */
+struct inStepVeryActiveH 
+    {
+    double dStep;
+    double dTime;
+    double dDelta;
+    int iRung;
+    int nMaxRung;
+    double diCrit2;
+    double aSunInact[3];
+    double adSunInact[3];
+    double dSunMass;
+    };
+struct outStepVeryActiveH
+    {
+    int nMaxRung;
+    };
+void pstStepVeryActiveHermite(PST,void *,int,void *,int *);
+
+/* PST_COPY0 */
+struct inCopy0 {
+    double dTime;   
+    };
+void pstCopy0(PST,void *,int,void *,int *);
+
+/* PST_PREDICTOR */
+struct inPredictor {
+    double dTime;
+    };
+void pstPredictor(PST,void *,int,void *,int *);
+
+/* PST_CORRECTOR */
+struct inCorrector {
+  double dTime;
+    };
+void pstCorrector(PST,void *,int,void *,int *);
+
+/* PST_SUNCORRECTOR */
+struct inSunCorrector {
+    double dTime;
+    double dSunMass;
+    };
+void pstSunCorrector(PST,void *,int,void *,int *);
+
+/* PST_PREDICTORINACTIVE */
+struct inPredictorInactive {
+    double dTime;
+    };
+void pstPredictorInactive(PST,void *,int,void *,int *);
+/* Hermite end */
 
 /* PST_UPDATEUDOT */
 struct inUpdateuDot {

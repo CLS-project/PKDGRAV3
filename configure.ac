@@ -147,9 +147,17 @@ AM_CONDITIONAL(SOFTSQUARE, test "x$SOFTSQUARE" = "xyes")
 AC_ARG_ENABLE(heliocentric,
   [  --enable-heliocentric          enable heliocentric],
   [HELIOCENTRIC=yes
-   AC_DEFINE([HELIOCENTIC], 1,
+   AC_DEFINE([HELIOCENTRIC], 1,
  	[Define if heliocentric should be used.])])
 AM_CONDITIONAL(HELIOCENTRIC, test "x$HELIOCENTRIC" = "xyes")
+
+# Hermite
+AC_ARG_ENABLE(hermite,
+  [  --enable-hermite          enable hermite],
+  [HERMITE=yes
+   AC_DEFINE([HERMITE], 1,
+ 	[Define if hermite should be used.])])
+AM_CONDITIONAL(HERMITE, test "x$HERMITE" = "xyes")
 
 # Check if pthread is available
 AC_CHECK_LIB([pthread], [pthread_create],[HAVE_PTHREAD=yes],[HAVE_PTHREAD=no])
