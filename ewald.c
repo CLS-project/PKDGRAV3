@@ -3,7 +3,9 @@
 #endif
 
 #include <stdio.h>
+#ifdef HAVE_MALLOC_H
 #include <malloc.h>
+#endif
 #include <math.h>
 #include <assert.h>
 #include "ewald.h"

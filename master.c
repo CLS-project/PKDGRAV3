@@ -9,7 +9,9 @@
 #include <unistd.h> /* for unlink() */
 #include <stddef.h>
 #include <string.h>
+#ifdef HAVE_MALLOC_H
 #include <malloc.h>
+#endif
 #include <assert.h>
 #include <time.h>
 #include <sys/time.h>
