@@ -127,7 +127,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
     int nCell,nMaxCell;
     int nPartBucket,nMaxPartBucket;
 #ifdef USE_SIMD
-    __m128 vdir;
+    v4sf vdir;
     float  sdir;
     int nGlam,nMaxGlam;
     int ig,iv;
@@ -601,12 +601,13 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 					      nMaxGlam*sizeof(GLAM));
 			assert(ilglam != 0);
 		    }
-
+#ifdef __SSE__
 		    vdir = _mm_rsqrt_ss(_mm_set_ss(d2));
 		    sdir = _mm_cvtss_f32(vdir);
 		    sdir *= ((3.0 - sdir * sdir * (float)d2) * 0.5);
-		    //dir = 1.0/sqrt(d2);
-
+#else
+		    dir = 1.0/sqrt(d2);
+#endif
 		    ilglam[nGlam].q = pkdc->mom;
 		    ilglam[nGlam].dir = sdir;
 		    ilglam[nGlam].g0 = -sdir;
