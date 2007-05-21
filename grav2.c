@@ -4,7 +4,9 @@
 
 #include <math.h>
 #include <stdlib.h>
+#ifdef HAVE_MALLOC_H
 #include <malloc.h>
+#endif
 #include <stddef.h>
 #include <assert.h>
 #include <time.h>
