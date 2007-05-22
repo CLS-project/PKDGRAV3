@@ -92,7 +92,10 @@ typedef struct ilCell {
 } ILC;
 #else
 typedef struct ilCell {
-    double x,y,z; /*,vx,vy,vz;*/
+    double x,y,z; 
+#ifdef HERMITE
+    double vx,vy,vz;
+#endif
     MOMR mom;
     } ILC;
 #endif

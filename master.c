@@ -3144,14 +3144,13 @@ msrStepVeryActiveHermite(MSR msr, double dStep, double dTime, double dDelta,
 		     int iRung)
     {
     struct inStepVeryActiveH in;
-    struct outStepVeryActiveH out;
-    
-    struct inSunIndirect ins;
-    struct outSunIndirect outs;
-
+    struct outStepVeryActiveH out;    
+ 
 #ifdef HELIOCENTRIC
     if(msr->param.bHeliocentric){
       int k;        
+      struct inSunIndirect ins;
+      struct outSunIndirect outs;
 
       ins.iFlag = 2; /* for inactive particles */ 
       pstSunIndirect(msr->pst,&ins,sizeof(ins),&outs,NULL); 

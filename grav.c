@@ -243,9 +243,11 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	ax = 0;
 	ay = 0;
 	az = 0;
+#ifdef HERMITE
 	adx = 0;
 	ady = 0;
 	adz = 0;
+#endif
 	rhocadd = 0;
 	rholoc = 0;
 	rhopmax = 0;
@@ -256,6 +258,12 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	    x = p[i].r[0] - ilc[j].x;
 	    y = p[i].r[1] - ilc[j].y;
 	    z = p[i].r[2] - ilc[j].z;
+#ifdef HERMITE	    
+	    vx = p[i].v[0] - ilc[j].vx;
+	    vy = p[i].v[1] - ilc[j].vy;
+	    vz = p[i].v[2] - ilc[j].vz;
+	    rv = x*vx + y*vy + z*vz;
+#endif
 	    d2 = x*x + y*y + z*z;
 	    SQRT1(d2,dir);
 	    dir2 = dir*dir;
@@ -301,6 +309,16 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	    rhoenc[j].z = z;
 	    rhoenc[j].dir = dir;
 	    dir *= ilc[j].mom.m;
+#ifdef HERMITE
+            /* contribution to ad only from monopole */
+	    adx -= vx*dir2*dir;
+	    ady -= vy*dir2*dir;
+	    adz -= vz*dir2*dir;
+	    dir5  = 3.0*rv*dir2*dir2*dir;
+	    adx += x*dir5;
+	    ady += y*dir5;
+	    adz += z*dir5;
+#endif
 	    dir2 *= dir + 5*g2 + 7*g3 + 9*g4;
 	    fPot -= dir + g2 + g3 + g4;
 	    tax = xx + xxx + tx - x*dir2;
@@ -417,8 +435,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	    vx = p[i].v[0] - ilp[j].vx;
 	    vy = p[i].v[1] - ilp[j].vy;
 	    vz = p[i].v[2] - ilp[j].vz;
-            rv = x*vx + y*vy + z*vz;
-            v2 = vx*vx + vy*vy + vz*vz;          
+            rv = x*vx + y*vy + z*vz;       
 	    /* Hermite end */
 #endif
 #ifdef SOFTSQUARE
@@ -614,7 +631,6 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	    vy = pi->v[1] - pj->v[1];
 	    vz = pi->v[2] - pj->v[2];	
             rv = x*vx+ y*vy + z*vz;
-	    v2 = vx*vx + vy*vy + vz*vz;
 	    /* Hermite end */
 #endif
 #ifdef SOFTSQUARE
@@ -733,7 +749,6 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	    vy = pi->v[1] - pj->v[1];
 	    vz = pi->v[2] - pj->v[2];            
             rv = vx*x + vy*y + vz*z;
-	    v2 = vx*vx + vy*vy + vz*vz;
 	    /* Hermite end */
 #endif
 #ifdef SOFTSQUARE
