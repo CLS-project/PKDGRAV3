@@ -381,7 +381,7 @@ void BuildTemp(PKD pkd,int iNode,int M,int bSqueeze) {
 */
 void ShuffleParticles(PKD pkd,int iStart) {
     PARTICLE Temp;
-    int i,iNew,iTemp;
+    int i,iNew,iNewer,iTemp;
 
     /*
     ** Now we move the particles in one go using the temporary
@@ -392,11 +392,26 @@ void ShuffleParticles(PKD pkd,int iStart) {
 	Temp = pkd->pStore[iTemp];
 	i = iTemp;
 	iNew = pkd->pLite[i].i;
+	iNewer = pkd->pLite[iNew].i;
 	while (iNew != iTemp) {
+#ifdef __SSE__
+	    /* Particles are being shuffled here in a non-linear order.
+	    ** Being smart humans, we can tell the CPU where the next chunk
+	    ** of data can be found.  The limit is 8 outstanding prefetches
+	    ** (according to the Opteron Guide).
+	    */
+	    _mm_prefetch((char *)(pkd->pLite+iNewer)+offsetof(struct pLite,i),
+			 _MM_HINT_T0 );
+	    _mm_prefetch((char *)(pkd->pStore+iNewer)+0,_MM_HINT_NTA);
+	    _mm_prefetch((char *)(pkd->pStore+iNewer)+64,_MM_HINT_NTA);
+	    _mm_prefetch((char *)(pkd->pStore+iNewer)+128,_MM_HINT_NTA);
+	    _mm_prefetch((char *)(pkd->pStore+iNewer)+192,_MM_HINT_NTA);
+#endif
 	    pkd->pStore[i] = pkd->pStore[iNew];
 	    pkd->pLite[i].i = 0;
 	    i = iNew;
 	    iNew = pkd->pLite[i].i;
+	    iNewer = pkd->pLite[iNew].i;
 	    }
 	pkd->pStore[i] = Temp;
 	pkd->pLite[i].i = 0;
