@@ -39,7 +39,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
     float rhosum,maisum;
     momFloat magai,adotai;
     momFloat tax,tay,taz,tmon;
-#ifndef USE_SIMD
+#ifndef USE_SIMD_MOMR
     double g2,g3,g4;
     double xx,xy,xz,yy,yz,zz;
     double xxx,xxz,yyy,yyz,xxy,xyy,xyz;
