@@ -396,21 +396,25 @@ void ShuffleParticles(PKD pkd,int iStart) {
 	iNew = pkd->pLite[i].i;
 	iNewer = pkd->pLite[iNew].i;
 	while (iNew != iTemp) {
-#ifdef __GNUC__
-	    __builtin_prefetch((char *)(pkd->pLite+iNewer)
-		+ offsetof(struct pLite,i), 1, 3 );
-	    __builtin_prefetch((char *)(pkd->pStore+iNewer)+0,1,0);
-	    __builtin_prefetch((char *)(pkd->pStore+iNewer)+64,1,0);
-	    __builtin_prefetch((char *)(pkd->pStore+iNewer)+128,1,0);
-	    __builtin_prefetch((char *)(pkd->pStore+iNewer)+192,1,0);
-
-#else
-#ifdef __SSE__
 	    /* Particles are being shuffled here in a non-linear order.
 	    ** Being smart humans, we can tell the CPU where the next chunk
 	    ** of data can be found.  The limit is 8 outstanding prefetches
 	    ** (according to the Opteron Guide).
 	    */
+#if defined(__GNUC__) || defined(__INTEL_COMPILER)
+	    __builtin_prefetch((char *)(pkd->pLite+iNewer)
+		+ offsetof(struct pLite,i), 1, 3 );
+	    __builtin_prefetch((char *)(pkd->pStore+iNewer)+0,1,0);
+#ifndef __ALTIVEC__
+	    __builtin_prefetch((char *)(pkd->pStore+iNewer)+64,1,0);
+#endif
+	    __builtin_prefetch((char *)(pkd->pStore+iNewer)+128,1,0);
+#ifndef __ALTIVEC__
+	    __builtin_prefetch((char *)(pkd->pStore+iNewer)+192,1,0);
+
+#endif
+#endif
+#ifdef xx__SSE__
 	    _mm_prefetch((char *)(pkd->pLite+iNewer)+offsetof(struct pLite,i),
 			 _MM_HINT_T0 );
 	    _mm_prefetch((char *)(pkd->pStore+iNewer)+0,_MM_HINT_NTA);
@@ -418,16 +422,10 @@ void ShuffleParticles(PKD pkd,int iStart) {
 	    _mm_prefetch((char *)(pkd->pStore+iNewer)+128,_MM_HINT_NTA);
 	    _mm_prefetch((char *)(pkd->pStore+iNewer)+192,_MM_HINT_NTA);
 #endif
-#ifdef __ALTIVEC__
+#ifdef xx__ALTIVEC__
 	__asm__ __volatile__ ("dcbt 0, %0"::"r"((char *)(pkd->pLite+iNewer)+offsetof(struct pLite,i)));
 	__asm__ __volatile__ ("dcbt 0, %0"::"r"((char *)(pkd->pStore+iNewer)+0));
 	__asm__ __volatile__ ("dcbt 0, %0"::"r"((char *)(pkd->pStore+iNewer)+128));
-#endif
-
-	    /* This made very little difference on speck */
-//	    vec_dststt((int *)(pkd->pStore+iNewer),dst0,0);
-//	    vec_dststt((int *)(pkd->pLite+iNewer)
-//		       +offsetof(struct pLite,i)/sizeof(int),dst1,1);
 #endif
 	    pkd->pStore[i] = pkd->pStore[iNew];
 	    pkd->pLite[i].i = 0;
