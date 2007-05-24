@@ -384,19 +384,6 @@ void BuildTemp(PKD pkd,int iNode,int M,int bSqueeze) {
 void ShuffleParticles(PKD pkd,int iStart) {
     PARTICLE Temp;
     int i,iNew,iNewer,iTemp;
-    unsigned int dst0, dst1;
-
-    struct timeval tv1, tv2;
-    struct timezone tz;
-
-    gettimeofday(&tv1, &tz);
-
-    dst0 = (sizeof(PARTICLE) << 16)
-      | ((sizeof(PARTICLE)/16) << 8)
-      | 8;
-    dst1 = (0 << 16)
-      | ((16/16) << 8)
-      | 8;
 
     /*
     ** Now we move the particles in one go using the temporary
@@ -423,10 +410,14 @@ void ShuffleParticles(PKD pkd,int iStart) {
 	    _mm_prefetch((char *)(pkd->pStore+iNewer)+192,_MM_HINT_NTA);
 #endif
 #ifdef __ALTIVEC__
+	__asm__ __volatile__ ("dcbt 0, %0"::"r"((char *)(pkd->pLite+iNewer)+offsetof(struct pLite,i)));
+	__asm__ __volatile__ ("dcbt 0, %0"::"r"((char *)(pkd->pStore+iNewer)+0));
+	__asm__ __volatile__ ("dcbt 0, %0"::"r"((char *)(pkd->pStore+iNewer)+128));
+
 	    /* This made very little difference on speck */
-	    vec_dststt((int *)(pkd->pStore+iNewer),dst0,0);
-	    vec_dststt((int *)(pkd->pLite+iNewer)
-		       +offsetof(struct pLite,i)/sizeof(int),dst1,1);
+//	    vec_dststt((int *)(pkd->pStore+iNewer),dst0,0);
+//	    vec_dststt((int *)(pkd->pLite+iNewer)
+//		       +offsetof(struct pLite,i)/sizeof(int),dst1,1);
 #endif
 	    pkd->pStore[i] = pkd->pStore[iNew];
 	    pkd->pLite[i].i = 0;
@@ -437,26 +428,9 @@ void ShuffleParticles(PKD pkd,int iStart) {
 	pkd->pStore[i] = Temp;
 	pkd->pLite[i].i = 0;
 	while (!pkd->pLite[iTemp].i) {
-	    if (++iTemp == pkd->nLocal) goto spambegone;
+	    if (++iTemp == pkd->nLocal) return;
 	    }
 	}
-
- spambegone:
-#ifdef __ALTIVEC__
-    vec_dss(0);
-    vec_dss(1);
-#endif
-    gettimeofday(&tv2, &tz);
-    tv2.tv_sec -= tv1.tv_sec;
-    if ( tv2.tv_usec < tv1.tv_usec ) {
-	tv2.tv_sec--;
-	tv2.tv_usec += 1000000;
-    }
-    tv2.tv_usec -= tv1.tv_usec;
-    printf( "======================================== Shufffle took %.2f\n",
-	    tv2.tv_sec + (float)tv2.tv_usec/1000000.0);
-
-
     }
 
 
