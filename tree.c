@@ -396,6 +396,15 @@ void ShuffleParticles(PKD pkd,int iStart) {
 	iNew = pkd->pLite[i].i;
 	iNewer = pkd->pLite[iNew].i;
 	while (iNew != iTemp) {
+#ifdef __GNUC__
+	    __builtin_prefetch((char *)(pkd->pLite+iNewer)
+		+ offsetof(struct pLite,i), 1, 3 );
+	    __builtin_prefetch((char *)(pkd->pStore+iNewer)+0,1,0);
+	    __builtin_prefetch((char *)(pkd->pStore+iNewer)+64,1,0);
+	    __builtin_prefetch((char *)(pkd->pStore+iNewer)+128,1,0);
+	    __builtin_prefetch((char *)(pkd->pStore+iNewer)+192,1,0);
+
+#else
 #ifdef __SSE__
 	    /* Particles are being shuffled here in a non-linear order.
 	    ** Being smart humans, we can tell the CPU where the next chunk
@@ -413,6 +422,7 @@ void ShuffleParticles(PKD pkd,int iStart) {
 	__asm__ __volatile__ ("dcbt 0, %0"::"r"((char *)(pkd->pLite+iNewer)+offsetof(struct pLite,i)));
 	__asm__ __volatile__ ("dcbt 0, %0"::"r"((char *)(pkd->pStore+iNewer)+0));
 	__asm__ __volatile__ ("dcbt 0, %0"::"r"((char *)(pkd->pStore+iNewer)+128));
+#endif
 
 	    /* This made very little difference on speck */
 //	    vec_dststt((int *)(pkd->pStore+iNewer),dst0,0);
