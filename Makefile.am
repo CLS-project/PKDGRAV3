@@ -27,8 +27,9 @@ if LOCAL_EXPANSION
 SOURCES += ../bsc/grav2.c ../bsc/walk2.c
 if USE_SIMD
 AM_CFLAGS = -msse3 -I../bsc/
+if USE_SIMD_LOCR
 SOURCES += ../bsc/momGenLocrAddSIMDMomr.c
-# SOURCES += ../bsc/momGenLocrAddVMomr.c
+endif
 if USE_SIMD_MOMR
 SOURCES += ../bsc/momEvalSIMDMomr.c
 endif
