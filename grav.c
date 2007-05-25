@@ -580,9 +580,11 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	p[i].a[0] = ax;
 	p[i].a[1] = ay;
 	p[i].a[2] = az;
+#ifdef HERMITE
 	p[i].ad[0] = adx;
 	p[i].ad[1] = ady;
 	p[i].ad[2] = adz;
+#endif
 	} /* end of i-loop over particles in the bucket */
     /*
     ** Free time-step lists
