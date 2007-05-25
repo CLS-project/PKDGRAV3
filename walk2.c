@@ -126,7 +126,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
     int nPart,nMaxPart;
     int nCell,nMaxCell;
     int nPartBucket,nMaxPartBucket;
-#ifdef USE_SIMD
+#ifdef USE_SIMD_LOCR
     v4sf vdir;
     float  sdir;
     int nGlam,nMaxGlam;
@@ -188,7 +188,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
     nMaxPartBucket = 500;
     ilpb = malloc(nMaxPartBucket*sizeof(ILPB));
     assert(ilpb != NULL);
-#ifdef USE_SIMD
+#ifdef USE_SIMD_LOCR
     nMaxGlam = 1000;
     ilglam = SIMD_malloc(nMaxGlam*sizeof(GLAM));
     assert(ilglam != 0);
@@ -599,7 +599,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 		  ** Local expansion accepted!
 		  ** Add to the GLAM list to be evaluated later.
 		  */
-#ifdef USE_SIMD
+#ifdef USE_SIMD_LOCR
 		    if (nGlam == nMaxGlam) {
 			nMaxGlam += 1000;
 			ilglam = SIMD_realloc(ilglam,
@@ -761,7 +761,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 	    /*
 	    ** Evaluate the GLAM list here.
 	    */
-#ifdef USE_SIMD
+#ifdef USE_SIMD_LOCR
 	    *pdFlop += momGenLocrAddSIMDMomr(&L,nGlam,ilglam,0,0,0,0,0);
 #ifdef GLAM_STATS
 	    nAvgGlam += nGlam;
@@ -859,7 +859,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 	** Checklist should be empty! Calculate gravity on this
 	** Bucket!
 	*/
-#ifdef USE_SIMD
+#ifdef USE_SIMD_LOCR
 	assert(nGlam == 0);
 #endif
 	assert(nCheck == 0);
