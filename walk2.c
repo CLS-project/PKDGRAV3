@@ -606,7 +606,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 		    sdir = _mm_cvtss_f32(vdir);
 		    sdir *= ((3.0 - sdir * sdir * (float)d2) * 0.5);
 #else
-		    dir = 1.0/sqrt(d2);
+		    sdir = 1.0/sqrt(d2);
 #endif
 		    ilglam[nGlam].q = pkdc->mom;
 		    ilglam[nGlam].dir = sdir;
