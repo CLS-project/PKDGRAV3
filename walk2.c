@@ -126,11 +126,13 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
     int nPart,nMaxPart;
     int nCell,nMaxCell;
     int nPartBucket,nMaxPartBucket;
+#ifdef USE_SIMD_MOMR
+    int ig,iv;
+#endif
 #ifdef USE_SIMD_LOCR
     v4sf vdir;
     float  sdir;
     int nGlam,nMaxGlam;
-    int ig,iv;
     GLAM *ilglam;
 #ifdef GLAM_STATS
     int nTotGlam=0, nAvgGlam=0;
