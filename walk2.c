@@ -103,7 +103,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
     PARTICLE *p = pkd->pStore;
     PARTICLE *pRemote;
     KDN *c;
-    KDN *pkdc;
+    KDN *pkdc, *next_pkdc;
     CSTACK *S;
     CELT *Check;
     LOCR L;
@@ -283,6 +283,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
     c = pkd->kdNodes;
     if (bVeryActive) iCell = VAROOT;
     else iCell = ROOT;
+
     while (1) {
 	while (1) {
 	    /*
@@ -294,8 +295,11 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 #else
 	    tempI = *pdFlop;
 #endif
-
 	    ii = 0;
+
+	    /* A guess */
+	    next_pkdc = pkd->kdNodes + Check[0].iCell;
+
 	    for (i=0;i<nCheck;++i) {
 		id = Check[i].id;
 
@@ -306,11 +310,11 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 		    _mm_prefetch( (char *)(c+iCell)+128,_MM_HINT_T0 );
 #endif
 		if (id == pkd->idSelf) {
-		    pkdc = &pkd->kdNodes[Check[i].iCell];
-		    n = pkdc->pUpper - pkdc->pLower + 1;
+		    pkdc = pkd->kdNodes + Check[i].iCell;
+		    n = next_pkdc->pUpper - next_pkdc->pLower + 1;
 		    }
 		else if (id < 0) {
-		    pkdc = &pkd->kdTop[Check[i].iCell];
+		    pkdc = pkd->kdTop + Check[i].iCell;
 		    assert(pkdc->iLower != 0);
 		    n = WALK_MINMULTIPOLE;  /* See check below */
 		    }
@@ -324,6 +328,8 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 #endif
 		    n = pkdc->pUpper - pkdc->pLower + 1;
 		    }
+
+		next_pkdc = pkd->kdNodes + Check[i].iCell;
 #if 1
 		/*
 		** If the cell is not time synchronous, then work out a drift factor
