@@ -450,6 +450,10 @@ int main(int argc,char **argv) {
 	    msrDtToRung(msr,0,msrDelta(msr),1);
 	    }
 	}
+
+#ifdef PP_SIMD_BENCHMARK
+    PPDumpStats();
+#endif
 	
     msrFinish(msr);
     mdlFinish(mdl);
