@@ -268,13 +268,15 @@ AC_C_CONST
 AC_C_INLINE
 AC_TYPE_OFF_T
 AC_TYPE_SIZE_T
+AC_TYPE_SIGNAL
+AC_HEADER_STDBOOL
 AC_HEADER_TIME
 AC_SYS_LARGEFILE
 
 # Checks for library functions.
 AC_FUNC_MALLOC
 AC_FUNC_REALLOC
-AC_CHECK_FUNCS([floor gethostname gettimeofday pow sqrt strchr strdup])
+AC_CHECK_FUNCS([floor gethostname gettimeofday memset pow sqrt strchr strdup strrchr strstr ])
 
 AC_CONFIG_FILES([Makefile])
 AC_OUTPUT
