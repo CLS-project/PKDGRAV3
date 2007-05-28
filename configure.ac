@@ -205,6 +205,50 @@ AC_CHECK_LIB([m], [fabs])
 
 if test "x$USE_SIMD" == "xyes" ; then
   AC_CHECK_FUNCS([posix_memalign],HAVE_POSIX_MEMALIGN=yes)
+
+  AC_MSG_CHECKING([Checking if the compiler accepts -msse3])
+  oldCFLAGS="$CFLAGS"; CFLAGS="-msse3"
+  AC_TRY_COMPILE([#include <pmmintrin.h>],[__m128 r;],
+	AC_MSG_RESULT(yes); SIMD_CFLAGS="-msse3",
+	AC_MSG_RESULT(no);)
+  CFLAGS="$oldCFLAGS"
+  if test "x$SIMD_CFLAGS" = "x" ; then
+    AC_MSG_CHECKING([Checking if the compiler accepts -msse2])
+    oldCFLAGS="$CFLAGS"; CFLAGS="-msse2"
+    AC_TRY_COMPILE([#include <emmintrin.h>],[__m128 r;],
+	AC_MSG_RESULT(yes); SIMD_CFLAGS="-msse2",
+	AC_MSG_RESULT(no);)
+    CFLAGS="$oldCFLAGS"
+  fi
+  if test "x$SIMD_CFLAGS" = "x" ; then
+    AC_MSG_CHECKING([Checking if the compiler accepts -msse])
+    oldCFLAGS="$CFLAGS"; CFLAGS="-msse"
+    AC_TRY_COMPILE([#include <emmintrin.h>],[__m128 r;],
+	AC_MSG_RESULT(yes); SIMD_CFLAGS="-msse",
+	AC_MSG_RESULT(no);)
+    CFLAGS="$oldCFLAGS"
+  fi
+
+  if test "x$SIMD_CFLAGS" = "x" ; then
+    AC_MSG_CHECKING([Checking if the compiler accepts -qaltivec])
+    oldCFLAGS="$CFLAGS"; CFLAGS="-qaltivec"
+    AC_TRY_COMPILE([#include <altivec.h>],[vector float r;],
+	AC_MSG_RESULT(yes); SIMD_CFLAGS="-qaltivec",
+	AC_MSG_RESULT(no);)
+    CFLAGS="$oldCFLAGS"
+  fi
+  if test "x$SIMD_CFLAGS" = "x" ; then
+    AC_MSG_CHECKING([Checking if the compiler accepts -maltivec])
+    oldCFLAGS="$CFLAGS"; CFLAGS="-maltivec"
+    AC_TRY_COMPILE([#include <altivec.h>],[vector float r;],
+	AC_MSG_RESULT(yes); SIMD_CFLAGS="-maltivec",
+	AC_MSG_RESULT(no);)
+    CFLAGS="$oldCFLAGS"
+  fi
+  if test "x$SIMD_CFLAGS" = "x" ; then
+    AC_MSG_ERROR([SIMD was requested, but the compiler doesn't seem to support it.])
+  fi
+  AC_SUBST(SIMD_CFLAGS)
 fi
 if test "x$HAVE_POSIX_MEMALIGN" == "xyes" ; then
   AC_DEFINE([HAVE_POSIX_MEMALIGN],1, 

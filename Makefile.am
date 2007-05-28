@@ -26,7 +26,7 @@ SOURCES += main.c moments.c outtype.c pkd.c romberg.c smoothfcn.c ssio.c collisi
 if LOCAL_EXPANSION
 SOURCES += ../bsc/grav2.c ../bsc/walk2.c
 if USE_SIMD
-AM_CFLAGS = -msse3 -I../bsc/
+AM_CFLAGS = -I../bsc/ @SIMD_CFLAGS@
 if USE_SIMD_LOCR
 SOURCES += ../bsc/momGenLocrAddSIMDMomr.c
 endif
