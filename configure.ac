@@ -253,6 +253,9 @@ fi
 if test "x$HAVE_POSIX_MEMALIGN" == "xyes" ; then
   AC_DEFINE([HAVE_POSIX_MEMALIGN],1, 
  	[Define if posix_memalign should be used instead of malloc for SIMD.])
+
+  AC_DEFINE([_GNU_SOURCE],1,
+	[This is needed for posix_memalign to be defined in stdlib.h])
 fi
 
 # Checks for header files.
