@@ -1,3 +1,5 @@
+#ifdef PLANETS
+
 #ifndef SSIO_HINCLUDED
 #define SSIO_HINCLUDED
 
@@ -90,4 +92,5 @@ void ssioRewind(SSIO *ssio);
 #define COLL_LOG_TXT "ss.coll.txt"
 #define COLL_LOG_BIN "ss.coll.bin"
 
+#endif
 #endif

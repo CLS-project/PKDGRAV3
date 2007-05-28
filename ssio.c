@@ -1,3 +1,8 @@
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+
+#ifdef PLANETS
 
 /*
  ** ssio.c -- DCR 98-09-16
@@ -110,5 +115,6 @@ ssioRewind(SSIO *ssio)
 	rewind(ssio->fp);
 	}
 
-/* ssio.c */
+#endif
+/* PLANETS */
 
