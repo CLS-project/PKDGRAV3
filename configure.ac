@@ -231,9 +231,9 @@ if test "x$USE_SIMD" == "xyes" ; then
 
   if test "x$SIMD_CFLAGS" = "x" ; then
     AC_MSG_CHECKING([Checking if the compiler accepts -qaltivec])
-    oldCFLAGS="$CFLAGS"; CFLAGS="-qaltivec"
-    AC_TRY_COMPILE([#include <altivec.h>],[vector float r;],
-	AC_MSG_RESULT(yes); SIMD_CFLAGS="-qaltivec",
+    oldCFLAGS="$CFLAGS"; CFLAGS="-qarch=ppc970 -qaltivec"
+    AC_TRY_COMPILE([#include <altivec.h>],[void foo(void) {vector float r;}],
+	AC_MSG_RESULT(yes); SIMD_CFLAGS="-qarch=ppc970 -qaltivec",
 	AC_MSG_RESULT(no);)
     CFLAGS="$oldCFLAGS"
   fi
