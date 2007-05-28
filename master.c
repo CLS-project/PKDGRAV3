@@ -2939,10 +2939,10 @@ msrStepVeryActiveKDK(MSR msr, double dStep, double dTime, double dDelta,
     struct inStepVeryActive in;
     struct outStepVeryActive out;
     
+#ifdef PLANETS
     struct inSunIndirect ins;
     struct outSunIndirect outs;
 
-#ifdef PLANETS
     if(msr->param.bHeliocentric){
       int k;        
 
