@@ -507,9 +507,9 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 		    ilc[nCell].z = rCheck[2];
 		    ilc[nCell].mom = pkdc->mom;
 #ifdef HERMITE
-		    ilc[nPart].vx = pkdc->v[0];
-		    ilc[nPart].vy = pkdc->v[1];
-		    ilc[nPart].vz = pkdc->v[2];
+		    ilc[nCell].vx = pkdc->v[0];
+		    ilc[nCell].vy = pkdc->v[1];
+		    ilc[nCell].vz = pkdc->v[2];
 #endif
 		    ++nCell;
 		    }
