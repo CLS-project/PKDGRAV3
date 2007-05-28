@@ -203,6 +203,14 @@ AC_CHECK_LIB([m], [fabs])
 # FIXME: Replace `main' with a function in `-lz':
 #AC_CHECK_LIB([z], [main])
 
+if test "x$USE_SIMD" == "xyes" ; then
+  AC_CHECK_FUNCS([posix_memalign],HAVE_POSIX_MEMALIGN=yes)
+fi
+if test "x$HAVE_POSIX_MEMALIGN" == "xyes" ; then
+  AC_DEFINE([HAVE_POSIX_MEMALIGN],1, 
+ 	[Define if posix_memalign should be used instead of malloc for SIMD.])
+fi
+
 # Checks for header files.
 AC_FUNC_ALLOCA
 AC_HEADER_STDC
