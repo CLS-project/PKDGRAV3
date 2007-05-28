@@ -12,6 +12,10 @@
 
 #include "parameters.h"
 #include "cosmo.h"
+#ifdef PLANETS
+#include "collision.h"
+#endif
+
 
 typedef struct lclBlock {
     char *pszDataPath;
@@ -145,10 +149,20 @@ enum pst_service {
     PST_CLEARTIMER,
     PST_FINDIOS,
     PST_STARTIO,
+#ifdef PLANETS
     PST_READSS,
     PST_WRITESS,
     PST_SUNINDIRECT,
     PST_GRAVSUN,
+    PST_NEXTCOLLISION,
+    PST_GETCOLLIDERINFO,
+    PST_DOCOLLISION,
+    PST_RESETCOLLIDERS,
+#endif
+#ifdef HERMITE
+    PST_AARSETHSTEP,
+    PST_FIRSTDT,
+#endif
     };
 
 void pstAddServices(PST,MDL);
@@ -485,7 +499,7 @@ struct outStepVeryActive
     };
 void pstStepVeryActiveKDK(PST,void *,int,void *,int *);
 
-/* Hermite */
+#ifdef HERMITE
 /* PST_STEPVERYACTIVEH */
 struct inStepVeryActiveH 
     {
@@ -535,7 +549,17 @@ struct inPredictorInactive {
     double dTime;
     };
 void pstPredictorInactive(PST,void *,int,void *,int *);
-/* Hermite end */
+
+/* PST_AARSETHSTEP */
+struct inAarsethStep {
+    double dEta;
+    };
+void pstAarsethStep(PST,void *,int,void *,int *);
+
+/* PST_FIRSTDT */
+void pstFirstDt(PST,void *,int,void *,int *);
+
+#endif /* Hermite*/
 
 /* PST_UPDATEUDOT */
 struct inUpdateuDot {
@@ -844,7 +868,9 @@ void pstGroupProfiles(PST,void *,int,void *,int *);
 void pstInitRelaxation(PST,void *,int,void *,int *);
 #endif
 
-/* Heliocentric begin */
+
+#ifdef PLANETS
+/* PLANETS begin */
 
 /* PST_WRITESS */
 struct inWriteSS {
@@ -884,5 +910,43 @@ struct inGravSun{
       };
 void pstGravSun(PST,void *,int,void *,int *);
 
-/* Heliocentric end */
+/* PST_NEXTCOLLISION */
+struct outNextCollision {
+	double dt;
+	int iOrder1,iOrder2;
+	};
+void pstNextCollision(PST,void *,int,void *,int *);
+
+/* PST_GETCOLLIDERINFO */
+struct inGetColliderInfo {
+	int iOrder;
+	};
+struct outGetColliderInfo {
+	COLLIDER Collider;
+	};
+void pstGetColliderInfo(PST,void *,int,void *,int *);
+
+/* PST_DOCOLLISION */
+struct inDoCollision {
+	double dt;
+	COLLIDER Collider1,Collider2;
+        int bPeriodic;
+	COLLISION_PARAMS CP;
+	};
+struct outDoCollision {
+	COLLIDER Out[MAX_NUM_FRAG];
+	double dT;
+        int iOutcome,nOut;
+        };
+void pstDoCollision(PST,void *,int,void *,int *);
+
+/* PST_RESETCOLLIDERS */
+struct inResetColliders {
+	int iOrder1,iOrder2;
+	};
+void pstResetColliders(PST,void *,int,void *,int *);
+
+/* PLANETS end */
+#endif
+
 #endif

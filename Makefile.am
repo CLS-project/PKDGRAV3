@@ -22,7 +22,7 @@ clean-local:
 	rm -f $(EXTRA_PROGRAMS)
 
 SOURCES  = cosmo.c master.c param.c pst.c smooth.c tree.c ewald.c
-SOURCES += main.c moments.c outtype.c pkd.c romberg.c smoothfcn.c ssio.c
+SOURCES += main.c moments.c outtype.c pkd.c romberg.c smoothfcn.c ssio.c collision.c
 if LOCAL_EXPANSION
 SOURCES += ../bsc/grav2.c ../bsc/walk2.c
 if USE_SIMD

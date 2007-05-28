@@ -191,11 +191,10 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
     momFloat tax,tay,taz,magai,adotai;
     double rhosum,maisum;
 #ifdef HERMITE
-    /* Hermite */
     double adx,ady,adz;
-    double rv,dir5;
-    /* Hermite end */
+    double dir5;
 #endif
+    double rv;
 
 #ifdef SOFTSQUARE
     double ptwoh2;
@@ -258,13 +257,14 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	    x = p[i].r[0] - ilc[j].x;
 	    y = p[i].r[1] - ilc[j].y;
 	    z = p[i].r[2] - ilc[j].z;
+	    d2 = x*x + y*y + z*z;
 #ifdef HERMITE	    
 	    vx = p[i].v[0] - ilc[j].vx;
 	    vy = p[i].v[1] - ilc[j].vy;
 	    vz = p[i].v[2] - ilc[j].vz;
 	    rv = x*vx + y*vy + z*vz;
 #endif
-	    d2 = x*x + y*y + z*z;
+
 	    SQRT1(d2,dir);
 	    dir2 = dir*dir;
 	    g2 = 3*dir*dir2*dir2;
@@ -373,10 +373,11 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 		    dir *= 1.0 + d2*(0.5 + d2*(3.0/8.0 + d2*(45.0/32.0)));
 		    dir2 *= 1.0 + d2*(1.5 + d2*(135.0/16.0));
 		    }
+
 		rhoenc[j].dir = dir;
 		dir2 *=  ilpb[k].m;
 		rhoenc[j].rhoenc = dir2;
-		}
+	    }
 	    /*
 	    ** Determine the nSC maximum cells in the cell list
 	    */
@@ -430,14 +431,12 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	    y = p[i].r[1] - ilp[j].y;
 	    z = p[i].r[2] - ilp[j].z;
 	    d2 = x*x + y*y + z*z;
-#ifdef HERMITE
-	    /* Hermite */
+#ifdef HERMITE	 
 	    vx = p[i].v[0] - ilp[j].vx;
 	    vy = p[i].v[1] - ilp[j].vy;
-	    vz = p[i].v[2] - ilp[j].vz;
-            rv = x*vx + y*vy + z*vz;       
-	    /* Hermite end */
+	    vz = p[i].v[2] - ilp[j].vz;  	
 #endif
+            rv = x*vx + y*vy + z*vz; 
 #ifdef SOFTSQUARE
 	    fourh2 = ptwoh2 + ilp[j].twoh2;
 #endif
@@ -455,11 +454,21 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 		SQRT1(d2,dir);
 		dir2 = dir*dir*dir;
 		magai = dir*dir;
+
 		}
 	    else {
 		/*
 		** This uses the Dehnen K1 kernel function now, it's fast!
 		*/	
+#ifdef PLANETS 
+		    if(pkd->param.bCollision){
+		      p[i].iColflag = 1;
+		      p[i].iOrderCol = ilp[j].iOrder;
+		      p[i].dtCol = 1.0*p[i].iOrgIdx;	
+		      printf("r1+r2 = %e, dr = %e, pi = %i, pj = %i, ilp  \n",sqrt(d2),sqrt(fourh2),p[i].iOrgIdx,p[j].iOrgIdx);
+		    }
+#endif
+		    
 	        magai = sqrt(d2);
 		SQRT1(fourh2,dir);
 		dir2 = dir*dir;
@@ -510,7 +519,6 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	    ay += tay;
 	    az += taz;
 #ifdef HERMITE
-	    /* Hermite */
 	    adx -= vx*dir2;
 	    ady -= vy*dir2;
 	    adz -= vz*dir2;
@@ -518,7 +526,6 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	    adx += x*dir5;
 	    ady += y*dir5;
 	    adz += z*dir5;
-	    /* Hermite end */
 #endif
 	    } /* end of particle list gravity loop */
 
@@ -611,11 +618,9 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	ay = 0;
 	az = 0;
 #ifdef HERMITE
-	/* Hermite */
 	adx = 0;
 	ady = 0;
 	adz = 0;
-	/* Hermite end */
 #endif
 	pi = pkd->piActive[i];
 #ifdef SOFTSQUARE
@@ -628,13 +633,11 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	    z = pi->r[2] - pj->r[2];
 	    d2 = x*x + y*y + z*z;
 #ifdef HERMITE
-	    /* Hermite */
 	    vx = pi->v[0] - pj->v[0];
 	    vy = pi->v[1] - pj->v[1];
 	    vz = pi->v[2] - pj->v[2];	
-            rv = x*vx+ y*vy + z*vz;
-	    /* Hermite end */
 #endif
+            rv = x*vx+ y*vy + z*vz;
 #ifdef SOFTSQUARE
 	    fourh2 = ptwoh2 + 2*pj->fSoft*pj->fSoft;
 #endif
@@ -655,6 +658,14 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 		** This uses the Dehnen K1 kernel function now, it's fast!
 		** (no more lookup tables)
 		*/
+#ifdef PLANETS 
+	 if(pkd->param.bCollision){	
+	        pi->iColflag = 1;
+                pi->iOrderCol = pj->iOrder;
+		pi->dtCol = 1.0*pi->iOrgIdx;
+		printf("r1+r2 = %e, dr = %e, pi = %i, pj = %i active-active \n",sqrt(d2),sqrt(fourh2),pi->iOrgIdx,pj->iOrgIdx);       
+	 }
+#endif	 
 		SQRT1(fourh2,dir);
 		dir2 = dir*dir;
 		d2 *= dir2;
@@ -673,7 +684,6 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	    pj->a[1] += y*dir2*pi->fMass;
 	    pj->a[2] += z*dir2*pi->fMass;
 #ifdef HERMITE	    
-	    /* Hermite */
 	    dir5 = 3.0*rv*dir2*dir*dir;
 	    adx += (vx*dir2-x*dir5)*pj->fMass;
 	    ady += (vy*dir2-y*dir5)*pj->fMass;
@@ -681,7 +691,6 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	    pj->ad[0] += (vx*dir2-x*dir5)*pi->fMass;
 	    pj->ad[1] += (vy*dir2-y*dir5)*pi->fMass;
 	    pj->ad[2] += (vz*dir2-z*dir5)*pi->fMass;
-	    /* Hermite */
 #endif
 	    /*
 	    ** Eccentricity correction
@@ -713,11 +722,9 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	pi->a[1] -= ay;
 	pi->a[2] -= az;
 #ifdef HERMITE
-	/* Hermite */
 	pi->ad[0] -= adx;
 	pi->ad[1] -= ady;
 	pi->ad[2] -= adz;
-	/* Hermite end */
 #endif
 	} /* end of i-loop active-active */
     /*
@@ -729,11 +736,9 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	ay = 0;
 	az = 0;
 #ifdef HERMITE
-	/* Hermite */
 	adx = 0;
 	ady = 0;
 	adz = 0;
-	/* Hermite end*/
 #endif
 	pi = pkd->piActive[i];
 #ifdef SOFTSQUARE
@@ -746,13 +751,11 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	    z = pi->r[2] - pj->r[2];
 	    d2 = x*x + y*y + z*z;
 #ifdef HERMITE	    
-	    /* Hermite */
 	    vx = pi->v[0] - pj->v[0];
 	    vy = pi->v[1] - pj->v[1];
 	    vz = pi->v[2] - pj->v[2];            
-            rv = vx*x + vy*y + vz*z;
-	    /* Hermite end */
 #endif
+	    rv = vx*x + vy*y + vz*z;
 #ifdef SOFTSQUARE
 	    fourh2 = ptwoh2 + 2*pj->fSoft*pj->fSoft;
 #endif
@@ -773,6 +776,15 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 		** This uses the Dehnen K1 kernel function now, it's fast!
 		** (no more lookup tables)
 		*/
+#ifdef PLANETS 
+		if(pkd->param.bCollision){	
+		  pi->iColflag = 1;
+		  pi->iOrderCol = pj->iOrder;
+		  pi->dtCol = 1.0*pi->iOrgIdx;	
+		  printf("r1+r2 = %e, dr = %e, pi = %i, pj = %i, active-inactive \n",sqrt(d2),sqrt(fourh2),pi->iOrgIdx,pj->iOrgIdx);
+		}
+#endif
+	
 		SQRT1(fourh2,dir);
 		dir2 = dir*dir;
 		d2 *= dir2;
@@ -781,18 +793,16 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 		dir *= 1.0 + d2*(0.5 + d2*(3.0/8.0 + d2*(45.0/32.0)));
 		dir2 *= 1.0 + d2*(1.5 + d2*(135.0/16.0));
 		++nSoft;
-		}
+	    }
 	    fPot += dir*pj->fMass;
 	    ax += x*dir2*pj->fMass;
 	    ay += y*dir2*pj->fMass;
 	    az += z*dir2*pj->fMass;
 #ifdef HERMITE	    
-	    /* Hermite */ 
 	    dir5 = 3.0*rv*dir2*dir*dir;
 	    adx += (vx*dir2-x*dir5)*pj->fMass;
 	    ady += (vy*dir2-y*dir5)*pj->fMass;
 	    adz += (vz*dir2-z*dir5)*pj->fMass;
-	    /* Hermite end */ 
 #endif
 	    /*
 	    ** Eccentricity correction
@@ -816,18 +826,16 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 		rhopmaxlocal *= eccfac; 
 /*  		printf("Active-Inactive iOrderA: %d iOrderI: %d mu: %g Etot: %g L2: %g ecc: %g eccfac: %g\n",pi->iOrder,pj->iOrder,mu,Etot,L2,ecc,eccfac); */
 		pi->dtGrav = (rhopmaxlocal > pi->dtGrav)?rhopmaxlocal:pi->dtGrav;
-		}
+	    }
 	    } /* end of j-loop */
 	pi->fPot -= fPot;
 	pi->a[0] -= ax;
 	pi->a[1] -= ay;
 	pi->a[2] -= az;
 #ifdef HERMITE
-	/* Hermite */
 	pi->ad[0] -= adx;
 	pi->ad[1] -= ady;
 	pi->ad[2] -= adz;
-	/* Hermite */
 #endif	
 	} /* end of i-loop active-inactive */
     *pdFlop += nActive*(nPart*40 + nCell*200) + nSoft*15;

@@ -19,6 +19,7 @@
 #include "outtype.h"
 #include "smooth.h"
 
+
 void pstAddServices(PST pst,MDL mdl)
     {
     int nThreads,nCell;
@@ -148,6 +149,11 @@ void pstAddServices(PST pst,MDL mdl)
     mdlAddService(mdl,PST_PREDICTORINACTIVE,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstPredictorInactive,
 		  sizeof(struct inPredictorInactive),0);
+    mdlAddService(mdl,PST_AARSETHSTEP,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstAarsethStep,
+		  sizeof(struct inAarsethStep), 0);
+    mdlAddService(mdl,PST_FIRSTDT,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstFirstDt,0,0);
 #endif
     mdlAddService(mdl,PST_ROPARTICLECACHE,pst,
 		  (void (*)(void *,void *,int,void *,int *))pstROParticleCache,
@@ -286,8 +292,7 @@ void pstAddServices(PST pst,MDL mdl)
 		  sizeof(struct inStartIO),0);
 #endif
 
-#ifdef HELIOCENTRIC
-/* Heliocentric begin */
+#ifdef PLANETS 
     mdlAddService(mdl,PST_READSS,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstReadSS,
 				  sizeof(struct inReadSS),0);
@@ -300,7 +305,18 @@ void pstAddServices(PST pst,MDL mdl)
     mdlAddService(mdl,PST_GRAVSUN,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstGravSun,
 		  sizeof(struct inGravSun),0);
-/* Heliocentric end */
+    mdlAddService(mdl,PST_NEXTCOLLISION,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstNextCollision,
+				  0,sizeof(struct outNextCollision));
+    mdlAddService(mdl,PST_GETCOLLIDERINFO,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstGetColliderInfo,
+	    sizeof(struct inGetColliderInfo), sizeof(struct outGetColliderInfo));
+    mdlAddService(mdl,PST_DOCOLLISION,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstDoCollision,
+		  sizeof(struct inDoCollision),sizeof(struct outDoCollision));
+    mdlAddService(mdl,PST_RESETCOLLIDERS,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstResetColliders,
+		  sizeof(struct inResetColliders),0);
 #endif
     }
 
@@ -2704,6 +2720,40 @@ void pstPredictorInactive(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 	}
     if (pnOut) *pnOut = 0;
     }
+
+void
+pstAarsethStep(PST pst,void *vin,int nIn,void *vout,int *pnOut)
+    {
+    LCL *plcl = pst->plcl;
+    struct inAarsethStep *in = vin;
+
+    mdlassert(pst->mdl,nIn == sizeof(struct inAarsethStep));
+    if (pst->nLeaves > 1) {
+	mdlReqService(pst->mdl,pst->idUpper,PST_AARSETHSTEP,vin,nIn);
+	pstAarsethStep(pst->pstLower,vin,nIn,vout,pnOut);
+	mdlGetReply(pst->mdl,pst->idUpper,vout,pnOut);
+	}
+    else {
+	pkdAarsethStep(plcl->pkd,in->dEta);
+	}
+    if (pnOut) *pnOut = 0;
+    }
+
+void pstFirstDt(PST pst,void *vin,int nIn,void *vout,int *pnOut)
+    {
+    LCL *plcl = pst->plcl;
+
+    mdlassert(pst->mdl,nIn == 0);
+    if (pst->nLeaves > 1) {
+	mdlReqService(pst->mdl,pst->idUpper,PST_FIRSTDT,vin,nIn);
+	pstFirstDt(pst->pstLower,vin,nIn,vout,pnOut);
+	mdlGetReply(pst->mdl,pst->idUpper,vout,pnOut);
+	}
+    else {
+	pkdFirstDt(plcl->pkd);
+	}
+    if (pnOut) *pnOut = 0;
+    }
 /* Hermite end */
 #endif
 
@@ -3341,8 +3391,8 @@ void pstInitRelaxation(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     }
 #endif /* RELAXATION */
 
-/* Heliocentric begin */
-#ifdef HELIOCENTRIC
+/* PLANETS begin */
+#ifdef PLANETS 
 void
 pstReadSS(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 {
@@ -3455,5 +3505,97 @@ void pstGravSun(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     }
     if (pnOut) *pnOut = 0;
     }
+
+void
+pstNextCollision(PST pst,void *vin,int nIn,void *vout,int *pnOut)
+{
+	LCL *plcl = pst->plcl;
+	struct outNextCollision local,*out = vout;
+
+	mdlassert(pst->mdl,nIn == 0);
+	out->dt = DBL_MAX;
+	out->iOrder1 = out->iOrder2 = -1;
+	if (pst->nLeaves > 1) {
+		mdlReqService(pst->mdl,pst->idUpper,PST_NEXTCOLLISION,NULL,0);
+		pstNextCollision(pst->pstLower,NULL,0,vout,NULL);
+		local = *out;
+		mdlGetReply(pst->mdl,pst->idUpper,vout,NULL);
+		if (local.dt < out->dt) *out = local;
+		}
+	else {
+		pkdNextCollision(plcl->pkd,&out->dt,&out->iOrder1,&out->iOrder2);
+		}
+	if (pnOut) *pnOut = sizeof(*out);
+	}
+
+void
+pstGetColliderInfo(PST pst,void *vin,int nIn,void *vout,int *pnOut)
+{
+	LCL *plcl = pst->plcl;
+	struct inGetColliderInfo *in = vin;
+	struct outGetColliderInfo local,*out = vout;
+
+	mdlassert(pst->mdl,nIn == sizeof(*in));
+	local.Collider.id.iOrder = out->Collider.id.iOrder = -1;
+	if (pst->nLeaves > 1) {
+		mdlReqService(pst->mdl,pst->idUpper,PST_GETCOLLIDERINFO,vin,nIn);
+		pstGetColliderInfo(pst->pstLower,vin,nIn,vout,NULL);
+		if (out->Collider.id.iOrder == in->iOrder) local = *out;
+		mdlGetReply(pst->mdl,pst->idUpper,vout,NULL);
+		if (local.Collider.id.iOrder == in->iOrder) *out = local;
+		}
+	else {
+		pkdGetColliderInfo(plcl->pkd,in->iOrder,&out->Collider);
+		}
+	if (pnOut) *pnOut = sizeof(*out);
+	}
+
+void
+pstDoCollision(PST pst,void *vin,int nIn,void *vout,int *pnOut)
+{
+	LCL *plcl = pst->plcl;
+	struct inDoCollision *in = vin;
+	struct outDoCollision local,*out = vout;
+
+	mdlassert(pst->mdl,nIn == sizeof(*in));
+	local.nOut = out->nOut = 0;
+	if (pst->nLeaves > 1) {
+		mdlReqService(pst->mdl,pst->idUpper,PST_DOCOLLISION,vin,nIn);
+		pstDoCollision(pst->pstLower,vin,nIn,vout,NULL);
+		if (out->nOut) local = *out;
+		mdlGetReply(pst->mdl,pst->idUpper,vout,NULL);
+		if (local.nOut) *out = local;
+		}
+	else {
+		PKD pkd = plcl->pkd;
+		if (in->Collider1.id.iPid == pkd->idSelf ||
+		    in->Collider2.id.iPid == pkd->idSelf) {
+		  pkdDoCollision(pkd,in->dt,&in->Collider1,&in->Collider2,
+				 in->bPeriodic,&in->CP,&out->iOutcome,&out->dT,
+				 out->Out,&out->nOut);
+			}
+		}
+	if (pnOut) *pnOut = sizeof(*out);
+	}
+
+void
+pstResetColliders(PST pst,void *vin,int nIn,void *vout,int *pnOut)
+{
+	LCL *plcl = pst->plcl;
+	struct inResetColliders *in = vin;
+	
+	mdlassert(pst->mdl,nIn == sizeof(*in));
+	if (pst->nLeaves > 1) {
+		mdlReqService(pst->mdl,pst->idUpper,PST_RESETCOLLIDERS,vin,nIn);
+		pstResetColliders(pst->pstLower,vin,nIn,NULL,NULL);
+		mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
+		}
+	else {
+		pkdResetColliders(plcl->pkd,in->iOrder1,in->iOrder2);
+		}
+	if (pnOut) *pnOut = 0;
+	}
+
+
 #endif
-/* Heliocentric end */
+/* PLANETS end */

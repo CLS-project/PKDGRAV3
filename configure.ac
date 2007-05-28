@@ -160,13 +160,13 @@ AC_ARG_ENABLE(soft-square,
  	[Define if SOFTSQUARE should be used.])])
 AM_CONDITIONAL(SOFTSQUARE, test "x$SOFTSQUARE" = "xyes")
 
-# Heliocentric
-AC_ARG_ENABLE(heliocentric,
-  [  --enable-heliocentric          enable heliocentric],
-  [HELIOCENTRIC=yes
-   AC_DEFINE([HELIOCENTRIC], 1,
- 	[Define if heliocentric should be used.])])
-AM_CONDITIONAL(HELIOCENTRIC, test "x$HELIOCENTRIC" = "xyes")
+# PLANETS 
+AC_ARG_ENABLE(planets,
+  [  --enable-planets          enable planets],
+  [PLANETS=yes
+   AC_DEFINE([PLANETS], 1,
+ 	[Define if planets should be used.])])
+AM_CONDITIONAL(PLANETS, test "x$PLANETS" = "xyes")
 
 # Hermite
 AC_ARG_ENABLE(hermite,

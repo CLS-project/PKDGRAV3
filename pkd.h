@@ -10,6 +10,9 @@
 
 #include "moments.h"
 #include "cosmo.h"
+#ifdef PLANETS
+#include "ssio.h"
+#endif
 
 /*
 ** The following sort of definition should really be in a global
@@ -78,7 +81,6 @@ typedef struct particle {
     FLOAT v[3];
     FLOAT a[3];
 #ifdef HERMITE
-  /* Hermite */
     FLOAT ad[3];
     FLOAT r0[3];
     FLOAT v0[3];
@@ -89,8 +91,7 @@ typedef struct particle {
     FLOAT app[3];
     FLOAT adpp[3];
     FLOAT dTime0; 
-  /* Hermite end */
-#endif
+#endif  /* Hermite */
     FLOAT fWeight;
 
     FLOAT fPot;
@@ -110,14 +111,15 @@ typedef struct particle {
     FLOAT fRelax;
 #endif
 
-#ifdef HELIOCENTRIC
-  /* Heliocentric start (collision stuff)*/
+#ifdef PLANETS
+  /* Planets start (collision stuff)*/
     int iOrgIdx;		/* for tracking of mergers, aggregates etc. */
     FLOAT w[3];			/* spin vector */
     int iColor;			/* handy color tag */
     int iColflag;	        /* handy collision tag 1 for c1, 2 for c2*/
     int iOrderCol;              /* iOrder of colliding oponent.*/
-  /* Heliocentric end */
+    FLOAT dtCol;
+  /* Planets end */
 #endif
     } PARTICLE;
 
@@ -635,7 +637,6 @@ void pkdStepVeryActiveKDK(PKD pkd, double dStep, double dTime, double dDelta,
 			  double diCrit2,int *pnMaxRung,
 			  double aSunInact[3], double adSunInact[3], double dSunMass);
 #ifdef HERMITE
-/* Hermite */ 
 void
 pkdStepVeryActiveHermite(PKD pkd, double dStep, double dTime, double dDelta,
 		     int iRung, int iKickRung, int iRungVeryActive,int iAdjust, double diCrit2,
@@ -645,8 +646,9 @@ void pkdPredictor(PKD pkd,double dTime);
 void pkdCorrector(PKD pkd,double dTime);
 void pkdSunCorrector(PKD pkd,double dTime,double dSunMass); 
 void pkdPredictorInactive(PKD pkd,double dTime);
-/* Hermite end */
-#endif
+void pkdAarsethStep(PKD pkd, double dEta);
+void pkdFirstDt(PKD pkd);
+#endif /* Hermite */
 void pkdKickKDKOpen(PKD pkd,double dTime,double dDelta);
 void pkdKickKDKClose(PKD pkd,double dTime,double dDelta);
 void pkdKick(PKD pkd,double,double, double, double, double, double, int, double, double);
@@ -687,13 +689,13 @@ void pkdInitRelaxation(PKD pkd);
 #endif
 int pkdPackIO(PKD pkd,PIO *io,int nStart,int nMax);
 
-/* Heliocentric start*/
-#ifdef HELIOCENTRIC
+
+#ifdef PLANETS
 void pkdSunIndirect(PKD pkd,double aSun[],double adSun[],int iFlag);
 void pkdGravSun(PKD pkd,double aSun[],double adSun[],double dSunMass);
 void pkdReadSS(PKD pkd,char *pszFileName,int nStart,int nLocal);
 void pkdWriteSS(PKD pkd,char *pszFileName,int nStart);
-#endif
-/* Heliocentric end */
+#endif /* Planets*/
+
 #endif
 

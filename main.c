@@ -134,14 +134,12 @@ int main(int argc,char **argv) {
     ** Read in the binary file, this may set the number of timesteps or
     ** the size of the timestep when the zto parameter is used.
     */
-#ifdef HELIOCENTRIC
-    if(msr->param.bHeliocentric){
-      dTime = msrReadSS(msr); /* must use "Solar System" (SS) I/O format... */
-    }else
+#ifdef PLANETS    
+    dTime = msrReadSS(msr); /* must use "Solar System" (SS) I/O format... */
+#else
+    dTime = msrReadTipsy(msr);  /*read initial conditions */
 #endif
-    {
-      dTime = msrReadTipsy(msr);  /*read initial conditions */
-    } 
+     
     msrInitStep(msr);
     if (prmSpecified(msr->prm,"dSoft")) msrSetSoft(msr,msrSoft(msr));
     /*
@@ -194,7 +192,7 @@ int main(int argc,char **argv) {
 			       dMultiEff);
 		}
 	    }
-#ifdef HELIOCENTRIC
+#ifdef PLANETS 
 	if(msr->param.bHeliocentric){
 	  msrGravSun(msr);
 	}
@@ -206,6 +204,9 @@ int main(int argc,char **argv) {
 	if(msr->param.bHermite){
 	  	msrActiveType(msr,TYPE_ALL,TYPE_ACTIVE);
 		msrCopy0(msr, dTime);
+		if(msr->param.bAarsethStep){
+		  msrFirstDt(msr);
+		}
 	}
 #endif
 	for (iStep=msr->param.iStartStep+1;iStep<=msrSteps(msr);++iStep) {
@@ -265,14 +266,11 @@ int main(int argc,char **argv) {
 
 		msrReorder(msr);
 		sprintf(achFile,msr->param.achDigitMask,msrOutName(msr),iStep);
-#ifdef HELIOCENTRIC
-		if(msr->param.bHeliocentric){
-		  msrWriteSS(msr,achFile,dTime);
-		}else
+#ifdef PLANETS 
+		msrWriteSS(msr,achFile,dTime);
+#else	
+		msrWriteTipsy(msr,achFile,dTime);
 #endif
-		{
-		  msrWriteTipsy(msr,achFile,dTime);
-		} 
 	     
 		if (msrDoDensity(msr)) {
 		    msrActiveType(msr,TYPE_ALL,TYPE_ACTIVE|TYPE_TREEACTIVE|TYPE_SMOOTHACTIVE);
@@ -361,11 +359,11 @@ int main(int argc,char **argv) {
 		/*
 		** Want to write an output file here really...
 		*/
-		}
+	     }
 	    if (iStop) break;
 	    }
 	if (msrLogInterval(msr)) (void) fclose(fpLog);
-	}
+    }
 	
     else {
 	struct inInitDt in;

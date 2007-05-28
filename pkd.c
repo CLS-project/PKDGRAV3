@@ -1746,7 +1746,7 @@ pkdStepVeryActiveKDK(PKD pkd, double dStep, double dTime, double dDelta,
 	    pkdVATreeBuild(pkd,pkd->param.nBucket,diCrit2,0,dTime);
 	    pkdGravityVeryActive(pkd,dTime,pkd->param.bEwald && pkd->param.bPeriodic,pkd->param.nReplicas,pkd->param.dEwCut,dStep);
 
-#ifdef HELIOCENTRIC
+#ifdef PLANETS
 	    /* Sun's gravity */
 	    if(pkd->param.bHeliocentric){
 	      /* Sun's indirect gravity due to very active particles*/
@@ -1787,7 +1787,6 @@ pkdStepVeryActiveKDK(PKD pkd, double dStep, double dTime, double dDelta,
     }
 
 #ifdef HERMITE
-/* Hermite */
 void
 pkdStepVeryActiveHermite(PKD pkd, double dStep, double dTime, double dDelta,
 		     int iRung, int iKickRung, int iRungVeryActive,int iAdjust, double diCrit2,
@@ -1806,6 +1805,9 @@ pkdStepVeryActiveHermite(PKD pkd, double dStep, double dTime, double dDelta,
 	pkdActiveRung(pkd, iRung, 1);
 	pkdActiveType(pkd,TYPE_ALL,TYPE_TREEACTIVE|TYPE_SMOOTHACTIVE);
 	pkdInitDt(pkd, pkd->param.dDelta);
+	if (pkd->param.bAarsethStep) {
+	  pkdAarsethStep(pkd,pkd->param.dEta);
+	}
 	if (pkd->param.bGravStep) {
 	    double a = csmTime2Exp(pkd->param.csm,dTime);
 	    double dRhoFac = 1.0/(a*a*a);
@@ -1935,18 +1937,21 @@ pkdCopy0(PKD pkd,double dTime)
     p = pkd->pStore;
     n = pkdLocal(pkd);
     for (i=0;i<n;++i) {	
-            if (TYPEQueryACTIVE(&p[i])) { 		
-              p[i].dTime0 = dTime;
-	    for (j=0;j<3;++j) {    
-	      p[i].r0[j] = p[i].r[j];
-	      p[i].v0[j] = p[i].v[j];
-	      p[i].a0[j] = p[i].a[j];	         	       
-	      p[i].ad0[j] = p[i].ad[j];	         	       
-		}	    
+            if (TYPEQueryACTIVE(&p[i])) { 			      
+	      for (j=0;j<3;++j) {    
+		p[i].r0[j] = p[i].r[j];
+		p[i].v0[j] = p[i].v[j];
+		p[i].a0[j] = p[i].a[j];	         	       
+		p[i].ad0[j] = p[i].ad[j];	 
+	      }
+	      p[i].dTime0 = dTime;
+	      if(pkd->param.bCollision){
+		p[i].iColflag = 0; 
+	      }
 	    }
-	}
-    mdlDiag(pkd->mdl, "Out of pkdCopy0\n");
     }
+    mdlDiag(pkd->mdl, "Out of pkdCopy0\n");
+}
 
 void
 pkdPredictor(PKD pkd,double dTime) 
@@ -1985,6 +1990,7 @@ pkdCorrector(PKD pkd,double dTime)
     PARTICLE *p;
     int i,j,n;
     double dt, add, addd, am; 
+    double a0d2, a1d2, a2d2, a3d2, dti, dt2i;
     /*double alpha = 7.0/6.0;*/    
 
     mdlDiag(pkd->mdl, "Into pkdCorrector\n");
@@ -1996,18 +2002,43 @@ pkdCorrector(PKD pkd,double dTime)
     for (i=0;i<n;++i) {	
             if (TYPEQueryACTIVE(&p[i])) {	
 	      dt =  dTime - p[i].dTime0;  
-	     	    
+	      if(pkd->param.bAarsethStep){	    
+		a0d2  = 0.0;
+		a1d2  = 0.0;
+		a2d2  = 0.0;
+		a3d2  = 0.0;
+		dti = 1.0/dt;
+		dt2i = dti*dti;
+	      }
+	      
 	    for (j=0;j<3;++j) { 	  
-              am = p[i].a0[j]-p[i].a[j];	      
-              add = 16.0*am+(13.0*p[i].ad0[j]+3.0*p[i].ad[j])*dt;
+              am = p[i].a0[j]-p[i].a[j];
+
+	      if(pkd->param.bAarsethStep){
+	      add = 2.0*(3.0*am*dt2i+(2.0*p[i].ad0[j]+p[i].ad[j])*dti);
+	      addd = 6.0*(2.0*am*dti+(p[i].ad0[j]+p[i].ad[j]))*dt2i;
+              add += dt*addd; 
+
+              a0d2 += p[i].a[j]*p[i].a[j];
+              a1d2 += p[i].ad[j]*p[i].ad[j];
+	      a2d2 += add*add;  
+              a3d2 += addd*addd;	      
+              }
+
+	      add = 16.0*am+(13.0*p[i].ad0[j]+3.0*p[i].ad[j])*dt;
 	      addd = 6.0*am+(5.0*p[i].ad0[j]+p[i].ad[j])*dt;
-		p[i].r[j] = p[i].rp[j] - add/120.0*dt*dt;
-		p[i].v[j] = p[i].vp[j] - addd/12.0*dt;     	       
-		}
-	    }	    
-	}
-    mdlDiag(pkd->mdl, "Out of pkdCorrector\n");
+	      p[i].r[j] = p[i].rp[j] - add/120.0*dt*dt;
+	      p[i].v[j] = p[i].vp[j] - addd/12.0*dt; 
+	
+	    }
+	    if(pkd->param.bAarsethStep){
+	      p[i].dtGrav = (sqrt(a0d2*a2d2)+a1d2)/(sqrt(a1d2*a3d2)+a2d2); 
+	    }
+	    /*if(p[i].dtGrav <=0.0) p[i].dtGrav = 0.1*(a0d2/a1d2);*/
+	    }	   
     }
+    mdlDiag(pkd->mdl, "Out of pkdCorrector\n");
+}
 
 void
 pkdSunCorrector(PKD pkd,double dTime,double dSunMass) 
@@ -2080,8 +2111,43 @@ pkdPredictorInactive(PKD pkd,double dTime)
 	}
     mdlDiag(pkd->mdl, "Out of pkdPredictorInactive\n");
     }
-/* Hermite end */
-#endif
+
+void pkdAarsethStep(PKD pkd,double dEta) {
+    double dT;
+    int i;
+    
+    for (i=0;i<pkdLocal(pkd);i++) {
+	if (TYPEQueryACTIVE(&(pkd->pStore[i]))) {
+	    mdlassert(pkd->mdl, pkd->pStore[i].dtGrav > 0);
+	    dT = dEta*sqrt(pkd->pStore[i].dtGrav);
+	    if (dT < pkd->pStore[i].dt)
+	    pkd->pStore[i].dt = dT;
+	   
+	    }
+	}
+    }
+
+void pkdFirstDt(PKD pkd) {
+    int i,j;
+    PARTICLE *p ;
+    double a0d2,a1d2;
+  
+    p = pkd->pStore;
+    for(i=0;i<pkdLocal(pkd);++i) {
+          a0d2 = 0.0;
+	  a1d2 = 0.0;
+	if(TYPEQueryACTIVE(&p[i]))
+	  for (j=0;j<3;++j) { 	                  
+              a0d2 += p[i].a0[j]*p[i].a0[j];
+              a1d2 += p[i].ad0[j]*p[i].ad0[j];
+	  }
+	  p[i].dtGrav = 0.1*(a0d2/a1d2);
+	  if(pkd->param.bCollision){
+	    p[i].iColflag = 0; /* initial reset of collision flag */	
+	      }
+	}
+    }
+#endif /* Hermite */
 
 /*
  * Stripped down versions of routines from master.c
@@ -2646,8 +2712,8 @@ void pkdInitRelaxation(PKD pkd)
 
 #endif /* RELAXATION */
 
-/* Heliocentric begin */
-#ifdef HELIOCENTRIC
+/* PLANETS begin */
+#ifdef PLANETS
 void
 pkdReadSS(PKD pkd,char *pszFileName,int nStart,int nLocal)
 {
@@ -2802,20 +2868,26 @@ void pkdGravSun(PKD pkd,double aSun[],double adSun[],double dSunMass)
 			r3i = dSunMass*r1i*r1i*r1i;
                         r5i = 3.0*rv*r3i*r1i*r1i;
 			/* time step is determined by semimajor axis, not the heliocentric distance*/ 
+			if(!pkd->param.bAarsethStep){		
                         aai =  -v2+2.0*r1i; 	              
                         aa3i = aai*aai*aai;
 			idt2 = (p[i].fMass + dSunMass)*aa3i;
 			/*if (p[i].dtSun > p[i].dtGrav) p[i].dtGrav = p[i].dtSun;*/
 			if (idt2 > p[i].dtGrav) p[i].dtGrav = idt2;
-				   
-				for (j=0;j<3;++j) {		
-				   p[i].app[j] = p[i].a[j] - aSun[j]; /* perturbation force*/
-				   p[i].adpp[j] = p[i].ad[j] - adSun[j];
+			}		   
+				for (j=0;j<3;++j) {	
+#ifdef HERMITE
+				  if(pkd->param.bHermite){
+				    p[i].app[j] = p[i].a[j] - aSun[j]; /* perturbation force*/
+				    p[i].adpp[j] = p[i].ad[j] - adSun[j];					
+				    p[i].ad[j] -= (adSun[j] + p[i].v[j]*r3i-p[i].r[j]*r5i);
+				  }
+#endif
 					p[i].a[j] -= (aSun[j] + p[i].r[j]*r3i);
-                                        p[i].ad[j] -= (adSun[j] + p[i].v[j]*r3i-p[i].r[j]*r5i);
 					}				
 			}
 		}
 	}
+
 #endif
-/* Heliocentric end */
+/* Planets end */

@@ -67,12 +67,10 @@ typedef struct msrContext {
 
     int bSavePending;
      
-#ifdef HELIOCENTRIC
-    /* Heliocentric begin */
+#ifdef PLANETS
     int nPlanets; /* currently not used */ 
     double dEcoll;
     double dSunMass;
-    /* Heliocenteic end */
 #endif
     } * MSR;
 
@@ -124,7 +122,6 @@ void msrTopStepKDK(MSR msr,
 void msrStepVeryActiveKDK(MSR msr, double dStep, double dTime, double dDelta,
 			  int iRung);
 #ifdef HERMITE
-/* Hermite */
 void msrTopStepHermite(MSR msr,
 		       double dStep,	/* Current step */
 		       double dTime,	/* Current time */
@@ -146,8 +143,9 @@ void msrPredictor(MSR msr,double dTime);
 void msrCorrector(MSR msr,double dTime);
 void msrSunCorrector(MSR msr,double dTime);
 void msrPredictorInactive(MSR msr,double dTime);
-/* Hermite end */
-#endif
+void msrAarsethStep(MSR msr);
+void msrFirstDt(MSR msr);
+#endif /* HERMITE */
 
 void msrBallMax(MSR msr, int iRung, int bGreater);
 /*------------------*/
@@ -211,12 +209,14 @@ void msrInitRelaxation(MSR msr);
 void msrRelaxation(MSR msr,double dTime,double deltaT,int iSmoothType,int bSymmetric);
 #endif /* RELAXATION  */
 
-#ifdef HELIOCENTRIC
-/* Heliocentric begin */
+#ifdef PLANETS 
+/* PLANETS begin */
 double msrReadSS(MSR msr);
 void msrWriteSS(MSR msr, char *pszFileName, double dTime);
 void msrGravSun(MSR msr);
-/* Heliocentric end */
+static char * _msrParticleLabel(MSR msr,int iColor);
+void msrDoCollision(MSR msr,double dTime,double dDelta);
+/* PLANETS end */
 #endif
 
 #endif

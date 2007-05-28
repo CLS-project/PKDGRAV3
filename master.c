@@ -360,15 +360,25 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv)
     msr->param.dRungDDWeight = 1.0;
     prmAddParam(msr->prm,"dRungDDWeight",2,&msr->param.dRungDDWeight,sizeof(int),
 		"RungDDWeight","<Rung Domain Decomp Weight> = 1.0");
+#ifdef HERMITE
     msr->param.bHermite = 0;
     prmAddParam(msr->prm,"bHermite",0,&msr->param.bHermite,
 		sizeof(int),"hrm","<Hermite integratot>");
+    msr->param.bAarsethStep = 0;
+    prmAddParam(msr->prm,"bAarsethStep",0,&msr->param.bAarsethStep,sizeof(int),
+				"aas","<Aarseth timestepping>");
+#endif
+#ifdef PLANETS
+    msr->param.bCollision = 0;
+	prmAddParam(msr->prm,"bCollision",0,&msr->param.bCollision,
+		    sizeof(int),"hc","<Collisions>");
     msr->param.bHeliocentric = 0;
 	prmAddParam(msr->prm,"bHeliocentric",0,&msr->param.bHeliocentric,
-		    sizeof(int),"hc","use/don't use Heliocentric coordinates = -hc");
+		    sizeof(int),"hc","use/don't use Heliocentric coordinates = -hc");  
     msr->param.dCentMass = 1.0;
     prmAddParam(msr->prm,"dCentMass",2,&msr->param.dCentMass,sizeof(double),
 		"fgm","specifies the central mass for Keplerian orbits");
+#endif
     msr->param.iWallRunTime = 0;
     prmAddParam(msr->prm,"iWallRunTime",1,&msr->param.iWallRunTime,
 		sizeof(int),"wall",
@@ -417,6 +427,34 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv)
     prmAddParam(msr->prm,"bTraceRelaxation",0,&msr->param.bTraceRelaxation,sizeof(int),
 		"rtrace","<enable/disable relaxation tracing> = -rtrace");
 #endif /* RELAXATION */
+
+#ifdef PLANETS /* collision stuff */
+	msr->param.iCollLogOption = 0;
+	prmAddParam(msr->prm,"iCollLogOption",1,&msr->param.iCollLogOption,
+				sizeof(int),"clog","<Collision log option> = 0");	
+	msr->param.CP.iOutcomes = BOUNCE;
+	prmAddParam(msr->prm,"iOutcomes",1,&msr->param.CP.iOutcomes,
+				sizeof(int),"outcomes","<Allowed collision outcomes> = 0");    
+	msr->param.CP.dBounceLimit = 1.0;
+	prmAddParam(msr->prm,"dBounceLimit",2,&msr->param.CP.dBounceLimit,
+				sizeof(double),"blim","<Bounce limit> = 1.0");
+	msr->param.CP.iBounceOption = ConstEps;
+	prmAddParam(msr->prm,"iBounceOption",1,&msr->param.CP.iBounceOption,
+				sizeof(int),"bopt","<Bounce option> = 0");
+	msr->param.CP.dEpsN = 1.0;
+	prmAddParam(msr->prm,"dEpsN",2,&msr->param.CP.dEpsN,
+				sizeof(double),"epsn","<Coefficient of restitution> = 1");
+	msr->param.CP.dEpsT = 1.0;
+	prmAddParam(msr->prm,"dEpsT",2,&msr->param.CP.dEpsT,
+				sizeof(double),"epst","<Coefficient of surface friction> = 1");
+	msr->param.CP.dDensity = 0.0;
+	prmAddParam(msr->prm,"dDensity",2,&msr->param.CP.dDensity,
+				sizeof(double),"density","<Merged particle density> = 0");
+	msr->param.CP.bFixCollapse = 0;
+	prmAddParam(msr->prm,"bFixCollapse",0,&msr->param.CP.bFixCollapse,
+				sizeof(int),"overlap","enable/disable overlap fix = -overlap");
+#endif /* PLANETS */
+
 /*
 ** Set the box center to (0,0,0) for now!
 */
@@ -561,6 +599,33 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv)
 	msr->param.bEpsAccStep = 0;   /* we must do this because the meaning of Eta is different */
 	}
 
+#ifdef PLANETS
+	switch (msr->param.iCollLogOption) {
+	case COLL_LOG_NONE:
+		break;
+	case COLL_LOG_VERBOSE:
+		(void) strcpy(msr->param.achCollLog,COLL_LOG_TXT);
+		break;
+	case COLL_LOG_TERSE:
+		(void) strcpy(msr->param.achCollLog,COLL_LOG_BIN);
+		break;
+	default:
+		puts("ERROR: Invalid collision log option");
+		_msrExit(msr,1);
+		}
+	if (msr->param.iCollLogOption && msr->param.bVStart)
+		printf("Collision log: \"%s\"\n",msr->param.achCollLog);
+
+	COLLISION_PARAMS *CP = &msr->param.CP;
+		if (!(CP->iOutcomes & (MERGE | BOUNCE | FRAG))) {
+			puts("ERROR: must specify one of MERGE/BOUNCE/FRAG");
+			_msrExit(msr,1);
+			}
+
+		msr->dEcoll = 0.0;
+#endif
+
+
     pstInitialize(&msr->pst,msr->mdl,&msr->lcl);
 
     pstAddServices(msr->pst,msr->mdl);
@@ -682,9 +747,15 @@ void msrLogParams(MSR msr,FILE *fp)
 	fprintf(fp,"\n# iTimeStepCrit: %d",msr->param.iTimeStepCrit);
 	fprintf(fp," nPColl: %d", msr->param.nPColl);
 	fprintf(fp,"\n# bDoGravity: %d",msr->param.bDoGravity);
+#ifdef HERMITE
 	fprintf(fp," bHermite: %d",msr->param.bHermite);
+	fprintf(fp," bAarsethStep: %d",msr->param.bAarsethStep);
+#endif
+#ifdef PLANETS
+	fprintf(fp," bCollision: %d",msr->param.bCollision);
 	fprintf(fp," bHeliocentric: %d",msr->param.bHeliocentric);
 	fprintf(fp," dCentMass: %g",msr->param.dCentMass);
+#endif
 	fprintf(fp,"\n# dFracNoTreeSqueeze: %g",msr->param.dFracNoTreeSqueeze);
 	fprintf(fp,"\n# dFracNoDomainDecomp: %g",msr->param.dFracNoDomainDecomp);
 	fprintf(fp," dFracNoDomainDimChoice: %g",msr->param.dFracNoDomainDimChoice);
@@ -710,6 +781,17 @@ void msrLogParams(MSR msr,FILE *fp)
 #ifdef RELAXATION
 	fprintf(fp,"\n# Relaxation estimate: bTraceRelaxation: %d",msr->param.bTraceRelaxation);	
 #endif
+#ifdef PLANETS
+	fprintf(fp,"\n# Collisions...");
+	fprintf(fp," iCollLogOption: %d",msr->param.iCollLogOption);
+	fprintf(fp,"\n# iOutcomes: %d",msr->param.CP.iOutcomes);   
+	fprintf(fp," dBounceLimit: %g",msr->param.CP.dBounceLimit);
+	fprintf(fp," dEpsN: %g",msr->param.CP.dEpsN);
+	fprintf(fp," dEpsT: %g",msr->param.CP.dEpsT);
+	fprintf(fp," dDensity: %g",msr->param.CP.dDensity);
+	fprintf(fp,"\n# bFixCollapse: %d",msr->param.CP.bFixCollapse);
+#endif
+
 	fprintf(fp," dTheta: %f",msr->param.dTheta);
 	fprintf(fp,"\n# dPeriod: %g",msr->param.dPeriod);
 	fprintf(fp," dxPeriod: %g",
@@ -2724,7 +2806,7 @@ void msrTopStepKDK(MSR msr,
 	    *pdActiveSum += (double)nActive/msr->N;
 	    }
 
-#ifdef HELIOCENTRIC
+#ifdef PLANETS
 	/* Sun's direct and indirect gravity */
 	if(msr->param.bHeliocentric) {
 	  msrGravSun(msr);
@@ -2813,7 +2895,7 @@ void msrTopStepKDK(MSR msr,
 	    *pdActiveSum += (double)nActive/msr->N;
 	    }
 
-#ifdef HELIOCENTRIC
+#ifdef PLANETS
 	/* Sun's direct and indirect gravity */
 	if(msr->param.bHeliocentric) {
 	  msrGravSun(msr);
@@ -2860,7 +2942,7 @@ msrStepVeryActiveKDK(MSR msr, double dStep, double dTime, double dDelta,
     struct inSunIndirect ins;
     struct outSunIndirect outs;
 
-#ifdef HELIOCENTRIC
+#ifdef PLANETS
     if(msr->param.bHeliocentric){
       int k;        
 
@@ -2879,7 +2961,7 @@ msrStepVeryActiveKDK(MSR msr, double dStep, double dTime, double dDelta,
     in.iRung = iRung;
     in.diCrit2 = 1/(msr->dCrit*msr->dCrit);   /* could set a stricter opening criterion here */
     in.nMaxRung = msrCurrMaxRung(msr);
-#ifdef HELIOCENTRIC
+#ifdef PLANETS 
     in.dSunMass = msr->dSunMass;
 #endif
     /*
@@ -2897,7 +2979,6 @@ msrStepVeryActiveKDK(MSR msr, double dStep, double dTime, double dDelta,
     }
 
 #ifdef HERMITE
-/* Hermite */
 void msrTopStepHermite(MSR msr,
 				   double dStep,	/* Current step */
 				   double dTime,	/* Current time */
@@ -2927,6 +3008,9 @@ void msrTopStepHermite(MSR msr,
 	if (msr->param.bGravStep) {
 	    msrGravStep(msr,dTime);
 	    }
+	if (msr->param.bAarsethStep) {
+	    msrAarsethStep(msr);
+	    }
 	if (msr->param.bAccelStep) {
 	    msrAccelStep(msr,dTime);
 	    }
@@ -2938,7 +3022,7 @@ void msrTopStepHermite(MSR msr,
 	    msrDensityStep(msr,dTime);
 	    }
 	iRungVeryActive = msrDtToRung(msr,iRung,dDelta,1);
-	}
+    }
 	
                 /* probably unnecessary 
 		msrActiveRung(msr,iRung,0);
@@ -2958,7 +3042,12 @@ void msrTopStepHermite(MSR msr,
 					  pdActiveSum,pdWMax,pdIMax,pdEMax,piSec);
 		}
     else if(msrCurrMaxRung(msr) == iRung) {
-	
+
+      /*#ifdef PLANETS
+      if(msr->param.bCollision){   
+	msrDoCollision(msr,dTime,dDelta);  
+      }
+      #endif*/
                 dTime += dDelta;
 		dStep += 1.0/(1 << iRung);
 
@@ -2989,7 +3078,7 @@ void msrTopStepHermite(MSR msr,
 		  msrGravity(msr,dTime,dStep,piSec,pdWMax,pdIMax,pdEMax,&nActive);
 		  *pdActiveSum += (double)nActive/msr->N;
 		}
-#ifdef HELIOCENTRIC
+#ifdef PLANETS
 		/* Sun's direct and indirect gravity */
 		if(msr->param.bHeliocentric) {
 		  msrGravSun(msr);
@@ -3009,7 +3098,7 @@ void msrTopStepHermite(MSR msr,
 		 if (msr->param.bVDetails){
 		  printf("%*cCorrect, iRung: %d\n",2*iRung+2,' ',iRung);                          
 		}
-#ifdef HELIOCENTRIC	    
+#ifdef PLANETS
                 if(msr->param.bHeliocentric){                      		
 		/*
 		Here is a step for correcting the Sun's direct gravity.
@@ -3025,6 +3114,9 @@ void msrTopStepHermite(MSR msr,
                 msrSunCorrector(msr,dTime);  		
                 }while(nite < nitemax);
                 }
+		if(msr->param.bCollision){   
+		  msrDoCollision(msr,dTime,dDelta);  
+		  }
 #endif 
 		/* 
 		Copy the present values of activated particles as the initial values 
@@ -3037,6 +3129,12 @@ else {
    	double dDeltaTmp;
 	int i;
 
+	printf("iRungVeryActive: %d CurrMaxrung: %d  iRung: %d, 0.5*dDelta: %g n/",iRungVeryActive, msrCurrMaxRung(msr),iRung,0.5*dDelta);
+	/*#ifdef PLANETS
+	if(msr->param.bCollision){   
+	  msrDoCollision(msr,dTime,dDelta);  
+	}
+	#endif*/
 	/*
 	 * We have more rungs to go, but we've hit the very active limit.
 	 */
@@ -3113,7 +3211,7 @@ else {
 	    msrGravity(msr,dTime,dStep,piSec,pdWMax,pdIMax,pdEMax,&nActive);
 	    *pdActiveSum += (double)nActive/msr->N;
 	    }
-#ifdef HELIOCENTRIC
+#ifdef PLANETS
 	/* Sun's direct and indirect gravity */
 		if(msr->param.bHeliocentric) {
 		  msrGravSun(msr);
@@ -3125,7 +3223,7 @@ else {
 		}	
 	        msrCorrector(msr,dTime);   
 
-#ifdef HELIOCENTRIC        
+#ifdef PLANETS         
                 if(msr->param.bHeliocentric){          		
 		int nite = 0;
                 int nitemax = 3;                                                     
@@ -3134,10 +3232,13 @@ else {
                 msrSunCorrector(msr,dTime);  		
                 }while(nite < nitemax);
                 }
+		if(msr->param.bCollision){   
+		  msrDoCollision(msr,dTime,dDelta);  
+		}
 #endif
                 msrCopy0(msr,dTime);
-           }
-         }
+          }
+}
 
 void
 msrStepVeryActiveHermite(MSR msr, double dStep, double dTime, double dDelta,
@@ -3146,7 +3247,7 @@ msrStepVeryActiveHermite(MSR msr, double dStep, double dTime, double dDelta,
     struct inStepVeryActiveH in;
     struct outStepVeryActiveH out;    
  
-#ifdef HELIOCENTRIC
+#ifdef PLANETS
     if(msr->param.bHeliocentric){
       int k;        
       struct inSunIndirect ins;
@@ -3167,7 +3268,7 @@ msrStepVeryActiveHermite(MSR msr, double dStep, double dTime, double dDelta,
     in.iRung = iRung;
     in.diCrit2 = 1/(msr->dCrit*msr->dCrit);   /* could set a stricter opening criterion here */
     in.nMaxRung = msrCurrMaxRung(msr);
-#ifdef HELIOCENTRIC
+#ifdef PLANETS 
     in.dSunMass = msr->dSunMass;
 #endif
     /*
@@ -3224,8 +3325,23 @@ void msrPredictorInactive(MSR msr,double dTime)
 	in.dTime = dTime;
 	pstPredictorInactive(msr->pst,&in,sizeof(in),NULL,NULL);
 	}
-/* Hermite end*/
-#endif
+
+void
+msrAarsethStep(MSR msr)
+{
+    struct inAarsethStep in;
+
+    in.dEta = msrEta(msr);
+    pstAarsethStep(msr->pst,&in,sizeof(in),NULL,NULL);
+    }
+
+void
+msrFirstDt(MSR msr)
+{  
+    pstFirstDt(msr->pst,NULL,0,NULL,NULL);
+    }
+
+#endif /* Hermite*/
 
 int
 msrMaxOrder(MSR msr)
@@ -3255,19 +3371,19 @@ msrAddDelParticles(MSR msr)
 	 * Detect any changes in particle number, and force a tree
 	 * build.
 	 */
-	if (pColNParts[i].nNew != 0 || pColNParts[i].nDeltaGas != 0 ||
+     if (pColNParts[i].nNew != 0 || pColNParts[i].nDeltaGas != 0 ||
 	    pColNParts[i].nDeltaDark != 0 || pColNParts[i].nDeltaStar != 0) {
-	    printf("Particle assignments have changed!\n");
+	  /*printf("Particle assignments have changed!\n");
 	    printf("need to rebuild tree, code in msrAddDelParticles()\n");
 	    printf("needs to be updated. Bailing out for now...\n");
-	    exit(-1);
-	    }
+	    exit(-1); */	    
 	pNewOrder[i] = msr->nMaxOrder + 1;
 	msr->nMaxOrder += pColNParts[i].nNew;
 	msr->nGas += pColNParts[i].nDeltaGas;
 	msr->nDark += pColNParts[i].nDeltaDark;
-	msr->nStar += pColNParts[i].nDeltaStar;
-	}
+	msr->nStar += pColNParts[i].nDeltaStar;      
+     }
+     }
     msr->N = msr->nGas + msr->nDark + msr->nStar;
 
     msr->nMaxOrderDark = msr->nMaxOrder;
@@ -3539,8 +3655,8 @@ void msrRelaxation(MSR msr,double dTime,double deltaT,int iSmoothType,int bSymme
     }
 #endif /* RELAXATION */
 
-/* Heliocentric begin */
-#ifdef HELIOCENTRIC
+/* PLANETS begin */
+#ifdef PLANETS 
 void
 msrOneNodeReadSS(MSR msr,struct inReadSS *in)
 {
@@ -3824,6 +3940,221 @@ void msrGravSun(MSR msr)
 
 }
 
+static char *
+_msrParticleLabel(MSR msr,int iColor)
+{
+	switch (iColor) {
+	case SUN:
+		return "SUN";
+	case JUPITER:
+		return "JUPITER";
+	case SATURN:
+		return "SATURN";
+	case URANUS:
+		return "URANUS";
+	case NEPTUNE:
+		return "NEPTUNE";
+	case PLANETESIMAL:
+		return "PLANETESIMAL";
+	default:
+		return "UNKNOWN";
+		}
+	}
 
-/* Heliocentric end */
+void
+msrDoCollision(MSR msr,double dTime,double dDelta)
+{
+
+	struct outNextCollision next;
+	struct inGetColliderInfo inGet;
+	struct outGetColliderInfo outGet;
+	struct inDoCollision inDo;
+	struct outDoCollision outDo;
+	struct inResetColliders reset;
+	COLLIDER *c1 = &inDo.Collider1,*c2 = &inDo.Collider2,*c;
+	double sec;
+	unsigned int nCol=0,nMis=0,nMrg=0,nBnc=0,nFrg=0;
+		 
+        inDo.bPeriodic = msr->param.bPeriodic;
+
+		do{	
+                pstNextCollision(msr->pst,NULL,0,&next,NULL);
+		/*printf("%i,%i\n",next.iOrder1,next.iOrder2);*/
+
+                 /* process the collision */
+		if (COLLISION(next.dt)) {
+                       
+			assert(next.iOrder1 >= 0);
+			assert(next.iOrder2 >= 0);
+
+			inDo.dt = next.dt;
+			inGet.iOrder = next.iOrder1;
+			pstGetColliderInfo(msr->pst,&inGet,sizeof(inGet),&outGet,NULL);
+			*c1 = outGet.Collider; /* struct copy */
+
+			/*printf("%i,%i\n",c1->id.iOrder,inGet.iOrder);*/
+
+			assert(c1->id.iOrder == inGet.iOrder);
+
+				inGet.iOrder = next.iOrder2;
+				pstGetColliderInfo(msr->pst,&inGet,sizeof(inGet),&outGet,NULL);
+				*c2 = outGet.Collider;
+				/*printf("%i,%i\n",c2->id.iOrder,inGet.iOrder);*/
+				assert(c2->id.iOrder == inGet.iOrder);
+			inDo.CP = msr->param.CP; /* copy collisional parmas */
+
+			pstDoCollision(msr->pst,&inDo,sizeof(inDo),&outDo,NULL);
+			msr->dEcoll += outDo.dT; /* account for kinetic energy loss + (potential)*/
+		
+			++nCol;
+			switch (outDo.iOutcome) {
+			case MISS:
+				++nMis;
+				--nCol;
+				break;
+			case MERGE:
+				++nMrg;
+				break;
+			case BOUNCE:
+				++nBnc;
+				break;
+			case FRAG:
+				++nFrg;
+				break;
+			default:
+				assert(0); /* unknown outcome */
+				}
+
+			reset.iOrder1 = c1->id.iOrder;
+			reset.iOrder2 = c2->id.iOrder;
+			/*pstResetColliders(msr->pst,&reset,sizeof(reset),NULL,NULL); */
+
+#ifdef IGNORE_FOR_NOW/*DEBUG*/
+			if (outDo.iOutcome & FRAG) {
+				/* see Zoe's version */
+				}
+#endif
+		switch (msr->param.iCollLogOption) { /* log collision if requested */
+		case COLL_LOG_NONE:
+			break;
+		case COLL_LOG_VERBOSE:
+			{
+			FILE *fp;
+			int i;
+
+			fp = fopen(msr->param.achCollLog,"a");
+			assert(fp != NULL);
+
+			/* for (i=0;i<3;i++) {
+				c1->r[i] += c1->v[i]*next.dt;
+				c2->r[i] += c2->v[i]*next.dt;
+				} */
+
+			fprintf(fp,"%s-%s COLLISION:T=%e\n",
+					_msrParticleLabel(msr,c1->iColor),
+					_msrParticleLabel(msr,c2->iColor),dTime);
+
+			fprintf(fp,"***1:p=%i,o=%i,i=%i,oi=%i,M=%e,R=%e,dt=%e,rung=%i,"
+					"r=(%e,%e,%e),v=(%e,%e,%e),w=(%e,%e,%e)\n",
+					c1->id.iPid,c1->id.iOrder,c1->id.iIndex,c1->id.iOrgIdx,
+					c1->fMass,c1->fRadius,c1->dt,c1->iRung,
+					c1->r[0],c1->r[1],c1->r[2],
+					c1->v[0],c1->v[1],c1->v[2],
+					c1->w[0],c1->w[1],c1->w[2]);
+
+			fprintf(fp,"***2:p=%i,o=%i,i=%i,oi=%i,M=%e,R=%e,dt=%e,rung=%i,"
+					"r=(%e,%e,%e),v=(%e,%e,%e),w=(%e,%e,%e)\n",
+					c2->id.iPid,c2->id.iOrder,c2->id.iIndex,c2->id.iOrgIdx,
+					c2->fMass,c2->fRadius,c2->dt,c2->iRung,
+					c2->r[0],c2->r[1],c2->r[2],
+					c2->v[0],c2->v[1],c2->v[2],
+					c2->w[0],c2->w[1],c2->w[2]);
+			fprintf(fp,"***OUTCOME=%s dT=%e\n",
+					outDo.iOutcome == MISS ? "MISS" :
+					outDo.iOutcome == MERGE ? "MERGE" :
+					outDo.iOutcome == BOUNCE ? "BOUNCE" :
+					outDo.iOutcome == FRAG ? "FRAG" : "UNKNOWN",outDo.dT);
+			for (i=0;i<(outDo.nOut < MAX_NUM_FRAG ? outDo.nOut : MAX_NUM_FRAG);i++) {
+				c = &outDo.Out[i];
+
+				fprintf(fp,"***out%i:p=%i,o=%i,i=%i,oi=%i,M=%e,R=%e,rung=%i,"
+					"r=(%e,%e,%e),v=(%e,%e,%e),w=(%e,%e,%e)\n",i,
+					c->id.iPid,c->id.iOrder,c->id.iIndex,c->id.iOrgIdx,
+					c->fMass,c->fRadius,c->iRung,
+					c->r[0],c->r[1],c->r[2],
+					c->v[0],c->v[1],c->v[2],
+					c->w[0],c->w[1],c->w[2]);
+					}
+			fclose(fp);
+			break;
+			}
+		case COLL_LOG_TERSE:
+			{
+			/*
+			 ** FORMAT: For each event, time (double), collider 1 iOrgIdx
+			 ** (int), collider 2 iOrgIdx (int), number of post-collision
+			 ** particles (int), iOrgIdx for each of these (n * int).
+			 */
+
+			FILE *fp;
+			XDR xdrs;		       
+			int i;
+
+			if (outDo.iOutcome != MERGE && outDo.iOutcome != FRAG)
+			break; /* only care when particle indices change */
+			       fp = fopen(msr->param.achCollLog,"a");
+			       assert(fp != NULL);
+			       xdrstdio_create(&xdrs,fp,XDR_ENCODE);
+			    
+				(void) xdr_double(&xdrs,&dTime);
+				/* MERGE =1, BOUNCE =2*/
+				(void) xdr_int(&xdrs,&outDo.iOutcome); 
+
+                                /* info for c1*/
+				(void) xdr_int(&xdrs,&c1->iColor);
+				(void) xdr_int(&xdrs,&c1->id.iOrgIdx);			
+				(void) xdr_double(&xdrs,&c1->fMass);
+				(void) xdr_double(&xdrs,&c1->fRadius);
+				for (i=0;i<N_DIM;i++)
+				 (void)xdr_double(&xdrs,&c1->r[i]);
+			        for (i=0;i<N_DIM;i++)
+				 (void)xdr_double(&xdrs,&c1->v[i]);
+		                for (i=0;i<N_DIM;i++)
+				 (void)xdr_double(&xdrs,&c1->w[i]);
+
+			        /* info for c2*/
+				(void) xdr_int(&xdrs,&c2->iColor);
+				(void) xdr_int(&xdrs,&c2->id.iOrgIdx);			
+				(void) xdr_double(&xdrs,&c2->fMass);
+				(void) xdr_double(&xdrs,&c2->fRadius);
+				for (i=0;i<N_DIM;i++)
+				 (void)xdr_double(&xdrs,&c2->r[i]);
+			        for (i=0;i<N_DIM;i++)
+				 (void)xdr_double(&xdrs,&c2->v[i]);
+		                for (i=0;i<N_DIM;i++)
+				 (void)xdr_double(&xdrs,&c2->w[i]);
+			  				
+				xdr_destroy(&xdrs);
+				(void) fclose(fp);
+				break;
+			}
+			default:
+				assert(0); /* invalid collision log option */
+				} /* logging */
+			} /* if collision */
+		} while (COLLISION(next.dt));
+
+	msrAddDelParticles(msr); /* clean up any deletions */
+	
+	if (msr->param.bVStep) {
+		double dsec = msrTime() - sec;
+		printf("%i collision%s: %i miss%s, %i merger%s, %i bounce%s, %i frag%s\n",
+			   nCol,nCol==1?"":"s",nMis,nMis==1?"":"es",nMrg,nMrg==1?"":"s",
+			   nBnc,nBnc==1?"":"s",nFrg,nFrg==1?"":"s");
+		printf("Collision search completed, time = %g sec\n",dsec);
+		}
+	}
+
+
+/* PLANETS end */
 #endif
