@@ -36,10 +36,7 @@
 
 double Zeit() { /* added MZ */
     struct timeval tv;
-    struct timezone tz;
 
-    tz.tz_minuteswest=0; 
-    tz.tz_dsttime=0;
     gettimeofday(&tv,NULL);
     return (tv.tv_sec+(tv.tv_usec*1e-6));
     }
@@ -83,16 +80,13 @@ void pkdClearTimer(PKD pkd,int iTimer)
 
 void pkdStartTimer(PKD pkd,int iTimer)
     {
-    struct timezone tz;
     struct timeval tv;
-    tz.tz_minuteswest = 0;
-    tz.tz_dsttime = 0;
 
     pkd->ti[iTimer].iActive++;
 
     if (pkd->ti[iTimer].iActive == 1) {
 	pkd->ti[iTimer].stamp = mdlCpuTimer(pkd->mdl);
-	gettimeofday(&tv,&tz);
+	gettimeofday(&tv,NULL);
 	pkd->ti[iTimer].wallclock_stamp = tv.tv_sec + 1e-6*(double) tv.tv_usec;
 	    {
 	    struct rusage ru;
@@ -108,7 +102,6 @@ void pkdStopTimer(PKD pkd,int iTimer)
     {
     double sec;
     struct timeval tv;
-    struct timezone tz;
 
     sec = -pkd->ti[iTimer].stamp;
     pkd->ti[iTimer].stamp = mdlCpuTimer(pkd->mdl);
@@ -117,9 +110,7 @@ void pkdStopTimer(PKD pkd,int iTimer)
     pkd->ti[iTimer].sec += sec;
 
     sec = -pkd->ti[iTimer].wallclock_stamp;
-    tz.tz_minuteswest = 0;
-    tz.tz_dsttime = 0;
-    gettimeofday( &tv, &tz );
+    gettimeofday( &tv, NULL );
     pkd->ti[iTimer].wallclock_stamp = tv.tv_sec + 1e-6*(double)tv.tv_usec;
     sec += pkd->ti[iTimer].wallclock_stamp;
     if (sec < 0.0) sec = 0.0;
