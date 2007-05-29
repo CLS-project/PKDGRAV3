@@ -24,7 +24,7 @@
 #endif
 #include "ewald.h"
 #include "moments.h"
-#ifndef NO_TIMING
+#ifdef TIME_WALK_WORK
 #include <sys/time.h>
 #endif
 
@@ -48,7 +48,7 @@ typedef struct CheckStack {
 
 #define WALK_MINMULTIPOLE	3
 
-#ifndef NO_TIMING
+#ifdef TIME_WALK_WORK
 typedef struct {
     double fTimer;
     struct timeval tv1;
@@ -140,7 +140,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 #else
     momFloat t1, t2, t3r, t4r;
 #endif
-#ifndef NO_TIMING
+#ifdef TIME_WALK_WORK
     TIMER tv;
 #else
     double tempI;
@@ -292,7 +292,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 	    ** Process the Checklist.
 	    */
 
-#ifndef NO_TIMING
+#ifdef TIME_WALK_WORK
 	    clearTimer(&tv);
 #else
 	    tempI = *pdFlop;
@@ -321,11 +321,11 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 		    n = WALK_MINMULTIPOLE;  /* See check below */
 		    }
 		else {
-#ifndef NO_TIMING
+#ifdef TIME_WALK_WORK
 		    stopTimer(&tv);
 #endif
 		    pkdc = mdlAquire(pkd->mdl,CID_CELL,Check[i].iCell,id);
-#ifndef NO_TIMING
+#ifdef TIME_WALK_WORK
 		    startTimer(&tv);
 #endif
 		    n = pkdc->pUpper - pkdc->pLower + 1;
@@ -537,7 +537,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 				ilp = realloc(ilp,nMaxPart*sizeof(ILP));
 				assert(ilp != NULL);	
 				}
-#ifndef NO_TIMING
+#ifdef TIME_WALK_WORK
 			    stopTimer(&tv);
 #endif
 			    for (pj=pkdc->pLower;pj<=pkdc->pUpper;++pj) {
@@ -566,7 +566,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 				++nPart;
 				mdlRelease(pkd->mdl,CID_PARTICLE,pRemote);
 				}
-#ifndef NO_TIMING
+#ifdef TIME_WALK_WORK
 			    startTimer(&tv);
 #endif
 			    }
@@ -611,7 +611,8 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 		    }
 #ifdef __SSE__
 		    vdir = _mm_rsqrt_ss(_mm_set_ss(d2));
-		    sdir = _mm_cvtss_f32(vdir);
+		    /* Better: sdir = _mm_cvtss_f32(vdir); */
+		    _mm_store_ss(&sdir,vdir);
 		    sdir *= ((3.0 - sdir * sdir * (float)d2) * 0.5);
 #else
 		    sdir = 1.0/sqrt(d2);
@@ -831,7 +832,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 				 c[iCell+1].r[0] - xParent,
 				 c[iCell+1].r[1] - yParent,
 				 c[iCell+1].r[2] - zParent);
-#ifndef NO_TIMING
+#ifdef TIME_WALK_WORK
 		    S[iStack].fWeight = getTimer(&tv);
 #else
 		    S[iStack].fWeight = (*pdFlop-tempI);
@@ -921,13 +922,13 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 	    *pdFlop += pkdBucketEwald(pkd,&pkd->kdNodes[iCell],nReps,fEwCut,4);
 	}
 
-#ifndef NO_TIMING
+#ifdef TIME_WALK_WORK
 	fWeight += getTimer(&tv);
 #else
 	fWeight += (*pdFlop-tempI);
 #endif
 	if (nActive) {
-#ifndef NO_TIMING
+#ifdef TIME_WALK_WORK
 	    fWeight /= nActive;
 #else
 	    fWeight = (*pdFlop-tempI)/nActive;
@@ -990,7 +991,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 	nCheck = S[iStack].nCheck;
 	for (i=0;i<nCheck;++i) Check[i] = S[iStack].Check[i];
 	L = S[iStack].L;
-#ifndef NO_TIMING
+#ifdef TIME_WALK_WORK
 	fWeight = S[iStack].fWeight;
 	clearTimer(&tv);
 #else
