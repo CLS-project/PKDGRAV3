@@ -17,7 +17,9 @@
 #include <sys/time.h>
 #include <math.h>
 
+#ifdef HAVE_SYS_PARAM_H
 #include <sys/param.h> /* for MAXHOSTNAMELEN, if available */
+#endif
 #include <rpc/types.h>
 #include <rpc/xdr.h>
 
@@ -690,7 +692,7 @@ void msrLogParams(MSR msr,FILE *fp)
 #ifdef _REENTRANT
     fprintf(fp," _REENTRANT");
 #endif
-#ifdef MAXHOSTNAMELEN
+#if defined(MAXHOSTNAMELEN) && defined(HAVE_GETHOSTNAME)
 	{
 	char hostname[MAXHOSTNAMELEN];
 	fprintf(fp,"\n# Master host: ");
