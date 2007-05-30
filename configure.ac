@@ -67,13 +67,11 @@ AC_ARG_ENABLE(simd-locr,
    else
      USE_SIMD_LOCR="$USE_SIMD"
    fi])
-if test "x$USE_SIMD_LOCR" != "xno" -a "x$USE_SIMD" = "xyes" ; then
+if test "x$USE_SIMD_LOCR" != "xno" -a "x$USE_SIMD" = "xyes" -a "x$LOCAL_EXPANSIO" = "xyes" ; then
   AC_DEFINE([USE_SIMD_LOCR],1, 
  	[Define if SIMD optimizations should be used for LOCRs.])
 fi
 AM_CONDITIONAL(USE_SIMD_LOCR,test "x$USE_SIMD_LOCR" != "xno")
-
-
 
 AC_ARG_ENABLE(simd-momr,
   [  --disable-simd-momr            disable MOMR SIMD optimizations],
@@ -105,7 +103,15 @@ if test "x$USE_SIMD_PP" != "xno" -a "x$USE_SIMD" = "xyes" ; then
 fi
 AM_CONDITIONAL(USE_SIMD_PP,test "x$USE_SIMD_PP" != "xno")
 
-
+AC_ARG_ENABLE(simd-locr,
+  [  --disable-simd-locr            disable LOCR SIMD optimizations],
+  [if test "x$enableval" = "xyes" ; then
+     USE_SIMD_LOCR="yes"
+   elif test "x$enableval" = "xno" ; then
+     USE_SIMD_LOCR="no"
+   else
+     USE_SIMD_LOCR="$USE_SIMD"
+   fi])
 
 
 # The floating point data type for moments
@@ -143,6 +149,21 @@ AC_ARG_ENABLE(relaxation,
    AC_DEFINE([RELAXATION], 1,
  	[Define if RELAXATION should be used.])])
 AM_CONDITIONAL(RELAXATION, test "x$RELAXATION" = "xyes")
+
+# Mass-weighted softening
+AC_ARG_ENABLE(soft-mass,
+  [  --disable-soft-mass            Do not weight softening by mass],
+  [if test "x$enableval" = "xyes" ; then
+     SOFTMASS="yes"
+   elif test "x$enableval" = "xno" ; then
+     SOFTMASS="no"
+   else
+     SOFTMASS="yes"
+   fi])
+if test "x$SOFTMASS" = "xno" ; then
+  AC_DEFINE([SOFTENING_NOT_MASS_WEIGHTED],1, 
+ 	[Define if softening should NOT be weighted by mass.])
+fi
 
 # Soft Linear
 AC_ARG_ENABLE(soft-linear,
@@ -206,14 +227,14 @@ AC_CHECK_LIB([m], [fabs])
 if test "x$USE_SIMD" == "xyes" ; then
   AC_CHECK_FUNCS([posix_memalign],HAVE_POSIX_MEMALIGN=yes)
 
-  AC_MSG_CHECKING([Checking if the compiler accepts -msse3])
+  AC_MSG_CHECKING([if the compiler accepts -msse3])
   oldCFLAGS="$CFLAGS"; CFLAGS="-msse3"
   AC_TRY_COMPILE([#include <pmmintrin.h>],[__m128 r;],
 	AC_MSG_RESULT(yes); SIMD_CFLAGS="-msse3",
 	AC_MSG_RESULT(no);)
   CFLAGS="$oldCFLAGS"
   if test "x$SIMD_CFLAGS" = "x" ; then
-    AC_MSG_CHECKING([Checking if the compiler accepts -msse2])
+    AC_MSG_CHECKING([if the compiler accepts -msse2])
     oldCFLAGS="$CFLAGS"; CFLAGS="-msse2"
     AC_TRY_COMPILE([#include <emmintrin.h>],[__m128 r;],
 	AC_MSG_RESULT(yes); SIMD_CFLAGS="-msse2",
@@ -221,7 +242,7 @@ if test "x$USE_SIMD" == "xyes" ; then
     CFLAGS="$oldCFLAGS"
   fi
   if test "x$SIMD_CFLAGS" = "x" ; then
-    AC_MSG_CHECKING([Checking if the compiler accepts -msse])
+    AC_MSG_CHECKING([if the compiler accepts -msse])
     oldCFLAGS="$CFLAGS"; CFLAGS="-msse"
     AC_TRY_COMPILE([#include <emmintrin.h>],[__m128 r;],
 	AC_MSG_RESULT(yes); SIMD_CFLAGS="-msse",
@@ -230,7 +251,7 @@ if test "x$USE_SIMD" == "xyes" ; then
   fi
 
   if test "x$SIMD_CFLAGS" = "x" ; then
-    AC_MSG_CHECKING([Checking if the compiler accepts -qaltivec])
+    AC_MSG_CHECKING([if the compiler accepts -qaltivec])
     oldCFLAGS="$CFLAGS"; CFLAGS="-qarch=ppc970 -qaltivec"
     AC_TRY_COMPILE([#include <altivec.h>],[void foo(void) {vector float r;}],
 	AC_MSG_RESULT(yes); SIMD_CFLAGS="-qarch=ppc970 -qaltivec",
@@ -238,7 +259,7 @@ if test "x$USE_SIMD" == "xyes" ; then
     CFLAGS="$oldCFLAGS"
   fi
   if test "x$SIMD_CFLAGS" = "x" ; then
-    AC_MSG_CHECKING([Checking if the compiler accepts -maltivec])
+    AC_MSG_CHECKING([if the compiler accepts -maltivec])
     oldCFLAGS="$CFLAGS"; CFLAGS="-maltivec"
     AC_TRY_COMPILE([#include <altivec.h>],[vector float r;],
 	AC_MSG_RESULT(yes); SIMD_CFLAGS="-maltivec",

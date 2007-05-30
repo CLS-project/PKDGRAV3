@@ -354,8 +354,11 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 		fourh2 *= fourh2;
 #endif		       
 #if !defined(SOFTLINEAR) && !defined(SOFTSQUARE) 
-		/* fourh2 = ilpb[k].fourh2; old softening */
+#ifdef SOFTENING_NOT_MASS_WEIGHTED
+		fourh2 = ilpb[k].fourh2;
+#else
 		fourh2 = softmassweight(p[i].fMass,4*p[i].fSoft*p[i].fSoft,ilpb[k].m,ilpb[k].fourh2);
+#endif
 #endif
 		if (d2 > fourh2) {
 		    SQRT1(d2,dir);
@@ -445,8 +448,11 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	    fourh2 *= fourh2;
 #endif		       
 #if !defined(SOFTLINEAR) && !defined(SOFTSQUARE) 
-	    /* fourh2 = ilp[j].fourh2; old softening */
+#ifdef SOFTENING_NOT_MASS_WEIGHTED
+	    fourh2 = ilp[j].fourh2;
+#else
 	    fourh2 = softmassweight(p[i].fMass,4*p[i].fSoft*p[i].fSoft,ilp[j].m,ilp[j].fourh2);
+#endif
 #endif
 	    rholocal[j].m = ilp[j].m;	
 	    rholocal[j].d2 = d2;
@@ -608,7 +614,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
     for (i=pkdn->pLower;i<=pkdn->pUpper;++i) {
 	if (TYPEQueryACTIVE(&p[i])) pkd->piActive[na++] = &p[i];
 	else pkd->piInactive[nia++] = &p[i];
-	}
+
     /*
     ** Active-Active Interactions.
     */
@@ -646,8 +652,11 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	    fourh2*= fourh2;
 #endif		       
 #if !defined(SOFTLINEAR) && !defined(SOFTSQUARE) 
-	    /* fourh2 = 4*pj->fSoft*pj->fSoft; old softening */
+#ifdef SOFTENING_NOT_MASS_WEIGHTED
+	    fourh2 = 4*pj->fSoft*pj->fSoft;
+#else
 	    fourh2 = softmassweight(pi->fMass,4*pi->fSoft*pi->fSoft,pj->fMass,4*pj->fSoft*pj->fSoft);
+#endif
 #endif
 	    if (d2 > fourh2) {
 		SQRT1(d2,dir);
@@ -659,12 +668,12 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 		** (no more lookup tables)
 		*/
 #ifdef PLANETS 
-	 if(pkd->param.bCollision){	
-	        pi->iColflag = 1;
-                pi->iOrderCol = pj->iOrder;
-		pi->dtCol = 1.0*pi->iOrgIdx;
-		printf("r1+r2 = %e, dr = %e, pi = %i, pj = %i active-active \n",sqrt(d2),sqrt(fourh2),pi->iOrgIdx,pj->iOrgIdx);       
-	 }
+		if(pkd->param.bCollision){	
+		    pi->iColflag = 1;
+		    pi->iOrderCol = pj->iOrder;
+		    pi->dtCol = 1.0*pi->iOrgIdx;
+		    printf("r1+r2 = %e, dr = %e, pi = %i, pj = %i active-active \n",sqrt(d2),sqrt(fourh2),pi->iOrgIdx,pj->iOrgIdx);       
+		}
 #endif	 
 		SQRT1(fourh2,dir);
 		dir2 = dir*dir;
@@ -764,8 +773,11 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	    fourh2*= fourh2;
 #endif		       
 #if !defined(SOFTLINEAR) && !defined(SOFTSQUARE) 
-	    /* fourh2 = 4*pj->fSoft*pj->fSoft; old softening */
+#ifdef SOFTENING_NOT_MASS_WEIGHTED
+	    fourh2 = 4*pj->fSoft*pj->fSoft;
+#else
 	    fourh2 = softmassweight(pi->fMass,4*pi->fSoft*pi->fSoft,pj->fMass,4*pj->fSoft*pj->fSoft);
+#endif
 #endif
 	    if (d2 > fourh2) {
 		SQRT1(d2,dir);
