@@ -3044,12 +3044,7 @@ void msrTopStepHermite(MSR msr,
 					  pdActiveSum,pdWMax,pdIMax,pdEMax,piSec);
 		}
     else if(msrCurrMaxRung(msr) == iRung) {
-
-      /*#ifdef PLANETS
-      if(msr->param.bCollision){   
-	msrDoCollision(msr,dTime,dDelta);  
-      }
-      #endif*/
+   
                 dTime += dDelta;
 		dStep += 1.0/(1 << iRung);
 
@@ -3131,12 +3126,8 @@ else {
    	double dDeltaTmp;
 	int i;
 
-	printf("iRungVeryActive: %d CurrMaxrung: %d  iRung: %d, 0.5*dDelta: %g n/",iRungVeryActive, msrCurrMaxRung(msr),iRung,0.5*dDelta);
-	/*#ifdef PLANETS
-	if(msr->param.bCollision){   
-	  msrDoCollision(msr,dTime,dDelta);  
-	}
-	#endif*/
+	/*printf("iRungVeryActive: %d CurrMaxrung: %d  iRung: %d, 0.5*dDelta: %g n/",iRungVeryActive, msrCurrMaxRung(msr),iRung,0.5*dDelta);*/
+
 	/*
 	 * We have more rungs to go, but we've hit the very active limit.
 	 */
@@ -3280,6 +3271,15 @@ msrStepVeryActiveHermite(MSR msr, double dStep, double dTime, double dDelta,
     pstROParticleCache(msr->pst, NULL, 0, NULL, NULL);
     
     pstStepVeryActiveHermite(msr->pst, &in, sizeof(in), &out, NULL);
+
+#ifdef PLANETS 
+    if(msr->param.bCollision){
+    struct outGetVariableVeryActive outGet;
+    pstGetVariableVeryActive(msr->pst, NULL, 0, &outGet, NULL);
+    msr->dEcoll += outGet.dDeltaEcoll;
+    outGet.dDeltaEcoll = 0.0;/*just in case */
+    }
+#endif
     /*
      * Finish Particle Cache on all nodes
      */
@@ -4006,6 +4006,7 @@ msrDoCollision(MSR msr,double dTime,double dDelta)
 			inDo.CP = msr->param.CP; /* copy collisional parmas */
 
 			pstDoCollision(msr->pst,&inDo,sizeof(inDo),&outDo,NULL);
+		    
 			msr->dEcoll += outDo.dT; /* account for kinetic energy loss + (potential)*/
 		
 			++nCol;

@@ -545,6 +545,9 @@ typedef struct pkdContext {
     ** This is set in pkdInitStep.
     */
     struct parameters param;
+#ifdef PLANETS
+    double dDeltaEcoll;
+#endif   
     } * PKD;
 
 

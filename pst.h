@@ -158,6 +158,7 @@ enum pst_service {
     PST_GETCOLLIDERINFO,
     PST_DOCOLLISION,
     PST_RESETCOLLIDERS,
+    PST_GETVARIABLEVERYACTIVE,
 #endif
 #ifdef HERMITE
     PST_AARSETHSTEP,
@@ -946,7 +947,11 @@ struct inResetColliders {
 	};
 void pstResetColliders(PST,void *,int,void *,int *);
 
-/* PLANETS end */
-#endif
+/* PST_GETVARIABLEVERYACTIVE */
+struct outGetVariableVeryActive {
+        double dDeltaEcoll;
+        };
+void pstGetVariableVeryActive(PST,void *,int,void *,int *);
 
-#endif
+#endif /* PLANETS */
+#endif 

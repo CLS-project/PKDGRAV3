@@ -317,6 +317,9 @@ void pstAddServices(PST pst,MDL mdl)
     mdlAddService(mdl,PST_RESETCOLLIDERS,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstResetColliders,
 		  sizeof(struct inResetColliders),0);
+    mdlAddService(mdl,PST_GETVARIABLEVERYACTIVE,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstGetVariableVeryActive,
+				  0,sizeof(struct outGetVariableVeryActive));
 #endif
     }
 
@@ -2636,6 +2639,7 @@ void pstStepVeryActiveHermite(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     if (pnOut) *pnOut = sizeof(*out);
     }
 
+
 void pstCopy0(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     {
     LCL *plcl = pst->plcl;
@@ -3596,6 +3600,35 @@ pstResetColliders(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 	if (pnOut) *pnOut = 0;
 	}
 
+void pstGetVariableVeryActive(PST pst,void *vin,int nIn,void *vout,int *pnOut)
+    {
+    LCL *plcl = pst->plcl;
+   
+    struct outGetVariableVeryActive *out = vout;
+
+    mdlassert(pst->mdl,nIn == 0);
+    if (pst->nLeaves > 1) {
+	if(pst->iVASplitSide > 0) {
+	    mdlReqService(pst->mdl,pst->idUpper,PST_CACHEBARRIER,NULL,0);
+	    pstGetVariableVeryActive(pst->pstLower,NULL,0,out,NULL);
+	    mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
+	    }
+	else if (pst->iVASplitSide < 0) {
+	    mdlReqService(pst->mdl,pst->idUpper,PST_GETVARIABLEVERYACTIVE,NULL,0);
+	    pstCacheBarrier(pst->pstLower,NULL,0,NULL,NULL);
+	    mdlGetReply(pst->mdl,pst->idUpper,out,NULL);
+	    }
+	else {
+	    mdlassert(pst->mdl,pst->iVASplitSide != 0);
+	    }
+	}
+    else {
+	assert(plcl->pkd->nVeryActive > 0);	
+	pkdGetVariableVeryActive(plcl->pkd, &out->dDeltaEcoll);
+	mdlCacheBarrier(pst->mdl,CID_CELL);
+	}
+    if (pnOut) *pnOut = sizeof(*out);
+    }
 
 #endif
 /* PLANETS end */

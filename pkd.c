@@ -1877,6 +1877,8 @@ pkdStepVeryActiveHermite(PKD pkd, double dStep, double dTime, double dDelta,
 	    pkdVATreeBuild(pkd,pkd->param.nBucket,diCrit2,0,dTime);
 	    pkdGravityVeryActive(pkd,dTime,pkd->param.bEwald && pkd->param.bPeriodic,pkd->param.nReplicas,pkd->param.dEwCut,dStep);
 
+
+#ifdef PLANETS
 	    /* Sun's gravity */
            if(pkd->param.bHeliocentric){
 	       /* Sun's indirect gravity due to very active particles*/
@@ -1890,7 +1892,7 @@ pkdStepVeryActiveHermite(PKD pkd, double dStep, double dTime, double dDelta,
 	    pkdActiveRung(pkd,iKickRung,1);
 	    pkdGravSun(pkd,aSun,adSun,dSunMass); 
            }
-
+#endif
 
 	   if (pkd->param.bVDetails) {
 	     printf("%*cVeryActive pkdCorrector at iRung: %d, 0.5*dDelta: %g\n",
@@ -1898,6 +1900,7 @@ pkdStepVeryActiveHermite(PKD pkd, double dStep, double dTime, double dDelta,
 	    }
 	   pkdCorrector(pkd,dTime);
 
+#ifdef PLANETS
 	   if(pkd->param.bHeliocentric){
 	     int nite = 0;
 	     int nitemax = 3;                                                    
@@ -1906,7 +1909,10 @@ pkdStepVeryActiveHermite(PKD pkd, double dStep, double dTime, double dDelta,
 	       pkdSunCorrector(pkd,dTime,dSunMass);  		
 	     }while(nite < nitemax);
            }
-
+	   if(pkd->param.bCollision){	     
+	     pkdDoCollisionVeryActive(pkd,dTime);
+	   }
+#endif
 	   pkdCopy0(pkd,dTime); 
 
 	   time2 = Zeit();
@@ -1937,7 +1943,7 @@ pkdCopy0(PKD pkd,double dTime)
 	      }
 	      p[i].dTime0 = dTime;
 	      if(pkd->param.bCollision){
-		p[i].iColflag = 0; 
+		p[i].iColflag = 0;  /* just in case */
 	      }
 	    }
     }
@@ -2408,9 +2414,32 @@ void pkdInitDt(PKD pkd,double dDelta) {
     
 
 void pkdDeleteParticle(PKD pkd, PARTICLE *p) {
+  
+#ifdef PLANETS
+  /* the following operation is an emergent treatment for 
+     to-be-deleted VeryActive particles. */
+
+    int j; 
+       p->fMass = 0.0;
+       for (j=0;j<3;j++) {
+	 p->r[j] = 100.0*p->iOrder;
+	 p->v[j] = 0.0;
+#ifdef HERMITE
+	 p->r0[j] = 100.0*p->iOrder;
+	 p->v0[j] = 0.0;
+	 p->a0[j] =  0.000001;
+	 p->ad0[j] = 0.000001;
+	 p->a[j] =  0.000001;
+	 p->ad[j] = 0.000001;
+
+#endif
+       }
+#endif
+
     p->iOrder = -2 - p->iOrder;
     TYPEClearACTIVE(p);
     TYPESet(p, TYPE_DELETED);
+
     }
 
 void pkdNewParticle(PKD pkd, PARTICLE *p) {

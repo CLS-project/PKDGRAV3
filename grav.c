@@ -471,7 +471,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 		      p[i].iColflag = 1;
 		      p[i].iOrderCol = ilp[j].iOrder;
 		      p[i].dtCol = 1.0*p[i].iOrgIdx;	
-		      printf("r1+r2 = %e, dr = %e, pi = %i, pj = %i, ilp  \n",sqrt(d2),sqrt(fourh2),p[i].iOrgIdx,p[j].iOrgIdx);
+		      printf("dr = %e, dr = %e, pi = %i, pj = %i, ilp  \n",sqrt(d2),sqrt(fourh2),p[i].iOrgIdx,ilp[j].iOrder);
 		    }
 #endif
 		    
@@ -669,12 +669,12 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 		** (no more lookup tables)
 		*/
 #ifdef PLANETS 
-		if(pkd->param.bCollision){	
-		    pi->iColflag = 1;
-		    pi->iOrderCol = pj->iOrder;
-		    pi->dtCol = 1.0*pi->iOrgIdx;
-		    printf("r1+r2 = %e, dr = %e, pi = %i, pj = %i active-active \n",sqrt(d2),sqrt(fourh2),pi->iOrgIdx,pj->iOrgIdx);       
-		}
+	 if(pkd->param.bCollision){	
+	        pi->iColflag = 1;
+                pi->iOrderCol = pj->iOrder;
+		pi->dtCol = 1.0*pi->iOrgIdx;
+		printf("dr = %e, r1+r2 = %e, pi = %i, pj = %i active-active \n",sqrt(d2),sqrt(fourh2),pi->iOrgIdx,pj->iOrgIdx);       
+	 }
 #endif	 
 		SQRT1(fourh2,dir);
 		dir2 = dir*dir;
@@ -794,7 +794,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 		  pi->iColflag = 1;
 		  pi->iOrderCol = pj->iOrder;
 		  pi->dtCol = 1.0*pi->iOrgIdx;	
-		  printf("r1+r2 = %e, dr = %e, pi = %i, pj = %i, active-inactive \n",sqrt(d2),sqrt(fourh2),pi->iOrgIdx,pj->iOrgIdx);
+		  printf("dr = %e, r1+r2 = %e, pi = %i, pj = %i, active-inactive \n",sqrt(d2),sqrt(fourh2),pi->iOrgIdx,pj->iOrgIdx);
 		}
 #endif
 	
