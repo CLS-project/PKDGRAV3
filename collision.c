@@ -53,25 +53,25 @@ pkdGetColliderInfo(PKD pkd,int iOrder,COLLIDER *c)
 
 	for (i=0;i<pkdLocal(pkd);i++) {
 		p = &pkd->pStore[i];
-		if (p->iOrder == iOrder) {
-			c->id.iPid = pkd->idSelf;
+		if (p->iOrder == iOrder) {		 
+			c->id.iPid = pkd->idSelf;		
 			c->id.iOrder = iOrder;
 			c->id.iIndex = i;
-			c->id.iOrgIdx = p->iOrgIdx;
+			c->id.iOrgIdx = p->iOrgIdx;			
 			c->fMass = p->fMass;
-			c->fRadius = p->fSoft;
+			c->fRadius = p->fSoft;		
 			for (j=0;j<3;j++) {
 				c->r[j] = p->r[j];
 				c->v[j] = p->v[j];
 				c->w[j] = p->w[j];
-				/*#ifdef HERMITE
-				c->a[i] = p->a[i];
-				c->ad[i] = p->ad[i];
-				#endif*/
+#ifdef HERMITE
+				c->a[j] = p->a[j];
+				c->ad[j] = p->ad[j];
+#endif
 				}
 			c->iColor = p->iColor;
 			c->dt = p->dt;
-			c->iRung = p->iRung;
+			c->iRung = p->iRung;		
 			return;
 			}
 		}
@@ -102,17 +102,17 @@ void PutColliderInfo(const COLLIDER *c,int iOrder2,PARTICLE *p,double dt)
 		p->r[i] = c->r[i];
 		p->v[i] = c->v[i];
 		p->w[i] = c->w[i];
-		/*#ifdef HERMITE
+#ifdef HERMITE
 		p->a[i] = c->a[i];
 		p->ad[i] = c->ad[i];
-		#endif*/
+#endif
 		}
 	p->iRung = c->iRung;
 	/*p->fBall2 += 2*sqrt(p->fBall2)*r + r*r;
 	p->dtPrevCol = dt;
 	p->iPrevCol = iOrder2;  stored to avoid false collisions */
-	p->dtCol = DBL_MAX; /*nessesary in pkdNextcollision*/  
-	/* p->iColflag = 0;  here we reset collision flag */
+	p->dtCol = DBL_MAX; /* nessesary in pkdNextcollision */  
+	p->iColflag = 0;  /* here we reset collision flag */
 	}
 
 void
@@ -154,10 +154,10 @@ pkdMerge(PKD pkd,const COLLIDER *c1,const COLLIDER *c2,double dDensity,
 		com_vel[k] = (m1*c1->v[k] + m2*c2->v[k])/m;
 		vc1[k] = c1->v[k] - com_vel[k];
 		vc2[k] = c2->v[k] - com_vel[k];
-		/*#ifdef HERMITE
+#ifdef HERMITE
 		com_a[k] = (m1*c1->a[k] + m2*c2->a[k])/m;
 		com_ad[k] = (m1*c1->ad[k] + m2*c2->ad[k])/m;
-		#endif*/
+#endif
 	}
 
 	ang_mom[0] = m1*(rc1[1]*vc1[2] - rc1[2]*vc1[1]) + i1*c1->w[0] +
@@ -182,10 +182,10 @@ pkdMerge(PKD pkd,const COLLIDER *c1,const COLLIDER *c2,double dDensity,
 		c->r[k] = com_pos[k];
 		c->v[k] = com_vel[k];
 		c->w[k] = ang_mom[k]/i;
-		/*#ifdef HERMITE
+#ifdef HERMITE
 		c->a[k] = com_a[k];
 		c->ad[k] = com_ad[k];
-		#endif*/
+#endif
 		}
 
 	/* Set merger's timestep to iRung of largest mass. */
@@ -566,6 +566,209 @@ pkdResetColliders(PKD pkd,int iOrder1,int iOrder2)
 		else
 			TYPEReset(p,TYPE_SMOOTHACTIVE);
 		}
+}
+
+void
+pkdDoCollisionVeryActive(PKD pkd,double dTime)
+{
+	COLLIDER c1out,c2out,cOut;
+	COLLIDER *c1,*c2,*c;
+	double sec;
+	unsigned int nCol=0,nMis=0,nMrg=0,nBnc=0,nFrg=0;		 
+        int bPeriodic = pkd->param.bPeriodic;
+	int iOrder1, iOrder2, piOutcome, pnOut;
+	double dt, dT;      
+      	
+	do{	
+		  dt = DBL_MAX;
+		  pkdNextCollision(pkd, &dt, &iOrder1, &iOrder2);
+		  	
+		  /* process the collision */
+		  if (COLLISION(dt)) {
+		    /*printf("%i,%i\n",iOrder1,iOrder2);*/
+		        assert(iOrder1 >= 0);
+		        assert(iOrder2 >= 0);		
+		    
+		        pkdGetColliderInfo(pkd,iOrder1,&c1out);		
+			c1 = &c1out; /* struct copy */				
+			assert(c1->id.iOrder == iOrder1);
+		
+			pkdGetColliderInfo(pkd,iOrder2,&c2out);
+			c2 = &c2out; /* struct copy */
+			assert(c2->id.iOrder == iOrder2);
+
+		  	pkdDoCollision(pkd, dt, c1, c2, bPeriodic,
+				       &pkd->param.CP, &piOutcome, &dT, &cOut, &pnOut);
+				
+			pkd->dDeltaEcoll += dT; /*account for kinetic energy loss + (potential)*/
+			++nCol;
+			switch (piOutcome) {
+			case MISS:
+				++nMis;
+				--nCol;
+				break;
+			case MERGE:
+				++nMrg;
+				break;
+			case BOUNCE:
+				++nBnc;
+				break;
+			case FRAG:
+				++nFrg;
+				break;
+			default:
+				assert(0); /* unknown outcome */
+				}
+
+		switch (pkd->param.iCollLogOption) { /* log collision if requested */
+		case COLL_LOG_NONE:
+			break;
+		case COLL_LOG_VERBOSE:
+			{
+			FILE *fp;
+			int i;
+
+			fp = fopen(pkd->param.achCollLog,"a");
+			assert(fp != NULL);
+
+			/* for (i=0;i<3;i++) {
+				c1->r[i] += c1->v[i]*dt;
+				c2->r[i] += c2->v[i]*dt;
+				} */
+
+			fprintf(fp,"%s-%s COLLISION:T=%e\n",
+					_pkdParticleLabel(pkd,c1->iColor),
+					_pkdParticleLabel(pkd,c2->iColor),dTime);
+
+			fprintf(fp,"***1:p=%i,o=%i,i=%i,oi=%i,M=%e,R=%e,dt=%e,rung=%i,"
+					"r=(%e,%e,%e),v=(%e,%e,%e),w=(%e,%e,%e)\n",
+					c1->id.iPid,c1->id.iOrder,c1->id.iIndex,c1->id.iOrgIdx,
+					c1->fMass,c1->fRadius,c1->dt,c1->iRung,
+					c1->r[0],c1->r[1],c1->r[2],
+					c1->v[0],c1->v[1],c1->v[2],
+					c1->w[0],c1->w[1],c1->w[2]);
+
+			fprintf(fp,"***2:p=%i,o=%i,i=%i,oi=%i,M=%e,R=%e,dt=%e,rung=%i,"
+					"r=(%e,%e,%e),v=(%e,%e,%e),w=(%e,%e,%e)\n",
+					c2->id.iPid,c2->id.iOrder,c2->id.iIndex,c2->id.iOrgIdx,
+					c2->fMass,c2->fRadius,c2->dt,c2->iRung,
+					c2->r[0],c2->r[1],c2->r[2],
+					c2->v[0],c2->v[1],c2->v[2],
+					c2->w[0],c2->w[1],c2->w[2]);
+			fprintf(fp,"***OUTCOME=%s dT=%e\n",
+					piOutcome == MISS ? "MISS" :
+					piOutcome == MERGE ? "MERGE" :
+					piOutcome == BOUNCE ? "BOUNCE" :
+					piOutcome == FRAG ? "FRAG" : "UNKNOWN",dT);
+			for (i=0;i<(pnOut < MAX_NUM_FRAG ? pnOut : MAX_NUM_FRAG);i++) {
+				c = &((&cOut)[i]);
+
+				fprintf(fp,"***out%i:p=%i,o=%i,i=%i,oi=%i,M=%e,R=%e,rung=%i,"
+					"r=(%e,%e,%e),v=(%e,%e,%e),w=(%e,%e,%e)\n",i,
+					c->id.iPid,c->id.iOrder,c->id.iIndex,c->id.iOrgIdx,
+					c->fMass,c->fRadius,c->iRung,
+					c->r[0],c->r[1],c->r[2],
+					c->v[0],c->v[1],c->v[2],
+					c->w[0],c->w[1],c->w[2]);
+					}
+			fclose(fp);
+			break;
+			}
+		case COLL_LOG_TERSE:
+			{
+			/*
+			 ** FORMAT: For each event, time (double), collider 1 iOrgIdx
+			 ** (int), collider 2 iOrgIdx (int), number of post-collision
+			 ** particles (int), iOrgIdx for each of these (n * int).
+			 */
+
+			FILE *fp;
+			XDR xdrs;		       
+			int i;
+
+			if (piOutcome != MERGE && piOutcome != FRAG)
+			break; /* only care when particle indices change */
+			       fp = fopen(pkd->param.achCollLog,"a");
+			       assert(fp != NULL);
+			       xdrstdio_create(&xdrs,fp,XDR_ENCODE);
+			    
+				(void) xdr_double(&xdrs,&dTime);
+				/* MERGE =1, BOUNCE =2*/
+				(void) xdr_int(&xdrs,&piOutcome); 
+
+                                /* info for c1*/
+				(void) xdr_int(&xdrs,&c1->iColor);
+				(void) xdr_int(&xdrs,&c1->id.iOrgIdx);			
+				(void) xdr_double(&xdrs,&c1->fMass);
+				(void) xdr_double(&xdrs,&c1->fRadius);
+				for (i=0;i<N_DIM;i++)
+				 (void)xdr_double(&xdrs,&c1->r[i]);
+			        for (i=0;i<N_DIM;i++)
+				 (void)xdr_double(&xdrs,&c1->v[i]);
+		                for (i=0;i<N_DIM;i++)
+				 (void)xdr_double(&xdrs,&c1->w[i]);
+
+			        /* info for c2*/
+				(void) xdr_int(&xdrs,&c2->iColor);
+				(void) xdr_int(&xdrs,&c2->id.iOrgIdx);			
+				(void) xdr_double(&xdrs,&c2->fMass);
+				(void) xdr_double(&xdrs,&c2->fRadius);
+				for (i=0;i<N_DIM;i++)
+				 (void)xdr_double(&xdrs,&c2->r[i]);
+			        for (i=0;i<N_DIM;i++)
+				 (void)xdr_double(&xdrs,&c2->v[i]);
+		                for (i=0;i<N_DIM;i++)
+				 (void)xdr_double(&xdrs,&c2->w[i]);
+			  				
+				xdr_destroy(&xdrs);
+				(void) fclose(fp);
+				break;
+			}
+			default:
+				assert(0); /* invalid collision log option */
+				} /* logging */
+			} /* if collision */
+		} while (COLLISION(dt));
+	
+	/* Adddelete is taken care of in master level.*/	
+
+	if (pkd->param.bVStep) {
+		double dsec = dTime - sec;
+		printf("%i collision%s: %i miss%s, %i merger%s, %i bounce%s, %i frag%s\n",
+			   nCol,nCol==1?"":"s",nMis,nMis==1?"":"es",nMrg,nMrg==1?"":"s",
+			   nBnc,nBnc==1?"":"s",nFrg,nFrg==1?"":"s");
+		printf("Collision search completed, time = %g sec\n",dsec);
+		}
+	}
+
+
+
+static char *
+_pkdParticleLabel(PKD pkd,int iColor)
+{
+	switch (iColor) {
+	case SUN:
+		return "SUN";
+	case JUPITER:
+		return "JUPITER";
+	case SATURN:
+		return "SATURN";
+	case URANUS:
+		return "URANUS";
+	case NEPTUNE:
+		return "NEPTUNE";
+	case PLANETESIMAL:
+		return "PLANETESIMAL";
+	default:
+		return "UNKNOWN";
+		}
+	}
+
+
+void pkdGetVariableVeryActive(PKD pkd, double *dDeltaEcoll)
+{
+  *dDeltaEcoll = pkd->dDeltaEcoll;
+  pkd->dDeltaEcoll = 0.0;
 }
 
 #endif
