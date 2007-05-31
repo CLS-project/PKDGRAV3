@@ -164,8 +164,11 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	    fourh2 *= fourh2;
 #endif		       
 #if !defined(SOFTLINEAR) && !defined(SOFTSQUARE) 
-	    /* fourh2 = ilp[j].fourh2; old softening */
+#ifdef SOFTENING_NOT_MASS_WEIGHTED
+	    fourh2 = ilp[j].fourh2;
+#else
 	    fourh2 = softmassweight(p[i].fMass,4*p[i].fSoft*p[i].fSoft,ilp[j].m,ilp[j].fourh2);
+#endif
 #endif
 	    if (d2 > fourh2) {
 		SQRT1(d2,dir);
