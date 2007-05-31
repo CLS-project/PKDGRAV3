@@ -614,6 +614,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
     for (i=pkdn->pLower;i<=pkdn->pUpper;++i) {
 	if (TYPEQueryACTIVE(&p[i])) pkd->piActive[na++] = &p[i];
 	else pkd->piInactive[nia++] = &p[i];
+    }
 
     /*
     ** Active-Active Interactions.
@@ -839,7 +840,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 /*  		printf("Active-Inactive iOrderA: %d iOrderI: %d mu: %g Etot: %g L2: %g ecc: %g eccfac: %g\n",pi->iOrder,pj->iOrder,mu,Etot,L2,ecc,eccfac); */
 		pi->dtGrav = (rhopmaxlocal > pi->dtGrav)?rhopmaxlocal:pi->dtGrav;
 	    }
-	    } /* end of j-loop */
+	} /* end of j-loop */
 	pi->fPot -= fPot;
 	pi->a[0] -= ax;
 	pi->a[1] -= ay;
