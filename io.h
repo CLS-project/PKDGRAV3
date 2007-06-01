@@ -1,10 +1,7 @@
 #ifndef IO_HINCLUDED
 #define IO_HINCLUDED
+#include "iohdf5.h"
 #include "mdl.h"
-
-typedef struct {
-    FLOAT v[3];
-} ioV3;
 
 typedef struct ioContext {
     MDL mdl;
