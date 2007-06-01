@@ -34,6 +34,7 @@ typedef struct CheckElt {
     int iCell;
     int id;
     FLOAT rOffset[3];
+    FLOAT fOpen;
     } CELT;
 
 typedef struct CheckStack {
@@ -94,6 +95,8 @@ float getTimer(TIMER *t) {
 }
 #endif
 
+double dMonopoleThetaFac = 1.5;
+
 /*
 ** Returns total number of active particles for which gravity was calculated.
 */
@@ -109,9 +112,8 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
     LOCR L;
     ILP *ilp;
     ILC *ilc;
-    ILPB *ilpb;
     double fWeight = 0.0;
-    FLOAT dMin,dMax,min2,max2,d2,h2;
+    FLOAT dMin,dMax,min2,max2,d2,fourh2;
     double dDriftFac;
     FLOAT rCheck[3];
     FLOAT rOffset[3];
@@ -125,7 +127,6 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
     int iOpen;
     int nPart,nMaxPart;
     int nCell,nMaxCell;
-    int nPartBucket,nMaxPartBucket;
 #ifdef USE_SIMD_MOMR
     int ig,iv;
 #endif
@@ -186,10 +187,6 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
     ilc = malloc(nMaxCell*sizeof(ILC));
 #endif
     assert(ilc != NULL);
-    nPartBucket = 0;
-    nMaxPartBucket = 500;
-    ilpb = malloc(nMaxPartBucket*sizeof(ILPB));
-    assert(ilpb != NULL);
 #ifdef USE_SIMD_LOCR
     nMaxGlam = 1000;
     ilglam = SIMD_malloc(nMaxGlam*sizeof(GLAM));
@@ -364,78 +361,145 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 		dDriftFac = 0.0;
 		for (j=0;j<3;++j) rCheck[j] = pkdc->r[j] + Check[i].rOffset[j];
 #endif
-		/*
-		** If this cell is not a bucket calculate the distance
-		** between the center of masses of this cell and the check
-		** list cell (d2). If this distance is larger than the sum of 
-		** opening radii of the two cells (they are well 
-		** seperated) then we accept the interaction.
-		** If max2 <= CeckCell.fOpen^2, then this Checkcell must be
-		** opened since no subcell of the current cell will ever be 
-		** to accept the Checkcell as an interaction. If neither 
-		** condition is met then we need to keep this cell on the 
-		** checklist.
-		*/
-		min2 = 0;	
-		max2 = 0;
 		d2 = 0;
 		for (j=0;j<3;++j) {
-		  dMin = fabs(rCheck[j] - c[iCell].bnd.fCenter[j]);
-		  dMax = dMin + c[iCell].bnd.fMax[j];
-		  dMin -= c[iCell].bnd.fMax[j];
-		  if (dMin > 0) min2 += dMin*dMin;
-		  max2 += dMax*dMax;
-		  dx[j] = rCheck[j] - c[iCell].r[j]; 
-		  d2 += dx[j]*dx[j];
+		    d2 += (rCheck[j] - c[iCell].r[j])*(rCheck[j] - c[iCell].r[j]);
 		}
-		/*
-		** First test to see if we for sure open the checkcell. iOpen = 1;
-		*/
-		if (((c[iCell].iLower)?max2:min2) <= pkdc->fOpen*pkdc->fOpen || n < WALK_MINMULTIPOLE) iOpen = 1;
-		/*
-		** Second test to see if the checkcell can be accepted as a local expansion. iOpen = -1;
-		*/
-		else if (d2 > (pkdc->fOpen + c[iCell].fOpen)*(pkdc->fOpen + c[iCell].fOpen)) iOpen = -1;
-		/*
-		** Third test applies if the current cell is already a bucket, then test if it is an acceptable multipole (P-C). iOpen = -2;
-		*/
-		else if (!c[iCell].iLower && min2 > pkdc->fOpen*pkdc->fOpen) iOpen = -2;
-		/*
-		** Otherwise we can't make a decision at this level in the tree and the cell must remain on the checklist. iOpen = 0;
-		*/
-		else iOpen = 0;
-		if (iOpen == -1 || iOpen == -2) {
-		  /*
-		  ** While we accept the interaction on the grounds of the opening criterion
-		  ** we still might have the case that the softening is larger than the opening
-		  ** radius. In such cases we need to be quite careful since we can still use a 
-		  ** softened monopole (like a softened P-P interaction).
-		  */
-#ifdef SOFTLINEAR
-		  h2 = sqrt(pkdc->fSoft2) + sqrt(c[iCell].fSoft2);
-		  h2 *= h2;
-		  if (d2 < h2) iOpen = (c[iCell].iLower)?0:-3;
+		iOpen = 0;
+		if (d2 > (c[iCell].fOpen + pkdc->fOpen)*(c[iCell].fOpen + pkdc->fOpen)) {
+		    /*
+		    ** Accept local expansion, but check softening.
+		    */
+		    fourh2 = softmassweight(c[iCell].mom.m,4*c[iCell].fSoft2,pkdc->mom.m,4*pkdc->fSoft2);
+		    if (d2 > fourh2) {
+			/*
+			** Local expansion accepted!
+			** Add to the GLAM list to be evaluated later.
+			*/
+#ifdef USE_SIMD_LOCR
+			if (nGlam == nMaxGlam) {
+			    nMaxGlam += 1000;
+			    ilglam = SIMD_realloc(ilglam,
+						  (nMaxGlam-1000)*sizeof(GLAM),
+						  nMaxGlam*sizeof(GLAM));
+			    assert(ilglam != 0);
+			}
+#ifdef __SSE__
+			vdir = _mm_rsqrt_ss(_mm_set_ss(d2));
+			/* Better: sdir = _mm_cvtss_f32(vdir); */
+			_mm_store_ss(&sdir,vdir);
+			sdir *= ((3.0 - sdir * sdir * (float)d2) * 0.5);
+#else
+			sdir = 1.0/sqrt(d2);
 #endif
-#ifdef SOFTSQUARE
-		  h2 = 2*(pkdc->fSoft2 + c[iCell].fSoft2);
-		  if (d2 < h2) iOpen = (c[iCell].iLower)?0:-3;
+			ilglam[nGlam].q = pkdc->mom;
+			ilglam[nGlam].dir = sdir;
+			ilglam[nGlam].g0 = -sdir;
+			ilglam[nGlam].t1 = -sdir;
+			ilglam[nGlam].t2 = -3*sdir;
+			ilglam[nGlam].t3r = -5;
+			ilglam[nGlam].t4r = -7;
+			ilglam[nGlam].x = dx[0];
+			ilglam[nGlam].y = dx[1];
+			ilglam[nGlam].z = dx[2];
+			ilglam[nGlam].zero = 0.0;
+			++nGlam;
+#else
+#if 1
+			dir = 1.0/sqrt(d2);
+			t1 = -dir;
+			t2 = -3*dir;
+			t3r = -5;
+			t4r = -7;
+			momGenLocrAddMomr(&L,&pkdc->mom,dir,-dir,
+					  t1,t2,t3r,t4r,dx[0],dx[1],dx[2]);
+#else
+			momLocrAddMomr(&L,&pkdc->mom,dir,dx[0],dx[1],dx[2]);
 #endif
-#if !defined(SOFTLINEAR) && !defined(SOFTSQUARE)
-		  /*
-		  ** This is an asymmetric case as far as the softening is concerned.
-		  */
-		  h2 = 4*pkdc->fSoft2;
-		  if (max2 < h2) iOpen = -3; 
-		  else if (min2 < h2) iOpen = (c[iCell].iLower)?0:-3;
 #endif
+		    }
+		    else {
+			/*
+			** We want to test if it can be used as a softened monopole.
+			** Now we calculate minimum distance from the cm of the 
+			** checkcell to the edge of the current cell's bounding box.
+			*/
+			min2 = 0;	
+			for (j=0;j<3;++j) {
+			    dMin = fabs(rCheck[j] - c[iCell].bnd.fCenter[j]);
+			    dMin -= c[iCell].bnd.fMax[j];
+			    if (dMin > 0) min2 += dMin*dMin;
+			}
+			if (min2 > pkdc->fOpen*dMonopoleThetaFac*pkdc->fOpen*dMonopoleThetaFac) {
+			    /*
+			    ** We have an acceptable softened monopole term, which we put on the 
+			    ** P-P list.
+			    */
+			    /*
+			    ** We accept this multipole from the opening criterion, but it is a softened
+			    ** interaction, so we need to treat is as a softened monopole by putting it
+			    ** on the particle interaction list.
+			    */
+			    if (nPart == nMaxPart) {
+				nMaxPart += 500;
+				ilp = realloc(ilp,nMaxPart*sizeof(ILP));
+				assert(ilp != NULL);	
+			    }
+#ifndef USE_SIMD
+			    ilp[nPart].iOrder = -1; /* set iOrder to negative value for time step criterion */
+#endif
+			    ilp[nPart].m = pkdc->mom.m;
+			    ilp[nPart].x = rCheck[0];
+			    ilp[nPart].y = rCheck[1];
+			    ilp[nPart].z = rCheck[2];
+#ifndef USE_SIMD
+			    ilp[nPart].vx = pkdc->v[0];
+			    ilp[nPart].vy = pkdc->v[1];
+			    ilp[nPart].vz = pkdc->v[2];
+#endif
+			    ilp[nPart].fourh2 = 4*pkdc->fSoft2;
+			    ++nPart;
+			}
+			else {
+			    /*
+			    ** Otherwise we must open this checkcell.
+			    */
+			    iOpen = 1;
+			}
+		    }
+		} /* end of basic accept local expansion */
+		else {
+		    /*
+		    ** If the checklist has the larger fOpen then Open it, otherwise keep it on 
+		    ** the checklist (open the current cell eventually).
+		    */
+		    if (pkdc->fOpen > c[iCell].fOpen) {
+			if (pkdc->iLower) {
+			    iOpen = 1;
+			}
+			else {
+			    /*
+			    ** The checkcell is a bucket which means we should leave it
+			    ** on the checklist.
+			    */
+			    Check[ii++] = Check[i];
+			}
+		    }
+		    else if (!c[iCell].iLower) {
+			/*
+			** In this case we cannot open the current cell despite it having the
+			** larger opening radius. We think the right thing to do here is to 
+			** open the checkcell anyway, if it can be opened.
+			*/
+			iOpen = 1;
+		    }
+		    else {
+			Check[ii++] = Check[i];
+		    }
 		}
-		if (!c[iCell].iLower) assert(iOpen != 0);
-/*
-  printf("   i:%6d iCheck:%6d id:%2d iOpen:%2d\n",i,Check[i].iCell,id,iOpen);
-*/
 		if (iOpen > 0) {
 		    /*
-		    ** Contained! (or intersected in the case of reaching the bucket)
+		    ** Here we go through the opening of a checkcell!
 		    */
 		    iCheckCell = pkdc->iLower;
 		    if (iCheckCell) {
@@ -501,7 +565,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 				nMaxPart += 500 + n;
 				ilp = realloc(ilp,nMaxPart*sizeof(ILP));
 				assert(ilp != NULL);	
-				}
+			    }
 			    for (pj=pkdc->pLower;pj<=pkdc->pUpper;++pj) {
 #ifndef USE_SIMD
 				ilp[nPart].iOrder = p[pj].iOrder;
@@ -515,18 +579,10 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 				ilp[nPart].vy = p[pj].v[1];
 				ilp[nPart].vz = p[pj].v[2];
 #endif
-#ifdef SOFTLINEAR
-				ilp[nPart].h = p[pj].fSoft;
-#endif
-#ifdef SOFTSQUARE
-				ilp[nPart].twoh2 = 2*p[pj].fSoft*p[pj].fSoft;
-#endif
-#if !defined(SOFTLINEAR) && !defined(SOFTSQUARE)
 				ilp[nPart].fourh2 = 4*p[pj].fSoft*p[pj].fSoft;
-#endif
 				++nPart;
-				}
 			    }
+			}
 			else {
 			    /*
 			    ** Remote Bucket Interaction.
@@ -536,7 +592,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 				nMaxPart += 500 + n;
 				ilp = realloc(ilp,nMaxPart*sizeof(ILP));
 				assert(ilp != NULL);	
-				}
+			    }
 #ifdef TIME_WALK_WORK
 			    stopTimer(&tv);
 #endif
@@ -554,94 +610,15 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 				ilp[nPart].vy = pRemote->v[1];
 				ilp[nPart].vz = pRemote->v[2];
 #endif
-#ifdef SOFTLINEAR
-				ilp[nPart].h = pRemote->fSoft;
-#endif
-#ifdef SOFTSQUARE
-				ilp[nPart].twoh2 = 2*pRemote->fSoft*pRemote->fSoft;
-#endif
-#if !defined(SOFTLINEAR) && !defined(SOFTSQUARE)
 				ilp[nPart].fourh2 = 4*pRemote->fSoft*pRemote->fSoft;
-#endif
 				++nPart;
 				mdlRelease(pkd->mdl,CID_PARTICLE,pRemote);
-				}
+			    }
 #ifdef TIME_WALK_WORK
 			    startTimer(&tv);
 #endif
-			    }
-			/*
-			** ...and we need to consider it in the timestepping part so place this cell
-			** onto the particle-bucket list. This list is not used for force evaluation 
-			** though.
-			*/
-			if (nPartBucket == nMaxPartBucket) {
-			    nMaxPartBucket += 500;
-			    ilpb = realloc(ilpb,nMaxPartBucket*sizeof(ILPB));
-			    assert(ilpb != NULL);
-			    }
-			ilpb[nPartBucket].x = rCheck[0];
-			ilpb[nPartBucket].y = rCheck[1];
-			ilpb[nPartBucket].z = rCheck[2];
-			ilpb[nPartBucket].m = pkdc->mom.m;   /* we really only need the mass here */
-#ifdef SOFTLINEAR
-		        ilpb[nPartBucket].h = sqrt(pkdc->fSoft2);
-#endif
-#ifdef SOFTSQUARE
-		        ilpb[nPartBucket].twoh2 = 2*pkdc->fSoft2;
-#endif
-#if !defined(SOFTLINEAR) && !defined(SOFTSQUARE)
-		        ilpb[nPartBucket].fourh2 = 4*pkdc->fSoft2;
-#endif
-			++nPartBucket;
 			}  /* end of opening a bucket */
 		    }
-		else if (iOpen == -1) {
-		  /*
-		  ** Local expansion accepted!
-		  ** Add to the GLAM list to be evaluated later.
-		  */
-#ifdef USE_SIMD_LOCR
-		    if (nGlam == nMaxGlam) {
-			nMaxGlam += 1000;
-			ilglam = SIMD_realloc(ilglam,
-					      (nMaxGlam-1000)*sizeof(GLAM),
-					      nMaxGlam*sizeof(GLAM));
-			assert(ilglam != 0);
-		    }
-#ifdef __SSE__
-		    vdir = _mm_rsqrt_ss(_mm_set_ss(d2));
-		    /* Better: sdir = _mm_cvtss_f32(vdir); */
-		    _mm_store_ss(&sdir,vdir);
-		    sdir *= ((3.0 - sdir * sdir * (float)d2) * 0.5);
-#else
-		    sdir = 1.0/sqrt(d2);
-#endif
-		    ilglam[nGlam].q = pkdc->mom;
-		    ilglam[nGlam].dir = sdir;
-		    ilglam[nGlam].g0 = -sdir;
-		    ilglam[nGlam].t1 = -sdir;
-		    ilglam[nGlam].t2 = -3*sdir;
-		    ilglam[nGlam].t3r = -5;
-		    ilglam[nGlam].t4r = -7;
-		    ilglam[nGlam].x = dx[0];
-		    ilglam[nGlam].y = dx[1];
-		    ilglam[nGlam].z = dx[2];
-		    ilglam[nGlam].zero = 0.0;
-		    ++nGlam;
-#else
-#if 1
-		    dir = 1.0/sqrt(d2);
-		    t1 = -dir;
-		    t2 = -3*dir;
-		    t3r = -5;
-		    t4r = -7;
-		    momGenLocrAddMomr(&L,&pkdc->mom,dir,-dir,
-				      t1,t2,t3r,t4r,dx[0],dx[1],dx[2]);
-#else
-		    momLocrAddMomr(&L,&pkdc->mom,dir,dx[0],dx[1],dx[2]);
-#endif
-#endif
 		}
 		else if (iOpen == -2) {
 		    /*
@@ -694,67 +671,6 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 		    ilc[nCell].mom = pkdc->mom;
 #endif
 		    ++nCell;
-		    }
-		else if (iOpen == -3) {
-		    /*
-		    ** We accept this multipole from the opening criterion, but it is a softened
-		    ** interaction, so we need to treat is as a softened monopole by putting it
-		    ** on the particle interaction list.
-		    */
-		    if (nPart == nMaxPart) {
-			nMaxPart += 500;
-			ilp = realloc(ilp,nMaxPart*sizeof(ILP));
-			assert(ilp != NULL);	
-			}
-#ifndef USE_SIMD
-		    ilp[nPart].iOrder = -1; /* set iOrder to negative value for time step criterion */
-#endif
-		    ilp[nPart].m = pkdc->mom.m;
-		    ilp[nPart].x = rCheck[0];
-		    ilp[nPart].y = rCheck[1];
-		    ilp[nPart].z = rCheck[2];
-#ifndef USE_SIMD
-		    ilp[nPart].vx = pkdc->v[0];
-		    ilp[nPart].vy = pkdc->v[1];
-		    ilp[nPart].vz = pkdc->v[2];
-#endif
-#ifdef SOFTLINEAR
-		    ilp[nPart].h = sqrt(pkdc->fSoft2);
-#endif
-#ifdef SOFTSQUARE
-		    ilp[nPart].twoh2 = 2*pkdc->fSoft2;
-#endif
-#if !defined(SOFTLINEAR) && !defined(SOFTSQUARE)
-		    ilp[nPart].fourh2 = 4*pkdc->fSoft2;
-#endif
-		    ++nPart;
-		    /*
-		    ** ...and we need to consider it in the timestepping part so place this cell
-		    ** onto the particle-bucket list. This list is not used for force evaluation 
-		    ** though.
-		    */
-		    if (nPartBucket == nMaxPartBucket) {
-			nMaxPartBucket += 500;
-			ilpb = realloc(ilpb,nMaxPartBucket*sizeof(ILPB));
-			assert(ilpb != NULL);
-			}
-		    ilpb[nPartBucket].x = rCheck[0];
-		    ilpb[nPartBucket].y = rCheck[1];
-		    ilpb[nPartBucket].z = rCheck[2];
-		    ilpb[nPartBucket].m = pkdc->mom.m;   /* we really only need the mass here */
-#ifdef SOFTLINEAR
-		    ilpb[nPartBucket].h = sqrt(pkdc->fSoft2);
-#endif
-#ifdef SOFTSQUARE
-		    ilpb[nPartBucket].twoh2 = 2*pkdc->fSoft2;
-#endif
-#if !defined(SOFTLINEAR) && !defined(SOFTSQUARE)
-		    ilpb[nPartBucket].fourh2 = 4*pkdc->fSoft2;
-#endif
-		    ++nPartBucket;
-		    }
-		else {
-		    Check[ii++] = Check[i];
 		    }
 		if (id >= 0 && id != pkd->idSelf) {
 		    mdlRelease(pkd->mdl,CID_CELL,pkdc);
@@ -823,7 +739,9 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 		    ++iStack;
 		    S[iStack].nPart = nPart;
 		    S[iStack].nCell = nCell;
+/*
 		    S[iStack].nPartBucket = nPartBucket;
+*/
 		    S[iStack].nCheck = nCheck;
 		    for (i=0;i<nCheck;++i) S[iStack].Check[i] = Check[i];
 		    S[iStack].Check[nCheck-1].iCell = iCell;
@@ -897,15 +815,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 	    ilp[nPart].vy = p[pj].v[1];
 	    ilp[nPart].vz = p[pj].v[2];
 #endif
-#ifdef SOFTLINEAR
-	    ilp[nPart].h = p[pj].fSoft;
-#endif
-#ifdef SOFTSQUARE
-	    ilp[nPart].twoh2 = 2*p[pj].fSoft*p[pj].fSoft;
-#endif
-#if !defined(SOFTLINEAR) && !defined(SOFTSQUARE)
 	    ilp[nPart].fourh2 = 4*p[pj].fSoft*p[pj].fSoft;
-#endif
 	    ++nPart;
 	}
 
@@ -913,7 +823,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 	** Now calculate gravity on this bucket!
 	*/
 
-	nActive = pkdGravInteract(pkd,pkdc,&L,ilp,nPart,ilc,nCell,ilpb,nPartBucket,pdFlop);
+	nActive = pkdGravInteract(pkd,pkdc,&L,ilp,nPart,ilc,nCell,NULL,0,pdFlop);
 	/*
 	** Note that if Ewald is being performed we need to factor this
 	** constant cost into the load balancing weights.
@@ -972,7 +882,6 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 #else
 		free(ilc);
 #endif
-		free(ilpb);
 #ifdef PROFILE_GRAVWALK
     VTPause();
 #endif
@@ -987,7 +896,9 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 	*/
 	nPart = S[iStack].nPart;
 	nCell = S[iStack].nCell;
+/*
 	nPartBucket = S[iStack].nPartBucket;
+*/
 	nCheck = S[iStack].nCheck;
 	for (i=0;i<nCheck;++i) Check[i] = S[iStack].Check[i];
 	L = S[iStack].L;

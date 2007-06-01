@@ -15,14 +15,14 @@
 #include "moments.h"
 #include "grav.h"
 
+inline double softmassweight(double m1,double h12,double m2,double h22){
+    return((m1+m2)*(h12*h22)/(h22*m1+h12*m2));
+    }
+
 #define SQRT1(d2,dir)\
     {\
     dir = 1/sqrt(d2);\
     } 
-
-double softmassweight(double m1,double fourh12,double m2,double fourh22){
-    return((m1+m2)*(fourh12*fourh22)/(fourh22*m1+fourh12*m2));
-    }
 
 /*
 ** This version of grav.c does all the operations inline, including 
@@ -147,29 +147,12 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	PPInteractSIMD( nPart,ilp,p[i].r,p[i].a,p[i].fMass,p[i].fSoft,
 			&ax, &ay, &az, &fPot, &rhosum, &maisum );
 #else
-	
-#ifdef SOFTSQUARE
-	ptwoh2 = 2*p[i].fSoft*p[i].fSoft;
-#endif
 	for (j=0;j<nPart;++j) {
 	    x = p[i].r[0] - ilp[j].x;
 	    y = p[i].r[1] - ilp[j].y;
 	    z = p[i].r[2] - ilp[j].z;
 	    d2 = x*x + y*y + z*z;
-#ifdef SOFTSQUARE
-	    fourh2 = ptwoh2 + ilp[j].twoh2;
-#endif
-#ifdef SOFTLINEAR
-	    fourh2 = p[i].fSoft + ilp[j].h;
-	    fourh2 *= fourh2;
-#endif		       
-#if !defined(SOFTLINEAR) && !defined(SOFTSQUARE) 
-#ifdef SOFTENING_NOT_MASS_WEIGHTED
-	    fourh2 = ilp[j].fourh2;
-#else
 	    fourh2 = softmassweight(p[i].fMass,4*p[i].fSoft*p[i].fSoft,ilp[j].m,ilp[j].fourh2);
-#endif
-#endif
 	    if (d2 > fourh2) {
 		SQRT1(d2,dir);
 		dir2 = dir*dir*dir;
