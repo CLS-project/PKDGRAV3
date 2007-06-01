@@ -630,7 +630,6 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp,int bTempBound) {
 
 
 void pkdCombineCells(KDN *pkdn,KDN *p1,KDN *p2,int bCombineBound) {
-    KDN *t;
     MOMR mom;
     FLOAT m1,m2,x,y,z,ifMass;
     FLOAT r1[3],r2[3];
