@@ -15,6 +15,10 @@
 #include "moments.h"
 #include "grav.h"
 
+inline double softmassweight(double m1,double h12,double m2,double h22){
+    return((m1+m2)*(h12*h22)/(h22*m1+h12*m2));
+    }
+
 /*
  ** This is a new fast version of QEVAL which evaluates
  ** the interaction due to the reduced moment 'm'.
@@ -99,10 +103,6 @@ inline void momEvalMomrInline(MOMR *m,momFloat dir,momFloat x,momFloat y,momFloa
 #define ECCFACMAX 10000
 
 #define NMAXPLD 16
-
-double softmassweight(double m1,double fourh12,double m2,double fourh22){
-    return((m1+m2)*(fourh12*fourh22)/(fourh22*m1+fourh12*m2));
-    }
 
 void HEAPheapstruct(int n, int k, HEAPSTRUCT ra[]) {
     int l,j,ir,i;

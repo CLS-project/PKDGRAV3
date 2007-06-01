@@ -4,6 +4,8 @@
 #include "pkd.h"
 #include "moments.h"
 
+inline double softmassweight(double m1,double h12,double m2,double h22);
+
 void PPInteractSIMD( int nPart, ILP *ilp, const FLOAT *r, const FLOAT *a,
 		     FLOAT fMass, FLOAT fSoft,
 		     float *ax, float *ay, float *az, float *fPot,
