@@ -185,6 +185,15 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv)
     msr->param.iOutInterval = 0;
     prmAddParam(msr->prm,"iOutInterval",1,&msr->param.iOutInterval,sizeof(int),
 		"oi","<number of timesteps between snapshots> = 0");
+    strcpy(msr->param.achOutTypes,"rvmso");
+    prmAddParam(msr->prm,"achOutTypes",3,msr->param.achOutTypes,256,"ot",
+		"<output types for snapshort> = \"rvmso\"");
+    msr->param.iCheckInterval = 0;
+    prmAddParam(msr->prm,"iCheckInterval",1,&msr->param.iCheckInterval,sizeof(int),
+		"oc","<number of timesteps between checkpoints> = 0");
+    strcpy(msr->param.achCheckTypes,"RVMSO");
+    prmAddParam(msr->prm,"achCheckTypes",3,msr->param.achCheckTypes,256,"ct",
+		"<output types for checkpoints> = \"RVMSO\"");
     msr->param.iLogInterval = 10;
     prmAddParam(msr->prm,"iLogInterval",1,&msr->param.iLogInterval,sizeof(int),
 		"ol","<number of timesteps between logfile outputs> = 10");
@@ -716,6 +725,7 @@ void msrLogParams(MSR msr,FILE *fp)
 	fprintf(fp," bStandard: %d",msr->param.bStandard);
 	fprintf(fp," nBucket: %d",msr->param.nBucket);
 	fprintf(fp," iOutInterval: %d",msr->param.iOutInterval);
+	fprintf(fp," iCheckInterval: %d",msr->param.iCheckInterval);
 	fprintf(fp," iLogInterval: %d",msr->param.iLogInterval);
 	fprintf(fp," iEwOrder: %d",msr->param.iEwOrder);
 	fprintf(fp," nReplicas: %d",msr->param.nReplicas);
@@ -946,6 +956,10 @@ void msrOneNodeReadTipsy(MSR msr, struct inReadTipsy *in)
     int nid;
     int inswap;
     struct inSetParticleTypes intype;
+#ifdef USE_HDF5
+    hid_t fileID;
+    IOHDF5 io;
+#endif
 
     nParts = malloc(msr->nThreads*sizeof(*nParts));
     for (id=0;id<msr->nThreads;++id) {
@@ -967,6 +981,18 @@ void msrOneNodeReadTipsy(MSR msr, struct inReadTipsy *in)
     */
     _msrMakePath(plcl->pszDataPath,in->achInFile,achInFile);
     _msrMakePath(plcl->pszDataPath,in->achOutName,achOutName);
+
+#ifdef USE_HDF5xXxX
+    if ( in->bStandard == 2 ) {
+	fileID=H5Fcreate(achOutName, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+	io = ioHDF5Initialize( fileID, 32768, 1 );
+	ioHDF5WriteAttribute( io, "dTime", H5T_NATIVE_DOUBLE, &in->dTime );
+	msrSaveParameters(msr,io);
+	pkdWriteHDF5(plcl->pkd, io, in->dvFac,in->duTFac );
+    }
+#endif
+
+
 
     nStart = nParts[0];
     assert(msr->pMap[0] == 0);
@@ -1015,33 +1041,41 @@ double msrReadTipsy(MSR msr)
     {
     FILE *fp;
     struct dump h;
+    double dExpansion;
     struct inReadTipsy in;
     char achInFile[PST_FILENAME_SIZE];
     LCL *plcl = msr->pst->plcl;
     double dTime,aTo,tTo,z;
     struct inSetParticleTypes intype;
 	
-    if (msr->param.achInFile[0]) {
-	/*
-	** Add Data Subpath for local and non-local names.
-	*/
-	_msrMakePath(msr->param.achDataSubPath,msr->param.achInFile,in.achInFile);
-	/*
-	** Add local Data Path.
-	*/
-	_msrMakePath(plcl->pszDataPath,in.achInFile,achInFile);
-	fp = fopen(achInFile,"r");
-
-	if (!fp) {
-	    printf("Could not open InFile:%s\n",achInFile);
-	    _msrExit(msr,1);
-	    }
-	}
-    else {
+    if ( ! msr->param.achInFile[0] ) {
 	printf("No input file specified\n");
 	_msrExit(msr,1);
 	return -1.0;
-	}
+    }
+
+    /*
+    ** Add Data Subpath for local and non-local names.
+    */
+    _msrMakePath(msr->param.achDataSubPath,msr->param.achInFile,in.achInFile);
+    /*
+    ** Add local Data Path.
+    */
+    _msrMakePath(plcl->pszDataPath,in.achInFile,achInFile);
+
+#ifdef USE_HDF5
+    /* We can automatically detect if a given file is in HDF5 format */
+    if ( H5Fis_hdf5(achInFile) ) {
+    }
+#endif
+
+    fp = fopen(achInFile,"r");
+    
+    if (!fp) {
+	printf("Could not open InFile:%s\n",achInFile);
+	_msrExit(msr,1);
+    }
+
     /*
     ** Assume tipsy format for now, and dark matter only.
     */
@@ -1060,6 +1094,9 @@ double msrReadTipsy(MSR msr)
     msr->nDark = h.ndark;
     msr->nGas = h.nsph;
     msr->nStar = h.nstar;
+    dExpansion = h.time;
+
+
     msr->nMaxOrder = msr->N - 1;
     msr->nMaxOrderGas = msr->nGas - 1;
     msr->nMaxOrderDark = msr->nGas + msr->nDark - 1;
@@ -1069,11 +1106,11 @@ double msrReadTipsy(MSR msr)
 	    printf("No hubble constant specified\n");
 	    _msrExit(msr,1);
 	    }
-	dTime = csmExp2Time(msr->param.csm,h.time);
-	z = 1.0/h.time - 1.0;
+	dTime = csmExp2Time(msr->param.csm,dExpansion);
+	z = 1.0/dExpansion - 1.0;
 	if (msr->param.bVStart)
 	    printf("Input file, Time:%g Redshift:%g Expansion factor:%g iStartStep:%d\n",
-		   dTime,z,h.time,msr->param.iStartStep);
+		   dTime,z,dExpansion,msr->param.iStartStep);
 	if (prmSpecified(msr->prm,"dRedTo")) {
 	  if (msr->param.dRedTo <= -1.0) {
 	    printf("Badly specified final redshift (zTo <= -1.0), check -zto parameter.\n");
@@ -1159,14 +1196,14 @@ double msrReadTipsy(MSR msr)
 	    printf("Reading file...\nN:%d nDark:%d nGas:%d nStar:%d\n",msr->N,
 		   msr->nDark,msr->nGas,msr->nStar);
 	if (msr->param.bCannonical) {
-	    in.dvFac = h.time*h.time;
+	    in.dvFac = dExpansion*dExpansion;
 	    }
 	else {
 	    in.dvFac = 1.0;
 	    }
 	}
     else {
-	dTime = h.time;
+	dTime = dExpansion;
 	if (msr->param.bVStart) printf("Input file, Time:%g iStartStep:%d\n",dTime,msr->param.iStartStep);
 	tTo = dTime + (msr->param.nSteps - msr->param.iStartStep)*msr->param.dDelta;
 	if (msr->param.bVStart) {
@@ -1221,7 +1258,7 @@ double msrReadTipsy(MSR msr)
 
 
 #ifdef USE_MDL_IO
-void msrIOWrite(MSR msr, const char *FileName, double dTime)
+void msrIOWrite(MSR msr, const char *FileName, double dTime, int bCheckpoint)
 {
 #ifdef IO_SPLIT
     struct inFindIOS inFind;
@@ -1299,6 +1336,100 @@ void msrIOWrite(MSR msr, const char *FileName, double dTime)
 }
 #endif
 
+#ifdef USE_HDF5
+/*
+** This function saves all of the input parameters, as well as single-variable
+** state information.
+*/
+void msrSaveParameters(MSR msr, IOHDF5 io)
+{
+    ioHDF5WriteAttribute( io, "nThreads", H5T_NATIVE_INT, &msr->param.nThreads );
+    ioHDF5WriteAttribute( io, "bDiag", H5T_NATIVE_INT, &msr->param.bDiag );
+    ioHDF5WriteAttribute( io, "bOverwrite", H5T_NATIVE_INT, &msr->param.bOverwrite );
+    ioHDF5WriteAttribute( io, "bVWarnings", H5T_NATIVE_INT, &msr->param.bVWarnings );
+    ioHDF5WriteAttribute( io, "bVStart", H5T_NATIVE_INT, &msr->param.bVStart );
+    ioHDF5WriteAttribute( io, "bVStep", H5T_NATIVE_INT, &msr->param.bVStep );
+    ioHDF5WriteAttribute( io, "bVRungStat", H5T_NATIVE_INT, &msr->param.bVRungStat );
+    ioHDF5WriteAttribute( io, "bVDetails", H5T_NATIVE_INT, &msr->param.bVDetails );
+    ioHDF5WriteAttribute( io, "bPeriodic", H5T_NATIVE_INT, &msr->param.bPeriodic );
+    ioHDF5WriteAttribute( io, "bParaRead", H5T_NATIVE_INT, &msr->param.bParaRead );
+    ioHDF5WriteAttribute( io, "bParaWrite", H5T_NATIVE_INT, &msr->param.bParaWrite );
+    ioHDF5WriteAttribute( io, "bCannonical", H5T_NATIVE_INT, &msr->param.bCannonical );
+    ioHDF5WriteAttribute( io, "bStandard", H5T_NATIVE_INT, &msr->param.bStandard );
+    ioHDF5WriteAttribute( io, "bDoublePos", H5T_NATIVE_INT, &msr->param.bDoublePos );
+    ioHDF5WriteAttribute( io, "bGravStep", H5T_NATIVE_INT, &msr->param.bGravStep );
+    ioHDF5WriteAttribute( io, "bEpsAccStep", H5T_NATIVE_INT, &msr->param.bEpsAccStep );
+    ioHDF5WriteAttribute( io, "bSqrtPhiStep", H5T_NATIVE_INT, &msr->param.bSqrtPhiStep );
+    ioHDF5WriteAttribute( io, "bAccelStep", H5T_NATIVE_INT, &msr->param.bAccelStep );
+    ioHDF5WriteAttribute( io, "bDensityStep", H5T_NATIVE_INT, &msr->param.bDensityStep );
+    ioHDF5WriteAttribute( io, "iTimeStepCrit", H5T_NATIVE_INT, &msr->param.iTimeStepCrit );
+    ioHDF5WriteAttribute( io, "nPColl", H5T_NATIVE_INT, &msr->param.nPColl );
+    ioHDF5WriteAttribute( io, "nTruncateRung", H5T_NATIVE_INT, &msr->param.nTruncateRung );
+    ioHDF5WriteAttribute( io, "bDoDensity", H5T_NATIVE_INT, &msr->param.bDoDensity );
+    ioHDF5WriteAttribute( io, "bDodtOutput", H5T_NATIVE_INT, &msr->param.bDodtOutput );
+    ioHDF5WriteAttribute( io, "bDoRungOutput", H5T_NATIVE_INT, &msr->param.bDoRungOutput );
+    ioHDF5WriteAttribute( io, "bDoGravity", H5T_NATIVE_INT, &msr->param.bDoGravity );
+    ioHDF5WriteAttribute( io, "bAntiGrav", H5T_NATIVE_INT, &msr->param.bAntiGrav );
+    ioHDF5WriteAttribute( io, "nBucket", H5T_NATIVE_INT, &msr->param.nBucket );
+    ioHDF5WriteAttribute( io, "iOutInterval", H5T_NATIVE_INT, &msr->param.iOutInterval );
+    ioHDF5WriteAttribute( io, "iCheckInterval", H5T_NATIVE_INT, &msr->param.iCheckInterval );
+    ioHDF5WriteAttribute( io, "iLogInterval", H5T_NATIVE_INT, &msr->param.iLogInterval );
+    ioHDF5WriteAttribute( io, "iOrder", H5T_NATIVE_INT, &msr->param.iOrder );
+    ioHDF5WriteAttribute( io, "bEwald", H5T_NATIVE_INT, &msr->param.bEwald );
+    ioHDF5WriteAttribute( io, "iEwOrder", H5T_NATIVE_INT, &msr->param.iEwOrder );
+    ioHDF5WriteAttribute( io, "nReplicas", H5T_NATIVE_INT, &msr->param.nReplicas );
+    ioHDF5WriteAttribute( io, "iStartStep", H5T_NATIVE_INT, &msr->param.iStartStep );
+    ioHDF5WriteAttribute( io, "nSteps", H5T_NATIVE_INT, &msr->param.nSteps );
+    ioHDF5WriteAttribute( io, "nSmooth", H5T_NATIVE_INT, &msr->param.nSmooth );
+    ioHDF5WriteAttribute( io, "iMaxRung", H5T_NATIVE_INT, &msr->param.iMaxRung );
+    ioHDF5WriteAttribute( io, "nRungVeryActive", H5T_NATIVE_INT, &msr->param.nRungVeryActive );
+    ioHDF5WriteAttribute( io, "nPartVeryActive", H5T_NATIVE_INT, &msr->param.nPartVeryActive );
+    ioHDF5WriteAttribute( io, "nGrowMass", H5T_NATIVE_INT, &msr->param.nGrowMass );
+    ioHDF5WriteAttribute( io, "iWallRunTime", H5T_NATIVE_INT, &msr->param.iWallRunTime );
+    ioHDF5WriteAttribute( io, "bPhysicalSoft", H5T_NATIVE_INT, &msr->param.bPhysicalSoft );  
+    ioHDF5WriteAttribute( io, "bSoftMaxMul", H5T_NATIVE_INT, &msr->param.bSoftMaxMul );
+    ioHDF5WriteAttribute( io, "bVariableSoft", H5T_NATIVE_INT, &msr->param.bVariableSoft );
+    ioHDF5WriteAttribute( io, "nSoftNbr", H5T_NATIVE_INT, &msr->param.nSoftNbr );
+    ioHDF5WriteAttribute( io, "bSoftByType", H5T_NATIVE_INT, &msr->param.bSoftByType );
+    ioHDF5WriteAttribute( io, "bDoSoftOutput", H5T_NATIVE_INT, &msr->param.bDoSoftOutput );
+
+    ioHDF5WriteAttribute( io, "dEta", H5T_NATIVE_DOUBLE, &msr->param.dEta );
+    ioHDF5WriteAttribute( io, "dExtraStore", H5T_NATIVE_DOUBLE, &msr->param.dExtraStore );
+    ioHDF5WriteAttribute( io, "dSoft", H5T_NATIVE_DOUBLE, &msr->param.dSoft );
+    ioHDF5WriteAttribute( io, "dSoftMax", H5T_NATIVE_DOUBLE, &msr->param.dSoftMax );
+    ioHDF5WriteAttribute( io, "dDelta", H5T_NATIVE_DOUBLE, &msr->param.dDelta );
+    ioHDF5WriteAttribute( io, "dEwCut", H5T_NATIVE_DOUBLE, &msr->param.dEwCut );
+    ioHDF5WriteAttribute( io, "dEwhCut", H5T_NATIVE_DOUBLE, &msr->param.dEwhCut );
+    ioHDF5WriteAttribute( io, "dTheta", H5T_NATIVE_DOUBLE, &msr->param.dTheta );
+    ioHDF5WriteAttribute( io, "dTheta2", H5T_NATIVE_DOUBLE, &msr->param.dTheta2 );
+    ioHDF5WriteAttribute( io, "daSwitchTheta", H5T_NATIVE_DOUBLE, &msr->param.daSwitchTheta );
+    ioHDF5WriteAttribute( io, "dPeriod", H5T_NATIVE_DOUBLE, &msr->param.dPeriod );
+    ioHDF5WriteAttribute( io, "dxPeriod", H5T_NATIVE_DOUBLE, &msr->param.dxPeriod );
+    ioHDF5WriteAttribute( io, "dyPeriod", H5T_NATIVE_DOUBLE, &msr->param.dyPeriod );
+    ioHDF5WriteAttribute( io, "dzPeriod", H5T_NATIVE_DOUBLE, &msr->param.dzPeriod );
+    ioHDF5WriteAttribute( io, "bComove", H5T_NATIVE_INT, &msr->param.csm->bComove );
+    ioHDF5WriteAttribute( io, "dHubble0", H5T_NATIVE_DOUBLE, &msr->param.csm->dHubble0 );
+    ioHDF5WriteAttribute( io, "dOmega0", H5T_NATIVE_DOUBLE, &msr->param.csm->dOmega0 );
+    ioHDF5WriteAttribute( io, "dLambda", H5T_NATIVE_DOUBLE, &msr->param.csm->dLambda );
+    ioHDF5WriteAttribute( io, "dOmegaRad", H5T_NATIVE_DOUBLE, &msr->param.csm->dOmegaRad );
+    ioHDF5WriteAttribute( io, "dOmegab", H5T_NATIVE_DOUBLE, &msr->param.csm->dOmegab );
+    ioHDF5WriteAttribute( io, "dRedTo", H5T_NATIVE_DOUBLE, &msr->param.dRedTo );
+    ioHDF5WriteAttribute( io, "dCentMass", H5T_NATIVE_DOUBLE, &msr->param.dCentMass );
+    ioHDF5WriteAttribute( io, "dGrowDeltaM", H5T_NATIVE_DOUBLE, &msr->param.dGrowDeltaM );
+    ioHDF5WriteAttribute( io, "dGrowStartT", H5T_NATIVE_DOUBLE, &msr->param.dGrowStartT );
+    ioHDF5WriteAttribute( io, "dGrowEndT", H5T_NATIVE_DOUBLE, &msr->param.dGrowEndT );
+    ioHDF5WriteAttribute( io, "dFracNoTreeSqueeze", H5T_NATIVE_DOUBLE, &msr->param.dFracNoTreeSqueeze );
+    ioHDF5WriteAttribute( io, "dFracNoDomainDecomp", H5T_NATIVE_DOUBLE, &msr->param.dFracNoDomainDecomp );
+    ioHDF5WriteAttribute( io, "dFracNoDomainDimChoice", H5T_NATIVE_DOUBLE, &msr->param.dFracNoDomainDimChoice );
+    ioHDF5WriteAttribute( io, "bRungDD", H5T_NATIVE_INT, &msr->param.bRungDD );
+    ioHDF5WriteAttribute( io, "dRungDDWeight", H5T_NATIVE_DOUBLE, &msr->param.dRungDDWeight );
+
+    /* Restart information */
+    ioHDF5WriteAttribute( io, "dEcosmo", H5T_NATIVE_DOUBLE, &msr->dEcosmo );
+    ioHDF5WriteAttribute( io, "dTimeOld", H5T_NATIVE_DOUBLE, &msr->dTimeOld );
+    ioHDF5WriteAttribute( io, "dUOld", H5T_NATIVE_DOUBLE, &msr->dUOld );
+}
+#endif
 
 /*
 ** This function makes some DANGEROUS assumptions!!!
@@ -1313,6 +1444,10 @@ void msrOneNodeWriteTipsy(MSR msr, struct inWriteTipsy *in)
     LCL *plcl;
     char achOutFile[PST_FILENAME_SIZE];
     int inswap;
+#ifdef USE_HDF5
+    hid_t fileID;
+    IOHDF5 io;
+#endif
 
     pst0 = msr->pst;
     while(pst0->nLeaves > 1)
@@ -1326,8 +1461,20 @@ void msrOneNodeWriteTipsy(MSR msr, struct inWriteTipsy *in)
     /* 
      * First write our own particles.
      */
-    pkdWriteTipsy(plcl->pkd,achOutFile,plcl->nWriteStart,in->bStandard,
+#ifdef USE_HDF5
+    if ( in->bStandard == 2 ) {
+	fileID=H5Fcreate(achOutFile, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+	io = ioHDF5Initialize( fileID, 32768, 1 );
+	ioHDF5WriteAttribute( io, "dTime", H5T_NATIVE_DOUBLE, &in->dTime );
+	msrSaveParameters(msr,io);
+	pkdWriteHDF5(plcl->pkd, io, in->dvFac,in->duTFac );
+    }
+    else
+#endif
+    {
+	pkdWriteTipsy(plcl->pkd,achOutFile,plcl->nWriteStart,in->bStandard,
 		  in->dvFac,in->duTFac,in->bDoublePos); 
+    }
     nStart = plcl->pkd->nLocal;
     assert(msr->pMap[0] == 0);
     for (i=1;i<msr->nThreads;++i) {
@@ -1342,8 +1489,16 @@ void msrOneNodeWriteTipsy(MSR msr, struct inWriteTipsy *in)
 	/* 
 	 * Write the swapped particles.
 	 */
-	pkdWriteTipsy(plcl->pkd,achOutFile,nStart,
-		      in->bStandard, in->dvFac, in->duTFac,in->bDoublePos); 
+#ifdef USE_HDF5
+	if ( in->bStandard == 2 ) {
+	    pkdWriteHDF5(plcl->pkd, io, in->dvFac,in->duTFac);
+	}
+	else
+#endif
+	{
+	    pkdWriteTipsy(plcl->pkd,achOutFile,nStart, in->bStandard,
+			  in->dvFac, in->duTFac, in->bDoublePos); 
+	}
 	nStart += plcl->pkd->nLocal;
 	/* 
 	 * Swap them back again.
@@ -1353,6 +1508,14 @@ void msrOneNodeWriteTipsy(MSR msr, struct inWriteTipsy *in)
 	pkdSwapAll(plcl->pkd, id);
 	mdlGetReply(pst0->mdl,id,NULL,NULL);
     	}
+
+#ifdef USE_HDF5
+	if ( in->bStandard == 2 ) {
+	    ioHDF5Finish(io);
+	    H5Fclose(fileID);
+	}
+#endif
+
     assert(nStart == msr->N);
     }
 
@@ -1369,7 +1532,7 @@ void msrCalcWriteStart(MSR msr)
     }
 
 
-void _msrWriteTipsy(MSR msr,char *pszFileName,double dTime)
+void _msrWriteTipsy(MSR msr,char *pszFileName,double dTime,int bCheckpoint)
     {
     FILE *fp;
     struct dump h;
@@ -1389,11 +1552,7 @@ void _msrWriteTipsy(MSR msr,char *pszFileName,double dTime)
     ** Add local Data Path.
     */
     _msrMakePath(plcl->pszDataPath,in.achOutFile,achOutFile);
-    fp = fopen(achOutFile,"w");
-    if (!fp) {
-	printf("Could not open OutFile:%s\n",achOutFile);
-	_msrExit(msr,1);
-	}
+
     in.bStandard = msr->param.bStandard;
     in.duTFac = 1.0;
     in.bDoublePos = msr->param.bDoublePos;
@@ -1405,19 +1564,20 @@ void _msrWriteTipsy(MSR msr,char *pszFileName,double dTime)
     h.nsph = msr->nGas;
     h.nstar = msr->nStar;
     if (msr->param.csm->bComove) {
-	h.time = csmTime2Exp(msr->param.csm,dTime);
+	in.dTime = csmTime2Exp(msr->param.csm,dTime);
 	if (msr->param.bCannonical) {
-	    in.dvFac = 1.0/(h.time*h.time);
+	    in.dvFac = 1.0/(in.dTime*in.dTime);
 	    }
 	else {
 	    in.dvFac = 1.0;
 	    }
 	}
     else {
-	h.time = dTime;
+	in.dTime = dTime;
 	in.dvFac = 1.0;
 	}
     h.ndim = 3;
+    h.time = in.dTime;
     if (msr->param.bVDetails) {
 	if (msr->param.csm->bComove) {
 	    printf("Writing file...\nTime:%g Redshift:%g\n",
@@ -1427,40 +1587,55 @@ void _msrWriteTipsy(MSR msr,char *pszFileName,double dTime)
 	    printf("Writing file...\nTime:%g\n",dTime);
 	    }
 	}
-    if (in.bStandard) {
-	XDR xdrs;
 
-	xdrstdio_create(&xdrs,fp,XDR_ENCODE);
-	xdrHeader(&xdrs,&h);
-	xdr_destroy(&xdrs);
-	}
-    else {
-	fwrite(&h,sizeof(struct dump),1,fp);
-	}
-    fclose(fp);
-
-    if(msr->param.bParaWrite)
-	pstWriteTipsy(msr->pst,&in,sizeof(in),NULL,NULL);
-    else
+#ifdef USE_HDF5
+    if ( !prmSpecified(msr->prm,"bStandard") ) {
+	in.bStandard = 2;
 	msrOneNodeWriteTipsy(msr, &in);
+    }
+    else
+#endif
+    {
+	fp = fopen(achOutFile,"w");
+	if (!fp) {
+	    printf("Could not open OutFile:%s\n",achOutFile);
+	    _msrExit(msr,1);
+	}
+	if (in.bStandard) {
+	    XDR xdrs;
+	    
+	    xdrstdio_create(&xdrs,fp,XDR_ENCODE);
+	    xdrHeader(&xdrs,&h);
+	    xdr_destroy(&xdrs);
+	}
+	else {
+	    fwrite(&h,sizeof(struct dump),1,fp);
+	}
+	fclose(fp);
+	
+	if(msr->param.bParaWrite)
+	    pstWriteTipsy(msr->pst,&in,sizeof(in),NULL,NULL);
+	else
+	    msrOneNodeWriteTipsy(msr, &in);
+    }
+
     if (msr->param.bVDetails)
 	puts("Output file has been successfully written.");
     }
 
 
-void msrWriteTipsy(MSR msr,char *pszFileName,double dTime)
+void msrWriteTipsy(MSR msr,char *pszFileName,double dTime, int bCheckpoint )
 {
 #ifdef USE_MDL_IO
     /* If we are using I/O processors, then we do it totally differently */
     if ( mdlIO(msr->mdl) ) {
-	msrIOWrite(msr,pszFileName,dTime);
+	msrIOWrite(msr,pszFileName,dTime,bCheckpoint);
     }
-    else {
+    else
 #endif
-	_msrWriteTipsy(msr,pszFileName,dTime);
-#ifdef USE_MDL_IO
+    {
+	_msrWriteTipsy(msr,pszFileName,dTime,bCheckpoint);
     }
-#endif
 }
 
 
@@ -2376,6 +2551,24 @@ int msrLogInterval(MSR msr)
 int msrOutInterval(MSR msr)
     {
     return(msr->param.iOutInterval);
+    }
+
+
+const char *msrOutTypes(MSR msr)
+    {
+    return(msr->param.achOutTypes);
+    }
+
+
+int msrCheckInterval(MSR msr)
+    {
+    return(msr->param.iCheckInterval);
+    }
+
+
+const char *msrCheckTypes(MSR msr)
+    {
+    return(msr->param.achCheckTypes);
     }
 
 

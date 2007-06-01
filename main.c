@@ -262,14 +262,16 @@ int main(int argc,char **argv) {
 	    **           3) we're at an output interval
 	    */
 	    if (msrOutTime(msr,dTime) || iStep == msrSteps(msr) || iStop ||
-		(msrOutInterval(msr) > 0 &&	iStep%msrOutInterval(msr) == 0)) {
-
+		(msrOutInterval(msr) > 0 && iStep%msrOutInterval(msr) == 0) ||
+		(msrCheckInterval(msr) > 0 && iStep%msrCheckInterval(msr) == 0)) {
 		msrReorder(msr);
 		sprintf(achFile,msr->param.achDigitMask,msrOutName(msr),iStep);
 #ifdef PLANETS 
 		msrWriteSS(msr,achFile,dTime);
 #else	
-		msrWriteTipsy(msr,achFile,dTime);
+		msrWriteTipsy(msr,achFile,dTime,
+		    msrCheckInterval(msr) > 0 
+			      && iStep%msrCheckInterval(msr) == 0);
 #endif
 	     
 		if (msrDoDensity(msr)) {
