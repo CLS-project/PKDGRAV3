@@ -30,6 +30,10 @@
 #include "parameters.h"
 #include "cosmo.h"
 
+#ifdef USE_HDF5
+#include "iohdf5.h"
+#endif
+
 #ifdef BSC
 #include "mpitrace_user_events.h"
 #endif
@@ -282,6 +286,69 @@ void IOCheck(int nout) {
 	exit(errno);
 	}
     }
+
+
+#ifdef USE_HDF5
+void pkdReadHDF5(PKD pkd, IOHDF5 io, double dvFac,double duTFac, int nStart, int nLocal ) {
+    PARTICLE *p;
+    FLOAT dT1, dT2;
+    int i, j;
+
+    pkd->nLocal = nLocal;
+    pkd->nActive = nLocal;
+
+    /*
+    ** General initialization.
+    */
+    for (i=0;i<nLocal;++i) {
+	p = &pkd->pStore[i];
+	TYPEClear(p);
+	p->iRung = 0;
+	p->fWeight = 1.0;
+	p->fDensity = 0.0;
+	p->fBall = 0.0;
+	}
+
+    /*TODO: add tracker file */
+
+    for (i=0;i<nLocal;++i) {
+	p = &pkd->pStore[i];
+	p->iOrder = nStart + i;
+
+	if (pkdIsDark(pkd,p)) {
+	    ioHDF5GetDark( io, &p->iOrder, p->r, p->v,
+			   &p->fMass, &p->fSoft, &p->fPot );
+	    for (j=0;j<3;++j) p->v[j] *= dvFac;
+#ifdef CHANGESOFT
+	    p->fSoft0 = p->fSoft;
+#endif
+	}
+	else if (pkdIsGas(pkd,p)) {
+	    ioHDF5GetGas( io, &p->iOrder, p->r, p->v,
+			  &p->fMass, &p->fSoft, &p->fPot,
+			  &dT1, &dT2 );
+	    for (j=0;j<3;++j) p->v[j] *= dvFac;
+#ifdef CHANGESOFT
+	    p->fSoft0 = p->fSoft;
+#endif
+	}
+	else if (pkdIsStar(pkd,p)) {
+	    ioHDF5GetStar( io, &p->iOrder, p->r, p->v,
+			   &p->fMass, &p->fSoft, &p->fPot,
+			   &dT1, &dT2 );
+	    for (j=0;j<3;++j) p->v[j] *= dvFac;
+#ifdef CHANGESOFT
+	    p->fSoft0 = p->fSoft;
+#endif
+	}
+	else mdlassert(pkd->mdl,0);
+	if(p->fSoft < sqrt(2.0e-38)) { /* set minimum softening */
+	    p->fSoft = sqrt(2.0e-38);
+	}
+    }
+}
+#endif
+
 
 void pkdReadTipsy(PKD pkd,char *pszFileName, char *achOutName, int nStart,int nLocal,
 		  int bStandard,double dvFac,double dTuFac,int bDoublePos)
@@ -1053,8 +1120,46 @@ int pkdPackIO(PKD pkd,PIO *io,int nStart,int nMax)
     return nCopy;
 }
 
+#ifdef USE_HDF5
+void pkdWriteHDF5(PKD pkd, IOHDF5 io, double dvFac,double duTFac)
+{
+    PARTICLE *p;
+    FLOAT v[3], fSoft;
+    int i;
+
+    for (i=0;i<pkdLocal(pkd);++i) {
+	p = &pkd->pStore[i];
+
+	v[0] = p->v[0] * dvFac;
+	v[1] = p->v[1] * dvFac;
+	v[2] = p->v[2] * dvFac;
+#ifdef CHANGESOFT
+	fSoft = p->fSoft0;
+#else
+	fSoft = p->fSoft;
+#endif
 
 
+	if (pkdIsDark(pkd,p)) {
+	    ioHDF5AddDark(io,p->iOrder,p->r,v,
+			  p->fMass,fSoft,p->fPot );
+	}
+	else if (pkdIsGas(pkd,p)) {
+	    /* Why are temp and metals always set to zero? */
+	    ioHDF5AddGas( io,p->iOrder,p->r,v,
+			  p->fMass,fSoft,p->fPot,0.0,0.0);
+	}
+	else if (pkdIsStar(pkd,p)) {
+	    /* Why are metals and tform always set to zero? */
+	    ioHDF5AddStar(io, p->iOrder, p->r, v,
+			  p->fMass,fSoft,p->fPot,0.0,0.0);
+	}
+	else mdlassert(pkd->mdl,0);
+    }
+}
+
+
+#endif
 
 void pkdWriteTipsy(PKD pkd,char *pszFileName,int nStart,
 		   int bStandard,double dvFac,double duTFac,int bDoublePos) {
@@ -1074,7 +1179,7 @@ void pkdWriteTipsy(PKD pkd,char *pszFileName,int nStart,
     fp = fopen(pszFileName,"r+");
     mdlassert(pkd->mdl,fp != NULL);
     pkdSeek(pkd,fp,nStart,bStandard,bDoublePos);
-	
+
     if (bStandard) {
 	FLOAT vTemp;
 	XDR xdrs;
@@ -1638,10 +1743,10 @@ pkdStepVeryActiveKDK(PKD pkd, double dStep, double dTime, double dDelta,
     {
     int nRungCount[256];
     double dDriftFac;
-    int i;
-
+#ifdef PLANETS
     double aSun[3], adSun[3];
     int j;
+#endif
 
     double time1,time2; /* added MZ 1.6.2006 */
     
@@ -2355,7 +2460,6 @@ int pkdDtToRung(PKD pkd,int iRung,double dDelta,int iMaxRung,int bAll,int *nRung
     int i;
     int iTempRung;
     int iSteps;
-    int nMaxRung;
     
     for (i=0;i<iMaxRung;++i) nRungCount[i] = 0;
     for(i=0;i<pkdLocal(pkd);++i) {

@@ -10,6 +10,9 @@
 
 #include "moments.h"
 #include "cosmo.h"
+#ifdef USE_HDF5
+#include "iohdf5.h"
+#endif
 #ifdef PLANETS
 #include "ssio.h"
 #endif
@@ -628,6 +631,9 @@ int pkdNodes(PKD);
 int pkdColOrdRejects(PKD,int,int);
 void pkdLocalOrder(PKD);
 void pkdWriteTipsy(PKD,char *,int,int,double,double,int);
+#ifdef USE_HDF5
+void pkdWriteHDF5(PKD pkd, IOHDF5 io,double dvFac,double duTFac);
+#endif
 void pkdGravAll(PKD,double,int,int,int,int,int,double,double,int,double *,int *,
 		double *,double *,CASTAT *,double *);
 void pkdCalcE(PKD,double *,double *,double *);
@@ -701,4 +707,3 @@ void pkdWriteSS(PKD pkd,char *pszFileName,int nStart);
 #endif /* Planets*/
 
 #endif
-

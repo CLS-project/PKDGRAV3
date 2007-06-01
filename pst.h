@@ -322,10 +322,11 @@ void pstOutVector(PST,void *,int,void *,int *);
 
 /* PST_WRITETIPSY */
 struct inWriteTipsy {
-    int bStandard;
+    double dTime;
     double dvFac;
     double duTFac;
     int bDoublePos;
+    int bStandard;
     char achOutFile[PST_FILENAME_SIZE];
     };
 void pstWriteTipsy(PST,void *,int,void *,int *);
