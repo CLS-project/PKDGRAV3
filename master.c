@@ -27,7 +27,9 @@
 #include "tipsydefs.h"
 #include "outtype.h"
 #include "smoothfcn.h"
+#ifdef USE_HDF5
 #include "io.h"
+#endif
 #include "ssio.h"
 
 #ifdef BSC
