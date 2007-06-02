@@ -26,6 +26,14 @@ AC_ARG_ENABLE(local-expansion,
  	[Define if local expansions should be used.])])
 AM_CONDITIONAL(LOCAL_EXPANSION, test "x$LOCAL_EXPANSION" = "xyes")
 
+# With particle-cell interactions
+AC_ARG_ENABLE(particle-cell,
+  [  --enable-particle-cell         enable particle-cell interactions],
+  [WITH_PARTICLE_CELL=yes
+   AC_DEFINE([WITH_PARTICLE_CELL], 1,
+ 	[Define if particle-cell interactions should be used.])])
+AM_CONDITIONAL(WITH_PARTICLE_CELL, test "x$WITH_PARTICLE_CELL" = "xyes")
+
 # HDF5 I/O
 AC_ARG_ENABLE(hdf5,
   [  --enable-hdf5                  enable I/O using HDF5 libraries],
@@ -183,7 +191,7 @@ AM_CONDITIONAL(SOFTSQUARE, test "x$SOFTSQUARE" = "xyes")
 
 # PLANETS 
 AC_ARG_ENABLE(planets,
-  [  --enable-planets          enable planets],
+  [  --enable-planets               enable planets],
   [PLANETS=yes
    AC_DEFINE([PLANETS], 1,
  	[Define if planets should be used.])])
@@ -191,7 +199,7 @@ AM_CONDITIONAL(PLANETS, test "x$PLANETS" = "xyes")
 
 # Hermite
 AC_ARG_ENABLE(hermite,
-  [  --enable-hermite          enable hermite],
+  [  --enable-hermite               enable hermite],
   [HERMITE=yes
    AC_DEFINE([HERMITE], 1,
  	[Define if hermite should be used.])])
