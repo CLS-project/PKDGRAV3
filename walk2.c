@@ -29,7 +29,6 @@
 #endif
 
 
-
 typedef struct CheckElt {
     int iCell;
     int id;
@@ -487,7 +486,27 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 			    ** the checkcell now, i.e., put the checkcell-bucket's particles on the
 			    ** P-P list.
 			    */
+#ifdef WITH_PARTICLE_CELL
+			    if (n >= WALK_MINMULTIPOLE) {
+				min2 = 0;	
+				for (j=0;j<3;++j) {
+				    dMin = fabs(rCheck[j] - c[iCell].bnd.fCenter[j]);
+				    dMin -= c[iCell].bnd.fMax[j];
+				    if (dMin > 0) min2 += dMin*dMin;
+				}
+				if (min2 > pkdc->fOpen*pkdc->fOpen) {
+				    iOpen = -2;
+				}
+				else {
+				    iOpen = 1;
+				}
+			    }
+			    else {
+				iOpen = 1;
+			    }
+#else
 			    iOpen = 1;
+#endif
 			}
 		    }
 		    else if (c[iCell].iLower) {
@@ -499,7 +518,32 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 			** larger opening radius. We think the right thing to do here is to 
 			** open the checkcell anyway, if it can be opened.
 			*/
-			iOpen = 1;
+			if (pkdc->iLower) {
+			    iOpen = 1;
+			}
+			else {
+#ifdef WITH_PARTICLE_CELL
+			    if (n >= WALK_MINMULTIPOLE) {
+				min2 = 0;	
+				for (j=0;j<3;++j) {
+				    dMin = fabs(rCheck[j] - c[iCell].bnd.fCenter[j]);
+				    dMin -= c[iCell].bnd.fMax[j];
+				    if (dMin > 0) min2 += dMin*dMin;
+				}
+				if (min2 > pkdc->fOpen*pkdc->fOpen) {
+				    iOpen = -2;
+				}
+				else {
+				    iOpen = 1;
+				}
+			    }
+			    else {
+				iOpen = 1;
+			    }
+#else
+			    iOpen = 1;
+#endif
+			}
 		    }
 		}
 		if (iOpen > 0) {
