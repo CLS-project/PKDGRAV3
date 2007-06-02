@@ -432,10 +432,6 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 			}
 			if (min2 > pkdc->fOpen*dMonopoleThetaFac*pkdc->fOpen*dMonopoleThetaFac) {
 			    /*
-			    ** We have an acceptable softened monopole term, which we put on the 
-			    ** P-P list.
-			    */
-			    /*
 			    ** We accept this multipole from the opening criterion, but it is a softened
 			    ** interaction, so we need to treat is as a softened monopole by putting it
 			    ** on the particle interaction list.
@@ -477,24 +473,33 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 			if (pkdc->iLower) {
 			    iOpen = 1;
 			}
-			else {
+			else if (c[iCell].iLower) {
 			    /*
 			    ** The checkcell is a bucket which means we should leave it
 			    ** on the checklist.
 			    */
 			    Check[ii++] = Check[i];
 			}
+			else {
+			    /*
+			    ** In this case we don't want to leave the checkcell on the checklist
+			    ** since we have reached a bucket in the current cell. We want to open
+			    ** the checkcell now, i.e., put the checkcell-bucket's particles on the
+			    ** P-P list.
+			    */
+			    iOpen = 1;
+			}
 		    }
-		    else if (!c[iCell].iLower) {
+		    else if (c[iCell].iLower) {
+			Check[ii++] = Check[i];
+		    }
+		    else {
 			/*
 			** In this case we cannot open the current cell despite it having the
 			** larger opening radius. We think the right thing to do here is to 
 			** open the checkcell anyway, if it can be opened.
 			*/
 			iOpen = 1;
-		    }
-		    else {
-			Check[ii++] = Check[i];
 		    }
 		}
 		if (iOpen > 0) {
