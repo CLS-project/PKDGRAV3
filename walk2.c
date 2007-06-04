@@ -485,13 +485,60 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 				    if (dMin > 0) min2 += dMin*dMin;
 				}
 				if (min2 > pkdc->fOpen*pkdc->fOpen) {
-				    iOpen = -2;
+				    fourh2 = softmassweight(c[iCell].mom.m,4*c[iCell].fSoft2,pkdc->mom.m,4*pkdc->fSoft2);
+				    if (min2 > fourh2) {
+					/*
+					** The multipole is also ok as far as softening goes, so accept it.
+					*/
+					iOpen = -2;
+				    }
+				    else if (min2 > pkdc->fOpen*dMonopoleThetaFac*pkdc->fOpen*dMonopoleThetaFac) {
+					/*
+					** We accept this multipole from the opening criterion, but it is a softened
+					** interaction, so we need to treat is as a softened monopole by putting it
+					** on the particle interaction list.
+					*/
+					if (nPart == nMaxPart) {
+					    nMaxPart += 500;
+					    ilp = realloc(ilp,nMaxPart*sizeof(ILP));
+					    assert(ilp != NULL);	
+					}
+#ifndef USE_SIMD
+					ilp[nPart].iOrder = -1; /* set iOrder to negative value for time step criterion */
+#endif
+					ilp[nPart].m = pkdc->mom.m;
+					ilp[nPart].x = rCheck[0];
+					ilp[nPart].y = rCheck[1];
+					ilp[nPart].z = rCheck[2];
+#ifndef USE_SIMD
+					ilp[nPart].vx = pkdc->v[0];
+					ilp[nPart].vy = pkdc->v[1];
+					ilp[nPart].vz = pkdc->v[2];
+#endif
+					ilp[nPart].fourh2 = 4*pkdc->fSoft2;
+					++nPart;
+				    }
+				    else {
+					/*
+					** Unfortunately the multipole does not meet the softening criteria for 
+					** an unsoftened hexadecapole nor for a softened monopole. We must open it.
+					*/
+					iOpen = 1;
+				    }
 				}
 				else {
+				    /*
+				    ** This bucket cannot be accepted as a multipole.
+				    ** Opening will produce particles on the particle interaction list.
+				    */
 				    iOpen = 1;
 				}
 			    }
 			    else {
+				/*
+				** This bucket did not have enough particle to make it worth accepting as a
+				** multipole, since it is faster to simply add P-P interactions at this stage.
+				*/
 				iOpen = 1;
 			    }
 			}
@@ -516,9 +563,51 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 				if (dMin > 0) min2 += dMin*dMin;
 			    }
 			    if (min2 > pkdc->fOpen*pkdc->fOpen) {
-				iOpen = -2;
+				fourh2 = softmassweight(c[iCell].mom.m,4*c[iCell].fSoft2,pkdc->mom.m,4*pkdc->fSoft2);
+				if (min2 > fourh2) {
+				    /*
+				    ** The multipole is also ok as far as softening goes, so accept it.
+				    */
+				    iOpen = -2;
+				}
+				else if (min2 > pkdc->fOpen*dMonopoleThetaFac*pkdc->fOpen*dMonopoleThetaFac) {
+				    /*
+				    ** We accept this multipole from the opening criterion, but it is a softened
+				    ** interaction, so we need to treat is as a softened monopole by putting it
+				    ** on the particle interaction list.
+				    */
+				    if (nPart == nMaxPart) {
+					nMaxPart += 500;
+					ilp = realloc(ilp,nMaxPart*sizeof(ILP));
+					assert(ilp != NULL);	
+				    }
+#ifndef USE_SIMD
+				    ilp[nPart].iOrder = -1; /* set iOrder to negative value for time step criterion */
+#endif
+				    ilp[nPart].m = pkdc->mom.m;
+				    ilp[nPart].x = rCheck[0];
+				    ilp[nPart].y = rCheck[1];
+				    ilp[nPart].z = rCheck[2];
+#ifndef USE_SIMD
+				    ilp[nPart].vx = pkdc->v[0];
+				    ilp[nPart].vy = pkdc->v[1];
+				    ilp[nPart].vz = pkdc->v[2];
+#endif
+				    ilp[nPart].fourh2 = 4*pkdc->fSoft2;
+				    ++nPart;
+				}
+				else {
+				    /*
+				    ** Unfortunately the multipole does not meet the softening criteria for 
+				    ** an unsoftened hexadecapole nor for a softened monopole. We must open it.
+				    */
+				    iOpen = 1;
+				}
 			    }
 			    else {
+				/*
+				** We don't accept the particle-cell interaction, open the check cell!
+				*/
 				iOpen = 1;
 			    }
 			}
