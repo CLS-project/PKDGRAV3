@@ -357,7 +357,8 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 #endif
 		d2 = 0;
 		for (j=0;j<3;++j) {
-		    d2 += (rCheck[j] - c[iCell].r[j])*(rCheck[j] - c[iCell].r[j]);
+		    dx[j] = rCheck[j] - c[iCell].r[j];
+		    d2 += dx[j]*dx[j];
 		}
 		iOpen = 0;
 		if (d2 > (c[iCell].fOpen + pkdc->fOpen)*(c[iCell].fOpen + pkdc->fOpen)) {
@@ -399,8 +400,8 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 			ilglam[nGlam].zero = 0.0;
 			++nGlam;
 #else
-#if 1
 			dir = 1.0/sqrt(d2);
+#if 1
 			t1 = -dir;
 			t2 = -3*dir;
 			t3r = -5;
