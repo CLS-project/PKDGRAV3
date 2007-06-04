@@ -295,9 +295,6 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 #endif
 	    ii = 0;
 
-	    /* A guess */
-	    next_pkdc = pkd->kdNodes + Check[0].iCell;
-
 	    for (i=0;i<nCheck;++i) {
 		id = Check[i].id;
 
@@ -309,7 +306,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 #endif
 		if (id == pkd->idSelf) {
 		    pkdc = pkd->kdNodes + Check[i].iCell;
-		    n = next_pkdc->pUpper - next_pkdc->pLower + 1;
+		    n = pkdc->pUpper - pkdc->pLower + 1;
 		    }
 		else if (id < 0) {
 		    pkdc = pkd->kdTop + Check[i].iCell;
@@ -326,9 +323,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 #endif
 		    n = pkdc->pUpper - pkdc->pLower + 1;
 		    }
-
-		next_pkdc = pkd->kdNodes + Check[i].iCell;
-#if 1
+#if 0
 		/*
 		** If the cell is not time synchronous, then work out a drift factor
 		** for this cell.
@@ -472,21 +467,16 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 			if (pkdc->iLower) {
 			    iOpen = 1;
 			}
-			else if (c[iCell].iLower) {
-			    /*
-			    ** The checkcell is a bucket which means we should leave it
-			    ** on the checklist.
-			    */
-			    Check[ii++] = Check[i];
-			}
 			else {
 			    /*
-			    ** In this case we don't want to leave the checkcell on the checklist
-			    ** since we have reached a bucket in the current cell. We want to open
-			    ** the checkcell now, i.e., put the checkcell-bucket's particles on the
-			    ** P-P list.
+			    ** We can't open pkdc.  At this point we would prefer to accept
+			    ** the cell as a multipole expansion, but if that isn't possible,
+			    ** we open it.  If we were to always open it, that leads to
+			    ** degenerate cases where a large bucket on the checklist will
+			    ** result in most particles being added to the interaction list.
+			    ** This happens in cosmological simulations where the outer regions
+			    ** are binned and have a few very large particles.
 			    */
-#ifdef WITH_PARTICLE_CELL
 			    if (n >= WALK_MINMULTIPOLE) {
 				min2 = 0;	
 				for (j=0;j<3;++j) {
@@ -504,45 +494,36 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 			    else {
 				iOpen = 1;
 			    }
-#else
-			    iOpen = 1;
-#endif
 			}
 		    }
+		    /*
+		    ** From here we know that this c[iCell] has the larger opening radius.
+		    */
 		    else if (c[iCell].iLower) {
 			Check[ii++] = Check[i];
 		    }
 		    else {
 			/*
 			** In this case we cannot open the current cell despite it having the
-			** larger opening radius. We think the right thing to do here is to 
-			** open the checkcell anyway, if it can be opened.
+			** larger opening radius. We must try to use pkdc as a P-C interaction in 
+			** this case, otherwise we have the danger of opening too many cells.
 			*/
-			if (pkdc->iLower) {
-			    iOpen = 1;
-			}
-			else {
-#ifdef WITH_PARTICLE_CELL
-			    if (n >= WALK_MINMULTIPOLE) {
-				min2 = 0;	
-				for (j=0;j<3;++j) {
-				    dMin = fabs(rCheck[j] - c[iCell].bnd.fCenter[j]);
-				    dMin -= c[iCell].bnd.fMax[j];
-				    if (dMin > 0) min2 += dMin*dMin;
-				}
-				if (min2 > pkdc->fOpen*pkdc->fOpen) {
-				    iOpen = -2;
-				}
-				else {
-				    iOpen = 1;
-				}
+			if (n >= WALK_MINMULTIPOLE) {
+			    min2 = 0;	
+			    for (j=0;j<3;++j) {
+				dMin = fabs(rCheck[j] - c[iCell].bnd.fCenter[j]);
+				dMin -= c[iCell].bnd.fMax[j];
+				if (dMin > 0) min2 += dMin*dMin;
+			    }
+			    if (min2 > pkdc->fOpen*pkdc->fOpen) {
+				iOpen = -2;
 			    }
 			    else {
 				iOpen = 1;
 			    }
-#else
+			}
+			else {
 			    iOpen = 1;
-#endif
 			}
 		    }
 		}
