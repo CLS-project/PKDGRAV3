@@ -15,10 +15,6 @@
 #include "moments.h"
 #include "grav.h"
 
-inline double softmassweight(double m1,double h12,double m2,double h22){
-    return((m1+m2)*(h12*h22)/(h22*m1+h12*m2));
-    }
-
 /*
  ** This is a new fast version of QEVAL which evaluates
  ** the interaction due to the reduced moment 'm'.
