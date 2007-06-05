@@ -3852,7 +3852,6 @@ void msrRelaxation(MSR msr,double dTime,double deltaT,int iSmoothType,int bSymme
     }
 #endif /* RELAXATION */
 
-/* PLANETS begin */
 #ifdef PLANETS 
 void
 msrOneNodeReadSS(MSR msr,struct inReadSS *in)
