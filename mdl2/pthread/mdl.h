@@ -18,8 +18,14 @@
 
 #define SRV_STOP		0
 
+#ifndef MDLKEY
+#define MDLKEY unsigned long
+#endif
+typedef MDLKEY mdlkey_t;
+static const mdlkey_t MDL_INVALID_KEY = (mdlkey_t)(-1);
+
 typedef struct cacheTag {
-	int iKey;
+	mdlkey_t iKey;
 	int nLock;
 	int nLast;
 	int iLink;
@@ -68,8 +74,8 @@ typedef struct cacheSpace {
 	int iLineSize;
 	int nLines;
 	int nTrans;
-	int iTransMask;
-	int iIdMask;
+	mdlkey_t iTransMask;
+	mdlkey_t iIdMask;
 	int iKeyShift;
 	int iInvKeyShift;
 	int *pTrans;
@@ -86,8 +92,6 @@ typedef struct cacheSpace {
 	long nMiss;
 	long nColl;
 	long nMin;
-	int nKeyMax;
-	char *pbKey;
 	} CACHE;
 
 

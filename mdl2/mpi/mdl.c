@@ -36,18 +36,27 @@
 ** If this were done inline, the type of "v" would not be checked.
 **
 ** We cast for the following reasons:
-** - We have masked a MDLKEY_t (to an local id or processor), so we
+** - We have masked a mdlkey_t (to an local id or processor), so we
 **   know it will fit in an integer.
 ** - We are taking a part of a memory block to send or receive
 **   through MPI.  MPI takes an "int" parameter.
 ** - We have calculated a memory size with pointer subtraction and
 **   know that it must be smaller than 4GB.
+**
+** The compiler will cast automatically, but warnings can be generated unless
+** the cast is done explicitly.  Putting it inline is NOT type safe as in:
+**   char *p;
+**   int i;
+**   i = (int)p;
+** "works", while:
+**   i = size_t_to_int(p);
+** would fail.
 */
 static inline int size_t_to_int( size_t v ) {
     return (int)v;
 }
 
-static inline int MDLKEY_t_to_int( MDLKEY_t v ) {
+static inline int mdlkey_t_to_int( mdlkey_t v ) {
     return (int)v;
 }
 
@@ -1071,7 +1080,7 @@ void mdlFinishCache(MDL mdl,int cid)
 	int i,id;
 	char *t;
 	int j;
-	MDLKEY_t iKey;
+	mdlkey_t iKey;
 	int last;
 	MPI_Status status;
 	MPI_Request reqFlsh;
@@ -1110,8 +1119,8 @@ void mdlFinishCache(MDL mdl,int cid)
 				/*
 				 ** Flush element since it is valid!
 				 */
-			        id = MDLKEY_t_to_int(iKey & c->iIdMask);
-				caFlsh->iLine = MDLKEY_t_to_int(iKey >> c->iInvKeyShift);
+			        id = mdlkey_t_to_int(iKey & c->iIdMask);
+				caFlsh->iLine = mdlkey_t_to_int(iKey >> c->iInvKeyShift);
 				t = &c->pLine[i*c->iLineSize];
 				for(j = 0; j < c->iLineSize; ++j)
 				    pszFlsh[j] = t[j];
@@ -1271,7 +1280,7 @@ void *mdlAquire(MDL mdl,int cid,int iIndex,int id)
 {
 	CACHE *c = &mdl->cache[cid];
 	char *pLine;
-	MDLKEY_t iKey,iKeyVic;
+	mdlkey_t iKey,iKeyVic;
 	int iElt,iLine,idVic;
 	int i;
 	int iVictim,*pi;
@@ -1381,13 +1390,13 @@ GotVictim:
 			/*
 			 ** Flush element since it is valid!
 			 */
-		        idVic = MDLKEY_t_to_int(iKeyVic&c->iIdMask);
+		        idVic = mdlkey_t_to_int(iKeyVic&c->iIdMask);
 		        caFlsh = (CAHEAD *)mdl->pszFlsh;
 			pszFlsh = &mdl->pszFlsh[sizeof(CAHEAD)];
 		        caFlsh->cid = cid;
 			caFlsh->mid = MDL_MID_CACHEFLSH;
 			caFlsh->id = mdl->idSelf;
-			caFlsh->iLine = MDLKEY_t_to_int(iKeyVic >> c->iInvKeyShift);
+			caFlsh->iLine = mdlkey_t_to_int(iKeyVic >> c->iInvKeyShift);
 			for(i = 0; i < c->iLineSize; ++i)
 			    pszFlsh[i] = pLine[i];
 			MPI_Isend(caFlsh, (int)sizeof(CAHEAD)+c->iLineSize,

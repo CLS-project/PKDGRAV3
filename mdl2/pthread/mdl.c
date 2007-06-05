@@ -33,6 +33,36 @@ int smp_num_cpus = 1;
 
 #define MDL_TRANS_SIZE			50000 
 
+
+/* 
+** The purpose of this routine is to safely cast a size_t to an int.
+** If this were done inline, the type of "v" would not be checked.
+**
+** We cast for the following reasons:
+** - We have masked a mdlkey_t (to an local id or processor), so we
+**   know it will fit in an integer.
+** - We are taking a part of a memory block to send or receive
+**   through MPI.  MPI takes an "int" parameter.
+** - We have calculated a memory size with pointer subtraction and
+**   know that it must be smaller than 4GB.
+**
+** The compiler will cast automatically, but warnings can be generated unless
+** the cast is done explicitly.  Putting it inline is NOT type safe as in:
+**   char *p;
+**   int i;
+**   i = (int)p;
+** "works", while:
+**   i = size_t_to_int(p);
+** would fail.
+*/
+static inline int size_t_to_int( size_t v ) {
+    return (int)v;
+}
+
+static inline int mdlkey_t_to_int( mdlkey_t v ) {
+    return (int)v;
+}
+
 /*
  ** GLOBAL BARRIER VARIABLES! All threads must see these.
  */
@@ -845,7 +875,7 @@ void AdjustDataSize(MDL mdl)
 		 ** This is certainly true in using the MPL library.
 		 */
 		mdl->iMaxDataSize = iMaxDataSize;
-		mdl->iCaBufSize = sizeof(CAHEAD) + 
+		mdl->iCaBufSize = (int)sizeof(CAHEAD) + 
 			iMaxDataSize*(1 << MDL_CACHELINE_BITS);
 		for(i = 0; i < MDL_MBX_RING_SZ; i++) {
 		    mdl->mbxCache[i].pszIn = realloc(mdl->mbxCache[i].pszIn,
@@ -912,7 +942,6 @@ CACHE *CacheInitialize(MDL mdl,int cid,void *pData,int iDataSize,int nData)
 
 	c->pTrans = NULL;
 	c->pTag = NULL;
-	c->pbKey = NULL;
 	c->pLine = NULL;
 	
 	return(c);
@@ -992,7 +1021,7 @@ void mdlCOcache(MDL mdl,int cid,void *pData,int iDataSize,int nData,
 	c->pTag = malloc(c->nLines*sizeof(CTAG));
 	assert(c->pTag != NULL);
 	for (i=0;i<c->nLines;++i) {
-		c->pTag[i].iKey = -1;	/* invalid */	
+		c->pTag[i].iKey = MDL_INVALID_KEY;
 		c->pTag[i].nLock = 0;
 		c->pTag[i].nLast = 0;	/* !!! */
 		c->pTag[i].iLink = 0;
@@ -1004,10 +1033,6 @@ void mdlCOcache(MDL mdl,int cid,void *pData,int iDataSize,int nData,
 	c->nMiss = 0;				/* !!!, not NB */
 	c->nColl = 0;				/* !!!, not NB */
 	c->nMin = 0;				/* !!!, not NB */	
-	c->nKeyMax = 500;				/* !!!, not NB */
-	c->pbKey = malloc(c->nKeyMax);			/* !!!, not NB */
-	assert(c->pbKey != NULL);			/* !!!, not NB */
-	for (i=0;i<c->nKeyMax;++i) c->pbKey[i] = 0;	/* !!!, not NB */
 	/*
 	 ** Allocate cache data lines.
 	 */
@@ -1080,7 +1105,7 @@ void mdlFinishCache(MDL mdl,int cid)
 {
 	CACHE *c = &mdl->cache[cid];
 	int i,id;
-	int iKey;
+	mdlkey_t iKey;
 
 	/*
 	 ** THIS IS A SYNCHRONIZE!!!
@@ -1091,13 +1116,13 @@ void mdlFinishCache(MDL mdl,int cid)
 		 */
 		for (i=1;i<c->nLines;++i) {
 			iKey = c->pTag[i].iKey;
-			if (iKey >= 0) {
+			if (iKey != MDL_INVALID_KEY) {
 				/*
 				 ** Flush element since it is valid!
 				 */
-				int iLine = iKey >> c->iInvKeyShift;
+				int iLine = mdlkey_t_to_int(iKey >> c->iInvKeyShift);
 			    
-				id = iKey & c->iIdMask;
+				id = mdlkey_t_to_int(iKey & c->iIdMask);
 				mdlCacheRequest(mdl, id, cid,
 						MDL_MID_CACHEFLSH, 
 						&c->pLine[i*c->iLineSize],
@@ -1139,14 +1164,13 @@ void mdlFinishCache(MDL mdl,int cid)
 	if(c->iType == MDL_COCACHE) {
 	    free(c->pTrans);
 	    free(c->pTag);
-	    free(c->pbKey);
 	    free(c->pLine);
 	    }
 	c->iType = MDL_NOCACHE;
 	AdjustDataSize(mdl);
 	}
 
-void *doMiss(MDL mdl, int cid, int iIndex, int id, int iKey, int lock);
+void *doMiss(MDL mdl, int cid, int iIndex, int id, mdlkey_t iKey, int lock);
 
 void mdlPrefetch(MDL mdl,int cid,int iIndex,int id)
 {
@@ -1155,7 +1179,8 @@ void mdlPrefetch(MDL mdl,int cid,int iIndex,int id)
 void *mdlAquire(MDL mdl,int cid,int iIndex,int id)
 {
 	CACHE *c = &mdl->cache[cid];
-	int iKey, i;
+	mdlkey_t iKey;
+	int i;
 	char *pLine;		/* matched cache line */
 	int iElt;		/* Element in line */
 
@@ -1201,12 +1226,13 @@ void *mdlAquire(MDL mdl,int cid,int iIndex,int id)
 	return(doMiss(mdl, cid, iIndex, id, iKey, 1));
     }
 
-void *doMiss(MDL mdl, int cid, int iIndex, int id, int iKey, int lock)
+void *doMiss(MDL mdl, int cid, int iIndex, int id, mdlkey_t iKey, int lock)
 {
 	CACHE *c = &mdl->cache[cid];
 	CACHE *cc;
 	char *pLine;
-	int iElt,iLine,i,iKeyVic,nKeyNew;
+	mdlkey_t iKeyVic;
+	int iElt,iLine,i,nKeyNew;
 	int idVic;
 	int iVictim,*pi;
 	char ach[80];
@@ -1236,14 +1262,14 @@ void *doMiss(MDL mdl, int cid, int iIndex, int id, int iKey, int lock)
 		 ** 'pLine' will point to the actual data line in the cache.
 		 */
 		pLine = &c->pLine[iVictim*c->iLineSize];
-		if (iKeyVic >= 0) {
+		if (iKeyVic != MDL_INVALID_KEY) {
 			if (c->iType == MDL_COCACHE) {
 			    /*
 			     ** Flush element since it is valid!
 			     */
-			    int iLine = iKeyVic >> c->iInvKeyShift;
+			    int iLine = mdlkey_t_to_int(iKeyVic >> c->iInvKeyShift);
 
-			    idVic = iKeyVic&c->iIdMask;
+			    idVic = mdlkey_t_to_int(iKeyVic&c->iIdMask);
 
 #if 0
 				fprintf(stderr, "%d %d %d\n",
@@ -1283,28 +1309,13 @@ void *doMiss(MDL mdl, int cid, int iIndex, int id, int iKey, int lock)
 	exit(1);
  Await:
 	/*
-	 ** Figure out whether this is a "new" miss.
-	 ** This is for statistics only!
-	 */
-	if (iKey >= c->nKeyMax) {			/* !!! */
-		nKeyNew = iKey+500;
-		c->pbKey = realloc(c->pbKey,nKeyNew);
-		assert(c->pbKey != NULL);
-		for (i=c->nKeyMax;i<nKeyNew;++i) c->pbKey[i] = 0;
-		c->nKeyMax = nKeyNew;
-		}
-	if (!c->pbKey[iKey]) {
-		c->pbKey[iKey] = 1;
-		++c->nMin;
-		}
-	/*
 	 ** At this point 'pLine' is the recipient cache line for the 
 	 ** data requested from processor 'id'.
 	 */	
 	cc = &mdl->pmdl[id]->cache[cid];
 
 	if ((iLine+1)*c->iLineSize > cc->pDataMax) {
-	    iLineSize = cc->pDataMax - iLine*c->iLineSize;
+	    iLineSize = size_t_to_int(cc->pDataMax - iLine*c->iLineSize);
 	}
 	else {
 	    iLineSize = c->iLineSize;
@@ -1334,7 +1345,7 @@ void mdlRelease(MDL mdl,int cid,void *p)
 	if(c->iType == MDL_ROCACHE)
 	    return;
 	
-	iLine = ((char *)p - c->pLine) / c->iLineSize;
+	iLine = size_t_to_int(((char *)p - c->pLine) / c->iLineSize);
 	/*
 	 ** Check if the pointer fell in a cache line, otherwise it
 	 ** must have been a local pointer.
@@ -1344,7 +1355,7 @@ void mdlRelease(MDL mdl,int cid,void *p)
 		assert(c->pTag[iLine].nLock >= 0);
 		}
 	else {
-		iData = ((char *)p - c->pData) / c->iDataSize;
+		iData = size_t_to_int(((char *)p - c->pData) / c->iDataSize);
 		assert(iData >= 0 && iData < c->nData);
 		}
     }
