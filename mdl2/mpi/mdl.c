@@ -31,6 +31,27 @@
 #define MDL_TAG_RPL			5
 
 
+/* 
+** The purpose of this routine is to safely cast a size_t to an int.
+** If this were done inline, the type of "v" would not be checked.
+**
+** We cast for the following reasons:
+** - We have masked a MDLKEY_t (to an local id or processor), so we
+**   know it will fit in an integer.
+** - We are taking a part of a memory block to send or receive
+**   through MPI.  MPI takes an "int" parameter.
+** - We have calculated a memory size with pointer subtraction and
+**   know that it must be smaller than 4GB.
+*/
+static inline int size_t_to_int( size_t v ) {
+    return (int)v;
+}
+
+static inline int MDLKEY_t_to_int( MDLKEY_t v ) {
+    return (int)v;
+}
+
+
 /*
  ** This structure should be "maximally" aligned, with 4 ints it
  ** should align up to at least QUAD word, which should be enough.
@@ -348,8 +369,9 @@ int mdlSwap(MDL mdl,int id,size_t nBufBytes,void *vBuf,size_t nOutBytes,
 			size_t *pnSndBytes,size_t *pnRcvBytes)
 {
 	size_t nInBytes,nOutBufBytes;
-	int nInMax,nOutMax,i;
-	int nBytes,iTag,pid;
+	size_t i;
+	int nInMax,nOutMax,nBytes;
+	int iTag, pid;
 	char *pszBuf = vBuf;
 	char *pszIn,*pszOut;
 	struct swapInit {
@@ -391,10 +413,10 @@ int mdlSwap(MDL mdl,int id,size_t nBufBytes,void *vBuf,size_t nOutBytes,
 		 ** nOutMax is the maximum number of bytes allowed to be sent
 		 ** nInMax is the number of bytes which will be received.
 		 */
-		nOutMax = (nOutBytes < MDL_TRANS_SIZE)?nOutBytes:MDL_TRANS_SIZE;
-		nOutMax = (nOutMax < nOutBufBytes)?nOutMax:nOutBufBytes;
-		nInMax = (nInBytes < MDL_TRANS_SIZE)?nInBytes:MDL_TRANS_SIZE;
-		nInMax = (nInMax < nBufBytes)?nInMax:nBufBytes;
+		nOutMax = size_t_to_int((nOutBytes < MDL_TRANS_SIZE)?nOutBytes:MDL_TRANS_SIZE);
+		nOutMax = size_t_to_int((nOutMax < nOutBufBytes)?nOutMax:nOutBufBytes);
+		nInMax = size_t_to_int((nInBytes < MDL_TRANS_SIZE)?nInBytes:MDL_TRANS_SIZE);
+		nInMax = size_t_to_int((nInMax < nBufBytes)?nInMax:nBufBytes);
 		/*
 		 ** Copy to a temp buffer to be safe.
 		 */
@@ -427,8 +449,8 @@ int mdlSwap(MDL mdl,int id,size_t nBufBytes,void *vBuf,size_t nOutBytes,
 	 ** don't need to use the intermediate buffer mdl->pszTrans.
 	 */
 	while (nOutBytes && nOutBufBytes) {
-		nOutMax = (nOutBytes < MDL_TRANS_SIZE)?nOutBytes:MDL_TRANS_SIZE;
-		nOutMax = (nOutMax < nOutBufBytes)?nOutMax:nOutBufBytes;
+		nOutMax = size_t_to_int((nOutBytes < MDL_TRANS_SIZE)?nOutBytes:MDL_TRANS_SIZE);
+		nOutMax = size_t_to_int((nOutMax < nOutBufBytes)?nOutMax:nOutBufBytes);
 		MPI_Ssend(pszOut,nOutMax,MPI_BYTE,id,MDL_TAG_SWAP,
 			 MPI_COMM_WORLD);
 		pszOut = &pszOut[nOutMax];
@@ -437,8 +459,8 @@ int mdlSwap(MDL mdl,int id,size_t nBufBytes,void *vBuf,size_t nOutBytes,
 		*pnSndBytes += nOutMax;
 		}
 	while (nInBytes && nBufBytes) {
-		nInMax = (nInBytes < MDL_TRANS_SIZE)?nInBytes:MDL_TRANS_SIZE;
-		nInMax = (nInMax < nBufBytes)?nInMax:nBufBytes;
+		nInMax = size_t_to_int((nInBytes < MDL_TRANS_SIZE)?nInBytes:MDL_TRANS_SIZE);
+		nInMax = size_t_to_int((nInMax < nBufBytes)?nInMax:nBufBytes);
 		iTag = MDL_TAG_SWAP;
 		MPI_Recv(pszIn,nInMax,MPI_BYTE,id,iTag,MPI_COMM_WORLD,
 			 &status);
@@ -526,7 +548,7 @@ void mdlReqService(MDL mdl,int id,int sid,void *vin,int nInBytes)
 	if (nInBytes > 0 && pszIn != NULL) {
 		for (i=0;i<nInBytes;++i) pszOut[i] = pszIn[i];
 		}
-	MPI_Send(mdl->pszBuf,nInBytes+sizeof(SRVHEAD),MPI_BYTE,id,MDL_TAG_REQ,
+	MPI_Send(mdl->pszBuf,nInBytes+(int)sizeof(SRVHEAD),MPI_BYTE,id,MDL_TAG_REQ,
 		 MPI_COMM_WORLD);
 	}
 
@@ -540,7 +562,7 @@ void mdlGetReply(MDL mdl,int id,void *vout,int *pnOutBytes)
 	MPI_Status status;
 
 	iTag = MDL_TAG_RPL;
-	MPI_Recv(mdl->pszBuf,mdl->nMaxSrvBytes+sizeof(SRVHEAD),MPI_BYTE,
+	MPI_Recv(mdl->pszBuf,mdl->nMaxSrvBytes+(int)sizeof(SRVHEAD),MPI_BYTE,
 					id,iTag,MPI_COMM_WORLD, &status);
 	MPI_Get_count(&status, MPI_BYTE, &nBytes);
 	assert(nBytes == ph->nOutBytes + sizeof(SRVHEAD));
@@ -564,7 +586,7 @@ void mdlHandler(MDL mdl)
 	while (sid != SRV_STOP) {
 		iTag = MDL_TAG_REQ;
 		id = MPI_ANY_SOURCE;
-		MPI_Recv(mdl->pszIn,mdl->nMaxSrvBytes+sizeof(SRVHEAD),
+		MPI_Recv(mdl->pszIn,mdl->nMaxSrvBytes+(int)sizeof(SRVHEAD),
 			       MPI_BYTE, id,iTag,MPI_COMM_WORLD,&status);
 		/*
 		 ** Quite a few sanity checks follow.
@@ -585,7 +607,7 @@ void mdlHandler(MDL mdl)
 		pho->sid = sid;
 		pho->nInBytes = phi->nInBytes;
 		pho->nOutBytes = nOutBytes;
-		MPI_Send(mdl->pszOut,nOutBytes+sizeof(SRVHEAD),
+		MPI_Send(mdl->pszOut,nOutBytes+(int)sizeof(SRVHEAD),
 			 MPI_BYTE, id,MDL_TAG_RPL, MPI_COMM_WORLD);
 		}
 	}
@@ -652,7 +674,7 @@ int mdlCacheReceive(MDL mdl,char *pLine)
 		phRpl->id = mdl->idSelf;
 		t = &c->pData[ph->iLine*c->iLineSize];
 		if(t+c->iLineSize > c->pData + c->nData*c->iDataSize)
-			iLineSize = c->pData + c->nData*c->iDataSize - t;
+		        iLineSize = size_t_to_int(c->pData + c->nData*c->iDataSize - t);
 		else
 			iLineSize = c->iLineSize;
 		for (i=0;i<iLineSize;++i) pszRpl[i] = t[i];
@@ -660,7 +682,7 @@ int mdlCacheReceive(MDL mdl,char *pLine)
 			MPI_Wait(&mdl->pReqRpl[ph->id], &status);
 		        }
 		mdl->pmidRpl[ph->id] = 0;
-		MPI_Isend(phRpl,sizeof(CAHEAD)+iLineSize,MPI_BYTE,
+		MPI_Isend(phRpl,(int)sizeof(CAHEAD)+iLineSize,MPI_BYTE,
 			 ph->id, MDL_TAG_CACHECOM, MPI_COMM_WORLD,
 			  &mdl->pReqRpl[ph->id]); 
 		ret = 0;
@@ -766,7 +788,7 @@ void AdjustDataSize(MDL mdl)
 		MPI_Wait(&mdl->ReqRcv, &status);
 
 		mdl->iMaxDataSize = iMaxDataSize;
-		mdl->iCaBufSize = sizeof(CAHEAD) + 
+		mdl->iCaBufSize = (int)sizeof(CAHEAD) + 
 			iMaxDataSize*(1 << MDL_CACHELINE_BITS);
 		mdl->pszRcv = realloc(mdl->pszRcv,mdl->iCaBufSize);
 		assert(mdl->pszRcv != NULL);
@@ -899,7 +921,7 @@ CACHE *CacheInitialize(MDL mdl,int cid,void *pData,int iDataSize,int nData)
 	c->pTag = malloc(c->nLines*sizeof(CTAG));
 	assert(c->pTag != NULL);
 	for (i=0;i<c->nLines;++i) {
-		c->pTag[i].iKey = -1;	/* invalid */	
+		c->pTag[i].iKey = MDL_INVALID_KEY;
 		c->pTag[i].nLock = 0;
 		c->pTag[i].nLast = 0;	/* !!! */
 		c->pTag[i].iLink = 0;
@@ -912,10 +934,6 @@ CACHE *CacheInitialize(MDL mdl,int cid,void *pData,int iDataSize,int nData)
 	c->nMiss = 0;				/* !!!, not NB */
 	c->nColl = 0;				/* !!!, not NB */
 	c->nMin = 0;				/* !!!, not NB */	
-	c->nKeyMax = 500;				/* !!!, not NB */
-	c->pbKey = malloc(c->nKeyMax);			/* !!!, not NB */
-	assert(c->pbKey != NULL);			/* !!!, not NB */
-	for (i=0;i<c->nKeyMax;++i) c->pbKey[i] = 0;	/* !!!, not NB */
 	/*
 	 ** Allocate cache data lines.
 	 */
@@ -1052,7 +1070,8 @@ void mdlFinishCache(MDL mdl,int cid)
 	char *pszFlsh = &mdl->pszFlsh[sizeof(CAHEAD)];
 	int i,id;
 	char *t;
-	int j, iKey;
+	int j;
+	MDLKEY_t iKey;
 	int last;
 	MPI_Status status;
 	MPI_Request reqFlsh;
@@ -1087,12 +1106,12 @@ void mdlFinishCache(MDL mdl,int cid)
 		caFlsh->id = mdl->idSelf;
 		for (i=1;i<c->nLines;++i) {
 			iKey = c->pTag[i].iKey;
-			if (iKey >= 0) {
+			if (iKey != MDL_INVALID_KEY) {
 				/*
 				 ** Flush element since it is valid!
 				 */
-				id = iKey & c->iIdMask;
-				caFlsh->iLine = iKey >> c->iInvKeyShift;
+			        id = MDLKEY_t_to_int(iKey & c->iIdMask);
+				caFlsh->iLine = MDLKEY_t_to_int(iKey >> c->iInvKeyShift);
 				t = &c->pLine[i*c->iLineSize];
 				for(j = 0; j < c->iLineSize; ++j)
 				    pszFlsh[j] = t[j];
@@ -1100,7 +1119,7 @@ void mdlFinishCache(MDL mdl,int cid)
 				 * Use Synchronous send so as not to
 				 * overwhelm the receiver.
 				 */
-				MPI_Issend(caFlsh, sizeof(CAHEAD)+c->iLineSize,
+				MPI_Issend(caFlsh, (int)sizeof(CAHEAD)+c->iLineSize,
 					 MPI_BYTE, id, MDL_TAG_CACHECOM,
 					 MPI_COMM_WORLD, &reqFlsh); 
 				/*
@@ -1160,7 +1179,6 @@ void mdlFinishCache(MDL mdl,int cid)
 	 */
 	free(c->pTrans);
 	free(c->pTag);
-	free(c->pbKey);
 	free(c->pLine);
 	c->iType = MDL_NOCACHE;
 	  
@@ -1253,15 +1271,14 @@ void *mdlAquire(MDL mdl,int cid,int iIndex,int id)
 {
 	CACHE *c = &mdl->cache[cid];
 	char *pLine;
-	int iElt,iLine,i,iKey,iKeyVic,nKeyNew;
-	int idVic;
+	MDLKEY_t iKey,iKeyVic;
+	int iElt,iLine,idVic;
+	int i;
 	int iVictim,*pi;
-	char ach[80];
 	CAHEAD *caFlsh;
 	char *pszFlsh;
 	MPI_Status status;
 	MPI_Request reqFlsh;
-	int ret;
 
 	++c->nAccess;
 	if (!(c->nAccess & MDL_CHECK_MASK))
@@ -1359,21 +1376,21 @@ GotVictim:
 	 */
 	pLine = &c->pLine[iVictim*c->iLineSize];
 	caFlsh = NULL;
-	if (iKeyVic >= 0) {
+	if (iKeyVic != MDL_INVALID_KEY) {
 		if (c->iType == MDL_COCACHE) {
 			/*
 			 ** Flush element since it is valid!
 			 */
-		        idVic = iKeyVic&c->iIdMask;
+		        idVic = MDLKEY_t_to_int(iKeyVic&c->iIdMask);
 		        caFlsh = (CAHEAD *)mdl->pszFlsh;
 			pszFlsh = &mdl->pszFlsh[sizeof(CAHEAD)];
 		        caFlsh->cid = cid;
 			caFlsh->mid = MDL_MID_CACHEFLSH;
 			caFlsh->id = mdl->idSelf;
-			caFlsh->iLine = iKeyVic >> c->iInvKeyShift;
+			caFlsh->iLine = MDLKEY_t_to_int(iKeyVic >> c->iInvKeyShift);
 			for(i = 0; i < c->iLineSize; ++i)
 			    pszFlsh[i] = pLine[i];
-			MPI_Isend(caFlsh, sizeof(CAHEAD)+c->iLineSize,
+			MPI_Isend(caFlsh, (int)sizeof(CAHEAD)+c->iLineSize,
 				 MPI_BYTE, idVic,
 				 MDL_TAG_CACHECOM, MPI_COMM_WORLD, &reqFlsh); 
 			}
@@ -1395,21 +1412,6 @@ GotVictim:
 	c->pTag[iVictim].iLink = *pi;
 	*pi = iVictim;
 	/*
-	 ** Figure out whether this is a "new" miss.
-	 ** This is for statistics only!
-	 */
-	if (iKey >= c->nKeyMax) {			/* !!! */
-		nKeyNew = iKey+500;
-		c->pbKey = realloc(c->pbKey,nKeyNew);
-		assert(c->pbKey != NULL);
-		for (i=c->nKeyMax;i<nKeyNew;++i) c->pbKey[i] = 0;
-		c->nKeyMax = nKeyNew;
-		}
-	if (!c->pbKey[iKey]) {
-		c->pbKey[iKey] = 1;
-		++c->nMin;
-		}								/* !!! */
-	/*
 	 ** At this point 'pLine' is the recipient cache line for the 
 	 ** data requested from processor 'id'.
 	 */
@@ -1425,7 +1427,7 @@ GotVictim:
 void mdlRelease(MDL mdl,int cid,void *p)
 {
 	CACHE *c = &mdl->cache[cid];
-	int iLine,iData;
+	size_t iData, iLine;
 	
 	iLine = ((char *)p - c->pLine) / c->iLineSize;
 	/*
@@ -1438,7 +1440,7 @@ void mdlRelease(MDL mdl,int cid,void *p)
 		}
 	else {
 		iData = ((char *)p - c->pData) / c->iDataSize;
-		assert(iData >= 0 && iData < c->nData);
+		assert(iData < c->nData);
 		}
 	}
 

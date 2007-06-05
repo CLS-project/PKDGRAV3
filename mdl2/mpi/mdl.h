@@ -13,8 +13,17 @@
 #define MDL_CACHE_MASK		(MDL_CACHELINE_ELTS-1)
 #define MDL_INDEX_MASK		(~MDL_CACHE_MASK)
 
+/*
+** A MDL Key must be large enough to hold the largest unique particle key.
+** It must be (several times) larger than the total number of particles.
+** An "unsigned long" is normally 32 bits on a 32 bit machine and
+** 64 bits on a 64 bit machine.
+*/
+typedef unsigned long MDLKEY_t;
+static const MDLKEY_t MDL_INVALID_KEY = (MDLKEY_t)(-1);
+
 typedef struct cacheTag {
-	int iKey;
+	MDLKEY_t iKey;
 	int nLock;
 	int nLast;
 	int iLink;
@@ -39,12 +48,12 @@ typedef struct cacheSpace {
 	int nData;
 	int iLineSize;
 	int nLines;
-    int iLine;
+	int iLine;
 	int nTrans;
-	int iTransMask;
         int iKeyShift;
         int iInvKeyShift;
-        int iIdMask;
+	MDLKEY_t iTransMask;
+        MDLKEY_t iIdMask;
 	int *pTrans;
 	CTAG *pTag;
 	char *pLine;
@@ -62,7 +71,6 @@ typedef struct cacheSpace {
 	long nColl;
 	long nMin;
 	int nKeyMax;
-	char *pbKey;
 	} CACHE;
 
 typedef struct serviceRec {
