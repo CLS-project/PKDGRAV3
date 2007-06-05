@@ -1148,6 +1148,10 @@ void mdlFinishCache(MDL mdl,int cid)
 
 void *doMiss(MDL mdl, int cid, int iIndex, int id, int iKey, int lock);
 
+void mdlPrefetch(MDL mdl,int cid,int iIndex,int id)
+{
+}
+
 void *mdlAquire(MDL mdl,int cid,int iIndex,int id)
 {
 	CACHE *c = &mdl->cache[cid];

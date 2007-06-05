@@ -467,6 +467,11 @@ void mdlCacheCheck(MDL mdl)
 {
 }
 
+void mdlPrefetch(MDL mdl,int cid,int iIndex,int id)
+{
+    /* The data is already local so there is nothing to do */
+}
+
 void *mdlAquire(MDL mdl,int cid,int iIndex,int id)
 {
 	CACHE *c = &mdl->cache[cid];

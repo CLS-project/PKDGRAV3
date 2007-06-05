@@ -210,6 +210,7 @@ void mdlFinishCache(MDL,int);
 void mdlCacheCheck(MDL);
 void mdlCacheBarrier(MDL,int);
 void *mdlAquire(MDL,int,int,int);
+void mdlPrefetch(MDL,int,int,int);
 void mdlRelease(MDL,int,void *);
 /*
  ** Cache statistics functions.

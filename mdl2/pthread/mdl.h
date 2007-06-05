@@ -226,6 +226,7 @@ void mdlCOcache(MDL,int,void *,int,int,
 				void (*)(void *),void (*)(void *,void *));
 void mdlFinishCache(MDL,int);
 void *mdlAquire(MDL,int,int,int);
+void mdlPrefetch(MDL,int,int,int);
 void mdlRelease(MDL,int,void *);
 void mdlCacheBarrier(MDL,int);
 void mdlCacheCheck(MDL);
