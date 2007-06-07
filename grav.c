@@ -15,79 +15,9 @@
 #include "moments.h"
 #include "grav.h"
 
-/*
- ** This is a new fast version of QEVAL which evaluates
- ** the interaction due to the reduced moment 'm'.
- ** This version is nearly two times as fast as a naive
- ** implementation.
- **
- ** March 23, 2007: This function now uses unit vectors 
- ** which reduces the required precision in the exponent
- ** since the highest power of r is now 5 (g4 ~ r^(-5)).
- **
- ** OpCount = (*,+) = (105,72) = 177 - 8 = 169
- **
- ** CAREFUL: this function no longer accumulates on fPot,ax,ay,az!
- **
- ** NOTE: This function is a carbon copy to the one in moments.c, but we
- ** want to inline it!
- */
-inline void momEvalMomrInline(MOMR *m,momFloat dir,momFloat x,momFloat y,momFloat z,
-		 momFloat *fPot,momFloat *ax,momFloat *ay,momFloat *az,momFloat *magai)
-{
-	const momFloat onethird = 1.0/3.0;
-	momFloat xx,xy,xz,yy,yz,zz;
-	momFloat xxx,xxy,xxz,xyy,yyy,yyz,xyz;
-	momFloat tx,ty,tz,g0,g2,g3,g4;
-
-	g0 = -dir;
-	g2 = -3*dir*dir*dir;
-	g3 = -5*g2*dir;
-	g4 = -7*g3*dir;
-	/*
-	 ** Calculate the funky distance terms.
-	 */
-	x *= dir;
-	y *= dir;
-	z *= dir;
-	xx = 0.5*x*x;
-	xy = x*y;
-	xz = x*z;
-	yy = 0.5*y*y;
-	yz = y*z;
-	zz = 0.5*z*z;
-	xxx = x*(onethird*xx - zz);
-	xxz = z*(xx - onethird*zz);
-	yyy = y*(onethird*yy - zz);
-	yyz = z*(yy - onethird*zz);
-	xx -= zz;
-	yy -= zz;
-	xxy = y*xx;
-	xyy = x*yy;
-	xyz = xy*z;
-	/*
-	 ** Now calculate the interaction up to Hexadecapole order.
-	 */
-	tx = g4*(m->xxxx*xxx + m->xyyy*yyy + m->xxxy*xxy + m->xxxz*xxz + m->xxyy*xyy + m->xxyz*xyz + m->xyyz*yyz);
-	ty = g4*(m->xyyy*xyy + m->xxxy*xxx + m->yyyy*yyy + m->yyyz*yyz + m->xxyy*xxy + m->xxyz*xxz + m->xyyz*xyz);
-	tz = g4*(-m->xxxx*xxz - (m->xyyy + m->xxxy)*xyz - m->yyyy*yyz + m->xxxz*xxx + m->yyyz*yyy - m->xxyy*(xxz + yyz) + m->xxyz*xxy + m->xyyz*xyy);
-	g4 = 0.25*(tx*x + ty*y + tz*z);
-	xxx = g3*(m->xxx*xx + m->xyy*yy + m->xxy*xy + m->xxz*xz + m->xyz*yz);
-	xxy = g3*(m->xyy*xy + m->xxy*xx + m->yyy*yy + m->yyz*yz + m->xyz*xz);
-	xxz = g3*(-(m->xxx + m->xyy)*xz - (m->xxy + m->yyy)*yz + m->xxz*xx + m->yyz*yy + m->xyz*xy);
-	g3 = onethird*(xxx*x + xxy*y + xxz*z);
-	xx = g2*(m->xx*x + m->xy*y + m->xz*z);
-	xy = g2*(m->yy*y + m->xy*x + m->yz*z);
-	xz = g2*(-(m->xx + m->yy)*z + m->xz*x + m->yz*y);
-	g2 = 0.5*(xx*x + xy*y + xz*z);
-	g0 *= m->m;
-	*fPot = g0 + g2 + g3 + g4;
-	g0 += -5*g2 - 7*g3 - 9*g4;
-	*ax = dir*(xx + xxx + tx + x*g0);
-	*ay = dir*(xy + xxy + ty + y*g0);
-	*az = dir*(xz + xxz + tz + z*g0);
-	*magai = -g0*dir;
-}
+inline double softmassweight(double m1,double h12,double m2,double h22){
+    return((m1+m2)*(h12*h22)/(h22*m1+h12*m2));
+    }
 
 #define SQRT1(d2,dir)\
     {\
