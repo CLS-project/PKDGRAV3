@@ -1295,11 +1295,11 @@ double momLocrAddMomr(LOCR *l,MOMR *q,momFloat dir,momFloat x,momFloat y,momFloa
     T = dir*(m + A);
     m *= t2;
     R = m + t4*A;
-    l->xx += T + (R*x + 2*Ax)*x;
-    l->yy += T + (R*y + 2*Ay)*y;
-    l->xy += R*xy + (Ax*y + Ay*x);
-    l->xz += R*xz + (Ax*z + Az*x);
-    l->yz += R*yz + (Ay*z + Az*y);
+    l->xx += g2*q->xx + T + (R*x + 2*Ax)*x;
+    l->yy += g2*q->yy + T + (R*y + 2*Ay)*y;
+    l->xy += g2*q->xy + R*xy + (Ax*y + Ay*x);
+    l->xz += g2*q->xz + R*xz + (Ax*z + Az*x);
+    l->yz += g2*q->yz + R*yz + (Ay*z + Az*y);
     /*
     ** No more A's and no more B's used here!
     */
@@ -1435,7 +1435,7 @@ void momGenLocrAddMomr(LOCR *l,MOMR *q,momFloat dir,
     Bx = xx*q->xxx + xy*q->xxy + xz*q->xxz + yy*q->xyy + yz*q->xyz;
     By = xx*q->xxy + xy*q->xyy + xz*q->xyz + yy*q->yyy + yz*q->yyz;
     Bz = xx*q->xxz + xy*q->xyz - xz*(q->xxx + q->xyy) + yy*q->yyz - yz*(q->xxy + q->yyy);
-    B = onethird*g3*(x*Bx + y*By + z*Bz);
+    B = -onethird*g3*(x*Bx + y*By + z*Bz);
     Bx *= g3t;
     By *= g3t;
     Bz *= g3t;
@@ -1445,9 +1445,9 @@ void momGenLocrAddMomr(LOCR *l,MOMR *q,momFloat dir,
 
     m = g1*q->m;
     R = m + A + t4*B;
-    l->x += Ax + Bx + x*R;
-    l->y += Ay + By + y*R;
-    l->z += Az + Bz + z*R;
+    l->x += Ax - Bx + x*R;
+    l->y += Ay - By + y*R;
+    l->z += Az - Bz + z*R;
     /*
     ** No more B's used here!
     */
@@ -1458,11 +1458,11 @@ void momGenLocrAddMomr(LOCR *l,MOMR *q,momFloat dir,
     T = dir*(m + A);
     m *= t2;
     R = m + t4*A;
-    l->xx += T + (R*x + 2*Ax)*x;
-    l->yy += T + (R*y + 2*Ay)*y;
-    l->xy += R*xy + (Ax*y + Ay*x);
-    l->xz += R*xz + (Ax*z + Az*x);
-    l->yz += R*yz + (Ay*z + Az*y);
+    l->xx += g2*q->xx + T + (R*x + 2*Ax)*x;
+    l->yy += g2*q->yy + T + (R*y + 2*Ay)*y;
+    l->xy += g2*q->xy + R*xy + (Ax*y + Ay*x);
+    l->xz += g2*q->xz + R*xz + (Ax*z + Az*x);
+    l->yz += g2*q->yz + R*yz + (Ay*z + Az*y);
     /*
     ** No more A's and no more B's used here!
     */
@@ -1699,7 +1699,7 @@ void momLoccAddMomrAccurate(LOCC *l,MOMC *m,momFloat g0,momFloat x,momFloat y,mo
 
 	g0 = -g0;
 	dir2 = g0*g0;
-    g1 = -g0*dir2;
+	g1 = -g0*dir2;
 	g2 = -3*g1*dir2;
 	g3 = -5*g2*dir2;
 	g4 = -7*g3*dir2;
@@ -1883,7 +1883,7 @@ void momLocrAddMomrAccurate(LOCR *l,MOMR *m,momFloat g0,momFloat x,momFloat y,mo
 
 	g0 = -g0;
 	dir2 = g0*g0;
-    g1 = -g0*dir2;
+	g1 = -g0*dir2;
 	g2 = -3*g1*dir2;
 	g3 = -5*g2*dir2;
 	g4 = -7*g3*dir2;
@@ -2057,9 +2057,9 @@ void momEvalLocr(LOCR *l,momFloat x,momFloat y,momFloat z,
 	xz = -(l->xx + l->yy)*z + l->xz*x + l->yz*y;
 	g2 = 0.5*(xx*x + xy*y + xz*z);
 	g1 = x*l->x + y*l->y + z*l->z;
-	*ax += l->x + xx + xxx + tx;
-	*ay += l->y + xy + xxy + ty;
-	*az += l->z + xz + xxz + tz;
+	*ax -= l->x + xx + xxx + tx;
+	*ay -= l->y + xy + xxy + ty;
+	*az -= l->z + xz + xxz + tz;
 	*fPot += l->m + g1 + g2 + g3 + g4;
 	}
 
@@ -2101,9 +2101,9 @@ void momEvalLocc(LOCC *l,momFloat x,momFloat y,momFloat z,
 	L4y = sixth*(l->xxxy*xxx + l->yyyy*yyy + l->yzzz*zzz + 3*(l->xxyy*xxy + l->xyyy*xyy + l->xxyz*xxz + l->yyyz*yyz + l->yyzz*yzz + 2*l->xyyz*xyz));
 	L4z = sixth*(l->xxxz*xxx + l->yyyz*yyy + l->zzzz*zzz + 3*(l->xxyz*xxy + l->xyyz*xyy + l->xxzz*xxz + l->yyzz*yyz + l->yzzz*yzz + 2*l->xyzz*xyz));
 	L4 = 0.25*(x*L4x + y*L4y + z*L4z);
-	*ax += l->x + L2x + L3x + L4x;
-	*ay += l->y + L2y + L3y + L4y;
-	*az += l->z + L2z + L3z + L4z;
+	*ax -= l->x + L2x + L3x + L4x;
+	*ay -= l->y + L2y + L3y + L4y;
+	*az -= l->z + L2z + L3z + L4z;
 	*fPot += l->m + L1 + L2 + L3 + L4;
 	}
 
