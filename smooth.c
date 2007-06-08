@@ -17,6 +17,7 @@
 
 int smInitialize(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bGasOnly,
 		 int bPeriodic,int bSymmetric,int iSmoothType, 
+		 int eParticleTypes,
 		 double dfBall2OverSoft2 ) {
     SMX smx;
     void (*initParticle)(void *) = NULL;
@@ -33,6 +34,7 @@ int smInitialize(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bGasOnly,
     smx->nSmooth = nSmooth;
     smx->bGasOnly = bGasOnly;
     smx->bPeriodic = bPeriodic;
+    smx->eParticleTypes = eParticleTypes;
 
     switch (iSmoothType) {
     case SMX_NULL:
@@ -96,14 +98,13 @@ int smInitialize(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bGasOnly,
     ** There are other particles in the tree -- just not active.
     */
     nTree = pkd->kdNodes[ROOT].pUpper + 1;
-    for (pi=0;pi<nTree;++pi) {
-	if (TYPEQuerySMOOTHACTIVE(&(pkd->pStore[pi]))) {
-	    TYPEReset( &(pkd->pStore[pi]),TYPE_SMOOTHDONE );
-	    if (initParticle != NULL) {
+    if (initParticle != NULL) {
+	for (pi=0;pi<nTree;++pi) {
+	    if (TYPETest(&(pkd->pStore[pi]),smx->eParticleTypes)) {
 		initParticle(&pkd->pStore[pi]);
-		}
 	    }
 	}
+    }
     /*
     ** Start particle caching space (cell cache is already active).
     */
@@ -200,7 +201,7 @@ void smFinish(SMX smx,SMF *smf)
     */
     if (smx->fcnPost != NULL) {
 	for (pi=0;pi<pkd->nLocal;++pi) {
-	    if (TYPEQuerySMOOTHACTIVE(&(pkd->pStore[pi]))) {
+	    if (TYPETest(&(pkd->pStore[pi]),smx->eParticleTypes)) {
 		smx->fcnPost(&pkd->pStore[pi],smf);
 		}
 	    }
@@ -960,8 +961,7 @@ void smSmooth(SMX smx,SMF *smf)
     int ix,iy,iz;
 
     for (pi=0;pi<pkd->nLocal;++pi) {
-	if (!TYPEFilter(&(p[pi]),TYPE_SMOOTHACTIVE|TYPE_SMOOTHDONE,
-			TYPE_SMOOTHACTIVE)) continue;
+	if (!TYPETest(&(p[pi]),smx->eParticleTypes)) continue;
 	pq = NULL;
 	smx->nQueue = 0;
 	pq = pqSearch(smx,pq,&p[pi],p[pi].r,0,&bDone);
@@ -1238,8 +1238,7 @@ void smReSmooth(SMX smx,SMF *smf)
     int ix,iy,iz;
 
     for (pi=0;pi<pkd->nLocal;++pi) {
-	if (!TYPEFilter(&(p[pi]),TYPE_SMOOTHACTIVE|TYPE_SMOOTHDONE,
-			TYPE_SMOOTHACTIVE)) continue;
+	if (!TYPETest(&(p[pi]),smx->eParticleTypes)) continue;
 	smx->nnListSize = 0;
 	/*
 	** Note for implementing SLIDING PATCH, the offsets for particles are
@@ -1789,8 +1788,7 @@ void smMarkSmooth(SMX smx,int iMarkType)
 	    }
 	}
     for (pi=0;pi<pkd->nLocal;++pi) {
-	if (!TYPEFilter(&(p[pi]),TYPE_SMOOTHACTIVE|TYPE_SMOOTHDONE,
-			TYPE_SMOOTHACTIVE)) continue;
+	if (!TYPETest(&(p[pi]),smx->eParticleTypes)) continue;
 	/*
 	** Note for implementing SLIDING PATCH, the offsets for particles are
 	** negative here, reflecting the relative +ve offset of the simulation

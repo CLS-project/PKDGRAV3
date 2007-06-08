@@ -36,6 +36,7 @@ typedef struct smContext {
 	int nQueue;
 	int bGasOnly;
 	int bPeriodic;
+	int eParticleTypes;
 	PQ *pq;
 	int nnListSize;
 	int nnListMax;
@@ -113,7 +114,8 @@ typedef struct smContext {
 
 
 int smInitialize(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bGasOnly,
-				 int bPeriodic,int bSymmetric,int iSmoothType,double dfBall2OverSoft2);
+		 int bPeriodic,int bSymmetric,int iSmoothType,
+		 int eParticleTypes, double dfBall2OverSoft2);
 
 void smFinish(SMX,SMF *);
 void smSmooth(SMX,SMF *);
