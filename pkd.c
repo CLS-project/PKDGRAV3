@@ -1738,7 +1738,7 @@ pkdStepVeryActiveKDK(PKD pkd, double dStep, double dTime, double dDelta,
     
     if(iAdjust && (iRung < pkd->param.iMaxRung-1)) {
 	pkdActiveRung(pkd, iRung, 1);
-	pkdActiveType(pkd,TYPE_ALL,TYPE_TREEACTIVE|TYPE_SMOOTHACTIVE);
+	pkdActiveType(pkd,TYPE_ALL,TYPE_SMOOTHACTIVE);
 	pkdInitDt(pkd, pkd->param.dDelta);
 	if (pkd->param.bGravStep) {
 	    double a = csmTime2Exp(pkd->param.csm,dTime);
@@ -1885,7 +1885,7 @@ pkdStepVeryActiveHermite(PKD pkd, double dStep, double dTime, double dDelta,
     
     if(iAdjust && (iRung < pkd->param.iMaxRung-1)) {
 	pkdActiveRung(pkd, iRung, 1);
-	pkdActiveType(pkd,TYPE_ALL,TYPE_TREEACTIVE|TYPE_SMOOTHACTIVE);
+	pkdActiveType(pkd,TYPE_ALL,TYPE_SMOOTHACTIVE);
 	pkdInitDt(pkd, pkd->param.dDelta);
 	if (pkd->param.bAarsethStep) {
 	  pkdAarsethStep(pkd,pkd->param.dEta);

@@ -2158,20 +2158,20 @@ void msrUpdateSoft(MSR msr,double dTime) {
 
 	if (msr->param.bSoftByType) {
 	    if (msr->nDark) {
-		msrActiveType(msr,TYPE_DARK,TYPE_TREEACTIVE|TYPE_SMOOTHACTIVE);
+		msrActiveType(msr,TYPE_DARK,TYPE_SMOOTHACTIVE);
 		msrBuildTree(msr,-1.0,dTime);
 		bGasOnly = 0;
 		assert(0); /* can't do this yet! */
 		msrSmooth(msr,dTime,SMX_NULL,bGasOnly,bSymmetric);
 		}
 	    if (msr->nGas) {
-		msrActiveType(msr,TYPE_GAS,TYPE_TREEACTIVE|TYPE_SMOOTHACTIVE);
+		msrActiveType(msr,TYPE_GAS,TYPE_SMOOTHACTIVE);
 		msrBuildTree(msr,-1.0,dTime);
 		bGasOnly = 1;
 		msrSmooth(msr,dTime,SMX_NULL,bGasOnly,bSymmetric);
 		}
 	    if (msr->nStar) {
-		msrActiveType(msr,TYPE_STAR,TYPE_TREEACTIVE|TYPE_SMOOTHACTIVE);
+		msrActiveType(msr,TYPE_STAR,TYPE_SMOOTHACTIVE);
 		msrBuildTree(msr,-1.0,dTime);
 		bGasOnly = 0;
 		assert(0); /* can't do this yet! */
@@ -2179,7 +2179,7 @@ void msrUpdateSoft(MSR msr,double dTime) {
 		}
 	    }
 	else {
-	    msrActiveType(msr,TYPE_ALL,TYPE_TREEACTIVE|TYPE_SMOOTHACTIVE);
+	    msrActiveType(msr,TYPE_ALL,TYPE_SMOOTHACTIVE);
 	    msrBuildTree(msr,-1.0,dTime);
 	    bGasOnly = 0;
 	    msrSmooth(msr,dTime,SMX_NULL,bGasOnly,bSymmetric);
@@ -2862,7 +2862,7 @@ void msrTopStepKDK(MSR msr,
 	    printf("%*cAdjust, iRung: %d\n",2*iRung+2,' ',iRung);
 	    }
 	msrActiveRung(msr, iRung, 1);
-	msrActiveType(msr,TYPE_ALL,TYPE_TREEACTIVE|TYPE_SMOOTHACTIVE);
+	msrActiveType(msr,TYPE_ALL,TYPE_SMOOTHACTIVE);
 	msrInitDt(msr);
 	if (msr->param.bGravStep) {
 	    msrGravStep(msr,dTime);
@@ -2884,7 +2884,7 @@ void msrTopStepKDK(MSR msr,
 	       2*iRung+2,' ',iRung,0.5*dDelta);
 	}
     msrActiveRung(msr,iRung,0);
-    msrActiveType(msr,TYPE_ALL,TYPE_TREEACTIVE|TYPE_SMOOTHACTIVE );
+    msrActiveType(msr,TYPE_ALL,TYPE_SMOOTHACTIVE );
     msrKickKDKOpen(msr,dTime,0.5*dDelta);
     if ((msrCurrMaxRung(msr) > iRung) && (iRungVeryActive > iRung)) {
 	/*
@@ -2914,7 +2914,6 @@ void msrTopStepKDK(MSR msr,
 	if(msrDoGravity(msr)) {
 	    msrActiveRung(msr,iKickRung,1);
 	    msrUpdateSoft(msr,dTime);
-	    msrActiveType(msr,TYPE_ALL,TYPE_TREEACTIVE);
 	    if (msr->param.bVDetails) {
 		printf("%*cGravity, iRung: %d to %d\n",2*iRung+2,' ',iKickRung,iRung);
 		}
@@ -3002,7 +3001,6 @@ void msrTopStepKDK(MSR msr,
 	if(msrDoGravity(msr)) {
 	    msrActiveRung(msr,iKickRung,1);
 	    msrUpdateSoft(msr,dTime);
-	    msrActiveType(msr,TYPE_ALL,TYPE_TREEACTIVE);
 	    if (msr->param.bVDetails) {
 		printf("%*cGravity, iRung: %d to %d\n",
 		       2*iRung+2,' ',iKickRung,msrCurrMaxRung(msr));
@@ -3120,7 +3118,7 @@ void msrTopStepHermite(MSR msr,
 	  printf("%*cAdjust, iRung: %d\n",2*iRung+2,' ',iRung);
            }
 	msrActiveRung(msr, iRung, 1);
-	msrActiveType(msr,TYPE_ALL,TYPE_TREEACTIVE|TYPE_SMOOTHACTIVE);
+	msrActiveType(msr,TYPE_ALL,TYPE_SMOOTHACTIVE);
 	msrInitDt(msr);
 	if (msr->param.bGravStep) {
 	    msrGravStep(msr,dTime);
@@ -3143,7 +3141,7 @@ void msrTopStepHermite(MSR msr,
 	
                 /* probably unnecessary 
 		msrActiveRung(msr,iRung,0);
-                msrActiveType(msr,TYPE_ALL,TYPE_TREEACTIVE|TYPE_SMOOTHACTIVE); */
+                msrActiveType(msr,TYPE_ALL,TYPE_SMOOTHACTIVE); */
 
     if ((msrCurrMaxRung(msr) > iRung) && (iRungVeryActive > iRung)) 
       {
@@ -3182,7 +3180,6 @@ void msrTopStepHermite(MSR msr,
 		if(msrDoGravity(msr)) {
 		  msrActiveRung(msr,iKickRung,1);
 		  msrUpdateSoft(msr,dTime);
-		  msrActiveType(msr,TYPE_ALL,TYPE_TREEACTIVE);
 		  if (msr->param.bVDetails) {
 		    printf("%*cGravity, iRung: %d to %d\n",2*iRung+2,' ',iKickRung,iRung);
 		  }
@@ -3310,7 +3307,6 @@ else {
 	if(msrDoGravity(msr)) {
 	    msrActiveRung(msr,iKickRung,1);
 	    msrUpdateSoft(msr,dTime);
-	    msrActiveType(msr,TYPE_ALL,TYPE_TREEACTIVE);
 	    if (msr->param.bVDetails) {
 		printf("%*cGravity, iRung: %d to %d\n",
 		       2*iRung+2,' ',iKickRung,msrCurrMaxRung(msr));
@@ -3537,7 +3533,7 @@ void msrInitTimeSteps(MSR msr,double dTime,double dDelta)
     {
     double dMass = -1.0;
 
-    msrActiveType(msr,TYPE_ALL,TYPE_ACTIVE|TYPE_TREEACTIVE|TYPE_SMOOTHACTIVE);
+    msrActiveType(msr,TYPE_ALL,TYPE_ACTIVE|TYPE_SMOOTHACTIVE);
     msrInitDt(msr);
     if (msr->param.bGravStep) {
 	msrGravStep(msr,dTime);
@@ -3547,7 +3543,7 @@ void msrInitTimeSteps(MSR msr,double dTime,double dDelta)
 	}
     if (msr->param.bDensityStep) {
 	msrDomainDecomp(msr,0,1,0);
-	msrActiveType(msr,TYPE_ALL,TYPE_ACTIVE|TYPE_TREEACTIVE|TYPE_SMOOTHACTIVE);
+	msrActiveType(msr,TYPE_ALL,TYPE_ACTIVE|TYPE_SMOOTHACTIVE);
 	msrBuildTree(msr,dMass,dTime);
 	msrDensityStep(msr,dTime);
 	}

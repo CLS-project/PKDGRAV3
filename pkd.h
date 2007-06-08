@@ -130,8 +130,6 @@ typedef struct particle {
 
 /* Active: -- eg. Calculate new acceleration, PdV, etc... for this particle */
 #define TYPE_ACTIVE            (1<<0)
-/* In the Tree: */
-#define TYPE_TREEACTIVE        (1<<1)
 /* Gather to/Scatter from this particle with in smooths: */
 #define TYPE_SMOOTHACTIVE      (1<<2)
 /* Smooth has processed this particle */
@@ -164,12 +162,10 @@ typedef struct particle {
 
 #define TYPE_VERYACTIVE         (1<<13)
 /* Combination Masks */
-#define TYPE_ALLACTIVE			(TYPE_ACTIVE|TYPE_TREEACTIVE|TYPE_SMOOTHACTIVE)
 #define TYPE_ALL				(TYPE_GAS|TYPE_DARK|TYPE_STAR|TYPE_BLACKHOLE)
 
 /* Type Macros */
 int TYPEQueryACTIVE      ( PARTICLE *a );
-int TYPEQueryTREEACTIVE  ( PARTICLE *a );
 int TYPEQuerySMOOTHACTIVE( PARTICLE *a );
 int TYPEQueryGAS         ( PARTICLE *a );
 int TYPETest  ( PARTICLE *a, unsigned int mask );
@@ -183,7 +179,6 @@ int TYPEClearACTIVE( PARTICLE *a );
 int TYPEClear( PARTICLE *a ); 
 
 #define TYPEQueryACTIVE(a)       ((a)->iActive & TYPE_ACTIVE)
-#define TYPEQueryTREEACTIVE(a)   ((a)->iActive & TYPE_TREEACTIVE)
 #define TYPEQuerySMOOTHACTIVE(a) ((a)->iActive & TYPE_SMOOTHACTIVE)
 #define TYPEQueryGAS(a)			 ((a)->iActive & TYPE_GAS)
 #define TYPETest(a,b)            ((a)->iActive & (b))
