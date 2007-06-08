@@ -1271,7 +1271,7 @@ double momLocrAddMomr(LOCR *l,MOMR *q,momFloat dir,momFloat x,momFloat y,momFloa
     Bx = xx*q->xxx + xy*q->xxy + xz*q->xxz + yy*q->xyy + yz*q->xyz;
     By = xx*q->xxy + xy*q->xyy + xz*q->xyz + yy*q->yyy + yz*q->yyz;
     Bz = xx*q->xxz + xy*q->xyz - xz*(q->xxx + q->xyy) + yy*q->yyz - yz*(q->xxy + q->yyy);
-    B = onethird*g3*(x*Bx + y*By + z*Bz);
+    B = -onethird*g3*(x*Bx + y*By + z*Bz);
     Bx *= g3t;
     By *= g3t;
     Bz *= g3t;
@@ -1282,9 +1282,9 @@ double momLocrAddMomr(LOCR *l,MOMR *q,momFloat dir,momFloat x,momFloat y,momFloa
 
     m = g1*q->m;
     R = m + A + t4*B;
-    l->x += Ax + Bx + x*R;
-    l->y += Ay + By + y*R;
-    l->z += Az + Bz + z*R;
+    l->x += Ax - Bx + x*R;
+    l->y += Ay - By + y*R;
+    l->z += Az - Bz + z*R;
     /*
     ** No more B's used here!
     */

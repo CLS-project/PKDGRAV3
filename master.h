@@ -155,14 +155,8 @@ void msrActiveRung(MSR msr, int iRung, int bGreater);
 void msrActiveOrder(MSR msr);
 
 /* Replacement functions */
-void msrActiveExactType(MSR msr, unsigned int iFilterMask, unsigned int iTestMask, unsigned int iSetMask);
 void msrActiveType(MSR msr, unsigned int iTestMask, unsigned int iSetMask);
-void msrSetType(MSR msr, unsigned int iTestMask, unsigned int iSetMask);
-void msrResetType(MSR msr, unsigned int iTestMask, unsigned int iSetMask);
-int  msrCountType(MSR msr, unsigned int iFilterMask, unsigned int iTestMask);
 void msrActiveMaskRung(MSR msr, unsigned int iSetMask, int iRung, int bGreater);
-void msrActiveTypeRung(MSR msr, unsigned int iTestMask, unsigned int iSetMask, int iRung, int bGreater);
-void msrActiveTypeOrder(MSR msr, unsigned int iTestMask );
 /*------------------*/
 /* Active Functions */
 /*------------------*/

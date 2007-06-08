@@ -1819,7 +1819,7 @@ void _BuildTree(MSR msr,double dMass,double dTimeStamp,int bExcludeVeryActive) {
     else {
 	pstBuildTree(msr->pst,&in,sizeof(in),pkdn,&iDum);
 	}
-    pstDistribCells(msr->pst,pkdn,nCell*sizeof(KDN),NULL,NULL);
+    pstDistribCells(msr->pst,pkdn,nCell*(int)sizeof(KDN),NULL,NULL);
     free(pkdn);
     if (!bExcludeVeryActive) {
 	/*
@@ -2659,36 +2659,9 @@ void msrActiveRung(MSR msr, int iRung, int bGreater)
     pstActiveRung(msr->pst, &in, sizeof(in), &(msr->nActive), NULL);
     }
 
-void msrActiveTypeOrder(MSR msr, unsigned int iTestMask )
-    {
-    struct inActiveTypeOrder in;
-    int nActive;
-
-    in.iTestMask = iTestMask;
-    pstActiveTypeOrder(msr->pst,&in,sizeof(in),&nActive,NULL);
-
-    if (iTestMask & TYPE_ACTIVE)       msr->nActive       = nActive;
-    if (iTestMask & TYPE_SMOOTHACTIVE) msr->nSmoothActive = nActive;
-    }
-
 void msrActiveOrder(MSR msr)
     {
     pstActiveOrder(msr->pst,NULL,0,&(msr->nActive),NULL);
-    }
-
-void msrActiveExactType(MSR msr, unsigned int iFilterMask, unsigned int iTestMask, unsigned int iSetMask) 
-    {
-    struct inActiveType in;
-    int nActive;
-
-    in.iFilterMask = iFilterMask;
-    in.iTestMask = iTestMask;
-    in.iSetMask = iSetMask;
-
-    pstActiveExactType(msr->pst,&in,sizeof(in),&nActive,NULL);
-
-    if (iSetMask & TYPE_ACTIVE      ) msr->nActive       = nActive;
-    if (iSetMask & TYPE_SMOOTHACTIVE) msr->nSmoothActive = nActive;
     }
 
 void msrActiveType(MSR msr, unsigned int iTestMask, unsigned int iSetMask) 
@@ -2705,43 +2678,6 @@ void msrActiveType(MSR msr, unsigned int iTestMask, unsigned int iSetMask)
     if (iSetMask & TYPE_SMOOTHACTIVE) msr->nSmoothActive = nActive;
     }
 
-void msrSetType(MSR msr, unsigned int iTestMask, unsigned int iSetMask) 
-    {
-    struct inActiveType in;
-    int nActive;
-
-    in.iTestMask = iTestMask;
-    in.iSetMask = iSetMask;
-
-    pstSetType(msr->pst,&in,sizeof(in),&nActive,NULL);
-    }
-
-void msrResetType(MSR msr, unsigned int iTestMask, unsigned int iSetMask) 
-    {
-    struct inActiveType in;
-    int nActive;
-
-    in.iTestMask = iTestMask;
-    in.iSetMask = iSetMask;
-
-    pstResetType(msr->pst,&in,sizeof(in),&nActive,NULL);
-
-    if (msr->param.bVDetails) printf("nResetType: %d\n",nActive);
-    }
-
-int msrCountType(MSR msr, unsigned int iFilterMask, unsigned int iTestMask) 
-    {
-    struct inActiveType in;
-    int nActive;
-
-    in.iFilterMask = iFilterMask;
-    in.iTestMask = iTestMask;
-
-    pstCountType(msr->pst,&in,sizeof(in),&nActive,NULL);
-
-    return nActive;
-    }
-
 void msrActiveMaskRung(MSR msr, unsigned int iSetMask, int iRung, int bGreater) 
     {
     struct inActiveType in;
@@ -2753,22 +2689,6 @@ void msrActiveMaskRung(MSR msr, unsigned int iSetMask, int iRung, int bGreater)
     in.bGreater = bGreater;
 
     pstActiveMaskRung(msr->pst,&in,sizeof(in),&nActive,NULL);
-
-    if (iSetMask & TYPE_ACTIVE      ) msr->nActive       = nActive;
-    if (iSetMask & TYPE_SMOOTHACTIVE) msr->nSmoothActive = nActive;
-    }
-
-void msrActiveTypeRung(MSR msr, unsigned int iTestMask, unsigned int iSetMask, int iRung, int bGreater) 
-    {
-    struct inActiveType in;
-    int nActive;
-
-    in.iTestMask = iTestMask;
-    in.iSetMask = iSetMask;
-    in.iRung = iRung;
-    in.bGreater = bGreater;
-
-    pstActiveTypeRung(msr->pst,&in,sizeof(in),&nActive,NULL);
 
     if (iSetMask & TYPE_ACTIVE      ) msr->nActive       = nActive;
     if (iSetMask & TYPE_SMOOTHACTIVE) msr->nSmoothActive = nActive;
@@ -3585,7 +3505,7 @@ msrAddDelParticles(MSR msr)
 
     msr->nMaxOrderDark = msr->nMaxOrder;
 
-    pstNewOrder(msr->pst,pNewOrder,sizeof(*pNewOrder)*msr->nThreads,NULL,NULL);
+    pstNewOrder(msr->pst,pNewOrder,(int)sizeof(*pNewOrder)*msr->nThreads,NULL,NULL);
 
     if (msr->param.bVDetails)
 	printf("New numbers of particles: %d gas %d dark %d star\n",

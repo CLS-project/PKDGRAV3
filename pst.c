@@ -190,9 +190,6 @@ void pstAddServices(PST pst,MDL mdl)
     mdlAddService(mdl,PST_SWAPALL,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstSwapAll,
 		  sizeof(int),0);
-    mdlAddService(mdl,PST_ACTIVETYPEORDER,pst,
-		  (void (*)(void *,void *,int,void *,int *)) pstActiveTypeOrder,
-		  sizeof(struct inActiveTypeOrder),sizeof(int));
     mdlAddService(mdl,PST_ACTIVEORDER,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstActiveOrder,
 		  0,sizeof(int));
@@ -220,26 +217,11 @@ void pstAddServices(PST pst,MDL mdl)
     mdlAddService(mdl,PST_ACCELSTEP,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstAccelStep,
 		  sizeof(struct inAccelStep), 0);
-    mdlAddService(mdl,PST_ACTIVEEXACTTYPE,pst,
-		  (void (*)(void *,void *,int,void *,int *)) pstActiveExactType,
-		  sizeof(struct inActiveType),sizeof(int));
     mdlAddService(mdl,PST_ACTIVETYPE,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstActiveType,
 		  sizeof(struct inActiveType),sizeof(int));
-    mdlAddService(mdl,PST_SETTYPE,pst,
-		  (void (*)(void *,void *,int,void *,int *)) pstSetType,
-		  sizeof(struct inActiveType),sizeof(int));
-    mdlAddService(mdl,PST_RESETTYPE,pst,
-		  (void (*)(void *,void *,int,void *,int *)) pstResetType,
-		  sizeof(struct inActiveType),sizeof(int));
-    mdlAddService(mdl,PST_COUNTTYPE,pst,
-		  (void (*)(void *,void *,int,void *,int *)) pstCountType,
-		  sizeof(struct inActiveType),sizeof(int));
     mdlAddService(mdl,PST_ACTIVEMASKRUNG,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstActiveMaskRung,
-		  sizeof(struct inActiveType),sizeof(int));
-    mdlAddService(mdl,PST_ACTIVETYPERUNG,pst,
-		  (void (*)(void *,void *,int,void *,int *)) pstActiveTypeRung,
 		  sizeof(struct inActiveType),sizeof(int));
     mdlAddService(mdl,PST_SETPARTICLETYPES,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstSetParticleTypes,
@@ -1854,27 +1836,6 @@ void pstLocalOrder(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     }
 
 
-void pstActiveTypeOrder(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
-    LCL *plcl = pst->plcl;
-    int *pnActive = vout;
-    struct inActiveTypeOrder *in = vin;
-
-    mdlassert(pst->mdl,nIn == sizeof(*in));
-    if (pst->nLeaves > 1) {
-	int nActiveLeaf;
-	mdlReqService(pst->mdl,pst->idUpper,PST_ACTIVETYPEORDER,vin,nIn);
-	pstActiveTypeOrder(pst->pstLower,vin,nIn,vout,pnOut);
-	mdlGetReply(pst->mdl,pst->idUpper,&nActiveLeaf,pnOut);
-	*pnActive += nActiveLeaf;
-	}
-    else {
-	*pnActive = pkdActiveTypeOrder(plcl->pkd, in->iTestMask );
-	}
-    if (pnOut) *pnOut = sizeof(int);
-    }
-
-
 void pstActiveOrder(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     {
     LCL *plcl = pst->plcl;
@@ -3054,93 +3015,6 @@ void pstInitDt(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     }
 
 
-void pstActiveExactType(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
-    LCL *plcl = pst->plcl;
-    struct inActiveType *in = vin;
-    int *pnActive = vout;
-	
-    mdlassert(pst->mdl,nIn == sizeof(*in));
-
-    if (pst->nLeaves > 1) {
-	int nActiveLeaf;
-	mdlReqService(pst->mdl,pst->idUpper,PST_ACTIVEEXACTTYPE,vin,nIn);
-	pstActiveExactType(pst->pstLower,vin,nIn,vout,pnOut);
-	mdlGetReply(pst->mdl,pst->idUpper,&nActiveLeaf,pnOut);
-	*pnActive += nActiveLeaf;
-	}
-    else {
-	*pnActive = pkdActiveExactType(plcl->pkd,in->iFilterMask,in->iTestMask,in->iSetMask);
-	}
-    if (pnOut) *pnOut = sizeof(int);
-    }
-
-
-void pstSetType(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
-    LCL *plcl = pst->plcl;
-    struct inActiveType *in = vin;
-    int *pnActive = vout;
-	
-    mdlassert(pst->mdl,nIn == sizeof(struct inActiveType));
-
-    if (pst->nLeaves > 1) {
-	int nActiveLeaf;
-	mdlReqService(pst->mdl,pst->idUpper,PST_SETTYPE,vin,nIn);
-	pstSetType(pst->pstLower,vin,nIn,vout,pnOut);
-	mdlGetReply(pst->mdl,pst->idUpper,&nActiveLeaf,pnOut);
-	*pnActive += nActiveLeaf;
-	}
-    else {
-	*pnActive = pkdSetType(plcl->pkd,in->iTestMask,in->iSetMask);
-	}
-    if (pnOut) *pnOut = sizeof(int);
-    }
-
-
-void pstResetType(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
-    LCL *plcl = pst->plcl;
-    struct inActiveType *in = vin;
-    int *pnActive = vout;
-	
-    mdlassert(pst->mdl,nIn == sizeof(struct inActiveType));
-
-    if (pst->nLeaves > 1) {
-	int nActiveLeaf;
-	mdlReqService(pst->mdl,pst->idUpper,PST_RESETTYPE,vin,nIn);
-	pstResetType(pst->pstLower,vin,nIn,vout,pnOut);
-	mdlGetReply(pst->mdl,pst->idUpper,&nActiveLeaf,pnOut);
-	*pnActive += nActiveLeaf;
-	}
-    else {
-	*pnActive = pkdResetType(plcl->pkd,in->iTestMask,in->iSetMask);
-	}
-    if (pnOut) *pnOut = sizeof(int);
-    }
-
-void pstCountType(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
-    LCL *plcl = pst->plcl;
-    struct inActiveType *in = vin;
-    int *pnActive = vout;
-	
-    mdlassert(pst->mdl,nIn == sizeof(*in));
-
-    if (pst->nLeaves > 1) {
-	int nActiveLeaf;
-	mdlReqService(pst->mdl,pst->idUpper,PST_COUNTTYPE,vin,nIn);
-	pstCountType(pst->pstLower,vin,nIn,vout,pnOut);
-	mdlGetReply(pst->mdl,pst->idUpper,&nActiveLeaf,pnOut);
-	*pnActive += nActiveLeaf;
-	}
-    else {
-	*pnActive = pkdCountType(plcl->pkd,in->iFilterMask,in->iTestMask);
-	}
-    if (pnOut) *pnOut = sizeof(int);
-    }
-
-
 void pstActiveType(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     {
     LCL *plcl = pst->plcl;
@@ -3179,28 +3053,6 @@ void pstActiveMaskRung(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 	}
     else {
 	*pnActive = pkdActiveMaskRung(plcl->pkd,in->iSetMask,in->iRung,in->bGreater);
-	}
-    if (pnOut) *pnOut = sizeof(int);
-    }
-
-
-void pstActiveTypeRung(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
-    LCL *plcl = pst->plcl;
-    struct inActiveType *in = vin;
-    int *pnActive = vout;
-	
-    mdlassert(pst->mdl,nIn == sizeof(*in));
-    if (pst->nLeaves > 1) {
-	int nActiveLeaf;
-	mdlReqService(pst->mdl,pst->idUpper,PST_ACTIVETYPERUNG,vin,nIn);
-	pstActiveTypeRung(pst->pstLower,vin,nIn,vout,pnOut);
-	mdlGetReply(pst->mdl,pst->idUpper,&nActiveLeaf,pnOut);
-	*pnActive += nActiveLeaf;
-	}
-    else {
-	*pnActive = pkdActiveTypeRung(plcl->pkd,in->iTestMask,in->iSetMask,
-				      in->iRung,in->bGreater);
 	}
     if (pnOut) *pnOut = sizeof(int);
     }

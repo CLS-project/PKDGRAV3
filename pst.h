@@ -112,7 +112,6 @@ enum pst_service {
     PST_ONENODEREADINIT,
     PST_SWAPALL,
     PST_MASSCHECK,
-    PST_ACTIVETYPEORDER,
     PST_ACTIVEORDER,
     PST_INITSTEP,
     PST_SETRUNG,
@@ -122,13 +121,8 @@ enum pst_service {
     PST_ACCELSTEP,
     PST_DENSITYSTEP,
     PST_GETMAP,
-    PST_ACTIVEEXACTTYPE,
     PST_ACTIVETYPE,
-    PST_SETTYPE,
-    PST_RESETTYPE,
-    PST_COUNTTYPE,
     PST_ACTIVEMASKRUNG,
-    PST_ACTIVETYPERUNG,
     PST_SETPARTICLETYPES,
     PST_MARKSMOOTH,
     PST_RESMOOTH,
@@ -638,12 +632,6 @@ void pstOneNodeReadInit(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 /* PST_SWAPALL */
 void pstSwapAll(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 
-struct inActiveTypeOrder {
-    unsigned int iTestMask;
-    };
-
-void pstActiveTypeOrder(PST,void *,int,void *,int *);
-
 /* PST_ACTIVEORDER */
 void pstActiveOrder(PST,void *,int,void *,int *);
 
@@ -731,13 +719,8 @@ struct inActiveType {
     int bGreater;
     };
 
-void pstActiveExactType(PST,void *,int,void *,int *);
 void pstActiveType(PST,void *,int,void *,int *);
-void pstSetType(PST,void *,int,void *,int *);
-void pstResetType(PST,void *,int,void *,int *);
-void pstCountType(PST,void *,int,void *,int *);
 void pstActiveMaskRung(PST,void *,int,void *,int *);
-void pstActiveTypeRung(PST,void *,int,void *,int *);
 
 struct inSetParticleTypes {
     int iDummy;

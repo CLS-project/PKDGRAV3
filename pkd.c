@@ -892,20 +892,6 @@ int pkdUpperOrdPart(PKD pkd,int nOrdSplit,int i,int j) {
     }
 
 
-int pkdActiveTypeOrder(PKD pkd, unsigned int iTestMask) {
-    PARTICLE pTemp;
-    int i=0;
-    int j=pkdLocal(pkd)-1;
-
-    PARTITION(pkd->pStore,pTemp,i,j,
-	      TYPETest(&(pkd->pStore[i]),iTestMask),
-	      !TYPETest(&(pkd->pStore[j]),iTestMask));
-    if ( iTestMask & TYPE_ACTIVE )       pkd->nActive = i;
-    if ( iTestMask & TYPE_SMOOTHACTIVE ) pkd->nSmoothActive = i;
-    return (i);
-    }
-
-
 int pkdActiveOrder(PKD pkd) {
     PARTICLE pTemp;
     int i=0;
@@ -2629,92 +2615,6 @@ pkdSetNParts(PKD pkd,int nGas,int nDark,int nStar,int nMaxOrderGas,
     }
 
 
-int pkdActiveExactType(PKD pkd, unsigned int iFilterMask, unsigned int iTestMask, unsigned int iSetMask)
-    {
-    PARTICLE *p;
-    int i, nActive = 0;
-
-    for(i=0;i<pkdLocal(pkd);++i) { 
-	p = &pkd->pStore[i];
-	/* DEBUG: Paranoia check */
-	mdlassert(pkd->mdl,TYPETest(p,TYPE_ALL));
-	if (TYPEFilter(p,iFilterMask,iTestMask)) {
-	    TYPESet(p,iSetMask);
-	    nActive++;
-	    }
-	else {
-	    TYPEReset(p,iSetMask);
-	    }
-	}
-    if (iSetMask & TYPE_ACTIVE) pkd->nActive = nActive;
-    if (iSetMask & TYPE_SMOOTHACTIVE) pkd->nSmoothActive = nActive;
-    return nActive;
-    }
-
-int pkdSetType(PKD pkd, unsigned int iTestMask, unsigned int iSetMask)
-    {
-    PARTICLE *p;
-    int i, nActive = 0;
-
-    for(i=0;i<pkdLocal(pkd);++i) {
-	p = &pkd->pStore[i];
-	/* DEBUG: Paranoia check */
-	mdlassert(pkd->mdl,TYPETest(p,TYPE_ALL));
-	if (TYPETest(p,iTestMask)) {
-	    TYPESet(p,iSetMask);
-	    nActive++;
-	    }
-	}
-    /*
-      Need to fix this up:
-      if (iSetMask & TYPE_ACTIVE) pkd->nActive = nActive;
-      if (iSetMask & TYPE_TREEACTIVE) pkd->nTreeActive = nActive;
-      if (iSetMask & TYPE_SMOOTHACTIVE) pkd->nSmoothActive = nActive;
-    */
-    return nActive;
-    }
-
-int pkdResetType(PKD pkd, unsigned int iTestMask, unsigned int iSetMask)
-    {
-    PARTICLE *p;
-    int i, nActive = 0;
-
-    for(i=0;i<pkdLocal(pkd);++i) {
-	p = &pkd->pStore[i];
-	/* DEBUG: Paranoia check */
-	mdlassert(pkd->mdl,TYPETest(p,TYPE_ALL));
-	if (TYPETest(p,iTestMask)) {
-	    TYPEReset(p,iSetMask);
-	    nActive++;
-	    }
-	}
-    /*
-      if (iSetMask & TYPE_ACTIVE) pkd->nActive = nActive;
-      if (iSetMask & TYPE_TREEACTIVE) pkd->nTreeActive = nActive;
-      if (iSetMask & TYPE_SMOOTHACTIVE) pkd->nSmoothActive = nActive;
-    */
-    return nActive;
-    }
-
-int pkdCountType(PKD pkd, unsigned int iFilterMask, unsigned int iTestMask)
-    {
-    PARTICLE *p;
-    int i, nActive = 0;
-
-    for(i=0;i<pkdLocal(pkd);++i) {
-	p = &pkd->pStore[i];
-	if (TYPEFilter(p,iFilterMask,iTestMask)) {
-	    nActive++;
-	    }
-	}
-	{
-	char debug[100];
-	sprintf(debug, "Filter %d:%d, Counted: %d\n",iFilterMask,iTestMask,nActive);
-	mdlDiag(pkd->mdl,debug);
-	}
-    return nActive;
-    }
-
 int pkdActiveType(PKD pkd, unsigned int iTestMask, unsigned int iSetMask)
     {
     PARTICLE *p;
@@ -2749,35 +2649,6 @@ pkdActiveMaskRung(PKD pkd, unsigned iSetMask, int iRung, int bGreater)
     for(i=0;i<pkdLocal(pkd);++i) {
         p = &pkd->pStore[i];
 	if(p->iRung == iRung || (bGreater && p->iRung > iRung)) {
-	    TYPESet(p,iSetMask);
-	    ++nActive;
-	    }
-	else
-	    TYPEReset( p, iSetMask );
-	}
-    sprintf(out,"nActive: %d\n",nActive);
-    mdlDiag(pkd->mdl,out);
-
-    if ( iSetMask & TYPE_ACTIVE      ) pkd->nActive       = nActive;
-    if ( iSetMask & TYPE_SMOOTHACTIVE) pkd->nSmoothActive = nActive;
-    return nActive;
-    }
-
-int
-pkdActiveTypeRung(PKD pkd, unsigned iTestMask, unsigned iSetMask, int iRung, int bGreater)
-    {
-    PARTICLE *p;
-    int i;
-    int nActive;
-    char out[128];
-    
-    nActive = 0;
-    for(i=0;i<pkdLocal(pkd);++i) {
-        p = &pkd->pStore[i];
-        /* DEBUG: Paranoia check */
-        mdlassert(pkd->mdl,TYPETest(p,TYPE_ALL));
-	if(TYPETest(p,iTestMask) && 
-           (p->iRung == iRung || (bGreater && p->iRung > iRung))) {
 	    TYPESet(p,iSetMask);
 	    ++nActive;
 	    }
