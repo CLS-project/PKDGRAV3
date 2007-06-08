@@ -130,10 +130,6 @@ typedef struct particle {
 
 /* Active: -- eg. Calculate new acceleration, PdV, etc... for this particle */
 #define TYPE_ACTIVE            (1<<0)
-/* Gather to/Scatter from this particle with in smooths: */
-#define TYPE_SMOOTHACTIVE      (1<<2)
-/* Smooth has processed this particle */
-#define TYPE_SMOOTHDONE        (1<<3)
 
 /* Types used for Fast Density only (so far) */
 /* Sum Fast Density on this particle */
@@ -166,7 +162,6 @@ typedef struct particle {
 
 /* Type Macros */
 int TYPEQueryACTIVE      ( PARTICLE *a );
-int TYPEQuerySMOOTHACTIVE( PARTICLE *a );
 int TYPEQueryGAS         ( PARTICLE *a );
 int TYPETest  ( PARTICLE *a, unsigned int mask );
 int TYPEFilter( PARTICLE *a, unsigned int filter, unsigned int mask );
@@ -179,7 +174,6 @@ int TYPEClearACTIVE( PARTICLE *a );
 int TYPEClear( PARTICLE *a ); 
 
 #define TYPEQueryACTIVE(a)       ((a)->iActive & TYPE_ACTIVE)
-#define TYPEQuerySMOOTHACTIVE(a) ((a)->iActive & TYPE_SMOOTHACTIVE)
 #define TYPEQueryGAS(a)			 ((a)->iActive & TYPE_GAS)
 #define TYPETest(a,b)            ((a)->iActive & (b))
 #define TYPEFilter(a,b,c)        (((a)->iActive & (b))==(c))
@@ -491,7 +485,6 @@ typedef struct pkdContext {
     int nLocal;
     int nVeryActive;
     int nActive;
-    int nSmoothActive;
     int nDark;
     int nGas;
     int nStar;

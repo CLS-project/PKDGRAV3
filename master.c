@@ -2029,7 +2029,7 @@ void msrOutVector(MSR msr,char *pszFile,int iType)
 
 
 void msrSmooth(MSR msr,double dTime,int iSmoothType,int bGasOnly,
-	       int bSymmetric)
+	       int bSymmetric, int eParticleTypes)
     {
     struct inSmooth in;
 
@@ -2041,6 +2041,7 @@ void msrSmooth(MSR msr,double dTime,int iSmoothType,int bGasOnly,
     in.bPeriodic = msr->param.bPeriodic;
     in.bSymmetric = bSymmetric;
     in.iSmoothType = iSmoothType;
+    in.eParticleTypes = eParticleTypes;
     if (msrComove(msr)) {
 	in.smf.H = csmTime2Hub(msr->param.csm,dTime);
 	in.smf.a = csmTime2Exp(msr->param.csm,dTime);
@@ -2064,7 +2065,7 @@ void msrSmooth(MSR msr,double dTime,int iSmoothType,int bGasOnly,
 
 
 void msrReSmooth(MSR msr,double dTime,int iSmoothType,int bGasOnly,
-		 int bSymmetric)
+		 int bSymmetric,int eParticleTypes)
     {
     struct inReSmooth in;
 
@@ -2076,6 +2077,7 @@ void msrReSmooth(MSR msr,double dTime,int iSmoothType,int bGasOnly,
     in.bPeriodic = msr->param.bPeriodic;
     in.bSymmetric = bSymmetric;
     in.iSmoothType = iSmoothType;
+    in.eParticleTypes = eParticleTypes;
     if (msrComove(msr)) {
 	in.smf.H = csmTime2Hub(msr->param.csm,dTime);
 	in.smf.a = csmTime2Exp(msr->param.csm,dTime);
@@ -2096,44 +2098,6 @@ void msrReSmooth(MSR msr,double dTime,int iSmoothType,int bGasOnly,
 	pstReSmooth(msr->pst,&in,sizeof(in),NULL,NULL);
 	}
     }
-
-#ifdef GASOLINE
-void msrReSmoothWalk(MSR msr,double dTime,int iSmoothType,int bGasOnly,
-		     int bSymmetric)
-    {
-    struct inReSmooth in;
-
-    /*
-    ** Make sure that the type of tree is a density binary tree!
-    */
-    in.nSmooth = msr->param.nSmooth;
-    in.bGasOnly = bGasOnly;
-    in.bPeriodic = msr->param.bPeriodic;
-    in.bSymmetric = bSymmetric;
-    in.iSmoothType = iSmoothType;
-    in.dfBall2OverSoft2 = (msr->param.bLowerSoundSpeed ? 0 :
-			   4.0*msr->param.dhMinOverSoft*msr->param.dhMinOverSoft);
-    if (msrComove(msr)) {
-	in.smf.H = csmTime2Hub(msr->param.csm,dTime);
-	in.smf.a = csmTime2Exp(msr->param.csm,dTime);
-	}
-    else {
-	in.smf.H = 0.0;
-	in.smf.a = 1.0;
-	}
-    if (msr->param.bVStep) {
-	double sec,dsec;
-	printf("ReSmoothWalk...\n");
-	sec = msrTime();
-	pstReSmooth(msr->pst,&in,sizeof(in),NULL,NULL);
-	dsec = msrTime() - sec;
-	printf("ReSmoothWalk Calculated, Wallclock: %f secs\n\n",dsec);
-	}
-    else {
-	pstReSmoothWalk(msr->pst,&in,sizeof(in),NULL,NULL);
-	}
-    }
-#endif
 
 void msrUpdateSoft(MSR msr,double dTime) {
 #ifdef CHANGESOFT
@@ -2158,31 +2122,27 @@ void msrUpdateSoft(MSR msr,double dTime) {
 
 	if (msr->param.bSoftByType) {
 	    if (msr->nDark) {
-		msrActiveType(msr,TYPE_DARK,TYPE_SMOOTHACTIVE);
 		msrBuildTree(msr,-1.0,dTime);
 		bGasOnly = 0;
 		assert(0); /* can't do this yet! */
-		msrSmooth(msr,dTime,SMX_NULL,bGasOnly,bSymmetric);
+		msrSmooth(msr,dTime,SMX_NULL,bGasOnly,bSymmetric,TYPE_DARK);
 		}
 	    if (msr->nGas) {
-		msrActiveType(msr,TYPE_GAS,TYPE_SMOOTHACTIVE);
 		msrBuildTree(msr,-1.0,dTime);
 		bGasOnly = 1;
-		msrSmooth(msr,dTime,SMX_NULL,bGasOnly,bSymmetric);
+		msrSmooth(msr,dTime,SMX_NULL,bGasOnly,bSymmetric,TYPE_GAS);
 		}
 	    if (msr->nStar) {
-		msrActiveType(msr,TYPE_STAR,TYPE_SMOOTHACTIVE);
 		msrBuildTree(msr,-1.0,dTime);
 		bGasOnly = 0;
 		assert(0); /* can't do this yet! */
-		msrSmooth(msr,dTime,SMX_NULL,bGasOnly,bSymmetric);
+		msrSmooth(msr,dTime,SMX_NULL,bGasOnly,bSymmetric,TYPE_STAR);
 		}
 	    }
 	else {
-	    msrActiveType(msr,TYPE_ALL,TYPE_SMOOTHACTIVE);
 	    msrBuildTree(msr,-1.0,dTime);
 	    bGasOnly = 0;
-	    msrSmooth(msr,dTime,SMX_NULL,bGasOnly,bSymmetric);
+	    msrSmooth(msr,dTime,SMX_NULL,bGasOnly,bSymmetric,TYPE_ALL);
 	    }
 
 	inPost.dSoftMax = msr->param.dSoftMax;
@@ -2675,7 +2635,6 @@ void msrActiveType(MSR msr, unsigned int iTestMask, unsigned int iSetMask)
     pstActiveType(msr->pst,&in,sizeof(in),&nActive,NULL);
 
     if (iSetMask & TYPE_ACTIVE      ) msr->nActive       = nActive;
-    if (iSetMask & TYPE_SMOOTHACTIVE) msr->nSmoothActive = nActive;
     }
 
 void msrActiveMaskRung(MSR msr, unsigned int iSetMask, int iRung, int bGreater) 
@@ -2691,7 +2650,6 @@ void msrActiveMaskRung(MSR msr, unsigned int iSetMask, int iRung, int bGreater)
     pstActiveMaskRung(msr->pst,&in,sizeof(in),&nActive,NULL);
 
     if (iSetMask & TYPE_ACTIVE      ) msr->nActive       = nActive;
-    if (iSetMask & TYPE_SMOOTHACTIVE) msr->nSmoothActive = nActive;
     }
 
 int msrCurrRung(MSR msr, int iRung)
@@ -2738,7 +2696,7 @@ msrAccelStep(MSR msr,double dTime)
     }
 
 void
-msrDensityStep(MSR msr,double dTime)
+msrDensityStep(MSR msr,double dTime,int eParticleTypes)
     {
     struct inDensityStep in;
     double expand;
@@ -2747,7 +2705,7 @@ msrDensityStep(MSR msr,double dTime)
     if (msr->param.bVDetails) printf("Calculating Rung Densities...\n");
     bGasOnly = 0;
     bSymmetric = 0;
-    msrSmooth(msr,dTime,SMX_DENSITY,bGasOnly,bSymmetric);
+    msrSmooth(msr,dTime,SMX_DENSITY,bGasOnly,bSymmetric,eParticleTypes);
     in.dEta = msrEta(msr);
     expand = csmTime2Exp(msr->param.csm,dTime);
     in.dRhoFac = 1.0/(expand*expand*expand);
@@ -2862,7 +2820,6 @@ void msrTopStepKDK(MSR msr,
 	    printf("%*cAdjust, iRung: %d\n",2*iRung+2,' ',iRung);
 	    }
 	msrActiveRung(msr, iRung, 1);
-	msrActiveType(msr,TYPE_ALL,TYPE_SMOOTHACTIVE);
 	msrInitDt(msr);
 	if (msr->param.bGravStep) {
 	    msrGravStep(msr,dTime);
@@ -2875,7 +2832,7 @@ void msrTopStepKDK(MSR msr,
 	    msrDomainDecomp(msr,iRung,1,bSplitVA);
 	    msrActiveRung(msr,iRung,1);
 	    msrBuildTree(msr,dMass,dTime);
-	    msrDensityStep(msr,dTime);
+	    msrDensityStep(msr,dTime,TYPE_ALL);
 	    }
 	iRungVeryActive = msrDtToRung(msr,iRung,dDelta,1);
 	}
@@ -2884,7 +2841,6 @@ void msrTopStepKDK(MSR msr,
 	       2*iRung+2,' ',iRung,0.5*dDelta);
 	}
     msrActiveRung(msr,iRung,0);
-    msrActiveType(msr,TYPE_ALL,TYPE_SMOOTHACTIVE );
     msrKickKDKOpen(msr,dTime,0.5*dDelta);
     if ((msrCurrMaxRung(msr) > iRung) && (iRungVeryActive > iRung)) {
 	/*
@@ -3118,7 +3074,6 @@ void msrTopStepHermite(MSR msr,
 	  printf("%*cAdjust, iRung: %d\n",2*iRung+2,' ',iRung);
            }
 	msrActiveRung(msr, iRung, 1);
-	msrActiveType(msr,TYPE_ALL,TYPE_SMOOTHACTIVE);
 	msrInitDt(msr);
 	if (msr->param.bGravStep) {
 	    msrGravStep(msr,dTime);
@@ -3134,15 +3089,11 @@ void msrTopStepHermite(MSR msr,
 	    msrDomainDecomp(msr,iRung,1,bSplitVA);
 	    msrActiveRung(msr,iRung,1);
 	    msrBuildTree(msr,dMass,dTime);
-	    msrDensityStep(msr,dTime);
+	    msrDensityStep(msr,dTime,TYPE_ALL);
 	    }
 	iRungVeryActive = msrDtToRung(msr,iRung,dDelta,1);
     }
 	
-                /* probably unnecessary 
-		msrActiveRung(msr,iRung,0);
-                msrActiveType(msr,TYPE_ALL,TYPE_SMOOTHACTIVE); */
-
     if ((msrCurrMaxRung(msr) > iRung) && (iRungVeryActive > iRung)) 
       {
 		/*
@@ -3533,7 +3484,7 @@ void msrInitTimeSteps(MSR msr,double dTime,double dDelta)
     {
     double dMass = -1.0;
 
-    msrActiveType(msr,TYPE_ALL,TYPE_ACTIVE|TYPE_SMOOTHACTIVE);
+    msrActiveType(msr,TYPE_ALL,TYPE_ACTIVE);
     msrInitDt(msr);
     if (msr->param.bGravStep) {
 	msrGravStep(msr,dTime);
@@ -3543,15 +3494,15 @@ void msrInitTimeSteps(MSR msr,double dTime,double dDelta)
 	}
     if (msr->param.bDensityStep) {
 	msrDomainDecomp(msr,0,1,0);
-	msrActiveType(msr,TYPE_ALL,TYPE_ACTIVE|TYPE_SMOOTHACTIVE);
+	msrActiveType(msr,TYPE_ALL,TYPE_ACTIVE);
 	msrBuildTree(msr,dMass,dTime);
-	msrDensityStep(msr,dTime);
+	msrDensityStep(msr,dTime,TYPE_ALL);
 	}
     msrDtToRung(msr,0,dDelta,1);
     }
 
 
-void msrFof(MSR msr,int nFOFsDone,int iSmoothType,int bSymmetric)
+void msrFof(MSR msr,int nFOFsDone,int iSmoothType,int bSymmetric,int eParticleTypes)
     {
     struct inFof in;
     in.nFOFsDone = nFOFsDone;
@@ -3559,6 +3510,7 @@ void msrFof(MSR msr,int nFOFsDone,int iSmoothType,int bSymmetric)
     in.bPeriodic = msr->param.bPeriodic;
     in.bSymmetric = bSymmetric;
     in.iSmoothType = iSmoothType;
+    in.eParticleTypes = eParticleTypes;
     in.smf.dTau2 = msr->param.dTau * msr->param.dTau;
     if(msr->param.bTauAbs==0) in.smf.dTau2 *= pow(msr->param.csm->dOmega0,-0.6666);
     in.smf.bTauAbs = msr->param.bTauAbs;
@@ -3598,7 +3550,7 @@ void msrGroupMerge(MSR msr)
     printf("MASTER: TOTAL groups: %i \n" ,nGroups);
     }
 
-void msrGroupProfiles(MSR msr,int nFOFsDone,int iSmoothType,int bSymmetric)
+void msrGroupProfiles(MSR msr,int nFOFsDone,int iSmoothType,int bSymmetric,int eParticleTypes)
     {
     int nBins;
     struct inGroupProfiles in;
@@ -3607,6 +3559,7 @@ void msrGroupProfiles(MSR msr,int nFOFsDone,int iSmoothType,int bSymmetric)
     in.nSmooth = msr->param.nSmooth;
     in.bSymmetric = bSymmetric;
     in.iSmoothType = iSmoothType;
+    in.eParticleTypes = eParticleTypes;
     in.nFOFsDone = nFOFsDone;
     in.smf.nMinMembers = msr->param.nMinMembers;
     in.smf.nBins = msr->param.nBins;
@@ -3736,13 +3689,14 @@ void msrInitRelaxation(MSR msr)
     {
     pstInitRelaxation(msr->pst,NULL,0,NULL,NULL);
     }	
-void msrRelaxation(MSR msr,double dTime,double deltaT,int iSmoothType,int bSymmetric)
+void msrRelaxation(MSR msr,double dTime,double deltaT,int iSmoothType,int bSymmetric,int eParticleTypes)
     {
     struct inSmooth in;
     in.nSmooth = msr->param.nSmooth;
     in.bPeriodic = msr->param.bPeriodic;
     in.bSymmetric = bSymmetric;
     in.iSmoothType = iSmoothType;
+    in.eParticleTypes = eParticleTypes;
     in.dfBall2OverSoft2 = (msr->param.bLowerSoundSpeed ? 0 :
 			   4.0*msr->param.dhMinOverSoft*msr->param.dhMinOverSoft);
     if (msrComove(msr)) {

@@ -126,7 +126,6 @@ enum pst_service {
     PST_SETPARTICLETYPES,
     PST_MARKSMOOTH,
     PST_RESMOOTH,
-    PST_RESMOOTHWALK,
     PST_INITACCEL,
     PST_DTTORUNG,
     PST_INITDT,
@@ -395,6 +394,7 @@ struct inSmooth {
     int bPeriodic;
     int bSymmetric;
     int iSmoothType;
+    int eParticleTypes; /* Smooth over which particle types */
     double dfBall2OverSoft2;
     SMF smf;
     };
@@ -735,15 +735,11 @@ struct inReSmooth {
     int bPeriodic;
     int bSymmetric;
     int iSmoothType;
+    int eParticleTypes; /* Smooth over which particle types */
     double dfBall2OverSoft2;
     SMF smf;
     };
 void pstReSmooth(PST,void *,int,void *,int *);
-
-#ifdef GASOLINE
-/* PST_RESMOOTHWALK */
-void pstReSmoothWalk(PST,void *,int,void *,int *);
-#endif
 
 /* PST_DTTORUNG */
 struct inDtToRung {
@@ -830,6 +826,7 @@ struct inFof {
     int bPeriodic;
     int bSymmetric;
     int iSmoothType;
+    int eParticleTypes; /* Smooth over which particle types */
     SMF smf;
     };
 struct inGroupMerge{
@@ -844,6 +841,7 @@ struct inGroupProfiles{
     int bLogBins;
     int bSymmetric;
     int iSmoothType;
+    int eParticleTypes; /* Smooth over which particle types */
     SMF smf;
     };
 void pstFof(PST,void *,int,void *,int *);

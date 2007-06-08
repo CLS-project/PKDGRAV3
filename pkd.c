@@ -1030,11 +1030,6 @@ int pkdActive(PKD pkd)
     return(pkd->nActive);
     }
 
-int pkdSmoothActive(PKD pkd)
-    {
-    return(pkd->nSmoothActive);
-    }
-
 int pkdInactive(PKD pkd)
     {
     return(pkd->nLocal - pkd->nActive);
@@ -1738,7 +1733,6 @@ pkdStepVeryActiveKDK(PKD pkd, double dStep, double dTime, double dDelta,
     
     if(iAdjust && (iRung < pkd->param.iMaxRung-1)) {
 	pkdActiveRung(pkd, iRung, 1);
-	pkdActiveType(pkd,TYPE_ALL,TYPE_SMOOTHACTIVE);
 	pkdInitDt(pkd, pkd->param.dDelta);
 	if (pkd->param.bGravStep) {
 	    double a = csmTime2Exp(pkd->param.csm,dTime);
@@ -1885,7 +1879,6 @@ pkdStepVeryActiveHermite(PKD pkd, double dStep, double dTime, double dDelta,
     
     if(iAdjust && (iRung < pkd->param.iMaxRung-1)) {
 	pkdActiveRung(pkd, iRung, 1);
-	pkdActiveType(pkd,TYPE_ALL,TYPE_SMOOTHACTIVE);
 	pkdInitDt(pkd, pkd->param.dDelta);
 	if (pkd->param.bAarsethStep) {
 	  pkdAarsethStep(pkd,pkd->param.dEta);
@@ -2633,7 +2626,6 @@ int pkdActiveType(PKD pkd, unsigned int iTestMask, unsigned int iSetMask)
 	    }
 	}
     if (iSetMask & TYPE_ACTIVE      ) pkd->nActive       = nActive;
-    if (iSetMask & TYPE_SMOOTHACTIVE) pkd->nSmoothActive = nActive;
     return nActive;
     }
 
@@ -2659,7 +2651,6 @@ pkdActiveMaskRung(PKD pkd, unsigned iSetMask, int iRung, int bGreater)
     mdlDiag(pkd->mdl,out);
 
     if ( iSetMask & TYPE_ACTIVE      ) pkd->nActive       = nActive;
-    if ( iSetMask & TYPE_SMOOTHACTIVE) pkd->nSmoothActive = nActive;
     return nActive;
     }
 

@@ -557,6 +557,9 @@ pkdResetColliders(PKD pkd,int iOrder1,int iOrder2)
 	PARTICLE *p;
 	int i;
 
+	assert(0); /* SMOOTHACTIVE no longer exists */
+#if 0
+
 	for (i=0;i<pkdLocal(pkd);i++) {
 		p = &pkd->pStore[i];
 		if (!TYPEQueryACTIVE(p)) continue;
@@ -566,6 +569,7 @@ pkdResetColliders(PKD pkd,int iOrder1,int iOrder2)
 		else
 			TYPEReset(p,TYPE_SMOOTHACTIVE);
 		}
+#endif
 }
 
 void

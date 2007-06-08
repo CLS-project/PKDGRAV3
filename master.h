@@ -60,7 +60,6 @@ typedef struct msrContext {
     int iLastRungDD;
     int iLastRungSD;
     int nActive;
-    int nSmoothActive;
     int nGroups;
     int nBins;
     int bAntiGrav;
@@ -94,8 +93,8 @@ void msrDomainColor(MSR);
 void msrReorder(MSR);
 void msrOutArray(MSR,char *,int);
 void msrOutVector(MSR,char *,int);
-void msrSmooth(MSR,double,int,int,int);
-void msrReSmooth(MSR,double,int,int,int);
+void msrSmooth(MSR,double,int,int,int,int);
+void msrReSmooth(MSR,double,int,int,int,int);
 void msrUpdateSoft(MSR,double);
 void msrGravity(MSR,double,double,int *,double *,double *,double *,int *);
 void msrCalcEandL(MSR,int,double,double *,double *,double *,double *,double *);
@@ -166,7 +165,7 @@ void msrCalcWriteStart(MSR);
 void msrAddDelParticles(MSR msr);
 void msrGravStep(MSR msr, double dTime);
 void msrAccelStep(MSR msr, double dTime);
-void msrDensityStep(MSR msr, double dTime);
+void msrDensityStep(MSR msr, double dTime, int);
 void msrInitDt(MSR msr);
 int msrDtToRung(MSR msr, int iRung, double dDelta, int bAll);
 
@@ -195,14 +194,14 @@ int msrMaxOrder(MSR msr);
 
 void msrInitTimeSteps(MSR,double,double);
 
-void msrFof(MSR msr,int nFOFsDone,int iSmoothType,int bSymmetric);
+void msrFof(MSR msr,int nFOFsDone,int iSmoothType,int bSymmetric,int eParticleTypes);
 void msrGroupMerge(MSR msr);
-void msrGroupProfiles(MSR msr,int nFOFsDone,int iSmoothType,int bSymmetric);
+void msrGroupProfiles(MSR msr,int nFOFsDone,int iSmoothType,int bSymmetric,int eParticleTypes);
 void msrOutGroups(MSR msr,char *,int,double dTime);
 void msrDeleteGroups(MSR msr);
 #ifdef RELAXATION
 void msrInitRelaxation(MSR msr);
-void msrRelaxation(MSR msr,double dTime,double deltaT,int iSmoothType,int bSymmetric);
+void msrRelaxation(MSR msr,double dTime,double deltaT,int iSmoothType,int bSymmetric,int eParticleTypes);
 #endif /* RELAXATION  */
 
 #ifdef PLANETS 

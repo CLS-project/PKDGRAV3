@@ -229,11 +229,6 @@ void pstAddServices(PST pst,MDL mdl)
     mdlAddService(mdl,PST_RESMOOTH,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstReSmooth,
 		  sizeof(struct inReSmooth),0);
-#ifdef GASOLINE
-    mdlAddService(mdl,PST_RESMOOTHWALK,pst,
-		  (void (*)(void *,void *,int,void *,int *)) pstReSmoothWalk,
-		  sizeof(struct inReSmooth),0);
-#endif
     mdlAddService(mdl,PST_DTTORUNG,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstDtToRung,
 		  sizeof(struct inDtToRung),sizeof(struct outDtToRung));
@@ -2311,7 +2306,8 @@ void pstSmooth(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 	SMX smx;
 
 	smInitialize(&smx,plcl->pkd,&in->smf,in->nSmooth,in->bGasOnly,
-		     in->bPeriodic,in->bSymmetric,in->iSmoothType,in->dfBall2OverSoft2);
+		     in->bPeriodic,in->bSymmetric,in->iSmoothType,
+		     in->eParticleTypes,in->dfBall2OverSoft2);
 	smSmooth(smx,&in->smf);
 	smFinish(smx,&in->smf);
 	}
@@ -2334,36 +2330,13 @@ void pstReSmooth(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 	SMX smx;
 
 	smInitialize(&smx,plcl->pkd,&in->smf,in->nSmooth,in->bGasOnly,
-		     in->bPeriodic,in->bSymmetric,in->iSmoothType,in->dfBall2OverSoft2);
+		     in->bPeriodic,in->bSymmetric,in->iSmoothType,
+		     in->eParticleTypes,in->dfBall2OverSoft2);
 	smReSmooth(smx,&in->smf);
 	smFinish(smx,&in->smf);
 	}
     if (pnOut) *pnOut = 0;
     }
-
-#ifdef GASOLINE
-void pstReSmoothWalk(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
-    struct inReSmooth *in = vin;
-
-    mdlassert(pst->mdl,nIn == sizeof(struct inReSmooth));
-    if (pst->nLeaves > 1) {
-	mdlReqService(pst->mdl,pst->idUpper,PST_RESMOOTH,in,nIn);
-	pstReSmooth(pst->pstLower,in,nIn,NULL,NULL);
-	mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
-	}
-    else {
-	LCL *plcl = pst->plcl;
-	SMX smx;
-
-	smInitialize(&smx,plcl->pkd,&in->smf,in->nSmooth,in->bGasOnly,
-		     in->bPeriodic,in->bSymmetric,in->iSmoothType,in->dfBall2OverSoft2);
-	smReSmoothWalk(smx,&in->smf);
-	smFinish(smx,&in->smf);
-	}
-    if (pnOut) *pnOut = 0;
-    }
-#endif
 
 void pstGravity(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     {
@@ -3177,7 +3150,8 @@ void pstFof(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 	SMX smx;
 	(&in->smf)->pkd = pst->plcl->pkd;
 	smInitialize(&smx,plcl->pkd,&in->smf,in->nSmooth,0,
-		     in->bPeriodic,in->bSymmetric,in->iSmoothType,0.0);
+		     in->bPeriodic,in->bSymmetric,in->iSmoothType,
+		     in->eParticleTypes,0.0);
 	smFof(smx,in->nFOFsDone,&in->smf);
 	smFinish(smx,&in->smf);
 	}
@@ -3222,7 +3196,8 @@ void pstGroupProfiles(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 	SMX smx;
 	(&in->smf)->pkd = pst->plcl->pkd;
 	smInitialize(&smx,plcl->pkd,&in->smf,in->nSmooth,0,
-		     in->bPeriodic,in->bSymmetric,in->iSmoothType,0.0);
+		     in->bPeriodic,in->bSymmetric,in->iSmoothType,
+		     in->eParticleTypes,0.0);
 	*nBins = smGroupProfiles(smx, &in->smf,in->bPeriodic,in->nTotalGroups,in->bLogBins,in->nFOFsDone);
 	smFinish(smx,&in->smf);
 	}
