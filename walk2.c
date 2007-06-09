@@ -357,7 +357,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 #endif
 		d2 = 0;
 		for (j=0;j<3;++j) {
-		    dx[j] = rCheck[j] - c[iCell].r[j];
+		    dx[j] = c[iCell].r[j] - rCheck[j];
 		    d2 += dx[j]*dx[j];
 		}
 		iOpen = 0;
