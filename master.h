@@ -159,7 +159,6 @@ void msrActiveRung(MSR msr, int iRung, int bGreater);
 void msrActiveOrder(MSR msr);
 
 /* Replacement functions */
-void msrActiveType(MSR msr, unsigned int iTestMask, unsigned int iSetMask);
 void msrActiveMaskRung(MSR msr, unsigned int iSetMask, int iRung, int bGreater);
 /*------------------*/
 /* Active Functions */
