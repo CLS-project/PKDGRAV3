@@ -681,7 +681,6 @@ int pkdOrdWeight(PKD,int,int,int,int,int *,int *);
 void pkdDeleteParticle(PKD pkd, PARTICLE *p);
 void pkdNewParticle(PKD pkd, PARTICLE *p);
 int pkdResetTouchRung(PKD pkd, unsigned int iTestMask, unsigned int iSetMask);
-int pkdActiveType(PKD pkd, unsigned int iTestMask, unsigned int iSetMask);
 void pkdSetRungVeryActive(PKD pkd, int iRung );
 int pkdIsGas(PKD,PARTICLE *);
 int pkdIsDark(PKD,PARTICLE *);

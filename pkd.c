@@ -2611,27 +2611,6 @@ pkdSetNParts(PKD pkd,int nGas,int nDark,int nStar,int nMaxOrderGas,
     }
 
 
-int pkdActiveType(PKD pkd, unsigned int iTestMask, unsigned int iSetMask)
-    {
-    PARTICLE *p;
-    int i, nActive = 0;
-
-    for(i=0;i<pkdLocal(pkd);++i) {
-	p = &pkd->pStore[i];
-	/* DEBUG: Paranoia check */
-	mdlassert(pkd->mdl,TYPETest(p,TYPE_ALL));
-	if (TYPETest(p,iTestMask)) {
-	    TYPESet(p,iSetMask);
-	    nActive++;
-	    }
-	else {
-	    TYPEReset(p,iSetMask);
-	    }
-	}
-    if (iSetMask & TYPE_ACTIVE      ) pkd->nActive       = nActive;
-    return nActive;
-    }
-
 void
 pkdSetRungVeryActive(PKD pkd, int iRung)
     {

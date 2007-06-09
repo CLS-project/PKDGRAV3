@@ -217,9 +217,6 @@ void pstAddServices(PST pst,MDL mdl)
     mdlAddService(mdl,PST_ACCELSTEP,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstAccelStep,
 		  sizeof(struct inAccelStep), 0);
-    mdlAddService(mdl,PST_ACTIVETYPE,pst,
-		  (void (*)(void *,void *,int,void *,int *)) pstActiveType,
-		  sizeof(struct inActiveType),sizeof(int));
     mdlAddService(mdl,PST_SETRUNGVERYACTIVE,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstSetRungVeryActive,
 		  sizeof(struct inSetRung),sizeof(int));
@@ -2985,28 +2982,6 @@ void pstInitDt(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 	pkdInitDt(plcl->pkd,in->dDelta);
 	}
     if (pnOut) *pnOut = 0;
-    }
-
-
-void pstActiveType(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
-    LCL *plcl = pst->plcl;
-    struct inActiveType *in = vin;
-    int *pnActive = vout;
-	
-    mdlassert(pst->mdl,nIn == sizeof(*in));
-
-    if (pst->nLeaves > 1) {
-	int nActiveLeaf;
-	mdlReqService(pst->mdl,pst->idUpper,PST_ACTIVETYPE,vin,nIn);
-	pstActiveType(pst->pstLower,vin,nIn,vout,pnOut);
-	mdlGetReply(pst->mdl,pst->idUpper,&nActiveLeaf,pnOut);
-	*pnActive += nActiveLeaf;
-	}
-    else {
-	*pnActive = pkdActiveType(plcl->pkd,in->iTestMask,in->iSetMask);
-	}
-    if (pnOut) *pnOut = sizeof(int);
     }
 
 

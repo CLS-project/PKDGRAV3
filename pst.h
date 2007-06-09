@@ -121,7 +121,6 @@ enum pst_service {
     PST_ACCELSTEP,
     PST_DENSITYSTEP,
     PST_GETMAP,
-    PST_ACTIVETYPE,
     PST_SETRUNGVERYACTIVE,
     PST_SETPARTICLETYPES,
     PST_MARKSMOOTH,
@@ -710,16 +709,6 @@ struct inGetMap {
     int nStart;
     };
 void pstGetMap(PST,void *,int,void *,int *);
-
-struct inActiveType {
-    unsigned int iFilterMask;
-    unsigned int iTestMask;
-    unsigned int iSetMask;
-    int iRung;
-    int bGreater;
-    };
-
-void pstActiveType(PST,void *,int,void *,int *);
 
 void pstSetRungVeryActive(PST,void *,int,void *,int *);
 
