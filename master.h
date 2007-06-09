@@ -1,6 +1,8 @@
 #ifndef MASTER_HINCLUDED
 #define MASTER_HINCLUDED
 
+#include <stdint.h>
+
 #include "param.h"
 #include "pst.h"
 #include "mdl.h"
@@ -52,6 +54,9 @@ typedef struct msrContext {
     ** Processor mapping for one-node-output functions.
     */
     int *pMap;
+
+    uint8_t iRungVeryActive;    /* NOTE: The first very active particle is at iRungVeryActive + 1 */
+
     /*
      * Domain Decomposition Done
      */

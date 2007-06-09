@@ -675,8 +675,8 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv)
     assert(msr->nRung != NULL);
     for (i=0;i<=msr->param.iMaxRung;++i) msr->nRung[i] = 0;
 
-    /* There is no pending save */
-    msr->bSavePending = 0;
+    msr->iRungVeryActive = msr->param.iMaxRung; /* No very active particles */
+    msr->bSavePending = 0;                      /* There is no pending save */
     }
 
 
@@ -1687,7 +1687,7 @@ void msrDomainDecomp(MSR msr,int iRung,int bGreater,int bSplitVA) {
 	pstCalcBound(msr->pst,NULL,0,&outcb,NULL);
 	in.bnd = outcb.bnd;
 	}
-	
+
     nActive=0;
     if (bGreater) {
 	iRungDD=msr->iCurrMaxRung+1; 
@@ -2637,19 +2637,14 @@ void msrActiveType(MSR msr, unsigned int iTestMask, unsigned int iSetMask)
     if (iSetMask & TYPE_ACTIVE      ) msr->nActive       = nActive;
     }
 
-void msrActiveMaskRung(MSR msr, unsigned int iSetMask, int iRung, int bGreater) 
+void msrSetRungVeryActive(MSR msr, int iRung) 
     {
-    struct inActiveType in;
-    int nActive;
+    struct inSetRung in;
 
-    in.iTestMask = (~0);
-    in.iSetMask = iSetMask;
+    msr->iRungVeryActive = iRung;
+
     in.iRung = iRung;
-    in.bGreater = bGreater;
-
-    pstActiveMaskRung(msr->pst,&in,sizeof(in),&nActive,NULL);
-
-    if (iSetMask & TYPE_ACTIVE      ) msr->nActive       = nActive;
+    pstSetRungVeryActive(msr->pst,&in,sizeof(in),NULL,NULL);
     }
 
 int msrCurrRung(MSR msr, int iRung)
@@ -2788,7 +2783,7 @@ int msrDtToRung(MSR msr, int iRung, double dDelta, int bAll) {
     /*
      * Set VeryActive particles
      */
-    msrActiveMaskRung(msr, TYPE_VERYACTIVE, iRungVeryActive+1, 1);
+    msrSetRungVeryActive(msr, iRungVeryActive);
     return(iRungVeryActive);
     }
 
@@ -2840,7 +2835,7 @@ void msrTopStepKDK(MSR msr,
 	printf("%*cmsrKickOpen  at iRung: %d 0.5*dDelta: %g\n",
 	       2*iRung+2,' ',iRung,0.5*dDelta);
 	}
-    msrActiveRung(msr,iRung,0);
+    msrActiveRung(msr,iRung,0); /* EXACT */
     msrKickKDKOpen(msr,dTime,0.5*dDelta);
     if ((msrCurrMaxRung(msr) > iRung) && (iRungVeryActive > iRung)) {
 	/*
@@ -2850,7 +2845,7 @@ void msrTopStepKDK(MSR msr,
 		      pdActiveSum,pdWMax,pdIMax,pdEMax,piSec);
 	dTime += 0.5*dDelta;
 	dStep += 1.0/(2 << iRung);
-	msrActiveRung(msr,iRung,0);
+	msrActiveRung(msr,iRung,0); /* EXACT */
 	msrTopStepKDK(msr,dStep,dTime,0.5*dDelta,iRung+1,iKickRung,iRungVeryActive,1,
 		      pdActiveSum,pdWMax,pdIMax,pdEMax,piSec);
 	}
@@ -2863,7 +2858,7 @@ void msrTopStepKDK(MSR msr,
 	dTime += dDelta;
 	dStep += 1.0/(1 << iRung);
 
-	msrActiveMaskRung(msr,TYPE_ACTIVE,iKickRung,1);
+	msrActiveRung(msr,iKickRung,1);
 	bSplitVA = 0;
 	msrDomainDecomp(msr,iKickRung,1,bSplitVA);
 
@@ -2900,7 +2895,8 @@ void msrTopStepKDK(MSR msr,
 	/*
 	 * Activate VeryActives
 	 */
-	msrActiveType(msr, TYPE_VERYACTIVE, TYPE_ACTIVE);
+	msrActiveRung(msr,msr->iRungVeryActive+1,1);
+
 	/*
 	 * Drift the non-VeryActive particles forward 1/2 timestep
 	 */
@@ -2940,7 +2936,7 @@ void msrTopStepKDK(MSR msr,
 	    printf("%*cInActiveDrift at iRung: %d, 0.5*dDelta: %g\n",
 		   2*iRung+2,' ',iRung,0.5*dDelta);
 	    }
-	msrActiveType(msr, TYPE_VERYACTIVE, TYPE_ACTIVE);
+	msrActiveRung(msr,msr->iRungVeryActive+1,1);
 	/* 
 	** The inactives are half time step behind the actives. 
 	** Move them a half time step ahead to synchronize everything again.
@@ -2950,7 +2946,7 @@ void msrTopStepKDK(MSR msr,
 	/*
 	 * Regular Tree gravity
 	 */
-	msrActiveMaskRung(msr,TYPE_ACTIVE,iKickRung,1);
+	msrActiveRung(msr,iKickRung,1);
 	bSplitVA = 0;
 	msrDomainDecomp(msr,iKickRung,1,bSplitVA);
 
@@ -2984,7 +2980,7 @@ void msrTopStepKDK(MSR msr,
 		printf("%*cVeryActive msrKickClose at iRung: %d, 0.5*dDelta: %g\n",
 		       2*iRung+2,' ',i, 0.5*dDeltaTmp);
 		}
-	    msrActiveRung(msr,i,0);
+	    msrActiveRung(msr,i,0); /* EXACT */
 	    msrKickKDKClose(msr,dTime - 0.5*dDeltaTmp,0.5*dDeltaTmp);
 	    dDeltaTmp *= 2.0;
 	    }
@@ -2999,7 +2995,7 @@ void msrTopStepKDK(MSR msr,
 	printf("%*cKickClose, iRung: %d, 0.5*dDelta: %g\n",
 	       2*iRung+2,' ',iRung, 0.5*dDelta);
 	}
-    msrActiveRung(msr,iRung,0);
+    msrActiveRung(msr,iRung,0); /* EXACT */
     msrKickKDKClose(msr,dTime,0.5*dDelta);
     }
 
@@ -3124,7 +3120,7 @@ void msrTopStepHermite(MSR msr,
                 msrActiveRung(msr,0,1);/* activate everybody*/
                 msrPredictor(msr,dTime);     
             
-		msrActiveMaskRung(msr,TYPE_ACTIVE,iKickRung,1);
+		msrActiveRung(msr,iKickRung,1);
 		bSplitVA = 0;
 		msrDomainDecomp(msr,iKickRung,1,bSplitVA);
 	
@@ -3197,7 +3193,7 @@ else {
 	/*
 	 * Activate VeryActives
 	 */
-	msrActiveType(msr, TYPE_VERYACTIVE, TYPE_ACTIVE);
+	msrActiveRung(msr,msr->iRungVeryActive+1,1);
 	/*
 	 * Predict the non-VeryActive particles forward 1/2 timestep
 	 */
@@ -3241,7 +3237,7 @@ else {
 	    printf("%*cInActivePredictor at iRung: %d, 0.5*dDelta: %g\n",
 		   2*iRung+2,' ',iRung,0.5*dDelta);
 	    }
-	msrActiveType(msr, TYPE_VERYACTIVE, TYPE_ACTIVE);
+	msrActiveRung(msr,msr->iRungVeryActive+1,1);
 	/* 
 	** The inactives are half time step behind the actives. 
 	** Move them a half time step ahead to synchronize everything again.
@@ -3251,7 +3247,7 @@ else {
 	/*
 	 * Regular Tree gravity
 	 */
-	msrActiveMaskRung(msr,TYPE_ACTIVE,iKickRung,1);
+	msrActiveRung(msr,iKickRung,1);
 	bSplitVA = 0;
 	msrDomainDecomp(msr,iKickRung,1,bSplitVA);
 

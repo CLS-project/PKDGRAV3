@@ -1,6 +1,7 @@
 #ifndef PKD_HINCLUDED
 #define PKD_HINCLUDED
 
+#include <stdint.h>
 #include <sys/resource.h>
 #include "mdl.h"
 #ifndef HAVE_CONFIG_H
@@ -61,7 +62,9 @@
 typedef struct pLite {
     FLOAT r[3];
     int i;
-    unsigned int iActive;
+    uint8_t iRung;
+    uint8_t bActive;
+    /*unsigned int iActive;*/
     } PLITE;
 
 typedef struct pIO {
@@ -126,6 +129,7 @@ typedef struct particle {
 #endif
     } PARTICLE;
 
+
 /* Active Type Masks */
 
 /* Active: -- eg. Calculate new acceleration, PdV, etc... for this particle */
@@ -153,7 +157,6 @@ typedef struct particle {
 /* A particle whose coordinates are output very frequently */
 #define TYPE_TRACKER		   (1<<14)
 
-#define TYPE_VERYACTIVE         (1<<13)
 /* Combination Masks */
 #define TYPE_ALL				(TYPE_GAS|TYPE_DARK|TYPE_STAR|TYPE_BLACKHOLE)
 
@@ -284,6 +287,9 @@ typedef struct kdNode {
     BND bndBall;	/* Bound including fBall*(1+changemax) */
 #endif
     } KDN;
+
+#define CELL_ACTIVE(c,a,b) ((a)<=(c)->uMaxRung && (b)>=(c)->uMinRung)
+
 
 #define NMAX_OPENCALC	100
 
@@ -502,6 +508,12 @@ typedef struct pkdContext {
     PARTICLE **piActive;
     PARTICLE **piInactive;
     PLITE *pLite;
+
+    /*
+    ** New activation methods
+    */
+    uint8_t iRungVeryActive;    /* NOTE: The first very active particle is at iRungVeryActive + 1 */
+
     /*
     ** Ewald summation setup.
     */
@@ -538,6 +550,14 @@ typedef struct pkdContext {
 #endif   
     } * PKD;
 
+/* New, rung based ACTIVE/INACTIVE routines */
+static inline int pkdRungVeryActive(PKD pkd) { return pkd->iRungVeryActive; }
+static inline int pkdIsVeryActive(PKD pkd, PARTICLE *p) {
+    return p->iRung > pkd->iRungVeryActive;
+}
+static inline int pkdIsActive(PKD pkd, PARTICLE *p, int a, int b ) {
+    return p->iRung >= a && p->iRung <= b;
+}
 
 typedef struct CacheStatistics {
     double dpNumAccess;
@@ -662,7 +682,7 @@ void pkdDeleteParticle(PKD pkd, PARTICLE *p);
 void pkdNewParticle(PKD pkd, PARTICLE *p);
 int pkdResetTouchRung(PKD pkd, unsigned int iTestMask, unsigned int iSetMask);
 int pkdActiveType(PKD pkd, unsigned int iTestMask, unsigned int iSetMask);
-int pkdActiveMaskRung(PKD pkd, unsigned int iSetMask, int iRung, int bGreater );
+void pkdSetRungVeryActive(PKD pkd, int iRung );
 int pkdIsGas(PKD,PARTICLE *);
 int pkdIsDark(PKD,PARTICLE *);
 int pkdIsStar(PKD,PARTICLE *);
@@ -676,7 +696,6 @@ void pkdSetNParts(PKD pkd, int nGas, int nDark, int nStar, int nMaxOrderGas,
 void pkdInitRelaxation(PKD pkd);
 #endif
 int pkdPackIO(PKD pkd,PIO *io,int nStart,int nMax);
-
 
 #ifdef PLANETS
 void pkdSunIndirect(PKD pkd,double aSun[],double adSun[],int iFlag);

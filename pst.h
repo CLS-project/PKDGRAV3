@@ -122,7 +122,7 @@ enum pst_service {
     PST_DENSITYSTEP,
     PST_GETMAP,
     PST_ACTIVETYPE,
-    PST_ACTIVEMASKRUNG,
+    PST_SETRUNGVERYACTIVE,
     PST_SETPARTICLETYPES,
     PST_MARKSMOOTH,
     PST_RESMOOTH,
@@ -720,7 +720,8 @@ struct inActiveType {
     };
 
 void pstActiveType(PST,void *,int,void *,int *);
-void pstActiveMaskRung(PST,void *,int,void *,int *);
+
+void pstSetRungVeryActive(PST,void *,int,void *,int *);
 
 struct inSetParticleTypes {
     int iDummy;

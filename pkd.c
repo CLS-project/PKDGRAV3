@@ -158,6 +158,9 @@ void pkdInitialize(PKD *ppkd,MDL mdl,int nStore,FLOAT *fPeriod,
     for (j=0;j<3;++j) {
 	pkd->fPeriod[j] = fPeriod[j];
 	}
+
+    pkd->iRungVeryActive = 255;
+
     /*
     ** Allocate the main particle store.
     ** Need to use mdlMalloc() since the particles will need to be
@@ -697,7 +700,7 @@ void pkdCountVA(PKD pkd,int d,FLOAT fSplit,int *pnLow,int *pnHigh) {
     *pnLow = 0;
     *pnHigh = 0;
     for (i=0;i<pkd->nLocal;++i) {
-	if (pkd->pStore[i].iActive & TYPE_VERYACTIVE) {
+	if (pkdIsVeryActive(pkd,pkd->pStore+i)) {
 	    if (pkd->pStore[i].r[d] < fSplit) *pnLow += 1;
 	    else *pnHigh += 1;
 	    }
@@ -781,16 +784,16 @@ int pkdLowerPartWrap(PKD pkd,int d,FLOAT fSplit1,FLOAT fSplit2,int iVASplitSide,
 	if (iVASplitSide < 0) {
 	    PARTITION(pkd->pStore,pTemp,i,j,
 		      (pkd->pStore[i].r[d] < fSplit2 || pkd->pStore[i].r[d] >= fSplit1) &&
-		      !(pkd->pStore[i].iActive & TYPE_VERYACTIVE),
+		      !pkdIsVeryActive(pkd,pkd->pStore+i),
 		      (pkd->pStore[j].r[d] >= fSplit2 && pkd->pStore[j].r[d] < fSplit1) ||
-		      (pkd->pStore[j].iActive & TYPE_VERYACTIVE));
+		      pkdIsVeryActive(pkd,pkd->pStore+j));
 	    }
 	else if (iVASplitSide > 0) {
 	    PARTITION(pkd->pStore,pTemp,i,j,
 		      (pkd->pStore[i].r[d] < fSplit2 || pkd->pStore[i].r[d] >= fSplit1) ||
-		      (pkd->pStore[i].iActive & TYPE_VERYACTIVE),
+		      pkdIsVeryActive(pkd,pkd->pStore+i),
 		      (pkd->pStore[j].r[d] >= fSplit2 && pkd->pStore[j].r[d] < fSplit1) &&
-		      !(pkd->pStore[j].iActive & TYPE_VERYACTIVE));
+		      !pkdIsVeryActive(pkd,pkd->pStore+j));
 	    }
 	else {
 	    PARTITION(pkd->pStore,pTemp,i,j,
@@ -802,16 +805,16 @@ int pkdLowerPartWrap(PKD pkd,int d,FLOAT fSplit1,FLOAT fSplit2,int iVASplitSide,
 	if (iVASplitSide < 0) {
 	    PARTITION(pkd->pStore,pTemp,i,j,
 		      (pkd->pStore[i].r[d] < fSplit2 && pkd->pStore[i].r[d] >= fSplit1) &&
-		      !(pkd->pStore[i].iActive & TYPE_VERYACTIVE),
+		      !pkdIsVeryActive(pkd,pkd->pStore+i),
 		      (pkd->pStore[j].r[d] >= fSplit2 || pkd->pStore[j].r[d] < fSplit1) ||
-		      (pkd->pStore[j].iActive & TYPE_VERYACTIVE));
+		      pkdIsVeryActive(pkd,pkd->pStore+j));
 	    }
 	else if (iVASplitSide > 0) {
 	    PARTITION(pkd->pStore,pTemp,i,j,
 		      (pkd->pStore[i].r[d] < fSplit2 && pkd->pStore[i].r[d] >= fSplit1) ||
-		      (pkd->pStore[i].iActive & TYPE_VERYACTIVE),
+		      pkdIsVeryActive(pkd,pkd->pStore+i),
 		      (pkd->pStore[j].r[d] >= fSplit2 || pkd->pStore[j].r[d] < fSplit1) &&
-		      !(pkd->pStore[j].iActive & TYPE_VERYACTIVE));
+		      !pkdIsVeryActive(pkd,pkd->pStore+j));
 	    }
 	else {
 	    PARTITION(pkd->pStore,pTemp,i,j,
@@ -830,16 +833,16 @@ int pkdUpperPartWrap(PKD pkd,int d,FLOAT fSplit1,FLOAT fSplit2,int iVASplitSide,
 	if (iVASplitSide < 0) {
 	    PARTITION(pkd->pStore,pTemp,i,j,
 		      (pkd->pStore[i].r[d] >= fSplit2 && pkd->pStore[i].r[d] < fSplit1) ||
-		      (pkd->pStore[i].iActive & TYPE_VERYACTIVE),
+		      pkdIsVeryActive(pkd,pkd->pStore+i),
 		      (pkd->pStore[j].r[d] < fSplit2 || pkd->pStore[j].r[d] >= fSplit1) &&
-		      !(pkd->pStore[j].iActive & TYPE_VERYACTIVE));
+		      !pkdIsVeryActive(pkd,pkd->pStore+j));
 	    }
 	else if (iVASplitSide > 0) {
 	    PARTITION(pkd->pStore,pTemp,i,j,
 		      (pkd->pStore[i].r[d] >= fSplit2 && pkd->pStore[i].r[d] < fSplit1) &&
-		      !(pkd->pStore[i].iActive & TYPE_VERYACTIVE),
+		      !pkdIsVeryActive(pkd,pkd->pStore+i),
 		      (pkd->pStore[j].r[d] < fSplit2 || pkd->pStore[j].r[d] >= fSplit1) ||
-		      (pkd->pStore[j].iActive & TYPE_VERYACTIVE));
+		      pkdIsVeryActive(pkd,pkd->pStore+j));
 	    }
 	else {
 	    PARTITION(pkd->pStore,pTemp,i,j,
@@ -851,16 +854,16 @@ int pkdUpperPartWrap(PKD pkd,int d,FLOAT fSplit1,FLOAT fSplit2,int iVASplitSide,
 	if (iVASplitSide < 0) {
 	    PARTITION(pkd->pStore,pTemp,i,j,
 		      (pkd->pStore[i].r[d] >= fSplit2 || pkd->pStore[i].r[d] < fSplit1) ||
-		      (pkd->pStore[i].iActive & TYPE_VERYACTIVE),
+		      pkdIsVeryActive(pkd,pkd->pStore+i),
 		      (pkd->pStore[j].r[d] < fSplit2 && pkd->pStore[j].r[d] >= fSplit1) &&
-		      !(pkd->pStore[j].iActive & TYPE_VERYACTIVE));
+		      !pkdIsVeryActive(pkd,pkd->pStore+j));
 	    }
 	else if (iVASplitSide > 0) {
 	    PARTITION(pkd->pStore,pTemp,i,j,
 		      (pkd->pStore[i].r[d] >= fSplit2 || pkd->pStore[i].r[d] < fSplit1) &&
-		      !(pkd->pStore[i].iActive & TYPE_VERYACTIVE),
+		      !pkdIsVeryActive(pkd,pkd->pStore+i),
 		      (pkd->pStore[j].r[d] < fSplit2 && pkd->pStore[j].r[d] >= fSplit1) ||
-		      (pkd->pStore[j].iActive & TYPE_VERYACTIVE));
+		      pkdIsVeryActive(pkd,pkd->pStore+j));
 	    }
 	else {
 	    PARTITION(pkd->pStore,pTemp,i,j,
@@ -2629,29 +2632,11 @@ int pkdActiveType(PKD pkd, unsigned int iTestMask, unsigned int iSetMask)
     return nActive;
     }
 
-int
-pkdActiveMaskRung(PKD pkd, unsigned iSetMask, int iRung, int bGreater)
+void
+pkdSetRungVeryActive(PKD pkd, int iRung)
     {
-    PARTICLE *p;
-    int i;
-    int nActive;
-    char out[128];
-    
-    nActive = 0;
-    for(i=0;i<pkdLocal(pkd);++i) {
-        p = &pkd->pStore[i];
-	if(p->iRung == iRung || (bGreater && p->iRung > iRung)) {
-	    TYPESet(p,iSetMask);
-	    ++nActive;
-	    }
-	else
-	    TYPEReset( p, iSetMask );
-	}
-    sprintf(out,"nActive: %d\n",nActive);
-    mdlDiag(pkd->mdl,out);
-
-    if ( iSetMask & TYPE_ACTIVE      ) pkd->nActive       = nActive;
-    return nActive;
+    /* Remember, the first very active particle is at iRungVeryActive + 1 */
+    pkd->iRungVeryActive = iRung;
     }
 
 void pkdSetParticleTypes(PKD pkd)

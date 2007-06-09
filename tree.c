@@ -33,7 +33,8 @@ void InitializeParticles(PKD pkd,int bExcludeVeryActive) {
     for (i=0;i<pkd->nLocal;++i) {
 	for (j=0;j<3;++j) p[i].r[j] = pkd->pStore[i].r[j];
 	p[i].i = i;
-	p[i].iActive = pkd->pStore[i].iActive;
+	p[i].iRung = pkd->pStore[i].iRung;
+	p[i].bActive = (pkd->pStore[i].iActive & TYPE_ACTIVE) != 0; /* TODO: just use rung */
 	}
     /* 
     **It is only forseen that there are 4 reserved nodes at present 0-NULL, 1-ROOT, 2-UNUSED, 3-VAROOT.
@@ -52,11 +53,11 @@ void InitializeParticles(PKD pkd,int bExcludeVeryActive) {
 	i = 0;
 	j = pkd->nLocal - 1;
 	while (i <= j) {
-	    if (!(p[i].iActive & TYPE_VERYACTIVE)) ++i;
+	    if ( p[i].iRung <= pkd->iRungVeryActive ) ++i;
 	    else break;
 	    }
 	while (i <= j) {
-	    if (p[j].iActive & TYPE_VERYACTIVE) --j;
+	    if ( p[i].iRung > pkd->iRungVeryActive ) --j;
 	    else break;
 	    }
 	if (i < j) {
@@ -64,8 +65,8 @@ void InitializeParticles(PKD pkd,int bExcludeVeryActive) {
 	    p[i] = p[j];
 	    p[j] = t;
 	    while (1) {
-		while (!(p[++i].iActive & TYPE_VERYACTIVE));
-		while (p[--j].iActive & TYPE_VERYACTIVE);
+		while ((p[++i].iRung <= pkd->iRungVeryActive));
+		while (p[--j].iRung > pkd->iRungVeryActive);
 		if (i < j) {
 		    t = p[i];
 		    p[i] = p[j];
@@ -149,14 +150,14 @@ void BuildTemp(PKD pkd,int iNode,int M,int bSqueeze) {
     for (j=0;j<3;++j) {
 	fMin[j] = p[i].r[j];
 	fMax[j] = p[i].r[j];
-	if (p[i].iActive & TYPE_ACTIVE) ++nActive;
+	if (p[i].bActive) ++nActive;
 	}
     for (++i;i<=pkd->kdTemp[iNode].pUpper;++i) {
 	for (j=0;j<3;++j) {
 	    if (p[i].r[j] < fMin[j]) fMin[j] = p[i].r[j];
 	    else if (p[i].r[j] > fMax[j]) fMax[j] = p[i].r[j];
 	    }
-	if (p[i].iActive & TYPE_ACTIVE) ++nActive;
+	if (p[i].bActive) ++nActive;
 	}
     for (j=0;j<3;++j) {
 	pkd->kdTemp[iNode].bnd.fCenter[j] = 0.5*(fMax[j] + fMin[j]);
@@ -178,11 +179,11 @@ void BuildTemp(PKD pkd,int iNode,int M,int bSqueeze) {
 	i = pkd->kdTemp[iNode].pLower;
 	j = pkd->kdTemp[iNode].pUpper;
 	while (i <= j) {
-	    if (!(p[i].iActive & TYPE_ACTIVE)) ++i;
+	    if (!(p[i].bActive)) ++i;
 	    else break;
 	    }
 	while (i <= j) {
-	    if (p[j].iActive & TYPE_ACTIVE) --j;
+	    if (p[j].bActive) --j;
 	    else break;
 	    }
 	if (i < j) {
@@ -190,8 +191,8 @@ void BuildTemp(PKD pkd,int iNode,int M,int bSqueeze) {
 	    p[i] = p[j];
 	    p[j] = t;
 	    while (1) {
-		while (!(p[++i].iActive & TYPE_ACTIVE));
-		while (p[--j].iActive & TYPE_ACTIVE);
+		while (!(p[++i].bActive));
+		while (p[--j].bActive);
 		if (i < j) {
 		    t = p[i];
 		    p[i] = p[j];
@@ -709,7 +710,7 @@ void pkdVATreeBuild(PKD pkd,int nBucket,FLOAT diCrit2,int bSqueeze,double dTimeS
     for (i=iStart;i<pkd->nLocal;++i) {
 	for (j=0;j<3;++j) pkd->pLite[i].r[j] = pkd->pStore[i].r[j];
 	pkd->pLite[i].i = i;
-	pkd->pLite[i].iActive = pkd->pStore[i].iActive;
+	pkd->pLite[i].bActive = (pkd->pStore[i].iActive & TYPE_ACTIVE) != 0;
 	}
     /*
     ** Then clear the VA tree by setting the node index back to one node past the end

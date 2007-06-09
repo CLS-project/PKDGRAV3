@@ -220,9 +220,9 @@ void pstAddServices(PST pst,MDL mdl)
     mdlAddService(mdl,PST_ACTIVETYPE,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstActiveType,
 		  sizeof(struct inActiveType),sizeof(int));
-    mdlAddService(mdl,PST_ACTIVEMASKRUNG,pst,
-		  (void (*)(void *,void *,int,void *,int *)) pstActiveMaskRung,
-		  sizeof(struct inActiveType),sizeof(int));
+    mdlAddService(mdl,PST_SETRUNGVERYACTIVE,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstSetRungVeryActive,
+		  sizeof(struct inSetRung),sizeof(int));
     mdlAddService(mdl,PST_SETPARTICLETYPES,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstSetParticleTypes,
 		  sizeof(struct inSetParticleTypes),0);
@@ -3010,24 +3010,20 @@ void pstActiveType(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     }
 
 
-void pstActiveMaskRung(PST pst,void *vin,int nIn,void *vout,int *pnOut)
+void pstSetRungVeryActive(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     {
     LCL *plcl = pst->plcl;
-    struct inActiveType *in = vin;
-    int *pnActive = vout;
-	
+    struct inSetRung *in = vin;
+
     mdlassert(pst->mdl,nIn == sizeof(*in));
     if (pst->nLeaves > 1) {
-	int nActiveLeaf;
-	mdlReqService(pst->mdl,pst->idUpper,PST_ACTIVEMASKRUNG,vin,nIn);
-	pstActiveMaskRung(pst->pstLower,vin,nIn,vout,pnOut);
-	mdlGetReply(pst->mdl,pst->idUpper,&nActiveLeaf,pnOut);
-	*pnActive += nActiveLeaf;
+	mdlReqService(pst->mdl,pst->idUpper,PST_SETRUNGVERYACTIVE,vin,nIn);
+	pstSetRungVeryActive(pst->pstLower,vin,nIn,vout,pnOut);
+	mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
 	}
     else {
-	*pnActive = pkdActiveMaskRung(plcl->pkd,in->iSetMask,in->iRung,in->bGreater);
+	pkdSetRungVeryActive(plcl->pkd,in->iRung);
 	}
-    if (pnOut) *pnOut = sizeof(int);
     }
 
 
