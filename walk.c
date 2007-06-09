@@ -600,7 +600,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 	    ** rung check here when we start using tree repair, but 
 	    ** for now this is just as good.
 	    */
-	    if (c[iCell].iActive & TYPE_ACTIVE) {
+	    if (pkdIsCellActive(pkd,c+iCell)) {
 		/*
 		** iCell is active, continue processing it.
 		** Put the sibling onto the checklist.
@@ -616,7 +616,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 		** hit the sibling. See the goto InactiveAscend below
 		** for how this is done.
 		*/
-		if (c[iCell+1].iActive & TYPE_ACTIVE) {
+		if (pkdIsCellActive(pkd,c+iCell+1)) {
 		    /*
 		    ** Sibling is active as well.
 		    ** Push Checklist for the sibling onto the stack
@@ -706,7 +706,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 		}
 	    }
 	++iCell;
-	if (!(c[iCell].iActive & TYPE_ACTIVE)) goto InactiveAscend;
+	if (!pkdIsCellActive(pkd,c+iCell)) goto InactiveAscend;
 	/*
 	** Pop the Checklist from the top of the stack,
 	** also getting the state of the interaction list.
