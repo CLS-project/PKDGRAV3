@@ -134,11 +134,8 @@ typedef struct particle {
 /* Types used for Fast Density only (so far) */
 /* Sum Fast Density on this particle */
 #define TYPE_DensACTIVE        (1<<4)
-
 /* Neighbour of ACTIVE (incl. ACTIVE): */
 #define TYPE_NbrOfACTIVE       (1<<5)
-/* Potential Scatter Neighbour */
-#define TYPE_Scatter           (1<<6)
 /* Density set to zero already */
 #define TYPE_DensZeroed        (1<<7)
 
