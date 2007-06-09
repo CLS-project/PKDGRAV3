@@ -58,7 +58,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
     nActive = 0;
     nSoft = 0;
     for (i=pkdn->pLower;i<=pkdn->pUpper;++i) {
-	if (!TYPEQueryACTIVE(&p[i])) continue;
+	if (!pkdIsActive(pkd,&p[i])) continue;
 	++nActive;
 	fPot = 0;
 	ax = 0;
