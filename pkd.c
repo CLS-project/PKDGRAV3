@@ -159,7 +159,9 @@ void pkdInitialize(PKD *ppkd,MDL mdl,int nStore,FLOAT *fPeriod,
 	pkd->fPeriod[j] = fPeriod[j];
 	}
 
-    pkd->iRungVeryActive = 255;
+    pkd->uMinRungActive  = 0;
+    pkd->uMaxRungActive  = 255;
+    pkd->uRungVeryActive = 255;
 
     /*
     ** Allocate the main particle store.
@@ -901,8 +903,8 @@ int pkdActiveOrder(PKD pkd) {
     int j=pkdLocal(pkd)-1;
 
     PARTITION(pkd->pStore,pTemp,i,j,
-	      TYPEQueryACTIVE(&(pkd->pStore[i])),
-	      !TYPEQueryACTIVE(&(pkd->pStore[j])));
+	      pkdIsActive(pkd,&(pkd->pStore[i])),
+	      !pkdIsActive(pkd,&(pkd->pStore[j])));
     return (pkd->nActive = i);
     }
 
@@ -930,9 +932,9 @@ int pkdColRejects_Active_Inactive(PKD pkd,int d,FLOAT fSplit,FLOAT fSplitInactiv
 	}
     /*
       for(i = 0; i < nSplit; ++i)
-      mdlassert(pkd->mdl,TYPEQueryACTIVE(&(pkd->pStore[i])));
+      mdlassert(pkd->mdl,pkdIsActive(pkd,&(pkd->pStore[i])));
       for(i = pkdActive(pkd); i < nSplitInactive; ++i)
-      mdlassert(pkd->mdl,!TYPEQueryACTIVE(&(pkd->pStore[i])));
+      mdlassert(pkd->mdl,!pkdIsActive(pkd,&(pkd->pStore[i])));
     */
 
     nSplitInactive -= pkdActive(pkd);
@@ -1392,7 +1394,7 @@ void pkdPreVariableSoft(PKD pkd)
     n = pkdLocal(pkd);
 	
     for (i=0;i<n;++i) {
-	if (TYPEQueryACTIVE(&(p[i]))) p[i].fSoft = 0.5*p[i].fBall;
+	if (pkdIsActive(pkd,&(p[i]))) p[i].fSoft = 0.5*p[i].fBall;
 	}
     }
 
@@ -1407,7 +1409,7 @@ void pkdPostVariableSoft(PKD pkd,double dSoftMax,int bSoftMaxMul)
 	
     if (bSoftMaxMul) {
 	for (i=0;i<n;++i) {
-	    if (TYPEQueryACTIVE(&(p[i]))) {
+	    if (pkdIsActive(pkd,&(p[i]))) {
 		dTmp = 0.5*p[i].fBall;
 		p[i].fBall = 2.0*p[i].fSoft;
 		p[i].fSoft = (dTmp <= p[i].fSoft0*dSoftMax ? dTmp : p[i].fSoft0*dSoftMax);
@@ -1416,7 +1418,7 @@ void pkdPostVariableSoft(PKD pkd,double dSoftMax,int bSoftMaxMul)
 	}
     else {
 	for (i=0;i<n;++i) {
-	    if (TYPEQueryACTIVE(&(p[i]))) {
+	    if (pkdIsActive(pkd,&(p[i]))) {
 		dTmp = 0.5*p[i].fBall;
 		p[i].fBall = 2.0*p[i].fSoft;
 		p[i].fSoft = (dTmp <= dSoftMax ? dTmp : dSoftMax);
@@ -1434,7 +1436,7 @@ void pkdBucketWeight(PKD pkd,int iBucket,FLOAT fWeight)
 	
     pbuc = &pkd->kdNodes[iBucket];
     for (pj=pbuc->pLower;pj<=pbuc->pUpper;++pj) {
-	if (TYPEQueryACTIVE(&(pkd->pStore[pj])))
+	if (pkdIsActive(pkd,&(pkd->pStore[pj])))
 	    pkd->pStore[pj].fWeight = fWeight;
 	}
     }
@@ -1619,7 +1621,7 @@ pkdDriftInactive(PKD pkd,double dTime, double dDelta,FLOAT fCenter[3],int bPerio
     p = pkd->pStore;
     n = pkdLocal(pkd);
     for (i=0;i<n;++i) {
-	if (TYPEQueryACTIVE(&p[i])) continue;
+	if (pkdIsActive(pkd,&p[i])) continue;
 	/*
 	** Do the Growmass stuff if needed...
 	*/
@@ -1675,7 +1677,7 @@ pkdDriftActive(PKD pkd,double dTime,double dDelta) {
     p = pkd->pStore;
     n = pkdLocal(pkd);
     for (i=0;i<n;++i) {
-	if (!TYPEQueryACTIVE(&p[i])) continue;
+	if (!pkdIsActive(pkd,&p[i])) continue;
 	/*
 	** Do the Growmass stuff if needed...
 	*/
@@ -2021,18 +2023,18 @@ pkdCopy0(PKD pkd,double dTime)
     p = pkd->pStore;
     n = pkdLocal(pkd);
     for (i=0;i<n;++i) {	
-            if (TYPEQueryACTIVE(&p[i])) { 			      
-	      for (j=0;j<3;++j) {    
+	if (pkdIsActive(pkd,&p[i])) { 			      
+	    for (j=0;j<3;++j) {    
 		p[i].r0[j] = p[i].r[j];
 		p[i].v0[j] = p[i].v[j];
 		p[i].a0[j] = p[i].a[j];	         	       
 		p[i].ad0[j] = p[i].ad[j];	 
-	      }
-	      p[i].dTime0 = dTime;
-	      if(pkd->param.bCollision){
-		p[i].iColflag = 0;  /* just in case */
-	      }
 	    }
+	    p[i].dTime0 = dTime;
+	    if(pkd->param.bCollision){
+		p[i].iColflag = 0;  /* just in case */
+	    }
+	}
     }
     mdlDiag(pkd->mdl, "Out of pkdCopy0\n");
 }
@@ -2051,8 +2053,8 @@ pkdPredictor(PKD pkd,double dTime)
     p = pkd->pStore;
     n = pkdLocal(pkd);
     for (i=0;i<n;++i) {		
-      if (TYPEQueryACTIVE(&p[i])) { 	
-      dt =  dTime - p[i].dTime0; 
+	if (pkdIsActive(pkd,&p[i])) { 	
+	    dt =  dTime - p[i].dTime0; 
       /*if (pkd->param.bVDetails)
 	{
          printf("Particle=%d iRung=%d dt=%g \n",p[i].iOrder,p[i].iRung,dt);
@@ -2084,7 +2086,7 @@ pkdCorrector(PKD pkd,double dTime)
     p = pkd->pStore;
     n = pkdLocal(pkd);
     for (i=0;i<n;++i) {	
-            if (TYPEQueryACTIVE(&p[i])) {	
+	if (pkdIsActive(pkd,&p[i])) {	
 	      dt =  dTime - p[i].dTime0;  
 	      if(pkd->param.bAarsethStep){	    
 		a0d2  = 0.0;
@@ -2139,7 +2141,7 @@ pkdSunCorrector(PKD pkd,double dTime,double dSunMass)
     p = pkd->pStore;
     n = pkdLocal(pkd);
     for (i=0;i<n;++i) {	
-            if (TYPEQueryACTIVE(&p[i])) { 		
+	if (pkdIsActive(pkd,&p[i])) { 		
 	      dt =  dTime - p[i].dTime0;
 	      r2  = 0.0;
               rv  = 0.0;  
@@ -2180,28 +2182,28 @@ pkdPredictorInactive(PKD pkd,double dTime)
     p = pkd->pStore;
     n = pkdLocal(pkd);
     for (i=0;i<n;++i) {		
-      if (TYPEQueryACTIVE(&p[i])) continue;	
-      dt =  dTime - p[i].dTime0; 
-      /*if (pkd->param.bVDetails)
-	{
-         printf("Particle=%d iRung=%d dt=%g \n",p[i].iOrder,p[i].iRung,dt);
-	 }*/
-	    for (j=0;j<3;++j) {                
-		p[i].r[j] = p[i].r0[j] + dt*(p[i].v0[j] + 0.5*dt*(p[i].a0[j]+dt*p[i].ad0[j]/3.0));
-		p[i].v[j] = p[i].v0[j] + dt*(p[i].a0[j]+0.5*dt*p[i].ad0[j]);   
-                p[i].rp[j] = p[i].r[j];
-                p[i].vp[j] = p[i].v[j];  	       
-		}	    
-	}
-    mdlDiag(pkd->mdl, "Out of pkdPredictorInactive\n");
+	if (pkdIsActive(pkd,&p[i])) continue;	
+	dt =  dTime - p[i].dTime0; 
+	/*if (pkd->param.bVDetails)
+	  {
+	  printf("Particle=%d iRung=%d dt=%g \n",p[i].iOrder,p[i].iRung,dt);
+	  }*/
+	for (j=0;j<3;++j) {                
+	    p[i].r[j] = p[i].r0[j] + dt*(p[i].v0[j] + 0.5*dt*(p[i].a0[j]+dt*p[i].ad0[j]/3.0));
+	    p[i].v[j] = p[i].v0[j] + dt*(p[i].a0[j]+0.5*dt*p[i].ad0[j]);   
+	    p[i].rp[j] = p[i].r[j];
+	    p[i].vp[j] = p[i].v[j];  	       
+	}	    
     }
+    mdlDiag(pkd->mdl, "Out of pkdPredictorInactive\n");
+}
 
 void pkdAarsethStep(PKD pkd,double dEta) {
     double dT;
     int i;
     
     for (i=0;i<pkdLocal(pkd);i++) {
-	if (TYPEQueryACTIVE(&(pkd->pStore[i]))) {
+	if (pkdIsActive(pkd,&(pkd->pStore[i]))) {
 	    mdlassert(pkd->mdl, pkd->pStore[i].dtGrav > 0);
 	    dT = dEta*sqrt(pkd->pStore[i].dtGrav);
 	    if (dT < pkd->pStore[i].dt)
@@ -2220,17 +2222,17 @@ void pkdFirstDt(PKD pkd) {
     for(i=0;i<pkdLocal(pkd);++i) {
           a0d2 = 0.0;
 	  a1d2 = 0.0;
-	if(TYPEQueryACTIVE(&p[i]))
-	  for (j=0;j<3;++j) { 	                  
-              a0d2 += p[i].a0[j]*p[i].a0[j];
-              a1d2 += p[i].ad0[j]*p[i].ad0[j];
-	  }
+	  if(pkdIsActive(pkd,&p[i]))
+	      for (j=0;j<3;++j) { 	                  
+		  a0d2 += p[i].a0[j]*p[i].a0[j];
+		  a1d2 += p[i].ad0[j]*p[i].ad0[j];
+	      }
 	  p[i].dtGrav = 0.1*(a0d2/a1d2);
 	  if(pkd->param.bCollision){
-	    p[i].iColflag = 0; /* initial reset of collision flag */	
-	      }
-	}
+	      p[i].iColflag = 0; /* initial reset of collision flag */	
+	  }
     }
+}
 #endif /* Hermite */
 
 /*
@@ -2297,7 +2299,7 @@ void pkdKick(PKD pkd, double dvFacOne, double dvFacTwo, double dvPredFacOne,
     p = pkd->pStore;
     n = pkdLocal(pkd);
     for (i=0;i<n;++i,++p) {
-	if (TYPEQueryACTIVE(p)) {
+	if (pkdIsActive(pkd,p)) {
 	    for (j=0;j<3;++j) {
 		p->v[j] = p->v[j]*dvFacOne + p->a[j]*dvFacTwo;
 		}
@@ -2328,25 +2330,9 @@ void pkdSetRung(PKD pkd, int iRung) {
 	}
     }
 
-int pkdActiveRung(PKD pkd, int iRung, int bGreater) {
-    int i;
-    int nActive;
-    char out[128];
-    
-    nActive = 0;
-    for (i=0;i<pkdLocal(pkd);++i) {
-	if(pkd->pStore[i].iRung == iRung ||
-	   (bGreater && pkd->pStore[i].iRung > iRung)) {
-	    TYPESet(&(pkd->pStore[i]),TYPE_ACTIVE);
-	    ++nActive;
-	    }
-	else
-	    TYPEReset(&(pkd->pStore[i]),TYPE_ACTIVE);
-	}
-    sprintf(out, "nActive: %d\n", nActive);
-    mdlDiag(pkd->mdl, out);
-    pkd->nActive = nActive;
-    return nActive;
+void pkdActiveRung(PKD pkd, int iRung, int bGreater) {
+    pkd->uMinRungActive = iRung;
+    pkd->uMaxRungActive = bGreater ? 255 : iRung;
     }
 
 int pkdCurrRung(PKD pkd, int iRung) {
@@ -2368,7 +2354,7 @@ void pkdGravStep(PKD pkd,double dEta,double dRhoFac) {
     int i;
     
     for (i=0;i<pkdLocal(pkd);i++) {
-	if (TYPEQueryACTIVE(&(pkd->pStore[i]))) {
+	if (pkdIsActive(pkd,&(pkd->pStore[i]))) {
 	    mdlassert(pkd->mdl, pkd->pStore[i].dtGrav > 0);
 	    dT = dEta/sqrt(pkd->pStore[i].dtGrav*dRhoFac);
 	    if (dT < pkd->pStore[i].dt) {
@@ -2387,7 +2373,7 @@ void pkdAccelStep(PKD pkd,double dEta,double dVelFac,double dAccFac,int bDoGravi
     double dT;
 
     for (i=0;i<pkdLocal(pkd);++i) {
-	if (TYPEQueryACTIVE(&(pkd->pStore[i]))) {
+	if (pkdIsActive(pkd,&(pkd->pStore[i]))) {
 	    vel = 0;
 	    acc = 0;
 	    for (j=0;j<3;j++) {
@@ -2428,7 +2414,7 @@ void pkdDensityStep(PKD pkd,double dEta,double dRhoFac) {
     double dT;
     
     for (i=0;i<pkdLocal(pkd);++i) {
-	if (TYPEQueryACTIVE(&(pkd->pStore[i]))) {
+	if (pkdIsActive(pkd,&(pkd->pStore[i]))) {
 	    dT = dEta/sqrt(pkd->pStore[i].fDensity*dRhoFac);
 	    if (dT < pkd->pStore[i].dt) {
 		pkd->pStore[i].dt = dT;
@@ -2446,7 +2432,7 @@ int pkdDtToRung(PKD pkd,int iRung,double dDelta,int iMaxRung,int bAll,int *nRung
     for (i=0;i<iMaxRung;++i) nRungCount[i] = 0;
     for(i=0;i<pkdLocal(pkd);++i) {
 	if(pkd->pStore[i].iRung >= iRung) {
-	    mdlassert(pkd->mdl,TYPEQueryACTIVE(&(pkd->pStore[i])));
+	    mdlassert(pkd->mdl,pkdIsActive(pkd,&(pkd->pStore[i])));
 	    if(bAll) {          /* Assign all rungs at iRung and above */
 		mdlassert(pkd->mdl,pkd->pStore[i].fSoft > 0);
 		mdlassert(pkd->mdl,pkd->pStore[i].dt > 0);
@@ -2491,7 +2477,7 @@ void pkdInitDt(PKD pkd,double dDelta) {
     int i;
     
     for(i=0;i<pkdLocal(pkd);++i) {
-	if(TYPEQueryACTIVE(&(pkd->pStore[i]))) {
+	if(pkdIsActive(pkd,&(pkd->pStore[i]))) {
 	    pkd->pStore[i].dt = dDelta;
 	    mdlassert(pkd->mdl,dDelta>0);
 	    }
@@ -2558,7 +2544,7 @@ void pkdColNParts(PKD pkd, int *pnNew, int *nDeltaGas, int *nDeltaDark,
 	    ++pj;
 	    ++nNew;
 	    ++ndDark;
-	    if(TYPEQueryACTIVE(p))
+	    if(pkdIsActive(pkd,p))
 		++pkd->nActive;
 	    continue;
 	    }
@@ -2573,7 +2559,7 @@ void pkdColNParts(PKD pkd, int *pnNew, int *nDeltaGas, int *nDeltaDark,
 		--ndStar;
 	    else
 		mdlassert(pkd->mdl,0);
-	    if(TYPEQueryACTIVE(p))
+	    if(pkdIsActive(pkd,p))
 		--pkd->nActive;
 	    }
 	else {
@@ -2615,7 +2601,7 @@ void
 pkdSetRungVeryActive(PKD pkd, int iRung)
     {
     /* Remember, the first very active particle is at iRungVeryActive + 1 */
-    pkd->iRungVeryActive = iRung;
+    pkd->uRungVeryActive = iRung;
     }
 
 void pkdSetParticleTypes(PKD pkd)
@@ -2768,9 +2754,9 @@ pkdWriteSS(PKD pkd,char *pszFileName,int nStart)
      for (i=0;i<n;++i) {
        
         if (iFlag == 2){ 
-	 if (TYPEQueryACTIVE(&p[i])) continue;  /* inactive */
+	    if (pkdIsActive(pkd,&p[i])) continue;  /* inactive */
        }else if(iFlag == 1){
-	 if (!TYPEQueryACTIVE(&p[i])) continue; /* active */
+	    if (!pkdIsActive(pkd,&p[i])) continue; /* active */
        }
 
 	 r2 = 0;
@@ -2802,7 +2788,7 @@ void pkdGravSun(PKD pkd,double aSun[],double adSun[],double dSunMass)
 	p = pkd->pStore;
 	n = pkdLocal(pkd);
 	for (i=0;i<n;++i) {
-		if (TYPEQueryACTIVE(&(p[i]))) {
+	    if (pkdIsActive(pkd,&(p[i]))) {
 			r2 = 0;
                        v2 = 0;
                         rv = 0;

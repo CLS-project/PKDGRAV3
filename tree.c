@@ -33,8 +33,7 @@ void InitializeParticles(PKD pkd,int bExcludeVeryActive) {
     for (i=0;i<pkd->nLocal;++i) {
 	for (j=0;j<3;++j) p[i].r[j] = pkd->pStore[i].r[j];
 	p[i].i = i;
-	p[i].iRung = pkd->pStore[i].iRung;
-	p[i].bActive = (pkd->pStore[i].iActive & TYPE_ACTIVE) != 0; /* TODO: just use rung */
+	p[i].uRung = pkd->pStore[i].iRung;
 	}
     /* 
     **It is only forseen that there are 4 reserved nodes at present 0-NULL, 1-ROOT, 2-UNUSED, 3-VAROOT.
@@ -53,11 +52,11 @@ void InitializeParticles(PKD pkd,int bExcludeVeryActive) {
 	i = 0;
 	j = pkd->nLocal - 1;
 	while (i <= j) {
-	    if ( p[i].iRung <= pkd->iRungVeryActive ) ++i;
+	    if ( p[i].uRung <= pkdRungVeryActive(pkd) ) ++i;
 	    else break;
 	    }
 	while (i <= j) {
-	    if ( p[i].iRung > pkd->iRungVeryActive ) --j;
+	    if ( p[i].uRung > pkdRungVeryActive(pkd) ) --j;
 	    else break;
 	    }
 	if (i < j) {
@@ -65,8 +64,8 @@ void InitializeParticles(PKD pkd,int bExcludeVeryActive) {
 	    p[i] = p[j];
 	    p[j] = t;
 	    while (1) {
-		while ((p[++i].iRung <= pkd->iRungVeryActive));
-		while (p[--j].iRung > pkd->iRungVeryActive);
+		while ((p[++i].uRung <= pkdRungVeryActive(pkd)));
+		while (p[--j].uRung > pkdRungVeryActive(pkd));
 		if (i < j) {
 		    t = p[i];
 		    p[i] = p[j];
@@ -150,14 +149,14 @@ void BuildTemp(PKD pkd,int iNode,int M,int bSqueeze) {
     for (j=0;j<3;++j) {
 	fMin[j] = p[i].r[j];
 	fMax[j] = p[i].r[j];
-	if (p[i].bActive) ++nActive;
+	if (pkdIsRungActive(pkd,p[i].uRung)) ++nActive;
 	}
     for (++i;i<=pkd->kdTemp[iNode].pUpper;++i) {
 	for (j=0;j<3;++j) {
 	    if (p[i].r[j] < fMin[j]) fMin[j] = p[i].r[j];
 	    else if (p[i].r[j] > fMax[j]) fMax[j] = p[i].r[j];
 	    }
-	if (p[i].bActive) ++nActive;
+	if (pkdIsRungActive(pkd,p[i].uRung)) ++nActive;
 	}
     for (j=0;j<3;++j) {
 	pkd->kdTemp[iNode].bnd.fCenter[j] = 0.5*(fMax[j] + fMin[j]);
@@ -179,11 +178,11 @@ void BuildTemp(PKD pkd,int iNode,int M,int bSqueeze) {
 	i = pkd->kdTemp[iNode].pLower;
 	j = pkd->kdTemp[iNode].pUpper;
 	while (i <= j) {
-	    if (!(p[i].bActive)) ++i;
+	    if (!pkdIsRungActive(pkd,p[i].uRung)) ++i;
 	    else break;
 	    }
 	while (i <= j) {
-	    if (p[j].bActive) --j;
+	    if (pkdIsRungActive(pkd,p[j].uRung)) --j;
 	    else break;
 	    }
 	if (i < j) {
@@ -191,8 +190,8 @@ void BuildTemp(PKD pkd,int iNode,int M,int bSqueeze) {
 	    p[i] = p[j];
 	    p[j] = t;
 	    while (1) {
-		while (!(p[++i].bActive));
-		while (p[--j].bActive);
+		while (!pkdIsRungActive(pkd,p[++i].uRung));
+		while (pkdIsRungActive(pkd,p[--j].uRung));
 		if (i < j) {
 		    t = p[i];
 		    p[i] = p[j];
@@ -510,6 +509,7 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp,int bTempBound) {
 	vy = m*p[pj].v[1];
 	vz = m*p[pj].v[2];
 	pkdn->iActive = p[pj].iActive;
+	pkdn->uMinRung = pkdn->uMaxRung = p[pj].iRung;
 	for (++pj;pj<=pkdn->pUpper;++pj) {
 	    p[pj].iBucket = iNode;
 	    m = p[pj].fMass;
@@ -522,6 +522,8 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp,int bTempBound) {
 	    vy += m*p[pj].v[1];
 	    vz += m*p[pj].v[2];		
 	    pkdn->iActive |= p[pj].iActive;
+	    if ( p[pj].iRung > pkdn->uMaxRung ) pkdn->uMaxRung = p[pj].iRung;
+	    if ( p[pj].iRung < pkdn->uMinRung ) pkdn->uMinRung = p[pj].iRung;
 	    }
 	m = 1/fMass;
 	pkdn->r[0] = m*x;
@@ -670,6 +672,9 @@ void pkdCombineCells(KDN *pkdn,KDN *p1,KDN *p2,int bCombineBound) {
     }
     pkdn->fSoft2 = 1.0/(ifMass*(m1/p1->fSoft2 + m2/p2->fSoft2));
     pkdn->iActive = (p1->iActive | p2->iActive);
+    pkdn->uMinRung = p1->uMinRung < p2->uMinRung ? p1->uMinRung : p2->uMinRung;
+    pkdn->uMaxRung = p1->uMaxRung > p2->uMaxRung ? p1->uMaxRung : p2->uMaxRung;
+
     /*
     ** Now calculate the reduced multipole moment.
     ** Shift the multipoles of each of the children
@@ -710,7 +715,7 @@ void pkdVATreeBuild(PKD pkd,int nBucket,FLOAT diCrit2,int bSqueeze,double dTimeS
     for (i=iStart;i<pkd->nLocal;++i) {
 	for (j=0;j<3;++j) pkd->pLite[i].r[j] = pkd->pStore[i].r[j];
 	pkd->pLite[i].i = i;
-	pkd->pLite[i].bActive = (pkd->pStore[i].iActive & TYPE_ACTIVE) != 0;
+	pkd->pLite[i].uRung = pkd->pStore[i].iRung;
 	}
     /*
     ** Then clear the VA tree by setting the node index back to one node past the end

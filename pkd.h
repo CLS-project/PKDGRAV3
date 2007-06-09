@@ -62,9 +62,7 @@
 typedef struct pLite {
     FLOAT r[3];
     int i;
-    uint8_t iRung;
-    uint8_t bActive;
-    /*unsigned int iActive;*/
+    uint8_t uRung;
     } PLITE;
 
 typedef struct pIO {
@@ -282,13 +280,13 @@ typedef struct kdNode {
     int pLower;		/* also serves as thread id for the LTT */
     int pUpper;		/* pUpper < 0 indicates no particles in tree! */
     int iActive;
+    uint8_t uMinRung;
+    uint8_t uMaxRung;
 #ifdef GASOLINE
     int nGas;
     BND bndBall;	/* Bound including fBall*(1+changemax) */
 #endif
     } KDN;
-
-#define CELL_ACTIVE(c,a,b) ((a)<=(c)->uMaxRung && (b)>=(c)->uMinRung)
 
 
 #define NMAX_OPENCALC	100
@@ -512,7 +510,9 @@ typedef struct pkdContext {
     /*
     ** New activation methods
     */
-    uint8_t iRungVeryActive;    /* NOTE: The first very active particle is at iRungVeryActive + 1 */
+    uint8_t uMinRungActive;
+    uint8_t uMaxRungActive;
+    uint8_t uRungVeryActive;    /* NOTE: The first very active particle is at iRungVeryActive + 1 */
 
     /*
     ** Ewald summation setup.
@@ -551,13 +551,25 @@ typedef struct pkdContext {
     } * PKD;
 
 /* New, rung based ACTIVE/INACTIVE routines */
-static inline int pkdRungVeryActive(PKD pkd) { return pkd->iRungVeryActive; }
+static inline int pkdRungVeryActive(PKD pkd) { return pkd->uRungVeryActive; }
 static inline int pkdIsVeryActive(PKD pkd, PARTICLE *p) {
-    return p->iRung > pkd->iRungVeryActive;
+    return p->iRung > pkd->uRungVeryActive;
 }
-static inline int pkdIsActive(PKD pkd, PARTICLE *p, int a, int b ) {
-    return p->iRung >= a && p->iRung <= b;
+
+static inline int pkdIsRungActive(PKD pkd, uint8_t uRung ) {
+    return uRung >= pkd->uMinRungActive && uRung <= pkd->uMaxRungActive;
 }
+
+static inline int pkdIsActive(PKD pkd, PARTICLE *p ) {
+    return pkdIsRungActive(pkd,p->iRung);
+}
+
+static inline int pkdIsCellActive(PKD pkd, KDN *c) {
+    return pkd->uMinRungActive <= c->uMaxRung && pkd->uMaxRungActive >= c->uMinRung;
+}
+#define CELL_ACTIVE(c,a,b) ((a)<=(c)->uMaxRung && (b)>=(c)->uMinRung)
+
+
 
 typedef struct CacheStatistics {
     double dpNumAccess;
@@ -669,7 +681,7 @@ void pkdSwapAll(PKD pkd, int idSwap);
 void pkdInitStep(PKD pkd,struct parameters *p,CSM csm);
 void pkdSetRung(PKD pkd, int iRung);
 void pkdBallMax(PKD pkd, int iRung, int bGreater, double ddHonHLimit);
-int pkdActiveRung(PKD pkd, int iRung, int bGreater);
+void pkdActiveRung(PKD pkd, int iRung, int bGreater);
 int pkdCurrRung(PKD pkd, int iRung);
 void pkdGravStep(PKD pkd, double dEta, double dRhoFac);
 void pkdAccelStep(PKD pkd, double dEta, double dVelFac, double

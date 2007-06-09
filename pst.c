@@ -201,7 +201,7 @@ void pstAddServices(PST pst,MDL mdl)
 		  sizeof(struct inSetRung),0);
     mdlAddService(mdl,PST_ACTIVERUNG,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstActiveRung,
-		  sizeof(struct inActiveRung),sizeof(int));
+		  sizeof(struct inActiveRung),0);
     mdlAddService(mdl,PST_CURRRUNG,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstCurrRung,
 		  sizeof(struct inCurrRung),sizeof(struct outCurrRung));
@@ -219,7 +219,7 @@ void pstAddServices(PST pst,MDL mdl)
 		  sizeof(struct inAccelStep), 0);
     mdlAddService(mdl,PST_SETRUNGVERYACTIVE,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstSetRungVeryActive,
-		  sizeof(struct inSetRung),sizeof(int));
+		  sizeof(struct inSetRung),0);
     mdlAddService(mdl,PST_SETPARTICLETYPES,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstSetParticleTypes,
 		  sizeof(struct inSetParticleTypes),0);
@@ -2850,20 +2850,16 @@ pstActiveRung(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     {
     LCL *plcl = pst->plcl;
     struct inActiveRung *in = vin;
-    int *pnActive = vout;
 	
     mdlassert(pst->mdl,nIn == sizeof(*in));
     if (pst->nLeaves > 1) {
-	int nActiveLeaf;
 	mdlReqService(pst->mdl,pst->idUpper,PST_ACTIVERUNG,vin,nIn);
 	pstActiveRung(pst->pstLower,vin,nIn,vout,pnOut);
-	mdlGetReply(pst->mdl,pst->idUpper,&nActiveLeaf,pnOut);
-	*pnActive += nActiveLeaf;
+	mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
 	}
     else {
-	*pnActive = pkdActiveRung(plcl->pkd, in->iRung, in->bGreater);
+	pkdActiveRung(plcl->pkd, in->iRung, in->bGreater);
 	}
-    if (pnOut) *pnOut = sizeof(int);
     }
 
 void

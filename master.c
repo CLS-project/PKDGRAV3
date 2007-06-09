@@ -2610,14 +2610,26 @@ double msrEta(MSR msr)
 /*
  * bGreater = 1 => activate all particles at this rung and greater.
  */
-void msrActiveRung(MSR msr, int iRung, int bGreater)
-    {
+void msrActiveRung(MSR msr, int iRung, int bGreater) {
     struct inActiveRung in;
 
     in.iRung = iRung;
     in.bGreater = bGreater;
-    pstActiveRung(msr->pst, &in, sizeof(in), &(msr->nActive), NULL);
+    pstActiveRung(msr->pst, &in, sizeof(in), NULL, NULL);
+
+    if ( iRung==0 && bGreater )
+	msr->nActive = msr->N;
+    else {
+	int i;
+
+	assert( msr->nRung != NULL );
+	assert( msr->nRung[0] != 0 );
+
+	msr->nActive = 0;
+	for( i=iRung; i<= (bGreater?msr->param.iMaxRung:iRung); i++ )
+	    msr->nActive += msr->nRung[i];
     }
+}
 
 void msrActiveOrder(MSR msr)
     {
