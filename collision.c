@@ -31,7 +31,7 @@ pkdNextCollision(PKD pkd,double *dt,int *iOrder1,int *iOrder2)
 	for (i=0;i<pkdLocal(pkd);i++) {
 		p = &pkd->pStore[i];
 		if (!p->iColflag) continue; /* skip particles wihout collision flag */
-		if (!TYPEQueryACTIVE(p)) continue; /* skip over inactive particles */
+		if (!pkdIsActive(pkd,p)) continue; /* skip over inactive particles */
 		if (p->iOrder < 0) continue; /* skip over deleted particles */				
 		if (p->dtCol < *dt) {
 			*dt = p->dtCol;
@@ -562,7 +562,7 @@ pkdResetColliders(PKD pkd,int iOrder1,int iOrder2)
 
 	for (i=0;i<pkdLocal(pkd);i++) {
 		p = &pkd->pStore[i];
-		if (!TYPEQueryACTIVE(p)) continue;
+		if (!pkdIsActive(pkd,p)) continue;
 		if (p->iOrder == iOrder1 || p->iOrder == iOrder2 ||
 			p->iOrderCol == iOrder1 || p->iOrderCol == iOrder2)
 			TYPESet(p,TYPE_SMOOTHACTIVE);
