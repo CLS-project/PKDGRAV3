@@ -2624,19 +2624,6 @@ void msrActiveOrder(MSR msr)
     pstActiveOrder(msr->pst,NULL,0,&(msr->nActive),NULL);
     }
 
-void msrActiveType(MSR msr, unsigned int iTestMask, unsigned int iSetMask) 
-    {
-    struct inActiveType in;
-    int nActive;
-
-    in.iTestMask = iTestMask;
-    in.iSetMask = iSetMask;
-
-    pstActiveType(msr->pst,&in,sizeof(in),&nActive,NULL);
-
-    if (iSetMask & TYPE_ACTIVE      ) msr->nActive       = nActive;
-    }
-
 void msrSetRungVeryActive(MSR msr, int iRung) 
     {
     struct inSetRung in;
@@ -3480,7 +3467,7 @@ void msrInitTimeSteps(MSR msr,double dTime,double dDelta)
     {
     double dMass = -1.0;
 
-    msrActiveType(msr,TYPE_ALL,TYPE_ACTIVE);
+    msrActiveRung(msr,0,1); /* Activate all particles */
     msrInitDt(msr);
     if (msr->param.bGravStep) {
 	msrGravStep(msr,dTime);
@@ -3490,7 +3477,7 @@ void msrInitTimeSteps(MSR msr,double dTime,double dDelta)
 	}
     if (msr->param.bDensityStep) {
 	msrDomainDecomp(msr,0,1,0);
-	msrActiveType(msr,TYPE_ALL,TYPE_ACTIVE);
+	msrActiveRung(msr,0,1); /* Activate all particles */
 	msrBuildTree(msr,dMass,dTime);
 	msrDensityStep(msr,dTime,TYPE_ALL);
 	}

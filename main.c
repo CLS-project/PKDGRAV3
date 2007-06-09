@@ -173,7 +173,7 @@ int main(int argc,char **argv) {
 	/*
 	** Build tree, activating all particles first (just in case).
 	*/
-	msrActiveType(msr,TYPE_ALL,TYPE_ACTIVE);
+	msrActiveRung(msr,0,1); /* Activate all particles */
 	msrDomainDecomp(msr,0,1,0);
 	msrUpdateSoft(msr,dTime);
 	msrBuildTree(msr,dMass,dTime);
@@ -202,11 +202,11 @@ int main(int argc,char **argv) {
 #endif
 #ifdef HERMITE
 	if(msr->param.bHermite){
-	  	msrActiveType(msr,TYPE_ALL,TYPE_ACTIVE);
-		msrCopy0(msr, dTime);
-		if(msr->param.bAarsethStep){
-		  msrFirstDt(msr);
-		}
+	    msrActiveRung(msr,0,1); /* Activate all particles */
+	    msrCopy0(msr, dTime);
+	    if(msr->param.bAarsethStep){
+		msrFirstDt(msr);
+	    }
 	}
 #endif
 	for (iStep=msr->param.iStartStep+1;iStep<=msrSteps(msr);++iStep) {
@@ -246,7 +246,7 @@ int main(int argc,char **argv) {
 		}
 #ifdef RELAXATION 
 	    if ( msr->param.bTraceRelaxation) {
-		msrActiveType(msr,TYPE_ALL,TYPE_ACTIVE);
+		msrActiveRung(msr,0,1); /* Activate all particles */
 		msrDomainDecomp(msr,0,1,0);
 		msrBuildTree(msr,dMass,dTime);
 		msrRelaxation(msr,dTime,msrDelta(msr),SMX_RELAXATION,0,TYPE_ALL);
@@ -275,7 +275,7 @@ int main(int argc,char **argv) {
 #endif
 	     
 		if (msrDoDensity(msr)) {
-		    msrActiveType(msr,TYPE_ALL,TYPE_ACTIVE);
+		    msrActiveRung(msr,0,1); /* Activate all particles */
 		    msrDomainDecomp(msr,0,1,0);
 		    msrBuildTree(msr,dMass,dTime);
 		    bGasOnly = 0;
@@ -287,7 +287,7 @@ int main(int argc,char **argv) {
 		    /*
 		    ** Build tree, activating all particles first (just in case).
 		    */	
-		    msrActiveType(msr,TYPE_ALL,TYPE_ACTIVE);
+		    msrActiveRung(msr,0,1); /* Activate all particles */
 		    msrDomainDecomp(msr,0,1,0);
 		    msrBuildTree(msr,dMass,dTime);
 		    msrFof(msr,nFOFsDone,SMX_FOF,0,TYPE_ALL);
@@ -369,7 +369,7 @@ int main(int argc,char **argv) {
 	
     else {
 	struct inInitDt in;
-	msrActiveType(msr,TYPE_ALL,TYPE_ACTIVE);
+	msrActiveRung(msr,0,1); /* Activate all particles */
 
 	in.dDelta = 1e37;		/* large number */
 	pstInitDt(msr->pst,&in,sizeof(in),NULL,NULL);
@@ -405,7 +405,8 @@ int main(int argc,char **argv) {
 	    /*
 	    ** Build tree, activating all particles first (just in case).
 	    */
-	    msrActiveType(msr,TYPE_ALL,TYPE_ACTIVE);
+	    msrActiveRung(msr,0,1); /* Activate all particles */
+
 	    msrDomainDecomp(msr,0,1,0);
 	    msrBuildTree(msr,dMass,dTime);
 	    msrFof(msr,nFOFsDone,SMX_FOF,0,TYPE_ALL);
