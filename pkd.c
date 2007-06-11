@@ -2784,13 +2784,14 @@ void pkdGravSun(PKD pkd,double aSun[],double adSun[],double dSunMass)
         double aai,aa3i,idt2;
         double rv, r5i; 
 	int i,j,n;
+	double hx,hy,hz,h2,E,e,sum;
 
 	p = pkd->pStore;
 	n = pkdLocal(pkd);
 	for (i=0;i<n;++i) {
 	    if (pkdIsActive(pkd,&(p[i]))) {
 			r2 = 0;
-                       v2 = 0;
+			v2 = 0;
                         rv = 0;
 			for (j=0;j<3;++j)
 			{ 
@@ -2798,20 +2799,28 @@ void pkdGravSun(PKD pkd,double aSun[],double adSun[],double dSunMass)
                         v2 += p[i].v[j]*p[i].v[j];
                         rv += p[i].v[j]*p[i].r[j];
 			}
-		       
+		
 			r1i = (r2 == 0 ? 0 : 1/sqrt(r2)); /*gravity at origin = zero */
 			p[i].fPot -= dSunMass*r1i;
 			r3i = dSunMass*r1i*r1i*r1i;
                         r5i = 3.0*rv*r3i*r1i*r1i;
 			/* time step is determined by semimajor axis, not the heliocentric distance*/ 
-			if(!pkd->param.bAarsethStep){		
-                        aai =  -v2+2.0*r1i; 	              
-                        aa3i = aai*aai*aai;
-			idt2 = (p[i].fMass + dSunMass)*aa3i;
-			/*if (p[i].dtSun > p[i].dtGrav) p[i].dtGrav = p[i].dtSun;*/
-			if (idt2 > p[i].dtGrav) p[i].dtGrav = idt2;
+			if(!pkd->param.bAarsethStep){
+			  /* E and h are normalized by the reduced mass */
+			  sum = dSunMass + p[i].fMass;
+			  hx =  p[i].r[1]*p[i].v[2] - p[i].r[2]*p[i].v[1];  
+			  hy =  p[i].r[2]*p[i].v[0] - p[i].r[0]*p[i].v[2];  
+			  hz =  p[i].r[0]*p[i].v[1] - p[i].r[1]*p[i].v[0];  
+			  h2 = hx*hx + hy*hy + hz*hz;
+			  E = 0.5*v2 - sum*r1i;			  
+			  e = sqrt(1.0+2.0*E*h2/sum/sum);
+			  aai = -2.0*E/sum/(1.0-e); 
+			  aa3i = aai*aai*aai;
+			  idt2 = sum*aa3i;
+			  /*if (p[i].dtSun > p[i].dtGrav) p[i].dtGrav = p[i].dtSun;*/
+			  if (idt2 > p[i].dtGrav) p[i].dtGrav = idt2;
 			}		   
-				for (j=0;j<3;++j) {	
+			for (j=0;j<3;++j) {	
 #ifdef HERMITE
 				  if(pkd->param.bHermite){
 				    p[i].app[j] = p[i].a[j] - aSun[j]; /* perturbation force*/
