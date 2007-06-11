@@ -524,8 +524,8 @@ void momShiftLocr(LOCR *l,momFloat x,momFloat y,momFloat z)
   l->m += L;
 
   hx = 0.5*x;
-  hy = 0.5*x;
-  hz = 0.5*x;
+  hy = 0.5*y;
+  hz = 0.5*z;
 
   Lx = l->xx*x + l->xy*y + l->xz*z;
   Ly = l->xy*x + l->yy*y + l->yz*z;
@@ -664,66 +664,6 @@ void momReduceMomc(MOMC *mc,MOMR *mr)
 	mr->xy = mc->xy;
 	mr->xz = mc->xz;
 	mr->yz = mc->yz;
-	/*
-	 ** Finally the mass remains the same.
-	 */
-	mr->m = mc->m;
-	}
-
-
-/*
- ** This function converts a complete local moment (LOCC) to a reduced one (LOCR).
- ** This is just test code, since Locc is trace-free anyway this function is not 
- ** needed.
- */
-void momReduceLocc(LOCC *mc,LOCR *mr)
-{
-	momFloat  t,tx,ty,tz,txx,txy,txz,tyy,tyz,tzz;
-
-	/*
-	 ** First reduce Hexadecapole.
-	 */
-	txx = (mc->xxxx + mc->xxyy + mc->xxzz)/7;
-	txy = (mc->xxxy + mc->xyyy + mc->xyzz)/7;
-	txz = (mc->xxxz + mc->xyyz + mc->xzzz)/7;
-	tyy = (mc->xxyy + mc->yyyy + mc->yyzz)/7;
-	tyz = (mc->xxyz + mc->yyyz + mc->yzzz)/7;
-	tzz = (mc->xxzz + mc->yyzz + mc->zzzz)/7;
-	t = 0.1*(txx + tyy + tzz);
-	mr->xxxx = mc->xxxx - 6*(txx - t);
-	mr->xyyy = mc->xyyy - 3*txy;
-	mr->xxxy = mc->xxxy - 3*txy;
-	mr->yyyy = mc->yyyy - 6*(tyy - t);
-	mr->xxxz = mc->xxxz - 3*txz;
-	mr->yyyz = mc->yyyz - 3*tyz;
-	mr->xxyy = mc->xxyy - (txx + tyy - 2*t);
-	mr->xxyz = mc->xxyz - tyz;
-	mr->xyyz = mc->xyyz - txz;	
-	/*
-	 ** Now reduce the Octopole.
-	 */
-	tx = (mc->xxx + mc->xyy + mc->xzz)/5;
-	ty = (mc->xxy + mc->yyy + mc->yzz)/5;
-	tz = (mc->xxz + mc->yyz + mc->zzz)/5;
-	mr->xxx = mc->xxx - 3*tx;
-	mr->xyy = mc->xyy - tx;
-	mr->xxy = mc->xxy - ty;
-	mr->yyy = mc->yyy - 3*ty;
-	mr->xxz = mc->xxz - tz;
-	mr->yyz = mc->yyz - tz;
-	mr->xyz = mc->xyz;
-	/*
-	 ** Now reduce the Quadrupole.
-	 */
-	t = (mc->xx + mc->yy + mc->zz)/3;
-	mr->xx = mc->xx - t;
-	mr->yy = mc->yy - t;
-	mr->xy = mc->xy;
-	mr->xz = mc->xz;
-	mr->yz = mc->yz;
-	mr->x = mc->x;
-	mr->y = mc->y;
-	mr->z = mc->z;
 	/*
 	 ** Finally the mass remains the same.
 	 */
@@ -1703,17 +1643,11 @@ void momLoccAddMomrAccurate(LOCC *l,MOMC *m,momFloat g0,momFloat x,momFloat y,mo
 	g2 = -3*g1*dir2;
 	g3 = -5*g2*dir2;
 	g4 = -7*g3*dir2;
-#if 0
 	g5 = -9*g4*dir2;
 	g6 = -11*g5*dir2;
 	g7 = -13*g6*dir2;
 	g8 = -15*g7*dir2;
-#else
-	g5 = 0;
-	g6 = 0;
-	g7 = 0;
-	g8 = 0;
-#endif
+
 	xx = x*x;
 	xy = x*y;
 	yy = y*y;
@@ -1894,17 +1828,11 @@ void momLocrAddMomrAccurate(LOCR *l,MOMR *m,momFloat g0,momFloat x,momFloat y,mo
 	g2 = -3*g1*dir2;
 	g3 = -5*g2*dir2;
 	g4 = -7*g3*dir2;
-#if 0
 	g5 = -9*g4*dir2;
 	g6 = -11*g5*dir2;
 	g7 = -13*g6*dir2;
 	g8 = -15*g7*dir2;
-#else
-	g5 = 0;
-	g6 = 0;
-	g7 = 0;
-	g8 = 0;
-#endif
+
 	xx = x*x;
 	xy = x*y;
 	yy = y*y;
@@ -1945,7 +1873,7 @@ void momLocrAddMomrAccurate(LOCR *l,MOMR *m,momFloat g0,momFloat x,momFloat y,mo
 	Q4x = onethird*(x*Q4xx + y*Q4xy + z*Q4xz);
 	Q4y = onethird*(x*Q4xy + y*Q4yy + z*Q4yz);
 	Q4z = onethird*(x*Q4xz + y*Q4yz - z*(Q4xx + Q4yy));
-	Q4 = 0.25*(x*Q4x + y*Q4y + z*Q4z);
+	Q4 = 0.25*(x*Q4x + y*Q4y + z*Q4z);	
 	R = g0*m->m + g2*Q2 - g3*Q3 + g4*Q4;
 	l->m += R;
 	Rx = g2*Q2x - g3*Q3x + g4*Q4x;
