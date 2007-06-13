@@ -3368,6 +3368,7 @@ void msrCorrector(MSR msr,double dTime)
 	pstCorrector(msr->pst,&in,sizeof(in),NULL,NULL);
 	}
 
+#ifdef PLANETS 
 void msrSunCorrector(MSR msr,double dTime)
 {
 	struct inSunCorrector in;
@@ -3376,6 +3377,7 @@ void msrSunCorrector(MSR msr,double dTime)
 	in.dSunMass = msr->dSunMass;
 	pstSunCorrector(msr->pst,&in,sizeof(in),NULL,NULL);
 	}
+#endif
 
 void msrPredictorInactive(MSR msr,double dTime)
 {
