@@ -650,7 +650,7 @@ void pkdWriteTipsy(PKD,char *,int,int,double,double,int);
 #ifdef USE_HDF5
 void pkdWriteHDF5(PKD pkd, IOHDF5 io,double dvFac,double duTFac);
 #endif
-void pkdGravAll(PKD,double,int,int,int,int,int,double,double,int,double *,int *,
+void pkdGravAll(PKD,double,int,int,int,int,int,double,double,int *,
 		double *,double *,CASTAT *,double *);
 void pkdCalcE(PKD,double *,double *,double *);
 void pkdCalcEandL(PKD,double *,double *,double *,double []);

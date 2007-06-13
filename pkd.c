@@ -1443,10 +1443,9 @@ void pkdBucketWeight(PKD pkd,int iBucket,FLOAT fWeight)
 
 
 void
-pkdGravAll(PKD pkd,double dTime,int nReps,int bPeriodic,int iOrder,int bEwald,int iEwOrder,
-	   double fEwCut,double fEwhCut,int bDoSun,double *aSun,int *nActive,
-	   double *pdPartSum,double *pdCellSum,CASTAT *pcs,
-	   double *pdFlop)
+pkdGravAll(PKD pkd,double dTime,int nReps,int bPeriodic,int iOrder,int bEwald,
+	   int iEwOrder, double fEwCut,double fEwhCut,int *nActive, 
+	   double *pdPartSum, double *pdCellSum,CASTAT *pcs, double *pdFlop)
     {
     int bVeryActive = 0;
 
@@ -2815,8 +2814,8 @@ void pkdGravSun(PKD pkd,double aSun[],double adSun[],double dSunMass)
 			  E = 0.5*v2 - sum*r1i;			  
 			  e = sqrt(1.0+2.0*E*h2/sum/sum);
 			  aai = -2.0*E/sum/(1.0-e); 
-			  aa3i = aai*aai*aai;
-			  idt2 = sum*aa3i;
+			  aai = aai*aai*aai;
+			  idt2 = sum*aai;
 			  /*if (p[i].dtSun > p[i].dtGrav) p[i].dtGrav = p[i].dtSun;*/
 			  if (idt2 > p[i].dtGrav) p[i].dtGrav = idt2;
 			}		   
