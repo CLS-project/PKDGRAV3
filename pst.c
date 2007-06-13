@@ -2342,31 +2342,13 @@ void pstGravity(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     struct inGravity *in = vin;
     struct outGravity *out = vout;
     struct outGravity outUp;
-    int j,bSunLower,bSunUpper;
-
+   
     mdlassert(pst->mdl,nIn == sizeof(struct inGravity));
     if (pst->nLeaves > 1) {
-	/*
-	** Here we need to determine which domain is closest, or containing,
-	** coordinate (0,0,0), the location of the Sun!
-	if (pst->fSplit < 0) { 
-	    bSunLower = 0;
-	    bSunUpper = in->bDoSun;
-	    }
-	else {
-	    bSunLower = in->bDoSun;
-	    bSunUpper = 0;
-	    }
-	in->bDoSun = bSunUpper; */
 
 	mdlReqService(pst->mdl,pst->idUpper,PST_GRAVITY,in,nIn);
-	in->bDoSun = bSunLower;
 	pstGravity(pst->pstLower,in,nIn,out,NULL);
 	mdlGetReply(pst->mdl,pst->idUpper,&outUp,NULL);
-
-	/*if (bSunUpper) {
-	    for (j=0;j<3;++j) out->aSun[j] = outUp.aSun[j];
-	    }*/
 
 	out->dPartSum += outUp.dPartSum;
 	out->dCellSum += outUp.dCellSum;
@@ -2395,9 +2377,8 @@ void pstGravity(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     }
     else {
       pkdGravAll(plcl->pkd,in->dTime,in->nReps,in->bPeriodic,4,in->bEwald,
-		   in->iEwOrder,in->dEwCut,in->dEwhCut,in->bDoSun,out->aSun,
-		   &out->nActive,&out->dPartSum,&out->dCellSum,
-		   &cs,&out->dFlop);
+		 in->iEwOrder,in->dEwCut,in->dEwhCut, &out->nActive,
+		 &out->dPartSum,&out->dCellSum,&cs,&out->dFlop);
 
 	out->dWSum = pkdGetWallClockTimer(plcl->pkd,1);
 	out->dISum = pkdGetWallClockTimer(plcl->pkd,2);

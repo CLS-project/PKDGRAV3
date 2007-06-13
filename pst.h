@@ -406,7 +406,6 @@ struct inGravity {
     int bPeriodic;
     int bEwald;
     int iEwOrder;
-    int bDoSun;
     double dEwCut;
     double dEwhCut;
     };
