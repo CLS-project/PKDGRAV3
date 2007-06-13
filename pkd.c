@@ -1955,7 +1955,7 @@ pkdStepVeryActiveHermite(PKD pkd, double dStep, double dTime, double dDelta,
 						*/
 
 	    if(pkd->param.bVDetails) {
-		printf("%*cGravityVA: iRung %d Gravity for rungs %d to %d ... ",
+		printf("%*cGravityVA: iRung %d Gravity for rungs %d to %d ...\n ",
 		       2*iRung+2,' ',iRung,iKickRung,*pnMaxRung);
 		}
 
@@ -2030,9 +2030,11 @@ pkdCopy0(PKD pkd,double dTime)
 		p[i].ad0[j] = p[i].ad[j];	 
 	    }
 	    p[i].dTime0 = dTime;
+#ifdef PLANETS
 	    if(pkd->param.bCollision){
 		p[i].iColflag = 0;  /* just in case */
 	    }
+#endif
 	}
     }
     mdlDiag(pkd->mdl, "Out of pkdCopy0\n");
@@ -2227,9 +2229,11 @@ void pkdFirstDt(PKD pkd) {
 		  a1d2 += p[i].ad0[j]*p[i].ad0[j];
 	      }
 	  p[i].dtGrav = 0.1*(a0d2/a1d2);
+#ifdef PLANETS
 	  if(pkd->param.bCollision){
 	      p[i].iColflag = 0; /* initial reset of collision flag */	
 	  }
+#endif
     }
 }
 #endif /* Hermite */
@@ -2804,7 +2808,7 @@ void pkdGravSun(PKD pkd,double aSun[],double adSun[],double dSunMass)
 			r3i = dSunMass*r1i*r1i*r1i;
                         r5i = 3.0*rv*r3i*r1i*r1i;
 			/* time step is determined by semimajor axis, not the heliocentric distance*/ 
-			if(!pkd->param.bAarsethStep){
+			if(pkd->param.bGravStep){
 			  /* E and h are normalized by the reduced mass */
 			  sum = dSunMass + p[i].fMass;
 			  hx =  p[i].r[1]*p[i].v[2] - p[i].r[2]*p[i].v[1];  
