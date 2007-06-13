@@ -356,6 +356,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	    y = p[i].r[1] - ilp[j].y;
 	    z = p[i].r[2] - ilp[j].z;
 	    d2 = x*x + y*y + z*z;
+#ifdef HERMITE
 	    if(pkd->param.bHermite || pkd->param.iTimeStepCrit > 0){	 
 	      vx = p[i].v[0] - ilp[j].vx;
 	      vy = p[i].v[1] - ilp[j].vy;
@@ -363,7 +364,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	      v2 = vx*vx + vy*vy + vz*vz;   
 	      rv = x*vx + y*vy + z*vz; 
 	    }
-
+#endif
          
 #ifdef SOFTSQUARE
 	    fourh2 = ptwoh2 + ilp[j].twoh2;
@@ -412,7 +413,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	    /* GravStep 
 	       iTimeStepCrit = 1: MZ eccentricity correction
 	                       2: Normal
-			       3:Planet
+			       3: Planet
 	    */	   
 	    if(pkd->param.bGravStep && pkd->param.iTimeStepCrit > 0 && 
 	       (ilp[j].iOrder < pkd->param.nPColl || p[i].iOrder < pkd->param.nPColl)) {
@@ -559,6 +560,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	    y = pi->r[1] - pj->r[1];
 	    z = pi->r[2] - pj->r[2];
 	    d2 = x*x + y*y + z*z;
+#ifdef HERMITE
 	    if(pkd->param.bHermite || pkd->param.iTimeStepCrit > 0){
 	      vx = pi->v[0] - pj->v[0];
 	      vy = pi->v[1] - pj->v[1];
@@ -566,7 +568,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	      v2 = vx*vx + vy*vy + vz*vz;
 	      rv = x*vx+ y*vy + z*vz;
 	    }
-          
+#endif          
 #ifdef SOFTSQUARE
 	    fourh2 = ptwoh2 + 2*pj->fSoft*pj->fSoft;
 #endif
@@ -679,6 +681,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	    y = pi->r[1] - pj->r[1];
 	    z = pi->r[2] - pj->r[2];
 	    d2 = x*x + y*y + z*z;
+#ifdef HERMITE
 	    if(pkd->param.bHermite || pkd->param.iTimeStepCrit > 0){
 	      vx = pi->v[0] - pj->v[0];
 	      vy = pi->v[1] - pj->v[1];
@@ -686,7 +689,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	      rv = vx*x + vy*y + vz*z;
 	      v2 = vx*vx + vy*vy + vz*vz;  
 	    }
-	   
+#endif	   
 #ifdef SOFTSQUARE
 	    fourh2 = ptwoh2 + 2*pj->fSoft*pj->fSoft;
 #endif
