@@ -596,27 +596,6 @@ void momShiftLocr(LOCR *l,momFloat x,momFloat y,momFloat z)
 
 
 /*
- ** This function shifts a reduced local expansion of 2ND ORDER (quadrupole) to a new center of expansion.
- ** <x,y,z> := d := rexp(new) - rexp(old).
- */
-void momShiftLocr2(LOCR *l,momFloat x,momFloat y,momFloat z)
-{
-  momFloat L,Lx,Ly,Lz;
-
-  L = l->x*x + l->y*y + l->z*z; 
-  l->m += L;
-  Lx = l->xx*x + l->xy*y + l->xz*z;
-  Ly = l->xy*x + l->yy*y + l->yz*z;
-  Lz = l->xz*x + l->yz*y - (l->xx + l->yy)*z;
-  L = Lx*x + Ly*y + Lz*z;
-  l->x += Lx;
-  l->y += Ly;
-  l->z += Lz;
-  l->m += 0.5*L;
-}
-
-
-/*
  ** This function converts a complete multipole (MOMC) to a reduced one (MOMR).
  */
 void momReduceMomc(MOMC *mc,MOMR *mr)
@@ -940,6 +919,17 @@ void momClearLocr(LOCR *l)
 	l->xxyz = 0;
 	l->xyyz = 0;
 	l->yyyz = 0;
+	l->xxxxx = 0;
+	l->xxxxy = 0;
+	l->xxxyy = 0;
+	l->xxyyy = 0;
+	l->xyyyy = 0;
+	l->yyyyy = 0;
+	l->xxxxz = 0;
+	l->xxxyz = 0;
+	l->xxyyz = 0;
+	l->xyyyz = 0;
+	l->yyyyz = 0;
 	}
 
 void momClearMomr(MOMR *l)
@@ -1286,6 +1276,7 @@ double momLocrAddMomr(LOCR *l,MOMR *q,momFloat dir,momFloat x,momFloat y,momFloa
     return 243.0;
     }
 
+
 /*
 ** Op Count (*,+) = (154,105) = 259 
 **  
@@ -1446,6 +1437,7 @@ void momGenLocrAddMomr(LOCR *l,MOMR *q,momFloat dir,
     l->xyyz += (1 + t4yy)*xz*m;
     }
 
+
 void momEwaldLocrAddMomr(LOCR *l,MOMR *m,momFloat r2,int bInHole,momFloat x,momFloat y,momFloat z) {
     momFloat xx,xy,xz,yy,yz,zz;
     momFloat Ax,Ay,Az,A,Bx,By,Bz,B,C,R,T;
@@ -1542,8 +1534,7 @@ void momEwaldLocrAddMomr(LOCR *l,MOMR *m,momFloat r2,int bInHole,momFloat x,momF
     }
 
 
-
-void momNooptLocrAddMomr(LOCR *l,MOMR *m,momFloat dir,momFloat x,momFloat y,momFloat z) {
+void momLocrAddMomr5(LOCR *l,MOMR *m,momFloat dir,momFloat x,momFloat y,momFloat z) {
     momFloat xx,xy,xz,yy,yz,zz;
     momFloat Ax,Ay,Az,A,Bx,By,Bz,B,C,R,T;
     momFloat g0,g1,g2,g3,g4,dir2;
@@ -1554,62 +1545,78 @@ void momNooptLocrAddMomr(LOCR *l,MOMR *m,momFloat dir,momFloat x,momFloat y,momF
     g2 = -3*g1*dir2;
     g3 = -5*g2*dir2;
     g4 = -7*g3*dir2;
-
+    g5 = -9*g4*dir2;
+    /*
+    ** Calculate the funky distance terms.
+    */
     xx = 0.5*x*x;
     xy = x*y;
     yy = 0.5*y*y;
     xz = x*z;
     yz = y*z;
     zz = 0.5*z*z;
+    xxx = x*(onethird*xx - zz);
+    xxz = z*(xx - onethird*zz);
+    yyy = y*(onethird*yy - zz);
+    yyz = z*(yy - onethird*zz);
     xx -= zz;
     yy -= zz;
+    xxy = y*xx;
+    xyy = x*yy;
+    xyz = xy*z;
+
+    Bxx = x*m->xxx + y*m->xxy + z*m->xxz;
+    Bxy = x*m->xxy + y*m->xyy + z*m->xyz;
+    Byy = x*m->xyy + y*m->yyy + z*m->yyz;
+    Bxz = x*m->xxz + y*m->xyz - z*(m->xxx + m->xyy);
+    Byz = x*m->xyz + y*m->yyz - z*(m->xxy + m->yyy);
+
+    Cx = m->xxxx*xxx + m->xyyy*yyy + m->xxxy*xxy + m->xxxz*xxz + m->xxyy*xyy + m->xxyz*xyz + m->xyyz*yyz;
+    Cy = m->xyyy*xyy + m->xxxy*xxx + m->yyyy*yyy + m->yyyz*yyz + m->xxyy*xxy + m->xxyz*xxz + m->xyyz*xyz;
+    Cz = -m->xxxx*xxz - (m->xyyy + m->xxxy)*xyz - m->yyyy*yyz + m->xxxz*xxx + m->yyyz*yyy - m->xxyy*(xxz + yyz) + m->xxyz*xxy + m->xyyz*xyy;
 
     Ax = x*m->xx + y*m->xy + z*m->xz;
     Ay = x*m->xy + y*m->yy + z*m->yz;
     Az = x*m->xz + y*m->yz - z*(m->xx + m->yy);
-    A = x*Ax + y*Ay + z*Az;
 
-    Bx = xx*m->xxx + xy*m->xxy + xz*m->xxz + yy*m->xyy + yz*m->xyz;
-    By = xx*m->xxy + xy*m->xyy + xz*m->xyz + yy*m->yyy + yz*m->yyz;
-    Bz = xx*m->xxz + xy*m->xyz - xz*(m->xxx + m->xyy) + yy*m->yyz - yz*(m->xxy + m->yyy);
-    B = x*Bx + y*By + z*Bz;
+    Bx = 0.5*(x*Bxx + y*Bxy + z*Bxz);
+    By = 0.5*(x*Bxy + y*Byy + z*Byz);
+    Bz = 0.5*(x*Bxz + y*Byz - z*(Bxx + Byy));
 
-    l->m += g0*m->m + 0.5*g2*A - (1/3.0)*g3*B;
+    C = 0.25*(x*Cx + y*Cy + z*Cz);
 
-    R = g1*m->m + 0.5*g3*A - (1/3.0)*g4*B;
-    l->x += g2*Ax - g3*Bx + x*R;
-    l->y += g2*Ay - g3*By + y*R;
-    l->z += g2*Az - g3*Bz + z*R;
+    A = 0.5*(x*Ax + y*Ay + z*Az);
+    
+    B = onethird*(x*Bx + y*By + z*Bz);
+    
+    l->m += g0*m->m + g2*A - g3*B + g4*C;
+
+    R = g1*m->m + g3*A - g4*B + g5*C;
+    l->x += g2*Ax - g3*Bx + g4*Cx + x*R;
+    l->y += g2*Ay - g3*By + g4*Cy + y*R;
+    l->z += g2*Az - g3*Bz + g4*Cz + z*R;
+    /*
+    ** No more C's used here!
+    */
+    T = g1*m->m + g3*A - g4*B;
+    R = g2*m->m + g4*A - g5*B;
+    l->xx += g2*m->xx - g3*Bxx + T + (R*x + 2*(g3*Ax - g4*Bx))*x;
+    l->xy += g2*m->xy - g3*Bxy + R*xy + g3*(Ax*y + Ay*x) - g4*(Bx*y + By*x);
+    l->yy += g2*m->yy - g3*Byy + T + (R*y + 2*(g3*Ay - g4*By))*y;
+    l->xz += g2*m->xz - g3*Bxz + R*xz + g3*(Ax*z + Az*x) - g4*(Bx*z + Bz*x);
+    l->yz += g2*m->yz - g3*Byz + R*yz + g3*(Ay*z + Az*y) - g4*(By*z + Bz*y);
     /*
     ** No more B's used here!
     */
-    T = g1*m->m + 0.5*g3*A;
-    R = g2*m->m + 0.5*g4*A;
-    l->xx += T + (R*x + 2*g3*Ax)*x;
-    l->xy += R*xy + g3*(Ax*y + Ay*x);
-    l->yy += T + (R*y + 2*g3*Ay)*y;
-    l->xz += R*xz + g3*(Ax*z + Az*x);
-    l->yz += R*yz + g3*(Ay*z + Az*y);
-    /*
-    ** No more A's and no more B's used here!
-    */
-    C = (xx*xx - xz*xz)*m->xxxx + (yy*yy - yz*yz)*m->yyyy + 2*(xx*xz*m->xxxz + yy*yz*m->yyyz) + (6*yy*xx - 4*zz*zz)*m->xxyy;
-    xx = x*x;
-    yy = y*y;
-    zz *= 2;
-    C += (3*xx - zz)*yz*m->xxyz  + (3*yy - zz)*xz*m->xyyz;
-    zz *= 3;
-    C += xy*((xx - zz)*m->xxxy + (yy - zz)*m->xyyy); 
-
-    l->m += (1/6.0)*g4*C;
-
-    l->xxx += (3*g2 + g3*x*x)*x*m->m;
-    l->xxy += (g2 + g3*x*x)*y*m->m;
-    l->xyy += (g2 + g3*y*y)*x*m->m;
-    l->yyy += (3*g2 + g3*y*y)*y*m->m;
-    l->xxz += (g2 + g3*x*x)*z*m->m;
-    l->xyz += g3*x*y*z*m->m;
-    l->yyz += (g2 + g3*y*y)*z*m->m;
+    T = g2*m->m + g4*A;
+    R = g3*m->m + g5*A;
+    l->xxx += 3*T*x + R*x*x*x + 3*Ax*x*x + g3*(3*Ax + 3*m->xx*x);
+    l->xxy += T*y + R*x*x*y + 2*Ax*x*y + Ay*x*x + g3*(Ay + 2*m->xy*x + m->xx*y);
+    l->xyy += T*x + R*x*y*y + 2*Ay*x*y + Ax*y*y + g3*(Ax + 2*m->xy*y + m->yy*x);
+    l->yyy += 3*T*y + R*y*y*y + 3*Ay*y*y + g3*(3*Ay + 3*m->yy*y);
+    l->xxz += T*z + R*x*x*z + 2*Ax*x*z + Az*x*x + g3*(Az + 2*m->xz*x + m->xx*z);
+    l->xyz += R*x*y*z + Ax*y*z + Ay*x*z + Az*x*y + g3*(m->xy*z + m->xz*y + m->yz*x);
+    l->yyz += T*z + R*y*y*z + 2*Ay*y*z + Az*y*y + g3*(Az + 2*m->yz*y + m->yy*z);
 
     l->xxxx += (3*g2 + (6*g3 + g4*x*x)*x*x)*m->m;
     l->xxxy += (3*g3 + g4*x*x)*x*y*m->m;
@@ -1620,6 +1627,18 @@ void momNooptLocrAddMomr(LOCR *l,MOMR *m,momFloat dir,momFloat x,momFloat y,momF
     l->xxyz += (g3 + g4*x*x)*y*z*m->m;
     l->xyyz += (g3 + g4*y*y)*x*z*m->m;
     l->yyyz += (3*g3 + g4*y*y)*y*z*m->m;
+
+    l->xxxxx += (15*g3 + (10*g4 + g5*x*x)*x*x)*x*m->m;
+    l->xxxxy += (3*g3 + (6*g4 + g5*x*x)*x*x)*y*m->m;
+    l->xxxyy += (3*g3 + 3*g4*y*y + (g4 + g5*y*y)*x*x)*x*m->m;
+    l->xxyyy += (3*g3 + 3*g4*x*x + (g4 + g5*x*x)*y*y)*y*m->m;
+    l->xyyyy += (3*g3 + (6*g4 + g5*y*y)*y*y)*x*m->m;
+    l->yyyyy += (15*g3 + (10*g4 + g5*y*y)*y*y)*y*m->m;
+    l->xxxxz += (3*g3 + (6*g4 + g5*x*x)*x*x)*z*m->m;
+    l->xxxyz += (3*g4 + g5*x*x)*x*y*z*m->m;
+    l->xxyyz += (g3 + (10*g4 + g5*x*x)*x*x)*x*m->m;
+    l->xyyyz += (3*g4 + g5*y*y)*x*y*z*m->m;
+    l->yyyyz += (3*g3 + (6*g4 + g5*y*y)*y*y)*z*m->m;
     }
 
 
@@ -1963,7 +1982,8 @@ void momEvalLocr(LOCR *l,momFloat x,momFloat y,momFloat z,
 				 momFloat *fPot,momFloat *ax,momFloat *ay,momFloat *az)
 {
 	const momFloat onethird = 1.0/3.0;
-	momFloat xx,xy,xz,yy,yz,zz,xxx,xxz,yyy,yyz,xxy,xyy,xyz,tx,ty,tz,g1,g2,g3,g4;
+	momFloat xx,xy,xz,yy,yz,zz,xxx,xxz,yyy,yyz,xxy,xyy,xyz,xxxx,xxxy,xxyy,xyyy,yyyy,xxxz,xxyz,xyyz,yyyz;
+	momFloat g1,A,Ax,Ay,Az,B,Bx,By,Bz,C,Cx,Cy,Cz,D,Dx,Dy,Dz;
 
 	/*
 	 ** Calculate the funky distance terms.
@@ -1983,114 +2003,40 @@ void momEvalLocr(LOCR *l,momFloat x,momFloat y,momFloat z,
 	xxy = y*xx;
 	xyy = x*yy;
 	xyz = xy*z;
+	xxxx = 0.25*(x*xxx - z*xxz);
+	xxxy = y*xxx;
+	xxyy = xx*yy - 2*onethird*zz*zz;
+	xyyy = x*yyy;
+	yyyy = 0.25*(y*yyy - z*yyz);
+	xxxz = onethird*x*z*xx;
+	xxyz = y*xxz;
+	xyyz = x*yyz;
+	yyyz = y*yyz;
 	/*
-	 ** Now calculate the interaction up to Hexadecapole order.
+	 ** Now calculate the interaction.
 	 */
-	tx = l->xxxx*xxx + l->xyyy*yyy + l->xxxy*xxy + l->xxxz*xxz + l->xxyy*xyy + l->xxyz*xyz + l->xyyz*yyz;
-	ty = l->xyyy*xyy + l->xxxy*xxx + l->yyyy*yyy + l->yyyz*yyz + l->xxyy*xxy + l->xxyz*xxz + l->xyyz*xyz;
-	tz = -l->xxxx*xxz - (l->xyyy + l->xxxy)*xyz - l->yyyy*yyz + l->xxxz*xxx + l->yyyz*yyy - l->xxyy*(xxz + yyz) + l->xxyz*xxy + l->xyyz*xyy;
-	g4 = 0.25*(tx*x + ty*y + tz*z);
-	xxx = l->xxx*xx + l->xyy*yy + l->xxy*xy + l->xxz*xz + l->xyz*yz;
-	xxy = l->xyy*xy + l->xxy*xx + l->yyy*yy + l->yyz*yz + l->xyz*xz;
-	xxz = -(l->xxx + l->xyy)*xz - (l->xxy + l->yyy)*yz + l->xxz*xx + l->yyz*yy + l->xyz*xy;
-	g3 = onethird*(xxx*x + xxy*y + xxz*z);
-	xx = l->xx*x + l->xy*y + l->xz*z;
-	xy = l->yy*y + l->xy*x + l->yz*z;
-	xz = -(l->xx + l->yy)*z + l->xz*x + l->yz*y;
-	g2 = 0.5*(xx*x + xy*y + xz*z);
+	Dx = l->xxxxx*xxxx + l->xxxxy*xxxy + l->xxxyy*xxyy + l->xxyyy*xyyy + l->xyyyy*yyyy + l->xxxxz*xxxz + l->xxxyz*xxyz + l->xxyyz*xyyz + l->xyyyz*yyyz;
+	Dy = l->xxxxy*xxxx + l->xxxyy*xxxy + l->xxyyy*xxyy + l->xyyyy*xyyy + l->yyyyy*yyyy + l->xxxyz*xxxz + l->xxyyz*xxyz + l->xyyyz*xyyz + l->yyyyz*yyyz; 
+	Dz = l->xxxxz*xxxx + l->xxxyz*xxxy + l->xxyyz*xxyy + l->xyyyz*xyyy + l->yyyyz*yyyy 
+	    - l->xxxxx*xxxz - l->xxxxy*xxyz - l->xxxyy*(xxxz + xyyz) - l->xxyyy*(xxyz + yyyz) + l->xyyyy*xyyz + l->yyyyy*yyyz;
+	Cx = l->xxxx*xxx + l->xyyy*yyy + l->xxxy*xxy + l->xxxz*xxz + l->xxyy*xyy + l->xxyz*xyz + l->xyyz*yyz;
+	Cy = l->xyyy*xyy + l->xxxy*xxx + l->yyyy*yyy + l->yyyz*yyz + l->xxyy*xxy + l->xxyz*xxz + l->xyyz*xyz;
+	Cz = -l->xxxx*xxz - (l->xyyy + l->xxxy)*xyz - l->yyyy*yyz + l->xxxz*xxx + l->yyyz*yyy - l->xxyy*(xxz + yyz) + l->xxyz*xxy + l->xyyz*xyy;
+	Bx = l->xxx*xx + l->xyy*yy + l->xxy*xy + l->xxz*xz + l->xyz*yz;
+	By = l->xyy*xy + l->xxy*xx + l->yyy*yy + l->yyz*yz + l->xyz*xz;
+	Bz = -(l->xxx + l->xyy)*xz - (l->xxy + l->yyy)*yz + l->xxz*xx + l->yyz*yy + l->xyz*xy;
+	Ax = l->xx*x + l->xy*y + l->xz*z;
+	Ay = l->yy*y + l->xy*x + l->yz*z;
+	Az = -(l->xx + l->yy)*z + l->xz*x + l->yz*y;
+	D = 0.2*(Dx*x + Dy*y + Dz*z);
+	C = 0.25*(Cx*x + Cy*y + Cz*z);
+        B = onethird*(Bx*x + By*y + Bz*z);
+	A = 0.5*(Ax*x + Ay*y + Az*z);
 	g1 = x*l->x + y*l->y + z*l->z;
-	*ax -= l->x + xx + xxx + tx;
-	*ay -= l->y + xy + xxy + ty;
-	*az -= l->z + xz + xxz + tz;
-	*fPot += l->m + g1 + g2 + g3 + g4;
-	}
-
-
-void momEvalLocc(LOCC *l,momFloat x,momFloat y,momFloat z,
-		 momFloat *fPot,momFloat *ax,momFloat *ay,momFloat *az)
-{
-	const momFloat sixth = 1.0/6.0;
-	const momFloat third = 1.0/3.0;
-	momFloat xx,xy,yy,xz,yz,zz,xxx,xxy,xyy,yyy,xxz,xyz,yyz,xzz,yzz,zzz;
-	momFloat L1,L2,L3,L4,L2x,L2y,L2z,L3x,L3y,L3z,L4x,L4y,L4z;
-
-	L1 = x*l->x + y*l->y + z*l->z;
-	L2x = x*l->xx + y*l->xy + z*l->xz;
-	L2y = x*l->xy + y*l->yy + z*l->yz;
-	L2z = x*l->xz + y*l->yz + z*l->zz;
-	L2 = 0.5*(x*L2x + y*L2y + z*L2z);
-	xx = x*x;
-	xy = x*y;
-	yy = y*y;
-	xz = x*z;
-	yz = y*z;
-	zz = z*z;
-	L3x = 0.5*(l->xxx*xx + l->xyy*yy + l->xzz*zz + 2*(l->xxy*xy + l->xxz*xz + l->xyz*yz));
-	L3y = 0.5*(l->xxy*xx + l->yyy*yy + l->yzz*zz + 2*(l->xyy*xy + l->xyz*xz + l->yyz*yz));
-	L3z = 0.5*(l->xxz*xx + l->yyz*yy + l->zzz*zz + 2*(l->xyz*xy + l->xzz*xz + l->yzz*yz));
-	L3 = third*(x*L3x + y*L3y + z*L3z);
-	xxx = x*xx;
-	xxy = y*xx;
-	xyy = x*yy;
-	yyy = y*yy;
-	yyz = z*yy;
-	xxz = x*xz;
-	xyz = y*xz;
-	xzz = x*zz;
-	yzz = y*zz;
-	zzz = z*zz;
-	L4x = sixth*(l->xxxx*xxx + l->xyyy*yyy + l->xzzz*zzz + 3*(l->xxxy*xxy + l->xxyy*xyy + l->xxxz*xxz + l->xyyz*yyz + l->xyzz*yzz + 2*l->xxyz*xyz));
-	L4y = sixth*(l->xxxy*xxx + l->yyyy*yyy + l->yzzz*zzz + 3*(l->xxyy*xxy + l->xyyy*xyy + l->xxyz*xxz + l->yyyz*yyz + l->yyzz*yzz + 2*l->xyyz*xyz));
-	L4z = sixth*(l->xxxz*xxx + l->yyyz*yyy + l->zzzz*zzz + 3*(l->xxyz*xxy + l->xyyz*xyy + l->xxzz*xxz + l->yyzz*yyz + l->yzzz*yzz + 2*l->xyzz*xyz));
-	L4 = 0.25*(x*L4x + y*L4y + z*L4z);
-	*ax -= l->x + L2x + L3x + L4x;
-	*ay -= l->y + L2y + L3y + L4y;
-	*az -= l->z + L2z + L3z + L4z;
-	*fPot += l->m + L1 + L2 + L3 + L4;
-	}
-
-
-/*
- ** This function subtracts the complete local moment ma from the complete 
- ** local moment mc
- */
-void momSubLocc(LOCC *mc,LOCC *ma)
-{
-	mc->m -= ma->m;
-	mc->x -= ma->x;
-	mc->y -= ma->y;
-	mc->z -= ma->z;	
-	mc->xx -= ma->xx;
-	mc->yy -= ma->yy;
-	mc->xy -= ma->xy;
-	mc->xz -= ma->xz;
-	mc->yz -= ma->yz;
-	mc->xxx -= ma->xxx;
-	mc->xyy -= ma->xyy;
-	mc->xxy -= ma->xxy;
-	mc->yyy -= ma->yyy;
-	mc->xxz -= ma->xxz;
-	mc->yyz -= ma->yyz;
-	mc->xyz -= ma->xyz;
-	mc->xxxx -= ma->xxxx;
-	mc->xyyy -= ma->xyyy;
-	mc->xxxy -= ma->xxxy;
-	mc->yyyy -= ma->yyyy;
-	mc->xxxz -= ma->xxxz;
-	mc->yyyz -= ma->yyyz;
-	mc->xxyy -= ma->xxyy;
-	mc->xxyz -= ma->xxyz;
-	mc->xyyz -= ma->xyyz;
-	mc->zz -= ma->zz;
-	mc->xzz -= ma->xzz;
-	mc->yzz -= ma->yzz;
-	mc->zzz -= ma->zzz;
-	mc->xxzz -= ma->xxzz;
-	mc->xyzz -= ma->xyzz;
-	mc->xzzz -= ma->xzzz;
-	mc->yyzz -= ma->yyzz;
-	mc->yzzz -= ma->yzzz;
-	mc->zzzz -= ma->zzzz;
+	*ax -= l->x + Ax + Bx + Cx + Dx;
+	*ay -= l->y + Ay + By + Cy + Dy;
+	*az -= l->z + Az + Bz + Cz + Dz;
+	*fPot += l->m + g1 + A + B + C + D;
 	}
 
 
@@ -2119,23 +2065,6 @@ void momPrintMomr(MOMR *m) {
 	printf("xxxx:%20.15g xxxy:%20.15g xxxz:%20.15g\n",(double)m->xxxx,(double)m->xxxy,(double)m->xxxz);
 	printf("xxyy:%20.15g xxyz:%20.15g xyyy:%20.15g\n",(double)m->xxyy,(double)m->xxyz,(double)m->xyyy);
 	printf("xyyz:%20.15g yyyy:%20.15g yyyz:%20.15g\n",(double)m->xyyz,(double)m->yyyy,(double)m->yyyz);
-	}
-
-
-void momPrintLocc(LOCC *m) {
-	printf("LOCC:%20.15g\n",(double)m->m);
-	printf("   x:%20.15g    y:%20.15g    z:%20.15g\n",(double)m->x,(double)m->y,(double)m->z);
-	printf("  xx:%20.15g   yy:%20.15g   zz:%20.15g\n",(double)m->xx,(double)m->yy,(double)m->zz);
-    printf("  xy:%20.15g   yz:%20.15g   xz:%20.15g\n",(double)m->xy,(double)m->yz,(double)m->xz);
-	printf(" xxx:%20.15g  xyy:%20.15g  xzz:%20.15g\n",(double)m->xxx,(double)m->xyy,(double)m->xzz);
-    printf(" xxy:%20.15g  yyy:%20.15g  yzz:%20.15g\n",(double)m->xxy,(double)m->yyy,(double)m->yzz);
-	printf(" xxz:%20.15g  yyz:%20.15g  zzz:%20.15g\n",(double)m->xxz,(double)m->yyz,(double)m->zzz);
-	printf(" xyz:%20.15g\n",(double)m->xyz);
-	printf("xxxx:%20.15g xxxy:%20.15g xxxz:%20.15g\n",(double)m->xxxx,(double)m->xxxy,(double)m->xxxz);
-	printf("xyyy:%20.15g yyyy:%20.15g yyyz:%20.15g\n",(double)m->xyyy,(double)m->yyyy,(double)m->yyyz);
-	printf("xzzz:%20.15g yzzz:%20.15g zzzz:%20.15g\n",(double)m->xzzz,(double)m->yzzz,(double)m->zzzz);
-	printf("xxyy:%20.15g xxyz:%20.15g xyyz:%20.15g\n",(double)m->xxyy,(double)m->xxyz,(double)m->xyyz);
-	printf("yyzz:%20.15g xxzz:%20.15g xyzz:%20.15g\n",(double)m->yyzz,(double)m->xxzz,(double)m->xyzz);
 	}
 
 
