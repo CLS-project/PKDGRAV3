@@ -148,27 +148,29 @@ int main(int argc,char **argv) {
     */
     msrDrift(msr,dTime,0.0);
 
+
+    /*
+    ** Now we have all the parameters for the simulation we can make a 
+    ** log file entry.
+    */
+    if (msrLogInterval(msr)) {
+	sprintf(achFile,"%s.log",msrOutName(msr));
+	fpLog = fopen(achFile,"w");
+	assert(fpLog != NULL);
+	setbuf(fpLog,(char *) NULL); /* no buffering */
+	/*
+	** Include a comment at the start of the log file showing the
+	** command line options.
+	*/
+	fprintf(fpLog,"# ");
+	for (i=0;i<argc;++i) fprintf(fpLog,"%s ",argv[i]);
+	fprintf(fpLog,"\n");
+	msrLogParams(msr,fpLog);
+    }
+
     if (msrSteps(msr) > 0) {
 	if (msrComove(msr)) {
 	    msrSwitchTheta(msr,dTime);
-	    }
-	/*
-	** Now we have all the parameters for the simulation we can make a 
-	** log file entry.
-	*/
-	if (msrLogInterval(msr)) {
-	    sprintf(achFile,"%s.log",msrOutName(msr));
-	    fpLog = fopen(achFile,"w");
-	    assert(fpLog != NULL);
-	    setbuf(fpLog,(char *) NULL); /* no buffering */
-	    /*
-	    ** Include a comment at the start of the log file showing the
-	    ** command line options.
-	    */
-	    fprintf(fpLog,"# ");
-	    for (i=0;i<argc;++i) fprintf(fpLog,"%s ",argv[i]);
-	    fprintf(fpLog,"\n");
-	    msrLogParams(msr,fpLog);
 	    }
 	/*
 	** Build tree, activating all particles first (just in case).
@@ -364,7 +366,6 @@ int main(int argc,char **argv) {
 	     }
 	    if (iStop) break;
 	    }
-	if (msrLogInterval(msr)) (void) fclose(fpLog);
     }
 	
     else {
@@ -381,10 +382,21 @@ int main(int argc,char **argv) {
 	msrBuildTree(msr,dMass,dTime);
 
 	if (msrDoGravity(msr)) {
-	  msrGravity(msr,dTime,msr->param.iStartStep,&iSec,&dWMax,&dIMax,&dEMax,&nActive);
-	  if (msr->param.bGravStep && msr->param.iTimeStepCrit == -1) {
 	    msrGravity(msr,dTime,msr->param.iStartStep,&iSec,&dWMax,&dIMax,&dEMax,&nActive);
-	  }
+	    if (msr->param.bGravStep && msr->param.iTimeStepCrit == -1) {
+		msrGravity(msr,dTime,msr->param.iStartStep,&iSec,&dWMax,&dIMax,&dEMax,&nActive);
+	    }
+
+	    msrCalcEandL(msr,MSR_INIT_E,dTime,&E,&T,&U,&Eth,L);
+	    dMultiEff = 1.0;
+	    if (msrLogInterval(msr)) {
+		(void) fprintf(fpLog,"%e %e %.16e %e %e %e %.16e %.16e %.16e "
+			       "%i %e %e %e %e\n",dTime,
+			       1.0/csmTime2Exp(msr->param.csm,dTime)-1.0,
+			       E,T,U,Eth,L[0],L[1],L[2],iSec,dWMax,dIMax,dEMax,
+			       dMultiEff);
+		}
+
 	    msrReorder(msr);
 	    sprintf(achFile,"%s.accg",msrOutName(msr));
 	    msrOutVector(msr,achFile,OUT_ACCEL_VECTOR);
@@ -453,6 +465,8 @@ int main(int argc,char **argv) {
 	    msrDtToRung(msr,0,msrDelta(msr),1);
 	    }
 	}
+
+    if (msrLogInterval(msr)) (void) fclose(fpLog);
 
 #ifdef PP_SIMD_BENCHMARK
     PPDumpStats();
