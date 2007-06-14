@@ -513,19 +513,24 @@ void momShiftMomr(MOMR *m,momFloat x,momFloat y,momFloat z)
  ** This function shifts a reduced local expansion (LOCR) to a new center of expansion.
  ** <x,y,z> := d := rexp(new) - rexp(old).
  **
- ** Op Count (*,+) = (97,100) = 197
+ ** Op Count (*,+) = (159,173) = 332 
  */
-void momShiftLocr(LOCR *l,momFloat x,momFloat y,momFloat z)
+double momShiftLocr(LOCR *l,momFloat x,momFloat y,momFloat z)
 {
   const momFloat onethird = 1.0/3.0;
-  momFloat L,Lx,Ly,Lz,Lxx,Lxy,Lxz,Lyy,Lyz,Lxxx,Lxxy,Lxxz,Lxyy,Lxyz,Lyyy,Lyyz,hx,hy,hz;
-
-  L = l->x*x + l->y*y + l->z*z; 
-  l->m += L;
+  momFloat hx,hy,hz,tx,ty,tz;
+  momFloat L,Lx,Ly,Lz,Lxx,Lxy,Lxz,Lyy,Lyz,Lxxx,Lxxy,Lxxz,Lxyy,Lxyz,Lyyy,Lyyz;
+  momFloat Lxxxx,Lxxxy,Lxxyy,Lxyyy,Lyyyy,Lxxxz,Lxxyz,Lxyyz,Lyyyz;
 
   hx = 0.5*x;
   hy = 0.5*y;
   hz = 0.5*z;
+  tx = onethird*x;
+  ty = onethird*y;
+  tz = onethird*z;
+
+  L = l->x*x + l->y*y + l->z*z; 
+  l->m += L;
 
   Lx = l->xx*x + l->xy*y + l->xz*z;
   Ly = l->xy*x + l->yy*y + l->yz*z;
@@ -544,7 +549,7 @@ void momShiftLocr(LOCR *l,momFloat x,momFloat y,momFloat z)
   Lx = Lxx*hx + Lxy*hy + Lxz*hz;
   Ly = Lxy*hx + Lyy*hy + Lyz*hz;
   Lz = Lxz*hx + Lyz*hy - (Lxx + Lyy)*hz;
-
+  L = Lx*tx + Ly*ty + Lz*tz;
   l->xx += Lxx;
   l->xy += Lxy;
   l->xz += Lxz;
@@ -553,6 +558,7 @@ void momShiftLocr(LOCR *l,momFloat x,momFloat y,momFloat z)
   l->x += Lx;
   l->y += Ly;
   l->z += Lz;
+  l->m += L;
 
   Lxxx = l->xxxx*x + l->xxxy*y + l->xxxz*z;
   Lxxy = l->xxxy*x + l->xxyy*y + l->xxyz*z;
@@ -566,16 +572,10 @@ void momShiftLocr(LOCR *l,momFloat x,momFloat y,momFloat z)
   Lxz = Lxxz*hx + Lxyz*hy - (Lxxx + Lxyy)*hz;
   Lyy = Lxyy*hx + Lyyy*hy + Lyyz*hz;
   Lyz = Lxyz*hx + Lyyz*hy - (Lxxy + Lyyy)*hz;
-  x *= onethird;
-  y *= onethird;
-  z *= onethird;
-  L = Lx*x + Ly*y + Lz*z;  /* note here we use the old Lx,Ly,Lz */
-  l->m += L;
-  Lx = Lxx*x + Lxy*y + Lxz*z;
-  Ly = Lxy*x + Lyy*y + Lyz*z;
-  Lz = Lxz*x + Lyz*y - (Lxx + Lyy)*z;
+  Lx = Lxx*tx + Lxy*ty + Lxz*tz;
+  Ly = Lxy*tx + Lyy*ty + Lyz*tz;
+  Lz = Lxz*tx + Lyz*ty - (Lxx + Lyy)*tz;
   L = Lx*hx + Ly*hy + Lz*hz;
-
   l->xxx += Lxxx;
   l->xxy += Lxxy;
   l->xxz += Lxxz;
@@ -592,6 +592,59 @@ void momShiftLocr(LOCR *l,momFloat x,momFloat y,momFloat z)
   l->y += Ly;
   l->z += Lz;
   l->m += 0.5*L;
+
+  Lxxxx = l->xxxxx*x + l->xxxxy*y + l->xxxxz*z;
+  Lxxxy = l->xxxxy*x + l->xxxyy*y + l->xxxyz*z;
+  Lxxyy = l->xxxyy*x + l->xxyyy*y + l->xxyyz*z;
+  Lxyyy = l->xxyyy*x + l->xyyyy*y + l->xyyyz*z;
+  Lyyyy = l->xyyyy*x + l->yyyyy*y + l->yyyyz*z;
+  Lxxxz = l->xxxxz*x + l->xxxyz*y - (l->xxxxx + l->xxxyy)*z;
+  Lxxyz = l->xxxyz*x + l->xxyyz*y - (l->xxxxy + l->xxyyy)*z;
+  Lxyyz = l->xxyyz*x + l->xyyyz*y - (l->xxxyy + l->xyyyy)*z;
+  Lyyyz = l->xyyyz*x + l->yyyyz*y - (l->xxyyy + l->yyyyy)*z;
+  Lxxx = Lxxxx*hx + Lxxxy*hy + Lxxxz*hz;
+  Lxxy = Lxxxy*hx + Lxxyy*hy + Lxxyz*hz;
+  Lxyy = Lxxyy*hx + Lxyyy*hy + Lxyyz*hz;
+  Lyyy = Lxyyy*hx + Lyyyy*hy + Lyyyz*hz;
+  Lxxz = Lxxxz*hx + Lxxyz*hy - (Lxxxx + Lxxyy)*hz;
+  Lxyz = Lxxyz*hx + Lxyyz*hy - (Lxxxy + Lxyyy)*hz;
+  Lyyz = Lxyyz*hx + Lyyyz*hy - (Lxxyy + Lyyyy)*hz;
+  Lxx = Lxxx*tx + Lxxy*ty + Lxxz*tz;
+  Lxy = Lxxy*tx + Lxyy*ty + Lxyz*tz;
+  Lyy = Lxyy*tx + Lyyy*ty + Lyyz*tz;
+  Lxz = Lxxz*tx + Lxyz*ty - (Lxxx + Lxyy)*tz;
+  Lyz = Lxyz*tx + Lyyz*ty - (Lxxy + Lyyy)*tz;
+  Lx = Lxx*hx + Lxy*hy + Lxz*hz;
+  Ly = Lxy*hx + Lyy*hy + Lyz*hz;
+  Lz = Lxz*hx + Lyz*hy - (Lxx + Lyy)*hz;
+  L = Lx*hx + Ly*hy + Lz*hz;
+  l->xxxx += Lxxxx;
+  l->xxxy += Lxxxy;
+  l->xxyy += Lxxyy;
+  l->xyyy += Lxyyy;
+  l->yyyy += Lyyyy;
+  l->xxxz += Lxxxz;
+  l->xxyz += Lxxyz;
+  l->xyyz += Lxyyz;
+  l->yyyz += Lyyyz;
+  l->xxx += Lxxx;
+  l->xxy += Lxxy;
+  l->xxz += Lxxz;
+  l->xyy += Lxyy;
+  l->xyz += Lxyz;
+  l->yyy += Lyyy;
+  l->yyz += Lyyz;
+  l->xx += Lxx;
+  l->xy += Lxy;
+  l->xz += Lxz;
+  l->yy += Lyy;
+  l->yz += Lyz;
+  l->x += 0.5*Lx;
+  l->y += 0.5*Ly;
+  l->z += 0.5*Lz;
+  l->m += 0.2*L;
+
+  return 332.0;
 }
 
 
@@ -1534,7 +1587,7 @@ void momEwaldLocrAddMomr(LOCR *l,MOMR *m,momFloat r2,int bInHole,momFloat x,momF
     }
 
 
-void momLocrAddMomr5(LOCR *l,MOMR *m,momFloat dir,momFloat x,momFloat y,momFloat z) {
+double momLocrAddMomr5(LOCR *l,MOMR *m,momFloat dir,momFloat x,momFloat y,momFloat z) {
     momFloat xx,xy,xz,yy,yz,zz;
     momFloat Ax,Ay,Az,A,Bx,By,Bz,B,C,R,T;
     momFloat g0,g1,g2,g3,g4,dir2;
@@ -1639,6 +1692,8 @@ void momLocrAddMomr5(LOCR *l,MOMR *m,momFloat dir,momFloat x,momFloat y,momFloat
     l->xxyyz += (g3 + (10*g4 + g5*x*x)*x*x)*x*m->m;
     l->xyyyz += (3*g4 + g5*y*y)*x*y*z*m->m;
     l->yyyyz += (3*g3 + (6*g4 + g5*y*y)*y*y)*z*m->m;
+
+    return 400.0; /* a guess right now */
     }
 
 
