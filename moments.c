@@ -1665,13 +1665,13 @@ double momLocrAddMomr5(LOCR *l,MOMR *m,momFloat dir,momFloat x,momFloat y,momFlo
     */
     T = g2*m->m + g4*A;
     R = g3*m->m + g5*A;
-    l->xxx += 3*T*x + R*x*x*x + 3*Ax*x*x + g3*(3*Ax + 3*m->xx*x);
-    l->xxy += T*y + R*x*x*y + 2*Ax*x*y + Ay*x*x + g3*(Ay + 2*m->xy*x + m->xx*y);
-    l->xyy += T*x + R*x*y*y + 2*Ay*x*y + Ax*y*y + g3*(Ax + 2*m->xy*y + m->yy*x);
-    l->yyy += 3*T*y + R*y*y*y + 3*Ay*y*y + g3*(3*Ay + 3*m->yy*y);
-    l->xxz += T*z + R*x*x*z + 2*Ax*x*z + Az*x*x + g3*(Az + 2*m->xz*x + m->xx*z);
-    l->xyz += R*x*y*z + Ax*y*z + Ay*x*z + Az*x*y + g3*(m->xy*z + m->xz*y + m->yz*x);
-    l->yyz += T*z + R*y*y*z + 2*Ay*y*z + Az*y*y + g3*(Az + 2*m->yz*y + m->yy*z);
+    l->xxx += 3*T*x + R*x*x*x + 3*g4*Ax*x*x + g3*(3*Ax + 3*m->xx*x);
+    l->xxy += T*y + R*x*x*y + 2*g4*Ax*x*y + g4*Ay*x*x + g3*(Ay + 2*m->xy*x + m->xx*y);
+    l->xyy += T*x + R*x*y*y + 2*g4*Ay*x*y + g4*Ax*y*y + g3*(Ax + 2*m->xy*y + m->yy*x);
+    l->yyy += 3*T*y + R*y*y*y + 3*g4*Ay*y*y + g3*(3*Ay + 3*m->yy*y);
+    l->xxz += T*z + R*x*x*z + 2*g4*Ax*x*z + g4*Az*x*x + g3*(Az + 2*m->xz*x + m->xx*z);
+    l->xyz += R*x*y*z + g4*Ax*y*z + g4*Ay*x*z + g4*Az*x*y + g3*(m->xy*z + m->xz*y + m->yz*x);
+    l->yyz += T*z + R*y*y*z + 2*g4*Ay*y*z + g4*Az*y*y + g3*(Az + 2*m->yz*y + m->yy*z);
 
     l->xxxx += (3*g2 + (6*g3 + g4*x*x)*x*x)*m->m;
     l->xxxy += (3*g3 + g4*x*x)*x*y*m->m;
@@ -1691,7 +1691,7 @@ double momLocrAddMomr5(LOCR *l,MOMR *m,momFloat dir,momFloat x,momFloat y,momFlo
     l->yyyyy += (15*g3 + (10*g4 + g5*y*y)*y*y)*y*m->m;
     l->xxxxz += (3*g3 + (6*g4 + g5*x*x)*x*x)*z*m->m;
     l->xxxyz += (3*g4 + g5*x*x)*x*y*z*m->m;
-    l->xxyyz += (g3 + (10*g4 + g5*x*x)*x*x)*x*m->m;
+    l->xxyyz += (g3 + g4*x*x + (g4 + g5*x*x)*y*y)*z*m->m;
     l->xyyyz += (3*g4 + g5*y*y)*x*y*z*m->m;
     l->yyyyz += (3*g3 + (6*g4 + g5*y*y)*y*y)*z*m->m;
 
