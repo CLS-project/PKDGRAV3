@@ -153,7 +153,7 @@ momFloat momMakeMomr(MOMR *,momFloat,momFloat,momFloat,momFloat);
 void momOldMakeMomr(MOMR *,momFloat,momFloat,momFloat,momFloat);
 void momShiftMomc(MOMC *,momFloat,momFloat,momFloat);
 void momShiftMomr(MOMR *,momFloat,momFloat,momFloat);
-void momShiftLocr(LOCR *,momFloat,momFloat,momFloat);
+double momShiftLocr(LOCR *,momFloat,momFloat,momFloat);
 void momReduceMomc(MOMC *,MOMR *);
 /*
 ** All the variants of EvalMomr...
@@ -197,7 +197,7 @@ void momLocrAddMomrAccurate(LOCR *l,MOMR *m,momFloat g0,momFloat x,momFloat y,mo
 /*
 ** These are the prefered versions that should be used in pkdgrav2.
 */
-void momLocrAddMomr5(LOCR *,MOMR *,momFloat,momFloat,momFloat,momFloat);
+double momLocrAddMomr5(LOCR *,MOMR *,momFloat,momFloat,momFloat,momFloat);
 void momEvalLocr(LOCR *,momFloat,momFloat,momFloat,
 				 momFloat *,momFloat *,momFloat *,momFloat *); 
 void momPrintMomc(MOMC *);
