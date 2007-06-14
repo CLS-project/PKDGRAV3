@@ -109,15 +109,16 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
     double xxx,xxz,yyy,yyz,xxy,xyy,xyz;
     double tx,ty,tz;
     double fourh2;
-    double rhocadd,rhocaddlocal,rholoc,rhopmax,rhopmaxlocal,costheta;
-    double vx,vy,vz,v2;
+    double rhocadd,rhocaddlocal,rholoc,rhopmax,rhopmaxlocal,costheta;   
     momFloat tax,tay,taz,magai,adotai;
     double rhosum,maisum;
 #ifdef HERMITE
     double adx,ady,adz;
     double dir5;
+    double rv, a3;
+    double vx,vy,vz,v2;
 #endif
-    double rv, a3, summ;
+    double summ;
 #ifdef SOFTSQUARE
     double ptwoh2;
 #endif
@@ -420,13 +421,14 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 
 	      summ = p[i].fMass+ilp[j].m;
 	      rhopmaxlocal = summ*dir2;
-
+#ifdef HERMITE	 
 	      if((pkd->param.iTimeStepCrit == 1 || pkd->param.iTimeStepCrit == 3) && ilp[j].m > 0){
 		a3 = p[i].r[0]*p[i].r[0]+p[i].r[1]*p[i].r[1]+p[i].r[2]*p[i].r[2];
 		a3 = a3*sqrt(a3);
 		rhopmaxlocal = pkdRho(pkd,rhopmaxlocal,summ,sqrt(fourh2),&dir2,&dir,x,y,z,
 				      vx,vy,vz,rv,v2,a3,p[i].iOrder,ilp[j].iOrder);
 	      }
+#endif
 		rhopmax = (rhopmaxlocal > rhopmax)?rhopmaxlocal:rhopmax;	
 	    }
 
@@ -617,14 +619,14 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	      
 	      summ = pi->fMass+pj->fMass; 
 	      rhopmaxlocal = summ*dir2;
-	      
+#ifdef HERMITE	  	      
 	      if((pkd->param.iTimeStepCrit == 1 || pkd->param.iTimeStepCrit == 3) && pj->fMass> 0){
 		a3 = pi->r[0]*pi->r[0]+pi->r[1]*pi->r[1]+pi->r[2]*pi->r[2];		
 		a3 = a3*sqrt(a3);
 		rhopmaxlocal = pkdRho(pkd,rhopmaxlocal,summ,sqrt(fourh2),&dir2,&dir,x,y,z,
 				      vx,vy,vz,rv,v2,a3,pi->iOrder,pj->iOrder);				
 	      }
-	    
+#endif	    
 	      pi->dtGrav = (rhopmaxlocal > pi->dtGrav)?rhopmaxlocal:pi->dtGrav;
 	      pj->dtGrav = (rhopmaxlocal > pj->dtGrav)?rhopmaxlocal:pj->dtGrav; 
 	    }
@@ -739,6 +741,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	      summ = pi->fMass+pj->fMass; 
 	      rhopmaxlocal = summ*dir2;
 	      
+#ifdef HERMITE	      
 	      if((pkd->param.iTimeStepCrit == 1 || pkd->param.iTimeStepCrit == 3) && pj->fMass> 0){
 		a3 = pi->r[0]*pi->r[0]+pi->r[1]*pi->r[1]+pi->r[2]*pi->r[2];		
 		a3 = a3*sqrt(a3);
@@ -746,7 +749,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 				      vx,vy,vz,rv,v2,a3,pi->iOrder,pj->iOrder);			
   	
 	      }
-	      
+#endif	      
 	      pi->dtGrav = (rhopmaxlocal > pi->dtGrav)?rhopmaxlocal:pi->dtGrav;
 	    }
 
@@ -776,7 +779,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
     return(nActive);
 }
     
-    
+#ifdef HERMITE
 double pkdRho(PKD pkd, double rhopmaxlocal,double summ, double sumr, double *dir2, 
 	      double *dir, double x, double y, double z, double vx, double vy, double vz, 
 	      double rv, double v2, double a3, int iOrder,int jOrder){
@@ -844,3 +847,4 @@ double pkdRho(PKD pkd, double rhopmaxlocal,double summ, double sumr, double *dir
   return(rhopmaxlocal);
 }
 
+#endif

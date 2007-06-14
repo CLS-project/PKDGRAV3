@@ -2228,7 +2228,7 @@ void pkdFirstDt(PKD pkd) {
 		  a0d2 += p[i].a0[j]*p[i].a0[j];
 		  a1d2 += p[i].ad0[j]*p[i].ad0[j];
 	      }
-	  p[i].dtGrav = 0.1*(a0d2/a1d2);
+	  p[i].dtGrav = (a0d2/a1d2);
 #ifdef PLANETS
 	  if(pkd->param.bCollision){
 	      p[i].iColflag = 0; /* initial reset of collision flag */	
@@ -2361,8 +2361,9 @@ void pkdGravStep(PKD pkd,double dEta,double dRhoFac) {
 	    mdlassert(pkd->mdl, pkd->pStore[i].dtGrav > 0);
 	    dT = dEta/sqrt(pkd->pStore[i].dtGrav*dRhoFac);
 	    if (dT < pkd->pStore[i].dt) {
-		pkd->pStore[i].dt = dT;
-		mdlassert(pkd->mdl,dT>0);
+		pkd->pStore[i].dt = dT;	
+	
+		  mdlassert(pkd->mdl,dT>0);
 	        }
 	    }
 	}
@@ -2496,9 +2497,17 @@ void pkdDeleteParticle(PKD pkd, PARTICLE *p) {
 
     int j; 
        p->fMass = 0.0;
+	 if(pkd->param.bGravStep){
+	   p->dtGrav = 0.00001;
+	 }
+#ifdef HERMITE
+        if(pkd->param.bAarsethStep){
+	   p->dtGrav = 10000;
+       }
+#endif
        for (j=0;j<3;j++) {
 	 p->r[j] = 100.0*p->iOrder;
-	 p->v[j] = 0.0;
+	 p->v[j] = 0.0;     
 #ifdef HERMITE
 	 p->r0[j] = 100.0*p->iOrder;
 	 p->v0[j] = 0.0;
@@ -2506,9 +2515,9 @@ void pkdDeleteParticle(PKD pkd, PARTICLE *p) {
 	 p->ad0[j] = 0.000001;
 	 p->a[j] =  0.000001;
 	 p->ad[j] = 0.000001;
-
 #endif
        }
+
 #endif
 
     p->iOrder = -2 - p->iOrder;
@@ -2808,7 +2817,7 @@ void pkdGravSun(PKD pkd,double aSun[],double adSun[],double dSunMass)
 			r3i = dSunMass*r1i*r1i*r1i;
                         r5i = 3.0*rv*r3i*r1i*r1i;
 			/* time step is determined by semimajor axis, not the heliocentric distance*/ 
-			if(pkd->param.bGravStep){
+			if(pkd->param.bGravStep && p[i].fMass > 0){
 			  /* E and h are normalized by the reduced mass */
 			  sum = dSunMass + p[i].fMass;
 			  hx =  p[i].r[1]*p[i].v[2] - p[i].r[2]*p[i].v[1];  
