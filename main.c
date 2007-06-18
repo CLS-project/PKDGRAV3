@@ -198,6 +198,9 @@ int main(int argc,char **argv) {
 	if(msr->param.bHeliocentric){
 	  msrGravSun(msr);
 	}
+	/*#ifdef SYMBA 	
+	msrDriftSun(msr,dTime,0.5*dDelta); 
+	#endif*/
 #endif
 #ifdef RELAXATION
 	msrInitRelaxation(msr);
@@ -269,6 +272,9 @@ int main(int argc,char **argv) {
 		msrReorder(msr);
 		sprintf(achFile,msr->param.achDigitMask,msrOutName(msr),iStep);
 #ifdef PLANETS 
+		/*#ifdef SYMBA 	
+		msrDriftSun(msr,dTime+0.5*dDelta,-0.5*dDelta); 
+		#endif*/
 		msrWriteSS(msr,achFile,dTime);
 #else	
 		msrWriteTipsy(msr,achFile,dTime,
