@@ -201,7 +201,7 @@ typedef struct bndBound {
     FLOAT fMax[3];
     } BND;
 
-#define MINDIST(bnd,pos,min2) {\
+#define MINDIST(bnd,r,min2) {\
     double BND_dMin;\
     int BND_j;\
     min2 = 0;\
