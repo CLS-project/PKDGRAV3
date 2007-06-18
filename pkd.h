@@ -204,10 +204,10 @@ typedef struct bndBound {
 #define MINDIST(bnd,r,min2) {\
     double BND_dMin;\
     int BND_j;\
-    min2 = 0;\
+    (min2) = 0;					\
     for (BND_j=0;BND_j<3;++BND_j) {\
-	BND_dMin = fabs(bnd.fCenter[BND_j] - r[BND_j]) - bnd.fMax[BND_j];\
-	if (BND_dMin > 0) min2 += BND_dMin*BND_dMin;\
+	BND_dMin = fabs((bnd).fCenter[BND_j] - (pos)[BND_j]) - (bnd).fMax[BND_j]; \
+	if (BND_dMin > 0) (min2) += BND_dMin*BND_dMin;			\
 	}\
     }
 
