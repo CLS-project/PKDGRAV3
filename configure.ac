@@ -197,13 +197,21 @@ AC_ARG_ENABLE(planets,
  	[Define if planets should be used.])])
 AM_CONDITIONAL(PLANETS, test "x$PLANETS" = "xyes")
 
-# Hermite
+# HERMITE
 AC_ARG_ENABLE(hermite,
   [  --enable-hermite               enable hermite],
   [HERMITE=yes
    AC_DEFINE([HERMITE], 1,
  	[Define if hermite should be used.])])
 AM_CONDITIONAL(HERMITE, test "x$HERMITE" = "xyes")
+
+# SYMBA
+AC_ARG_ENABLE(symba,
+  [  --enable-symba               enable symba],
+  [SYMBA=yes
+   AC_DEFINE([SYMBA], 1,
+ 	[Define if symba should be used.])])
+AM_CONDITIONAL(SYMBA, test "x$SYMBA" = "xyes")
 
 # Check if pthread is available
 AC_CHECK_LIB([pthread], [pthread_create],[HAVE_PTHREAD=yes],[HAVE_PTHREAD=no])

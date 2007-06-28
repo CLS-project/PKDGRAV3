@@ -115,16 +115,21 @@ typedef struct particle {
     FLOAT fRelax;
 #endif
 
-#ifdef PLANETS
-  /* Planets start (collision stuff)*/
+#ifdef PLANETS 
+/* (collision stuff) */
     int iOrgIdx;		/* for tracking of mergers, aggregates etc. */
     FLOAT w[3];			/* spin vector */
     int iColor;			/* handy color tag */
     int iColflag;	        /* handy collision tag 1 for c1, 2 for c2*/
     int iOrderCol;              /* iOrder of colliding oponent.*/
     FLOAT dtCol;
-  /* Planets end */
+/* end (collision stuff) */
+#ifdef SYMBA
+    FLOAT rb[3]; /* position before drift */
+    FLOAT vb[3]; /* velocity before drift */
+    FLOAT drmin; /* minimum distance from neighbors normalized by Hill*/
 #endif
+#endif/* PLANETS */
     } PARTICLE;
 
 
@@ -713,6 +718,19 @@ void pkdSunIndirect(PKD pkd,double aSun[],double adSun[],int iFlag);
 void pkdGravSun(PKD pkd,double aSun[],double adSun[],double dSunMass);
 void pkdReadSS(PKD pkd,char *pszFileName,int nStart,int nLocal);
 void pkdWriteSS(PKD pkd,char *pszFileName,int nStart);
-#endif /* Planets*/
+#ifdef SYMBA
+void
+pkdStepVeryActiveSymba(PKD pkd, double dStep, double dTime, double dDelta,
+		       int iRung, int iKickRung, int iRungVeryActive,
+		       int iAdjust, double diCrit2,
+		       int *pnMaxRung, double dSunMass);
+int pkdDrminToRung(PKD pkd, int iRung, int iMaxRung, double dSunMass, 
+		    int *nRungCount);
+void pkdMomSun(PKD pkd,double momSun[]);
+void pkdDriftSun(PKD pkd,double vSun[],double dt);
+void pkdKeplerDrift(PKD pkd,double dt,double mu);
+
+#endif /* SYMBA */
+#endif /* PLANETS*/
 
 #endif

@@ -391,7 +391,12 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv)
     msr->param.dCentMass = 1.0;
     prmAddParam(msr->prm,"dCentMass",2,&msr->param.dCentMass,sizeof(double),
 		"fgm","specifies the central mass for Keplerian orbits");
-#endif
+#ifdef SYMBA
+    msr->param.bSymba = 1;
+    prmAddParam(msr->prm,"bSymba",2,&msr->param.bSymba,sizeof(int),
+		"sym","use Symba integrator");
+#endif 
+#endif /* PLANETS */
     msr->param.iWallRunTime = 0;
     prmAddParam(msr->prm,"iWallRunTime",1,&msr->param.iWallRunTime,
 		sizeof(int),"wall",
@@ -441,7 +446,26 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv)
 		"rtrace","<enable/disable relaxation tracing> = -rtrace");
 #endif /* RELAXATION */
 
-#ifdef PLANETS /* collision stuff */
+#ifdef PLANETS 
+    msr->param.bCollision = 0;
+	prmAddParam(msr->prm,"bCollision",0,&msr->param.bCollision,
+		    sizeof(int),"hc","<Collisions>");
+    msr->param.bHeliocentric = 0;
+	prmAddParam(msr->prm,"bHeliocentric",0,&msr->param.bHeliocentric,
+		    sizeof(int),"hc","use/don't use Heliocentric coordinates = -hc");  
+    msr->param.dCentMass = 1.0;
+    prmAddParam(msr->prm,"dCentMass",2,&msr->param.dCentMass,sizeof(double),
+		"fgm","specifies the central mass for Keplerian orbits");
+#ifdef SYMBA
+    msr->param.bSymba = 1;
+    prmAddParam(msr->prm,"bSymba",2,&msr->param.bSymba,sizeof(int),
+		"sym","use Symba integrator");
+    if(msr->param.bSymba){
+	msr->param.bHeliocentric = 0;	
+    } 
+#endif 
+
+/* collision stuff */
 	msr->param.iCollLogOption = 0;
 	prmAddParam(msr->prm,"iCollLogOption",1,&msr->param.iCollLogOption,
 				sizeof(int),"clog","<Collision log option> = 0");	
@@ -765,11 +789,6 @@ void msrLogParams(MSR msr,FILE *fp)
 	fprintf(fp," bHermite: %d",msr->param.bHermite);
 	fprintf(fp," bAarsethStep: %d",msr->param.bAarsethStep);
 #endif
-#ifdef PLANETS
-	fprintf(fp," bCollision: %d",msr->param.bCollision);
-	fprintf(fp," bHeliocentric: %d",msr->param.bHeliocentric);
-	fprintf(fp," dCentMass: %g",msr->param.dCentMass);
-#endif
 	fprintf(fp,"\n# dFracNoTreeSqueeze: %g",msr->param.dFracNoTreeSqueeze);
 	fprintf(fp,"\n# dFracNoDomainDecomp: %g",msr->param.dFracNoDomainDecomp);
 	fprintf(fp," dFracNoDomainDimChoice: %g",msr->param.dFracNoDomainDimChoice);
@@ -796,6 +815,12 @@ void msrLogParams(MSR msr,FILE *fp)
 	fprintf(fp,"\n# Relaxation estimate: bTraceRelaxation: %d",msr->param.bTraceRelaxation);	
 #endif
 #ifdef PLANETS
+#ifdef SYMBA
+	fprintf(fp," bSymba: %d",msr->param.bSymba);
+#endif	
+	fprintf(fp," bCollision: %d",msr->param.bCollision);
+	fprintf(fp," bHeliocentric: %d",msr->param.bHeliocentric);
+	fprintf(fp," dCentMass: %g",msr->param.dCentMass);
 	fprintf(fp,"\n# Collisions...");
 	fprintf(fp," iCollLogOption: %d",msr->param.iCollLogOption);
 	fprintf(fp,"\n# iOutcomes: %d",msr->param.CP.iOutcomes);   
@@ -804,7 +829,7 @@ void msrLogParams(MSR msr,FILE *fp)
 	fprintf(fp," dEpsT: %g",msr->param.CP.dEpsT);
 	fprintf(fp," dDensity: %g",msr->param.CP.dDensity);
 	fprintf(fp,"\n# bFixCollapse: %d",msr->param.CP.bFixCollapse);
-#endif
+#endif /* PLANETS */
 
 	fprintf(fp," dTheta: %f",msr->param.dTheta);
 	fprintf(fp,"\n# dPeriod: %g",msr->param.dPeriod);
@@ -4219,6 +4244,202 @@ msrDoCollision(MSR msr,double dTime,double dDelta)
 		}
 	}
 
+#ifdef SYMBA
+void msrTopStepSymba(MSR msr,
+		     double dStep,	/* Current step */
+		     double dTime,	/* Current time */
+		     double dDelta,	/* Time step */
+		     int iRung,		/* Rung level */
+		     int iKickRung,	/* Gravity on all rungs from iRung
+					   to iKickRung */
+		     int iRungVeryActive,  /* current setting for iRungVeryActive */
+		     int iAdjust,		/* Do an adjust? */
+		     double *pdActiveSum,
+		     double *pdWMax,
+		     double *pdIMax,
+		     double *pdEMax,
+		     int *piSec)
+{
+    double dMass = -1.0;
+    int nActive;
+    int bSplitVA;
+    double dDeltaTmp;
+    int i;
+  
+    /*
+     * Determine p->iRung from p->drmin 
+     */    
+    msrDrminToRung(msr,iRung);
 
-/* PLANETS end */
-#endif
+    msrActiveRung(msr,iRung,1); /* activate all particles */ 		 
+    /* F_0 for particles at iRung = 0 and 1 */		
+    msrKickKDKOpen(msr,dTime,0.5*dDelta); 
+    
+    /*	
+    ** drift particles at iRung = 0 to the end of time step
+    */
+    msrActiveRung(msr,iRung,0);
+    msrKeplerDrift(msr, dDelta);
+  
+    /*
+    ** check minimum distance from neighbors during drift
+    ** if the minimum distance is less than 3 mutual hill radius,
+    ** its interacting pair is sent to iRung = 1  
+    ** For these particles, position and velocity before the drift 
+    ** are retrived (x = x0, v = v0) 
+    */ 	
+      /* msrCheckDrmin(msr);*/ 
+    /*msrSmooth(msr,dTime,SMX_DENSITY,bGasOnly,bSymmetric,eParticleTypes);*/
+    /*
+     * Activate VeryActives
+     */
+    msrActiveRung(msr,1,1); /* msr->iRungVeryActive+1 = 1 */
+
+    assert(msr->nActive = 0); /* temporaryly */
+    if(msr->nActive){ /* if any particles in close encounters */
+    if(msrDoGravity(msr)) {	   
+      /*
+      ** Domain decomposition for parallel exclude very active is going to be 
+      ** placed here shortly.
+      */
+      bSplitVA = 1;
+      msrDomainDecomp(msr,iRung,1,bSplitVA);
+      /* msrSortVA(msr); sorting VA (see tree.c) */	    
+    }
+    /*
+     * Perform timestepping of particles in close encounters on 
+     * individual processors.
+     */
+    msrStepVeryActiveSymba(msr,dStep,dTime, dDelta, iRung);    
+    }
+
+    dTime += dDelta;
+    dStep += 1.0;
+    
+    /*
+     * Regular Tree gravity
+     */
+    msrActiveRung(msr,iKickRung,1); /* iKickRung = 0 */ 
+    bSplitVA = 0;
+    msrDomainDecomp(msr,iKickRung,1,bSplitVA);
+    
+    if(msrDoGravity(msr)) {
+      msrActiveRung(msr,iKickRung,1);	   
+      if (msr->param.bVDetails) {
+	printf("%*cGravity, iRung: %d to %d\n",
+	       2*iRung+2,' ',iKickRung,msrCurrMaxRung(msr));
+      }
+      msrBuildTree(msr,dMass,dTime);
+      msrGravity(msr,dTime,dStep,piSec,pdWMax,pdIMax,pdEMax,&nActive);
+      *pdActiveSum += (double)nActive/msr->N;
+    }
+        
+    msrActiveRung(msr,iRung,1);			
+    msrKickKDKClose(msr,dTime-0.5*dDelta,0.5*dDelta);
+    
+    /* linear shifts due to Sun's velocity. 
+       The next half-step shifts are included */
+    msrDriftSun(msr,dTime-0.5*dDelta,dDelta); 
+    
+    if(msr->param.bCollision){   
+      msrDoCollision(msr,dTime,dDelta);  
+      /* need recalculation of drmin */
+    }
+    
+}
+
+void
+msrStepVeryActiveSymba(MSR msr, double dStep, double dTime, double dDelta,
+		     int iRung){
+    struct inStepVeryActiveS in;
+    struct outStepVeryActiveS out;    
+    
+    in.dStep = dStep;
+    in.dTime = dTime;
+    in.dDelta = dDelta;
+    in.iRung = iRung;
+    /* could set a stricter opening criterion here */
+    in.diCrit2 = 1/(msr->dCrit*msr->dCrit);  
+    in.nMaxRung = msrCurrMaxRung(msr);
+    in.dSunMass = msr->dSunMass;
+       
+    pstStepVeryActiveSymba(msr->pst, &in, sizeof(in), &out, NULL);
+
+    if(msr->param.bCollision){
+    struct outGetVariableVeryActive outGet;
+    pstGetVariableVeryActive(msr->pst, NULL, 0, &outGet, NULL);
+    msr->dEcoll += outGet.dDeltaEcoll;
+    outGet.dDeltaEcoll = 0.0;/*just in case */
+    }
+    msr->iCurrMaxRung = out.nMaxRung;
+}
+
+void msrDrminToRung(MSR msr,int iRung){
+  struct inDrminToRung in;
+  struct outDrminToRung out;
+  int iTempRung,iOutMaxRung;
+  char c;
+ 
+  in.iRung = iRung;
+  in.iMaxRung = msrMaxRung(msr);
+  in.dSunMass = msr->dSunMass;
+
+  pstDrminToRung(msr->pst, &in, sizeof(in), &out, NULL);
+  iTempRung =msrMaxRung(msr)-1;
+  while (out.nRungCount[iTempRung] == 0 && iTempRung > 0) --iTempRung;
+  iOutMaxRung = iTempRung;
+
+  /*
+    ** Now copy the rung distribution to the msr structure!
+    */
+  for (iTempRung=0;iTempRung < msrMaxRung(msr);++iTempRung){
+    msr->nRung[iTempRung] = out.nRungCount[iTempRung];
+  }
+  msr->iCurrMaxRung = iOutMaxRung;
+  
+  if (msr->param.bVRungStat) {
+    	printf("Rung distribution:\n");
+	for (iTempRung=0;iTempRung <= msr->iCurrMaxRung;++iTempRung) {
+	    if (out.nRungCount[iTempRung] == 0) continue;
+	    if (iTempRung > 0 ) c = 'v'; /* iRungVeryActive = 0*/
+	    else c = ' ';
+	    printf(" %c rung:%d %d\n",c,iTempRung,out.nRungCount[iTempRung]);
+	    }
+	printf("\n");
+	}
+  
+  /*
+   * Set VeryActive particles
+   * Remember, the first very active particle is at iRungVeryActive + 1 
+   */
+  msrSetRungVeryActive(msr, 0); /* iRungVeryActive = 0*/
+}
+
+void msrDriftSun(MSR msr,double dTime,double dDelta){
+	struct inDriftSun in;
+	struct outMomSun outm;
+
+	int j;
+	/* Calculate Sun's momentum */
+	pstMomSun(msr->pst,NULL,0,&outm,NULL); 
+	for (j=0;j<3;++j){ 
+                in.vSun[j] = outm.momSun[j]/msr->dSunMass;	
+	}
+
+	in.dDelta = dDelta;
+	pstDriftSun(msr->pst,&in,sizeof(in),NULL,NULL);
+
+} 
+
+void msrKeplerDrift(MSR msr,double dDelta){
+	struct inKeplerDrift in;
+
+	in.dDelta = dDelta;
+	in.dSunMass = msr->dSunMass;
+	pstKeplerDrift(msr->pst,&in,sizeof(in),NULL,NULL);
+
+} 
+
+
+#endif /* SYMBA */
+#endif /* PLANETS*/

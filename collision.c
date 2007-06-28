@@ -775,4 +775,4 @@ void pkdGetVariableVeryActive(PKD pkd, double *dDeltaEcoll)
   pkd->dDeltaEcoll = 0.0;
 }
 
-#endif
+#endif /* PLANETS */

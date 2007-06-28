@@ -151,7 +151,14 @@ enum pst_service {
     PST_DOCOLLISION,
     PST_RESETCOLLIDERS,
     PST_GETVARIABLEVERYACTIVE,
-#endif
+#ifdef SYMBA
+    PST_STEPVERYACTIVES,
+    PST_DRMINTORUNG,
+    PST_MOMSUN,
+    PST_DRIFTSUN,
+    PST_KEPLERDRIFT,
+#endif /* SYMBA */
+#endif /* PLANETS */
 #ifdef HERMITE
     PST_AARSETHSTEP,
     PST_FIRSTDT,
@@ -924,5 +931,60 @@ struct outGetVariableVeryActive {
         };
 void pstGetVariableVeryActive(PST,void *,int,void *,int *);
 
+#ifdef SYMBA
+
+/* PST_STEPVERYACTIVESYMBA */
+struct inStepVeryActiveS 
+    {
+    double dStep;
+    double dTime;
+    double dDelta;
+    int iRung;
+    int nMaxRung;
+    double diCrit2;
+    double dSunMass;
+    };
+struct outStepVeryActiveS
+    {
+    int nMaxRung;
+    };
+
+void pstStepVeryActiveSymba(PST,void *,int,void *,int *);
+
+/* PST_DRMINTORUNG */
+struct inDrminToRung {
+    int iRung;
+    int iMaxRung;
+    double dSunMass;
+    };
+struct outDrminToRung {
+    int nRungCount[256];
+    };
+void pstDrminToRung(PST,void *,int,void *,int *);
+
+/* PST_MOMSUN */
+struct outMomSun{
+    double momSun[3];
+};
+
+void pstMomSun(PST,void *,int,void *,int *); 
+
+/* PST_DRIFTSUN */
+struct inDriftSun{
+    double vSun[3];
+    double dDelta;
+};
+void pstDriftSun(PST,void *,int,void *,int *); 
+
+/* PST_KEPLERDRIFT */
+struct inKeplerDrift{
+    double dDelta;
+    double dSunMass;
+};
+
+void pstKeplerDrift(PST,void *,int,void *,int *); 
+
+#endif /* SYMBA */
 #endif /* PLANETS */
+
 #endif 

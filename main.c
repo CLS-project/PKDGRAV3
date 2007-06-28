@@ -198,9 +198,9 @@ int main(int argc,char **argv) {
 	if(msr->param.bHeliocentric){
 	  msrGravSun(msr);
 	}
-	/*#ifdef SYMBA 	
-	msrDriftSun(msr,dTime,0.5*dDelta); 
-	#endif*/
+#ifdef SYMBA 	
+	msrDriftSun(msr,dTime,0.5*msrDelta(msr)); 
+#endif
 #endif
 #ifdef RELAXATION
 	msrInitRelaxation(msr);
@@ -228,6 +228,15 @@ int main(int argc,char **argv) {
 			  &dEMax,&iSec);
 	    }else
 #endif
+#ifdef SYMBA
+	    if(msr->param.bSymba){
+	    msrTopStepSymba(msr,iStep-1,dTime,
+			  msrDelta(msr),0,0,msrMaxRung(msr),1,
+			  &dMultiEff,&dWMax,&dIMax,
+			  &dEMax,&iSec);
+	    }else
+#endif
+
 	    {
 	    msrTopStepKDK(msr,iStep-1,dTime,
 			  msrDelta(msr),0,0,msrMaxRung(msr),1,
@@ -272,9 +281,9 @@ int main(int argc,char **argv) {
 		msrReorder(msr);
 		sprintf(achFile,msr->param.achDigitMask,msrOutName(msr),iStep);
 #ifdef PLANETS 
-		/*#ifdef SYMBA 	
-		msrDriftSun(msr,dTime+0.5*dDelta,-0.5*dDelta); 
-		#endif*/
+#ifdef SYMBA 	
+		msrDriftSun(msr,dTime+0.5*msrDelta(msr),-0.5*msrDelta(msr)); 
+#endif
 		msrWriteSS(msr,achFile,dTime);
 #else	
 		msrWriteTipsy(msr,achFile,dTime,

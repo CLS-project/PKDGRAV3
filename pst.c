@@ -294,7 +294,24 @@ void pstAddServices(PST pst,MDL mdl)
     mdlAddService(mdl,PST_GETVARIABLEVERYACTIVE,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstGetVariableVeryActive,
 				  0,sizeof(struct outGetVariableVeryActive));
-#endif
+#ifdef SYMBA
+    mdlAddService(mdl,PST_STEPVERYACTIVES,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstStepVeryActiveSymba,
+		  sizeof(struct inStepVeryActiveS),sizeof(struct outStepVeryActiveS));
+    mdlAddService(mdl,PST_DRMINTORUNG,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstDrminToRung,
+		  sizeof(struct inDrminToRung),sizeof(struct outDrminToRung));
+    mdlAddService(mdl,PST_MOMSUN,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstMomSun,
+		  0,sizeof(struct outMomSun));
+    mdlAddService(mdl,PST_DRIFTSUN,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstDriftSun,
+		  sizeof(struct inDriftSun),0);
+    mdlAddService(mdl,PST_KEPLERDRIFT,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstKeplerDrift,
+		  sizeof(struct inKeplerDrift),0);
+#endif /* SYMBA */ 
+#endif /* PLANETS */
     }
 
 void pstInitialize(PST *ppst,MDL mdl,LCL *plcl)
@@ -3405,5 +3422,121 @@ void pstGetVariableVeryActive(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     if (pnOut) *pnOut = sizeof(*out);
     }
 
-#endif
-/* PLANETS end */
+#ifdef SYMBA
+void pstStepVeryActiveSymba(PST pst,void *vin,int nIn,void *vout,int *pnOut)
+    {
+    LCL *plcl = pst->plcl;
+    struct inStepVeryActiveS *in = vin;
+    struct outStepVeryActiveS *out = vout;
+
+    mdlassert(pst->mdl,nIn == sizeof(struct inStepVeryActiveS));
+    if (pst->nLeaves > 1) {
+	if(pst->iVASplitSide > 0) {
+	    mdlReqService(pst->mdl,pst->idUpper,PST_CACHEBARRIER,NULL,0);
+	    pstStepVeryActiveSymba(pst->pstLower,in,nIn,out,NULL);
+	    mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
+	    }
+	else if (pst->iVASplitSide < 0) {
+	    mdlReqService(pst->mdl,pst->idUpper,PST_STEPVERYACTIVES,in,nIn);
+	    pstCacheBarrier(pst->pstLower,NULL,0,NULL,NULL);
+	    mdlGetReply(pst->mdl,pst->idUpper,out,NULL);
+	    }
+	else {
+	    mdlassert(pst->mdl,pst->iVASplitSide != 0);
+	    }
+	}
+    else {
+	assert(plcl->pkd->nVeryActive > 0);
+	
+	out->nMaxRung = in->nMaxRung;
+	pkdStepVeryActiveSymba(plcl->pkd,in->dStep,in->dTime,in->dDelta,
+			     in->iRung, in->iRung, in->iRung, 0, in->diCrit2,
+			     &out->nMaxRung, in->dSunMass);
+	mdlCacheBarrier(pst->mdl,CID_CELL);
+	}
+    if (pnOut) *pnOut = sizeof(*out);
+    }
+
+void pstDrminToRung(PST pst,void *vin,int nIn,void *vout,int *pnOut)
+    {
+    LCL *plcl = pst->plcl;
+    struct outDrminToRung outTemp;
+    struct inDrminToRung *in = vin;
+    struct outDrminToRung *out = vout;
+    int i;
+
+    mdlassert(pst->mdl,nIn == sizeof(*in));
+    if (pst->nLeaves > 1) {
+	mdlReqService(pst->mdl,pst->idUpper,PST_DRMINTORUNG,vin,nIn);
+	pstDrminToRung(pst->pstLower,vin,nIn,vout,pnOut);
+	mdlGetReply(pst->mdl,pst->idUpper,&outTemp,pnOut);
+	for (i=0;i<in->iMaxRung;++i) {
+	    out->nRungCount[i] += outTemp.nRungCount[i];
+	    }
+	}
+    else {
+	pkdDrminToRung(plcl->pkd,in->iRung,in->iMaxRung, 
+		       in->dSunMass,out->nRungCount);
+	}
+    if (pnOut) *pnOut = sizeof(*out);
+    }
+
+void pstMomSun(PST pst,void *vin,int nIn,void *vout,int *pnOut)
+    {
+  
+    LCL *plcl = pst->plcl;
+  
+    struct outMomSun *out = vout;
+    struct outMomSun outLcl;
+    int k;
+
+    mdlassert(pst->mdl,nIn == 0);
+    if (pst->nLeaves > 1) {
+	mdlReqService(pst->mdl,pst->idUpper,PST_MOMSUN,vin,nIn);
+	pstMomSun(pst->pstLower,vin,nIn,out,NULL);
+	mdlGetReply(pst->mdl,pst->idUpper,&outLcl,NULL);
+	for (k=0;k<3;k++){ 
+         out->momSun[k] += outLcl.momSun[k];
+	 }
+	}
+    else {
+	pkdMomSun(plcl->pkd,out->momSun);
+	}
+    if (pnOut) *pnOut = sizeof(struct outMomSun);
+     }
+
+void pstDriftSun(PST pst,void *vin,int nIn,void *vout,int *pnOut)
+{
+  LCL *plcl = pst->plcl;
+  struct inDriftSun *in = vin;
+  
+  mdlassert(pst->mdl,nIn == sizeof(struct inDriftSun));
+  if (pst->nLeaves > 1) {
+    mdlReqService(pst->mdl,pst->idUpper,PST_DRIFTSUN,vin,nIn);
+    pstDriftSun(pst->pstLower,vin,nIn,NULL,NULL);
+    mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
+  } else {
+    pkdDriftSun(plcl->pkd,in->vSun,in->dDelta);
+  }
+  if (pnOut) *pnOut = 0;
+}
+
+void pstKeplerDrift(PST pst,void *vin,int nIn,void *vout,int *pnOut)
+{
+  LCL *plcl = pst->plcl;
+  struct inKeplerDrift *in = vin;
+  
+  mdlassert(pst->mdl,nIn == sizeof(struct inKeplerDrift));
+  if (pst->nLeaves > 1) {
+    mdlReqService(pst->mdl,pst->idUpper,PST_KEPLERDRIFT,vin,nIn);
+    pstKeplerDrift(pst->pstLower,vin,nIn,NULL,NULL);
+    mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
+  } else {
+    pkdKeplerDrift(plcl->pkd,in->dDelta,in->dSunMass);
+  }
+  if (pnOut) *pnOut = 0;
+}
+
+#endif /* SYMBA */ 
+#endif /* PLANETS*/
+

@@ -130,7 +130,10 @@ struct parameters {
     int iCollLogOption;
     char achCollLog[256];	
     COLLISION_PARAMS CP;
-#endif 
+#ifdef SYMBA
+    int bSymba;
+#endif
+#endif /* PLANETS */
     };
 
 #endif

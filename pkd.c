@@ -2660,7 +2660,6 @@ void pkdInitRelaxation(PKD pkd)
 
 #endif /* RELAXATION */
 
-/* PLANETS begin */
 #ifdef PLANETS
 void
 pkdReadSS(PKD pkd,char *pszFileName,int nStart,int nLocal)
@@ -2846,5 +2845,178 @@ void pkdGravSun(PKD pkd,double aSun[],double adSun[],double dSunMass)
 		}
 	}
 
-#endif
-/* Planets end */
+
+#ifdef SYMBA
+void
+pkdStepVeryActiveSymba(PKD pkd, double dStep, double dTime, double dDelta,
+		       int iRung, int iKickRung, int iRungVeryActive,
+		       int iAdjust, double diCrit2,
+		       int *pnMaxRung, double dSunMass)
+{
+  int nRungCount[256];
+  double dDriftFac;
+  
+  if(iRung > 0){ /* at iRung = 0 we just call pkdStepVeryActiveSymba three times*/
+    if(iAdjust && (iRung < pkd->param.iMaxRung-1)) {
+      pkdActiveRung(pkd, iRung, 1);	
+      *pnMaxRung = pkdDrminToRung(pkd,iRung,pkd->param.iMaxRung-1, dSunMass, nRungCount);
+      
+      if (pkd->param.bVDetails) {
+	printf("%*cAdjust at iRung: %d, nMaxRung:%d nRungCount[%d]=%d\n",
+	       2*iRung+2,' ',iRung,*pnMaxRung,*pnMaxRung,nRungCount[*pnMaxRung]);
+      }
+    }
+    
+    pkdActiveRung(pkd,iRung,1); /* should activate iRung and iRung +1 */
+    /* pkdGravEncounter(pkd);*/       
+    pkdKickKDKOpen(pkd, dTime, 0.5*dDelta); /* should be pkdKickVeryActive ? */
+    
+    if (pkd->param.bVDetails) {
+      printf("%*cVeryActive pkdKickOpen  at iRung: %d, 0.5*dDelta: %g\n",
+	     2*iRung+2,' ',iRung,0.5*dDelta);
+      
+      /* if particles exist at the current iRung */
+      pkdActiveRung(pkd,iRung,0);
+      pkdKeplerDrift(pkd,dDelta,dSunMass);
+      /* if drmin druing drift is less than R_(iRung+1), 
+	 this interacting pair is sent to iRung + 1*/
+    }	
+    
+    if (*pnMaxRung > iRung) {
+	/*
+	** Recurse.
+	*/
+	pkdStepVeryActiveSymba(pkd,dStep,dTime,0.5*dDelta,iRung+1,iRung+1,iRungVeryActive,0,
+			       diCrit2,pnMaxRung,dSunMass);
+	dStep += 1.0/(3 << iRung);
+	dTime += dDelta/3.0;
+	pkdActiveRung(pkd,iRung,0);
+	pkdStepVeryActiveSymba(pkd,dStep,dTime,0.5*dDelta,iRung+1,iRung+1,iRungVeryActive,1,
+			       diCrit2,pnMaxRung,dSunMass);
+	dStep += 1.0/(3 << iRung);
+	dTime += dDelta/3.0;
+	pkdActiveRung(pkd,iRung,0);
+	pkdStepVeryActiveSymba(pkd,dStep,dTime,0.5*dDelta,iRung+1,iKickRung,iRungVeryActive,1,
+			       diCrit2,pnMaxRung,dSunMass);
+	
+	/* move time back to 1 step */
+	dTime -= dDelta;			     	
+    }
+    if(iRung > 0){ 
+	dTime += 0.5*dDelta;		
+	
+	if (pkd->param.bVDetails) {
+	    printf("%*cVeryActive pkdKickClose at iRung: %d, 0.5*dDelta: %g\n",
+		   2*iRung+2,' ',iRung,0.5*dDelta);
+	}
+	
+	/* Kick due to F_iRung for particles at the current or higher iRungs */		
+	pkdActiveRung(pkd,iRung,1);
+	/* pkdGravEncounter(pkd);*/   
+	pkdKickKDKClose(pkd,dTime,0.5*dDelta);
+	if(pkd->param.bCollision){	     
+	    pkdDoCollisionVeryActive(pkd,dTime);
+	    /* need recalculation of drmin */
+	}
+    } 
+  }
+}
+
+int pkdDrminToRung(PKD pkd, int iRung, int iMaxRung, double dSunMass, 
+		    int *nRungCount) {
+    int i, iTempRung;;
+    PARTICLE *p ;
+    
+    /* R_k = 3.0/(2.08)^(k-1) with (k= 1,2, ...)*/ 
+    
+    p = pkd->pStore;
+    for(i=0;i<pkdLocal(pkd);++i) {
+	if(pkdIsActive(pkd,&p[i]))
+	    if(dSunMass != 1.0) p[i].drmin *= pow(dSunMass, 1.0/3.0);	  
+	iTempRung = iRung;
+	if(p[i].drmin > 3.0){
+	    iTempRung = 0;
+	}else{
+	    iTempRung = log(3.0/p[i].drmin)/log(2.08);
+	}
+	if(iTempRung >= iMaxRung) {
+	    iTempRung = iMaxRung-1;
+	}
+	  p[i].iRung = iTempRung;
+	  /*
+	  ** Now produce a count of particles in rungs.
+	  */
+	  nRungCount[p[i].iRung] += 1;
+    }
+    iTempRung = iMaxRung-1;
+    while (nRungCount[iTempRung] == 0 && iTempRung > 0) --iTempRung;
+    return iTempRung;
+}
+
+void pkdMomSun(PKD pkd,double momSun[]){
+   PARTICLE *p;
+     int i,j,n;
+     
+     for (j=0;j<3;++j){                 
+       momSun[j] = 0.0;
+     }
+     p = pkd->pStore;
+     n = pkdLocal(pkd); 
+     for (i=0;i<n;++i) {
+       for (j=0;j<3;++j){ 
+	   momSun[j] -= p[i].fMass*p[i].v[j];     
+	 }	
+     }
+ } 
+
+void pkdDriftSun(PKD pkd,double vSun[],double dt){
+  PARTICLE *p;
+   int i,j,n;
+     
+     p = pkd->pStore;
+     n = pkdLocal(pkd); 
+     for (i=0;i<n;++i) {
+       for (j=0;j<3;++j){ 
+	 p[i].r[j] += vSun[j]*dt;     
+	 }	
+     }
+} 
+
+void pkdKeplerDrift(PKD pkd,double dt,double mu) {
+  /* 
+   * Use the f and g functions to advance an unperturbed orbit.
+   */
+  PARTICLE *p;	
+  int  i,j,n;
+  int iflg = 0;
+  double dttmp;
+  mdlDiag(pkd->mdl, "Into pkdKeplerDrift \n");
+  p = pkd->pStore;
+  n = pkdLocal(pkd);
+  
+  for (i=0;i<n;++i) {	
+    if (pkdIsActive(pkd,&p[i])) {
+      
+      /* copy r and v before drift */ 
+      for (j=0;j<3;++j) {	
+        p[i].rb[j] = p[i].r[j];
+        p[i].vb[j] = p[i].v[j];
+      }
+      
+      iflg = drift_dan(mu,p[i].r,p[i].v,dt); /* see kepler.c */
+      
+      if(iflg != 0){
+	  dttmp = 0.1*dt;
+	  for (j=0;j<10;++j) {	
+	    iflg = drift_dan(mu,p[i].r,p[i].v,dttmp);
+	    assert(iflg = 0);
+	  }
+      }		
+    }
+  }
+}	
+
+#endif /* SYMBA */
+#endif /* PLANETS */
+
+

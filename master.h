@@ -209,13 +209,32 @@ void msrRelaxation(MSR msr,double dTime,double deltaT,int iSmoothType,int bSymme
 #endif /* RELAXATION  */
 
 #ifdef PLANETS 
-/* PLANETS begin */
 double msrReadSS(MSR msr);
 void msrWriteSS(MSR msr, char *pszFileName, double dTime);
 void msrGravSun(MSR msr);
 static char * _msrParticleLabel(MSR msr,int iColor);
 void msrDoCollision(MSR msr,double dTime,double dDelta);
-/* PLANETS end */
-#endif
+#ifdef SYMBA
+void msrTopStepSymba(MSR msr,
+		     double dStep,	/* Current step */
+		     double dTime,	/* Current time */
+		     double dDelta,	/* Time step */
+		     int iRung,		/* Rung level */
+		     int iKickRung,	/* Gravity on all rungs from iRung
+					   to iKickRung */
+		     int iRungVeryActive,  
+		     int iAdjust,		/* Do an adjust? */
+		     double *pdActiveSum,
+		     double *pdWMax,
+		     double *pdIMax,
+		     double *pdEMax,
+		     int *piSec);
+void msrStepVeryActiveSymba(MSR msr, double dStep, double dTime, double dDelta,
+		       int iRung);
+void msrDrminToRung(MSR msr,int iRung);
+void msrDriftSun(MSR msr,double dTime,double dDelta);
+void msrKeplerDrift(MSR msr,double dDelta);
+#endif  /* SYMBA */
+#endif /* PLANETS */
 
 #endif
