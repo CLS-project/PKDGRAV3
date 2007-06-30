@@ -14,13 +14,13 @@
 int drift_dan(double mu, double *r, double *v, double dt){
   /*This subroutine does the Danby and decides which vbles to use
   ** 
-  **            Input:                
-  **                mu          ==>  solar mass 
-  **                r[3],v[3]   ==>  initial position and velocity in Democratic coordinate
-  **                dt          ==>  time step
-  **            Output:
-  **                r[3],v[3]   ==>  final position and velocity in Democratic coordinate
-  **                iflg        ==>  integer flag (zero if satisfactory)
+  **  Input:                
+  *     mu          ==>  solar mass 
+  **    r[3],v[3]   ==>  initial position and velocity in Democratic coordinate
+  **    dt          ==>  time step
+  **  Output:
+  **    r[3],v[3]   ==>  final position and velocity in Democratic coordinate
+  **    iflg        ==>  integer flag (zero if satisfactory)
   **					      (non-zero if nonconvergence)
   ** Authors:  Hal Levison & Martin Duncan  
   ** Date:    2/10/93
@@ -28,7 +28,7 @@ int drift_dan(double mu, double *r, double *v, double dt){
   ** Transferred to pkdgrav2: RM 6/07
   */
   
-  double iflg = 0;
+  int iflg =0;
   double d, v2, u, alpha;
   double a, asq, en, ec, es, esq, dm;
   double fchk, fp, c1, c2, c3, xkep, s, c;
@@ -49,23 +49,34 @@ int drift_dan(double mu, double *r, double *v, double dt){
     esq = ec*ec + es*es;   /* e^2 */
     dm = dt*en - floor(0.5*dt*en*M_1_PI)*2*M_PI;  /* delta (mean anormaly) */
     dt = dm/en;
+
+    /* printf("check1 a = %e esq = %e \n",a,esq);*/
+    /* printf("a=%e, ecc=%e, dm=%e, dt =%e \n",a,sqrt(esq),dm,dt);*/
+    /*printf("check1 a = %e esq = %e \n",a,esq); */
+
     if((dm*dm > 0.16) || (esq > 0.36)) goto universal;
     
     if(esq*dm*dm < 0.0016){
-      drift_kepmd(dm,es,ec,&xkep,&s,&c); /* xkep: increment in eccentric anomaly */
-
-      fchk = (xkep - ec*s +es*(1.0-c) - dm); /* residure */      
-      if(fchk*fchk > DANBYB) return(1);
+	/* printf("enter drift_kepmd \n");*/
+	drift_kepmd(dm,es,ec,&xkep,&s,&c); /* xkep: increment in eccentric anomaly */
+	fchk = (xkep - ec*s +es*(1.0-c) - dm); /* residure */      
       
-      fp = 1.0 - ec*c + es*s;
-      f = (a/d)*(c-1.0) + 1.0;
-      g = dt + (s-xkep)/en;
-      fdot = - (a/(d*fp))*en*s;
-      gdot = (c-1.0)/fp + 1.0;
+	/*printf("xkep = %e, s = %e, c = %e\n", xkep,s,c);*/
+	
+	if(fchk*fchk > DANBYB){
+	    /*printf("drift_kepmd failed: fchk = %e, danby05 = %e\n", 
+	  fchk, sqrt(DANBYB));*/
+	    return(1);
+	}      
+	fp = 1.0 - ec*c + es*s;
+	f = (a/d)*(c-1.0) + 1.0;
+	g = dt + (s-xkep)/en;
+	fdot = - (a/(d*fp))*en*s;
+	gdot = (c-1.0)/fp + 1.0;
       for (i=0;i<3;i++) {
-	temp = f*r[i]+g*v[i];
-	v[i] = fdot*r[i]+gdot*v[i];
-	r[i] = temp;
+	  temp = f*r[i]+g*v[i];
+	  v[i] = fdot*r[i]+gdot*v[i];
+	  r[i] = temp;
       }
       return(0);
     }
@@ -73,9 +84,10 @@ int drift_dan(double mu, double *r, double *v, double dt){
   } /* alpha>0 */
   
  universal:
-  iflg = drift_kepu(dt,d,mu,alpha,u,fp,&c1,&c2,&c3);
-  
-  if(iflg = 0){
+  /* printf("enter drift_kepu \n");*/
+  iflg = drift_kepu(dt,d,mu,alpha,u,&fp,&c1,&c2,&c3);
+  /* printf("exit drift_kepu, iflg = %d \n", iflg);*/
+  if(iflg == 0){
       f = 1.0 - (mu/d)*c2;
       g = dt - mu*c3;
       fdot = -(mu/(fp*d))*c1;
@@ -86,7 +98,7 @@ int drift_dan(double mu, double *r, double *v, double dt){
 	r[i] = temp;
       }
   } 
-  
+ 
   return(iflg);
 }
 
@@ -141,12 +153,12 @@ void drift_kepmd(double dm, double es,double ec,double *px,double *ps,double *pc
   s = x*(A0-y*(A1-y*(A2-y*(A3-y*(A4-y)))))/A0;
   c = sqrt(1.0 - s*s);
 
-  px = &x;
-  ps = &s;
-  pc = &c;
+  *px = x;
+  *ps = s;
+  *pc = c;
 }
 
-int drift_kepu(double dt,double d,double mu,double alpha,double u,double fp,
+int drift_kepu(double dt,double d,double mu,double alpha,double u,double *pfp,
 	   double *pc1,double *pc2,double *pc3){
   /* subroutine for solving kepler's equation using universal variables.
   **
@@ -164,7 +176,7 @@ int drift_kepu(double dt,double d,double mu,double alpha,double u,double fp,
   ** revision: 2/3/93
   */
   double s, st, fo, fn;
-  double c1,c2,c3;
+  double fp, c1,c2,c3;
   int iflg;
     
   
@@ -174,17 +186,21 @@ int drift_kepu(double dt,double d,double mu,double alpha,double u,double fp,
   /* store initial guess for possible use later in 
      Laguerre's method, in case newton's method fails. */
   st = s;
-  
+  /* printf("enter drift_kepu_new \n");*/
   iflg = drift_kepu_new(&s,dt,d,mu,alpha,u,&fp,&c1,&c2,&c3);
+  /* printf("exit drift_kepu_new, iflg = %d \n",iflg);*/
   if(iflg != 0){
     fo = drift_kepu_fchk(dt,d,mu,alpha,u,st);
     fn = drift_kepu_fchk(dt,d,mu,alpha,u,s);
-    if(fabs(fo) < fabs(fn)) s = st; 
+    if(fabs(fo) < fabs(fn)) s = st;
+    /* printf("enter drift_kepu_lag \n");*/
     iflg = drift_kepu_lag(s,dt,d,mu,alpha,u,&fp,&c1,&c2,&c3);
+    /* printf("exit drift_kepu_lag, iflg = %d \n",iflg); */
   }
-  pc1 = &c1;
-  pc2 = &c2;
-  pc3 = &c3;
+  *pfp = fp;
+  *pc1 = c1;
+  *pc2 = c2;
+  *pc3 = c3;
 
   return(iflg);
 }
@@ -323,6 +339,9 @@ int drift_kepu_new(double *ps,double dt,double d,double mu,double alpha,double u
   double s2, x, c0, c1, c2, c3;
   double f, fp, fpp, fppp, ds, fdt;
 
+  /* printf("in drift_kepu_new \n");*/
+
+
      for(nc=0;nc<6;nc++){
        s2 = s*s;
        x = s2*alpha;
@@ -342,21 +361,21 @@ int drift_kepu_new(double *ps,double dt,double d,double mu,double alpha,double u
 
        /* quartic convergence */
        if(fdt*fdt < DANBYB*DANBYB){ /* newton's method succeeded */
-	 ps = &s;
-	 pfp = &fp;
-	 pc1 = &c1;
-	 pc2 = &c2;
-	 pc3 = &c3;
+	 *ps = s;
+	 *pfp = fp;
+	 *pc1 = c1;
+	 *pc2 = c2;
+	 *pc3 = c3;
 	 return(0);
        }       
      }
      
      /* newton's method failed */
-     ps = &s;
-     pfp = &fp;
-     pc1 = &c1;
-     pc2 = &c2;
-     pc3 = &c3;   
+     *ps = s;
+     *pfp = fp;
+     *pc1 = c1;
+     *pc2 = c2;
+     *pc3 = c3;   
      return(1);
 }
 
@@ -437,18 +456,18 @@ int drift_kepu_lag(double s,double dt,double d,double mu,double alpha,double u,
 
     /* quartic convergence */
     if( fdt*fdt < DANBYB*DANBYB){
-      pfp = &fp;
-      pc1 = &c1;
-      pc2 = &c2;
-      pc3 = &c3;	
+      *pfp = fp;
+      *pc1 = c1;
+      *pc2 = c2;
+      *pc3 = c3;	
       return(0);
     } 
     /* Laguerre's method succeeded */
   }
-  pfp = &fp;
-  pc1 = &c1;
-  pc2 = &c2;
-  pc3 = &c3;	
+  *pfp = fp;
+  *pc1 = c1;
+  *pc2 = c2;
+  *pc3 = c3;	
   return(2);
 }
     
@@ -471,7 +490,7 @@ void drift_kepu_stumpff(double x,double *pc0,double *pc1,double *pc2,double *pc3
   int n,i;
   double xm,x2,x3,x4,x5,x6;
   double c0,c1,c2,c3;
-
+ 
   n = 0;
   xm = 0.1;
   while(fabs(x) >= xm){
@@ -506,6 +525,10 @@ void drift_kepu_stumpff(double x,double *pc0,double *pc1,double *pc2,double *pc3
       x = x * 4.0;
     }
   }   
+  *pc0 = c0; 
+  *pc1 = c1; 
+  *pc2 = c2; 
+  *pc3 = c3; 
 }
 
 /* void mco_sine (double x,double *psx,double *pcx){

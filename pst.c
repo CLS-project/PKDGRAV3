@@ -3470,7 +3470,7 @@ void pstDrminToRung(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 	mdlReqService(pst->mdl,pst->idUpper,PST_DRMINTORUNG,vin,nIn);
 	pstDrminToRung(pst->pstLower,vin,nIn,vout,pnOut);
 	mdlGetReply(pst->mdl,pst->idUpper,&outTemp,pnOut);
-	for (i=0;i<in->iMaxRung;++i) {
+	for (i=0;i<in->iMaxRung+1;++i) {
 	    out->nRungCount[i] += outTemp.nRungCount[i];
 	    }
 	}

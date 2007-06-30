@@ -244,7 +244,7 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv)
     msr->param.bGravStep = 0;
     prmAddParam(msr->prm,"bGravStep",0,&msr->param.bGravStep,sizeof(int),
 		"gs","<Gravity timestepping according to iTimeStep Criterion>");
-    msr->param.bEpsAccStep = 1;
+    msr->param.bEpsAccStep = 0;
     prmAddParam(msr->prm,"bEpsAccStep",0,&msr->param.bEpsAccStep,sizeof(int),
 		"ea", "<Sqrt(Epsilon on a) timestepping>");
     msr->param.bSqrtPhiStep = 0;
@@ -381,22 +381,6 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv)
     prmAddParam(msr->prm,"bAarsethStep",0,&msr->param.bAarsethStep,sizeof(int),
 				"aas","<Aarseth timestepping>");
 #endif
-#ifdef PLANETS
-    msr->param.bCollision = 0;
-	prmAddParam(msr->prm,"bCollision",0,&msr->param.bCollision,
-		    sizeof(int),"hc","<Collisions>");
-    msr->param.bHeliocentric = 0;
-	prmAddParam(msr->prm,"bHeliocentric",0,&msr->param.bHeliocentric,
-		    sizeof(int),"hc","use/don't use Heliocentric coordinates = -hc");  
-    msr->param.dCentMass = 1.0;
-    prmAddParam(msr->prm,"dCentMass",2,&msr->param.dCentMass,sizeof(double),
-		"fgm","specifies the central mass for Keplerian orbits");
-#ifdef SYMBA
-    msr->param.bSymba = 1;
-    prmAddParam(msr->prm,"bSymba",2,&msr->param.bSymba,sizeof(int),
-		"sym","use Symba integrator");
-#endif 
-#endif /* PLANETS */
     msr->param.iWallRunTime = 0;
     prmAddParam(msr->prm,"iWallRunTime",1,&msr->param.iWallRunTime,
 		sizeof(int),"wall",
@@ -458,11 +442,8 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv)
 		"fgm","specifies the central mass for Keplerian orbits");
 #ifdef SYMBA
     msr->param.bSymba = 1;
-    prmAddParam(msr->prm,"bSymba",2,&msr->param.bSymba,sizeof(int),
+    prmAddParam(msr->prm,"bSymba",0,&msr->param.bSymba,sizeof(int),
 		"sym","use Symba integrator");
-    if(msr->param.bSymba){
-	msr->param.bHeliocentric = 0;	
-    } 
 #endif 
 
 /* collision stuff */
@@ -501,8 +482,9 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv)
     */
     msr->lcl.pszDataPath = getenv("PTOOLS_DATA_PATH");
     /*
-    ** Process command line arguments.
-    */
+    ** Process command line arguments. 
+    ** (actual parameters read from the param file are set here)
+    */ 
     ret = prmArgProc(msr->prm,argc,argv);
     if (!ret) {
 	_msrExit(msr,1);
@@ -514,7 +496,6 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv)
 	}
 
     (void) sprintf(msr->param.achDigitMask,"%%s.%%0%ii",nDigits);
-
     /*
     ** Make sure that we have some setting for nReplicas if bPeriodic is set.
     */
@@ -541,7 +522,7 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv)
 	    _msrExit(msr,1);
 	    }
 	}
-
+   
     msr->nThreads = mdlThreads(mdl);
 	
     /*
@@ -635,7 +616,7 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv)
     if (msr->param.bGravStep) {
 	msr->param.bEpsAccStep = 0;   /* we must do this because the meaning of Eta is different */
 	}
-
+   
 #ifdef PLANETS
 	switch (msr->param.iCollLogOption) {
 	case COLL_LOG_NONE:
@@ -660,11 +641,14 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv)
 			}
 
 		msr->dEcoll = 0.0;
-#endif
+#ifdef SYMBA
+		msr->param.bHeliocentric = 0;
+#endif 	
+#endif /* PLANETS */
 
 
     pstInitialize(&msr->pst,msr->mdl,&msr->lcl);
-
+  
     pstAddServices(msr->pst,msr->mdl);
     /*
     ** Create the processor subset tree.
@@ -4294,8 +4278,8 @@ void msrTopStepSymba(MSR msr,
      * Activate VeryActives
      */
     msrActiveRung(msr,1,1); /* msr->iRungVeryActive+1 = 1 */
-
-    assert(msr->nActive = 0); /* temporaryly */
+  
+    assert(msr->nActive == 0); /* temporaryly */
     if(msr->nActive){ /* if any particles in close encounters */
     if(msrDoGravity(msr)) {	   
       /*
@@ -4395,6 +4379,7 @@ void msrDrminToRung(MSR msr,int iRung){
   for (iTempRung=0;iTempRung < msrMaxRung(msr);++iTempRung){
     msr->nRung[iTempRung] = out.nRungCount[iTempRung];
   }
+  msr->nRung[msrMaxRung(msr)] = 0; /* just for sure */
   msr->iCurrMaxRung = iOutMaxRung;
   
   if (msr->param.bVRungStat) {
@@ -4422,10 +4407,10 @@ void msrDriftSun(MSR msr,double dTime,double dDelta){
 	int j;
 	/* Calculate Sun's momentum */
 	pstMomSun(msr->pst,NULL,0,&outm,NULL); 
-	for (j=0;j<3;++j){ 
+       
+	for (j=0;j<3;++j){ 	    
                 in.vSun[j] = outm.momSun[j]/msr->dSunMass;	
 	}
-
 	in.dDelta = dDelta;
 	pstDriftSun(msr->pst,&in,sizeof(in),NULL,NULL);
 

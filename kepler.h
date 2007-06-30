@@ -5,9 +5,10 @@
 #define DANBYB  1.0e-13
 #define NLAG2   400;
 
+int drift_dan(double mu, double *r, double *v, double dt);
 void drift_kepmd(double dm, double es,double ec,double *px,double *ps,
 		 double *pc);
-int drift_kepu(double dt,double d,double mu,double alpha,double u,double fp,
+int drift_kepu(double dt,double d,double mu,double alpha,double u,double *pfp,
 	       double *pc1,double *pc2,double *pc3);
 double drift_kepu_guess(double dt,double d,double mu,double alpha,double u);
 int drift_kepu_p3solve(double dt,double d,double mu,double alpha,

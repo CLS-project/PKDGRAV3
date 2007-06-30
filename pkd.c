@@ -2928,7 +2928,8 @@ int pkdDrminToRung(PKD pkd, int iRung, int iMaxRung, double dSunMass,
     PARTICLE *p ;
     
     /* R_k = 3.0/(2.08)^(k-1) with (k= 1,2, ...)*/ 
-    
+
+    for (i=0;i<iMaxRung;++i) nRungCount[i] = 0; 
     p = pkd->pStore;
     for(i=0;i<pkdLocal(pkd);++i) {
 	if(pkdIsActive(pkd,&p[i]))
@@ -2965,8 +2966,8 @@ void pkdMomSun(PKD pkd,double momSun[]){
      for (i=0;i<n;++i) {
        for (j=0;j<3;++j){ 
 	   momSun[j] -= p[i].fMass*p[i].v[j];     
-	 }	
-     }
+	 }   
+     }   
  } 
 
 void pkdDriftSun(PKD pkd,double vSun[],double dt){
@@ -2978,7 +2979,7 @@ void pkdDriftSun(PKD pkd,double vSun[],double dt){
      for (i=0;i<n;++i) {
        for (j=0;j<3;++j){ 
 	 p[i].r[j] += vSun[j]*dt;     
-	 }	
+	 } 
      }
 } 
 
@@ -3003,15 +3004,22 @@ void pkdKeplerDrift(PKD pkd,double dt,double mu) {
         p[i].vb[j] = p[i].v[j];
       }
       
+      /*printf("before: iorder = %d, (x,y,z)= (%e,%e,%e), (vx,vy,vz)= (%e,%e,%e),ms =%e \n",
+	p[i].iOrder, p[i].r[0],p[i].r[1],p[i].r[2],
+	p[i].v[0],p[i].v[1],p[i].v[2], mu);*/
+
       iflg = drift_dan(mu,p[i].r,p[i].v,dt); /* see kepler.c */
       
+      /* printf("exit drift_dan, iflg = %d, (x,y,z)= (%e,%e,%e),(vx,vy,vz)= (%e,%e,%e), ms =%e \n", 
+	 iflg, p[i].r[0],p[i].r[1],p[i].r[2],p[i].v[0],p[i].v[1],p[i].v[2],mu);*/
+
       if(iflg != 0){
 	  dttmp = 0.1*dt;
 	  for (j=0;j<10;++j) {	
 	    iflg = drift_dan(mu,p[i].r,p[i].v,dttmp);
-	    assert(iflg = 0);
+	    assert(iflg == 0);
 	  }
-      }		
+      }    
     }
   }
 }	

@@ -115,7 +115,7 @@ int main(int argc,char **argv) {
     mdlInitialize(&mdl,argv,main_ch);
 #endif
     for(argc = 0; argv[argc]; argc++); /* some MDLs can trash argv */
-
+ 
     printf("%s\n", PACKAGE_STRING );
 
     msrInitialize(&msr,mdl,argc,argv);
@@ -139,7 +139,7 @@ int main(int argc,char **argv) {
 #else
     dTime = msrReadTipsy(msr);  /*read initial conditions */
 #endif
-     
+
     msrInitStep(msr);
     if (prmSpecified(msr->prm,"dSoft")) msrSetSoft(msr,msrSoft(msr));
     /*
@@ -167,8 +167,8 @@ int main(int argc,char **argv) {
 	fprintf(fpLog,"\n");
 	msrLogParams(msr,fpLog);
     }
-
-    if (msrSteps(msr) > 0) {
+ 
+   if (msrSteps(msr) > 0) {
 	if (msrComove(msr)) {
 	    msrSwitchTheta(msr,dTime);
 	    }
@@ -200,7 +200,7 @@ int main(int argc,char **argv) {
 	}
 #ifdef SYMBA 	
 	msrDriftSun(msr,dTime,0.5*msrDelta(msr)); 
-#endif
+#endif 
 #endif
 #ifdef RELAXATION
 	msrInitRelaxation(msr);
