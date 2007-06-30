@@ -10,7 +10,10 @@ typedef struct smfParameters {
 	double H;
 	double a;
 #ifdef RELAXATION
-	double dDeltaT;
+        double dDeltaT;
+#endif
+#ifdef SYMBA
+        double dSunMass;
 #endif
 	double dTau2;
 	int bTauAbs;
@@ -78,6 +81,11 @@ void combGroupBins(void *b1, void *b2);
 #ifdef RELAXATION	
 #define SMX_RELAXATION		26
 void AddRelaxation(PARTICLE *,int,NN *,SMF *);
+#endif
+
+#ifdef SYMBA
+#define SMX_SYMBA               27
+void DrmininDrift(PARTICLE *,int,NN *,SMF *);
 #endif
 
 #endif

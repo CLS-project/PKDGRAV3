@@ -380,3 +380,91 @@ void AddRelaxation(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf)
     p->fRelax += fRel * smf->dDeltaT;	
     }
 #endif  /* RELAXATION */
+
+#ifdef SYMBA
+void DrmininDrift(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf){
+    int i,j;
+    PARTICLE *q;
+    double dDelta = smf->pkd->param.dDelta;
+    double dSunMass = smf->dSunMass;
+    double fMass1 = p->fMass;
+    double a1,a2;
+    double x0,y0,z0,x1,y1,z1,vx0,vy0,vz0,vx1,vy1,vz1;
+    double dx0,dy0,dz0,dvx0,dvy0,dvz0,dvx1,dvy1,dvz1;
+    double dr0,dr1,dv0,dv1;
+    double a,b,c,d;
+    double tmin,drmin,hill;
+/*
+**  calculates drmin during drift using third order intepolation      
+** dr0, dr1: relative distance before and after drift    
+** dv0, dv1: relative velocity before and after drift 
+*/   
+   
+    p->drmin2 = 1000.0;
+    x0 = p->rb[0];
+    y0 = p->rb[1];
+    z0 = p->rb[2];
+    vx0 = p->vb[0];
+    vy0 = p->vb[1];
+    vz0 = p->vb[2];
+    x1 = p->r[0];
+    y1 = p->r[1];
+    z1 = p->r[2];
+    vx1 = p->v[0];
+    vy1 = p->v[1];
+    vz1 = p->v[2];
+    a1 = sqrt(x1*x1 + y1*y1 + z1*z1);
+  
+    for (i=0;i<nSmooth;++i) {
+	q = nnList[i].pPart;
+	if(p==q)continue; 		
+	a2 = sqrt(q->r[0]*q->r[0]+q->r[1]*q->r[1]+q->r[2]*q->r[2]);
+	hill = 0.5*(a1+a2)*pow((fMass1 + q->fMass)/(3.0*dSunMass),1.0/3.0);
+ 
+	dr1 = sqrt(nnList[i].dx*nnList[i].dx + nnList[i].dy*nnList[i].dy 
+		   + nnList[i].dz*nnList[i].dz);
+	
+	if(dr1 < 3.0*hill){
+	    p->drmin2 = dr1/hill;
+	    return;
+	}
+	    
+	dx0 = x0 - q->rb[0];
+	dy0 = y0 - q->rb[1];
+	dz0 = z0 - q->rb[2];
+	dvx0 = vx0 - q->vb[0];
+	dvy0 = vy0 - q->vb[1];
+	dvz0 = vz0 - q->vb[2];
+	dvx1 = vx1 - q->v[0];
+	dvy1 = vy1 - q->v[1];
+	dvz1 = vz1 - q->v[2];
+	
+	dr0 = sqrt(dx0*dx0 + dy0*dy0 + dz0*dz0); 
+	dv0 = sqrt(dvx0*dx0 + dvy0*dy0 + dvz0*dz0)/dr0; 
+	dv1 = (dvx1*nnList[i].dx + dvy1*nnList[i].dy + dvz1*nnList[i].dz)/dr1; 
+
+	a = 2.0*(dr0-dr1) + (dv0 + dv1)*dDelta;
+	b = 3.0*(dr1-dr0) - (2.0*dv0 + dv1)*dDelta; 
+	c = dv0*dDelta;
+	d = 4.0*b*b -12.0*a*c; /* BB-4AC: A=3a, B=2b C=c */  
+
+	if(d < 0.0){ 
+	    return; /* no encounter */
+	}else{
+	    tmin = 0.5*(-b+sqrt(d))/a;
+	    if(tmin < 0.0 || tmin > 1.0){
+		return; /* no encounter */
+	    }else{
+		drmin = ((a*tmin + b)*tmin + c)*tmin + dr0;
+		if(drmin < 3.0*hill){
+		    p->drmin2 = drmin/hill;		
+		    return;
+		}
+		
+	    }
+	}   	
+    }   
+}
+
+
+#endif 

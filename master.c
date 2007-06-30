@@ -2051,6 +2051,9 @@ void msrSmooth(MSR msr,double dTime,int iSmoothType,int bGasOnly,
     in.bSymmetric = bSymmetric;
     in.iSmoothType = iSmoothType;
     in.eParticleTypes = eParticleTypes;
+#ifdef SYMBA
+    in.smf.dSunMass = msr->dSunMass;
+#endif
     if (msrComove(msr)) {
 	in.smf.H = csmTime2Hub(msr->param.csm,dTime);
 	in.smf.a = csmTime2Exp(msr->param.csm,dTime);
@@ -4250,19 +4253,13 @@ void msrTopStepSymba(MSR msr,
     double dDeltaTmp;
     int i;
   
-    /*
-     * Determine p->iRung from p->drmin 
-     */    
-    msrDrminToRung(msr,iRung);
-
-    msrActiveRung(msr,iRung,1); /* activate all particles */ 		 
+    msrActiveRung(msr,0,1); /* activate all particles */ 		 
     /* F_0 for particles at iRung = 0 and 1 */		
     msrKickKDKOpen(msr,dTime,0.5*dDelta); 
     
     /*	
-    ** drift particles at iRung = 0 to the end of time step
+    ** drift all particles to the end of time step
     */
-    msrActiveRung(msr,iRung,0);
     msrKeplerDrift(msr, dDelta);
   
     /*
@@ -4270,10 +4267,13 @@ void msrTopStepSymba(MSR msr,
     ** if the minimum distance is less than 3 mutual hill radius,
     ** its interacting pair is sent to iRung = 1  
     ** For these particles, position and velocity before the drift 
-    ** are retrived (x = x0, v = v0) 
+    ** are retrived (x = xb, v = vb) 
     */ 	
-      /* msrCheckDrmin(msr);*/ 
-    /*msrSmooth(msr,dTime,SMX_DENSITY,bGasOnly,bSymmetric,eParticleTypes);*/
+    msrSmooth(msr,dTime,SMX_SYMBA,0,0,TYPE_ALL);
+    /*
+     * Determine p->iRung from p->drmin 
+     */ 
+    msrDrminToRung(msr,iRung);
     /*
      * Activate VeryActives
      */
@@ -4424,7 +4424,6 @@ void msrKeplerDrift(MSR msr,double dDelta){
 	pstKeplerDrift(msr->pst,&in,sizeof(in),NULL,NULL);
 
 } 
-
 
 #endif /* SYMBA */
 #endif /* PLANETS*/

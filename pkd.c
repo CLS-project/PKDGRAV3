@@ -2924,7 +2924,7 @@ pkdStepVeryActiveSymba(PKD pkd, double dStep, double dTime, double dDelta,
 
 int pkdDrminToRung(PKD pkd, int iRung, int iMaxRung, double dSunMass, 
 		    int *nRungCount) {
-    int i, iTempRung;;
+    int i, j, iTempRung;;
     PARTICLE *p ;
     
     /* R_k = 3.0/(2.08)^(k-1) with (k= 1,2, ...)*/ 
@@ -2938,16 +2938,35 @@ int pkdDrminToRung(PKD pkd, int iRung, int iMaxRung, double dSunMass,
 	if(p[i].drmin > 3.0){
 	    iTempRung = 0;
 	}else{
-	    iTempRung = log(3.0/p[i].drmin)/log(2.08);
+	    iTempRung = floor(log(3.0/p[i].drmin)/log(2.08)) + 1;
 	}
 	if(iTempRung >= iMaxRung) {
 	    iTempRung = iMaxRung-1;
 	}
-	  p[i].iRung = iTempRung;
+
+	  /* if min. dist. during drift is less than 3 Hill radius, 
+	     set iRung = 1 */ 
+	if(iTempRung == 0 && p[i].drmin2 < 3.0){	    
+	      iTempRung = 1;
+	}
+	
+	/* retrive position and velocity of active particle to 
+	   those before drift*/
+	  if(iTempRung > 0){
+	      for(j=0;j<3;j++){
+		  p[i].r[j] = p[i].rb[j];
+		  p[i].v[j] = p[i].vb[j];
+	      }
+	  }	
 	  /*
 	  ** Now produce a count of particles in rungs.
 	  */
-	  nRungCount[p[i].iRung] += 1;
+	  nRungCount[iTempRung] += 1;
+	  p[i].iRung = iTempRung;
+	  
+	  /* printf("iorder %d, drmin1 %e, drmin2 %e, \n",
+	     p[i].iOrder, p[i].drmin, p[i].drmin2);*/
+	  
     }
     iTempRung = iMaxRung-1;
     while (nRungCount[iTempRung] == 0 && iTempRung > 0) --iTempRung;

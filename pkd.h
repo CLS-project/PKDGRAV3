@@ -128,6 +128,7 @@ typedef struct particle {
     FLOAT rb[3]; /* position before drift */
     FLOAT vb[3]; /* velocity before drift */
     FLOAT drmin; /* minimum distance from neighbors normalized by Hill*/
+    FLOAT drmin2; /* min. dis. during drift */
 #endif
 #endif/* PLANETS */
     } PARTICLE;

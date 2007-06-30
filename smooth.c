@@ -90,6 +90,17 @@ int smInitialize(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bGasOnly,
 	smx->fcnPost = NULL;
 	break;
 #endif /* RELAXATION */
+#ifdef SYMBA
+    case SMX_SYMBA:
+	assert(bSymmetric == 0);
+	smx->fcnSmooth = DrmininDrift;
+	initParticle = NULL;
+	init = NULL;
+	comb = NULL;
+	smx->fcnPost = NULL;
+	break;
+#endif /* SYMBA */
+
     default:
 	assert(0);
 	}
@@ -959,7 +970,7 @@ void smSmooth(SMX smx,SMF *smf)
     int iStart[3],iEnd[3];
     int pi,i,j,bDone;
     int ix,iy,iz;
-
+   
     for (pi=0;pi<pkd->nLocal;++pi) {
 	if (!TYPETest(&(p[pi]),smx->eParticleTypes)) continue;
 	pq = NULL;
@@ -1004,6 +1015,7 @@ void smSmooth(SMX smx,SMF *smf)
 	** Maybe should give a warning if the search radius is not conained
 	** within the replica volume.
 	*/
+	
 	p[pi].fBall = sqrt(pq->fDist2);
 	for (i=0;i<smx->nSmooth;++i) {
 	    smx->nnList[i].pPart = smx->pq[i].pPart;
@@ -1012,6 +1024,7 @@ void smSmooth(SMX smx,SMF *smf)
 	    smx->nnList[i].dy = smx->pq[i].dy;
 	    smx->nnList[i].dz = smx->pq[i].dz;
 	    }
+	
 	/*
 	** Apply smooth funtion to the neighbor list.
 	*/
