@@ -56,7 +56,7 @@ void InitializeParticles(PKD pkd,int bExcludeVeryActive) {
 	    else break;
 	    }
 	while (i <= j) {
-	    if ( p[i].uRung > pkdRungVeryActive(pkd) ) --j;
+	    if ( p[j].uRung > pkdRungVeryActive(pkd) ) --j;
 	    else break;
 	    }
 	if (i < j) {
