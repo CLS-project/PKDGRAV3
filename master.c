@@ -1232,7 +1232,7 @@ double msrReadTipsy(MSR msr)
     in.bStandard = msr->param.bStandard;
     in.bDoublePos = msr->param.bDoublePos;
     in.dTuFac = 1.0;
-    strcpy(in.achOutName,msr->param.achOutName); 
+    strcpy(in.achOutName,msr->param.achOutName);    
     /*
     ** Since pstReadTipsy causes the allocation of the local particle
     ** store, we need to tell it the percentage of extra storage it
@@ -3342,11 +3342,16 @@ msrStepVeryActiveHermite(MSR msr, double dStep, double dTime, double dDelta,
     pstStepVeryActiveHermite(msr->pst, &in, sizeof(in), &out, NULL);
 
 #ifdef PLANETS 
+/* maybe we should use collision flag to determine if we call 
+   the following function. Change of solar mass (msr->dSunMass) 
+   is taken care of here */
     if(msr->param.bCollision){
     struct outGetVariableVeryActive outGet;
     pstGetVariableVeryActive(msr->pst, NULL, 0, &outGet, NULL);
     msr->dEcoll += outGet.dDeltaEcoll;
     outGet.dDeltaEcoll = 0.0;/*just in case */
+    /* if solar mass changes we need to put this information to all threads 
+     (should we do it here? or at msradddelete?)*/
     }
 #endif
     /*
@@ -3855,6 +3860,7 @@ msrReadSS(MSR msr)
 	in.nGas = msr->nGas;	/* always zero */
 	in.nStar = msr->nStar;	/* always zero */
 	in.iOrder = msr->param.iOrder;
+	in.dSunMass = msr->dSunMass;
 	/*
 	 ** Since pstReadSS causes the allocation of the local particle
 	 ** store, we need to tell it the percentage of extra storage it
@@ -4255,17 +4261,16 @@ void msrTopStepSymba(MSR msr,
   
     msrActiveRung(msr,0,1); /* activate all particles */ 		 
     /* F_0 for particles at iRung = 0 and 1 */		
-    msrKickKDKOpen(msr,dTime,0.5*dDelta); 
-    
+    msrKickKDKOpen(msr,dTime,0.5*dDelta);   
     /*	
     ** drift all particles to the end of time step
     */
     msrKeplerDrift(msr, dDelta);
   
     /*
-    ** check minimum distance from neighbors during drift
-    ** if the minimum distance is less than 3 mutual hill radius,
-    ** its interacting pair is sent to iRung = 1  
+    ** Determine p->iRung from p->drmin (min. distance before drift). 
+    ** If drmin2 < 3Hill, (but drmin > 3Hill),
+    ** this interacting pair is sent to iRung = 1.  
     ** For these particles, position and velocity before the drift 
     ** are retrived (x = xb, v = vb) 
     */ 	
@@ -4279,7 +4284,7 @@ void msrTopStepSymba(MSR msr,
      */
     msrActiveRung(msr,1,1); /* msr->iRungVeryActive+1 = 1 */
   
-    assert(msr->nActive == 0); /* temporaryly */
+    /*assert(msr->nActive == 0); temporaryly */
     if(msr->nActive){ /* if any particles in close encounters */
     if(msrDoGravity(msr)) {	   
       /*
@@ -4288,7 +4293,7 @@ void msrTopStepSymba(MSR msr,
       */
       bSplitVA = 1;
       msrDomainDecomp(msr,iRung,1,bSplitVA);
-      /* msrSortVA(msr); sorting VA (see tree.c) */	    
+      /* msrSortVA(msr); sorting VA */	    
     }
     /*
      * Perform timestepping of particles in close encounters on 
@@ -4366,7 +4371,6 @@ void msrDrminToRung(MSR msr,int iRung){
  
   in.iRung = iRung;
   in.iMaxRung = msrMaxRung(msr);
-  in.dSunMass = msr->dSunMass;
 
   pstDrminToRung(msr->pst, &in, sizeof(in), &out, NULL);
   iTempRung =msrMaxRung(msr)-1;
@@ -4417,13 +4421,17 @@ void msrDriftSun(MSR msr,double dTime,double dDelta){
 } 
 
 void msrKeplerDrift(MSR msr,double dDelta){
-	struct inKeplerDrift in;
-
-	in.dDelta = dDelta;
-	in.dSunMass = msr->dSunMass;
-	pstKeplerDrift(msr->pst,&in,sizeof(in),NULL,NULL);
-
+    struct inKeplerDrift in;
+    
+    in.dDelta = dDelta;
+    in.dSunMass = msr->dSunMass;
+    pstKeplerDrift(msr->pst,&in,sizeof(in),NULL,NULL);
+	
 } 
+
+void msrSortVA(MSR msr){
+    pstSortVA(msr->pst,NULL,0,NULL,NULL);
+}
 
 #endif /* SYMBA */
 #endif /* PLANETS*/

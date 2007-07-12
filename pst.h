@@ -157,6 +157,7 @@ enum pst_service {
     PST_MOMSUN,
     PST_DRIFTSUN,
     PST_KEPLERDRIFT,
+    PST_SORTVA,
 #endif /* SYMBA */
 #endif /* PLANETS */
 #ifdef HERMITE
@@ -868,6 +869,7 @@ struct inReadSS {
 	float fExtraStore;
 	FLOAT fPeriod[3];	/* for compatability */
 	char achInFile[PST_FILENAME_SIZE];
+        double dSunMass;
 	};
 void pstReadSS(PST,void *,int,void *,int *);
 
@@ -955,7 +957,6 @@ void pstStepVeryActiveSymba(PST,void *,int,void *,int *);
 struct inDrminToRung {
     int iRung;
     int iMaxRung;
-    double dSunMass;
     };
 struct outDrminToRung {
     int nRungCount[256];
@@ -983,6 +984,9 @@ struct inKeplerDrift{
 };
 
 void pstKeplerDrift(PST,void *,int,void *,int *); 
+
+/* PST_SORTVA */
+void pstSortVA(PST,void *,int,void *,int *);  
 
 #endif /* SYMBA */
 #endif /* PLANETS */

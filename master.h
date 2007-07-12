@@ -234,6 +234,7 @@ void msrStepVeryActiveSymba(MSR msr, double dStep, double dTime, double dDelta,
 void msrDrminToRung(MSR msr,int iRung);
 void msrDriftSun(MSR msr,double dTime,double dDelta);
 void msrKeplerDrift(MSR msr,double dDelta);
+void msrSortVA(MSR msr);
 #endif  /* SYMBA */
 #endif /* PLANETS */
 

@@ -25,7 +25,7 @@ int drift_dan(double mu, double *r, double *v, double dt){
   ** Authors:  Hal Levison & Martin Duncan  
   ** Date:    2/10/93
   ** Last revision: April 6/93 - MD adds dt and keeps dt0 unchanged
-  ** Transferred to pkdgrav2: RM 6/07
+  ** Transferred to pkdgrav2: RM 06/07
   */
   
   int iflg =0;

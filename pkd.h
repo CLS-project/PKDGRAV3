@@ -129,6 +129,12 @@ typedef struct particle {
     FLOAT vb[3]; /* velocity before drift */
     FLOAT drmin; /* minimum distance from neighbors normalized by Hill*/
     FLOAT drmin2; /* min. dis. during drift */
+    int   iOrder_VA[5]; /* iOrder's of particles within 3 hill radius*/
+    int   i_VA[5];    /* pointers of particles */
+    int   n_VA;       /* number of particles */
+  double  hill_VA[5]; /* mutual hill radius calculated in grav.c */  
+  double a_VA[3];          /* accralation due to close encounters */
+  /* int   iKickRung; */
 #endif
 #endif/* PLANETS */
     } PARTICLE;
@@ -553,6 +559,7 @@ typedef struct pkdContext {
     struct parameters param;
 #ifdef PLANETS
     double dDeltaEcoll;
+    double dSunMass;
 #endif   
     } * PKD;
 
@@ -614,7 +621,7 @@ double pkdGetWallClockTimer(PKD,int);
 void pkdClearTimer(PKD,int);
 void pkdStartTimer(PKD,int);
 void pkdStopTimer(PKD,int);
-void pkdInitialize(PKD *,MDL,int,FLOAT *,int,int,int);
+void pkdInitialize(PKD *,MDL,int,FLOAT *,int,int,int,double);
 void pkdFinish(PKD);
 void pkdReadTipsy(PKD,char *,char *,int,int,int,double,double,int);
 void pkdSetSoft(PKD pkd,double dSoft);
@@ -720,16 +727,26 @@ void pkdGravSun(PKD pkd,double aSun[],double adSun[],double dSunMass);
 void pkdReadSS(PKD pkd,char *pszFileName,int nStart,int nLocal);
 void pkdWriteSS(PKD pkd,char *pszFileName,int nStart);
 #ifdef SYMBA
+#define symfac 1.925925925925926 /* 2.08/1.08 */
+#define rsym2  1.442307692307692 /* 3.0/2.08 */
+
 void
 pkdStepVeryActiveSymba(PKD pkd, double dStep, double dTime, double dDelta,
 		       int iRung, int iKickRung, int iRungVeryActive,
 		       int iAdjust, double diCrit2,
-		       int *pnMaxRung, double dSunMass);
-int pkdDrminToRung(PKD pkd, int iRung, int iMaxRung, double dSunMass, 
-		    int *nRungCount);
+		       int *pnMaxRung, double dSunMass, int);
+int pkdSortVA(PKD pkd, int iRung);
+void pkdGravVA(PKD pkd, int iRung);
+int pkdCheckDrminVA(PKD pkd, int iRung, int multiflag, int nMaxRung);
+void pkdKickVA(PKD pkd, double dt);
+int pkdDrminToRung(PKD pkd, int iRung, int iMaxRung, int *nRungCount);
+int pkdGetPointa(PKD pkd);
+int pkdDrminToRungVA(PKD pkd, int iRung, int iMaxRung, int multiflag);
 void pkdMomSun(PKD pkd,double momSun[]);
 void pkdDriftSun(PKD pkd,double vSun[],double dt);
-void pkdKeplerDrift(PKD pkd,double dt,double mu);
+void pkdKeplerDrift(PKD pkd,double dt,double mu,int tag_VA);
+
+
 
 #endif /* SYMBA */
 #endif /* PLANETS*/

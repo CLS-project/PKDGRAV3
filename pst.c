@@ -310,6 +310,9 @@ void pstAddServices(PST pst,MDL mdl)
     mdlAddService(mdl,PST_KEPLERDRIFT,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstKeplerDrift,
 		  sizeof(struct inKeplerDrift),0);
+    mdlAddService(mdl,PST_SORTVA,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstSortVA,
+		  0,0);
 #endif /* SYMBA */ 
 #endif /* PLANETS */
     }
@@ -470,9 +473,8 @@ void pstOneNodeReadInit(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 	** Determine the size of the local particle store.
 	*/
 	nStore = nFileTotal + (int)ceil(nFileTotal*in->fExtraStore);
-		
 	pkdInitialize(&plcl->pkd,pst->mdl,nStore,in->fPeriod,
-		      in->nDark,in->nGas,in->nStar);
+		      in->nDark,in->nGas,in->nStar,0.0);
 	pout[pst->idSelf] = nFileTotal;
 	}
     if (pnOut) *pnOut = nThreads*sizeof(*pout);
@@ -519,7 +521,7 @@ void pstReadTipsy(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 	*/
 	nStore = nFileTotal + (int)ceil(nFileTotal*in->fExtraStore);
 	pkdInitialize(&plcl->pkd,pst->mdl,nStore,in->fPeriod,
-		      in->nDark,in->nGas,in->nStar);
+		      in->nDark,in->nGas,in->nStar,0.0);
 	pkdReadTipsy(plcl->pkd,achInFile,achOutName,nFileStart,nFileTotal,in->bStandard,
 		     in->dvFac,in->dTuFac,in->bDoublePos);
 	}
@@ -2394,7 +2396,7 @@ void pstGravity(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     }
     else {
       pkdGravAll(plcl->pkd,in->dTime,in->nReps,in->bPeriodic,4,in->bEwald,
-		 in->iEwOrder,in->dEwCut,in->dEwhCut, &out->nActive,
+		 in->iEwOrder,in->dEwCut,in->dEwhCut,&out->nActive,
 		 &out->dPartSum,&out->dCellSum,&cs,&out->dFlop);
 
 	out->dWSum = pkdGetWallClockTimer(plcl->pkd,1);
@@ -3226,7 +3228,7 @@ pstReadSS(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 		 */
 		nStore = nFileTotal + (int)ceil(nFileTotal*in->fExtraStore);
 		pkdInitialize(&plcl->pkd,pst->mdl,nStore,in->fPeriod,
-		      in->nDark,in->nGas,in->nStar);		
+		      in->nDark,in->nGas,in->nStar,in->dSunMass);     
 		pkdReadSS(plcl->pkd,achInFile,nFileStart,nFileTotal);
 		}
 	if (pnOut) *pnOut = 0;
@@ -3446,12 +3448,12 @@ void pstStepVeryActiveSymba(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 	    }
 	}
     else {
-	assert(plcl->pkd->nVeryActive > 0);
+	/*assert(plcl->pkd->nVeryActive > 0);*/
 	
 	out->nMaxRung = in->nMaxRung;
 	pkdStepVeryActiveSymba(plcl->pkd,in->dStep,in->dTime,in->dDelta,
 			     in->iRung, in->iRung, in->iRung, 0, in->diCrit2,
-			     &out->nMaxRung, in->dSunMass);
+			     &out->nMaxRung, in->dSunMass, 0);
 	mdlCacheBarrier(pst->mdl,CID_CELL);
 	}
     if (pnOut) *pnOut = sizeof(*out);
@@ -3475,8 +3477,7 @@ void pstDrminToRung(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 	    }
 	}
     else {
-	pkdDrminToRung(plcl->pkd,in->iRung,in->iMaxRung, 
-		       in->dSunMass,out->nRungCount);
+	pkdDrminToRung(plcl->pkd,in->iRung,in->iMaxRung,out->nRungCount);
 	}
     if (pnOut) *pnOut = sizeof(*out);
     }
@@ -3532,10 +3533,26 @@ void pstKeplerDrift(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     pstKeplerDrift(pst->pstLower,vin,nIn,NULL,NULL);
     mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
   } else {
-    pkdKeplerDrift(plcl->pkd,in->dDelta,in->dSunMass);
+      pkdKeplerDrift(plcl->pkd,in->dDelta,in->dSunMass,0); /* 0 for all */
   }
   if (pnOut) *pnOut = 0;
 }
+
+void pstSortVA(PST pst,void *vin,int nIn,void *vout,int *pnOut)
+{
+    LCL *plcl = pst->plcl;
+  
+  mdlassert(pst->mdl,nIn == 0);
+  if (pst->nLeaves > 1) {
+      mdlReqService(pst->mdl,pst->idUpper,PST_SORTVA,vin,nIn);
+    pstSortVA(pst->pstLower,vin,nIn,NULL,NULL);
+    mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
+  } else{
+      InitializeParticles(plcl->pkd, 1); /* bExcludeVeryActive = 1 */
+  }
+  if (pnOut) *pnOut = 0;
+}
+
 
 #endif /* SYMBA */ 
 #endif /* PLANETS*/

@@ -394,12 +394,13 @@ void DrmininDrift(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf){
     double dr0,dr1,dv0,dv1;
     double a,b,c,d;
     double tmin,drmin,hill;
+    double a1b, a2b, hillb;
 /*
 **  calculates drmin during drift using third order intepolation      
 ** dr0, dr1: relative distance before and after drift    
 ** dv0, dv1: relative velocity before and after drift 
 */   
-   
+ 
     p->drmin2 = 1000.0;
     x0 = p->rb[0];
     y0 = p->rb[1];
@@ -414,24 +415,39 @@ void DrmininDrift(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf){
     vy1 = p->v[1];
     vz1 = p->v[2];
     a1 = sqrt(x1*x1 + y1*y1 + z1*z1);
-  
+    a1b = sqrt(x0*x0 + y0*y0 + z0*z0);
+
     for (i=0;i<nSmooth;++i) {
 	q = nnList[i].pPart;
 	if(p==q)continue; 		
 	a2 = sqrt(q->r[0]*q->r[0]+q->r[1]*q->r[1]+q->r[2]*q->r[2]);
-	hill = 0.5*(a1+a2)*pow((fMass1 + q->fMass)/(3.0*dSunMass),1.0/3.0);
+	a2b = sqrt(q->rb[0]*q->rb[0]+q->rb[1]*q->rb[1]+q->rb[2]*q->rb[2]);
+
+	hill = 0.5*pow(((fMass1 + q->fMass)/(3.0*dSunMass)),(1.0/3.0));
+	hillb = hill*(a1b+a2b);
+	hill *= (a1+a2);
  
 	dr1 = sqrt(nnList[i].dx*nnList[i].dx + nnList[i].dy*nnList[i].dy 
 		   + nnList[i].dz*nnList[i].dz);
 	
-	if(dr1 < 3.0*hill){
-	    p->drmin2 = dr1/hill;
-	    return;
-	}
-	    
 	dx0 = x0 - q->rb[0];
 	dy0 = y0 - q->rb[1];
 	dz0 = z0 - q->rb[2];
+	dr0 = sqrt(dx0*dx0 + dy0*dy0 + dz0*dz0);
+ 
+	if(dr1 < 3.0*hill){
+	    p->drmin2 = dr1/hill;
+	    /* printf("dr1 iOrder %d jOrder %d dr0 %e\n", 
+			       p->iOrder,q->iOrder,dr0/hillb);*/
+	    if(dr0 >= 3.0*hillb){ 	
+		p->iOrder_VA[p->n_VA] = q->iOrder;
+		p->hill_VA[p->n_VA] = hill;
+		p->n_VA++;
+	    }
+	    /*printf("iOrder %d, 1, drmin2 %e \n",p->iOrder, p->drmin2);*/
+	    continue;
+	}
+
 	dvx0 = vx0 - q->vb[0];
 	dvy0 = vy0 - q->vb[1];
 	dvz0 = vz0 - q->vb[2];
@@ -439,7 +455,6 @@ void DrmininDrift(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf){
 	dvy1 = vy1 - q->v[1];
 	dvz1 = vz1 - q->v[2];
 	
-	dr0 = sqrt(dx0*dx0 + dy0*dy0 + dz0*dz0); 
 	dv0 = sqrt(dvx0*dx0 + dvy0*dy0 + dvz0*dz0)/dr0; 
 	dv1 = (dvx1*nnList[i].dx + dvy1*nnList[i].dy + dvz1*nnList[i].dz)/dr1; 
 
@@ -449,16 +464,27 @@ void DrmininDrift(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf){
 	d = 4.0*b*b -12.0*a*c; /* BB-4AC: A=3a, B=2b C=c */  
 
 	if(d < 0.0){ 
-	    return; /* no encounter */
+	    /*printf("iOrder %d, 2, drmin2 %e \n",p->iOrder, p->drmin2);*/
+	    continue; /* no encounter */
 	}else{
 	    tmin = 0.5*(-b+sqrt(d))/a;
 	    if(tmin < 0.0 || tmin > 1.0){
-		return; /* no encounter */
+		/*printf("iOrder %d, 3, drmin2 %e \n",p->iOrder, p->drmin2);*/
+		continue; /* no encounter */
 	    }else{
 		drmin = ((a*tmin + b)*tmin + c)*tmin + dr0;
 		if(drmin < 3.0*hill){
-		    p->drmin2 = drmin/hill;		
-		    return;
+		    p->drmin2 = drmin/hill;
+		    /* printf("drmin iOrder %d jOrder %d dr0 %e \n", 
+		       p->iOrder,q->iOrder,dr0/hillb);*/
+		    if(dr0 >= 3.0*hillb){ 
+			p->iOrder_VA[p->n_VA] = q->iOrder;
+			p->hill_VA[p->n_VA] = hill;
+			p->n_VA++;
+		    }
+	
+		    /*printf("iOrder %d, 4, drmin2 %e \n",p->iOrder, p->drmin2);*/
+		    continue;
 		}
 		
 	    }

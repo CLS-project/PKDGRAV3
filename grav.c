@@ -119,8 +119,11 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
     double vx,vy,vz,v2;
 #endif
     double summ;
+#ifdef PLANETS
+    double dSunMass = pkd->dSunMass;
 #ifdef SYMBA
     double drmin, a1, a2;
+#endif
 #endif
 #ifdef SOFTSQUARE
     double ptwoh2;
@@ -176,7 +179,8 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 #ifdef SYMBA
  /* mutual dist. normalized by Hill with dSunMass = 1 
     correction due to dSunMass is done in pkdDrmintoRung */
-	p[i].drmin = 10000.0; 
+	p[i].drmin = 10000.0;
+	p[i].n_VA = 0; /* number of particles within 3 hill radius*/
 #endif
 	rhocadd = 0;
 	rholoc = 0;
@@ -374,12 +378,26 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	    }
 #endif
 #ifdef SYMBA
-		a1 = p[i].r[0]*p[i].r[0]+p[i].r[1]*p[i].r[1]+p[i].r[2]*p[i].r[2];
-		a2 = ilp[j].x*ilp[j].x + ilp[j].y*ilp[j].y + ilp[j].z*ilp[j].z;
-		a1 = 0.5*(sqrt(a1) + sqrt(a2));
-		a1 *= pow((p[i].fMass + ilp[j].m)/3.0,1.0/3.0);
-		a2 = sqrt(d2)/a1;
-		p[i].drmin = (a2 < p[i].drmin)?a2:p[i].drmin; 
+	    a1 = p[i].r[0]*p[i].r[0]+p[i].r[1]*p[i].r[1]+p[i].r[2]*p[i].r[2];
+	    a2 = ilp[j].x*ilp[j].x + ilp[j].y*ilp[j].y + ilp[j].z*ilp[j].z;
+	    a1 = 0.5*(sqrt(a1) + sqrt(a2));
+	    a1 *= pow((p[i].fMass + ilp[j].m)/(3.0*dSunMass),1.0/3.0);
+	    a2 = sqrt(d2)/a1;
+	    p[i].drmin = (a2 < p[i].drmin)?a2:p[i].drmin;
+	    if(a2 < 3.0){
+		p[i].iOrder_VA[p[i].n_VA] = ilp[j].iOrder;
+		p[i].hill_VA[p[i].n_VA] = a1;
+		p[i].n_VA++;		    
+		if(a2 > rsym2){
+		  a1 = symfac*(1.0-a2/3.0); /*symfac is defined in pkd.h */ 
+		  a1 *= a1*(2.0*a1 -3.0);
+		  a1 += 1.0;
+		}else{ 
+		  a1 = 0.0;
+		  /* d3 = a2*a2;
+		     d3 *= (9.0 -5.0*d3*d3)/(108.0*a1*a1*a1);*/
+		}
+	    }
 #endif 
 
          
@@ -450,6 +468,9 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	    }
 
 	    dir2 *= ilp[j].m;
+#ifdef SYMBA
+	    if(a2 < 3.0) dir2 *= a1; 
+#endif
 	    tax = -x*dir2;
 	    tay = -y*dir2;
 	    taz = -z*dir2;
@@ -590,13 +611,31 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	    }
 #endif    
 #ifdef SYMBA
-		a1 = pi->r[0]*pi->r[0]+pi->r[1]*pi->r[1]+pi->r[2]*pi->r[2];
-		a2 = pj->r[0]*pj->r[0]+pj->r[1]*pj->r[1]+pj->r[2]*pj->r[2]; 
-		a1 = 0.5*(sqrt(a1) + sqrt(a2));
-		a1 *= pow((pi->fMass + pj->fMass)/3.0,1.0/3.0);
-		a2 = sqrt(d2)/a1;
-		pi->drmin = (a2 < pi->drmin)?a2:pi->drmin; 
-		pj->drmin = (a2 < pj->drmin)?a2:pj->drmin; 
+	    a1 = pi->r[0]*pi->r[0]+pi->r[1]*pi->r[1]+pi->r[2]*pi->r[2];
+	    a2 = pj->r[0]*pj->r[0]+pj->r[1]*pj->r[1]+pj->r[2]*pj->r[2]; 
+	    a1 = 0.5*(sqrt(a1) + sqrt(a2));
+	    a1 *= pow((pi->fMass + pj->fMass)/(3.0*dSunMass),1.0/3.0);
+	    a2 = sqrt(d2)/a1;
+	    pi->drmin = (a2 < pi->drmin)?a2:pi->drmin; 
+	    pj->drmin = (a2 < pj->drmin)?a2:pj->drmin; 
+	    if(a2 < 3.0){
+		/* printf("Active-Active iOrder %d jOrder %d \n", 
+		   pi->iOrder,pj->iOrder);*/
+		pi->iOrder_VA[pi->n_VA] = pj->iOrder;
+		pj->iOrder_VA[pj->n_VA] = pi->iOrder;
+		pi->hill_VA[pi->n_VA] = a1;
+		pj->hill_VA[pj->n_VA] = a1;
+		pi->n_VA++;
+		pj->n_VA++;
+		
+		if(a2 > rsym2){
+		    a1 = symfac*(1.0-a2/3.0);
+		    a1 *= a1*(2.0*a1 -3.0);
+		    a1 += 1.0;
+		}else{ 
+		    a1 = 0.0;		 
+		}
+	    }
 #endif   
 #ifdef SOFTSQUARE
 	    fourh2 = ptwoh2 + 2*pj->fSoft*pj->fSoft;
@@ -658,6 +697,9 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	      pj->dtGrav = (rhopmaxlocal > pj->dtGrav)?rhopmaxlocal:pj->dtGrav; 
 	    }
 
+#ifdef SYMBA	  
+	    if(a2 < 3.0) dir2 *= a1;
+#endif
 	    fPot += dir*pj->fMass;
 	    ax += x*dir2*pj->fMass;
 	    ay += y*dir2*pj->fMass;
@@ -719,14 +761,29 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	      v2 = vx*vx + vy*vy + vz*vz;  
 	    }
 #endif	   
-#ifdef SYMBA
-		a1 = pi->r[0]*pi->r[0]+pi->r[1]*pi->r[1]+pi->r[2]*pi->r[2];
-		a2 = pj->r[0]*pj->r[0]+pj->r[1]*pj->r[1]+pj->r[2]*pj->r[2]; 
-		a1 = 0.5*(sqrt(a1) + sqrt(a2));
-		a1 *= pow((pi->fMass + pj->fMass)/3.0,1.0/3.0);
-		a2 = sqrt(d2)/a1;
-		pi->drmin = (a2 < pi->drmin)?a2:pi->drmin; 
-		pj->drmin = (a2 < pj->drmin)?a2:pj->drmin; 
+#ifdef SYMBA /* should be removed as all particles should be active */
+	    a1 = pi->r[0]*pi->r[0]+pi->r[1]*pi->r[1]+pi->r[2]*pi->r[2];
+	    a2 = pj->r[0]*pj->r[0]+pj->r[1]*pj->r[1]+pj->r[2]*pj->r[2]; 
+	    a1 = 0.5*(sqrt(a1) + sqrt(a2));
+	    a1 *= pow((pi->fMass + pj->fMass)/(3.0*dSunMass),1.0/3.0);
+	    a2 = sqrt(d2)/a1;
+	    pi->drmin = (a2 < pi->drmin)?a2:pi->drmin; 
+	    pj->drmin = (a2 < pj->drmin)?a2:pj->drmin; 
+	    if(a2 < 3.0){
+		pi->iOrder_VA[pi->n_VA] = pj->iOrder;
+		pj->iOrder_VA[pj->n_VA] = pi->iOrder;
+		pi->hill_VA[pi->n_VA] = a1;
+		pj->hill_VA[pj->n_VA] = a1;
+		pi->n_VA++;
+		pj->n_VA++;		    
+		if(a2 > rsym2){
+		    a1 = symfac*(1.0-a2/3.0);
+		    a1 *= a1*(2.0*a1 -3.0);
+		    a1 += 1.0;
+		}else{ 
+		    a1 = 0.0;		 
+		}
+	    }
 #endif 
 #ifdef SOFTSQUARE
 	    fourh2 = ptwoh2 + 2*pj->fSoft*pj->fSoft;
@@ -789,6 +846,9 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	      pi->dtGrav = (rhopmaxlocal > pi->dtGrav)?rhopmaxlocal:pi->dtGrav;
 	    }
 
+#ifdef SYMBA	  
+	    if(a2 < 3.0) dir2 *= a1;
+#endif
 	    fPot += dir*pj->fMass;
 	    ax += x*dir2*pj->fMass;
 	    ay += y*dir2*pj->fMass;

@@ -137,7 +137,7 @@ void pkdStopTimer(PKD pkd,int iTimer)
 
 
 void pkdInitialize(PKD *ppkd,MDL mdl,int nStore,FLOAT *fPeriod,
-		   int nDark,int nGas,int nStar)
+		   int nDark,int nGas,int nStar,double dSunMass)
     {
     PKD pkd;
     int j;
@@ -155,6 +155,9 @@ void pkdInitialize(PKD *ppkd,MDL mdl,int nStore,FLOAT *fPeriod,
     pkd->nMaxOrderGas = nGas - 1;
     pkd->nMaxOrderDark = nGas + nDark - 1;
     pkd->nRejects = 0;
+#ifdef PLANETS
+    pkd->dSunMass = dSunMass;
+#endif
     for (j=0;j<3;++j) {
 	pkd->fPeriod[j] = fPeriod[j];
 	}
@@ -2851,170 +2854,530 @@ void
 pkdStepVeryActiveSymba(PKD pkd, double dStep, double dTime, double dDelta,
 		       int iRung, int iKickRung, int iRungVeryActive,
 		       int iAdjust, double diCrit2,
-		       int *pnMaxRung, double dSunMass)
+		       int *pnMaxRung, double dSunMass, int multiflag)
 {
   int nRungCount[256];
   double dDriftFac;
-  
-  if(iRung > 0){ /* at iRung = 0 we just call pkdStepVeryActiveSymba three times*/
-    if(iAdjust && (iRung < pkd->param.iMaxRung-1)) {
-      pkdActiveRung(pkd, iRung, 1);	
-      *pnMaxRung = pkdDrminToRung(pkd,iRung,pkd->param.iMaxRung-1, dSunMass, nRungCount);
-      
-      if (pkd->param.bVDetails) {
-	printf("%*cAdjust at iRung: %d, nMaxRung:%d nRungCount[%d]=%d\n",
-	       2*iRung+2,' ',iRung,*pnMaxRung,*pnMaxRung,nRungCount[*pnMaxRung]);
-      }
-    }
+  double ddDelta, ddStep;
+
+/* get pointa of interacting opponents from thier iOrder's
+ multiflag > 0 if close encounters with more than 2 particles exist*/
+  if(iRung ==0) {
+      pkd->nVeryActive = pkdSortVA(pkd, iRung);
+      multiflag = pkdGetPointa(pkd);
+      printf("nVA %d multiflag %d \n",pkd->nVeryActive, multiflag);
+  }
+  if(iRung > 0){
+    /* at iRung = 0 we just call pkdStepVeryActiveSymba three times*/  
     
-    pkdActiveRung(pkd,iRung,1); /* should activate iRung and iRung +1 */
-    /* pkdGravEncounter(pkd);*/       
-    pkdKickKDKOpen(pkd, dTime, 0.5*dDelta); /* should be pkdKickVeryActive ? */
+    pkdActiveRung(pkd,iRung,1);
+    if(iAdjust && (iRung < pkd->param.iMaxRung-1)) {       
+      /* determine KickRung from current position */
+	*pnMaxRung = pkdDrminToRungVA(pkd,iRung,pkd->param.iMaxRung-1,multiflag);	    
+	if (pkd->param.bVDetails) {
+	    printf("%*cAdjust, iRung: %d\n",2*iRung+2,' ',iRung);
+	}
+    }
+    if(iAdjust == 0){
+      /*if(iRung >= 2) pkdSortVA(pkd, iRung); maybe added later */
+      pkdGravVA(pkd,iRung);	
+      if (pkd->param.bVDetails) {
+	    printf("%*cpkdGravVA, iRung: %d\n",2*iRung+2,' ',iRung);
+	}
+      
+    }  
+    /* following kick is for particles at iRung and iRung + 1 */     
+    pkdKickVA(pkd,0.5*dDelta);  
     
     if (pkd->param.bVDetails) {
       printf("%*cVeryActive pkdKickOpen  at iRung: %d, 0.5*dDelta: %g\n",
 	     2*iRung+2,' ',iRung,0.5*dDelta);
-      
-      /* if particles exist at the current iRung */
-      pkdActiveRung(pkd,iRung,0);
-      pkdKeplerDrift(pkd,dDelta,dSunMass);
-      /* if drmin druing drift is less than R_(iRung+1), 
-	 this interacting pair is sent to iRung + 1*/
-    }	
+    } 
     
-    if (*pnMaxRung > iRung) {
+    /* if particles exist at the current iRung */
+    pkdActiveRung(pkd,iRung,0); 
+    pkdKeplerDrift(pkd,dDelta,dSunMass,1); /* 1 means VA */
+     if (pkd->param.bVDetails) {
+      printf("%*cVeryActive pkdKeplerDrift  at iRung: %d, 0.5*dDelta: %g\n",
+	     2*iRung+2,' ',iRung,0.5*dDelta);
+    }  
+    /* if drmin druing drift is less than R_(iRung+1), 
+       this interacting pair is sent to iRung + 1*/
+     if(iRung < pkd->param.iMaxRung-1){
+	 *pnMaxRung = pkdCheckDrminVA(pkd, iRung,multiflag, *pnMaxRung);
+     }
+  }	
+  
+  if (*pnMaxRung > iRung) {
 	/*
 	** Recurse.
 	*/
-	pkdStepVeryActiveSymba(pkd,dStep,dTime,0.5*dDelta,iRung+1,iRung+1,iRungVeryActive,0,
-			       diCrit2,pnMaxRung,dSunMass);
-	dStep += 1.0/(3 << iRung);
-	dTime += dDelta/3.0;
-	pkdActiveRung(pkd,iRung,0);
-	pkdStepVeryActiveSymba(pkd,dStep,dTime,0.5*dDelta,iRung+1,iRung+1,iRungVeryActive,1,
-			       diCrit2,pnMaxRung,dSunMass);
-	dStep += 1.0/(3 << iRung);
-	dTime += dDelta/3.0;
-	pkdActiveRung(pkd,iRung,0);
-	pkdStepVeryActiveSymba(pkd,dStep,dTime,0.5*dDelta,iRung+1,iKickRung,iRungVeryActive,1,
-			       diCrit2,pnMaxRung,dSunMass);
-	
-	/* move time back to 1 step */
-	dTime -= dDelta;			     	
+    ddDelta = dDelta/3.0;
+    ddStep = 1.0/pow(3.0, iRung);/* this is currently unnecessary */
+
+    pkdStepVeryActiveSymba(pkd,dStep,dTime,ddDelta,iRung+1,iRung+1,iRungVeryActive,0,
+			   diCrit2,pnMaxRung,dSunMass,multiflag);
+    dStep += ddStep;
+    dTime += ddDelta;
+    pkdActiveRung(pkd,iRung,0);
+    pkdStepVeryActiveSymba(pkd,dStep,dTime,ddDelta,iRung+1,iRung+1,iRungVeryActive,1,
+			   diCrit2,pnMaxRung,dSunMass,multiflag);
+    dStep += ddStep;
+    dTime += ddDelta;
+    pkdActiveRung(pkd,iRung,0);
+    pkdStepVeryActiveSymba(pkd,dStep,dTime,ddDelta,iRung+1,iKickRung,iRungVeryActive,1,
+			   diCrit2,pnMaxRung,dSunMass,multiflag);
+    
+    /* move time back to 1 step */
+    dTime -= dDelta;			     	
+  }
+  if(iRung > 0){ 
+    dTime += 0.5*dDelta;		
+    
+    if (pkd->param.bVDetails) {
+      printf("%*cVeryActive pkdKickClose at iRung: %d, 0.5*dDelta: %g\n",
+	     2*iRung+2,' ',iRung,0.5*dDelta);
     }
-    if(iRung > 0){ 
-	dTime += 0.5*dDelta;		
-	
-	if (pkd->param.bVDetails) {
-	    printf("%*cVeryActive pkdKickClose at iRung: %d, 0.5*dDelta: %g\n",
-		   2*iRung+2,' ',iRung,0.5*dDelta);
+    
+    /* Kick due to F_iRung for particles at the current or higher iRungs */		
+    pkdActiveRung(pkd,iRung,1); 
+    pkdGravVA(pkd,iRung);
+    pkdKickVA(pkd,0.5*dDelta);
+    if(pkd->param.bCollision){	     
+      pkdDoCollisionVeryActive(pkd,dTime);
+      /* need recalculation of drmin */
+    }
+  } 
+}
+
+int pkdSortVA(PKD pkd, int iRung){
+    int i,j,n;
+    PARTICLE *p = pkd->pStore;
+    PARTICLE t;
+    n = pkd->nLocal;
+    int nSort = 0;
+    
+    /*
+    ** Now start the partitioning of the particles.
+    */
+    if(iRung == 0){
+	i = 0;
+    }else{
+	i = n-(pkd->nVeryActive);
+    }
+    j = n - 1;
+
+    while (i <= j) {
+	if ( p[i].iRung <= iRung ) ++i;
+	else break;
+    }
+    while (i <= j) {
+	if ( p[j].iRung > iRung ) --j;
+	else break;
+    }
+
+    if (i < j) {
+	t = p[i];
+	p[i] = p[j];
+	p[j] = t;
+	while (1) {
+	    while ((p[++i].iRung <= iRung));
+		   while (p[--j].iRung > iRung);
+		   if (i < j) {
+		       t = p[i];
+		       p[i] = p[j];
+		       p[j] = t;
+		   }
+		   else break;
+		   }
 	}
-	
-	/* Kick due to F_iRung for particles at the current or higher iRungs */		
-	pkdActiveRung(pkd,iRung,1);
-	/* pkdGravEncounter(pkd);*/   
-	pkdKickKDKClose(pkd,dTime,0.5*dDelta);
-	if(pkd->param.bCollision){	     
-	    pkdDoCollisionVeryActive(pkd,dTime);
-	    /* need recalculation of drmin */
+    nSort = n - i;
+    return(nSort);     
+}
+
+
+void pkdGravVA(PKD pkd, int iRung){
+    int i, j, k, n, iStart;
+    double x, y, z;
+    double fac, d2,a2;
+    PARTICLE *p;
+    double r_k = 3.0/pow(2.08,iRung-1);
+    double r_kk = r_k/2.08;
+    double r_kkk = r_kk/2.08;
+    
+    assert(iRung >= 1);
+    iStart = pkd->nLocal - pkd->nVeryActive;
+    
+    p = pkd->pStore;
+    n = pkdLocal(pkd);
+    
+    /* reset */
+    for(i=iStart;i<n;++i) {	
+	if(pkdIsActive(pkd,&p[i])){
+	    p[i].drmin = 1000.0;
+	    for(k=0;k<3;k++){
+		p[i].a_VA[k] = 0.0;
+	    }
 	}
-    } 
+    }
+    
+    for(i=iStart;i<n;++i) {	
+	
+	if(pkdIsActive(pkd,&p[i])){
+	    for(k=0;k<p[i].n_VA;k++){
+		j = p[i].i_VA[k];
+		if(i<j){
+		    x = p[i].r[0] - p[j].r[0];
+		    y = p[i].r[1] - p[j].r[1];
+		    z = p[i].r[2] - p[j].r[2];
+		    d2 = x*x + y*y +z*z; 
+		    a2 = sqrt(d2);
+		    d2 *= a2;
+		    a2 /= p[i].hill_VA[k]; /* distance normalized by hill */ 		
+		    
+		    if (a2 < r_kkk){		 
+			fac = 0.0;		  
+		    }else if (a2 < r_kk && a2 >r_kkk){
+			fac = symfac*(1.0-a2/r_kk);
+			fac *= fac*(2.0*fac -3.0);
+			fac += 1.0;
+		    }else if (a2 < r_k && a2 >r_kk){
+			fac = symfac*(1.0-a2/r_k);
+			fac *= -fac*(2.0*fac -3.0);
+		    } else if (a2 > r_k){
+			fac = 0.0;		  
+		    }
+
+		    p[i].drmin = (a2 < p[i].drmin)?a2:p[i].drmin; 
+		    p[j].drmin = (a2 < p[j].drmin)?a2:p[j].drmin; 
+
+		    d2 = fac/d2;
+		    /*printf("iOrder %d %d, d2 %e iRung %d\n",
+		      p[i].iOrder,p[j].iOrder,d2,iRung);*/
+		    p[i].a_VA[0] -= x*d2*p[j].fMass;
+		    p[i].a_VA[1] -= y*d2*p[j].fMass;
+		    p[i].a_VA[2] -= z*d2*p[j].fMass;
+		    p[j].a_VA[0] += x*d2*p[i].fMass;
+		    p[j].a_VA[1] += y*d2*p[i].fMass;
+		    p[j].a_VA[2] += z*d2*p[i].fMass;
+		    
+		}
+	    }	   
+	}
+    }
+}
+
+int pkdCheckDrminVA(PKD pkd, int iRung, int multiflag, int nMaxRung){
+  int i, j, k, n, iStart;
+  double x, y, z;
+  double d2;
+  int iTempRung;
+  PARTICLE *p;
+  double r_k = 3.0/pow(2.08,iRung);
+  
+  assert(iRung >= 1);
+  p = pkd->pStore;
+  iStart = pkd->nLocal - pkd->nVeryActive;
+  n = pkdLocal(pkd);
+
+  for(i=iStart;i<n;++i) {	
+    if(pkdIsActive(pkd,&p[i])){
+      for(k=0;k<p[i].n_VA;k++){
+	j = p[i].i_VA[k];
+	if(i<j){
+	  x = p[i].r[0] - p[j].r[0];
+	  y = p[i].r[1] - p[j].r[1];
+	  z = p[i].r[2] - p[j].r[2];
+	  d2 = x*x + y*y +z*z; 
+	  d2 = sqrt(d2);
+	  d2 /= p[i].hill_VA[k]; /* distance normalized by hill */ 		
+	  
+	  /* d2 should be replaced by min.dist. during drift */
+
+	  if(d2 < r_k){
+	    p[i].iRung = iRung +1;
+	    p[j].iRung = iRung +1;
+	    nMaxRung = ((iRung+1) >= nMaxRung)?(iRung+1):nMaxRung;
+	    /* retrive */
+	    for(k=0;k<3;k++){
+	      p[i].r[k] = p[i].rb[k];
+	      p[i].v[k] = p[i].vb[k];
+	      p[j].r[k] = p[j].rb[k];
+	      p[j].v[k] = p[j].vb[k];
+	    }
+	  } 
+	}
+      }
+    }
+  }
+  /* If a close encounter with more than 2 particles exists, we synchronize
+     iRungs of interacting particles to the highest iRung in them */
+  if(multiflag){
+      for(i=iStart;i<n;++i) {
+	  if(pkdIsActive(pkd,&p[i])){
+	      if(p[i].n_VA >= 2){		    
+		  for(k=0;k<p[i].n_VA;k++){		   
+		      iTempRung = p[p[i].i_VA[k]].iRung;
+		      if(iTempRung > p[i].iRung){
+			  assert(iTempRung == (iRung +1));
+			  p[i].iRung = iRung + 1;
+			  for(k=0;k<3;k++){
+			      p[i].r[k] = p[i].rb[k];
+			      p[i].v[k] = p[i].vb[k];	
+			  }
+		      } 
+		  }
+	      }
+	  }
+      }
+  }
+  return(nMaxRung);
+}
+
+void pkdKickVA(PKD pkd, double dt){  
+  int i, k, iStart;
+  PARTICLE *p;
+  iStart = pkd->nLocal - pkd->nVeryActive;
+
+  p = pkd->pStore;
+  for(i=iStart;i<pkdLocal(pkd);++i) {	
+    if(pkdIsActive(pkd,&p[i])){
+      for(k=0;k<3;k++){
+	p[i].v[k] += p[i].a_VA[k]*dt;
+      }
+    }
   }
 }
 
-int pkdDrminToRung(PKD pkd, int iRung, int iMaxRung, double dSunMass, 
-		    int *nRungCount) {
-    int i, j, iTempRung;;
-    PARTICLE *p ;
-    
-    /* R_k = 3.0/(2.08)^(k-1) with (k= 1,2, ...)*/ 
-
-    for (i=0;i<iMaxRung;++i) nRungCount[i] = 0; 
-    p = pkd->pStore;
-    for(i=0;i<pkdLocal(pkd);++i) {
-	if(pkdIsActive(pkd,&p[i]))
-	    if(dSunMass != 1.0) p[i].drmin *= pow(dSunMass, 1.0/3.0);	  
-	iTempRung = iRung;
-	if(p[i].drmin > 3.0){
-	    iTempRung = 0;
-	}else{
-	    iTempRung = floor(log(3.0/p[i].drmin)/log(2.08)) + 1;
+int pkdDrminToRung(PKD pkd, int iRung, int iMaxRung, int *nRungCount) {
+  int i, j, iTempRung;;
+  PARTICLE *p ;
+  
+  /* R_k = 3.0/(2.08)^(k-1) with (k= 1,2, ...)*/ 
+  
+  for (i=0;i<iMaxRung;++i) nRungCount[i] = 0; 
+  p = pkd->pStore;
+  for(i=0;i<pkdLocal(pkd);++i) {
+    if(pkdIsActive(pkd,&p[i])){	  	  
+      iTempRung = iRung;
+      if(p[i].drmin > 3.0){
+	iTempRung = 0;
+      }else{
+	iTempRung = floor(log(3.0/p[i].drmin)/log(2.08)) + 1;
+      }
+      if(iTempRung >= iMaxRung) {
+	iTempRung = iMaxRung-1;
+      }
+      
+      /* if min. dist. during drift is less than 3 Hill radius, 
+	 set iRung = 1 */ 
+      if(iTempRung == 0 && p[i].drmin2 < 3.0){	    
+	iTempRung = 1;
+      }
+      
+      /* retrive position and velocity of active particle to 
+	 those before drift*/
+      if(iTempRung > 0){
+	for(j=0;j<3;j++){
+	  p[i].r[j] = p[i].rb[j];
+	  p[i].v[j] = p[i].vb[j];
 	}
-	if(iTempRung >= iMaxRung) {
-	    iTempRung = iMaxRung-1;
-	}
-
-	  /* if min. dist. during drift is less than 3 Hill radius, 
-	     set iRung = 1 */ 
-	if(iTempRung == 0 && p[i].drmin2 < 3.0){	    
-	      iTempRung = 1;
-	}
-	
-	/* retrive position and velocity of active particle to 
-	   those before drift*/
-	  if(iTempRung > 0){
-	      for(j=0;j<3;j++){
-		  p[i].r[j] = p[i].rb[j];
-		  p[i].v[j] = p[i].vb[j];
-	      }
-	  }	
-	  /*
-	  ** Now produce a count of particles in rungs.
-	  */
-	  nRungCount[iTempRung] += 1;
-	  p[i].iRung = iTempRung;
-	  
-	  /* printf("iorder %d, drmin1 %e, drmin2 %e, \n",
-	     p[i].iOrder, p[i].drmin, p[i].drmin2);*/
-	  
+      }	
+      /*
+      ** Now produce a count of particles in rungs.
+      */
+      nRungCount[iTempRung] += 1;
+      p[i].iRung = iTempRung;
+      
+      /*printf("iorder %d, drmin1 %e, drmin2 %e, \n",
+	p[i].iOrder, p[i].drmin, p[i].drmin2);*/
     }
-    iTempRung = iMaxRung-1;
-    while (nRungCount[iTempRung] == 0 && iTempRung > 0) --iTempRung;
-    return iTempRung;
+    
+  }
+  iTempRung = iMaxRung-1;
+  while (nRungCount[iTempRung] == 0 && iTempRung > 0) --iTempRung;
+  return iTempRung;
 }
 
+int pkdGetPointa(PKD pkd){
+  int i, j, k, n, iStart, iOrderTemp, n_VA;
+  int multiflag = 0;
+  int iTempRung;
+  int bRung = 0;
+  PARTICLE *p;
+  char c;
+  int nRungMax = pkd->param.iMaxRung-1; /* 1 to nRungMax-1*/
+  int nRungCount[nRungMax];
+
+  p = pkd->pStore;
+  iStart = pkd->nLocal - pkd->nVeryActive;
+  n = pkdLocal(pkd);
+
+/*  for(i=0;i<n;++i) {
+      printf("iOrder %d, iRung %d, n_VA %d \n",p[i].iOrder,p[i].iRung,p[i].n_VA);
+      }*/
+  if(bRung){
+  for (i=1;i<nRungMax;++i) nRungCount[i] = 0; 
+  }
+
+  for(i=iStart;i<n;++i) {
+      assert(pkdIsActive(pkd,&p[i]));
+      if(bRung) nRungCount[p[i].iRung] += 1;
+      n_VA = p[i].n_VA;
+      assert(n_VA >= 1);
+      
+      if(n_VA >= 2) multiflag ++;
+	        
+      for(k=0;k<n_VA;k++){
+	  iOrderTemp = p[i].iOrder_VA[k];
+	  
+	  for(j=iStart;j<n;++j) {
+	      if(i==j)continue;
+	      if(p[j].iOrder == iOrderTemp){
+		  p[i].i_VA[k] = j;
+		  break;
+	      }
+	  }
+      }    	
+  }
+  
+  if(bRung){
+  for (i=1;i<nRungMax;++i){
+      if (nRungCount[i] == 0) continue;
+      else c = ' ';
+	    printf(" %c rung:%d %d\n",c,i,nRungCount[i]);
+	    }
+	printf("\n");
+	}
+  
+  /* If a close encounter with more than 2 particles exists, we synchronize
+     iRungs of interacting particles to the highest iRung in them */
+  if(multiflag){
+    for(i=iStart;i<n;++i) {
+      if(pkdIsActive(pkd,&p[i])){
+	if(p[i].n_VA >= 2){		    
+	  for(k=0;k<p[i].n_VA;k++){		   
+	    iTempRung = p[p[i].i_VA[k]].iRung;
+	    p[i].iRung = (iTempRung >= p[i].iRung)?iTempRung:p[i].iRung;
+	  }
+	}
+      }
+    }
+  }
+  return(multiflag);
+}
+
+int pkdDrminToRungVA(PKD pkd, int iRung, int iMaxRung, int multiflag) {
+  int i, k, iTempRung, iStart;
+  int nMaxRung = 0; 
+  PARTICLE *p;
+
+  int bRung = 0;
+  char c;
+  int nRungMax = pkd->param.iMaxRung-1; /* 1 to nRungMax-1*/
+  int nRungCount[nRungMax];
+  if(bRung){
+  for (i=1;i<nRungMax;++i) nRungCount[i] = 0; 
+  }
+  
+  iStart = pkd->nLocal - pkd->nVeryActive;
+  
+  p = pkd->pStore;
+  for(i=iStart;i<pkdLocal(pkd);++i) {   
+      if(pkdIsActive(pkd,&p[i])){	  	       	    
+	  assert(p[i].n_VA >= 1);	     
+	  iTempRung = floor(log(3.0/p[i].drmin)/log(2.08)) + 1;     	  
+	  if(iTempRung >= iMaxRung){
+	      printf("iRung %d for particle %d larger than %d iMaxRung-1 \n",
+		     iTempRung, p[i].iOrder,iMaxRung);
+	      iTempRung = iMaxRung-1;
+	  }
+	  /* iTempRung = (iTempRung >= iMaxRung)?(iMaxRung-1):iTempRung;*/
+	  /* iTempRung = (iTempRung >= 0)?iTempRung:0; 
+	     p[i].iKickRung = iTempRung; */
+      
+	  iTempRung = (iTempRung >= iRung)?iTempRung:iRung; 
+	  p[i].iRung = iTempRung;
+	  nMaxRung = (iTempRung >= nMaxRung)?iTempRung:nMaxRung; 
+      }
+      if(bRung) nRungCount[p[i].iRung] += 1;
+  }
+  
+  if(bRung){
+      printf("nVA %d iRung %d\n",pkd->nVeryActive, iRung);
+      for (i=1;i<nRungMax;++i){
+	  if (nRungCount[i] == 0) continue;
+	  else c = ' ';
+	  printf(" %c rung:%d %d\n",c,i,nRungCount[i]);
+      }
+      printf("\n");
+  }
+  /* If a close encounter with more than 2 particles exists, we synchronize
+     iRungs of interacting particles to the highest iRung in them */
+  if(multiflag){
+      for(i=iStart;i<pkdLocal(pkd);++i) {
+	  if(pkdIsActive(pkd,&p[i])){
+	      if(p[i].n_VA >= 2){		    
+		  for(k=0;k<p[i].n_VA;k++){		   
+		      iTempRung = p[p[i].i_VA[k]].iRung;
+		      p[i].iRung = (iTempRung >= p[i].iRung)?iTempRung:p[i].iRung;
+		  }
+	      }
+	  }
+      }
+  }
+  return(nMaxRung);
+}
+
+
 void pkdMomSun(PKD pkd,double momSun[]){
-   PARTICLE *p;
-     int i,j,n;
-     
-     for (j=0;j<3;++j){                 
-       momSun[j] = 0.0;
-     }
-     p = pkd->pStore;
-     n = pkdLocal(pkd); 
-     for (i=0;i<n;++i) {
-       for (j=0;j<3;++j){ 
-	   momSun[j] -= p[i].fMass*p[i].v[j];     
-	 }   
-     }   
- } 
+  PARTICLE *p;
+  int i,j,n;
+  
+  for (j=0;j<3;++j){                 
+    momSun[j] = 0.0;
+  }
+  p = pkd->pStore;
+  n = pkdLocal(pkd); 
+  for (i=0;i<n;++i) {
+    for (j=0;j<3;++j){ 
+      momSun[j] -= p[i].fMass*p[i].v[j];     
+    }   
+  }   
+} 
 
 void pkdDriftSun(PKD pkd,double vSun[],double dt){
   PARTICLE *p;
-   int i,j,n;
-     
-     p = pkd->pStore;
-     n = pkdLocal(pkd); 
-     for (i=0;i<n;++i) {
-       for (j=0;j<3;++j){ 
-	 p[i].r[j] += vSun[j]*dt;     
-	 } 
-     }
+  int i,j,n;
+  
+  p = pkd->pStore;
+  n = pkdLocal(pkd); 
+  for (i=0;i<n;++i) {
+    for (j=0;j<3;++j){ 
+      p[i].r[j] += vSun[j]*dt;     
+    } 
+  }
 } 
 
-void pkdKeplerDrift(PKD pkd,double dt,double mu) {
+void pkdKeplerDrift(PKD pkd,double dt,double mu, int tag_VA) {
   /* 
    * Use the f and g functions to advance an unperturbed orbit.
    */
   PARTICLE *p;	
-  int  i,j,n;
+  int  i,j,n, iStart;
   int iflg = 0;
   double dttmp;
   mdlDiag(pkd->mdl, "Into pkdKeplerDrift \n");
   p = pkd->pStore;
   n = pkdLocal(pkd);
   
-  for (i=0;i<n;++i) {	
+  if(tag_VA){
+    iStart = pkd->nLocal - pkd->nVeryActive;
+  }else{
+    iStart = 0; 
+  }
+  
+  for (i=iStart;i<n;++i) {	
     if (pkdIsActive(pkd,&p[i])) {
       
       /* copy r and v before drift */ 
@@ -3026,18 +3389,18 @@ void pkdKeplerDrift(PKD pkd,double dt,double mu) {
       /*printf("before: iorder = %d, (x,y,z)= (%e,%e,%e), (vx,vy,vz)= (%e,%e,%e),ms =%e \n",
 	p[i].iOrder, p[i].r[0],p[i].r[1],p[i].r[2],
 	p[i].v[0],p[i].v[1],p[i].v[2], mu);*/
-
+      
       iflg = drift_dan(mu,p[i].r,p[i].v,dt); /* see kepler.c */
       
       /* printf("exit drift_dan, iflg = %d, (x,y,z)= (%e,%e,%e),(vx,vy,vz)= (%e,%e,%e), ms =%e \n", 
 	 iflg, p[i].r[0],p[i].r[1],p[i].r[2],p[i].v[0],p[i].v[1],p[i].v[2],mu);*/
-
+      
       if(iflg != 0){
-	  dttmp = 0.1*dt;
-	  for (j=0;j<10;++j) {	
-	    iflg = drift_dan(mu,p[i].r,p[i].v,dttmp);
-	    assert(iflg == 0);
-	  }
+	dttmp = 0.1*dt;
+	for (j=0;j<10;++j) {	
+	  iflg = drift_dan(mu,p[i].r,p[i].v,dttmp);
+	  assert(iflg == 0);
+	}
       }    
     }
   }
