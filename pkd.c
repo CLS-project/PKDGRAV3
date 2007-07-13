@@ -2508,6 +2508,9 @@ void pkdDeleteParticle(PKD pkd, PARTICLE *p) {
 	   p->dtGrav = 10000;
        }
 #endif
+#ifdef SYMBA
+	p->drmin = 1000.0;
+#endif
        for (j=0;j<3;j++) {
 	 p->r[j] = 100.0*p->iOrder;
 	 p->v[j] = 0.0;     
@@ -2865,7 +2868,7 @@ pkdStepVeryActiveSymba(PKD pkd, double dStep, double dTime, double dDelta,
   if(iRung ==0) {
       pkd->nVeryActive = pkdSortVA(pkd, iRung);
       multiflag = pkdGetPointa(pkd);
-      printf("nVA %d multiflag %d \n",pkd->nVeryActive, multiflag);
+      /*printf("Time %e, nVA %d,  multiflag %d \n",dTime, pkd->nVeryActive, multiflag);*/
   }
   if(iRung > 0){
     /* at iRung = 0 we just call pkdStepVeryActiveSymba three times*/  
@@ -2873,7 +2876,7 @@ pkdStepVeryActiveSymba(PKD pkd, double dStep, double dTime, double dDelta,
     pkdActiveRung(pkd,iRung,1);
     if(iAdjust && (iRung < pkd->param.iMaxRung-1)) {       
       /* determine KickRung from current position */
-	*pnMaxRung = pkdDrminToRungVA(pkd,iRung,pkd->param.iMaxRung-1,multiflag);	    
+	*pnMaxRung = pkdDrminToRungVA(pkd,iRung,pkd->param.iMaxRung,multiflag);	    
 	if (pkd->param.bVDetails) {
 	    printf("%*cAdjust, iRung: %d\n",2*iRung+2,' ',iRung);
 	}
@@ -2904,7 +2907,7 @@ pkdStepVeryActiveSymba(PKD pkd, double dStep, double dTime, double dDelta,
     /* if drmin druing drift is less than R_(iRung+1), 
        this interacting pair is sent to iRung + 1*/
      if(iRung < pkd->param.iMaxRung-1){
-	 *pnMaxRung = pkdCheckDrminVA(pkd, iRung,multiflag, *pnMaxRung);
+	 *pnMaxRung = pkdCheckDrminVA(pkd,iRung,multiflag,*pnMaxRung);
      }
   }	
   
@@ -2943,10 +2946,9 @@ pkdStepVeryActiveSymba(PKD pkd, double dStep, double dTime, double dDelta,
     pkdActiveRung(pkd,iRung,1); 
     pkdGravVA(pkd,iRung);
     pkdKickVA(pkd,0.5*dDelta);
-    if(pkd->param.bCollision){	     
-      pkdDoCollisionVeryActive(pkd,dTime);
-      /* need recalculation of drmin */
-    }
+    
+    if(pkd->param.bCollision) pkdDoCollisionVeryActive(pkd,dTime);  
+    
   } 
 }
 
@@ -3004,7 +3006,8 @@ void pkdGravVA(PKD pkd, int iRung){
     double r_k = 3.0/pow(2.08,iRung-1);
     double r_kk = r_k/2.08;
     double r_kkk = r_kk/2.08;
-    
+    double fourh2;
+
     assert(iRung >= 1);
     iStart = pkd->nLocal - pkd->nVeryActive;
     
@@ -3032,6 +3035,18 @@ void pkdGravVA(PKD pkd, int iRung){
 		    z = p[i].r[2] - p[j].r[2];
 		    d2 = x*x + y*y +z*z; 
 		    a2 = sqrt(d2);
+		    
+		    if(pkd->param.bCollision){	
+		      fourh2 = p[i].fSoft + p[j].fSoft;
+		      if(a2 < fourh2){
+		      p[i].iColflag = 1;
+		      p[i].iOrderCol = p[j].iOrder;
+		      p[i].dtCol = 1.0*p[i].iOrgIdx;
+		      printf("dr = %e, r1+r2 = %e, pi = %i, pj = %i piRung %d iRung %d\n",
+			     a2,fourh2,p[i].iOrgIdx,p[j].iOrgIdx, p[i].iRung, iRung);
+		      }
+		    }
+
 		    d2 *= a2;
 		    a2 /= p[i].hill_VA[k]; /* distance normalized by hill */ 		
 		    
@@ -3046,7 +3061,7 @@ void pkdGravVA(PKD pkd, int iRung){
 			fac *= -fac*(2.0*fac -3.0);
 		    } else if (a2 > r_k){
 			fac = 0.0;		  
-		    }
+		    }		    
 
 		    p[i].drmin = (a2 < p[i].drmin)?a2:p[i].drmin; 
 		    p[j].drmin = (a2 < p[j].drmin)?a2:p[j].drmin; 
@@ -3154,7 +3169,7 @@ int pkdDrminToRung(PKD pkd, int iRung, int iMaxRung, int *nRungCount) {
   PARTICLE *p ;
   
   /* R_k = 3.0/(2.08)^(k-1) with (k= 1,2, ...)*/ 
-  
+  /* note iMaxRung = pkd.param->iMaxRung */
   for (i=0;i<iMaxRung;++i) nRungCount[i] = 0; 
   p = pkd->pStore;
   for(i=0;i<pkdLocal(pkd);++i) {
@@ -3206,8 +3221,8 @@ int pkdGetPointa(PKD pkd){
   int bRung = 0;
   PARTICLE *p;
   char c;
-  int nRungMax = pkd->param.iMaxRung-1; /* 1 to nRungMax-1*/
-  int nRungCount[nRungMax];
+  int iMaxRung = pkd->param.iMaxRung; 
+  int nRungCount[iMaxRung-1];/* 1 to iMaxRung-1 */
 
   p = pkd->pStore;
   iStart = pkd->nLocal - pkd->nVeryActive;
@@ -3217,7 +3232,7 @@ int pkdGetPointa(PKD pkd){
       printf("iOrder %d, iRung %d, n_VA %d \n",p[i].iOrder,p[i].iRung,p[i].n_VA);
       }*/
   if(bRung){
-  for (i=1;i<nRungMax;++i) nRungCount[i] = 0; 
+  for (i=1;i<iMaxRung;++i) nRungCount[i] = 0; 
   }
 
   for(i=iStart;i<n;++i) {
@@ -3242,7 +3257,7 @@ int pkdGetPointa(PKD pkd){
   }
   
   if(bRung){
-  for (i=1;i<nRungMax;++i){
+  for (i=1;i<iMaxRung;++i){
       if (nRungCount[i] == 0) continue;
       else c = ' ';
 	    printf(" %c rung:%d %d\n",c,i,nRungCount[i]);
@@ -3272,12 +3287,13 @@ int pkdDrminToRungVA(PKD pkd, int iRung, int iMaxRung, int multiflag) {
   int nMaxRung = 0; 
   PARTICLE *p;
 
+  /* note iMaxRung = pkd.param->iMaxRung -1 */
+
   int bRung = 0;
   char c;
-  int nRungMax = pkd->param.iMaxRung-1; /* 1 to nRungMax-1*/
-  int nRungCount[nRungMax];
+  int nRungCount[iMaxRung-1];/* 1 to iMaxRung-1*/
   if(bRung){
-  for (i=1;i<nRungMax;++i) nRungCount[i] = 0; 
+  for (i=1;i<iMaxRung;++i) nRungCount[i] = 0; 
   }
   
   iStart = pkd->nLocal - pkd->nVeryActive;
@@ -3287,12 +3303,12 @@ int pkdDrminToRungVA(PKD pkd, int iRung, int iMaxRung, int multiflag) {
       if(pkdIsActive(pkd,&p[i])){	  	       	    
 	  assert(p[i].n_VA >= 1);	     
 	  iTempRung = floor(log(3.0/p[i].drmin)/log(2.08)) + 1;     	  
-	  if(iTempRung >= iMaxRung){
-	      printf("iRung %d for particle %d larger than %d iMaxRung-1 \n",
-		     iTempRung, p[i].iOrder,iMaxRung);
-	      iTempRung = iMaxRung-1;
-	  }
-	  /* iTempRung = (iTempRung >= iMaxRung)?(iMaxRung-1):iTempRung;*/
+	  /*if(iTempRung >= iMaxRung){
+	      printf("iRung %d for particle %d larger than Max iRung %d\n",
+		     iTempRung, p[i].iOrder,iMaxRung-1);
+	      iTempRung = iMaxRung;
+	      }*/
+	  iTempRung = (iTempRung >= iMaxRung)?(iMaxRung-1):iTempRung;
 	  /* iTempRung = (iTempRung >= 0)?iTempRung:0; 
 	     p[i].iKickRung = iTempRung; */
       
@@ -3305,7 +3321,7 @@ int pkdDrminToRungVA(PKD pkd, int iRung, int iMaxRung, int multiflag) {
   
   if(bRung){
       printf("nVA %d iRung %d\n",pkd->nVeryActive, iRung);
-      for (i=1;i<nRungMax;++i){
+      for (i=1;i<iMaxRung;++i){
 	  if (nRungCount[i] == 0) continue;
 	  else c = ' ';
 	  printf(" %c rung:%d %d\n",c,i,nRungCount[i]);

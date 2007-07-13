@@ -4266,7 +4266,6 @@ void msrTopStepSymba(MSR msr,
     ** drift all particles to the end of time step
     */
     msrKeplerDrift(msr, dDelta);
-  
     /*
     ** Determine p->iRung from p->drmin (min. distance before drift). 
     ** If drmin2 < 3Hill, (but drmin > 3Hill),
@@ -4331,8 +4330,7 @@ void msrTopStepSymba(MSR msr,
     msrDriftSun(msr,dTime-0.5*dDelta,dDelta); 
     
     if(msr->param.bCollision){   
-      msrDoCollision(msr,dTime,dDelta);  
-      /* need recalculation of drmin */
+      msrDoCollision(msr,dTime,dDelta);     
     }
     
 }

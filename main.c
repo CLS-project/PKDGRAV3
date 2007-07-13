@@ -283,8 +283,16 @@ int main(int argc,char **argv) {
 #ifdef PLANETS 
 #ifdef SYMBA 	
 		msrDriftSun(msr,dTime+0.5*msrDelta(msr),-0.5*msrDelta(msr)); 
-#endif
+#endif	   
 		msrWriteSS(msr,achFile,dTime);
+#ifdef SYMBA 	
+		msrDriftSun(msr,dTime,0.5*msrDelta(msr));
+		/* msrReorder above requires msrDomainDecomp and msrBuildTree for 
+		 msrSmooth in topstepSymba*/
+		msrActiveRung(msr,0,1); 	 	
+		msrDomainDecomp(msr,0,1,0);
+		msrBuildTree(msr,dMass,dTime);
+#endif
 #else	
 		msrWriteTipsy(msr,achFile,dTime,
 		    msrCheckInterval(msr) > 0 
@@ -298,7 +306,7 @@ int main(int argc,char **argv) {
 		    bGasOnly = 0;
 		    bSymmetric = 0; /* FOR TESTING!!*/
 		    msrSmooth(msr,dTime,SMX_DENSITY,bGasOnly,bSymmetric,TYPE_ALL);
-		    }
+		}
 		nFOFsDone = 0;
 		while( msr->param.nFindGroups > nFOFsDone) {
 		    /*
@@ -327,7 +335,7 @@ int main(int argc,char **argv) {
 		    if(	msr->param.bStandard) msrOutGroups(msr,achFile,OUT_GROUP_TIPSY_STD,dTime);
 		    else msrOutGroups(msr,achFile,OUT_GROUP_TIPSY_NAT,dTime);			  
 		    nFOFsDone++;
-		    }
+		}
 		if (msr->param.nFindGroups > 0) msrDeleteGroups(msr);
 #ifdef RELAXATION	
 		if ( msr->param.bTraceRelaxation) {
@@ -381,7 +389,7 @@ int main(int argc,char **argv) {
 	     }
 	    if (iStop) break;
 	    }
-    }
+   }
 	
     else {
 	struct inInitDt in;
@@ -479,7 +487,7 @@ int main(int argc,char **argv) {
 	if(msr->param.bDensityStep || msrDoGravity(msr)) {
 	    msrDtToRung(msr,0,msrDelta(msr),1);
 	    }
-	}
+    }
 
     if (msrLogInterval(msr)) (void) fclose(fpLog);
 

@@ -52,6 +52,9 @@ typedef struct {
 	FLOAT a[3];
 	FLOAT ad[3];
 #endif
+#ifdef SYMBA
+	FLOAT drmin;
+#endif
 	int iColor;
 	FLOAT dt;
 	int iRung;

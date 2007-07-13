@@ -69,6 +69,9 @@ pkdGetColliderInfo(PKD pkd,int iOrder,COLLIDER *c)
 				c->ad[j] = p->ad[j];
 #endif
 				}
+#ifdef SYMBA
+	c->drmin = p->drmin;
+#endif
 			c->iColor = p->iColor;
 			c->dt = p->dt;
 			c->iRung = p->iRung;		
@@ -99,14 +102,18 @@ void PutColliderInfo(const COLLIDER *c,int iOrder2,PARTICLE *p,double dt)
 		fabs(c->r[1] - p->r[1]) +
 		fabs(c->r[2] - p->r[2]);
 	for (i=0;i<3;i++) {
-		p->r[i] = c->r[i];
-		p->v[i] = c->v[i];
-		p->w[i] = c->w[i];
+	  p->r[i] = c->r[i];
+	  p->v[i] = c->v[i];
+	  p->w[i] = c->w[i];
 #ifdef HERMITE
-		p->a[i] = c->a[i];
-		p->ad[i] = c->ad[i];
+	  p->a[i] = c->a[i];
+	  p->ad[i] = c->ad[i];
 #endif
-		}
+	}
+		
+#ifdef SYMBA
+	p->drmin = c->drmin;
+#endif
 	p->iRung = c->iRung;
 	/*p->fBall2 += 2*sqrt(p->fBall2)*r + r*r;
 	p->dtPrevCol = dt;
@@ -187,6 +194,9 @@ pkdMerge(PKD pkd,const COLLIDER *c1,const COLLIDER *c2,double dDensity,
 		c->ad[k] = com_ad[k];
 #endif
 		}
+#ifdef SYMBA
+		c->drmin = c1->drmin;
+#endif
 
 	/* Set merger's timestep to iRung of largest mass. */
 	/* XXX there is a bug in changing timesteps during a collision 
