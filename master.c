@@ -3477,6 +3477,10 @@ msrAddDelParticles(MSR msr)
     in.nStar = msr->nStar;
     in.nMaxOrderGas = msr->nMaxOrderGas;
     in.nMaxOrderDark = msr->nMaxOrderDark;
+    in.dSunMass = 0.0;
+#ifdef PLANETS
+    in.dSunMass = msr->dSunMass;
+#endif
     pstSetNParts(msr->pst,&in,sizeof(in),NULL,NULL);
     pstSetParticleTypes(msr->pst,&intype,sizeof(intype),NULL,NULL);
 
@@ -4052,190 +4056,197 @@ msrDoCollision(MSR msr,double dTime,double dDelta)
 	struct inDoCollision inDo;
 	struct outDoCollision outDo;
 	struct inResetColliders reset;
+	struct outCheckHelioDist outCh;
+
 	COLLIDER *c1 = &inDo.Collider1,*c2 = &inDo.Collider2,*c;
 	double sec;
 	unsigned int nCol=0,nMis=0,nMrg=0,nBnc=0,nFrg=0;
 		 
         inDo.bPeriodic = msr->param.bPeriodic;
 
-		do{	
-                pstNextCollision(msr->pst,NULL,0,&next,NULL);
-		/*printf("%i,%i\n",next.iOrder1,next.iOrder2);*/
-
-                 /* process the collision */
-		if (COLLISION(next.dt)) {
-                       
-			assert(next.iOrder1 >= 0);
-			assert(next.iOrder2 >= 0);
-
-			inDo.dt = next.dt;
-			inGet.iOrder = next.iOrder1;
-			pstGetColliderInfo(msr->pst,&inGet,sizeof(inGet),&outGet,NULL);
-			*c1 = outGet.Collider; /* struct copy */
-
-			/*printf("%i,%i\n",c1->id.iOrder,inGet.iOrder);*/
-
-			assert(c1->id.iOrder == inGet.iOrder);
-
-				inGet.iOrder = next.iOrder2;
-				pstGetColliderInfo(msr->pst,&inGet,sizeof(inGet),&outGet,NULL);
-				*c2 = outGet.Collider;
-				/*printf("%i,%i\n",c2->id.iOrder,inGet.iOrder);*/
-				assert(c2->id.iOrder == inGet.iOrder);
-			inDo.CP = msr->param.CP; /* copy collisional parmas */
-
-			pstDoCollision(msr->pst,&inDo,sizeof(inDo),&outDo,NULL);
-		    
-			msr->dEcoll += outDo.dT; /* account for kinetic energy loss + (potential)*/
+	/* we first check heliocentric distance */
+	pstCheckHelioDist(msr->pst,NULL,0,&outCh,NULL);
+	msr->dEcoll += outCh.dT;
+	msr->dSunMass += outCh.dSM;
+	
+	do{	
+	    pstNextCollision(msr->pst,NULL,0,&next,NULL);
+	    /*printf("%i,%i\n",next.iOrder1,next.iOrder2);*/
+	    
+	    /* process the collision */
+	    if (COLLISION(next.dt)) {
 		
-			++nCol;
-			switch (outDo.iOutcome) {
-			case MISS:
-				++nMis;
-				--nCol;
-				break;
-			case MERGE:
-				++nMrg;
-				break;
-			case BOUNCE:
-				++nBnc;
-				break;
-			case FRAG:
-				++nFrg;
-				break;
-			default:
-				assert(0); /* unknown outcome */
-				}
-
-			reset.iOrder1 = c1->id.iOrder;
-			reset.iOrder2 = c2->id.iOrder;
-			/*pstResetColliders(msr->pst,&reset,sizeof(reset),NULL,NULL); */
-
+		assert(next.iOrder1 >= 0);
+		assert(next.iOrder2 >= 0);
+		
+		inDo.dt = next.dt;
+		inGet.iOrder = next.iOrder1;
+		pstGetColliderInfo(msr->pst,&inGet,sizeof(inGet),&outGet,NULL);
+		*c1 = outGet.Collider; /* struct copy */
+		
+		/*printf("%i,%i\n",c1->id.iOrder,inGet.iOrder);*/
+		
+		assert(c1->id.iOrder == inGet.iOrder);
+		
+		inGet.iOrder = next.iOrder2;
+		pstGetColliderInfo(msr->pst,&inGet,sizeof(inGet),&outGet,NULL);
+		*c2 = outGet.Collider;
+		/*printf("%i,%i\n",c2->id.iOrder,inGet.iOrder);*/
+		assert(c2->id.iOrder == inGet.iOrder);
+		inDo.CP = msr->param.CP; /* copy collisional parmas */
+		
+		pstDoCollision(msr->pst,&inDo,sizeof(inDo),&outDo,NULL);
+		
+		msr->dEcoll += outDo.dT; /* account for kinetic energy loss + (potential)*/
+		
+		++nCol;
+		switch (outDo.iOutcome) {
+		    case MISS:
+			++nMis;
+			--nCol;
+			break;
+		    case MERGE:
+			++nMrg;
+			break;
+		    case BOUNCE:
+			++nBnc;
+			break;
+		    case FRAG:
+			++nFrg;
+			break;
+		    default:
+			assert(0); /* unknown outcome */
+		}
+		
+		reset.iOrder1 = c1->id.iOrder;
+		reset.iOrder2 = c2->id.iOrder;
+		/*pstResetColliders(msr->pst,&reset,sizeof(reset),NULL,NULL); */
+		
 #ifdef IGNORE_FOR_NOW/*DEBUG*/
-			if (outDo.iOutcome & FRAG) {
-				/* see Zoe's version */
-				}
+		if (outDo.iOutcome & FRAG) {
+		    /* see Zoe's version */
+		}
 #endif
 		switch (msr->param.iCollLogOption) { /* log collision if requested */
-		case COLL_LOG_NONE:
+		    case COLL_LOG_NONE:
 			break;
-		case COLL_LOG_VERBOSE:
-			{
+		    case COLL_LOG_VERBOSE:
+		    {
 			FILE *fp;
 			int i;
-
+			
 			fp = fopen(msr->param.achCollLog,"a");
 			assert(fp != NULL);
-
+			
 			/* for (i=0;i<3;i++) {
-				c1->r[i] += c1->v[i]*next.dt;
-				c2->r[i] += c2->v[i]*next.dt;
-				} */
-
+			   c1->r[i] += c1->v[i]*next.dt;
+			   c2->r[i] += c2->v[i]*next.dt;
+			   } */
+			
 			fprintf(fp,"%s-%s COLLISION:T=%e\n",
-					_msrParticleLabel(msr,c1->iColor),
-					_msrParticleLabel(msr,c2->iColor),dTime);
-
+				_msrParticleLabel(msr,c1->iColor),
+				_msrParticleLabel(msr,c2->iColor),dTime);
+			
 			fprintf(fp,"***1:p=%i,o=%i,i=%i,oi=%i,M=%e,R=%e,dt=%e,rung=%i,"
-					"r=(%e,%e,%e),v=(%e,%e,%e),w=(%e,%e,%e)\n",
-					c1->id.iPid,c1->id.iOrder,c1->id.iIndex,c1->id.iOrgIdx,
-					c1->fMass,c1->fRadius,c1->dt,c1->iRung,
-					c1->r[0],c1->r[1],c1->r[2],
-					c1->v[0],c1->v[1],c1->v[2],
-					c1->w[0],c1->w[1],c1->w[2]);
-
+				"r=(%e,%e,%e),v=(%e,%e,%e),w=(%e,%e,%e)\n",
+				c1->id.iPid,c1->id.iOrder,c1->id.iIndex,c1->id.iOrgIdx,
+				c1->fMass,c1->fRadius,c1->dt,c1->iRung,
+				c1->r[0],c1->r[1],c1->r[2],
+				c1->v[0],c1->v[1],c1->v[2],
+				c1->w[0],c1->w[1],c1->w[2]);
+			
 			fprintf(fp,"***2:p=%i,o=%i,i=%i,oi=%i,M=%e,R=%e,dt=%e,rung=%i,"
-					"r=(%e,%e,%e),v=(%e,%e,%e),w=(%e,%e,%e)\n",
-					c2->id.iPid,c2->id.iOrder,c2->id.iIndex,c2->id.iOrgIdx,
-					c2->fMass,c2->fRadius,c2->dt,c2->iRung,
-					c2->r[0],c2->r[1],c2->r[2],
-					c2->v[0],c2->v[1],c2->v[2],
-					c2->w[0],c2->w[1],c2->w[2]);
+				"r=(%e,%e,%e),v=(%e,%e,%e),w=(%e,%e,%e)\n",
+				c2->id.iPid,c2->id.iOrder,c2->id.iIndex,c2->id.iOrgIdx,
+				c2->fMass,c2->fRadius,c2->dt,c2->iRung,
+				c2->r[0],c2->r[1],c2->r[2],
+				c2->v[0],c2->v[1],c2->v[2],
+				c2->w[0],c2->w[1],c2->w[2]);
 			fprintf(fp,"***OUTCOME=%s dT=%e\n",
-					outDo.iOutcome == MISS ? "MISS" :
-					outDo.iOutcome == MERGE ? "MERGE" :
-					outDo.iOutcome == BOUNCE ? "BOUNCE" :
-					outDo.iOutcome == FRAG ? "FRAG" : "UNKNOWN",outDo.dT);
+				outDo.iOutcome == MISS ? "MISS" :
+				outDo.iOutcome == MERGE ? "MERGE" :
+				outDo.iOutcome == BOUNCE ? "BOUNCE" :
+				outDo.iOutcome == FRAG ? "FRAG" : "UNKNOWN",outDo.dT);
 			for (i=0;i<(outDo.nOut < MAX_NUM_FRAG ? outDo.nOut : MAX_NUM_FRAG);i++) {
-				c = &outDo.Out[i];
-
-				fprintf(fp,"***out%i:p=%i,o=%i,i=%i,oi=%i,M=%e,R=%e,rung=%i,"
-					"r=(%e,%e,%e),v=(%e,%e,%e),w=(%e,%e,%e)\n",i,
-					c->id.iPid,c->id.iOrder,c->id.iIndex,c->id.iOrgIdx,
-					c->fMass,c->fRadius,c->iRung,
-					c->r[0],c->r[1],c->r[2],
-					c->v[0],c->v[1],c->v[2],
-					c->w[0],c->w[1],c->w[2]);
-					}
+			    c = &outDo.Out[i];
+			    
+			    fprintf(fp,"***out%i:p=%i,o=%i,i=%i,oi=%i,M=%e,R=%e,rung=%i,"
+				    "r=(%e,%e,%e),v=(%e,%e,%e),w=(%e,%e,%e)\n",i,
+				    c->id.iPid,c->id.iOrder,c->id.iIndex,c->id.iOrgIdx,
+				    c->fMass,c->fRadius,c->iRung,
+				    c->r[0],c->r[1],c->r[2],
+				    c->v[0],c->v[1],c->v[2],
+				    c->w[0],c->w[1],c->w[2]);
+			}
 			fclose(fp);
 			break;
-			}
-		case COLL_LOG_TERSE:
-			{
+		    }
+		    case COLL_LOG_TERSE:
+		    {
 			/*
-			 ** FORMAT: For each event, time (double), collider 1 iOrgIdx
-			 ** (int), collider 2 iOrgIdx (int), number of post-collision
-			 ** particles (int), iOrgIdx for each of these (n * int).
-			 */
-
+			** FORMAT: For each event, time (double), collider 1 iOrgIdx
+			** (int), collider 2 iOrgIdx (int), number of post-collision
+			** particles (int), iOrgIdx for each of these (n * int).
+			*/
+			
 			FILE *fp;
 			XDR xdrs;		       
 			int i;
-
+			
 			if (outDo.iOutcome != MERGE && outDo.iOutcome != FRAG)
-			break; /* only care when particle indices change */
-			       fp = fopen(msr->param.achCollLog,"a");
-			       assert(fp != NULL);
-			       xdrstdio_create(&xdrs,fp,XDR_ENCODE);
-			    
-				(void) xdr_double(&xdrs,&dTime);
-				/* MERGE =1, BOUNCE =2*/
-				(void) xdr_int(&xdrs,&outDo.iOutcome); 
-
-                                /* info for c1*/
-				(void) xdr_int(&xdrs,&c1->iColor);
-				(void) xdr_int(&xdrs,&c1->id.iOrgIdx);			
-				(void) xdr_double(&xdrs,&c1->fMass);
-				(void) xdr_double(&xdrs,&c1->fRadius);
-				for (i=0;i<N_DIM;i++)
-				 (void)xdr_double(&xdrs,&c1->r[i]);
-			        for (i=0;i<N_DIM;i++)
-				 (void)xdr_double(&xdrs,&c1->v[i]);
-		                for (i=0;i<N_DIM;i++)
-				 (void)xdr_double(&xdrs,&c1->w[i]);
-
-			        /* info for c2*/
-				(void) xdr_int(&xdrs,&c2->iColor);
-				(void) xdr_int(&xdrs,&c2->id.iOrgIdx);			
-				(void) xdr_double(&xdrs,&c2->fMass);
-				(void) xdr_double(&xdrs,&c2->fRadius);
-				for (i=0;i<N_DIM;i++)
-				 (void)xdr_double(&xdrs,&c2->r[i]);
-			        for (i=0;i<N_DIM;i++)
-				 (void)xdr_double(&xdrs,&c2->v[i]);
-		                for (i=0;i<N_DIM;i++)
-				 (void)xdr_double(&xdrs,&c2->w[i]);
-			  				
-				xdr_destroy(&xdrs);
-				(void) fclose(fp);
-				break;
-			}
-			default:
-				assert(0); /* invalid collision log option */
-				} /* logging */
-			} /* if collision */
-		} while (COLLISION(next.dt));
-
+			    break; /* only care when particle indices change */
+			fp = fopen(msr->param.achCollLog,"a");
+			assert(fp != NULL);
+			xdrstdio_create(&xdrs,fp,XDR_ENCODE);
+			
+			(void) xdr_double(&xdrs,&dTime);
+			/* MERGE =1, BOUNCE =2*/
+			(void) xdr_int(&xdrs,&outDo.iOutcome); 
+			
+			/* info for c1*/
+			(void) xdr_int(&xdrs,&c1->iColor);
+			(void) xdr_int(&xdrs,&c1->id.iOrgIdx);			
+			(void) xdr_double(&xdrs,&c1->fMass);
+			(void) xdr_double(&xdrs,&c1->fRadius);
+			for (i=0;i<N_DIM;i++)
+			    (void)xdr_double(&xdrs,&c1->r[i]);
+			for (i=0;i<N_DIM;i++)
+			    (void)xdr_double(&xdrs,&c1->v[i]);
+			for (i=0;i<N_DIM;i++)
+			    (void)xdr_double(&xdrs,&c1->w[i]);
+			
+			/* info for c2*/
+			(void) xdr_int(&xdrs,&c2->iColor);
+			(void) xdr_int(&xdrs,&c2->id.iOrgIdx);			
+			(void) xdr_double(&xdrs,&c2->fMass);
+			(void) xdr_double(&xdrs,&c2->fRadius);
+			for (i=0;i<N_DIM;i++)
+			    (void)xdr_double(&xdrs,&c2->r[i]);
+			for (i=0;i<N_DIM;i++)
+			    (void)xdr_double(&xdrs,&c2->v[i]);
+			for (i=0;i<N_DIM;i++)
+			    (void)xdr_double(&xdrs,&c2->w[i]);
+			
+			xdr_destroy(&xdrs);
+			(void) fclose(fp);
+			break;
+		    }
+		    default:
+			assert(0); /* invalid collision log option */
+		} /* logging */
+	    } /* if collision */
+	} while (COLLISION(next.dt));
+	
 	msrAddDelParticles(msr); /* clean up any deletions */
 	
 	if (msr->param.bVStep) {
-		double dsec = msrTime() - sec;
-		printf("%i collision%s: %i miss%s, %i merger%s, %i bounce%s, %i frag%s\n",
-			   nCol,nCol==1?"":"s",nMis,nMis==1?"":"es",nMrg,nMrg==1?"":"s",
-			   nBnc,nBnc==1?"":"s",nFrg,nFrg==1?"":"s");
-		printf("Collision search completed, time = %g sec\n",dsec);
-		}
+	    double dsec = msrTime() - sec;
+	    printf("%i collision%s: %i miss%s, %i merger%s, %i bounce%s, %i frag%s\n",
+		   nCol,nCol==1?"":"s",nMis,nMis==1?"":"es",nMrg,nMrg==1?"":"s",
+		   nBnc,nBnc==1?"":"s",nFrg,nFrg==1?"":"s");
+	    printf("Collision search completed, time = %g sec\n",dsec);
 	}
+}
 
 #ifdef SYMBA
 void msrTopStepSymba(MSR msr,
@@ -4267,15 +4278,14 @@ void msrTopStepSymba(MSR msr,
     */
     msrKeplerDrift(msr, dDelta);
     /*
-    ** Determine p->iRung from p->drmin (min. distance before drift). 
-    ** If drmin2 < 3Hill, (but drmin > 3Hill),
-    ** this interacting pair is sent to iRung = 1.  
-    ** For these particles, position and velocity before the drift 
-    ** are retrived (x = xb, v = vb) 
-    */ 	
+     * check min.distance (drmin2) during drift 
+     */ 	
     msrSmooth(msr,dTime,SMX_SYMBA,0,0,TYPE_ALL);
     /*
      * Determine p->iRung from p->drmin 
+     ** If drmin2 < 3Hill, (but drmin > 3Hill), this interacting pair 
+     ** is sent to iRung = 1. Positions and velocities before the drift 
+     ** are retrived (x = xb, v = vb) for particles with p_iRung >=1
      */ 
     msrDrminToRung(msr,iRung);
     /*
@@ -4292,7 +4302,7 @@ void msrTopStepSymba(MSR msr,
       */
       bSplitVA = 1;
       msrDomainDecomp(msr,iRung,1,bSplitVA);
-      /* msrSortVA(msr); sorting VA */	    
+      /* msrSortVA(msr); this should be removed from files*/	    
     }
     /*
      * Perform timestepping of particles in close encounters on 

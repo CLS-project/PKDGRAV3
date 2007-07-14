@@ -53,7 +53,11 @@ typedef struct {
 	FLOAT ad[3];
 #endif
 #ifdef SYMBA
-	FLOAT drmin;
+    FLOAT drmin;
+    int   iOrder_VA[5]; /* iOrder's of particles within 3 hill radius*/
+    int   i_VA[5];    /* pointers of particles */
+    int   n_VA;       /* number of particles */
+    double  hill_VA[5]; /* mutual hill radius calculated in grav.c */ 
 #endif
 	int iColor;
 	FLOAT dt;
@@ -70,6 +74,8 @@ void pkdResetColliders(PKD pkd, int iOrder1, int iOrder2);
 void pkdDoCollisionVeryActive(PKD pkd,double dTime);
 static char * _pkdParticleLabel(PKD pkd,int iColor);
 void pkdGetVariableVeryActive(PKD pkd, double *dDeltaEcoll);
+void pkdCheckHelioDist(PKD pkd,double *dT,double *dSM);
+
 #endif
 
 #endif /* PLANETS */

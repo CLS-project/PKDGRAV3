@@ -3078,7 +3078,7 @@ pstSetNParts(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 	}
     else {
 	pkdSetNParts(pst->plcl->pkd, in->nGas, in->nDark, in->nStar,
-		     in->nMaxOrderGas, in->nMaxOrderDark);
+		     in->nMaxOrderGas, in->nMaxOrderDark,in->dSunMass);
 	}
     if(pnOut) *pnOut = 0;
     }
@@ -3423,6 +3423,25 @@ void pstGetVariableVeryActive(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 	}
     if (pnOut) *pnOut = sizeof(*out);
     }
+
+void pstCheckHelioDist(PST pst,void *vin,int nIn,void *vout,int *pnOut){
+    LCL *plcl = pst->plcl;
+    struct outCheckHelioDist *out = vout;
+    struct outCheckHelioDist outLcl;
+    
+    mdlassert(pst->mdl,nIn == 0);
+    if (pst->nLeaves > 1) {
+	mdlReqService(pst->mdl,pst->idUpper,PST_CHECKHELIODIST,NULL,0);
+	pstCheckHelioDist(pst->pstLower,NULL,0,out,NULL);
+	mdlGetReply(pst->mdl,pst->idUpper,&outLcl,NULL);
+	out->dT += outLcl.dT;
+	out->dSM += outLcl.dSM;
+	} else {
+	    pkdCheckHelioDist(plcl->pkd,&out->dT,&out->dSM);
+	}
+    if (pnOut) *pnOut = sizeof(struct outCheckHelioDist);
+    }
+
 
 #ifdef SYMBA
 void pstStepVeryActiveSymba(PST pst,void *vin,int nIn,void *vout,int *pnOut)

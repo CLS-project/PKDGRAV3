@@ -2000,9 +2000,7 @@ pkdStepVeryActiveHermite(PKD pkd, double dStep, double dTime, double dDelta,
 	       pkdSunCorrector(pkd,dTime,dSunMass);  		
 	     }while(nite < nitemax);
            }
-	   if(pkd->param.bCollision){	     
-	     pkdDoCollisionVeryActive(pkd,dTime);
-	   }
+	   if(pkd->param.bCollision && pkd->iCollisionflag) pkdDoCollisionVeryActive(pkd,dTime); 
 #endif
 	   pkdCopy0(pkd,dTime); 
 
@@ -2510,6 +2508,7 @@ void pkdDeleteParticle(PKD pkd, PARTICLE *p) {
 #endif
 #ifdef SYMBA
 	p->drmin = 1000.0;
+	p->n_VA=0;
 #endif
        for (j=0;j<3;j++) {
 	 p->r[j] = 100.0*p->iOrder;
@@ -2606,12 +2605,13 @@ pkdNewOrder(PKD pkd,int nStart)
 
 void
 pkdSetNParts(PKD pkd,int nGas,int nDark,int nStar,int nMaxOrderGas,
-	     int nMaxOrderDark) {
+	     int nMaxOrderDark, double dSunMass) {
     pkd->nGas = nGas;
     pkd->nDark = nDark;
     pkd->nStar = nStar;
     pkd->nMaxOrderGas = nMaxOrderGas;
     pkd->nMaxOrderDark = nMaxOrderDark;
+    pkd->dSunMass;
     }
 
 
@@ -2947,7 +2947,7 @@ pkdStepVeryActiveSymba(PKD pkd, double dStep, double dTime, double dDelta,
     pkdGravVA(pkd,iRung);
     pkdKickVA(pkd,0.5*dDelta);
     
-    if(pkd->param.bCollision) pkdDoCollisionVeryActive(pkd,dTime);  
+    if(pkd->param.bCollision && pkd->iCollisionflag) pkdDoCollisionVeryActive(pkd,dTime);  
     
   } 
 }
@@ -3039,11 +3039,13 @@ void pkdGravVA(PKD pkd, int iRung){
 		    if(pkd->param.bCollision){	
 		      fourh2 = p[i].fSoft + p[j].fSoft;
 		      if(a2 < fourh2){
-		      p[i].iColflag = 1;
-		      p[i].iOrderCol = p[j].iOrder;
-		      p[i].dtCol = 1.0*p[i].iOrgIdx;
-		      printf("dr = %e, r1+r2 = %e, pi = %i, pj = %i piRung %d iRung %d\n",
-			     a2,fourh2,p[i].iOrgIdx,p[j].iOrgIdx, p[i].iRung, iRung);
+			  pkd->iCollisionflag = 1;	 
+			  p[i].iColflag = 1;
+			  p[i].iOrderCol = p[j].iOrder;
+			  p[i].dtCol = 1.0*p[i].iOrgIdx;
+			  printf("dr = %e, r1+r2 = %e, pi = %i, pj = %i piRung %d iRung %d\n",
+				 a2,fourh2,p[i].iOrgIdx,p[j].iOrgIdx, p[i].iRung, iRung);
+			  printf("i %d j %d inVA %d, jnVA %d \n",i, j, p[i].n_VA, p[j].n_VA);
 		      }
 		    }
 
@@ -3127,6 +3129,8 @@ int pkdCheckDrminVA(PKD pkd, int iRung, int multiflag, int nMaxRung){
   }
   /* If a close encounter with more than 2 particles exists, we synchronize
      iRungs of interacting particles to the highest iRung in them */
+  /* Following treatment is not sufficient if p[i].n_VA >= 3,
+     in that case we should synchronize from larger p[i].n_VA to smaller */
   if(multiflag){
       for(i=iStart;i<n;++i) {
 	  if(pkdIsActive(pkd,&p[i])){
@@ -3134,6 +3138,12 @@ int pkdCheckDrminVA(PKD pkd, int iRung, int multiflag, int nMaxRung){
 		  for(k=0;k<p[i].n_VA;k++){		   
 		      iTempRung = p[p[i].i_VA[k]].iRung;
 		      if(iTempRung > p[i].iRung){
+			  if(iTempRung != (iRung +1)){
+			      printf("p_iOrder %d pi_n_VA %d pj_nVA %d iTempRung %d, iRung+1 %d \n",
+				     p[i].iOrder,p[i].n_VA,p[p[i].i_VA[k]].n_VA,iTempRung,iRung +1);
+			      printf("needs care for four body encounter!! \n");
+			  }
+
 			  assert(iTempRung == (iRung +1));
 			  p[i].iRung = iRung + 1;
 			  for(k=0;k<3;k++){
@@ -3268,22 +3278,24 @@ int pkdGetPointa(PKD pkd){
   /* If a close encounter with more than 2 particles exists, we synchronize
      iRungs of interacting particles to the highest iRung in them */
   if(multiflag){
-    for(i=iStart;i<n;++i) {
-      if(pkdIsActive(pkd,&p[i])){
-	if(p[i].n_VA >= 2){		    
-	  for(k=0;k<p[i].n_VA;k++){		   
-	    iTempRung = p[p[i].i_VA[k]].iRung;
-	    p[i].iRung = (iTempRung >= p[i].iRung)?iTempRung:p[i].iRung;
+      for(i=iStart;i<n;++i) {
+	  if(pkdIsActive(pkd,&p[i])){
+	      if(p[i].n_VA >= 2){		    
+		  for(k=0;k<p[i].n_VA;k++){
+		      j = p[i].i_VA[k];
+		      iTempRung = p[j].iRung;
+		      p[i].iRung = (iTempRung >= p[i].iRung)?iTempRung:p[i].iRung;
+		      p[j].iRung = p[i].iRung;
+		  }	
+	      }
 	  }
-	}
       }
-    }
   }
   return(multiflag);
 }
 
 int pkdDrminToRungVA(PKD pkd, int iRung, int iMaxRung, int multiflag) {
-  int i, k, iTempRung, iStart;
+  int i, j, k, iTempRung, iStart;
   int nMaxRung = 0; 
   PARTICLE *p;
 
@@ -3301,7 +3313,7 @@ int pkdDrminToRungVA(PKD pkd, int iRung, int iMaxRung, int multiflag) {
   p = pkd->pStore;
   for(i=iStart;i<pkdLocal(pkd);++i) {   
       if(pkdIsActive(pkd,&p[i])){	  	       	    
-	  assert(p[i].n_VA >= 1);	     
+	/*assert(p[i].n_VA >= 1); n_VA might be 0 after collision */	     
 	  iTempRung = floor(log(3.0/p[i].drmin)/log(2.08)) + 1;     	  
 	  /*if(iTempRung >= iMaxRung){
 	      printf("iRung %d for particle %d larger than Max iRung %d\n",
@@ -3333,10 +3345,12 @@ int pkdDrminToRungVA(PKD pkd, int iRung, int iMaxRung, int multiflag) {
   if(multiflag){
       for(i=iStart;i<pkdLocal(pkd);++i) {
 	  if(pkdIsActive(pkd,&p[i])){
-	      if(p[i].n_VA >= 2){		    
-		  for(k=0;k<p[i].n_VA;k++){		   
-		      iTempRung = p[p[i].i_VA[k]].iRung;
+	      if(p[i].n_VA >= 2){	    
+		  for(k=0;k<p[i].n_VA;k++){	
+		      j = p[i].i_VA[k];
+		      iTempRung = p[j].iRung;
 		      p[i].iRung = (iTempRung >= p[i].iRung)?iTempRung:p[i].iRung;
+		      p[j].iRung = p[i].iRung;
 		  }
 	      }
 	  }

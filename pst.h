@@ -151,6 +151,7 @@ enum pst_service {
     PST_DOCOLLISION,
     PST_RESETCOLLIDERS,
     PST_GETVARIABLEVERYACTIVE,
+    PST_CHECKHELIODIST,
 #ifdef SYMBA
     PST_STEPVERYACTIVES,
     PST_DRMINTORUNG,
@@ -171,6 +172,7 @@ void pstInitialize(PST *,MDL,LCL *);
 void pstFinish(PST);
 
 /* PST_SETADD */
+
 struct inSetAdd {
     int id;
     };
@@ -793,6 +795,7 @@ struct inSetNParts {
     int nStar;
     int nMaxOrderGas;
     int nMaxOrderDark;
+    double dSunMass;
     };
 void pstSetNParts(PST, void *, int, void *, int *);
 
@@ -932,6 +935,13 @@ struct outGetVariableVeryActive {
         double dDeltaEcoll;
         };
 void pstGetVariableVeryActive(PST,void *,int,void *,int *);
+
+/* PST_CHECKHELIODIST */
+struct outCheckHelioDist {
+        double dT;
+        double dSM;
+        };
+void pstCheckHelioDist(PST,void *,int,void *,int *);
 
 #ifdef SYMBA
 

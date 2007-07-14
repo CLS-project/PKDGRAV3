@@ -551,6 +551,7 @@ typedef struct pkdContext {
     int nMaxRm;
     FOFRM *remoteMember;
     int nBins;
+
     FOFBIN *groupBin;
     /*
     ** Oh heck, just put all the parameters in here!
@@ -560,6 +561,7 @@ typedef struct pkdContext {
 #ifdef PLANETS
     double dDeltaEcoll;
     double dSunMass;
+    int    iCollisionflag; /*call pkddocollisionveryactive if iCollisionflag=1*/ 
 #endif   
     } * PKD;
 
@@ -715,7 +717,7 @@ void pkdColNParts(PKD pkd, int *pnNew, int *nDeltaGas, int *nDeltaDark,
 		  int *nDeltaStar);
 void pkdNewOrder(PKD pkd, int nStart);
 void pkdSetNParts(PKD pkd, int nGas, int nDark, int nStar, int nMaxOrderGas,
-		  int nMaxOrderDark);
+		  int nMaxOrderDark, double dSunMass);
 #ifdef RELAXATION
 void pkdInitRelaxation(PKD pkd);
 #endif

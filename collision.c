@@ -49,7 +49,7 @@ pkdGetColliderInfo(PKD pkd,int iOrder,COLLIDER *c)
 	 */
 
 	PARTICLE *p;
-	int i,j;
+	int i,j,k;
 
 	for (i=0;i<pkdLocal(pkd);i++) {
 		p = &pkd->pStore[i];
@@ -70,7 +70,13 @@ pkdGetColliderInfo(PKD pkd,int iOrder,COLLIDER *c)
 #endif
 				}
 #ifdef SYMBA
-	c->drmin = p->drmin;
+			c->drmin = p->drmin;
+			c->n_VA = p->n_VA;
+			for(k=0;k<p->n_VA;k++){
+			    c->iOrder_VA[k]=p->iOrder_VA[k];
+			    c->i_VA[k]=p->i_VA[k];
+			    c->hill_VA[k]=p->hill_VA[k];
+			    }
 #endif
 			c->iColor = p->iColor;
 			c->dt = p->dt;
@@ -93,7 +99,7 @@ void PutColliderInfo(const COLLIDER *c,int iOrder2,PARTICLE *p,double dt)
 	 ** the displacement amount (using the "Manhattan metric").
 	 */
 
-	int i;
+	int i,k;
 	double r;
 
 	p->fMass = c->fMass;
@@ -113,6 +119,12 @@ void PutColliderInfo(const COLLIDER *c,int iOrder2,PARTICLE *p,double dt)
 		
 #ifdef SYMBA
 	p->drmin = c->drmin;
+	p->n_VA = c->n_VA;
+	for(k=0;k<c->n_VA;k++){
+	    p->iOrder_VA[k]=c->iOrder_VA[k];
+	    p->i_VA[k]=c->i_VA[k];
+	    p->hill_VA[k]=c->hill_VA[k];
+	}
 #endif
 	p->iRung = c->iRung;
 	/*p->fBall2 += 2*sqrt(p->fBall2)*r + r*r;
@@ -134,11 +146,12 @@ pkdMerge(PKD pkd,const COLLIDER *c1,const COLLIDER *c2,double dDensity,
 	 */
 
 	const double dDenFac = 4.0/3*M_PI;
-
+	int iOrderTemp;
+	
 	COLLIDER *c;
 	FLOAT com_pos[3],com_vel[3],rc1[3],rc2[3],vc1[3],vc2[3],ang_mom[3];
 	FLOAT m1,m2,m,r1,r2,r,i1,i2,i;
-	int k;
+	int k,j;
 	FLOAT com_a[3],com_ad[3];
 
 	m1 = c1->fMass;
@@ -195,16 +208,50 @@ pkdMerge(PKD pkd,const COLLIDER *c1,const COLLIDER *c2,double dDensity,
 #endif
 		}
 #ifdef SYMBA
-		c->drmin = c1->drmin;
+	c->drmin = c1->drmin;
+	c->n_VA = 0;
+	
+	if(c1->n_VA > 1){
+	    /* copy neiboring list of c1 to that of c excluding particle c2*/
+	    for(k=0;k<c1->n_VA;k++){
+		if(c1->iOrder_VA[k] != c2->id.iOrder){
+		    c->iOrder_VA[c->n_VA] = c1->iOrder_VA[k];
+		    c->i_VA[c->n_VA] = c1->i_VA[k];
+		    c->hill_VA[c->n_VA] = c1->hill_VA[k];
+		    /* Since mass has changed, this is not exactly correct!
+		       But probably does not cause any problem */ 	 
+		    c->n_VA++;
+		}
+	    }
+	}
+	
+	if(c2->n_VA > 1){
+	    for(k=0;k<c2->n_VA;k++){
+		iOrderTemp = c2->iOrder_VA[k];
+		/* check if neigboring particles for c2 are already included 
+		   in the list for c */ 
+		if(iOrderTemp == c1->id.iOrder)goto skip_VA;
+		for(j=0;j<c->n_VA;j++){
+		    if(iOrderTemp == c->iOrder_VA[j])goto skip_VA;
+		}			
+		c->iOrder_VA[c->n_VA] = iOrderTemp;
+		c->i_VA[c->n_VA] = c2->i_VA[k];
+		c->hill_VA[c->n_VA] = c2->hill_VA[k];
+		c->n_VA++;
+	    skip_VA: 
+		continue;
+	    }
+	}
+	
 #endif
-
+	
 	/* Set merger's timestep to iRung of largest mass. */
 	/* XXX there is a bug in changing timesteps during a collision 
 	   but this makes it less bothersome. */
 	/*c->iRung = (c2->fMass > c1->fMass ? c2->iRung : c1->iRung);*/
 	c->iRung = (c2->iRung > c1->iRung ? c2->iRung : c1->iRung);
-
-	}
+	
+}
 
 int
 pkdBounce(PKD pkd,const COLLIDER *c1,const COLLIDER *c2,
@@ -753,6 +800,7 @@ pkdDoCollisionVeryActive(PKD pkd,double dTime)
 			   nBnc,nBnc==1?"":"s",nFrg,nFrg==1?"":"s");
 		printf("Collision search completed, time = %g sec\n",dsec);
 		}
+	pkd->iCollisionflag = 0;
 	}
 
 
@@ -784,5 +832,54 @@ void pkdGetVariableVeryActive(PKD pkd, double *dDeltaEcoll)
   *dDeltaEcoll = pkd->dDeltaEcoll;
   pkd->dDeltaEcoll = 0.0;
 }
+
+
+void pkdCheckHelioDist(PKD pkd,double *dT,double *dSM){
+    int i,j,k,n;
+    double a2;
+    double rsun = 0.1; /* solar radius */
+    double resc = 100.0; /* escape distance */
+    PARTICLE *p = pkd->pStore;  
+    n = pkd->nLocal;
+    
+    *dT = 0.0;
+    *dSM = 0.0;
+
+    for(i=0;i<n;++i) {
+	if(p[i].iOrder < 0) continue; 
+	a2 = (p[i].r[0]*p[i].r[0] + p[i].r[1]*p[i].r[1] + p[i].r[2]*p[i].r[2]);
+
+	if(a2 < rsun*rsun || a2 > resc*resc){
+	    a2 = sqrt(a2);
+	    printf("particle %d is deleted with heliocentric distance %e",
+		   p[i].iOrder,a2);
+	    double moi;
+	    /* kinetic and rotational energy */
+	    moi = 0.4*p[i].fMass*p[i].fSoft*p[i].fSoft;
+	    for (k=0;k<3;k++){
+		*dT -= p[i].fMass*(p[i].v[k]*p[i].v[k]) +
+		    moi*(p[i].w[k]*p[i].w[k]);
+	    }		      
+	    *dT *= 0.5;
+	    /* add potential change*/	    
+	    *dT += p[i].fMass*pkd->dSunMass/a2;
+	    if(a2 < rsun){
+	    *dSM += p[i].fMass;
+	    }else if (a2 > resc){
+		for(j=0;j<n;++j) {
+		    if(i==j)continue;
+		    a2=0.0;
+		    for (k=0;k<3;k++){
+			a2 += (p[i].r[k] - p[j].r[k])*(p[i].r[k] - p[j].r[k]);
+		    }
+		    *dT += p[i].fMass*p[j].fMass/sqrt(a2);  
+		}
+	    }
+	    printf(" dE = %e \n",*dT);
+	    pkdDeleteParticle(pkd,&p[i]);
+	}       
+    }
+}
+
 
 #endif /* PLANETS */
