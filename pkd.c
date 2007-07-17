@@ -2611,7 +2611,9 @@ pkdSetNParts(PKD pkd,int nGas,int nDark,int nStar,int nMaxOrderGas,
     pkd->nStar = nStar;
     pkd->nMaxOrderGas = nMaxOrderGas;
     pkd->nMaxOrderDark = nMaxOrderDark;
+#ifdef PLANETS
     pkd->dSunMass;
+#endif
     }
 
 
