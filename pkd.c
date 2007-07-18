@@ -2612,7 +2612,7 @@ pkdSetNParts(PKD pkd,int nGas,int nDark,int nStar,int nMaxOrderGas,
     pkd->nMaxOrderGas = nMaxOrderGas;
     pkd->nMaxOrderDark = nMaxOrderDark;
 #ifdef PLANETS
-    pkd->dSunMass;
+    pkd->dSunMass = dSunMass;
 #endif
     }
 
@@ -2865,9 +2865,10 @@ pkdStepVeryActiveSymba(PKD pkd, double dStep, double dTime, double dDelta,
   double dDriftFac;
   double ddDelta, ddStep;
 
-/* get pointa of interacting opponents from thier iOrder's
- multiflag > 0 if close encounters with more than 2 particles exist*/
+
   if(iRung ==0) {
+    /* get pointa of interacting opponents from thier iOrder's
+       multiflag > 0 if close encounters with more than 2 particles exist*/
       pkd->nVeryActive = pkdSortVA(pkd, iRung);
       multiflag = pkdGetPointa(pkd);
       /*printf("Time %e, nVA %d,  multiflag %d \n",dTime, pkd->nVeryActive, multiflag);*/
@@ -2960,10 +2961,7 @@ int pkdSortVA(PKD pkd, int iRung){
     PARTICLE t;
     n = pkd->nLocal;
     int nSort = 0;
-    
-    /*
-    ** Now start the partitioning of the particles.
-    */
+   
     if(iRung == 0){
 	i = 0;
     }else{
@@ -3087,7 +3085,7 @@ void pkdGravVA(PKD pkd, int iRung){
 }
 
 int pkdCheckDrminVA(PKD pkd, int iRung, int multiflag, int nMaxRung){
-  int i, j, k, n, iStart;
+  int i, j, k, n, iStart, nloop;
   double x, y, z;
   double d2;
   int iTempRung;
@@ -3131,32 +3129,34 @@ int pkdCheckDrminVA(PKD pkd, int iRung, int multiflag, int nMaxRung){
   }
   /* If a close encounter with more than 2 particles exists, we synchronize
      iRungs of interacting particles to the highest iRung in them */
-  /* Following treatment is not sufficient if p[i].n_VA >= 3,
-     in that case we should synchronize from larger p[i].n_VA to smaller */
   if(multiflag){
+    nloop = multiflag;
+    do{       
       for(i=iStart;i<n;++i) {
-	  if(pkdIsActive(pkd,&p[i])){
-	      if(p[i].n_VA >= 2){		    
-		  for(k=0;k<p[i].n_VA;k++){		   
-		      iTempRung = p[p[i].i_VA[k]].iRung;
-		      if(iTempRung > p[i].iRung){
-			  if(iTempRung != (iRung +1)){
-			      printf("p_iOrder %d pi_n_VA %d pj_nVA %d iTempRung %d, iRung+1 %d \n",
-				     p[i].iOrder,p[i].n_VA,p[p[i].i_VA[k]].n_VA,iTempRung,iRung +1);
-			      printf("needs care for four body encounter!! \n");
-			  }
-
-			  assert(iTempRung == (iRung +1));
-			  p[i].iRung = iRung + 1;
-			  for(k=0;k<3;k++){
-			      p[i].r[k] = p[i].rb[k];
-			      p[i].v[k] = p[i].vb[k];	
-			  }
-		      } 
-		  }
-	      }
+	if(pkdIsActive(pkd,&p[i])){
+	  if(p[i].n_VA >= nloop){		    
+	    for(k=0;k<p[i].n_VA;k++){		   
+	      iTempRung = p[p[i].i_VA[k]].iRung;
+	      if(iTempRung > p[i].iRung){
+		if(iTempRung != (iRung +1)){
+		  printf("p_iOrder %d pi_n_VA %d pj_nVA %d iTempRung %d, iRung+1 %d \n",
+			 p[i].iOrder,p[i].n_VA,p[p[i].i_VA[k]].n_VA,iTempRung,iRung +1);
+		  printf("too many particles in 3 hill radius !! \n");
+		  assert(0);
+		}	      
+		/* assert(iTempRung == (iRung +1));*/
+		p[i].iRung = iRung + 1;
+		for(k=0;k<3;k++){
+		  p[i].r[k] = p[i].rb[k];
+		  p[i].v[k] = p[i].vb[k];	
+		}
+	      } 
+	    }
 	  }
+	}
       }
+      nloop --;
+    }while(nloop > 1);
   }
   return(nMaxRung);
 }
@@ -3229,7 +3229,7 @@ int pkdDrminToRung(PKD pkd, int iRung, int iMaxRung, int *nRungCount) {
 int pkdGetPointa(PKD pkd){
   int i, j, k, n, iStart, iOrderTemp, n_VA;
   int multiflag = 0;
-  int iTempRung;
+  int iTempRung, nloop;
   int bRung = 0;
   PARTICLE *p;
   char c;
@@ -3240,9 +3240,6 @@ int pkdGetPointa(PKD pkd){
   iStart = pkd->nLocal - pkd->nVeryActive;
   n = pkdLocal(pkd);
 
-/*  for(i=0;i<n;++i) {
-      printf("iOrder %d, iRung %d, n_VA %d \n",p[i].iOrder,p[i].iRung,p[i].n_VA);
-      }*/
   if(bRung){
   for (i=1;i<iMaxRung;++i) nRungCount[i] = 0; 
   }
@@ -3253,8 +3250,8 @@ int pkdGetPointa(PKD pkd){
       n_VA = p[i].n_VA;
       assert(n_VA >= 1);
       
-      if(n_VA >= 2) multiflag ++;
-	        
+      if(n_VA >= 2) multiflag = (multiflag < n_VA)?n_VA:multiflag; /* multiflag = largest n_VA */
+              
       for(k=0;k<n_VA;k++){
 	  iOrderTemp = p[i].iOrder_VA[k];
 	  
@@ -3279,19 +3276,23 @@ int pkdGetPointa(PKD pkd){
   
   /* If a close encounter with more than 2 particles exists, we synchronize
      iRungs of interacting particles to the highest iRung in them */
-  if(multiflag){
+  if(multiflag){    
+    nloop = multiflag;
+    do{  
       for(i=iStart;i<n;++i) {
-	  if(pkdIsActive(pkd,&p[i])){
-	      if(p[i].n_VA >= 2){		    
-		  for(k=0;k<p[i].n_VA;k++){
-		      j = p[i].i_VA[k];
-		      iTempRung = p[j].iRung;
-		      p[i].iRung = (iTempRung >= p[i].iRung)?iTempRung:p[i].iRung;
-		      p[j].iRung = p[i].iRung;
-		  }	
-	      }
+	if(pkdIsActive(pkd,&p[i])){
+	  if(p[i].n_VA >= nloop){		    
+	    for(k=0;k<p[i].n_VA;k++){
+	      j = p[i].i_VA[k];
+	      iTempRung = p[j].iRung;
+	      p[i].iRung = (iTempRung >= p[i].iRung)?iTempRung:p[i].iRung;
+	      p[j].iRung = p[i].iRung;
+	    }	
 	  }
+	}
       }
+      nloop --;
+    }while(nloop > 1);
   }
   return(multiflag);
 }
@@ -3300,7 +3301,7 @@ int pkdDrminToRungVA(PKD pkd, int iRung, int iMaxRung, int multiflag) {
   int i, j, k, iTempRung, iStart;
   int nMaxRung = 0; 
   PARTICLE *p;
-
+  int nloop;
   /* note iMaxRung = pkd.param->iMaxRung -1 */
 
   int bRung = 0;
@@ -3345,18 +3346,22 @@ int pkdDrminToRungVA(PKD pkd, int iRung, int iMaxRung, int multiflag) {
   /* If a close encounter with more than 2 particles exists, we synchronize
      iRungs of interacting particles to the highest iRung in them */
   if(multiflag){
+    nloop = multiflag;
+    do{     
       for(i=iStart;i<pkdLocal(pkd);++i) {
-	  if(pkdIsActive(pkd,&p[i])){
-	      if(p[i].n_VA >= 2){	    
-		  for(k=0;k<p[i].n_VA;k++){	
-		      j = p[i].i_VA[k];
-		      iTempRung = p[j].iRung;
-		      p[i].iRung = (iTempRung >= p[i].iRung)?iTempRung:p[i].iRung;
-		      p[j].iRung = p[i].iRung;
-		  }
-	      }
+	if(pkdIsActive(pkd,&p[i])){
+	  if(p[i].n_VA >= nloop){	    
+	    for(k=0;k<p[i].n_VA;k++){	
+	      j = p[i].i_VA[k];
+	      iTempRung = p[j].iRung;
+	      p[i].iRung = (iTempRung >= p[i].iRung)?iTempRung:p[i].iRung;
+	      p[j].iRung = p[i].iRung;
+	    }
 	  }
+	}
       }
+      nloop --;
+    }while(nloop > 1);
   }
   return(nMaxRung);
 }
