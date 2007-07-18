@@ -149,7 +149,6 @@ enum pst_service {
     PST_NEXTCOLLISION,
     PST_GETCOLLIDERINFO,
     PST_DOCOLLISION,
-    PST_RESETCOLLIDERS,
     PST_GETVARIABLEVERYACTIVE,
     PST_CHECKHELIODIST,
 #ifdef SYMBA
@@ -158,7 +157,6 @@ enum pst_service {
     PST_MOMSUN,
     PST_DRIFTSUN,
     PST_KEPLERDRIFT,
-    PST_SORTVA,
 #endif /* SYMBA */
 #endif /* PLANETS */
 #ifdef HERMITE
@@ -924,12 +922,6 @@ struct outDoCollision {
         };
 void pstDoCollision(PST,void *,int,void *,int *);
 
-/* PST_RESETCOLLIDERS */
-struct inResetColliders {
-	int iOrder1,iOrder2;
-	};
-void pstResetColliders(PST,void *,int,void *,int *);
-
 /* PST_GETVARIABLEVERYACTIVE */
 struct outGetVariableVeryActive {
         double dDeltaEcoll;
@@ -994,9 +986,6 @@ struct inKeplerDrift{
 };
 
 void pstKeplerDrift(PST,void *,int,void *,int *); 
-
-/* PST_SORTVA */
-void pstSortVA(PST,void *,int,void *,int *);  
 
 #endif /* SYMBA */
 #endif /* PLANETS */

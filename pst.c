@@ -288,9 +288,6 @@ void pstAddServices(PST pst,MDL mdl)
     mdlAddService(mdl,PST_DOCOLLISION,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstDoCollision,
 		  sizeof(struct inDoCollision),sizeof(struct outDoCollision));
-    mdlAddService(mdl,PST_RESETCOLLIDERS,pst,
-		  (void (*)(void *,void *,int,void *,int *)) pstResetColliders,
-		  sizeof(struct inResetColliders),0);
     mdlAddService(mdl,PST_GETVARIABLEVERYACTIVE,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstGetVariableVeryActive,
 				  0,sizeof(struct outGetVariableVeryActive));
@@ -310,9 +307,6 @@ void pstAddServices(PST pst,MDL mdl)
     mdlAddService(mdl,PST_KEPLERDRIFT,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstKeplerDrift,
 		  sizeof(struct inKeplerDrift),0);
-    mdlAddService(mdl,PST_SORTVA,pst,
-		  (void (*)(void *,void *,int,void *,int *)) pstSortVA,
-		  0,0);
 #endif /* SYMBA */ 
 #endif /* PLANETS */
     }
@@ -3376,24 +3370,6 @@ pstDoCollision(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 	if (pnOut) *pnOut = sizeof(*out);
 	}
 
-void
-pstResetColliders(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-{
-	LCL *plcl = pst->plcl;
-	struct inResetColliders *in = vin;
-	
-	mdlassert(pst->mdl,nIn == sizeof(*in));
-	if (pst->nLeaves > 1) {
-		mdlReqService(pst->mdl,pst->idUpper,PST_RESETCOLLIDERS,vin,nIn);
-		pstResetColliders(pst->pstLower,vin,nIn,NULL,NULL);
-		mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
-		}
-	else {
-		pkdResetColliders(plcl->pkd,in->iOrder1,in->iOrder2);
-		}
-	if (pnOut) *pnOut = 0;
-	}
-
 void pstGetVariableVeryActive(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     {
     LCL *plcl = pst->plcl;
@@ -3556,22 +3532,6 @@ void pstKeplerDrift(PST pst,void *vin,int nIn,void *vout,int *pnOut)
   }
   if (pnOut) *pnOut = 0;
 }
-
-void pstSortVA(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-{
-    LCL *plcl = pst->plcl;
-  
-  mdlassert(pst->mdl,nIn == 0);
-  if (pst->nLeaves > 1) {
-      mdlReqService(pst->mdl,pst->idUpper,PST_SORTVA,vin,nIn);
-    pstSortVA(pst->pstLower,vin,nIn,NULL,NULL);
-    mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
-  } else{
-      InitializeParticles(plcl->pkd, 1); /* bExcludeVeryActive = 1 */
-  }
-  if (pnOut) *pnOut = 0;
-}
-
 
 #endif /* SYMBA */ 
 #endif /* PLANETS*/

@@ -70,7 +70,6 @@ void pkdGetColliderInfo(PKD pkd, int iOrder, COLLIDER *c);
 void pkdDoCollision(PKD pkd, double dt, const COLLIDER *c1, const COLLIDER *c2,
 					int bPeriodic, const COLLISION_PARAMS *CP, int *piOutcome,
 					double *dT,	COLLIDER *cOut, int *pnOut);
-void pkdResetColliders(PKD pkd, int iOrder1, int iOrder2);
 void pkdDoCollisionVeryActive(PKD pkd,double dTime);
 static char * _pkdParticleLabel(PKD pkd,int iColor);
 void pkdGetVariableVeryActive(PKD pkd, double *dDeltaEcoll);

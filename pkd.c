@@ -2919,16 +2919,16 @@ pkdStepVeryActiveSymba(PKD pkd, double dStep, double dTime, double dDelta,
 	** Recurse.
 	*/
     ddDelta = dDelta/3.0;
-    ddStep = 1.0/pow(3.0, iRung);/* this is currently unnecessary */
+    /* ddStep = 1.0/pow(3.0, iRung); this is currently unnecessary */
 
     pkdStepVeryActiveSymba(pkd,dStep,dTime,ddDelta,iRung+1,iRung+1,iRungVeryActive,0,
 			   diCrit2,pnMaxRung,dSunMass,multiflag);
-    dStep += ddStep;
+    /*dStep += ddStep;*/
     dTime += ddDelta;
     pkdActiveRung(pkd,iRung,0);
     pkdStepVeryActiveSymba(pkd,dStep,dTime,ddDelta,iRung+1,iRung+1,iRungVeryActive,1,
 			   diCrit2,pnMaxRung,dSunMass,multiflag);
-    dStep += ddStep;
+    /*dStep += ddStep;*/
     dTime += ddDelta;
     pkdActiveRung(pkd,iRung,0);
     pkdStepVeryActiveSymba(pkd,dStep,dTime,ddDelta,iRung+1,iKickRung,iRungVeryActive,1,

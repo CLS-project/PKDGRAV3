@@ -4055,7 +4055,6 @@ msrDoCollision(MSR msr,double dTime,double dDelta)
 	struct outGetColliderInfo outGet;
 	struct inDoCollision inDo;
 	struct outDoCollision outDo;
-	struct inResetColliders reset;
 	struct outCheckHelioDist outCh;
 
 	COLLIDER *c1 = &inDo.Collider1,*c2 = &inDo.Collider2,*c;
@@ -4116,11 +4115,7 @@ msrDoCollision(MSR msr,double dTime,double dDelta)
 			break;
 		    default:
 			assert(0); /* unknown outcome */
-		}
-		
-		reset.iOrder1 = c1->id.iOrder;
-		reset.iOrder2 = c2->id.iOrder;
-		/*pstResetColliders(msr->pst,&reset,sizeof(reset),NULL,NULL); */
+		}	
 		
 #ifdef IGNORE_FOR_NOW/*DEBUG*/
 		if (outDo.iOutcome & FRAG) {
@@ -4301,8 +4296,7 @@ void msrTopStepSymba(MSR msr,
       ** placed here shortly.
       */
       bSplitVA = 1;
-      msrDomainDecomp(msr,iRung,1,bSplitVA);
-      /* msrSortVA(msr); this should be removed from files*/	    
+      msrDomainDecomp(msr,iRung,1,bSplitVA);	    
     }
     /*
      * Perform timestepping of particles in close encounters on 
@@ -4437,9 +4431,6 @@ void msrKeplerDrift(MSR msr,double dDelta){
 	
 } 
 
-void msrSortVA(MSR msr){
-    pstSortVA(msr->pst,NULL,0,NULL,NULL);
-}
 
 #endif /* SYMBA */
 #endif /* PLANETS*/

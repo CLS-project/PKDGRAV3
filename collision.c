@@ -600,36 +600,6 @@ pkdDoCollision(PKD pkd,double dt,const COLLIDER *pc1,const COLLIDER *pc2,
 	}
 
 void
-pkdResetColliders(PKD pkd,int iOrder1,int iOrder2)
-{
-	/*
-	 ** Set SMOOTHACTIVE flag for those particles that were involved
-	 ** in the collision or that were about to collide with one of the
-	 ** particles involved in the collision. Reset otherwise. This
-	 ** means new collision circumstances will only be determined for
-	 ** these particles, while the remaining (active) particles will
-	 ** rely on previously detected potential collisions.
-	 */
-
-	PARTICLE *p;
-	int i;
-
-	assert(0); /* SMOOTHACTIVE no longer exists */
-#if 0
-
-	for (i=0;i<pkdLocal(pkd);i++) {
-		p = &pkd->pStore[i];
-		if (!pkdIsActive(pkd,p)) continue;
-		if (p->iOrder == iOrder1 || p->iOrder == iOrder2 ||
-			p->iOrderCol == iOrder1 || p->iOrderCol == iOrder2)
-			TYPESet(p,TYPE_SMOOTHACTIVE);
-		else
-			TYPEReset(p,TYPE_SMOOTHACTIVE);
-		}
-#endif
-}
-
-void
 pkdDoCollisionVeryActive(PKD pkd,double dTime)
 {
 	COLLIDER c1out,c2out,cOut;
@@ -857,10 +827,9 @@ void pkdCheckHelioDist(PKD pkd,double *dT,double *dSM){
 	    /* kinetic and rotational energy */
 	    moi = 0.4*p[i].fMass*p[i].fSoft*p[i].fSoft;
 	    for (k=0;k<3;k++){
-		*dT -= p[i].fMass*(p[i].v[k]*p[i].v[k]) +
-		    moi*(p[i].w[k]*p[i].w[k]);
-	    }		      
-	    *dT *= 0.5;
+		*dT -=  0.5*(p[i].fMass*(p[i].v[k]*p[i].v[k]) +
+		    moi*(p[i].w[k]*p[i].w[k]));
+	    }		      	   
 	    /* add potential change*/	    
 	    *dT += p[i].fMass*pkd->dSunMass/a2;
 	    if(a2 < rsun){
