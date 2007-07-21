@@ -99,7 +99,7 @@ double dMonopoleThetaFac = 1.5;
 /*
 ** Returns total number of active particles for which gravity was calculated.
 */
-int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double fEwCut,
+int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bEwaldKick,int bVeryActive,double fEwCut,
 		double *pdFlop,double *pdPartSum,double *pdCellSum)
     {
     PARTICLE *p = pkd->pStore;
@@ -112,6 +112,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
     ILP *ilp;
     ILC *ilc;
     double fWeight = 0.0;
+    double dEwaldFlop;
     FLOAT dMin,dMax,min2,max2,d2,fourh2;
     double dDriftFac;
     FLOAT rCheck[3];
@@ -367,51 +368,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 		    */
 		    fourh2 = softmassweight(c[iCell].mom.m,4*c[iCell].fSoft2,pkdc->mom.m,4*pkdc->fSoft2);
 		    if (d2 > fourh2) {
-			/*
-			** Local expansion accepted!
-			** Add to the GLAM list to be evaluated later.
-			*/
-#ifdef USE_SIMD_LOCR
-			if (nGlam == nMaxGlam) {
-			    nMaxGlam += 1000;
-			    ilglam = SIMD_realloc(ilglam,
-						  (nMaxGlam-1000)*sizeof(GLAM),
-						  nMaxGlam*sizeof(GLAM));
-			    assert(ilglam != 0);
-			}
-#ifdef __SSE__
-			vdir = _mm_rsqrt_ss(_mm_set_ss(d2));
-			/* Better: sdir = _mm_cvtss_f32(vdir); */
-			_mm_store_ss(&sdir,vdir);
-			sdir *= ((3.0 - sdir * sdir * (float)d2) * 0.5);
-#else
-			sdir = 1.0/sqrt(d2);
-#endif
-			ilglam[nGlam].q = pkdc->mom;
-			ilglam[nGlam].dir = sdir;
-			ilglam[nGlam].g0 = -sdir;
-			ilglam[nGlam].t1 = -sdir;
-			ilglam[nGlam].t2 = -3*sdir;
-			ilglam[nGlam].t3r = -5;
-			ilglam[nGlam].t4r = -7;
-			ilglam[nGlam].x = dx[0];
-			ilglam[nGlam].y = dx[1];
-			ilglam[nGlam].z = dx[2];
-			ilglam[nGlam].zero = 0.0;
-			++nGlam;
-#else
-			dir = 1.0/sqrt(d2);
-#if 1
-			t1 = -dir;
-			t2 = -3*dir;
-			t3r = -5;
-			t4r = -7;
-			momGenLocrAddMomr(&L,&pkdc->mom,dir,-dir,
-					  t1,t2,t3r,t4r,dx[0],dx[1],dx[2]);
-#else
-			momLocrAddMomr(&L,&pkdc->mom,dir,dx[0],dx[1],dx[2]);
-#endif
-#endif
+			iOpen = -1;
 		    }
 		    else {
 			/*
@@ -426,30 +383,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 			    if (dMin > 0) min2 += dMin*dMin;
 			}
 			if (min2 > pkdc->fOpen*dMonopoleThetaFac*pkdc->fOpen*dMonopoleThetaFac) {
-			    /*
-			    ** We accept this multipole from the opening criterion, but it is a softened
-			    ** interaction, so we need to treat is as a softened monopole by putting it
-			    ** on the particle interaction list.
-			    */
-			    if (nPart == nMaxPart) {
-				nMaxPart += 500;
-				ilp = realloc(ilp,nMaxPart*sizeof(ILP));
-				assert(ilp != NULL);	
-			    }
-#ifndef USE_SIMD
-			    ilp[nPart].iOrder = -1; /* set iOrder to negative value for time step criterion */
-#endif
-			    ilp[nPart].m = pkdc->mom.m;
-			    ilp[nPart].x = rCheck[0];
-			    ilp[nPart].y = rCheck[1];
-			    ilp[nPart].z = rCheck[2];
-#ifndef USE_SIMD
-			    ilp[nPart].vx = pkdc->v[0];
-			    ilp[nPart].vy = pkdc->v[1];
-			    ilp[nPart].vz = pkdc->v[2];
-#endif
-			    ilp[nPart].fourh2 = 4*pkdc->fSoft2;
-			    ++nPart;
+			    iOpen = -3;
 			}
 			else {
 			    /*
@@ -494,30 +428,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 					iOpen = -2;
 				    }
 				    else if (min2 > pkdc->fOpen*dMonopoleThetaFac*pkdc->fOpen*dMonopoleThetaFac) {
-					/*
-					** We accept this multipole from the opening criterion, but it is a softened
-					** interaction, so we need to treat is as a softened monopole by putting it
-					** on the particle interaction list.
-					*/
-					if (nPart == nMaxPart) {
-					    nMaxPart += 500;
-					    ilp = realloc(ilp,nMaxPart*sizeof(ILP));
-					    assert(ilp != NULL);	
-					}
-#ifndef USE_SIMD
-					ilp[nPart].iOrder = -1; /* set iOrder to negative value for time step criterion */
-#endif
-					ilp[nPart].m = pkdc->mom.m;
-					ilp[nPart].x = rCheck[0];
-					ilp[nPart].y = rCheck[1];
-					ilp[nPart].z = rCheck[2];
-#ifndef USE_SIMD
-					ilp[nPart].vx = pkdc->v[0];
-					ilp[nPart].vy = pkdc->v[1];
-					ilp[nPart].vz = pkdc->v[2];
-#endif
-					ilp[nPart].fourh2 = 4*pkdc->fSoft2;
-					++nPart;
+					iOpen = -3;
 				    }
 				    else {
 					/*
@@ -572,30 +483,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 				    iOpen = -2;
 				}
 				else if (min2 > pkdc->fOpen*dMonopoleThetaFac*pkdc->fOpen*dMonopoleThetaFac) {
-				    /*
-				    ** We accept this multipole from the opening criterion, but it is a softened
-				    ** interaction, so we need to treat is as a softened monopole by putting it
-				    ** on the particle interaction list.
-				    */
-				    if (nPart == nMaxPart) {
-					nMaxPart += 500;
-					ilp = realloc(ilp,nMaxPart*sizeof(ILP));
-					assert(ilp != NULL);	
-				    }
-#ifndef USE_SIMD
-				    ilp[nPart].iOrder = -1; /* set iOrder to negative value for time step criterion */
-#endif
-				    ilp[nPart].m = pkdc->mom.m;
-				    ilp[nPart].x = rCheck[0];
-				    ilp[nPart].y = rCheck[1];
-				    ilp[nPart].z = rCheck[2];
-#ifndef USE_SIMD
-				    ilp[nPart].vx = pkdc->v[0];
-				    ilp[nPart].vy = pkdc->v[1];
-				    ilp[nPart].vz = pkdc->v[2];
-#endif
-				    ilp[nPart].fourh2 = 4*pkdc->fSoft2;
-				    ++nPart;
+				    iOpen = -3;
 				}
 				else {
 				    /*
@@ -740,6 +628,53 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 			}  /* end of opening a bucket */
 		    }
 		}
+		else if (iOpen == -1) {
+		    /*
+		    ** Local expansion accepted!
+		    ** Add to the GLAM list to be evaluated later.
+		    */
+#ifdef USE_SIMD_LOCR
+		    if (nGlam == nMaxGlam) {
+			nMaxGlam += 1000;
+			ilglam = SIMD_realloc(ilglam,
+					      (nMaxGlam-1000)*sizeof(GLAM),
+					      nMaxGlam*sizeof(GLAM));
+			assert(ilglam != 0);
+		    }
+#ifdef __SSE__
+		    vdir = _mm_rsqrt_ss(_mm_set_ss(d2));
+		    /* Better: sdir = _mm_cvtss_f32(vdir); */
+		    _mm_store_ss(&sdir,vdir);
+		    sdir *= ((3.0 - sdir * sdir * (float)d2) * 0.5);
+#else
+		    sdir = 1.0/sqrt(d2);
+#endif
+		    ilglam[nGlam].q = pkdc->mom;
+		    ilglam[nGlam].dir = sdir;
+		    ilglam[nGlam].g0 = -sdir;
+		    ilglam[nGlam].t1 = -sdir;
+		    ilglam[nGlam].t2 = -3*sdir;
+		    ilglam[nGlam].t3r = -5;
+		    ilglam[nGlam].t4r = -7;
+		    ilglam[nGlam].x = dx[0];
+		    ilglam[nGlam].y = dx[1];
+		    ilglam[nGlam].z = dx[2];
+		    ilglam[nGlam].zero = 0.0;
+		    ++nGlam;
+#else
+		    dir = 1.0/sqrt(d2);
+#if 1
+		    t1 = -dir;
+		    t2 = -3*dir;
+		    t3r = -5;
+		    t4r = -7;
+		    momGenLocrAddMomr(&L,&pkdc->mom,dir,-dir,
+				      t1,t2,t3r,t4r,dx[0],dx[1],dx[2]);
+#else
+		    momLocrAddMomr(&L,&pkdc->mom,dir,dx[0],dx[1],dx[2]);
+#endif
+#endif
+		}
 		else if (iOpen == -2) {
 		    /*
 		    ** No intersection, accept multipole!
@@ -792,6 +727,32 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 #endif
 		    ++nCell;
 		    }
+		else if (iOpen == -3) {
+		    /*
+		    ** We accept this multipole from the opening criterion, but it is a softened
+		    ** interaction, so we need to treat is as a softened monopole by putting it
+		    ** on the particle interaction list.
+		    */
+		    if (nPart == nMaxPart) {
+			nMaxPart += 500;
+			ilp = realloc(ilp,nMaxPart*sizeof(ILP));
+			assert(ilp != NULL);	
+		    }
+#ifndef USE_SIMD
+		    ilp[nPart].iOrder = -1; /* set iOrder to negative value for time step criterion */
+#endif
+		    ilp[nPart].m = pkdc->mom.m;
+		    ilp[nPart].x = rCheck[0];
+		    ilp[nPart].y = rCheck[1];
+		    ilp[nPart].z = rCheck[2];
+#ifndef USE_SIMD
+		    ilp[nPart].vx = pkdc->v[0];
+		    ilp[nPart].vy = pkdc->v[1];
+		    ilp[nPart].vz = pkdc->v[2];
+#endif
+		    ilp[nPart].fourh2 = 4*pkdc->fSoft2;
+		    ++nPart;
+		}
 		if (id >= 0 && id != pkd->idSelf) {
 		    mdlRelease(pkd->mdl,CID_CELL,pkdc);
 		    }
@@ -949,7 +910,10 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double
 	** constant cost into the load balancing weights.
 	*/
 	if (bEwald) {
-	    *pdFlop += pkdBucketEwald(pkd,&pkd->kdNodes[iCell],nReps,fEwCut,4);
+	    dEwaldFlop = pkdBucketEwald(pkd,&pkd->kdNodes[iCell],nReps,fEwCut,bEwaldKick);
+	    if (!bEwaldKick) {
+		*pdFlop += dEwaldFlop;
+	    }
 	}
 
 #ifdef TIME_WALK_WORK
