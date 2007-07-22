@@ -663,16 +663,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bEwaldKick,int bVe
 		    ++nGlam;
 #else
 		    dir = 1.0/sqrt(d2);
-#if 1
-		    t1 = -dir;
-		    t2 = -3*dir;
-		    t3r = -5;
-		    t4r = -7;
-		    momGenLocrAddMomr(&L,&pkdc->mom,dir,-dir,
-				      t1,t2,t3r,t4r,dx[0],dx[1],dx[2]);
-#else
-		    momLocrAddMomr(&L,&pkdc->mom,dir,dx[0],dx[1],dx[2]);
-#endif
+		    momLocrAddMomr5(&L,&pkdc->mom,dir,dx[0],dx[1],dx[2]);
 #endif
 		}
 		else if (iOpen == -2) {
