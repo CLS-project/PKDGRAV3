@@ -32,7 +32,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
     const double onethird = 1.0/3.0;
     momFloat ax,ay,az,fPot;
     double x,y,z,d2,dir,dir2;
-    momFloat adotai,maga;
+    momFloat adotai,maga,dirsum,normsum;
     momFloat tax,tay,taz,tmon;
 #ifndef USE_SIMD_MOMR
     double g2,g3,g4;
