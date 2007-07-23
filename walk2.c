@@ -99,7 +99,8 @@ double dMonopoleThetaFac = 1.5;
 /*
 ** Returns total number of active particles for which gravity was calculated.
 */
-int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bEwaldKick,int bVeryActive,double fEwCut,
+int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bEwaldKick,
+		int bVeryActive,double fEwCut,
 		double *pdFlop,double *pdPartSum,double *pdCellSum)
     {
     PARTICLE *p = pkd->pStore;

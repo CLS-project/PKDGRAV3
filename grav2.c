@@ -25,15 +25,14 @@
 ** v_sqrt's and such.
 ** Returns nActive.
 */
-int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,int nCell,ILPB *ilpb,int nPartBucket,double *pdFlop) {
+int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,int nCell,ILPB *ilpb,int nPartBucket,double dirLsum,double normLsum,double *pdFlop) {
     PARTICLE *p = pkd->pStore;
     PARTICLE *pi,*pj;
     KDN *pkdn = pBucket;
     const double onethird = 1.0/3.0;
     momFloat ax,ay,az,fPot;
     double x,y,z,d2,dir,dir2;
-    float rhosum,maisum;
-    momFloat magai,adotai;
+    momFloat adotai,maga;
     momFloat tax,tay,taz,tmon;
 #ifndef USE_SIMD_MOMR
     double g2,g3,g4;
@@ -64,8 +63,8 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	ax = 0;
 	ay = 0;
 	az = 0;
-	rhosum = 0;
-	maisum = 0;
+	dirsum = dirLsum;
+	normsum = normLsum;
 	/*
 	** Evaluate local expansion.
 	*/
@@ -76,7 +75,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 
 #ifdef USE_SIMD_MOMR
 	momEvalSIMDMomr( nCellILC, ilc, p[i].r, p[i].a,
-			 &ax, &ay, &az, &fPot, &rhosum, &maisum );
+			 &ax, &ay, &az, &fPot, &dirsum, &normsum );
 #else
 	for (j=0;j<nCell;++j) {
 	    x = p[i].r[0] - ilc[j].x;
@@ -129,8 +128,8 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	    taz = xz + xxz + tz - z*dir2;
 	    adotai = p[i].a[0]*tax + p[i].a[1]*tay + p[i].a[2]*taz; 
 	    if (adotai >= 0) {
-	      rhosum += adotai*dir;
-	      maisum += sqrt(tax*tax + tay*tay + taz*taz);
+	      dirsum += dir*adotai*adotai;
+	      normsum += adotai*adotai;
 	    }
 	    ax += tax;
 	    ay += tay;
@@ -141,7 +140,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 
 #ifdef USE_SIMD_PP
 	PPInteractSIMD( nPart,ilp,p[i].r,p[i].a,p[i].fMass,p[i].fSoft,
-			&ax, &ay, &az, &fPot, &rhosum, &maisum );
+			&ax, &ay, &az, &fPot, &dirsum, &normsum );
 #else
 	for (j=0;j<nPart;++j) {
 	    x = p[i].r[0] - ilp[j].x;
@@ -158,7 +157,6 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 		/*
 		** This uses the Dehnen K1 kernel function now, it's fast!
 		*/
-		magai = sqrt(d2);
 		SQRT1(fourh2,dir);
 		dir2 = dir*dir;
 		d2 *= dir2;
@@ -166,7 +164,6 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 		d2 = 1 - d2;
 		dir *= 1.0 + d2*(0.5 + d2*(3.0/8.0 + d2*(45.0/32.0)));
 		dir2 *= 1.0 + d2*(1.5 + d2*(135.0/16.0));
-		magai *= dir2;
 		++nSoft;
 		}
 	    dir2 *= ilp[j].m;
@@ -176,8 +173,8 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 
 	    adotai = p[i].a[0]*tax + p[i].a[1]*tay + p[i].a[2]*taz;
 	    if (adotai >= 0) {
-	      rhosum += adotai*dir;
-	      maisum += ilp[j].m*magai;
+	      dirsum += dir*adotai*adotai;
+	      normsum += adotai*adotai;
 	    }
 
 	    fPot -= ilp[j].m*dir;
@@ -190,8 +187,9 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	/*
 	** Set the density value using the new timestepping formula.
 	*/
-	if (pkd->param.bGravStep && rhosum > 0) {
-	    p[i].dtGrav = rhosum/maisum;
+	if (pkd->param.bGravStep && dirsum > 0) {
+	    maga = sqrt(p[i].a[0]*p[i].a[0] + p[i].a[1]*p[i].a[1] + p[i].a[2]*p[i].a[2]);
+	    p[i].dtGrav = maga*dirsum/normsum;
 	    }
 
         /*
