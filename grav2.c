@@ -151,7 +151,6 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	    if (d2 > fourh2) {
 		SQRT1(d2,dir);
 		dir2 = dir*dir*dir;
-		magai = dir*dir;
 	    }
 	    else {
 		/*
