@@ -423,7 +423,7 @@ void DrmininDrift(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf){
 	a2 = sqrt(q->r[0]*q->r[0]+q->r[1]*q->r[1]+q->r[2]*q->r[2]);
 	a2b = sqrt(q->rb[0]*q->rb[0]+q->rb[1]*q->rb[1]+q->rb[2]*q->rb[2]);
 
-	hill = 0.5*pow(((fMass1 + q->fMass)/(3.0*dSunMass)),(1.0/3.0));
+	hill = 0.5*cbrt((fMass1 + q->fMass)/(3.0*dSunMass));
 	hillb = hill*(a1b+a2b);
 	hill *= (a1+a2);
  

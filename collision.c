@@ -803,51 +803,48 @@ void pkdGetVariableVeryActive(PKD pkd, double *dDeltaEcoll)
   pkd->dDeltaEcoll = 0.0;
 }
 
-
 void pkdCheckHelioDist(PKD pkd,double *dT,double *dSM){
-    int i,j,k,n;
-    double a2;
-    double rsun = 0.1; /* solar radius */
-    double resc = 100.0; /* escape distance */
-    PARTICLE *p = pkd->pStore;  
-    n = pkd->nLocal;
+  int i,j,k,n;
+  double a2;
+  double rsun = 0.01; /* solar radius^2 */
+  double resc = 10000.0; /* escape distance^2 */
+  PARTICLE *p;  
+  
+  n = pkdLocal(pkd); 
+  p = pkd->pStore;
+  *dT = 0.0;
+  *dSM = 0.0;
+  
+  for(i=0;i<n;++i) {
+    if(p[i].iOrder < 0) continue; 
+    a2 = (p[i].r[0]*p[i].r[0] + p[i].r[1]*p[i].r[1] + p[i].r[2]*p[i].r[2]);
     
-    *dT = 0.0;
-    *dSM = 0.0;
-
-    for(i=0;i<n;++i) {
-	if(p[i].iOrder < 0) continue; 
-	a2 = (p[i].r[0]*p[i].r[0] + p[i].r[1]*p[i].r[1] + p[i].r[2]*p[i].r[2]);
-
-	if(a2 < rsun*rsun || a2 > resc*resc){
-	    a2 = sqrt(a2);
-	    printf("particle %d is deleted with heliocentric distance %e",
-		   p[i].iOrder,a2);
-	    double moi;
-	    /* kinetic and rotational energy */
-	    moi = 0.4*p[i].fMass*p[i].fSoft*p[i].fSoft;
-	    for (k=0;k<3;k++){
-		*dT -=  0.5*(p[i].fMass*(p[i].v[k]*p[i].v[k]) +
-		    moi*(p[i].w[k]*p[i].w[k]));
-	    }		      	   
-	    /* add potential change*/	    
-	    *dT += p[i].fMass*pkd->dSunMass/a2;
-	    if(a2 < rsun){
-	    *dSM += p[i].fMass;
-	    }else if (a2 > resc){
-		for(j=0;j<n;++j) {
-		    if(i==j)continue;
-		    a2=0.0;
-		    for (k=0;k<3;k++){
-			a2 += (p[i].r[k] - p[j].r[k])*(p[i].r[k] - p[j].r[k]);
-		    }
-		    *dT += p[i].fMass*p[j].fMass/sqrt(a2);  
-		}
-	    }
-	    printf(" dE = %e \n",*dT);
-	    pkdDeleteParticle(pkd,&p[i]);
-	}       
-    }
+    if(a2 < rsun || a2 > resc){
+      a2 = sqrt(a2);
+      rsun = sqrt(rsun);
+      resc = sqrt(resc);
+      printf("particle %d is deleted with heliocentric distance %e",
+	     p[i].iOrder,a2);
+      double moi;
+      /* kinetic and rotational energy */
+      moi = 0.4*p[i].fMass*p[i].fSoft*p[i].fSoft;
+      for (k=0;k<3;k++){
+	*dT -=  0.5*(p[i].fMass*(p[i].v[k]*p[i].v[k]) +
+		     moi*(p[i].w[k]*p[i].w[k]));
+      }		      	   
+      /* add potential change due to Sun*/	    
+      *dT += p[i].fMass*pkd->dSunMass/a2;	  
+      
+      if(a2 < rsun){
+	*dSM += p[i].fMass;
+      }else if (a2 > resc){
+	/* potential from other particles */
+	*dT -= p[i].fPot;
+      }
+      printf(" dE = %e \n",*dT);
+      pkdDeleteParticle(pkd,&p[i]);
+    }       
+  }
 }
 
 

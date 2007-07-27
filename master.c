@@ -440,6 +440,7 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv)
     msr->param.dCentMass = 1.0;
     prmAddParam(msr->prm,"dCentMass",2,&msr->param.dCentMass,sizeof(double),
 		"fgm","specifies the central mass for Keplerian orbits");
+
 #ifdef SYMBA
     msr->param.bSymba = 1;
     prmAddParam(msr->prm,"bSymba",0,&msr->param.bSymba,sizeof(int),
@@ -4067,7 +4068,7 @@ msrDoCollision(MSR msr,double dTime,double dDelta)
 	pstCheckHelioDist(msr->pst,NULL,0,&outCh,NULL);
 	msr->dEcoll += outCh.dT;
 	msr->dSunMass += outCh.dSM;
-	
+
 	do{	
 	    pstNextCollision(msr->pst,NULL,0,&next,NULL);
 	    /*printf("%i,%i\n",next.iOrder1,next.iOrder2);*/
@@ -4230,8 +4231,8 @@ msrDoCollision(MSR msr,double dTime,double dDelta)
 			assert(0); /* invalid collision log option */
 		} /* logging */
 	    } /* if collision */
-	} while (COLLISION(next.dt));
-	
+	} while (COLLISION(next.dt));	
+
 	msrAddDelParticles(msr); /* clean up any deletions */
 	
 	if (msr->param.bVStep) {

@@ -381,7 +381,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	    a1 = p[i].r[0]*p[i].r[0]+p[i].r[1]*p[i].r[1]+p[i].r[2]*p[i].r[2];
 	    a2 = ilp[j].x*ilp[j].x + ilp[j].y*ilp[j].y + ilp[j].z*ilp[j].z;
 	    a1 = 0.5*(sqrt(a1) + sqrt(a2));
-	    a1 *= pow((p[i].fMass + ilp[j].m)/(3.0*dSunMass),1.0/3.0);
+	    a1 *= cbrt((p[i].fMass + ilp[j].m)/(3.0*dSunMass));
 	    a2 = sqrt(d2)/a1;
 	    p[i].drmin = (a2 < p[i].drmin)?a2:p[i].drmin;
 	    if(a2 < 3.0){
@@ -615,7 +615,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	    a1 = pi->r[0]*pi->r[0]+pi->r[1]*pi->r[1]+pi->r[2]*pi->r[2];
 	    a2 = pj->r[0]*pj->r[0]+pj->r[1]*pj->r[1]+pj->r[2]*pj->r[2]; 
 	    a1 = 0.5*(sqrt(a1) + sqrt(a2));
-	    a1 *= pow((pi->fMass + pj->fMass)/(3.0*dSunMass),1.0/3.0);
+	    a1 *= cbrt((pi->fMass + pj->fMass)/(3.0*dSunMass));
 	    a2 = sqrt(d2)/a1;
 	    pi->drmin = (a2 < pi->drmin)?a2:pi->drmin; 
 	    pj->drmin = (a2 < pj->drmin)?a2:pj->drmin; 
@@ -767,7 +767,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	    a1 = pi->r[0]*pi->r[0]+pi->r[1]*pi->r[1]+pi->r[2]*pi->r[2];
 	    a2 = pj->r[0]*pj->r[0]+pj->r[1]*pj->r[1]+pj->r[2]*pj->r[2]; 
 	    a1 = 0.5*(sqrt(a1) + sqrt(a2));
-	    a1 *= pow((pi->fMass + pj->fMass)/(3.0*dSunMass),1.0/3.0);
+	    a1 *= cbrt((pi->fMass + pj->fMass)/(3.0*dSunMass));
 	    a2 = sqrt(d2)/a1;
 	    pi->drmin = (a2 < pi->drmin)?a2:pi->drmin; 
 	    pj->drmin = (a2 < pj->drmin)?a2:pj->drmin; 

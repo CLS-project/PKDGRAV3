@@ -291,6 +291,9 @@ void pstAddServices(PST pst,MDL mdl)
     mdlAddService(mdl,PST_GETVARIABLEVERYACTIVE,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstGetVariableVeryActive,
 				  0,sizeof(struct outGetVariableVeryActive));
+    mdlAddService(mdl,PST_CHECKHELIODIST,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstCheckHelioDist,
+				  0,sizeof(struct outCheckHelioDist));
 #ifdef SYMBA
     mdlAddService(mdl,PST_STEPVERYACTIVES,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstStepVeryActiveSymba,
@@ -3405,16 +3408,17 @@ void pstCheckHelioDist(PST pst,void *vin,int nIn,void *vout,int *pnOut){
     struct outCheckHelioDist *out = vout;
     struct outCheckHelioDist outLcl;
     
+  
     mdlassert(pst->mdl,nIn == 0);
-    if (pst->nLeaves > 1) {
-	mdlReqService(pst->mdl,pst->idUpper,PST_CHECKHELIODIST,NULL,0);
-	pstCheckHelioDist(pst->pstLower,NULL,0,out,NULL);
+    if (pst->nLeaves > 1) {  
+	mdlReqService(pst->mdl,pst->idUpper,PST_CHECKHELIODIST,vin,nIn);
+	pstCheckHelioDist(pst->pstLower,NULL,nIn,out,NULL);
 	mdlGetReply(pst->mdl,pst->idUpper,&outLcl,NULL);
 	out->dT += outLcl.dT;
-	out->dSM += outLcl.dSM;
-	} else {
-	    pkdCheckHelioDist(plcl->pkd,&out->dT,&out->dSM);
-	}
+	  out->dSM += outLcl.dSM;
+    } else {
+      pkdCheckHelioDist(plcl->pkd,&out->dT,&out->dSM);
+    }
     if (pnOut) *pnOut = sizeof(struct outCheckHelioDist);
     }
 

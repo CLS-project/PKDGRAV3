@@ -728,6 +728,7 @@ void pkdSunIndirect(PKD pkd,double aSun[],double adSun[],int iFlag);
 void pkdGravSun(PKD pkd,double aSun[],double adSun[],double dSunMass);
 void pkdReadSS(PKD pkd,char *pszFileName,int nStart,int nLocal);
 void pkdWriteSS(PKD pkd,char *pszFileName,int nStart);
+
 #ifdef SYMBA
 #define symfac 1.925925925925926 /* 2.08/1.08 */
 #define rsym2  1.442307692307692 /* 3.0/2.08 */
