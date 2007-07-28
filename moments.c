@@ -780,24 +780,18 @@ void momEvalMomr(MOMR *m,momFloat dir,momFloat x,momFloat y,momFloat z,
 **
 ** CAREFUL: this function no longer accumulates on fPot,ax,ay,az!
 */
-void momGenEvalMomr(MOMR *m,momFloat dir,momFloat g0,momFloat t1,momFloat t2,
-		    momFloat t3r,momFloat t4r,momFloat x,momFloat y,momFloat z,
+void momGenEvalMomr(MOMR *m,momFloat g0,momFloat g1,momFloat g2,momFloat g3,momFloat g4,momFloat g5,
+		    momFloat x,momFloat y,momFloat z,
 		    momFloat *fPot,momFloat *ax,momFloat *ay,momFloat *az,momFloat *magai)
 {
 	const momFloat onethird = 1.0/3.0;
 	momFloat xx,xy,xz,yy,yz,zz;
 	momFloat xxx,xxy,xxz,xyy,yyy,yyz,xyz;
-	momFloat tx,ty,tz,g2,g3,g4;
+	momFloat A,Ax,Ay,Az,B,Bx,By,Bz,C,Cx,Cy,Cz,R;
 
-	g2 = t2*t1*g0;
-	g3 = t3r*dir*g2;
-	g4 = t4r*dir*g3;
 	/*
 	 ** Calculate the funky distance terms.
 	 */
-	x *= dir;
-	y *= dir;
-	z *= dir;
 	xx = 0.5*x*x;
 	xy = x*y;
 	xz = x*z;
@@ -816,92 +810,24 @@ void momGenEvalMomr(MOMR *m,momFloat dir,momFloat g0,momFloat t1,momFloat t2,
 	/*
 	 ** Now calculate the interaction up to Hexadecapole order.
 	 */
-	tx = g4*(m->xxxx*xxx + m->xyyy*yyy + m->xxxy*xxy + m->xxxz*xxz + m->xxyy*xyy + m->xxyz*xyz + m->xyyz*yyz);
-	ty = g4*(m->xyyy*xyy + m->xxxy*xxx + m->yyyy*yyy + m->yyyz*yyz + m->xxyy*xxy + m->xxyz*xxz + m->xyyz*xyz);
-	tz = g4*(-m->xxxx*xxz - (m->xyyy + m->xxxy)*xyz - m->yyyy*yyz + m->xxxz*xxx + m->yyyz*yyy - m->xxyy*(xxz + yyz) + m->xxyz*xxy + m->xyyz*xyy);
-	g4 = 0.25*(tx*x + ty*y + tz*z);
-	xxx = g3*(m->xxx*xx + m->xyy*yy + m->xxy*xy + m->xxz*xz + m->xyz*yz);
-	xxy = g3*(m->xyy*xy + m->xxy*xx + m->yyy*yy + m->yyz*yz + m->xyz*xz);
-	xxz = g3*(-(m->xxx + m->xyy)*xz - (m->xxy + m->yyy)*yz + m->xxz*xx + m->yyz*yy + m->xyz*xy);
-	g3 = onethird*(xxx*x + xxy*y + xxz*z);
-	xx = g2*(m->xx*x + m->xy*y + m->xz*z);
-	xy = g2*(m->yy*y + m->xy*x + m->yz*z);
-	xz = g2*(-(m->xx + m->yy)*z + m->xz*x + m->yz*y);
-	g2 = 0.5*(xx*x + xy*y + xz*z);
-	g0 *= m->m;
-	*fPot = g0 + g2 + g3 + g4;
-	g0 += t3r*g2 + t4r*g3;      /* for exact deriv + t5r*g4 */
-	*ax = dir*(xx + xxx + tx + x*g0);
-	*ay = dir*(xy + xxy + ty + y*g0);
-	*az = dir*(xz + xxz + tz + z*g0);
-	*magai = -g0*dir;
-	}
-
-
-/*
- ** This is a new version of EvalMomr which is designed to be 
- ** less sensitive to the size of the exponent in single precision.
- ** Highest direct power of r is 2 (as it should be for a force)
- ** when using scaled moments (providing a scale factor of s, some size
- ** of the cell).
- **
- ** OpCount = (*,+) = (108,73) = 181 - 8 = 173
- */
-void momEvalMomrs(MOMR *m,momFloat s,momFloat dir,
-		  momFloat x,momFloat y,momFloat z,
-		  momFloat *fPot,momFloat *ax,momFloat *ay,momFloat *az)
-{
-	const momFloat onethird = 1.0/3.0;
-	momFloat xx,xy,xz,yy,yz,zz;
-	momFloat xxx,xxy,xxz,xyy,yyy,yyz,xyz;
-	momFloat tx,ty,tz,sir,g0,g2,g3,g4;
-
-	sir = s*dir;
-	g2 = -3*dir*sir*sir;
-	g3 = -5*g2*sir;
-	g4 = -7*g3*sir;
-	/*
-	 ** Calculate the funky distance terms.
-	 */
-	x *= dir;
-	y *= dir;
-	z *= dir;
-	xx = 0.5*x*x;
-	xy = x*y;
-	xz = x*z;
-	yy = 0.5*y*y;
-	yz = y*z;
-	zz = 0.5*z*z;
-	xxx = x*(onethird*xx - zz);
-	xxz = z*(xx - onethird*zz);
-	yyy = y*(onethird*yy - zz);
-	yyz = z*(yy - onethird*zz);
-	xx -= zz;
-	yy -= zz;
-	xxy = y*xx;
-	xyy = x*yy;
-	xyz = xy*z;
-	/*
-	 ** Now calculate the interaction up to Hexadecapole order.
-	 */
-	tx = g4*(m->xxxx*xxx + m->xyyy*yyy + m->xxxy*xxy + m->xxxz*xxz + m->xxyy*xyy + m->xxyz*xyz + m->xyyz*yyz);
-	ty = g4*(m->xyyy*xyy + m->xxxy*xxx + m->yyyy*yyy + m->yyyz*yyz + m->xxyy*xxy + m->xxyz*xxz + m->xyyz*xyz);
-	tz = g4*(-m->xxxx*xxz - (m->xyyy + m->xxxy)*xyz - m->yyyy*yyz + m->xxxz*xxx + m->yyyz*yyy - m->xxyy*(xxz + yyz) + m->xxyz*xxy + m->xyyz*xyy);
-	g4 = 0.25*(tx*x + ty*y + tz*z);
-	xxx = g3*(m->xxx*xx + m->xyy*yy + m->xxy*xy + m->xxz*xz + m->xyz*yz);
-	xxy = g3*(m->xyy*xy + m->xxy*xx + m->yyy*yy + m->yyz*yz + m->xyz*xz);
-	xxz = g3*(-(m->xxx + m->xyy)*xz - (m->xxy + m->yyy)*yz + m->xxz*xx + m->yyz*yy + m->xyz*xy);
-	g3 = onethird*(xxx*x + xxy*y + xxz*z);
-	xx = g2*(m->xx*x + m->xy*y + m->xz*z);
-	xy = g2*(m->yy*y + m->xy*x + m->yz*z);
-	xz = g2*(-(m->xx + m->yy)*z + m->xz*x + m->yz*y);
-	g2 = 0.5*(xx*x + xy*y + xz*z);
-	g0 = m->m*dir;
-	*fPot += g2 + g3 + g4 - g0;
-	g0 -= 5*g2 + 7*g3 + 9*g4;
-	*ax += dir*(xx + xxx + tx + x*g0);
-	*ay += dir*(xy + xxy + ty + y*g0);
-	*az += dir*(xz + xxz + tz + z*g0);
+	Cx = m->xxxx*xxx + m->xyyy*yyy + m->xxxy*xxy + m->xxxz*xxz + m->xxyy*xyy + m->xxyz*xyz + m->xyyz*yyz;
+	Cy = m->xyyy*xyy + m->xxxy*xxx + m->yyyy*yyy + m->yyyz*yyz + m->xxyy*xxy + m->xxyz*xxz + m->xyyz*xyz;
+	Cz = -m->xxxx*xxz - (m->xyyy + m->xxxy)*xyz - m->yyyy*yyz + m->xxxz*xxx + m->yyyz*yyy - m->xxyy*(xxz + yyz) + m->xxyz*xxy + m->xyyz*xyy;
+        C = 0.25*(Cx*x + Cy*y + Cz*z);
+	Bx = m->xxx*xx + m->xyy*yy + m->xxy*xy + m->xxz*xz + m->xyz*yz;
+	By = m->xyy*xy + m->xxy*xx + m->yyy*yy + m->yyz*yz + m->xyz*xz;
+	Bz = -(m->xxx + m->xyy)*xz - (m->xxy + m->yyy)*yz + m->xxz*xx + m->yyz*yy + m->xyz*xy;
+	B = onethird*(Bx*x + By*y + Bz*z);
+	Ax = m->xx*x + m->xy*y + m->xz*z;
+	Ay = m->yy*y + m->xy*x + m->yz*z;
+	Az = -(m->xx + m->yy)*z + m->xz*x + m->yz*y;
+	A = 0.5*(Ax*x + Ay*y + Az*z);
+	*fPot = g0*m->m + g2*A - g3*B + g4*C;
+	R = g1*m->m + g3*A - g4*B + g5*C;
+	*ax = -g2*Ax + g3*Bx - g4*Cx - x*R;
+	*ay = -g2*Ay + g3*By - g4*Cy - y*R;
+	*az = -g2*Az + g3*Bz - g4*Cz - z*R;
+	*magai = sqrt((*ax)*(*ax) + (*ay)*(*ay) + (*az)*(*az));
 	}
 
 
@@ -1699,7 +1625,9 @@ double momLocrAddMomr5Noopt(LOCR *l,MOMR *m,momFloat dir,momFloat x,momFloat y,m
     }
 
 
-
+/*
+** Op Count = (*,+) = (302,207) = 509
+*/
 double momLocrAddMomr5(LOCR *l,MOMR *m,momFloat dir,momFloat x,momFloat y,momFloat z) {
     const momFloat onethird = 1.0/3.0;
     momFloat xx,xy,xz,yy,yz,zz;
@@ -1856,8 +1784,8 @@ double momLocrAddMomr5(LOCR *l,MOMR *m,momFloat dir,momFloat x,momFloat y,momFlo
     l->yyyyz += fyy*z;
     l->xxxyz += (3*g4 + g5xx)*xy*z;
     l->xyyyz += (3*g4 + g5yy)*xy*z;
-
-    return 400.0; /* a guess right now */
+    
+    return 509.0; /* a guess right now */
     }
 
 
