@@ -664,7 +664,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bEwaldKick,
 		    ++nGlam;
 #else
 		    dir = 1.0/sqrt(d2);
-		    momLocrAddMomr5(&L,&pkdc->mom,dir,dx[0],dx[1],dx[2]);
+		    *pdFlop += momLocrAddMomr5(&L,&pkdc->mom,dir,dx[0],dx[1],dx[2]);
 #endif
 		}
 		else if (iOpen == -2) {
@@ -819,14 +819,14 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bEwaldKick,
 		    for (i=0;i<nCheck;++i) S[iStack].Check[i] = Check[i];
 		    S[iStack].Check[nCheck-1].iCell = iCell;
 		    S[iStack].L = L;
-		    momShiftLocr(&S[iStack].L,
-				 c[iCell+1].r[0] - xParent,
-				 c[iCell+1].r[1] - yParent,
-				 c[iCell+1].r[2] - zParent);
+		    dShiftFlop = momShiftLocr(&S[iStack].L,
+					      c[iCell+1].r[0] - xParent,
+					      c[iCell+1].r[1] - yParent,
+					      c[iCell+1].r[2] - zParent);
 #ifdef TIME_WALK_WORK
 		    S[iStack].fWeight = getTimer(&tv);
 #else
-		    S[iStack].fWeight = (*pdFlop-tempI);
+		    S[iStack].fWeight = (*pdFlop-tempI) + dShiftFlop;
 #endif
 		    }
 		}
@@ -844,9 +844,9 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bEwaldKick,
 		*/
 		++iCell;
 		}
-	    momShiftLocr(&L,c[iCell].r[0] - xParent,
-			 c[iCell].r[1] - yParent,
-			 c[iCell].r[2] - zParent);
+	    *pdFlop += momShiftLocr(&L,c[iCell].r[0] - xParent,
+				    c[iCell].r[1] - yParent,
+				    c[iCell].r[2] - zParent);
 	    }
 	/*
 	** Now the interaction list should be complete and the 
