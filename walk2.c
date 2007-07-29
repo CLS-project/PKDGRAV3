@@ -114,6 +114,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bEwaldKick,
     ILC *ilc;
     double fWeight = 0.0;
     double dEwaldFlop;
+    double dShiftFlop;
     FLOAT dMin,dMax,min2,max2,d2,fourh2;
     double dDriftFac;
     FLOAT rCheck[3];
