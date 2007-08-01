@@ -3,7 +3,7 @@
 
 #include "pkd.h"
 
-int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,double fEwCut,
+int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bEwaldKick,int bVeryActive,double fEwCut,
 				double *pdFlop,double *pdPartSum,double *pdCellSum);
 
 #endif

@@ -112,7 +112,7 @@ void pstAddServices(PST pst,MDL mdl)
 		  sizeof(struct inSmooth),0);
     mdlAddService(mdl,PST_GRAVITY,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstGravity,
-		  sizeof(struct inGravity),sizeof(struct outGravity));
+		  sizeof(struct inGravity),nThreads*sizeof(struct outGravity));
     mdlAddService(mdl,PST_CALCEANDL,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstCalcEandL,
 		  0,sizeof(struct outCalcEandL));
@@ -164,6 +164,9 @@ void pstAddServices(PST pst,MDL mdl)
     mdlAddService(mdl,PST_KICK,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstKick,
 		  sizeof(struct inKick),sizeof(struct outKick));
+    mdlAddService(mdl,PST_EWALDKICK,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstEwaldKick,
+		  sizeof(struct inEwaldKick),0);
     mdlAddService(mdl,PST_SETSOFT,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstSetSoft,
 		  sizeof(struct inSetSoft),0);
@@ -1993,22 +1996,23 @@ void pstFindIOS(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     }
 
 typedef struct ctxIO {
-    PST pst;
-    int nStart;
+    PKD pkd;
+    int iIndex;
+    int iMinOrder, iMaxOrder;
 } * CTXIO;
 
 static int pstPackIO(void *vctx, int nSize, void *vBuff)
 {
     CTXIO ctx = vctx;
-    LCL *plcl = ctx->pst->plcl;
     PIO *io = (PIO *)vBuff;
     int nPack;
 
-    nPack = pkdPackIO(plcl->pkd, io, ctx->nStart, nSize/sizeof(PIO));
-    ctx->nStart += nPack;
+    nPack = pkdPackIO(ctx->pkd,
+		      io, nSize/sizeof(PIO),
+		      &ctx->iIndex,
+		      ctx->iMinOrder, ctx->iMaxOrder );
     return nPack * sizeof(PIO);
 }
-
 
 
 void pstStartIO(PST pst,void *vin,int nIn,void *vout,int *pnOut)
@@ -2016,7 +2020,7 @@ void pstStartIO(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     LCL *plcl = pst->plcl;
     struct inStartIO *in = vin;
     struct ctxIO ctx;
-    char achOutFile[PST_FILENAME_SIZE];
+    int i;
 
     mdlassert(pst->mdl,nIn == sizeof(struct inStartIO));
     if (pst->nLeaves > 1) {
@@ -2025,24 +2029,25 @@ void pstStartIO(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 	mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
 	}
     else {
+	int iCount = in->N/mdlIO(pst->mdl);
 
-	ctx.pst = pst;
-	ctx.nStart = 0;
+	/* Send to (optionally) each I/O processor */
 	mdlSetComm(pst->mdl,1);
-	mdlSend(pst->mdl,pst->ioIndex,pstPackIO,&ctx);
+	for( i=0; i<mdlIO(pst->mdl); i++ ) {
+	    /*
+	    ** Calculate iOrder range.  The last I/O node gets the remainder.
+	    */
+	    ctx.iIndex = 0;
+	    ctx.iMinOrder = i * iCount;
+	    ctx.iMaxOrder = (i+1) * iCount;
+	    if ( i+1 == mdlIO(pst->mdl) )
+		ctx.iMaxOrder = in->N;
+
+	    ctx.pkd = plcl->pkd;
+	    mdlSend(pst->mdl,i,pstPackIO,&ctx);
+	}
 	mdlSetComm(pst->mdl,0);
 
-	/*
-	** Add the local Data Path to the provided filename.
-	*/
-	achOutFile[0] = 0;
-	if (plcl->pszDataPath) {
-	    strcat(achOutFile,plcl->pszDataPath);
-	    strcat(achOutFile,"/");
-	    }
-	strcat(achOutFile,in->achOutFile);
-	/*	pkdWriteTipsy(plcl->pkd,achOutFile,plcl->nWriteStart,
-		in->bStandard,in->dvFac,in->duTFac,in->bDoublePos);*/
 	}
     if (pnOut) *pnOut = 0;
     }
@@ -2351,75 +2356,45 @@ void pstReSmooth(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     if (pnOut) *pnOut = 0;
     }
 
-void pstGravity(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
+void pstGravity(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
-    CASTAT cs;
     struct inGravity *in = vin;
     struct outGravity *out = vout;
-    struct outGravity outUp;
+    struct outGravity *outUp;
+    int nThreads = mdlThreads(pst->mdl);
+    int id;
    
     mdlassert(pst->mdl,nIn == sizeof(struct inGravity));
     if (pst->nLeaves > 1) {
-
 	mdlReqService(pst->mdl,pst->idUpper,PST_GRAVITY,in,nIn);
 	pstGravity(pst->pstLower,in,nIn,out,NULL);
-	mdlGetReply(pst->mdl,pst->idUpper,&outUp,NULL);
-
-	out->dPartSum += outUp.dPartSum;
-	out->dCellSum += outUp.dCellSum;
-	out->dFlop += outUp.dFlop;
-	out->nActive += outUp.nActive;
-	out->dWSum += outUp.dWSum;
-	out->dISum += outUp.dISum;
-	out->dESum += outUp.dESum;
-	if (outUp.dWMax > out->dWMax) out->dWMax = outUp.dWMax;
-	if (outUp.dIMax > out->dIMax) out->dIMax = outUp.dIMax;
-	if (outUp.dEMax > out->dEMax) out->dEMax = outUp.dEMax;
-	if (outUp.dWMin < out->dWMin) out->dWMin = outUp.dWMin;
-	if (outUp.dIMin < out->dIMin) out->dIMin = outUp.dIMin;
-	if (outUp.dEMin < out->dEMin) out->dEMin = outUp.dEMin;
 	/*
-	** Cache statistics sums.
+	** Allocate temporary array.
 	*/
-	out->dpASum += outUp.dpASum;
-	out->dpMSum += outUp.dpMSum;
-	out->dpCSum += outUp.dpCSum;
-	out->dpTSum += outUp.dpTSum;
-	out->dcASum += outUp.dcASum;
-	out->dcMSum += outUp.dcMSum;
-	out->dcCSum += outUp.dcCSum;
-	out->dcTSum += outUp.dcTSum;
+	outUp = malloc(nThreads*sizeof(struct outGravity));
+	assert(outUp != NULL);
+	mdlGetReply(pst->mdl,pst->idUpper,outUp,NULL);
+	/*
+	** Now merge valid elements of outUp to out.
+	*/
+	for (id=0;id<nThreads;++id) {
+	    if (outUp[id].dWalkTime >= 0) {
+		out[id] = outUp[id];
+	    }
+	}
+	free(outUp);
     }
     else {
-      pkdGravAll(plcl->pkd,in->dTime,in->nReps,in->bPeriodic,4,in->bEwald,
-		 in->iEwOrder,in->dEwCut,in->dEwhCut,&out->nActive,
-		 &out->dPartSum,&out->dCellSum,&cs,&out->dFlop);
-
-	out->dWSum = pkdGetWallClockTimer(plcl->pkd,1);
-	out->dISum = pkdGetWallClockTimer(plcl->pkd,2);
-	out->dESum = pkdGetWallClockTimer(plcl->pkd,3);
-	out->dWSum -= out->dISum + out->dESum;
-	out->dWMax = out->dWSum;
-	out->dIMax = out->dISum;
-	out->dEMax = out->dESum;
-	out->dWMin = out->dWSum;
-	out->dIMin = out->dISum;
-	out->dEMin = out->dESum;
-	/*
-	** Cache statistics
-	*/
-	out->dpASum = cs.dpNumAccess;
-	out->dpMSum = cs.dpMissRatio;
-	out->dpCSum = cs.dpCollRatio;
-	out->dpTSum = cs.dpMinRatio;
-	out->dcASum = cs.dcNumAccess;
-	out->dcMSum = cs.dcMissRatio;
-	out->dcCSum = cs.dcCollRatio;
-	out->dcTSum = cs.dcMinRatio;
-	}
-    if (pnOut) *pnOut = sizeof(struct outGravity);
+	for (id=0;id<nThreads;++id) out[id].dWalkTime = -1.0;  /* impossible, used as initialization */
+	id = pst->idSelf;
+	pkdGravAll(plcl->pkd,in->dTime,in->nReps,in->bPeriodic,4,in->bEwald,
+		   in->bEwaldKick,in->dEwCut,in->dEwhCut, &out[id].nActive,
+		   &out[id].dPartSum,&out[id].dCellSum,&out[id].cs,&out[id].dFlop);
+	
+	out[id].dWalkTime = pkdGetWallClockTimer(plcl->pkd,1);
     }
+    if (pnOut) *pnOut = nThreads*sizeof(struct outGravity);
+}
 
 
 void pstCalcEandL(PST pst,void *vin,int nIn,void *vout,int *pnOut)
@@ -2759,6 +2734,25 @@ void pstKick(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 	out->nSum = 1;
 	}
     if (pnOut) *pnOut = sizeof(struct outKick);
+    }
+
+
+void pstEwaldKick(PST pst,void *vin,int nIn,void *vout,int *pnOut)
+    {
+    LCL *plcl = pst->plcl;
+    struct inEwaldKick *in = vin;
+
+    mdlassert(pst->mdl,nIn == sizeof(struct inEwaldKick));
+
+    if (pst->nLeaves > 1) {
+	mdlReqService(pst->mdl,pst->idUpper,PST_EWALDKICK,in,nIn);
+	pstEwaldKick(pst->pstLower,in,nIn,NULL,NULL);
+	mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
+	}
+    else {
+	pkdEwaldKick(plcl->pkd,in->dvFacOne,in->dvFacTwo);
+	}
+    if (pnOut) *pnOut = 0;
     }
 
 

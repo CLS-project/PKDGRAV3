@@ -202,6 +202,9 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv)
     msr->param.bEwald = 1;
     prmAddParam(msr->prm,"bEwald",0,&msr->param.bEwald,sizeof(int),"ewald",
 		"enable/disable Ewald correction = +ewald");
+    msr->param.bEwaldKicking = 0;
+    prmAddParam(msr->prm,"bEwaldKicking",0,&msr->param.bEwaldKicking,sizeof(int),"ewaldkick",
+		"enable/disable Ewald correction kicking = -ewaldkick");
     msr->param.iEwOrder = 4;
     prmAddParam(msr->prm,"iEwOrder",1,&msr->param.iEwOrder,sizeof(int),"ewo",
 		"<Ewald multipole expansion order: 1, 2, 3 or 4> = 4");
@@ -304,6 +307,9 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv)
     strcpy(msr->param.achOutName,"pkdgrav");
     prmAddParam(msr->prm,"achOutName",3,msr->param.achOutName,256,"o",
 		"<output name for snapshots and logfile> = \"pkdgrav\"");
+    strcpy(msr->param.achOutPath,"");
+    prmAddParam(msr->prm,"achOutPath",3,msr->param.achOutPath,256,"op",
+		"<output path for snapshots and logfile> = \"\"");
     msr->param.csm->bComove = 0;
     prmAddParam(msr->prm,"bComove",0,&msr->param.csm->bComove,sizeof(int),
 		"cm", "enable/disable comoving coordinates = -cm");
@@ -334,6 +340,9 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv)
     msr->param.bStandard = 0;
     prmAddParam(msr->prm,"bStandard",0,&msr->param.bStandard,sizeof(int),"std",
 		"output in standard TIPSY binary format = -std");
+    msr->param.bHDF5 = 0;
+    prmAddParam(msr->prm,"bHDF5",0,&msr->param.bHDF5,sizeof(int),"hdf5",
+		"output in HDF5 format = -hdf5");
     msr->param.bDoublePos = 0;
     prmAddParam(msr->prm,"bDoublePos",0,&msr->param.bDoublePos,sizeof(int),"dp",
 		"input/output double precision positions (standard format only) = -dp");
@@ -734,6 +743,7 @@ void msrLogParams(MSR msr,FILE *fp)
 	fprintf(fp," bParaWrite: %d",msr->param.bParaWrite);
 	fprintf(fp," bCannonical: %d",msr->param.bCannonical);
 	fprintf(fp," bStandard: %d",msr->param.bStandard);
+	fprintf(fp," bHDF5: %d",msr->param.bHDF5);
 	fprintf(fp," nBucket: %d",msr->param.nBucket);
 	fprintf(fp," iOutInterval: %d",msr->param.iOutInterval);
 	fprintf(fp," iCheckInterval: %d",msr->param.iCheckInterval);
@@ -831,6 +841,7 @@ void msrLogParams(MSR msr,FILE *fp)
 	fprintf(fp," dOmegab: %g",msr->param.csm->dOmegab);
 	fprintf(fp,"\n# achInFile: %s",msr->param.achInFile);
 	fprintf(fp,"\n# achOutName: %s",msr->param.achOutName); 
+	fprintf(fp,"\n# achOutPath: %s",msr->param.achOutPath); 
 	fprintf(fp,"\n# achDataSubPath: %s",msr->param.achDataSubPath);
 	if (msr->param.csm->bComove) {
 	    fprintf(fp,"\n# RedOut:");
@@ -1270,41 +1281,34 @@ double msrReadTipsy(MSR msr)
 
 
 #ifdef USE_MDL_IO
-void msrIOWrite(MSR msr, const char *FileName, double dTime, int bCheckpoint)
+void msrIOWrite(MSR msr, const char *achOutName, double dTime, int bCheckpoint)
 {
-#ifdef IO_SPLIT
-    struct inFindIOS inFind;
+    //struct inFindIOS inFind;
     struct outFindIOS outFind;
     int nFind;
     int i;
-#endif
     struct inStartIO inStart;
     struct inStartSave save;
 
 
-#ifdef IO_SPLIT
-    printf( "Finding number of particles\n" );
+    //printf( "Finding number of particles\n" );
 
     /* Find the number of particles to expect for each I/O processor */
-    inFind.nLower = 0;
-    inFind.N = msr->N;
-    pstFindIOS( msr->pst, &inFind, sizeof(inFind), &outFind, &nFind );
+    //inFind.nLower = 0;
+    //inFind.N = msr->N;
+    //pstFindIOS( msr->pst, &inFind, sizeof(inFind), &outFind, &nFind );
 
-    if (msr->param.bVDetails) {
-	printf("Particle distribution on I/O nodes:\n");
-	for( i=0; i<mdlIO(msr->mdl); i++ ) {
-	    printf( "%4d: %d\n", i, outFind.nCount[i]);
-	}
-    }
-#endif
+//    if (msr->param.bVDetails) {
+//	printf("Particle distribution on I/O nodes:\n");
+//	for( i=0; i<mdlIO(msr->mdl); i++ ) {
+//	    printf( "%4d: %d\n", i, outFind.nCount[i]);
+//	}
+//    }
 
     /* Ask the I/O processors to start a save operation */
     save.dTime = dTime;
-#ifdef IO_SPLIT
-    for( i=0; i<MDL_MAX_IO_PROCS; i++ )
-	save.nCount[i] = outFind.nCount[i];
-#endif
-
+    save.N = msr->N;
+    strcpy(save.achOutName,achOutName); 
     mdlSetComm(msr->mdl,1);
     if ( msr->bSavePending )
 	mdlGetReply(msr->mdl,0,NULL,NULL);
@@ -1314,11 +1318,6 @@ void msrIOWrite(MSR msr, const char *FileName, double dTime, int bCheckpoint)
 
     /* Execute a save operation on the worker processors */
 
-#ifdef IO_SPLIT
-    for( i=0; i<MDL_MAX_IO_PROCS; i++ )
-	inStart.nCount[i] = outFind.nCount[i];
-#endif
-    
     if (msr->param.csm->bComove) {
 	inStart.dTime = csmTime2Exp(msr->param.csm,dTime);
 	if (msr->param.bCannonical) {
@@ -1334,6 +1333,10 @@ void msrIOWrite(MSR msr, const char *FileName, double dTime, int bCheckpoint)
 	}
     inStart.duTFac = 1.0;
     inStart.bDoublePos = msr->param.bDoublePos;
+    inStart.N = msr->N;
+    strcpy(inStart.achOutName,achOutName);
+
+    //_msrMakePath(plcl->pszDataPath,in->achOutFile,achOutFile);
 
 
     /*char achOutFile[PST_FILENAME_SIZE];*/
@@ -1475,10 +1478,19 @@ void msrOneNodeWriteTipsy(MSR msr, struct inWriteTipsy *in)
      */
 #ifdef USE_HDF5
     if ( in->bStandard == 2 ) {
+	printf( "Writing HDF5 format file to %s\n", achOutFile );
 	fileID=H5Fcreate(achOutFile, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+	if ( fileID < 0 ) {
+	    fprintf(stderr,"Unable to create %s\n", achOutFile);
+	    H5assert(fileID);
+	}
+	printf( " - I/O initialize\n" );
 	io = ioHDF5Initialize( fileID, 32768, 1 );
-	ioHDF5WriteAttribute( io, "dTime", H5T_NATIVE_DOUBLE, &in->dTime );
-	msrSaveParameters(msr,io);
+	//printf( " - write attributes\n" );
+	//ioHDF5WriteAttribute( io, "dTime", H5T_NATIVE_DOUBLE, &in->dTime );
+	//printf( " - save parameters\n" );
+	//msrSaveParameters(msr,io);
+	printf( " - Save processor 0\n" );
 	pkdWriteHDF5(plcl->pkd, io, in->dvFac,in->duTFac );
     }
     else
@@ -1503,6 +1515,7 @@ void msrOneNodeWriteTipsy(MSR msr, struct inWriteTipsy *in)
 	 */
 #ifdef USE_HDF5
 	if ( in->bStandard == 2 ) {
+	    printf( " - Save processor %d\n", i );
 	    pkdWriteHDF5(plcl->pkd, io, in->dvFac,in->duTFac);
 	}
 	else
@@ -1523,8 +1536,11 @@ void msrOneNodeWriteTipsy(MSR msr, struct inWriteTipsy *in)
 
 #ifdef USE_HDF5
 	if ( in->bStandard == 2 ) {
+	    printf( "Closing HDF5 format file\n" );
+
 	    ioHDF5Finish(io);
-	    H5Fclose(fileID);
+	    H5assert(H5Fflush(fileID,fileID));
+	    H5assert(H5Fclose(fileID));
 	}
 #endif
 
@@ -1601,7 +1617,7 @@ void _msrWriteTipsy(MSR msr,char *pszFileName,double dTime,int bCheckpoint)
 	}
 
 #ifdef USE_HDF5
-    if ( !prmSpecified(msr->prm,"bStandard") ) {
+    if ( msr->param.bHDF5 ) {
 	in.bStandard = 2;
 	msrOneNodeWriteTipsy(msr, &in);
     }
@@ -2165,91 +2181,100 @@ void msrUpdateSoft(MSR msr,double dTime) {
 #endif
     }
 
+#define PRINTGRID(FRM,VAR) {\
+    printf("      % 8d % 8d % 8d % 8d % 8d % 8d % 8d % 8d % 8d % 8d\n",0,1,2,3,4,5,6,7,8,9);\
+    for (i=0;i<msr->nThreads/10;++i) {\
+	printf("%4d: "FRM" "FRM" "FRM" "FRM" "FRM" "FRM" "FRM" "FRM" "FRM" "FRM"\n",i*10,\
+	       out[i*10+0].VAR,out[i*10+1].VAR,out[i*10+2].VAR,out[i*10+3].VAR,out[i*10+4].VAR,\
+	       out[i*10+5].VAR,out[i*10+6].VAR,out[i*10+7].VAR,out[i*10+8].VAR,out[i*10+9].VAR);\
+	}\
+    switch (msr->nThreads%10) {\
+    case 0: break;\
+    case 1: printf("%4d: "FRM"\n",i*10,\
+		   out[i*10+0].VAR); break;\
+    case 2: printf("%4d: "FRM" "FRM"\n",i*10,\
+		   out[i*10+0].VAR,out[i*10+1].VAR); break;\
+    case 3: printf("%4d: "FRM" "FRM" "FRM"\n",i*10,\
+		   out[i*10+0].VAR,out[i*10+1].VAR,out[i*10+2].VAR); break;\
+    case 4: printf("%4d: "FRM" "FRM" "FRM" "FRM"\n",i*10,\
+		   out[i*10+0].VAR,out[i*10+1].VAR,out[i*10+2].VAR,out[i*10+3].VAR); break;\
+    case 5: printf("%4d: "FRM" "FRM" "FRM" "FRM" "FRM"\n",i*10,\
+		   out[i*10+0].VAR,out[i*10+1].VAR,out[i*10+2].VAR,out[i*10+3].VAR,out[i*10+4].VAR); break;\
+    case 6: printf("%4d: "FRM" "FRM" "FRM" "FRM" "FRM" "FRM"\n",i*10,\
+		   out[i*10+0].VAR,out[i*10+1].VAR,out[i*10+2].VAR,out[i*10+3].VAR,out[i*10+4].VAR,\
+		   out[i*10+5].VAR); break;\
+    case 7: printf("%4d: "FRM" "FRM" "FRM" "FRM" "FRM" "FRM" "FRM"\n",i*10,\
+		   out[i*10+0].VAR,out[i*10+1].VAR,out[i*10+2].VAR,out[i*10+3].VAR,out[i*10+4].VAR,\
+		   out[i*10+5].VAR,out[i*10+6]); break;\
+    case 8: printf("%4d: "FRM" "FRM" "FRM" "FRM" "FRM" "FRM" "FRM" "FRM"\n",i*10,\
+		   out[i*10+0].VAR,out[i*10+1].VAR,out[i*10+2].VAR,out[i*10+3].VAR,out[i*10+4].VAR,\
+		   out[i*10+5].VAR,out[i*10+6].VAR,out[i*10+7].VAR); break;\
+    case 9: printf("%4d: "FRM" "FRM" "FRM" "FRM" "FRM" "FRM" "FRM" "FRM" "FRM"\n",i*10,\
+		   out[i*10+0].VAR,out[i*10+1].VAR,out[i*10+2].VAR,out[i*10+3].VAR,out[i*10+4].VAR,\
+		   out[i*10+5].VAR,out[i*10+6].VAR,out[i*10+7].VAR,out[i*10+8].VAR); break;\
+    }\
+}
 
-void msrGravity(MSR msr,double dTime,double dStep,int *piSec,double *pdWMax,double *pdIMax,
-		double *pdEMax,int *pnActive)
-    {
+void msrGravity(MSR msr,double dTime,double dStep,int bEwald,int bEwaldKick,
+		int *piSec,double *pdWMax,double *pdIMax,
+		double *pdEMax,int *pnActive) {
     struct inGravity in;
-    struct outGravity out;
-    int iDum;
-    double sec,dsec;
+    struct outGravity *out;
+    int i,id,iDum;
+    double sec,dsec,dTotFlop;
 
     if (msr->param.bVStep) printf("Calculating Gravity, Step:%f\n",dStep);
     in.dTime = dTime;
     in.nReps = msr->param.nReplicas;
     in.bPeriodic = msr->param.bPeriodic;
-    in.bEwald = msr->param.bEwald;
-    in.iEwOrder = msr->param.iEwOrder;
+    in.bEwald = bEwald;
+    in.bEwaldKick = bEwaldKick;
     in.dEwCut = msr->param.dEwCut;
     in.dEwhCut = msr->param.dEwhCut;
+
+    out = malloc(msr->nThreads*sizeof(struct outGravity));
+    assert(out != NULL);
+    
     sec = msrTime();
-    pstGravity(msr->pst,&in,sizeof(in),&out,&iDum);
+    pstGravity(msr->pst,&in,sizeof(in),out,&iDum);
     dsec = msrTime() - sec;
 
     *piSec = dsec;
-    *pnActive = out.nActive;
-    *pdWMax = out.dWMax;
-    *pdIMax = out.dIMax;
-    *pdEMax = out.dEMax;
     if (msr->param.bVStep) {
-	double dPartAvg,dCellAvg;
-	double dWAvg,dWMax,dWMin;
-	double dIAvg,dIMax,dIMin;
-	double dEAvg,dEMax,dEMin;
-	double iP;
-
 	/*
 	** Output some info...
 	*/
-	if(dsec > 0.0) {
-	    double dMFlops = out.dFlop/dsec*1e-6;
-	    printf("Gravity Calculated, Wallclock: %f secs, MFlops:%.1f, Flop:%.3g\n",
-		   dsec,dMFlops,out.dFlop);
-	    }
-	else {
-	    printf("Gravity Calculated, Wallclock: %f secs, MFlops:unknown, Flop:%.3g\n",
-		   dsec,out.dFlop);
-	    }
-	if (out.nActive > 0) {
-	    dPartAvg = out.dPartSum/out.nActive;
-	    dCellAvg = out.dCellSum/out.nActive;
-	    }
-	else {
-	    dPartAvg = dCellAvg = 0;
-	    if (msr->param.bVWarnings)
-		printf("WARNING: no particles found!\n");
-
-	    }
-	iP = 1.0/msr->nThreads;
-	dWAvg = out.dWSum*iP;
-	dIAvg = out.dISum*iP;
-	dEAvg = out.dESum*iP;
-	dWMax = out.dWMax;
-	dIMax = out.dIMax;
-	dEMax = out.dEMax;
-	dWMin = out.dWMin;
-	dIMin = out.dIMin;
-	dEMin = out.dEMin;
-	printf("dPartAvg:%f dCellAvg:%f\n",
-	       dPartAvg,dCellAvg);
-	printf("Walk CPU     Avg:%10f Max:%10f Min:%10f\n",dWAvg,dWMax,dWMin);
-	printf("Interact CPU Avg:%10f Max:%10f Min:%10f\n",dIAvg,dIMax,dIMin);
-	if (msr->param.bEwald) printf("Ewald CPU    Avg:%10f Max:%10f Min:%10f\n",dEAvg,dEMax,dEMin);
-	if (msr->nThreads > 1) {
-	    printf("Particle Cache Statistics (average per processor):\n");
-	    printf("    Accesses:    %10g\n",out.dpASum*iP);
-	    printf("    Miss Ratio:  %10g\n",out.dpMSum*iP);
-	    printf("    Min Ratio:   %10g\n",out.dpTSum*iP);
-	    printf("    Coll Ratio:  %10g\n",out.dpCSum*iP);
-	    printf("Cell Cache Statistics (average per processor):\n");
-	    printf("    Accesses:    %10g\n",out.dcASum*iP);
-	    printf("    Miss Ratio:  %10g\n",out.dcMSum*iP);
-	    printf("    Min Ratio:   %10g\n",out.dcTSum*iP);
-	    printf("    Coll Ratio:  %10g\n",out.dcCSum*iP);
-	    printf("\n");
+	dTotFlop = 0.0;
+	for (id=0;id<msr->nThreads;++id) {
+	    dTotFlop += out[id].dFlop;
+	    if (out[id].nActive > 0) {
+		out[id].dPartSum /= out[id].nActive;
+		out[id].dCellSum /= out[id].nActive;
 	    }
 	}
+
+	if(dsec > 0.0) {
+	    double dGFlops = dTotFlop/dsec*1e-9;
+	    printf("Gravity Calculated, Wallclock: %f secs, GFlops:%.1f, Flop:%.3g\n",
+		   dsec,dGFlops,dTotFlop);
+	}
+	else {
+	    printf("Gravity Calculated, Wallclock: %f secs, GFlops:unknown, Flop:%.3g\n",
+		   dsec,dTotFlop);
+	}
+	/*
+	** Now comes the really verbose output for each processor.
+	*/
+	printf("Walk Timings:\n");
+	PRINTGRID("% 8.2f",dWalkTime);
+	printf("Number of Active:\n");
+	PRINTGRID("% 8d",nActive);
+	printf("Average Number of P-P per Active Particle:\n");
+	PRINTGRID("% 8.1f",dPartSum);
+	printf("Average Number of P-C per Active Particle:\n");
+	PRINTGRID("% 8.1f",dCellSum);
     }
+}
 
 
 void msrCalcEandL(MSR msr,int bFirst,double dTime,double *E,double *T,
@@ -2400,6 +2425,31 @@ void msrKickKDKClose(MSR msr,double dTime,double dDelta)
     }
 
 
+void msrEwaldKick(MSR msr,double dTime,double dDelta)
+    {
+    double H,a;
+    struct inEwaldKick in;
+	
+    if (msr->param.bCannonical) {
+	in.dvFacOne = 1.0;		/* no hubble drag, man! */
+	in.dvFacTwo = csmComoveKickFac(msr->param.csm,dTime,dDelta);
+	}
+    else {
+	/*
+	** Careful! For non-cannonical we want H and a at the 
+	** HALF-STEP! This is a bit messy but has to be special
+	** cased in some way.
+	*/
+	dTime += dDelta/2.0;
+	a = csmTime2Exp(msr->param.csm,dTime);
+	H = csmTime2Hub(msr->param.csm,dTime);
+	in.dvFacOne = (1.0 - H*dDelta)/(1.0 + H*dDelta);
+	in.dvFacTwo = dDelta/pow(a,3.0)/(1.0 + H*dDelta);
+	}
+    pstEwaldKick(msr->pst,&in,sizeof(in),NULL,NULL);
+    }
+
+
 int msrOutTime(MSR msr,double dTime)
     {	
     if (msr->iOut < msr->nOuts) {
@@ -2504,12 +2554,43 @@ int msrSteps(MSR msr)
     return(msr->param.nSteps);
     }
 
-
 char *msrOutName(MSR msr)
     {
     return(msr->param.achOutName);
     }
 
+
+char *msrBuildName(MSR msr,char *achFile,int iStep)
+{
+    char achOutPath[256], *p;
+    int n;
+
+    if ( msr->param.achOutPath[0] ) {
+	strcpy( achOutPath, msr->param.achOutPath );
+	p = strstr( achOutPath, "&N" );
+	if ( p ) {
+	    n = p - achOutPath;
+	    strcpy( p, msrOutName(msr) );
+	    strcat( p+2, msr->param.achOutPath + n + 2 );
+	}
+    }
+    else {
+	strcpy(achOutPath,msrOutName(msr));
+    }
+
+    p = strstr( achOutPath, "&S" );
+    if ( p ) {
+	n = p - achOutPath;
+	strncpy( achFile, achOutPath, n );
+	achFile += n;
+	sprintf( achFile, "%05d", iStep );
+	strcat( achFile, p+2 );
+    }
+    else {
+	sprintf(achFile,msr->param.achDigitMask,msrOutName(msr),iStep);
+    }
+    return achFile;
+}
 
 double msrDelta(MSR msr)
     {
@@ -2636,7 +2717,6 @@ void msrActiveRung(MSR msr, int iRung, int bGreater) {
 	int i;
 
 	assert( msr->nRung != NULL );
-	assert( msr->nRung[0] != 0 );
 
 	msr->nActive = 0;
 	for( i=iRung; i<= (bGreater?msr->param.iMaxRung:iRung); i++ )
@@ -2821,6 +2901,8 @@ void msrTopStepKDK(MSR msr,
     double dMass = -1.0;
     int nActive;
     int bSplitVA;
+    int bEwald;
+    int bEwaldKick;
 
     if(iAdjust && (iRung < msrMaxRung(msr)-1)) {
 	if (msr->param.bVDetails) {
@@ -2881,7 +2963,27 @@ void msrTopStepKDK(MSR msr,
 		printf("%*cGravity, iRung: %d to %d\n",2*iRung+2,' ',iKickRung,iRung);
 		}
 	    msrBuildTree(msr,dMass,dTime);
-	    msrGravity(msr,dTime,dStep,piSec,pdWMax,pdIMax,pdEMax,&nActive);
+	    /*
+	    ** The following code decides how the periodic BCs should be handled.
+	    ** If bEwaldKicking is set then the code does an efficient strategy to 
+	    ** incorporate periodic boundaries for volume renormalized runs.
+	    */
+	    if (msr->param.bEwaldKicking) {
+		if (iKickRung == 0) {
+		    bEwaldKick = 1;
+		    bEwald = 1;
+		}
+		else {
+		    bEwaldKick = 0;
+		    bEwald = 0;
+		}
+	    }
+	    else {
+		bEwaldKick = 0;
+		bEwald = msr->param.bEwald;
+	    }
+
+	    msrGravity(msr,dTime,dStep,bEwald,bEwaldKick,piSec,pdWMax,pdIMax,pdEMax,&nActive);
 	    *pdActiveSum += (double)nActive/msr->N;
 	    }
 
@@ -2970,7 +3072,27 @@ void msrTopStepKDK(MSR msr,
 		       2*iRung+2,' ',iKickRung,msrCurrMaxRung(msr));
 		}
 	    msrBuildTree(msr,dMass,dTime);
-	    msrGravity(msr,dTime,dStep,piSec,pdWMax,pdIMax,pdEMax,&nActive);
+	    /*
+	    ** The following code decides how the periodic BCs should be handled.
+	    ** If bEwaldKicking is set then the code does an efficient strategy to 
+	    ** incorporate periodic boundaries for volume renormalized runs.
+	    */
+	    if (msr->param.bEwaldKicking) {
+		if (iKickRung == 0) {
+		    bEwaldKick = 1;
+		    bEwald = 1;
+		}
+		else {
+		    bEwaldKick = 0;
+		    bEwald = 0;
+		}
+	    }
+	    else {
+		bEwaldKick = 0;
+		bEwald = msr->param.bEwald;
+	    }
+
+	    msrGravity(msr,dTime,dStep,bEwald,bEwaldKick,piSec,pdWMax,pdIMax,pdEMax,&nActive);
 	    *pdActiveSum += (double)nActive/msr->N;
 	    }
 
@@ -3143,7 +3265,7 @@ void msrTopStepHermite(MSR msr,
 		    printf("%*cGravity, iRung: %d to %d\n",2*iRung+2,' ',iKickRung,iRung);
 		  }
 		  msrBuildTree(msr,dMass,dTime);
-		  msrGravity(msr,dTime,dStep,piSec,pdWMax,pdIMax,pdEMax,&nActive);
+		  msrGravity(msr,dTime,dStep,0,0,piSec,pdWMax,pdIMax,pdEMax,&nActive);
 		  *pdActiveSum += (double)nActive/msr->N;
 		}
 #ifdef PLANETS
@@ -3271,7 +3393,7 @@ else {
 		       2*iRung+2,' ',iKickRung,msrCurrMaxRung(msr));
 		}
 	    msrBuildTree(msr,dMass,dTime);
-	    msrGravity(msr,dTime,dStep,piSec,pdWMax,pdIMax,pdEMax,&nActive);
+	    msrGravity(msr,dTime,dStep,0,0,piSec,pdWMax,pdIMax,pdEMax,&nActive);
 	    *pdActiveSum += (double)nActive/msr->N;
 	    }
 #ifdef PLANETS

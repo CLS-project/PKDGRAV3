@@ -40,6 +40,16 @@ AC_ARG_ENABLE(hdf5,
   [USE_HDF5=yes
    AC_DEFINE([USE_HDF5], 1,
  	[Define if HDF5 I/O should be available.])])
+AC_ARG_WITH(hdf5,
+  [  --with-hdf5=PATH               path to HDF5 installation],
+  [CFLAGS="$CFLAGS -I${withval}/include"
+   LDFLAGS="$LDFLAGS -L${withval}/lib"
+   if test -n "${need_dash_r}"; then
+	LDFLAGS="$LDFLAGS -R${withval}/lib"
+   fi
+   USE_HDF5=yes
+   AC_DEFINE([USE_HDF5], 1,
+ 	[Define if HDF5 I/O should be available.])])
 
 AC_CHECK_FILE([../mdl2],
 	AC_SUBST([MDL_PATH],../mdl2),
@@ -67,13 +77,13 @@ AC_ARG_ENABLE(simd,
 AM_CONDITIONAL(USE_SIMD, test "x$USE_SIMD" = "xyes")
 
 AC_ARG_ENABLE(simd-locr,
-  [  --disable-simd-locr            disable LOCR SIMD optimizations],
+  [  --enable-simd-locr            enable LOCR SIMD optimizations (experimental)],
   [if test "x$enableval" = "xyes" ; then
      USE_SIMD_LOCR="yes"
    elif test "x$enableval" = "xno" ; then
      USE_SIMD_LOCR="no"
    else
-     USE_SIMD_LOCR="$USE_SIMD"
+     USE_SIMD_LOCR="no"
    fi])
 if test "x$USE_SIMD_LOCR" != "xno" -a "x$USE_SIMD" = "xyes" -a "x$LOCAL_EXPANSIO" = "xyes" ; then
   AC_DEFINE([USE_SIMD_LOCR],1, 
@@ -232,7 +242,12 @@ AM_CONDITIONAL(HAVE_MPI,test "x$HAVE_MPI" = "xyes")
 
 # Checks for libraries.
 if test "x$USE_HDF5" = "xyes" ; then
-  AC_CHECK_LIB([hdf5], [H5open])
+	save_CC="$CC"
+	 CC=mpicc
+	 AC_CHECK_LIB([z], [inflate])
+	 AC_CHECK_LIB([gpfs], [gpfs_fcntl])
+	 AC_CHECK_LIB([hdf5], [H5open])
+	CC="$save_CC"
 fi
 AC_CHECK_LIB([m], [fabs])
 # FIXME: Replace `main' with a function in `-lrt':

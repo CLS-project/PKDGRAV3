@@ -14,6 +14,10 @@ mpi:
 	$(MAKE) CC=mpicc $(AM_MAKEFLAGS) pkdgrav2m_mpi
 endif
 
+if USE_HDF5
+EXTRA_PROGRAMS += tip2hdf5
+endif
+
 null	: pkdgrav2m_null
 
 all-local: $(TARGETS)
@@ -65,5 +69,9 @@ if HAVE_PTHREAD
 pkdgrav2m_pthread_SOURCES = $(SOURCES) $(MDL)/pthread/mdl.c
 pkdgrav2m_pthread_CFLAGS = -I$(MDL)/pthread/ $(AM_CFLAGS)
 pkdgrav2m_pthread_LDADD = -lpthread
+endif
+
+if USE_HDF5
+tip2hdf5_SOURCES = tip2hdf5.c iohdf5.c
 endif
 

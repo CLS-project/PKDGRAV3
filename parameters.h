@@ -35,6 +35,7 @@ struct parameters {
     int bParaWrite;
     int bCannonical;
     int bStandard;
+    int bHDF5;
     int bDoublePos;
     int bGravStep;
     int bEpsAccStep;
@@ -59,6 +60,7 @@ struct parameters {
     int iLogInterval;
     int iOrder;
     int bEwald;
+    int bEwaldKicking;
     int iEwOrder;
     int nReplicas;
     int iStartStep;
@@ -95,6 +97,7 @@ struct parameters {
     char achDigitMask[256];
     char achInFile[256];
     char achOutName[256];
+    char achOutPath[256];
     char achDataSubPath[256];
     char achOutTypes[256];
     char achCheckTypes[256];

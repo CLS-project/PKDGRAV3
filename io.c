@@ -39,12 +39,14 @@ static void ioSave(IO io, const char *filename, double dTime, int bSingle)
     iohdf5 = ioHDF5Initialize( fileID, CHUNKSIZE, bSingle );
 
     for( i=0; i<io->N; i++ ) {
-	ioHDF5AddDark(iohdf5, i/*FIXME:*/,
+	ioHDF5AddDark(iohdf5, io->iMinOrder+i,
 		   io->r[i].v, io->v[i].v,
-		   io->m[i], 0.0, 0.0 );
+		   io->m[i], io->s[i], 0.0 );
     }
     ioHDF5Finish(iohdf5);
-    H5Fclose(fileID);
+
+    H5assert(H5Fflush(fileID,fileID));
+    H5assert(H5Fclose(fileID));
 }
 
 void ioInitialize(IO *pio,MDL mdl)
@@ -58,6 +60,7 @@ void ioInitialize(IO *pio,MDL mdl)
     io->r = NULL;
     io->v = NULL;
     io->m = NULL;
+    io->s = NULL;
 
     *pio = io;
 }
@@ -81,22 +84,25 @@ void ioStartSave(IO io,void *vin,int nIn,void *vout,int *pnOut)
     int id;
     struct inStartSave *save = vin;
     struct inStartRecv recv;
+    int iCount;
 
     mdlassert(io->mdl,sizeof(struct inStartSave)==nIn);
     mdlassert(io->mdl,mdlSelf(io->mdl)==0);
 
     mdlSetComm(io->mdl,0); /* Talk to our peers */
     recv.dTime = save->dTime;
+    iCount = save->N / mdlIO(io->mdl);
     for( id=1; id<mdlIO(io->mdl); id++ ) {
-#ifdef IO_SPLIT
-	recv.nCount = save->nCount[id];
-#endif
+	recv.iIndex = iCount * id;
+	recv.nCount = iCount;
+	if ( id+1 == mdlIO(io->mdl) )
+	    recv.nCount = save->N - id*iCount;
+	strcpy(recv.achOutName,save->achOutName);
 	mdlReqService(io->mdl,id,IO_START_RECV,&recv,sizeof(recv));
     }
 
-#ifdef IO_SPLIT
-    recv.nCount = save->nCount[0];
-#endif
+    recv.iIndex = 0;
+    recv.nCount = iCount;
     ioStartRecv(io,&recv,sizeof(recv),NULL,0);
 
     for( id=1; id<mdlIO(io->mdl); id++ ) {
@@ -117,11 +123,18 @@ static int ioUnpackIO(void *vctx, int nSize, void *vBuff)
     mdlassert(io->mdl,nIO<=io->nExpected);
 
     for( i=0; i<nIO; i++ ) {
+	int iOrder = pio[i].iOrder;
+	int j = iOrder - io->iMinOrder;
+
+	mdlassert(io->mdl,iOrder>=io->iMinOrder);
+	mdlassert(io->mdl,iOrder<io->iMaxOrder);
+
 	for( d=0; d<3; d++ ) {
-	    io->r[io->nReceived].v[d] = pio[i].r[d];
-	    io->v[io->nReceived].v[d] = pio[i].v[d];
+	    io->r[j].v[d] = pio[i].r[d];
+	    io->v[j].v[d] = pio[i].v[d];
 	}
-	io->m[io->nReceived] = pio[i].fMass;
+	io->m[j] = pio[i].fMass;
+	io->s[j] = pio[i].fSoft;
 	io->nReceived++;
     }
 
@@ -129,20 +142,38 @@ static int ioUnpackIO(void *vctx, int nSize, void *vBuff)
     return io->nExpected;
 }
 
+const char *subInt( char *achName, char c, int n, int i )
+{
+    char *p1, *p2;
+
+    p1 = strchr(achName,c);
+    if ( p1 == NULL ) return;
+
+    p2 = p1 + 1;
+    if ( isdigit(p1 + 1) ) {
+	while( !isdigit(*p2) ) p2++;
+	if ( *p2 == c ) n = atoi(p1);
+    }
+
+
+}
+
+
 /*
 **  Here we actually wait for the data from the Work nodes
 */
 void ioStartRecv(IO io,void *vin,int nIn,void *vout,int *pnOut)
 {
     struct inStartRecv *recv = vin;
-    char testFilename[200];
+    char achOutName[256], *p;
 
     mdlassert(io->mdl,sizeof(struct inStartRecv)==nIn);
-    io->nExpected = 0; /*JDP:FIXFIXrecv->nCount;*/
+    io->nExpected = recv->nCount;
     io->nReceived = 0;
 
     if ( io->nExpected > io->N ) {
 	if ( io->N ) {
+	    free(io->s);
 	    free(io->m);
 	    free(io->v);
 	    free(io->r);
@@ -151,13 +182,26 @@ void ioStartRecv(IO io,void *vin,int nIn,void *vout,int *pnOut)
 	io->r = malloc(io->N*sizeof(ioV3));
 	io->v = malloc(io->N*sizeof(ioV3));
 	io->m = malloc(io->N*sizeof(FLOAT));
+	io->s = malloc(io->N*sizeof(FLOAT));
     }
+
+    io->iMinOrder = recv->iIndex;
+    io->iMaxOrder = recv->iIndex + recv->nCount;
 
     mdlSetComm(io->mdl,1); /* Talk to the work process */
     mdlRecv(io->mdl,-1,ioUnpackIO,io);
     mdlSetComm(io->mdl,0);
 
-
-    sprintf(testFilename, "testout.%02d.%05d.h5", mdlSelf(io->mdl), 12 );
-    ioSave(io, testFilename, recv->dTime, 1 );
+    strcpy( achOutName, recv->achOutName );
+    p = strstr( achOutName, "&I" );
+    if ( p ) {
+	int n = p - achOutName;
+	sprintf( p, "%03d", mdlSelf(io->mdl) );
+	strcat( p, recv->achOutName + n + 2 );
+    }
+    else {
+	p = achOutName + strlen(achOutName);
+	sprintf(p,".%03d", mdlSelf(io->mdl));
+    }
+    ioSave(io, achOutName, recv->dTime, 1 );
 }

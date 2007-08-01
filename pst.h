@@ -104,6 +104,7 @@ enum pst_service {
     PST_SUNCORRECTOR,
     PST_PREDICTORINACTIVE,
     PST_KICK,
+    PST_EWALDKICK,
     PST_SETSOFT,
     PST_PHYSICALSOFT,
     PST_PREVARIABLESOFT,
@@ -345,14 +346,12 @@ void pstFindIOS(PST,void *,int,void *,int *);
 
 /* PST_STARTIO */
 struct inStartIO {
-#ifdef IO_SPLIT
-    int nCount[MDL_MAX_IO_PROCS];
-#endif
+    uint64_t N;
     double dvFac;
     double duTFac;
     double dTime;
     int bDoublePos;
-    char achOutFile[PST_FILENAME_SIZE];
+    char achOutName[PST_FILENAME_SIZE];
     };
 void pstStartIO(PST,void *,int,void *,int *);
 #endif
@@ -413,40 +412,23 @@ struct inGravity {
     int nReps;
     int bPeriodic;
     int bEwald;
-    int iEwOrder;
+    int bEwaldKick;
     double dEwCut;
     double dEwhCut;
     };
 struct outGravity {
     int nActive;
-    int nTreeActive;
-    double aSun[3];
     double dPartSum;
     double dCellSum;
     double dFlop;
     /*	
-    ** Collected CPU time stats.
+    ** Collected CPU time.
     */
-    double dWSum;
-    double dWMax;
-    double dWMin;
-    double dISum;
-    double dIMax;
-    double dIMin;
-    double dESum;
-    double dEMax;
-    double dEMin;
+    double dWalkTime;
     /*
     ** Cache Statistics.
     */
-    double dpASum;
-    double dpMSum;
-    double dpCSum;
-    double dpTSum;
-    double dcASum;
-    double dcMSum;
-    double dcCSum;
-    double dcTSum;
+    CASTAT cs;
     };
 void pstGravity(PST,void *,int,void *,int *);
 
@@ -599,6 +581,14 @@ struct outKick {
     };
 
 void pstKick(PST,void *,int,void *,int *);
+
+/* PST_EWALDKICK */
+struct inEwaldKick {
+    double dvFacOne;
+    double dvFacTwo;
+    };
+
+void pstEwaldKick(PST,void *,int,void *,int *);
 
 /* PST_SETSOFT */
 struct inSetSoft {

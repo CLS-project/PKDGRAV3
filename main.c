@@ -75,7 +75,7 @@ int main(int argc,char **argv) {
     long lSec=0,lStart;
     int i,iStep,iSec=0,iStop=0,nActive;
     int bGasOnly,bSymmetric;
-    char achBaseMask[256];
+    //char achBaseMask[256];
     int nFOFsDone;
 #ifdef TINY_PTHREAD_STACK
     static int first = 1;
@@ -120,7 +120,7 @@ int main(int argc,char **argv) {
 
     msrInitialize(&msr,mdl,argc,argv);
 
-    (void) strncpy(achBaseMask,msr->param.achDigitMask,256);
+    //(void) strncpy(achBaseMask,msr->param.achDigitMask,256);
 
     /*
     ** Establish safety lock.
@@ -180,9 +180,9 @@ int main(int argc,char **argv) {
 	msrUpdateSoft(msr,dTime);
 	msrBuildTree(msr,dMass,dTime);
 	if (msrDoGravity(msr)) {
-	  msrGravity(msr,dTime,msr->param.iStartStep,&iSec,&dWMax,&dIMax,&dEMax,&nActive);
+	  msrGravity(msr,dTime,msr->param.iStartStep,msr->param.bEwald,msr->param.bEwaldKicking,&iSec,&dWMax,&dIMax,&dEMax,&nActive);
 	  if (msr->param.bGravStep && msr->param.iTimeStepCrit == -1) {
-	    msrGravity(msr,dTime,msr->param.iStartStep,&iSec,&dWMax,&dIMax,&dEMax,&nActive);
+	    msrGravity(msr,dTime,msr->param.iStartStep,msr->param.bEwald,msr->param.bEwaldKicking,&iSec,&dWMax,&dIMax,&dEMax,&nActive);
 	  }
 	    msrCalcEandL(msr,MSR_INIT_E,dTime,&E,&T,&U,&Eth,L);
 	    dMultiEff = 1.0;
@@ -238,10 +238,12 @@ int main(int argc,char **argv) {
 #endif
 
 	    {
-	    msrTopStepKDK(msr,iStep-1,dTime,
+		if (msr->param.bEwaldKicking) msrEwaldKick(msr,dTime,0.5*msrDelta(msr));
+		msrTopStepKDK(msr,iStep-1,dTime,
 			  msrDelta(msr),0,0,msrMaxRung(msr),1,
 			  &dMultiEff,&dWMax,&dIMax,
 			  &dEMax,&iSec);
+		if (msr->param.bEwaldKicking) msrEwaldKick(msr,dTime+0.5*msrDelta(msr),0.5*msrDelta(msr));
 	      }
 	    
 	    dTime += msrDelta(msr);
@@ -278,8 +280,14 @@ int main(int argc,char **argv) {
 	    if (msrOutTime(msr,dTime) || iStep == msrSteps(msr) || iStop ||
 		(msrOutInterval(msr) > 0 && iStep%msrOutInterval(msr) == 0) ||
 		(msrCheckInterval(msr) > 0 && iStep%msrCheckInterval(msr) == 0)) {
-		msrReorder(msr);
-		sprintf(achFile,msr->param.achDigitMask,msrOutName(msr),iStep);
+#ifdef USE_MDL_IO
+		if ( !mdlIO(msr->mdl) )
+#endif
+		{
+		    msrReorder(msr);
+		}
+		msrBuildName(msr,achFile,iStep);
+		//sprintf(achFile,msr->param.achDigitMask,msrOutName(msr),iStep);
 #ifdef PLANETS 
 #ifdef SYMBA 	
 		msrDriftSun(msr,dTime+0.5*msrDelta(msr),-0.5*msrDelta(msr)); 
@@ -319,18 +327,22 @@ int main(int argc,char **argv) {
 		    msrGroupMerge(msr);
 		    if(msr->param.nBins > 0) msrGroupProfiles(msr,nFOFsDone,SMX_FOF,0,TYPE_ALL);
 		    msrReorder(msr);
-		    sprintf(achFile,achBaseMask,msrOutName(msr),iStep);
+		    msrBuildName(msr,achFile,iStep);
+		    //sprintf(achFile,achBaseMask,msrOutName(msr),iStep);
 		    for(i=0;i<=nFOFsDone;++i)strncat(achFile,".fof",256);
 		    msrOutArray(msr,achFile,OUT_GROUP_ARRAY);
-		    sprintf(achFile,achBaseMask,msrOutName(msr),iStep);
+		    msrBuildName(msr,achFile,iStep);
+		    //sprintf(achFile,achBaseMask,msrOutName(msr),iStep);
 		    for(i=0;i<=nFOFsDone;++i)strncat(achFile,".stats",256);
 		    msrOutGroups(msr,achFile,OUT_GROUP_STATS,dTime);
 		    if( msr->nBins > 0){
-			sprintf(achFile,achBaseMask,msrOutName(msr),iStep);
+			msrBuildName(msr,achFile,iStep);
+			//sprintf(achFile,achBaseMask,msrOutName(msr),iStep);
 			for(i=0;i<=nFOFsDone;++i)strncat(achFile,".pros",256);
 			msrOutGroups(msr,achFile,OUT_GROUP_PROFILES,dTime);
 			}
-		    sprintf(achFile,achBaseMask,msrOutName(msr),iStep);
+		    msrBuildName(msr,achFile,iStep);
+		    //sprintf(achFile,achBaseMask,msrOutName(msr),iStep);
 		    for(i=0;i<=nFOFsDone;++i)strncat(achFile,".grps",256);
 		    if(	msr->param.bStandard) msrOutGroups(msr,achFile,OUT_GROUP_TIPSY_STD,dTime);
 		    else msrOutGroups(msr,achFile,OUT_GROUP_TIPSY_NAT,dTime);			  
@@ -340,32 +352,37 @@ int main(int argc,char **argv) {
 #ifdef RELAXATION	
 		if ( msr->param.bTraceRelaxation) {
 		    msrReorder(msr);
-		    sprintf(achFile,achBaseMask,msrOutName(msr),iStep);
+		    msrBuildName(msr,achFile,iStep);
+		    //sprintf(achFile,achBaseMask,msrOutName(msr),iStep);
 		    strncat(achFile,".relax",256);
 		    msrOutArray(msr,achFile,OUT_RELAX_ARRAY);
 		    }	
 #endif 
 		if (msrDoDensity(msr)) {
 		    msrReorder(msr);
-		    sprintf(achFile,achBaseMask,msrOutName(msr),iStep);
+		    msrBuildName(msr,achFile,iStep);
+		    //sprintf(achFile,achBaseMask,msrOutName(msr),iStep);
 		    strncat(achFile,".den",256);
 		    msrOutArray(msr,achFile,OUT_DENSITY_ARRAY);
 		    }
 		if (msr->param.bDoRungOutput) {
 		    msrReorder(msr);
-		    sprintf(achFile,achBaseMask,msrOutName(msr),iStep);
+		    msrBuildName(msr,achFile,iStep);
+		    //sprintf(achFile,achBaseMask,msrOutName(msr),iStep);
 		    strncat(achFile,".rung",256);
 		    msrOutArray(msr,achFile,OUT_RUNG_ARRAY);
 		    }
 		if (msr->param.bDoSoftOutput) {
 		    msrReorder(msr);
-		    sprintf(achFile,achBaseMask,msrOutName(msr),iStep);
+		    msrBuildName(msr,achFile,iStep);
+		    //sprintf(achFile,achBaseMask,msrOutName(msr),iStep);
 		    strncat(achFile,".soft",256);
 		    msrOutArray(msr,achFile,OUT_SOFT_ARRAY);
 		    }
 		if (msr->param.bDodtOutput) {
 		    msrReorder(msr);
-		    sprintf(achFile,achBaseMask,msrOutName(msr),iStep);
+		    msrBuildName(msr,achFile,iStep);
+		    //sprintf(achFile,achBaseMask,msrOutName(msr),iStep);
 		    strncat(achFile,".dt",256);
 		    msrOutArray(msr,achFile,OUT_DT_ARRAY);
 		    }
@@ -389,8 +406,9 @@ int main(int argc,char **argv) {
 	     }
 	    if (iStop) break;
 	    }
-   }
-	
+    }
+
+    /* No steps were requested */
     else {
 	struct inInitDt in;
 	msrActiveRung(msr,0,1); /* Activate all particles */
@@ -405,9 +423,9 @@ int main(int argc,char **argv) {
 	msrBuildTree(msr,dMass,dTime);
 
 	if (msrDoGravity(msr)) {
-	    msrGravity(msr,dTime,msr->param.iStartStep,&iSec,&dWMax,&dIMax,&dEMax,&nActive);
+	    msrGravity(msr,dTime,msr->param.iStartStep,msr->param.bEwald,msr->param.bEwaldKicking,&iSec,&dWMax,&dIMax,&dEMax,&nActive);
 	    if (msr->param.bGravStep && msr->param.iTimeStepCrit == -1) {
-		msrGravity(msr,dTime,msr->param.iStartStep,&iSec,&dWMax,&dIMax,&dEMax,&nActive);
+		msrGravity(msr,dTime,msr->param.iStartStep,msr->param.bEwald,msr->param.bEwaldKicking,&iSec,&dWMax,&dIMax,&dEMax,&nActive);
 	    }
 
 	    msrCalcEandL(msr,MSR_INIT_E,dTime,&E,&T,&U,&Eth,L);

@@ -98,7 +98,7 @@ void HEAPrholocal(int n, int k, RHOLOCAL ra[]) {
 ** v_sqrt's and such.
 ** Returns nActive.
 */
-int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,int nCell,ILPB *ilpb,int nPartBucket,double *pdFlop) {
+int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,int nCell,ILPB *ilpb,int nPartBucket,double dirLsum,double normLsum,double *pdFlop) {
     PARTICLE *p = pkd->pStore;
     PARTICLE *pi,*pj;
     KDN *pkdn = pBucket;
@@ -110,8 +110,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
     double tx,ty,tz;
     double fourh2;
     double rhocadd,rhocaddlocal,rholoc,rhopmax,rhopmaxlocal,costheta;   
-    momFloat tax,tay,taz,magai,adotai;
-    double rhosum,maisum;
+    momFloat tax,tay,taz,adotai,maga,dirsum,normsum;
 #ifdef HERMITE
     double adx,ady,adz;
     double dir5;
@@ -185,8 +184,8 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	rhocadd = 0;
 	rholoc = 0;
 	rhopmax = 0;
-	rhosum = 0;
-	maisum = 0;
+	dirsum = dirLsum;
+	normsum = normLsum;
 	
 	for (j=0;j<nCell;++j) {
 	    x = p[i].r[0] - ilc[j].x;
@@ -261,8 +260,8 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	    rhoenc[j].rhoenc = dir2;
 	    adotai = p[i].a[0]*tax + p[i].a[1]*tay + p[i].a[2]*taz; 
 	    if (adotai >= 0) {
-	      rhosum += adotai*rhoenc[j].dir;
-	      maisum += sqrt(tax*tax + tay*tay + taz*taz);
+	      dirsum += rhoenc[j].dir*adotai*adotai;
+	      normsum += adotai*adotai;
 	    }
 	    ax += tax;
 	    ay += tay;
@@ -478,8 +477,8 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 #if 0
 	    adotai = p[i].a[0]*tax + p[i].a[1]*tay + p[i].a[2]*taz;
 	    if (adotai >= 0) {
-	      rhosum += adotai*dir;
-	      maisum += ilp[j].m*magai;
+	      dirsum += dir*adotai*adotai;
+	      normsum += adotai*adotai;
 	    }
 #endif
 	    fPot -= ilp[j].m*dir;
@@ -543,8 +542,9 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	/*
 	** Set the density value using the new timestepping formula.
 	*/
-	if (pkd->param.bGravStep && pkd->param.iTimeStepCrit == -1 && rhosum > 0) {
-	    p[i].dtGrav = rhosum/maisum;
+	if (pkd->param.bGravStep && pkd->param.iTimeStepCrit == -1 && dirsum > 0) {
+	    maga = sqrt(p[i].a[0]*p[i].a[0] + p[i].a[1]*p[i].a[1] + p[i].a[2]*p[i].a[2]);
+	    p[i].dtGrav = maga*dirsum/normsum;
 	    }
 	/*
 	** Finally set new acceleration and potential.

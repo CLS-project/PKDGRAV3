@@ -15,7 +15,7 @@
 #include "moments.h"
 
 
-int pkdBucketEwald(PKD pkd,KDN *pkdn,int nReps,double fEwCut,int iOrder)
+int pkdBucketEwald(PKD pkd,KDN *pkdn,int nReps,double fEwCut,int bEwaldKick)
 {
 	PARTICLE *p;
 	MOMC mom = pkd->momRoot;
@@ -115,8 +115,12 @@ int pkdBucketEwald(PKD pkd,KDN *pkdn,int nReps,double fEwCut,int iOrder)
 					    dir2 = dir*dir;
 					    a = exp(-r2*alpha2);
 					    a *= ka*dir2;
-					    if (bInHole) g0 = -erf(alpha/dir);
-					    else g0 = erfc(alpha/dir);
+					    if (bInHole) {
+						g0 = -erf(alpha/dir);
+					    }
+					    else {
+						g0 = erfc(alpha/dir);
+					    }
 					    g0 *= dir;
 					    g1 = g0*dir2 + a;
 					    alphan = 2*alpha2;
@@ -124,7 +128,7 @@ int pkdBucketEwald(PKD pkd,KDN *pkdn,int nReps,double fEwCut,int iOrder)
 					    alphan *= 2*alpha2;
 					    g3 = 5*g2*dir2 + alphan*a;
 					    alphan *= 2*alpha2;
-						g4 = 7*g3*dir2 + alphan*a;
+					    g4 = 7*g3*dir2 + alphan*a;
 					    alphan *= 2*alpha2;
 					    g5 = 9*g4*dir2 + alphan*a;
 					    }
@@ -188,9 +192,16 @@ int pkdBucketEwald(PKD pkd,KDN *pkdn,int nReps,double fEwCut,int iOrder)
 			az += pkd->ewt[i].hz*(pkd->ewt[i].hCfac*s - pkd->ewt[i].hSfac*c);
 			}
 		p[j].fPot += fPot;
-		p[j].a[0] += ax;
-		p[j].a[1] += ay;
-		p[j].a[2] += az;
+		if (bEwaldKick) {
+		    p[j].ae[0] = ax;
+		    p[j].ae[1] = ay;
+		    p[j].ae[2] = az;
+		}
+		else {
+		    p[j].a[0] += ax;
+		    p[j].a[1] += ay;
+		    p[j].a[2] += az;
+		}
 		++nActive;
 	    }
 	nFlop = nLoop*447 + nActive*pkd->nEwhLoop*58;
@@ -209,6 +220,7 @@ void pkdEwaldInit(PKD pkd,double fhCut,int iOrder)
 	/*
 	 ** Now setup stuff for the h-loop.
 	 */
+
 	hReps = ceil(fhCut);
 	L = pkd->fPeriod[0];
 	alpha = 2.0/L;

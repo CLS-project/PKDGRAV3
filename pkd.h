@@ -66,9 +66,11 @@ typedef struct pLite {
     } PLITE;
 
 typedef struct pIO {
+    int64_t iOrder;
     FLOAT r[3];
     FLOAT v[3];
     FLOAT fMass;
+    FLOAT fSoft;
 } PIO;
 
 typedef struct particle {
@@ -84,6 +86,7 @@ typedef struct particle {
     FLOAT r[3];
     FLOAT v[3];
     FLOAT a[3];
+    FLOAT ae[3];
 #ifdef HERMITE
     FLOAT ad[3];
     FLOAT r0[3];
@@ -104,9 +107,6 @@ typedef struct particle {
 
     FLOAT dt;			/* a time step suggestion */
     FLOAT dtGrav;		/* suggested 1/dt^2 from gravity */
-    FLOAT d;
-    FLOAT m;
-    int n;
 
     int pGroup;
     int pBin;
@@ -251,19 +251,6 @@ typedef struct bndBound {
 	}\
     }
 
-#if (0)
-#define SWAP(A,B,T) { T = A; A = B; B = T; }
-#define PARTITION(P,T,ELEM,i,j,CMPL,CMPU) \
-{\
-    while (i <= j && ((P[i] ELEM) CMPL)) { ++i; } \
-    while (i <= j && ((P[j] ELEM) CMPU)) { --j; } \
-    while (i < j) { \
-        SWAP(P[i], P[j], T); \
-        while ((P[++i] ELEM) CMPL) { } \
-        while ((P[--j] ELEM) CMPU) { } \
-    }\
-}
-#endif
 
 typedef struct kdTemp {
     BND bnd;
@@ -271,7 +258,6 @@ typedef struct kdTemp {
     int iParent;
     int pLower;
     int pUpper;
-    int nGas;
     } KDT;
 
 
@@ -294,12 +280,7 @@ typedef struct kdNode {
     int iActive;
     uint8_t uMinRung;
     uint8_t uMaxRung;
-#ifdef GASOLINE
-    int nGas;
-    BND bndBall;	/* Bound including fBall*(1+changemax) */
-#endif
     } KDN;
-
 
 #define NMAX_OPENCALC	100
 
@@ -692,6 +673,7 @@ void pkdFirstDt(PKD pkd);
 void pkdKickKDKOpen(PKD pkd,double dTime,double dDelta);
 void pkdKickKDKClose(PKD pkd,double dTime,double dDelta);
 void pkdKick(PKD pkd,double,double, double, double, double, double, int, double, double);
+void pkdEwaldKick(PKD pkd, double dvFacOne, double dvFacTwo);
 void pkdSwapAll(PKD pkd, int idSwap);
 void pkdInitStep(PKD pkd,struct parameters *p,CSM csm);
 void pkdSetRung(PKD pkd, int iRung);
@@ -721,7 +703,11 @@ void pkdSetNParts(PKD pkd, int nGas, int nDark, int nStar, int nMaxOrderGas,
 #ifdef RELAXATION
 void pkdInitRelaxation(PKD pkd);
 #endif
-int pkdPackIO(PKD pkd,PIO *io,int nStart,int nMax);
+
+int pkdPackIO(PKD pkd,
+	      PIO *io, int nMax,
+	      int *iIndex,
+	      int iMinOrder, int iMaxOrder );
 
 #ifdef PLANETS
 void pkdSunIndirect(PKD pkd,double aSun[],double adSun[],int iFlag);

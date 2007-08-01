@@ -10,10 +10,13 @@ typedef struct ioContext {
     double dTime;
 
     int N;
+    int iMinOrder;
+    int iMaxOrder;
 
-    ioV3 *r;
-    ioV3 *v;
-    FLOAT *m;
+    ioV3 *r;       /* Position */
+    ioV3 *v;       /* Velocity */
+    FLOAT *m;      /* Mass */
+    FLOAT *s;      /* Softening */
 
 } * IO;
 
@@ -30,18 +33,17 @@ enum io_services {
 /* IO_START_SAVE */
 struct inStartSave {
     double dTime;
-#ifdef IO_SPLIT
-    int nCount[MDL_MAX_IO_PROCS];
-#endif
+    int    N;
+    char achOutName[PST_FILENAME_SIZE];
     };
 void ioStartSave(IO,void *,int,void *,int *);
 
 /* IO_START_RECV */
 struct inStartRecv {
     double dTime;
-#ifdef IO_SPLIT
+    int iIndex;
     int nCount;
-#endif
+    char achOutName[PST_FILENAME_SIZE];
     };
 void ioStartRecv(IO,void *,int,void *,int *);
 

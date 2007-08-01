@@ -101,7 +101,7 @@ void msrOutVector(MSR,char *,int);
 void msrSmooth(MSR,double,int,int,int,int);
 void msrReSmooth(MSR,double,int,int,int,int);
 void msrUpdateSoft(MSR,double);
-void msrGravity(MSR,double,double,int *,double *,double *,double *,int *);
+void msrGravity(MSR,double,double,int bEwald,int bEwaldKick,int *,double *,double *,double *,int *);
 void msrCalcEandL(MSR,int,double,double *,double *,double *,double *,double *);
 void msrDrift(MSR,double,double);
 void msrKick(MSR,double,double);
@@ -178,6 +178,7 @@ int msrDtToRung(MSR msr, int iRung, double dDelta, int bAll);
 */
 int msrSteps(MSR);
 char *msrOutName(MSR);
+char *msrBuildName(MSR msr,char *achFile,int iStep);
 double msrDelta(MSR);
 int msrLogInterval(MSR);
 int msrCheckInterval(MSR);

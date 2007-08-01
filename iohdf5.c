@@ -19,27 +19,21 @@
 #endif
 #include <assert.h>
 #include <malloc.h>
-#ifdef HAVE_ALLOCA_H
-#include <alloca.h>
-#define LOCAL_ALLOC(s) alloca(s)
-#define LOCAL_FREE(p)
-#else
-#define LOCAL_ALLOC(s) malloc(s)
-#define LOCAL_FREE(p) free(p)
-#endif
 
 #include "iohdf5.h"
 
 #define GROUP_PARAMETERS "parameters"
-#define GROUP_DARK "dark"
-#define GROUP_GAS  "gas"
-#define GROUP_STAR "star"
+#define GROUP_DARK       "dark"
+#define GROUP_GAS        "gas"
+#define GROUP_STAR       "star"
 
 #define FIELD_POSITION "position"
 #define FIELD_VELOCITY "velocity"
-#define FIELD_ORDER "order"
-#define FIELD_CLASS "class"
-#define FIELD_CLASSES "classes"
+#define FIELD_ORDER    "order"
+#define FIELD_CLASS    "class"
+#define FIELD_CLASSES  "classes"
+
+#define ATTR_IORDER    "iOrder"
 
 /* Create a data group: dark, gas, star, etc. */
 static hid_t CreateGroup( hid_t fileID, const char *groupName ) {
@@ -130,6 +124,21 @@ static void readSet(
 }
 
 
+/* Add an attribute to a group */
+static void writeAttribute( hid_t groupID, const char *name,
+			    hid_t dataType, void *data ) {
+    hid_t dataSpace, attrID;
+    hsize_t dims = 1;
+
+    dataSpace = H5Screate_simple( 1, &dims, NULL ); H5assert(dataSpace);
+    attrID = H5Acreate( groupID,name,dataType,dataSpace,H5P_DEFAULT );
+    H5assert(attrID);
+    H5assert(H5Awrite( attrID, dataType, data ));
+    H5assert(H5Aclose( attrID ));
+    H5assert(H5Sclose(dataSpace));
+}
+
+
 /* Write part of a set from memory */
 static void writeSet(
     hid_t set_id,           /* set into which to write the data */
@@ -163,8 +172,17 @@ static void flushBase( IOHDF5 io, IOBASE *Base,
 {
     assert( io != NULL );
     if ( Base->nBuffered ) {
-	if ( Base->group_id == H5I_INVALID_HID )
+	if ( Base->group_id == H5I_INVALID_HID ) {
+	    hid_t dataType;
 	    Base->group_id = CreateGroup(io->fileID,Base->szGroupName);
+
+	    dataType = sizeof(Base->Order.iStart)==4
+		? H5T_NATIVE_UINT32 : H5T_NATIVE_UINT64;
+
+	    writeAttribute( Base->group_id, ATTR_IORDER,
+			    dataType, &Base->Order.iStart );
+	}
+
 	if ( Base->setR_id == H5I_INVALID_HID ) {
 	    Base->setR_id = newSet(
 		Base->group_id, FIELD_POSITION,
@@ -178,7 +196,7 @@ static void flushBase( IOHDF5 io, IOBASE *Base,
 		    Base->group_id, FIELD_ORDER,
 		    io->iChunkSize, 0, 1, H5T_NATIVE_UINT32);
 	    }
-	    if ( Base->Class.iClass != NULL ) {
+	    if ( Base->Class.piClass != NULL ) {
 		Base->Class.setClass_id = newSet(
 		    Base->group_id, FIELD_CLASS,
 		    io->iChunkSize, 0, 1, H5T_NATIVE_UINT8);
@@ -194,8 +212,8 @@ static void flushBase( IOHDF5 io, IOBASE *Base,
 	    writeSet( Base->Order.setOrder_id, Base->Order.iOrder,
 		      H5T_NATIVE_UINT32, Base->iOffset, Base->nBuffered, 1 );
 	}
-	if ( Base->Class.iClass != NULL ) {
-	    writeSet( Base->Class.setClass_id, Base->Class.iClass,
+	if ( Base->Class.piClass != NULL ) {
+	    writeSet( Base->Class.setClass_id, Base->Class.piClass,
 		      H5T_NATIVE_UINT8, Base->iOffset, Base->nBuffered, 1 );
 	}
 
@@ -227,6 +245,7 @@ static hid_t makeClassType(hid_t floatType, int bStart) {
     hid_t tid;
 
     tid = H5Tcreate (H5T_COMPOUND, sizeof(classEntry));
+    H5assert(tid);
     H5Tinsert(tid,"class",HOFFSET(classEntry,iClass), H5T_NATIVE_UINT8);
     H5Tinsert(tid,"mass", HOFFSET(classEntry,fMass), floatType);
     H5Tinsert(tid,"soft", HOFFSET(classEntry,fSoft), floatType);
@@ -239,7 +258,7 @@ static void writeClassTable(IOHDF5 io, IOBASE *Base ) {
     hid_t tid, set;
 
     if ( Base->nTotal > 0 ) {
-	tid = makeClassType( io->memFloat, Base->Class.iClass==NULL );
+	tid = makeClassType( io->memFloat, Base->Class.piClass==NULL );
 
 	set = newSet(Base->group_id, FIELD_CLASSES,
 		     io->iChunkSize, Base->Class.nClasses, 1, tid );
@@ -257,11 +276,11 @@ static void readClassTable( IOHDF5 io, IOBASE *Base ) {
 
     set = openSet( Base->group_id, FIELD_CLASSES );
     if ( set != H5I_INVALID_HID ) {
-	if ( Base->Class.iClass == NULL ) {
-	    Base->Class.iClass = malloc( io->iChunkSize * sizeof(uint8_t) );
-	    assert(Base->Class.iClass != NULL );
+	if ( Base->Class.piClass == NULL ) {
+	    Base->Class.piClass = malloc( io->iChunkSize * sizeof(uint8_t) );
+	    assert(Base->Class.piClass != NULL );
 	}
-	tid = makeClassType( io->memFloat, Base->Class.iClass==NULL );
+	tid = makeClassType( io->memFloat, Base->Class.piClass==NULL );
 	Base->Class.nClasses = getSetSize(set);
 	readSet( set, Base->Class.class, tid,
 		 0, Base->Class.nClasses, 1 );
@@ -275,21 +294,10 @@ static void readClassTable( IOHDF5 io, IOBASE *Base ) {
 
 /* Add an attribute to a group */
 void ioHDF5WriteAttribute( IOHDF5 io, const char *name,
-			   hid_t dataType, void *data ) {
-    hid_t dataSpace, attrID;
-    herr_t rc;
-    hsize_t dims = 1;
-
-    dataSpace = H5Screate_simple( 1, &dims, NULL ); H5assert(dataSpace);
-    attrID = H5Acreate( io->parametersID,name,dataType,dataSpace,H5P_DEFAULT );
-    H5assert(attrID);
-    rc = H5Awrite( attrID, dataType, data ); H5assert(rc);
-    H5assert(H5Aclose( attrID ));
-    H5assert(H5Sclose(dataSpace));
+			   hid_t dataType, void *data )
+{
+    writeAttribute( io->parametersID, name, dataType, data );
 }
-
-
-
 
 void ioHDF5Flush( IOHDF5 io )
 {
@@ -333,13 +341,14 @@ static void baseInitialize( IOHDF5 io, IOBASE *Base,
 	Base->setR_id = Base->setV_id = H5I_INVALID_HID;
 	Base->Order.setOrder_id = H5I_INVALID_HID;
 	Base->Class.setClass_id = H5I_INVALID_HID;
+	Base->nTotal = 0;
     }
 
 	Base->Order.iStart = Base->Order.iNext = 0;
 	Base->Order.iOrder = NULL;
 	Base->R = Base->V = NULL;
 	Base->Class.fMass = Base->Class.fSoft = NULL;
-	Base->Class.iClass = NULL;
+	Base->Class.piClass = NULL;
 	Base->Class.nClasses=0;
 
     assert( strlen(group) < sizeof(Base->szGroupName) );
@@ -418,9 +427,9 @@ static void createClass(IOHDF5 io, IOBASE *Base)
     IOCLASS *Class = &Base->Class;
 
     /* We already created the set */
-    if ( Class->iClass != NULL ) return;
+    if ( Class->piClass != NULL ) return;
 
-    Class->iClass = malloc( io->iChunkSize * sizeof(uint8_t) );
+    Class->piClass = malloc( io->iChunkSize * sizeof(uint8_t) );
 
     /* If the group exists, we will have to write */
     if ( Class->setClass_id == H5I_INVALID_HID 
@@ -437,7 +446,7 @@ static void createClass(IOHDF5 io, IOBASE *Base)
 	e = i==Class->nClasses-1 ? Base->nTotal : Class->class[i+1].iOrderStart;
 
 	for( j=s; j<e; j++ ) {
-	    Class->iClass[n++] = i;
+	    Class->piClass[n++] = i;
 	}
     }
 
@@ -469,18 +478,18 @@ static void addClass( IOHDF5 io, IOBASE *Base,
 	Class->class[i].fMass = fMass;
 	Class->class[i].fSoft = fSoft;
 	Class->nClasses++;
-	if ( Class->iClass != NULL )
-	    Class->iClass[Base->nBuffered] = i;
+	if ( Class->piClass != NULL )
+	    Class->piClass[Base->nBuffered] = i;
     }
 
     /* Case 2: This was the last class, and we might be compressing */
-    else if ( i == Class->nClasses - 1 && Class->iClass==NULL ) {
+    else if ( i == Class->nClasses - 1 && Class->piClass==NULL ) {
     }
 
     /* Case 3: A match, but a prior class */
     else {
 	createClass(io,Base);
-	Class->iClass[Base->nBuffered] = i;
+	Class->piClass[Base->nBuffered] = i;
     }
 }
 
@@ -581,10 +590,10 @@ static int getBase( IOHDF5 io, IOBASE *Base, PINDEX *iOrder,
 		     Base->iOffset, Base->nBuffered, 1 );
 	}
 	if ( Base->Class.setClass_id != H5I_INVALID_HID ) {
-	    if ( Base->Class.iClass == NULL ) {
-		Base->Class.iClass=malloc( io->iChunkSize * sizeof(uint8_t) );
+	    if ( Base->Class.piClass == NULL ) {
+		Base->Class.piClass=malloc( io->iChunkSize * sizeof(uint8_t) );
 	    }
-	    readSet( Base->Class.setClass_id, Base->Class.iClass,
+	    readSet( Base->Class.setClass_id, Base->Class.piClass,
 		     H5T_NATIVE_UINT8, Base->iOffset, Base->nBuffered, 1 );
 	}
     }
@@ -625,8 +634,9 @@ static void addBase( IOHDF5 io, IOBASE *Base, PINDEX iOrder,
     }
     addClass( io, Base, iOrder, fMass, fSoft );
 
-    if ( ++Base->nBuffered == io->iChunkSize )
+    if ( ++Base->nBuffered == io->iChunkSize ) {
 	(*flush)(io);
+    }
 }
 
 static void seekBase( IOHDF5 io, IOBASE *Base, PINDEX Offset ) {

@@ -161,10 +161,9 @@ void momReduceMomc(MOMC *,MOMR *);
 void momEvalMomr(MOMR *m,momFloat dir,momFloat x,momFloat y,momFloat z,
 		 momFloat *fPot,momFloat *ax,momFloat *ay,momFloat *az,
 		 momFloat *magai);
-void momGenEvalMomr(MOMR *m,momFloat dir,momFloat g0,momFloat t1,momFloat t2,
-		    momFloat t3r,momFloat t4r,momFloat x,momFloat y,momFloat z,
-		    momFloat *fPot,momFloat *ax,momFloat *ay,momFloat *az,
-		    momFloat *magai);
+void momGenEvalMomr(MOMR *m,momFloat g0,momFloat g1,momFloat g2,momFloat g3,momFloat g4,momFloat g5,
+		    momFloat x,momFloat y,momFloat z,
+		    momFloat *fPot,momFloat *ax,momFloat *ay,momFloat *az,momFloat *magai);
 #ifdef USE_SIMD
 double momGenEvalVMomr(int n,GLAM *p,momFloat ax,momFloat ay,momFloat az,
 		     momFloat *fPot,momFloat *aix,momFloat *aiy,momFloat *aiz,
@@ -198,6 +197,7 @@ void momLocrAddMomrAccurate(LOCR *l,MOMR *m,momFloat g0,momFloat x,momFloat y,mo
 ** These are the prefered versions that should be used in pkdgrav2.
 */
 double momLocrAddMomr5(LOCR *,MOMR *,momFloat,momFloat,momFloat,momFloat);
+double momLocrAddMomr5Noopt(LOCR *,MOMR *,momFloat,momFloat,momFloat,momFloat);
 void momEvalLocr(LOCR *,momFloat,momFloat,momFloat,
 				 momFloat *,momFloat *,momFloat *,momFloat *); 
 void momPrintMomc(MOMC *);

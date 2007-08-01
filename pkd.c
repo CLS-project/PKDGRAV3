@@ -1086,27 +1086,42 @@ void pkdLocalOrder(PKD pkd)
     qsort(pkd->pStore,pkdLocal(pkd),sizeof(PARTICLE),cmpParticles);
     }
 
-int pkdPackIO(PKD pkd,PIO *io,int nStart,int nMax)
+
+/*
+** This routine will pack at most nMax particles into an array of packed
+** particles (io).  It scans the particle list from *iIndex to the end
+** packing only particles with iOrder in the range [iMinOrder,iMaxOrder).
+** When this routine is done, it will return 0 for the number of particles
+** packed (and continues to return 0 if called again).
+*/
+int pkdPackIO(PKD pkd,
+	      PIO *io, int nMax,
+	      int *iIndex,
+	      int iMinOrder, int iMaxOrder )
 {
-    int nCopy, i, d;
+    int nCopied, d, i;
 
-    mdlassert(pkd->mdl,nStart<=pkd->nLocal);
+    mdlassert(pkd->mdl,*iIndex<=pkd->nLocal);
 
-    /* Calculate the number of particles to copy to the output buffer */
-    nCopy = pkd->nLocal - nStart;
-    if ( nCopy > nMax ) nCopy = nMax;
+    for( i=*iIndex,nCopied=0; nCopied < nMax && i < pkd->nLocal; i++ ) {
+	/* Not a particle of interest? */
+	if ( pkd->pStore[i].iOrder<iMinOrder || pkd->pStore[i].iOrder>=iMaxOrder)
+	    continue;
 
-    for( i=0; i<nCopy; i++ ) {
-	if ( pkdIsDark(pkd,pkd->pStore+nStart+i) ) {
-	}
+	/* We should have certain special cases here */
+	mdlassert( pkd->mdl, pkdIsDark(pkd,pkd->pStore+i) );
+
 	for( d=0; d<3; d++ ) {
-	    io[i].r[d] = pkd->pStore[nStart+i].r[d];
-	    io[i].v[d] = pkd->pStore[nStart+i].v[d];
+	    io[nCopied].r[d] = pkd->pStore[i].r[d];
+	    io[nCopied].v[d] = pkd->pStore[i].v[d];
 	}
-	io[i].fMass = pkd->pStore[nStart+i].fMass;
+	io[nCopied].iOrder= pkd->pStore[i].iOrder;
+	io[nCopied].fMass = pkd->pStore[i].fMass;
+	io[nCopied].fSoft = pkd->pStore[i].fSoft;
+	nCopied++;
     }
-
-    return nCopy;
+    *iIndex = i;
+    return nCopied;
 }
 
 #ifdef USE_HDF5
@@ -1134,11 +1149,13 @@ void pkdWriteHDF5(PKD pkd, IOHDF5 io, double dvFac,double duTFac)
 			  p->fMass,fSoft,p->fPot );
 	}
 	else if (pkdIsGas(pkd,p)) {
+	    assert(0);
 	    /* Why are temp and metals always set to zero? */
 	    ioHDF5AddGas( io,p->iOrder,p->r,v,
 			  p->fMass,fSoft,p->fPot,0.0,0.0);
 	}
 	else if (pkdIsStar(pkd,p)) {
+	    assert(0);
 	    /* Why are metals and tform always set to zero? */
 	    ioHDF5AddStar(io, p->iOrder, p->r, v,
 			  p->fMass,fSoft,p->fPot,0.0,0.0);
@@ -1447,14 +1464,12 @@ void pkdBucketWeight(PKD pkd,int iBucket,FLOAT fWeight)
 
 void
 pkdGravAll(PKD pkd,double dTime,int nReps,int bPeriodic,int iOrder,int bEwald,
-	   int iEwOrder, double fEwCut,double fEwhCut,int *nActive, 
+	   int bEwaldKick, double fEwCut,double fEwhCut,int *nActive, 
 	   double *pdPartSum, double *pdCellSum,CASTAT *pcs, double *pdFlop)
     {
     int bVeryActive = 0;
 
     pkdClearTimer(pkd,1);
-    pkdClearTimer(pkd,2);
-    pkdClearTimer(pkd,3);
 
 #ifdef BSC
     MPItrace_event(10000,0);
@@ -1464,7 +1479,7 @@ pkdGravAll(PKD pkd,double dTime,int nReps,int bPeriodic,int iOrder,int bEwald,
     ** Set up Ewald tables and stuff.
     */
     if (bPeriodic && bEwald) {
-	pkdEwaldInit(pkd,fEwhCut,iEwOrder);	/* ignored in Flop count! */
+	pkdEwaldInit(pkd,fEwhCut,4);	/* ignored in Flop count! */
 	}
     /*
     ** Start particle caching space (cell cache already active).
@@ -1478,7 +1493,7 @@ pkdGravAll(PKD pkd,double dTime,int nReps,int bPeriodic,int iOrder,int bEwald,
     *pdPartSum = 0.0;
     *pdCellSum = 0.0;
     pkdStartTimer(pkd,1);
-    *nActive = pkdGravWalk(pkd,dTime,nReps,bPeriodic && bEwald,bVeryActive,fEwCut,pdFlop,pdPartSum,pdCellSum);
+    *nActive = pkdGravWalk(pkd,dTime,nReps,bPeriodic && bEwald,bEwaldKick,bVeryActive,fEwCut,pdFlop,pdPartSum,pdCellSum);
     pkdStopTimer(pkd,1);
 
 #ifdef BSC
@@ -1720,7 +1735,10 @@ void pkdGravityVeryActive(PKD pkd,double dTime,int bEwald,int nReps,double fEwCu
     dFlop = 0.0;
     dPartSum = 0.0;
     dCellSum = 0.0;
-    nActive = pkdGravWalk(pkd,dTime,nReps,bEwald,bVeryActive,fEwCut,&dFlop,&dPartSum,&dCellSum);
+    if (pkd->param.bEwaldKicking) {
+	bEwald = 0;
+    }
+    nActive = pkdGravWalk(pkd,dTime,nReps,bEwald,0,bVeryActive,fEwCut,&dFlop,&dPartSum,&dCellSum);
     }
 
 
@@ -2313,6 +2331,20 @@ void pkdKick(PKD pkd, double dvFacOne, double dvFacTwo, double dvPredFacOne,
     pkdStopTimer(pkd,1);
     mdlDiag(pkd->mdl, "Done pkdkick\n");
     }
+
+
+void pkdEwaldKick(PKD pkd, double dvFacOne, double dvFacTwo) {
+    PARTICLE *p;
+    int i,j,n;
+
+    p = pkd->pStore;
+    n = pkdLocal(pkd);
+    for (i=0;i<n;++i,++p) {
+	for (j=0;j<3;++j) {
+	    p->v[j] = p->v[j]*dvFacOne + p->ae[j]*dvFacTwo;
+	}
+    }
+}
 
 
 void pkdInitStep(PKD pkd, struct parameters *p, CSM csm) {

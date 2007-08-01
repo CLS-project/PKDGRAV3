@@ -28,7 +28,7 @@ typedef struct {
     int nClasses;             /* Number of different classes */
     classEntry class[256];
     hid_t   setClass_id;
-    uint8_t *iClass;          /* Class index (or NULL) */
+    uint8_t *piClass;         /* Class index (or NULL) */
     FLOAT   *fMass;
     FLOAT   *fSoft;
 } IOCLASS;
