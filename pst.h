@@ -187,6 +187,7 @@ void pstLevelize(PST,void *,int,void *,int *);
 struct inReadTipsy {
     int nFileStart;
     int nFileEnd;
+    int nBucket;
     int nDark;	
     int nGas;
     int nStar;
@@ -851,17 +852,18 @@ void pstWriteSS(PST,void *,int,void *,int *);
 
 /* PST_READSS */
 struct inReadSS {
-	int nFileStart;
-	int nFileEnd;
-	int nDark;
-	int nGas;			/* always zero */
-	int nStar;			/* always zero */
-	int iOrder;
-	float fExtraStore;
-	FLOAT fPeriod[3];	/* for compatability */
-	char achInFile[PST_FILENAME_SIZE];
-        double dSunMass;
-	};
+    int nFileStart;
+    int nFileEnd;
+    int nBucket;
+    int nDark;
+    int nGas;			/* always zero */
+    int nStar;			/* always zero */
+    int iOrder;
+    float fExtraStore;
+    FLOAT fPeriod[3];	/* for compatability */
+    char achInFile[PST_FILENAME_SIZE];
+    double dSunMass;
+};
 void pstReadSS(PST,void *,int,void *,int *);
 
 /* PST_SUNINDIRECT */

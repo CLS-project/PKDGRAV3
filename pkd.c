@@ -136,9 +136,8 @@ void pkdStopTimer(PKD pkd,int iTimer)
     }
 
 
-void pkdInitialize(PKD *ppkd,MDL mdl,int nStore,FLOAT *fPeriod,
-		   int nDark,int nGas,int nStar,double dSunMass)
-    {
+void pkdInitialize(PKD *ppkd,MDL mdl,int nStore,int nBucket,FLOAT *fPeriod,
+		   int nDark,int nGas,int nStar) {
     PKD pkd;
     int j;
 	
@@ -179,17 +178,24 @@ void pkdInitialize(PKD *ppkd,MDL mdl,int nStore,FLOAT *fPeriod,
     */
     pkd->pStore = mdlMalloc(pkd->mdl,(nStore+1)*sizeof(PARTICLE));
     mdlassert(mdl,pkd->pStore != NULL);
+    /*
+    ** Now also allocate all node storage here.
+    ** We guess that the upper bound is based on the number of particles in 
+    ** a bucket. The mean number of particles per bucket is always somewhat 
+    ** less than nBucket, and roughly given by nBucket-sqrt(nBucket).
+    */
+    pkd->nMaxNodes = (int)ceil(2.0*nStore/floor(nBucket - sqrt(nBucket)));
+    pkd->kdNodes = mdlMalloc(pkd->mdl,pkd->nMaxNodes*sizeof(KDN));
+    mdlassert(mdl,pkd->kdNodes != NULL);
+    /*
+    ** pLite particles are also allocated and are quicker when sorting particle
+    ** type operations such as tree building and domain decomposition are being
+    ** performed.
+    */
     pkd->pLite = malloc((nStore+1)*sizeof(PLITE));
     mdlassert(mdl,pkd->pLite != NULL);
     pkd->nNodes = 0;
-    pkd->kdNodes = NULL;
     pkd->kdTop = NULL;
-    /*
-    ** Allocate initial temporary node storage.
-    */
-    pkd->nMaxNodes = 10000;
-    pkd->kdTemp = malloc(pkd->nMaxNodes*sizeof(KDT));
-    mdlassert(mdl,pkd->kdTemp != NULL);
     /*
     ** Ewald stuff!
     */

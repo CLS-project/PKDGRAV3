@@ -81,18 +81,18 @@ void InitializeParticles(PKD pkd,int bExcludeVeryActive) {
 	/*
 	** Set up the very active root node.
 	*/
-	pkd->kdTemp[VAROOT].iLower = 0;
-	pkd->kdTemp[VAROOT].iParent = 0;
-	pkd->kdTemp[VAROOT].pLower = pkd->nLocal - pkd->nVeryActive;
-	pkd->kdTemp[VAROOT].pUpper = pkd->nLocal - 1;
+	pkd->kdNodes[VAROOT].iLower = 0;
+	pkd->kdNodes[VAROOT].iParent = 0;
+	pkd->kdNodes[VAROOT].pLower = pkd->nLocal - pkd->nVeryActive;
+	pkd->kdNodes[VAROOT].pUpper = pkd->nLocal - 1;
 	}
     /*
     ** Set up the root node.
     */
-    pkd->kdTemp[ROOT].iLower = 0;
-    pkd->kdTemp[ROOT].iParent = 0;
-    pkd->kdTemp[ROOT].pLower = 0;
-    pkd->kdTemp[ROOT].pUpper = pkd->nLocal - pkd->nVeryActive - 1;
+    pkd->kdNodes[ROOT].iLower = 0;
+    pkd->kdNodes[ROOT].iParent = 0;
+    pkd->kdNodes[ROOT].pLower = 0;
+    pkd->kdNodes[ROOT].pUpper = pkd->nLocal - pkd->nVeryActive - 1;
     }
 
 #define MIN_SRATIO    0.05
@@ -145,13 +145,13 @@ void BuildTemp(PKD pkd,int iNode,int M,int bSqueeze) {
     ** Allocate it, set it's bounds and pointers.
     ** Also find out how many active particles there are.
     */
-    i = pkd->kdTemp[iNode].pLower;
+    i = pkd->kdNodes[iNode].pLower;
     for (j=0;j<3;++j) {
 	fMin[j] = p[i].r[j];
 	fMax[j] = p[i].r[j];
 	if (pkdIsRungActive(pkd,p[i].uRung)) ++nActive;
 	}
-    for (++i;i<=pkd->kdTemp[iNode].pUpper;++i) {
+    for (++i;i<=pkd->kdNodes[iNode].pUpper;++i) {
 	for (j=0;j<3;++j) {
 	    if (p[i].r[j] < fMin[j]) fMin[j] = p[i].r[j];
 	    else if (p[i].r[j] > fMax[j]) fMax[j] = p[i].r[j];
@@ -159,13 +159,13 @@ void BuildTemp(PKD pkd,int iNode,int M,int bSqueeze) {
 	if (pkdIsRungActive(pkd,p[i].uRung)) ++nActive;
 	}
     for (j=0;j<3;++j) {
-	pkd->kdTemp[iNode].bnd.fCenter[j] = 0.5*(fMax[j] + fMin[j]);
-	pkd->kdTemp[iNode].bnd.fMax[j] = 0.5*(fMax[j] - fMin[j]);
+	pkd->kdNodes[iNode].bnd.fCenter[j] = 0.5*(fMax[j] + fMin[j]);
+	pkd->kdNodes[iNode].bnd.fMax[j] = 0.5*(fMax[j] - fMin[j]);
 	}
-    if (pkd->kdTemp[iNode].pUpper - pkd->kdTemp[iNode].pLower + 1 <= M) 
+    if (pkd->kdNodes[iNode].pUpper - pkd->kdNodes[iNode].pLower + 1 <= M) 
 	goto DonePart;
 
-    sRatio = nActive/(pkd->kdTemp[iNode].pUpper - pkd->kdTemp[iNode].pLower + 1.0);
+    sRatio = nActive/(pkd->kdNodes[iNode].pUpper - pkd->kdNodes[iNode].pLower + 1.0);
     if (sRatio > 0.5) sRatio = 1.0 - sRatio;
     if (sRatio > MIN_SRATIO) {
       /*
@@ -175,8 +175,8 @@ void BuildTemp(PKD pkd,int iNode,int M,int bSqueeze) {
 	/*
 	** Now start the partitioning of the particles.
 	*/
-	i = pkd->kdTemp[iNode].pLower;
-	j = pkd->kdTemp[iNode].pUpper;
+	i = pkd->kdNodes[iNode].pLower;
+	j = pkd->kdNodes[iNode].pUpper;
 	while (i <= j) {
 	    if (!pkdIsRungActive(pkd,p[i].uRung)) ++i;
 	    else break;
@@ -211,7 +211,7 @@ void BuildTemp(PKD pkd,int iNode,int M,int bSqueeze) {
 	** Calculate the appropriate fSplit.
 	** Pick longest dimension and split it in half.
 	*/
-	pbnd = &pkd->kdTemp[iNode].bnd;
+	pbnd = &pkd->kdNodes[iNode].bnd;
 	if (pbnd->fMax[0] < pbnd->fMax[1]) {
 	    if (pbnd->fMax[1] < pbnd->fMax[2]) d = 2;
 	    else d = 1;
@@ -223,8 +223,8 @@ void BuildTemp(PKD pkd,int iNode,int M,int bSqueeze) {
 	** Now start the partitioning of the particles about
 	** fSplit on dimension given by d.
 	*/
-	i = pkd->kdTemp[iNode].pLower;
-	j = pkd->kdTemp[iNode].pUpper;
+	i = pkd->kdNodes[iNode].pLower;
+	j = pkd->kdNodes[iNode].pUpper;
 	while (i <= j) {
 	    if (p[i].r[d] < fSplit) ++i;
 	    else break;
@@ -249,74 +249,66 @@ void BuildTemp(PKD pkd,int iNode,int M,int bSqueeze) {
 		}
 	    }
     JumpInFromActiveInactive:
-	nl = i - pkd->kdTemp[iNode].pLower;
-	nr = pkd->kdTemp[iNode].pUpper - i + 1;
+	nl = i - pkd->kdNodes[iNode].pLower;
+	nr = pkd->kdNodes[iNode].pUpper - i + 1;
 	if (nl > 0 && nr > 0) {
 	    /*
 	    ** Allocate 2 new tree nodes making sure that we have
 	    ** allocated enough storage.
 	    */
-	    if (pkd->nNodes+2 > pkd->nMaxNodes) {
-		pkd->nMaxNodes += 10000;
-		/*
-		** Allocate two extra locations to cover the next
-		** two nodes we will need.
-		*/
-		pkd->kdTemp = realloc(pkd->kdTemp,pkd->nMaxNodes*sizeof(KDT));
-		assert(pkd->kdTemp != NULL);
-		}
+	    assert(pkd->nNodes+2 <= pkd->nMaxNodes);
 	    iLeft = pkd->nNodes++;
-	    pkd->kdTemp[iLeft].iParent = iNode;
-	    pkd->kdTemp[iLeft].pLower = pkd->kdTemp[iNode].pLower;
-	    pkd->kdTemp[iLeft].pUpper = i-1;
+	    pkd->kdNodes[iLeft].iParent = iNode;
+	    pkd->kdNodes[iLeft].pLower = pkd->kdNodes[iNode].pLower;
+	    pkd->kdNodes[iLeft].pUpper = i-1;
 	    iRight = pkd->nNodes++;
 	    assert(iRight & 1);
-	    pkd->kdTemp[iRight].iParent = iNode;
-	    pkd->kdTemp[iRight].pLower = i;
-	    pkd->kdTemp[iRight].pUpper = pkd->kdTemp[iNode].pUpper;
-	    pkd->kdTemp[iNode].iLower = iLeft;
+	    pkd->kdNodes[iRight].iParent = iNode;
+	    pkd->kdNodes[iRight].pLower = i;
+	    pkd->kdNodes[iRight].pUpper = pkd->kdNodes[iNode].pUpper;
+	    pkd->kdNodes[iNode].iLower = iLeft;
 	    if (bSqueeze) {
 		/*
 		** Calculate bounds for these 2 new cells.
 		*/
-		i = pkd->kdTemp[iLeft].pLower;
+		i = pkd->kdNodes[iLeft].pLower;
 		for (j=0;j<3;++j) {
 		    fMin[j] = p[i].r[j];
 		    fMax[j] = p[i].r[j];
 		    }
-		for (++i;i<=pkd->kdTemp[iLeft].pUpper;++i) {
+		for (++i;i<=pkd->kdNodes[iLeft].pUpper;++i) {
 		    for (j=0;j<3;++j) {
 			if (p[i].r[j] < fMin[j]) fMin[j] = p[i].r[j];
 			else if (p[i].r[j] > fMax[j]) fMax[j] = p[i].r[j];
 			}
 		    }
 		for (j=0;j<3;++j) {
-		    pkd->kdTemp[iLeft].bnd.fCenter[j] = 0.5*(fMax[j] + fMin[j]);
-		    pkd->kdTemp[iLeft].bnd.fMax[j] = 0.5*(fMax[j] - fMin[j]);
+		    pkd->kdNodes[iLeft].bnd.fCenter[j] = 0.5*(fMax[j] + fMin[j]);
+		    pkd->kdNodes[iLeft].bnd.fMax[j] = 0.5*(fMax[j] - fMin[j]);
 		    }
-		i = pkd->kdTemp[iRight].pLower;
+		i = pkd->kdNodes[iRight].pLower;
 		for (j=0;j<3;++j) {
 		    fMin[j] = p[i].r[j];
 		    fMax[j] = p[i].r[j];
 		    }
-		for (++i;i<=pkd->kdTemp[iRight].pUpper;++i) {
+		for (++i;i<=pkd->kdNodes[iRight].pUpper;++i) {
 		    for (j=0;j<3;++j) {
 			if (p[i].r[j] < fMin[j]) fMin[j] = p[i].r[j];
 			else if (p[i].r[j] > fMax[j]) fMax[j] = p[i].r[j];
 			}
 		    }
 		for (j=0;j<3;++j) {
-		    pkd->kdTemp[iRight].bnd.fCenter[j] = 0.5*(fMax[j] + fMin[j]);
-		    pkd->kdTemp[iRight].bnd.fMax[j] = 0.5*(fMax[j] - fMin[j]);
+		    pkd->kdNodes[iRight].bnd.fCenter[j] = 0.5*(fMax[j] + fMin[j]);
+		    pkd->kdNodes[iRight].bnd.fMax[j] = 0.5*(fMax[j] - fMin[j]);
 		    }
 		}
 	    else {
-		pkd->kdTemp[iLeft].bnd = pkd->kdTemp[iNode].bnd;
-		pkd->kdTemp[iRight].bnd = pkd->kdTemp[iLeft].bnd;
+		pkd->kdNodes[iLeft].bnd = pkd->kdNodes[iNode].bnd;
+		pkd->kdNodes[iRight].bnd = pkd->kdNodes[iLeft].bnd;
 		if (d >= 0 && d < 3) {    /* otherwise we have done some other kind of splitting and we don't cut the bounds */
-		  pkd->kdTemp[iLeft].bnd.fMax[d] *= 0.5;
-		  pkd->kdTemp[iLeft].bnd.fCenter[d] -= pkd->kdTemp[iLeft].bnd.fMax[d];
-		  pkd->kdTemp[iRight].bnd.fCenter[d] += pkd->kdTemp[iRight].bnd.fMax[d];
+		  pkd->kdNodes[iLeft].bnd.fMax[d] *= 0.5;
+		  pkd->kdNodes[iLeft].bnd.fCenter[d] -= pkd->kdNodes[iLeft].bnd.fMax[d];
+		  pkd->kdNodes[iRight].bnd.fCenter[d] += pkd->kdNodes[iRight].bnd.fMax[d];
 		}
 		}
 	    }
@@ -355,14 +347,14 @@ void BuildTemp(PKD pkd,int iNode,int M,int bSqueeze) {
 		iNode = iLeft;		/* process lower subfile */
 		}
 	    else if (nl > 0) {
-		pkd->kdTemp[iLeft].iLower = 0;
+		pkd->kdNodes[iLeft].iLower = 0;
 		++nBucket;
 		}
 	    if (nr > M) {
 		iNode = iRight;		/* process upper subfile */
 		}
 	    else if (nr > 0) {
-		pkd->kdTemp[iRight].iLower = 0;
+		pkd->kdNodes[iRight].iLower = 0;
 		++nBucket;
 		}
 	    }
@@ -444,7 +436,6 @@ void ShuffleParticles(PKD pkd,int iStart) {
 
 void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp,int bTempBound) {
     PARTICLE *p = pkd->pStore;
-    KDT *t = pkd->kdTemp;
     KDN *c = pkd->kdNodes;
     KDN *pkdn,*pkdl,*pkdu;
     MOMR mom;
@@ -454,8 +445,8 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp,int bTempBound) {
     nDepth = 1;
     pkd->nMaxDepth = 1;
     while (1) {
-	while (t[iNode].iLower) {
-	    iNode = t[iNode].iLower;
+	while (c[iNode].iLower) {
+	    iNode = c[iNode].iLower;
 	    ++nDepth;
 	    /*
 	    ** Is this the deepest in the tree so far?
@@ -468,14 +459,7 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp,int bTempBound) {
 	** bounds and iMaxRung.
 	*/
 	pkdn = &c[iNode];
-	pkdn->iLower = t[iNode].iLower;
-	pkdn->iParent = t[iNode].iParent;
-	pkdn->pLower = t[iNode].pLower;
-	pkdn->pUpper = t[iNode].pUpper;
-	if (bTempBound) {
-	    pkdn->bnd = t[iNode].bnd;
-	    }
-	else {
+	if (!bTempBound) {
 	    pj = pkdn->pLower;
 	    for (d=0;d<3;++d) {
 		ft = p[pj].r[d];
@@ -585,20 +569,10 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp,int bTempBound) {
 	    ** this cell to form the quantities for this cell.
 	    ** First find the CoM, just like for the bucket.
 	    */
-	    c[iNode].iLower = t[iNode].iLower;
-	    c[iNode].iParent = t[iNode].iParent;
-	    c[iNode].pLower = t[iNode].pLower;
-	    c[iNode].pUpper = t[iNode].pUpper;
 	    pkdn = &c[iNode];
 	    pkdl = &c[pkdn->iLower];
 	    pkdu = &c[pkdn->iLower + 1];
-	    if (bTempBound) {
-		pkdn->bnd = t[iNode].bnd;
-		pkdCombineCells(pkdn,pkdl,pkdu,0);
-		}
-	    else {
-		pkdCombineCells(pkdn,pkdl,pkdu,1);
-		}
+	    pkdCombineCells(pkdn,pkdl,pkdu,!bTempBound);
 	    pj = pkdn->pLower;
 	    if (pkdn->pUpper - pj < NMAX_OPENCALC) {
 		x = p[pj].r[0] - pkdn->r[0];
@@ -697,16 +671,11 @@ void pkdCombineCells(KDN *pkdn,KDN *p1,KDN *p2,int bCombineBound) {
     if (bCombineBound) {
 	BND_COMBINE(pkdn->bnd,p1->bnd,p2->bnd);
         }
-#ifdef GASOLINE
-    BND_COMBINE(pkdn->bndBall,p1->bndBall,p2->bndBall);
-    pkdn->nGas = p1->nGas + p2->nGas;
-#endif
     }
 
 
 void pkdVATreeBuild(PKD pkd,int nBucket,FLOAT diCrit2,int bSqueeze,double dTimeStamp) {
     int i,j,iStart;
-    int nMaxNodes;
 
     iStart = pkd->nLocal - pkd->nVeryActive;
     /*
@@ -722,15 +691,7 @@ void pkdVATreeBuild(PKD pkd,int nBucket,FLOAT diCrit2,int bSqueeze,double dTimeS
     ** of the non VA tree.
     */
     pkd->nNodes = pkd->nNonVANodes;
-    nMaxNodes = pkd->nMaxNodes;
     BuildTemp(pkd,VAROOT,nBucket,bSqueeze);
-    /*
-    ** Make sure the total number of nodes allocated did not increase in this step,
-    ** otherwise we would not have enough locations in the real tree (not the temp)
-    ** for the Create call below! If this happens we need to increase the nNodeEst
-    ** in pkdTreeBuild!
-    */
-    mdlassert(pkd->mdl,nMaxNodes == pkd->nMaxNodes);
 
     ShuffleParticles(pkd,iStart);
     
@@ -741,12 +702,11 @@ void pkdVATreeBuild(PKD pkd,int nBucket,FLOAT diCrit2,int bSqueeze,double dTimeS
 void pkdTreeBuild(PKD pkd,int nBucket,FLOAT diCrit2,KDN *pkdn,int bSqueeze,int bExcludeVeryActive,double dTimeStamp) {
     int iStart,nNodesEst;
 
-    if (pkd->kdNodes) {
+    if (pkd->nNodes > 0) {
 	/*
 	** Close cell caching space and free up nodes.
 	*/
 	mdlFinishCache(pkd->mdl,CID_CELL);
-	mdlFree(pkd->mdl,pkd->kdNodes);
 	}
 
 #ifdef BSC
@@ -774,35 +734,6 @@ void pkdTreeBuild(PKD pkd,int nBucket,FLOAT diCrit2,KDN *pkdn,int bSqueeze,int b
        pkdGetWallClockTimer(pkd,0));
        printf("Number of Cells: %d\n",pkd->nNodes);
     */
-    if (bExcludeVeryActive) {
-	/*
-	** Here we need to make a conservative upper guess for the number of cells
-	** that could be needed including a very active tree. Currently pkd->nMaxNodes
-	** has enough storage for the entire tree with the very active particles 
-	** but if the very active tree becomes more skewed we need to account for this
-	** here. We set the worst case to be that the number of very active nodes 
-	** doubles within one very active phase of timestepping.
-	*/
-	nNodesEst = pkd->nNodes + 
-	    3*(int)ceil(pkd->nVeryActive/(nBucket-sqrt(nBucket)));
-/*
-	printf("%d:nVeryActive:%d nNodes:%d nNodesEst:%d nMaxNodes:%d\n",mdlSelf(pkd->mdl),pkd->nVeryActive,pkd->nNodes,nNodesEst,pkd->nMaxNodes);
-*/
-	if (nNodesEst > pkd->nMaxNodes) {
-	    pkd->nMaxNodes = nNodesEst;
-	    pkd->kdTemp = realloc(pkd->kdTemp,pkd->nMaxNodes*sizeof(KDT));
-	    assert(pkd->kdTemp != NULL);
-	    }
-	}
-    /*
-    ** Now allocate the cell storage using mdlMalloc, allocate the max anticipated!
-    */
-    pkd->kdNodes = mdlMalloc(pkd->mdl,pkd->nMaxNodes*sizeof(KDN));
-    assert(pkd->kdNodes != NULL);
-    /*
-    ** Now create the real tree from the temporary tree.
-    ** Last argument is fBallChange, need to set this from somewhere.
-    */
     pkdClearTimer(pkd,0);
     pkdStartTimer(pkd,0);
     Create(pkd,ROOT,diCrit2,dTimeStamp,bSqueeze);
@@ -817,18 +748,6 @@ void pkdTreeBuild(PKD pkd,int nBucket,FLOAT diCrit2,KDN *pkdn,int bSqueeze,int b
       printf("nMaxDepth:%d\n",pkd->nMaxDepth);
     */
     /*
-    ** Free up the temporary tree, why not!
-    ** In the very active code it is bad to free up the temprary tree here, since
-    ** we still want to use the upper end of this tree storage for building the 
-    ** very active tree. This is all a bit ugly and should be reworked by getting
-    ** rid of the temporary tree and also allowing walk to use seperate contiguous
-    ** memory segments for the normal tree and very active tree. Note that an 
-    ** mdlMalloc is not needed for the very active tree.
-    ** 
-    ** free(pkd->kdTemp);
-    ** pkd->kdTemp = NULL;
-    */
-    /*
     ** Finally activate a read only cache for remote access.
     */
     mdlROcache(pkd->mdl,CID_CELL,pkd->kdNodes,sizeof(KDN),pkd->nNodes);
@@ -836,7 +755,6 @@ void pkdTreeBuild(PKD pkd,int nBucket,FLOAT diCrit2,KDN *pkdn,int bSqueeze,int b
     ** Copy the root node for the top-tree construction.
     */
     *pkdn = pkd->kdNodes[ROOT];
-
     }
 
 

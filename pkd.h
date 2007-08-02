@@ -252,17 +252,12 @@ typedef struct bndBound {
     }
 
 
-typedef struct kdTemp {
+typedef struct kdNode {
     BND bnd;
     int iLower;
     int iParent;
-    int pLower;
-    int pUpper;
-    } KDT;
-
-
-typedef struct kdNode {
-    BND bnd;
+    int pLower;		/* also serves as thread id for the LTT */
+    int pUpper;		/* pUpper < 0 indicates no particles in tree! */
     double dTimeStamp;
 #ifdef LOCAL_EXPANSION
     FLOAT fOpen;
@@ -273,14 +268,30 @@ typedef struct kdNode {
     FLOAT r[3];
     FLOAT v[3];
     MOMR mom;
-    int iLower;
-    int iParent;
-    int pLower;		/* also serves as thread id for the LTT */
-    int pUpper;		/* pUpper < 0 indicates no particles in tree! */
     int iActive;
     uint8_t uMinRung;
     uint8_t uMaxRung;
     } KDN;
+
+
+typedef struct kdNew {
+    union celltype {
+	struct cell {
+	    double dSplit;
+	    uint32_t iLower;
+	    uint32_t iUpper;
+	    uint16_t idLower;
+	    uint16_t idUpper;
+	} c;
+	struct bucket {
+	    uint32_t iPart[5];
+	} b;
+    };
+    double r[3];
+    FLOAT v[3];
+    MOMR mom;
+} KDNEW;
+	   
 
 #define NMAX_OPENCALC	100
 
@@ -486,7 +497,6 @@ typedef struct pkdContext {
     int nMaxOrderGas;
     FLOAT fPeriod[3];
     int nMaxNodes;   /* for kdTemp */
-    KDT *kdTemp;
     KDN *kdTop;
     int iTopRoot;
     int nNodes;
@@ -604,7 +614,7 @@ double pkdGetWallClockTimer(PKD,int);
 void pkdClearTimer(PKD,int);
 void pkdStartTimer(PKD,int);
 void pkdStopTimer(PKD,int);
-void pkdInitialize(PKD *,MDL,int,FLOAT *,int,int,int,double);
+void pkdInitialize(PKD *,MDL,int,int,FLOAT *,int,int,int);
 void pkdFinish(PKD);
 void pkdReadTipsy(PKD,char *,char *,int,int,int,double,double,int);
 void pkdSetSoft(PKD pkd,double dSoft);

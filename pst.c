@@ -473,8 +473,8 @@ void pstOneNodeReadInit(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 	** Determine the size of the local particle store.
 	*/
 	nStore = nFileTotal + (int)ceil(nFileTotal*in->fExtraStore);
-	pkdInitialize(&plcl->pkd,pst->mdl,nStore,in->fPeriod,
-		      in->nDark,in->nGas,in->nStar,0.0);
+	pkdInitialize(&plcl->pkd,pst->mdl,nStore,in->nBucket,in->fPeriod,
+		      in->nDark,in->nGas,in->nStar);
 	pout[pst->idSelf] = nFileTotal;
 	}
     if (pnOut) *pnOut = nThreads*sizeof(*pout);
@@ -520,8 +520,8 @@ void pstReadTipsy(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 	** Determine the size of the local particle store.
 	*/
 	nStore = nFileTotal + (int)ceil(nFileTotal*in->fExtraStore);
-	pkdInitialize(&plcl->pkd,pst->mdl,nStore,in->fPeriod,
-		      in->nDark,in->nGas,in->nStar,0.0);
+	pkdInitialize(&plcl->pkd,pst->mdl,nStore,in->nBucket,in->fPeriod,
+		      in->nDark,in->nGas,in->nStar);
 	pkdReadTipsy(plcl->pkd,achInFile,achOutName,nFileStart,nFileTotal,in->bStandard,
 		     in->dvFac,in->dTuFac,in->bDoublePos);
 	}
@@ -3218,8 +3218,8 @@ pstReadSS(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 		 ** Determine the size of the local particle store.
 		 */
 		nStore = nFileTotal + (int)ceil(nFileTotal*in->fExtraStore);
-		pkdInitialize(&plcl->pkd,pst->mdl,nStore,in->fPeriod,
-		      in->nDark,in->nGas,in->nStar,in->dSunMass);     
+		pkdInitialize(&plcl->pkd,pst->mdl,nStore,in->nBucket,in->fPeriod,
+		      in->nDark,in->nGas,in->nStar);
 		pkdReadSS(plcl->pkd,achInFile,nFileStart,nFileTotal);
 		}
 	if (pnOut) *pnOut = 0;

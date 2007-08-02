@@ -1,0 +1,4 @@
+01.08.07 stadel
+    Removed use of a temporary tree from the code. There is now a fixed amount
+    of cell storage which cannot be exceeded. kdTemp is no longer referenced in
+    tree.c.

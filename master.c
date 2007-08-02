@@ -1238,6 +1238,7 @@ double msrReadTipsy(MSR msr)
 	}
     in.nFileStart = 0;
     in.nFileEnd = msr->N - 1;
+    in.nBucket = msr->param.nBucket;
     in.nDark = msr->nDark;
     in.nGas = msr->nGas;
     in.nStar = msr->nStar;
@@ -3983,6 +3984,7 @@ msrReadSS(MSR msr)
 
 	in.nFileStart = 0;
 	in.nFileEnd = msr->N - 1;
+	in.nBucket = msr->param.nBucket;
 	in.nDark = msr->nDark;
 	in.nGas = msr->nGas;	/* always zero */
 	in.nStar = msr->nStar;	/* always zero */
