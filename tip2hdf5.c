@@ -54,6 +54,8 @@ int main( int argc, char *argv[] )
 
     io = ioHDF5Initialize( fileID, 32768, 1 );
 
+    ioHDF5WriteAttribute( io, "dTime", H5T_NATIVE_DOUBLE, &dTime );
+
 
     iOrder = 0;
 
