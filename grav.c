@@ -419,7 +419,6 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	    if (d2 > fourh2) {
 		SQRT1(d2,dir);
 		dir2 = dir*dir*dir;
-		magai = dir*dir;
 		}
 	    else {		
 #ifdef PLANETS 
@@ -434,8 +433,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 #endif
 		/*
 		** This uses the Dehnen K1 kernel function now, it's fast!
-		*/	    
-	        magai = sqrt(d2);
+		*/
 		SQRT1(fourh2,dir);
 		dir2 = dir*dir;
 		d2 *= dir2;
@@ -443,7 +441,6 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 		d2 = 1 - d2;
 		dir *= 1.0 + d2*(0.5 + d2*(3.0/8.0 + d2*(45.0/32.0)));
 		dir2 *= 1.0 + d2*(1.5 + d2*(135.0/16.0));
-		magai *= dir2;
 		++nSoft;
 		}
 	    /* GravStep 
