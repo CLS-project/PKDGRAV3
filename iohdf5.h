@@ -22,6 +22,7 @@ typedef struct {
     PINDEX iOrderStart;       /* Start index of this class */
     FLOAT  fMass;             /* Particle mass */
     FLOAT  fSoft;             /* Softening */
+    PINDEX nCount;            /* Number of particles with this class */
 } classEntry;
 
 typedef struct {
@@ -36,9 +37,9 @@ typedef struct {
 typedef struct {
     char    szGroupName[32];
 
+    PINDEX  nTotal;           /* Total number of particles in the file */
     PINDEX  iOffset;          /* Particle offset into the file */
     int     iIndex;           /* Index of next particle in memory */
-    int     nTotal;           /* Total number */
     int     nBuffered;        /* Number of buffered particles */
     hid_t   group_id;         /* Group /dark, /gas, /star, etc. */
     hid_t   setR_id;          /* set of Positions */
@@ -69,6 +70,10 @@ IOHDF5 ioHDF5Initialize( hid_t fileID, hid_t iChunkSize, int bSingle );
 
 void ioHDF5Finish( IOHDF5 io );
 
+PINDEX ioHDF5DarkCount( IOHDF5 io );
+PINDEX ioHDF5GasCount( IOHDF5 io );
+PINDEX ioHDF5StarCount( IOHDF5 io );
+
 void ioHDF5AddDark( IOHDF5 io, PINDEX iOrder,
 		    const FLOAT *r, const FLOAT *v,
 		    FLOAT fMass, FLOAT fSoft, FLOAT fPot );
@@ -85,6 +90,9 @@ void ioHDF5AddStar( IOHDF5 io, PINDEX iOrder,
 
 void ioHDF5WriteAttribute( IOHDF5 io, const char *name,
 			   hid_t dataType, void *data );
+
+int ioHDF5ReadAttribute( IOHDF5 io, const char *name,
+			 hid_t dataType, void *data );
 
 int  ioHDF5GetDark( IOHDF5 io, PINDEX *iOrder,
 		    FLOAT *r, FLOAT *v,

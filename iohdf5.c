@@ -27,13 +27,13 @@
 #define GROUP_GAS        "gas"
 #define GROUP_STAR       "star"
 
-#define FIELD_POSITION "position"
-#define FIELD_VELOCITY "velocity"
-#define FIELD_ORDER    "order"
-#define FIELD_CLASS    "class"
-#define FIELD_CLASSES  "classes"
+#define FIELD_POSITION   "position"
+#define FIELD_VELOCITY   "velocity"
+#define FIELD_ORDER      "order"
+#define FIELD_CLASS      "class"
+#define FIELD_CLASSES    "classes"
 
-#define ATTR_IORDER    "iOrder"
+#define ATTR_IORDER      "iOrder"
 
 /* Create a data group: dark, gas, star, etc. */
 static hid_t CreateGroup( hid_t fileID, const char *groupName ) {
@@ -137,6 +137,19 @@ static void writeAttribute( hid_t groupID, const char *name,
     H5assert(H5Aclose( attrID ));
     H5assert(H5Sclose(dataSpace));
 }
+
+/* Read an attribute from a group */
+static int readAttribute( hid_t groupID, const char *name,
+			  hid_t dataType, void *data ) {
+    hid_t attrID;
+
+    attrID = H5Aopen_name( groupID,name );
+    if ( attrID == H5I_INVALID_HID ) return 0;
+    H5assert(H5Aread( attrID, dataType, data ));
+    H5assert(H5Aclose( attrID ));
+    return 1;
+}
+
 
 
 /* Write part of a set from memory */
@@ -290,7 +303,12 @@ static void readClassTable( IOHDF5 io, IOBASE *Base ) {
 
 }
 
-
+/* Read an attribute from a group */
+int ioHDF5ReadAttribute( IOHDF5 io, const char *name,
+			 hid_t dataType, void *data )
+{
+    return readAttribute( io->parametersID, name, dataType, data );
+}
 
 /* Add an attribute to a group */
 void ioHDF5WriteAttribute( IOHDF5 io, const char *name,
@@ -316,6 +334,14 @@ static void baseInitialize( IOHDF5 io, IOBASE *Base,
     Base->iOffset = 0;
     Base->iIndex = 0;
     Base->nBuffered = 0;
+
+
+    Base->Order.iStart = Base->Order.iNext = 0;
+    Base->Order.iOrder = NULL;
+    Base->R = Base->V = NULL;
+    Base->Class.fMass = Base->Class.fSoft = NULL;
+    Base->Class.piClass = NULL;
+    Base->Class.nClasses=0;
 
     Base->group_id = H5Gopen( locID, group );
 
@@ -343,13 +369,6 @@ static void baseInitialize( IOHDF5 io, IOBASE *Base,
 	Base->Class.setClass_id = H5I_INVALID_HID;
 	Base->nTotal = 0;
     }
-
-	Base->Order.iStart = Base->Order.iNext = 0;
-	Base->Order.iOrder = NULL;
-	Base->R = Base->V = NULL;
-	Base->Class.fMass = Base->Class.fSoft = NULL;
-	Base->Class.piClass = NULL;
-	Base->Class.nClasses=0;
 
     assert( strlen(group) < sizeof(Base->szGroupName) );
     strcpy( Base->szGroupName, group );
@@ -483,6 +502,7 @@ static void addClass( IOHDF5 io, IOBASE *Base,
 	Class->class[i].iOrderStart = iOrder;
 	Class->class[i].fMass = fMass;
 	Class->class[i].fSoft = fSoft;
+	Class->class[i].nCount= 0;
 	Class->nClasses++;
 	if ( Class->piClass != NULL )
 	    Class->piClass[Base->nBuffered] = i;
@@ -497,6 +517,7 @@ static void addClass( IOHDF5 io, IOBASE *Base,
 	createClass(io,Base);
 	Class->piClass[Base->nBuffered] = i;
     }
+    Class->class[i].nCount++;
 }
 
 static void addOrder( IOHDF5 io, IOBASE *Base,
@@ -610,8 +631,11 @@ static int getBase( IOHDF5 io, IOBASE *Base, PINDEX *iOrder,
     v[0] = Base->V[Base->iIndex].v[0];
     v[1] = Base->V[Base->iIndex].v[1];
     v[2] = Base->V[Base->iIndex].v[2];
-    *fMass = 0.0;
-    *fSoft = 0.0;
+
+    assert( Base->Class.piClass[Base->iIndex] < Base->Class.nClasses );
+
+    *fMass = Base->Class.class[Base->Class.piClass[Base->iIndex]].fMass;
+    *fSoft = Base->Class.class[Base->Class.piClass[Base->iIndex]].fSoft;
 
     Base->iIndex++;
     return 1;
@@ -650,6 +674,24 @@ static void seekBase( IOHDF5 io, IOBASE *Base, PINDEX Offset ) {
     Base->nBuffered = Base->iIndex = 0;
     Base->iOffset = Offset;
 }
+
+
+PINDEX ioHDF5DarkCount( IOHDF5 io )
+{
+    return io->darkBase.nTotal;
+}
+
+PINDEX ioHDF5GasCount( IOHDF5 io )
+{
+    return io->starBase.nTotal;
+}
+
+PINDEX ioHDF5StarCount( IOHDF5 io )
+{
+    return io->starBase.nTotal;
+}
+
+
 
 void ioHDF5AddDark( IOHDF5 io, PINDEX iOrder,
 		    const FLOAT *r, const FLOAT *v,
