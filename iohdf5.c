@@ -423,7 +423,7 @@ void ioHDF5Finish( IOHDF5 io )
 /* Create the class set if it doesn't already exist and flush out the table. */
 static void createClass(IOHDF5 io, IOBASE *Base)
 {
-    int i, j, n;
+    int i, j, n, o;
     IOCLASS *Class = &Base->Class;
 
     /* We already created the set */
@@ -439,7 +439,7 @@ static void createClass(IOHDF5 io, IOBASE *Base)
 	    io->iChunkSize, 0, 1, H5T_NATIVE_UINT8);
     }
 
-    for( i=n=0; i<Class->nClasses; i++ ) {
+    for( i=n=o=0; i<Class->nClasses; i++ ) {
 	int s, e;
 
 	s = Class->class[i].iOrderStart;
@@ -447,6 +447,12 @@ static void createClass(IOHDF5 io, IOBASE *Base)
 
 	for( j=s; j<e; j++ ) {
 	    Class->piClass[n++] = i;
+	    if ( n == io->iChunkSize ) {
+		writeSet( Base->Class.setClass_id, Base->Class.piClass,
+		      H5T_NATIVE_UINT8, o, n, 1 );
+		o += n;
+		n = 0;
+	    }
 	}
     }
 
