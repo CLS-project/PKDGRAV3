@@ -195,7 +195,6 @@ struct inReadTipsy {
     FLOAT fPeriod[3];
     int bStandard;
     double dvFac;
-    double dTuFac;
     int bDoublePos;
     char achInFile[PST_FILENAME_SIZE];
     char achOutName[PST_FILENAME_SIZE];
@@ -326,7 +325,6 @@ void pstOutVector(PST,void *,int,void *,int *);
 struct inWriteTipsy {
     double dTime;
     double dvFac;
-    double duTFac;
     int bDoublePos;
     int bStandard;
     char achOutFile[PST_FILENAME_SIZE];
@@ -349,7 +347,6 @@ void pstFindIOS(PST,void *,int,void *,int *);
 struct inStartIO {
     uint64_t N;
     double dvFac;
-    double duTFac;
     double dTime;
     int bDoublePos;
     char achOutName[PST_FILENAME_SIZE];

@@ -523,7 +523,7 @@ void pstReadTipsy(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 	pkdInitialize(&plcl->pkd,pst->mdl,nStore,in->nBucket,in->fPeriod,
 		      in->nDark,in->nGas,in->nStar);
 	pkdReadTipsy(plcl->pkd,achInFile,achOutName,nFileStart,nFileTotal,in->bStandard,
-		     in->dvFac,in->dTuFac,in->bDoublePos);
+		     in->dvFac,in->bDoublePos);
 	}
     if (pnOut) *pnOut = 0;
     }
@@ -1958,7 +1958,7 @@ void pstWriteTipsy(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 	    }
 	strcat(achOutFile,in->achOutFile);
 	pkdWriteTipsy(plcl->pkd,achOutFile,plcl->nWriteStart,
-		      in->bStandard,in->dvFac,in->duTFac,in->bDoublePos);
+		      in->bStandard,in->dvFac,in->bDoublePos);
 	}
     if (pnOut) *pnOut = 0;
     }
