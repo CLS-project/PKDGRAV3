@@ -27,7 +27,7 @@ hid_t ioCreate( const char *filename ) {
     return fileID;
 }
 
-static void ioSave(IO io, const char *filename, double dTime, int bSingle)
+static void ioSave(IO io, const char *filename, double dTime, int bDouble )
 {
     hid_t fileID;
     IOHDF5 iohdf5;
@@ -36,7 +36,7 @@ static void ioSave(IO io, const char *filename, double dTime, int bSingle)
     /* Create the output file */
     fileID = ioCreate(filename);
 
-    iohdf5 = ioHDF5Initialize( fileID, CHUNKSIZE, bSingle );
+    iohdf5 = ioHDF5Initialize( fileID, CHUNKSIZE, bDouble );
 
     for( i=0; i<io->N; i++ ) {
 	ioHDF5AddDark(iohdf5, io->iMinOrder+i,
@@ -203,5 +203,5 @@ void ioStartRecv(IO io,void *vin,int nIn,void *vout,int *pnOut)
 	p = achOutName + strlen(achOutName);
 	sprintf(p,".%03d", mdlSelf(io->mdl));
     }
-    ioSave(io, achOutName, recv->dTime, 1 );
+    ioSave(io, achOutName, recv->dTime, IOHDF5_SINGLE );
 }

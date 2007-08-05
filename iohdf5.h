@@ -58,7 +58,8 @@ typedef struct ioHDF5 {
     hid_t   parametersID;
 
     hid_t   memFloat;         /* FLOAT in memory: float or double */
-    hid_t   diskFloat;        /* FLOAT on disk: float or double */
+    hid_t   diskFloat_R;      /* FLOAT on disk: float or double */
+    hid_t   diskFloat_V;      /* FLOAT on disk: float or double */
 
     IOBASE  darkBase;
     IOBASE  gasBase;
@@ -66,7 +67,10 @@ typedef struct ioHDF5 {
 
 } *IOHDF5;
 
-IOHDF5 ioHDF5Initialize( hid_t fileID, hid_t iChunkSize, int bSingle );
+#define IOHDF5_SINGLE 0
+#define IOHDF5_DOUBLE 1
+
+IOHDF5 ioHDF5Initialize( hid_t fileID, hid_t iChunkSize, int bDouble );
 
 void ioHDF5Finish( IOHDF5 io );
 

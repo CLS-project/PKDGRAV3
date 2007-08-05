@@ -199,10 +199,10 @@ static void flushBase( IOHDF5 io, IOBASE *Base,
 	if ( Base->setR_id == H5I_INVALID_HID ) {
 	    Base->setR_id = newSet(
 		Base->group_id, FIELD_POSITION,
-		io->iChunkSize, 0, 3, io->diskFloat );
+		io->iChunkSize, 0, 3, io->diskFloat_R );
 	    Base->setV_id = newSet(
 		Base->group_id, FIELD_VELOCITY,
-		io->iChunkSize, 0, 3, io->diskFloat );
+		io->iChunkSize, 0, 3, io->diskFloat_V );
 	    if ( Base->Order.iOrder != NULL ) {
 		assert( sizeof(PINDEX) == 4 );
 		Base->Order.setOrder_id = newSet(
@@ -375,7 +375,7 @@ static void baseInitialize( IOHDF5 io, IOBASE *Base,
 
 }
 
-IOHDF5 ioHDF5Initialize( hid_t fileID, hid_t iChunkSize, int bSingle )
+IOHDF5 ioHDF5Initialize( hid_t fileID, hid_t iChunkSize, int bDouble )
 {
     IOHDF5 io;
     H5E_auto_t save_func;
@@ -388,7 +388,7 @@ IOHDF5 ioHDF5Initialize( hid_t fileID, hid_t iChunkSize, int bSingle )
     /* This is the native type of FLOAT values - normally double */
     io->memFloat = sizeof(FLOAT)==sizeof(float)
 	? H5T_NATIVE_FLOAT : H5T_NATIVE_DOUBLE;
-    io->diskFloat = bSingle ? H5T_NATIVE_FLOAT : io->memFloat;
+    io->diskFloat_R = io->diskFloat_V = bDouble ? io->memFloat : H5T_NATIVE_FLOAT;
 
     /* The group might already exist */
     H5Eget_auto(&save_func,&save_data);
