@@ -52,7 +52,7 @@ int main( int argc, char *argv[] )
 	exit(2);
     }
 
-    io = ioHDF5Initialize( fileID, 32768, 1 );
+    io = ioHDF5Initialize( fileID, 32768, IOHDF5_SINGLE );
 
     ioHDF5WriteAttribute( io, "dTime", H5T_NATIVE_DOUBLE, &dTime );
 
