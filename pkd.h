@@ -286,7 +286,7 @@ typedef struct kdNew {
 	struct bucket {
 	    uint32_t iPart[5];
 	} b;
-    };
+    } cell;
     double r[3];
     FLOAT v[3];
     MOMR mom;
@@ -616,7 +616,7 @@ void pkdStartTimer(PKD,int);
 void pkdStopTimer(PKD,int);
 void pkdInitialize(PKD *,MDL,int,int,FLOAT *,int,int,int);
 void pkdFinish(PKD);
-void pkdReadTipsy(PKD,char *,char *,int,int,int,double,double,int);
+void pkdReadTipsy(PKD,char *,char *,int,int,int,double,int);
 void pkdSetSoft(PKD pkd,double dSoft);
 void pkdCalcBound(PKD,BND *);
 
@@ -652,9 +652,9 @@ int pkdInactive(PKD);
 int pkdNodes(PKD);
 int pkdColOrdRejects(PKD,int,int);
 void pkdLocalOrder(PKD);
-void pkdWriteTipsy(PKD,char *,int,int,double,double,int);
+void pkdWriteTipsy(PKD,char *,int,int,double,int);
 #ifdef USE_HDF5
-void pkdWriteHDF5(PKD pkd, IOHDF5 io,double dvFac,double duTFac);
+void pkdWriteHDF5(PKD pkd, IOHDF5 io,double dvFac);
 #endif
 void pkdGravAll(PKD,double,int,int,int,int,int,double,double,int *,
 		double *,double *,CASTAT *,double *);

@@ -303,7 +303,8 @@ void IOCheck(int nout) {
 
 
 #ifdef USE_HDF5
-void pkdReadHDF5(PKD pkd, IOHDF5 io, double dvFac,double duTFac, int nStart, int nLocal ) {
+void pkdReadHDF5(PKD pkd, IOHDF5 io, double dvFac,
+		 int nStart, int nLocal ) {
     PARTICLE *p;
     FLOAT dT1, dT2;
     int i, j;
@@ -365,7 +366,7 @@ void pkdReadHDF5(PKD pkd, IOHDF5 io, double dvFac,double duTFac, int nStart, int
 
 
 void pkdReadTipsy(PKD pkd,char *pszFileName, char *achOutName, int nStart,int nLocal,
-		  int bStandard,double dvFac,double dTuFac,int bDoublePos)
+		  int bStandard,double dvFac,int bDoublePos)
     {
     FILE *fp;
     int i,j;
@@ -1131,7 +1132,7 @@ int pkdPackIO(PKD pkd,
 }
 
 #ifdef USE_HDF5
-void pkdWriteHDF5(PKD pkd, IOHDF5 io, double dvFac,double duTFac)
+void pkdWriteHDF5(PKD pkd, IOHDF5 io, double dvFac)
 {
     PARTICLE *p;
     FLOAT v[3], fSoft;
@@ -1174,7 +1175,7 @@ void pkdWriteHDF5(PKD pkd, IOHDF5 io, double dvFac,double duTFac)
 #endif
 
 void pkdWriteTipsy(PKD pkd,char *pszFileName,int nStart,
-		   int bStandard,double dvFac,double duTFac,int bDoublePos) {
+		   int bStandard,double dvFac,int bDoublePos) {
     PARTICLE *p;
     FILE *fp;
     int i,j;
