@@ -2,6 +2,10 @@
 #define IOHDF5_H
 #include <hdf5.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define H5assert(rc) assert( rc >= 0 )
 
 typedef struct {
@@ -27,7 +31,7 @@ typedef struct {
 
 typedef struct {
     int nClasses;             /* Number of different classes */
-    classEntry class[256];
+    classEntry Class[256];
     hid_t   setClass_id;
     uint8_t *piClass;         /* Class index (or NULL) */
     FLOAT   *fMass;
@@ -114,5 +118,8 @@ int  ioHDF5GetStar( IOHDF5 io, PINDEX *iOrder,
 void ioHDF5SeekDark( IOHDF5 io, PINDEX Offset );
 void ioHDF5SeekGas(  IOHDF5 io, PINDEX Offset );
 void ioHDF5SeekStar( IOHDF5 io, PINDEX Offset );
+#ifdef __cplusplus
+}
+#endif
 
 #endif

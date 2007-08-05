@@ -276,7 +276,7 @@ static void writeClassTable(IOHDF5 io, IOBASE *Base ) {
 	set = newSet(Base->group_id, FIELD_CLASSES,
 		     io->iChunkSize, Base->Class.nClasses, 1, tid );
 
-	writeSet( set, Base->Class.class, tid,
+	writeSet( set, Base->Class.Class, tid,
 		  0, Base->Class.nClasses, 1 );
 
 	H5Dclose(set);
@@ -295,7 +295,7 @@ static void readClassTable( IOHDF5 io, IOBASE *Base ) {
 	}
 	tid = makeClassType( io->memFloat, Base->Class.piClass==NULL );
 	Base->Class.nClasses = getSetSize(set);
-	readSet( set, Base->Class.class, tid,
+	readSet( set, Base->Class.Class, tid,
 		 0, Base->Class.nClasses, 1 );
 	H5Dclose(set);
 	H5Tclose(tid);
@@ -461,8 +461,8 @@ static void createClass(IOHDF5 io, IOBASE *Base)
     for( i=n=o=0; i<Class->nClasses; i++ ) {
 	int s, e;
 
-	s = Class->class[i].iOrderStart;
-	e = i==Class->nClasses-1 ? Base->nTotal : Class->class[i+1].iOrderStart;
+	s = Class->Class[i].iOrderStart;
+	e = i==Class->nClasses-1 ? Base->nTotal : Class->Class[i+1].iOrderStart;
 
 	for( j=s; j<e; j++ ) {
 	    Class->piClass[n++] = i;
@@ -491,18 +491,18 @@ static void addClass( IOHDF5 io, IOBASE *Base,
 
     /* See if we already have this class: Mass/Softening pair */
     for( i=0; i<Class->nClasses; i++ ) {
-	if ( Class->class[i].fMass == fMass && Class->class[i].fSoft == fSoft )
+	if ( Class->Class[i].fMass == fMass && Class->Class[i].fSoft == fSoft )
 	    break;
     }
 
     /* Case 1: This is a new class */
     if ( i == Class->nClasses ) {
 	assert( Class->nClasses < 256 ); /*TODO: handle this case */
-	Class->class[i].iClass = i;
-	Class->class[i].iOrderStart = iOrder;
-	Class->class[i].fMass = fMass;
-	Class->class[i].fSoft = fSoft;
-	Class->class[i].nCount= 0;
+	Class->Class[i].iClass = i;
+	Class->Class[i].iOrderStart = iOrder;
+	Class->Class[i].fMass = fMass;
+	Class->Class[i].fSoft = fSoft;
+	Class->Class[i].nCount= 0;
 	Class->nClasses++;
 	if ( Class->piClass != NULL )
 	    Class->piClass[Base->nBuffered] = i;
@@ -517,7 +517,7 @@ static void addClass( IOHDF5 io, IOBASE *Base,
 	createClass(io,Base);
 	Class->piClass[Base->nBuffered] = i;
     }
-    Class->class[i].nCount++;
+    Class->Class[i].nCount++;
 }
 
 static void addOrder( IOHDF5 io, IOBASE *Base,
@@ -634,8 +634,8 @@ static int getBase( IOHDF5 io, IOBASE *Base, PINDEX *iOrder,
 
     assert( Base->Class.piClass[Base->iIndex] < Base->Class.nClasses );
 
-    *fMass = Base->Class.class[Base->Class.piClass[Base->iIndex]].fMass;
-    *fSoft = Base->Class.class[Base->Class.piClass[Base->iIndex]].fSoft;
+    *fMass = Base->Class.Class[Base->Class.piClass[Base->iIndex]].fMass;
+    *fSoft = Base->Class.Class[Base->Class.piClass[Base->iIndex]].fSoft;
 
     Base->iIndex++;
     return 1;
