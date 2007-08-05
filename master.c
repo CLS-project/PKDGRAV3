@@ -187,13 +187,13 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv)
     msr->param.iOutInterval = 0;
     prmAddParam(msr->prm,"iOutInterval",1,&msr->param.iOutInterval,sizeof(int),
 		"oi","<number of timesteps between snapshots> = 0");
-    strcpy(msr->param.achOutTypes,"rvmso");
+    strcpy(msr->param.achOutTypes,"rvmsp");
     prmAddParam(msr->prm,"achOutTypes",3,msr->param.achOutTypes,256,"ot",
 		"<output types for snapshort> = \"rvmso\"");
     msr->param.iCheckInterval = 0;
     prmAddParam(msr->prm,"iCheckInterval",1,&msr->param.iCheckInterval,sizeof(int),
 		"oc","<number of timesteps between checkpoints> = 0");
-    strcpy(msr->param.achCheckTypes,"RVMSO");
+    strcpy(msr->param.achCheckTypes,"RVMSP");
     prmAddParam(msr->prm,"achCheckTypes",3,msr->param.achCheckTypes,256,"ct",
 		"<output types for checkpoints> = \"RVMSO\"");
     msr->param.iLogInterval = 10;
@@ -1005,13 +1005,13 @@ void msrOneNodeReadTipsy(MSR msr, struct inReadTipsy *in)
     _msrMakePath(plcl->pszDataPath,in->achInFile,achInFile);
     _msrMakePath(plcl->pszDataPath,in->achOutName,achOutName);
 
-#ifdef USE_HDF5xXxX
+#ifdef USE_HDF5xz
     if ( in->bStandard == 2 ) {
-	fileID=H5Fcreate(achOutName, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-	io = ioHDF5Initialize( fileID, 32768, 1 );
-	ioHDF5WriteAttribute( io, "dTime", H5T_NATIVE_DOUBLE, &in->dTime );
+	fileID=H5Fopen(achInFile, H5F_ACC_RDONLY, H5P_DEFAULT);
+	io = ioHDF5Initialize( fileID, 32768, IOHDF5_DOUBLE );
+	ioHDF5ReadAttribute( io, "dTime", H5T_NATIVE_DOUBLE, &in->dTime );
 	msrSaveParameters(msr,io);
-	pkdWriteHDF5(plcl->pkd, io, in->dvFac,in->duTFac );
+	pkdWriteHDF5(plcl->pkd, io, in->dvFac );
     }
 #endif
 
@@ -1026,7 +1026,7 @@ void msrOneNodeReadTipsy(MSR msr, struct inReadTipsy *in)
 	 */
 	assert(plcl->pkd->nStore >= nParts[id]);
 	pkdReadTipsy(plcl->pkd,achInFile,achOutName,nStart,nParts[id],
-		     in->bStandard,in->dvFac,in->dTuFac,in->bDoublePos);
+		     in->bStandard,in->dvFac,in->bDoublePos);
 	nStart += nParts[id];
 	/* 
 	 * Now shove them over to the remote processor.
@@ -1041,7 +1041,7 @@ void msrOneNodeReadTipsy(MSR msr, struct inReadTipsy *in)
      * Now read our own particles.
      */
     pkdReadTipsy(plcl->pkd,achInFile,achOutName,0,nParts[0],in->bStandard,in->dvFac,
-		 in->dTuFac,in->bDoublePos);
+		 in->bDoublePos);
     pstSetParticleTypes(msr->pst,&intype,sizeof(intype),NULL,NULL);
     }
 
@@ -1060,7 +1060,7 @@ int xdrHeader(XDR *pxdrs,struct dump *ph)
     }
 
 
-double msrReadTipsy(MSR msr)
+static double _msrReadTipsy(MSR msr, const char *achFilename)
     {
     FILE *fp;
     struct dump h;
@@ -1070,28 +1070,14 @@ double msrReadTipsy(MSR msr)
     LCL *plcl = msr->pst->plcl;
     double dTime,aTo,tTo,z;
     struct inSetParticleTypes intype;
+
+    strcpy(in.achInFile,achFilename);
+
+
+    /* Add local Data Path. */
+    _msrMakePath(plcl->pszDataPath,achFilename,achInFile);
+
 	
-    if ( ! msr->param.achInFile[0] ) {
-	printf("No input file specified\n");
-	_msrExit(msr,1);
-	return -1.0;
-    }
-
-    /*
-    ** Add Data Subpath for local and non-local names.
-    */
-    _msrMakePath(msr->param.achDataSubPath,msr->param.achInFile,in.achInFile);
-    /*
-    ** Add local Data Path.
-    */
-    _msrMakePath(plcl->pszDataPath,in.achInFile,achInFile);
-
-#ifdef USE_HDF5
-    /* We can automatically detect if a given file is in HDF5 format */
-    if ( H5Fis_hdf5(achInFile) ) {
-    }
-#endif
-
     fp = fopen(achInFile,"r");
     
     if (!fp) {
@@ -1244,7 +1230,6 @@ double msrReadTipsy(MSR msr)
     in.nStar = msr->nStar;
     in.bStandard = msr->param.bStandard;
     in.bDoublePos = msr->param.bDoublePos;
-    in.dTuFac = 1.0;
     strcpy(in.achOutName,msr->param.achOutName);    
     /*
     ** Since pstReadTipsy causes the allocation of the local particle
@@ -1332,7 +1317,6 @@ void msrIOWrite(MSR msr, const char *achOutName, double dTime, int bCheckpoint)
 	inStart.dTime = dTime;
 	inStart.dvFac = 1.0;
 	}
-    inStart.duTFac = 1.0;
     inStart.bDoublePos = msr->param.bDoublePos;
     inStart.N = msr->N;
     strcpy(inStart.achOutName,achOutName);
@@ -1452,7 +1436,7 @@ void msrSaveParameters(MSR msr, IOHDF5 io)
 ** Main problem is that it calls pkd level routines, bypassing the
 ** pst level. It uses plcl pointer which is not desirable.
 */
-void msrOneNodeWriteTipsy(MSR msr, struct inWriteTipsy *in)
+void msrOneNodeWriteTipsy(MSR msr, struct inWriteTipsy *in, int bCheckpoint)
     {
     int i,id;
     int nStart;
@@ -1485,20 +1469,16 @@ void msrOneNodeWriteTipsy(MSR msr, struct inWriteTipsy *in)
 	    fprintf(stderr,"Unable to create %s\n", achOutFile);
 	    H5assert(fileID);
 	}
-	printf( " - I/O initialize\n" );
-	io = ioHDF5Initialize( fileID, 32768, 1 );
-	//printf( " - write attributes\n" );
-	//ioHDF5WriteAttribute( io, "dTime", H5T_NATIVE_DOUBLE, &in->dTime );
-	//printf( " - save parameters\n" );
-	//msrSaveParameters(msr,io);
-	printf( " - Save processor 0\n" );
-	pkdWriteHDF5(plcl->pkd, io, in->dvFac,in->duTFac );
+	io = ioHDF5Initialize( fileID, 32768, bCheckpoint );
+	ioHDF5WriteAttribute( io, "dTime", H5T_NATIVE_DOUBLE, &in->dTime );
+	msrSaveParameters(msr,io);
+	pkdWriteHDF5(plcl->pkd, io, in->dvFac );
     }
     else
 #endif
     {
 	pkdWriteTipsy(plcl->pkd,achOutFile,plcl->nWriteStart,in->bStandard,
-		  in->dvFac,in->duTFac,in->bDoublePos); 
+		  in->dvFac,in->bDoublePos); 
     }
     nStart = plcl->pkd->nLocal;
     assert(msr->pMap[0] == 0);
@@ -1516,14 +1496,13 @@ void msrOneNodeWriteTipsy(MSR msr, struct inWriteTipsy *in)
 	 */
 #ifdef USE_HDF5
 	if ( in->bStandard == 2 ) {
-	    printf( " - Save processor %d\n", i );
-	    pkdWriteHDF5(plcl->pkd, io, in->dvFac,in->duTFac);
+	    pkdWriteHDF5(plcl->pkd, io, in->dvFac);
 	}
 	else
 #endif
 	{
 	    pkdWriteTipsy(plcl->pkd,achOutFile,nStart, in->bStandard,
-			  in->dvFac, in->duTFac, in->bDoublePos); 
+			  in->dvFac, in->bDoublePos); 
 	}
 	nStart += plcl->pkd->nLocal;
 	/* 
@@ -1537,8 +1516,6 @@ void msrOneNodeWriteTipsy(MSR msr, struct inWriteTipsy *in)
 
 #ifdef USE_HDF5
 	if ( in->bStandard == 2 ) {
-	    printf( "Closing HDF5 format file\n" );
-
 	    ioHDF5Finish(io);
 	    H5assert(H5Fflush(fileID,H5F_SCOPE_GLOBAL));
 	    H5assert(H5Fclose(fileID));
@@ -1583,7 +1560,6 @@ void _msrWriteTipsy(MSR msr,char *pszFileName,double dTime,int bCheckpoint)
     _msrMakePath(plcl->pszDataPath,in.achOutFile,achOutFile);
 
     in.bStandard = msr->param.bStandard;
-    in.duTFac = 1.0;
     in.bDoublePos = msr->param.bDoublePos;
     /*
     ** Assume tipsy format for now.
@@ -1620,7 +1596,7 @@ void _msrWriteTipsy(MSR msr,char *pszFileName,double dTime,int bCheckpoint)
 #ifdef USE_HDF5
     if ( msr->param.bHDF5 ) {
 	in.bStandard = 2;
-	msrOneNodeWriteTipsy(msr, &in);
+	msrOneNodeWriteTipsy(msr, &in,bCheckpoint);
     }
     else
 #endif
@@ -1645,7 +1621,7 @@ void _msrWriteTipsy(MSR msr,char *pszFileName,double dTime,int bCheckpoint)
 	if(msr->param.bParaWrite)
 	    pstWriteTipsy(msr->pst,&in,sizeof(in),NULL,NULL);
 	else
-	    msrOneNodeWriteTipsy(msr, &in);
+	    msrOneNodeWriteTipsy(msr, &in, bCheckpoint);
     }
 
     if (msr->param.bVDetails)
@@ -4559,3 +4535,50 @@ void msrKeplerDrift(MSR msr,double dDelta){
 
 #endif /* SYMBA */
 #endif /* PLANETS*/
+
+void msrWrite(MSR msr,char *pszFileName,double dTime,int bCheckpoint)
+{
+#ifdef PLANETS 
+    msrWriteSS(msr,achFile,dTime);
+#else
+#ifdef USE_MDL_IO
+    /* If we are using I/O processors, then we do it totally differently */
+    if ( mdlIO(msr->mdl) ) {
+	msrIOWrite(msr,pszFileName,dTime,bCheckpoint);
+    }
+    else
+#endif
+    {
+	_msrWriteTipsy(msr,pszFileName,dTime,bCheckpoint);
+    }
+#endif
+}
+
+
+double msrRead(MSR msr)
+{
+#ifdef PLANETS    
+    return msrReadSS(msr); /* must use "Solar System" (SS) I/O format... */
+#else
+    char achFilename[PST_FILENAME_SIZE];
+
+    if ( ! msr->param.achInFile[0] ) {
+	printf("No input file specified\n");
+	_msrExit(msr,1);
+	return -1.0;
+    }
+
+    /* Add Data Subpath for local and non-local names. */
+    _msrMakePath(msr->param.achDataSubPath,msr->param.achInFile,achFilename);
+
+#ifdef USE_HDF5
+    /* We can automatically detect if a given file is in HDF5 format */
+    if ( H5Fis_hdf5(achFilename) ) {
+    }
+    else
+#endif
+    {
+	return _msrReadTipsy(msr,achFilename);
+    }
+#endif
+}

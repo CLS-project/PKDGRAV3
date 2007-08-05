@@ -83,7 +83,7 @@ void msrLogParams(MSR msr, FILE *fp);
 int msrGetLock(MSR msr);
 int msrCheckForStop(MSR msr);
 void msrFinish(MSR);
-double msrReadTipsy(MSR);
+double msrRead(MSR);
 void msrWriteTipsy(MSR,char *,double, int bCheckpoint );
 void msrSetSoft(MSR msr,double);
 void msrDomainDecomp(MSR,int iRung,int bGreater,int bSplitVA);
