@@ -184,7 +184,7 @@ void pkdInitialize(PKD *ppkd,MDL mdl,int nStore,int nBucket,FLOAT *fPeriod,
     ** a bucket. The mean number of particles per bucket is always somewhat 
     ** less than nBucket, and roughly given by nBucket-sqrt(nBucket).
     */
-    pkd->nMaxNodes = (int)ceil(2.0*nStore/floor(nBucket - sqrt(nBucket)));
+    pkd->nMaxNodes = (int)ceil(3.0*nStore/floor(nBucket - sqrt(nBucket)));
     pkd->kdNodes = mdlMalloc(pkd->mdl,pkd->nMaxNodes*sizeof(KDN));
     mdlassert(mdl,pkd->kdNodes != NULL);
     /*
