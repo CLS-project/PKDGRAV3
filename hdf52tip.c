@@ -73,7 +73,7 @@ int main( int argc, char *argv[] )
 	fprintf( stderr, "Unable to open %s\n", inName );
 	exit(2);
     }
-    io = ioHDF5Initialize( fileID, 32768, 1 );
+    io = ioHDF5Initialize( fileID, 32768, IOHDF5_SINGLE );
 
     fout = fopen( outName, "wb" );
     if ( fout == NULL ) {
