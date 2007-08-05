@@ -13,6 +13,7 @@
 #include <alloca.h>
 #endif
 #include <assert.h>
+#include <stdint.h>
 #include "mdl.h"
 #include "pst.h"
 #include "pkd.h"	
@@ -1717,7 +1718,7 @@ void _pstOrdSplit(PST pst,int iMaxOrder)
     struct outFreeStore outFree;
     struct inOrdWeight inWt;
     struct outOrdWeight outWtLow,outWtHigh;
-    int im=-1,imm,il,iu;
+    int64_t im=-1,imm,il,iu;
     int nLowerStore,nUpperStore,nLow=-1,nHigh=-1;
     struct inColOrdRejects inCol;
     OREJ *pLowerRej,*pUpperRej;
