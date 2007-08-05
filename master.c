@@ -1540,7 +1540,7 @@ void msrOneNodeWriteTipsy(MSR msr, struct inWriteTipsy *in)
 	    printf( "Closing HDF5 format file\n" );
 
 	    ioHDF5Finish(io);
-	    H5assert(H5Fflush(fileID,fileID));
+	    H5assert(H5Fflush(fileID,H5F_SCOPE_GLOBAL));
 	    H5assert(H5Fclose(fileID));
 	}
 #endif

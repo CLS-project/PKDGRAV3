@@ -45,7 +45,7 @@ static void ioSave(IO io, const char *filename, double dTime, int bSingle)
     }
     ioHDF5Finish(iohdf5);
 
-    H5assert(H5Fflush(fileID,fileID));
+    H5assert(H5Fflush(fileID,H5F_SCOPE_GLOBAL));
     H5assert(H5Fclose(fileID));
 }
 
