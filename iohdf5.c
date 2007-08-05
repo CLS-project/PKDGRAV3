@@ -289,7 +289,9 @@ static void readClassTable( IOHDF5 io, IOBASE *Base ) {
 
     set = openSet( Base->group_id, FIELD_CLASSES );
     if ( set != H5I_INVALID_HID ) {
-	if ( Base->Class.piClass == NULL ) {
+
+	if ( Base->Class.setClass_id != H5I_INVALID_HID 
+	     && Base->Class.piClass == NULL ) {
 	    Base->Class.piClass = malloc( io->iChunkSize * sizeof(uint8_t) );
 	    assert(Base->Class.piClass != NULL );
 	}
@@ -355,9 +357,9 @@ static void baseInitialize( IOHDF5 io, IOBASE *Base,
 	assert( Base->nTotal == getSetSize(Base->setV_id) );
 	Base->Order.setOrder_id = openSet(Base->group_id,FIELD_ORDER);
 	Base->Class.setClass_id = openSet(Base->group_id,FIELD_CLASS);
-	if ( Base->Class.setClass_id != H5I_INVALID_HID ) {
+	//if ( Base->Class.setClass_id != H5I_INVALID_HID ) {
 	    readClassTable( io, Base );
-	}
+	    //}
     }
 
     /* No group: we have to create this later.  We delay until later because
@@ -589,6 +591,8 @@ static int getBase( IOHDF5 io, IOBASE *Base, PINDEX *iOrder,
 		    FLOAT *r, FLOAT *v,
 		    FLOAT *fMass, FLOAT *fSoft )
 {
+    int iClass;
+
     assert(Base->setR_id!=H5I_INVALID_HID);
     assert(Base->setV_id!=H5I_INVALID_HID);
     allocateBase(io,Base);
@@ -632,10 +636,20 @@ static int getBase( IOHDF5 io, IOBASE *Base, PINDEX *iOrder,
     v[1] = Base->V[Base->iIndex].v[1];
     v[2] = Base->V[Base->iIndex].v[2];
 
-    assert( Base->Class.piClass[Base->iIndex] < Base->Class.nClasses );
-
-    *fMass = Base->Class.Class[Base->Class.piClass[Base->iIndex]].fMass;
-    *fSoft = Base->Class.Class[Base->Class.piClass[Base->iIndex]].fSoft;
+    if ( Base->Class.piClass == NULL ) {
+	assert(Base->Class.nClasses>=1);
+	for( iClass=0; iClass<Base->Class.nClasses; iClass++ )
+	    if ( Base->Class.Class[iClass].iOrderStart > *iOrder )
+		break;
+	assert( iClass>0 );
+	--iClass;
+    }
+    else {
+	iClass = Base->Class.piClass[Base->iIndex];
+	assert( iClass < Base->Class.nClasses );
+    }
+    *fMass = Base->Class.Class[iClass].fMass;
+    *fSoft = Base->Class.Class[iClass].fSoft;
 
     Base->iIndex++;
     return 1;
