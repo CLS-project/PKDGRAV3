@@ -135,7 +135,6 @@ int main(int argc,char **argv) {
     ** the size of the timestep when the zto parameter is used.
     */
     dTime = msrRead(msr);
-	printf("end msrreadss \n");
     msrInitStep(msr);
     if (prmSpecified(msr->prm,"dSoft")) msrSetSoft(msr,msrSoft(msr));
     /*
