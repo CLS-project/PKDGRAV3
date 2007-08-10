@@ -147,6 +147,7 @@ enum pst_service {
     PST_WRITESS,
     PST_SUNINDIRECT,
     PST_GRAVSUN,
+    PST_HANDSUNMASS,
     PST_NEXTCOLLISION,
     PST_GETCOLLIDERINFO,
     PST_DOCOLLISION,
@@ -781,7 +782,6 @@ struct inSetNParts {
     int nStar;
     int nMaxOrderGas;
     int nMaxOrderDark;
-    double dSunMass;
     };
 void pstSetNParts(PST, void *, int, void *, int *);
 
@@ -880,6 +880,13 @@ struct inGravSun{
       double dSunMass;
       };
 void pstGravSun(PST,void *,int,void *,int *);
+
+/* PST_HANDSUNMASS */
+struct inHandSunMass{
+      double dSunMass;
+      };
+void pstHandSunMass(PST,void *,int,void *,int *);
+
 
 /* PST_NEXTCOLLISION */
 struct outNextCollision {

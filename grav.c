@@ -176,8 +176,6 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	adz = 0;
 #endif
 #ifdef SYMBA
- /* mutual dist. normalized by Hill with dSunMass = 1 
-    correction due to dSunMass is done in pkdDrmintoRung */
 	p[i].drmin = 10000.0;
 	p[i].n_VA = 0; /* number of particles within 3 hill radius*/
 #endif
@@ -386,7 +384,8 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	    if(a2 < 3.0){
 		p[i].iOrder_VA[p[i].n_VA] = ilp[j].iOrder;
 		p[i].hill_VA[p[i].n_VA] = a1;
-		p[i].n_VA++;		    
+		p[i].n_VA++;
+		assert(p[i].iOrder != ilp[j].iOrder);
 		if(a2 > rsym2){
 		  a1 = symfac*(1.0-a2/3.0); /*symfac is defined in pkd.h */ 
 		  a1 *= a1*(2.0*a1 -3.0);
@@ -422,10 +421,10 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 		}
 	    else {		
 #ifdef PLANETS 
-		    if(pkd->param.bCollision){
+	      if(pkd->param.bCollision){ /* have to use soft-linear */
 			pkd->iCollisionflag = 1; /*this is for veryactivehermite */
 			p[i].iColflag = 1;
-			p[i].iOrderCol = ilp[j].iOrder;
+			p[i].iOrderCol = ilp[j].iOrder;		       
 			p[i].dtCol = 1.0*p[i].iOrgIdx;	
 			printf("dr = %e, dr = %e, pi = %i, pj = %i, ilp  \n",
 			       sqrt(d2),sqrt(fourh2),p[i].iOrgIdx,ilp[j].iOrder);
@@ -438,7 +437,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 		dir2 = dir*dir;
 		d2 *= dir2;
 		dir2 *= dir;
-		d2 = 1 - d2;
+		d2 = 1.0 - d2;
 		dir *= 1.0 + d2*(0.5 + d2*(3.0/8.0 + d2*(45.0/32.0)));
 		dir2 *= 1.0 + d2*(1.5 + d2*(135.0/16.0));
 		++nSoft;
@@ -499,8 +498,8 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	    ** Not including yourself!!
 	    */
 	    k = nPart;
-	    for (j=pkdn->pLower;j<=pkdn->pUpper;++j) {
-		if(p[i].iOrder == p[j].iOrder) continue;
+	    for (j=pkdn->pLower;j<=pkdn->pUpper;++j) {	    
+	      if(p[i].iOrder == p[j].iOrder) continue;
 		x = p[i].r[0] - p[j].r[0];
 		y = p[i].r[1] - p[j].r[1];
 		z = p[i].r[2] - p[j].r[2];
@@ -625,7 +624,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 		pj->hill_VA[pj->n_VA] = a1;
 		pi->n_VA++;
 		pj->n_VA++;
-		
+		assert(pj->iOrder!=pi->iOrder);
 		if(a2 > rsym2){
 		    a1 = symfac*(1.0-a2/3.0);
 		    a1 *= a1*(2.0*a1 -3.0);
@@ -658,7 +657,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	 if(pkd->param.bCollision){	
 	     pkd->iCollisionflag = 1; /*this is for veryactivehermite */
 	     pi->iColflag = 1;
-	     pi->iOrderCol = pj->iOrder;
+	     pi->iOrderCol = pj->iOrder;	    
 	     pi->dtCol = 1.0*pi->iOrgIdx;
 	     printf("dr = %e, r1+r2 = %e, pi = %i, pj = %i active-active \n",
 		    sqrt(d2),sqrt(fourh2),pi->iOrgIdx,pj->iOrgIdx);       	 
@@ -760,29 +759,8 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	      v2 = vx*vx + vy*vy + vz*vz;  
 	    }
 #endif	   
-#ifdef SYMBA /* should be removed as all particles should be active */
-	    a1 = pi->r[0]*pi->r[0]+pi->r[1]*pi->r[1]+pi->r[2]*pi->r[2];
-	    a2 = pj->r[0]*pj->r[0]+pj->r[1]*pj->r[1]+pj->r[2]*pj->r[2]; 
-	    a1 = 0.5*(sqrt(a1) + sqrt(a2));
-	    a1 *= cbrt((pi->fMass + pj->fMass)/(3.0*dSunMass));
-	    a2 = sqrt(d2)/a1;
-	    pi->drmin = (a2 < pi->drmin)?a2:pi->drmin; 
-	    pj->drmin = (a2 < pj->drmin)?a2:pj->drmin; 
-	    if(a2 < 3.0){
-		pi->iOrder_VA[pi->n_VA] = pj->iOrder;
-		pj->iOrder_VA[pj->n_VA] = pi->iOrder;
-		pi->hill_VA[pi->n_VA] = a1;
-		pj->hill_VA[pj->n_VA] = a1;
-		pi->n_VA++;
-		pj->n_VA++;		    
-		if(a2 > rsym2){
-		    a1 = symfac*(1.0-a2/3.0);
-		    a1 *= a1*(2.0*a1 -3.0);
-		    a1 += 1.0;
-		}else{ 
-		    a1 = 0.0;		 
-		}
-	    }
+#ifdef SYMBA 
+	    assert(0); /* all particles should be active for Symba*/
 #endif 
 #ifdef SOFTSQUARE
 	    fourh2 = ptwoh2 + 2*pj->fSoft*pj->fSoft;
@@ -811,7 +789,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 		if(pkd->param.bCollision){
 		    pkd->iCollisionflag = 1; /*this is for veryactivehermite */
 		    pi->iColflag = 1;
-		    pi->iOrderCol = pj->iOrder;
+		    pi->iOrderCol = pj->iOrder;		   
 		    pi->dtCol = 1.0*pi->iOrgIdx;	
 		    printf("dr = %e, r1+r2 = %e, pi = %i, pj = %i, active-inactive \n",sqrt(d2),sqrt(fourh2),pi->iOrgIdx,pj->iOrgIdx);
 		}

@@ -619,7 +619,7 @@ pkdDoCollisionVeryActive(PKD pkd,double dTime)
 		    /*printf("%i,%i\n",iOrder1,iOrder2);*/
 		        assert(iOrder1 >= 0);
 		        assert(iOrder2 >= 0);		
-		    
+		        assert(iOrder1 != iOrder2);
 		        pkdGetColliderInfo(pkd,iOrder1,&c1out);		
 			c1 = &c1out; /* struct copy */				
 			assert(c1->id.iOrder == iOrder1);

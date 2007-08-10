@@ -709,7 +709,7 @@ void pkdColNParts(PKD pkd, int *pnNew, int *nDeltaGas, int *nDeltaDark,
 		  int *nDeltaStar);
 void pkdNewOrder(PKD pkd, int nStart);
 void pkdSetNParts(PKD pkd, int nGas, int nDark, int nStar, int nMaxOrderGas,
-		  int nMaxOrderDark, double dSunMass);
+		  int nMaxOrderDark);
 #ifdef RELAXATION
 void pkdInitRelaxation(PKD pkd);
 #endif
@@ -722,6 +722,7 @@ int pkdPackIO(PKD pkd,
 #ifdef PLANETS
 void pkdSunIndirect(PKD pkd,double aSun[],double adSun[],int iFlag);
 void pkdGravSun(PKD pkd,double aSun[],double adSun[],double dSunMass);
+void pkdHandSunMass(PKD pkd,double dSunMass);
 void pkdReadSS(PKD pkd,char *pszFileName,int nStart,int nLocal);
 void pkdWriteSS(PKD pkd,char *pszFileName,int nStart);
 

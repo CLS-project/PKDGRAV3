@@ -3443,15 +3443,12 @@ msrStepVeryActiveHermite(MSR msr, double dStep, double dTime, double dDelta,
 
 #ifdef PLANETS 
 /* maybe we should use collision flag to determine if we call 
-   the following function. Change of solar mass (msr->dSunMass) 
-   is taken care of here */
+   the following function.  */
     if(msr->param.bCollision){
     struct outGetVariableVeryActive outGet;
     pstGetVariableVeryActive(msr->pst, NULL, 0, &outGet, NULL);
     msr->dEcoll += outGet.dDeltaEcoll;
     outGet.dDeltaEcoll = 0.0;/*just in case */
-    /* if solar mass changes we need to put this information to all threads 
-     (should we do it here? or at msradddelete?)*/
     }
 #endif
     /*
@@ -3534,6 +3531,9 @@ msrAddDelParticles(MSR msr)
     int *pNewOrder;
     struct inSetNParts in;
     struct inSetParticleTypes intype;
+#ifdef PLANETS
+    struct inHandSunMass inh;
+#endif
     int iOut;
     int i;
     
@@ -3576,14 +3576,14 @@ msrAddDelParticles(MSR msr)
     in.nDark = msr->nDark;
     in.nStar = msr->nStar;
     in.nMaxOrderGas = msr->nMaxOrderGas;
-    in.nMaxOrderDark = msr->nMaxOrderDark;
-    in.dSunMass = 0.0;
-#ifdef PLANETS
-    in.dSunMass = msr->dSunMass;
-#endif
+    in.nMaxOrderDark = msr->nMaxOrderDark;    
     pstSetNParts(msr->pst,&in,sizeof(in),NULL,NULL);
     pstSetParticleTypes(msr->pst,&intype,sizeof(intype),NULL,NULL);
 
+#ifdef PLANETS
+    inh.dSunMass = msr->dSunMass;
+    pstHandSunMass(msr->pst,&inh,sizeof(inh),NULL,NULL);
+#endif
     free(pNewOrder);
     free(pColNParts);
     }
@@ -3904,6 +3904,8 @@ msrReadSS(MSR msr)
 	SSIO ssio;
 	SSHEAD head;
 	struct inReadSS in;
+	struct inHandSunMass inh;
+
 	struct inSetParticleTypes intype;
 	char achInFile[PST_FILENAME_SIZE];
 	LCL *plcl = msr->pst->plcl;
@@ -3965,7 +3967,7 @@ msrReadSS(MSR msr)
 	in.nGas = msr->nGas;	/* always zero */
 	in.nStar = msr->nStar;	/* always zero */
 	in.iOrder = msr->param.iOrder;
-	in.dSunMass = msr->dSunMass;
+
 	/*
 	 ** Since pstReadSS causes the allocation of the local particle
 	 ** store, we need to tell it the percentage of extra storage it
@@ -3984,6 +3986,10 @@ msrReadSS(MSR msr)
 	    msrOneNodeReadSS(msr,&in);
 	pstSetParticleTypes(msr->pst,&intype,sizeof(intype),NULL,NULL);
 	if (msr->param.bVDetails) puts("Input file successfully read.");
+
+	inh.dSunMass = msr->dSunMass;       
+	pstHandSunMass(msr->pst,&inh,sizeof(inh),NULL,NULL);
+	
 
 	/*
 	 ** Now read in the output points, passing the initial time.
@@ -4422,8 +4428,8 @@ void msrTopStepSymba(MSR msr,
 	printf("%*cGravity, iRung: %d to %d\n",
 	       2*iRung+2,' ',iKickRung,msrCurrMaxRung(msr));
       }
-      msrBuildTree(msr,dMass,dTime);
-      msrGravity(msr,dTime,dStep,piSec,pdWMax,pdIMax,pdEMax,&nActive);
+      msrBuildTree(msr,dMass,dTime);    
+      msrGravity(msr,dTime,dStep,0,0,piSec,pdWMax,pdIMax,pdEMax,&nActive);
       *pdActiveSum += (double)nActive/msr->N;
     }
         
@@ -4539,7 +4545,7 @@ void msrKeplerDrift(MSR msr,double dDelta){
 void msrWrite(MSR msr,char *pszFileName,double dTime,int bCheckpoint)
 {
 #ifdef PLANETS 
-    msrWriteSS(msr,achFile,dTime);
+    msrWriteSS(msr,pszFileName,dTime);
 #else
 #ifdef USE_MDL_IO
     /* If we are using I/O processors, then we do it totally differently */

@@ -283,6 +283,9 @@ void pstAddServices(PST pst,MDL mdl)
     mdlAddService(mdl,PST_GRAVSUN,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstGravSun,
 		  sizeof(struct inGravSun),0);
+    mdlAddService(mdl,PST_HANDSUNMASS,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstHandSunMass,
+		  sizeof(struct inHandSunMass),0);
     mdlAddService(mdl,PST_NEXTCOLLISION,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstNextCollision,
 				  0,sizeof(struct outNextCollision));
@@ -3070,7 +3073,7 @@ pstSetNParts(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 	}
     else {
 	pkdSetNParts(pst->plcl->pkd, in->nGas, in->nDark, in->nStar,
-		     in->nMaxOrderGas, in->nMaxOrderDark,in->dSunMass);
+		     in->nMaxOrderGas, in->nMaxOrderDark);
 	}
     if(pnOut) *pnOut = 0;
     }
@@ -3295,6 +3298,24 @@ void pstGravSun(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     }
     if (pnOut) *pnOut = 0;
     }
+
+void pstHandSunMass(PST pst,void *vin,int nIn,void *vout,int *pnOut)
+    {
+    LCL *plcl = pst->plcl;
+    struct inHandSunMass *in = vin;
+
+    mdlassert(pst->mdl,nIn == sizeof(struct inHandSunMass));
+    if (pst->nLeaves > 1) {
+	mdlReqService(pst->mdl,pst->idUpper,PST_HANDSUNMASS,vin,nIn);
+	pstHandSunMass(pst->pstLower,vin,nIn,NULL,NULL);
+	mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
+    }
+    else {
+      pkdHandSunMass(plcl->pkd,in->dSunMass);
+    }
+    if (pnOut) *pnOut = 0;
+    }
+
 
 void
 pstNextCollision(PST pst,void *vin,int nIn,void *vout,int *pnOut)
