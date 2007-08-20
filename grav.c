@@ -266,16 +266,20 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	    az += taz;
 	    } /* end of cell list gravity loop */
 	
-	if(pkd->param.bGravStep && pkd->param.iTimeStepCrit >= 0) {
+	if (pkd->param.bGravStep && pkd->param.iTimeStepCrit >= 1) {
 	    /*
 	    ** Add particle-bucket stuff
 	    */
 	    for(j=nCell,k=0;j<nC;++j,++k) {
+		x = p[i].r[0] - ilpb[k].x;
+		y = p[i].r[1] - ilpb[k].y;
+		z = p[i].r[2] - ilpb[k].z;
+		d2 = x*x + y*y + z*z;
 		rhoenc[j].index = j;
-		rhoenc[j].x = p[i].r[0] - ilpb[k].x;
-		rhoenc[j].y = p[i].r[1] - ilpb[k].y;
-		rhoenc[j].z = p[i].r[2] - ilpb[k].z;
-		d2 = rhoenc[j].x*rhoenc[j].x + rhoenc[j].y*rhoenc[j].y + rhoenc[j].z*rhoenc[j].z; 
+		rhoenc[j].x = x;
+		rhoenc[j].y = y;
+		rhoenc[j].z = z;
+		rhoenc[j].dir = 1/sqrt(d2);
 #ifdef SOFTSQUARE
 		ptwoh2 = 2*p[i].fSoft*p[i].fSoft;
 		fourh2 = ptwoh2 + ilpb[k].twoh2;
@@ -307,52 +311,64 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 		    dir *= 1.0 + d2*(0.5 + d2*(3.0/8.0 + d2*(45.0/32.0)));
 		    dir2 *= 1.0 + d2*(1.5 + d2*(135.0/16.0));
 		    }
-
 		rhoenc[j].dir = dir;
 		dir2 *=  ilpb[k].m;
 		rhoenc[j].rhoenc = dir2;
-	    }
-	    /*
-	    ** Determine the nSC maximum cells in the cell list
-	    */
-	    if (nCell > 0) {
-	      for (j=0;j<nCell;++j) {
-		heapstruct[j].index = rhoenc[j].index;
-		heapstruct[j].rhoenc = rhoenc[j].rhoenc;
-	      }
-	      HEAPheapstruct(nCell,nSC,heapstruct);
-	      for (j=0;j<nSC;++j) {
-		jmax[j] = heapstruct[nCell-1-j].index;
-	      }
-	    }
-	    /*
-	    ** Determine the nSPB maximum cells in the particle-bucket list
-	    */
-	    if (nPartBucket > 0) {
-	      for (j=0;j<nPartBucket;++j) {
-		heapstruct[j].index = rhoenc[nCell+j].index;
-		heapstruct[j].rhoenc = rhoenc[nCell+j].rhoenc;
-	      }
-	      HEAPheapstruct(nPartBucket,nSPB,heapstruct);
-	      for (j=0;j<nSPB;++j) {
-		jmax[nSC+j] = heapstruct[nPartBucket-1-j].index;
-	      }
-	    }
-	    /*
-	    ** Determine the maximum of the rhocadd values
-	    */
-	    if (nC > 0) {
-	      for (j=0;j<(nSC+nSPB);++j) {
-		l = jmax[j];
-		rhocaddlocal = 0;
-		for (k=0;k<nC;++k) {
-		  costheta = (rhoenc[l].x*rhoenc[k].x + rhoenc[l].y*rhoenc[k].y + rhoenc[l].z*rhoenc[k].z)*rhoenc[l].dir*rhoenc[k].dir;
-		  if (costheta > CAcceptAngle && 2*rhoenc[k].dir > rhoenc[l].dir) rhocaddlocal += rhoenc[k].rhoenc;
+
+		tax = -x*dir2;
+		tay = -y*dir2;
+		taz = -z*dir2;		
+		adotai = p[i].a[0]*tax + p[i].a[1]*tay + p[i].a[2]*taz;
+		if (adotai >= 0) {
+		    dirsum += dir*adotai*adotai;
+		    normsum += adotai*adotai;
+		    }
+
 		}
-		rhocadd = (rhocaddlocal > rhocadd)?rhocaddlocal:rhocadd;
-	      }
-	    }
-	    assert(rhocadd >= 0);
+
+	    if (pkd->param.iTimeStepCrit >= 0) {
+		/*
+		** Determine the nSC maximum cells in the cell list
+		*/
+		if (nCell > 0) {
+		    for (j=0;j<nCell;++j) {
+			heapstruct[j].index = rhoenc[j].index;
+			heapstruct[j].rhoenc = rhoenc[j].rhoenc;
+			}
+		    HEAPheapstruct(nCell,nSC,heapstruct);
+		    for (j=0;j<nSC;++j) {
+			jmax[j] = heapstruct[nCell-1-j].index;
+			}
+		    }
+		/*
+		** Determine the nSPB maximum cells in the particle-bucket list
+		*/
+		if (nPartBucket > 0) {
+		    for (j=0;j<nPartBucket;++j) {
+			heapstruct[j].index = rhoenc[nCell+j].index;
+			heapstruct[j].rhoenc = rhoenc[nCell+j].rhoenc;
+			}
+		    HEAPheapstruct(nPartBucket,nSPB,heapstruct);
+		    for (j=0;j<nSPB;++j) {
+			jmax[nSC+j] = heapstruct[nPartBucket-1-j].index;
+			}
+		    }
+		/*
+		** Determine the maximum of the rhocadd values
+		*/
+		if (nC > 0) {
+		    for (j=0;j<(nSC+nSPB);++j) {
+			l = jmax[j];
+			rhocaddlocal = 0;
+			for (k=0;k<nC;++k) {
+			    costheta = (rhoenc[l].x*rhoenc[k].x + rhoenc[l].y*rhoenc[k].y + rhoenc[l].z*rhoenc[k].z)*rhoenc[l].dir*rhoenc[k].dir;
+			    if (costheta > CAcceptAngle && 2*rhoenc[k].dir > rhoenc[l].dir) rhocaddlocal += rhoenc[k].rhoenc;
+			    }
+			rhocadd = (rhocaddlocal > rhocadd)?rhocaddlocal:rhocadd;
+			}
+		    }
+		assert(rhocadd >= 0);
+		}
 	    } /* end of cell & particle-bucket list time-step loop */
 	
 	mdlCacheCheck(pkd->mdl);
@@ -432,7 +448,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 #endif
 		/*
 		** This uses the Dehnen K1 kernel function now, it's fast!
-		*/
+		*/	
 		SQRT1(fourh2,dir);
 		dir2 = dir*dir;
 		d2 *= dir2;
@@ -470,13 +486,11 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	    tax = -x*dir2;
 	    tay = -y*dir2;
 	    taz = -z*dir2;
-#if 0
 	    adotai = p[i].a[0]*tax + p[i].a[1]*tay + p[i].a[2]*taz;
 	    if (adotai >= 0) {
 	      dirsum += dir*adotai*adotai;
 	      normsum += adotai*adotai;
 	    }
-#endif
 	    fPot -= ilp[j].m*dir;
 	    ax += tax;
 	    ay += tay;
