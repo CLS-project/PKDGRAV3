@@ -175,10 +175,10 @@ int main(int argc,char **argv) {
 	msrUpdateSoft(msr,dTime);
 	msrBuildTree(msr,dMass,dTime);
 	if (msrDoGravity(msr)) {
-	  msrGravity(msr,dTime,msr->param.iStartStep,msr->param.bEwald,msr->param.bEwaldKicking,&iSec,&dWMax,&dIMax,&dEMax,&nActive);
-	  if (msr->param.bGravStep && msr->param.iTimeStepCrit == -1) {
 	    msrGravity(msr,dTime,msr->param.iStartStep,msr->param.bEwald,msr->param.bEwaldKicking,&iSec,&dWMax,&dIMax,&dEMax,&nActive);
-	  }
+	    if (msr->param.bGravStep) {
+		msrGravity(msr,dTime,msr->param.iStartStep,msr->param.bEwald,msr->param.bEwaldKicking,&iSec,&dWMax,&dIMax,&dEMax,&nActive);
+		}
 	    msrCalcEandL(msr,MSR_INIT_E,dTime,&E,&T,&U,&Eth,L);
 	    dMultiEff = 1.0;
 	    if (msrLogInterval(msr)) {

@@ -43,7 +43,8 @@ struct parameters {
     int bAccelStep; /* true if bEpsAccStep or bSqrtPhiStep */
     int bDensityStep;
     int iTimeStepCrit;
-    int nPColl;
+    int nPartRhoLoc;
+    int nPartColl;
     int nTruncateRung;
     int bDoDensity;
     int bDodtOutput;
@@ -91,6 +92,7 @@ struct parameters {
     double dxPeriod;
     double dyPeriod;
     double dzPeriod;
+    double dPreFacRhoLoc;
     CSM csm;
     double dRedTo;
     double dCentMass;
