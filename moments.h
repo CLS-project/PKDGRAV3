@@ -196,7 +196,7 @@ void momLocrAddMomrAccurate(LOCR *l,MOMR *m,momFloat g0,momFloat x,momFloat y,mo
 /*
 ** These are the prefered versions that should be used in pkdgrav2.
 */
-double momLocrAddMomr5(LOCR *,MOMR *,momFloat,momFloat,momFloat,momFloat);
+double momLocrAddMomr5(LOCR *,MOMR *,momFloat,momFloat,momFloat,momFloat,double *,double *,double *);
 double momLocrAddMomr5Noopt(LOCR *,MOMR *,momFloat,momFloat,momFloat,momFloat);
 void momEvalLocr(LOCR *,momFloat,momFloat,momFloat,
 				 momFloat *,momFloat *,momFloat *,momFloat *); 

@@ -1628,7 +1628,7 @@ double momLocrAddMomr5Noopt(LOCR *l,MOMR *m,momFloat dir,momFloat x,momFloat y,m
 /*
 ** Op Count = (*,+) = (302,207) = 509
 */
-double momLocrAddMomr5(LOCR *l,MOMR *m,momFloat dir,momFloat x,momFloat y,momFloat z) {
+double momLocrAddMomr5(LOCR *l,MOMR *m,momFloat dir,momFloat x,momFloat y,momFloat z,double *tax,double *tay,double *taz) {
     const momFloat onethird = 1.0/3.0;
     momFloat xx,xy,xz,yy,yz,zz;
     momFloat xxx,xxy,xyy,yyy,xxz,xyz,yyz;
@@ -1704,9 +1704,9 @@ double momLocrAddMomr5(LOCR *l,MOMR *m,momFloat dir,momFloat x,momFloat y,momFlo
     T2 = g1*m->m + g3*A;
     T3 = g2*m->m;
 
-    l->x += g2*Ax - g3*Bx + x*R1;
-    l->y += g2*Ay - g3*By + y*R1;
-    l->z += g2*Az - g3*Bz + z*R1;
+    *tax = -(g2*Ax - g3*Bx + x*R1);
+    *tay = -(g2*Ay - g3*By + y*R1);
+    *taz = -(g2*Az - g3*Bz + z*R1);
 
     g2 *= dir;
 
@@ -1730,9 +1730,13 @@ double momLocrAddMomr5(LOCR *l,MOMR *m,momFloat dir,momFloat x,momFloat y,momFlo
 
     T2 -= g4*B;
     T3 += g4*A;
-    l->x += g4*Cx;
-    l->y += g4*Cy;
-    l->z += g4*Cz;
+
+    *tax -= g4*Cx;
+    *tay -= g4*Cy;
+    *taz -= g4*Cz;
+    l->x -= *tax;
+    l->y -= *tay;
+    l->z -= *taz;
 
     l->xx += g2*m->xx + T2 + R2*xx + 2*g3*Ax*x - 2*g4*Bx*x;
     l->yy += g2*m->yy + T2 + R2*yy + 2*g3*Ay*y - 2*g4*By*y;
