@@ -492,6 +492,9 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp,int bTempBound) {
 	vx = m*p[pj].v[0];
 	vy = m*p[pj].v[1];
 	vz = m*p[pj].v[2];
+	ax = m*p[pj].a[0];
+	ay = m*p[pj].a[1];
+	az = m*p[pj].a[2];
 	pkdn->iActive = p[pj].iActive;
 	pkdn->uMinRung = pkdn->uMaxRung = p[pj].iRung;
 	for (++pj;pj<=pkdn->pUpper;++pj) {
@@ -505,6 +508,9 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp,int bTempBound) {
 	    vx += m*p[pj].v[0];
 	    vy += m*p[pj].v[1];
 	    vz += m*p[pj].v[2];		
+	    ax += m*p[pj].a[0];
+	    ay += m*p[pj].a[1];
+	    az += m*p[pj].a[2];		
 	    pkdn->iActive |= p[pj].iActive;
 	    if ( p[pj].iRung > pkdn->uMaxRung ) pkdn->uMaxRung = p[pj].iRung;
 	    if ( p[pj].iRung < pkdn->uMinRung ) pkdn->uMinRung = p[pj].iRung;
@@ -516,6 +522,9 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp,int bTempBound) {
 	pkdn->v[0] = m*vx;
 	pkdn->v[1] = m*vy;
 	pkdn->v[2] = m*vz;
+	pkdn->a[0] = m*ax;
+	pkdn->a[1] = m*ay;
+	pkdn->a[2] = m*az;
 	dih2 *= m;
 	pkdn->fSoft2 = 1/dih2;
 	/*
@@ -643,6 +652,7 @@ void pkdCombineCells(KDN *pkdn,KDN *p1,KDN *p2,int bCombineBound) {
     for (j=0;j<3;++j) {
       pkdn->r[j] = ifMass*(m1*r1[j] + m2*r2[j]);
       pkdn->v[j] = ifMass*(m1*p1->v[j] + m2*p2->v[j]);
+      pkdn->a[j] = ifMass*(m1*p1->a[j] + m2*p2->a[j]);
     }
     pkdn->fSoft2 = 1.0/(ifMass*(m1/p1->fSoft2 + m2/p2->fSoft2));
     pkdn->iActive = (p1->iActive | p2->iActive);

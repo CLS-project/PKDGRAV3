@@ -43,7 +43,7 @@
 #define LOWER(i)	(i<<1)
 #define UPPER(i)	((i<<1)+1)
 #define PARENT(i)	(i>>1)
-#define SIBLING(i) 	((i&1)?i-1:i+1)
+#define SIBLING(i) 	(i^1)
 #define SETNEXT(i)\
 {\
 	while (i&1) i=i>>1;\
@@ -86,7 +86,7 @@ typedef struct particle {
     FLOAT r[3];
     FLOAT v[3];
     FLOAT a[3];
-    FLOAT ae[3];
+    FLOAT ae[3];   /* used for ewald kicking */
 #ifdef HERMITE
     FLOAT ad[3];
     FLOAT r0[3];
@@ -266,6 +266,7 @@ typedef struct kdNode {
 #endif
     FLOAT fSoft2;
     FLOAT r[3];
+    FLOAT a[3];  /* a_cm is used in determining the timestep in the new grav stepping */
     FLOAT v[3];
     MOMR mom;
     int iActive;
@@ -274,24 +275,31 @@ typedef struct kdNode {
     } KDN;
 
 
+#ifdef NEW_TREE
+#define MAX_NBUCKET 7
+
 typedef struct kdNew {
+    double r[3];
+    double v[3];
     union celltype {
 	struct cell {
 	    double dSplit;
 	    uint32_t iLower;
 	    uint32_t iUpper;
+	    uint32_t iParent:
 	    uint16_t idLower;
 	    uint16_t idUpper;
+	    uint16_t idParent;
+	    uint16_t uPad16;
 	} c;
 	struct bucket {
-	    uint32_t iPart[5];
+	    uint32_t iPart[MAX_NBUCKET];
 	} b;
-    } cell;
-    double r[3];
-    FLOAT v[3];
+    };
+    uint64_t uCount:48
     MOMR mom;
 } KDNEW;
-	   
+#endif   
 
 #define NMAX_OPENCALC	100
 
