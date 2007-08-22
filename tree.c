@@ -439,7 +439,7 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp,int bTempBound) {
     KDN *c = pkd->kdNodes;
     KDN *pkdn,*pkdl,*pkdu;
     MOMR mom;
-    FLOAT m,fMass,x,y,z,vx,vy,vz,ft,d2,d2Max,dih2;
+    FLOAT m,fMass,x,y,z,vx,vy,vz,ax,ay,az,ft,d2,d2Max,dih2;
     int pj,d,nDepth;
 
     nDepth = 1;
