@@ -177,6 +177,7 @@ int main(int argc,char **argv) {
 	if (msrDoGravity(msr)) {
 	    msrGravity(msr,dTime,msr->param.iStartStep,msr->param.bEwald,msr->param.bEwaldKicking,&iSec,&dWMax,&dIMax,&dEMax,&nActive);
 	    if (msr->param.bGravStep) {
+		msrBuildTree(msr,dMass,dTime);
 		msrGravity(msr,dTime,msr->param.iStartStep,msr->param.bEwald,msr->param.bEwaldKicking,&iSec,&dWMax,&dIMax,&dEMax,&nActive);
 		}
 	    msrCalcEandL(msr,MSR_INIT_E,dTime,&E,&T,&U,&Eth,L);
