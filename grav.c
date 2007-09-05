@@ -119,9 +119,10 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	p[i].drmin = 10000.0;
 	p[i].n_VA = 0; /* number of particles within 3 hill radius*/
 #endif
-	rholoc = 0;
 	rhopmax = 0;
+	rholoc = 0;
 	dsmooth2 = 0;
+	maga = sqrt(p[i].a[0]*p[i].a[0] + p[i].a[1]*p[i].a[1] + p[i].a[2]*p[i].a[2]);
 	dirsum = dirLsum;
 	normsum = normLsum;
 	
@@ -192,7 +193,8 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	    tay = xy + xxy + ty - y*dir2;
 	    taz = xz + xxz + tz - z*dir2;
 	    adotai = p[i].a[0]*tax + p[i].a[1]*tay + p[i].a[2]*taz; 
-	    if (adotai >= 0) {
+	    if (adotai > 0) {
+		adotai /= maga;
 		dirsum += dirDTS*adotai*adotai;
 		normsum += adotai*adotai;
 		}
@@ -360,7 +362,8 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	    tay = -y*dir2;
 	    taz = -z*dir2;
 	    adotai = p[i].a[0]*tax + p[i].a[1]*tay + p[i].a[2]*taz;
-	    if (adotai >= 0 && d2DTS >= dsmooth2) {
+	    if (adotai > 0 && d2DTS >= dsmooth2) {
+		adotai /= maga;
 		dirsum += dir*adotai*adotai;
 		normsum += adotai*adotai;
 		}
@@ -379,16 +382,6 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 #endif
 	    } /* end of particle list gravity loop */
 	/*
-	** Set value for time-step
-	*/
-	if (pkd->param.bGravStep) {
-	    maga = sqrt(p[i].a[0]*p[i].a[0] + p[i].a[1]*p[i].a[1] + p[i].a[2]*p[i].a[2]);
-	    p[i].dtGrav = maga*dirsum/normsum + pkd->param.dPreFacRhoLoc*rholoc;
-	    if(pkd->param.iTimeStepCrit > 0) {
-		p[i].dtGrav = (rhopmax > p[i].dtGrav)?rhopmax:p[i].dtGrav;
-		}
-	    }
-	/*
 	** Finally set new acceleration and potential.
 	** Note that after this point we cannot use the new timestepping criterion since we
 	** overwrite the acceleration.
@@ -402,6 +395,19 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	p[i].ad[1] = ady;
 	p[i].ad[2] = adz;
 #endif
+	/*
+	** Set value for time-step
+	*/
+	if (pkd->param.bGravStep) {
+	    /*
+	    ** Use new acceleration here!
+	    */
+	    maga = sqrt(p[i].a[0]*p[i].a[0] + p[i].a[1]*p[i].a[1] + p[i].a[2]*p[i].a[2]);
+	    p[i].dtGrav = maga*dirsum/normsum + pkd->param.dPreFacRhoLoc*rholoc;
+	    if(pkd->param.iTimeStepCrit > 0) {
+		p[i].dtGrav = (rhopmax > p[i].dtGrav)?rhopmax:p[i].dtGrav;
+		}
+	    }
 	} /* end of i-loop over particles in the bucket */
     /*
     ** Free time-step lists
