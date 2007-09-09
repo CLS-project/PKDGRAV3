@@ -12,7 +12,7 @@ typedef struct {
     FLOAT v[3];
 } ioV3;
 
-typedef uint32_t PINDEX;
+typedef uint64_t PINDEX;
 
 typedef struct {
     PINDEX iStart;            /* Start iOrder number */
