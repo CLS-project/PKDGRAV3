@@ -20,6 +20,39 @@
     dir = 1/sqrt(d2);\
     } 
 
+void HEAPrholocal(int n, int k, RHOLOCAL ra[]) {
+    int l,j,ir,i;
+    RHOLOCAL rra;
+
+    l=(n>>1)+1;
+    ir=n;
+
+    while (1) {
+        if (l > 1) {
+            rra = ra[--l-1];
+            }
+        else {
+            rra = ra[ir-1];
+            ra[ir-1] = ra[0];
+            if (--ir == n-k) {
+                ra[0] = rra;
+                return;
+                }
+            }
+        i = l;
+        j = (l<<1);
+        while (j <= ir) {
+            if (j < ir && ra[j-1].d2 > ra[j].d2) ++j; /* k smallest elements at the end */
+            if (rra.d2 > ra[j-1].d2) {
+                ra[i-1] = ra[j-1];
+                j += (i=j);
+                }
+            else j = ir+1;
+            }
+        ra[i-1] = rra;
+        }
+    }
+
 /*
 ** This version of grav.c does all the operations inline, including 
 ** v_sqrt's and such.
@@ -34,6 +67,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
     double x,y,z,d2,dir,dir2;
     momFloat adotai,maga,dirsum,normsum;
     momFloat tax,tay,taz,tmon;
+    double rholoc,dirDTS,d2DTS,dsmooth2;
 #ifndef USE_SIMD_MOMR
     double g2,g3,g4;
     double xx,xy,xz,yy,yz,zz;
@@ -46,11 +80,18 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 #ifdef SOFTSQUARE
     double ptwoh2;
 #endif
-    int i,j,k,l,na,nia,nSoft,nActive;
+    int i,j,k,l,nN,nSP,na,nia,nSoft,nActive;
 #ifdef USE_SIMD_MOMR
     nCellILC = nCell;
     momPadSIMDMomr( &nCellILC, ilc );
 #endif
+    /*
+    ** dynamical time-stepping stuff
+    */
+    RHOLOCAL *rholocal;
+    nN = nPart+pkdn->pUpper-pkdn->pLower; /* total number of neighbouring particles (without particle itself) */
+    rholocal = malloc(nN*sizeof(RHOLOCAL));
+    assert(rholocal != NULL);
     /*
     ** Now process the two interaction lists for each active particle.
     */
@@ -59,10 +100,14 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
     for (i=pkdn->pLower;i<=pkdn->pUpper;++i) {
 	if (!pkdIsActive(pkd,&p[i])) continue;
 	++nActive;
+	p[i].dtGrav = 0.0;
 	fPot = 0;
 	ax = 0;
 	ay = 0;
 	az = 0;
+        rholoc = 0;
+        dsmooth2 = 0;
+	maga = sqrt(p[i].a[0]*p[i].a[0] + p[i].a[1]*p[i].a[1] + p[i].a[2]*p[i].a[2]);
 	dirsum = dirLsum;
 	normsum = normLsum;
 	/*
@@ -83,6 +128,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	    z = p[i].r[2] - ilc[j].z;
 	    d2 = x*x + y*y + z*z;
 	    SQRT1(d2,dir);
+            dirDTS = dir;
 	    dir2 = dir*dir;
 	    g2 = 3*dir*dir2*dir2;
 	    g3 = 5*g2*dir2;
@@ -126,18 +172,66 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	    tax = xx + xxx + tx - x*dir2;
 	    tay = xy + xxy + ty - y*dir2;
 	    taz = xz + xxz + tz - z*dir2;
-	    adotai = p[i].a[0]*tax + p[i].a[1]*tay + p[i].a[2]*taz; 
-	    if (adotai >= 0) {
-	      dirsum += dir*adotai*adotai;
-	      normsum += adotai*adotai;
-	    }
+            adotai = p[i].a[0]*tax + p[i].a[1]*tay + p[i].a[2]*taz; 
+            if (adotai > 0) {
+		adotai /= maga;
+                dirsum += dirDTS*adotai*adotai;
+                normsum += adotai*adotai;
+                }
 	    ax += tax;
 	    ay += tay;
 	    az += taz;
 	    } /* end of cell list gravity loop */
 #endif		
 	mdlCacheCheck(pkd->mdl);
-
+	/*
+	** Calculate local density and kernel smoothing length for dynamical time-stepping
+	*/
+	if(pkd->param.bGravStep) {
+	    /*
+	    ** Add particles to array rholocal first
+	    */
+	    for (j=0;j<nPart;++j) {
+		x = p[i].r[0] - ilp[j].x;
+		y = p[i].r[1] - ilp[j].y;
+		z = p[i].r[2] - ilp[j].z;
+		d2 = x*x + y*y + z*z;
+		rholocal[j].m = ilp[j].m;	
+		rholocal[j].d2 = d2;
+		}
+	    /*
+	    ** Add bucket particles to the array rholocal as well!
+	    ** Not including yourself!!
+	    */
+	    k = nPart;
+	    for (j=pkdn->pLower;j<=pkdn->pUpper;++j) {
+		if(p[i].iOrder == p[j].iOrder) continue;
+		x = p[i].r[0] - p[j].r[0];
+		y = p[i].r[1] - p[j].r[1];
+		z = p[i].r[2] - p[j].r[2];
+		d2 = x*x + y*y + z*z;
+		rholocal[k].m = p[j].fMass;
+		rholocal[k].d2 = d2;
+		k += 1;
+		}
+	    /*
+	    ** Calculate local density only in the case of more than 1 neighbouring particle!
+	    */
+	    if (nN > 1) {
+		nSP = (nN < pkd->param.nPartRhoLoc)?nN:pkd->param.nPartRhoLoc;
+		HEAPrholocal(nN,nSP,rholocal);
+		dsmooth2 = rholocal[nN-nSP].d2;
+		SQRT1(dsmooth2,dir);
+		dir *= dir;
+		for (j=(nN - nSP);j<nN;++j) {
+		    d2 = rholocal[j].d2*dir;
+		    d2 = (1-d2);
+		    rholoc += d2*rholocal[j].m;
+		    }
+		rholoc = 1.875*M_1_PI*rholoc*dir*sqrt(dir); /* F1 Kernel (15/8) */
+		}
+	    assert(rholoc >= 0);
+	    }
 #ifdef USE_SIMD_PP
 	PPInteractSIMD( nPart,ilp,p[i].r,p[i].a,p[i].fMass,p[i].fSoft,
 			&ax, &ay, &az, &fPot, &dirsum, &normsum );
@@ -147,6 +241,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	    y = p[i].r[1] - ilp[j].y;
 	    z = p[i].r[2] - ilp[j].z;
 	    d2 = x*x + y*y + z*z;
+	    d2DTS = d2;
 	    fourh2 = softmassweight(p[i].fMass,4*p[i].fSoft*p[i].fSoft,ilp[j].m,ilp[j].fourh2);
 	    if (d2 > fourh2) {
 		SQRT1(d2,dir);
@@ -169,39 +264,47 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	    tax = -x*dir2;
 	    tay = -y*dir2;
 	    taz = -z*dir2;
-
 	    adotai = p[i].a[0]*tax + p[i].a[1]*tay + p[i].a[2]*taz;
-	    if (adotai >= 0) {
-	      dirsum += dir*adotai*adotai;
-	      normsum += adotai*adotai;
-	    }
-
+	    if (adotai > 0 && d2DTS >= dsmooth2) {
+		adotai /= maga;
+		dirsum += dir*adotai*adotai;
+		normsum += adotai*adotai;
+		}
 	    fPot -= ilp[j].m*dir;
 	    ax += tax;
 	    ay += tay;
 	    az += taz;
 	    } /* end of particle list gravity loop */
 #endif
-
-	/*
-	** Set the density value using the new timestepping formula.
-	*/
-	if (pkd->param.bGravStep && dirsum > 0) {
-	    maga = sqrt(p[i].a[0]*p[i].a[0] + p[i].a[1]*p[i].a[1] + p[i].a[2]*p[i].a[2]);
-	    p[i].dtGrav = maga*dirsum/normsum;
-	    }
-
         /*
         ** Finally set new acceleration and potential.
-        ** Note that after this point we cannot use the new timestepping criteri
-on since we
+        ** Note that after this point we cannot use the new timestepping criterion since we
         ** overwrite the acceleration.
         */
 	p[i].fPot = fPot;
 	p[i].a[0] = ax;
 	p[i].a[1] = ay;
 	p[i].a[2] = az;	
+	/*
+	** Set value for time-step
+	*/
+	if (pkd->param.bGravStep) {
+	    /*
+	    ** Use new acceleration here!
+	    */
+	    maga = sqrt(p[i].a[0]*p[i].a[0] + p[i].a[1]*p[i].a[1] + p[i].a[2]*p[i].a[2]);
+	    p[i].dtGrav = maga*dirsum/normsum + pkd->param.dPreFacRhoLoc*rholoc;
+	    }
+
+/* 	if (p[i].iOrder < 100) { */
+/* 	    printf("PID %d a0 %g a1 %g a2 %g\n",p[i].iOrder,p[i].a[0],p[i].a[1],p[i].a[2]); */
+/* 	    } */
+
 	} /* end of i-loop cells & particles */
+    /*
+    ** Free time-step lists
+    */ 
+    free(rholocal);
     *pdFlop += nActive*(nPart*40 + nCell*200) + nSoft*15;
     return(nActive);
     }

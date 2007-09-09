@@ -39,10 +39,11 @@ typedef struct CheckElt {
 typedef struct CheckStack {
     int nPart;
     int nCell;
-    int nPartBucket;
     int nCheck;
     CELT *Check;
     LOCR L;
+    double dirLsum;
+    double normLsum;
     double fWeight;
     } CSTACK;
 
@@ -110,6 +111,8 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bEwaldKick,
     CSTACK *S;
     CELT *Check;
     LOCR L;
+    double dirLsum,normLsum,adotai,maga;
+    double tax,tay,taz;
     ILP *ilp;
     ILC *ilc;
     double fWeight = 0.0;
@@ -140,8 +143,6 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bEwaldKick,
 #ifdef GLAM_STATS
     int nTotGlam=0, nAvgGlam=0;
 #endif
-#else
-    momFloat t1, t2, t3r, t4r;
 #endif
 #ifdef TIME_WALK_WORK
     TIMER tv;
@@ -218,9 +219,11 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bEwaldKick,
 	assert(S[ism].Check != NULL);
 	}
     /*
-    ** Clear local expansion.
+    ** Clear local expansion and the timestepping sums.
     */
     momClearLocr(&L);
+    dirLsum = 0;
+    normLsum = 0;
     /*
     ** First we add any replicas of the entire box
     ** to the Checklist.
@@ -663,9 +666,16 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bEwaldKick,
 		    ilglam[nGlam].z = dx[2];
 		    ilglam[nGlam].zero = 0.0;
 		    ++nGlam;
-#else
+#else  /* not using SIMD_LOCR */
 		    dir = 1.0/sqrt(d2);
-		    *pdFlop += momLocrAddMomr5(&L,&pkdc->mom,dir,dx[0],dx[1],dx[2]);
+		    *pdFlop += momLocrAddMomr5(&L,&pkdc->mom,dir,dx[0],dx[1],dx[2],&tax,&tay,&taz);
+		    adotai = pkdc->a[0]*(-tax) + pkdc->a[1]*(-tay) + pkdc->a[2]*(-taz); /* temporary hack to get it right */
+		    if (adotai > 0) {
+			maga = sqrt(pkdc->a[0]*pkdc->a[0] + pkdc->a[1]*pkdc->a[1] + pkdc->a[2]*pkdc->a[2]);
+			adotai /= maga;
+			dirLsum += dir*adotai*adotai;
+			normLsum += adotai*adotai;
+			}
 #endif
 		}
 		else if (iOpen == -2) {
@@ -820,6 +830,8 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bEwaldKick,
 		    for (i=0;i<nCheck;++i) S[iStack].Check[i] = Check[i];
 		    S[iStack].Check[nCheck-1].iCell = iCell;
 		    S[iStack].L = L;
+		    S[iStack].dirLsum = dirLsum;
+		    S[iStack].normLsum = normLsum;
 		    dShiftFlop = momShiftLocr(&S[iStack].L,
 					      c[iCell+1].r[0] - xParent,
 					      c[iCell+1].r[1] - yParent,
@@ -897,7 +909,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bEwaldKick,
 	** Now calculate gravity on this bucket!
 	*/
 
-	nActive = pkdGravInteract(pkd,pkdc,&L,ilp,nPart,ilc,nCell,NULL,0,0,0,pdFlop);
+	nActive = pkdGravInteract(pkd,pkdc,&L,ilp,nPart,ilc,nCell,NULL,0,dirLsum,normLsum,pdFlop);
 	/*
 	** Note that if Ewald is being performed we need to factor this
 	** constant cost into the load balancing weights.
@@ -973,12 +985,11 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bEwaldKick,
 	*/
 	nPart = S[iStack].nPart;
 	nCell = S[iStack].nCell;
-/*
-	nPartBucket = S[iStack].nPartBucket;
-*/
 	nCheck = S[iStack].nCheck;
 	for (i=0;i<nCheck;++i) Check[i] = S[iStack].Check[i];
 	L = S[iStack].L;
+	dirLsum = S[iStack].dirLsum;
+	normLsum = S[iStack].normLsum;
 #ifdef TIME_WALK_WORK
 	fWeight = S[iStack].fWeight;
 	clearTimer(&tv);
