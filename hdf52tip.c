@@ -22,7 +22,7 @@ int main( int argc, char *argv[] )
     double dTime;
     float  fTemp;
     PINDEX iOrder;
-    int nBodies, nDims, nGas, nDark, nStar, nPad;
+    unsigned int nBodies, nDims, nGas, nDark, nStar, nPad;
     FLOAT fMass, fSoft, fPot;
     FLOAT r[3];
     FLOAT v[3];
@@ -93,12 +93,12 @@ int main( int argc, char *argv[] )
 
     /* Tipsy Header */
     assert( xdr_double(&xdr,&dTime) );
-    assert( xdr_int(&xdr,&nBodies) );
-    assert( xdr_int(&xdr,&nDims) );
-    assert( xdr_int(&xdr,&nGas) );
-    assert( xdr_int(&xdr,&nDark) );
-    assert( xdr_int(&xdr,&nStar) );
-    assert( xdr_int(&xdr,&nPad) );
+    assert( xdr_u_int(&xdr,&nBodies) );
+    assert( xdr_u_int(&xdr,&nDims) );
+    assert( xdr_u_int(&xdr,&nGas) );
+    assert( xdr_u_int(&xdr,&nDark) );
+    assert( xdr_u_int(&xdr,&nStar) );
+    assert( xdr_u_int(&xdr,&nPad) );
 
     /* Okay, we should really do this */
     assert( nGas == 0 );
