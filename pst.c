@@ -196,7 +196,7 @@ void pstAddServices(PST pst,MDL mdl)
 		  sizeof(int),0);
     mdlAddService(mdl,PST_ACTIVEORDER,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstActiveOrder,
-		  0,sizeof(int));
+		  0,sizeof(uint64_t));
     mdlAddService(mdl,PST_INITSTEP,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstInitStep,
 		  sizeof(struct inInitStep),0);
