@@ -8,6 +8,8 @@
 #include <rpc/xdr.h>
 #include "iohdf5.h"
 
+#define BUFFER_SIZE (8*1024*1024)
+
 int main( int argc, char *argv[] )
 {
     int bError = 0;
@@ -17,6 +19,7 @@ int main( int argc, char *argv[] )
     hid_t fileID;
     IOHDF5 io;
     FILE  *fout;
+    char  *fout_buffer = 0;
     XDR xdr;
 
     double dTime;
@@ -80,9 +83,13 @@ int main( int argc, char *argv[] )
 	fprintf( stderr, "Unable to open %s for writing\n", outName );
 	exit(2);
     }
+    fout_buffer = malloc(BUFFER_SIZE);
+    setvbuf(fout,fout_buffer,_IOFBF,BUFFER_SIZE);
+
     xdrstdio_create(&xdr,fout,XDR_ENCODE);
 
     assert(ioHDF5ReadAttribute( io, "dTime", H5T_NATIVE_DOUBLE, &dTime ));
+    assert(ioHDF5GasCount(io)+ioHDF5DarkCount(io)+ioHDF5StarCount(io)<=UINT_MAX);
 
     nDims = 3;
     nGas  = ioHDF5GasCount(io);
@@ -90,6 +97,9 @@ int main( int argc, char *argv[] )
     nStar = ioHDF5StarCount(io);
     nPad  = 0;
     nBodies = nGas + nDark + nStar;
+
+    printf( "%lu dark, %lu gas, %lu star, %lu total\n",
+	    nDark, nGas, nStar, nBodies );
 
     /* Tipsy Header */
     assert( xdr_double(&xdr,&dTime) );
@@ -128,6 +138,7 @@ int main( int argc, char *argv[] )
 
     xdr_destroy(&xdr);
     fclose(fout);
+    free(fout_buffer);
     H5Fclose(fileID);
 
     return 0;
