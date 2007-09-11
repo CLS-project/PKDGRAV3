@@ -121,7 +121,7 @@ typedef struct particle {
     FLOAT w[3];			/* spin vector */
     int iColor;			/* handy color tag */
     int iColflag;	        /* handy collision tag 1 for c1, 2 for c2*/
-    int iOrderCol;              /* iOrder of colliding oponent.*/
+    uint64_t iOrderCol;              /* iOrder of colliding oponent.*/
     FLOAT dtCol;
 /* end (collision stuff) */
 #ifdef SYMBA
@@ -129,7 +129,7 @@ typedef struct particle {
     FLOAT vb[3]; /* velocity before drift */
     FLOAT drmin; /* minimum distance from neighbors normalized by Hill*/
     FLOAT drmin2; /* min. dis. during drift */
-    int   iOrder_VA[5]; /* iOrder's of particles within 3 hill radius*/
+    uint64_t iOrder_VA[5]; /* iOrder's of particles within 3 hill radius*/
     int   i_VA[5];    /* pointers of particles */
     int   n_VA;       /* number of particles */
   double  hill_VA[5]; /* mutual hill radius calculated in grav.c */  
@@ -364,7 +364,7 @@ typedef struct kdNew {
 
 typedef struct ilPart {
 #ifndef USE_SIMD
-    int iOrder;
+    uint64_t iOrder;
 #endif
     double m,x,y,z;
 #ifndef USE_SIMD
@@ -645,8 +645,8 @@ int pkdUpperPart(PKD,int,FLOAT,int,int);
 int pkdWeightWrap(PKD,int,FLOAT,FLOAT,int,int,int,int,int *,int *);
 int pkdLowerPartWrap(PKD,int,FLOAT,FLOAT,int,int,int);
 int pkdUpperPartWrap(PKD,int,FLOAT,FLOAT,int,int,int);
-int pkdLowerOrdPart(PKD,int,int,int);
-int pkdUpperOrdPart(PKD,int,int,int);
+int pkdLowerOrdPart(PKD,uint64_t,int,int);
+int pkdUpperOrdPart(PKD,uint64_t,int,int);
 int pkdActiveOrder(PKD);
 
 int pkdColRejects(PKD,int);
@@ -659,7 +659,7 @@ int pkdLocal(PKD);
 int pkdActive(PKD);
 int pkdInactive(PKD);
 int pkdNodes(PKD);
-int pkdColOrdRejects(PKD,int,int);
+int pkdColOrdRejects(PKD,uint64_t,int);
 void pkdLocalOrder(PKD);
 void pkdWriteTipsy(PKD,char *,int,int,double,int);
 #ifdef USE_HDF5
@@ -705,7 +705,8 @@ void pkdAccelStep(PKD pkd, double dEta, double dVelFac, double
 void pkdDensityStep(PKD pkd, double dEta, double dRhoFac);
 int pkdDtToRung(PKD pkd,int iRung, double dDelta, int iMaxRung, int bAll, int *nRungCount);
 void pkdInitDt(PKD pkd, double dDelta);
-int pkdOrdWeight(PKD,int,int,int,int,int *,int *);
+int pkdOrdWeight(PKD pkd,uint64_t iOrdSplit,int iSplitSide,int iFrom,int iTo,
+		 int *pnLow,int *pnHigh);
 void pkdDeleteParticle(PKD pkd, PARTICLE *p);
 void pkdNewParticle(PKD pkd, PARTICLE *p);
 int pkdResetTouchRung(PKD pkd, unsigned int iTestMask, unsigned int iSetMask);

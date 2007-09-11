@@ -875,7 +875,7 @@ void pstHandSunMass(PST,void *,int,void *,int *);
 /* PST_NEXTCOLLISION */
 struct outNextCollision {
 	double dt;
-	int iOrder1,iOrder2;
+	uint64_t iOrder1,iOrder2;
 	};
 void pstNextCollision(PST,void *,int,void *,int *);
 

@@ -738,7 +738,7 @@ int pkdWeightWrap(PKD pkd,int d,FLOAT fSplit,FLOAT fSplit2,int iSplitSide,int iV
     }
 
 
-int pkdOrdWeight(PKD pkd,int iOrdSplit,int iSplitSide,int iFrom,int iTo,
+int pkdOrdWeight(PKD pkd,uint64_t iOrdSplit,int iSplitSide,int iFrom,int iTo,
 		 int *pnLow,int *pnHigh)
     {
     int iPart;
@@ -880,7 +880,7 @@ int pkdUpperPartWrap(PKD pkd,int d,FLOAT fSplit1,FLOAT fSplit2,int iVASplitSide,
     }
 
 
-int pkdLowerOrdPart(PKD pkd,int nOrdSplit,int i,int j) {
+int pkdLowerOrdPart(PKD pkd,uint64_t nOrdSplit,int i,int j) {
     PARTICLE pTemp;
 
     PARTITION(pkd->pStore,pTemp,i,j,
@@ -890,7 +890,7 @@ int pkdLowerOrdPart(PKD pkd,int nOrdSplit,int i,int j) {
     }
 
 
-int pkdUpperOrdPart(PKD pkd,int nOrdSplit,int i,int j) {
+int pkdUpperOrdPart(PKD pkd,uint64_t nOrdSplit,int i,int j) {
     PARTICLE pTemp;
 
     PARTITION(pkd->pStore,pTemp,i,j,
@@ -1054,7 +1054,7 @@ int pkdNodes(PKD pkd)
     }
 
 
-int pkdColOrdRejects(PKD pkd,int nOrdSplit,int iSplitSide)
+int pkdColOrdRejects(PKD pkd,uint64_t nOrdSplit,int iSplitSide)
     {
     int nSplit,iRejects,i;
 
