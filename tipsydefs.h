@@ -32,12 +32,12 @@ struct star_particle {
 
 struct dump {
     double time ;
-    int nbodies ;
-    int ndim ;
-    int nsph ;
-    int ndark ;
-    int nstar ;
-    int pad ;
+    unsigned nbodies ;
+    unsigned ndim ;
+    unsigned nsph ;
+    unsigned ndark ;
+    unsigned nstar ;
+    unsigned pad ;
 } ;
 
 #endif
