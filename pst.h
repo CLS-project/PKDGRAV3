@@ -165,6 +165,9 @@ enum pst_service {
     PST_AARSETHSTEP,
     PST_FIRSTDT,
 #endif
+#ifdef USE_HDF5
+    PST_READHDF5,
+#endif
     };
 
 void pstAddServices(PST,MDL);
@@ -201,6 +204,9 @@ struct inReadTipsy {
     char achOutName[PST_FILENAME_SIZE];
     };
 void pstReadTipsy(PST,void *,int,void *,int *);
+#ifdef USE_HDF5
+void pstReadHDF5(PST,void *,int,void *,int *);
+#endif
 
 /* PST_DOMAINDECOMP */
 struct inDomainDecomp {

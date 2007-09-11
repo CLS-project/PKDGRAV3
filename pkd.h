@@ -626,6 +626,10 @@ void pkdInitialize(PKD *,MDL,int,int,FLOAT *,uint64_t,uint64_t,uint64_t);
 void pkdFinish(PKD);
 void pkdReadTipsy(PKD pkd,char *pszFileName, char *achOutName,uint64_t nStart,int nLocal,
 		  int bStandard,double dvFac,int bDoublePos);
+#ifdef USE_HDF5
+void pkdReadHDF5(PKD pkd, IOHDF5 io, double dvFac,
+		 uint64_t nStart, int nLocal );
+#endif
 void pkdSetSoft(PKD pkd,double dSoft);
 void pkdCalcBound(PKD,BND *);
 

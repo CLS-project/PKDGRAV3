@@ -35,6 +35,11 @@ void pstAddServices(PST pst,MDL mdl)
     mdlAddService(mdl,PST_READTIPSY,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstReadTipsy,
 		  sizeof(struct inReadTipsy),0);
+#ifdef USE_HDF5
+    mdlAddService(mdl,PST_READHDF5,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstReadHDF5,
+		  sizeof(struct inReadTipsy),0);
+#endif
     mdlAddService(mdl,PST_DOMAINDECOMP,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstDomainDecomp,
 		  sizeof(struct inDomainDecomp),0);
@@ -483,6 +488,67 @@ void pstOneNodeReadInit(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 	}
     if (pnOut) *pnOut = nThreads*sizeof(*pout);
     }
+
+#ifdef USE_HDF5
+void pstReadHDF5(PST pst,void *vin,int nIn,void *vout,int *pnOut)
+    {
+    LCL *plcl = pst->plcl;
+    struct inReadTipsy *in = vin;
+    hid_t fileID;
+    IOHDF5 io;
+    uint64_t nFileStart,nFileEnd,nFileTotal,nFileSplit,nStore;
+    char achInFile[PST_FILENAME_SIZE];
+    char achOutName[PST_FILENAME_SIZE];
+
+    mdlassert(pst->mdl,nIn == sizeof(struct inReadTipsy));
+    nFileStart = in->nFileStart;
+    nFileEnd = in->nFileEnd;
+    nFileTotal = nFileEnd - nFileStart + 1;
+    if (pst->nLeaves > 1) {
+	nFileSplit = nFileStart + pst->nLower*(nFileTotal/pst->nLeaves);
+	in->nFileStart = nFileSplit;
+	mdlReqService(pst->mdl,pst->idUpper,PST_READHDF5,in,nIn);
+	in->nFileStart = nFileStart;
+	in->nFileEnd = nFileSplit - 1;
+	pstReadHDF5(pst->pstLower,in,nIn,NULL,NULL);
+	in->nFileEnd = nFileEnd;
+	mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
+	}
+    else {
+	/*
+	** Add the local Data Path to the provided filename.
+	*/
+	achInFile[0] = 0;
+	achOutName[0] = 0;
+	if (plcl->pszDataPath) {
+	    strcat(achInFile,plcl->pszDataPath);
+	    strcat(achInFile,"/");
+	    strcat(achOutName,plcl->pszDataPath);
+	    strcat(achOutName,"/");
+	    }
+	strcat(achInFile,in->achInFile);
+	strcat(achOutName,in->achOutName);
+	/*
+	** Determine the size of the local particle store.
+	*/
+	nStore = nFileTotal + (int)ceil(nFileTotal*in->fExtraStore);
+	pkdInitialize(&plcl->pkd,pst->mdl,nStore,in->nBucket,in->fPeriod,
+		      in->nDark,in->nGas,in->nStar);
+
+
+	fileID=H5Fopen(achInFile, H5F_ACC_RDONLY, H5P_DEFAULT);
+	assert(fileID >= 0);
+	io = ioHDF5Initialize( fileID, 32768, IOHDF5_SINGLE );
+	assert( io != NULL );
+
+	pkdReadHDF5(plcl->pkd, io, in->dvFac, nFileStart, nFileTotal);
+
+	ioHDF5Finish(io);
+	H5Fclose(fileID);
+	}
+    if (pnOut) *pnOut = 0;
+    }
+#endif
 
 void pstReadTipsy(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     {

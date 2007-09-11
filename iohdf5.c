@@ -387,6 +387,8 @@ IOHDF5 ioHDF5Initialize( hid_t fileID, hid_t iChunkSize, int bDouble )
     io->fileID = fileID;
     io->iChunkSize = iChunkSize;
 
+    io->bRead = io->bWrite = 0;
+
     /* This is the native type of FLOAT values - normally double */
     io->memFloat = sizeof(FLOAT)==sizeof(float)
 	? H5T_NATIVE_FLOAT : H5T_NATIVE_DOUBLE;
@@ -431,7 +433,8 @@ void ioHDF5Finish( IOHDF5 io )
 {
     assert( io != NULL );
 
-    ioHDF5Flush(io);
+    if ( io->bWrite )
+	ioHDF5Flush(io);
 
     baseFinish( &io->darkBase );
     baseFinish( &io->gasBase );
@@ -597,6 +600,9 @@ static int getBase( IOHDF5 io, IOBASE *Base, PINDEX *iOrder,
     assert(Base->setV_id!=H5I_INVALID_HID);
     allocateBase(io,Base);
 
+    assert( io->bWrite == 0 );
+    io->bRead = 1;
+
     /* If we have to read more from the file */
     if ( Base->nBuffered == Base->iIndex ) {
 	hsize_t N;
@@ -668,6 +674,8 @@ static void addBase( IOHDF5 io, IOBASE *Base, PINDEX iOrder,
     assert( io != NULL );
     assert( Base != NULL );
 
+    assert( io->bRead == 0 );
+    io->bWrite = 1;
     Base->nTotal++;
 
     allocateBase(io,Base);

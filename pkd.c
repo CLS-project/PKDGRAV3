@@ -298,10 +298,12 @@ void IOCheck(int nout) {
 
 #ifdef USE_HDF5
 void pkdReadHDF5(PKD pkd, IOHDF5 io, double dvFac,
-		 int nStart, int nLocal ) {
+		 uint64_t nStart, int nLocal ) {
     PARTICLE *p;
     FLOAT dT1, dT2;
     int i, j;
+
+    ioHDF5SeekDark( io, nStart );
 
     pkd->nLocal = nLocal;
     pkd->nActive = nLocal;
@@ -2657,7 +2659,7 @@ void pkdSetParticleTypes(PKD pkd)
     {
     PARTICLE *p;
     int i, iSetMask;
-    
+
     for(i=0;i<pkdLocal(pkd);++i) {
 	p = &pkd->pStore[i];
 	iSetMask = 0;

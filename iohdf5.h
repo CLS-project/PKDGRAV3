@@ -69,6 +69,8 @@ typedef struct ioHDF5 {
     IOBASE  gasBase;
     IOBASE  starBase;
 
+    unsigned char bRead;
+    unsigned char bWrite;
 } *IOHDF5;
 
 #define IOHDF5_SINGLE 0
