@@ -18,7 +18,7 @@
 #include "config.h"
 #endif
 #include <assert.h>
-#include <malloc.h>
+#include <stdlib.h>
 
 #include "iohdf5.h"
 
@@ -292,7 +292,7 @@ static void readClassTable( IOHDF5 io, IOBASE *Base ) {
 
 	if ( Base->Class.setClass_id != H5I_INVALID_HID 
 	     && Base->Class.piClass == NULL ) {
-	    Base->Class.piClass = malloc( io->iChunkSize * sizeof(uint8_t) );
+	    Base->Class.piClass = (uint8_t *)malloc( io->iChunkSize * sizeof(uint8_t) );
 	    assert(Base->Class.piClass != NULL );
 	}
 	tid = makeClassType( io->memFloat, Base->Class.piClass==NULL );
@@ -383,7 +383,7 @@ IOHDF5 ioHDF5Initialize( hid_t fileID, hid_t iChunkSize, int bDouble )
     H5E_auto_t save_func;
     void *     save_data;
 
-    io = malloc( sizeof(struct ioHDF5) ); assert(io!=NULL);
+    io = (IOHDF5)malloc( sizeof(struct ioHDF5) ); assert(io!=NULL);
     io->fileID = fileID;
     io->iChunkSize = iChunkSize;
 
@@ -450,7 +450,7 @@ static void createClass(IOHDF5 io, IOBASE *Base)
     /* We already created the set */
     if ( Class->piClass != NULL ) return;
 
-    Class->piClass = malloc( io->iChunkSize * sizeof(uint8_t) );
+    Class->piClass = (uint8_t *)malloc( io->iChunkSize * sizeof(uint8_t) );
 
     /* If the group exists, we will have to write */
     if ( Class->setClass_id == H5I_INVALID_HID 
@@ -539,7 +539,7 @@ static void addOrder( IOHDF5 io, IOBASE *Base,
 	   it should be up to this point. */
 	else {
 	    int iOffset = 0;
-	    Order->iOrder = malloc( io->iChunkSize * sizeof(PINDEX) );
+	    Order->iOrder = (PINDEX*)malloc( io->iChunkSize * sizeof(PINDEX) );
 
 	    if ( Order->setOrder_id == H5I_INVALID_HID 
 		&& Base->group_id != H5I_INVALID_HID ) {
@@ -574,9 +574,9 @@ static void addOrder( IOHDF5 io, IOBASE *Base,
 static void allocateBase( IOHDF5 io, IOBASE *Base )
 {
     if ( Base->R == NULL ) {
-	Base->R    = malloc( io->iChunkSize * sizeof(ioV3) );
+	Base->R    = (ioV3*)malloc( io->iChunkSize * sizeof(ioV3) );
 	assert( Base->R != NULL );
-	Base->V    = malloc( io->iChunkSize * sizeof(ioV3) );
+	Base->V    = (ioV3*)malloc( io->iChunkSize * sizeof(ioV3) );
 	assert( Base->V != NULL );
 	//Base->Mass = malloc( io->iChunkSize * sizeof(FLOAT) );
 	//assert( Base->Mass != NULL );
@@ -599,13 +599,16 @@ static int getBase( IOHDF5 io, IOBASE *Base, PINDEX *iOrder,
 
     /* If we have to read more from the file */
     if ( Base->nBuffered == Base->iIndex ) {
+	hsize_t N;
 	Base->iOffset += Base->iIndex;
 	Base->iIndex = Base->nBuffered = 0;
 	if ( Base->iOffset >= Base->nTotal ) return 0;
 
-	Base->nBuffered = Base->nTotal - Base->iOffset;
-	if ( Base->nBuffered > io->iChunkSize )
+	N = Base->nTotal - Base->iOffset;
+	if ( N > io->iChunkSize )
 	    Base->nBuffered = io->iChunkSize;
+	else
+	    Base->nBuffered = N;
 
 	readSet( Base->setR_id, Base->R, io->memFloat,
 		 Base->iOffset, Base->nBuffered, 3 );
@@ -614,7 +617,7 @@ static int getBase( IOHDF5 io, IOBASE *Base, PINDEX *iOrder,
 
 	if ( Base->Order.setOrder_id != H5I_INVALID_HID ) {
 	    if ( Base->Order.iOrder == NULL ) {
-		Base->Order.iOrder = malloc( io->iChunkSize * sizeof(PINDEX) );
+		Base->Order.iOrder = (PINDEX*)malloc( io->iChunkSize * sizeof(PINDEX) );
 	    }
 	    readSet( Base->Order.setOrder_id, Base->Order.iOrder,
 		     H5T_NATIVE_UINT32,
@@ -622,7 +625,7 @@ static int getBase( IOHDF5 io, IOBASE *Base, PINDEX *iOrder,
 	}
 	if ( Base->Class.setClass_id != H5I_INVALID_HID ) {
 	    if ( Base->Class.piClass == NULL ) {
-		Base->Class.piClass=malloc( io->iChunkSize * sizeof(uint8_t) );
+		Base->Class.piClass=(uint8_t*)malloc( io->iChunkSize * sizeof(uint8_t) );
 	    }
 	    readSet( Base->Class.setClass_id, Base->Class.piClass,
 		     H5T_NATIVE_UINT8, Base->iOffset, Base->nBuffered, 1 );
