@@ -1134,9 +1134,9 @@ static double _msrReadTipsy(MSR msr, const char *achFilename)
 	msr->nStar += tlong;
 	}
 
-    msr->nMaxOrder = msr->N - 1;
-    msr->nMaxOrderGas = msr->nGas - 1;
-    msr->nMaxOrderDark = msr->nGas + msr->nDark - 1;
+    msr->nMaxOrder = msr->N;
+    msr->nMaxOrderGas = msr->nGas;
+    msr->nMaxOrderDark = msr->nGas + msr->nDark;
     assert(msr->N == msr->nDark+msr->nGas+msr->nStar);
     if (msr->param.csm->bComove) {
 	if(msr->param.csm->dHubble0 == 0.0) {
@@ -1391,7 +1391,7 @@ void msrSaveParameters(MSR msr, IOHDF5 io)
     ioHDF5WriteAttribute( io, "bAccelStep", H5T_NATIVE_INT, &msr->param.bAccelStep );
     ioHDF5WriteAttribute( io, "bDensityStep", H5T_NATIVE_INT, &msr->param.bDensityStep );
     ioHDF5WriteAttribute( io, "iTimeStepCrit", H5T_NATIVE_INT, &msr->param.iTimeStepCrit );
-    ioHDF5WriteAttribute( io, "nPColl", H5T_NATIVE_INT, &msr->param.nPColl );
+    //ioHDF5WriteAttribute( io, "nPColl", H5T_NATIVE_INT, &msr->param.nPColl );
     ioHDF5WriteAttribute( io, "nTruncateRung", H5T_NATIVE_INT, &msr->param.nTruncateRung );
     ioHDF5WriteAttribute( io, "bDoDensity", H5T_NATIVE_INT, &msr->param.bDoDensity );
     ioHDF5WriteAttribute( io, "bDodtOutput", H5T_NATIVE_INT, &msr->param.bDodtOutput );
@@ -3601,7 +3601,7 @@ msrAddDelParticles(MSR msr)
 	    printf("need to rebuild tree, code in msrAddDelParticles()\n");
 	    printf("needs to be updated. Bailing out for now...\n");
 	    exit(-1); */	    
-	pNewOrder[i] = msr->nMaxOrder + 1;
+	pNewOrder[i] = msr->nMaxOrder;
 	msr->nMaxOrder += pColNParts[i].nNew;
 	msr->nGas += pColNParts[i].nDeltaGas;
 	msr->nDark += pColNParts[i].nDeltaDark;
@@ -3990,9 +3990,9 @@ msrReadSS(MSR msr)
 
 	msr->N = msr->nDark = head.n_data;
 	msr->nGas = msr->nStar = 0;
-	msr->nMaxOrder = msr->N - 1;
-	msr->nMaxOrderGas = msr->nGas - 1; /* always -1 */
-	msr->nMaxOrderDark = msr->nDark - 1;
+	msr->nMaxOrder = msr->N;
+	msr->nMaxOrderGas = msr->nGas; /* NOW ALWAYS ZERO : was always -1 */
+	msr->nMaxOrderDark = msr->nDark;
         msr->nPlanets = head.n_planets;        
 	msr->dEcoll = head.dEcoll;        
         msr->dSunMass = head.dSunMass;        

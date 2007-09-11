@@ -151,8 +151,8 @@ void pkdInitialize(PKD *ppkd,MDL mdl,int nStore,int nBucket,FLOAT *fPeriod,
     pkd->nDark = nDark;
     pkd->nGas = nGas;
     pkd->nStar = nStar;
-    pkd->nMaxOrderGas = nGas - 1;
-    pkd->nMaxOrderDark = nGas + nDark - 1;
+    pkd->nMaxOrderGas = nGas;
+    pkd->nMaxOrderDark = nGas + nDark;
     pkd->nRejects = 0;
     for (j=0;j<3;++j) {
 	pkd->fPeriod[j] = fPeriod[j];
@@ -2670,18 +2670,18 @@ void pkdSetParticleTypes(PKD pkd)
     }
 
 int pkdIsGas(PKD pkd,PARTICLE *p) {
-    if (p->iOrder <= pkd->nMaxOrderGas) return 1;
+    if (p->iOrder < pkd->nMaxOrderGas) return 1;
     else return 0;
     }
 
 int pkdIsDark(PKD pkd,PARTICLE *p) {
-    if (p->iOrder > pkd->nMaxOrderGas && p->iOrder <= pkd->nMaxOrderDark)
+    if (p->iOrder >= pkd->nMaxOrderGas && p->iOrder < pkd->nMaxOrderDark)
 	return 1;
     else return 0;
     }
 
 int pkdIsStar(PKD pkd,PARTICLE *p) {
-    if (p->iOrder > pkd->nMaxOrderDark) return 1;
+    if (p->iOrder >= pkd->nMaxOrderDark) return 1;
     else return 0;
     }
 
