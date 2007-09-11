@@ -1058,12 +1058,12 @@ int xdrHeader(XDR *pxdrs,struct dump *ph)
     int pad = 0;
 	
     if (!xdr_double(pxdrs,&ph->time)) return 0;
-    if (!xdr_int(pxdrs,&ph->nbodies)) return 0;
-    if (!xdr_int(pxdrs,&ph->ndim)) return 0;
-    if (!xdr_int(pxdrs,&ph->nsph)) return 0;
-    if (!xdr_int(pxdrs,&ph->ndark)) return 0;
-    if (!xdr_int(pxdrs,&ph->nstar)) return 0;
-    if (!xdr_int(pxdrs,&ph->pad)) return 0;
+    if (!xdr_u_int(pxdrs,&ph->nbodies)) return 0;
+    if (!xdr_u_int(pxdrs,&ph->ndim)) return 0;
+    if (!xdr_u_int(pxdrs,&ph->nsph)) return 0;
+    if (!xdr_u_int(pxdrs,&ph->ndark)) return 0;
+    if (!xdr_u_int(pxdrs,&ph->nstar)) return 0;
+    if (!xdr_u_int(pxdrs,&ph->pad)) return 0;
     return 1;
     }
 
