@@ -1063,7 +1063,7 @@ int xdrHeader(XDR *pxdrs,struct dump *ph)
     if (!xdr_int(pxdrs,&ph->nsph)) return 0;
     if (!xdr_int(pxdrs,&ph->ndark)) return 0;
     if (!xdr_int(pxdrs,&ph->nstar)) return 0;
-    if (!xdr_int(pxdrs,&pad)) return 0;
+    if (!xdr_int(pxdrs,&ph->pad)) return 0;
     return 1;
     }
 
@@ -1078,6 +1078,7 @@ static double _msrReadTipsy(MSR msr, const char *achFilename)
     LCL *plcl = msr->pst->plcl;
     double dTime,aTo,tTo,z;
     struct inSetParticleTypes intype;
+    uint64_t tlong;
 
     strcpy(in.achInFile,achFilename);
 
@@ -1113,6 +1114,25 @@ static double _msrReadTipsy(MSR msr, const char *achFilename)
     msr->nStar = h.nstar;
     dExpansion = h.time;
 
+    if (h.pad) {
+	/*
+	** This means we are dealing with *large* tipsy files
+	** The pad field provides 8 more high bits to each of 
+	** nbodies, nsph, ndark and nstar.
+	*/
+	tlong = h.pad & 0x000000ff;
+	tlong = tlong << 32;
+	msr->N += tlong;
+	tlong = h.pad & 0x0000ff00;
+	tlong = tlong << 24;
+	msr->nGas += tlong;
+	tlong = h.pad & 0x00ff0000;
+	tlong = tlong << 16;
+	msr->nDark += tlong;
+	tlong = h.pad & 0xff000000;
+	tlong = tlong << 8;
+	msr->nStar += tlong;
+	}
 
     msr->nMaxOrder = msr->N - 1;
     msr->nMaxOrderGas = msr->nGas - 1;
@@ -1693,10 +1713,23 @@ void msrDomainDecomp(MSR msr,int iRung,int bGreater,int bSplitVA) {
 	in.bnd.fMax[0] = 0.5*msr->param.dxPeriod;
 	in.bnd.fMax[1] = 0.5*msr->param.dyPeriod;
 	in.bnd.fMax[2] = 0.5*msr->param.dzPeriod;
+#ifdef USE_NEWDD
+	assert(in.bnd.fMax[0] == in.bnd.fMax[1]);
+	assert(in.bnd.fMax[1] == in.bnd.fMax[2]);
+#endif	
 	}
     else {
 	pstCalcBound(msr->pst,NULL,0,&outcb,NULL);
 	in.bnd = outcb.bnd;
+	for (j=1;j<3;++j) {
+	    in.bnd.fMax[0] = (in.bnd.fMax[j] > in.bnd.fMax[0])?in.bnd.fMax[j]:in.bnd.fMax[0];
+	    }
+	/*
+	** Make the bounding box 10% larger in this case to accomodate particles drifting out.
+	*/
+	for (j=0;j<3;++j) {
+	    in.bnd.fMax[j] = 1.10*in.bnd.fMax[0];
+	    }
 	}
 
     nActive=0;
@@ -1747,8 +1780,12 @@ void msrDomainDecomp(MSR msr,int iRung,int bGreater,int bSplitVA) {
 	in.bDoSplitDimFind = 0;
 	}
 
-    if (iRungDD < iRung) 
+    if (iRungDD < iRung) {
+#ifdef USE_NEWDD
+	assert(iRungDD == 0);  /* for now, but later we will support all iRungDD */
+#endif
 	msrActiveRung(msr,iRungDD,bGreater); 
+	}
 
     in.nActive = msr->nActive;
     in.nTotal = msr->N;
@@ -2848,6 +2885,7 @@ int msrDtToRung(MSR msr, int iRung, double dDelta, int bAll) {
 
     if (msr->param.bVRungStat) {
     	printf("Rung distribution:\n");
+	printf("\n");
 	for (iTempRung=0;iTempRung <= msr->iCurrMaxRung;++iTempRung) {
 	    if (out.nRungCount[iTempRung] == 0) continue;
 	    if (iTempRung > iRungVeryActive) c = 'v';

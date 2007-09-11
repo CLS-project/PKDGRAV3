@@ -28,13 +28,13 @@ typedef struct msrContext {
     ** Other stuff...
     */
     int nThreads;
-    int N;
-    int nDark;
-    int nGas;
-    int nStar;   
-    int nMaxOrder;		/* Order number of last particle */
-    int nMaxOrderGas;
-    int nMaxOrderDark;
+    uint64_t N;
+    uint64_t nDark;
+    uint64_t nGas;
+    uint64_t nStar;   
+    uint64_t nMaxOrder;		/* Order number of last particle */
+    uint64_t nMaxOrderGas;
+    uint64_t nMaxOrderDark;
     int iCurrMaxRung;
     double dCrit;
     /*

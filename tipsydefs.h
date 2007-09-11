@@ -37,6 +37,7 @@ struct dump {
     int nsph ;
     int ndark ;
     int nstar ;
+    int pad ;
 } ;
 
 #endif

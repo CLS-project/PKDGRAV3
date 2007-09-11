@@ -443,7 +443,7 @@ void pstOneNodeReadInit(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     LCL *plcl = pst->plcl;
     struct inReadTipsy *in = vin;
     int *pout = vout;
-    int nFileStart,nFileEnd,nFileTotal,nFileSplit,nStore;
+    uint64_t nFileStart,nFileEnd,nFileTotal,nFileSplit,nStore;
     int *ptmp;
     int nThreads;
     int i;
@@ -488,7 +488,7 @@ void pstReadTipsy(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     {
     LCL *plcl = pst->plcl;
     struct inReadTipsy *in = vin;
-    int nFileStart,nFileEnd,nFileTotal,nFileSplit,nStore;
+    uint64_t nFileStart,nFileEnd,nFileTotal,nFileSplit,nStore;
     char achInFile[PST_FILENAME_SIZE];
     char achOutName[PST_FILENAME_SIZE];
 
@@ -635,7 +635,16 @@ void _pstRootSplit(PST pst,int iSplitDim,int bDoRootFind,int bDoSplitDimFind,
     int nSafeTot;				/* total slop space we have to play with */
     int margin;					/* more slop */
     int d,ittr,nOut;
-    int nLow=-1,nHigh=-1,nLowerStore,nUpperStore;
+    /*
+    ** Why are these initialized to -1 here???
+    int nLow=-1,nHigh=-1;
+    */
+    uint64_t nLow,nHigh;
+    uint64_t nLowerStore,nUpperStore;
+    uint64_t nLowTot,nHighTot;
+    uint64_t nLast;					/* number of particles at the last split iteration */
+    uint64_t nTotalActive;
+    int nDiff=0;				/* Difference between one iteration and the next, seems to only be used to warn. */
     FLOAT fLow,fHigh;
     FLOAT fl,fu,fm=-1,fmm;
     struct outFreeStore outFree;
@@ -649,17 +658,9 @@ void _pstRootSplit(PST pst,int iSplitDim,int bDoRootFind,int bDoSplitDimFind,
     struct outCountVA outCtVA;
     OREJ *pLowerRej,*pUpperRej;
     int *pidSwap,iRet;
-    int nLowTot,nHighTot;
-    int nLast;					/* number of particles at the last split
-						   iteration */
-    int nDiff=0;				/* Difference between one iteration and the next */
     char ach[256];				/* Debug */
-
     mdlTimer t;
-
-    int pFlag;					/* 0 => we are splitting all particles at once. 
-						   1 => we first split active, and then inactive. */
-    int nTotalActive;
+    int pFlag;					/* 0 => we are splitting all particles at once. 1 => we first split active, and then inactive. */
     int dBnd;
 
     mdlZeroTimer(pst->mdl,&t);
@@ -1214,6 +1215,19 @@ void _pstRootSplit(PST pst,int iSplitDim,int bDoRootFind,int bDoSplitDimFind,
 	
     }
 
+void pstNewDomainDecomp(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+#if 0
+    struct outPeanoHilbertCount outph;
+
+    /*
+    ** First collect counts from each processor in the peano-hilbert curve.
+    */
+    pstPeanoHilbertCount(PST pst);
+
+    
+#endif
+    }
+
 
 #define NEWSPLITDIMCUT 0.707
 #define NMINFORROOTFIND 16
@@ -1372,6 +1386,7 @@ void pstWeight(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     struct outWeight outWt;
     FLOAT fSplit,fLow,fHigh;
     int iSplitSide;
+    int nLow,nHigh;
 
     mdlassert(pst->mdl,nIn == sizeof(struct inWeight));
     /*
@@ -1433,7 +1448,9 @@ void pstWeight(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 	    }
 	plcl->iPart = pkdWeight(plcl->pkd,in->iSplitDim,fSplit,iSplitSide,
 				plcl->iWtFrom,plcl->iWtTo,
-				&out->nLow,&out->nHigh,&fLow,&fHigh);
+				&nLow,&nHigh,&fLow,&fHigh);
+	out->nLow = nLow;
+	out->nHigh = nHigh;
 	out->fLow = fLow + plcl->fWtLow;
 	out->fHigh = fHigh + plcl->fWtHigh;
 	plcl->fLow = fLow;
@@ -1490,6 +1507,7 @@ void pstWeightWrap(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     struct inWeightWrap *in = vin;
     struct outWeightWrap *out = vout;
     struct outWeightWrap outWt;
+    int nLow,nHigh;
 
     mdlassert(pst->mdl,nIn == sizeof(struct inWeightWrap));
     /*
@@ -1528,7 +1546,9 @@ void pstWeightWrap(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 	    plcl->fSplit = in->fSplit;
 	    }
 	plcl->iPart = pkdWeightWrap(plcl->pkd,in->iSplitDim,in->fSplit,in->fSplit2,in->iSplitSide,
-				    in->iVASplitSide,plcl->iWtFrom,plcl->iWtTo,&out->nLow,&out->nHigh);
+				    in->iVASplitSide,plcl->iWtFrom,plcl->iWtTo,&nLow,&nHigh);
+	out->nLow = nLow;
+	out->nHigh = nHigh;
 	/* For collect rejects */
 	plcl->nSplit = plcl->iPart;
 	}
@@ -1548,6 +1568,7 @@ void pstOrdWeight(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     struct inOrdWeight *in = vin;
     struct outOrdWeight *out = vout;
     struct outOrdWeight outWt;
+    int nLow,nHigh;
 
     mdlassert(pst->mdl,nIn == sizeof(struct inOrdWeight));
     if (pst->nLeaves > 1) {
@@ -1582,7 +1603,9 @@ void pstOrdWeight(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 	    }
 	plcl->iPart = pkdOrdWeight(plcl->pkd,in->iOrdSplit,in->iSplitSide,
 				   plcl->iWtFrom,plcl->iWtTo,
-				   &out->nLow,&out->nHigh);
+				   &nLow,&nHigh);
+	out->nLow = nLow;
+	out->nHigh = nHigh;
 	}
     if (pnOut) *pnOut = sizeof(struct outOrdWeight); 
     }
@@ -1592,7 +1615,7 @@ void pstFreeStore(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     {
     LCL *plcl = pst->plcl;
     struct outFreeStore *out = vout;
-    int nLowerStore,nUpperStore;
+    uint64_t nLowerStore,nUpperStore;
 
     mdlassert(pst->mdl,nIn == 0);
     /*
@@ -1722,7 +1745,7 @@ void _pstOrdSplit(PST pst,int iMaxOrder)
     struct inOrdWeight inWt;
     struct outOrdWeight outWtLow,outWtHigh;
     int64_t im=-1,imm,il,iu;
-    int nLowerStore,nUpperStore,nLow=-1,nHigh=-1;
+    uint64_t nLowerStore,nUpperStore,nLow,nHigh;
     struct inColOrdRejects inCol;
     OREJ *pLowerRej,*pUpperRej;
     int *pidSwap,iRet,nOut,ittr;
@@ -1854,14 +1877,14 @@ void pstLocalOrder(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 void pstActiveOrder(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     {
     LCL *plcl = pst->plcl;
-    int *pnActive = vout;
+    uint64_t *pnActive = vout;
+    uint64_t nActiveLeaf;
 
     mdlassert(pst->mdl,nIn == 0);
     /*
       pkdStartTimer(pst->plcl->pkd,5);
     */
     if (pst->nLeaves > 1) {
-	int nActiveLeaf;
 	mdlReqService(pst->mdl,pst->idUpper,PST_ACTIVEORDER,NULL,0);
 	pstActiveOrder(pst->pstLower,NULL,0,vout,pnOut);
 	mdlGetReply(pst->mdl,pst->idUpper,&nActiveLeaf,pnOut);
@@ -1870,7 +1893,7 @@ void pstActiveOrder(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     else {
 	*pnActive = pkdActiveOrder(plcl->pkd);
 	}
-    if (pnOut) *pnOut = sizeof(int);
+    if (pnOut) *pnOut = sizeof(uint64_t);
     /*
       pkdStopTimer(pst->plcl->pkd,5);
     */

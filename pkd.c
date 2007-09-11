@@ -137,7 +137,7 @@ void pkdStopTimer(PKD pkd,int iTimer)
 
 
 void pkdInitialize(PKD *ppkd,MDL mdl,int nStore,int nBucket,FLOAT *fPeriod,
-		   int nDark,int nGas,int nStar) {
+		   uint64_t nDark,uint64_t nGas,uint64_t nStar) {
     PKD pkd;
     int j;
 	
@@ -229,11 +229,8 @@ void pkdFinish(PKD pkd)
     }
 
 
-void pkdSeek(PKD pkd,FILE *fp,int nStart,int bStandard,int bDoublePos) {
+void pkdSeek(PKD pkd,FILE *fp,uint64_t nStart,int bStandard,int bDoublePos) {
     off_t MAX_OFFSET = 2147483640;
-    long long nStart64 = nStart;
-    long long nGas64 = pkd->nGas;
-    long long nDark64 = pkd->nDark;
     off_t lStart;
     int iErr;
     /*
@@ -243,25 +240,25 @@ void pkdSeek(PKD pkd,FILE *fp,int nStart,int bStandard,int bDoublePos) {
     */
     if (bStandard) lStart = 32;
     else lStart = sizeof(struct dump);
-    if (nStart64 > nGas64) {
-	if (bStandard) lStart += nGas64*(bDoublePos?60:48);
-	else lStart += nGas64*sizeof(struct gas_particle);
-	nStart64 -= nGas64;
-	if (nStart64> nDark64) {
-	    if (bStandard) lStart += nDark64*(bDoublePos?48:36);
-	    else lStart += nDark64*sizeof(struct dark_particle);
-	    nStart64 -= nDark64;
-	    if (bStandard) lStart += nStart64*(bDoublePos?56:44);
-	    else lStart += nStart64*sizeof(struct star_particle);
+    if (nStart > pkd->nGas) {
+	if (bStandard) lStart += pkd->nGas*(bDoublePos?60:48);
+	else lStart += pkd->nGas*sizeof(struct gas_particle);
+	nStart -= pkd->nGas;
+	if (nStart > pkd->nDark) {
+	    if (bStandard) lStart += pkd->nDark*(bDoublePos?48:36);
+	    else lStart += pkd->nDark*sizeof(struct dark_particle);
+	    nStart -= pkd->nDark;
+	    if (bStandard) lStart += nStart*(bDoublePos?56:44);
+	    else lStart += nStart*sizeof(struct star_particle);
 	    }
 	else {
-	    if (bStandard) lStart += nStart64*(bDoublePos?48:36);
-	    else lStart += nStart64*sizeof(struct dark_particle);
+	    if (bStandard) lStart += nStart*(bDoublePos?48:36);
+	    else lStart += nStart*sizeof(struct dark_particle);
 	    }
 	} 
     else {
-	if (bStandard) lStart += nStart64*(bDoublePos?60:48);
-	else lStart += nStart64*sizeof(struct gas_particle);
+	if (bStandard) lStart += nStart*(bDoublePos?60:48);
+	else lStart += nStart*sizeof(struct gas_particle);
 	}
     
     /*fseek fails for offsets >= 2**31; this is an ugly workaround;*/
@@ -362,9 +359,8 @@ void pkdReadHDF5(PKD pkd, IOHDF5 io, double dvFac,
 #endif
 
 
-void pkdReadTipsy(PKD pkd,char *pszFileName, char *achOutName, int nStart,int nLocal,
-		  int bStandard,double dvFac,int bDoublePos)
-    {
+void pkdReadTipsy(PKD pkd,char *pszFileName, char *achOutName,uint64_t nStart,int nLocal,
+		  int bStandard,double dvFac,int bDoublePos) {
     FILE *fp;
     int i,j;
     PARTICLE *p;

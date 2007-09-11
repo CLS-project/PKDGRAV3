@@ -24,14 +24,14 @@ typedef struct lclBlock {
     int iWtFrom;
     int iWtTo;
     int iPart;
-    int iOrdSplit;
+    uint64_t iOrdSplit;
     FLOAT fSplit;
     FLOAT fWtLow;
     FLOAT fWtHigh;
     FLOAT fLow;
     FLOAT fHigh;
     int nSplit;
-    int nWriteStart;
+    uint64_t nWriteStart;
     } LCL;
 
 typedef struct pstContext {
@@ -46,13 +46,13 @@ typedef struct pstContext {
     int iLvl;
     BND bnd;
     int iSplitDim;
-    int iOrdSplit;
+    uint64_t iOrdSplit;
     FLOAT fSplit;
     FLOAT fSplitInactive;
     int nTotal;
     int iVASplitSide;
-    int nLowTot;    /* total number of particles in the lower subset of processors */
-    int nHighTot;   /* total number of particles in the upper subset of processors */
+    uint64_t nLowTot;    /* total number of particles in the lower subset of processors */
+    uint64_t nHighTot;   /* total number of particles in the upper subset of processors */
     int ioIndex;
     } * PST;
 
@@ -186,12 +186,12 @@ void pstLevelize(PST,void *,int,void *,int *);
 
 /* PST_READTIPSY */
 struct inReadTipsy {
-    int nFileStart;
-    int nFileEnd;
+    uint64_t nFileStart;
+    uint64_t nFileEnd;
+    uint64_t nDark;	
+    uint64_t nGas;
+    uint64_t nStar;
     int nBucket;
-    int nDark;	
-    int nGas;
-    int nStar;
     float fExtraStore;
     FLOAT fPeriod[3];
     int bStandard;
@@ -209,8 +209,8 @@ struct inDomainDecomp {
     int bDoRootFind;
     int bDoSplitDimFind;
     int bSplitVA;
-    int nActive;
-    int nTotal;
+    uint64_t nActive;
+    uint64_t nTotal;
     };
 void pstDomainDecomp(PST,void *,int,void *,int *);
 
@@ -236,8 +236,8 @@ struct inWeight {
     int pFlag;
     };
 struct outWeight {
-    int nLow;
-    int nHigh;
+    uint64_t nLow;
+    uint64_t nHigh;
     FLOAT fLow;
     FLOAT fHigh;
     };
@@ -264,14 +264,14 @@ struct inWeightWrap {
     int iVASplitSide;
     };
 struct outWeightWrap {
-    int nLow;
-    int nHigh;
+    uint64_t nLow;
+    uint64_t nHigh;
     };
 void pstWeightWrap(PST,void *,int,void *,int *);
 
 /* PST_FREESTORE */
 struct outFreeStore {
-    int nFreeStore;
+    uint64_t nFreeStore;
     };
 void pstFreeStore(PST,void *,int,void *,int *);
 
@@ -293,14 +293,14 @@ void pstSwapRejects(PST,void *,int,void *,int *);
 
 /* PST_COLORDREJECTS */
 struct inColOrdRejects {
-    int iOrdSplit;
+    uint64_t iOrdSplit;
     int iSplitSide;
     };
 void pstColOrdRejects(PST,void *,int,void *,int *);
 
 /* PST_DOMAINORDER */
 struct inDomainOrder {
-    int iMaxOrder;
+    uint64_t iMaxOrder;
     };
 void pstDomainOrder(PST,void *,int,void *,int *);
 
@@ -544,22 +544,6 @@ void pstFirstDt(PST,void *,int,void *,int *);
 
 #endif /* Hermite*/
 
-/* PST_UPDATEUDOT */
-struct inUpdateuDot {
-    double duDelta;
-    double z;
-    int iGasModel;
-    int bUpdateY;
-    };
-struct outUpdateuDot {
-    double Time;
-    double MaxTime;
-    double SumTime;
-    int nSum;
-    };
-
-void pstUpdateuDot(PST,void *,int,void *,int *);
-
 /* PST_KICK */
 struct inKick {
     double dvFacOne;
@@ -747,19 +731,19 @@ void pstInitDt(PST,void *,int,void *,int *);
 
 /* PST_ORDWEIGHT */
 struct inOrdWeight {
-    int iOrdSplit;
+    uint64_t iOrdSplit;
     int iSplitSide;
     int ittr;
     };
 struct outOrdWeight {
-    int nLow;
-    int nHigh;
+    uint64_t nLow;
+    uint64_t nHigh;
     };
 void pstOrdWeight(PST,void *,int,void *,int *);
 
 /* PST_SETWRITESTART */
 struct inSetWriteStart {
-    int nWriteStart;
+    uint64_t nWriteStart;
     };
 void pstSetWriteStart(PST,void *,int,void *,int *);
 
@@ -777,11 +761,11 @@ void pstNewOrder(PST, void *, int, void *, int *);
 
 /* PST_SETNPARTS */
 struct inSetNParts {
-    int nGas;
-    int nDark;
-    int nStar;
-    int nMaxOrderGas;
-    int nMaxOrderDark;
+    uint64_t nGas;
+    uint64_t nDark;
+    uint64_t nStar;
+    uint64_t nMaxOrderGas;
+    uint64_t nMaxOrderDark;
     };
 void pstSetNParts(PST, void *, int, void *, int *);
 
@@ -849,13 +833,13 @@ void pstWriteSS(PST,void *,int,void *,int *);
 
 /* PST_READSS */
 struct inReadSS {
-    int nFileStart;
-    int nFileEnd;
+    uint64_t nFileStart;
+    uint64_t nFileEnd;
+    uint64_t nDark;
+    uint64_t nGas;			/* always zero */
+    uint64_t nStar;			/* always zero */
+    uint64_t iOrder;
     int nBucket;
-    int nDark;
-    int nGas;			/* always zero */
-    int nStar;			/* always zero */
-    int iOrder;
     float fExtraStore;
     FLOAT fPeriod[3];	/* for compatability */
     char achInFile[PST_FILENAME_SIZE];
@@ -897,7 +881,7 @@ void pstNextCollision(PST,void *,int,void *,int *);
 
 /* PST_GETCOLLIDERINFO */
 struct inGetColliderInfo {
-	int iOrder;
+	uint64_t iOrder;
 	};
 struct outGetColliderInfo {
 	COLLIDER Collider;

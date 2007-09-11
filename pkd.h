@@ -74,7 +74,7 @@ typedef struct pIO {
 } PIO;
 
 typedef struct particle {
-    int iOrder;
+    uint64_t iOrder;
     unsigned int iActive;  
     int iRung;
     int iBucket;
@@ -498,11 +498,11 @@ typedef struct pkdContext {
     int nLocal;
     int nVeryActive;
     int nActive;
-    int nDark;
-    int nGas;
-    int nStar;
-    int nMaxOrderDark;
-    int nMaxOrderGas;
+    uint64_t nDark;
+    uint64_t nGas;
+    uint64_t nStar;
+    uint64_t nMaxOrderDark;
+    uint64_t nMaxOrderGas;
     FLOAT fPeriod[3];
     int nMaxNodes;   /* for kdTemp */
     KDN *kdTop;
@@ -622,9 +622,10 @@ double pkdGetWallClockTimer(PKD,int);
 void pkdClearTimer(PKD,int);
 void pkdStartTimer(PKD,int);
 void pkdStopTimer(PKD,int);
-void pkdInitialize(PKD *,MDL,int,int,FLOAT *,int,int,int);
+void pkdInitialize(PKD *,MDL,int,int,FLOAT *,uint64_t,uint64_t,uint64_t);
 void pkdFinish(PKD);
-void pkdReadTipsy(PKD,char *,char *,int,int,int,double,int);
+void pkdReadTipsy(PKD pkd,char *pszFileName, char *achOutName,uint64_t nStart,int nLocal,
+		  int bStandard,double dvFac,int bDoublePos);
 void pkdSetSoft(PKD pkd,double dSoft);
 void pkdCalcBound(PKD,BND *);
 
