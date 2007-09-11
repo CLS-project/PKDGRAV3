@@ -105,6 +105,16 @@ int main( int argc, char *argv[] )
     assert( nStar == 0 );
 
     while( ioHDF5GetDark( io, &iOrder, r, v, &fMass, &fSoft, &fPot ) ) {
+	if ( fMass == 0.0 ) {
+	    fprintf(stderr, "%ld: zero mass\n", iOrder );
+	}
+	else if ( r[0]==0 && r[1]==0 && r[2]==0 )  {
+	    fprintf(stderr, "%ld: zero position\n", iOrder );
+	}
+	else if ( v[0]==0 && v[1]==0 && v[2]==0 ) {
+	    fprintf(stderr, "%ld: zero velocity\n", iOrder );
+	}
+
 	fTemp = fMass; xdr_float(&xdr,&fTemp);
 	fTemp = r[0];  xdr_float(&xdr,&fTemp);
 	fTemp = r[1];  xdr_float(&xdr,&fTemp);
