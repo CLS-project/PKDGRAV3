@@ -701,7 +701,7 @@ void _pstRootSplit(PST pst,int iSplitDim,int bDoRootFind,int bDoSplitDimFind,
 	/*
 	** First order the particles into active/inactive order...
 	*/
-	int nActiveOrder;
+	uint64_t nActiveOrder;
 	pstActiveOrder(pst, NULL, 0, &nActiveOrder, NULL); /* SOON NO MORE ACTIVE ORDER */
 
 	fmm = (fl + fu)/2;
