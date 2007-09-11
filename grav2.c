@@ -65,7 +65,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
     const double onethird = 1.0/3.0;
     momFloat ax,ay,az,fPot;
     double x,y,z,d2,dir,dir2;
-    momFloat adotai,maga,dirsum,normsum;
+    momFloat adotai,maga,dimaga,dirsum,normsum;
     momFloat tax,tay,taz,tmon;
     double rholoc,dirDTS,d2DTS,dsmooth2;
 #ifndef USE_SIMD_MOMR
@@ -107,7 +107,10 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	az = 0;
         rholoc = 0;
         dsmooth2 = 0;
-	maga = sqrt(p[i].a[0]*p[i].a[0] + p[i].a[1]*p[i].a[1] + p[i].a[2]*p[i].a[2]);
+	dimaga = p[i].a[0]*p[i].a[0] + p[i].a[1]*p[i].a[1] + p[i].a[2]*p[i].a[2];
+	if (dimaga > 0) {
+	    dimaga = 1.0/sqrt(dimaga);
+	    }
 	dirsum = dirLsum;
 	normsum = normLsum;
 	/*
@@ -174,7 +177,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	    taz = xz + xxz + tz - z*dir2;
             adotai = p[i].a[0]*tax + p[i].a[1]*tay + p[i].a[2]*taz; 
             if (adotai > 0) {
-		adotai /= maga;
+		adotai *= dimaga;
                 dirsum += dirDTS*adotai*adotai;
                 normsum += adotai*adotai;
                 }
@@ -266,7 +269,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	    taz = -z*dir2;
 	    adotai = p[i].a[0]*tax + p[i].a[1]*tay + p[i].a[2]*taz;
 	    if (adotai > 0 && d2DTS >= dsmooth2) {
-		adotai /= maga;
+		adotai *= dimaga;
 		dirsum += dir*adotai*adotai;
 		normsum += adotai*adotai;
 		}
@@ -294,6 +297,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	    */
 	    maga = sqrt(p[i].a[0]*p[i].a[0] + p[i].a[1]*p[i].a[1] + p[i].a[2]*p[i].a[2]);
 	    p[i].dtGrav = maga*dirsum/normsum + pkd->param.dPreFacRhoLoc*rholoc;
+	    p[i].fDensity = pkd->param.dPreFacRhoLoc*rholoc;
 	    }
 
 /* 	if (p[i].iOrder < 100) { */
