@@ -725,7 +725,7 @@ struct inDtToRung {
     int bAll;
     };
 struct outDtToRung {
-    int nRungCount[256];
+    uint64_t nRungCount[256];
     };
 void pstDtToRung(PST,void *,int,void *,int *);
 
@@ -947,7 +947,7 @@ struct inDrminToRung {
     int iMaxRung;
     };
 struct outDrminToRung {
-    int nRungCount[256];
+    uint64_t nRungCount[256];
     };
 void pstDrminToRung(PST,void *,int,void *,int *);
 

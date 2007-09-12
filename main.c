@@ -71,9 +71,10 @@ int main(int argc,char **argv) {
     char achFile[256];			/*DEBUG use MAXPATHLEN here (& elsewhere)? -- DCR*/
     double dTime;
     double E=0,T=0,U=0,Eth=0,L[3]={0,0,0};
-    double dWMax=0,dIMax=0,dEMax=0,dMass=0,dMultiEff=0;
+    double dMass=0,dMultiEff=0;
     long lSec=0,lStart;
-    int i,iStep,iSec=0,iStop=0,nActive;
+    int i,iStep,iSec=0,iStop=0;
+    uint64_t nActive;
     int bGasOnly,bSymmetric;
     //char achBaseMask[256];
     int nFOFsDone;
@@ -175,19 +176,18 @@ int main(int argc,char **argv) {
 	msrUpdateSoft(msr,dTime);
 	msrBuildTree(msr,dMass,dTime);
 	if (msrDoGravity(msr)) {
-	    msrGravity(msr,dTime,msr->param.iStartStep,msr->param.bEwald,msr->param.bEwaldKicking,&iSec,&dWMax,&dIMax,&dEMax,&nActive);
+	    msrGravity(msr,dTime,msr->param.iStartStep,msr->param.bEwald,msr->param.bEwaldKicking,&iSec,&nActive);
 	    if (msr->param.bGravStep) {
 		msrBuildTree(msr,dMass,dTime);
-		msrGravity(msr,dTime,msr->param.iStartStep,msr->param.bEwald,msr->param.bEwaldKicking,&iSec,&dWMax,&dIMax,&dEMax,&nActive);
+		msrGravity(msr,dTime,msr->param.iStartStep,msr->param.bEwald,msr->param.bEwaldKicking,&iSec,&nActive);
 		}
 	    msrCalcEandL(msr,MSR_INIT_E,dTime,&E,&T,&U,&Eth,L);
 	    dMultiEff = 1.0;
 	    if (msrLogInterval(msr)) {
 		(void) fprintf(fpLog,"%e %e %.16e %e %e %e %.16e %.16e %.16e "
-			       "%i %e %e %e %e\n",dTime,
+			       "%i %e\n",dTime,
 			       1.0/csmTime2Exp(msr->param.csm,dTime)-1.0,
-			       E,T,U,Eth,L[0],L[1],L[2],iSec,dWMax,dIMax,dEMax,
-			       dMultiEff);
+			       E,T,U,Eth,L[0],L[1],L[2],iSec,dMultiEff);
 		}
 	    }
 #ifdef PLANETS 
@@ -220,16 +220,14 @@ int main(int argc,char **argv) {
 	    if(msr->param.bHermite){
 	    msrTopStepHermite(msr,iStep-1,dTime,
 			  msrDelta(msr),0,0,msrMaxRung(msr),1,
-			  &dMultiEff,&dWMax,&dIMax,
-			  &dEMax,&iSec);
+			  &dMultiEff,&iSec);
 	    }else
 #endif
 #ifdef SYMBA
 	    if(msr->param.bSymba){
 	    msrTopStepSymba(msr,iStep-1,dTime,
 			  msrDelta(msr),0,0,msrMaxRung(msr),1,
-			  &dMultiEff,&dWMax,&dIMax,
-			  &dEMax,&iSec);
+			  &dMultiEff,&iSec);
 	    }else
 #endif
 
@@ -237,8 +235,7 @@ int main(int argc,char **argv) {
 		if (msr->param.bEwaldKicking) msrEwaldKick(msr,dTime,0.5*msrDelta(msr));
 		msrTopStepKDK(msr,iStep-1,dTime,
 			  msrDelta(msr),0,0,msrMaxRung(msr),1,
-			  &dMultiEff,&dWMax,&dIMax,
-			  &dEMax,&iSec);
+			  &dMultiEff,&iSec);
 		if (msr->param.bEwaldKicking) msrEwaldKick(msr,dTime+0.5*msrDelta(msr),0.5*msrDelta(msr));
 	      }
 	    
@@ -253,8 +250,7 @@ int main(int argc,char **argv) {
 		(void) fprintf(fpLog,"%e %e %.16e %e %e %e %.16e %.16e "
 			       "%.16e %li %e %e %e %e\n",dTime,
 			       1.0/csmTime2Exp(msr->param.csm,dTime)-1.0,
-			       E,T,U,Eth,L[0],L[1],L[2],lSec,dWMax,dIMax,
-			       dEMax,dMultiEff);
+			       E,T,U,Eth,L[0],L[1],L[2],lSec,dMultiEff);
 		}
 #ifdef RELAXATION 
 	    if ( msr->param.bTraceRelaxation) {
@@ -421,19 +417,18 @@ int main(int argc,char **argv) {
 	msrBuildTree(msr,dMass,dTime);
 
 	if (msrDoGravity(msr)) {
-	    msrGravity(msr,dTime,msr->param.iStartStep,msr->param.bEwald,msr->param.bEwaldKicking,&iSec,&dWMax,&dIMax,&dEMax,&nActive);
+	    msrGravity(msr,dTime,msr->param.iStartStep,msr->param.bEwald,msr->param.bEwaldKicking,&iSec,&nActive);
 	    if (msr->param.bGravStep && msr->param.iTimeStepCrit == -1) {
-		msrGravity(msr,dTime,msr->param.iStartStep,msr->param.bEwald,msr->param.bEwaldKicking,&iSec,&dWMax,&dIMax,&dEMax,&nActive);
+		msrGravity(msr,dTime,msr->param.iStartStep,msr->param.bEwald,msr->param.bEwaldKicking,&iSec,&nActive);
 	    }
 
 	    msrCalcEandL(msr,MSR_INIT_E,dTime,&E,&T,&U,&Eth,L);
 	    dMultiEff = 1.0;
 	    if (msrLogInterval(msr)) {
 		(void) fprintf(fpLog,"%e %e %.16e %e %e %e %.16e %.16e %.16e "
-			       "%i %e %e %e %e\n",dTime,
+			       "%i %e\n",dTime,
 			       1.0/csmTime2Exp(msr->param.csm,dTime)-1.0,
-			       E,T,U,Eth,L[0],L[1],L[2],iSec,dWMax,dIMax,dEMax,
-			       dMultiEff);
+			       E,T,U,Eth,L[0],L[1],L[2],iSec,dMultiEff);
 		}
 
 	    msrReorder(msr);

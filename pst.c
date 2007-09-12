@@ -1805,12 +1805,11 @@ void pstSwapAll(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     }
 
 
-void _pstOrdSplit(PST pst,int iMaxOrder)
-    {
+void _pstOrdSplit(PST pst,uint64_t iMaxOrder) {
     struct outFreeStore outFree;
     struct inOrdWeight inWt;
     struct outOrdWeight outWtLow,outWtHigh;
-    int64_t im=-1,imm,il,iu;
+    uint64_t im,imm,il,iu;
     uint64_t nLowerStore,nUpperStore,nLow,nHigh;
     struct inColOrdRejects inCol;
     OREJ *pLowerRej,*pUpperRej;
@@ -1832,6 +1831,9 @@ void _pstOrdSplit(PST pst,int iMaxOrder)
     */
     il = 0;
     iu = iMaxOrder;
+    im = 0;        /* just initialization */
+    nLow = 0;      /* just initialization */
+    nHigh = iu+1;  /* just initialization */
     imm = (il + iu)/2;
     ittr = 0;
     while (il < imm && imm < iu && ittr < MAX_ITTR) {
@@ -3045,7 +3047,10 @@ void pstDtToRung(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 	    }
 	}
     else {
-	pkdDtToRung(plcl->pkd,in->iRung,in->dDelta, in->iMaxRung, in->bAll, out->nRungCount);
+	int nRungCount[256];   /* we need a temporary array of INTEGERS */
+	for (i=0;i<256;++i) nRungCount[i] = 0;
+	pkdDtToRung(plcl->pkd,in->iRung,in->dDelta, in->iMaxRung, in->bAll, nRungCount);
+	for (i=0;i<256;++i) out->nRungCount[i] = nRungCount[i];
 	}
     if (pnOut) *pnOut = sizeof(*out);
     }
@@ -3584,7 +3589,10 @@ void pstDrminToRung(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 	    }
 	}
     else {
-	pkdDrminToRung(plcl->pkd,in->iRung,in->iMaxRung,out->nRungCount);
+	int nRungCount[256];   /* we need a temporary array of INTEGERS */
+	for (i=0;i<256;++i) nRungCount[i] = 0;
+	pkdDrminToRung(plcl->pkd,in->iRung,in->iMaxRung,nRungCount);
+	for (i=0;i<256;++i) out->nRungCount[i] = nRungCount[i];
 	}
     if (pnOut) *pnOut = sizeof(*out);
     }

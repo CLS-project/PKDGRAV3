@@ -737,7 +737,7 @@ void msrLogParams(MSR msr,FILE *fp)
 	    fprintf(fp,"%s",hostname);
 	}
 #endif
-	fprintf(fp,"\n# N: %d",msr->N);
+	fprintf(fp,"\n# N: %llu",msr->N);
 	fprintf(fp," nThreads: %d",msr->param.nThreads);
 	fprintf(fp," bDiag: %d",msr->param.bDiag);
 	fprintf(fp," Verbosity flags: (%d,%d,%d,%d,%d)",msr->param.bVWarnings,
@@ -1258,7 +1258,7 @@ static double _msrReadHDF5(MSR msr, const char *achFilename)
 		       tTo,1.0/aTo-1.0,aTo);
 	    }
 	if (msr->param.bVStart)
-	    printf("Reading file...\nN:%d nDark:%d nGas:%d nStar:%d\n",msr->N,
+	    printf("Reading file...\nN:%llu nDark:%llu nGas:%llu nStar:%llu\n",msr->N,
 		   msr->nDark,msr->nGas,msr->nStar);
 	if (msr->param.bCannonical) {
 	    in.dvFac = dExpansion*dExpansion;
@@ -1273,7 +1273,7 @@ static double _msrReadHDF5(MSR msr, const char *achFilename)
 	tTo = dTime + (msr->param.nSteps - msr->param.iStartStep)*msr->param.dDelta;
 	if (msr->param.bVStart) {
 	    printf("Simulation to Time:%g\n",tTo);
-	    printf("Reading file...\nN:%d nDark:%d nGas:%d nStar:%d Time:%g\n",
+	    printf("Reading file...\nN:%llu nDark:%llu nGas:%llu nStar:%llu Time:%g\n",
 		   msr->N,msr->nDark,msr->nGas,msr->nStar,dTime);
 	    }
 	in.dvFac = 1.0;
@@ -1486,7 +1486,7 @@ static double _msrReadTipsy(MSR msr, const char *achFilename)
 		       tTo,1.0/aTo-1.0,aTo);
 	    }
 	if (msr->param.bVStart)
-	    printf("Reading file...\nN:%d nDark:%d nGas:%d nStar:%d\n",msr->N,
+	    printf("Reading file...\nN:%llu nDark:%llu nGas:%llu nStar:%llu\n",msr->N,
 		   msr->nDark,msr->nGas,msr->nStar);
 	if (msr->param.bCannonical) {
 	    in.dvFac = dExpansion*dExpansion;
@@ -1501,7 +1501,7 @@ static double _msrReadTipsy(MSR msr, const char *achFilename)
 	tTo = dTime + (msr->param.nSteps - msr->param.iStartStep)*msr->param.dDelta;
 	if (msr->param.bVStart) {
 	    printf("Simulation to Time:%g\n",tTo);
-	    printf("Reading file...\nN:%d nDark:%d nGas:%d nStar:%d Time:%g\n",
+	    printf("Reading file...\nN:%llu nDark:%llu nGas:%llu nStar:%llu Time:%g\n",
 		   msr->N,msr->nDark,msr->nGas,msr->nStar,dTime);
 	    }
 	in.dvFac = 1.0;
@@ -2018,7 +2018,7 @@ void msrDomainDecomp(MSR msr,int iRung,int bGreater,int bSplitVA) {
 
     if (msr->nActive < msr->N*msr->param.dFracNoDomainDecomp) {
 	if (msr->bDoneDomainDecomp && msr->iLastRungDD >= iRungDD) {
-	    if (msr->param.bVRungStat) printf("Skipping Root Finder (nActive = %d/%d, iRung %d/%d/%d)\n",msr->nActive,msr->N,iRung,iRungDD,msr->iLastRungDD);
+	    if (msr->param.bVRungStat) printf("Skipping Root Finder (nActive = %llu/%llu, iRung %d/%d/%d)\n",msr->nActive,msr->N,iRung,iRungDD,msr->iLastRungDD);
 	    in.bDoRootFind = 0;
 	    in.bDoSplitDimFind = 0;
 	    }
@@ -2057,7 +2057,7 @@ void msrDomainDecomp(MSR msr,int iRung,int bGreater,int bSplitVA) {
     MPItrace_event(10000, 0 );
 #endif
     if (msr->param.bVDetails) {
-	printf("Domain Decomposition: nActive (Rung %d) %d\n",iRungDD,msr->nActive);
+	printf("Domain Decomposition: nActive (Rung %d) %llu\n",iRungDD,msr->nActive);
 	printf("Domain Decomposition... \n");
 	sec = msrTime();
 	}
@@ -2109,7 +2109,7 @@ void _BuildTree(MSR msr,double dMass,double dTimeStamp,int bExcludeVeryActive) {
     assert(pkdn != NULL);
     in.iCell = ROOT;
     in.nCell = nCell;
-    in.bTreeSqueeze = (msr->nActive > msr->N*msr->param.dFracNoTreeSqueeze);
+    in.bTreeSqueeze = (msr->nActive > (uint64_t)floor(((double)msr->N)*msr->param.dFracNoTreeSqueeze));
     in.bExcludeVeryActive = bExcludeVeryActive;
     in.dTimeStamp = dTimeStamp;
     if (msr->param.bVDetails) {
@@ -2165,8 +2165,7 @@ void msrCalcBoundBall(MSR msr,double fBallFactor)
     }
 #endif
 
-void msrReorder(MSR msr)
-    {
+void msrReorder(MSR msr) {
     struct inDomainOrder in;
 
     in.iMaxOrder = msrMaxOrder(msr)-1;
@@ -2494,8 +2493,7 @@ void msrUpdateSoft(MSR msr,double dTime) {
 }
 
 void msrGravity(MSR msr,double dTime,double dStep,int bEwald,int bEwaldKick,
-		int *piSec,double *pdWMax,double *pdIMax,
-		double *pdEMax,int *pnActive) {
+		int *piSec,uint64_t *pnActive) {
     struct inGravity in;
     struct outGravity *out;
     int i,id,iDum;
@@ -2518,6 +2516,10 @@ void msrGravity(MSR msr,double dTime,double dStep,int bEwald,int bEwaldKick,
     dsec = msrTime() - sec;
 
     *piSec = dsec;
+    for (id=0;id<msr->nThreads;++id) {
+	*pnActive += out[id].nActive;
+	}
+
     if (msr->param.bVStep) {
 	/*
 	** Output some info...
@@ -3093,7 +3095,8 @@ msrInitDt(MSR msr)
 int msrDtToRung(MSR msr, int iRung, double dDelta, int bAll) {
     struct inDtToRung in;
     struct outDtToRung out;
-    int iTempRung,iOutMaxRung,iRungVeryActive,sum;
+    int iTempRung,iOutMaxRung,iRungVeryActive;
+    uint64_t sum;
     char c;
 
     in.iRung = iRung;
@@ -3146,7 +3149,7 @@ int msrDtToRung(MSR msr, int iRung, double dDelta, int bAll) {
 	    if (out.nRungCount[iTempRung] == 0) continue;
 	    if (iTempRung > iRungVeryActive) c = 'v';
 	    else c = ' ';
-	    printf(" %c rung:%d %d\n",c,iTempRung,out.nRungCount[iTempRung]);
+	    printf(" %c rung:%d %llu\n",c,iTempRung,out.nRungCount[iTempRung]);
 	    }
 	printf("\n");
 	}
@@ -3172,13 +3175,10 @@ void msrTopStepKDK(MSR msr,
 		   */
 		   int iAdjust,		/* Do an adjust? */
 		   double *pdActiveSum,
-		   double *pdWMax,
-		   double *pdIMax,
-		   double *pdEMax,
 		   int *piSec)
     {
     double dMass = -1.0;
-    int nActive;
+    uint64_t nActive;
     int bSplitVA;
     int bEwald;
     int bEwaldKick;
@@ -3215,12 +3215,12 @@ void msrTopStepKDK(MSR msr,
 	** Recurse.
 	*/
 	msrTopStepKDK(msr,dStep,dTime,0.5*dDelta,iRung+1,iRung+1,iRungVeryActive,0,
-		      pdActiveSum,pdWMax,pdIMax,pdEMax,piSec);
+		      pdActiveSum,piSec);
 	dTime += 0.5*dDelta;
 	dStep += 1.0/(2 << iRung);
 	msrActiveRung(msr,iRung,0); /* EXACT */
 	msrTopStepKDK(msr,dStep,dTime,0.5*dDelta,iRung+1,iKickRung,iRungVeryActive,1,
-		      pdActiveSum,pdWMax,pdIMax,pdEMax,piSec);
+		      pdActiveSum,piSec);
 	}
     else if(msrCurrMaxRung(msr) == iRung) {
 	/* This Drifts everybody */
@@ -3262,7 +3262,7 @@ void msrTopStepKDK(MSR msr,
 		bEwald = msr->param.bEwald;
 	    }
 
-	    msrGravity(msr,dTime,dStep,bEwald,bEwaldKick,piSec,pdWMax,pdIMax,pdEMax,&nActive);
+	    msrGravity(msr,dTime,dStep,bEwald,bEwaldKick,piSec,&nActive);
 	    *pdActiveSum += (double)nActive/msr->N;
 	    }
 
@@ -3371,7 +3371,7 @@ void msrTopStepKDK(MSR msr,
 		bEwald = msr->param.bEwald;
 	    }
 
-	    msrGravity(msr,dTime,dStep,bEwald,bEwaldKick,piSec,pdWMax,pdIMax,pdEMax,&nActive);
+	    msrGravity(msr,dTime,dStep,bEwald,bEwaldKick,piSec,&nActive);
 	    *pdActiveSum += (double)nActive/msr->N;
 	    }
 
@@ -3469,13 +3469,10 @@ void msrTopStepHermite(MSR msr,
 		                   int iRungVeryActive,  /* current setting for iRungVeryActive */
 				   int iAdjust,		/* Do an adjust? */
 				   double *pdActiveSum,
-				   double *pdWMax,
-				   double *pdIMax,
-				   double *pdEMax,
 				   int *piSec)
 {
     double dMass = -1.0;
-    int nActive;
+    uint64_t nActive;
     int bSplitVA;
 
     if(iAdjust && (iRung < msrMaxRung(msr)-1)) {
@@ -3509,12 +3506,12 @@ void msrTopStepHermite(MSR msr,
 		 ** Recurse.
 		 */
 		msrTopStepHermite(msr,dStep,dTime,0.5*dDelta,iRung+1,iRung+1,iRungVeryActive,0,
-					  pdActiveSum,pdWMax,pdIMax,pdEMax,piSec);
+					  pdActiveSum,piSec);
 		dTime += 0.5*dDelta;
 		dStep += 1.0/(2 << iRung);
 		/*msrActiveRung(msr,iRung,0);*/
 		msrTopStepHermite(msr,dStep,dTime,0.5*dDelta,iRung+1,iKickRung,iRungVeryActive,1,
-					  pdActiveSum,pdWMax,pdIMax,pdEMax,piSec);
+					  pdActiveSum,piSec);
 		}
     else if(msrCurrMaxRung(msr) == iRung) {
    
@@ -3544,7 +3541,7 @@ void msrTopStepHermite(MSR msr,
 		    printf("%*cGravity, iRung: %d to %d\n",2*iRung+2,' ',iKickRung,iRung);
 		  }
 		  msrBuildTree(msr,dMass,dTime);
-		  msrGravity(msr,dTime,dStep,0,0,piSec,pdWMax,pdIMax,pdEMax,&nActive);
+		  msrGravity(msr,dTime,dStep,0,0,piSec,&nActive);
 		  *pdActiveSum += (double)nActive/msr->N;
 		}
 #ifdef PLANETS
@@ -3672,7 +3669,7 @@ else {
 		       2*iRung+2,' ',iKickRung,msrCurrMaxRung(msr));
 		}
 	    msrBuildTree(msr,dMass,dTime);
-	    msrGravity(msr,dTime,dStep,0,0,piSec,pdWMax,pdIMax,pdEMax,&nActive);
+	    msrGravity(msr,dTime,dStep,0,0,piSec,&nActive);
 	    *pdActiveSum += (double)nActive/msr->N;
 	    }
 #ifdef PLANETS
@@ -3820,9 +3817,8 @@ msrFirstDt(MSR msr)
 
 #endif /* Hermite*/
 
-int
-msrMaxOrder(MSR msr)
-    {
+uint64_t msrMaxOrder(MSR msr)
+{
     return msr->nMaxOrder;
     }
 
@@ -4663,13 +4659,10 @@ void msrTopStepSymba(MSR msr,
 		     int iRungVeryActive,  /* current setting for iRungVeryActive */
 		     int iAdjust,		/* Do an adjust? */
 		     double *pdActiveSum,
-		     double *pdWMax,
-		     double *pdIMax,
-		     double *pdEMax,
 		     int *piSec)
 {
     double dMass = -1.0;
-    int nActive;
+    uint64_t nActive;
     int bSplitVA;
     double dDeltaTmp;
     int i;
@@ -4731,7 +4724,7 @@ void msrTopStepSymba(MSR msr,
 	       2*iRung+2,' ',iKickRung,msrCurrMaxRung(msr));
       }
       msrBuildTree(msr,dMass,dTime);    
-      msrGravity(msr,dTime,dStep,0,0,piSec,pdWMax,pdIMax,pdEMax,&nActive);
+      msrGravity(msr,dTime,dStep,0,0,piSec,&nActive);
       *pdActiveSum += (double)nActive/msr->N;
     }
         

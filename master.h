@@ -60,7 +60,7 @@ typedef struct msrContext {
     /*
      * Domain Decomposition Done
      */
-    int *nRung;
+    uint64_t *nRung;
     int bDoneDomainDecomp;
     int iLastRungDD;
     int iLastRungSD;
@@ -195,7 +195,7 @@ void msrSetRung(MSR msr, int iRung);
 int msrMaxRung(MSR msr);
 
 void msrSwitchTheta(MSR msr,double);
-int msrMaxOrder(MSR msr);
+uint64_t msrMaxOrder(MSR msr);
 
 void msrInitTimeSteps(MSR,double,double);
 
