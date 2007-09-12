@@ -71,6 +71,8 @@ typedef struct pIO {
     FLOAT v[3];
     FLOAT fMass;
     FLOAT fSoft;
+    FLOAT fDensity;
+    FLOAT fPot;
 } PIO;
 
 typedef struct particle {
@@ -667,7 +669,7 @@ int pkdColOrdRejects(PKD,uint64_t,int);
 void pkdLocalOrder(PKD);
 void pkdWriteTipsy(PKD,char *,int,int,double,int);
 #ifdef USE_HDF5
-void pkdWriteHDF5(PKD pkd, IOHDF5 io,double dvFac);
+void pkdWriteHDF5(PKD pkd, IOHDF5 io,IOHDF5V ioDen, IOHDF5V ioPot, double dvFac);
 #endif
 void pkdGravAll(PKD,double,int,int,int,int,int,double,double,int *,
 		double *,double *,CASTAT *,double *);

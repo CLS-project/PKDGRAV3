@@ -31,17 +31,25 @@ static void ioSave(IO io, const char *filename, double dTime, int bDouble )
 {
     hid_t fileID;
     IOHDF5 iohdf5;
+    IOHDF5V ioDen;
+    IOHDF5V ioPot;
     int i;
 
     /* Create the output file */
     fileID = ioCreate(filename);
-
     iohdf5 = ioHDF5Initialize( fileID, CHUNKSIZE, bDouble );
+    ioDen  = ioHDFF5NewVector( iohdf5, "density",  IOHDF5_SINGLE );
+    ioPot  = ioHDFF5NewVector( iohdf5, "potential",IOHDF5_SINGLE );
 
     for( i=0; i<io->N; i++ ) {
+//	ioHDF5AddDark(iohdf5, io->iMinOrder+i,
+//		   io->r[i].v, io->v[i].v,
+//		   io->m[i], io->s[i], io->p[i] );
 	ioHDF5AddDark(iohdf5, io->iMinOrder+i,
 		   io->r[i].v, io->v[i].v,
-		   io->m[i], io->s[i], 0.0 );
+		   0.0, 0.0, io->p[i] );
+	ioHDF5AddVector( ioDen, io->iMinOrder+i, io->d[i] );
+	ioHDF5AddVector( ioPot, io->iMinOrder+1, io->p[i] );
     }
     ioHDF5Finish(iohdf5);
 
@@ -59,8 +67,10 @@ void ioInitialize(IO *pio,MDL mdl)
     io->N = 0;
     io->r = NULL;
     io->v = NULL;
-    io->m = NULL;
-    io->s = NULL;
+//    io->m = NULL;
+//    io->s = NULL;
+    io->d = NULL;
+    io->p = NULL;
 
     *pio = io;
 }
@@ -134,8 +144,11 @@ static int ioUnpackIO(void *vctx, int nSize, void *vBuff)
 	    io->r[j].v[d] = pio[i].r[d];
 	    io->v[j].v[d] = pio[i].v[d];
 	}
-	io->m[j] = pio[i].fMass;
-	io->s[j] = pio[i].fSoft;
+//	io->m[j] = pio[i].fMass;
+//	io->s[j] = pio[i].fSoft;
+	io->d[j] = pio[i].fDensity;
+	io->p[j] = pio[i].fPot;
+
 	io->nReceived++;
     }
 
@@ -174,16 +187,20 @@ void ioStartRecv(IO io,void *vin,int nIn,void *vout,int *pnOut)
 
     if ( io->nExpected > io->N ) {
 	if ( io->N ) {
-	    free(io->s);
-	    free(io->m);
+	    free(io->p);
+	    free(io->d);
+//	    free(io->s);
+//	    free(io->m);
 	    free(io->v);
 	    free(io->r);
 	}
 	io->N = io->nExpected;
 	io->r = malloc(io->N*sizeof(ioV3));
 	io->v = malloc(io->N*sizeof(ioV3));
-	io->m = malloc(io->N*sizeof(FLOAT));
-	io->s = malloc(io->N*sizeof(FLOAT));
+	//io->m = malloc(io->N*sizeof(FLOAT));
+	//io->s = malloc(io->N*sizeof(FLOAT));
+	io->d = malloc(io->N*sizeof(float));
+	io->p = malloc(io->N*sizeof(float));
     }
 
     io->iMinOrder = recv->iIndex;

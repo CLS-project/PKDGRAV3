@@ -11,6 +11,7 @@ int main( int argc, char *argv[] )
     FILE *fin;
     hid_t fileID;
     IOHDF5 io;
+    IOHDF5V ioPot;
 
     int i, iOrder;
     float fTemp;
@@ -53,12 +54,10 @@ int main( int argc, char *argv[] )
     }
 
     io = ioHDF5Initialize( fileID, 32768, IOHDF5_SINGLE );
-
+    ioPot  = ioHDFF5NewVector( io, "potential",IOHDF5_SINGLE );
     ioHDF5WriteAttribute( io, "dTime", H5T_NATIVE_DOUBLE, &dTime );
 
-
     iOrder = 0;
-
     for( i=0; i<nDark; i++ ) {
 	xdr_float(&xdr,&fTemp); fMass = fTemp;
 	xdr_float(&xdr,&fTemp); r[0] = fTemp;
@@ -70,6 +69,7 @@ int main( int argc, char *argv[] )
 	xdr_float(&xdr,&fTemp); fSoft = fTemp;
 	xdr_float(&xdr,&fTemp); fPot  = fTemp;
 	ioHDF5AddDark( io, iOrder, r, v, fMass, fSoft, fPot );
+	ioHDF5AddVector( ioPot, iOrder, fPot );
 	iOrder++;
     }
 

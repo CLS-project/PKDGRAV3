@@ -1731,6 +1731,7 @@ void msrOneNodeWriteTipsy(MSR msr, struct inWriteTipsy *in, int bCheckpoint)
 #ifdef USE_HDF5
     hid_t fileID;
     IOHDF5 io;
+    IOHDF5V ioDen, ioPot;
 #endif
 
     pst0 = msr->pst;
@@ -1754,9 +1755,11 @@ void msrOneNodeWriteTipsy(MSR msr, struct inWriteTipsy *in, int bCheckpoint)
 	    H5assert(fileID);
 	}
 	io = ioHDF5Initialize( fileID, 32768, bCheckpoint );
+	ioDen  = ioHDFF5NewVector( io, "density",  IOHDF5_SINGLE );
+	ioPot  = ioHDFF5NewVector( io, "potential",IOHDF5_SINGLE );
 	ioHDF5WriteAttribute( io, "dTime", H5T_NATIVE_DOUBLE, &in->dTime );
 	msrSaveParameters(msr,io);
-	pkdWriteHDF5(plcl->pkd, io, in->dvFac );
+	pkdWriteHDF5(plcl->pkd, io, ioDen, ioPot, in->dvFac );
     }
     else
 #endif
@@ -1780,7 +1783,7 @@ void msrOneNodeWriteTipsy(MSR msr, struct inWriteTipsy *in, int bCheckpoint)
 	 */
 #ifdef USE_HDF5
 	if ( in->bStandard == 2 ) {
-	    pkdWriteHDF5(plcl->pkd, io, in->dvFac);
+	    pkdWriteHDF5(plcl->pkd, io, ioDen, ioPot, in->dvFac);
 	}
 	else
 #endif
@@ -2852,6 +2855,12 @@ char *msrBuildName(MSR msr,char *achFile,int iStep)
 	    n = p - achOutPath;
 	    strcpy( p, msrOutName(msr) );
 	    strcat( p+2, msr->param.achOutPath + n + 2 );
+	}
+	else {
+	    n = strlen(achOutPath);
+	    if ( !n || achOutPath[n-1]!='/' )
+		achOutPath[n++] = '/';
+	    strcpy(achOutPath+n,msrOutName(msr));
 	}
     }
     else {

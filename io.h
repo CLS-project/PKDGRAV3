@@ -15,8 +15,10 @@ typedef struct ioContext {
 
     ioV3 *r;       /* Position */
     ioV3 *v;       /* Velocity */
-    FLOAT *m;      /* Mass */
-    FLOAT *s;      /* Softening */
+    //FLOAT *m;      /* Mass */
+    //FLOAT *s;      /* Softening */
+    float *d;      /* Density */
+    float *p;      /* Potential */
 
 } * IO;
 

@@ -1125,6 +1125,8 @@ int pkdPackIO(PKD pkd,
 #else
 	io[nCopied].fSoft = pkd->pStore[i].fSoft;
 #endif
+	io[nCopied].fDensity = pkd->pStore[i].fDensity;
+	io[nCopied].fPot = pkd->pStore[i].fPot;
 	nCopied++;
     }
     *iIndex = i;
@@ -1132,7 +1134,7 @@ int pkdPackIO(PKD pkd,
 }
 
 #ifdef USE_HDF5
-void pkdWriteHDF5(PKD pkd, IOHDF5 io, double dvFac)
+void pkdWriteHDF5(PKD pkd, IOHDF5 io, IOHDF5V ioDen, IOHDF5V ioPot, double dvFac)
 {
     PARTICLE *p;
     FLOAT v[3], fSoft;
@@ -1149,8 +1151,6 @@ void pkdWriteHDF5(PKD pkd, IOHDF5 io, double dvFac)
 #else
 	fSoft = p->fSoft;
 #endif
-
-
 	if (pkdIsDark(pkd,p)) {
 	    ioHDF5AddDark(io,p->iOrder,p->r,v,
 			  p->fMass,fSoft,p->fPot );
@@ -1168,6 +1168,9 @@ void pkdWriteHDF5(PKD pkd, IOHDF5 io, double dvFac)
 			  p->fMass,fSoft,p->fPot,0.0,0.0);
 	}
 	else mdlassert(pkd->mdl,0);
+
+	ioHDF5AddVector( ioDen, p->iOrder, p->fDensity );
+	ioHDF5AddVector( ioPot, p->iOrder, p->fPot );
     }
 }
 

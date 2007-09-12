@@ -30,7 +30,7 @@ typedef struct {
 } classEntry;
 
 typedef struct {
-    int nClasses;             /* Number of different classes */
+    uint_fast32_t nClasses;   /* Number of different classes */
     classEntry Class[256];
     hid_t   setClass_id;
     uint8_t *piClass;         /* Class index (or NULL) */
@@ -43,8 +43,8 @@ typedef struct {
 
     PINDEX  nTotal;           /* Total number of particles in the file */
     PINDEX  iOffset;          /* Particle offset into the file */
-    int     iIndex;           /* Index of next particle in memory */
-    int     nBuffered;        /* Number of buffered particles */
+    uint_fast32_t iIndex;     /* Index of next particle in memory */
+    uint_fast32_t nBuffered;  /* Number of buffered particles */
     hid_t   group_id;         /* Group /dark, /gas, /star, etc. */
     hid_t   setR_id;          /* set of Positions */
     hid_t   setV_id;          /* set of Velocities */
@@ -56,9 +56,26 @@ typedef struct {
 
 } IOBASE;
 
+
+struct ioHDF5;
+typedef struct ioHDF5v {
+    struct ioHDF5v *next;
+    struct ioHDF5 *io;
+    hid_t   diskFloat;        /* FLOAT on disk: float or double */
+    hid_t   set_id;           /* vector */
+
+    PINDEX  iOffset;          /* Particle offset into the file */
+    uint_fast32_t nBuffered;        /* Number of buffered particles */
+    char    name[32];
+    
+    float   *s;
+    double  *d;
+
+} *IOHDF5V;
+
 typedef struct ioHDF5 {
     hid_t   fileID;           /* HDF5 file handle */
-    int     iChunkSize;
+    uint_fast32_t iChunkSize;
     hid_t   parametersID;
 
     hid_t   memFloat;         /* FLOAT in memory: float or double */
@@ -71,12 +88,14 @@ typedef struct ioHDF5 {
 
     unsigned char bRead;
     unsigned char bWrite;
+
+    IOHDF5V vectorList;
 } *IOHDF5;
 
 #define IOHDF5_SINGLE 0
 #define IOHDF5_DOUBLE 1
 
-IOHDF5 ioHDF5Initialize( hid_t fileID, hid_t iChunkSize, int bDouble );
+    IOHDF5 ioHDF5Initialize( hid_t fileID, hid_t iChunkSize, int bDouble );
 
 void ioHDF5Finish( IOHDF5 io );
 
@@ -97,6 +116,10 @@ void ioHDF5AddStar( IOHDF5 io, PINDEX iOrder,
 		    const FLOAT *r, const FLOAT *v,
 		    FLOAT fMass, FLOAT fSoft, FLOAT fPot,
 		    FLOAT fMetals, FLOAT fTForm);
+
+IOHDF5V ioHDFF5NewVector( IOHDF5 io, const char *name, int bDouble );
+void ioHDF5AddVector( IOHDF5V iov, PINDEX iOrder, FLOAT v );
+
 
 void ioHDF5WriteAttribute( IOHDF5 io, const char *name,
 			   hid_t dataType, void *data );
