@@ -27,7 +27,9 @@ hid_t ioCreate( const char *filename ) {
     return fileID;
 }
 
-static void ioSave(IO io, const char *filename, double dTime, int bDouble )
+static void ioSave(IO io, const char *filename, double dTime,
+		   double dEcosmo, double dTimeOld, double dUOld,
+		   int bDouble )
 {
     hid_t fileID;
     IOHDF5 iohdf5;
@@ -40,6 +42,11 @@ static void ioSave(IO io, const char *filename, double dTime, int bDouble )
     iohdf5 = ioHDF5Initialize( fileID, CHUNKSIZE, bDouble );
     ioDen  = ioHDFF5NewVector( iohdf5, "density",  IOHDF5_SINGLE );
     ioPot  = ioHDFF5NewVector( iohdf5, "potential",IOHDF5_SINGLE );
+
+    ioHDF5WriteAttribute( iohdf5, "dTime",   H5T_NATIVE_DOUBLE, &dTime );
+    ioHDF5WriteAttribute( iohdf5, "dEcosmo", H5T_NATIVE_DOUBLE, &dEcosmo );
+    ioHDF5WriteAttribute( iohdf5, "dTimeOld",H5T_NATIVE_DOUBLE, &dTimeOld );
+    ioHDF5WriteAttribute( iohdf5, "dUOld",   H5T_NATIVE_DOUBLE, &dUOld );
 
     for( i=0; i<io->N; i++ ) {
 //	ioHDF5AddDark(iohdf5, io->iMinOrder+i,
@@ -100,7 +107,10 @@ void ioStartSave(IO io,void *vin,int nIn,void *vout,int *pnOut)
     mdlassert(io->mdl,mdlSelf(io->mdl)==0);
 
     mdlSetComm(io->mdl,0); /* Talk to our peers */
-    recv.dTime = save->dTime;
+    recv.dTime   = save->dTime;
+    recv.dEcosmo = save->dEcosmo;
+    recv.dTimeOld= save->dTimeOld;
+    recv.dUOld   = save->dUOld;
     strcpy(recv.achOutName,save->achOutName);
     recv.bCheckpoint = save->bCheckpoint;
     iCount = save->N / mdlIO(io->mdl);
@@ -221,6 +231,7 @@ void ioStartRecv(IO io,void *vin,int nIn,void *vout,int *pnOut)
 	p = achOutName + strlen(achOutName);
 	sprintf(p,".%03d", mdlSelf(io->mdl));
     }
-    ioSave(io, achOutName, recv->dTime,
+    ioSave(io, achOutName, recv->dTime, recv->dEcosmo,
+	   recv->dTimeOld, recv->dUOld,
 	   recv->bCheckpoint ? IOHDF5_DOUBLE : IOHDF5_SINGLE );
 }

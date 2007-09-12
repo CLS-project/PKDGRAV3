@@ -1100,7 +1100,7 @@ int pkdPackIO(PKD pkd,
 	      PIO *io, int nMax,
 	      int *iIndex,
 	      int iMinOrder, int iMaxOrder,
-    double dvFac )
+	      double dvFac )
 {
     int nCopied, d, i;
 

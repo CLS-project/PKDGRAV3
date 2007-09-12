@@ -1578,6 +1578,10 @@ void msrIOWrite(MSR msr, const char *achOutName, double dTime, int bCheckpoint)
     save.dTime = dTime;
     save.N = msr->N;
     save.bCheckpoint = bCheckpoint;
+    save.dEcosmo  = msr->dEcosmo;
+    save.dTimeOld = msr->dTimeOld;
+    save.dUOld    = msr->dUOld;
+
     strcpy(save.achOutName,achOutName); 
     mdlSetComm(msr->mdl,1);
     if ( msr->bSavePending )
@@ -1604,6 +1608,10 @@ void msrIOWrite(MSR msr, const char *achOutName, double dTime, int bCheckpoint)
     inStart.bDoublePos = msr->param.bDoublePos;
     inStart.N = msr->N;
     strcpy(inStart.achOutName,achOutName);
+
+    inStart.dEcosmo  = msr->dEcosmo;
+    inStart.dTimeOld = msr->dTimeOld;
+    inStart.dUOld    = msr->dUOld;
 
     //_msrMakePath(plcl->pszDataPath,in->achOutFile,achOutFile);
 

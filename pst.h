@@ -355,6 +355,9 @@ struct inStartIO {
     uint64_t N;
     double dvFac;
     double dTime;
+    double dEcosmo;
+    double dTimeOld;
+    double dUOld;
     int bDoublePos;
     char achOutName[PST_FILENAME_SIZE];
     };
