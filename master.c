@@ -2169,7 +2169,7 @@ void msrReorder(MSR msr)
     {
     struct inDomainOrder in;
 
-    in.iMaxOrder = msrMaxOrder(msr);
+    in.iMaxOrder = msrMaxOrder(msr)-1;
     if (msr->param.bVDetails) {
 	double sec,dsec;
 	printf("Ordering...\n");
