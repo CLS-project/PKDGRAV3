@@ -3048,9 +3048,9 @@ void pstDtToRung(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 	}
     else {
 	int nRungCount[256];   /* we need a temporary array of INTEGERS */
-	for (i=0;i<256;++i) nRungCount[i] = 0;
-	pkdDtToRung(plcl->pkd,in->iRung,in->dDelta, in->iMaxRung, in->bAll, nRungCount);
-	for (i=0;i<256;++i) out->nRungCount[i] = nRungCount[i];
+	for (i=0;i<in->iMaxRung;++i) nRungCount[i] = 0;
+	pkdDtToRung(plcl->pkd,in->iRung,in->dDelta,in->iMaxRung,in->bAll,nRungCount);
+	for (i=0;i<in->iMaxRung;++i) out->nRungCount[i] = nRungCount[i];
 	}
     if (pnOut) *pnOut = sizeof(*out);
     }
@@ -3590,9 +3590,9 @@ void pstDrminToRung(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 	}
     else {
 	int nRungCount[256];   /* we need a temporary array of INTEGERS */
-	for (i=0;i<256;++i) nRungCount[i] = 0;
+	for (i=0;i<in->iMaxRung;++i) nRungCount[i] = 0;
 	pkdDrminToRung(plcl->pkd,in->iRung,in->iMaxRung,nRungCount);
-	for (i=0;i<256;++i) out->nRungCount[i] = nRungCount[i];
+	for (i=0;i<in->iMaxRung;++i) out->nRungCount[i] = nRungCount[i];
 	}
     if (pnOut) *pnOut = sizeof(*out);
     }

@@ -695,7 +695,7 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv)
     msr->bDoneDomainDecomp = 0;
     msr->iLastRungDD = -1;
     msr->iLastRungSD = -1;
-    msr->nRung = (int *) malloc( (msr->param.iMaxRung+1)*sizeof(int) );
+    msr->nRung = malloc((msr->param.iMaxRung+1)*sizeof(uint64_t));
     assert(msr->nRung != NULL);
     for (i=0;i<=msr->param.iMaxRung;++i) msr->nRung[i] = 0;
 

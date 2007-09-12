@@ -101,7 +101,8 @@ void msrOutVector(MSR,char *,int);
 void msrSmooth(MSR,double,int,int,int,int);
 void msrReSmooth(MSR,double,int,int,int,int);
 void msrUpdateSoft(MSR,double);
-void msrGravity(MSR,double,double,int bEwald,int bEwaldKick,int *,double *,double *,double *,int *);
+void msrGravity(MSR msr,double dTime,double dStep,int bEwald,int bEwaldKick,
+		int *piSec,uint64_t *pnActive);
 void msrCalcEandL(MSR,int,double,double *,double *,double *,double *,double *);
 void msrDrift(MSR,double,double);
 void msrKick(MSR,double,double);
@@ -119,9 +120,6 @@ void msrTopStepKDK(MSR msr,
 		   int iRungVeryActive, /* rung *below which* very active particles are */
 		   int iAdjust,		/* Do an adjust? */
 		   double *pdActiveSum,
-		   double *pdWMax,
-		   double *pdIMax,
-		   double *pdEMax,
 		   int *piSec);
 void msrStepVeryActiveKDK(MSR msr, double dStep, double dTime, double dDelta,
 			  int iRung);
@@ -136,11 +134,8 @@ void msrTopStepHermite(MSR msr,
 		       int iRungVeryActive,  /* current setting for iRungVeryActive */
 		       int iAdjust,		/* Do an adjust? */
 		       double *pdActiveSum,
-		       double *pdWMax,
-		       double *pdIMax,
-		       double *pdEMax,
 		       int *piSec);
-void msrStepVeryActiveHermite(MSR msr, double dStep, double dTime, double dDelta,
+void msrStepVeryActiveHermite(MSR msr,double dStep,double dTime,double dDelta,
 			 int iRung);
 void msrCopy0(MSR msr,double dTime);
 void msrPredictor(MSR msr,double dTime);
@@ -226,9 +221,6 @@ void msrTopStepSymba(MSR msr,
 		     int iRungVeryActive,  
 		     int iAdjust,		/* Do an adjust? */
 		     double *pdActiveSum,
-		     double *pdWMax,
-		     double *pdIMax,
-		     double *pdEMax,
 		     int *piSec);
 void msrStepVeryActiveSymba(MSR msr, double dStep, double dTime, double dDelta,
 		       int iRung);
