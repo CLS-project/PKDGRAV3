@@ -34,6 +34,7 @@ enum io_services {
 struct inStartSave {
     double dTime;
     int    N;
+    int    bCheckpoint;
     char achOutName[PST_FILENAME_SIZE];
     };
 void ioStartSave(IO,void *,int,void *,int *);
@@ -41,6 +42,7 @@ void ioStartSave(IO,void *,int,void *,int *);
 /* IO_START_RECV */
 struct inStartRecv {
     double dTime;
+    int    bCheckpoint;
     int iIndex;
     int nCount;
     char achOutName[PST_FILENAME_SIZE];

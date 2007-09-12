@@ -91,13 +91,14 @@ void ioStartSave(IO io,void *vin,int nIn,void *vout,int *pnOut)
 
     mdlSetComm(io->mdl,0); /* Talk to our peers */
     recv.dTime = save->dTime;
+    strcpy(recv.achOutName,save->achOutName);
+    recv.bCheckpoint = save->bCheckpoint;
     iCount = save->N / mdlIO(io->mdl);
     for( id=1; id<mdlIO(io->mdl); id++ ) {
 	recv.iIndex = iCount * id;
 	recv.nCount = iCount;
 	if ( id+1 == mdlIO(io->mdl) )
 	    recv.nCount = save->N - id*iCount;
-	strcpy(recv.achOutName,save->achOutName);
 	mdlReqService(io->mdl,id,IO_START_RECV,&recv,sizeof(recv));
     }
 
@@ -203,5 +204,6 @@ void ioStartRecv(IO io,void *vin,int nIn,void *vout,int *pnOut)
 	p = achOutName + strlen(achOutName);
 	sprintf(p,".%03d", mdlSelf(io->mdl));
     }
-    ioSave(io, achOutName, recv->dTime, IOHDF5_SINGLE );
+    ioSave(io, achOutName, recv->dTime,
+	   recv->bCheckpoint ? IOHDF5_DOUBLE : IOHDF5_SINGLE );
 }

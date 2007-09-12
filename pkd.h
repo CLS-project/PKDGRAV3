@@ -731,7 +731,8 @@ void pkdInitRelaxation(PKD pkd);
 int pkdPackIO(PKD pkd,
 	      PIO *io, int nMax,
 	      int *iIndex,
-	      int iMinOrder, int iMaxOrder );
+	      int iMinOrder, int iMaxOrder,
+	      double dvFac);
 
 #ifdef PLANETS
 void pkdSunIndirect(PKD pkd,double aSun[],double adSun[],int iFlag);

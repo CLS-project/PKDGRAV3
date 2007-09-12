@@ -298,9 +298,10 @@ int main(int argc,char **argv) {
 		msrBuildTree(msr,dMass,dTime);
 #endif
 #else	
-		msrWriteTipsy(msr,achFile,dTime,
-		    msrCheckInterval(msr) > 0 
-			      && iStep%msrCheckInterval(msr) == 0);
+		msrWriteTipsy(
+		    msr,achFile,dTime,
+		    (msrCheckInterval(msr)>0 && iStep%msrCheckInterval(msr) == 0)
+		    || iStep == msrSteps(msr) || iStop );
 #endif
 	     
 		if (msrDoDensity(msr)) {
@@ -398,6 +399,7 @@ int main(int argc,char **argv) {
 	    if (iStop || iStep == msrSteps(msr)) {
 		/*
 		** Want to write an output file here really...
+		** ... but it is done above
 		*/
 	     }
 	    if (iStop) break;

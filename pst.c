@@ -2089,6 +2089,7 @@ void pstFindIOS(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     }
 
 typedef struct ctxIO {
+    double dvFac;
     PKD pkd;
     int iIndex;
     int iMinOrder, iMaxOrder;
@@ -2103,7 +2104,8 @@ static int pstPackIO(void *vctx, int nSize, void *vBuff)
     nPack = pkdPackIO(ctx->pkd,
 		      io, nSize/sizeof(PIO),
 		      &ctx->iIndex,
-		      ctx->iMinOrder, ctx->iMaxOrder );
+		      ctx->iMinOrder, ctx->iMaxOrder,
+		      ctx->dvFac);
     return nPack * sizeof(PIO);
 }
 
@@ -2135,6 +2137,7 @@ void pstStartIO(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 	    ctx.iMaxOrder = (i+1) * iCount;
 	    if ( i+1 == mdlIO(pst->mdl) )
 		ctx.iMaxOrder = in->N;
+	    ctx.dvFac = in->dvFac;
 
 	    ctx.pkd = plcl->pkd;
 	    mdlSend(pst->mdl,i,pstPackIO,&ctx);

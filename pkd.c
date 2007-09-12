@@ -1099,7 +1099,8 @@ void pkdLocalOrder(PKD pkd)
 int pkdPackIO(PKD pkd,
 	      PIO *io, int nMax,
 	      int *iIndex,
-	      int iMinOrder, int iMaxOrder )
+	      int iMinOrder, int iMaxOrder,
+    double dvFac )
 {
     int nCopied, d, i;
 
@@ -1115,11 +1116,15 @@ int pkdPackIO(PKD pkd,
 
 	for( d=0; d<3; d++ ) {
 	    io[nCopied].r[d] = pkd->pStore[i].r[d];
-	    io[nCopied].v[d] = pkd->pStore[i].v[d];
+	    io[nCopied].v[d] = pkd->pStore[i].v[d] * dvFac;
 	}
 	io[nCopied].iOrder= pkd->pStore[i].iOrder;
 	io[nCopied].fMass = pkd->pStore[i].fMass;
+#ifdef CHANGESOFT
+	io[nCopied].fSoft = pkd->pStore[i].fSoft0;
+#else
 	io[nCopied].fSoft = pkd->pStore[i].fSoft;
+#endif
 	nCopied++;
     }
     *iIndex = i;

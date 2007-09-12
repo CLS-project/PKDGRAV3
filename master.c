@@ -1560,7 +1560,6 @@ void msrIOWrite(MSR msr, const char *achOutName, double dTime, int bCheckpoint)
     struct inStartIO inStart;
     struct inStartSave save;
 
-
     //printf( "Finding number of particles\n" );
 
     /* Find the number of particles to expect for each I/O processor */
@@ -1578,6 +1577,7 @@ void msrIOWrite(MSR msr, const char *achOutName, double dTime, int bCheckpoint)
     /* Ask the I/O processors to start a save operation */
     save.dTime = dTime;
     save.N = msr->N;
+    save.bCheckpoint = bCheckpoint;
     strcpy(save.achOutName,achOutName); 
     mdlSetComm(msr->mdl,1);
     if ( msr->bSavePending )
