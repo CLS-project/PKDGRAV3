@@ -75,6 +75,14 @@ AC_ARG_ENABLE(png,
    AC_DEFINE([USE_PNG], 1,
  	[Define if PNG output is supported.])])
 AM_CONDITIONAL(USE_PNG, test "x$USE_PNG" = "xyes")
+AC_ARG_WITH(gd,
+  [  --with-gd=PATH                path to GD installation],
+  [CFLAGS="$CFLAGS -I${withval}/include"
+   LDFLAGS="$LDFLAGS -L${withval}/lib"
+   if test -n "${need_dash_r}"; then
+	LDFLAGS="$LDFLAGS -R${withval}/lib"
+   fi
+])
 
 # Enable SIMD version (SSE,Altivec)
 AC_ARG_ENABLE(simd,
