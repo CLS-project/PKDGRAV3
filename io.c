@@ -340,17 +340,15 @@ static const writePNG( IO io, struct inMakePNG *make, float *limg )
 void ioMakePNG(IO io,void *vin,int nIn,void *vout,int *pnOut)
 {
     struct inMakePNG *make = vin;
-    float *limg;//, *img;
+    float *limg, *img;
     uint_fast32_t R, N, i;
     int x, y;
 
     R = make->iResolution;
     N = R * R;
 
-    //img = malloc( N*sizeof(float) );
     limg = malloc( N*sizeof(float) );
     assert( limg != NULL );
-
 
     for( i=0; i<N; i++ ) limg[i] = EPSILON;
 
@@ -364,14 +362,16 @@ void ioMakePNG(IO io,void *vin,int nIn,void *vout,int *pnOut)
     }
 
     if ( mdlSelf(io->mdl) == 0 ) {
-	mdlReduce(io->mdl,MPI_IN_PLACE,limg,N,MPI_FLOAT,MPI_MAX,0);
-	writePNG(io,make,limg);
+	img = malloc( N*sizeof(float) );
+	assert( img != NULL );
+	mdlReduce(io->mdl,limg,img,N,MPI_FLOAT,MPI_MAX,0);
+	writePNG(io,make,img);
+	free(img);
     }
     else {
 	mdlReduce(io->mdl,limg,0,N,MPI_FLOAT,MPI_MAX,0);
     }
 
     free(limg);
-    //free(img);
 }
 #endif
