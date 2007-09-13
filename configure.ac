@@ -68,6 +68,14 @@ AC_ARG_ENABLE(mdl-io,
 AM_CONDITIONAL(USE_MDL_IO, test "x$USE_MDL_IO" = "xyes")
 AM_CONDITIONAL(USE_HDF5, test "x$USE_HDF5" = "xyes")
 
+# PNG Output
+AC_ARG_ENABLE(png,
+  [  --enable-png                   enable PNG outputs for MDL IO)],
+  [USE_PNG=yes
+   AC_DEFINE([USE_PNG], 1,
+ 	[Define if PNG output is supported.])])
+AM_CONDITIONAL(USE_PNG, test "x$USE_PNG" = "xyes")
+
 # Enable SIMD version (SSE,Altivec)
 AC_ARG_ENABLE(simd,
   [  --enable-simd                  enable SIMD optimizations],

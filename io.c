@@ -9,6 +9,10 @@
 #include <alloca.h>
 #endif
 #include <math.h>
+#ifdef USE_PNG
+#include <gd.h>
+#include <gdfontg.h>
+#endif
 
 #include "iohdf5.h"
 #include "pst.h"
@@ -91,6 +95,11 @@ void ioAddServices(IO io,MDL mdl)
     mdlAddService(mdl,IO_START_RECV,io,
 		  (void (*)(void *,void *,int,void *,int *)) ioStartRecv,
 		  sizeof(struct inStartRecv),0);
+#ifdef USE_PNG
+    mdlAddService(mdl,IO_MAKE_PNG,io,
+		  (void (*)(void *,void *,int,void *,int *)) ioMakePNG,
+		  sizeof(struct inMakePNG),0);
+#endif
 }
 
 /*
@@ -103,6 +112,9 @@ void ioStartSave(IO io,void *vin,int nIn,void *vout,int *pnOut)
     struct inStartSave *save = vin;
     struct inStartRecv recv;
     uint_fast32_t iCount;
+#ifdef USE_PNG
+	struct inMakePNG png;
+#endif
 
     mdlassert(io->mdl,sizeof(struct inStartSave)==nIn);
     mdlassert(io->mdl,mdlSelf(io->mdl)==0);
@@ -130,8 +142,22 @@ void ioStartSave(IO io,void *vin,int nIn,void *vout,int *pnOut)
     for( id=1; id<mdlIO(io->mdl); id++ ) {
 	mdlGetReply(io->mdl,id,NULL,NULL);
     }
-    mdlSetComm(io->mdl,1);
 
+#ifdef USE_PNG
+    png.iResolution = 1024;
+    png.minValue = -1;
+    png.maxValue = 5;
+    strcpy(png.achOutName,save->achOutName);
+    for( id=1; id<mdlIO(io->mdl); id++ ) {
+	mdlReqService(io->mdl,id,IO_MAKE_PNG,&png,sizeof(png));
+    }
+    ioMakePNG(io,&png,sizeof(png),NULL,0);
+
+    for( id=1; id<mdlIO(io->mdl); id++ ) {
+	mdlGetReply(io->mdl,id,NULL,NULL);
+    }
+#endif
+    mdlSetComm(io->mdl,1);
 }
 
 
@@ -166,13 +192,31 @@ static int ioUnpackIO(void *vctx, int nSize, void *vBuff)
     return io->nExpected;
 }
 
+
+static void makeName( IO io, char *achOutName, const char *inName )
+{
+    char *p;
+
+    strcpy( achOutName, inName );
+    p = strstr( achOutName, "&I" );
+    if ( p ) {
+	int n = p - achOutName;
+	sprintf( p, "%03d", mdlSelf(io->mdl) );
+	strcat( p, inName + n + 2 );
+    }
+    else {
+	p = achOutName + strlen(achOutName);
+	sprintf(p,".%03d", mdlSelf(io->mdl));
+    }
+}
+
 /*
 **  Here we actually wait for the data from the Work nodes
 */
 void ioStartRecv(IO io,void *vin,int nIn,void *vout,int *pnOut)
 {
     struct inStartRecv *recv = vin;
-    char achOutName[256], *p;
+    char achOutName[256];
 
     mdlassert(io->mdl,sizeof(struct inStartRecv)==nIn);
     io->nExpected = recv->nCount;
@@ -202,37 +246,132 @@ void ioStartRecv(IO io,void *vin,int nIn,void *vout,int *pnOut)
     mdlRecv(io->mdl,-1,ioUnpackIO,io);
     mdlSetComm(io->mdl,0);
 
-    strcpy( achOutName, recv->achOutName );
-    p = strstr( achOutName, "&I" );
-    if ( p ) {
-	int n = p - achOutName;
-	sprintf( p, "%03d", mdlSelf(io->mdl) );
-	strcat( p, recv->achOutName + n + 2 );
-    }
-    else {
-	p = achOutName + strlen(achOutName);
-	sprintf(p,".%03d", mdlSelf(io->mdl));
-    }
+    makeName( io, achOutName, recv->achOutName );
+
     ioSave(io, achOutName, recv->dTime, recv->dEcosmo,
 	   recv->dTimeOld, recv->dUOld,
 	   recv->bCheckpoint ? IOHDF5_DOUBLE : IOHDF5_SINGLE );
 }
 
+#ifdef USE_PNG
+void wrbb( int *cmap, gdImagePtr im ) {
+    double slope, offset;
+    int i;
+
+    // Shamefully stolen from Tipsy
+
+    slope = 255./20. ;
+    for(i = 0 ;i < 21 ;i++){
+	cmap[i] = gdImageColorAllocate(im,0,0,(int)(slope * (double)(i) + .5)) ;
+    }
+    slope = 191./20. ;
+    offset = 64. - slope * 21. ;
+    for(i = 21 ;i < 42 ;i++){
+	cmap[i] = gdImageColorAllocate(im,(int)(slope*(double)(i) + offset + .5),0,255);
+    }
+    slope = -205./21. ;
+    offset = 255. - slope * 41. ;
+    for(i = 42 ;i < 63 ;i++){
+	cmap[i] = gdImageColorAllocate(im, 255,0,(int)(slope*(double)(i) + offset + .5));
+    }
+    slope = 205./40. ;
+    offset = 50. - slope * 63. ;
+    for(i = 63 ;i < 104 ;i++){
+	cmap[i] = gdImageColorAllocate(im,255,(int)(slope*(double)(i) + offset + .5),0);
+    }
+    slope = 255./21. ;
+    offset = -slope * 103. ;
+    for(i = 104 ;i < 125 ;i++){
+	cmap[i] = gdImageColorAllocate(im,255,255,(int)(slope*(double)(i) + offset +.5));
+    }
+
+    // The MARK color
+    cmap[125] = gdImageColorAllocate(im,255,255,255);
+    cmap[126] = gdBrushed;
+}
+
+static const int BWIDTH = 2; //!< Width of the brush
+
+static const writePNG( IO io, struct inMakePNG *make, float *limg )
+{
+    char achOutName[256];
+    FILE *png;
+    float v, color_slope;
+    gdImagePtr ic, brush;
+    int cmap[128];
+    uint_fast32_t R, i;
+    int x, y;
+
+    R = make->iResolution;
+    color_slope = 124.0 / (make->maxValue - make->minValue);
+
+    brush = gdImageCreate(BWIDTH,BWIDTH);
+    gdImageFilledRectangle(brush,0,0,BWIDTH-1,BWIDTH-1,
+			   gdImageColorAllocate(brush,0,255,0));
+    ic = gdImageCreate(R,R);
+    wrbb(cmap,ic);
+
+    for( x=0; x<R; x++ ) {
+	for( y=0; y<R; y++ ) {
+	    int clr;
+	    v = limg[x+R*y];
+	    v = color_slope * ( v - make->minValue ) + 0.5;
+	    clr = (int)(v);
+	    if ( clr < 0 ) clr = 0;
+	    if ( clr > 124 ) clr = 124;
+
+	    assert( clr >= 0 && clr < 125 );
+	    gdImageSetPixel(ic,x,y,cmap[clr]);
+	}
+    }
+
+
+    makeName( io, achOutName, make->achOutName );
+    strcat( achOutName, ".png" );
+    png = fopen( achOutName, "wb" );
+    assert( png != NULL );
+    gdImagePng( ic, png );
+    fclose(png);
+
+    gdImageDestroy(ic);
+    gdImageDestroy(brush);
+}
+
 void ioMakePNG(IO io,void *vin,int nIn,void *vout,int *pnOut)
 {
     struct inMakePNG *make = vin;
-    float *limg;
-    int R, N, i;
+    float *limg;//, *img;
+    uint_fast32_t R, N, i;
+    int x, y;
 
     R = make->iResolution;
     N = R * R;
 
+    //img = malloc( N*sizeof(float) );
     limg = malloc( N*sizeof(float) );
     assert( limg != NULL );
 
 
     for( i=0; i<N; i++ ) limg[i] = EPSILON;
 
+    // Project the density onto a grid and find the maximum (ala Tipsy)
+    for( i=0; i<io->N; i++ ) {
+	x = (io->r[i].v[0]+0.5) * R;
+	y = (io->r[i].v[1]+0.5) * R;
+	assert( x>=0 && x<R && y>=0 && y<R );
+	if ( io->d[i] > limg[x+R*y] )
+	    limg[x+R*y] = io->d[i];
+    }
 
+    if ( mdlSelf(io->mdl) == 0 ) {
+	mdlReduce(io->mdl,MPI_IN_PLACE,limg,N,MPI_FLOAT,MPI_MAX,0);
+	writePNG(io,make,limg);
+    }
+    else {
+	mdlReduce(io->mdl,limg,0,N,MPI_FLOAT,MPI_MAX,0);
+    }
 
+    free(limg);
+    //free(img);
 }
+#endif

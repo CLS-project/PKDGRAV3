@@ -58,11 +58,15 @@ struct inStartRecv {
     };
 void ioStartRecv(IO,void *,int,void *,int *);
 
+#ifdef USE_PNG
 /* IO_MAKE_PNG */
 struct inMakePNG {
     uint_fast32_t iResolution;  /* Image resolution RxR */
+    float minValue;
+    float maxValue;
+    char achOutName[PST_FILENAME_SIZE];
     };
 void ioMakePNG(IO,void *,int,void *,int *);
-
+#endif
 
 #endif
