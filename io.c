@@ -292,7 +292,7 @@ void wrbb( int *cmap, gdImagePtr im ) {
 
 static const int BWIDTH = 2; //!< Width of the brush
 
-static const writePNG( IO io, struct inMakePNG *make, float *limg )
+static void writePNG( IO io, struct inMakePNG *make, float *limg )
 {
     char achOutName[256];
     FILE *png;
