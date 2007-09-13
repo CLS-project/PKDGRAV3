@@ -8,13 +8,14 @@
 #ifdef HAVE_ALLOCA_H
 #include <alloca.h>
 #endif
+#include <math.h>
 
 #include "iohdf5.h"
 #include "pst.h"
 #include "io.h"
 
 #define CHUNKSIZE (32*1024)
-
+#define EPSILON (-1e20)
 
 /* Create an HDF5 file for output */
 hid_t ioCreate( const char *filename ) {
@@ -35,7 +36,7 @@ static void ioSave(IO io, const char *filename, double dTime,
     IOHDF5 iohdf5;
     IOHDF5V ioDen;
     IOHDF5V ioPot;
-    int i;
+    uint_fast32_t i;
 
     /* Create the output file */
     fileID = ioCreate(filename);
@@ -101,7 +102,7 @@ void ioStartSave(IO io,void *vin,int nIn,void *vout,int *pnOut)
     int id;
     struct inStartSave *save = vin;
     struct inStartRecv recv;
-    int iCount;
+    uint_fast32_t iCount;
 
     mdlassert(io->mdl,sizeof(struct inStartSave)==nIn);
     mdlassert(io->mdl,mdlSelf(io->mdl)==0);
@@ -138,13 +139,13 @@ static int ioUnpackIO(void *vctx, int nSize, void *vBuff)
 {
     IO io = vctx;
     PIO *pio = vBuff;
-    int nIO = nSize / sizeof(PIO);
-    int i, d;
+    uint_fast32_t nIO = nSize / sizeof(PIO);
+    uint_fast32_t i, d;
 
     mdlassert(io->mdl,nIO<=io->nExpected);
 
     for( i=0; i<nIO; i++ ) {
-	int iOrder = pio[i].iOrder;
+	uint64_t iOrder = pio[i].iOrder;
 	int j = iOrder - io->iMinOrder;
 
 	mdlassert(io->mdl,iOrder>=io->iMinOrder);
@@ -159,29 +160,11 @@ static int ioUnpackIO(void *vctx, int nSize, void *vBuff)
 	io->d[j] = pio[i].fDensity;
 	io->p[j] = pio[i].fPot;
 
-	io->nReceived++;
     }
 
     io->nExpected -= nIO;
     return io->nExpected;
 }
-
-const char *subInt( char *achName, char c, int n, int i )
-{
-    char *p1, *p2;
-
-    p1 = strchr(achName,c);
-    if ( p1 == NULL ) return;
-
-    p2 = p1 + 1;
-    if ( isdigit(p1 + 1) ) {
-	while( !isdigit(*p2) ) p2++;
-	if ( *p2 == c ) n = atoi(p1);
-    }
-
-
-}
-
 
 /*
 **  Here we actually wait for the data from the Work nodes
@@ -193,7 +176,6 @@ void ioStartRecv(IO io,void *vin,int nIn,void *vout,int *pnOut)
 
     mdlassert(io->mdl,sizeof(struct inStartRecv)==nIn);
     io->nExpected = recv->nCount;
-    io->nReceived = 0;
 
     if ( io->nExpected > io->N ) {
 	if ( io->N ) {
@@ -234,4 +216,23 @@ void ioStartRecv(IO io,void *vin,int nIn,void *vout,int *pnOut)
     ioSave(io, achOutName, recv->dTime, recv->dEcosmo,
 	   recv->dTimeOld, recv->dUOld,
 	   recv->bCheckpoint ? IOHDF5_DOUBLE : IOHDF5_SINGLE );
+}
+
+void ioMakePNG(IO io,void *vin,int nIn,void *vout,int *pnOut)
+{
+    struct inMakePNG *make = vin;
+    float *limg;
+    int R, N, i;
+
+    R = make->iResolution;
+    N = R * R;
+
+    limg = malloc( N*sizeof(float) );
+    assert( limg != NULL );
+
+
+    for( i=0; i<N; i++ ) limg[i] = EPSILON;
+
+
+
 }
