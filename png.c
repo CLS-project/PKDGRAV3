@@ -56,6 +56,8 @@ void pngWrite( PNG png, FILE *fp, float *Density )
 	for( y=0; y<png->iResolution; y++ ) {
 	    int clr;
 	    v = Density[x+png->iResolution*y];
+	    if ( v < 1e-10 ) v = -10;
+	    else v = log10f(v);
 	    v = color_slope * ( v - png->minValue ) + 0.5;
 	    clr = (int)(v);
 	    if ( clr < 0 ) clr = 0;
