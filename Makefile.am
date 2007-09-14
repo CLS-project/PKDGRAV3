@@ -71,7 +71,7 @@ if HAVE_MPI
 pkdgrav2m_mpi_SOURCES = $(SOURCES) $(MDL)/mpi/mdl.c
 pkdgrav2m_mpi_CFLAGS = -I$(MDL)/mpi/ $(AM_CFLAGS)
 if USE_PNG
-pkdgrav2m_mpi_LDADD = -lgd
+pkdgrav2m_mpi_LDADD = -lgd -lpng
 endif
 endif
 
@@ -80,7 +80,7 @@ pkdgrav2m_pthread_SOURCES = $(SOURCES) $(MDL)/pthread/mdl.c
 pkdgrav2m_pthread_CFLAGS = -I$(MDL)/pthread/ $(AM_CFLAGS)
 pkdgrav2m_pthread_LDADD = -lpthread
 if USE_PNG
-pkdgrav2m_pthread_LDADD += -lgd
+pkdgrav2m_pthread_LDADD += -lgd -lpng
 endif
 endif
 
