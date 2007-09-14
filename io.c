@@ -110,7 +110,7 @@ void ioStartSave(IO io,void *vin,int nIn,void *vout,int *pnOut)
     int id;
     struct inStartSave *save = vin;
     struct inStartRecv recv;
-    uint_fast32_t iCount;
+    uint_fast64_t iCount;
 #ifdef USE_PNG
 	struct inMakePNG png;
 #endif
