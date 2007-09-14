@@ -63,7 +63,7 @@ endif
 pkdgrav2m_null_SOURCES = $(SOURCES) $(MDL)/null/mdl.c
 pkdgrav2m_null_CFLAGS = -I$(MDL)/null/ $(AM_CFLAGS)
 if USE_PNG
-pkdgrav2m_null_LDADD = -lgd
+pkdgrav2m_null_LDADD = -lgd -lpng
 endif
 
 
