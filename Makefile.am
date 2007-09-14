@@ -56,6 +56,9 @@ MDL=../bsc
 else
 MDL=@MDL_PATH@
 endif
+if USE_PNG
+SOURCES += png.c
+endif
 
 pkdgrav2m_null_SOURCES = $(SOURCES) $(MDL)/null/mdl.c
 pkdgrav2m_null_CFLAGS = -I$(MDL)/null/ $(AM_CFLAGS)

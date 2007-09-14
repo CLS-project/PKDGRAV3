@@ -172,6 +172,11 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv)
     msr->param.bDoDensity = 1;
     prmAddParam(msr->prm,"bDoDensity",0,&msr->param.bDoDensity,sizeof(int),
 		"den","enable/disable density outputs = +den");
+#ifdef USE_PNG
+    msr->param.nPNGResolution = 0;
+    prmAddParam(msr->prm,"nPNGResolution",0,&msr->param.nPNGResolution,sizeof(int),
+		"png","PNG output resolution (zero disables) = 0");
+#endif
     msr->param.bDodtOutput = 0;
     prmAddParam(msr->prm,"bDodtOutput",0,&msr->param.bDodtOutput,sizeof(int),
 		"dtout","enable/disable dt outputs = -dtout");
@@ -1658,6 +1663,9 @@ void msrSaveParameters(MSR msr, IOHDF5 io)
     //ioHDF5WriteAttribute( io, "nPColl", H5T_NATIVE_INT, &msr->param.nPColl );
     ioHDF5WriteAttribute( io, "nTruncateRung", H5T_NATIVE_INT, &msr->param.nTruncateRung );
     ioHDF5WriteAttribute( io, "bDoDensity", H5T_NATIVE_INT, &msr->param.bDoDensity );
+#ifdef USE_PNG
+    ioHDF5WriteAttribute( io, "nPNGResolution", H5T_NATIVE_INT, &msr->param.nPNGResolution );
+#endif
     ioHDF5WriteAttribute( io, "bDodtOutput", H5T_NATIVE_INT, &msr->param.bDodtOutput );
     ioHDF5WriteAttribute( io, "bDoRungOutput", H5T_NATIVE_INT, &msr->param.bDoRungOutput );
     ioHDF5WriteAttribute( io, "bDoGravity", H5T_NATIVE_INT, &msr->param.bDoGravity );
@@ -3906,6 +3914,11 @@ msrAddDelParticles(MSR msr)
 int msrDoDensity(MSR msr)
     {
     return(msr->param.bDoDensity);
+    }
+
+int msrPNGResolution(MSR msr)
+    {
+    return(msr->param.nPNGResolution);
     }
 
 int msrDoGravity(MSR msr)

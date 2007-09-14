@@ -184,6 +184,7 @@ int msrRestart(MSR);
 int msrComove(MSR);
 double msrSoft(MSR);
 int msrDoDensity(MSR);
+int msrPNGResolution(MSR msr);
 int msrDoGravity(MSR msr);
 void msrInitStep(MSR msr);
 void msrSetRung(MSR msr, int iRung);

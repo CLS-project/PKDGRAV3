@@ -149,7 +149,7 @@ AC_ARG_ENABLE(simd-locr,
 
 
 # The floating point data type for moments
-if test "x$USE_SIMD" = "xyes" ; then
+if test "x$USE_SIMD_MOMR" = "xyes" -o "x$USE_SIMD_LOCR" = "xyes" ; then
 AC_DEFINE([MOMFLOAT],float,
 	[This defines the base floating point type for moments.])
 else

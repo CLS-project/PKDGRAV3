@@ -7,11 +7,11 @@ typedef struct ioContext {
     MDL mdl;
     double dTime;
 
-    uint_fast64_t iMinOrder;
-    uint_fast64_t iMaxOrder;
+    total_t iMinOrder;
+    total_t iMaxOrder;
 
-    uint_fast32_t N;           /* Total allocated on this processor */
-    uint_fast32_t nExpected;   /* Number left to be received */
+    local_t N;           /* Total allocated on this processor */
+    local_t nExpected;   /* Number left to be received */
 
     ioV3 *r;       /* Position */
     ioV3 *v;       /* Velocity */
@@ -39,7 +39,7 @@ struct inStartSave {
     double dEcosmo;
     double dTimeOld;
     double dUOld;
-    uint_fast64_t N;
+    total_t N;
     int    bCheckpoint;
     char achOutName[PST_FILENAME_SIZE];
     };
@@ -51,8 +51,8 @@ struct inStartRecv {
     double dEcosmo;
     double dTimeOld;
     double dUOld;
-    uint_fast64_t iIndex;
-    uint_fast32_t nCount;
+    total_t iIndex;
+    local_t nCount;
     int    bCheckpoint;
     char achOutName[PST_FILENAME_SIZE];
     };

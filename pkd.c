@@ -1097,9 +1097,11 @@ void pkdLocalOrder(PKD pkd)
 ** packed (and continues to return 0 if called again).
 */
 int pkdPackIO(PKD pkd,
-	      PIO *io, int nMax,
-	      int *iIndex,
-	      int iMinOrder, int iMaxOrder,
+	      PIO *io,
+	      int nMax,
+	      local_t *iIndex,
+	      total_t iMinOrder,
+	      total_t iMaxOrder,
 	      double dvFac )
 {
     int nCopied, d, i;

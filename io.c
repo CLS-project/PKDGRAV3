@@ -8,11 +8,10 @@
 #ifdef HAVE_ALLOCA_H
 #include <alloca.h>
 #endif
-#include <math.h>
 #ifdef USE_PNG
-#include <gd.h>
-#include <gdfontg.h>
+#include "png.h"
 #endif
+#include <math.h>
 
 #include "iohdf5.h"
 #include "pst.h"
@@ -171,7 +170,7 @@ static int ioUnpackIO(void *vctx, int nSize, void *vBuff)
     mdlassert(io->mdl,nIO<=io->nExpected);
 
     for( i=0; i<nIO; i++ ) {
-	uint64_t iOrder = pio[i].iOrder;
+	total_t iOrder = pio[i].iOrder;
 	int j = iOrder - io->iMinOrder;
 
 	mdlassert(io->mdl,iOrder>=io->iMinOrder);
@@ -254,95 +253,15 @@ void ioStartRecv(IO io,void *vin,int nIn,void *vout,int *pnOut)
 }
 
 #ifdef USE_PNG
-void wrbb( int *cmap, gdImagePtr im ) {
-    double slope, offset;
-    int i;
-
-    // Shamefully stolen from Tipsy
-
-    slope = 255./20. ;
-    for(i = 0 ;i < 21 ;i++){
-	cmap[i] = gdImageColorAllocate(im,0,0,(int)(slope * (double)(i) + .5)) ;
-    }
-    slope = 191./20. ;
-    offset = 64. - slope * 21. ;
-    for(i = 21 ;i < 42 ;i++){
-	cmap[i] = gdImageColorAllocate(im,(int)(slope*(double)(i) + offset + .5),0,255);
-    }
-    slope = -205./21. ;
-    offset = 255. - slope * 41. ;
-    for(i = 42 ;i < 63 ;i++){
-	cmap[i] = gdImageColorAllocate(im, 255,0,(int)(slope*(double)(i) + offset + .5));
-    }
-    slope = 205./40. ;
-    offset = 50. - slope * 63. ;
-    for(i = 63 ;i < 104 ;i++){
-	cmap[i] = gdImageColorAllocate(im,255,(int)(slope*(double)(i) + offset + .5),0);
-    }
-    slope = 255./21. ;
-    offset = -slope * 103. ;
-    for(i = 104 ;i < 125 ;i++){
-	cmap[i] = gdImageColorAllocate(im,255,255,(int)(slope*(double)(i) + offset +.5));
-    }
-
-    // The MARK color
-    cmap[125] = gdImageColorAllocate(im,255,255,255);
-    cmap[126] = gdBrushed;
-}
-
-static const int BWIDTH = 2; //!< Width of the brush
-
-static void writePNG( IO io, struct inMakePNG *make, float *limg )
-{
-    char achOutName[256];
-    FILE *png;
-    float v, color_slope;
-    gdImagePtr ic, brush;
-    int cmap[128];
-    uint_fast32_t R, i;
-    int x, y;
-
-    R = make->iResolution;
-    color_slope = 124.0 / (make->maxValue - make->minValue);
-
-    brush = gdImageCreate(BWIDTH,BWIDTH);
-    gdImageFilledRectangle(brush,0,0,BWIDTH-1,BWIDTH-1,
-			   gdImageColorAllocate(brush,0,255,0));
-    ic = gdImageCreate(R,R);
-    wrbb(cmap,ic);
-
-    for( x=0; x<R; x++ ) {
-	for( y=0; y<R; y++ ) {
-	    int clr;
-	    v = limg[x+R*y];
-	    v = color_slope * ( v - make->minValue ) + 0.5;
-	    clr = (int)(v);
-	    if ( clr < 0 ) clr = 0;
-	    if ( clr > 124 ) clr = 124;
-
-	    assert( clr >= 0 && clr < 125 );
-	    gdImageSetPixel(ic,x,y,cmap[clr]);
-	}
-    }
-
-
-    makeName( io, achOutName, make->achOutName );
-    strcat( achOutName, ".png" );
-    png = fopen( achOutName, "wb" );
-    assert( png != NULL );
-    gdImagePng( ic, png );
-    fclose(png);
-
-    gdImageDestroy(ic);
-    gdImageDestroy(brush);
-}
-
 void ioMakePNG(IO io,void *vin,int nIn,void *vout,int *pnOut)
 {
     struct inMakePNG *make = vin;
+    char achOutName[256];
     float *limg, *img;
     uint_fast32_t R, N, i;
     int x, y;
+    PNG png;
+    FILE *fp;
 
     R = make->iResolution;
     N = R * R;
@@ -365,7 +284,16 @@ void ioMakePNG(IO io,void *vin,int nIn,void *vout,int *pnOut)
 	img = malloc( N*sizeof(float) );
 	assert( img != NULL );
 	mdlReduce(io->mdl,limg,img,N,MPI_FLOAT,MPI_MAX,0);
-	writePNG(io,make,img);
+
+	makeName( io, achOutName, make->achOutName );
+	strcat( achOutName, ".png" );
+	fp = fopen( achOutName, "wb" );
+	if ( fp != NULL ) {
+	    png = pngInitialize( make->iResolution, make->minValue, make->maxValue );
+	    pngWrite( png, fp, img );
+	    pngFinish(png);
+	    fclose(fp);
+	}
 	free(img);
     }
     else {

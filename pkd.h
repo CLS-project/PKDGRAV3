@@ -18,6 +18,9 @@
 #include "ssio.h"
 #endif
 
+typedef uint_fast32_t local_t; /* Count of particles locally (per processor) */
+typedef uint_fast64_t total_t; /* Count of particles globally (total number) */
+
 /*
 ** The following sort of definition should really be in a global
 ** configuration header file -- someday...
@@ -66,7 +69,7 @@ typedef struct pLite {
     } PLITE;
 
 typedef struct pIO {
-    int64_t iOrder;
+    total_t iOrder;
     FLOAT r[3];
     FLOAT v[3];
     FLOAT fMass;
@@ -732,8 +735,8 @@ void pkdInitRelaxation(PKD pkd);
 
 int pkdPackIO(PKD pkd,
 	      PIO *io, int nMax,
-	      int *iIndex,
-	      int iMinOrder, int iMaxOrder,
+	      local_t *iIndex,
+	      total_t iMinOrder, total_t iMaxOrder,
 	      double dvFac);
 
 #ifdef PLANETS

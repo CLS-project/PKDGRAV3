@@ -2093,8 +2093,9 @@ void pstFindIOS(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 typedef struct ctxIO {
     double dvFac;
     PKD pkd;
-    int iIndex;
-    int iMinOrder, iMaxOrder;
+    local_t iIndex;    /* Index into local array */
+    total_t iMinOrder; /* Minimum iOrder */
+    total_t iMaxOrder; /* Maximum iOrder */
 } * CTXIO;
 
 static int pstPackIO(void *vctx, int nSize, void *vBuff)
@@ -2126,7 +2127,7 @@ void pstStartIO(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 	mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
 	}
     else {
-	int iCount = in->N/mdlIO(pst->mdl);
+	total_t iCount = in->N/mdlIO(pst->mdl);
 
 	/* Send to (optionally) each I/O processor */
 	mdlSetComm(pst->mdl,1);

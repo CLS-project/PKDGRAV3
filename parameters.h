@@ -47,6 +47,9 @@ struct parameters {
     int nPartColl;
     int nTruncateRung;
     int bDoDensity;
+#ifdef USE_PNG
+    int nPNGResolution;
+#endif
     int bDodtOutput;
     int bDoRungOutput;
     int bDoGravity;
