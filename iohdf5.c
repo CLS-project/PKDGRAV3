@@ -578,7 +578,7 @@ static void addOrder( IOHDF5 io, IOBASE *Base,
 	/* Darn...  we have out of order particles, so write the array as
 	   it should be up to this point. */
 	else {
-	    int iOffset = 0;
+	    hsize_t iOffset = 0;
 	    hid_t dataType = sizeof(PINDEX)==4
 		? H5T_NATIVE_UINT32 : H5T_NATIVE_UINT64;
 
