@@ -39,7 +39,7 @@ static void ioSave(IO io, const char *filename, double dTime,
     IOHDF5 iohdf5;
     IOHDF5V ioDen;
     IOHDF5V ioPot;
-    uint_fast32_t i;
+    local_t i;
 
     /* Create the output file */
     fileID = ioCreate(filename);
@@ -75,6 +75,7 @@ void ioInitialize(IO *pio,MDL mdl)
     mdlassert(mdl,io != NULL);
     io->mdl = mdl;
 
+    io->nAllocated = 0;
     io->N = 0;
     io->r = NULL;
     io->v = NULL;
@@ -88,9 +89,17 @@ void ioInitialize(IO *pio,MDL mdl)
 
 void ioAddServices(IO io,MDL mdl)
 {
+    mdlAddService(mdl,IO_SETUP,io,
+		  (void (*)(void *,void *,int,void *,int *)) ioSetup,
+		  sizeof(struct inIOSetup),0);
     mdlAddService(mdl,IO_START_SAVE,io,
 		  (void (*)(void *,void *,int,void *,int *)) ioStartSave,
 		  sizeof(struct inStartSave),0);
+
+
+    mdlAddService(mdl,IO_ALLOCATE,io,
+		  (void (*)(void *,void *,int,void *,int *)) ioAllocate,
+		  sizeof(struct inIOAllocate),0);
     mdlAddService(mdl,IO_START_RECV,io,
 		  (void (*)(void *,void *,int,void *,int *)) ioStartRecv,
 		  sizeof(struct inStartRecv),0);
@@ -110,7 +119,7 @@ void ioStartSave(IO io,void *vin,int nIn,void *vout,int *pnOut)
     int id;
     struct inStartSave *save = vin;
     struct inStartRecv recv;
-    uint_fast64_t iCount;
+    total_t iCount;
 #ifdef USE_PNG
 	struct inMakePNG png;
 #endif
@@ -130,7 +139,7 @@ void ioStartSave(IO io,void *vin,int nIn,void *vout,int *pnOut)
 	recv.iIndex = iCount * id;
 	recv.nCount = iCount;
 	if ( id+1 == mdlIO(io->mdl) )
-	    recv.nCount = save->N - id*iCount;
+	    recv.nCount = save->N - recv.iIndex;
 	mdlReqService(io->mdl,id,IO_START_RECV,&recv,sizeof(recv));
     }
 
@@ -167,6 +176,7 @@ static int ioUnpackIO(void *vctx, int nSize, void *vBuff)
     uint_fast32_t nIO = nSize / sizeof(PIO);
     uint_fast32_t i, d;
 
+    mdlassert(io->mdl,nIO*sizeof(PIO) == nSize);
     mdlassert(io->mdl,nIO<=io->nExpected);
 
     for( i=0; i<nIO; i++ ) {
@@ -209,19 +219,14 @@ static void makeName( IO io, char *achOutName, const char *inName )
     }
 }
 
-/*
-**  Here we actually wait for the data from the Work nodes
-*/
-void ioStartRecv(IO io,void *vin,int nIn,void *vout,int *pnOut)
+void ioAllocate(IO io,void *vin,int nIn,void *vout,int *pnOut)
 {
-    struct inStartRecv *recv = vin;
-    char achOutName[256];
+    struct inIOAllocate *alloc = vin;
 
-    mdlassert(io->mdl,sizeof(struct inStartRecv)==nIn);
-    io->nExpected = recv->nCount;
+    mdlassert(io->mdl,sizeof(struct inIOAllocate)==nIn);
 
-    if ( io->nExpected > io->N ) {
-	if ( io->N ) {
+    if ( alloc->nCount > io->nAllocated ) {
+	if ( io->nAllocated ) {
 	    free(io->p);
 	    free(io->d);
 //	    free(io->s);
@@ -229,15 +234,57 @@ void ioStartRecv(IO io,void *vin,int nIn,void *vout,int *pnOut)
 	    free(io->v);
 	    free(io->r);
 	}
-	io->N = io->nExpected;
-	io->r = malloc(io->N*sizeof(ioV3));
-	io->v = malloc(io->N*sizeof(ioV3));
-	//io->m = malloc(io->N*sizeof(FLOAT));
-	//io->s = malloc(io->N*sizeof(FLOAT));
-	io->d = malloc(io->N*sizeof(float));
-	io->p = malloc(io->N*sizeof(float));
+	io->nAllocated = alloc->nCount + 100; /* Room to grow... */
+	io->r = malloc(alloc->nCount*sizeof(ioV3));  assert(io->r != NULL );
+	io->v = malloc(alloc->nCount*sizeof(ioV3));  assert(io->v != NULL );
+	//io->m = malloc(alloc->nCount*sizeof(FLOAT));  assert(io->m != NULL );
+	//io->s = malloc(alloc->nCount*sizeof(FLOAT));  assert(io->s != NULL );
+	io->d = malloc(alloc->nCount*sizeof(float));  assert(io->d != NULL );
+	io->p = malloc(alloc->nCount*sizeof(float));  assert(io->p != NULL );
     }
+}
 
+void ioSetup(IO io,void *vin,int nIn,void *vout,int *pnOut)
+{
+    struct inIOSetup *setup = vin;
+    struct inIOAllocate alloc;
+    total_t iCount;
+    int id;
+
+    mdlassert(io->mdl,sizeof(struct inIOSetup)==nIn);
+
+    iCount = setup->N / mdlIO(io->mdl);
+    alloc.nCount = iCount;
+    ioAllocate(io,&alloc, sizeof(alloc),0,0);
+
+    mdlSetComm(io->mdl,0); /* Talk to our peers */
+    for( id=1; id<mdlIO(io->mdl); id++ ) {
+	alloc.nCount = iCount;
+	if ( id+1 == mdlIO(io->mdl) )
+	    alloc.nCount = setup->N - id*iCount;
+	mdlReqService(io->mdl,id,IO_ALLOCATE,&alloc,sizeof(alloc));
+    }
+    for( id=1; id<mdlIO(io->mdl); id++ ) {
+	mdlGetReply(io->mdl,id,NULL,NULL);
+    }
+    mdlSetComm(io->mdl,1);
+}
+
+/*
+**  Here we actually wait for the data from the Work nodes
+*/
+void ioStartRecv(IO io,void *vin,int nIn,void *vout,int *pnOut)
+{
+    struct inStartRecv *recv = vin;
+    struct inIOAllocate alloc;
+    char achOutName[256];
+
+    mdlassert(io->mdl,sizeof(struct inStartRecv)==nIn);
+
+    alloc.nCount = recv->nCount;
+    ioAllocate(io,&alloc, sizeof(alloc),0,0);
+
+    io->N = io->nExpected = recv->nCount;
     io->iMinOrder = recv->iIndex;
     io->iMaxOrder = recv->iIndex + recv->nCount;
 

@@ -1580,12 +1580,12 @@ void msrIOWrite(MSR msr, const char *achOutName, double dTime, int bCheckpoint)
 //    }
 
     /* Ask the I/O processors to start a save operation */
-    save.dTime = dTime;
-    save.N = msr->N;
+    save.dTime       = dTime;
+    save.N           = msr->N;                                         /* Total */
     save.bCheckpoint = bCheckpoint;
-    save.dEcosmo  = msr->dEcosmo;
-    save.dTimeOld = msr->dTimeOld;
-    save.dUOld    = msr->dUOld;
+    save.dEcosmo     = msr->dEcosmo;
+    save.dTimeOld    = msr->dTimeOld;
+    save.dUOld       = msr->dUOld;
 
     strcpy(save.achOutName,achOutName); 
     mdlSetComm(msr->mdl,1);
@@ -1611,7 +1611,7 @@ void msrIOWrite(MSR msr, const char *achOutName, double dTime, int bCheckpoint)
 	inStart.dvFac = 1.0;
 	}
     inStart.bDoublePos = msr->param.bDoublePos;
-    inStart.N = msr->N;
+    inStart.N = msr->N;                                                /* Total */
     strcpy(inStart.achOutName,achOutName);
 
     inStart.dEcosmo  = msr->dEcosmo;
@@ -4888,8 +4888,9 @@ void msrWrite(MSR msr,char *pszFileName,double dTime,int bCheckpoint)
 
 double msrRead(MSR msr)
 {
+    double dTime;
 #ifdef PLANETS    
-    return msrReadSS(msr); /* must use "Solar System" (SS) I/O format... */
+    dTime = msrReadSS(msr); /* must use "Solar System" (SS) I/O format... */
 #else
     char achFilename[PST_FILENAME_SIZE];
 
@@ -4905,12 +4906,25 @@ double msrRead(MSR msr)
 #ifdef USE_HDF5
     /* We can automatically detect if a given file is in HDF5 format */
     if ( H5Fis_hdf5(achFilename) ) {
-	return _msrReadHDF5(msr,achFilename);
+	dTime = _msrReadHDF5(msr,achFilename);
     }
     else
 #endif
     {
-	return _msrReadTipsy(msr,achFilename);
+	dTime = _msrReadTipsy(msr,achFilename);
     }
 #endif
+
+#ifdef USE_MDL_IO
+    /* If we are using I/O processors, then preallocate space to save */
+    if ( mdlIO(msr->mdl) ) {
+	struct inIOSetup setup;
+	setup.N = msr->N;
+	mdlSetComm(msr->mdl,1);
+	mdlReqService(msr->mdl,0,IO_SETUP,&setup,sizeof(setup));
+	mdlGetReply(msr->mdl,0,NULL,NULL);
+	mdlSetComm(msr->mdl,0);
+    }
+#endif
+    return dTime;
 }
