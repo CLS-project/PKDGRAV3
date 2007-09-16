@@ -294,7 +294,7 @@ int main(int argc,char **argv) {
 		msrBuildTree(msr,dMass,dTime);
 #endif
 #else	
-		msrWriteTipsy(
+		msrWrite(
 		    msr,achFile,dTime,
 		    (msrCheckInterval(msr)>0 && iStep%msrCheckInterval(msr) == 0)
 		    || iStep == msrSteps(msr) || iStop );
