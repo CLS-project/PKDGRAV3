@@ -60,7 +60,6 @@ void HEAPrholocal(int n, int k, RHOLOCAL ra[]) {
 */
 int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,int nCell,ILPB *ilpb,int nPartBucket,double dirLsum,double normLsum,double *pdFlop) {
     PARTICLE *p = pkd->pStore;
-    PARTICLE *pi,*pj;
     KDN *pkdn = pBucket;
     const double onethird = 1.0/3.0;
     momFloat ax,ay,az,fPot;
@@ -80,7 +79,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 #ifdef SOFTSQUARE
     double ptwoh2;
 #endif
-    int i,j,k,l,nN,nSP,na,nia,nSoft,nActive;
+    int i,j,k,nN,nSP,nSoft,nActive;
 #ifdef USE_SIMD_MOMR
     nCellILC = nCell;
     momPadSIMDMomr( &nCellILC, ilc );

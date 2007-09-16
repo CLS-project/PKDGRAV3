@@ -107,7 +107,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bEwaldKick,
     PARTICLE *p = pkd->pStore;
     PARTICLE *pRemote;
     KDN *c;
-    KDN *pkdc, *next_pkdc;
+    KDN *pkdc;
     CSTACK *S;
     CELT *Check;
     LOCR L;
@@ -118,7 +118,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bEwaldKick,
     double fWeight = 0.0;
     double dEwaldFlop;
     double dShiftFlop;
-    FLOAT dMin,dMax,min2,max2,d2,fourh2;
+    FLOAT dMin,min2,d2,fourh2;
     double dDriftFac;
     FLOAT rCheck[3];
     FLOAT rOffset[3];
@@ -932,7 +932,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bEwaldKick,
 #else
 	    fWeight = (*pdFlop-tempI)/nActive;
 #endif
-	    pkdBucketWeight(pkd,iCell,fWeight);
+	    pkdBucketWeight(pkd,iCell,/*fWeight*/1.0);
 /*
   printf("%6d nPart:%5d nCell:%5d\n",iCell,nPart,nCell);
 */
