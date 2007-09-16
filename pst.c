@@ -2127,7 +2127,7 @@ void pstStartIO(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 	mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
 	}
     else {
-	total_t iCount = in->N/mdlIO(pst->mdl);
+	total_t iCount = in->N/mdlIO(pst->mdl); /* per I/O node */
 
 	/* Send to (optionally) each I/O processor */
 	mdlSetComm(pst->mdl,1);

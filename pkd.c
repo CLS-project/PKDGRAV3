@@ -1104,7 +1104,8 @@ int pkdPackIO(PKD pkd,
 	      total_t iMaxOrder,
 	      double dvFac )
 {
-    int nCopied, d, i;
+    local_t i;
+    int nCopied, d;
 
     mdlassert(pkd->mdl,*iIndex<=pkd->nLocal);
 
