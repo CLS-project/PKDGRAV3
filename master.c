@@ -742,7 +742,7 @@ void msrLogParams(MSR msr,FILE *fp)
 	    fprintf(fp,"%s",hostname);
 	}
 #endif
-	fprintf(fp,"\n# N: %llu",msr->N);
+	fprintf(fp,"\n# N: %lu",msr->N);
 	fprintf(fp," nThreads: %d",msr->param.nThreads);
 	fprintf(fp," bDiag: %d",msr->param.bDiag);
 	fprintf(fp," Verbosity flags: (%d,%d,%d,%d,%d)",msr->param.bVWarnings,
@@ -1116,8 +1116,6 @@ void msrOneNodeReadTipsy(MSR msr, struct inReadTipsy *in)
 
 int xdrHeader(XDR *pxdrs,struct dump *ph)
     {
-    int pad = 0;
-	
     if (!xdr_double(pxdrs,&ph->time)) return 0;
     if (!xdr_u_int(pxdrs,&ph->nbodies)) return 0;
     if (!xdr_u_int(pxdrs,&ph->ndim)) return 0;
@@ -1263,7 +1261,7 @@ static double _msrReadHDF5(MSR msr, const char *achFilename)
 		       tTo,1.0/aTo-1.0,aTo);
 	    }
 	if (msr->param.bVStart)
-	    printf("Reading file...\nN:%llu nDark:%llu nGas:%llu nStar:%llu\n",msr->N,
+	    printf("Reading file...\nN:%lu nDark:%lu nGas:%lu nStar:%lu\n",msr->N,
 		   msr->nDark,msr->nGas,msr->nStar);
 	if (msr->param.bCannonical) {
 	    in.dvFac = dExpansion*dExpansion;
@@ -1278,7 +1276,7 @@ static double _msrReadHDF5(MSR msr, const char *achFilename)
 	tTo = dTime + (msr->param.nSteps - msr->param.iStartStep)*msr->param.dDelta;
 	if (msr->param.bVStart) {
 	    printf("Simulation to Time:%g\n",tTo);
-	    printf("Reading file...\nN:%llu nDark:%llu nGas:%llu nStar:%llu Time:%g\n",
+	    printf("Reading file...\nN:%lu nDark:%lu nGas:%lu nStar:%lu Time:%g\n",
 		   msr->N,msr->nDark,msr->nGas,msr->nStar,dTime);
 	    }
 	in.dvFac = 1.0;
@@ -1491,7 +1489,7 @@ static double _msrReadTipsy(MSR msr, const char *achFilename)
 		       tTo,1.0/aTo-1.0,aTo);
 	    }
 	if (msr->param.bVStart)
-	    printf("Reading file...\nN:%llu nDark:%llu nGas:%llu nStar:%llu\n",msr->N,
+	    printf("Reading file...\nN:%lu nDark:%lu nGas:%lu nStar:%lu\n",msr->N,
 		   msr->nDark,msr->nGas,msr->nStar);
 	if (msr->param.bCannonical) {
 	    in.dvFac = dExpansion*dExpansion;
@@ -1506,7 +1504,7 @@ static double _msrReadTipsy(MSR msr, const char *achFilename)
 	tTo = dTime + (msr->param.nSteps - msr->param.iStartStep)*msr->param.dDelta;
 	if (msr->param.bVStart) {
 	    printf("Simulation to Time:%g\n",tTo);
-	    printf("Reading file...\nN:%llu nDark:%llu nGas:%llu nStar:%llu Time:%g\n",
+	    printf("Reading file...\nN:%lu nDark:%lu nGas:%lu nStar:%lu Time:%g\n",
 		   msr->N,msr->nDark,msr->nGas,msr->nStar,dTime);
 	    }
 	in.dvFac = 1.0;
@@ -1932,22 +1930,6 @@ void _msrWriteTipsy(MSR msr,char *pszFileName,double dTime,int bCheckpoint)
     }
 
 
-void msrWriteTipsy(MSR msr,char *pszFileName,double dTime, int bCheckpoint )
-{
-#ifdef USE_MDL_IO
-    /* If we are using I/O processors, then we do it totally differently */
-    if ( mdlIO(msr->mdl) ) {
-	msrIOWrite(msr,pszFileName,dTime,bCheckpoint);
-    }
-    else
-#endif
-    {
-	_msrWriteTipsy(msr,pszFileName,dTime,bCheckpoint);
-    }
-}
-
-
-
 void msrSetSoft(MSR msr,double dSoft)
     {
     struct inSetSoft in;
@@ -2038,7 +2020,7 @@ void msrDomainDecomp(MSR msr,int iRung,int bGreater,int bSplitVA) {
 
     if (msr->nActive < msr->N*msr->param.dFracNoDomainDecomp) {
 	if (msr->bDoneDomainDecomp && msr->iLastRungDD >= iRungDD) {
-	    if (msr->param.bVRungStat) printf("Skipping Root Finder (nActive = %llu/%llu, iRung %d/%d/%d)\n",msr->nActive,msr->N,iRung,iRungDD,msr->iLastRungDD);
+	    if (msr->param.bVRungStat) printf("Skipping Root Finder (nActive = %lu/%lu, iRung %d/%d/%d)\n",msr->nActive,msr->N,iRung,iRungDD,msr->iLastRungDD);
 	    in.bDoRootFind = 0;
 	    in.bDoSplitDimFind = 0;
 	    }
@@ -2046,13 +2028,13 @@ void msrDomainDecomp(MSR msr,int iRung,int bGreater,int bSplitVA) {
     else iRungDD = iRung;
 
     if (msr->bDoneDomainDecomp && msr->iLastRungDD == iRungDD) {
-	    if (msr->param.bVRungStat) printf("Skipping Root Finder (nActive = %llu/%llu, iRung %d/%d/%d)\n",msr->nActive,msr->N,iRung,iRungDD,msr->iLastRungDD);
+	    if (msr->param.bVRungStat) printf("Skipping Root Finder (nActive = %lu/%lu, iRung %d/%d/%d)\n",msr->nActive,msr->N,iRung,iRungDD,msr->iLastRungDD);
 	    in.bDoRootFind = 0;
 	    in.bDoSplitDimFind = 0;
 	    }
 	
     if (in.bDoRootFind && msr->bDoneDomainDecomp && iRungDD > iRungSD && msr->iLastRungSD >= iRungSD) {
-	if (msr->param.bVRungStat) printf("Skipping Split Dim Finding (nActive = %llu/%llu, iRung %d/%d/%d/%d)\n",msr->nActive,msr->N,iRung,iRungDD,iRungSD,msr->iLastRungSD);
+	if (msr->param.bVRungStat) printf("Skipping Split Dim Finding (nActive = %lu/%lu, iRung %d/%d/%d/%d)\n",msr->nActive,msr->N,iRung,iRungDD,iRungSD,msr->iLastRungSD);
 	in.bDoSplitDimFind = 0;
 	}
 
@@ -2077,7 +2059,7 @@ void msrDomainDecomp(MSR msr,int iRung,int bGreater,int bSplitVA) {
     MPItrace_event(10000, 0 );
 #endif
     if (msr->param.bVDetails) {
-	printf("Domain Decomposition: nActive (Rung %d) %llu\n",iRungDD,msr->nActive);
+	printf("Domain Decomposition: nActive (Rung %d) %lu\n",iRungDD,msr->nActive);
 	printf("Domain Decomposition... \n");
 	sec = msrTime();
 	}
@@ -2247,7 +2229,7 @@ void msrOutArray(MSR msr,char *pszFile,int iType)
     /*
     ** Write the Header information and close the file again.
     */
-    fprintf(fp,"%d\n",msr->N);
+    fprintf(fp,"%lu\n",msr->N);
     fclose(fp);
     /* 
      * First write our own particles.
@@ -2317,7 +2299,7 @@ void msrOutVector(MSR msr,char *pszFile,int iType)
     /*
     ** Write the Header information and close the file again.
     */
-    fprintf(fp,"%d\n",msr->N);
+    fprintf(fp,"%lu\n",msr->N);
     fclose(fp);
 
     /* 
@@ -2502,7 +2484,7 @@ void msrUpdateSoft(MSR msr,double dTime) {
 		   out[i*10+5].VAR); break;\
     case 7: printf("%4d: "FRM" "FRM" "FRM" "FRM" "FRM" "FRM" "FRM"\n",i*10,\
 		   out[i*10+0].VAR,out[i*10+1].VAR,out[i*10+2].VAR,out[i*10+3].VAR,out[i*10+4].VAR,\
-		   out[i*10+5].VAR,out[i*10+6]); break;\
+		   out[i*10+5].VAR,out[i*10+6].VAR); break;\
     case 8: printf("%4d: "FRM" "FRM" "FRM" "FRM" "FRM" "FRM" "FRM" "FRM"\n",i*10,\
 		   out[i*10+0].VAR,out[i*10+1].VAR,out[i*10+2].VAR,out[i*10+3].VAR,out[i*10+4].VAR,\
 		   out[i*10+5].VAR,out[i*10+6].VAR,out[i*10+7].VAR); break;\
@@ -3137,7 +3119,7 @@ int msrDtToRung(MSR msr, int iRung, double dDelta, int bAll) {
     iOutMaxRung = iTempRung;
 
     while (out.nRungCount[iOutMaxRung] <= msr->param.nTruncateRung && iOutMaxRung > iRung) {
-	if (msr->param.bVDetails) printf("n_CurrMaxRung = %d  (iCurrMaxRung = %d):  Promoting particles to iCurrMaxrung = %d\n",
+	if (msr->param.bVDetails) printf("n_CurrMaxRung = %lu  (iCurrMaxRung = %d):  Promoting particles to iCurrMaxrung = %d\n",
 					 out.nRungCount[iOutMaxRung],iOutMaxRung,iOutMaxRung-1);
 
 	in.iMaxRung = iOutMaxRung; /* Note this is the forbidden rung so no -1 here */
@@ -3175,7 +3157,7 @@ int msrDtToRung(MSR msr, int iRung, double dDelta, int bAll) {
 	    if (out.nRungCount[iTempRung] == 0) continue;
 	    if (iTempRung > iRungVeryActive) c = 'v';
 	    else c = ' ';
-	    printf(" %c rung:%d %llu\n",c,iTempRung,out.nRungCount[iTempRung]);
+	    printf(" %c rung:%d %lu\n",c,iTempRung,out.nRungCount[iTempRung]);
 	    }
 	printf("\n");
 	}
@@ -3893,7 +3875,7 @@ msrAddDelParticles(MSR msr)
     pstNewOrder(msr->pst,pNewOrder,(int)sizeof(*pNewOrder)*msr->nThreads,NULL,NULL);
 
     if (msr->param.bVDetails)
-	printf("New numbers of particles: %d gas %d dark %d star\n",
+	printf("New numbers of particles: %lu gas %lu dark %lu star\n",
 	       msr->nGas, msr->nDark, msr->nStar);
 
     in.nGas = msr->nGas;

@@ -910,10 +910,10 @@ void _pstRootSplit(PST pst,int iSplitDim,int bDoRootFind,int bDoSplitDimFind,
     nSafeTot = nLowerStore + nUpperStore - (nLowTot + nHighTot);
     if(nSafeTot/pst->nLeaves < NUM_SAFETY) {
 	NUM_SAFETY = nSafeTot/pst->nLeaves;
-	sprintf(ach,"id: %d tripped inactive NUM_SAFETY %d  Low %d/%d  High %d/%d\n",
+	sprintf(ach,"id: %d tripped inactive NUM_SAFETY %d  Low %lu/%lu  High %lu/%lu\n",
 		pst->idSelf, NUM_SAFETY, nLowTot, nLowerStore, nHighTot, nUpperStore);
 	mdlDiag(pst->mdl,ach);
-	mdlprintf(pst->mdl,"id: %d tripped inactive NUM_SAFETY %d  Low %d/%d  High %d/%d\n",
+	mdlprintf(pst->mdl,"id: %d tripped inactive NUM_SAFETY %d  Low %lu/%lu  High %lu/%lu\n",
 		  pst->idSelf, NUM_SAFETY, nLowTot, nLowerStore, nHighTot, nUpperStore);
 	}
 	    
@@ -925,7 +925,7 @@ void _pstRootSplit(PST pst,int iSplitDim,int bDoRootFind,int bDoSplitDimFind,
 	    
 	    
     if (nLowTot > nLowerStore-NUM_SAFETY*pst->nLower) {
-	sprintf(ach,"id: %d: nLowTot > nLowerStore-NUM_SAFETY*pst->nLower %d %d %d %d\n",
+	sprintf(ach,"id: %d: nLowTot > nLowerStore-NUM_SAFETY*pst->nLower %lu %lu %d %d\n",
 		pst->idSelf, nLowTot, nLowerStore, NUM_SAFETY, pst->nLower);
 	mdlDiag(pst->mdl,ach);
 	if (fm > pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd]) fm=pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd];
@@ -1002,7 +1002,7 @@ void _pstRootSplit(PST pst,int iSplitDim,int bDoRootFind,int bDoSplitDimFind,
 	mdlPrintTimer(pst->mdl,"TIME fix lower II _pstRootSplit ",&t);
 	}
     else if (nHighTot > nUpperStore-NUM_SAFETY*pst->nUpper) {
-	sprintf(ach,"id: %d: nHighTot > nUpperStore-NUM_SAFETY*pst->nUpper %d %d %d %d\n",
+	sprintf(ach,"id: %d: nHighTot > nUpperStore-NUM_SAFETY*pst->nUpper %lu %lu %d %d\n",
 		pst->idSelf, nHighTot, nUpperStore, NUM_SAFETY, pst->nUpper);
 	mdlDiag(pst->mdl,ach);
 	if (fm > pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd]) fm=pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd];
@@ -1080,7 +1080,7 @@ void _pstRootSplit(PST pst,int iSplitDim,int bDoRootFind,int bDoSplitDimFind,
 	}
 
     if (nLowTot < NUM_SAFETY*pst->nLower) {
-	sprintf(ach,"id: %d: nLowTot < NUM_SAFETY*pst->nLower %d %d %d %d\n",
+	sprintf(ach,"id: %d: nLowTot < NUM_SAFETY*pst->nLower %lu %lu %d %d\n",
 		pst->idSelf, nLowTot, nLowerStore, NUM_SAFETY, pst->nLower);
 	mdlDiag(pst->mdl,ach);
 	if (fm > pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd]) fm=pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd];
@@ -1149,7 +1149,7 @@ void _pstRootSplit(PST pst,int iSplitDim,int bDoRootFind,int bDoSplitDimFind,
 	mdlPrintTimer(pst->mdl,"TIME fix lower II _pstRootSplit ",&t);
 	}
     if (nHighTot < NUM_SAFETY*pst->nUpper) {
-	sprintf(ach,"id: %d: nHighTot > nUpperStore-NUM_SAFETY*pst->nUpper %d %d %d %d\n",
+	sprintf(ach,"id: %d: nHighTot > nUpperStore-NUM_SAFETY*pst->nUpper %d %lu %lu %d\n",
 		pst->idSelf, nHighTot, nUpperStore, NUM_SAFETY, pst->nUpper);
 	mdlDiag(pst->mdl,ach);
 	if (fm > pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd]) fm=pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd];
@@ -2873,6 +2873,7 @@ void pstSetTotal(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 	pst->nTotal = pkdLocal(plcl->pkd);
 	out->nTotal = pst->nTotal;
 	}
+    mdlassert(pst->mdl,out->nTotal > 0 );
     if (pnOut) *pnOut = sizeof(struct outSetTotal);
     }
 
