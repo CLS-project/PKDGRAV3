@@ -14,3 +14,6 @@ typedef struct png
 } *PNG;
 
 PNG pngInitialize( int iResolution, float minValue, float maxValue );
+void pngWrite( PNG png, FILE *fp, float *Density );
+void pngFinish( PNG png );
+

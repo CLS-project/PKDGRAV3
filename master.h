@@ -123,6 +123,7 @@ void msrTopStepKDK(MSR msr,
 		   int *piSec);
 void msrStepVeryActiveKDK(MSR msr, double dStep, double dTime, double dDelta,
 			  int iRung);
+void msrEwaldKick(MSR msr,double dTime,double dDelta);
 #ifdef HERMITE
 void msrTopStepHermite(MSR msr,
 		       double dStep,	/* Current step */

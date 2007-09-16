@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stddef.h>
+#include <stdint.h>
 #ifdef HAVE_MALLOC_H
 #include <malloc.h>
 #endif
@@ -173,11 +174,11 @@ int prmParseParam(PRM prm,char *pszFile)
 			if (ret != 1) goto syntax_error;
 			break;
  		case 3:
-			/*
+		        /*
 			 ** Make sure there is enough space to handle the string.
 			 ** This is a CONSERVATIVE test.
 			 */
-			assert(pn->iSize > strlen(p));
+		        assert((size_t)pn->iSize > strlen(p));
 			ret = sscanf(p,"%[^\n#]",(char *)pn->pValue);
 			if (ret != 1) goto syntax_error;
 			/*
@@ -188,6 +189,11 @@ int prmParseParam(PRM prm,char *pszFile)
 			while (--q >= p) if (!isspace((int) *q)) break;
 			++q;
 			*q = 0;
+			break;
+		case 4:
+			assert(pn->iSize == sizeof(uint64_t));
+			ret = sscanf(p,"%lu",(uint64_t *)pn->pValue);
+			if (ret != 1) goto syntax_error;
 			break;
 		default:
 			goto cmd_error;
@@ -337,6 +343,25 @@ int prmArgProc(PRM prm,int argc,char **argv)
 				}
 			assert(pn->iSize > strlen(argv[i]));
 			strcpy((char *)pn->pValue,argv[i]);
+			break;
+		case 4:
+			/*
+			 ** It's an uint64_t
+			 */
+			++i;
+			if (i == argc) {
+				printf("Missing integer value after command line ");
+			    printf("argument:%s\n",argv[i-1]);
+				prmArgUsage(prm);
+				return(0);
+				}
+			ret = sscanf(argv[i],"%lu",(uint64_t *) pn->pValue);
+			if (ret != 1) {
+				printf("Expected integer after command line ");
+			    printf("argument:%s\n",argv[i-1]);
+				prmArgUsage(prm);
+				return(0);
+				}
 			break;
 		default:
 			assert(0);

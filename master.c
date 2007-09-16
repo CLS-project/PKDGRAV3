@@ -984,8 +984,8 @@ void msrFinish(MSR msr)
 void msrOneNodeReadHDF5(MSR msr, struct inReadTipsy *in)
     {
     int i,id;
-    int *nParts;				/* number of particles for each processor */
-    int nStart;
+    int *nParts;		/* number of particles for each processor */
+    uint64_t nStart;
     PST pst0;
     LCL *plcl;
     char achInFile[PST_FILENAME_SIZE];
@@ -1002,7 +1002,7 @@ void msrOneNodeReadHDF5(MSR msr, struct inReadTipsy *in)
 	}
 
     pstOneNodeReadInit(msr->pst, in, sizeof(*in), nParts, &nid);
-    assert(nid == msr->nThreads*sizeof(*nParts));
+    assert((size_t)nid == msr->nThreads*sizeof(*nParts));
     for (id=0;id<msr->nThreads;++id) {
 	assert(nParts[id] > 0);
 	}
@@ -1056,7 +1056,7 @@ void msrOneNodeReadTipsy(MSR msr, struct inReadTipsy *in)
     {
     int i,id;
     int *nParts;				/* number of particles for each processor */
-    int nStart;
+    uint64_t nStart;
     PST pst0;
     LCL *plcl;
     char achInFile[PST_FILENAME_SIZE];
@@ -1071,7 +1071,7 @@ void msrOneNodeReadTipsy(MSR msr, struct inReadTipsy *in)
 	}
 
     pstOneNodeReadInit(msr->pst, in, sizeof(*in), nParts, &nid);
-    assert(nid == msr->nThreads*sizeof(*nParts));
+    assert((size_t)nid == msr->nThreads*sizeof(*nParts));
     for (id=0;id<msr->nThreads;++id) {
 	assert(nParts[id] > 0);
 	}
@@ -1556,26 +1556,8 @@ static double _msrReadTipsy(MSR msr, const char *achFilename)
 #ifdef USE_MDL_IO
 void msrIOWrite(MSR msr, const char *achOutName, double dTime, int bCheckpoint)
 {
-    //struct inFindIOS inFind;
-    struct outFindIOS outFind;
-    int nFind;
-    int i;
     struct inStartIO inStart;
     struct inStartSave save;
-
-    //printf( "Finding number of particles\n" );
-
-    /* Find the number of particles to expect for each I/O processor */
-    //inFind.nLower = 0;
-    //inFind.N = msr->N;
-    //pstFindIOS( msr->pst, &inFind, sizeof(inFind), &outFind, &nFind );
-
-//    if (msr->param.bVDetails) {
-//	printf("Particle distribution on I/O nodes:\n");
-//	for( i=0; i<mdlIO(msr->mdl); i++ ) {
-//	    printf( "%4d: %d\n", i, outFind.nCount[i]);
-//	}
-//    }
 
     /* Ask the I/O processors to start a save operation */
     save.dTime       = dTime;
@@ -1737,7 +1719,7 @@ void msrSaveParameters(MSR msr, IOHDF5 io)
 void msrOneNodeWriteTipsy(MSR msr, struct inWriteTipsy *in, int bCheckpoint)
     {
     int i,id;
-    int nStart;
+    uint64_t nStart;
     PST pst0;
     LCL *plcl;
     char achOutFile[PST_FILENAME_SIZE];
@@ -3834,7 +3816,7 @@ void
 msrAddDelParticles(MSR msr)
     {
     struct outColNParts *pColNParts;
-    int *pNewOrder;
+    uint64_t *pNewOrder;
     struct inSetNParts in;
     struct inSetParticleTypes intype;
 #ifdef PLANETS

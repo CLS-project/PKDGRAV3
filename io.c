@@ -169,7 +169,7 @@ void ioStartSave(IO io,void *vin,int nIn,void *vout,int *pnOut)
 }
 
 
-static int ioUnpackIO(void *vctx, int nSize, void *vBuff)
+static int ioUnpackIO(void *vctx, size_t nSize, void *vBuff)
 {
     IO io = vctx;
     PIO *pio = vBuff;

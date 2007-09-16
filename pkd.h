@@ -670,7 +670,7 @@ int pkdInactive(PKD);
 int pkdNodes(PKD);
 int pkdColOrdRejects(PKD,uint64_t,int);
 void pkdLocalOrder(PKD);
-void pkdWriteTipsy(PKD,char *,int,int,double,int);
+void pkdWriteTipsy(PKD,char *,uint64_t,int,double,int);
 #ifdef USE_HDF5
 void pkdWriteHDF5(PKD pkd, IOHDF5 io,IOHDF5V ioDen, IOHDF5V ioPot, double dvFac);
 #endif
@@ -684,7 +684,7 @@ void pkdDriftInactive(PKD pkd,double dTime,double dDelta,FLOAT fCenter[3],int bP
 void pkdStepVeryActiveKDK(PKD pkd, double dStep, double dTime, double dDelta,
 			  int iRung, int iKickRung, int iRungVeryActive,int iAdjust,
 			  double diCrit2,int *pnMaxRung,
-			  double aSunInact[3], double adSunInact[3], double dSunMass);
+			  double aSunInact[], double adSunInact[], double dSunMass);
 #ifdef HERMITE
 void
 pkdStepVeryActiveHermite(PKD pkd, double dStep, double dTime, double dDelta,

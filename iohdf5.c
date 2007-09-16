@@ -412,6 +412,8 @@ IOHDF5 ioHDF5Initialize( hid_t fileID, hid_t iChunkSize, int bDouble )
     H5E_auto_t save_func;
     void *     save_data;
 
+    assert( sizeof(hsize_t) >= sizeof(uint64_t) );
+
     io = (IOHDF5)malloc( sizeof(struct ioHDF5) ); assert(io!=NULL);
     io->fileID = fileID;
     io->iChunkSize = iChunkSize;

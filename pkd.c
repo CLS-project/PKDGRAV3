@@ -378,7 +378,7 @@ void pkdReadTipsy(PKD pkd,char *pszFileName, char *achOutName,uint64_t nStart,in
     FILE *fpTrack = NULL;
     char aTrack[256];
     int nBodies,nGas,nStar,iRet;
-    int iTracker;	
+    uint64_t iTracker;	
 
     pkd->nLocal = nLocal;
     pkd->nActive = nLocal;
@@ -418,7 +418,7 @@ void pkdReadTipsy(PKD pkd,char *pszFileName, char *achOutName,uint64_t nStart,in
 	    goto SkipCheck;
 	    }
 	while (1) {
-	    iRet = fscanf(fpTrack,"%d",&iTracker);
+	    iRet = fscanf(fpTrack,"%lu",&iTracker);
 	    iTracker = iTracker - 1;
 	    if (!iRet || iRet == EOF) {
 		fclose(fpTrack);
@@ -441,7 +441,7 @@ SkipCheck:
 	    p->iOrder = nStart + i;
 	    if (p->iOrder == iTracker) {
 		TYPESet(p,TYPE_TRACKER);
-		iRet = fscanf(fpTrack,"%d",&iTracker);
+		iRet = fscanf(fpTrack,"%lu",&iTracker);
 		iTracker = iTracker-1;
 		if (!iRet || iRet == EOF) {
 		    fclose(fpTrack);
@@ -552,7 +552,7 @@ SkipCheck:
 	    p->iOrder = nStart + i;
 	    if (p->iOrder == iTracker) {
 		TYPESet(p,TYPE_TRACKER);
-		iRet = fscanf(fpTrack,"%d",&iTracker);
+		iRet = fscanf(fpTrack,"%lu",&iTracker);
 		iTracker = iTracker -1;
 		if (!iRet || iRet == EOF) {
 		    fclose(fpTrack);
@@ -1180,7 +1180,7 @@ void pkdWriteHDF5(PKD pkd, IOHDF5 io, IOHDF5V ioDen, IOHDF5V ioPot, double dvFac
 
 #endif
 
-void pkdWriteTipsy(PKD pkd,char *pszFileName,int nStart,
+void pkdWriteTipsy(PKD pkd,char *pszFileName,uint64_t nStart,
 		   int bStandard,double dvFac,int bDoublePos) {
     PARTICLE *p;
     FILE *fp;

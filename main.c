@@ -248,7 +248,7 @@ int main(int argc,char **argv) {
 		msrCalcEandL(msr,MSR_STEP_E,dTime,&E,&T,&U,&Eth,L);
 		lSec = time(0) - lSec;
 		(void) fprintf(fpLog,"%e %e %.16e %e %e %e %.16e %.16e "
-			       "%.16e %li %e %e %e %e\n",dTime,
+			       "%.16e %li %e\n",dTime,
 			       1.0/csmTime2Exp(msr->param.csm,dTime)-1.0,
 			       E,T,U,Eth,L[0],L[1],L[2],lSec,dMultiEff);
 		}

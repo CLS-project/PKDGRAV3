@@ -484,7 +484,7 @@ void pstOneNodeReadInit(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 	nStore = nFileTotal + (int)ceil(nFileTotal*in->fExtraStore);
 	pkdInitialize(&plcl->pkd,pst->mdl,nStore,in->nBucket,in->fPeriod,
 		      in->nDark,in->nGas,in->nStar);
-	pout[pst->idSelf] = nFileTotal;
+	pout[pst->idSelf] = nFileTotal; /* Truncated: okay */
 	}
     if (pnOut) *pnOut = nThreads*sizeof(*pout);
     }
@@ -2098,11 +2098,11 @@ typedef struct ctxIO {
     total_t iMaxOrder; /* Maximum iOrder */
 } * CTXIO;
 
-static int pstPackIO(void *vctx, int nSize, void *vBuff)
+static int pstPackIO(void *vctx, size_t nSize, void *vBuff)
 {
     CTXIO ctx = vctx;
     PIO *io = (PIO *)vBuff;
-    int nPack;
+    size_t nPack;
 
     nPack = pkdPackIO(ctx->pkd,
 		      io, nSize/sizeof(PIO),
@@ -2882,7 +2882,7 @@ void pstSetWriteStart(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     {	
     LCL *plcl = pst->plcl;
     struct inSetWriteStart *in = vin;
-    int nWriteStart;
+    uint64_t nWriteStart;
 
     mdlassert(pst->mdl,nIn == sizeof(struct inSetWriteStart));
     nWriteStart = in->nWriteStart;
@@ -3147,7 +3147,7 @@ void
 pstNewOrder(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     {
     LCL *plcl = pst->plcl;
-    int *in = vin;
+    uint64_t *in = vin;
     
     if(pst->nLeaves > 1) {
 	mdlReqService(pst->mdl,pst->idUpper,PST_NEWORDER,vin,nIn);

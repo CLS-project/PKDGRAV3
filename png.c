@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <assert.h>
 #include <malloc.h>
+#include <math.h>
 
 #include "png.h"
 
