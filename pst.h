@@ -49,7 +49,7 @@ typedef struct pstContext {
     uint64_t iOrdSplit;
     FLOAT fSplit;
     FLOAT fSplitInactive;
-    int nTotal;
+    uint64_t nTotal;
     int iVASplitSide;
     uint64_t nLowTot;    /* total number of particles in the lower subset of processors */
     uint64_t nHighTot;   /* total number of particles in the upper subset of processors */
@@ -610,7 +610,7 @@ void pstPostVariableSoft(PST,void *,int,void *,int *);
 
 /* PST_SETTOTAL */
 struct outSetTotal {
-    int nTotal;
+    uint64_t nTotal;
     };
 void pstSetTotal(PST,void *,int,void *,int *);
 
