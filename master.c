@@ -1964,7 +1964,8 @@ void msrDomainDecomp(MSR msr,int iRung,int bGreater,int bSplitVA) {
     int j;
     double sec,dsec;
 
-    int iRungDD,iRungSD,nActive;
+    int iRungDD,iRungSD;
+    uint64_t nActive;
 
 
     in.bDoRootFind = 1;

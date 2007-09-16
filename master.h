@@ -64,7 +64,7 @@ typedef struct msrContext {
     int bDoneDomainDecomp;
     int iLastRungDD;
     int iLastRungSD;
-    int nActive;
+    uint64_t nActive;
     int nGroups;
     int nBins;
     int bAntiGrav;
