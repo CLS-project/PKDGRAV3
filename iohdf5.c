@@ -68,7 +68,8 @@ static hid_t newSet(hid_t locID, const char *name, uint64_t chunk,
 		    uint64_t count, int nDims, hid_t dataType )
 {
     hid_t dataProperties, dataSpace, dataSet;
-    hsize_t iDims[2], iMax[2];
+    hsize_t /*@alt uint64_t[]@*/ iDims[2];
+    hsize_t /*@alt uint64_t[]@*/ iMax[2];
 
     /* Create a dataset property so we can set the chunk size */
     dataProperties = H5Pcreate( H5P_DATASET_CREATE );
@@ -777,10 +778,12 @@ IOHDF5V ioHDFF5NewVector( IOHDF5 io, const char *name, int bDouble )
 
     if ( bDouble ) {
 	iov->d = (double*)malloc( io->iChunkSize * sizeof(double) );
+	assert(iov->d!=NULL);
 	iov->s = NULL;
     }
     else {
 	iov->s = (float*)malloc( io->iChunkSize * sizeof(float) );
+	assert(iov->s!=NULL);
 	iov->d = NULL;
     }
     iov->nBuffered = 0;

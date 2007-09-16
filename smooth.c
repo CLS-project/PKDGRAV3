@@ -1875,6 +1875,7 @@ void smFof(SMX smx,int nFOFsDone,SMF *smf)
     nTree = pkd->kdNodes[ROOT].pUpper + 1;
     nFifo = pkdLocal(pkd);
     Fifo = (int *)malloc(nFifo*sizeof(int));
+    assert(Fifo!=NULL);
 	
     protoGroup = (FOFPG *)malloc(iMaxGroups*sizeof(FOFPG));
     /*used something smaller than FOFGD here to reduce memory usage*/

@@ -1066,6 +1066,7 @@ void msrOneNodeReadTipsy(MSR msr, struct inReadTipsy *in)
     struct inSetParticleTypes intype;
 
     nParts = malloc(msr->nThreads*sizeof(*nParts));
+    assert(nParts!=NULL);
     for (id=0;id<msr->nThreads;++id) {
 	nParts[id] = -1;
 	}
@@ -3833,11 +3834,13 @@ msrAddDelParticles(MSR msr)
     
     if (msr->param.bVDetails) printf("Changing Particle number\n");
     pColNParts = malloc(msr->nThreads*sizeof(*pColNParts));
+    assert(pColNParts!=NULL);
     pstColNParts(msr->pst, NULL, 0, pColNParts, &iOut);
     /*
      * Assign starting numbers for new particles in each processor.
      */
     pNewOrder = malloc(msr->nThreads*sizeof(*pNewOrder));
+    assert(pNewOrder!=NULL);
     for(i=0;i<msr->nThreads;i++) {
 	/*
 	 * Detect any changes in particle number, and force a tree
