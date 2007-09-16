@@ -96,7 +96,6 @@ void ioAddServices(IO io,MDL mdl)
 		  (void (*)(void *,void *,int,void *,int *)) ioStartSave,
 		  sizeof(struct inStartSave),0);
 
-
     mdlAddService(mdl,IO_ALLOCATE,io,
 		  (void (*)(void *,void *,int,void *,int *)) ioAllocate,
 		  sizeof(struct inIOAllocate),0);
@@ -135,6 +134,10 @@ void ioStartSave(IO io,void *vin,int nIn,void *vout,int *pnOut)
     strcpy(recv.achOutName,save->achOutName);
     recv.bCheckpoint = save->bCheckpoint;
     iCount = save->N / mdlIO(io->mdl);
+
+    printf( "Starting to save %lu particles (~%lu per I/O node)\n",
+	    save->N, iCount );
+
     for( id=1; id<mdlIO(io->mdl); id++ ) {
 	recv.iIndex = iCount * id;
 	recv.nCount = iCount;
@@ -181,10 +184,11 @@ static int ioUnpackIO(void *vctx, size_t nSize, void *vBuff)
 
     for( i=0; i<nIO; i++ ) {
 	total_t iOrder = pio[i].iOrder;
-	int j = iOrder - io->iMinOrder;
+	size_t j = iOrder - io->iMinOrder;
 
 	mdlassert(io->mdl,iOrder>=io->iMinOrder);
 	mdlassert(io->mdl,iOrder<io->iMaxOrder);
+	mdlassert(io->mdl,j<io->N);
 
 	for( d=0; d<3; d++ ) {
 	    io->r[j].v[d] = pio[i].r[d];
@@ -235,12 +239,12 @@ void ioAllocate(IO io,void *vin,int nIn,void *vout,int *pnOut)
 	    free(io->r);
 	}
 	io->nAllocated = alloc->nCount + 100; /* Room to grow... */
-	io->r = malloc(alloc->nCount*sizeof(ioV3));  assert(io->r != NULL );
-	io->v = malloc(alloc->nCount*sizeof(ioV3));  assert(io->v != NULL );
-	//io->m = malloc(alloc->nCount*sizeof(FLOAT));  assert(io->m != NULL );
-	//io->s = malloc(alloc->nCount*sizeof(FLOAT));  assert(io->s != NULL );
-	io->d = malloc(alloc->nCount*sizeof(float));  assert(io->d != NULL );
-	io->p = malloc(alloc->nCount*sizeof(float));  assert(io->p != NULL );
+	io->r = malloc(io->nAllocated*sizeof(ioV3));  assert(io->r != NULL );
+	io->v = malloc(io->nAllocated*sizeof(ioV3));  assert(io->v != NULL );
+	//io->m = malloc(io->nAllocated*sizeof(FLOAT));  assert(io->m != NULL );
+	//io->s = malloc(io->nAllocated*sizeof(FLOAT));  assert(io->s != NULL );
+	io->d = malloc(io->nAllocated*sizeof(float));  assert(io->d != NULL );
+	io->p = malloc(io->nAllocated*sizeof(float));  assert(io->p != NULL );
     }
 }
 

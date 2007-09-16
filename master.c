@@ -1559,6 +1559,8 @@ void msrIOWrite(MSR msr, const char *achOutName, double dTime, int bCheckpoint)
     struct inStartIO inStart;
     struct inStartSave save;
 
+    printf( "msrIOWrite: invoking I/O master\n" );
+
     /* Ask the I/O processors to start a save operation */
     save.dTime       = dTime;
     save.N           = msr->N;                                         /* Total */
@@ -1602,7 +1604,11 @@ void msrIOWrite(MSR msr, const char *achOutName, double dTime, int bCheckpoint)
 
 
     /*char achOutFile[PST_FILENAME_SIZE];*/
+
+    printf( "msrIOWrite: invoking nodes\n" );
     pstStartIO( msr->pst, &inStart, sizeof(inStart), NULL, NULL );
+
+    printf( "msrIOWrite: done\n" );
 
 #if 0
     /* Get the reply from the I/O processor */
