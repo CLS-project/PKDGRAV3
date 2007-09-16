@@ -2046,13 +2046,13 @@ void msrDomainDecomp(MSR msr,int iRung,int bGreater,int bSplitVA) {
     else iRungDD = iRung;
 
     if (msr->bDoneDomainDecomp && msr->iLastRungDD == iRungDD) {
-	    if (msr->param.bVRungStat) printf("Skipping Root Finder (nActive = %d/%d, iRung %d/%d/%d)\n",msr->nActive,msr->N,iRung,iRungDD,msr->iLastRungDD);
+	    if (msr->param.bVRungStat) printf("Skipping Root Finder (nActive = %llu/%llu, iRung %d/%d/%d)\n",msr->nActive,msr->N,iRung,iRungDD,msr->iLastRungDD);
 	    in.bDoRootFind = 0;
 	    in.bDoSplitDimFind = 0;
 	    }
 	
     if (in.bDoRootFind && msr->bDoneDomainDecomp && iRungDD > iRungSD && msr->iLastRungSD >= iRungSD) {
-	if (msr->param.bVRungStat) printf("Skipping Split Dim Finding (nActive = %d/%d, iRung %d/%d/%d/%d)\n",msr->nActive,msr->N,iRung,iRungDD,iRungSD,msr->iLastRungSD);
+	if (msr->param.bVRungStat) printf("Skipping Split Dim Finding (nActive = %llu/%llu, iRung %d/%d/%d/%d)\n",msr->nActive,msr->N,iRung,iRungDD,iRungSD,msr->iLastRungSD);
 	in.bDoSplitDimFind = 0;
 	}
 
