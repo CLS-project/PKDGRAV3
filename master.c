@@ -3890,10 +3890,12 @@ int msrDoDensity(MSR msr)
     return(msr->param.bDoDensity);
     }
 
+#ifdef USE_PNG
 int msrPNGResolution(MSR msr)
     {
     return(msr->param.nPNGResolution);
     }
+#endif
 
 int msrDoGravity(MSR msr)
     {
