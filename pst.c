@@ -914,19 +914,19 @@ void _pstRootSplit(PST pst,int iSplitDim,int bDoRootFind,int bDoSplitDimFind,
 	sprintf(ach,"id: %d tripped inactive NUM_SAFETY %d  Low %"PRIu64"/%"PRIu64"  High %"PRIu64"/%"PRIu64"\n",
 		pst->idSelf, NUM_SAFETY, nLowTot, nLowerStore, nHighTot, nUpperStore);
 	mdlDiag(pst->mdl,ach);
-	mdlprintf(pst->mdl,"id: %d tripped inactive NUM_SAFETY %d  Low "PRIu64"/"PRIu64"  High "PRIu64"/"PRIu64"\n",
+	mdlprintf(pst->mdl,"id: %d tripped inactive NUM_SAFETY %d  Low %%"PRIu64"/%"PRIu64"  High %"PRIu64"/%"PRIu64"\n",
 		  pst->idSelf, NUM_SAFETY, nLowTot, nLowerStore, nHighTot, nUpperStore);
 	}
 	    
     margin = nSafeTot/pst->nLeaves/20;
     if (margin < NUM_SAFETY/2) margin = NUM_SAFETY/2;
 
-    mdlprintf(pst->mdl,"id: %d  %d Low "PRIu64"/"PRIu64"   %d High "PRIu64"/"PRIu64"  NUM_SAFETY %d margin %d\n",
+    mdlprintf(pst->mdl,"id: %d  %d Low %"PRIu64"/%"PRIu64"   %d High %"PRIu64"/%"PRIu64"  NUM_SAFETY %d margin %d\n",
 	      pst->idSelf, pst->nLower,nLowTot, nLowerStore, pst->nUpper,nHighTot, nUpperStore,NUM_SAFETY,margin);
 	    
 	    
     if (nLowTot > nLowerStore-NUM_SAFETY*pst->nLower) {
-	sprintf(ach,"id: %d: nLowTot > nLowerStore-NUM_SAFETY*pst->nLower "PRIu64" "PRIu64" %d %d\n",
+	sprintf(ach,"id: %d: nLowTot > nLowerStore-NUM_SAFETY*pst->nLower %"PRIu64" %"PRIu64" %d %d\n",
 		pst->idSelf, nLowTot, nLowerStore, NUM_SAFETY, pst->nLower);
 	mdlDiag(pst->mdl,ach);
 	if (fm > pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd]) fm=pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd];
@@ -991,7 +991,7 @@ void _pstRootSplit(PST pst,int iSplitDim,int bDoRootFind,int bDoSplitDimFind,
 		}
 	    ++ittr;
 	    }
-	mdlprintf(pst->mdl, "id: %d (%d) Fix Low %d th guess reverse split: %f (%f,%f) (%f,%f) Low "PRIu64" High "PRIu64"\n",
+	mdlprintf(pst->mdl, "id: %d (%d) Fix Low %d th guess reverse split: %f (%f,%f) (%f,%f) Low %"PRIu64" High %"PRIu64"\n",
 		  pst->idSelf, pst->iLvl, ittr, fm, fl, fu, pst->bnd.fCenter[dBnd]-pst->bnd.fMax[dBnd], 
 		  pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd],nLowTot,nHighTot);
 	if(nLowTot != nLowerStore-NUM_SAFETY*pst->nLower) {
@@ -1003,7 +1003,7 @@ void _pstRootSplit(PST pst,int iSplitDim,int bDoRootFind,int bDoSplitDimFind,
 	mdlPrintTimer(pst->mdl,"TIME fix lower II _pstRootSplit ",&t);
 	}
     else if (nHighTot > nUpperStore-NUM_SAFETY*pst->nUpper) {
-	sprintf(ach,"id: %d: nHighTot > nUpperStore-NUM_SAFETY*pst->nUpper "PRIu64" "PRIu64" %d %d\n",
+	sprintf(ach,"id: %d: nHighTot > nUpperStore-NUM_SAFETY*pst->nUpper %"PRIu64" %"PRIu64" %d %d\n",
 		pst->idSelf, nHighTot, nUpperStore, NUM_SAFETY, pst->nUpper);
 	mdlDiag(pst->mdl,ach);
 	if (fm > pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd]) fm=pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd];
@@ -1068,7 +1068,7 @@ void _pstRootSplit(PST pst,int iSplitDim,int bDoRootFind,int bDoSplitDimFind,
 		}
 	    ++ittr;
 	    }
-	mdlprintf(pst->mdl, "id: %d (%d) Fix High %d th guess reverse split: %f (%f,%f) (%f,%f) Low "PRIu64" High "PRIu64"\n",
+	mdlprintf(pst->mdl, "id: %d (%d) Fix High %d th guess reverse split: %f (%f,%f) (%f,%f) Low %"PRIu64" High %"PRIu64"\n",
 		  pst->idSelf, pst->iLvl, ittr, fm, fl, fu, pst->bnd.fCenter[dBnd]-pst->bnd.fMax[dBnd], 
 		  pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd],nLowTot,nHighTot);
 	if(nHighTot != nUpperStore-NUM_SAFETY*pst->nUpper) {
@@ -1081,7 +1081,7 @@ void _pstRootSplit(PST pst,int iSplitDim,int bDoRootFind,int bDoSplitDimFind,
 	}
 
     if (nLowTot < NUM_SAFETY*pst->nLower) {
-	sprintf(ach,"id: %d: nLowTot < NUM_SAFETY*pst->nLower "PRIu64" "PRIu64" %d %d\n",
+	sprintf(ach,"id: %d: nLowTot < NUM_SAFETY*pst->nLower %"PRIu64" %"PRIu64" %d %d\n",
 		pst->idSelf, nLowTot, nLowerStore, NUM_SAFETY, pst->nLower);
 	mdlDiag(pst->mdl,ach);
 	if (fm > pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd]) fm=pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd];
@@ -1138,7 +1138,7 @@ void _pstRootSplit(PST pst,int iSplitDim,int bDoRootFind,int bDoSplitDimFind,
 		}
 	    ++ittr;
 	    }
-	mdlprintf(pst->mdl, "id: %d (%d) Fix too few Low %d th guess reverse split: %f (%f,%f) (%f,%f) Low "PRIu64" High "PRIu64"\n",
+	mdlprintf(pst->mdl, "id: %d (%d) Fix too few Low %d th guess reverse split: %f (%f,%f) (%f,%f) Low %"PRIu64" High %"PRIu64"\n",
 		  pst->idSelf, pst->iLvl, ittr, fm, fl, fu, pst->bnd.fCenter[dBnd]-pst->bnd.fMax[dBnd], 
 		  pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd],nLowTot,nHighTot);
 	if(nLowTot != nLowerStore-NUM_SAFETY*pst->nLower) {
@@ -1150,7 +1150,7 @@ void _pstRootSplit(PST pst,int iSplitDim,int bDoRootFind,int bDoSplitDimFind,
 	mdlPrintTimer(pst->mdl,"TIME fix lower II _pstRootSplit ",&t);
 	}
     if (nHighTot < NUM_SAFETY*pst->nUpper) {
-	sprintf(ach,"id: %d: nHighTot > nUpperStore-NUM_SAFETY*pst->nUpper "PRIu64" "PRIu64" %d %d\n",
+	sprintf(ach,"id: %d: nHighTot > nUpperStore-NUM_SAFETY*pst->nUpper %"PRIu64" %"PRIu64" %d %d\n",
 		pst->idSelf, nHighTot, nUpperStore, NUM_SAFETY, pst->nUpper);
 	mdlDiag(pst->mdl,ach);
 	if (fm > pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd]) fm=pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd];
@@ -1207,7 +1207,7 @@ void _pstRootSplit(PST pst,int iSplitDim,int bDoRootFind,int bDoSplitDimFind,
 		}
 	    ++ittr;
 	}
-	mdlprintf(pst->mdl, "id: %d (%d) Fix Too few High %d th guess reverse split: %f (%f,%f) (%f,%f) Low "PRIu64" High "PRIu64"\n",
+	mdlprintf(pst->mdl, "id: %d (%d) Fix Too few High %d th guess reverse split: %f (%f,%f) (%f,%f) Low %"PRIu64" High %"PRIu64"\n",
 		  pst->idSelf, pst->iLvl, ittr, fm, fl, fu, pst->bnd.fCenter[dBnd]-pst->bnd.fMax[dBnd], 
 		  pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd],nLowTot,nHighTot);
 	if(nHighTot != nUpperStore-NUM_SAFETY*pst->nUpper) {
