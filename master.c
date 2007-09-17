@@ -9,6 +9,7 @@
 #include <unistd.h> /* for unlink() */
 #include <stddef.h>
 #include <string.h>
+#include <inttypes.h>
 #ifdef HAVE_MALLOC_H
 #include <malloc.h>
 #endif
@@ -742,7 +743,7 @@ void msrLogParams(MSR msr,FILE *fp)
 	    fprintf(fp,"%s",hostname);
 	}
 #endif
-	fprintf(fp,"\n# N: %lu",msr->N);
+	fprintf(fp,"\n# N: %"PRIu64,msr->N);
 	fprintf(fp," nThreads: %d",msr->param.nThreads);
 	fprintf(fp," bDiag: %d",msr->param.bDiag);
 	fprintf(fp," Verbosity flags: (%d,%d,%d,%d,%d)",msr->param.bVWarnings,
@@ -1262,7 +1263,7 @@ static double _msrReadHDF5(MSR msr, const char *achFilename)
 		       tTo,1.0/aTo-1.0,aTo);
 	    }
 	if (msr->param.bVStart)
-	    printf("Reading file...\nN:%lu nDark:%lu nGas:%lu nStar:%lu\n",msr->N,
+	    printf("Reading file...\nN:%"PRIu64" nDark:%"PRIu64" nGas:%"PRIu64" nStar:%"PRIu64"\n",msr->N,
 		   msr->nDark,msr->nGas,msr->nStar);
 	if (msr->param.bCannonical) {
 	    in.dvFac = dExpansion*dExpansion;
@@ -1277,7 +1278,7 @@ static double _msrReadHDF5(MSR msr, const char *achFilename)
 	tTo = dTime + (msr->param.nSteps - msr->param.iStartStep)*msr->param.dDelta;
 	if (msr->param.bVStart) {
 	    printf("Simulation to Time:%g\n",tTo);
-	    printf("Reading file...\nN:%lu nDark:%lu nGas:%lu nStar:%lu Time:%g\n",
+	    printf("Reading file...\nN:%"PRIu64" nDark:%"PRIu64" nGas:%"PRIu64" nStar:%"PRIu64" Time:%g\n",
 		   msr->N,msr->nDark,msr->nGas,msr->nStar,dTime);
 	    }
 	in.dvFac = 1.0;
@@ -1490,7 +1491,7 @@ static double _msrReadTipsy(MSR msr, const char *achFilename)
 		       tTo,1.0/aTo-1.0,aTo);
 	    }
 	if (msr->param.bVStart)
-	    printf("Reading file...\nN:%lu nDark:%lu nGas:%lu nStar:%lu\n",msr->N,
+	    printf("Reading file...\nN:%"PRIu64" nDark:%"PRIu64" nGas:%"PRIu64" nStar:%"PRIu64"\n",msr->N,
 		   msr->nDark,msr->nGas,msr->nStar);
 	if (msr->param.bCannonical) {
 	    in.dvFac = dExpansion*dExpansion;
@@ -1505,7 +1506,7 @@ static double _msrReadTipsy(MSR msr, const char *achFilename)
 	tTo = dTime + (msr->param.nSteps - msr->param.iStartStep)*msr->param.dDelta;
 	if (msr->param.bVStart) {
 	    printf("Simulation to Time:%g\n",tTo);
-	    printf("Reading file...\nN:%lu nDark:%lu nGas:%lu nStar:%lu Time:%g\n",
+	    printf("Reading file...\nN:%"PRIu64" nDark:%"PRIu64" nGas:%"PRIu64" nStar:%"PRIu64" Time:%g\n",
 		   msr->N,msr->nDark,msr->nGas,msr->nStar,dTime);
 	    }
 	in.dvFac = 1.0;
@@ -2009,7 +2010,7 @@ void msrDomainDecomp(MSR msr,int iRung,int bGreater,int bSplitVA) {
 
     if (msr->nActive < msr->N*msr->param.dFracNoDomainDecomp) {
 	if (msr->bDoneDomainDecomp && msr->iLastRungDD >= iRungDD) {
-	    if (msr->param.bVRungStat) printf("Skipping Root Finder (nActive = %lu/%lu, iRung %d/%d/%d)\n",msr->nActive,msr->N,iRung,iRungDD,msr->iLastRungDD);
+	    if (msr->param.bVRungStat) printf("Skipping Root Finder (nActive = %"PRIu64"/%"PRIu64", iRung %d/%d/%d)\n",msr->nActive,msr->N,iRung,iRungDD,msr->iLastRungDD);
 	    in.bDoRootFind = 0;
 	    in.bDoSplitDimFind = 0;
 	    }
@@ -2017,13 +2018,13 @@ void msrDomainDecomp(MSR msr,int iRung,int bGreater,int bSplitVA) {
     else iRungDD = iRung;
 
     if (msr->bDoneDomainDecomp && msr->iLastRungDD == iRungDD) {
-	    if (msr->param.bVRungStat) printf("Skipping Root Finder (nActive = %lu/%lu, iRung %d/%d/%d)\n",msr->nActive,msr->N,iRung,iRungDD,msr->iLastRungDD);
+	    if (msr->param.bVRungStat) printf("Skipping Root Finder (nActive = %"PRIu64"/%"PRIu64", iRung %d/%d/%d)\n",msr->nActive,msr->N,iRung,iRungDD,msr->iLastRungDD);
 	    in.bDoRootFind = 0;
 	    in.bDoSplitDimFind = 0;
 	    }
 	
     if (in.bDoRootFind && msr->bDoneDomainDecomp && iRungDD > iRungSD && msr->iLastRungSD >= iRungSD) {
-	if (msr->param.bVRungStat) printf("Skipping Split Dim Finding (nActive = %lu/%lu, iRung %d/%d/%d/%d)\n",msr->nActive,msr->N,iRung,iRungDD,iRungSD,msr->iLastRungSD);
+	if (msr->param.bVRungStat) printf("Skipping Split Dim Finding (nActive = %"PRIu64"/%"PRIu64", iRung %d/%d/%d/%d)\n",msr->nActive,msr->N,iRung,iRungDD,iRungSD,msr->iLastRungSD);
 	in.bDoSplitDimFind = 0;
 	}
 
@@ -2048,7 +2049,7 @@ void msrDomainDecomp(MSR msr,int iRung,int bGreater,int bSplitVA) {
     MPItrace_event(10000, 0 );
 #endif
     if (msr->param.bVDetails) {
-	printf("Domain Decomposition: nActive (Rung %d) %lu\n",iRungDD,msr->nActive);
+	printf("Domain Decomposition: nActive (Rung %d) %"PRIu64"\n",iRungDD,msr->nActive);
 	printf("Domain Decomposition... \n");
 	sec = msrTime();
 	}
@@ -2218,7 +2219,7 @@ void msrOutArray(MSR msr,char *pszFile,int iType)
     /*
     ** Write the Header information and close the file again.
     */
-    fprintf(fp,"%lu\n",msr->N);
+    fprintf(fp,"%"PRIu64"\n",msr->N);
     fclose(fp);
     /* 
      * First write our own particles.
@@ -2288,7 +2289,7 @@ void msrOutVector(MSR msr,char *pszFile,int iType)
     /*
     ** Write the Header information and close the file again.
     */
-    fprintf(fp,"%lu\n",msr->N);
+    fprintf(fp,"%"PRIu64"\n",msr->N);
     fclose(fp);
 
     /* 
@@ -3108,7 +3109,7 @@ int msrDtToRung(MSR msr, int iRung, double dDelta, int bAll) {
     iOutMaxRung = iTempRung;
 
     while (out.nRungCount[iOutMaxRung] <= msr->param.nTruncateRung && iOutMaxRung > iRung) {
-	if (msr->param.bVDetails) printf("n_CurrMaxRung = %lu  (iCurrMaxRung = %d):  Promoting particles to iCurrMaxrung = %d\n",
+	if (msr->param.bVDetails) printf("n_CurrMaxRung = %"PRIu64"  (iCurrMaxRung = %d):  Promoting particles to iCurrMaxrung = %d\n",
 					 out.nRungCount[iOutMaxRung],iOutMaxRung,iOutMaxRung-1);
 
 	in.iMaxRung = iOutMaxRung; /* Note this is the forbidden rung so no -1 here */
@@ -3146,7 +3147,7 @@ int msrDtToRung(MSR msr, int iRung, double dDelta, int bAll) {
 	    if (out.nRungCount[iTempRung] == 0) continue;
 	    if (iTempRung > iRungVeryActive) c = 'v';
 	    else c = ' ';
-	    printf(" %c rung:%d %lu\n",c,iTempRung,out.nRungCount[iTempRung]);
+	    printf(" %c rung:%d %"PRIu64"\n",c,iTempRung,out.nRungCount[iTempRung]);
 	    }
 	printf("\n");
 	}
@@ -3866,7 +3867,7 @@ msrAddDelParticles(MSR msr)
     pstNewOrder(msr->pst,pNewOrder,(int)sizeof(*pNewOrder)*msr->nThreads,NULL,NULL);
 
     if (msr->param.bVDetails)
-	printf("New numbers of particles: %lu gas %lu dark %lu star\n",
+	printf("New numbers of particles: %"PRIu64" gas %"PRIu64" dark %"PRIu64" star\n",
 	       msr->nGas, msr->nDark, msr->nStar);
 
     in.nGas = msr->nGas;

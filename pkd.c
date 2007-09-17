@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stddef.h>
+#include <inttypes.h>
 #ifdef HAVE_MALLOC_H
 #include <malloc.h>
 #endif
@@ -418,7 +419,7 @@ void pkdReadTipsy(PKD pkd,char *pszFileName, char *achOutName,uint64_t nStart,in
 	    goto SkipCheck;
 	    }
 	while (1) {
-	    iRet = fscanf(fpTrack,"%lu",&iTracker);
+	    iRet = fscanf(fpTrack,"%"PRIu64,&iTracker);
 	    iTracker = iTracker - 1;
 	    if (!iRet || iRet == EOF) {
 		fclose(fpTrack);
@@ -441,7 +442,7 @@ SkipCheck:
 	    p->iOrder = nStart + i;
 	    if (p->iOrder == iTracker) {
 		TYPESet(p,TYPE_TRACKER);
-		iRet = fscanf(fpTrack,"%lu",&iTracker);
+		iRet = fscanf(fpTrack,"%"PRIu64,&iTracker);
 		iTracker = iTracker-1;
 		if (!iRet || iRet == EOF) {
 		    fclose(fpTrack);
@@ -552,7 +553,7 @@ SkipCheck:
 	    p->iOrder = nStart + i;
 	    if (p->iOrder == iTracker) {
 		TYPESet(p,TYPE_TRACKER);
-		iRet = fscanf(fpTrack,"%lu",&iTracker);
+		iRet = fscanf(fpTrack,"%"PRIu64,&iTracker);
 		iTracker = iTracker -1;
 		if (!iRet || iRet == EOF) {
 		    fclose(fpTrack);
@@ -2500,7 +2501,7 @@ int pkdDtToRung(PKD pkd,int iRung,double dDelta,int iMaxRung,int bAll,int *nRung
 		    }
 		if(iTempRung >= iMaxRung) {
 		    iTempRung = iMaxRung-1;
-		    printf("Maximum Rung %d overshot for particle %lu!\n",iMaxRung-1,pkd->pStore[i].iOrder);
+		    printf("Maximum Rung %d overshot for particle %"PRIu64"!\n",iMaxRung-1,pkd->pStore[i].iOrder);
 		    }
 		pkd->pStore[i].iRung = iTempRung;
 		}

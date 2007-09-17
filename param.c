@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <inttypes.h>
 #ifdef HAVE_MALLOC_H
 #include <malloc.h>
 #endif
@@ -192,7 +193,7 @@ int prmParseParam(PRM prm,char *pszFile)
 			break;
 		case 4:
 			assert(pn->iSize == sizeof(uint64_t));
-			ret = sscanf(p,"%lu",(uint64_t *)pn->pValue);
+			ret = sscanf(p,"%"PRIu64,(uint64_t *)pn->pValue);
 			if (ret != 1) goto syntax_error;
 			break;
 		default:
@@ -355,7 +356,7 @@ int prmArgProc(PRM prm,int argc,char **argv)
 				prmArgUsage(prm);
 				return(0);
 				}
-			ret = sscanf(argv[i],"%lu",(uint64_t *) pn->pValue);
+			ret = sscanf(argv[i],"%"PRIu64,(uint64_t *) pn->pValue);
 			if (ret != 1) {
 				printf("Expected integer after command line ");
 			    printf("argument:%s\n",argv[i-1]);

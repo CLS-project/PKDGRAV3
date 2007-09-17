@@ -6,6 +6,7 @@
 #include <getopt.h>
 #include <assert.h>
 #include <rpc/xdr.h>
+#include <inttypes.h>
 #include "iohdf5.h"
 
 #define BUFFER_SIZE (8*1024*1024)
@@ -98,7 +99,7 @@ int main( int argc, char *argv[] )
     nPad  = 0;
     nBodies = nGas + nDark + nStar;
 
-    printf( "%lu dark, %lu gas, %lu star, %lu total\n",
+    printf( "%"PRIu64" dark, %"PRIu64" gas, %"PRIu64" star, %"PRIu64" total\n",
 	    nDark, nGas, nStar, nBodies );
 
     /* Tipsy Header */

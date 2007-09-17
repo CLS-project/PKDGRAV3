@@ -12,6 +12,7 @@
 #include "png.h"
 #endif
 #include <math.h>
+#include <inttypes.h>
 
 #include "iohdf5.h"
 #include "pst.h"
@@ -135,7 +136,7 @@ void ioStartSave(IO io,void *vin,int nIn,void *vout,int *pnOut)
     recv.bCheckpoint = save->bCheckpoint;
     iCount = save->N / mdlIO(io->mdl);
 
-    printf( "Starting to save %lu particles (~%lu per I/O node)\n",
+    printf( "Starting to save %"PRIu64" particles (~%"PRIu64" per I/O node)\n",
 	    save->N, iCount );
 
     for( id=1; id<mdlIO(io->mdl); id++ ) {
