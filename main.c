@@ -310,38 +310,34 @@ int main(int argc,char **argv) {
 		}
 		nFOFsDone = 0;
 		while( msr->param.nFindGroups > nFOFsDone) {
-		    /*
-		    ** Build tree, activating all particles first (just in case).
-		    */	
-		    msrActiveRung(msr,0,1); /* Activate all particles */
-		    msrDomainDecomp(msr,0,1,0);
-		    msrBuildTree(msr,dMass,dTime);
-		    msrFof(msr,nFOFsDone,SMX_FOF,0,TYPE_ALL);
-		    msrGroupMerge(msr);
-		    if(msr->param.nBins > 0) msrGroupProfiles(msr,nFOFsDone,SMX_FOF,0,TYPE_ALL);
-		    msrReorder(msr);
+		  /*
+		  ** Build tree, activating all particles first (just in case).
+		  */	
+		  msrActiveRung(msr,0,1); /* Activate all particles */
+		  msrDomainDecomp(msr,0,1,0);
+		  msrBuildTree(msr,dMass,dTime);
+		  msrFof(msr,nFOFsDone,SMX_FOF,0,TYPE_ALL,csmTime2Exp(msr->param.csm,dTime));
+		  msrGroupMerge(msr,csmTime2Exp(msr->param.csm,dTime));
+		  if(msr->param.nBins > 0) msrGroupProfiles(msr,nFOFsDone,SMX_FOF,0,TYPE_ALL,csmTime2Exp(msr->param.csm,dTime));
+		  msrReorder(msr);
+		  msrBuildName(msr,achFile,iStep);
+		  for(i=0;i<=nFOFsDone;++i)strncat(achFile,".fof",256);
+		  /* msrOutArray(msr,achFile,OUT_GROUP_ARRAY); */
+		  msrBuildName(msr,achFile,iStep);
+		  for(i=0;i<=nFOFsDone;++i)strncat(achFile,".stats",256);
+		  msrOutGroups(msr,achFile,OUT_GROUP_STATS,dTime);
+		  if( msr->nBins > 0){
 		    msrBuildName(msr,achFile,iStep);
-		    //sprintf(achFile,achBaseMask,msrOutName(msr),iStep);
-		    for(i=0;i<=nFOFsDone;++i)strncat(achFile,".fof",256);
-		    msrOutArray(msr,achFile,OUT_GROUP_ARRAY);
-		    msrBuildName(msr,achFile,iStep);
-		    //sprintf(achFile,achBaseMask,msrOutName(msr),iStep);
-		    for(i=0;i<=nFOFsDone;++i)strncat(achFile,".stats",256);
-		    msrOutGroups(msr,achFile,OUT_GROUP_STATS,dTime);
-		    if( msr->nBins > 0){
-			msrBuildName(msr,achFile,iStep);
-			//sprintf(achFile,achBaseMask,msrOutName(msr),iStep);
-			for(i=0;i<=nFOFsDone;++i)strncat(achFile,".pros",256);
-			msrOutGroups(msr,achFile,OUT_GROUP_PROFILES,dTime);
-			}
-		    msrBuildName(msr,achFile,iStep);
-		    //sprintf(achFile,achBaseMask,msrOutName(msr),iStep);
-		    for(i=0;i<=nFOFsDone;++i)strncat(achFile,".grps",256);
-		    if(	msr->param.bStandard) msrOutGroups(msr,achFile,OUT_GROUP_TIPSY_STD,dTime);
-		    else msrOutGroups(msr,achFile,OUT_GROUP_TIPSY_NAT,dTime);			  
-		    nFOFsDone++;
+		    for(i=0;i<=nFOFsDone;++i)strncat(achFile,".pros",256);
+		    msrOutGroups(msr,achFile,OUT_GROUP_PROFILES,dTime);
+		  }
+		  msrBuildName(msr,achFile,iStep);
+		  for(i=0;i<=nFOFsDone;++i)strncat(achFile,".grps",256);
+		  if(	msr->param.bStandard) msrOutGroups(msr,achFile,OUT_GROUP_TIPSY_STD,dTime);
+		  else msrOutGroups(msr,achFile,OUT_GROUP_TIPSY_NAT,dTime);			  
+		  nFOFsDone++;
 		}
-		if (msr->param.nFindGroups > 0) msrDeleteGroups(msr);
+		msrDeleteGroups(msr);
 #ifdef RELAXATION	
 		if ( msr->param.bTraceRelaxation) {
 		    msrReorder(msr);
@@ -354,9 +350,9 @@ int main(int argc,char **argv) {
 		if (msrDoDensity(msr)) {
 		    msrReorder(msr);
 		    msrBuildName(msr,achFile,iStep);
-		    //sprintf(achFile,achBaseMask,msrOutName(msr),iStep);
+		    // sprintf(achFile,achBaseMask,msrOutName(msr),iStep);
 		    strncat(achFile,".den",256);
-		    msrOutArray(msr,achFile,OUT_DENSITY_ARRAY);
+		    // msrOutArray(msr,achFile,OUT_DENSITY_ARRAY);
 		    }
 		if (msr->param.bDoRungOutput) {
 		    msrReorder(msr);
@@ -444,40 +440,42 @@ int main(int argc,char **argv) {
 	    msrSmooth(msr,dTime,SMX_DENSITY,bGasOnly,bSymmetric,TYPE_ALL);
 	    msrReorder(msr);
 	    sprintf(achFile,"%s.den",msrOutName(msr));
-	    msrOutArray(msr,achFile,OUT_DENSITY_ARRAY);
+	    //msrOutArray(msr,achFile,OUT_DENSITY_ARRAY);
 	    } 
 	nFOFsDone = 0;
 	while ( msr ->param.nFindGroups > nFOFsDone) {
-	    /*
-	    ** Build tree, activating all particles first (just in case).
-	    */
-	    msrActiveRung(msr,0,1); /* Activate all particles */
-
-	    msrDomainDecomp(msr,0,1,0);
-	    msrBuildTree(msr,dMass,dTime);
-	    msrFof(msr,nFOFsDone,SMX_FOF,0,TYPE_ALL);
-	    msrGroupMerge(msr);
-	    if(msr->param.nBins > 0) msrGroupProfiles(msr,nFOFsDone,SMX_FOF,0,TYPE_ALL);
-	    msrReorder(msr);
-	    sprintf(achFile,"%s.%i.fof",msrOutName(msr),nFOFsDone);
-	    msrOutArray(msr,achFile,OUT_GROUP_ARRAY);
-	    sprintf(achFile,"%s.%i.stats",msrOutName(msr),nFOFsDone);
-	    msrOutGroups(msr,achFile,OUT_GROUP_STATS,dTime);			
-	    sprintf(achFile,"%s.%i.grps",msrOutName(msr),nFOFsDone);
-	    if(	msr->param.bStandard) msrOutGroups(msr,achFile,OUT_GROUP_TIPSY_STD,dTime);
-	    else msrOutGroups(msr,achFile,OUT_GROUP_TIPSY_NAT,dTime);
-	    if( msr->nBins > 0){
-		sprintf(achFile,"%s.%i.pros",msrOutName(msr),nFOFsDone);
-		msrOutGroups(msr,achFile,OUT_GROUP_PROFILES,dTime);
-		}			
-	    nFOFsDone++;	
-	    }	
-	if (msr->param.nFindGroups > 0) msrDeleteGroups(msr);
+	  /*
+	  ** Build tree, activating all particles first (just in case).
+	  */
+	  msrActiveRung(msr,0,1); /* Activate all particles */
+	  msrDomainDecomp(msr,0,1,0);
+	  msrBuildTree(msr,dMass,dTime);
+	  msrFof(msr,nFOFsDone,SMX_FOF,0,TYPE_ALL,csmTime2Exp(msr->param.csm,dTime));
+	  msrGroupMerge(msr,csmTime2Exp(msr->param.csm,dTime));
+	  if(msr->param.nBins > 0) msrGroupProfiles(msr,nFOFsDone,SMX_FOF,0,TYPE_ALL,csmTime2Exp(msr->param.csm,dTime));
+	  msrReorder(msr);
+	  sprintf(achFile,"%s.%i.fof",msrOutName(msr),nFOFsDone);
+	  /* msrOutArray(msr,achFile,OUT_GROUP_ARRAY); */ 
+	  sprintf(achFile,"%s.stats",msrOutName(msr));
+	  msrOutGroups(msr,achFile,OUT_GROUP_STATS,dTime);			
+	  sprintf(achFile,"%s.grps",msrOutName(msr));
+	  if(	msr->param.bStandard) msrOutGroups(msr,achFile,OUT_GROUP_TIPSY_STD,dTime);
+	  else msrOutGroups(msr,achFile,OUT_GROUP_TIPSY_NAT,dTime);
+	  if( msr->nBins > 0){
+	    sprintf(achFile,"%s.%i.pros",msrOutName(msr),nFOFsDone);
+	    msrOutGroups(msr,achFile,OUT_GROUP_PROFILES,dTime);
+	  }			
+	  nFOFsDone++;	
+	}	
+	msrDeleteGroups(msr);
+	msrFinish(msr);
+	mdlFinish(mdl);
+	return 0;	    
 	if (msrDoDensity(msr)) {
-	    msrReorder(msr);
-	    sprintf(achFile,"%s.den",msrOutName(msr));
-	    msrOutArray(msr,achFile,OUT_DENSITY_ARRAY);
-	    }
+	  msrReorder(msr);
+	  sprintf(achFile,"%s.den",msrOutName(msr));
+	  msrOutArray(msr,achFile,OUT_DENSITY_ARRAY);
+	}
 	if (msrDoGravity(msr)) {
 	    if (msr->param.bGravStep) {
 		fprintf(stderr,"Adding GravStep dt\n");

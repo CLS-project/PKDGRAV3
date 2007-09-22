@@ -16,6 +16,7 @@ typedef struct smfParameters {
         double dSunMass;
 #endif
 	double dTau2;
+	double dVTau2;
 	int bTauAbs;
 	int nMinMembers;
 	int nMinProfile;

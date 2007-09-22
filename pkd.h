@@ -447,6 +447,8 @@ typedef struct groupData{
     FLOAT r[3];
     FLOAT potmin;
     FLOAT rpotmin[3];
+    FLOAT denmax;
+    FLOAT rdenmax[3];
     FLOAT rmax[3];
     FLOAT rmin[3];
     FLOAT v[3];

@@ -120,6 +120,7 @@ struct parameters {
     int	nFindGroups;	
     int	nMinMembers;	
     double dTau;
+    double dVTau;
     int bTauAbs;
     int	nBins;	
     int	bUsePotmin;	

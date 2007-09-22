@@ -198,9 +198,9 @@ uint64_t msrMaxOrder(MSR msr);
 
 void msrInitTimeSteps(MSR,double,double);
 
-void msrFof(MSR msr,int nFOFsDone,int iSmoothType,int bSymmetric,int eParticleTypes);
-void msrGroupMerge(MSR msr);
-void msrGroupProfiles(MSR msr,int nFOFsDone,int iSmoothType,int bSymmetric,int eParticleTypes);
+void msrFof(MSR msr,int nFOFsDone,int iSmoothType,int bSymmetric,int eParticleTypes, double exp);
+void msrGroupMerge(MSR msr,double exp);
+void msrGroupProfiles(MSR msr,int nFOFsDone,int iSmoothType,int bSymmetric,int eParticleTypes, double exp);
 void msrOutGroups(MSR msr,char *,int,double dTime);
 void msrDeleteGroups(MSR msr);
 #ifdef RELAXATION

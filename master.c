@@ -415,9 +415,12 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv)
     msr->param.nMinMembers = 16;
     prmAddParam(msr->prm,"nMinMembers",1,&msr->param.nMinMembers,sizeof(int),
 		"nMinMembers","<minimum number of group members> = 16");
-    msr->param.dTau = 0.164;
+    msr->param.dTau = 0.164;      
     prmAddParam(msr->prm,"dTau",2,&msr->param.dTau,sizeof(double),"dTau",
-		"<linking lenght for first FOF in units of mean particle separation> = 0.164");
+                "<linking lenght for first FOF in units of mean particle separation> = 0.164");
+    msr->param.dVTau = 1.0e10;
+    prmAddParam(msr->prm,"dVTau",2,&msr->param.dVTau,sizeof(double),"dVTau",
+		"<velocity space linking lenght for phase-space FOF, set to HUGE for plain FOF> = 1.0e10");
     msr->param.bTauAbs = 0;
     prmAddParam(msr->prm,"bTauAbs",0,&msr->param.bTauAbs,sizeof(int),"bTauAbs",
 		"<if 1 use simulation units for dTau, not mean particle separation> = 0");
@@ -810,6 +813,7 @@ void msrLogParams(MSR msr,FILE *fp)
 	fprintf(fp," dGrowEndT: %g",msr->param.dGrowEndT);
 	fprintf(fp,"\n# Group Find: nFindGroups: %d",msr->param.nFindGroups);
 	fprintf(fp," dTau: %g",msr->param.dTau);
+	fprintf(fp," dVTau: %g",msr->param.dVTau);
 	fprintf(fp," bTauAbs: %d",msr->param.bTauAbs);
 	fprintf(fp," nMinMembers: %d",msr->param.nMinMembers);	
 	fprintf(fp," nBins: %d",msr->param.nBins);
@@ -3925,7 +3929,7 @@ void msrInitTimeSteps(MSR msr,double dTime,double dDelta)
     }
 
 
-void msrFof(MSR msr,int nFOFsDone,int iSmoothType,int bSymmetric,int eParticleTypes)
+void msrFof(MSR msr,int nFOFsDone,int iSmoothType,int bSymmetric,int eParticleTypes, double exp)
     {
     struct inFof in;
     in.nFOFsDone = nFOFsDone;
@@ -3934,14 +3938,22 @@ void msrFof(MSR msr,int nFOFsDone,int iSmoothType,int bSymmetric,int eParticleTy
     in.bSymmetric = bSymmetric;
     in.iSmoothType = iSmoothType;
     in.eParticleTypes = eParticleTypes;
-    in.smf.dTau2 = msr->param.dTau * msr->param.dTau;
-    if(msr->param.bTauAbs==0) in.smf.dTau2 *= pow(msr->param.csm->dOmega0,-0.6666);
+    in.smf.a = exp;
+    in.smf.dTau2 = pow(msr->param.dTau,2.0);
+    in.smf.dVTau2 = pow(msr->param.dVTau,2.0);
+    if(msr->param.bTauAbs == 0) {
+      in.smf.dTau2 *= pow(msr->param.csm->dOmega0,-0.6666);
+    } else {
+      in.smf.dTau2 /= exp*exp;
+      in.smf.dVTau2 *= exp*exp;
+    }
     in.smf.bTauAbs = msr->param.bTauAbs;
     in.smf.nMinMembers = msr->param.nMinMembers;
     in.smf.fContrast = msr->param.fContrast;
+    in.smf.Delta = msr->param.Delta;
     if (msr->param.bVStep) {
 	double sec,dsec;
-	printf("Doing FOF...\n");
+	printf("Doing FOF with dTau2=%e , dVTau=%e ...\n", in.smf.dTau2, in.smf.dVTau2);
 	sec = msrTime();
 	pstFof(msr->pst,&in,sizeof(in),NULL,NULL);
 	dsec = msrTime() - sec;
@@ -3952,12 +3964,14 @@ void msrFof(MSR msr,int nFOFsDone,int iSmoothType,int bSymmetric,int eParticleTy
 	}
     }
 
-void msrGroupMerge(MSR msr)
+void msrGroupMerge(MSR msr, double exp)
     {
     struct inGroupMerge in;
     int nGroups;
     in.bPeriodic = msr->param.bPeriodic;
     in.smf.nMinMembers = msr->param.nMinMembers;
+    in.smf.Delta = msr->param.Delta;
+    in.smf.a = exp;
     if (msr->param.bVStep) {
 	double sec,dsec;
 	printf("Doing GroupMerge...\n");
@@ -3973,7 +3987,7 @@ void msrGroupMerge(MSR msr)
     printf("MASTER: TOTAL groups: %i \n" ,nGroups);
     }
 
-void msrGroupProfiles(MSR msr,int nFOFsDone,int iSmoothType,int bSymmetric,int eParticleTypes)
+void msrGroupProfiles(MSR msr,int nFOFsDone,int iSmoothType,int bSymmetric,int eParticleTypes, double exp)
     {
     int nBins;
     struct inGroupProfiles in;
@@ -3991,6 +4005,7 @@ void msrGroupProfiles(MSR msr,int nFOFsDone,int iSmoothType,int bSymmetric,int e
     in.smf.bUsePotmin = msr->param.bUsePotmin;
     in.smf.Delta = msr->param.Delta;
     in.smf.binFactor = msr->param.binFactor;
+    in.smf.a = exp;
     if (msr->param.bVStep) {
 	double sec,dsec;
 	printf("Doing GroupProfiles...\n");
