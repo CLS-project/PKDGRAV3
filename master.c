@@ -1562,13 +1562,29 @@ static double _msrReadTipsy(MSR msr, const char *achFilename)
 #ifdef USE_MDL_IO
 void msrIOWrite(MSR msr, const char *achOutName, double dTime, int bCheckpoint)
 {
+    double dExp, dvFac;
+
     struct inStartIO inStart;
     struct inStartSave save;
 
     printf( "msrIOWrite: invoking I/O master\n" );
 
+    if (msr->param.csm->bComove) {
+	dExp = csmTime2Exp(msr->param.csm,dTime);
+	if (msr->param.bCannonical) {
+	    dvFac = 1.0/(dExp*dExp);
+	    }
+	else {
+	    dvFac = 1.0;
+	    }
+	}
+    else {
+	dExp = dTime;
+	dvFac = 1.0;
+	}
+
     /* Ask the I/O processors to start a save operation */
-    save.dTime       = dTime;
+    save.dTime       = dExp;
     save.N           = msr->N;                                         /* Total */
     save.bCheckpoint = bCheckpoint;
     save.dEcosmo     = msr->dEcosmo;
@@ -1585,19 +1601,9 @@ void msrIOWrite(MSR msr, const char *achOutName, double dTime, int bCheckpoint)
 
     /* Execute a save operation on the worker processors */
 
-    if (msr->param.csm->bComove) {
-	inStart.dTime = csmTime2Exp(msr->param.csm,dTime);
-	if (msr->param.bCannonical) {
-	    inStart.dvFac = 1.0/(inStart.dTime*inStart.dTime);
-	    }
-	else {
-	    inStart.dvFac = 1.0;
-	    }
-	}
-    else {
-	inStart.dTime = dTime;
-	inStart.dvFac = 1.0;
-	}
+
+    inStart.dTime = dExp;
+    inStart.dvFac = dvFac;
     inStart.bDoublePos = msr->param.bDoublePos;
     inStart.N = msr->N;                                                /* Total */
     strcpy(inStart.achOutName,achOutName);
