@@ -8,7 +8,7 @@
 
 #include "png.h"
 
-void wrbb( int *cmap, gdImagePtr im ) {
+static void wrbb( int *cmap, gdImagePtr im ) {
     double slope, offset;
     int i;
 
