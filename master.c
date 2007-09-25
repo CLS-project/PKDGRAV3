@@ -2027,7 +2027,7 @@ void msrDomainDecomp(MSR msr,int iRung,int bGreater,int bSplitVA) {
 	}
     else iRungDD = iRung;
 
-    if (msr->bDoneDomainDecomp && msr->iLastRungDD == iRungDD) {
+    if (msr->bDoneDomainDecomp && msr->iLastRungDD == iRungDD && msr->iLastRungDD > 0) {
 	    if (msr->param.bVRungStat) printf("Skipping Root Finder (nActive = %"PRIu64"/%"PRIu64", iRung %d/%d/%d)\n",msr->nActive,msr->N,iRung,iRungDD,msr->iLastRungDD);
 	    in.bDoRootFind = 0;
 	    in.bDoSplitDimFind = 0;
