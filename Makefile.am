@@ -68,10 +68,15 @@ endif
 
 
 if HAVE_MPI
+pkdgrav2m_mpi_LDADD =
 pkdgrav2m_mpi_SOURCES = $(SOURCES) $(MDL)/mpi/mdl.c
 pkdgrav2m_mpi_CFLAGS = -I$(MDL)/mpi/ $(AM_CFLAGS)
+if USE_BSC
+pkdgrav2m_mpi_LDADD += -L/gpfs/apps/CEPBATOOLS/mpitrace-devel/64/lib -ldl -lmpitrace_burst
+pkdgrav2m_mpi_CFLAGS += -I/gpfs/apps/CEPBATOOLS/mpitrace-devel/64/include
+endif
 if USE_PNG
-pkdgrav2m_mpi_LDADD = -lgd -lpng
+pkdgrav2m_mpi_LDADD += -lgd -lpng
 endif
 endif
 

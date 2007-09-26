@@ -33,7 +33,7 @@
 #endif
 #include "ssio.h"
 
-#ifdef BSC
+#ifdef USE_BSC
 #include "mpitrace_user_events.h"
 #endif
 
@@ -2055,7 +2055,7 @@ void msrDomainDecomp(MSR msr,int iRung,int bGreater,int bSplitVA) {
 	pstRungDDWeight(msr->pst,&inRDD,sizeof(struct inRungDDWeight),NULL,NULL);
 	}
 
-#ifdef BSC
+#ifdef USE_BSC
     MPItrace_event(10000, 2 );
 #endif
     if (msr->param.bVDetails) {
@@ -2071,7 +2071,7 @@ void msrDomainDecomp(MSR msr,int iRung,int bGreater,int bSplitVA) {
     pstDomainDecomp(msr->pst,&in,sizeof(in),NULL,NULL);
     msr->bDoneDomainDecomp = 1; 
 
-#ifdef BSC
+#ifdef USE_BSC
     MPItrace_event(10000, 0 );
 #endif
     if (msr->param.bVDetails) {

@@ -84,6 +84,14 @@ AC_ARG_WITH(gd,
    fi
 ])
 
+# Enable BSC Tracing
+AC_ARG_ENABLE(bsc-trace,
+  [  --enable-bsc-trace             enable tracing at BSC],
+  [USE_BSC=yes
+   AC_DEFINE([USE_BSC], 1,
+ 	[Define if BSC tracing should be used.])])
+AM_CONDITIONAL(USE_BSC, test "x$USE_BSC" = "xyes")
+
 # Enable SIMD version (SSE,Altivec)
 AC_ARG_ENABLE(simd,
   [  --enable-simd                  enable SIMD optimizations],

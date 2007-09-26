@@ -35,7 +35,7 @@
 #include "iohdf5.h"
 #endif
 
-#ifdef BSC
+#ifdef USE_BSC
 #include "mpitrace_user_events.h"
 #endif
 
@@ -1485,7 +1485,7 @@ pkdGravAll(PKD pkd,double dTime,int nReps,int bPeriodic,int iOrder,int bEwald,
 
     pkdClearTimer(pkd,1);
 
-#ifdef BSC
+#ifdef USE_BSC
     MPItrace_event(10000,3);
 #endif
 
@@ -1510,7 +1510,7 @@ pkdGravAll(PKD pkd,double dTime,int nReps,int bPeriodic,int iOrder,int bEwald,
     *nActive = pkdGravWalk(pkd,dTime,nReps,bPeriodic && bEwald,bEwaldKick,bVeryActive,fEwCut,pdFlop,pdPartSum,pdCellSum);
     pkdStopTimer(pkd,1);
 
-#ifdef BSC
+#ifdef USE_BSC
     /*MPItrace_event(10001, (int)(pkdGetWallClockTimer(pkd,1)*1000000) );*/
     /*MPItrace_event(10001, (int)(pkd->nActive/(pkd->nLocal/100)) );*/
     MPItrace_event(10000, 0 );
@@ -1580,7 +1580,7 @@ pkdDrift(PKD pkd,double dTime,double dDelta,FLOAT fCenter[3],int bPeriodic,int b
 	dDeltaM = 0;
 	}
 
-#ifdef BSC
+#ifdef USE_BSC
     MPItrace_event(10000,4);
 #endif
     
@@ -1624,7 +1624,7 @@ pkdDrift(PKD pkd,double dTime,double dDelta,FLOAT fCenter[3],int bPeriodic,int b
 	    }
 	}
 
-#ifdef BSC
+#ifdef USE_BSC
     MPItrace_event(10000,0);
 #endif
     mdlDiag(pkd->mdl, "Out of pkdDrift\n");

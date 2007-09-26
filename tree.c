@@ -15,7 +15,7 @@
 #include "floattype.h"
 #endif
 
-#ifdef BSC
+#ifdef USE_BSC
 #include "mpitrace_user_events.h"
 #endif
 #include <sys/time.h>
@@ -719,7 +719,7 @@ void pkdTreeBuild(PKD pkd,int nBucket,FLOAT diCrit2,KDN *pkdn,int bSqueeze,int b
 	mdlFinishCache(pkd->mdl,CID_CELL);
 	}
 
-#ifdef BSC
+#ifdef USE_BSC
     MPItrace_event(10000, 1 );
 #endif
 
@@ -748,7 +748,7 @@ void pkdTreeBuild(PKD pkd,int nBucket,FLOAT diCrit2,KDN *pkdn,int bSqueeze,int b
     pkdStartTimer(pkd,0);
     Create(pkd,ROOT,diCrit2,dTimeStamp,bSqueeze);
     pkdStopTimer(pkd,0);
-#ifdef BSC
+#ifdef USE_BSC
     MPItrace_event(10000, 0 );
 #endif
 
