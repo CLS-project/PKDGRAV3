@@ -49,6 +49,7 @@ typedef struct CheckStack {
 
 #define WALK_MINMULTIPOLE	3
 
+
 #ifdef TIME_WALK_WORK
 typedef struct {
     double fTimer;
@@ -147,6 +148,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bEwaldKick,
 #ifdef TIME_WALK_WORK
     TIMER tv;
 #else
+    double tempM;
     double tempI;
 #endif
     double dSyncDelta;
@@ -298,6 +300,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bEwaldKick,
 	    clearTimer(&tv);
 #else
 	    tempI = *pdFlop;
+	    tempM = 0.001*(pkd->mdl->cache[CID_PARTICLE].nMiss + pkd->mdl->cache[CID_CELL].nMiss);
 #endif
 	    ii = 0;
 
@@ -838,6 +841,8 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bEwaldKick,
 					      c[iCell+1].r[2] - zParent);
 #ifdef TIME_WALK_WORK
 		    S[iStack].fWeight = getTimer(&tv);
+#elif defined(COUNT_MISSES)
+		    S[iStack].fWeight = 0.001*(pkd->mdl->cache[CID_PARTICLE].nMiss + pkd->mdl->cache[CID_CELL].nMiss) - tempM;
 #else
 		    S[iStack].fWeight = (*pdFlop-tempI) + dShiftFlop;
 #endif
@@ -923,14 +928,19 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bEwaldKick,
 
 #ifdef TIME_WALK_WORK
 	fWeight += getTimer(&tv);
+#elif defined(COUNT_MISSES)
+	fWeight += 0.001*(pkd->mdl->cache[CID_PARTICLE].nMiss + pkd->mdl->cache[CID_CELL].nMiss) - tempM;
 #else
 	fWeight += (*pdFlop-tempI);
 #endif
 	if (nActive) {
-#ifdef TIME_WALK_WORK
 	    fWeight /= nActive;
-#else
-	    fWeight = (*pdFlop-tempI)/nActive;
+#if !defined(COUNT_MISSES) && !defined(TIME_WALK_WORK)
+	    /*
+	    ** The simplest thing to do is to set the weight for all particles to 1.0 which 
+	    ** seems to work the best.
+	    */
+	    fWeight = 1.0;
 #endif
 	    pkdBucketWeight(pkd,iCell,/*fWeight*/1.0);
 /*
@@ -996,6 +1006,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bEwaldKick,
 #else
 	fWeight = S[iStack].fWeight;
 	tempI = *pdFlop;
+	tempM = 0.001*(pkd->mdl->cache[CID_PARTICLE].nMiss + pkd->mdl->cache[CID_CELL].nMiss);
 #endif
 	--iStack;
 	}
