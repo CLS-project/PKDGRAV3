@@ -720,7 +720,7 @@ void pkdTreeBuild(PKD pkd,int nBucket,FLOAT diCrit2,KDN *pkdn,int bSqueeze,int b
 	}
 
 #ifdef BSC
-    MPItrace_event(10000, 0 );
+    MPItrace_event(10000, 1 );
 #endif
 
     pkdClearTimer(pkd,0);
@@ -749,7 +749,7 @@ void pkdTreeBuild(PKD pkd,int nBucket,FLOAT diCrit2,KDN *pkdn,int bSqueeze,int b
     Create(pkd,ROOT,diCrit2,dTimeStamp,bSqueeze);
     pkdStopTimer(pkd,0);
 #ifdef BSC
-    MPItrace_event(10001, 1 );
+    MPItrace_event(10000, 0 );
 #endif
 
     /*

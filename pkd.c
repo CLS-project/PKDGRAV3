@@ -1486,7 +1486,7 @@ pkdGravAll(PKD pkd,double dTime,int nReps,int bPeriodic,int iOrder,int bEwald,
     pkdClearTimer(pkd,1);
 
 #ifdef BSC
-    MPItrace_event(10000,0);
+    MPItrace_event(10000,3);
 #endif
 
     /*
@@ -1513,7 +1513,7 @@ pkdGravAll(PKD pkd,double dTime,int nReps,int bPeriodic,int iOrder,int bEwald,
 #ifdef BSC
     /*MPItrace_event(10001, (int)(pkdGetWallClockTimer(pkd,1)*1000000) );*/
     /*MPItrace_event(10001, (int)(pkd->nActive/(pkd->nLocal/100)) );*/
-    MPItrace_event(10001, 3 );
+    MPItrace_event(10000, 0 );
 #endif
 
     /*
@@ -1581,7 +1581,7 @@ pkdDrift(PKD pkd,double dTime,double dDelta,FLOAT fCenter[3],int bPeriodic,int b
 	}
 
 #ifdef BSC
-    MPItrace_event(10000,0);
+    MPItrace_event(10000,4);
 #endif
     
     p = pkd->pStore;
@@ -1625,7 +1625,7 @@ pkdDrift(PKD pkd,double dTime,double dDelta,FLOAT fCenter[3],int bPeriodic,int b
 	}
 
 #ifdef BSC
-    MPItrace_event(10001,4);
+    MPItrace_event(10000,0);
 #endif
     mdlDiag(pkd->mdl, "Out of pkdDrift\n");
     }

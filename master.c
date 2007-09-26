@@ -2056,7 +2056,7 @@ void msrDomainDecomp(MSR msr,int iRung,int bGreater,int bSplitVA) {
 	}
 
 #ifdef BSC
-    MPItrace_event(10000, 0 );
+    MPItrace_event(10000, 2 );
 #endif
     if (msr->param.bVDetails) {
 	printf("Domain Decomposition: nActive (Rung %d) %"PRIu64"\n",iRungDD,msr->nActive);
@@ -2072,7 +2072,7 @@ void msrDomainDecomp(MSR msr,int iRung,int bGreater,int bSplitVA) {
     msr->bDoneDomainDecomp = 1; 
 
 #ifdef BSC
-    MPItrace_event(10001, 2 );
+    MPItrace_event(10000, 0 );
 #endif
     if (msr->param.bVDetails) {
 	dsec = msrTime() - sec;
