@@ -297,6 +297,8 @@ void combMark(void *p1,void *p2)
     }
 
 
+
+
 void initGroupMerge(void *g)
     {
     /* nothing to do here */
@@ -316,7 +318,17 @@ void combGroupMerge(void *g1, void *g2)
     }
 void initGroupBins(void *b)
     {
-    /* nothing to do here */
+    FOFBIN * gb1 = (FOFBIN *)b;
+
+    gb1->nMembers = 0;
+    gb1->fMassInBin = 0.0;	
+    gb1->fMassEnclosed = 0.0;	
+    gb1->v2[0] = 0.0;
+    gb1->v2[1] = 0.0;
+    gb1->v2[2] = 0.0;
+    gb1->L[0] = 0.0;
+    gb1->L[1] = 0.0;
+    gb1->L[2] = 0.0;    
     }
 void combGroupBins(void *b1, void *b2)
     {
