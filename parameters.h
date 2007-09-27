@@ -111,9 +111,8 @@ struct parameters {
     double dGrowEndT;
     double dFracNoTreeSqueeze;
     double dFracNoDomainDecomp;
+    double dFracNoDomainRootFind;
     double dFracNoDomainDimChoice;
-    int    bRungDD;
-    double dRungDDWeight;
     /*
     ** Additional parameters for group finding.
     */

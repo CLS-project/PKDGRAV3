@@ -47,9 +47,6 @@ void pstAddServices(PST pst,MDL mdl)
     mdlAddService(mdl,PST_CALCBOUND,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstCalcBound,
 		  0,sizeof(struct outCalcBound));
-    mdlAddService(mdl,PST_RUNGDDWEIGHT,pst,
-		  (void (*)(void *,void *,int,void *,int *)) pstRungDDWeight,
-		  sizeof(struct inRungDDWeight),0);
     mdlAddService(mdl,PST_WEIGHT,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstWeight,
 		  sizeof(struct inWeight),sizeof(struct outWeight));
@@ -1419,24 +1416,6 @@ void pstCalcBound(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 	}
     if (pnOut) *pnOut = sizeof(struct outCalcBound); 
     }
-
-void pstRungDDWeight(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
-    LCL *plcl = pst->plcl;
-    struct inRungDDWeight *in = vin;
-	
-    mdlassert(pst->mdl,nIn == 0);
-    if (pst->nLeaves > 1) {
-	mdlReqService(pst->mdl,pst->idUpper,PST_RUNGDDWEIGHT,vin,nIn);
-	pstRungDDWeight(pst->pstLower,vin,nIn,NULL,NULL);
-	mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
-	}
-    else {
-	pkdRungDDWeight(plcl->pkd,in->iMaxRung,in->dWeight);
-	}
-    if (pnOut) *pnOut = 0;
-    }
-
 
 /*
 ** Make sure that the local particles are split into active and inactive

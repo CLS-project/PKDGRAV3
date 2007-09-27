@@ -648,7 +648,6 @@ void pkdPostVariableSoft(PKD pkd,double dSoftMax,int bSoftMaxMul);
 
 void pkdBucketWeight(PKD pkd,int iBucket,FLOAT fWeight);
 void pkdGasWeight(PKD);
-void pkdRungDDWeight(PKD, int, double);
 int pkdWeight(PKD,int,FLOAT,int,int,int,int *,int *,FLOAT *,FLOAT *);
 void pkdCountVA(PKD,int,FLOAT,int *,int *);
 int pkdLowerPart(PKD,int,FLOAT,int,int);

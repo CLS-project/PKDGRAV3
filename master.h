@@ -61,9 +61,7 @@ typedef struct msrContext {
      * Domain Decomposition Done
      */
     uint64_t *nRung;
-    int bDoneDomainDecomp;
-    int iLastRungDD;
-    int iLastRungSD;
+    int iLastRungRT;
     uint64_t nActive;
     int nGroups;
     int nBins;

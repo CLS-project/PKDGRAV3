@@ -373,27 +373,25 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv)
     msr->param.dGrowEndT = 1.0;
     prmAddParam(msr->prm,"dGrowEndT",2,&msr->param.dGrowEndT,
 		sizeof(double),"gmet","<End time for growing mass> = 1.0");
-    msr->param.dFracNoTreeSqueeze = 0.005;
+    msr->param.dFracNoTreeSqueeze = 0.01;
     prmAddParam(msr->prm,"dFracNoTreeSqueeze",2,&msr->param.dFracNoTreeSqueeze,
 		sizeof(double),"fnts",
-		"<Fraction of Active Particles for no Tree Squeeze> = 0.005");
-    msr->param.dFracNoDomainDecomp = 0.002;
+		"<Fraction of Active Particles for no Tree Squeeze> = 0.01");
+    msr->param.dFracNoDomainDecomp = 0.001;
     prmAddParam(msr->prm,"dFracNoDomainDecomp",2,&msr->param.dFracNoDomainDecomp,
 		sizeof(double),"fndd",
-		"<Fraction of Active Particles for no new DD> = 0.002");
+		"<Fraction of Active Particles for no DD> = 0.001");
+    msr->param.dFracNoDomainRootFind = 0.02;
+    prmAddParam(msr->prm,"dFracNoDomainRootFind",2,&msr->param.dFracNoDomainRootFind,
+		sizeof(double),"fndrf",
+		"<Fraction of Active Particles for no DD root finding> = 0.02");
     msr->param.dFracNoDomainDimChoice = 0.1;
     prmAddParam(msr->prm,"dFracNoDomainDimChoice",2,&msr->param.dFracNoDomainDimChoice,
 		sizeof(double),"fnddc",
-		"<Fraction of Active Particles for no new DD dimension choice> = 0.1");
+		"<Fraction of Active Particles for no DD dimension choice> = 0.1");
     msr->param.bDoGravity = 1;
     prmAddParam(msr->prm,"bDoGravity",0,&msr->param.bDoGravity,sizeof(int),"g",
 		"enable/disable interparticle gravity = +g");
-    msr->param.bRungDD = 0;
-    prmAddParam(msr->prm,"bRungDomainDecomp",0,&msr->param.bRungDD,sizeof(int),
-		"RungDD","<Rung Domain Decomp> = 0");
-    msr->param.dRungDDWeight = 1.0;
-    prmAddParam(msr->prm,"dRungDDWeight",2,&msr->param.dRungDDWeight,sizeof(int),
-		"RungDDWeight","<Rung Domain Decomp Weight> = 1.0");
 #ifdef HERMITE
     msr->param.bHermite = 0;
     prmAddParam(msr->prm,"bHermite",0,&msr->param.bHermite,
@@ -701,9 +699,7 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv)
     /*
     ** Mark the Domain Decompositon as not done
     */
-    msr->bDoneDomainDecomp = 0;
-    msr->iLastRungDD = -1;
-    msr->iLastRungSD = -1;
+    msr->iLastRungRT = -1;
     msr->nRung = malloc((msr->param.iMaxRung+1)*sizeof(uint64_t));
     assert(msr->nRung != NULL);
     for (i=0;i<=msr->param.iMaxRung;++i) msr->nRung[i] = 0;
@@ -803,9 +799,8 @@ void msrLogParams(MSR msr,FILE *fp)
 #endif
 	fprintf(fp,"\n# dFracNoTreeSqueeze: %g",msr->param.dFracNoTreeSqueeze);
 	fprintf(fp,"\n# dFracNoDomainDecomp: %g",msr->param.dFracNoDomainDecomp);
+	fprintf(fp," dFracNoDomainRootFind: %g",msr->param.dFracNoDomainRootFind);
 	fprintf(fp," dFracNoDomainDimChoice: %g",msr->param.dFracNoDomainDimChoice);
-	fprintf(fp," bRungDD: %d",msr->param.bRungDD);
-	fprintf(fp," dRungDDWeight: %g ",msr->param.dRungDDWeight);
 	fprintf(fp,"\n# nTruncateRung: %d",msr->param.nTruncateRung);
 	fprintf(fp,"\n# nGrowMass: %d",msr->param.nGrowMass);
 	fprintf(fp," dGrowDeltaM: %g",msr->param.dGrowDeltaM);
@@ -1718,9 +1713,8 @@ void msrSaveParameters(MSR msr, IOHDF5 io)
     ioHDF5WriteAttribute( io, "dGrowEndT", H5T_NATIVE_DOUBLE, &msr->param.dGrowEndT );
     ioHDF5WriteAttribute( io, "dFracNoTreeSqueeze", H5T_NATIVE_DOUBLE, &msr->param.dFracNoTreeSqueeze );
     ioHDF5WriteAttribute( io, "dFracNoDomainDecomp", H5T_NATIVE_DOUBLE, &msr->param.dFracNoDomainDecomp );
+    ioHDF5WriteAttribute( io, "dFracNoDomainRootFind", H5T_NATIVE_DOUBLE, &msr->param.dFracNoDomainRootFind );
     ioHDF5WriteAttribute( io, "dFracNoDomainDimChoice", H5T_NATIVE_DOUBLE, &msr->param.dFracNoDomainDimChoice );
-    ioHDF5WriteAttribute( io, "bRungDD", H5T_NATIVE_INT, &msr->param.bRungDD );
-    ioHDF5WriteAttribute( io, "dRungDDWeight", H5T_NATIVE_DOUBLE, &msr->param.dRungDDWeight );
 
     /* Restart information */
     ioHDF5WriteAttribute( io, "dEcosmo", H5T_NATIVE_DOUBLE, &msr->dEcosmo );
@@ -1943,12 +1937,14 @@ void msrSetSoft(MSR msr,double dSoft)
 void msrDomainDecomp(MSR msr,int iRung,int bGreater,int bSplitVA) {
     struct inDomainDecomp in;
     struct outCalcBound outcb;
-    int j;
-    double sec,dsec;
-
-    int iRungDD,iRungSD;
     uint64_t nActive;
-
+    const uint64_t nDD = msr->N*msr->param.dFracNoDomainDecomp;
+    const uint64_t nRT = msr->N*msr->param.dFracNoDomainRootFind;
+    const uint64_t nSD = msr->N*msr->param.dFracNoDomainDimChoice;
+    double sec,dsec;
+    int iRungDD,iRungRT,iRungSD;
+    int i,j;
+    int bRestoreActive = 0;
 
     in.bDoRootFind = 1;
     in.bDoSplitDimFind = 1;
@@ -1990,86 +1986,88 @@ void msrDomainDecomp(MSR msr,int iRung,int bGreater,int bSplitVA) {
 	    }
 	}
 
-    nActive=0;
-    if (bGreater) {
-	iRungDD=msr->iCurrMaxRung+1; 
-	while (iRungDD > iRung) {
-	    iRungDD--;
-	    nActive+=msr->nRung[iRungDD];
-	    }
-	while(iRungDD > 0 && nActive < msr->N*msr->param.dFracNoDomainDecomp) {
-	    iRungDD--;
-	    nActive+=msr->nRung[iRungDD];
-	    }
-	iRungSD = iRungDD;
-	while(iRungSD > 0 && nActive < msr->N*msr->param.dFracNoDomainDimChoice) {
-	    iRungSD--;
-	    nActive+=msr->nRung[iRungSD];
-	    }
-	}
-    else {
-	iRungDD = iRung;
-	while(iRungDD > 0 && msr->nRung[iRungDD] < msr->N*msr->param.dFracNoDomainDecomp) {
-	    iRungDD--;
-	    }
-	iRungSD = iRungDD;
-	while(iRungSD > 0 && msr->nRung[iRungSD] < msr->N*msr->param.dFracNoDomainDimChoice) {
-	    iRungSD--;
-	    }
-	}
+    /*
+    ** All of this could be calculated once for the case that the number
+    ** of particles don't change. Or calculated every time the number of 
+    ** particles does change.
+    */
+    assert(bGreater != 0);
+    nActive = 0;
+    iRungDD = 0;
+    iRungRT = 0;
+    iRungSD = 0;
+    for (i=msr->iCurrMaxRung;i>=0;--i) {
+	nActive += msr->nRung[i];
+	if (nActive > nDD && !iRungDD) iRungDD = i;
+	if (nActive > nRT && !iRungRT) iRungRT = i;
+	if (nActive > nSD && !iRungSD) iRungSD = i;	
+    }
+    assert(iRungDD >= iRungRT);
+    assert(iRungRT >= iRungSD);
 
-    if (msr->nActive < msr->N*msr->param.dFracNoDomainDecomp) {
-	if (msr->bDoneDomainDecomp && msr->iLastRungDD >= iRungDD) {
-	    if (msr->param.bVRungStat) printf("Skipping Root Finder (nActive = %"PRIu64"/%"PRIu64", iRung %d/%d/%d)\n",msr->nActive,msr->N,iRung,iRungDD,msr->iLastRungDD);
+    if (iRung > iRungDD && !bSplitVA) {
+	if (msr->iLastRungRT > iRungRT) {
+	    msr->iLastRungRT = iRungRT;
+	    msrActiveRung(msr,iRungRT,bGreater); 
+	    bRestoreActive = 1;
+	    in.bDoRootFind = 1;
+	    in.bDoSplitDimFind = 0;
+	}
+	else {
+	    if (msr->param.bVRungStat) {
+		printf("Skipping Domain Decomposition (nActive = %"PRIu64"/%"PRIu64", iRung:%d iRungDD:%d iLastRungRT:%d)\n",
+		       msr->nActive,msr->N,iRung,iRungDD,msr->iLastRungRT);
+	    }
+	    return;  /* do absolutely nothing! */
+	}
+    }
+    else if (iRung > iRungRT) {
+	if (msr->iLastRungRT > iRungRT) {
+	    msr->iLastRungRT = iRungRT;
+	    msrActiveRung(msr,iRungRT,bGreater); 
+	    bRestoreActive = 1;
+	    in.bDoRootFind = 1;
+	    in.bDoSplitDimFind = 0;
+	}
+	else {
+	    if (msr->param.bVRungStat) {
+		printf("Skipping Root Finder (nActive = %"PRIu64"/%"PRIu64", iRung:%d iRungRT:%d iLastRungRT:%d)\n",
+		       msr->nActive,msr->N,iRung,iRungRT,msr->iLastRungRT);
+	    }
 	    in.bDoRootFind = 0;
 	    in.bDoSplitDimFind = 0;
-	    }
 	}
-    else iRungDD = iRung;
-
-    if (msr->bDoneDomainDecomp && msr->iLastRungDD == iRungDD && msr->iLastRungDD > 0) {
-	    if (msr->param.bVRungStat) printf("Skipping Root Finder (nActive = %"PRIu64"/%"PRIu64", iRung %d/%d/%d)\n",msr->nActive,msr->N,iRung,iRungDD,msr->iLastRungDD);
-	    in.bDoRootFind = 0;
-	    in.bDoSplitDimFind = 0;
-	    }
-	
-    if (in.bDoRootFind && msr->bDoneDomainDecomp && iRungDD > iRungSD && msr->iLastRungSD >= iRungSD) {
-	if (msr->param.bVRungStat) printf("Skipping Split Dim Finding (nActive = %"PRIu64"/%"PRIu64", iRung %d/%d/%d/%d)\n",msr->nActive,msr->N,iRung,iRungDD,iRungSD,msr->iLastRungSD);
+    }
+    else if (iRung > iRungSD) {
+	if (msr->param.bVRungStat) {
+	    printf("Skipping Domain Dim Choice (nActive = %"PRIu64"/%"PRIu64", iRung:%d iRungSD:%d iLastRungRT:%d)\n",
+		   msr->nActive,msr->N,iRung,iRungSD,msr->iLastRungRT);
+	}
+	msr->iLastRungRT = iRung;
+	in.bDoRootFind = 1;
 	in.bDoSplitDimFind = 0;
-	}
-
-    if (iRungDD < iRung) {
-#ifdef USE_NEWDD
-	assert(iRungDD == 0);  /* for now, but later we will support all iRungDD */
-#endif
-	msrActiveRung(msr,iRungDD,bGreater); 
-	}
+    }
+    else {
+	msr->iLastRungRT = iRung;
+	in.bDoRootFind = 1;
+	in.bDoSplitDimFind = 1;
+    }
 
     in.nActive = msr->nActive;
     in.nTotal = msr->N;
 
-    if (msr->param.bRungDD) {
-	struct inRungDDWeight inRDD;
-	inRDD.iMaxRung = msr->iCurrMaxRung;
-	inRDD.dWeight = msr->param.dRungDDWeight;
-	pstRungDDWeight(msr->pst,&inRDD,sizeof(struct inRungDDWeight),NULL,NULL);
-	}
-
 #ifdef USE_BSC
     MPItrace_event(10000, 2 );
 #endif
+    in.bSplitVA = bSplitVA;
     if (msr->param.bVDetails) {
-	printf("Domain Decomposition: nActive (Rung %d) %"PRIu64"\n",iRungDD,msr->nActive);
+	printf("Domain Decomposition: nActive (Rung %d) %"PRIu64" SplitVA:%d\n",
+	       iRungDD,msr->nActive,bSplitVA);
 	printf("Domain Decomposition... \n");
 	sec = msrTime();
 	}
 
-    in.bSplitVA = bSplitVA;
-    /*if (bSplitVA) {
-	printf("*** Splitting very active particles!\n");	
-	}*/
     pstDomainDecomp(msr->pst,&in,sizeof(in),NULL,NULL);
-    msr->bDoneDomainDecomp = 1; 
 
 #ifdef USE_BSC
     MPItrace_event(10000, 0 );
@@ -2079,14 +2077,7 @@ void msrDomainDecomp(MSR msr,int iRung,int bGreater,int bSplitVA) {
 	printf("Domain Decomposition complete, Wallclock: %f secs\n\n",dsec);
 	}
 
-    if (in.bDoSplitDimFind) {
-	msr->iLastRungSD = iRungDD;
-	}
-    if (in.bDoRootFind) {
-	msr->iLastRungDD = iRungDD;
-	}
-
-    if (iRungDD < iRung) {
+    if (bRestoreActive) {
 	/* Restore Active data */
 	msrActiveRung(msr,iRung,bGreater);
 	}
@@ -2112,6 +2103,7 @@ void _BuildTree(MSR msr,double dMass,double dTimeStamp,int bExcludeVeryActive) {
     in.iCell = ROOT;
     in.nCell = nCell;
     in.bTreeSqueeze = (msr->nActive > (uint64_t)floor(((double)msr->N)*msr->param.dFracNoTreeSqueeze));
+    printf("bTreeSqueeze:%d\n",in.bTreeSqueeze);
     in.bExcludeVeryActive = bExcludeVeryActive;
     in.dTimeStamp = dTimeStamp;
     if (msr->param.bVDetails) {
@@ -2187,7 +2179,7 @@ void msrReorder(MSR msr) {
     /*
     ** Mark domain decomp as not done.
     */
-    msr->bDoneDomainDecomp = 0;
+    msr->iLastRungRT = -1;
     }
 
 

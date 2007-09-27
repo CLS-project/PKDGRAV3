@@ -635,26 +635,6 @@ void pkdCalcBound(PKD pkd,BND *pbnd)
     }
 
 
-void pkdRungDDWeight(PKD pkd, int iMaxRung, double dWeight)
-    {
-    PARTICLE *p;
-    int i;
-    float fRungWeight[50],sum;
-
-    mdlassert(pkd->mdl,iMaxRung<50);
-    fRungWeight[0]=1.0;
-    sum=1.0;
-    for (i=1;i<=iMaxRung;i++) {
-	sum*=2.0;
-	fRungWeight[i] = dWeight* sum + (1-dWeight);
-	}
-  
-    for(i=0;i<pkdLocal(pkd);++i) {
-	p = &pkd->pStore[i];
-	p->fWeight *= fRungWeight[p->iRung];
-	}
-    }
-
 /*
 ** Partition particles between iFrom and iTo into those < fSplit and
 ** those >= to fSplit.  Find number and weight in each partition.
