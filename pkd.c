@@ -1475,7 +1475,6 @@ pkdGravAll(PKD pkd,double dTime,int nReps,int bPeriodic,int iOrder,int bEwald,
 #endif
 #ifdef USE_BSC
     MPItrace_event(10000,3);
-    MPItrace_event(10001,0);
 #endif
 
     /*
