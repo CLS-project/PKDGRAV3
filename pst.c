@@ -2199,7 +2199,7 @@ void pstBuildTree(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 	** Passing a null bounds pointer forces pkdTreeBuild to
 	** compute the bounds of the root cell before starting.
 	*/
-	pkdTreeBuild(plcl->pkd,in->nBucket,in->diCrit2,&pkdn[iCell],in->bTreeSqueeze,in->bExcludeVeryActive,in->dTimeStamp);
+	pkdTreeBuild(plcl->pkd,in->nBucket,in->diCrit2,&pkdn[iCell],in->bTreeSqueeze,in->bExcludeVeryActive,in->dTimeStamp,in->bEwaldKicking);
 	pkdn[iCell].iLower = 0;
 	pkdn[iCell].pLower = pst->idSelf;
 	pkdn[iCell].pUpper = 1;

@@ -2087,7 +2087,7 @@ void msrDomainDecomp(MSR msr,int iRung,int bGreater,int bSplitVA) {
 ** This the meat of the tree build, but will be called by differently named
 ** functions in order to implement special features without recoding...
 */
-void _BuildTree(MSR msr,double dMass,double dTimeStamp,int bExcludeVeryActive) {
+void _BuildTree(MSR msr,double dMass,double dTimeStamp,int bExcludeVeryActive,int bNeedEwald) {
     struct inBuildTree in;
     struct ioCalcRoot root;
     KDN *pkdn;
@@ -2103,9 +2103,9 @@ void _BuildTree(MSR msr,double dMass,double dTimeStamp,int bExcludeVeryActive) {
     in.iCell = ROOT;
     in.nCell = nCell;
     in.bTreeSqueeze = (msr->nActive > (uint64_t)floor(((double)msr->N)*msr->param.dFracNoTreeSqueeze));
-    printf("bTreeSqueeze:%d\n",in.bTreeSqueeze);
     in.bExcludeVeryActive = bExcludeVeryActive;
     in.dTimeStamp = dTimeStamp;
+    in.bEwaldKicking = msr->param.bEwaldKicking;
     if (msr->param.bVDetails) {
 	double sec,dsec;
 	sec = msrTime();
@@ -2119,7 +2119,7 @@ void _BuildTree(MSR msr,double dMass,double dTimeStamp,int bExcludeVeryActive) {
 	}
     pstDistribCells(msr->pst,pkdn,nCell*(int)sizeof(KDN),NULL,NULL);
     free(pkdn);
-    if (!bExcludeVeryActive) {
+    if (!bExcludeVeryActive && bNeedEwald) {
 	/*
 	** For simplicity we will skip calculating the Root for all particles 
 	** with exclude very active since there are missing particles which 
@@ -2131,12 +2131,15 @@ void _BuildTree(MSR msr,double dMass,double dTimeStamp,int bExcludeVeryActive) {
 	}
     }
 
-void msrBuildTree(MSR msr,double dMass,double dTime) {
-  _BuildTree(msr,dMass,dTime,0);
+void msrBuildTree(MSR msr,double dMass,double dTime,int bNeedEwald) {
+    const int bExcludeVeryActive = 0;
+    _BuildTree(msr,dMass,dTime,bExcludeVeryActive,bNeedEwald);
     }
 
 void msrBuildTreeExcludeVeryActive(MSR msr,double dMass,double dTime) {
-  _BuildTree(msr,dMass,dTime,1);
+    const int bNeedEwald = 0;
+    const int bExcludeVeryActive = 1;
+    _BuildTree(msr,dMass,dTime,bExcludeVeryActive,bNeedEwald);
     }
 
 
@@ -2422,25 +2425,25 @@ void msrUpdateSoft(MSR msr,double dTime) {
 
 	if (msr->param.bSoftByType) {
 	    if (msr->nDark) {
-		msrBuildTree(msr,-1.0,dTime);
+		msrBuildTree(msr,-1.0,dTime,0);
 		bGasOnly = 0;
 		assert(0); /* can't do this yet! */
 		msrSmooth(msr,dTime,SMX_NULL,bGasOnly,bSymmetric,TYPE_DARK);
 		}
 	    if (msr->nGas) {
-		msrBuildTree(msr,-1.0,dTime);
+		msrBuildTree(msr,-1.0,dTime,0);
 		bGasOnly = 1;
 		msrSmooth(msr,dTime,SMX_NULL,bGasOnly,bSymmetric,TYPE_GAS);
 		}
 	    if (msr->nStar) {
-		msrBuildTree(msr,-1.0,dTime);
+		msrBuildTree(msr,-1.0,dTime,0);
 		bGasOnly = 0;
 		assert(0); /* can't do this yet! */
 		msrSmooth(msr,dTime,SMX_NULL,bGasOnly,bSymmetric,TYPE_STAR);
 		}
 	    }
 	else {
-	    msrBuildTree(msr,-1.0,dTime);
+	    msrBuildTree(msr,-1.0,dTime,0);
 	    bGasOnly = 0;
 	    msrSmooth(msr,dTime,SMX_NULL,bGasOnly,bSymmetric,TYPE_ALL);
 	    }
@@ -3199,7 +3202,7 @@ void msrTopStepKDK(MSR msr,
 	    bSplitVA = 0;
 	    msrDomainDecomp(msr,iRung,1,bSplitVA);
 	    msrActiveRung(msr,iRung,1);
-	    msrBuildTree(msr,dMass,dTime);
+	    msrBuildTree(msr,dMass,dTime,0);
 	    msrDensityStep(msr,dTime,TYPE_ALL);
 	    }
 	iRungVeryActive = msrDtToRung(msr,iRung,dDelta,1);
@@ -3241,28 +3244,20 @@ void msrTopStepKDK(MSR msr,
 	    if (msr->param.bVDetails) {
 		printf("%*cGravity, iRung: %d to %d\n",2*iRung+2,' ',iKickRung,iRung);
 		}
-	    msrBuildTree(msr,dMass,dTime);
 	    /*
 	    ** The following code decides how the periodic BCs should be handled.
 	    ** If bEwaldKicking is set then the code does an efficient strategy to 
 	    ** incorporate periodic boundaries for volume renormalized runs.
 	    */
 	    if (msr->param.bEwaldKicking) {
-		if (iKickRung == 0) {
-		    bEwaldKick = 1;
-		    bEwald = 1;
-		}
-		else {
-		    bEwaldKick = 0;
-		    bEwald = 0;
-		}
+		if (iKickRung == 0) bEwald = 1;
+		else bEwald = 0;
 	    }
 	    else {
-		bEwaldKick = 0;
 		bEwald = msr->param.bEwald;
 	    }
-
-	    msrGravity(msr,dTime,dStep,bEwald,bEwaldKick,piSec,&nActive);
+	    msrBuildTree(msr,dMass,dTime,bEwald);
+	    msrGravity(msr,dTime,dStep,bEwald,msr->param.bEwaldKicking,piSec,&nActive);
 	    *pdActiveSum += (double)nActive/msr->N;
 	    }
 
@@ -3350,27 +3345,19 @@ void msrTopStepKDK(MSR msr,
 		printf("%*cGravity, iRung: %d to %d\n",
 		       2*iRung+2,' ',iKickRung,msrCurrMaxRung(msr));
 		}
-	    msrBuildTree(msr,dMass,dTime);
 	    /*
 	    ** The following code decides how the periodic BCs should be handled.
 	    ** If bEwaldKicking is set then the code does an efficient strategy to 
 	    ** incorporate periodic boundaries for volume renormalized runs.
 	    */
 	    if (msr->param.bEwaldKicking) {
-		if (iKickRung == 0) {
-		    bEwaldKick = 1;
-		    bEwald = 1;
-		}
-		else {
-		    bEwaldKick = 0;
-		    bEwald = 0;
-		}
+		if (iKickRung == 0) bEwald = 1;
+		else bEwald = 0;
 	    }
 	    else {
-		bEwaldKick = 0;
 		bEwald = msr->param.bEwald;
 	    }
-
+	    msrBuildTree(msr,dMass,dTime,bEwald);
 	    msrGravity(msr,dTime,dStep,bEwald,bEwaldKick,piSec,&nActive);
 	    *pdActiveSum += (double)nActive/msr->N;
 	    }
@@ -3474,6 +3461,7 @@ void msrTopStepHermite(MSR msr,
     double dMass = -1.0;
     uint64_t nActive;
     int bSplitVA;
+    const int bNeedEwald = 0;
 
     if(iAdjust && (iRung < msrMaxRung(msr)-1)) {
         if (msr->param.bVDetails) {
@@ -3494,7 +3482,7 @@ void msrTopStepHermite(MSR msr,
 	    bSplitVA = 0;
 	    msrDomainDecomp(msr,iRung,1,bSplitVA);
 	    msrActiveRung(msr,iRung,1);
-	    msrBuildTree(msr,dMass,dTime);
+	    msrBuildTree(msr,dMass,dTime,bNeedEwald);
 	    msrDensityStep(msr,dTime,TYPE_ALL);
 	    }
 	iRungVeryActive = msrDtToRung(msr,iRung,dDelta,1);
@@ -3540,7 +3528,7 @@ void msrTopStepHermite(MSR msr,
 		  if (msr->param.bVDetails) {
 		    printf("%*cGravity, iRung: %d to %d\n",2*iRung+2,' ',iKickRung,iRung);
 		  }
-		  msrBuildTree(msr,dMass,dTime);
+		  msrBuildTree(msr,dMass,dTime,bNeedEwald);
 		  msrGravity(msr,dTime,dStep,0,0,piSec,&nActive);
 		  *pdActiveSum += (double)nActive/msr->N;
 		}
@@ -3668,7 +3656,7 @@ else {
 		printf("%*cGravity, iRung: %d to %d\n",
 		       2*iRung+2,' ',iKickRung,msrCurrMaxRung(msr));
 		}
-	    msrBuildTree(msr,dMass,dTime);
+	    msrBuildTree(msr,dMass,dTime,bNeedEwald);
 	    msrGravity(msr,dTime,dStep,0,0,piSec,&nActive);
 	    *pdActiveSum += (double)nActive/msr->N;
 	    }
@@ -3908,6 +3896,7 @@ int msrDoGravity(MSR msr)
 void msrInitTimeSteps(MSR msr,double dTime,double dDelta) 
     {
     double dMass = -1.0;
+    const int bNeedEwald = 0;
 
     msrActiveRung(msr,0,1); /* Activate all particles */
     msrInitDt(msr);
@@ -3920,7 +3909,7 @@ void msrInitTimeSteps(MSR msr,double dTime,double dDelta)
     if (msr->param.bDensityStep) {
 	msrDomainDecomp(msr,0,1,0);
 	msrActiveRung(msr,0,1); /* Activate all particles */
-	msrBuildTree(msr,dMass,dTime);
+	msrBuildTree(msr,dMass,dTime,bNeedEwald);
 	msrDensityStep(msr,dTime,TYPE_ALL);
 	}
     msrDtToRung(msr,0,dDelta,1);
@@ -4686,6 +4675,7 @@ void msrTopStepSymba(MSR msr,
     int bSplitVA;
     double dDeltaTmp;
     int i;
+    const int bNeedEwald = 0;
   
     msrActiveRung(msr,0,1); /* activate all particles */ 		 
     /* F_0 for particles at iRung = 0 and 1 */		
@@ -4743,7 +4733,7 @@ void msrTopStepSymba(MSR msr,
 	printf("%*cGravity, iRung: %d to %d\n",
 	       2*iRung+2,' ',iKickRung,msrCurrMaxRung(msr));
       }
-      msrBuildTree(msr,dMass,dTime);    
+      msrBuildTree(msr,dMass,dTime,bNeedEwald);    
       msrGravity(msr,dTime,dStep,0,0,piSec,&nActive);
       *pdActiveSum += (double)nActive/msr->N;
     }

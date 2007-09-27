@@ -182,11 +182,11 @@ int main(int argc,char **argv) {
 	msrActiveRung(msr,0,1); /* Activate all particles */
 	msrDomainDecomp(msr,0,1,0);
 	msrUpdateSoft(msr,dTime);
-	msrBuildTree(msr,dMass,dTime);
+	msrBuildTree(msr,dMass,dTime,msr->param.bEwald);
 	if (msrDoGravity(msr)) {
 	    msrGravity(msr,dTime,msr->param.iStartStep,msr->param.bEwald,msr->param.bEwaldKicking,&iSec,&nActive);
 	    if (msr->param.bGravStep) {
-		msrBuildTree(msr,dMass,dTime);
+		msrBuildTree(msr,dMass,dTime,msr->param.bEwald);
 		msrGravity(msr,dTime,msr->param.iStartStep,msr->param.bEwald,msr->param.bEwaldKicking,&iSec,&nActive);
 		}
 	    msrCalcEandL(msr,MSR_INIT_E,dTime,&E,&T,&U,&Eth,L);
@@ -264,7 +264,7 @@ int main(int argc,char **argv) {
 	    if ( msr->param.bTraceRelaxation) {
 		msrActiveRung(msr,0,1); /* Activate all particles */
 		msrDomainDecomp(msr,0,1,0);
-		msrBuildTree(msr,dMass,dTime);
+		msrBuildTree(msr,dMass,dTime,0);
 		msrRelaxation(msr,dTime,msrDelta(msr),SMX_RELAXATION,0,TYPE_ALL);
 		}
 #endif	
@@ -299,7 +299,7 @@ int main(int argc,char **argv) {
 		 msrSmooth in topstepSymba*/
 		msrActiveRung(msr,0,1); 	 	
 		msrDomainDecomp(msr,0,1,0);
-		msrBuildTree(msr,dMass,dTime);
+		msrBuildTree(msr,dMass,dTime,0);
 #endif
 #else	
 		msrWrite(
@@ -311,7 +311,7 @@ int main(int argc,char **argv) {
 		if (msrDoDensity(msr)) {
 		    msrActiveRung(msr,0,1); /* Activate all particles */
 		    msrDomainDecomp(msr,0,1,0);
-		    msrBuildTree(msr,dMass,dTime);
+		    msrBuildTree(msr,dMass,dTime,0);
 		    bGasOnly = 0;
 		    bSymmetric = 0; /* FOR TESTING!!*/
 		    msrSmooth(msr,dTime,SMX_DENSITY,bGasOnly,bSymmetric,TYPE_ALL);
@@ -323,7 +323,7 @@ int main(int argc,char **argv) {
 		  */	
 		  msrActiveRung(msr,0,1); /* Activate all particles */
 		  msrDomainDecomp(msr,0,1,0);
-		  msrBuildTree(msr,dMass,dTime);
+		  msrBuildTree(msr,dMass,dTime,0);
 		  msrFof(msr,nFOFsDone,SMX_FOF,0,TYPE_ALL,csmTime2Exp(msr->param.csm,dTime));
 		  msrGroupMerge(msr,csmTime2Exp(msr->param.csm,dTime));
 		  if(msr->param.nBins > 0) msrGroupProfiles(msr,nFOFsDone,SMX_FOF,0,TYPE_ALL,csmTime2Exp(msr->param.csm,dTime));
@@ -418,7 +418,7 @@ int main(int argc,char **argv) {
 
 	msrDomainDecomp(msr,0,1,0);
 	msrUpdateSoft(msr,dTime);
-	msrBuildTree(msr,dMass,dTime);
+	msrBuildTree(msr,dMass,dTime,msr->param.bEwald);
 
 	if (msrDoGravity(msr)) {
 	    msrGravity(msr,dTime,msr->param.iStartStep,msr->param.bEwald,msr->param.bEwaldKicking,&iSec,&nActive);
@@ -457,7 +457,7 @@ int main(int argc,char **argv) {
 	  */
 	  msrActiveRung(msr,0,1); /* Activate all particles */
 	  msrDomainDecomp(msr,0,1,0);
-	  msrBuildTree(msr,dMass,dTime);
+	  msrBuildTree(msr,dMass,dTime,0);
 	  msrFof(msr,nFOFsDone,SMX_FOF,0,TYPE_ALL,csmTime2Exp(msr->param.csm,dTime));
 	  msrGroupMerge(msr,csmTime2Exp(msr->param.csm,dTime));
 	  if(msr->param.nBins > 0) msrGroupProfiles(msr,nFOFsDone,SMX_FOF,0,TYPE_ALL,csmTime2Exp(msr->param.csm,dTime));

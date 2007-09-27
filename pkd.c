@@ -1460,7 +1460,7 @@ static int foo = 0;
 
 void
 pkdGravAll(PKD pkd,double dTime,int nReps,int bPeriodic,int iOrder,int bEwald,
-	   int bEwaldKick, double fEwCut,double fEwhCut,int *nActive, 
+	   int bEwaldKicking, double fEwCut,double fEwhCut,int *nActive, 
 	   double *pdPartSum, double *pdCellSum,CASTAT *pcs, double *pdFlop)
     {
     int bVeryActive = 0;
@@ -1495,7 +1495,7 @@ pkdGravAll(PKD pkd,double dTime,int nReps,int bPeriodic,int iOrder,int bEwald,
     *pdPartSum = 0.0;
     *pdCellSum = 0.0;
     pkdStartTimer(pkd,1);
-    *nActive = pkdGravWalk(pkd,dTime,nReps,bPeriodic && bEwald,bEwaldKick,bVeryActive,fEwCut,pdFlop,pdPartSum,pdCellSum);
+    *nActive = pkdGravWalk(pkd,dTime,nReps,bPeriodic && bEwald,bEwaldKicking,bVeryActive,fEwCut,pdFlop,pdPartSum,pdCellSum);
     pkdStopTimer(pkd,1);
 
 #ifdef USE_BSC
@@ -1744,7 +1744,7 @@ void pkdGravityVeryActive(PKD pkd,double dTime,int bEwald,int nReps,double fEwCu
     if (pkd->param.bEwaldKicking) {
 	bEwald = 0;
     }
-    nActive = pkdGravWalk(pkd,dTime,nReps,bEwald,0,bVeryActive,fEwCut,&dFlop,&dPartSum,&dCellSum);
+    nActive = pkdGravWalk(pkd,dTime,nReps,bEwald,pkd->param.bEwaldKicking,bVeryActive,fEwCut,&dFlop,&dPartSum,&dCellSum);
     }
 
 
@@ -1850,7 +1850,7 @@ pkdStepVeryActiveKDK(PKD pkd, double dStep, double dTime, double dDelta,
 	    time1 = Zeit(); /* added MZ 1.6.2006 */
 
 	    pkdActiveRung(pkd,iKickRung,1);
-	    pkdVATreeBuild(pkd,pkd->param.nBucket,diCrit2,0,dTime);
+	    pkdVATreeBuild(pkd,pkd->param.nBucket,diCrit2,0,dTime,pkd->param.bEwaldKicking);
 	    pkdGravityVeryActive(pkd,dTime,pkd->param.bEwald && pkd->param.bPeriodic,pkd->param.nReplicas,pkd->param.dEwCut,dStep);
 
 #ifdef PLANETS
@@ -1989,7 +1989,7 @@ pkdStepVeryActiveHermite(PKD pkd, double dStep, double dTime, double dDelta,
 	    time1 = Zeit(); /* added MZ 1.6.2006 */
 
 	    pkdActiveRung(pkd,iKickRung,1);
-	    pkdVATreeBuild(pkd,pkd->param.nBucket,diCrit2,0,dTime);
+	    pkdVATreeBuild(pkd,pkd->param.nBucket,diCrit2,0,dTime,bEwaldKick);
 	    pkdGravityVeryActive(pkd,dTime,pkd->param.bEwald && pkd->param.bPeriodic,pkd->param.nReplicas,pkd->param.dEwCut,dStep);
 
 

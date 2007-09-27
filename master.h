@@ -85,7 +85,7 @@ double msrRead(MSR);
 void msrWrite(MSR,char *,double, int bCheckpoint );
 void msrSetSoft(MSR msr,double);
 void msrDomainDecomp(MSR,int iRung,int bGreater,int bSplitVA);
-void msrBuildTree(MSR msr,double dMass,double dTime);
+void msrBuildTree(MSR msr,double dMass,double dTime,int bNeedEwald);
 void msrBuildTreeExcludeVeryActive(MSR msr,double dMass,double dTime);
 
 #ifdef GASOLINE

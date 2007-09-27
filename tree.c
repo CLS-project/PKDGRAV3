@@ -434,7 +434,7 @@ void ShuffleParticles(PKD pkd,int iStart) {
     }
 
 
-void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp,int bTempBound) {
+void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp,int bTempBound,int bEwaldKicking) {
     PARTICLE *p = pkd->pStore;
     KDN *c = pkd->kdNodes;
     KDN *pkdn,*pkdl,*pkdu;
@@ -492,9 +492,16 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp,int bTempBound) {
 	vx = m*p[pj].v[0];
 	vy = m*p[pj].v[1];
 	vz = m*p[pj].v[2];
-	ax = m*p[pj].a[0];
-	ay = m*p[pj].a[1];
-	az = m*p[pj].a[2];
+	if (bEwaldKicking) {
+	    ax = m*(p[pj].a[0] + p[pj].ae[0]);
+	    ay = m*(p[pj].a[1] + p[pj].ae[1]);
+	    az = m*(p[pj].a[2] + p[pj].ae[2]);
+	}
+	else {
+	    ax = m*p[pj].a[0];
+	    ay = m*p[pj].a[1];
+	    az = m*p[pj].a[2];
+	}
 	pkdn->iActive = p[pj].iActive;
 	pkdn->uMinRung = pkdn->uMaxRung = p[pj].iRung;
 	for (++pj;pj<=pkdn->pUpper;++pj) {
@@ -508,9 +515,16 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp,int bTempBound) {
 	    vx += m*p[pj].v[0];
 	    vy += m*p[pj].v[1];
 	    vz += m*p[pj].v[2];		
-	    ax += m*p[pj].a[0];
-	    ay += m*p[pj].a[1];
-	    az += m*p[pj].a[2];		
+	    if (bEwaldKicking) {
+		ax += m*(p[pj].a[0] + p[pj].ae[0]);
+		ay += m*(p[pj].a[1] + p[pj].ae[1]);
+		az += m*(p[pj].a[2] + p[pj].ae[2]);
+	    }
+	    else {
+		ax += m*p[pj].a[0];
+		ay += m*p[pj].a[1];
+		az += m*p[pj].a[2];
+	    }
 	    pkdn->iActive |= p[pj].iActive;
 	    if ( p[pj].iRung > pkdn->uMaxRung ) pkdn->uMaxRung = p[pj].iRung;
 	    if ( p[pj].iRung < pkdn->uMinRung ) pkdn->uMinRung = p[pj].iRung;
@@ -684,7 +698,7 @@ void pkdCombineCells(KDN *pkdn,KDN *p1,KDN *p2,int bCombineBound) {
     }
 
 
-void pkdVATreeBuild(PKD pkd,int nBucket,FLOAT diCrit2,int bSqueeze,double dTimeStamp) {
+void pkdVATreeBuild(PKD pkd,int nBucket,FLOAT diCrit2,int bSqueeze,double dTimeStamp,int bEwaldKicking) {
     int i,j,iStart;
 
     iStart = pkd->nLocal - pkd->nVeryActive;
@@ -705,11 +719,11 @@ void pkdVATreeBuild(PKD pkd,int nBucket,FLOAT diCrit2,int bSqueeze,double dTimeS
 
     ShuffleParticles(pkd,iStart);
     
-    Create(pkd,VAROOT,diCrit2,dTimeStamp,bSqueeze);
+    Create(pkd,VAROOT,diCrit2,dTimeStamp,bSqueeze,bEwaldKicking);
     }
 
 
-void pkdTreeBuild(PKD pkd,int nBucket,FLOAT diCrit2,KDN *pkdn,int bSqueeze,int bExcludeVeryActive,double dTimeStamp) {
+void pkdTreeBuild(PKD pkd,int nBucket,FLOAT diCrit2,KDN *pkdn,int bSqueeze,int bExcludeVeryActive,double dTimeStamp,int bEwaldKicking) {
     int iStart,nNodesEst;
 
     if (pkd->nNodes > 0) {
@@ -746,7 +760,7 @@ void pkdTreeBuild(PKD pkd,int nBucket,FLOAT diCrit2,KDN *pkdn,int bSqueeze,int b
     */
     pkdClearTimer(pkd,0);
     pkdStartTimer(pkd,0);
-    Create(pkd,ROOT,diCrit2,dTimeStamp,bSqueeze);
+    Create(pkd,ROOT,diCrit2,dTimeStamp,bSqueeze,bEwaldKicking);
     pkdStopTimer(pkd,0);
 #ifdef USE_BSC
     MPItrace_event(10000, 0 );

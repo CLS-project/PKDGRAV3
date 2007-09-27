@@ -15,7 +15,7 @@
 #include "moments.h"
 
 
-int pkdBucketEwald(PKD pkd,KDN *pkdn,int nReps,double fEwCut,int bEwaldKick)
+int pkdBucketEwald(PKD pkd,KDN *pkdn,int nReps,double fEwCut,int bEwaldKicking)
 {
 	PARTICLE *p;
 	MOMC mom = pkd->momRoot;
@@ -192,7 +192,7 @@ int pkdBucketEwald(PKD pkd,KDN *pkdn,int nReps,double fEwCut,int bEwaldKick)
 			az += pkd->ewt[i].hz*(pkd->ewt[i].hCfac*s - pkd->ewt[i].hSfac*c);
 			}
 		p[j].fPot += fPot;
-		if (bEwaldKick) {
+		if (bEwaldKicking) {
 		    p[j].ae[0] = ax;
 		    p[j].ae[1] = ay;
 		    p[j].ae[2] = az;
