@@ -120,7 +120,6 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bEwaldKick,
     double dEwaldFlop;
     double dShiftFlop;
     FLOAT dMin,min2,d2,fourh2;
-    double dDriftFac;
     FLOAT rCheck[3];
     FLOAT rOffset[3];
     FLOAT xParent,yParent,zParent;
@@ -151,7 +150,6 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bEwaldKick,
     double tempM;
     double tempI;
 #endif
-    double dSyncDelta;
 
 #ifdef PROFILE_GRAVWALK
     VTResume();
@@ -159,17 +157,13 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bEwaldKick,
 
     /*
     ** If we are doing the very active gravity then check that there is a very active tree!
+    ** Otherwise we check that the ROOT has active particles!
     */
     if (bVeryActive) {
 	assert(pkd->nVeryActive != 0);
 	assert(pkd->nVeryActive == pkd->kdNodes[VAROOT].pUpper - pkd->kdNodes[VAROOT].pLower + 1);
-	}	
-    /*
-    ** SyncDelta is used to compare the current time to the time of a cell to decide
-    ** if they are synchronous. We need some sort of sensible minimum difference
-    ** and we can use the maximum rung for this purpose.
-    */
-    dSyncDelta = pkd->param.dDelta*pow(2.0,-(pkd->param.iMaxRung+2.0));
+	}
+    else if (!pkdIsCellActive(pkd,&pkd->kdNodes[ROOT])) return 0;
     /*
     ** Initially we set our cell pointer to 
     ** point to the top tree.
@@ -332,38 +326,6 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bEwaldKick,
 #endif
 		    n = pkdc->pUpper - pkdc->pLower + 1;
 		    }
-#if 0
-		/*
-		** If the cell is not time synchronous, then work out a drift factor
-		** for this cell.
-		*/
-		if (fabs(pkdc->dTimeStamp-dTime) > dSyncDelta) {
-		  /*
-		  ** We need to account for cosmological drift factor here!
-		  */
-		  if (pkd->param.csm->bComove && pkd->param.bCannonical) {
-		    /*
-		    ** This might get called quite a bit in this code. Better might
-		    ** be to store a dDriftFac within the CheckElt structure, thereby
-		    ** reducing the number of calls to csmComoveDriftFac. Otherwise
-		    ** we may need to speed this function up.
-		    */
-		    dDriftFac = csmComoveDriftFac(pkd->param.csm,pkdc->dTimeStamp,dTime - pkdc->dTimeStamp);
-		  }
-		  else {
-		    dDriftFac = dTime - pkdc->dTimeStamp;
-		  }
-		  for (j=0;j<3;++j) rCheck[j] = pkdc->r[j] + 
-		    dDriftFac*pkdc->v[j] + Check[i].rOffset[j];
-		}
-		else {
-		  dDriftFac = 0.0;
-		  for (j=0;j<3;++j) rCheck[j] = pkdc->r[j] + Check[i].rOffset[j];
-		}
-#else
-		dDriftFac = 0.0;
-		for (j=0;j<3;++j) rCheck[j] = pkdc->r[j] + Check[i].rOffset[j];
-#endif
 		d2 = 0;
 		for (j=0;j<3;++j) {
 		    dx[j] = c[iCell].r[j] - rCheck[j];
@@ -587,9 +549,9 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bEwaldKick,
 				ilp[nPart].iOrder = p[pj].iOrder;
 #endif
 				ilp[nPart].m = p[pj].fMass;
-				ilp[nPart].x = p[pj].r[0] + dDriftFac*p[pj].v[0] + Check[i].rOffset[0];
-				ilp[nPart].y = p[pj].r[1] + dDriftFac*p[pj].v[1] + Check[i].rOffset[1];
-				ilp[nPart].z = p[pj].r[2] + dDriftFac*p[pj].v[2] + Check[i].rOffset[2];
+				ilp[nPart].x = p[pj].r[0] + p[pj].v[0] + Check[i].rOffset[0];
+				ilp[nPart].y = p[pj].r[1] + p[pj].v[1] + Check[i].rOffset[1];
+				ilp[nPart].z = p[pj].r[2] + p[pj].v[2] + Check[i].rOffset[2];
 #ifndef USE_SIMD
 				ilp[nPart].vx = p[pj].v[0]; 
 				ilp[nPart].vy = p[pj].v[1];
@@ -618,9 +580,9 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bEwaldKick,
 				ilp[nPart].iOrder = pRemote->iOrder;
 #endif
 				ilp[nPart].m = pRemote->fMass;
-				ilp[nPart].x = pRemote->r[0] + dDriftFac*pRemote->v[0] + Check[i].rOffset[0];
-				ilp[nPart].y = pRemote->r[1] + dDriftFac*pRemote->v[1] + Check[i].rOffset[1];
-				ilp[nPart].z = pRemote->r[2] + dDriftFac*pRemote->v[2] + Check[i].rOffset[2];
+				ilp[nPart].x = pRemote->r[0] + pRemote->v[0] + Check[i].rOffset[0];
+				ilp[nPart].y = pRemote->r[1] + pRemote->v[1] + Check[i].rOffset[1];
+				ilp[nPart].z = pRemote->r[2] + pRemote->v[2] + Check[i].rOffset[2];
 #ifndef USE_SIMD
 				ilp[nPart].vx = pRemote->v[0]; 
 				ilp[nPart].vy = pRemote->v[1];
