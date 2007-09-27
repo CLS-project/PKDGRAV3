@@ -1475,6 +1475,7 @@ pkdGravAll(PKD pkd,double dTime,int nReps,int bPeriodic,int iOrder,int bEwald,
 #endif
 #ifdef USE_BSC
     MPItrace_event(10000,3);
+    MPItrace_event(10001,0);
 #endif
 
     /*
@@ -1500,9 +1501,6 @@ pkdGravAll(PKD pkd,double dTime,int nReps,int bPeriodic,int iOrder,int bEwald,
 
 #ifdef USE_BSC
     MPItrace_event(10001, *nActive);
-
-    /*MPItrace_event(10001, (int)(pkdGetWallClockTimer(pkd,1)*1000000) );*/
-    /*MPItrace_event(10001, (int)(pkd->nActive/(pkd->nLocal/100)) );*/
     MPItrace_event(10000, 0 );
 #endif
 #ifdef USE_BSC_no
