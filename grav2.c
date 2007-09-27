@@ -58,7 +58,7 @@ void HEAPrholocal(int n, int k, RHOLOCAL ra[]) {
 ** v_sqrt's and such.
 ** Returns nActive.
 */
-int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,int nCell,ILPB *ilpb,int nPartBucket,double dirLsum,double normLsum,double *pdFlop) {
+int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,int nCell,ILPB *ilpb,int nPartBucket,double dirLsum,double normLsum,int bEwaldKicking,double *pdFlop) {
     PARTICLE *p = pkd->pStore;
     KDN *pkdn = pBucket;
     const double onethird = 1.0/3.0;
@@ -106,7 +106,17 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	az = 0;
         rholoc = 0;
         dsmooth2 = 0;
-	dimaga = p[i].a[0]*p[i].a[0] + p[i].a[1]*p[i].a[1] + p[i].a[2]*p[i].a[2];
+	if (bEwaldKicking) {
+	    tx = p[i].a[0] + p[i].ae[0];
+	    ty = p[i].a[1] + p[i].ae[1];
+	    tz = p[i].a[2] + p[i].ae[2];
+	}
+	else {
+	    tx = p[i].a[0];
+	    ty = p[i].a[1];
+	    tz = p[i].a[2];
+	}
+	dimaga = tx*tx + ty*ty + tz*tz;
 	if (dimaga > 0) {
 	    dimaga = 1.0/sqrt(dimaga);
 	    }
@@ -174,7 +184,12 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	    tax = xx + xxx + tx - x*dir2;
 	    tay = xy + xxy + ty - y*dir2;
 	    taz = xz + xxz + tz - z*dir2;
-            adotai = p[i].a[0]*tax + p[i].a[1]*tay + p[i].a[2]*taz; 
+	    if (bEwaldKicking) {
+		adotai = (p[i].a[0]+p[i].ae[0])*tax + (p[i].a[1]+p[i].ae[1])*tay + (p[i].a[2]+p[i].ae[2])*taz; 
+	    }
+	    else {
+		adotai = p[i].a[0]*tax + p[i].a[1]*tay + p[i].a[2]*taz; 
+	    }		
             if (adotai > 0) {
 		adotai *= dimaga;
                 dirsum += dirDTS*adotai*adotai;
@@ -266,7 +281,12 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	    tax = -x*dir2;
 	    tay = -y*dir2;
 	    taz = -z*dir2;
-	    adotai = p[i].a[0]*tax + p[i].a[1]*tay + p[i].a[2]*taz;
+	    if (bEwaldKicking) {
+		adotai = (p[i].a[0]+p[i].ae[0])*tax + (p[i].a[1]+p[i].ae[1])*tay + (p[i].a[2]+p[i].ae[2])*taz;
+	    }
+	    else {
+		adotai = p[i].a[0]*tax + p[i].a[1]*tay + p[i].a[2]*taz;
+	    }
 	    if (adotai > 0 && d2DTS >= dsmooth2) {
 		adotai *= dimaga;
 		dirsum += dir*adotai*adotai;
@@ -294,7 +314,17 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	    /*
 	    ** Use new acceleration here!
 	    */
-	    maga = sqrt(p[i].a[0]*p[i].a[0] + p[i].a[1]*p[i].a[1] + p[i].a[2]*p[i].a[2]);
+	    if (bEwaldKicking) {
+		tx = p[i].a[0] + p[i].ae[0];
+		ty = p[i].a[1] + p[i].ae[1];
+		tz = p[i].a[2] + p[i].ae[2];
+	    }
+	    else {
+		tx = p[i].a[0];
+		ty = p[i].a[1];
+		tz = p[i].a[2];
+	    }
+	    maga = sqrt(tx*tx + ty*ty + tz*tz);
 	    p[i].dtGrav = maga*dirsum/normsum + pkd->param.dPreFacRhoLoc*rholoc;
 	    p[i].fDensity = pkd->param.dPreFacRhoLoc*rholoc;
 	    }

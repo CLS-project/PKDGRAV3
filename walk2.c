@@ -101,7 +101,7 @@ double dMonopoleThetaFac = 1.5;
 /*
 ** Returns total number of active particles for which gravity was calculated.
 */
-int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bEwaldKick,
+int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bEwaldKicking,
 		int bVeryActive,double fEwCut,
 		double *pdFlop,double *pdPartSum,double *pdCellSum)
     {
@@ -877,14 +877,14 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bEwaldKick,
 	** Now calculate gravity on this bucket!
 	*/
 
-	nActive = pkdGravInteract(pkd,pkdc,&L,ilp,nPart,ilc,nCell,NULL,0,dirLsum,normLsum,pdFlop);
+	nActive = pkdGravInteract(pkd,pkdc,&L,ilp,nPart,ilc,nCell,NULL,0,dirLsum,normLsum,bEwaldKicking,pdFlop);
 	/*
 	** Note that if Ewald is being performed we need to factor this
 	** constant cost into the load balancing weights.
 	*/
 	if (bEwald) {
-	    dEwaldFlop = pkdBucketEwald(pkd,&pkd->kdNodes[iCell],nReps,fEwCut,bEwaldKick);
-	    if (!bEwaldKick) {
+	    dEwaldFlop = pkdBucketEwald(pkd,&pkd->kdNodes[iCell],nReps,fEwCut,bEwaldKicking);
+	    if (!bEwaldKicking) {
 		*pdFlop += dEwaldFlop;
 	    }
 	}
