@@ -1984,7 +1984,7 @@ void smFof(SMX smx,int nFOFsDone,SMF *smf)
       nCnt = smx->nnListSize;
       for(pnn=0;pnn<nCnt;++pnn ){
 	if(smx->nnbRemote[pnn] == 0){
-	  /* Do not add particles that are allready in a group*/
+	  /* Do not add particles that are already in a group*/
 	  if (smx->nnList[pnn].pPart->pGroup) continue;
 	  /* Check phase space distance */
 	  if (p[pi].fBallv2 > 0.0){
@@ -2197,7 +2197,11 @@ int CmpGroups(const void *v1,const void *v2)
 {
   FOFGD *g1 = (FOFGD *)v1;
   FOFGD *g2 = (FOFGD *)v2;
-  return(g1->nTotal - g2->nTotal);
+  /* use maxima of fabs(potential) to order groups*/
+  if( g1->potmin > g2->potmin )  
+    return 1;
+  else
+    return -1;
 }
 int smGroupMerge(SMF *smf,int bPeriodic)
 {
@@ -2241,6 +2245,7 @@ int smGroupMerge(SMF *smf,int bPeriodic)
   assert(lSubGroup != NULL);
   rmFifo = (FOFRM *)malloc(nFifo*sizeof(FOFRM));	
   assert(rmFifo != NULL);	
+
   /*		
   ** Start RO particle cache.
   */
@@ -2434,6 +2439,7 @@ int smGroupMerge(SMF *smf,int bPeriodic)
   mdlFinishCache(mdl,CID_PARTICLE);			
   mdlFinishCache(mdl,CID_GROUP);
   mdlFinishCache(mdl,CID_RM);
+  
   free(subGroup);
   free(lSubGroup);
   free(rmFifo);
@@ -2452,8 +2458,8 @@ int smGroupMerge(SMF *smf,int bPeriodic)
     if(index >= 0 && index < pkd->nGroups )
       p[pi].pGroup = pkd->groupData[index].iGlobalId;
     else p[pi].pGroup = 0;
-    fprintf(dFile, "%I64d %.8g\n",  p[pi].iOrder, p[pi].fDensity);
-    if(p[pi].pGroup) fprintf(pFile, "%I64d %i\n",  p[pi].iOrder, p[pi].pGroup);
+    fprintf(dFile, "%lu %.8g\n",  p[pi].iOrder, p[pi].fDensity);
+    if(p[pi].pGroup) fprintf(pFile, "%lu %i\n",  p[pi].iOrder, p[pi].pGroup);
     if(p[pi].pBin && p[pi].pGroup)fprintf(lFile, "%i %i\n", p[pi].pGroup, p[pi].pBin); 
   }
   fclose(pFile);fclose(lFile);fclose(dFile);
@@ -2527,7 +2533,7 @@ int smGroupMerge(SMF *smf,int bPeriodic)
     nMyGroups = 0;
   } else {
     /*
-    ** Master orders groupData according to the number of members
+    ** Master orders groupData
     */	
     qsort(pkd->groupData,nMyGroups,sizeof(FOFGD), CmpGroups);
   }
@@ -2541,8 +2547,8 @@ int smGroupProfiles(SMX smx, SMF *smf,int bPeriodic, int nTotalGroups,int bLogBi
   MDL mdl = smf->pkd->mdl;
   PARTICLE *p = smf->pkd->pStore;
   double dx2;
-  FLOAT l[3],L[3],r[3],relvel[3],com[3],V,Vprev,vcirc,vcircMax,rvcircMax,M,R,binFactor;
-  FLOAT rvir,Mvir,Delta,fBall,lastbin,minSoft;
+  FLOAT l[3],L[3],r[3],relvel[3],com[3],V,Rprev,Vprev,Mprev,vcirc,vcircMax,rvcircMax,M,R,binFactor;
+  FLOAT rvir,Mvir,Delta,fBall,lastbin,minSoft,rho,rhoinner;
   int pn,i,j,k,iBin,nBins,maxId,nTree,index,nCnt,pnn;
   int* iGroupIndex;
   int iStart[3],iEnd[3];
@@ -2565,7 +2571,7 @@ int smGroupProfiles(SMX smx, SMF *smf,int bPeriodic, int nTotalGroups,int bLogBi
   }
   nTree = pkd->kdNodes[ROOT].pUpper + 1;
   /*			
-  ** the smallest softening sets the innermost bin radius:
+  ** the smallest softening of all particles sets the innermost bin radius:
   */	
   minSoft=1.0;
   for(pn=0;pn<nTree;pn++) {
@@ -2587,9 +2593,8 @@ int smGroupProfiles(SMX smx, SMF *smf,int bPeriodic, int nTotalGroups,int bLogBi
     }
   }	
   mdlFinishCache(mdl,CID_GROUP);
- 	 
   /*
-  ** Calculate nBins and allocate bin memory.
+  ** Calculate the number of bins and allocate memory for them.
   */
   maxId = 0;
   nBins = 0;
@@ -2601,7 +2606,7 @@ int smGroupProfiles(SMX smx, SMF *smf,int bPeriodic, int nTotalGroups,int bLogBi
     nBins += pkd->groupData[i].nRemoteMembers;
     if(pkd->groupData[i].iGlobalId > maxId ) maxId = pkd->groupData[i].iGlobalId;
   }
-  pkd->groupBin = (FOFBIN *) malloc(nBins*sizeof(FOFBIN));
+  pkd->groupBin = (FOFBIN *) malloc( (nBins+1)*sizeof(FOFBIN) );
   assert(pkd->groupBin != NULL);
   /*
   ** Create a map group id -> index of group in the pkd->groupData array.
@@ -2610,24 +2615,26 @@ int smGroupProfiles(SMX smx, SMF *smf,int bPeriodic, int nTotalGroups,int bLogBi
   assert(iGroupIndex != NULL);
   for(i=0; i< maxId+1; i++)iGroupIndex[i]= -1;
   for(i=0; i< nTotalGroups; i++){
-    iGroupIndex[pkd->groupData[i].iGlobalId] = i; 
+    iGroupIndex[pkd->groupData[i].iGlobalId] = i;        
   }
   /*			
   ** Initalize bin array
   */	
   iBin = 0;
   for (i=0; i< nTotalGroups; i++) {
-    if(bLogBins == 2){/* fixed phys logarithmic bins */
-      lastbin = binFactor/smf->a;/*lastbin is actually the first bin in this case*/
+    if(bLogBins == 2){ /* logarithmic bins with same fixed non-comoving size for all groups */
+      lastbin = binFactor/smf->a; /* NB: lastbin is actually the first bin in this case */
     }else {
+      /* estimate virial radius, assuming isothermal shperes */
       lastbin = pow(pkd->groupData[i].fAvgDens,0.5)*pkd->groupData[i].fDeltaR2*binFactor;
-      for (k=0; k< nTotalGroups; k++) {  /* if a larger group is nearby limit lastbin to 0.75 of its distance*/
-	if(pkd->groupData[k].fAvgDens*pkd->groupData[k].fAvgDens*pkd->groupData[k].fMass >
-	   pkd->groupData[i].fAvgDens*pkd->groupData[i].fAvgDens*pkd->groupData[i].fMass){
+      for (k=i+1; k < nTotalGroups; k++) { 
+	/* if a larger group is nearby limit lastbin to 0.75 of its distance*/
+/* 	if(pkd->groupData[k].fAvgDens*pkd->groupData[k].fAvgDens*pkd->groupData[k].fMass > */
+/* 	   pkd->groupData[i].fAvgDens*pkd->groupData[i].fAvgDens*pkd->groupData[i].fMass){ */
 	  dx2=0.0;for(j = 0; j < 3; j++)dx2+=pow(pkd->groupData[k].r[j] - pkd->groupData[i].r[j],2.0);
 	  dx2=0.75*sqrt(dx2);
 	  if(lastbin > dx2)lastbin = dx2;
-	}
+/* 	} */
       }
     }
     for(j=0; j < pkd->groupData[i].nRemoteMembers; j++){
@@ -2637,7 +2644,7 @@ int smGroupProfiles(SMX smx, SMF *smf,int bPeriodic, int nTotalGroups,int bLogBi
       if(bLogBins == 1){/* logarithmic bins */
 	dx2 = pkd->groupData[i].nRemoteMembers-(j+1);
 	pkd->groupBin[iBin].fRadius = minSoft*pow(lastbin/minSoft,((float) j)/( (float)pkd->groupData[i].nRemoteMembers-1.0));
-      }else if(bLogBins == 2){/* fixed phys logarithmic bins */
+      }else if(bLogBins == 2){/* logarithmic bins with same fixed non-comoving size for all groups */
 	pkd->groupBin[iBin].fRadius = lastbin*pow(10.0, 0.1*j);
       } else { /* linear bins */
 	dx2 = j+1;
@@ -2651,17 +2658,18 @@ int smGroupProfiles(SMX smx, SMF *smf,int bPeriodic, int nTotalGroups,int bLogBi
       pkd->groupBin[iBin].L[0] = 0.0;
       pkd->groupBin[iBin].L[1] = 0.0;
       pkd->groupBin[iBin].L[2] = 0.0;	
-      pkd->groupBin[iBin].a = 0.0;	
-      pkd->groupBin[iBin].b = 0.0;	
-      pkd->groupBin[iBin].c = 0.0;	
-      pkd->groupBin[iBin].phi = 0.0;	
-      pkd->groupBin[iBin].theta = 0.0;	
-      pkd->groupBin[iBin].psi = 0.0;	
+/*  	Shapes are not implemented yet: */
+/*       pkd->groupBin[iBin].a = 0.0;	 */
+/*       pkd->groupBin[iBin].b = 0.0;	 */
+/*       pkd->groupBin[iBin].c = 0.0;	 */
+/*       pkd->groupBin[iBin].phi = 0.0;	 */
+/*       pkd->groupBin[iBin].theta = 0.0;	 */
+/*       pkd->groupBin[iBin].psi = 0.0;	 */
       iBin++;
     } 
   }
   /*			
-  ** Add my particles to the correspondig bin
+  ** Add local particles to their correspondig bins
   */	
   for(pn=0;pn<nTree;pn++) {
     p[pn].pBin = -1;
@@ -2716,8 +2724,6 @@ int smGroupProfiles(SMX smx, SMF *smf,int bPeriodic, int nTotalGroups,int bLogBi
 	assert(iBin+k < nBins);
 	pkd->groupBin[iBin+k].nMembers++;
 	pkd->groupBin[iBin+k].fMassInBin += smx->nnList[pnn].pPart->fMass;
-	pkd->groupBin[iBin+k].a += smx->nnList[pnn].pPart->fMass*smx->nnList[pnn].pPart->fDensity;
-	pkd->groupBin[iBin+k].fMassEnclosed += smx->nnList[pnn].pPart->fMass;
 	pkd->groupBin[iBin+k].v2[0] += smx->nnList[pnn].pPart->fMass*pow(relvel[0],2.0);
 	pkd->groupBin[iBin+k].v2[1] += smx->nnList[pnn].pPart->fMass*pow(relvel[1],2.0);
 	pkd->groupBin[iBin+k].v2[2] += smx->nnList[pnn].pPart->fMass*pow(relvel[2],2.0);
@@ -2728,10 +2734,6 @@ int smGroupProfiles(SMX smx, SMF *smf,int bPeriodic, int nTotalGroups,int bLogBi
 	pkd->groupBin[iBin+k].L[1] += smx->nnList[pnn].pPart->fMass*(r[2]*relvel[0] - r[0]*relvel[2]);
 	pkd->groupBin[iBin+k].L[2] += smx->nnList[pnn].pPart->fMass*(r[0]*relvel[1] - r[1]*relvel[0]);	
 	smx->nnList[pnn].pPart->pBin = iBin+k;
-	while(k < pkd->groupData[index].nRemoteMembers-1){
-	  k++;
-	  pkd->groupBin[iBin+k].fMassEnclosed += smx->nnList[pnn].pPart->fMass;
-	}
       nextParticle:
 	;
       }		
@@ -2743,25 +2745,33 @@ int smGroupProfiles(SMX smx, SMF *smf,int bPeriodic, int nTotalGroups,int bLogBi
   mdlCOcache(mdl,CID_BIN,pkd->groupBin,sizeof(FOFBIN),nBins,initGroupBins,combGroupBins);
   if(pkd->idSelf != 0) { 
     for(i=0; i< nBins; i++){ 
-      bin = mdlAquire(mdl,CID_BIN,i,0);	   
-      *bin = pkd->groupBin[i];  	
-      mdlRelease(mdl,CID_BIN,bin);      	
+      if(pkd->groupBin[i].fMassInBin > 0.0){
+	bin = mdlAquire(mdl,CID_BIN,i,0);	   
+	*bin = pkd->groupBin[i];  	
+	mdlRelease(mdl,CID_BIN,bin);    
+      }  	
     }
   }
   mdlFinishCache(mdl,CID_BIN);
+  
   /*			
   ** Caculate densities, vcirc max, rvir:
   */	
   if(pkd->idSelf == 0){
+    Rprev = 0.0;
     Vprev = 0.0;
+    Mprev = 0.0;
     vcircMax = 0.0;
     rvcircMax = 0.0;
     rvir = 0.0;
     Mvir = 0.0;
     for(k=0;k<3;k++) L[k] = 0.0;
     for (i=0; i< nBins; i++) {
-      if( i > 0 && pkd->groupBin[i].iId != j ){
+      if( i > 0 && pkd->groupBin[i].iId != j ){ 
+	/* i.e. a new group profile starts with this bin: */
+	Rprev = 0.0;
 	Vprev = 0.0;
+	Mprev = 0.0;
 	pkd->groupData[iGroupIndex[j]].vcircMax = vcircMax;
 	pkd->groupData[iGroupIndex[j]].rvcircMax = rvcircMax;
 	pkd->groupData[iGroupIndex[j]].rvir = rvir;
@@ -2777,13 +2787,27 @@ int smGroupProfiles(SMX smx, SMF *smf,int bPeriodic, int nTotalGroups,int bLogBi
       j = pkd->groupBin[i].iId;
       V = 4.1887902048*pow(pkd->groupBin[i].fRadius,3.0);
       pkd->groupBin[i].fDensity = pkd->groupBin[i].fMassInBin/(V-Vprev);
+      pkd->groupBin[i].fMassEnclosed = pkd->groupBin[i].fMassInBin + Mprev;
       for(k=0;k<3;k++)pkd->groupBin[i].v2[k] /= pkd->groupBin[i].fMassInBin;
-      Vprev = V;
-      vcirc = pow(pkd->groupBin[i].fMassEnclosed/pkd->groupBin[i].fRadius,0.5);
-      if(pkd->groupBin[i].fMassEnclosed/V > Delta){
-	rvir = pkd->groupBin[i].fRadius;
-	Mvir = pkd->groupBin[i].fMassEnclosed;
+      /* calculate the virial mass and radius: */
+      rho = pkd->groupBin[i].fMassEnclosed/V;
+      if(Vprev > 0.0)  rhoinner = pkd->groupBin[i-1].fMassEnclosed/Vprev;
+      else rhoinner=0.0;
+      if(rhoinner > Delta){ 
+	if(rho < Delta){
+	  /* interpolate between bins assuming isothermal spheres: */
+	  rvir = Rprev + (pkd->groupBin[i].fRadius-Rprev)/(rho-rhoinner)*(Delta-rhoinner);
+	  Mvir = Mprev + (pkd->groupBin[i].fMassEnclosed-Mprev)/(rho-rhoinner)*(Delta-rhoinner);
+	} else {
+	  rvir = pkd->groupBin[i].fRadius;
+	  Mvir = pkd->groupBin[i].fMassEnclosed;
+	}
       }
+      Rprev = pkd->groupBin[i].fRadius;
+      Vprev = V;
+      Mprev = pkd->groupBin[i].fMassEnclosed;
+     /* calculate peak circular velocity: */
+      vcirc = pow(pkd->groupBin[i].fMassEnclosed/pkd->groupBin[i].fRadius,0.5);
       if( vcirc >  vcircMax 
 	  && vcirc > 5.0*2.046*pow(pkd->groupData[iGroupIndex[j]].rhoBG,0.5)*pkd->groupBin[i].fRadius){ 
 	if(rvir < pkd->groupBin[i].fRadius){

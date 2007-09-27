@@ -308,7 +308,7 @@ int main(int argc,char **argv) {
 		    || iStep == msrSteps(msr) || iStop );
 #endif
 	     
-		if (msrDoDensity(msr)) {
+		if (msrDoDensity(msr) || msr->param.nFindGroups) {
 		    msrActiveRung(msr,0,1); /* Activate all particles */
 		    msrDomainDecomp(msr,0,1,0);
 		    msrBuildTree(msr,dMass,dTime,0);
@@ -345,7 +345,7 @@ int main(int argc,char **argv) {
 		  else msrOutGroups(msr,achFile,OUT_GROUP_TIPSY_NAT,dTime);			  
 		  nFOFsDone++;
 		}
-		msrDeleteGroups(msr);
+		if( nFOFsDone )msrDeleteGroups(msr);
 #ifdef RELAXATION	
 		if ( msr->param.bTraceRelaxation) {
 		    msrReorder(msr);
@@ -355,7 +355,7 @@ int main(int argc,char **argv) {
 		    msrOutArray(msr,achFile,OUT_RELAX_ARRAY);
 		    }	
 #endif 
-		if (msrDoDensity(msr)) {
+		if (msrDoDensity(msr) && !msr->param.nFindGroups) {
 		    msrReorder(msr);
 		    msrBuildName(msr,achFile,iStep);
 		    // sprintf(achFile,achBaseMask,msrOutName(msr),iStep);
@@ -442,14 +442,15 @@ int main(int argc,char **argv) {
 	    msrReorder(msr);
 	    msrOutArray(msr,achFile,OUT_POT_ARRAY);
 	    }
-	if (msrDoDensity(msr) || msr->param.bDensityStep) {
+	if (msrDoDensity(msr) || msr->param.bDensityStep || msr->param.nFindGroups) {
 	    bGasOnly = 0;
 	    bSymmetric = 1;
 	    msrSmooth(msr,dTime,SMX_DENSITY,bGasOnly,bSymmetric,TYPE_ALL);
 	    msrReorder(msr);
 	    sprintf(achFile,"%s.den",msrOutName(msr));
-	    //msrOutArray(msr,achFile,OUT_DENSITY_ARRAY);
-	    } 
+	    if( !msr->param.nFindGroups )
+	      msrOutArray(msr,achFile,OUT_DENSITY_ARRAY);
+	} 
 	nFOFsDone = 0;
 	while ( msr ->param.nFindGroups > nFOFsDone) {
 	  /*
@@ -457,13 +458,13 @@ int main(int argc,char **argv) {
 	  */
 	  msrActiveRung(msr,0,1); /* Activate all particles */
 	  msrDomainDecomp(msr,0,1,0);
-	  msrBuildTree(msr,dMass,dTime,0);
+	  msrBuildTree(msr,dMass,dTime);
 	  msrFof(msr,nFOFsDone,SMX_FOF,0,TYPE_ALL,csmTime2Exp(msr->param.csm,dTime));
 	  msrGroupMerge(msr,csmTime2Exp(msr->param.csm,dTime));
-	  if(msr->param.nBins > 0) msrGroupProfiles(msr,nFOFsDone,SMX_FOF,0,TYPE_ALL,csmTime2Exp(msr->param.csm,dTime));
+	  if(msr->param.nBins > 0)
+	    msrGroupProfiles(msr,nFOFsDone,SMX_FOF,0,TYPE_ALL,csmTime2Exp(msr->param.csm,dTime));
 	  msrReorder(msr);
 	  sprintf(achFile,"%s.%i.fof",msrOutName(msr),nFOFsDone);
-	  /* msrOutArray(msr,achFile,OUT_GROUP_ARRAY); */ 
 	  sprintf(achFile,"%s.stats",msrOutName(msr));
 	  msrOutGroups(msr,achFile,OUT_GROUP_STATS,dTime);			
 	  sprintf(achFile,"%s.grps",msrOutName(msr));
@@ -475,14 +476,15 @@ int main(int argc,char **argv) {
 	  }			
 	  nFOFsDone++;	
 	}	
-	msrDeleteGroups(msr);
+	if ( nFOFsDone ) msrDeleteGroups(msr);
 	msrFinish(msr);
 	mdlFinish(mdl);
 	return 0;	    
 	if (msrDoDensity(msr)) {
 	  msrReorder(msr);
 	  sprintf(achFile,"%s.den",msrOutName(msr));
-	  msrOutArray(msr,achFile,OUT_DENSITY_ARRAY);
+	  if( !msr->param.nFindGroups )
+	    msrOutArray(msr,achFile,OUT_DENSITY_ARRAY);
 	}
 	if (msrDoGravity(msr)) {
 	    if (msr->param.bGravStep) {

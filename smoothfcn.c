@@ -301,7 +301,6 @@ void combMark(void *p1,void *p2)
 
 void initGroupMerge(void *g)
     {
-    /* nothing to do here */
     }
 void combGroupMerge(void *g1, void *g2)
     {
@@ -312,7 +311,7 @@ void combGroupMerge(void *g1, void *g2)
     if(gd1->iGlobalId < gd2->iGlobalId)       
 	gd2->iGlobalId = gd1->iGlobalId;
     else gd1->iGlobalId = gd2->iGlobalId;
-    /* if someone says its not my group, accept it */	
+    /* if someone says that this not my group, accept it */	
     gd1->bMyGroup *= gd2->bMyGroup;
     gd2->bMyGroup *= gd1->bMyGroup;
     }
@@ -338,7 +337,6 @@ void combGroupBins(void *b1, void *b2)
     /* add entries */	
     gb1->nMembers += gb2->nMembers;
     gb1->fMassInBin += gb2->fMassInBin;	
-    gb1->fMassEnclosed += gb2->fMassEnclosed;	
     gb1->v2[0] += gb2->v2[0];
     gb1->v2[1] += gb2->v2[1];
     gb1->v2[2] += gb2->v2[2];

@@ -2493,7 +2493,7 @@ int pkdDtToRung(PKD pkd,int iRung,double dDelta,int iMaxRung,int bAll,int *nRung
 		    }
 		if(iTempRung >= iMaxRung) {
 		    iTempRung = iMaxRung-1;
-		    printf("Maximum Rung %d overshot for particle %"PRIu64"!\n",iMaxRung-1,pkd->pStore[i].iOrder);
+/* 		    printf("Maximum Rung %d overshot for particle %"PRIu64"!\n",iMaxRung-1,pkd->pStore[i].iOrder); */
 		    }
 		pkd->pStore[i].iRung = iTempRung;
 		}

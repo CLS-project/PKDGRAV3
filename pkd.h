@@ -488,12 +488,13 @@ typedef struct groupBin{
     FLOAT com[3];
     FLOAT v2[3]; 
     FLOAT L[3];
-    FLOAT a;
-    FLOAT b;
-    FLOAT c;
-    FLOAT phi;
-    FLOAT theta;
-    FLOAT psi;
+/*     Shapes are not implemented yet: */
+/*     FLOAT a; */
+/*     FLOAT b; */
+/*     FLOAT c; */
+/*     FLOAT phi; */
+/*     FLOAT theta; */
+/*     FLOAT psi; */
     } FOFBIN;
 
 typedef struct pkdContext {
