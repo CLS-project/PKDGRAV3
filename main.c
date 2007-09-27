@@ -458,7 +458,7 @@ int main(int argc,char **argv) {
 	  */
 	  msrActiveRung(msr,0,1); /* Activate all particles */
 	  msrDomainDecomp(msr,0,1,0);
-	  msrBuildTree(msr,dMass,dTime);
+	  msrBuildTree(msr,dMass,dTime,0);
 	  msrFof(msr,nFOFsDone,SMX_FOF,0,TYPE_ALL,csmTime2Exp(msr->param.csm,dTime));
 	  msrGroupMerge(msr,csmTime2Exp(msr->param.csm,dTime));
 	  if(msr->param.nBins > 0)
