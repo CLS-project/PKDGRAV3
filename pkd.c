@@ -1454,7 +1454,9 @@ void pkdBucketWeight(PKD pkd,int iBucket,FLOAT fWeight)
 	    pkd->pStore[pj].fWeight = fWeight;
 	}
     }
-
+#ifdef USE_BSC_no
+static int foo = 0;
+#endif
 
 void
 pkdGravAll(PKD pkd,double dTime,int nReps,int bPeriodic,int iOrder,int bEwald,
@@ -1465,6 +1467,12 @@ pkdGravAll(PKD pkd,double dTime,int nReps,int bPeriodic,int iOrder,int bEwald,
 
     pkdClearTimer(pkd,1);
 
+#ifdef USE_BSC_no
+    foo++;
+    if ( foo == 1 ) {
+	MPItrace_restart();
+    }
+#endif
 #ifdef USE_BSC
     MPItrace_event(10000,3);
 #endif
@@ -1491,9 +1499,16 @@ pkdGravAll(PKD pkd,double dTime,int nReps,int bPeriodic,int iOrder,int bEwald,
     pkdStopTimer(pkd,1);
 
 #ifdef USE_BSC
+    MPItrace_event(10001, *nActive);
+
     /*MPItrace_event(10001, (int)(pkdGetWallClockTimer(pkd,1)*1000000) );*/
     /*MPItrace_event(10001, (int)(pkd->nActive/(pkd->nLocal/100)) );*/
     MPItrace_event(10000, 0 );
+#endif
+#ifdef USE_BSC_no
+    if ( foo == 1 ) {
+	MPItrace_shutdown();
+    }
 #endif
 
     /*

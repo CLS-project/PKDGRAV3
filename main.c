@@ -1,6 +1,9 @@
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
+#ifdef USE_BSC
+#include "mpitrace_user_events.h"
+#endif
 
 #define _LARGEFILE_SOURCE 
 #define _FILE_OFFSET_BITS 64 
@@ -108,6 +111,11 @@ int main(int argc,char **argv) {
     /* no stdout buffering */
     setbuf(stdout,(char *) NULL);
 #endif
+
+
+#ifdef USE_BSC_no
+    MPItrace_shutdown();
+#endif    
 
     lStart=time(0);
 #ifdef USE_MDL_IO
