@@ -73,6 +73,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bEwaldKick,int bVe
 	assert(pkd->nVeryActive != 0);
 	assert(pkd->nVeryActive == pkd->kdNodes[VAROOT].pUpper - pkd->kdNodes[VAROOT].pLower + 1);
 	}	
+    else if (!pkdIsCellActive(pkd,&pkd->kdNodes[ROOT])) return 0;
     /*
     ** SyncDelta is used to compare the current time to the time of a cell to decide
     ** if they are synchronous. We need some sort of sensible minimum difference
