@@ -326,6 +326,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bEwaldKick,
 #endif
 		    n = pkdc->pUpper - pkdc->pLower + 1;
 		    }
+		for (j=0;j<3;++j) rCheck[j] = pkdc->r[j] + Check[i].rOffset[j];
 		d2 = 0;
 		for (j=0;j<3;++j) {
 		    dx[j] = c[iCell].r[j] - rCheck[j];
