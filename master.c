@@ -3184,7 +3184,6 @@ void msrTopStepKDK(MSR msr,
     uint64_t nActive;
     int bSplitVA;
     int bEwald;
-    int bEwaldKick;
 
     if(iAdjust && (iRung < msrMaxRung(msr)-1)) {
 	if (msr->param.bVDetails) {
@@ -3358,7 +3357,7 @@ void msrTopStepKDK(MSR msr,
 		bEwald = msr->param.bEwald;
 	    }
 	    msrBuildTree(msr,dMass,dTime,bEwald);
-	    msrGravity(msr,dTime,dStep,bEwald,bEwaldKick,piSec,&nActive);
+	    msrGravity(msr,dTime,dStep,bEwald,msr->param.bEwaldKicking,piSec,&nActive);
 	    *pdActiveSum += (double)nActive/msr->N;
 	    }
 
