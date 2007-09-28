@@ -550,9 +550,9 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bEwaldKicking,
 				ilp[nPart].iOrder = p[pj].iOrder;
 #endif
 				ilp[nPart].m = p[pj].fMass;
-				ilp[nPart].x = p[pj].r[0] + p[pj].v[0] + Check[i].rOffset[0];
-				ilp[nPart].y = p[pj].r[1] + p[pj].v[1] + Check[i].rOffset[1];
-				ilp[nPart].z = p[pj].r[2] + p[pj].v[2] + Check[i].rOffset[2];
+				ilp[nPart].x = p[pj].r[0] + Check[i].rOffset[0];
+				ilp[nPart].y = p[pj].r[1] + Check[i].rOffset[1];
+				ilp[nPart].z = p[pj].r[2] + Check[i].rOffset[2];
 #ifndef USE_SIMD
 				ilp[nPart].vx = p[pj].v[0]; 
 				ilp[nPart].vy = p[pj].v[1];
@@ -581,9 +581,9 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bEwaldKicking,
 				ilp[nPart].iOrder = pRemote->iOrder;
 #endif
 				ilp[nPart].m = pRemote->fMass;
-				ilp[nPart].x = pRemote->r[0] + pRemote->v[0] + Check[i].rOffset[0];
-				ilp[nPart].y = pRemote->r[1] + pRemote->v[1] + Check[i].rOffset[1];
-				ilp[nPart].z = pRemote->r[2] + pRemote->v[2] + Check[i].rOffset[2];
+				ilp[nPart].x = pRemote->r[0] + Check[i].rOffset[0];
+				ilp[nPart].y = pRemote->r[1] + Check[i].rOffset[1];
+				ilp[nPart].z = pRemote->r[2] + Check[i].rOffset[2];
 #ifndef USE_SIMD
 				ilp[nPart].vx = pRemote->v[0]; 
 				ilp[nPart].vy = pRemote->v[1];
