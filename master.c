@@ -58,7 +58,7 @@ double msrTime() {
 #endif
 
 void _msrLeader(void) {
-    puts("pkdgrav2 Joachim Stadel June 6, 2005");
+    puts("pkdgrav2.2 Joachim Stadel & Doug Potter Sept 2007");
     puts("USAGE: pkdgrav2 [SETTINGS | FLAGS] [SIM_FILE]");
     puts("SIM_FILE: Configuration file of a particular simulation, which");
     puts("          includes desired settings and relevant input and");
@@ -184,6 +184,17 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv)
     msr->param.nBucket = 8;
     prmAddParam(msr->prm,"nBucket",1,&msr->param.nBucket,sizeof(int),"b",
 		"<max number of particles in a bucket> = 8");
+    msr->param.nBucketSubStep = 64;
+    prmAddParam(msr->prm,"nBucketSubStep",1,&msr->param.nBucketSubStep,sizeof(int),"bss",
+		"<max number of particles in a bucket for sub steps> = 64");
+    msr->param.dFracUseSubStepBuckets = 0.001;
+    prmAddParam(msr->prm,"dFracUseSubStepBuckets",2,&msr->param.dFracUseSubStepBuckets,
+		sizeof(double),"fbss",
+		"<Fraction of Active Particles for using sub step buckets (see nBucketSubStep)> = 0.001");
+    msr->param.dFracNoTreeSqueeze = 0.01;
+    prmAddParam(msr->prm,"dFracNoTreeSqueeze",2,&msr->param.dFracNoTreeSqueeze,
+		sizeof(double),"fnts",
+		"<Fraction of Active Particles for no Tree Squeeze> = 0.01");
     msr->param.iStartStep = 0;
     prmAddParam(msr->prm,"iStartStep",1,&msr->param.iStartStep,
 		sizeof(int),"nstart","<initial step numbering> = 0");
@@ -373,10 +384,6 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv)
     msr->param.dGrowEndT = 1.0;
     prmAddParam(msr->prm,"dGrowEndT",2,&msr->param.dGrowEndT,
 		sizeof(double),"gmet","<End time for growing mass> = 1.0");
-    msr->param.dFracNoTreeSqueeze = 0.01;
-    prmAddParam(msr->prm,"dFracNoTreeSqueeze",2,&msr->param.dFracNoTreeSqueeze,
-		sizeof(double),"fnts",
-		"<Fraction of Active Particles for no Tree Squeeze> = 0.01");
     msr->param.dFracNoDomainDecomp = 0.001;
     prmAddParam(msr->prm,"dFracNoDomainDecomp",2,&msr->param.dFracNoDomainDecomp,
 		sizeof(double),"fndd",
@@ -756,6 +763,9 @@ void msrLogParams(MSR msr,FILE *fp)
 	fprintf(fp," bStandard: %d",msr->param.bStandard);
 	fprintf(fp," bHDF5: %d",msr->param.bHDF5);
 	fprintf(fp," nBucket: %d",msr->param.nBucket);
+	fprintf(fp," nBucketSubStep: %d",msr->param.nBucketSubStep);
+	fprintf(fp,"\n# dFracNoTreeSqueeze: %g",msr->param.dFracNoTreeSqueeze);
+	fprintf(fp," dFracUseSubStepBuckets: %g",msr->param.dFracUseSubStepBuckets);
 	fprintf(fp," iOutInterval: %d",msr->param.iOutInterval);
 	fprintf(fp," iCheckInterval: %d",msr->param.iCheckInterval);
 	fprintf(fp," iLogInterval: %d",msr->param.iLogInterval);
@@ -797,7 +807,6 @@ void msrLogParams(MSR msr,FILE *fp)
 	fprintf(fp," bHermite: %d",msr->param.bHermite);
 	fprintf(fp," bAarsethStep: %d",msr->param.bAarsethStep);
 #endif
-	fprintf(fp,"\n# dFracNoTreeSqueeze: %g",msr->param.dFracNoTreeSqueeze);
 	fprintf(fp,"\n# dFracNoDomainDecomp: %g",msr->param.dFracNoDomainDecomp);
 	fprintf(fp," dFracNoDomainRootFind: %g",msr->param.dFracNoDomainRootFind);
 	fprintf(fp," dFracNoDomainDimChoice: %g",msr->param.dFracNoDomainDimChoice);
@@ -1285,6 +1294,7 @@ static double _msrReadHDF5(MSR msr, const char *achFilename)
     in.nFileStart = 0;
     in.nFileEnd = msr->N - 1;
     in.nBucket = msr->param.nBucket;
+    if (msr->param.nBucketSubStep < in.nBucket) in.nBucket = msr->param.nBucketSubStep;
     in.nDark = msr->nDark;
     in.nGas = msr->nGas;
     in.nStar = msr->nStar;
@@ -1513,6 +1523,7 @@ static double _msrReadTipsy(MSR msr, const char *achFilename)
     in.nFileStart = 0;
     in.nFileEnd = msr->N - 1;
     in.nBucket = msr->param.nBucket;
+    if (msr->param.nBucketSubStep < in.nBucket) in.nBucket = msr->param.nBucketSubStep;
     in.nDark = msr->nDark;
     in.nGas = msr->nGas;
     in.nStar = msr->nStar;
@@ -1664,6 +1675,9 @@ void msrSaveParameters(MSR msr, IOHDF5 io)
     ioHDF5WriteAttribute( io, "bDoGravity", H5T_NATIVE_INT, &msr->param.bDoGravity );
     ioHDF5WriteAttribute( io, "bAntiGrav", H5T_NATIVE_INT, &msr->param.bAntiGrav );
     ioHDF5WriteAttribute( io, "nBucket", H5T_NATIVE_INT, &msr->param.nBucket );
+    ioHDF5WriteAttribute( io, "nBucketSubStep", H5T_NATIVE_INT, &msr->param.nBucketSubStep );
+    ioHDF5WriteAttribute( io, "dFracUseSubStepBuckets", H5T_NATIVE_DOUBLE, &msr->param.dFracUseSubStepBuckets );
+    ioHDF5WriteAttribute( io, "dFracNoTreeSqueeze", H5T_NATIVE_DOUBLE, &msr->param.dFracNoTreeSqueeze );
     ioHDF5WriteAttribute( io, "iOutInterval", H5T_NATIVE_INT, &msr->param.iOutInterval );
     ioHDF5WriteAttribute( io, "iCheckInterval", H5T_NATIVE_INT, &msr->param.iCheckInterval );
     ioHDF5WriteAttribute( io, "iLogInterval", H5T_NATIVE_INT, &msr->param.iLogInterval );
@@ -1712,7 +1726,6 @@ void msrSaveParameters(MSR msr, IOHDF5 io)
     ioHDF5WriteAttribute( io, "dGrowDeltaM", H5T_NATIVE_DOUBLE, &msr->param.dGrowDeltaM );
     ioHDF5WriteAttribute( io, "dGrowStartT", H5T_NATIVE_DOUBLE, &msr->param.dGrowStartT );
     ioHDF5WriteAttribute( io, "dGrowEndT", H5T_NATIVE_DOUBLE, &msr->param.dGrowEndT );
-    ioHDF5WriteAttribute( io, "dFracNoTreeSqueeze", H5T_NATIVE_DOUBLE, &msr->param.dFracNoTreeSqueeze );
     ioHDF5WriteAttribute( io, "dFracNoDomainDecomp", H5T_NATIVE_DOUBLE, &msr->param.dFracNoDomainDecomp );
     ioHDF5WriteAttribute( io, "dFracNoDomainRootFind", H5T_NATIVE_DOUBLE, &msr->param.dFracNoDomainRootFind );
     ioHDF5WriteAttribute( io, "dFracNoDomainDimChoice", H5T_NATIVE_DOUBLE, &msr->param.dFracNoDomainDimChoice );
@@ -2096,7 +2109,12 @@ void _BuildTree(MSR msr,double dMass,double dTimeStamp,int bExcludeVeryActive,in
 
     if (msr->param.bVDetails) printf("Building local trees...\n\n");
 
-    in.nBucket = msr->param.nBucket;
+    if (msr->nActive > (uint64_t)floor(((double)msr->N)*msr->param.dFracUseSubStepBuckets)) {
+	in.nBucket = msr->param.nBucket;
+    }
+    else {
+	in.nBucket = msr->param.nBucketSubStep;
+    }
     in.diCrit2 = 1/(msr->dCrit*msr->dCrit);
     nCell = 1<<(1+(int)ceil(log((double)msr->nThreads)/log(2.0)));
     pkdn = malloc(nCell*sizeof(KDN));
