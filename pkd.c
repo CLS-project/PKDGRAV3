@@ -323,7 +323,7 @@ void pkdReadHDF5(PKD pkd, IOHDF5 io, double dvFac,
 	** Clear the accelerations so that the timestepping calculations do not 
 	** get funny uninitialized values!
 	*/
-	for (j=0;j<3,++j) {
+	for (j=0;j<3;++j) {
 	    p->a[j] = 0.0;
 	    p->ae[j] = 0.0;
 	}
