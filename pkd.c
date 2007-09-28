@@ -1989,7 +1989,7 @@ pkdStepVeryActiveHermite(PKD pkd, double dStep, double dTime, double dDelta,
 	    time1 = Zeit(); /* added MZ 1.6.2006 */
 
 	    pkdActiveRung(pkd,iKickRung,1);
-	    pkdVATreeBuild(pkd,pkd->param.nBucket,diCrit2,0,dTime,bEwaldKick);
+	    pkdVATreeBuild(pkd,pkd->param.nBucket,diCrit2,0,dTime,pkd->param.bEwaldKicking);
 	    pkdGravityVeryActive(pkd,dTime,pkd->param.bEwald && pkd->param.bPeriodic,pkd->param.nReplicas,pkd->param.dEwCut,dStep);
 
 
