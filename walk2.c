@@ -150,6 +150,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bEwaldKicking,
     double tempM;
     double tempI;
 #endif
+    double dEwFlop = 0.0;
 
 #ifdef PROFILE_GRAVWALK
     VTResume();
@@ -294,6 +295,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bEwaldKicking,
 	    clearTimer(&tv);
 #else
 	    tempI = *pdFlop;
+	    if (!bEwaldKicking) tempI += dEwFlop;
 	    tempM = 0.001*(pkd->mdl->cache[CID_PARTICLE].nMiss + pkd->mdl->cache[CID_CELL].nMiss);
 #endif
 	    ii = 0;
@@ -808,6 +810,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bEwaldKicking,
 		    S[iStack].fWeight = 0.001*(pkd->mdl->cache[CID_PARTICLE].nMiss + pkd->mdl->cache[CID_CELL].nMiss) - tempM;
 #else
 		    S[iStack].fWeight = (*pdFlop-tempI) + dShiftFlop;
+		    if (!bEwaldKicking) S[iStack].fWeight += dEwFlop;
 #endif
 		    }
 		}
@@ -876,18 +879,8 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bEwaldKicking,
 	/*
 	** Now calculate gravity on this bucket!
 	*/
-
-	nActive = pkdGravInteract(pkd,pkdc,&L,ilp,nPart,ilc,nCell,NULL,0,dirLsum,normLsum,bEwaldKicking,pdFlop);
-	/*
-	** Note that if Ewald is being performed we need to factor this
-	** constant cost into the load balancing weights.
-	*/
-	if (bEwald) {
-	    dEwaldFlop = pkdBucketEwald(pkd,&pkd->kdNodes[iCell],nReps,fEwCut,bEwaldKicking);
-	    if (!bEwaldKicking) {
-		*pdFlop += dEwaldFlop;
-	    }
-	}
+	nActive = pkdGravInteract(pkd,pkdc,&L,ilp,nPart,ilc,nCell,dirLsum,normLsum,
+				  bEwald,nReps,fEwCut,pdFlop,&dEwFlop);
 
 #ifdef TIME_WALK_WORK
 	fWeight += getTimer(&tv);
@@ -895,6 +888,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bEwaldKicking,
 	fWeight += 0.001*(pkd->mdl->cache[CID_PARTICLE].nMiss + pkd->mdl->cache[CID_CELL].nMiss) - tempM;
 #else
 	fWeight += (*pdFlop-tempI);
+	if (!bEwaldKicking) fWeight += dEwFlop;
 #endif
 	if (nActive) {
 	    fWeight /= nActive;
@@ -947,6 +941,8 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bEwaldKicking,
 #ifdef PROFILE_GRAVWALK
     VTPause();
 #endif
+                *pdFlop += dEwFlop;
+    
 		return(nTotActive);
 		}
 	    }
@@ -969,6 +965,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bEwaldKicking,
 #else
 	fWeight = S[iStack].fWeight;
 	tempI = *pdFlop;
+	if (!bEwaldKicking) tempI += dEwFlop;
 	tempM = 0.001*(pkd->mdl->cache[CID_PARTICLE].nMiss + pkd->mdl->cache[CID_CELL].nMiss);
 #endif
 	--iStack;
