@@ -31,7 +31,7 @@ if PLANETS
 SOURCES += ssio.c collision.c kepler.c
 endif
 if LOCAL_EXPANSION
-SOURCES += ../bsc/grav2.c ../bsc/walk2.c
+SOURCES += grav2.c walk2.c
 if USE_SIMD
 AM_CFLAGS = -I../bsc/ @SIMD_CFLAGS@
 if USE_SIMD_LOCR
