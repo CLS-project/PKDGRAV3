@@ -365,7 +365,6 @@ struct inBuildTree {
     int nCell;
     int bTreeSqueeze;
     int bExcludeVeryActive;
-    int bEwaldKicking;
     };
 void pstBuildTree(PST,void *,int,void *,int *);
 

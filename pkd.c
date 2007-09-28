@@ -319,7 +319,15 @@ void pkdReadHDF5(PKD pkd, IOHDF5 io, double dvFac,
 	p->fWeight = 1.0;
 	p->fDensity = 0.0;
 	p->fBall = 0.0;
+	/*
+	** Clear the accelerations so that the timestepping calculations do not 
+	** get funny uninitialized values!
+	*/
+	for (j=0;j<3,++j) {
+	    p->a[j] = 0.0;
+	    p->ae[j] = 0.0;
 	}
+    }
 
     /*TODO: add tracker file */
 
@@ -393,7 +401,15 @@ void pkdReadTipsy(PKD pkd,char *pszFileName, char *achOutName,uint64_t nStart,in
 	p->fWeight = 1.0;
 	p->fDensity = 0.0;
 	p->fBall = 0.0;
+	/*
+	** Clear the accelerations so that the timestepping calculations do not 
+	** get funny uninitialized values!
+	*/
+	for (j=0;j<3;++j) {
+	    p->a[j] = 0.0;
+	    p->ae[j] = 0.0;
 	}
+    }
     /*
     ** Seek past the header and up to nStart.
     */
@@ -1850,7 +1866,7 @@ pkdStepVeryActiveKDK(PKD pkd, double dStep, double dTime, double dDelta,
 	    time1 = Zeit(); /* added MZ 1.6.2006 */
 
 	    pkdActiveRung(pkd,iKickRung,1);
-	    pkdVATreeBuild(pkd,pkd->param.nBucket,diCrit2,0,dTime,pkd->param.bEwaldKicking);
+	    pkdVATreeBuild(pkd,pkd->param.nBucket,diCrit2,0,dTime);
 	    pkdGravityVeryActive(pkd,dTime,pkd->param.bEwald && pkd->param.bPeriodic,pkd->param.nReplicas,pkd->param.dEwCut,dStep);
 
 #ifdef PLANETS
@@ -1989,7 +2005,7 @@ pkdStepVeryActiveHermite(PKD pkd, double dStep, double dTime, double dDelta,
 	    time1 = Zeit(); /* added MZ 1.6.2006 */
 
 	    pkdActiveRung(pkd,iKickRung,1);
-	    pkdVATreeBuild(pkd,pkd->param.nBucket,diCrit2,0,dTime,pkd->param.bEwaldKicking);
+	    pkdVATreeBuild(pkd,pkd->param.nBucket,diCrit2,0,dTime);
 	    pkdGravityVeryActive(pkd,dTime,pkd->param.bEwald && pkd->param.bPeriodic,pkd->param.nReplicas,pkd->param.dEwCut,dStep);
 
 
@@ -2723,7 +2739,15 @@ pkdReadSS(PKD pkd,char *pszFileName,int nStart,int nLocal)
 		p->iRung = 0;
 		p->fWeight = 1.0;
 		p->fDensity = 0.0;		
+		/*
+		** Clear the accelerations so that the timestepping calculations do not 
+		** get funny uninitialized values!
+		*/
+		for (j=0;j<3,++j) {
+		    p->a[j] = 0.0;
+		    p->ae[j] = 0.0;
 		}
+	}
 	/*
 	 ** Seek past the header and up to nStart.
 	 */

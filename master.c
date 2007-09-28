@@ -1669,6 +1669,7 @@ void msrSaveParameters(MSR msr, IOHDF5 io)
     ioHDF5WriteAttribute( io, "iLogInterval", H5T_NATIVE_INT, &msr->param.iLogInterval );
     ioHDF5WriteAttribute( io, "iOrder", H5T_NATIVE_INT, &msr->param.iOrder );
     ioHDF5WriteAttribute( io, "bEwald", H5T_NATIVE_INT, &msr->param.bEwald );
+    ioHDF5WriteAttribute( io, "bEwaldKicking", H5T_NATIVE_INT, &msr->param.bEwaldKicking );
     ioHDF5WriteAttribute( io, "iEwOrder", H5T_NATIVE_INT, &msr->param.iEwOrder );
     ioHDF5WriteAttribute( io, "nReplicas", H5T_NATIVE_INT, &msr->param.nReplicas );
     ioHDF5WriteAttribute( io, "iStartStep", H5T_NATIVE_INT, &msr->param.iStartStep );
@@ -2105,7 +2106,6 @@ void _BuildTree(MSR msr,double dMass,double dTimeStamp,int bExcludeVeryActive,in
     in.bTreeSqueeze = (msr->nActive > (uint64_t)floor(((double)msr->N)*msr->param.dFracNoTreeSqueeze));
     in.bExcludeVeryActive = bExcludeVeryActive;
     in.dTimeStamp = dTimeStamp;
-    in.bEwaldKicking = msr->param.bEwaldKicking;
     if (msr->param.bVDetails) {
 	double sec,dsec;
 	sec = msrTime();

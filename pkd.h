@@ -608,8 +608,8 @@ typedef struct CacheStatistics {
 /*
 ** From tree.c:
 */
-void pkdVATreeBuild(PKD pkd,int nBucket,FLOAT diCrit2,int bSqueeze,double dTimeStamp,int bEwaldKicking);
-void pkdTreeBuild(PKD pkd,int nBucket,FLOAT dCrit,KDN *pkdn,int bSqueeze,int bExcludeVeryActive,double dTimeStamp,int bEwaldKicking);
+void pkdVATreeBuild(PKD pkd,int nBucket,FLOAT diCrit2,int bSqueeze,double dTimeStamp);
+void pkdTreeBuild(PKD pkd,int nBucket,FLOAT dCrit,KDN *pkdn,int bSqueeze,int bExcludeVeryActive,double dTimeStamp);
 void pkdCombineCells(KDN *pkdn,KDN *p1,KDN *p2,int bCombineBound);
 void pkdDistribCells(PKD,int,KDN *);
 void pkdCalcRoot(PKD,MOMC *);

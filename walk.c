@@ -26,7 +26,6 @@ typedef struct CheckElt {
 typedef struct CheckStack {
     int nPart;
     int nCell;
-    int nPartBucket;
     int nCheck;
     CELT *Check;
     } CSTACK;
@@ -47,7 +46,6 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bEwaldKick,int bVe
     CELT *Check;
     ILP *ilp;
     ILC *ilc;
-    ILPB *ilpb;
     double dDriftFac;
     double fWeight;
     double tempI;
@@ -63,7 +61,6 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bEwaldKick,int bVe
     int iOpen;
     int nPart,nMaxPart;
     int nCell,nMaxCell;
-    int nPartBucket,nMaxPartBucket;
     double dSyncDelta;
 
     /*
@@ -97,10 +94,6 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bEwaldKick,int bVe
     nMaxCell = 500;
     ilc = malloc(nMaxCell*sizeof(ILC));
     assert(ilc != NULL);
-    nPartBucket = 0;
-    nMaxPartBucket = 500;
-    ilpb = malloc(nMaxPartBucket*sizeof(ILPB));
-    assert(ilpb != NULL);
     /*
     ** Allocate Checklist.
     */
@@ -468,30 +461,6 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bEwaldKick,int bVe
 				mdlRelease(pkd->mdl,CID_PARTICLE,pRemote);
 				}
 			    }
-			/*
-			** ...and we need to consider it in the timestepping part so place this cell
-			** onto the particle-bucket list. This list is not used for force evaluation 
-			** though.
-			*/
-			if (nPartBucket == nMaxPartBucket) {
-			    nMaxPartBucket += 500;
-			    ilpb = realloc(ilpb,nMaxPartBucket*sizeof(ILPB));
-			    assert(ilpb != NULL);
-			    }
-			ilpb[nPartBucket].x = rCheck[0];
-			ilpb[nPartBucket].y = rCheck[1];
-			ilpb[nPartBucket].z = rCheck[2];
-			ilpb[nPartBucket].m = pkdc->mom.m;   /* we really only need the mass here */
-#ifdef SOFTLINEAR
-		        ilpb[nPartBucket].h = sqrt(pkdc->fSoft2);
-#endif
-#ifdef SOFTSQUARE
-		        ilpb[nPartBucket].twoh2 = 2*pkdc->fSoft2;
-#endif
-#if !defined(SOFTLINEAR) && !defined(SOFTSQUARE)
-		        ilpb[nPartBucket].fourh2 = 4*pkdc->fSoft2;
-#endif
-			++nPartBucket;
 			}  /* end of opening a bucket */
 		    }
 		else if (iOpen == -1) {
@@ -544,30 +513,6 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bEwaldKick,int bVe
 		    ilp[nPart].fourh2 = 4*pkdc->fSoft2;
 #endif
 		    ++nPart;
-		    /*
-		    ** ...and we need to consider it in the timestepping part so place this cell
-		    ** onto the particle-bucket list. This list is not used for force evaluation 
-		    ** though.
-		    */
-		    if (nPartBucket == nMaxPartBucket) {
-			nMaxPartBucket += 500;
-			ilpb = realloc(ilpb,nMaxPartBucket*sizeof(ILPB));
-			assert(ilpb != NULL);
-			}
-		    ilpb[nPartBucket].x = rCheck[0];
-		    ilpb[nPartBucket].y = rCheck[1];
-		    ilpb[nPartBucket].z = rCheck[2];
-		    ilpb[nPartBucket].m = pkdc->mom.m;   /* we really only need the mass here */
-#ifdef SOFTLINEAR
-		    ilpb[nPartBucket].h = sqrt(pkdc->fSoft2);
-#endif
-#ifdef SOFTSQUARE
-		    ilpb[nPartBucket].twoh2 = 2*pkdc->fSoft2;
-#endif
-#if !defined(SOFTLINEAR) && !defined(SOFTSQUARE)
-		    ilpb[nPartBucket].fourh2 = 4*pkdc->fSoft2;
-#endif
-		    ++nPartBucket;
 		    }
 		else {
 		    Check[ii++] = Check[i];
@@ -627,7 +572,6 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bEwaldKick,int bVe
 		    ++iStack;
 		    S[iStack].nPart = nPart;
 		    S[iStack].nCell = nCell;
-		    S[iStack].nPartBucket = nPartBucket;
 		    S[iStack].nCheck = nCheck;
 		    for (i=0;i<nCheck;++i) S[iStack].Check[i] = Check[i];
 		    S[iStack].Check[nCheck-1].iCell = iCell;
@@ -663,7 +607,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bEwaldKick,int bVe
 	** Now calculate gravity on this bucket!
 	*/
 	tempI = *pdFlop;
-	nActive = pkdGravInteract(pkd,pkdc,NULL,ilp,nPart,ilc,nCell,ilpb,nPartBucket,0,0,pdFlop);
+	nActive = pkdGravInteract(pkd,pkdc,NULL,ilp,nPart,ilc,nCell,0,0,pdFlop);
 	/*
 	** Note that if Ewald is being performed we need to factor this
 	** constant cost into the load balancing weights.
@@ -706,7 +650,6 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bEwaldKick,int bVe
 		*/
 		free(ilp);
 		free(ilc);
-		free(ilpb);
 		return(nTotActive);
 		}
 	    }
@@ -718,7 +661,6 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bEwaldKick,int bVe
 	*/
 	nPart = S[iStack].nPart;
 	nCell = S[iStack].nCell;
-	nPartBucket = S[iStack].nPartBucket;
 	nCheck = S[iStack].nCheck;
 	for (i=0;i<nCheck;++i) Check[i] = S[iStack].Check[i];
 	--iStack;
