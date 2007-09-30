@@ -3,7 +3,8 @@
 
 #include "pkd.h"
 
-void pkdEwaldInit(PKD,double,int);
-int pkdBucketEwald(PKD,KDN *,int,double,int bEwaldKicking);
+int pkdParticleEwald(PKD pkd,PARTICLE *p,int bEwaldKicking);
+int pkdBucketEwald(PKD pkd,KDN *pkdn,int bEwaldKicking);
+void pkdEwaldInit(PKD pkd,int nReps,double fEwCut,double fhCut);
 
 #endif

@@ -14,7 +14,7 @@ void PPInteractSIMD( int nPart, ILP *ilp, const FLOAT *r, const FLOAT *a,
 		     momFloat *fPot, momFloat *rhosum, momFloat *maisum );
 
 int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,int nCell,double dirLsum,double normLsum,
-		    int bEwald,int nReps,double fEwCut,double *pdFlop,double *pdEwFlop);
+		    int bEwald,int bEwaldKicking,double *pdFlop,double *pdEwFlop);
 
 #ifdef HERMITE
 double pkdRho(PKD pkd, double rhopmaxlocal,double summ, double sumr, double *dir2, 

@@ -15,7 +15,6 @@
 #ifndef HAVE_CONFIG_H
 #include "floattype.h"
 #endif
-#include "ewald.h"
 
 typedef struct CheckElt {
     int iCell;
@@ -35,9 +34,8 @@ typedef struct CheckStack {
 /*
 ** Returns total number of active particles for which gravity was calculated.
 */
-int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bEwaldKick,int bVeryActive,double fEwCut,
-		double *pdFlop,double *pdPartSum,double *pdCellSum)
-    {
+int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bEwaldKick,int bVeryActive,
+		double *pdFlop,double *pdPartSum,double *pdCellSum) {
     PARTICLE *p = pkd->pStore;
     PARTICLE *pRemote;
     KDN *c;
@@ -607,22 +605,13 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bEwaldKick,int bVe
 	** Now calculate gravity on this bucket!
 	*/
 	tempI = *pdFlop;
-	nActive = pkdGravInteract(pkd,pkdc,NULL,ilp,nPart,ilc,nCell,0,0,pdFlop);
-	/*
-	** Note that if Ewald is being performed we need to factor this
-	** constant cost into the load balancing weights.
-	**
-	** CAREFUL: pkdBucketEwald MUST follow pkdGravInteract since we want to use the 
-	** particle's old acceleration in pkdGravInteract!
-	*/
-	if (bEwald) {
-	    dEwaldFlop = pkdBucketEwald(pkd,&pkd->kdNodes[iCell],nReps,fEwCut,bEwaldKick);
-	    if (!bEwaldKick) {
-		*pdFlop += dEwaldFlop;
-	    }
-	}
+	if (!bEwaldKicking) tempI += dEwFlop;
+	nActive = pkdGravInteract(pkd,pkdc,NULL,ilp,nPart,ilc,nCell,0.0,0.0,
+				  bEwald,bEwaldKicking,pdFlop,&dEwFlop);
+
 	if (nActive) {
 	    fWeight = (*pdFlop-tempI)/nActive;
+	    if (!bEwaldKicking) fWeight += dEwFlop;
 	    pkdBucketWeight(pkd,iCell,fWeight);
 	    *pdPartSum += nActive*nPart;
 	    *pdCellSum += nActive*nCell;
@@ -650,6 +639,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bEwaldKick,int bVe
 		*/
 		free(ilp);
 		free(ilc);
+                *pdFlop += dEwFlop;   /* Finally add the ewald score to get a proper float count */
 		return(nTotActive);
 		}
 	    }

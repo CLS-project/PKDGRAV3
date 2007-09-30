@@ -22,7 +22,6 @@
 #ifndef HAVE_CONFIG_H
 #include "floattype.h"
 #endif
-#include "ewald.h"
 #include "moments.h"
 #ifdef TIME_WALK_WORK
 #include <sys/time.h>
@@ -101,8 +100,7 @@ double dMonopoleThetaFac = 1.5;
 /*
 ** Returns total number of active particles for which gravity was calculated.
 */
-int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bEwaldKicking,
-		int bVeryActive,double fEwCut,
+int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bEwaldKicking,int bVeryActive,
 		double *pdFlop,double *pdPartSum,double *pdCellSum)
     {
     PARTICLE *p = pkd->pStore;
@@ -880,7 +878,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bEwaldKicking,
 	** Now calculate gravity on this bucket!
 	*/
 	nActive = pkdGravInteract(pkd,pkdc,&L,ilp,nPart,ilc,nCell,dirLsum,normLsum,
-				  bEwald,nReps,fEwCut,pdFlop,&dEwFlop);
+				  bEwald,bEwaldKicking,pdFlop,&dEwFlop);
 
 #ifdef TIME_WALK_WORK
 	fWeight += getTimer(&tv);
@@ -941,7 +939,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bEwaldKicking,
 #ifdef PROFILE_GRAVWALK
     VTPause();
 #endif
-                *pdFlop += dEwFlop;
+                *pdFlop += dEwFlop;   /* Finally add the ewald score to get a proper float count */
     
 		return(nTotActive);
 		}

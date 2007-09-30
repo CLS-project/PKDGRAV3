@@ -362,6 +362,7 @@ typedef struct kdNew {
 	else axr = 1e6;\
 	}
 
+
 /*
 ** components required for evaluating a monopole interaction
 ** including the softening.
@@ -390,19 +391,6 @@ typedef struct ilPart {
 ** components required for time-step calculation (particle-bucket list)
 */
 
-typedef struct ilPartBucket {
-    double m,x,y,z;
-#ifdef SOFTLINEAR
-    double h;
-#endif
-#ifdef SOFTSQUARE
-    double twoh2;
-#endif
-#if !defined(SOFTLINEAR) && !defined(SOFTSQUARE)
-    double fourh2;
-#endif     
-    } ILPB;
-
 typedef struct RhoEncArray {
     int index;
     double x;
@@ -426,6 +414,16 @@ typedef struct ewaldTable {
     double hx,hy,hz;
     double hCfac,hSfac;
     } EWT;
+
+struct EwaldVariables {
+    double fEwCut2,fInner2,alpha,alpha2,k1,ka;
+    double Q4xx,Q4xy,Q4xz,Q4yy,Q4yz,Q4zz,Q4,Q3x,Q3y,Q3z,Q2;
+    EWT *ewt;
+    int nMaxEwhLoop;
+    int nEwhLoop;
+    int nReps,nEwReps;
+};
+    
 /*
 ** components required for groupfinder:  --J.D.--
 */
@@ -536,10 +534,9 @@ typedef struct pkdContext {
     /*
     ** Ewald summation setup.
     */
-    MOMC momRoot;		/* we hope to get rid of this */
-    int nMaxEwhLoop;
-    int nEwhLoop;
-    EWT *ewt;
+    MOMC momRoot;
+    struct EwaldVariables ew;
+
     /*
     ** Timers stuff.
     */

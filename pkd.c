@@ -197,9 +197,9 @@ void pkdInitialize(PKD *ppkd,MDL mdl,int nStore,int nBucket,FLOAT *fPeriod,
     /*
     ** Ewald stuff!
     */
-    pkd->nMaxEwhLoop = 100;
-    pkd->ewt = malloc(pkd->nMaxEwhLoop*sizeof(EWT));
-    mdlassert(mdl,pkd->ewt != NULL);
+    pkd->ew.nMaxEwhLoop = 100;
+    pkd->ew.ewt = malloc(pkd->ew.nMaxEwhLoop*sizeof(EWT));
+    mdlassert(mdl,pkd->ew.ewt != NULL);
     *ppkd = pkd;
     /*
     ** Allocate initial particle pointer arrays for active/inactive particles.
@@ -222,7 +222,7 @@ void pkdFinish(PKD pkd)
 	mdlFree(pkd->mdl,pkd->kdNodes);
 	}
     if (pkd->kdTop) free(pkd->kdTop);
-    free(pkd->ewt);
+    free(pkd->ew.ewt);
     mdlFree(pkd->mdl,pkd->pStore);
     free(pkd->pLite);
     csmFinish(pkd->param.csm);
@@ -1497,7 +1497,7 @@ pkdGravAll(PKD pkd,double dTime,int nReps,int bPeriodic,int iOrder,int bEwald,
     ** Set up Ewald tables and stuff.
     */
     if (bPeriodic && bEwald) {
-	pkdEwaldInit(pkd,fEwhCut,4);	/* ignored in Flop count! */
+	pkdEwaldInit(pkd,nReps,fEwCut,fEwhCut);	/* ignored in Flop count! */
 	}
     /*
     ** Start particle caching space (cell cache already active).
@@ -1511,7 +1511,7 @@ pkdGravAll(PKD pkd,double dTime,int nReps,int bPeriodic,int iOrder,int bEwald,
     *pdPartSum = 0.0;
     *pdCellSum = 0.0;
     pkdStartTimer(pkd,1);
-    *nActive = pkdGravWalk(pkd,dTime,nReps,bPeriodic && bEwald,bEwaldKicking,bVeryActive,fEwCut,pdFlop,pdPartSum,pdCellSum);
+    *nActive = pkdGravWalk(pkd,dTime,nReps,bPeriodic && bEwald,bEwaldKicking,bVeryActive,pdFlop,pdPartSum,pdCellSum);
     pkdStopTimer(pkd,1);
 
 #ifdef USE_BSC
@@ -1746,7 +1746,7 @@ pkdDriftActive(PKD pkd,double dTime,double dDelta) {
     mdlDiag(pkd->mdl, "Out of pkdDriftActive\n");
     }
 
-void pkdGravityVeryActive(PKD pkd,double dTime,int bEwald,int nReps,double fEwCut,double dStep) {
+void pkdGravityVeryActive(PKD pkd,double dTime,int bEwald,int nReps,double dStep) {
     int nActive;
     int bVeryActive = 1;
     double dFlop,dPartSum,dCellSum;
@@ -1760,7 +1760,7 @@ void pkdGravityVeryActive(PKD pkd,double dTime,int bEwald,int nReps,double fEwCu
     if (pkd->param.bEwaldKicking) {
 	bEwald = 0;
     }
-    nActive = pkdGravWalk(pkd,dTime,nReps,bEwald,pkd->param.bEwaldKicking,bVeryActive,fEwCut,&dFlop,&dPartSum,&dCellSum);
+    nActive = pkdGravWalk(pkd,dTime,nReps,bEwald,pkd->param.bEwaldKicking,bVeryActive,&dFlop,&dPartSum,&dCellSum);
     }
 
 
@@ -1867,7 +1867,7 @@ pkdStepVeryActiveKDK(PKD pkd, double dStep, double dTime, double dDelta,
 
 	    pkdActiveRung(pkd,iKickRung,1);
 	    pkdVATreeBuild(pkd,pkd->param.nBucket,diCrit2,0,dTime);
-	    pkdGravityVeryActive(pkd,dTime,pkd->param.bEwald && pkd->param.bPeriodic,pkd->param.nReplicas,pkd->param.dEwCut,dStep);
+	    pkdGravityVeryActive(pkd,dTime,pkd->param.bEwald && pkd->param.bPeriodic,pkd->param.nReplicas,dStep);
 
 #ifdef PLANETS
 	    /* Sun's gravity */
@@ -2006,7 +2006,7 @@ pkdStepVeryActiveHermite(PKD pkd, double dStep, double dTime, double dDelta,
 
 	    pkdActiveRung(pkd,iKickRung,1);
 	    pkdVATreeBuild(pkd,pkd->param.nBucket,diCrit2,0,dTime);
-	    pkdGravityVeryActive(pkd,dTime,pkd->param.bEwald && pkd->param.bPeriodic,pkd->param.nReplicas,pkd->param.dEwCut,dStep);
+	    pkdGravityVeryActive(pkd,dTime,pkd->param.bEwald && pkd->param.bPeriodic,pkd->param.nReplicas,dStep);
 
 
 #ifdef PLANETS
