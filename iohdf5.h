@@ -95,7 +95,7 @@ typedef struct ioHDF5 {
 #define IOHDF5_SINGLE 0
 #define IOHDF5_DOUBLE 1
 
-    IOHDF5 ioHDF5Initialize( hid_t fileID, hid_t iChunkSize, int bDouble );
+IOHDF5 ioHDF5Initialize( hid_t fileID, hid_t iChunkSize, int bDouble );
 
 void ioHDF5Finish( IOHDF5 io );
 

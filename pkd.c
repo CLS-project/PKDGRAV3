@@ -370,6 +370,36 @@ void pkdReadHDF5(PKD pkd, IOHDF5 io, double dvFac,
 #endif
 
 
+#ifdef USE_MDL_IO
+void pkdIOInitialize( PKD pkd, int nLocal) {
+    int i, j;
+    PARTICLE *p;
+
+    pkd->nLocal = pkd->nActive = nLocal;
+
+    /*
+    ** General initialization.
+    */
+    for (i=0;i<nLocal;++i) {
+	p = &pkd->pStore[i];
+	TYPEClear(p);
+	p->iRung = 0;
+	p->fWeight = 1.0;
+	p->fDensity = 0.0;
+	p->fBall = 0.0;
+	/*
+	** Clear the accelerations so that the timestepping calculations do not 
+	** get funny uninitialized values!
+	*/
+	for (j=0;j<3;++j) {
+	    p->a[j] = 0.0;
+	    p->ae[j] = 0.0;
+	}
+    }
+
+}
+#endif
+
 void pkdReadTipsy(PKD pkd,char *pszFileName, char *achOutName,uint64_t nStart,int nLocal,
 		  int bStandard,double dvFac,int bDoublePos) {
     FILE *fp;
@@ -1085,6 +1115,42 @@ void pkdLocalOrder(PKD pkd)
     qsort(pkd->pStore,pkdLocal(pkd),sizeof(PARTICLE),cmpParticles);
     }
 
+int pkdUnpackIO(PKD pkd,
+	      PIO *io,
+	      int nMax,
+	      local_t *iIndex,
+	      total_t iMinOrder,
+	      total_t iMaxOrder,
+	      double dvFac )
+{
+    int i,d;
+
+    assert( pkd != NULL );
+    assert( pkd->pStore != NULL );
+
+    for( i=0; i<nMax; i++ ) {
+	local_t I = *iIndex + i;
+	PARTICLE *p = pkd->pStore + I;
+
+	for( d=0; d<3; d++ ) {
+	    p->r[d]  = io[i].r[d];
+	    p->v[d]  = io[i].v[d] * dvFac; //FIXME: times??
+	    p->a[d]  = 0.0;
+	    p->ae[d] = 0.0;
+	}
+	p->iOrder = io[i].iOrder;
+	p->fMass = io[i].fMass;
+	p->fSoft = io[i].fSoft;
+#ifdef CHANGESOFT
+	p->fSoft0 = io[i].fSoft;
+#endif
+	p->fDensity = io[i].fDensity;
+	p->fPot = io[i].fPot;
+    }
+    *iIndex += nMax;
+
+    return pkd->nLocal - *iIndex;
+}
 
 /*
 ** This routine will pack at most nMax particles into an array of packed

@@ -633,6 +633,10 @@ void pkdReadTipsy(PKD pkd,char *pszFileName, char *achOutName,uint64_t nStart,in
 void pkdReadHDF5(PKD pkd, IOHDF5 io, double dvFac,
 		 uint64_t nStart, int nLocal );
 #endif
+#ifdef USE_MDL_IO
+void pkdIOInitialize( PKD pkd, int nLocal);
+#endif
+
 void pkdSetSoft(PKD pkd,double dSoft);
 void pkdCalcBound(PKD,BND *);
 
@@ -735,6 +739,12 @@ int pkdPackIO(PKD pkd,
 	      local_t *iIndex,
 	      total_t iMinOrder, total_t iMaxOrder,
 	      double dvFac);
+
+int pkdUnpackIO(PKD pkd,
+		PIO *io, int nMax,
+		local_t *iIndex,
+		total_t iMinOrder, total_t iMaxOrder,
+		double dvFac);
 
 #ifdef PLANETS
 void pkdSunIndirect(PKD pkd,double aSun[],double adSun[],int iFlag);

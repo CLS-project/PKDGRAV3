@@ -680,7 +680,8 @@ static int getBase( IOHDF5 io, IOBASE *Base, PINDEX *iOrder,
 		     H5T_NATIVE_UINT8, Base->iOffset, Base->nBuffered, 1 );
 	}
     }
-    *iOrder = Base->iOffset + Base->iIndex; /*FIXME: */
+    //*iOrder = Base->iOffset + Base->iIndex; /*FIXME: */
+    *iOrder = Base->Class.Class[0].iOrderStart + Base->iOffset + Base->iIndex; /*FIXME: */
     r[0] = Base->R[Base->iIndex].v[0];
     r[1] = Base->R[Base->iIndex].v[1];
     r[2] = Base->R[Base->iIndex].v[2];
@@ -704,7 +705,7 @@ static int getBase( IOHDF5 io, IOBASE *Base, PINDEX *iOrder,
     *fSoft = Base->Class.Class[iClass].fSoft;
 
     Base->iIndex++;
-    return 1;
+    return iClass+1;
 }
 
 static void addBase( IOHDF5 io, IOBASE *Base, PINDEX iOrder,

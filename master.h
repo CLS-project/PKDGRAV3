@@ -81,7 +81,7 @@ void msrLogParams(MSR msr, FILE *fp);
 int msrGetLock(MSR msr);
 int msrCheckForStop(MSR msr);
 void msrFinish(MSR);
-double msrRead(MSR);
+double msrRead(MSR, int iStep);
 void msrWrite(MSR,char *,double, int bCheckpoint );
 void msrSetSoft(MSR msr,double);
 void msrDomainDecomp(MSR,int iRung,int bGreater,int bSplitVA);

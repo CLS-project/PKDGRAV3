@@ -3,6 +3,14 @@
 #include "iohdf5.h"
 #include "mdl.h"
 
+#define MAX_IO_CLASSES 256
+typedef struct {
+    uint64_t iMinOrder;
+    uint64_t iMaxOrder;
+    FLOAT    dMass;
+    FLOAT    dSoft;
+} ioClass;
+
 typedef struct ioContext {
     MDL mdl;
     double dTime;
@@ -12,15 +20,20 @@ typedef struct ioContext {
 
     local_t nAllocated;  /* Total allocated on this processor */
     local_t N;           /* Total in use on this processor */
+
     local_t nExpected;   /* Number left to be received */
 
-    ioV3 *r;       /* Position */
-    ioV3 *v;       /* Velocity */
-    /*FLOAT *m;*/      /* Mass */
-    /*FLOAT *s;*/      /* Softening */
-    float *d;      /* Density */
-    float *p;      /* Potential */
+    total_t nTotal;      /* Total on all processors */
+    total_t iOrder;
 
+    ioV3 *r;             /* Position */
+    ioV3 *v;             /* Velocity */
+    float *d;            /* Density */
+    float *p;            /* Potential */
+    uint8_t *vClass;     /* Class */
+
+    int      nClasses;   /* Number of particle classes */
+    ioClass ioClasses[MAX_IO_CLASSES];
 } * IO;
 
 void ioInitialize(IO *,MDL);
@@ -31,10 +44,13 @@ enum io_services {
     IO_SRV_STOP,
     IO_SETUP,
     IO_START_SAVE,
+    IO_PLAN_LOAD,
+    IO_START_LOAD,
 
     /* These are requested by the I/O master */
     IO_ALLOCATE,
     IO_START_RECV,
+    IO_START_SEND,
     IO_MAKE_PNG
 };
 
@@ -69,6 +85,38 @@ struct inStartRecv {
     };
 void ioStartRecv(IO,void *,int,void *,int *);
 
+/* IO_PLAN_LOAD */
+struct inPlanLoad {
+    char achInName[PST_FILENAME_SIZE];
+    };
+struct outPlanLoad {
+    double  dExpansion;
+    total_t nCount[MDL_MAX_IO_PROCS];
+};
+void ioPlanLoad(IO,void *,int,void *,int *);
+
+/* IO_START_LOAD */
+struct inStartLoad {
+    char achInName[PST_FILENAME_SIZE];
+    int32_t nFiles;
+    total_t nCount[MDL_MAX_IO_PROCS];
+    };
+void ioStartLoad(IO,void *,int,void *,int *);
+
+/* IO_START_SEND */
+struct inStartSend {
+    char achInName[PST_FILENAME_SIZE];
+    total_t N;            /* total number of particles */
+    total_t iMinOrder;
+    total_t iMaxOrder;
+    int iFirstFile;       /* index of first file to read */
+    int iLastFile;        /* index of last file */
+    total_t iFirstOffset; /* index of first particle in the first file */
+    total_t iLastOffset;  /* index of the last particle in the last file */
+    };
+void ioStartSend(IO,void *,int,void *,int *);
+
+
 /* IO_ALLOCATE */
 struct inIOAllocate {
     local_t nCount;
@@ -81,6 +129,7 @@ struct inMakePNG {
     uint_fast32_t iResolution;  /* Image resolution RxR */
     float minValue;
     float maxValue;
+    float scale;
     char achOutName[PST_FILENAME_SIZE];
     };
 void ioMakePNG(IO,void *,int,void *,int *);

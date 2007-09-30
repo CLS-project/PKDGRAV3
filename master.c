@@ -1138,47 +1138,9 @@ int xdrHeader(XDR *pxdrs,struct dump *ph)
 
 
 #ifdef USE_HDF5
-static double _msrReadHDF5(MSR msr, const char *achFilename)
-{
-    hid_t fileID;
-    IOHDF5 io;
 
-    //struct dump h;
-    double dExpansion;
-    struct inReadTipsy in;
-    char achInFile[PST_FILENAME_SIZE];
-    LCL *plcl = msr->pst->plcl;
+double getTime(MSR msr, double dExpansion, double *dvFac) {
     double dTime,aTo,tTo,z;
-    struct inSetParticleTypes intype;
-    //uint64_t tlong;
-
-    strcpy(in.achInFile,achFilename);
-
-    /* Add local Data Path. */
-    _msrMakePath(plcl->pszDataPath,achFilename,achInFile);
-
-    fileID=H5Fopen(achInFile, H5F_ACC_RDONLY, H5P_DEFAULT);
-    if ( fileID < 0 ) {
-	printf("Could not open InFile:%s\n",achInFile);
-	_msrExit(msr,1);
-    }
-    io = ioHDF5Initialize( fileID, 32768, IOHDF5_SINGLE );
-
-    assert(ioHDF5ReadAttribute( io, "dTime", H5T_NATIVE_DOUBLE, &dExpansion ));
-
-    msr->nDark = ioHDF5DarkCount(io);
-    msr->nGas = ioHDF5GasCount(io);
-    msr->nStar = ioHDF5StarCount(io);
-    msr->N = msr->nDark+msr->nGas+msr->nStar;
-
-    ioHDF5Finish(io);
-    H5Fclose(fileID);
-
-    msr->nMaxOrder = msr->N;
-    msr->nMaxOrderGas = msr->nGas;
-    msr->nMaxOrderDark = msr->nGas + msr->nDark;
-    assert(msr->N == msr->nDark+msr->nGas+msr->nStar);
-
     if (msr->param.csm->bComove) {
 	if(msr->param.csm->dHubble0 == 0.0) {
 	    printf("No hubble constant specified\n");
@@ -1274,10 +1236,10 @@ static double _msrReadHDF5(MSR msr, const char *achFilename)
 	    printf("Reading file...\nN:%"PRIu64" nDark:%"PRIu64" nGas:%"PRIu64" nStar:%"PRIu64"\n",msr->N,
 		   msr->nDark,msr->nGas,msr->nStar);
 	if (msr->param.bCannonical) {
-	    in.dvFac = dExpansion*dExpansion;
+	    *dvFac = dExpansion*dExpansion;
 	    }
 	else {
-	    in.dvFac = 1.0;
+	    *dvFac = 1.0;
 	    }
 	}
     else {
@@ -1289,8 +1251,167 @@ static double _msrReadHDF5(MSR msr, const char *achFilename)
 	    printf("Reading file...\nN:%"PRIu64" nDark:%"PRIu64" nGas:%"PRIu64" nStar:%"PRIu64" Time:%g\n",
 		   msr->N,msr->nDark,msr->nGas,msr->nStar,dTime);
 	    }
-	in.dvFac = 1.0;
+	*dvFac = 1.0;
 	}
+
+    return dTime;
+}
+
+
+static double _msrIORead(MSR msr, const char *achFilename, int iStep )
+{
+    LCL *plcl = msr->pst->plcl;
+    struct inStartLoad load;
+    struct inIOLoad in;
+    struct inPlanLoad inPlan;
+    struct outPlanLoad outPlan;
+    struct inSetParticleTypes intype;
+    double dTime, dvFac;
+    int nPlan;
+    int outSize;
+    char *p1, *p2;
+    int n, i;
+    total_t N;
+
+    /* Load the files into the I/O processors */
+    strcpy( load.achInName, achFilename );
+    p1 = strstr( load.achInName, "&N" );
+    if ( p1 ) {
+	p2 = strstr( achFilename, "&N" );
+	assert( p2 != NULL );
+	n = p1 - load.achInName;
+	strcpy( p1, msrOutName(msr) );
+	strcat( p1, p2+2 );
+    }
+    p1 = strstr( load.achInName, "&S" );
+    if ( p1 ) {
+	p2 = strstr( achFilename, "&S" );
+	assert( p2 != NULL );
+	n = p1 - load.achInName;
+	sprintf( p1, "%05d", iStep );
+	strcat( p1+5, p2+2 );
+    }
+
+    /* First we ask the I/O processors to see how many files we have, and how
+       many particles there are in each file. The number of files can be
+       different from the number of I/O processors (if, for example, the run
+       was started with a different number of processors) */
+    strcpy(inPlan.achInName,load.achInName);
+    mdlSetComm(msr->mdl,1);
+    mdlReqService(msr->mdl,0,IO_PLAN_LOAD,&inPlan,sizeof(inPlan));
+    mdlGetReply(msr->mdl,0,&outPlan,&nPlan);
+    mdlSetComm(msr->mdl,0);
+
+    /* Count the total number of particles */
+    load.nFiles = 0;
+    N = 0;
+    for( i=0; i<MDL_MAX_IO_PROCS; i++ ) {
+	if ( outPlan.nCount[i] ) {
+	    assert( load.nFiles == i );
+	    load.nFiles++;
+	}
+	load.nCount[i] = outPlan.nCount[i];
+	N += outPlan.nCount[i];
+    }
+
+    msr->nDark = N;
+    msr->nGas  = 0;
+    msr->nStar = 0;
+    msr->N = msr->nDark+msr->nGas+msr->nStar;
+    msr->nMaxOrder = msr->N;
+    msr->nMaxOrderGas = msr->nGas;
+    msr->nMaxOrderDark = msr->nGas + msr->nDark;
+
+    dTime = getTime(msr,outPlan.dExpansion,&dvFac);
+
+    /* Fire up the load process.  The I/O processors will enter start an
+     mdlSend() eventually (after loading the data). */
+    mdlSetComm(msr->mdl,1);
+    mdlReqService(msr->mdl,0,IO_START_LOAD,&load,sizeof(load));
+    mdlSetComm(msr->mdl,0);
+
+    in.nDark = msr->nDark;
+    in.nGas = msr->nGas;
+    in.nStar = msr->nStar;
+    in.dvFac = dvFac;
+    in.fExtraStore = msr->param.dExtraStore;
+    /*
+    ** Provide the period.
+    */
+    in.fPeriod[0] = msr->param.dxPeriod;
+    in.fPeriod[1] = msr->param.dyPeriod;
+    in.fPeriod[2] = msr->param.dzPeriod;
+    in.nBucket = msr->param.nBucket;
+    if (msr->param.nBucketSubStep < in.nBucket) in.nBucket = msr->param.nBucketSubStep;
+
+    pstIOLoad( msr->pst, &in, sizeof(in), NULL, NULL );
+
+    mdlSetComm(msr->mdl,1);
+    mdlGetReply(msr->mdl,0,NULL,NULL);
+    mdlSetComm(msr->mdl,0);
+
+    pstSetParticleTypes(msr->pst,&intype,sizeof(intype),NULL,NULL);
+
+    if (msr->param.bVDetails) puts("Input file has been successfully read.");
+    /*
+    ** Now read in the output points, passing the initial time.
+    ** We do this only if nSteps is not equal to zero.
+    */
+    if (msrSteps(msr) > 0) msrReadOuts(msr,dTime);
+    /*
+    ** Set up the output counter.
+    */
+    for (msr->iOut=0;msr->iOut<msr->nOuts;++msr->iOut) {
+	if (dTime < msr->pdOutTime[msr->iOut]) break;
+	}
+
+
+    return dTime;
+}
+
+static double _msrReadHDF5(MSR msr, const char *achFilename)
+{
+    hid_t fileID;
+    IOHDF5 io;
+
+    //struct dump h;
+    double dExpansion;
+    struct inReadTipsy in;
+    char achInFile[PST_FILENAME_SIZE];
+    LCL *plcl = msr->pst->plcl;
+    double dTime;
+    struct inSetParticleTypes intype;
+    //uint64_t tlong;
+
+    strcpy(in.achInFile,achFilename);
+
+    /* Add local Data Path. */
+    _msrMakePath(plcl->pszDataPath,achFilename,achInFile);
+
+    fileID=H5Fopen(achInFile, H5F_ACC_RDONLY, H5P_DEFAULT);
+    if ( fileID < 0 ) {
+	printf("Could not open InFile:%s\n",achInFile);
+	_msrExit(msr,1);
+    }
+    io = ioHDF5Initialize( fileID, 32768, IOHDF5_SINGLE );
+
+    assert(ioHDF5ReadAttribute( io, "dTime", H5T_NATIVE_DOUBLE, &dExpansion ));
+
+    msr->nDark = ioHDF5DarkCount(io);
+    msr->nGas = ioHDF5GasCount(io);
+    msr->nStar = ioHDF5StarCount(io);
+    msr->N = msr->nDark+msr->nGas+msr->nStar;
+
+    msr->nMaxOrder = msr->N;
+    msr->nMaxOrderGas = msr->nGas;
+    msr->nMaxOrderDark = msr->nGas + msr->nDark;
+    assert(msr->N == msr->nDark+msr->nGas+msr->nStar);
+
+    ioHDF5Finish(io);
+    H5Fclose(fileID);
+
+    dTime = getTime(msr,dExpansion,&in.dvFac);
+
     in.nFileStart = 0;
     in.nFileEnd = msr->N - 1;
     in.nBucket = msr->param.nBucket;
@@ -1333,8 +1454,6 @@ static double _msrReadHDF5(MSR msr, const char *achFilename)
 	if (dTime < msr->pdOutTime[msr->iOut]) break;
 	}
     return(dTime);
-
-    return 0;
 }
 #endif
 
@@ -1573,8 +1692,6 @@ void msrIOWrite(MSR msr, const char *achOutName, double dTime, int bCheckpoint)
     struct inStartIO inStart;
     struct inStartSave save;
 
-    printf( "msrIOWrite: invoking I/O master\n" );
-
     if (msr->param.csm->bComove) {
 	dExp = csmTime2Exp(msr->param.csm,dTime);
 	if (msr->param.bCannonical) {
@@ -1623,10 +1740,7 @@ void msrIOWrite(MSR msr, const char *achOutName, double dTime, int bCheckpoint)
 
     /*char achOutFile[PST_FILENAME_SIZE];*/
 
-    printf( "msrIOWrite: invoking nodes\n" );
     pstStartIO( msr->pst, &inStart, sizeof(inStart), NULL, NULL );
-
-    printf( "msrIOWrite: done\n" );
 
 #if 0
     /* Get the reply from the I/O processor */
@@ -4883,7 +4997,7 @@ void msrWrite(MSR msr,char *pszFileName,double dTime,int bCheckpoint)
 }
 
 
-double msrRead(MSR msr)
+double msrRead(MSR msr, int iStep)
 {
     double dTime;
 #ifdef PLANETS    
@@ -4899,6 +5013,15 @@ double msrRead(MSR msr)
 
     /* Add Data Subpath for local and non-local names. */
     _msrMakePath(msr->param.achDataSubPath,msr->param.achInFile,achFilename);
+
+#ifdef USE_MDL_IO
+    /* If we have MDL I/O, and the MDL pattern is part of the file */
+    if ( mdlIO(msr->mdl) && strstr(achFilename,"&I")!=NULL ) {
+	dTime = _msrIORead(msr,achFilename, iStep);
+    }
+    else {
+#endif
+
 
 #ifdef USE_HDF5
     /* We can automatically detect if a given file is in HDF5 format */
@@ -4923,5 +5046,10 @@ double msrRead(MSR msr)
 	mdlSetComm(msr->mdl,0);
     }
 #endif
+
+#ifdef USE_MDL_IO
+    }
+#endif
+
     return dTime;
 }

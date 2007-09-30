@@ -141,6 +141,7 @@ enum pst_service {
     PST_CLEARTIMER,
     PST_FINDIOS,
     PST_STARTIO,
+    PST_IO_LOAD,
 #ifdef PLANETS
     PST_READSS,
     PST_WRITESS,
@@ -354,6 +355,20 @@ struct inStartIO {
     char achOutName[PST_FILENAME_SIZE];
     };
 void pstStartIO(PST,void *,int,void *,int *);
+
+/* PST_IO_LOAD */
+struct inIOLoad {
+    uint64_t nDark;
+    uint64_t nGas;
+    uint64_t nStar;
+    double dvFac;
+    int nBucket;
+    float fExtraStore;
+    FLOAT fPeriod[3];
+};
+
+void pstIOLoad(PST,void *,int,void *,int *);
+
 #endif
 
 /* PST_BUILDTREE */

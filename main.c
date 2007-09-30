@@ -143,7 +143,7 @@ int main(int argc,char **argv) {
     ** Read in the binary file, this may set the number of timesteps or
     ** the size of the timestep when the zto parameter is used.
     */
-    dTime = msrRead(msr);
+    dTime = msrRead(msr,msr->param.iStartStep);
     msrInitStep(msr);
     if (prmSpecified(msr->prm,"dSoft")) msrSetSoft(msr,msrSoft(msr));
     /*
