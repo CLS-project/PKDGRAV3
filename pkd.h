@@ -369,22 +369,20 @@ typedef struct kdNew {
 */
 
 typedef struct ilPart {
-#ifndef USE_SIMD
-    uint64_t iOrder;
-#endif
     double m,x,y,z;
-#ifndef USE_SIMD
-    double vx,vy,vz;
-#endif
-#ifdef SOFTLINEAR
+#if defined(SOFTLINEAR)
     double h;
-#endif
-#ifdef SOFTSQUARE
+#elif defined(SOFTSQUARE)
     double twoh2;
-#endif
-#if !defined(SOFTLINEAR) && !defined(SOFTSQUARE)
+#else
     double fourh2;
 #endif  
+#if defined(SYMBA) || defined(PLANETS)
+    uint64_t iOrder;
+#endif
+#if defined(HERMITE)
+    double vx,vy,vz;
+#endif
     } ILP;
 
 /*

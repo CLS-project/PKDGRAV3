@@ -546,14 +546,14 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bEwaldKicking,int 
 				assert(ilp != NULL);	
 			    }
 			    for (pj=pkdc->pLower;pj<=pkdc->pUpper;++pj) {
-#ifndef USE_SIMD
+#if defined(SYMBA) || defined(PLANETS)
 				ilp[nPart].iOrder = p[pj].iOrder;
 #endif
 				ilp[nPart].m = p[pj].fMass;
 				ilp[nPart].x = p[pj].r[0] + Check[i].rOffset[0];
 				ilp[nPart].y = p[pj].r[1] + Check[i].rOffset[1];
 				ilp[nPart].z = p[pj].r[2] + Check[i].rOffset[2];
-#ifndef USE_SIMD
+#ifdef HERMITE
 				ilp[nPart].vx = p[pj].v[0]; 
 				ilp[nPart].vy = p[pj].v[1];
 				ilp[nPart].vz = p[pj].v[2];
@@ -577,14 +577,14 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bEwaldKicking,int 
 #endif
 			    for (pj=pkdc->pLower;pj<=pkdc->pUpper;++pj) {
 				pRemote = mdlAquire(pkd->mdl,CID_PARTICLE,pj,id);
-#ifndef USE_SIMD
+#if defined(SYMBA) || defined(PLANETS)
 				ilp[nPart].iOrder = pRemote->iOrder;
 #endif
 				ilp[nPart].m = pRemote->fMass;
 				ilp[nPart].x = pRemote->r[0] + Check[i].rOffset[0];
 				ilp[nPart].y = pRemote->r[1] + Check[i].rOffset[1];
 				ilp[nPart].z = pRemote->r[2] + Check[i].rOffset[2];
-#ifndef USE_SIMD
+#ifdef HERMITE
 				ilp[nPart].vx = pRemote->v[0]; 
 				ilp[nPart].vy = pRemote->v[1];
 				ilp[nPart].vz = pRemote->v[2];
@@ -707,14 +707,14 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bEwaldKicking,int 
 			ilp = realloc(ilp,nMaxPart*sizeof(ILP));
 			assert(ilp != NULL);	
 		    }
-#ifndef USE_SIMD
+#if defined(SYMBA) || defined(PLANETS)
 		    ilp[nPart].iOrder = -1; /* set iOrder to negative value for time step criterion */
 #endif
 		    ilp[nPart].m = pkdc->mom.m;
 		    ilp[nPart].x = rCheck[0];
 		    ilp[nPart].y = rCheck[1];
 		    ilp[nPart].z = rCheck[2];
-#ifndef USE_SIMD
+#ifdef HERMITE
 		    ilp[nPart].vx = pkdc->v[0];
 		    ilp[nPart].vy = pkdc->v[1];
 		    ilp[nPart].vz = pkdc->v[2];
@@ -854,7 +854,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bEwaldKicking,int 
 	    assert(ilp != NULL);	
 	}
 	for (pj=pkdc->pLower;pj<=pkdc->pUpper;++pj) {
-#ifndef USE_SIMD
+#if defined(SYMBA) || defined(PLANETS)
 	    ilp[nPart].iOrder = p[pj].iOrder;
 #endif
 	    ilp[nPart].m = p[pj].fMass;
@@ -865,7 +865,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bEwaldKicking,int 
 	    ilp[nPart].x = p[pj].r[0];
 	    ilp[nPart].y = p[pj].r[1];
 	    ilp[nPart].z = p[pj].r[2];
-#ifndef USE_SIMD
+#ifdef HERMITE
 	    ilp[nPart].vx = p[pj].v[0]; 
 	    ilp[nPart].vy = p[pj].v[1];
 	    ilp[nPart].vz = p[pj].v[2];

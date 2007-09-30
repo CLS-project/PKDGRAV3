@@ -80,10 +80,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
     int nCellILC;
 #endif
     double fourh2;
-#ifdef SOFTSQUARE
-    double ptwoh2;
-#endif
-    int i,j,k,nN,nSP,nSoft,nActive; 
+    int i,j,k,nN,nSP,nSoft,nActive;
 
 #ifdef USE_SIMD_MOMR
     nCellILC = nCell;
