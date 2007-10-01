@@ -360,7 +360,7 @@ int main(int argc,char **argv) {
 		    msrBuildName(msr,achFile,iStep);
 		    // sprintf(achFile,achBaseMask,msrOutName(msr),iStep);
 		    strncat(achFile,".den",256);
-		    // msrOutArray(msr,achFile,OUT_DENSITY_ARRAY);
+		    msrOutArray(msr,achFile,OUT_DENSITY_ARRAY);
 		    }
 		if (msr->param.bDoRungOutput) {
 		    msrReorder(msr);
