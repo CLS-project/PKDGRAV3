@@ -112,11 +112,6 @@ int main(int argc,char **argv) {
     setbuf(stdout,(char *) NULL);
 #endif
 
-
-#ifdef USE_BSC_no
-    MPItrace_shutdown();
-#endif    
-
     lStart=time(0);
 #ifdef USE_MDL_IO
     mdlInitialize(&mdl,argv,main_ch,main_io);
@@ -126,6 +121,10 @@ int main(int argc,char **argv) {
     for(argc = 0; argv[argc]; argc++); /* some MDLs can trash argv */
  
     printf("%s\n", PACKAGE_STRING );
+
+#ifdef USE_BSC_no
+    MPItrace_shutdown();
+#endif    
 
     msrInitialize(&msr,mdl,argc,argv);
 
