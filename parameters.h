@@ -104,6 +104,7 @@ struct parameters {
     char achInFile[256];
     char achOutName[256];
     char achOutPath[256];
+    char achIoPath[256];
     char achDataSubPath[256];
     char achOutTypes[256];
     char achCheckTypes[256];

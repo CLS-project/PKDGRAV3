@@ -285,7 +285,7 @@ int main(int argc,char **argv) {
 		{
 		    msrReorder(msr);
 		}
-		msrBuildName(msr,achFile,iStep);
+		msrBuildIoName(msr,achFile,iStep);
 		//sprintf(achFile,msr->param.achDigitMask,msrOutName(msr),iStep);
 #ifdef PLANETS 
 #ifdef SYMBA 	

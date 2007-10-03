@@ -333,6 +333,9 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv)
     strcpy(msr->param.achOutPath,"");
     prmAddParam(msr->prm,"achOutPath",3,msr->param.achOutPath,256,"op",
 		"<output path for snapshots and logfile> = \"\"");
+    strcpy(msr->param.achIoPath,"");
+    prmAddParam(msr->prm,"achIoPath",3,msr->param.achIoPath,256,"iop",
+		"<output path for snapshots and logfile> = \"\"");
     msr->param.csm->bComove = 0;
     prmAddParam(msr->prm,"bComove",0,&msr->param.csm->bComove,sizeof(int),
 		"cm", "enable/disable comoving coordinates = -cm");
@@ -864,6 +867,7 @@ void msrLogParams(MSR msr,FILE *fp)
 	fprintf(fp,"\n# achInFile: %s",msr->param.achInFile);
 	fprintf(fp,"\n# achOutName: %s",msr->param.achOutName); 
 	fprintf(fp,"\n# achOutPath: %s",msr->param.achOutPath); 
+	fprintf(fp,"\n# achIoPath: %s",msr->param.achIoPath); 
 	fprintf(fp,"\n# achDataSubPath: %s",msr->param.achDataSubPath);
 	if (msr->param.csm->bComove) {
 	    fprintf(fp,"\n# RedOut:");
@@ -2968,19 +2972,18 @@ char *msrOutName(MSR msr)
     return(msr->param.achOutName);
     }
 
-
-char *msrBuildName(MSR msr,char *achFile,int iStep)
+char *_BuildName(MSR msr,char *achFile,int iStep,char *defaultPath)
 {
     char achOutPath[256], *p;
     int n;
 
-    if ( msr->param.achOutPath[0] ) {
-	strcpy( achOutPath, msr->param.achOutPath );
+    if ( defaultPath[0] ) {
+	strcpy( achOutPath, defaultPath );
 	p = strstr( achOutPath, "&N" );
 	if ( p ) {
 	    n = p - achOutPath;
 	    strcpy( p, msrOutName(msr) );
-	    strcat( p+2, msr->param.achOutPath + n + 2 );
+	    strcat( p+2, defaultPath + n + 2 );
 	}
 	else {
 	    n = strlen(achOutPath);
@@ -3006,6 +3009,21 @@ char *msrBuildName(MSR msr,char *achFile,int iStep)
     }
     return achFile;
 }
+
+char *msrBuildName(MSR msr,char *achFile,int iStep)
+{
+    return _BuildName(msr,achFile,iStep, msr->param.achOutPath);
+}
+
+char *msrBuildIoName(MSR msr,char *achFile,int iStep)
+{
+    if ( msr->param.achIoPath[0] )
+	return _BuildName(msr,achFile,iStep, msr->param.achIoPath);
+    else
+	return msrBuildName(msr,achFile,iStep);
+}
+
+
 
 double msrDelta(MSR msr)
     {

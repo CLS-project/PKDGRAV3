@@ -173,6 +173,7 @@ int msrDtToRung(MSR msr, int iRung, double dDelta, int bAll);
 int msrSteps(MSR);
 char *msrOutName(MSR);
 char *msrBuildName(MSR msr,char *achFile,int iStep);
+char *msrBuildIoName(MSR msr,char *achFile,int iStep);
 double msrDelta(MSR);
 int msrLogInterval(MSR);
 int msrCheckInterval(MSR);
