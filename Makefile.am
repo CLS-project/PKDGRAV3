@@ -62,8 +62,12 @@ endif
 
 pkdgrav2m_null_SOURCES = $(SOURCES) $(MDL)/null/mdl.c
 pkdgrav2m_null_CFLAGS = -I$(MDL)/null/ $(AM_CFLAGS)
+pkdgrav2m_null_LDADD =
 if USE_PNG
-pkdgrav2m_null_LDADD = -lgd -lpng
+pkdgrav2m_null_LDADD += -lgd -lpng
+endif
+if USE_HDF5
+pkdgrav2m_null_LDADD += -lhdf5
 endif
 
 
@@ -78,6 +82,9 @@ endif
 if USE_PNG
 pkdgrav2m_mpi_LDADD += -lgd -lpng
 endif
+if USE_HDF5
+pkdgrav2m_mpi_LDADD += -lhdf5
+endif
 endif
 
 if HAVE_PTHREAD
@@ -86,6 +93,9 @@ pkdgrav2m_pthread_CFLAGS = -I$(MDL)/pthread/ $(AM_CFLAGS)
 pkdgrav2m_pthread_LDADD = -lpthread
 if USE_PNG
 pkdgrav2m_pthread_LDADD += -lgd -lpng
+endif
+if USE_HDF5
+pkdgrav2m_pthread_LDADD += -lhdf5
 endif
 endif
 
