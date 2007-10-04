@@ -2,11 +2,24 @@
 #include "config.h"
 #endif
 #include <assert.h>
+#include <getopt.h>
 #include <rpc/xdr.h>
 #include "iohdf5.h"
 
+#define OPT_HELP   'h'
+#define OPT_DOUBLE 'd'
+
+static void usage(const char *argv0) {
+    printf( "Usage: %s [-d,--double] <infile> <outfile>\n", argv0 );
+    exit(0);
+}
+
 int main( int argc, char *argv[] )
 {
+    int bHelp = 0;
+    int bDoublePos = 0;
+    const char *inName, *outName;
+
     XDR xdr;
     FILE *fin;
     hid_t fileID;
@@ -15,6 +28,7 @@ int main( int argc, char *argv[] )
 
     int i, iOrder;
     float fTemp;
+    double dTemp;
     FLOAT fMass, fSoft, fPot;
     FLOAT r[3];
     FLOAT v[3];
@@ -22,15 +36,49 @@ int main( int argc, char *argv[] )
     double dTime;
     int nBodies, nDims, nGas, nDark, nStar, nPad;
 
+    //! Parse command line arguments (flags).
+    for(;;) {
+	int c, option_index=0;
+	
+	static struct option long_options[] = {
+	    { "help",         0, 0, OPT_HELP },
+	    { "double",       0, 0, OPT_DOUBLE },
+	    { 0,              0, 0, 0 }
+	};
+	c = getopt_long( argc, argv, "hd",
+			 long_options, &option_index );
+	if ( c == -1 ) break;
 
-    if ( argc != 3 ) {
-	fprintf( stderr, "Usage: %s <instd> <outhdf5>\n", argv[0] );
+	switch(c) {
+	case OPT_HELP:
+	    bHelp = 1;
+	    break;
+	case OPT_DOUBLE:
+	    bDoublePos = 1;
+	    break;
+	default:
+	    usage(argv[0]);
+	    break;
+	}
+    }
+    if ( bHelp ) {
+	usage(argv[0]);
 	exit(0);
     }
 
-    fin = fopen( argv[1], "rb" );
+    if ( optind>=argc ) usage(argv[0]);
+    inName = argv[optind++];
+
+    if ( optind>=argc ) usage(argv[0]);
+    outName = argv[optind++];
+
+    if ( optind!=argc ) usage(argv[0]);
+
+
+
+    fin = fopen( inName, "rb" );
     if ( fin == NULL ) {
-	fprintf( stderr, "Unable to open %s for reading\n", argv[1] );
+	fprintf( stderr, "Unable to open %s for reading\n", inName );
 	exit(1);
     }
     xdrstdio_create(&xdr,fin,XDR_DECODE);
@@ -47,9 +95,9 @@ int main( int argc, char *argv[] )
     fprintf( stderr, "Converting %d particles, %d gas, %d dark, %d star\n",
 	     nBodies, nGas, nDark, nStar );
 
-    fileID=H5Fcreate(argv[2], H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    fileID=H5Fcreate(outName, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
     if ( fileID < 0 ) {
-	fprintf( stderr, "Unable to create %s\n", argv[2] );
+	fprintf( stderr, "Unable to create %s\n", outName );
 	exit(2);
     }
 
@@ -60,9 +108,16 @@ int main( int argc, char *argv[] )
     iOrder = 0;
     for( i=0; i<nDark; i++ ) {
 	xdr_float(&xdr,&fTemp); fMass = fTemp;
-	xdr_float(&xdr,&fTemp); r[0] = fTemp;
-	xdr_float(&xdr,&fTemp); r[1] = fTemp;
-	xdr_float(&xdr,&fTemp); r[2] = fTemp;
+	if ( bDoublePos ) {
+	    xdr_double(&xdr,&dTemp); r[0] = fTemp;
+	    xdr_double(&xdr,&dTemp); r[1] = fTemp;
+	    xdr_double(&xdr,&dTemp); r[2] = fTemp;
+	}
+	else {
+	    xdr_float(&xdr,&fTemp); r[0] = fTemp;
+	    xdr_float(&xdr,&fTemp); r[1] = fTemp;
+	    xdr_float(&xdr,&fTemp); r[2] = fTemp;
+	}
 	xdr_float(&xdr,&fTemp); v[0] = fTemp;
 	xdr_float(&xdr,&fTemp); v[1] = fTemp;
 	xdr_float(&xdr,&fTemp); v[2] = fTemp;
