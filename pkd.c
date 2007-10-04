@@ -1536,7 +1536,7 @@ void pkdBucketWeight(PKD pkd,int iBucket,FLOAT fWeight)
 	    pkd->pStore[pj].fWeight = fWeight;
 	}
     }
-#ifdef USE_BSC_no
+#ifdef USE_BSC_trace
 static int foo = 0;
 #endif
 
@@ -1549,7 +1549,7 @@ pkdGravAll(PKD pkd,double dTime,int nReps,int bPeriodic,int iOrder,int bEwald,
 
     pkdClearTimer(pkd,1);
 
-#ifdef USE_BSC_no
+#ifdef USE_BSC_trace
     foo++;
     if ( foo == 1 ) {
 	MPItrace_restart();
@@ -1584,7 +1584,7 @@ pkdGravAll(PKD pkd,double dTime,int nReps,int bPeriodic,int iOrder,int bEwald,
     MPItrace_event(10001, *nActive);
     MPItrace_event(10000, 0 );
 #endif
-#ifdef USE_BSC_no
+#ifdef USE_BSC_trace
     if ( foo == 1 ) {
 	MPItrace_shutdown();
     }
