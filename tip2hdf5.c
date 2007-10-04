@@ -109,9 +109,9 @@ int main( int argc, char *argv[] )
     for( i=0; i<nDark; i++ ) {
 	xdr_float(&xdr,&fTemp); fMass = fTemp;
 	if ( bDoublePos ) {
-	    xdr_double(&xdr,&dTemp); r[0] = fTemp;
-	    xdr_double(&xdr,&dTemp); r[1] = fTemp;
-	    xdr_double(&xdr,&dTemp); r[2] = fTemp;
+	    xdr_double(&xdr,&dTemp); r[0] = dTemp;
+	    xdr_double(&xdr,&dTemp); r[1] = dTemp;
+	    xdr_double(&xdr,&dTemp); r[2] = dTemp;
 	}
 	else {
 	    xdr_float(&xdr,&fTemp); r[0] = fTemp;
