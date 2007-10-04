@@ -28,7 +28,7 @@
 #include "tipsydefs.h"
 #include "outtype.h"
 #include "smoothfcn.h"
-#ifdef USE_HDF5
+#ifdef USE_MDL_IO
 #include "io.h"
 #endif
 #include "ssio.h"
@@ -1261,7 +1261,7 @@ double getTime(MSR msr, double dExpansion, double *dvFac) {
     return dTime;
 }
 
-
+#ifdef USE_MDL_IO
 static double _msrIORead(MSR msr, const char *achFilename, int iStep )
 {
     LCL *plcl = msr->pst->plcl;
@@ -1372,6 +1372,7 @@ static double _msrIORead(MSR msr, const char *achFilename, int iStep )
 
     return dTime;
 }
+#endif
 
 static double _msrReadHDF5(MSR msr, const char *achFilename)
 {
