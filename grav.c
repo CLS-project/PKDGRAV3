@@ -419,7 +419,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	    tz = p[i].a[2] + p[i].ae[2];
 	    maga = sqrt(tx*tx + ty*ty + tz*tz);
 	    p[i].dtGrav = maga*dirsum/normsum + pkd->param.dPreFacRhoLoc*rholoc;
-	    p[i].fDensity = pkd->param.dPreFacRhoLoc*rholoc;
+	    p[i].fDensity = rholoc;
 	    if(pkd->param.iTimeStepCrit > 0) {
 		p[i].dtGrav = (rhopmax > p[i].dtGrav)?rhopmax:p[i].dtGrav;
 		}
