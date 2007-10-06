@@ -310,58 +310,60 @@ typedef struct kdNew {
 
 #define FOPEN_FACTOR	4.0/3.0
 
+#define CALCAXR(fMax,axr) {					\
+    if ((fMax)[0] < (fMax)[1]) {				\
+	if ((fMax)[1] < (fMax)[2]) {				\
+	    if ((fMax)[0] > 0) axr = (fMax)[2]/(fMax)[0];	\
+	    else axr = 1e6;					\
+	}							\
+	else if ((fMax)[0] < (fMax)[2]) {			\
+	    if ((fMax)[0] > 0) axr = (fMax)[1]/(fMax)[0];	\
+	    else axr = 1e6;					\
+	}							\
+	else if ((fMax)[2] > 0) axr = (fMax)[1]/(fMax)[2];	\
+	else axr = 1e6;						\
+    }								\
+    else if ((fMax)[0] < (fMax)[2]) {				\
+	if ((fMax)[1] > 0) axr = (fMax)[2]/(fMax)[1];		\
+	else axr = 1e6;						\
+    }								\
+    else if ((fMax)[1] < (fMax)[2]) {				\
+	if ((fMax)[1] > 0) axr = (fMax)[0]/(fMax)[1];		\
+	else axr = 1e6;						\
+    }								\
+    else if ((fMax)[2] > 0) axr = (fMax)[0]/(fMax)[2];		\
+    else axr = 1e6;						\
+}
+
+
 #ifdef LOCAL_EXPANSION
-#define CALCOPEN(pkdn,diCrit2)\
-{\
-	FLOAT CALCOPEN_d2 = 0;\
-	int CALCOPEN_j;\
-	for (CALCOPEN_j=0;CALCOPEN_j<3;++CALCOPEN_j) {\
-		FLOAT CALCOPEN_d = fabs((pkdn)->bnd.fCenter[CALCOPEN_j] - (pkdn)->r[CALCOPEN_j]) +\
-			(pkdn)->bnd.fMax[CALCOPEN_j];\
-		CALCOPEN_d2 += CALCOPEN_d*CALCOPEN_d;\
-		}\
-	(pkdn)->fOpen = sqrt(CALCOPEN_d2*(diCrit2));	\
-	}
+#define CALCOPEN(pkdn,diCrit2) {		                \
+    FLOAT CALCOPEN_d2 = 0;					\
+    FLOAT CALCOPEN_axr;						\
+    int CALCOPEN_j;							\
+    for (CALCOPEN_j=0;CALCOPEN_j<3;++CALCOPEN_j) {			\
+	FLOAT CALCOPEN_d = fabs((pkdn)->bnd.fCenter[CALCOPEN_j] - (pkdn)->r[CALCOPEN_j]) + \
+	    (pkdn)->bnd.fMax[CALCOPEN_j];				\
+	CALCOPEN_d2 += CALCOPEN_d*CALCOPEN_d;				\
+    }									\
+    (pkdn)->fOpen = sqrt(CALCOPEN_d2*(diCrit2));			\
+    CALCAXR((pkdn)->bnd.fMax,CALCOPEN_axr);				\
+    if (CALCOPEN_axr > 2.0) (pkdn)->fOpen *= 1e3; /* effectively always open */ \
+}
 #else
-#define CALCOPEN(pkdn,diCrit2)\
-{\
-	FLOAT CALCOPEN_d2 = 0;\
-	int CALCOPEN_j;\
-	for (CALCOPEN_j=0;CALCOPEN_j<3;++CALCOPEN_j) {\
-		FLOAT CALCOPEN_d = fabs((pkdn)->bnd.fCenter[CALCOPEN_j] - (pkdn)->r[CALCOPEN_j]) +\
-			(pkdn)->bnd.fMax[CALCOPEN_j];\
-		CALCOPEN_d2 += CALCOPEN_d*CALCOPEN_d;\
-		}\
-	(pkdn)->fOpen2 = CALCOPEN_d2*(diCrit2);	\
-	}
+#define CALCOPEN(pkdn,diCrit2) {		\
+    FLOAT CALCOPEN_d2 = 0;				\
+    int CALCOPEN_j;							\
+    for (CALCOPEN_j=0;CALCOPEN_j<3;++CALCOPEN_j) {			\
+	FLOAT CALCOPEN_d = fabs((pkdn)->bnd.fCenter[CALCOPEN_j] - (pkdn)->r[CALCOPEN_j]) + \
+	    (pkdn)->bnd.fMax[CALCOPEN_j];				\
+	CALCOPEN_d2 += CALCOPEN_d*CALCOPEN_d;				\
+    }									\
+    (pkdn)->fOpen2 = CALCOPEN_d2*(diCrit2);				\
+    CALCAXR((pkdn)->bnd.fMax,CALCOPEN_axr);				\
+    if (CALCOPEN_axr > 2.0) (pkdn)->fOpen2 *= 1e6; /* effectively always open */ \
+}
 #endif
-
-#define CALCAXR(fMax,axr)\
-{\
-	if (fMax[0] < fMax[1]) {\
-		if (fMax[1] < fMax[2]) {\
-			if (fMax[0] > 0) axr = fMax[2]/fMax[0];\
-			else axr = 1e6;\
-			}\
-		else if (fMax[0] < fMax[2]) {\
-			if (fMax[0] > 0) axr = fMax[1]/fMax[0];\
-			else axr = 1e6;\
-			}\
-		else if (fMax[2] > 0) axr = fMax[1]/fMax[2];\
-		else axr = 1e6;\
-		}\
-	else if (fMax[0] < fMax[2]) {\
-		if (fMax[1] > 0) axr = fMax[2]/fMax[1];\
-		else axr = 1e6;\
-		}\
-	else if (fMax[1] < fMax[2]) {\
-		if (fMax[1] > 0) axr = fMax[0]/fMax[1];\
-		else axr = 1e6;\
-		}\
-	else if (fMax[2] > 0) axr = fMax[0]/fMax[2];\
-	else axr = 1e6;\
-	}
-
 
 /*
 ** components required for evaluating a monopole interaction
