@@ -348,7 +348,7 @@ typedef struct kdNew {
     }									\
     (pkdn)->fOpen = sqrt(CALCOPEN_d2*(diCrit2));			\
     CALCAXR((pkdn)->bnd.fMax,CALCOPEN_axr);				\
-    if (CALCOPEN_axr > 2.0) (pkdn)->fOpen *= sqrt(CALCOPEN_axr-1.0);	\
+    if (CALCOPEN_axr > 2.0) (pkdn)->fOpen *= CALCOPEN_axr-1.0;	\
 }
 #else
 #define CALCOPEN(pkdn,diCrit2) {		\
@@ -361,7 +361,7 @@ typedef struct kdNew {
     }									\
     (pkdn)->fOpen2 = CALCOPEN_d2*(diCrit2);				\
     CALCAXR((pkdn)->bnd.fMax,CALCOPEN_axr);				\
-    if (CALCOPEN_axr > 2.0) (pkdn)->fOpen2 *= (CALCOPEN_axr-1.0);	\
+    if (CALCOPEN_axr > 2.0) (pkdn)->fOpen2 *= (CALCOPEN_axr-1.0)*(CALCOPEN_axr-1.0);	\
 }
 #endif
 
