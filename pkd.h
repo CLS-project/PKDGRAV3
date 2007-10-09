@@ -310,6 +310,17 @@ typedef struct kdNew {
 
 #define FOPEN_FACTOR	4.0/3.0
 
+#define MAXSIDE(fMax,b) {\
+    if ((fMax)[0] > (fMax)[1]) {\
+	if ((fMax)[0] > (fMax)[2]) b = 2*(fMax)[0];\
+	else b = 2*(fMax)[2];\
+	}\
+    else {\
+	if ((fMax)[1] > (fMax)[2]) b = 2*(fMax)[1];\
+	else b = 2*(fMax)[2];\
+	}\
+    }
+
 #define CALCAXR(fMax,axr) {					\
     if ((fMax)[0] < (fMax)[1]) {				\
 	if ((fMax)[1] < (fMax)[2]) {				\
@@ -339,29 +350,30 @@ typedef struct kdNew {
 #ifdef LOCAL_EXPANSION
 #define CALCOPEN(pkdn,diCrit2) {		                \
     FLOAT CALCOPEN_d2 = 0;					\
-    FLOAT CALCOPEN_axr;						\
+    FLOAT CALCOPEN_b;						\
     int CALCOPEN_j;							\
     for (CALCOPEN_j=0;CALCOPEN_j<3;++CALCOPEN_j) {			\
 	FLOAT CALCOPEN_d = fabs((pkdn)->bnd.fCenter[CALCOPEN_j] - (pkdn)->r[CALCOPEN_j]) + \
 	    (pkdn)->bnd.fMax[CALCOPEN_j];				\
 	CALCOPEN_d2 += CALCOPEN_d*CALCOPEN_d;				\
-    }									\
-    (pkdn)->fOpen = sqrt(CALCOPEN_d2*(diCrit2));			\
-    CALCAXR((pkdn)->bnd.fMax,CALCOPEN_axr);				\
-    if (CALCOPEN_axr > 2.0) (pkdn)->fOpen *= CALCOPEN_axr-1.0;	\
+    }		\
+    MAXSIDE((pkdn)->bnd.fMax,CALCOPEN_b);     \
+    (pkdn)->fOpen = CALCOPEN_b*sqrt(diCrit2);			\
+    if ((pkdn)->fOpen < sqrt(CALCOPEN_d2)) (pkdn)->fOpen = sqrt(CALCOPEN_d2);\
 }
 #else
 #define CALCOPEN(pkdn,diCrit2) {		\
-    FLOAT CALCOPEN_d2 = 0;				\
+    FLOAT CALCOPEN_d2 = 0;\
+    FLOAT CALCOPEN_b;\
     int CALCOPEN_j;							\
     for (CALCOPEN_j=0;CALCOPEN_j<3;++CALCOPEN_j) {			\
 	FLOAT CALCOPEN_d = fabs((pkdn)->bnd.fCenter[CALCOPEN_j] - (pkdn)->r[CALCOPEN_j]) + \
 	    (pkdn)->bnd.fMax[CALCOPEN_j];				\
 	CALCOPEN_d2 += CALCOPEN_d*CALCOPEN_d;				\
     }									\
-    (pkdn)->fOpen2 = CALCOPEN_d2*(diCrit2);				\
-    CALCAXR((pkdn)->bnd.fMax,CALCOPEN_axr);				\
-    if (CALCOPEN_axr > 2.0) (pkdn)->fOpen2 *= (CALCOPEN_axr-1.0)*(CALCOPEN_axr-1.0);	\
+    MAXSIDE((pkdn)->bnd.fMax,CALCOPEN_b);				\
+    (pkdn)->fOpen2 = CALCOPEN_b*CALCOPEN_b*(diCrit2);				\
+    if ((pkdn)->fOpen2 < CALCOPEN_d2) (pkdn)->fOpen2 = CALCOPEN_d2;\
 }
 #endif
 

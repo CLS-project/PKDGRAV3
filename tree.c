@@ -439,7 +439,7 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp,int bTempBound) {
     KDN *c = pkd->kdNodes;
     KDN *pkdn,*pkdl,*pkdu;
     MOMR mom;
-    FLOAT m,fMass,x,y,z,vx,vy,vz,ax,ay,az,ft,d2,d2Max,dih2;
+    FLOAT m,fMass,x,y,z,vx,vy,vz,ax,ay,az,ft,d2,d2Max,dih2,b;
     int pj,d,nDepth;
 
     nDepth = 1;
@@ -549,11 +549,13 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp,int bTempBound) {
 	/*
 	** Now determine the opening radius for gravity.
 	*/
-	d2Max *= FOPEN_FACTOR*diCrit2;
+	MAXSIDE(pkdn->bnd.fMax,b);
 #ifdef LOCAL_EXPANSION
-	pkdn->fOpen = sqrt(d2Max);
+	pkdn->fOpen = b*sqrt(diCrit2);
+	if (pkdn->fOpen < sqrt(d2Max)) pkdn->fOpen = sqrt(d2Max);
 #else
-	pkdn->fOpen2 = d2Max;
+	pkdn->fOpen2 = b*b*diCrit;
+	if (pkdn-fOpen2 < d2Max) pkdn->fOpen2 = d2Max;
 #endif
 	/*
 	** Set the timestamp for the node.
@@ -598,11 +600,13 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp,int bTempBound) {
 		/*
 		** Now determine the opening radius for gravity.
 		*/
-		d2Max *= FOPEN_FACTOR*diCrit2;
+		MAXSIDE(pkdn->bnd.fMax,b);
 #ifdef LOCAL_EXPANSION
-		pkdn->fOpen = sqrt(d2Max);
+		pkdn->fOpen = b*sqrt(diCrit2);
+		if (pkdn->fOpen < sqrt(d2Max)) pkdn->fOpen = sqrt(d2Max);
 #else
-		pkdn->fOpen2 = d2Max;
+		pkdn->fOpen2 = b*b*diCrit;
+		if (pkdn-fOpen2 < d2Max) pkdn->fOpen2 = d2Max;
 #endif
 		}
 	    else {
