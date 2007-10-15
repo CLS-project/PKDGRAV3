@@ -332,15 +332,13 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bEwaldKicking,int 
 		    dx[j] = c[iCell].r[j] - rCheck[j];
 		    d2 += dx[j]*dx[j];
 		}
+		fourh2 = softmassweight(c[iCell].mom.m,4*c[iCell].fSoft2,pkdc->mom.m,4*pkdc->fSoft2);
 		iOpen = 0;
 		if (d2 > (c[iCell].fOpen + pkdc->fOpen)*(c[iCell].fOpen + pkdc->fOpen)) {
 		    /*
 		    ** Accept local expansion, but check softening.
 		    */
-		    fourh2 = softmassweight(c[iCell].mom.m,4*c[iCell].fSoft2,pkdc->mom.m,4*pkdc->fSoft2);
-		    if (d2 > fourh2) {
-			iOpen = -1;
-		    }
+		    if (d2 > fourh2) iOpen = -1;
 		    else {
 			/*
 			** We want to test if it can be used as a softened monopole.
@@ -353,18 +351,14 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bEwaldKicking,int 
 			    dMin -= c[iCell].bnd.fMax[j];
 			    if (dMin > 0) min2 += dMin*dMin;
 			}
-			if (min2 > pkdc->fOpen*dMonopoleThetaFac*pkdc->fOpen*dMonopoleThetaFac) {
-			    iOpen = -3;
-			}
-			else {
-			    /*
-			    ** Otherwise we must open this checkcell.
-			    */
-			    iOpen = 1;
-			}
+			if (min2 > pkdc->fOpen*dMonopoleThetaFac*pkdc->fOpen*dMonopoleThetaFac) iOpen = -3;
+			/*
+			** Otherwise we must open one of the two cells. We defer this decision to the tests
+			** which follow. In this case we still have iOpen  = 0.
+			*/
 		    }
-		} /* end of basic accept local expansion */
-		else {
+		}
+		if (iOpen == 0) {
 		    /*
 		    ** If the checklist has the larger fOpen then Open it, otherwise keep it on 
 		    ** the checklist (open the current cell eventually).
@@ -375,13 +369,8 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bEwaldKicking,int 
 			}
 			else {
 			    /*
-			    ** We can't open pkdc.  At this point we would prefer to accept
-			    ** the cell as a multipole expansion, but if that isn't possible,
-			    ** we open it.  If we were to always open it, that leads to
-			    ** degenerate cases where a large bucket on the checklist will
-			    ** result in most particles being added to the interaction list.
-			    ** This happens in cosmological simulations where the outer regions
-			    ** are binned and have a few very large particles.
+			    ** We can't open pkdc (it is a bucket).  At this point we would prefer to accept
+			    ** the bucket as a multipole expansion, but if that isn't possible we open it.
 			    */
 			    if (n >= WALK_MINMULTIPOLE) {
 				min2 = 0;	
@@ -391,7 +380,6 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bEwaldKicking,int 
 				    if (dMin > 0) min2 += dMin*dMin;
 				}
 				if (min2 > pkdc->fOpen*pkdc->fOpen) {
-				    fourh2 = softmassweight(c[iCell].mom.m,4*c[iCell].fSoft2,pkdc->mom.m,4*pkdc->fSoft2);
 				    if (min2 > fourh2) {
 					/*
 					** The multipole is also ok as far as softening goes, so accept it.
@@ -419,7 +407,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bEwaldKicking,int 
 			    }
 			    else {
 				/*
-				** This bucket did not have enough particle to make it worth accepting as a
+				** This bucket did not have enough particles to make it worth accepting as a
 				** multipole, since it is faster to simply add P-P interactions at this stage.
 				*/
 				iOpen = 1;
@@ -429,10 +417,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bEwaldKicking,int 
 		    /*
 		    ** From here we know that this c[iCell] has the larger opening radius.
 		    */
-		    else if (c[iCell].iLower) {
-			Check[ii++] = Check[i];
-		    }
-		    else {
+		    else if (!c[iCell].iLower) {
 			/*
 			** In this case we cannot open the current cell despite it having the
 			** larger opening radius. We must try to use pkdc as a P-C interaction in 
@@ -446,7 +431,6 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bEwaldKicking,int 
 				if (dMin > 0) min2 += dMin*dMin;
 			    }
 			    if (min2 > pkdc->fOpen*pkdc->fOpen) {
-				fourh2 = softmassweight(c[iCell].mom.m,4*c[iCell].fSoft2,pkdc->mom.m,4*pkdc->fSoft2);
 				if (min2 > fourh2) {
 				    /*
 				    ** The multipole is also ok as far as softening goes, so accept it.
@@ -476,7 +460,10 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bEwaldKicking,int 
 			}
 		    }
 		}
-		if (iOpen > 0) {
+		if (iOpen == 0) {
+		    Check[ii++] = Check[i];
+		    }
+		else if (iOpen > 0) {
 		    /*
 		    ** Here we go through the opening of a checkcell!
 		    */
@@ -726,6 +713,9 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bEwaldKicking,int 
 		    ilp[nPart].fourh2 = 4*pkdc->fSoft2;
 		    ++nPart;
 		}
+		else {
+		    mdlassert(pkd->mdl,iOpen >= -3 && iOpen <= 1);
+		    }
 		if (id >= 0 && id != pkd->idSelf) {
 		    mdlRelease(pkd->mdl,CID_CELL,pkdc);
 		    }
