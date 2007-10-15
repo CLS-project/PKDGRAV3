@@ -184,13 +184,6 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv)
     msr->param.nBucket = 8;
     prmAddParam(msr->prm,"nBucket",1,&msr->param.nBucket,sizeof(int),"b",
 		"<max number of particles in a bucket> = 8");
-    msr->param.nBucketSubStep = 64;
-    prmAddParam(msr->prm,"nBucketSubStep",1,&msr->param.nBucketSubStep,sizeof(int),"bss",
-		"<max number of particles in a bucket for sub steps> = 64");
-    msr->param.dFracUseSubStepBuckets = 0.001;
-    prmAddParam(msr->prm,"dFracUseSubStepBuckets",2,&msr->param.dFracUseSubStepBuckets,
-		sizeof(double),"fbss",
-		"<Fraction of Active Particles for using sub step buckets (see nBucketSubStep)> = 0.001");
     msr->param.dFracNoTreeSqueeze = 0.01;
     prmAddParam(msr->prm,"dFracNoTreeSqueeze",2,&msr->param.dFracNoTreeSqueeze,
 		sizeof(double),"fnts",
@@ -766,9 +759,7 @@ void msrLogParams(MSR msr,FILE *fp)
 	fprintf(fp," bStandard: %d",msr->param.bStandard);
 	fprintf(fp," bHDF5: %d",msr->param.bHDF5);
 	fprintf(fp," nBucket: %d",msr->param.nBucket);
-	fprintf(fp," nBucketSubStep: %d",msr->param.nBucketSubStep);
 	fprintf(fp,"\n# dFracNoTreeSqueeze: %g",msr->param.dFracNoTreeSqueeze);
-	fprintf(fp," dFracUseSubStepBuckets: %g",msr->param.dFracUseSubStepBuckets);
 	fprintf(fp," iOutInterval: %d",msr->param.iOutInterval);
 	fprintf(fp," iCheckInterval: %d",msr->param.iCheckInterval);
 	fprintf(fp," iLogInterval: %d",msr->param.iLogInterval);
@@ -1346,7 +1337,6 @@ static double _msrIORead(MSR msr, const char *achFilename, int iStep )
     in.fPeriod[1] = msr->param.dyPeriod;
     in.fPeriod[2] = msr->param.dzPeriod;
     in.nBucket = msr->param.nBucket;
-    if (msr->param.nBucketSubStep < in.nBucket) in.nBucket = msr->param.nBucketSubStep;
 
     pstIOLoad( msr->pst, &in, sizeof(in), NULL, NULL );
 
@@ -1420,7 +1410,6 @@ static double _msrReadHDF5(MSR msr, const char *achFilename)
     in.nFileStart = 0;
     in.nFileEnd = msr->N - 1;
     in.nBucket = msr->param.nBucket;
-    if (msr->param.nBucketSubStep < in.nBucket) in.nBucket = msr->param.nBucketSubStep;
     in.nDark = msr->nDark;
     in.nGas = msr->nGas;
     in.nStar = msr->nStar;
@@ -1647,7 +1636,6 @@ static double _msrReadTipsy(MSR msr, const char *achFilename)
     in.nFileStart = 0;
     in.nFileEnd = msr->N - 1;
     in.nBucket = msr->param.nBucket;
-    if (msr->param.nBucketSubStep < in.nBucket) in.nBucket = msr->param.nBucketSubStep;
     in.nDark = msr->nDark;
     in.nGas = msr->nGas;
     in.nStar = msr->nStar;
@@ -1794,8 +1782,6 @@ void msrSaveParameters(MSR msr, IOHDF5 io)
     ioHDF5WriteAttribute( io, "bDoGravity", H5T_NATIVE_INT, &msr->param.bDoGravity );
     ioHDF5WriteAttribute( io, "bAntiGrav", H5T_NATIVE_INT, &msr->param.bAntiGrav );
     ioHDF5WriteAttribute( io, "nBucket", H5T_NATIVE_INT, &msr->param.nBucket );
-    ioHDF5WriteAttribute( io, "nBucketSubStep", H5T_NATIVE_INT, &msr->param.nBucketSubStep );
-    ioHDF5WriteAttribute( io, "dFracUseSubStepBuckets", H5T_NATIVE_DOUBLE, &msr->param.dFracUseSubStepBuckets );
     ioHDF5WriteAttribute( io, "dFracNoTreeSqueeze", H5T_NATIVE_DOUBLE, &msr->param.dFracNoTreeSqueeze );
     ioHDF5WriteAttribute( io, "iOutInterval", H5T_NATIVE_INT, &msr->param.iOutInterval );
     ioHDF5WriteAttribute( io, "iCheckInterval", H5T_NATIVE_INT, &msr->param.iCheckInterval );
@@ -2228,12 +2214,7 @@ void _BuildTree(MSR msr,double dMass,double dTimeStamp,int bExcludeVeryActive,in
 
     if (msr->param.bVDetails) printf("Building local trees...\n\n");
 
-    if (msr->nActive > (uint64_t)floor(((double)msr->N)*msr->param.dFracUseSubStepBuckets)) {
-	in.nBucket = msr->param.nBucket;
-    }
-    else {
-	in.nBucket = msr->param.nBucketSubStep;
-    }
+    in.nBucket = msr->param.nBucket;
     in.diCrit2 = 1/(msr->dCrit*msr->dCrit);
     nCell = 1<<(1+(int)ceil(log((double)msr->nThreads)/log(2.0)));
     pkdn = malloc(nCell*sizeof(KDN));

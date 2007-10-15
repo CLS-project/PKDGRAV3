@@ -59,7 +59,6 @@ struct parameters {
 #endif
     int bAntiGrav;
     int nBucket;
-    int nBucketSubStep;
     int iOutInterval;
     int iCheckInterval;
     int iLogInterval;
@@ -112,7 +111,6 @@ struct parameters {
     double dGrowStartT;
     double dGrowEndT;
     double dFracNoTreeSqueeze;
-    double dFracUseSubStepBuckets;
     double dFracNoDomainDecomp;
     double dFracNoDomainRootFind;
     double dFracNoDomainDimChoice;
