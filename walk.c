@@ -34,7 +34,7 @@ typedef struct CheckStack {
 /*
 ** Returns total number of active particles for which gravity was calculated.
 */
-int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bEwaldKick,int bVeryActive,
+int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bEwaldKicking,int bVeryActive,
 		double *pdFlop,double *pdPartSum,double *pdCellSum) {
     PARTICLE *p = pkd->pStore;
     PARTICLE *pRemote;
@@ -47,7 +47,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bEwaldKick,int bVe
     double dDriftFac;
     double fWeight;
     double tempI;
-    double dEwaldFlop;
+    double dEwFlop;
     FLOAT dMin,dMax,min2,max2,d2,h2;
     FLOAT rCheck[3];
     FLOAT rOffset[3];

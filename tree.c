@@ -561,8 +561,8 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp,int bTempBound) {
 	pkdn->fOpen = b*sqrt(diCrit2);
 	if (pkdn->fOpen < sqrt(d2Max)) pkdn->fOpen = sqrt(d2Max);
 #else
-	pkdn->fOpen2 = b*b*diCrit;
-	if (pkdn-fOpen2 < d2Max) pkdn->fOpen2 = d2Max;
+	pkdn->fOpen2 = b*b*diCrit2;
+	if (pkdn->fOpen2 < d2Max) pkdn->fOpen2 = d2Max;
 #endif
 #endif
 	/*
@@ -620,8 +620,8 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp,int bTempBound) {
 		pkdn->fOpen = b*sqrt(diCrit2);
 		if (pkdn->fOpen < sqrt(d2Max)) pkdn->fOpen = sqrt(d2Max);
 #else
-		pkdn->fOpen2 = b*b*diCrit;
-		if (pkdn-fOpen2 < d2Max) pkdn->fOpen2 = d2Max;
+		pkdn->fOpen2 = b*b*diCrit2;
+		if (pkdn->fOpen2 < d2Max) pkdn->fOpen2 = d2Max;
 #endif
 #endif
 		}

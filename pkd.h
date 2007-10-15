@@ -374,7 +374,7 @@ typedef struct kdNew {
 	    (pkdn)->bnd.fMax[CALCOPEN_j];				\
 	CALCOPEN_d2 += CALCOPEN_d*CALCOPEN_d;				\
     }									\
-    (pkdn)->fOpen2 = FOPEN_FACTOR*CALCOPEN_d2*(diCrit2);\ 
+    (pkdn)->fOpen2 = FOPEN_FACTOR*CALCOPEN_d2*(diCrit2);\
 }
 #endif
 #else
@@ -402,7 +402,7 @@ typedef struct kdNew {
 	    (pkdn)->bnd.fMax[CALCOPEN_j];				\
 	CALCOPEN_d2 += CALCOPEN_d*CALCOPEN_d;				\
     }									\
-    (pkdn)->fOpen2 = FOPEN_FACTOR*CALCOPEN_d2*(diCrit2);\ 
+    (pkdn)->fOpen2 = FOPEN_FACTOR*CALCOPEN_d2*(diCrit2);\
     MAXSIDE((pkdn)->bnd.fMax,CALCOPEN_b);				\
     (pkdn)->fOpen2 = CALCOPEN_b*CALCOPEN_b*(diCrit2);				\
     if ((pkdn)->fOpen2 < CALCOPEN_d2) (pkdn)->fOpen2 = CALCOPEN_d2;\
@@ -424,10 +424,10 @@ typedef struct ilPart {
 #else
     double fourh2;
 #endif  
-#if defined(SYMBA) || defined(PLANETS)
+#if defined(SYMBA) || defined(PLANETS) || !defined(LOCAL_EXPANSION)
     uint64_t iOrder;
 #endif
-#if defined(HERMITE)
+#if defined(HERMITE) || !defined(LOCAL_EXPANSION)
     double vx,vy,vz;
 #endif
     } ILP;
