@@ -308,11 +308,11 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bEwaldKicking,int 
 		    _mm_prefetch( (char *)(c+iCell)+128,_MM_HINT_T0 );
 #endif
 		if (id == pkd->idSelf) {
-		    pkdc = pkd->kdNodes + Check[i].iCell;
+		    pkdc = &pkd->kdNodes[Check[i].iCell];
 		    n = pkdc->pUpper - pkdc->pLower + 1;
 		    }
 		else if (id < 0) {
-		    pkdc = pkd->kdTop + Check[i].iCell;
+		    pkdc = &pkd->kdTop[Check[i].iCell];
 		    assert(pkdc->iLower != 0);
 		    n = WALK_MINMULTIPOLE;  /* See check below */
 		    }
@@ -507,26 +507,30 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bEwaldKicking,int 
 			** we need to correctly set the processor id.
 			** (this is a bit tricky)
 			*/
-			if (id < 0 ) {
-			    if(pkd->kdTop[iCheckCell].pLower >= 0) {
+			if (id < 0) {
+			    if (pkd->kdTop[iCheckCell].pLower >= 0) {
 				Check[nCheck].iCell = ROOT;
 				Check[nCheck].id = pkd->kdTop[iCheckCell].pLower;
 				}
 			    else {
 				Check[nCheck].iCell = iCheckCell;
+				assert(Check[nCheck].id == -1);
 				}
-			    if(pkd->kdTop[iCheckCell+1].pLower >= 0) {
+			    if (pkd->kdTop[iCheckCell+1].pLower >= 0) {
 				Check[nCheck+1].iCell = ROOT;
 				Check[nCheck+1].id = pkd->kdTop[iCheckCell+1].pLower;
 				}
 			    else {
 				Check[nCheck+1].iCell = iCheckCell+1;
+				assert(Check[nCheck+1].id == -1);
 				}
 
 			    }
 			else {
 			    Check[nCheck].iCell = iCheckCell;
 			    Check[nCheck+1].iCell = iCheckCell+1;
+			    assert(Check[nCheck].id == id);
+			    assert(Check[nCheck].id == id);
 			    }
 			nCheck += 2;
 			}

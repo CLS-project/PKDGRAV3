@@ -2207,8 +2207,7 @@ void pstSetSoft(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     }
 
 
-void pstBuildTree(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
+void pstBuildTree(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct inBuildTree *in = vin;
     KDN *pkdn = vout;

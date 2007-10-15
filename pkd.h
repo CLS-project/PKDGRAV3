@@ -347,6 +347,37 @@ typedef struct kdNew {
 }
 
 
+/*  #define CLASSICAL_FOPEN if you want the original opening criterion. */
+/*  We have found that this causes errors at domain boundaries and      */
+/*  recommend NOT setting this define.                                  */
+
+#ifdef CLASSICAL_FOPEN
+#ifdef LOCAL_EXPANSION
+#define CALCOPEN(pkdn,diCrit2) {		                \
+    FLOAT CALCOPEN_d2 = 0;					\
+    FLOAT CALCOPEN_b;						\
+    int CALCOPEN_j;							\
+    for (CALCOPEN_j=0;CALCOPEN_j<3;++CALCOPEN_j) {			\
+	FLOAT CALCOPEN_d = fabs((pkdn)->bnd.fCenter[CALCOPEN_j] - (pkdn)->r[CALCOPEN_j]) + \
+	    (pkdn)->bnd.fMax[CALCOPEN_j];				\
+	CALCOPEN_d2 += CALCOPEN_d*CALCOPEN_d;				\
+    }		\
+    (pkdn)->fOpen = sqrt(FOPEN_FACTOR*CALCOPEN_d2*(diCrit2));		\
+}
+#else
+#define CALCOPEN(pkdn,diCrit2) {		\
+    FLOAT CALCOPEN_d2 = 0;\
+    FLOAT CALCOPEN_b;\
+    int CALCOPEN_j;							\
+    for (CALCOPEN_j=0;CALCOPEN_j<3;++CALCOPEN_j) {			\
+	FLOAT CALCOPEN_d = fabs((pkdn)->bnd.fCenter[CALCOPEN_j] - (pkdn)->r[CALCOPEN_j]) + \
+	    (pkdn)->bnd.fMax[CALCOPEN_j];				\
+	CALCOPEN_d2 += CALCOPEN_d*CALCOPEN_d;				\
+    }									\
+    (pkdn)->fOpen2 = FOPEN_FACTOR*CALCOPEN_d2*(diCrit2);\ 
+}
+#endif
+#else
 #ifdef LOCAL_EXPANSION
 #define CALCOPEN(pkdn,diCrit2) {		                \
     FLOAT CALCOPEN_d2 = 0;					\
@@ -371,10 +402,12 @@ typedef struct kdNew {
 	    (pkdn)->bnd.fMax[CALCOPEN_j];				\
 	CALCOPEN_d2 += CALCOPEN_d*CALCOPEN_d;				\
     }									\
+    (pkdn)->fOpen2 = FOPEN_FACTOR*CALCOPEN_d2*(diCrit2);\ 
     MAXSIDE((pkdn)->bnd.fMax,CALCOPEN_b);				\
     (pkdn)->fOpen2 = CALCOPEN_b*CALCOPEN_b*(diCrit2);				\
     if ((pkdn)->fOpen2 < CALCOPEN_d2) (pkdn)->fOpen2 = CALCOPEN_d2;\
 }
+#endif
 #endif
 
 /*

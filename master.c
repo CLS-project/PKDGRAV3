@@ -288,7 +288,7 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv)
     msr->param.nTruncateRung = 0;
     prmAddParam(msr->prm,"nTruncateRung",1,&msr->param.nTruncateRung,sizeof(int),"nTR",
 		"<number of MaxRung particles to delete MaxRung> = 0");
-    msr->param.iMaxRung = 1;
+    msr->param.iMaxRung = 16;
     prmAddParam(msr->prm,"iMaxRung",1,&msr->param.iMaxRung,sizeof(int),
 		"mrung", "<maximum timestep rung>");
     msr->param.nRungVeryActive = 31;
