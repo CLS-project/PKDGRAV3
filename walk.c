@@ -34,7 +34,7 @@ typedef struct CheckStack {
 /*
 ** Returns total number of active particles for which gravity was calculated.
 */
-int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bEwaldKicking,int bVeryActive,
+int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 		double *pdFlop,double *pdPartSum,double *pdCellSum) {
     PARTICLE *p = pkd->pStore;
     PARTICLE *pRemote;
@@ -605,13 +605,12 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bEwaldKicking,int 
 	** Now calculate gravity on this bucket!
 	*/
 	tempI = *pdFlop;
-	if (!bEwaldKicking) tempI += dEwFlop;
+	tempI += dEwFlop;
 	nActive = pkdGravInteract(pkd,pkdc,NULL,ilp,nPart,ilc,nCell,0.0,0.0,
-				  bEwald,bEwaldKicking,pdFlop,&dEwFlop);
+				  bEwald,pdFlop,&dEwFlop);
 
 	if (nActive) {
-	    fWeight = (*pdFlop-tempI)/nActive;
-	    if (!bEwaldKicking) fWeight += dEwFlop;
+	    fWeight = (*pdFlop-tempI+dEwFlop)/nActive;
 	    pkdBucketWeight(pkd,iCell,fWeight);
 	    *pdPartSum += nActive*nPart;
 	    *pdCellSum += nActive*nCell;

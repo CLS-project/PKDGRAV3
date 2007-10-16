@@ -168,9 +168,6 @@ void pstAddServices(PST pst,MDL mdl)
     mdlAddService(mdl,PST_KICK,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstKick,
 		  sizeof(struct inKick),sizeof(struct outKick));
-    mdlAddService(mdl,PST_EWALDKICK,pst,
-		  (void (*)(void *,void *,int,void *,int *)) pstEwaldKick,
-		  sizeof(struct inEwaldKick),0);
     mdlAddService(mdl,PST_SETSOFT,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstSetSoft,
 		  sizeof(struct inSetSoft),0);
@@ -1397,6 +1394,7 @@ void pstDomainDecomp(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 	if (pst->nUpper > 1) 
 	    mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
 	}
+    
     if (pnOut) *pnOut = 0;
     }
 
@@ -2523,7 +2521,7 @@ void pstGravity(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	for (id=0;id<nThreads;++id) out[id].dWalkTime = -1.0;  /* impossible, used as initialization */
 	id = pst->idSelf;
 	pkdGravAll(plcl->pkd,in->dTime,in->nReps,in->bPeriodic,4,in->bEwald,
-		   in->bEwaldKick,in->dEwCut,in->dEwhCut, &out[id].nActive,
+		   in->dEwCut,in->dEwhCut, &out[id].nActive,
 		   &out[id].dPartSum,&out[id].dCellSum,&out[id].cs,&out[id].dFlop);
 	
 	out[id].dWalkTime = pkdGetWallClockTimer(plcl->pkd,1);
@@ -2869,25 +2867,6 @@ void pstKick(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 	out->nSum = 1;
 	}
     if (pnOut) *pnOut = sizeof(struct outKick);
-    }
-
-
-void pstEwaldKick(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
-    LCL *plcl = pst->plcl;
-    struct inEwaldKick *in = vin;
-
-    mdlassert(pst->mdl,nIn == sizeof(struct inEwaldKick));
-
-    if (pst->nLeaves > 1) {
-	mdlReqService(pst->mdl,pst->idUpper,PST_EWALDKICK,in,nIn);
-	pstEwaldKick(pst->pstLower,in,nIn,NULL,NULL);
-	mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
-	}
-    else {
-	pkdEwaldKick(plcl->pkd,in->dvFacOne,in->dvFacTwo);
-	}
-    if (pnOut) *pnOut = 0;
     }
 
 

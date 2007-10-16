@@ -91,7 +91,6 @@ typedef struct particle {
     FLOAT r[3];
     FLOAT v[3];
     FLOAT a[3];
-    FLOAT ae[3];   /* used for ewald kicking */
 #ifdef HERMITE
     FLOAT ad[3];
     FLOAT r0[3];
@@ -722,8 +721,10 @@ void pkdWriteTipsy(PKD,char *,uint64_t,int,double,int);
 #ifdef USE_HDF5
 void pkdWriteHDF5(PKD pkd, IOHDF5 io,IOHDF5V ioDen, IOHDF5V ioPot, double dvFac);
 #endif
-void pkdGravAll(PKD,double,int,int,int,int,int,double,double,int *,
-		double *,double *,CASTAT *,double *);
+void
+pkdGravAll(PKD pkd,double dTime,int nReps,int bPeriodic,int iOrder,int bEwald,
+	   double fEwCut,double fEwhCut,int *nActive, 
+	   double *pdPartSum, double *pdCellSum,CASTAT *pcs, double *pdFlop);
 void pkdCalcE(PKD,double *,double *,double *);
 void pkdCalcEandL(PKD,double *,double *,double *,double []);
 void pkdDrift(PKD,double,double,FLOAT *,int,int,FLOAT);
@@ -749,7 +750,6 @@ void pkdFirstDt(PKD pkd);
 void pkdKickKDKOpen(PKD pkd,double dTime,double dDelta);
 void pkdKickKDKClose(PKD pkd,double dTime,double dDelta);
 void pkdKick(PKD pkd,double,double, double, double, double, double, int, double, double);
-void pkdEwaldKick(PKD pkd, double dvFacOne, double dvFacTwo);
 void pkdSwapAll(PKD pkd, int idSwap);
 void pkdInitStep(PKD pkd,struct parameters *p,CSM csm);
 void pkdSetRung(PKD pkd, int iRung);

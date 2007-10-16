@@ -15,7 +15,7 @@
 #include "moments.h"
 
 
-int pkdParticleEwald(PKD pkd,PARTICLE *p,int bEwaldKicking) {
+int pkdParticleEwald(PKD pkd,PARTICLE *p) {
     MOMC mom = pkd->momRoot;
     double fPot,ax,ay,az;
     double dx,dy,dz,x,y,z,r2,dir,dir2,a,alphan,L;
@@ -161,33 +161,20 @@ int pkdParticleEwald(PKD pkd,PARTICLE *p,int bEwaldKicking) {
 	az += pkd->ew.ewt[i].hz*(pkd->ew.ewt[i].hCfac*s - pkd->ew.ewt[i].hSfac*c);
     }
     p->fPot += fPot;
-    if (bEwaldKicking) {
-	p->ae[0] = ax;
-	p->ae[1] = ay;
-	p->ae[2] = az;
-    }
-    else {
-	p->a[0] += ax;
-	p->a[1] += ay;
-	p->a[2] += az;
-	/*
-	** Just to be paranoid, make damn sure the ae variables are zero in this case.
-	*/
-	p->ae[0] = 0.0;
-	p->ae[0] = 0.0;
-	p->ae[0] = 0.0;
-    }
+    p->a[0] += ax;
+    p->a[1] += ay;
+    p->a[2] += az;
     nFlop = nLoop*447 + pkd->ew.nEwhLoop*58;
     return(nFlop);
 }
 
 
-int pkdBucketEwald(PKD pkd,KDN *pkdn,int bEwaldKicking) {
+int pkdBucketEwald(PKD pkd,KDN *pkdn) {
     int j,n,nFlop;
 
     n = pkdn->pUpper - pkdn->pLower + 1;
     for(j=0;j<n;++j) {
-	nFlop += pkdParticleEwald(pkd,&pkd->pStore[pkdn->pLower+j],bEwaldKicking);
+	nFlop += pkdParticleEwald(pkd,&pkd->pStore[pkdn->pLower+j]);
     }
     return(nFlop);
 }

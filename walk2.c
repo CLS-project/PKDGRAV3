@@ -100,7 +100,7 @@ double dMonopoleThetaFac = 1.5;
 /*
 ** Returns total number of active particles for which gravity was calculated.
 */
-int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bEwaldKicking,int bVeryActive,
+int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 		double *pdFlop,double *pdPartSum,double *pdCellSum)
     {
     PARTICLE *p = pkd->pStore;
@@ -293,7 +293,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bEwaldKicking,int 
 	    clearTimer(&tv);
 #else
 	    tempI = *pdFlop;
-	    if (!bEwaldKicking) tempI += dEwFlop;
+	    tempI += dEwFlop;
 	    tempM = 0.001*(pkd->mdl->cache[CID_PARTICLE].nMiss + pkd->mdl->cache[CID_CELL].nMiss);
 #endif
 	    ii = 0;
@@ -802,7 +802,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bEwaldKicking,int 
 		    S[iStack].fWeight = 0.001*(pkd->mdl->cache[CID_PARTICLE].nMiss + pkd->mdl->cache[CID_CELL].nMiss) - tempM;
 #else
 		    S[iStack].fWeight = (*pdFlop-tempI) + dShiftFlop;
-		    if (!bEwaldKicking) S[iStack].fWeight += dEwFlop;
+		    S[iStack].fWeight += dEwFlop;
 #endif
 		    }
 		}
@@ -872,7 +872,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bEwaldKicking,int 
 	** Now calculate gravity on this bucket!
 	*/
 	nActive = pkdGravInteract(pkd,pkdc,&L,ilp,nPart,ilc,nCell,dirLsum,normLsum,
-				  bEwald,bEwaldKicking,pdFlop,&dEwFlop);
+				  bEwald,pdFlop,&dEwFlop);
 
 #ifdef TIME_WALK_WORK
 	fWeight += getTimer(&tv);
@@ -880,7 +880,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bEwaldKicking,int 
 	fWeight += 0.001*(pkd->mdl->cache[CID_PARTICLE].nMiss + pkd->mdl->cache[CID_CELL].nMiss) - tempM;
 #else
 	fWeight += (*pdFlop-tempI);
-	if (!bEwaldKicking) fWeight += dEwFlop;
+	fWeight += dEwFlop;
 #endif
 	if (nActive) {
 	    fWeight /= nActive;
@@ -957,7 +957,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bEwaldKicking,int 
 #else
 	fWeight = S[iStack].fWeight;
 	tempI = *pdFlop;
-	if (!bEwaldKicking) tempI += dEwFlop;
+	tempI += dEwFlop;
 	tempM = 0.001*(pkd->mdl->cache[CID_PARTICLE].nMiss + pkd->mdl->cache[CID_CELL].nMiss);
 #endif
 	--iStack;

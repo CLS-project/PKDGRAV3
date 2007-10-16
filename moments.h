@@ -129,6 +129,7 @@ typedef struct locReduced {
 
 /*
  ** moment tensor components for complete local expansion.
+ ** note that we have the 5th-order terms here now!
  */
 typedef struct locComplete {
 	momFloat m;
@@ -136,9 +137,11 @@ typedef struct locComplete {
 	momFloat xx,yy,xy,xz,yz;
 	momFloat xxx,xyy,xxy,yyy,xxz,yyz,xyz;
 	momFloat xxxx,xyyy,xxxy,yyyy,xxxz,yyyz,xxyy,xxyz,xyyz;
+        momFloat xxxxx,xxxxy,xxxyy,xxyyy,xyyyy,yyyyy,xxxxz,xxxyz,xxyyz,xyyyz,yyyyz;        
 	momFloat zz;
 	momFloat xzz,yzz,zzz;
 	momFloat xxzz,xyzz,xzzz,yyzz,yzzz,zzzz;
+        momFloat xxxzz,xxyzz,xyyzz,yyyzz,xxzzz,xyzzz,yyzzz,xzzzz,yzzzz,zzzzz;
 	} LOCC;
 
 

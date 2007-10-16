@@ -176,10 +176,10 @@ int main(int argc,char **argv) {
 	msrUpdateSoft(msr,dTime);
 	msrBuildTree(msr,dMass,dTime,msr->param.bEwald);
 	if (msrDoGravity(msr)) {
-	    msrGravity(msr,dTime,msr->param.iStartStep,msr->param.bEwald,msr->param.bEwaldKicking,&iSec,&nActive);
+	    msrGravity(msr,dTime,msr->param.iStartStep,msr->param.bEwald,&iSec,&nActive);
 	    if (msr->param.bGravStep) {
 		msrBuildTree(msr,dMass,dTime,msr->param.bEwald);
-		msrGravity(msr,dTime,msr->param.iStartStep,msr->param.bEwald,msr->param.bEwaldKicking,&iSec,&nActive);
+		msrGravity(msr,dTime,msr->param.iStartStep,msr->param.bEwald,&iSec,&nActive);
 		}
 	    msrCalcEandL(msr,MSR_INIT_E,dTime,&E,&T,&U,&Eth,L);
 	    dMultiEff = 1.0;
@@ -232,11 +232,9 @@ int main(int argc,char **argv) {
 #endif
 
 	    {
-		if (msr->param.bEwaldKicking) msrEwaldKick(msr,dTime,0.5*msrDelta(msr));
 		msrTopStepKDK(msr,iStep-1,dTime,
 			  msrDelta(msr),0,0,msrMaxRung(msr),1,
 			  &dMultiEff,&iSec);
-		if (msr->param.bEwaldKicking) msrEwaldKick(msr,dTime+0.5*msrDelta(msr),0.5*msrDelta(msr));
 	      }
 	    
 	    dTime += msrDelta(msr);
@@ -413,9 +411,9 @@ int main(int argc,char **argv) {
 	msrBuildTree(msr,dMass,dTime,msr->param.bEwald);
 
 	if (msrDoGravity(msr)) {
-	    msrGravity(msr,dTime,msr->param.iStartStep,msr->param.bEwald,msr->param.bEwaldKicking,&iSec,&nActive);
+	    msrGravity(msr,dTime,msr->param.iStartStep,msr->param.bEwald,&iSec,&nActive);
 	    if (msr->param.bGravStep && msr->param.iTimeStepCrit == -1) {
-		msrGravity(msr,dTime,msr->param.iStartStep,msr->param.bEwald,msr->param.bEwaldKicking,&iSec,&nActive);
+		msrGravity(msr,dTime,msr->param.iStartStep,msr->param.bEwald,&iSec,&nActive);
 	    }
 
 	    msrCalcEandL(msr,MSR_INIT_E,dTime,&E,&T,&U,&Eth,L);

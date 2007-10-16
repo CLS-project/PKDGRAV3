@@ -99,7 +99,7 @@ void msrOutVector(MSR,char *,int);
 void msrSmooth(MSR,double,int,int,int,int);
 void msrReSmooth(MSR,double,int,int,int,int);
 void msrUpdateSoft(MSR,double);
-void msrGravity(MSR msr,double dTime,double dStep,int bEwald,int bEwaldKick,
+void msrGravity(MSR msr,double dTime,double dStep,int bEwald,
 		int *piSec,uint64_t *pnActive);
 void msrCalcEandL(MSR,int,double,double *,double *,double *,double *,double *);
 void msrDrift(MSR,double,double);
@@ -121,7 +121,6 @@ void msrTopStepKDK(MSR msr,
 		   int *piSec);
 void msrStepVeryActiveKDK(MSR msr, double dStep, double dTime, double dDelta,
 			  int iRung);
-void msrEwaldKick(MSR msr,double dTime,double dDelta);
 #ifdef HERMITE
 void msrTopStepHermite(MSR msr,
 		       double dStep,	/* Current step */

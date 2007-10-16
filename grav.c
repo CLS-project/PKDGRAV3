@@ -62,7 +62,7 @@ void HEAPrholocal(int n, int k, RHOLOCAL ra[]) {
 ** Returns nActive.
 */
 int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,int nCell,double dirLsum,double normLsum,
-		    int bEwald,int bEwaldKicking,double *pdFlop,double *pdEwFlop) {
+		    int bEwald,double *pdFlop,double *pdEwFlop) {
     PARTICLE *p = pkd->pStore;
     PARTICLE *pi,*pj;
     KDN *pkdn = pBucket;
@@ -403,7 +403,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	** required.
 	*/
 	if (bEwald) {
-	    *pdEwFlop += pkdParticleEwald(pkd,&p[i],bEwaldKicking);
+	    *pdEwFlop += pkdParticleEwald(pkd,&p[i]);
 	}
 
 	/*
@@ -414,9 +414,9 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	    /*
 	    ** Use new acceleration here!
 	    */
-	    tx = p[i].a[0] + p[i].ae[0];
-	    ty = p[i].a[1] + p[i].ae[1];
-	    tz = p[i].a[2] + p[i].ae[2];
+	    tx = p[i].a[0];
+	    ty = p[i].a[1];
+	    tz = p[i].a[2];
 	    maga = sqrt(tx*tx + ty*ty + tz*tz);
 	    p[i].dtGrav = maga*dirsum/normsum + pkd->param.dPreFacRhoLoc*rholoc;
 	    p[i].fDensity = rholoc;

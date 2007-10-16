@@ -165,48 +165,8 @@ void BuildTemp(PKD pkd,int iNode,int M,int bSqueeze) {
     if (pkd->kdNodes[iNode].pUpper - pkd->kdNodes[iNode].pLower + 1 <= M) 
 	goto DonePart;
 
-    sRatio = nActive/(pkd->kdNodes[iNode].pUpper - pkd->kdNodes[iNode].pLower + 1.0);
-    if (sRatio > 0.5) sRatio = 1.0 - sRatio;
-    if (sRatio > MIN_SRATIO) {
-      /*
-      ** This means we want to do an active/inactive split to form the first 2 children of ROOT.
-      ** This should improve the average number of actives per bucket we achieve.
-      */
-	/*
-	** Now start the partitioning of the particles.
-	*/
-	i = pkd->kdNodes[iNode].pLower;
-	j = pkd->kdNodes[iNode].pUpper;
-	while (i <= j) {
-	    if (!pkdIsRungActive(pkd,p[i].uRung)) ++i;
-	    else break;
-	    }
-	while (i <= j) {
-	    if (pkdIsRungActive(pkd,p[j].uRung)) --j;
-	    else break;
-	    }
-	if (i < j) {
-	    t = p[i];
-	    p[i] = p[j];
-	    p[j] = t;
-	    while (1) {
-		while (!pkdIsRungActive(pkd,p[++i].uRung));
-		while (pkdIsRungActive(pkd,p[--j].uRung));
-		if (i < j) {
-		    t = p[i];
-		    p[i] = p[j];
-		    p[j] = t;
-		    }
-		else break;
-		}
-	    }
-	d = -1;
-	goto JumpInFromActiveInactive;
-    }
-
     while (1) {
 	/*
-
 	** Begin new stage!
 	** Calculate the appropriate fSplit.
 	** Pick longest dimension and split it in half.
@@ -492,9 +452,9 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp,int bTempBound) {
 	vx = m*p[pj].v[0];
 	vy = m*p[pj].v[1];
 	vz = m*p[pj].v[2];
-	ax = m*(p[pj].a[0] + p[pj].ae[0]);
-	ay = m*(p[pj].a[1] + p[pj].ae[1]);
-	az = m*(p[pj].a[2] + p[pj].ae[2]);
+	ax = m*p[pj].a[0];
+	ay = m*p[pj].a[1];
+	az = m*p[pj].a[2];
 	pkdn->iActive = p[pj].iActive;
 	pkdn->uMinRung = pkdn->uMaxRung = p[pj].iRung;
 	for (++pj;pj<=pkdn->pUpper;++pj) {
@@ -508,9 +468,9 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp,int bTempBound) {
 	    vx += m*p[pj].v[0];
 	    vy += m*p[pj].v[1];
 	    vz += m*p[pj].v[2];		
-	    ax += m*(p[pj].a[0] + p[pj].ae[0]);
-	    ay += m*(p[pj].a[1] + p[pj].ae[1]);
-	    az += m*(p[pj].a[2] + p[pj].ae[2]);
+	    ax += m*p[pj].a[0];
+	    ay += m*p[pj].a[1];
+	    az += m*p[pj].a[2];
 	    pkdn->iActive |= p[pj].iActive;
 	    if ( p[pj].iRung > pkdn->uMaxRung ) pkdn->uMaxRung = p[pj].iRung;
 	    if ( p[pj].iRung < pkdn->uMinRung ) pkdn->uMinRung = p[pj].iRung;

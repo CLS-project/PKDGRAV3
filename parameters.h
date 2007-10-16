@@ -64,7 +64,6 @@ struct parameters {
     int iLogInterval;
     int iOrder;
     int bEwald;
-    int bEwaldKicking;
     int iEwOrder;
     int nReplicas;
     int iStartStep;

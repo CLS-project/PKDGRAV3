@@ -103,7 +103,6 @@ enum pst_service {
     PST_SUNCORRECTOR,
     PST_PREDICTORINACTIVE,
     PST_KICK,
-    PST_EWALDKICK,
     PST_SETSOFT,
     PST_PHYSICALSOFT,
     PST_PREVARIABLESOFT,
@@ -427,7 +426,6 @@ struct inGravity {
     int nReps;
     int bPeriodic;
     int bEwald;
-    int bEwaldKick;
     double dEwCut;
     double dEwhCut;
     };
@@ -580,14 +578,6 @@ struct outKick {
     };
 
 void pstKick(PST,void *,int,void *,int *);
-
-/* PST_EWALDKICK */
-struct inEwaldKick {
-    double dvFacOne;
-    double dvFacTwo;
-    };
-
-void pstEwaldKick(PST,void *,int,void *,int *);
 
 /* PST_SETSOFT */
 struct inSetSoft {

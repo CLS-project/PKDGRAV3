@@ -62,7 +62,7 @@ void HEAPrholocal(int n, int k, RHOLOCAL ra[]) {
 ** Returns nActive.
 */
 int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,int nCell,double dirLsum,double normLsum,
-		    int bEwald,int bEwaldKicking,double *pdFlop,double *pdEwFlop) {
+		    int bEwald,double *pdFlop,double *pdEwFlop) {
     PARTICLE *p = pkd->pStore;
     KDN *pkdn = pBucket;
     const double onethird = 1.0/3.0;
@@ -108,9 +108,9 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	az = 0;
         rholoc = 0;
         dsmooth2 = 0;
-	tx = p[i].a[0] + p[i].ae[0];
-	ty = p[i].a[1] + p[i].ae[1];
-	tz = p[i].a[2] + p[i].ae[2];
+	tx = p[i].a[0];
+	ty = p[i].a[1];
+	tz = p[i].a[2];
 	dimaga = tx*tx + ty*ty + tz*tz;
 	if (dimaga > 0) {
 	    dimaga = 1.0/sqrt(dimaga);
@@ -181,7 +181,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	    tax = xx + xxx + tx - x*dir2;
 	    tay = xy + xxy + ty - y*dir2;
 	    taz = xz + xxz + tz - z*dir2;
-	    adotai = (p[i].a[0]+p[i].ae[0])*tax + (p[i].a[1]+p[i].ae[1])*tay + (p[i].a[2]+p[i].ae[2])*taz; 
+	    adotai = p[i].a[0]*tax + p[i].a[1]*tay + p[i].a[2]*taz; 
             if (adotai > 0) {
 		adotai *= dimaga;
                 dirsum += dirDTS*adotai*adotai;
@@ -273,7 +273,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	    tax = -x*dir2;
 	    tay = -y*dir2;
 	    taz = -z*dir2;
-	    adotai = (p[i].a[0]+p[i].ae[0])*tax + (p[i].a[1]+p[i].ae[1])*tay + (p[i].a[2]+p[i].ae[2])*taz;
+	    adotai = p[i].a[0]*tax + p[i].a[1]*tay + p[i].a[2]*taz;
 	    if (adotai > 0 && d2DTS >= dsmooth2) {
 		adotai *= dimaga;
 		dirsum += dir*adotai*adotai;
@@ -299,7 +299,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	** required.
 	*/
 	if (bEwald) {
-	    *pdEwFlop += pkdParticleEwald(pkd,&p[i],bEwaldKicking);
+	    *pdEwFlop += pkdParticleEwald(pkd,&p[i]);
 	}
 	/*
 	** Set value for time-step, note that we have the current ewald acceleration
@@ -309,9 +309,9 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	    /*
 	    ** Use new acceleration here!
 	    */
-	    tx = p[i].a[0] + p[i].ae[0];
-	    ty = p[i].a[1] + p[i].ae[1];
-	    tz = p[i].a[2] + p[i].ae[2];
+	    tx = p[i].a[0];
+	    ty = p[i].a[1];
+	    tz = p[i].a[2];
 	    maga = sqrt(tx*tx + ty*ty + tz*tz);
 	    p[i].dtGrav = maga*dirsum/normsum + pkd->param.dPreFacRhoLoc*rholoc;
 	    p[i].fDensity = rholoc;

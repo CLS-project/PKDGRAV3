@@ -212,9 +212,6 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv)
     msr->param.bEwald = 1;
     prmAddParam(msr->prm,"bEwald",0,&msr->param.bEwald,sizeof(int),"ewald",
 		"enable/disable Ewald correction = +ewald");
-    msr->param.bEwaldKicking = 0;
-    prmAddParam(msr->prm,"bEwaldKicking",0,&msr->param.bEwaldKicking,sizeof(int),"ewaldkick",
-		"enable/disable Ewald correction kicking = -ewaldkick");
     msr->param.iEwOrder = 4;
     prmAddParam(msr->prm,"iEwOrder",1,&msr->param.iEwOrder,sizeof(int),"ewo",
 		"<Ewald multipole expansion order: 1, 2, 3 or 4> = 4");
@@ -1788,7 +1785,6 @@ void msrSaveParameters(MSR msr, IOHDF5 io)
     ioHDF5WriteAttribute( io, "iLogInterval", H5T_NATIVE_INT, &msr->param.iLogInterval );
     ioHDF5WriteAttribute( io, "iOrder", H5T_NATIVE_INT, &msr->param.iOrder );
     ioHDF5WriteAttribute( io, "bEwald", H5T_NATIVE_INT, &msr->param.bEwald );
-    ioHDF5WriteAttribute( io, "bEwaldKicking", H5T_NATIVE_INT, &msr->param.bEwaldKicking );
     ioHDF5WriteAttribute( io, "iEwOrder", H5T_NATIVE_INT, &msr->param.iEwOrder );
     ioHDF5WriteAttribute( io, "nReplicas", H5T_NATIVE_INT, &msr->param.nReplicas );
     ioHDF5WriteAttribute( io, "iStartStep", H5T_NATIVE_INT, &msr->param.iStartStep );
@@ -2607,7 +2603,7 @@ void msrUpdateSoft(MSR msr,double dTime) {
     }\
 }
 
-void msrGravity(MSR msr,double dTime,double dStep,int bEwald,int bEwaldKick,
+void msrGravity(MSR msr,double dTime,double dStep,int bEwald,
 		int *piSec,uint64_t *pnActive) {
     struct inGravity in;
     struct outGravity *out;
@@ -2619,7 +2615,6 @@ void msrGravity(MSR msr,double dTime,double dStep,int bEwald,int bEwaldKick,
     in.nReps = msr->param.nReplicas;
     in.bPeriodic = msr->param.bPeriodic;
     in.bEwald = bEwald;
-    in.bEwaldKick = bEwaldKick;
     in.dEwCut = msr->param.dEwCut;
     in.dEwhCut = msr->param.dEwhCut;
 
@@ -2817,31 +2812,6 @@ void msrKickKDKClose(MSR msr,double dTime,double dDelta)
     if (msr->param.bVDetails)
 	printf("KickClose: Avg Wallclock %f, Max Wallclock %f\n",
 	       out.SumTime/out.nSum,out.MaxTime);
-    }
-
-
-void msrEwaldKick(MSR msr,double dTime,double dDelta)
-    {
-    double H,a;
-    struct inEwaldKick in;
-	
-    if (msr->param.bCannonical) {
-	in.dvFacOne = 1.0;		/* no hubble drag, man! */
-	in.dvFacTwo = csmComoveKickFac(msr->param.csm,dTime,dDelta);
-	}
-    else {
-	/*
-	** Careful! For non-cannonical we want H and a at the 
-	** HALF-STEP! This is a bit messy but has to be special
-	** cased in some way.
-	*/
-	dTime += dDelta/2.0;
-	a = csmTime2Exp(msr->param.csm,dTime);
-	H = csmTime2Hub(msr->param.csm,dTime);
-	in.dvFacOne = (1.0 - H*dDelta)/(1.0 + H*dDelta);
-	in.dvFacTwo = dDelta/pow(a,3.0)/(1.0 + H*dDelta);
-	}
-    pstEwaldKick(msr->pst,&in,sizeof(in),NULL,NULL);
     }
 
 
@@ -3315,7 +3285,6 @@ void msrTopStepKDK(MSR msr,
     double dMass = -1.0;
     uint64_t nActive;
     int bSplitVA;
-    int bEwald;
 
     if(iAdjust && (iRung < msrMaxRung(msr)-1)) {
 	if (msr->param.bVDetails) {
@@ -3375,20 +3344,8 @@ void msrTopStepKDK(MSR msr,
 	    if (msr->param.bVDetails) {
 		printf("%*cGravity, iRung: %d to %d\n",2*iRung+2,' ',iKickRung,iRung);
 		}
-	    /*
-	    ** The following code decides how the periodic BCs should be handled.
-	    ** If bEwaldKicking is set then the code does an efficient strategy to 
-	    ** incorporate periodic boundaries for volume renormalized runs.
-	    */
-	    if (msr->param.bEwaldKicking) {
-		if (iKickRung == 0) bEwald = 1;
-		else bEwald = 0;
-	    }
-	    else {
-		bEwald = msr->param.bEwald;
-	    }
-	    msrBuildTree(msr,dMass,dTime,bEwald);
-	    msrGravity(msr,dTime,dStep,bEwald,msr->param.bEwaldKicking,piSec,&nActive);
+	    msrBuildTree(msr,dMass,dTime,msr->param.bEwald);
+	    msrGravity(msr,dTime,dStep,msr->param.bEwald,piSec,&nActive);
 	    *pdActiveSum += (double)nActive/msr->N;
 	    }
 
@@ -3476,20 +3433,8 @@ void msrTopStepKDK(MSR msr,
 		printf("%*cGravity, iRung: %d to %d\n",
 		       2*iRung+2,' ',iKickRung,msrCurrMaxRung(msr));
 		}
-	    /*
-	    ** The following code decides how the periodic BCs should be handled.
-	    ** If bEwaldKicking is set then the code does an efficient strategy to 
-	    ** incorporate periodic boundaries for volume renormalized runs.
-	    */
-	    if (msr->param.bEwaldKicking) {
-		if (iKickRung == 0) bEwald = 1;
-		else bEwald = 0;
-	    }
-	    else {
-		bEwald = msr->param.bEwald;
-	    }
-	    msrBuildTree(msr,dMass,dTime,bEwald);
-	    msrGravity(msr,dTime,dStep,bEwald,msr->param.bEwaldKicking,piSec,&nActive);
+	    msrBuildTree(msr,dMass,dTime,msr->param.bEwald);
+	    msrGravity(msr,dTime,dStep,msr->param.bEwald,piSec,&nActive);
 	    *pdActiveSum += (double)nActive/msr->N;
 	    }
 

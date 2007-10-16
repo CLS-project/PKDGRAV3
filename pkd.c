@@ -325,7 +325,6 @@ void pkdReadHDF5(PKD pkd, IOHDF5 io, double dvFac,
 	*/
 	for (j=0;j<3;++j) {
 	    p->a[j] = 0.0;
-	    p->ae[j] = 0.0;
 	}
     }
 
@@ -393,7 +392,6 @@ void pkdIOInitialize( PKD pkd, int nLocal) {
 	*/
 	for (j=0;j<3;++j) {
 	    p->a[j] = 0.0;
-	    p->ae[j] = 0.0;
 	}
     }
 
@@ -437,7 +435,6 @@ void pkdReadTipsy(PKD pkd,char *pszFileName, char *achOutName,uint64_t nStart,in
 	*/
 	for (j=0;j<3;++j) {
 	    p->a[j] = 0.0;
-	    p->ae[j] = 0.0;
 	}
     }
     /*
@@ -1136,7 +1133,6 @@ int pkdUnpackIO(PKD pkd,
 	    p->r[d]  = io[i].r[d];
 	    p->v[d]  = io[i].v[d] * dvFac; //FIXME: times??
 	    p->a[d]  = 0.0;
-	    p->ae[d] = 0.0;
 	}
 	p->iOrder = io[i].iOrder;
 	p->fMass = io[i].fMass;
@@ -1542,7 +1538,7 @@ static int foo = 0;
 
 void
 pkdGravAll(PKD pkd,double dTime,int nReps,int bPeriodic,int iOrder,int bEwald,
-	   int bEwaldKicking, double fEwCut,double fEwhCut,int *nActive, 
+	   double fEwCut,double fEwhCut,int *nActive, 
 	   double *pdPartSum, double *pdCellSum,CASTAT *pcs, double *pdFlop)
     {
     int bVeryActive = 0;
@@ -1577,7 +1573,7 @@ pkdGravAll(PKD pkd,double dTime,int nReps,int bPeriodic,int iOrder,int bEwald,
     *pdPartSum = 0.0;
     *pdCellSum = 0.0;
     pkdStartTimer(pkd,1);
-    *nActive = pkdGravWalk(pkd,dTime,nReps,bPeriodic && bEwald,bEwaldKicking,bVeryActive,pdFlop,pdPartSum,pdCellSum);
+    *nActive = pkdGravWalk(pkd,dTime,nReps,bPeriodic && bEwald,bVeryActive,pdFlop,pdPartSum,pdCellSum);
     pkdStopTimer(pkd,1);
 
 #ifdef USE_BSC
@@ -1823,10 +1819,7 @@ void pkdGravityVeryActive(PKD pkd,double dTime,int bEwald,int nReps,double dStep
     dFlop = 0.0;
     dPartSum = 0.0;
     dCellSum = 0.0;
-    if (pkd->param.bEwaldKicking) {
-	bEwald = 0;
-    }
-    nActive = pkdGravWalk(pkd,dTime,nReps,bEwald,pkd->param.bEwaldKicking,bVeryActive,&dFlop,&dPartSum,&dCellSum);
+    nActive = pkdGravWalk(pkd,dTime,nReps,bEwald,bVeryActive,&dFlop,&dPartSum,&dCellSum);
     }
 
 
@@ -2421,20 +2414,6 @@ void pkdKick(PKD pkd, double dvFacOne, double dvFacTwo, double dvPredFacOne,
     }
 
 
-void pkdEwaldKick(PKD pkd, double dvFacOne, double dvFacTwo) {
-    PARTICLE *p;
-    int i,j,n;
-
-    p = pkd->pStore;
-    n = pkdLocal(pkd);
-    for (i=0;i<n;++i,++p) {
-	for (j=0;j<3;++j) {
-	    p->v[j] = p->v[j]*dvFacOne + p->ae[j]*dvFacTwo;
-	}
-    }
-}
-
-
 void pkdInitStep(PKD pkd, struct parameters *p, CSM csm) {
     pkd->param = *p;
     /*
@@ -2811,7 +2790,6 @@ pkdReadSS(PKD pkd,char *pszFileName,int nStart,int nLocal)
 		*/
 		for (j=0;j<3,++j) {
 		    p->a[j] = 0.0;
-		    p->ae[j] = 0.0;
 		}
 	}
 	/*
