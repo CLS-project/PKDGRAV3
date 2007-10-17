@@ -38,19 +38,11 @@
 /* Create a data group: dark, gas, star, etc. */
 static hid_t CreateGroup( hid_t fileID, const char *groupName ) {
     hid_t groupID;
-
     groupID = H5Gcreate( fileID, groupName, 0 ); H5assert(groupID);
-
     return groupID;
 }
 
-static hid_t openSet(hid_t fileID, const char *name )
-{
-    hid_t dataSet;
-    dataSet = H5Dopen( fileID, name );
-    return dataSet;
-}
-
+/* Returns the number of records in a dataset */
 static hsize_t getSetSize(hid_t setID) {
     hid_t spaceID;
     hsize_t dims[2], maxs[2];
@@ -63,7 +55,7 @@ static hsize_t getSetSize(hid_t setID) {
     return dims[0];
 }
 
-/* Create a dataset inside a group (positions, velocities, etc. */
+/* Create a dataset inside a group (positions, velocities, etc.) */
 static hid_t newSet(hid_t locID, const char *name, uint64_t chunk,
 		    uint64_t count, int nDims, hid_t dataType )
 {
@@ -317,7 +309,7 @@ static void writeClassTable(IOHDF5 io, IOBASE *Base ) {
 static void readClassTable( IOHDF5 io, IOBASE *Base ) {
     hid_t tid, set;
 
-    set = openSet( Base->group_id, FIELD_CLASSES );
+    set = H5Dopen( Base->group_id, FIELD_CLASSES );
     if ( set != H5I_INVALID_HID ) {
 
 	if ( Base->Class.setClass_id != H5I_INVALID_HID 
@@ -379,14 +371,14 @@ static void baseInitialize( IOHDF5 io, IOBASE *Base,
 
     /* Oh.  We are reading this file. */
     if ( Base->group_id != H5I_INVALID_HID ) {
-	Base->setR_id = openSet(Base->group_id,FIELD_POSITION);
+	Base->setR_id = H5Dopen(Base->group_id,FIELD_POSITION);
 	H5assert(Base->setR_id);
 	Base->nTotal = getSetSize(Base->setR_id);
-	Base->setV_id = openSet(Base->group_id,FIELD_VELOCITY);
+	Base->setV_id = H5Dopen(Base->group_id,FIELD_VELOCITY);
 	H5assert(Base->setV_id);
 	assert( Base->nTotal == getSetSize(Base->setV_id) );
-	Base->Order.setOrder_id = openSet(Base->group_id,FIELD_ORDER);
-	Base->Class.setClass_id = openSet(Base->group_id,FIELD_CLASS);
+	Base->Order.setOrder_id = H5Dopen(Base->group_id,FIELD_ORDER);
+	Base->Class.setClass_id = H5Dopen(Base->group_id,FIELD_CLASS);
 	//if ( Base->Class.setClass_id != H5I_INVALID_HID ) {
 	    readClassTable( io, Base );
 	    //}
@@ -484,6 +476,9 @@ void ioHDF5Finish( IOHDF5 io )
     baseFinish( &io->darkBase );
     baseFinish( &io->gasBase );
     baseFinish( &io->starBase );
+
+    if ( io->parametersID != H5I_INVALID_HID )
+	H5Gclose(io->parametersID );
 
     free( io );
 }
