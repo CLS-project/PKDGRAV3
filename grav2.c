@@ -231,13 +231,13 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 		HEAPrholocal(nN,nSP,rholocal);
 		dsmooth2 = rholocal[nN-nSP].d2;
 		SQRT1(dsmooth2,dir);
-		dir *= dir;
+		dir2 = dir * dir;
 		for (j=(nN - nSP);j<nN;++j) {
-		    d2 = rholocal[j].d2*dir;
+		    d2 = rholocal[j].d2*dir2;
 		    d2 = (1-d2);
 		    rholoc += d2*rholocal[j].m;
 		    }
-		rholoc = 1.875*M_1_PI*rholoc*dir*sqrt(dir); /* F1 Kernel (15/8) */
+		rholoc = 1.875*M_1_PI*rholoc*dir2*dir; /* F1 Kernel (15/8) */
 		}
 	    assert(rholoc >= 0);
 	    }
