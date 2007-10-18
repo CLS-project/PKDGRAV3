@@ -80,7 +80,8 @@ int main( int argc, char *argv[] )
 	exit(2);
     }
 
-    ioOut = ioHDF5Initialize( fileID, 32768, IOHDF5_SINGLE );
+    ioOut = ioHDF5Initialize( fileID, 32768, 
+			      bDoublePos ? IOHDF5_DOUBLE : IOHDF5_SINGLE );
     //ioPot  = ioHDFF5NewVector( ioOut, "potential",IOHDF5_SINGLE );
 
 
