@@ -50,7 +50,7 @@ int main( int argc, char *argv[] )
 	    { "output",       0, 0, OPT_OUTPUT },
 	    { 0,              0, 0, 0 }
 	};
-	c = getopt_long( argc, argv, "hd",
+	c = getopt_long( argc, argv, "hdo:",
 			 long_options, &option_index );
 	if ( c == -1 ) break;
 
