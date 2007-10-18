@@ -47,7 +47,7 @@ int main( int argc, char *argv[] )
 	static struct option long_options[] = {
 	    { "help",         0, 0, OPT_HELP },
 	    { "double",       0, 0, OPT_DOUBLE },
-	    { "output",       0, 0, OPT_OUTPUT },
+	    { "output",       1, 0, OPT_OUTPUT },
 	    { 0,              0, 0, 0 }
 	};
 	c = getopt_long( argc, argv, "hdo:",
@@ -74,9 +74,6 @@ int main( int argc, char *argv[] )
 	exit(0);
     }
 
-    if ( optind>=argc ) usage(argv[0]);
-    inName = argv[optind++];
-
     fileID=H5Fcreate(outName, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
     if ( fileID < 0 ) {
 	fprintf( stderr, "Unable to create %s\n", outName );
@@ -89,6 +86,8 @@ int main( int argc, char *argv[] )
 
     while( optind < argc ) {
 	inName = argv[optind++];
+
+	printf( "Opening %s\n", inName );
 
 
 	inID=H5Fopen(inName, H5F_ACC_RDONLY, H5P_DEFAULT);
