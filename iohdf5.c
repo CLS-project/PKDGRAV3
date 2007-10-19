@@ -511,13 +511,13 @@ static void createClass(IOHDF5 io, IOBASE *Base)
 	e = i==Class->nClasses-1 ? Base->nTotal : Class->Class[i+1].iOrderStart;
 
 	for( j=s; j<e; j++ ) {
-	    Class->piClass[n++] = i;
 	    if ( n == io->iChunkSize ) {
 		writeSet( Base->Class.setClass_id, Base->Class.piClass,
 		      H5T_NATIVE_UINT8, o, n, 1 );
 		o += n;
 		n = 0;
 	    }
+	    Class->piClass[n++] = i;
 	}
     }
 }
