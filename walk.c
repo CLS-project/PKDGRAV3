@@ -16,19 +16,6 @@
 #include "floattype.h"
 #endif
 
-typedef struct CheckElt {
-    int iCell;
-    int id;
-    FLOAT rOffset[3];
-    } CELT;
-
-typedef struct CheckStack {
-    int nPart;
-    int nCell;
-    int nCheck;
-    CELT *Check;
-    } CSTACK;
-
 #define WALK_MINMULTIPOLE	3
 
 /*
@@ -40,10 +27,6 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
     PARTICLE *pRemote;
     KDN *c;
     KDN *pkdc;
-    CSTACK *S;
-    CELT *Check;
-    ILP *ilp;
-    ILC *ilc;
     double dDriftFac;
     double fWeight;
     double tempI;
@@ -53,12 +36,12 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
     FLOAT rOffset[3];
     int iStack,ism;
     int ix,iy,iz,bRep;
-    int nMaxCheck,nCheck;
+    int nMaxInitCheck,nCheck;
     int iCell,iSib,iCheckCell;
     int i,ii,j,n,id,pj,nActive,nTotActive;
     int iOpen;
-    int nPart,nMaxPart;
-    int nCell,nMaxCell;
+    int nPart;
+    int nCell;
     double dSyncDelta;
 
     /*
@@ -85,34 +68,14 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
     */
     nTotActive = 0;
     nPart = 0;
-    nMaxPart = 500;
-    ilp = malloc(nMaxPart*sizeof(ILP));
-    assert(ilp != NULL);
     nCell = 0;
-    nMaxCell = 500;
-    ilc = malloc(nMaxCell*sizeof(ILC));
-    assert(ilc != NULL);
-    /*
-    ** Allocate Checklist.
-    */
-    nMaxCheck = 2*nReps+1;
-    nMaxCheck = nMaxCheck*nMaxCheck*nMaxCheck;	/* all replicas */
+    nMaxInitCheck = 2*nReps+1;
+    nMaxInitCheck = nMaxInitCheck*nMaxInitCheck*nMaxInitCheck;	/* all replicas */
     iCell = pkd->iTopRoot;
-    while ((iCell = c[iCell].iParent)) ++nMaxCheck; /* all top tree siblings */
-    nMaxCheck = (nMaxCheck>1000)?nMaxCheck:1000;
-    Check = malloc(nMaxCheck*sizeof(CELT));
-    assert(Check != NULL);
+    while ((iCell = c[iCell].iParent)) ++nMaxInitCheck; /* all top tree siblings */
+    assert(nMaxInitCheck < pkd->nMaxCheck);
     nCheck = 0;
-    /*
-    ** Allocate the stack.
-    */
-    S = malloc(pkd->nMaxDepth*sizeof(CSTACK));
-    assert(S != NULL);
     iStack = -1;
-    for (ism=0;ism<pkd->nMaxDepth;++ism) {
-	S[ism].Check = malloc(nMaxCheck*sizeof(CELT));
-	assert(S[ism].Check != NULL);
-	}
     /*
     ** First we add any replicas of the entire box
     ** to the Checklist.
@@ -125,26 +88,26 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 		rOffset[2] = iz*pkd->fPeriod[2];
 		bRep = ix || iy || iz;
 		if (bRep || bVeryActive) {
-		    Check[nCheck].iCell = ROOT;
+		    pkd->Check[nCheck].iCell = ROOT;
 		    /* If leaf of top tree, use root of
 		       local tree.
 		    */
 		    if (c[ROOT].iLower) {
-			Check[nCheck].id = -1;
+			pkd->Check[nCheck].id = -1;
 			}
 		    else {
-			Check[nCheck].id = c[ROOT].pLower;
+			pkd->Check[nCheck].id = c[ROOT].pLower;
 			}				    
-		    for (j=0;j<3;++j) Check[nCheck].rOffset[j] = rOffset[j];
+		    for (j=0;j<3;++j) pkd->Check[nCheck].rOffset[j] = rOffset[j];
 		    ++nCheck;
 		    }
 		if (bRep && bVeryActive) {
 		    /*
 		    ** Add the images of the very active tree to the checklist.
 		    */
-		    Check[nCheck].iCell = VAROOT;
-		    Check[nCheck].id = mdlSelf(pkd->mdl);
-		    for (j=0;j<3;++j) Check[nCheck].rOffset[j] = rOffset[j];
+		    pkd->Check[nCheck].iCell = VAROOT;
+		    pkd->Check[nCheck].id = mdlSelf(pkd->mdl);
+		    for (j=0;j<3;++j) pkd->Check[nCheck].rOffset[j] = rOffset[j];
 		    ++nCheck;
 		    }
 		}
@@ -155,15 +118,15 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 	iSib = SIBLING(iCell);
 	while (iSib) {
 	    if (c[iSib].iLower) {
-		Check[nCheck].iCell = iSib;
-		Check[nCheck].id = -1;
+		pkd->Check[nCheck].iCell = iSib;
+		pkd->Check[nCheck].id = -1;
 		}
 	    else {
 		/* If leaf of top tree, use root of local tree */
-		Check[nCheck].iCell = ROOT;
-		Check[nCheck].id = c[iSib].pLower;
+		pkd->Check[nCheck].iCell = ROOT;
+		pkd->Check[nCheck].id = c[iSib].pLower;
 		}
-	    for (j=0;j<3;++j) Check[nCheck].rOffset[j] = 0.0;
+	    for (j=0;j<3;++j) pkd->Check[nCheck].rOffset[j] = 0.0;
 	    ++nCheck;
 	    iCell = c[iCell].iParent;
 	    iSib = SIBLING(iCell);
@@ -183,18 +146,18 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 	    */
 	    ii = 0;
 	    for (i=0;i<nCheck;++i) {
-		id = Check[i].id;
+		id = pkd->Check[i].id;
 		if (id == pkd->idSelf) {
-		    pkdc = &pkd->kdNodes[Check[i].iCell];
+		    pkdc = &pkd->kdNodes[pkd->Check[i].iCell];
 		    n = pkdc->pUpper - pkdc->pLower + 1;
 		    }
 		else if (id < 0) {
-		    pkdc = &pkd->kdTop[Check[i].iCell];
+		    pkdc = &pkd->kdTop[pkd->Check[i].iCell];
 		    assert(pkdc->iLower != 0);
 		    n = WALK_MINMULTIPOLE;  /* See check below */
 		    }
 		else {
-		    pkdc = mdlAquire(pkd->mdl,CID_CELL,Check[i].iCell,id);
+		    pkdc = mdlAquire(pkd->mdl,CID_CELL,pkd->Check[i].iCell,id);
 		    n = pkdc->pUpper - pkdc->pLower + 1;
 		    }
 		/*
@@ -218,11 +181,11 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 		    dDriftFac = dTime - pkdc->dTimeStamp;
 		  }
 		  for (j=0;j<3;++j) rCheck[j] = pkdc->r[j] + 
-		    dDriftFac*pkdc->v[j] + Check[i].rOffset[j];
+		    dDriftFac*pkdc->v[j] + pkd->Check[i].rOffset[j];
 		}
 		else {
 		  dDriftFac = 0.0;
-		  for (j=0;j<3;++j) rCheck[j] = pkdc->r[j] + Check[i].rOffset[j];
+		  for (j=0;j<3;++j) rCheck[j] = pkdc->r[j] + pkd->Check[i].rOffset[j];
 		}
 		if (c[iCell].iLower) {
 		    /*
@@ -333,7 +296,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 		    else iOpen = 1;
 		    }
 /*
-  printf("   i:%6d iCheck:%6d id:%2d iOpen:%2d\n",i,Check[i].iCell,id,iOpen);
+  printf("   i:%6d iCheck:%6d id:%2d iOpen:%2d\n",i,pkd->Check[i].iCell,id,iOpen);
 */
 		if (iOpen > 0) {
 		    /*
@@ -350,17 +313,17 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 			** We could do a prefetch here for non-local
 			** cells.
 			*/
-			if (nCheck + 2 > nMaxCheck) {
-			    nMaxCheck += 1000;
-			    Check = realloc(Check,nMaxCheck*sizeof(CELT));
-			    assert(Check != NULL);
-			    for (ism=0;ism<pkd->nMaxDepth;++ism) {
-				S[ism].Check = realloc(S[ism].Check,nMaxCheck*sizeof(CELT));
-				assert(S[ism].Check != NULL);
+			if (nCheck + 2 > pkd->nMaxCheck) {
+			    pkd->nMaxCheck += 1000;
+			    pkd->Check = realloc(pkd->Check,pkd->nMaxCheck*sizeof(CELT));
+			    assert(pkd->Check != NULL);
+			    for (ism=0;ism<pkd->nMaxStack;++ism) {
+				pkd->S[ism].Check = realloc(pkd->S[ism].Check,pkd->nMaxCheck*sizeof(CELT));
+				assert(pkd->S[ism].Check != NULL);
 				}
 			    }
-			Check[nCheck] = Check[i];
-			Check[nCheck+1] = Check[i];
+			pkd->Check[nCheck] = pkd->Check[i];
+			pkd->Check[nCheck+1] = pkd->Check[i];
 			/*
 			** If we are opening a leaf of the top tree
 			** we need to correctly set the processor id.
@@ -368,30 +331,30 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 			*/
 			if (id < 0 ) {
 			    if(pkd->kdTop[iCheckCell].pLower >= 0) {
-				Check[nCheck].iCell = ROOT;
-				Check[nCheck].id = pkd->kdTop[iCheckCell].pLower;
+				pkd->Check[nCheck].iCell = ROOT;
+				pkd->Check[nCheck].id = pkd->kdTop[iCheckCell].pLower;
 				}
 			    else {
-				Check[nCheck].iCell = iCheckCell;
+				pkd->Check[nCheck].iCell = iCheckCell;
 				}
 			    if(pkd->kdTop[iCheckCell+1].pLower >= 0) {
-				Check[nCheck+1].iCell = ROOT;
-				Check[nCheck+1].id = pkd->kdTop[iCheckCell+1].pLower;
+				pkd->Check[nCheck+1].iCell = ROOT;
+				pkd->Check[nCheck+1].id = pkd->kdTop[iCheckCell+1].pLower;
 				}
 			    else {
-				Check[nCheck+1].iCell = iCheckCell+1;
+				pkd->Check[nCheck+1].iCell = iCheckCell+1;
 				}
 
 			    }
 			else {
-			    Check[nCheck].iCell = iCheckCell;
-			    Check[nCheck+1].iCell = iCheckCell+1;
+			    pkd->Check[nCheck].iCell = iCheckCell;
+			    pkd->Check[nCheck+1].iCell = iCheckCell+1;
 			    }
 			nCheck += 2;
 			}
 		    else {
 			/*
-			** Now I am trying to open a bucket, which means I place particles on the ilp
+			** Now I am trying to open a bucket, which means I place particles on the pkd->ilp
 			** interaction list. I also have to make sure that I place the
 			** particles in time synchronous positions.
 			*/
@@ -400,28 +363,28 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 			    ** Local Bucket Interaction.
 			    ** Interact += Pacticles(pkdc);
 			    */
-			    if (nPart + n > nMaxPart) {
-				nMaxPart += 500 + n;
-				ilp = realloc(ilp,nMaxPart*sizeof(ILP));
-				assert(ilp != NULL);	
+			    if (nPart + n > pkd->nMaxPart) {
+				pkd->nMaxPart += 500 + n;
+				pkd->ilp = realloc(pkd->ilp,pkd->nMaxPart*sizeof(ILP));
+				assert(pkd->ilp != NULL);	
 				}
 			    for (pj=pkdc->pLower;pj<=pkdc->pUpper;++pj) {
-				ilp[nPart].iOrder = p[pj].iOrder;
-				ilp[nPart].m = p[pj].fMass;
-				ilp[nPart].x = p[pj].r[0] + dDriftFac*p[pj].v[0] + Check[i].rOffset[0];
-				ilp[nPart].y = p[pj].r[1] + dDriftFac*p[pj].v[1] + Check[i].rOffset[1];
-				ilp[nPart].z = p[pj].r[2] + dDriftFac*p[pj].v[2] + Check[i].rOffset[2];
-				ilp[nPart].vx = p[pj].v[0]; 
-				ilp[nPart].vy = p[pj].v[1];
-				ilp[nPart].vz = p[pj].v[2];
+				pkd->ilp[nPart].iOrder = p[pj].iOrder;
+				pkd->ilp[nPart].m = p[pj].fMass;
+				pkd->ilp[nPart].x = p[pj].r[0] + dDriftFac*p[pj].v[0] + pkd->Check[i].rOffset[0];
+				pkd->ilp[nPart].y = p[pj].r[1] + dDriftFac*p[pj].v[1] + pkd->Check[i].rOffset[1];
+				pkd->ilp[nPart].z = p[pj].r[2] + dDriftFac*p[pj].v[2] + pkd->Check[i].rOffset[2];
+				pkd->ilp[nPart].vx = p[pj].v[0]; 
+				pkd->ilp[nPart].vy = p[pj].v[1];
+				pkd->ilp[nPart].vz = p[pj].v[2];
 #ifdef SOFTLINEAR
-				ilp[nPart].h = p[pj].fSoft;
+				pkd->ilp[nPart].h = p[pj].fSoft;
 #endif
 #ifdef SOFTSQUARE
-				ilp[nPart].twoh2 = 2*p[pj].fSoft*p[pj].fSoft;
+				pkd->ilp[nPart].twoh2 = 2*p[pj].fSoft*p[pj].fSoft;
 #endif
 #if !defined(SOFTLINEAR) && !defined(SOFTSQUARE)
-				ilp[nPart].fourh2 = 4*p[pj].fSoft*p[pj].fSoft;
+				pkd->ilp[nPart].fourh2 = 4*p[pj].fSoft*p[pj].fSoft;
 #endif
 				++nPart;
 				}
@@ -431,29 +394,29 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 			    ** Remote Bucket Interaction.
 			    ** Interact += Pacticles(pkdc);
 			    */
-			    if (nPart + n > nMaxPart) {
-				nMaxPart += 500 + n;
-				ilp = realloc(ilp,nMaxPart*sizeof(ILP));
-				assert(ilp != NULL);	
+			    if (nPart + n > pkd->nMaxPart) {
+				pkd->nMaxPart += 500 + n;
+				pkd->ilp = realloc(pkd->ilp,pkd->nMaxPart*sizeof(ILP));
+				assert(pkd->ilp != NULL);	
 				}
 			    for (pj=pkdc->pLower;pj<=pkdc->pUpper;++pj) {
 				pRemote = mdlAquire(pkd->mdl,CID_PARTICLE,pj,id);
-				ilp[nPart].iOrder = pRemote->iOrder;
-				ilp[nPart].m = pRemote->fMass;
-				ilp[nPart].x = pRemote->r[0] + dDriftFac*pRemote->v[0] + Check[i].rOffset[0];
-				ilp[nPart].y = pRemote->r[1] + dDriftFac*pRemote->v[1] + Check[i].rOffset[1];
-				ilp[nPart].z = pRemote->r[2] + dDriftFac*pRemote->v[2] + Check[i].rOffset[2];
-				ilp[nPart].vx = pRemote->v[0]; 
-				ilp[nPart].vy = pRemote->v[1];
-				ilp[nPart].vz = pRemote->v[2];
+				pkd->ilp[nPart].iOrder = pRemote->iOrder;
+				pkd->ilp[nPart].m = pRemote->fMass;
+				pkd->ilp[nPart].x = pRemote->r[0] + dDriftFac*pRemote->v[0] + pkd->Check[i].rOffset[0];
+				pkd->ilp[nPart].y = pRemote->r[1] + dDriftFac*pRemote->v[1] + pkd->Check[i].rOffset[1];
+				pkd->ilp[nPart].z = pRemote->r[2] + dDriftFac*pRemote->v[2] + pkd->Check[i].rOffset[2];
+				pkd->ilp[nPart].vx = pRemote->v[0]; 
+				pkd->ilp[nPart].vy = pRemote->v[1];
+				pkd->ilp[nPart].vz = pRemote->v[2];
 #ifdef SOFTLINEAR
-				ilp[nPart].h = pRemote->fSoft;
+				pkd->ilp[nPart].h = pRemote->fSoft;
 #endif
 #ifdef SOFTSQUARE
-				ilp[nPart].twoh2 = 2*pRemote->fSoft*pRemote->fSoft;
+				pkd->ilp[nPart].twoh2 = 2*pRemote->fSoft*pRemote->fSoft;
 #endif
 #if !defined(SOFTLINEAR) && !defined(SOFTSQUARE)
-				ilp[nPart].fourh2 = 4*pRemote->fSoft*pRemote->fSoft;
+				pkd->ilp[nPart].fourh2 = 4*pRemote->fSoft*pRemote->fSoft;
 #endif
 				++nPart;
 				mdlRelease(pkd->mdl,CID_PARTICLE,pRemote);
@@ -466,19 +429,19 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 		    ** No intersection, accept multipole!
 		    ** Interact += Moment(pkdc);
 		    */
-		    if (nCell == nMaxCell) {
-			nMaxCell += 500;
-			ilc = realloc(ilc,nMaxCell*sizeof(ILC));
-			assert(ilc != NULL);
+		    if (nCell == pkd->nMaxCell) {
+			pkd->nMaxCell += 500;
+			pkd->ilc = realloc(pkd->ilc,pkd->nMaxCell*sizeof(ILC));
+			assert(pkd->ilc != NULL);
 			}
-		    ilc[nCell].x = rCheck[0];
-		    ilc[nCell].y = rCheck[1];
-		    ilc[nCell].z = rCheck[2];
-		    ilc[nCell].mom = pkdc->mom;
+		    pkd->ilc[nCell].x = rCheck[0];
+		    pkd->ilc[nCell].y = rCheck[1];
+		    pkd->ilc[nCell].z = rCheck[2];
+		    pkd->ilc[nCell].mom = pkdc->mom;
 #ifdef HERMITE
-		    ilc[nCell].vx = pkdc->v[0];
-		    ilc[nCell].vy = pkdc->v[1];
-		    ilc[nCell].vz = pkdc->v[2];
+		    pkd->ilc[nCell].vx = pkdc->v[0];
+		    pkd->ilc[nCell].vy = pkdc->v[1];
+		    pkd->ilc[nCell].vz = pkdc->v[2];
 #endif
 		    ++nCell;
 		    }
@@ -488,32 +451,32 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 		    ** interaction, so we need to treat is as a softened monopole by putting it
 		    ** on the particle interaction list.
 		    */
-		    if (nPart == nMaxPart) {
-			nMaxPart += 500;
-			ilp = realloc(ilp,nMaxPart*sizeof(ILP));
-			assert(ilp != NULL);	
+		    if (nPart == pkd->nMaxPart) {
+			pkd->nMaxPart += 500;
+			pkd->ilp = realloc(pkd->ilp,pkd->nMaxPart*sizeof(ILP));
+			assert(pkd->ilp != NULL);	
 			}
-		    ilp[nPart].iOrder = -1; /* set iOrder to negative value for time step criterion */
-		    ilp[nPart].m = pkdc->mom.m;
-		    ilp[nPart].x = rCheck[0];
-		    ilp[nPart].y = rCheck[1];
-		    ilp[nPart].z = rCheck[2];
-		    ilp[nPart].vx = pkdc->v[0];
-		    ilp[nPart].vy = pkdc->v[1];
-		    ilp[nPart].vz = pkdc->v[2];
+		    pkd->ilp[nPart].iOrder = -1; /* set iOrder to negative value for time step criterion */
+		    pkd->ilp[nPart].m = pkdc->mom.m;
+		    pkd->ilp[nPart].x = rCheck[0];
+		    pkd->ilp[nPart].y = rCheck[1];
+		    pkd->ilp[nPart].z = rCheck[2];
+		    pkd->ilp[nPart].vx = pkdc->v[0];
+		    pkd->ilp[nPart].vy = pkdc->v[1];
+		    pkd->ilp[nPart].vz = pkdc->v[2];
 #ifdef SOFTLINEAR
-		    ilp[nPart].h = sqrt(pkdc->fSoft2);
+		    pkd->ilp[nPart].h = sqrt(pkdc->fSoft2);
 #endif
 #ifdef SOFTSQUARE
-		    ilp[nPart].twoh2 = 2*pkdc->fSoft2;
+		    pkd->ilp[nPart].twoh2 = 2*pkdc->fSoft2;
 #endif
 #if !defined(SOFTLINEAR) && !defined(SOFTSQUARE)
-		    ilp[nPart].fourh2 = 4*pkdc->fSoft2;
+		    pkd->ilp[nPart].fourh2 = 4*pkdc->fSoft2;
 #endif
 		    ++nPart;
 		    }
 		else {
-		    Check[ii++] = Check[i];
+		    pkd->Check[ii++] = pkd->Check[i];
 		    }
 		if (id >= 0 && id != pkd->idSelf) {
 		    mdlRelease(pkd->mdl,CID_CELL,pkdc);
@@ -531,13 +494,13 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 	    ** Now add the siblings of iCell to the 
 	    ** Checklist.
 	    */
-	    if (nCheck == nMaxCheck) {
-		nMaxCheck += 1000;
-		Check = realloc(Check,nMaxCheck*sizeof(CELT));
-		assert(Check != NULL);
-		for (ism=0;ism<pkd->nMaxDepth;++ism) {
-		    S[ism].Check = realloc(S[ism].Check,nMaxCheck*sizeof(CELT));
-		    assert(S[ism].Check != NULL);
+	    if (nCheck == pkd->nMaxCheck) {
+		pkd->nMaxCheck += 1000;
+		pkd->Check = realloc(pkd->Check,pkd->nMaxCheck*sizeof(CELT));
+		assert(pkd->Check != NULL);
+		for (ism=0;ism<pkd->nMaxStack;++ism) {
+		    pkd->S[ism].Check = realloc(pkd->S[ism].Check,pkd->nMaxCheck*sizeof(CELT));
+		    assert(pkd->S[ism].Check != NULL);
 		    }
 		}
 	    /*
@@ -550,9 +513,9 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 		** iCell is active, continue processing it.
 		** Put the sibling onto the checklist.
 		*/
-		Check[nCheck].iCell = iCell + 1;
-		Check[nCheck].id = pkd->idSelf;
-		for (j=0;j<3;++j) Check[nCheck].rOffset[j] = 0.0;
+		pkd->Check[nCheck].iCell = iCell + 1;
+		pkd->Check[nCheck].id = pkd->idSelf;
+		for (j=0;j<3;++j) pkd->Check[nCheck].rOffset[j] = 0.0;
 		++nCheck;
 		/*
 		** Test whether the sibling is active as well.
@@ -568,11 +531,12 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 		    ** before proceeding deeper in the tree.
 		    */
 		    ++iStack;
-		    S[iStack].nPart = nPart;
-		    S[iStack].nCell = nCell;
-		    S[iStack].nCheck = nCheck;
-		    for (i=0;i<nCheck;++i) S[iStack].Check[i] = Check[i];
-		    S[iStack].Check[nCheck-1].iCell = iCell;
+		    assert(iStack < pkd->nMaxStack);
+		    pkd->S[iStack].nPart = nPart;
+		    pkd->S[iStack].nCell = nCell;
+		    pkd->S[iStack].nCheck = nCheck;
+		    for (i=0;i<nCheck;++i) pkd->S[iStack].Check[i] = pkd->Check[i];
+		    pkd->S[iStack].Check[nCheck-1].iCell = iCell;
 		    }
 		}
 	    else {
@@ -580,9 +544,9 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 		** Skip iCell, but add it to the Checklist.
 		** No need to push anything onto the stack here.
 		*/
-		Check[nCheck].iCell = iCell;
-		Check[nCheck].id = pkd->idSelf;
-		for (j=0;j<3;++j) Check[nCheck].rOffset[j] = 0.0;
+		pkd->Check[nCheck].iCell = iCell;
+		pkd->Check[nCheck].id = pkd->idSelf;
+		for (j=0;j<3;++j) pkd->Check[nCheck].rOffset[j] = 0.0;
 		++nCheck;
 		/*
 		** Move onto processing the sibling.
@@ -606,7 +570,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 	*/
 	tempI = *pdFlop;
 	tempI += dEwFlop;
-	nActive = pkdGravInteract(pkd,pkdc,NULL,ilp,nPart,ilc,nCell,0.0,0.0,
+	nActive = pkdGravInteract(pkd,pkdc,NULL,pkd->ilp,nPart,pkd->ilc,nCell,0.0,0.0,
 				  bEwald,pdFlop,&dEwFlop);
 
 	if (nActive) {
@@ -625,19 +589,6 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 		** Make sure stack is empty and free its storage.
 		*/
 		assert(iStack == -1);
-		for (ism=0;ism<pkd->nMaxDepth;++ism) {
-		    free(S[ism].Check);
-		    }
-		free(S);
-		/*
-		** Free checklist storage.
-		*/
-		free(Check);
-		/*
-		** Free interaction lists.
-		*/
-		free(ilp);
-		free(ilc);
                 *pdFlop += dEwFlop;   /* Finally add the ewald score to get a proper float count */
 		return(nTotActive);
 		}
@@ -648,10 +599,10 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 	** Pop the Checklist from the top of the stack,
 	** also getting the state of the interaction list.
 	*/
-	nPart = S[iStack].nPart;
-	nCell = S[iStack].nCell;
-	nCheck = S[iStack].nCheck;
-	for (i=0;i<nCheck;++i) Check[i] = S[iStack].Check[i];
+	nPart = pkd->S[iStack].nPart;
+	nCell = pkd->S[iStack].nCell;
+	nCheck = pkd->S[iStack].nCheck;
+	for (i=0;i<nCheck;++i) pkd->Check[i] = pkd->S[iStack].Check[i];
 	--iStack;
 	}
     }
