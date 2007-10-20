@@ -140,7 +140,7 @@ void pkdStopTimer(PKD pkd,int iTimer)
 void pkdInitialize(PKD *ppkd,MDL mdl,int nStore,int nBucket,FLOAT *fPeriod,
 		   uint64_t nDark,uint64_t nGas,uint64_t nStar) {
     PKD pkd;
-    int j;
+    int j,ism;
 	
     pkd = (PKD)malloc(sizeof(struct pkdContext));
     mdlassert(mdl,pkd != NULL);
@@ -202,6 +202,35 @@ void pkdInitialize(PKD *ppkd,MDL mdl,int nStore,int nBucket,FLOAT *fPeriod,
     mdlassert(mdl,pkd->ew.ewt != NULL);
     *ppkd = pkd;
     /*
+    ** Tree walk stuff.
+    */
+    pkd->nMaxPart = 10000;
+    pkd->ilp = malloc(pkd->nMaxPart*sizeof(ILP));
+    assert(pkd->ilp != NULL);
+    pkd->nMaxCell = 1000;
+#ifdef USE_SIMD_MOMR
+    pkd->ilc = SIMD_malloc(pkd->nMaxCell/4*sizeof(ILC));
+#else
+    pkd->ilc = malloc(pkd->nMaxCell*sizeof(ILC));
+#endif
+    assert(pkd->ilc != NULL);
+    /*
+    ** Allocate Checklist.
+    */
+    pkd->nMaxCheck = 10000;
+    pkd->Check = malloc(pkd->nMaxCheck*sizeof(CELT));
+    assert(pkd->Check != NULL);
+    /*
+    ** Allocate the stack.
+    */
+    pkd->nMaxStack = 30;
+    pkd->S = malloc(pkd->nMaxStack*sizeof(CSTACK));
+    assert(pkd->S != NULL);
+    for (ism=0;ism<pkd->nMaxStack;++ism) {
+	pkd->S[ism].Check = malloc(pkd->nMaxCheck*sizeof(CELT));
+	assert(pkd->S[ism].Check != NULL);
+	}
+    /*
     ** Allocate initial particle pointer arrays for active/inactive particles.
     */
     pkd->nMaxBucketActive = 1000;
@@ -212,8 +241,9 @@ void pkdInitialize(PKD *ppkd,MDL mdl,int nStore,int nBucket,FLOAT *fPeriod,
     }
 
 
-void pkdFinish(PKD pkd)
-    {
+void pkdFinish(PKD pkd) {
+    int ism;
+
     if (pkd->kdNodes) {
 	/*
 	** Close caching space and free up nodes.
@@ -221,6 +251,22 @@ void pkdFinish(PKD pkd)
 	mdlFinishCache(pkd->mdl,CID_CELL);
 	mdlFree(pkd->mdl,pkd->kdNodes);
 	}
+    /*
+    ** Free Interaction lists.
+    */
+    free(pkd->ilp);
+    free(pkd->ilc);
+    /*
+    ** Free checklist.
+    */
+    free(pkd->Check);
+    /*
+    ** Free Stack.
+    */
+    for (ism=0;ism<pkd->nMaxStack;++ism) {
+	free(pkd->S[ism].Check);
+	}
+    free(pkd->S);
     if (pkd->kdTop) free(pkd->kdTop);
     free(pkd->ew.ewt);
     mdlFree(pkd->mdl,pkd->pStore);

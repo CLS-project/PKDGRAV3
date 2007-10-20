@@ -400,18 +400,27 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp,int bTempBound) {
     KDN *pkdn,*pkdl,*pkdu;
     MOMR mom;
     FLOAT m,fMass,x,y,z,vx,vy,vz,ax,ay,az,ft,d2,d2Max,dih2,b;
-    int pj,d,nDepth;
+    int pj,d,nDepth,ism;
+    const int nMaxStackIncrease = 3;
 
     nDepth = 1;
-    pkd->nMaxDepth = 1;
     while (1) {
 	while (c[iNode].iLower) {
 	    iNode = c[iNode].iLower;
 	    ++nDepth;
 	    /*
-	    ** Is this the deepest in the tree so far?
+	    ** Is this the deepest in the tree so far? We might need to have more stack
+	    ** elements for the tree walk!
 	    */
-	    if (nDepth > pkd->nMaxDepth) pkd->nMaxDepth = nDepth;
+	    if (nDepth > pkd->nMaxStack+2) {
+		pkd->S = realloc(pkd->S,(pkd->nMaxStack+nMaxStackIncrease)*sizeof(CSTACK));
+		assert(pkd->S != NULL);
+		for (ism=pkd->nMaxStack;ism<(pkd->nMaxStack+nMaxStackIncrease);++ism) {
+		    pkd->S[ism].Check = malloc(pkd->nMaxCheck*sizeof(CELT));
+		    assert(pkd->S[ism].Check != NULL);
+		    }
+		pkd->nMaxStack += nMaxStackIncrease;
+		}
 	    }
 	/*
 	** Now calculate all bucket quantities!
@@ -717,26 +726,12 @@ void pkdTreeBuild(PKD pkd,int nBucket,FLOAT diCrit2,KDN *pkdn,int bSqueeze,int b
 	}
     iStart = 0;
     ShuffleParticles(pkd,iStart);
-
-    pkdStopTimer(pkd,0);
-    /* 
-       printf("Temp Tree Build wallclock: %g secs\n",
-       pkdGetWallClockTimer(pkd,0));
-       printf("Number of Cells: %d\n",pkd->nNodes);
-    */
-    pkdClearTimer(pkd,0);
-    pkdStartTimer(pkd,0);
     Create(pkd,ROOT,diCrit2,dTimeStamp,bSqueeze);
+
     pkdStopTimer(pkd,0);
 #ifdef USE_BSC
     MPItrace_event(10000, 0 );
 #endif
-
-    /*
-      printf("Create Tree wallclock: %g secs\n",
-      pkdGetWallClockTimer(pkd,0));
-      printf("nMaxDepth:%d\n",pkd->nMaxDepth);
-    */
     /*
     ** Finally activate a read only cache for remote access.
     */

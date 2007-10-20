@@ -432,6 +432,27 @@ typedef struct ilPart {
     } ILP;
 
 /*
+** Components required for tree walking.
+*/
+
+typedef struct CheckElt {
+    int iCell;
+    int id;
+    FLOAT rOffset[3];
+    } CELT;
+
+typedef struct CheckStack {
+    int nPart;
+    int nCell;
+    int nCheck;
+    CELT *Check;
+    LOCR L;
+    double dirLsum;
+    double normLsum;
+    double fWeight;
+    } CSTACK;
+
+/*
 ** components required for time-step calculation (particle-bucket list)
 */
 
@@ -559,7 +580,6 @@ typedef struct pkdContext {
     int iTopRoot;
     int nNodes;
     int nNodesFull;     /* number of nodes in the full tree (including very active particles) */
-    int nMaxDepth;	/* gives the maximum depth of the local tree */
     int nNonVANodes;    /* number of nodes *not* in Very Active Tree, or index to the start of the VA nodes (except VAROOT) */
     KDN *kdNodes;
     PARTICLE *pStore;
@@ -567,7 +587,17 @@ typedef struct pkdContext {
     PARTICLE **piActive;
     PARTICLE **piInactive;
     PLITE *pLite;
-
+    /*
+    ** Tree walk variables.
+    */    
+    int nMaxStack;
+    CSTACK *S;
+    int nMaxCheck;
+    CELT *Check;
+    int nMaxPart;
+    ILP *ilp;
+    int nMaxCell;
+    ILC *ilc;
     /*
     ** New activation methods
     */
