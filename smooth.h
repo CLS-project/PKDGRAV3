@@ -121,14 +121,6 @@ void smFinish(SMX,SMF *);
 void smSmooth(SMX,SMF *);
 void smReSmooth(SMX,SMF *);
 
-#ifdef GASOLINE
-
-void smReSmoothWalk(SMX,SMF *);
-
-void smMarkSmooth(SMX, int);
-
-#endif /* GASOLINE */
-
 void smFof(SMX smx, int nFOFsDone, SMF *smf);
 int smGroupMerge(SMF *smf,int bPeriodic);
 int smGroupProfiles(SMX smx, SMF *smf,int bPeriodic,int nTotalGroups,int bLogBins,int nFOFsDone);
