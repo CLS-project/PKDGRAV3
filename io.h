@@ -78,6 +78,7 @@ struct inStartRecv {
     double dEcosmo;
     double dTimeOld;
     double dUOld;
+    total_t N;
     total_t iIndex;
     local_t nCount;
     int    bCheckpoint;

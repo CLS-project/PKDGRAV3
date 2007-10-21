@@ -1,6 +1,10 @@
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
+#define USE_IO_TIPSY
+#ifdef USE_IO_TIPSY
+#include <rpc/xdr.h>
+#endif
 
 #ifdef HAVE_MALLOC_H
 #include <malloc.h>
@@ -63,7 +67,8 @@ hid_t ioOpen( const char *filename ) {
 
 
 
-static void ioSave(IO io, const char *filename, double dTime,
+static void ioSave(IO io, const char *filename, total_t N,
+		   double dTime,
 		   double dEcosmo, double dTimeOld, double dUOld,
 		   int bDouble )
 {
@@ -72,6 +77,34 @@ static void ioSave(IO io, const char *filename, double dTime,
     IOHDF5V ioDen;
     IOHDF5V ioPot;
     local_t i;
+#ifdef USE_IO_TIPSY
+    char *tname = malloc(strlen(filename)+5);
+    FILE *tfp;
+    XDR xdr;
+    int j;
+    float fTmp;
+#endif
+
+#ifdef USE_IO_TIPSY
+    strcpy(tname,filename);
+    strcat(tname,".std");
+    tfp = fopen(tname,"wb");
+    assert( tfp != NULL );
+    free(tname);
+    xdrstdio_create(&xdr,tfp,XDR_ENCODE);
+    if ( mdlSelf(io->mdl) == 0 ) {
+	uint32_t nBodies = N;
+	uint32_t nDims = 3;
+	uint32_t nZero = 0;
+	assert(xdr_double(&xdr,&dTime));
+	assert(xdr_u_int(&xdr,&nBodies));
+	assert(xdr_u_int(&xdr,&nDims));
+	assert(xdr_u_int(&xdr,&nZero));
+	assert(xdr_u_int(&xdr,&nBodies));
+	assert(xdr_u_int(&xdr,&nZero));
+	assert(xdr_u_int(&xdr,&nZero));
+    }
+#endif
 
     /* Create the output file */
     fileID = ioCreate(filename);
@@ -94,11 +127,37 @@ static void ioSave(IO io, const char *filename, double dTime,
 		      io->ioClasses[io->vClass[i]].dSoft, io->p[i] );
 	ioHDF5AddVector( ioDen, io->iMinOrder+i, io->d[i] );
 	ioHDF5AddVector( ioPot, io->iMinOrder+1, io->p[i] );
+
+#ifdef USE_IO_TIPSY
+	fTmp = io->ioClasses[io->vClass[i]].dMass;
+	xdr_float(&xdr,&fTmp);
+	for(j=0;j<3;j++) {
+	    if (bDouble)
+		xdr_double(&xdr,&io->r[i].v[j]);
+	    else {
+		fTmp = io->r[i].v[j];
+		xdr_float(&xdr,&fTmp);
+	    }
+	}
+	for(j=0;j<3;j++) {
+	    fTmp = io->v[i].v[j];
+	    xdr_float(&xdr,&fTmp);
+	}
+	fTmp = io->ioClasses[io->vClass[i]].dSoft;
+	xdr_float(&xdr,&fTmp);
+	fTmp = io->p[i];
+	xdr_float(&xdr,&fTmp);
+#endif
     }
     ioHDF5Finish(iohdf5);
 
     H5assert(H5Fflush(fileID,H5F_SCOPE_GLOBAL));
     H5assert(H5Fclose(fileID));
+
+#ifdef USE_IO_TIPSY
+    xdr_destroy(&xdr);
+    fclose(tfp);
+#endif
 }
 
 
@@ -239,6 +298,7 @@ void ioStartSave(IO io,void *vin,int nIn,void *vout,int *pnOut)
     recv.dUOld   = save->dUOld;
     strcpy(recv.achOutName,save->achOutName);
     recv.bCheckpoint = save->bCheckpoint;
+    recv.N       = save->N;
     iCount = save->N / mdlIO(io->mdl);
 
     printf( "Starting to save %"PRIu64" particles (~%"PRIu64" per I/O node)\n",
@@ -614,7 +674,7 @@ void ioStartRecv(IO io,void *vin,int nIn,void *vout,int *pnOut)
 
     makeName( io, achOutName, recv->achOutName, mdlSelf(io->mdl) );
 
-    ioSave(io, achOutName, recv->dTime, recv->dEcosmo,
+    ioSave(io, achOutName, recv->N, recv->dTime, recv->dEcosmo,
 	   recv->dTimeOld, recv->dUOld,
 	   recv->bCheckpoint ? IOHDF5_DOUBLE : IOHDF5_SINGLE );
 }
