@@ -151,7 +151,7 @@ int main(int argc,char **argv) {
     */
     if (msrLogInterval(msr)) {
 	sprintf(achFile,"%s.log",msrOutName(msr));
-	fpLog = fopen(achFile,"w");
+	fpLog = fopen(achFile,"a");
 	assert(fpLog != NULL);
 	setbuf(fpLog,(char *) NULL); /* no buffering */
 	/*
