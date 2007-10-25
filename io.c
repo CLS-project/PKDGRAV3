@@ -281,6 +281,7 @@ void ioAddServices(IO io,MDL mdl)
 void ioStartSave(IO io,void *vin,int nIn,void *vout,int *pnOut)
 {
     int id;
+    float scale;
     struct inStartSave *save = vin;
     struct inStartRecv recv;
     total_t iCount;
@@ -321,18 +322,20 @@ void ioStartSave(IO io,void *vin,int nIn,void *vout,int *pnOut)
     }
 
 #ifdef USE_PNG
-    png.iResolution = 1024;
-    png.minValue = -1;
-    png.maxValue = 5;
-    png.scale = 1;
-    strcpy(png.achOutName,save->achOutName);
-    for( id=1; id<mdlIO(io->mdl); id++ ) {
-	mdlReqService(io->mdl,id,IO_MAKE_PNG,&png,sizeof(png));
-    }
-    ioMakePNG(io,&png,sizeof(png),NULL,0);
+    for( scale=1.0; scale<=8.0+EPSILON; scale*=2.0 ) {
+	png.iResolution = 10240;
+	png.minValue = -1;
+	png.maxValue = 5;
+	png.scale = scale;
+	strcpy(png.achOutName,save->achOutName);
+	for( id=1; id<mdlIO(io->mdl); id++ ) {
+	    mdlReqService(io->mdl,id,IO_MAKE_PNG,&png,sizeof(png));
+	}
+	ioMakePNG(io,&png,sizeof(png),NULL,0);
 
-    for( id=1; id<mdlIO(io->mdl); id++ ) {
-	mdlGetReply(io->mdl,id,NULL,NULL);
+	for( id=1; id<mdlIO(io->mdl); id++ ) {
+	    mdlGetReply(io->mdl,id,NULL,NULL);
+	}
     }
 #endif
     mdlSetComm(io->mdl,1);
