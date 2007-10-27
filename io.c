@@ -23,7 +23,7 @@
 #include "io.h"
 
 #define CHUNKSIZE (32*1024)
-#define EPSILON (-1e20)
+#define MINVALUE (-1e20)
 
 static void makeName( IO io, char *achOutName, const char *inName, int iIndex )
 {
@@ -322,7 +322,7 @@ void ioStartSave(IO io,void *vin,int nIn,void *vout,int *pnOut)
     }
 
 #ifdef USE_PNG
-    for( scale=1.0; scale<=8.0+EPSILON; scale*=2.0 ) {
+    for( scale=1.0; scale<=8.0+1e-5; scale*=2.0 ) {
 	png.iResolution = 10240;
 	png.minValue = -1;
 	png.maxValue = 5;
@@ -718,25 +718,30 @@ void ioMakePNG(IO io,void *vin,int nIn,void *vout,int *pnOut)
 {
     struct inMakePNG *make = vin;
     char achOutName[256];
-    float *limg, *img, X, Y;
+    float *limg, *slice, X, Y;
     uint_fast32_t R, N, i;
+    uint_fast32_t Ns, Is, Ss;
     int x, y;
     PNG png;
     FILE *fp;
 
     R = make->iResolution;
     N = R * R;
+    Ns = 1024*1024/sizeof(float);
 
     limg = malloc( N*sizeof(float) );
     assert( limg != NULL );
 
-    for( i=0; i<N; i++ ) limg[i] = EPSILON;
+    for( i=0; i<N; i++ ) limg[i] = MINVALUE;
 
     // Project the density onto a grid and find the maximum (ala Tipsy)
     for( i=0; i<io->N; i++ ) {
-	X = (io->r[i].v[0]+0.5) * make->scale;
-	Y = (io->r[i].v[1]+0.5) * make->scale;
-	if ( X < 0 || X >= 1 || Y < 0 || Y >= 1 ) continue;
+	// Scale, crop and adjust range to [0,1)
+	X = io->r[i].v[0] * make->scale;
+	Y = io->r[i].v[1] * make->scale;
+	if ( X < -0.5 || X >= 0.5 || Y < -0.5 || Y >= 0.5 ) continue;
+	X += 0.5;
+	Y += 0.5;
 
 	x = X * R;
 	y = Y * R;
@@ -746,23 +751,29 @@ void ioMakePNG(IO io,void *vin,int nIn,void *vout,int *pnOut)
     }
 
     if ( mdlSelf(io->mdl) == 0 ) {
-	img = malloc( N*sizeof(float) );
-	assert( img != NULL );
-	mdlReduce(io->mdl,limg,img,N,MPI_FLOAT,MPI_MAX,0);
-
+	slice = malloc( Ns*sizeof(float) );
+	assert( slice != NULL );
+	for( Is=0; Is<N; Is+=Ss ) {
+	    Ss = (N-Is) > Ns ? Ns : (N-Is);
+	    mdlReduce(io->mdl,limg+Is,slice,Ss,MPI_FLOAT,MPI_MAX,0);
+	    memcpy(limg+Is,slice,Ss*sizeof(float));
+	}
 	makeName( io, achOutName, make->achOutName, mdlSelf(io->mdl) );
 	sprintf(achOutName+strlen(achOutName),"-%.1f.png", make->scale );
 	fp = fopen( achOutName, "wb" );
 	if ( fp != NULL ) {
 	    png = pngInitialize( make->iResolution, make->minValue, make->maxValue );
-	    pngWrite( png, fp, img );
+	    pngWrite( png, fp, limg );
 	    pngFinish(png);
 	    fclose(fp);
 	}
-	free(img);
+	free(slice);
     }
     else {
-	mdlReduce(io->mdl,limg,0,N,MPI_FLOAT,MPI_MAX,0);
+	for( Is=0; Is<N; Is+=Ss ) {
+	    Ss = (N-Is) > Ns ? Ns : (N-Is);
+	    mdlReduce(io->mdl,limg+Is,0,Ss,MPI_FLOAT,MPI_MAX,0);
+	}
     }
 
     free(limg);
