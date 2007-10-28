@@ -737,14 +737,12 @@ void ioMakePNG(IO io,void *vin,int nIn,void *vout,int *pnOut)
     // Project the density onto a grid and find the maximum (ala Tipsy)
     for( i=0; i<io->N; i++ ) {
 	// Scale, crop and adjust range to [0,1)
-	X = io->r[i].v[0] * make->scale;
-	Y = io->r[i].v[1] * make->scale;
-	if ( X < -0.5 || X >= 0.5 || Y < -0.5 || Y >= 0.5 ) continue;
-	X += 0.5;
-	Y += 0.5;
+	X = io->r[i].v[0] * make->scale + 0.5;
+	Y = io->r[i].v[1] * make->scale + 0.5;
+	if ( X < 0 || X >= 1 || Y < 0 || Y >= 1 ) continue;
 
-	x = X * R;
-	y = Y * R;
+	x = floor(X * R);
+	y = floor(Y * R);
 	assert( x>=0 && x<R && y>=0 && y<R );
 	if ( io->d[i] > limg[x+R*y] )
 	    limg[x+R*y] = io->d[i];
