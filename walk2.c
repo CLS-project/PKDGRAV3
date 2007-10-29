@@ -423,7 +423,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 				pkd->S[ism].Check = realloc(pkd->S[ism].Check,pkd->nMaxCheck*sizeof(CELT));
 				assert(pkd->S[ism].Check != NULL);
 				}
-			    printf("CPU:%d increased checklist size to %d\n",mdlSelf(pkd->mdl),pkd->nMaxCheck);
+			    printf("A CPU:%d increased checklist size to %d\n",mdlSelf(pkd->mdl),pkd->nMaxCheck);
 			    }
 			pkd->Check[nCheck] = pkd->Check[i];
 			pkd->Check[nCheck+1] = pkd->Check[i];
@@ -473,7 +473,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 				pkd->nMaxPart += 1000 + n;
 				pkd->ilp = realloc(pkd->ilp,pkd->nMaxPart*sizeof(ILP));
 				assert(pkd->ilp != NULL);	
-				printf("CPU:%d increased particle list size to %d\n",mdlSelf(pkd->mdl),pkd->nMaxPart);
+				printf("B CPU:%d increased particle list size to %d\n",mdlSelf(pkd->mdl),pkd->nMaxPart);
 			    }
 			    for (pj=pkdc->pLower;pj<=pkdc->pUpper;++pj) {
 #if defined(SYMBA) || defined(PLANETS)
@@ -501,7 +501,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 				pkd->nMaxPart += 1000 + n;
 				pkd->ilp = realloc(pkd->ilp,pkd->nMaxPart*sizeof(ILP));
 				assert(pkd->ilp != NULL);	
-				printf("CPU:%d increased particle list size to %d\n",mdlSelf(pkd->mdl),pkd->nMaxPart);
+				printf("C CPU:%d increased particle list size to %d\n",mdlSelf(pkd->mdl),pkd->nMaxPart);
 			    }
 #ifdef TIME_WALK_WORK
 			    stopTimer(&tv);
@@ -559,7 +559,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 			pkd->ilc = realloc(pkd->ilc,pkd->nMaxCell*sizeof(ILC));
 #endif
 			assert(pkd->ilc != NULL);
-			printf("CPU:%d increased cell list size to %d\n",mdlSelf(pkd->mdl),pkd->nMaxCell);
+			printf("D CPU:%d increased cell list size to %d\n",mdlSelf(pkd->mdl),pkd->nMaxCell);
 			}
 #ifdef USE_SIMD_MOMR
 		    ig = nCell >> 2;
@@ -608,7 +608,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 			pkd->nMaxPart += 1000;
 			pkd->ilp = realloc(pkd->ilp,pkd->nMaxPart*sizeof(ILP));
 			assert(pkd->ilp != NULL);	
-			printf("CPU:%d increased particle list size to %d\n",mdlSelf(pkd->mdl),pkd->nMaxPart);
+			printf("E CPU:%d increased particle list size to %d\n",mdlSelf(pkd->mdl),pkd->nMaxPart);
 		    }
 #if defined(SYMBA) || defined(PLANETS)
 		    pkd->ilp[nPart].iOrder = -1; /* set iOrder to negative value for time step criterion */
@@ -654,14 +654,14 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 		    pkd->S[ism].Check = realloc(pkd->S[ism].Check,pkd->nMaxCheck*sizeof(CELT));
 		    assert(pkd->S[ism].Check != NULL);
 		    }
-		printf("CPU:%d increased check list size to %d\n",mdlSelf(pkd->mdl),pkd->nMaxCheck);
+		printf("F CPU:%d increased check list size to %d\n",mdlSelf(pkd->mdl),pkd->nMaxCheck);
 		}
 	    /*
 	    ** Check iCell is active. We eventually want to just to a 
 	    ** rung check here when we start using tree repair, but 
 	    ** for now this is just as good.
 	    */
-	    if (pkdIsCellActive(pkd,c+iCell)) {
+	    if (pkdIsCellActive(pkd,&c[iCell])) {
 		/*
 		** iCell is active, continue processing it.
 		** Put the sibling onto the checklist.
@@ -677,7 +677,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 		** hit the sibling. See the goto InactiveAscend below
 		** for how this is done.
 		*/
-		if (pkdIsCellActive(pkd,c+iCell+1)) {
+		if (pkdIsCellActive(pkd,&c[iCell+1])) {
 		    /*
 		    ** Sibling is active as well.
 		    ** Push Checklist for the sibling onto the stack
@@ -748,7 +748,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 	    pkd->nMaxPart += 1000 + n;
 	    pkd->ilp = realloc(pkd->ilp,pkd->nMaxPart*sizeof(ILP));
 	    assert(pkd->ilp != NULL);	
-	    printf("CPU:%d increased particle list size to %d\n",mdlSelf(pkd->mdl),pkd->nMaxPart);
+	    printf("G CPU:%d increased particle list size to %d\n",mdlSelf(pkd->mdl),pkd->nMaxPart);
 	}
 	for (pj=pkdc->pLower;pj<=pkdc->pUpper;++pj) {
 #if defined(SYMBA) || defined(PLANETS)
@@ -820,7 +820,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 		}
 	    }
 	++iCell;
-	if (!pkdIsCellActive(pkd,c+iCell)) goto InactiveAscend;
+	if (!pkdIsCellActive(pkd,&c[iCell])) goto InactiveAscend;
 	/*
 	** Pop the Checklist from the top of the stack,
 	** also getting the state of the interaction list.
