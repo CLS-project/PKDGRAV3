@@ -2120,7 +2120,19 @@ void msrDomainDecomp(MSR msr,int iRung,int bGreater,int bSplitVA) {
     assert(iRungDD >= iRungRT);
     assert(iRungRT >= iRungSD);
 
-    if (iRung > iRungDD && !bSplitVA) {
+    if (msr->iLastRungRT < 0) {
+	/*
+	** We need to do a full domain decompotition with iRungRT particles being active.
+	** However, since I am not sure what the exact state of the domains can be at this point 
+	** I had better do a split dim find as well.
+	*/
+	msr->iLastRungRT = iRungRT;  
+	msrActiveRung(msr,iRungRT,bGreater);
+	bRestoreActive = 1;
+	in.bDoRootFind = 1;
+	in.bDoSplitDimFind = 1;
+    }
+    else if (iRung > iRungDD && !bSplitVA) {
 	if (msr->iLastRungRT > iRungRT) {
 	    msr->iLastRungRT = iRungRT;
 	    msrActiveRung(msr,iRungRT,bGreater); 
