@@ -350,8 +350,6 @@ AC_HEADER_TIME
 AC_SYS_LARGEFILE
 
 # Checks for library functions.
-AC_FUNC_MALLOC
-AC_FUNC_REALLOC
 AC_CHECK_FUNCS([floor gethostname gettimeofday memset pow sqrt strchr strdup strrchr strstr ])
 
 AC_CONFIG_FILES([Makefile])
