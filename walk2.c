@@ -471,11 +471,17 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 			    */
 			    if (nPart + n > pkd->nMaxPart) {
 				pkd->nMaxPart += 1000 + n;
-				pkd->ilp = realloc(pkd->ilp,pkd->nMaxPart*sizeof(ILP));
-				assert(pkd->ilp != NULL);	
+				pkdAllocateILP(pkd,pkd->nMaxPart);
 				printf("B CPU:%d increased particle list size to %d\n",mdlSelf(pkd->mdl),pkd->nMaxPart);
 			    }
 			    for (pj=pkdc->pLower;pj<=pkdc->pUpper;++pj) {
+#ifdef USE_SIMD_PP
+				pkd->ilp->rx[nPart] = p[pj].r[0] - ilp->cx + pkd->Check[i].rOffset[0];
+				pkd->ilp->ry[nPart] = p[pj].r[1] - ilp->cy + pkd->Check[i].rOffset[1];
+				pkd->ilp->rz[nPart] = p[pj].r[2] - ilp->cz + pkd->Check[i].rOffset[2];
+				pkd->ilp->m[nPart] = p[pj].fMass;
+				pkd->ilp->fourh2[nPart] = 4*p[pj].fSoft*p[pj].fSoft;
+#else
 #if defined(SYMBA) || defined(PLANETS)
 				pkd->ilp[nPart].iOrder = p[pj].iOrder;
 #endif
@@ -489,6 +495,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 				pkd->ilp[nPart].vz = p[pj].v[2];
 #endif
 				pkd->ilp[nPart].fourh2 = 4*p[pj].fSoft*p[pj].fSoft;
+#endif
 				++nPart;
 			    }
 			}
@@ -499,8 +506,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 			    */
 			    if (nPart + n > pkd->nMaxPart) {
 				pkd->nMaxPart += 1000 + n;
-				pkd->ilp = realloc(pkd->ilp,pkd->nMaxPart*sizeof(ILP));
-				assert(pkd->ilp != NULL);	
+				pkdAllocateILP(pkd,pkd->nMaxPart);
 				printf("C CPU:%d increased particle list size to %d\n",mdlSelf(pkd->mdl),pkd->nMaxPart);
 			    }
 #ifdef TIME_WALK_WORK
@@ -508,6 +514,14 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 #endif
 			    for (pj=pkdc->pLower;pj<=pkdc->pUpper;++pj) {
 				pRemote = mdlAquire(pkd->mdl,CID_PARTICLE,pj,id);
+#ifdef USE_SIMD_PP
+				pkd->ilp->rx[nPart] = pRemote->r[0] - ilp->cx + pkd->Check[i].rOffset[0];
+				pkd->ilp->ry[nPart] = pRemote->r[1] - ilp->cy + pkd->Check[i].rOffset[1];
+				pkd->ilp->rz[nPart] = pRemote->r[2] - ilp->cz + pkd->Check[i].rOffset[2];
+				pkd->ilp->m[nPart] = pRemote->fMass;
+				pkd->ilp->fourh2[nPart] = 4*pRemote->fSoft*pRemote->fSoft;
+
+#else
 #if defined(SYMBA) || defined(PLANETS)
 				pkd->ilp[nPart].iOrder = pRemote->iOrder;
 #endif
@@ -521,6 +535,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 				pkd->ilp[nPart].vz = pRemote->v[2];
 #endif
 				pkd->ilp[nPart].fourh2 = 4*pRemote->fSoft*pRemote->fSoft;
+#endif
 				++nPart;
 				mdlRelease(pkd->mdl,CID_PARTICLE,pRemote);
 			    }
@@ -606,10 +621,16 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 		    */
 		    if (nPart == pkd->nMaxPart) {
 			pkd->nMaxPart += 1000;
-			pkd->ilp = realloc(pkd->ilp,pkd->nMaxPart*sizeof(ILP));
-			assert(pkd->ilp != NULL);	
+			pkdAllocateILP(pkd,pkd->nMaxPart);
 			printf("E CPU:%d increased particle list size to %d\n",mdlSelf(pkd->mdl),pkd->nMaxPart);
 		    }
+#ifdef USE_SIMD_PP
+		    pkd->ilp->m[nPart] = pkdc->mom.m;
+		    pkd->ilp->rx[nPart] = rCheck[0] - ilp->cx;
+		    pkd->ilp->ry[nPart] = rCheck[1] - ilp->cy;
+		    pkd->ilp->rz[nPart] = rCheck[2] - ilp->cz;
+		    pkd->ilp->fourh2[nPart] = 4*pkdc->fSoft2;
+#else
 #if defined(SYMBA) || defined(PLANETS)
 		    pkd->ilp[nPart].iOrder = -1; /* set iOrder to negative value for time step criterion */
 #endif
@@ -623,6 +644,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 		    pkd->ilp[nPart].vz = pkdc->v[2];
 #endif
 		    pkd->ilp[nPart].fourh2 = 4*pkdc->fSoft2;
+#endif
 		    ++nPart;
 		}
 		else {
@@ -746,11 +768,21 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 	n = pkdc->pUpper - pkdc->pLower + 1;
 	if (nPart + n > pkd->nMaxPart) {
 	    pkd->nMaxPart += 1000 + n;
-	    pkd->ilp = realloc(pkd->ilp,pkd->nMaxPart*sizeof(ILP));
-	    assert(pkd->ilp != NULL);	
+	    pkdAllocateILP(pkd,pkd->nMaxPart);
 	    printf("G CPU:%d increased particle list size to %d\n",mdlSelf(pkd->mdl),pkd->nMaxPart);
 	}
 	for (pj=pkdc->pLower;pj<=pkdc->pUpper;++pj) {
+#ifdef USE_SIMD_PP
+	    pkd->ilp->m[nPart] = p[pj].fMass;
+	    /*
+	    ** We will assume that all the particles in my bucket are at the same time here so 
+	    ** we will not have a drift factor to worry about.
+	    */
+	    pkd->ilp->rx[nPart] = p[pj].r[0] - ilp->cx;
+	    pkd->ilp->ry[nPart] = p[pj].r[1] - ilp->cx;
+	    pkd->ilp->rz[nPart] = p[pj].r[2] - ilp->cx;
+	    pkd->ilp->fourh2[nPart] = 4*p[pj].fSoft*p[pj].fSoft;
+#else
 #if defined(SYMBA) || defined(PLANETS)
 	    pkd->ilp[nPart].iOrder = p[pj].iOrder;
 #endif
@@ -768,6 +800,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 	    pkd->ilp[nPart].vz = p[pj].v[2];
 #endif
 	    pkd->ilp[nPart].fourh2 = 4*p[pj].fSoft*p[pj].fSoft;
+#endif
 	    ++nPart;
 	}
 

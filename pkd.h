@@ -425,6 +425,18 @@ typedef struct kdNew {
 ** including the softening.
 */
 
+#ifdef USE_SIMD_PP
+typedef struct ilPart {
+    double cx, cy, cz;    /* Center coordinates */
+    float *rx, *ry, *rz;  /* offset from center of interactions */
+    float *m, *fourh2;    /* Mass and softening (4h^2)*/
+
+    /* Temporaries for gravity interaction calculations */
+    float *dx, *dy, *dz;  /* Offset between particle and interaction*/
+    float *d2;            /* Distance squared = dx*dx + dy*dy + dz*dz */
+
+} ILP;
+#else
 typedef struct ilPart {
     double m,x,y,z;
 #if defined(SOFTLINEAR)
@@ -441,6 +453,7 @@ typedef struct ilPart {
     double vx,vy,vz;
 #endif
     } ILP;
+#endif
 
 /*
 ** Components required for tree walking.
@@ -712,6 +725,7 @@ double pkdGetWallClockTimer(PKD,int);
 void pkdClearTimer(PKD,int);
 void pkdStartTimer(PKD,int);
 void pkdStopTimer(PKD,int);
+void pkdAllocateILP(PKD pkd, int nMaxPart);
 void pkdInitialize(PKD *,MDL,int,int,FLOAT *,uint64_t,uint64_t,uint64_t);
 void pkdFinish(PKD);
 void pkdReadTipsy(PKD pkd,char *pszFileName, char *achOutName,uint64_t nStart,int nLocal,
