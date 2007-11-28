@@ -265,7 +265,7 @@ typedef struct bndBound {
         while ((P[++i] ELEM) CMPL) { } \
         while ((P[--j] ELEM) CMPU) { } \
     }\
-
+}
 
 typedef struct kdNode {
     BND bnd;
