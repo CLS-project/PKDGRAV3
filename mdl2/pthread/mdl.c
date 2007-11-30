@@ -1363,34 +1363,40 @@ void mdlRelease(MDL mdl,int cid,void *p)
 
 void mdlCacheBarrier(MDL mdl,int cid) {
     CACHE *c = &mdl->cache[cid];
-    CAHEAD caOut;
     int id;
 
     /*
     ** THIS IS A SYNCHRONIZE!!!
     */
-    caOut.cid = cid;
-    caOut.mid = MDL_MID_CACHEOUT;
-    caOut.id = mdl->idSelf;
-    if(mdl->idSelf == 0) {
-	++c->nCheckOut;
-	while(c->nCheckOut < mdl->nThreads) {
-	    mdlCacheReceive(mdl);
+    if(c->iType == MDL_COCACHE) {
+	if(mdl->idSelf == 0) {
+	    ++c->nCheckOut;
+	    while(c->nCheckOut < mdl->nThreads) {
+		mdlCacheCheck(mdl);
+		}
 	    }
-	for(id = 1; id < mdl->nThreads; id++) {
-	    mdlCacheRequest(mdl, id, cid, MDL_MID_CACHEOUT, NULL, 0, 0);
+	else {
+	    mdlCacheRequest(mdl, 0, cid, MDL_MID_CACHEOUT,
+			    NULL, 0, 0);
 	    }
-	}
-    else {
-	mdlCacheRequest(mdl, 0, cid, MDL_MID_CACHEOUT, NULL, 0, 0);
-	c->nCheckOut = 0;
-	while (c->nCheckOut == 0) {
-	    mdlCacheReceive(mdl);
+	if(mdl->idSelf == 0) {
+	    for(id = 1; id < mdl->nThreads; id++) {
+		mdlCacheRequest(mdl, id, cid, MDL_MID_CACHEOUT,
+				NULL, 0, 0);
+		}
+	    }
+	else {
+	    c->nCheckOut = 0;
+	    while (c->nCheckOut == 0) {
+		mdlCacheCheck(mdl);
+		}	
 	    }	
 	}
-    c->nCheckOut = 0;
-    mdlBarrier(mdl);
+    else {
+	mdlBarrier(mdl);
+	}
     }
+
 
 void mdlCacheCheck(MDL mdl)
 {
