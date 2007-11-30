@@ -219,7 +219,32 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
     c = pkd->kdNodes;
     if (bVeryActive) iCell = VAROOT;
     else iCell = ROOT;
-
+    /*
+    ** First descend to the first active particle that will be encountered in the walk algorithm below
+    ** in order to set a good initial center for the P-P interaction list.
+    */
+    while (c[iCell].iLower) {
+	iCell = c[iCell].iLower;
+	if (!pkdIsCellActive(pkd,&c[iCell])) {
+	    /*
+	    ** Move onto processing the sibling.
+	    */
+	    ++iCell;
+	    }
+	}
+    for (pj=c[iCell].pLower;pj<=c[iCell].pUpper;++pj) {
+	if (!pkdIsActive(pkd,&p[pj])) continue;
+	pkd->ilp->cx = p[pj].r[0];
+	pkd->ilp->cy = p[pj].r[1];
+	pkd->ilp->cz = p[pj].r[2];
+	break;
+	}
+    assert(pj <= c[iCell].pUpper);  /* otherwise we did not come to an active particle */
+    /*
+    ** Make iCell point to the root of the tree again.
+    */
+    if (bVeryActive) iCell = VAROOT;
+    else iCell = ROOT;
     while (1) {
 	while (1) {
 	    /*
@@ -307,7 +332,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 			else {
 			    /*
 			    ** We can't open pkdc (it is a bucket).  At this point we would prefer to accept
-			    ** the bucket as a multipole expansion, but if that isn't possible we open it.
+			    ** the bucket as a multipole expansion, but if that isn't possible use its particles.
 			    */
 			    if (n >= WALK_MINMULTIPOLE) {
 				min2 = 0;	
