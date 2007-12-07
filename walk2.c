@@ -502,9 +502,9 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 			    for (pj=pkdc->pLower;pj<=pkdc->pUpper;++pj) {
 /*#ifdef USE_SIMD_PP*/
 #ifdef LOCAL_EXPANSION
-				pkd->ilp->rx[nPart] = p[pj].r[0] - pkd->ilp->cx + pkd->Check[i].rOffset[0];
-				pkd->ilp->ry[nPart] = p[pj].r[1] - pkd->ilp->cy + pkd->Check[i].rOffset[1];
-				pkd->ilp->rz[nPart] = p[pj].r[2] - pkd->ilp->cz + pkd->Check[i].rOffset[2];
+				pkd->ilp->dx[nPart] = pkd->ilp->cx - (p[pj].r[0] + pkd->Check[i].rOffset[0]);
+				pkd->ilp->dy[nPart] = pkd->ilp->cy - (p[pj].r[1] + pkd->Check[i].rOffset[1]);
+				pkd->ilp->dz[nPart] = pkd->ilp->cz - (p[pj].r[2] + pkd->Check[i].rOffset[2]);
 				pkd->ilp->m[nPart] = p[pj].fMass;
 				pkd->ilp->fourh2[nPart] = 4*p[pj].fSoft*p[pj].fSoft;
 #else
@@ -542,9 +542,9 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 				pRemote = mdlAquire(pkd->mdl,CID_PARTICLE,pj,id);
 /*#ifdef USE_SIMD_PP*/
 #ifdef LOCAL_EXPANSION
-				pkd->ilp->rx[nPart] = pRemote->r[0] - pkd->ilp->cx + pkd->Check[i].rOffset[0];
-				pkd->ilp->ry[nPart] = pRemote->r[1] - pkd->ilp->cy + pkd->Check[i].rOffset[1];
-				pkd->ilp->rz[nPart] = pRemote->r[2] - pkd->ilp->cz + pkd->Check[i].rOffset[2];
+				pkd->ilp->dx[nPart] = pkd->ilp->cx - (pRemote->r[0] + pkd->Check[i].rOffset[0]);
+				pkd->ilp->dy[nPart] = pkd->ilp->cy - (pRemote->r[1] + pkd->Check[i].rOffset[1]);
+				pkd->ilp->dz[nPart] = pkd->ilp->cz - (pRemote->r[2] + pkd->Check[i].rOffset[2]);
 				pkd->ilp->m[nPart] = pRemote->fMass;
 				pkd->ilp->fourh2[nPart] = 4*pRemote->fSoft*pRemote->fSoft;
 
@@ -654,9 +654,9 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 /*#ifdef USE_SIMD_PP*/
 #ifdef LOCAL_EXPANSION
 		    pkd->ilp->m[nPart] = pkdc->mom.m;
-		    pkd->ilp->rx[nPart] = rCheck[0] - pkd->ilp->cx;
-		    pkd->ilp->ry[nPart] = rCheck[1] - pkd->ilp->cy;
-		    pkd->ilp->rz[nPart] = rCheck[2] - pkd->ilp->cz;
+		    pkd->ilp->dx[nPart] = pkd->ilp->cx - rCheck[0];
+		    pkd->ilp->dy[nPart] = pkd->ilp->cy - rCheck[1];
+		    pkd->ilp->dz[nPart] = pkd->ilp->cz - rCheck[2];
 		    pkd->ilp->fourh2[nPart] = 4*pkdc->fSoft2;
 #else
 #if defined(SYMBA) || defined(PLANETS)
@@ -807,9 +807,9 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 	    ** We will assume that all the particles in my bucket are at the same time here so 
 	    ** we will not have a drift factor to worry about.
 	    */
-	    pkd->ilp->rx[nPart] = p[pj].r[0] - pkd->ilp->cx;
-	    pkd->ilp->ry[nPart] = p[pj].r[1] - pkd->ilp->cy;
-	    pkd->ilp->rz[nPart] = p[pj].r[2] - pkd->ilp->cz;
+	    pkd->ilp->dx[nPart] = pkd->ilp->cx - p[pj].r[0];
+	    pkd->ilp->dy[nPart] = pkd->ilp->cy - p[pj].r[1];
+	    pkd->ilp->dz[nPart] = pkd->ilp->cz - p[pj].r[2];
 	    pkd->ilp->fourh2[nPart] = 4*p[pj].fSoft*p[pj].fSoft;
 #else
 #if defined(SYMBA) || defined(PLANETS)

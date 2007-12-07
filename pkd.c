@@ -138,29 +138,30 @@ void pkdStopTimer(PKD pkd,int iTimer)
 
 void pkdAllocateILP(PKD pkd, int nMaxPart) {
     if ( pkd->ilp == NULL ) {
-#ifdef USE_SIMD_PP
+/*#ifdef USE_SIMD_PP*/
+#ifdef LOCAL_EXPANSION
 	/* We use separate arrays so that we can treat them as SIMD packed arrays */
 	pkd->ilp = malloc(sizeof(ILP));
 	assert(pkd->ilp != NULL);
 	pkd->ilp->cx = pkd->ilp->cy = pkd->ilp->cz = 0.0;
-	pkd->ilp->rx = malloc(sizeof(float)*nMaxPart);
-	assert(pkd->ilp->rx!=NULL);
-	pkd->ilp->ry = malloc(sizeof(float)*nMaxPart);
-	assert(pkd->ilp->ry!=NULL);
-	pkd->ilp->rz = malloc(sizeof(float)*nMaxPart);
-	assert(pkd->ilp->rz!=NULL);
-	pkd->ilp->m = malloc(sizeof(float)*nMaxPart);
+	pkd->ilp->dx = malloc(sizeof(*pkd->ilp->dx)*nMaxPart);
+	assert(pkd->ilp->dx!=NULL);
+	pkd->ilp->dy = malloc(sizeof(*pkd->ilp->dy)*nMaxPart);
+	assert(pkd->ilp->dy!=NULL);
+	pkd->ilp->dz = malloc(sizeof(*pkd->ilp->dz)*nMaxPart);
+	assert(pkd->ilp->dz!=NULL);
+	pkd->ilp->m = malloc(sizeof(*pkd->ilp->m)*nMaxPart);
 	assert(pkd->ilp->m!=NULL);
-	pkd->ilp->fourh2 = malloc(sizeof(float)*nMaxPart);
+	pkd->ilp->fourh2 = malloc(sizeof(*pkd->ilp->fourh2)*nMaxPart);
 	assert(pkd->ilp->fourh2!=NULL);
 
-	pkd->ilp->dx = malloc(sizeof(float)*nMaxPart);
-	assert(pkd->ilp->dx!=NULL);
-	pkd->ilp->dy = malloc(sizeof(float)*nMaxPart);
-	assert(pkd->ilp->dy!=NULL);
-	pkd->ilp->dz = malloc(sizeof(float)*nMaxPart);
-	assert(pkd->ilp->dz!=NULL);
-	pkd->ilp->d2 = malloc(sizeof(float)*nMaxPart);
+	//pkd->ilp->dx = malloc(sizeof(float)*nMaxPart);
+	//assert(pkd->ilp->dx!=NULL);
+	//pkd->ilp->dy = malloc(sizeof(float)*nMaxPart);
+	//assert(pkd->ilp->dy!=NULL);
+	//pkd->ilp->dz = malloc(sizeof(float)*nMaxPart);
+	//assert(pkd->ilp->dz!=NULL);
+	pkd->ilp->d2 = malloc(sizeof(*pkd->ilp->d2)*nMaxPart);
 	assert(pkd->ilp->d2!=NULL);
 #else
 	pkd->ilp = malloc(nMaxPart*sizeof(ILP));
@@ -168,25 +169,26 @@ void pkdAllocateILP(PKD pkd, int nMaxPart) {
 #endif
     }
     else {
-#ifdef USE_SIMD_PP
-	pkd->ilp->rx = realloc(pkd->ilp->rx,sizeof(float)*nMaxPart);
-	assert(pkd->ilp->rx!=NULL);
-	pkd->ilp->ry = realloc(pkd->ilp->ry,sizeof(float)*nMaxPart);
-	assert(pkd->ilp->ry!=NULL);
-	pkd->ilp->rz = realloc(pkd->ilp->rz,sizeof(float)*nMaxPart);
-	assert(pkd->ilp->rz!=NULL);
-	pkd->ilp->m = realloc(pkd->ilp->m,sizeof(float)*nMaxPart);
+/*#ifdef USE_SIMD_PP*/
+#ifdef LOCAL_EXPANSION
+	pkd->ilp->dx = realloc(pkd->ilp->dx,sizeof(*pkd->ilp->dx)*nMaxPart);
+	assert(pkd->ilp->dx!=NULL);
+	pkd->ilp->dy = realloc(pkd->ilp->dy,sizeof(*pkd->ilp->dy)*nMaxPart);
+	assert(pkd->ilp->dy!=NULL);
+	pkd->ilp->dz = realloc(pkd->ilp->dz,sizeof(*pkd->ilp->dz)*nMaxPart);
+	assert(pkd->ilp->dz!=NULL);
+	pkd->ilp->m = realloc(pkd->ilp->m,sizeof(*pkd->ilp->m)*nMaxPart);
 	assert(pkd->ilp->m!=NULL);
-	pkd->ilp->fourh2 = realloc(pkd->ilp->fourh2,sizeof(float)*nMaxPart);
+	pkd->ilp->fourh2 = realloc(pkd->ilp->fourh2,sizeof(*pkd->ilp->fourh2)*nMaxPart);
 	assert(pkd->ilp->fourh2!=NULL);
 
-	pkd->ilp->dx = realloc(pkd->ilp->dx,sizeof(float)*nMaxPart);
-	assert(pkd->ilp->dx!=NULL);
-	pkd->ilp->dy = realloc(pkd->ilp->dy,sizeof(float)*nMaxPart);
-	assert(pkd->ilp->dy!=NULL);
-	pkd->ilp->dz = realloc(pkd->ilp->dz,sizeof(float)*nMaxPart);
-	assert(pkd->ilp->dz!=NULL);
-	pkd->ilp->d2 = realloc(pkd->ilp->d2,sizeof(float)*nMaxPart);
+	//pkd->ilp->dx = realloc(pkd->ilp->dx,sizeof(float)*nMaxPart);
+	//assert(pkd->ilp->dx!=NULL);
+	//pkd->ilp->dy = realloc(pkd->ilp->dy,sizeof(float)*nMaxPart);
+	//assert(pkd->ilp->dy!=NULL);
+	//pkd->ilp->dz = realloc(pkd->ilp->dz,sizeof(float)*nMaxPart);
+	//assert(pkd->ilp->dz!=NULL);
+	pkd->ilp->d2 = realloc(pkd->ilp->d2,sizeof(*pkd->ilp->d2)*nMaxPart);
 	assert(pkd->ilp->d2!=NULL);
 #else
 	pkd->ilp = realloc(pkd->ilp,nMaxPart*sizeof(ILP));
@@ -315,10 +317,11 @@ void pkdFinish(PKD pkd) {
     /*
     ** Free Interaction lists.
     */
-#ifdef USE_SIMD_PP
-    free(pkd->ilp->rx);
-    free(pkd->ilp->ry);
-    free(pkd->ilp->rz);
+/*#ifdef USE_SIMD_PP*/
+#ifdef LOCAL_EXPANSION
+    free(pkd->ilp->dx);
+    free(pkd->ilp->dy);
+    free(pkd->ilp->dz);
     free(pkd->ilp->m);
     free(pkd->ilp->fourh2);
 #endif

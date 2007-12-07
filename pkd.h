@@ -425,14 +425,16 @@ typedef struct kdNew {
 ** including the softening.
 */
 
-#ifdef USE_SIMD_PP
+/*#ifdef USE_SIMD_PP*/
+#ifdef LOCAL_EXPANSION
 typedef struct ilPart {
     double cx, cy, cz;    /* Center coordinates */
-    float *rx, *ry, *rz;  /* offset from center of interactions */
+
+    float *dx, *dy, *dz;  /* offset from center of interactions */
     float *m, *fourh2;    /* Mass and softening (4h^2)*/
 
-    /* Temporaries for gravity interaction calculations */
-    float *dx, *dy, *dz;  /* Offset between particle and interaction*/
+    /* Temporaries for gravity interaction calculations - Sorted as needed */
+    //float *dx, *dy, *dz;  /* Offset between particle and interaction*/
     float *d2;            /* Distance squared = dx*dx + dy*dy + dz*dz */
 
 } ILP;
