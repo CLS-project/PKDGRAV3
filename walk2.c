@@ -100,10 +100,11 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
     FLOAT rOffset[3];
     FLOAT xParent,yParent,zParent;
     FLOAT dx[3],dir;
+    FLOAT cx,cy,cz,d2c;
     int iStack,ism;
     int ix,iy,iz,bRep;
     int nMaxInitCheck,nCheck;
-    int iCell,iSib,iCheckCell;
+    int iCell,iSib,iCheckCell,iCellDescend;
     int i,ii,j,n,id,pj,nActive,nTotActive;
     int iOpen;
     int nPart;
@@ -213,39 +214,65 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 	    }
 	}
     /*
+    ** Initialize the PP interaction list center, just in case it has not been done yet!
+    */
+    pkd->ilp->cx = 0;
+    pkd->ilp->cy = 0;
+    pkd->ilp->cz = 0;	    
+    pkd->ilp->d2cmax = 0;
+    /*
     ** Now switch the cell pointer to point to 
     ** the local tree.
     */
     c = pkd->kdNodes;
-    if (bVeryActive) iCell = VAROOT;
-    else iCell = ROOT;
-    /*
-    ** First descend to the first active particle that will be encountered in the walk algorithm below
-    ** in order to set a good initial center for the P-P interaction list.
-    */
-    while (c[iCell].iLower) {
-	iCell = c[iCell].iLower;
-	if (!pkdIsCellActive(pkd,&c[iCell])) {
-	    /*
-	    ** Move onto processing the sibling.
-	    */
-	    ++iCell;
-	    }
-	}
-    for (pj=c[iCell].pLower;pj<=c[iCell].pUpper;++pj) {
-	if (!pkdIsActive(pkd,&p[pj])) continue;
-	pkd->ilp->cx = p[pj].r[0];
-	pkd->ilp->cy = p[pj].r[1];
-	pkd->ilp->cz = p[pj].r[2];
-	break;
-	}
-    assert(pj <= c[iCell].pUpper);  /* otherwise we did not come to an active particle */
     /*
     ** Make iCell point to the root of the tree again.
     */
     if (bVeryActive) iCell = VAROOT;
     else iCell = ROOT;
     while (1) {
+
+	/*
+	** Find the next active particle that will be encountered in the walk algorithm below
+	** in order to set a good initial center for the P-P interaction list.
+	*/
+	iCellDescend = iCell;
+	while (c[iCellDescend].iLower) {
+	    iCellDescend = c[iCellDescend].iLower;
+	    if (!pkdIsCellActive(pkd,&c[iCellDescend])) {
+		/*
+		** Move onto processing the sibling.
+		*/
+		++iCellDescend;
+		}
+	    }
+	for (pj=c[iCellDescend].pLower;pj<=c[iCellDescend].pUpper;++pj) {
+	    if (!pkdIsActive(pkd,&p[pj])) continue;
+	    cx = p[pj].r[0];
+	    cy = p[pj].r[1];
+	    cz = p[pj].r[2];
+	    break;
+	    }
+	assert(pj <= c[iCell].pUpper);  /* otherwise we did not come to an active particle */
+	d2c = (cx - pkd->ilp->cx)*(cx - pkd->ilp->cx) + (cy - pkd->ilp->cy)*(cy - pkd->ilp->cy) + 
+	    (cz - pkd->ilp->cz)*(cz - pkd->ilp->cz);
+	if (d2c > pkd->ilp->d2cmax) {
+	    printf("%d:Shift of center too large for the coming interactions! old:(%.10g,%.10g,%.10g) new:(%.10g,%.10g,%.10g)\n",
+		   mdlSelf(pkd->mdl),pkd->ilp->cx,pkd->ilp->cy,pkd->ilp->cz,cx,cy,cz);
+	    /*
+	    ** Correct all remaining PP interactions to this new center.
+	    */
+	    for (j=0;j<nPart;++j) {
+		pkd->ilp->dx[j] += cx - pkd->ilp->cx;
+		pkd->ilp->dy[j] += cy - pkd->ilp->cy;
+		pkd->ilp->dz[j] += cz - pkd->ilp->cz;
+		}
+	    pkd->ilp->cx = cx;
+	    pkd->ilp->cy = cy;
+	    pkd->ilp->cz = cz;	    
+	    pkd->ilp->d2cmax = 4*c[iCellDescend].fOpen*c[iCellDescend].fOpen;
+	    }
+
 	while (1) {
 	    /*
 	    ** Process the Checklist.
@@ -838,6 +865,11 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 	*/
 	nActive = pkdGravInteract(pkd,pkdc,&L,pkd->ilp,nPart,pkd->ilc,nCell,dirLsum,normLsum,
 				  bEwald,pdFlop,&dEwFlop);
+	/*
+	** Update the limit for a shift of the center here based on the opening radius of this 
+	** cell (the one we just evaluated).
+	*/
+	pkd->ilp->d2cmax = 4*c[iCell].fOpen*c[iCell].fOpen;
 
 #ifdef TIME_WALK_WORK
 	fWeight += getTimer(&tv);
