@@ -14,6 +14,12 @@ mpi:
 	$(MAKE) CC=mpicc $(AM_MAKEFLAGS) pkdgrav2m_mpi
 endif
 
+if HAVE_SISCI
+EXTRA_PROGRAMS += pkdgrav2m_sisci
+sisci		: pkdgrav2m_sisci
+endif
+
+
 if USE_HDF5
 EXTRA_PROGRAMS += tip2hdf5 hdf52tip hdf5cat
 endif
@@ -96,6 +102,18 @@ pkdgrav2m_pthread_LDADD += -lgd -lpng
 endif
 if USE_HDF5
 pkdgrav2m_pthread_LDADD += -lhdf5
+endif
+endif
+
+if HAVE_SISCI
+pkdgrav2m_sisci_SOURCES = $(SOURCES) $(MDL)/sisci/mdl.c
+pkdgrav2m_sisci_CFLAGS = -I$(MDL)/sisci/ $(AM_CFLAGS) -I$(SISCI_PATH)/include
+pkdgrav2m_sisci_LDADD = -lpthread -L$(SISCI_PATH)/lib64 -lsisci
+if USE_PNG
+pkdgrav2m_sisci_LDADD += -lgd -lpng
+endif
+if USE_HDF5
+pkdgrav2m_sisci_LDADD += -lhdf5
 endif
 endif
 
