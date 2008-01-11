@@ -429,8 +429,9 @@ typedef struct kdNew {
 #ifdef LOCAL_EXPANSION
 typedef struct ilPart {
     double cx, cy, cz;    /* Center coordinates */
+    double d2cmax;
 
-    float *dx, *dy, *dz;  /* offset from center of interactions */
+    double *dx, *dy, *dz;  /* offset from center of interactions */
     float *m, *fourh2;    /* Mass and softening (4h^2)*/
 
     /* Temporaries for gravity interaction calculations - Sorted as needed */
