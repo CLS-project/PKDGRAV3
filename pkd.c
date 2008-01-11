@@ -136,69 +136,6 @@ void pkdStopTimer(PKD pkd,int iTimer)
 	pkd->ti[iTimer].iActive--;
     }
 
-void pkdAllocateILP(PKD pkd, int nMaxPart) {
-    if ( pkd->ilp == NULL ) {
-/*#ifdef USE_SIMD_PP*/
-#ifdef LOCAL_EXPANSION
-	/* We use separate arrays so that we can treat them as SIMD packed arrays */
-	pkd->ilp = malloc(sizeof(ILP));
-	assert(pkd->ilp != NULL);
-	pkd->ilp->cx = pkd->ilp->cy = pkd->ilp->cz = 0.0;
-	pkd->ilp->dx = malloc(sizeof(*pkd->ilp->dx)*nMaxPart);
-	assert(pkd->ilp->dx!=NULL);
-	pkd->ilp->dy = malloc(sizeof(*pkd->ilp->dy)*nMaxPart);
-	assert(pkd->ilp->dy!=NULL);
-	pkd->ilp->dz = malloc(sizeof(*pkd->ilp->dz)*nMaxPart);
-	assert(pkd->ilp->dz!=NULL);
-	pkd->ilp->m = malloc(sizeof(*pkd->ilp->m)*nMaxPart);
-	assert(pkd->ilp->m!=NULL);
-	pkd->ilp->fourh2 = malloc(sizeof(*pkd->ilp->fourh2)*nMaxPart);
-	assert(pkd->ilp->fourh2!=NULL);
-
-	//pkd->ilp->dx = malloc(sizeof(float)*nMaxPart);
-	//assert(pkd->ilp->dx!=NULL);
-	//pkd->ilp->dy = malloc(sizeof(float)*nMaxPart);
-	//assert(pkd->ilp->dy!=NULL);
-	//pkd->ilp->dz = malloc(sizeof(float)*nMaxPart);
-	//assert(pkd->ilp->dz!=NULL);
-	pkd->ilp->d2 = malloc(sizeof(*pkd->ilp->d2)*nMaxPart);
-	assert(pkd->ilp->d2!=NULL);
-#else
-	pkd->ilp = malloc(nMaxPart*sizeof(ILP));
-	assert(pkd->ilp != NULL);
-#endif
-    }
-    else {
-/*#ifdef USE_SIMD_PP*/
-#ifdef LOCAL_EXPANSION
-	pkd->ilp->dx = realloc(pkd->ilp->dx,sizeof(*pkd->ilp->dx)*nMaxPart);
-	assert(pkd->ilp->dx!=NULL);
-	pkd->ilp->dy = realloc(pkd->ilp->dy,sizeof(*pkd->ilp->dy)*nMaxPart);
-	assert(pkd->ilp->dy!=NULL);
-	pkd->ilp->dz = realloc(pkd->ilp->dz,sizeof(*pkd->ilp->dz)*nMaxPart);
-	assert(pkd->ilp->dz!=NULL);
-	pkd->ilp->m = realloc(pkd->ilp->m,sizeof(*pkd->ilp->m)*nMaxPart);
-	assert(pkd->ilp->m!=NULL);
-	pkd->ilp->fourh2 = realloc(pkd->ilp->fourh2,sizeof(*pkd->ilp->fourh2)*nMaxPart);
-	assert(pkd->ilp->fourh2!=NULL);
-
-	//pkd->ilp->dx = realloc(pkd->ilp->dx,sizeof(float)*nMaxPart);
-	//assert(pkd->ilp->dx!=NULL);
-	//pkd->ilp->dy = realloc(pkd->ilp->dy,sizeof(float)*nMaxPart);
-	//assert(pkd->ilp->dy!=NULL);
-	//pkd->ilp->dz = realloc(pkd->ilp->dz,sizeof(float)*nMaxPart);
-	//assert(pkd->ilp->dz!=NULL);
-	pkd->ilp->d2 = realloc(pkd->ilp->d2,sizeof(*pkd->ilp->d2)*nMaxPart);
-	assert(pkd->ilp->d2!=NULL);
-#else
-	pkd->ilp = realloc(pkd->ilp,nMaxPart*sizeof(ILP));
-	assert(pkd->ilp != NULL);
-#endif
-    }
-    pkd->nMaxPart = nMaxPart;
-}
-
-
 void pkdInitialize(PKD *ppkd,MDL mdl,int nStore,int nBucket,FLOAT *fPeriod,
 		   uint64_t nDark,uint64_t nGas,uint64_t nStar) {
     PKD pkd;
@@ -266,10 +203,7 @@ void pkdInitialize(PKD *ppkd,MDL mdl,int nStore,int nBucket,FLOAT *fPeriod,
     /*
     ** Tree walk stuff.
     */
-    pkd->nMaxPart = 10000;
-
-    pkd->ilp = NULL;
-    pkdAllocateILP(pkd,10000);
+    ilpInitialize(&pkd->ilp);
     pkd->nMaxCell = 1000;
 #ifdef USE_SIMD_MOMR
     pkd->ilc = SIMD_malloc(pkd->nMaxCell/4*sizeof(ILC));
@@ -317,15 +251,7 @@ void pkdFinish(PKD pkd) {
     /*
     ** Free Interaction lists.
     */
-/*#ifdef USE_SIMD_PP*/
-#ifdef LOCAL_EXPANSION
-    free(pkd->ilp->dx);
-    free(pkd->ilp->dy);
-    free(pkd->ilp->dz);
-    free(pkd->ilp->m);
-    free(pkd->ilp->fourh2);
-#endif
-    free(pkd->ilp);
+    ilpFinish(pkd->ilp);
     free(pkd->ilc);
     /*
     ** Free checklist.

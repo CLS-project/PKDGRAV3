@@ -8,12 +8,12 @@ static inline double softmassweight(double m1,double h12,double m2,double h22){
     return((m1+m2)*(h12*h22)/(h22*m1+h12*m2));
 }
 
-void PPInteractSIMD( int nPart, ILP *ilp, const FLOAT *r, const FLOAT *a,
+void PPInteractSIMD( int nPart, ILP ilp, const FLOAT *r, const FLOAT *a,
 		     FLOAT fMass, FLOAT fSoft,
 		     momFloat *ax, momFloat *ay, momFloat *az,
 		     momFloat *fPot, momFloat *rhosum, momFloat *maisum );
 
-int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,int nCell,double dirLsum,double normLsum,
+int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP ilp,ILC *ilc,int nCell,double dirLsum,double normLsum,
 		    int bEwald,double *pdFlop,double *pdEwFlop);
 
 #ifdef HERMITE

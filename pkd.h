@@ -9,6 +9,7 @@
 #endif
 #include "parameters.h"
 
+#include "ilp.h"
 #include "moments.h"
 #include "cosmo.h"
 #ifdef USE_HDF5
@@ -421,44 +422,6 @@ typedef struct kdNew {
 #endif
 
 /*
-** components required for evaluating a monopole interaction
-** including the softening.
-*/
-
-/*#ifdef USE_SIMD_PP*/
-#ifdef LOCAL_EXPANSION
-typedef struct ilPart {
-    double cx, cy, cz;    /* Center coordinates */
-    double d2cmax;
-
-    double *dx, *dy, *dz;  /* offset from center of interactions */
-    float *m, *fourh2;    /* Mass and softening (4h^2)*/
-
-    /* Temporaries for gravity interaction calculations - Sorted as needed */
-    //float *dx, *dy, *dz;  /* Offset between particle and interaction*/
-    float *d2;            /* Distance squared = dx*dx + dy*dy + dz*dz */
-
-} ILP;
-#else
-typedef struct ilPart {
-    double m,x,y,z;
-#if defined(SOFTLINEAR)
-    double h;
-#elif defined(SOFTSQUARE)
-    double twoh2;
-#else
-    double fourh2;
-#endif  
-#if defined(SYMBA) || defined(PLANETS) || !defined(LOCAL_EXPANSION)
-    uint64_t iOrder;
-#endif
-#if defined(HERMITE) || !defined(LOCAL_EXPANSION)
-    double vx,vy,vz;
-#endif
-    } ILP;
-#endif
-
-/*
 ** Components required for tree walking.
 */
 
@@ -621,8 +584,7 @@ typedef struct pkdContext {
     CSTACK *S;
     int nMaxCheck;
     CELT *Check;
-    int nMaxPart;
-    ILP *ilp;
+    ILP ilp;
     int nMaxCell;
     ILC *ilc;
     /*
@@ -728,7 +690,6 @@ double pkdGetWallClockTimer(PKD,int);
 void pkdClearTimer(PKD,int);
 void pkdStartTimer(PKD,int);
 void pkdStopTimer(PKD,int);
-void pkdAllocateILP(PKD pkd, int nMaxPart);
 void pkdInitialize(PKD *,MDL,int,int,FLOAT *,uint64_t,uint64_t,uint64_t);
 void pkdFinish(PKD);
 void pkdReadTipsy(PKD pkd,char *pszFileName, char *achOutName,uint64_t nStart,int nLocal,

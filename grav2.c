@@ -61,7 +61,7 @@ void HEAPrholocal(int n, int k, RHOLOCAL ra[]) {
 ** v_sqrt's and such.
 ** Returns nActive.
 */
-int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,int nCell,double dirLsum,double normLsum,
+int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP ilp,ILC *ilc,int nCell,double dirLsum,double normLsum,
 		    int bEwald,double *pdFlop,double *pdEwFlop) {
     PARTICLE *p = pkd->pStore;
     KDN *pkdn = pBucket;
@@ -80,6 +80,8 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 #else
     int nCellILC;
 #endif
+    ILPTILE tile;
+    int nPartX;
     double fourh2;
     int i,j,k,nSP,nSoft,nActive;
 
@@ -91,7 +93,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
     ** dynamical time-stepping stuff
     */
     RHOLOCAL *rholocal;
-    rholocal = malloc(nPart*sizeof(RHOLOCAL));
+    rholocal = malloc(ilpCount(pkd->ilp)*sizeof(RHOLOCAL));
     assert(rholocal != NULL);
     /*
     ** Now process the two interaction lists for each active particle.
@@ -203,6 +205,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	** using SIMD double precision packed arrays is much faster.
 	*/
 #endif
+
 	fx = p[i].r[0] - ilp->cx;
 	fy = p[i].r[1] - ilp->cy;
 	fz = p[i].r[2] - ilp->cz;
@@ -216,17 +219,14 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	ilp->cx = p[i].r[0]; /* => cx += fx */
 	ilp->cy = p[i].r[1];
 	ilp->cz = p[i].r[2];
-
-	for (j=0;j<nPart;++j) {
-	    //ilp->dx[j] = ilp->rx[j] - fx;
-	    //ilp->dy[j] = ilp->ry[j] - fy;
-	    //ilp->dz[j] = ilp->rz[j] - fz;
-
-	    ilp->dx[j] += fx;
-	    ilp->dy[j] += fy;
-	    ilp->dz[j] += fz;
-
-	    ilp->d2[j] = ilp->dx[j]*ilp->dx[j] + ilp->dy[j]*ilp->dy[j] + ilp->dz[j]*ilp->dz[j];
+	for( tile=ilp->tile; tile!=NULL; tile=tile->next ) {
+	    for (j=0;j<tile->nPart;++j) {
+		tile->dx.f[j] += fx;
+		tile->dy.f[j] += fy;
+		tile->dz.f[j] += fz;
+		tile->d2.f[j] = tile->dx.f[j]*tile->dx.f[j]
+		    + tile->dy.f[j]*tile->dy.f[j] + tile->dz.f[j]*tile->dz.f[j];
+	    }
 	}
 
 	/*
@@ -236,20 +236,24 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	    /*
 	    ** Add particles to array rholocal first
 	    */
-	    for (j=0;j<nPart;++j) {
-		rholocal[j].m = ilp->m[j];	
-		rholocal[j].d2 = ilp->d2[j];
+	    nPartX = 0;
+	    for( tile=ilp->tile; tile!=NULL; tile=tile->next ) {
+		for (j=0;j<tile->nPart;++j) {
+		    rholocal[nPartX].m = tile->m.f[j];	
+		    rholocal[nPartX].d2 = tile->d2.f[j];
+		    ++nPartX;
 		}
+	    }
 	    /*
 	    ** Calculate local density only in the case of more than 1 neighbouring particle!
 	    */
-	    if (nPart > 1) {
-		nSP = (nPart < pkd->param.nPartRhoLoc)?nPart:pkd->param.nPartRhoLoc;
-		HEAPrholocal(nPart,nSP,rholocal);
-		dsmooth2 = rholocal[nPart-nSP].d2;
+	    if (nPartX > 1) {
+		nSP = (nPartX < pkd->param.nPartRhoLoc)?nPartX:pkd->param.nPartRhoLoc;
+		HEAPrholocal(nPartX,nSP,rholocal);
+		dsmooth2 = rholocal[nPartX-nSP].d2;
 		SQRT1(dsmooth2,dir);
 		dir2 = dir * dir;
-		for (j=(nPart - nSP);j<nPart;++j) {
+		for (j=(nPartX - nSP);j<nPartX;++j) {
 		    d2 = rholocal[j].d2*dir2;
 		    d2 = (1-d2);
 		    rholoc += d2*rholocal[j].m;
@@ -258,47 +262,50 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 		}
 	    assert(rholoc >= 0);
 	    }
+
 #ifdef USE_SIMD_PP
 	PPInteractSIMD( nPart,ilp,p[i].r,p[i].a,p[i].fMass,p[i].fSoft,
 			&ax, &ay, &az, &fPot, &dirsum, &normsum );
 #else
-	for (j=0;j<nPart;++j) {
-	    d2 = ilp->d2[j];
-	    d2DTS = d2;
-	    fourh2 = softmassweight(p[i].fMass,4*p[i].fSoft*p[i].fSoft,
-				    ilp->m[j],ilp->fourh2[j]);
-	    if (d2 > fourh2) {
-		SQRT1(d2,dir);
-		dir2 = dir*dir*dir;
+	for( tile=ilp->tile; tile!=NULL; tile=tile->next ) {
+	    for (j=0;j<tile->nPart;++j) {
+		d2 = tile->d2.f[j];
+		d2DTS = d2;
+		fourh2 = softmassweight(p[i].fMass,4*p[i].fSoft*p[i].fSoft,
+					tile->m.f[j],tile->fourh2.f[j]);
+		if (d2 > fourh2) {
+		    SQRT1(d2,dir);
+		    dir2 = dir*dir*dir;
+		}
+		else {
+		    /*
+		    ** This uses the Dehnen K1 kernel function now, it's fast!
+		    */
+		    SQRT1(fourh2,dir);
+		    dir2 = dir*dir;
+		    d2 *= dir2;
+		    dir2 *= dir;
+		    d2 = 1 - d2;
+		    dir *= 1.0 + d2*(0.5 + d2*(3.0/8.0 + d2*(45.0/32.0)));
+		    dir2 *= 1.0 + d2*(1.5 + d2*(135.0/16.0));
+		    ++nSoft;
+		}
+		dir2 *= tile->m.f[j];
+		tax = -tile->dx.f[j]*dir2;
+		tay = -tile->dy.f[j]*dir2;
+		taz = -tile->dz.f[j]*dir2;
+		adotai = p[i].a[0]*tax + p[i].a[1]*tay + p[i].a[2]*taz;
+		if (adotai > 0 && d2DTS >= dsmooth2) {
+		    adotai *= dimaga;
+		    dirsum += dir*adotai*adotai;
+		    normsum += adotai*adotai;
+		}
+		fPot -= tile->m.f[j]*dir;
+		ax += tax;
+		ay += tay;
+		az += taz;
 	    }
-	    else {
-		/*
-		** This uses the Dehnen K1 kernel function now, it's fast!
-		*/
-		SQRT1(fourh2,dir);
-		dir2 = dir*dir;
-		d2 *= dir2;
-		dir2 *= dir;
-		d2 = 1 - d2;
-		dir *= 1.0 + d2*(0.5 + d2*(3.0/8.0 + d2*(45.0/32.0)));
-		dir2 *= 1.0 + d2*(1.5 + d2*(135.0/16.0));
-		++nSoft;
-		}
-	    dir2 *= ilp->m[j];
-	    tax = -ilp->dx[j]*dir2;
-	    tay = -ilp->dy[j]*dir2;
-	    taz = -ilp->dz[j]*dir2;
-	    adotai = p[i].a[0]*tax + p[i].a[1]*tay + p[i].a[2]*taz;
-	    if (adotai > 0 && d2DTS >= dsmooth2) {
-		adotai *= dimaga;
-		dirsum += dir*adotai*adotai;
-		normsum += adotai*adotai;
-		}
-	    fPot -= ilp->m[j]*dir;
-	    ax += tax;
-	    ay += tay;
-	    az += taz;
-	    } /* end of particle list gravity loop */
+	} /* end of particle list gravity loop */
 #endif
         /*
         ** Finally set new acceleration and potential.
@@ -341,6 +348,6 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
     ** Free time-step lists
     */ 
     free(rholocal);
-    *pdFlop += nActive*(nPart*40 + nCell*200) + nSoft*15;
+    *pdFlop += nActive*(ilpCount(pkd->ilp)*40 + nCell*200) + nSoft*15;
     return(nActive);
     }

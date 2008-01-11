@@ -107,7 +107,8 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
     int iCell,iSib,iCheckCell,iCellDescend;
     int i,ii,j,n,id,pj,nActive,nTotActive;
     int iOpen;
-    int nPart;
+    //int nPart;
+    ILPTILE tile;
     int nCell;
 #ifdef USE_SIMD_MOMR
     int ig,iv;
@@ -139,7 +140,8 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
     */
     c = pkd->kdTop;
     nTotActive = 0;
-    nPart = 0;
+    ilpClear(pkd->ilp);
+    //nPart = 0;
     nCell = 0;
     /*
     ** Allocate Checklist.
@@ -263,16 +265,18 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 	    /*
 	    ** Correct all remaining PP interactions to this new center.
 	    */
-	    for (j=0;j<nPart;++j) {
-		pkd->ilp->dx[j] += cx - pkd->ilp->cx;
-		pkd->ilp->dy[j] += cy - pkd->ilp->cy;
-		pkd->ilp->dz[j] += cz - pkd->ilp->cz;
+	    for( tile=pkd->ilp->first; tile!=NULL; tile=tile->next ) {
+		for( j=0; j<tile->nPart; ++j ) {
+		    tile->dx.f[j] += cx - pkd->ilp->cx;
+		    tile->dy.f[j] += cy - pkd->ilp->cy;
+		    tile->dz.f[j] += cz - pkd->ilp->cz;
 		}
+	    }
 	    pkd->ilp->cx = cx;
 	    pkd->ilp->cy = cy;
 	    pkd->ilp->cz = cz;	    
 	    pkd->ilp->d2cmax = c[iCellDescend].fOpen*c[iCellDescend].fOpen;
-	    }
+	}
 
 	while (1) {
 	    /*
@@ -517,40 +521,29 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 			** Now I am trying to open a bucket, which means I place particles on the ilp
 			** interaction list.
 			*/
+			tile = pkd->ilp->tile;
 			if (id == pkd->idSelf) {
 			    /*
 			    ** Local Bucket Interaction.
 			    ** Interact += Pacticles(pkdc);
 			    */
-			    if (nPart + n > pkd->nMaxPart) {
-				pkd->nMaxPart += 1000 + n;
-				pkdAllocateILP(pkd,pkd->nMaxPart);
-				printf("B CPU:%d increased particle list size to %d\n",mdlSelf(pkd->mdl),pkd->nMaxPart);
-			    }
 			    for (pj=pkdc->pLower;pj<=pkdc->pUpper;++pj) {
-/*#ifdef USE_SIMD_PP*/
-#ifdef LOCAL_EXPANSION
-				pkd->ilp->dx[nPart] = pkd->ilp->cx - (p[pj].r[0] + pkd->Check[i].rOffset[0]);
-				pkd->ilp->dy[nPart] = pkd->ilp->cy - (p[pj].r[1] + pkd->Check[i].rOffset[1]);
-				pkd->ilp->dz[nPart] = pkd->ilp->cz - (p[pj].r[2] + pkd->Check[i].rOffset[2]);
-				pkd->ilp->m[nPart] = p[pj].fMass;
-				pkd->ilp->fourh2[nPart] = 4*p[pj].fSoft*p[pj].fSoft;
-#else
-#if defined(SYMBA) || defined(PLANETS)
-				pkd->ilp[nPart].iOrder = p[pj].iOrder;
-#endif
-				pkd->ilp[nPart].m = p[pj].fMass;
-				pkd->ilp[nPart].x = p[pj].r[0] + pkd->Check[i].rOffset[0];
-				pkd->ilp[nPart].y = p[pj].r[1] + pkd->Check[i].rOffset[1];
-				pkd->ilp[nPart].z = p[pj].r[2] + pkd->Check[i].rOffset[2];
+				if ( tile->nPart == tile->nMaxPart )
+				    tile = ilpExtend(pkd->ilp);
+				tile->dx.f[tile->nPart] = pkd->ilp->cx - (p[pj].r[0] + pkd->Check[i].rOffset[0]);
+				tile->dy.f[tile->nPart] = pkd->ilp->cy - (p[pj].r[1] + pkd->Check[i].rOffset[1]);
+				tile->dz.f[tile->nPart] = pkd->ilp->cz - (p[pj].r[2] + pkd->Check[i].rOffset[2]);
+				tile->m.f[tile->nPart] = p[pj].fMass;
+				tile->fourh2.f[tile->nPart] = 4*p[pj].fSoft*p[pj].fSoft;
 #ifdef HERMITE
-				pkd->ilp[nPart].vx = p[pj].v[0]; 
-				pkd->ilp[nPart].vy = p[pj].v[1];
-				pkd->ilp[nPart].vz = p[pj].v[2];
+				tile->vx.f[tile->nPart] = p[pj].v[0];
+				tile->vy.f[tile->nPart] = p[pj].v[1];
+				tile->vz.f[tile->nPart] = p[pj].v[2];
 #endif
-				pkd->ilp[nPart].fourh2 = 4*p[pj].fSoft*p[pj].fSoft;
+#if defined(SYMBA) || defined(PLANETS)
+				tile->iOrder.i[tile->nPart] = p[pj].iOrder;
 #endif
-				++nPart;
+				++tile->nPart;
 			    }
 			}
 			else {
@@ -558,40 +551,30 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 			    ** Remote Bucket Interaction.
 			    ** Interact += Pacticles(pkdc);
 			    */
-			    if (nPart + n > pkd->nMaxPart) {
-				pkd->nMaxPart += 1000 + n;
-				pkdAllocateILP(pkd,pkd->nMaxPart);
-				printf("C CPU:%d increased particle list size to %d\n",mdlSelf(pkd->mdl),pkd->nMaxPart);
-			    }
+			    //ADDBACK:printf("C CPU:%d increased particle list size to %d\n",mdlSelf(pkd->mdl),pkd->nMaxPart);
 #ifdef TIME_WALK_WORK
 			    stopTimer(&tv);
 #endif
 			    for (pj=pkdc->pLower;pj<=pkdc->pUpper;++pj) {
 				pRemote = mdlAquire(pkd->mdl,CID_PARTICLE,pj,id);
-/*#ifdef USE_SIMD_PP*/
-#ifdef LOCAL_EXPANSION
-				pkd->ilp->dx[nPart] = pkd->ilp->cx - (pRemote->r[0] + pkd->Check[i].rOffset[0]);
-				pkd->ilp->dy[nPart] = pkd->ilp->cy - (pRemote->r[1] + pkd->Check[i].rOffset[1]);
-				pkd->ilp->dz[nPart] = pkd->ilp->cz - (pRemote->r[2] + pkd->Check[i].rOffset[2]);
-				pkd->ilp->m[nPart] = pRemote->fMass;
-				pkd->ilp->fourh2[nPart] = 4*pRemote->fSoft*pRemote->fSoft;
+				if ( tile->nPart == tile->nMaxPart )
+				    tile = ilpExtend(pkd->ilp);
 
-#else
+				tile->dx.f[tile->nPart] = pkd->ilp->cx - (pRemote->r[0] + pkd->Check[i].rOffset[0]);
+				tile->dy.f[tile->nPart] = pkd->ilp->cy - (pRemote->r[1] + pkd->Check[i].rOffset[1]);
+				tile->dz.f[tile->nPart] = pkd->ilp->cz - (pRemote->r[2] + pkd->Check[i].rOffset[2]);
+				tile->m.f[tile->nPart] = pRemote->fMass;
+				tile->fourh2.f[tile->nPart] = 4*pRemote->fSoft*pRemote->fSoft;
+
 #if defined(SYMBA) || defined(PLANETS)
-				pkd->ilp[nPart].iOrder = pRemote->iOrder;
+				tile->iOrder.i[tile->nPart] = pRemote->iOrder;
 #endif
-				pkd->ilp[nPart].m = pRemote->fMass;
-				pkd->ilp[nPart].x = pRemote->r[0] + pkd->Check[i].rOffset[0];
-				pkd->ilp[nPart].y = pRemote->r[1] + pkd->Check[i].rOffset[1];
-				pkd->ilp[nPart].z = pRemote->r[2] + pkd->Check[i].rOffset[2];
 #ifdef HERMITE
-				pkd->ilp[nPart].vx = pRemote->v[0]; 
-				pkd->ilp[nPart].vy = pRemote->v[1];
-				pkd->ilp[nPart].vz = pRemote->v[2];
+				tile->vx.f[tile->nPart] = pRemote->v[0]; 
+				tile->vy.f[tile->nPart] = pRemote->v[1]; 
+				tile->vz.f[tile->nPart] = pRemote->v[2]; 
 #endif
-				pkd->ilp[nPart].fourh2 = 4*pRemote->fSoft*pRemote->fSoft;
-#endif
-				++nPart;
+				++tile->nPart;
 				mdlRelease(pkd->mdl,CID_PARTICLE,pRemote);
 			    }
 #ifdef TIME_WALK_WORK
@@ -674,34 +657,25 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 		    ** interaction, so we need to treat is as a softened monopole by putting it
 		    ** on the particle interaction list.
 		    */
-		    if (nPart == pkd->nMaxPart) {
-			pkd->nMaxPart += 1000;
-			pkdAllocateILP(pkd,pkd->nMaxPart);
-			printf("E CPU:%d increased particle list size to %d\n",mdlSelf(pkd->mdl),pkd->nMaxPart);
-		    }
-/*#ifdef USE_SIMD_PP*/
-#ifdef LOCAL_EXPANSION
-		    pkd->ilp->m[nPart] = pkdc->mom.m;
-		    pkd->ilp->dx[nPart] = pkd->ilp->cx - rCheck[0];
-		    pkd->ilp->dy[nPart] = pkd->ilp->cy - rCheck[1];
-		    pkd->ilp->dz[nPart] = pkd->ilp->cz - rCheck[2];
-		    pkd->ilp->fourh2[nPart] = 4*pkdc->fSoft2;
-#else
+			//ADDBACK: printf("E CPU:%d increased particle list size to %d\n",mdlSelf(pkd->mdl),pkd->nMaxPart);
+
+		    tile = pkd->ilp->tile;
+		    if ( tile->nPart == tile->nMaxPart )
+			tile = ilpExtend(pkd->ilp);
+		    tile->m.f[tile->nPart] = pkdc->mom.m;
+		    tile->dx.f[tile->nPart] = pkd->ilp->cx - rCheck[0];
+		    tile->dy.f[tile->nPart] = pkd->ilp->cy - rCheck[1];
+		    tile->dz.f[tile->nPart] = pkd->ilp->cz - rCheck[2];
+		    tile->fourh2.f[tile->nPart] = 4*pkdc->fSoft2;
 #if defined(SYMBA) || defined(PLANETS)
-		    pkd->ilp[nPart].iOrder = -1; /* set iOrder to negative value for time step criterion */
+		    tile->iOrder.i[tile->nPart] = -1; /* set iOrder to negative value for time step criterion */
 #endif
-		    pkd->ilp[nPart].m = pkdc->mom.m;
-		    pkd->ilp[nPart].x = rCheck[0];
-		    pkd->ilp[nPart].y = rCheck[1];
-		    pkd->ilp[nPart].z = rCheck[2];
 #ifdef HERMITE
-		    pkd->ilp[nPart].vx = pkdc->v[0];
-		    pkd->ilp[nPart].vy = pkdc->v[1];
-		    pkd->ilp[nPart].vz = pkdc->v[2];
+		    tile->vx.f[tile->nPart] = pkdc->v[0];
+		    tile->vy.f[tile->nPart] = pkdc->v[1];
+		    tile->vz.f[tile->nPart] = pkdc->v[2];
 #endif
-		    pkd->ilp[nPart].fourh2 = 4*pkdc->fSoft2;
-#endif
-		    ++nPart;
+		    ++tile->nPart;
 		}
 		else {
 		    mdlassert(pkd->mdl,iOpen >= -3 && iOpen <= 1);
@@ -763,7 +737,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 		    */
 		    ++iStack;
 		    assert(iStack < pkd->nMaxStack);
-		    pkd->S[iStack].nPart = nPart;
+		    pkd->S[iStack].nPart = ilpCount(pkd->ilp);
 		    pkd->S[iStack].nCell = nCell;
 		    pkd->S[iStack].nCheck = nCheck;
 		    /*
@@ -822,49 +796,35 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 	** Interact += Pacticles(pkdc);
 	*/
 	n = pkdc->pUpper - pkdc->pLower + 1;
-	if (nPart + n > pkd->nMaxPart) {
-	    pkd->nMaxPart += 1000 + n;
-	    pkdAllocateILP(pkd,pkd->nMaxPart);
-	    printf("G CPU:%d increased particle list size to %d\n",mdlSelf(pkd->mdl),pkd->nMaxPart);
-	}
+	//ADDBACK:printf("G CPU:%d increased particle list size to %d\n",mdlSelf(pkd->mdl),pkd->nMaxPart);
 	for (pj=pkdc->pLower;pj<=pkdc->pUpper;++pj) {
-/*#ifdef USE_SIMD_PP*/
-#ifdef LOCAL_EXPANSION
-	    pkd->ilp->m[nPart] = p[pj].fMass;
+	    tile = pkd->ilp->tile;
+	    if ( tile->nPart == tile->nMaxPart )
+		tile = ilpExtend(pkd->ilp);
+	    tile->m.f[tile->nPart] = p[pj].fMass;
 	    /*
 	    ** We will assume that all the particles in my bucket are at the same time here so 
 	    ** we will not have a drift factor to worry about.
 	    */
-	    pkd->ilp->dx[nPart] = pkd->ilp->cx - p[pj].r[0];
-	    pkd->ilp->dy[nPart] = pkd->ilp->cy - p[pj].r[1];
-	    pkd->ilp->dz[nPart] = pkd->ilp->cz - p[pj].r[2];
-	    pkd->ilp->fourh2[nPart] = 4*p[pj].fSoft*p[pj].fSoft;
-#else
+	    tile->dx.f[tile->nPart] = pkd->ilp->cx - p[pj].r[0];
+	    tile->dy.f[tile->nPart] = pkd->ilp->cy - p[pj].r[1];
+	    tile->dz.f[tile->nPart] = pkd->ilp->cz - p[pj].r[2];
+	    tile->fourh2.f[tile->nPart] = 4*p[pj].fSoft*p[pj].fSoft;
 #if defined(SYMBA) || defined(PLANETS)
-	    pkd->ilp[nPart].iOrder = p[pj].iOrder;
+	    tile->iOrder.i[tile->nPart] = p[pj].iOrder;
 #endif
-	    pkd->ilp[nPart].m = p[pj].fMass;
-	    /*
-	    ** We will assume that all the particles in my bucket are at the same time here so 
-	    ** we will not have a drift factor to worry about.
-	    */
-	    pkd->ilp[nPart].x = p[pj].r[0];
-	    pkd->ilp[nPart].y = p[pj].r[1];
-	    pkd->ilp[nPart].z = p[pj].r[2];
 #ifdef HERMITE
-	    pkd->ilp[nPart].vx = p[pj].v[0]; 
-	    pkd->ilp[nPart].vy = p[pj].v[1];
-	    pkd->ilp[nPart].vz = p[pj].v[2];
+	    tile->vx.f[tile->nPart] = p[pj].v[0];
+	    tile->vy.f[tile->nPart] = p[pj].v[1];
+	    tile->vz.f[tile->nPart] = p[pj].v[2];
 #endif
-	    pkd->ilp[nPart].fourh2 = 4*p[pj].fSoft*p[pj].fSoft;
-#endif
-	    ++nPart;
+	    ++tile->nPart;
 	}
 
 	/*
 	** Now calculate gravity on this bucket!
 	*/
-	nActive = pkdGravInteract(pkd,pkdc,&L,pkd->ilp,nPart,pkd->ilc,nCell,dirLsum,normLsum,
+	nActive = pkdGravInteract(pkd,pkdc,&L,pkd->ilp,pkd->ilc,nCell,dirLsum,normLsum,
 				  bEwald,pdFlop,&dEwFlop);
 	/*
 	** Update the limit for a shift of the center here based on the opening radius of this 
@@ -893,7 +853,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 /*
   printf("%6d nPart:%5d nCell:%5d\n",iCell,nPart,nCell);
 */
-	    *pdPartSum += nActive*nPart;
+	    *pdPartSum += nActive*ilpCount(pkd->ilp);
 	    *pdCellSum += nActive*nCell;
 	    nTotActive += nActive;
 	    }
@@ -920,7 +880,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 	** Pop the Checklist from the top of the stack,
 	** also getting the state of the interaction list.
 	*/
-	nPart = pkd->S[iStack].nPart;
+	ilpSetCount(pkd->ilp,pkd->S[iStack].nPart);
 	nCell = pkd->S[iStack].nCell;
 	nCheck = pkd->S[iStack].nCheck;
 	/*
