@@ -256,9 +256,10 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 	assert(pj <= c[iCell].pUpper);  /* otherwise we did not come to an active particle */
 	d2c = (cx - pkd->ilp->cx)*(cx - pkd->ilp->cx) + (cy - pkd->ilp->cy)*(cy - pkd->ilp->cy) + 
 	    (cz - pkd->ilp->cz)*(cz - pkd->ilp->cz);
-	if (d2c > pkd->ilp->d2cmax) {
-	    printf("%d:Shift of center too large for the coming interactions! old:(%.10g,%.10g,%.10g) new:(%.10g,%.10g,%.10g)\n",
-		   mdlSelf(pkd->mdl),pkd->ilp->cx,pkd->ilp->cy,pkd->ilp->cz,cx,cy,cz);
+	//if (d2c > pkd->ilp->d2cmax) {
+	if ( d2c > 1e-5) {
+//	    printf("%d:Shift of center too large for the coming interactions! old:(%.10g,%.10g,%.10g) new:(%.10g,%.10g,%.10g)\n",
+//		   mdlSelf(pkd->mdl),pkd->ilp->cx,pkd->ilp->cy,pkd->ilp->cz,cx,cy,cz);
 	    /*
 	    ** Correct all remaining PP interactions to this new center.
 	    */
@@ -270,7 +271,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 	    pkd->ilp->cx = cx;
 	    pkd->ilp->cy = cy;
 	    pkd->ilp->cz = cz;	    
-	    pkd->ilp->d2cmax = 4*c[iCellDescend].fOpen*c[iCellDescend].fOpen;
+	    pkd->ilp->d2cmax = c[iCellDescend].fOpen*c[iCellDescend].fOpen;
 	    }
 
 	while (1) {
@@ -869,7 +870,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 	** Update the limit for a shift of the center here based on the opening radius of this 
 	** cell (the one we just evaluated).
 	*/
-	pkd->ilp->d2cmax = 4*c[iCell].fOpen*c[iCell].fOpen;
+	pkd->ilp->d2cmax = c[iCell].fOpen*c[iCell].fOpen;
 
 #ifdef TIME_WALK_WORK
 	fWeight += getTimer(&tv);

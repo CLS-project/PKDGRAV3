@@ -68,6 +68,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
     const double onethird = 1.0/3.0;
     momFloat ax,ay,az,fPot;
     double x,y,z,d2,dir,dir2;
+    double fx, fy, fz;
     momFloat adotai,maga,dimaga,dirsum,normsum;
     momFloat tax,tay,taz,tmon;
     double rholoc,dirDTS,d2DTS,dsmooth2;
@@ -192,6 +193,42 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	    } /* end of cell list gravity loop */
 #endif		
 	mdlCacheCheck(pkd->mdl);
+
+	/*
+	** Part 1: Calculate distance between particle and each interaction
+	*/
+#if defined(USE_SIMD_PP) && defined(__SSE2__)
+	/* 
+	** Use SSE2 to do the calculations.  On x86_64 architectures,
+	** using SIMD double precision packed arrays is much faster.
+	*/
+#endif
+	fx = p[i].r[0] - ilp->cx;
+	fy = p[i].r[1] - ilp->cy;
+	fz = p[i].r[2] - ilp->cz;
+
+	//if ( fx*fx + fy*fy + fz*fz > 1e-3 ) {
+//	    printf( "%d: d2delta: bi=%d, iOrder=%d,  delta=%.10g,%.10g,%.10g  center:%.10g,%.10g,%.10g\n",
+//		    mdlSelf(pkd->mdl), i-pkdn->pLower, p[i].iOrder, fx, fy, fz, ilp->cx, ilp->cy, ilp->cz );
+	    //}
+
+
+	ilp->cx = p[i].r[0]; /* => cx += fx */
+	ilp->cy = p[i].r[1];
+	ilp->cz = p[i].r[2];
+
+	for (j=0;j<nPart;++j) {
+	    //ilp->dx[j] = ilp->rx[j] - fx;
+	    //ilp->dy[j] = ilp->ry[j] - fy;
+	    //ilp->dz[j] = ilp->rz[j] - fz;
+
+	    ilp->dx[j] += fx;
+	    ilp->dy[j] += fy;
+	    ilp->dz[j] += fz;
+
+	    ilp->d2[j] = ilp->dx[j]*ilp->dx[j] + ilp->dy[j]*ilp->dy[j] + ilp->dz[j]*ilp->dz[j];
+	}
+
 	/*
 	** Calculate local density and kernel smoothing length for dynamical time-stepping
 	*/
@@ -200,12 +237,8 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	    ** Add particles to array rholocal first
 	    */
 	    for (j=0;j<nPart;++j) {
-		x = p[i].r[0] - ilp[j].x;
-		y = p[i].r[1] - ilp[j].y;
-		z = p[i].r[2] - ilp[j].z;
-		d2 = x*x + y*y + z*z;
-		rholocal[j].m = ilp[j].m;	
-		rholocal[j].d2 = d2;
+		rholocal[j].m = ilp->m[j];	
+		rholocal[j].d2 = ilp->d2[j];
 		}
 	    /*
 	    ** Calculate local density only in the case of more than 1 neighbouring particle!
@@ -230,12 +263,10 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 			&ax, &ay, &az, &fPot, &dirsum, &normsum );
 #else
 	for (j=0;j<nPart;++j) {
-	    x = p[i].r[0] - ilp[j].x;
-	    y = p[i].r[1] - ilp[j].y;
-	    z = p[i].r[2] - ilp[j].z;
-	    d2 = x*x + y*y + z*z;
+	    d2 = ilp->d2[j];
 	    d2DTS = d2;
-	    fourh2 = softmassweight(p[i].fMass,4*p[i].fSoft*p[i].fSoft,ilp[j].m,ilp[j].fourh2);
+	    fourh2 = softmassweight(p[i].fMass,4*p[i].fSoft*p[i].fSoft,
+				    ilp->m[j],ilp->fourh2[j]);
 	    if (d2 > fourh2) {
 		SQRT1(d2,dir);
 		dir2 = dir*dir*dir;
@@ -253,17 +284,17 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 		dir2 *= 1.0 + d2*(1.5 + d2*(135.0/16.0));
 		++nSoft;
 		}
-	    dir2 *= ilp[j].m;
-	    tax = -x*dir2;
-	    tay = -y*dir2;
-	    taz = -z*dir2;
+	    dir2 *= ilp->m[j];
+	    tax = -ilp->dx[j]*dir2;
+	    tay = -ilp->dy[j]*dir2;
+	    taz = -ilp->dz[j]*dir2;
 	    adotai = p[i].a[0]*tax + p[i].a[1]*tay + p[i].a[2]*taz;
 	    if (adotai > 0 && d2DTS >= dsmooth2) {
 		adotai *= dimaga;
 		dirsum += dir*adotai*adotai;
 		normsum += adotai*adotai;
 		}
-	    fPot -= ilp[j].m*dir;
+	    fPot -= ilp->m[j]*dir;
 	    ax += tax;
 	    ay += tay;
 	    az += taz;
