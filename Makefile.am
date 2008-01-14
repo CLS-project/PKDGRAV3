@@ -47,9 +47,6 @@ endif
 if USE_SIMD_MOMR
 SOURCES += ../bsc/momEvalSIMDMomr.c
 endif
-if USE_SIMD_PP
-SOURCES += ../bsc/PPInteractSIMD.c
-endif
 endif
 else
 SOURCES += grav.c walk.c

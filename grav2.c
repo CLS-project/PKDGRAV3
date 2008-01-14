@@ -18,6 +18,32 @@
 #include "ewald.h"
 #include "grav.h"
 
+
+#ifdef USE_SIMD
+static const struct CONSTS {
+    v4sf zero;
+    v4sf half;
+    v4sf one;
+    v4sf threehalves;
+    v4sf three;
+    v4sf four;
+    v4sf R3_8;
+    v4sf R45_32;
+    v4sf R135_16;
+} consts = {
+    {0.0,     0.0,     0.0,     0.0},
+    {0.5,     0.5,     0.5,     0.5},
+    {1.0,     1.0,     1.0,     1.0},
+    {1.5,     1.5,     1.5,     1.5},
+    {3.0,     3.0,     3.0,     3.0},
+    {4.0,     4.0,     4.0,     4.0},
+    {3.0/8.0, 3.0/8.0, 3.0/8.0, 3.0/8.0},
+    {45.0/32.0, 45.0/32.0, 45.0/32.0, 45.0/32.0},
+    {135.0/16.0, 135.0/16.0, 135.0/16.0, 135.0/16.0},
+};
+#endif
+
+
 #define SQRT1(d2,dir)\
     {\
     dir = 1/sqrt(d2);\
@@ -84,6 +110,13 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP ilp,ILC *ilc,int nCell,d
     int nPartX;
     double fourh2;
     int i,j,k,nSP,nSoft,nActive;
+#if defined(USE_SIMD_PP)
+    v4sf px, py, pz;
+    v4sf pax, pay, paz;
+    v4sf piax, piay, piaz;
+    v4sf ppot, pmass, p4soft2;
+    v4sf padotai,pimaga,psmooth2,pirsum,pnorms;
+#endif
 
 #ifdef USE_SIMD_MOMR
     nCellILC = nCell;
@@ -117,6 +150,10 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP ilp,ILC *ilc,int nCell,d
 	if (dimaga > 0) {
 	    dimaga = 1.0/sqrt(dimaga);
 	    }
+#ifdef USE_SIMD
+	pimaga = SIMD_SPLAT(dimaga);
+#endif
+
 	dirsum = dirLsum;
 	normsum = normLsum;
 	if (pLoc) {
@@ -199,27 +236,41 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP ilp,ILC *ilc,int nCell,d
 	/*
 	** Part 1: Calculate distance between particle and each interaction
 	*/
-#if defined(USE_SIMD_PP) && defined(__SSE2__)
-	/* 
-	** Use SSE2 to do the calculations.  On x86_64 architectures,
-	** using SIMD double precision packed arrays is much faster.
-	*/
-#endif
-
 	fx = p[i].r[0] - ilp->cx;
 	fy = p[i].r[1] - ilp->cy;
 	fz = p[i].r[2] - ilp->cz;
 
-	//if ( fx*fx + fy*fy + fz*fz > 1e-3 ) {
-//	    printf( "%d: d2delta: bi=%d, iOrder=%d,  delta=%.10g,%.10g,%.10g  center:%.10g,%.10g,%.10g\n",
-//		    mdlSelf(pkd->mdl), i-pkdn->pLower, p[i].iOrder, fx, fy, fz, ilp->cx, ilp->cy, ilp->cz );
-	    //}
-
-
 	ilp->cx = p[i].r[0]; /* => cx += fx */
 	ilp->cy = p[i].r[1];
 	ilp->cz = p[i].r[2];
-	for( tile=ilp->tile; tile!=NULL; tile=tile->next ) {
+
+#if defined(USE_SIMD_PP)
+	px = SIMD_SPLAT(fx);
+	py = SIMD_SPLAT(fy);
+	pz = SIMD_SPLAT(fz);
+
+	for( tile=ilp->first; tile!=NULL; tile=tile->next ) {
+	    uint32_t n = (tile->nPart+3) >> 2; /* Number of Packed floats */
+	    uint32_t r = tile->nPart - (n<<2); /* Remaining floats */
+
+	    if ( r != 0 ) {
+		for( j=r; j<4; j++ ) {
+		    int o = (n<<2) + j;
+		    tile->dx.f[o] = tile->dy.f[o] = tile->dz.f[o] = 0;
+		}
+		n++;
+	    }
+	    for( j=0; j<n; j++ ) {
+		tile->dx.p[j] = SIMD_ADD(tile->dx.p[j],px);
+		tile->dy.p[j] = SIMD_ADD(tile->dy.p[j],py);
+		tile->dz.p[j] = SIMD_ADD(tile->dz.p[j],pz);
+		tile->d2.p[j] = SIMD_MADD(tile->dz.p[j],tile->dz.p[j],
+					  SIMD_MADD(tile->dy.p[j],tile->dy.p[j],
+						    SIMD_MUL(tile->dx.p[j],tile->dx.p[j])));
+	    }
+	}
+#else
+	for( tile=ilp->first; tile!=NULL; tile=tile->next ) {
 	    for (j=0;j<tile->nPart;++j) {
 		tile->dx.f[j] += fx;
 		tile->dy.f[j] += fy;
@@ -228,7 +279,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP ilp,ILC *ilc,int nCell,d
 		    + tile->dy.f[j]*tile->dy.f[j] + tile->dz.f[j]*tile->dz.f[j];
 	    }
 	}
-
+#endif
 	/*
 	** Calculate local density and kernel smoothing length for dynamical time-stepping
 	*/
@@ -237,7 +288,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP ilp,ILC *ilc,int nCell,d
 	    ** Add particles to array rholocal first
 	    */
 	    nPartX = 0;
-	    for( tile=ilp->tile; tile!=NULL; tile=tile->next ) {
+	    for( tile=ilp->first; tile!=NULL; tile=tile->next ) {
 		for (j=0;j<tile->nPart;++j) {
 		    rholocal[nPartX].m = tile->m.f[j];	
 		    rholocal[nPartX].d2 = tile->d2.f[j];
@@ -251,6 +302,9 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP ilp,ILC *ilc,int nCell,d
 		nSP = (nPartX < pkd->param.nPartRhoLoc)?nPartX:pkd->param.nPartRhoLoc;
 		HEAPrholocal(nPartX,nSP,rholocal);
 		dsmooth2 = rholocal[nPartX-nSP].d2;
+#ifdef USE_SIMD
+		psmooth2 = SIMD_SPLAT(dsmooth2);
+#endif
 		SQRT1(dsmooth2,dir);
 		dir2 = dir * dir;
 		for (j=(nPartX - nSP);j<nPartX;++j) {
@@ -261,18 +315,103 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP ilp,ILC *ilc,int nCell,d
 		rholoc = 1.875*M_1_PI*rholoc*dir2*dir; /* F1 Kernel (15/8) */
 		}
 	    assert(rholoc >= 0);
-	    }
+	}
 
 #ifdef USE_SIMD_PP
-	PPInteractSIMD( nPart,ilp,p[i].r,p[i].a,p[i].fMass,p[i].fSoft,
-			&ax, &ay, &az, &fPot, &dirsum, &normsum );
+	pax = SIMD_LOADS(ax);
+	pay = SIMD_LOADS(ay);
+	paz = SIMD_LOADS(az);
+	ppot= SIMD_LOADS(fPot);
+	pirsum = SIMD_LOADS(dirsum);
+	pnorms = SIMD_LOADS(normsum);
+
+	piax    = SIMD_SPLAT(p[i].a[0]);
+	piay    = SIMD_SPLAT(p[i].a[1]);
+	piaz    = SIMD_SPLAT(p[i].a[2]);
+	pmass   = SIMD_SPLAT(p[i].fMass);
+	p4soft2 = SIMD_SPLAT(4.0*p[i].fSoft*p[i].fSoft);
+
+	for( tile=ilp->first; tile!=NULL; tile=tile->next ) {
+	    uint32_t n = (tile->nPart) >> 2; /* Number of Packed floats */
+	    uint32_t r = tile->nPart - (n<<2); /* Remaining floats */
+	    if ( r != 0 ) {
+		for( j=r; j<4; j++ ) {
+		    int o = (n<<2) + j;
+		    tile->dx.f[o] = tile->dy.f[o] = tile->dz.f[o] = tile->d2.f[o] = tile->fourh2.f[0];
+		    tile->m.f[o] = 0;
+		    tile->fourh2.f[o] = tile->fourh2.f[0];
+		}
+		n++;
+	    }
+
+	    for( j=0; j<n; j++ ) {
+		v4sf pfourh2, pd2, pir, pir2, t1, t2, t3;
+		v4bool vcmp;
+
+		t1 = SIMD_MUL(SIMD_ADD(pmass,tile->m.p[j]),SIMD_MUL(p4soft2,tile->fourh2.p[j]));
+		t2 = SIMD_ADD(SIMD_MUL(tile->fourh2.p[j],pmass),SIMD_MUL(p4soft2,tile->m.p[j]));
+#if defined(__SSE2__) || defined(__ALTIVEC__)
+		pfourh2 = SIMD_RE_EXACT(t2);
+		pfourh2 = SIMD_MUL(pfourh2,t1);
 #else
-	for( tile=ilp->tile; tile!=NULL; tile=tile->next ) {
+		pfourh2 = SIMD_DIV(t1,t2);
+#endif
+		vcmp = SIMD_CMP_LT(tile->d2.p[j],pfourh2);
+		pd2 = SIMD_MAX(tile->d2.p[j],pfourh2);
+
+		pir = SIMD_RSQRT_EXACT(pd2);
+		pir2 = SIMD_MUL(pir,pir);
+		pd2 = SIMD_MUL(tile->d2.p[j],pir2);
+		pir2 = SIMD_MUL(pir2,pir);
+		pd2 = SIMD_SUB(consts.one,pd2);
+		/* pir and pir2 are valid now for both softened and unsoftened particles */
+		/* Now we apply the fix to softened particles only */
+
+		pd2 = SIMD_AND(vcmp,pd2);
+
+		t1 = SIMD_MADD(consts.R45_32, pd2, consts.R3_8);
+		t1 = SIMD_MADD(t1, pd2, consts.half);
+		t1 = SIMD_MADD(t1, pd2, consts.one);
+		t2 = SIMD_MADD(consts.R135_16, pd2, consts.threehalves);
+		t2 = SIMD_MADD(t2, pd2, consts.one);
+		pir = SIMD_MUL(pir,t1);
+		pir2 = SIMD_MUL(pir2,t2);
+
+		pir2 = SIMD_MUL(pir2,tile->m.p[j]);
+
+		t1 = SIMD_NMSUB(tile->dx.p[j],pir2,consts.zero);
+		t2 = SIMD_NMSUB(tile->dy.p[j],pir2,consts.zero);
+		t3 = SIMD_NMSUB(tile->dz.p[j],pir2,consts.zero);
+
+		/* Time stepping criteria stuff */
+		padotai = SIMD_MADD(piaz,t3,SIMD_MADD(piay,t2,SIMD_MUL(piax,t1)));
+		vcmp = SIMD_AND(SIMD_CMP_GT(padotai,consts.zero),SIMD_CMP_GE(tile->d2.p[j],psmooth2));
+		padotai= SIMD_AND(padotai,vcmp);
+		padotai= SIMD_MUL(padotai,pimaga);
+		pirsum = SIMD_MADD(pir,SIMD_MUL(padotai,padotai),pirsum);
+		pnorms = SIMD_MADD(padotai,padotai,pnorms);
+
+		ppot = SIMD_NMSUB(tile->m.p[j],pir,ppot);
+		pax = SIMD_ADD(pax,t1);
+		pay = SIMD_ADD(pay,t2);
+		paz = SIMD_ADD(paz,t3);
+	    }
+	}
+
+	ax = SIMD_HADD(pax);
+	ay = SIMD_HADD(pay);
+	az = SIMD_HADD(paz);
+	fPot = SIMD_HADD(ppot);
+	dirsum = SIMD_HADD(pirsum);
+	normsum = SIMD_HADD(pnorms);
+#else
+	for( tile=ilp->first; tile!=NULL; tile=tile->next ) {
 	    for (j=0;j<tile->nPart;++j) {
 		d2 = tile->d2.f[j];
 		d2DTS = d2;
 		fourh2 = softmassweight(p[i].fMass,4*p[i].fSoft*p[i].fSoft,
 					tile->m.f[j],tile->fourh2.f[j]);
+
 		if (d2 > fourh2) {
 		    SQRT1(d2,dir);
 		    dir2 = dir*dir*dir;
@@ -290,6 +429,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP ilp,ILC *ilc,int nCell,d
 		    dir2 *= 1.0 + d2*(1.5 + d2*(135.0/16.0));
 		    ++nSoft;
 		}
+
 		dir2 *= tile->m.f[j];
 		tax = -tile->dx.f[j]*dir2;
 		tay = -tile->dy.f[j]*dir2;
@@ -307,6 +447,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP ilp,ILC *ilc,int nCell,d
 	    }
 	} /* end of particle list gravity loop */
 #endif
+
         /*
         ** Finally set new acceleration and potential.
         ** Note that after this point we cannot use the new timestepping criterion since we
@@ -337,17 +478,12 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP ilp,ILC *ilc,int nCell,d
 	    maga = sqrt(tx*tx + ty*ty + tz*tz);
 	    p[i].dtGrav = maga*dirsum/normsum + pkd->param.dPreFacRhoLoc*rholoc;
 	    p[i].fDensity = rholoc;
-	    }
-
-/* 	if (p[i].iOrder < 100) { */
-/* 	    printf("PID %d a0 %g a1 %g a2 %g\n",p[i].iOrder,p[i].a[0],p[i].a[1],p[i].a[2]); */
-/* 	    } */
-
-	} /* end of i-loop cells & particles */
+	}
+} /* end of i-loop cells & particles */
     /*
     ** Free time-step lists
     */ 
-    free(rholocal);
+free(rholocal);
     *pdFlop += nActive*(ilpCount(pkd->ilp)*40 + nCell*200) + nSoft*15;
     return(nActive);
     }

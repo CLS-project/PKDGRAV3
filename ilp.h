@@ -2,11 +2,7 @@
 #define ILP_H
 #define ILP_PART_PER_TILE 8192
 
-#if defined(__SSE__)
-#include <xmmintrin.h>
-#elif defined(__ALTIVEC__)
-#include <altivec.h>
-#endif
+#include "simd.h"
 
 /*
 ** We use a union here so that the compiler can properly align the values.
@@ -14,11 +10,7 @@
 typedef union {
     float f[ILP_PART_PER_TILE];
 #ifdef USE_SIMD_PP
-#if defined(__SSE__)
-    __m128 p[ILP_PART_PER_TILE/4];
-#elif defined(__ALTIVEC__)
-    vector float p[ILP_PART_PER_TILE/4];
-#endif
+    v4sf p[ILP_PART_PER_TILE/4];
 #endif
 } ilpFloat;
 
@@ -29,6 +21,7 @@ typedef union {
 
 typedef struct ilpTile {
     struct ilpTile *next;
+    struct ilpTile *prev;
     uint32_t nMaxPart;          /* Maximum number of particles in this tile */
     uint32_t nPart;             /* Current number of particles */
 

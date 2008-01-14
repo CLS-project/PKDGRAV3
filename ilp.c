@@ -7,12 +7,13 @@
 /*
 ** Private: Create a new tile
 */
-static ILPTILE newTile(void) {
-    ILPTILE tile = malloc(sizeof(struct ilpTile));
+static ILPTILE newTile(ILPTILE prev) {
+    ILPTILE tile = SIMD_malloc(sizeof(struct ilpTile));
     assert( tile != NULL );
     assert(ILP_PART_PER_TILE%4 == 0 );
 
     tile->next = NULL;
+    tile->prev = prev;
     tile->nMaxPart = ILP_PART_PER_TILE;
     tile->nPart = 0;
     return tile;
@@ -37,7 +38,7 @@ ILPTILE ilpExtend(ILP ilp)
 	ilp->tile->nPart = 0;
     }
     else {
-	ilp->tile = ilp->tile->next = newTile();
+	ilp->tile = ilp->tile->next = newTile(ilp->tile);
     }
     return ilp->tile;
 }
@@ -87,7 +88,7 @@ void ilpInitialize(ILP *ilp)
 {
     *ilp = malloc(sizeof(struct ilpContext));
     assert( *ilp != NULL );
-    (*ilp)->first = (*ilp)->tile = newTile();
+    (*ilp)->first = (*ilp)->tile = newTile(NULL);
     (*ilp)->nPrevious = 0;
 }
 
@@ -100,7 +101,7 @@ void ilpFinish(ILP ilp)
     /* Free all allocated tiles first */
     for( tile=ilp->first; tile!=NULL; tile=next ) {
 	next = tile->next;
-	free(tile);
+	SIMD_free(tile);
     }
 
     free(ilp);

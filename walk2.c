@@ -565,7 +565,6 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 				tile->dz.f[tile->nPart] = pkd->ilp->cz - (pRemote->r[2] + pkd->Check[i].rOffset[2]);
 				tile->m.f[tile->nPart] = pRemote->fMass;
 				tile->fourh2.f[tile->nPart] = 4*pRemote->fSoft*pRemote->fSoft;
-
 #if defined(SYMBA) || defined(PLANETS)
 				tile->iOrder.i[tile->nPart] = pRemote->iOrder;
 #endif
