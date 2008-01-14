@@ -105,15 +105,18 @@ void BuildTemp(PKD pkd,int iNode,int M,int bSqueeze) {
     PLITE t;
     FLOAT fSplit,sRatio;
     FLOAT fMin[3],fMax[3];
+    FLOAT ls,rs;
     BND *pbnd;
     int *S;		/* this is the stack */
     int s,ns;
     int iLeft,iRight;
     int d,i,j;
     int nr,nl;
+    int lc,rc;
     int nBucket = 0;
     int nActive = 0;
 
+    assert(bSqueeze > 0);
     /*
     ** Allocate stack!
     */
@@ -271,6 +274,8 @@ void BuildTemp(PKD pkd,int iNode,int M,int bSqueeze) {
 		  pkd->kdNodes[iRight].bnd.fCenter[d] += pkd->kdNodes[iRight].bnd.fMax[d];
 		}
 		}
+	    MAXSIDE(pkd->kdNodes[iLeft].bnd.fMax,ls);
+	    MAXSIDE(pkd->kdNodes[iRight].bnd.fMax,rs);
 	    }
 	else {
 	    /*
@@ -283,16 +288,25 @@ void BuildTemp(PKD pkd,int iNode,int M,int bSqueeze) {
 	    if (nl > 0) {
 	      if (d >= 0 && d < 3) pbnd->fCenter[d] -= pbnd->fMax[d];
 	      iLeft = iNode;
+	      MAXSIDE(pkd->kdNodes[iLeft].bnd.fMax,ls);
+	      rs = 0.0;
 	    }
 	    else {
 	      if (d >= 0 && d < 3) pbnd->fCenter[d] += pbnd->fMax[d];
 	      iRight = iNode;
+	      MAXSIDE(pkd->kdNodes[iRight].bnd.fMax,rs);
+	      ls = 0.0;
 	    }
 	    }
 	/*
 	** Now figure out which subfile to process next.
 	*/
-	if (nl > M && nr > M) {
+	lc = ((nl > M)||(ls>1e-2));
+	rc = ((nr > M)||(rs>1e-2));
+	MAXSIDE(pkd->kdNodes[iLeft].bnd.fMax,ls);
+	MAXSIDE(pkd->kdNodes[iRight].bnd.fMax,rs);
+
+	if (rc && lc) {
 	    if (nr > nl) {
 		S[s++] = iRight;	/* push tr */
 		iNode = iLeft;		/* process lower subfile */
@@ -303,14 +317,14 @@ void BuildTemp(PKD pkd,int iNode,int M,int bSqueeze) {
 		}
 	    }
 	else {
-	    if (nl > M) {
+	    if (lc) {
 		iNode = iLeft;		/* process lower subfile */
 		}
 	    else if (nl > 0) {
 		pkd->kdNodes[iLeft].iLower = 0;
 		++nBucket;
 		}
-	    if (nr > M) {
+	    if (rc) {
 		iNode = iRight;		/* process upper subfile */
 		}
 	    else if (nr > 0) {
@@ -318,7 +332,7 @@ void BuildTemp(PKD pkd,int iNode,int M,int bSqueeze) {
 		++nBucket;
 		}
 	    }
-	if (nl <= M && nr <= M) {
+	if ( !rc && !lc ) {
 	    if (s) iNode = S[--s];		/* pop tn */
 	    else break;
 	    }
