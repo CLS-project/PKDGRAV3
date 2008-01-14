@@ -139,6 +139,7 @@ double csmExp2Time(CSM csm,double dExp)
 	    }
 	}
 
+#if 0 
 double csmTime2Exp(CSM csm,double dTime)
 {
 	double dHubble0 = csm->dHubble0;
@@ -164,6 +165,77 @@ double csmTime2Exp(CSM csm,double dTime)
 	    return dExpNew;
 	    }
 	}
+
+#endif
+
+#define MAX_ITER 100
+
+double csmTime2Exp(CSM csm,double dTime) {
+    double al=0,ah=1,a0,a1=1,at,a;
+    double tl=0,th,f,f1,h,ho;
+    int j;
+    
+    if (!csm->bComove) return(1.0);
+    else {
+	assert(dTime > 0);
+	th = csmExp2Time(csm,ah);
+	/*
+	** Search for upper bracket if needed.
+	*/
+	while (dTime > th) {
+	    a0 = a1;
+	    a1 = ah;
+	    ah = a1+a0;
+	    th = csmExp2Time(csm,ah);
+	    }
+	a = 0.5*(al+ah);
+	ho = ah-al;
+	h = ho;
+	f = dTime - dRombergO(csm, (double (*)(void *, double)) csmCosmoTint,0.0,pow(a,1.5),EPSCOSMO);
+	f1 = 1/(a*csmExp2Hub(csm,a));
+	for (j=0;j<MAX_ITER;++j) {
+	    if (a+f/f1 < al || a+f/f1 > ah || fabs(2*f) > fabs(ho*f1)) {
+		/*
+		** Bisection Step.
+		*/
+		ho = h;
+		h = 0.5*(ah-al);
+		a = al+h;
+/*
+		printf("bisect al:%.14g ah:%.14g a:%.14g\n",al,ah,a);
+*/
+		if (a == al) return a;
+		}
+	    else {
+		/*
+		** Newton Step.
+		*/
+		ho = h;
+		h = f/f1;
+		at = a;
+		a += h;
+/*
+		printf("newton al:%.14g ah:%.14g a:%.14g\n",al,ah,a);
+*/
+		if (a == at) return a;		
+		}
+	    if (fabs(h) < EPSCOSMO) {
+/*
+		printf("converged al:%.14g ah:%.14g a:%.14g t:%.14g == %.14g\n",
+		       al,ah,a,dRombergO(csm, (double (*)(void *, double)) csmCosmoTint,0.0,pow(a,1.5),EPSCOSMO*1e-1),
+		       dTime);
+*/
+		return a;
+		}
+	    f = dTime - dRombergO(csm, (double (*)(void *, double)) csmCosmoTint,0.0,pow(a,1.5),EPSCOSMO*1e-1);
+	    f1 = 1/(a*csmExp2Hub(csm,a));
+	    if (f < 0) ah = a;
+	    else al = a;
+	    }
+	assert(0);
+	}
+    }
+
 
 double csmComoveDriftInt(CSM csm, double dIExp)
 {
