@@ -257,6 +257,8 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP ilp,ILC *ilc,int nCell,d
 		for( j=r; j<4; j++ ) {
 		    int o = (n<<2) + j;
 		    tile->dx.f[o] = tile->dy.f[o] = tile->dz.f[o] = 0;
+		    tile->m.f[o] = 0;
+		    tile->fourh2.f[o] = tile->fourh2.f[0];
 		}
 		n++;
 	    }
@@ -332,17 +334,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP ilp,ILC *ilc,int nCell,d
 	p4soft2 = SIMD_SPLAT(4.0*p[i].fSoft*p[i].fSoft);
 
 	for( tile=ilp->first; tile!=NULL; tile=tile->next ) {
-	    uint32_t n = (tile->nPart) >> 2; /* Number of Packed floats */
-	    uint32_t r = tile->nPart - (n<<2); /* Remaining floats */
-	    if ( r != 0 ) {
-		for( j=r; j<4; j++ ) {
-		    int o = (n<<2) + j;
-		    tile->dx.f[o] = tile->dy.f[o] = tile->dz.f[o] = tile->d2.f[o] = tile->fourh2.f[0];
-		    tile->m.f[o] = 0;
-		    tile->fourh2.f[o] = tile->fourh2.f[0];
-		}
-		n++;
-	    }
+	    uint32_t n = (tile->nPart+3) >> 2; /* Number of Packed floats */
 
 	    for( j=0; j<n; j++ ) {
 		v4sf pfourh2, pd2, pir, pir2, t1, t2, t3;
