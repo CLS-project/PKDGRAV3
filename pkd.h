@@ -432,7 +432,7 @@ typedef struct CheckElt {
     } CELT;
 
 typedef struct CheckStack {
-    int nPart;
+    ILPCHECKPT PartChkPt;
     int nCell;
     int nCheck;
     CELT *Check;

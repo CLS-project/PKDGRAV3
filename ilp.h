@@ -1,6 +1,12 @@
 #ifndef ILP_H
 #define ILP_H
-#define ILP_PART_PER_TILE 8192
+
+#ifndef ILP_PART_PER_TILE
+#define ILP_PART_PER_TILE 2048
+#endif
+
+#define ILP_ALIGN_BITS 2
+#define ILP_ALIGN_SIZE (1<<ILP_ALIGN_BITS)
 
 #include "simd.h"
 
@@ -46,11 +52,30 @@ typedef struct ilpContext
     uint32_t nPrevious;         /* Particles in tiles prior to "tile" */
 } *ILP;
 
+typedef struct {
+    ILPTILE  tile;
+    uint32_t nPart;
+    uint32_t nPrevious;
+} ILPCHECKPT;
+
 ILPTILE ilpExtend(ILP ilp);    /* Add tile and return new tile */
 ILPTILE ilpClear(ILP ilp);     /* Go back to, and return first tile (empty) */
 void ilpInitialize(ILP *ilp);
 void ilpFinish(ILP ilp);
-void ilpSetCount(ILP ilp,uint32_t count);
+
+static inline void ilpCheckPt(ILP ilp,ILPCHECKPT *cp)
+{
+    cp->tile = ilp->tile;
+    cp->nPart = ilp->tile->nPart;
+    cp->nPrevious = ilp->nPrevious;
+}
+
+static inline void ilpRestore(ILP ilp,ILPCHECKPT *cp)
+{
+    ilp->tile = cp->tile;
+    ilp->nPrevious = cp->nPrevious;
+    ilp->tile->nPart = cp->nPart;
+}
 
 static inline uint32_t ilpCount(ILP ilp) {
     return ilp->nPrevious + ilp->tile->nPart;

@@ -49,7 +49,8 @@ static const struct CONSTS {
     dir = 1/sqrt(d2);\
     } 
 
-void HEAPrholocal(int n, int k, RHOLOCAL ra[]) {
+
+static void HEAPrholocal(int n, int k, RHOLOCAL ra[]) {
     int l,j,ir,i;
     RHOLOCAL rra;
 
@@ -111,6 +112,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP ilp,ILC *ilc,int nCell,d
     double fourh2;
     int i,j,k,nSP,nSoft,nActive;
 #if defined(USE_SIMD_PP)
+    v4sf t1, t2, t3;
     v4sf px, py, pz;
     v4sf pax, pay, paz;
     v4sf piax, piay, piaz;
@@ -126,6 +128,8 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP ilp,ILC *ilc,int nCell,d
     ** dynamical time-stepping stuff
     */
     RHOLOCAL *rholocal;
+
+    //printf( "RHOLOCAL: %d\n", ilpCount(pkd->ilp) );
     rholocal = malloc(ilpCount(pkd->ilp)*sizeof(RHOLOCAL));
     assert(rholocal != NULL);
     /*
@@ -249,13 +253,13 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP ilp,ILC *ilc,int nCell,d
 	py = SIMD_SPLAT(fy);
 	pz = SIMD_SPLAT(fz);
 
-	for( tile=ilp->first; tile!=NULL; tile=tile->next ) {
-	    uint32_t n = (tile->nPart+3) >> 2; /* Number of Packed floats */
-	    uint32_t r = tile->nPart - (n<<2); /* Remaining floats */
+	for( tile=ilp->first; tile!=pkd->ilp->tile->next; tile=tile->next ) {
+	    uint32_t n = tile->nPart >> ILP_ALIGN_BITS; /* # Packed floats */
+	    uint32_t r = tile->nPart - (n<<ILP_ALIGN_BITS); /* Remaining */
 
 	    if ( r != 0 ) {
-		for( j=r; j<4; j++ ) {
-		    int o = (n<<2) + j;
+		for( j=r; j<ILP_ALIGN_SIZE; j++ ) {
+		    int o = (n<<ILP_ALIGN_BITS) + j;
 		    tile->dx.f[o] = tile->dy.f[o] = tile->dz.f[o] = 0;
 		    tile->m.f[o] = 0;
 		    tile->fourh2.f[o] = tile->fourh2.f[0];
@@ -263,16 +267,14 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP ilp,ILC *ilc,int nCell,d
 		n++;
 	    }
 	    for( j=0; j<n; j++ ) {
-		tile->dx.p[j] = SIMD_ADD(tile->dx.p[j],px);
-		tile->dy.p[j] = SIMD_ADD(tile->dy.p[j],py);
-		tile->dz.p[j] = SIMD_ADD(tile->dz.p[j],pz);
-		tile->d2.p[j] = SIMD_MADD(tile->dz.p[j],tile->dz.p[j],
-					  SIMD_MADD(tile->dy.p[j],tile->dy.p[j],
-						    SIMD_MUL(tile->dx.p[j],tile->dx.p[j])));
+		tile->dx.p[j] = t1 = SIMD_ADD(tile->dx.p[j],px);
+		tile->dy.p[j] = t2 = SIMD_ADD(tile->dy.p[j],py);
+		tile->dz.p[j] = t3 = SIMD_ADD(tile->dz.p[j],pz);
+		tile->d2.p[j] = SIMD_MADD(t3,t3,SIMD_MADD(t2,t2,SIMD_MUL(t1,t1)));
 	    }
 	}
 #else
-	for( tile=ilp->first; tile!=NULL; tile=tile->next ) {
+	for( tile=ilp->first; tile!=pkd->ilp->tile->next; tile=tile->next ) {
 	    for (j=0;j<tile->nPart;++j) {
 		tile->dx.f[j] += fx;
 		tile->dy.f[j] += fy;
@@ -290,7 +292,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP ilp,ILC *ilc,int nCell,d
 	    ** Add particles to array rholocal first
 	    */
 	    nPartX = 0;
-	    for( tile=ilp->first; tile!=NULL; tile=tile->next ) {
+	    for( tile=ilp->first; tile!=pkd->ilp->tile->next; tile=tile->next ) {
 		for (j=0;j<tile->nPart;++j) {
 		    rholocal[nPartX].m = tile->m.f[j];	
 		    rholocal[nPartX].d2 = tile->d2.f[j];
@@ -333,12 +335,13 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP ilp,ILC *ilc,int nCell,d
 	pmass   = SIMD_SPLAT(p[i].fMass);
 	p4soft2 = SIMD_SPLAT(4.0*p[i].fSoft*p[i].fSoft);
 
-	for( tile=ilp->first; tile!=NULL; tile=tile->next ) {
-	    uint32_t n = (tile->nPart+3) >> 2; /* Number of Packed floats */
+	for( tile=ilp->first; tile!=pkd->ilp->tile->next; tile=tile->next ) {
+	    uint32_t n = (tile->nPart+ILP_ALIGN_SIZE-1) >> ILP_ALIGN_BITS;
 
 	    for( j=0; j<n; j++ ) {
-		v4sf pfourh2, pd2, pir, pir2, t1, t2, t3;
+		v4sf pfourh2, pd2, pir, pir2;
 		v4bool vcmp;
+		int msk;
 
 		t1 = SIMD_MUL(SIMD_ADD(pmass,tile->m.p[j]),SIMD_MUL(p4soft2,tile->fourh2.p[j]));
 		t2 = SIMD_ADD(SIMD_MUL(tile->fourh2.p[j],pmass),SIMD_MUL(p4soft2,tile->m.p[j]));
@@ -350,25 +353,26 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP ilp,ILC *ilc,int nCell,d
 #endif
 		vcmp = SIMD_CMP_LT(tile->d2.p[j],pfourh2);
 		pd2 = SIMD_MAX(tile->d2.p[j],pfourh2);
+		msk = SIMD_ALL_ZERO(vcmp);  /* zero means nothing is softened - optimization */
 
 		pir = SIMD_RSQRT_EXACT(pd2);
 		pir2 = SIMD_MUL(pir,pir);
-		pd2 = SIMD_MUL(tile->d2.p[j],pir2);
+		pd2 = SIMD_MUL(pir2,tile->d2.p[j]); /* for SOFTENED */
 		pir2 = SIMD_MUL(pir2,pir);
-		pd2 = SIMD_SUB(consts.one,pd2);
+
 		/* pir and pir2 are valid now for both softened and unsoftened particles */
 		/* Now we apply the fix to softened particles only */
-
-		pd2 = SIMD_AND(vcmp,pd2);
-
-		t1 = SIMD_MADD(consts.R45_32, pd2, consts.R3_8);
-		t1 = SIMD_MADD(t1, pd2, consts.half);
-		t1 = SIMD_MADD(t1, pd2, consts.one);
-		t2 = SIMD_MADD(consts.R135_16, pd2, consts.threehalves);
-		t2 = SIMD_MADD(t2, pd2, consts.one);
-		pir = SIMD_MUL(pir,t1);
-		pir2 = SIMD_MUL(pir2,t2);
-
+		if (msk) {
+		    pd2 = SIMD_SUB(consts.one,pd2);
+		    pd2 = SIMD_AND(vcmp,pd2);
+		    t1 = SIMD_MADD(consts.R45_32, pd2, consts.R3_8);
+		    t1 = SIMD_MADD(t1, pd2, consts.half);
+		    t1 = SIMD_MADD(t1, pd2, consts.one);
+		    t2 = SIMD_MADD(consts.R135_16, pd2, consts.threehalves);
+		    t2 = SIMD_MADD(t2, pd2, consts.one);
+		    pir = SIMD_MUL(pir,t1);
+		    pir2 = SIMD_MUL(pir2,t2);
+		}
 		pir2 = SIMD_MUL(pir2,tile->m.p[j]);
 
 		t1 = SIMD_NMSUB(tile->dx.p[j],pir2,consts.zero);
@@ -380,8 +384,9 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP ilp,ILC *ilc,int nCell,d
 		vcmp = SIMD_AND(SIMD_CMP_GT(padotai,consts.zero),SIMD_CMP_GE(tile->d2.p[j],psmooth2));
 		padotai= SIMD_AND(padotai,vcmp);
 		padotai= SIMD_MUL(padotai,pimaga);
-		pirsum = SIMD_MADD(pir,SIMD_MUL(padotai,padotai),pirsum);
-		pnorms = SIMD_MADD(padotai,padotai,pnorms);
+		pd2 = SIMD_MUL(padotai,padotai);
+		pirsum = SIMD_MADD(pir,pd2,pirsum);
+		pnorms = SIMD_ADD(pnorms,pd2);
 
 		ppot = SIMD_NMSUB(tile->m.p[j],pir,ppot);
 		pax = SIMD_ADD(pax,t1);
@@ -397,7 +402,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP ilp,ILC *ilc,int nCell,d
 	dirsum = SIMD_HADD(pirsum);
 	normsum = SIMD_HADD(pnorms);
 #else
-	for( tile=ilp->first; tile!=NULL; tile=tile->next ) {
+	for( tile=ilp->first; tile!=pkd->ilp->tile->next; tile=tile->next ) {
 	    for (j=0;j<tile->nPart;++j) {
 		d2 = tile->d2.f[j];
 		d2DTS = d2;
@@ -475,7 +480,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP ilp,ILC *ilc,int nCell,d
     /*
     ** Free time-step lists
     */ 
-free(rholocal);
+    free(rholocal);
     *pdFlop += nActive*(ilpCount(pkd->ilp)*40 + nCell*200) + nSoft*15;
     return(nActive);
     }

@@ -40,6 +40,7 @@ ILPTILE ilpExtend(ILP ilp)
     else {
 	ilp->tile = ilp->tile->next = newTile(ilp->tile);
     }
+
     return ilp->tile;
 }
 
@@ -55,34 +56,6 @@ ILPTILE ilpClear(ILP ilp)
     ilp->tile->nPart = 0;
     return ilp->tile;
 }
-
-/*
-** Backup to the specified number of particles by trolling
-** through the tiles.
-*/
-void ilpSetCount(ILP ilp,uint32_t count)
-{
-    ILPTILE tile;
-
-    assert( ilp != NULL );
-    assert( count <= ilpCount(ilp) );
-
-    ilp->nPrevious = 0;
-    for( tile=ilp->first; tile!=NULL; tile=tile->next) {
-	if ( count <= tile->nPart ) {
-	    tile->nPart = count;
-	    ilp->tile = tile;
-	    break;
-	}
-	else {
-	    assert( tile->nPart == tile->nMaxPart );
-	    ilp->nPrevious += tile->nPart;
-	    count -= tile->nPart;
-	}
-    }
-    assert( tile != NULL ); /* Oops...  not enough data */
-}
-
 
 void ilpInitialize(ILP *ilp)
 {
@@ -106,4 +79,3 @@ void ilpFinish(ILP ilp)
 
     free(ilp);
 }
-

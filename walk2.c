@@ -107,7 +107,6 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
     int iCell,iSib,iCheckCell,iCellDescend;
     int i,ii,j,n,id,pj,nActive,nTotActive;
     int iOpen;
-    //int nPart;
     ILPTILE tile;
     int nCell;
 #ifdef USE_SIMD_MOMR
@@ -141,7 +140,6 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
     c = pkd->kdTop;
     nTotActive = 0;
     ilpClear(pkd->ilp);
-    //nPart = 0;
     nCell = 0;
     /*
     ** Allocate Checklist.
@@ -265,7 +263,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 	    /*
 	    ** Correct all remaining PP interactions to this new center.
 	    */
-	    for( tile=pkd->ilp->first; tile!=NULL; tile=tile->next ) {
+	    for( tile=pkd->ilp->first; tile!=pkd->ilp->tile->next; tile=tile->next ) {
 		for( j=0; j<tile->nPart; ++j ) {
 		    tile->dx.f[j] += cx - pkd->ilp->cx;
 		    tile->dy.f[j] += cy - pkd->ilp->cy;
@@ -736,7 +734,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 		    */
 		    ++iStack;
 		    assert(iStack < pkd->nMaxStack);
-		    pkd->S[iStack].nPart = ilpCount(pkd->ilp);
+		    ilpCheckPt(pkd->ilp,&pkd->S[iStack].PartChkPt);
 		    pkd->S[iStack].nCell = nCell;
 		    pkd->S[iStack].nCheck = nCheck;
 		    /*
@@ -879,7 +877,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 	** Pop the Checklist from the top of the stack,
 	** also getting the state of the interaction list.
 	*/
-	ilpSetCount(pkd->ilp,pkd->S[iStack].nPart);
+	ilpRestore(pkd->ilp,&pkd->S[iStack].PartChkPt);
 	nCell = pkd->S[iStack].nCell;
 	nCheck = pkd->S[iStack].nCheck;
 	/*
