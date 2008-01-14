@@ -116,7 +116,7 @@ void BuildTemp(PKD pkd,int iNode,int M,int bSqueeze) {
     int nBucket = 0;
     int nActive = 0;
 
-    assert(bSqueeze > 0);
+    //assert(bSqueeze > 0);
     /*
     ** Allocate stack!
     */
