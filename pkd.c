@@ -204,13 +204,7 @@ void pkdInitialize(PKD *ppkd,MDL mdl,int nStore,int nBucket,FLOAT *fPeriod,
     ** Tree walk stuff.
     */
     ilpInitialize(&pkd->ilp);
-    pkd->nMaxCell = 1000;
-#ifdef USE_SIMD_MOMR
-    pkd->ilc = SIMD_malloc(pkd->nMaxCell/4*sizeof(ILC));
-#else
-    pkd->ilc = malloc(pkd->nMaxCell*sizeof(ILC));
-#endif
-    assert(pkd->ilc != NULL);
+    ilcInitialize(&pkd->ilc);
     /*
     ** Allocate Checklist.
     */
@@ -252,7 +246,7 @@ void pkdFinish(PKD pkd) {
     ** Free Interaction lists.
     */
     ilpFinish(pkd->ilp);
-    free(pkd->ilc);
+    ilcFinish(pkd->ilc);
     /*
     ** Free checklist.
     */

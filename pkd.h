@@ -10,6 +10,7 @@
 #include "parameters.h"
 
 #include "ilp.h"
+#include "ilc.h"
 #include "moments.h"
 #include "cosmo.h"
 #ifdef USE_HDF5
@@ -433,7 +434,7 @@ typedef struct CheckElt {
 
 typedef struct CheckStack {
     ILPCHECKPT PartChkPt;
-    int nCell;
+    ILCCHECKPT CellChkPt;
     int nCheck;
     CELT *Check;
     LOCR L;
@@ -585,8 +586,7 @@ typedef struct pkdContext {
     int nMaxCheck;
     CELT *Check;
     ILP ilp;
-    int nMaxCell;
-    ILC *ilc;
+    ILC ilc;
     /*
     ** New activation methods
     */
