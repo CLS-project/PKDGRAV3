@@ -20,10 +20,16 @@ AC_DEFINE([FLOAT_MAXVAL],HUGE,
 
 # Local expansions
 AC_ARG_ENABLE(local-expansion,
-  [  --enable-local-expansion       enable local expansion code (experimental)],
-  [LOCAL_EXPANSION=yes
+  [  --enable-local-expansion       enable local expansion code],
+  [LOCAL_EXPANSION=yes])
+# Local expansions
+AC_ARG_ENABLE(fmm,
+  [  --enable-fmm                   enable local expansion code],
+  [LOCAL_EXPANSION=yes])
+if test "x$LOCAL_EXPANSION" = "xyes" ; then
    AC_DEFINE([LOCAL_EXPANSION], 1,
- 	[Define if local expansions should be used.])])
+ 	[Define if local expansions should be used.])
+fi
 AM_CONDITIONAL(LOCAL_EXPANSION, test "x$LOCAL_EXPANSION" = "xyes")
 
 # With particle-cell interactions
