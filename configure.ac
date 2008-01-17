@@ -119,52 +119,53 @@ AC_ARG_ENABLE(simd,
   [USE_SIMD=yes
    AC_DEFINE([USE_SIMD], 1,
  	[Define if SIMD optimizations should be used.])])
-AM_CONDITIONAL(USE_SIMD, test "x$USE_SIMD" = "xyes")
 
+USE_SIMD_LOCR="no"
 AC_ARG_ENABLE(simd-locr,
   [  --enable-simd-locr            enable LOCR SIMD optimizations (experimental)],
   [if test "x$enableval" = "xyes" ; then
      USE_SIMD_LOCR="yes"
    elif test "x$enableval" = "xno" ; then
      USE_SIMD_LOCR="no"
-   else
-     USE_SIMD_LOCR="no"
    fi])
-if test "x$USE_SIMD_LOCR" != "xno" -a "x$USE_SIMD" = "xyes" -a "x$LOCAL_EXPANSIO" = "xyes" ; then
+if test "x$USE_SIMD_LOCR" == "xyes" -a "x$LOCAL_EXPANSION" = "xyes" ; then
+  USE_SIMD=yes
   AC_DEFINE([USE_SIMD_LOCR],1, 
  	[Define if SIMD optimizations should be used for LOCRs.])
 fi
 AM_CONDITIONAL(USE_SIMD_LOCR,test "x$USE_SIMD_LOCR" != "xno")
 
+USE_SIMD_MOMR="no"
 AC_ARG_ENABLE(simd-momr,
-  [  --disable-simd-momr            disable MOMR SIMD optimizations],
+  [  --enable-simd-momr             enable MOMR SIMD optimizations],
   [if test "x$enableval" = "xyes" ; then
      USE_SIMD_MOMR="yes"
    elif test "x$enableval" = "xno" ; then
      USE_SIMD_MOMR="no"
-   else
-     USE_SIMD_MOMR="$USE_SIMD"
    fi])
-if test "x$USE_SIMD_MOMR" != "xno" -a "x$USE_SIMD" = "xyes" ; then
+if test "x$USE_SIMD_MOMR" = "xyes" ; then
+  USE_SIMD=yes
   AC_DEFINE([USE_SIMD_MOMR],1, 
  	[Define if SIMD optimizations should be used for MOMRs.])
 fi
 AM_CONDITIONAL(USE_SIMD_MOMR,test "x$USE_SIMD_MOMR" != "xno")
 
+USE_SIMD_PP="$USE_SIMD"
 AC_ARG_ENABLE(simd-pp,
   [  --disable-simd-pp              disable PP SIMD optimizations],
   [if test "x$enableval" = "xyes" ; then
      USE_SIMD_PP="yes"
    elif test "x$enableval" = "xno" ; then
      USE_SIMD_PP="no"
-   else
-     USE_SIMD_PP="$USE_SIMD"
    fi])
-if test "x$USE_SIMD_PP" != "xno" -a "x$USE_SIMD" = "xyes" ; then
+if test "x$USE_SIMD_PP" == "xyes" ; then
+  USE_SIMD=yes
   AC_DEFINE([USE_SIMD_PP],1, 
  	[Define if SIMD optimizations should be used for PP interactions.])
 fi
-AM_CONDITIONAL(USE_SIMD_PP,test "x$USE_SIMD_PP" != "xno")
+AM_CONDITIONAL(USE_SIMD_PP,test "x$USE_SIMD_PP" == "xyes")
+
+AM_CONDITIONAL(USE_SIMD, test "x$USE_SIMD" = "xyes")
 
 AC_ARG_ENABLE(simd-locr,
   [  --disable-simd-locr            disable LOCR SIMD optimizations],
