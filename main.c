@@ -399,18 +399,18 @@ int main(int argc,char **argv) {
     /* No steps were requested */
     else {
 	struct inInitDt in;
-	msrActiveRung(msr,0,1); /* Activate all particles */
 
 	in.dDelta = 1e37;		/* large number */
 	pstInitDt(msr->pst,&in,sizeof(in),NULL,NULL);
     
 	fprintf(stderr,"Initialized Accel and dt\n");
 
-	msrDomainDecomp(msr,0,1,0);
-	msrUpdateSoft(msr,dTime);
-	msrBuildTree(msr,dMass,dTime,msr->param.bEwald);
-
 	if (msrDoGravity(msr)) {
+	    msrActiveRung(msr,0,1); /* Activate all particles */
+	    msrDomainDecomp(msr,0,1,0);
+	    msrUpdateSoft(msr,dTime);
+	    msrBuildTree(msr,dMass,dTime,msr->param.bEwald);
+
 	    msrGravity(msr,dTime,msr->param.iStartStep,msr->param.bEwald,&iSec,&nActive);
 	    if (msr->param.bGravStep && msr->param.iTimeStepCrit == -1) {
 		msrGravity(msr,dTime,msr->param.iStartStep,msr->param.bEwald,&iSec,&nActive);
@@ -433,6 +433,10 @@ int main(int argc,char **argv) {
 	    msrOutArray(msr,achFile,OUT_POT_ARRAY);
 	    }
 	if (msrDoDensity(msr) || msr->param.bDensityStep || msr->param.nFindGroups) {
+	    msrActiveRung(msr,0,1); /* Activate all particles */
+	    msrDomainDecomp(msr,0,1,0);
+	    msrBuildTree(msr,dMass,dTime,msr->param.bEwald);
+
 	    bGasOnly = 0;
 	    bSymmetric = 1;
 	    msrSmooth(msr,dTime,SMX_DENSITY,bGasOnly,bSymmetric,TYPE_ALL);
