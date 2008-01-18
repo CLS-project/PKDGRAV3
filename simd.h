@@ -35,6 +35,11 @@ typedef vector bool int v4bool;
 typedef vector bool int v4i;
 #endif
 
+typedef union {
+    v4sf p;
+    float f[4];
+} v4;
+
 #if defined(HAVE_POSIX_MEMALIGN)
 static inline void * SIMD_malloc( size_t newSize )
 {
@@ -168,12 +173,9 @@ static inline float SIMD_HADD(v4sf p) {
 }
 #else
 static inline float SIMD_HADD(v4sf p) {
-    union {
-	v4sf p;
-	float f[4];
-    } r;
+    v4 r;
     r.p = p;
-    return = r.f[0] + r.f[1] + r.f[2] + r.f[3];
+    return r.f[0] + r.f[1] + r.f[2] + r.f[3];
 }
 #endif
 
