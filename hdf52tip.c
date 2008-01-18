@@ -11,9 +11,12 @@
 
 #define BUFFER_SIZE (8*1024*1024)
 
+#define OPT_DOUBLE 'd'
+
 int main( int argc, char *argv[] )
 {
     int bError = 0;
+    int bDouble = 0;
     const char *inName  = 0;
     const char *outName = 0;
 
@@ -36,14 +39,18 @@ int main( int argc, char *argv[] )
         int c, option_index=0;
 
         static struct option long_options[] = {
+            { "double",       0, 0, OPT_DOUBLE },
             { NULL,   0, 0, 0 },
         };
 
-        c = getopt_long( argc, argv, "",
+        c = getopt_long( argc, argv, "d",
                          long_options, &option_index );
         if ( c == -1 ) break;
 
         switch(c) {
+	case OPT_DOUBLE:
+	    bDouble = 1;
+	    break;
 	default:
 	    bError = 1;
 	    break;
@@ -99,7 +106,7 @@ int main( int argc, char *argv[] )
     nPad  = 0;
     nBodies = nGas + nDark + nStar;
 
-    printf( "%"PRIu64" dark, %"PRIu64" gas, %"PRIu64" star, %"PRIu64" total\n",
+    printf( "%u dark, %u gas, %u star, %u total\n",
 	    nDark, nGas, nStar, nBodies );
 
     /* Tipsy Header */
@@ -127,9 +134,16 @@ int main( int argc, char *argv[] )
 	}
 
 	fTemp = fMass; xdr_float(&xdr,&fTemp);
-	fTemp = r[0];  xdr_float(&xdr,&fTemp);
-	fTemp = r[1];  xdr_float(&xdr,&fTemp);
-	fTemp = r[2];  xdr_float(&xdr,&fTemp);
+	if ( bDouble ) {
+	    xdr_double(&xdr,&r[0]);
+	    xdr_double(&xdr,&r[1]);
+	    xdr_double(&xdr,&r[2]);
+	}
+	else {
+	    fTemp = r[0];  xdr_float(&xdr,&fTemp);
+	    fTemp = r[1];  xdr_float(&xdr,&fTemp);
+	    fTemp = r[2];  xdr_float(&xdr,&fTemp);
+	}
 	fTemp = v[0];  xdr_float(&xdr,&fTemp);
 	fTemp = v[1];  xdr_float(&xdr,&fTemp);
 	fTemp = v[2];  xdr_float(&xdr,&fTemp);
