@@ -28,6 +28,9 @@ void csmInitialize(CSM *pcsm)
     csm->dHubble0 = 0.0;
     csm->dOmega0 = 0.0;
     csm->dLambda = 0.0;
+    csm->dOmegaDE = 0.0;
+    csm->w0 = 0.0;
+    csm->wa = 0.0;
     csm->dOmegaRad = 0.0;
     csm->dOmegab = 0.0;
     csm->bComove = 0;
@@ -52,13 +55,14 @@ double dRombergO(void *CTX, double (*func)(void *, double), double a,
 double csmExp2Hub(CSM csm, double dExp)
 {
     double dOmegaCurve = 1.0 - csm->dOmega0 -
-	csm->dLambda - csm->dOmegaRad;
+	csm->dLambda - csm->dOmegaDE - csm->dOmegaRad;
     
     assert(dExp > 0.0);
     return csm->dHubble0
 	*sqrt(csm->dOmega0*dExp
 	      + dOmegaCurve*dExp*dExp
 	      + csm->dOmegaRad
+	      + csm->dOmegaDE*pow(dExp,1.0 - 3.0*(csm->w0 + csm->wa))*exp(-3.0*csm->wa*(1.0 - dExp))
 	      + csm->dLambda*dExp*dExp*dExp*dExp)/(dExp*dExp);
     }
 
