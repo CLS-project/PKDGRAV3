@@ -338,6 +338,15 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv)
     msr->param.csm->dLambda = 0.0;
     prmAddParam(msr->prm,"dLambda",2,&msr->param.csm->dLambda,
 		sizeof(double),"Lambda", "<dLambda> = 0.0");
+    msr->param.csm->dOmegaDE = 0.0;
+    prmAddParam(msr->prm,"dOmegaDE",2,&msr->param.csm->dOmegaDE,
+		sizeof(double),"OmDE", "Omega for Dark Energy using w0 and wa parameters: <dOmegaDE> = 0.0");
+    msr->param.csm->w0 = -1.0;
+    prmAddParam(msr->prm,"w0",2,&msr->param.csm->w0,
+		sizeof(double),"w0", "w0 parameter for Dark Energy <w0> = -1.0 (pure Lambda)");
+    msr->param.csm->wa = 0.0;
+    prmAddParam(msr->prm,"wa",2,&msr->param.csm->wa,
+		sizeof(double),"wa", "wa parameter for Dark Energy <wa> = 0.0 (pure Lambda)");
     msr->param.csm->dOmegaRad = 0.0;
     prmAddParam(msr->prm,"dOmegaRad",2,&msr->param.csm->dOmegaRad,
 		sizeof(double),"Omrad", "<dOmegaRad> = 0.0");
@@ -850,6 +859,9 @@ void msrLogParams(MSR msr,FILE *fp)
 	fprintf(fp,"\n# dHubble0: %g",msr->param.csm->dHubble0);
 	fprintf(fp," dOmega0: %g",msr->param.csm->dOmega0);
 	fprintf(fp," dLambda: %g",msr->param.csm->dLambda);
+	fprintf(fp," dOmegaDE: %g",msr->param.csm->dOmegaDE);
+	fprintf(fp," w0: %g",msr->param.csm->w0);
+	fprintf(fp," wa: %g",msr->param.csm->wa);
 	fprintf(fp," dOmegaRad: %g",msr->param.csm->dOmegaRad);
 	fprintf(fp," dOmegab: %g",msr->param.csm->dOmegab);
 	fprintf(fp,"\n# achInFile: %s",msr->param.achInFile);
@@ -1820,6 +1832,9 @@ void msrSaveParameters(MSR msr, IOHDF5 io)
     ioHDF5WriteAttribute( io, "dHubble0", H5T_NATIVE_DOUBLE, &msr->param.csm->dHubble0 );
     ioHDF5WriteAttribute( io, "dOmega0", H5T_NATIVE_DOUBLE, &msr->param.csm->dOmega0 );
     ioHDF5WriteAttribute( io, "dLambda", H5T_NATIVE_DOUBLE, &msr->param.csm->dLambda );
+    ioHDF5WriteAttribute( io, "dOmegaDE", H5T_NATIVE_DOUBLE, &msr->param.csm->dOmegaDE );
+    ioHDF5WriteAttribute( io, "w0", H5T_NATIVE_DOUBLE, &msr->param.csm->w0 );
+    ioHDF5WriteAttribute( io, "wa", H5T_NATIVE_DOUBLE, &msr->param.csm->wa );
     ioHDF5WriteAttribute( io, "dOmegaRad", H5T_NATIVE_DOUBLE, &msr->param.csm->dOmegaRad );
     ioHDF5WriteAttribute( io, "dOmegab", H5T_NATIVE_DOUBLE, &msr->param.csm->dOmegab );
     ioHDF5WriteAttribute( io, "dRedTo", H5T_NATIVE_DOUBLE, &msr->param.dRedTo );
