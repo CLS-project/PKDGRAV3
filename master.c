@@ -2148,7 +2148,7 @@ void msrDomainDecomp(MSR msr,int iRung,int bGreater,int bSplitVA) {
 	in.bDoSplitDimFind = 1;
     }
     else if (iRung > iRungDD && !bSplitVA) {
-	if (msr->iLastRungRT > iRungRT) {
+	if (msr->iLastRungRT < iRungRT) {
 	    msr->iLastRungRT = iRungRT;
 	    msrActiveRung(msr,iRungRT,bGreater); 
 	    bRestoreActive = 1;
