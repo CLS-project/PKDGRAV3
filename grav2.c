@@ -50,39 +50,6 @@ static const struct CONSTS {
     } 
 
 
-static void HEAPrholocal(int n, int k, RHOLOCAL ra[]) {
-    int l,j,ir,i;
-    RHOLOCAL rra;
-
-    l=(n>>1)+1;
-    ir=n;
-
-    while (1) {
-        if (l > 1) {
-            rra = ra[--l-1];
-            }
-        else {
-            rra = ra[ir-1];
-            ra[ir-1] = ra[0];
-            if (--ir == n-k) {
-                ra[0] = rra;
-                return;
-                }
-            }
-        i = l;
-        j = (l<<1);
-        while (j <= ir) {
-            if (j < ir && ra[j-1].d2 > ra[j].d2) ++j; /* k smallest elements at the end */
-            if (rra.d2 > ra[j-1].d2) {
-                ra[i-1] = ra[j-1];
-                j += (i=j);
-                }
-            else j = ir+1;
-            }
-        ra[i-1] = rra;
-        }
-    }
-
 /*
 ** This version of grav.c does all the operations inline, including 
 ** v_sqrt's and such.
@@ -95,7 +62,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP ilp,ILC ilc,double dirLs
     const double onethird = 1.0/3.0;
     momFloat ax,ay,az,fPot;
     double x,y,z,d2,dir,dir2;
-    double fx, fy, fz;
+    float fx, fy, fz;
     momFloat adotai,maga,dimaga,dirsum,normsum;
     momFloat tax,tay,taz,tmon;
     double rholoc,dirDTS,d2DTS,dsmooth2;
@@ -114,7 +81,6 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP ilp,ILC ilc,double dirLs
     int i,j,k,nSP,nSoft,nActive;
 #if defined(USE_SIMD_PP)
     v4sf t1, t2, t3;
-    v4sf px, py, pz;
     v4sf pax, pay, paz;
     v4sf piax, piay, piaz;
     v4sf ppot, pmass, p4soft2;
@@ -125,14 +91,6 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP ilp,ILC ilc,double dirLs
     nCellILC = nCell;
     momPadSIMDMomr( &nCellILC, ilc );
 #endif
-    /*
-    ** dynamical time-stepping stuff
-    */
-    RHOLOCAL *rholocal;
-
-    //printf( "RHOLOCAL: %d\n", ilpCount(pkd->ilp) );
-    rholocal = malloc(ilpCount(pkd->ilp)*sizeof(RHOLOCAL));
-    assert(rholocal != NULL);
     /*
     ** Now process the two interaction lists for each active particle.
     */
@@ -250,73 +208,30 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP ilp,ILC ilc,double dirLs
 	ilp->cy = p[i].r[1];
 	ilp->cz = p[i].r[2];
 
-#if defined(USE_SIMD_PP)
-	px = SIMD_SPLAT(fx);
-	py = SIMD_SPLAT(fy);
-	pz = SIMD_SPLAT(fz);
 
-	ILP_LOOP(ilp,tile) {
-	    uint32_t n = tile->nPart >> ILP_ALIGN_BITS; /* # Packed floats */
-	    uint32_t r = tile->nPart &  ILP_ALIGN_MASK; /* Remaining */
+	ilpCompute(ilp,fx,fy,fz);
 
-	    if ( r != 0 ) {
-		for( j=r; j<ILP_ALIGN_SIZE; j++ ) {
-		    int o = (n<<ILP_ALIGN_BITS) + j;
-		    tile->d.dx.f[o] = tile->d.dy.f[o] = tile->d.dz.f[o] = 0;
-		    tile->d.m.f[o] = 0;
-		    tile->d.fourh2.f[o] = tile->d.fourh2.f[0];
-		}
-		n++;
-	    }
-	    for( j=0; j<n; j++ ) {
-		tile->d.dx.p[j] = t1 = SIMD_ADD(tile->d.dx.p[j],px);
-		tile->d.dy.p[j] = t2 = SIMD_ADD(tile->d.dy.p[j],py);
-		tile->d.dz.p[j] = t3 = SIMD_ADD(tile->d.dz.p[j],pz);
-		tile->d.d2.p[j] = SIMD_MADD(t3,t3,SIMD_MADD(t2,t2,SIMD_MUL(t1,t1)));
-	    }
-	}
-#else
-	ILP_LOOP(ilp,tile) {
-	    for (j=0;j<tile->nPart;++j) {
-		tile->d.dx.f[j] += fx;
-		tile->d.dy.f[j] += fy;
-		tile->d.dz.f[j] += fz;
-		tile->d.d2.f[j] = tile->d.dx.f[j]*tile->d.dx.f[j]
-		    + tile->d.dy.f[j]*tile->d.dy.f[j] + tile->d.dz.f[j]*tile->d.dz.f[j];
-	    }
-	}
-#endif
+
 	/*
 	** Calculate local density and kernel smoothing length for dynamical time-stepping
 	*/
 	if(pkd->param.bGravStep) {
 	    /*
-	    ** Add particles to array rholocal first
-	    */
-	    nPartX = 0;
-	    ILP_LOOP(ilp,tile) {
-		for (j=0;j<tile->nPart;++j) {
-		    rholocal[nPartX].m = tile->d.m.f[j];
-		    rholocal[nPartX].d2 = tile->d.d2.f[j];
-		    ++nPartX;
-		}
-	    }
-	    /*
 	    ** Calculate local density only in the case of more than 1 neighbouring particle!
 	    */
+	    nPartX = ilpCount(ilp);
 	    if (nPartX > 1) {
 		nSP = (nPartX < pkd->param.nPartRhoLoc)?nPartX:pkd->param.nPartRhoLoc;
-		HEAPrholocal(nPartX,nSP,rholocal);
-		dsmooth2 = rholocal[nPartX-nSP].d2;
+		dsmooth2 = ilpSelect(ilp,nSP);
 #ifdef USE_SIMD
 		psmooth2 = SIMD_SPLAT(dsmooth2);
 #endif
 		SQRT1(dsmooth2,dir);
 		dir2 = dir * dir;
-		for (j=(nPartX - nSP);j<nPartX;++j) {
-		    d2 = rholocal[j].d2*dir2;
+		for (j=0;j<nSP;++j) {
+		    d2 = ilp->first->s.d2.f[j]*dir2;
 		    d2 = (1-d2);
-		    rholoc += d2*rholocal[j].m;
+		    rholoc += d2*ilp->first->s.m.f[j];
 		    }
 		rholoc = 1.875*M_1_PI*rholoc*dir2*dir; /* F1 Kernel (15/8) */
 		}
@@ -479,10 +394,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP ilp,ILC ilc,double dirLs
 	    p[i].fDensity = rholoc;
 	}
 } /* end of i-loop cells & particles */
-    /*
-    ** Free time-step lists
-    */ 
-    free(rholocal);
+
     *pdFlop += nActive*(ilpCount(pkd->ilp)*40 + ilcCount(pkd->ilc)*200) + nSoft*15;
     return(nActive);
     }

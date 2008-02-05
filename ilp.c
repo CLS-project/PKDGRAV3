@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
 
@@ -78,4 +79,152 @@ void ilpFinish(ILP ilp)
     }
 
     free(ilp);
+}
+
+float ilpSelect(ILP ilp,uint32_t n)
+{
+    ILPTILE  tile, last, lower, upper;
+    size_t tile_i, last_i, lower_i, upper_i, m;
+    size_t j;
+    float v;
+    float cmp;
+
+#ifdef USE_SIMD_PP
+    ILP_LOOP(ilp,tile) {
+	uint32_t n = (tile->nPart+ILP_ALIGN_MASK) >> ILP_ALIGN_BITS;
+	for( j=0; j<n; j++ ) {
+	    tile->s.d2.p[j] = tile->d.d2.p[j];
+	    tile->s.m.p[j] = tile->d.m.p[j];
+	}
+    }
+#else
+    ILP_LOOP(ilp,tile) {
+	for( j=0; j<tile->nPart; j++ ) {
+	    tile->s.d2.f[j] = tile->d.d2.f[j];
+	    tile->s.m.f[j] = tile->d.m.f[j];
+	}
+    }
+#endif
+
+
+    /* If we have less than n particles, then there isn't any sense in partitioning. */
+    if ( ilpCount(ilp) <= n ) {
+	v = 0.0;
+	for(j=0;j<ilp->first->nPart;j++)
+	    if ( ilp->first->s.d2.f[j] > v )
+		v = ilp->first->s.d2.f[j];
+	return v;
+    }
+
+    tile = lower = ilp->first;
+    tile_i = lower_i = 0;
+    last = upper = ilp->tile;
+    last_i = upper_i = last->nPart-1;
+
+    for(;;) {
+	m = tile->nPart <= n*2 ? tile->nPart-1 : n*2;
+	if ( last == ilp->first && m > last_i ) m = last_i;
+	cmp = tile->s.d2.f[m];
+
+	for(;;) { /* Partition loop */
+	    for(;;) { /* Find a large value */
+		m = (tile != last) ? tile->nPart-1 : last_i;
+		while(tile_i<=m && tile->s.d2.f[tile_i] < cmp )
+		    tile_i++;
+		if ( tile != last && tile_i == tile->nPart ) {
+		    tile = tile->next;
+		    tile_i = 0;
+		}
+		else break;
+	    }
+	    for(;;) { /* Find a small value */
+		m = ( last != tile ) ? 0 : tile_i;
+		while(last_i > m && last->s.d2.f[last_i] > cmp )
+		    --last_i;
+		if ( last != tile && last_i == 0 && last->s.d2.f[0] > cmp ) {
+		    last = last->prev;
+		    last_i = last->nPart-1;
+		}
+		else
+		    break;
+	    }
+
+	    /* Swap the large and small values */
+	    if ( tile!=last || tile_i<last_i ) {
+		v = last->s.d2.f[last_i];
+		last->s.d2.f[last_i] = tile->s.d2.f[tile_i];
+		tile->s.d2.f[tile_i] = v;
+
+		v = last->s.m.f[last_i];
+		last->s.m.f[last_i] = tile->s.m.f[tile_i];
+		tile->s.m.f[tile_i] = v;
+		if ( tile != last || tile_i < last_i ) {
+		    if ( ++tile_i == tile->nPart ) {
+	     		tile = tile->next;
+			tile_i = 0;
+		    }
+		    if ( tile == last && tile_i == last_i ) break;
+		    if ( last_i-- == 0 ) {
+			last = last->prev;
+			last_i = last->nPart-1;
+		    }
+		}
+	    }
+	    else break;
+	}
+
+	/* Too many in the first partition */
+	if ( tile != ilp->first || tile_i > n ) {
+	    upper_i = tile_i;
+	    upper = tile;
+	    if ( upper_i-- == 0 ) {
+		upper = upper->prev;
+		upper_i = upper->nPart-1;
+	    }
+	}
+	/* Too few in this partition */
+	else if ( tile_i < n ) {
+	    lower = tile;
+	    lower_i = tile_i;
+	}
+	else break;
+
+	if ( upper == lower && upper_i <= lower_i ) break;
+
+	tile = lower;
+	tile_i = lower_i;
+
+	last = upper;
+	last_i = upper_i;
+
+    }
+
+    v = 0.0;
+    for(j=0;j<n;j++)
+	if ( ilp->first->s.d2.f[j] > v )
+	    v = ilp->first->s.d2.f[j];
+
+
+
+
+#if 0
+    // Check
+    float mn,mx;
+    mn = ilp->first->s.d2.f[0];
+    mx = ilp->first->s.d2.f[n];
+
+    ILP_LOOP(ilp,tile) {
+	for( j=0; j<tile->nPart; j++ ) {
+	    if ( tile == ilp->first && j<n ) {
+		if ( tile->s.d2.f[j] > mn ) mn = tile->s.d2.f[j];
+	    }
+	    else {
+		if ( tile->s.d2.f[j] < mx ) mx = tile->s.d2.f[j];
+	    }
+	}
+    }
+    assert( mn<=mx);
+#endif
+
+    return v;
 }
