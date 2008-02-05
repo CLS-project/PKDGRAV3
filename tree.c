@@ -426,7 +426,7 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp,int bTempBound) {
 	    ** Is this the deepest in the tree so far? We might need to have more stack
 	    ** elements for the tree walk!
 	    */
-	    if (nDepth > pkd->nMaxStack+1) {
+	    if (nDepth > pkd->nMaxStack/*+1*/) {
 		pkd->S = realloc(pkd->S,(pkd->nMaxStack+nMaxStackIncrease)*sizeof(CSTACK));
 		assert(pkd->S != NULL);
 		for (ism=pkd->nMaxStack;ism<(pkd->nMaxStack+nMaxStackIncrease);++ism) {
