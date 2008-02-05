@@ -25,7 +25,7 @@ int main( int argc, char *argv[] )
     FILE *fin;
     hid_t fileID, inID;
     IOHDF5 ioOut, ioIn;
-    //IOHDF5V ioPot;
+    IOHDF5V ioPot;
 
     int i;
     PINDEX iOrder;
@@ -82,7 +82,7 @@ int main( int argc, char *argv[] )
 
     ioOut = ioHDF5Initialize( fileID, 32768, 
 			      bDoublePos ? IOHDF5_DOUBLE : IOHDF5_SINGLE );
-    //ioPot  = ioHDFF5NewVector( ioOut, "potential",IOHDF5_SINGLE );
+    ioPot  = ioHDFF5NewVector( ioOut, "potential",IOHDF5_SINGLE );
 
 
     while( optind < argc ) {
@@ -108,7 +108,7 @@ int main( int argc, char *argv[] )
 
 	while( ioHDF5GetDark( ioIn, &iOrder, r, v, &fMass, &fSoft, &fPot ) ) {
 	    ioHDF5AddDark( ioOut, iOrder, r, v, fMass, fSoft, fPot );
-	    //ioHDF5AddVector( ioPot, iOrder, fPot );
+	    ioHDF5AddVector( ioPot, iOrder, fPot );
 	}
 
 
