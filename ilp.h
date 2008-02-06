@@ -132,11 +132,11 @@ float ilpSelect(ILP ilp,uint32_t n);
 
 static inline void ilpCompute(ILP ilp, float fx, float fy, float fz )
 {
-    v4sf px, py, pz, t1, t2, t3;
     ILPTILE tile;
     uint32_t j;
 
 #if defined(USE_SIMD_PP)
+    v4sf px, py, pz, t1, t2, t3;
     px = SIMD_SPLAT(fx);
     py = SIMD_SPLAT(fy);
     pz = SIMD_SPLAT(fz);
