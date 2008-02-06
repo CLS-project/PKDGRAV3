@@ -2653,6 +2653,7 @@ void msrGravity(MSR msr,double dTime,double dStep,int bEwald,
     dsec = msrTime() - sec;
 
     *piSec = dsec;
+    *pnActive = 0;
     for (id=0;id<msr->nThreads;++id) {
 	*pnActive += out[id].nActive;
 	}
