@@ -57,9 +57,13 @@ AC_ARG_WITH(hdf5,
    AC_DEFINE([USE_HDF5], 1,
  	[Define if HDF5 I/O should be available.])])
 
-AC_CHECK_FILE([../mdl2],
-	AC_SUBST([MDL_PATH],../mdl2),
-	AC_SUBST([MDL_PATH],../mdl))
+AC_ARG_WITH(mdl,
+  [  --with-mdl=PATH                base path of MDL source],
+  [AC_CHECK_FILE([${withval}],[MDL_PATH="${withval}"],[AC_MSG_ERROR([MDL does not exist at ${withval}])])],
+  [AC_CHECK_FILE([../mdl2],
+	[AC_SUBST([MDL_PATH],../mdl2)],
+	[AC_CHECK_FILE([../mdl],[AC_SUBST([MDL_PATH],../mdl)],[AC_MSG_ERROR([Cannot locate MDL, try --with-mdl=PATH])])]
+   )])
 
 # MDL dedicated I/O
 AC_ARG_ENABLE(mdl-io,
