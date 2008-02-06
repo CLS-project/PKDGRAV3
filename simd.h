@@ -21,7 +21,7 @@
 #error 'SIMD selected, but no known SIMD supported'
 #endif
 
-#ifdef HAVE_POSIX_MEMALIGN
+#if defined(HAVE_POSIX_MEMALIGN) || defined(HAVE_MEMALIGN)
 #include <stdlib.h>
 #endif
 
@@ -40,7 +40,10 @@ typedef union {
     float f[4];
 } v4;
 
-#if defined(HAVE_POSIX_MEMALIGN)
+#if defined(HAVE_MEMALIGN)
+#define SIMD_malloc(a) memalign(sizeof(v4sf),a)
+#define SIMD_free(a) free(a)
+#elif defined(HAVE_POSIX_MEMALIGN)
 static inline void * SIMD_malloc( size_t newSize )
 {
     void *np;
