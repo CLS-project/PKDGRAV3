@@ -238,6 +238,7 @@ double csmTime2Exp(CSM csm,double dTime) {
 	    }
 	assert(0);
 	}
+    return 0.0; /* We never reach here, but this keeps the compiler happy */
     }
 
 
