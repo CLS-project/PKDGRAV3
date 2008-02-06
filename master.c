@@ -645,6 +645,9 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv)
     if (msr->param.bEpsAccStep || msr->param.bSqrtPhiStep) {
 	msr->param.bAccelStep = 1;
 	}
+    else {
+	msr->param.bAccelStep = 0;
+    }
     if (msr->param.bGravStep) {
 	msr->param.bEpsAccStep = 0;   /* we must do this because the meaning of Eta is different */
 	}
