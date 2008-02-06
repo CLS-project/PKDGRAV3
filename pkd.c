@@ -262,6 +262,8 @@ void pkdFinish(PKD pkd) {
     free(pkd->ew.ewt);
     mdlFree(pkd->mdl,pkd->pStore);
     free(pkd->pLite);
+    free(pkd->piActive);
+    free(pkd->piInactive);
     csmFinish(pkd->param.csm);
     free(pkd);
     }

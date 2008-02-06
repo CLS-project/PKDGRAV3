@@ -993,6 +993,8 @@ void msrFinish(MSR msr)
     */
     prmFinish(msr->prm);
     free(msr->pMap);
+    free(msr->nRung);
+    free(msr->pdOutTime);
     free(msr);
     }
 
@@ -2695,6 +2697,7 @@ void msrGravity(MSR msr,double dTime,double dStep,int bEwald,
 	printf("Average Number of P-C per Active Particle:\n");
 	PRINTGRID("% 8.1f",dCellSum);
     }
+    free(out);
 }
 
 
