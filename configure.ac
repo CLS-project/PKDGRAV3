@@ -323,7 +323,6 @@ AC_CHECK_LIB([m], [fabs])
 
 if test "x$USE_SIMD" == "xyes" ; then
   AC_CHECK_FUNCS([posix_memalign],HAVE_POSIX_MEMALIGN=yes)
-  AC_CHECK_FUNCS([memalign],HAVE_MEMALIGN=yes)
 
   AC_MSG_CHECKING([if the compiler accepts -msse3])
   oldCFLAGS="$CFLAGS"; CFLAGS="-msse3"
@@ -369,10 +368,7 @@ if test "x$USE_SIMD" == "xyes" ; then
   fi
   AC_SUBST(SIMD_CFLAGS)
 fi
-if test "x$HAVE_MEMALIGN" == "xyes" ; then
-  AC_DEFINE([HAVE_MEMALIGN],1, 
- 	[Define if memalign should be used instead of malloc for SIMD.])
-elif test "x$HAVE_POSIX_MEMALIGN" == "xyes" ; then
+if test "x$HAVE_POSIX_MEMALIGN" == "xyes" ; then
   AC_DEFINE([HAVE_POSIX_MEMALIGN],1, 
  	[Define if posix_memalign should be used instead of malloc for SIMD.])
   AC_DEFINE([_GNU_SOURCE],1,
