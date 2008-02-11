@@ -79,6 +79,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP ilp,ILC ilc,double dirLs
     int nPartX;
     double fourh2;
     int i,j,k,nSP,nSoft,nActive;
+    float rMax;
 #if defined(USE_SIMD_PP)
     v4sf t1, t2, t3;
     v4sf pax, pay, paz;
@@ -96,6 +97,11 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP ilp,ILC ilc,double dirLs
     */
     nActive = 0;
     nSoft = 0;
+    //rMax = 0.0;
+    rMax = pkd->param.nPartRhoLoc/(pkdn->pUpper-pkdn->pLower+1)
+	*(pkdn->bnd.fMax[0]*pkdn->bnd.fMax[0]
+	    + pkdn->bnd.fMax[1]*pkdn->bnd.fMax[1]
+	    + pkdn->bnd.fMax[2]*pkdn->bnd.fMax[2]);
     for (i=pkdn->pLower;i<=pkdn->pUpper;++i) {
 	if (!pkdIsActive(pkd,&p[i])) continue;
 	++nActive;
@@ -222,7 +228,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP ilp,ILC ilc,double dirLs
 	    nPartX = ilpCount(ilp);
 	    if (nPartX > 1) {
 		nSP = (nPartX < pkd->param.nPartRhoLoc)?nPartX:pkd->param.nPartRhoLoc;
-		dsmooth2 = ilpSelect(ilp,nSP);
+		dsmooth2 = ilpSelect(ilp,nSP,&rMax);
 #ifdef USE_SIMD
 		psmooth2 = SIMD_SPLAT(dsmooth2);
 #endif

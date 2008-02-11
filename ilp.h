@@ -92,7 +92,7 @@ static inline uint32_t ilpCount(ILP ilp) {
     return ilp->nPrevious + ilp->tile->nPart;
 }
 
-float ilpSelect(ILP ilp,uint32_t n);
+float ilpSelect(ILP ilp,uint32_t n,float *rMax);
 
 #if defined(SYMBA) || defined(PLANETS)
 #define ilpAppend_1(ilp,I) tile->d.iOrder.i[i] = (I);

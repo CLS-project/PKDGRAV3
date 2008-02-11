@@ -81,7 +81,7 @@ void ilpFinish(ILP ilp)
     free(ilp);
 }
 
-float ilpSelect(ILP ilp,uint32_t n)
+float ilpSelect(ILP ilp,uint32_t n, float *rMax)
 {
     ILPTILE  tile, last, lower, upper;
     size_t tile_i, last_i, lower_i, upper_i, m;
@@ -121,11 +121,11 @@ float ilpSelect(ILP ilp,uint32_t n)
     last = upper = ilp->tile;
     last_i = upper_i = last->nPart-1;
 
+    cmp = *rMax;
+    //m = tile->nPart <= n*2 ? tile->nPart-1 : n*2;
+    //if ( last == ilp->first && m > last_i ) m = last_i;
+    //cmp = tile->s.d2.f[m];
     for(;;) {
-	m = tile->nPart <= n*2 ? tile->nPart-1 : n*2;
-	if ( last == ilp->first && m > last_i ) m = last_i;
-	cmp = tile->s.d2.f[m];
-
 	for(;;) { /* Partition loop */
 	    for(;;) { /* Find a large value */
 		m = (tile != last) ? tile->nPart-1 : last_i;
@@ -197,15 +197,15 @@ float ilpSelect(ILP ilp,uint32_t n)
 	last = upper;
 	last_i = upper_i;
 
+	m = tile->nPart <= n*2 ? tile->nPart-1 : n*2;
+	if ( last == ilp->first && m > last_i ) m = last_i;
+	cmp = tile->s.d2.f[m];
     }
 
     v = 0.0;
     for(j=0;j<n;j++)
 	if ( ilp->first->s.d2.f[j] > v )
 	    v = ilp->first->s.d2.f[j];
-
-
-
 
 #if 0
     // Check
@@ -225,6 +225,9 @@ float ilpSelect(ILP ilp,uint32_t n)
     }
     assert( mn<=mx);
 #endif
+
+    /* Estimate a sensible rMax based on this rMax */
+    *rMax = v * 1.05;
 
     return v;
 }
