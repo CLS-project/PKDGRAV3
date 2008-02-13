@@ -554,6 +554,12 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv)
 	    _msrExit(msr,1);
 	    }
 	}
+
+    if ( msr->param.dFracNoDomainDecomp > msr->param.dFracNoDomainRootFind
+	 || msr->param.dFracNoDomainRootFind > msr->param.dFracNoDomainDimChoice ) {
+	puts("ERROR: check that dFracNoDomainDecomp <= dFracNoDomainRootFind <= dFracNoDomainDimChoice");
+	_msrExit(msr,1);
+	}
    
     msr->nThreads = mdlThreads(mdl);
 	
