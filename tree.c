@@ -100,6 +100,7 @@ void InitializeParticles(PKD pkd,int bExcludeVeryActive) {
 /*
 ** M is the bucket size.
 */
+#define TEMP_S_INCREASE 100
 void BuildTemp(PKD pkd,int iNode,int M,int bSqueeze) {
     PLITE *p = pkd->pLite;
     PLITE t;
@@ -120,8 +121,7 @@ void BuildTemp(PKD pkd,int iNode,int M,int bSqueeze) {
     /*
     ** Allocate stack!
     */
-    ns = floor(log(((double)(pkd->nLocal+1))/(M+1))/log(2.0));
-    if (ns < 1) ns = 1;	/* want to allocate something! */	
+    ns = TEMP_S_INCREASE;
     s = 0;
     S = malloc(ns*sizeof(int));
     assert(S != NULL);
@@ -307,6 +307,12 @@ void BuildTemp(PKD pkd,int iNode,int M,int bSqueeze) {
 	MAXSIDE(pkd->kdNodes[iRight].bnd.fMax,rs);
 
 	if (rc && lc) {
+	    /* Allocate more stack if required */
+	    if ( s+1 >= ns ) {
+		assert( s+1 == ns );
+		ns += TEMP_S_INCREASE;
+		S = realloc(S,ns*sizeof(int));
+	    }
 	    if (nr > nl) {
 		S[s++] = iRight;	/* push tr */
 		iNode = iLeft;		/* process lower subfile */
