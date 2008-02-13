@@ -556,8 +556,9 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv)
 	}
 
     if ( msr->param.dFracNoDomainDecomp > msr->param.dFracNoDomainRootFind
-	 || msr->param.dFracNoDomainRootFind > msr->param.dFracNoDomainDimChoice ) {
-	puts("ERROR: check that dFracNoDomainDecomp <= dFracNoDomainRootFind <= dFracNoDomainDimChoice");
+	 || msr->param.dFracNoDomainRootFind > msr->param.dFracNoDomainDimChoice
+	 || msr->param.dFracNoDomainDecomp<0.0 || msr->param.dFracNoDomainDimChoice > 1.0 ) {
+	puts("ERROR: check that 0 <= dFracNoDomainDecomp <= dFracNoDomainRootFind <= dFracNoDomainDimChoice <= 1");
 	_msrExit(msr,1);
 	}
    
