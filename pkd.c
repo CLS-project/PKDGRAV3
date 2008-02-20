@@ -376,8 +376,9 @@ void pkdGenerateIC(PKD pkd, GRAFICCTX gctx,  int iDim,
 		p->a[0] = p->a[1] = p->a[2] = 0.0;
 
 		p->r[d] = graficGetPosition(gctx,i,j,k,d) - 0.5;
+		if ( p->r[d] < -0.5 ) p->r[d] += 1.0;
+		if ( p->r[d] >= 0.5 ) p->r[d] -= 1.0;
 		assert( p->r[d] >= -0.5 && p->r[d] < 0.5 );
-
 		p->v[d] = graficGetVelocity(gctx,i,j,k) * dvFac;
 		p->fSoft   = fSoft;
 #ifdef CHANGESOFT
