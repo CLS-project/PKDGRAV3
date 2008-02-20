@@ -1188,9 +1188,6 @@ int xdrHeader(XDR *pxdrs,struct dump *ph)
     return 1;
     }
 
-
-#ifdef USE_HDF5
-
 double getTime(MSR msr, double dExpansion, double *dvFac) {
     double dTime,aTo,tTo,z;
     if (msr->param.csm->bComove) {
@@ -1309,50 +1306,7 @@ double getTime(MSR msr, double dExpansion, double *dvFac) {
     return dTime;
 }
 
-#ifdef USE_GRAFIC
-double msrGenerateIC(MSR msr)
-{
-    struct inGenerateIC in;
-    struct outGenerateIC out;
-    struct inSetParticleTypes intype;
-    int nOut;
-    double dvFac;
-
-    in.h = msr->param.h;
-    in.dBoxSize = msr->param.dBoxSize;
-    in.iSeed = msr->param.iSeed;
-    in.nGrid = msr->param.nGrid;
-    in.omegac= msr->param.csm->dOmega0 - msr->param.csm->dOmegab;
-    in.omegab= msr->param.csm->dOmegab;
-    in.omegav= msr->param.csm->dLambda;
-    in.bCannonical = msr->param.bCannonical && msr->param.csm->bComove;
-    in.fExtraStore = msr->param.dExtraStore;
-    in.fPeriod[0] = msr->param.dxPeriod;
-    in.fPeriod[1] = msr->param.dyPeriod;
-    in.fPeriod[2] = msr->param.dzPeriod;
-    in.nBucket = msr->param.nBucket;
-
-    msr->nDark = in.nGrid * in.nGrid * in.nGrid;
-    msr->nGas  = 0;
-    msr->nStar = 0;
-    msr->N = msr->nDark+msr->nGas+msr->nStar;
-    msr->nMaxOrder = msr->N;
-    msr->nMaxOrderGas = msr->nGas;
-    msr->nMaxOrderDark = msr->nGas + msr->nDark;
-
-    if (msr->param.bVStart)
-	printf("Generating IC...\nN:%"PRIu64" nDark:%"PRIu64
-	       " nGas:%"PRIu64" nStar:%"PRIu64"\n",
-	       msr->N, msr->nDark,msr->nGas,msr->nStar);
-
-
-    pstGenerateIC(msr->pst,&in,sizeof(in),&out,&nOut);
-    pstSetParticleTypes(msr->pst, &intype, sizeof(intype), NULL, NULL);
-
-    return getTime(msr,out.dExpansion,&dvFac);
-}
-#endif
-
+#ifdef USE_HDF5
 #ifdef USE_MDL_IO
 static double _msrIORead(MSR msr, const char *achFilename, int iStep )
 {
@@ -1549,6 +1503,50 @@ static double _msrReadHDF5(MSR msr, const char *achFilename)
 	if (dTime < msr->pdOutTime[msr->iOut]) break;
 	}
     return(dTime);
+}
+#endif
+
+#ifdef USE_GRAFIC
+double msrGenerateIC(MSR msr)
+{
+    struct inGenerateIC in;
+    struct outGenerateIC out;
+    struct inSetParticleTypes intype;
+    int nOut;
+    double dvFac;
+
+    in.h = msr->param.h;
+    in.dBoxSize = msr->param.dBoxSize;
+    in.iSeed = msr->param.iSeed;
+    in.nGrid = msr->param.nGrid;
+    in.omegac= msr->param.csm->dOmega0 - msr->param.csm->dOmegab;
+    in.omegab= msr->param.csm->dOmegab;
+    in.omegav= msr->param.csm->dLambda;
+    in.bCannonical = msr->param.bCannonical && msr->param.csm->bComove;
+    in.fExtraStore = msr->param.dExtraStore;
+    in.fPeriod[0] = msr->param.dxPeriod;
+    in.fPeriod[1] = msr->param.dyPeriod;
+    in.fPeriod[2] = msr->param.dzPeriod;
+    in.nBucket = msr->param.nBucket;
+
+    msr->nDark = in.nGrid * in.nGrid * in.nGrid;
+    msr->nGas  = 0;
+    msr->nStar = 0;
+    msr->N = msr->nDark+msr->nGas+msr->nStar;
+    msr->nMaxOrder = msr->N;
+    msr->nMaxOrderGas = msr->nGas;
+    msr->nMaxOrderDark = msr->nGas + msr->nDark;
+
+    if (msr->param.bVStart)
+	printf("Generating IC...\nN:%"PRIu64" nDark:%"PRIu64
+	       " nGas:%"PRIu64" nStar:%"PRIu64"\n",
+	       msr->N, msr->nDark,msr->nGas,msr->nStar);
+
+
+    pstGenerateIC(msr->pst,&in,sizeof(in),&out,&nOut);
+    pstSetParticleTypes(msr->pst, &intype, sizeof(intype), NULL, NULL);
+
+    return getTime(msr,out.dExpansion,&dvFac);
 }
 #endif
 
