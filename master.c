@@ -519,6 +519,9 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv)
     msr->param.iSeed = 0;
     prmAddParam(msr->prm,"iSeed",1,&msr->param.iSeed,
 		sizeof(int),"seed","<Random seed for IC> = 0");	
+    msr->param.bWriteIC = 0;
+    prmAddParam(msr->prm,"bWriteIC",1,&msr->param.bWriteIC,
+		sizeof(int),"wic","<Write IC after generating> = 0");	
 #endif
 
 
@@ -1281,9 +1284,6 @@ double getTime(MSR msr, double dExpansion, double *dvFac) {
 		printf("Simulation to Time:%g Redshift:%g Expansion factor:%g\n",
 		       tTo,1.0/aTo-1.0,aTo);
 	    }
-	if (msr->param.bVStart)
-	    printf("Reading file...\nN:%"PRIu64" nDark:%"PRIu64" nGas:%"PRIu64" nStar:%"PRIu64"\n",msr->N,
-		   msr->nDark,msr->nGas,msr->nStar);
 	if (msr->param.bCannonical) {
 	    *dvFac = dExpansion*dExpansion;
 	    }
@@ -1297,8 +1297,6 @@ double getTime(MSR msr, double dExpansion, double *dvFac) {
 	tTo = dTime + (msr->param.nSteps - msr->param.iStartStep)*msr->param.dDelta;
 	if (msr->param.bVStart) {
 	    printf("Simulation to Time:%g\n",tTo);
-	    printf("Reading file...\nN:%"PRIu64" nDark:%"PRIu64" nGas:%"PRIu64" nStar:%"PRIu64" Time:%g\n",
-		   msr->N,msr->nDark,msr->nGas,msr->nStar,dTime);
 	    }
 	*dvFac = 1.0;
 	}
@@ -1373,6 +1371,9 @@ static double _msrIORead(MSR msr, const char *achFilename, int iStep )
     msr->nMaxOrderDark = msr->nGas + msr->nDark;
 
     dTime = getTime(msr,outPlan.dExpansion,&dvFac);
+    if (msr->param.bVStart)
+	printf("Reading file...\nN:%"PRIu64" nDark:%"PRIu64" nGas:%"PRIu64" nStar:%"PRIu64"\n",msr->N,
+		   msr->nDark,msr->nGas,msr->nStar);
 
     /* Fire up the load process.  The I/O processors will enter start an
      mdlSend() eventually (after loading the data). */
@@ -1461,6 +1462,9 @@ static double _msrReadHDF5(MSR msr, const char *achFilename)
     H5Fclose(fileID);
 
     dTime = getTime(msr,dExpansion,&in.dvFac);
+    if (msr->param.bVStart)
+	printf("Reading file...\nN:%"PRIu64" nDark:%"PRIu64" nGas:%"PRIu64" nStar:%"PRIu64"\n",msr->N,
+		   msr->nDark,msr->nGas,msr->nStar);
 
     in.nFileStart = 0;
     in.nFileEnd = msr->N - 1;
@@ -1513,6 +1517,7 @@ double msrGenerateIC(MSR msr)
     struct outGenerateIC out;
     struct inSetParticleTypes intype;
     int nOut;
+    double sec,dsec;
     double dvFac;
 
     in.h = msr->param.h;
@@ -1542,8 +1547,14 @@ double msrGenerateIC(MSR msr)
 	       " nGas:%"PRIu64" nStar:%"PRIu64"\n",
 	       msr->N, msr->nDark,msr->nGas,msr->nStar);
 
-
+    sec = msrTime();
     pstGenerateIC(msr->pst,&in,sizeof(in),&out,&nOut);
+    dsec = msrTime() - sec;
+    if (msr->param.bVDetails) {
+	dsec = msrTime() - sec;
+	printf("IC Generation Complete, Wallclock: %f secs\n\n",dsec);
+	}
+
     pstSetParticleTypes(msr->pst, &intype, sizeof(intype), NULL, NULL);
 
     return getTime(msr,out.dExpansion,&dvFac);
@@ -1711,9 +1722,6 @@ static double _msrReadTipsy(MSR msr, const char *achFilename)
 		printf("Simulation to Time:%g Redshift:%g Expansion factor:%g\n",
 		       tTo,1.0/aTo-1.0,aTo);
 	    }
-	if (msr->param.bVStart)
-	    printf("Reading file...\nN:%"PRIu64" nDark:%"PRIu64" nGas:%"PRIu64" nStar:%"PRIu64"\n",msr->N,
-		   msr->nDark,msr->nGas,msr->nStar);
 	if (msr->param.bCannonical) {
 	    in.dvFac = dExpansion*dExpansion;
 	    }

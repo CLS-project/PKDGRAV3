@@ -148,6 +148,7 @@ struct parameters {
     double dBoxSize;
     int nGrid;
     int iSeed;
+    int bWriteIC;
     };
 
 #endif

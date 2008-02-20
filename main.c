@@ -139,7 +139,8 @@ int main(int argc,char **argv) {
     if (prmSpecified(msr->prm,"nGrid")) {
 	dTime = msrGenerateIC(msr);
 	msrBuildIoName(msr,achFile,0);
-	msrWrite( msr,achFile,dTime,0);
+	if ( msr->param.bWriteIC )
+	    msrWrite( msr,achFile,dTime,0);
     }
     else {
 #endif
