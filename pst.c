@@ -3702,8 +3702,8 @@ void pstGenerateIC(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 	int d;
 
 	nTotal = in->nGrid * in->nGrid * in->nGrid;
-	nLocal = nTotal / pst->nLeaves;
-	nStore = nTotal + (int)ceil(nTotal*in->fExtraStore);
+	nLocal = nTotal / mdlThreads(pst->mdl);
+	nStore = nLocal + (int)ceil(nLocal*in->fExtraStore);
 
 	pkdInitialize(&plcl->pkd,pst->mdl,nStore,in->nBucket,in->fPeriod,
 		      nTotal,0,0);
