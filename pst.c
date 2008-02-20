@@ -20,7 +20,9 @@
 #include "pkd.h"	
 #include "outtype.h"
 #include "smooth.h"
-
+#ifdef USE_GRAFIC
+#include "grafic.h"
+#endif
 
 void pstAddServices(PST pst,MDL mdl)
     {
@@ -322,6 +324,11 @@ void pstAddServices(PST pst,MDL mdl)
 		  sizeof(struct inKeplerDrift),0);
 #endif /* SYMBA */ 
 #endif /* PLANETS */
+#ifdef USE_GRAFIC
+    mdlAddService(mdl,PST_GENERATEIC,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstGenerateIC,
+		  sizeof(struct inGenerateIC),sizeof(struct outGenerateIC));
+#endif
     }
 
 void pstInitialize(PST *ppst,MDL mdl,LCL *plcl)
@@ -3673,3 +3680,51 @@ void pstKeplerDrift(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 #endif /* SYMBA */ 
 #endif /* PLANETS*/
 
+#ifdef USE_GRAFIC
+void pstGenerateIC(PST pst,void *vin,int nIn,void *vout,int *pnOut)
+{
+    LCL *plcl = pst->plcl;
+    struct inGenerateIC *in = vin;
+    struct outGenerateIC *out = vout;
+
+    mdlassert(pst->mdl,nIn == sizeof(struct inGenerateIC));
+    mdlassert(pst->mdl,vout != NULL);
+
+    if (pst->nLeaves > 1) {
+	mdlReqService(pst->mdl,pst->idUpper,PST_GENERATEIC,in,nIn);
+	pstGenerateIC(pst->pstLower,in,nIn,vout,pnOut);
+	mdlGetReply(pst->mdl,pst->idUpper,vout,pnOut);
+	}
+    else {
+	GRAFICCTX gctx;
+	double dx, fSoft, fMass;
+	uint64_t nTotal, nLocal, nStore;
+	int d;
+
+	nTotal = in->nGrid * in->nGrid * in->nGrid;
+	nLocal = nTotal / pst->nLeaves;
+	nStore = nTotal + (int)ceil(nTotal*in->fExtraStore);
+
+	pkdInitialize(&plcl->pkd,pst->mdl,nStore,in->nBucket,in->fPeriod,
+		      nTotal,0,0);
+
+	/* Okay, here we set it to 1/50 of the interparticle seperation */
+	fSoft = 1.0 / (50.0 * in->nGrid);
+	/* Mass is easy */
+	fMass = in->omegac / (1.0 * in->nGrid * in->nGrid * in->nGrid );
+
+	dx = in->dBoxSize / in->nGrid;
+	graficInitialize( &gctx, dx, 1, in->iSeed, in->h*100,
+			  in->omegac, in->omegab, in->omegav,
+			  in->nGrid, in->nGrid, in->nGrid );
+	out->dExpansion = graficGetExpansionFactor(gctx);
+
+	for( d=1; d<=3; d++ ) {
+	    pkdGenerateIC( plcl->pkd, gctx, d,
+			   fSoft, fMass, in->bCannonical );
+	}
+	graficFinish(gctx);
+    }
+    if (pnOut) *pnOut = sizeof(struct outGenerateIC);
+}
+#endif

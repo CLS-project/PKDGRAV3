@@ -81,6 +81,7 @@ void msrLogParams(MSR msr, FILE *fp);
 int msrGetLock(MSR msr);
 int msrCheckForStop(MSR msr);
 void msrFinish(MSR);
+double msrGenerateIC(MSR);
 double msrRead(MSR, int iStep);
 void msrWrite(MSR,char *,double, int bCheckpoint );
 void msrSetSoft(MSR msr,double);

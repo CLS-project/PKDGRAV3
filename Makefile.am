@@ -89,6 +89,11 @@ endif
 if USE_HDF5
 pkdgrav2m_mpi_LDADD += -lhdf5
 endif
+if USE_GRAFIC
+pkdgrav2m_mpi_CFLAGS += -I@GRAFIC_PATH@
+pkdgrav2m_mpi_LDADD += -L@GRAFIC_PATH@ -lgrafic -lsrfftw_mpi -lsfftw_mpi -lsrfftw -lsfftw -lgfortran
+CCLD=mpicxx
+endif
 endif
 
 if HAVE_PTHREAD

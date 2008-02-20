@@ -16,6 +16,9 @@
 #ifdef USE_HDF5
 #include "iohdf5.h"
 #endif
+#ifdef USE_GRAFIC
+#include "grafic.h"
+#endif
 #ifdef PLANETS
 #include "ssio.h"
 #endif
@@ -843,5 +846,10 @@ void pkdKeplerDrift(PKD pkd,double dt,double mu,int tag_VA);
 
 #endif /* SYMBA */
 #endif /* PLANETS*/
+
+#ifdef USE_GRAFIC
+void pkdGenerateIC(PKD pkd, GRAFICCTX gctx, int iDim,
+		   double fSoft, double fMass, int bCannonical);
+#endif
 
 #endif

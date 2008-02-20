@@ -74,6 +74,14 @@ AC_ARG_WITH(mdl,
   [MDL_PATH="../mdl2"])
 fi
 
+AC_ARG_WITH(grafic,
+  [  --with-grafic=PATH             base path of GRAFIC IC library],
+  [AC_SUBST([GRAFIC_PATH],[${withval}])
+   USE_GRAFIC=yes
+   AC_DEFINE([USE_GRAFIC], 1,
+ 	[Define GRAFICIC IC should be available.])],
+  [USE_GRAFIC=no])
+AM_CONDITIONAL(USE_GRAFIC,test "x$USE_GRAFIC" == "xyes")
 
 # MDL dedicated I/O
 AC_ARG_ENABLE(mdl-io,

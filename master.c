@@ -479,31 +479,48 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv)
 #endif 
 
 /* collision stuff */
-	msr->param.iCollLogOption = 0;
-	prmAddParam(msr->prm,"iCollLogOption",1,&msr->param.iCollLogOption,
-				sizeof(int),"clog","<Collision log option> = 0");	
-	msr->param.CP.iOutcomes = BOUNCE;
-	prmAddParam(msr->prm,"iOutcomes",1,&msr->param.CP.iOutcomes,
-				sizeof(int),"outcomes","<Allowed collision outcomes> = 0");    
-	msr->param.CP.dBounceLimit = 1.0;
-	prmAddParam(msr->prm,"dBounceLimit",2,&msr->param.CP.dBounceLimit,
-				sizeof(double),"blim","<Bounce limit> = 1.0");
-	msr->param.CP.iBounceOption = ConstEps;
-	prmAddParam(msr->prm,"iBounceOption",1,&msr->param.CP.iBounceOption,
-				sizeof(int),"bopt","<Bounce option> = 0");
-	msr->param.CP.dEpsN = 1.0;
-	prmAddParam(msr->prm,"dEpsN",2,&msr->param.CP.dEpsN,
-				sizeof(double),"epsn","<Coefficient of restitution> = 1");
-	msr->param.CP.dEpsT = 1.0;
-	prmAddParam(msr->prm,"dEpsT",2,&msr->param.CP.dEpsT,
-				sizeof(double),"epst","<Coefficient of surface friction> = 1");
-	msr->param.CP.dDensity = 0.0;
-	prmAddParam(msr->prm,"dDensity",2,&msr->param.CP.dDensity,
-				sizeof(double),"density","<Merged particle density> = 0");
-	msr->param.CP.bFixCollapse = 0;
-	prmAddParam(msr->prm,"bFixCollapse",0,&msr->param.CP.bFixCollapse,
-				sizeof(int),"overlap","enable/disable overlap fix = -overlap");
+    msr->param.iCollLogOption = 0;
+    prmAddParam(msr->prm,"iCollLogOption",1,&msr->param.iCollLogOption,
+		sizeof(int),"clog","<Collision log option> = 0");	
+    msr->param.CP.iOutcomes = BOUNCE;
+    prmAddParam(msr->prm,"iOutcomes",1,&msr->param.CP.iOutcomes,
+		sizeof(int),"outcomes","<Allowed collision outcomes> = 0");    
+    msr->param.CP.dBounceLimit = 1.0;
+    prmAddParam(msr->prm,"dBounceLimit",2,&msr->param.CP.dBounceLimit,
+		sizeof(double),"blim","<Bounce limit> = 1.0");
+    msr->param.CP.iBounceOption = ConstEps;
+    prmAddParam(msr->prm,"iBounceOption",1,&msr->param.CP.iBounceOption,
+		sizeof(int),"bopt","<Bounce option> = 0");
+    msr->param.CP.dEpsN = 1.0;
+    prmAddParam(msr->prm,"dEpsN",2,&msr->param.CP.dEpsN,
+		sizeof(double),"epsn","<Coefficient of restitution> = 1");
+    msr->param.CP.dEpsT = 1.0;
+    prmAddParam(msr->prm,"dEpsT",2,&msr->param.CP.dEpsT,
+		sizeof(double),"epst","<Coefficient of surface friction> = 1");
+    msr->param.CP.dDensity = 0.0;
+    prmAddParam(msr->prm,"dDensity",2,&msr->param.CP.dDensity,
+		sizeof(double),"density","<Merged particle density> = 0");
+    msr->param.CP.bFixCollapse = 0;
+    prmAddParam(msr->prm,"bFixCollapse",0,&msr->param.CP.bFixCollapse,
+		sizeof(int),"overlap","enable/disable overlap fix = -overlap");
 #endif /* PLANETS */
+
+    /* IC Generation */
+#ifdef USE_GRAFIC
+    msr->param.h = 0.0;
+    prmAddParam(msr->prm,"h",2,&msr->param.h,
+		sizeof(double),"h","<hubble parameter h> = 0");
+    msr->param.dBoxSize = 0.0;
+    prmAddParam(msr->prm,"dBoxSize",2,&msr->param.dBoxSize,
+		sizeof(double),"mpc","<Simulation Box size in Mpc> = 0");
+    msr->param.nGrid = 0;
+    prmAddParam(msr->prm,"nGrid",1,&msr->param.nGrid,
+		sizeof(int),"grid","<Grid size for IC 0=disabled> = 0");	
+    msr->param.iSeed = 0;
+    prmAddParam(msr->prm,"iSeed",1,&msr->param.iSeed,
+		sizeof(int),"seed","<Random seed for IC> = 0");	
+#endif
+
 
 /*
 ** Set the box center to (0,0,0) for now!
@@ -541,7 +558,26 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv)
 	printf("WARNING: nReplicas set to non-zero value for non-periodic!\n");
 	}
 
-    if (!msr->param.achInFile[0]) {
+    if ( msr->param.nGrid ) {
+	if (msr->param.achInFile[0]) {
+	    puts("ERROR: do not specify an input file when generating IC");
+	    _msrExit(msr,1);
+	}
+
+	if ( msr->param.iSeed == 0 ) {
+	    puts("ERROR: Random seed for IC not specified");
+	    _msrExit(msr,1);
+	}
+	if ( msr->param.dBoxSize <= 0 ) {
+	    puts("ERROR: Box size for IC not specified");
+	    _msrExit(msr,1);
+	}
+	if ( msr->param.h <= 0 ) {
+	    puts("ERROR: Hubble parameter (h) was not specified for IC generation");
+	    _msrExit(msr,1);
+	}
+    }
+    else if (!msr->param.achInFile[0]) {
 	puts("ERROR: no input file specified");
 	_msrExit(msr,1);
 	}
@@ -1272,6 +1308,50 @@ double getTime(MSR msr, double dExpansion, double *dvFac) {
 
     return dTime;
 }
+
+#ifdef USE_GRAFIC
+double msrGenerateIC(MSR msr)
+{
+    struct inGenerateIC in;
+    struct outGenerateIC out;
+    struct inSetParticleTypes intype;
+    int nOut;
+    double dvFac;
+
+    in.h = msr->param.h;
+    in.dBoxSize = msr->param.dBoxSize;
+    in.iSeed = msr->param.iSeed;
+    in.nGrid = msr->param.nGrid;
+    in.omegac= msr->param.csm->dOmega0 - msr->param.csm->dOmegab;
+    in.omegab= msr->param.csm->dOmegab;
+    in.omegav= msr->param.csm->dLambda;
+    in.bCannonical = msr->param.bCannonical && msr->param.csm->bComove;
+    in.fExtraStore = msr->param.dExtraStore;
+    in.fPeriod[0] = msr->param.dxPeriod;
+    in.fPeriod[1] = msr->param.dyPeriod;
+    in.fPeriod[2] = msr->param.dzPeriod;
+    in.nBucket = msr->param.nBucket;
+
+    msr->nDark = in.nGrid * in.nGrid * in.nGrid;
+    msr->nGas  = 0;
+    msr->nStar = 0;
+    msr->N = msr->nDark+msr->nGas+msr->nStar;
+    msr->nMaxOrder = msr->N;
+    msr->nMaxOrderGas = msr->nGas;
+    msr->nMaxOrderDark = msr->nGas + msr->nDark;
+
+    if (msr->param.bVStart)
+	printf("Generating IC...\nN:%"PRIu64" nDark:%"PRIu64
+	       " nGas:%"PRIu64" nStar:%"PRIu64"\n",
+	       msr->N, msr->nDark,msr->nGas,msr->nStar);
+
+
+    pstGenerateIC(msr->pst,&in,sizeof(in),&out,&nOut);
+    pstSetParticleTypes(msr->pst, &intype, sizeof(intype), NULL, NULL);
+
+    return getTime(msr,out.dExpansion,&dvFac);
+}
+#endif
 
 #ifdef USE_MDL_IO
 static double _msrIORead(MSR msr, const char *achFilename, int iStep )

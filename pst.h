@@ -167,6 +167,9 @@ enum pst_service {
 #ifdef USE_HDF5
     PST_READHDF5,
 #endif
+#ifdef USE_GRAFIC
+    PST_GENERATEIC,
+#endif
     };
 
 void pstAddServices(PST,MDL);
@@ -975,5 +978,27 @@ void pstKeplerDrift(PST,void *,int,void *,int *);
 
 #endif /* SYMBA */
 #endif /* PLANETS */
+
+#ifdef USE_GRAFIC
+/* PST_GENERATEIC */
+struct inGenerateIC{
+    double h;
+    double dBoxSize;
+    double omegac;
+    double omegab;
+    double omegav;
+    int iSeed;
+    int nGrid;
+    int nBucket;
+    int bCannonical;
+    float fExtraStore;
+    FLOAT fPeriod[3];
+};
+struct outGenerateIC{
+    double dExpansion;
+};
+
+void pstGenerateIC(PST,void *,int,void *,int *); 
+#endif
 
 #endif 

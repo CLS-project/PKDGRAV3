@@ -135,7 +135,19 @@ int main(int argc,char **argv) {
     ** Read in the binary file, this may set the number of timesteps or
     ** the size of the timestep when the zto parameter is used.
     */
-    dTime = msrRead(msr,msr->param.iStartStep);
+#ifdef USE_GRAFIC
+    if (prmSpecified(msr->prm,"nGrid")) {
+	dTime = msrGenerateIC(msr);
+	msrBuildIoName(msr,achFile,0);
+	msrWrite( msr,achFile,dTime,0);
+    }
+    else {
+#endif
+	dTime = msrRead(msr,msr->param.iStartStep);
+#ifdef USE_GRAFIC
+    }
+#endif
+
     msrInitStep(msr);
     if (prmSpecified(msr->prm,"dSoft")) msrSetSoft(msr,msrSoft(msr));
     /*
@@ -320,7 +332,7 @@ int main(int argc,char **argv) {
 		  msrReorder(msr);
 		  msrBuildName(msr,achFile,iStep);
 		  for(i=0;i<=nFOFsDone;++i)strncat(achFile,".fof",256);
-		  /* msrOutArray(msr,achFile,OUT_GROUP_ARRAY); */
+		  /*msrOutArray(msr,achFile,OUT_GROUP_ARRAY);*/
 		  msrBuildName(msr,achFile,iStep);
 		  for(i=0;i<=nFOFsDone;++i)strncat(achFile,".stats",256);
 		  msrOutGroups(msr,achFile,OUT_GROUP_STATS,dTime);
@@ -459,6 +471,7 @@ int main(int argc,char **argv) {
 	    msrGroupProfiles(msr,nFOFsDone,SMX_FOF,0,TYPE_ALL,csmTime2Exp(msr->param.csm,dTime));
 	  msrReorder(msr);
 	  sprintf(achFile,"%s.%i.fof",msrOutName(msr),nFOFsDone);
+          /*msrOutArray(msr,achFile,OUT_GROUP_ARRAY);*/
 	  sprintf(achFile,"%s.stats",msrOutName(msr));
 	  msrOutGroups(msr,achFile,OUT_GROUP_STATS,dTime);			
 	  sprintf(achFile,"%s.grps",msrOutName(msr));

@@ -130,7 +130,7 @@ struct parameters {
     double binFactor;
     int bLogBins; 
 #ifdef RELAXATION
-    int	bTraceRelaxation;	
+    int	bTraceRelaxation;
 #endif
 #ifdef PLANETS	
     int bHeliocentric;
@@ -142,6 +142,12 @@ struct parameters {
     int bSymba;
 #endif
 #endif /* PLANETS */
+
+    /* IC Generation */
+    double h;
+    double dBoxSize;
+    int nGrid;
+    int iSeed;
     };
 
 #endif

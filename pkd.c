@@ -336,6 +336,65 @@ void IOCheck(int nout) {
     }
 
 
+#ifdef USE_GRAFIC
+void pkdGenerateIC(PKD pkd, GRAFICCTX gctx,  int iDim, 
+		   double fSoft, double fMass, int bCannonical)
+{
+    PARTICLE *p;
+    int i, j, k, d, pi, n1, n2, n3;
+    double dx;
+    double dvFac, a;
+
+    graficGenerate(gctx, iDim, 1 );
+
+    pkd->nLocal = pkd->nActive = graficGetLocal(gctx);
+
+    pi = 0;
+    n1 = graficGetLocalDim(gctx,1);
+    n2 = graficGetLocalDim(gctx,2);
+    n3 = graficGetLocalDim(gctx,3);
+
+    dx = 1.0 / n1;
+    d = iDim - 1;
+    a = graficGetExpansionFactor(gctx);
+    dvFac = bCannonical ? a*a : 1.0;
+
+
+    for( i=0; i<n1; i++ ) {
+	for( j=0; j<n2; j++ ) {
+	    for( k=0; k<n3; k++ ) {
+		p = &pkd->pStore[pi];
+		TYPEClear(p);
+		p->iRung = 0;
+		p->fWeight = 1.0;
+		p->fDensity = 0.0;
+		p->fBall = 0.0;
+		/*
+		** Clear the accelerations so that the timestepping calculations
+		** do not get funny uninitialized values!
+		*/
+		p->a[0] = p->a[1] = p->a[2] = 0.0;
+
+		p->r[d] = graficGetPosition(gctx,i,j,k,d) - 0.5;
+		assert( p->r[d] >= -0.5 && p->r[d] < 0.5 );
+
+		p->v[d] = graficGetVelocity(gctx,i,j,k) * dvFac;
+		p->fSoft   = fSoft;
+#ifdef CHANGESOFT
+		p->fSoft0 = p->fSoft;
+#endif
+		p->fMass   = fMass;
+		pi++;
+	    }
+	}
+    }
+
+    assert( pi == pkd->nLocal );
+}
+
+#endif
+
+
 #ifdef USE_HDF5
 void pkdReadHDF5(PKD pkd, IOHDF5 io, double dvFac,
 		 uint64_t nStart, int nLocal ) {
