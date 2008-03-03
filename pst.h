@@ -445,6 +445,11 @@ struct outGravity {
     ** Cache Statistics.
     */
     CASTAT cs;
+#ifdef INSTRUMENT
+    double dComputing;
+    double dSynchronizing;
+    double dWaiting;
+#endif
     };
 void pstGravity(PST,void *,int,void *,int *);
 

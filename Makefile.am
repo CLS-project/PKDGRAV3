@@ -92,7 +92,7 @@ endif
 if USE_GRAFIC
 pkdgrav2m_mpi_CFLAGS += -I@GRAFIC_PATH@
 pkdgrav2m_mpi_LDADD += -L@GRAFIC_PATH@ -lgrafic -lsrfftw_mpi -lsfftw_mpi -lsrfftw -lsfftw -lgfortran
-CCLD=mpicxx
+#CCLD=mpicxx
 endif
 endif
 

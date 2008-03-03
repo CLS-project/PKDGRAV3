@@ -2783,6 +2783,12 @@ void msrGravity(MSR msr,double dTime,double dStep,int bEwald,
 	*/
 	printf("Walk Timings:\n");
 	PRINTGRID("% 8.2f",dWalkTime);
+	printf("Compute Timings:\n");
+	PRINTGRID("% 8.2f",dComputing);
+	printf("MPI Wait Timings:\n");
+	PRINTGRID("% 8.2f",dWaiting);
+	printf("Load Imbalance Timings:\n");
+	PRINTGRID("% 8.2f",dSynchronizing);
 	printf("Number of Active:\n");
 	PRINTGRID("% 8d",nActive);
 	printf("Average Number of P-P per Active Particle:\n");

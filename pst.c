@@ -2532,6 +2532,11 @@ void pstGravity(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 		   &out[id].dPartSum,&out[id].dCellSum,&out[id].cs,&out[id].dFlop);
 	
 	out[id].dWalkTime = pkdGetWallClockTimer(plcl->pkd,1);
+#ifdef INSTRUMENT
+	out[id].dComputing     = mdlTimeComputing(pst->mdl);
+	out[id].dWaiting       = mdlTimeWaiting(pst->mdl);
+	out[id].dSynchronizing = mdlTimeSynchronizing(pst->mdl);
+#endif
     }
     if (pnOut) *pnOut = nThreads*sizeof(struct outGravity);
 }
