@@ -1644,6 +1644,9 @@ pkdGravAll(PKD pkd,double dTime,int nReps,int bPeriodic,int iOrder,int bEwald,
     int bVeryActive = 0;
 
     pkdClearTimer(pkd,1);
+#ifdef INSTRUMENT
+    mdlTimeReset(pkd->mdl);
+#endif
 
 #ifdef USE_BSC_trace
     foo++;
