@@ -23,6 +23,7 @@
  *
  */
 
+/* Original: Id: cycle.h,v 1.52 2006-02-08 02:36:47 athena Exp */
 /* $Id$ */
 
 /* machine-dependent cycle counters code. Needs to be inlined. */
