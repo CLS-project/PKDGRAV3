@@ -2784,8 +2784,9 @@ void msrGravity(MSR msr,double dTime,double dStep,int bEwald,
 	printf("Walk Timings:\n");
 	PRINTGRID("% 8.2f",dWalkTime);
 #ifdef INSTRUMENT
+/* Okay: Compute + Wait + Imbalance = 100.0 by definition
 	printf("Compute Percentage:\n");
-	PRINTGRID("% 8.2f",dComputing);
+	PRINTGRID("% 8.2f",dComputing);*/
 	printf("Cache Wait Percentage:\n");
 	PRINTGRID("% 8.2f",dWaiting);
 	printf("Load Imbalance Percentage:\n");
