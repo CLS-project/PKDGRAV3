@@ -170,6 +170,7 @@ enum pst_service {
 #ifdef USE_GRAFIC
     PST_GENERATEIC,
 #endif
+    PST_HOSTNAME,
     };
 
 void pstAddServices(PST,MDL);
@@ -1005,5 +1006,12 @@ struct outGenerateIC{
 
 void pstGenerateIC(PST,void *,int,void *,int *); 
 #endif
+
+/* PST_HOSTNAME */
+struct outHostname {
+    int  iMpiID;
+    char szHostname[12];
+    };
+void pstHostname(PST,void *,int,void *,int *);
 
 #endif 

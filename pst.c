@@ -329,6 +329,9 @@ void pstAddServices(PST pst,MDL mdl)
 		  (void (*)(void *,void *,int,void *,int *)) pstGenerateIC,
 		  sizeof(struct inGenerateIC),sizeof(struct outGenerateIC));
 #endif
+    mdlAddService(mdl,PST_HOSTNAME,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstHostname,
+		  0,nThreads*sizeof(struct outHostname));
     }
 
 void pstInitialize(PST *ppst,MDL mdl,LCL *plcl)
@@ -3733,3 +3736,43 @@ void pstGenerateIC(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     if (pnOut) *pnOut = sizeof(struct outGenerateIC);
 }
 #endif
+
+void pstHostname(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl = pst->plcl;
+    struct outHostname *out = vout;
+    struct outHostname *outUp;
+    int nThreads = mdlThreads(pst->mdl);
+    int id;
+   
+    mdlassert(pst->mdl,nIn == 0);
+    if (pst->nLeaves > 1) {
+	mdlReqService(pst->mdl,pst->idUpper,PST_HOSTNAME,vin,nIn);
+	pstHostname(pst->pstLower,vin,nIn,out,NULL);
+	/*
+	** Allocate temporary array.
+	*/
+	outUp = malloc(nThreads*sizeof(struct outHostname));
+	assert(outUp != NULL);
+	mdlGetReply(pst->mdl,pst->idUpper,outUp,NULL);
+	/*
+	** Now merge valid elements of outUp to out.
+	*/
+	for (id=0;id<nThreads;++id) {
+	    if (outUp[id].szHostname[0])
+		out[id] = outUp[id];
+	}
+	free(outUp);
+    }
+    else {
+	char *p;
+	for (id=0;id<nThreads;++id) out[id].szHostname[0] = 0;
+	id = pst->idSelf;
+	out[id].iMpiID = mdlOldSelf(pst->mdl);
+	strncpy(out[id].szHostname,mdlName(pst->mdl),sizeof(out[id].szHostname));
+	out[id].szHostname[sizeof(out[id].szHostname)-1] = 0;
+	p = strchr(out[id].szHostname,'.');
+	if (p) *p = 0;
+
+    }
+    if (pnOut) *pnOut = nThreads*sizeof(struct outHostname);
+}

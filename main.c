@@ -131,6 +131,11 @@ int main(int argc,char **argv) {
 	mdlFinish(mdl);
 	return 1;
 	}
+
+    /*
+    ** Output the host names to make troubleshooting easier
+    */
+    msrHostname(msr);
     /*
     ** Read in the binary file, this may set the number of timesteps or
     ** the size of the timestep when the zto parameter is used.

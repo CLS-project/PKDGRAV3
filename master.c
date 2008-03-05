@@ -1607,6 +1607,7 @@ static double _msrReadTipsy(MSR msr, const char *achFilename)
     msr->nStar = h.nstar;
     dExpansion = h.time;
 
+#if 0
     if (h.pad) {
 	/*
 	** This means we are dealing with *large* tipsy files
@@ -1626,6 +1627,7 @@ static double _msrReadTipsy(MSR msr, const char *achFilename)
 	tlong = tlong << 8;
 	msr->nStar += tlong;
 	}
+#endif
 
     msr->nMaxOrder = msr->N;
     msr->nMaxOrderGas = msr->nGas;
@@ -2726,6 +2728,19 @@ void msrUpdateSoft(MSR msr,double dTime) {
 		   out[i*10+0].VAR,out[i*10+1].VAR,out[i*10+2].VAR,out[i*10+3].VAR,out[i*10+4].VAR,\
 		   out[i*10+5].VAR,out[i*10+6].VAR,out[i*10+7].VAR,out[i*10+8].VAR); break;\
     }\
+}
+
+msrHostname(MSR msr)
+{
+    struct outHostname *out;
+    int i,iDum;
+    out = malloc(msr->nThreads*sizeof(struct outHostname));
+    assert(out != NULL);
+    pstHostname(msr->pst,0,0,out,&iDum);
+    printf("Host Names:\n");
+    PRINTGRID("% 8.8s",szHostname);
+    printf("MPI Rank:\n");
+    PRINTGRID("% 8d",iMpiID);
 }
 
 void msrGravity(MSR msr,double dTime,double dStep,int bEwald,
