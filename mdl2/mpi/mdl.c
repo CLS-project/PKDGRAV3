@@ -14,6 +14,9 @@
 #include <sys/resource.h>
 #include "mpi.h"
 #include "mdl.h"
+#ifdef USE_BSC
+#include "mpitrace_user_events.h"
+#endif
 
 #define MDL_NOCACHE			0
 #define MDL_ROCACHE			1
@@ -27,9 +30,9 @@
 #define MDL_TAG_INIT 		1
 #define MDL_TAG_SWAPINIT 	2
 #define MDL_TAG_SWAP		3
-#define MDL_TAG_REQ	   		4
-#define MDL_TAG_RPL			5
-
+#define MDL_TAG_REQ	   	4
+#define MDL_TAG_RPL		5
+#define MDL_TAG_SEND            6
 
 /* 
 ** The purpose of this routine is to safely cast a size_t to an int.
@@ -163,10 +166,89 @@ void mdlPrintTimer(MDL mdl,char *message, mdlTimer *t0)
 }
 #endif
 
-int mdlInitialize(MDL *pmdl,char **argv,void (*fcnChild)(MDL))
+#if 0
+static inline unsigned int swap( unsigned int v, int N )
+{
+    unsigned int r = 0;
+    do {
+        r <<= 1;
+        r |= ( v&1 );
+        v >>= 1;
+    } while( N >>= 1 );
+    return r;
+}
+
+static int order( int N, int T ) {
+    int K, V, R=N;
+    int rank = 0;
+
+    assert( T < N );
+
+    for( K=0; R; K++ ) {
+
+        V = swap(K,N);
+        if ( V < N ) {
+            if ( V == T ) return rank;
+            rank++;
+            R--;
+        }
+
+    }
+    assert(0);
+}
+#endif
+
+/*
+** This will remove nProcs processors from communicator zero
+** and reconfigure the remaining processors.  commList[] is:
+**   [0] - Our private communicator
+**   [1]
+*/
+int  mdlSplitComm(MDL mdl, int nProcs)
+{
+    int stride, offset, oldRank, isIO, peerID, iComm;
+    MPI_Comm newComm;
+
+    if ( nProcs == 0 ) return 0;
+
+    assert( nProcs < mdl->nThreads );
+    assert( mdl->commCount < MDL_MAX_COMM );
+
+    oldRank = mdl->idSelf;
+
+    isIO = 0;
+    stride = mdl->nThreads / nProcs;
+    offset = mdl->nThreads - nProcs * stride;
+    mdl->idSelf = (oldRank - offset) / stride;  /* I/O processor rank */
+    if ( mdl->idSelf < 0 )
+	mdl->idSelf = oldRank;
+    else if ( (oldRank - offset) % stride != stride-1 )
+	mdl->idSelf = oldRank - mdl->idSelf;
+    else
+	isIO = 1;
+    mdl->nThreads -= nProcs;
+    peerID = isIO ? 0 : stride+offset-1;
+
+    MPI_Comm_split(mdl->commList[0], isIO, mdl->idSelf, &newComm );
+    MPI_Intercomm_create( newComm, 0, mdl->commList[0],
+			  peerID, 10, &mdl->commList[mdl->commCount++]);
+    if ( mdl->commList[0] != MPI_COMM_WORLD )
+	MPI_Comm_free(&mdl->commList[0]);
+    mdl->commMDL = mdl->commList[0] = newComm;
+    MPI_Comm_rank(mdl->commMDL, &mdl->idSelf);
+
+    iComm = isIO ? mdl->commCount-1 : 0;
+    mdl->commMDL = mdl->commList[iComm];
+    return iComm;
+}
+
+int mdlInitialize(MDL *pmdl,char **argv,
+		  void (*fcnChild)(MDL),
+		  void (*fcnIO)(MDL))
 {
 	MDL mdl;
-	int i,bDiag,bThreads;
+	int iComm;
+	int i,j,bDiag,bThreads;
 	char *p,ach[256],achDiag[256];
 	int argc;
 
@@ -233,14 +315,35 @@ int mdlInitialize(MDL *pmdl,char **argv,void (*fcnChild)(MDL))
 
 	MPI_Init(&argc, &argv);
 
+#ifdef USE_BSC_trace
+    MPItrace_shutdown();
+#endif    
+
+	/* We start with a single communicator */
+	mdl->commCount = 1;
+	mdl->commList[0] = MPI_COMM_WORLD;
+
 	/*
 	 ** Do some low level argument parsing for number of threads, and
 	 ** diagnostic flag!
 	 */
 	bDiag = 0;
 	bThreads = 0;
+	mdl->nIO = 0;
 	i = 1;
 	while (argv[i]) {
+		if (!strcmp(argv[i],"-io") && fcnIO!=0) {
+			if (!argv[i+1]) {
+			    fprintf(stderr, "-io requires an argument\n");
+			    exit(0);
+			}
+			mdl->nIO = atoi(argv[i+1]);
+			j = i;
+			do {
+			    argv[j] = argv[j+2];
+			} while( argv[j++] );
+			continue;
+			}
 		if (!strcmp(argv[i],"-sz") && !bThreads) {
 			++i;
 			if (argv[i]) bThreads = 1;
@@ -260,8 +363,20 @@ int mdlInitialize(MDL *pmdl,char **argv,void (*fcnChild)(MDL))
 		fflush(stderr);
 		}
 
-	MPI_Comm_size(MPI_COMM_WORLD, &mdl->nThreads);
-	MPI_Comm_rank(MPI_COMM_WORLD, &mdl->idSelf);
+	MPI_Comm_size(mdl->commList[0], &mdl->nThreads);
+	MPI_Comm_rank(mdl->commList[0], &mdl->idSelf);
+
+	mdlassert( mdl, mdl->nIO >= 0 && mdl->nIO <= MDL_MAX_IO_PROCS );
+
+	/* 
+	** It is important that every processor know the IO processor count.
+	** MPI only passes parameters to rank 0, so we sent it on.
+	*/
+	MPI_Bcast( &(mdl->nIO), 1, MPI_INT, 0, mdl->commList[0]);
+
+	iComm = mdlSplitComm(mdl,mdl->nIO);
+	mdl->commMDL = mdl->commList[iComm];
+
 	/*
 	 ** Allocate caching buffers, with initial data size of 0.
 	 ** We need one reply buffer for each thread, to deadlock situations.
@@ -287,14 +402,28 @@ int mdlInitialize(MDL *pmdl,char **argv,void (*fcnChild)(MDL))
 	mdl->bDiag = bDiag;
 	*pmdl = mdl;
 	if (mdl->bDiag) {
-		char *tmp = strrchr(argv[0],'/');
-		if (!tmp) tmp = argv[0];
-		else ++tmp;
-		sprintf(achDiag,"%s/%s.%d",ach,tmp,mdl->idSelf);
-		mdl->fpDiag = fopen(achDiag,"w");
-		assert(mdl->fpDiag != NULL);
-		}
-	if (mdl->nThreads > 1 && mdl->idSelf) {
+	    char *tmp = strrchr(argv[0],'/');
+	    if (!tmp) tmp = argv[0];
+	    else ++tmp;
+	    sprintf(achDiag,"%s/%s.%d",ach,tmp,mdlOldSelf(mdl));
+	    mdl->fpDiag = fopen(achDiag,"w");
+	    assert(mdl->fpDiag != NULL);
+	}
+
+	MPI_Get_processor_name( mdl->nodeName, &i );
+	mdl->nodeName[i] = 0;
+
+	/*if ( oldRank >= mdl->nThreads ) {*/
+	if ( iComm ) {
+		/*
+		 ** I/O thread.
+		 */
+	        mdlassert( mdl, mdl->nIO > 0 );
+		(*fcnIO)(mdl);
+		mdlFinish(mdl);
+		exit(0);
+	}
+	else if (mdl->nThreads > 1 && mdlOldSelf(mdl)) {
 		/*
 		 ** Child thread.
 		 */
@@ -310,7 +439,11 @@ void mdlFinish(MDL mdl)
 {
   int i;
 
-	MPI_Barrier(MPI_COMM_WORLD);
+	MPI_Barrier(mdl->commMDL);
+	for( i=0; i<mdl->commCount; i++ )
+	    if ( mdl->commList[i] != MPI_COMM_WORLD )
+		MPI_Comm_free(&mdl->commList[i]);
+
         MPI_Finalize();
 	/*
 	 ** Close Diagnostic file.
@@ -337,6 +470,13 @@ void mdlFinish(MDL mdl)
 	}
 
 
+void mdlSetComm(MDL mdl, int iComm)
+{
+    assert( iComm >=0 && iComm < mdl->commCount );
+    mdl->commMDL = mdl->commList[iComm];
+}
+
+
 /*
  ** This function returns the number of threads in the set of 
  ** threads.
@@ -344,6 +484,15 @@ void mdlFinish(MDL mdl)
 int mdlThreads(MDL mdl)
 {
 	return(mdl->nThreads);
+	}
+
+
+/*
+ ** This function returns the number of threads dedicated to IO.
+ */
+int mdlIO(MDL mdl)
+{
+	return(mdl->nIO);
 	}
 
 
@@ -356,6 +505,82 @@ int mdlSelf(MDL mdl)
 {
 	return(mdl->idSelf);
 	}
+
+/*
+** This function returns the absolute ID (the MPI rank), useful for
+** debugging any problems that might occur.
+*/
+int mdlOldSelf(MDL mdl)
+{
+    int oldSelf;
+    MPI_Comm_rank(MPI_COMM_WORLD, &oldSelf);
+    return oldSelf;
+}
+
+
+const char *mdlName(MDL mdl)
+{
+    return mdl->nodeName;
+}
+
+
+/*
+** This needs to be improved by abstracting away more of the MPI functionality
+*/
+int mdlReduce ( MDL mdl, void *sendbuf, void *recvbuf, int count, 
+                MDL_Datatype datatype, MDL_Op op, int root )
+{
+    return MPI_Reduce( sendbuf, recvbuf, count, datatype, op, root, mdl->commMDL );
+}
+
+/*
+** This function will transfer a block of data using a pack function.
+** The corresponding node must call mdlRecv.
+ */
+
+#define SEND_BUFFER_SIZE (1*1024*1024)
+
+void mdlSend(MDL mdl,int id,mdlPack pack, void *ctx)
+{
+    size_t nBuff;
+    char *vOut;
+
+    vOut = malloc(SEND_BUFFER_SIZE);
+    mdlassert(mdl,vOut!=NULL);
+
+    do {
+	nBuff = (*pack)(ctx,&id,SEND_BUFFER_SIZE,vOut);
+	if ( nBuff != 0 ) {
+	    MPI_Ssend(vOut,nBuff,MPI_BYTE,id,MDL_TAG_SEND,mdl->commMDL);
+	}
+    } while( nBuff != 0 );
+
+    free(vOut);
+}
+
+void mdlRecv(MDL mdl,int id,mdlPack unpack, void *ctx)
+{
+    void *vIn;
+    size_t nUnpack;
+    int nBytes;
+    MPI_Status status;
+    int inid;
+
+    if ( id < 0 ) id = MPI_ANY_SOURCE;
+
+    vIn = malloc(SEND_BUFFER_SIZE);
+    mdlassert(mdl,vIn!=NULL);
+
+    do {
+	MPI_Recv(vIn,SEND_BUFFER_SIZE,MPI_BYTE,id,MDL_TAG_SEND,
+		 mdl->commMDL,&status);
+	MPI_Get_count(&status, MPI_BYTE, &nBytes);
+	inid = status.MPI_SOURCE;
+	nUnpack = (*unpack)(ctx,&inid,nBytes,vIn);
+    } while(nUnpack>0);
+
+    free(vIn);
+}
 
 
 /*
@@ -398,13 +623,13 @@ int mdlSwap(MDL mdl,int id,size_t nBufBytes,void *vBuf,size_t nOutBytes,
 	swi.nOutBytes = nOutBytes;
 	swi.nBufBytes = nBufBytes;
 	MPI_Isend(&swi,sizeof(swi),MPI_BYTE,id,MDL_TAG_SWAPINIT,
-		  MPI_COMM_WORLD, &request);
+		  mdl->commMDL, &request);
 	/*
 	 ** Receive the number of target thread rejects and target free space
 	 */
 	iTag = MDL_TAG_SWAPINIT;
 	pid = id;
-	MPI_Recv(&swo,sizeof(swo),MPI_BYTE,pid,iTag,MPI_COMM_WORLD, &status);
+	MPI_Recv(&swo,sizeof(swo),MPI_BYTE,pid,iTag,mdl->commMDL, &status);
 	MPI_Get_count(&status, MPI_BYTE, &nBytes);
 	assert(nBytes == sizeof(swo));
 	MPI_Wait(&request, &status);
@@ -431,10 +656,10 @@ int mdlSwap(MDL mdl,int id,size_t nBufBytes,void *vBuf,size_t nOutBytes,
 		 */
 		for (i=0;i<nOutMax;++i) mdl->pszTrans[i] = pszOut[i];
 		MPI_Isend(mdl->pszTrans,nOutMax,MPI_BYTE,id,MDL_TAG_SWAP,
-			 MPI_COMM_WORLD, &request);
+			 mdl->commMDL, &request);
 		iTag = MDL_TAG_SWAP;
 		pid = id;
-		MPI_Recv(pszIn,nInMax,MPI_BYTE,pid,iTag,MPI_COMM_WORLD,
+		MPI_Recv(pszIn,nInMax,MPI_BYTE,pid,iTag,mdl->commMDL,
 			 &status);
 		MPI_Get_count(&status, MPI_BYTE, &nBytes);
 		assert(nBytes == nInMax);
@@ -461,7 +686,7 @@ int mdlSwap(MDL mdl,int id,size_t nBufBytes,void *vBuf,size_t nOutBytes,
 		nOutMax = size_t_to_int((nOutBytes < MDL_TRANS_SIZE)?nOutBytes:MDL_TRANS_SIZE);
 		nOutMax = size_t_to_int((nOutMax < nOutBufBytes)?nOutMax:nOutBufBytes);
 		MPI_Ssend(pszOut,nOutMax,MPI_BYTE,id,MDL_TAG_SWAP,
-			 MPI_COMM_WORLD);
+			 mdl->commMDL);
 		pszOut = &pszOut[nOutMax];
 		nOutBytes -= nOutMax;
 		nOutBufBytes -= nOutMax;
@@ -471,7 +696,7 @@ int mdlSwap(MDL mdl,int id,size_t nBufBytes,void *vBuf,size_t nOutBytes,
 		nInMax = size_t_to_int((nInBytes < MDL_TRANS_SIZE)?nInBytes:MDL_TRANS_SIZE);
 		nInMax = size_t_to_int((nInMax < nBufBytes)?nInMax:nBufBytes);
 		iTag = MDL_TAG_SWAP;
-		MPI_Recv(pszIn,nInMax,MPI_BYTE,id,iTag,MPI_COMM_WORLD,
+		MPI_Recv(pszIn,nInMax,MPI_BYTE,id,iTag,mdl->commMDL,
 			 &status);
 		MPI_Get_count(&status, MPI_BYTE, &nBytes);
 		assert(nBytes == nInMax);
@@ -558,7 +783,7 @@ void mdlReqService(MDL mdl,int id,int sid,void *vin,int nInBytes)
 		for (i=0;i<nInBytes;++i) pszOut[i] = pszIn[i];
 		}
 	MPI_Send(mdl->pszBuf,nInBytes+(int)sizeof(SRVHEAD),MPI_BYTE,id,MDL_TAG_REQ,
-		 MPI_COMM_WORLD);
+		 mdl->commMDL);
 	}
 
 
@@ -572,7 +797,7 @@ void mdlGetReply(MDL mdl,int id,void *vout,int *pnOutBytes)
 
 	iTag = MDL_TAG_RPL;
 	MPI_Recv(mdl->pszBuf,mdl->nMaxSrvBytes+(int)sizeof(SRVHEAD),MPI_BYTE,
-					id,iTag,MPI_COMM_WORLD, &status);
+					id,iTag,mdl->commMDL, &status);
 	MPI_Get_count(&status, MPI_BYTE, &nBytes);
 	assert(nBytes == ph->nOutBytes + sizeof(SRVHEAD));
 	if (ph->nOutBytes > 0 && pszOut != NULL) {
@@ -581,45 +806,96 @@ void mdlGetReply(MDL mdl,int id,void *vout,int *pnOutBytes)
 	if (pnOutBytes) *pnOutBytes = ph->nOutBytes;
 	}
 
+void mdlStop(MDL mdl)
+{
+    int id;
+
+    /* Stop the worker processes */
+    for( id=1; id<mdl->nThreads; ++id ) {
+	/*if (msr->param.bVDetails)*/ printf("Stopping worker thread %d\n",id);
+	mdlReqService(mdl,id,SRV_STOP,NULL,0);
+	mdlGetReply(mdl,id,NULL,NULL);
+    }
+    if ( mdl->nIO ) {
+	printf("Stopping I/O threads\n");
+	mdlSetComm(mdl,1);
+	mdlReqService(mdl,0,SRV_STOP,NULL,0);
+	mdlGetReply(mdl,0,NULL,NULL);
+	mdlSetComm(mdl,0);
+    }
+
+    printf( "MDL terminated\n" );
+}
+
+int mdlHandleOne(MDL mdl)
+{
+    SRVHEAD *phi = (SRVHEAD *)mdl->pszIn;
+    SRVHEAD *pho = (SRVHEAD *)mdl->pszOut;
+    char *pszIn = &mdl->pszIn[sizeof(SRVHEAD)];
+    char *pszOut = &mdl->pszOut[sizeof(SRVHEAD)];
+    int sid,iTag,id,nOutBytes,nBytes;
+    MPI_Status status;
+    MPI_Comm   comm;
+
+    /* Save this communicator... reply ALWAYS goes here */
+    comm = mdl->commMDL;
+    iTag = MDL_TAG_REQ;
+    id = MPI_ANY_SOURCE;
+    MPI_Recv(mdl->pszIn,mdl->nMaxSrvBytes+sizeof(SRVHEAD),
+	     MPI_BYTE, id,iTag,comm,&status);
+    /*
+    ** Quite a few sanity checks follow.
+    */
+    id = status.MPI_SOURCE;
+    MPI_Get_count(&status, MPI_BYTE, &nBytes);
+    assert(nBytes == phi->nInBytes + sizeof(SRVHEAD));
+    assert(id == phi->idFrom);
+    sid = phi->sid;
+    assert(sid < mdl->nMaxServices);
+    if (phi->nInBytes > mdl->psrv[sid].nInBytes) {
+	printf( "ERROR: pid=%d, sid=%d, nInBytes=%d, sid.nInBytes=%d\n",
+		mdlSelf(mdl), sid, phi->nInBytes, mdl->psrv[sid].nInBytes );
+    }
+    assert(phi->nInBytes <= mdl->psrv[sid].nInBytes);
+    nOutBytes = 0;
+    assert(mdl->psrv[sid].fcnService != NULL);
+    (*mdl->psrv[sid].fcnService)(mdl->psrv[sid].p1,pszIn,phi->nInBytes,
+				 pszOut,&nOutBytes);
+    assert(nOutBytes <= mdl->psrv[sid].nOutBytes);
+    pho->idFrom = mdl->idSelf;
+    pho->sid = sid;
+    pho->nInBytes = phi->nInBytes;
+    pho->nOutBytes = nOutBytes;
+    MPI_Send(mdl->pszOut,nOutBytes+sizeof(SRVHEAD),
+	     MPI_BYTE, id,MDL_TAG_RPL, comm);
+    
+    return sid;
+}
+
+
 
 void mdlHandler(MDL mdl)
 {
-	SRVHEAD *phi = (SRVHEAD *)mdl->pszIn;
-	SRVHEAD *pho = (SRVHEAD *)mdl->pszOut;
-	char *pszIn = &mdl->pszIn[sizeof(SRVHEAD)];
-	char *pszOut = &mdl->pszOut[sizeof(SRVHEAD)];
-	int sid,iTag,id,nOutBytes,nBytes;
-	MPI_Status status;
+    int sid;
 
-	sid = 1;
-	while (sid != SRV_STOP) {
-		iTag = MDL_TAG_REQ;
-		id = MPI_ANY_SOURCE;
-		MPI_Recv(mdl->pszIn,mdl->nMaxSrvBytes+(int)sizeof(SRVHEAD),
-			       MPI_BYTE, id,iTag,MPI_COMM_WORLD,&status);
-		/*
-		 ** Quite a few sanity checks follow.
-		 */
-		id = status.MPI_SOURCE;
-		MPI_Get_count(&status, MPI_BYTE, &nBytes);
-		assert(nBytes == phi->nInBytes + sizeof(SRVHEAD));
-		assert(id == phi->idFrom);
-		sid = phi->sid;
-		assert(sid < mdl->nMaxServices);
-		assert(phi->nInBytes <= mdl->psrv[sid].nInBytes);
-		nOutBytes = 0;
-		assert(mdl->psrv[sid].fcnService != NULL);
-		(*mdl->psrv[sid].fcnService)(mdl->psrv[sid].p1,pszIn,phi->nInBytes,
-									 pszOut,&nOutBytes);
-		assert(nOutBytes <= mdl->psrv[sid].nOutBytes);
-		pho->idFrom = mdl->idSelf;
-		pho->sid = sid;
-		pho->nInBytes = phi->nInBytes;
-		pho->nOutBytes = nOutBytes;
-		MPI_Send(mdl->pszOut,nOutBytes+(int)sizeof(SRVHEAD),
-			 MPI_BYTE, id,MDL_TAG_RPL, MPI_COMM_WORLD);
-		}
-	}
+    /*
+    ** We must choose the correct communicator.  All nodes initially
+    ** communicate only to their peers, except for the split masters;
+    ** those wait for instructions from the main process group.
+    */
+    if ( mdlSelf(mdl) == 0 && mdlOldSelf(mdl) != 0 ) {
+	assert( mdl->commCount == 2 );
+	mdl->commMDL = mdl->commList[mdl->commCount-1];
+    }
+    else {
+	mdl->commMDL = mdl->commList[0];
+    }
+
+    do {
+	sid = mdlHandleOne(mdl);
+    } while (sid != SRV_STOP);
+
+}
 
 #define MDL_TAG_CACHECOM	10
 #define MDL_MID_CACHEIN		1
@@ -629,7 +905,6 @@ void mdlHandler(MDL mdl)
 #define MDL_MID_CACHEFLSH	5
 #define MDL_MID_CACHEDONE	6
 
-#define MDL_CHECK_MASK  	0x7f
 #define BILLION				1000000000
 
 int mdlCacheReceive(MDL mdl,char *pLine)
@@ -652,6 +927,17 @@ int mdlCacheReceive(MDL mdl,char *pLine)
 
 	ret = MPI_Wait(&mdl->ReqRcv, &status);
 	assert(ret == MPI_SUCCESS);
+
+#if 0
+/* Doesn't work...  MPI_SOURCE is -2 */
+	if ( ph->id != status.MPI_SOURCE ) {
+	    printf( "MDL ERROR: id=%d, nThreads=%d, MPI_SOURCE=%d\n",
+		    ph->id, mdl->nThreads, status.MPI_SOURCE );
+	    printf("%d: cache %d, message %d, from %d, rec top\n",
+		   mdl->idSelf, ph->cid, ph->mid, ph->id);
+	    assert( ph->id == status.MPI_SOURCE );
+	}
+#endif
 #if 0
 	sprintf(achDiag, "%d: cache %d, message %d, from %d, rec top\n",
 		mdl->idSelf, ph->cid, ph->mid, ph->id);
@@ -692,7 +978,7 @@ int mdlCacheReceive(MDL mdl,char *pLine)
 		        }
 		mdl->pmidRpl[ph->id] = 0;
 		MPI_Isend(phRpl,(int)sizeof(CAHEAD)+iLineSize,MPI_BYTE,
-			 ph->id, MDL_TAG_CACHECOM, MPI_COMM_WORLD,
+			 ph->id, MDL_TAG_CACHECOM, mdl->commMDL,
 			  &mdl->pReqRpl[ph->id]); 
 		ret = 0;
 		break;
@@ -754,7 +1040,7 @@ int mdlCacheReceive(MDL mdl,char *pLine)
 	id = MPI_ANY_SOURCE;
 	iTag = MDL_TAG_CACHECOM;
 	MPI_Irecv(mdl->pszRcv,mdl->iCaBufSize, MPI_BYTE, id,
-		 iTag, MPI_COMM_WORLD, &mdl->ReqRcv);
+		 iTag, mdl->commMDL, &mdl->ReqRcv);
 
 	return ret;
 	}
@@ -793,7 +1079,7 @@ void AdjustDataSize(MDL mdl)
 		caOut.mid = MDL_MID_CACHEDONE;
 		caOut.id = mdl->idSelf;
 		MPI_Send(&caOut,sizeof(CAHEAD),MPI_BYTE, mdl->idSelf,
-			 MDL_TAG_CACHECOM, MPI_COMM_WORLD);
+			 MDL_TAG_CACHECOM, mdl->commMDL);
 		MPI_Wait(&mdl->ReqRcv, &status);
 
 		mdl->iMaxDataSize = iMaxDataSize;
@@ -813,7 +1099,7 @@ void AdjustDataSize(MDL mdl)
 		 */
 		MPI_Irecv(mdl->pszRcv,mdl->iCaBufSize, MPI_BYTE,
 			  MPI_ANY_SOURCE, MDL_TAG_CACHECOM,
-			  MPI_COMM_WORLD, &mdl->ReqRcv);
+			  mdl->commMDL, &mdl->ReqRcv);
 		}
 	}
 
@@ -865,7 +1151,12 @@ CACHE *CacheInitialize(MDL mdl,int cid,void *pData,int iDataSize,int nData)
 	     * Fire up first receive
 	     */
 	    MPI_Irecv(mdl->pszRcv,mdl->iCaBufSize, MPI_BYTE, MPI_ANY_SOURCE,
-		      MDL_TAG_CACHECOM, MPI_COMM_WORLD, &mdl->ReqRcv);
+		      MDL_TAG_CACHECOM, mdl->commMDL, &mdl->ReqRcv);
+
+#ifdef INSTRUMENT
+	    mdl->dWaiting = mdl->dComputing = mdl->dSynchronizing = 0.0;
+	    mdl->nTicks = getticks();
+#endif
 	    }
 	
 	if (cid >= mdl->nMaxCacheIds) {
@@ -889,7 +1180,8 @@ CACHE *CacheInitialize(MDL mdl,int cid,void *pData,int iDataSize,int nData)
 	c->pData = pData;
 	c->iDataSize = iDataSize;
 	c->nData = nData;
-	c->iLineSize = MDL_CACHELINE_ELTS*c->iDataSize;
+	c->iLineSize = MDL_CACHELINE_ELTS*c->iDataSize;	
+
 	c->iKeyShift = 0;
 	while((1 << c->iKeyShift) < mdl->nThreads) ++c->iKeyShift;
 	c->iIdMask = (1 << c->iKeyShift) - 1;
@@ -932,12 +1224,10 @@ CACHE *CacheInitialize(MDL mdl,int cid,void *pData,int iDataSize,int nData)
 	for (i=0;i<c->nLines;++i) {
 		c->pTag[i].iKey = MDL_INVALID_KEY;
 		c->pTag[i].nLock = 0;
-		c->pTag[i].nLast = 0;	/* !!! */
 		c->pTag[i].iLink = 0;
 		}
-
-	c->pTag[0].nLock = 1;		/* always locked */
-	c->pTag[0].nLast = INT_MAX;  	/* always Most Recently Used */
+        c->pTag[0].nLock = 1;     /* always locked */
+	c->iLastVictim = 0;       /* This makes sure we have the first iVictim = 1 */
 	c->nAccess = 0;
 	c->nAccHigh = 0;
 	c->nMiss = 0;				/* !!!, not NB */
@@ -996,14 +1286,14 @@ void mdlROcache(MDL mdl,int cid,void *pData,int iDataSize,int nData)
 		 ** that they have completed.
 		 */
 		MPI_Send(&caIn,sizeof(CAHEAD),MPI_BYTE, 0,
-			       MDL_TAG_CACHECOM, MPI_COMM_WORLD);
+			       MDL_TAG_CACHECOM, mdl->commMDL);
 		}
 	sprintf(achDiag, "%d: In CI, cache %d\n", mdl->idSelf, cid);
 	mdlDiag(mdl, achDiag);
 	if(mdl->idSelf == 0) {
 	    for(id = 1; id < mdl->nThreads; id++) {
 		MPI_Send(&caIn,sizeof(CAHEAD),MPI_BYTE, id,
-			       MDL_TAG_CACHECOM, MPI_COMM_WORLD);
+			       MDL_TAG_CACHECOM, mdl->commMDL);
 		}
 	    }
 	else {
@@ -1015,7 +1305,7 @@ void mdlROcache(MDL mdl,int cid,void *pData,int iDataSize,int nData)
 	sprintf(achDiag, "%d: After CI, cache %d\n", mdl->idSelf, cid);
 	mdlDiag(mdl, achDiag);
 	AdjustDataSize(mdl);
-	MPI_Barrier(MPI_COMM_WORLD);
+	MPI_Barrier(mdl->commMDL);
 	}
 
 /*
@@ -1053,12 +1343,12 @@ void mdlCOcache(MDL mdl,int cid,void *pData,int iDataSize,int nData,
 		 ** that they have completed.
 		 */
 		MPI_Send(&caIn,sizeof(CAHEAD),MPI_BYTE, 0,
-			       MDL_TAG_CACHECOM, MPI_COMM_WORLD);
+			       MDL_TAG_CACHECOM, mdl->commMDL);
 		}
 	if(mdl->idSelf == 0) {
 	    for(id = 1; id < mdl->nThreads; id++) {
 		MPI_Send(&caIn,sizeof(CAHEAD),MPI_BYTE, id,
-			       MDL_TAG_CACHECOM, MPI_COMM_WORLD);
+			       MDL_TAG_CACHECOM, mdl->commMDL);
 		}
 	    }
 	else {
@@ -1068,7 +1358,7 @@ void mdlCOcache(MDL mdl,int cid,void *pData,int iDataSize,int nData,
 		}	
 	    }	
 	AdjustDataSize(mdl);
-	MPI_Barrier(MPI_COMM_WORLD);
+	MPI_Barrier(mdl->commMDL);
 	}
 
 void mdlFinishCache(MDL mdl,int cid)
@@ -1077,16 +1367,23 @@ void mdlFinishCache(MDL mdl,int cid)
 	CAHEAD caOut;
 	CAHEAD *caFlsh = (CAHEAD *)mdl->pszFlsh;
 	char *pszFlsh = &mdl->pszFlsh[sizeof(CAHEAD)];
+	mdlkey_t iKey;
 	int i,id;
 	char *t;
 	int j;
-	mdlkey_t iKey;
 	int last;
 	MPI_Status status;
 	MPI_Request reqFlsh;
 	MPI_Request reqBoth[2];
 	int index;
 
+#ifdef INSTRUMENT
+	{
+	    ticks nTicks = getticks();
+	    mdl->dComputing += elapsed( nTicks, mdl->nTicks );
+	    mdl->nTicks = nTicks;
+	}
+#endif
 	if (c->iType == MDL_COCACHE) {
 		/*
 		 * Extra checkout to let everybody finish before
@@ -1099,7 +1396,7 @@ void mdlFinishCache(MDL mdl,int cid)
 		    if(id == mdl->idSelf)
 			continue;
 		    MPI_Send(&caOut,sizeof(CAHEAD),MPI_BYTE, id,
-			     MDL_TAG_CACHECOM, MPI_COMM_WORLD);
+			     MDL_TAG_CACHECOM, mdl->commMDL);
 		    }
 		++c->nCheckOut;
 		while(c->nCheckOut < mdl->nThreads) {
@@ -1130,7 +1427,7 @@ void mdlFinishCache(MDL mdl,int cid)
 				 */
 				MPI_Issend(caFlsh, (int)sizeof(CAHEAD)+c->iLineSize,
 					 MPI_BYTE, id, MDL_TAG_CACHECOM,
-					 MPI_COMM_WORLD, &reqFlsh); 
+					 mdl->commMDL, &reqFlsh); 
 				/*
 				 * Wait for the Flush to complete, but
 				 * also service any incoming cache requests.
@@ -1169,12 +1466,12 @@ void mdlFinishCache(MDL mdl,int cid)
 	    }
 	else {
 	    MPI_Send(&caOut,sizeof(CAHEAD),MPI_BYTE, 0,
-			       MDL_TAG_CACHECOM, MPI_COMM_WORLD);
+			       MDL_TAG_CACHECOM, mdl->commMDL);
 	    }
 	if(mdl->idSelf == 0) {
 	    for(id = 1; id < mdl->nThreads; id++) {
 		MPI_Send(&caOut,sizeof(CAHEAD),MPI_BYTE, id,
-			       MDL_TAG_CACHECOM, MPI_COMM_WORLD);
+			       MDL_TAG_CACHECOM, mdl->commMDL);
 		}
 	    }
 	else {
@@ -1213,10 +1510,17 @@ void mdlFinishCache(MDL mdl,int cid)
 	    caOut.mid = MDL_MID_CACHEDONE;
 	    caOut.id = mdl->idSelf;
 	    MPI_Send(&caOut,sizeof(CAHEAD),MPI_BYTE, mdl->idSelf,
-		     MDL_TAG_CACHECOM, MPI_COMM_WORLD);
+		     MDL_TAG_CACHECOM, mdl->commMDL);
 	    MPI_Wait(&mdl->ReqRcv, &status);
 	    }
-	MPI_Barrier(MPI_COMM_WORLD);
+	MPI_Barrier(mdl->commMDL);
+#ifdef INSTRUMENT
+	{
+	    ticks nTicks = getticks();
+	    mdl->dSynchronizing += elapsed( nTicks, mdl->nTicks );
+	    mdl->nTicks = nTicks;
+	}
+#endif
 	}
 
 
@@ -1224,6 +1528,14 @@ void mdlCacheBarrier(MDL mdl,int cid) {
     CACHE *c = &mdl->cache[cid];
     CAHEAD caOut;
     int id;
+
+#ifdef INSTRUMENT
+    {
+	ticks nTicks = getticks();
+	mdl->dComputing += elapsed( nTicks, mdl->nTicks );
+	mdl->nTicks = nTicks;
+    }
+#endif
 
     /*
     ** THIS IS A SYNCHRONIZE!!!
@@ -1239,12 +1551,12 @@ void mdlCacheBarrier(MDL mdl,int cid) {
 	}
     else {
 	MPI_Send(&caOut,sizeof(CAHEAD),MPI_BYTE, 0,
-		 MDL_TAG_CACHECOM, MPI_COMM_WORLD);
+		 MDL_TAG_CACHECOM, mdl->commMDL);
 	}
     if(mdl->idSelf == 0) {
 	for(id = 1; id < mdl->nThreads; id++) {
 	    MPI_Send(&caOut,sizeof(CAHEAD),MPI_BYTE, id,
-		     MDL_TAG_CACHECOM, MPI_COMM_WORLD);
+		     MDL_TAG_CACHECOM, mdl->commMDL);
 	    }
 	}
     else {
@@ -1254,7 +1566,14 @@ void mdlCacheBarrier(MDL mdl,int cid) {
 	    }	
 	}	
     c->nCheckOut = 0;
-    MPI_Barrier(MPI_COMM_WORLD);
+    MPI_Barrier(mdl->commMDL);
+#ifdef INSTRUMENT
+    {
+	ticks nTicks = getticks();
+	mdl->dSynchronizing += elapsed( nTicks, mdl->nTicks );
+	mdl->nTicks = nTicks;
+    }
+#endif
     }
 
 
@@ -1267,71 +1586,36 @@ void mdlCacheCheck(MDL mdl)
 	MPI_Test(&mdl->ReqRcv, &flag, &status);
 	if(flag == 0)
 	    break;
+
 	mdlCacheReceive(mdl,NULL);
         }
     }
 
 
-void mdlPrefetch(MDL mdl,int cid,int iIndex,int id)
-{
-}
-
-void *mdlAquire(MDL mdl,int cid,int iIndex,int id)
-{
+void *mdlDoMiss(MDL mdl, int cid, int iIndex, int id, mdlkey_t iKey, int lock) {
 	CACHE *c = &mdl->cache[cid];
 	char *pLine;
-	mdlkey_t iKey,iKeyVic;
-	int iElt,iLine,idVic;
-	int i;
+	int iElt,i,iLine;
+	mdlkey_t iKeyVic;
+	int idVic;
 	int iVictim,*pi;
+	char ach[80];
+	unsigned long iLineSize_64,iLineSize_8;
 	CAHEAD *caFlsh;
 	char *pszFlsh;
 	MPI_Status status;
 	MPI_Request reqFlsh;
 
-	++c->nAccess;
-	if (!(c->nAccess & MDL_CHECK_MASK))
-	        mdlCacheCheck(mdl);
-	/*
-	 ** Is it a local request?
-	 */
-	if (id == mdl->idSelf) {
-		return(&c->pData[iIndex*c->iDataSize]);
-		}
-	/*
-	 ** Determine memory block key value and cache line.
-	iLine = iIndex >> MDL_CACHELINE_BITS;
-	iKey = iLine*mdl->nThreads + id;
-	 */
-	iKey = ((iIndex&MDL_INDEX_MASK) << c->iKeyShift)| id;
 
-	i = c->pTrans[iKey & c->iTransMask];
-	/*
-	 ** Check for a match!
-	 */
-	if (c->pTag[i].iKey == iKey) {
-		++c->pTag[i].nLock;
-		c->pTag[i].nLast = c->nAccess;
-		pLine = &c->pLine[i*c->iLineSize];
-		iElt = iIndex & MDL_CACHE_MASK;
-		return(&pLine[iElt*c->iDataSize]);
-		}
-	i = c->pTag[i].iLink;
-	/*
-	 ** Collision chain search.
-	 */
-	while (i) {
-		++c->nColl;
-		if (c->pTag[i].iKey == iKey) {
-			++c->pTag[i].nLock;
-			c->pTag[i].nLast = c->nAccess;
-			pLine = &c->pLine[i*c->iLineSize];
-			iElt = iIndex & MDL_CACHE_MASK;
-			return(&pLine[iElt*c->iDataSize]);
-			}
-		i = c->pTag[i].iLink;
-		}
-	/*
+#ifdef INSTRUMENT
+	{
+	    ticks nTicks = getticks();
+	    mdl->dComputing += elapsed( nTicks, mdl->nTicks );
+	    mdl->nTicks = nTicks;
+	}
+#endif
+
+       	/*
 	 ** Cache Miss.
 	 */
 	iLine = iIndex >> MDL_CACHELINE_BITS;
@@ -1340,86 +1624,70 @@ void *mdlAquire(MDL mdl,int cid,int iIndex,int id)
 	c->caReq.id = mdl->idSelf;
 	c->caReq.iLine = iLine;
 	MPI_Send(&c->caReq,sizeof(CAHEAD),MPI_BYTE,
-		 id,MDL_TAG_CACHECOM, MPI_COMM_WORLD);
+		 id,MDL_TAG_CACHECOM, mdl->commMDL);
 	++c->nMiss;
-	/*
-	 **	LRU Victim Search!
-	 ** If nAccess > BILLION then we reset all LRU counters.
-	 ** This *should* be sufficient to prevent overflow of the 
-	 ** Access counter, but it *is* cutting corners a bit. 
-	 */
+
+	if (++c->iLastVictim == c->nLines) c->iLastVictim = 1;
+	iVictim = c->iLastVictim;
+	
 	iElt = iIndex & MDL_CACHE_MASK;
-	if (c->nAccess > BILLION) {
-		for (i=1;i<c->nLines;++i) c->pTag[i].nLast = 0;
-		c->nAccess -= BILLION;
-		c->nAccHigh += 1;
-		}
-
-	iVictim = 0;
-	for (i=c->iLine;i<c->nLines;++i) {
-	  if (!c->pTag[i].nLock) { 
-		c->iLine = i+1;
-		iVictim = i;
-		goto GotVictim;
-	  }
-	}
-	for (i=1;i<c->iLine;++i) {
-	  if (!c->pTag[i].nLock) { 
-		c->iLine = i+1;
-		iVictim = i;
-		goto GotVictim;
-	  }
-	}
-
-	if (!iVictim) {
+	for (i=1;i<c->nLines;++i) {
+	    if (!c->pTag[iVictim].nLock) {
 		/*
-		 ** Cache Failure!
+		 ** Found victim.
 		 */
-		mdlprintf(mdl, "MDL CACHE FAILURE: cid == %d, no unlocked lines!\n",cid);
-		assert(0);
-		}
-GotVictim:
-	iKeyVic = c->pTag[iVictim].iKey;
-	/*
-	 ** 'pLine' will point to the actual data line in the cache.
-	 */
-	pLine = &c->pLine[iVictim*c->iLineSize];
-	caFlsh = NULL;
-	if (iKeyVic != MDL_INVALID_KEY) {
-		if (c->iType == MDL_COCACHE) {
-			/*
-			 ** Flush element since it is valid!
-			 */
-		        idVic = mdlkey_t_to_int(iKeyVic&c->iIdMask);
-		        caFlsh = (CAHEAD *)mdl->pszFlsh;
-			pszFlsh = &mdl->pszFlsh[sizeof(CAHEAD)];
-		        caFlsh->cid = cid;
-			caFlsh->mid = MDL_MID_CACHEFLSH;
-			caFlsh->id = mdl->idSelf;
-			caFlsh->iLine = mdlkey_t_to_int(iKeyVic >> c->iInvKeyShift);
-			for(i = 0; i < c->iLineSize; ++i)
-			    pszFlsh[i] = pLine[i];
-			MPI_Isend(caFlsh, (int)sizeof(CAHEAD)+c->iLineSize,
-				 MPI_BYTE, idVic,
-				 MDL_TAG_CACHECOM, MPI_COMM_WORLD, &reqFlsh); 
+		iKeyVic = c->pTag[iVictim].iKey;
+		/*
+		 ** 'pLine' will point to the actual data line in the cache.
+		 */
+		pLine = &c->pLine[iVictim*c->iLineSize];
+		caFlsh = NULL;
+		if (iKeyVic != MDL_INVALID_KEY) {
+			if (c->iType == MDL_COCACHE) {
+			    /*
+			    ** Flush element since it is valid!
+			    */
+			    idVic = mdlkey_t_to_int(iKeyVic&c->iIdMask);
+			    caFlsh = (CAHEAD *)mdl->pszFlsh;
+			    pszFlsh = &mdl->pszFlsh[sizeof(CAHEAD)];
+			    caFlsh->cid = cid;
+			    caFlsh->mid = MDL_MID_CACHEFLSH;
+			    caFlsh->id = mdl->idSelf;
+			    caFlsh->iLine = mdlkey_t_to_int(iKeyVic >> c->iInvKeyShift);
+			    for(i = 0; i < c->iLineSize; ++i)
+				pszFlsh[i] = pLine[i];
+			    MPI_Isend(caFlsh, (int)sizeof(CAHEAD)+c->iLineSize,
+				      MPI_BYTE, idVic,
+				      MDL_TAG_CACHECOM, mdl->commMDL, &reqFlsh); 
 			}
+			/*
+			 ** If valid iLine then "unlink" it from the cache.
+			 */
+			pi = &c->pTrans[iKeyVic & c->iTransMask];
+			while (*pi != iVictim) pi = &c->pTag[*pi].iLink;
+			*pi = c->pTag[iVictim].iLink;
+			}
+		c->pTag[iVictim].iKey = iKey;
+		if (lock) c->pTag[iVictim].nLock = 1;
 		/*
-		 ** If valid iLine then "unlink" it from the cache.
+		 **	Add the modified victim tag back into the cache.
+		 ** Note: the new element is placed at the head of the chain.
 		 */
-		pi = &c->pTrans[iKeyVic & c->iTransMask];
-		while (*pi != iVictim) pi = &c->pTag[*pi].iLink;
-		*pi = c->pTag[iVictim].iLink;
+		pi = &c->pTrans[iKey & c->iTransMask];
+		c->pTag[iVictim].iLink = *pi;
+		*pi = iVictim;
+		goto Await;
 		}
-	c->pTag[iVictim].iKey = iKey;
-	c->pTag[iVictim].nLock = 1;
-	c->pTag[iVictim].nLast = c->nAccess;
+	    if (++iVictim == c->nLines) iVictim = 1;
+	    }
 	/*
-	 **	Add the modified victim tag back into the cache.
-	 ** Note: the new element is placed at the head of the chain.
+	 ** Cache Failure!
 	 */
-	pi = &c->pTrans[iKey & c->iTransMask];
-	c->pTag[iVictim].iLink = *pi;
-	*pi = iVictim;
+	sprintf(ach,"MDL CACHE FAILURE: cid == %d, no unlocked lines!\n",cid);
+	mdlDiag(mdl,ach);
+	exit(1);
+ Await:
+	c->iLastVictim = iVictim;
 	/*
 	 ** At this point 'pLine' is the recipient cache line for the 
 	 ** data requested from processor 'id'.
@@ -1428,16 +1696,24 @@ GotVictim:
 	  if(mdlCacheReceive(mdl,pLine)) {
 		      if(caFlsh)
 			    MPI_Wait(&reqFlsh, &status);
+#ifdef INSTRUMENT
+		      {
+			  ticks nTicks = getticks();
+			  mdl->dWaiting += elapsed( nTicks, mdl->nTicks );
+			  mdl->nTicks = nTicks;
+		      }
+#endif
 		      return(&pLine[iElt*c->iDataSize]);
 		      }
 		}
 	}
 
+
 void mdlRelease(MDL mdl,int cid,void *p)
 {
 	CACHE *c = &mdl->cache[cid];
-	size_t iData, iLine;
-	
+	int iData, iLine;
+
 	iLine = ((char *)p - c->pLine) / c->iLineSize;
 	/*
 	 ** Check if the pointer fell in a cache line, otherwise it
@@ -1452,6 +1728,7 @@ void mdlRelease(MDL mdl,int cid,void *p)
 		assert(iData < c->nData);
 		}
 	}
+
 
 double mdlNumAccess(MDL mdl,int cid)
 {
@@ -1490,3 +1767,32 @@ double mdlMinRatio(MDL mdl,int cid)
 	else return(0.0);
 	}
 
+#ifdef INSTRUMENT
+void mdlTimeReset(MDL mdl)
+{
+    mdl->dWaiting = mdl->dComputing = mdl->dSynchronizing = 0.0;
+    mdl->nTicks = getticks();
+}
+
+static double TimeFraction(MDL mdl)
+{
+    double dTotal = mdl->dComputing + mdl->dWaiting + mdl->dSynchronizing;
+    if ( dTotal <= 0.0 ) return 0.0;
+    return 100.0 / dTotal;
+}
+
+double mdlTimeComputing(MDL mdl)
+{
+    return mdl->dComputing * TimeFraction(mdl);
+}
+
+double mdlTimeSynchronizing(MDL mdl)
+{
+    return mdl->dSynchronizing * TimeFraction(mdl);
+}
+
+double mdlTimeWaiting(MDL mdl)
+{
+    return mdl->dWaiting * TimeFraction(mdl);
+}
+#endif

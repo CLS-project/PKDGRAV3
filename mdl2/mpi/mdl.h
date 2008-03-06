@@ -1,36 +1,52 @@
 #ifndef MDL_HINCLUDED
 #define MDL_HINCLUDED
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
 #include <stdio.h>
 #include <assert.h>
+#include <inttypes.h>
 #include "mpi.h"
+
+#ifdef INSTRUMENT
+#include "cycle.h"
+#endif
 
 
 #define SRV_STOP		0
 
-#define MDL_CACHE_SIZE		64000000
-#define MDL_CACHELINE_BITS	3
+#define MDL_CACHE_SIZE		150000000
+#define MDL_CACHELINE_BITS	4
 #define MDL_CACHELINE_ELTS	(1<<MDL_CACHELINE_BITS)
 #define MDL_CACHE_MASK		(MDL_CACHELINE_ELTS-1)
 #define MDL_INDEX_MASK		(~MDL_CACHE_MASK)
+#define MDL_CHECK_MASK  	0x7f
+
+#ifndef MDL_MAX_IO_PROCS
+#define MDL_MAX_IO_PROCS        128
+#endif
+
+/* Maximum number of communicators */
+#define MDL_MAX_COMM 10
 
 /*
 ** A MDL Key must be large enough to hold the largest unique particle key.
 ** It must be (several times) larger than the total number of particles.
 ** An "unsigned long" is normally 32 bits on a 32 bit machine and
-** 64 bits on a 64 bit machine.
+** 64 bits on a 64 bit machine.  We use uint64_t to be sure.
 */
 #ifndef MDLKEY
-#define MDLKEY unsigned long
+#define MDLKEY uint64_t
 #endif
 typedef MDLKEY mdlkey_t;
 static const mdlkey_t MDL_INVALID_KEY = (mdlkey_t)(-1);
 
 typedef struct cacheTag {
-	mdlkey_t iKey;
-	int nLock;
-	int nLast;
-	int iLink;
-	} CTAG;
+    mdlkey_t iKey;
+    int nLock;
+    int iLink;
+} CTAG;
+
 
 /*
  ** This structure should be "maximally" aligned, with 4 ints it
@@ -51,10 +67,11 @@ typedef struct cacheSpace {
 	int nData;
 	int iLineSize;
 	int nLines;
-	int iLine;
+        int iLine;
 	int nTrans;
         int iKeyShift;
         int iInvKeyShift;
+        int iLastVictim;
 	mdlkey_t iTransMask;
         mdlkey_t iIdMask;
 	int *pTrans;
@@ -86,6 +103,12 @@ typedef struct serviceRec {
 
 typedef struct mdlContext {
 	int nThreads;
+        int nIO;
+        int commCount;
+        MPI_Comm commMDL;  /* Current active communicator */
+        MPI_Comm commList[MDL_MAX_COMM];
+        /*MPI_Comm commWork;*/
+        /*MPI_Comm commPeer;*/
 	int idSelf;
 	int bDiag;
 	FILE *fpDiag;
@@ -107,7 +130,6 @@ typedef struct mdlContext {
 	/*
 	 ** Caching stuff!
 	 */
-	unsigned long uRand;
 	int iMaxDataSize;
 	int iCaBufSize;
 	char *pszRcv;
@@ -118,6 +140,13 @@ typedef struct mdlContext {
 	char *pszFlsh;
 	int nMaxCacheIds;
 	CACHE *cache;
+	char nodeName[MPI_MAX_PROCESSOR_NAME];
+#ifdef INSTRUMENT
+	ticks nTicks;
+	double dWaiting;
+	double dComputing;
+	double dSynchronizing;
+#endif
 	} * MDL;
 
 
@@ -198,17 +227,34 @@ void mdlPrintTimer(MDL mdl,char *message,mdlTimer *);
  ** General Functions
  */
 double mdlCpuTimer(MDL);
-int mdlInitialize(MDL *,char **,void (*)(MDL));
+int mdlInitialize(MDL *,char **,void (*)(MDL),void (*)(MDL));
 void mdlFinish(MDL);
+int  mdlSplitComm(MDL mdl, int nProcs);
+void mdlSetComm(MDL mdl, int iComm);
+void mdlStop(MDL);
 int mdlThreads(MDL);
+int mdlIO(MDL);
 int mdlSelf(MDL);
+int mdlOldSelf(MDL);
+const char *mdlName(MDL);
 int mdlSwap(MDL,int,size_t,void *,size_t,size_t *,size_t *);
+typedef int (*mdlPack)(void *,int *,size_t,void*);
+void mdlSend(MDL mdl,int id,mdlPack pack, void *ctx);
+void mdlRecv(MDL mdl,int id,mdlPack unpack, void *ctx);
 void mdlDiag(MDL,char *);
 void mdlAddService(MDL,int,void *,void (*)(void *,void *,int,void *,int *),
 				   int,int);
 void mdlReqService(MDL,int,int,void *,int);
 void mdlGetReply(MDL,int,void *,int *);
 void mdlHandler(MDL);
+/*
+** Collective operations
+*/
+typedef MPI_Op MDL_Op;
+typedef MPI_Datatype MDL_Datatype;
+int mdlReduce ( MDL mdl, void *sendbuf, void *recvbuf, int count, 
+                MDL_Datatype datatype, MDL_Op op, int root );
+
 /*
  ** Caching functions.
  */
@@ -220,8 +266,59 @@ void mdlCOcache(MDL,int,void *,int,int,
 void mdlFinishCache(MDL,int);
 void mdlCacheCheck(MDL);
 void mdlCacheBarrier(MDL,int);
-void *mdlAquire(MDL,int,int,int);
-void mdlPrefetch(MDL,int,int,int);
+
+void *mdlDoMiss(MDL mdl, int cid, int iIndex, int id, mdlkey_t iKey, int lock);
+
+static inline void *mdlAquire(MDL mdl,int cid,int iIndex,int id)
+{
+	const int lock = 1;  /* we always lock in aquire */
+	CACHE *c = &mdl->cache[cid];
+	char *pLine;
+	mdlkey_t iKey;
+	int iElt;
+	int i;
+
+	++c->nAccess;
+	if (!(c->nAccess & MDL_CHECK_MASK))
+	        mdlCacheCheck(mdl);
+	/*
+	 ** Determine memory block key value and cache line.
+	 */
+	iKey = ((iIndex&MDL_INDEX_MASK) << c->iKeyShift)| id;
+	i = c->pTrans[iKey & c->iTransMask];
+	/*
+	 ** Check for a match!
+	 */
+	if (c->pTag[i].iKey == iKey) {
+		++c->pTag[i].nLock;
+		pLine = &c->pLine[i*c->iLineSize];
+		iElt = iIndex & MDL_CACHE_MASK;
+		return(&pLine[iElt*c->iDataSize]);
+		}
+	i = c->pTag[i].iLink;
+	/*
+	 ** Collision chain search.
+	 */
+	while (i) {
+		++c->nColl;
+		if (c->pTag[i].iKey == iKey) {
+			++c->pTag[i].nLock;
+			pLine = &c->pLine[i*c->iLineSize];
+			iElt = iIndex & MDL_CACHE_MASK;
+			return(&pLine[iElt*c->iDataSize]);
+			}
+		i = c->pTag[i].iLink;
+		}
+	/*
+	 ** Is it a local request? This should not happen in pkdgrav2.
+	 */
+	if (id == mdl->idSelf) {
+		return(&c->pData[iIndex*c->iDataSize]);
+		}
+	return(mdlDoMiss(mdl, cid, iIndex, id, iKey, lock));
+}
+
+
 void mdlRelease(MDL,int,void *);
 /*
  ** Cache statistics functions.
@@ -230,5 +327,12 @@ double mdlNumAccess(MDL,int);
 double mdlMissRatio(MDL,int);
 double mdlCollRatio(MDL,int);
 double mdlMinRatio(MDL,int);
+
+#ifdef INSTRUMENT
+void mdlTimeReset(MDL);
+double mdlTimeComputing(MDL);
+double mdlTimeSynchronizing(MDL);
+double mdlTimeWaiting(MDL);
+#endif
 
 #endif
