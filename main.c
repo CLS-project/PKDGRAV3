@@ -113,7 +113,7 @@ int main(int argc,char **argv) {
 #ifdef USE_MDL_IO
     mdlInitialize(&mdl,argv,main_ch,main_io);
 #else
-    mdlInitialize(&mdl,argv,main_ch);
+    mdlInitialize(&mdl,argv,main_ch,0);
 #endif
     for(argc = 0; argv[argc]; argc++); /* some MDLs can trash argv */
  

@@ -40,7 +40,7 @@ endif
 if LOCAL_EXPANSION
 SOURCES += grav2.c walk2.c
 if USE_SIMD
-AM_CFLAGS = -I../bsc/ @SIMD_CFLAGS@
+AM_CFLAGS = @SIMD_CFLAGS@
 if USE_SIMD_LOCR
 SOURCES += ../bsc/momGenLocrAddSIMDMomr.c
 endif
@@ -56,10 +56,8 @@ SOURCES += iohdf5.c
 endif
 if USE_MDL_IO
 SOURCES += io.c
-MDL=../bsc
-else
-MDL=@MDL_PATH@
 endif
+MDL=@MDL_PATH@
 if USE_PNG
 SOURCES += png.c
 endif
