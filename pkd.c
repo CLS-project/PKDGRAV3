@@ -182,7 +182,7 @@ void pkdInitialize(PKD *ppkd,MDL mdl,int nStore,int nBucket,FLOAT *fPeriod,
     ** less than nBucket, and roughly given by nBucket-sqrt(nBucket).
     */
     /*pkd->nMaxNodes = (int)ceil(3.0*nStore/floor(nBucket - sqrt(nBucket)));*/
-    pkd->nMaxNodes = (int)ceil(5.0*nStore/nBucket);
+    pkd->nMaxNodes = (int)ceil(5.0*nStore/floor(nBucket-sqrt(nBucket)));
     pkd->kdNodes = mdlMalloc(pkd->mdl,pkd->nMaxNodes*sizeof(KDN));
     mdlassert(mdl,pkd->kdNodes != NULL);
     /*
