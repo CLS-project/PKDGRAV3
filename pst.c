@@ -374,28 +374,32 @@ void pstSetAdd(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     {
     PST pstNew;
     struct inSetAdd *in = vin;
+    int n, idMiddle;
 
     mdlassert(pst->mdl,nIn == sizeof(struct inSetAdd));
-    if (pst->nLeaves > 1) {
-	++pst->nLeaves;
-	if (pst->nLower > pst->nUpper) {
-	    ++pst->nUpper;
-	    mdlReqService(pst->mdl,pst->idUpper,PST_SETADD,in,nIn);
-	    mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
-	    }
-	else {
-	    ++pst->nLower;
-	    pstSetAdd(pst->pstLower,in,nIn,NULL,NULL);
-	    }
-	}
-    else {
-	++pst->nLeaves;
-	++pst->nLower;
-	++pst->nUpper;
+    mdlassert(pst->mdl,pst->nLeaves==1);
+    mdlassert(pst->mdl,in->idLower==mdlSelf(pst->mdl));
+
+    n = in->idUpper - in->idLower;
+    idMiddle = (in->idUpper + in->idLower) / 2;
+    if ( n > 1 ) {
+	pst->nLeaves += n - 1;
+	pst->nLower = idMiddle - in->idLower;
+	pst->nUpper = in->idUpper - idMiddle;
+
+	in->idLower = idMiddle;
+	pst->idUpper = in->idLower;
+	mdlReqService(pst->mdl,pst->idUpper,PST_SETADD,in,nIn);
+
+	in->idLower = mdlSelf(pst->mdl);
+	in->idUpper = idMiddle;
 	pstInitialize(&pstNew,pst->mdl,pst->plcl);
 	pst->pstLower = pstNew;
-	pst->idUpper = in->id;
-	}
+	pstSetAdd(pst->pstLower,in,nIn,NULL,NULL);
+
+	mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
+
+        }
     if (pnOut) *pnOut = 0;
     }
 

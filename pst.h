@@ -180,7 +180,8 @@ void pstFinish(PST);
 /* PST_SETADD */
 
 struct inSetAdd {
-    int id;
+    int idLower;
+    int idUpper;
     };
 void pstSetAdd(PST,void *,int,void *,int *);
 

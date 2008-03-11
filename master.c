@@ -734,12 +734,12 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv)
     /*
     ** Create the processor subset tree.
     */
-    for (id=1;id<msr->nThreads;++id) {
-	if (msr->param.bVDetails) printf("Adding %d to the pst\n",id);
-	inAdd.id = id;
-	pstSetAdd(msr->pst,&inAdd,sizeof(inAdd),NULL,NULL);
-	}
-    if (msr->param.bVDetails) printf("\n");
+    inAdd.idLower = 0;
+    inAdd.idUpper = msr->nThreads;
+    if (msr->param.bVDetails && msr->nThreads > 1)
+	printf("Adding %d through %d to the PST\n",
+	       inAdd.idLower+1,inAdd.idUpper-1);
+    pstSetAdd(msr->pst,&inAdd,sizeof(inAdd),NULL,NULL);
     /*
     ** Levelize the PST.
     */
