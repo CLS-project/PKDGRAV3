@@ -1451,6 +1451,9 @@ static double _msrReadHDF5(MSR msr, const char *achFilename)
     io = ioHDF5Initialize( fileID, 32768, IOHDF5_SINGLE );
 
     assert(ioHDF5ReadAttribute( io, "dTime", H5T_NATIVE_DOUBLE, &dExpansion ));
+    ioHDF5ReadAttribute( io, "dEcosmo", H5T_NATIVE_DOUBLE, &msr->dEcosmo );
+    ioHDF5ReadAttribute( io, "dTimeOld",H5T_NATIVE_DOUBLE, &msr->dTimeOld );
+    ioHDF5ReadAttribute( io, "dUOld",   H5T_NATIVE_DOUBLE, &msr->dUOld );
 
     msr->nDark = ioHDF5DarkCount(io);
     msr->nGas = ioHDF5GasCount(io);
