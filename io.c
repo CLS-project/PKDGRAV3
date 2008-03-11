@@ -369,6 +369,7 @@ void ioPlanLoad(IO io,void *vin,int nIn,void *vout,int *pnOut)
 
     for( i=0; i<MDL_MAX_IO_PROCS; i++ )
 	out->nCount[i] = 0;
+    out->dEcosmo = out->dTimeOld = out->dUOld = 0.0;
 
     /* Check only files for which I am responsible */
     H5Eget_auto(&oldAutoFunc, &oldAutoData );
@@ -381,6 +382,12 @@ void ioPlanLoad(IO io,void *vin,int nIn,void *vout,int *pnOut)
 	    out->nCount[i] = ioHDF5DarkCount(iohdf5);
 	    assert(ioHDF5ReadAttribute(
 		       iohdf5, "dTime", H5T_NATIVE_DOUBLE, &out->dExpansion ));
+	    ioHDF5ReadAttribute(
+		       iohdf5, "dEcosmo", H5T_NATIVE_DOUBLE, &out->dEcosmo );
+	    ioHDF5ReadAttribute(
+		       iohdf5, "dTimeOld", H5T_NATIVE_DOUBLE, &out->dTimeOld );
+	    ioHDF5ReadAttribute(
+		       iohdf5, "dUOld", H5T_NATIVE_DOUBLE, &out->dUOld );
 	    ioHDF5Finish(iohdf5);
 	    H5assert(H5Fclose(fileID));
 	}

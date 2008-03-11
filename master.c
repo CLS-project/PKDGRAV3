@@ -519,10 +519,11 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv)
     msr->param.iSeed = 0;
     prmAddParam(msr->prm,"iSeed",1,&msr->param.iSeed,
 		sizeof(int),"seed","<Random seed for IC> = 0");	
+#endif
+
     msr->param.bWriteIC = 0;
     prmAddParam(msr->prm,"bWriteIC",1,&msr->param.bWriteIC,
 		sizeof(int),"wic","<Write IC after generating> = 0");	
-#endif
 
 
 /*
@@ -1371,6 +1372,9 @@ static double _msrIORead(MSR msr, const char *achFilename, int iStep )
     msr->nMaxOrderDark = msr->nGas + msr->nDark;
 
     dTime = getTime(msr,outPlan.dExpansion,&dvFac);
+    msr->dEcosmo = outPlan.dEcosmo;
+    msr->dTimeOld = outPlan.dTimeOld;
+    msr->dUOld = outPlan.dUOld;
     if (msr->param.bVStart)
 	printf("Reading file...\nN:%"PRIu64" nDark:%"PRIu64" nGas:%"PRIu64" nStar:%"PRIu64"\n",msr->N,
 		   msr->nDark,msr->nGas,msr->nStar);

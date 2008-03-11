@@ -91,7 +91,10 @@ struct inPlanLoad {
     char achInName[PST_FILENAME_SIZE];
     };
 struct outPlanLoad {
-    double  dExpansion;
+    double dExpansion;
+    double dEcosmo;
+    double dTimeOld;
+    double dUOld;
     total_t nCount[MDL_MAX_IO_PROCS];
 };
 void ioPlanLoad(IO,void *,int,void *,int *);
