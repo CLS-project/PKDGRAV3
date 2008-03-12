@@ -113,7 +113,6 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv)
     int i,j,ret;
     int id,nDigits;
     struct inSetAdd inAdd;
-    struct inLevelize inLvl;
     struct inGetMap inGM;
 
     msr = (MSR)malloc(sizeof(struct msrContext));
@@ -741,11 +740,6 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv)
 	printf("Adding %d through %d to the PST\n",
 	       inAdd.idLower+1,inAdd.idUpper-1);
     pstSetAdd(msr->pst,&inAdd,sizeof(inAdd),NULL,NULL);
-    /*
-    ** Levelize the PST.
-    */
-    inLvl.iLvl = 0;
-    pstLevelize(msr->pst,&inLvl,sizeof(inLvl),NULL,NULL);
     /*
     ** Create the processor mapping array for the one-node output
     ** routines.

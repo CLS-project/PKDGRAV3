@@ -20,7 +20,6 @@
 typedef struct lclBlock {
     char *pszDataPath;
     PKD	pkd;
-    int nPstLvl;
     int iWtFrom;
     int iWtTo;
     int iPart;
@@ -63,7 +62,6 @@ typedef struct pstContext {
 enum pst_service {
     PST_SRV_STOP,
     PST_SETADD,
-    PST_LEVELIZE,
     PST_READTIPSY,
     PST_DOMAINDECOMP,
     PST_CALCBOUND,
@@ -184,12 +182,6 @@ struct inSetAdd {
     int idUpper;
     };
 void pstSetAdd(PST,void *,int,void *,int *);
-
-/* PST_LEVELIZE */
-struct inLevelize {
-    int iLvl;
-    };
-void pstLevelize(PST,void *,int,void *,int *);
 
 /* PST_READTIPSY */
 struct inReadTipsy {

@@ -24,6 +24,116 @@
 #include "grafic.h"
 #endif
 
+/*
+** Input:
+**  Bcast   - The same data is sent to all processors
+**  Scatter - A unique value is sent to each processor
+**  Fan Out
+**
+** Output:
+**  Reduce  - The return value is reduced (sum, etc.)
+**  Gather  - A unique value is received from all processors
+**
+**
+**  Service               Input   Output | 
+**  -------               -----   ------ | 
+**  SetAdd                yes     -      | fan out
+**  ReadTipsy             yes     -      | 
+**  ReadHDF5              yes     -      | 
+**  DomainDecomp          yes     -      | 
+**  CalcBound             -       Reduce | Custom reduce: BND_COMBINE
+**  Weight                Bcast   Reduce | Sum several fields
+**  CountVA               Bcast   Reduce | Sum two fields
+**  WeightWrap            Bast    Reduce | Sum two fields
+**  OrdWeight             Bast    Reduce | Sum two fields
+**  FreeStore             -       Reduce | Sum a field
+**  ColRejects            -       Many   | 
+**  SwapRejects           Scatter Many   | 
+**  ColOrdRejects         Yes     Many   | 
+**  DomainOrder           Yes     -      | 
+**  LocalOrder            -       -      | 
+**  OutArray              Yes     -      | 
+**  OutVector             Yes     -      | 
+**  WriteTipsy            Yes     -      | 
+**  BuildTree             Yes     Many   | 
+**  DistribCells          Many    -      | 
+**  CalcBoundBall         Yes     Many   | 
+**  DistribBoundBall      Many    -      | 
+**  CalcRoot              -       Yes    | 
+**  DistribRoot           Yes     -      | 
+**  Smooth                Yes     -      | 
+**  Gravity               Yes     Many   | 
+**  CalcEandL             -       Yes    | 
+**  Drift                 Yes     -      | 
+**  DriftInactive         Yes     -      | 
+**  CacheBarrier          -       -      | 
+**  StepVeryActiveKDK     Yes     Yes    | 
+**  StepVeryActiveHermite Yes     Yes    | 
+**  Copy0                 Yes     -      | 
+**  Predictor             Yes     -      | 
+**  Corrector             Yes     -      | 
+**  SunCorrector          Yes     -      | 
+**  PredictorInactive     Yes     -      | 
+**  AarsethStep           Yes     -      | 
+**  FirstDt               -       -      | 
+**  ROParticleCache       -       -      | 
+**  ParticleCacheFinish   -       -      | 
+**  Kick                  Yes     Yes    | 
+**  SetSoft               Yes     -      | 
+**  PhysicalSoft          Yes     -      | 
+**  PreVariableSoft       -       -      | 
+**  PostVariableSoft      Yes     -      | 
+**  SetTotal              -       Yes    | 
+**  SetWriteStart         Yes     -      | 
+**  OneNodeReadInit       Yes     Many   | 
+**  SwapAll               Yes     -      | 
+**  ActiveOrder           -       Yes    | 
+**  InitStep              Yes     -      | 
+**  SetRung               Yes     -      | 
+**  ActiveRung            Yes     -      | 
+**  CurrRung              Yes     Yes    | 
+**  DensityStep           Yes     -      | 
+**  GetMap                Yes     Many   | fan out
+**  GravStep              Yes     -      | 
+**  AccelStep             Yes     -      | 
+**  SetRungVeryActive     Yes     -      | 
+**  SetParticleTypes      Yes     -      | 
+**  ReSmooth              Yes     -      | 
+**  DtToRung              Yes     Yes    | 
+**  InitDt                Yes     -      | 
+**  ColNParts             -       Many   | 
+**  NewOrder              Many    -      | 
+**  SetNParts             Yes     -      | 
+**  ClearTimer            Yes     -      | 
+**  Fof                   Yes     -      | 
+**  GroupMerge            Yes     Yes    | 
+**  GroupProfiles         Yes     Yes    | 
+**  InitRelaxation        -       -      | 
+**  FindIOS               Yes     Yes    | 
+**  StartIO               Yes     -      | 
+**  IOLoad                Yes     -      | 
+**  ReadSS                Yes     -      | 
+**  WriteSS               Yes     -      | 
+**  SunIndirect           Yes     Yes    | 
+**  GravSun               Yes     -      | 
+**  HandSunMass           Yes     -      | 
+**  NextCollision         -       Yes    | 
+**  GetColliderInfo       Yes     Yes    | 
+**  DoCollision           Yes     Yes    | 
+**  GetVariableVeryActive -       Yes    | 
+**  CheckHelioDist        -       Yes    | 
+**  StepVeryActiveSymba   Yes     Yes    | 
+**  DrminToRung           Yes     Yes    | 
+**  MomSun                -       Yes    | 
+**  DriftSun              Yes     -      | 
+**  KeplerDrift           Yes     -      | 
+**  GenerateIC            Yes     Yes    | 
+**  Hostname              -       Gather | 
+*/
+
+
+
+
 void pstAddServices(PST pst,MDL mdl)
     {
     int nThreads,nCell;
@@ -32,9 +142,6 @@ void pstAddServices(PST pst,MDL mdl)
     mdlAddService(mdl,PST_SETADD,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstSetAdd,
 		  sizeof(struct inSetAdd),0);
-    mdlAddService(mdl,PST_LEVELIZE,pst,
-		  (void (*)(void *,void *,int,void *,int *)) pstLevelize,
-		  sizeof(struct inLevelize),0);
     mdlAddService(mdl,PST_READTIPSY,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstReadTipsy,
 		  sizeof(struct inReadTipsy),0);
@@ -400,26 +507,6 @@ void pstSetAdd(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 	mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
 
         }
-    if (pnOut) *pnOut = 0;
-    }
-
-
-void pstLevelize(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
-    LCL *plcl = pst->plcl;
-    struct inLevelize *in = vin;
-
-    mdlassert(pst->mdl,nIn == sizeof(struct inLevelize));
-    pst->iLvl = in->iLvl;
-    if (pst->nLeaves > 1) {
-	++in->iLvl;
-	mdlReqService(pst->mdl,pst->idUpper,PST_LEVELIZE,in,nIn);
-	pstLevelize(pst->pstLower,in,nIn,NULL,NULL);
-	mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
-	}
-    else {
-	plcl->nPstLvl = pst->iLvl+1;
-	}
     if (pnOut) *pnOut = 0;
     }
 
