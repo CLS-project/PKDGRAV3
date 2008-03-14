@@ -144,11 +144,13 @@ struct parameters {
 #endif /* PLANETS */
 
     /* IC Generation */
+    int bWriteIC;
+#ifdef USE_GRAFIC
     double h;
     double dBoxSize;
     int nGrid;
     int iSeed;
-    int bWriteIC;
+#endif
     };
 
 #endif

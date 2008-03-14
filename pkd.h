@@ -50,8 +50,8 @@ typedef uint_fast64_t total_t; /* Count of particles globally (total number) */
 */
 #define LOWER(i)	(i<<1)
 #define UPPER(i)	((i<<1)+1)
-#define PARENT(i)	(i>>1)
 #define SIBLING(i) 	(i^1)
+#define PARENT(i)	(i>>1)
 #define SETNEXT(i)\
 {\
 	while (i&1) i=i>>1;\

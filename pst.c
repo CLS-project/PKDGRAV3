@@ -15,6 +15,9 @@
 #include <assert.h>
 #include <stdint.h>
 #include <inttypes.h>
+#ifdef __linux__
+#include <unistd.h>
+#endif
 #include "mdl.h"
 #include "pst.h"
 #include "pkd.h"	
@@ -129,6 +132,7 @@
 **  KeplerDrift           Yes     -      | 
 **  GenerateIC            Yes     Yes    | 
 **  Hostname              -       Gather | 
+**  MemStatus             -       Gather | 
 */
 
 
@@ -439,6 +443,11 @@ void pstAddServices(PST pst,MDL mdl)
     mdlAddService(mdl,PST_HOSTNAME,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstHostname,
 		  0,nThreads*sizeof(struct outHostname));
+#ifdef __linux__
+    mdlAddService(mdl,PST_MEMSTATUS,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstMemStatus,
+		  0,nThreads*sizeof(struct outMemStatus));
+#endif
     }
 
 void pstInitialize(PST *ppst,MDL mdl,LCL *plcl)
@@ -3867,3 +3876,65 @@ void pstHostname(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     }
     if (pnOut) *pnOut = nThreads*sizeof(struct outHostname);
 }
+
+#ifdef __linux__
+void pstMemStatus(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl = pst->plcl;
+    struct outMemStatus *out = vout;
+    struct outMemStatus *outUp;
+    int nThreads = mdlThreads(pst->mdl);
+    int id;
+   
+    mdlassert(pst->mdl,nIn == 0);
+    if (pst->nLeaves > 1) {
+	mdlReqService(pst->mdl,pst->idUpper,PST_MEMSTATUS,vin,nIn);
+	pstMemStatus(pst->pstLower,vin,nIn,out,NULL);
+	/*
+	** Allocate temporary array.
+	*/
+	outUp = malloc(nThreads*sizeof(struct outMemStatus));
+	assert(outUp != NULL);
+	mdlGetReply(pst->mdl,pst->idUpper,outUp,NULL);
+	/*
+	** Now merge valid elements of outUp to out.
+	*/
+	for (id=0;id<nThreads;++id) {
+	    if (outUp[id].vsize)
+		out[id] = outUp[id];
+	}
+	free(outUp);
+    }
+    else {
+	FILE *fp;
+	char buffer[1024], *f;
+	int i;
+
+	for (id=0;id<nThreads;++id) out[id].vsize = 0;
+	id = pst->idSelf;
+
+	fp = fopen("/proc/self/stat","r");
+	if ( fp != NULL ) {
+	    fgets(buffer,sizeof(buffer),fp);
+	    fclose(fp);
+	    f = strtok(buffer," ");
+	    for( i=0; i<= 36 && f; i++ ) {
+		switch(i) {
+		case  9: out[id].minflt = atol(f); break;
+		case 10: out[id].cminflt= atol(f); break;
+		case 11: out[id].majflt = atol(f); break;
+		case 12: out[id].cmajflt= atol(f); break;
+		case 22:
+		    out[id].vsize  = atol(f)/1024/1024;
+		    break;
+		case 23:
+		    out[id].rss    = atol(f)*getpagesize()/1024/1024;
+		    break;
+		default: break;
+		}
+		f = strtok(NULL," ");
+	    }
+	}
+    }
+    if (pnOut) *pnOut = nThreads*sizeof(struct outMemStatus);
+}
+#endif

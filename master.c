@@ -561,6 +561,7 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv)
 	printf("WARNING: nReplicas set to non-zero value for non-periodic!\n");
 	}
 
+#ifdef USE_GRAFIC
     if ( msr->param.nGrid ) {
 	if (msr->param.achInFile[0]) {
 	    puts("ERROR: do not specify an input file when generating IC");
@@ -580,9 +581,11 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv)
 	    _msrExit(msr,1);
 	}
     }
-    else if (!msr->param.achInFile[0]) {
-	puts("ERROR: no input file specified");
-	_msrExit(msr,1);
+    else
+#endif
+	if (!msr->param.achInFile[0]) {
+	    puts("ERROR: no input file specified");
+	    _msrExit(msr,1);
 	}
 
     if (msr->param.dTheta <= 0) {
@@ -2731,7 +2734,7 @@ void msrUpdateSoft(MSR msr,double dTime) {
     }\
 }
 
-msrHostname(MSR msr)
+void msrHostname(MSR msr)
 {
     struct outHostname *out;
     int i,iDum;
@@ -2742,6 +2745,23 @@ msrHostname(MSR msr)
     PRINTGRID("% 8.8s",szHostname);
     printf("MPI Rank:\n");
     PRINTGRID("% 8d",iMpiID);
+}
+
+void msrMemStatus(MSR msr)
+{
+#ifdef __linux__
+    struct outMemStatus *out;
+    int i,iDum;
+    out = malloc(msr->nThreads*sizeof(struct outMemStatus));
+    assert(out != NULL);
+    pstMemStatus(msr->pst,0,0,out,&iDum);
+    printf("Virtual Size (MB):\n");
+    PRINTGRID("% 8d",vsize);
+    printf("Resident (MB):\n");
+    PRINTGRID("% 8d",rss);
+    printf("Major faults:\n");
+    PRINTGRID("% 8d",cmajflt);
+#endif
 }
 
 void msrGravity(MSR msr,double dTime,double dStep,int bEwald,

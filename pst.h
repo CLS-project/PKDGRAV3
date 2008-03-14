@@ -169,6 +169,7 @@ enum pst_service {
     PST_GENERATEIC,
 #endif
     PST_HOSTNAME,
+    PST_MEMSTATUS,
     };
 
 void pstAddServices(PST,MDL);
@@ -1007,4 +1008,17 @@ struct outHostname {
     };
 void pstHostname(PST,void *,int,void *,int *);
 
+#ifdef __linux__
+/* PST_MEMSTATUS */
+struct outMemStatus {
+    unsigned long minflt;
+    unsigned long cminflt;
+    unsigned long majflt;
+    unsigned long cmajflt;
+    unsigned long vsize;
+    unsigned long rss;
+    };
+void pstMemStatus(PST,void *,int,void *,int *);
 #endif 
+
+#endif

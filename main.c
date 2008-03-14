@@ -196,9 +196,11 @@ int main(int argc,char **argv) {
 	msrBuildTree(msr,dMass,dTime,msr->param.bEwald);
 	if (msrDoGravity(msr)) {
 	    msrGravity(msr,dTime,msr->param.iStartStep,msr->param.bEwald,&iSec,&nActive);
+	    msrMemStatus(msr);
 	    if (msr->param.bGravStep) {
 		msrBuildTree(msr,dMass,dTime,msr->param.bEwald);
 		msrGravity(msr,dTime,msr->param.iStartStep,msr->param.bEwald,&iSec,&nActive);
+		msrMemStatus(msr);
 		}
 	    msrCalcEandL(msr,MSR_INIT_E,dTime,&E,&T,&U,&Eth,L);
 	    dMultiEff = 1.0;
@@ -257,6 +259,9 @@ int main(int argc,char **argv) {
 	      }
 	    
 	    dTime += msrDelta(msr);
+
+	    msrMemStatus(msr);
+
 	    /*
 	    ** Output a log file line if requested.
 	    ** Note: no extra gravity calculation required.

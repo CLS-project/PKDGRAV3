@@ -233,4 +233,7 @@ void msrKeplerDrift(MSR msr,double dDelta);
 #endif  /* SYMBA */
 #endif /* PLANETS */
 
+void msrHostname(MSR msr);
+void msrMemStatus(MSR msr);
+
 #endif
