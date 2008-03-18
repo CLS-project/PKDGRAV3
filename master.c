@@ -1364,6 +1364,7 @@ void msrSetClasses(MSR msr)
     pstGetClasses(msr->pst,NULL,0,pClass,&nClass);
     qsort(pClass,nClass,sizeof(PARTCLASS),CmpPC);
     pstSetClasses(msr->pst,pClass,nClass,NULL,NULL);
+    free(pClass);
 }
 
 #ifdef USE_HDF5
