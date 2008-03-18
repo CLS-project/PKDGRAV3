@@ -78,6 +78,7 @@ typedef struct msrContext {
 
 void msrInitialize(MSR *,MDL,int,char **);
 void msrLogParams(MSR msr, FILE *fp);
+void msrprintf(MSR msr, const char *Format, ... );
 int msrGetLock(MSR msr);
 int msrCheckForStop(MSR msr);
 void msrFinish(MSR);
@@ -86,8 +87,8 @@ double msrRead(MSR, int iStep);
 void msrWrite(MSR,char *,double, int bCheckpoint );
 void msrSetSoft(MSR msr,double);
 void msrDomainDecomp(MSR,int iRung,int bGreater,int bSplitVA);
-void msrBuildTree(MSR msr,double dMass,double dTime,int bNeedEwald);
-void msrBuildTreeExcludeVeryActive(MSR msr,double dMass,double dTime);
+void msrBuildTree(MSR msr,double dTime,int bNeedEwald);
+void msrBuildTreeExcludeVeryActive(MSR msr,double dTime);
 
 #ifdef GASOLINE
 void msrCalcBallBound(MSR,double fBallFactor);

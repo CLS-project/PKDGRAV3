@@ -83,19 +83,46 @@ typedef struct pIO {
     FLOAT fPot;
 } PIO;
 
+#define PKD_MAX_CLASSES 256
+
+typedef struct partclass {
+    FLOAT fMass;  /* Particle mass */
+    FLOAT fSoft;  /* Current softening */
+    FLOAT fSoft0; /* Softening from file */
+} PARTCLASS;
+
 typedef struct particle {
-    uint64_t iOrder;
+    uint64_t iOrder : 48;
+    uint8_t  iRung  :  8;
+    uint8_t  iClass :  8;
+    FLOAT r[3];
     unsigned int iActive;  
-    int iRung;
     int iBucket;
+#ifdef PARTICLE_HAS_MASS
     FLOAT fMass;
     FLOAT fSoft;
 #ifdef CHANGESOFT
     FLOAT fSoft0;
 #endif
-    FLOAT r[3];
+#endif
     FLOAT v[3];
-    FLOAT a[3];
+    float a[3];
+    float fDensity;
+    FLOAT fWeight;
+
+    FLOAT fPot;
+    FLOAT fBall;
+
+    FLOAT dt;			/* a time step suggestion */
+    FLOAT dtGrav;		/* suggested 1/dt^2 from gravity */
+
+    int pGroup;
+    int pBin;
+    FLOAT fBallv2;
+#ifdef RELAXATION
+    FLOAT fRelax;
+#endif
+
 #ifdef HERMITE
     FLOAT ad[3];
     FLOAT r0[3];
@@ -108,22 +135,6 @@ typedef struct particle {
     FLOAT adpp[3];
     FLOAT dTime0; 
 #endif  /* Hermite */
-    FLOAT fWeight;
-
-    FLOAT fPot;
-    FLOAT fBall;
-    FLOAT fDensity;
-
-    FLOAT dt;			/* a time step suggestion */
-    FLOAT dtGrav;		/* suggested 1/dt^2 from gravity */
-
-    int pGroup;
-    int pBin;
-    FLOAT fBallv2;
-#ifdef RELAXATION
-    FLOAT fRelax;
-#endif
-
 #ifdef PLANETS 
 /* (collision stuff) */
     int iOrgIdx;		/* for tracking of mergers, aggregates etc. */
@@ -577,6 +588,8 @@ typedef struct pkdContext {
     int nNonVANodes;    /* number of nodes *not* in Very Active Tree, or index to the start of the VA nodes (except VAROOT) */
     KDN *kdNodes;
     PARTICLE *pStore;
+    PARTCLASS *pClass;
+    int nClasses;
     int nMaxBucketActive;
     PARTICLE **piActive;
     PARTICLE **piInactive;
@@ -851,5 +864,6 @@ void pkdKeplerDrift(PKD pkd,double dt,double mu,int tag_VA);
 void pkdGenerateIC(PKD pkd, GRAFICCTX gctx, int iDim,
 		   double fSoft, double fMass, int bCannonical);
 #endif
-
+int pkdGetClasses( PKD pkd, int nMax, PARTCLASS *pClass );
+int pkdSetClasses( PKD pkd, int n, PARTCLASS *pClass );
 #endif

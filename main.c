@@ -193,12 +193,12 @@ int main(int argc,char **argv) {
 	msrActiveRung(msr,0,1); /* Activate all particles */
 	msrDomainDecomp(msr,0,1,0);
 	msrUpdateSoft(msr,dTime);
-	msrBuildTree(msr,dMass,dTime,msr->param.bEwald);
+	msrBuildTree(msr,dTime,msr->param.bEwald);
 	if (msrDoGravity(msr)) {
 	    msrGravity(msr,dTime,msr->param.iStartStep,msr->param.bEwald,&iSec,&nActive);
 	    msrMemStatus(msr);
 	    if (msr->param.bGravStep) {
-		msrBuildTree(msr,dMass,dTime,msr->param.bEwald);
+		msrBuildTree(msr,dTime,msr->param.bEwald);
 		msrGravity(msr,dTime,msr->param.iStartStep,msr->param.bEwald,&iSec,&nActive);
 		msrMemStatus(msr);
 		}
@@ -231,7 +231,7 @@ int main(int argc,char **argv) {
 	    }
 	}
 #endif
-	for (iStep=msr->param.iStartStep+1;iStep<=msrSteps(msr);++iStep) {
+	for (iStep=msr->param.iStartStep+1;iStep<=msrSteps(msr)&&!iStop;++iStep) {
 	    if (msrComove(msr)) {
 		msrSwitchTheta(msr,dTime);
 		}
@@ -256,7 +256,7 @@ int main(int argc,char **argv) {
 		msrTopStepKDK(msr,iStep-1,dTime,
 			  msrDelta(msr),0,0,msrMaxRung(msr),1,
 			  &dMultiEff,&iSec);
-	      }
+	    }
 	    
 	    dTime += msrDelta(msr);
 
@@ -278,7 +278,7 @@ int main(int argc,char **argv) {
 	    if ( msr->param.bTraceRelaxation) {
 		msrActiveRung(msr,0,1); /* Activate all particles */
 		msrDomainDecomp(msr,0,1,0);
-		msrBuildTree(msr,dMass,dTime,0);
+		msrBuildTree(msr,dTime,0);
 		msrRelaxation(msr,dTime,msrDelta(msr),SMX_RELAXATION,0,TYPE_ALL);
 		}
 #endif	
@@ -286,6 +286,19 @@ int main(int argc,char **argv) {
 	    ** Check for user interrupt.
 	    */
 	    iStop = msrCheckForStop(msr);
+
+	    /*
+	    ** Check to see if the runtime has been exceeded.
+	    */
+	    if (!iStop && msr->param.iWallRunTime > 0) {
+		if (msr->param.iWallRunTime*60 - (time(0)-lStart) < ((int) (lSec*1.5)) ) {
+		    printf("RunTime limit exceeded.  Writing checkpoint and exiting.\n");
+		    printf("    iWallRunTime(sec): %d   Time running: %ld   Last step: %ld\n",
+			   msr->param.iWallRunTime*60,time(0)-lStart,lSec);
+		    iStop = 1;
+		}
+	    }
+
 	    /*
 	    ** Output if 1) we've hit an output time
 	    **           2) We are stopping
@@ -294,130 +307,11 @@ int main(int argc,char **argv) {
 	    if (msrOutTime(msr,dTime) || iStep == msrSteps(msr) || iStop ||
 		(msrOutInterval(msr) > 0 && iStep%msrOutInterval(msr) == 0) ||
 		(msrCheckInterval(msr) > 0 && iStep%msrCheckInterval(msr) == 0)) {
-#ifdef USE_MDL_IO
-		if ( !mdlIO(msr->mdl) )
-#endif
-		{
-		    msrReorder(msr);
-		}
-		msrBuildIoName(msr,achFile,iStep);
-		//sprintf(achFile,msr->param.achDigitMask,msrOutName(msr),iStep);
-#ifdef PLANETS 
-#ifdef SYMBA 	
-		msrDriftSun(msr,dTime+0.5*msrDelta(msr),-0.5*msrDelta(msr)); 
-#endif	   
-		msrWriteSS(msr,achFile,dTime);
-#ifdef SYMBA 	
-		msrDriftSun(msr,dTime,0.5*msrDelta(msr));
-		/* msrReorder above requires msrDomainDecomp and msrBuildTree for 
-		 msrSmooth in topstepSymba*/
-		msrActiveRung(msr,0,1); 	 	
-		msrDomainDecomp(msr,0,1,0);
-		msrBuildTree(msr,dMass,dTime,0);
-#endif
-#else	
-		msrWrite(
-		    msr,achFile,dTime,
-		    (msrCheckInterval(msr)>0 && iStep%msrCheckInterval(msr) == 0)
-		    || iStep == msrSteps(msr) || iStop );
-#endif
-	     
-		if (msrDoDensity(msr) || msr->param.nFindGroups) {
-		    msrActiveRung(msr,0,1); /* Activate all particles */
-		    msrDomainDecomp(msr,0,1,0);
-		    msrBuildTree(msr,dMass,dTime,0);
-		    bGasOnly = 0;
-		    bSymmetric = 0; /* FOR TESTING!!*/
-		    msrSmooth(msr,dTime,SMX_DENSITY,bGasOnly,bSymmetric,TYPE_ALL);
-		}
-		nFOFsDone = 0;
-		while( msr->param.nFindGroups > nFOFsDone) {
-		  /*
-		  ** Build tree, activating all particles first (just in case).
-		  */	
-		  msrActiveRung(msr,0,1); /* Activate all particles */
-		  msrDomainDecomp(msr,0,1,0);
-		  msrBuildTree(msr,dMass,dTime,0);
-		  msrFof(msr,nFOFsDone,SMX_FOF,0,TYPE_ALL,csmTime2Exp(msr->param.csm,dTime));
-		  msrGroupMerge(msr,csmTime2Exp(msr->param.csm,dTime));
-		  if(msr->param.nBins > 0) msrGroupProfiles(msr,nFOFsDone,SMX_FOF,0,TYPE_ALL,csmTime2Exp(msr->param.csm,dTime));
-		  msrReorder(msr);
-		  msrBuildName(msr,achFile,iStep);
-		  for(i=0;i<=nFOFsDone;++i)strncat(achFile,".fof",256);
-		  /*msrOutArray(msr,achFile,OUT_GROUP_ARRAY);*/
-		  msrBuildName(msr,achFile,iStep);
-		  for(i=0;i<=nFOFsDone;++i)strncat(achFile,".stats",256);
-		  msrOutGroups(msr,achFile,OUT_GROUP_STATS,dTime);
-		  if( msr->nBins > 0){
-		    msrBuildName(msr,achFile,iStep);
-		    for(i=0;i<=nFOFsDone;++i)strncat(achFile,".pros",256);
-		    msrOutGroups(msr,achFile,OUT_GROUP_PROFILES,dTime);
-		  }
-		  msrBuildName(msr,achFile,iStep);
-		  for(i=0;i<=nFOFsDone;++i)strncat(achFile,".grps",256);
-		  if(	msr->param.bStandard) msrOutGroups(msr,achFile,OUT_GROUP_TIPSY_STD,dTime);
-		  else msrOutGroups(msr,achFile,OUT_GROUP_TIPSY_NAT,dTime);			  
-		  nFOFsDone++;
-		}
-		if( nFOFsDone )msrDeleteGroups(msr);
-#ifdef RELAXATION	
-		if ( msr->param.bTraceRelaxation) {
-		    msrReorder(msr);
-		    msrBuildName(msr,achFile,iStep);
-		    //sprintf(achFile,achBaseMask,msrOutName(msr),iStep);
-		    strncat(achFile,".relax",256);
-		    msrOutArray(msr,achFile,OUT_RELAX_ARRAY);
-		    }	
-#endif 
-		if (msrDoDensity(msr) && !msr->param.nFindGroups) {
-		    msrReorder(msr);
-		    msrBuildName(msr,achFile,iStep);
-		    // sprintf(achFile,achBaseMask,msrOutName(msr),iStep);
-		    strncat(achFile,".den",256);
-		    msrOutArray(msr,achFile,OUT_DENSITY_ARRAY);
-		    }
-		if (msr->param.bDoRungOutput) {
-		    msrReorder(msr);
-		    msrBuildName(msr,achFile,iStep);
-		    //sprintf(achFile,achBaseMask,msrOutName(msr),iStep);
-		    strncat(achFile,".rung",256);
-		    msrOutArray(msr,achFile,OUT_RUNG_ARRAY);
-		    }
-		if (msr->param.bDoSoftOutput) {
-		    msrReorder(msr);
-		    msrBuildName(msr,achFile,iStep);
-		    //sprintf(achFile,achBaseMask,msrOutName(msr),iStep);
-		    strncat(achFile,".soft",256);
-		    msrOutArray(msr,achFile,OUT_SOFT_ARRAY);
-		    }
-		if (msr->param.bDodtOutput) {
-		    msrReorder(msr);
-		    msrBuildName(msr,achFile,iStep);
-		    //sprintf(achFile,achBaseMask,msrOutName(msr),iStep);
-		    strncat(achFile,".dt",256);
-		    msrOutArray(msr,achFile,OUT_DT_ARRAY);
-		    }
-		/*
-		** Don't allow duplicate outputs.
-		*/
-		while (msrOutTime(msr,dTime));
-		}
-	    if (!iStop && msr->param.iWallRunTime > 0) {
-		if (msr->param.iWallRunTime*60 - (time(0)-lStart) < ((int) (lSec*1.5)) ) {
-		    printf("RunTime limit exceeded.  Writing checkpoint and exiting.\n");
-		    printf("    iWallRunTime(sec): %d   Time running: %ld   Last step: %ld\n",
-			   msr->param.iWallRunTime*60,time(0)-lStart,lSec);
-		    iStop = 1;
-		    }
-		}
-	    if (iStop || iStep == msrSteps(msr)) {
-		/*
-		** Want to write an output file here really...
-		** ... but it is done above
-		*/
-	     }
-	    if (iStop) break;
+		msrOutput(msr,dTime,
+			  (msrCheckInterval(msr)>0 && iStep%msrCheckInterval(msr) == 0)
+			  || iStep == msrSteps(msr) || iStop);
 	    }
+	}
     }
 
     /* No steps were requested */
@@ -426,14 +320,13 @@ int main(int argc,char **argv) {
 
 	in.dDelta = 1e37;		/* large number */
 	pstInitDt(msr->pst,&in,sizeof(in),NULL,NULL);
-    
 	fprintf(stderr,"Initialized Accel and dt\n");
 
 	if (msrDoGravity(msr)) {
 	    msrActiveRung(msr,0,1); /* Activate all particles */
 	    msrDomainDecomp(msr,0,1,0);
 	    msrUpdateSoft(msr,dTime);
-	    msrBuildTree(msr,dMass,dTime,msr->param.bEwald);
+	    msrBuildTree(msr,dTime,msr->param.bEwald);
 
 	    msrGravity(msr,dTime,msr->param.iStartStep,msr->param.bEwald,&iSec,&nActive);
 	    if (msr->param.bGravStep && msr->param.iTimeStepCrit == -1) {
@@ -448,23 +341,20 @@ int main(int argc,char **argv) {
 			       1.0/csmTime2Exp(msr->param.csm,dTime)-1.0,
 			       E,T,U,Eth,L[0],L[1],L[2],iSec,dMultiEff);
 		}
-
-	    msrReorder(msr);
-	    sprintf(achFile,"%s.accg",msrOutName(msr));
-	    msrOutVector(msr,achFile,OUT_ACCEL_VECTOR);
-	    sprintf(achFile,"%s.pot",msrOutName(msr));
-	    msrReorder(msr);
-	    msrOutArray(msr,achFile,OUT_POT_ARRAY);
 	    }
+
+	msrOutput(msr,0,dTime,0);
+
+#if 0
 	if (msrDoDensity(msr) || msr->param.bDensityStep || msr->param.nFindGroups) {
 	    msrActiveRung(msr,0,1); /* Activate all particles */
 	    msrDomainDecomp(msr,0,1,0);
-	    msrBuildTree(msr,dMass,dTime,msr->param.bEwald);
-
+	    msrBuildTree(msr,dTime,msr->param.bEwald);
 	    bGasOnly = 0;
 	    bSymmetric = 1;
 	    msrSmooth(msr,dTime,SMX_DENSITY,bGasOnly,bSymmetric,TYPE_ALL);
 	    msrReorder(msr);
+
 	    sprintf(achFile,"%s.den",msrOutName(msr));
 	    if( !msr->param.nFindGroups )
 	      msrOutArray(msr,achFile,OUT_DENSITY_ARRAY);
@@ -476,7 +366,7 @@ int main(int argc,char **argv) {
 	  */
 	  msrActiveRung(msr,0,1); /* Activate all particles */
 	  msrDomainDecomp(msr,0,1,0);
-	  msrBuildTree(msr,dMass,dTime,0);
+	  msrBuildTree(msr,dTime,0);
 	  msrFof(msr,nFOFsDone,SMX_FOF,0,TYPE_ALL,csmTime2Exp(msr->param.csm,dTime));
 	  msrGroupMerge(msr,csmTime2Exp(msr->param.csm,dTime));
 	  if(msr->param.nBins > 0)
@@ -496,6 +386,8 @@ int main(int argc,char **argv) {
 	  nFOFsDone++;	
 	}	
 	if ( nFOFsDone ) msrDeleteGroups(msr);
+#endif
+
 	msrFinish(msr);
 	mdlFinish(mdl);
 	return 0;	    

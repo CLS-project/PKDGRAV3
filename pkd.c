@@ -176,6 +176,14 @@ void pkdInitialize(PKD *ppkd,MDL mdl,int nStore,int nBucket,FLOAT *fPeriod,
     pkd->pStore = mdlMalloc(pkd->mdl,(nStore+1)*sizeof(PARTICLE));
     mdlassert(mdl,pkd->pStore != NULL);
     /*
+    ** We support up to 256 classes
+    */
+    pkd->pClass = mdlMalloc(pkd->mdl,PKD_MAX_CLASSES*sizeof(PARTCLASS));
+    mdlassert(mdl,pkd->pClass != NULL);
+    for(j=0;j<PKD_MAX_CLASSES;j++)
+	pkd->pClass[j].fMass = pkd->pClass[j].fSoft = pkd->pClass[j].fSoft0 = -1.0;
+    pkd->nClasses = 0;
+    /*
     ** Now also allocate all node storage here.
     ** We guess that the upper bound is based on the number of particles in 
     ** a bucket. The mean number of particles per bucket is always somewhat 
@@ -261,6 +269,7 @@ void pkdFinish(PKD pkd) {
     free(pkd->S);
     if (pkd->kdTop) free(pkd->kdTop);
     free(pkd->ew.ewt);
+    mdlFree(pkd->mdl,pkd->pClass);
     mdlFree(pkd->mdl,pkd->pStore);
     free(pkd->pLite);
     free(pkd->piActive);
@@ -269,6 +278,56 @@ void pkdFinish(PKD pkd) {
     free(pkd);
     }
 
+static uint8_t getClass( PKD pkd, FLOAT fMass, FLOAT fSoft )
+{
+    int i;
+
+    for( i=0; i<pkd->nClasses; i++ )
+	if ( pkd->pClass[i].fMass == fMass && pkd->pClass[i].fSoft0 == fSoft )
+	    return i;
+    assert( pkd->nClasses < PKD_MAX_CLASSES );
+    i = pkd->nClasses++;
+    pkd->pClass[i].fSoft = pkd->pClass[i].fSoft0 = fSoft;
+    pkd->pClass[i].fMass = fMass;
+    return i;
+}
+
+int pkdGetClasses( PKD pkd, int nMax, PARTCLASS *pClass )
+{
+    int i;
+    for( i=0; i<pkd->nClasses; i++ )
+	pClass[i] = pkd->pClass[i];
+    return pkd->nClasses;
+}
+
+int pkdSetClasses( PKD pkd, int n, PARTCLASS *pClass )
+{
+    uint8_t map[PKD_MAX_CLASSES];
+    PARTICLE *p;
+    int i,j;
+
+    /* Build a map from the old class to the new class */
+    assert( n >= pkd->nClasses );
+    for( i=0; i<pkd->nClasses; i++ ) {
+	for( j=0; j<n; j++ )
+	    if ( pClass[j].fMass==pkd->pClass[i].fMass && pClass[j].fSoft==pkd->pClass[i].fSoft )
+		break;
+	assert(j<n);
+	map[i] = j;
+    }
+
+    /* Now update the class with the new value */
+    for (i=0;i<pkd->nLocal;++i) {
+	p = &pkd->pStore[i];
+	assert( p->iClass <= pkd->nClasses );
+	p->iClass = map[p->iClass];
+    }
+
+    /* Finally, set the new class table */
+    for( i=0; i<n; i++ )
+	pkd->pClass[i] = pClass[i];
+    pkd->nClasses = n;
+}
 
 void pkdSeek(PKD pkd,FILE *fp,uint64_t nStart,int bStandard,int bDoublePos) {
     off_t MAX_OFFSET = 2147483640;
@@ -360,6 +419,9 @@ void pkdGenerateIC(PKD pkd, GRAFICCTX gctx,  int iDim,
     a = graficGetExpansionFactor(gctx);
     dvFac = bCannonical ? a*a : 1.0;
 
+    pkd->nClasses = 1;
+    pkd->pClass[0].fSoft = pkd->pClass[0].fSoft0 = fSoft;
+    pkd->pClass[0].fMass = fMass;
 
     for( i=0; i<n1; i++ ) {
 	for( j=0; j<n2; j++ ) {
@@ -381,11 +443,17 @@ void pkdGenerateIC(PKD pkd, GRAFICCTX gctx,  int iDim,
 		if ( p->r[d] >= 0.5 ) p->r[d] -= 1.0;
 		assert( p->r[d] >= -0.5 && p->r[d] < 0.5 );
 		p->v[d] = graficGetVelocity(gctx,i,j,k) * dvFac;
+
+#ifdef PARTICLE_HAS_MASS
 		p->fSoft   = fSoft;
 #ifdef CHANGESOFT
 		p->fSoft0 = p->fSoft;
 #endif
 		p->fMass   = fMass;
+#endif
+		p->iOrder = 0; /* FIXME */
+		p->iClass = 0;
+
 		pi++;
 	    }
 	}
@@ -402,6 +470,8 @@ void pkdReadHDF5(PKD pkd, IOHDF5 io, double dvFac,
 		 uint64_t nStart, int nLocal ) {
     PARTICLE *p;
     FLOAT dT1, dT2;
+    FLOAT fSoft, fMass;
+    uint64_t iOrder;
     int i, j;
 
     ioHDF5SeekDark( io, nStart );
@@ -435,35 +505,33 @@ void pkdReadHDF5(PKD pkd, IOHDF5 io, double dvFac,
 	p->iOrder = nStart + i;
 
 	if (pkdIsDark(pkd,p)) {
-	    ioHDF5GetDark( io, &p->iOrder, p->r, p->v,
-			   &p->fMass, &p->fSoft, &p->fPot );
-	    for (j=0;j<3;++j) p->v[j] *= dvFac;
-#ifdef CHANGESOFT
-	    p->fSoft0 = p->fSoft;
-#endif
+	    ioHDF5GetDark( io, &iOrder, p->r, p->v,
+			   &fMass, &fSoft, &p->fPot );
 	}
 	else if (pkdIsGas(pkd,p)) {
-	    ioHDF5GetGas( io, &p->iOrder, p->r, p->v,
-			  &p->fMass, &p->fSoft, &p->fPot,
+	    ioHDF5GetGas( io, &iOrder, p->r, p->v,
+			  &fMass, &fSoft, &p->fPot,
 			  &dT1, &dT2 );
-	    for (j=0;j<3;++j) p->v[j] *= dvFac;
-#ifdef CHANGESOFT
-	    p->fSoft0 = p->fSoft;
-#endif
 	}
 	else if (pkdIsStar(pkd,p)) {
-	    ioHDF5GetStar( io, &p->iOrder, p->r, p->v,
-			   &p->fMass, &p->fSoft, &p->fPot,
+	    ioHDF5GetStar( io, &iOrder, p->r, p->v,
+			   &fMass, &fSoft, &p->fPot,
 			   &dT1, &dT2 );
-	    for (j=0;j<3;++j) p->v[j] *= dvFac;
-#ifdef CHANGESOFT
-	    p->fSoft0 = p->fSoft;
-#endif
 	}
 	else mdlassert(pkd->mdl,0);
-	if(p->fSoft < sqrt(2.0e-38)) { /* set minimum softening */
-	    p->fSoft = sqrt(2.0e-38);
+	if(fSoft < sqrt(2.0e-38)) { /* set minimum softening */
+	    fSoft = sqrt(2.0e-38);
 	}
+#ifdef PARTICLE_HAS_MASS
+	p->fMass = fMass;
+	p->fSoft = fSoft;
+#ifdef CHANGESOFT
+	p->fSoft0 = p->fSoft;
+#endif
+#endif
+	for (j=0;j<3;++j) p->v[j] *= dvFac;
+	p->iClass = getClass(pkd,fMass,fSoft);
+	p->iOrder = iOrder;
     }
 }
 #endif
@@ -483,6 +551,7 @@ void pkdIOInitialize( PKD pkd, int nLocal) {
 	p = &pkd->pStore[i];
 	TYPEClear(p);
 	p->iRung = 0;
+	p->iClass = 0;
 	p->fWeight = 1.0;
 	p->fDensity = 0.0;
 	p->fBall = 0.0;
@@ -507,6 +576,7 @@ void pkdReadTipsy(PKD pkd,char *pszFileName, char *achOutName,uint64_t nStart,in
     struct gas_particle gp;
     struct star_particle sp;
     float fTmp;
+    FLOAT fMass, fSoft;
     double dTmp;
     float mass=0.0;
     /*
@@ -594,7 +664,7 @@ SkipCheck:
 		}
 	    if (pkdIsDark(pkd,p)) {
 		xdr_float(&xdrs,&fTmp);
-		p->fMass = fTmp;
+		fMass = fTmp;
 		mass += fTmp;
 		if (bDoublePos) {
 		    for (j=0;j<3;++j) {
@@ -614,16 +684,13 @@ SkipCheck:
 		    p->v[j] = dvFac*vTemp;			
 		    }
 		xdr_float(&xdrs,&fTmp);
-		p->fSoft = fTmp;
-#ifdef CHANGESOFT				
-		p->fSoft0 = fTmp;
-#endif
+		fSoft = fTmp;
 		xdr_float(&xdrs,&fTmp);
 		p->fPot = fTmp;
 		}
 	    else if (pkdIsGas(pkd,p)) {
 		xdr_float(&xdrs,&fTmp);
-		p->fMass = fTmp;
+		fMass = fTmp;
 		if (bDoublePos) {
 		    for (j=0;j<3;++j) {
 			xdr_double(&xdrs,&dTmp);
@@ -645,17 +712,14 @@ SkipCheck:
 		xdr_float(&xdrs,&fTmp);
 		xdr_float(&xdrs,&fTmp);
 		xdr_float(&xdrs,&fTmp);
-		p->fSoft = fTmp;
-#ifdef CHANGESOFT
-		p->fSoft0 = fTmp;
-#endif
+		fSoft = fTmp;
 		xdr_float(&xdrs,&fTmp);
 		xdr_float(&xdrs,&fTmp);
 		p->fPot = fTmp;
 		}
 	    else if (pkdIsStar(pkd,p)) {
 		xdr_float(&xdrs,&fTmp);
-		p->fMass = fTmp;
+		fMass = fTmp;
 		if (bDoublePos) {
 		    for (j=0;j<3;++j) {
 			xdr_double(&xdrs,&dTmp);
@@ -676,17 +740,22 @@ SkipCheck:
 		xdr_float(&xdrs,&fTmp);
 		xdr_float(&xdrs,&fTmp);
 		xdr_float(&xdrs,&fTmp);
-		p->fSoft = fTmp;
-#ifdef CHANGESOFT
-		p->fSoft0 = fTmp;
-#endif
+		fSoft = fTmp;
 		xdr_float(&xdrs,&fTmp);
 		p->fPot = fTmp;
 		}
 	    else mdlassert(pkd->mdl,0);
-	    if(p->fSoft < sqrt(2.0e-38)) { /* set minimum softening */
-		p->fSoft = sqrt(2.0e-38);
+#ifdef PARTICLE_HAS_MASS
+	    p->fMass = fMass;
+	    if(fSoft < sqrt(2.0e-38)) { /* set minimum softening */
+		fSoft = sqrt(2.0e-38);
 		}
+	    p->fSoft = fSoft;
+#ifdef CHANGESOFT
+	    p->fSoft0 = fSoft;
+#endif
+#endif
+	    p->iClass = getClass(pkd,fMass,fSoft);
 	    }
 	xdr_destroy(&xdrs);
 	}
@@ -709,12 +778,9 @@ SkipCheck:
 		    p->r[j] = dp.pos[j];
 		    p->v[j] = dvFac*dp.vel[j];
 		    }
-		p->fMass = dp.mass;
+		fMass = dp.mass;
 		mass += dp.mass;
-		p->fSoft = dp.eps;
-#ifdef CHANGESOFT
-		p->fSoft0 = dp.eps;
-#endif
+		fSoft = dp.eps;
 		p->fPot = dp.phi;
 		}
 	    else if (pkdIsGas(pkd,p)) {
@@ -723,11 +789,8 @@ SkipCheck:
 		    p->r[j] = gp.pos[j];
 		    p->v[j] = dvFac*gp.vel[j];
 		    }
-		p->fMass = gp.mass;
-		p->fSoft = gp.hsmooth;
-#ifdef CHANGESOFT
-		p->fSoft0 = gp.hsmooth;
-#endif
+		fMass = gp.mass;
+		fSoft = gp.hsmooth;
 		p->fPot = gp.phi;
 		}
 	    else if (pkdIsStar(pkd,p)) {
@@ -736,17 +799,23 @@ SkipCheck:
 		    p->r[j] = sp.pos[j];
 		    p->v[j] = dvFac*sp.vel[j];
 		    }
-		p->fMass = sp.mass;
-		p->fSoft = sp.eps;
-#ifdef CHANGESOFT
-		p->fSoft0 = sp.eps;
-#endif
+		fMass = sp.mass;
+		fSoft = sp.eps;
 		p->fPot = sp.phi;
 		}
 	    else mdlassert(pkd->mdl,0);
-	    if(p->fSoft < sqrt(2.0e-38)) { /* set minimum softening */
-		p->fSoft = sqrt(2.0e-38);
+#ifdef PARTICLE_HAS_MASS
+	    p->fMass = fMass;
+	    if(fSoft < sqrt(2.0e-38)) { /* set minimum softening */
+		fSoft = sqrt(2.0e-38);
 		}
+	    p->fSoft = fSoft;
+#ifdef CHANGESOFT
+	    p->fSoft0 = fSoft;
+#endif
+#endif
+	    p->iClass = getClass(pkd,fMass,fSoft);
+
 	    }
 	}
     fclose(fp);
@@ -1235,11 +1304,14 @@ int pkdUnpackIO(PKD pkd,
 	    p->a[d]  = 0.0;
 	}
 	p->iOrder = io[i].iOrder;
+#ifdef PARTICLE_HAS_MASS
 	p->fMass = io[i].fMass;
 	p->fSoft = io[i].fSoft;
 #ifdef CHANGESOFT
 	p->fSoft0 = io[i].fSoft;
 #endif
+#endif
+	p->iClass = getClass(pkd,io[i].fMass,io[i].fSoft);
 	p->fDensity = io[i].fDensity;
 	p->fPot = io[i].fPot;
     }
@@ -1281,11 +1353,16 @@ int pkdPackIO(PKD pkd,
 	    io[nCopied].v[d] = pkd->pStore[i].v[d] * dvFac;
 	}
 	io[nCopied].iOrder= pkd->pStore[i].iOrder;
+#ifdef PARTICLE_HAS_MASS
 	io[nCopied].fMass = pkd->pStore[i].fMass;
 #ifdef CHANGESOFT
 	io[nCopied].fSoft = pkd->pStore[i].fSoft0;
 #else
 	io[nCopied].fSoft = pkd->pStore[i].fSoft;
+#endif
+#else
+	io[nCopied].fMass = pkd->pClass[pkd->pStore[i].iClass].fMass;
+	io[nCopied].fSoft = pkd->pClass[pkd->pStore[i].iClass].fSoft0;
 #endif
 	io[nCopied].fDensity = pkd->pStore[i].fDensity;
 	io[nCopied].fPot = pkd->pStore[i].fPot;
@@ -1299,7 +1376,7 @@ int pkdPackIO(PKD pkd,
 void pkdWriteHDF5(PKD pkd, IOHDF5 io, IOHDF5V ioDen, IOHDF5V ioPot, double dvFac)
 {
     PARTICLE *p;
-    FLOAT v[3], fSoft;
+    FLOAT v[3], fSoft, fMass;
     int i;
 
     for (i=0;i<pkdLocal(pkd);++i) {
@@ -1308,26 +1385,32 @@ void pkdWriteHDF5(PKD pkd, IOHDF5 io, IOHDF5V ioDen, IOHDF5V ioPot, double dvFac
 	v[0] = p->v[0] * dvFac;
 	v[1] = p->v[1] * dvFac;
 	v[2] = p->v[2] * dvFac;
+#ifdef PARTICLE_HAS_MASS
 #ifdef CHANGESOFT
 	fSoft = p->fSoft0;
 #else
 	fSoft = p->fSoft;
 #endif
+	fMass = p->fMass;
+#else
+	fSoft = pkd->pClass[p->iClass].fSoft0;
+	fMass = pkd->pClass[p->iClass].fMass;
+#endif
 	if (pkdIsDark(pkd,p)) {
 	    ioHDF5AddDark(io,p->iOrder,p->r,v,
-			  p->fMass,fSoft,p->fPot );
+			  fMass,fSoft,p->fPot );
 	}
 	else if (pkdIsGas(pkd,p)) {
 	    assert(0);
 	    /* Why are temp and metals always set to zero? */
 	    ioHDF5AddGas( io,p->iOrder,p->r,v,
-			  p->fMass,fSoft,p->fPot,0.0,0.0);
+			  fMass,fSoft,p->fPot,0.0,0.0);
 	}
 	else if (pkdIsStar(pkd,p)) {
 	    assert(0);
 	    /* Why are metals and tform always set to zero? */
 	    ioHDF5AddStar(io, p->iOrder, p->r, v,
-			  p->fMass,fSoft,p->fPot,0.0,0.0);
+			  fMass,fSoft,p->fPot,0.0,0.0);
 	}
 	else mdlassert(pkd->mdl,0);
 
@@ -1368,7 +1451,11 @@ void pkdWriteTipsy(PKD pkd,char *pszFileName,uint64_t nStart,
 	for (i=0;i<pkdLocal(pkd);++i) {
 	    p = &pkd->pStore[i];
 	    if (pkdIsDark(pkd,p)) {
+#ifdef PARTICLE_HAS_MASS
 		fTmp = p->fMass;
+#else
+		fTmp = pkd->pClass[p->iClass].fMass;
+#endif
 		assert(fTmp > 0.0);
 		IOCheck(xdr_float(&xdrs,&fTmp));
 		if (bDoublePos) {
@@ -1388,10 +1475,14 @@ void pkdWriteTipsy(PKD pkd,char *pszFileName,uint64_t nStart,
 		    fTmp = vTemp;
 		    IOCheck(xdr_float(&xdrs,&fTmp));
 		    }
+#ifdef PARTICLE_HAS_MASS
 #ifdef CHANGESOFT
 		fTmp = p->fSoft0;
 #else
 		fTmp = p->fSoft;
+#endif
+#else
+		fTmp = pkd->pClass[p->iClass].fSoft0;
 #endif
 		assert(fTmp > 0.0);
 		IOCheck(xdr_float(&xdrs,&fTmp));
@@ -1399,7 +1490,11 @@ void pkdWriteTipsy(PKD pkd,char *pszFileName,uint64_t nStart,
 		IOCheck(xdr_float(&xdrs,&fTmp));
 		}
 	    else if (pkdIsGas(pkd,p)) {
+#ifdef PARTICLE_HAS_MASS
 		fTmp = p->fMass;
+#else
+		fTmp = pkd->pClass[p->iClass].fMass;
+#endif
 		IOCheck(xdr_float(&xdrs,&fTmp));
 		if (bDoublePos) {
 		    for (j=0;j<3;++j) {
@@ -1422,10 +1517,14 @@ void pkdWriteTipsy(PKD pkd,char *pszFileName,uint64_t nStart,
 		IOCheck(xdr_float(&xdrs,&fTmp));
 		fTmp = 0.0;
 		IOCheck(xdr_float(&xdrs,&fTmp));
+#ifdef PARTICLE_HAS_MASS
 #ifdef CHANGESOFT
 		fTmp = p->fSoft0;
 #else
 		fTmp = p->fSoft;
+#endif
+#else
+		fTmp = pkd->pClass[p->iClass].fSoft0;
 #endif
 		IOCheck(xdr_float(&xdrs,&fTmp));
 		fTmp = 0.0;
@@ -1434,7 +1533,11 @@ void pkdWriteTipsy(PKD pkd,char *pszFileName,uint64_t nStart,
 		IOCheck(xdr_float(&xdrs,&fTmp));
 		}
 	    else if (pkdIsStar(pkd,p)) {
+#ifdef PARTICLE_HAS_MASS
 		fTmp = p->fMass;
+#else
+		fTmp = pkd->pClass[p->iClass].fMass;
+#endif
 		IOCheck(xdr_float(&xdrs,&fTmp));
 		if (bDoublePos) {
 		    for (j=0;j<3;++j) {
@@ -1456,10 +1559,14 @@ void pkdWriteTipsy(PKD pkd,char *pszFileName,uint64_t nStart,
 		fTmp = 0.0;
 		IOCheck(xdr_float(&xdrs,&fTmp));
 		IOCheck(xdr_float(&xdrs,&fTmp));
+#ifdef PARTICLE_HAS_MASS
 #ifdef CHANGESOFT
 		fTmp = p->fSoft0;
 #else
 		fTmp = p->fSoft;
+#endif
+#else
+		fTmp = pkd->pClass[p->iClass].fSoft0;
 #endif
 		IOCheck(xdr_float(&xdrs,&fTmp));
 		fTmp = p->fPot;
@@ -1480,11 +1587,16 @@ void pkdWriteTipsy(PKD pkd,char *pszFileName,uint64_t nStart,
 		    dp.pos[j] = p->r[j];
 		    dp.vel[j] = dvFac*p->v[j];
 		    }
+#ifdef PARTICLE_HAS_MASS
 		dp.mass = p->fMass;
 #ifdef CHANGESOFT
 		dp.eps = p->fSoft0;
 #else
 		dp.eps = p->fSoft;
+#endif
+#else
+		dp.mass = pkd->pClass[p->iClass].fMass;
+		dp.eps = pkd->pClass[p->iClass].fSoft0;
 #endif
 		dp.phi = p->fPot;
 		IOCheck(fwrite(&dp,sizeof(struct dark_particle),1,fp));
@@ -1494,11 +1606,16 @@ void pkdWriteTipsy(PKD pkd,char *pszFileName,uint64_t nStart,
 		    gp.pos[j] = p->r[j];
 		    gp.vel[j] = dvFac*p->v[j];
 		    }
+#ifdef PARTICLE_HAS_MASS
 		gp.mass = p->fMass;
 #ifdef CHANGESOFT
 		gp.hsmooth = p->fSoft0;
 #else
 		gp.hsmooth = p->fSoft;
+#endif
+#else
+		gp.mass = pkd->pClass[p->iClass].fMass;
+		gp.hsmooth = pkd->pClass[p->iClass].fSoft0;
 #endif
 		gp.phi = p->fPot;
 		gp.rho = p->fDensity;
@@ -1511,11 +1628,17 @@ void pkdWriteTipsy(PKD pkd,char *pszFileName,uint64_t nStart,
 		    sp.pos[j] = p->r[j];
 		    sp.vel[j] = dvFac*p->v[j];
 		    }
+
+#ifdef PARTICLE_HAS_MASS
 		sp.mass = p->fMass;
 #ifdef CHANGESOFT
 		sp.eps = p->fSoft0;
 #else
 		sp.eps = p->fSoft;
+#endif
+#else
+		sp.mass = pkd->pClass[p->iClass].fMass;
+		sp.eps = pkd->pClass[p->iClass].fSoft0;
 #endif
 		sp.phi = p->fPot;
 		sp.metals = 0.0;
@@ -1540,6 +1663,7 @@ void pkdSetSoft(PKD pkd,double dSoft)
     if(dSoft < sqrt(2.0e-38)) { /* set minimum softening */
 	dSoft = sqrt(2.0e-38);
 	}
+#ifdef PARTICLE_HAS_MASS
     for (i=0;i<n;++i) {
 #ifdef CHANGESOFT
 	p[i].fSoft0 = dSoft;
@@ -1547,6 +1671,10 @@ void pkdSetSoft(PKD pkd,double dSoft)
 	p[i].fSoft = dSoft;
 #endif
 	}
+#else
+    for(i=0;i<pkd->nClasses;i++)
+	pkd->pClass[i].fSoft0 = dSoft;
+#endif
     }
 
 #ifdef CHANGESOFT
@@ -1556,6 +1684,8 @@ void pkdPhysicalSoft(PKD pkd,double dSoftMax,double dFac,int bSoftMaxMul)
     int i,n;
 
     p = pkd->pStore;
+
+#ifdef PARTICLE_HAS_MASS
     n = pkdLocal(pkd);
 	
     mdlassert(pkd->mdl,dFac > 0);
@@ -1575,6 +1705,26 @@ void pkdPhysicalSoft(PKD pkd,double dSoftMax,double dFac,int bSoftMaxMul)
 	    mdlassert(pkd->mdl,p[i].fSoft > 0);
 	    }
 	}
+#else
+    n = pkd->nClasses;
+    mdlassert(pkd->mdl,dFac > 0);
+    if (bSoftMaxMul) {
+	for (i=0;i<n;++i) {
+	    mdlassert(pkd->mdl,pkd->pClass[i].fSoft0 > 0);
+	    pkd->pClass[i].fSoft = pkd->pClass[i].fSoft0*dFac;
+	    mdlassert(pkd->mdl,pkd->pClass[i].fSoft > 0);
+	    }
+	}
+    else {
+	mdlassert(pkd->mdl,dSoftMax > 0);
+	for (i=0;i<n;++i) {
+	    mdlassert(pkd->mdl,pkd->pClass[i].fSoft0 > 0);
+	    pkd->pClass[i].fSoft = pkd->pClass[i].fSoft0*dFac;
+	    if (pkd->pClass[i].fSoft > dSoftMax) pkd->pClass[i].fSoft = dSoftMax;
+	    mdlassert(pkd->mdl,pkd->pClass[i].fSoft > 0);
+	    }
+	}
+#endif
     }
 
 void pkdPreVariableSoft(PKD pkd)
@@ -1583,11 +1733,16 @@ void pkdPreVariableSoft(PKD pkd)
     int i,n;
 
     p = pkd->pStore;
+
+#ifdef PARTICLE_HAS_MASS
     n = pkdLocal(pkd);
 	
     for (i=0;i<n;++i) {
 	if (pkdIsActive(pkd,&(p[i]))) p[i].fSoft = 0.5*p[i].fBall;
 	}
+#else
+    assert(0);
+#endif
     }
 
 void pkdPostVariableSoft(PKD pkd,double dSoftMax,int bSoftMaxMul)
@@ -1597,6 +1752,7 @@ void pkdPostVariableSoft(PKD pkd,double dSoftMax,int bSoftMaxMul)
     double dTmp;
 
     p = pkd->pStore;
+#ifdef PARTICLE_HAS_MASS
     n = pkdLocal(pkd);
 	
     if (bSoftMaxMul) {
@@ -1616,7 +1772,10 @@ void pkdPostVariableSoft(PKD pkd,double dSoftMax,int bSoftMaxMul)
 		p[i].fSoft = (dTmp <= dSoftMax ? dTmp : dSoftMax);
 		}
 	    }
-	}	
+	}
+#else
+    assert(0);
+#endif
     }
 #endif
 
@@ -1712,7 +1871,7 @@ void pkdCalcEandL(PKD pkd,double *T,double *U,double *Eth,double L[])
     /* L is calculated with respect to the origin (0,0,0) */
 
     PARTICLE *p;
-    FLOAT rx,ry,rz,vx,vy,vz;
+    FLOAT rx,ry,rz,vx,vy,vz,fMass;
     int i,n;
 
     p = pkd->pStore;
@@ -1722,13 +1881,18 @@ void pkdCalcEandL(PKD pkd,double *T,double *U,double *Eth,double L[])
     *Eth = 0.0;
     L[0] = L[1] = L[2] = 0;
     for (i=0;i<n;++i) {
+#ifdef PARTICLE_HAS_MASS
+	fMass = p[i].fMass;
+#else
+	fMass = pkd->pClass[p[i].iClass].fMass;
+#endif
 	rx = p[i].r[0]; ry = p[i].r[1]; rz = p[i].r[2];
 	vx = p[i].v[0]; vy = p[i].v[1]; vz = p[i].v[2];
-	*T += 0.5*p[i].fMass*(vx*vx + vy*vy + vz*vz);
-	*U += 0.5*p[i].fMass*p[i].fPot;
-	L[0] += p[i].fMass*(ry*vz - rz*vy);
-	L[1] += p[i].fMass*(rz*vx - rx*vz);
-	L[2] += p[i].fMass*(rx*vy - ry*vx);
+	*T += 0.5*fMass*(vx*vx + vy*vy + vz*vz);
+	*U += 0.5*fMass*p[i].fPot;
+	L[0] += fMass*(ry*vz - rz*vy);
+	L[1] += fMass*(rz*vx - rx*vz);
+	L[2] += fMass*(rx*vy - ry*vx);
 	}
     }
 
@@ -1740,6 +1904,7 @@ pkdDrift(PKD pkd,double dTime,double dDelta,FLOAT fCenter[3],int bPeriodic,int b
     PARTICLE *p;
     int i,j,n;
     int ipt;
+    FLOAT fMass,fSoft;
     double px,py,pz,pm;
     double dDeltaM;
     
@@ -1760,11 +1925,22 @@ pkdDrift(PKD pkd,double dTime,double dDelta,FLOAT fCenter[3],int bPeriodic,int b
     p = pkd->pStore;
     n = pkdLocal(pkd);
     for (i=0;i<n;++i) {
+#ifdef PARTICLE_HAS_MASS
+	fMass = p[i].fMass;
+	fSoft = p[i].fSoft;
+#else
+	fMass = pkd->pClass[p[i].iClass].fMass;
+	fSoft = pkd->pClass[p[i].iClass].fSoft;
+#endif
 	/*
 	** Do the Growmass stuff if needed...
 	*/
 	if (p[i].iOrder < pkd->param.nGrowMass) {
+#ifdef PARTICLE_HAS_MASS
 	    p[i].fMass += dDeltaM;
+#else
+	    assert(0);
+#endif
 	    }
 	/*
 	** Update particle positions
@@ -1790,10 +1966,10 @@ pkdDrift(PKD pkd,double dTime,double dDelta,FLOAT fCenter[3],int bPeriodic,int b
       	    px = p[i].r[0] - dDelta/2*p[i].v[0];
 	    py = p[i].r[1] - dDelta/2*p[i].v[1];
 	    pz = p[i].r[2] - dDelta/2*p[i].v[2];
-	    pm = p[i].fMass - dDeltaM/2;
+	    pm = fMass - dDeltaM/2;
 	    ipt = p[i].iOrder + 1; /* to be consistent with Tipsy numbering */
 	    printf("PDID %d %g %g %d %g %g %g %g %g %g %g %g %g %g %g %g %g\n",ipt,dTime+dDelta/2,dDelta,
-		   p[i].iRung,p[i].dt,px,py,pz,p[i].v[0],p[i].v[1],p[i].v[2],p[i].a[0],p[i].a[1],p[i].a[2],p[i].fPot,pm,p[i].fSoft);
+		   p[i].iRung,p[i].dt,px,py,pz,p[i].v[0],p[i].v[1],p[i].v[2],p[i].a[0],p[i].a[1],p[i].a[2],p[i].fPot,pm,fSoft);
 	    }
 	}
 
@@ -1810,6 +1986,7 @@ pkdDriftInactive(PKD pkd,double dTime, double dDelta,FLOAT fCenter[3],int bPerio
     PARTICLE *p;
     int i,j,n;
     int ipt;
+    FLOAT fMass,fSoft;
     double dDeltaM;
     
     mdlDiag(pkd->mdl, "Into pkdDriftInactive\n");
@@ -1830,7 +2007,11 @@ pkdDriftInactive(PKD pkd,double dTime, double dDelta,FLOAT fCenter[3],int bPerio
 	** Do the Growmass stuff if needed...
 	*/
 	if (p[i].iOrder < pkd->param.nGrowMass) {
+#ifdef PARTICLE_HAS_MASS
 	    p[i].fMass += dDeltaM;
+#else
+	    assert(0);
+#endif
 	    }
 	/*
 	** Update particle positions
@@ -1851,9 +2032,16 @@ pkdDriftInactive(PKD pkd,double dTime, double dDelta,FLOAT fCenter[3],int bPerio
 	** Inactive Drift => dDelta is already a half step! No correction needed!
 	*/
 	if (TYPETest(&p[i],TYPE_TRACKER) && dDelta != 0) {
+#ifdef PARTICLE_HAS_MASS
+	    fMass = p[i].fMass;
+	    fSoft = p[i].fSoft;
+#else
+	    fMass = pkd->pClass[p[i].iClass].fMass;
+	    fSoft = pkd->pClass[p[i].iClass].fSoft;
+#endif
 	    ipt = p[i].iOrder + 1; /* to be consistent with Tipsy numbering */
 	    printf("PDID %d %g %g %d %g %g %g %g %g %g %g %g %g %g %g %g %g\n",ipt,dTime+dDelta/2,dDelta,
-		   p[i].iRung,p[i].dt,p[i].r[0],p[i].r[1],p[i].r[2],p[i].v[0],p[i].v[1],p[i].v[2],p[i].a[0],p[i].a[1],p[i].a[2],p[i].fPot,p[i].fMass,p[i].fSoft);
+		   p[i].iRung,p[i].dt,p[i].r[0],p[i].r[1],p[i].r[2],p[i].v[0],p[i].v[1],p[i].v[2],p[i].a[0],p[i].a[1],p[i].a[2],p[i].fPot,fMass,fSoft);
 	    }
 	}
     mdlDiag(pkd->mdl, "Out of pkdDriftInactive\n");
@@ -1865,6 +2053,7 @@ pkdDriftActive(PKD pkd,double dTime,double dDelta) {
     PARTICLE *p;
     int i,j,n;
     int ipt;
+    FLOAT fMass, fSoft;
     double px,py,pz,pm;
     double dDeltaM;
     
@@ -1886,7 +2075,11 @@ pkdDriftActive(PKD pkd,double dTime,double dDelta) {
 	** Do the Growmass stuff if needed...
 	*/
 	if (p[i].iOrder < pkd->param.nGrowMass) {
+#ifdef PARTICLE_HAS_MASS
 	    p[i].fMass += dDeltaM;
+#else
+	    assert(0);
+#endif
 	    }
 	/*
 	** Update particle positions
@@ -1899,13 +2092,20 @@ pkdDriftActive(PKD pkd,double dTime,double dDelta) {
 	** Correct positons & mass for dDelta/2 step
 	*/
 	if (TYPETest(&p[i],TYPE_TRACKER) && dDelta != 0) {
+#ifdef PARTICLE_HAS_MASS
+	    fMass = p[i].fMass;
+	    fSoft = p[i].fSoft;
+#else
+	    fMass = pkd->pClass[p[i].iClass].fMass;
+	    fSoft = pkd->pClass[p[i].iClass].fSoft;
+#endif
 	    px = p[i].r[0] - dDelta/2*p[i].v[0];
 	    py = p[i].r[1] - dDelta/2*p[i].v[1];
 	    pz = p[i].r[2] - dDelta/2*p[i].v[2];
-	    pm = p[i].fMass - dDeltaM/2;
+	    pm = fMass - dDeltaM/2;
 	    ipt = p[i].iOrder + 1; /* to be consistent with Tipsy numbering */
 	    printf("PDID %d %g %g %d %g %g %g %g %g %g %g %g %g %g %g %g %g\n",ipt,dTime+dDelta/2,dDelta,
-		   p[i].iRung,p[i].dt,px,py,pz,p[i].v[0],p[i].v[1],p[i].v[2],p[i].a[0],p[i].a[1],p[i].a[2],p[i].fPot,pm,p[i].fSoft);
+		   p[i].iRung,p[i].dt,px,py,pz,p[i].v[0],p[i].v[1],p[i].v[2],p[i].a[0],p[i].a[1],p[i].a[2],p[i].fPot,pm,fSoft);
 	    }
 	}
     mdlDiag(pkd->mdl, "Out of pkdDriftActive\n");
@@ -2578,9 +2778,15 @@ void pkdAccelStep(PKD pkd,double dEta,double dVelFac,double dAccFac,int bDoGravi
     double acc;
     int j;
     double dT;
+    FLOAT fSoft;
 
     for (i=0;i<pkdLocal(pkd);++i) {
 	if (pkdIsActive(pkd,&(pkd->pStore[i]))) {
+#ifdef PARTICLE_HAS_MASS
+	    fSoft = pkd->pStore[i].fSoft;
+#else
+	    fSoft = pkd->pClass[pkd->pStore[i].iClass].fSoft;
+#endif
 	    vel = 0;
 	    acc = 0;
 	    for (j=0;j<3;j++) {
@@ -2594,7 +2800,7 @@ void pkdAccelStep(PKD pkd,double dEta,double dVelFac,double dAccFac,int bDoGravi
 	    mdlassert(pkd->mdl,acc > 0);
 	    dT = FLOAT_MAXVAL;
 	    if (bEpsAcc && acc>0) {
-		dT = dEta*sqrt(pkd->pStore[i].fSoft/acc);
+		dT = dEta*sqrt(fSoft/acc);
 		}
 	    if (bSqrtPhi) {
 		/*
@@ -2641,7 +2847,11 @@ int pkdDtToRung(PKD pkd,int iRung,double dDelta,int iMaxRung,int bAll,int *nRung
 	if(pkd->pStore[i].iRung >= iRung) {
 	    mdlassert(pkd->mdl,pkdIsActive(pkd,&(pkd->pStore[i])));
 	    if(bAll) {          /* Assign all rungs at iRung and above */
+#ifdef PARTICLE_HAS_MASS
 		mdlassert(pkd->mdl,pkd->pStore[i].fSoft > 0);
+#else
+		mdlassert(pkd->mdl,pkd->pClass[pkd->pStore[i].iClass].fSoft > 0);
+#endif
 		mdlassert(pkd->mdl,pkd->pStore[i].dt > 0);
 		iSteps = dDelta/pkd->pStore[i].dt;
 		/* insure that integer boundary goes
@@ -2699,32 +2909,33 @@ void pkdDeleteParticle(PKD pkd, PARTICLE *p) {
      to-be-deleted VeryActive particles. */
 
     int j; 
-       p->fMass = 0.0;
-	 if(pkd->param.bGravStep){
-	   p->dtGrav = 0.00001;
-	 }
+#ifdef PARTICLE_HAS_MASS
+    p->fMass = 0.0;
+#endif
+    if(pkd->param.bGravStep){
+	p->dtGrav = 0.00001;
+    }
 #ifdef HERMITE
-        if(pkd->param.bAarsethStep){
-	   p->dtGrav = 10000;
-       }
+    if(pkd->param.bAarsethStep){
+	p->dtGrav = 10000;
+    }
 #endif
 #ifdef SYMBA
-	p->drmin = 1000.0;
-	p->n_VA=0;
+    p->drmin = 1000.0;
+    p->n_VA=0;
 #endif
-       for (j=0;j<3;j++) {
-	 p->r[j] = 100.0*p->iOrder;
-	 p->v[j] = 0.0;     
+    for (j=0;j<3;j++) {
+	p->r[j] = 100.0*p->iOrder;
+	p->v[j] = 0.0;     
 #ifdef HERMITE
-	 p->r0[j] = 100.0*p->iOrder;
-	 p->v0[j] = 0.0;
-	 p->a0[j] =  0.000001;
-	 p->ad0[j] = 0.000001;
-	 p->a[j] =  0.000001;
-	 p->ad[j] = 0.000001;
+	p->r0[j] = 100.0*p->iOrder;
+	p->v0[j] = 0.0;
+	p->a0[j] =  0.000001;
+	p->ad0[j] = 0.000001;
+	p->a[j] =  0.000001;
+	p->ad[j] = 0.000001;
 #endif
-       }
-
+    }
 #endif
 
     p->iOrder = -2 - p->iOrder;
@@ -2912,8 +3123,11 @@ pkdReadSS(PKD pkd,char *pszFileName,int nStart,int nLocal)
 		if (ssioData(&ssio,&data))
 			mdlassert(pkd->mdl,0); /* error during read in ss file */
 		p->iOrgIdx = data.org_idx;
+#ifdef PARTICLE_HAS_MASS
 		p->fMass = data.mass;
 		p->fSoft = data.radius;
+#endif
+		p->iClass = getClass(data.mass,data.radius);
 		for (j=0;j<3;++j) p->r[j] = data.pos[j];
 		for (j=0;j<3;++j) p->v[j] = data.vel[j];
 		for (j=0;j<3;++j) p->w[j] = data.spin[j];
@@ -2950,8 +3164,13 @@ pkdWriteSS(PKD pkd,char *pszFileName,int nStart)
 		if (!pkdIsDark(pkd,p))
 			mdlassert(pkd->mdl,0); /* only dark particles allowed in ss file */
 		data.org_idx = p->iOrgIdx;
+#ifdef PARTICLE_HAS_MASS
 		data.mass = p->fMass;
 		data.radius = p->fSoft;
+#else
+		data.mass = pkd->pClass[p->iClass].fMass;
+		data.radius = pkd->pClass[p->iClass].fSoft;
+#endif
 		for (j=0;j<3;++j) data.pos[j]  = p->r[j];
 		for (j=0;j<3;++j) data.vel[j]  = p->v[j];
 		for (j=0;j<3;++j) data.spin[j] = p->w[j];
@@ -2963,44 +3182,48 @@ pkdWriteSS(PKD pkd,char *pszFileName,int nStart)
 		mdlassert(pkd->mdl,0); /* unable to close ss file */
 	}
 
- void pkdSunIndirect(PKD pkd,double aSun[],double adSun[],int iFlag)
- {
-     PARTICLE *p;
-     FLOAT r2,r1i,r3i,r5i,rv;
-     int i,j,n;
+void pkdSunIndirect(PKD pkd,double aSun[],double adSun[],int iFlag)
+{
+    PARTICLE *p;
+    FLOAT r2,r1i,r3i,r5i,rv,fMass;
+    int i,j,n;
    
-     for (j=0;j<3;++j)
-	       	{                 
-                 aSun[j] = 0;
-		 adSun[j] = 0;
-	       	}
-     p = pkd->pStore;
-     n = pkdLocal(pkd); 
-     for (i=0;i<n;++i) {
-       
+    for (j=0;j<3;++j)
+	{                 
+	    aSun[j] = 0;
+	    adSun[j] = 0;
+	}
+    p = pkd->pStore;
+    n = pkdLocal(pkd); 
+    for (i=0;i<n;++i) {
+#ifdef PARTICLE_HAS_MASS
+	fMass = p[i].fMass;
+#else
+	fMass = pkd->pClass[p[i].iClass].fMass;
+#endif
         if (iFlag == 2){ 
 	    if (pkdIsActive(pkd,&p[i])) continue;  /* inactive */
-       }else if(iFlag == 1){
+	}else if(iFlag == 1){
 	    if (!pkdIsActive(pkd,&p[i])) continue; /* active */
-       }
+	}
 
-	 r2 = 0;
-	 rv = 0;
-	 for (j=0;j<3;++j)
-	       	{ 
-                 r2 += p[i].r[j]*p[i].r[j];
-                 rv += p[i].v[j]*p[i].r[j];
-	       	}
-	 r1i = (r2 == 0 ? 0 : 1/sqrt(r2));
-	 r3i = p[i].fMass*r1i*r1i*r1i;
-         r5i = 3.0*rv*r3i*r1i*r1i; 
-	 for (j=0;j<3;++j)
-	       	{ 
-                 aSun[j] += p[i].r[j]*r3i;
-                 adSun[j] += p[i].v[j]*r3i-p[i].r[j]*r5i;
-	       	}	
- }
- } 
+	r2 = 0;
+	rv = 0;
+	for (j=0;j<3;++j)
+	    { 
+		r2 += p[i].r[j]*p[i].r[j];
+		rv += p[i].v[j]*p[i].r[j];
+	    }
+	r1i = (r2 == 0 ? 0 : 1/sqrt(r2));
+	r3i = fMass*r1i*r1i*r1i;
+	r5i = 3.0*rv*r3i*r1i*r1i; 
+	for (j=0;j<3;++j)
+	    { 
+		aSun[j] += p[i].r[j]*r3i;
+		adSun[j] += p[i].v[j]*r3i-p[i].r[j]*r5i;
+	    }	
+    }
+} 
 
 void pkdGravSun(PKD pkd,double aSun[],double adSun[],double dSunMass)
 {

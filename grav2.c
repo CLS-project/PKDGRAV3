@@ -62,6 +62,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP ilp,ILC ilc,double dirLs
     const double onethird = 1.0/3.0;
     momFloat ax,ay,az,fPot;
     double x,y,z,d2,dir,dir2;
+    FLOAT fMass,fSoft;
     float fx, fy, fz;
     momFloat adotai,maga,dimaga,dirsum,normsum;
     momFloat tax,tay,taz,tmon;
@@ -104,6 +105,13 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP ilp,ILC ilc,double dirLs
 	    + pkdn->bnd.fMax[2]*pkdn->bnd.fMax[2]);
     for (i=pkdn->pLower;i<=pkdn->pUpper;++i) {
 	if (!pkdIsActive(pkd,&p[i])) continue;
+#ifdef PARTICLE_HAS_MASS
+	fMass = p[i].fMass;
+	fSoft = p[i].fSoft;
+#else
+	fMass = pkd->pClass[p[i].iClass].fMass;
+	fSoft = pkd->pClass[p[i].iClass].fSoft;
+#endif
 	++nActive;
 	p[i].dtGrav = 0.0;
 	fPot = 0;
@@ -255,8 +263,8 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP ilp,ILC ilc,double dirLs
 	piax    = SIMD_SPLAT(p[i].a[0]);
 	piay    = SIMD_SPLAT(p[i].a[1]);
 	piaz    = SIMD_SPLAT(p[i].a[2]);
-	pmass   = SIMD_SPLAT(p[i].fMass);
-	p4soft2 = SIMD_SPLAT(4.0*p[i].fSoft*p[i].fSoft);
+	pmass   = SIMD_SPLAT(fMass);
+	p4soft2 = SIMD_SPLAT(4.0*fSoft*fSoft);
 
 	ILP_LOOP(ilp,tile) {
 	    uint32_t n = (tile->nPart+ILP_ALIGN_MASK) >> ILP_ALIGN_BITS;
@@ -329,7 +337,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP ilp,ILC ilc,double dirLs
 	    for (j=0;j<tile->nPart;++j) {
 		d2 = tile->d.d2.f[j];
 		d2DTS = d2;
-		fourh2 = softmassweight(p[i].fMass,4*p[i].fSoft*p[i].fSoft,
+		fourh2 = softmassweight(fMass,4*p[i].fSoft*p[i].fSoft,
 					tile->d.m.f[j],tile->d.fourh2.f[j]);
 
 		if (d2 > fourh2) {

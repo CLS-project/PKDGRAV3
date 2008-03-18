@@ -1311,6 +1311,7 @@ void smFof(SMX smx,int nFOFsDone,SMF *smf)
   int ix,iy,iz;
 
   FLOAT r[3],l[3],relpos[3],lx,ly,lz,fBall,fBall2Max,rho;
+  FLOAT fMass;
   int nTree,cnt,tmp;
   cnt = 0;
   if (smx->bPeriodic) {
@@ -1362,6 +1363,11 @@ void smFof(SMX smx,int nFOFsDone,SMF *smf)
     }	
     mdlFinishCache(mdl,CID_BIN);
     for (pn=0;pn<nTree;pn++) {
+#ifdef PARTICLE_HAS_MASS
+      fMass = p[pn].fMass;
+#else
+      fMass = pkd->pClass[p[pn].iClass].fMass;
+#endif
       if( p[pn].pBin >= 0 ){
 	for(j = 0; j < 3; j++)	{
 	  relpos[j] = corrPos(pkd->groupBin[p[pn].pBin].com[j], p[pn].r[j], l[j]) 
@@ -1369,14 +1375,14 @@ void smFof(SMX smx,int nFOFsDone,SMF *smf)
 	}
 	rho = pkd->groupBin[p[pn].pBin].fDensity;
 	if(rho > p[pn].fDensity) rho =  p[pn].fDensity;
-	p[pn].fBall = pow(p[pn].fMass/(rho*smf->fContrast),2.0/3.0);			
+	p[pn].fBall = pow(fMass/(rho*smf->fContrast),2.0/3.0);			
 	/* set velocity linking lenght in case of a phase space FOF */
 	p[pn].fBallv2 = pkd->groupBin[p[pn].pBin].v2[0]+ 
 	  pkd->groupBin[p[pn].pBin].v2[1]+ pkd->groupBin[p[pn].pBin].v2[2];
 	p[pn].fBallv2 *= 2.0;
 	p[pn].fBallv2 *= pow(smf->fContrast,-2.0/3.0);
-	if(p[pn].fBall > smf->dTau2*pow(p[pn].fMass/ smf->fContrast,2.0/3.0) )
-	  p[pn].fBall = smf->dTau2*pow(p[pn].fMass/ smf->fContrast,2.0/3.0);
+	if(p[pn].fBall > smf->dTau2*pow(fMass/ smf->fContrast,2.0/3.0) )
+	  p[pn].fBall = smf->dTau2*pow(fMass/ smf->fContrast,2.0/3.0);
       } else {
 	p[pn].fBall = 0.0;
       }
@@ -1384,16 +1390,21 @@ void smFof(SMX smx,int nFOFsDone,SMF *smf)
       p[pn].pGroup = 0;
     }	
   } else {
-    for (pn=0;pn<nTree;pn++) { 
+    for (pn=0;pn<nTree;pn++) {
+#ifdef PARTICLE_HAS_MASS
+      fMass = p[pn].fMass;
+#else
+      fMass = pkd->pClass[p[pn].iClass].fMass;
+#endif
       p[pn].pBin = p[pn].pGroup; /* temp. store old groupIDs for doing the links*/
       p[pn].pGroup = 0;
       if(smf->bTauAbs) {
 	p[pn].fBall = smf->dTau2;
-	if(smf->dTau2 > pow(p[pn].fMass/smf->Delta,0.6666) ) /*enforces at least virial density for linking*/
-	  p[pn].fBall = pow(p[pn].fMass/smf->Delta,0.6666);
+	if(smf->dTau2 > pow(fMass/smf->Delta,0.6666) ) /*enforces at least virial density for linking*/
+	  p[pn].fBall = pow(fMass/smf->Delta,0.6666);
 	p[pn].fBallv2 = smf->dVTau2;
       } else {
-	p[pn].fBall = smf->dTau2*pow(p[pn].fMass,0.6666);
+	p[pn].fBall = smf->dTau2*pow(fMass,0.6666);
 	p[pn].fBallv2 = -1.0; /* No phase space FOF in this case */
       }
       if(p[pn].fBall > fBall2Max)fBall2Max = p[pn].fBall;
@@ -1570,25 +1581,30 @@ void smFof(SMX smx,int nFOFsDone,SMF *smf)
   ** Calculate local group properties
   */
   for (pi=0;pi<nTree ;++pi) {
+#ifdef PARTICLE_HAS_MASS
+    fMass = p[pi].fMass;
+#else
+    fMass = pkd->pClass[p[pi].iClass].fMass;
+#endif
     if(p[pi].pGroup != tmp){	
       i = (p[pi].pGroup - 1 - pkd->idSelf)/pkd->nThreads;
       if(TYPETest(&p[pi],TYPE_GAS) ) 
-	pkd->groupData[i].fGasMass += p[pi].fMass;
+	pkd->groupData[i].fGasMass += fMass;
       if(TYPETest(&p[pi],TYPE_STAR) ) 
-	pkd->groupData[i].fStarMass += p[pi].fMass;
-      pkd->groupData[i].fVelDisp += (p[pi].v[0]*p[pi].v[0]+p[pi].v[1]*p[pi].v[1]+p[pi].v[2]*p[pi].v[2])*p[pi].fMass;
+	pkd->groupData[i].fStarMass += fMass;
+      pkd->groupData[i].fVelDisp += (p[pi].v[0]*p[pi].v[0]+p[pi].v[1]*p[pi].v[1]+p[pi].v[2]*p[pi].v[2])*fMass;
       for(j=0;j<3;j++){
-	pkd->groupData[i].fVelSigma2[j] += ( p[pi].v[j]*p[pi].v[j] )*p[pi].fMass;
+	pkd->groupData[i].fVelSigma2[j] += ( p[pi].v[j]*p[pi].v[j] )*fMass;
 	if(pkd->groupData[i].fMass > 0.0) 
 	  r[j] = corrPos(pkd->groupData[i].r[j]/pkd->groupData[i].fMass, p[pi].r[j], l[j]);
 	else  r[j] = p[pi].r[j]; 
-	pkd->groupData[i].r[j] += r[j]*p[pi].fMass;
-	pkd->groupData[i].fDeltaR2 +=  r[j]* r[j]*p[pi].fMass;
+	pkd->groupData[i].r[j] += r[j]*fMass;
+	pkd->groupData[i].fDeltaR2 +=  r[j]* r[j]*fMass;
 	if(r[j] > pkd->groupData[i].rmax[j]) pkd->groupData[i].rmax[j] = r[j];
 	if(r[j] < pkd->groupData[i].rmin[j]) pkd->groupData[i].rmin[j] = r[j];
-	pkd->groupData[i].v[j] += p[pi].v[j]*p[pi].fMass;
+	pkd->groupData[i].v[j] += p[pi].v[j]*fMass;
       }
-      pkd->groupData[i].fMass += p[pi].fMass;
+      pkd->groupData[i].fMass += fMass;
       /* use absolute values of particle potential, sign of pot has changed in pkdgrav2*/
       if(fabs(p[pi].fPot) > pkd->groupData[i].potmin){
 	pkd->groupData[i].potmin = fabs(p[pi].fPot);
@@ -1599,7 +1615,8 @@ void smFof(SMX smx,int nFOFsDone,SMF *smf)
 	for(j=0;j<3;j++)pkd->groupData[i].rdenmax[j]=r[j];
       }
       if(nFOFsDone > 0){
-	rho = p[pn].fMass/(pow(p[pn].fBall ,3.0/2.0)*smf->fContrast);
+	  assert(0); /* p[pn] ??  Not p[pi] ?? */
+	  //rho = p[pn].fMass/(pow(p[pn].fBall ,3.0/2.0)*smf->fContrast);
 	if(rho > pkd->groupData[i].rhoBG)pkd->groupData[i].rhoBG = rho;
       } else { 
 	pkd->groupData[i].rhoBG = 1.0;
@@ -2012,7 +2029,7 @@ int smGroupProfiles(SMX smx, SMF *smf,int bPeriodic, int nTotalGroups,int bLogBi
   PARTICLE *p = smf->pkd->pStore;
   double dx2;
   FLOAT l[3],L[3],r[3],relvel[3],com[3],V,Rprev,Vprev,Mprev,vcirc,vcircMax,rvcircMax,M,R,binFactor;
-  FLOAT rvir,Mvir,Delta,fBall,lastbin,minSoft,rho,rhoinner;
+  FLOAT rvir,Mvir,Delta,fBall,lastbin,minSoft,rho,rhoinner,fMass,fSoft;
   int pn,i,j,k,iBin,nBins,maxId,nTree,index,nCnt,pnn;
   int* iGroupIndex;
   int iStart[3],iEnd[3];
@@ -2039,7 +2056,12 @@ int smGroupProfiles(SMX smx, SMF *smf,int bPeriodic, int nTotalGroups,int bLogBi
   */	
   minSoft=1.0;
   for(pn=0;pn<nTree;pn++) {
-    if(p[pn].fSoft<minSoft)minSoft=p[pn].fSoft;
+#ifdef PARTICLE_HAS_MASS
+    fSoft = p[pn].fSoft;
+#else
+    fSoft = pkd->pClass[p[pn].iClass].fSoft;
+#endif
+    if(fSoft<minSoft)minSoft=fSoft;
   }
   /*
   ** Start RO group data cache and read all if you are not master
@@ -2186,17 +2208,22 @@ int smGroupProfiles(SMX smx, SMF *smf,int bPeriodic, int nTotalGroups,int bLogBi
 	  if( k == pkd->groupData[index].nRemoteMembers) goto nextParticle;
 	}
 	assert(iBin+k < nBins);
+#ifdef PARTICLE_HAS_MASS
+	fMass = smx->nnList[pnn].pPart->fMass;
+#else
+	fMass = pkd->pClass[smx->nnList[pnn].pPart->iClass].fMass;
+#endif
 	pkd->groupBin[iBin+k].nMembers++;
-	pkd->groupBin[iBin+k].fMassInBin += smx->nnList[pnn].pPart->fMass;
-	pkd->groupBin[iBin+k].v2[0] += smx->nnList[pnn].pPart->fMass*pow(relvel[0],2.0);
-	pkd->groupBin[iBin+k].v2[1] += smx->nnList[pnn].pPart->fMass*pow(relvel[1],2.0);
-	pkd->groupBin[iBin+k].v2[2] += smx->nnList[pnn].pPart->fMass*pow(relvel[2],2.0);
+	pkd->groupBin[iBin+k].fMassInBin += fMass;
+	pkd->groupBin[iBin+k].v2[0] += fMass*pow(relvel[0],2.0);
+	pkd->groupBin[iBin+k].v2[1] += fMass*pow(relvel[1],2.0);
+	pkd->groupBin[iBin+k].v2[2] += fMass*pow(relvel[2],2.0);
 	pkd->groupBin[iBin+k].com[0] = com[0];
 	pkd->groupBin[iBin+k].com[1] = com[1];
 	pkd->groupBin[iBin+k].com[2] = com[2];
-	pkd->groupBin[iBin+k].L[0] += smx->nnList[pnn].pPart->fMass*(r[1]*relvel[2] - r[2]*relvel[1]);
-	pkd->groupBin[iBin+k].L[1] += smx->nnList[pnn].pPart->fMass*(r[2]*relvel[0] - r[0]*relvel[2]);
-	pkd->groupBin[iBin+k].L[2] += smx->nnList[pnn].pPart->fMass*(r[0]*relvel[1] - r[1]*relvel[0]);	
+	pkd->groupBin[iBin+k].L[0] += fMass*(r[1]*relvel[2] - r[2]*relvel[1]);
+	pkd->groupBin[iBin+k].L[1] += fMass*(r[2]*relvel[0] - r[0]*relvel[2]);
+	pkd->groupBin[iBin+k].L[2] += fMass*(r[0]*relvel[1] - r[1]*relvel[0]);	
 	smx->nnList[pnn].pPart->pBin = iBin+k;
       nextParticle:
 	;

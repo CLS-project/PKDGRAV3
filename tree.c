@@ -419,7 +419,7 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp,int bTempBound) {
     KDN *c = pkd->kdNodes;
     KDN *pkdn,*pkdl,*pkdu;
     MOMR mom;
-    FLOAT m,fMass,x,y,z,vx,vy,vz,ax,ay,az,ft,d2,d2Max,dih2,b;
+    FLOAT m,fMass,fSoft,x,y,z,vx,vy,vz,ax,ay,az,ft,d2,d2Max,dih2,b;
     int pj,d,nDepth,ism;
     const int nMaxStackIncrease = 1;
 
@@ -472,9 +472,15 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp,int bTempBound) {
 	    }
 	pj = pkdn->pLower;
 	p[pj].iBucket = iNode;
+#ifdef PARTICLE_HAS_MASS
 	m = p[pj].fMass;
+	fSoft = p[pj].fSoft;
+#else
+	m = pkd->pClass[p[pj].iClass].fMass;
+	fSoft = pkd->pClass[p[pj].iClass].fSoft;
+#endif
 	fMass = m;
-	dih2 = m/(p[pj].fSoft*p[pj].fSoft);
+	dih2 = m/(fSoft*fSoft);
 	x = m*p[pj].r[0];
 	y = m*p[pj].r[1];
 	z = m*p[pj].r[2];
@@ -488,9 +494,15 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp,int bTempBound) {
 	pkdn->uMinRung = pkdn->uMaxRung = p[pj].iRung;
 	for (++pj;pj<=pkdn->pUpper;++pj) {
 	    p[pj].iBucket = iNode;
+#ifdef PARTICLE_HAS_MASS
 	    m = p[pj].fMass;
+	    fSoft = p[pj].fSoft;
+#else
+	    m = pkd->pClass[p[pj].iClass].fMass;
+	    fSoft = pkd->pClass[p[pj].iClass].fSoft;
+#endif
 	    fMass += m;
-	    dih2 += m/(p[pj].fSoft*p[pj].fSoft);
+	    dih2 += m/(fSoft*fSoft);
 	    x += m*p[pj].r[0];
 	    y += m*p[pj].r[1];
 	    z += m*p[pj].r[2];		
@@ -523,12 +535,23 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp,int bTempBound) {
 	x = p[pj].r[0] - pkdn->r[0];
 	y = p[pj].r[1] - pkdn->r[1];
 	z = p[pj].r[2] - pkdn->r[2];
-	d2Max = momMakeMomr(&pkdn->mom,p[pj].fMass,x,y,z);
+
+#ifdef PARTICLE_HAS_MASS
+	m = p[pj].fMass;
+#else
+	m = pkd->pClass[p[pj].iClass].fMass;
+#endif
+	d2Max = momMakeMomr(&pkdn->mom,m,x,y,z);
 	for (++pj;pj<=pkdn->pUpper;++pj) {
 	    x = p[pj].r[0] - pkdn->r[0];
 	    y = p[pj].r[1] - pkdn->r[1];
 	    z = p[pj].r[2] - pkdn->r[2];
-	    d2 = momMakeMomr(&mom,p[pj].fMass,x,y,z);
+#ifdef PARTICLE_HAS_MASS
+	    m = p[pj].fMass;
+#else
+	    m = pkd->pClass[p[pj].iClass].fMass;
+#endif
+	    d2 = momMakeMomr(&mom,m,x,y,z);
 	    momAddMomr(&pkdn->mom,&mom);
 	    /*
 	    ** Update bounding ball and softened bounding ball.
@@ -792,18 +815,29 @@ void pkdCalcRoot(PKD pkd,MOMC *pmom)
     FLOAT yr = pkd->kdTop[ROOT].r[1];
     FLOAT zr = pkd->kdTop[ROOT].r[2];
     FLOAT x,y,z;
+    FLOAT fMass;
     MOMC mc;
     int i = 0;
 
     x = p[i].r[0] - xr;
     y = p[i].r[1] - yr;
     z = p[i].r[2] - zr;
-    momMakeMomc(pmom,p[i].fMass,x,y,z);
+#ifdef PARTICLE_HAS_MASS
+    fMass = p[i].fMass;
+#else
+    fMass = pkd->pClass[p[i].iClass].fMass;
+#endif
+    momMakeMomc(pmom,fMass,x,y,z);
     for (++i;i<pkd->nLocal;++i) {
+#ifdef PARTICLE_HAS_MASS
+	fMass = p[i].fMass;
+#else
+	fMass = pkd->pClass[p[i].iClass].fMass;
+#endif
 	x = p[i].r[0] - xr;
 	y = p[i].r[1] - yr;
 	z = p[i].r[2] - zr;
-	momMakeMomc(&mc,p[i].fMass,x,y,z);
+	momMakeMomc(&mc,fMass,x,y,z);
 	momAddMomc(pmom,&mc);
 	}
     }

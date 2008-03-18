@@ -47,28 +47,28 @@
 **  CalcBound             -       Reduce | Custom reduce: BND_COMBINE
 **  Weight                Bcast   Reduce | Sum several fields
 **  CountVA               Bcast   Reduce | Sum two fields
-**  WeightWrap            Bast    Reduce | Sum two fields
-**  OrdWeight             Bast    Reduce | Sum two fields
+**  WeightWrap            Bcast   Reduce | Sum two fields
+**  OrdWeight             Bcast   Reduce | Sum two fields
 **  FreeStore             -       Reduce | Sum a field
-**  ColRejects            -       Many   | 
-**  SwapRejects           Scatter Many   | 
-**  ColOrdRejects         Yes     Many   | 
+**  ColRejects            -       Gather | 
+**  SwapRejects           Scatter Gather | 
+**  ColOrdRejects         Yes     Gather | 
 **  DomainOrder           Yes     -      | 
 **  LocalOrder            -       -      | 
 **  OutArray              Yes     -      | 
 **  OutVector             Yes     -      | 
 **  WriteTipsy            Yes     -      | 
-**  BuildTree             Yes     Many   | 
-**  DistribCells          Many    -      | 
-**  CalcBoundBall         Yes     Many   | 
-**  DistribBoundBall      Many    -      | 
+**  BuildTree             Yes     Many   | Multiple cells
+**  DistribCells          Many    -      | Multiple cells
+**  CalcBoundBall         Yes     Many   | Multiple cells
+**  DistribBoundBall      Many    -      | Sends multiple cells
 **  CalcRoot              -       Yes    | 
 **  DistribRoot           Yes     -      | 
 **  Smooth                Yes     -      | 
-**  Gravity               Yes     Many   | 
-**  CalcEandL             -       Yes    | 
-**  Drift                 Yes     -      | 
-**  DriftInactive         Yes     -      | 
+**  Gravity               Yes     Gather | 
+**  CalcEandL             -       Reduce | 
+**  Drift                 Bcast   -      | 
+**  DriftInactive         Bcast   -      | 
 **  CacheBarrier          -       -      | 
 **  StepVeryActiveKDK     Yes     Yes    | 
 **  StepVeryActiveHermite Yes     Yes    | 
@@ -88,7 +88,7 @@
 **  PostVariableSoft      Yes     -      | 
 **  SetTotal              -       Yes    | 
 **  SetWriteStart         Yes     -      | 
-**  OneNodeReadInit       Yes     Many   | 
+**  OneNodeReadInit       Yes     Gather | 
 **  SwapAll               Yes     -      | 
 **  ActiveOrder           -       Yes    | 
 **  InitStep              Yes     -      | 
@@ -96,7 +96,7 @@
 **  ActiveRung            Yes     -      | 
 **  CurrRung              Yes     Yes    | 
 **  DensityStep           Yes     -      | 
-**  GetMap                Yes     Many   | fan out
+**  GetMap                Yes     Gather | sends back thread ids
 **  GravStep              Yes     -      | 
 **  AccelStep             Yes     -      | 
 **  SetRungVeryActive     Yes     -      | 
@@ -104,8 +104,8 @@
 **  ReSmooth              Yes     -      | 
 **  DtToRung              Yes     Yes    | 
 **  InitDt                Yes     -      | 
-**  ColNParts             -       Many   | 
-**  NewOrder              Many    -      | 
+**  ColNParts             -       Gather | 
+**  NewOrder              Scatter -      | 
 **  SetNParts             Yes     -      | 
 **  ClearTimer            Yes     -      | 
 **  Fof                   Yes     -      | 
@@ -448,6 +448,12 @@ void pstAddServices(PST pst,MDL mdl)
 		  (void (*)(void *,void *,int,void *,int *)) pstMemStatus,
 		  0,nThreads*sizeof(struct outMemStatus));
 #endif
+    mdlAddService(mdl,PST_GETCLASSES,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstGetClasses,
+		  0, PKD_MAX_CLASSES*sizeof(PARTCLASS));
+    mdlAddService(mdl,PST_SETCLASSES,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstSetClasses,
+		  PKD_MAX_CLASSES*sizeof(PARTCLASS), 0);
     }
 
 void pstInitialize(PST *ppst,MDL mdl,LCL *plcl)
@@ -483,6 +489,13 @@ void pstFinish(PST pst)
 	pst = pst->pstLower;
 	free(pstKill);
 	}
+    }
+
+void pstSplitIO(PST pst,void *vin,int nIn,void *vout,int *pnOut)
+{
+    struct inSplitIO *in = vin;
+
+    mdlassert(pst->mdl,nIn == sizeof(struct inSplitIO));
     }
 
 
@@ -3938,3 +3951,60 @@ void pstMemStatus(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     if (pnOut) *pnOut = nThreads*sizeof(struct outMemStatus);
 }
 #endif
+
+
+void pstGetClasses(PST pst,void *vin,int nIn,void *vout,int *pnOut)
+{
+    LCL *plcl = pst->plcl;
+    PARTCLASS *out = vout;
+    PARTCLASS *outUp;
+    int nUp;
+    int n, i, j;
+
+    mdlassert(pst->mdl,nIn==0);
+    if (pst->nLeaves > 1) {
+	outUp = malloc(PKD_MAX_CLASSES*sizeof(PARTCLASS));
+	mdlReqService(pst->mdl,pst->idUpper,PST_GETCLASSES,vin,nIn);
+	pstGetClasses(pst->pstLower,vin,nIn,out,pnOut);
+	mdlGetReply(pst->mdl,pst->idUpper,outUp,&nUp);
+	n = nUp / sizeof(PARTCLASS);
+	mdlassert(pst->mdl,n*sizeof(PARTCLASS)==nUp);
+	nUp = n;
+	n = *pnOut / sizeof(PARTCLASS);
+	mdlassert(pst->mdl,n*sizeof(PARTCLASS)== *pnOut);
+	for( i=0; i<nUp; i++ ) {
+	    for( j=0; j<n; j++ ) {
+		if ( outUp[i].fMass==out[j].fMass && outUp[i].fSoft==out[j].fSoft )
+		    break;
+	    }
+	    if ( j == n ) {
+		out[n++] = outUp[i];
+	    }
+	}
+	free(outUp);
+	*pnOut = n * sizeof(PARTCLASS);
+    }
+    else {
+	n = pkdGetClasses(plcl->pkd,PKD_MAX_CLASSES,vout);
+	*pnOut = n*sizeof(PARTCLASS);
+    }
+}
+
+void pstSetClasses(PST pst,void *vin,int nIn,void *vout,int *pnOut)
+{
+    LCL *plcl = pst->plcl;
+    PARTCLASS *in = vin;
+    int n;
+
+    if (pst->nLeaves > 1) {
+	mdlReqService(pst->mdl,pst->idUpper,PST_SETCLASSES,vin,nIn);
+	pstSetClasses(pst->pstLower,vin,nIn,vout,pnOut);
+	mdlGetReply(pst->mdl,pst->idUpper,vout,pnOut);
+    }
+    else {
+	n = nIn / sizeof(PARTCLASS);
+	mdlassert(pst->mdl,n*sizeof(PARTCLASS)==nIn);
+	pkdSetClasses(plcl->pkd,n,in);
+    }
+    if (pnOut) *pnOut = 0;
+}

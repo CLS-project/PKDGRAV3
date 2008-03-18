@@ -80,26 +80,41 @@ void combDensity(void *p1,void *p2)
     }
 
 void Density(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf)
-    {
-    FLOAT ih2,r2,rs,fDensity;
+{
+#ifndef PARTICLE_HAS_MASS
+    PKD pkd = smf->pkd;
+#endif
+    FLOAT ih2,r2,rs,fDensity,fMass;
     int i;
 
     ih2 = 4.0/BALL2(p);
     fDensity = 0.0;
     for (i=0;i<nSmooth;++i) {
+#ifdef PARTICLE_HAS_MASS
+	fMass = nnList[i].pPart->fMass;
+#else
+	fMass = pkd->pClass[nnList[i].pPart->iClass].fMass;
+#endif
 	r2 = nnList[i].fDist2*ih2;
 	KERNEL(rs,r2);
-	fDensity += rs*nnList[i].pPart->fMass;
-	}
-    p->fDensity = M_1_PI*sqrt(ih2)*ih2*fDensity; 
+	fDensity += rs*fMass;
     }
+    p->fDensity = M_1_PI*sqrt(ih2)*ih2*fDensity; 
+}
 
 void DensitySym(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf)
     {
+#ifndef PARTICLE_HAS_MASS
+    PKD pkd = smf->pkd;
+#endif
     PARTICLE *q;
-    FLOAT fNorm,ih2,r2,rs;
+    FLOAT fNorm,ih2,r2,rs,fMassQ,fMassP;
     int i;
-
+#ifdef PARTICLE_HAS_MASS
+	fMassP = p->fMass;
+#else
+	fMassP = pkd->pClass[p->iClass].fMass;
+#endif
     ih2 = 4.0/(BALL2(p));
     fNorm = 0.5*M_1_PI*sqrt(ih2)*ih2;
     for (i=0;i<nSmooth;++i) {
@@ -107,8 +122,13 @@ void DensitySym(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf)
 	KERNEL(rs,r2);
 	rs *= fNorm;
 	q = nnList[i].pPart;
-	p->fDensity += rs*q->fMass;
-	q->fDensity += rs*p->fMass;
+#ifdef PARTICLE_HAS_MASS
+	fMassQ = q->fMass;
+#else
+	fMassQ = pkd->pClass[q->iClass].fMass;
+#endif
+	p->fDensity += rs*fMassQ;
+	q->fDensity += rs*fMassP;
 	}
     }
 
@@ -140,10 +160,19 @@ void MarkDensity(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf)
 
 void MarkDensitySym(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf)
     {
+#ifndef PARTICLE_HAS_MASS
+    PKD pkd = smf->pkd;
+#endif
     PARTICLE *q;
-    FLOAT fNorm,ih2,r2,rs;
+    FLOAT fNorm,ih2,r2,rs,fMassP,fMassQ;
     int i;
     unsigned int qiActive;
+
+#ifdef PARTICLE_HAS_MASS
+	fMassP = p->fMass;
+#else
+	fMassP = pkd->pClass[p->iClass].fMass;
+#endif
 
     ih2 = 4.0/(BALL2(p));
     fNorm = 0.5*M_1_PI*sqrt(ih2)*ih2;
@@ -154,11 +183,16 @@ void MarkDensitySym(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf)
 	    KERNEL(rs,r2);
 	    rs *= fNorm;
 	    q = nnList[i].pPart;
-	    p->fDensity += rs*q->fMass;
+#ifdef PARTICLE_HAS_MASS
+	    fMassQ = q->fMass;
+#else
+	    fMassQ = pkd->pClass[q->iClass].fMass;
+#endif
+	    p->fDensity += rs*fMassQ;
 	    if (TYPETest(q,TYPE_DensZeroed)) 
-		q->fDensity += rs*p->fMass;
+		q->fDensity += rs*fMassP;
 	    else {
-		q->fDensity = rs*p->fMass;
+		q->fDensity = rs*fMassP;
 		TYPESet(q, TYPE_DensZeroed);
 		}
 	    TYPESet(q,TYPE_NbrOfACTIVE);
@@ -171,16 +205,21 @@ void MarkDensitySym(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf)
 	    KERNEL(rs,r2);
 	    rs *= fNorm;
 	    q = nnList[i].pPart;
+#ifdef PARTICLE_HAS_MASS
+	    fMassQ = q->fMass;
+#else
+	    fMassQ = pkd->pClass[q->iClass].fMass;
+#endif
 	    if (TYPETest(p,TYPE_DensZeroed)) 
-		p->fDensity += rs*q->fMass;
+		p->fDensity += rs*fMassQ;
 	    else {
-		p->fDensity = rs*q->fMass;
+		p->fDensity = rs*fMassQ;
 		TYPESet(p,TYPE_DensZeroed);
 		}
 	    if (TYPETest(q,TYPE_DensZeroed)) 
-		q->fDensity += rs*p->fMass;
+		q->fDensity += rs*fMassP;
 	    else {
-		q->fDensity = rs*p->fMass;
+		q->fDensity = rs*fMassP;
 		TYPESet(q, TYPE_DensZeroed);
 		}
 	    qiActive |= q->iActive;
@@ -222,27 +261,40 @@ void MarkIIDensity(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf)
 
 void MarkIIDensitySym(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf)
     {
+#ifndef PARTICLE_HAS_MASS
+    PKD pkd = smf->pkd;
+#endif
     PARTICLE *q;
-    FLOAT fNorm,ih2,r2,rs;
+    FLOAT fNorm,ih2,r2,rs,fMassP,fMassQ;
     int i;
     unsigned int qiActive;
 
+#ifdef PARTICLE_HAS_MASS
+    fMassP = p->fMass;
+#else
+    fMassP = pkd->pClass[p->iClass].fMass;
+#endif
     ih2 = 4.0/(BALL2(p));
     fNorm = 0.5*M_1_PI*sqrt(ih2)*ih2;
     if (TYPETest(p,TYPE_DensACTIVE)) {
 	qiActive = 0;
 	for (i=0;i<nSmooth;++i) {
 	    q = nnList[i].pPart;
+#ifdef PARTICLE_HAS_MASS
+	    fMassQ = q->fMass;
+#else
+	    fMassQ = pkd->pClass[q->iClass].fMass;
+#endif
 	    qiActive |= q->iActive;
 	    r2 = nnList[i].fDist2*ih2;
 	    KERNEL(rs,r2);
 	    rs *= fNorm;
-	    p->fDensity += rs*q->fMass;
+	    p->fDensity += rs*fMassQ;
 	    if (TYPETest(q,TYPE_DensACTIVE)) {
 		if (TYPETest(q,TYPE_DensZeroed)) 
-		    q->fDensity += rs*p->fMass;
+		    q->fDensity += rs*fMassP;
 		else {
-		    q->fDensity = rs*p->fMass;
+		    q->fDensity = rs*fMassP;
 		    TYPESet(q,TYPE_DensZeroed);
 		    }
 		}
@@ -260,9 +312,9 @@ void MarkIIDensitySym(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf)
 	    KERNEL(rs,r2);
 	    rs *= fNorm;
 	    if (TYPETest(q,TYPE_DensZeroed)) 
-		q->fDensity += rs*p->fMass;
+		q->fDensity += rs*fMassP;
 	    else {
-		q->fDensity = rs*p->fMass;
+		q->fDensity = rs*fMassP;
 		TYPESet(q,TYPE_DensZeroed);
 		}
 	    }
@@ -277,9 +329,9 @@ void MarkIIDensitySym(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf)
 	    KERNEL(rs,r2);
 	    rs *= fNorm;
 	    if (TYPETest(q,TYPE_DensZeroed)) 
-		q->fDensity += rs*p->fMass;
+		q->fDensity += rs*fMassP;
 	    else {
-		q->fDensity = rs*p->fMass;
+		q->fDensity = rs*fMassP;
 		TYPESet(q,TYPE_DensZeroed);
 		}
 	    }

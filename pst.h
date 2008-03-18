@@ -61,6 +61,7 @@ typedef struct pstContext {
 
 enum pst_service {
     PST_SRV_STOP,
+    PST_SPLITIO,
     PST_SETADD,
     PST_READTIPSY,
     PST_DOMAINDECOMP,
@@ -170,6 +171,8 @@ enum pst_service {
 #endif
     PST_HOSTNAME,
     PST_MEMSTATUS,
+    PST_GETCLASSES,
+    PST_SETCLASSES,
     };
 
 void pstAddServices(PST,MDL);
@@ -329,6 +332,11 @@ struct inWriteTipsy {
 void pstWriteTipsy(PST,void *,int,void *,int *);
 
 #ifdef USE_MDL_IO
+/* PST_SPLITIO */
+struct inSplitIO {
+    int nIO;
+    };
+void pstSplitIO(PST,void *,int,void *,int *);
 
 /* PST_FINDIOS */
 struct inFindIOS {
@@ -1020,5 +1028,11 @@ struct outMemStatus {
     };
 void pstMemStatus(PST,void *,int,void *,int *);
 #endif 
+
+/* PST_GETCLASSES - Output PARTCLASS[] */
+void pstGetClasses(PST,void *,int,void *,int *);
+
+/* PST_SETCLASSES - Input PARTCLASS[] */
+void pstSetClasses(PST,void *,int,void *,int *);
 
 #endif

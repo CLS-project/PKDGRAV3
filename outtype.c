@@ -33,7 +33,11 @@ FLOAT ArrType(PARTICLE *p,int iType)
 	case OUT_DT_ARRAY:
 		return(p->dt);
 	case OUT_SOFT_ARRAY:
+#ifdef PARTICLE_HAS_MASS
 	        return(p->fSoft);
+#else
+		assert(0);
+#endif
 	case OUT_GROUP_ARRAY:
 		return (p->pGroup);
 #ifdef RELAXATION

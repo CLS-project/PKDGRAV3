@@ -80,6 +80,8 @@ struct parameters {
     int nSoftNbr;
     int bSoftByType;
     int bDoSoftOutput;
+    int bDoAccOutput;
+    int bDoPotOutput;
     double dEta;
     double dExtraStore;
     double dSoft;
@@ -142,6 +144,10 @@ struct parameters {
     int bSymba;
 #endif
 #endif /* PLANETS */
+
+#ifdef USE_MDL_IO
+    int nIO;
+#endif
 
     /* IC Generation */
     int bWriteIC;

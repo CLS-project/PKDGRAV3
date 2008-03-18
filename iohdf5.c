@@ -35,6 +35,21 @@
 
 #define ATTR_IORDER      "iOrder"
 
+/* Create the type for the class table */
+static hid_t makeClassType(hid_t floatType, int bStart) {
+    hid_t tid;
+    hid_t dataType = sizeof(PINDEX)==4 ? H5T_NATIVE_UINT32 : H5T_NATIVE_UINT64;
+
+    tid = H5Tcreate (H5T_COMPOUND, sizeof(classEntry));
+    H5assert(tid);
+    H5Tinsert(tid,"class",HOFFSET(classEntry,iClass), H5T_NATIVE_UINT8);
+    H5Tinsert(tid,"mass", HOFFSET(classEntry,fMass), floatType);
+    H5Tinsert(tid,"soft", HOFFSET(classEntry,fSoft), floatType);
+    if ( bStart )
+	H5Tinsert(tid,"start",HOFFSET(classEntry,iOrderStart), dataType);
+    return tid;
+}
+
 /* Create a data group: dark, gas, star, etc. */
 static hid_t CreateGroup( hid_t fileID, const char *groupName ) {
     hid_t groupID;
@@ -192,8 +207,7 @@ static void flushVector( IOHDF5V iov )
 }
 
 /* Writes the fields common to all particles */
-static void flushBase( IOHDF5 io, IOBASE *Base,
-		       void (*flushExtra)( IOHDF5 io, IOBASE *Base ) )
+static void flushBase( IOHDF5 io, IOBASE *Base )
 {
     IOHDF5V iov;
 
@@ -244,7 +258,6 @@ static void flushBase( IOHDF5 io, IOBASE *Base,
 		      H5T_NATIVE_UINT8, Base->iOffset, Base->nBuffered, 1 );
 	}
 
-	if ( flushExtra != NULL ) flushExtra(io,Base);
 	Base->iOffset += Base->nBuffered;
 	Base->nBuffered = 0;
     }
@@ -254,39 +267,6 @@ static void flushBase( IOHDF5 io, IOBASE *Base,
     }
 
 
-}
-
-/* Write any accumulated dark particles */
-static void flushDark( IOHDF5 io )
-{
-    flushBase( io, &io->darkBase, 0 );
-}
-
-/* Write any accumulated gas particles */
-static void flushGas( IOHDF5 io )
-{
-    flushBase( io, &io->gasBase, 0 );
-}
-
-/* Write any accumulated star particles */
-static void flushStar( IOHDF5 io )
-{
-    flushBase( io, &io->starBase, 0 );
-}
-
-static hid_t makeClassType(hid_t floatType, int bStart) {
-    hid_t tid;
-    hid_t dataType = sizeof(PINDEX)==4
-	? H5T_NATIVE_UINT32 : H5T_NATIVE_UINT64;
-
-    tid = H5Tcreate (H5T_COMPOUND, sizeof(classEntry));
-    H5assert(tid);
-    H5Tinsert(tid,"class",HOFFSET(classEntry,iClass), H5T_NATIVE_UINT8);
-    H5Tinsert(tid,"mass", HOFFSET(classEntry,fMass), floatType);
-    H5Tinsert(tid,"soft", HOFFSET(classEntry,fSoft), floatType);
-    if ( bStart )
-	H5Tinsert(tid,"start",HOFFSET(classEntry,iOrderStart), dataType);
-    return tid;
 }
 
 static void writeClassTable(IOHDF5 io, IOBASE *Base ) {
@@ -343,9 +323,9 @@ void ioHDF5WriteAttribute( IOHDF5 io, const char *name,
 
 void ioHDF5Flush( IOHDF5 io )
 {
-    flushDark(io);
-    flushGas(io);
-    flushStar(io);
+    flushBase( io, &io->darkBase );
+    flushBase( io, &io->gasBase );
+    flushBase( io, &io->starBase );
     writeClassTable(io,&io->darkBase);
     writeClassTable(io,&io->gasBase);
     writeClassTable(io,&io->starBase);
@@ -577,8 +557,7 @@ static void addOrder( IOHDF5 io, IOBASE *Base,
 	   it should be up to this point. */
 	else {
 	    hsize_t iOffset = 0;
-	    hid_t dataType = sizeof(PINDEX)==4
-		? H5T_NATIVE_UINT32 : H5T_NATIVE_UINT64;
+	    hid_t dataType = sizeof(PINDEX)==4 ? H5T_NATIVE_UINT32 : H5T_NATIVE_UINT64;
 
 	    Order->iOrder = (PINDEX*)malloc( io->iChunkSize * sizeof(PINDEX) );
 	    assert(Order->iOrder!=NULL);
@@ -704,7 +683,6 @@ static int getBase( IOHDF5 io, IOBASE *Base, PINDEX *iOrder,
 }
 
 static void addBase( IOHDF5 io, IOBASE *Base, PINDEX iOrder,
-		     void (*flush)(IOHDF5 io),
 		     const FLOAT *r, const FLOAT *v,
 		     FLOAT fMass, FLOAT fSoft )
 {
@@ -729,7 +707,7 @@ static void addBase( IOHDF5 io, IOBASE *Base, PINDEX iOrder,
     addClass( io, Base, iOrder, fMass, fSoft );
 
     if ( ++Base->nBuffered == io->iChunkSize ) {
-	(*flush)(io);
+	flushBase( io, Base );
     }
 }
 
@@ -802,8 +780,7 @@ void ioHDF5AddDark( IOHDF5 io, PINDEX iOrder,
 		    const FLOAT *r, const FLOAT *v,
 		    FLOAT fMass, FLOAT fSoft, FLOAT fPot )
 {
-    addBase( io, &io->darkBase, iOrder, flushDark,
-	     r, v, fMass, fSoft );
+    addBase( io, &io->darkBase, iOrder, r, v, fMass, fSoft );
     /*TODO: Save Potential as well */
 }
 
@@ -825,8 +802,7 @@ void ioHDF5AddGas(IOHDF5 io, PINDEX iOrder,
 		  FLOAT fMass, FLOAT fSoft, FLOAT fPot,
 		  FLOAT fTemp, FLOAT fMetals)
 {
-    addBase( io, &io->gasBase, iOrder, flushGas,
-	     r, v, fMass, fSoft );
+    addBase( io, &io->gasBase, iOrder, r, v, fMass, fSoft );
     /*TODO: Save fPot, fTemp, fMetals */
 }
 
@@ -849,8 +825,7 @@ void ioHDF5AddStar(IOHDF5 io, PINDEX iOrder,
 	       FLOAT fMass, FLOAT fSoft, FLOAT fPot,
 	       FLOAT fMetals, FLOAT fTForm)
 {
-    addBase( io, &io->starBase, iOrder, flushStar,
-	     r, v, fMass, fSoft );
+    addBase( io, &io->starBase, iOrder, r, v, fMass, fSoft );
     /*TODO: Save fPot, fMetals, fTForm */
 }
 
