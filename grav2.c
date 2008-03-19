@@ -105,13 +105,8 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP ilp,ILC ilc,double dirLs
 	    + pkdn->bnd.fMax[2]*pkdn->bnd.fMax[2]);
     for (i=pkdn->pLower;i<=pkdn->pUpper;++i) {
 	if (!pkdIsActive(pkd,&p[i])) continue;
-#ifdef PARTICLE_HAS_MASS
-	fMass = p[i].fMass;
-	fSoft = p[i].fSoft;
-#else
-	fMass = pkd->pClass[p[i].iClass].fMass;
-	fSoft = pkd->pClass[p[i].iClass].fSoft;
-#endif
+	fMass = pkdMass(pkd,&p[i]);
+	fSoft = pkdSoft(pkd,&p[i]);
 	++nActive;
 	p[i].dtGrav = 0.0;
 	fPot = 0;

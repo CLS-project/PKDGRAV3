@@ -778,7 +778,7 @@ void ioHDF5AddVector( IOHDF5V iov, PINDEX iOrder, FLOAT v )
 
 void ioHDF5AddDark( IOHDF5 io, PINDEX iOrder,
 		    const FLOAT *r, const FLOAT *v,
-		    FLOAT fMass, FLOAT fSoft, FLOAT fPot )
+		    FLOAT fMass, FLOAT fSoft, float fPot )
 {
     addBase( io, &io->darkBase, iOrder, r, v, fMass, fSoft );
     /*TODO: Save Potential as well */
@@ -786,7 +786,7 @@ void ioHDF5AddDark( IOHDF5 io, PINDEX iOrder,
 
 int  ioHDF5GetDark( IOHDF5 io, PINDEX *iOrder,
 		    FLOAT *r, FLOAT *v,
-		    FLOAT *fMass, FLOAT *fSoft, FLOAT *fPot )
+		    FLOAT *fMass, FLOAT *fSoft, float *fPot )
 {
     return getBase( io, &io->darkBase, iOrder, r, v, fMass, fSoft );
     *fPot = 0.0;
@@ -799,7 +799,7 @@ void ioHDF5SeekDark( IOHDF5 io, PINDEX Offset ) {
 
 void ioHDF5AddGas(IOHDF5 io, PINDEX iOrder,
 		  const FLOAT *r, const FLOAT *v,
-		  FLOAT fMass, FLOAT fSoft, FLOAT fPot,
+		  FLOAT fMass, FLOAT fSoft, float fPot,
 		  FLOAT fTemp, FLOAT fMetals)
 {
     addBase( io, &io->gasBase, iOrder, r, v, fMass, fSoft );
@@ -808,7 +808,7 @@ void ioHDF5AddGas(IOHDF5 io, PINDEX iOrder,
 
 int ioHDF5GetGas(IOHDF5 io, PINDEX *iOrder,
 		  FLOAT *r, FLOAT *v,
-		  FLOAT *fMass, FLOAT *fSoft, FLOAT *fPot,
+		  FLOAT *fMass, FLOAT *fSoft, float *fPot,
 		  FLOAT *fTemp, FLOAT *fMetals)
 {
     return getBase( io, &io->gasBase, iOrder, r, v, fMass, fSoft );
@@ -822,7 +822,7 @@ void ioHDF5SeekGas( IOHDF5 io, PINDEX Offset ) {
 
 void ioHDF5AddStar(IOHDF5 io, PINDEX iOrder,
 	       const FLOAT *r, const FLOAT *v,
-	       FLOAT fMass, FLOAT fSoft, FLOAT fPot,
+	       FLOAT fMass, FLOAT fSoft, float fPot,
 	       FLOAT fMetals, FLOAT fTForm)
 {
     addBase( io, &io->starBase, iOrder, r, v, fMass, fSoft );
@@ -831,7 +831,7 @@ void ioHDF5AddStar(IOHDF5 io, PINDEX iOrder,
 
 int ioHDF5GetStar( IOHDF5 io, PINDEX *iOrder,
 		   FLOAT *r, FLOAT *v,
-		   FLOAT *fMass, FLOAT *fSoft, FLOAT *fPot,
+		   FLOAT *fMass, FLOAT *fSoft, float *fPot,
 		   FLOAT *fMetals, FLOAT *fTForm)
 {
     return getBase( io, &io->starBase, iOrder, r, v, fMass, fSoft );

@@ -72,11 +72,9 @@ struct parameters {
     int iMaxRung;
     int nRungVeryActive;
     int nPartVeryActive;
-    int nGrowMass;
     int iWallRunTime;
     int bPhysicalSoft;  
     int bSoftMaxMul;
-    int bVariableSoft;
     int nSoftNbr;
     int bSoftByType;
     int bDoSoftOutput;

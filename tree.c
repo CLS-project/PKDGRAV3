@@ -489,7 +489,6 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp,int bTempBound) {
 	ax = m*p[pj].a[0];
 	ay = m*p[pj].a[1];
 	az = m*p[pj].a[2];
-	pkdn->iActive = p[pj].iActive;
 	pkdn->uMinRung = pkdn->uMaxRung = p[pj].iRung;
 	for (++pj;pj<=pkdn->pUpper;++pj) {
 #ifdef PARTICLE_HAS_MASS
@@ -510,7 +509,6 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp,int bTempBound) {
 	    ax += m*p[pj].a[0];
 	    ay += m*p[pj].a[1];
 	    az += m*p[pj].a[2];
-	    pkdn->iActive |= p[pj].iActive;
 	    if ( p[pj].iRung > pkdn->uMaxRung ) pkdn->uMaxRung = p[pj].iRung;
 	    if ( p[pj].iRung < pkdn->uMinRung ) pkdn->uMinRung = p[pj].iRung;
 	    }
@@ -685,7 +683,6 @@ void pkdCombineCells(KDN *pkdn,KDN *p1,KDN *p2,int bCombineBound) {
       pkdn->a[j] = ifMass*(m1*p1->a[j] + m2*p2->a[j]);
     }
     pkdn->fSoft2 = 1.0/(ifMass*(m1/p1->fSoft2 + m2/p2->fSoft2));
-    pkdn->iActive = (p1->iActive | p2->iActive);
     pkdn->uMinRung = p1->uMinRung < p2->uMinRung ? p1->uMinRung : p2->uMinRung;
     pkdn->uMaxRung = p1->uMaxRung > p2->uMaxRung ? p1->uMaxRung : p2->uMaxRung;
 

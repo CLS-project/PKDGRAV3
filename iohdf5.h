@@ -105,16 +105,16 @@ PINDEX ioHDF5StarCount( IOHDF5 io );
 
 void ioHDF5AddDark( IOHDF5 io, PINDEX iOrder,
 		    const FLOAT *r, const FLOAT *v,
-		    FLOAT fMass, FLOAT fSoft, FLOAT fPot );
+		    FLOAT fMass, FLOAT fSoft, float fPot );
 
 void ioHDF5AddGas(  IOHDF5 io, PINDEX iOrder,
 		    const FLOAT *r, const FLOAT *v,
-		    FLOAT fMass, FLOAT fSoft, FLOAT fPot,
+		    FLOAT fMass, FLOAT fSoft, float fPot,
 		    FLOAT fTemp, FLOAT fMetals);
 
 void ioHDF5AddStar( IOHDF5 io, PINDEX iOrder,
 		    const FLOAT *r, const FLOAT *v,
-		    FLOAT fMass, FLOAT fSoft, FLOAT fPot,
+		    FLOAT fMass, FLOAT fSoft, float fPot,
 		    FLOAT fMetals, FLOAT fTForm);
 
 IOHDF5V ioHDFF5NewVector( IOHDF5 io, const char *name, int bDouble );
@@ -129,15 +129,15 @@ int ioHDF5ReadAttribute( IOHDF5 io, const char *name,
 
 int  ioHDF5GetDark( IOHDF5 io, PINDEX *iOrder,
 		    FLOAT *r, FLOAT *v,
-		    FLOAT *fMass, FLOAT *fSoft, FLOAT *fPot );
+		    FLOAT *fMass, FLOAT *fSoft, float *fPot );
 
 int  ioHDF5GetGas(  IOHDF5 io, PINDEX *iOrder,
 		    FLOAT *r, FLOAT *v,
-		    FLOAT *fMass, FLOAT *fSoft, FLOAT *fPot,
+		    FLOAT *fMass, FLOAT *fSoft, float *fPot,
 		    FLOAT *fTemp, FLOAT *fMetals);
 int  ioHDF5GetStar( IOHDF5 io, PINDEX *iOrder,
 		    FLOAT *r, FLOAT *v,
-		    FLOAT *fMass, FLOAT *fSoft, FLOAT *fPot,
+		    FLOAT *fMass, FLOAT *fSoft, float *fPot,
 		    FLOAT *fMetals, FLOAT *fTForm);
 
 void ioHDF5SeekDark( IOHDF5 io, PINDEX Offset );

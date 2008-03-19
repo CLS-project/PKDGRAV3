@@ -18,7 +18,7 @@
 #include <fcntl.h>
 #endif
 
-FLOAT ArrType(PARTICLE *p,int iType)
+FLOAT ArrType(PKD pkd,PARTICLE *p,int iType)
 {
 	switch (iType) {
 	case OUT_DENSITY_ARRAY:
@@ -33,11 +33,7 @@ FLOAT ArrType(PARTICLE *p,int iType)
 	case OUT_DT_ARRAY:
 		return(p->dt);
 	case OUT_SOFT_ARRAY:
-#ifdef PARTICLE_HAS_MASS
-	        return(p->fSoft);
-#else
-		assert(0);
-#endif
+		return pkdSoft(pkd,p);
 	case OUT_GROUP_ARRAY:
 		return (p->pGroup);
 #ifdef RELAXATION
@@ -77,7 +73,7 @@ void pkdOutArray(PKD pkd,char *pszFileName,int iArrType)
 	 ** Write Array Elements!
 	 */
 	for (i=0;i<pkd->nLocal;++i) {
-		fOut = ArrType(&pkd->pStore[i],iArrType);
+	 	fOut = ArrType(pkd,&pkd->pStore[i],iArrType);
 		fprintf(fp,"%.8g\n",fOut);
 		}
 	i = fclose(fp);

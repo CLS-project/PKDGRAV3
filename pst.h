@@ -104,8 +104,6 @@ enum pst_service {
     PST_KICK,
     PST_SETSOFT,
     PST_PHYSICALSOFT,
-    PST_PREVARIABLESOFT,
-    PST_POSTVARIABLESOFT,
     PST_SETTOTAL,
     PST_ONENODEREADINIT,
     PST_SWAPALL,
@@ -120,7 +118,6 @@ enum pst_service {
     PST_DENSITYSTEP,
     PST_GETMAP,
     PST_SETRUNGVERYACTIVE,
-    PST_SETPARTICLETYPES,
     PST_MARKSMOOTH,
     PST_RESMOOTH,
     PST_INITACCEL,
@@ -333,12 +330,6 @@ struct inWriteTipsy {
 void pstWriteTipsy(PST,void *,int,void *,int *);
 
 #ifdef USE_MDL_IO
-/* PST_SPLITIO */
-struct inSplitIO {
-    int nIO;
-    };
-void pstSplitIO(PST,void *,int,void *,int *);
-
 /* PST_FINDIOS */
 struct inFindIOS {
     int nLower; /* Number of particles to the left */
@@ -421,7 +412,6 @@ struct inSmooth {
     int bPeriodic;
     int bSymmetric;
     int iSmoothType;
-    int eParticleTypes; /* Smooth over which particle types */
     double dfBall2OverSoft2;
     SMF smf;
     };
@@ -606,15 +596,6 @@ struct inPhysicalSoft {
     };
 void pstPhysicalSoft(PST,void *,int,void *,int *);
 
-/* PST_PREVARIABLESOFT */
-void pstPreVariableSoft(PST,void *,int,void *,int *);
-
-/* PST_POSTVARIABLESOFT */
-struct inPostVariableSoft {
-    double dSoftMax;
-    int bSoftMaxMul;
-    };
-void pstPostVariableSoft(PST,void *,int,void *,int *);
 #endif
 
 /* PST_SETTOTAL */
@@ -710,12 +691,6 @@ void pstGetMap(PST,void *,int,void *,int *);
 
 void pstSetRungVeryActive(PST,void *,int,void *,int *);
 
-struct inSetParticleTypes {
-    int iDummy;
-    };
-
-void pstSetParticleTypes(PST,void *,int,void *,int *);
-
 /* PST_RESMOOTH */
 struct inReSmooth {
     int nSmooth;
@@ -723,7 +698,6 @@ struct inReSmooth {
     int bPeriodic;
     int bSymmetric;
     int iSmoothType;
-    int eParticleTypes; /* Smooth over which particle types */
     double dfBall2OverSoft2;
     SMF smf;
     };
@@ -814,7 +788,6 @@ struct inFof {
     int bPeriodic;
     int bSymmetric;
     int iSmoothType;
-    int eParticleTypes; /* Smooth over which particle types */
     SMF smf;
     };
 struct inGroupMerge{
@@ -829,7 +802,6 @@ struct inGroupProfiles{
     int bLogBins;
     int bSymmetric;
     int iSmoothType;
-    int eParticleTypes; /* Smooth over which particle types */
     SMF smf;
     };
 void pstFof(PST,void *,int,void *,int *);

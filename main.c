@@ -279,7 +279,7 @@ int main(int argc,char **argv) {
 		msrActiveRung(msr,0,1); /* Activate all particles */
 		msrDomainDecomp(msr,0,1,0);
 		msrBuildTree(msr,dTime,0);
-		msrRelaxation(msr,dTime,msrDelta(msr),SMX_RELAXATION,0,TYPE_ALL);
+		msrRelaxation(msr,dTime,msrDelta(msr),SMX_RELAXATION,0);
 		}
 #endif	
 	    /*
@@ -352,7 +352,7 @@ int main(int argc,char **argv) {
 	    msrBuildTree(msr,dTime,msr->param.bEwald);
 	    bGasOnly = 0;
 	    bSymmetric = 1;
-	    msrSmooth(msr,dTime,SMX_DENSITY,bGasOnly,bSymmetric,TYPE_ALL);
+	    msrSmooth(msr,dTime,SMX_DENSITY,bGasOnly,bSymmetric);
 	    msrReorder(msr);
 
 	    sprintf(achFile,"%s.den",msrOutName(msr));
@@ -367,10 +367,10 @@ int main(int argc,char **argv) {
 	  msrActiveRung(msr,0,1); /* Activate all particles */
 	  msrDomainDecomp(msr,0,1,0);
 	  msrBuildTree(msr,dTime,0);
-	  msrFof(msr,nFOFsDone,SMX_FOF,0,TYPE_ALL,csmTime2Exp(msr->param.csm,dTime));
+	  msrFof(msr,nFOFsDone,SMX_FOF,0,csmTime2Exp(msr->param.csm,dTime));
 	  msrGroupMerge(msr,csmTime2Exp(msr->param.csm,dTime));
 	  if(msr->param.nBins > 0)
-	    msrGroupProfiles(msr,nFOFsDone,SMX_FOF,0,TYPE_ALL,csmTime2Exp(msr->param.csm,dTime));
+	    msrGroupProfiles(msr,nFOFsDone,SMX_FOF,0,csmTime2Exp(msr->param.csm,dTime));
 	  msrReorder(msr);
 	  sprintf(achFile,"%s.%i.fof",msrOutName(msr),nFOFsDone);
           /*msrOutArray(msr,achFile,OUT_GROUP_ARRAY);*/
@@ -409,7 +409,7 @@ int main(int argc,char **argv) {
 	    }
 	if (msr->param.bDensityStep) {
 	    fprintf(stderr,"Adding DensStep dt\n");
-	    msrDensityStep(msr,dTime,TYPE_ALL);
+	    msrDensityStep(msr,dTime);
 	    }
 	msrReorder(msr);
 	sprintf(achFile,"%s.dt",msrOutName(msr));

@@ -195,11 +195,12 @@ static void ioLoad(IO io, const char *filename,
 
     for( i=0; i<N; i++ ) {
 	local_t iLocal = iOffset + i;
-	FLOAT dMass, dSoft, dPot;
+	FLOAT dMass, dSoft;
+	float fPot;
 
 	ioHDF5GetDark(iohdf5, &iOrder,
 		   io->r[iLocal].v, io->v[iLocal].v,
-		   &dMass, &dSoft, &dPot );
+		   &dMass, &dSoft, &fPot );
 
 	/*FIXME: linear search - MAX 256, <10 typical */
 	for( iClass=0; iClass<io->nClasses; iClass++ )

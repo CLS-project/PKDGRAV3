@@ -244,9 +244,6 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv)
     msr->param.bSoftMaxMul = 1;
     prmAddParam(msr->prm,"bSoftMaxMul",0,&msr->param.bSoftMaxMul,sizeof(int),"SMM",
 		"<Use maximum comoving gravitational softening length as a multiplier> +SMM");
-    msr->param.bVariableSoft = 0;
-    prmAddParam(msr->prm,"bVariableSoft",0,&msr->param.bVariableSoft,sizeof(int),"VarSoft",
-		"<Variable gravitational softening length> -VarSoft");
     msr->param.nSoftNbr = 32;
     prmAddParam(msr->prm,"nSoftNbr",1,&msr->param.nSoftNbr,sizeof(int),"VarSoft",
 		"<Neighbours for Variable gravitational softening length> 32");
@@ -394,9 +391,6 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv)
     msr->param.dRedTo = 0.0;	
     prmAddParam(msr->prm,"dRedTo",2,&msr->param.dRedTo,sizeof(double),"zto",
 		"specifies final redshift for the simulation");
-    msr->param.nGrowMass = 0;
-    prmAddParam(msr->prm,"nGrowMass",1,&msr->param.nGrowMass,sizeof(int),
-		"gmn","<number of particles to increase mass> = 0");
     msr->param.dGrowDeltaM = 0.0;
     prmAddParam(msr->prm,"dGrowDeltaM",2,&msr->param.dGrowDeltaM,
 		sizeof(double),"gmdm","<Total growth in mass/particle> = 0.0");
@@ -650,7 +644,7 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv)
      * Softening 
      */
 	
-    if (msr->param.bPhysicalSoft || msr->param.bVariableSoft) {
+    if (msr->param.bPhysicalSoft ) {
 	if (msr->param.bPhysicalSoft && !msrComove(msr)) {
 	    printf("WARNING: bPhysicalSoft reset to 0 for non-comoving (bComove == 0)\n");
 	    msr->param.bPhysicalSoft = 0;
@@ -659,13 +653,6 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv)
 	fprintf(stderr,"ERROR: You must compile with -DCHANGESOFT to use changing softening options\n");
 	_msrExit(msr,1);
 #endif
-	if (msr->param.bVariableSoft && !prmSpecified(msr->prm,"bDoSoftOutput"))
-	    msr->param.bDoSoftOutput=1;
-  
-	if (msr->param.bPhysicalSoft && msr->param.bVariableSoft) {
-	    fprintf(stderr,"ERROR: You may only choose one of Physical or Variable softening\n");
-	    _msrExit(msr,1);
-	    }
 	}
     /*
     ** Determine the period of the box that we are using.
@@ -872,7 +859,6 @@ void msrLogParams(MSR msr,FILE *fp)
 	else
 	    fprintf(fp," dSoft: input");
 	fprintf(fp,"\n# bPhysicalSoft: %d",msr->param.bPhysicalSoft);
-	fprintf(fp," bVariableSoft: %d",msr->param.bVariableSoft);
 	fprintf(fp," nSoftNbr: %d",msr->param.nSoftNbr);
 	fprintf(fp," bSoftByType: %d",msr->param.bSoftByType);
 	fprintf(fp," bSoftMaxMul: %d",msr->param.bSoftMaxMul);
@@ -903,7 +889,6 @@ void msrLogParams(MSR msr,FILE *fp)
 	fprintf(fp," dFracNoDomainRootFind: %g",msr->param.dFracNoDomainRootFind);
 	fprintf(fp," dFracNoDomainDimChoice: %g",msr->param.dFracNoDomainDimChoice);
 	fprintf(fp,"\n# nTruncateRung: %d",msr->param.nTruncateRung);
-	fprintf(fp,"\n# nGrowMass: %d",msr->param.nGrowMass);
 	fprintf(fp," dGrowDeltaM: %g",msr->param.dGrowDeltaM);
 	fprintf(fp," dGrowStartT: %g",msr->param.dGrowStartT);
 	fprintf(fp," dGrowEndT: %g",msr->param.dGrowEndT);
@@ -1137,7 +1122,6 @@ void msrOneNodeReadHDF5(MSR msr, struct inReadTipsy *in)
     char achOutName[PST_FILENAME_SIZE];
     int nid;
     int inswap;
-    struct inSetParticleTypes intype;
     hid_t fileID;
     IOHDF5 io;
 
@@ -1191,7 +1175,6 @@ void msrOneNodeReadHDF5(MSR msr, struct inReadTipsy *in)
      * Now read our own particles.
      */
     pkdReadHDF5(plcl->pkd, io, in->dvFac, 0, nParts[0]);
-    pstSetParticleTypes(msr->pst,&intype,sizeof(intype),NULL,NULL);
 
     ioHDF5Finish(io);
     H5Fclose(fileID);
@@ -1209,7 +1192,6 @@ void msrOneNodeReadTipsy(MSR msr, struct inReadTipsy *in)
     char achOutName[PST_FILENAME_SIZE];
     int nid;
     int inswap;
-    struct inSetParticleTypes intype;
 
     nParts = malloc(msr->nThreads*sizeof(*nParts));
     assert(nParts!=NULL);
@@ -1259,7 +1241,6 @@ void msrOneNodeReadTipsy(MSR msr, struct inReadTipsy *in)
      */
     pkdReadTipsy(plcl->pkd,achInFile,achOutName,0,nParts[0],in->bStandard,in->dvFac,
 		 in->bDoublePos);
-    pstSetParticleTypes(msr->pst,&intype,sizeof(intype),NULL,NULL);
     }
 
 int xdrHeader(XDR *pxdrs,struct dump *ph)
@@ -1396,7 +1377,6 @@ static double _msrIORead(MSR msr, const char *achFilename, int iStep )
     struct inIOLoad in;
     struct inPlanLoad inPlan;
     struct outPlanLoad outPlan;
-    struct inSetParticleTypes intype;
     double dTime, dvFac;
     int nPlan;
     int outSize;
@@ -1486,8 +1466,6 @@ static double _msrIORead(MSR msr, const char *achFilename, int iStep )
     mdlGetReply(msr->mdl,0,NULL,NULL);
     mdlSetComm(msr->mdl,0);
 
-    pstSetParticleTypes(msr->pst,&intype,sizeof(intype),NULL,NULL);
-
     msrprintf(msr,"Input file has been successfully read.\n");
 
     /*
@@ -1518,8 +1496,6 @@ static double _msrReadHDF5(MSR msr, const char *achFilename)
     char achInFile[PST_FILENAME_SIZE];
     LCL *plcl = msr->pst->plcl;
     double dTime;
-    struct inSetParticleTypes intype;
-    //uint64_t tlong;
 
     strcpy(in.achInFile,achFilename);
 
@@ -1584,7 +1560,6 @@ static double _msrReadHDF5(MSR msr, const char *achFilename)
     else
 	msrOneNodeReadHDF5(msr, &in);
     msrSetClasses(msr);
-    pstSetParticleTypes(msr->pst, &intype, sizeof(intype), NULL, NULL);
     msrprintf(msr,"Input file has been successfully read.\n");
     /*
     ** Now read in the output points, passing the initial time.
@@ -1606,7 +1581,6 @@ double msrGenerateIC(MSR msr)
 {
     struct inGenerateIC in;
     struct outGenerateIC out;
-    struct inSetParticleTypes intype;
     int nOut;
     double sec,dsec;
     double dvFac;
@@ -1643,8 +1617,6 @@ double msrGenerateIC(MSR msr)
     dsec = msrTime() - sec;
     msrprintf(msr,"IC Generation Complete, Wallclock: %f secs\n\n",dsec);
 
-    pstSetParticleTypes(msr->pst, &intype, sizeof(intype), NULL, NULL);
-
     return getTime(msr,out.dExpansion,&dvFac);
 }
 #endif
@@ -1658,7 +1630,6 @@ static double _msrReadTipsy(MSR msr, const char *achFilename)
     char achInFile[PST_FILENAME_SIZE];
     LCL *plcl = msr->pst->plcl;
     double dTime,aTo,tTo,z;
-    struct inSetParticleTypes intype;
     uint64_t tlong;
 
     strcpy(in.achInFile,achFilename);
@@ -1858,7 +1829,6 @@ static double _msrReadTipsy(MSR msr, const char *achFilename)
     else
 	msrOneNodeReadTipsy(msr, &in);
     msrSetClasses(msr);
-    pstSetParticleTypes(msr->pst, &intype, sizeof(intype), NULL, NULL);
     msrprintf(msr,"Input file has been successfully read.\n");
     /*
     ** Now read in the output points, passing the initial time.
@@ -1994,11 +1964,9 @@ void msrSaveParameters(MSR msr, IOHDF5 io)
     ioHDF5WriteAttribute( io, "iMaxRung", H5T_NATIVE_INT, &msr->param.iMaxRung );
     ioHDF5WriteAttribute( io, "nRungVeryActive", H5T_NATIVE_INT, &msr->param.nRungVeryActive );
     ioHDF5WriteAttribute( io, "nPartVeryActive", H5T_NATIVE_INT, &msr->param.nPartVeryActive );
-    ioHDF5WriteAttribute( io, "nGrowMass", H5T_NATIVE_INT, &msr->param.nGrowMass );
     ioHDF5WriteAttribute( io, "iWallRunTime", H5T_NATIVE_INT, &msr->param.iWallRunTime );
     ioHDF5WriteAttribute( io, "bPhysicalSoft", H5T_NATIVE_INT, &msr->param.bPhysicalSoft );  
     ioHDF5WriteAttribute( io, "bSoftMaxMul", H5T_NATIVE_INT, &msr->param.bSoftMaxMul );
-    ioHDF5WriteAttribute( io, "bVariableSoft", H5T_NATIVE_INT, &msr->param.bVariableSoft );
     ioHDF5WriteAttribute( io, "nSoftNbr", H5T_NATIVE_INT, &msr->param.nSoftNbr );
     ioHDF5WriteAttribute( io, "bSoftByType", H5T_NATIVE_INT, &msr->param.bSoftByType );
     ioHDF5WriteAttribute( io, "bDoSoftOutput", H5T_NATIVE_INT, &msr->param.bDoSoftOutput );
@@ -2645,7 +2613,7 @@ void msrOutVector(MSR msr,char *pszFile,int iType)
 
 
 void msrSmooth(MSR msr,double dTime,int iSmoothType,int bGasOnly,
-	       int bSymmetric, int eParticleTypes)
+	       int bSymmetric)
     {
     struct inSmooth in;
 
@@ -2657,7 +2625,6 @@ void msrSmooth(MSR msr,double dTime,int iSmoothType,int bGasOnly,
     in.bPeriodic = msr->param.bPeriodic;
     in.bSymmetric = bSymmetric;
     in.iSmoothType = iSmoothType;
-    in.eParticleTypes = eParticleTypes;
 #ifdef SYMBA
     in.smf.dSunMass = msr->dSunMass;
 #endif
@@ -2684,7 +2651,7 @@ void msrSmooth(MSR msr,double dTime,int iSmoothType,int bGasOnly,
 
 
 void msrReSmooth(MSR msr,double dTime,int iSmoothType,int bGasOnly,
-		 int bSymmetric,int eParticleTypes)
+		 int bSymmetric)
     {
     struct inReSmooth in;
 
@@ -2696,7 +2663,6 @@ void msrReSmooth(MSR msr,double dTime,int iSmoothType,int bGasOnly,
     in.bPeriodic = msr->param.bPeriodic;
     in.bSymmetric = bSymmetric;
     in.iSmoothType = iSmoothType;
-    in.eParticleTypes = eParticleTypes;
     if (msrComove(msr)) {
 	in.smf.H = csmTime2Hub(msr->param.csm,dTime);
 	in.smf.a = csmTime2Exp(msr->param.csm,dTime);
@@ -2720,7 +2686,7 @@ void msrReSmooth(MSR msr,double dTime,int iSmoothType,int bGasOnly,
 
 void msrUpdateSoft(MSR msr,double dTime) {
 #ifdef CHANGESOFT
-    if (!(msr->param.bPhysicalSoft || msr->param.bVariableSoft)) return;
+    if (!(msr->param.bPhysicalSoft)) return;
     if (msr->param.bPhysicalSoft) {
 	struct inPhysicalSoft in;
 
@@ -2731,42 +2697,6 @@ void msrUpdateSoft(MSR msr,double dTime) {
 	if (msr->param.bSoftMaxMul && in.dFac > in.dSoftMax) in.dFac = in.dSoftMax;
 
 	pstPhysicalSoft(msr->pst,&in,sizeof(in),NULL,NULL);
-	}
-    else {
-	struct inPostVariableSoft inPost;
-	int bSymmetric = 0;
-	int bGasOnly;
-
-	pstPreVariableSoft(msr->pst,NULL,0,NULL,NULL);
-
-	if (msr->param.bSoftByType) {
-	    if (msr->nDark) {
-		msrBuildTree(msr,dTime,0);
-		bGasOnly = 0;
-		assert(0); /* can't do this yet! */
-		msrSmooth(msr,dTime,SMX_NULL,bGasOnly,bSymmetric,TYPE_DARK);
-		}
-	    if (msr->nGas) {
-		msrBuildTree(msr,dTime,0);
-		bGasOnly = 1;
-		msrSmooth(msr,dTime,SMX_NULL,bGasOnly,bSymmetric,TYPE_GAS);
-		}
-	    if (msr->nStar) {
-		msrBuildTree(msr,dTime,0);
-		bGasOnly = 0;
-		assert(0); /* can't do this yet! */
-		msrSmooth(msr,dTime,SMX_NULL,bGasOnly,bSymmetric,TYPE_STAR);
-		}
-	    }
-	else {
-	    msrBuildTree(msr,dTime,0);
-	    bGasOnly = 0;
-	    msrSmooth(msr,dTime,SMX_NULL,bGasOnly,bSymmetric,TYPE_ALL);
-	    }
-
-	inPost.dSoftMax = msr->param.dSoftMax;
-	inPost.bSoftMaxMul = msr->param.bSoftMaxMul;
-	pstPostVariableSoft(msr->pst,&inPost,sizeof(inPost),NULL,NULL);
 	}
 #endif
     }
@@ -3409,7 +3339,7 @@ msrAccelStep(MSR msr,double dTime)
     }
 
 void
-msrDensityStep(MSR msr,double dTime,int eParticleTypes)
+msrDensityStep(MSR msr,double dTime)
     {
     struct inDensityStep in;
     double expand;
@@ -3418,7 +3348,7 @@ msrDensityStep(MSR msr,double dTime,int eParticleTypes)
     msrprintf(msr,"Calculating Rung Densities...\n");
     bGasOnly = 0;
     bSymmetric = 0;
-    msrSmooth(msr,dTime,SMX_DENSITY,bGasOnly,bSymmetric,eParticleTypes);
+    msrSmooth(msr,dTime,SMX_DENSITY,bGasOnly,bSymmetric);
     in.dEta = msrEta(msr);
     expand = csmTime2Exp(msr->param.csm,dTime);
     in.dRhoFac = 1.0/(expand*expand*expand);
@@ -3541,7 +3471,7 @@ void msrTopStepKDK(MSR msr,
 	    msrDomainDecomp(msr,iRung,1,bSplitVA);
 	    msrActiveRung(msr,iRung,1);
 	    msrBuildTree(msr,dTime,0);
-	    msrDensityStep(msr,dTime,TYPE_ALL);
+	    msrDensityStep(msr,dTime);
 	    }
 	iRungVeryActive = msrDtToRung(msr,iRung,dDelta,1);
 	}
@@ -3776,7 +3706,7 @@ void msrTopStepHermite(MSR msr,
 	    msrDomainDecomp(msr,iRung,1,bSplitVA);
 	    msrActiveRung(msr,iRung,1);
 	    msrBuildTree(msr,dTime,bNeedEwald);
-	    msrDensityStep(msr,dTime,TYPE_ALL);
+	    msrDensityStep(msr,dTime);
 	    }
 	iRungVeryActive = msrDtToRung(msr,iRung,dDelta,1);
     }
@@ -4091,7 +4021,6 @@ msrAddDelParticles(MSR msr)
     struct outColNParts *pColNParts;
     uint64_t *pNewOrder;
     struct inSetNParts in;
-    struct inSetParticleTypes intype;
 #ifdef PLANETS
     struct inHandSunMass inh;
 #endif
@@ -4140,7 +4069,6 @@ msrAddDelParticles(MSR msr)
     in.nMaxOrderGas = msr->nMaxOrderGas;
     in.nMaxOrderDark = msr->nMaxOrderDark;    
     pstSetNParts(msr->pst,&in,sizeof(in),NULL,NULL);
-    pstSetParticleTypes(msr->pst,&intype,sizeof(intype),NULL,NULL);
 
 #ifdef PLANETS
     inh.dSunMass = msr->dSunMass;
@@ -4183,13 +4111,13 @@ void msrInitTimeSteps(MSR msr,double dTime,double dDelta)
 	msrDomainDecomp(msr,0,1,0);
 	msrActiveRung(msr,0,1); /* Activate all particles */
 	msrBuildTree(msr,dTime,bNeedEwald);
-	msrDensityStep(msr,dTime,TYPE_ALL);
+	msrDensityStep(msr,dTime);
 	}
     msrDtToRung(msr,0,dDelta,1);
     }
 
 
-void msrFof(MSR msr,int nFOFsDone,int iSmoothType,int bSymmetric,int eParticleTypes, double exp)
+void msrFof(MSR msr,int nFOFsDone,int iSmoothType,int bSymmetric, double exp)
     {
     struct inFof in;
     in.nFOFsDone = nFOFsDone;
@@ -4197,7 +4125,6 @@ void msrFof(MSR msr,int nFOFsDone,int iSmoothType,int bSymmetric,int eParticleTy
     in.bPeriodic = msr->param.bPeriodic;
     in.bSymmetric = bSymmetric;
     in.iSmoothType = iSmoothType;
-    in.eParticleTypes = eParticleTypes;
     in.smf.a = exp;
     in.smf.dTau2 = pow(msr->param.dTau,2.0);
     in.smf.dVTau2 = pow(msr->param.dVTau,2.0);
@@ -4247,7 +4174,7 @@ void msrGroupMerge(MSR msr, double exp)
     printf("MASTER: TOTAL groups: %i \n" ,nGroups);
     }
 
-void msrGroupProfiles(MSR msr,int nFOFsDone,int iSmoothType,int bSymmetric,int eParticleTypes, double exp)
+void msrGroupProfiles(MSR msr,int nFOFsDone,int iSmoothType,int bSymmetric, double exp)
     {
     int nBins;
     struct inGroupProfiles in;
@@ -4256,7 +4183,6 @@ void msrGroupProfiles(MSR msr,int nFOFsDone,int iSmoothType,int bSymmetric,int e
     in.nSmooth = msr->param.nSmooth;
     in.bSymmetric = bSymmetric;
     in.iSmoothType = iSmoothType;
-    in.eParticleTypes = eParticleTypes;
     in.nFOFsDone = nFOFsDone;
     in.smf.nMinMembers = msr->param.nMinMembers;
     in.smf.nBins = msr->param.nBins;
@@ -4387,14 +4313,13 @@ void msrInitRelaxation(MSR msr)
     {
     pstInitRelaxation(msr->pst,NULL,0,NULL,NULL);
     }	
-void msrRelaxation(MSR msr,double dTime,double deltaT,int iSmoothType,int bSymmetric,int eParticleTypes)
+void msrRelaxation(MSR msr,double dTime,double deltaT,int iSmoothType,int bSymmetric)
     {
     struct inSmooth in;
     in.nSmooth = msr->param.nSmooth;
     in.bPeriodic = msr->param.bPeriodic;
     in.bSymmetric = bSymmetric;
     in.iSmoothType = iSmoothType;
-    in.eParticleTypes = eParticleTypes;
     in.dfBall2OverSoft2 = (msr->param.bLowerSoundSpeed ? 0 :
 			   4.0*msr->param.dhMinOverSoft*msr->param.dhMinOverSoft);
     if (msrComove(msr)) {
@@ -4487,7 +4412,6 @@ msrReadSS(MSR msr)
 	struct inReadSS in;
 	struct inHandSunMass inh;
 
-	struct inSetParticleTypes intype;
 	char achInFile[PST_FILENAME_SIZE];
 	LCL *plcl = msr->pst->plcl;
 	double dTime;
@@ -4566,7 +4490,6 @@ msrReadSS(MSR msr)
 	else
 	    msrOneNodeReadSS(msr,&in);
 	msrSetClasses(msr);
-	pstSetParticleTypes(msr->pst,&intype,sizeof(intype),NULL,NULL);
 	msrprintf(msr,"Input file successfully read.\n");
 
 	inh.dSunMass = msr->dSunMass;       
@@ -4961,7 +4884,7 @@ void msrTopStepSymba(MSR msr,
     /*
      * check min.distance (drmin2) during drift 
      */ 	
-    msrSmooth(msr,dTime,SMX_SYMBA,0,0,TYPE_ALL);
+    msrSmooth(msr,dTime,SMX_SYMBA,0,0);
     /*
      * Determine p->iRung from p->drmin 
      ** If drmin2 < 3Hill, (but drmin > 3Hill), this interacting pair 
@@ -5222,7 +5145,7 @@ void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint)
     msrDriftSun(msr,dTime,0.5*msrDelta(msr));
     /* msrReorder above requires msrDomainDecomp and msrBuildTree for 
        msrSmooth in topstepSymba*/
-    msrActiveRung(msr,0,1); 	 	
+    msrActiveRung(msr,0,1);
     msrDomainDecomp(msr,0,1,0);
     msrBuildTree(msr,dTime,0);
 #endif
@@ -5235,7 +5158,7 @@ void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint)
 	msrBuildTree(msr,dTime,0);
 	bGasOnly = 0;
 	bSymmetric = 0; /* FOR TESTING!!*/
-	msrSmooth(msr,dTime,SMX_DENSITY,bGasOnly,bSymmetric,TYPE_ALL);
+	msrSmooth(msr,dTime,SMX_DENSITY,bGasOnly,bSymmetric);
     }
     nFOFsDone = 0;
     while( msr->param.nFindGroups > nFOFsDone) {
@@ -5245,9 +5168,9 @@ void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint)
 	msrActiveRung(msr,0,1); /* Activate all particles */
 	msrDomainDecomp(msr,0,1,0);
 	msrBuildTree(msr,dTime,0);
-	msrFof(msr,nFOFsDone,SMX_FOF,0,TYPE_ALL,csmTime2Exp(msr->param.csm,dTime));
+	msrFof(msr,nFOFsDone,SMX_FOF,0,csmTime2Exp(msr->param.csm,dTime));
 	msrGroupMerge(msr,csmTime2Exp(msr->param.csm,dTime));
-	if(msr->param.nBins > 0) msrGroupProfiles(msr,nFOFsDone,SMX_FOF,0,TYPE_ALL,csmTime2Exp(msr->param.csm,dTime));
+	if(msr->param.nBins > 0) msrGroupProfiles(msr,nFOFsDone,SMX_FOF,0,csmTime2Exp(msr->param.csm,dTime));
 	msrReorder(msr);
 	sprintf(achFile,"%s.%i.fof",msrOutName(msr),nFOFsDone);
 	/*msrOutArray(msr,achFile,OUT_GROUP_ARRAY);*/

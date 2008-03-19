@@ -17,7 +17,6 @@
 
 int smInitialize(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bGasOnly,
 		 int bPeriodic,int bSymmetric,int iSmoothType, 
-		 int eParticleTypes,
 		 double dfBall2OverSoft2 ) {
     SMX smx;
     void (*initParticle)(void *) = NULL;
@@ -34,7 +33,6 @@ int smInitialize(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bGasOnly,
     smx->nSmooth = nSmooth;
     smx->bGasOnly = bGasOnly;
     smx->bPeriodic = bPeriodic;
-    smx->eParticleTypes = eParticleTypes;
 
     switch (iSmoothType) {
     case SMX_NULL:
@@ -49,27 +47,6 @@ int smInitialize(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bGasOnly,
 	initParticle = initDensity; /* Original Particle */
 	init = initDensity; /* Cached copies */
 	comb = combDensity;
-	smx->fcnPost = NULL;
-	break;
-    case SMX_MARKDENSITY:
-	smx->fcnSmooth = bSymmetric?MarkDensitySym:MarkDensity;
-	initParticle = initParticleMarkDensity; /* Original Particle */
-	init = initMarkDensity; /* Cached copies */
-	comb = combMarkDensity;
-	smx->fcnPost = NULL;
-	break;
-    case SMX_MARKIIDENSITY:
-	smx->fcnSmooth = bSymmetric?MarkIIDensitySym:MarkIIDensity;
-	initParticle = initParticleMarkIIDensity; /* Original Particle */
-	init = initMarkIIDensity; /* Cached copies */
-	comb = combMarkIIDensity;
-	smx->fcnPost = NULL;
-	break;
-    case SMX_MARK:
-	smx->fcnSmooth = NULL;
-	initParticle = NULL;
-	init = initMark;
-	comb = combMark;
 	smx->fcnPost = NULL;
 	break;
     case SMX_FOF:
@@ -111,9 +88,8 @@ int smInitialize(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bGasOnly,
     nTree = pkd->kdNodes[ROOT].pUpper + 1;
     if (initParticle != NULL) {
 	for (pi=0;pi<nTree;++pi) {
-	    if (TYPETest(&(pkd->pStore[pi]),smx->eParticleTypes)) {
-		initParticle(&pkd->pStore[pi]);
-	    }
+	    /*if (TYPETest(&(pkd->pStore[pi]),smx->eParticleTypes))*/
+	    initParticle(&pkd->pStore[pi]);
 	}
     }
     /*
@@ -212,9 +188,8 @@ void smFinish(SMX smx,SMF *smf)
     */
     if (smx->fcnPost != NULL) {
 	for (pi=0;pi<pkd->nLocal;++pi) {
-	    if (TYPETest(&(pkd->pStore[pi]),smx->eParticleTypes)) {
-		smx->fcnPost(&pkd->pStore[pi],smf);
-		}
+	    /*if (TYPETest(&(pkd->pStore[pi]),smx->eParticleTypes))*/
+	    smx->fcnPost(&pkd->pStore[pi],smf);
 	    }
 	}
     /*
@@ -953,7 +928,7 @@ void smSmooth(SMX smx,SMF *smf)
     int ix,iy,iz;
    
     for (pi=0;pi<pkd->nLocal;++pi) {
-	if (!TYPETest(&(p[pi]),smx->eParticleTypes)) continue;
+	/*if (!TYPETest(&(p[pi]),smx->eParticleTypes)) continue;*/
 	pq = NULL;
 	smx->nQueue = 0;
 	pq = pqSearch(smx,pq,p[pi].r,0,&bDone);
@@ -1232,7 +1207,7 @@ void smReSmooth(SMX smx,SMF *smf)
     int ix,iy,iz;
 
     for (pi=0;pi<pkd->nLocal;++pi) {
-	if (!TYPETest(&(p[pi]),smx->eParticleTypes)) continue;
+	/*if (!TYPETest(&(p[pi]),smx->eParticleTypes)) continue;*/
 	smx->nnListSize = 0;
 	/*
 	** Note for implementing SLIDING PATCH, the offsets for particles are
@@ -1569,10 +1544,12 @@ void smFof(SMX smx,int nFOFsDone,SMF *smf)
 #endif
     if(p[pi].pGroup != tmp){	
       i = (p[pi].pGroup - 1 - pkd->idSelf)/pkd->nThreads;
+#if 0
       if(TYPETest(&p[pi],TYPE_GAS) ) 
 	pkd->groupData[i].fGasMass += fMass;
       if(TYPETest(&p[pi],TYPE_STAR) ) 
 	pkd->groupData[i].fStarMass += fMass;
+#endif
       pkd->groupData[i].fVelDisp += (p[pi].v[0]*p[pi].v[0]+p[pi].v[1]*p[pi].v[1]+p[pi].v[2]*p[pi].v[2])*fMass;
       for(j=0;j<3;j++){
 	pkd->groupData[i].fVelSigma2[j] += ( p[pi].v[j]*p[pi].v[j] )*fMass;

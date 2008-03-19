@@ -282,6 +282,7 @@ static uint8_t getClass( PKD pkd, FLOAT fMass, FLOAT fSoft )
 {
     int i;
 
+    /* TODO: This is a linear search which is fine for a small number of classes */
     for( i=0; i<pkd->nClasses; i++ )
 	if ( pkd->pClass[i].fMass == fMass && pkd->pClass[i].fSoft0 == fSoft )
 	    return i;
@@ -429,9 +430,7 @@ void pkdGenerateIC(PKD pkd, GRAFICCTX gctx,  int iDim,
 	for( j=0; j<n2; j++ ) {
 	    for( k=0; k<n3; k++ ) {
 		p = &pkd->pStore[pi];
-		TYPEClear(p);
 		p->iRung = 0;
-		p->fWeight = 1.0;
 		p->fDensity = 0.0;
 		p->fBall = 0.0;
 		/*
@@ -445,17 +444,8 @@ void pkdGenerateIC(PKD pkd, GRAFICCTX gctx,  int iDim,
 		if ( p->r[d] >= 0.5 ) p->r[d] -= 1.0;
 		assert( p->r[d] >= -0.5 && p->r[d] < 0.5 );
 		p->v[d] = graficGetVelocity(gctx,i,j,k) * dvFac;
-
-#ifdef PARTICLE_HAS_MASS
-		p->fSoft   = fSoft;
-#ifdef CHANGESOFT
-		p->fSoft0 = p->fSoft;
-#endif
-		p->fMass   = fMass;
-#endif
 		p->iOrder = 0; /* FIXME */
 		p->iClass = 0;
-
 		pi++;
 	    }
 	}
@@ -486,9 +476,7 @@ void pkdReadHDF5(PKD pkd, IOHDF5 io, double dvFac,
     */
     for (i=0;i<nLocal;++i) {
 	p = &pkd->pStore[i];
-	TYPEClear(p);
 	p->iRung = 0;
-	p->fWeight = 1.0;
 	p->fDensity = 0.0;
 	p->fBall = 0.0;
 	/*
@@ -499,8 +487,6 @@ void pkdReadHDF5(PKD pkd, IOHDF5 io, double dvFac,
 	    p->a[j] = 0.0;
 	}
     }
-
-    /*TODO: add tracker file */
 
     for (i=0;i<nLocal;++i) {
 	p = &pkd->pStore[i];
@@ -524,13 +510,6 @@ void pkdReadHDF5(PKD pkd, IOHDF5 io, double dvFac,
 	if(fSoft < sqrt(2.0e-38)) { /* set minimum softening */
 	    fSoft = sqrt(2.0e-38);
 	}
-#ifdef PARTICLE_HAS_MASS
-	p->fMass = fMass;
-	p->fSoft = fSoft;
-#ifdef CHANGESOFT
-	p->fSoft0 = p->fSoft;
-#endif
-#endif
 	for (j=0;j<3;++j) p->v[j] *= dvFac;
 	p->iClass = getClass(pkd,fMass,fSoft);
 	p->iOrder = iOrder;
@@ -551,10 +530,8 @@ void pkdIOInitialize( PKD pkd, int nLocal) {
     */
     for (i=0;i<nLocal;++i) {
 	p = &pkd->pStore[i];
-	TYPEClear(p);
 	p->iRung = 0;
 	p->iClass = 0;
-	p->fWeight = 1.0;
 	p->fDensity = 0.0;
 	p->fBall = 0.0;
 	/*
@@ -581,13 +558,7 @@ void pkdReadTipsy(PKD pkd,char *pszFileName, char *achOutName,uint64_t nStart,in
     FLOAT fMass, fSoft;
     double dTmp;
     float mass=0.0;
-    /*
-    ** Variables for particle tracking
-    */
-    FILE *fpTrack = NULL;
-    char aTrack[256];
     int nBodies,nGas,nStar,iRet;
-    uint64_t iTracker;	
 
     pkd->nLocal = nLocal;
     pkd->nActive = nLocal;
@@ -596,9 +567,7 @@ void pkdReadTipsy(PKD pkd,char *pszFileName, char *achOutName,uint64_t nStart,in
     */
     for (i=0;i<nLocal;++i) {
 	p = &pkd->pStore[i];
-	TYPEClear(p);
 	p->iRung = 0;
-	p->fWeight = 1.0;
 	p->fDensity = 0.0;
 	p->fBall = 0.0;
 	/*
@@ -619,33 +588,6 @@ void pkdReadTipsy(PKD pkd,char *pszFileName, char *achOutName,uint64_t nStart,in
     */
     pkdSeek(pkd,fp,nStart,bStandard,bDoublePos);
     /*
-    ** See if the user has specified a .track file.
-    */
-    iTracker = nStart-1;
-    sprintf(aTrack,"%s.track",achOutName);
-    fpTrack = fopen(aTrack,"r");
-    if (fpTrack) {
-	/*
-	** Get to the right place in the file.
-	*/
-	iRet = fscanf(fpTrack,"%d %d %d",&nBodies,&nGas,&nStar);
-	if (!iRet || iRet == EOF) {
-	    fclose(fpTrack);
-	    goto SkipCheck;
-	    }
-	while (1) {
-	    iRet = fscanf(fpTrack,"%"PRIu64,&iTracker);
-	    iTracker = iTracker - 1;
-	    if (!iRet || iRet == EOF) {
-		fclose(fpTrack);
-		iTracker = nStart-1;
-		break;
-		}
-	    if (iTracker >= nStart) break;
-	    }
-	}
-SkipCheck:
-    /*
     ** Read Stuff!
     */
     if (bStandard) {
@@ -655,15 +597,6 @@ SkipCheck:
 	for (i=0;i<nLocal;++i) {
 	    p = &pkd->pStore[i];
 	    p->iOrder = nStart + i;
-	    if (p->iOrder == iTracker) {
-		TYPESet(p,TYPE_TRACKER);
-		iRet = fscanf(fpTrack,"%"PRIu64,&iTracker);
-		iTracker = iTracker-1;
-		if (!iRet || iRet == EOF) {
-		    fclose(fpTrack);
-		    iTracker = nStart-1;
-		    }
-		}
 	    if (pkdIsDark(pkd,p)) {
 		xdr_float(&xdrs,&fTmp);
 		fMass = fTmp;
@@ -747,16 +680,6 @@ SkipCheck:
 		p->fPot = fTmp;
 		}
 	    else mdlassert(pkd->mdl,0);
-#ifdef PARTICLE_HAS_MASS
-	    p->fMass = fMass;
-	    if(fSoft < sqrt(2.0e-38)) { /* set minimum softening */
-		fSoft = sqrt(2.0e-38);
-		}
-	    p->fSoft = fSoft;
-#ifdef CHANGESOFT
-	    p->fSoft0 = fSoft;
-#endif
-#endif
 	    p->iClass = getClass(pkd,fMass,fSoft);
 	    }
 	xdr_destroy(&xdrs);
@@ -765,15 +688,6 @@ SkipCheck:
 	for (i=0;i<nLocal;++i) {
 	    p = &pkd->pStore[i];
 	    p->iOrder = nStart + i;
-	    if (p->iOrder == iTracker) {
-		TYPESet(p,TYPE_TRACKER);
-		iRet = fscanf(fpTrack,"%"PRIu64,&iTracker);
-		iTracker = iTracker -1;
-		if (!iRet || iRet == EOF) {
-		    fclose(fpTrack);
-		    iTracker = nStart-1;
-		    }
-		}
 	    if (pkdIsDark(pkd,p)) {
 		fread(&dp,sizeof(struct dark_particle),1,fp);
 		for (j=0;j<3;++j) {
@@ -806,16 +720,6 @@ SkipCheck:
 		p->fPot = sp.phi;
 		}
 	    else mdlassert(pkd->mdl,0);
-#ifdef PARTICLE_HAS_MASS
-	    p->fMass = fMass;
-	    if(fSoft < sqrt(2.0e-38)) { /* set minimum softening */
-		fSoft = sqrt(2.0e-38);
-		}
-	    p->fSoft = fSoft;
-#ifdef CHANGESOFT
-	    p->fSoft0 = fSoft;
-#endif
-#endif
 	    p->iClass = getClass(pkd,fMass,fSoft);
 
 	    }
@@ -847,7 +751,6 @@ void pkdCalcBound(PKD pkd,BND *pbnd)
 	pbnd->fMax[j] = 0.5*(fMax[j] - fMin[j]);
 	}
     }
-
 
 /*
 ** x, y and z must have range [1,2) !
@@ -932,7 +835,7 @@ uint64_t hilbert3d(float x,float y,float z) {
     return s;
     }
 
-
+#if 0
 void pkdPeanoHilbertCount(PKD pkd) {
     PARTICLE *p = pkd->pStore;
     PLITEDD *pl = (PLITEDD *)pkd->pLite;
@@ -974,7 +877,7 @@ void pkdPeanoHilbertCount(PKD pkd) {
     mdlReduce(pkd->mdl,limg,img,N,MPI_FLOAT,MPI_SUM,0);
     */
 }
-
+#endif
 
 /*
 ** Partition particles between iFrom and iTo into those < fSplit and
@@ -1005,11 +908,11 @@ int pkdWeight(PKD pkd,int d,FLOAT fSplit,int iSplitSide,int iFrom,int iTo,
     */
     fLower = 0.0;
     for (i=iFrom;i<iPart;++i) {
-	fLower += pkd->pStore[i].fWeight;
+	fLower += 1.0;
 	}
     fUpper = 0.0;
     for (i=iPart;i<=iTo;++i) {
-	fUpper += pkd->pStore[i].fWeight;
+	fUpper += 1.0;
 	}
     if (iSplitSide) {
 	*pfLow = fUpper;
@@ -1433,13 +1336,6 @@ int pkdUnpackIO(PKD pkd,
 	    p->a[d]  = 0.0;
 	}
 	p->iOrder = io[i].iOrder;
-#ifdef PARTICLE_HAS_MASS
-	p->fMass = io[i].fMass;
-	p->fSoft = io[i].fSoft;
-#ifdef CHANGESOFT
-	p->fSoft0 = io[i].fSoft;
-#endif
-#endif
 	p->iClass = getClass(pkd,io[i].fMass,io[i].fSoft);
 	p->fDensity = io[i].fDensity;
 	p->fPot = io[i].fPot;
@@ -1482,17 +1378,8 @@ int pkdPackIO(PKD pkd,
 	    io[nCopied].v[d] = pkd->pStore[i].v[d] * dvFac;
 	}
 	io[nCopied].iOrder= pkd->pStore[i].iOrder;
-#ifdef PARTICLE_HAS_MASS
-	io[nCopied].fMass = pkd->pStore[i].fMass;
-#ifdef CHANGESOFT
-	io[nCopied].fSoft = pkd->pStore[i].fSoft0;
-#else
-	io[nCopied].fSoft = pkd->pStore[i].fSoft;
-#endif
-#else
-	io[nCopied].fMass = pkd->pClass[pkd->pStore[i].iClass].fMass;
-	io[nCopied].fSoft = pkd->pClass[pkd->pStore[i].iClass].fSoft0;
-#endif
+	io[nCopied].fMass = pkdMass(pkd,&pkd->pStore[i]);
+	io[nCopied].fSoft = pkdSoft(pkd,&pkd->pStore[i]);
 	io[nCopied].fDensity = pkd->pStore[i].fDensity;
 	io[nCopied].fPot = pkd->pStore[i].fPot;
 	nCopied++;
@@ -1514,17 +1401,8 @@ void pkdWriteHDF5(PKD pkd, IOHDF5 io, IOHDF5V ioDen, IOHDF5V ioPot, double dvFac
 	v[0] = p->v[0] * dvFac;
 	v[1] = p->v[1] * dvFac;
 	v[2] = p->v[2] * dvFac;
-#ifdef PARTICLE_HAS_MASS
-#ifdef CHANGESOFT
-	fSoft = p->fSoft0;
-#else
-	fSoft = p->fSoft;
-#endif
-	fMass = p->fMass;
-#else
-	fSoft = pkd->pClass[p->iClass].fSoft0;
-	fMass = pkd->pClass[p->iClass].fMass;
-#endif
+	fSoft = pkdSoft0(pkd,p);
+	fMass = pkdMass(pkd,p);
 	if (pkdIsDark(pkd,p)) {
 	    ioHDF5AddDark(io,p->iOrder,p->r,v,
 			  fMass,fSoft,p->fPot );
@@ -1580,11 +1458,7 @@ void pkdWriteTipsy(PKD pkd,char *pszFileName,uint64_t nStart,
 	for (i=0;i<pkdLocal(pkd);++i) {
 	    p = &pkd->pStore[i];
 	    if (pkdIsDark(pkd,p)) {
-#ifdef PARTICLE_HAS_MASS
-		fTmp = p->fMass;
-#else
-		fTmp = pkd->pClass[p->iClass].fMass;
-#endif
+		fTmp = pkdMass(pkd,p);
 		assert(fTmp > 0.0);
 		IOCheck(xdr_float(&xdrs,&fTmp));
 		if (bDoublePos) {
@@ -1604,26 +1478,14 @@ void pkdWriteTipsy(PKD pkd,char *pszFileName,uint64_t nStart,
 		    fTmp = vTemp;
 		    IOCheck(xdr_float(&xdrs,&fTmp));
 		    }
-#ifdef PARTICLE_HAS_MASS
-#ifdef CHANGESOFT
-		fTmp = p->fSoft0;
-#else
-		fTmp = p->fSoft;
-#endif
-#else
-		fTmp = pkd->pClass[p->iClass].fSoft0;
-#endif
+		fTmp = pkdSoft0(pkd,p);
 		assert(fTmp > 0.0);
 		IOCheck(xdr_float(&xdrs,&fTmp));
 		fTmp = p->fPot;
 		IOCheck(xdr_float(&xdrs,&fTmp));
 		}
 	    else if (pkdIsGas(pkd,p)) {
-#ifdef PARTICLE_HAS_MASS
-		fTmp = p->fMass;
-#else
-		fTmp = pkd->pClass[p->iClass].fMass;
-#endif
+		fTmp = pkdMass(pkd,p);
 		IOCheck(xdr_float(&xdrs,&fTmp));
 		if (bDoublePos) {
 		    for (j=0;j<3;++j) {
@@ -1646,15 +1508,7 @@ void pkdWriteTipsy(PKD pkd,char *pszFileName,uint64_t nStart,
 		IOCheck(xdr_float(&xdrs,&fTmp));
 		fTmp = 0.0;
 		IOCheck(xdr_float(&xdrs,&fTmp));
-#ifdef PARTICLE_HAS_MASS
-#ifdef CHANGESOFT
-		fTmp = p->fSoft0;
-#else
-		fTmp = p->fSoft;
-#endif
-#else
-		fTmp = pkd->pClass[p->iClass].fSoft0;
-#endif
+		fTmp = pkdSoft0(pkd,p);
 		IOCheck(xdr_float(&xdrs,&fTmp));
 		fTmp = 0.0;
 		IOCheck(xdr_float(&xdrs,&fTmp));
@@ -1662,11 +1516,7 @@ void pkdWriteTipsy(PKD pkd,char *pszFileName,uint64_t nStart,
 		IOCheck(xdr_float(&xdrs,&fTmp));
 		}
 	    else if (pkdIsStar(pkd,p)) {
-#ifdef PARTICLE_HAS_MASS
-		fTmp = p->fMass;
-#else
-		fTmp = pkd->pClass[p->iClass].fMass;
-#endif
+		fTmp = pkdMass(pkd,p);
 		IOCheck(xdr_float(&xdrs,&fTmp));
 		if (bDoublePos) {
 		    for (j=0;j<3;++j) {
@@ -1688,15 +1538,7 @@ void pkdWriteTipsy(PKD pkd,char *pszFileName,uint64_t nStart,
 		fTmp = 0.0;
 		IOCheck(xdr_float(&xdrs,&fTmp));
 		IOCheck(xdr_float(&xdrs,&fTmp));
-#ifdef PARTICLE_HAS_MASS
-#ifdef CHANGESOFT
-		fTmp = p->fSoft0;
-#else
-		fTmp = p->fSoft;
-#endif
-#else
-		fTmp = pkd->pClass[p->iClass].fSoft0;
-#endif
+		fTmp = pkdSoft0(pkd,p);
 		IOCheck(xdr_float(&xdrs,&fTmp));
 		fTmp = p->fPot;
 		IOCheck(xdr_float(&xdrs,&fTmp));
@@ -1716,17 +1558,8 @@ void pkdWriteTipsy(PKD pkd,char *pszFileName,uint64_t nStart,
 		    dp.pos[j] = p->r[j];
 		    dp.vel[j] = dvFac*p->v[j];
 		    }
-#ifdef PARTICLE_HAS_MASS
-		dp.mass = p->fMass;
-#ifdef CHANGESOFT
-		dp.eps = p->fSoft0;
-#else
-		dp.eps = p->fSoft;
-#endif
-#else
-		dp.mass = pkd->pClass[p->iClass].fMass;
-		dp.eps = pkd->pClass[p->iClass].fSoft0;
-#endif
+		dp.mass = pkdMass(pkd,p);
+		dp.eps = pkdSoft0(pkd,p);
 		dp.phi = p->fPot;
 		IOCheck(fwrite(&dp,sizeof(struct dark_particle),1,fp));
 		}
@@ -1735,17 +1568,8 @@ void pkdWriteTipsy(PKD pkd,char *pszFileName,uint64_t nStart,
 		    gp.pos[j] = p->r[j];
 		    gp.vel[j] = dvFac*p->v[j];
 		    }
-#ifdef PARTICLE_HAS_MASS
-		gp.mass = p->fMass;
-#ifdef CHANGESOFT
-		gp.hsmooth = p->fSoft0;
-#else
-		gp.hsmooth = p->fSoft;
-#endif
-#else
-		gp.mass = pkd->pClass[p->iClass].fMass;
-		gp.hsmooth = pkd->pClass[p->iClass].fSoft0;
-#endif
+		gp.mass = pkdMass(pkd,p);
+		gp.hsmooth = pkdSoft0(pkd,p);
 		gp.phi = p->fPot;
 		gp.rho = p->fDensity;
 		gp.temp = 0.0;
@@ -1757,18 +1581,8 @@ void pkdWriteTipsy(PKD pkd,char *pszFileName,uint64_t nStart,
 		    sp.pos[j] = p->r[j];
 		    sp.vel[j] = dvFac*p->v[j];
 		    }
-
-#ifdef PARTICLE_HAS_MASS
-		sp.mass = p->fMass;
-#ifdef CHANGESOFT
-		sp.eps = p->fSoft0;
-#else
-		sp.eps = p->fSoft;
-#endif
-#else
-		sp.mass = pkd->pClass[p->iClass].fMass;
-		sp.eps = pkd->pClass[p->iClass].fSoft0;
-#endif
+		sp.mass = pkdMass(pkd,p);
+		sp.eps = pkdSoft0(pkd,p);
 		sp.phi = p->fPot;
 		sp.metals = 0.0;
 		sp.tform = 0.0;
@@ -1792,18 +1606,8 @@ void pkdSetSoft(PKD pkd,double dSoft)
     if(dSoft < sqrt(2.0e-38)) { /* set minimum softening */
 	dSoft = sqrt(2.0e-38);
 	}
-#ifdef PARTICLE_HAS_MASS
-    for (i=0;i<n;++i) {
-#ifdef CHANGESOFT
-	p[i].fSoft0 = dSoft;
-#else
-	p[i].fSoft = dSoft;
-#endif
-	}
-#else
     for(i=0;i<pkd->nClasses;i++)
-	pkd->pClass[i].fSoft0 = dSoft;
-#endif
+	pkd->pClass[i].fSoft = dSoft; /* fSoft0?? */
     }
 
 #ifdef CHANGESOFT
@@ -1814,27 +1618,6 @@ void pkdPhysicalSoft(PKD pkd,double dSoftMax,double dFac,int bSoftMaxMul)
 
     p = pkd->pStore;
 
-#ifdef PARTICLE_HAS_MASS
-    n = pkdLocal(pkd);
-	
-    mdlassert(pkd->mdl,dFac > 0);
-    if (bSoftMaxMul) {
-	for (i=0;i<n;++i) {
-	    mdlassert(pkd->mdl,p[i].fSoft0 > 0);
-	    p[i].fSoft = p[i].fSoft0*dFac;
-	    mdlassert(pkd->mdl,p[i].fSoft > 0);
-	    }
-	}
-    else {
-	mdlassert(pkd->mdl,dSoftMax > 0);
-	for (i=0;i<n;++i) {
-	    mdlassert(pkd->mdl,p[i].fSoft0 > 0);
-	    p[i].fSoft = p[i].fSoft0*dFac;
-	    if (p[i].fSoft > dSoftMax) p[i].fSoft = dSoftMax;
-	    mdlassert(pkd->mdl,p[i].fSoft > 0);
-	    }
-	}
-#else
     n = pkd->nClasses;
     mdlassert(pkd->mdl,dFac > 0);
     if (bSoftMaxMul) {
@@ -1853,61 +1636,8 @@ void pkdPhysicalSoft(PKD pkd,double dSoftMax,double dFac,int bSoftMaxMul)
 	    mdlassert(pkd->mdl,pkd->pClass[i].fSoft > 0);
 	    }
 	}
-#endif
-    }
-
-void pkdPreVariableSoft(PKD pkd)
-    {
-    PARTICLE *p;
-    int i,n;
-
-    p = pkd->pStore;
-
-#ifdef PARTICLE_HAS_MASS
-    n = pkdLocal(pkd);
-	
-    for (i=0;i<n;++i) {
-	if (pkdIsActive(pkd,&(p[i]))) p[i].fSoft = 0.5*p[i].fBall;
-	}
-#else
-    assert(0);
-#endif
-    }
-
-void pkdPostVariableSoft(PKD pkd,double dSoftMax,int bSoftMaxMul)
-    {
-    PARTICLE *p;
-    int i,n;
-    double dTmp;
-
-    p = pkd->pStore;
-#ifdef PARTICLE_HAS_MASS
-    n = pkdLocal(pkd);
-	
-    if (bSoftMaxMul) {
-	for (i=0;i<n;++i) {
-	    if (pkdIsActive(pkd,&(p[i]))) {
-		dTmp = 0.5*p[i].fBall;
-		p[i].fBall = 2.0*p[i].fSoft;
-		p[i].fSoft = (dTmp <= p[i].fSoft0*dSoftMax ? dTmp : p[i].fSoft0*dSoftMax);
-		}
-	    }
-	}
-    else {
-	for (i=0;i<n;++i) {
-	    if (pkdIsActive(pkd,&(p[i]))) {
-		dTmp = 0.5*p[i].fBall;
-		p[i].fBall = 2.0*p[i].fSoft;
-		p[i].fSoft = (dTmp <= dSoftMax ? dTmp : dSoftMax);
-		}
-	    }
-	}
-#else
-    assert(0);
-#endif
     }
 #endif
-
 
 #ifdef USE_BSC_trace
 static int foo = 0;
@@ -1999,11 +1729,7 @@ void pkdCalcEandL(PKD pkd,double *T,double *U,double *Eth,double L[])
     *Eth = 0.0;
     L[0] = L[1] = L[2] = 0;
     for (i=0;i<n;++i) {
-#ifdef PARTICLE_HAS_MASS
-	fMass = p[i].fMass;
-#else
-	fMass = pkd->pClass[p[i].iClass].fMass;
-#endif
+	fMass = pkdMass(pkd,&p[i]);
 	rx = p[i].r[0]; ry = p[i].r[1]; rz = p[i].r[2];
 	vx = p[i].v[0]; vy = p[i].v[1]; vz = p[i].v[2];
 	*T += 0.5*fMass*(vx*vx + vy*vy + vz*vz);
@@ -2043,23 +1769,8 @@ pkdDrift(PKD pkd,double dTime,double dDelta,FLOAT fCenter[3],int bPeriodic,int b
     p = pkd->pStore;
     n = pkdLocal(pkd);
     for (i=0;i<n;++i) {
-#ifdef PARTICLE_HAS_MASS
-	fMass = p[i].fMass;
-	fSoft = p[i].fSoft;
-#else
-	fMass = pkd->pClass[p[i].iClass].fMass;
-	fSoft = pkd->pClass[p[i].iClass].fSoft;
-#endif
-	/*
-	** Do the Growmass stuff if needed...
-	*/
-	if (p[i].iOrder < pkd->param.nGrowMass) {
-#ifdef PARTICLE_HAS_MASS
-	    p[i].fMass += dDeltaM;
-#else
-	    assert(0);
-#endif
-	    }
+	fMass = pkdMass(pkd,&p[i]);
+	fSoft = pkdSoft(pkd,&p[i]);
 	/*
 	** Update particle positions
 	*/
@@ -2073,21 +1784,6 @@ pkdDrift(PKD pkd,double dTime,double dDelta,FLOAT fCenter[3],int bPeriodic,int b
 		    p[i].r[j] += pkd->fPeriod[j];
 		    }
 		}
-	    }
-
-
-	/*
-	** Detailed output for particles that are tracked at dTime + dDelta/2
-	** Correct positons & mass for dDelta/2 step which is done before the actual update
-	*/
-	if (TYPETest(&p[i],TYPE_TRACKER) && dDelta != 0) {
-      	    px = p[i].r[0] - dDelta/2*p[i].v[0];
-	    py = p[i].r[1] - dDelta/2*p[i].v[1];
-	    pz = p[i].r[2] - dDelta/2*p[i].v[2];
-	    pm = fMass - dDeltaM/2;
-	    ipt = p[i].iOrder + 1; /* to be consistent with Tipsy numbering */
-	    printf("PDID %d %g %g %d %g %g %g %g %g %g %g %g %g %g %g %g %g\n",ipt,dTime+dDelta/2,dDelta,
-		   p[i].iRung,p[i].dt,px,py,pz,p[i].v[0],p[i].v[1],p[i].v[2],p[i].a[0],p[i].a[1],p[i].a[2],p[i].fPot,pm,fSoft);
 	    }
 	}
 
@@ -2122,16 +1818,6 @@ pkdDriftInactive(PKD pkd,double dTime, double dDelta,FLOAT fCenter[3],int bPerio
     for (i=0;i<n;++i) {
 	if (pkdIsActive(pkd,&p[i])) continue;
 	/*
-	** Do the Growmass stuff if needed...
-	*/
-	if (p[i].iOrder < pkd->param.nGrowMass) {
-#ifdef PARTICLE_HAS_MASS
-	    p[i].fMass += dDeltaM;
-#else
-	    assert(0);
-#endif
-	    }
-	/*
 	** Update particle positions
 	*/
 	for (j=0;j<3;++j) {
@@ -2144,22 +1830,6 @@ pkdDriftInactive(PKD pkd,double dTime, double dDelta,FLOAT fCenter[3],int bPerio
 		    p[i].r[j] += pkd->fPeriod[j];
 		    }
 		}
-	    }
-	/*
-	** Detailed output for particles that are tracked at dTime + dDelta
-	** Inactive Drift => dDelta is already a half step! No correction needed!
-	*/
-	if (TYPETest(&p[i],TYPE_TRACKER) && dDelta != 0) {
-#ifdef PARTICLE_HAS_MASS
-	    fMass = p[i].fMass;
-	    fSoft = p[i].fSoft;
-#else
-	    fMass = pkd->pClass[p[i].iClass].fMass;
-	    fSoft = pkd->pClass[p[i].iClass].fSoft;
-#endif
-	    ipt = p[i].iOrder + 1; /* to be consistent with Tipsy numbering */
-	    printf("PDID %d %g %g %d %g %g %g %g %g %g %g %g %g %g %g %g %g\n",ipt,dTime+dDelta/2,dDelta,
-		   p[i].iRung,p[i].dt,p[i].r[0],p[i].r[1],p[i].r[2],p[i].v[0],p[i].v[1],p[i].v[2],p[i].a[0],p[i].a[1],p[i].a[2],p[i].fPot,fMass,fSoft);
 	    }
 	}
     mdlDiag(pkd->mdl, "Out of pkdDriftInactive\n");
@@ -2190,40 +1860,10 @@ pkdDriftActive(PKD pkd,double dTime,double dDelta) {
     for (i=0;i<n;++i) {
 	if (!pkdIsActive(pkd,&p[i])) continue;
 	/*
-	** Do the Growmass stuff if needed...
-	*/
-	if (p[i].iOrder < pkd->param.nGrowMass) {
-#ifdef PARTICLE_HAS_MASS
-	    p[i].fMass += dDeltaM;
-#else
-	    assert(0);
-#endif
-	    }
-	/*
 	** Update particle positions
 	*/
 	for (j=0;j<3;++j) {
 	    p[i].r[j] += dDelta*p[i].v[j];
-	    }
-	/*
-	** Detailed output for particles that are tracked at dTime + dDelta/2
-	** Correct positons & mass for dDelta/2 step
-	*/
-	if (TYPETest(&p[i],TYPE_TRACKER) && dDelta != 0) {
-#ifdef PARTICLE_HAS_MASS
-	    fMass = p[i].fMass;
-	    fSoft = p[i].fSoft;
-#else
-	    fMass = pkd->pClass[p[i].iClass].fMass;
-	    fSoft = pkd->pClass[p[i].iClass].fSoft;
-#endif
-	    px = p[i].r[0] - dDelta/2*p[i].v[0];
-	    py = p[i].r[1] - dDelta/2*p[i].v[1];
-	    pz = p[i].r[2] - dDelta/2*p[i].v[2];
-	    pm = fMass - dDeltaM/2;
-	    ipt = p[i].iOrder + 1; /* to be consistent with Tipsy numbering */
-	    printf("PDID %d %g %g %d %g %g %g %g %g %g %g %g %g %g %g %g %g\n",ipt,dTime+dDelta/2,dDelta,
-		   p[i].iRung,p[i].dt,px,py,pz,p[i].v[0],p[i].v[1],p[i].v[2],p[i].a[0],p[i].a[1],p[i].a[2],p[i].fPot,pm,fSoft);
 	    }
 	}
     mdlDiag(pkd->mdl, "Out of pkdDriftActive\n");
@@ -3027,9 +2667,6 @@ void pkdDeleteParticle(PKD pkd, PARTICLE *p) {
      to-be-deleted VeryActive particles. */
 
     int j; 
-#ifdef PARTICLE_HAS_MASS
-    p->fMass = 0.0;
-#endif
     if(pkd->param.bGravStep){
 	p->dtGrav = 0.00001;
     }
@@ -3057,9 +2694,8 @@ void pkdDeleteParticle(PKD pkd, PARTICLE *p) {
 #endif
 
     p->iOrder = -2 - p->iOrder;
-    TYPEClearACTIVE(p);
-    TYPESet(p, TYPE_DELETED);
 
+    p->iClass = getClass(pkd,0.0,0.0); /* Special "DELETED" class */
     }
 
 void pkdNewParticle(PKD pkd, PARTICLE *p) {
@@ -3152,22 +2788,6 @@ pkdSetRungVeryActive(PKD pkd, int iRung)
     pkd->uRungVeryActive = iRung;
     }
 
-void pkdSetParticleTypes(PKD pkd)
-    {
-    PARTICLE *p;
-    int i, iSetMask;
-
-    for(i=0;i<pkdLocal(pkd);++i) {
-	p = &pkd->pStore[i];
-	iSetMask = 0;
-	if (pkdIsGas (pkd,p)) iSetMask |= TYPE_GAS;
-	if (pkdIsDark(pkd,p)) iSetMask |= TYPE_DARK;
-	if (pkdIsStar(pkd,p)) iSetMask |= TYPE_STAR;
-
-	TYPESet(p,iSetMask);
-	}
-    }
-
 int pkdIsGas(PKD pkd,PARTICLE *p) {
     if (p->iOrder < pkd->nMaxOrderGas) return 1;
     else return 0;
@@ -3203,7 +2823,7 @@ pkdReadSS(PKD pkd,char *pszFileName,int nStart,int nLocal)
 	SSIO ssio;
 	SSDATA data;
 	PARTICLE *p;
-	int i,j, iSetMask;
+	int i,j;
 
 	pkd->nLocal = nLocal;
 	pkd->nActive = nLocal;
@@ -3212,9 +2832,7 @@ pkdReadSS(PKD pkd,char *pszFileName,int nStart,int nLocal)
 	 */
 	for (i=0;i<nLocal;++i) {
 		p = &pkd->pStore[i];
-		TYPEClear(p);
 		p->iRung = 0;
-		p->fWeight = 1.0;
 		p->fDensity = 0.0;		
 		/*
 		** Clear the accelerations so that the timestepping calculations do not 
@@ -3237,7 +2855,6 @@ pkdReadSS(PKD pkd,char *pszFileName,int nStart,int nLocal)
 	for (i=0;i<nLocal;++i) {
 		p = &pkd->pStore[i];
 		p->iOrder = nStart + i;
-		iSetMask = TYPE_DARK;
 		if (ssioData(&ssio,&data))
 			mdlassert(pkd->mdl,0); /* error during read in ss file */
 		p->iOrgIdx = data.org_idx;
@@ -3253,7 +2870,6 @@ pkdReadSS(PKD pkd,char *pszFileName,int nStart,int nLocal)
 #ifdef NEED_VPRED
 		for (j=0;j<3;++j) p->vPred[j] = p->v[j];
 #endif
-		TYPESet(p,iSetMask);
 		}
 	if (ssioClose(&ssio))
 		mdlassert(pkd->mdl,0); /* unable to close ss file */

@@ -92,35 +92,32 @@ typedef struct partclass {
 } PARTCLASS;
 
 typedef struct particle {
-    uint64_t iOrder : 48;
-    uint8_t  iRung  :  8;
-    uint8_t  iClass :  8;
-    FLOAT r[3];
-    unsigned int iActive;  
-#ifdef PARTICLE_HAS_MASS
-    FLOAT fMass;
-    FLOAT fSoft;
-#ifdef CHANGESOFT
-    FLOAT fSoft0;
-#endif
-#endif
-    FLOAT v[3];
-    float a[3];
+/*-----Base-Particle-Data----*/
+    uint64_t iOrder     : 48;
+    uint8_t  iRung      :  6;
+    uint8_t  iActiveSrc :  1;
+    uint8_t  iActiveDst :  1;
+    uint8_t  iClass     :  8;
+    double r[3];
+/*-----Used-for-Smooth-------*/
+    float fBall;
     float fDensity;
-
-    FLOAT fPot;
-    FLOAT fBall;
-
-    FLOAT dt;			/* a time step suggestion */
-    FLOAT dtGrav;		/* suggested 1/dt^2 from gravity */
+/*-----Gravity---------------*/
+    float a[3];
+    float fPot;
+/*-----Simulating------------*/
+    double v[3];
+/*-----Group-Finding---------*/
+/**/FLOAT dt;			/* a time step suggestion */
+/**/FLOAT dtGrav;		/* suggested 1/dt^2 from gravity */
 
     int pGroup;
     int pBin;
     FLOAT fBallv2;
+
 #ifdef RELAXATION
     FLOAT fRelax;
 #endif
-
 #ifdef HERMITE
     FLOAT ad[3];
     FLOAT r0[3];
@@ -156,59 +153,6 @@ typedef struct particle {
 #endif
 #endif/* PLANETS */
     } PARTICLE;
-
-
-/* Active Type Masks */
-
-/* Active: -- eg. Calculate new acceleration, PdV, etc... for this particle */
-#define TYPE_ACTIVE            (1<<0)
-
-/* Types used for Fast Density only (so far) */
-/* Sum Fast Density on this particle */
-#define TYPE_DensACTIVE        (1<<4)
-/* Neighbour of ACTIVE (incl. ACTIVE): */
-#define TYPE_NbrOfACTIVE       (1<<5)
-/* Density set to zero already */
-#define TYPE_DensZeroed        (1<<7)
-
-/* Particle Type Masks */
-
-#define TYPE_GAS               (1<<8)
-#define TYPE_DARK              (1<<9)
-#define TYPE_STAR              (1<<10)
-#define TYPE_BLACKHOLE         (1<<11)
-
-/* Particle marked for deletion.  Will be deleted in next
-   msrAddDelParticles(); */
-#define TYPE_DELETED           (1<<12)
-
-/* A particle whose coordinates are output very frequently */
-#define TYPE_TRACKER		   (1<<14)
-
-/* Combination Masks */
-#define TYPE_ALL				(TYPE_GAS|TYPE_DARK|TYPE_STAR|TYPE_BLACKHOLE)
-
-/* Type Macros */
-int TYPEQueryACTIVE      ( PARTICLE *a );
-int TYPEQueryGAS         ( PARTICLE *a );
-int TYPETest  ( PARTICLE *a, unsigned int mask );
-int TYPEFilter( PARTICLE *a, unsigned int filter, unsigned int mask );
-int TYPESet   ( PARTICLE *a, unsigned int mask );
-int TYPEReset ( PARTICLE *a, unsigned int mask );
-/* This retains Particle Type and clears all flags: */
-int TYPEClearACTIVE( PARTICLE *a ); 
-
-/* Warning: This erases Particle Type */
-int TYPEClear( PARTICLE *a ); 
-
-#define TYPEQueryACTIVE(a)       ((a)->iActive & TYPE_ACTIVE)
-#define TYPEQueryGAS(a)			 ((a)->iActive & TYPE_GAS)
-#define TYPETest(a,b)            ((a)->iActive & (b))
-#define TYPEFilter(a,b,c)        (((a)->iActive & (b))==(c))
-#define TYPESet(a,b)             ((a)->iActive |= (b))
-#define TYPEReset(a,b)           ((a)->iActive &= (~(b)))
-#define TYPEClearACTIVE(a)       ((a)->iActive &= TYPE_ALL)
-#define TYPEClear(a)             ((a)->iActive = 0)
 
 #define BND_COMBINE(b,b1,b2)\
 {\
@@ -298,7 +242,6 @@ typedef struct kdNode {
     FLOAT a[3];  /* a_cm is used in determining the timestep in the new grav stepping */
     FLOAT v[3];
     MOMR mom;
-    int iActive;
     uint8_t uMinRung;
     uint8_t uMaxRung;
     } KDN;
@@ -666,6 +609,19 @@ static inline int pkdIsCellActive(PKD pkd, KDN *c) {
 #define CELL_ACTIVE(c,a,b) ((a)<=(c)->uMaxRung && (b)>=(c)->uMinRung)
 
 
+/* Here is the new way of getting mass and softening */
+static inline float pkdMass( PKD pkd, PARTICLE *p )
+{
+    return pkd->pClass[p->iClass].fMass;
+}
+static inline float pkdSoft( PKD pkd, PARTICLE *p )
+{
+    return pkd->pClass[p->iClass].fSoft;
+}
+static inline float pkdSoft0( PKD pkd, PARTICLE *p )
+{
+    return pkd->pClass[p->iClass].fSoft0;
+}
 
 typedef struct CacheStatistics {
     double dpNumAccess;
@@ -721,8 +677,6 @@ void pkdCalcBound(PKD,BND *);
 
 #ifdef CHANGESOFT
 void pkdPhysicalSoft(PKD pkd,double dSoftMax,double dFac,int bSoftMaxMul);
-void pkdPreVariableSoft(PKD pkd);
-void pkdPostVariableSoft(PKD pkd,double dSoftMax,int bSoftMaxMul);
 #endif
 
 void pkdBucketWeight(PKD pkd,int iBucket,FLOAT fWeight);
@@ -804,7 +758,6 @@ void pkdSetRungVeryActive(PKD pkd, int iRung );
 int pkdIsGas(PKD,PARTICLE *);
 int pkdIsDark(PKD,PARTICLE *);
 int pkdIsStar(PKD,PARTICLE *);
-void pkdSetParticleTypes(PKD pkd);
 void pkdColNParts(PKD pkd, int *pnNew, int *nDeltaGas, int *nDeltaDark,
 		  int *nDeltaStar);
 void pkdNewOrder(PKD pkd, int nStart);

@@ -48,24 +48,6 @@ void combDensity(void *,void *);
 void Density(PARTICLE *,int,NN *,SMF *);
 void DensitySym(PARTICLE *,int,NN *,SMF *);
 
-#define SMX_MARKDENSITY			6
-void initParticleMarkDensity(void *);
-void initMarkDensity(void *);
-void combMarkDensity(void *,void *);
-void MarkDensity(PARTICLE *,int,NN *,SMF *);
-void MarkDensitySym(PARTICLE *,int,NN *,SMF *);
-
-#define SMX_MARKIIDENSITY		16
-void initParticleMarkIIDensity(void *);
-void initMarkIIDensity(void *);
-void combMarkIIDensity(void *,void *);
-void MarkIIDensity(PARTICLE *,int,NN *,SMF *);
-void MarkIIDensitySym(PARTICLE *,int,NN *,SMF *);
-
-#define SMX_MARK				17
-void initMark(void *);
-void combMark(void *,void *);
-
 #define SMX_MEANVEL				2
 void initMeanVel(void *);
 void combMeanVel(void *,void *);

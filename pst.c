@@ -84,8 +84,6 @@
 **  Kick                  Yes     Yes    | 
 **  SetSoft               Yes     -      | 
 **  PhysicalSoft          Yes     -      | 
-**  PreVariableSoft       -       -      | 
-**  PostVariableSoft      Yes     -      | 
 **  SetTotal              -       Yes    | 
 **  SetWriteStart         Yes     -      | 
 **  OneNodeReadInit       Yes     Gather | 
@@ -100,7 +98,6 @@
 **  GravStep              Yes     -      | 
 **  AccelStep             Yes     -      | 
 **  SetRungVeryActive     Yes     -      | 
-**  SetParticleTypes      Yes     -      | 
 **  ReSmooth              Yes     -      | 
 **  DtToRung              Yes     Yes    | 
 **  InitDt                Yes     -      | 
@@ -288,12 +285,6 @@ void pstAddServices(PST pst,MDL mdl)
     mdlAddService(mdl,PST_PHYSICALSOFT,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstPhysicalSoft,
 		  sizeof(struct inPhysicalSoft),0);
-    mdlAddService(mdl,PST_PREVARIABLESOFT,pst,
-		  (void (*)(void *,void *,int,void *,int *)) pstPreVariableSoft,
-		  0,0);
-    mdlAddService(mdl,PST_POSTVARIABLESOFT,pst,
-		  (void (*)(void *,void *,int,void *,int *)) pstPostVariableSoft,
-		  sizeof(struct inPostVariableSoft),0);
 #endif
     mdlAddService(mdl,PST_SETTOTAL,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstSetTotal,
@@ -337,9 +328,6 @@ void pstAddServices(PST pst,MDL mdl)
     mdlAddService(mdl,PST_SETRUNGVERYACTIVE,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstSetRungVeryActive,
 		  sizeof(struct inSetRung),0);
-    mdlAddService(mdl,PST_SETPARTICLETYPES,pst,
-		  (void (*)(void *,void *,int,void *,int *)) pstSetParticleTypes,
-		  sizeof(struct inSetParticleTypes),0);
     mdlAddService(mdl,PST_RESMOOTH,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstReSmooth,
 		  sizeof(struct inReSmooth),0);
@@ -494,14 +482,6 @@ void pstFinish(PST pst)
 	free(pstKill);
 	}
     }
-
-void pstSplitIO(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-{
-    struct inSplitIO *in = vin;
-
-    mdlassert(pst->mdl,nIn == sizeof(struct inSplitIO));
-    }
-
 
 void pstSetAdd(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     {
@@ -2532,42 +2512,7 @@ void pstPhysicalSoft(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 	}
     if (pnOut) *pnOut = 0;
     }
-
-
-void pstPreVariableSoft(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
-    LCL *plcl = pst->plcl;
-
-    mdlassert(pst->mdl,nIn == 0);
-    if (pst->nLeaves > 1) {
-	mdlReqService(pst->mdl,pst->idUpper,PST_PREVARIABLESOFT,vin,nIn);
-	pstPreVariableSoft(pst->pstLower,vin,nIn,NULL,NULL);
-	mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
-	}
-    else {
-	pkdPreVariableSoft(plcl->pkd);
-	}
-    if (pnOut) *pnOut = 0;
-    }
-
-void pstPostVariableSoft(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
-    LCL *plcl = pst->plcl;
-    struct inPostVariableSoft *in = vin;
-
-    mdlassert(pst->mdl,nIn == sizeof(struct inPostVariableSoft));
-    if (pst->nLeaves > 1) {
-	mdlReqService(pst->mdl,pst->idUpper,PST_POSTVARIABLESOFT,in,nIn);
-	pstPostVariableSoft(pst->pstLower,in,nIn,NULL,NULL);
-	mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
-	}
-    else {
-	pkdPostVariableSoft(plcl->pkd,in->dSoftMax,in->bSoftMaxMul);
-	}
-    if (pnOut) *pnOut = 0;
-    }
 #endif
-
 
 void pstSmooth(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     {
@@ -2585,7 +2530,7 @@ void pstSmooth(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 
 	smInitialize(&smx,plcl->pkd,&in->smf,in->nSmooth,in->bGasOnly,
 		     in->bPeriodic,in->bSymmetric,in->iSmoothType,
-		     in->eParticleTypes,in->dfBall2OverSoft2);
+		     in->dfBall2OverSoft2);
 	smSmooth(smx,&in->smf);
 	smFinish(smx,&in->smf);
 	}
@@ -2609,7 +2554,7 @@ void pstReSmooth(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 
 	smInitialize(&smx,plcl->pkd,&in->smf,in->nSmooth,in->bGasOnly,
 		     in->bPeriodic,in->bSymmetric,in->iSmoothType,
-		     in->eParticleTypes,in->dfBall2OverSoft2);
+		     in->dfBall2OverSoft2);
 	smReSmooth(smx,&in->smf);
 	smFinish(smx,&in->smf);
 	}
@@ -3239,24 +3184,6 @@ void pstSetRungVeryActive(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     }
 
 
-void pstSetParticleTypes(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
-    LCL *plcl = pst->plcl;
-    struct inSetParticleTypes *in = vin;
-	
-    mdlassert(pst->mdl,nIn == sizeof(*in));
-    if (pst->nLeaves > 1) {
-	mdlReqService(pst->mdl,pst->idUpper,PST_SETPARTICLETYPES,vin,nIn);
-	pstSetParticleTypes(pst->pstLower,vin,nIn,NULL,NULL);
-	mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
-	}
-    else {
-	pkdSetParticleTypes(plcl->pkd);
-	}
-    if (pnOut) *pnOut = 0;
-    }
-
-
 void
 pstColNParts(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     {
@@ -3359,7 +3286,7 @@ void pstFof(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 	(&in->smf)->pkd = pst->plcl->pkd;
 	smInitialize(&smx,plcl->pkd,&in->smf,in->nSmooth,0,
 		     in->bPeriodic,in->bSymmetric,in->iSmoothType,
-		     in->eParticleTypes,0.0);
+		     0.0);
 	smFof(smx,in->nFOFsDone,&in->smf);
 	smFinish(smx,&in->smf);
 	}
@@ -3405,7 +3332,7 @@ void pstGroupProfiles(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 	(&in->smf)->pkd = pst->plcl->pkd;
 	smInitialize(&smx,plcl->pkd,&in->smf,in->nSmooth,0,
 		     in->bPeriodic,in->bSymmetric,in->iSmoothType,
-		     in->eParticleTypes,0.0);
+		     0.0);
 	*nBins = smGroupProfiles(smx, &in->smf,in->bPeriodic,in->nTotalGroups,in->bLogBins,in->nFOFsDone);
 	smFinish(smx,&in->smf);
 	}
