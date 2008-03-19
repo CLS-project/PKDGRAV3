@@ -97,7 +97,6 @@ typedef struct particle {
     uint8_t  iClass :  8;
     FLOAT r[3];
     unsigned int iActive;  
-    int iBucket;
 #ifdef PARTICLE_HAS_MASS
     FLOAT fMass;
     FLOAT fSoft;
@@ -108,7 +107,6 @@ typedef struct particle {
     FLOAT v[3];
     float a[3];
     float fDensity;
-    FLOAT fWeight;
 
     FLOAT fPot;
     FLOAT fBall;
