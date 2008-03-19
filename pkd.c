@@ -850,6 +850,133 @@ void pkdCalcBound(PKD pkd,BND *pbnd)
 
 
 /*
+** x, y and z must have range [1,2) !
+*/
+uint64_t hilbert3d(float x,float y,float z) {
+    uint64_t s = 0;
+    uint32_t m,ux,uy,uz,ut;
+
+    ux = (*(uint32_t *)&x)>>2;
+    uy = (*(uint32_t *)&y)>>2;
+    uz = (*(uint32_t *)&z)>>2;
+    
+    m = 0x00100000;
+
+    while (m) {
+	s = s << 3;
+
+	if (ux&m) {
+	    if (uy&m) {
+		if (uz&m) {
+		    ut = ux;
+		    ux = uy;
+		    uy = ~uz;
+		    uz = ~ut;
+		    s |= 5;
+		    }
+		else {
+		    ut = uz;
+		    uz = ux;
+		    ux = uy;
+		    uy = ut;
+		    s |= 2;
+		    }
+		}
+	    else {
+		ux = ~ux;
+		uy = ~uy;
+		if (uz&m) {
+		    s |= 4;
+		    }
+		else {
+		    s |= 3;
+		    }
+		}
+	    }
+	else {
+	    if (uy&m) {
+		if (uz&m) {
+		    ut = ux;
+		    ux = uy;
+		    uy = ~uz;
+		    uz = ~ut;
+		    s |= 6;
+		    }
+		else {
+		    ut = uz;
+		    uz = ux;
+		    ux = uy;
+		    uy = ut;
+		    s |= 1;
+		    }
+		}
+	    else {
+		if (uz&m) {
+		    ut = uy;
+		    uy = ux;
+		    ux = ~uz;
+		    uz = ~ut;
+		    s |= 7;
+		    }
+		else {
+		    ut = uy;
+		    uy = ux;
+		    ux = uz;
+		    uz = ut;
+		    s |= 0;
+		    }
+		}
+	    }
+	m = m >> 1;
+	}
+    return s;
+    }
+
+
+void pkdPeanoHilbertCount(PKD pkd) {
+    PARTICLE *p = pkd->pStore;
+    PLITEDD *pl = (PLITEDD *)pkd->pLite;
+    uint64_t uMask;
+    float x,y,z;
+    int i,j,bits,iShift;
+
+    for (i=0;i<pkd->nLocal;++i) {
+	/*
+	** For now we just assume the particles are coming from a standard
+	** cosmological box. We scale the volume by a factor of 0.99 to be 
+	** certain that fast particles are still captured by the domain
+	** decomposition.
+	*/
+	x = 0.99*p[i].r[0] + 1.5;
+	if (x < 1.0) x = 1.0;
+	else if (x >= 2.0) x = 2.0;
+	y = 0.99*p[i].r[1] + 1.5;
+	if (y < 1.0) y = 1.0;
+	else if (y >= 2.0) y = 2.0;
+	z = 0.99*p[i].r[2] + 1.5;
+	if (z < 1.0) z = 1.0;
+	else if (z >= 2.0) z = 2.0;
+	pl[i].uKey = hilbert3d(x,y,z);
+	pl[i].i = i;
+    }
+    /*
+    ** Now create a local count of particles in the PeanoHilbert cells.
+    */
+    iShift = 63 - bits;
+    uMask = (1<<(bits+1)) - 1;
+    for (j=0;j<pkd->nPHCount;++j) pkd->auPHCount[j] = 0;
+    for (i=0;i<pkd->nLocal;++i) {
+	
+    }
+
+    /*
+    ** Example of mdlReduce from Doug's code.
+    mdlReduce(pkd->mdl,limg,img,N,MPI_FLOAT,MPI_SUM,0);
+    */
+}
+
+
+/*
 ** Partition particles between iFrom and iTo into those < fSplit and
 ** those >= to fSplit.  Find number and weight in each partition.
 */
@@ -1782,17 +1909,6 @@ void pkdPostVariableSoft(PKD pkd,double dSoftMax,int bSoftMaxMul)
 #endif
 
 
-void pkdBucketWeight(PKD pkd,int iBucket,FLOAT fWeight)
-    {
-    KDN *pbuc;
-    int pj;
-	
-    pbuc = &pkd->kdNodes[iBucket];
-    for (pj=pbuc->pLower;pj<=pbuc->pUpper;++pj) {
-	if (pkdIsActive(pkd,&(pkd->pStore[pj])))
-	    pkd->pStore[pj].fWeight = fWeight;
-	}
-    }
 #ifdef USE_BSC_trace
 static int foo = 0;
 #endif
