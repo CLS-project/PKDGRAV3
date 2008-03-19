@@ -332,7 +332,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP ilp,ILC ilc,double dirLs
 	    for (j=0;j<tile->nPart;++j) {
 		d2 = tile->d.d2.f[j];
 		d2DTS = d2;
-		fourh2 = softmassweight(fMass,4*p[i].fSoft*p[i].fSoft,
+		fourh2 = softmassweight(fMass,4*fSoft*fSoft,
 					tile->d.m.f[j],tile->d.fourh2.f[j]);
 
 		if (d2 > fourh2) {
