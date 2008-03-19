@@ -454,6 +454,10 @@ void pstAddServices(PST pst,MDL mdl)
     mdlAddService(mdl,PST_SETCLASSES,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstSetClasses,
 		  PKD_MAX_CLASSES*sizeof(PARTCLASS), 0);
+    mdlAddService(mdl,PST_SWAPCLASSES,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstSwapClasses,
+		  PKD_MAX_CLASSES*sizeof(PARTCLASS),
+		  PKD_MAX_CLASSES*sizeof(PARTCLASS));
     }
 
 void pstInitialize(PST *ppst,MDL mdl,LCL *plcl)
@@ -4004,7 +4008,28 @@ void pstSetClasses(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     else {
 	n = nIn / sizeof(PARTCLASS);
 	mdlassert(pst->mdl,n*sizeof(PARTCLASS)==nIn);
-	pkdSetClasses(plcl->pkd,n,in);
+	pkdSetClasses(plcl->pkd,n,in,1);
     }
     if (pnOut) *pnOut = 0;
 }
+
+/*
+ * Routine to swap the class table .  Note that this does not walk
+ * the pst but simply set's the given table and returns the old table.
+ */
+void pstSwapClasses(PST pst,void *vin,int nIn,void *vout,int *pnOut)
+{
+    LCL *plcl = pst->plcl;
+    PARTCLASS *in = vin;
+    PARTCLASS *out = vout;
+    int n;
+    PST lpst;
+
+    n = pkdGetClasses( plcl->pkd, PKD_MAX_CLASSES, out );
+    *pnOut = n * sizeof(PARTCLASS);
+
+    n = nIn / sizeof(PARTCLASS);
+    mdlassert(pst->mdl,n*sizeof(PARTCLASS) == nIn);
+    pkdSetClasses( plcl->pkd, n, in, 0 );
+    }
+

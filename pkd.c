@@ -300,27 +300,29 @@ int pkdGetClasses( PKD pkd, int nMax, PARTCLASS *pClass )
     return pkd->nClasses;
 }
 
-int pkdSetClasses( PKD pkd, int n, PARTCLASS *pClass )
+int pkdSetClasses( PKD pkd, int n, PARTCLASS *pClass, int bUpdate )
 {
     uint8_t map[PKD_MAX_CLASSES];
     PARTICLE *p;
     int i,j;
 
-    /* Build a map from the old class to the new class */
-    assert( n >= pkd->nClasses );
-    for( i=0; i<pkd->nClasses; i++ ) {
-	for( j=0; j<n; j++ )
-	    if ( pClass[j].fMass==pkd->pClass[i].fMass && pClass[j].fSoft==pkd->pClass[i].fSoft )
-		break;
-	assert(j<n);
-	map[i] = j;
-    }
+    if ( bUpdate ) {
+	/* Build a map from the old class to the new class */
+	assert( n >= pkd->nClasses );
+	for( i=0; i<pkd->nClasses; i++ ) {
+	    for( j=0; j<n; j++ )
+		if ( pClass[j].fMass==pkd->pClass[i].fMass && pClass[j].fSoft==pkd->pClass[i].fSoft )
+		    break;
+	    assert(j<n);
+	    map[i] = j;
+	}
 
-    /* Now update the class with the new value */
-    for (i=0;i<pkd->nLocal;++i) {
-	p = &pkd->pStore[i];
-	assert( p->iClass <= pkd->nClasses );
-	p->iClass = map[p->iClass];
+	/* Now update the class with the new value */
+	for (i=0;i<pkd->nLocal;++i) {
+	    p = &pkd->pStore[i];
+	    assert( p->iClass <= pkd->nClasses );
+	    p->iClass = map[p->iClass];
+	}
     }
 
     /* Finally, set the new class table */

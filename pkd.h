@@ -865,5 +865,5 @@ void pkdGenerateIC(PKD pkd, GRAFICCTX gctx, int iDim,
 		   double fSoft, double fMass, int bCannonical);
 #endif
 int pkdGetClasses( PKD pkd, int nMax, PARTCLASS *pClass );
-int pkdSetClasses( PKD pkd, int n, PARTCLASS *pClass );
+int pkdSetClasses( PKD pkd, int n, PARTCLASS *pClass, int bUpdate );
 #endif

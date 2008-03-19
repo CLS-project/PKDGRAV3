@@ -173,6 +173,7 @@ enum pst_service {
     PST_MEMSTATUS,
     PST_GETCLASSES,
     PST_SETCLASSES,
+    PST_SWAPCLASSES,
     };
 
 void pstAddServices(PST,MDL);
@@ -1034,5 +1035,8 @@ void pstGetClasses(PST,void *,int,void *,int *);
 
 /* PST_SETCLASSES - Input PARTCLASS[] */
 void pstSetClasses(PST,void *,int,void *,int *);
+
+/* PST_SWAPCLASSES - Input PARTCLASS[] - Output PARTCLASS[] */
+void pstSwapClasses(PST,void *,int,void *,int *);
 
 #endif

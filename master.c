@@ -1087,6 +1087,44 @@ void msrFinish(MSR msr)
     free(msr);
     }
 
+static int CmpPC(const void *v1,const void *v2)
+{
+    PARTCLASS *pClass1 = (PARTCLASS*)v1;
+    PARTCLASS *pClass2 = (PARTCLASS*)v2;
+    if ( pClass1->fMass != pClass2->fMass ) return pClass1->fMass - pClass2->fMass;
+    return pClass1->fSoft - pClass2->fSoft;
+}
+
+void msrSetClasses(MSR msr)
+{
+    PARTCLASS *pClass;
+    int nClass;
+    pClass = malloc(PKD_MAX_CLASSES*sizeof(PARTCLASS));
+    assert(pClass!=NULL);
+    pstGetClasses(msr->pst,NULL,0,pClass,&nClass);
+    qsort(pClass,nClass,sizeof(PARTCLASS),CmpPC);
+    pstSetClasses(msr->pst,pClass,nClass,NULL,NULL);
+    free(pClass);
+}
+
+
+static void _SwapClasses(MSR msr, int id)
+{
+    LCL *plcl = msr->pst->plcl;
+    PST pst0 = msr->pst;
+    PARTCLASS *pClass;
+    int n;
+
+    pClass = malloc(PKD_MAX_CLASSES*sizeof(PARTCLASS));
+    assert(pClass!=NULL);
+
+    n = pkdGetClasses( plcl->pkd, PKD_MAX_CLASSES, pClass );
+    mdlReqService(pst0->mdl,id,PST_SWAPCLASSES,pClass,n*sizeof(PARTCLASS));
+    mdlGetReply(pst0->mdl,id,pClass,&n);
+    n = n / sizeof(PARTCLASS);
+    pkdSetClasses( plcl->pkd, n, pClass, 0 );
+}
+
 #ifdef USE_HDF5
 void msrOneNodeReadHDF5(MSR msr, struct inReadTipsy *in)
     {
@@ -1142,6 +1180,7 @@ void msrOneNodeReadHDF5(MSR msr, struct inReadTipsy *in)
 	/* 
 	 * Now shove them over to the remote processor.
 	 */
+	_SwapClasses(msr,id);
 	inswap = 0;
 	mdlReqService(pst0->mdl,id,PST_SWAPALL,&inswap,sizeof(inswap));
 	pkdSwapAll(plcl->pkd, id);
@@ -1208,6 +1247,7 @@ void msrOneNodeReadTipsy(MSR msr, struct inReadTipsy *in)
 	/* 
 	 * Now shove them over to the remote processor.
 	 */
+	_SwapClasses(msr,id);
 	inswap = 0;
 	mdlReqService(pst0->mdl,id,PST_SWAPALL,&inswap,sizeof(inswap));
 	pkdSwapAll(plcl->pkd, id);
@@ -1345,26 +1385,6 @@ double getTime(MSR msr, double dExpansion, double *dvFac) {
 	}
 
     return dTime;
-}
-
-static int CmpPC(const void *v1,const void *v2)
-{
-    PARTCLASS *pClass1 = (PARTCLASS*)v1;
-    PARTCLASS *pClass2 = (PARTCLASS*)v2;
-    if ( pClass1->fMass != pClass2->fMass ) return pClass1->fMass - pClass2->fMass;
-    return pClass1->fSoft - pClass2->fSoft;
-}
-
-void msrSetClasses(MSR msr)
-{
-    PARTCLASS *pClass;
-    int nClass;
-    pClass = malloc(PKD_MAX_CLASSES*sizeof(PARTCLASS));
-    assert(pClass!=NULL);
-    pstGetClasses(msr->pst,NULL,0,pClass,&nClass);
-    qsort(pClass,nClass,sizeof(PARTCLASS),CmpPC);
-    pstSetClasses(msr->pst,pClass,nClass,NULL,NULL);
-    free(pClass);
 }
 
 #ifdef USE_HDF5
@@ -1559,12 +1579,11 @@ static double _msrReadHDF5(MSR msr, const char *achFilename)
     in.fPeriod[1] = msr->param.dyPeriod;
     in.fPeriod[2] = msr->param.dzPeriod;
 
-    if(msr->param.bParaRead) {
+    if(msr->param.bParaRead)
 	pstReadHDF5(msr->pst,&in,sizeof(in),NULL,NULL);
-	msrSetClasses(msr);
-    }
     else
 	msrOneNodeReadHDF5(msr, &in);
+    msrSetClasses(msr);
     pstSetParticleTypes(msr->pst, &intype, sizeof(intype), NULL, NULL);
     msrprintf(msr,"Input file has been successfully read.\n");
     /*
@@ -1834,12 +1853,11 @@ static double _msrReadTipsy(MSR msr, const char *achFilename)
     in.fPeriod[1] = msr->param.dyPeriod;
     in.fPeriod[2] = msr->param.dzPeriod;
 
-    if(msr->param.bParaRead) {
+    if(msr->param.bParaRead)
 	pstReadTipsy(msr->pst,&in,sizeof(in),NULL,NULL);
-	msrSetClasses(msr);
-    }
     else
 	msrOneNodeReadTipsy(msr, &in);
+    msrSetClasses(msr);
     pstSetParticleTypes(msr->pst, &intype, sizeof(intype), NULL, NULL);
     msrprintf(msr,"Input file has been successfully read.\n");
     /*
@@ -4448,6 +4466,7 @@ msrOneNodeReadSS(MSR msr,struct inReadSS *in)
 		/* 
 		 * Now shove them over to the remote processor.
 		 */
+		_SwapClasses(msr,id);
 		inswap = 0;
 		mdlReqService(pst0->mdl,id,PST_SWAPALL,&inswap,sizeof(inswap));
 		pkdSwapAll(plcl->pkd, id);
@@ -4542,12 +4561,11 @@ msrReadSS(MSR msr)
 	in.fPeriod[1] = msr->param.dyPeriod;
 	in.fPeriod[2] = msr->param.dzPeriod;
 
-	if (msr->param.bParaRead) {
+	if (msr->param.bParaRead)
 	    pstReadSS(msr->pst,&in,sizeof(in),NULL,NULL);
-	    msrSetClasses(msr);
-	}
 	else
 	    msrOneNodeReadSS(msr,&in);
+	msrSetClasses(msr);
 	pstSetParticleTypes(msr->pst,&intype,sizeof(intype),NULL,NULL);
 	msrprintf(msr,"Input file successfully read.\n");
 
