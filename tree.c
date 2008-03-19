@@ -471,7 +471,6 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp,int bTempBound) {
 		}			
 	    }
 	pj = pkdn->pLower;
-	p[pj].iBucket = iNode;
 #ifdef PARTICLE_HAS_MASS
 	m = p[pj].fMass;
 	fSoft = p[pj].fSoft;
@@ -493,7 +492,6 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp,int bTempBound) {
 	pkdn->iActive = p[pj].iActive;
 	pkdn->uMinRung = pkdn->uMaxRung = p[pj].iRung;
 	for (++pj;pj<=pkdn->pUpper;++pj) {
-	    p[pj].iBucket = iNode;
 #ifdef PARTICLE_HAS_MASS
 	    m = p[pj].fMass;
 	    fSoft = p[pj].fSoft;

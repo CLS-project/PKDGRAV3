@@ -237,7 +237,7 @@ void smFinish(SMX smx,SMF *smf)
 ** replica of the local domain, that can be done with the
 ** pqSearchRemote function setting id == idSelf.
 */
-PQ *pqSearchLocal(SMX smx,PARTICLE *pi,FLOAT r[3],int *pbDone) 
+PQ *pqSearchLocal(SMX smx,FLOAT r[3],int *pbDone) 
     {
     PARTICLE *p = smx->pkd->pStore;
     KDN *c = smx->pkd->kdNodes;
@@ -253,31 +253,12 @@ PQ *pqSearchLocal(SMX smx,PARTICLE *pi,FLOAT r[3],int *pbDone)
     assert(smx->nQueue == 0);
     pq = smx->pq;
     /*
-    ** Decide where the first containment test needs to
-    ** be performed. If no particle is specfied then we
-    ** don't perform containment tests except at the 
+    ** We don't perform containment tests except at the 
     ** root, so that the pbDone flag can be correctly
     ** set.
     */
-    if (pi) {
-	iCell = pi->iBucket;
-	while (iCell != ROOT) {
-#ifdef GASOLINE
-	    if (smx->bGasOnly) n = c[iCell].nGas;
-	    else n = c[iCell].pUpper - c[iCell].pLower + 1;
-#else
-	    n = c[iCell].pUpper - c[iCell].pLower + 1;
-#endif
-	    if (n < smx->nSmooth) iCell = c[iCell].iParent;
-	    else break;
-	    }
-	S[sp] = iCell;
-	iCell = pi->iBucket;
-	}
-    else {
-	iCell = ROOT;
-	S[sp] = iCell;
-	}
+    iCell = ROOT;
+    S[sp] = iCell;
     /*
     ** Start of PRIOQ Loading loop.
     */
@@ -791,7 +772,7 @@ PQ *pqSearchRemote(SMX smx,PQ *pq,int id,FLOAT r[3])
     }
 
 
-PQ *pqSearch(SMX smx,PQ *pq,PARTICLE *pi,FLOAT r[3],int bReplica,int *pbDone) {
+PQ *pqSearch(SMX smx,PQ *pq,FLOAT r[3],int bReplica,int *pbDone) {
     KDN *c = smx->pkd->kdTop;
     int idSelf = smx->pkd->idSelf;
     FLOAT *Smin = smx->SminT;
@@ -838,7 +819,7 @@ PQ *pqSearch(SMX smx,PQ *pq,PARTICLE *pi,FLOAT r[3],int bReplica,int *pbDone) {
 	    pq = pqSearchRemote(smx,pq,id,r);
 	    }
 	else {
-	    pq = pqSearchLocal(smx,pi,r,pbDone);
+	    pq = pqSearchLocal(smx,r,pbDone);
 	    if (*pbDone) return pq;	/* early exit */
 	    }
 	if (smx->nQueue == smx->nSmooth) goto NoIntersect;  /* done loading phase */
@@ -975,7 +956,7 @@ void smSmooth(SMX smx,SMF *smf)
 	if (!TYPETest(&(p[pi]),smx->eParticleTypes)) continue;
 	pq = NULL;
 	smx->nQueue = 0;
-	pq = pqSearch(smx,pq,&p[pi],p[pi].r,0,&bDone);
+	pq = pqSearch(smx,pq,p[pi].r,0,&bDone);
 	/*
 	** Search in replica boxes if it is required.
 	*/
@@ -997,7 +978,7 @@ void smSmooth(SMX smx,SMF *smf)
 		    for (iz=iStart[2];iz<=iEnd[2];++iz) {
 			r[2] = p[pi].r[2] - iz*pkd->fPeriod[2];
 			if (ix || iy || iz) {
-			    pq = pqSearch(smx,pq,&p[pi],r,1,&bDone);
+			    pq = pqSearch(smx,pq,r,1,&bDone);
 			    }
 			}
 		    }	
