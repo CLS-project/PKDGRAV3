@@ -575,7 +575,10 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 
 	if (nActive) {
 	    fWeight = (*pdFlop-tempI+dEwFlop)/nActive;
-	    pkdBucketWeight(pkd,iCell,fWeight);
+	    /*
+	    ** Here we used to set the weight of each particle based on the work done, but now we just 
+	    ** assume that all active particles cost the same.
+	    */
 	    *pdPartSum += nActive*nPart;
 	    *pdCellSum += nActive*nCell;
 	    nTotActive += nActive;

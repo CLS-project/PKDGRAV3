@@ -802,17 +802,10 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 #endif
 	if (nActive) {
 	    fWeight /= nActive;
-#if !defined(COUNT_MISSES) && !defined(TIME_WALK_WORK)
 	    /*
-	    ** The simplest thing to do is to set the weight for all particles to 1.0 which 
-	    ** seems to work the best.
+	    ** Here we used to set the weights of particles based on the work done, but now we just assume that
+	    ** all particles cost the same in domain decomposition, so we really don't need to set anything here.
 	    */
-	    fWeight = 1.0;
-#endif
-	    pkdBucketWeight(pkd,iCell,/*fWeight*/1.0);
-/*
-  printf("%6d nPart:%5d nCell:%5d\n",iCell,nPart,nCell);
-*/
 	    *pdPartSum += nActive*ilpCount(pkd->ilp);
 	    *pdCellSum += nActive*ilcCount(pkd->ilc);
 	    nTotActive += nActive;
