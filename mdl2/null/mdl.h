@@ -10,60 +10,60 @@
 #define SRV_STOP		0
 
 typedef struct cacheSpace {
-	int iType;
-	char *pData;
-	int iDataSize;
-	int nData;
-	void (*init)(void *);
-	void (*combine)(void *,void *);
-	/*	
-	 ** Statistics stuff.
-	 */
-	int nAccess;
-	int nAccHigh;
-	long nMiss;
-	long nColl;
-	long nMin;
-	} CACHE;
+    int iType;
+    char *pData;
+    int iDataSize;
+    int nData;
+    void (*init)(void *);
+    void (*combine)(void *,void *);
+    /*
+     ** Statistics stuff.
+     */
+    int nAccess;
+    int nAccHigh;
+    long nMiss;
+    long nColl;
+    long nMin;
+    } CACHE;
 
 
 typedef struct serviceRec {
-	int nInBytes;
-	int nOutBytes;
-	void *p1;
-	void (*fcnService)(void *,void *,int,void *,int *);	
-	} SERVICE;
+    int nInBytes;
+    int nOutBytes;
+    void *p1;
+    void (*fcnService)(void *,void *,int,void *,int *);
+    } SERVICE;
 
 
 typedef struct mdlContext {
-	int nThreads;
-	int idSelf;
-	int bDiag;
-	int *atid;
-	FILE *fpDiag;
-	/*
-	 ** Services stuff!
-	 */
-	int nMaxServices;
-	int nMaxInBytes;
-	int nMaxOutBytes;
-	SERVICE *psrv;
-	char *pszIn;
-	char *pszOut;
-	/*
-	 ** Caching stuff!
-	 */
-	unsigned long uRand;
-	int iMaxDataSize;
-	int nMaxCacheIds;
-	CACHE *cache;
-	} * MDL;
+    int nThreads;
+    int idSelf;
+    int bDiag;
+    int *atid;
+    FILE *fpDiag;
+    /*
+     ** Services stuff!
+     */
+    int nMaxServices;
+    int nMaxInBytes;
+    int nMaxOutBytes;
+    SERVICE *psrv;
+    char *pszIn;
+    char *pszOut;
+    /*
+     ** Caching stuff!
+     */
+    unsigned long uRand;
+    int iMaxDataSize;
+    int nMaxCacheIds;
+    CACHE *cache;
+    } * MDL;
 
 
 /*
- * MDL debug and Timer macros and prototypes 
+ * MDL debug and Timer macros and prototypes
  */
-/* 
+/*
  * Compile time mdl debugging options
  *
  * mdl asserts: define MDLASSERT
@@ -73,12 +73,12 @@ typedef struct mdlContext {
  * however it will output uding mdlDiag and the code continues.
  */
 #define MDLASSERT
-/* 
+/*
  * Debug functions active: define MDLDEBUG
  * Adds debugging mdldebug prints and mdldebugassert asserts
  */
 #define MDLDEBUG
-/* 
+/*
  * Timer functions active: define MDLTIMER
  * Makes mdl timer functions active
  */
@@ -96,9 +96,9 @@ void mdlprintf( MDL mdl, const char *format, ... );
 #define mdlassert(mdl,expr) \
     { \
       if (!(expr)) { \
-             mdlprintf( mdl, "%s:%d Assertion `%s' failed.\n", __FILE__, __LINE__, __STRING(expr) ); \
-             assert( expr ); \
-             } \
+	     mdlprintf( mdl, "%s:%d Assertion `%s' failed.\n", __FILE__, __LINE__, __STRING(expr) ); \
+	     assert( expr ); \
+	     } \
     }
 #else
 #define mdlassert(mdl,expr)  assert(expr)
@@ -113,10 +113,10 @@ void mdldebug( MDL mdl, const char *format, ... );
 #endif
 
 typedef struct {
-  double wallclock;
-  double cpu;
-  double system;
-} mdlTimer;
+    double wallclock;
+    double cpu;
+    double system;
+    } mdlTimer;
 
 #ifdef MDLTIMER
 void mdlZeroTimer(MDL mdl,mdlTimer *);
@@ -139,7 +139,7 @@ int mdlSelf(MDL);
 int mdlSwap(MDL,int,size_t,void *,size_t,size_t *,size_t *);
 void mdlDiag(MDL,char *);
 void mdlAddService(MDL,int,void *,void (*)(void *,void *,int,void *,int *),
-				   int,int);
+		   int,int);
 void mdlReqService(MDL,int,int,void *,int);
 void mdlGetReply(MDL,int,void *,int *);
 void mdlHandler(MDL);
@@ -150,7 +150,7 @@ void *mdlMalloc(MDL,int);
 void mdlFree(MDL,void *);
 void mdlROcache(MDL,int,void *,int,int);
 void mdlCOcache(MDL,int,void *,int,int,
-				void (*)(void *),void (*)(void *,void *));
+		void (*)(void *),void (*)(void *,void *));
 void mdlFinishCache(MDL,int);
 void mdlCacheCheck(MDL);
 void mdlCacheBarrier(MDL,int);

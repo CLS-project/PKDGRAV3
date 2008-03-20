@@ -4,6 +4,10 @@
 #include <pthread.h>
 #include <assert.h>
 
+#ifdef MDL_FFTW
+#include <srfftw_threads.h>
+#endif
+
 #ifdef __osf__
 #define vsnprintf(a,b,c,d) vsprintf((a),(c),(d))
 #endif
@@ -25,26 +29,26 @@ typedef MDLKEY mdlkey_t;
 static const mdlkey_t MDL_INVALID_KEY = (mdlkey_t)(-1);
 
 typedef struct cacheTag {
-	mdlkey_t iKey;
-	int nLock;
-	int nLast;
-	int iLink;
-	} CTAG;
+    mdlkey_t iKey;
+    int nLock;
+    int nLast;
+    int iLink;
+    } CTAG;
 
 typedef struct cacheHeader {
-	int cid;
-	int mid;
-	int id;
-	int iLine;
-        int iSeq;
-	} CAHEAD;
+    int cid;
+    int mid;
+    int id;
+    int iLine;
+    int iSeq;
+    } CAHEAD;
 
 typedef struct mbxStruct {
     pthread_mutex_t mux;
-	pthread_cond_t sigReq;
-	pthread_cond_t sigRpl;
-	pthread_cond_t sigRel;
-	int bReq;
+    pthread_cond_t sigReq;
+    pthread_cond_t sigRpl;
+    pthread_cond_t sigRel;
+    int bReq;
     int bRpl;
     int bRel;
     int sid;
@@ -55,94 +59,94 @@ typedef struct mbxStruct {
 
 typedef struct swxStruct {
     pthread_mutex_t mux;
-	pthread_cond_t sigRel;
-	pthread_cond_t sigRec;
-	pthread_cond_t sigSnd;
-	int bRel;
-	int bRec;
+    pthread_cond_t sigRel;
+    pthread_cond_t sigRec;
+    pthread_cond_t sigSnd;
+    int bRel;
+    int bRec;
     size_t nInBytes;
-	size_t nOutBufBytes;
-	char *pszBuf;
+    size_t nOutBufBytes;
+    char *pszBuf;
     } SWX;
 
 typedef struct cacheSpace {
-	int iType;
-	char *pData;
-	int iDataSize;
-	int nData;
-	size_t pDataMax;
-	int iLineSize;
-	int nLines;
-	int nTrans;
-	mdlkey_t iTransMask;
-	mdlkey_t iIdMask;
-	int iKeyShift;
-	int iInvKeyShift;
-	int *pTrans;
-	CTAG *pTag;
-	char *pLine;
-	int nCheckOut;
-	void (*init)(void *);
-	void (*combine)(void *,void *);
-	/*	
-	 ** Statistics stuff.
-	 */
-	int nAccess;
-	int nAccHigh;
-	long nMiss;
-	long nColl;
-	long nMin;
-	} CACHE;
+    int iType;
+    char *pData;
+    int iDataSize;
+    int nData;
+    size_t pDataMax;
+    int iLineSize;
+    int nLines;
+    int nTrans;
+    mdlkey_t iTransMask;
+    mdlkey_t iIdMask;
+    int iKeyShift;
+    int iInvKeyShift;
+    int *pTrans;
+    CTAG *pTag;
+    char *pLine;
+    int nCheckOut;
+    void (*init)(void *);
+    void (*combine)(void *,void *);
+    /*
+     ** Statistics stuff.
+     */
+    int nAccess;
+    int nAccHigh;
+    long nMiss;
+    long nColl;
+    long nMin;
+    } CACHE;
 
 
 typedef struct serviceRec {
-	int nInBytes;
-	int nOutBytes;
-	void *p1;
-	void (*fcnService)(void *,void *,int,void *,int *);
-	} SERVICE;
+    int nInBytes;
+    int nOutBytes;
+    void *p1;
+    void (*fcnService)(void *,void *,int,void *,int *);
+    } SERVICE;
 
 
 typedef struct mdlContext {
-	int nThreads;
-	int idSelf;
-	int bDiag;
-	FILE *fpDiag;
-	pthread_t *pt;
-	struct mdlContext **pmdl;
-	/*
-	 ** Services stuff!
-	 */
-	int nMaxServices;
-	int nMaxInBytes;
-	int nMaxOutBytes;
-	SERVICE *psrv;
-	MBX mbxOwn;
-	/*
-	 ** Swapping Box.
-	 */
-	SWX swxOwn;
-	/*
-	 ** Caching stuff!
-	 */
-	MBX mbxCache[MDL_MBX_RING_SZ];
-        pthread_mutex_t muxRing;
-        int iRingHd;
-        int iRingTl;
-        int iRecSeq[128];
-        int iSndSeq[128];
-	unsigned long uRand;
-	int iCaBufSize;
-	int nMaxCacheIds;
-	int iMaxDataSize;
-	CACHE *cache;
-	} * MDL;
+    int nThreads;
+    int idSelf;
+    int bDiag;
+    FILE *fpDiag;
+    pthread_t *pt;
+    struct mdlContext **pmdl;
+    /*
+     ** Services stuff!
+     */
+    int nMaxServices;
+    int nMaxInBytes;
+    int nMaxOutBytes;
+    SERVICE *psrv;
+    MBX mbxOwn;
+    /*
+     ** Swapping Box.
+     */
+    SWX swxOwn;
+    /*
+     ** Caching stuff!
+     */
+    MBX mbxCache[MDL_MBX_RING_SZ];
+    pthread_mutex_t muxRing;
+    int iRingHd;
+    int iRingTl;
+    int iRecSeq[128];
+    int iSndSeq[128];
+    unsigned long uRand;
+    int iCaBufSize;
+    int nMaxCacheIds;
+    int iMaxDataSize;
+    CACHE *cache;
+    } * MDL;
 
 
 /*
- * MDL debug and Timer macros and prototypes 
+ * MDL debug and Timer macros and prototypes
  */
-/* 
+/*
  * Compile time mdl debugging options
  *
  * mdl asserts: define MDLASSERT
@@ -152,12 +156,12 @@ typedef struct mdlContext {
  * however it will output using mdlDiag and the code continues.
  */
 #define MDLASSERT
-/* 
+/*
  * Debug functions active: define MDLDEBUG
  * Adds debugging mdldebug prints and mdldebugassert asserts
  */
 #define MDLDEBUG
-/* 
+/*
  * Timer functions active: define MDLTIMER
  * Makes mdl timer functions active
  */
@@ -173,9 +177,9 @@ void mdlprintf( MDL mdl, const char *format, ... );
 #define mdlassert(mdl,expr) \
     { \
       if (!(expr)) { \
-             mdlprintf( mdl, "%s:%d Assertion `%s' failed.\n", __FILE__, __LINE__, __STRING(expr) ); \
-             assert( expr ); \
-             } \
+	     mdlprintf( mdl, "%s:%d Assertion `%s' failed.\n", __FILE__, __LINE__, __STRING(expr) ); \
+	     assert( expr ); \
+	     } \
     }
 #else
 #define mdlassert(mdl,expr)  assert(expr)
@@ -190,10 +194,10 @@ void mdldebug( MDL mdl, const char *format, ... );
 #endif
 
 typedef struct {
-  double wallclock;
-  double cpu;
-  double system;
-} mdlTimer;
+    double wallclock;
+    double cpu;
+    double system;
+    } mdlTimer;
 
 #ifdef MDLTIMER
 void mdlZeroTimer(MDL mdl,mdlTimer *);
@@ -216,10 +220,37 @@ int mdlSelf(MDL);
 int mdlSwap(MDL,int,size_t,void *,size_t,size_t *,size_t *);
 void mdlDiag(MDL,char *);
 void mdlAddService(MDL,int,void *,void (*)(void *,void *,int,void *,int *),
-				   int,int);
+		   int,int);
 void mdlReqService(MDL,int,int,void *,int);
 void mdlGetReply(MDL,int,void *,int *);
 void mdlHandler(MDL);
+/*
+** Collective operations
+*/
+/*typedef MPI_Op MDL_Op;
+typedef MPI_Datatype MDL_Datatype;
+int mdlReduce ( MDL mdl, void *sendbuf, void *recvbuf, int count,
+MDL_Datatype datatype, MDL_Op op, int root );*/
+/*
+** FFT Operations
+*/
+#ifdef MDL_FFTW
+typedef struct mdlFFTContext {
+    MDL mdl;
+    rfftwnd_plan fplan;
+    rfftwnd_plan iplan;
+
+    int rx, ry, rz; /* Real dimensions */
+    int sz, nz;     /* Start z and number of z */
+    int sy, ny;     /* Transposed start and number */
+    int nlocal;     /* Number of local elements */
+    } * MDLFFT;
+
+size_t mdlFFTInitialize(MDL mdl,MDLFFT *fft,
+			int nx,int ny,int nz,int bMeasure);
+void mdlFFTFinish( MDLFFT fft );
+void mdlFFT( MDLFFT fft, fftw_real *data, int bInverse );
+#endif
 /*
  ** Caching functions.
  */
@@ -227,7 +258,7 @@ void *mdlMalloc(MDL,size_t);
 void mdlFree(MDL,void *);
 void mdlROcache(MDL,int,void *,int,int);
 void mdlCOcache(MDL,int,void *,int,int,
-				void (*)(void *),void (*)(void *,void *));
+		void (*)(void *),void (*)(void *,void *));
 void mdlFinishCache(MDL,int);
 void *mdlAquire(MDL,int,int,int);
 void mdlPrefetch(MDL,int,int,int);
