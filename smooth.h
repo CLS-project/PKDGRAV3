@@ -127,6 +127,6 @@ FLOAT corrPos(FLOAT com, FLOAT r,FLOAT l);
 int CmpParticleGroupIds(const void *v1,const void *v2);
 int CmpRMs(const void *v1,const void *v2);
 int CmpProtoGroups(const void *v1,const void *v2);
-FLOAT phase_dist(PARTICLE p1,PARTICLE p2,double h);
+FLOAT phase_dist(PKD,PARTICLE *p1,PARTICLE *p2,double h);
 
 #endif

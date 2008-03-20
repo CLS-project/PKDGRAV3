@@ -151,6 +151,9 @@ void pstAddServices(PST pst,MDL mdl)
 		  (void (*)(void *,void *,int,void *,int *)) pstReadHDF5,
 		  sizeof(struct inReadTipsy),0);
 #endif
+    mdlAddService(mdl,PST_PEANOHILBERTCOUNT,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstPeanoHilbertCount,
+		  sizeof(struct inPeanoHilbertCount),sizeof(struct outPeanoHilbertCount));    
     mdlAddService(mdl,PST_DOMAINDECOMP,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstDomainDecomp,
 		  sizeof(struct inDomainDecomp),0);
@@ -1396,6 +1399,24 @@ void pstNewDomainDecomp(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     pstPeanoHilbertCount(PST pst);
 
     
+#endif
+    }
+
+
+void pstPeanoHilbertCount(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+#if 0
+    LCL *plcl = pst->plcl;
+
+    mdlassert(pst->mdl,nIn == 0);
+    if (pst->nLeaves > 1) {
+	mdlReqService(pst->mdl,pst->idUpper,PST_PEANOHILBERTCOUNT,vin,nIn);
+	pstPeanoHilbertCount(pst->pstLower,vin,nIn,vout,pnOut);
+	mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
+	}
+    else {
+	pkdPeanoHilbertCount(plcl->pkd);
+	}
+    if (pnOut) *pnOut = 0;
 #endif
     }
 

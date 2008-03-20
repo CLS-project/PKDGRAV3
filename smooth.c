@@ -1328,17 +1328,19 @@ void smFof(SMX smx,int nFOFsDone,SMF *smf)
 	rho = pkd->groupBin[p[pn].pBin].fDensity;
 	if(rho > p[pn].fDensity) rho =  p[pn].fDensity;
 	p[pn].fBall = pow(fMass/(rho*smf->fContrast),2.0/3.0);			
-	/* set velocity linking lenght in case of a phase space FOF */
-	p[pn].fBallv2 = pkd->groupBin[p[pn].pBin].v2[0]+ 
-	  pkd->groupBin[p[pn].pBin].v2[1]+ pkd->groupBin[p[pn].pBin].v2[2];
-	p[pn].fBallv2 *= 2.0;
-	p[pn].fBallv2 *= pow(smf->fContrast,-2.0/3.0);
+
+	/* set velocity linking length in case of a phase space FOF */
+	pkd->groupBin[p[pn].pBin].fvBall2 = 2.0*(pkd->groupBin[p[pn].pBin].v2[0] + 
+						 pkd->groupBin[p[pn].pBin].v2[1] + 
+						 pkd->groupBin[p[pn].pBin].v2[2]);
+	pkd->groupBin[p[pn].pBin].fvBall2 *= pow(smf->fContrast,-2.0/3.0);
+
 	if(p[pn].fBall > smf->dTau2*pow(fMass/ smf->fContrast,2.0/3.0) )
 	  p[pn].fBall = smf->dTau2*pow(fMass/ smf->fContrast,2.0/3.0);
       } else {
 	p[pn].fBall = 0.0;
       }
-      if(p[pn].fBall > fBall2Max)fBall2Max = p[pn].fBall;
+      if(p[pn].fBall > fBall2Max) fBall2Max = p[pn].fBall;
       p[pn].pGroup = 0;
     }	
   } else {
@@ -1350,12 +1352,12 @@ void smFof(SMX smx,int nFOFsDone,SMF *smf)
 	p[pn].fBall = smf->dTau2;
 	if(smf->dTau2 > pow(fMass/smf->Delta,0.6666) ) /*enforces at least virial density for linking*/
 	  p[pn].fBall = pow(fMass/smf->Delta,0.6666);
-	p[pn].fBallv2 = smf->dVTau2;
+	pkd->groupBin[p[pn].pBin].fvBall2 = smf->dVTau2;
       } else {
 	p[pn].fBall = smf->dTau2*pow(fMass,0.6666);
-	p[pn].fBallv2 = -1.0; /* No phase space FOF in this case */
+	pkd->groupBin[p[pn].pBin].fvBall2 = -1.0; /* No phase space FOF in this case */
       }
-      if(p[pn].fBall > fBall2Max)fBall2Max = p[pn].fBall;
+      if(p[pn].fBall > fBall2Max) fBall2Max = p[pn].fBall;
     }	
     /* Have to restart particle chache, since we will need 
      * the updated p[pn].fBall now */
@@ -1409,10 +1411,12 @@ void smFof(SMX smx,int nFOFsDone,SMF *smf)
 	if(smx->nnbRemote[pnn] == 0){
 	  /* Do not add particles that are already in a group*/
 	  if (smx->nnList[pnn].pPart->pGroup) continue;
+
 	  /* Check phase space distance */
-	  if (p[pi].fBallv2 > 0.0){
-	    if(phase_dist(p[pi],*smx->nnList[pnn].pPart,smf->H) > 1.0) continue;
+	  if (pkd->groupBin[p[pi].pBin].fvBall2 > 0.0){
+	    if(phase_dist(pkd,&p[pi],smx->nnList[pnn].pPart,smf->H) > 1.0) continue;
 	  }
+
 	  /* 
 	  **  Mark particle and add it to the do-fifo
 	  */
@@ -1420,10 +1424,11 @@ void smFof(SMX smx,int nFOFsDone,SMF *smf)
 	  Fifo[iTail] = smx->nnList[pnn].iIndex;iTail++;
 	  if(iTail == nFifo) iTail = 0;
 	} else {	 /* Nonlocal neighbors: */
-	  /* Make remote member linking symmetric by using smaller linking lenght if different: */
-	  if (p[pi].fBallv2 > 0.0) { /* Check phase space distance */
-	    if(phase_dist(p[pi],*smx->nnList[pnn].pPart,smf->H) > 1.0 || 
-	       phase_dist(*smx->nnList[pnn].pPart,p[pi],smf->H) > 1.0) continue;
+
+	  /* Make remote member linking symmetric by using smaller linking length if different: */
+	  if (pkd->groupBin[p[pi].pBin].fvBall2 > 0.0) { /* Check phase space distance */
+	    if(phase_dist(pkd,&p[pi],smx->nnList[pnn].pPart,smf->H) > 1.0 || 
+	       phase_dist(pkd,smx->nnList[pnn].pPart,&p[pi],smf->H) > 1.0) continue;
 	  } else { /* real space distance */
 	    if(smx->nnList[pnn].fDist2 > smx->nnList[pnn].pPart->fBall) continue;
 	  }
@@ -1594,19 +1599,28 @@ int CmpParticleGroupIds(const void *v1,const void *v2)
   PARTICLE *p2 = (PARTICLE *)v2;
   return(p1->pGroup - p2->pGroup);
 }
-FLOAT phase_dist(PARTICLE pa,PARTICLE pb, double H)
-{ 
-  int i;
-  FLOAT dx,dv;
-  dx=0.0;
-  dv=0.0;
-  for(i=0; i<3; i++) dx += pow(pa.r[i]-pb.r[i],2);
-  dx /= pa.fBall;
-  for(i=0; i<3; i++) dv += pow(pa.v[i]-pb.v[i]+H*(pa.r[i]-pb.r[i]),2); 
-  dv /= pa.fBallv2; 
-  dx = dx+dv;
-  return dx;
-}
+
+
+FLOAT phase_dist(PKD pkd,PARTICLE *pa,PARTICLE *pb,double H) { 
+    int j;
+    FLOAT dx,dv,dx2,dv2;
+
+    dx2=0.0;
+    for(j=0;j<3;++j) {
+	dx = pa->r[j] - pb->r[j];
+	dx2 += dx*dx;
+	}
+    dx2 /= pa->fBall;   /* this is actually fBall2! */
+    dv2 = 0.0;
+    for(j=0;j<3;++j) {
+	dv = (pa->v[j] - pb->v[j]) + H*(pa->r[j] - pb->r[j]);
+	dv2 += dv*dv;
+	}
+    dv2 /= pkd->groupBin[pa->pBin].fvBall2; 
+    return(dx2 + dv2);
+    }
+
+
 int CmpRMs(const void *v1,const void *v2)
 {
   FOFRM *rm1 = (FOFRM *)v1;

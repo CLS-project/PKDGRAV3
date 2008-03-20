@@ -64,6 +64,7 @@ enum pst_service {
     PST_SPLITIO,
     PST_SETADD,
     PST_READTIPSY,
+    PST_PEANOHILBERTCOUNT,
     PST_DOMAINDECOMP,
     PST_CALCBOUND,
     PST_WEIGHT,
@@ -205,6 +206,12 @@ void pstReadTipsy(PST,void *,int,void *,int *);
 #ifdef USE_HDF5
 void pstReadHDF5(PST,void *,int,void *,int *);
 #endif
+
+struct inPeanoHilbertCount {
+};
+struct outPeanoHilbertCount {
+};
+void pstPeanoHilbertCount(PST,void *,int,void *,int *);
 
 /* PST_DOMAINDECOMP */
 struct inDomainDecomp {

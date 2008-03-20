@@ -113,7 +113,6 @@ typedef struct particle {
 
     int pGroup;
     int pBin;
-    FLOAT fBallv2;
 
 #ifdef RELAXATION
     FLOAT fRelax;
@@ -496,6 +495,7 @@ typedef struct groupBin{
     FLOAT fMassEnclosed;
     FLOAT com[3];
     FLOAT v2[3]; 
+    float fvBall2;
     FLOAT L[3];
 /*     Shapes are not implemented yet: */
 /*     FLOAT a; */
