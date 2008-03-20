@@ -791,6 +791,9 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     }
 
 void msrLogParams(MSR msr,FILE *fp) {
+#if defined(MAXHOSTNAMELEN) && defined(HAVE_GETHOSTNAME)
+    char hostname[MAXHOSTNAMELEN];
+#endif
     double z;
     int i;
 
@@ -812,152 +815,150 @@ void msrLogParams(MSR msr,FILE *fp) {
 #ifdef _REENTRANT
     fprintf(fp," _REENTRANT");
 #endif
-#if defined(MAXHOSTNAMELEN) && defined(HAVE_GETHOSTNAME) {
-    char hostname[MAXHOSTNAMELEN];
+#if defined(MAXHOSTNAMELEN) && defined(HAVE_GETHOSTNAME)
     fprintf(fp,"\n# Master host: ");
     if (gethostname(hostname,MAXHOSTNAMELEN))
 	fprintf(fp,"unknown");
     else
 	fprintf(fp,"%s",hostname);
-    }
 #endif
-fprintf(fp,"\n# N: %"PRIu64,msr->N);
-fprintf(fp," nThreads: %d",msr->param.nThreads);
-fprintf(fp," bDiag: %d",msr->param.bDiag);
-fprintf(fp," Verbosity flags: (%d,%d,%d,%d,%d)",msr->param.bVWarnings,
-	msr->param.bVStart,msr->param.bVStep,msr->param.bVRungStat,
-	msr->param.bVDetails);
-fprintf(fp,"\n# bPeriodic: %d",msr->param.bPeriodic);
-fprintf(fp," bComove: %d",msr->param.csm->bComove);
-fprintf(fp,"\n# bParaRead: %d",msr->param.bParaRead);
-fprintf(fp," bParaWrite: %d",msr->param.bParaWrite);
-fprintf(fp," bCannonical: %d",msr->param.bCannonical);
-fprintf(fp," bStandard: %d",msr->param.bStandard);
-fprintf(fp," bHDF5: %d",msr->param.bHDF5);
-fprintf(fp," nBucket: %d",msr->param.nBucket);
-fprintf(fp,"\n# dFracNoTreeSqueeze: %g",msr->param.dFracNoTreeSqueeze);
-fprintf(fp," iOutInterval: %d",msr->param.iOutInterval);
-fprintf(fp," iCheckInterval: %d",msr->param.iCheckInterval);
-fprintf(fp," iLogInterval: %d",msr->param.iLogInterval);
-fprintf(fp," iEwOrder: %d",msr->param.iEwOrder);
-fprintf(fp," nReplicas: %d",msr->param.nReplicas);
-fprintf(fp,"\n# dEwCut: %f",msr->param.dEwCut);
-fprintf(fp," dEwhCut: %f",msr->param.dEwhCut);
-fprintf(fp,"\n# iStartStep: %d",msr->param.iStartStep);
-fprintf(fp," nSteps: %d",msr->param.nSteps);
-fprintf(fp," nSmooth: %d",msr->param.nSmooth);
-fprintf(fp," dExtraStore: %f",msr->param.dExtraStore);
-if (prmSpecified(msr->prm,"dSoft"))
-    fprintf(fp," dSoft: %g",msr->param.dSoft);
-else
-    fprintf(fp," dSoft: input");
-fprintf(fp,"\n# bPhysicalSoft: %d",msr->param.bPhysicalSoft);
-fprintf(fp," nSoftNbr: %d",msr->param.nSoftNbr);
-fprintf(fp," bSoftByType: %d",msr->param.bSoftByType);
-fprintf(fp," bSoftMaxMul: %d",msr->param.bSoftMaxMul);
-fprintf(fp," dSoftMax: %g",msr->param.dSoftMax);
-fprintf(fp," bDoSoftOutput: %d",msr->param.bDoSoftOutput);
-fprintf(fp," bDoAccOutput: %d",msr->param.bDoAccOutput);
-fprintf(fp," bDoPotOutput: %d",msr->param.bDoPotOutput);
-fprintf(fp,"\n# dDelta: %g",msr->param.dDelta);
-fprintf(fp," dEta: %g",msr->param.dEta);
-fprintf(fp," iMaxRung: %d",msr->param.iMaxRung);
-fprintf(fp," nRungVeryActive: %d",msr->param.nRungVeryActive);
-fprintf(fp," bDoRungOutput: %d",msr->param.bDoRungOutput);
-fprintf(fp,"\n# bGravStep: %d",msr->param.bGravStep);
-fprintf(fp," bEpsAccStep: %d",msr->param.bEpsAccStep);
-fprintf(fp," bSqrtPhiStep: %d",msr->param.bSqrtPhiStep);
-fprintf(fp," bDensityStep: %d",msr->param.bDensityStep);
-fprintf(fp," nTruncateRung: %d",msr->param.nTruncateRung);
-fprintf(fp,"\n# iTimeStepCrit: %d",msr->param.iTimeStepCrit);
-fprintf(fp," nPartRhoLoc: %d", msr->param.nPartRhoLoc);
-fprintf(fp," dPreFacRhoLoc: %g", msr->param.dPreFacRhoLoc);
-fprintf(fp," nPartColl: %d", msr->param.nPartColl);
-fprintf(fp,"\n# bDoGravity: %d",msr->param.bDoGravity);
+    fprintf(fp,"\n# N: %"PRIu64,msr->N);
+    fprintf(fp," nThreads: %d",msr->param.nThreads);
+    fprintf(fp," bDiag: %d",msr->param.bDiag);
+    fprintf(fp," Verbosity flags: (%d,%d,%d,%d,%d)",msr->param.bVWarnings,
+	    msr->param.bVStart,msr->param.bVStep,msr->param.bVRungStat,
+	    msr->param.bVDetails);
+    fprintf(fp,"\n# bPeriodic: %d",msr->param.bPeriodic);
+    fprintf(fp," bComove: %d",msr->param.csm->bComove);
+    fprintf(fp,"\n# bParaRead: %d",msr->param.bParaRead);
+    fprintf(fp," bParaWrite: %d",msr->param.bParaWrite);
+    fprintf(fp," bCannonical: %d",msr->param.bCannonical);
+    fprintf(fp," bStandard: %d",msr->param.bStandard);
+    fprintf(fp," bHDF5: %d",msr->param.bHDF5);
+    fprintf(fp," nBucket: %d",msr->param.nBucket);
+    fprintf(fp,"\n# dFracNoTreeSqueeze: %g",msr->param.dFracNoTreeSqueeze);
+    fprintf(fp," iOutInterval: %d",msr->param.iOutInterval);
+    fprintf(fp," iCheckInterval: %d",msr->param.iCheckInterval);
+    fprintf(fp," iLogInterval: %d",msr->param.iLogInterval);
+    fprintf(fp," iEwOrder: %d",msr->param.iEwOrder);
+    fprintf(fp," nReplicas: %d",msr->param.nReplicas);
+    fprintf(fp,"\n# dEwCut: %f",msr->param.dEwCut);
+    fprintf(fp," dEwhCut: %f",msr->param.dEwhCut);
+    fprintf(fp,"\n# iStartStep: %d",msr->param.iStartStep);
+    fprintf(fp," nSteps: %d",msr->param.nSteps);
+    fprintf(fp," nSmooth: %d",msr->param.nSmooth);
+    fprintf(fp," dExtraStore: %f",msr->param.dExtraStore);
+    if (prmSpecified(msr->prm,"dSoft"))
+	fprintf(fp," dSoft: %g",msr->param.dSoft);
+    else
+	fprintf(fp," dSoft: input");
+    fprintf(fp,"\n# bPhysicalSoft: %d",msr->param.bPhysicalSoft);
+    fprintf(fp," nSoftNbr: %d",msr->param.nSoftNbr);
+    fprintf(fp," bSoftByType: %d",msr->param.bSoftByType);
+    fprintf(fp," bSoftMaxMul: %d",msr->param.bSoftMaxMul);
+    fprintf(fp," dSoftMax: %g",msr->param.dSoftMax);
+    fprintf(fp," bDoSoftOutput: %d",msr->param.bDoSoftOutput);
+    fprintf(fp," bDoAccOutput: %d",msr->param.bDoAccOutput);
+    fprintf(fp," bDoPotOutput: %d",msr->param.bDoPotOutput);
+    fprintf(fp,"\n# dDelta: %g",msr->param.dDelta);
+    fprintf(fp," dEta: %g",msr->param.dEta);
+    fprintf(fp," iMaxRung: %d",msr->param.iMaxRung);
+    fprintf(fp," nRungVeryActive: %d",msr->param.nRungVeryActive);
+    fprintf(fp," bDoRungOutput: %d",msr->param.bDoRungOutput);
+    fprintf(fp,"\n# bGravStep: %d",msr->param.bGravStep);
+    fprintf(fp," bEpsAccStep: %d",msr->param.bEpsAccStep);
+    fprintf(fp," bSqrtPhiStep: %d",msr->param.bSqrtPhiStep);
+    fprintf(fp," bDensityStep: %d",msr->param.bDensityStep);
+    fprintf(fp," nTruncateRung: %d",msr->param.nTruncateRung);
+    fprintf(fp,"\n# iTimeStepCrit: %d",msr->param.iTimeStepCrit);
+    fprintf(fp," nPartRhoLoc: %d", msr->param.nPartRhoLoc);
+    fprintf(fp," dPreFacRhoLoc: %g", msr->param.dPreFacRhoLoc);
+    fprintf(fp," nPartColl: %d", msr->param.nPartColl);
+    fprintf(fp,"\n# bDoGravity: %d",msr->param.bDoGravity);
 #ifdef HERMITE
-fprintf(fp," bHermite: %d",msr->param.bHermite);
-fprintf(fp," bAarsethStep: %d",msr->param.bAarsethStep);
+    fprintf(fp," bHermite: %d",msr->param.bHermite);
+    fprintf(fp," bAarsethStep: %d",msr->param.bAarsethStep);
 #endif
-fprintf(fp,"\n# dFracNoDomainDecomp: %g",msr->param.dFracNoDomainDecomp);
-fprintf(fp," dFracNoDomainRootFind: %g",msr->param.dFracNoDomainRootFind);
-fprintf(fp," dFracNoDomainDimChoice: %g",msr->param.dFracNoDomainDimChoice);
-fprintf(fp,"\n# nTruncateRung: %d",msr->param.nTruncateRung);
-fprintf(fp," dGrowDeltaM: %g",msr->param.dGrowDeltaM);
-fprintf(fp," dGrowStartT: %g",msr->param.dGrowStartT);
-fprintf(fp," dGrowEndT: %g",msr->param.dGrowEndT);
-fprintf(fp,"\n# Group Find: nFindGroups: %d",msr->param.nFindGroups);
-fprintf(fp," dTau: %g",msr->param.dTau);
-fprintf(fp," dVTau: %g",msr->param.dVTau);
-fprintf(fp," bTauAbs: %d",msr->param.bTauAbs);
-fprintf(fp," nMinMembers: %d",msr->param.nMinMembers);
-fprintf(fp," nBins: %d",msr->param.nBins);
-fprintf(fp," bUsePotmin: %d",msr->param.bUsePotmin);
-fprintf(fp," nMinProfile: %d",msr->param.nMinProfile);
-fprintf(fp," fBinsRescale: %g",msr->param.fBinsRescale);
-fprintf(fp," fContrast: %g",msr->param.fContrast);
-fprintf(fp," Delta: %g",msr->param.Delta);
-fprintf(fp," binFactor: %g",msr->param.binFactor);
-fprintf(fp," bLogBins: %d",msr->param.bLogBins);
+    fprintf(fp,"\n# dFracNoDomainDecomp: %g",msr->param.dFracNoDomainDecomp);
+    fprintf(fp," dFracNoDomainRootFind: %g",msr->param.dFracNoDomainRootFind);
+    fprintf(fp," dFracNoDomainDimChoice: %g",msr->param.dFracNoDomainDimChoice);
+    fprintf(fp,"\n# nTruncateRung: %d",msr->param.nTruncateRung);
+    fprintf(fp," dGrowDeltaM: %g",msr->param.dGrowDeltaM);
+    fprintf(fp," dGrowStartT: %g",msr->param.dGrowStartT);
+    fprintf(fp," dGrowEndT: %g",msr->param.dGrowEndT);
+    fprintf(fp,"\n# Group Find: nFindGroups: %d",msr->param.nFindGroups);
+    fprintf(fp," dTau: %g",msr->param.dTau);
+    fprintf(fp," dVTau: %g",msr->param.dVTau);
+    fprintf(fp," bTauAbs: %d",msr->param.bTauAbs);
+    fprintf(fp," nMinMembers: %d",msr->param.nMinMembers);
+    fprintf(fp," nBins: %d",msr->param.nBins);
+    fprintf(fp," bUsePotmin: %d",msr->param.bUsePotmin);
+    fprintf(fp," nMinProfile: %d",msr->param.nMinProfile);
+    fprintf(fp," fBinsRescale: %g",msr->param.fBinsRescale);
+    fprintf(fp," fContrast: %g",msr->param.fContrast);
+    fprintf(fp," Delta: %g",msr->param.Delta);
+    fprintf(fp," binFactor: %g",msr->param.binFactor);
+    fprintf(fp," bLogBins: %d",msr->param.bLogBins);
 #ifdef RELAXATION
-fprintf(fp,"\n# Relaxation estimate: bTraceRelaxation: %d",msr->param.bTraceRelaxation);
+    fprintf(fp,"\n# Relaxation estimate: bTraceRelaxation: %d",msr->param.bTraceRelaxation);
 #endif
 #ifdef PLANETS
 #ifdef SYMBA
-fprintf(fp," bSymba: %d",msr->param.bSymba);
+    fprintf(fp," bSymba: %d",msr->param.bSymba);
 #endif
-fprintf(fp," bCollision: %d",msr->param.bCollision);
-fprintf(fp," bHeliocentric: %d",msr->param.bHeliocentric);
-fprintf(fp," dCentMass: %g",msr->param.dCentMass);
-fprintf(fp,"\n# Collisions...");
-fprintf(fp," iCollLogOption: %d",msr->param.iCollLogOption);
-fprintf(fp,"\n# iOutcomes: %d",msr->param.CP.iOutcomes);
-fprintf(fp," dBounceLimit: %g",msr->param.CP.dBounceLimit);
-fprintf(fp," dEpsN: %g",msr->param.CP.dEpsN);
-fprintf(fp," dEpsT: %g",msr->param.CP.dEpsT);
-fprintf(fp," dDensity: %g",msr->param.CP.dDensity);
-fprintf(fp,"\n# bFixCollapse: %d",msr->param.CP.bFixCollapse);
+    fprintf(fp," bCollision: %d",msr->param.bCollision);
+    fprintf(fp," bHeliocentric: %d",msr->param.bHeliocentric);
+    fprintf(fp," dCentMass: %g",msr->param.dCentMass);
+    fprintf(fp,"\n# Collisions...");
+    fprintf(fp," iCollLogOption: %d",msr->param.iCollLogOption);
+    fprintf(fp,"\n# iOutcomes: %d",msr->param.CP.iOutcomes);
+    fprintf(fp," dBounceLimit: %g",msr->param.CP.dBounceLimit);
+    fprintf(fp," dEpsN: %g",msr->param.CP.dEpsN);
+    fprintf(fp," dEpsT: %g",msr->param.CP.dEpsT);
+    fprintf(fp," dDensity: %g",msr->param.CP.dDensity);
+    fprintf(fp,"\n# bFixCollapse: %d",msr->param.CP.bFixCollapse);
 #endif /* PLANETS */
 
-fprintf(fp," dTheta: %f",msr->param.dTheta);
-fprintf(fp,"\n# dPeriod: %g",msr->param.dPeriod);
-fprintf(fp," dxPeriod: %g",
-	msr->param.dxPeriod >= FLOAT_MAXVAL ? 0 : msr->param.dxPeriod);
-fprintf(fp," dyPeriod: %g",
-	msr->param.dyPeriod >= FLOAT_MAXVAL ? 0 : msr->param.dyPeriod);
-fprintf(fp," dzPeriod: %g",
-	msr->param.dzPeriod >= FLOAT_MAXVAL ? 0 : msr->param.dzPeriod);
-fprintf(fp,"\n# dHubble0: %g",msr->param.csm->dHubble0);
-fprintf(fp," dOmega0: %g",msr->param.csm->dOmega0);
-fprintf(fp," dLambda: %g",msr->param.csm->dLambda);
-fprintf(fp," dOmegaDE: %g",msr->param.csm->dOmegaDE);
-fprintf(fp," w0: %g",msr->param.csm->w0);
-fprintf(fp," wa: %g",msr->param.csm->wa);
-fprintf(fp," dOmegaRad: %g",msr->param.csm->dOmegaRad);
-fprintf(fp," dOmegab: %g",msr->param.csm->dOmegab);
-fprintf(fp,"\n# achInFile: %s",msr->param.achInFile);
-fprintf(fp,"\n# achOutName: %s",msr->param.achOutName);
-fprintf(fp,"\n# achOutPath: %s",msr->param.achOutPath);
-fprintf(fp,"\n# achIoPath: %s",msr->param.achIoPath);
-fprintf(fp,"\n# achDataSubPath: %s",msr->param.achDataSubPath);
-if (msr->param.csm->bComove) {
-    fprintf(fp,"\n# RedOut:");
-    if (msr->nOuts == 0) fprintf(fp," none");
-    for (i=0;i<msr->nOuts;i++) {
-	if (i%5 == 0) fprintf(fp,"\n#   ");
-	z = 1.0/csmTime2Exp(msr->param.csm, msr->pdOutTime[i]) - 1.0;
-	fprintf(fp," %f",z);
+    fprintf(fp," dTheta: %f",msr->param.dTheta);
+    fprintf(fp,"\n# dPeriod: %g",msr->param.dPeriod);
+    fprintf(fp," dxPeriod: %g",
+	    msr->param.dxPeriod >= FLOAT_MAXVAL ? 0 : msr->param.dxPeriod);
+    fprintf(fp," dyPeriod: %g",
+	    msr->param.dyPeriod >= FLOAT_MAXVAL ? 0 : msr->param.dyPeriod);
+    fprintf(fp," dzPeriod: %g",
+	    msr->param.dzPeriod >= FLOAT_MAXVAL ? 0 : msr->param.dzPeriod);
+    fprintf(fp,"\n# dHubble0: %g",msr->param.csm->dHubble0);
+    fprintf(fp," dOmega0: %g",msr->param.csm->dOmega0);
+    fprintf(fp," dLambda: %g",msr->param.csm->dLambda);
+    fprintf(fp," dOmegaDE: %g",msr->param.csm->dOmegaDE);
+    fprintf(fp," w0: %g",msr->param.csm->w0);
+    fprintf(fp," wa: %g",msr->param.csm->wa);
+    fprintf(fp," dOmegaRad: %g",msr->param.csm->dOmegaRad);
+    fprintf(fp," dOmegab: %g",msr->param.csm->dOmegab);
+    fprintf(fp,"\n# achInFile: %s",msr->param.achInFile);
+    fprintf(fp,"\n# achOutName: %s",msr->param.achOutName);
+    fprintf(fp,"\n# achOutPath: %s",msr->param.achOutPath);
+    fprintf(fp,"\n# achIoPath: %s",msr->param.achIoPath);
+    fprintf(fp,"\n# achDataSubPath: %s",msr->param.achDataSubPath);
+    if (msr->param.csm->bComove) {
+	fprintf(fp,"\n# RedOut:");
+	if (msr->nOuts == 0) fprintf(fp," none");
+	for (i=0;i<msr->nOuts;i++) {
+	    if (i%5 == 0) fprintf(fp,"\n#   ");
+	    z = 1.0/csmTime2Exp(msr->param.csm, msr->pdOutTime[i]) - 1.0;
+	    fprintf(fp," %f",z);
+	    }
+	fprintf(fp,"\n");
 	}
-    fprintf(fp,"\n");
-    }
-else {
-    fprintf(fp,"\n# TimeOut:");
-    if (msr->nOuts == 0) fprintf(fp," none");
-    for (i=0;i<msr->nOuts;i++) {
-	if (i%5 == 0) fprintf(fp,"\n#   ");
-	fprintf(fp," %f",msr->pdOutTime[i]);
+    else {
+	fprintf(fp,"\n# TimeOut:");
+	if (msr->nOuts == 0) fprintf(fp," none");
+	for (i=0;i<msr->nOuts;i++) {
+	    if (i%5 == 0) fprintf(fp,"\n#   ");
+	    fprintf(fp," %f",msr->pdOutTime[i]);
+	    }
+	fprintf(fp,"\n");
 	}
-    fprintf(fp,"\n");
-    }
     }
 
 int
@@ -2035,52 +2036,56 @@ void msrOneNodeWriteTipsy(MSR msr, struct inWriteTipsy *in, int bCheckpoint) {
 	pkdWriteHDF5(plcl->pkd, io, ioDen, ioPot, in->dvFac );
 	}
     else
-#endif {
+#endif
+	/* This is always executed if not using HDF5 */
+	{
 	pkdWriteTipsy(plcl->pkd,achOutFile,plcl->nWriteStart,in->bStandard,
 		      in->dvFac,in->bDoublePos);
-    }
-nStart = plcl->pkd->nLocal;
-	 assert(msr->pMap[0] == 0);
-for (i=1;i<msr->nThreads;++i) {
-    id = msr->pMap[i];
-    /*
-     * Swap particles with the remote processor.
-     */
-    inswap = 0;
-    mdlReqService(pst0->mdl,id,PST_SWAPALL,&inswap,sizeof(inswap));
-    pkdSwapAll(plcl->pkd, id);
-    mdlGetReply(pst0->mdl,id,NULL,NULL);
-    /*
-     * Write the swapped particles.
-     */
+	}
+    nStart = plcl->pkd->nLocal;
+    assert(msr->pMap[0] == 0);
+    for (i=1;i<msr->nThreads;++i) {
+	id = msr->pMap[i];
+	/*
+	 * Swap particles with the remote processor.
+	 */
+	inswap = 0;
+	mdlReqService(pst0->mdl,id,PST_SWAPALL,&inswap,sizeof(inswap));
+	pkdSwapAll(plcl->pkd, id);
+	mdlGetReply(pst0->mdl,id,NULL,NULL);
+	/*
+	 * Write the swapped particles.
+	 */
+#ifdef USE_HDF5
+	if ( in->bStandard == 2 ) {
+	    pkdWriteHDF5(plcl->pkd, io, ioDen, ioPot, in->dvFac);
+	    }
+	else
+#endif
+	    /* This is always executed if not using HDF5 */
+	    {
+	    pkdWriteTipsy(plcl->pkd,achOutFile,nStart, in->bStandard,
+			  in->dvFac, in->bDoublePos);
+	    }
+	nStart += plcl->pkd->nLocal;
+	/*
+	 * Swap them back again.
+	 */
+	inswap = 0;
+	mdlReqService(pst0->mdl,id,PST_SWAPALL,&inswap,sizeof(inswap));
+	pkdSwapAll(plcl->pkd, id);
+	mdlGetReply(pst0->mdl,id,NULL,NULL);
+	}
+
 #ifdef USE_HDF5
     if ( in->bStandard == 2 ) {
-	pkdWriteHDF5(plcl->pkd, io, ioDen, ioPot, in->dvFac);
+	ioHDF5Finish(io);
+	H5assert(H5Fflush(fileID,H5F_SCOPE_GLOBAL));
+	H5assert(H5Fclose(fileID));
 	}
-    else
-#endif {
-	pkdWriteTipsy(plcl->pkd,achOutFile,nStart, in->bStandard,
-		      in->dvFac, in->bDoublePos);
-    }
-nStart += plcl->pkd->nLocal;
-	  /*
-	   * Swap them back again.
-	   */
-	  inswap = 0;
-		   mdlReqService(pst0->mdl,id,PST_SWAPALL,&inswap,sizeof(inswap));
-		   pkdSwapAll(plcl->pkd, id);
-		   mdlGetReply(pst0->mdl,id,NULL,NULL);
-		       }
-
-#ifdef USE_HDF5
-if ( in->bStandard == 2 ) {
-    ioHDF5Finish(io);
-    H5assert(H5Fflush(fileID,H5F_SCOPE_GLOBAL));
-    H5assert(H5Fclose(fileID));
-    }
 #endif
 
-assert(nStart == msr->N);
+    assert(nStart == msr->N);
     }
 
 
@@ -2153,31 +2158,33 @@ void _msrWriteTipsy(MSR msr,char *pszFileName,double dTime,int bCheckpoint) {
 	msrOneNodeWriteTipsy(msr, &in,bCheckpoint);
 	}
     else
-#endif {
+#endif
+	/* This is always executed if not using HDF5 */
+	{
 	fp = fopen(achOutFile,"w");
-    if (!fp) {
-	printf("Could not open OutFile:%s\n",achOutFile);
-	_msrExit(msr,1);
-	}
-    if (in.bStandard) {
-	XDR xdrs;
+	if (!fp) {
+	    printf("Could not open OutFile:%s\n",achOutFile);
+	    _msrExit(msr,1);
+	    }
+	if (in.bStandard) {
+	    XDR xdrs;
 
-	xdrstdio_create(&xdrs,fp,XDR_ENCODE);
-	xdrHeader(&xdrs,&h);
-	xdr_destroy(&xdrs);
-	}
-    else {
-	fwrite(&h,sizeof(struct dump),1,fp);
-	}
-    fclose(fp);
+	    xdrstdio_create(&xdrs,fp,XDR_ENCODE);
+	    xdrHeader(&xdrs,&h);
+	    xdr_destroy(&xdrs);
+	    }
+	else {
+	    fwrite(&h,sizeof(struct dump),1,fp);
+	    }
+	fclose(fp);
 
-    if (msr->param.bParaWrite)
-	pstWriteTipsy(msr->pst,&in,sizeof(in),NULL,NULL);
-    else
-	msrOneNodeWriteTipsy(msr, &in, bCheckpoint);
-    }
+	if (msr->param.bParaWrite)
+	    pstWriteTipsy(msr->pst,&in,sizeof(in),NULL,NULL);
+	else
+	    msrOneNodeWriteTipsy(msr, &in, bCheckpoint);
+	}
 
-msrprintf(msr,"Output file has been successfully written.\n");
+    msrprintf(msr,"Output file has been successfully written.\n");
     }
 
 
@@ -2216,7 +2223,7 @@ void msrDomainDecomp(MSR msr,int iRung,int bGreater,int bSplitVA) {
     if (msr->param.bPeriodic &&
 	    msr->param.dxPeriod < FLOAT_MAXVAL &&
 	    msr->param.dyPeriod < FLOAT_MAXVAL &&
-    msr->param.dzPeriod < FLOAT_MAXVAL) {
+	    msr->param.dzPeriod < FLOAT_MAXVAL) {
 	for (j=0;j<3;++j) {
 	    in.bnd.fCenter[j] = msr->fCenter[j];
 	    }
@@ -2581,7 +2588,7 @@ void msrOutVector(MSR msr,char *pszFile,int iType) {
 
 
 void msrSmooth(MSR msr,double dTime,int iSmoothType,int bGasOnly,
-int bSymmetric) {
+	       int bSymmetric) {
     struct inSmooth in;
 
     /*
@@ -2618,7 +2625,7 @@ int bSymmetric) {
 
 
 void msrReSmooth(MSR msr,double dTime,int iSmoothType,int bGasOnly,
-int bSymmetric) {
+		 int bSymmetric) {
     struct inReSmooth in;
 
     /*
@@ -2730,7 +2737,7 @@ void msrMemStatus(MSR msr) {
     }
 
 void msrGravity(MSR msr,double dTime,double dStep,int bEwald,
-int *piSec,uint64_t *pnActive) {
+		int *piSec,uint64_t *pnActive) {
     struct inGravity in;
     struct outGravity *out;
     int i,id,iDum;
@@ -2805,7 +2812,7 @@ int *piSec,uint64_t *pnActive) {
 
 
 void msrCalcEandL(MSR msr,int bFirst,double dTime,double *E,double *T,
-double *U,double *Eth,double L[]) {
+		  double *U,double *Eth,double L[]) {
     struct outCalcEandL out;
     double a;
     int k;
@@ -3382,7 +3389,7 @@ void msrTopStepKDK(MSR msr,
 		   */
 		   int iAdjust,		/* Do an adjust? */
 		   double *pdActiveSum,
-int *piSec) {
+		   int *piSec) {
     uint64_t nActive;
     int bSplitVA;
 
@@ -3557,7 +3564,7 @@ int *piSec) {
 
 void
 msrStepVeryActiveKDK(MSR msr, double dStep, double dTime, double dDelta,
-int iRung) {
+		     int iRung) {
     struct inStepVeryActive in;
     struct outStepVeryActive out;
 
@@ -3611,7 +3618,7 @@ void msrTopStepHermite(MSR msr,
 		       int iRungVeryActive,  /* current setting for iRungVeryActive */
 		       int iAdjust,		/* Do an adjust? */
 		       double *pdActiveSum,
-int *piSec) {
+		       int *piSec) {
     uint64_t nActive;
     int bSplitVA;
     const int bNeedEwald = 0;
@@ -3825,7 +3832,7 @@ int *piSec) {
 
 void
 msrStepVeryActiveHermite(MSR msr, double dStep, double dTime, double dDelta,
-int iRung) {
+			 int iRung) {
     struct inStepVeryActiveH in;
     struct outStepVeryActiveH out;
 
@@ -3961,7 +3968,7 @@ msrAddDelParticles(MSR msr) {
 	 * build.
 	 */
 	if (pColNParts[i].nNew != 0 || pColNParts[i].nDeltaGas != 0 ||
-	pColNParts[i].nDeltaDark != 0 || pColNParts[i].nDeltaStar != 0) {
+		pColNParts[i].nDeltaDark != 0 || pColNParts[i].nDeltaStar != 0) {
 	    /*printf("Particle assignments have changed!\n");
 	      printf("need to rebuild tree, code in msrAddDelParticles()\n");
 	      printf("needs to be updated. Bailing out for now...\n");
@@ -4769,7 +4776,7 @@ void msrTopStepSymba(MSR msr,
 		     int iRungVeryActive,  /* current setting for iRungVeryActive */
 		     int iAdjust,		/* Do an adjust? */
 		     double *pdActiveSum,
-int *piSec) {
+		     int *piSec) {
     uint64_t nActive;
     int bSplitVA;
     double dDeltaTmp;
@@ -4850,7 +4857,7 @@ int *piSec) {
 
 void
 msrStepVeryActiveSymba(MSR msr, double dStep, double dTime, double dDelta,
-int iRung) {
+		       int iRung) {
     struct inStepVeryActiveS in;
     struct outStepVeryActiveS out;
 
@@ -4954,11 +4961,13 @@ void msrWrite(MSR msr,char *pszFileName,double dTime,int bCheckpoint) {
 	msrIOWrite(msr,pszFileName,dTime,bCheckpoint);
 	}
     else
-#endif {
+#endif
+	/* This is always executed if not using MDL I/O */
+	{
 	if ( msr->iLastRungRT >= 0 ) msrReorder(msr);
-    assert( msr->iLastRungRT < 0 );
-    _msrWriteTipsy(msr,pszFileName,dTime,bCheckpoint);
-    }
+	assert( msr->iLastRungRT < 0 );
+	_msrWriteTipsy(msr,pszFileName,dTime,bCheckpoint);
+	}
 #endif
     }
 
@@ -4994,9 +5003,11 @@ double msrRead(MSR msr, int iStep) {
 	    dTime = _msrReadHDF5(msr,achFilename);
 	    }
 	else
-#endif {
+#endif
+	    /* This is always executed if not using HDF5 */
+	    {
 	    dTime = _msrReadTipsy(msr,achFilename);
-	}
+	    }
 #endif
 
 #ifdef USE_MDL_IO
@@ -5016,12 +5027,12 @@ double msrRead(MSR msr, int iStep) {
 #endif
 
 return dTime;
-	   }
+    }
 
 
-       /*
-       **  This routine will output all requested files and fields
-       */
+/*
+**  This routine will output all requested files and fields
+*/
 
 void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint) {
     char achFile[PATH_MAX];
