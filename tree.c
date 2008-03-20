@@ -471,13 +471,8 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp,int bTempBound) {
 		}			
 	    }
 	pj = pkdn->pLower;
-#ifdef PARTICLE_HAS_MASS
-	m = p[pj].fMass;
-	fSoft = p[pj].fSoft;
-#else
-	m = pkd->pClass[p[pj].iClass].fMass;
-	fSoft = pkd->pClass[p[pj].iClass].fSoft;
-#endif
+	m = pkdMass(pkd,&p[pj]);
+	fSoft = pkdSoft(pkd,&p[pj]);
 	fMass = m;
 	dih2 = m/(fSoft*fSoft);
 	x = m*p[pj].r[0];
@@ -491,13 +486,8 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp,int bTempBound) {
 	az = m*p[pj].a[2];
 	pkdn->uMinRung = pkdn->uMaxRung = p[pj].iRung;
 	for (++pj;pj<=pkdn->pUpper;++pj) {
-#ifdef PARTICLE_HAS_MASS
-	    m = p[pj].fMass;
-	    fSoft = p[pj].fSoft;
-#else
-	    m = pkd->pClass[p[pj].iClass].fMass;
-	    fSoft = pkd->pClass[p[pj].iClass].fSoft;
-#endif
+	    m = pkdMass(pkd,&p[pj]);
+	    fSoft = pkdSoft(pkd,&p[pj]);
 	    fMass += m;
 	    dih2 += m/(fSoft*fSoft);
 	    x += m*p[pj].r[0];
@@ -532,21 +522,13 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp,int bTempBound) {
 	y = p[pj].r[1] - pkdn->r[1];
 	z = p[pj].r[2] - pkdn->r[2];
 
-#ifdef PARTICLE_HAS_MASS
-	m = p[pj].fMass;
-#else
-	m = pkd->pClass[p[pj].iClass].fMass;
-#endif
+	m = pkdMass(pkd,&p[pj]);
 	d2Max = momMakeMomr(&pkdn->mom,m,x,y,z);
 	for (++pj;pj<=pkdn->pUpper;++pj) {
 	    x = p[pj].r[0] - pkdn->r[0];
 	    y = p[pj].r[1] - pkdn->r[1];
 	    z = p[pj].r[2] - pkdn->r[2];
-#ifdef PARTICLE_HAS_MASS
-	    m = p[pj].fMass;
-#else
-	    m = pkd->pClass[p[pj].iClass].fMass;
-#endif
+	    m = pkdMass(pkd,&p[pj]);
 	    d2 = momMakeMomr(&mom,m,x,y,z);
 	    momAddMomr(&pkdn->mom,&mom);
 	    /*
@@ -817,18 +799,10 @@ void pkdCalcRoot(PKD pkd,MOMC *pmom)
     x = p[i].r[0] - xr;
     y = p[i].r[1] - yr;
     z = p[i].r[2] - zr;
-#ifdef PARTICLE_HAS_MASS
-    fMass = p[i].fMass;
-#else
-    fMass = pkd->pClass[p[i].iClass].fMass;
-#endif
+    fMass = pkdMass(pkd,&p[i]);
     momMakeMomc(pmom,fMass,x,y,z);
     for (++i;i<pkd->nLocal;++i) {
-#ifdef PARTICLE_HAS_MASS
-	fMass = p[i].fMass;
-#else
-	fMass = pkd->pClass[p[i].iClass].fMass;
-#endif
+	fMass = pkdMass(pkd,&p[i]);
 	x = p[i].r[0] - xr;
 	y = p[i].r[1] - yr;
 	z = p[i].r[2] - zr;

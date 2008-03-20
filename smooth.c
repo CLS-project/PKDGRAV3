@@ -1319,11 +1319,7 @@ void smFof(SMX smx,int nFOFsDone,SMF *smf)
     }	
     mdlFinishCache(mdl,CID_BIN);
     for (pn=0;pn<nTree;pn++) {
-#ifdef PARTICLE_HAS_MASS
-      fMass = p[pn].fMass;
-#else
-      fMass = pkd->pClass[p[pn].iClass].fMass;
-#endif
+      fMass = pkdMass(pkd,&p[pn]);
       if( p[pn].pBin >= 0 ){
 	for(j = 0; j < 3; j++)	{
 	  relpos[j] = corrPos(pkd->groupBin[p[pn].pBin].com[j], p[pn].r[j], l[j]) 
@@ -1347,11 +1343,7 @@ void smFof(SMX smx,int nFOFsDone,SMF *smf)
     }	
   } else {
     for (pn=0;pn<nTree;pn++) {
-#ifdef PARTICLE_HAS_MASS
-      fMass = p[pn].fMass;
-#else
-      fMass = pkd->pClass[p[pn].iClass].fMass;
-#endif
+      fMass = pkdMass(pkd,&p[pn]);
       p[pn].pBin = p[pn].pGroup; /* temp. store old groupIDs for doing the links*/
       p[pn].pGroup = 0;
       if(smf->bTauAbs) {
@@ -1537,11 +1529,7 @@ void smFof(SMX smx,int nFOFsDone,SMF *smf)
   ** Calculate local group properties
   */
   for (pi=0;pi<nTree ;++pi) {
-#ifdef PARTICLE_HAS_MASS
-    fMass = p[pi].fMass;
-#else
-    fMass = pkd->pClass[p[pi].iClass].fMass;
-#endif
+      fMass = pkdMass(pkd,&p[pi]);
     if(p[pi].pGroup != tmp){	
       i = (p[pi].pGroup - 1 - pkd->idSelf)/pkd->nThreads;
 #if 0
@@ -2014,11 +2002,7 @@ int smGroupProfiles(SMX smx, SMF *smf,int bPeriodic, int nTotalGroups,int bLogBi
   */	
   minSoft=1.0;
   for(pn=0;pn<nTree;pn++) {
-#ifdef PARTICLE_HAS_MASS
-    fSoft = p[pn].fSoft;
-#else
-    fSoft = pkd->pClass[p[pn].iClass].fSoft;
-#endif
+    fSoft = pkdSoft(pkd,&p[pn]);
     if(fSoft<minSoft)minSoft=fSoft;
   }
   /*
@@ -2166,11 +2150,7 @@ int smGroupProfiles(SMX smx, SMF *smf,int bPeriodic, int nTotalGroups,int bLogBi
 	  if( k == pkd->groupData[index].nRemoteMembers) goto nextParticle;
 	}
 	assert(iBin+k < nBins);
-#ifdef PARTICLE_HAS_MASS
-	fMass = smx->nnList[pnn].pPart->fMass;
-#else
-	fMass = pkd->pClass[smx->nnList[pnn].pPart->iClass].fMass;
-#endif
+	fMass = pkdMass(pkd,smx->nnList[pnn].pPart);
 	pkd->groupBin[iBin+k].nMembers++;
 	pkd->groupBin[iBin+k].fMassInBin += fMass;
 	pkd->groupBin[iBin+k].v2[0] += fMass*pow(relvel[0],2.0);

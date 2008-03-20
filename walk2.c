@@ -294,13 +294,6 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 
 	    for (i=0;i<nCheck;++i) {
 		id = pkd->Check[i].id;
-
-#ifdef __SSE__strange
-		    /* Does nothing */
-		    _mm_prefetch( (char *)(c+iCell)+0,_MM_HINT_T0 );
-		    _mm_prefetch( (char *)(c+iCell)+64,_MM_HINT_T0 );
-		    _mm_prefetch( (char *)(c+iCell)+128,_MM_HINT_T0 );
-#endif
 		if (id == pkd->idSelf) {
 		    pkdc = &pkd->kdNodes[pkd->Check[i].iCell];
 		    n = pkdc->pUpper - pkdc->pLower + 1;
@@ -527,13 +520,8 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 			    ** Interact += Pacticles(pkdc);
 			    */
 			    for (pj=pkdc->pLower;pj<=pkdc->pUpper;++pj) {
-#ifdef PARTICLE_HAS_MASS
-				fMass = p[pj].fMass;
-				fSoft = p[pj].fSoft;
-#else
-				fMass = pkd->pClass[p[pj].iClass].fMass;
-				fSoft = pkd->pClass[p[pj].iClass].fSoft;
-#endif
+				fMass = pkdMass(pkd,&p[pj]);
+				fSoft = pkdSoft(pkd,&p[pj]);
 				ilpAppend(pkd->ilp,
 					  p[pj].r[0] + pkd->Check[i].rOffset[0],
 					  p[pj].r[1] + pkd->Check[i].rOffset[1],
@@ -553,18 +541,13 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 #endif
 			    for (pj=pkdc->pLower;pj<=pkdc->pUpper;++pj) {
 				pRemote = mdlAquire(pkd->mdl,CID_PARTICLE,pj,id);
-#ifdef PARTICLE_HAS_MASS
-				fMass = pRemote->fMass;
-				fSoft = pRemote->fSoft;
-#else
 				/*
 				** NOTE: We can only use iClass here if the class table was
 				** merged during a parallel read with GetClasses/SetClasses.
 				** There is no problem id a serial read was performed.
 				*/
-				fMass = pkd->pClass[pRemote->iClass].fMass;
-				fSoft = pkd->pClass[pRemote->iClass].fSoft;
-#endif
+				fMass = pkdMass(pkd,pRemote);
+				fSoft = pkdSoft(pkd,pRemote);
 				ilpAppend(pkd->ilp,
 					  pRemote->r[0] + pkd->Check[i].rOffset[0],
 					  pRemote->r[1] + pkd->Check[i].rOffset[1],
@@ -768,13 +751,8 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 	n = pkdc->pUpper - pkdc->pLower + 1;
 	//ADDBACK:printf("G CPU:%d increased particle list size to %d\n",mdlSelf(pkd->mdl),pkd->nMaxPart);
 	for (pj=pkdc->pLower;pj<=pkdc->pUpper;++pj) {
-#ifdef PARTICLE_HAS_MASS
-	    fMass = p[pj].fMass;
-	    fSoft = p[pj].fSoft;
-#else
-	    fMass = pkd->pClass[p[pj].iClass].fMass;
-	    fSoft = pkd->pClass[p[pj].iClass].fSoft;
-#endif
+	    fMass = pkdMass(pkd,&p[pj]);
+	    fSoft = pkdSoft(pkd,&p[pj]);
 	    ilpAppend( pkd->ilp,
 		       p[pj].r[0], p[pj].r[1], p[pj].r[2],
 		       fMass, 4*fSoft*fSoft,

@@ -2540,11 +2540,7 @@ void pkdAccelStep(PKD pkd,double dEta,double dVelFac,double dAccFac,int bDoGravi
 
     for (i=0;i<pkdLocal(pkd);++i) {
 	if (pkdIsActive(pkd,&(pkd->pStore[i]))) {
-#ifdef PARTICLE_HAS_MASS
-	    fSoft = pkd->pStore[i].fSoft;
-#else
-	    fSoft = pkd->pClass[pkd->pStore[i].iClass].fSoft;
-#endif
+	    fSoft = pkdSoft(pkd,&pkd->pStore[i]);
 	    vel = 0;
 	    acc = 0;
 	    for (j=0;j<3;j++) {
@@ -2605,11 +2601,7 @@ int pkdDtToRung(PKD pkd,int iRung,double dDelta,int iMaxRung,int bAll,int *nRung
 	if(pkd->pStore[i].iRung >= iRung) {
 	    mdlassert(pkd->mdl,pkdIsActive(pkd,&(pkd->pStore[i])));
 	    if(bAll) {          /* Assign all rungs at iRung and above */
-#ifdef PARTICLE_HAS_MASS
-		mdlassert(pkd->mdl,pkd->pStore[i].fSoft > 0);
-#else
-		mdlassert(pkd->mdl,pkd->pClass[pkd->pStore[i].iClass].fSoft > 0);
-#endif
+		mdlassert(pkd->mdl,pkdSoft(pkd,&pkd->pStore[i]) > 0);
 		mdlassert(pkd->mdl,pkd->pStore[i].dt > 0);
 		iSteps = dDelta/pkd->pStore[i].dt;
 		/* insure that integer boundary goes
@@ -2858,10 +2850,6 @@ pkdReadSS(PKD pkd,char *pszFileName,int nStart,int nLocal)
 		if (ssioData(&ssio,&data))
 			mdlassert(pkd->mdl,0); /* error during read in ss file */
 		p->iOrgIdx = data.org_idx;
-#ifdef PARTICLE_HAS_MASS
-		p->fMass = data.mass;
-		p->fSoft = data.radius;
-#endif
 		p->iClass = getClass(data.mass,data.radius);
 		for (j=0;j<3;++j) p->r[j] = data.pos[j];
 		for (j=0;j<3;++j) p->v[j] = data.vel[j];
@@ -2898,13 +2886,8 @@ pkdWriteSS(PKD pkd,char *pszFileName,int nStart)
 		if (!pkdIsDark(pkd,p))
 			mdlassert(pkd->mdl,0); /* only dark particles allowed in ss file */
 		data.org_idx = p->iOrgIdx;
-#ifdef PARTICLE_HAS_MASS
-		data.mass = p->fMass;
-		data.radius = p->fSoft;
-#else
-		data.mass = pkd->pClass[p->iClass].fMass;
-		data.radius = pkd->pClass[p->iClass].fSoft;
-#endif
+		data.mass = pkdMass(pkd,p);
+		data.radius = pkdSoft(pkd,p);
 		for (j=0;j<3;++j) data.pos[j]  = p->r[j];
 		for (j=0;j<3;++j) data.vel[j]  = p->v[j];
 		for (j=0;j<3;++j) data.spin[j] = p->w[j];
@@ -2930,11 +2913,7 @@ void pkdSunIndirect(PKD pkd,double aSun[],double adSun[],int iFlag)
     p = pkd->pStore;
     n = pkdLocal(pkd); 
     for (i=0;i<n;++i) {
-#ifdef PARTICLE_HAS_MASS
-	fMass = p[i].fMass;
-#else
-	fMass = pkd->pClass[p[i].iClass].fMass;
-#endif
+	fMass = pkdMass(pkd,&p[i]);
         if (iFlag == 2){ 
 	    if (pkdIsActive(pkd,&p[i])) continue;  /* inactive */
 	}else if(iFlag == 1){
