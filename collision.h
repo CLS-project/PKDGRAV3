@@ -35,41 +35,41 @@ enum {ConstEps,Frosty200,Frosty120,Compacted,Glancing}; /* bounce options */
 enum {EscVel,MaxTrv}; /* slide options */
 
 typedef struct {
-	int iPid;
-	int iOrder;
-	int iIndex;
-	int iOrgIdx;
-	} PARTICLE_ID;
+    int iPid;
+    int iOrder;
+    int iIndex;
+    int iOrgIdx;
+    } PARTICLE_ID;
 
 typedef struct {
-	PARTICLE_ID id;
-	FLOAT fMass;
-	FLOAT fRadius;
-	FLOAT r[3];
-	FLOAT v[3];
-	FLOAT w[3];
+    PARTICLE_ID id;
+    FLOAT fMass;
+    FLOAT fRadius;
+    FLOAT r[3];
+    FLOAT v[3];
+    FLOAT w[3];
 #ifdef HERMITE
-	FLOAT a[3];
-	FLOAT ad[3];
+    FLOAT a[3];
+    FLOAT ad[3];
 #endif
 #ifdef SYMBA
     FLOAT drmin;
     int   iOrder_VA[5]; /* iOrder's of particles within 3 hill radius*/
     int   i_VA[5];    /* pointers of particles */
     int   n_VA;       /* number of particles */
-    double  hill_VA[5]; /* mutual hill radius calculated in grav.c */ 
+    double  hill_VA[5]; /* mutual hill radius calculated in grav.c */
 #endif
-	int iColor;
-	FLOAT dt;
-	int iRung;
-	} COLLIDER;
+    int iColor;
+    FLOAT dt;
+    int iRung;
+    } COLLIDER;
 
 void PutColliderInfo(const COLLIDER *c,int iOrder2,PARTICLE *p,double dt);
 void pkdNextCollision(PKD pkd, double *dtCol, int *iOrder1, int *iOrder2);
 void pkdGetColliderInfo(PKD pkd, int iOrder, COLLIDER *c);
 void pkdDoCollision(PKD pkd, double dt, const COLLIDER *c1, const COLLIDER *c2,
-					int bPeriodic, const COLLISION_PARAMS *CP, int *piOutcome,
-					double *dT,	COLLIDER *cOut, int *pnOut);
+		    int bPeriodic, const COLLISION_PARAMS *CP, int *piOutcome,
+		    double *dT,	COLLIDER *cOut, int *pnOut);
 void pkdDoCollisionVeryActive(PKD pkd,double dTime);
 static char * _pkdParticleLabel(PKD pkd,int iColor);
 void pkdGetVariableVeryActive(PKD pkd, double *dDeltaEcoll);

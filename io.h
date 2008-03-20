@@ -9,7 +9,7 @@ typedef struct {
     uint64_t iMaxOrder;
     FLOAT    dMass;
     FLOAT    dSoft;
-} ioClass;
+    } ioClass;
 
 typedef struct ioContext {
     MDL mdl;
@@ -34,7 +34,7 @@ typedef struct ioContext {
 
     int      nClasses;   /* Number of particle classes */
     ioClass ioClasses[MAX_IO_CLASSES];
-} * IO;
+    } * IO;
 
 void ioInitialize(IO *,MDL);
 void ioAddServices(IO io,MDL mdl);
@@ -52,7 +52,7 @@ enum io_services {
     IO_START_RECV,
     IO_START_SEND,
     IO_MAKE_PNG
-};
+    };
 
 /* IO_SETUP */
 struct inIOSetup {
@@ -96,7 +96,7 @@ struct outPlanLoad {
     double dTimeOld;
     double dUOld;
     total_t nCount[MDL_MAX_IO_PROCS];
-};
+    };
 void ioPlanLoad(IO,void *,int,void *,int *);
 
 /* IO_START_LOAD */

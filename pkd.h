@@ -38,7 +38,7 @@ typedef uint_fast64_t total_t; /* Count of particles globally (total number) */
 #define CID_BIN		4
 /*
 ** Here we define some special reserved nodes. Node-0 is a sentinel or null node, node-1
-** is here defined as the ROOT of the local tree (or top tree), node-2 is unused and 
+** is here defined as the ROOT of the local tree (or top tree), node-2 is unused and
 ** node-3 is the root node for the very active tree.
 */
 #define VAROOT          3
@@ -81,7 +81,7 @@ typedef struct pIO {
     FLOAT fSoft;
     FLOAT fDensity;
     FLOAT fPot;
-} PIO;
+    } PIO;
 
 #define PKD_MAX_CLASSES 256
 
@@ -89,27 +89,27 @@ typedef struct partclass {
     FLOAT fMass;  /* Particle mass */
     FLOAT fSoft;  /* Current softening */
     FLOAT fSoft0; /* Softening from file */
-} PARTCLASS;
+    } PARTCLASS;
 
 typedef struct particle {
-/*-----Base-Particle-Data----*/
-    uint64_t iOrder     : 48;
-    uint8_t  iRung      :  6;
-    uint8_t  iActiveSrc :  1;
-    uint8_t  iActiveDst :  1;
-    uint8_t  iClass     :  8;
+    /*-----Base-Particle-Data----*/
+uint64_t iOrder     : 48;
+uint8_t  iRung      :  6;
+uint8_t  iActiveSrc :  1;
+uint8_t  iActiveDst :  1;
+uint8_t  iClass     :  8;
     double r[3];
-/*-----Used-for-Smooth-------*/
+    /*-----Used-for-Smooth-------*/
     float fBall;
     float fDensity;
-/*-----Gravity---------------*/
+    /*-----Gravity---------------*/
     float a[3];
     float fPot;
-/*-----Simulating------------*/
+    /*-----Simulating------------*/
     double v[3];
-/*-----Group-Finding---------*/
-/**/FLOAT dt;			/* a time step suggestion */
-/**/FLOAT dtGrav;		/* suggested 1/dt^2 from gravity */
+    /*-----Group-Finding---------*/
+    /**/FLOAT dt;			/* a time step suggestion */
+    /**/FLOAT dtGrav;		/* suggested 1/dt^2 from gravity */
 
     int pGroup;
     int pBin;
@@ -127,17 +127,17 @@ typedef struct particle {
     FLOAT vp[3];
     FLOAT app[3];
     FLOAT adpp[3];
-    FLOAT dTime0; 
+    FLOAT dTime0;
 #endif  /* Hermite */
-#ifdef PLANETS 
-/* (collision stuff) */
+#ifdef PLANETS
+    /* (collision stuff) */
     int iOrgIdx;		/* for tracking of mergers, aggregates etc. */
     FLOAT w[3];			/* spin vector */
     int iColor;			/* handy color tag */
     int iColflag;	        /* handy collision tag 1 for c1, 2 for c2*/
     uint64_t iOrderCol;              /* iOrder of colliding oponent.*/
     FLOAT dtCol;
-/* end (collision stuff) */
+    /* end (collision stuff) */
 #ifdef SYMBA
     FLOAT rb[3]; /* position before drift */
     FLOAT vb[3]; /* velocity before drift */
@@ -146,9 +146,9 @@ typedef struct particle {
     uint64_t iOrder_VA[5]; /* iOrder's of particles within 3 hill radius*/
     int   i_VA[5];    /* pointers of particles */
     int   n_VA;       /* number of particles */
-  double  hill_VA[5]; /* mutual hill radius calculated in grav.c */  
-  double a_VA[3];          /* accralation due to close encounters */
-  /* int   iKickRung; */
+    double  hill_VA[5]; /* mutual hill radius calculated in grav.c */
+    double a_VA[3];          /* accralation due to close encounters */
+    /* int   iKickRung; */
 #endif
 #endif/* PLANETS */
     } PARTICLE;
@@ -218,9 +218,9 @@ typedef struct bndBound {
     while (i <= j && ((P[i] ELEM) CMPL)) { ++i; } \
     while (i <= j && ((P[j] ELEM) CMPU)) { --j; } \
     while (i < j) { \
-        SWAP(P[i], P[j], T); \
-        while ((P[++i] ELEM) CMPL) { } \
-        while ((P[--j] ELEM) CMPU) { } \
+	SWAP(P[i], P[j], T); \
+	while ((P[++i] ELEM) CMPL) { } \
+	while ((P[--j] ELEM) CMPU) { } \
     }\
 }
 
@@ -257,20 +257,20 @@ typedef struct kdNew {
 	    double dSplit;
 	    uint32_t iLower;
 	    uint32_t iUpper;
-	    uint32_t iParent:
+	uint32_t iParent:
 	    uint16_t idLower;
 	    uint16_t idUpper;
 	    uint16_t idParent;
 	    uint16_t uPad16;
-	} c;
+	    } c;
 	struct bucket {
 	    uint32_t iPart[MAX_NBUCKET];
-	} b;
-    };
-    uint64_t uCount:48
+	    } b;
+	};
+uint64_t uCount:48
     MOMR mom;
-} KDNEW;
-#endif   
+    } KDNEW;
+#endif
 
 #define NMAX_OPENCALC	100
 
@@ -432,16 +432,16 @@ struct EwaldVariables {
     int nMaxEwhLoop;
     int nEwhLoop;
     int nReps,nEwReps;
-};
-    
+    };
+
 /*
 ** components required for groupfinder:  --J.D.--
 */
-typedef struct remoteMember{
+typedef struct remoteMember {
     int iPid;
     int iIndex;
     } FOFRM;
-typedef struct groupData{
+typedef struct groupData {
     int iLocalId;
     int iGlobalId;
     FLOAT fAvgDens;
@@ -466,8 +466,8 @@ typedef struct groupData{
     FLOAT Mvir;
     FLOAT lambda;
     FLOAT rhoBG;
-/*    FLOAT rTidal; */
-/*    FLOAT mTidal; */
+    /*    FLOAT rTidal; */
+    /*    FLOAT mTidal; */
     int nLocal;
     int nTotal;
     int bMyGroup;
@@ -479,14 +479,14 @@ typedef struct groupData{
     int iFirstRm;
     } FOFGD;
 
-typedef struct protoGroup{
+typedef struct protoGroup {
     int iId;
     int nMembers;
     int nRemoteMembers;
     int iFirstRm;
     } FOFPG;
 
-typedef struct groupBin{
+typedef struct groupBin {
     int iId;
     int nMembers;
     FLOAT fRadius;
@@ -494,16 +494,16 @@ typedef struct groupBin{
     FLOAT fMassInBin;
     FLOAT fMassEnclosed;
     FLOAT com[3];
-    FLOAT v2[3]; 
+    FLOAT v2[3];
     float fvBall2;
     FLOAT L[3];
-/*     Shapes are not implemented yet: */
-/*     FLOAT a; */
-/*     FLOAT b; */
-/*     FLOAT c; */
-/*     FLOAT phi; */
-/*     FLOAT theta; */
-/*     FLOAT psi; */
+    /*     Shapes are not implemented yet: */
+    /*     FLOAT a; */
+    /*     FLOAT b; */
+    /*     FLOAT c; */
+    /*     FLOAT phi; */
+    /*     FLOAT theta; */
+    /*     FLOAT psi; */
     } FOFBIN;
 
 typedef struct pkdContext {
@@ -537,7 +537,7 @@ typedef struct pkdContext {
     PLITE *pLite;
     /*
     ** Tree walk variables.
-    */    
+    */
     int nMaxStack;
     CSTACK *S;
     int nMaxCheck;
@@ -585,43 +585,42 @@ typedef struct pkdContext {
 #ifdef PLANETS
     double dDeltaEcoll;
     double dSunMass;
-    int    iCollisionflag; /*call pkddocollisionveryactive if iCollisionflag=1*/ 
-#endif   
+    int    iCollisionflag; /*call pkddocollisionveryactive if iCollisionflag=1*/
+#endif
     } * PKD;
 
 /* New, rung based ACTIVE/INACTIVE routines */
-static inline int pkdRungVeryActive(PKD pkd) { return pkd->uRungVeryActive; }
+static inline int pkdRungVeryActive(PKD pkd) {
+    return pkd->uRungVeryActive;
+    }
 static inline int pkdIsVeryActive(PKD pkd, PARTICLE *p) {
     return p->iRung > pkd->uRungVeryActive;
-}
+    }
 
 static inline int pkdIsRungActive(PKD pkd, uint8_t uRung ) {
     return uRung >= pkd->uMinRungActive && uRung <= pkd->uMaxRungActive;
-}
+    }
 
 static inline int pkdIsActive(PKD pkd, PARTICLE *p ) {
     return pkdIsRungActive(pkd,p->iRung);
-}
+    }
 
 static inline int pkdIsCellActive(PKD pkd, KDN *c) {
     return pkd->uMinRungActive <= c->uMaxRung && pkd->uMaxRungActive >= c->uMinRung;
-}
+    }
 #define CELL_ACTIVE(c,a,b) ((a)<=(c)->uMaxRung && (b)>=(c)->uMinRung)
 
 
 /* Here is the new way of getting mass and softening */
-static inline float pkdMass( PKD pkd, PARTICLE *p )
-{
+static inline float pkdMass( PKD pkd, PARTICLE *p ) {
     return pkd->pClass[p->iClass].fMass;
-}
-static inline float pkdSoft( PKD pkd, PARTICLE *p )
-{
+    }
+static inline float pkdSoft( PKD pkd, PARTICLE *p ) {
     return pkd->pClass[p->iClass].fSoft;
-}
-static inline float pkdSoft0( PKD pkd, PARTICLE *p )
-{
+    }
+static inline float pkdSoft0( PKD pkd, PARTICLE *p ) {
     return pkd->pClass[p->iClass].fSoft0;
-}
+    }
 
 typedef struct CacheStatistics {
     double dpNumAccess;
@@ -710,7 +709,7 @@ void pkdWriteHDF5(PKD pkd, IOHDF5 io,IOHDF5V ioDen, IOHDF5V ioPot, double dvFac)
 #endif
 void
 pkdGravAll(PKD pkd,double dTime,int nReps,int bPeriodic,int iOrder,int bEwald,
-	   double fEwCut,double fEwhCut,int *nActive, 
+	   double fEwCut,double fEwhCut,int *nActive,
 	   double *pdPartSum, double *pdCellSum,CASTAT *pcs, double *pdFlop);
 void pkdCalcE(PKD,double *,double *,double *);
 void pkdCalcEandL(PKD,double *,double *,double *,double []);
@@ -724,12 +723,12 @@ void pkdStepVeryActiveKDK(PKD pkd, double dStep, double dTime, double dDelta,
 #ifdef HERMITE
 void
 pkdStepVeryActiveHermite(PKD pkd, double dStep, double dTime, double dDelta,
-		     int iRung, int iKickRung, int iRungVeryActive,int iAdjust, double diCrit2,
+			 int iRung, int iKickRung, int iRungVeryActive,int iAdjust, double diCrit2,
 			 int *pnMaxRung, double aSunInact[], double adSunInact[], double dSunMass);
 void pkdCopy0(PKD pkd,double dTime);
-void pkdPredictor(PKD pkd,double dTime); 
+void pkdPredictor(PKD pkd,double dTime);
 void pkdCorrector(PKD pkd,double dTime);
-void pkdSunCorrector(PKD pkd,double dTime,double dSunMass); 
+void pkdSunCorrector(PKD pkd,double dTime,double dSunMass);
 void pkdPredictorInactive(PKD pkd,double dTime);
 void pkdAarsethStep(PKD pkd, double dEta);
 void pkdFirstDt(PKD pkd);

@@ -41,10 +41,10 @@ int pkdParticleEwald(PKD pkd,PARTICLE *p) {
     for (ix=-pkd->ew.nEwReps;ix<=pkd->ew.nEwReps;++ix) {
 	bInHolex = (ix >= -pkd->ew.nReps && ix <= pkd->ew.nReps);
 	x = dx + ix*L;
-	for(iy=-pkd->ew.nEwReps;iy<=pkd->ew.nEwReps;++iy) {
+	for (iy=-pkd->ew.nEwReps;iy<=pkd->ew.nEwReps;++iy) {
 	    bInHolexy = (bInHolex && iy >= -pkd->ew.nReps && iy <= pkd->ew.nReps);
 	    y = dy + iy*L;
-	    for(iz=-pkd->ew.nEwReps;iz<=pkd->ew.nEwReps;++iz) {
+	    for (iz=-pkd->ew.nEwReps;iz<=pkd->ew.nEwReps;++iz) {
 		bInHole = (bInHolexy && iz >= -pkd->ew.nReps && iz <= pkd->ew.nReps);
 		/*
 		** Scoring for Ewald inner stuff = (+,*)
@@ -52,7 +52,7 @@ int pkdParticleEwald(PKD pkd,PARTICLE *p) {
 		**		sqrt, 1/sqrt est. 	= (6,11)
 		**     division            = (6,11)  same as sqrt.
 		**		exp est.			= (6,11)  same as sqrt.
-		**		erf/erfc est.		= (12,22) twice a sqrt.	
+		**		erf/erfc est.		= (12,22) twice a sqrt.
 		**		Total			= (128,205) = 333
 		**     Old scoring				    = 447
 		*/
@@ -78,7 +78,7 @@ int pkdParticleEwald(PKD pkd,PARTICLE *p) {
 		    g4 = alphan*((1.0/11.0)*r2 - (1.0/9.0));
 		    alphan *= 2*pkd->ew.alpha2;
 		    g5 = alphan*((1.0/13.0)*r2 - (1.0/11.0));
-		}
+		    }
 		else {
 		    dir = 1/sqrt(r2);
 		    dir2 = dir*dir;
@@ -86,10 +86,10 @@ int pkdParticleEwald(PKD pkd,PARTICLE *p) {
 		    a *= pkd->ew.ka*dir2;
 		    if (bInHole) {
 			g0 = -erf(pkd->ew.alpha/dir);
-		    }
+			}
 		    else {
 			g0 = erfc(pkd->ew.alpha/dir);
-		    }
+			}
 		    g0 *= dir;
 		    g1 = g0*dir2 + a;
 		    alphan = 2*pkd->ew.alpha2;
@@ -100,7 +100,7 @@ int pkdParticleEwald(PKD pkd,PARTICLE *p) {
 		    g4 = 7*g3*dir2 + alphan*a;
 		    alphan *= 2*pkd->ew.alpha2;
 		    g5 = 9*g4*dir2 + alphan*a;
-		}
+		    }
 		xx = 0.5*x*x;
 		xxx = onethird*xx*x;
 		xxy = xx*y;
@@ -123,12 +123,12 @@ int pkdParticleEwald(PKD pkd,PARTICLE *p) {
 		Q3mirx = mom.xxx*xx + mom.xxy*xy + mom.xxz*xz + mom.xyy*yy + mom.xyz*yz + mom.xzz*zz;
 		Q3miry = mom.xxy*xx + mom.xyy*xy + mom.xyz*xz + mom.yyy*yy + mom.yyz*yz + mom.yzz*zz;
 		Q3mirz = mom.xxz*xx + mom.xyz*xy + mom.xzz*xz + mom.yyz*yy + mom.yzz*yz + mom.zzz*zz;
-		Q4mirx = mom.xxxx*xxx + mom.xxxy*xxy + mom.xxxz*xxz + mom.xxyy*xyy + mom.xxyz*xyz + 
-		    mom.xxzz*xzz + mom.xyyy*yyy + mom.xyyz*yyz + mom.xyzz*yzz + mom.xzzz*zzz;
-		Q4miry = mom.xxxy*xxx + mom.xxyy*xxy + mom.xxyz*xxz + mom.xyyy*xyy + mom.xyyz*xyz + 
-		    mom.xyzz*xzz + mom.yyyy*yyy + mom.yyyz*yyz + mom.yyzz*yzz + mom.yzzz*zzz;
-		Q4mirz = mom.xxxz*xxx + mom.xxyz*xxy + mom.xxzz*xxz + mom.xyyz*xyy + mom.xyzz*xyz + 
-		    mom.xzzz*xzz + mom.yyyz*yyy + mom.yyzz*yyz + mom.yzzz*yzz + mom.zzzz*zzz;
+		Q4mirx = mom.xxxx*xxx + mom.xxxy*xxy + mom.xxxz*xxz + mom.xxyy*xyy + mom.xxyz*xyz +
+			 mom.xxzz*xzz + mom.xyyy*yyy + mom.xyyz*yyz + mom.xyzz*yzz + mom.xzzz*zzz;
+		Q4miry = mom.xxxy*xxx + mom.xxyy*xxy + mom.xxyz*xxz + mom.xyyy*xyy + mom.xyyz*xyz +
+			 mom.xyzz*xzz + mom.yyyy*yyy + mom.yyyz*yyz + mom.yyzz*yzz + mom.yzzz*zzz;
+		Q4mirz = mom.xxxz*xxx + mom.xxyz*xxy + mom.xxzz*xxz + mom.xyyz*xyy + mom.xyzz*xyz +
+			 mom.xzzz*xzz + mom.yyyz*yyy + mom.yyzz*yyz + mom.yzzz*yzz + mom.zzzz*zzz;
 		Q4x = pkd->ew.Q4xx*x + pkd->ew.Q4xy*y + pkd->ew.Q4xz*z;
 		Q4y = pkd->ew.Q4xy*x + pkd->ew.Q4yy*y + pkd->ew.Q4yz*z;
 		Q4z = pkd->ew.Q4xz*x + pkd->ew.Q4yz*y + pkd->ew.Q4zz*z;
@@ -141,9 +141,9 @@ int pkdParticleEwald(PKD pkd,PARTICLE *p) {
 		ay += g2*(Q2miry - pkd->ew.Q3y) + g3*(Q3miry - Q4y) + g4*Q4miry - y*Qta;
 		az += g2*(Q2mirz - pkd->ew.Q3z) + g3*(Q3mirz - Q4z) + g4*Q4mirz - z*Qta;
 		++nLoop;
+		}
 	    }
 	}
-    }
     /*
     ** Scoring for the h-loop (+,*)
     ** 	Without trig = (10,14)
@@ -159,30 +159,29 @@ int pkdParticleEwald(PKD pkd,PARTICLE *p) {
 	ax += pkd->ew.ewt[i].hx*(pkd->ew.ewt[i].hCfac*s - pkd->ew.ewt[i].hSfac*c);
 	ay += pkd->ew.ewt[i].hy*(pkd->ew.ewt[i].hCfac*s - pkd->ew.ewt[i].hSfac*c);
 	az += pkd->ew.ewt[i].hz*(pkd->ew.ewt[i].hCfac*s - pkd->ew.ewt[i].hSfac*c);
-    }
+	}
     p->fPot += fPot;
     p->a[0] += ax;
     p->a[1] += ay;
     p->a[2] += az;
     nFlop = nLoop*447 + pkd->ew.nEwhLoop*58;
     return(nFlop);
-}
+    }
 
 
 int pkdBucketEwald(PKD pkd,KDN *pkdn) {
     int j,n,nFlop;
 
     n = pkdn->pUpper - pkdn->pLower + 1;
-    for(j=0;j<n;++j) {
+    for (j=0;j<n;++j) {
 	nFlop += pkdParticleEwald(pkd,&pkd->pStore[pkdn->pLower+j]);
-    }
+	}
     return(nFlop);
-}
+    }
 
 
 
-void pkdEwaldInit(PKD pkd,int nReps,double fEwCut,double fhCut)
-{
+void pkdEwaldInit(PKD pkd,int nReps,double fEwCut,double fhCut) {
     MOMC mom = pkd->momRoot;
     int i,hReps,hx,hy,hz,h2;
     double alpha,k4,L;
@@ -230,7 +229,7 @@ void pkdEwaldInit(PKD pkd,int nReps,double fEwCut,double fhCut)
 		    pkd->ew.nMaxEwhLoop *= 2;
 		    pkd->ew.ewt = realloc(pkd->ew.ewt,pkd->ew.nMaxEwhLoop*sizeof(EWT));
 		    assert(pkd->ew.ewt != NULL);
-		}
+		    }
 		gam[0] = exp(-k4*h2)/(M_PI*h2*L);
 		gam[1] = 2*M_PI/L*gam[0];
 		gam[2] = -2*M_PI/L*gam[1];
@@ -265,10 +264,10 @@ void pkdEwaldInit(PKD pkd,int nReps,double fEwCut,double fhCut)
 		pkd->ew.ewt[i].hCfac = mfacc;
 		pkd->ew.ewt[i].hSfac = mfacs;
 		++i;
+		}
 	    }
 	}
-    }
     pkd->ew.nEwhLoop = i;
-}
+    }
 
 

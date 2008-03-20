@@ -131,7 +131,7 @@ enum pst_service {
     PST_SETNPARTS,
     PST_DENSCHECK,
     PST_FOF,
-    PST_GROUPMERGE, 
+    PST_GROUPMERGE,
     PST_GROUPPROFILES,
     PST_INITRELAXATION,
     PST_CLEARTIMER,
@@ -190,7 +190,7 @@ void pstSetAdd(PST,void *,int,void *,int *);
 struct inReadTipsy {
     uint64_t nFileStart;
     uint64_t nFileEnd;
-    uint64_t nDark;	
+    uint64_t nDark;
     uint64_t nGas;
     uint64_t nStar;
     int nBucket;
@@ -208,9 +208,9 @@ void pstReadHDF5(PST,void *,int,void *,int *);
 #endif
 
 struct inPeanoHilbertCount {
-};
+    };
 struct outPeanoHilbertCount {
-};
+    };
 void pstPeanoHilbertCount(PST,void *,int,void *,int *);
 
 /* PST_DOMAINDECOMP */
@@ -369,7 +369,7 @@ struct inIOLoad {
     int nBucket;
     float fExtraStore;
     FLOAT fPeriod[3];
-};
+    };
 
 void pstIOLoad(PST,void *,int,void *,int *);
 
@@ -426,7 +426,7 @@ void pstSmooth(PST,void *,int,void *,int *);
 
 /* PST_GRAVITY */
 struct inGravity {
-  double dTime;
+    double dTime;
     int nReps;
     int bPeriodic;
     int bEwald;
@@ -438,7 +438,7 @@ struct outGravity {
     double dPartSum;
     double dCellSum;
     double dFlop;
-    /*	
+    /*
     ** Collected CPU time.
     */
     double dWalkTime;
@@ -487,8 +487,7 @@ void pstParticleCacheFinish(PST, void *, int, void *, int *);
 void pstCacheBarrier(PST, void *, int, void *, int *);
 
 /* PST_STEPVERYACTIVE */
-struct inStepVeryActive 
-    {
+struct inStepVeryActive {
     double dStep;
     double dTime;
     double dDelta;
@@ -499,16 +498,14 @@ struct inStepVeryActive
     double adSunInact[3];
     double dSunMass;
     };
-struct outStepVeryActive
-    {
+struct outStepVeryActive {
     int nMaxRung;
     };
 void pstStepVeryActiveKDK(PST,void *,int,void *,int *);
 
 #ifdef HERMITE
 /* PST_STEPVERYACTIVEH */
-struct inStepVeryActiveH 
-    {
+struct inStepVeryActiveH {
     double dStep;
     double dTime;
     double dDelta;
@@ -519,15 +516,14 @@ struct inStepVeryActiveH
     double adSunInact[3];
     double dSunMass;
     };
-struct outStepVeryActiveH
-    {
+struct outStepVeryActiveH {
     int nMaxRung;
     };
 void pstStepVeryActiveHermite(PST,void *,int,void *,int *);
 
 /* PST_COPY0 */
 struct inCopy0 {
-    double dTime;   
+    double dTime;
     };
 void pstCopy0(PST,void *,int,void *,int *);
 
@@ -539,7 +535,7 @@ void pstPredictor(PST,void *,int,void *,int *);
 
 /* PST_CORRECTOR */
 struct inCorrector {
-  double dTime;
+    double dTime;
     };
 void pstCorrector(PST,void *,int,void *,int *);
 
@@ -782,8 +778,7 @@ void pstMarkSmooth(PST,void *,int,void *,int *);
 
 
 /* PST_CLEARTIMER */
-struct inClearTimer 
-    {
+struct inClearTimer {
     int iTimer;
     };
 
@@ -797,11 +792,11 @@ struct inFof {
     int iSmoothType;
     SMF smf;
     };
-struct inGroupMerge{
+struct inGroupMerge {
     int bPeriodic;
     SMF smf;
     };
-struct inGroupProfiles{
+struct inGroupProfiles {
     int nSmooth;
     int nFOFsDone;
     int bPeriodic;
@@ -824,8 +819,8 @@ void pstInitRelaxation(PST,void *,int,void *,int *);
 
 /* PST_WRITESS */
 struct inWriteSS {
-	char achOutFile[PST_FILENAME_SIZE];
-	};
+    char achOutFile[PST_FILENAME_SIZE];
+    };
 void pstWriteSS(PST,void *,int,void *,int *);
 
 /* PST_READSS */
@@ -841,82 +836,81 @@ struct inReadSS {
     FLOAT fPeriod[3];	/* for compatability */
     char achInFile[PST_FILENAME_SIZE];
     double dSunMass;
-};
+    };
 void pstReadSS(PST,void *,int,void *,int *);
 
 /* PST_SUNINDIRECT */
-struct inSunIndirect{
-      int iFlag;
-     }; 
-struct outSunIndirect{
-      double aSun[3];
-      double adSun[3];
-     }; 
+struct inSunIndirect {
+    int iFlag;
+    };
+struct outSunIndirect {
+    double aSun[3];
+    double adSun[3];
+    };
 void pstSunIndirect(PST,void *,int,void *,int *);
 
 /* PST_GRAVSUN */
-struct inGravSun{
-      double aSun[3];
-      double adSun[3];
-      double dSunMass;
-      };
+struct inGravSun {
+    double aSun[3];
+    double adSun[3];
+    double dSunMass;
+    };
 void pstGravSun(PST,void *,int,void *,int *);
 
 /* PST_HANDSUNMASS */
-struct inHandSunMass{
-      double dSunMass;
-      };
+struct inHandSunMass {
+    double dSunMass;
+    };
 void pstHandSunMass(PST,void *,int,void *,int *);
 
 
 /* PST_NEXTCOLLISION */
 struct outNextCollision {
-	double dt;
-	uint64_t iOrder1,iOrder2;
-	};
+    double dt;
+    uint64_t iOrder1,iOrder2;
+    };
 void pstNextCollision(PST,void *,int,void *,int *);
 
 /* PST_GETCOLLIDERINFO */
 struct inGetColliderInfo {
-	uint64_t iOrder;
-	};
+    uint64_t iOrder;
+    };
 struct outGetColliderInfo {
-	COLLIDER Collider;
-	};
+    COLLIDER Collider;
+    };
 void pstGetColliderInfo(PST,void *,int,void *,int *);
 
 /* PST_DOCOLLISION */
 struct inDoCollision {
-	double dt;
-	COLLIDER Collider1,Collider2;
-        int bPeriodic;
-	COLLISION_PARAMS CP;
-	};
+    double dt;
+    COLLIDER Collider1,Collider2;
+    int bPeriodic;
+    COLLISION_PARAMS CP;
+    };
 struct outDoCollision {
-	COLLIDER Out[MAX_NUM_FRAG];
-	double dT;
-        int iOutcome,nOut;
-        };
+    COLLIDER Out[MAX_NUM_FRAG];
+    double dT;
+    int iOutcome,nOut;
+    };
 void pstDoCollision(PST,void *,int,void *,int *);
 
 /* PST_GETVARIABLEVERYACTIVE */
 struct outGetVariableVeryActive {
-        double dDeltaEcoll;
-        };
+    double dDeltaEcoll;
+    };
 void pstGetVariableVeryActive(PST,void *,int,void *,int *);
 
 /* PST_CHECKHELIODIST */
 struct outCheckHelioDist {
-        double dT;
-        double dSM;
-        };
+    double dT;
+    double dSM;
+    };
 void pstCheckHelioDist(PST,void *,int,void *,int *);
 
 #ifdef SYMBA
 
 /* PST_STEPVERYACTIVESYMBA */
-struct inStepVeryActiveS 
-    {
+struct inStepVeryActiveS {
     double dStep;
     double dTime;
     double dDelta;
@@ -925,8 +919,7 @@ struct inStepVeryActiveS
     double diCrit2;
     double dSunMass;
     };
-struct outStepVeryActiveS
-    {
+struct outStepVeryActiveS {
     int nMaxRung;
     };
 
@@ -943,33 +936,33 @@ struct outDrminToRung {
 void pstDrminToRung(PST,void *,int,void *,int *);
 
 /* PST_MOMSUN */
-struct outMomSun{
+struct outMomSun {
     double momSun[3];
-};
+    };
 
-void pstMomSun(PST,void *,int,void *,int *); 
+void pstMomSun(PST,void *,int,void *,int *);
 
 /* PST_DRIFTSUN */
-struct inDriftSun{
+struct inDriftSun {
     double vSun[3];
     double dDelta;
-};
-void pstDriftSun(PST,void *,int,void *,int *); 
+    };
+void pstDriftSun(PST,void *,int,void *,int *);
 
 /* PST_KEPLERDRIFT */
-struct inKeplerDrift{
+struct inKeplerDrift {
     double dDelta;
     double dSunMass;
-};
+    };
 
-void pstKeplerDrift(PST,void *,int,void *,int *); 
+void pstKeplerDrift(PST,void *,int,void *,int *);
 
 #endif /* SYMBA */
 #endif /* PLANETS */
 
 #ifdef USE_GRAFIC
 /* PST_GENERATEIC */
-struct inGenerateIC{
+struct inGenerateIC {
     double h;
     double dBoxSize;
     double omegac;
@@ -981,12 +974,12 @@ struct inGenerateIC{
     int bCannonical;
     float fExtraStore;
     FLOAT fPeriod[3];
-};
-struct outGenerateIC{
+    };
+struct outGenerateIC {
     double dExpansion;
-};
+    };
 
-void pstGenerateIC(PST,void *,int,void *,int *); 
+void pstGenerateIC(PST,void *,int,void *,int *);
 #endif
 
 /* PST_HOSTNAME */
@@ -1007,7 +1000,7 @@ struct outMemStatus {
     unsigned long rss;
     };
 void pstMemStatus(PST,void *,int,void *,int *);
-#endif 
+#endif
 
 /* PST_GETCLASSES - Output PARTCLASS[] */
 void pstGetClasses(PST,void *,int,void *,int *);

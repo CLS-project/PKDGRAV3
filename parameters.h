@@ -5,14 +5,14 @@
 
 #ifdef PLANETS
 typedef struct {
-	int iOutcomes;
-	double dDensity;
-	double dBounceLimit;
-	int iBounceOption;
-	double dEpsN;
-	double dEpsT;
-        int bFixCollapse;	
-	} COLLISION_PARAMS;
+    int iOutcomes;
+    double dDensity;
+    double dBounceLimit;
+    int iBounceOption;
+    double dEpsN;
+    double dEpsT;
+    int bFixCollapse;
+    } COLLISION_PARAMS;
 #endif
 
 /*
@@ -73,7 +73,7 @@ struct parameters {
     int nRungVeryActive;
     int nPartVeryActive;
     int iWallRunTime;
-    int bPhysicalSoft;  
+    int bPhysicalSoft;
     int bSoftMaxMul;
     int nSoftNbr;
     int bSoftByType;
@@ -116,27 +116,27 @@ struct parameters {
     /*
     ** Additional parameters for group finding.
     */
-    int	nFindGroups;	
-    int	nMinMembers;	
+    int	nFindGroups;
+    int	nMinMembers;
     double dTau;
     double dVTau;
     int bTauAbs;
-    int	nBins;	
-    int	bUsePotmin;	
-    int	nMinProfile;	
+    int	nBins;
+    int	bUsePotmin;
+    int	nMinProfile;
     double fBinsRescale;
     double fContrast;
     double Delta;
     double binFactor;
-    int bLogBins; 
+    int bLogBins;
 #ifdef RELAXATION
     int	bTraceRelaxation;
 #endif
-#ifdef PLANETS	
+#ifdef PLANETS
     int bHeliocentric;
     int bCollision;
     int iCollLogOption;
-    char achCollLog[256];	
+    char achCollLog[256];
     COLLISION_PARAMS CP;
 #ifdef SYMBA
     int bSymba;

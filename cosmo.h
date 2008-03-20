@@ -2,7 +2,7 @@
 #define COSMO_HINCLUDED
 
 typedef struct csmContext {
-    int bComove;	   
+    int bComove;
     double dHubble0;
     double dOmega0;
     double dLambda;
@@ -24,5 +24,5 @@ double csmComoveKickInt(CSM csm, double dIExp);
 double csmComoveDriftFac(CSM csm,double dTime,double dDelta);
 double csmComoveKickFac(CSM csm,double dTime,double dDelta);
 double csmComoveLookbackTime2Exp(CSM csm,double dComoveTime);
-     
+
 #endif

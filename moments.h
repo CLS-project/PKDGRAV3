@@ -21,11 +21,11 @@ typedef double momFloat;
  */
 /* IMPORTANT: The order of the fields MUST match with VMOMR */
 typedef struct momReduced {
-	momFloat m;
-	momFloat xx,yy,xy,xz,yz;
-	momFloat xxx,xyy,xxy,yyy,xxz,yyz,xyz;
-	momFloat xxxx,xyyy,xxxy,yyyy,xxxz,yyyz,xxyy,xxyz,xyyz;
-	} MOMR;
+    momFloat m;
+    momFloat xx,yy,xy,xz,yz;
+    momFloat xxx,xyy,xxy,yyy,xxz,yyz,xyz;
+    momFloat xxxx,xyyy,xxxy,yyyy,xxxz,yyyz,xxyy,xxyz,xyyz;
+    } MOMR;
 
 #ifdef USE_SIMD
 /*
@@ -35,7 +35,7 @@ typedef struct momReduced {
 typedef union {
     v4sf p;
     float f[4];
-} momPacked;
+    } momPacked;
 
 /* IMPORTANT: The order of the fields MUST match with MOMR */
 typedef struct momVectorReduced {
@@ -43,7 +43,7 @@ typedef struct momVectorReduced {
     momPacked xx,yy,xy,xz,yz;
     momPacked xxx,xyy,xxy,yyy,xxz,yyz,xyz;
     momPacked xxxx,xyyy,xxxy,yyyy,xxxz,yyyz,xxyy,xxyz,xyyz;
-} VMOMR;
+    } VMOMR;
 
 /* IMPORTANT: The order of the fields MUST match with GLAM  */
 /* IMPORTANT: The size of this structure must aligned by 16 */
@@ -59,7 +59,7 @@ typedef struct momGenLocrAddMomrSIMDArray {
     momPacked y;
     momPacked z;
     momPacked zero;
-} VGLAM;
+    } VGLAM;
 #endif
 
 /* IMPORTANT: The order of the fields MUST match with VGLAM */
@@ -76,20 +76,20 @@ typedef struct momGenLocrAddMomrArray {
     momFloat y;
     momFloat z;
     momFloat zero; /* 32 floats here */
-} GLAM;
+    } GLAM;
 
 /*
  ** moment tensor components for complete multipoles.
  */
 typedef struct momComplete {
-	momFloat m;
-	momFloat xx,yy,xy,xz,yz;
-	momFloat xxx,xyy,xxy,yyy,xxz,yyz,xyz;
-	momFloat xxxx,xyyy,xxxy,yyyy,xxxz,yyyz,xxyy,xxyz,xyyz;
-	momFloat zz;
-	momFloat xzz,yzz,zzz;
-	momFloat xxzz,xyzz,xzzz,yyzz,yzzz,zzzz;
-	} MOMC;
+    momFloat m;
+    momFloat xx,yy,xy,xz,yz;
+    momFloat xxx,xyy,xxy,yyy,xxz,yyz,xyz;
+    momFloat xxxx,xyyy,xxxy,yyyy,xxxz,yyyz,xxyy,xxyz,xyyz;
+    momFloat zz;
+    momFloat xzz,yzz,zzz;
+    momFloat xxzz,xyzz,xzzz,yyzz,yzzz,zzzz;
+    } MOMC;
 
 
 /*
@@ -97,30 +97,30 @@ typedef struct momComplete {
  ** note that we have the 5th-order terms here now!
  */
 typedef struct locReduced {
-	momFloat m;
-	momFloat x,y,z;
-	momFloat xx,xy,yy,xz,yz;
-	momFloat xxx,xxy,xyy,yyy,xxz,xyz,yyz;
-	momFloat xxxx,xxxy,xxyy,xyyy,yyyy,xxxz,xxyz,xyyz,yyyz;
-        momFloat xxxxx,xxxxy,xxxyy,xxyyy,xyyyy,yyyyy,xxxxz,xxxyz,xxyyz,xyyyz,yyyyz;        
-	} LOCR;
+    momFloat m;
+    momFloat x,y,z;
+    momFloat xx,xy,yy,xz,yz;
+    momFloat xxx,xxy,xyy,yyy,xxz,xyz,yyz;
+    momFloat xxxx,xxxy,xxyy,xyyy,yyyy,xxxz,xxyz,xyyz,yyyz;
+    momFloat xxxxx,xxxxy,xxxyy,xxyyy,xyyyy,yyyyy,xxxxz,xxxyz,xxyyz,xyyyz,yyyyz;
+    } LOCR;
 
 /*
  ** moment tensor components for complete local expansion.
  ** note that we have the 5th-order terms here now!
  */
 typedef struct locComplete {
-	momFloat m;
-	momFloat x,y,z;
-	momFloat xx,yy,xy,xz,yz;
-	momFloat xxx,xyy,xxy,yyy,xxz,yyz,xyz;
-	momFloat xxxx,xyyy,xxxy,yyyy,xxxz,yyyz,xxyy,xxyz,xyyz;
-        momFloat xxxxx,xxxxy,xxxyy,xxyyy,xyyyy,yyyyy,xxxxz,xxxyz,xxyyz,xyyyz,yyyyz;        
-	momFloat zz;
-	momFloat xzz,yzz,zzz;
-	momFloat xxzz,xyzz,xzzz,yyzz,yzzz,zzzz;
-        momFloat xxxzz,xxyzz,xyyzz,yyyzz,xxzzz,xyzzz,yyzzz,xzzzz,yzzzz,zzzzz;
-	} LOCC;
+    momFloat m;
+    momFloat x,y,z;
+    momFloat xx,yy,xy,xz,yz;
+    momFloat xxx,xyy,xxy,yyy,xxz,yyz,xyz;
+    momFloat xxxx,xyyy,xxxy,yyyy,xxxz,yyyz,xxyy,xxyz,xyyz;
+    momFloat xxxxx,xxxxy,xxxyy,xxyyy,xyyyy,yyyyy,xxxxz,xxxyz,xxyyz,xyyyz,yyyyz;
+    momFloat zz;
+    momFloat xzz,yzz,zzz;
+    momFloat xxzz,xyzz,xzzz,yyzz,yzzz,zzzz;
+    momFloat xxxzz,xxyzz,xyyzz,yyyzz,xxzzz,xyzzz,yyzzz,xzzzz,yzzzz,zzzzz;
+    } LOCC;
 
 
 void momAddMomc(MOMC *,MOMC *);
@@ -147,8 +147,8 @@ void momGenEvalMomr(MOMR *m,momFloat g0,momFloat g1,momFloat g2,momFloat g3,momF
 		    momFloat *fPot,momFloat *ax,momFloat *ay,momFloat *az,momFloat *magai);
 #ifdef USE_SIMD_MOMR
 double momGenEvalVMomr(int n,GLAM *p,momFloat ax,momFloat ay,momFloat az,
-		     momFloat *fPot,momFloat *aix,momFloat *aiy,momFloat *aiz,
-		     momFloat *rhosum,momFloat *maisum);
+		       momFloat *fPot,momFloat *aix,momFloat *aiy,momFloat *aiz,
+		       momFloat *rhosum,momFloat *maisum);
 void momPadSIMDMomr( int *nCell, ILC *ilc );
 void momEvalSIMDMomr( int nCell, const ILC *ilc, const double *r, const FLOAT *a,
 		      float *ax, float *ay, float *az, float *fPot,
@@ -180,7 +180,7 @@ void momLocrAddMomrAccurate(LOCR *l,MOMR *m,momFloat g0,momFloat x,momFloat y,mo
 double momLocrAddMomr5(LOCR *,MOMR *,momFloat,momFloat,momFloat,momFloat,double *,double *,double *);
 double momLocrAddMomr5Noopt(LOCR *,MOMR *,momFloat,momFloat,momFloat,momFloat);
 void momEvalLocr(LOCR *,momFloat,momFloat,momFloat,
-				 momFloat *,momFloat *,momFloat *,momFloat *); 
+		 momFloat *,momFloat *,momFloat *,momFloat *);
 void momPrintMomc(MOMC *);
 void momPrintMomr(MOMR *);
 void momPrintLocc(LOCC *);

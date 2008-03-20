@@ -25,8 +25,7 @@
 #define CHUNKSIZE (32*1024)
 #define MINVALUE (-1e20)
 
-static void makeName( IO io, char *achOutName, const char *inName, int iIndex )
-{
+static void makeName( IO io, char *achOutName, const char *inName, int iIndex ) {
     char *p;
 
     strcpy( achOutName, inName );
@@ -35,12 +34,12 @@ static void makeName( IO io, char *achOutName, const char *inName, int iIndex )
 	int n = p - achOutName;
 	sprintf( p, "%03d", iIndex );
 	strcat( p, inName + n + 2 );
-    }
+	}
     else {
 	p = achOutName + strlen(achOutName);
 	sprintf(p,".%03d", iIndex);
+	}
     }
-}
 
 
 
@@ -53,7 +52,7 @@ hid_t ioCreate( const char *filename ) {
     H5assert(fileID);
 
     return fileID;
-}
+    }
 
 hid_t ioOpen( const char *filename ) {
     hid_t fileID;
@@ -63,15 +62,14 @@ hid_t ioOpen( const char *filename ) {
     H5assert(fileID);
 
     return fileID;
-}
+    }
 
 
 
 static void ioSave(IO io, const char *filename, total_t N,
 		   double dTime,
 		   double dEcosmo, double dTimeOld, double dUOld,
-		   int bDouble )
-{
+		   int bDouble ) {
     hid_t fileID;
     IOHDF5 iohdf5;
     IOHDF5V ioDen;
@@ -103,7 +101,7 @@ static void ioSave(IO io, const char *filename, total_t N,
 	assert(xdr_u_int(&xdr,&nBodies));
 	assert(xdr_u_int(&xdr,&nZero));
 	assert(xdr_u_int(&xdr,&nZero));
-    }
+	}
 #endif
 
     /* Create the output file */
@@ -117,10 +115,10 @@ static void ioSave(IO io, const char *filename, total_t N,
     ioHDF5WriteAttribute( iohdf5, "dTimeOld",H5T_NATIVE_DOUBLE, &dTimeOld );
     ioHDF5WriteAttribute( iohdf5, "dUOld",   H5T_NATIVE_DOUBLE, &dUOld );
 
-    for( i=0; i<io->N; i++ ) {
-/*	ioHDF5AddDark(iohdf5, io->iMinOrder+i,
-		      io->r[i].v, io->v[i].v,
-		      io->m[i], io->s[i], io->p[i] );*/
+    for ( i=0; i<io->N; i++ ) {
+	/*	ioHDF5AddDark(iohdf5, io->iMinOrder+i,
+			      io->r[i].v, io->v[i].v,
+			      io->m[i], io->s[i], io->p[i] );*/
 	ioHDF5AddDark(iohdf5, io->iMinOrder+i,
 		      io->r[i].v, io->v[i].v,
 		      io->ioClasses[io->vClass[i]].dMass,
@@ -131,24 +129,24 @@ static void ioSave(IO io, const char *filename, total_t N,
 #ifdef USE_IO_TIPSY
 	fTmp = io->ioClasses[io->vClass[i]].dMass;
 	xdr_float(&xdr,&fTmp);
-	for(j=0;j<3;j++) {
+	for (j=0;j<3;j++) {
 	    if (bDouble)
 		xdr_double(&xdr,&io->r[i].v[j]);
 	    else {
 		fTmp = io->r[i].v[j];
 		xdr_float(&xdr,&fTmp);
+		}
 	    }
-	}
-	for(j=0;j<3;j++) {
+	for (j=0;j<3;j++) {
 	    fTmp = io->v[i].v[j];
 	    xdr_float(&xdr,&fTmp);
-	}
+	    }
 	fTmp = io->ioClasses[io->vClass[i]].dSoft;
 	xdr_float(&xdr,&fTmp);
 	fTmp = io->p[i];
 	xdr_float(&xdr,&fTmp);
 #endif
-    }
+	}
     ioHDF5Finish(iohdf5);
 
     H5assert(H5Fflush(fileID,H5F_SCOPE_GLOBAL));
@@ -158,14 +156,13 @@ static void ioSave(IO io, const char *filename, total_t N,
     xdr_destroy(&xdr);
     fclose(tfp);
 #endif
-}
+    }
 
 
 static void ioLoad(IO io, const char *filename,
 		   total_t iIndex, total_t N,
 		   double *dTime, double *dEcosmo,
-		   double *dTimeOld, double *dUOld )
-{
+		   double *dTimeOld, double *dUOld ) {
     hid_t fileID;
     IOHDF5 iohdf5;
     IOHDF5V ioDen;
@@ -193,22 +190,22 @@ static void ioLoad(IO io, const char *filename,
 
     /*printf( "%s: %lu -> %lu\n", filename, iIndex, iIndex+N );*/
 
-    for( i=0; i<N; i++ ) {
+    for ( i=0; i<N; i++ ) {
 	local_t iLocal = iOffset + i;
 	FLOAT dMass, dSoft;
 	float fPot;
 
 	ioHDF5GetDark(iohdf5, &iOrder,
-		   io->r[iLocal].v, io->v[iLocal].v,
-		   &dMass, &dSoft, &fPot );
+		      io->r[iLocal].v, io->v[iLocal].v,
+		      &dMass, &dSoft, &fPot );
 
 	/*FIXME: linear search - MAX 256, <10 typical */
-	for( iClass=0; iClass<io->nClasses; iClass++ )
+	for ( iClass=0; iClass<io->nClasses; iClass++ )
 	    if ( io->ioClasses[iClass].dMass == dMass && io->ioClasses[iClass].dSoft == dSoft )
 		break;
 	if ( iClass != io->nClasses ) {
 	    io->ioClasses[iClass].iMaxOrder = iOrder;
-	}
+	    }
 	else {
 	    assert( iClass<MAX_IO_CLASSES);
 	    io->nClasses++;
@@ -216,17 +213,16 @@ static void ioLoad(IO io, const char *filename,
 	    io->ioClasses[iClass].dSoft = dSoft;
 	    io->ioClasses[iClass].iMinOrder = iOrder;
 	    io->ioClasses[iClass].iMaxOrder = iOrder;
-	}
+	    }
 	io->vClass[iLocal] = iClass;
-    }
+	}
 
     ioHDF5Finish(iohdf5);
 
     H5assert(H5Fclose(fileID));
-}
+    }
 
-void ioInitialize(IO *pio,MDL mdl)
-{
+void ioInitialize(IO *pio,MDL mdl) {
     IO io;
     io = (IO)malloc(sizeof(struct ioContext));
     mdlassert(mdl,io != NULL);
@@ -242,10 +238,9 @@ void ioInitialize(IO *pio,MDL mdl)
     io->nClasses = 0;
 
     *pio = io;
-}
+    }
 
-void ioAddServices(IO io,MDL mdl)
-{
+void ioAddServices(IO io,MDL mdl) {
     mdlAddService(mdl,IO_SETUP,io,
 		  (void (*)(void *,void *,int,void *,int *)) ioSetup,
 		  sizeof(struct inIOSetup),0);
@@ -273,21 +268,20 @@ void ioAddServices(IO io,MDL mdl)
 		  (void (*)(void *,void *,int,void *,int *)) ioMakePNG,
 		  sizeof(struct inMakePNG),0);
 #endif
-}
+    }
 
 /*
 **  This service is called from the peer root node (processor 0) and initiates
 **  a save process.
 */
-void ioStartSave(IO io,void *vin,int nIn,void *vout,int *pnOut)
-{
+void ioStartSave(IO io,void *vin,int nIn,void *vout,int *pnOut) {
     int id;
     float scale;
     struct inStartSave *save = vin;
     struct inStartRecv recv;
     total_t iCount;
 #ifdef USE_PNG
-	struct inMakePNG png;
+    struct inMakePNG png;
 #endif
 
     mdlassert(io->mdl,sizeof(struct inStartSave)==nIn);
@@ -306,47 +300,46 @@ void ioStartSave(IO io,void *vin,int nIn,void *vout,int *pnOut)
     printf( "Starting to save %"PRIu64" particles (~%"PRIu64" per I/O node)\n",
 	    save->N, iCount );
 
-    for( id=1; id<mdlIO(io->mdl); id++ ) {
+    for ( id=1; id<mdlIO(io->mdl); id++ ) {
 	recv.iIndex = iCount * id;
 	recv.nCount = iCount;
 	if ( id+1 == mdlIO(io->mdl) )
 	    recv.nCount = save->N - recv.iIndex;
 	mdlReqService(io->mdl,id,IO_START_RECV,&recv,sizeof(recv));
-    }
+	}
 
     recv.iIndex = 0;
     recv.nCount = iCount;
     ioStartRecv(io,&recv,sizeof(recv),NULL,0);
 
-    for( id=1; id<mdlIO(io->mdl); id++ ) {
+    for ( id=1; id<mdlIO(io->mdl); id++ ) {
 	mdlGetReply(io->mdl,id,NULL,NULL);
-    }
+	}
 
 #ifdef USE_PNG
-    for( scale=1.0; scale<=8.0+1e-5; scale*=2.0 ) {
+    for ( scale=1.0; scale<=8.0+1e-5; scale*=2.0 ) {
 	png.iResolution = 10240;
 	png.minValue = -1;
 	png.maxValue = 5;
 	png.scale = scale;
 	strcpy(png.achOutName,save->achOutName);
-	for( id=1; id<mdlIO(io->mdl); id++ ) {
+	for ( id=1; id<mdlIO(io->mdl); id++ ) {
 	    mdlReqService(io->mdl,id,IO_MAKE_PNG,&png,sizeof(png));
-	}
+	    }
 	ioMakePNG(io,&png,sizeof(png),NULL,0);
 
-	for( id=1; id<mdlIO(io->mdl); id++ ) {
+	for ( id=1; id<mdlIO(io->mdl); id++ ) {
 	    mdlGetReply(io->mdl,id,NULL,NULL);
+	    }
 	}
-    }
 #endif
     mdlSetComm(io->mdl,1);
-}
+    }
 
 /*
 ** Here we figure out how many input file there are.
 */
-void ioPlanLoad(IO io,void *vin,int nIn,void *vout,int *pnOut)
-{
+void ioPlanLoad(IO io,void *vin,int nIn,void *vout,int *pnOut) {
     int id,i;
     int me;
     H5E_auto_t oldAutoFunc;
@@ -362,20 +355,20 @@ void ioPlanLoad(IO io,void *vin,int nIn,void *vout,int *pnOut)
 
     if ( me == 0 ) {
 	mdlSetComm(io->mdl,0); /* Talk to our peers */
-	for( id=1; id<mdlIO(io->mdl); id++ ) {
+	for ( id=1; id<mdlIO(io->mdl); id++ ) {
 	    mdlReqService(io->mdl,id,IO_PLAN_LOAD,vin,nIn);
-	}
+	    }
 	mdlSetComm(io->mdl,1);
-    }
+	}
 
-    for( i=0; i<MDL_MAX_IO_PROCS; i++ )
+    for ( i=0; i<MDL_MAX_IO_PROCS; i++ )
 	out->nCount[i] = 0;
     out->dEcosmo = out->dTimeOld = out->dUOld = 0.0;
 
     /* Check only files for which I am responsible */
     H5Eget_auto(&oldAutoFunc, &oldAutoData );
     H5Eset_auto(0,0);
-    for( i=me; i<MDL_MAX_IO_PROCS; i += mdlIO(io->mdl) ) {
+    for ( i=me; i<MDL_MAX_IO_PROCS; i += mdlIO(io->mdl) ) {
 	makeName( io, achInName, in->achInName, i );
 	if ( H5Fis_hdf5(achInName) > 0 ) {
 	    fileID = ioOpen(achInName);
@@ -384,41 +377,40 @@ void ioPlanLoad(IO io,void *vin,int nIn,void *vout,int *pnOut)
 	    assert(ioHDF5ReadAttribute(
 		       iohdf5, "dTime", H5T_NATIVE_DOUBLE, &out->dExpansion ));
 	    ioHDF5ReadAttribute(
-		       iohdf5, "dEcosmo", H5T_NATIVE_DOUBLE, &out->dEcosmo );
+		iohdf5, "dEcosmo", H5T_NATIVE_DOUBLE, &out->dEcosmo );
 	    ioHDF5ReadAttribute(
-		       iohdf5, "dTimeOld", H5T_NATIVE_DOUBLE, &out->dTimeOld );
+		iohdf5, "dTimeOld", H5T_NATIVE_DOUBLE, &out->dTimeOld );
 	    ioHDF5ReadAttribute(
-		       iohdf5, "dUOld", H5T_NATIVE_DOUBLE, &out->dUOld );
+		iohdf5, "dUOld", H5T_NATIVE_DOUBLE, &out->dUOld );
 	    ioHDF5Finish(iohdf5);
 	    H5assert(H5Fclose(fileID));
-	}
+	    }
 	else break;
-    }
+	}
     H5Eset_auto(oldAutoFunc, oldAutoData );
 
     if ( me == 0 ) {
 	struct outPlanLoad outChild;
 	int outN;
 	mdlSetComm(io->mdl,0); /* Talk to our peers */
-	for( id=1; id<mdlIO(io->mdl); id++ ) {
+	for ( id=1; id<mdlIO(io->mdl); id++ ) {
 	    mdlGetReply(io->mdl,id,&outChild,&outN);
 	    assert(outN == sizeof(outChild) );
 
-	    for( i=0; i<MDL_MAX_IO_PROCS; i++ )
+	    for ( i=0; i<MDL_MAX_IO_PROCS; i++ )
 		out->nCount[i] += outChild.nCount[i];
-	}
+	    }
 	mdlSetComm(io->mdl,1);
-    }
+	}
     if ( pnOut ) *pnOut = sizeof(struct outPlanLoad);
-}
+    }
 
 
 /*
 **  This service is called from the peer root node (processor 0) and initiates
 **  a load process.
 */
-void ioStartLoad(IO io,void *vin,int nIn,void *vout,int *pnOut)
-{
+void ioStartLoad(IO io,void *vin,int nIn,void *vout,int *pnOut) {
     int id, i;
     struct inStartLoad *load = vin;
     struct inStartSend send, send0;
@@ -429,27 +421,27 @@ void ioStartLoad(IO io,void *vin,int nIn,void *vout,int *pnOut)
     mdlassert(io->mdl,mdlSelf(io->mdl)==0);
 
     N = 0;
-    for( i=0; i<load->nFiles; i++ )
+    for ( i=0; i<load->nFiles; i++ )
 	N += load->nCount[i];
     nLocal = N / mdlIO(io->mdl);
 
     mdlSetComm(io->mdl,0); /* Talk to our peers */
-    for( id=1; id<mdlIO(io->mdl); id++ ) {
+    for ( id=1; id<mdlIO(io->mdl); id++ ) {
 	if ( id+1 == mdlIO(io->mdl) )
 	    alloc.nCount = N - nLocal*(mdlIO(io->mdl)-1);
 	else
 	    alloc.nCount = nLocal;
 	mdlReqService(io->mdl,id,IO_ALLOCATE,&alloc,sizeof(alloc));
-    }
+	}
     mdlSetComm(io->mdl,1);
 
     alloc.nCount = nLocal;
     ioAllocate(io,&alloc, sizeof(alloc),0,0);
 
     mdlSetComm(io->mdl,0); /* Talk to our peers */
-    for( id=1; id<mdlIO(io->mdl); id++ ) {
+    for ( id=1; id<mdlIO(io->mdl); id++ ) {
 	mdlGetReply(io->mdl,id,NULL,NULL);
-    }
+	}
     mdlSetComm(io->mdl,1);
 
 
@@ -460,7 +452,7 @@ void ioStartLoad(IO io,void *vin,int nIn,void *vout,int *pnOut)
     send.iFirstFile = send.iLastFile = 0;
     send.iFirstOffset = send.iLastOffset = 0;
 
-    for( id=0; id<mdlIO(io->mdl); id++ ) {
+    for ( id=0; id<mdlIO(io->mdl); id++ ) {
 	send.iMinOrder = id * nLocal;
 	if ( id+1 == mdlIO(io->mdl) )
 	    nLocal = N - nLocal*(mdlIO(io->mdl)-1);
@@ -470,7 +462,7 @@ void ioStartLoad(IO io,void *vin,int nIn,void *vout,int *pnOut)
 	if ( send.iFirstOffset == load->nCount[send.iFirstFile] ) {
 	    send.iFirstOffset = 0;
 	    send.iFirstFile++;
-	}
+	    }
 
 	send.iLastFile    = send.iFirstFile;
 	send.iLastOffset  = send.iFirstOffset + nLocal;
@@ -482,9 +474,9 @@ void ioStartLoad(IO io,void *vin,int nIn,void *vout,int *pnOut)
 	    while ( n > load->nCount[send.iLastFile] ) {
 		n -= load->nCount[send.iLastFile];
 		send.iLastFile++;
-	    }
+		}
 	    send.iLastOffset = n;
-	}
+	    }
 	/*printf( "%d %d.%lu -> %d.%lu\n",
 		id, send.iFirstFile, send.iFirstOffset,
 		send.iLastFile, send.iLastOffset );*/
@@ -497,25 +489,24 @@ void ioStartLoad(IO io,void *vin,int nIn,void *vout,int *pnOut)
 	    send0.iFirstOffset = send.iFirstOffset;
 	    send0.iLastFile = send.iLastFile;
 	    send0.iLastOffset = send.iLastOffset;
-	}
+	    }
 	else {
 	    mdlReqService(io->mdl,id,IO_START_SEND,&send,sizeof(send));
+	    }
 	}
-    }
     mdlSetComm(io->mdl,1);
 
     ioStartSend(io,&send0,sizeof(send0),NULL,0);
 
     mdlSetComm(io->mdl,0); /* Talk to our peers */
-    for( id=1; id<mdlIO(io->mdl); id++ ) {
+    for ( id=1; id<mdlIO(io->mdl); id++ ) {
 	mdlGetReply(io->mdl,id,NULL,NULL);
-    }
+	}
     mdlSetComm(io->mdl,1);
 
-}
+    }
 
-static int ioUnpackIO(void *vctx, int *id, size_t nSize, void *vBuff)
-{
+static int ioUnpackIO(void *vctx, int *id, size_t nSize, void *vBuff) {
     IO io = vctx;
     PIO *pio = vBuff;
     uint_fast32_t nIO = nSize / sizeof(PIO);
@@ -524,7 +515,7 @@ static int ioUnpackIO(void *vctx, int *id, size_t nSize, void *vBuff)
     mdlassert(io->mdl,nIO*sizeof(PIO) == nSize);
     mdlassert(io->mdl,nIO<=io->nExpected);
 
-    for( i=0; i<nIO; i++ ) {
+    for ( i=0; i<nIO; i++ ) {
 	total_t iOrder = pio[i].iOrder;
 	size_t iLocal = iOrder - io->iMinOrder;
 	size_t iClass;
@@ -535,13 +526,13 @@ static int ioUnpackIO(void *vctx, int *id, size_t nSize, void *vBuff)
 	mdlassert(io->mdl,pio[i].fMass > 0.0);
 	mdlassert(io->mdl,pio[i].fSoft > 0.0);
 
-	for( d=0; d<3; d++ ) {
+	for ( d=0; d<3; d++ ) {
 	    io->r[iLocal].v[d] = pio[i].r[d];
 	    io->v[iLocal].v[d] = pio[i].v[d];
-	}
+	    }
 
 	/*FIXME: linear search - MAX 256, <10 typical */
-	for( iClass=0; iClass<io->nClasses; iClass++ )
+	for ( iClass=0; iClass<io->nClasses; iClass++ )
 	    if ( io->ioClasses[iClass].dMass == pio[i].fMass && io->ioClasses[iClass].dSoft == pio[i].fSoft )
 		break;
 	if ( iClass != io->nClasses ) {
@@ -549,7 +540,7 @@ static int ioUnpackIO(void *vctx, int *id, size_t nSize, void *vBuff)
 		io->ioClasses[iClass].iMinOrder = iOrder;
 	    else if ( io->ioClasses[iClass].iMinOrder > iOrder )
 		io->ioClasses[iClass].iMinOrder = iOrder;
-	}
+	    }
 	else {
 	    assert( iClass<MAX_IO_CLASSES);
 	    io->nClasses++;
@@ -557,19 +548,18 @@ static int ioUnpackIO(void *vctx, int *id, size_t nSize, void *vBuff)
 	    io->ioClasses[iClass].dSoft = pio[i].fSoft;
 	    io->ioClasses[iClass].iMinOrder = iOrder;
 	    io->ioClasses[iClass].iMaxOrder = iOrder;
-	}
+	    }
 	io->vClass[iLocal] = iClass;
 	io->d[iLocal] = pio[i].fDensity;
 	io->p[iLocal] = pio[i].fPot;
 
-    }
+	}
 
     io->nExpected -= nIO;
     return io->nExpected;
-}
+    }
 
-static int ioPackIO(void *vctx, int *id, size_t nSize, void *vBuff)
-{
+static int ioPackIO(void *vctx, int *id, size_t nSize, void *vBuff) {
     IO io = vctx;
     PIO *pio = vBuff;
     uint_fast32_t nIO = nSize / sizeof(PIO);
@@ -587,15 +577,15 @@ static int ioPackIO(void *vctx, int *id, size_t nSize, void *vBuff)
     if ( n > nIO ) n = nIO;
 
     /* Okay, send "n" particles to "id" -- n can be zero meaning we are done */
-    for( i=0; i<n; i++ ) {
+    for ( i=0; i<n; i++ ) {
 	int I = io->iOrder - io->iMinOrder;
 	assert( I < io->N );
 
 	pio->iOrder = io->iOrder;
-	for( d=0; d<3; d++ ) {
+	for ( d=0; d<3; d++ ) {
 	    pio->r[d] = io->r[I].v[d];
 	    pio->v[d] = io->v[I].v[d];
-	}
+	    }
 	pio->fDensity = 0.0;
 	pio->fPot = 0.0;
 	pio->fMass = io->ioClasses[io->vClass[I]].dMass;
@@ -603,16 +593,15 @@ static int ioPackIO(void *vctx, int *id, size_t nSize, void *vBuff)
 
 	io->iOrder++;
 	pio++;
-    }
+	}
     assert( n>0 || io->iOrder == io->iMaxOrder );
 
     return n * sizeof(PIO);
-}
+    }
 
 
 
-void ioAllocate(IO io,void *vin,int nIn,void *vout,int *pnOut)
-{
+void ioAllocate(IO io,void *vin,int nIn,void *vout,int *pnOut) {
     struct inIOAllocate *alloc = vin;
 
     mdlassert(io->mdl,sizeof(struct inIOAllocate)==nIn);
@@ -624,18 +613,17 @@ void ioAllocate(IO io,void *vin,int nIn,void *vout,int *pnOut)
 	    free(io->d);
 	    free(io->v);
 	    free(io->r);
-	}
+	    }
 	io->nAllocated = alloc->nCount + 100; /* Room to grow... */
 	io->r = malloc(io->nAllocated*sizeof(ioV3));  assert(io->r != NULL );
 	io->v = malloc(io->nAllocated*sizeof(ioV3));  assert(io->v != NULL );
 	io->d = malloc(io->nAllocated*sizeof(float));  assert(io->d != NULL );
 	io->p = malloc(io->nAllocated*sizeof(float));  assert(io->p != NULL );
 	io->vClass = malloc(io->nAllocated*sizeof(uint8_t)); assert( io->vClass != NULL );
+	}
     }
-}
 
-void ioSetup(IO io,void *vin,int nIn,void *vout,int *pnOut)
-{
+void ioSetup(IO io,void *vin,int nIn,void *vout,int *pnOut) {
     struct inIOSetup *setup = vin;
     struct inIOAllocate alloc;
     total_t iCount;
@@ -648,23 +636,22 @@ void ioSetup(IO io,void *vin,int nIn,void *vout,int *pnOut)
     ioAllocate(io,&alloc, sizeof(alloc),0,0);
 
     mdlSetComm(io->mdl,0); /* Talk to our peers */
-    for( id=1; id<mdlIO(io->mdl); id++ ) {
+    for ( id=1; id<mdlIO(io->mdl); id++ ) {
 	alloc.nCount = iCount;
 	if ( id+1 == mdlIO(io->mdl) )
 	    alloc.nCount = setup->N - id*iCount;
 	mdlReqService(io->mdl,id,IO_ALLOCATE,&alloc,sizeof(alloc));
-    }
-    for( id=1; id<mdlIO(io->mdl); id++ ) {
+	}
+    for ( id=1; id<mdlIO(io->mdl); id++ ) {
 	mdlGetReply(io->mdl,id,NULL,NULL);
-    }
+	}
     mdlSetComm(io->mdl,1);
-}
+    }
 
 /*
 **  Here we actually wait for the data from the Work nodes
 */
-void ioStartRecv(IO io,void *vin,int nIn,void *vout,int *pnOut)
-{
+void ioStartRecv(IO io,void *vin,int nIn,void *vout,int *pnOut) {
     struct inStartRecv *recv = vin;
     struct inIOAllocate alloc;
     char achOutName[256];
@@ -688,11 +675,10 @@ void ioStartRecv(IO io,void *vin,int nIn,void *vout,int *pnOut)
     ioSave(io, achOutName, recv->N, recv->dTime, recv->dEcosmo,
 	   recv->dTimeOld, recv->dUOld,
 	   recv->bCheckpoint ? IOHDF5_DOUBLE : IOHDF5_SINGLE );
-}
+    }
 
 
-void ioStartSend(IO io,void *vin,int nIn,void *vout,int *pnOut)
-{
+void ioStartSend(IO io,void *vin,int nIn,void *vout,int *pnOut) {
     struct inStartSend *send = vin;
     char achInName[256];
     double dTime, dEcosmo, dTimeOld, dUOld;
@@ -704,12 +690,12 @@ void ioStartSend(IO io,void *vin,int nIn,void *vout,int *pnOut)
     io->iMaxOrder = send->iMaxOrder;
     io->nTotal = send->N;
     io->N = 0;
-    for( i=send->iFirstFile; i<=send->iLastFile; i++ ) {
+    for ( i=send->iFirstFile; i<=send->iLastFile; i++ ) {
 	O = i==send->iFirstFile ? send->iFirstOffset : 0;
 	n = i==send->iLastFile ? send->iLastOffset-O : 0;
 	makeName( io, achInName, send->achInName, i );
 	ioLoad(io, achInName, O, n, &dTime, &dEcosmo, &dTimeOld, &dUOld );
-    }
+	}
     assert( io->N == io->iMaxOrder - io->iMinOrder );
 
     n = send->N / mdlThreads(io->mdl);
@@ -719,11 +705,10 @@ void ioStartSend(IO io,void *vin,int nIn,void *vout,int *pnOut)
     mdlSend(io->mdl,-1,ioPackIO,io);
     mdlSetComm(io->mdl,0);
 
-}
+    }
 
 #ifdef USE_PNG
-void ioMakePNG(IO io,void *vin,int nIn,void *vout,int *pnOut)
-{
+void ioMakePNG(IO io,void *vin,int nIn,void *vout,int *pnOut) {
     struct inMakePNG *make = vin;
     char achOutName[256];
     float *limg, *slice, X, Y;
@@ -740,10 +725,10 @@ void ioMakePNG(IO io,void *vin,int nIn,void *vout,int *pnOut)
     limg = malloc( N*sizeof(float) );
     assert( limg != NULL );
 
-    for( i=0; i<N; i++ ) limg[i] = MINVALUE;
+    for ( i=0; i<N; i++ ) limg[i] = MINVALUE;
 
     // Project the density onto a grid and find the maximum (ala Tipsy)
-    for( i=0; i<io->N; i++ ) {
+    for ( i=0; i<io->N; i++ ) {
 	// Scale, crop and adjust range to [0,1)
 	X = io->r[i].v[0] * make->scale + 0.5;
 	Y = io->r[i].v[1] * make->scale + 0.5;
@@ -754,16 +739,16 @@ void ioMakePNG(IO io,void *vin,int nIn,void *vout,int *pnOut)
 	assert( x>=0 && x<R && y>=0 && y<R );
 	if ( io->d[i] > limg[x+R*y] )
 	    limg[x+R*y] = io->d[i];
-    }
+	}
 
     if ( mdlSelf(io->mdl) == 0 ) {
 	slice = malloc( Ns*sizeof(float) );
 	assert( slice != NULL );
-	for( Is=0; Is<N; Is+=Ss ) {
+	for ( Is=0; Is<N; Is+=Ss ) {
 	    Ss = (N-Is) > Ns ? Ns : (N-Is);
 	    mdlReduce(io->mdl,limg+Is,slice,Ss,MPI_FLOAT,MPI_MAX,0);
 	    memcpy(limg+Is,slice,Ss*sizeof(float));
-	}
+	    }
 	makeName( io, achOutName, make->achOutName, mdlSelf(io->mdl) );
 	sprintf(achOutName+strlen(achOutName),"-%.1f.png", make->scale );
 	fp = fopen( achOutName, "wb" );
@@ -772,16 +757,16 @@ void ioMakePNG(IO io,void *vin,int nIn,void *vout,int *pnOut)
 	    pngWrite( png, fp, limg );
 	    pngFinish(png);
 	    fclose(fp);
-	}
+	    }
 	free(slice);
-    }
+	}
     else {
-	for( Is=0; Is<N; Is+=Ss ) {
+	for ( Is=0; Is<N; Is+=Ss ) {
 	    Ss = (N-Is) > Ns ? Ns : (N-Is);
 	    mdlReduce(io->mdl,limg+Is,0,Ss,MPI_FLOAT,MPI_MAX,0);
+	    }
 	}
-    }
 
     free(limg);
-}
+    }
 #endif

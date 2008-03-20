@@ -50,7 +50,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
     if (bVeryActive) {
 	assert(pkd->nVeryActive != 0);
 	assert(pkd->nVeryActive == pkd->kdNodes[VAROOT].pUpper - pkd->kdNodes[VAROOT].pLower + 1);
-	}	
+	}
     else if (!pkdIsCellActive(pkd,&pkd->kdNodes[ROOT])) return 0;
     /*
     ** SyncDelta is used to compare the current time to the time of a cell to decide
@@ -59,7 +59,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
     */
     dSyncDelta = pkd->param.dDelta*pow(2.0,-(pkd->param.iMaxRung+2.0));
     /*
-    ** Initially we set our cell pointer to 
+    ** Initially we set our cell pointer to
     ** point to the top tree.
     */
     c = pkd->kdTop;
@@ -97,7 +97,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 			}
 		    else {
 			pkd->Check[nCheck].id = c[ROOT].pLower;
-			}				    
+			}
 		    for (j=0;j<3;++j) pkd->Check[nCheck].rOffset[j] = rOffset[j];
 		    ++nCheck;
 		    }
@@ -133,7 +133,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 	    }
 	}
     /*
-    ** Now switch the cell pointer to point to 
+    ** Now switch the cell pointer to point to
     ** the local tree.
     */
     c = pkd->kdNodes;
@@ -165,37 +165,37 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 		** for this cell.
 		*/
 		if (fabs(pkdc->dTimeStamp-dTime) > dSyncDelta) {
-		  /*
-		  ** We need to account for cosmological drift factor here!
-		  */
-		  if (pkd->param.csm->bComove && pkd->param.bCannonical) {
 		    /*
-		    ** This might get called quite a bit in this code. Better might
-		    ** be to store a dDriftFac within the CheckElt structure, thereby
-		    ** reducing the number of calls to csmComoveDriftFac. Otherwise
-		    ** we may need to speed this function up.
+		    ** We need to account for cosmological drift factor here!
 		    */
-		    dDriftFac = csmComoveDriftFac(pkd->param.csm,pkdc->dTimeStamp,dTime - pkdc->dTimeStamp);
-		  }
-		  else {
-		    dDriftFac = dTime - pkdc->dTimeStamp;
-		  }
-		  for (j=0;j<3;++j) rCheck[j] = pkdc->r[j] + 
-		    dDriftFac*pkdc->v[j] + pkd->Check[i].rOffset[j];
-		}
+		    if (pkd->param.csm->bComove && pkd->param.bCannonical) {
+			/*
+			** This might get called quite a bit in this code. Better might
+			** be to store a dDriftFac within the CheckElt structure, thereby
+			** reducing the number of calls to csmComoveDriftFac. Otherwise
+			** we may need to speed this function up.
+			*/
+			dDriftFac = csmComoveDriftFac(pkd->param.csm,pkdc->dTimeStamp,dTime - pkdc->dTimeStamp);
+			}
+		    else {
+			dDriftFac = dTime - pkdc->dTimeStamp;
+			}
+		    for (j=0;j<3;++j) rCheck[j] = pkdc->r[j] +
+						      dDriftFac*pkdc->v[j] + pkd->Check[i].rOffset[j];
+		    }
 		else {
-		  dDriftFac = 0.0;
-		  for (j=0;j<3;++j) rCheck[j] = pkdc->r[j] + pkd->Check[i].rOffset[j];
-		}
+		    dDriftFac = 0.0;
+		    for (j=0;j<3;++j) rCheck[j] = pkdc->r[j] + pkd->Check[i].rOffset[j];
+		    }
 		if (c[iCell].iLower) {
 		    /*
 		    ** If this cell is not a bucket calculate the min distance
-		    ** from the center of mass of the check cell to the bounding 
-		    ** box of the cell we are calculating gravity on. We also 
-		    ** calculate the size of the ball (from checkcell CM) which 
+		    ** from the center of mass of the check cell to the bounding
+		    ** box of the cell we are calculating gravity on. We also
+		    ** calculate the size of the ball (from checkcell CM) which
 		    ** just contains the this cell (radius^2 given by max2).
 		    */
-		    min2 = 0;	
+		    min2 = 0;
 		    max2 = 0;
 		    for (j=0;j<3;++j) {
 			dMin = fabs(rCheck[j] - c[iCell].bnd.fCenter[j]);
@@ -205,7 +205,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 			max2 += dMax*dMax;
 			}
 		    /*
-		    ** By default we just keep this checkcell on the 
+		    ** By default we just keep this checkcell on the
 		    ** checklist.
 		    */
 		    if (max2 <= pkdc->fOpen2 || n < WALK_MINMULTIPOLE) iOpen = 1;
@@ -295,9 +295,9 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 			}
 		    else iOpen = 1;
 		    }
-/*
-  printf("   i:%6d iCheck:%6d id:%2d iOpen:%2d\n",i,pkd->Check[i].iCell,id,iOpen);
-*/
+		/*
+		  printf("   i:%6d iCheck:%6d id:%2d iOpen:%2d\n",i,pkd->Check[i].iCell,id,iOpen);
+		*/
 		if (iOpen > 0) {
 		    /*
 		    ** Contained! (or intersected in the case of reaching the bucket)
@@ -306,7 +306,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 		    if (iCheckCell) {
 			/*
 			** Open the cell.
-			** Here we ASSUME that the children of 
+			** Here we ASSUME that the children of
 			** pkdc are all in sequential memory order!
 			** (the new tree build assures this)
 			** (also true for the top tree)
@@ -330,14 +330,14 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 			** (this is a bit tricky)
 			*/
 			if (id < 0 ) {
-			    if(pkd->kdTop[iCheckCell].pLower >= 0) {
+			    if (pkd->kdTop[iCheckCell].pLower >= 0) {
 				pkd->Check[nCheck].iCell = ROOT;
 				pkd->Check[nCheck].id = pkd->kdTop[iCheckCell].pLower;
 				}
 			    else {
 				pkd->Check[nCheck].iCell = iCheckCell;
 				}
-			    if(pkd->kdTop[iCheckCell+1].pLower >= 0) {
+			    if (pkd->kdTop[iCheckCell+1].pLower >= 0) {
 				pkd->Check[nCheck+1].iCell = ROOT;
 				pkd->Check[nCheck+1].id = pkd->kdTop[iCheckCell+1].pLower;
 				}
@@ -366,7 +366,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 			    if (nPart + n > pkd->nMaxPart) {
 				pkd->nMaxPart += 500 + n;
 				pkd->ilp = realloc(pkd->ilp,pkd->nMaxPart*sizeof(ILP));
-				assert(pkd->ilp != NULL);	
+				assert(pkd->ilp != NULL);
 				}
 			    for (pj=pkdc->pLower;pj<=pkdc->pUpper;++pj) {
 				pkd->ilp[nPart].iOrder = p[pj].iOrder;
@@ -374,7 +374,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 				pkd->ilp[nPart].x = p[pj].r[0] + dDriftFac*p[pj].v[0] + pkd->Check[i].rOffset[0];
 				pkd->ilp[nPart].y = p[pj].r[1] + dDriftFac*p[pj].v[1] + pkd->Check[i].rOffset[1];
 				pkd->ilp[nPart].z = p[pj].r[2] + dDriftFac*p[pj].v[2] + pkd->Check[i].rOffset[2];
-				pkd->ilp[nPart].vx = p[pj].v[0]; 
+				pkd->ilp[nPart].vx = p[pj].v[0];
 				pkd->ilp[nPart].vy = p[pj].v[1];
 				pkd->ilp[nPart].vz = p[pj].v[2];
 #ifdef SOFTLINEAR
@@ -397,7 +397,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 			    if (nPart + n > pkd->nMaxPart) {
 				pkd->nMaxPart += 500 + n;
 				pkd->ilp = realloc(pkd->ilp,pkd->nMaxPart*sizeof(ILP));
-				assert(pkd->ilp != NULL);	
+				assert(pkd->ilp != NULL);
 				}
 			    for (pj=pkdc->pLower;pj<=pkdc->pUpper;++pj) {
 				pRemote = mdlAquire(pkd->mdl,CID_PARTICLE,pj,id);
@@ -406,7 +406,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 				pkd->ilp[nPart].x = pRemote->r[0] + dDriftFac*pRemote->v[0] + pkd->Check[i].rOffset[0];
 				pkd->ilp[nPart].y = pRemote->r[1] + dDriftFac*pRemote->v[1] + pkd->Check[i].rOffset[1];
 				pkd->ilp[nPart].z = pRemote->r[2] + dDriftFac*pRemote->v[2] + pkd->Check[i].rOffset[2];
-				pkd->ilp[nPart].vx = pRemote->v[0]; 
+				pkd->ilp[nPart].vx = pRemote->v[0];
 				pkd->ilp[nPart].vy = pRemote->v[1];
 				pkd->ilp[nPart].vz = pRemote->v[2];
 #ifdef SOFTLINEAR
@@ -454,7 +454,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 		    if (nPart == pkd->nMaxPart) {
 			pkd->nMaxPart += 500;
 			pkd->ilp = realloc(pkd->ilp,pkd->nMaxPart*sizeof(ILP));
-			assert(pkd->ilp != NULL);	
+			assert(pkd->ilp != NULL);
 			}
 		    pkd->ilp[nPart].iOrder = -1; /* set iOrder to negative value for time step criterion */
 		    pkd->ilp[nPart].m = pkdc->mom.m;
@@ -491,7 +491,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 	    if (!c[iCell].iLower) break;
 	    iCell = c[iCell].iLower;
 	    /*
-	    ** Now add the siblings of iCell to the 
+	    ** Now add the siblings of iCell to the
 	    ** Checklist.
 	    */
 	    if (nCheck == pkd->nMaxCheck) {
@@ -504,8 +504,8 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 		    }
 		}
 	    /*
-	    ** Check iCell is active. We eventually want to just to a 
-	    ** rung check here when we start using tree repair, but 
+	    ** Check iCell is active. We eventually want to just to a
+	    ** rung check here when we start using tree repair, but
 	    ** for now this is just as good.
 	    */
 	    if (pkdIsCellActive(pkd,c+iCell)) {
@@ -555,13 +555,13 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 		}
 	    }
 	/*
-	** Now the interaction list should be complete and the 
+	** Now the interaction list should be complete and the
 	** Checklist should be empty! Calculate gravity on this
 	** Bucket!
 	*/
 	assert(nCheck == 0);
 	/*
-	** We no longer add *this bucket to any interaction list, this is now done with an 
+	** We no longer add *this bucket to any interaction list, this is now done with an
 	** N(N-1)/2 loop in pkdBucketInteract().
 	*/
 	pkdc = &c[iCell];
@@ -576,7 +576,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 	if (nActive) {
 	    fWeight = (*pdFlop-tempI+dEwFlop)/nActive;
 	    /*
-	    ** Here we used to set the weight of each particle based on the work done, but now we just 
+	    ** Here we used to set the weight of each particle based on the work done, but now we just
 	    ** assume that all active particles cost the same.
 	    */
 	    *pdPartSum += nActive*nPart;
@@ -592,7 +592,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 		** Make sure stack is empty and free its storage.
 		*/
 		assert(iStack == -1);
-                *pdFlop += dEwFlop;   /* Finally add the ewald score to get a proper float count */
+		*pdFlop += dEwFlop;   /* Finally add the ewald score to get a proper float count */
 		return(nTotActive);
 		}
 	    }

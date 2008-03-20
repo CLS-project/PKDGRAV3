@@ -20,7 +20,7 @@
 #endif
 #include "mdl.h"
 #include "pst.h"
-#include "pkd.h"	
+#include "pkd.h"
 #include "outtype.h"
 #include "smooth.h"
 #ifdef USE_GRAFIC
@@ -38,105 +38,104 @@
 **  Gather  - A unique value is received from all processors
 **
 **
-**  Service               Input   Output | 
-**  -------               -----   ------ | 
+**  Service               Input   Output |
+**  -------               -----   ------ |
 **  SetAdd                yes     -      | fan out
-**  ReadTipsy             yes     -      | 
-**  ReadHDF5              yes     -      | 
-**  DomainDecomp          yes     -      | 
+**  ReadTipsy             yes     -      |
+**  ReadHDF5              yes     -      |
+**  DomainDecomp          yes     -      |
 **  CalcBound             -       Reduce | Custom reduce: BND_COMBINE
 **  Weight                Bcast   Reduce | Sum several fields
 **  CountVA               Bcast   Reduce | Sum two fields
 **  WeightWrap            Bcast   Reduce | Sum two fields
 **  OrdWeight             Bcast   Reduce | Sum two fields
 **  FreeStore             -       Reduce | Sum a field
-**  ColRejects            -       Gather | 
-**  SwapRejects           Scatter Gather | 
-**  ColOrdRejects         Yes     Gather | 
-**  DomainOrder           Yes     -      | 
-**  LocalOrder            -       -      | 
-**  OutArray              Yes     -      | 
-**  OutVector             Yes     -      | 
-**  WriteTipsy            Yes     -      | 
+**  ColRejects            -       Gather |
+**  SwapRejects           Scatter Gather |
+**  ColOrdRejects         Yes     Gather |
+**  DomainOrder           Yes     -      |
+**  LocalOrder            -       -      |
+**  OutArray              Yes     -      |
+**  OutVector             Yes     -      |
+**  WriteTipsy            Yes     -      |
 **  BuildTree             Yes     Many   | Multiple cells
 **  DistribCells          Many    -      | Multiple cells
 **  CalcBoundBall         Yes     Many   | Multiple cells
 **  DistribBoundBall      Many    -      | Sends multiple cells
-**  CalcRoot              -       Yes    | 
-**  DistribRoot           Yes     -      | 
-**  Smooth                Yes     -      | 
-**  Gravity               Yes     Gather | 
-**  CalcEandL             -       Reduce | 
-**  Drift                 Bcast   -      | 
-**  DriftInactive         Bcast   -      | 
-**  CacheBarrier          -       -      | 
-**  StepVeryActiveKDK     Yes     Yes    | 
-**  StepVeryActiveHermite Yes     Yes    | 
-**  Copy0                 Yes     -      | 
-**  Predictor             Yes     -      | 
-**  Corrector             Yes     -      | 
-**  SunCorrector          Yes     -      | 
-**  PredictorInactive     Yes     -      | 
-**  AarsethStep           Yes     -      | 
-**  FirstDt               -       -      | 
-**  ROParticleCache       -       -      | 
-**  ParticleCacheFinish   -       -      | 
-**  Kick                  Yes     Yes    | 
-**  SetSoft               Yes     -      | 
-**  PhysicalSoft          Yes     -      | 
-**  SetTotal              -       Yes    | 
-**  SetWriteStart         Yes     -      | 
-**  OneNodeReadInit       Yes     Gather | 
-**  SwapAll               Yes     -      | 
-**  ActiveOrder           -       Yes    | 
-**  InitStep              Yes     -      | 
-**  SetRung               Yes     -      | 
-**  ActiveRung            Yes     -      | 
-**  CurrRung              Yes     Yes    | 
-**  DensityStep           Yes     -      | 
+**  CalcRoot              -       Yes    |
+**  DistribRoot           Yes     -      |
+**  Smooth                Yes     -      |
+**  Gravity               Yes     Gather |
+**  CalcEandL             -       Reduce |
+**  Drift                 Bcast   -      |
+**  DriftInactive         Bcast   -      |
+**  CacheBarrier          -       -      |
+**  StepVeryActiveKDK     Yes     Yes    |
+**  StepVeryActiveHermite Yes     Yes    |
+**  Copy0                 Yes     -      |
+**  Predictor             Yes     -      |
+**  Corrector             Yes     -      |
+**  SunCorrector          Yes     -      |
+**  PredictorInactive     Yes     -      |
+**  AarsethStep           Yes     -      |
+**  FirstDt               -       -      |
+**  ROParticleCache       -       -      |
+**  ParticleCacheFinish   -       -      |
+**  Kick                  Yes     Yes    |
+**  SetSoft               Yes     -      |
+**  PhysicalSoft          Yes     -      |
+**  SetTotal              -       Yes    |
+**  SetWriteStart         Yes     -      |
+**  OneNodeReadInit       Yes     Gather |
+**  SwapAll               Yes     -      |
+**  ActiveOrder           -       Yes    |
+**  InitStep              Yes     -      |
+**  SetRung               Yes     -      |
+**  ActiveRung            Yes     -      |
+**  CurrRung              Yes     Yes    |
+**  DensityStep           Yes     -      |
 **  GetMap                Yes     Gather | sends back thread ids
-**  GravStep              Yes     -      | 
-**  AccelStep             Yes     -      | 
-**  SetRungVeryActive     Yes     -      | 
-**  ReSmooth              Yes     -      | 
-**  DtToRung              Yes     Yes    | 
-**  InitDt                Yes     -      | 
-**  ColNParts             -       Gather | 
-**  NewOrder              Scatter -      | 
-**  SetNParts             Yes     -      | 
-**  ClearTimer            Yes     -      | 
-**  Fof                   Yes     -      | 
-**  GroupMerge            Yes     Yes    | 
-**  GroupProfiles         Yes     Yes    | 
-**  InitRelaxation        -       -      | 
-**  FindIOS               Yes     Yes    | 
-**  StartIO               Yes     -      | 
-**  IOLoad                Yes     -      | 
-**  ReadSS                Yes     -      | 
-**  WriteSS               Yes     -      | 
-**  SunIndirect           Yes     Yes    | 
-**  GravSun               Yes     -      | 
-**  HandSunMass           Yes     -      | 
-**  NextCollision         -       Yes    | 
-**  GetColliderInfo       Yes     Yes    | 
-**  DoCollision           Yes     Yes    | 
-**  GetVariableVeryActive -       Yes    | 
-**  CheckHelioDist        -       Yes    | 
-**  StepVeryActiveSymba   Yes     Yes    | 
-**  DrminToRung           Yes     Yes    | 
-**  MomSun                -       Yes    | 
-**  DriftSun              Yes     -      | 
-**  KeplerDrift           Yes     -      | 
-**  GenerateIC            Yes     Yes    | 
-**  Hostname              -       Gather | 
-**  MemStatus             -       Gather | 
+**  GravStep              Yes     -      |
+**  AccelStep             Yes     -      |
+**  SetRungVeryActive     Yes     -      |
+**  ReSmooth              Yes     -      |
+**  DtToRung              Yes     Yes    |
+**  InitDt                Yes     -      |
+**  ColNParts             -       Gather |
+**  NewOrder              Scatter -      |
+**  SetNParts             Yes     -      |
+**  ClearTimer            Yes     -      |
+**  Fof                   Yes     -      |
+**  GroupMerge            Yes     Yes    |
+**  GroupProfiles         Yes     Yes    |
+**  InitRelaxation        -       -      |
+**  FindIOS               Yes     Yes    |
+**  StartIO               Yes     -      |
+**  IOLoad                Yes     -      |
+**  ReadSS                Yes     -      |
+**  WriteSS               Yes     -      |
+**  SunIndirect           Yes     Yes    |
+**  GravSun               Yes     -      |
+**  HandSunMass           Yes     -      |
+**  NextCollision         -       Yes    |
+**  GetColliderInfo       Yes     Yes    |
+**  DoCollision           Yes     Yes    |
+**  GetVariableVeryActive -       Yes    |
+**  CheckHelioDist        -       Yes    |
+**  StepVeryActiveSymba   Yes     Yes    |
+**  DrminToRung           Yes     Yes    |
+**  MomSun                -       Yes    |
+**  DriftSun              Yes     -      |
+**  KeplerDrift           Yes     -      |
+**  GenerateIC            Yes     Yes    |
+**  Hostname              -       Gather |
+**  MemStatus             -       Gather |
 */
 
 
 
 
-void pstAddServices(PST pst,MDL mdl)
-    {
+void pstAddServices(PST pst,MDL mdl) {
     int nThreads,nCell;
 
     nThreads = mdlThreads(mdl);
@@ -153,7 +152,7 @@ void pstAddServices(PST pst,MDL mdl)
 #endif
     mdlAddService(mdl,PST_PEANOHILBERTCOUNT,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstPeanoHilbertCount,
-		  sizeof(struct inPeanoHilbertCount),sizeof(struct outPeanoHilbertCount));    
+		  sizeof(struct inPeanoHilbertCount),sizeof(struct outPeanoHilbertCount));
     mdlAddService(mdl,PST_DOMAINDECOMP,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstDomainDecomp,
 		  sizeof(struct inDomainDecomp),0);
@@ -200,7 +199,7 @@ void pstAddServices(PST pst,MDL mdl)
 		  (void (*)(void *,void *,int,void *,int *)) pstWriteTipsy,
 		  sizeof(struct inWriteTipsy),0);
     /*
-    ** Calculate the number of levels in the top tree and use it to 
+    ** Calculate the number of levels in the top tree and use it to
     ** define the size of the messages.
     */
     nCell = 1<<(1+(int)ceil(log((double)nThreads)/log(2.0)));
@@ -353,10 +352,10 @@ void pstAddServices(PST pst,MDL mdl)
 		  (void (*)(void *,void *,int,void *,int *)) pstClearTimer,
 		  sizeof(struct inClearTimer),0);
     mdlAddService(mdl,PST_FOF,pst,
-		  (void (*)(void *,void *,int,void *,int *)) pstFof, 
+		  (void (*)(void *,void *,int,void *,int *)) pstFof,
 		  sizeof(struct inFof),0);
     mdlAddService(mdl,PST_GROUPMERGE,pst,
-		  (void (*)(void *,void *,int,void *,int *)) pstGroupMerge, 
+		  (void (*)(void *,void *,int,void *,int *)) pstGroupMerge,
 		  sizeof(struct inGroupMerge),sizeof(int));
     mdlAddService(mdl,PST_GROUPPROFILES,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstGroupProfiles,
@@ -377,13 +376,13 @@ void pstAddServices(PST pst,MDL mdl)
 		  sizeof(struct inIOLoad),0);
 #endif
 
-#ifdef PLANETS 
+#ifdef PLANETS
     mdlAddService(mdl,PST_READSS,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstReadSS,
-				  sizeof(struct inReadSS),0);
+		  sizeof(struct inReadSS),0);
     mdlAddService(mdl,PST_WRITESS,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstWriteSS,
-				  sizeof(struct inWriteSS),0);
+		  sizeof(struct inWriteSS),0);
     mdlAddService(mdl,PST_SUNINDIRECT,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstSunIndirect,
 		  sizeof(struct inSunIndirect),sizeof(struct outSunIndirect));
@@ -395,19 +394,19 @@ void pstAddServices(PST pst,MDL mdl)
 		  sizeof(struct inHandSunMass),0);
     mdlAddService(mdl,PST_NEXTCOLLISION,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstNextCollision,
-				  0,sizeof(struct outNextCollision));
+		  0,sizeof(struct outNextCollision));
     mdlAddService(mdl,PST_GETCOLLIDERINFO,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstGetColliderInfo,
-	    sizeof(struct inGetColliderInfo), sizeof(struct outGetColliderInfo));
+		  sizeof(struct inGetColliderInfo), sizeof(struct outGetColliderInfo));
     mdlAddService(mdl,PST_DOCOLLISION,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstDoCollision,
 		  sizeof(struct inDoCollision),sizeof(struct outDoCollision));
     mdlAddService(mdl,PST_GETVARIABLEVERYACTIVE,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstGetVariableVeryActive,
-				  0,sizeof(struct outGetVariableVeryActive));
+		  0,sizeof(struct outGetVariableVeryActive));
     mdlAddService(mdl,PST_CHECKHELIODIST,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstCheckHelioDist,
-				  0,sizeof(struct outCheckHelioDist));
+		  0,sizeof(struct outCheckHelioDist));
 #ifdef SYMBA
     mdlAddService(mdl,PST_STEPVERYACTIVES,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstStepVeryActiveSymba,
@@ -424,7 +423,7 @@ void pstAddServices(PST pst,MDL mdl)
     mdlAddService(mdl,PST_KEPLERDRIFT,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstKeplerDrift,
 		  sizeof(struct inKeplerDrift),0);
-#endif /* SYMBA */ 
+#endif /* SYMBA */
 #endif /* PLANETS */
 #ifdef USE_GRAFIC
     mdlAddService(mdl,PST_GENERATEIC,pst,
@@ -451,8 +450,7 @@ void pstAddServices(PST pst,MDL mdl)
 		  PKD_MAX_CLASSES*sizeof(PARTCLASS));
     }
 
-void pstInitialize(PST *ppst,MDL mdl,LCL *plcl)
-    {
+void pstInitialize(PST *ppst,MDL mdl,LCL *plcl) {
     PST pst;
 
     pst = (PST)malloc(sizeof(struct pstContext));
@@ -473,21 +471,19 @@ void pstInitialize(PST *ppst,MDL mdl,LCL *plcl)
     }
 
 
-void pstFinish(PST pst)
-    {
+void pstFinish(PST pst) {
     PST pstKill;
 
     while (pst) {
 	pstKill = pst;
-	if(pst->nLeaves == 1 && pst->plcl->pkd)
+	if (pst->nLeaves == 1 && pst->plcl->pkd)
 	    pkdFinish(pst->plcl->pkd);
 	pst = pst->pstLower;
 	free(pstKill);
 	}
     }
 
-void pstSetAdd(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
+void pstSetAdd(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     PST pstNew;
     struct inSetAdd *in = vin;
     int n, idMiddle;
@@ -515,12 +511,11 @@ void pstSetAdd(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 
 	mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
 
-        }
+	}
     if (pnOut) *pnOut = 0;
     }
 
-void pstGetMap(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
+void pstGetMap(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     struct inGetMap *in = vin;
     int *out = vout;
     int *tmp,i;
@@ -551,8 +546,7 @@ void pstGetMap(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     if (pnOut) *pnOut = mdlThreads(pst->mdl)*sizeof(int);
     }
 
-void pstOneNodeReadInit(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
+void pstOneNodeReadInit(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct inReadTipsy *in = vin;
     int *pout = vout;
@@ -577,14 +571,14 @@ void pstOneNodeReadInit(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 	ptmp = malloc(nThreads*sizeof(*ptmp));
 	mdlassert(pst->mdl,ptmp != NULL);
 	mdlGetReply(pst->mdl,pst->idUpper,ptmp,pnOut);
-	for(i = 0; i < nThreads; i++) {
-	    if(ptmp[i] != -1)
+	for (i = 0; i < nThreads; i++) {
+	    if (ptmp[i] != -1)
 		pout[i] = ptmp[i];
 	    }
 	free(ptmp);
 	}
     else {
-	for(i = 0; i < nThreads; i++)
+	for (i = 0; i < nThreads; i++)
 	    pout[i] = -1;
 	/*
 	** Determine the size of the local particle store.
@@ -598,8 +592,7 @@ void pstOneNodeReadInit(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     }
 
 #ifdef USE_HDF5
-void pstReadHDF5(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
+void pstReadHDF5(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct inReadTipsy *in = vin;
     hid_t fileID;
@@ -658,8 +651,7 @@ void pstReadHDF5(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     }
 #endif
 
-void pstReadTipsy(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
+void pstReadTipsy(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct inReadTipsy *in = vin;
     uint64_t nFileStart,nFileEnd,nFileTotal,nFileSplit,nStore;
@@ -707,8 +699,7 @@ void pstReadTipsy(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     }
 
 
-int _pstRejMatch(PST pst,int n1,OREJ *p1,int n2,OREJ *p2,int *pidSwap)
-    {
+int _pstRejMatch(PST pst,int n1,OREJ *p1,int n2,OREJ *p2,int *pidSwap) {
     int id,i,i1=-1,i2=-1,nLarge,id1,id2;
     int s1,s2,r1,r2;
 
@@ -858,7 +849,7 @@ void _pstRootSplit(PST pst,int iSplitDim,int bDoRootFind,int bDoSplitDimFind,
       mdlDiag(pst->mdl,ach);
     */
 
-    if(bDoSplitDimFind || pst->iSplitDim == -1) {
+    if (bDoSplitDimFind || pst->iSplitDim == -1) {
 	pst->iSplitDim = iSplitDim;
 	}
 
@@ -870,7 +861,7 @@ void _pstRootSplit(PST pst,int iSplitDim,int bDoRootFind,int bDoSplitDimFind,
     fu = pst->bnd.fCenter[dBnd] + pst->bnd.fMax[dBnd];
     fm = pst->fSplit;
     ittr = -1;
-	
+
     if (bDoRootFind || fm<fl || fm>fu || (bSplitVA && (pst->iVASplitSide == 0))) {
 	/*
 	** First order the particles into active/inactive order...
@@ -892,7 +883,7 @@ void _pstRootSplit(PST pst,int iSplitDim,int bDoRootFind,int bDoSplitDimFind,
 	pstWeight(pst->pstLower,&inWt,sizeof(inWt),&outWtLow,NULL);
 	mdlGetReply(pst->mdl,pst->idUpper,&outWtHigh,NULL);
 	nTotalActive = outWtLow.nLow + outWtHigh.nLow
-	    + outWtLow.nHigh + outWtHigh.nHigh;
+		       + outWtLow.nHigh + outWtHigh.nHigh;
 	mdlassert(pst->mdl,nActiveOrder == nTotalActive);
 	pFlag = 1;
 	if (nTotalActive <=1) {
@@ -902,7 +893,7 @@ void _pstRootSplit(PST pst,int iSplitDim,int bDoRootFind,int bDoSplitDimFind,
 	    pstWeight(pst->pstLower,&inWt,sizeof(inWt),&outWtLow,NULL);
 	    mdlGetReply(pst->mdl,pst->idUpper,&outWtHigh,NULL);
 	    nTotalActive = outWtLow.nLow + outWtHigh.nLow
-		+ outWtLow.nHigh + outWtHigh.nHigh;
+			   + outWtLow.nHigh + outWtHigh.nHigh;
 	    }
 
 	/*
@@ -931,16 +922,16 @@ void _pstRootSplit(PST pst,int iSplitDim,int bDoRootFind,int bDoSplitDimFind,
 	    /*
 	      printf("ittr:%d l:%d u:%d lw:%f uw:%f\n",ittr,nLow,nHigh,fLow,fHigh);
 	    */
-	    if(nLow == 1 && nHigh == 1) /* break on trivial case */
+	    if (nLow == 1 && nHigh == 1) /* break on trivial case */
 		break;
-	    if(pFlag) {			/* split on work */
+	    if (pFlag) {			/* split on work */
 		if (fLow/pst->nLower > fHigh/pst->nUpper) fu = fm;
 		else if (fLow/pst->nLower < fHigh/pst->nUpper) fl = fm;
 		else break;
 		}
 	    else {				/* split on number */
 		if (nLow/(double)pst->nLower >
-		    nHigh/(double)pst->nUpper) fu = fm;
+			nHigh/(double)pst->nUpper) fu = fm;
 		else if (nLow/(double)pst->nLower <
 			 nHigh/(double)pst->nUpper) fl = fm;
 		else break;
@@ -968,11 +959,11 @@ void _pstRootSplit(PST pst,int iSplitDim,int bDoRootFind,int bDoSplitDimFind,
 	}
 
     pst->fSplit = fm;
-	
+
     mdlprintf(pst->mdl, "id: %d (%d) Chose split: %f (%f,%f) %d %d\n",
 	      pst->idSelf, pst->iLvl, fm, pst->bnd.fCenter[dBnd] - pst->bnd.fMax[dBnd],
 	      pst->bnd.fCenter[dBnd] + pst->bnd.fMax[dBnd], pst->nLower, pst->nUpper);
-    if(ittr != -1)
+    if (ittr != -1)
 	mdlprintf(pst->mdl, "  Low %"PRIu64" %f,  High %"PRIu64" %f\n",
 		  nLow,outWtLow.fLow + outWtHigh.fLow, nHigh,
 		  outWtLow.fHigh + outWtHigh.fHigh);
@@ -980,17 +971,17 @@ void _pstRootSplit(PST pst,int iSplitDim,int bDoRootFind,int bDoSplitDimFind,
     nHigh = 0;
     fLow = 0.0;
     fHigh = 0.0;
-	
+
     /*
     ** Now we see if the TOTAL number of particles in the lower and upper
     ** subsets exceeds the local pStores. If so then we need to find a new
-    ** boundary to distribute the INACTIVE particles so that everything 
-    ** fits.  
+    ** boundary to distribute the INACTIVE particles so that everything
+    ** fits.
     */
     inWtWrap.iSplitDim = d;
     fl = pst->fSplit + 1e-6*pst->bnd.fMax[dBnd];
     fu = pst->fSplit - 1e-6*pst->bnd.fMax[dBnd];
-	
+
     if (!bDoSplitDimFind) fm = pst->fSplitInactive;
     else {
 	fm = 0.5*(fl+fu);
@@ -998,9 +989,9 @@ void _pstRootSplit(PST pst,int iSplitDim,int bDoRootFind,int bDoSplitDimFind,
 	else fm = pst->bnd.fCenter[dBnd] - 1.000001*pst->bnd.fMax[dBnd];
 	}
     mdlprintf(pst->mdl, "id: %d (%d) Zeroeth guess reverse split: %f (%f,%f)\n",
-	      pst->idSelf, pst->iLvl, fm, pst->bnd.fCenter[dBnd] - pst->bnd.fMax[dBnd], 
+	      pst->idSelf, pst->iLvl, fm, pst->bnd.fCenter[dBnd] - pst->bnd.fMax[dBnd],
 	      pst->bnd.fCenter[dBnd] + pst->bnd.fMax[dBnd]);
-    inWtWrap.fSplit = fm;	
+    inWtWrap.fSplit = fm;
     inWtWrap.fSplit2 = pst->fSplit;
     inWtWrap.ittr = 0;
     inWtWrap.iVASplitSide = (bSplitVA)?pst->iVASplitSide:0;
@@ -1011,12 +1002,12 @@ void _pstRootSplit(PST pst,int iSplitDim,int bDoRootFind,int bDoSplitDimFind,
     mdlGetReply(pst->mdl,pst->idUpper,&outWtWrHigh,NULL);
     /*
     ** Add lower and Upper subsets numbers of particles
-    */ 
+    */
     nLowTot = outWtWrLow.nLow + outWtWrHigh.nLow;
     nHighTot = outWtWrLow.nHigh + outWtWrHigh.nHigh;
-	    
+
     nSafeTot = nLowerStore + nUpperStore - (nLowTot + nHighTot);
-    if(nSafeTot/pst->nLeaves < NUM_SAFETY) {
+    if (nSafeTot/pst->nLeaves < NUM_SAFETY) {
 	NUM_SAFETY = nSafeTot/pst->nLeaves;
 	sprintf(ach,"id: %d tripped inactive NUM_SAFETY %d  Low %"PRIu64"/%"PRIu64"  High %"PRIu64"/%"PRIu64"\n",
 		pst->idSelf, NUM_SAFETY, nLowTot, nLowerStore, nHighTot, nUpperStore);
@@ -1024,14 +1015,14 @@ void _pstRootSplit(PST pst,int iSplitDim,int bDoRootFind,int bDoSplitDimFind,
 	mdlprintf(pst->mdl,"id: %d tripped inactive NUM_SAFETY %d  Low %%"PRIu64"/%"PRIu64"  High %"PRIu64"/%"PRIu64"\n",
 		  pst->idSelf, NUM_SAFETY, nLowTot, nLowerStore, nHighTot, nUpperStore);
 	}
-	    
+
     margin = nSafeTot/pst->nLeaves/20;
     if (margin < NUM_SAFETY/2) margin = NUM_SAFETY/2;
 
     mdlprintf(pst->mdl,"id: %d  %d Low %"PRIu64"/%"PRIu64"   %d High %"PRIu64"/%"PRIu64"  NUM_SAFETY %d margin %d\n",
 	      pst->idSelf, pst->nLower,nLowTot, nLowerStore, pst->nUpper,nHighTot, nUpperStore,NUM_SAFETY,margin);
-	    
-	    
+
+
     if (nLowTot > nLowerStore-NUM_SAFETY*pst->nLower) {
 	sprintf(ach,"id: %d: nLowTot > nLowerStore-NUM_SAFETY*pst->nLower %"PRIu64" %"PRIu64" %d %d\n",
 		pst->idSelf, nLowTot, nLowerStore, NUM_SAFETY, pst->nLower);
@@ -1043,7 +1034,7 @@ void _pstRootSplit(PST pst,int iSplitDim,int bDoRootFind,int bDoSplitDimFind,
 	else {
 	    fmm = 0.5*(fl+fu)+pst->bnd.fMax[dBnd];
 	    if (fmm > pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd]) fmm = 0.5*(fl+fu)-pst->bnd.fMax[dBnd];
-	    mdlassert(pst->mdl, fmm >= pst->bnd.fCenter[dBnd]-pst->bnd.fMax[dBnd] && 
+	    mdlassert(pst->mdl, fmm >= pst->bnd.fCenter[dBnd]-pst->bnd.fMax[dBnd] &&
 		      fmm <= pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd]);
 	    }
 	ittr = 1;
@@ -1051,7 +1042,7 @@ void _pstRootSplit(PST pst,int iSplitDim,int bDoRootFind,int bDoSplitDimFind,
 	while (ittr < MAX_ITTR) {
 	    fm = fmm;
 	    inWtWrap.iSplitDim = d;
-	    inWtWrap.fSplit = fm;	
+	    inWtWrap.fSplit = fm;
 	    inWtWrap.fSplit2 = pst->fSplit;
 	    inWtWrap.ittr = ittr;
 	    inWtWrap.iVASplitSide = (bSplitVA)?pst->iVASplitSide:0;
@@ -1067,10 +1058,10 @@ void _pstRootSplit(PST pst,int iSplitDim,int bDoRootFind,int bDoSplitDimFind,
 	    nHighTot = outWtWrLow.nHigh + outWtWrHigh.nHigh;
 	    /*
 	      mdlprintf(pst->mdl, "id: %d (%d) %d th guess reverse split: %f (%f,%f) (%f,%f) Low %d High %d\n",
-	      pst->idSelf, pst->iLvl, ittr, fm, fl, fu, pst->bnd.fCenter[dBnd]-pst->bnd.fMax[dBnd], 
+	      pst->idSelf, pst->iLvl, ittr, fm, fl, fu, pst->bnd.fCenter[dBnd]-pst->bnd.fMax[dBnd],
 	      pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd],nLowTot,nHighTot);
 	    */
-	    if(nLowTot != nLast)
+	    if (nLowTot != nLast)
 		nDiff = nLowTot - nLast;
 	    nLast = nLowTot;
 	    /*
@@ -1093,16 +1084,16 @@ void _pstRootSplit(PST pst,int iSplitDim,int bDoRootFind,int bDoSplitDimFind,
 	    else {
 		fmm = 0.5*(fl+fu)+pst->bnd.fMax[dBnd];
 		if (fmm > pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd]) fmm = 0.5*(fl+fu)-pst->bnd.fMax[dBnd];
-		mdlassert(pst->mdl, fmm >= pst->bnd.fCenter[dBnd]-pst->bnd.fMax[dBnd] && 
+		mdlassert(pst->mdl, fmm >= pst->bnd.fCenter[dBnd]-pst->bnd.fMax[dBnd] &&
 			  fmm <= pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd]);
 		}
 	    ++ittr;
 	    }
 	mdlprintf(pst->mdl, "id: %d (%d) Fix Low %d th guess reverse split: %f (%f,%f) (%f,%f) Low %"PRIu64" High %"PRIu64"\n",
-		  pst->idSelf, pst->iLvl, ittr, fm, fl, fu, pst->bnd.fCenter[dBnd]-pst->bnd.fMax[dBnd], 
+		  pst->idSelf, pst->iLvl, ittr, fm, fl, fu, pst->bnd.fCenter[dBnd]-pst->bnd.fMax[dBnd],
 		  pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd],nLowTot,nHighTot);
-	if(nLowTot != nLowerStore-NUM_SAFETY*pst->nLower) {
-	    if(abs(nDiff) > 1)
+	if (nLowTot != nLowerStore-NUM_SAFETY*pst->nLower) {
+	    if (abs(nDiff) > 1)
 		mdlprintf(pst->mdl, "id: %d delta of %d, check NUM_SAFTEY\n",
 			  pst->idSelf, nDiff);
 	    }
@@ -1120,10 +1111,10 @@ void _pstRootSplit(PST pst,int iSplitDim,int bDoRootFind,int bDoSplitDimFind,
 	else {
 	    fmm = 0.5*(fl+fu)+pst->bnd.fMax[dBnd];
 	    if (fmm > pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd]) fmm = 0.5*(fl+fu)-pst->bnd.fMax[dBnd];
-	    mdlassert(pst->mdl, fmm >= pst->bnd.fCenter[dBnd]-pst->bnd.fMax[dBnd] && 
+	    mdlassert(pst->mdl, fmm >= pst->bnd.fCenter[dBnd]-pst->bnd.fMax[dBnd] &&
 		      fmm <= pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd]);
 	    }
-	ittr = 1; 
+	ittr = 1;
 	nLast = nLowTot;
 	while (ittr < MAX_ITTR) {
 	    fm = fmm;
@@ -1142,12 +1133,12 @@ void _pstRootSplit(PST pst,int iSplitDim,int bDoRootFind,int bDoSplitDimFind,
 	    */
 	    nLowTot = outWtWrLow.nLow + outWtWrHigh.nLow;
 	    nHighTot = outWtWrLow.nHigh + outWtWrHigh.nHigh;
-	    /*				
-				mdlprintf(pst->mdl, "id: %d (%d) %d th guess reverse split: %f (%f,%f) (%f,%f) Low %d High %d\n",
-				pst->idSelf, pst->iLvl, ittr, fm, fl, fu, pst->bnd.fCenter[dBnd]-pst->bnd.fMax[dBnd], 
-				pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd],nLowTot,nHighTot);
+	    /*
+			mdlprintf(pst->mdl, "id: %d (%d) %d th guess reverse split: %f (%f,%f) (%f,%f) Low %d High %d\n",
+			pst->idSelf, pst->iLvl, ittr, fm, fl, fu, pst->bnd.fCenter[dBnd]-pst->bnd.fMax[dBnd],
+			pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd],nLowTot,nHighTot);
 	    */
-	    if(nLowTot != nLast)
+	    if (nLowTot != nLast)
 		nDiff = nLowTot - nLast;
 	    nLast = nLowTot;
 	    /*
@@ -1170,16 +1161,16 @@ void _pstRootSplit(PST pst,int iSplitDim,int bDoRootFind,int bDoSplitDimFind,
 	    else {
 		fmm = 0.5*(fl+fu)+pst->bnd.fMax[dBnd];
 		if (fmm > pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd]) fmm = 0.5*(fl+fu)-pst->bnd.fMax[dBnd];
-		mdlassert(pst->mdl, fmm >= pst->bnd.fCenter[dBnd]-pst->bnd.fMax[dBnd] && 
+		mdlassert(pst->mdl, fmm >= pst->bnd.fCenter[dBnd]-pst->bnd.fMax[dBnd] &&
 			  fmm <= pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd]);
 		}
 	    ++ittr;
 	    }
 	mdlprintf(pst->mdl, "id: %d (%d) Fix High %d th guess reverse split: %f (%f,%f) (%f,%f) Low %"PRIu64" High %"PRIu64"\n",
-		  pst->idSelf, pst->iLvl, ittr, fm, fl, fu, pst->bnd.fCenter[dBnd]-pst->bnd.fMax[dBnd], 
+		  pst->idSelf, pst->iLvl, ittr, fm, fl, fu, pst->bnd.fCenter[dBnd]-pst->bnd.fMax[dBnd],
 		  pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd],nLowTot,nHighTot);
-	if(nHighTot != nUpperStore-NUM_SAFETY*pst->nUpper) {
-	    if(abs(nDiff) > 1)
+	if (nHighTot != nUpperStore-NUM_SAFETY*pst->nUpper) {
+	    if (abs(nDiff) > 1)
 		mdlprintf(pst->mdl, "id: %d delta of %d, check NUM_SAFETY\n",
 			  pst->idSelf, nDiff);
 	    }
@@ -1198,79 +1189,10 @@ void _pstRootSplit(PST pst,int iSplitDim,int bDoRootFind,int bDoSplitDimFind,
 	else {
 	    fmm = 0.5*(fl+fu)+pst->bnd.fMax[dBnd];
 	    if (fmm > pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd]) fmm = 0.5*(fl+fu)-pst->bnd.fMax[dBnd];
-	    mdlassert(pst->mdl, fmm >= pst->bnd.fCenter[dBnd]-pst->bnd.fMax[dBnd] && 
+	    mdlassert(pst->mdl, fmm >= pst->bnd.fCenter[dBnd]-pst->bnd.fMax[dBnd] &&
 		      fmm <= pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd]);
 	    }
 	ittr = 1;
-	nLast = nLowTot;
-	while (ittr < MAX_ITTR) {
-	    fm = fmm;
-	    inWtWrap.iSplitDim = d;
-	    inWtWrap.fSplit = fm;	
-	    inWtWrap.fSplit2 = pst->fSplit;
-	    inWtWrap.ittr = ittr;
-	    inWtWrap.iVASplitSide = (bSplitVA)?pst->iVASplitSide:0;
-	    inWtWrap.iSplitSide = 1;
-	    mdlReqService(pst->mdl,pst->idUpper,PST_WEIGHTWRAP,&inWtWrap,sizeof(inWtWrap));
-	    inWtWrap.iSplitSide = 0;
-	    pstWeightWrap(pst->pstLower,&inWtWrap,sizeof(inWtWrap),&outWtWrLow,NULL);
-	    mdlGetReply(pst->mdl,pst->idUpper,&outWtWrHigh,NULL);
-	    /*
-	    ** Add lower and Upper subsets numbers of particles
-	    */
-	    nLowTot = outWtWrLow.nLow + outWtWrHigh.nLow;
-	    nHighTot = outWtWrLow.nHigh + outWtWrHigh.nHigh;
-	    /*
-	      mdlprintf(pst->mdl, "id: %d (%d) %d th guess reverse split: %f (%f,%f) (%f,%f) Low %d High %d\n",
-	      pst->idSelf, pst->iLvl, ittr, fm, fl, fu, pst->bnd.fCenter[dBnd]-pst->bnd.fMax[dBnd], 
-	      pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd],nLowTot,nHighTot);
-	    */
-	    if(nLowTot != nLast)
-		nDiff = nLowTot - nLast;
-	    nLast = nLowTot;
-	    if (nLowTot > margin*pst->nLower) fl = fm;
-	    else if (nLowTot < NUM_SAFETY*pst->nLower) fu = fm;
-	    else {
-		fl = fm;
-		break;
-		}
-	    if (fu == fl)
-		break;
-	    else if (fu > fl) fmm = 0.5*(fl+fu);
-	    else {
-		fmm = 0.5*(fl+fu)+pst->bnd.fMax[dBnd];
-		if (fmm > pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd]) fmm = 0.5*(fl+fu)-pst->bnd.fMax[dBnd];
-		mdlassert(pst->mdl, fmm >= pst->bnd.fCenter[dBnd]-pst->bnd.fMax[dBnd] && 
-			  fmm <= pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd]);
-		}
-	    ++ittr;
-	    }
-	mdlprintf(pst->mdl, "id: %d (%d) Fix too few Low %d th guess reverse split: %f (%f,%f) (%f,%f) Low %"PRIu64" High %"PRIu64"\n",
-		  pst->idSelf, pst->iLvl, ittr, fm, fl, fu, pst->bnd.fCenter[dBnd]-pst->bnd.fMax[dBnd], 
-		  pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd],nLowTot,nHighTot);
-	if(nLowTot != nLowerStore-NUM_SAFETY*pst->nLower) {
-	    if(abs(nDiff) > 1)
-		mdlprintf(pst->mdl, "id: %d delta of %d, check NUM_SAFTEY\n",
-			  pst->idSelf, nDiff);
-	    }
-	mdlassert(pst->mdl,nLowTot <= nLowerStore);
-	mdlPrintTimer(pst->mdl,"TIME fix lower II _pstRootSplit ",&t);
-	}
-    if (nHighTot < NUM_SAFETY*pst->nUpper) {
-	sprintf(ach,"id: %d: nHighTot > nUpperStore-NUM_SAFETY*pst->nUpper %"PRIu64" %"PRIu64" %d %d\n",
-		pst->idSelf, nHighTot, nUpperStore, NUM_SAFETY, pst->nUpper);
-	mdlDiag(pst->mdl,ach);
-	if (fm > pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd]) fm=pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd];
-	if (fm < pst->bnd.fCenter[dBnd]-pst->bnd.fMax[dBnd]) fm=pst->bnd.fCenter[dBnd]-pst->bnd.fMax[dBnd];
-	fl = fm;
-	if (fu > fl) fmm = 0.5*(fl+fu);
-	else {
-	    fmm = 0.5*(fl+fu)+pst->bnd.fMax[dBnd];
-	    if (fmm > pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd]) fmm = 0.5*(fl+fu)-pst->bnd.fMax[dBnd];
-	    mdlassert(pst->mdl, fmm >= pst->bnd.fCenter[dBnd]-pst->bnd.fMax[dBnd] && 
-		      fmm <= pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd]);
-	    }
-	ittr = 1; 
 	nLast = nLowTot;
 	while (ittr < MAX_ITTR) {
 	    fm = fmm;
@@ -1289,12 +1211,81 @@ void _pstRootSplit(PST pst,int iSplitDim,int bDoRootFind,int bDoSplitDimFind,
 	    */
 	    nLowTot = outWtWrLow.nLow + outWtWrHigh.nLow;
 	    nHighTot = outWtWrLow.nHigh + outWtWrHigh.nHigh;
-	    /*				
-				mdlprintf(pst->mdl, "id: %d (%d) %d th guess reverse split: %f (%f,%f) (%f,%f) Low %d High %d\n",
-				pst->idSelf, pst->iLvl, ittr, fm, fl, fu, pst->bnd.fCenter[dBnd]-pst->bnd.fMax[dBnd], 
-				pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd],nLowTot,nHighTot);
+	    /*
+	      mdlprintf(pst->mdl, "id: %d (%d) %d th guess reverse split: %f (%f,%f) (%f,%f) Low %d High %d\n",
+	      pst->idSelf, pst->iLvl, ittr, fm, fl, fu, pst->bnd.fCenter[dBnd]-pst->bnd.fMax[dBnd],
+	      pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd],nLowTot,nHighTot);
 	    */
-	    if(nLowTot != nLast)
+	    if (nLowTot != nLast)
+		nDiff = nLowTot - nLast;
+	    nLast = nLowTot;
+	    if (nLowTot > margin*pst->nLower) fl = fm;
+	    else if (nLowTot < NUM_SAFETY*pst->nLower) fu = fm;
+	    else {
+		fl = fm;
+		break;
+		}
+	    if (fu == fl)
+		break;
+	    else if (fu > fl) fmm = 0.5*(fl+fu);
+	    else {
+		fmm = 0.5*(fl+fu)+pst->bnd.fMax[dBnd];
+		if (fmm > pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd]) fmm = 0.5*(fl+fu)-pst->bnd.fMax[dBnd];
+		mdlassert(pst->mdl, fmm >= pst->bnd.fCenter[dBnd]-pst->bnd.fMax[dBnd] &&
+			  fmm <= pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd]);
+		}
+	    ++ittr;
+	    }
+	mdlprintf(pst->mdl, "id: %d (%d) Fix too few Low %d th guess reverse split: %f (%f,%f) (%f,%f) Low %"PRIu64" High %"PRIu64"\n",
+		  pst->idSelf, pst->iLvl, ittr, fm, fl, fu, pst->bnd.fCenter[dBnd]-pst->bnd.fMax[dBnd],
+		  pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd],nLowTot,nHighTot);
+	if (nLowTot != nLowerStore-NUM_SAFETY*pst->nLower) {
+	    if (abs(nDiff) > 1)
+		mdlprintf(pst->mdl, "id: %d delta of %d, check NUM_SAFTEY\n",
+			  pst->idSelf, nDiff);
+	    }
+	mdlassert(pst->mdl,nLowTot <= nLowerStore);
+	mdlPrintTimer(pst->mdl,"TIME fix lower II _pstRootSplit ",&t);
+	}
+    if (nHighTot < NUM_SAFETY*pst->nUpper) {
+	sprintf(ach,"id: %d: nHighTot > nUpperStore-NUM_SAFETY*pst->nUpper %"PRIu64" %"PRIu64" %d %d\n",
+		pst->idSelf, nHighTot, nUpperStore, NUM_SAFETY, pst->nUpper);
+	mdlDiag(pst->mdl,ach);
+	if (fm > pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd]) fm=pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd];
+	if (fm < pst->bnd.fCenter[dBnd]-pst->bnd.fMax[dBnd]) fm=pst->bnd.fCenter[dBnd]-pst->bnd.fMax[dBnd];
+	fl = fm;
+	if (fu > fl) fmm = 0.5*(fl+fu);
+	else {
+	    fmm = 0.5*(fl+fu)+pst->bnd.fMax[dBnd];
+	    if (fmm > pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd]) fmm = 0.5*(fl+fu)-pst->bnd.fMax[dBnd];
+	    mdlassert(pst->mdl, fmm >= pst->bnd.fCenter[dBnd]-pst->bnd.fMax[dBnd] &&
+		      fmm <= pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd]);
+	    }
+	ittr = 1;
+	nLast = nLowTot;
+	while (ittr < MAX_ITTR) {
+	    fm = fmm;
+	    inWtWrap.iSplitDim = d;
+	    inWtWrap.fSplit = fm;
+	    inWtWrap.fSplit2 = pst->fSplit;
+	    inWtWrap.ittr = ittr;
+	    inWtWrap.iVASplitSide = (bSplitVA)?pst->iVASplitSide:0;
+	    inWtWrap.iSplitSide = 1;
+	    mdlReqService(pst->mdl,pst->idUpper,PST_WEIGHTWRAP,&inWtWrap,sizeof(inWtWrap));
+	    inWtWrap.iSplitSide = 0;
+	    pstWeightWrap(pst->pstLower,&inWtWrap,sizeof(inWtWrap),&outWtWrLow,NULL);
+	    mdlGetReply(pst->mdl,pst->idUpper,&outWtWrHigh,NULL);
+	    /*
+	    ** Add lower and Upper subsets numbers of particles
+	    */
+	    nLowTot = outWtWrLow.nLow + outWtWrHigh.nLow;
+	    nHighTot = outWtWrLow.nHigh + outWtWrHigh.nHigh;
+	    /*
+			mdlprintf(pst->mdl, "id: %d (%d) %d th guess reverse split: %f (%f,%f) (%f,%f) Low %d High %d\n",
+			pst->idSelf, pst->iLvl, ittr, fm, fl, fu, pst->bnd.fCenter[dBnd]-pst->bnd.fMax[dBnd],
+			pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd],nLowTot,nHighTot);
+	    */
+	    if (nLowTot != nLast)
 		nDiff = nLowTot - nLast;
 	    nLast = nLowTot;
 	    if (nHighTot > margin*pst->nUpper) fu = fm;
@@ -1309,16 +1300,16 @@ void _pstRootSplit(PST pst,int iSplitDim,int bDoRootFind,int bDoSplitDimFind,
 	    else {
 		fmm = 0.5*(fl+fu)+pst->bnd.fMax[dBnd];
 		if (fmm > pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd]) fmm = 0.5*(fl+fu)-pst->bnd.fMax[dBnd];
-		mdlassert(pst->mdl, fmm >= pst->bnd.fCenter[dBnd]-pst->bnd.fMax[dBnd] && 
+		mdlassert(pst->mdl, fmm >= pst->bnd.fCenter[dBnd]-pst->bnd.fMax[dBnd] &&
 			  fmm <= pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd]);
 		}
 	    ++ittr;
-	}
+	    }
 	mdlprintf(pst->mdl, "id: %d (%d) Fix Too few High %d th guess reverse split: %f (%f,%f) (%f,%f) Low %"PRIu64" High %"PRIu64"\n",
-		  pst->idSelf, pst->iLvl, ittr, fm, fl, fu, pst->bnd.fCenter[dBnd]-pst->bnd.fMax[dBnd], 
+		  pst->idSelf, pst->iLvl, ittr, fm, fl, fu, pst->bnd.fCenter[dBnd]-pst->bnd.fMax[dBnd],
 		  pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd],nLowTot,nHighTot);
-	if(nHighTot != nUpperStore-NUM_SAFETY*pst->nUpper) {
-	    if(abs(nDiff) > 1)
+	if (nHighTot != nUpperStore-NUM_SAFETY*pst->nUpper) {
+	    if (abs(nDiff) > 1)
 		mdlprintf(pst->mdl, "id: %d delta of %d, check NUM_SAFETY\n",
 			  pst->idSelf, nDiff);
 	    }
@@ -1335,12 +1326,12 @@ void _pstRootSplit(PST pst,int iSplitDim,int bDoRootFind,int bDoSplitDimFind,
     pst->nHighTot = nHighTot;
 
     mdlPrintTimer(pst->mdl,"TIME Total Split _pstRootSplit ",&t);
-	
+
     mdlprintf(pst->mdl, "id: %d (%d) Chose reverse split: %f (%f,%f)\n",
-	      pst->idSelf, pst->iLvl, fm, pst->bnd.fCenter[dBnd]-pst->bnd.fMax[dBnd], 
+	      pst->idSelf, pst->iLvl, fm, pst->bnd.fCenter[dBnd]-pst->bnd.fMax[dBnd],
 	      pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd]);
     pst->fSplitInactive = fm;
-	
+
     /*
     ** First Collect rejects.
     **
@@ -1354,16 +1345,16 @@ void _pstRootSplit(PST pst,int iSplitDim,int bDoRootFind,int bDoSplitDimFind,
     mdlassert(pst->mdl,pUpperRej != NULL);
     pidSwap = malloc(mdlThreads(pst->mdl)*sizeof(int));
     mdlassert(pst->mdl,pidSwap != NULL);
-	
+
     mdlReqService(pst->mdl,pst->idUpper,PST_COLREJECTS,NULL,0);
     pstColRejects(pst->pstLower,NULL,0,pLowerRej,&nOut);
     mdlassert(pst->mdl,nOut/sizeof(OREJ) == pst->nLower);
     mdlGetReply(pst->mdl,pst->idUpper,pUpperRej,&nOut);
     mdlassert(pst->mdl,nOut/sizeof(OREJ) == pst->nUpper);
-	
+
     mdlPrintTimer(pst->mdl,"TIME Collected Rejects _pstRootSplit ",&t);
-	
-	
+
+
     ittr = 0;
     while (1) {
 	iRet = _pstRejMatch(pst,pst->nLower,pLowerRej,
@@ -1380,13 +1371,13 @@ void _pstRootSplit(PST pst,int iSplitDim,int bDoRootFind,int bDoSplitDimFind,
 	++ittr;
 	}
 
-	
+
     free(pLowerRej);
     free(pUpperRej);
     free(pidSwap);
-	
+
     mdlPrintTimer(pst->mdl,"TIME (FINISH) Swapped Rejects _pstRootSplit ",&t);
-	
+
     }
 
 void pstNewDomainDecomp(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
@@ -1398,7 +1389,7 @@ void pstNewDomainDecomp(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     */
     pstPeanoHilbertCount(PST pst);
 
-    
+
 #endif
     }
 
@@ -1424,13 +1415,12 @@ void pstPeanoHilbertCount(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 #define NEWSPLITDIMCUT 0.707
 #define NMINFORROOTFIND 16
 
-void pstDomainDecomp(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
+void pstDomainDecomp(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     int d=0,j,nBndWrapd;
     double dimsize;
     struct inDomainDecomp *in = vin;
     double l,u;
-	
+
     mdlTimer t;
 
     mdlassert(pst->mdl,nIn == sizeof(struct inDomainDecomp));
@@ -1491,9 +1481,9 @@ void pstDomainDecomp(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 		}
 	    else if (pst->fSplitInactive > pst->fSplit) {
 		l = pst->fSplit;
-		u = pst->fSplitInactive;				
+		u = pst->fSplitInactive;
 		}
-	    else 
+	    else
 		in->nBndWrap[d]++;
 
 	    in->bnd.fMax[d] = 0.5*(u - l);
@@ -1510,7 +1500,7 @@ void pstDomainDecomp(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 		}
 	    else if (pst->fSplitInactive < pst->fSplit) {
 		u = pst->fSplit;
-		l = pst->fSplitInactive;				
+		l = pst->fSplitInactive;
 		}
 	    else
 		in->nBndWrap[d]++;
@@ -1519,20 +1509,19 @@ void pstDomainDecomp(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 	    in->bnd.fCenter[d] = 0.5*(u + l);
 	    pstDomainDecomp(pst->pstLower,vin,sizeof(*in),NULL,NULL);
 	    }
-	if (pst->nUpper > 1) 
+	if (pst->nUpper > 1)
 	    mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
 	}
-    
+
     if (pnOut) *pnOut = 0;
     }
 
 
-void pstCalcBound(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
+void pstCalcBound(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct outCalcBound *out = vout;
     struct outCalcBound outBnd;
-	
+
     mdlassert(pst->mdl,nIn == 0);
     if (pst->nLeaves > 1) {
 	mdlReqService(pst->mdl,pst->idUpper,PST_CALCBOUND,NULL,0);
@@ -1543,7 +1532,7 @@ void pstCalcBound(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     else {
 	pkdCalcBound(plcl->pkd,&out->bnd);
 	}
-    if (pnOut) *pnOut = sizeof(struct outCalcBound); 
+    if (pnOut) *pnOut = sizeof(struct outCalcBound);
     }
 
 /*
@@ -1553,8 +1542,7 @@ void pstCalcBound(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 ** pFlag > 0 => weight active particles.
 ** pFlag < 0 => weight inactive particles.
 */
-void pstWeight(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
+void pstWeight(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct inWeight *in = vin;
     struct outWeight *out = vout;
@@ -1630,16 +1618,16 @@ void pstWeight(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 	out->fHigh = fHigh + plcl->fWtHigh;
 	plcl->fLow = fLow;
 	plcl->fHigh = fHigh;
-	if(in->pFlag > 0) {
-	    if(iSplitSide) out->nLow -= pkdInactive(plcl->pkd);
+	if (in->pFlag > 0) {
+	    if (iSplitSide) out->nLow -= pkdInactive(plcl->pkd);
 	    else out->nHigh -= pkdInactive(plcl->pkd);
 	    }
-	if(in->pFlag < 0) {
-	    if(iSplitSide) out->nHigh -= pkdActive(plcl->pkd);
+	if (in->pFlag < 0) {
+	    if (iSplitSide) out->nHigh -= pkdActive(plcl->pkd);
 	    else out->nLow -= pkdActive(plcl->pkd);
 	    }
 	}
-    if (pnOut) *pnOut = sizeof(struct outWeight); 
+    if (pnOut) *pnOut = sizeof(struct outWeight);
     /*
       pkdStopTimer(plcl->pkd,7);
     */
@@ -1664,7 +1652,7 @@ void pstCountVA(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     else {
 	pkdCountVA(plcl->pkd,in->iSplitDim,in->fSplit,&out->nLow,&out->nHigh);
 	}
-    if (pnOut) *pnOut = sizeof(struct outCountVA); 
+    if (pnOut) *pnOut = sizeof(struct outCountVA);
     }
 
 
@@ -1676,8 +1664,7 @@ void pstCountVA(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 ** pFlag > 0 => weight active particles.
 ** pFlag < 0 => weight inactive particles.
 */
-void pstWeightWrap(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
+void pstWeightWrap(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct inWeightWrap *in = vin;
     struct outWeightWrap *out = vout;
@@ -1709,8 +1696,8 @@ void pstWeightWrap(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 	    ** Update the Weight Sums and use smaller weight region.
 	    */
 	    if ((in->fSplit < plcl->fSplit && in->fSplit<in->fSplit2 && plcl->fSplit<in->fSplit2) ||
-		(in->fSplit < plcl->fSplit && in->fSplit>in->fSplit2 && plcl->fSplit>in->fSplit2) ||
-		(in->fSplit > plcl->fSplit && in->fSplit>in->fSplit2 && plcl->fSplit<in->fSplit2)) {
+		    (in->fSplit < plcl->fSplit && in->fSplit>in->fSplit2 && plcl->fSplit>in->fSplit2) ||
+		    (in->fSplit > plcl->fSplit && in->fSplit>in->fSplit2 && plcl->fSplit<in->fSplit2)) {
 		if (!in->iSplitSide) plcl->iWtFrom = plcl->iPart;
 		else plcl->iWtTo = plcl->iPart-1;
 		}
@@ -1727,7 +1714,7 @@ void pstWeightWrap(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 	/* For collect rejects */
 	plcl->nSplit = plcl->iPart;
 	}
-    if (pnOut) *pnOut = sizeof(struct outWeightWrap); 
+    if (pnOut) *pnOut = sizeof(struct outWeightWrap);
     /*
       pkdStopTimer(plcl->pkd,7);
     */
@@ -1737,8 +1724,7 @@ void pstWeightWrap(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 /*
 ** Weight request for splitting into iOrder order.
 */
-void pstOrdWeight(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
+void pstOrdWeight(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct inOrdWeight *in = vin;
     struct outOrdWeight *out = vout;
@@ -1782,12 +1768,11 @@ void pstOrdWeight(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 	out->nLow = nLow;
 	out->nHigh = nHigh;
 	}
-    if (pnOut) *pnOut = sizeof(struct outOrdWeight); 
+    if (pnOut) *pnOut = sizeof(struct outOrdWeight);
     }
 
 
-void pstFreeStore(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
+void pstFreeStore(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct outFreeStore *out = vout;
     uint64_t nLowerStore,nUpperStore;
@@ -1814,12 +1799,11 @@ void pstFreeStore(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     }
 
 
-void pstColRejects(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
+void pstColRejects(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     OREJ *pOutRej = vout;
     int nLower,nUpper,iUpper;
-	
+
     mdlassert(pst->mdl,nIn == 0);
     /*
       pkdStartTimer(plcl->pkd,9);
@@ -1844,13 +1828,12 @@ void pstColRejects(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     }
 
 
-void pstColOrdRejects(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
+void pstColOrdRejects(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct inColOrdRejects *in = vin;
     OREJ *pOutRej = vout;
     int nLower,nUpper,iUpper;
-	
+
     mdlassert(pst->mdl,nIn == sizeof(struct inColOrdRejects));
     if (pst->nLeaves > 1) {
 	mdlReqService(pst->mdl,pst->idUpper,PST_COLORDREJECTS,in,nIn);
@@ -1869,13 +1852,12 @@ void pstColOrdRejects(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     }
 
 
-void pstSwapRejects(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
+void pstSwapRejects(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     int *pidSwap = vin;
     OREJ *pOutRej = vout;
     int nLower,nUpper,iUpper,idSwap;
-	
+
     /*	pkdStartTimer(plcl->pkd,8);*/
     if (pst->nLeaves > 1) {
 	mdlReqService(pst->mdl,pst->idUpper,PST_SWAPREJECTS,vin,nIn);
@@ -1898,15 +1880,14 @@ void pstSwapRejects(PST pst,void *vin,int nIn,void *vout,int *pnOut)
  * Routine to swap all particles.  Note that this does not walk the pst
  * but simply works with one other processor.
  */
-void pstSwapAll(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
+void pstSwapAll(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl;
     int *pidSwap = vin;
     PST lpst;
 
     mdlassert(pst->mdl,nIn == sizeof(*pidSwap));
     lpst = pst;
-    while(lpst->nLeaves > 1)
+    while (lpst->nLeaves > 1)
 	lpst = lpst->pstLower;
 
     plcl = lpst->plcl;
@@ -1962,11 +1943,11 @@ void _pstOrdSplit(PST pst,uint64_t iMaxOrder) {
 	/*
 	  printf("ittr:%d l:%d u:%d\n",ittr,nLow,nHigh);
 	*/
-	if(nLow == 1 && nHigh == 1) /* break on trivial case */
+	if (nLow == 1 && nHigh == 1) /* break on trivial case */
 	    break;
 	else {		/* split on number */
 	    if (nLow/(double)pst->nLower >
-		nHigh/(double)pst->nUpper) iu = im;
+		    nHigh/(double)pst->nUpper) iu = im;
 	    else if (nLow/(double)pst->nLower <
 		     nHigh/(double)pst->nUpper) il = im;
 	    else break;
@@ -2013,8 +1994,7 @@ void _pstOrdSplit(PST pst,uint64_t iMaxOrder) {
     }
 
 
-void pstDomainOrder(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
+void pstDomainOrder(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     struct inDomainOrder *in = vin;
 
     mdlassert(pst->mdl,nIn == sizeof(struct inDomainOrder));
@@ -2023,19 +2003,18 @@ void pstDomainOrder(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 	/*
 	** Now go on to Domain Order of next levels.
 	*/
-	if (pst->nUpper > 1) 
+	if (pst->nUpper > 1)
 	    mdlReqService(pst->mdl,pst->idUpper,PST_DOMAINORDER,in,nIn);
-	if (pst->nLower > 1) 
+	if (pst->nLower > 1)
 	    pstDomainOrder(pst->pstLower,in,nIn,NULL,NULL);
-	if (pst->nUpper > 1) 
+	if (pst->nUpper > 1)
 	    mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
 	}
     if (pnOut) *pnOut = 0;
     }
 
 
-void pstLocalOrder(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
+void pstLocalOrder(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
 
     mdlassert(pst->mdl,nIn == 0);
@@ -2051,8 +2030,7 @@ void pstLocalOrder(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     }
 
 
-void pstActiveOrder(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
+void pstActiveOrder(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     uint64_t *pnActive = vout;
     uint64_t nActiveLeaf;
@@ -2077,8 +2055,7 @@ void pstActiveOrder(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     }
 
 
-void pstOutArray(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
+void pstOutArray(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct inOutArray *in = vin;
     char achOutFile[PST_FILENAME_SIZE];
@@ -2108,8 +2085,7 @@ void pstOutArray(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     }
 
 
-void pstOutVector(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
+void pstOutVector(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct inOutVector *in = vin;
     char achOutFile[PST_FILENAME_SIZE];
@@ -2139,8 +2115,7 @@ void pstOutVector(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     }
 
 
-void pstWriteTipsy(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
+void pstWriteTipsy(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct inWriteTipsy *in = vin;
     char achOutFile[PST_FILENAME_SIZE];
@@ -2168,8 +2143,7 @@ void pstWriteTipsy(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     }
 
 #ifdef USE_MDL_IO
-void pstFindIOS(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
+void pstFindIOS(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct inFindIOS *in = vin;
     struct outFindIOS *out = vout;
@@ -2185,17 +2159,17 @@ void pstFindIOS(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 	in->nLower -= pst->nLowTot;
 	pstFindIOS(pst->pstLower,in,nIn,vout,pnOut);
 	mdlGetReply(pst->mdl,pst->idUpper,&right,pnOut);
-	for( i=0; i<MDL_MAX_IO_PROCS; i++ )
+	for ( i=0; i<MDL_MAX_IO_PROCS; i++ )
 	    out->nCount[i] += right.nCount[i];
 	}
     else {
 	mdlassert(pst->mdl,in->N>mdlIO(pst->mdl));
 	pst->ioIndex = in->nLower / (in->N / mdlIO(pst->mdl) );
 	mdlassert(pst->mdl,pst->ioIndex >= 0 && pst->ioIndex < mdlIO(pst->mdl));
-	for( i=0; i<MDL_MAX_IO_PROCS; i++ )
+	for ( i=0; i<MDL_MAX_IO_PROCS; i++ )
 	    out->nCount[i] = 0;
 	out->nCount[pst->ioIndex] = pkdLocal(plcl->pkd);
-        }
+	}
     if (pnOut) *pnOut = sizeof(struct outFindIOS);
     }
 
@@ -2205,10 +2179,9 @@ typedef struct ctxIO {
     local_t iIndex;    /* Index into local array */
     total_t iMinOrder; /* Minimum iOrder */
     total_t iMaxOrder; /* Maximum iOrder */
-} * CTXIO;
+    } * CTXIO;
 
-static int pstPackIO(void *vctx, int *id, size_t nSize, void *vBuff)
-{
+static int pstPackIO(void *vctx, int *id, size_t nSize, void *vBuff) {
     CTXIO ctx = vctx;
     PIO *io = (PIO *)vBuff;
     size_t nPack;
@@ -2219,11 +2192,10 @@ static int pstPackIO(void *vctx, int *id, size_t nSize, void *vBuff)
 		      ctx->iMinOrder, ctx->iMaxOrder,
 		      ctx->dvFac);
     return nPack * sizeof(PIO);
-}
+    }
 
 
-static int pstUnpackIO(void *vctx, int *id, size_t nSize, void *vBuff)
-{
+static int pstUnpackIO(void *vctx, int *id, size_t nSize, void *vBuff) {
     CTXIO ctx = vctx;
     PIO *io = (PIO *)vBuff;
 
@@ -2232,10 +2204,9 @@ static int pstUnpackIO(void *vctx, int *id, size_t nSize, void *vBuff)
 		       &ctx->iIndex,
 		       ctx->iMinOrder, ctx->iMaxOrder,
 		       ctx->dvFac);
-}
+    }
 
-void pstIOLoad(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-{
+void pstIOLoad(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct inIOLoad *in = vin;
     struct ctxIO ctx;
@@ -2272,12 +2243,11 @@ void pstIOLoad(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 	mdlSetComm(pst->mdl,1);
 	mdlRecv(pst->mdl,-1,pstUnpackIO,&ctx);
 	mdlSetComm(pst->mdl,0);
+	}
     }
-}
 
 
-void pstStartIO(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
+void pstStartIO(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct inStartIO *in = vin;
     struct ctxIO ctx;
@@ -2294,7 +2264,7 @@ void pstStartIO(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 
 	/* Send to (optionally) each I/O processor */
 	mdlSetComm(pst->mdl,1);
-	for( i=0; i<mdlIO(pst->mdl); i++ ) {
+	for ( i=0; i<mdlIO(pst->mdl); i++ ) {
 	    /*
 	    ** Calculate iOrder range.  The last I/O node gets the remainder.
 	    */
@@ -2307,7 +2277,7 @@ void pstStartIO(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 
 	    ctx.pkd = plcl->pkd;
 	    mdlSend(pst->mdl,i,pstPackIO,&ctx);
-	}
+	    }
 	mdlSetComm(pst->mdl,0);
 
 	}
@@ -2315,8 +2285,7 @@ void pstStartIO(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     }
 #endif
 
-void pstSetSoft(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
+void pstSetSoft(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct inSetSoft *in = vin;
 
@@ -2393,8 +2362,7 @@ void pstBuildTree(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     }
 
 
-void pstDistribCells(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
+void pstDistribCells(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     KDN *pkdn = vin;
     int nCell;
@@ -2413,8 +2381,7 @@ void pstDistribCells(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 
 
 #ifdef GASOLINE
-void pstCalcBoundBall(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
+void pstCalcBoundBall(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct inCalcBoundBall *in = vin;
     BND *pbnd = vout;
@@ -2460,8 +2427,7 @@ void pstCalcBoundBall(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     }
 
 
-void pstDistribBoundBall(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
+void pstDistribBoundBall(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     BND *pbnd = vin;
     int nCell;
@@ -2479,8 +2445,7 @@ void pstDistribBoundBall(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     }
 #endif /* of GASOLINE */
 
-void pstCalcRoot(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
+void pstCalcRoot(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct ioCalcRoot *out = vout;
     struct ioCalcRoot temp;
@@ -2498,8 +2463,7 @@ void pstCalcRoot(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     if (pnOut) *pnOut = sizeof(struct ioCalcRoot);
     }
 
-void pstDistribRoot(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
+void pstDistribRoot(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct ioCalcRoot *in = vin;
 
@@ -2517,8 +2481,7 @@ void pstDistribRoot(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 
 
 #ifdef CHANGESOFT
-void pstPhysicalSoft(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
+void pstPhysicalSoft(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct inPhysicalSoft *in = vin;
 
@@ -2535,8 +2498,7 @@ void pstPhysicalSoft(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     }
 #endif
 
-void pstSmooth(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
+void pstSmooth(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     struct inSmooth *in = vin;
 
     mdlassert(pst->mdl,nIn == sizeof(struct inSmooth));
@@ -2559,8 +2521,7 @@ void pstSmooth(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     }
 
 
-void pstReSmooth(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
+void pstReSmooth(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     struct inReSmooth *in = vin;
 
     mdlassert(pst->mdl,nIn == sizeof(struct inReSmooth));
@@ -2589,7 +2550,7 @@ void pstGravity(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     struct outGravity *outUp;
     int nThreads = mdlThreads(pst->mdl);
     int id;
-   
+
     mdlassert(pst->mdl,nIn == sizeof(struct inGravity));
     if (pst->nLeaves > 1) {
 	mdlReqService(pst->mdl,pst->idUpper,PST_GRAVITY,in,nIn);
@@ -2606,30 +2567,29 @@ void pstGravity(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	for (id=0;id<nThreads;++id) {
 	    if (outUp[id].dWalkTime >= 0) {
 		out[id] = outUp[id];
+		}
 	    }
-	}
 	free(outUp);
-    }
+	}
     else {
 	for (id=0;id<nThreads;++id) out[id].dWalkTime = -1.0;  /* impossible, used as initialization */
 	id = pst->idSelf;
 	pkdGravAll(plcl->pkd,in->dTime,in->nReps,in->bPeriodic,4,in->bEwald,
 		   in->dEwCut,in->dEwhCut, &out[id].nActive,
 		   &out[id].dPartSum,&out[id].dCellSum,&out[id].cs,&out[id].dFlop);
-	
+
 	out[id].dWalkTime = pkdGetWallClockTimer(plcl->pkd,1);
 #ifdef INSTRUMENT
 	out[id].dComputing     = mdlTimeComputing(pst->mdl);
 	out[id].dWaiting       = mdlTimeWaiting(pst->mdl);
 	out[id].dSynchronizing = mdlTimeSynchronizing(pst->mdl);
 #endif
-    }
+	}
     if (pnOut) *pnOut = nThreads*sizeof(struct outGravity);
-}
+    }
 
 
-void pstCalcEandL(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
+void pstCalcEandL(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct outCalcEandL *out = vout;
     struct outCalcEandL outLcl;
@@ -2652,8 +2612,7 @@ void pstCalcEandL(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     }
 
 
-void pstDrift(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
+void pstDrift(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct inDrift *in = vin;
 
@@ -2670,8 +2629,7 @@ void pstDrift(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     if (pnOut) *pnOut = 0;
     }
 
-void pstDriftInactive(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
+void pstDriftInactive(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct inDrift *in = vin;
 
@@ -2701,15 +2659,14 @@ void pstCacheBarrier(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     if (pnOut) *pnOut = 0;
     }
 
-void pstStepVeryActiveKDK(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
+void pstStepVeryActiveKDK(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct inStepVeryActive *in = vin;
     struct outStepVeryActive *out = vout;
 
     mdlassert(pst->mdl,nIn == sizeof(struct inStepVeryActive));
     if (pst->nLeaves > 1) {
-	if(pst->iVASplitSide > 0) {
+	if (pst->iVASplitSide > 0) {
 	    mdlReqService(pst->mdl,pst->idUpper,PST_CACHEBARRIER,NULL,0);
 	    pstStepVeryActiveKDK(pst->pstLower,in,nIn,out,NULL);
 	    mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
@@ -2725,11 +2682,11 @@ void pstStepVeryActiveKDK(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 	}
     else {
 	assert(plcl->pkd->nVeryActive > 0);
-	
+
 	out->nMaxRung = in->nMaxRung;
 	pkdStepVeryActiveKDK(plcl->pkd,in->dStep,in->dTime,in->dDelta,
 			     in->iRung, in->iRung, in->iRung, 0, in->diCrit2,
-			     &out->nMaxRung, in->aSunInact, in->adSunInact, 
+			     &out->nMaxRung, in->aSunInact, in->adSunInact,
 			     in->dSunMass);
 	mdlCacheBarrier(pst->mdl,CID_CELL);
 	}
@@ -2738,15 +2695,14 @@ void pstStepVeryActiveKDK(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 
 #ifdef HERMITE
 /* Hermite */
-void pstStepVeryActiveHermite(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
+void pstStepVeryActiveHermite(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct inStepVeryActiveH *in = vin;
     struct outStepVeryActiveH *out = vout;
 
     mdlassert(pst->mdl,nIn == sizeof(struct inStepVeryActiveH));
     if (pst->nLeaves > 1) {
-	if(pst->iVASplitSide > 0) {
+	if (pst->iVASplitSide > 0) {
 	    mdlReqService(pst->mdl,pst->idUpper,PST_CACHEBARRIER,NULL,0);
 	    pstStepVeryActiveHermite(pst->pstLower,in,nIn,out,NULL);
 	    mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
@@ -2762,20 +2718,19 @@ void pstStepVeryActiveHermite(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 	}
     else {
 	assert(plcl->pkd->nVeryActive > 0);
-	
+
 	out->nMaxRung = in->nMaxRung;
 	pkdStepVeryActiveHermite(plcl->pkd,in->dStep,in->dTime,in->dDelta,
-			     in->iRung, in->iRung, in->iRung, 0, in->diCrit2,
-			     &out->nMaxRung, in->aSunInact, in->adSunInact, 
-			     in->dSunMass);
+				 in->iRung, in->iRung, in->iRung, 0, in->diCrit2,
+				 &out->nMaxRung, in->aSunInact, in->adSunInact,
+				 in->dSunMass);
 	mdlCacheBarrier(pst->mdl,CID_CELL);
 	}
     if (pnOut) *pnOut = sizeof(*out);
     }
 
 
-void pstCopy0(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
+void pstCopy0(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct inCopy0 *in = vin;
 
@@ -2791,8 +2746,7 @@ void pstCopy0(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     if (pnOut) *pnOut = 0;
     }
 
-void pstPredictor(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
+void pstPredictor(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct inPredictor *in = vin;
 
@@ -2808,8 +2762,7 @@ void pstPredictor(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     if (pnOut) *pnOut = 0;
     }
 
-void pstCorrector(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
+void pstCorrector(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct inCorrector *in = vin;
 
@@ -2825,8 +2778,7 @@ void pstCorrector(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     if (pnOut) *pnOut = 0;
     }
 
-void pstSunCorrector(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
+void pstSunCorrector(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct inSunCorrector *in = vin;
 
@@ -2842,8 +2794,7 @@ void pstSunCorrector(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     if (pnOut) *pnOut = 0;
     }
 
-void pstPredictorInactive(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
+void pstPredictorInactive(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct inPredictorInactive *in = vin;
 
@@ -2860,8 +2811,7 @@ void pstPredictorInactive(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     }
 
 void
-pstAarsethStep(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
+pstAarsethStep(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct inAarsethStep *in = vin;
 
@@ -2877,8 +2827,7 @@ pstAarsethStep(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     if (pnOut) *pnOut = 0;
     }
 
-void pstFirstDt(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
+void pstFirstDt(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
 
     mdlassert(pst->mdl,nIn == 0);
@@ -2895,8 +2844,7 @@ void pstFirstDt(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 /* Hermite end */
 #endif
 
-void pstROParticleCache(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
+void pstROParticleCache(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
 
     mdlassert(pst->mdl,nIn == 0);
@@ -2912,13 +2860,12 @@ void pstROParticleCache(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 	PKD pkd = plcl->pkd;
 	mdlROcache(pkd->mdl,CID_PARTICLE,pkd->pStore,sizeof(PARTICLE),
 		   pkdLocal(pkd));
-	
+
 	}
     if (pnOut) *pnOut = 0;
     }
 
-void pstParticleCacheFinish(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
+void pstParticleCacheFinish(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
 
     mdlassert(pst->mdl,nIn == 0);
@@ -2937,8 +2884,7 @@ void pstParticleCacheFinish(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     if (pnOut) *pnOut = 0;
     }
 
-void pstKick(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
+void pstKick(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct inKick *in = vin;
     struct outKick *out = vout;
@@ -2968,8 +2914,7 @@ void pstKick(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     }
 
 
-void pstSetTotal(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {	
+void pstSetTotal(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct outSetTotal *out = vout;
     struct outSetTotal oute;
@@ -2991,8 +2936,7 @@ void pstSetTotal(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     }
 
 
-void pstSetWriteStart(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {	
+void pstSetWriteStart(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct inSetWriteStart *in = vin;
     uint64_t nWriteStart;
@@ -3014,11 +2958,10 @@ void pstSetWriteStart(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 
 
 void
-pstSetRung(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
+pstSetRung(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct inSetRung *in = vin;
-	
+
     mdlassert(pst->mdl,nIn == sizeof(*in));
     if (pst->nLeaves > 1) {
 	mdlReqService(pst->mdl,pst->idUpper,PST_SETRUNG,vin,nIn);
@@ -3032,11 +2975,10 @@ pstSetRung(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     }
 
 void
-pstInitStep(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
+pstInitStep(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct inInitStep *in = vin;
-	
+
     mdlassert(pst->mdl,nIn == sizeof(*in));
     if (pst->nLeaves > 1) {
 	mdlReqService(pst->mdl,pst->idUpper,PST_INITSTEP,vin,nIn);
@@ -3044,17 +2986,16 @@ pstInitStep(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 	mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
 	}
     else {
-      pkdInitStep(plcl->pkd,&in->param,&in->csm);
+	pkdInitStep(plcl->pkd,&in->param,&in->csm);
 	}
     if (pnOut) *pnOut = 0;
     }
 
 void
-pstActiveRung(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
+pstActiveRung(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct inActiveRung *in = vin;
-	
+
     mdlassert(pst->mdl,nIn == sizeof(*in));
     if (pst->nLeaves > 1) {
 	mdlReqService(pst->mdl,pst->idUpper,PST_ACTIVERUNG,vin,nIn);
@@ -3067,20 +3008,19 @@ pstActiveRung(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     }
 
 void
-pstCurrRung(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
+pstCurrRung(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct inCurrRung *in = vin;
     struct outCurrRung *out = vout;
     int iCurrent;
-	
+
     mdlassert(pst->mdl,nIn == sizeof(*in));
     if (pst->nLeaves > 1) {
 	mdlReqService(pst->mdl,pst->idUpper,PST_CURRRUNG,vin,nIn);
 	pstCurrRung(pst->pstLower,vin,nIn,vout,pnOut);
 	iCurrent = out->iCurrent;
 	mdlGetReply(pst->mdl,pst->idUpper,vout,pnOut);
-	if(iCurrent)
+	if (iCurrent)
 	    out->iCurrent = iCurrent;
 	}
     else {
@@ -3090,8 +3030,7 @@ pstCurrRung(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     }
 
 void
-pstGravStep(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
+pstGravStep(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct inGravStep *in = vin;
 
@@ -3108,8 +3047,7 @@ pstGravStep(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     }
 
 void
-pstAccelStep(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
+pstAccelStep(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct inAccelStep *in = vin;
 
@@ -3127,11 +3065,10 @@ pstAccelStep(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     }
 
 void
-pstDensityStep(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
+pstDensityStep(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct inDensityStep *in = vin;
-	
+
     mdlassert(pst->mdl,nIn == sizeof(*in));
     if (pst->nLeaves > 1) {
 	mdlReqService(pst->mdl,pst->idUpper,PST_DENSITYSTEP,vin,nIn);
@@ -3144,8 +3081,7 @@ pstDensityStep(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     if (pnOut) *pnOut = 0;
     }
 
-void pstDtToRung(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
+void pstDtToRung(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct outDtToRung outTemp;
     struct inDtToRung *in = vin;
@@ -3170,8 +3106,7 @@ void pstDtToRung(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     if (pnOut) *pnOut = sizeof(*out);
     }
 
-void pstInitDt(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
+void pstInitDt(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct inInitDt *in = vin;
 
@@ -3188,8 +3123,7 @@ void pstInitDt(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     }
 
 
-void pstSetRungVeryActive(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
+void pstSetRungVeryActive(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct inSetRung *in = vin;
 
@@ -3206,8 +3140,7 @@ void pstSetRungVeryActive(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 
 
 void
-pstColNParts(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
+pstColNParts(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct outColNParts *out = vout;
     struct outColNParts *ptmp;
@@ -3215,16 +3148,16 @@ pstColNParts(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     int i;
 
     nThreads = mdlThreads(pst->mdl);
-    for(i=0;i<nThreads;i++)
+    for (i=0;i<nThreads;i++)
 	out[i].nNew = -1;
-    if(pst->nLeaves > 1) {
+    if (pst->nLeaves > 1) {
 	mdlReqService(pst->mdl,pst->idUpper,PST_COLNPARTS,vin,nIn);
 	pstColNParts(pst->pstLower,vin,nIn,vout,pnOut);
 	ptmp = malloc(nThreads*sizeof(*ptmp));
 	mdlassert(pst->mdl,ptmp != NULL);
 	mdlGetReply(pst->mdl,pst->idUpper,ptmp,pnOut);
-	for(i = 0; i < nThreads; i++) {
-	    if(ptmp[i].nNew != -1)
+	for (i = 0; i < nThreads; i++) {
+	    if (ptmp[i].nNew != -1)
 		out[i] = ptmp[i];
 	    }
 	free(ptmp);
@@ -3235,16 +3168,15 @@ pstColNParts(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 		     &out[pst->idSelf].nDeltaDark,
 		     &out[pst->idSelf].nDeltaStar);
 	}
-    if(pnOut) *pnOut = nThreads*sizeof(*out);
+    if (pnOut) *pnOut = nThreads*sizeof(*out);
     }
 
 void
-pstNewOrder(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
+pstNewOrder(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     uint64_t *in = vin;
-    
-    if(pst->nLeaves > 1) {
+
+    if (pst->nLeaves > 1) {
 	mdlReqService(pst->mdl,pst->idUpper,PST_NEWORDER,vin,nIn);
 	pstNewOrder(pst->pstLower, vin, nIn, vout, pnOut);
 	mdlGetReply(pst->mdl, pst->idUpper, vout, pnOut);
@@ -3252,15 +3184,14 @@ pstNewOrder(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     else {
 	pkdNewOrder(plcl->pkd, in[pst->idSelf]);
 	}
-    if(pnOut) *pnOut = 0;
+    if (pnOut) *pnOut = 0;
     }
 
 void
-pstSetNParts(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
+pstSetNParts(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     struct inSetNParts *in = vin;
-    
-    if(pst->nLeaves > 1) {
+
+    if (pst->nLeaves > 1) {
 	mdlReqService(pst->mdl,pst->idUpper,PST_SETNPARTS,vin,nIn);
 	pstSetNParts(pst->pstLower, vin, nIn, vout, pnOut);
 	mdlGetReply(pst->mdl, pst->idUpper, vout, pnOut);
@@ -3269,13 +3200,12 @@ pstSetNParts(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 	pkdSetNParts(pst->plcl->pkd, in->nGas, in->nDark, in->nStar,
 		     in->nMaxOrderGas, in->nMaxOrderDark);
 	}
-    if(pnOut) *pnOut = 0;
+    if (pnOut) *pnOut = 0;
     }
 
 
-void 
-pstClearTimer(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
+void
+pstClearTimer(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     struct inClearTimer *in = vin;
 
     mdlassert(pst->mdl,nIn == sizeof(struct inClearTimer));
@@ -3291,10 +3221,9 @@ pstClearTimer(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     }
 
 
-void pstFof(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
+void pstFof(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     struct inFof *in = vin;
-	
+
     mdlassert(pst->mdl,nIn == sizeof(struct inFof));
     if (pst->nLeaves > 1) {
 	mdlReqService(pst->mdl,pst->idUpper,PST_FOF,in,nIn);
@@ -3314,14 +3243,13 @@ void pstFof(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     if (pnOut) *pnOut = 0;
     }
 
-void pstGroupMerge(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
+void pstGroupMerge(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     struct inGroupMerge *in = vin;
     int *nGroups = vout;
 
     mdlassert(pst->mdl,nIn == sizeof(struct inGroupMerge));
     if (pst->nLeaves > 1) {
-	int nGroupsLeaf;	
+	int nGroupsLeaf;
 	mdlReqService(pst->mdl,pst->idUpper,PST_GROUPMERGE,in,nIn);
 	pstGroupMerge(pst->pstLower,in,nIn,vout,pnOut);
 	mdlGetReply(pst->mdl,pst->idUpper,&nGroupsLeaf,pnOut);
@@ -3334,14 +3262,13 @@ void pstGroupMerge(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     if (pnOut) *pnOut = sizeof(int);
     }
 
-void pstGroupProfiles(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
+void pstGroupProfiles(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     struct inGroupProfiles *in = vin;
     int *nBins = vout;
 
     mdlassert(pst->mdl,nIn == sizeof(struct inGroupProfiles));
     if (pst->nLeaves > 1) {
-	int nBinsLeaf;	
+	int nBinsLeaf;
 	mdlReqService(pst->mdl,pst->idUpper,PST_GROUPPROFILES,in,nIn);
 	pstGroupProfiles(pst->pstLower,in,nIn,vout,pnOut);
 	mdlGetReply(pst->mdl,pst->idUpper,&nBinsLeaf,pnOut);
@@ -3361,10 +3288,9 @@ void pstGroupProfiles(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     }
 
 #ifdef RELAXATION
-void pstInitRelaxation(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
+void pstInitRelaxation(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
-	
+
     mdlassert(pst->mdl,nIn == 0);
     if (pst->nLeaves > 1) {
 	mdlReqService(pst->mdl,pst->idUpper,PST_INITRELAXATION,vin,nIn);
@@ -3379,80 +3305,77 @@ void pstInitRelaxation(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 #endif /* RELAXATION */
 
 /* PLANETS begin */
-#ifdef PLANETS 
+#ifdef PLANETS
 void
-pstReadSS(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-{
-	LCL *plcl = pst->plcl;
-	struct inReadSS *in = vin;
-	int nFileStart,nFileEnd,nFileTotal,nFileSplit,nStore;
-	char achInFile[PST_FILENAME_SIZE];
+pstReadSS(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl = pst->plcl;
+    struct inReadSS *in = vin;
+    int nFileStart,nFileEnd,nFileTotal,nFileSplit,nStore;
+    char achInFile[PST_FILENAME_SIZE];
 
-	mdlassert(pst->mdl,nIn == sizeof(struct inReadSS));
-	nFileStart = in->nFileStart;
-	nFileEnd = in->nFileEnd;
-	nFileTotal = nFileEnd - nFileStart + 1;
-	if (pst->nLeaves > 1) {
-		nFileSplit = nFileStart + pst->nLower*(nFileTotal/pst->nLeaves);
-		in->nFileStart = nFileSplit;
-		mdlReqService(pst->mdl,pst->idUpper,PST_READSS,vin,nIn);
-		in->nFileStart = nFileStart;
-		in->nFileEnd = nFileSplit - 1;
-		pstReadSS(pst->pstLower,vin,nIn,NULL,NULL);
-		in->nFileEnd = nFileEnd;
-		mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
-		}
-	else {
-		/*
-		 ** Add the local Data Path to the provided filename.
-		 */
-		achInFile[0] = 0;
-		if (plcl->pszDataPath) {
-			strcat(achInFile,plcl->pszDataPath);
-			strcat(achInFile,"/");
-			}
-		strcat(achInFile,in->achInFile);
-		/*
-		 ** Determine the size of the local particle store.
-		 */
-		nStore = nFileTotal + (int)ceil(nFileTotal*in->fExtraStore);
-		pkdInitialize(&plcl->pkd,pst->mdl,nStore,in->nBucket,in->fPeriod,
+    mdlassert(pst->mdl,nIn == sizeof(struct inReadSS));
+    nFileStart = in->nFileStart;
+    nFileEnd = in->nFileEnd;
+    nFileTotal = nFileEnd - nFileStart + 1;
+    if (pst->nLeaves > 1) {
+	nFileSplit = nFileStart + pst->nLower*(nFileTotal/pst->nLeaves);
+	in->nFileStart = nFileSplit;
+	mdlReqService(pst->mdl,pst->idUpper,PST_READSS,vin,nIn);
+	in->nFileStart = nFileStart;
+	in->nFileEnd = nFileSplit - 1;
+	pstReadSS(pst->pstLower,vin,nIn,NULL,NULL);
+	in->nFileEnd = nFileEnd;
+	mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
+	}
+    else {
+	/*
+	 ** Add the local Data Path to the provided filename.
+	 */
+	achInFile[0] = 0;
+	if (plcl->pszDataPath) {
+	    strcat(achInFile,plcl->pszDataPath);
+	    strcat(achInFile,"/");
+	    }
+	strcat(achInFile,in->achInFile);
+	/*
+	 ** Determine the size of the local particle store.
+	 */
+	nStore = nFileTotal + (int)ceil(nFileTotal*in->fExtraStore);
+	pkdInitialize(&plcl->pkd,pst->mdl,nStore,in->nBucket,in->fPeriod,
 		      in->nDark,in->nGas,in->nStar);
-		pkdReadSS(plcl->pkd,achInFile,nFileStart,nFileTotal);
-		}
-	if (pnOut) *pnOut = 0;
+	pkdReadSS(plcl->pkd,achInFile,nFileStart,nFileTotal);
 	}
+    if (pnOut) *pnOut = 0;
+    }
 
 void
-pstWriteSS(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-{
-	LCL *plcl = pst->plcl;
-	struct inWriteSS *in = vin;
-	char achOutFile[PST_FILENAME_SIZE];
+pstWriteSS(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl = pst->plcl;
+    struct inWriteSS *in = vin;
+    char achOutFile[PST_FILENAME_SIZE];
 
-	mdlassert(pst->mdl,nIn == sizeof(struct inWriteSS));
-	if (pst->nLeaves > 1) {
-		mdlReqService(pst->mdl,pst->idUpper,PST_WRITESS,vin,nIn);
-		pstWriteSS(pst->pstLower,vin,nIn,NULL,NULL);
-		mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
-		}
-	else {
-		/*
-		 ** Add the local Data Path to the provided filename.
-		 */
-		achOutFile[0] = 0;
-		if (plcl->pszDataPath) {
-			strcat(achOutFile,plcl->pszDataPath);
-			strcat(achOutFile,"/");
-			}
-		strcat(achOutFile,in->achOutFile);
-		pkdWriteSS(plcl->pkd,achOutFile,plcl->nWriteStart);
-		}
-	if (pnOut) *pnOut = 0;
+    mdlassert(pst->mdl,nIn == sizeof(struct inWriteSS));
+    if (pst->nLeaves > 1) {
+	mdlReqService(pst->mdl,pst->idUpper,PST_WRITESS,vin,nIn);
+	pstWriteSS(pst->pstLower,vin,nIn,NULL,NULL);
+	mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
 	}
+    else {
+	/*
+	 ** Add the local Data Path to the provided filename.
+	 */
+	achOutFile[0] = 0;
+	if (plcl->pszDataPath) {
+	    strcat(achOutFile,plcl->pszDataPath);
+	    strcat(achOutFile,"/");
+	    }
+	strcat(achOutFile,in->achOutFile);
+	pkdWriteSS(plcl->pkd,achOutFile,plcl->nWriteStart);
+	}
+    if (pnOut) *pnOut = 0;
+    }
 
-void pstSunIndirect(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
+void pstSunIndirect(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     /* calculate acceralation on Sun by direct summation */
     LCL *plcl = pst->plcl;
     struct inSunIndirect *in = vin;
@@ -3465,19 +3388,18 @@ void pstSunIndirect(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 	mdlReqService(pst->mdl,pst->idUpper,PST_SUNINDIRECT,vin,nIn);
 	pstSunIndirect(pst->pstLower,vin,nIn,out,NULL);
 	mdlGetReply(pst->mdl,pst->idUpper,&outLcl,NULL);
-	for (k=0;k<3;k++){ 
-         out->aSun[k] += outLcl.aSun[k];
-	 out->adSun[k] += outLcl.adSun[k];
-	 }
+	for (k=0;k<3;k++) {
+	    out->aSun[k] += outLcl.aSun[k];
+	    out->adSun[k] += outLcl.adSun[k];
+	    }
 	}
     else {
 	pkdSunIndirect(plcl->pkd,out->aSun,out->adSun,in->iFlag);
 	}
     if (pnOut) *pnOut = sizeof(struct outSunIndirect);
-     }
+    }
 
-void pstGravSun(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
+void pstGravSun(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct inGravSun *in = vin;
 
@@ -3486,15 +3408,14 @@ void pstGravSun(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 	mdlReqService(pst->mdl,pst->idUpper,PST_GRAVSUN,vin,nIn);
 	pstGravSun(pst->pstLower,vin,nIn,NULL,NULL);
 	mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
-    }
+	}
     else {
-      pkdGravSun(plcl->pkd,in->aSun,in->adSun,in->dSunMass);
-    }
+	pkdGravSun(plcl->pkd,in->aSun,in->adSun,in->dSunMass);
+	}
     if (pnOut) *pnOut = 0;
     }
 
-void pstHandSunMass(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
+void pstHandSunMass(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct inHandSunMass *in = vin;
 
@@ -3503,95 +3424,91 @@ void pstHandSunMass(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 	mdlReqService(pst->mdl,pst->idUpper,PST_HANDSUNMASS,vin,nIn);
 	pstHandSunMass(pst->pstLower,vin,nIn,NULL,NULL);
 	mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
-    }
+	}
     else {
-      pkdHandSunMass(plcl->pkd,in->dSunMass);
-    }
+	pkdHandSunMass(plcl->pkd,in->dSunMass);
+	}
     if (pnOut) *pnOut = 0;
     }
 
 
 void
-pstNextCollision(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-{
-	LCL *plcl = pst->plcl;
-	struct outNextCollision local,*out = vout;
-
-	mdlassert(pst->mdl,nIn == 0);
-	out->dt = DBL_MAX;
-	out->iOrder1 = out->iOrder2 = -1;
-	if (pst->nLeaves > 1) {
-		mdlReqService(pst->mdl,pst->idUpper,PST_NEXTCOLLISION,NULL,0);
-		pstNextCollision(pst->pstLower,NULL,0,vout,NULL);
-		local = *out;
-		mdlGetReply(pst->mdl,pst->idUpper,vout,NULL);
-		if (local.dt < out->dt) *out = local;
-		}
-	else {
-		pkdNextCollision(plcl->pkd,&out->dt,&out->iOrder1,&out->iOrder2);
-		}
-	if (pnOut) *pnOut = sizeof(*out);
-	}
-
-void
-pstGetColliderInfo(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-{
-	LCL *plcl = pst->plcl;
-	struct inGetColliderInfo *in = vin;
-	struct outGetColliderInfo local,*out = vout;
-
-	mdlassert(pst->mdl,nIn == sizeof(*in));
-	local.Collider.id.iOrder = out->Collider.id.iOrder = -1;
-	if (pst->nLeaves > 1) {
-		mdlReqService(pst->mdl,pst->idUpper,PST_GETCOLLIDERINFO,vin,nIn);
-		pstGetColliderInfo(pst->pstLower,vin,nIn,vout,NULL);
-		if (out->Collider.id.iOrder == in->iOrder) local = *out;
-		mdlGetReply(pst->mdl,pst->idUpper,vout,NULL);
-		if (local.Collider.id.iOrder == in->iOrder) *out = local;
-		}
-	else {
-		pkdGetColliderInfo(plcl->pkd,in->iOrder,&out->Collider);
-		}
-	if (pnOut) *pnOut = sizeof(*out);
-	}
-
-void
-pstDoCollision(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-{
-	LCL *plcl = pst->plcl;
-	struct inDoCollision *in = vin;
-	struct outDoCollision local,*out = vout;
-
-	mdlassert(pst->mdl,nIn == sizeof(*in));
-	local.nOut = out->nOut = 0;
-	if (pst->nLeaves > 1) {
-		mdlReqService(pst->mdl,pst->idUpper,PST_DOCOLLISION,vin,nIn);
-		pstDoCollision(pst->pstLower,vin,nIn,vout,NULL);
-		if (out->nOut) local = *out;
-		mdlGetReply(pst->mdl,pst->idUpper,vout,NULL);
-		if (local.nOut) *out = local;
-		}
-	else {
-		PKD pkd = plcl->pkd;
-		if (in->Collider1.id.iPid == pkd->idSelf ||
-		    in->Collider2.id.iPid == pkd->idSelf) {
-		  pkdDoCollision(pkd,in->dt,&in->Collider1,&in->Collider2,
-				 in->bPeriodic,&in->CP,&out->iOutcome,&out->dT,
-				 out->Out,&out->nOut);
-			}
-		}
-	if (pnOut) *pnOut = sizeof(*out);
-	}
-
-void pstGetVariableVeryActive(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
+pstNextCollision(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
-   
+    struct outNextCollision local,*out = vout;
+
+    mdlassert(pst->mdl,nIn == 0);
+    out->dt = DBL_MAX;
+    out->iOrder1 = out->iOrder2 = -1;
+    if (pst->nLeaves > 1) {
+	mdlReqService(pst->mdl,pst->idUpper,PST_NEXTCOLLISION,NULL,0);
+	pstNextCollision(pst->pstLower,NULL,0,vout,NULL);
+	local = *out;
+	mdlGetReply(pst->mdl,pst->idUpper,vout,NULL);
+	if (local.dt < out->dt) *out = local;
+	}
+    else {
+	pkdNextCollision(plcl->pkd,&out->dt,&out->iOrder1,&out->iOrder2);
+	}
+    if (pnOut) *pnOut = sizeof(*out);
+    }
+
+void
+pstGetColliderInfo(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl = pst->plcl;
+    struct inGetColliderInfo *in = vin;
+    struct outGetColliderInfo local,*out = vout;
+
+    mdlassert(pst->mdl,nIn == sizeof(*in));
+    local.Collider.id.iOrder = out->Collider.id.iOrder = -1;
+    if (pst->nLeaves > 1) {
+	mdlReqService(pst->mdl,pst->idUpper,PST_GETCOLLIDERINFO,vin,nIn);
+	pstGetColliderInfo(pst->pstLower,vin,nIn,vout,NULL);
+	if (out->Collider.id.iOrder == in->iOrder) local = *out;
+	mdlGetReply(pst->mdl,pst->idUpper,vout,NULL);
+	if (local.Collider.id.iOrder == in->iOrder) *out = local;
+	}
+    else {
+	pkdGetColliderInfo(plcl->pkd,in->iOrder,&out->Collider);
+	}
+    if (pnOut) *pnOut = sizeof(*out);
+    }
+
+void
+pstDoCollision(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl = pst->plcl;
+    struct inDoCollision *in = vin;
+    struct outDoCollision local,*out = vout;
+
+    mdlassert(pst->mdl,nIn == sizeof(*in));
+    local.nOut = out->nOut = 0;
+    if (pst->nLeaves > 1) {
+	mdlReqService(pst->mdl,pst->idUpper,PST_DOCOLLISION,vin,nIn);
+	pstDoCollision(pst->pstLower,vin,nIn,vout,NULL);
+	if (out->nOut) local = *out;
+	mdlGetReply(pst->mdl,pst->idUpper,vout,NULL);
+	if (local.nOut) *out = local;
+	}
+    else {
+	PKD pkd = plcl->pkd;
+	if (in->Collider1.id.iPid == pkd->idSelf ||
+		in->Collider2.id.iPid == pkd->idSelf) {
+	    pkdDoCollision(pkd,in->dt,&in->Collider1,&in->Collider2,
+			   in->bPeriodic,&in->CP,&out->iOutcome,&out->dT,
+			   out->Out,&out->nOut);
+	    }
+	}
+    if (pnOut) *pnOut = sizeof(*out);
+    }
+
+void pstGetVariableVeryActive(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl = pst->plcl;
+
     struct outGetVariableVeryActive *out = vout;
 
     mdlassert(pst->mdl,nIn == 0);
     if (pst->nLeaves > 1) {
-	if(pst->iVASplitSide > 0) {
+	if (pst->iVASplitSide > 0) {
 	    mdlReqService(pst->mdl,pst->idUpper,PST_CACHEBARRIER,NULL,0);
 	    pstGetVariableVeryActive(pst->pstLower,NULL,0,out,NULL);
 	    mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
@@ -3606,43 +3523,43 @@ void pstGetVariableVeryActive(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 	    }
 	}
     else {
-	assert(plcl->pkd->nVeryActive > 0);	
+	assert(plcl->pkd->nVeryActive > 0);
 	pkdGetVariableVeryActive(plcl->pkd, &out->dDeltaEcoll);
 	mdlCacheBarrier(pst->mdl,CID_CELL);
 	}
     if (pnOut) *pnOut = sizeof(*out);
     }
 
-void pstCheckHelioDist(PST pst,void *vin,int nIn,void *vout,int *pnOut){
+void pstCheckHelioDist(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct outCheckHelioDist *out = vout;
     struct outCheckHelioDist outLcl;
-    
-  
+
+
     mdlassert(pst->mdl,nIn == 0);
-    if (pst->nLeaves > 1) {  
+    if (pst->nLeaves > 1) {
 	mdlReqService(pst->mdl,pst->idUpper,PST_CHECKHELIODIST,vin,nIn);
 	pstCheckHelioDist(pst->pstLower,NULL,nIn,out,NULL);
 	mdlGetReply(pst->mdl,pst->idUpper,&outLcl,NULL);
 	out->dT += outLcl.dT;
-	  out->dSM += outLcl.dSM;
-    } else {
-      pkdCheckHelioDist(plcl->pkd,&out->dT,&out->dSM);
-    }
+	out->dSM += outLcl.dSM;
+	}
+    else {
+	pkdCheckHelioDist(plcl->pkd,&out->dT,&out->dSM);
+	}
     if (pnOut) *pnOut = sizeof(struct outCheckHelioDist);
     }
 
 
 #ifdef SYMBA
-void pstStepVeryActiveSymba(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
+void pstStepVeryActiveSymba(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct inStepVeryActiveS *in = vin;
     struct outStepVeryActiveS *out = vout;
 
     mdlassert(pst->mdl,nIn == sizeof(struct inStepVeryActiveS));
     if (pst->nLeaves > 1) {
-	if(pst->iVASplitSide > 0) {
+	if (pst->iVASplitSide > 0) {
 	    mdlReqService(pst->mdl,pst->idUpper,PST_CACHEBARRIER,NULL,0);
 	    pstStepVeryActiveSymba(pst->pstLower,in,nIn,out,NULL);
 	    mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
@@ -3658,18 +3575,17 @@ void pstStepVeryActiveSymba(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 	}
     else {
 	/*assert(plcl->pkd->nVeryActive > 0);*/
-	
+
 	out->nMaxRung = in->nMaxRung;
 	pkdStepVeryActiveSymba(plcl->pkd,in->dStep,in->dTime,in->dDelta,
-			     in->iRung, in->iRung, in->iRung, 0, in->diCrit2,
-			     &out->nMaxRung, in->dSunMass, 0);
+			       in->iRung, in->iRung, in->iRung, 0, in->diCrit2,
+			       &out->nMaxRung, in->dSunMass, 0);
 	mdlCacheBarrier(pst->mdl,CID_CELL);
 	}
     if (pnOut) *pnOut = sizeof(*out);
     }
 
-void pstDrminToRung(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
+void pstDrminToRung(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct outDrminToRung outTemp;
     struct inDrminToRung *in = vin;
@@ -3694,11 +3610,10 @@ void pstDrminToRung(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     if (pnOut) *pnOut = sizeof(*out);
     }
 
-void pstMomSun(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-    {
-  
+void pstMomSun(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+
     LCL *plcl = pst->plcl;
-  
+
     struct outMomSun *out = vout;
     struct outMomSun outLcl;
     int k;
@@ -3708,54 +3623,53 @@ void pstMomSun(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 	mdlReqService(pst->mdl,pst->idUpper,PST_MOMSUN,vin,nIn);
 	pstMomSun(pst->pstLower,vin,nIn,out,NULL);
 	mdlGetReply(pst->mdl,pst->idUpper,&outLcl,NULL);
-	for (k=0;k<3;k++){ 
-         out->momSun[k] += outLcl.momSun[k];
-	 }
+	for (k=0;k<3;k++) {
+	    out->momSun[k] += outLcl.momSun[k];
+	    }
 	}
     else {
 	pkdMomSun(plcl->pkd,out->momSun);
 	}
     if (pnOut) *pnOut = sizeof(struct outMomSun);
-     }
+    }
 
-void pstDriftSun(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-{
-  LCL *plcl = pst->plcl;
-  struct inDriftSun *in = vin;
-  
-  mdlassert(pst->mdl,nIn == sizeof(struct inDriftSun));
-  if (pst->nLeaves > 1) {
-    mdlReqService(pst->mdl,pst->idUpper,PST_DRIFTSUN,vin,nIn);
-    pstDriftSun(pst->pstLower,vin,nIn,NULL,NULL);
-    mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
-  } else {
-    pkdDriftSun(plcl->pkd,in->vSun,in->dDelta);
-  }
-  if (pnOut) *pnOut = 0;
-}
+void pstDriftSun(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl = pst->plcl;
+    struct inDriftSun *in = vin;
 
-void pstKeplerDrift(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-{
-  LCL *plcl = pst->plcl;
-  struct inKeplerDrift *in = vin;
-  
-  mdlassert(pst->mdl,nIn == sizeof(struct inKeplerDrift));
-  if (pst->nLeaves > 1) {
-    mdlReqService(pst->mdl,pst->idUpper,PST_KEPLERDRIFT,vin,nIn);
-    pstKeplerDrift(pst->pstLower,vin,nIn,NULL,NULL);
-    mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
-  } else {
-      pkdKeplerDrift(plcl->pkd,in->dDelta,in->dSunMass,0); /* 0 for all */
-  }
-  if (pnOut) *pnOut = 0;
-}
+    mdlassert(pst->mdl,nIn == sizeof(struct inDriftSun));
+    if (pst->nLeaves > 1) {
+	mdlReqService(pst->mdl,pst->idUpper,PST_DRIFTSUN,vin,nIn);
+	pstDriftSun(pst->pstLower,vin,nIn,NULL,NULL);
+	mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
+	}
+    else {
+	pkdDriftSun(plcl->pkd,in->vSun,in->dDelta);
+	}
+    if (pnOut) *pnOut = 0;
+    }
 
-#endif /* SYMBA */ 
+void pstKeplerDrift(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl = pst->plcl;
+    struct inKeplerDrift *in = vin;
+
+    mdlassert(pst->mdl,nIn == sizeof(struct inKeplerDrift));
+    if (pst->nLeaves > 1) {
+	mdlReqService(pst->mdl,pst->idUpper,PST_KEPLERDRIFT,vin,nIn);
+	pstKeplerDrift(pst->pstLower,vin,nIn,NULL,NULL);
+	mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
+	}
+    else {
+	pkdKeplerDrift(plcl->pkd,in->dDelta,in->dSunMass,0); /* 0 for all */
+	}
+    if (pnOut) *pnOut = 0;
+    }
+
+#endif /* SYMBA */
 #endif /* PLANETS*/
 
 #ifdef USE_GRAFIC
-void pstGenerateIC(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-{
+void pstGenerateIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct inGenerateIC *in = vin;
     struct outGenerateIC *out = vout;
@@ -3792,14 +3706,14 @@ void pstGenerateIC(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 			  in->nGrid, in->nGrid, in->nGrid );
 	out->dExpansion = graficGetExpansionFactor(gctx);
 
-	for( d=1; d<=3; d++ ) {
+	for ( d=1; d<=3; d++ ) {
 	    pkdGenerateIC( plcl->pkd, gctx, d,
 			   fSoft, fMass, in->bCannonical );
-	}
+	    }
 	graficFinish(gctx);
-    }
+	}
     if (pnOut) *pnOut = sizeof(struct outGenerateIC);
-}
+    }
 #endif
 
 void pstHostname(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
@@ -3808,7 +3722,7 @@ void pstHostname(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     struct outHostname *outUp;
     int nThreads = mdlThreads(pst->mdl);
     int id;
-   
+
     mdlassert(pst->mdl,nIn == 0);
     if (pst->nLeaves > 1) {
 	mdlReqService(pst->mdl,pst->idUpper,PST_HOSTNAME,vin,nIn);
@@ -3825,9 +3739,9 @@ void pstHostname(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	for (id=0;id<nThreads;++id) {
 	    if (outUp[id].szHostname[0])
 		out[id] = outUp[id];
-	}
+	    }
 	free(outUp);
-    }
+	}
     else {
 	char *p;
 	for (id=0;id<nThreads;++id) out[id].szHostname[0] = 0;
@@ -3838,9 +3752,9 @@ void pstHostname(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	p = strchr(out[id].szHostname,'.');
 	if (p) *p = 0;
 
-    }
+	}
     if (pnOut) *pnOut = nThreads*sizeof(struct outHostname);
-}
+    }
 
 #ifdef __linux__
 void pstMemStatus(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
@@ -3849,7 +3763,7 @@ void pstMemStatus(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     struct outMemStatus *outUp;
     int nThreads = mdlThreads(pst->mdl);
     int id;
-   
+
     mdlassert(pst->mdl,nIn == 0);
     if (pst->nLeaves > 1) {
 	mdlReqService(pst->mdl,pst->idUpper,PST_MEMSTATUS,vin,nIn);
@@ -3866,9 +3780,9 @@ void pstMemStatus(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	for (id=0;id<nThreads;++id) {
 	    if (outUp[id].vsize)
 		out[id] = outUp[id];
-	}
+	    }
 	free(outUp);
-    }
+	}
     else {
 	FILE *fp;
 	char buffer[1024], *f;
@@ -3882,8 +3796,8 @@ void pstMemStatus(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	    fgets(buffer,sizeof(buffer),fp);
 	    fclose(fp);
 	    f = strtok(buffer," ");
-	    for( i=0; i<= 36 && f; i++ ) {
-		switch(i) {
+	    for ( i=0; i<= 36 && f; i++ ) {
+		switch (i) {
 		case  9: out[id].minflt = atol(f); break;
 		case 10: out[id].cminflt= atol(f); break;
 		case 11: out[id].majflt = atol(f); break;
@@ -3895,18 +3809,17 @@ void pstMemStatus(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 		    out[id].rss    = atol(f)*getpagesize()/1024/1024;
 		    break;
 		default: break;
-		}
+		    }
 		f = strtok(NULL," ");
+		}
 	    }
 	}
-    }
     if (pnOut) *pnOut = nThreads*sizeof(struct outMemStatus);
-}
+    }
 #endif
 
 
-void pstGetClasses(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-{
+void pstGetClasses(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     PARTCLASS *out = vout;
     PARTCLASS *outUp;
@@ -3924,26 +3837,25 @@ void pstGetClasses(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 	nUp = n;
 	n = *pnOut / sizeof(PARTCLASS);
 	mdlassert(pst->mdl,n*sizeof(PARTCLASS)== *pnOut);
-	for( i=0; i<nUp; i++ ) {
-	    for( j=0; j<n; j++ ) {
+	for ( i=0; i<nUp; i++ ) {
+	    for ( j=0; j<n; j++ ) {
 		if ( outUp[i].fMass==out[j].fMass && outUp[i].fSoft==out[j].fSoft )
 		    break;
-	    }
+		}
 	    if ( j == n ) {
 		out[n++] = outUp[i];
+		}
 	    }
-	}
 	free(outUp);
 	*pnOut = n * sizeof(PARTCLASS);
-    }
+	}
     else {
 	n = pkdGetClasses(plcl->pkd,PKD_MAX_CLASSES,vout);
 	*pnOut = n*sizeof(PARTCLASS);
+	}
     }
-}
 
-void pstSetClasses(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-{
+void pstSetClasses(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     PARTCLASS *in = vin;
     int n;
@@ -3952,21 +3864,20 @@ void pstSetClasses(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 	mdlReqService(pst->mdl,pst->idUpper,PST_SETCLASSES,vin,nIn);
 	pstSetClasses(pst->pstLower,vin,nIn,vout,pnOut);
 	mdlGetReply(pst->mdl,pst->idUpper,vout,pnOut);
-    }
+	}
     else {
 	n = nIn / sizeof(PARTCLASS);
 	mdlassert(pst->mdl,n*sizeof(PARTCLASS)==nIn);
 	pkdSetClasses(plcl->pkd,n,in,1);
-    }
+	}
     if (pnOut) *pnOut = 0;
-}
+    }
 
 /*
  * Routine to swap the class table .  Note that this does not walk
  * the pst but simply set's the given table and returns the old table.
  */
-void pstSwapClasses(PST pst,void *vin,int nIn,void *vout,int *pnOut)
-{
+void pstSwapClasses(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     PARTCLASS *in = vin;
     PARTCLASS *out = vout;

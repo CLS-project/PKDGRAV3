@@ -13,46 +13,46 @@
 
 
 typedef struct pqNode {
-	struct pqNode *pqLoser;
-	struct pqNode *pqFromInt;
-	struct pqNode *pqFromExt;
-	struct pqNode *pqWinner;	/* Only used when building initial tree */
-	PARTICLE *pPart;
-	FLOAT fDist2;
-	FLOAT dx;
-	FLOAT dy;
-	FLOAT dz;
-	int bRemote;
-	} PQ;
+    struct pqNode *pqLoser;
+    struct pqNode *pqFromInt;
+    struct pqNode *pqFromExt;
+    struct pqNode *pqWinner;	/* Only used when building initial tree */
+    PARTICLE *pPart;
+    FLOAT fDist2;
+    FLOAT dx;
+    FLOAT dy;
+    FLOAT dz;
+    int bRemote;
+    } PQ;
 
 
 typedef struct smContext {
-	PKD pkd;
-	int bLowhFix;
-	double dfBall2OverSoft2;
-	void (*fcnSmooth)(PARTICLE *,int,NN *,SMF *);
-	void (*fcnPost)(PARTICLE *,SMF *);
-	int nSmooth;
-	int nQueue;
-	int bGasOnly;
-	int bPeriodic;
-	PQ *pq;
-	int nnListSize;
-	int nnListMax;
-	NN *nnList;
-	int *nnbRemote;
-	/*
-	 ** Two stacks for the search algorithm.
-	 */
-	int *S;
-	FLOAT *Smin;
-	/*
-	 ** Also need the two stacks for the search
-	 ** within the top tree.
-	 */
-	int *ST;
-	FLOAT *SminT;
-	} * SMX;
+    PKD pkd;
+    int bLowhFix;
+    double dfBall2OverSoft2;
+    void (*fcnSmooth)(PARTICLE *,int,NN *,SMF *);
+    void (*fcnPost)(PARTICLE *,SMF *);
+    int nSmooth;
+    int nQueue;
+    int bGasOnly;
+    int bPeriodic;
+    PQ *pq;
+    int nnListSize;
+    int nnListMax;
+    NN *nnList;
+    int *nnbRemote;
+    /*
+     ** Two stacks for the search algorithm.
+     */
+    int *S;
+    FLOAT *Smin;
+    /*
+     ** Also need the two stacks for the search
+     ** within the top tree.
+     */
+    int *ST;
+    FLOAT *SminT;
+    } * SMX;
 
 
 #define PQ_INIT(pq,n)\

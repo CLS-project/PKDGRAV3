@@ -38,23 +38,21 @@ typedef vector bool int v4i;
 typedef union {
     v4sf p;
     float f[4];
-} v4;
+    } v4;
 
 #if defined(HAVE_POSIX_MEMALIGN)
-static inline void * SIMD_malloc( size_t newSize )
-{
+static inline void * SIMD_malloc( size_t newSize ) {
     void *np;
 
     if ( posix_memalign( &np, sizeof(v4sf), newSize ) == 0 )
-        return np;
+	return np;
     else
-        return NULL;
-}
+	return NULL;
+    }
 
-static inline void SIMD_free(void *p)
-{
+static inline void SIMD_free(void *p) {
     free(p);
-}
+    }
 #else
 #define SIMD_malloc(a) malloc(a)
 #define SIMD_free(a) free(a)
@@ -69,7 +67,7 @@ static inline v4sf SIMD_SPLAT(float f) {
     return r.p;
     /*return (v4sf)(f,f,f,f);*/
 #endif
-}
+    }
 
 static inline v4sf SIMD_LOADS(float f) {
 #ifdef __SSE__
@@ -81,7 +79,7 @@ static inline v4sf SIMD_LOADS(float f) {
     return r.p;
     /*return (v4sf)(f,0,0,0);*/
 #endif
-}
+    }
 
 static inline v4sf SIMD_LOAD(float a, float b, float c, float d ) {
 #ifdef __SSE__
@@ -95,7 +93,7 @@ static inline v4sf SIMD_LOAD(float a, float b, float c, float d ) {
     return r.p;
     /*return (v4sf)(a,b,c,d);*/
 #endif
-}
+    }
 
 
 #if defined(__SSE__)
@@ -111,7 +109,7 @@ static inline v4sf SIMD_RE_EXACT(v4sf a) {
     static const v4sf one = {1.0,1.0,1.0,1.0};
     v4sf r = SIMD_RE(a);
     return _mm_add_ps(_mm_mul_ps(r,_mm_sub_ps(one,_mm_mul_ps(r,a))),r);
-}
+    }
 #define SIMD_MAX(a,b) _mm_max_ps(a,b)
 #define SIMD_MIN(a,b) _mm_min_ps(a,b)
 #define SIMD_CMP_LE(a,b) _mm_cmple_ps(a,b)
@@ -135,7 +133,7 @@ static inline v4sf SIMD_RE_EXACT( v4sf a) {
     static const v4sf one = {1.0,1.0,1.0,1.0};
     v4sf r = SIMD_RE(a);
     return vec_madd(r,vec_nmsub(r,a,one),r);
-}
+    }
 #define SIMD_MAX(a,b) vec_max(a,b)
 #define SIMD_MIN(a,b) vec_min(a,b)
 #define SIMD_CMP_LE(a,b) vec_cmple(a,b)
@@ -159,7 +157,7 @@ static inline v4sf SIMD_RSQRT_EXACT(v4sf B) {
     t1 = SIMD_NMSUB(B,t1,one);  /* 1 - dir*dir*a */
     r = SIMD_MADD(t1,t2,r);     /* 0.5*dir*(1-dir*dir*a)+dir */
     return r;
-}
+    }
 
 #ifdef __SSE3__
 static inline float SIMD_HADD(v4sf p) {
@@ -170,13 +168,13 @@ static inline float SIMD_HADD(v4sf p) {
     r = _mm_hadd_ps(r,r);
     _mm_store_ss(&f,r);
     return f;
-}
+    }
 #else
 static inline float SIMD_HADD(v4sf p) {
     v4 r;
     r.p = p;
     return r.f[0] + r.f[1] + r.f[2] + r.f[3];
-}
+    }
 #endif
 
 

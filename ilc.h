@@ -20,17 +20,17 @@
 typedef union {
     MOMFLOAT f[4];
     v4sf p;
-} ilcFloat;
+    } ilcFloat;
 #else
 #define ILC_BLOCKS ILC_PART_PER_TILE
 typedef union {
     MOMFLOAT f;
-} ilcFloat;
+    } ilcFloat;
 #endif
 
 typedef union {
     uint64_t i;
-} ilcInt64;
+    } ilcInt64;
 
 
 typedef struct ilcTile {
@@ -48,46 +48,43 @@ typedef struct ilcTile {
 	ilcFloat xxx,xyy,xxy,yyy,xxz,yyz,xyz;
 	ilcFloat xx,xy,xz,yy,yz;
 	ilcFloat m;
-    } d[ILC_BLOCKS];
-} *ILCTILE;
+	} d[ILC_BLOCKS];
+    } *ILCTILE;
 
-typedef struct ilcContext
-{
+typedef struct ilcContext {
     ILCTILE first;              /* first tile in the chain */
     ILCTILE tile;               /* Current tile in the chain */
     double cx, cy, cz;          /* Center coordinates */
     double d2cmax;
     uint32_t nPrevious;         /* Particles in tiles prior to "tile" */
-} *ILC;
+    } *ILC;
 
 typedef struct {
     ILCTILE  tile;
     uint32_t nCell;
     uint32_t nPrevious;
-} ILCCHECKPT;
+    } ILCCHECKPT;
 
 ILCTILE ilcExtend(ILC ilc);    /* Add tile and return new tile */
 ILCTILE ilcClear(ILC ilc);     /* Go back to, and return first tile (empty) */
 void ilcInitialize(ILC *ilc);
 void ilcFinish(ILC ilc);
 
-static inline void ilcCheckPt(ILC ilc,ILCCHECKPT *cp)
-{
+static inline void ilcCheckPt(ILC ilc,ILCCHECKPT *cp) {
     cp->tile = ilc->tile;
     cp->nCell = ilc->tile->nCell;
     cp->nPrevious = ilc->nPrevious;
-}
+    }
 
-static inline void ilcRestore(ILC ilc,ILCCHECKPT *cp)
-{
+static inline void ilcRestore(ILC ilc,ILCCHECKPT *cp) {
     ilc->tile = cp->tile;
     ilc->nPrevious = cp->nPrevious;
     ilc->tile->nCell = cp->nCell;
-}
+    }
 
 static inline uint32_t ilcCount(ILC ilc) {
     return ilc->nPrevious + ilc->tile->nCell;
-}
+    }
 
 #define ILC_LOOP(ilc,ctile) for( ctile=(ilc)->first; ctile!=(ilc)->tile->next; ctile=ctile->next )
 

@@ -1,13 +1,12 @@
 #include <gd.h>
 #include <gdfontg.h>
 
-typedef struct png
-{
+typedef struct png {
     int iResolution;
     float minValue;
     float maxValue;
     gdImagePtr ic;
-} *PNG;
+    } *PNG;
 
 PNG pngInitialize( int iResolution, float minValue, float maxValue );
 void pngWrite( PNG png, FILE *fp, float *Density );

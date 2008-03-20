@@ -19,7 +19,7 @@
 #define SQRT1(d2,dir)\
     {\
     dir = 1/sqrt(d2);\
-    } 
+    }
 
 #define ECCFACMAX 10000
 
@@ -57,7 +57,7 @@ void HEAPrholocal(int n, int k, RHOLOCAL ra[]) {
     }
 
 /*
-** This version of grav.c does all the operations inline, including 
+** This version of grav.c does all the operations inline, including
 ** v_sqrt's and such.
 ** Returns nActive.
 */
@@ -73,7 +73,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
     double xxx,xxz,yyy,yyz,xxy,xyy,xyz;
     double tx,ty,tz;
     double fourh2;
-    double rholoc,rhopmax,rhopmaxlocal,dirDTS,d2DTS,dsmooth2;   
+    double rholoc,rhopmax,rhopmaxlocal,dirDTS,d2DTS,dsmooth2;
     momFloat tax,tay,taz,adotai,maga,dirsum,normsum;
 #ifdef HERMITE
     double adx,ady,adz;
@@ -96,7 +96,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
     /*
     ** dynamical time-stepping stuff
     */
-    RHOLOCAL *rholocal;	
+    RHOLOCAL *rholocal;
     nN = nPart+pkdn->pUpper-pkdn->pLower; /* total number of neighbouring particles (without particle itself) */
     rholocal = malloc(nN*sizeof(RHOLOCAL));
     assert(rholocal != NULL);
@@ -128,18 +128,18 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	maga = sqrt(p[i].a[0]*p[i].a[0] + p[i].a[1]*p[i].a[1] + p[i].a[2]*p[i].a[2]);
 	dirsum = dirLsum;
 	normsum = normLsum;
-	
+
 	for (j=0;j<nCell;++j) {
 	    x = p[i].r[0] - ilc[j].x;
 	    y = p[i].r[1] - ilc[j].y;
 	    z = p[i].r[2] - ilc[j].z;
 	    d2 = x*x + y*y + z*z;
-#ifdef HERMITE	   
+#ifdef HERMITE
 	    vx = p[i].v[0] - ilc[j].vx;
 	    vy = p[i].v[1] - ilc[j].vy;
 	    vz = p[i].v[2] - ilc[j].vz;
 	    rv = x*vx + y*vy + z*vz;
-#endif	    	   
+#endif
 	    SQRT1(d2,dir);
 	    dirDTS = dir;
 	    dir2 = dir*dir;
@@ -181,7 +181,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	    g2 = 0.5*(xx*x + xy*y + xz*z);
 	    dir *= ilc[j].mom.m;
 #ifdef HERMITE
-            /* contribution to ad only from monopole */
+	    /* contribution to ad only from monopole */
 	    adx -= vx*dir2*dir;
 	    ady -= vy*dir2*dir;
 	    adz -= vz*dir2*dir;
@@ -195,7 +195,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	    tax = xx + xxx + tx - x*dir2;
 	    tay = xy + xxy + ty - y*dir2;
 	    taz = xz + xxz + tz - z*dir2;
-	    adotai = p[i].a[0]*tax + p[i].a[1]*tay + p[i].a[2]*taz; 
+	    adotai = p[i].a[0]*tax + p[i].a[1]*tay + p[i].a[2]*taz;
 	    if (adotai > 0) {
 		adotai /= maga;
 		dirsum += dirDTS*adotai*adotai;
@@ -209,7 +209,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	/*
 	** Calculate local density and kernel smoothing length for dynamical time-stepping
 	*/
-	if(pkd->param.bGravStep) {
+	if (pkd->param.bGravStep) {
 	    /*
 	    ** Add particles to array rholocal first
 	    */
@@ -218,7 +218,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 		y = p[i].r[1] - ilp[j].y;
 		z = p[i].r[2] - ilp[j].z;
 		d2 = x*x + y*y + z*z;
-		rholocal[j].m = ilp[j].m;	
+		rholocal[j].m = ilp[j].m;
 		rholocal[j].d2 = d2;
 		}
 	    /*
@@ -227,7 +227,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	    */
 	    k = nPart;
 	    for (j=pkdn->pLower;j<=pkdn->pUpper;++j) {
-		if(p[i].iOrder == p[j].iOrder) continue;
+		if (p[i].iOrder == p[j].iOrder) continue;
 		x = p[i].r[0] - p[j].r[0];
 		y = p[i].r[1] - p[j].r[1];
 		z = p[i].r[2] - p[j].r[2];
@@ -264,12 +264,12 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	    d2 = x*x + y*y + z*z;
 	    d2DTS = d2;
 #ifdef HERMITE
-	    if(pkd->param.bHermite || pkd->param.iTimeStepCrit > 0){	 
+	    if (pkd->param.bHermite || pkd->param.iTimeStepCrit > 0) {
 		vx = p[i].v[0] - ilp[j].vx;
 		vy = p[i].v[1] - ilp[j].vy;
-		vz = p[i].v[2] - ilp[j].vz;  
-		v2 = vx*vx + vy*vy + vz*vz;   
-		rv = x*vx + y*vy + z*vz; 
+		vz = p[i].v[2] - ilp[j].vz;
+		v2 = vx*vx + vy*vy + vz*vz;
+		rv = x*vx + y*vy + z*vz;
 		}
 #endif
 #ifdef SYMBA
@@ -279,30 +279,31 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	    a1 *= cbrt((p[i].fMass + ilp[j].m)/(3.0*dSunMass));
 	    a2 = sqrt(d2)/a1;
 	    p[i].drmin = (a2 < p[i].drmin)?a2:p[i].drmin;
-	    if(a2 < 3.0){
+	    if (a2 < 3.0) {
 		p[i].iOrder_VA[p[i].n_VA] = ilp[j].iOrder;
 		p[i].hill_VA[p[i].n_VA] = a1;
 		p[i].n_VA++;
 		assert(p[i].iOrder != ilp[j].iOrder);
-		if(a2 > rsym2){
-		    a1 = symfac*(1.0-a2/3.0); /*symfac is defined in pkd.h */ 
+		if (a2 > rsym2) {
+		    a1 = symfac*(1.0-a2/3.0); /*symfac is defined in pkd.h */
 		    a1 *= a1*(2.0*a1 -3.0);
 		    a1 += 1.0;
-		    }else{ 
-			a1 = 0.0;
-			/* d3 = a2*a2;
-			   d3 *= (9.0 -5.0*d3*d3)/(108.0*a1*a1*a1);*/
-			}
+		    }
+		else {
+		    a1 = 0.0;
+		    /* d3 = a2*a2;
+		       d3 *= (9.0 -5.0*d3*d3)/(108.0*a1*a1*a1);*/
+		    }
 		}
-#endif 
+#endif
 #ifdef SOFTSQUARE
 	    fourh2 = ptwoh2 + ilp[j].twoh2;
 #endif
 #ifdef SOFTLINEAR
 	    fourh2 = p[i].fSoft + ilp[j].h;
 	    fourh2 *= fourh2;
-#endif		       
-#if !defined(SOFTLINEAR) && !defined(SOFTSQUARE) 
+#endif
+#if !defined(SOFTLINEAR) && !defined(SOFTSQUARE)
 #ifdef SOFTENING_NOT_MASS_WEIGHTED
 	    fourh2 = ilp[j].fourh2;
 #else
@@ -313,20 +314,20 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 		SQRT1(d2,dir);
 		dir2 = dir*dir*dir;
 		}
-	    else {		
-#ifdef PLANETS 
-		if(pkd->param.bCollision){ /* have to use soft-linear */
+	    else {
+#ifdef PLANETS
+		if (pkd->param.bCollision) { /* have to use soft-linear */
 		    pkd->iCollisionflag = 1; /*this is for veryactivehermite */
 		    p[i].iColflag = 1;
-		    p[i].iOrderCol = ilp[j].iOrder;		       
-		    p[i].dtCol = 1.0*p[i].iOrgIdx;	
+		    p[i].iOrderCol = ilp[j].iOrder;
+		    p[i].dtCol = 1.0*p[i].iOrgIdx;
 		    printf("dr = %e, dr = %e, pi = %i, pj = %i, ilp  \n",
 			   sqrt(d2),sqrt(fourh2),p[i].iOrgIdx,ilp[j].iOrder);
 		    }
 #endif
 		/*
 		** This uses the Dehnen K1 kernel function now, it's fast!
-		*/	
+		*/
 		SQRT1(fourh2,dir);
 		dir2 = dir*dir;
 		d2 *= dir2;
@@ -336,30 +337,30 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 		dir2 *= 1.0 + d2*(1.5 + d2*(135.0/16.0));
 		++nSoft;
 		}
-	    /* GravStep 
+	    /* GravStep
 	       iTimeStepCrit = 1: MZ eccentricity correction
 	       2: Normal
 	       3: Planet
-	    */	   
-	    if(pkd->param.bGravStep && pkd->param.iTimeStepCrit > 0 && 
-	       (ilp[j].iOrder < pkd->param.nPartColl || p[i].iOrder < pkd->param.nPartColl)) {
-		
+	    */
+	    if (pkd->param.bGravStep && pkd->param.iTimeStepCrit > 0 &&
+		    (ilp[j].iOrder < pkd->param.nPartColl || p[i].iOrder < pkd->param.nPartColl)) {
+
 		summ = p[i].fMass+ilp[j].m;
 		rhopmaxlocal = summ*dir2;
-#ifdef HERMITE	 
-		if((pkd->param.iTimeStepCrit == 1 || pkd->param.iTimeStepCrit == 3) && ilp[j].m > 0){
+#ifdef HERMITE
+		if ((pkd->param.iTimeStepCrit == 1 || pkd->param.iTimeStepCrit == 3) && ilp[j].m > 0) {
 		    a3 = p[i].r[0]*p[i].r[0]+p[i].r[1]*p[i].r[1]+p[i].r[2]*p[i].r[2];
 		    a3 = a3*sqrt(a3);
 		    rhopmaxlocal = pkdRho(pkd,rhopmaxlocal,summ,sqrt(fourh2),&dir2,&dir,x,y,z,
 					  vx,vy,vz,rv,v2,a3,p[i].iOrder,ilp[j].iOrder);
 		    }
 #endif
-		rhopmax = (rhopmaxlocal > rhopmax)?rhopmaxlocal:rhopmax;	
+		rhopmax = (rhopmaxlocal > rhopmax)?rhopmaxlocal:rhopmax;
 		}
 
 	    dir2 *= ilp[j].m;
 #ifdef SYMBA
-	    if(a2 < 3.0) dir2 *= a1; 
+	    if (a2 < 3.0) dir2 *= a1;
 #endif
 	    tax = -x*dir2;
 	    tay = -y*dir2;
@@ -404,7 +405,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	*/
 	if (bEwald) {
 	    *pdEwFlop += pkdParticleEwald(pkd,&p[i]);
-	}
+	    }
 
 	/*
 	** Set value for time-step, note that we have the current ewald acceleration
@@ -420,14 +421,14 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	    maga = sqrt(tx*tx + ty*ty + tz*tz);
 	    p[i].dtGrav = maga*dirsum/normsum + pkd->param.dPreFacRhoLoc*rholoc;
 	    p[i].fDensity = rholoc;
-	    if(pkd->param.iTimeStepCrit > 0) {
+	    if (pkd->param.iTimeStepCrit > 0) {
 		p[i].dtGrav = (rhopmax > p[i].dtGrav)?rhopmax:p[i].dtGrav;
 		}
 	    }
 	} /* end of i-loop over particles in the bucket */
     /*
     ** Free time-step lists
-    */ 
+    */
     free(rholocal);
     /*
     ** Perform intra-bucket interactions
@@ -437,7 +438,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
     for (i=pkdn->pLower;i<=pkdn->pUpper;++i) {
 	if (pkdIsActive(pkd,&p[i])) pkd->piActive[na++] = &p[i];
 	else pkd->piInactive[nia++] = &p[i];
-    }
+	}
     /*
     ** Active-Active Interactions.
     */
@@ -462,24 +463,24 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	    z = pi->r[2] - pj->r[2];
 	    d2 = x*x + y*y + z*z;
 #ifdef HERMITE
-	    if(pkd->param.bHermite || pkd->param.iTimeStepCrit > 0){
+	    if (pkd->param.bHermite || pkd->param.iTimeStepCrit > 0) {
 		vx = pi->v[0] - pj->v[0];
 		vy = pi->v[1] - pj->v[1];
 		vz = pi->v[2] - pj->v[2];
 		v2 = vx*vx + vy*vy + vz*vz;
 		rv = x*vx+ y*vy + z*vz;
 		}
-#endif    
+#endif
 #ifdef SYMBA
 	    a1 = pi->r[0]*pi->r[0]+pi->r[1]*pi->r[1]+pi->r[2]*pi->r[2];
-	    a2 = pj->r[0]*pj->r[0]+pj->r[1]*pj->r[1]+pj->r[2]*pj->r[2]; 
+	    a2 = pj->r[0]*pj->r[0]+pj->r[1]*pj->r[1]+pj->r[2]*pj->r[2];
 	    a1 = 0.5*(sqrt(a1) + sqrt(a2));
 	    a1 *= cbrt((pi->fMass + pj->fMass)/(3.0*dSunMass));
 	    a2 = sqrt(d2)/a1;
-	    pi->drmin = (a2 < pi->drmin)?a2:pi->drmin; 
-	    pj->drmin = (a2 < pj->drmin)?a2:pj->drmin; 
-	    if(a2 < 3.0){
-		/* printf("Active-Active iOrder %d jOrder %d \n", 
+	    pi->drmin = (a2 < pi->drmin)?a2:pi->drmin;
+	    pj->drmin = (a2 < pj->drmin)?a2:pj->drmin;
+	    if (a2 < 3.0) {
+		/* printf("Active-Active iOrder %d jOrder %d \n",
 		   pi->iOrder,pj->iOrder);*/
 		pi->iOrder_VA[pi->n_VA] = pj->iOrder;
 		pj->iOrder_VA[pj->n_VA] = pi->iOrder;
@@ -488,23 +489,24 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 		pi->n_VA++;
 		pj->n_VA++;
 		assert(pj->iOrder!=pi->iOrder);
-		if(a2 > rsym2){
+		if (a2 > rsym2) {
 		    a1 = symfac*(1.0-a2/3.0);
 		    a1 *= a1*(2.0*a1 -3.0);
 		    a1 += 1.0;
-		}else{ 
-		    a1 = 0.0;		 
+		    }
+		else {
+		    a1 = 0.0;
+		    }
 		}
-	    }
-#endif   
+#endif
 #ifdef SOFTSQUARE
 	    fourh2 = ptwoh2 + 2*pj->fSoft*pj->fSoft;
 #endif
 #ifdef SOFTLINEAR
 	    fourh2 = pi->fSoft + pj->fSoft;
 	    fourh2*= fourh2;
-#endif		       
-#if !defined(SOFTLINEAR) && !defined(SOFTSQUARE) 
+#endif
+#if !defined(SOFTLINEAR) && !defined(SOFTSQUARE)
 #ifdef SOFTENING_NOT_MASS_WEIGHTED
 	    fourh2 = 4*pj->fSoft*pj->fSoft;
 #else
@@ -515,18 +517,18 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 		SQRT1(d2,dir);
 		dir2 = dir*dir*dir;
 		}
-	    else {	
-#ifdef PLANETS 
-	 if(pkd->param.bCollision){	
-	     pkd->iCollisionflag = 1; /*this is for veryactivehermite */
-	     pi->iColflag = 1;
-	     pi->iOrderCol = pj->iOrder;	    
-	     pi->dtCol = 1.0*pi->iOrgIdx;
-	     printf("dr = %e, r1+r2 = %e, pi = %i, pj = %i active-active \n",
-		    sqrt(d2),sqrt(fourh2),pi->iOrgIdx,pj->iOrgIdx);       	 
-	 }
-#endif	 
-	        /*
+	    else {
+#ifdef PLANETS
+		if (pkd->param.bCollision) {
+		    pkd->iCollisionflag = 1; /*this is for veryactivehermite */
+		    pi->iColflag = 1;
+		    pi->iOrderCol = pj->iOrder;
+		    pi->dtCol = 1.0*pi->iOrgIdx;
+		    printf("dr = %e, r1+r2 = %e, pi = %i, pj = %i active-active \n",
+			   sqrt(d2),sqrt(fourh2),pi->iOrgIdx,pj->iOrgIdx);
+		    }
+#endif
+		/*
 		** This uses the Dehnen K1 kernel function now, it's fast!
 		** (no more lookup tables)
 		*/
@@ -540,26 +542,26 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 		++nSoft;
 		}
 
-	    /* GravStep */	
-	    if(pkd->param.bGravStep && pkd->param.iTimeStepCrit > 0 && 
-	       (pj->iOrder < pkd->param.nPartColl || pi->iOrder < pkd->param.nPartColl)) {
-	      
-		summ = pi->fMass+pj->fMass; 
+	    /* GravStep */
+	    if (pkd->param.bGravStep && pkd->param.iTimeStepCrit > 0 &&
+		    (pj->iOrder < pkd->param.nPartColl || pi->iOrder < pkd->param.nPartColl)) {
+
+		summ = pi->fMass+pj->fMass;
 		rhopmaxlocal = summ*dir2;
-#ifdef HERMITE	  	      
-		if((pkd->param.iTimeStepCrit == 1 || pkd->param.iTimeStepCrit == 3) && pj->fMass> 0){
-		    a3 = pi->r[0]*pi->r[0]+pi->r[1]*pi->r[1]+pi->r[2]*pi->r[2];		
+#ifdef HERMITE
+		if ((pkd->param.iTimeStepCrit == 1 || pkd->param.iTimeStepCrit == 3) && pj->fMass> 0) {
+		    a3 = pi->r[0]*pi->r[0]+pi->r[1]*pi->r[1]+pi->r[2]*pi->r[2];
 		    a3 = a3*sqrt(a3);
 		    rhopmaxlocal = pkdRho(pkd,rhopmaxlocal,summ,sqrt(fourh2),&dir2,&dir,x,y,z,
-					  vx,vy,vz,rv,v2,a3,pi->iOrder,pj->iOrder);				
+					  vx,vy,vz,rv,v2,a3,pi->iOrder,pj->iOrder);
 		    }
-#endif	    
+#endif
 		pi->dtGrav = (rhopmaxlocal > pi->dtGrav)?rhopmaxlocal:pi->dtGrav;
-		pj->dtGrav = (rhopmaxlocal > pj->dtGrav)?rhopmaxlocal:pj->dtGrav; 
+		pj->dtGrav = (rhopmaxlocal > pj->dtGrav)?rhopmaxlocal:pj->dtGrav;
 		}
 
-#ifdef SYMBA	  
-	    if(a2 < 3.0) dir2 *= a1;
+#ifdef SYMBA
+	    if (a2 < 3.0) dir2 *= a1;
 #endif
 	    fPot += dir*pj->fMass;
 	    ax += x*dir2*pj->fMass;
@@ -569,7 +571,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	    pj->a[0] += x*dir2*pi->fMass;
 	    pj->a[1] += y*dir2*pi->fMass;
 	    pj->a[2] += z*dir2*pi->fMass;
-#ifdef HERMITE	    
+#ifdef HERMITE
 	    dir5 = 3.0*rv*dir2*dir*dir;
 	    adx += (vx*dir2-x*dir5)*pj->fMass;
 	    ady += (vy*dir2-y*dir5)*pj->fMass;
@@ -614,25 +616,25 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	    z = pi->r[2] - pj->r[2];
 	    d2 = x*x + y*y + z*z;
 #ifdef HERMITE
-	    if(pkd->param.bHermite || pkd->param.iTimeStepCrit > 0){
-	      vx = pi->v[0] - pj->v[0];
-	      vy = pi->v[1] - pj->v[1];
-	      vz = pi->v[2] - pj->v[2];    
-	      rv = vx*x + vy*y + vz*z;
-	      v2 = vx*vx + vy*vy + vz*vz;  
-	    }
-#endif	   
-#ifdef SYMBA 
+	    if (pkd->param.bHermite || pkd->param.iTimeStepCrit > 0) {
+		vx = pi->v[0] - pj->v[0];
+		vy = pi->v[1] - pj->v[1];
+		vz = pi->v[2] - pj->v[2];
+		rv = vx*x + vy*y + vz*z;
+		v2 = vx*vx + vy*vy + vz*vz;
+		}
+#endif
+#ifdef SYMBA
 	    assert(0); /* all particles should be active for Symba*/
-#endif 
+#endif
 #ifdef SOFTSQUARE
 	    fourh2 = ptwoh2 + 2*pj->fSoft*pj->fSoft;
 #endif
 #ifdef SOFTLINEAR
 	    fourh2 = pi->fSoft + pj->fSoft;
 	    fourh2*= fourh2;
-#endif		       
-#if !defined(SOFTLINEAR) && !defined(SOFTSQUARE) 
+#endif
+#if !defined(SOFTLINEAR) && !defined(SOFTSQUARE)
 #ifdef SOFTENING_NOT_MASS_WEIGHTED
 	    fourh2 = 4*pj->fSoft*pj->fSoft;
 #else
@@ -648,16 +650,16 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 		** This uses the Dehnen K1 kernel function now, it's fast!
 		** (no more lookup tables)
 		*/
-#ifdef PLANETS 
-		if(pkd->param.bCollision){
+#ifdef PLANETS
+		if (pkd->param.bCollision) {
 		    pkd->iCollisionflag = 1; /*this is for veryactivehermite */
 		    pi->iColflag = 1;
-		    pi->iOrderCol = pj->iOrder;		   
-		    pi->dtCol = 1.0*pi->iOrgIdx;	
+		    pi->iOrderCol = pj->iOrder;
+		    pi->dtCol = 1.0*pi->iOrgIdx;
 		    printf("dr = %e, r1+r2 = %e, pi = %i, pj = %i, active-inactive \n",sqrt(d2),sqrt(fourh2),pi->iOrgIdx,pj->iOrgIdx);
-		}
+		    }
 #endif
-	
+
 		SQRT1(fourh2,dir);
 		dir2 = dir*dir;
 		d2 *= dir2;
@@ -666,40 +668,40 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 		dir *= 1.0 + d2*(0.5 + d2*(3.0/8.0 + d2*(45.0/32.0)));
 		dir2 *= 1.0 + d2*(1.5 + d2*(135.0/16.0));
 		++nSoft;
-	    }
+		}
 
-	    /* GravStep */	
-	    if(pkd->param.bGravStep && pkd->param.iTimeStepCrit > 0 && 
-	       (pj->iOrder < pkd->param.nPartColl || pi->iOrder < pkd->param.nPartColl)) {
-	      
-		summ = pi->fMass+pj->fMass; 
+	    /* GravStep */
+	    if (pkd->param.bGravStep && pkd->param.iTimeStepCrit > 0 &&
+		    (pj->iOrder < pkd->param.nPartColl || pi->iOrder < pkd->param.nPartColl)) {
+
+		summ = pi->fMass+pj->fMass;
 		rhopmaxlocal = summ*dir2;
-	      
-#ifdef HERMITE	      
-		if((pkd->param.iTimeStepCrit == 1 || pkd->param.iTimeStepCrit == 3) && pj->fMass> 0){
-		    a3 = pi->r[0]*pi->r[0]+pi->r[1]*pi->r[1]+pi->r[2]*pi->r[2];		
+
+#ifdef HERMITE
+		if ((pkd->param.iTimeStepCrit == 1 || pkd->param.iTimeStepCrit == 3) && pj->fMass> 0) {
+		    a3 = pi->r[0]*pi->r[0]+pi->r[1]*pi->r[1]+pi->r[2]*pi->r[2];
 		    a3 = a3*sqrt(a3);
 		    rhopmaxlocal = pkdRho(pkd,rhopmaxlocal,summ,sqrt(fourh2),&dir2,&dir,x,y,z,
-					  vx,vy,vz,rv,v2,a3,pi->iOrder,pj->iOrder);			
+					  vx,vy,vz,rv,v2,a3,pi->iOrder,pj->iOrder);
 		    }
-#endif	      
+#endif
 		pi->dtGrav = (rhopmaxlocal > pi->dtGrav)?rhopmaxlocal:pi->dtGrav;
 		}
-#ifdef SYMBA	  
-	    if(a2 < 3.0) dir2 *= a1;
+#ifdef SYMBA
+	    if (a2 < 3.0) dir2 *= a1;
 #endif
 	    fPot += dir*pj->fMass;
 	    ax += x*dir2*pj->fMass;
 	    ay += y*dir2*pj->fMass;
 	    az += z*dir2*pj->fMass;
-#ifdef HERMITE	    
+#ifdef HERMITE
 	    dir5 = 3.0*rv*dir2*dir*dir;
 	    adx += (vx*dir2-x*dir5)*pj->fMass;
 	    ady += (vy*dir2-y*dir5)*pj->fMass;
 	    adz += (vz*dir2-z*dir5)*pj->fMass;
 #endif
 
-	} /* end of j-loop */
+	    } /* end of j-loop */
 	pi->fPot -= fPot;
 	pi->a[0] -= ax;
 	pi->a[1] -= ay;
@@ -708,78 +710,79 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	pi->ad[0] -= adx;
 	pi->ad[1] -= ady;
 	pi->ad[2] -= adz;
-#endif	
+#endif
 	} /* end of i-loop active-inactive */
     *pdFlop += nActive*(nPart*40 + nCell*200) + nSoft*15;
     return(nActive);
-}
-    
-#ifdef HERMITE
-double pkdRho(PKD pkd, double rhopmaxlocal,double summ, double sumr, double *dir2, 
-	      double *dir, double x, double y, double z, double vx, double vy, double vz, 
-	      double rv, double v2, double a3, int iOrder,int jOrder){
-  
-  if(pkd->param.iTimeStepCrit == 1){	
-    double Etot, L2, ecc, eccfac;
-    /* Etot and L are normalized by the reduced mass */
-    Etot = 0.5*v2 - summ*(*dir);
-    L2 = (y*vz - z*vy)*(y*vz - z*vy) + (z*vx - x*vz)*(z*vx - x*vz) + 
-      (x*vy - y*vx)*(x*vy - y*vx);	      
-    ecc = 1+2*Etot*L2/summ/summ;
-    ecc = (ecc <= 0)?0:sqrt(ecc);	
-    eccfac = (2*ecc + 1)/fabs(1-ecc);
-    eccfac = (eccfac > ECCFACMAX)?ECCFACMAX:eccfac;
-    if(eccfac > 1.0) rhopmaxlocal *= eccfac; 
-  }
-#ifdef PLANETS 
-  if(pkd->param.iTimeStepCrit == 3){		  
-    double hill, vd, vesc2;
-    double dr, dr3, dr5;
-    double fhill = 3.0;
-    double rhof;
-    
-    hill = a3*summ/3.0;		 
-    if(fhill*fhill*fhill*(*dir2)*hill > 1.0){
-      hill = pow(hill, 1.0/3.0);
-      
-      rhopmaxlocal = 3.0*(summ*(*dir2)+ 0.5*sumr*rv*rv*(*dir2)*(*dir2)/(*dir)); 
- 
-      vesc2 = 2.0*summ/sumr;     
-      rhof = (rv*(*dir))*(rv*(*dir))/vesc2;
-      if (rhof < 3.0) rhof = 3.0;
-
-      rhopmaxlocal *= sqrt((*dir)*hill);
-      a3 /= rhof;
-      if(rhopmaxlocal*a3 > 1.0){
-	dr = rv*(*dir)*pkd->param.dEta/sqrt(rhopmaxlocal);
-      }else{
-	dr = rv*(*dir)*pkd->param.dEta*sqrt(a3);
-      }
-      
-      dr = 1.0/(*dir)+0.5*dr;
-      
-      if(dr < 0.0){
-	vesc2 = 2.0*summ/sumr;
-	printf("pi %d, pj %d, dr0/rhill %e, dr1/rhill %e, v/vesc %e, \n",
-	       iOrder,jOrder,1.0/((*dir)*hill), dr/hill, sqrt(v2/vesc2)); 
-	dr = fhill*hill;
-	*dir = 1.0/dr;
-	*dir2 = (*dir)*(*dir)*(*dir);
-
-      }
-      
-      /* if mutual distance < fhill Hill radius */  
-      if(dr < fhill*hill){
-	dr3 = dr*dr*dr*sqrt(dr/hill);
-	dr5 = dr3*dr*dr;	   			 
-	rhopmaxlocal = 3.0*(summ/dr3 + 0.5*sumr*rv*rv/dr5);
-	  /*rhopmaxlocal = rhof*summ/dr3;*/
-	rhopmaxlocal = (rhopmaxlocal > 1.0/a3)?rhopmaxlocal:(1.0/a3);		   
-      }
     }
-  }
+
+#ifdef HERMITE
+double pkdRho(PKD pkd, double rhopmaxlocal,double summ, double sumr, double *dir2,
+	      double *dir, double x, double y, double z, double vx, double vy, double vz,
+	      double rv, double v2, double a3, int iOrder,int jOrder) {
+
+    if (pkd->param.iTimeStepCrit == 1) {
+	double Etot, L2, ecc, eccfac;
+	/* Etot and L are normalized by the reduced mass */
+	Etot = 0.5*v2 - summ*(*dir);
+	L2 = (y*vz - z*vy)*(y*vz - z*vy) + (z*vx - x*vz)*(z*vx - x*vz) +
+	     (x*vy - y*vx)*(x*vy - y*vx);
+	ecc = 1+2*Etot*L2/summ/summ;
+	ecc = (ecc <= 0)?0:sqrt(ecc);
+	eccfac = (2*ecc + 1)/fabs(1-ecc);
+	eccfac = (eccfac > ECCFACMAX)?ECCFACMAX:eccfac;
+	if (eccfac > 1.0) rhopmaxlocal *= eccfac;
+	}
+#ifdef PLANETS
+    if (pkd->param.iTimeStepCrit == 3) {
+	double hill, vd, vesc2;
+	double dr, dr3, dr5;
+	double fhill = 3.0;
+	double rhof;
+
+	hill = a3*summ/3.0;
+	if (fhill*fhill*fhill*(*dir2)*hill > 1.0) {
+	    hill = pow(hill, 1.0/3.0);
+
+	    rhopmaxlocal = 3.0*(summ*(*dir2)+ 0.5*sumr*rv*rv*(*dir2)*(*dir2)/(*dir));
+
+	    vesc2 = 2.0*summ/sumr;
+	    rhof = (rv*(*dir))*(rv*(*dir))/vesc2;
+	    if (rhof < 3.0) rhof = 3.0;
+
+	    rhopmaxlocal *= sqrt((*dir)*hill);
+	    a3 /= rhof;
+	    if (rhopmaxlocal*a3 > 1.0) {
+		dr = rv*(*dir)*pkd->param.dEta/sqrt(rhopmaxlocal);
+		}
+	    else {
+		dr = rv*(*dir)*pkd->param.dEta*sqrt(a3);
+		}
+
+	    dr = 1.0/(*dir)+0.5*dr;
+
+	    if (dr < 0.0) {
+		vesc2 = 2.0*summ/sumr;
+		printf("pi %d, pj %d, dr0/rhill %e, dr1/rhill %e, v/vesc %e, \n",
+		       iOrder,jOrder,1.0/((*dir)*hill), dr/hill, sqrt(v2/vesc2));
+		dr = fhill*hill;
+		*dir = 1.0/dr;
+		*dir2 = (*dir)*(*dir)*(*dir);
+
+		}
+
+	    /* if mutual distance < fhill Hill radius */
+	    if (dr < fhill*hill) {
+		dr3 = dr*dr*dr*sqrt(dr/hill);
+		dr5 = dr3*dr*dr;
+		rhopmaxlocal = 3.0*(summ/dr3 + 0.5*sumr*rv*rv/dr5);
+		/*rhopmaxlocal = rhof*summ/dr3;*/
+		rhopmaxlocal = (rhopmaxlocal > 1.0/a3)?rhopmaxlocal:(1.0/a3);
+		}
+	    }
+	}
 #endif
-  return(rhopmaxlocal);
-}
+    return(rhopmaxlocal);
+    }
 
 #endif

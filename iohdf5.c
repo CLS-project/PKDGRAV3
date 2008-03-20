@@ -48,14 +48,14 @@ static hid_t makeClassType(hid_t floatType, int bStart) {
     if ( bStart )
 	H5Tinsert(tid,"start",HOFFSET(classEntry,iOrderStart), dataType);
     return tid;
-}
+    }
 
 /* Create a data group: dark, gas, star, etc. */
 static hid_t CreateGroup( hid_t fileID, const char *groupName ) {
     hid_t groupID;
     groupID = H5Gcreate( fileID, groupName, 0 ); H5assert(groupID);
     return groupID;
-}
+    }
 
 /* Returns the number of records in a dataset */
 static hsize_t getSetSize(hid_t setID) {
@@ -68,12 +68,11 @@ static hsize_t getSetSize(hid_t setID) {
     H5Sget_simple_extent_dims(spaceID,dims,maxs);
     H5Sclose(spaceID);
     return dims[0];
-}
+    }
 
 /* Create a dataset inside a group (positions, velocities, etc.) */
 static hid_t newSet(hid_t locID, const char *name, uint64_t chunk,
-		    uint64_t count, int nDims, hid_t dataType )
-{
+		    uint64_t count, int nDims, hid_t dataType ) {
     hid_t dataProperties, dataSpace, dataSet;
     hsize_t /*@alt uint64_t[]@*/ iDims[2];
     hsize_t /*@alt uint64_t[]@*/ iMax[2];
@@ -98,14 +97,14 @@ static hid_t newSet(hid_t locID, const char *name, uint64_t chunk,
     H5assert( dataSpace );
 
     /* Create the data set */
-    dataSet = H5Dcreate( locID, name, 
-                         dataType, dataSpace, dataProperties );
+    dataSet = H5Dcreate( locID, name,
+			 dataType, dataSpace, dataProperties );
     H5assert( dataSet );
     H5assert( H5Pclose( dataProperties ) );
     H5assert( H5Sclose( dataSpace ) );
 
     return dataSet;
-}
+    }
 
 /* Read part of a set from disk into memory */
 static void readSet(
@@ -114,8 +113,7 @@ static void readSet(
     hid_t memType,          /* Data type in memory */
     hsize_t iOffset,        /* Offset into the set */
     hsize_t nRows,          /* Number of rows to read */
-    hsize_t nCols )         /* Number of columns (normally 1 or 3) */
-{
+    hsize_t nCols ) {       /* Number of columns (normally 1 or 3) */
     hid_t memSpace, diskSpace;
     hsize_t dims[2], start[2];
     dims[0] = nRows;
@@ -129,7 +127,7 @@ static void readSet(
     H5Dread(set_id,memType,memSpace,diskSpace,H5P_DEFAULT,pBuffer);
     H5Sclose(memSpace);
     H5Sclose(diskSpace);
-}
+    }
 
 
 /* Add an attribute to a group */
@@ -144,7 +142,7 @@ static void writeAttribute( hid_t groupID, const char *name,
     H5assert(H5Awrite( attrID, dataType, data ));
     H5assert(H5Aclose( attrID ));
     H5assert(H5Sclose(dataSpace));
-}
+    }
 
 /* Read an attribute from a group */
 static int readAttribute( hid_t groupID, const char *name,
@@ -156,7 +154,7 @@ static int readAttribute( hid_t groupID, const char *name,
     H5assert(H5Aread( attrID, dataType, data ));
     H5assert(H5Aclose( attrID ));
     return 1;
-}
+    }
 
 
 
@@ -167,8 +165,7 @@ static void writeSet(
     hid_t memType,          /* Data type in memory */
     hsize_t iOffset,        /* Offset into the set */
     hsize_t nRows,          /* Number of rows to write */
-    hsize_t nCols )         /* Number of columns (normally 1 or 3) */
-{
+    hsize_t nCols ) {       /* Number of columns (normally 1 or 3) */
     hid_t memSpace, diskSpace;
     hsize_t dims[2], start[2], size[2];
 
@@ -185,17 +182,16 @@ static void writeSet(
     H5Dwrite(set_id,memType,memSpace,diskSpace,H5P_DEFAULT,pBuffer);
     H5Sclose(memSpace);
     H5Sclose(diskSpace);
-}
+    }
 
-static void flushVector( IOHDF5V iov )
-{
+static void flushVector( IOHDF5V iov ) {
     if ( iov->nBuffered ) {
 
 	if ( iov->set_id == H5I_INVALID_HID ) {
 	    iov->set_id = newSet(
-		iov->io->darkBase.group_id, iov->name,
-		iov->io->iChunkSize, 0, 1, iov->diskFloat );
-	}
+			      iov->io->darkBase.group_id, iov->name,
+			      iov->io->iChunkSize, 0, 1, iov->diskFloat );
+	    }
 
 	if ( iov->diskFloat == H5T_NATIVE_FLOAT )
 	    writeSet(iov->set_id, iov->s, H5T_NATIVE_FLOAT, iov->iOffset, iov->nBuffered, 1 );
@@ -203,18 +199,17 @@ static void flushVector( IOHDF5V iov )
 	    writeSet(iov->set_id, iov->d, H5T_NATIVE_DOUBLE, iov->iOffset, iov->nBuffered, 1 );
 	iov->iOffset += iov->nBuffered;
 	iov->nBuffered = 0;
+	}
     }
-}
 
 /* Writes the fields common to all particles */
-static void flushBase( IOHDF5 io, IOBASE *Base )
-{
+static void flushBase( IOHDF5 io, IOBASE *Base ) {
     IOHDF5V iov;
 
     assert( io != NULL );
     if ( Base->nBuffered ) {
 	hid_t dataType = sizeof(PINDEX)==4
-	    ? H5T_NATIVE_UINT32 : H5T_NATIVE_UINT64;
+			 ? H5T_NATIVE_UINT32 : H5T_NATIVE_UINT64;
 
 	if ( Base->group_id == H5I_INVALID_HID ) {
 	    Base->group_id = CreateGroup(io->fileID,Base->szGroupName);
@@ -222,27 +217,27 @@ static void flushBase( IOHDF5 io, IOBASE *Base )
 
 	    writeAttribute( Base->group_id, ATTR_IORDER,
 			    dataType, &Base->Order.iStart );
-	}
+	    }
 
 	if ( Base->setR_id == H5I_INVALID_HID ) {
 	    Base->setR_id = newSet(
-		Base->group_id, FIELD_POSITION,
-		io->iChunkSize, 0, 3, io->diskFloat_R );
+				Base->group_id, FIELD_POSITION,
+				io->iChunkSize, 0, 3, io->diskFloat_R );
 	    Base->setV_id = newSet(
-		Base->group_id, FIELD_VELOCITY,
-		io->iChunkSize, 0, 3, io->diskFloat_V );
+				Base->group_id, FIELD_VELOCITY,
+				io->iChunkSize, 0, 3, io->diskFloat_V );
 	    if ( Base->Order.iOrder != NULL ) {
 		//assert( sizeof(PINDEX) == 4 );
 		Base->Order.setOrder_id = newSet(
-		    Base->group_id, FIELD_ORDER,
-		    io->iChunkSize, 0, 1, dataType);
-	    }
+					      Base->group_id, FIELD_ORDER,
+					      io->iChunkSize, 0, 1, dataType);
+		}
 	    if ( Base->Class.piClass != NULL ) {
 		Base->Class.setClass_id = newSet(
-		    Base->group_id, FIELD_CLASS,
-		    io->iChunkSize, 0, 1, H5T_NATIVE_UINT8);
+					      Base->group_id, FIELD_CLASS,
+					      io->iChunkSize, 0, 1, H5T_NATIVE_UINT8);
+		}
 	    }
-	}
 
 	writeSet( Base->setR_id, Base->R, io->memFloat,
 		  Base->iOffset, Base->nBuffered, 3 );
@@ -252,22 +247,22 @@ static void flushBase( IOHDF5 io, IOBASE *Base )
 	if ( Base->Order.iOrder != NULL ) {
 	    writeSet( Base->Order.setOrder_id, Base->Order.iOrder,
 		      dataType, Base->iOffset, Base->nBuffered, 1 );
-	}
+	    }
 	if ( Base->Class.piClass != NULL ) {
 	    writeSet( Base->Class.setClass_id, Base->Class.piClass,
 		      H5T_NATIVE_UINT8, Base->iOffset, Base->nBuffered, 1 );
-	}
+	    }
 
 	Base->iOffset += Base->nBuffered;
 	Base->nBuffered = 0;
-    }
+	}
 
-    for( iov = io->vectorList; iov!=NULL; iov = iov->next ) {
+    for ( iov = io->vectorList; iov!=NULL; iov = iov->next ) {
 	flushVector(iov);
+	}
+
+
     }
-
-
-}
 
 static void writeClassTable(IOHDF5 io, IOBASE *Base ) {
     hid_t tid, set;
@@ -283,8 +278,8 @@ static void writeClassTable(IOHDF5 io, IOBASE *Base ) {
 
 	H5Dclose(set);
 	H5Tclose(tid);
+	}
     }
-}
 
 static void readClassTable( IOHDF5 io, IOBASE *Base ) {
     hid_t tid, set;
@@ -292,49 +287,45 @@ static void readClassTable( IOHDF5 io, IOBASE *Base ) {
     set = H5Dopen( Base->group_id, FIELD_CLASSES );
     if ( set != H5I_INVALID_HID ) {
 
-	if ( Base->Class.setClass_id != H5I_INVALID_HID 
-	     && Base->Class.piClass == NULL ) {
+	if ( Base->Class.setClass_id != H5I_INVALID_HID
+		&& Base->Class.piClass == NULL ) {
 	    Base->Class.piClass = (uint8_t *)malloc( io->iChunkSize * sizeof(uint8_t) );
 	    assert(Base->Class.piClass != NULL );
-	}
+	    }
 	tid = makeClassType( io->memFloat, Base->Class.piClass==NULL );
 	Base->Class.nClasses = getSetSize(set);
 	readSet( set, Base->Class.Class, tid,
 		 0, Base->Class.nClasses, 1 );
 	H5Dclose(set);
 	H5Tclose(tid);
-    }
+	}
 
-}
+    }
 
 /* Read an attribute from a group */
 int ioHDF5ReadAttribute( IOHDF5 io, const char *name,
-			 hid_t dataType, void *data )
-{
+			 hid_t dataType, void *data ) {
     return readAttribute( io->parametersID, name, dataType, data );
-}
+    }
 
 /* Add an attribute to a group */
 void ioHDF5WriteAttribute( IOHDF5 io, const char *name,
-			   hid_t dataType, void *data )
-{
+			   hid_t dataType, void *data ) {
     writeAttribute( io->parametersID, name, dataType, data );
-}
+    }
 
-void ioHDF5Flush( IOHDF5 io )
-{
+void ioHDF5Flush( IOHDF5 io ) {
     flushBase( io, &io->darkBase );
     flushBase( io, &io->gasBase );
     flushBase( io, &io->starBase );
     writeClassTable(io,&io->darkBase);
     writeClassTable(io,&io->gasBase);
     writeClassTable(io,&io->starBase);
-}
+    }
 
 
 static void baseInitialize( IOHDF5 io, IOBASE *Base,
-			    hid_t locID, const char *group)
-{
+			    hid_t locID, const char *group) {
     Base->iOffset = 0;
     Base->iIndex = 0;
     Base->nBuffered = 0;
@@ -360,9 +351,9 @@ static void baseInitialize( IOHDF5 io, IOBASE *Base,
 	Base->Order.setOrder_id = H5Dopen(Base->group_id,FIELD_ORDER);
 	Base->Class.setClass_id = H5Dopen(Base->group_id,FIELD_CLASS);
 	//if ( Base->Class.setClass_id != H5I_INVALID_HID ) {
-	    readClassTable( io, Base );
-	    //}
-    }
+	readClassTable( io, Base );
+	//}
+	}
 
     /* No group: we have to create this later.  We delay until later because
        it is possible that we won't have any of this type of particle. */
@@ -372,15 +363,14 @@ static void baseInitialize( IOHDF5 io, IOBASE *Base,
 	Base->Order.setOrder_id = H5I_INVALID_HID;
 	Base->Class.setClass_id = H5I_INVALID_HID;
 	Base->nTotal = 0;
-    }
+	}
 
     assert( strlen(group) < sizeof(Base->szGroupName) );
     strcpy( Base->szGroupName, group );
 
-}
+    }
 
-IOHDF5 ioHDF5Initialize( hid_t fileID, hid_t iChunkSize, int bDouble )
-{
+IOHDF5 ioHDF5Initialize( hid_t fileID, hid_t iChunkSize, int bDouble ) {
     IOHDF5 io;
     H5E_auto_t save_func;
     void *     save_data;
@@ -397,7 +387,7 @@ IOHDF5 ioHDF5Initialize( hid_t fileID, hid_t iChunkSize, int bDouble )
 
     /* This is the native type of FLOAT values - normally double */
     io->memFloat = sizeof(FLOAT)==sizeof(float)
-	? H5T_NATIVE_FLOAT : H5T_NATIVE_DOUBLE;
+		   ? H5T_NATIVE_FLOAT : H5T_NATIVE_DOUBLE;
     io->diskFloat_R = io->diskFloat_V = bDouble ? io->memFloat : H5T_NATIVE_FLOAT;
 
     /* The group might already exist */
@@ -407,7 +397,7 @@ IOHDF5 ioHDF5Initialize( hid_t fileID, hid_t iChunkSize, int bDouble )
     io->parametersID = H5Gopen( fileID, GROUP_PARAMETERS );
     if ( io->parametersID == H5I_INVALID_HID ) {
 	io->parametersID = CreateGroup( fileID, GROUP_PARAMETERS );
-    }
+	}
 
     baseInitialize( io, &io->darkBase, fileID, GROUP_DARK );
     baseInitialize( io, &io->gasBase,  fileID, GROUP_GAS  );
@@ -416,10 +406,9 @@ IOHDF5 ioHDF5Initialize( hid_t fileID, hid_t iChunkSize, int bDouble )
     H5Eset_auto(save_func,save_data);
 
     return io;
-}
+    }
 
-static void baseFinish( IOBASE *Base )
-{
+static void baseFinish( IOBASE *Base ) {
     if ( Base->group_id != H5I_INVALID_HID ) H5Gclose(Base->group_id);
     if ( Base->setR_id != H5I_INVALID_HID ) H5Dclose(Base->setR_id);
     if ( Base->setV_id != H5I_INVALID_HID ) H5Dclose(Base->setV_id);
@@ -433,24 +422,23 @@ static void baseFinish( IOBASE *Base )
     if ( Base->V != NULL ) free( Base->V );
     if ( Base->Class.fMass != NULL ) free( Base->Class.fMass );
     if ( Base->Class.fSoft != NULL ) free( Base->Class.fSoft );
-}
+    }
 
-void ioHDF5Finish( IOHDF5 io )
-{
+void ioHDF5Finish( IOHDF5 io ) {
     IOHDF5V iov,nextv;
     assert( io != NULL );
 
     if ( io->bWrite )
 	ioHDF5Flush(io);
 
-    for( iov = io->vectorList; iov!=NULL; iov = nextv ) {
+    for ( iov = io->vectorList; iov!=NULL; iov = nextv ) {
 	nextv = iov->next;
 	if ( iov->s ) free(iov->s);
 	if ( iov->d ) free(iov->d);
 	if ( iov->set_id != H5I_INVALID_HID )
 	    H5Dclose( iov->set_id );
 	free(iov);
-    }
+	}
     io->vectorList = NULL;
 
     baseFinish( &io->darkBase );
@@ -461,12 +449,11 @@ void ioHDF5Finish( IOHDF5 io )
 	H5Gclose(io->parametersID );
 
     free( io );
-}
+    }
 
 
 /* Create the class set if it doesn't already exist and flush out the table. */
-static void createClass(IOHDF5 io, IOBASE *Base)
-{
+static void createClass(IOHDF5 io, IOBASE *Base) {
     PINDEX i, j, n, o;
     IOCLASS *Class = &Base->Class;
 
@@ -477,42 +464,41 @@ static void createClass(IOHDF5 io, IOBASE *Base)
     assert(Class->piClass!=NULL);
 
     /* If the group exists, we will have to write */
-    if ( Class->setClass_id == H5I_INVALID_HID 
-	 && Base->group_id != H5I_INVALID_HID ) {
+    if ( Class->setClass_id == H5I_INVALID_HID
+	    && Base->group_id != H5I_INVALID_HID ) {
 	Class->setClass_id = newSet(
-	    Base->group_id, FIELD_CLASS,
-	    io->iChunkSize, 0, 1, H5T_NATIVE_UINT8);
-    }
+				 Base->group_id, FIELD_CLASS,
+				 io->iChunkSize, 0, 1, H5T_NATIVE_UINT8);
+	}
 
-    for( i=n=o=0; i<Class->nClasses; i++ ) {
+    for ( i=n=o=0; i<Class->nClasses; i++ ) {
 	PINDEX s, e;
 
 	s = Class->Class[i].iOrderStart;
 	e = i==Class->nClasses-1 ? Base->nTotal : Class->Class[i+1].iOrderStart;
 
-	for( j=s; j<e; j++ ) {
+	for ( j=s; j<e; j++ ) {
 	    if ( n == io->iChunkSize ) {
 		writeSet( Base->Class.setClass_id, Base->Class.piClass,
-		      H5T_NATIVE_UINT8, o, n, 1 );
+			  H5T_NATIVE_UINT8, o, n, 1 );
 		o += n;
 		n = 0;
-	    }
+		}
 	    Class->piClass[n++] = i;
+	    }
 	}
     }
-}
 
 static void addClass( IOHDF5 io, IOBASE *Base,
-		      PINDEX iOrder, FLOAT fMass, FLOAT fSoft )
-{
+		      PINDEX iOrder, FLOAT fMass, FLOAT fSoft ) {
     IOCLASS *Class = &Base->Class;
     uint_fast32_t i;
 
     /* See if we already have this class: Mass/Softening pair */
-    for( i=0; i<Class->nClasses; i++ ) {
+    for ( i=0; i<Class->nClasses; i++ ) {
 	if ( Class->Class[i].fMass == fMass && Class->Class[i].fSoft == fSoft )
 	    break;
-    }
+	}
 
     /* Case 1: This is a new class */
     if ( i == Class->nClasses ) {
@@ -525,23 +511,22 @@ static void addClass( IOHDF5 io, IOBASE *Base,
 	Class->nClasses++;
 	if ( Class->piClass != NULL )
 	    Class->piClass[Base->nBuffered] = i;
-    }
+	}
 
     /* Case 2: This was the last class, and we might be compressing */
     else if ( i == Class->nClasses - 1 && Class->piClass==NULL ) {
-    }
+	}
 
     /* Case 3: A match, but a prior class */
     else {
 	createClass(io,Base);
 	Class->piClass[Base->nBuffered] = i;
-    }
+	}
     Class->Class[i].nCount++;
-}
+    }
 
 static void addOrder( IOHDF5 io, IOBASE *Base,
-		      PINDEX iOrder )
-{
+		      PINDEX iOrder ) {
     IOORDER *Order = &Base->Order;
     PINDEX i;
     uint_fast32_t n;
@@ -562,51 +547,49 @@ static void addOrder( IOHDF5 io, IOBASE *Base,
 	    Order->iOrder = (PINDEX*)malloc( io->iChunkSize * sizeof(PINDEX) );
 	    assert(Order->iOrder!=NULL);
 
-	    if ( Order->setOrder_id == H5I_INVALID_HID 
-		&& Base->group_id != H5I_INVALID_HID ) {
+	    if ( Order->setOrder_id == H5I_INVALID_HID
+		    && Base->group_id != H5I_INVALID_HID ) {
 		assert( sizeof(PINDEX) == 4 );
 		Order->setOrder_id = newSet(
-		    Base->group_id, FIELD_ORDER,
-		    io->iChunkSize, 0, 1, dataType);
-	    }
+					 Base->group_id, FIELD_ORDER,
+					 io->iChunkSize, 0, 1, dataType);
+		}
 
 	    n = 0;
-	    for( i=Order->iStart; i<Order->iNext; i++ ) {
+	    for ( i=Order->iStart; i<Order->iNext; i++ ) {
 		Order->iOrder[n++] = i;
 		if ( n == io->iChunkSize ) {
 		    writeSet( Order->setOrder_id, Order->iOrder,
 			      dataType,iOffset,n,1);
 		    iOffset += n;
 		    n = 0;
+		    }
 		}
-	    }
 	    assert( n == Base->nBuffered );
 	    Order->iOrder[Base->nBuffered] = iOrder;
+	    }
 	}
-    }
 
     /* Particles are out of order for sure: just buffer iOrder for writing */
     else {
 	Order->iOrder[Base->nBuffered] = iOrder;
+	}
     }
-}
 
 /* If the structures have not been allocated, do so now */
-static void allocateBase( IOHDF5 io, IOBASE *Base )
-{
+static void allocateBase( IOHDF5 io, IOBASE *Base ) {
     if ( Base->R == NULL ) {
 	Base->R    = (ioV3*)malloc( io->iChunkSize * sizeof(ioV3) );
 	assert( Base->R != NULL );
 	Base->V    = (ioV3*)malloc( io->iChunkSize * sizeof(ioV3) );
 	assert( Base->V != NULL );
+	}
     }
-}
 
 
 static int getBase( IOHDF5 io, IOBASE *Base, PINDEX *iOrder,
 		    FLOAT *r, FLOAT *v,
-		    FLOAT *fMass, FLOAT *fSoft )
-{
+		    FLOAT *fMass, FLOAT *fSoft ) {
     uint_fast32_t iClass;
 
     assert(Base->setR_id!=H5I_INVALID_HID);
@@ -619,13 +602,13 @@ static int getBase( IOHDF5 io, IOBASE *Base, PINDEX *iOrder,
     /* If we have to read more from the file */
     if ( Base->nBuffered == Base->iIndex ) {
 	hid_t dataType = sizeof(PINDEX)==4
-	    ? H5T_NATIVE_UINT32 : H5T_NATIVE_UINT64;
+			 ? H5T_NATIVE_UINT32 : H5T_NATIVE_UINT64;
 	hsize_t N;
 	Base->iOffset += Base->iIndex;
 	Base->iIndex = Base->nBuffered = 0;
 	if ( Base->iOffset >= Base->nTotal ) return 0;
 
- 	N = Base->nTotal - Base->iOffset;
+	N = Base->nTotal - Base->iOffset;
 	if ( N > io->iChunkSize )
 	    Base->nBuffered = io->iChunkSize;
 	else
@@ -640,20 +623,20 @@ static int getBase( IOHDF5 io, IOBASE *Base, PINDEX *iOrder,
 	    if ( Base->Order.iOrder == NULL ) {
 		Base->Order.iOrder = (PINDEX*)malloc( io->iChunkSize * sizeof(PINDEX) );
 		assert( Base->Order.iOrder != NULL );
-	    }
+		}
 	    readSet( Base->Order.setOrder_id, Base->Order.iOrder,
 		     dataType,
 		     Base->iOffset, Base->nBuffered, 1 );
-	}
+	    }
 	if ( Base->Class.setClass_id != H5I_INVALID_HID ) {
 	    if ( Base->Class.piClass == NULL ) {
 		Base->Class.piClass=(uint8_t*)malloc( io->iChunkSize * sizeof(uint8_t) );
 		assert( Base->Class.piClass != NULL );
-	    }
+		}
 	    readSet( Base->Class.setClass_id, Base->Class.piClass,
 		     H5T_NATIVE_UINT8, Base->iOffset, Base->nBuffered, 1 );
+	    }
 	}
-    }
     //*iOrder = Base->iOffset + Base->iIndex; /*FIXME: */
     *iOrder = Base->Class.Class[0].iOrderStart + Base->iOffset + Base->iIndex; /*FIXME: */
     r[0] = Base->R[Base->iIndex].v[0];
@@ -665,27 +648,26 @@ static int getBase( IOHDF5 io, IOBASE *Base, PINDEX *iOrder,
 
     if ( Base->Class.piClass == NULL ) {
 	assert(Base->Class.nClasses>=1);
-	for( iClass=0; iClass<Base->Class.nClasses; iClass++ )
+	for ( iClass=0; iClass<Base->Class.nClasses; iClass++ )
 	    if ( Base->Class.Class[iClass].iOrderStart > *iOrder )
 		break;
 	assert( iClass>0 );
 	--iClass;
-    }
+	}
     else {
 	iClass = Base->Class.piClass[Base->iIndex];
 	assert( iClass < Base->Class.nClasses );
-    }
+	}
     *fMass = Base->Class.Class[iClass].fMass;
     *fSoft = Base->Class.Class[iClass].fSoft;
 
     Base->iIndex++;
     return iClass+1;
-}
+    }
 
 static void addBase( IOHDF5 io, IOBASE *Base, PINDEX iOrder,
 		     const FLOAT *r, const FLOAT *v,
-		     FLOAT fMass, FLOAT fSoft )
-{
+		     FLOAT fMass, FLOAT fSoft ) {
     int i;
 
     assert( io != NULL );
@@ -700,41 +682,37 @@ static void addBase( IOHDF5 io, IOBASE *Base, PINDEX iOrder,
     /* If the particles are not in order, then we have to store iOrder */
     addOrder( io, Base, iOrder );
 
-    for( i=0; i<3; i++ ) {
+    for ( i=0; i<3; i++ ) {
 	Base->R[Base->nBuffered].v[i] = r[i];
 	Base->V[Base->nBuffered].v[i] = v[i];
-    }
+	}
     addClass( io, Base, iOrder, fMass, fSoft );
 
     if ( ++Base->nBuffered == io->iChunkSize ) {
 	flushBase( io, Base );
+	}
     }
-}
 
 static void seekBase( IOHDF5 io, IOBASE *Base, PINDEX Offset ) {
     /*TODO: (optional) seek to chunk boundary */
     Base->nBuffered = Base->iIndex = 0;
     Base->iOffset = Offset;
-}
+    }
 
 
-PINDEX ioHDF5DarkCount( IOHDF5 io )
-{
+PINDEX ioHDF5DarkCount( IOHDF5 io ) {
     return io->darkBase.nTotal;
-}
+    }
 
-PINDEX ioHDF5GasCount( IOHDF5 io )
-{
+PINDEX ioHDF5GasCount( IOHDF5 io ) {
     return io->starBase.nTotal;
-}
+    }
 
-PINDEX ioHDF5StarCount( IOHDF5 io )
-{
+PINDEX ioHDF5StarCount( IOHDF5 io ) {
     return io->starBase.nTotal;
-}
+    }
 
-IOHDF5V ioHDFF5NewVector( IOHDF5 io, const char *name, int bDouble )
-{
+IOHDF5V ioHDFF5NewVector( IOHDF5 io, const char *name, int bDouble ) {
     IOHDF5V iov;
 
     /* Make the new vector and link it onto the vector list */
@@ -754,91 +732,84 @@ IOHDF5V ioHDFF5NewVector( IOHDF5 io, const char *name, int bDouble )
 	iov->d = (double*)malloc( io->iChunkSize * sizeof(double) );
 	assert(iov->d!=NULL);
 	iov->s = NULL;
-    }
+	}
     else {
 	iov->s = (float*)malloc( io->iChunkSize * sizeof(float) );
 	assert(iov->s!=NULL);
 	iov->d = NULL;
-    }
+	}
     iov->nBuffered = 0;
     iov->iOffset = 0;
 
     return iov;
-}
+    }
 
-void ioHDF5AddVector( IOHDF5V iov, PINDEX iOrder, FLOAT v )
-{
+void ioHDF5AddVector( IOHDF5V iov, PINDEX iOrder, FLOAT v ) {
     if ( iov->diskFloat == H5T_NATIVE_FLOAT )
 	iov->s[iov->nBuffered] = v;
     else
 	iov->d[iov->nBuffered] = v;
     if ( ++iov->nBuffered == iov->io->iChunkSize )
 	flushVector(iov);
-}
+    }
 
 void ioHDF5AddDark( IOHDF5 io, PINDEX iOrder,
 		    const FLOAT *r, const FLOAT *v,
-		    FLOAT fMass, FLOAT fSoft, float fPot )
-{
+		    FLOAT fMass, FLOAT fSoft, float fPot ) {
     addBase( io, &io->darkBase, iOrder, r, v, fMass, fSoft );
     /*TODO: Save Potential as well */
-}
+    }
 
 int  ioHDF5GetDark( IOHDF5 io, PINDEX *iOrder,
 		    FLOAT *r, FLOAT *v,
-		    FLOAT *fMass, FLOAT *fSoft, float *fPot )
-{
+		    FLOAT *fMass, FLOAT *fSoft, float *fPot ) {
     return getBase( io, &io->darkBase, iOrder, r, v, fMass, fSoft );
     *fPot = 0.0;
     /*TODO: Load Potential as well */
-}
+    }
 
 void ioHDF5SeekDark( IOHDF5 io, PINDEX Offset ) {
     seekBase(io,&io->darkBase,Offset);
-}
+    }
 
 void ioHDF5AddGas(IOHDF5 io, PINDEX iOrder,
 		  const FLOAT *r, const FLOAT *v,
 		  FLOAT fMass, FLOAT fSoft, float fPot,
-		  FLOAT fTemp, FLOAT fMetals)
-{
+		  FLOAT fTemp, FLOAT fMetals) {
     addBase( io, &io->gasBase, iOrder, r, v, fMass, fSoft );
     /*TODO: Save fPot, fTemp, fMetals */
-}
+    }
 
 int ioHDF5GetGas(IOHDF5 io, PINDEX *iOrder,
-		  FLOAT *r, FLOAT *v,
-		  FLOAT *fMass, FLOAT *fSoft, float *fPot,
-		  FLOAT *fTemp, FLOAT *fMetals)
-{
+		 FLOAT *r, FLOAT *v,
+		 FLOAT *fMass, FLOAT *fSoft, float *fPot,
+		 FLOAT *fTemp, FLOAT *fMetals) {
     return getBase( io, &io->gasBase, iOrder, r, v, fMass, fSoft );
     *fPot = *fTemp = *fMetals = 0.0;
     /*TODO: Load fPot, fTemp, fMetals */
-}
+    }
 
 void ioHDF5SeekGas( IOHDF5 io, PINDEX Offset ) {
     seekBase(io,&io->gasBase,Offset);
-}
+    }
 
 void ioHDF5AddStar(IOHDF5 io, PINDEX iOrder,
-	       const FLOAT *r, const FLOAT *v,
-	       FLOAT fMass, FLOAT fSoft, float fPot,
-	       FLOAT fMetals, FLOAT fTForm)
-{
+		   const FLOAT *r, const FLOAT *v,
+		   FLOAT fMass, FLOAT fSoft, float fPot,
+		   FLOAT fMetals, FLOAT fTForm) {
     addBase( io, &io->starBase, iOrder, r, v, fMass, fSoft );
     /*TODO: Save fPot, fMetals, fTForm */
-}
+    }
 
 int ioHDF5GetStar( IOHDF5 io, PINDEX *iOrder,
 		   FLOAT *r, FLOAT *v,
 		   FLOAT *fMass, FLOAT *fSoft, float *fPot,
-		   FLOAT *fMetals, FLOAT *fTForm)
-{
+		   FLOAT *fMetals, FLOAT *fTForm) {
     return getBase( io, &io->starBase, iOrder, r, v, fMass, fSoft );
     *fPot = *fMetals = *fTForm = 0.0;
     /*TODO: Load fPot, fMetals, fTForm */
-}
+    }
 
 void ioHDF5SeekStar( IOHDF5 io, PINDEX Offset ) {
     seekBase(io,&io->starBase,Offset);
-}
+    }

@@ -36,17 +36,17 @@
 typedef struct {
     double fTimer;
     struct timeval tv1;
-} TIMER;
+    } TIMER;
 
 void startTimer(TIMER *t) {
     struct timezone tz;
     gettimeofday(&t->tv1, &tz);
-}
+    }
 
 void clearTimer(TIMER *t) {
     t->fTimer = 0.0;
     startTimer(t);
-}
+    }
 
 float stopTimer(TIMER *t) {
     struct timezone tz;
@@ -57,11 +57,11 @@ float stopTimer(TIMER *t) {
     if ( tv2.tv_usec < t->tv1.tv_usec ) {
 	tv2.tv_sec--;
 	tv2.tv_usec += 1000000;
-    }
+	}
     tv2.tv_usec -= t->tv1.tv_usec;
     t->fTimer += tv2.tv_sec + (float)tv2.tv_usec/1000000.0;
     return t->fTimer;
-}
+    }
 
 float getTimer(TIMER *t) {
     struct timezone tz;
@@ -72,10 +72,10 @@ float getTimer(TIMER *t) {
     if ( tv2.tv_usec < t->tv1.tv_usec ) {
 	tv2.tv_sec--;
 	tv2.tv_usec += 1000000;
-    }
+	}
     tv2.tv_usec -= t->tv1.tv_usec;
     return t->fTimer + tv2.tv_sec + (float)tv2.tv_usec/1000000.0;
-}
+    }
 #endif
 
 double dMonopoleThetaFac = 1.5;
@@ -135,7 +135,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 	}
     else if (!pkdIsCellActive(pkd,&pkd->kdNodes[ROOT])) return 0;
     /*
-    ** Initially we set our cell pointer to 
+    ** Initially we set our cell pointer to
     ** point to the top tree.
     */
     c = pkd->kdTop;
@@ -180,7 +180,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 			}
 		    else {
 			pkd->Check[nCheck].id = c[ROOT].pLower;
-			}				    
+			}
 		    for (j=0;j<3;++j) pkd->Check[nCheck].rOffset[j] = rOffset[j];
 		    ++nCheck;
 		    }
@@ -220,10 +220,10 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
     */
     pkd->ilp->cx = 0;
     pkd->ilp->cy = 0;
-    pkd->ilp->cz = 0;	    
+    pkd->ilp->cz = 0;
     pkd->ilp->d2cmax = 0;
     /*
-    ** Now switch the cell pointer to point to 
+    ** Now switch the cell pointer to point to
     ** the local tree.
     */
     c = pkd->kdNodes;
@@ -256,8 +256,8 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 	    break;
 	    }
 	assert(pj <= c[iCell].pUpper);  /* otherwise we did not come to an active particle */
-	d2c = (cx - pkd->ilp->cx)*(cx - pkd->ilp->cx) + (cy - pkd->ilp->cy)*(cy - pkd->ilp->cy) + 
-	    (cz - pkd->ilp->cz)*(cz - pkd->ilp->cz);
+	d2c = (cx - pkd->ilp->cx)*(cx - pkd->ilp->cx) + (cy - pkd->ilp->cy)*(cy - pkd->ilp->cy) +
+	      (cz - pkd->ilp->cz)*(cz - pkd->ilp->cz);
 	//if (d2c > pkd->ilp->d2cmax) {
 	if ( d2c > 1e-5) {
 //	    printf("%d:Shift of center too large for the coming interactions! old:(%.10g,%.10g,%.10g) new:(%.10g,%.10g,%.10g)\n",
@@ -266,17 +266,17 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 	    ** Correct all remaining PP interactions to this new center.
 	    */
 	    ILP_LOOP( pkd->ilp, tile ) {
-		for( j=0; j<tile->nPart; ++j ) {
+		for ( j=0; j<tile->nPart; ++j ) {
 		    tile->d.dx.f[j] += cx - pkd->ilp->cx;
 		    tile->d.dy.f[j] += cy - pkd->ilp->cy;
 		    tile->d.dz.f[j] += cz - pkd->ilp->cz;
+		    }
 		}
-	    }
 	    pkd->ilp->cx = cx;
 	    pkd->ilp->cy = cy;
-	    pkd->ilp->cz = cz;	    
+	    pkd->ilp->cz = cz;
 	    pkd->ilp->d2cmax = c[iCellDescend].fOpen*c[iCellDescend].fOpen;
-	}
+	    }
 
 	while (1) {
 	    /*
@@ -318,7 +318,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 		for (j=0;j<3;++j) {
 		    dx[j] = c[iCell].r[j] - rCheck[j];
 		    d2 += dx[j]*dx[j];
-		}
+		    }
 		fourh2 = softmassweight(c[iCell].mom.m,4*c[iCell].fSoft2,pkdc->mom.m,4*pkdc->fSoft2);
 		iOpen = 0;
 		if (d2 > (c[iCell].fOpen + pkdc->fOpen)*(c[iCell].fOpen + pkdc->fOpen)) {
@@ -329,124 +329,124 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 		    else {
 			/*
 			** We want to test if it can be used as a softened monopole.
-			** Now we calculate minimum distance from the cm of the 
+			** Now we calculate minimum distance from the cm of the
 			** checkcell to the edge of the current cell's bounding box.
 			*/
-			min2 = 0;	
+			min2 = 0;
 			for (j=0;j<3;++j) {
 			    dMin = fabs(rCheck[j] - c[iCell].bnd.fCenter[j]);
 			    dMin -= c[iCell].bnd.fMax[j];
 			    if (dMin > 0) min2 += dMin*dMin;
-			}
+			    }
 			if (min2 > pkdc->fOpen*dMonopoleThetaFac*pkdc->fOpen*dMonopoleThetaFac) iOpen = -3;
 			/*
 			** Otherwise we must open one of the two cells. We defer this decision to the tests
 			** which follow. In this case we still have iOpen  = 0.
 			*/
+			}
 		    }
-		}
 		if (iOpen == 0) {
 		    /*
-		    ** If the checklist has the larger fOpen then Open it, otherwise keep it on 
+		    ** If the checklist has the larger fOpen then Open it, otherwise keep it on
 		    ** the checklist (open the current cell eventually).
 		    */
 		    if (pkdc->fOpen > c[iCell].fOpen) {
 			if (pkdc->iLower) {
 			    iOpen = 1;
-			}
+			    }
 			else {
 			    /*
 			    ** We can't open pkdc (it is a bucket).  At this point we would prefer to accept
 			    ** the bucket as a multipole expansion, but if that isn't possible use its particles.
 			    */
 			    if (n >= WALK_MINMULTIPOLE) {
-				min2 = 0;	
+				min2 = 0;
 				for (j=0;j<3;++j) {
 				    dMin = fabs(rCheck[j] - c[iCell].bnd.fCenter[j]);
 				    dMin -= c[iCell].bnd.fMax[j];
 				    if (dMin > 0) min2 += dMin*dMin;
-				}
+				    }
 				if (min2 > pkdc->fOpen*pkdc->fOpen) {
 				    if (min2 > fourh2) {
 					/*
 					** The multipole is also ok as far as softening goes, so accept it.
 					*/
 					iOpen = -2;
-				    }
+					}
 				    else if (min2 > pkdc->fOpen*dMonopoleThetaFac*pkdc->fOpen*dMonopoleThetaFac) {
 					iOpen = -3;
-				    }
+					}
 				    else {
 					/*
-					** Unfortunately the multipole does not meet the softening criteria for 
+					** Unfortunately the multipole does not meet the softening criteria for
 					** an unsoftened hexadecapole nor for a softened monopole. We must open it.
 					*/
 					iOpen = 1;
+					}
 				    }
-				}
 				else {
 				    /*
 				    ** This bucket cannot be accepted as a multipole.
 				    ** Opening will produce particles on the particle interaction list.
 				    */
 				    iOpen = 1;
+				    }
 				}
-			    }
 			    else {
 				/*
 				** This bucket did not have enough particles to make it worth accepting as a
 				** multipole, since it is faster to simply add P-P interactions at this stage.
 				*/
 				iOpen = 1;
+				}
 			    }
 			}
-		    }
 		    /*
 		    ** From here we know that this c[iCell] has the larger opening radius.
 		    */
 		    else if (!c[iCell].iLower) {
 			/*
 			** In this case we cannot open the current cell despite it having the
-			** larger opening radius. We must try to use pkdc as a P-C interaction in 
+			** larger opening radius. We must try to use pkdc as a P-C interaction in
 			** this case, otherwise we have the danger of opening too many cells.
 			*/
 			if (n >= WALK_MINMULTIPOLE) {
-			    min2 = 0;	
+			    min2 = 0;
 			    for (j=0;j<3;++j) {
 				dMin = fabs(rCheck[j] - c[iCell].bnd.fCenter[j]);
 				dMin -= c[iCell].bnd.fMax[j];
 				if (dMin > 0) min2 += dMin*dMin;
-			    }
+				}
 			    if (min2 > pkdc->fOpen*pkdc->fOpen) {
 				if (min2 > fourh2) {
 				    /*
 				    ** The multipole is also ok as far as softening goes, so accept it.
 				    */
 				    iOpen = -2;
-				}
+				    }
 				else if (min2 > pkdc->fOpen*dMonopoleThetaFac*pkdc->fOpen*dMonopoleThetaFac) {
 				    iOpen = -3;
-				}
+				    }
 				else {
 				    /*
-				    ** Unfortunately the multipole does not meet the softening criteria for 
+				    ** Unfortunately the multipole does not meet the softening criteria for
 				    ** an unsoftened hexadecapole nor for a softened monopole. We must open it.
 				    */
 				    iOpen = 1;
+				    }
 				}
-			    }
 			    else {
 				/*
 				** We don't accept the particle-cell interaction, open the check cell!
 				*/
 				iOpen = 1;
+				}
 			    }
-			}
 			else {
 			    iOpen = 1;
+			    }
 			}
 		    }
-		}
 		if (iOpen == 0) {
 		    pkd->Check[ii++] = pkd->Check[i];
 		    }
@@ -458,7 +458,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 		    if (iCheckCell) {
 			/*
 			** Open the cell.
-			** Here we ASSUME that the children of 
+			** Here we ASSUME that the children of
 			** pkdc are all in sequential memory order!
 			** (the new tree build assures this)
 			** (also true for the top tree)
@@ -528,8 +528,8 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 					  p[pj].r[2] + pkd->Check[i].rOffset[2],
 					  fMass, 4*fSoft*fSoft,
 					  p[pj].iOrder, p[pj].v[0], p[pj].v[1], p[pj].v[2]);
+				}
 			    }
-			}
 			else {
 			    /*
 			    ** Remote Bucket Interaction.
@@ -553,15 +553,15 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 					  pRemote->r[1] + pkd->Check[i].rOffset[1],
 					  pRemote->r[2] + pkd->Check[i].rOffset[2],
 					  fMass, 4*fSoft*fSoft,
-					  pRemote->iOrder, pRemote->v[0], pRemote->v[1], pRemote->v[2] ); 
+					  pRemote->iOrder, pRemote->v[0], pRemote->v[1], pRemote->v[2] );
 				mdlRelease(pkd->mdl,CID_PARTICLE,pRemote);
-			    }
+				}
 #ifdef TIME_WALK_WORK
 			    startTimer(&tv);
 #endif
-			}  /* end of opening a bucket */
+			    }  /* end of opening a bucket */
+			}
 		    }
-		}
 		else if (iOpen == -1) {
 		    /*
 		    ** Local expansion accepted!
@@ -576,7 +576,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 			dirLsum += dir*adotai*adotai;
 			normLsum += adotai*adotai;
 			}
-		}
+		    }
 		else if (iOpen == -2) {
 		    //int ii, ib;
 		    /*
@@ -590,7 +590,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 		    //ib = ctile->nCell >> 2;
 		    //ii = ctile->nCell & 3;
 		    j = ctile->nCell;
-	    
+
 		    ctile->d[j].x.f = rCheck[0];
 		    ctile->d[j].y.f = rCheck[1];
 		    ctile->d[j].z.f = rCheck[2];
@@ -629,7 +629,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 			      pkdc->mom.m, 4*pkdc->fSoft2,
 			      -1, /* set iOrder to negative value for time step criterion */
 			      pkdc->v[0], pkdc->v[1], pkdc->v[2] );
-		}
+		    }
 		else {
 		    mdlassert(pkd->mdl,iOpen >= -3 && iOpen <= 1);
 		    }
@@ -662,8 +662,8 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 		printf("F CPU:%d increased check list size to %d\n",mdlSelf(pkd->mdl),pkd->nMaxCheck);
 		}
 	    /*
-	    ** Check iCell is active. We eventually want to just to a 
-	    ** rung check here when we start using tree repair, but 
+	    ** Check iCell is active. We eventually want to just to a
+	    ** rung check here when we start using tree repair, but
 	    ** for now this is just as good.
 	    */
 	    if (pkdIsCellActive(pkd,&c[iCell])) {
@@ -686,7 +686,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 		    /*
 		    ** Sibling is active as well.
 		    ** Push Checklist for the sibling onto the stack
-		    ** before proceeding deeper in the tree.		    
+		    ** before proceeding deeper in the tree.
 		    */
 		    ++iStack;
 		    assert(iStack < pkd->nMaxStack);
@@ -735,7 +735,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 				    c[iCell].r[2] - zParent);
 	    }
 	/*
-	** Now the interaction list should be complete and the 
+	** Now the interaction list should be complete and the
 	** Checklist should be empty! Calculate gravity on this
 	** Bucket!
 	*/
@@ -757,7 +757,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 		       p[pj].r[0], p[pj].r[1], p[pj].r[2],
 		       fMass, 4*fSoft*fSoft,
 		       p[pj].iOrder, p[pj].v[0], p[pj].v[1], p[pj].v[2] );
-	}
+	    }
 
 	/*
 	** Now calculate gravity on this bucket!
@@ -765,7 +765,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 	nActive = pkdGravInteract(pkd,pkdc,&L,pkd->ilp,pkd->ilc,dirLsum,normLsum,
 				  bEwald,pdFlop,&dEwFlop);
 	/*
-	** Update the limit for a shift of the center here based on the opening radius of this 
+	** Update the limit for a shift of the center here based on the opening radius of this
 	** cell (the one we just evaluated).
 	*/
 	pkd->ilp->d2cmax = c[iCell].fOpen*c[iCell].fOpen;
@@ -798,10 +798,10 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 		*/
 		assert(iStack == -1);
 #ifdef PROFILE_GRAVWALK
-    VTPause();
+		VTPause();
 #endif
-                *pdFlop += dEwFlop;   /* Finally add the ewald score to get a proper float count */
-    
+		*pdFlop += dEwFlop;   /* Finally add the ewald score to get a proper float count */
+
 		return(nTotActive);
 		}
 	    }
@@ -815,7 +815,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 	ilcRestore(pkd->ilc,&pkd->S[iStack].CellChkPt);
 	nCheck = pkd->S[iStack].nCheck;
 	/*
-	** Use a memcpy here. This is where we would win with lists since we could simply take the 
+	** Use a memcpy here. This is where we would win with lists since we could simply take the
 	** pointer to this list. We would have to link the old checklist into the freelist.
 	** for (i=0;i<nCheck;++i) Check[i] = S[iStack].Check[i];
 	*/

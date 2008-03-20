@@ -7,37 +7,37 @@
 #endif
 
 typedef struct smfParameters {
-	double H;
-	double a;
+    double H;
+    double a;
 #ifdef RELAXATION
-        double dDeltaT;
+    double dDeltaT;
 #endif
 #ifdef SYMBA
-        double dSunMass;
+    double dSunMass;
 #endif
-	double dTau2;
-	double dVTau2;
-	int bTauAbs;
-	int nMinMembers;
-	int nMinProfile;
-	int nBins;
-	int bUsePotmin;
-	FLOAT fContrast;
-	FLOAT Delta;
-	FLOAT binFactor;
-	PKD pkd; /* useful for diagnostics, etc. */
-	} SMF;
+    double dTau2;
+    double dVTau2;
+    int bTauAbs;
+    int nMinMembers;
+    int nMinProfile;
+    int nBins;
+    int bUsePotmin;
+    FLOAT fContrast;
+    FLOAT Delta;
+    FLOAT binFactor;
+    PKD pkd; /* useful for diagnostics, etc. */
+    } SMF;
 
 
 typedef struct nNeighbor {
-	PARTICLE *pPart;
-	FLOAT fDist2;
-	FLOAT dx;
-	FLOAT dy;
-	FLOAT dz;
-	int iPid;
-	int iIndex;	
-	} NN;
+    PARTICLE *pPart;
+    FLOAT fDist2;
+    FLOAT dx;
+    FLOAT dy;
+    FLOAT dz;
+    int iPid;
+    int iIndex;
+    } NN;
 
 #define SMX_NULL                            0
 void NullSmooth(PARTICLE *,int,NN *,SMF *);
@@ -61,7 +61,7 @@ void combGroupMerge(void *g1, void *g2);
 void initGroupBins(void *b);
 void combGroupBins(void *b1, void *b2);
 
-#ifdef RELAXATION	
+#ifdef RELAXATION
 #define SMX_RELAXATION		26
 void AddRelaxation(PARTICLE *,int,NN *,SMF *);
 #endif

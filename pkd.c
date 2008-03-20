@@ -2,8 +2,8 @@
 #include "config.h"
 #endif
 
-#define _LARGEFILE_SOURCE 
-#define _FILE_OFFSET_BITS 64 
+#define _LARGEFILE_SOURCE
+#define _FILE_OFFSET_BITS 64
 #include <stdio.h>
 #include <stdlib.h>
 #include <stddef.h>
@@ -46,24 +46,20 @@ double Zeit() { /* added MZ */
     return (tv.tv_sec+(tv.tv_usec*1e-6));
     }
 
-double pkdGetTimer(PKD pkd,int iTimer)
-    {
+double pkdGetTimer(PKD pkd,int iTimer) {
     return(pkd->ti[iTimer].sec);
     }
 
-double pkdGetSystemTimer(PKD pkd,int iTimer)
-    {
+double pkdGetSystemTimer(PKD pkd,int iTimer) {
     return(pkd->ti[iTimer].system_sec);
     }
 
-double pkdGetWallClockTimer(PKD pkd,int iTimer)
-    {
+double pkdGetWallClockTimer(PKD pkd,int iTimer) {
     return(pkd->ti[iTimer].wallclock_sec);
     }
 
 
-void pkdClearTimer(PKD pkd,int iTimer)
-    {
+void pkdClearTimer(PKD pkd,int iTimer) {
     int i;
 
     if (iTimer >= 0) {
@@ -83,8 +79,7 @@ void pkdClearTimer(PKD pkd,int iTimer)
     }
 
 
-void pkdStartTimer(PKD pkd,int iTimer)
-    {
+void pkdStartTimer(PKD pkd,int iTimer) {
     struct timeval tv;
 
     pkd->ti[iTimer].iActive++;
@@ -95,7 +90,7 @@ void pkdStartTimer(PKD pkd,int iTimer)
 	pkd->ti[iTimer].wallclock_stamp = tv.tv_sec + 1e-6*(double) tv.tv_usec;
 	    {
 	    struct rusage ru;
-	    
+
 	    getrusage(0,&ru);
 	    pkd->ti[iTimer].system_stamp = (double)ru.ru_stime.tv_sec + 1e-6*(double)ru.ru_stime.tv_usec;
 	    }
@@ -103,8 +98,7 @@ void pkdStartTimer(PKD pkd,int iTimer)
     }
 
 
-void pkdStopTimer(PKD pkd,int iTimer)
-    {
+void pkdStopTimer(PKD pkd,int iTimer) {
     double sec;
     struct timeval tv;
 
@@ -133,14 +127,14 @@ void pkdStopTimer(PKD pkd,int iTimer)
 	pkd->ti[iTimer].system_sec += sec;
 	}
 #endif
-	pkd->ti[iTimer].iActive--;
+    pkd->ti[iTimer].iActive--;
     }
 
 void pkdInitialize(PKD *ppkd,MDL mdl,int nStore,int nBucket,FLOAT *fPeriod,
 		   uint64_t nDark,uint64_t nGas,uint64_t nStar) {
     PKD pkd;
     int j,ism;
-	
+
     pkd = (PKD)malloc(sizeof(struct pkdContext));
     mdlassert(mdl,pkd != NULL);
     pkd->mdl = mdl;
@@ -167,7 +161,7 @@ void pkdInitialize(PKD *ppkd,MDL mdl,int nStore,int nBucket,FLOAT *fPeriod,
     ** Need to use mdlMalloc() since the particles will need to be
     ** visible to all other processors thru mdlAquire() later on.
     **
-    ** We need one EXTRA storage location at the very end to use for 
+    ** We need one EXTRA storage location at the very end to use for
     ** calculating acceleration on arbitrary positions in space, for example
     ** determining the force on the sun. The easiest way to do this is to
     ** allocate one hidden particle, which won't interfere with the rest of
@@ -180,13 +174,13 @@ void pkdInitialize(PKD *ppkd,MDL mdl,int nStore,int nBucket,FLOAT *fPeriod,
     */
     pkd->pClass = mdlMalloc(pkd->mdl,PKD_MAX_CLASSES*sizeof(PARTCLASS));
     mdlassert(mdl,pkd->pClass != NULL);
-    for(j=0;j<PKD_MAX_CLASSES;j++)
+    for (j=0;j<PKD_MAX_CLASSES;j++)
 	pkd->pClass[j].fMass = pkd->pClass[j].fSoft = pkd->pClass[j].fSoft0 = -1.0;
     pkd->nClasses = 0;
     /*
     ** Now also allocate all node storage here.
-    ** We guess that the upper bound is based on the number of particles in 
-    ** a bucket. The mean number of particles per bucket is always somewhat 
+    ** We guess that the upper bound is based on the number of particles in
+    ** a bucket. The mean number of particles per bucket is always somewhat
     ** less than nBucket, and roughly given by nBucket-sqrt(nBucket).
     */
     /*pkd->nMaxNodes = (int)ceil(3.0*nStore/floor(nBucket - sqrt(nBucket)));*/
@@ -278,12 +272,11 @@ void pkdFinish(PKD pkd) {
     free(pkd);
     }
 
-static uint8_t getClass( PKD pkd, FLOAT fMass, FLOAT fSoft )
-{
+static uint8_t getClass( PKD pkd, FLOAT fMass, FLOAT fSoft ) {
     int i;
 
     /* TODO: This is a linear search which is fine for a small number of classes */
-    for( i=0; i<pkd->nClasses; i++ )
+    for ( i=0; i<pkd->nClasses; i++ )
 	if ( pkd->pClass[i].fMass == fMass && pkd->pClass[i].fSoft0 == fSoft )
 	    return i;
     assert( pkd->nClasses < PKD_MAX_CLASSES );
@@ -291,18 +284,16 @@ static uint8_t getClass( PKD pkd, FLOAT fMass, FLOAT fSoft )
     pkd->pClass[i].fSoft = pkd->pClass[i].fSoft0 = fSoft;
     pkd->pClass[i].fMass = fMass;
     return i;
-}
+    }
 
-int pkdGetClasses( PKD pkd, int nMax, PARTCLASS *pClass )
-{
+int pkdGetClasses( PKD pkd, int nMax, PARTCLASS *pClass ) {
     int i;
-    for( i=0; i<pkd->nClasses; i++ )
+    for ( i=0; i<pkd->nClasses; i++ )
 	pClass[i] = pkd->pClass[i];
     return pkd->nClasses;
-}
+    }
 
-int pkdSetClasses( PKD pkd, int n, PARTCLASS *pClass, int bUpdate )
-{
+int pkdSetClasses( PKD pkd, int n, PARTCLASS *pClass, int bUpdate ) {
     uint8_t map[PKD_MAX_CLASSES];
     PARTICLE *p;
     int i,j;
@@ -310,27 +301,27 @@ int pkdSetClasses( PKD pkd, int n, PARTCLASS *pClass, int bUpdate )
     if ( bUpdate ) {
 	/* Build a map from the old class to the new class */
 	assert( n >= pkd->nClasses );
-	for( i=0; i<pkd->nClasses; i++ ) {
-	    for( j=0; j<n; j++ )
+	for ( i=0; i<pkd->nClasses; i++ ) {
+	    for ( j=0; j<n; j++ )
 		if ( pClass[j].fMass==pkd->pClass[i].fMass && pClass[j].fSoft==pkd->pClass[i].fSoft )
 		    break;
 	    assert(j<n);
 	    map[i] = j;
-	}
+	    }
 
 	/* Now update the class with the new value */
 	for (i=0;i<pkd->nLocal;++i) {
 	    p = &pkd->pStore[i];
 	    assert( p->iClass <= pkd->nClasses );
 	    p->iClass = map[p->iClass];
+	    }
 	}
-    }
 
     /* Finally, set the new class table */
-    for( i=0; i<n; i++ )
+    for ( i=0; i<n; i++ )
 	pkd->pClass[i] = pClass[i];
     pkd->nClasses = n;
-}
+    }
 
 void pkdSeek(PKD pkd,FILE *fp,uint64_t nStart,int bStandard,int bDoublePos) {
     off_t MAX_OFFSET = 2147483640;
@@ -358,20 +349,20 @@ void pkdSeek(PKD pkd,FILE *fp,uint64_t nStart,int bStandard,int bDoublePos) {
 	    if (bStandard) lStart += nStart*(bDoublePos?48:36);
 	    else lStart += nStart*sizeof(struct dark_particle);
 	    }
-	} 
+	}
     else {
 	if (bStandard) lStart += nStart*(bDoublePos?60:48);
 	else lStart += nStart*sizeof(struct gas_particle);
 	}
-    
+
     /*fseek fails for offsets >= 2**31; this is an ugly workaround;*/
-    if(lStart > MAX_OFFSET){
+    if (lStart > MAX_OFFSET) {
 	iErr = fseek(fp,0,SEEK_SET);
 	if (iErr) {
 	    perror("pkdSeek failed");
 	    exit(errno);
 	    }
-	while(lStart > MAX_OFFSET){
+	while (lStart > MAX_OFFSET) {
 	    fseek(fp,MAX_OFFSET,SEEK_CUR);
 	    lStart -= MAX_OFFSET;
 	    }
@@ -380,8 +371,8 @@ void pkdSeek(PKD pkd,FILE *fp,uint64_t nStart,int bStandard,int bDoublePos) {
 	    perror("pkdSeek failed");
 	    exit(errno);
 	    }
-	} 
-    else { 
+	}
+    else {
 	iErr = fseek(fp,lStart,SEEK_SET);
 	if (iErr) {
 	    perror("pkdSeek failed");
@@ -400,9 +391,8 @@ void IOCheck(int nout) {
 
 
 #ifdef USE_GRAFIC
-void pkdGenerateIC(PKD pkd, GRAFICCTX gctx,  int iDim, 
-		   double fSoft, double fMass, int bCannonical)
-{
+void pkdGenerateIC(PKD pkd, GRAFICCTX gctx,  int iDim,
+		   double fSoft, double fMass, int bCannonical) {
     PARTICLE *p;
     int i, j, k, d, pi, n1, n2, n3;
     double dx;
@@ -426,9 +416,9 @@ void pkdGenerateIC(PKD pkd, GRAFICCTX gctx,  int iDim,
     pkd->pClass[0].fSoft = pkd->pClass[0].fSoft0 = fSoft;
     pkd->pClass[0].fMass = fMass;
 
-    for( i=0; i<n1; i++ ) {
-	for( j=0; j<n2; j++ ) {
-	    for( k=0; k<n3; k++ ) {
+    for ( i=0; i<n1; i++ ) {
+	for ( j=0; j<n2; j++ ) {
+	    for ( k=0; k<n3; k++ ) {
 		p = &pkd->pStore[pi];
 		p->iRung = 0;
 		p->fDensity = 0.0;
@@ -447,12 +437,12 @@ void pkdGenerateIC(PKD pkd, GRAFICCTX gctx,  int iDim,
 		p->iOrder = 0; /* FIXME */
 		p->iClass = 0;
 		pi++;
+		}
 	    }
 	}
-    }
 
     assert( pi == pkd->nLocal );
-}
+    }
 
 #endif
 
@@ -480,13 +470,13 @@ void pkdReadHDF5(PKD pkd, IOHDF5 io, double dvFac,
 	p->fDensity = 0.0;
 	p->fBall = 0.0;
 	/*
-	** Clear the accelerations so that the timestepping calculations do not 
+	** Clear the accelerations so that the timestepping calculations do not
 	** get funny uninitialized values!
 	*/
 	for (j=0;j<3;++j) {
 	    p->a[j] = 0.0;
+	    }
 	}
-    }
 
     for (i=0;i<nLocal;++i) {
 	p = &pkd->pStore[i];
@@ -495,26 +485,26 @@ void pkdReadHDF5(PKD pkd, IOHDF5 io, double dvFac,
 	if (pkdIsDark(pkd,p)) {
 	    ioHDF5GetDark( io, &iOrder, p->r, p->v,
 			   &fMass, &fSoft, &p->fPot );
-	}
+	    }
 	else if (pkdIsGas(pkd,p)) {
 	    ioHDF5GetGas( io, &iOrder, p->r, p->v,
 			  &fMass, &fSoft, &p->fPot,
 			  &dT1, &dT2 );
-	}
+	    }
 	else if (pkdIsStar(pkd,p)) {
 	    ioHDF5GetStar( io, &iOrder, p->r, p->v,
 			   &fMass, &fSoft, &p->fPot,
 			   &dT1, &dT2 );
-	}
+	    }
 	else mdlassert(pkd->mdl,0);
-	if(fSoft < sqrt(2.0e-38)) { /* set minimum softening */
+	if (fSoft < sqrt(2.0e-38)) { /* set minimum softening */
 	    fSoft = sqrt(2.0e-38);
-	}
+	    }
 	for (j=0;j<3;++j) p->v[j] *= dvFac;
 	p->iClass = getClass(pkd,fMass,fSoft);
 	p->iOrder = iOrder;
+	}
     }
-}
 #endif
 
 
@@ -535,15 +525,15 @@ void pkdIOInitialize( PKD pkd, int nLocal) {
 	p->fDensity = 0.0;
 	p->fBall = 0.0;
 	/*
-	** Clear the accelerations so that the timestepping calculations do not 
+	** Clear the accelerations so that the timestepping calculations do not
 	** get funny uninitialized values!
 	*/
 	for (j=0;j<3;++j) {
 	    p->a[j] = 0.0;
+	    }
 	}
-    }
 
-}
+    }
 #endif
 
 void pkdReadTipsy(PKD pkd,char *pszFileName, char *achOutName,uint64_t nStart,int nLocal,
@@ -571,13 +561,13 @@ void pkdReadTipsy(PKD pkd,char *pszFileName, char *achOutName,uint64_t nStart,in
 	p->fDensity = 0.0;
 	p->fBall = 0.0;
 	/*
-	** Clear the accelerations so that the timestepping calculations do not 
+	** Clear the accelerations so that the timestepping calculations do not
 	** get funny uninitialized values!
 	*/
 	for (j=0;j<3;++j) {
 	    p->a[j] = 0.0;
+	    }
 	}
-    }
     /*
     ** Seek past the header and up to nStart.
     */
@@ -616,7 +606,7 @@ void pkdReadTipsy(PKD pkd,char *pszFileName, char *achOutName,uint64_t nStart,in
 		for (j=0;j<3;++j) {
 		    xdr_float(&xdrs,&fTmp);
 		    vTemp = fTmp;
-		    p->v[j] = dvFac*vTemp;			
+		    p->v[j] = dvFac*vTemp;
 		    }
 		xdr_float(&xdrs,&fTmp);
 		fSoft = fTmp;
@@ -641,7 +631,7 @@ void pkdReadTipsy(PKD pkd,char *pszFileName, char *achOutName,uint64_t nStart,in
 		for (j=0;j<3;++j) {
 		    xdr_float(&xdrs,&fTmp);
 		    vTemp = fTmp;
-		    p->v[j] = dvFac*vTemp;			
+		    p->v[j] = dvFac*vTemp;
 		    }
 
 		xdr_float(&xdrs,&fTmp);
@@ -670,7 +660,7 @@ void pkdReadTipsy(PKD pkd,char *pszFileName, char *achOutName,uint64_t nStart,in
 		for (j=0;j<3;++j) {
 		    xdr_float(&xdrs,&fTmp);
 		    vTemp = fTmp;
-		    p->v[j] = dvFac*vTemp;			
+		    p->v[j] = dvFac*vTemp;
 		    }
 		xdr_float(&xdrs,&fTmp);
 		xdr_float(&xdrs,&fTmp);
@@ -728,8 +718,7 @@ void pkdReadTipsy(PKD pkd,char *pszFileName, char *achOutName,uint64_t nStart,in
     }
 
 
-void pkdCalcBound(PKD pkd,BND *pbnd)
-    {
+void pkdCalcBound(PKD pkd,BND *pbnd) {
     PARTICLE *p = pkd->pStore;
     FLOAT fMin[3],fMax[3];
     int i = 0;
@@ -762,7 +751,7 @@ uint64_t hilbert3d(float x,float y,float z) {
     ux = (*(uint32_t *)&x)>>2;
     uy = (*(uint32_t *)&y)>>2;
     uz = (*(uint32_t *)&z)>>2;
-    
+
     m = 0x00100000;
 
     while (m) {
@@ -846,7 +835,7 @@ void pkdPeanoHilbertCount(PKD pkd) {
     for (i=0;i<pkd->nLocal;++i) {
 	/*
 	** For now we just assume the particles are coming from a standard
-	** cosmological box. We scale the volume by a factor of 0.99 to be 
+	** cosmological box. We scale the volume by a factor of 0.99 to be
 	** certain that fast particles are still captured by the domain
 	** decomposition.
 	*/
@@ -861,7 +850,7 @@ void pkdPeanoHilbertCount(PKD pkd) {
 	else if (z >= 2.0) z = 2.0;
 	pl[i].uKey = hilbert3d(x,y,z);
 	pl[i].i = i;
-    }
+	}
     /*
     ** Now create a local count of particles in the PeanoHilbert cells.
     */
@@ -869,14 +858,14 @@ void pkdPeanoHilbertCount(PKD pkd) {
     uMask = (1<<(bits+1)) - 1;
     for (j=0;j<pkd->nPHCount;++j) pkd->auPHCount[j] = 0;
     for (i=0;i<pkd->nLocal;++i) {
-	
-    }
+
+	}
 
     /*
     ** Example of mdlReduce from Doug's code.
     mdlReduce(pkd->mdl,limg,img,N,MPI_FLOAT,MPI_SUM,0);
     */
-}
+    }
 #endif
 
 /*
@@ -884,8 +873,7 @@ void pkdPeanoHilbertCount(PKD pkd) {
 ** those >= to fSplit.  Find number and weight in each partition.
 */
 int pkdWeight(PKD pkd,int d,FLOAT fSplit,int iSplitSide,int iFrom,int iTo,
-	      int *pnLow,int *pnHigh,FLOAT *pfLow,FLOAT *pfHigh)
-    {
+	      int *pnLow,int *pnHigh,FLOAT *pfLow,FLOAT *pfHigh) {
     int i,iPart;
     FLOAT fLower,fUpper;
 
@@ -966,10 +954,9 @@ int pkdWeightWrap(PKD pkd,int d,FLOAT fSplit,FLOAT fSplit2,int iSplitSide,int iV
 
 
 int pkdOrdWeight(PKD pkd,uint64_t iOrdSplit,int iSplitSide,int iFrom,int iTo,
-		 int *pnLow,int *pnHigh)
-    {
+		 int *pnLow,int *pnHigh) {
     int iPart;
-	
+
     /*
     ** First partition the memory about fSplit for particles iFrom to iTo.
     */
@@ -987,8 +974,7 @@ int pkdOrdWeight(PKD pkd,uint64_t iOrdSplit,int iSplitSide,int iFrom,int iTo,
     }
 
 
-int pkdLowerPart(PKD pkd,int d,FLOAT fSplit,int i,int j)
-    {
+int pkdLowerPart(PKD pkd,int d,FLOAT fSplit,int i,int j) {
     PARTICLE pTemp;
 
     PARTITION(pkd->pStore,pTemp,i,j,
@@ -998,8 +984,7 @@ int pkdLowerPart(PKD pkd,int d,FLOAT fSplit,int i,int j)
     }
 
 
-int pkdUpperPart(PKD pkd,int d,FLOAT fSplit,int i,int j)
-    {
+int pkdUpperPart(PKD pkd,int d,FLOAT fSplit,int i,int j) {
     PARTICLE pTemp;
 
     PARTITION(pkd->pStore,pTemp,i,j,
@@ -1140,8 +1125,7 @@ int pkdActiveOrder(PKD pkd) {
 
 
 int pkdColRejects_Active_Inactive(PKD pkd,int d,FLOAT fSplit,FLOAT fSplitInactive,
-				  int iSplitSide)
-    {
+				  int iSplitSide) {
     PARTICLE pTemp;
     int nSplit,nSplitInactive,iRejects,i,j;
 
@@ -1192,8 +1176,7 @@ int pkdColRejects_Active_Inactive(PKD pkd,int d,FLOAT fSplit,FLOAT fSplitInactiv
     }
 
 
-int pkdColRejects(PKD pkd,int nSplit)
-    {
+int pkdColRejects(PKD pkd,int nSplit) {
     int iRejects,i;
 
     mdlassert(pkd->mdl,pkd->nRejects == 0);
@@ -1210,8 +1193,7 @@ int pkdColRejects(PKD pkd,int nSplit)
     }
 
 
-int pkdSwapRejects(PKD pkd,int idSwap)
-    {
+int pkdSwapRejects(PKD pkd,int idSwap) {
     size_t nBuf;
     size_t nOutBytes,nSndBytes,nRcvBytes;
 
@@ -1227,13 +1209,12 @@ int pkdSwapRejects(PKD pkd,int idSwap)
     return(pkd->nRejects);
     }
 
-void pkdSwapAll(PKD pkd, int idSwap)
-    {
+void pkdSwapAll(PKD pkd, int idSwap) {
     size_t nBuf;
     size_t nOutBytes,nSndBytes,nRcvBytes;
     int i;
     int iBuf;
-    
+
     /*
     ** Move particles to High memory.
     */
@@ -1249,40 +1230,33 @@ void pkdSwapAll(PKD pkd, int idSwap)
     pkd->nLocal = nRcvBytes/sizeof(PARTICLE);
     }
 
-int pkdSwapSpace(PKD pkd)
-    {
+int pkdSwapSpace(PKD pkd) {
     return(pkdFreeStore(pkd) - pkdLocal(pkd));
     }
 
 
-int pkdFreeStore(PKD pkd)
-    {
+int pkdFreeStore(PKD pkd) {
     return(pkd->nStore);
     }
 
-int pkdActive(PKD pkd)
-    {
+int pkdActive(PKD pkd) {
     return(pkd->nActive);
     }
 
-int pkdInactive(PKD pkd)
-    {
+int pkdInactive(PKD pkd) {
     return(pkd->nLocal - pkd->nActive);
     }
 
-int pkdLocal(PKD pkd)
-    {
+int pkdLocal(PKD pkd) {
     return(pkd->nLocal);
     }
 
-int pkdNodes(PKD pkd)
-    {
+int pkdNodes(PKD pkd) {
     return(pkd->nNodes);
     }
 
 
-int pkdColOrdRejects(PKD pkd,uint64_t nOrdSplit,int iSplitSide)
-    {
+int pkdColOrdRejects(PKD pkd,uint64_t nOrdSplit,int iSplitSide) {
     int nSplit,iRejects,i;
 
     if (iSplitSide) nSplit = pkdLowerOrdPart(pkd,nOrdSplit,0,pkdLocal(pkd)-1);
@@ -1299,8 +1273,7 @@ int pkdColOrdRejects(PKD pkd,uint64_t nOrdSplit,int iSplitSide)
     }
 
 
-int cmpParticles(const void *pva,const void *pvb)
-    {
+int cmpParticles(const void *pva,const void *pvb) {
     PARTICLE *pa = (PARTICLE *)pva;
     PARTICLE *pb = (PARTICLE *)pvb;
 
@@ -1308,42 +1281,40 @@ int cmpParticles(const void *pva,const void *pvb)
     }
 
 
-void pkdLocalOrder(PKD pkd)
-    {
+void pkdLocalOrder(PKD pkd) {
     qsort(pkd->pStore,pkdLocal(pkd),sizeof(PARTICLE),cmpParticles);
     }
 
 int pkdUnpackIO(PKD pkd,
-	      PIO *io,
-	      int nMax,
-	      local_t *iIndex,
-	      total_t iMinOrder,
-	      total_t iMaxOrder,
-	      double dvFac )
-{
+		PIO *io,
+		int nMax,
+		local_t *iIndex,
+		total_t iMinOrder,
+		total_t iMaxOrder,
+		double dvFac ) {
     int i,d;
 
     assert( pkd != NULL );
     assert( pkd->pStore != NULL );
 
-    for( i=0; i<nMax; i++ ) {
+    for ( i=0; i<nMax; i++ ) {
 	local_t I = *iIndex + i;
 	PARTICLE *p = pkd->pStore + I;
 
-	for( d=0; d<3; d++ ) {
+	for ( d=0; d<3; d++ ) {
 	    p->r[d]  = io[i].r[d];
 	    p->v[d]  = io[i].v[d] * dvFac; //FIXME: times??
 	    p->a[d]  = 0.0;
-	}
+	    }
 	p->iOrder = io[i].iOrder;
 	p->iClass = getClass(pkd,io[i].fMass,io[i].fSoft);
 	p->fDensity = io[i].fDensity;
 	p->fPot = io[i].fPot;
-    }
+	}
     *iIndex += nMax;
 
     return pkd->nLocal - *iIndex;
-}
+    }
 
 /*
 ** This routine will pack at most nMax particles into an array of packed
@@ -1358,14 +1329,13 @@ int pkdPackIO(PKD pkd,
 	      local_t *iIndex,
 	      total_t iMinOrder,
 	      total_t iMaxOrder,
-	      double dvFac )
-{
+	      double dvFac ) {
     local_t i;
     int nCopied, d;
 
     mdlassert(pkd->mdl,*iIndex<=pkd->nLocal);
 
-    for( i=*iIndex,nCopied=0; nCopied < nMax && i < pkd->nLocal; i++ ) {
+    for ( i=*iIndex,nCopied=0; nCopied < nMax && i < pkd->nLocal; i++ ) {
 	/* Not a particle of interest? */
 	if ( pkd->pStore[i].iOrder<iMinOrder || pkd->pStore[i].iOrder>=iMaxOrder)
 	    continue;
@@ -1373,24 +1343,23 @@ int pkdPackIO(PKD pkd,
 	/* We should have certain special cases here */
 	mdlassert( pkd->mdl, pkdIsDark(pkd,pkd->pStore+i) );
 
-	for( d=0; d<3; d++ ) {
+	for ( d=0; d<3; d++ ) {
 	    io[nCopied].r[d] = pkd->pStore[i].r[d];
 	    io[nCopied].v[d] = pkd->pStore[i].v[d] * dvFac;
-	}
+	    }
 	io[nCopied].iOrder= pkd->pStore[i].iOrder;
 	io[nCopied].fMass = pkdMass(pkd,&pkd->pStore[i]);
 	io[nCopied].fSoft = pkdSoft(pkd,&pkd->pStore[i]);
 	io[nCopied].fDensity = pkd->pStore[i].fDensity;
 	io[nCopied].fPot = pkd->pStore[i].fPot;
 	nCopied++;
-    }
+	}
     *iIndex = i;
     return nCopied;
-}
+    }
 
 #ifdef USE_HDF5
-void pkdWriteHDF5(PKD pkd, IOHDF5 io, IOHDF5V ioDen, IOHDF5V ioPot, double dvFac)
-{
+void pkdWriteHDF5(PKD pkd, IOHDF5 io, IOHDF5V ioDen, IOHDF5V ioPot, double dvFac) {
     PARTICLE *p;
     FLOAT v[3], fSoft, fMass;
     int i;
@@ -1406,25 +1375,25 @@ void pkdWriteHDF5(PKD pkd, IOHDF5 io, IOHDF5V ioDen, IOHDF5V ioPot, double dvFac
 	if (pkdIsDark(pkd,p)) {
 	    ioHDF5AddDark(io,p->iOrder,p->r,v,
 			  fMass,fSoft,p->fPot );
-	}
+	    }
 	else if (pkdIsGas(pkd,p)) {
 	    assert(0);
 	    /* Why are temp and metals always set to zero? */
 	    ioHDF5AddGas( io,p->iOrder,p->r,v,
 			  fMass,fSoft,p->fPot,0.0,0.0);
-	}
+	    }
 	else if (pkdIsStar(pkd,p)) {
 	    assert(0);
 	    /* Why are metals and tform always set to zero? */
 	    ioHDF5AddStar(io, p->iOrder, p->r, v,
 			  fMass,fSoft,p->fPot,0.0,0.0);
-	}
+	    }
 	else mdlassert(pkd->mdl,0);
 
 	ioHDF5AddVector( ioDen, p->iOrder, p->fDensity );
 	ioHDF5AddVector( ioPot, p->iOrder, p->fPot );
+	}
     }
-}
 
 
 #endif
@@ -1440,7 +1409,7 @@ void pkdWriteTipsy(PKD pkd,char *pszFileName,uint64_t nStart,
     int nout;
     float fTmp;
     double dTmp;
-	
+
     /*
     ** Seek past the header and up to nStart.
     */
@@ -1451,7 +1420,7 @@ void pkdWriteTipsy(PKD pkd,char *pszFileName,uint64_t nStart,
     if (bStandard) {
 	FLOAT vTemp;
 	XDR xdrs;
-	/* 
+	/*
 	** Write Stuff!
 	*/
 	xdrstdio_create(&xdrs,fp,XDR_ENCODE);
@@ -1474,7 +1443,7 @@ void pkdWriteTipsy(PKD pkd,char *pszFileName,uint64_t nStart,
 			}
 		    }
 		for (j=0;j<3;++j) {
-		    vTemp = dvFac*p->v[j];			
+		    vTemp = dvFac*p->v[j];
 		    fTmp = vTemp;
 		    IOCheck(xdr_float(&xdrs,&fTmp));
 		    }
@@ -1500,7 +1469,7 @@ void pkdWriteTipsy(PKD pkd,char *pszFileName,uint64_t nStart,
 			}
 		    }
 		for (j=0;j<3;++j) {
-		    vTemp = dvFac*p->v[j];			
+		    vTemp = dvFac*p->v[j];
 		    fTmp = vTemp;
 		    IOCheck(xdr_float(&xdrs,&fTmp));
 		    }
@@ -1531,7 +1500,7 @@ void pkdWriteTipsy(PKD pkd,char *pszFileName,uint64_t nStart,
 			}
 		    }
 		for (j=0;j<3;++j) {
-		    vTemp = dvFac*p->v[j];			
+		    vTemp = dvFac*p->v[j];
 		    fTmp = vTemp;
 		    IOCheck(xdr_float(&xdrs,&fTmp));
 		    }
@@ -1548,7 +1517,7 @@ void pkdWriteTipsy(PKD pkd,char *pszFileName,uint64_t nStart,
 	xdr_destroy(&xdrs);
 	}
     else {
-	/* 
+	/*
 	** Write Stuff!
 	*/
 	for (i=0;i<pkdLocal(pkd);++i) {
@@ -1596,23 +1565,21 @@ void pkdWriteTipsy(PKD pkd,char *pszFileName,uint64_t nStart,
     }
 
 
-void pkdSetSoft(PKD pkd,double dSoft)
-    {
+void pkdSetSoft(PKD pkd,double dSoft) {
     PARTICLE *p;
     int i,n;
 
     p = pkd->pStore;
     n = pkdLocal(pkd);
-    if(dSoft < sqrt(2.0e-38)) { /* set minimum softening */
+    if (dSoft < sqrt(2.0e-38)) { /* set minimum softening */
 	dSoft = sqrt(2.0e-38);
 	}
-    for(i=0;i<pkd->nClasses;i++)
+    for (i=0;i<pkd->nClasses;i++)
 	pkd->pClass[i].fSoft = dSoft; /* fSoft0?? */
     }
 
 #ifdef CHANGESOFT
-void pkdPhysicalSoft(PKD pkd,double dSoftMax,double dFac,int bSoftMaxMul)
-    {
+void pkdPhysicalSoft(PKD pkd,double dSoftMax,double dFac,int bSoftMaxMul) {
     PARTICLE *p;
     int i,n;
 
@@ -1645,9 +1612,8 @@ static int foo = 0;
 
 void
 pkdGravAll(PKD pkd,double dTime,int nReps,int bPeriodic,int iOrder,int bEwald,
-	   double fEwCut,double fEwhCut,int *nActive, 
-	   double *pdPartSum, double *pdCellSum,CASTAT *pcs, double *pdFlop)
-    {
+	   double fEwCut,double fEwhCut,int *nActive,
+	   double *pdPartSum, double *pdCellSum,CASTAT *pcs, double *pdFlop) {
     int bVeryActive = 0;
 
     pkdClearTimer(pkd,1);
@@ -1659,7 +1625,7 @@ pkdGravAll(PKD pkd,double dTime,int nReps,int bPeriodic,int iOrder,int bEwald,
     foo++;
     if ( foo == 1 ) {
 	MPItrace_restart();
-    }
+	}
 #endif
 #ifdef USE_BSC
     MPItrace_event(10000,3);
@@ -1693,7 +1659,7 @@ pkdGravAll(PKD pkd,double dTime,int nReps,int bPeriodic,int iOrder,int bEwald,
 #ifdef USE_BSC_trace
     if ( foo == 1 ) {
 	MPItrace_shutdown();
-    }
+	}
 #endif
 
     /*
@@ -1714,8 +1680,7 @@ pkdGravAll(PKD pkd,double dTime,int nReps,int bPeriodic,int iOrder,int bEwald,
     }
 
 
-void pkdCalcEandL(PKD pkd,double *T,double *U,double *Eth,double L[])
-    {
+void pkdCalcEandL(PKD pkd,double *T,double *U,double *Eth,double L[]) {
     /* L is calculated with respect to the origin (0,0,0) */
 
     PARTICLE *p;
@@ -1751,12 +1716,12 @@ pkdDrift(PKD pkd,double dTime,double dDelta,FLOAT fCenter[3],int bPeriodic,int b
     FLOAT fMass,fSoft;
     double px,py,pz,pm;
     double dDeltaM;
-    
+
     mdlDiag(pkd->mdl, "Into pkdDrift\n");
-    
+
     if (dTime >= pkd->param.dGrowStartT && dTime < pkd->param.dGrowEndT) {
 	dDeltaM = pkd->param.dGrowDeltaM*dDelta/
-	    (pkd->param.dGrowEndT - pkd->param.dGrowStartT);
+		  (pkd->param.dGrowEndT - pkd->param.dGrowStartT);
 	}
     else {
 	dDeltaM = 0;
@@ -1765,7 +1730,7 @@ pkdDrift(PKD pkd,double dTime,double dDelta,FLOAT fCenter[3],int bPeriodic,int b
 #ifdef USE_BSC
     MPItrace_event(10000,4);
 #endif
-    
+
     p = pkd->pStore;
     n = pkdLocal(pkd);
     for (i=0;i<n;++i) {
@@ -1802,17 +1767,17 @@ pkdDriftInactive(PKD pkd,double dTime, double dDelta,FLOAT fCenter[3],int bPerio
     int ipt;
     FLOAT fMass,fSoft;
     double dDeltaM;
-    
+
     mdlDiag(pkd->mdl, "Into pkdDriftInactive\n");
-    
+
     if (dTime >= pkd->param.dGrowStartT && dTime < pkd->param.dGrowEndT) {
 	dDeltaM = pkd->param.dGrowDeltaM*dDelta/
-	    (pkd->param.dGrowEndT - pkd->param.dGrowStartT);
+		  (pkd->param.dGrowEndT - pkd->param.dGrowStartT);
 	}
     else {
 	dDeltaM = 0;
 	}
-    
+
     p = pkd->pStore;
     n = pkdLocal(pkd);
     for (i=0;i<n;++i) {
@@ -1844,12 +1809,12 @@ pkdDriftActive(PKD pkd,double dTime,double dDelta) {
     FLOAT fMass, fSoft;
     double px,py,pz,pm;
     double dDeltaM;
-    
+
     mdlDiag(pkd->mdl, "Into pkdDriftActive\n");
 
     if (dTime >= pkd->param.dGrowStartT && dTime < pkd->param.dGrowEndT) {
 	dDeltaM = pkd->param.dGrowDeltaM*dDelta/
-	    (pkd->param.dGrowEndT - pkd->param.dGrowStartT);
+		  (pkd->param.dGrowEndT - pkd->param.dGrowStartT);
 	}
     else {
 	dDeltaM = 0;
@@ -1887,8 +1852,7 @@ void pkdGravityVeryActive(PKD pkd,double dTime,int bEwald,int nReps,double dStep
 void
 pkdStepVeryActiveKDK(PKD pkd, double dStep, double dTime, double dDelta,
 		     int iRung, int iKickRung, int iRungVeryActive,int iAdjust, double diCrit2,
-		     int *pnMaxRung, double aSunInact[], double adSunInact[], double dSunMass)
-    {
+		     int *pnMaxRung, double aSunInact[], double adSunInact[], double dSunMass) {
     int nRungCount[256];
     double dDriftFac;
 #ifdef PLANETS
@@ -1897,8 +1861,8 @@ pkdStepVeryActiveKDK(PKD pkd, double dStep, double dTime, double dDelta,
 #endif
 
     double time1,time2; /* added MZ 1.6.2006 */
-    
-    if(iAdjust && (iRung < pkd->param.iMaxRung-1)) {
+
+    if (iAdjust && (iRung < pkd->param.iMaxRung-1)) {
 	pkdActiveRung(pkd, iRung, 1);
 	pkdInitDt(pkd, pkd->param.dDelta);
 	if (pkd->param.bGravStep) {
@@ -1915,17 +1879,17 @@ pkdStepVeryActiveKDK(PKD pkd, double dStep, double dTime, double dDelta,
 			 pkd->param.bEpsAccStep,pkd->param.bSqrtPhiStep,dhMinOverSoft);
 	    }
 	*pnMaxRung = pkdDtToRung(pkd,iRung,dDelta,pkd->param.iMaxRung-1, 1, nRungCount);
-    
+
 	if (pkd->param.bVDetails) {
 	    printf("%*cAdjust at iRung: %d, nMaxRung:%d nRungCount[%d]=%d\n",
 		   2*iRung+2,' ',iRung,*pnMaxRung,*pnMaxRung,nRungCount[*pnMaxRung]);
+	    }
+
 	}
-	
-	}
-    if(iRung > iRungVeryActive) {	/* skip this if we are
+    if (iRung > iRungVeryActive) {	/* skip this if we are
 					   entering for the first
 					   time: Kick is taken care of
-					   in master(). 
+					   in master().
 					*/
 	pkdActiveRung(pkd,iRung,0);
 	if (pkd->param.bVDetails) {
@@ -1972,13 +1936,13 @@ pkdStepVeryActiveKDK(PKD pkd, double dStep, double dTime, double dDelta,
 	dTime += dDelta;
 	dStep += 1.0/(1 << iRung);
 
-	if(iKickRung > iRungVeryActive) {	/* skip this if we are
+	if (iKickRung > iRungVeryActive) {	/* skip this if we are
 						   entering for the first
 						   time: Kick is taken care of
-						   in master(). 
+						   in master().
 						*/
 
-	    if(pkd->param.bVDetails) {
+	    if (pkd->param.bVDetails) {
 		printf("%*cGravityVA: iRung %d Gravity for rungs %d to %d ... ",
 		       2*iRung+2,' ',iRung,iKickRung,*pnMaxRung);
 		}
@@ -1991,22 +1955,21 @@ pkdStepVeryActiveKDK(PKD pkd, double dStep, double dTime, double dDelta,
 
 #ifdef PLANETS
 	    /* Sun's gravity */
-	    if(pkd->param.bHeliocentric){
-	      /* Sun's indirect gravity due to very active particles*/
-	      pkdActiveRung(pkd,iRungVeryActive+1,1);
-	      pkdSunIndirect(pkd,aSun,adSun,1); 
-	      for (j=0;j<3;++j)
-	       	{                 
-                 aSun[j] += aSunInact[j];
-		 adSun[j] += adSunInact[j];
-	       	}
-	      pkdActiveRung(pkd,iKickRung,1);
-	      pkdGravSun(pkd,aSun,adSun,dSunMass); 
-	    }
+	    if (pkd->param.bHeliocentric) {
+		/* Sun's indirect gravity due to very active particles*/
+		pkdActiveRung(pkd,iRungVeryActive+1,1);
+		pkdSunIndirect(pkd,aSun,adSun,1);
+		for (j=0;j<3;++j) {
+		    aSun[j] += aSunInact[j];
+		    adSun[j] += adSunInact[j];
+		    }
+		pkdActiveRung(pkd,iKickRung,1);
+		pkdGravSun(pkd,aSun,adSun,dSunMass);
+		}
 #endif
 
 	    time2 = Zeit();
-	    if(pkd->param.bVDetails)
+	    if (pkd->param.bVDetails)
 		printf("Time: %g\n",time2-time1);
 	    }
 	/*
@@ -2015,10 +1978,10 @@ pkdStepVeryActiveKDK(PKD pkd, double dStep, double dTime, double dDelta,
 	 */
 	dTime -= 0.5*dDelta;
 	}
-    if(iKickRung > iRungVeryActive) {	/* skip this if we are
+    if (iKickRung > iRungVeryActive) {	/* skip this if we are
 						   entering for the first
 						   time: Kick is taken care of
-						   in master(). 
+						   in master().
 						*/
 	pkdActiveRung(pkd,iRung,0);
 	if (pkd->param.bVDetails) {
@@ -2032,9 +1995,8 @@ pkdStepVeryActiveKDK(PKD pkd, double dStep, double dTime, double dDelta,
 #ifdef HERMITE
 void
 pkdStepVeryActiveHermite(PKD pkd, double dStep, double dTime, double dDelta,
-		     int iRung, int iKickRung, int iRungVeryActive,int iAdjust, double diCrit2,
-		     int *pnMaxRung, double aSunInact[], double adSunInact[], double dSunMass)
-    {
+			 int iRung, int iKickRung, int iRungVeryActive,int iAdjust, double diCrit2,
+			 int *pnMaxRung, double aSunInact[], double adSunInact[], double dSunMass) {
     int nRungCount[256];
     double dDriftFac;
     int i;
@@ -2043,13 +2005,13 @@ pkdStepVeryActiveHermite(PKD pkd, double dStep, double dTime, double dDelta,
     int j;
 
     double time1,time2; /* added MZ 1.6.2006 */
-    
-    if(iAdjust && (iRung < pkd->param.iMaxRung-1)) {
+
+    if (iAdjust && (iRung < pkd->param.iMaxRung-1)) {
 	pkdActiveRung(pkd, iRung, 1);
 	pkdInitDt(pkd, pkd->param.dDelta);
 	if (pkd->param.bAarsethStep) {
-	  pkdAarsethStep(pkd,pkd->param.dEta);
-	}
+	    pkdAarsethStep(pkd,pkd->param.dEta);
+	    }
 	if (pkd->param.bGravStep) {
 	    double a = csmTime2Exp(pkd->param.csm,dTime);
 	    double dRhoFac = 1.0/(a*a*a);
@@ -2064,25 +2026,25 @@ pkdStepVeryActiveHermite(PKD pkd, double dStep, double dTime, double dDelta,
 			 pkd->param.bEpsAccStep,pkd->param.bSqrtPhiStep,dhMinOverSoft);
 	    }
 	*pnMaxRung = pkdDtToRung(pkd,iRung,dDelta,pkd->param.iMaxRung-1, 1, nRungCount);
-    
+
 	if (pkd->param.bVDetails) {
 	    printf("%*cAdjust at iRung: %d, nMaxRung:%d nRungCount[%d]=%d\n",
 		   2*iRung+2,' ',iRung,*pnMaxRung,*pnMaxRung,nRungCount[*pnMaxRung]);
+	    }
+
 	}
-	
-	}
-   
+
     if (*pnMaxRung > iRung) {
 	/*
 	** Recurse.
 	*/
 	pkdStepVeryActiveHermite(pkd,dStep,dTime,0.5*dDelta,iRung+1,iRung+1,iRungVeryActive,0,
-			     diCrit2,pnMaxRung,aSunInact,adSunInact,dSunMass);
+				 diCrit2,pnMaxRung,aSunInact,adSunInact,dSunMass);
 	dStep += 1.0/(2 << iRung);
 	dTime += 0.5*dDelta;
 	pkdActiveRung(pkd,iRung,0);
 	pkdStepVeryActiveHermite(pkd,dStep,dTime,0.5*dDelta,iRung+1,iKickRung,iRungVeryActive,1,
-			     diCrit2,pnMaxRung,aSunInact,adSunInact,dSunMass);
+				 diCrit2,pnMaxRung,aSunInact,adSunInact,dSunMass);
 	}
     else {
 	if (pkd->param.bVDetails) {
@@ -2111,13 +2073,13 @@ pkdStepVeryActiveHermite(PKD pkd, double dStep, double dTime, double dDelta,
 
 	pkdPredictor(pkd,dTime);
 
-	if(iKickRung > iRungVeryActive) {	/* skip this if we are
+	if (iKickRung > iRungVeryActive) {	/* skip this if we are
 						   entering for the first
 						   time: Kick is taken care of
-						   in master(). 
+						   in master().
 						*/
 
-	    if(pkd->param.bVDetails) {
+	    if (pkd->param.bVDetails) {
 		printf("%*cGravityVA: iRung %d Gravity for rungs %d to %d ...\n ",
 		       2*iRung+2,' ',iRung,iKickRung,*pnMaxRung);
 		}
@@ -2131,115 +2093,111 @@ pkdStepVeryActiveHermite(PKD pkd, double dStep, double dTime, double dDelta,
 
 #ifdef PLANETS
 	    /* Sun's gravity */
-           if(pkd->param.bHeliocentric){
-	       /* Sun's indirect gravity due to very active particles*/
-	   pkdActiveRung(pkd,iRungVeryActive+1,1);
-	   pkdSunIndirect(pkd,aSun,adSun,1); 
-           for (j=0;j<3;++j)
-	       	{                 
-                 aSun[j] += aSunInact[j];
-		 adSun[j] += adSunInact[j];
-	       	}
-	    pkdActiveRung(pkd,iKickRung,1);
-	    pkdGravSun(pkd,aSun,adSun,dSunMass); 
-           }
+	    if (pkd->param.bHeliocentric) {
+		/* Sun's indirect gravity due to very active particles*/
+		pkdActiveRung(pkd,iRungVeryActive+1,1);
+		pkdSunIndirect(pkd,aSun,adSun,1);
+		for (j=0;j<3;++j) {
+		    aSun[j] += aSunInact[j];
+		    adSun[j] += adSunInact[j];
+		    }
+		pkdActiveRung(pkd,iKickRung,1);
+		pkdGravSun(pkd,aSun,adSun,dSunMass);
+		}
 #endif
 
-	   if (pkd->param.bVDetails) {
-	     printf("%*cVeryActive pkdCorrector at iRung: %d, 0.5*dDelta: %g\n",
-		    2*iRung+2,' ',iRung,0.5*dDelta);
-	    }
-	   pkdCorrector(pkd,dTime);
+	    if (pkd->param.bVDetails) {
+		printf("%*cVeryActive pkdCorrector at iRung: %d, 0.5*dDelta: %g\n",
+		       2*iRung+2,' ',iRung,0.5*dDelta);
+		}
+	    pkdCorrector(pkd,dTime);
 
 #ifdef PLANETS
-	   if(pkd->param.bHeliocentric){
-	     int nite = 0;
-	     int nitemax = 3;                                                    
-	     do{    
-	       nite += 1;
-	       pkdSunCorrector(pkd,dTime,dSunMass);  		
-	     }while(nite < nitemax);
-           }
-	   if(pkd->param.bCollision && pkd->iCollisionflag) pkdDoCollisionVeryActive(pkd,dTime); 
+	    if (pkd->param.bHeliocentric) {
+		int nite = 0;
+		int nitemax = 3;
+		do {
+		    nite += 1;
+		    pkdSunCorrector(pkd,dTime,dSunMass);
+		    }
+		while (nite < nitemax);
+		}
+	    if (pkd->param.bCollision && pkd->iCollisionflag) pkdDoCollisionVeryActive(pkd,dTime);
 #endif
-	   pkdCopy0(pkd,dTime); 
+	    pkdCopy0(pkd,dTime);
 
-	   time2 = Zeit();
-	   if(pkd->param.bVDetails)
-	     printf("Time: %g\n",time2-time1);
-	    
+	    time2 = Zeit();
+	    if (pkd->param.bVDetails)
+		printf("Time: %g\n",time2-time1);
+
+	    }
 	}
-      }   
     }
 
 void
-pkdCopy0(PKD pkd,double dTime) 
-{  
+pkdCopy0(PKD pkd,double dTime) {
     PARTICLE *p;
     int i,j,n;
-    
+
     mdlDiag(pkd->mdl, "Into pkdCopy0\n");
-            
+
     p = pkd->pStore;
     n = pkdLocal(pkd);
-    for (i=0;i<n;++i) {	
-	if (pkdIsActive(pkd,&p[i])) { 			      
-	    for (j=0;j<3;++j) {    
+    for (i=0;i<n;++i) {
+	if (pkdIsActive(pkd,&p[i])) {
+	    for (j=0;j<3;++j) {
 		p[i].r0[j] = p[i].r[j];
 		p[i].v0[j] = p[i].v[j];
-		p[i].a0[j] = p[i].a[j];	         	       
-		p[i].ad0[j] = p[i].ad[j];	 
-	    }
+		p[i].a0[j] = p[i].a[j];
+		p[i].ad0[j] = p[i].ad[j];
+		}
 	    p[i].dTime0 = dTime;
 #ifdef PLANETS
-	    if(pkd->param.bCollision){
+	    if (pkd->param.bCollision) {
 		p[i].iColflag = 0;  /* just in case */
-	    }
+		}
 #endif
+	    }
 	}
-    }
     mdlDiag(pkd->mdl, "Out of pkdCopy0\n");
-}
+    }
 
 void
-pkdPredictor(PKD pkd,double dTime) 
-{
+pkdPredictor(PKD pkd,double dTime) {
     PARTICLE *p;
     int i,j,n;
     double dt; /* time since last evaluation of force */
-    
+
     mdlDiag(pkd->mdl, "Into pkdPredictor\n");
 
-    if (pkd->param.bVDetails) printf("Into pkdPredictor\n");      
+    if (pkd->param.bVDetails) printf("Into pkdPredictor\n");
 
     p = pkd->pStore;
     n = pkdLocal(pkd);
-    for (i=0;i<n;++i) {		
-	if (pkdIsActive(pkd,&p[i])) { 	
-	    dt =  dTime - p[i].dTime0; 
-      /*if (pkd->param.bVDetails)
-	{
-         printf("Particle=%d iRung=%d dt=%g \n",p[i].iOrder,p[i].iRung,dt);
-	 }*/
-	    for (j=0;j<3;++j) {                
+    for (i=0;i<n;++i) {
+	if (pkdIsActive(pkd,&p[i])) {
+	    dt =  dTime - p[i].dTime0;
+	    /*if (pkd->param.bVDetails)
+		{
+	       printf("Particle=%d iRung=%d dt=%g \n",p[i].iOrder,p[i].iRung,dt);
+		}*/
+	    for (j=0;j<3;++j) {
 		p[i].r[j] = p[i].r0[j] + dt*(p[i].v0[j] + 0.5*dt*(p[i].a0[j]+dt*p[i].ad0[j]/3.0));
-		p[i].v[j] = p[i].v0[j] + dt*(p[i].a0[j]+0.5*dt*p[i].ad0[j]);   
-                p[i].rp[j] = p[i].r[j];
-                p[i].vp[j] = p[i].v[j];  	       
+		p[i].v[j] = p[i].v0[j] + dt*(p[i].a0[j]+0.5*dt*p[i].ad0[j]);
+		p[i].rp[j] = p[i].r[j];
+		p[i].vp[j] = p[i].v[j];
 		}
-           }	    
+	    }
 	}
     mdlDiag(pkd->mdl, "Out of pkdPredictor\n");
     }
 
-void
-pkdCorrector(PKD pkd,double dTime) 
-{
+void pkdCorrector(PKD pkd,double dTime) {
     PARTICLE *p;
     int i,j,n;
-    double dt, add, addd, am; 
+    double dt, add, addd, am;
     double a0d2, a1d2, a2d2, a3d2, dti, dt2i;
-    /*double alpha = 7.0/6.0;*/    
+    /*double alpha = 7.0/6.0;*/
 
     mdlDiag(pkd->mdl, "Into pkdCorrector\n");
 
@@ -2247,130 +2205,127 @@ pkdCorrector(PKD pkd,double dTime)
 
     p = pkd->pStore;
     n = pkdLocal(pkd);
-    for (i=0;i<n;++i) {	
-	if (pkdIsActive(pkd,&p[i])) {	
-	      dt =  dTime - p[i].dTime0;  
-	      if(pkd->param.bAarsethStep){	    
+    for (i=0;i<n;++i) {
+	if (pkdIsActive(pkd,&p[i])) {
+	    dt =  dTime - p[i].dTime0;
+	    if (pkd->param.bAarsethStep) {
 		a0d2  = 0.0;
 		a1d2  = 0.0;
 		a2d2  = 0.0;
 		a3d2  = 0.0;
 		dti = 1.0/dt;
 		dt2i = dti*dti;
-	      }
-	      
-	    for (j=0;j<3;++j) { 	  
-              am = p[i].a0[j]-p[i].a[j];
+		}
 
-	      if(pkd->param.bAarsethStep){
-	      add = 2.0*(3.0*am*dt2i+(2.0*p[i].ad0[j]+p[i].ad[j])*dti);
-	      addd = 6.0*(2.0*am*dti+(p[i].ad0[j]+p[i].ad[j]))*dt2i;
-              add += dt*addd; 
+	    for (j=0;j<3;++j) {
+		am = p[i].a0[j]-p[i].a[j];
 
-              a0d2 += p[i].a[j]*p[i].a[j];
-              a1d2 += p[i].ad[j]*p[i].ad[j];
-	      a2d2 += add*add;  
-              a3d2 += addd*addd;	      
-              }
+		if (pkd->param.bAarsethStep) {
+		    add = 2.0*(3.0*am*dt2i+(2.0*p[i].ad0[j]+p[i].ad[j])*dti);
+		    addd = 6.0*(2.0*am*dti+(p[i].ad0[j]+p[i].ad[j]))*dt2i;
+		    add += dt*addd;
 
-	      add = 16.0*am+(13.0*p[i].ad0[j]+3.0*p[i].ad[j])*dt;
-	      addd = 6.0*am+(5.0*p[i].ad0[j]+p[i].ad[j])*dt;
-	      p[i].r[j] = p[i].rp[j] - add/120.0*dt*dt;
-	      p[i].v[j] = p[i].vp[j] - addd/12.0*dt; 
-	
+		    a0d2 += p[i].a[j]*p[i].a[j];
+		    a1d2 += p[i].ad[j]*p[i].ad[j];
+		    a2d2 += add*add;
+		    a3d2 += addd*addd;
+		    }
+
+		add = 16.0*am+(13.0*p[i].ad0[j]+3.0*p[i].ad[j])*dt;
+		addd = 6.0*am+(5.0*p[i].ad0[j]+p[i].ad[j])*dt;
+		p[i].r[j] = p[i].rp[j] - add/120.0*dt*dt;
+		p[i].v[j] = p[i].vp[j] - addd/12.0*dt;
+
+		}
+	    if (pkd->param.bAarsethStep) {
+		p[i].dtGrav = (sqrt(a0d2*a2d2)+a1d2)/(sqrt(a1d2*a3d2)+a2d2);
+		}
 	    }
-	    if(pkd->param.bAarsethStep){
-	      p[i].dtGrav = (sqrt(a0d2*a2d2)+a1d2)/(sqrt(a1d2*a3d2)+a2d2); 
-	    }
-	    /*if(p[i].dtGrav <=0.0) p[i].dtGrav = 0.1*(a0d2/a1d2);*/
-	    }	   
-    }
+	}
     mdlDiag(pkd->mdl, "Out of pkdCorrector\n");
-}
+    }
 
 void
-pkdSunCorrector(PKD pkd,double dTime,double dSunMass) 
-{
-  /* iteratively correct only sun's direct gravity */
+pkdSunCorrector(PKD pkd,double dTime,double dSunMass) {
+    /* iteratively correct only sun's direct gravity */
     PARTICLE *p;
     int i,j,n;
     double dt;
     double add, addd, r2,r3i,r5i,rv, am;
-    /*double alpha = 7.0/6.0;*/   
+    /*double alpha = 7.0/6.0;*/
 
     mdlDiag(pkd->mdl, "Into pkdSunCorrector\n");
-            
+
     p = pkd->pStore;
     n = pkdLocal(pkd);
-    for (i=0;i<n;++i) {	
-	if (pkdIsActive(pkd,&p[i])) { 		
-	      dt =  dTime - p[i].dTime0;
-	      r2  = 0.0;
-              rv  = 0.0;  
-             for (j=0;j<3;++j) {       
-	       r2 += p[i].r[j]*p[i].r[j];
-               rv += p[i].r[j]*p[i].v[j];     
-	       }              
-	     r2 = 1.0/r2;
-               r3i = r2*sqrt(r2)*dSunMass;
-	       r5i = 3.0*r3i*r2*rv;
+    for (i=0;i<n;++i) {
+	if (pkdIsActive(pkd,&p[i])) {
+	    dt =  dTime - p[i].dTime0;
+	    r2  = 0.0;
+	    rv  = 0.0;
+	    for (j=0;j<3;++j) {
+		r2 += p[i].r[j]*p[i].r[j];
+		rv += p[i].r[j]*p[i].v[j];
+		}
+	    r2 = 1.0/r2;
+	    r3i = r2*sqrt(r2)*dSunMass;
+	    r5i = 3.0*r3i*r2*rv;
 
-	    for (j=0;j<3;++j) {   	   
-	      p[i].a[j] = -p[i].r[j]*r3i + p[i].app[j];
-	      p[i].ad[j] = -(p[i].v[j]*r3i - p[i].r[j]*r5i) + p[i].adpp[j];
-	      am = p[i].a0[j]-p[i].a[j];
-	      add = 16.0*am+(13.0*p[i].ad0[j]+3.0*p[i].ad[j])*dt;
-	      addd = 6.0*am+(5.0*p[i].ad0[j]+p[i].ad[j])*dt;
+	    for (j=0;j<3;++j) {
+		p[i].a[j] = -p[i].r[j]*r3i + p[i].app[j];
+		p[i].ad[j] = -(p[i].v[j]*r3i - p[i].r[j]*r5i) + p[i].adpp[j];
+		am = p[i].a0[j]-p[i].a[j];
+		add = 16.0*am+(13.0*p[i].ad0[j]+3.0*p[i].ad[j])*dt;
+		addd = 6.0*am+(5.0*p[i].ad0[j]+p[i].ad[j])*dt;
 		p[i].r[j] = p[i].rp[j] - add/120.0*dt*dt;
-		p[i].v[j] = p[i].vp[j] - addd/12.0*dt;     
-	                        
-		}	    
+		p[i].v[j] = p[i].vp[j] - addd/12.0*dt;
+
+		}
 	    }
 	}
     mdlDiag(pkd->mdl, "Out of pkdSunCorrector\n");
     }
 
 void
-pkdPredictorInactive(PKD pkd,double dTime) 
-{
+pkdPredictorInactive(PKD pkd,double dTime) {
     PARTICLE *p;
     int i,j,n;
     double dt; /* time since last evaluation of force */
-    
+
     mdlDiag(pkd->mdl, "Into pkdPredictorInactive\n");
 
-    if (pkd->param.bVDetails) printf("Into pkdPredictorInactive\n");      
+    if (pkd->param.bVDetails) printf("Into pkdPredictorInactive\n");
 
     p = pkd->pStore;
     n = pkdLocal(pkd);
-    for (i=0;i<n;++i) {		
-	if (pkdIsActive(pkd,&p[i])) continue;	
-	dt =  dTime - p[i].dTime0; 
+    for (i=0;i<n;++i) {
+	if (pkdIsActive(pkd,&p[i])) continue;
+	dt =  dTime - p[i].dTime0;
 	/*if (pkd->param.bVDetails)
 	  {
 	  printf("Particle=%d iRung=%d dt=%g \n",p[i].iOrder,p[i].iRung,dt);
 	  }*/
-	for (j=0;j<3;++j) {                
+	for (j=0;j<3;++j) {
 	    p[i].r[j] = p[i].r0[j] + dt*(p[i].v0[j] + 0.5*dt*(p[i].a0[j]+dt*p[i].ad0[j]/3.0));
-	    p[i].v[j] = p[i].v0[j] + dt*(p[i].a0[j]+0.5*dt*p[i].ad0[j]);   
+	    p[i].v[j] = p[i].v0[j] + dt*(p[i].a0[j]+0.5*dt*p[i].ad0[j]);
 	    p[i].rp[j] = p[i].r[j];
-	    p[i].vp[j] = p[i].v[j];  	       
-	}	    
-    }
+	    p[i].vp[j] = p[i].v[j];
+	    }
+	}
     mdlDiag(pkd->mdl, "Out of pkdPredictorInactive\n");
-}
+    }
 
 void pkdAarsethStep(PKD pkd,double dEta) {
     double dT;
     int i;
-    
+
     for (i=0;i<pkdLocal(pkd);i++) {
 	if (pkdIsActive(pkd,&(pkd->pStore[i]))) {
 	    mdlassert(pkd->mdl, pkd->pStore[i].dtGrav > 0);
 	    dT = dEta*sqrt(pkd->pStore[i].dtGrav);
 	    if (dT < pkd->pStore[i].dt)
-	    pkd->pStore[i].dt = dT;
-	   
+		pkd->pStore[i].dt = dT;
+
 	    }
 	}
     }
@@ -2379,41 +2334,40 @@ void pkdFirstDt(PKD pkd) {
     int i,j;
     PARTICLE *p ;
     double a0d2,a1d2;
-  
+
     p = pkd->pStore;
-    for(i=0;i<pkdLocal(pkd);++i) {
-          a0d2 = 0.0;
-	  a1d2 = 0.0;
-	  if(pkdIsActive(pkd,&p[i]))
-	      for (j=0;j<3;++j) { 	                  
-		  a0d2 += p[i].a0[j]*p[i].a0[j];
-		  a1d2 += p[i].ad0[j]*p[i].ad0[j];
-	      }
-	  p[i].dtGrav = (a0d2/a1d2);
+    for (i=0;i<pkdLocal(pkd);++i) {
+	a0d2 = 0.0;
+	a1d2 = 0.0;
+	if (pkdIsActive(pkd,&p[i]))
+	    for (j=0;j<3;++j) {
+		a0d2 += p[i].a0[j]*p[i].a0[j];
+		a1d2 += p[i].ad0[j]*p[i].ad0[j];
+		}
+	p[i].dtGrav = (a0d2/a1d2);
 #ifdef PLANETS
-	  if(pkd->param.bCollision){
-	      p[i].iColflag = 0; /* initial reset of collision flag */	
-	  }
+	if (pkd->param.bCollision) {
+	    p[i].iColflag = 0; /* initial reset of collision flag */
+	    }
 #endif
+	}
     }
-}
 #endif /* Hermite */
 
 /*
  * Stripped down versions of routines from master.c
  */
-void pkdKickKDKOpen(PKD pkd,double dTime,double dDelta)
-    {
+void pkdKickKDKOpen(PKD pkd,double dTime,double dDelta) {
     double H,a;
     double dvFacOne, dvFacTwo;
-	
+
     if (pkd->param.bCannonical) {
 	dvFacOne = 1.0;		/* no hubble drag, man! */
 	dvFacTwo = csmComoveKickFac(pkd->param.csm,dTime,dDelta);
 	}
     else {
 	/*
-	** Careful! For non-cannonical we want H and a at the 
+	** Careful! For non-cannonical we want H and a at the
 	** HALF-STEP! This is a bit messy but has to be special
 	** cased in some way.
 	*/
@@ -2426,18 +2380,17 @@ void pkdKickKDKOpen(PKD pkd,double dTime,double dDelta)
     pkdKick(pkd, dvFacOne, dvFacTwo, 0.0, 0.0, 0.0, 0.0, 0, 0.0, 0.0);
     }
 
-void pkdKickKDKClose(PKD pkd,double dTime,double dDelta)
-    {
+void pkdKickKDKClose(PKD pkd,double dTime,double dDelta) {
     double H,a;
     double dvFacOne, dvFacTwo;
-	
+
     if (pkd->param.bCannonical) {
 	dvFacOne = 1.0; /* no hubble drag, man! */
 	dvFacTwo = csmComoveKickFac(pkd->param.csm,dTime,dDelta);
 	}
     else {
 	/*
-	** Careful! For non-cannonical we want H and a at the 
+	** Careful! For non-cannonical we want H and a at the
 	** HALF-STEP! This is a bit messy but has to be special
 	** cased in some way.
 	*/
@@ -2452,8 +2405,7 @@ void pkdKickKDKClose(PKD pkd,double dTime,double dDelta)
 
 void pkdKick(PKD pkd, double dvFacOne, double dvFacTwo, double dvPredFacOne,
 	     double dvPredFacTwo, double duDelta, double duPredDelta, int iGasModel,
-	     double z, double duDotLimit)
-    {
+	     double z, double duDotLimit) {
     PARTICLE *p;
     int i,j,n;
 
@@ -2488,8 +2440,8 @@ void pkdInitStep(PKD pkd, struct parameters *p, CSM csm) {
 
 void pkdSetRung(PKD pkd, int iRung) {
     int i;
-    
-    for(i=0;i<pkdLocal(pkd);++i) {
+
+    for (i=0;i<pkdLocal(pkd);++i) {
 	pkd->pStore[i].iRung = iRung;
 	}
     }
@@ -2502,10 +2454,10 @@ void pkdActiveRung(PKD pkd, int iRung, int bGreater) {
 int pkdCurrRung(PKD pkd, int iRung) {
     int i;
     int iCurrent;
-    
+
     iCurrent = 0;
-    for(i=0;i<pkdLocal(pkd);++i) {
-	if(pkd->pStore[i].iRung == iRung) {
+    for (i=0;i<pkdLocal(pkd);++i) {
+	if (pkd->pStore[i].iRung == iRung) {
 	    iCurrent = 1;
 	    break;
 	    }
@@ -2516,16 +2468,16 @@ int pkdCurrRung(PKD pkd, int iRung) {
 void pkdGravStep(PKD pkd,double dEta,double dRhoFac) {
     double dT;
     int i;
-    
+
     for (i=0;i<pkdLocal(pkd);i++) {
 	if (pkdIsActive(pkd,&(pkd->pStore[i]))) {
 	    mdlassert(pkd->mdl, pkd->pStore[i].dtGrav > 0);
 	    dT = dEta/sqrt(pkd->pStore[i].dtGrav*dRhoFac);
 	    if (dT < pkd->pStore[i].dt) {
-		pkd->pStore[i].dt = dT;	
-	
-		  mdlassert(pkd->mdl,dT>0);
-	        }
+		pkd->pStore[i].dt = dT;
+
+		mdlassert(pkd->mdl,dT>0);
+		}
 	    }
 	}
     }
@@ -2570,7 +2522,7 @@ void pkdAccelStep(PKD pkd,double dEta,double dVelFac,double dAccFac,int bDoGravi
 	    if (dT < pkd->pStore[i].dt) {
 		pkd->pStore[i].dt = dT;
 		mdlassert(pkd->mdl,dT>0);
-	        }
+		}
 	    }
 	}
     }
@@ -2579,56 +2531,67 @@ void pkdAccelStep(PKD pkd,double dEta,double dVelFac,double dAccFac,int bDoGravi
 void pkdDensityStep(PKD pkd,double dEta,double dRhoFac) {
     int i;
     double dT;
-    
+
     for (i=0;i<pkdLocal(pkd);++i) {
 	if (pkdIsActive(pkd,&(pkd->pStore[i]))) {
 	    dT = dEta/sqrt(pkd->pStore[i].fDensity*dRhoFac);
 	    if (dT < pkd->pStore[i].dt) {
 		pkd->pStore[i].dt = dT;
 		mdlassert(pkd->mdl,dT>0);
-	        }
+		}
 	    }
 	}
     }
+
+
+int pkdNewDtToRung(
+    PKD pkd,
+    int iRung,
+    double dDelta,
+    int iMaxRung,
+    int bAll) {
+
+    }
+
 
 int pkdDtToRung(PKD pkd,int iRung,double dDelta,int iMaxRung,int bAll,int *nRungCount) {
     int i;
     int iTempRung;
     int iSteps;
-    
+
     for (i=0;i<iMaxRung;++i) nRungCount[i] = 0;
-    for(i=0;i<pkdLocal(pkd);++i) {
-	if(pkd->pStore[i].iRung >= iRung) {
+    for (i=0;i<pkdLocal(pkd);++i) {
+	if (pkd->pStore[i].iRung >= iRung) {
 	    mdlassert(pkd->mdl,pkdIsActive(pkd,&(pkd->pStore[i])));
-	    if(bAll) {          /* Assign all rungs at iRung and above */
+	    if (bAll) {         /* Assign all rungs at iRung and above */
 		mdlassert(pkd->mdl,pkdSoft(pkd,&pkd->pStore[i]) > 0);
 		mdlassert(pkd->mdl,pkd->pStore[i].dt > 0);
 		iSteps = dDelta/pkd->pStore[i].dt;
 		/* insure that integer boundary goes
 		   to the lower rung. */
-		if(fmod(dDelta,pkd->pStore[i].dt) == 0.0)
+		if (fmod(dDelta,pkd->pStore[i].dt) == 0.0)
 		    iSteps--;
 		iTempRung = iRung;
-		if(iSteps < 0)
+		if (iSteps < 0)
 		    iSteps = 0;
-		while(iSteps) {
+		while (iSteps) {
 		    ++iTempRung;
 		    iSteps >>= 1;
 		    }
-		if(iTempRung >= iMaxRung) {
+		if (iTempRung >= iMaxRung) {
 		    iTempRung = iMaxRung-1;
-/* 		    printf("Maximum Rung %d overshot for particle %"PRIu64"!\n",iMaxRung-1,pkd->pStore[i].iOrder); */
+		    /* 		    printf("Maximum Rung %d overshot for particle %"PRIu64"!\n",iMaxRung-1,pkd->pStore[i].iOrder); */
 		    }
 		pkd->pStore[i].iRung = iTempRung;
 		}
 	    else {
-		if(dDelta <= pkd->pStore[i].dt) {
+		if (dDelta <= pkd->pStore[i].dt) {
 		    pkd->pStore[i].iRung = iRung;
 		    }
 		else {
 		    pkd->pStore[i].iRung = iRung+1;
 		    }
-                }
+		}
 	    }
 	/*
 	** Now produce a count of particles in rungs.
@@ -2642,30 +2605,30 @@ int pkdDtToRung(PKD pkd,int iRung,double dDelta,int iMaxRung,int bAll,int *nRung
 
 void pkdInitDt(PKD pkd,double dDelta) {
     int i;
-    
-    for(i=0;i<pkdLocal(pkd);++i) {
-	if(pkdIsActive(pkd,&(pkd->pStore[i]))) {
+
+    for (i=0;i<pkdLocal(pkd);++i) {
+	if (pkdIsActive(pkd,&(pkd->pStore[i]))) {
 	    pkd->pStore[i].dt = dDelta;
 	    mdlassert(pkd->mdl,dDelta>0);
 	    }
 	}
     }
-    
+
 
 void pkdDeleteParticle(PKD pkd, PARTICLE *p) {
-  
-#ifdef PLANETS
-  /* the following operation is an emergent treatment for 
-     to-be-deleted VeryActive particles. */
 
-    int j; 
-    if(pkd->param.bGravStep){
+#ifdef PLANETS
+    /* the following operation is an emergent treatment for
+       to-be-deleted VeryActive particles. */
+
+    int j;
+    if (pkd->param.bGravStep) {
 	p->dtGrav = 0.00001;
-    }
+	}
 #ifdef HERMITE
-    if(pkd->param.bAarsethStep){
+    if (pkd->param.bAarsethStep) {
 	p->dtGrav = 10000;
-    }
+	}
 #endif
 #ifdef SYMBA
     p->drmin = 1000.0;
@@ -2673,7 +2636,7 @@ void pkdDeleteParticle(PKD pkd, PARTICLE *p) {
 #endif
     for (j=0;j<3;j++) {
 	p->r[j] = 100.0*p->iOrder;
-	p->v[j] = 0.0;     
+	p->v[j] = 0.0;
 #ifdef HERMITE
 	p->r0[j] = 100.0*p->iOrder;
 	p->v0[j] = 0.0;
@@ -2682,7 +2645,7 @@ void pkdDeleteParticle(PKD pkd, PARTICLE *p) {
 	p->a[j] =  0.000001;
 	p->ad[j] = 0.000001;
 #endif
-    }
+	}
 #endif
 
     p->iOrder = -2 - p->iOrder;
@@ -2706,36 +2669,36 @@ void pkdColNParts(PKD pkd, int *pnNew, int *nDeltaGas, int *nDeltaDark,
     int ndStar;
     int newnLocal;
     PARTICLE *p;
-    
+
     nNew = 0;
     ndGas = 0;
     ndDark = 0;
     ndStar = 0;
     newnLocal = pkdLocal(pkd);
-    for(pi = 0, pj = 0; pi < pkdLocal(pkd); pi++) {
-	if(pj < pi)
+    for (pi = 0, pj = 0; pi < pkdLocal(pkd); pi++) {
+	if (pj < pi)
 	    pkd->pStore[pj] = pkd->pStore[pi];
 	p = &pkd->pStore[pi];
-	if(p->iOrder == -1) {
+	if (p->iOrder == -1) {
 	    ++pj;
 	    ++nNew;
 	    ++ndDark;
-	    if(pkdIsActive(pkd,p))
+	    if (pkdIsActive(pkd,p))
 		++pkd->nActive;
 	    continue;
 	    }
-	else if(p->iOrder < -1){
+	else if (p->iOrder < -1) {
 	    --newnLocal;
 	    p->iOrder = -2 - p->iOrder;
-	    if(pkdIsGas(pkd, p))
+	    if (pkdIsGas(pkd, p))
 		--ndGas;
-	    else if(pkdIsDark(pkd, p))
+	    else if (pkdIsDark(pkd, p))
 		--ndDark;
-	    else if(pkdIsStar(pkd, p))
+	    else if (pkdIsStar(pkd, p))
 		--ndStar;
 	    else
 		mdlassert(pkd->mdl,0);
-	    if(pkdIsActive(pkd,p))
+	    if (pkdIsActive(pkd,p))
 		--pkd->nActive;
 	    }
 	else {
@@ -2751,12 +2714,11 @@ void pkdColNParts(PKD pkd, int *pnNew, int *nDeltaGas, int *nDeltaDark,
     }
 
 void
-pkdNewOrder(PKD pkd,int nStart)
-    {
+pkdNewOrder(PKD pkd,int nStart) {
     int pi;
-    
-    for(pi=0;pi<pkdLocal(pkd);pi++) {
-	if(pkd->pStore[pi].iOrder == -1) {
+
+    for (pi=0;pi<pkdLocal(pkd);pi++) {
+	if (pkd->pStore[pi].iOrder == -1) {
 	    pkd->pStore[pi].iOrder = nStart++;
 	    }
 	}
@@ -2774,8 +2736,7 @@ pkdSetNParts(PKD pkd,int nGas,int nDark,int nStar,int nMaxOrderGas,
 
 
 void
-pkdSetRungVeryActive(PKD pkd, int iRung)
-    {
+pkdSetRungVeryActive(PKD pkd, int iRung) {
     /* Remember, the first very active particle is at iRungVeryActive + 1 */
     pkd->uRungVeryActive = iRung;
     }
@@ -2797,11 +2758,10 @@ int pkdIsStar(PKD pkd,PARTICLE *p) {
     }
 
 #ifdef RELAXATION
-void pkdInitRelaxation(PKD pkd)
-    {
+void pkdInitRelaxation(PKD pkd) {
     int i,j;
-    
-    for(i=0;i<pkdLocal(pkd);++i) {
+
+    for (i=0;i<pkdLocal(pkd);++i) {
 	pkd->pStore[i].fRelax = 0.0;
 	}
     }
@@ -2810,320 +2770,312 @@ void pkdInitRelaxation(PKD pkd)
 
 #ifdef PLANETS
 void
-pkdReadSS(PKD pkd,char *pszFileName,int nStart,int nLocal)
-{
-	SSIO ssio;
-	SSDATA data;
-	PARTICLE *p;
-	int i,j;
+pkdReadSS(PKD pkd,char *pszFileName,int nStart,int nLocal) {
+    SSIO ssio;
+    SSDATA data;
+    PARTICLE *p;
+    int i,j;
 
-	pkd->nLocal = nLocal;
-	pkd->nActive = nLocal;
+    pkd->nLocal = nLocal;
+    pkd->nActive = nLocal;
+    /*
+     ** General initialization (modeled after pkdReadTipsy()).
+     */
+    for (i=0;i<nLocal;++i) {
+	p = &pkd->pStore[i];
+	p->iRung = 0;
+	p->fDensity = 0.0;
 	/*
-	 ** General initialization (modeled after pkdReadTipsy()).
-	 */
-	for (i=0;i<nLocal;++i) {
-		p = &pkd->pStore[i];
-		p->iRung = 0;
-		p->fDensity = 0.0;		
-		/*
-		** Clear the accelerations so that the timestepping calculations do not 
-		** get funny uninitialized values!
-		*/
-		for (j=0;j<3,++j) {
-		    p->a[j] = 0.0;
-		}
+	** Clear the accelerations so that the timestepping calculations do not
+	** get funny uninitialized values!
+	*/
+	for (j=0;j<3,++j) {
+	    p->a[j] = 0.0;
+	    }
 	}
-	/*
-	 ** Seek past the header and up to nStart.
-	 */
-	if (ssioOpen(pszFileName,&ssio,SSIO_READ))
-		mdlassert(pkd->mdl,0); /* unable to open ss file */
-	if (ssioSetPos(&ssio,SSHEAD_SIZE + nStart*SSDATA_SIZE))
-		mdlassert(pkd->mdl,0); /* unable to seek in ss file */
-	/*
-	 ** Read Stuff!
-	 */
-	for (i=0;i<nLocal;++i) {
-		p = &pkd->pStore[i];
-		p->iOrder = nStart + i;
-		if (ssioData(&ssio,&data))
-			mdlassert(pkd->mdl,0); /* error during read in ss file */
-		p->iOrgIdx = data.org_idx;
-		p->iClass = getClass(data.mass,data.radius);
-		for (j=0;j<3;++j) p->r[j] = data.pos[j];
-		for (j=0;j<3;++j) p->v[j] = data.vel[j];
-		for (j=0;j<3;++j) p->w[j] = data.spin[j];
-		p->iColor = data.color;
+    /*
+     ** Seek past the header and up to nStart.
+     */
+    if (ssioOpen(pszFileName,&ssio,SSIO_READ))
+	mdlassert(pkd->mdl,0); /* unable to open ss file */
+    if (ssioSetPos(&ssio,SSHEAD_SIZE + nStart*SSDATA_SIZE))
+	mdlassert(pkd->mdl,0); /* unable to seek in ss file */
+    /*
+     ** Read Stuff!
+     */
+    for (i=0;i<nLocal;++i) {
+	p = &pkd->pStore[i];
+	p->iOrder = nStart + i;
+	if (ssioData(&ssio,&data))
+	    mdlassert(pkd->mdl,0); /* error during read in ss file */
+	p->iOrgIdx = data.org_idx;
+	p->iClass = getClass(data.mass,data.radius);
+	for (j=0;j<3;++j) p->r[j] = data.pos[j];
+	for (j=0;j<3;++j) p->v[j] = data.vel[j];
+	for (j=0;j<3;++j) p->w[j] = data.spin[j];
+	p->iColor = data.color;
 #ifdef NEED_VPRED
-		for (j=0;j<3;++j) p->vPred[j] = p->v[j];
+	for (j=0;j<3;++j) p->vPred[j] = p->v[j];
 #endif
-		}
-	if (ssioClose(&ssio))
-		mdlassert(pkd->mdl,0); /* unable to close ss file */
 	}
+    if (ssioClose(&ssio))
+	mdlassert(pkd->mdl,0); /* unable to close ss file */
+    }
 
 void
-pkdWriteSS(PKD pkd,char *pszFileName,int nStart)
-{
-	SSIO ssio;
-	SSDATA data;
-	PARTICLE *p;
-	int i,j;
+pkdWriteSS(PKD pkd,char *pszFileName,int nStart) {
+    SSIO ssio;
+    SSDATA data;
+    PARTICLE *p;
+    int i,j;
 
-	/*
-	 ** Seek past the header and up to nStart.
-	 */
-	if (ssioOpen(pszFileName,&ssio,SSIO_UPDATE))
-		mdlassert(pkd->mdl,0); /* unable to open ss file */
-	if (ssioSetPos(&ssio,SSHEAD_SIZE + nStart*SSDATA_SIZE))
-		mdlassert(pkd->mdl,0); /* unable to seek in ss file */
-	/* 
-	 ** Write Stuff!
-	 */
-	for (i=0;i<pkdLocal(pkd);++i) {
-		p = &pkd->pStore[i];
-		if (!pkdIsDark(pkd,p))
-			mdlassert(pkd->mdl,0); /* only dark particles allowed in ss file */
-		data.org_idx = p->iOrgIdx;
-		data.mass = pkdMass(pkd,p);
-		data.radius = pkdSoft(pkd,p);
-		for (j=0;j<3;++j) data.pos[j]  = p->r[j];
-		for (j=0;j<3;++j) data.vel[j]  = p->v[j];
-		for (j=0;j<3;++j) data.spin[j] = p->w[j];
-		data.color = p->iColor;
-		if (ssioData(&ssio,&data))
-			mdlassert(pkd->mdl,0); /* unable to write in ss file */
-		}
-	if (ssioClose(&ssio))
-		mdlassert(pkd->mdl,0); /* unable to close ss file */
+    /*
+     ** Seek past the header and up to nStart.
+     */
+    if (ssioOpen(pszFileName,&ssio,SSIO_UPDATE))
+	mdlassert(pkd->mdl,0); /* unable to open ss file */
+    if (ssioSetPos(&ssio,SSHEAD_SIZE + nStart*SSDATA_SIZE))
+	mdlassert(pkd->mdl,0); /* unable to seek in ss file */
+    /*
+     ** Write Stuff!
+     */
+    for (i=0;i<pkdLocal(pkd);++i) {
+	p = &pkd->pStore[i];
+	if (!pkdIsDark(pkd,p))
+	    mdlassert(pkd->mdl,0); /* only dark particles allowed in ss file */
+	data.org_idx = p->iOrgIdx;
+	data.mass = pkdMass(pkd,p);
+	data.radius = pkdSoft(pkd,p);
+	for (j=0;j<3;++j) data.pos[j]  = p->r[j];
+	for (j=0;j<3;++j) data.vel[j]  = p->v[j];
+	for (j=0;j<3;++j) data.spin[j] = p->w[j];
+	data.color = p->iColor;
+	if (ssioData(&ssio,&data))
+	    mdlassert(pkd->mdl,0); /* unable to write in ss file */
 	}
+    if (ssioClose(&ssio))
+	mdlassert(pkd->mdl,0); /* unable to close ss file */
+    }
 
-void pkdSunIndirect(PKD pkd,double aSun[],double adSun[],int iFlag)
-{
+void pkdSunIndirect(PKD pkd,double aSun[],double adSun[],int iFlag) {
     PARTICLE *p;
     FLOAT r2,r1i,r3i,r5i,rv,fMass;
     int i,j,n;
-   
-    for (j=0;j<3;++j)
-	{                 
-	    aSun[j] = 0;
-	    adSun[j] = 0;
+
+    for (j=0;j<3;++j) {
+	aSun[j] = 0;
+	adSun[j] = 0;
 	}
     p = pkd->pStore;
-    n = pkdLocal(pkd); 
+    n = pkdLocal(pkd);
     for (i=0;i<n;++i) {
 	fMass = pkdMass(pkd,&p[i]);
-        if (iFlag == 2){ 
+	if (iFlag == 2) {
 	    if (pkdIsActive(pkd,&p[i])) continue;  /* inactive */
-	}else if(iFlag == 1){
+	    }
+	else if (iFlag == 1) {
 	    if (!pkdIsActive(pkd,&p[i])) continue; /* active */
-	}
+	    }
 
 	r2 = 0;
 	rv = 0;
-	for (j=0;j<3;++j)
-	    { 
-		r2 += p[i].r[j]*p[i].r[j];
-		rv += p[i].v[j]*p[i].r[j];
+	for (j=0;j<3;++j) {
+	    r2 += p[i].r[j]*p[i].r[j];
+	    rv += p[i].v[j]*p[i].r[j];
 	    }
 	r1i = (r2 == 0 ? 0 : 1/sqrt(r2));
 	r3i = fMass*r1i*r1i*r1i;
-	r5i = 3.0*rv*r3i*r1i*r1i; 
-	for (j=0;j<3;++j)
-	    { 
-		aSun[j] += p[i].r[j]*r3i;
-		adSun[j] += p[i].v[j]*r3i-p[i].r[j]*r5i;
-	    }	
-    }
-} 
-
-void pkdGravSun(PKD pkd,double aSun[],double adSun[],double dSunMass)
-{
-	PARTICLE *p;
-	double r2,v2,r1i,r3i;
-        double aai,aa3i,idt2;
-        double rv, r5i; 
-	int i,j,n;
-	double hx,hy,hz,h2,E,e,sum;
-
-	p = pkd->pStore;
-	n = pkdLocal(pkd);
-	for (i=0;i<n;++i) {
-	    if (pkdIsActive(pkd,&(p[i]))) {
-			r2 = 0;
-			v2 = 0;
-                        rv = 0;
-			for (j=0;j<3;++j)
-			{ 
-                        r2 += p[i].r[j]*p[i].r[j];
-                        v2 += p[i].v[j]*p[i].v[j];
-                        rv += p[i].v[j]*p[i].r[j];
-			}
-		
-			r1i = (r2 == 0 ? 0 : 1/sqrt(r2)); /*gravity at origin = zero */
-			p[i].fPot -= dSunMass*r1i;
-			r3i = dSunMass*r1i*r1i*r1i;
-                        r5i = 3.0*rv*r3i*r1i*r1i;
-			/* time step is determined by semimajor axis, not the heliocentric distance*/ 
-			if(pkd->param.bGravStep && p[i].fMass > 0){
-			  /* E and h are normalized by the reduced mass */
-			  sum = dSunMass + p[i].fMass;
-			  hx =  p[i].r[1]*p[i].v[2] - p[i].r[2]*p[i].v[1];  
-			  hy =  p[i].r[2]*p[i].v[0] - p[i].r[0]*p[i].v[2];  
-			  hz =  p[i].r[0]*p[i].v[1] - p[i].r[1]*p[i].v[0];  
-			  h2 = hx*hx + hy*hy + hz*hz;
-			  E = 0.5*v2 - sum*r1i;			  
-			  e = sqrt(1.0+2.0*E*h2/sum/sum);
-			  aai = -2.0*E/sum/(1.0-e); 
-			  aai = aai*aai*aai;
-			  idt2 = sum*aai;
-			  /*if (p[i].dtSun > p[i].dtGrav) p[i].dtGrav = p[i].dtSun;*/
-			  if (idt2 > p[i].dtGrav) p[i].dtGrav = idt2;
-			}		   
-			for (j=0;j<3;++j) {	
-#ifdef HERMITE
-				  if(pkd->param.bHermite){
-				    p[i].app[j] = p[i].a[j] - aSun[j]; /* perturbation force*/
-				    p[i].adpp[j] = p[i].ad[j] - adSun[j];					
-				    p[i].ad[j] -= (adSun[j] + p[i].v[j]*r3i-p[i].r[j]*r5i);
-				  }
-#endif
-					p[i].a[j] -= (aSun[j] + p[i].r[j]*r3i);
-					}				
-			}
-		}
+	r5i = 3.0*rv*r3i*r1i*r1i;
+	for (j=0;j<3;++j) {
+	    aSun[j] += p[i].r[j]*r3i;
+	    adSun[j] += p[i].v[j]*r3i-p[i].r[j]*r5i;
+	    }
 	}
+    }
 
-void pkdHandSunMass(PKD pkd, double dSunMass)
-{
-  pkd->dSunMass = dSunMass;
-}
+void pkdGravSun(PKD pkd,double aSun[],double adSun[],double dSunMass) {
+    PARTICLE *p;
+    double r2,v2,r1i,r3i;
+    double aai,aa3i,idt2;
+    double rv, r5i;
+    int i,j,n;
+    double hx,hy,hz,h2,E,e,sum;
+
+    p = pkd->pStore;
+    n = pkdLocal(pkd);
+    for (i=0;i<n;++i) {
+	if (pkdIsActive(pkd,&(p[i]))) {
+	    r2 = 0;
+	    v2 = 0;
+	    rv = 0;
+	    for (j=0;j<3;++j) {
+		r2 += p[i].r[j]*p[i].r[j];
+		v2 += p[i].v[j]*p[i].v[j];
+		rv += p[i].v[j]*p[i].r[j];
+		}
+
+	    r1i = (r2 == 0 ? 0 : 1/sqrt(r2)); /*gravity at origin = zero */
+	    p[i].fPot -= dSunMass*r1i;
+	    r3i = dSunMass*r1i*r1i*r1i;
+	    r5i = 3.0*rv*r3i*r1i*r1i;
+	    /* time step is determined by semimajor axis, not the heliocentric distance*/
+	    if (pkd->param.bGravStep && p[i].fMass > 0) {
+		/* E and h are normalized by the reduced mass */
+		sum = dSunMass + p[i].fMass;
+		hx =  p[i].r[1]*p[i].v[2] - p[i].r[2]*p[i].v[1];
+		hy =  p[i].r[2]*p[i].v[0] - p[i].r[0]*p[i].v[2];
+		hz =  p[i].r[0]*p[i].v[1] - p[i].r[1]*p[i].v[0];
+		h2 = hx*hx + hy*hy + hz*hz;
+		E = 0.5*v2 - sum*r1i;
+		e = sqrt(1.0+2.0*E*h2/sum/sum);
+		aai = -2.0*E/sum/(1.0-e);
+		aai = aai*aai*aai;
+		idt2 = sum*aai;
+		/*if (p[i].dtSun > p[i].dtGrav) p[i].dtGrav = p[i].dtSun;*/
+		if (idt2 > p[i].dtGrav) p[i].dtGrav = idt2;
+		}
+	    for (j=0;j<3;++j) {
+#ifdef HERMITE
+		if (pkd->param.bHermite) {
+		    p[i].app[j] = p[i].a[j] - aSun[j]; /* perturbation force*/
+		    p[i].adpp[j] = p[i].ad[j] - adSun[j];
+		    p[i].ad[j] -= (adSun[j] + p[i].v[j]*r3i-p[i].r[j]*r5i);
+		    }
+#endif
+		p[i].a[j] -= (aSun[j] + p[i].r[j]*r3i);
+		}
+	    }
+	}
+    }
+
+void pkdHandSunMass(PKD pkd, double dSunMass) {
+    pkd->dSunMass = dSunMass;
+    }
 
 #ifdef SYMBA
 void
 pkdStepVeryActiveSymba(PKD pkd, double dStep, double dTime, double dDelta,
 		       int iRung, int iKickRung, int iRungVeryActive,
 		       int iAdjust, double diCrit2,
-		       int *pnMaxRung, double dSunMass, int multiflag)
-{
-  int nRungCount[256];
-  double dDriftFac;
-  double ddDelta, ddStep;
+		       int *pnMaxRung, double dSunMass, int multiflag) {
+    int nRungCount[256];
+    double dDriftFac;
+    double ddDelta, ddStep;
 
 
-  if(iRung ==0) {
-    /* get pointa of interacting opponents from thier iOrder's
-       multiflag > 0 if close encounters with more than 2 particles exist*/
-      
-      pkd->nVeryActive = pkdSortVA(pkd, iRung);
-      multiflag = pkdGetPointa(pkd);
-      /*printf("Time %e, nVA %d,  multiflag %d \n",dTime, pkd->nVeryActive, multiflag);*/
-  }
-  if(iRung > 0){
-    /* at iRung = 0 we just call pkdStepVeryActiveSymba three times*/  
-    
-    pkdActiveRung(pkd,iRung,1);
-    if(iAdjust && (iRung < pkd->param.iMaxRung-1)) {       
-      /* determine KickRung from current position */
-	*pnMaxRung = pkdDrminToRungVA(pkd,iRung,pkd->param.iMaxRung,multiflag);	    
+    if (iRung ==0) {
+	/* get pointa of interacting opponents from thier iOrder's
+	   multiflag > 0 if close encounters with more than 2 particles exist*/
+
+	pkd->nVeryActive = pkdSortVA(pkd, iRung);
+	multiflag = pkdGetPointa(pkd);
+	/*printf("Time %e, nVA %d,  multiflag %d \n",dTime, pkd->nVeryActive, multiflag);*/
+	}
+    if (iRung > 0) {
+	/* at iRung = 0 we just call pkdStepVeryActiveSymba three times*/
+
+	pkdActiveRung(pkd,iRung,1);
+	if (iAdjust && (iRung < pkd->param.iMaxRung-1)) {
+	    /* determine KickRung from current position */
+	    *pnMaxRung = pkdDrminToRungVA(pkd,iRung,pkd->param.iMaxRung,multiflag);
+	    if (pkd->param.bVDetails) {
+		printf("%*cAdjust, iRung: %d\n",2*iRung+2,' ',iRung);
+		}
+	    }
+	if (iAdjust == 0) {
+	    /*if(iRung >= 2) pkdSortVA(pkd, iRung); maybe added later */
+	    pkdGravVA(pkd,iRung);
+	    if (pkd->param.bVDetails) {
+		printf("%*cpkdGravVA, iRung: %d\n",2*iRung+2,' ',iRung);
+		}
+
+	    }
+	/* following kick is for particles at iRung and iRung + 1 */
+	pkdKickVA(pkd,0.5*dDelta);
+
 	if (pkd->param.bVDetails) {
-	    printf("%*cAdjust, iRung: %d\n",2*iRung+2,' ',iRung);
+	    printf("%*cVeryActive pkdKickOpen  at iRung: %d, 0.5*dDelta: %g\n",
+		   2*iRung+2,' ',iRung,0.5*dDelta);
+	    }
+
+	/* if particles exist at the current iRung */
+	pkdActiveRung(pkd,iRung,0);
+	pkdKeplerDrift(pkd,dDelta,dSunMass,1); /* 1 means VA */
+	if (pkd->param.bVDetails) {
+	    printf("%*cVeryActive pkdKeplerDrift  at iRung: %d, 0.5*dDelta: %g\n",
+		   2*iRung+2,' ',iRung,0.5*dDelta);
+	    }
+	/* if drmin druing drift is less than R_(iRung+1),
+	   this interacting pair is sent to iRung + 1*/
+	if (iRung < pkd->param.iMaxRung-1) {
+	    *pnMaxRung = pkdCheckDrminVA(pkd,iRung,multiflag,*pnMaxRung);
+	    }
 	}
-    }
-    if(iAdjust == 0){
-      /*if(iRung >= 2) pkdSortVA(pkd, iRung); maybe added later */
-      pkdGravVA(pkd,iRung);	
-      if (pkd->param.bVDetails) {
-	    printf("%*cpkdGravVA, iRung: %d\n",2*iRung+2,' ',iRung);
-	}
-      
-    }  
-    /* following kick is for particles at iRung and iRung + 1 */     
-    pkdKickVA(pkd,0.5*dDelta);  
-    
-    if (pkd->param.bVDetails) {
-      printf("%*cVeryActive pkdKickOpen  at iRung: %d, 0.5*dDelta: %g\n",
-	     2*iRung+2,' ',iRung,0.5*dDelta);
-    } 
-    
-    /* if particles exist at the current iRung */
-    pkdActiveRung(pkd,iRung,0); 
-    pkdKeplerDrift(pkd,dDelta,dSunMass,1); /* 1 means VA */
-     if (pkd->param.bVDetails) {
-      printf("%*cVeryActive pkdKeplerDrift  at iRung: %d, 0.5*dDelta: %g\n",
-	     2*iRung+2,' ',iRung,0.5*dDelta);
-    }  
-    /* if drmin druing drift is less than R_(iRung+1), 
-       this interacting pair is sent to iRung + 1*/
-     if(iRung < pkd->param.iMaxRung-1){
-	 *pnMaxRung = pkdCheckDrminVA(pkd,iRung,multiflag,*pnMaxRung);
-     }
-  }	
-  
-  if (*pnMaxRung > iRung) {
+
+    if (*pnMaxRung > iRung) {
 	/*
 	** Recurse.
 	*/
-    ddDelta = dDelta/3.0;
-    ddStep = 1.0/pow(3.0, iRung); /* this is currently unnecessary */
+	ddDelta = dDelta/3.0;
+	ddStep = 1.0/pow(3.0, iRung); /* this is currently unnecessary */
 
-    pkdStepVeryActiveSymba(pkd,dStep,dTime,ddDelta,iRung+1,iRung+1,iRungVeryActive,0,
-			   diCrit2,pnMaxRung,dSunMass,multiflag);
-    dStep += ddStep;
-    dTime += ddDelta;
-    pkdActiveRung(pkd,iRung,0);
-    pkdStepVeryActiveSymba(pkd,dStep,dTime,ddDelta,iRung+1,iRung+1,iRungVeryActive,1,
-			   diCrit2,pnMaxRung,dSunMass,multiflag);
-    dStep += ddStep;
-    dTime += ddDelta;
-    pkdActiveRung(pkd,iRung,0);
-    pkdStepVeryActiveSymba(pkd,dStep,dTime,ddDelta,iRung+1,iKickRung,iRungVeryActive,1,
-			   diCrit2,pnMaxRung,dSunMass,multiflag);
-    
-    /* move time back to 1 step */
-    dTime -= dDelta;			     	
-  }
-  if(iRung > 0){ 
-    dTime += 0.5*dDelta;		
-    
-    if (pkd->param.bVDetails) {
-      printf("%*cVeryActive pkdKickClose at iRung: %d, 0.5*dDelta: %g\n",
-	     2*iRung+2,' ',iRung,0.5*dDelta);
+	pkdStepVeryActiveSymba(pkd,dStep,dTime,ddDelta,iRung+1,iRung+1,iRungVeryActive,0,
+			       diCrit2,pnMaxRung,dSunMass,multiflag);
+	dStep += ddStep;
+	dTime += ddDelta;
+	pkdActiveRung(pkd,iRung,0);
+	pkdStepVeryActiveSymba(pkd,dStep,dTime,ddDelta,iRung+1,iRung+1,iRungVeryActive,1,
+			       diCrit2,pnMaxRung,dSunMass,multiflag);
+	dStep += ddStep;
+	dTime += ddDelta;
+	pkdActiveRung(pkd,iRung,0);
+	pkdStepVeryActiveSymba(pkd,dStep,dTime,ddDelta,iRung+1,iKickRung,iRungVeryActive,1,
+			       diCrit2,pnMaxRung,dSunMass,multiflag);
+
+	/* move time back to 1 step */
+	dTime -= dDelta;
+	}
+    if (iRung > 0) {
+	dTime += 0.5*dDelta;
+
+	if (pkd->param.bVDetails) {
+	    printf("%*cVeryActive pkdKickClose at iRung: %d, 0.5*dDelta: %g\n",
+		   2*iRung+2,' ',iRung,0.5*dDelta);
+	    }
+
+	/* Kick due to F_iRung for particles at the current or higher iRungs */
+	pkdActiveRung(pkd,iRung,1);
+	pkdGravVA(pkd,iRung);
+	pkdKickVA(pkd,0.5*dDelta);
+
+	if (pkd->param.bCollision && pkd->iCollisionflag) pkdDoCollisionVeryActive(pkd,dTime);
+
+	}
     }
-    
-    /* Kick due to F_iRung for particles at the current or higher iRungs */		
-    pkdActiveRung(pkd,iRung,1); 
-    pkdGravVA(pkd,iRung);
-    pkdKickVA(pkd,0.5*dDelta);
-    
-    if(pkd->param.bCollision && pkd->iCollisionflag) pkdDoCollisionVeryActive(pkd,dTime);   
-    
-  } 
-}
 
-int pkdSortVA(PKD pkd, int iRung){
+int pkdSortVA(PKD pkd, int iRung) {
     int i,j,n;
     PARTICLE *p = pkd->pStore;
     PARTICLE t;
     n = pkd->nLocal;
     int nSort = 0;
-   
-    if(iRung == 0){
+
+    if (iRung == 0) {
 	i = 0;
-    }else{
+	}
+    else {
 	i = n-(pkd->nVeryActive);
-    }
+	}
     j = n - 1;
 
     while (i <= j) {
 	if ( p[i].iRung <= iRung ) ++i;
 	else break;
-    }
+	}
     while (i <= j) {
 	if ( p[j].iRung > iRung ) --j;
 	else break;
-    }
+	}
 
     if (i < j) {
 	t = p[i];
@@ -3131,21 +3083,21 @@ int pkdSortVA(PKD pkd, int iRung){
 	p[j] = t;
 	while (1) {
 	    while ((p[++i].iRung <= iRung));
-		   while (p[--j].iRung > iRung);
-		   if (i < j) {
-		       t = p[i];
-		       p[i] = p[j];
-		       p[j] = t;
-		   }
-		   else break;
-		   }
+	    while (p[--j].iRung > iRung);
+	    if (i < j) {
+		t = p[i];
+		p[i] = p[j];
+		p[j] = t;
+		}
+	    else break;
+	    }
 	}
     nSort = n - i;
-    return(nSort);     
-}
+    return(nSort);
+    }
 
 
-void pkdGravVA(PKD pkd, int iRung){
+void pkdGravVA(PKD pkd, int iRung) {
     int i, j, k, n, iStart;
     double x, y, z;
     double fac, d2, d1;
@@ -3157,78 +3109,81 @@ void pkdGravVA(PKD pkd, int iRung){
 
     assert(iRung >= 1);
     iStart = pkd->nLocal - pkd->nVeryActive;
-    
+
     p = pkd->pStore;
     n = pkdLocal(pkd);
-    
+
     /* reset */
-    for(i=iStart;i<n;++i) {	
-	if(pkdIsActive(pkd,&p[i])){
+    for (i=iStart;i<n;++i) {
+	if (pkdIsActive(pkd,&p[i])) {
 	    p[i].drmin = 1000.0;
-	    for(k=0;k<3;k++){
+	    for (k=0;k<3;k++) {
 		p[i].a_VA[k] = 0.0;
+		}
 	    }
 	}
-    }
-    
-    for(i=iStart;i<n;++i) {	
-	
-	if(pkdIsActive(pkd,&p[i])){
-	    for(k=0;k<p[i].n_VA;k++){
+
+    for (i=iStart;i<n;++i) {
+
+	if (pkdIsActive(pkd,&p[i])) {
+	    for (k=0;k<p[i].n_VA;k++) {
 		j = p[i].i_VA[k];
-		if(p[i].iOrder<p[j].iOrder){ /* after three body encounter and a collision 
-						we sometimes obtain i<j, p[i].iOrder = p[j].iOrder*/		  
+		if (p[i].iOrder<p[j].iOrder) { /* after three body encounter and a collision
+						we sometimes obtain i<j, p[i].iOrder = p[j].iOrder*/
 		    x = p[i].r[0] - p[j].r[0];
 		    y = p[i].r[1] - p[j].r[1];
 		    z = p[i].r[2] - p[j].r[2];
-		    d2 = x*x + y*y +z*z; 
+		    d2 = x*x + y*y +z*z;
 		    d1 = sqrt(d2);
-		    
+
 		    fourh = p[i].fSoft + p[j].fSoft;
 
 		    if (d1 > fourh) {
-		      dir2 = 1.0/(d1*d2);
-		    }
-		    else {		
+			dir2 = 1.0/(d1*d2);
+			}
+		    else {
 
-		    if(pkd->param.bCollision){			     
-		   
-			  pkd->iCollisionflag = 1;	 
-			  p[i].iColflag = 1;
-			  p[i].iOrderCol = p[j].iOrder;
-			  p[i].dtCol = 1.0*p[i].iOrgIdx;
-			  printf("dr = %e, r1+r2 = %e, pi = %i, pj = %i piRung %d iRung %d\n",
-				 d1,fourh,p[i].iOrgIdx,p[j].iOrgIdx, p[i].iRung, iRung);
-			  printf("i %d j %d inVA %d, jnVA %d \n",i, j, p[i].n_VA, p[j].n_VA);
-		    }
-		    
-		    dir = 1.0/fourh;
-		    dir2 = dir*dir;
-		    d2 *= dir2;
-		    dir2 *= dir;
-		    d2 = 1.0 - d2;
-		    dir *= 1.0 + d2*(0.5 + d2*(3.0/8.0 + d2*(45.0/32.0)));
-		    dir2 *= 1.0 + d2*(1.5 + d2*(135.0/16.0));		    
-		    }
+			if (pkd->param.bCollision) {
 
-		  
-		    d1 /= p[i].hill_VA[k]; /* distance normalized by hill */ 		
-		    
-		    if (d1 < r_kkk){		 
-			fac = 0.0;		  
-		    }else if (d1 < r_kk && d1 >r_kkk){
+			    pkd->iCollisionflag = 1;
+			    p[i].iColflag = 1;
+			    p[i].iOrderCol = p[j].iOrder;
+			    p[i].dtCol = 1.0*p[i].iOrgIdx;
+			    printf("dr = %e, r1+r2 = %e, pi = %i, pj = %i piRung %d iRung %d\n",
+				   d1,fourh,p[i].iOrgIdx,p[j].iOrgIdx, p[i].iRung, iRung);
+			    printf("i %d j %d inVA %d, jnVA %d \n",i, j, p[i].n_VA, p[j].n_VA);
+			    }
+
+			dir = 1.0/fourh;
+			dir2 = dir*dir;
+			d2 *= dir2;
+			dir2 *= dir;
+			d2 = 1.0 - d2;
+			dir *= 1.0 + d2*(0.5 + d2*(3.0/8.0 + d2*(45.0/32.0)));
+			dir2 *= 1.0 + d2*(1.5 + d2*(135.0/16.0));
+			}
+
+
+		    d1 /= p[i].hill_VA[k]; /* distance normalized by hill */
+
+		    if (d1 < r_kkk) {
+			fac = 0.0;
+			}
+		    else if (d1 < r_kk && d1 >r_kkk) {
 			fac = symfac*(1.0-d1/r_kk);
 			fac *= fac*(2.0*fac -3.0);
 			fac += 1.0;
-		    }else if (d1 < r_k && d1 >r_kk){
+			}
+		    else if (d1 < r_k && d1 >r_kk) {
 			fac = symfac*(1.0-d1/r_k);
 			fac *= -fac*(2.0*fac -3.0);
-		    } else if (d1 > r_k){
-			fac = 0.0;		  
-		    }		    
+			}
+		    else if (d1 > r_k) {
+			fac = 0.0;
+			}
 
-		    p[i].drmin = (d1 < p[i].drmin)?d1:p[i].drmin; 
-		    p[j].drmin = (d1 < p[j].drmin)?d1:p[j].drmin; 
+		    p[i].drmin = (d1 < p[i].drmin)?d1:p[i].drmin;
+		    p[j].drmin = (d1 < p[j].drmin)?d1:p[j].drmin;
 
 		    dir2 *= fac;
 		    /*printf("iOrder %d %d, d2 %e iRung %d\n",
@@ -3238,379 +3193,384 @@ void pkdGravVA(PKD pkd, int iRung){
 		    p[i].a_VA[2] -= z*dir2*p[j].fMass;
 		    p[j].a_VA[0] += x*dir2*p[i].fMass;
 		    p[j].a_VA[1] += y*dir2*p[i].fMass;
-		    p[j].a_VA[2] += z*dir2*p[i].fMass;		    
+		    p[j].a_VA[2] += z*dir2*p[i].fMass;
+		    }
 		}
-	    }	   
-	}
-    }
-}
-
-int pkdCheckDrminVA(PKD pkd, int iRung, int multiflag, int nMaxRung){
-  int i, j, k, n, iStart, nloop;
-  double x, y, z;
-  double d2;
-  int iTempRung;
-  PARTICLE *p;
-  double r_k = 3.0/pow(2.08,iRung);
-  int iupdate = 0;
-
-  assert(iRung >= 1);
-  p = pkd->pStore;
-  iStart = pkd->nLocal - pkd->nVeryActive;
-  n = pkdLocal(pkd);
-
-  for(i=iStart;i<n;++i) {	
-    if(pkdIsActive(pkd,&p[i])){
-      for(k=0;k<p[i].n_VA;k++){
-	j = p[i].i_VA[k];
-	if(i<j){
-	  x = p[i].r[0] - p[j].r[0];
-	  y = p[i].r[1] - p[j].r[1];
-	  z = p[i].r[2] - p[j].r[2];
-	  d2 = x*x + y*y +z*z; 
-	  d2 = sqrt(d2);
-	  d2 /= p[i].hill_VA[k]; /* distance normalized by hill */ 		
-	  
-	  /* d2 should be replaced by min.dist. during drift */
-
-	  if(d2 < r_k){
-	      iupdate = 1;  
-	      p[i].iRung = iRung +1;
-	      p[j].iRung = iRung +1;
-	      nMaxRung = ((iRung+1) >= nMaxRung)?(iRung+1):nMaxRung;
-	      /* retrive */
-	      for(k=0;k<3;k++){
-		  p[i].r[k] = p[i].rb[k];
-		  p[i].v[k] = p[i].vb[k];
-		  p[j].r[k] = p[j].rb[k];
-		  p[j].v[k] = p[j].vb[k];
-	      }
-	  } 
-	}
-      }
-    }
-  }
-  /* If a close encounter with more than 2 particles exists, we synchronize
-     iRungs of interacting particles to the highest iRung in them */
-  if(multiflag && iupdate){
-      /*nloop = multiflag;*/
-      nloop = 2;
-    do{       
-      for(i=iStart;i<n;++i) {
-	if(pkdIsActive(pkd,&p[i])){
-	  if(p[i].n_VA >= 2){		    
-	    for(k=0;k<p[i].n_VA;k++){		   
-	      iTempRung = p[p[i].i_VA[k]].iRung;
-	      if(iTempRung > p[i].iRung){
-		if(iTempRung != (iRung +1)){
-		  printf("p_iOrder %d pi_n_VA %d pj_nVA %d iTempRung %d, iRung+1 %d \n",
-			 p[i].iOrder,p[i].n_VA,p[p[i].i_VA[k]].n_VA,iTempRung,iRung +1);
-		  printf("too many particles in 3 hill radius !! \n");
-		  assert(0);
-		}	      
-		/* assert(iTempRung == (iRung +1));*/
-		p[i].iRung = iRung + 1;
-		for(k=0;k<3;k++){
-		  p[i].r[k] = p[i].rb[k];
-		  p[i].v[k] = p[i].vb[k];	
-		}
-	      } 
 	    }
-	  }
 	}
-      }
-      nloop --;
-    }while(nloop > 0);
-  }
-  return(nMaxRung);
-}
-
-void pkdKickVA(PKD pkd, double dt){  
-  int i, k, iStart;
-  PARTICLE *p;
-  iStart = pkd->nLocal - pkd->nVeryActive;
-
-  p = pkd->pStore;
-  for(i=iStart;i<pkdLocal(pkd);++i) {	
-    if(pkdIsActive(pkd,&p[i])){
-      for(k=0;k<3;k++){
-	p[i].v[k] += p[i].a_VA[k]*dt;
-      }
     }
-  }
-}
+
+int pkdCheckDrminVA(PKD pkd, int iRung, int multiflag, int nMaxRung) {
+    int i, j, k, n, iStart, nloop;
+    double x, y, z;
+    double d2;
+    int iTempRung;
+    PARTICLE *p;
+    double r_k = 3.0/pow(2.08,iRung);
+    int iupdate = 0;
+
+    assert(iRung >= 1);
+    p = pkd->pStore;
+    iStart = pkd->nLocal - pkd->nVeryActive;
+    n = pkdLocal(pkd);
+
+    for (i=iStart;i<n;++i) {
+	if (pkdIsActive(pkd,&p[i])) {
+	    for (k=0;k<p[i].n_VA;k++) {
+		j = p[i].i_VA[k];
+		if (i<j) {
+		    x = p[i].r[0] - p[j].r[0];
+		    y = p[i].r[1] - p[j].r[1];
+		    z = p[i].r[2] - p[j].r[2];
+		    d2 = x*x + y*y +z*z;
+		    d2 = sqrt(d2);
+		    d2 /= p[i].hill_VA[k]; /* distance normalized by hill */
+
+		    /* d2 should be replaced by min.dist. during drift */
+
+		    if (d2 < r_k) {
+			iupdate = 1;
+			p[i].iRung = iRung +1;
+			p[j].iRung = iRung +1;
+			nMaxRung = ((iRung+1) >= nMaxRung)?(iRung+1):nMaxRung;
+			/* retrive */
+			for (k=0;k<3;k++) {
+			    p[i].r[k] = p[i].rb[k];
+			    p[i].v[k] = p[i].vb[k];
+			    p[j].r[k] = p[j].rb[k];
+			    p[j].v[k] = p[j].vb[k];
+			    }
+			}
+		    }
+		}
+	    }
+	}
+    /* If a close encounter with more than 2 particles exists, we synchronize
+       iRungs of interacting particles to the highest iRung in them */
+    if (multiflag && iupdate) {
+	/*nloop = multiflag;*/
+	nloop = 2;
+	do {
+	    for (i=iStart;i<n;++i) {
+		if (pkdIsActive(pkd,&p[i])) {
+		    if (p[i].n_VA >= 2) {
+			for (k=0;k<p[i].n_VA;k++) {
+			    iTempRung = p[p[i].i_VA[k]].iRung;
+			    if (iTempRung > p[i].iRung) {
+				if (iTempRung != (iRung +1)) {
+				    printf("p_iOrder %d pi_n_VA %d pj_nVA %d iTempRung %d, iRung+1 %d \n",
+					   p[i].iOrder,p[i].n_VA,p[p[i].i_VA[k]].n_VA,iTempRung,iRung +1);
+				    printf("too many particles in 3 hill radius !! \n");
+				    assert(0);
+				    }
+				/* assert(iTempRung == (iRung +1));*/
+				p[i].iRung = iRung + 1;
+				for (k=0;k<3;k++) {
+				    p[i].r[k] = p[i].rb[k];
+				    p[i].v[k] = p[i].vb[k];
+				    }
+				}
+			    }
+			}
+		    }
+		}
+	    nloop --;
+	    }
+	while (nloop > 0);
+	}
+    return(nMaxRung);
+    }
+
+void pkdKickVA(PKD pkd, double dt) {
+    int i, k, iStart;
+    PARTICLE *p;
+    iStart = pkd->nLocal - pkd->nVeryActive;
+
+    p = pkd->pStore;
+    for (i=iStart;i<pkdLocal(pkd);++i) {
+	if (pkdIsActive(pkd,&p[i])) {
+	    for (k=0;k<3;k++) {
+		p[i].v[k] += p[i].a_VA[k]*dt;
+		}
+	    }
+	}
+    }
 
 int pkdDrminToRung(PKD pkd, int iRung, int iMaxRung, int *nRungCount) {
-  int i, j, iTempRung;;
-  PARTICLE *p ;
-  
-  /* R_k = 3.0/(2.08)^(k-1) with (k= 1,2, ...)*/ 
-  /* note iMaxRung = pkd.param->iMaxRung */
-  for (i=0;i<iMaxRung;++i) nRungCount[i] = 0; 
-  p = pkd->pStore;
-  for(i=0;i<pkdLocal(pkd);++i) {
-    if(pkdIsActive(pkd,&p[i])){	  	  
-      iTempRung = iRung;
-      if(p[i].drmin > 3.0){
-	iTempRung = 0;
-      }else{
-	iTempRung = floor(log(3.0/p[i].drmin)/log(2.08)) + 1;
-      }
-      if(iTempRung >= iMaxRung) {
-	iTempRung = iMaxRung-1;
-      }
-      
-      /* if min. dist. during drift is less than 3 Hill radius, 
-	 set iRung = 1 */ 
-      if(iTempRung == 0 && p[i].drmin2 < 3.0){	    
-	iTempRung = 1;
-      }
-      
-      /* retrive position and velocity of active particle to 
-	 those before drift*/
-      if(iTempRung > 0){
-	for(j=0;j<3;j++){
-	  p[i].r[j] = p[i].rb[j];
-	  p[i].v[j] = p[i].vb[j];
+    int i, j, iTempRung;;
+    PARTICLE *p ;
+
+    /* R_k = 3.0/(2.08)^(k-1) with (k= 1,2, ...)*/
+    /* note iMaxRung = pkd.param->iMaxRung */
+    for (i=0;i<iMaxRung;++i) nRungCount[i] = 0;
+    p = pkd->pStore;
+    for (i=0;i<pkdLocal(pkd);++i) {
+	if (pkdIsActive(pkd,&p[i])) {
+	    iTempRung = iRung;
+	    if (p[i].drmin > 3.0) {
+		iTempRung = 0;
+		}
+	    else {
+		iTempRung = floor(log(3.0/p[i].drmin)/log(2.08)) + 1;
+		}
+	    if (iTempRung >= iMaxRung) {
+		iTempRung = iMaxRung-1;
+		}
+
+	    /* if min. dist. during drift is less than 3 Hill radius,
+	    set iRung = 1 */
+	    if (iTempRung == 0 && p[i].drmin2 < 3.0) {
+		iTempRung = 1;
+		}
+
+	    /* retrive position and velocity of active particle to
+	    those before drift*/
+	    if (iTempRung > 0) {
+		for (j=0;j<3;j++) {
+		    p[i].r[j] = p[i].rb[j];
+		    p[i].v[j] = p[i].vb[j];
+		    }
+		}
+	    /*
+	    ** Now produce a count of particles in rungs.
+	    */
+	    nRungCount[iTempRung] += 1;
+	    p[i].iRung = iTempRung;
+
+	    /*printf("iorder %d, drmin1 %e, drmin2 %e, \n",
+	    p[i].iOrder, p[i].drmin, p[i].drmin2);*/
+	    }
+
 	}
-      }	
-      /*
-      ** Now produce a count of particles in rungs.
-      */
-      nRungCount[iTempRung] += 1;
-      p[i].iRung = iTempRung;
-      
-      /*printf("iorder %d, drmin1 %e, drmin2 %e, \n",
-	p[i].iOrder, p[i].drmin, p[i].drmin2);*/
+    iTempRung = iMaxRung-1;
+    while (nRungCount[iTempRung] == 0 && iTempRung > 0) --iTempRung;
+    return iTempRung;
     }
-    
-  }
-  iTempRung = iMaxRung-1;
-  while (nRungCount[iTempRung] == 0 && iTempRung > 0) --iTempRung;
-  return iTempRung;
-}
 
-int pkdGetPointa(PKD pkd){
-  int i, j, k, n, iStart, iOrderTemp, n_VA;
-  int multiflag = 0;
-  int iTempRung, nloop;
-  int bRung = 0;
-  PARTICLE *p;
-  char c;
-  int iMaxRung = pkd->param.iMaxRung; 
-  int nRungCount[iMaxRung-1];/* 1 to iMaxRung-1 */
+int pkdGetPointa(PKD pkd) {
+    int i, j, k, n, iStart, iOrderTemp, n_VA;
+    int multiflag = 0;
+    int iTempRung, nloop;
+    int bRung = 0;
+    PARTICLE *p;
+    char c;
+    int iMaxRung = pkd->param.iMaxRung;
+    int nRungCount[iMaxRung-1];/* 1 to iMaxRung-1 */
 
-  p = pkd->pStore;
-  iStart = pkd->nLocal - pkd->nVeryActive;
-  n = pkdLocal(pkd);
+    p = pkd->pStore;
+    iStart = pkd->nLocal - pkd->nVeryActive;
+    n = pkdLocal(pkd);
 
-  if(bRung){
-  for (i=1;i<iMaxRung;++i) nRungCount[i] = 0; 
-  }
+    if (bRung) {
+	for (i=1;i<iMaxRung;++i) nRungCount[i] = 0;
+	}
 
-  for(i=iStart;i<n;++i) {
-      assert(pkdIsActive(pkd,&p[i]));
-      if(bRung) nRungCount[p[i].iRung] += 1;
-      n_VA = p[i].n_VA;      
-      assert(n_VA >= 1);
-      
-      if(n_VA >= 2) multiflag = (multiflag < n_VA)?n_VA:multiflag; /* multiflag = largest n_VA */
-              
-      for(k=0;k<n_VA;k++){
-	  iOrderTemp = p[i].iOrder_VA[k];
-	  
-	  for(j=iStart;j<n;++j) {
-	      if(i==j)continue;
-	      assert(p[j].iOrder != p[i].iOrder);
-	      if(p[j].iOrder == iOrderTemp){
-		  p[i].i_VA[k] = j;
-		  break;
-	      }
-	  }
-      }    	
-  }
-  
-  if(bRung){
-  for (i=1;i<iMaxRung;++i){
-      if (nRungCount[i] == 0) continue;
-      else c = ' ';
+    for (i=iStart;i<n;++i) {
+	assert(pkdIsActive(pkd,&p[i]));
+	if (bRung) nRungCount[p[i].iRung] += 1;
+	n_VA = p[i].n_VA;
+	assert(n_VA >= 1);
+
+	if (n_VA >= 2) multiflag = (multiflag < n_VA)?n_VA:multiflag; /* multiflag = largest n_VA */
+
+	for (k=0;k<n_VA;k++) {
+	    iOrderTemp = p[i].iOrder_VA[k];
+
+	    for (j=iStart;j<n;++j) {
+		if (i==j)continue;
+		assert(p[j].iOrder != p[i].iOrder);
+		if (p[j].iOrder == iOrderTemp) {
+		    p[i].i_VA[k] = j;
+		    break;
+		    }
+		}
+	    }
+	}
+
+    if (bRung) {
+	for (i=1;i<iMaxRung;++i) {
+	    if (nRungCount[i] == 0) continue;
+	    else c = ' ';
 	    printf(" %c rung:%d %d\n",c,i,nRungCount[i]);
 	    }
 	printf("\n");
 	}
-  
-  /* If a close encounter with more than 2 particles exists, we synchronize
-     iRungs of interacting particles to the highest iRung in them */
-  if(multiflag){    
-    nloop = 2;
-    do{  
-      for(i=iStart;i<n;++i) {
-	if(pkdIsActive(pkd,&p[i])){
-	  if(p[i].n_VA >= 2){		    
-	    for(k=0;k<p[i].n_VA;k++){
-	      j = p[i].i_VA[k];
-	      iTempRung = p[j].iRung;
-	      p[i].iRung = (iTempRung >= p[i].iRung)?iTempRung:p[i].iRung;
-	      p[j].iRung = p[i].iRung;
-	    }	
-	  }
+
+    /* If a close encounter with more than 2 particles exists, we synchronize
+       iRungs of interacting particles to the highest iRung in them */
+    if (multiflag) {
+	nloop = 2;
+	do {
+	    for (i=iStart;i<n;++i) {
+		if (pkdIsActive(pkd,&p[i])) {
+		    if (p[i].n_VA >= 2) {
+			for (k=0;k<p[i].n_VA;k++) {
+			    j = p[i].i_VA[k];
+			    iTempRung = p[j].iRung;
+			    p[i].iRung = (iTempRung >= p[i].iRung)?iTempRung:p[i].iRung;
+			    p[j].iRung = p[i].iRung;
+			    }
+			}
+		    }
+		}
+	    nloop --;
+	    }
+	while (nloop > 0);
 	}
-      }
-      nloop --;
-    }while(nloop > 0);
-  }
-  return(multiflag);
-}
+    return(multiflag);
+    }
 
 int pkdDrminToRungVA(PKD pkd, int iRung, int iMaxRung, int multiflag) {
-  int i, j, k, iTempRung, iStart;
-  int nMaxRung = 0; 
-  PARTICLE *p;
-  int nloop;
-  /* note iMaxRung = pkd.param->iMaxRung -1 */
+    int i, j, k, iTempRung, iStart;
+    int nMaxRung = 0;
+    PARTICLE *p;
+    int nloop;
+    /* note iMaxRung = pkd.param->iMaxRung -1 */
 
-  int bRung = 0;
-  char c;
-  int nRungCount[iMaxRung-1];/* 1 to iMaxRung-1*/
-  if(bRung){
-  for (i=1;i<iMaxRung;++i) nRungCount[i] = 0; 
-  }
-  
-  iStart = pkd->nLocal - pkd->nVeryActive;
-  
-  p = pkd->pStore;
-  for(i=iStart;i<pkdLocal(pkd);++i) {   
-      if(pkdIsActive(pkd,&p[i])){	  	       	    
-	/*assert(p[i].n_VA >= 1); n_VA might be 0 after collision */	     
-	  iTempRung = floor(log(3.0/p[i].drmin)/log(2.08)) + 1;     	  
-	  /*if(iTempRung >= iMaxRung){
-	      printf("iRung %d for particle %d larger than Max iRung %d\n",
-		     iTempRung, p[i].iOrder,iMaxRung-1);
-	      iTempRung = iMaxRung;
-	      }*/
-	  iTempRung = (iTempRung >= iMaxRung)?(iMaxRung-1):iTempRung;
-	  /* iTempRung = (iTempRung >= 0)?iTempRung:0; 
-	     p[i].iKickRung = iTempRung; */
-      
-	  iTempRung = (iTempRung >= iRung)?iTempRung:iRung; 
-	  p[i].iRung = iTempRung;
-	  nMaxRung = (iTempRung >= nMaxRung)?iTempRung:nMaxRung; 
-      }
-      if(bRung) nRungCount[p[i].iRung] += 1;
-  }
-  
-  if(bRung){
-      printf("nVA %d iRung %d\n",pkd->nVeryActive, iRung);
-      for (i=1;i<iMaxRung;++i){
-	  if (nRungCount[i] == 0) continue;
-	  else c = ' ';
-	  printf(" %c rung:%d %d\n",c,i,nRungCount[i]);
-      }
-      printf("\n");
-  }
-  /* If a close encounter with more than 2 particles exists, we synchronize
-     iRungs of interacting particles to the highest iRung in them */
-  if(multiflag){
-    nloop = 2;
-    do{     
-      for(i=iStart;i<pkdLocal(pkd);++i) {
-	if(pkdIsActive(pkd,&p[i])){
-	  if(p[i].n_VA >= 2){	    
-	    for(k=0;k<p[i].n_VA;k++){	
-	      j = p[i].i_VA[k];
-	      iTempRung = p[j].iRung;
-	      p[i].iRung = (iTempRung >= p[i].iRung)?iTempRung:p[i].iRung;
-	      p[j].iRung = p[i].iRung;
-	    }
-	  }
+    int bRung = 0;
+    char c;
+    int nRungCount[iMaxRung-1];/* 1 to iMaxRung-1*/
+    if (bRung) {
+	for (i=1;i<iMaxRung;++i) nRungCount[i] = 0;
 	}
-      }
-      nloop --;
-    }while(nloop > 0);
-  }
-  return(nMaxRung);
-}
+
+    iStart = pkd->nLocal - pkd->nVeryActive;
+
+    p = pkd->pStore;
+    for (i=iStart;i<pkdLocal(pkd);++i) {
+	if (pkdIsActive(pkd,&p[i])) {
+	    /*assert(p[i].n_VA >= 1); n_VA might be 0 after collision */
+	    iTempRung = floor(log(3.0/p[i].drmin)/log(2.08)) + 1;
+	    /*if(iTempRung >= iMaxRung){
+		printf("iRung %d for particle %d larger than Max iRung %d\n",
+		   iTempRung, p[i].iOrder,iMaxRung-1);
+		iTempRung = iMaxRung;
+		}*/
+	    iTempRung = (iTempRung >= iMaxRung)?(iMaxRung-1):iTempRung;
+	    /* iTempRung = (iTempRung >= 0)?iTempRung:0;
+	       p[i].iKickRung = iTempRung; */
+
+	    iTempRung = (iTempRung >= iRung)?iTempRung:iRung;
+	    p[i].iRung = iTempRung;
+	    nMaxRung = (iTempRung >= nMaxRung)?iTempRung:nMaxRung;
+	    }
+	if (bRung) nRungCount[p[i].iRung] += 1;
+	}
+
+    if (bRung) {
+	printf("nVA %d iRung %d\n",pkd->nVeryActive, iRung);
+	for (i=1;i<iMaxRung;++i) {
+	    if (nRungCount[i] == 0) continue;
+	    else c = ' ';
+	    printf(" %c rung:%d %d\n",c,i,nRungCount[i]);
+	    }
+	printf("\n");
+	}
+    /* If a close encounter with more than 2 particles exists, we synchronize
+       iRungs of interacting particles to the highest iRung in them */
+    if (multiflag) {
+	nloop = 2;
+	do {
+	    for (i=iStart;i<pkdLocal(pkd);++i) {
+		if (pkdIsActive(pkd,&p[i])) {
+		    if (p[i].n_VA >= 2) {
+			for (k=0;k<p[i].n_VA;k++) {
+			    j = p[i].i_VA[k];
+			    iTempRung = p[j].iRung;
+			    p[i].iRung = (iTempRung >= p[i].iRung)?iTempRung:p[i].iRung;
+			    p[j].iRung = p[i].iRung;
+			    }
+			}
+		    }
+		}
+	    nloop --;
+	    }
+	while (nloop > 0);
+	}
+    return(nMaxRung);
+    }
 
 
-void pkdMomSun(PKD pkd,double momSun[]){
-  PARTICLE *p;
-  int i,j,n;
-  
-  for (j=0;j<3;++j){                 
-    momSun[j] = 0.0;
-  }
-  p = pkd->pStore;
-  n = pkdLocal(pkd); 
-  for (i=0;i<n;++i) {
-    for (j=0;j<3;++j){ 
-      momSun[j] -= p[i].fMass*p[i].v[j];     
-    }   
-  }   
-} 
+void pkdMomSun(PKD pkd,double momSun[]) {
+    PARTICLE *p;
+    int i,j,n;
 
-void pkdDriftSun(PKD pkd,double vSun[],double dt){
-  PARTICLE *p;
-  int i,j,n;
-  
-  p = pkd->pStore;
-  n = pkdLocal(pkd); 
-  for (i=0;i<n;++i) {
-    for (j=0;j<3;++j){ 
-      p[i].r[j] += vSun[j]*dt;     
-    } 
-  }
-} 
+    for (j=0;j<3;++j) {
+	momSun[j] = 0.0;
+	}
+    p = pkd->pStore;
+    n = pkdLocal(pkd);
+    for (i=0;i<n;++i) {
+	for (j=0;j<3;++j) {
+	    momSun[j] -= p[i].fMass*p[i].v[j];
+	    }
+	}
+    }
+
+void pkdDriftSun(PKD pkd,double vSun[],double dt) {
+    PARTICLE *p;
+    int i,j,n;
+
+    p = pkd->pStore;
+    n = pkdLocal(pkd);
+    for (i=0;i<n;++i) {
+	for (j=0;j<3;++j) {
+	    p[i].r[j] += vSun[j]*dt;
+	    }
+	}
+    }
 
 void pkdKeplerDrift(PKD pkd,double dt,double mu, int tag_VA) {
-  /* 
-   * Use the f and g functions to advance an unperturbed orbit.
-   */
-  PARTICLE *p;	
-  int  i,j,n, iStart;
-  int iflg = 0;
-  double dttmp;
-  mdlDiag(pkd->mdl, "Into pkdKeplerDrift \n");
-  p = pkd->pStore;
-  n = pkdLocal(pkd);
-  
-  if(tag_VA){
-    iStart = pkd->nLocal - pkd->nVeryActive;
-  }else{
-    iStart = 0; 
-  }
-  
-  for (i=iStart;i<n;++i) {	
-    if (pkdIsActive(pkd,&p[i])&&(p[i].iOrder>=0)) {
-       
-      /* copy r and v before drift */ 
-      for (j=0;j<3;++j) {	
-        p[i].rb[j] = p[i].r[j];
-        p[i].vb[j] = p[i].v[j];
-      }
-      
-      /*printf("before: iorder = %d, (x,y,z)= (%e,%e,%e), (vx,vy,vz)= (%e,%e,%e),ms =%e \n",
-	p[i].iOrder, p[i].r[0],p[i].r[1],p[i].r[2],
-	p[i].v[0],p[i].v[1],p[i].v[2], mu);*/
-      
-      iflg = drift_dan(mu,p[i].r,p[i].v,dt); /* see kepler.c */
-      
-      /* printf("exit drift_dan, iflg = %d, (x,y,z)= (%e,%e,%e),(vx,vy,vz)= (%e,%e,%e), ms =%e \n", 
-	 iflg, p[i].r[0],p[i].r[1],p[i].r[2],p[i].v[0],p[i].v[1],p[i].v[2],mu);*/
-      
-      if(iflg != 0){
-	  /*printf("call drift_dan*10, iflg = %d\n",iflg);*/
-	dttmp = 0.1*dt;
-	for (j=0;j<10;++j) {	
-	  iflg = drift_dan(mu,p[i].r,p[i].v,dttmp);
-	  if(iflg != 0){
-	      printf("exit drift_dan, iflg = %d, (x,y,z)= (%e,%e,%e),(vx,vy,vz)= (%e,%e,%e), m = %e, ms =%e \n", iflg, p[i].r[0],p[i].r[1],p[i].r[2],p[i].v[0],p[i].v[1],p[i].v[2],p[i].fMass,mu);	      
-	  }
-	  assert(iflg == 0);	  
+    /*
+     * Use the f and g functions to advance an unperturbed orbit.
+     */
+    PARTICLE *p;
+    int  i,j,n, iStart;
+    int iflg = 0;
+    double dttmp;
+    mdlDiag(pkd->mdl, "Into pkdKeplerDrift \n");
+    p = pkd->pStore;
+    n = pkdLocal(pkd);
+
+    if (tag_VA) {
+	iStart = pkd->nLocal - pkd->nVeryActive;
 	}
-      }    
+    else {
+	iStart = 0;
+	}
+
+    for (i=iStart;i<n;++i) {
+	if (pkdIsActive(pkd,&p[i])&&(p[i].iOrder>=0)) {
+
+	    /* copy r and v before drift */
+	    for (j=0;j<3;++j) {
+		p[i].rb[j] = p[i].r[j];
+		p[i].vb[j] = p[i].v[j];
+		}
+
+	    /*printf("before: iorder = %d, (x,y,z)= (%e,%e,%e), (vx,vy,vz)= (%e,%e,%e),ms =%e \n",
+	    p[i].iOrder, p[i].r[0],p[i].r[1],p[i].r[2],
+	    p[i].v[0],p[i].v[1],p[i].v[2], mu);*/
+
+	    iflg = drift_dan(mu,p[i].r,p[i].v,dt); /* see kepler.c */
+
+	    /* printf("exit drift_dan, iflg = %d, (x,y,z)= (%e,%e,%e),(vx,vy,vz)= (%e,%e,%e), ms =%e \n",
+	    iflg, p[i].r[0],p[i].r[1],p[i].r[2],p[i].v[0],p[i].v[1],p[i].v[2],mu);*/
+
+	    if (iflg != 0) {
+		/*printf("call drift_dan*10, iflg = %d\n",iflg);*/
+		dttmp = 0.1*dt;
+		for (j=0;j<10;++j) {
+		    iflg = drift_dan(mu,p[i].r,p[i].v,dttmp);
+		    if (iflg != 0) {
+			printf("exit drift_dan, iflg = %d, (x,y,z)= (%e,%e,%e),(vx,vy,vz)= (%e,%e,%e), m = %e, ms =%e \n", iflg, p[i].r[0],p[i].r[1],p[i].r[2],p[i].v[0],p[i].v[1],p[i].v[2],p[i].fMass,mu);
+			}
+		    assert(iflg == 0);
+		    }
+		}
+	    }
+	}
     }
-  }
-}	
 
 #endif /* SYMBA */
 #endif /* PLANETS */

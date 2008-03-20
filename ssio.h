@@ -30,31 +30,31 @@
  */
 
 typedef struct ss_head {
-	double	time;
-	int		n_data;
-        int		n_planets;  /* currently not used */
-        double          dEcoll; /* kinetic energy change in collisions so far*/  
-        double          dSunMass; /*Sun's mass*/   
-	} SSHEAD;
+    double	time;
+    int		n_data;
+    int		n_planets;  /* currently not used */
+    double          dEcoll; /* kinetic energy change in collisions so far*/
+    double          dSunMass; /*Sun's mass*/
+    } SSHEAD;
 
 #define SSHEAD_SIZE 32	/* XDR assumes 8-byte doubles and 4-byte ints */
 
 typedef struct ss_data {
-	double	mass;
-	double	radius;
-	double	pos[N_DIM];
-	double	vel[N_DIM];
-	double	spin[N_DIM];
-	int		color;
-	int		org_idx;
-	} SSDATA;
+    double	mass;
+    double	radius;
+    double	pos[N_DIM];
+    double	vel[N_DIM];
+    double	spin[N_DIM];
+    int		color;
+    int		org_idx;
+    } SSDATA;
 
 #define SSDATA_SIZE 96	/* XDR assumes 8-byte doubles and 4-byte ints */
 
 typedef struct ssio {
-	FILE *fp;
-	XDR xdrs;
-	} SSIO;
+    FILE *fp;
+    XDR xdrs;
+    } SSIO;
 
 #define SSIO_READ	0
 #define SSIO_WRITE	1
@@ -63,7 +63,7 @@ typedef struct ssio {
 #define SS_EXT ".ss"
 
 int ssioNewExt(const char *infile, const char *inext,
-			   char *outfile, const char *outext);
+	       char *outfile, const char *outext);
 int ssioOpen(const char *filename, SSIO *ssio, u_int mode);
 int ssioHead(SSIO *ssio, SSHEAD *head);
 int ssioData(SSIO *ssio, SSDATA *data);

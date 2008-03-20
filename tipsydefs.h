@@ -10,7 +10,7 @@ struct gas_particle {
     float hsmooth;
     float metals ;
     float phi ;
-} ;
+    } ;
 
 struct dark_particle {
     float mass;
@@ -18,7 +18,7 @@ struct dark_particle {
     float vel[3];
     float eps;
     float phi ;
-} ;
+    } ;
 
 struct star_particle {
     float mass;
@@ -28,7 +28,7 @@ struct star_particle {
     float tform ;
     float eps;
     float phi ;
-} ;
+    } ;
 
 struct dump {
     double time ;
@@ -38,7 +38,7 @@ struct dump {
     unsigned ndark ;
     unsigned nstar ;
     unsigned pad ;
-} ;
+    } ;
 
 #endif
 

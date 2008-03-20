@@ -23,7 +23,7 @@ typedef struct msrContext {
     /*
     ** Parameters.
     */
-    struct parameters param;	   
+    struct parameters param;
     /*
     ** Other stuff...
     */
@@ -31,7 +31,7 @@ typedef struct msrContext {
     uint64_t N;
     uint64_t nDark;
     uint64_t nGas;
-    uint64_t nStar;   
+    uint64_t nStar;
     uint64_t nMaxOrder;		/* Order number of last particle */
     uint64_t nMaxOrderGas;
     uint64_t nMaxOrderDark;
@@ -68,9 +68,9 @@ typedef struct msrContext {
     int bAntiGrav;
 
     int bSavePending;
-     
+
 #ifdef PLANETS
-    int nPlanets; /* currently not used */ 
+    int nPlanets; /* currently not used */
     double dEcoll;
     double dSunMass;
 #endif
@@ -136,7 +136,7 @@ void msrTopStepHermite(MSR msr,
 		       double *pdActiveSum,
 		       int *piSec);
 void msrStepVeryActiveHermite(MSR msr,double dStep,double dTime,double dDelta,
-			 int iRung);
+			      int iRung);
 void msrCopy0(MSR msr,double dTime);
 void msrPredictor(MSR msr,double dTime);
 void msrCorrector(MSR msr,double dTime);
@@ -208,7 +208,7 @@ void msrInitRelaxation(MSR msr);
 void msrRelaxation(MSR msr,double dTime,double deltaT,int iSmoothType,int bSymmetric);
 #endif /* RELAXATION  */
 
-#ifdef PLANETS 
+#ifdef PLANETS
 double msrReadSS(MSR msr);
 void msrWriteSS(MSR msr, char *pszFileName, double dTime);
 void msrGravSun(MSR msr);
@@ -222,12 +222,12 @@ void msrTopStepSymba(MSR msr,
 		     int iRung,		/* Rung level */
 		     int iKickRung,	/* Gravity on all rungs from iRung
 					   to iKickRung */
-		     int iRungVeryActive,  
+		     int iRungVeryActive,
 		     int iAdjust,		/* Do an adjust? */
 		     double *pdActiveSum,
 		     int *piSec);
 void msrStepVeryActiveSymba(MSR msr, double dStep, double dTime, double dDelta,
-		       int iRung);
+			    int iRung);
 void msrDrminToRung(MSR msr,int iRung);
 void msrDriftSun(MSR msr,double dTime,double dDelta);
 void msrKeplerDrift(MSR msr,double dDelta);

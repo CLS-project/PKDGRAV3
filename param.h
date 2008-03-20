@@ -2,22 +2,22 @@
 #define PARAM_HINCLUDED
 
 typedef struct prmNode {
-	struct prmNode *pnNext;
-	char *pszName;
-	int iType;
-	int bArg;
-	int bFile;
-	int iSize;
-	void *pValue;
-	char *pszArg;
-	char *pszArgUsage;
-	} PRM_NODE;
+    struct prmNode *pnNext;
+    char *pszName;
+    int iType;
+    int bArg;
+    int bFile;
+    int iSize;
+    void *pValue;
+    char *pszArg;
+    char *pszArgUsage;
+    } PRM_NODE;
 
 typedef struct prmContext {
-	PRM_NODE *pnHead;
-	void (*fcnLeader)(void);
-	void (*fcnTrailer)(void);
-	} * PRM;
+    PRM_NODE *pnHead;
+    void (*fcnLeader)(void);
+    void (*fcnTrailer)(void);
+    } * PRM;
 
 #define PRM_LINE_SIZE	128
 
