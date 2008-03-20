@@ -1,0 +1,15 @@
+#!/bin/bash
+# This script will reformat all of the source files in the current
+# directory with Artistic Style, a C/C++ code formatter.
+#
+# http://astyle.sourceforge.net/
+ASTYLE=~/code/astyle/bin/astyle
+for F in *.[ch] *.[ch]pp ; do
+    if [ ! -e ${F}.orig ] ; then
+	echo Beautifying $F
+	mv ${F} ${F}.orig
+	$ASTYLE --style=ansi -BLaoy <${F}.orig | unexpand >${F}
+    else
+	echo "Skipping $F (remove ${F}.orig)"
+    fi
+done
