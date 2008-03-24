@@ -1072,11 +1072,13 @@ static int CmpPC(const void *v1,const void *v2) {
 
 void msrSetClasses(MSR msr) {
     PARTCLASS *pClass;
-    int nClass;
+    int n, nClass;
     pClass = malloc(PKD_MAX_CLASSES*sizeof(PARTCLASS));
     assert(pClass!=NULL);
     pstGetClasses(msr->pst,NULL,0,pClass,&nClass);
-    qsort(pClass,nClass,sizeof(PARTCLASS),CmpPC);
+    n = nClass / sizeof(PARTCLASS);
+    assert(n*sizeof(PARTCLASS)==nClass);
+    qsort(pClass,n,sizeof(PARTCLASS),CmpPC);
     pstSetClasses(msr->pst,pClass,nClass,NULL,NULL);
     free(pClass);
     }
