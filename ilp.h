@@ -116,6 +116,7 @@ float ilpSelect(ILP ilp,uint32_t n,float *rMax);
 	tile->d.dx.f[i] = (ilp)->cx - (X);				\
 	tile->d.dy.f[i] = (ilp)->cy - (Y);				\
 	tile->d.dz.f[i] = (ilp)->cz - (Z);				\
+	assert( (M) > 0.0 );						\
 	tile->d.m.f[i] = (M);						\
 	tile->d.fourh2.f[i] = (S);					\
 	ilpAppend_1((ilp),I);						\
