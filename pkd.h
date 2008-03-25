@@ -93,11 +93,11 @@ typedef struct partclass {
 
 typedef struct particle {
     /*-----Base-Particle-Data----*/
-uint64_t iOrder     : 48;
-uint8_t  iRung      :  6;
-uint8_t  iActiveSrc :  1;
-uint8_t  iActiveDst :  1;
-uint8_t  iClass     :  8;
+    uint64_t iOrder     : 48;
+    uint8_t  iRung      :  6;
+    uint8_t  iActiveSrc :  1;
+    uint8_t  iActiveDst :  1;
+    uint8_t  iClass     :  8;
     double r[3];
     /*-----Used-for-Smooth-------*/
     float fBall;
@@ -612,13 +612,13 @@ static inline int pkdIsCellActive(PKD pkd, KDN *c) {
 
 
 /* Here is the new way of getting mass and softening */
-static inline float pkdMass( PKD pkd, PARTICLE *p ) {
+static inline FLOAT pkdMass( PKD pkd, PARTICLE *p ) {
     return pkd->pClass[p->iClass].fMass;
     }
-static inline float pkdSoft( PKD pkd, PARTICLE *p ) {
+static inline FLOAT pkdSoft( PKD pkd, PARTICLE *p ) {
     return pkd->pClass[p->iClass].fSoft;
     }
-static inline float pkdSoft0( PKD pkd, PARTICLE *p ) {
+static inline FLOAT pkdSoft0( PKD pkd, PARTICLE *p ) {
     return pkd->pClass[p->iClass].fSoft0;
     }
 
