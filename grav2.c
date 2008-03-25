@@ -237,7 +237,13 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP ilp,ILC ilc,double dirLs
 #endif
 		SQRT1(dsmooth2,dir);
 		dir2 = dir * dir;
-		for (j=0;j<nSP;++j) {
+		/*
+		** We loop to nSP-1 because the contribution from the last particle
+		** is always zero, but it can be negative with rounding errors.
+		** In theory, there could be another particle at the same distance
+		** which could cause problems.
+		*/
+		for (j=0;j<nSP-1;++j) {
 		    d2 = ilp->first->s.d2.f[j]*dir2;
 		    d2 = (1-d2);
 		    rholoc += d2*ilp->first->s.m.f[j];

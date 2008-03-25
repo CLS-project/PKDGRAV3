@@ -80,9 +80,11 @@ void ilpFinish(ILP ilp) {
 float ilpSelect(ILP ilp,uint32_t n, float *rMax) {
     ILPTILE  tile, last, lower, upper;
     size_t tile_i, last_i, lower_i, upper_i, m;
-    size_t j;
+    size_t i, j;
     float v;
     float cmp;
+
+    if ( n == 0 ) return 0.0;
 
 #ifdef USE_SIMD_PP
     ILP_LOOP(ilp,tile) {
@@ -101,13 +103,22 @@ float ilpSelect(ILP ilp,uint32_t n, float *rMax) {
 	}
 #endif
 
-
     /* If we have less than n particles, then there isn't any sense in partitioning. */
     if ( ilpCount(ilp) <= n ) {
 	v = 0.0;
+	i = 0;
 	for (j=0;j<ilp->first->nPart;j++)
 	    if ( ilp->first->s.d2.f[j] > v )
-		v = ilp->first->s.d2.f[j];
+		v = ilp->first->s.d2.f[(i=j)];
+
+	v = ilp->first->s.m.f[i];
+	ilp->first->s.m.f[i] = ilp->first->s.m.f[ilp->first->nPart-1];
+	ilp->first->s.m.f[ilp->first->nPart-1] = v;
+
+	v = ilp->first->s.d2.f[i];
+	ilp->first->s.d2.f[i] = ilp->first->s.d2.f[ilp->first->nPart-1];
+	ilp->first->s.d2.f[ilp->first->nPart-1] = v;
+
 	return v;
 	}
 
@@ -198,9 +209,18 @@ float ilpSelect(ILP ilp,uint32_t n, float *rMax) {
 	}
 
     v = 0.0;
+    i = 0;
     for (j=0;j<n;j++)
 	if ( ilp->first->s.d2.f[j] > v )
-	    v = ilp->first->s.d2.f[j];
+	    v = ilp->first->s.d2.f[(i=j)];
+
+    v = ilp->first->s.m.f[i];
+    ilp->first->s.m.f[i] = ilp->first->s.m.f[n-1];
+    ilp->first->s.m.f[n-1] = v;
+
+    v = ilp->first->s.d2.f[i];
+    ilp->first->s.d2.f[i] = ilp->first->s.d2.f[n-1];
+    ilp->first->s.d2.f[n-1] = v;
 
 #if 0
     // Check
