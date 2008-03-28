@@ -230,6 +230,7 @@ float ilpSelect(ILP ilp,uint32_t n, float *rMax) {
 
     ILP_LOOP(ilp,tile) {
 	for ( j=0; j<tile->nPart; j++ ) {
+	    assert(tile->s.m.f[j] > 0.0);
 	    if ( tile == ilp->first && j<n ) {
 		if ( tile->s.d2.f[j] > mn ) mn = tile->s.d2.f[j];
 		}
