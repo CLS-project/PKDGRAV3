@@ -1575,7 +1575,7 @@ void pkdSetSoft(PKD pkd,double dSoft) {
 	dSoft = sqrt(2.0e-38);
 	}
     for (i=0;i<pkd->nClasses;i++)
-	pkd->pClass[i].fSoft = dSoft; /* fSoft0?? */
+	pkd->pClass[i].fSoft = dSoft;
     }
 
 #ifdef CHANGESOFT
@@ -3442,9 +3442,9 @@ int pkdDrminToRungVA(PKD pkd, int iRung, int iMaxRung, int multiflag) {
 	    /*assert(p[i].n_VA >= 1); n_VA might be 0 after collision */
 	    iTempRung = floor(log(3.0/p[i].drmin)/log(2.08)) + 1;
 	    /*if(iTempRung >= iMaxRung){
-		printf("iRung %d for particle %d larger than Max iRung %d\n",
-		   iTempRung, p[i].iOrder,iMaxRung-1);
-		iTempRung = iMaxRung;
+	    printf("iRung %d for particle %d larger than Max iRung %d\n",
+	       iTempRung, p[i].iOrder,iMaxRung-1);
+	    iTempRung = iMaxRung;
 		}*/
 	    iTempRung = (iTempRung >= iMaxRung)?(iMaxRung-1):iTempRung;
 	    /* iTempRung = (iTempRung >= 0)?iTempRung:0;
