@@ -244,6 +244,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP ilp,ILC ilc,double dirLs
 		** which could cause problems.
 		*/
 		for (j=0;j<nSP-1;++j) {
+		    assert(ilp->first->s.m.f[j] > 0.0);
 		    d2 = ilp->first->s.d2.f[j]*dir2;
 		    d2 = (1-d2);
 		    rholoc += d2*ilp->first->s.m.f[j];
@@ -399,13 +400,21 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP ilp,ILC ilc,double dirLs
 	*/
 	if (pkd->param.bGravStep) {
 	    /*
-	    ** Use new acceleration here!
+	    ** If this is the first time through, the accelerations will have 
+	    ** all been zero resulting in zero for normsum (and nan for dtGrav).
+	    ** We repeat this process again, so dtGrav will be correct.
 	    */
-	    tx = p[i].a[0];
-	    ty = p[i].a[1];
-	    tz = p[i].a[2];
-	    maga = sqrt(tx*tx + ty*ty + tz*tz);
-	    p[i].dtGrav = maga*dirsum/normsum + pkd->param.dPreFacRhoLoc*rholoc;
+	    if ( normsum > 0.0 ) {
+		/*
+		** Use new acceleration here!
+		*/
+		tx = p[i].a[0];
+		ty = p[i].a[1];
+		tz = p[i].a[2];
+		maga = sqrt(tx*tx + ty*ty + tz*tz);
+		p[i].dtGrav = maga*dirsum/normsum + pkd->param.dPreFacRhoLoc*rholoc;
+		}
+	    else p[i].dtGrav = 0.0;
 	    p[i].fDensity = rholoc;
 	    }
 	} /* end of i-loop cells & particles */
