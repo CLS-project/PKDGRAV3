@@ -386,19 +386,6 @@ void ShuffleParticles(PKD pkd,int iStart) {
 
 #endif
 #endif
-#ifdef xx__SSE__
-	    _mm_prefetch((char *)(pkd->pLite+iNewer)+offsetof(struct pLite,i),
-			 _MM_HINT_T0 );
-	    _mm_prefetch((char *)(pkd->pStore+iNewer)+0,_MM_HINT_NTA);
-	    _mm_prefetch((char *)(pkd->pStore+iNewer)+64,_MM_HINT_NTA);
-	    _mm_prefetch((char *)(pkd->pStore+iNewer)+128,_MM_HINT_NTA);
-	    _mm_prefetch((char *)(pkd->pStore+iNewer)+192,_MM_HINT_NTA);
-#endif
-#ifdef xx__ALTIVEC__
-	    __asm__ __volatile__ ("dcbt 0, %0"::"r"((char *)(pkd->pLite+iNewer)+offsetof(struct pLite,i)));
-	    __asm__ __volatile__ ("dcbt 0, %0"::"r"((char *)(pkd->pStore+iNewer)+0));
-	    __asm__ __volatile__ ("dcbt 0, %0"::"r"((char *)(pkd->pStore+iNewer)+128));
-#endif
 	    pkd->pStore[i] = pkd->pStore[iNew];
 	    pkd->pLite[i].i = 0;
 	    i = iNew;
