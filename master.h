@@ -172,6 +172,7 @@ int msrDtToRung(MSR msr, int iRung, double dDelta, int bAll);
 ** Interface functions.
 */
 int msrSteps(MSR);
+void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint);
 char *msrOutName(MSR);
 char *msrBuildName(MSR msr,char *achFile,int iStep);
 char *msrBuildIoName(MSR msr,char *achFile,int iStep);
