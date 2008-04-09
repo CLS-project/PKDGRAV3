@@ -298,7 +298,7 @@ void BasicDestroy(MDL mdl) {
     }
 
 
-int mdlInitialize(MDL *pmdl,char **argv,void (*fcnChild)(MDL)) {
+int mdlInitialize(MDL *pmdl,char **argv,void (*fcnChild)(MDL),void (*fcnIOChild)(MDL)) {
     MDL mdl,tmdl;
     int i,nThreads=1,bThreads,bDiag;
     char *p,ach[256],achDiag[256];
@@ -308,6 +308,10 @@ int mdlInitialize(MDL *pmdl,char **argv,void (*fcnChild)(MDL)) {
     static MDL *save_mdl;
     extern void *(main)(void *);
 
+    /*
+    ** We assert here, since the pthread version of mdl does not support IO threads yet.
+    */
+    assert(fcnIOChild == NULL);
     if (!first) {
 	*pmdl = *save_mdl;
 	return (*pmdl)->nThreads;
@@ -427,6 +431,9 @@ int mdlInitialize(MDL *pmdl,char **argv,void (*fcnChild)(MDL)) {
     pthread_create(mdl->pt,&attr,main,mdl->pmdl[0]);
     pthread_exit(0);
 #endif
+    gethostname(mdl->nodeName,MAX_PROCESSOR_NAME);
+    /* make sure it is null terminated, stupid UNIX */
+    mdl->nodeName[MAX_PROCESSOR_NAME-1] = 0;
     return(nThreads);
     }
 
@@ -473,6 +480,20 @@ int mdlThreads(MDL mdl) {
  */
 int mdlSelf(MDL mdl) {
     return(mdl->idSelf);
+    }
+
+/*
+** This function returns the absolute ID, when using IO threads. This is 
+** only really useful for debugging. For now it is equivalent to mdlSelf
+** since IO threads are not supported yet.
+*/
+int mdlOldSelf(MDL mdl) {
+    return(mdl->idSelf);
+    }
+
+
+const char *mdlName(MDL mdl) {
+    return mdl->nodeName;
     }
 
 

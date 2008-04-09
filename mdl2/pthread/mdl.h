@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <pthread.h>
 #include <assert.h>
+#include <unistd.h>
 
 #ifdef MDL_FFTW
 #include <srfftw_threads.h>
@@ -19,6 +20,8 @@
 #define MDL_INDEX_MASK		(~MDL_CACHE_MASK)
 
 #define MDL_MBX_RING_SZ	8
+
+#define MAX_PROCESSOR_NAME      256
 
 #define SRV_STOP		0
 
@@ -140,6 +143,7 @@ typedef struct mdlContext {
     int nMaxCacheIds;
     int iMaxDataSize;
     CACHE *cache;
+    char nodeName[MAX_PROCESSOR_NAME];
     } * MDL;
 
 
@@ -213,10 +217,11 @@ void mdlPrintTimer(MDL mdl,char *message,mdlTimer *);
  ** General Functions
  */
 double mdlCpuTimer(MDL);
-int mdlInitialize(MDL *,char **,void (*)(MDL));
+int mdlInitialize(MDL *,char **,void (*)(MDL),void (*)(MDL));
 void mdlFinish(MDL);
 int mdlThreads(MDL);
 int mdlSelf(MDL);
+int mdlOldSelf(MDL);
 int mdlSwap(MDL,int,size_t,void *,size_t,size_t *,size_t *);
 void mdlDiag(MDL,char *);
 void mdlAddService(MDL,int,void *,void (*)(void *,void *,int,void *,int *),
