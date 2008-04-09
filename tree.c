@@ -136,13 +136,6 @@ void BuildTemp(PKD pkd,int iNode,int M,int bSqueeze) {
 	pkd->piInactive = realloc(pkd->piInactive,pkd->nMaxBucketActive*sizeof(PARTICLE *));
 	mdlassert(pkd->mdl,pkd->piInactive != NULL);
 	}
-
-#ifdef GASOLINE
-    /*
-    ** No support for gasoline here quite yet.
-    */
-    assert(0);
-#endif
     /*
     ** First set up the root node.
     ** Allocate it, set it's bounds and pointers.
