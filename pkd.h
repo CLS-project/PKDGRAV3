@@ -387,8 +387,13 @@ typedef struct CheckElt {
     } CELT;
 
 typedef struct CheckStack {
+#ifdef LOCAL_EXPANSION
     ILPCHECKPT PartChkPt;
     ILCCHECKPT CellChkPt;
+#else
+    int nPart;
+    int nCell;
+#endif
     int nCheck;
     CELT *Check;
     LOCR L;
@@ -542,8 +547,14 @@ typedef struct pkdContext {
     CSTACK *S;
     int nMaxCheck;
     CELT *Check;
+#ifdef LOCAL_EXPANSION
     ILP ilp;
     ILC ilc;
+#else
+    ILP *ilp;
+    ILC *ilc;
+    int nMaxPart, nMaxCell;
+#endif
     /*
     ** New activation methods
     */

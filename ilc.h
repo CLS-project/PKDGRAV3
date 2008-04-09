@@ -1,6 +1,6 @@
 #ifndef ILC_H
 #define ILC_H
-
+#ifdef LOCAL_EXPANSION
 #ifndef ILC_PART_PER_TILE
 #define ILC_PART_PER_TILE 1024 /* 1024*100 ~ 100k */
 #endif
@@ -87,5 +87,15 @@ static inline uint32_t ilcCount(ILC ilc) {
     }
 
 #define ILC_LOOP(ilc,ctile) for( ctile=(ilc)->first; ctile!=(ilc)->tile->next; ctile=ctile->next )
+#else /* LOCAL_EXPANSION */
+#include "moments.h"
+/*
+** components required for evaluating a multipole interaction.
+*/
 
+typedef struct ilCell {
+    double x,y,z;
+    MOMR mom;
+    } ILC;
+#endif /* LOCAL_EXPANSION */
 #endif

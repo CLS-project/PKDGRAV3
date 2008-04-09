@@ -206,8 +206,17 @@ void pkdInitialize(PKD *ppkd,MDL mdl,int nStore,int nBucket,FLOAT *fPeriod,
     /*
     ** Tree walk stuff.
     */
+#ifdef LOCAL_EXPANSION
     ilpInitialize(&pkd->ilp);
     ilcInitialize(&pkd->ilc);
+#else
+    pkd->nMaxPart = 10000;
+    pkd->ilp = malloc(pkd->nMaxPart*sizeof(ILP));
+    assert(pkd->ilp != NULL);
+    pkd->nMaxCell = 1000;
+    pkd->ilc = malloc(pkd->nMaxCell*sizeof(ILC));
+    assert(pkd->ilc != NULL);
+#endif
     /*
     ** Allocate Checklist.
     */
@@ -248,8 +257,13 @@ void pkdFinish(PKD pkd) {
     /*
     ** Free Interaction lists.
     */
+#ifdef LOCAL_EXPANSION
     ilpFinish(pkd->ilp);
     ilcFinish(pkd->ilc);
+#else
+    free(pkd->ilp);
+    free(pkd->ilc);
+#endif
     /*
     ** Free checklist.
     */

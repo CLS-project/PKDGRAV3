@@ -370,7 +370,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 				}
 			    for (pj=pkdc->pLower;pj<=pkdc->pUpper;++pj) {
 				pkd->ilp[nPart].iOrder = p[pj].iOrder;
-				pkd->ilp[nPart].m = p[pj].fMass;
+				pkd->ilp[nPart].m = pkdMass(pkd,&p[pj]);
 				pkd->ilp[nPart].x = p[pj].r[0] + dDriftFac*p[pj].v[0] + pkd->Check[i].rOffset[0];
 				pkd->ilp[nPart].y = p[pj].r[1] + dDriftFac*p[pj].v[1] + pkd->Check[i].rOffset[1];
 				pkd->ilp[nPart].z = p[pj].r[2] + dDriftFac*p[pj].v[2] + pkd->Check[i].rOffset[2];
@@ -384,7 +384,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 				pkd->ilp[nPart].twoh2 = 2*p[pj].fSoft*p[pj].fSoft;
 #endif
 #if !defined(SOFTLINEAR) && !defined(SOFTSQUARE)
-				pkd->ilp[nPart].fourh2 = 4*p[pj].fSoft*p[pj].fSoft;
+				pkd->ilp[nPart].fourh2 = 4*pkdSoft(pkd,&p[pj])*pkdSoft(pkd,&p[pj]);
 #endif
 				++nPart;
 				}
@@ -402,7 +402,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 			    for (pj=pkdc->pLower;pj<=pkdc->pUpper;++pj) {
 				pRemote = mdlAquire(pkd->mdl,CID_PARTICLE,pj,id);
 				pkd->ilp[nPart].iOrder = pRemote->iOrder;
-				pkd->ilp[nPart].m = pRemote->fMass;
+				pkd->ilp[nPart].m = pkdMass(pkd,pRemote);
 				pkd->ilp[nPart].x = pRemote->r[0] + dDriftFac*pRemote->v[0] + pkd->Check[i].rOffset[0];
 				pkd->ilp[nPart].y = pRemote->r[1] + dDriftFac*pRemote->v[1] + pkd->Check[i].rOffset[1];
 				pkd->ilp[nPart].z = pRemote->r[2] + dDriftFac*pRemote->v[2] + pkd->Check[i].rOffset[2];
@@ -416,7 +416,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 				pkd->ilp[nPart].twoh2 = 2*pRemote->fSoft*pRemote->fSoft;
 #endif
 #if !defined(SOFTLINEAR) && !defined(SOFTSQUARE)
-				pkd->ilp[nPart].fourh2 = 4*pRemote->fSoft*pRemote->fSoft;
+				pkd->ilp[nPart].fourh2 = 4*pkdSoft(pkd,pRemote)*pkdSoft(pkd,pRemote);
 #endif
 				++nPart;
 				mdlRelease(pkd->mdl,CID_PARTICLE,pRemote);

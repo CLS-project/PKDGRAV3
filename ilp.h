@@ -1,6 +1,6 @@
 #ifndef ILP_H
 #define ILP_H
-
+#ifdef LOCAL_EXPANSION
 #include <stdint.h>
 
 #ifndef ILP_PART_PER_TILE
@@ -170,6 +170,23 @@ static inline void ilpCompute(ILP ilp, float fx, float fy, float fz ) {
 	}
 #endif
     }
-
+#else /* LOCAL_EXPANSION */
+typedef struct ilPart {
+    double m,x,y,z;
+#if defined(SOFTLINEAR)
+    double h;
+#elif defined(SOFTSQUARE)
+    double twoh2;
+#else
+    double fourh2;
+#endif  
+#if defined(SYMBA) || defined(PLANETS) || !defined(LOCAL_EXPANSION)
+    uint64_t iOrder;
+#endif
+#if defined(HERMITE) || !defined(LOCAL_EXPANSION)
+    double vx,vy,vz;
+#endif
+    } ILP;
+#endif /* LOCAL_EXPANSION */
 
 #endif

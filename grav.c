@@ -232,7 +232,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 		y = p[i].r[1] - p[j].r[1];
 		z = p[i].r[2] - p[j].r[2];
 		d2 = x*x + y*y + z*z;
-		rholocal[k].m = p[j].fMass;
+		rholocal[k].m = pkdMass(pkd,&p[j]);
 		rholocal[k].d2 = d2;
 		k += 1;
 		}
@@ -255,7 +255,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	    assert(rholoc >= 0);
 	    }
 #ifdef SOFTSQUARE
-	ptwoh2 = 2*p[i].fSoft*p[i].fSoft;
+	ptwoh2 = 2*pkdSoft(pkd,&p[i])*pkdSoft(pkd,&p[i]);
 #endif
 	for (j=0;j<nPart;++j) {
 	    x = p[i].r[0] - ilp[j].x;
@@ -276,7 +276,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	    a1 = p[i].r[0]*p[i].r[0]+p[i].r[1]*p[i].r[1]+p[i].r[2]*p[i].r[2];
 	    a2 = ilp[j].x*ilp[j].x + ilp[j].y*ilp[j].y + ilp[j].z*ilp[j].z;
 	    a1 = 0.5*(sqrt(a1) + sqrt(a2));
-	    a1 *= cbrt((p[i].fMass + ilp[j].m)/(3.0*dSunMass));
+	    a1 *= cbrt((pkdMass(pkd,&p[i]) + ilp[j].m)/(3.0*dSunMass));
 	    a2 = sqrt(d2)/a1;
 	    p[i].drmin = (a2 < p[i].drmin)?a2:p[i].drmin;
 	    if (a2 < 3.0) {
@@ -300,14 +300,14 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	    fourh2 = ptwoh2 + ilp[j].twoh2;
 #endif
 #ifdef SOFTLINEAR
-	    fourh2 = p[i].fSoft + ilp[j].h;
+	    fourh2 = pkdSoft(pkd,&p[i]) + ilp[j].h;
 	    fourh2 *= fourh2;
 #endif
 #if !defined(SOFTLINEAR) && !defined(SOFTSQUARE)
 #ifdef SOFTENING_NOT_MASS_WEIGHTED
 	    fourh2 = ilp[j].fourh2;
 #else
-	    fourh2 = softmassweight(p[i].fMass,4*p[i].fSoft*p[i].fSoft,ilp[j].m,ilp[j].fourh2);
+	    fourh2 = softmassweight(pkdMass(pkd,&p[i]),4*pkdSoft(pkd,&p[i])*pkdSoft(pkd,&p[i]),ilp[j].m,ilp[j].fourh2);
 #endif
 #endif
 	    if (d2 > fourh2) {
@@ -345,7 +345,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	    if (pkd->param.bGravStep && pkd->param.iTimeStepCrit > 0 &&
 		    (ilp[j].iOrder < pkd->param.nPartColl || p[i].iOrder < pkd->param.nPartColl)) {
 
-		summ = p[i].fMass+ilp[j].m;
+		summ = pkdMass(pkd,&p[i])+ilp[j].m;
 		rhopmaxlocal = summ*dir2;
 #ifdef HERMITE
 		if ((pkd->param.iTimeStepCrit == 1 || pkd->param.iTimeStepCrit == 3) && ilp[j].m > 0) {
@@ -454,7 +454,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 #endif
 	pi = pkd->piActive[i];
 #ifdef SOFTSQUARE
-	ptwoh2 = 2*pi->fSoft*pi->fSoft;
+	ptwoh2 = 2*pkdSoft(pkd,pi)*pkdSoft(pkd,pi);
 #endif
 	for (j=i+1;j<na;++j) {
 	    pj = pkd->piActive[j];
@@ -475,7 +475,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	    a1 = pi->r[0]*pi->r[0]+pi->r[1]*pi->r[1]+pi->r[2]*pi->r[2];
 	    a2 = pj->r[0]*pj->r[0]+pj->r[1]*pj->r[1]+pj->r[2]*pj->r[2];
 	    a1 = 0.5*(sqrt(a1) + sqrt(a2));
-	    a1 *= cbrt((pi->fMass + pj->fMass)/(3.0*dSunMass));
+	    a1 *= cbrt((pkdMass(pkd,pi) + pkdMass(pkd,pj))/(3.0*dSunMass));
 	    a2 = sqrt(d2)/a1;
 	    pi->drmin = (a2 < pi->drmin)?a2:pi->drmin;
 	    pj->drmin = (a2 < pj->drmin)?a2:pj->drmin;
@@ -500,17 +500,17 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 		}
 #endif
 #ifdef SOFTSQUARE
-	    fourh2 = ptwoh2 + 2*pj->fSoft*pj->fSoft;
+	    fourh2 = ptwoh2 + 2*pkdSoft(pkd,pj)*pkdSoft(pkd,pj);
 #endif
 #ifdef SOFTLINEAR
-	    fourh2 = pi->fSoft + pj->fSoft;
+	    fourh2 = pkdSoft(pkd,pi) + pkdSoft(pkd,pj);
 	    fourh2*= fourh2;
 #endif
 #if !defined(SOFTLINEAR) && !defined(SOFTSQUARE)
 #ifdef SOFTENING_NOT_MASS_WEIGHTED
-	    fourh2 = 4*pj->fSoft*pj->fSoft;
+	    fourh2 = 4*pkdSoft(pkd,pj)*pkdSoft(pkd,pj);
 #else
-	    fourh2 = softmassweight(pi->fMass,4*pi->fSoft*pi->fSoft,pj->fMass,4*pj->fSoft*pj->fSoft);
+	    fourh2 = softmassweight(pkdMass(pkd,pi),4*pkdSoft(pkd,pi)*pkdSoft(pkd,pi),pkdMass(pkd,pj),4*pkdSoft(pkd,pj)*pkdSoft(pkd,pj));
 #endif
 #endif
 	    if (d2 > fourh2) {
@@ -546,10 +546,10 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	    if (pkd->param.bGravStep && pkd->param.iTimeStepCrit > 0 &&
 		    (pj->iOrder < pkd->param.nPartColl || pi->iOrder < pkd->param.nPartColl)) {
 
-		summ = pi->fMass+pj->fMass;
+		summ = pkdMass(pkd,pi)+pkdMass(pkd,pj);
 		rhopmaxlocal = summ*dir2;
 #ifdef HERMITE
-		if ((pkd->param.iTimeStepCrit == 1 || pkd->param.iTimeStepCrit == 3) && pj->fMass> 0) {
+		if ((pkd->param.iTimeStepCrit == 1 || pkd->param.iTimeStepCrit == 3) && pkdMass(pkd,pj)> 0) {
 		    a3 = pi->r[0]*pi->r[0]+pi->r[1]*pi->r[1]+pi->r[2]*pi->r[2];
 		    a3 = a3*sqrt(a3);
 		    rhopmaxlocal = pkdRho(pkd,rhopmaxlocal,summ,sqrt(fourh2),&dir2,&dir,x,y,z,
@@ -563,22 +563,22 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 #ifdef SYMBA
 	    if (a2 < 3.0) dir2 *= a1;
 #endif
-	    fPot += dir*pj->fMass;
-	    ax += x*dir2*pj->fMass;
-	    ay += y*dir2*pj->fMass;
-	    az += z*dir2*pj->fMass;
-	    pj->fPot -= dir*pi->fMass;
-	    pj->a[0] += x*dir2*pi->fMass;
-	    pj->a[1] += y*dir2*pi->fMass;
-	    pj->a[2] += z*dir2*pi->fMass;
+	    fPot += dir*pkdMass(pkd,pj);
+	    ax += x*dir2*pkdMass(pkd,pj);
+	    ay += y*dir2*pkdMass(pkd,pj);
+	    az += z*dir2*pkdMass(pkd,pj);
+	    pj->fPot -= dir*pkdMass(pkd,pi);
+	    pj->a[0] += x*dir2*pkdMass(pkd,pi);
+	    pj->a[1] += y*dir2*pkdMass(pkd,pi);
+	    pj->a[2] += z*dir2*pkdMass(pkd,pi);
 #ifdef HERMITE
 	    dir5 = 3.0*rv*dir2*dir*dir;
-	    adx += (vx*dir2-x*dir5)*pj->fMass;
-	    ady += (vy*dir2-y*dir5)*pj->fMass;
-	    adz += (vz*dir2-z*dir5)*pj->fMass;
-	    pj->ad[0] += (vx*dir2-x*dir5)*pi->fMass;
-	    pj->ad[1] += (vy*dir2-y*dir5)*pi->fMass;
-	    pj->ad[2] += (vz*dir2-z*dir5)*pi->fMass;
+	    adx += (vx*dir2-x*dir5)*pkdMass(pkd,pj);
+	    ady += (vy*dir2-y*dir5)*pkdMass(pkd,pj);
+	    adz += (vz*dir2-z*dir5)*pkdMass(pkd,pj);
+	    pj->ad[0] += (vx*dir2-x*dir5)*pkdMass(pkd,pi);
+	    pj->ad[1] += (vy*dir2-y*dir5)*pkdMass(pkd,pi);
+	    pj->ad[2] += (vz*dir2-z*dir5)*pkdMass(pkd,pi);
 #endif
 
 	    } /* end of j-loop */
@@ -607,7 +607,7 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 #endif
 	pi = pkd->piActive[i];
 #ifdef SOFTSQUARE
-	ptwoh2 = 2*pi->fSoft*pi->fSoft;
+	ptwoh2 = 2*pkdSoft(pkd,pi)*pkdSoft(pkd,pi);
 #endif
 	for (j=0;j<nia;++j) {
 	    pj = pkd->piInactive[j];
@@ -628,17 +628,17 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	    assert(0); /* all particles should be active for Symba*/
 #endif
 #ifdef SOFTSQUARE
-	    fourh2 = ptwoh2 + 2*pj->fSoft*pj->fSoft;
+	    fourh2 = ptwoh2 + 2*pkdSoft(pkd,pj)*pkdSoft(pkd,pj);
 #endif
 #ifdef SOFTLINEAR
-	    fourh2 = pi->fSoft + pj->fSoft;
+	    fourh2 = pkdSoft(pkd,pi) + pkdSoft(pkd,pj);
 	    fourh2*= fourh2;
 #endif
 #if !defined(SOFTLINEAR) && !defined(SOFTSQUARE)
 #ifdef SOFTENING_NOT_MASS_WEIGHTED
-	    fourh2 = 4*pj->fSoft*pj->fSoft;
+	    fourh2 = 4*pkdSoft(pkd,pj)*pkdSoft(pkd,pj);
 #else
-	    fourh2 = softmassweight(pi->fMass,4*pi->fSoft*pi->fSoft,pj->fMass,4*pj->fSoft*pj->fSoft);
+	    fourh2 = softmassweight(pkdMass(pkd,pi),4*pkdSoft(pkd,pi)*pkdSoft(pkd,pi),pkdMass(pkd,pj),4*pkdSoft(pkd,pj)*pkdSoft(pkd,pj));
 #endif
 #endif
 	    if (d2 > fourh2) {
@@ -674,11 +674,11 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 	    if (pkd->param.bGravStep && pkd->param.iTimeStepCrit > 0 &&
 		    (pj->iOrder < pkd->param.nPartColl || pi->iOrder < pkd->param.nPartColl)) {
 
-		summ = pi->fMass+pj->fMass;
+		summ = pkdMass(pkd,pi)+pkdMass(pkd,pj);
 		rhopmaxlocal = summ*dir2;
 
 #ifdef HERMITE
-		if ((pkd->param.iTimeStepCrit == 1 || pkd->param.iTimeStepCrit == 3) && pj->fMass> 0) {
+		if ((pkd->param.iTimeStepCrit == 1 || pkd->param.iTimeStepCrit == 3) && pkdMass(pkd,pj)> 0) {
 		    a3 = pi->r[0]*pi->r[0]+pi->r[1]*pi->r[1]+pi->r[2]*pi->r[2];
 		    a3 = a3*sqrt(a3);
 		    rhopmaxlocal = pkdRho(pkd,rhopmaxlocal,summ,sqrt(fourh2),&dir2,&dir,x,y,z,
@@ -690,15 +690,15 @@ int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,
 #ifdef SYMBA
 	    if (a2 < 3.0) dir2 *= a1;
 #endif
-	    fPot += dir*pj->fMass;
-	    ax += x*dir2*pj->fMass;
-	    ay += y*dir2*pj->fMass;
-	    az += z*dir2*pj->fMass;
+	    fPot += dir*pkdMass(pkd,pj);
+	    ax += x*dir2*pkdMass(pkd,pj);
+	    ay += y*dir2*pkdMass(pkd,pj);
+	    az += z*dir2*pkdMass(pkd,pj);
 #ifdef HERMITE
 	    dir5 = 3.0*rv*dir2*dir*dir;
-	    adx += (vx*dir2-x*dir5)*pj->fMass;
-	    ady += (vy*dir2-y*dir5)*pj->fMass;
-	    adz += (vz*dir2-z*dir5)*pj->fMass;
+	    adx += (vx*dir2-x*dir5)*pkdMass(pkd,pj);
+	    ady += (vy*dir2-y*dir5)*pkdMass(pkd,pj);
+	    adz += (vz*dir2-z*dir5)*pkdMass(pkd,pj);
 #endif
 
 	    } /* end of j-loop */

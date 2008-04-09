@@ -5042,6 +5042,7 @@ void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint) {
     int nFOFsDone;
     int i;
 
+    printf( "Writing output for step %d\n", iStep );
     msrBuildIoName(msr,achFile,iStep);
 
     //sprintf(achFile,msr->param.achDigitMask,msrOutName(msr),iStep);

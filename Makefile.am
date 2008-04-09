@@ -33,12 +33,12 @@ clean-local:
 
 SOURCES  = cosmo.c master.c param.c pst.c smooth.c tree.c ewald.c
 SOURCES += main.c moments.c outtype.c pkd.c romberg.c smoothfcn.c
-SOURCES += ilp.c ilc.c
 if PLANETS
 SOURCES += ssio.c collision.c kepler.c
 endif
 if LOCAL_EXPANSION
 SOURCES += grav2.c walk2.c
+SOURCES += ilp.c ilc.c
 if USE_SIMD
 AM_CFLAGS = @SIMD_CFLAGS@
 if USE_SIMD_LOCR
