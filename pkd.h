@@ -67,6 +67,12 @@ typedef uint_fast64_t total_t; /* Count of particles globally (total number) */
 #define MAX_TIMERS		10
 
 
+/*
+** This constant is used to limit the size of a cell.
+*/
+#define PKD_MAX_CELL_SIZE (1e-2)
+
+
 typedef struct pLite {
     FLOAT r[3];
     int i;

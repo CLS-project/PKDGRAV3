@@ -181,10 +181,15 @@ void pkdInitialize(PKD *ppkd,MDL mdl,int nStore,int nBucket,FLOAT *fPeriod,
     ** Now also allocate all node storage here.
     ** We guess that the upper bound is based on the number of particles in
     ** a bucket. The mean number of particles per bucket is always somewhat
-    ** less than nBucket, and roughly given by nBucket-sqrt(nBucket).
+    ** less than nBucket, and roughly given by nBucket-sqrt(nBucket).  For
+    ** small numbers of particles, we must correct for the minimum cell size.
     */
     /*pkd->nMaxNodes = (int)ceil(3.0*nStore/floor(nBucket - sqrt(nBucket)));*/
+
+    /* j is an estimate of the lower limit of the total number of cells */
+    j = 1.0 / (PKD_MAX_CELL_SIZE*PKD_MAX_CELL_SIZE*PKD_MAX_CELL_SIZE*mdlThreads(mdl));
     pkd->nMaxNodes = (int)ceil(5.0*nStore/floor(nBucket-sqrt(nBucket)));
+    if ( pkd->nMaxNodes < j ) pkd->nMaxNodes = j;
     pkd->kdNodes = mdlMalloc(pkd->mdl,pkd->nMaxNodes*sizeof(KDN));
     mdlassert(mdl,pkd->kdNodes != NULL);
     /*

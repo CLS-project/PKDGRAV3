@@ -294,8 +294,8 @@ void BuildTemp(PKD pkd,int iNode,int M,int bSqueeze) {
 	/*
 	** Now figure out which subfile to process next.
 	*/
-	lc = ((nl > M)||(ls>1e-2));
-	rc = ((nr > M)||(rs>1e-2));
+	lc = ((nl > M)||(ls>PKD_MAX_CELL_SIZE));
+	rc = ((nr > M)||(rs>PKD_MAX_CELL_SIZE));
 	MAXSIDE(pkd->kdNodes[iLeft].bnd.fMax,ls);
 	MAXSIDE(pkd->kdNodes[iRight].bnd.fMax,rs);
 
