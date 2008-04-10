@@ -318,6 +318,7 @@ int mdlInitialize(MDL *pmdl,char **argv,void (*fcnChild)(MDL),void (*fcnIOChild)
 	}
     first = 0;
 #endif
+    assert(fcnIOChild==NULL);
 
     *pmdl = NULL;
     /*
@@ -361,6 +362,8 @@ int mdlInitialize(MDL *pmdl,char **argv,void (*fcnChild)(MDL),void (*fcnIOChild)
     mdl->pt = (pthread_t *)malloc(nThreads*sizeof(pthread_t));
     assert(mdl->pt != NULL);
     *pmdl = mdl;
+    gethostname(mdl->nodeName,sizeof(mdl->nodeName));
+    mdl->nodeName[sizeof(mdl->nodeName)-1] = 0;
     pthread_attr_init(&attr);
 #ifdef TINY_PTHREAD_STACK
     /*
