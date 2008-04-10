@@ -130,6 +130,40 @@ void pkdStopTimer(PKD pkd,int iTimer) {
     pkd->ti[iTimer].iActive--;
     }
 
+#define returnWarning(x) if (!(x)) { printf("assert failed: %s\n",#x); return 0; }
+
+int pkdVerify(PKD pkd) {
+    returnWarning(pkd->pStore[-1].iOrder==0x123456789abc);
+    returnWarning(pkd->pStore[pkd->nStore].iOrder==0x123456789abc);
+    returnWarning(pkd->pStore[-1].iRung==0x2d);
+    returnWarning(pkd->pStore[pkd->nStore].iRung==0x2d);
+    returnWarning(pkd->pStore[-1].iActiveSrc==0);
+    returnWarning(pkd->pStore[pkd->nStore].iActiveSrc==0);
+    returnWarning(pkd->pStore[-1].iActiveDst==0);
+    returnWarning(pkd->pStore[pkd->nStore].iActiveDst==0);
+    returnWarning(pkd->pStore[-1].iClass==0xdb);
+    returnWarning(pkd->pStore[pkd->nStore].iClass==0xdb);
+    returnWarning(pkd->pStore[-1].fBall==2.0);
+    returnWarning(pkd->pStore[pkd->nStore].fBall==2.0);
+    returnWarning(pkd->pStore[-1].fPot==4.0);
+    returnWarning(pkd->pStore[pkd->nStore].fPot==4.0);
+    returnWarning(pkd->pStore[-1].a[0]==8.0);
+    returnWarning(pkd->pStore[pkd->nStore].a[0]==8.0);
+    returnWarning(pkd->pStore[-1].a[1]==16.0);
+    returnWarning(pkd->pStore[pkd->nStore].a[1]==16.0);
+    returnWarning(pkd->pStore[-1].a[2]==32.0);
+    returnWarning(pkd->pStore[pkd->nStore].a[2]==32.0);
+    returnWarning(pkd->pStore[-1].fDensity==64.0);
+    returnWarning(pkd->pStore[pkd->nStore].fDensity==64.0);
+    returnWarning(pkd->pStore[-1].v[0]==128.0);
+    returnWarning(pkd->pStore[pkd->nStore].v[0]==128.0);
+    returnWarning(pkd->pStore[-1].v[1]==256.0);
+    returnWarning(pkd->pStore[pkd->nStore].v[1]==256.0);
+    returnWarning(pkd->pStore[-1].v[2]==512.0);
+    returnWarning(pkd->pStore[pkd->nStore].v[2]==512.0);
+    return 1;
+    }
+
 void pkdInitialize(PKD *ppkd,MDL mdl,int nStore,int nBucket,FLOAT *fPeriod,
 		   uint64_t nDark,uint64_t nGas,uint64_t nStar) {
     PKD pkd;
@@ -167,8 +201,30 @@ void pkdInitialize(PKD *ppkd,MDL mdl,int nStore,int nBucket,FLOAT *fPeriod,
     ** allocate one hidden particle, which won't interfere with the rest of
     ** the code (hopefully). pkd->pStore[pkd->nStore] is this particle.
     */
-    pkd->pStore = mdlMalloc(pkd->mdl,(nStore+1)*sizeof(PARTICLE));
+    pkd->pStore = mdlMalloc(pkd->mdl,(nStore+2)*sizeof(PARTICLE));
     mdlassert(mdl,pkd->pStore != NULL);
+    pkd->pStore++;
+    /*
+    ** NOTE: the particle store now had an extra field below the first
+    ** position that we use as a sentinal.  That, combined with the one
+    ** at the end is used to verify that there are no memory bounds issues.
+    ** The free call MUST take into account the pointer magic.
+    */
+    pkd->pStore[-1].iOrder     = pkd->pStore[nStore].iOrder     = 0x123456789abc;
+    pkd->pStore[-1].iRung      = pkd->pStore[nStore].iRung      = 0x2d;
+    pkd->pStore[-1].iActiveSrc = pkd->pStore[nStore].iActiveSrc = 0;
+    pkd->pStore[-1].iActiveDst = pkd->pStore[nStore].iActiveDst = 0;
+    pkd->pStore[-1].iClass     = pkd->pStore[nStore].iClass     = 0xdb;
+    pkd->pStore[-1].fBall      = pkd->pStore[nStore].fBall      = 2.0;
+    pkd->pStore[-1].fPot       = pkd->pStore[nStore].fPot       = 4.0;
+    pkd->pStore[-1].a[0]       = pkd->pStore[nStore].a[0]       = 8.0;
+    pkd->pStore[-1].a[1]       = pkd->pStore[nStore].a[1]       = 16.0;
+    pkd->pStore[-1].a[2]       = pkd->pStore[nStore].a[2]       = 32.0;
+    pkd->pStore[-1].fDensity   = pkd->pStore[nStore].fDensity   = 64.0;
+    pkd->pStore[-1].v[0]       = pkd->pStore[nStore].v[0]       = 128.0;
+    pkd->pStore[-1].v[1]       = pkd->pStore[nStore].v[1]       = 256.0;
+    pkd->pStore[-1].v[2]       = pkd->pStore[nStore].v[2]       = 512.0;
+    assert(pkdVerify(pkd));
     /*
     ** We support up to 256 classes
     */
@@ -185,10 +241,9 @@ void pkdInitialize(PKD *ppkd,MDL mdl,int nStore,int nBucket,FLOAT *fPeriod,
     ** small numbers of particles, we must correct for the minimum cell size.
     */
     /*pkd->nMaxNodes = (int)ceil(3.0*nStore/floor(nBucket - sqrt(nBucket)));*/
-
     /* j is an estimate of the lower limit of the total number of cells */
-    j = 1.0 / (PKD_MAX_CELL_SIZE*PKD_MAX_CELL_SIZE*PKD_MAX_CELL_SIZE*mdlThreads(mdl));
-    pkd->nMaxNodes = (int)ceil(5.0*nStore/floor(nBucket-sqrt(nBucket)));
+    j = 2.0 / (PKD_MAX_CELL_SIZE*PKD_MAX_CELL_SIZE*PKD_MAX_CELL_SIZE*mdlThreads(mdl));
+    pkd->nMaxNodes = (int)ceil(5.0*nStore/floor(nBucket-sqrt(nBucket))) + j;
     if ( pkd->nMaxNodes < j ) pkd->nMaxNodes = j;
     pkd->kdNodes = mdlMalloc(pkd->mdl,pkd->nMaxNodes*sizeof(KDN));
     mdlassert(mdl,pkd->kdNodes != NULL);
@@ -283,7 +338,7 @@ void pkdFinish(PKD pkd) {
     if (pkd->kdTop) free(pkd->kdTop);
     free(pkd->ew.ewt);
     mdlFree(pkd->mdl,pkd->pClass);
-    mdlFree(pkd->mdl,pkd->pStore);
+    mdlFree(pkd->mdl,pkd->pStore-1);
     free(pkd->pLite);
     free(pkd->piActive);
     free(pkd->piInactive);

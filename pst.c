@@ -1892,6 +1892,7 @@ void pstSwapAll(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 
     plcl = lpst->plcl;
     pkdSwapAll(plcl->pkd, *pidSwap);
+    assert(pkdVerify(plcl->pkd));
     }
 
 
@@ -2025,6 +2026,7 @@ void pstLocalOrder(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	}
     else {
 	pkdLocalOrder(plcl->pkd);
+	assert(pkdVerify(plcl->pkd));
 	}
     if (pnOut) *pnOut = 0;
     }
@@ -2047,6 +2049,7 @@ void pstActiveOrder(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	}
     else {
 	*pnActive = pkdActiveOrder(plcl->pkd);
+	assert(pkdVerify(plcl->pkd));
 	}
     if (pnOut) *pnOut = sizeof(uint64_t);
     /*
@@ -2351,6 +2354,7 @@ void pstBuildTree(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	** compute the bounds of the root cell before starting.
 	*/
 	pkdTreeBuild(plcl->pkd,in->nBucket,in->diCrit2,&pkdn[iCell],in->bTreeSqueeze,in->bExcludeVeryActive,in->dTimeStamp);
+	assert(pkdVerify(plcl->pkd));
 	pkdn[iCell].iLower = 0;
 	pkdn[iCell].pLower = pst->idSelf;
 	pkdn[iCell].pUpper = 1;
@@ -2516,6 +2520,7 @@ void pstSmooth(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 		     in->dfBall2OverSoft2);
 	smSmooth(smx,&in->smf);
 	smFinish(smx,&in->smf);
+	assert(pkdVerify(plcl->pkd));
 	}
     if (pnOut) *pnOut = 0;
     }
@@ -2577,7 +2582,7 @@ void pstGravity(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	pkdGravAll(plcl->pkd,in->dTime,in->nReps,in->bPeriodic,4,in->bEwald,
 		   in->dEwCut,in->dEwhCut, &out[id].nActive,
 		   &out[id].dPartSum,&out[id].dCellSum,&out[id].cs,&out[id].dFlop);
-
+	assert(pkdVerify(plcl->pkd));
 	out[id].dWalkTime = pkdGetWallClockTimer(plcl->pkd,1);
 #ifdef INSTRUMENT
 	out[id].dComputing     = mdlTimeComputing(pst->mdl);
@@ -2625,6 +2630,7 @@ void pstDrift(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     else {
 	pkdDrift(plcl->pkd,in->dTime,in->dDelta,in->fCenter,in->bPeriodic,in->bFandG,
 		 in->fCentMass);
+	assert(pkdVerify(plcl->pkd));
 	}
     if (pnOut) *pnOut = 0;
     }
@@ -2642,6 +2648,7 @@ void pstDriftInactive(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     else {
 	pkdDriftInactive(plcl->pkd,in->dTime,in->dDelta,in->fCenter,in->bPeriodic,
 			 in->bFandG, in->fCentMass);
+	assert(pkdVerify(plcl->pkd));
 	}
     if (pnOut) *pnOut = 0;
     }
@@ -2688,6 +2695,7 @@ void pstStepVeryActiveKDK(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 			     in->iRung, in->iRung, in->iRung, 0, in->diCrit2,
 			     &out->nMaxRung, in->aSunInact, in->adSunInact,
 			     in->dSunMass);
+	assert(pkdVerify(plcl->pkd));
 	mdlCacheBarrier(pst->mdl,CID_CELL);
 	}
     if (pnOut) *pnOut = sizeof(*out);
@@ -2905,6 +2913,7 @@ void pstKick(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	pkdKick(plcl->pkd,in->dvFacOne,in->dvFacTwo,
 		in->dvPredFacOne,in->dvPredFacTwo,in->duDelta,in->duPredDelta,
 		in->iGasModel,in->z,in->duDotLimit);
+	assert(pkdVerify(plcl->pkd));
 	out->Time = pkdGetTimer(plcl->pkd,1);
 	out->MaxTime = out->Time;
 	out->SumTime = out->Time;
@@ -3042,6 +3051,7 @@ pstGravStep(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	}
     else {
 	pkdGravStep(plcl->pkd,in->dEta,in->dRhoFac);
+	assert(pkdVerify(plcl->pkd));
 	}
     if (pnOut) *pnOut = 0;
     }
@@ -3060,6 +3070,7 @@ pstAccelStep(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     else {
 	pkdAccelStep(plcl->pkd,in->dEta,in->dVelFac,in->dAccFac,
 		     in->bDoGravity,in->bEpsAcc,in->bSqrtPhi,in->dhMinOverSoft);
+	assert(pkdVerify(plcl->pkd));
 	}
     if (pnOut) *pnOut = 0;
     }
@@ -3077,6 +3088,7 @@ pstDensityStep(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	}
     else {
 	pkdDensityStep(plcl->pkd,in->dEta,in->dRhoFac);
+	assert(pkdVerify(plcl->pkd));
 	}
     if (pnOut) *pnOut = 0;
     }
