@@ -1477,51 +1477,52 @@ void pstDomainDecomp(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	*/
 	d = pst->iSplitDim;
 	nBndWrapd = in->nBndWrap[d];
-	if (pst->nUpper > 1) {
-	    l = pst->bnd.fCenter[d] - pst->bnd.fMax[d];
-	    u = pst->bnd.fCenter[d] + pst->bnd.fMax[d];
-	    in->nBndWrap[d] = nBndWrapd;
-	    if (pst->fSplitInactive <= l || pst->fSplitInactive >= u) {
-		l = pst->fSplit;
-		}
-	    else if (pst->fSplitInactive > pst->fSplit) {
-		l = pst->fSplit;
-		u = pst->fSplitInactive;
-		}
-	    else
-		in->nBndWrap[d]++;
 
-	    in->bnd.fMax[d] = 0.5*(u - l);
-	    in->bnd.fCenter[d] = 0.5*(u + l);
-	    mdlReqService(pst->mdl,pst->idUpper,PST_DOMAINDECOMP,
-			  vin,sizeof(*in));
+	l = pst->bnd.fCenter[d] - pst->bnd.fMax[d];
+	u = pst->bnd.fCenter[d] + pst->bnd.fMax[d];
+	in->nBndWrap[d] = nBndWrapd;
+	if (pst->fSplitInactive <= l || pst->fSplitInactive >= u) {
+	    l = pst->fSplit;
 	    }
-	if (pst->nLower > 1) {
-	    l = pst->bnd.fCenter[d] - pst->bnd.fMax[d];
-	    u = pst->bnd.fCenter[d] + pst->bnd.fMax[d];
-	    in->nBndWrap[d] = nBndWrapd;
-	    if (pst->fSplitInactive <= l || pst->fSplitInactive >= u) {
-		u = pst->fSplit;
-		}
-	    else if (pst->fSplitInactive < pst->fSplit) {
-		u = pst->fSplit;
-		l = pst->fSplitInactive;
-		}
-	    else
-		in->nBndWrap[d]++;
+	else if (pst->fSplitInactive > pst->fSplit) {
+	    l = pst->fSplit;
+	    u = pst->fSplitInactive;
+	    }
+	else
+	    in->nBndWrap[d]++;
 
-	    in->bnd.fMax[d] = 0.5*(u - l);
-	    in->bnd.fCenter[d] = 0.5*(u + l);
-	    pstDomainDecomp(pst->pstLower,vin,sizeof(*in),NULL,NULL);
+	in->bnd.fMax[d] = 0.5*(u - l);
+	in->bnd.fCenter[d] = 0.5*(u + l);
+	mdlReqService(pst->mdl,pst->idUpper,PST_DOMAINDECOMP,
+		      vin,sizeof(*in));
+	    
+	l = pst->bnd.fCenter[d] - pst->bnd.fMax[d];
+	u = pst->bnd.fCenter[d] + pst->bnd.fMax[d];
+	in->nBndWrap[d] = nBndWrapd;
+	if (pst->fSplitInactive <= l || pst->fSplitInactive >= u) {
+	    u = pst->fSplit;
 	    }
-	if (pst->nUpper > 1)
-	    mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
+	else if (pst->fSplitInactive < pst->fSplit) {
+	    u = pst->fSplit;
+	    l = pst->fSplitInactive;
+	    }
+	else
+	    in->nBndWrap[d]++;
+
+	in->bnd.fMax[d] = 0.5*(u - l);
+	in->bnd.fCenter[d] = 0.5*(u + l);
+	pstDomainDecomp(pst->pstLower,vin,sizeof(*in),NULL,NULL);
+
+	mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
 	}
     else {
-	printf( "Bounds: %.8f,%.8f,%.8f @ %.8f,%.8f,%.8f \n",
+	/*
+	** We always set plcl->pkd->bnd from pst->bnd.
+	*/
+/*	printf( "Bounds: %.8f,%.8f,%.8f @ %.8f,%.8f,%.8f \n",
 		pst->bnd.fMax[0], pst->bnd.fMax[1], pst->bnd.fMax[2],
 		pst->bnd.fCenter[0], pst->bnd.fCenter[1], pst->bnd.fCenter[2]
-	    );
+		);*/
 	plcl->pkd->bnd = pst->bnd;   /* This resets the local bounding box, but doesn't squeeze! */
 	}
     if (pnOut) *pnOut = 0;
