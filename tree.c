@@ -85,6 +85,10 @@ void InitializeParticles(PKD pkd,int bExcludeVeryActive,BND *pbnd) {
 	pkd->kdNodes[VAROOT].iParent = 0;
 	pkd->kdNodes[VAROOT].pLower = pkd->nLocal - pkd->nVeryActive;
 	pkd->kdNodes[VAROOT].pUpper = pkd->nLocal - 1;
+	for (j=0;j<3;++j) {
+	    pkd->kdNodes[VAROOT].bnd.fCenter[j] = pbnd->fCenter[j];
+	    pkd->kdNodes[VAROOT].bnd.fMax[j] = pbnd->fMax[j];
+	    }
 	}
     /*
     ** Set up the root node.
@@ -221,66 +225,82 @@ void BuildTemp(PKD pkd,int iNode,int M) {
 		}
 	    MAXSIDE(pkd->kdNodes[iLeft].bnd.fMax,ls);
 	    MAXSIDE(pkd->kdNodes[iRight].bnd.fMax,rs);
-	    }
-	else if (nl > 0) {
 	    /*
-	    ** No nodes allocated, Change the bounds!
+	    ** Now figure out which subfile to process next.
+	    */
+	    lc = ((nl > M)||((nl > 1)&&(ls>PKD_MAX_CELL_SIZE))); /* this condition means the left child is not a bucket */
+	    rc = ((nr > M)||((nr > 1)&&(rs>PKD_MAX_CELL_SIZE)));
+	    if (rc && lc) {
+		/* Allocate more stack if required */
+		if ( s+1 >= ns ) {
+		    assert( s+1 == ns );
+		    ns += TEMP_S_INCREASE;
+		    S = realloc(S,ns*sizeof(int));
+		    }
+		if (nr > nl) {
+		    S[s++] = iRight;	/* push tr */
+		    iNode = iLeft;		/* process lower subfile */
+		    }
+		else {
+		    S[s++] = iLeft;	/* push tl */
+		    iNode = iRight;		/* process upper subfile */
+		    }
+		}
+	    else if (lc) {
+		/*
+		** Right must be a bucket in this case!
+		*/
+		iNode = iLeft;   /* process lower subfile */
+		pkd->kdNodes[iRight].iLower = 0;
+		++nBucket;
+		}
+	    else if (rc) {
+		/*
+		** Left must be a bucket in this case!
+		*/
+		iNode = iRight;   /* process upper subfile */
+		pkd->kdNodes[iLeft].iLower = 0;
+		++nBucket;
+		}
+	    else {
+		/*
+		** Both are buckets (we need to pop from the stack to get the next subfile.
+		*/
+		pkd->kdNodes[iLeft].iLower = 0;
+		++nBucket;
+		pkd->kdNodes[iRight].iLower = 0;
+		++nBucket;
+		if (s) iNode = S[--s];		/* pop tn */
+		else break;
+		}
+	    }
+	else {
+	    /*
+	    ** No nodes allocated, Change the bounds if needed!
 	    */
 	    if (d >= 0 && d < 3) pkd->kdNodes[iNode].bnd.fMax[d] *= 0.5;
 	    if (nl > 0) {
 		if (d >= 0 && d < 3) pkd->kdNodes[iNode].bnd.fCenter[d] -= pkd->kdNodes[iNode].bnd.fMax[d];
-		iLeft = iNode;
-		MAXSIDE(pkd->kdNodes[iLeft].bnd.fMax,ls);
-		rs = 0.0;
+		MAXSIDE(pkd->kdNodes[iNode].bnd.fMax,ls);
+		lc = ((nl > M)||((nl > 1)&&(ls>PKD_MAX_CELL_SIZE))); /* this condition means the node is not a bucket */
+		if (!lc) {
+		    pkd->kdNodes[iNode].iLower = 0;
+		    ++nBucket;
+		    if (s) iNode = S[--s];		/* pop tn */
+		    else break;
+		    }
 		}
 	    else {
 		if (d >= 0 && d < 3) pkd->kdNodes[iNode].bnd.fCenter[d] += pkd->kdNodes[iNode].bnd.fMax[d];
-		iRight = iNode;
 		MAXSIDE(pkd->kdNodes[iRight].bnd.fMax,rs);
-		ls = 0.0;
+		rc = ((nr > M)||((nr > 1)&&(rs>PKD_MAX_CELL_SIZE)));
+		if (!rc) {
+		    pkd->kdNodes[iNode].iLower = 0;
+		    ++nBucket;
+		    if (s) iNode = S[--s];		/* pop tn */
+		    else break;
+		    }
 		}
-	    }
-	/*
-	** Now figure out which subfile to process next.
-	*/
-	lc = ((nl > M)||((nl > 1)&&(ls>PKD_MAX_CELL_SIZE)));
-	rc = ((nr > M)||((nr > 1)&&(rs>PKD_MAX_CELL_SIZE)));
-
-	if (rc && lc) {
-	    /* Allocate more stack if required */
-	    if ( s+1 >= ns ) {
-		assert( s+1 == ns );
-		ns += TEMP_S_INCREASE;
-		S = realloc(S,ns*sizeof(int));
-		}
-	    if (nr > nl) {
-		S[s++] = iRight;	/* push tr */
-		iNode = iLeft;		/* process lower subfile */
-		}
-	    else {
-		S[s++] = iLeft;	/* push tl */
-		iNode = iRight;		/* process upper subfile */
-		}
-	    }
-	else {
-	    if (lc) {
-		iNode = iLeft;		/* process lower subfile */
-		}
-	    else if (nl > 0) {
-		pkd->kdNodes[iLeft].iLower = 0;
-		++nBucket;
-		}
-	    if (rc) {
-		iNode = iRight;		/* process upper subfile */
-		}
-	    else if (nr > 0) {
-		pkd->kdNodes[iRight].iLower = 0;
-		++nBucket;
-		}
-	    }
-	if ( !rc && !lc ) {
-	    if (s) iNode = S[--s];		/* pop tn */
-	    else break;
 	    }
 	}
 DonePart:
