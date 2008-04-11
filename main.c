@@ -67,7 +67,6 @@ void main_ch(MDL mdl) {
 int main(int argc,char **argv) {
     MDL mdl;
     MSR msr;
-    BND bnd;
     FILE *fpLog = NULL;
     char achFile[256];			/*DEBUG use MAXPATHLEN here (& elsewhere)? -- DCR*/
     double dTime;
@@ -151,7 +150,6 @@ int main(int argc,char **argv) {
 #ifdef USE_GRAFIC
 	}
 #endif
-    msrCalcBound(msr,&bnd); /* used only for initially setting pkd->bnd correctly */
 
     if ( msr->param.bWriteIC ) {
 	msrBuildIoName(msr,achFile,0);

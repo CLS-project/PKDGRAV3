@@ -1420,6 +1420,7 @@ void pstPeanoHilbertCount(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 #define NMINFORROOTFIND 16
 
 void pstDomainDecomp(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl = pst->plcl;
     int d=0,j,nBndWrapd;
     double dimsize;
     struct inDomainDecomp *in = vin;
@@ -1516,7 +1517,9 @@ void pstDomainDecomp(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	if (pst->nUpper > 1)
 	    mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
 	}
-
+    else {
+	plcl->pkd->bnd = pst->bnd;   /* This resets the local bounding box, but doesn't squeeze! */
+	}
     if (pnOut) *pnOut = 0;
     }
 

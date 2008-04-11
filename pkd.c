@@ -793,30 +793,22 @@ void pkdReadTipsy(PKD pkd,char *pszFileName, char *achOutName,uint64_t nStart,in
 
 
 void pkdCalcBound(PKD pkd,BND *pbnd) {
-    PARTICLE *p = pkd->pStore;
-    FLOAT fMin[3],fMax[3];
+    double dMin[3],dMax[3];
     int i = 0;
     int j;
 
     mdlassert(pkd->mdl,pkd->nLocal > 0);
     for (j=0;j<3;++j) {
-	fMin[j] = p[i].r[j];
-	fMax[j] = p[i].r[j];
+	dMin[j] = pkd->pStore[i].r[j];
+	dMax[j] = pkd->pStore[i].r[j];
 	}
     for (++i;i<pkd->nLocal;++i) {
-	for (j=0;j<3;++j) {
-	    if (p[i].r[j] < fMin[j]) fMin[j] = p[i].r[j];
-	    else if (p[i].r[j] > fMax[j]) fMax[j] = p[i].r[j];
-	    }
+	pkdMinMax(pkd->pStore[i].r,dMin,dMax);
 	}
     for (j=0;j<3;++j) {
-	pbnd->fCenter[j] = 0.5*(fMax[j] + fMin[j]);
-	pbnd->fMax[j] = 0.5*(fMax[j] - fMin[j]);
+	pbnd->fCenter[j] = 0.5*(dMin[j] + dMax[j]);
+	pbnd->fMax[j] = 0.5*(dMax[j] - dMin[j]);
 	}
-    /*
-    ** Update pkd->bnd here!
-    */
-    pkd->bnd = *pbnd;
     }
 
 
@@ -834,6 +826,7 @@ void pkdEnforcePeriodic(PKD pkd,BND *pbnd) {
 	    */
 	    mdlassert(pkd->mdl,((pkd->pStore[i].r[j] >= pbnd->fCenter[j] - pbnd->fMax[j])&&
 				(pkd->pStore[i].r[j] < pbnd->fCenter[j] + pbnd->fMax[j])));
+
 	    }
 	}
     }
