@@ -67,6 +67,7 @@ void main_ch(MDL mdl) {
 int main(int argc,char **argv) {
     MDL mdl;
     MSR msr;
+    BND bnd;
     FILE *fpLog = NULL;
     char achFile[256];			/*DEBUG use MAXPATHLEN here (& elsewhere)? -- DCR*/
     double dTime;
@@ -150,6 +151,8 @@ int main(int argc,char **argv) {
 #ifdef USE_GRAFIC
 	}
 #endif
+    msrCalcBound(msr,&bnd); /* used only for initially setting pkd->bnd correctly */
+
     if ( msr->param.bWriteIC ) {
 	msrBuildIoName(msr,achFile,0);
 	msrWrite( msr,achFile,dTime,msr->param.bWriteIC-1);
@@ -157,12 +160,6 @@ int main(int argc,char **argv) {
 
     msrInitStep(msr);
     if (prmSpecified(msr->prm,"dSoft")) msrSetSoft(msr,msrSoft(msr));
-    /*
-    ** If the simulation is periodic make sure to wrap all particles into
-    ** the "unit" cell. Doing a drift of 0.0 will always take care of this.
-    */
-    msrDrift(msr,dTime,0.0);
-
 
     /*
     ** Now we have all the parameters for the simulation we can make a

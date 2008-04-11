@@ -89,6 +89,7 @@ void msrSetSoft(MSR msr,double);
 void msrDomainDecomp(MSR,int iRung,int bGreater,int bSplitVA);
 void msrBuildTree(MSR msr,double dTime,int bNeedEwald);
 void msrBuildTreeExcludeVeryActive(MSR msr,double dTime);
+void msrCalcBound(MSR msr,BND *pbnd);
 
 #ifdef GASOLINE
 void msrCalcBallBound(MSR,double fBallFactor);
@@ -104,8 +105,8 @@ void msrUpdateSoft(MSR,double);
 void msrGravity(MSR msr,double dTime,double dStep,int bEwald,
 		int *piSec,uint64_t *pnActive);
 void msrCalcEandL(MSR,int,double,double *,double *,double *,double *,double *);
-void msrDrift(MSR,double,double);
-void msrKick(MSR,double,double);
+void msrDrift(MSR,double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi);
+void msrKick(MSR,double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi);
 double msrReadCheck(MSR,int *);
 void msrWriteCheck(MSR,double,int);
 int msrOutTime(MSR,double);

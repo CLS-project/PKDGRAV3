@@ -193,10 +193,6 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.nBucket = 8;
     prmAddParam(msr->prm,"nBucket",1,&msr->param.nBucket,sizeof(int),"b",
 		"<max number of particles in a bucket> = 8");
-    msr->param.dFracNoTreeSqueeze = 0.01;
-    prmAddParam(msr->prm,"dFracNoTreeSqueeze",2,&msr->param.dFracNoTreeSqueeze,
-		sizeof(double),"fnts",
-		"<Fraction of Active Particles for no Tree Squeeze> = 0.01");
     msr->param.iStartStep = 0;
     prmAddParam(msr->prm,"iStartStep",1,&msr->param.iStartStep,
 		sizeof(int),"nstart","<initial step numbering> = 0");
@@ -836,8 +832,7 @@ void msrLogParams(MSR msr,FILE *fp) {
     fprintf(fp," bStandard: %d",msr->param.bStandard);
     fprintf(fp," bHDF5: %d",msr->param.bHDF5);
     fprintf(fp," nBucket: %d",msr->param.nBucket);
-    fprintf(fp,"\n# dFracNoTreeSqueeze: %g",msr->param.dFracNoTreeSqueeze);
-    fprintf(fp," iOutInterval: %d",msr->param.iOutInterval);
+    fprintf(fp,"\n# iOutInterval: %d",msr->param.iOutInterval);
     fprintf(fp," iCheckInterval: %d",msr->param.iCheckInterval);
     fprintf(fp," iLogInterval: %d",msr->param.iLogInterval);
     fprintf(fp," iEwOrder: %d",msr->param.iEwOrder);
@@ -1931,7 +1926,6 @@ void msrSaveParameters(MSR msr, IOHDF5 io) {
     ioHDF5WriteAttribute( io, "bDoGravity", H5T_NATIVE_INT, &msr->param.bDoGravity );
     ioHDF5WriteAttribute( io, "bAntiGrav", H5T_NATIVE_INT, &msr->param.bAntiGrav );
     ioHDF5WriteAttribute( io, "nBucket", H5T_NATIVE_INT, &msr->param.nBucket );
-    ioHDF5WriteAttribute( io, "dFracNoTreeSqueeze", H5T_NATIVE_DOUBLE, &msr->param.dFracNoTreeSqueeze );
     ioHDF5WriteAttribute( io, "iOutInterval", H5T_NATIVE_INT, &msr->param.iOutInterval );
     ioHDF5WriteAttribute( io, "iCheckInterval", H5T_NATIVE_INT, &msr->param.iCheckInterval );
     ioHDF5WriteAttribute( io, "iLogInterval", H5T_NATIVE_INT, &msr->param.iLogInterval );
@@ -2201,7 +2195,6 @@ void msrSetSoft(MSR msr,double dSoft) {
 
 void msrDomainDecomp(MSR msr,int iRung,int bGreater,int bSplitVA) {
     struct inDomainDecomp in;
-    struct outCalcBound outcb;
     uint64_t nActive;
     const uint64_t nDD = msr->N*msr->param.dFracNoDomainDecomp;
     const uint64_t nRT = msr->N*msr->param.dFracNoDomainRootFind;
@@ -2232,22 +2225,13 @@ void msrDomainDecomp(MSR msr,int iRung,int bGreater,int bSplitVA) {
 	in.bnd.fMax[0] = 0.5*msr->param.dxPeriod;
 	in.bnd.fMax[1] = 0.5*msr->param.dyPeriod;
 	in.bnd.fMax[2] = 0.5*msr->param.dzPeriod;
-#ifdef USE_NEWDD
-	assert(in.bnd.fMax[0] == in.bnd.fMax[1]);
-	assert(in.bnd.fMax[1] == in.bnd.fMax[2]);
-#endif
+
+	pstEnforcePeriodic(msr->pst,&in.bnd,sizeof(BND),NULL,NULL);
 	}
     else {
-	pstCalcBound(msr->pst,NULL,0,&outcb,NULL);
-	in.bnd = outcb.bnd;
+	pstCombineBound(msr->pst,NULL,0,&in.bnd,NULL);
 	for (j=1;j<3;++j) {
 	    in.bnd.fMax[0] = (in.bnd.fMax[j] > in.bnd.fMax[0])?in.bnd.fMax[j]:in.bnd.fMax[0];
-	    }
-	/*
-	** Make the bounding box 10% larger in this case to accomodate particles drifting out.
-	*/
-	for (j=0;j<3;++j) {
-	    in.bnd.fMax[j] = 1.10*in.bnd.fMax[0];
 	    }
 	}
 
@@ -2377,7 +2361,6 @@ void _BuildTree(MSR msr,double dTimeStamp,int bExcludeVeryActive,int bNeedEwald)
     assert(pkdn != NULL);
     in.iCell = ROOT;
     in.nCell = nCell;
-    in.bTreeSqueeze = (msr->nActive > (uint64_t)floor(((double)msr->N)*msr->param.dFracNoTreeSqueeze));
     in.bExcludeVeryActive = bExcludeVeryActive;
     in.dTimeStamp = dTimeStamp;
     sec = msrTime();
@@ -2849,48 +2832,26 @@ void msrCalcEandL(MSR msr,int bFirst,double dTime,double *E,double *T,
     }
 
 
-void msrDrift(MSR msr,double dTime,double dDelta) {
+void msrDrift(MSR msr,double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi) {
     struct inDrift in;
     int j;
 
+    in.dTime = dTime;
     if (msr->param.bCannonical) {
 	in.dDelta = csmComoveDriftFac(msr->param.csm,dTime,dDelta);
 	}
     else {
 	in.dDelta = dDelta;
 	}
-    for (j=0;j<3;++j) {
-	in.fCenter[j] = msr->fCenter[j];
-	}
-    in.bPeriodic = msr->param.bPeriodic;
-    in.fCentMass = msr->param.dCentMass;
-    in.dTime = dTime;
+    in.uRungLo = uRungLo;
+    in.uRungHi = uRungHi;
     pstDrift(msr->pst,&in,sizeof(in),NULL,NULL);
-    }
-
-void msrDriftInactive(MSR msr,double dTime,double dDelta) {
-    struct inDrift in;
-    int j;
-
-    if (msr->param.bCannonical) {
-	in.dDelta = csmComoveDriftFac(msr->param.csm,dTime,dDelta);
-	}
-    else {
-	in.dDelta = dDelta;
-	}
-    for (j=0;j<3;++j) {
-	in.fCenter[j] = msr->fCenter[j];
-	}
-    in.dTime = dTime;
-    in.bPeriodic = msr->param.bPeriodic;
-    in.fCentMass = msr->param.dCentMass;
-    pstDriftInactive(msr->pst,&in,sizeof(in),NULL,NULL);
     }
 
 /*
  * For gasoline, updates predicted velocities to beginning of timestep.
  */
-void msrKickKDKOpen(MSR msr,double dTime,double dDelta) {
+void msrKickKDKOpen(MSR msr,double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi) {
     double H,a;
     struct inKick in;
     struct outKick out;
@@ -2913,8 +2874,9 @@ void msrKickKDKOpen(MSR msr,double dTime,double dDelta) {
 	}
     if (msr->param.bAntiGrav) {
 	in.dvFacTwo = -in.dvFacTwo;
-	in.dvPredFacTwo = -in.dvPredFacTwo;
 	}
+    in.uRungLo = uRungLo;
+    in.uRungHi = uRungHi;
     pstKick(msr->pst,&in,sizeof(in),&out,NULL);
     msrprintf(msr,"KickOpen: Avg Wallclock %f, Max Wallclock %f\n",
 	      out.SumTime/out.nSum,out.MaxTime);
@@ -2923,7 +2885,7 @@ void msrKickKDKOpen(MSR msr,double dTime,double dDelta) {
 /*
  * For gasoline, updates predicted velocities to end of timestep.
  */
-void msrKickKDKClose(MSR msr,double dTime,double dDelta) {
+void msrKickKDKClose(MSR msr,double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi) {
     double H,a;
     struct inKick in;
     struct outKick out;
@@ -2946,8 +2908,9 @@ void msrKickKDKClose(MSR msr,double dTime,double dDelta) {
 	}
     if (msr->param.bAntiGrav) {
 	in.dvFacTwo = -in.dvFacTwo;
-	in.dvPredFacTwo = -in.dvPredFacTwo;
 	}
+    in.uRungLo = uRungLo;
+    in.uRungHi = uRungHi;
     pstKick(msr->pst,&in,sizeof(in),&out,NULL);
     msrprintf(msr,"KickClose: Avg Wallclock %f, Max Wallclock %f\n",
 	      out.SumTime/out.nSum,out.MaxTime);
@@ -3416,8 +3379,7 @@ void msrTopStepKDK(MSR msr,
 	}
     msrprintf(msr,"%*cmsrKickOpen  at iRung: %d 0.5*dDelta: %g\n",
 	      2*iRung+2,' ',iRung,0.5*dDelta);
-    msrActiveRung(msr,iRung,0); /* EXACT */
-    msrKickKDKOpen(msr,dTime,0.5*dDelta);
+    msrKickKDKOpen(msr,dTime,0.5*dDelta,iRung,iRung);
     if ((msrCurrMaxRung(msr) > iRung) && (iRungVeryActive > iRung)) {
 	/*
 	** Recurse.
@@ -3426,14 +3388,16 @@ void msrTopStepKDK(MSR msr,
 		      pdActiveSum,piSec);
 	dTime += 0.5*dDelta;
 	dStep += 1.0/(2 << iRung);
-	msrActiveRung(msr,iRung,0); /* EXACT */
+
+	msrActiveRung(msr,iRung,0); /* is this call even needed? */
+
 	msrTopStepKDK(msr,dStep,dTime,0.5*dDelta,iRung+1,iKickRung,iRungVeryActive,1,
 		      pdActiveSum,piSec);
 	}
     else if (msrCurrMaxRung(msr) == iRung) {
 	/* This Drifts everybody */
 	msrprintf(msr,"%*cDrift, iRung: %d\n",2*iRung+2,' ',iRung);
-	msrDrift(msr,dTime,dDelta);
+	msrDrift(msr,dTime,dDelta,0,MAX_RUNG);
 	dTime += dDelta;
 	dStep += 1.0/(1 << iRung);
 
@@ -3469,17 +3433,13 @@ void msrTopStepKDK(MSR msr,
 	/*
 	 * We have more rungs to go, but we've hit the very active limit.
 	 */
-	/*
-	 * Activate VeryActives
-	 */
-	msrActiveRung(msr,msr->iRungVeryActive+1,1);
 
 	/*
 	 * Drift the non-VeryActive particles forward 1/2 timestep
 	 */
 	msrprintf(msr,"%*cInActiveDrift at iRung: %d, 0.5*dDelta: %g\n",
 		  2*iRung+2,' ',iRung,0.5*dDelta);
-	msrDriftInactive(msr, dTime, 0.5*dDelta);
+	msrDrift(msr,dTime,0.5*dDelta,0,msr->iRungVeryActive);
 	/*
 	 * Build a tree out of them for use by the VeryActives
 	 */
@@ -3494,6 +3454,10 @@ void msrTopStepKDK(MSR msr,
 
 	    msrprintf(msr,"%*cBuilding exclude very active tree: iRung: %d\n",
 		      2*iRung+2,' ',iRung);
+	    /*
+	     * Activate VeryActives, this is needed for the BuildTreeExcludeVeryActive below?
+	     */
+	    msrActiveRung(msr,msr->iRungVeryActive+1,1);
 	    msrBuildTreeExcludeVeryActive(msr,dTime + 0.5*dDelta);
 	    }
 	/*
@@ -3507,12 +3471,11 @@ void msrTopStepKDK(MSR msr,
 	 */
 	msrprintf(msr,"%*cInActiveDrift at iRung: %d, 0.5*dDelta: %g\n",
 		  2*iRung+2,' ',iRung,0.5*dDelta);
-	msrActiveRung(msr,msr->iRungVeryActive+1,1);
 	/*
 	** The inactives are half time step behind the actives.
 	** Move them a half time step ahead to synchronize everything again.
 	*/
-	msrDriftInactive(msr, dTime - 0.5*dDelta, 0.5*dDelta);
+	msrDrift(msr,dTime-0.5*dDelta,0.5*dDelta,0,msr->iRungVeryActive);
 
 	/*
 	 * Regular Tree gravity
@@ -3547,8 +3510,7 @@ void msrTopStepKDK(MSR msr,
 						      */
 	    msrprintf(msr,"%*cVeryActive msrKickClose at iRung: %d, 0.5*dDelta: %g\n",
 		      2*iRung+2,' ',i, 0.5*dDeltaTmp);
-	    msrActiveRung(msr,i,0); /* EXACT */
-	    msrKickKDKClose(msr,dTime - 0.5*dDeltaTmp,0.5*dDeltaTmp);
+	    msrKickKDKClose(msr,dTime-0.5*dDeltaTmp,0.5*dDeltaTmp,i,i);
 	    dDeltaTmp *= 2.0;
 	    }
 	/*
@@ -3560,12 +3522,11 @@ void msrTopStepKDK(MSR msr,
 
     msrprintf(msr,"%*cKickClose, iRung: %d, 0.5*dDelta: %g\n",
 	      2*iRung+2,' ',iRung, 0.5*dDelta);
-    msrActiveRung(msr,iRung,0); /* EXACT */
-    msrKickKDKClose(msr,dTime,0.5*dDelta);
+    msrKickKDKClose(msr,dTime,0.5*dDelta,iRung,iRung);
     }
 
-void
-msrStepVeryActiveKDK(MSR msr, double dStep, double dTime, double dDelta,
+
+void msrStepVeryActiveKDK(MSR msr, double dStep, double dTime, double dDelta,
 		     int iRung) {
     struct inStepVeryActive in;
     struct outStepVeryActive out;
@@ -5029,6 +4990,14 @@ double msrRead(MSR msr, int iStep) {
 #endif
 
 return dTime;
+    }
+
+
+void msrCalcBound(MSR msr,BND *pbnd) {
+    /*
+    ** This sets the local pkd->bnd.
+    */
+    pstCalcBound(msr->pst,NULL,0,pbnd,NULL);
     }
 
 

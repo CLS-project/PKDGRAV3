@@ -67,6 +67,7 @@ enum pst_service {
     PST_PEANOHILBERTCOUNT,
     PST_DOMAINDECOMP,
     PST_CALCBOUND,
+    PST_COMBINEBOUND,
     PST_WEIGHT,
     PST_COUNTVA,
     PST_WEIGHTWRAP,
@@ -83,8 +84,9 @@ enum pst_service {
     PST_DISTRIBCELLS,
     PST_CALCBOUNDBALL,
     PST_DISTRIBBOUNDBALL,
-    PST_DISTRIBROOT,
     PST_CALCROOT,
+    PST_DISTRIBROOT,
+    PST_ENFORCEPERIODIC,
     PST_SMOOTH,
     PST_GRAVITY,
     PST_GRAVEXTERNAL,
@@ -226,10 +228,10 @@ struct inDomainDecomp {
 void pstDomainDecomp(PST,void *,int,void *,int *);
 
 /* PST_CALCBOUND */
-struct outCalcBound {
-    BND bnd;
-    };
 void pstCalcBound(PST,void *,int,void *,int *);
+
+/* PST_COMBINEBOUND */
+void pstCombineBound(PST,void *,int,void *,int *);
 
 /* PST_WEIGHT */
 struct inWeight {
@@ -382,7 +384,6 @@ struct inBuildTree {
     int nBucket;
     int iCell;
     int nCell;
-    int bTreeSqueeze;
     int bExcludeVeryActive;
     };
 void pstBuildTree(PST,void *,int,void *,int *);
@@ -411,6 +412,9 @@ void pstCalcRoot(PST,void *,int,void *,int *);
 
 /* PST_DISTRIBROOT */
 void pstDistribRoot(PST,void *,int,void *,int *);
+
+/* PST_ENFORCEPERIODIC */
+void pstEnforcePeriodic(PST,void *,int,void *,int *);
 
 /* PST_SMOOTH */
 struct inSmooth {
@@ -467,13 +471,10 @@ void pstCalcEandL(PST,void *,int,void *,int *);
 struct inDrift {
     double dTime;
     double dDelta;
-    FLOAT fCenter[3];
-    int bPeriodic;
-    int bFandG;
-    FLOAT fCentMass;
+    uint8_t uRungLo;
+    uint8_t uRungHi;
     };
 void pstDrift(PST,void *,int,void *,int *);
-void pstDriftInactive(PST,void *,int,void *,int *);
 
 /* PST_ROPARTICLECACHE */
 
@@ -567,13 +568,8 @@ void pstFirstDt(PST,void *,int,void *,int *);
 struct inKick {
     double dvFacOne;
     double dvFacTwo;
-    double dvPredFacOne;
-    double dvPredFacTwo;
-    double duDelta;
-    double duPredDelta;
-    double duDotLimit;
-    int iGasModel;
-    double z;
+    uint8_t uRungLo;
+    uint8_t uRungHi;
     };
 struct outKick {
     double Time;
@@ -581,7 +577,6 @@ struct outKick {
     double SumTime;
     int nSum;
     };
-
 void pstKick(PST,void *,int,void *,int *);
 
 /* PST_SETSOFT */

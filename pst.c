@@ -45,6 +45,7 @@
 **  ReadHDF5              yes     -      |
 **  DomainDecomp          yes     -      |
 **  CalcBound             -       Reduce | Custom reduce: BND_COMBINE
+**  CombineBound          -       Reduce | Custom reduce: BND_COMBINE
 **  Weight                Bcast   Reduce | Sum several fields
 **  CountVA               Bcast   Reduce | Sum two fields
 **  WeightWrap            Bcast   Reduce | Sum two fields
@@ -54,21 +55,21 @@
 **  SwapRejects           Scatter Gather |
 **  ColOrdRejects         Yes     Gather |
 **  DomainOrder           Yes     -      |
-**  LocalOrder            -       -      |
-**  OutArray              Yes     -      |
-**  OutVector             Yes     -      |
+**  LocalOrder            -       -      | Bcast
+**  OutArray              Yes     -      | Serial order in PST
+**  OutVector             Yes     -      | Serial order in PST
 **  WriteTipsy            Yes     -      |
 **  BuildTree             Yes     Many   | Multiple cells
 **  DistribCells          Many    -      | Multiple cells
 **  CalcBoundBall         Yes     Many   | Multiple cells
 **  DistribBoundBall      Many    -      | Sends multiple cells
 **  CalcRoot              -       Yes    |
-**  DistribRoot           Yes     -      |
+**  DistribRoot           Bcast   -      |
+**  EnforcePeriodic       Bcast   -      |
 **  Smooth                Yes     -      |
 **  Gravity               Yes     Gather |
 **  CalcEandL             -       Reduce |
 **  Drift                 Bcast   -      |
-**  DriftInactive         Bcast   -      |
 **  CacheBarrier          -       -      |
 **  StepVeryActiveKDK     Yes     Yes    |
 **  StepVeryActiveHermite Yes     Yes    |
@@ -158,7 +159,10 @@ void pstAddServices(PST pst,MDL mdl) {
 		  sizeof(struct inDomainDecomp),0);
     mdlAddService(mdl,PST_CALCBOUND,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstCalcBound,
-		  0,sizeof(struct outCalcBound));
+		  0,sizeof(BND));
+    mdlAddService(mdl,PST_COMBINEBOUND,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstCombineBound,
+		  0,sizeof(BND));
     mdlAddService(mdl,PST_WEIGHT,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstWeight,
 		  sizeof(struct inWeight),sizeof(struct outWeight));
@@ -223,6 +227,9 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_DISTRIBROOT,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstDistribRoot,
 		  sizeof(struct ioCalcRoot),0);
+    mdlAddService(mdl,PST_ENFORCEPERIODIC,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstEnforcePeriodic,
+		  sizeof(BND),0);
     mdlAddService(mdl,PST_SMOOTH,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstSmooth,
 		  sizeof(struct inSmooth),0);
@@ -234,9 +241,6 @@ void pstAddServices(PST pst,MDL mdl) {
 		  0,sizeof(struct outCalcEandL));
     mdlAddService(mdl,PST_DRIFT,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstDrift,
-		  sizeof(struct inDrift),0);
-    mdlAddService(mdl,PST_DRIFTINACTIVE,pst,
-		  (void (*)(void *,void *,int,void *,int *)) pstDriftInactive,
 		  sizeof(struct inDrift),0);
     mdlAddService(mdl,PST_CACHEBARRIER,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstCacheBarrier,
@@ -1519,21 +1523,41 @@ void pstDomainDecomp(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 
 void pstCalcBound(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
-    struct outCalcBound *out = vout;
-    struct outCalcBound outBnd;
+    BND *out = vout;
+    BND outBnd;
 
     mdlassert(pst->mdl,nIn == 0);
     if (pst->nLeaves > 1) {
 	mdlReqService(pst->mdl,pst->idUpper,PST_CALCBOUND,NULL,0);
 	pstCalcBound(pst->pstLower,NULL,0,out,NULL);
 	mdlGetReply(pst->mdl,pst->idUpper,&outBnd,NULL);
-	BND_COMBINE(out->bnd,out->bnd,outBnd.bnd);
+	BND_COMBINE(*out,*out,outBnd);
 	}
     else {
-	pkdCalcBound(plcl->pkd,&out->bnd);
+	pkdCalcBound(plcl->pkd,out);
 	}
-    if (pnOut) *pnOut = sizeof(struct outCalcBound);
+    if (pnOut) *pnOut = sizeof(BND);
     }
+
+
+void pstCombineBound(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl = pst->plcl;
+    BND *out = vout;
+    BND outBnd;
+
+    mdlassert(pst->mdl,nIn == 0);
+    if (pst->nLeaves > 1) {
+	mdlReqService(pst->mdl,pst->idUpper,PST_COMBINEBOUND,NULL,0);
+	pstCombineBound(pst->pstLower,NULL,0,out,NULL);
+	mdlGetReply(pst->mdl,pst->idUpper,&outBnd,NULL);
+	BND_COMBINE(*out,*out,outBnd);
+	}
+    else {
+        *out = plcl->pkd->bnd;
+	}
+    if (pnOut) *pnOut = sizeof(BND);
+    }
+
 
 /*
 ** Make sure that the local particles are split into active and inactive
@@ -2335,7 +2359,17 @@ void pstBuildTree(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	*/
 	iLower = LOWER(iCell);
 	iNext = UPPER(iCell);
-	pkdCombineCells(&pkdn[iCell],&pkdn[iLower],&pkdn[iNext],1);
+	pkdCombineCells(&pkdn[iCell],&pkdn[iLower],&pkdn[iNext]);
+	/*
+	** We also need to combine the bounds here. When we have done a domain
+	** decomposition before the tree build, this should result in non-overlapping
+	** bounds. If we have skipped domain decomposition, then the bounds could
+	** overlap somewhat. Technically we could inherit the bounds from the pst
+	** structure in the case that the build is being done right after a domain
+	** decomposition, but this should be equivalent.
+	*/
+	BND_COMBINE(pkdn[iCell].bnd,pkdn[iLower].bnd,pkdn[iNext].bnd);
+
 	CALCOPEN(&pkdn[iCell],in->diCrit2);
 	/*
 	** Set all the pointers and flags.
@@ -2349,12 +2383,10 @@ void pstBuildTree(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	}
     else {
 	for (i=1;i<in->nCell;++i) pkdn[i].pUpper = 0; /* used flag = unused */
-	/*
-	** Passing a null bounds pointer forces pkdTreeBuild to
-	** compute the bounds of the root cell before starting.
-	*/
-	pkdTreeBuild(plcl->pkd,in->nBucket,in->diCrit2,&pkdn[iCell],in->bTreeSqueeze,in->bExcludeVeryActive,in->dTimeStamp);
+
+	pkdTreeBuild(plcl->pkd,in->nBucket,in->diCrit2,&pkdn[iCell],in->bExcludeVeryActive,in->dTimeStamp);
 	assert(pkdVerify(plcl->pkd));
+
 	pkdn[iCell].iLower = 0;
 	pkdn[iCell].pLower = pst->idSelf;
 	pkdn[iCell].pUpper = 1;
@@ -2479,6 +2511,23 @@ void pstDistribRoot(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	}
     else {
 	pkdDistribRoot(plcl->pkd,&in->momc);
+	}
+    if (pnOut) *pnOut = 0;
+    }
+
+
+void pstEnforcePeriodic(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl = pst->plcl;
+    BND *in = vin;
+
+    mdlassert(pst->mdl,nIn == sizeof(BND));
+    if (pst->nLeaves > 1) {
+	mdlReqService(pst->mdl,pst->idUpper,PST_ENFORCEPERIODIC,vin,nIn);
+	pstEnforcePeriodic(pst->pstLower,vin,nIn,NULL,NULL);
+	mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
+	}
+    else {
+	pkdEnforcePeriodic(plcl->pkd,in);
 	}
     if (pnOut) *pnOut = 0;
     }
@@ -2628,26 +2677,7 @@ void pstDrift(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
 	}
     else {
-	pkdDrift(plcl->pkd,in->dTime,in->dDelta,in->fCenter,in->bPeriodic,in->bFandG,
-		 in->fCentMass);
-	assert(pkdVerify(plcl->pkd));
-	}
-    if (pnOut) *pnOut = 0;
-    }
-
-void pstDriftInactive(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
-    LCL *plcl = pst->plcl;
-    struct inDrift *in = vin;
-
-    mdlassert(pst->mdl,nIn == sizeof(struct inDrift));
-    if (pst->nLeaves > 1) {
-	mdlReqService(pst->mdl,pst->idUpper,PST_DRIFTINACTIVE,in,nIn);
-	pstDriftInactive(pst->pstLower,in,nIn,NULL,NULL);
-	mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
-	}
-    else {
-	pkdDriftInactive(plcl->pkd,in->dTime,in->dDelta,in->fCenter,in->bPeriodic,
-			 in->bFandG, in->fCentMass);
+	pkdDrift(plcl->pkd,in->dTime,in->dDelta,in->uRungLo,in->uRungHi);
 	assert(pkdVerify(plcl->pkd));
 	}
     if (pnOut) *pnOut = 0;
@@ -2910,9 +2940,7 @@ void pstKick(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	if (outUp.MaxTime > out->MaxTime) out->MaxTime = outUp.MaxTime;
 	}
     else {
-	pkdKick(plcl->pkd,in->dvFacOne,in->dvFacTwo,
-		in->dvPredFacOne,in->dvPredFacTwo,in->duDelta,in->duPredDelta,
-		in->iGasModel,in->z,in->duDotLimit);
+	pkdKick(plcl->pkd,in->dvFacOne,in->dvFacTwo,in->uRungLo,in->uRungHi);
 	assert(pkdVerify(plcl->pkd));
 	out->Time = pkdGetTimer(plcl->pkd,1);
 	out->MaxTime = out->Time;

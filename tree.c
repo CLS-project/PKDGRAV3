@@ -22,7 +22,7 @@
 
 
 
-void InitializeParticles(PKD pkd,int bExcludeVeryActive) {
+void InitializeParticles(PKD pkd,int bExcludeVeryActive,BND *pbnd) {
     PLITE *p = pkd->pLite;
     PLITE t;
     int i,j;
@@ -33,7 +33,7 @@ void InitializeParticles(PKD pkd,int bExcludeVeryActive) {
     for (i=0;i<pkd->nLocal;++i) {
 	for (j=0;j<3;++j) p[i].r[j] = pkd->pStore[i].r[j];
 	p[i].i = i;
-	p[i].uRung = pkd->pStore[i].iRung;
+	p[i].uRung = pkd->pStore[i].uRung;
 	}
     /*
     **It is only forseen that there are 4 reserved nodes at present 0-NULL, 1-ROOT, 2-UNUSED, 3-VAROOT.
@@ -93,21 +93,25 @@ void InitializeParticles(PKD pkd,int bExcludeVeryActive) {
     pkd->kdNodes[ROOT].iParent = 0;
     pkd->kdNodes[ROOT].pLower = 0;
     pkd->kdNodes[ROOT].pUpper = pkd->nLocal - pkd->nVeryActive - 1;
+    for (j=0;j<3;++j) {
+	pkd->kdNodes[ROOT].bnd.fCenter[j] = pbnd->fCenter[j];
+	pkd->kdNodes[ROOT].bnd.fMax[j] = pbnd->fMax[j];
+	}
     }
 
 #define MIN_SRATIO    0.05
 
 /*
 ** M is the bucket size.
+** This function assumes that the root node is correctly set up (particularly the bounds).
 */
 #define TEMP_S_INCREASE 100
-void BuildTemp(PKD pkd,int iNode,int M,int bSqueeze) {
+void BuildTemp(PKD pkd,int iNode,int M) {
     PLITE *p = pkd->pLite;
     PLITE t;
     FLOAT fSplit,sRatio;
     FLOAT fMin[3],fMax[3];
     FLOAT ls,rs;
-    BND *pbnd;
     int *S;		/* this is the stack */
     int s,ns;
     int iLeft,iRight;
@@ -115,9 +119,7 @@ void BuildTemp(PKD pkd,int iNode,int M,int bSqueeze) {
     int nr,nl;
     int lc,rc;
     int nBucket = 0;
-    int nActive = 0;
 
-    //assert(bSqueeze > 0);
     /*
     ** Allocate stack!
     */
@@ -136,28 +138,7 @@ void BuildTemp(PKD pkd,int iNode,int M,int bSqueeze) {
 	pkd->piInactive = realloc(pkd->piInactive,pkd->nMaxBucketActive*sizeof(PARTICLE *));
 	mdlassert(pkd->mdl,pkd->piInactive != NULL);
 	}
-    /*
-    ** First set up the root node.
-    ** Allocate it, set it's bounds and pointers.
-    ** Also find out how many active particles there are.
-    */
-    i = pkd->kdNodes[iNode].pLower;
-    for (j=0;j<3;++j) {
-	fMin[j] = p[i].r[j];
-	fMax[j] = p[i].r[j];
-	if (pkdIsRungActive(pkd,p[i].uRung)) ++nActive;
-	}
-    for (++i;i<=pkd->kdNodes[iNode].pUpper;++i) {
-	for (j=0;j<3;++j) {
-	    if (p[i].r[j] < fMin[j]) fMin[j] = p[i].r[j];
-	    else if (p[i].r[j] > fMax[j]) fMax[j] = p[i].r[j];
-	    }
-	if (pkdIsRungActive(pkd,p[i].uRung)) ++nActive;
-	}
-    for (j=0;j<3;++j) {
-	pkd->kdNodes[iNode].bnd.fCenter[j] = 0.5*(fMax[j] + fMin[j]);
-	pkd->kdNodes[iNode].bnd.fMax[j] = 0.5*(fMax[j] - fMin[j]);
-	}
+
     if (pkd->kdNodes[iNode].pUpper - pkd->kdNodes[iNode].pLower + 1 <= M)
 	goto DonePart;
 
@@ -167,14 +148,13 @@ void BuildTemp(PKD pkd,int iNode,int M,int bSqueeze) {
 	** Calculate the appropriate fSplit.
 	** Pick longest dimension and split it in half.
 	*/
-	pbnd = &pkd->kdNodes[iNode].bnd;
-	if (pbnd->fMax[0] < pbnd->fMax[1]) {
-	    if (pbnd->fMax[1] < pbnd->fMax[2]) d = 2;
+	if (pkd->kdNodes[iNode].bnd.fMax[0] < pkd->kdNodes[iNode].bnd.fMax[1]) {
+	    if (pkd->kdNodes[iNode].bnd.fMax[1] < pkd->kdNodes[iNode].bnd.fMax[2]) d = 2;
 	    else d = 1;
 	    }
-	else if (pbnd->fMax[0] < pbnd->fMax[2]) d = 2;
+	else if (pkd->kdNodes[iNode].bnd.fMax[0] < pkd->kdNodes[iNode].bnd.fMax[2]) d = 2;
 	else d = 0;
-	fSplit = pbnd->fCenter[d];
+	fSplit = pkd->kdNodes[iNode].bnd.fCenter[d];
 	/*
 	** Now start the partitioning of the particles about
 	** fSplit on dimension given by d.
@@ -223,69 +203,38 @@ void BuildTemp(PKD pkd,int iNode,int M,int bSqueeze) {
 	    pkd->kdNodes[iRight].pLower = i;
 	    pkd->kdNodes[iRight].pUpper = pkd->kdNodes[iNode].pUpper;
 	    pkd->kdNodes[iNode].iLower = iLeft;
-	    if (bSqueeze) {
-		/*
-		** Calculate bounds for these 2 new cells.
-		*/
-		i = pkd->kdNodes[iLeft].pLower;
-		for (j=0;j<3;++j) {
-		    fMin[j] = p[i].r[j];
-		    fMax[j] = p[i].r[j];
+	    /*
+	    ** Now deal with the bounds.
+	    */
+	    for (j=0;j<3;++j) {
+		if (j == d) {
+		    pkd->kdNodes[iRight].bnd.fMax[j] = pkd->kdNodes[iLeft].bnd.fMax[j] = 0.5*pkd->kdNodes[iNode].bnd.fMax[j];
+		    pkd->kdNodes[iLeft].bnd.fCenter[j] = pkd->kdNodes[iNode].bnd.fCenter[j] - pkd->kdNodes[iLeft].bnd.fMax[j];
+		    pkd->kdNodes[iRight].bnd.fCenter[j] = pkd->kdNodes[iNode].bnd.fCenter[j] + pkd->kdNodes[iRight].bnd.fMax[j];
 		    }
-		for (++i;i<=pkd->kdNodes[iLeft].pUpper;++i) {
-		    for (j=0;j<3;++j) {
-			if (p[i].r[j] < fMin[j]) fMin[j] = p[i].r[j];
-			else if (p[i].r[j] > fMax[j]) fMax[j] = p[i].r[j];
-			}
-		    }
-		for (j=0;j<3;++j) {
-		    pkd->kdNodes[iLeft].bnd.fCenter[j] = 0.5*(fMax[j] + fMin[j]);
-		    pkd->kdNodes[iLeft].bnd.fMax[j] = 0.5*(fMax[j] - fMin[j]);
-		    }
-		i = pkd->kdNodes[iRight].pLower;
-		for (j=0;j<3;++j) {
-		    fMin[j] = p[i].r[j];
-		    fMax[j] = p[i].r[j];
-		    }
-		for (++i;i<=pkd->kdNodes[iRight].pUpper;++i) {
-		    for (j=0;j<3;++j) {
-			if (p[i].r[j] < fMin[j]) fMin[j] = p[i].r[j];
-			else if (p[i].r[j] > fMax[j]) fMax[j] = p[i].r[j];
-			}
-		    }
-		for (j=0;j<3;++j) {
-		    pkd->kdNodes[iRight].bnd.fCenter[j] = 0.5*(fMax[j] + fMin[j]);
-		    pkd->kdNodes[iRight].bnd.fMax[j] = 0.5*(fMax[j] - fMin[j]);
-		    }
-		}
-	    else {
-		pkd->kdNodes[iLeft].bnd = pkd->kdNodes[iNode].bnd;
-		pkd->kdNodes[iRight].bnd = pkd->kdNodes[iLeft].bnd;
-		if (d >= 0 && d < 3) {    /* otherwise we have done some other kind of splitting and we don't cut the bounds */
-		    pkd->kdNodes[iLeft].bnd.fMax[d] *= 0.5;
-		    pkd->kdNodes[iLeft].bnd.fCenter[d] -= pkd->kdNodes[iLeft].bnd.fMax[d];
-		    pkd->kdNodes[iRight].bnd.fCenter[d] += pkd->kdNodes[iRight].bnd.fMax[d];
+		else {
+		    pkd->kdNodes[iLeft].bnd.fCenter[j] = pkd->kdNodes[iNode].bnd.fCenter[j];
+		    pkd->kdNodes[iLeft].bnd.fMax[j] = pkd->kdNodes[iNode].bnd.fMax[j];
+		    pkd->kdNodes[iRight].bnd.fCenter[j] = pkd->kdNodes[iNode].bnd.fCenter[j];
+		    pkd->kdNodes[iRight].bnd.fMax[j] = pkd->kdNodes[iNode].bnd.fMax[j];
 		    }
 		}
 	    MAXSIDE(pkd->kdNodes[iLeft].bnd.fMax,ls);
 	    MAXSIDE(pkd->kdNodes[iRight].bnd.fMax,rs);
 	    }
-	else {
+	else if (nl > 0) {
 	    /*
-	    ** No nodes allocated, this can't happen if we
-	    ** are squeezing (or shouldn't).
-	    ** Change the bounds!
+	    ** No nodes allocated, Change the bounds!
 	    */
-	    assert(!bSqueeze);
-	    if (d >= 0 && d < 3) pbnd->fMax[d] *= 0.5;
+	    if (d >= 0 && d < 3) pkd->kdNodes[iNode].bnd.fMax[d] *= 0.5;
 	    if (nl > 0) {
-		if (d >= 0 && d < 3) pbnd->fCenter[d] -= pbnd->fMax[d];
+		if (d >= 0 && d < 3) pkd->kdNodes[iNode].bnd.fCenter[d] -= pkd->kdNodes[iNode].bnd.fMax[d];
 		iLeft = iNode;
 		MAXSIDE(pkd->kdNodes[iLeft].bnd.fMax,ls);
 		rs = 0.0;
 		}
 	    else {
-		if (d >= 0 && d < 3) pbnd->fCenter[d] += pbnd->fMax[d];
+		if (d >= 0 && d < 3) pkd->kdNodes[iNode].bnd.fCenter[d] += pkd->kdNodes[iNode].bnd.fMax[d];
 		iRight = iNode;
 		MAXSIDE(pkd->kdNodes[iRight].bnd.fMax,rs);
 		ls = 0.0;
@@ -294,10 +243,8 @@ void BuildTemp(PKD pkd,int iNode,int M,int bSqueeze) {
 	/*
 	** Now figure out which subfile to process next.
 	*/
-	lc = ((nl > M)||(ls>PKD_MAX_CELL_SIZE));
-	rc = ((nr > M)||(rs>PKD_MAX_CELL_SIZE));
-	MAXSIDE(pkd->kdNodes[iLeft].bnd.fMax,ls);
-	MAXSIDE(pkd->kdNodes[iRight].bnd.fMax,rs);
+	lc = ((nl > M)||((nl > 1)&&(ls>PKD_MAX_CELL_SIZE)));
+	rc = ((nr > M)||((nr > 1)&&(rs>PKD_MAX_CELL_SIZE)));
 
 	if (rc && lc) {
 	    /* Allocate more stack if required */
@@ -394,7 +341,7 @@ void ShuffleParticles(PKD pkd,int iStart) {
     }
 
 
-void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp,int bTempBound) {
+void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp) {
     PARTICLE *p = pkd->pStore;
     KDN *c = pkd->kdNodes;
     KDN *pkdn,*pkdl,*pkdu;
@@ -428,28 +375,6 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp,int bTempBound) {
 	** bounds and iMaxRung.
 	*/
 	pkdn = &c[iNode];
-	if (!bTempBound) {
-	    pj = pkdn->pLower;
-	    for (d=0;d<3;++d) {
-		ft = p[pj].r[d];
-		pkdn->bnd.fCenter[d] = ft;
-		pkdn->bnd.fMax[d] = ft;
-		}
-	    for (++pj;pj<=pkdn->pUpper;++pj) {
-		for (d=0;d<3;++d) {
-		    ft = p[pj].r[d];
-		    if (ft < pkdn->bnd.fCenter[d])
-			pkdn->bnd.fCenter[d] = ft;
-		    else if (ft > pkdn->bnd.fMax[d])
-			pkdn->bnd.fMax[d] = ft;
-		    }
-		}
-	    for (d=0;d<3;++d) {
-		ft = pkdn->bnd.fCenter[d];
-		pkdn->bnd.fCenter[d] = 0.5*(pkdn->bnd.fMax[d] + ft);
-		pkdn->bnd.fMax[d] = 0.5*(pkdn->bnd.fMax[d] - ft);
-		}
-	    }
 	pj = pkdn->pLower;
 	m = pkdMass(pkd,&p[pj]);
 	fSoft = pkdSoft(pkd,&p[pj]);
@@ -464,7 +389,7 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp,int bTempBound) {
 	ax = m*p[pj].a[0];
 	ay = m*p[pj].a[1];
 	az = m*p[pj].a[2];
-	pkdn->uMinRung = pkdn->uMaxRung = p[pj].iRung;
+	pkdn->uMinRung = pkdn->uMaxRung = p[pj].uRung;
 	for (++pj;pj<=pkdn->pUpper;++pj) {
 	    m = pkdMass(pkd,&p[pj]);
 	    fSoft = pkdSoft(pkd,&p[pj]);
@@ -479,8 +404,8 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp,int bTempBound) {
 	    ax += m*p[pj].a[0];
 	    ay += m*p[pj].a[1];
 	    az += m*p[pj].a[2];
-	    if ( p[pj].iRung > pkdn->uMaxRung ) pkdn->uMaxRung = p[pj].iRung;
-	    if ( p[pj].iRung < pkdn->uMinRung ) pkdn->uMinRung = p[pj].iRung;
+	    if ( p[pj].uRung > pkdn->uMaxRung ) pkdn->uMaxRung = p[pj].uRung;
+	    if ( p[pj].uRung < pkdn->uMinRung ) pkdn->uMinRung = p[pj].uRung;
 	    }
 	m = 1/fMass;
 	pkdn->r[0] = m*x;
@@ -539,9 +464,6 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp,int bTempBound) {
 	** Set the timestamp for the node.
 	*/
 	pkdn->dTimeStamp = dTimeStamp;
-#ifdef GASOLINE
-	pkdn->nGas = t[iNode].nGas;
-#endif
 	/*
 	** Finished with the bucket, move onto the next one,
 	** or to the parent.
@@ -561,7 +483,7 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp,int bTempBound) {
 	    pkdn = &c[iNode];
 	    pkdl = &c[pkdn->iLower];
 	    pkdu = &c[pkdn->iLower + 1];
-	    pkdCombineCells(pkdn,pkdl,pkdu,!bTempBound);
+	    pkdCombineCells(pkdn,pkdl,pkdu);
 	    pj = pkdn->pLower;
 	    if (pkdn->pUpper - pj < NMAX_OPENCALC) {
 		x = p[pj].r[0] - pkdn->r[0];
@@ -605,7 +527,7 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp,int bTempBound) {
 
 
 
-void pkdCombineCells(KDN *pkdn,KDN *p1,KDN *p2,int bCombineBound) {
+void pkdCombineCells(KDN *pkdn,KDN *p1,KDN *p2) {
     MOMR mom;
     FLOAT m1,m2,x,y,z,ifMass;
     FLOAT r1[3],r2[3];
@@ -631,7 +553,7 @@ void pkdCombineCells(KDN *pkdn,KDN *p1,KDN *p2,int bCombineBound) {
 	}
     else {
 	/*
-	** Both child cells are tiume synchronous so we don't need to
+	** Both child cells are time synchronous so we don't need to
 	** shift either of them and we can also use the timestamp of either.
 	*/
 	pkdn->dTimeStamp = p1->dTimeStamp;
@@ -664,16 +586,10 @@ void pkdCombineCells(KDN *pkdn,KDN *p1,KDN *p2,int bCombineBound) {
     z = r2[2] - pkdn->r[2];
     momShiftMomr(&mom,x,y,z);
     momAddMomr(&pkdn->mom,&mom);
-    /*
-    ** Combine the bounds!
-    */
-    if (bCombineBound) {
-	BND_COMBINE(pkdn->bnd,p1->bnd,p2->bnd);
-	}
     }
 
 
-void pkdVATreeBuild(PKD pkd,int nBucket,FLOAT diCrit2,int bSqueeze,double dTimeStamp) {
+void pkdVATreeBuild(PKD pkd,int nBucket,FLOAT diCrit2,double dTimeStamp) {
     int i,j,iStart;
 
     iStart = pkd->nLocal - pkd->nVeryActive;
@@ -683,22 +599,22 @@ void pkdVATreeBuild(PKD pkd,int nBucket,FLOAT diCrit2,int bSqueeze,double dTimeS
     for (i=iStart;i<pkd->nLocal;++i) {
 	for (j=0;j<3;++j) pkd->pLite[i].r[j] = pkd->pStore[i].r[j];
 	pkd->pLite[i].i = i;
-	pkd->pLite[i].uRung = pkd->pStore[i].iRung;
+	pkd->pLite[i].uRung = pkd->pStore[i].uRung;
 	}
     /*
     ** Then clear the VA tree by setting the node index back to one node past the end
     ** of the non VA tree.
     */
     pkd->nNodes = pkd->nNonVANodes;
-    BuildTemp(pkd,VAROOT,nBucket,bSqueeze);
+    BuildTemp(pkd,VAROOT,nBucket);
 
     ShuffleParticles(pkd,iStart);
 
-    Create(pkd,VAROOT,diCrit2,dTimeStamp,bSqueeze);
+    Create(pkd,VAROOT,diCrit2,dTimeStamp);
     }
 
 
-void pkdTreeBuild(PKD pkd,int nBucket,FLOAT diCrit2,KDN *pkdn,int bSqueeze,int bExcludeVeryActive,double dTimeStamp) {
+void pkdTreeBuild(PKD pkd,int nBucket,FLOAT diCrit2,KDN *pkdn,int bExcludeVeryActive,double dTimeStamp) {
     int iStart,nNodesEst;
 
     if (pkd->nNodes > 0) {
@@ -715,9 +631,9 @@ void pkdTreeBuild(PKD pkd,int nBucket,FLOAT diCrit2,KDN *pkdn,int bSqueeze,int b
     pkdClearTimer(pkd,0);
     pkdStartTimer(pkd,0);
 
-    InitializeParticles(pkd,bExcludeVeryActive);
+    InitializeParticles(pkd,bExcludeVeryActive,&pkd->bnd);
 
-    BuildTemp(pkd,ROOT,nBucket,bSqueeze);
+    BuildTemp(pkd,ROOT,nBucket);
     if (bExcludeVeryActive) {
 	pkd->nNonVANodes = pkd->nNodes;
 	}
@@ -726,7 +642,7 @@ void pkdTreeBuild(PKD pkd,int nBucket,FLOAT diCrit2,KDN *pkdn,int bSqueeze,int b
 	}
     iStart = 0;
     ShuffleParticles(pkd,iStart);
-    Create(pkd,ROOT,diCrit2,dTimeStamp,bSqueeze);
+    Create(pkd,ROOT,diCrit2,dTimeStamp);
 
     pkdStopTimer(pkd,0);
 #ifdef USE_BSC
@@ -793,88 +709,3 @@ void pkdCalcRoot(PKD pkd,MOMC *pmom) {
 void pkdDistribRoot(PKD pkd,MOMC *pmom) {
     pkd->momRoot = *pmom;
     }
-
-
-#ifdef GASOLINE
-/*
-** Currently we only allow the calculation of bounds-of-balls only in
-** Gasoline, although it could also be needed for collision detection.
-** This is mainly in an attempt to reduce the gravity only part of the
-** code to the bare minimum.
-*/
-void pkdCalcBoundBall(PKD pkd,double fBallFactor,BND *pbnd) {
-    PARTICLE *p = pkd->pStore;
-    KDN *c = pkd->kdNodes;
-    KDN *pkdn,*pkdl,*pkdu;
-    FLOAT ft,fBall;
-    int iNode,pj,d;
-
-    iNode = ROOT;
-    while (1) {
-	while (c[iNode].iLower) iNode = c[iNode].iLower;
-	/*
-	** Now calculate all bucket quantities!
-	*/
-	pkdn = &c[iNode];
-	pj = pkdn->pLower;
-	fBall = fBallFactor*p[pj].fBall;
-	for (d=0;d<3;++d) {
-	    ft = p[pj].r[d];
-	    pkdn->bndBall.fCenter[d] = ft - fBall;
-	    pkdn->bndBall.fMax[d] = ft + fBall;
-	    }
-	for (++pj;pj<=pkdn->pUpper;++pj) {
-	    fBall = fBallFactor*p[pj].fBall;
-	    for (d=0;d<3;++d) {
-		ft = p[pj].r[d];
-		if (ft - fBall < pkdn->bndBall.fCenter[d])
-		    pkdn->bndBall.fCenter[d] = ft - fBall;
-		if (ft + fBall > pkdn->bndBall.fMax[d])
-		    pkdn->bndBall.fMax[d] = ft + fBall;
-		}
-	    }
-	for (d=0;d<3;++d) {
-	    ft = pkdn->bndBall.fCenter[d];
-	    pkdn->bndBall.fCenter[d] = 0.5*(pkdn->bndBall.fMax[d] + ft);
-	    pkdn->bndBall.fMax[d] = 0.5*(pkdn->bndBall.fMax[d] - ft);
-	    }
-	/*
-	** Finished with the bucket, move onto the next one,
-	** or to the parent.
-	*/
-	while (iNode & 1) {
-	    iNode = c[iNode].iParent;
-	    if (!iNode) {
-		*pbnd = pkd->kdNodes[ROOT].bndBall;
-		return;	/* exit point!!! */
-		}
-	    /*
-	    ** Now combine quantities from each of the children (2) of
-	    ** this cell to form the quantities for this cell.
-	    ** First find the CoM, just like for the bucket.
-	    */
-	    pkdn = &c[iNode];
-	    pkdl = &c[pkdn->iLower];
-	    pkdu = &c[pkdn->iLower + 1];
-	    BND_COMBINE(pkdn->bndBall,pkdl->bndBall,pkdu->bndBall);
-	    }
-	++iNode;
-	}
-    }
-
-
-void pkdDistribBoundBall(PKD pkd,int nCell,BND *pbnd) {
-    KDN *c;
-    int i;
-
-    assert(pkd->kdTop != NULL);
-    c = pkd->kdTop;
-    for (i=1;i<nCell;++i) {
-	if (pbnd[i].fMax[0] > 0) {
-	    c[i].bndBall = pbnd[i];
-	    }
-	}
-    }
-
-
-#endif /* of GASOLINE */

@@ -90,19 +90,20 @@ typedef struct pIO {
     } PIO;
 
 #define PKD_MAX_CLASSES 256
+#define MAX_RUNG     63
 
 typedef struct partclass {
-    FLOAT fMass;  /* Particle mass */
-    FLOAT fSoft;  /* Current softening */
-    FLOAT fSoft0; /* Softening from file */
+    double fMass;  /* Particle mass */
+    double fSoft;  /* Current softening */
+    double fSoft0; /* Softening from file */
     } PARTCLASS;
 
 typedef struct particle {
     /*-----Base-Particle-Data----*/
     uint64_t iOrder     : 48;
-    uint8_t  iRung      :  6;
-    uint8_t  iActiveSrc :  1;
-    uint8_t  iActiveDst :  1;
+    uint8_t  uRung      :  6;
+    uint8_t  bSrcActive :  1;
+    uint8_t  bDstActive :  1;
     uint8_t  iClass     :  8;
     double r[3];
     /*-----Used-for-Smooth-------*/
@@ -176,8 +177,8 @@ typedef struct particle {
 	}
 
 typedef struct bndBound {
-    FLOAT fCenter[3];
-    FLOAT fMax[3];
+    double fCenter[3];
+    double fMax[3];
     } BND;
 
 #define MINDIST(bnd,pos,min2) {\
@@ -538,6 +539,7 @@ typedef struct pkdContext {
     int nNodes;
     int nNodesFull;     /* number of nodes in the full tree (including very active particles) */
     int nNonVANodes;    /* number of nodes *not* in Very Active Tree, or index to the start of the VA nodes (except VAROOT) */
+    BND bnd;
     KDN *kdNodes;
     PARTICLE *pStore;
     PARTCLASS *pClass;
@@ -606,12 +608,29 @@ typedef struct pkdContext {
 #endif
     } * PKD;
 
+static inline pkdMinMax( double *dVal, double *dMin, double *dMax ) {
+    dMin[0] = dVal[0] < dMin[0] ? dVal[0] : dMin[0];
+    dMin[1] = dVal[1] < dMin[1] ? dVal[1] : dMin[1];
+    dMin[2] = dVal[2] < dMin[2] ? dVal[2] : dMin[2];
+    dMax[0] = dVal[0] > dMax[0] ? dVal[0] : dMax[0];
+    dMax[1] = dVal[1] > dMax[1] ? dVal[1] : dMax[1];
+    dMax[2] = dVal[2] > dMax[2] ? dVal[2] : dMax[2];
+    }
+
 /* New, rung based ACTIVE/INACTIVE routines */
+static inline int pkdIsDstActive(PARTICLE *p,uint8_t uRungLo,uint8_t uRungHi) {
+    return((p->uRung >= uRungLo)&&(p->uRung <= uRungHi)&&p->bDstActive);
+    }
+
+static inline int pkdIsSrcActive(PARTICLE *p,uint8_t uRungLo,uint8_t uRungHi) {
+    return((p->uRung >= uRungLo)&&(p->uRung <= uRungHi)&&p->bSrcActive);
+    }
+
 static inline int pkdRungVeryActive(PKD pkd) {
     return pkd->uRungVeryActive;
     }
 static inline int pkdIsVeryActive(PKD pkd, PARTICLE *p) {
-    return p->iRung > pkd->uRungVeryActive;
+    return p->uRung > pkd->uRungVeryActive;
     }
 
 static inline int pkdIsRungActive(PKD pkd, uint8_t uRung ) {
@@ -619,7 +638,7 @@ static inline int pkdIsRungActive(PKD pkd, uint8_t uRung ) {
     }
 
 static inline int pkdIsActive(PKD pkd, PARTICLE *p ) {
-    return pkdIsRungActive(pkd,p->iRung);
+    return pkdIsRungActive(pkd,p->uRung);
     }
 
 static inline int pkdIsCellActive(PKD pkd, KDN *c) {
@@ -654,17 +673,12 @@ typedef struct CacheStatistics {
 /*
 ** From tree.c:
 */
-void pkdVATreeBuild(PKD pkd,int nBucket,FLOAT diCrit2,int bSqueeze,double dTimeStamp);
-void pkdTreeBuild(PKD pkd,int nBucket,FLOAT dCrit,KDN *pkdn,int bSqueeze,int bExcludeVeryActive,double dTimeStamp);
-void pkdCombineCells(KDN *pkdn,KDN *p1,KDN *p2,int bCombineBound);
+void pkdVATreeBuild(PKD pkd,int nBucket,FLOAT diCrit2,double dTimeStamp);
+void pkdTreeBuild(PKD pkd,int nBucket,FLOAT dCrit,KDN *pkdn,int bExcludeVeryActive,double dTimeStamp);
+void pkdCombineCells(KDN *pkdn,KDN *p1,KDN *p2);
 void pkdDistribCells(PKD,int,KDN *);
 void pkdCalcRoot(PKD,MOMC *);
 void pkdDistribRoot(PKD,MOMC *);
-
-#ifdef GASOLINE
-void pkdCalcBoundBall(PKD pkd,double fBallFactor,BND *);
-void pkdDistribBoundBall(PKD,int,BND *);
-#endif
 
 #include "parameters.h"
 /*
@@ -691,6 +705,7 @@ void pkdIOInitialize( PKD pkd, int nLocal);
 
 void pkdSetSoft(PKD pkd,double dSoft);
 void pkdCalcBound(PKD,BND *);
+void pkdEnforcePeriodic(PKD,BND *);
 
 #ifdef CHANGESOFT
 void pkdPhysicalSoft(PKD pkd,double dSoftMax,double dFac,int bSoftMaxMul);
@@ -731,9 +746,7 @@ pkdGravAll(PKD pkd,double dTime,int nReps,int bPeriodic,int iOrder,int bEwald,
 	   double *pdPartSum, double *pdCellSum,CASTAT *pcs, double *pdFlop);
 void pkdCalcE(PKD,double *,double *,double *);
 void pkdCalcEandL(PKD,double *,double *,double *,double []);
-void pkdDrift(PKD,double,double,FLOAT *,int,int,FLOAT);
-void pkdDriftInactive(PKD pkd,double dTime,double dDelta,FLOAT fCenter[3],int bPeriodic,
-		      int bFandG, FLOAT fCentMass);
+void pkdDrift(PKD pkd,double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi);
 void pkdStepVeryActiveKDK(PKD pkd, double dStep, double dTime, double dDelta,
 			  int iRung, int iKickRung, int iRungVeryActive,int iAdjust,
 			  double diCrit2,int *pnMaxRung,
@@ -751,20 +764,20 @@ void pkdPredictorInactive(PKD pkd,double dTime);
 void pkdAarsethStep(PKD pkd, double dEta);
 void pkdFirstDt(PKD pkd);
 #endif /* Hermite */
-void pkdKickKDKOpen(PKD pkd,double dTime,double dDelta);
-void pkdKickKDKClose(PKD pkd,double dTime,double dDelta);
-void pkdKick(PKD pkd,double,double, double, double, double, double, int, double, double);
+void pkdKickKDKOpen(PKD pkd,double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi);
+void pkdKickKDKClose(PKD pkd,double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi);
+void pkdKick(PKD pkd,double dvFacOne,double dvFacTwo,uint8_t uRungLo,uint8_t uRungHi);
 void pkdSwapAll(PKD pkd, int idSwap);
 void pkdInitStep(PKD pkd,struct parameters *p,CSM csm);
-void pkdSetRung(PKD pkd, int iRung);
+void pkdSetRung(PKD pkd,uint8_t uRung);
 void pkdBallMax(PKD pkd, int iRung, int bGreater, double ddHonHLimit);
 void pkdActiveRung(PKD pkd, int iRung, int bGreater);
-int pkdCurrRung(PKD pkd, int iRung);
+int pkdCurrRung(PKD pkd,uint8_t uRung);
 void pkdGravStep(PKD pkd, double dEta, double dRhoFac);
 void pkdAccelStep(PKD pkd, double dEta, double dVelFac, double
 		  dAccFac, int bDoGravity, int bEpsAcc, int bSqrtPhi, double dhMinOverSoft);
 void pkdDensityStep(PKD pkd, double dEta, double dRhoFac);
-int pkdDtToRung(PKD pkd,int iRung, double dDelta, int iMaxRung, int bAll, int *nRungCount);
+int pkdDtToRung(PKD pkd,uint8_t uRung, double dDelta, int iMaxRung, int bAll, int *nRungCount);
 void pkdInitDt(PKD pkd, double dDelta);
 int pkdOrdWeight(PKD pkd,uint64_t iOrdSplit,int iSplitSide,int iFrom,int iTo,
 		 int *pnLow,int *pnHigh);

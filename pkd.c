@@ -135,12 +135,12 @@ void pkdStopTimer(PKD pkd,int iTimer) {
 int pkdVerify(PKD pkd) {
     returnWarning(pkd->pStore[-1].iOrder==0x123456789abc);
     returnWarning(pkd->pStore[pkd->nStore].iOrder==0x123456789abc);
-    returnWarning(pkd->pStore[-1].iRung==0x2d);
-    returnWarning(pkd->pStore[pkd->nStore].iRung==0x2d);
-    returnWarning(pkd->pStore[-1].iActiveSrc==0);
-    returnWarning(pkd->pStore[pkd->nStore].iActiveSrc==0);
-    returnWarning(pkd->pStore[-1].iActiveDst==0);
-    returnWarning(pkd->pStore[pkd->nStore].iActiveDst==0);
+    returnWarning(pkd->pStore[-1].uRung==0x2d);
+    returnWarning(pkd->pStore[pkd->nStore].uRung==0x2d);
+    returnWarning(pkd->pStore[-1].bSrcActive==0);
+    returnWarning(pkd->pStore[pkd->nStore].bSrcActive==0);
+    returnWarning(pkd->pStore[-1].bDstActive==0);
+    returnWarning(pkd->pStore[pkd->nStore].bDstActive==0);
     returnWarning(pkd->pStore[-1].iClass==0xdb);
     returnWarning(pkd->pStore[pkd->nStore].iClass==0xdb);
     returnWarning(pkd->pStore[-1].fBall==2.0);
@@ -211,9 +211,9 @@ void pkdInitialize(PKD *ppkd,MDL mdl,int nStore,int nBucket,FLOAT *fPeriod,
     ** The free call MUST take into account the pointer magic.
     */
     pkd->pStore[-1].iOrder     = pkd->pStore[nStore].iOrder     = 0x123456789abc;
-    pkd->pStore[-1].iRung      = pkd->pStore[nStore].iRung      = 0x2d;
-    pkd->pStore[-1].iActiveSrc = pkd->pStore[nStore].iActiveSrc = 0;
-    pkd->pStore[-1].iActiveDst = pkd->pStore[nStore].iActiveDst = 0;
+    pkd->pStore[-1].uRung      = pkd->pStore[nStore].uRung      = 0x2d;
+    pkd->pStore[-1].bSrcActive = pkd->pStore[nStore].bSrcActive = 0;
+    pkd->pStore[-1].bDstActive = pkd->pStore[nStore].bDstActive = 0;
     pkd->pStore[-1].iClass     = pkd->pStore[nStore].iClass     = 0xdb;
     pkd->pStore[-1].fBall      = pkd->pStore[nStore].fBall      = 2.0;
     pkd->pStore[-1].fPot       = pkd->pStore[nStore].fPot       = 4.0;
@@ -631,7 +631,7 @@ void pkdReadTipsy(PKD pkd,char *pszFileName, char *achOutName,uint64_t nStart,in
     */
     for (i=0;i<nLocal;++i) {
 	p = &pkd->pStore[i];
-	p->iRung = 0;
+	p->uRung = 0;
 	p->fDensity = 0.0;
 	p->fBall = 0.0;
 	/*
@@ -813,7 +813,31 @@ void pkdCalcBound(PKD pkd,BND *pbnd) {
 	pbnd->fCenter[j] = 0.5*(fMax[j] + fMin[j]);
 	pbnd->fMax[j] = 0.5*(fMax[j] - fMin[j]);
 	}
+    /*
+    ** Update pkd->bnd here!
+    */
+    pkd->bnd = *pbnd;
     }
+
+
+void pkdEnforcePeriodic(PKD pkd,BND *pbnd) {
+    int i,j;
+
+    for (i=0;i<pkd->nLocal;++i) {
+	for (j=0;j<3;++j) {
+	    if (pkd->pStore[i].r[j] < pbnd->fCenter[j] - pbnd->fMax[j]) pkd->pStore[i].r[j] += 2*pbnd->fMax[j];
+	    else if (pkd->pStore[i].r[j] >= pbnd->fCenter[j] + pbnd->fMax[j]) pkd->pStore[i].r[j] -= 2*pbnd->fMax[j];
+	    /*
+	    ** If it still doesn't lie in the "unit" cell then something has gone quite wrong with the 
+	    ** simulation. Either we have a super fast particle or the initial condition is somehow not conforming
+	    ** to the specified periodic box in a gross way.
+	    */
+	    mdlassert(pkd->mdl,((pkd->pStore[i].r[j] >= pbnd->fCenter[j] - pbnd->fMax[j])&&
+				(pkd->pStore[i].r[j] < pbnd->fCenter[j] + pbnd->fMax[j])));
+	    }
+	}
+    }
+
 
 /*
 ** x, y and z must have range [1,2) !
@@ -1780,133 +1804,47 @@ void pkdCalcEandL(PKD pkd,double *T,double *U,double *Eth,double L[]) {
     }
 
 
-void
-pkdDrift(PKD pkd,double dTime,double dDelta,FLOAT fCenter[3],int bPeriodic,int bFandG,
-	 FLOAT fCentMass) {
-
-    PARTICLE *p;
+/*
+** Drift particles whose Rung falls between uRungLo (large step) and uRungHi (small step) inclusive,
+** and those whose destination activity flag is set.
+**
+** Note that the drift funtion no longer wraps the particles around the periodic "unit" cell. This is
+** now done by Domain Decomposition only.
+*/
+void pkdDrift(PKD pkd,double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi) {
     int i,j,n;
-    int ipt;
-    FLOAT fMass,fSoft;
-    double px,py,pz,pm;
-    double dDeltaM;
+    double dMin[3],dMax[3];
 
     mdlDiag(pkd->mdl, "Into pkdDrift\n");
-
-    if (dTime >= pkd->param.dGrowStartT && dTime < pkd->param.dGrowEndT) {
-	dDeltaM = pkd->param.dGrowDeltaM*dDelta/
-		  (pkd->param.dGrowEndT - pkd->param.dGrowStartT);
-	}
-    else {
-	dDeltaM = 0;
-	}
-
 #ifdef USE_BSC
     MPItrace_event(10000,4);
 #endif
-
-    p = pkd->pStore;
+    for (j=0;j<3;++j) {
+	dMin[j] = pkd->bnd.fCenter[j] - pkd->bnd.fMax[j];
+	dMax[j] = pkd->bnd.fCenter[j] - pkd->bnd.fMax[j];
+	}
     n = pkdLocal(pkd);
     for (i=0;i<n;++i) {
-	fMass = pkdMass(pkd,&p[i]);
-	fSoft = pkdSoft(pkd,&p[i]);
-	/*
-	** Update particle positions
-	*/
-	for (j=0;j<3;++j) {
-	    p[i].r[j] += dDelta*p[i].v[j];
-	    if (bPeriodic) {
-		if (p[i].r[j] >= fCenter[j] + 0.5*pkd->fPeriod[j]) {
-		    p[i].r[j] -= pkd->fPeriod[j];
-		    }
-		if (p[i].r[j] < fCenter[j] - 0.5*pkd->fPeriod[j]) {
-		    p[i].r[j] += pkd->fPeriod[j];
-		    }
+	if (pkdIsDstActive(&pkd->pStore[i],uRungLo,uRungHi)) {
+	    /*
+	    ** Update particle positions
+	    */
+	    for (j=0;j<3;++j) {
+		pkd->pStore[i].r[j] += dDelta*pkd->pStore[i].v[j];
 		}
+	    pkdMinMax(pkd->pStore[i].r,dMin,dMax);
 	    }
 	}
-
+    for (j=0;j<3;++j) {
+	pkd->bnd.fCenter[j] = 0.5*(dMin[j] + dMax[j]);
+	pkd->bnd.fMax[j] = 0.5*(dMax[j] - dMin[j]);
+	}
 #ifdef USE_BSC
     MPItrace_event(10000,0);
 #endif
     mdlDiag(pkd->mdl, "Out of pkdDrift\n");
     }
 
-void
-pkdDriftInactive(PKD pkd,double dTime, double dDelta,FLOAT fCenter[3],int bPeriodic,
-		 int bFandG, FLOAT fCentMass) {
-
-    PARTICLE *p;
-    int i,j,n;
-    int ipt;
-    FLOAT fMass,fSoft;
-    double dDeltaM;
-
-    mdlDiag(pkd->mdl, "Into pkdDriftInactive\n");
-
-    if (dTime >= pkd->param.dGrowStartT && dTime < pkd->param.dGrowEndT) {
-	dDeltaM = pkd->param.dGrowDeltaM*dDelta/
-		  (pkd->param.dGrowEndT - pkd->param.dGrowStartT);
-	}
-    else {
-	dDeltaM = 0;
-	}
-
-    p = pkd->pStore;
-    n = pkdLocal(pkd);
-    for (i=0;i<n;++i) {
-	if (pkdIsActive(pkd,&p[i])) continue;
-	/*
-	** Update particle positions
-	*/
-	for (j=0;j<3;++j) {
-	    p[i].r[j] += dDelta*p[i].v[j];
-	    if (bPeriodic) {
-		if (p[i].r[j] >= fCenter[j] + 0.5*pkd->fPeriod[j]) {
-		    p[i].r[j] -= pkd->fPeriod[j];
-		    }
-		if (p[i].r[j] < fCenter[j] - 0.5*pkd->fPeriod[j]) {
-		    p[i].r[j] += pkd->fPeriod[j];
-		    }
-		}
-	    }
-	}
-    mdlDiag(pkd->mdl, "Out of pkdDriftInactive\n");
-    }
-
-void
-pkdDriftActive(PKD pkd,double dTime,double dDelta) {
-
-    PARTICLE *p;
-    int i,j,n;
-    int ipt;
-    FLOAT fMass, fSoft;
-    double px,py,pz,pm;
-    double dDeltaM;
-
-    mdlDiag(pkd->mdl, "Into pkdDriftActive\n");
-
-    if (dTime >= pkd->param.dGrowStartT && dTime < pkd->param.dGrowEndT) {
-	dDeltaM = pkd->param.dGrowDeltaM*dDelta/
-		  (pkd->param.dGrowEndT - pkd->param.dGrowStartT);
-	}
-    else {
-	dDeltaM = 0;
-	}
-
-    p = pkd->pStore;
-    n = pkdLocal(pkd);
-    for (i=0;i<n;++i) {
-	if (!pkdIsActive(pkd,&p[i])) continue;
-	/*
-	** Update particle positions
-	*/
-	for (j=0;j<3;++j) {
-	    p[i].r[j] += dDelta*p[i].v[j];
-	    }
-	}
-    mdlDiag(pkd->mdl, "Out of pkdDriftActive\n");
-    }
 
 void pkdGravityVeryActive(PKD pkd,double dTime,int bEwald,int nReps,double dStep) {
     int nActive;
@@ -1937,6 +1875,10 @@ pkdStepVeryActiveKDK(PKD pkd, double dStep, double dTime, double dDelta,
     double time1,time2; /* added MZ 1.6.2006 */
 
     if (iAdjust && (iRung < pkd->param.iMaxRung-1)) {
+
+	/*
+	** The following should be replaced with a single call which sets the rungs of all particles.
+	*/
 	pkdActiveRung(pkd, iRung, 1);
 	pkdInitDt(pkd, pkd->param.dDelta);
 	if (pkd->param.bGravStep) {
@@ -1954,6 +1896,7 @@ pkdStepVeryActiveKDK(PKD pkd, double dStep, double dTime, double dDelta,
 	    }
 	*pnMaxRung = pkdDtToRung(pkd,iRung,dDelta,pkd->param.iMaxRung-1, 1, nRungCount);
 
+
 	if (pkd->param.bVDetails) {
 	    printf("%*cAdjust at iRung: %d, nMaxRung:%d nRungCount[%d]=%d\n",
 		   2*iRung+2,' ',iRung,*pnMaxRung,*pnMaxRung,nRungCount[*pnMaxRung]);
@@ -1965,12 +1908,11 @@ pkdStepVeryActiveKDK(PKD pkd, double dStep, double dTime, double dDelta,
 					   time: Kick is taken care of
 					   in master().
 					*/
-	pkdActiveRung(pkd,iRung,0);
 	if (pkd->param.bVDetails) {
 	    printf("%*cVeryActive pkdKickOpen  at iRung: %d, 0.5*dDelta: %g\n",
 		   2*iRung+2,' ',iRung,0.5*dDelta);
 	    }
-	pkdKickKDKOpen(pkd, dTime, 0.5*dDelta);
+	pkdKickKDKOpen(pkd,dTime,0.5*dDelta,iRung,iRung);
 	}
     if (*pnMaxRung > iRung) {
 	/*
@@ -1980,7 +1922,9 @@ pkdStepVeryActiveKDK(PKD pkd, double dStep, double dTime, double dDelta,
 			     diCrit2,pnMaxRung,aSunInact,adSunInact,dSunMass);
 	dStep += 1.0/(2 << iRung);
 	dTime += 0.5*dDelta;
-	pkdActiveRung(pkd,iRung,0);
+
+	pkdActiveRung(pkd,iRung,0);   /* is this needed? */
+
 	pkdStepVeryActiveKDK(pkd,dStep,dTime,0.5*dDelta,iRung+1,iKickRung,iRungVeryActive,1,
 			     diCrit2,pnMaxRung,aSunInact,adSunInact,dSunMass);
 	}
@@ -1989,10 +1933,6 @@ pkdStepVeryActiveKDK(PKD pkd, double dStep, double dTime, double dDelta,
 	    printf("%*cVeryActive Drift at iRung: %d, drifting %d and higher with dDelta: %g\n",
 		   2*iRung+2,' ',iRung,iRungVeryActive+1,dDelta);
 	    }
-	/*
-	** This should drift *all* very actives!
-	*/
-	pkdActiveRung(pkd,iRungVeryActive+1,1);
 	/*
 	** We need to account for cosmological drift factor here!
 	** Normally this is done at the MASTER level in msrDrift.
@@ -2005,8 +1945,10 @@ pkdStepVeryActiveKDK(PKD pkd, double dStep, double dTime, double dDelta,
 	else {
 	    dDriftFac = dDelta;
 	    }
-
-	pkdDriftActive(pkd,dTime,dDriftFac);
+	/*
+	** This should drift *all* very actives!
+	*/
+	pkdDrift(pkd,dTime,dDriftFac,iRungVeryActive+1,MAX_RUNG);
 	dTime += dDelta;
 	dStep += 1.0/(1 << iRung);
 
@@ -2024,7 +1966,7 @@ pkdStepVeryActiveKDK(PKD pkd, double dStep, double dTime, double dDelta,
 	    time1 = Zeit(); /* added MZ 1.6.2006 */
 
 	    pkdActiveRung(pkd,iKickRung,1);
-	    pkdVATreeBuild(pkd,pkd->param.nBucket,diCrit2,0,dTime);
+	    pkdVATreeBuild(pkd,pkd->param.nBucket,diCrit2,dTime);
 	    pkdGravityVeryActive(pkd,dTime,pkd->param.bEwald && pkd->param.bPeriodic,pkd->param.nReplicas,dStep);
 
 #ifdef PLANETS
@@ -2057,12 +1999,11 @@ pkdStepVeryActiveKDK(PKD pkd, double dStep, double dTime, double dDelta,
 						   time: Kick is taken care of
 						   in master().
 						*/
-	pkdActiveRung(pkd,iRung,0);
 	if (pkd->param.bVDetails) {
 	    printf("%*cVeryActive pkdKickClose at iRung: %d, 0.5*dDelta: %g\n",
 		   2*iRung+2,' ',iRung,0.5*dDelta);
 	    }
-	pkdKickKDKClose(pkd,dTime,0.5*dDelta);
+	pkdKickKDKClose(pkd,dTime,0.5*dDelta,iRung,iRung);
 	}
     }
 
@@ -2161,7 +2102,7 @@ pkdStepVeryActiveHermite(PKD pkd, double dStep, double dTime, double dDelta,
 	    time1 = Zeit(); /* added MZ 1.6.2006 */
 
 	    pkdActiveRung(pkd,iKickRung,1);
-	    pkdVATreeBuild(pkd,pkd->param.nBucket,diCrit2,0,dTime);
+	    pkdVATreeBuild(pkd,pkd->param.nBucket,diCrit2,dTime);
 	    pkdGravityVeryActive(pkd,dTime,pkd->param.bEwald && pkd->param.bPeriodic,pkd->param.nReplicas,dStep);
 
 
@@ -2431,7 +2372,7 @@ void pkdFirstDt(PKD pkd) {
 /*
  * Stripped down versions of routines from master.c
  */
-void pkdKickKDKOpen(PKD pkd,double dTime,double dDelta) {
+void pkdKickKDKOpen(PKD pkd,double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi) {
     double H,a;
     double dvFacOne, dvFacTwo;
 
@@ -2451,10 +2392,10 @@ void pkdKickKDKOpen(PKD pkd,double dTime,double dDelta) {
 	dvFacOne = (1.0 - H*dDelta)/(1.0 + H*dDelta);
 	dvFacTwo = dDelta/pow(a,3.0)/(1.0 + H*dDelta);
 	}
-    pkdKick(pkd, dvFacOne, dvFacTwo, 0.0, 0.0, 0.0, 0.0, 0, 0.0, 0.0);
+    pkdKick(pkd, dvFacOne, dvFacTwo,uRungLo,uRungHi);
     }
 
-void pkdKickKDKClose(PKD pkd,double dTime,double dDelta) {
+void pkdKickKDKClose(PKD pkd,double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi) {
     double H,a;
     double dvFacOne, dvFacTwo;
 
@@ -2474,24 +2415,20 @@ void pkdKickKDKClose(PKD pkd,double dTime,double dDelta) {
 	dvFacOne = (1.0 - H*dDelta)/(1.0 + H*dDelta);
 	dvFacTwo = dDelta/pow(a,3.0)/(1.0 + H*dDelta);
 	}
-    pkdKick(pkd, dvFacOne, dvFacTwo, 0.0, 0.0, 0.0, 0.0, 0, 0.0, 0.0);
+    pkdKick(pkd,dvFacOne,dvFacTwo,uRungLo,uRungHi);
     }
 
-void pkdKick(PKD pkd, double dvFacOne, double dvFacTwo, double dvPredFacOne,
-	     double dvPredFacTwo, double duDelta, double duPredDelta, int iGasModel,
-	     double z, double duDotLimit) {
-    PARTICLE *p;
+void pkdKick(PKD pkd,double dvFacOne,double dvFacTwo,uint8_t uRungLo,uint8_t uRungHi) {
     int i,j,n;
 
     pkdClearTimer(pkd,1);
     pkdStartTimer(pkd,1);
 
-    p = pkd->pStore;
     n = pkdLocal(pkd);
-    for (i=0;i<n;++i,++p) {
-	if (pkdIsActive(pkd,p)) {
+    for (i=0;i<n;++i) {
+	if (pkdIsDstActive(&pkd->pStore[i],uRungLo,uRungHi)) {
 	    for (j=0;j<3;++j) {
-		p->v[j] = p->v[j]*dvFacOne + p->a[j]*dvFacTwo;
+		pkd->pStore[i].v[j] = pkd->pStore[i].v[j]*dvFacOne + pkd->pStore[i].a[j]*dvFacTwo;
 		}
 	    }
 	}
@@ -2512,11 +2449,11 @@ void pkdInitStep(PKD pkd, struct parameters *p, CSM csm) {
     }
 
 
-void pkdSetRung(PKD pkd, int iRung) {
+void pkdSetRung(PKD pkd,uint8_t uRung) {
     int i;
 
     for (i=0;i<pkdLocal(pkd);++i) {
-	pkd->pStore[i].iRung = iRung;
+	pkd->pStore[i].uRung = uRung;
 	}
     }
 
@@ -2525,13 +2462,13 @@ void pkdActiveRung(PKD pkd, int iRung, int bGreater) {
     pkd->uMaxRungActive = bGreater ? 255 : iRung;
     }
 
-int pkdCurrRung(PKD pkd, int iRung) {
+int pkdCurrRung(PKD pkd,uint8_t uRung) {
     int i;
     int iCurrent;
 
     iCurrent = 0;
     for (i=0;i<pkdLocal(pkd);++i) {
-	if (pkd->pStore[i].iRung == iRung) {
+	if (pkd->pStore[i].uRung == uRung) {
 	    iCurrent = 1;
 	    break;
 	    }
@@ -2628,14 +2565,14 @@ int pkdNewDtToRung(
     }
 
 
-int pkdDtToRung(PKD pkd,int iRung,double dDelta,int iMaxRung,int bAll,int *nRungCount) {
+int pkdDtToRung(PKD pkd,uint8_t uRung,double dDelta,int iMaxRung,int bAll,int *nRungCount) {
     int i;
     int iTempRung;
     int iSteps;
 
     for (i=0;i<iMaxRung;++i) nRungCount[i] = 0;
     for (i=0;i<pkdLocal(pkd);++i) {
-	if (pkd->pStore[i].iRung >= iRung) {
+	if (pkd->pStore[i].uRung >= uRung) {
 	    mdlassert(pkd->mdl,pkdIsActive(pkd,&(pkd->pStore[i])));
 	    if (bAll) {         /* Assign all rungs at iRung and above */
 		mdlassert(pkd->mdl,pkdSoft(pkd,&pkd->pStore[i]) > 0);
@@ -2645,7 +2582,7 @@ int pkdDtToRung(PKD pkd,int iRung,double dDelta,int iMaxRung,int bAll,int *nRung
 		   to the lower rung. */
 		if (fmod(dDelta,pkd->pStore[i].dt) == 0.0)
 		    iSteps--;
-		iTempRung = iRung;
+		iTempRung = uRung;
 		if (iSteps < 0)
 		    iSteps = 0;
 		while (iSteps) {
@@ -2656,21 +2593,21 @@ int pkdDtToRung(PKD pkd,int iRung,double dDelta,int iMaxRung,int bAll,int *nRung
 		    iTempRung = iMaxRung-1;
 		    /* 		    printf("Maximum Rung %d overshot for particle %"PRIu64"!\n",iMaxRung-1,pkd->pStore[i].iOrder); */
 		    }
-		pkd->pStore[i].iRung = iTempRung;
+		pkd->pStore[i].uRung = iTempRung;
 		}
 	    else {
 		if (dDelta <= pkd->pStore[i].dt) {
-		    pkd->pStore[i].iRung = iRung;
+		    pkd->pStore[i].uRung = uRung;
 		    }
 		else {
-		    pkd->pStore[i].iRung = iRung+1;
+		    pkd->pStore[i].uRung = uRung+1;
 		    }
 		}
 	    }
 	/*
 	** Now produce a count of particles in rungs.
 	*/
-	nRungCount[pkd->pStore[i].iRung] += 1;
+	nRungCount[pkd->pStore[i].uRung] += 1;
 	}
     iTempRung = iMaxRung-1;
     while (nRungCount[iTempRung] == 0 && iTempRung > 0) --iTempRung;
@@ -2787,8 +2724,7 @@ void pkdColNParts(PKD pkd, int *pnNew, int *nDeltaGas, int *nDeltaDark,
     pkd->nLocal = newnLocal;
     }
 
-void
-pkdNewOrder(PKD pkd,int nStart) {
+void pkdNewOrder(PKD pkd,int nStart) {
     int pi;
 
     for (pi=0;pi<pkdLocal(pkd);pi++) {
@@ -2798,8 +2734,7 @@ pkdNewOrder(PKD pkd,int nStart) {
 	}
     }
 
-void
-pkdSetNParts(PKD pkd,int nGas,int nDark,int nStar,int nMaxOrderGas,
+void pkdSetNParts(PKD pkd,int nGas,int nDark,int nStar,int nMaxOrderGas,
 	     int nMaxOrderDark) {
     pkd->nGas = nGas;
     pkd->nDark = nDark;
@@ -2809,8 +2744,7 @@ pkdSetNParts(PKD pkd,int nGas,int nDark,int nStar,int nMaxOrderGas,
     }
 
 
-void
-pkdSetRungVeryActive(PKD pkd, int iRung) {
+void pkdSetRungVeryActive(PKD pkd, int iRung) {
     /* Remember, the first very active particle is at iRungVeryActive + 1 */
     pkd->uRungVeryActive = iRung;
     }
