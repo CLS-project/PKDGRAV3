@@ -197,6 +197,10 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 	    }
 	}
     if (!bVeryActive) {
+	/*
+	** This adds all siblings of a chain leading from the local tree leaf in the top
+	** tree up to the ROOT of the top tree.
+	*/
 	iCell = pkd->iTopRoot;
 	iSib = SIBLING(iCell);
 	while (iSib) {
