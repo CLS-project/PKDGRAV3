@@ -307,7 +307,6 @@ DonePart:
     free(S);
     }
 
-
 /*
 ** If this is called with iStart being the index of the first very active particle
 ** then it reshuffles only the very actives. This is again a bit ugly, but will
@@ -395,6 +394,26 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp) {
 	** bounds and iMaxRung.
 	*/
 	pkdn = &c[iNode];
+	pj = pkdn->pLower;
+	for (d=0;d<3;++d) {
+	    ft = p[pj].r[d];
+	    pkdn->bnd.fCenter[d] = ft;
+	    pkdn->bnd.fMax[d] = ft;
+	    }
+	for (++pj;pj<=pkdn->pUpper;++pj) {
+	    for (d=0;d<3;++d) {
+		ft = p[pj].r[d];
+		if (ft < pkdn->bnd.fCenter[d])
+		    pkdn->bnd.fCenter[d] = ft;
+		else if (ft > pkdn->bnd.fMax[d])
+		    pkdn->bnd.fMax[d] = ft;
+		}
+	    }
+	for (d=0;d<3;++d) {
+	    ft = pkdn->bnd.fCenter[d];
+	    pkdn->bnd.fCenter[d] = 0.5*(pkdn->bnd.fMax[d] + ft);
+	    pkdn->bnd.fMax[d] = 0.5*(pkdn->bnd.fMax[d] - ft);
+	    }
 	pj = pkdn->pLower;
 	m = pkdMass(pkd,&p[pj]);
 	fSoft = pkdSoft(pkd,&p[pj]);
@@ -606,6 +625,7 @@ void pkdCombineCells(KDN *pkdn,KDN *p1,KDN *p2) {
     z = r2[2] - pkdn->r[2];
     momShiftMomr(&mom,x,y,z);
     momAddMomr(&pkdn->mom,&mom);
+    BND_COMBINE(pkdn->bnd,p1->bnd,p2->bnd);
     }
 
 

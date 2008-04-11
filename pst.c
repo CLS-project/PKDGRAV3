@@ -1518,6 +1518,10 @@ void pstDomainDecomp(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	    mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
 	}
     else {
+	printf( "Bounds: %.8f,%.8f,%.8f @ %.8f,%.8f,%.8f \n",
+		pst->bnd.fMax[0], pst->bnd.fMax[1], pst->bnd.fMax[2],
+		pst->bnd.fCenter[0], pst->bnd.fCenter[1], pst->bnd.fCenter[2]
+	    );
 	plcl->pkd->bnd = pst->bnd;   /* This resets the local bounding box, but doesn't squeeze! */
 	}
     if (pnOut) *pnOut = 0;
@@ -2363,16 +2367,6 @@ void pstBuildTree(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	iLower = LOWER(iCell);
 	iNext = UPPER(iCell);
 	pkdCombineCells(&pkdn[iCell],&pkdn[iLower],&pkdn[iNext]);
-	/*
-	** We also need to combine the bounds here. When we have done a domain
-	** decomposition before the tree build, this should result in non-overlapping
-	** bounds. If we have skipped domain decomposition, then the bounds could
-	** overlap somewhat. Technically we could inherit the bounds from the pst
-	** structure in the case that the build is being done right after a domain
-	** decomposition, but this should be equivalent.
-	*/
-	BND_COMBINE(pkdn[iCell].bnd,pkdn[iLower].bnd,pkdn[iNext].bnd);
-
 	CALCOPEN(&pkdn[iCell],in->diCrit2);
 	/*
 	** Set all the pointers and flags.
