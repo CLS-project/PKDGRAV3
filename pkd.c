@@ -494,7 +494,7 @@ void pkdGenerateIC(PKD pkd, GRAFICCTX gctx,  int iDim,
 	for ( j=0; j<n2; j++ ) {
 	    for ( k=0; k<n3; k++ ) {
 		p = &pkd->pStore[pi];
-		p->iRung = 0;
+		p->uRung = 0;
 		p->fDensity = 0.0;
 		p->fBall = 0.0;
 		/*
@@ -540,7 +540,7 @@ void pkdReadHDF5(PKD pkd, IOHDF5 io, double dvFac,
     */
     for (i=0;i<nLocal;++i) {
 	p = &pkd->pStore[i];
-	p->iRung = 0;
+	p->uRung = 0;
 	p->fDensity = 0.0;
 	p->fBall = 0.0;
 	/*
@@ -594,7 +594,7 @@ void pkdIOInitialize( PKD pkd, int nLocal) {
     */
     for (i=0;i<nLocal;++i) {
 	p = &pkd->pStore[i];
-	p->iRung = 0;
+	p->uRung = 0;
 	p->iClass = 0;
 	p->fDensity = 0.0;
 	p->fBall = 0.0;
