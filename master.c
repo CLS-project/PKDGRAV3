@@ -2717,7 +2717,7 @@ void msrMemStatus(MSR msr) {
     printf("Resident (MB):\n");
     PRINTGRID("% 8d",rss);
     printf("Major faults:\n");
-    PRINTGRID("% 8d",cmajflt);
+    PRINTGRID("% 8d",majflt);
 #endif
     }
 
