@@ -988,9 +988,7 @@ void pstHostname(PST,void *,int,void *,int *);
 /* PST_MEMSTATUS */
 struct outMemStatus {
     unsigned long minflt;
-    unsigned long cminflt;
     unsigned long majflt;
-    unsigned long cmajflt;
     unsigned long vsize;
     unsigned long rss;
     };

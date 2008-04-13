@@ -3837,9 +3837,9 @@ void pstMemStatus(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	    for ( i=0; i<= 36 && f; i++ ) {
 		switch (i) {
 		case  9: out[id].minflt = atol(f); break;
-		case 10: out[id].cminflt= atol(f); break;
+		case 10: out[id].minflt+= atol(f); break;
 		case 11: out[id].majflt = atol(f); break;
-		case 12: out[id].cmajflt= atol(f); break;
+		case 12: out[id].majflt+= atol(f); break;
 		case 22:
 		    out[id].vsize  = atol(f)/1024/1024;
 		    break;
