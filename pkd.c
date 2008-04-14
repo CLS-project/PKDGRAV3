@@ -466,7 +466,7 @@ void IOCheck(int nout) {
 
 #ifdef USE_GRAFIC
 void pkdGenerateIC(PKD pkd, GRAFICCTX gctx,  int iDim,
-		   double fSoft, double fMass, int bCannonical) {
+		   double fSoft, double fMass, int bComove) {
     PARTICLE *p;
     int i, j, k, d, pi, n1, n2, n3;
     double dx;
@@ -484,7 +484,7 @@ void pkdGenerateIC(PKD pkd, GRAFICCTX gctx,  int iDim,
     dx = 1.0 / n1;
     d = iDim - 1;
     a = graficGetExpansionFactor(gctx);
-    dvFac = bCannonical ? a*a : 1.0;
+    dvFac = bComove ? a*a : 1.0;
 
     pkd->nClasses = 1;
     pkd->pClass[0].fSoft = pkd->pClass[0].fSoft0 = fSoft;
@@ -958,6 +958,7 @@ void pkdPeanoHilbertCount(PKD pkd) {
     */
     }
 #endif
+
 
 /*
 ** Partition particles between iFrom and iTo into those < fSplit and
@@ -1932,7 +1933,7 @@ pkdStepVeryActiveKDK(PKD pkd, double dStep, double dTime, double dDelta,
 	** Note that for kicks we have written new "master-like" functions
 	** KickOpen and KickClose which do this same job at PKD level.
 	*/
-	if (pkd->param.bCannonical) {
+	if (pkd->param.csm->bComove) {
 	    dDriftFac = csmComoveDriftFac(pkd->param.csm,dTime,dDelta);
 	    }
 	else {
@@ -2069,7 +2070,7 @@ pkdStepVeryActiveHermite(PKD pkd, double dStep, double dTime, double dDelta,
 	** Note that for kicks we have written new "master-like" functions
 	** KickOpen and KickClose which do this same job at PKD level.
 	*/
-	/*if (pkd->param.bCannonical) {
+	/*if (pkd->param.csm->bComove) {
 	    dDriftFac = csmComoveDriftFac(pkd->param.csm,dTime,dDelta);
 	    }
 	else {
@@ -2366,52 +2367,21 @@ void pkdFirstDt(PKD pkd) {
  * Stripped down versions of routines from master.c
  */
 void pkdKickKDKOpen(PKD pkd,double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi) {
-    double H,a;
-    double dvFacOne, dvFacTwo;
-
-    if (pkd->param.bCannonical) {
-	dvFacOne = 1.0;		/* no hubble drag, man! */
-	dvFacTwo = csmComoveKickFac(pkd->param.csm,dTime,dDelta);
-	}
-    else {
-	/*
-	** Careful! For non-cannonical we want H and a at the
-	** HALF-STEP! This is a bit messy but has to be special
-	** cased in some way.
-	*/
-	dTime += dDelta/2.0;
-	a = csmTime2Exp(pkd->param.csm,dTime);
-	H = csmTime2Hub(pkd->param.csm,dTime);
-	dvFacOne = (1.0 - H*dDelta)/(1.0 + H*dDelta);
-	dvFacTwo = dDelta/pow(a,3.0)/(1.0 + H*dDelta);
-	}
-    pkdKick(pkd, dvFacOne, dvFacTwo,uRungLo,uRungHi);
+    if (pkd->param.csm->bComove) {
+	dDelta = csmComoveKickFac(pkd->param.csm,dTime,dDelta);
+    }
+    pkdKick(pkd,dTime,dDelta,uRungLo,uRungHi);
     }
 
 void pkdKickKDKClose(PKD pkd,double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi) {
-    double H,a;
-    double dvFacOne, dvFacTwo;
-
-    if (pkd->param.bCannonical) {
-	dvFacOne = 1.0; /* no hubble drag, man! */
-	dvFacTwo = csmComoveKickFac(pkd->param.csm,dTime,dDelta);
-	}
-    else {
-	/*
-	** Careful! For non-cannonical we want H and a at the
-	** HALF-STEP! This is a bit messy but has to be special
-	** cased in some way.
-	*/
-	dTime += dDelta/2.0;
-	a = csmTime2Exp(pkd->param.csm,dTime);
-	H = csmTime2Hub(pkd->param.csm,dTime);
-	dvFacOne = (1.0 - H*dDelta)/(1.0 + H*dDelta);
-	dvFacTwo = dDelta/pow(a,3.0)/(1.0 + H*dDelta);
-	}
-    pkdKick(pkd,dvFacOne,dvFacTwo,uRungLo,uRungHi);
+    if (pkd->param.csm->bComove) {
+	dDelta = csmComoveKickFac(pkd->param.csm,dTime,dDelta);
+    }
+    pkdKick(pkd,dTime,dDelta,uRungLo,uRungHi);
     }
 
-void pkdKick(PKD pkd,double dvFacOne,double dvFacTwo,uint8_t uRungLo,uint8_t uRungHi) {
+
+void pkdKick(PKD pkd,double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi) {
     int i,j,n;
 
     pkdClearTimer(pkd,1);
@@ -2421,7 +2391,7 @@ void pkdKick(PKD pkd,double dvFacOne,double dvFacTwo,uint8_t uRungLo,uint8_t uRu
     for (i=0;i<n;++i) {
 	if (pkdIsDstActive(&pkd->pStore[i],uRungLo,uRungHi)) {
 	    for (j=0;j<3;++j) {
-		pkd->pStore[i].v[j] = pkd->pStore[i].v[j]*dvFacOne + pkd->pStore[i].a[j]*dvFacTwo;
+		pkd->pStore[i].v[j] += pkd->pStore[i].a[j]*dDelta;
 		}
 	    }
 	}

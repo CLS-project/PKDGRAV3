@@ -176,9 +176,6 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.bParaWrite = 1;
     prmAddParam(msr->prm,"bParaWrite",0,&msr->param.bParaWrite,sizeof(int),"paw",
 		"enable/disable parallel writing of files = +paw");
-    msr->param.bCannonical = 1;
-    prmAddParam(msr->prm,"bCannonical",0,&msr->param.bCannonical,sizeof(int),"can",
-		"enable/disable use of cannonical momentum = +can");
     msr->param.bDoDensity = 1;
     prmAddParam(msr->prm,"bDoDensity",0,&msr->param.bDoDensity,sizeof(int),
 		"den","enable/disable density outputs = +den");
@@ -415,9 +412,6 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     prmAddParam(msr->prm,"iWallRunTime",1,&msr->param.iWallRunTime,
 		sizeof(int),"wall",
 		"<Maximum Wallclock time (in minutes) to run> = 0 = infinite");
-    msr->param.bAntiGrav = 0;
-    prmAddParam(msr->prm,"bAntiGrav",0,&msr->param.bAntiGrav,sizeof(int),"antigrav",
-		"reverse gravity making it repulsive = -antigrav");
     msr->param.nFindGroups = 0;
     prmAddParam(msr->prm,"nFindGroups",1,&msr->param.nFindGroups,sizeof(int),
 		"nFindGroups","<number of iterative FOFs> = 0");
@@ -621,14 +615,6 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
 	}
 
     /*
-    ** Always set bCannonical = 1 if bComove == 0
-    */
-    if (!msr->param.csm->bComove) {
-	if (!msr->param.bCannonical)
-	    printf("WARNING: bCannonical reset to 1 for non-comoving (bComove == 0)\n");
-	msr->param.bCannonical = 1;
-	}
-    /*
      * Softening
      */
 
@@ -825,7 +811,6 @@ void msrLogParams(MSR msr,FILE *fp) {
     fprintf(fp," bComove: %d",msr->param.csm->bComove);
     fprintf(fp,"\n# bParaRead: %d",msr->param.bParaRead);
     fprintf(fp," bParaWrite: %d",msr->param.bParaWrite);
-    fprintf(fp," bCannonical: %d",msr->param.bCannonical);
     fprintf(fp," bStandard: %d",msr->param.bStandard);
     fprintf(fp," bHDF5: %d",msr->param.bHDF5);
     fprintf(fp," nBucket: %d",msr->param.nBucket);
@@ -1327,7 +1312,7 @@ double getTime(MSR msr, double dExpansion, double *dvFac) {
 		printf("Simulation to Time:%g Redshift:%g Expansion factor:%g\n",
 		       tTo,1.0/aTo-1.0,aTo);
 	    }
-	if (msr->param.bCannonical) {
+	if (msr->param.csm->bComove) {
 	    *dvFac = dExpansion*dExpansion;
 	    }
 	else {
@@ -1568,7 +1553,7 @@ double msrGenerateIC(MSR msr) {
     in.omegac= msr->param.csm->dOmega0 - msr->param.csm->dOmegab;
     in.omegab= msr->param.csm->dOmegab;
     in.omegav= msr->param.csm->dLambda;
-    in.bCannonical = msr->param.bCannonical && msr->param.csm->bComove;
+    in.bComove = msr->param.csm->bComove;
     in.fExtraStore = msr->param.dExtraStore;
     in.fPeriod[0] = msr->param.dxPeriod;
     in.fPeriod[1] = msr->param.dyPeriod;
@@ -1758,7 +1743,7 @@ static double _msrReadTipsy(MSR msr, const char *achFilename) {
 		printf("Simulation to Time:%g Redshift:%g Expansion factor:%g\n",
 		       tTo,1.0/aTo-1.0,aTo);
 	    }
-	if (msr->param.bCannonical) {
+	if (msr->param.csm->bComove) {
 	    in.dvFac = dExpansion*dExpansion;
 	    }
 	else {
@@ -1829,12 +1814,7 @@ void msrIOWrite(MSR msr, const char *achOutName, double dTime, int bCheckpoint) 
 
     if (msr->param.csm->bComove) {
 	dExp = csmTime2Exp(msr->param.csm,dTime);
-	if (msr->param.bCannonical) {
-	    dvFac = 1.0/(dExp*dExp);
-	    }
-	else {
-	    dvFac = 1.0;
-	    }
+	dvFac = 1.0/(dExp*dExp);
 	}
     else {
 	dExp = dTime;
@@ -1903,7 +1883,6 @@ void msrSaveParameters(MSR msr, IOHDF5 io) {
     ioHDF5WriteAttribute( io, "bPeriodic", H5T_NATIVE_INT, &msr->param.bPeriodic );
     ioHDF5WriteAttribute( io, "bParaRead", H5T_NATIVE_INT, &msr->param.bParaRead );
     ioHDF5WriteAttribute( io, "bParaWrite", H5T_NATIVE_INT, &msr->param.bParaWrite );
-    ioHDF5WriteAttribute( io, "bCannonical", H5T_NATIVE_INT, &msr->param.bCannonical );
     ioHDF5WriteAttribute( io, "bStandard", H5T_NATIVE_INT, &msr->param.bStandard );
     ioHDF5WriteAttribute( io, "bDoublePos", H5T_NATIVE_INT, &msr->param.bDoublePos );
     ioHDF5WriteAttribute( io, "bGravStep", H5T_NATIVE_INT, &msr->param.bGravStep );
@@ -1920,7 +1899,6 @@ void msrSaveParameters(MSR msr, IOHDF5 io) {
 #endif
     ioHDF5WriteAttribute( io, "bDoRungOutput", H5T_NATIVE_INT, &msr->param.bDoRungOutput );
     ioHDF5WriteAttribute( io, "bDoGravity", H5T_NATIVE_INT, &msr->param.bDoGravity );
-    ioHDF5WriteAttribute( io, "bAntiGrav", H5T_NATIVE_INT, &msr->param.bAntiGrav );
     ioHDF5WriteAttribute( io, "nBucket", H5T_NATIVE_INT, &msr->param.nBucket );
     ioHDF5WriteAttribute( io, "iOutInterval", H5T_NATIVE_INT, &msr->param.iOutInterval );
     ioHDF5WriteAttribute( io, "iCheckInterval", H5T_NATIVE_INT, &msr->param.iCheckInterval );
@@ -2123,12 +2101,7 @@ void _msrWriteTipsy(MSR msr,char *pszFileName,double dTime,int bCheckpoint) {
     h.nstar = msr->nStar;
     if (msr->param.csm->bComove) {
 	in.dTime = csmTime2Exp(msr->param.csm,dTime);
-	if (msr->param.bCannonical) {
-	    in.dvFac = 1.0/(in.dTime*in.dTime);
-	    }
-	else {
-	    in.dvFac = 1.0;
-	    }
+	in.dvFac = 1.0/(in.dTime*in.dTime);
 	}
     else {
 	in.dTime = dTime;
@@ -2787,7 +2760,7 @@ void msrCalcEandL(MSR msr,int bFirst,double dTime,double *E,double *T,
     ** Currently L is not adjusted for this. Should it be?
     */
     a = csmTime2Exp(msr->param.csm,dTime);
-    if (!msr->param.bCannonical) *T *= pow(a,4.0);
+    if (!msr->param.csm->bComove) *T *= pow(a,4.0);
     /*
      * Estimate integral (\dot a*U*dt) over the interval.
      * Note that this is equal to integral (W*da) and the latter
@@ -2812,7 +2785,7 @@ void msrDrift(MSR msr,double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi
     int j;
 
     in.dTime = dTime;
-    if (msr->param.bCannonical) {
+    if (msr->param.csm->bComove) {
 	in.dDelta = csmComoveDriftFac(msr->param.csm,dTime,dDelta);
 	}
     else {
@@ -2827,29 +2800,16 @@ void msrDrift(MSR msr,double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi
  * For gasoline, updates predicted velocities to beginning of timestep.
  */
 void msrKickKDKOpen(MSR msr,double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi) {
-    double H,a;
     struct inKick in;
     struct outKick out;
 
-    if (msr->param.bCannonical) {
-	in.dvFacOne = 1.0;		/* no hubble drag, man! */
-	in.dvFacTwo = csmComoveKickFac(msr->param.csm,dTime,dDelta);
-	}
+    in.dTime = dTime;
+    if (msr->param.csm->bComove) {
+	in.dDelta = csmComoveKickFac(msr->param.csm,dTime,dDelta);
+    }
     else {
-	/*
-	** Careful! For non-cannonical we want H and a at the
-	** HALF-STEP! This is a bit messy but has to be special
-	** cased in some way.
-	*/
-	dTime += dDelta/2.0;
-	a = csmTime2Exp(msr->param.csm,dTime);
-	H = csmTime2Hub(msr->param.csm,dTime);
-	in.dvFacOne = (1.0 - H*dDelta)/(1.0 + H*dDelta);
-	in.dvFacTwo = dDelta/pow(a,3.0)/(1.0 + H*dDelta);
-	}
-    if (msr->param.bAntiGrav) {
-	in.dvFacTwo = -in.dvFacTwo;
-	}
+	in.dDelta = dDelta;
+    }
     in.uRungLo = uRungLo;
     in.uRungHi = uRungHi;
     pstKick(msr->pst,&in,sizeof(in),&out,NULL);
@@ -2861,29 +2821,16 @@ void msrKickKDKOpen(MSR msr,double dTime,double dDelta,uint8_t uRungLo,uint8_t u
  * For gasoline, updates predicted velocities to end of timestep.
  */
 void msrKickKDKClose(MSR msr,double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi) {
-    double H,a;
     struct inKick in;
     struct outKick out;
 
-    if (msr->param.bCannonical) {
-	in.dvFacOne = 1.0; /* no hubble drag, man! */
-	in.dvFacTwo = csmComoveKickFac(msr->param.csm,dTime,dDelta);
-	}
+    in.dTime = dTime;
+    if (msr->param.csm->bComove) {
+	in.dDelta = csmComoveKickFac(msr->param.csm,dTime,dDelta);
+    }
     else {
-	/*
-	** Careful! For non-cannonical we want H and a at the
-	** HALF-STEP! This is a bit messy but has to be special
-	** cased in some way.
-	*/
-	dTime += dDelta/2.0;
-	a = csmTime2Exp(msr->param.csm,dTime);
-	H = csmTime2Hub(msr->param.csm,dTime);
-	in.dvFacOne = (1.0 - H*dDelta)/(1.0 + H*dDelta);
-	in.dvFacTwo = dDelta/pow(a,3.0)/(1.0 + H*dDelta);
-	}
-    if (msr->param.bAntiGrav) {
-	in.dvFacTwo = -in.dvFacTwo;
-	}
+	in.dDelta = dDelta;
+    }
     in.uRungLo = uRungLo;
     in.uRungHi = uRungHi;
     pstKick(msr->pst,&in,sizeof(in),&out,NULL);
@@ -3205,7 +3152,7 @@ msrAccelStep(MSR msr,double dTime) {
 
     in.dEta = msrEta(msr);
     a = csmTime2Exp(msr->param.csm,dTime);
-    if (msr->param.bCannonical) {
+    if (msr->param.csm->bComove) {
 	in.dVelFac = 1.0/(a*a);
 	}
     else {
@@ -4101,7 +4048,7 @@ void msrOutGroups(MSR msr,char *pszFile,int iOutType, double dTime) {
 	}
     if (msrComove(msr)) {
 	time = csmTime2Exp(msr->param.csm,dTime);
-	if (msr->param.bCannonical) {
+	if (msr->param.csm->bComove) {
 	    dvFac = 1.0/(time*time);
 	    }
 	else {

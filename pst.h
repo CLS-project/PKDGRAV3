@@ -551,8 +551,8 @@ void pstFirstDt(PST,void *,int,void *,int *);
 
 /* PST_KICK */
 struct inKick {
-    double dvFacOne;
-    double dvFacTwo;
+    double dTime;
+    double dDelta;
     uint8_t uRungLo;
     uint8_t uRungHi;
     };
@@ -951,7 +951,7 @@ struct inGenerateIC {
     int iSeed;
     int nGrid;
     int nBucket;
-    int bCannonical;
+    int bComove;
     float fExtraStore;
     FLOAT fPeriod[3];
     };

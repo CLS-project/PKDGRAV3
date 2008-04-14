@@ -712,7 +712,6 @@ void pkdPhysicalSoft(PKD pkd,double dSoftMax,double dFac,int bSoftMaxMul);
 #endif
 
 void pkdBucketWeight(PKD pkd,int iBucket,FLOAT fWeight);
-void pkdGasWeight(PKD);
 int pkdWeight(PKD,int,FLOAT,int,int,int,int *,int *,FLOAT *,FLOAT *);
 void pkdCountVA(PKD,int,FLOAT,int *,int *);
 int pkdLowerPart(PKD,int,FLOAT,int,int);
@@ -766,11 +765,10 @@ void pkdFirstDt(PKD pkd);
 #endif /* Hermite */
 void pkdKickKDKOpen(PKD pkd,double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi);
 void pkdKickKDKClose(PKD pkd,double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi);
-void pkdKick(PKD pkd,double dvFacOne,double dvFacTwo,uint8_t uRungLo,uint8_t uRungHi);
+void pkdKick(PKD pkd,double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi);
 void pkdSwapAll(PKD pkd, int idSwap);
 void pkdInitStep(PKD pkd,struct parameters *p,CSM csm);
 void pkdSetRung(PKD pkd,uint8_t uRung);
-void pkdBallMax(PKD pkd, int iRung, int bGreater, double ddHonHLimit);
 void pkdActiveRung(PKD pkd, int iRung, int bGreater);
 int pkdCurrRung(PKD pkd,uint8_t uRung);
 void pkdGravStep(PKD pkd, double dEta, double dRhoFac);

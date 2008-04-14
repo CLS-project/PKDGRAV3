@@ -33,7 +33,6 @@ struct parameters {
     int bPeriodic;
     int bParaRead;
     int bParaWrite;
-    int bCannonical;
     int bStandard;
     int bHDF5;
     int bDoublePos;
@@ -56,7 +55,6 @@ struct parameters {
     int bHermite;
     int bAarsethStep;
 #endif
-    int bAntiGrav;
     int nBucket;
     int iOutInterval;
     int iCheckInterval;

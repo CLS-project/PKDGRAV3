@@ -2863,7 +2863,7 @@ void pstKick(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	if (outUp.MaxTime > out->MaxTime) out->MaxTime = outUp.MaxTime;
 	}
     else {
-	pkdKick(plcl->pkd,in->dvFacOne,in->dvFacTwo,in->uRungLo,in->uRungHi);
+	pkdKick(plcl->pkd,in->dTime,in->dDelta,in->uRungLo,in->uRungHi);
 	assert(pkdVerify(plcl->pkd));
 	out->Time = pkdGetTimer(plcl->pkd,1);
 	out->MaxTime = out->Time;
@@ -3671,7 +3671,7 @@ void pstGenerateIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 
 	for ( d=1; d<=3; d++ ) {
 	    pkdGenerateIC( plcl->pkd, gctx, d,
-			   fSoft, fMass, in->bCannonical );
+			   fSoft, fMass, in->bComove );
 	    }
 	graficFinish(gctx);
 	}
