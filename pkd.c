@@ -1814,7 +1814,7 @@ void pkdDrift(PKD pkd,double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi
 #endif
     for (j=0;j<3;++j) {
 	dMin[j] = pkd->bnd.fCenter[j] - pkd->bnd.fMax[j];
-	dMax[j] = pkd->bnd.fCenter[j] - pkd->bnd.fMax[j];
+	dMax[j] = pkd->bnd.fCenter[j] + pkd->bnd.fMax[j];
 	}
     n = pkdLocal(pkd);
     for (i=0;i<n;++i) {
