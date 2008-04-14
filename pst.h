@@ -82,8 +82,6 @@ enum pst_service {
     PST_WRITETIPSY,
     PST_BUILDTREE,
     PST_DISTRIBCELLS,
-    PST_CALCBOUNDBALL,
-    PST_DISTRIBBOUNDBALL,
     PST_CALCROOT,
     PST_DISTRIBROOT,
     PST_ENFORCEPERIODIC,
@@ -390,19 +388,6 @@ void pstBuildTree(PST,void *,int,void *,int *);
 
 /* PST_DISTRIBCELLS */
 void pstDistribCells(PST,void *,int,void *,int *);
-
-#ifdef GASOLINE
-/* PST_CALCBOUNDBALL */
-struct inCalcBoundBall {
-    double fBallFactor;
-    int iCell;
-    int nCell;
-    };
-void pstCalcBoundBall(PST,void *,int,void *,int *);
-
-/* PST_DISTRIBBOUNDBALL */
-void pstDistribBoundBall(PST,void *,int,void *,int *);
-#endif /* of GASOLINE */
 
 /* PST_CALCROOT */
 struct ioCalcRoot {

@@ -61,8 +61,6 @@
 **  WriteTipsy            Yes     -      |
 **  BuildTree             Yes     Many   | Multiple cells
 **  DistribCells          Many    -      | Multiple cells
-**  CalcBoundBall         Yes     Many   | Multiple cells
-**  DistribBoundBall      Many    -      | Sends multiple cells
 **  CalcRoot              -       Yes    |
 **  DistribRoot           Bcast   -      |
 **  EnforcePeriodic       Bcast   -      |
@@ -213,14 +211,6 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_DISTRIBCELLS,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstDistribCells,
 		  nCell*sizeof(KDN),0);
-#ifdef GASOLINE
-    mdlAddService(mdl,PST_CALCBOUNDBALL,pst,
-		  (void (*)(void *,void *,int,void *,int *)) pstCalcBoundBall,
-		  sizeof(struct inCalcBoundBall),nCell*sizeof(BND));
-    mdlAddService(mdl,PST_DISTRIBBOUNDBALL,pst,
-		  (void (*)(void *,void *,int,void *,int *)) pstDistribBoundBall,
-		  nCell*sizeof(BND),0);
-#endif
     mdlAddService(mdl,PST_CALCROOT,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstCalcRoot,
 		  0,sizeof(struct ioCalcRoot));
@@ -1519,7 +1509,8 @@ void pstDomainDecomp(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	/*
 	** We always set plcl->pkd->bnd from pst->bnd.
 	*/
-/*	printf( "Bounds: %.8f,%.8f,%.8f @ %.8f,%.8f,%.8f \n",
+/*	printf( "%d: Bounds: %.8f,%.8f,%.8f @ %.8f,%.8f,%.8f \n",
+		mdlSelf(pst->mdl),
 		pst->bnd.fMax[0], pst->bnd.fMax[1], pst->bnd.fMax[2],
 		pst->bnd.fCenter[0], pst->bnd.fCenter[1], pst->bnd.fCenter[2]
 		);*/
@@ -2412,72 +2403,6 @@ void pstDistribCells(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	}
     if (pnOut) *pnOut = 0;
     }
-
-
-#ifdef GASOLINE
-void pstCalcBoundBall(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
-    LCL *plcl = pst->plcl;
-    struct inCalcBoundBall *in = vin;
-    BND *pbnd = vout;
-    BND *ptmp;
-    int i,iCell,iLower,iNext;
-
-    mdlassert(pst->mdl,nIn == sizeof(struct inCalcBoundBall));
-    iCell = in->iCell;
-    if (pst->nLeaves > 1) {
-	in->iCell = UPPER(iCell);
-	mdlReqService(pst->mdl,pst->idUpper,PST_CALCBOUNDBALL,in,nIn);
-	in->iCell = LOWER(iCell);
-	pstCalcBoundBall(pst->pstLower,in,nIn,vout,pnOut);
-	in->iCell = iCell;
-	ptmp = malloc(in->nCell*sizeof(BND));
-	mdlassert(pst->mdl,ptmp != NULL);
-	mdlGetReply(pst->mdl,pst->idUpper,ptmp,pnOut);
-	for (i=1;i<in->nCell;++i) {
-	    if (ptmp[i].fMax[0] > 0) {
-		pbnd[i] = ptmp[i];
-		}
-	    }
-	free(ptmp);
-	/*
-	** Combine the ball bounds.
-	*/
-	iLower = LOWER(iCell);
-	iNext = UPPER(iCell);
-	BND_COMBINE(pbnd[iCell],pbnd[iLower],pbnd[iNext]);
-	}
-    else {
-	for (i=1;i<in->nCell;++i) pbnd[i].fMax[0] = 0; /* used flag = unused */
-	/*
-	** Passing a null bounds pointer forces pkdTreeBuild to
-	** compute the bounds of the root cell before starting.
-	*/
-	pkdCalcBoundBall(plcl->pkd,in->fBallFactor,&pbnd[iCell]);
-	}
-    /*
-    ** Calculated all cell properties, now pass up this cell info.
-    */
-    if (pnOut) *pnOut = in->nCell*sizeof(BND);
-    }
-
-
-void pstDistribBoundBall(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
-    LCL *plcl = pst->plcl;
-    BND *pbnd = vin;
-    int nCell;
-
-    if (pst->nLeaves > 1) {
-	mdlReqService(pst->mdl,pst->idUpper,PST_DISTRIBBOUNDBALL,vin,nIn);
-	pstDistribBoundBall(pst->pstLower,vin,nIn,NULL,NULL);
-	mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
-	}
-    else {
-	nCell = nIn/sizeof(BND);
-	pkdDistribBoundBall(plcl->pkd,nCell,pbnd);
-	}
-    if (pnOut) *pnOut = 0;
-    }
-#endif /* of GASOLINE */
 
 void pstCalcRoot(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;

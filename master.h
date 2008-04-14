@@ -90,11 +90,6 @@ void msrDomainDecomp(MSR,int iRung,int bGreater,int bSplitVA);
 void msrBuildTree(MSR msr,double dTime,int bNeedEwald);
 void msrBuildTreeExcludeVeryActive(MSR msr,double dTime);
 void msrCalcBound(MSR msr,BND *pbnd);
-
-#ifdef GASOLINE
-void msrCalcBallBound(MSR,double fBallFactor);
-#endif
-
 void msrDomainColor(MSR);
 void msrReorder(MSR);
 void msrOutArray(MSR,char *,int);
