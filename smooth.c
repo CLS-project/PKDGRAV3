@@ -1303,12 +1303,18 @@ void smFof(SMX smx,int nFOFsDone,SMF *smf) {
 	mdlROcache(mdl,CID_BIN,pkd->groupBin,sizeof(FOFBIN),pkd->nBins);
 	if (pkd->idSelf != 0) {
 	    for (i=0; i< pkd->nBins; i++) {
+
 		bin = mdlAquire(mdl,CID_BIN,i,0);
-		mdlRelease(mdl,CID_BIN,bin);
 		pkd->groupBin[i] = *bin;
+		mdlRelease(mdl,CID_BIN,bin);
+
 		}
 	    }
 	mdlFinishCache(mdl,CID_BIN);
+
+	/*
+	** Why based on nTree here? We should activate certain particles.
+	*/
 	for (pn=0;pn<nTree;pn++) {
 	    fMass = pkdMass(pkd,&p[pn]);
 	    if ( p[pn].pBin >= 0 ) {
@@ -1437,6 +1443,11 @@ void smFof(SMX smx,int nFOFsDone,SMF *smf) {
 			}
 		    rm[iRmIndex].iIndex = smx->nnList[pnn].iIndex ;
 		    rm[iRmIndex].iPid = smx->nnList[pnn].iPid;
+		    /*
+		    ** This does a quicksort for every newly added remote member. This is not very 
+		    ** elegant and should be rewritten. The better way to handle this is to use a hash table
+		    ** or at the very least a heap structure, so that this test is at most O(log N).
+		    */
 		    if (bsearch (rm+iRmIndex,rm+iRmIndex-nRmCnt,nRmCnt, sizeof(FOFRM),CmpRMs) == NULL ) {
 			nRmCnt++;
 			iRmIndex++;
