@@ -2206,34 +2206,6 @@ void msrDomainDecomp(MSR msr,int iRung,int bGreater,int bSplitVA) {
 
     in.bDoRootFind = 1;
     in.bDoSplitDimFind = 1;
-    in.nBndWrap[0] = 0;
-    in.nBndWrap[1] = 0;
-    in.nBndWrap[2] = 0;
-
-    /*
-    ** If we are dealing with a nice periodic volume in all
-    ** three dimensions then we can set the initial bounds
-    ** instead of calculating them.
-    */
-    if (msr->param.bPeriodic &&
-	    msr->param.dxPeriod < FLOAT_MAXVAL &&
-	    msr->param.dyPeriod < FLOAT_MAXVAL &&
-	    msr->param.dzPeriod < FLOAT_MAXVAL) {
-	for (j=0;j<3;++j) {
-	    in.bnd.fCenter[j] = msr->fCenter[j];
-	    }
-	in.bnd.fMax[0] = 0.5*msr->param.dxPeriod;
-	in.bnd.fMax[1] = 0.5*msr->param.dyPeriod;
-	in.bnd.fMax[2] = 0.5*msr->param.dzPeriod;
-
-	pstEnforcePeriodic(msr->pst,&in.bnd,sizeof(BND),NULL,NULL);
-	}
-    else {
-	pstCombineBound(msr->pst,NULL,0,&in.bnd,NULL);
-	for (j=1;j<3;++j) {
-	    in.bnd.fMax[0] = (in.bnd.fMax[j] > in.bnd.fMax[0])?in.bnd.fMax[j]:in.bnd.fMax[0];
-	    }
-	}
 
     /*
     ** All of this could be calculated once for the case that the number
@@ -2317,6 +2289,32 @@ void msrDomainDecomp(MSR msr,int iRung,int bGreater,int bSplitVA) {
     in.nActive = msr->nActive;
     in.nTotal = msr->N;
 
+    in.nBndWrap[0] = 0;
+    in.nBndWrap[1] = 0;
+    in.nBndWrap[2] = 0;
+
+    /*
+    ** If we are dealing with a nice periodic volume in all
+    ** three dimensions then we can set the initial bounds
+    ** instead of calculating them.
+    */
+    if (msr->param.bPeriodic &&
+	    msr->param.dxPeriod < FLOAT_MAXVAL &&
+	    msr->param.dyPeriod < FLOAT_MAXVAL &&
+	    msr->param.dzPeriod < FLOAT_MAXVAL) {
+	for (j=0;j<3;++j) {
+	    in.bnd.fCenter[j] = msr->fCenter[j];
+	    }
+	in.bnd.fMax[0] = 0.5*msr->param.dxPeriod;
+	in.bnd.fMax[1] = 0.5*msr->param.dyPeriod;
+	in.bnd.fMax[2] = 0.5*msr->param.dzPeriod;
+
+	pstEnforcePeriodic(msr->pst,&in.bnd,sizeof(BND),NULL,NULL);
+	}
+    else {
+	pstCombineBound(msr->pst,NULL,0,&in.bnd,NULL);
+	}
+
 #ifdef USE_BSC
     MPItrace_event(10000, 2 );
 #endif
@@ -2393,25 +2391,6 @@ void msrBuildTreeExcludeVeryActive(MSR msr,double dTime) {
     const int bExcludeVeryActive = 1;
     _BuildTree(msr,dTime,bExcludeVeryActive,bNeedEwald);
     }
-
-
-#ifdef GASOLINE
-void msrCalcBoundBall(MSR msr,double fBallFactor) {
-    struct inCalcBoundBall in;
-    BND *pbnd;
-    int iDum,nCell;
-
-    in.fBallFactor = fBallFactor;
-    nCell = 1<<(1+(int)ceil(log((double)msr->nThreads)/log(2.0)));
-    pbnd = malloc(nCell*sizeof(BND));
-    assert(pbnd != NULL);
-    in.iCell = ROOT;
-    in.nCell = nCell;
-    pstCalcBoundBall(msr->pst,&in,sizeof(in),pbnd,&iDum);
-    pstDistribBoundBall(msr->pst,pbnd,nCell*sizeof(BND),NULL,NULL);
-    free(pbnd);
-    }
-#endif
 
 void msrReorder(MSR msr) {
     struct inDomainOrder in;
