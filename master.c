@@ -187,9 +187,6 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     prmAddParam(msr->prm,"nPNGResolution",0,&msr->param.nPNGResolution,sizeof(int),
 		"png","PNG output resolution (zero disables) = 0");
 #endif
-    msr->param.bDodtOutput = 0;
-    prmAddParam(msr->prm,"bDodtOutput",0,&msr->param.bDodtOutput,sizeof(int),
-		"dtout","enable/disable dt outputs = -dtout");
     msr->param.nBucket = 8;
     prmAddParam(msr->prm,"nBucket",1,&msr->param.nBucket,sizeof(int),"b",
 		"<max number of particles in a bucket> = 8");
@@ -1921,7 +1918,6 @@ void msrSaveParameters(MSR msr, IOHDF5 io) {
 #ifdef USE_PNG
     ioHDF5WriteAttribute( io, "nPNGResolution", H5T_NATIVE_INT, &msr->param.nPNGResolution );
 #endif
-    ioHDF5WriteAttribute( io, "bDodtOutput", H5T_NATIVE_INT, &msr->param.bDodtOutput );
     ioHDF5WriteAttribute( io, "bDoRungOutput", H5T_NATIVE_INT, &msr->param.bDoRungOutput );
     ioHDF5WriteAttribute( io, "bDoGravity", H5T_NATIVE_INT, &msr->param.bDoGravity );
     ioHDF5WriteAttribute( io, "bAntiGrav", H5T_NATIVE_INT, &msr->param.bAntiGrav );
@@ -5091,13 +5087,6 @@ void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint) {
 	//sprintf(achFile,achBaseMask,msrOutName(msr),iStep);
 	strncat(achFile,".soft",256);
 	msrOutArray(msr,achFile,OUT_SOFT_ARRAY);
-	}
-    if (msr->param.bDodtOutput) {
-	msrReorder(msr);
-	msrBuildName(msr,achFile,iStep);
-	//sprintf(achFile,achBaseMask,msrOutName(msr),iStep);
-	strncat(achFile,".dt",256);
-	msrOutArray(msr,achFile,OUT_DT_ARRAY);
 	}
     /*
     ** Don't allow duplicate outputs.

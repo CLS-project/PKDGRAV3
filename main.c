@@ -408,12 +408,6 @@ int main(int argc,char **argv) {
 	    fprintf(stderr,"Adding DensStep dt\n");
 	    msrDensityStep(msr,dTime);
 	    }
-	msrReorder(msr);
-	sprintf(achFile,"%s.dt",msrOutName(msr));
-	msrOutArray(msr,achFile,OUT_DT_ARRAY);
-	if (msr->param.bDensityStep || msrDoGravity(msr)) {
-	    msrDtToRung(msr,0,msrDelta(msr),1);
-	    }
 	}
 
     if (msrLogInterval(msr)) (void) fclose(fpLog);

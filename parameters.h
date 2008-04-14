@@ -50,7 +50,6 @@ struct parameters {
 #ifdef USE_PNG
     int nPNGResolution;
 #endif
-    int bDodtOutput;
     int bDoRungOutput;
     int bDoGravity;
 #ifdef HERMITE

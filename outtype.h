@@ -12,8 +12,6 @@
 
 #define OUT_SOFT_ARRAY          32
 
-#define OUT_DT_ARRAY		10
-
 #define OUT_GROUP_ARRAY	112
 #define OUT_GROUP_TIPSY_NAT	113
 #define OUT_GROUP_TIPSY_STD	114

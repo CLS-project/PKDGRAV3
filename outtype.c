@@ -29,8 +29,6 @@ FLOAT ArrType(PKD pkd,PARTICLE *p,int iType) {
 	return(sqrt(p->a[0]*p->a[0] + p->a[1]*p->a[1] + p->a[2]*p->a[2]));
     case OUT_RUNG_ARRAY:
 	return(p->uRung);
-    case OUT_DT_ARRAY:
-	return(p->dt);
     case OUT_SOFT_ARRAY:
 	return pkdSoft(pkd,p);
     case OUT_GROUP_ARRAY:
