@@ -81,12 +81,12 @@ typedef struct pLite {
 
 typedef struct pIO {
     total_t iOrder;
-    FLOAT r[3];
-    FLOAT v[3];
-    FLOAT fMass;
-    FLOAT fSoft;
-    FLOAT fDensity;
-    FLOAT fPot;
+    double r[3];
+    double v[3];
+    double fMass;
+    double fSoft;
+    float  fDensity;
+    float  fPot;
     } PIO;
 
 #define PKD_MAX_CLASSES 256
@@ -740,16 +740,15 @@ void pkdWriteTipsy(PKD,char *,uint64_t,int,double,int);
 void pkdWriteHDF5(PKD pkd, IOHDF5 io,IOHDF5V ioDen, IOHDF5V ioPot, double dvFac);
 #endif
 void
-pkdGravAll(PKD pkd,double dTime,int nReps,int bPeriodic,int iOrder,int bEwald,
-	   double fEwCut,double fEwhCut,int *nActive,
+pkdGravAll(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,int bPeriodic,
+	   int iOrder,int bEwald,double fEwCut,double fEwhCut,int *nActive,
 	   double *pdPartSum, double *pdCellSum,CASTAT *pcs, double *pdFlop);
 void pkdCalcE(PKD,double *,double *,double *);
 void pkdCalcEandL(PKD,double *,double *,double *,double []);
 void pkdDrift(PKD pkd,double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi);
-void pkdStepVeryActiveKDK(PKD pkd, double dStep, double dTime, double dDelta,
-			  int iRung, int iKickRung, int iRungVeryActive,int iAdjust,
-			  double diCrit2,int *pnMaxRung,
-			  double aSunInact[], double adSunInact[], double dSunMass);
+void pkdStepVeryActiveKDK(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dStep, double dTime, double dDelta,
+			  int iRung, int iKickRung, int iRungVeryActive,int iAdjust, double diCrit2,
+			  int *pnMaxRung, double aSunInact[], double adSunInact[], double dSunMass);
 #ifdef HERMITE
 void
 pkdStepVeryActiveHermite(PKD pkd, double dStep, double dTime, double dDelta,

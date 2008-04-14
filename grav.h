@@ -14,11 +14,11 @@ void PPInteractSIMD( int nPart, ILP ilp, const FLOAT *r, const FLOAT *a,
 		     momFloat *fPot, momFloat *rhosum, momFloat *maisum );
 
 #ifdef LOCAL_EXPANSION
-int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP ilp,ILC ilc,double dirLsum,double normLsum,
-		    int bEwald,double *pdFlop,double *pdEwFlop);
+int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *pLoc,ILP ilp,ILC ilc,
+		    double dirLsum,double normLsum,int bEwald,double *pdFlop,double *pdEwFlop,double dRhoFac);
 #else
-int pkdGravInteract(PKD pkd,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,int nCell,double dirLsum,double normLsum,
-		    int bEwald,double *pdFlop,double *pdEwFlop);
+int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,int nCell,
+		    double dirLsum,double normLsum,int bEwald,double *pdFlop,double *pdEwFlop,double dRhoFac);
 #endif
 
 #ifdef HERMITE

@@ -21,8 +21,8 @@
 /*
 ** Returns total number of active particles for which gravity was calculated.
 */
-int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
-		double *pdFlop,double *pdPartSum,double *pdCellSum) {
+int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,int bEwald,
+		int bVeryActive,double *pdFlop,double *pdPartSum,double *pdCellSum) {
     PARTICLE *p = pkd->pStore;
     PARTICLE *pRemote;
     KDN *c;
@@ -31,6 +31,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
     double fWeight;
     double tempI;
     double dEwFlop;
+    double dRhoFac;
     FLOAT dMin,dMax,min2,max2,d2,h2;
     FLOAT rCheck[3];
     FLOAT rOffset[3];
@@ -76,6 +77,14 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
     assert(nMaxInitCheck < pkd->nMaxCheck);
     nCheck = 0;
     iStack = -1;
+    /*
+    ** Precalculate RhoFac if required.
+    */
+    if (pkd->param.bGravStep) {
+	double a = csmTime2Exp(pkd->param.csm,dTime);
+	dRhoFac = 1.0/(a*a*a);
+	}
+    else dRhoFac = 0.0;
     /*
     ** First we add any replicas of the entire box
     ** to the Checklist.
@@ -570,8 +579,8 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 	*/
 	tempI = *pdFlop;
 	tempI += dEwFlop;
-	nActive = pkdGravInteract(pkd,pkdc,NULL,pkd->ilp,nPart,pkd->ilc,nCell,0.0,0.0,
-				  bEwald,pdFlop,&dEwFlop);
+	nActive = pkdGravInteract(pkd,uRungLo,uRungHi,pkdc,NULL,pkd->ilp,nPart,pkd->ilc,nCell,
+				  0.0,0.0,bEwald,pdFlop,&dEwFlop,dRhoFac);
 
 	if (nActive) {
 	    fWeight = (*pdFlop-tempI+dEwFlop)/nActive;

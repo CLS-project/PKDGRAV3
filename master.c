@@ -1016,6 +1016,7 @@ void msrFinish(MSR msr) {
 	mdlSetComm(msr->mdl,1);
 	mdlGetReply(msr->mdl,0,NULL,NULL);
 	mdlSetComm(msr->mdl,0);
+	msr->bSavePending = 0;
 	}
 #endif
 
@@ -1838,23 +1839,14 @@ void msrIOWrite(MSR msr, const char *achOutName, double dTime, int bCheckpoint) 
     mdlSetComm(msr->mdl,0);
 
     /* Execute a save operation on the worker processors */
-
-
     inStart.dTime = dExp;
     inStart.dvFac = dvFac;
     inStart.bDoublePos = msr->param.bDoublePos;
     inStart.N = msr->N;                                                /* Total */
     strcpy(inStart.achOutName,achOutName);
-
     inStart.dEcosmo  = msr->dEcosmo;
     inStart.dTimeOld = msr->dTimeOld;
     inStart.dUOld    = msr->dUOld;
-
-    //_msrMakePath(plcl->pszDataPath,in->achOutFile,achOutFile);
-
-
-    /*char achOutFile[PST_FILENAME_SIZE];*/
-
     pstStartIO( msr->pst, &inStart, sizeof(inStart), NULL, NULL );
 
 #if 0
@@ -1862,6 +1854,7 @@ void msrIOWrite(MSR msr, const char *achOutName, double dTime, int bCheckpoint) 
     mdlSetComm(msr->mdl,1);
     mdlGetReply(msr->mdl,0,NULL,NULL);
     mdlSetComm(msr->mdl,0);
+    msr->bSavePending = 0;
 #endif
     }
 #endif
@@ -2669,8 +2662,8 @@ void msrMemStatus(MSR msr) {
 #endif
     }
 
-void msrGravity(MSR msr,double dTime,double dStep,int bEwald,
-		int *piSec,uint64_t *pnActive) {
+void msrGravity(MSR msr,uint8_t uRungLo, uint8_t uRungHi, double dTime,
+		double dStep,int bEwald,int *piSec,uint64_t *pnActive) {
     struct inGravity in;
     struct outGravity *out;
     int i,id,iDum;
@@ -2683,6 +2676,8 @@ void msrGravity(MSR msr,double dTime,double dStep,int bEwald,
     in.bEwald = bEwald;
     in.dEwCut = msr->param.dEwCut;
     in.dEwhCut = msr->param.dEwhCut;
+    in.uRungLo = uRungLo;
+    in.uRungHi = uRungHi;
 
     out = malloc(msr->nThreads*sizeof(struct outGravity));
     assert(out != NULL);
@@ -3332,7 +3327,7 @@ void msrTopStepKDK(MSR msr,
 	    msrUpdateSoft(msr,dTime);
 	    msrprintf(msr,"%*cGravity, iRung: %d to %d\n",2*iRung+2,' ',iKickRung,iRung);
 	    msrBuildTree(msr,dTime,msr->param.bEwald);
-	    msrGravity(msr,dTime,dStep,msr->param.bEwald,piSec,&nActive);
+	    msrGravity(msr,iKickRung,MAX_RUNG,dTime,dStep,msr->param.bEwald,piSec,&nActive);
 	    *pdActiveSum += (double)nActive/msr->N;
 	    }
 
@@ -3412,7 +3407,7 @@ void msrTopStepKDK(MSR msr,
 	    msrprintf(msr,"%*cGravity, iRung: %d to %d\n",
 		      2*iRung+2,' ',iKickRung,msrCurrMaxRung(msr));
 	    msrBuildTree(msr,dTime,msr->param.bEwald);
-	    msrGravity(msr,dTime,dStep,msr->param.bEwald,piSec,&nActive);
+	    msrGravity(msr,iKickRung,MAX_RUNG,dTime,dStep,msr->param.bEwald,piSec,&nActive);
 	    *pdActiveSum += (double)nActive/msr->N;
 	    }
 
@@ -3475,6 +3470,9 @@ void msrStepVeryActiveKDK(MSR msr, double dStep, double dTime, double dDelta,
     in.iRung = iRung;
     in.diCrit2 = 1/(msr->dCrit*msr->dCrit);   /* could set a stricter opening criterion here */
     in.nMaxRung = msrCurrMaxRung(msr);
+    /*TODO: Are the next two lines okay?  nMaxRung and iRung needed? */
+    in.uRungLo = iRung;
+    in.uRungHi = msrCurrMaxRung(msr);
 #ifdef PLANETS
     in.dSunMass = msr->dSunMass;
 #endif

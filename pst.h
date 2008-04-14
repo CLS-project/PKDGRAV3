@@ -421,6 +421,8 @@ struct inGravity {
     int bEwald;
     double dEwCut;
     double dEwhCut;
+    uint8_t uRungLo;
+    uint8_t uRungHi;
     };
 struct outGravity {
     int nActive;
@@ -483,6 +485,8 @@ struct inStepVeryActive {
     double aSunInact[3];
     double adSunInact[3];
     double dSunMass;
+    uint8_t uRungLo;
+    uint8_t uRungHi;
     };
 struct outStepVeryActive {
     int nMaxRung;

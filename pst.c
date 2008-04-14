@@ -2551,8 +2551,8 @@ void pstGravity(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     else {
 	for (id=0;id<nThreads;++id) out[id].dWalkTime = -1.0;  /* impossible, used as initialization */
 	id = pst->idSelf;
-	pkdGravAll(plcl->pkd,in->dTime,in->nReps,in->bPeriodic,4,in->bEwald,
-		   in->dEwCut,in->dEwhCut, &out[id].nActive,
+	pkdGravAll(plcl->pkd,in->uRungLo,in->uRungHi,in->dTime,in->nReps,in->bPeriodic,
+		   4,in->bEwald,in->dEwCut,in->dEwhCut, &out[id].nActive,
 		   &out[id].dPartSum,&out[id].dCellSum,&out[id].cs,&out[id].dFlop);
 	assert(pkdVerify(plcl->pkd));
 	out[id].dWalkTime = pkdGetWallClockTimer(plcl->pkd,1);
@@ -2644,7 +2644,7 @@ void pstStepVeryActiveKDK(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	assert(plcl->pkd->nVeryActive > 0);
 
 	out->nMaxRung = in->nMaxRung;
-	pkdStepVeryActiveKDK(plcl->pkd,in->dStep,in->dTime,in->dDelta,
+	pkdStepVeryActiveKDK(plcl->pkd,in->uRungLo,in->uRungHi,in->dStep,in->dTime,in->dDelta,
 			     in->iRung, in->iRung, in->iRung, 0, in->diCrit2,
 			     &out->nMaxRung, in->aSunInact, in->adSunInact,
 			     in->dSunMass);

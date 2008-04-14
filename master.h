@@ -97,8 +97,8 @@ void msrOutVector(MSR,char *,int);
 void msrSmooth(MSR,double,int,int,int);
 void msrReSmooth(MSR,double,int,int,int);
 void msrUpdateSoft(MSR,double);
-void msrGravity(MSR msr,double dTime,double dStep,int bEwald,
-		int *piSec,uint64_t *pnActive);
+void msrGravity(MSR msr,uint8_t uRungLo, uint8_t uRungHi, double dTime,
+		double dStep,int bEwald,int *piSec,uint64_t *pnActive);
 void msrCalcEandL(MSR,int,double,double *,double *,double *,double *,double *);
 void msrDrift(MSR,double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi);
 void msrKick(MSR,double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi);

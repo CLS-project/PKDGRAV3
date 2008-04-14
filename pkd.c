@@ -495,6 +495,7 @@ void pkdGenerateIC(PKD pkd, GRAFICCTX gctx,  int iDim,
 	    for ( k=0; k<n3; k++ ) {
 		p = &pkd->pStore[pi];
 		p->uRung = 0;
+		p->bSrcActive = p->bDstActive = 1;
 		p->fDensity = 0.0;
 		p->fBall = 0.0;
 		/*
@@ -541,6 +542,7 @@ void pkdReadHDF5(PKD pkd, IOHDF5 io, double dvFac,
     for (i=0;i<nLocal;++i) {
 	p = &pkd->pStore[i];
 	p->uRung = 0;
+	p->bSrcActive = p->bDstActive = 1;
 	p->fDensity = 0.0;
 	p->fBall = 0.0;
 	/*
@@ -595,6 +597,7 @@ void pkdIOInitialize( PKD pkd, int nLocal) {
     for (i=0;i<nLocal;++i) {
 	p = &pkd->pStore[i];
 	p->uRung = 0;
+	p->bSrcActive = p->bDstActive = 1;
 	p->iClass = 0;
 	p->fDensity = 0.0;
 	p->fBall = 0.0;
@@ -632,6 +635,7 @@ void pkdReadTipsy(PKD pkd,char *pszFileName, char *achOutName,uint64_t nStart,in
     for (i=0;i<nLocal;++i) {
 	p = &pkd->pStore[i];
 	p->uRung = 0;
+	p->bSrcActive = p->bDstActive = 1;
 	p->fDensity = 0.0;
 	p->fBall = 0.0;
 	/*
@@ -1703,8 +1707,8 @@ static int foo = 0;
 #endif
 
 void
-pkdGravAll(PKD pkd,double dTime,int nReps,int bPeriodic,int iOrder,int bEwald,
-	   double fEwCut,double fEwhCut,int *nActive,
+pkdGravAll(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,int bPeriodic,
+	   int iOrder,int bEwald,double fEwCut,double fEwhCut,int *nActive,
 	   double *pdPartSum, double *pdCellSum,CASTAT *pcs, double *pdFlop) {
     int bVeryActive = 0;
 
@@ -1741,7 +1745,7 @@ pkdGravAll(PKD pkd,double dTime,int nReps,int bPeriodic,int iOrder,int bEwald,
     *pdPartSum = 0.0;
     *pdCellSum = 0.0;
     pkdStartTimer(pkd,1);
-    *nActive = pkdGravWalk(pkd,dTime,nReps,bPeriodic && bEwald,bVeryActive,pdFlop,pdPartSum,pdCellSum);
+    *nActive = pkdGravWalk(pkd,uRungLo,uRungHi,dTime,nReps,bPeriodic && bEwald,bVeryActive,pdFlop,pdPartSum,pdCellSum);
     pkdStopTimer(pkd,1);
 
 #ifdef USE_BSC
@@ -1840,7 +1844,7 @@ void pkdDrift(PKD pkd,double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi
     }
 
 
-void pkdGravityVeryActive(PKD pkd,double dTime,int bEwald,int nReps,double dStep) {
+void pkdGravityVeryActive(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int bEwald,int nReps,double dStep) {
     int nActive;
     int bVeryActive = 1;
     double dFlop,dPartSum,dCellSum;
@@ -1851,14 +1855,13 @@ void pkdGravityVeryActive(PKD pkd,double dTime,int bEwald,int nReps,double dStep
     dFlop = 0.0;
     dPartSum = 0.0;
     dCellSum = 0.0;
-    nActive = pkdGravWalk(pkd,dTime,nReps,bEwald,bVeryActive,&dFlop,&dPartSum,&dCellSum);
+    nActive = pkdGravWalk(pkd,uRungLo,uRungHi,dTime,nReps,bEwald,bVeryActive,&dFlop,&dPartSum,&dCellSum);
     }
 
 
-void
-pkdStepVeryActiveKDK(PKD pkd, double dStep, double dTime, double dDelta,
-		     int iRung, int iKickRung, int iRungVeryActive,int iAdjust, double diCrit2,
-		     int *pnMaxRung, double aSunInact[], double adSunInact[], double dSunMass) {
+void pkdStepVeryActiveKDK(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dStep, double dTime, double dDelta,
+			  int iRung, int iKickRung, int iRungVeryActive,int iAdjust, double diCrit2,
+			  int *pnMaxRung, double aSunInact[], double adSunInact[], double dSunMass) {
     int nRungCount[256];
     double dDriftFac;
 #ifdef PLANETS
@@ -1912,14 +1915,14 @@ pkdStepVeryActiveKDK(PKD pkd, double dStep, double dTime, double dDelta,
 	/*
 	** Recurse.
 	*/
-	pkdStepVeryActiveKDK(pkd,dStep,dTime,0.5*dDelta,iRung+1,iRung+1,iRungVeryActive,0,
+	pkdStepVeryActiveKDK(pkd,uRungLo,uRungHi,dStep,dTime,0.5*dDelta,iRung+1,iRung+1,iRungVeryActive,0,
 			     diCrit2,pnMaxRung,aSunInact,adSunInact,dSunMass);
 	dStep += 1.0/(2 << iRung);
 	dTime += 0.5*dDelta;
 
 	pkdActiveRung(pkd,iRung,0);   /* is this needed? */
 
-	pkdStepVeryActiveKDK(pkd,dStep,dTime,0.5*dDelta,iRung+1,iKickRung,iRungVeryActive,1,
+	pkdStepVeryActiveKDK(pkd,uRungLo,uRungHi,dStep,dTime,0.5*dDelta,iRung+1,iKickRung,iRungVeryActive,1,
 			     diCrit2,pnMaxRung,aSunInact,adSunInact,dSunMass);
 	}
     else {
@@ -1961,7 +1964,7 @@ pkdStepVeryActiveKDK(PKD pkd, double dStep, double dTime, double dDelta,
 
 	    pkdActiveRung(pkd,iKickRung,1);
 	    pkdVATreeBuild(pkd,pkd->param.nBucket,diCrit2,dTime);
-	    pkdGravityVeryActive(pkd,dTime,pkd->param.bEwald && pkd->param.bPeriodic,pkd->param.nReplicas,dStep);
+	    pkdGravityVeryActive(pkd,uRungLo,uRungHi,dTime,pkd->param.bEwald && pkd->param.bPeriodic,pkd->param.nReplicas,dStep);
 
 #ifdef PLANETS
 	    /* Sun's gravity */
@@ -2448,8 +2451,9 @@ void pkdGravStep(PKD pkd,double dEta,double dRhoFac) {
 	    mdlassert(pkd->mdl, pkd->pStore[i].dtGrav > 0);
 	    dT = dEta/sqrt(pkd->pStore[i].dtGrav*dRhoFac);
 	    if (dT < pkd->pStore[i].dt) {
+// 		if ( dT != pkd->pStore[i].dt )
+//		    printf( "dt=%.8g p[%d].dt=%.8g\n", dT, pkd->pStore[i].dt );
 		pkd->pStore[i].dt = dT;
-
 		mdlassert(pkd->mdl,dT>0);
 		}
 	    }
@@ -2579,7 +2583,6 @@ int pkdDtToRung(PKD pkd,uint8_t uRung,double dDelta,int iMaxRung,int bAll,int *n
 
 void pkdInitDt(PKD pkd,double dDelta) {
     int i;
-
     for (i=0;i<pkdLocal(pkd);++i) {
 	if (pkdIsActive(pkd,&(pkd->pStore[i]))) {
 	    pkd->pStore[i].dt = dDelta;

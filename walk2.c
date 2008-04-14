@@ -83,8 +83,8 @@ double dMonopoleThetaFac = 1.5;
 /*
 ** Returns total number of active particles for which gravity was calculated.
 */
-int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
-		double *pdFlop,double *pdPartSum,double *pdCellSum) {
+int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,int bEwald,
+		int bVeryActive,double *pdFlop,double *pdPartSum,double *pdCellSum) {
     PARTICLE *p = pkd->pStore;
     PARTICLE *pRemote;
     KDN *c;
@@ -95,6 +95,7 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
     double fWeight = 0.0;
     double dEwaldFlop;
     double dShiftFlop;
+    double dRhoFac;
     FLOAT dMin,min2,d2,fourh2;
     FLOAT fMass,fSoft;
     FLOAT rCheck[3];
@@ -159,6 +160,14 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
     momClearLocr(&L);
     dirLsum = 0;
     normLsum = 0;
+    /*
+    ** Precalculate RhoFac if required.
+    */
+    if (pkd->param.bGravStep) {
+	double a = csmTime2Exp(pkd->param.csm,dTime);
+	dRhoFac = 1.0/(a*a*a);
+	}
+    else dRhoFac = 0.0;
     /*
     ** First we add any replicas of the entire box
     ** to the Checklist.
@@ -766,8 +775,8 @@ int pkdGravWalk(PKD pkd,double dTime,int nReps,int bEwald,int bVeryActive,
 	/*
 	** Now calculate gravity on this bucket!
 	*/
-	nActive = pkdGravInteract(pkd,pkdc,&L,pkd->ilp,pkd->ilc,dirLsum,normLsum,
-				  bEwald,pdFlop,&dEwFlop);
+	nActive = pkdGravInteract(pkd,uRungLo,uRungHi,pkdc,&L,pkd->ilp,pkd->ilc,
+				  dirLsum,normLsum,bEwald,pdFlop,&dEwFlop,dRhoFac);
 	/*
 	** Update the limit for a shift of the center here based on the opening radius of this
 	** cell (the one we just evaluated).
