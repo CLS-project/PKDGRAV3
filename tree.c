@@ -146,6 +146,9 @@ void BuildTemp(PKD pkd,int iNode,int M) {
     if (pkd->kdNodes[iNode].pUpper - pkd->kdNodes[iNode].pLower + 1 <= M)
 	goto DonePart;
 
+    assert( pkd->kdNodes[iNode].bnd.fMax[0] > 0.0 ||
+	    pkd->kdNodes[iNode].bnd.fMax[1] > 0.0 ||
+	    pkd->kdNodes[iNode].bnd.fMax[2] > 0.0 );
     while (1) {
 	/*
 	** Begin new stage!
