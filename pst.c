@@ -94,12 +94,10 @@
 **  CurrRung              Yes     Yes    |
 **  DensityStep           Yes     -      |
 **  GetMap                Yes     Gather | sends back thread ids
-**  GravStep              Yes     -      |
 **  AccelStep             Yes     -      |
 **  SetRungVeryActive     Yes     -      |
 **  ReSmooth              Yes     -      |
 **  DtToRung              Yes     Yes    |
-**  InitDt                Yes     -      |
 **  ColNParts             -       Gather |
 **  NewOrder              Scatter -      |
 **  SetNParts             Yes     -      |
@@ -315,9 +313,6 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_GETMAP,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstGetMap,
 		  sizeof(struct inGetMap),nThreads*sizeof(int));
-    mdlAddService(mdl,PST_GRAVSTEP,pst,
-		  (void (*)(void *,void *,int,void *,int *)) pstGravStep,
-		  sizeof(struct inGravStep), 0);
     mdlAddService(mdl,PST_ACCELSTEP,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstAccelStep,
 		  sizeof(struct inAccelStep), 0);
@@ -330,9 +325,6 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_DTTORUNG,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstDtToRung,
 		  sizeof(struct inDtToRung),sizeof(struct outDtToRung));
-    mdlAddService(mdl,PST_INITDT,pst,
-		  (void (*)(void *,void *,int,void *,int *)) pstInitDt,
-		  sizeof(struct inInitDt),0);
     mdlAddService(mdl,PST_COLNPARTS,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstColNParts,
 		  0,nThreads*sizeof(struct outColNParts));
@@ -2929,7 +2921,7 @@ pstSetRung(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
 	}
     else {
-	pkdSetRung(plcl->pkd, in->iRung);
+	pkdSetRung(plcl->pkd,in->uRungLo,in->uRungHi,in->uRung);
 	}
     if (pnOut) *pnOut = 0;
     }
@@ -2990,24 +2982,6 @@ pstCurrRung(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     }
 
 void
-pstGravStep(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
-    LCL *plcl = pst->plcl;
-    struct inGravStep *in = vin;
-
-    mdlassert(pst->mdl,nIn == sizeof(struct inGravStep));
-    if (pst->nLeaves > 1) {
-	mdlReqService(pst->mdl,pst->idUpper,PST_GRAVSTEP,vin,nIn);
-	pstGravStep(pst->pstLower,vin,nIn,vout,pnOut);
-	mdlGetReply(pst->mdl,pst->idUpper,vout,pnOut);
-	}
-    else {
-	pkdGravStep(plcl->pkd,in->dEta,in->dRhoFac);
-	assert(pkdVerify(plcl->pkd));
-	}
-    if (pnOut) *pnOut = 0;
-    }
-
-void
 pstAccelStep(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct inAccelStep *in = vin;
@@ -3019,7 +2993,7 @@ pstAccelStep(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	mdlGetReply(pst->mdl,pst->idUpper,vout,pnOut);
 	}
     else {
-	pkdAccelStep(plcl->pkd,in->dEta,in->dVelFac,in->dAccFac,
+	pkdAccelStep(plcl->pkd,in->uRungLo,in->uRungHi,in->dEta,in->dVelFac,in->dAccFac,
 		     in->bDoGravity,in->bEpsAcc,in->bSqrtPhi,in->dhMinOverSoft);
 	assert(pkdVerify(plcl->pkd));
 	}
@@ -3038,7 +3012,7 @@ pstDensityStep(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	mdlGetReply(pst->mdl,pst->idUpper,vout,pnOut);
 	}
     else {
-	pkdDensityStep(plcl->pkd,in->dEta,in->dRhoFac);
+	pkdDensityStep(plcl->pkd,in->uRungLo,in->uRungHi,in->dEta,in->dRhoFac);
 	assert(pkdVerify(plcl->pkd));
 	}
     if (pnOut) *pnOut = 0;
@@ -3069,23 +3043,6 @@ void pstDtToRung(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     if (pnOut) *pnOut = sizeof(*out);
     }
 
-void pstInitDt(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
-    LCL *plcl = pst->plcl;
-    struct inInitDt *in = vin;
-
-    mdlassert(pst->mdl,nIn == sizeof(*in));
-    if (pst->nLeaves > 1) {
-	mdlReqService(pst->mdl,pst->idUpper,PST_INITDT,vin,nIn);
-	pstInitDt(pst->pstLower,vin,nIn,vout,pnOut);
-	mdlGetReply(pst->mdl,pst->idUpper,vout,pnOut);
-	}
-    else {
-	pkdInitDt(plcl->pkd,in->dDelta);
-	}
-    if (pnOut) *pnOut = 0;
-    }
-
-
 void pstSetRungVeryActive(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct inSetRung *in = vin;
@@ -3097,7 +3054,7 @@ void pstSetRungVeryActive(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
 	}
     else {
-	pkdSetRungVeryActive(plcl->pkd,in->iRung);
+	pkdSetRungVeryActive(plcl->pkd,in->uRung);
 	}
     }
 

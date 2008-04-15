@@ -15,7 +15,7 @@
 #include "moments.h"
 
 
-int pkdParticleEwald(PKD pkd,PARTICLE *p) {
+int pkdParticleEwald(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,PARTICLE *p) {
     MOMC mom = pkd->momRoot;
     double fPot,ax,ay,az;
     double dx,dy,dz,x,y,z,r2,dir,dir2,a,alphan,L;
@@ -29,7 +29,8 @@ int pkdParticleEwald(PKD pkd,PARTICLE *p) {
     int nFlop;
     int nLoop = 0;
 
-    if (!pkdIsActive(pkd,p)) return 0;
+    if (!pkdIsDstActive(p,uRungLo,uRungHi)) return 0;
+
     L = pkd->fPeriod[0];
     fPot = mom.m*pkd->ew.k1;
     ax = 0.0;
@@ -167,19 +168,6 @@ int pkdParticleEwald(PKD pkd,PARTICLE *p) {
     nFlop = nLoop*447 + pkd->ew.nEwhLoop*58;
     return(nFlop);
     }
-
-
-int pkdBucketEwald(PKD pkd,KDN *pkdn) {
-    int j,n,nFlop;
-
-    n = pkdn->pUpper - pkdn->pLower + 1;
-    for (j=0;j<n;++j) {
-	nFlop += pkdParticleEwald(pkd,&pkd->pStore[pkdn->pLower+j]);
-	}
-    return(nFlop);
-    }
-
-
 
 void pkdEwaldInit(PKD pkd,int nReps,double fEwCut,double fhCut) {
     MOMC mom = pkd->momRoot;

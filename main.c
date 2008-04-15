@@ -313,12 +313,6 @@ int main(int argc,char **argv) {
 
     /* No steps were requested */
     else {
-	struct inInitDt in;
-
-	in.dDelta = 1e37;		/* large number */
-	pstInitDt(msr->pst,&in,sizeof(in),NULL,NULL);
-	fprintf(stderr,"Initialized Accel and dt\n");
-
 	if (msrDoGravity(msr)) {
 	    msrActiveRung(msr,0,1); /* Activate all particles */
 	    msrDomainDecomp(msr,0,1,0);

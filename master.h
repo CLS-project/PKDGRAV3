@@ -159,9 +159,8 @@ void msrVelocityRung(MSR msr,int iRung,double dDelta,double dTime,int bAll);
 void msrCalcWriteStart(MSR);
 void msrAddDelParticles(MSR msr);
 void msrGravStep(MSR msr, double dTime);
-void msrAccelStep(MSR msr, double dTime);
-void msrDensityStep(MSR msr, double dTime);
-void msrInitDt(MSR msr);
+void msrAccelStep(MSR msr,uint8_t uRungLo,uint8_t uRungHi,double dTime);
+void msrDensityStep(MSR msr,uint8_t uRungLo,uint8_t uRungHi,double dTime);
 int msrDtToRung(MSR msr, int iRung, double dDelta, int bAll);
 
 /*
@@ -187,13 +186,11 @@ int msrPNGResolution(MSR msr);
 #endif
 int msrDoGravity(MSR msr);
 void msrInitStep(MSR msr);
-void msrSetRung(MSR msr, int iRung);
+void msrSetRung(MSR msr, uint8_t uRungLo, uint8_t uRungHi, int uRung);
 int msrMaxRung(MSR msr);
 
 void msrSwitchTheta(MSR msr,double);
 uint64_t msrMaxOrder(MSR msr);
-
-void msrInitTimeSteps(MSR,double,double);
 
 void msrFof(MSR msr,int nFOFsDone,int iSmoothType,int bSymmetric, double exp);
 void msrGroupMerge(MSR msr,double exp);

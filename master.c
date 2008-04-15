@@ -3054,19 +3054,22 @@ msrInitStep(MSR msr) {
     /*
     ** Initialize particles to lowest rung. (what for?)
     */
-    insr.iRung = msr->param.iMaxRung - 1;
+    insr.uRung = msr->param.iMaxRung - 1;
+    insr.uRungLo = 0;
+    insr.uRungHi = MAX_RUNG;
     pstSetRung(msr->pst, &insr, sizeof(insr), NULL, NULL);
-    msr->iCurrMaxRung = insr.iRung;
+    msr->iCurrMaxRung = insr.uRung;
     }
 
 
-void
-msrSetRung(MSR msr, int iRung) {
+void msrSetRung(MSR msr, uint8_t uRungLo, uint8_t uRungHi, int uRung) {
     struct inSetRung in;
 
-    in.iRung = iRung;
+    in.uRung = uRung;
+    in.uRungLo = uRungLo;
+    in.uRungHi = uRungHi;
     pstSetRung(msr->pst, &in, sizeof(in), NULL, NULL);
-    msr->iCurrMaxRung = in.iRung;
+    msr->iCurrMaxRung = in.uRung;
     }
 
 
@@ -3116,7 +3119,9 @@ void msrSetRungVeryActive(MSR msr, int iRung) {
 
     msr->iRungVeryActive = iRung;
 
-    in.iRung = iRung;
+    in.uRung = iRung;
+    in.uRungLo = 0;
+    in.uRungHi = MAX_RUNG;
     pstSetRungVeryActive(msr->pst,&in,sizeof(in),NULL,NULL);
     }
 
@@ -3129,19 +3134,7 @@ int msrCurrRung(MSR msr, int iRung) {
     return out.iCurrent;
     }
 
-void
-msrGravStep(MSR msr,double dTime) {
-    struct inGravStep in;
-    double expand;
-
-    in.dEta = msrEta(msr);
-    expand = csmTime2Exp(msr->param.csm,dTime);
-    in.dRhoFac = 1.0/(expand*expand*expand);
-    pstGravStep(msr->pst,&in,sizeof(in),NULL,NULL);
-    }
-
-void
-msrAccelStep(MSR msr,double dTime) {
+void msrAccelStep(MSR msr,uint8_t uRungLo,uint8_t uRungHi,double dTime) {
     struct inAccelStep in;
     double a;
 
@@ -3157,11 +3150,12 @@ msrAccelStep(MSR msr,double dTime) {
     in.bDoGravity = msrDoGravity(msr);
     in.bEpsAcc = msr->param.bEpsAccStep;
     in.bSqrtPhi = msr->param.bSqrtPhiStep;
+    in.uRungLo = uRungLo;
+    in.uRungHi = uRungHi;
     pstAccelStep(msr->pst,&in,sizeof(in),NULL,NULL);
     }
 
-void
-msrDensityStep(MSR msr,double dTime) {
+void msrDensityStep(MSR msr,uint8_t uRungLo,uint8_t uRungHi,double dTime) {
     struct inDensityStep in;
     double expand;
     int bGasOnly,bSymmetric;
@@ -3173,15 +3167,9 @@ msrDensityStep(MSR msr,double dTime) {
     in.dEta = msrEta(msr);
     expand = csmTime2Exp(msr->param.csm,dTime);
     in.dRhoFac = 1.0/(expand*expand*expand);
+    in.uRungLo = uRungLo;
+    in.uRungHi = uRungHi;
     pstDensityStep(msr->pst,&in,sizeof(in),NULL,NULL);
-    }
-
-void
-msrInitDt(MSR msr) {
-    struct inInitDt in;
-
-    in.dDelta = msrDelta(msr);
-    pstInitDt(msr->pst,&in,sizeof(in),NULL,NULL);
     }
 
 /*
@@ -3278,19 +3266,15 @@ void msrTopStepKDK(MSR msr,
     if (iAdjust && (iRung < msrMaxRung(msr)-1)) {
 	msrprintf(msr,"%*cAdjust, iRung: %d\n",2*iRung+2,' ',iRung);
 	msrActiveRung(msr, iRung, 1);
-	msrInitDt(msr);
-	if (msr->param.bGravStep) {
-	    msrGravStep(msr,dTime);
-	    }
 	if (msr->param.bAccelStep) {
-	    msrAccelStep(msr,dTime);
+	    msrAccelStep(msr,iRung,MAX_RUNG,dTime);
 	    }
 	if (msr->param.bDensityStep) {
 	    bSplitVA = 0;
 	    msrDomainDecomp(msr,iRung,1,bSplitVA);
 	    msrActiveRung(msr,iRung,1);
 	    msrBuildTree(msr,dTime,0);
-	    msrDensityStep(msr,dTime);
+	    msrDensityStep(msr,iRung,MAX_RUNG,dTime);
 	    }
 	iRungVeryActive = msrDtToRung(msr,iRung,dDelta,1);
 	}
@@ -3321,6 +3305,7 @@ void msrTopStepKDK(MSR msr,
 	msrActiveRung(msr,iKickRung,1);
 	bSplitVA = 0;
 	msrDomainDecomp(msr,iKickRung,1,bSplitVA);
+	msrSetRung(msr,iKickRung,MAX_RUNG,iKickRung);
 
 	if (msrDoGravity(msr)) {
 	    msrActiveRung(msr,iKickRung,1);
@@ -3509,22 +3494,18 @@ void msrTopStepHermite(MSR msr,
     if (iAdjust && (iRung < msrMaxRung(msr)-1)) {
 	msrprintf(msr,"%*cAdjust, iRung: %d\n",2*iRung+2,' ',iRung);
 	msrActiveRung(msr, iRung, 1);
-	msrInitDt(msr);
-	if (msr->param.bGravStep) {
-	    msrGravStep(msr,dTime);
-	    }
 	if (msr->param.bAarsethStep) {
 	    msrAarsethStep(msr);
 	    }
 	if (msr->param.bAccelStep) {
-	    msrAccelStep(msr,dTime);
+	    msrAccelStep(msr,iRung,MAX_RUNG,dTime);
 	    }
 	if (msr->param.bDensityStep) {
 	    bSplitVA = 0;
 	    msrDomainDecomp(msr,iRung,1,bSplitVA);
 	    msrActiveRung(msr,iRung,1);
 	    msrBuildTree(msr,dTime,bNeedEwald);
-	    msrDensityStep(msr,dTime);
+	    msrDensityStep(msr,iRung,MAX_RUNG,dTime);
 	    }
 	iRungVeryActive = msrDtToRung(msr,iRung,dDelta,1);
 	}
@@ -3559,6 +3540,7 @@ void msrTopStepHermite(MSR msr,
 	msrActiveRung(msr,iKickRung,1);
 	bSplitVA = 0;
 	msrDomainDecomp(msr,iKickRung,1,bSplitVA);
+	msrSetRung(msr,iKickRung,MAX_RUNG,iKickRung);
 
 	if (msrDoGravity(msr)) {
 	    msrActiveRung(msr,iKickRung,1);
@@ -3900,27 +3882,6 @@ int msrPNGResolution(MSR msr) {
 int msrDoGravity(MSR msr) {
     return(msr->param.bDoGravity);
     }
-
-void msrInitTimeSteps(MSR msr,double dTime,double dDelta) {
-    const int bNeedEwald = 0;
-
-    msrActiveRung(msr,0,1); /* Activate all particles */
-    msrInitDt(msr);
-    if (msr->param.bGravStep) {
-	msrGravStep(msr,dTime);
-	}
-    if (msr->param.bAccelStep) {
-	msrAccelStep(msr,dTime);
-	}
-    if (msr->param.bDensityStep) {
-	msrDomainDecomp(msr,0,1,0);
-	msrActiveRung(msr,0,1); /* Activate all particles */
-	msrBuildTree(msr,dTime,bNeedEwald);
-	msrDensityStep(msr,dTime);
-	}
-    msrDtToRung(msr,0,dDelta,1);
-    }
-
 
 void msrFof(MSR msr,int nFOFsDone,int iSmoothType,int bSymmetric, double exp) {
     struct inFof in;

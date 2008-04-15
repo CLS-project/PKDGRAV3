@@ -106,7 +106,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
     nActive = 0;
     nSoft = 0;
     for (i=pkdn->pLower;i<=pkdn->pUpper;++i) {
-	if (!pkdIsActive(pkd,&p[i])) continue;
+	if ( !pkdIsDstActive(&p[i],uRungLo,uRungHi) ) continue;
 	++nActive;
 	p[i].dtGrav = 0.0;
 	fPot = 0;
@@ -436,7 +436,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
     na = 0;
     nia = 0;
     for (i=pkdn->pLower;i<=pkdn->pUpper;++i) {
-	if (pkdIsActive(pkd,&p[i])) pkd->piActive[na++] = &p[i];
+	if (pkdIsDstActive(&p[i],uRungLo,uRungHi)) pkd->piActive[na++] = &p[i];
 	else pkd->piInactive[nia++] = &p[i];
 	}
     /*

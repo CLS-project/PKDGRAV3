@@ -495,6 +495,7 @@ void pkdGenerateIC(PKD pkd, GRAFICCTX gctx,  int iDim,
 	    for ( k=0; k<n3; k++ ) {
 		p = &pkd->pStore[pi];
 		p->uRung = 0;
+		p->uTestRung = 0;
 		p->bSrcActive = p->bDstActive = 1;
 		p->fDensity = 0.0;
 		p->fBall = 0.0;
@@ -1240,13 +1241,6 @@ int pkdColRejects_Active_Inactive(PKD pkd,int d,FLOAT fSplit,FLOAT fSplitInactiv
 	nSplitInactive = pkdUpperPart(pkd,d,fSplitInactive,
 				      pkdActive(pkd),pkdLocal(pkd)-1);
 	}
-    /*
-      for(i = 0; i < nSplit; ++i)
-      mdlassert(pkd->mdl,pkdIsActive(pkd,&(pkd->pStore[i])));
-      for(i = pkdActive(pkd); i < nSplitInactive; ++i)
-      mdlassert(pkd->mdl,!pkdIsActive(pkd,&(pkd->pStore[i])));
-    */
-
     nSplitInactive -= pkdActive(pkd);
     /*
     ** Now do some fancy rearrangement.
@@ -1864,6 +1858,7 @@ void pkdStepVeryActiveKDK(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dStep, 
 			  int *pnMaxRung, double aSunInact[], double adSunInact[], double dSunMass) {
     int nRungCount[256];
     double dDriftFac;
+    int i;
 #ifdef PLANETS
     double aSun[3], adSun[3];
     int j;
@@ -1877,18 +1872,12 @@ void pkdStepVeryActiveKDK(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dStep, 
 	** The following should be replaced with a single call which sets the rungs of all particles.
 	*/
 	pkdActiveRung(pkd, iRung, 1);
-	pkdInitDt(pkd, pkd->param.dDelta);
-	if (pkd->param.bGravStep) {
-	    double a = csmTime2Exp(pkd->param.csm,dTime);
-	    double dRhoFac = 1.0/(a*a*a);
-	    pkdGravStep(pkd,pkd->param.dEta,dRhoFac);
-	    }
 	if (pkd->param.bAccelStep) {
 	    double a = csmTime2Exp(pkd->param.csm,dTime);
 	    double dVelFac = 1.0/(a*a);
 	    double dAccFac = 1.0/(a*a*a);
 	    double dhMinOverSoft = 0;
-	    pkdAccelStep(pkd,pkd->param.dEta, dVelFac,dAccFac,pkd->param.bDoGravity,
+	    pkdAccelStep(pkd,uRungLo,uRungHi,pkd->param.dEta, dVelFac,dAccFac,pkd->param.bDoGravity,
 			 pkd->param.bEpsAccStep,pkd->param.bSqrtPhiStep,dhMinOverSoft);
 	    }
 	*pnMaxRung = pkdDtToRung(pkd,iRung,dDelta,pkd->param.iMaxRung-1, 1, nRungCount);
@@ -2020,21 +2009,15 @@ pkdStepVeryActiveHermite(PKD pkd, double dStep, double dTime, double dDelta,
 
     if (iAdjust && (iRung < pkd->param.iMaxRung-1)) {
 	pkdActiveRung(pkd, iRung, 1);
-	pkdInitDt(pkd, pkd->param.dDelta);
 	if (pkd->param.bAarsethStep) {
 	    pkdAarsethStep(pkd,pkd->param.dEta);
-	    }
-	if (pkd->param.bGravStep) {
-	    double a = csmTime2Exp(pkd->param.csm,dTime);
-	    double dRhoFac = 1.0/(a*a*a);
-	    pkdGravStep(pkd,pkd->param.dEta,dRhoFac);
 	    }
 	if (pkd->param.bAccelStep) {
 	    double a = csmTime2Exp(pkd->param.csm,dTime);
 	    double dVelFac = 1.0/(a*a);
 	    double dAccFac = 1.0/(a*a*a);
 	    double dhMinOverSoft = 0;
-	    pkdAccelStep(pkd,pkd->param.dEta, dVelFac,dAccFac,pkd->param.bDoGravity,
+	    pkdAccelStep(pkd,uRungLo,uRungHi,pkd->param.dEta, dVelFac,dAccFac,pkd->param.bDoGravity,
 			 pkd->param.bEpsAccStep,pkd->param.bSqrtPhiStep,dhMinOverSoft);
 	    }
 	*pnMaxRung = pkdDtToRung(pkd,iRung,dDelta,pkd->param.iMaxRung-1, 1, nRungCount);
@@ -2415,10 +2398,11 @@ void pkdInitStep(PKD pkd, struct parameters *p, CSM csm) {
     }
 
 
-void pkdSetRung(PKD pkd,uint8_t uRung) {
+void pkdSetRung(PKD pkd,uint8_t uRungLo, uint8_t uRungHi, uint8_t uRung) {
     int i;
 
     for (i=0;i<pkdLocal(pkd);++i) {
+	if ( !pkdIsDstActive(&pkd->pStore[i],uRungLo,uRungHi) ) continue;
 	pkd->pStore[i].uRung = uRung;
 	}
     }
@@ -2442,34 +2426,19 @@ int pkdCurrRung(PKD pkd,uint8_t uRung) {
     return iCurrent;
     }
 
-void pkdGravStep(PKD pkd,double dEta,double dRhoFac) {
-    double dT;
-    int i;
-
-    for (i=0;i<pkdLocal(pkd);i++) {
-	if (pkdIsActive(pkd,&(pkd->pStore[i]))) {
-	    mdlassert(pkd->mdl, pkd->pStore[i].dtGrav > 0);
-	    dT = dEta/sqrt(pkd->pStore[i].dtGrav*dRhoFac);
-	    if (dT < pkd->pStore[i].dt) {
-// 		if ( dT != pkd->pStore[i].dt )
-//		    printf( "dt=%.8g p[%d].dt=%.8g\n", dT, pkd->pStore[i].dt );
-		pkd->pStore[i].dt = dT;
-		mdlassert(pkd->mdl,dT>0);
-		}
-	    }
-	}
-    }
-
-void pkdAccelStep(PKD pkd,double dEta,double dVelFac,double dAccFac,int bDoGravity,int bEpsAcc,int bSqrtPhi,double dhMinOverSoft) {
+void pkdAccelStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,
+		  double dEta,double dVelFac,double dAccFac,
+		  int bDoGravity,int bEpsAcc,int bSqrtPhi,double dhMinOverSoft) {
     int i;
     double vel;
     double acc;
     int j;
     double dT;
     FLOAT fSoft;
+    uint8_t uTempRung;
 
     for (i=0;i<pkdLocal(pkd);++i) {
-	if (pkdIsActive(pkd,&(pkd->pStore[i]))) {
+	if (pkdIsDstActive(&(pkd->pStore[i]),uRungLo,uRungHi)) {
 	    fSoft = pkdSoft(pkd,&pkd->pStore[i]);
 	    vel = 0;
 	    acc = 0;
@@ -2497,48 +2466,51 @@ void pkdAccelStep(PKD pkd,double dEta,double dVelFac,double dAccFac,int bDoGravi
 		if (dtemp < dT)
 		    dT = dtemp;
 		}
-	    if (dT < pkd->pStore[i].dt) {
-		pkd->pStore[i].dt = dT;
-		mdlassert(pkd->mdl,dT>0);
-		}
+	    uTempRung = pkdNewDtToRung(dT,pkd->param.dDelta,pkd->param.iMaxRung-1);
+	    if ( uTempRung < uRungLo ) uTempRung = uRungLo;
+	    pkd->pStore[i].uRung = uTempRung;
 	    }
 	}
     }
 
 
-void pkdDensityStep(PKD pkd,double dEta,double dRhoFac) {
+void pkdDensityStep(PKD pkd, uint8_t uRungLo, uint8_t uRungHi, double dEta, double dRhoFac) {
     int i;
     double dT;
+    uint8_t uTempRung;
 
     for (i=0;i<pkdLocal(pkd);++i) {
-	if (pkdIsActive(pkd,&(pkd->pStore[i]))) {
+	if (pkdIsDstActive(&(pkd->pStore[i]),uRungLo,uRungHi)) {
 	    dT = dEta/sqrt(pkd->pStore[i].fDensity*dRhoFac);
-	    if (dT < pkd->pStore[i].dt) {
-		pkd->pStore[i].dt = dT;
-		mdlassert(pkd->mdl,dT>0);
-		}
+	    uTempRung = pkdNewDtToRung(dT,pkd->param.dDelta,pkd->param.iMaxRung-1);
+	    if ( uTempRung < uRungLo ) uTempRung = uRungLo;
+	    pkd->pStore[i].uRung = uTempRung;
 	    }
 	}
     }
 
+uint8_t pkdNewDtToRung(double dT, double dDelta, uint8_t uMaxRung) {
+    int iSteps;
+    uint8_t uRung;
 
-int pkdNewDtToRung(
-    PKD pkd,
-    int iRung,
-    double dDelta,
-    int iMaxRung,
-    int bAll) {
-
+    assert(dT>0.0);
+    iSteps = dDelta/dT;
+    uRung = 0;
+    while (iSteps) {
+	++uRung;
+	iSteps >>= 1;
+	}
+    if ( uRung > uMaxRung ) uRung = uMaxRung;
+    return uRung;
     }
-
 
 int pkdDtToRung(PKD pkd,uint8_t uRung,double dDelta,int iMaxRung,int bAll,int *nRungCount) {
     int i;
     int iTempRung;
-    int iSteps;
-
     for (i=0;i<iMaxRung;++i) nRungCount[i] = 0;
     for (i=0;i<pkdLocal(pkd);++i) {
+#if 0
+	int iSteps;
 	if (pkd->pStore[i].uRung >= uRung) {
 	    mdlassert(pkd->mdl,pkdIsActive(pkd,&(pkd->pStore[i])));
 	    if (bAll) {         /* Assign all rungs at iRung and above */
@@ -2561,6 +2533,13 @@ int pkdDtToRung(PKD pkd,uint8_t uRung,double dDelta,int iMaxRung,int bAll,int *n
 		    /* 		    printf("Maximum Rung %d overshot for particle %"PRIu64"!\n",iMaxRung-1,pkd->pStore[i].iOrder); */
 		    }
 		pkd->pStore[i].uRung = iTempRung;
+
+		if ( iTempRung != pkd->pStore[i].uTestRung ) {
+		    printf( "ERROR: %lu: uTempRung=%d  uTestRung=%d  dt=%.8g  dtGrav=%.8g  dDelta=%.8g uRung=%d  iMaxRung=%d  dDelta/dt=%.8g  dRhoFac=%.8g\n",
+			    pkd->pStore[i].iOrder, iTempRung, pkd->pStore[i].uTestRung,
+			    pkd->pStore[i].dt, pkd->pStore[i].dtGrav, dDelta, uRung, iMaxRung, dDelta/pkd->pStore[i].dt * (1<<uRung) );
+		    assert(iTempRung == pkd->pStore[i].uTestRung);
+		    }
 		}
 	    else {
 		if (dDelta <= pkd->pStore[i].dt) {
@@ -2571,6 +2550,7 @@ int pkdDtToRung(PKD pkd,uint8_t uRung,double dDelta,int iMaxRung,int bAll,int *n
 		    }
 		}
 	    }
+#endif
 	/*
 	** Now produce a count of particles in rungs.
 	*/
@@ -2580,17 +2560,6 @@ int pkdDtToRung(PKD pkd,uint8_t uRung,double dDelta,int iMaxRung,int bAll,int *n
     while (nRungCount[iTempRung] == 0 && iTempRung > 0) --iTempRung;
     return iTempRung;
     }
-
-void pkdInitDt(PKD pkd,double dDelta) {
-    int i;
-    for (i=0;i<pkdLocal(pkd);++i) {
-	if (pkdIsActive(pkd,&(pkd->pStore[i]))) {
-	    pkd->pStore[i].dt = dDelta;
-	    mdlassert(pkd->mdl,dDelta>0);
-	    }
-	}
-    }
-
 
 void pkdDeleteParticle(PKD pkd, PARTICLE *p) {
 

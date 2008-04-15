@@ -602,7 +602,9 @@ void pstActiveOrder(PST,void *,int,void *,int *);
 
 /* PST_SETRUNG */
 struct inSetRung {
-    int iRung;
+    uint8_t uRung;
+    uint8_t uRungLo;
+    uint8_t uRungHi;
     };
 void pstSetRung(PST,void *,int,void *,int *);
 
@@ -644,13 +646,6 @@ struct outCurrRung {
     };
 void pstCurrRung(PST,void *,int,void *,int *);
 
-/* PST_GRAVSTEP */
-struct inGravStep {
-    double dEta;
-    double dRhoFac;
-    };
-void pstGravStep(PST,void *,int,void *,int *);
-
 /* PST_ACCELSTEP */
 struct inAccelStep {
     double dEta;
@@ -660,6 +655,8 @@ struct inAccelStep {
     int    bEpsAcc;
     int    bSqrtPhi;
     double dhMinOverSoft;
+    uint8_t uRungLo;
+    uint8_t uRungHi;
     };
 void pstAccelStep(PST,void *,int,void *,int *);
 
@@ -667,6 +664,8 @@ void pstAccelStep(PST,void *,int,void *,int *);
 struct inDensityStep {
     double dEta;
     double dRhoFac;
+    uint8_t uRungLo;
+    uint8_t uRungHi;
     };
 void pstDensityStep(PST,void *,int,void *,int *);
 
@@ -701,12 +700,6 @@ struct outDtToRung {
     uint64_t nRungCount[256];
     };
 void pstDtToRung(PST,void *,int,void *,int *);
-
-/* PST_INITDT */
-struct inInitDt {
-    double dDelta;
-    };
-void pstInitDt(PST,void *,int,void *,int *);
 
 /* PST_ORDWEIGHT */
 struct inOrdWeight {

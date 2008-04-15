@@ -64,6 +64,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
     double x,y,z,d2,dir,dir2;
     FLOAT fMass,fSoft;
     float fx, fy, fz;
+    double dtGrav;
     momFloat adotai,maga,dimaga,dirsum,normsum;
     momFloat tax,tay,taz,tmon;
     double rholoc,dirDTS,d2DTS,dsmooth2;
@@ -104,18 +105,10 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 	     + pkdn->bnd.fMax[1]*pkdn->bnd.fMax[1]
 	     + pkdn->bnd.fMax[2]*pkdn->bnd.fMax[2]);
     for (i=pkdn->pLower;i<=pkdn->pUpper;++i) {
-	if (!pkdIsActive(pkd,&p[i])) continue;
-	//RUNGFOO
-//	if ( !pkdIsDstActive(&p[i],uRungLo,uRungHi) ) {
-//	    assert(!pkdIsActive(pkd,&p[i]));
-//	    continue;
-//	    }
-//	assert(pkdIsActive(pkd,&p[i]));
-
+	if ( !pkdIsDstActive(&p[i],uRungLo,uRungHi) ) continue;
 	fMass = pkdMass(pkd,&p[i]);
 	fSoft = pkdSoft(pkd,&p[i]);
 	++nActive;
-	p[i].dtGrav = 0.0;
 	fPot = 0;
 	ax = 0;
 	ay = 0;
@@ -399,7 +392,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 	** required.
 	*/
 	if (bEwald) {
-	    *pdEwFlop += pkdParticleEwald(pkd,&p[i]);
+	    *pdEwFlop += pkdParticleEwald(pkd,uRungLo,uRungHi,&p[i]);
 	    }
 	/*
 	** Set value for time-step, note that we have the current ewald acceleration
@@ -407,6 +400,9 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 	*/
 	if (pkd->param.bGravStep) {
 	    double dT;
+	    uint8_t uTempRung;
+	    int iSteps;
+
 	    /*
 	    ** If this is the first time through, the accelerations will have 
 	    ** all been zero resulting in zero for normsum (and nan for dtGrav).
@@ -420,29 +416,19 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 		ty = p[i].a[1];
 		tz = p[i].a[2];
 		maga = sqrt(tx*tx + ty*ty + tz*tz);
-		p[i].dtGrav = maga*dirsum/normsum;
+		dtGrav = maga*dirsum/normsum;
 		}
-	    else p[i].dtGrav = 0.0;
-	    p[i].dtGrav += pkd->param.dPreFacRhoLoc*rholoc;
-#if 0
-	    dT = pkd->param.dEta/sqrt(p[i].dtGrav*dRhoFac);
-	    if (dT < p[i].dt) {
-		int iSteps = dDelta/dt;
-		if (fmod(dDelta,dt) == 0.0) iSteps--;
+	    else dtGrav = 0.0;
+	    dtGrav += pkd->param.dPreFacRhoLoc*rholoc;
+	    if ( dtGrav > 0.0 )
+		dT = pkd->param.dEta/sqrt(dtGrav*dRhoFac);
+	    else
+		dT = pkd->param.dDelta * 2.0;
 
-		iTempRung = uRung;
-		if (iSteps < 0)
-		    iSteps = 0;
-		while (iSteps) {
-		    ++iTempRung;
-		    iSteps >>= 1;
-		    }
+	    uTempRung = pkdNewDtToRung(dT,pkd->param.dDelta,pkd->param.iMaxRung-1);
+	    if ( uTempRung >= uRungLo )
+		p[i].uRung = uTempRung;
 
-
-		p[i].dt = dT;
-		assert(dT>0.0);
-		}
-#endif
 	    p[i].fDensity = rholoc;
 	    }
 	} /* end of i-loop cells & particles */

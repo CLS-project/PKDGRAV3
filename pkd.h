@@ -115,9 +115,6 @@ typedef struct particle {
     /*-----Simulating------------*/
     double v[3];
     /*-----Group-Finding---------*/
-    /**/FLOAT dt;			/* a time step suggestion */
-    /**/FLOAT dtGrav;		/* suggested 1/dt^2 from gravity */
-
     int pGroup;
     int pBin;
 
@@ -626,6 +623,10 @@ static inline int pkdIsSrcActive(PARTICLE *p,uint8_t uRungLo,uint8_t uRungHi) {
     return((p->uRung >= uRungLo)&&(p->uRung <= uRungHi)&&p->bSrcActive);
     }
 
+static inline int pkdIsCellActive(KDN *c,uint8_t uRungLo,uint8_t uRungHi) {
+    return uRungLo <= c->uMaxRung && uRungHi >= c->uMinRung;
+    }
+
 static inline int pkdRungVeryActive(PKD pkd) {
     return pkd->uRungVeryActive;
     }
@@ -636,16 +637,9 @@ static inline int pkdIsVeryActive(PKD pkd, PARTICLE *p) {
 static inline int pkdIsRungActive(PKD pkd, uint8_t uRung ) {
     return uRung >= pkd->uMinRungActive && uRung <= pkd->uMaxRungActive;
     }
-
 static inline int pkdIsActive(PKD pkd, PARTICLE *p ) {
     return pkdIsRungActive(pkd,p->uRung);
     }
-
-static inline int pkdIsCellActive(PKD pkd, KDN *c) {
-    return pkd->uMinRungActive <= c->uMaxRung && pkd->uMaxRungActive >= c->uMinRung;
-    }
-#define CELL_ACTIVE(c,a,b) ((a)<=(c)->uMaxRung && (b)>=(c)->uMinRung)
-
 
 /* Here is the new way of getting mass and softening */
 static inline FLOAT pkdMass( PKD pkd, PARTICLE *p ) {
@@ -767,15 +761,15 @@ void pkdKickKDKClose(PKD pkd,double dTime,double dDelta,uint8_t uRungLo,uint8_t 
 void pkdKick(PKD pkd,double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi);
 void pkdSwapAll(PKD pkd, int idSwap);
 void pkdInitStep(PKD pkd,struct parameters *p,CSM csm);
-void pkdSetRung(PKD pkd,uint8_t uRung);
+void pkdSetRung(PKD pkd,uint8_t uRungLo, uint8_t uRungHi, uint8_t uRung);
 void pkdActiveRung(PKD pkd, int iRung, int bGreater);
 int pkdCurrRung(PKD pkd,uint8_t uRung);
-void pkdGravStep(PKD pkd, double dEta, double dRhoFac);
-void pkdAccelStep(PKD pkd, double dEta, double dVelFac, double
-		  dAccFac, int bDoGravity, int bEpsAcc, int bSqrtPhi, double dhMinOverSoft);
-void pkdDensityStep(PKD pkd, double dEta, double dRhoFac);
+void pkdAccelStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,
+		  double dEta,double dVelFac,double dAccFac,
+		  int bDoGravity,int bEpsAcc,int bSqrtPhi,double dhMinOverSoft);
+void pkdDensityStep(PKD pkd, uint8_t uRungLo, uint8_t uRungHi, double dEta, double dRhoFac);
 int pkdDtToRung(PKD pkd,uint8_t uRung, double dDelta, int iMaxRung, int bAll, int *nRungCount);
-void pkdInitDt(PKD pkd, double dDelta);
+uint8_t pkdNewDtToRung(double dT, double dDelta, uint8_t uMaxRung);
 int pkdOrdWeight(PKD pkd,uint64_t iOrdSplit,int iSplitSide,int iFrom,int iTo,
 		 int *pnLow,int *pnHigh);
 void pkdDeleteParticle(PKD pkd, PARTICLE *p);

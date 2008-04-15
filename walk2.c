@@ -134,7 +134,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 	assert(pkd->nVeryActive != 0);
 	assert(pkd->nVeryActive == pkd->kdNodes[VAROOT].pUpper - pkd->kdNodes[VAROOT].pLower + 1);
 	}
-    else if (!pkdIsCellActive(pkd,&pkd->kdNodes[ROOT])) return 0;
+    else if (!pkdIsCellActive(&pkd->kdNodes[ROOT],uRungLo,uRungHi)) return 0;
     /*
     ** Initially we set our cell pointer to
     ** point to the top tree.
@@ -254,7 +254,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 	iCellDescend = iCell;
 	while (c[iCellDescend].iLower) {
 	    iCellDescend = c[iCellDescend].iLower;
-	    if (!pkdIsCellActive(pkd,&c[iCellDescend])) {
+	    if (!pkdIsCellActive(&c[iCellDescend],uRungLo,uRungHi)) {
 		/*
 		** Move onto processing the sibling.
 		*/
@@ -262,7 +262,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 		}
 	    }
 	for (pj=c[iCellDescend].pLower;pj<=c[iCellDescend].pUpper;++pj) {
-	    if (!pkdIsActive(pkd,&p[pj])) continue;
+	    if (!pkdIsDstActive(&p[pj],uRungLo,uRungHi)) continue;
 	    cx = p[pj].r[0];
 	    cy = p[pj].r[1];
 	    cz = p[pj].r[2];
@@ -679,7 +679,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 	    ** rung check here when we start using tree repair, but
 	    ** for now this is just as good.
 	    */
-	    if (pkdIsCellActive(pkd,&c[iCell])) {
+	    if (pkdIsCellActive(&c[iCell],uRungLo,uRungHi)) {
 		/*
 		** iCell is active, continue processing it.
 		** Put the sibling onto the checklist.
@@ -695,7 +695,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 		** hit the sibling. See the goto InactiveAscend below
 		** for how this is done.
 		*/
-		if (pkdIsCellActive(pkd,&c[iCell+1])) {
+		if (pkdIsCellActive(&c[iCell+1],uRungLo,uRungHi)) {
 		    /*
 		    ** Sibling is active as well.
 		    ** Push Checklist for the sibling onto the stack
@@ -819,7 +819,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 		}
 	    }
 	++iCell;
-	if (!pkdIsCellActive(pkd,&c[iCell])) goto InactiveAscend;
+	if (!pkdIsCellActive(&c[iCell],uRungLo,uRungHi)) goto InactiveAscend;
 	/*
 	** Pop the Checklist from the top of the stack,
 	** also getting the state of the interaction list.
