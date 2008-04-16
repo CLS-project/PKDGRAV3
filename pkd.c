@@ -133,8 +133,8 @@ void pkdStopTimer(PKD pkd,int iTimer) {
 #define returnWarning(x) if (!(x)) { printf("assert failed: %s\n",#x); return 0; }
 
 int pkdVerify(PKD pkd) {
-    returnWarning(pkd->pStore[-1].iOrder==0x123456789abc);
-    returnWarning(pkd->pStore[pkd->nStore].iOrder==0x123456789abc);
+    returnWarning(pkd->pStore[-1].iOrder==0x23456789abc);
+    returnWarning(pkd->pStore[pkd->nStore].iOrder==0x23456789abc);
     returnWarning(pkd->pStore[-1].uRung==0x2d);
     returnWarning(pkd->pStore[pkd->nStore].uRung==0x2d);
     returnWarning(pkd->pStore[-1].bSrcActive==0);
@@ -210,7 +210,7 @@ void pkdInitialize(PKD *ppkd,MDL mdl,int nStore,int nBucket,FLOAT *fPeriod,
     ** at the end is used to verify that there are no memory bounds issues.
     ** The free call MUST take into account the pointer magic.
     */
-    pkd->pStore[-1].iOrder     = pkd->pStore[nStore].iOrder     = 0x123456789abc;
+    pkd->pStore[-1].iOrder     = pkd->pStore[nStore].iOrder     = 0x23456789abc;
     pkd->pStore[-1].uRung      = pkd->pStore[nStore].uRung      = 0x2d;
     pkd->pStore[-1].bSrcActive = pkd->pStore[nStore].bSrcActive = 0;
     pkd->pStore[-1].bDstActive = pkd->pStore[nStore].bDstActive = 0;
@@ -494,8 +494,7 @@ void pkdGenerateIC(PKD pkd, GRAFICCTX gctx,  int iDim,
 	for ( j=0; j<n2; j++ ) {
 	    for ( k=0; k<n3; k++ ) {
 		p = &pkd->pStore[pi];
-		p->uRung = 0;
-		p->uTestRung = 0;
+		p->uRung = p->uNewRung = 0;
 		p->bSrcActive = p->bDstActive = 1;
 		p->fDensity = 0.0;
 		p->fBall = 0.0;
@@ -542,7 +541,7 @@ void pkdReadHDF5(PKD pkd, IOHDF5 io, double dvFac,
     */
     for (i=0;i<nLocal;++i) {
 	p = &pkd->pStore[i];
-	p->uRung = 0;
+	p->uRung = p->uNewRung = 0;
 	p->bSrcActive = p->bDstActive = 1;
 	p->fDensity = 0.0;
 	p->fBall = 0.0;
@@ -597,7 +596,7 @@ void pkdIOInitialize( PKD pkd, int nLocal) {
     */
     for (i=0;i<nLocal;++i) {
 	p = &pkd->pStore[i];
-	p->uRung = 0;
+	p->uRung = p->uNewRung = 0;
 	p->bSrcActive = p->bDstActive = 1;
 	p->iClass = 0;
 	p->fDensity = 0.0;
@@ -635,7 +634,7 @@ void pkdReadTipsy(PKD pkd,char *pszFileName, char *achOutName,uint64_t nStart,in
     */
     for (i=0;i<nLocal;++i) {
 	p = &pkd->pStore[i];
-	p->uRung = 0;
+	p->uRung = p->uNewRung = 0;
 	p->bSrcActive = p->bDstActive = 1;
 	p->fDensity = 0.0;
 	p->fBall = 0.0;
@@ -2403,7 +2402,7 @@ void pkdSetRung(PKD pkd,uint8_t uRungLo, uint8_t uRungHi, uint8_t uRung) {
 
     for (i=0;i<pkdLocal(pkd);++i) {
 	if ( !pkdIsDstActive(&pkd->pStore[i],uRungLo,uRungHi) ) continue;
-	pkd->pStore[i].uRung = uRung;
+	pkd->pStore[i].uRung = pkd->pStore[i].uNewRung = uRung;
 	}
     }
 
@@ -2468,7 +2467,7 @@ void pkdAccelStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,
 		}
 	    uTempRung = pkdNewDtToRung(dT,pkd->param.dDelta,pkd->param.iMaxRung-1);
 	    if ( uTempRung < uRungLo ) uTempRung = uRungLo;
-	    pkd->pStore[i].uRung = uTempRung;
+	    pkd->pStore[i].uNewRung = uTempRung;
 	    }
 	}
     }
@@ -2484,7 +2483,7 @@ void pkdDensityStep(PKD pkd, uint8_t uRungLo, uint8_t uRungHi, double dEta, doub
 	    dT = dEta/sqrt(pkd->pStore[i].fDensity*dRhoFac);
 	    uTempRung = pkdNewDtToRung(dT,pkd->param.dDelta,pkd->param.iMaxRung-1);
 	    if ( uTempRung < uRungLo ) uTempRung = uRungLo;
-	    pkd->pStore[i].uRung = uTempRung;
+	    pkd->pStore[i].uNewRung = uTempRung;
 	    }
 	}
     }
@@ -2509,48 +2508,9 @@ int pkdDtToRung(PKD pkd,uint8_t uRung,double dDelta,int iMaxRung,int bAll,int *n
     int iTempRung;
     for (i=0;i<iMaxRung;++i) nRungCount[i] = 0;
     for (i=0;i<pkdLocal(pkd);++i) {
-#if 0
-	int iSteps;
-	if (pkd->pStore[i].uRung >= uRung) {
-	    mdlassert(pkd->mdl,pkdIsActive(pkd,&(pkd->pStore[i])));
-	    if (bAll) {         /* Assign all rungs at iRung and above */
-		mdlassert(pkd->mdl,pkdSoft(pkd,&pkd->pStore[i]) > 0);
-		mdlassert(pkd->mdl,pkd->pStore[i].dt > 0);
-		iSteps = dDelta/pkd->pStore[i].dt;
-		/* insure that integer boundary goes
-		   to the lower rung. */
-		if (fmod(dDelta,pkd->pStore[i].dt) == 0.0)
-		    iSteps--;
-		iTempRung = uRung;
-		if (iSteps < 0)
-		    iSteps = 0;
-		while (iSteps) {
-		    ++iTempRung;
-		    iSteps >>= 1;
-		    }
-		if (iTempRung >= iMaxRung) {
-		    iTempRung = iMaxRung-1;
-		    /* 		    printf("Maximum Rung %d overshot for particle %"PRIu64"!\n",iMaxRung-1,pkd->pStore[i].iOrder); */
-		    }
-		pkd->pStore[i].uRung = iTempRung;
-
-		if ( iTempRung != pkd->pStore[i].uTestRung ) {
-		    printf( "ERROR: %lu: uTempRung=%d  uTestRung=%d  dt=%.8g  dtGrav=%.8g  dDelta=%.8g uRung=%d  iMaxRung=%d  dDelta/dt=%.8g  dRhoFac=%.8g\n",
-			    pkd->pStore[i].iOrder, iTempRung, pkd->pStore[i].uTestRung,
-			    pkd->pStore[i].dt, pkd->pStore[i].dtGrav, dDelta, uRung, iMaxRung, dDelta/pkd->pStore[i].dt * (1<<uRung) );
-		    assert(iTempRung == pkd->pStore[i].uTestRung);
-		    }
-		}
-	    else {
-		if (dDelta <= pkd->pStore[i].dt) {
-		    pkd->pStore[i].uRung = uRung;
-		    }
-		else {
-		    pkd->pStore[i].uRung = uRung+1;
-		    }
-		}
+	if ( pkdIsDstActive(&pkd->pStore[i],uRung,MAX_RUNG) ) {
+	    pkd->pStore[i].uRung = pkd->pStore[i].uNewRung;
 	    }
-#endif
 	/*
 	** Now produce a count of particles in rungs.
 	*/

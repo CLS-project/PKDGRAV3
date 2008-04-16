@@ -72,7 +72,6 @@ typedef uint_fast64_t total_t; /* Count of particles globally (total number) */
 */
 #define PKD_MAX_CELL_SIZE (1e-2)
 
-
 typedef struct pLite {
     FLOAT r[3];
     int i;
@@ -100,7 +99,8 @@ typedef struct partclass {
 
 typedef struct particle {
     /*-----Base-Particle-Data----*/
-    uint64_t iOrder     : 48;
+    uint64_t iOrder     : 42;
+    uint8_t  uNewRung   :  6;
     uint8_t  uRung      :  6;
     uint8_t  bSrcActive :  1;
     uint8_t  bDstActive :  1;
