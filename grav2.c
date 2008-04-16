@@ -420,12 +420,11 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 		}
 	    else dtGrav = 0.0;
 	    dtGrav += pkd->param.dPreFacRhoLoc*rholoc;
-	    if ( dtGrav > 0.0 )
+	    if ( dtGrav > 0.0 ) {
 		dT = pkd->param.dEta/sqrt(dtGrav*dRhoFac);
-	    else
-		dT = pkd->param.dDelta * 2.0;
-
-	    uTempRung = pkdNewDtToRung(dT,pkd->param.dDelta,pkd->param.iMaxRung-1);
+		uTempRung = pkdNewDtToRung(dT,pkd->param.dDelta,pkd->param.iMaxRung-1);
+		}
+	    else uTempRung = 0;
 	    if ( uTempRung >= uRungLo )
 		p[i].uNewRung = uTempRung;
 
