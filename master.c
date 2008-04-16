@@ -4869,6 +4869,17 @@ double msrRead(MSR msr, int iStep) {
 #ifdef USE_MDL_IO
     }
 #endif
+    /*
+    ** If this is a non-periodic box, then we must precalculate the bounds.
+    ** We throw away the result, but PKD will keep track for later.
+    */
+    if (!msr->param.bPeriodic ||
+	    msr->param.dxPeriod >= FLOAT_MAXVAL ||
+	    msr->param.dyPeriod >= FLOAT_MAXVAL ||
+	    msr->param.dzPeriod >= FLOAT_MAXVAL) {
+	BND bnd;
+	msrCalcBound(msr,&bnd);
+	}
 
 return dTime;
     }

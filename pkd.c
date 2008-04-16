@@ -810,8 +810,8 @@ void pkdCalcBound(PKD pkd,BND *pbnd) {
 	pkdMinMax(pkd->pStore[i].r,dMin,dMax);
 	}
     for (j=0;j<3;++j) {
-	pbnd->fCenter[j] = 0.5*(dMin[j] + dMax[j]);
-	pbnd->fMax[j] = 0.5*(dMax[j] - dMin[j]);
+	pbnd->fCenter[j] = pkd->bnd.fCenter[j] = 0.5*(dMin[j] + dMax[j]);
+	pbnd->fMax[j] = pkd->bnd.fMax[j] = 0.5*(dMax[j] - dMin[j]);
 	}
     }
 
