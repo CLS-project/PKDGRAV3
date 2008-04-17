@@ -29,7 +29,8 @@ int main( int argc, char *argv[] ) {
     float  fTemp;
     PINDEX iOrder;
     unsigned int nBodies, nDims, nGas, nDark, nStar, nPad;
-    FLOAT fMass, fSoft, fPot;
+    FLOAT fMass, fSoft;
+    float fPot;
     FLOAT r[3];
     FLOAT v[3];
 
