@@ -23,7 +23,8 @@ int pkdParticleEwald(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,PARTICLE *p) {
     double Qta,Q4mirx,Q4miry,Q4mirz,Q4mir,Q4x,Q4y,Q4z;
     double Q3mirx,Q3miry,Q3mirz,Q3mir,Q2mirx,Q2miry,Q2mirz,Q2mir;
     double g0,g1,g2,g3,g4,g5;
-    double onethird = 1.0/3.0;
+    const double onethird = 1.0/3.0;
+    const double oneseventh = 1.0/7.0;
     double hdotx,s,c;
     int i,n,ix,iy,iz,bInHole,bInHolex,bInHolexy;
     int nFlop;
@@ -66,19 +67,13 @@ int pkdParticleEwald(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,PARTICLE *p) {
 		     * the origin to avoid errors caused
 		     * by cancellation of large terms.
 		     */
-		    alphan = pkd->ew.ka;
 		    r2 *= pkd->ew.alpha2;
-		    g0 = alphan*((1.0/3.0)*r2 - 1.0);
-		    alphan *= 2*pkd->ew.alpha2;
-		    g1 = alphan*((1.0/5.0)*r2 - (1.0/3.0));
-		    alphan *= 2*pkd->ew.alpha2;
-		    g2 = alphan*((1.0/7.0)*r2 - (1.0/5.0));
-		    alphan *= 2*pkd->ew.alpha2;
-		    g3 = alphan*((1.0/9.0)*r2 - (1.0/7.0));
-		    alphan *= 2*pkd->ew.alpha2;
-		    g4 = alphan*((1.0/11.0)*r2 - (1.0/9.0));
-		    alphan *= 2*pkd->ew.alpha2;
-		    g5 = alphan*((1.0/13.0)*r2 - (1.0/11.0));
+		    g0 = -pkd->ew.ka*(1 - r2*(onethird - r2*(0.1 - r2*0.5*onethird*oneseventh)));
+		    g1 = 2*pkd->ew.alpha*pkd->ew.ka*sqrt(r2)*(onethird - r2*(0.2 - r2*0.5*oneseventh));
+		    g2 = 2*pkd->ew.alpha2*pkd->ew.ka*(onethird - r2*(0.6 - r2*2.5*oneseventh));
+		    g3 = -4*pkd->ew.alpha*pkd->ew.alpha2*pkd->ew.ka*sqrt(r2)*(0.6 - r2*5*oneseventh);
+		    g4 = -4*pkd->ew.alpha2*pkd->ew.alpha2*pkd->ew.ka*(0.6 - r2*15*oneseventh);
+		    g5 = 120*pkd->ew.alpha*pkd->ew.alpha2*pkd->ew.alpha2*pkd->ew.ka*sqrt(r2)*oneseventh;
 		    }
 		else {
 		    dir = 1/sqrt(r2);
