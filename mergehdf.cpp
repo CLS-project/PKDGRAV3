@@ -8,6 +8,7 @@
 static const char OPT_HELP      = 'h';
 static const char OPT_REFERENCE = 'r';
 static const char OPT_OUTPUT    = 'o';
+static const char OPT_DOUBLE    = 'd';
 
 static const hsize_t CHUNK_SIZE = 32768;
 
@@ -23,8 +24,10 @@ protected:
 	double   fSoft;             /* Softening */
 	} classEntry;
 
+    uint64_t m_iOrder;
     H5::CompType m_classType;
     std::vector<classEntry> m_classes;
+    std::string m_name;
 
 public:
     File( const char* name, unsigned int flags,
@@ -40,6 +43,7 @@ public:
 
     void copyAttributes( const File *src );
     void readAttribute( const std::string &name, double &v );
+    uint64_t readiOrder();
     void writeAttribute( const std::string &name, double v );
 
 
@@ -51,7 +55,7 @@ public:
 
     void copyData( const File &src );
 
-    void create( uint64_t N );
+    void create( uint64_t N, bool bDouble=true );
 
 public:
     static void doAddAttribute(H5::H5Object&loc, std::string name, void*data);
@@ -63,7 +67,8 @@ public:
 class compStart : public std::binary_function<File *,File *,bool> {
     public:
 	bool operator()(const File *a, const File *b) const {
-	    return a->m_classes[0].iOrderStart < b->m_classes[0].iOrderStart;
+	    //return a->m_classes[0].iOrderStart < b->m_classes[0].iOrderStart;
+	    return a->m_iOrder < b->m_iOrder;
 	    }
 	};
 
@@ -75,7 +80,7 @@ class compStart : public std::binary_function<File *,File *,bool> {
 	    m_N = 0;
 	    }
 	void operator()(const File *a) const {
-	    assert( a->m_classes[0].iOrderStart == m_N );
+	    assert( a->m_iOrder == m_N );
 	    m_N += a->getDarkCount();
 	    }
 	};
@@ -159,7 +164,7 @@ File::File( const char* name, unsigned int flags,
 	    const H5::FileCreatPropList& create_plist,
 	    const H5::FileAccPropList& access_plist )
 	: H5File(name,flags,create_plist,access_plist),
-	m_classType(sizeof(classEntry)) {
+	  m_classType(sizeof(classEntry)), m_name(name) {
     init();
     }
 
@@ -167,7 +172,7 @@ File::File( const std::string& name, unsigned int flags,
 	    const H5::FileCreatPropList& create_plist,
 	    const H5::FileAccPropList& access_plist)
 	: H5File(name,flags,create_plist,access_plist),
-	m_classType(sizeof(classEntry)) {
+	  m_classType(sizeof(classEntry)), m_name(name) {
     init();
     }
 
@@ -190,16 +195,12 @@ File::~File() {
 
 void File::readClasses() {
     hsize_t dims;
-
+    m_iOrder = readiOrder();
     H5::Group group(openGroup( "dark" ));
     H5::DataSet classes(group.openDataSet("classes"));
-
-
     assert( classes.getSpace().getSimpleExtentNdims() == 1 );
-
     classes.getSpace().getSimpleExtentDims (&dims);
     m_classes.insert(m_classes.end(),dims,classEntry());
-
     classes.read( &(m_classes[0]), m_classType );
     }
 
@@ -275,6 +276,14 @@ void File::readAttribute( const std::string &name, double &v ) {
     a.read( H5::PredType::NATIVE_DOUBLE, &v );
     }
 
+uint64_t File::readiOrder() {
+    uint64_t v;
+    H5::Group group(openGroup( "dark" ));
+    H5::Attribute a(group.openAttribute("iOrder"));
+    a.read( H5::PredType::NATIVE_UINT64, &v );
+    return v;
+    }
+
 void File::writeAttribute( const std::string &name, double v ) {
     H5::Group group(openGroup( "parameters" ));
     hsize_t dataSize = 1;
@@ -285,7 +294,7 @@ void File::writeAttribute( const std::string &name, double v ) {
     }
 
 
-void File::create( uint64_t N ) {
+void File::create( uint64_t N, bool bDouble ) {
     hsize_t chunkSize[2],dataSize[2], maxSize[2];
 
     maxSize[0] = H5S_UNLIMITED;
@@ -319,32 +328,38 @@ void File::create( uint64_t N ) {
     propDisk2.setFletcher32();
 
     H5::DataSet positionDataSet(
-	darkGroup.createDataSet("position",
-				H5::PredType::NATIVE_DOUBLE,
-				spaceDisk2,propDisk2) );
+	darkGroup.createDataSet(
+	    "position",
+	    bDouble ? H5::PredType::NATIVE_DOUBLE : H5::PredType::NATIVE_FLOAT,
+	    spaceDisk2,propDisk2) );
 
     H5::DataSet velocityDataSet(
-	darkGroup.createDataSet("velocity",
-				H5::PredType::NATIVE_DOUBLE,
-				spaceDisk2,propDisk2) );
+	darkGroup.createDataSet(
+	    "velocity",
+	    bDouble ? H5::PredType::NATIVE_DOUBLE : H5::PredType::NATIVE_FLOAT,
+	    spaceDisk2,propDisk2) );
 
     }
 
 void File::copyData( const File &src ) {
     uint64_t N = src.getDarkCount();
-    uint64_t O = src.m_classes.front().iOrderStart;
+    uint64_t O = src.m_iOrder;
     uint64_t i;
     hsize_t n;
     hsize_t off[2], Dims[2];
+
+    std::cout << "Copying data from " << src.m_name << std::endl;
 
     H5::Group dstGroup(openGroup( "dark" ));
     H5::Group srcGroup(src.openGroup( "dark" ));
 
     H5::DataSet dst_pos( dstGroup.openDataSet("position") );
     H5::DataSet dst_vel( dstGroup.openDataSet("velocity") );
+    //H5::DataSet dst_cls( dstGroup.openDataSet("class") );
 
     H5::DataSet src_pos( srcGroup.openDataSet("position") );
     H5::DataSet src_vel( srcGroup.openDataSet("velocity") );
+    //H5::DataSet src_cls( srcGroup.openDataSet("class") );
 
     double *buffer = new double[3*CHUNK_SIZE];
 
@@ -397,6 +412,7 @@ void File::copyData( const File &src ) {
 int main( int argc, char *argv[] ) {
     bool bHelp = false;
     bool bError = false;
+    bool bDouble = false;
     std::string RefName, OutName;
     File *RefFile = 0;
     FileList files;
@@ -408,10 +424,13 @@ int main( int argc, char *argv[] ) {
 	int c, option_index=0;
 
 	static struct option long_options[] = {
-		{ "help",        0, 0, OPT_HELP
-		}, { "reference",   1, 0, OPT_REFERENCE }, { "output",      1, 0, OPT_OUTPUT }, { 0,             0, 0, 0 }
+		{ "help",        0, 0, OPT_HELP	},
+		{ "reference",   1, 0, OPT_REFERENCE },
+		{ "output",      1, 0, OPT_OUTPUT },
+		{ "double",      0, 0, OPT_DOUBLE },
+		{ 0,             0, 0, 0 }
 	    };
-	c = getopt_long( argc, argv, "hr:o:",
+	c = getopt_long( argc, argv, "hr:o:d",
 			 long_options, &option_index );
 	if ( c == -1 ) break;
 
@@ -426,6 +445,9 @@ int main( int argc, char *argv[] ) {
 	case OPT_OUTPUT:
 	    assert(optarg !=NULL);
 	    OutName = optarg;
+	    break;
+	case OPT_DOUBLE:
+	    bDouble = true;
 	    break;
 	default:
 	    bError = true;
@@ -466,7 +488,7 @@ int main( int argc, char *argv[] ) {
     if ( !OutName.empty() ) {
 	std::cout << "Creating " << OutName << std::endl;
 	File OutFile( OutName, H5F_ACC_TRUNC );
-	OutFile.create(n);
+	OutFile.create(n,false);
 	OutFile.copyAttributes(files.front());
 	std::for_each(files.begin(), files.end(), File::doMergeClasses(OutFile));
 	OutFile.writeClasses();
