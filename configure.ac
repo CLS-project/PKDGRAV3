@@ -51,7 +51,7 @@ AM_CONDITIONAL(WITH_PARTICLE_CELL, test "x$WITH_PARTICLE_CELL" = "xyes")
 
 # Electric fence
 AC_ARG_WITH(efence,
-  [  --with-efence[=directory]      enable electric fence debugging],
+  [  --with-efence=PATH      enable electric fence debugging],
   [EFENCE_DIR="${withval}"],[EFENCE_DIR=no])
 AM_CONDITIONAL(USE_EFENCE, test "x$EFENCE_DIR" != "xno")
 AM_CONDITIONAL(HAVE_EFENCE_PATH, test "x$EFENCE_DIR" != "xyes")
@@ -64,7 +64,7 @@ AC_ARG_ENABLE(hdf5,
    AC_DEFINE([USE_HDF5], 1,
  	[Define if HDF5 I/O should be available.])])
 AC_ARG_WITH(hdf5,
-  [  --with-hdf5=PATH               path to HDF5 installation],
+  [  --with-hdf5=PATH        path to HDF5 installation],
   [CFLAGS="$CFLAGS -I${withval}/include"
    LDFLAGS="$LDFLAGS -L${withval}/lib"
    if test -n "${need_dash_r}"; then
@@ -78,7 +78,7 @@ AC_ARG_WITH(hdf5,
 if test "${cross_compiling}" = "no";
 then
 AC_ARG_WITH(mdl,
-  [  --with-mdl=PATH                base path of MDL source],
+  [  --with-mdl=PATH         base path of MDL source],
   [AC_CHECK_FILE([${withval}],[MDL_PATH="${withval}"],[AC_MSG_ERROR([MDL does not exist at ${withval}])])],
   [AC_CHECK_FILE([../mdl2],
 	[AC_SUBST([MDL_PATH],../mdl2)],
@@ -86,13 +86,13 @@ AC_ARG_WITH(mdl,
    )])
 else
 AC_ARG_WITH(mdl,
-  [  --with-mdl=PATH                base path of MDL source],
+  [  --with-mdl=PATH         base path of MDL source],
   [MDL_PATH="${withval}"]
   [MDL_PATH="../mdl2"])
 fi
 
 AC_ARG_WITH(grafic,
-  [  --with-grafic=PATH             base path of GRAFIC IC library],
+  [  --with-grafic=PATH      base path of GRAFIC IC library],
   [AC_SUBST([GRAFIC_PATH],[${withval}])
    USE_GRAFIC=yes
    AC_DEFINE([USE_GRAFIC], 1,
@@ -116,7 +116,7 @@ AM_CONDITIONAL(USE_HDF5, test "x$USE_HDF5" = "xyes")
 
 # SISCI MDL
 AC_ARG_WITH(sisci,
-  [  --with-sisci[=/opt/DIS]        path to SISCI installation],
+  [  --with-sisci[=/opt/DIS]   path to SISCI installation],
   [if test "x$enableval" = "xyes" ; then
     AC_SUBST([SISCI_PATH],/opt/DIS)
     USE_SISCI=yes
@@ -142,7 +142,7 @@ AC_ARG_ENABLE(png,
  	[Define if PNG output is supported.])])
 AM_CONDITIONAL(USE_PNG, test "x$USE_PNG" = "xyes")
 AC_ARG_WITH(gd,
-  [  --with-gd=PATH                path to GD installation],
+  [  --with-gd=PATH          path to GD installation],
   [CFLAGS="$CFLAGS -I${withval}/include"
    LDFLAGS="$LDFLAGS -L${withval}/lib"
    if test -n "${need_dash_r}"; then
