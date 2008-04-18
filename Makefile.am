@@ -71,14 +71,19 @@ endif
 if USE_HDF5
 pkdgrav2m_null_LDADD += -lhdf5
 endif
-
+if USE_EFENCE
+if HAVE_EFENCE_PATH
+pkdgrav2m_null_LDADD += -L @EFENCE_PATH@
+endif
+pkdgrav2m_null_LDADD += -lefence
+endif
 
 if HAVE_MPI
 pkdgrav2m_mpi_LDADD =
 pkdgrav2m_mpi_SOURCES = $(SOURCES) $(MDL)/mpi/mdl.c
 pkdgrav2m_mpi_CFLAGS = -I$(MDL)/mpi/ $(AM_CFLAGS)
 if USE_BSC
-pkdgrav2m_mpi_LDADD += -L/gpfs/apps/CEPBATOOLS/mpitrace-devel/64/lib -ldl -lmpitrace_burst
+pkdgrav2m_mpi_LDADD += -L /gpfs/apps/CEPBATOOLS/mpitrace-devel/64/lib -ldl -lmpitrace_burst
 pkdgrav2m_mpi_CFLAGS += -I/gpfs/apps/CEPBATOOLS/mpitrace-devel/64/include
 endif
 if USE_PNG
@@ -89,8 +94,14 @@ pkdgrav2m_mpi_LDADD += -lhdf5
 endif
 if USE_GRAFIC
 pkdgrav2m_mpi_CFLAGS += -I@GRAFIC_PATH@
-pkdgrav2m_mpi_LDADD += -L@GRAFIC_PATH@ -lgrafic -lsrfftw_mpi -lsfftw_mpi -lsrfftw -lsfftw -lgfortran
+pkdgrav2m_mpi_LDADD += -L @GRAFIC_PATH@ -lgrafic -lsrfftw_mpi -lsfftw_mpi -lsrfftw -lsfftw -lgfortran
 #CCLD=mpicxx
+endif
+if USE_EFENCE
+if HAVE_EFENCE_PATH
+pkdgrav2m_mpi_LDADD += -L @EFENCE_PATH@
+endif
+pkdgrav2m_mpi_LDADD += -lefence
 endif
 endif
 
@@ -104,17 +115,29 @@ endif
 if USE_HDF5
 pkdgrav2m_pthread_LDADD += -lhdf5
 endif
+if USE_EFENCE
+if HAVE_EFENCE_PATH
+pkdgrav2m_pthread_LDADD += -L @EFENCE_PATH@
+endif
+pkdgrav2m_pthread_LDADD += -lefence
+endif
 endif
 
 if HAVE_SISCI
 pkdgrav2m_sisci_SOURCES = $(SOURCES) $(MDL)/sisci/mdl.c
 pkdgrav2m_sisci_CFLAGS = -I$(MDL)/sisci/ $(AM_CFLAGS) -I$(SISCI_PATH)/include
-pkdgrav2m_sisci_LDADD = -lpthread -L$(SISCI_PATH)/lib64 -lsisci
+pkdgrav2m_sisci_LDADD = -lpthread -L $(SISCI_PATH)/lib64 -lsisci
 if USE_PNG
 pkdgrav2m_sisci_LDADD += -lgd -lpng
 endif
 if USE_HDF5
 pkdgrav2m_sisci_LDADD += -lhdf5
+endif
+if USE_EFENCE
+if HAVE_EFENCE_PATH
+pkdgrav2m_sisci_LDADD += -L @EFENCE_PATH@
+endif
+pkdgrav2m_sisci_LDADD += -lefence
 endif
 endif
 
@@ -123,4 +146,3 @@ tip2hdf5_SOURCES = tip2hdf5.c iohdf5.c
 hdf52tip_SOURCES = hdf52tip.c iohdf5.c
 hdf5cat_SOURCES = hdf5cat.c iohdf5.c
 endif
-

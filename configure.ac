@@ -49,6 +49,14 @@ AC_ARG_ENABLE(particle-cell,
  	[Define if particle-cell interactions should be used.])])
 AM_CONDITIONAL(WITH_PARTICLE_CELL, test "x$WITH_PARTICLE_CELL" = "xyes")
 
+# Electric fence
+AC_ARG_WITH(efence,
+  [  --with-efence[=directory]      enable electric fence debugging],
+  [EFENCE_DIR="${withval}"],[EFENCE_DIR=no])
+AM_CONDITIONAL(USE_EFENCE, test "x$EFENCE_DIR" != "xno")
+AM_CONDITIONAL(HAVE_EFENCE_PATH, test "x$EFENCE_DIR" != "xyes")
+AC_SUBST([EFENCE_PATH],[$EFENCE_DIR])
+
 # HDF5 I/O
 AC_ARG_ENABLE(hdf5,
   [  --enable-hdf5                  enable I/O using HDF5 libraries],
