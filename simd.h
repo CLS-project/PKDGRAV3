@@ -122,7 +122,9 @@ static inline v4sf SIMD_RE_EXACT(v4sf a) {
 #define SIMD_XOR(a,b) _mm_xor_ps(a,b)
 #define SIMD_ALL_ZERO(a) _mm_movemask_ps(a)
 #else
-#define SIMD_MUL(a,b) vec_madd(a,b,(v4sf)(0,0,0,0))
+static v4sf   simd_zero  = {0,0,0,0};
+static v4bool simd_false = {0,0,0,0};
+#define SIMD_MUL(a,b) vec_madd(a,b,simd_zero)
 #define SIMD_ADD(a,b) vec_add(a,b)
 #define SIMD_SUB(a,b) vec_sub(a,b)
 #define SIMD_MADD(a,b,c) vec_madd(a,b,c)
@@ -144,7 +146,7 @@ static inline v4sf SIMD_RE_EXACT( v4sf a) {
 #define SIMD_ANDNOT(a,b) vec_andc(b,a)
 #define SIMD_OR(a,b) vec_or(a,b)
 #define SIMD_XOR(a,b) vec_xor(a,b)
-#define SIMD_ALL_ZERO(a) (!vec_all_eq(a,(v4bool)(0,0,0,0)))
+#define SIMD_ALL_ZERO(a) (!vec_all_eq(a,simd_false))
 #endif
 
 static inline v4sf SIMD_RSQRT_EXACT(v4sf B) {
