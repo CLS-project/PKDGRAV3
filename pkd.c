@@ -228,7 +228,7 @@ void pkdInitialize(PKD *ppkd,MDL mdl,int nStore,int nBucket,FLOAT *fPeriod,
     /*
     ** We support up to 256 classes
     */
-    pkd->pClass = mdlMalloc(pkd->mdl,PKD_MAX_CLASSES*sizeof(PARTCLASS));
+    pkd->pClass = malloc(PKD_MAX_CLASSES*sizeof(PARTCLASS));
     mdlassert(mdl,pkd->pClass != NULL);
     for (j=0;j<PKD_MAX_CLASSES;j++)
 	pkd->pClass[j].fMass = pkd->pClass[j].fSoft = pkd->pClass[j].fSoft0 = -1.0;
@@ -337,7 +337,7 @@ void pkdFinish(PKD pkd) {
     free(pkd->S);
     if (pkd->kdTop) free(pkd->kdTop);
     free(pkd->ew.ewt);
-    mdlFree(pkd->mdl,pkd->pClass);
+    free(pkd->pClass);
     mdlFree(pkd->mdl,pkd->pStore-1);
     free(pkd->pLite);
     free(pkd->piActive);
