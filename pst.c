@@ -3798,11 +3798,16 @@ void pstSetClasses(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
  * the pst but simply set's the given table and returns the old table.
  */
 void pstSwapClasses(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
-    LCL *plcl = pst->plcl;
+    LCL *plcl;
     PARTCLASS *in = vin;
     PARTCLASS *out = vout;
     int n;
     PST lpst;
+
+    lpst = pst;
+    while (lpst->nLeaves > 1)
+	lpst = lpst->pstLower;
+    plcl = lpst->plcl;
 
     n = pkdGetClasses( plcl->pkd, PKD_MAX_CLASSES, out );
     *pnOut = n * sizeof(PARTCLASS);
