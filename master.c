@@ -1076,6 +1076,7 @@ static void _SwapClasses(MSR msr, int id) {
     mdlGetReply(pst0->mdl,id,pClass,&n);
     n = n / sizeof(PARTCLASS);
     pkdSetClasses( plcl->pkd, n, pClass, 0 );
+    free(pClass);
     }
 
 #ifdef USE_HDF5
