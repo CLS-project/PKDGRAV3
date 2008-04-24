@@ -50,6 +50,7 @@ typedef struct ilpTile {
     struct {
 	ilpFloat d2;                /* Distance squared: calculated */
 	ilpFloat m;                 /* Mass */
+	ilpFloat fourh2;            /* Softening */
 	} s;
 
     } *ILPTILE;
@@ -90,6 +91,7 @@ static inline uint32_t ilpCount(ILP ilp) {
     }
 
 float ilpSelect(ILP ilp,uint32_t n,float *rMax);
+float ilpSelectMass(ILP ilp,uint32_t n, uint32_t N);
 
 #if defined(SYMBA) || defined(PLANETS)
 #define ilpAppend_1(ilp,I) tile->d.iOrder.i[i] = (I);

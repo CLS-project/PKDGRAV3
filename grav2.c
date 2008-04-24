@@ -232,26 +232,22 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 	    if (nPartX > 1) {
 		nSP = (nPartX < pkd->param.nPartRhoLoc)?nPartX:pkd->param.nPartRhoLoc;
 		dsmooth2 = ilpSelect(ilp,nSP,&rMax);
+		/*eps=*/ ilpSelectMass(ilp,nSP/2,nSP);
 #ifdef USE_SIMD
 		psmooth2 = SIMD_SPLAT(dsmooth2);
 #endif
 		SQRT1(dsmooth2,dir);
 		dir2 = dir * dir;
-		/*
-		** We loop to nSP-1 because the contribution from the last particle
-		** is always zero, but it can be negative with rounding errors.
-		** In theory, there could be another particle at the same distance
-		** which could cause problems.
-		*/
-		for (j=0;j<nSP-1;++j) {
+		for (j=0;j<nSP;++j) {
 		    assert(ilp->first->s.m.f[j] > 0.0);
 		    d2 = ilp->first->s.d2.f[j]*dir2;
 		    d2 = (1-d2);
+		    if ( d2 < 0.0 ) d2 = 0.0;
 		    rholoc += d2*ilp->first->s.m.f[j];
 		    }
 		rholoc = 1.875*M_1_PI*rholoc*dir2*dir; /* F1 Kernel (15/8) */
 		}
-	    assert(rholoc >= 0);
+	    assert(rholoc >= 0.0);
 	    }
 
 #ifdef USE_SIMD_PP

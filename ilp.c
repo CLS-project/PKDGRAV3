@@ -80,6 +80,24 @@ void ilpFinish(ILP ilp) {
     free(ilp);
     }
 
+static float Swap(ILPTILE t1, size_t i1, ILPTILE t2, size_t i2) {
+    float v;
+
+    v = t1->s.m.f[i1];
+    t1->s.m.f[i1] = t2->s.m.f[i2];
+    t2->s.m.f[i2] = v;
+
+    v = t1->s.d2.f[i1];
+    t1->s.d2.f[i1] = t2->s.d2.f[i2];
+    t2->s.d2.f[i2] = v;
+
+    v = t1->s.fourh2.f[i1];
+    t1->s.fourh2.f[i1] = t2->s.fourh2.f[i2];
+    t2->s.fourh2.f[i2] = v;
+
+    return v;
+    }
+
 float ilpSelect(ILP ilp,uint32_t n, float *rMax) {
     ILPTILE  tile, last, lower, upper;
     size_t tile_i, last_i, lower_i, upper_i, m;
@@ -102,6 +120,7 @@ float ilpSelect(ILP ilp,uint32_t n, float *rMax) {
 	for ( j=0; j<tile->nPart; j++ ) {
 	    tile->s.d2.f[j] = tile->d.d2.f[j];
 	    tile->s.m.f[j] = tile->d.m.f[j];
+	    tile->s.fourh2.f[j] = tile->d.fourh2.f[j];
 	    }
 	}
 #endif
@@ -113,15 +132,7 @@ float ilpSelect(ILP ilp,uint32_t n, float *rMax) {
 	for (j=0;j<ilp->first->nPart;j++)
 	    if ( ilp->first->s.d2.f[j] > v )
 		v = ilp->first->s.d2.f[(i=j)];
-
-	v = ilp->first->s.m.f[i];
-	ilp->first->s.m.f[i] = ilp->first->s.m.f[ilp->first->nPart-1];
-	ilp->first->s.m.f[ilp->first->nPart-1] = v;
-
-	v = ilp->first->s.d2.f[i];
-	ilp->first->s.d2.f[i] = ilp->first->s.d2.f[ilp->first->nPart-1];
-	ilp->first->s.d2.f[ilp->first->nPart-1] = v;
-
+	Swap(ilp->first,i,ilp->first,ilp->first->nPart-1);
 	return v;
 	}
 
@@ -160,13 +171,7 @@ float ilpSelect(ILP ilp,uint32_t n, float *rMax) {
 
 	    /* Swap the large and small values */
 	    if ( tile!=last || tile_i<last_i ) {
-		v = last->s.d2.f[last_i];
-		last->s.d2.f[last_i] = tile->s.d2.f[tile_i];
-		tile->s.d2.f[tile_i] = v;
-
-		v = last->s.m.f[last_i];
-		last->s.m.f[last_i] = tile->s.m.f[tile_i];
-		tile->s.m.f[tile_i] = v;
+		Swap(last,last_i,tile,tile_i);
 		if ( tile != last || tile_i < last_i ) {
 		    if ( ++tile_i == tile->nPart ) {
 			tile = tile->next;
@@ -217,15 +222,9 @@ float ilpSelect(ILP ilp,uint32_t n, float *rMax) {
 	if ( ilp->first->s.d2.f[j] > v )
 	    v = ilp->first->s.d2.f[(i=j)];
 
-    v = ilp->first->s.m.f[i];
-    ilp->first->s.m.f[i] = ilp->first->s.m.f[n-1];
-    ilp->first->s.m.f[n-1] = v;
+    Swap(ilp->first,i,ilp->first,n-1);
 
-    v = ilp->first->s.d2.f[i];
-    ilp->first->s.d2.f[i] = ilp->first->s.d2.f[n-1];
-    ilp->first->s.d2.f[n-1] = v;
-
-#if 0
+#if 1
     // Check
     float mn,mx;
     mn = ilp->first->s.d2.f[0];
@@ -247,6 +246,97 @@ float ilpSelect(ILP ilp,uint32_t n, float *rMax) {
 
     /* Estimate a sensible rMax based on this rMax */
     *rMax = v * 1.05;
+
+    return v;
+    }
+
+
+float ilpSelectMass(ILP ilp,uint32_t n, uint32_t N) {
+    ILPTILE  tile;
+    size_t lower_i, upper_i, tile_i, last_i;
+    size_t i, j, m;
+    float v, cmp;
+
+    if ( n == 0 ) return 0.0;
+    if ( N > ilpCount(ilp) ) N = ilpCount(ilp);
+    tile = ilp->first;
+    assert( N <= tile->nPart );
+
+    /*
+    ** If we have less than n particles, then there isn't any sense in partitioning.
+    ** In this case, we fine the largest mass and return the corresponding softening.
+    */
+    if ( N <= n ) {
+	v = tile->s.m.f[0];
+	i = 0;
+	for (j=0;j<N;j++)
+	    if ( tile->s.m.f[j] > v )
+		v = tile->s.m.f[(i=j)];
+	return Swap(tile,i,tile,N-1);
+	}
+
+    tile_i = lower_i = 0;
+    last_i = upper_i = N-1;
+
+    m = N <= n*2 ? N-1 : n*2;
+    if ( m > last_i ) m = last_i;
+    cmp = tile->s.m.f[m];
+
+    for (;;) {
+	for (;;) { /* Partition loop */
+	    while (tile_i<=last_i && tile->s.m.f[tile_i] < cmp )
+		tile_i++;
+	    while (last_i > tile_i && tile->s.m.f[last_i] > cmp )
+		--last_i;
+
+	    /* Swap the large and small values */
+	    if ( tile_i<last_i ) {
+		Swap(tile,last_i,tile,tile_i);
+		tile_i++;
+		if ( tile_i == last_i ) break;
+		last_i--;
+		}
+	    else break;
+	    }
+
+	if ( tile_i >= n ) upper_i = tile_i-1;   /* Too many in the first partition */
+	else if ( tile_i < n ) lower_i = tile_i; /* Too few in this partition */
+	else break;                              /* Exactly the right number */
+
+	if ( upper_i <= lower_i ) break;
+
+	tile_i = lower_i;
+	last_i = upper_i;
+
+	m = N <= n*2 ? N-1 : n*2;
+	if ( m > last_i ) m = last_i;
+	cmp = tile->s.m.f[m];
+	}
+
+    v = tile->s.m.f[0];
+    i = 0;
+    for (j=0;j<n;j++)
+	if ( tile->s.m.f[j] > v )
+	    v = tile->s.m.f[(i=j)];
+
+    v = Swap(tile,i,tile,n-1);
+
+/* Turn this off for normal operation */
+#if 0
+    // Check
+    float mn,mx;
+    mn = tile->s.m.f[0];
+    mx = tile->s.m.f[n];
+    for ( j=0; j<N; j++ ) {
+	if ( j<n ) {
+	    if ( tile->s.m.f[j] > mn ) mn = tile->s.m.f[j];
+	    }
+	else {
+	    if ( tile->s.m.f[j] < mx ) mx = tile->s.m.f[j];
+	    }
+	}
+    assert( mn<=mx);
+#endif
 
     return v;
     }
