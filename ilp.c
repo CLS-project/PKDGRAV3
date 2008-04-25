@@ -105,7 +105,7 @@ float ilpSelect(ILP ilp,uint32_t n, float *rMax) {
     float v;
     float cmp;
 
-    if ( n == 0 ) return 0.0;
+    assert( n > 0 );
 
 #ifdef USE_SIMD_PP
     ILP_LOOP(ilp,tile) {
@@ -113,6 +113,7 @@ float ilpSelect(ILP ilp,uint32_t n, float *rMax) {
 	for ( j=0; j<n; j++ ) {
 	    tile->s.d2.p[j] = tile->d.d2.p[j];
 	    tile->s.m.p[j] = tile->d.m.p[j];
+	    tile->s.fourh2.p[j] = tile->d.fourh2.p[j];
 	    }
 	}
 #else
@@ -224,7 +225,7 @@ float ilpSelect(ILP ilp,uint32_t n, float *rMax) {
 
     Swap(ilp->first,i,ilp->first,n-1);
 
-#if 1
+#if 0
     // Check
     float mn,mx;
     mn = ilp->first->s.d2.f[0];
@@ -257,8 +258,9 @@ float ilpSelectMass(ILP ilp,uint32_t n, uint32_t N) {
     size_t i, j, m;
     float v, cmp;
 
-    if ( n == 0 ) return 0.0;
+    assert( n > 0 );
     if ( N > ilpCount(ilp) ) N = ilpCount(ilp);
+
     tile = ilp->first;
     assert( N <= tile->nPart );
 
