@@ -67,7 +67,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
     double dtGrav;
     momFloat adotai,maga,dimaga,dirsum,normsum;
     momFloat tax,tay,taz,tmon;
-    double rholoc,dirDTS,d2DTS,dsmooth2,fSoftMedian,fEps,fEps2;
+    double rholoc,dirDTS,d2DTS,dsmooth2,fSoftMedian,fSoftMedianLo,fEps,fEps2;
 #ifndef USE_SIMD_MOMR
     double g2,g3,g4;
     double xx,xy,xz,yy,yz,zz;
@@ -232,15 +232,17 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 	    if (nPartX > 1) {
 		nSP = (nPartX < pkd->param.nPartRhoLoc)?nPartX:pkd->param.nPartRhoLoc;
 		dsmooth2 = ilpSelect(ilp,nSP,&rMax);
-                fSoftMedian = ilpSelectMass(ilp,nSP/2,nSP);
 #ifdef USE_SIMD
 		psmooth2 = SIMD_SPLAT(dsmooth2);
 #endif
+                fSoftMedian = ilpSelectMass(ilp,nSP/2+1,nSP);
 		SQRT1(dsmooth2,dir);
 		dir2 = dir * dir;
 		for (j=0;j<nSP;++j) {
 		    assert(ilp->first->s.m.f[j] > 0.0);
-		    fEps = fSoftMedian/ilp->first->s.fSoft.f[j];
+		    assert(ilp->first->s.fourh2.f[j] > 0.0);
+		    fEps = fSoftMedian/ilp->first->s.fourh2.f[j];
+		    if (fEps > 1.0) fEps = 1.0;
 		    fEps2 = fEps*fEps;
 		    d2 = ilp->first->s.d2.f[j]*dir2*fEps2;
 		    d2 = (1-d2);
