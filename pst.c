@@ -434,6 +434,9 @@ void pstAddServices(PST pst,MDL mdl) {
 		  (void (*)(void *,void *,int,void *,int *)) pstSwapClasses,
 		  PKD_MAX_CLASSES*sizeof(PARTCLASS),
 		  PKD_MAX_CLASSES*sizeof(PARTCLASS));
+    mdlAddService(mdl,PST_DEEPESTPOT,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstDeepestPot,
+		  sizeof(struct inDeepestPot), sizeof(struct outDeepestPot));
     }
 
 void pstInitialize(PST *ppst,MDL mdl,LCL *plcl) {
@@ -3817,3 +3820,29 @@ void pstSwapClasses(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     pkdSetClasses( plcl->pkd, n, in, 0 );
     }
 
+void pstDeepestPot(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl = pst->plcl;
+    struct inDeepestPot *in = vin;
+    struct outDeepestPot *out = vout;
+    struct outDeepestPot outUpper;
+
+    assert( nIn==sizeof(struct inDeepestPot) );
+    if (pst->nLeaves > 1) {
+	mdlReqService(pst->mdl,pst->idUpper,PST_DEEPESTPOT,vin,nIn);
+	pstDeepestPot(pst->pstLower,vin,nIn,vout,pnOut);
+	mdlGetReply(pst->mdl,pst->idUpper,&outUpper,pnOut);
+	assert(*pnOut == sizeof(struct outDeepestPot));
+	if ( out->nChecked==0 || (outUpper.nChecked && outUpper.fPot < out->fPot) ) {
+	    out->r[0] = outUpper.r[0];
+	    out->r[1] = outUpper.r[1];
+	    out->r[2] = outUpper.r[2];
+	    out->fPot = outUpper.fPot;
+	    out->nChecked += outUpper.nChecked;
+	    }
+	}
+    else {
+	out->nChecked = pkdDeepestPot(plcl->pkd,in->uRungLo,in->uRungHi,
+	    out->r,&out->fPot);
+	}
+    if (pnOut) *pnOut = sizeof(struct outDeepestPot);
+    }

@@ -838,4 +838,8 @@ void pkdGenerateIC(PKD pkd, GRAFICCTX gctx, int iDim,
 #endif
 int pkdGetClasses( PKD pkd, int nMax, PARTCLASS *pClass );
 int pkdSetClasses( PKD pkd, int n, PARTCLASS *pClass, int bUpdate );
+
+int pkdDeepestPot(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
+    double *r, float *fPot);
+
 #endif

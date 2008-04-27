@@ -3478,4 +3478,27 @@ void pkdKeplerDrift(PKD pkd,double dt,double mu, int tag_VA) {
 #endif /* SYMBA */
 #endif /* PLANETS */
 
+/*
+**  Find the source particle with the deepest potential
+*/
+int pkdDeepestPot(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
+    double *r, float *fPot) {
+    int i,n,nChecked;
+    int iLocal;
 
+    n = pkdLocal(pkd);
+    iLocal = 0;
+    nChecked = 0;
+    for (i=0;i<n;++i) {
+	if (pkdIsSrcActive(&pkd->pStore[i],uRungLo,uRungHi)) {
+	    nChecked++;
+	    if ( pkd->pStore[i].fPot < pkd->pStore[iLocal].fPot )
+		iLocal = i;
+	    }
+	}
+    r[0] = pkd->pStore[iLocal].r[0];
+    r[1] = pkd->pStore[iLocal].r[1];
+    r[2] = pkd->pStore[iLocal].r[2];
+    *fPot= pkd->pStore[iLocal].fPot;
+    return nChecked;
+    }

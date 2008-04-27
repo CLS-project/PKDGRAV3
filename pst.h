@@ -172,6 +172,8 @@ enum pst_service {
     PST_GETCLASSES,
     PST_SETCLASSES,
     PST_SWAPCLASSES,
+
+    PST_DEEPESTPOT,
     };
 
 void pstAddServices(PST,MDL);
@@ -985,5 +987,18 @@ void pstSetClasses(PST,void *,int,void *,int *);
 
 /* PST_SWAPCLASSES - Input PARTCLASS[] - Output PARTCLASS[] */
 void pstSwapClasses(PST,void *,int,void *,int *);
+
+
+/* PST_DEEPESTPOT - Input inDeepestPot - Output outDeepestPot */
+struct inDeepestPot {
+    uint8_t uRungLo;
+    uint8_t uRungHi;
+    };
+struct outDeepestPot {
+    double   r[3];
+    uint64_t nChecked;
+    float    fPot;
+    };
+void pstDeepestPot(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 
 #endif
