@@ -165,8 +165,6 @@ static void ioLoad(IO io, const char *filename,
 		   double *dTimeOld, double *dUOld ) {
     hid_t fileID;
     IOHDF5 iohdf5;
-    IOHDF5V ioDen;
-    IOHDF5V ioPot;
     PINDEX iOrder = 0;
     local_t iOffset;
     local_t i, iClass;
@@ -510,7 +508,7 @@ static int ioUnpackIO(void *vctx, int *id, size_t nSize, void *vBuff) {
     IO io = vctx;
     PIO *pio = vBuff;
     uint_fast32_t nIO = nSize / sizeof(PIO);
-    uint_fast32_t i, k, d;
+    uint_fast32_t i, d;
 
     mdlassert(io->mdl,nIO*sizeof(PIO) == nSize);
     mdlassert(io->mdl,nIO<=io->nExpected);
@@ -566,7 +564,7 @@ static int ioPackIO(void *vctx, int *id, size_t nSize, void *vBuff) {
     uint_fast32_t i, d;
     total_t n;
     local_t nPerThread;
-    total_t iOffset, maxOrder;
+    total_t maxOrder;
 
     /* Calculate how many particles to send, and to whom they should be sent */
     nPerThread = io->nTotal / mdlThreads(io->mdl);
@@ -655,7 +653,6 @@ void ioStartRecv(IO io,void *vin,int nIn,void *vout,int *pnOut) {
     struct inStartRecv *recv = vin;
     struct inIOAllocate alloc;
     char achOutName[256];
-    total_t iOrder;
 
     mdlassert(io->mdl,sizeof(struct inStartRecv)==nIn);
 
@@ -683,8 +680,7 @@ void ioStartSend(IO io,void *vin,int nIn,void *vout,int *pnOut) {
     char achInName[256];
     double dTime, dEcosmo, dTimeOld, dUOld;
     int i;
-    local_t N, n, O;
-    total_t F, L;
+    local_t n, O;
 
     io->iMinOrder = send->iMinOrder;
     io->iMaxOrder = send->iMaxOrder;

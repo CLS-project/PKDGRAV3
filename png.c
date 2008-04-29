@@ -25,7 +25,6 @@ static int wrbb( float v ) {
 
 void pngWrite( PNG png, FILE *fp, float *Density ) {
     float v, color_scale;
-    uint_fast32_t i;
     int x, y;
 
     color_scale = 1.0 / (png->maxValue - png->minValue);

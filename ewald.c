@@ -25,7 +25,7 @@ int pkdParticleEwald(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,PARTICLE *p) {
     double g0,g1,g2,g3,g4,g5;
     double onethird = 1.0/3.0;
     double hdotx,s,c;
-    int i,n,ix,iy,iz,bInHole,bInHolex,bInHolexy;
+    int i,ix,iy,iz,bInHole,bInHolex,bInHolexy;
     int nFlop;
     int nLoop = 0;
 
@@ -172,7 +172,7 @@ int pkdParticleEwald(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,PARTICLE *p) {
 void pkdEwaldInit(PKD pkd,int nReps,double fEwCut,double fhCut) {
     MOMC mom = pkd->momRoot;
     int i,hReps,hx,hy,hz,h2;
-    double alpha,k4,L;
+    double k4,L;
     double gam[6],mfacc,mfacs;
     double ax,ay,az;
     const int iOrder = 4;

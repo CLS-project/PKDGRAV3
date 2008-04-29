@@ -218,7 +218,7 @@ PQ *pqSearchLocal(SMX smx,FLOAT r[3],int *pbDone) {
     FLOAT dx,dy,dz,dMin,min1,min2,fDist2;
     FLOAT *Smin = smx->Smin;
     int *S = smx->S;
-    int i,j,n,pj,pWant,pEnd,iCell,iParent;
+    int i,j,pj,pWant,pEnd,iCell,iParent;
     int sp = 0;
     int sm = 0;
 

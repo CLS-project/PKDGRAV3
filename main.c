@@ -71,13 +71,11 @@ int main(int argc,char **argv) {
     char achFile[256];			/*DEBUG use MAXPATHLEN here (& elsewhere)? -- DCR*/
     double dTime;
     double E=0,T=0,U=0,Eth=0,L[3]={0,0,0};
-    double dMass=0,dMultiEff=0;
+    double dMultiEff=0;
     long lSec=0,lStart;
     int i,iStep,iSec=0,iStop=0;
     uint64_t nActive;
-    int bGasOnly,bSymmetric;
     //char achBaseMask[256];
-    int nFOFsDone;
 #ifdef TINY_PTHREAD_STACK
     static int first = 1;
     static char **save_argv;

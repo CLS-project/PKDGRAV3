@@ -113,8 +113,7 @@ void InitializeParticles(PKD pkd,int bExcludeVeryActive,BND *pbnd) {
 void BuildTemp(PKD pkd,int iNode,int M) {
     PLITE *p = pkd->pLite;
     PLITE t;
-    FLOAT fSplit,sRatio;
-    FLOAT fMin[3],fMax[3];
+    FLOAT fSplit;
     FLOAT ls,rs;
     int *S;		/* this is the stack */
     int s,ns;
@@ -191,7 +190,7 @@ void BuildTemp(PKD pkd,int iNode,int M) {
 		else break;
 		}
 	    }
-    JumpInFromActiveInactive:
+
 	nl = i - pkd->kdNodes[iNode].pLower;
 	nr = pkd->kdNodes[iNode].pUpper - i + 1;
 	if (nl > 0 && nr > 0) {
@@ -658,7 +657,7 @@ void pkdVATreeBuild(PKD pkd,int nBucket,FLOAT diCrit2,double dTimeStamp) {
 
 
 void pkdTreeBuild(PKD pkd,int nBucket,FLOAT diCrit2,KDN *pkdn,int bExcludeVeryActive,double dTimeStamp) {
-    int iStart,nNodesEst;
+    int iStart;
 
     if (pkd->nNodes > 0) {
 	/*

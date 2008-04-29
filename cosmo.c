@@ -169,7 +169,7 @@ double csmTime2Exp(CSM csm,double dTime) {
 
 double csmTime2Exp(CSM csm,double dTime) {
     double al=0,ah=1,a0,a1=1,at,a;
-    double tl=0,th,f,f1,h,ho;
+    double th,f,f1,h,ho;
     int j;
 
     if (!csm->bComove) return(1.0);
