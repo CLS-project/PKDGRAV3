@@ -67,7 +67,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
     double dtGrav;
     momFloat adotai,maga,dimaga,dirsum,normsum;
     momFloat tax,tay,taz,tmon;
-    double rholoc,dirDTS,d2DTS,dsmooth2,fSoftMedian,fSoftMedianLo,fEps,fEps2;
+    double rholoc,dirDTS,d2DTS,dsmooth2,fSoftMedian,fEps,fEps2;
 #ifndef USE_SIMD_MOMR
     double g2,g3,g4;
     double xx,xy,xz,yy,yz,zz;
@@ -79,8 +79,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
     ILPTILE tile;
     ILCTILE ctile;
     int nPartX;
-    double fourh2;
-    int i,j,k,nSP,nSoft,nActive;
+    int i,j,nSP,nSoft,nActive;
     float rMax;
 #if defined(USE_SIMD_PP)
     v4sf t1, t2, t3;
@@ -242,6 +241,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 		    assert(ilp->first->s.m.f[j] > 0.0);
 		    assert(ilp->first->s.fourh2.f[j] > 0.0);
 		    fEps = fSoftMedian/ilp->first->s.fourh2.f[j];
+/*TEST*/fEps=1.0;
 		    if (fEps > 1.0) fEps = 1.0;
 		    fEps2 = fEps*fEps;
 		    d2 = ilp->first->s.d2.f[j]*dir2*fEps2;
@@ -400,8 +400,6 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 	*/
 	if (pkd->param.bGravStep) {
 	    double dT;
-	    uint8_t uTempRung;
-	    int iSteps;
 
 	    /*
 	    ** If this is the first time through, the accelerations will have 
@@ -422,12 +420,9 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 	    dtGrav += pkd->param.dPreFacRhoLoc*rholoc;
 	    if ( dtGrav > 0.0 ) {
 		dT = pkd->param.dEta/sqrt(dtGrav*dRhoFac);
-		uTempRung = pkdNewDtToRung(dT,pkd->param.dDelta,pkd->param.iMaxRung-1);
+		p[i].uNewRung = pkdNewDtToRung(dT,pkd->param.dDelta,pkd->param.iMaxRung-1);
 		}
-	    else uTempRung = 0;
-	    if ( uTempRung >= uRungLo )
-		p[i].uNewRung = uTempRung;
-
+	    else p[i].uNewRung = 0;
 	    p[i].fDensity = rholoc;
 	    }
 	} /* end of i-loop cells & particles */
