@@ -241,7 +241,6 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 		    assert(ilp->first->s.m.f[j] > 0.0);
 		    assert(ilp->first->s.fourh2.f[j] > 0.0);
 		    fEps = fSoftMedian/ilp->first->s.fourh2.f[j];
-/*TEST*/fEps=1.0;
 		    if (fEps > 1.0) fEps = 1.0;
 		    fEps2 = fEps*fEps;
 		    d2 = ilp->first->s.d2.f[j]*dir2*fEps2;

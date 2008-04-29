@@ -97,7 +97,7 @@
 **  AccelStep             Yes     -      |
 **  SetRungVeryActive     Yes     -      |
 **  ReSmooth              Yes     -      |
-**  DtToRung              Yes     Yes    |
+**  UpdateRung            Yes     Yes    |
 **  ColNParts             -       Gather |
 **  NewOrder              Scatter -      |
 **  SetNParts             Yes     -      |
@@ -322,9 +322,9 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_RESMOOTH,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstReSmooth,
 		  sizeof(struct inReSmooth),0);
-    mdlAddService(mdl,PST_DTTORUNG,pst,
-		  (void (*)(void *,void *,int,void *,int *)) pstDtToRung,
-		  sizeof(struct inDtToRung),sizeof(struct outDtToRung));
+    mdlAddService(mdl,PST_UPDATERUNG,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstUpdateRung,
+		  sizeof(struct inUpdateRung),sizeof(struct outUpdateRung));
     mdlAddService(mdl,PST_COLNPARTS,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstColNParts,
 		  0,nThreads*sizeof(struct outColNParts));
@@ -3021,27 +3021,28 @@ pstDensityStep(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     if (pnOut) *pnOut = 0;
     }
 
-void pstDtToRung(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+void pstUpdateRung(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
-    struct outDtToRung outTemp;
-    struct inDtToRung *in = vin;
-    struct outDtToRung *out = vout;
+    struct outUpdateRung outTemp;
+    struct inUpdateRung *in = vin;
+    struct outUpdateRung *out = vout;
     int i;
 
     mdlassert(pst->mdl,nIn == sizeof(*in));
     if (pst->nLeaves > 1) {
-	mdlReqService(pst->mdl,pst->idUpper,PST_DTTORUNG,vin,nIn);
-	pstDtToRung(pst->pstLower,vin,nIn,vout,pnOut);
+	mdlReqService(pst->mdl,pst->idUpper,PST_UPDATERUNG,vin,nIn);
+	pstUpdateRung(pst->pstLower,vin,nIn,vout,pnOut);
 	mdlGetReply(pst->mdl,pst->idUpper,&outTemp,pnOut);
-	for (i=0;i<in->iMaxRung;++i) {
+	for (i=0;i<in->uMaxRung;++i) {
 	    out->nRungCount[i] += outTemp.nRungCount[i];
 	    }
 	}
     else {
 	int nRungCount[256];   /* we need a temporary array of INTEGERS */
-	for (i=0;i<in->iMaxRung;++i) nRungCount[i] = 0;
-	pkdDtToRung(plcl->pkd,in->iRung,in->dDelta,in->iMaxRung,in->bAll,nRungCount);
-	for (i=0;i<in->iMaxRung;++i) out->nRungCount[i] = nRungCount[i];
+	for (i=0;i<in->uMaxRung;++i) nRungCount[i] = 0;
+	pkdUpdateRung(plcl->pkd,in->uRungLo,in->uRungHi,
+		      in->uMinRung,in->uMaxRung,nRungCount);
+	for (i=0;i<in->uMaxRung;++i) out->nRungCount[i] = nRungCount[i];
 	}
     if (pnOut) *pnOut = sizeof(*out);
     }
@@ -3640,7 +3641,6 @@ void pstGenerateIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 #endif
 
 void pstHostname(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
-    LCL *plcl = pst->plcl;
     struct outHostname *out = vout;
     struct outHostname *outUp;
     int nThreads = mdlThreads(pst->mdl);
@@ -3681,7 +3681,6 @@ void pstHostname(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 
 #ifdef __linux__
 void pstMemStatus(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
-    LCL *plcl = pst->plcl;
     struct outMemStatus *out = vout;
     struct outMemStatus *outUp;
     int nThreads = mdlThreads(pst->mdl);
@@ -3846,3 +3845,25 @@ void pstDeepestPot(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	}
     if (pnOut) *pnOut = sizeof(struct outDeepestPot);
     }
+#if 0
+void pstProfile(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl = pst->plcl;
+    struct inProfile *in = vin;
+    struct outProfile *out = vout;
+    struct outProfile outUpper;
+
+    assert( nIn==sizeof(struct inProfile) );
+    if (pst->nLeaves > 1) {
+	mdlReqService(pst->mdl,pst->idUpper,PST_PROFILE,vin,nIn);
+	pstProfile(pst->pstLower,vin,nIn,vout,pnOut);
+	mdlGetReply(pst->mdl,pst->idUpper,&outUpper,pnOut);
+	assert(*pnOut == sizeof(struct outProfile));
+	}
+    else {
+	pkdProfile(plcl->pkd,in->uRungLo,in->uRungHi,
+		   in->dCenter, in->dRadius, in->nBins,
+		   out->dMass, out->dVolume);
+	}
+    if (pnOut) *pnOut = sizeof(struct outProfile);
+    }
+#endif

@@ -605,7 +605,7 @@ typedef struct pkdContext {
 #endif
     } * PKD;
 
-static inline pkdMinMax( double *dVal, double *dMin, double *dMax ) {
+static inline void pkdMinMax( double *dVal, double *dMin, double *dMax ) {
     dMin[0] = dVal[0] < dMin[0] ? dVal[0] : dMin[0];
     dMin[1] = dVal[1] < dMin[1] ? dVal[1] : dMin[1];
     dMin[2] = dVal[2] < dMin[2] ? dVal[2] : dMin[2];
@@ -768,7 +768,8 @@ void pkdAccelStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,
 		  double dEta,double dVelFac,double dAccFac,
 		  int bDoGravity,int bEpsAcc,int bSqrtPhi,double dhMinOverSoft);
 void pkdDensityStep(PKD pkd, uint8_t uRungLo, uint8_t uRungHi, double dEta, double dRhoFac);
-int pkdDtToRung(PKD pkd,uint8_t uRung, double dDelta, int iMaxRung, int bAll, int *nRungCount);
+int pkdUpdateRung(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
+		  uint8_t uRung,int iMaxRung,int *nRungCount);
 uint8_t pkdNewDtToRung(double dT, double dDelta, uint8_t uMaxRung);
 int pkdOrdWeight(PKD pkd,uint64_t iOrdSplit,int iSplitSide,int iFrom,int iTo,
 		 int *pnLow,int *pnHigh);
@@ -837,7 +838,7 @@ void pkdGenerateIC(PKD pkd, GRAFICCTX gctx, int iDim,
 		   double fSoft, double fMass, int bCannonical);
 #endif
 int pkdGetClasses( PKD pkd, int nMax, PARTCLASS *pClass );
-int pkdSetClasses( PKD pkd, int n, PARTCLASS *pClass, int bUpdate );
+void pkdSetClasses( PKD pkd, int n, PARTCLASS *pClass, int bUpdate );
 
 int pkdDeepestPot(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
     double *r, float *fPot);

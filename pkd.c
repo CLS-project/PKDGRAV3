@@ -367,7 +367,7 @@ int pkdGetClasses( PKD pkd, int nMax, PARTCLASS *pClass ) {
     return pkd->nClasses;
     }
 
-int pkdSetClasses( PKD pkd, int n, PARTCLASS *pClass, int bUpdate ) {
+void pkdSetClasses( PKD pkd, int n, PARTCLASS *pClass, int bUpdate ) {
     uint8_t map[PKD_MAX_CLASSES];
     PARTICLE *p;
     int i,j;
@@ -625,7 +625,6 @@ void pkdReadTipsy(PKD pkd,char *pszFileName, char *achOutName,uint64_t nStart,in
     FLOAT fMass, fSoft;
     double dTmp;
     float mass=0.0;
-    int nBodies,nGas,nStar,iRet;
 
     pkd->nLocal = nLocal;
     pkd->nActive = nLocal;
@@ -1857,7 +1856,6 @@ void pkdStepVeryActiveKDK(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dStep, 
 			  int *pnMaxRung, double aSunInact[], double adSunInact[], double dSunMass) {
     int nRungCount[256];
     double dDriftFac;
-    int i;
 #ifdef PLANETS
     double aSun[3], adSun[3];
     int j;
@@ -1879,7 +1877,8 @@ void pkdStepVeryActiveKDK(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dStep, 
 	    pkdAccelStep(pkd,uRungLo,uRungHi,pkd->param.dEta, dVelFac,dAccFac,pkd->param.bDoGravity,
 			 pkd->param.bEpsAccStep,pkd->param.bSqrtPhiStep,dhMinOverSoft);
 	    }
-	*pnMaxRung = pkdDtToRung(pkd,iRung,dDelta,pkd->param.iMaxRung-1, 1, nRungCount);
+	*pnMaxRung = pkdUpdateRung(pkd,iRung,pkd->param.iMaxRung-1,
+				   iRung,pkd->param.iMaxRung-1, nRungCount);
 
 
 	if (pkd->param.bVDetails) {
@@ -2019,7 +2018,8 @@ pkdStepVeryActiveHermite(PKD pkd, double dStep, double dTime, double dDelta,
 	    pkdAccelStep(pkd,uRungLo,uRungHi,pkd->param.dEta, dVelFac,dAccFac,pkd->param.bDoGravity,
 			 pkd->param.bEpsAccStep,pkd->param.bSqrtPhiStep,dhMinOverSoft);
 	    }
-	*pnMaxRung = pkdDtToRung(pkd,iRung,dDelta,pkd->param.iMaxRung-1, 1, nRungCount);
+	*pnMaxRung = pkdUpdateRung(pkd,iRung,pkd->param.iMaxRung-1,
+				   iRung,pkd->param.iMaxRung-1, 1, nRungCount);
 
 	if (pkd->param.bVDetails) {
 	    printf("%*cAdjust at iRung: %d, nMaxRung:%d nRungCount[%d]=%d\n",
@@ -2171,10 +2171,6 @@ pkdPredictor(PKD pkd,double dTime) {
     for (i=0;i<n;++i) {
 	if (pkdIsActive(pkd,&p[i])) {
 	    dt =  dTime - p[i].dTime0;
-	    /*if (pkd->param.bVDetails)
-		{
-	       printf("Particle=%d iRung=%d dt=%g \n",p[i].iOrder,p[i].iRung,dt);
-		}*/
 	    for (j=0;j<3;++j) {
 		p[i].r[j] = p[i].r0[j] + dt*(p[i].v0[j] + 0.5*dt*(p[i].a0[j]+dt*p[i].ad0[j]/3.0));
 		p[i].v[j] = p[i].v0[j] + dt*(p[i].a0[j]+0.5*dt*p[i].ad0[j]);
@@ -2295,10 +2291,6 @@ pkdPredictorInactive(PKD pkd,double dTime) {
     for (i=0;i<n;++i) {
 	if (pkdIsActive(pkd,&p[i])) continue;
 	dt =  dTime - p[i].dTime0;
-	/*if (pkd->param.bVDetails)
-	  {
-	  printf("Particle=%d iRung=%d dt=%g \n",p[i].iOrder,p[i].iRung,dt);
-	  }*/
 	for (j=0;j<3;++j) {
 	    p[i].r[j] = p[i].r0[j] + dt*(p[i].v0[j] + 0.5*dt*(p[i].a0[j]+dt*p[i].ad0[j]/3.0));
 	    p[i].v[j] = p[i].v0[j] + dt*(p[i].a0[j]+0.5*dt*p[i].ad0[j]);
@@ -2434,7 +2426,6 @@ void pkdAccelStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,
     int j;
     double dT;
     FLOAT fSoft;
-    uint8_t uTempRung;
 
     for (i=0;i<pkdLocal(pkd);++i) {
 	if (pkdIsDstActive(&(pkd->pStore[i]),uRungLo,uRungHi)) {
@@ -2465,9 +2456,7 @@ void pkdAccelStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,
 		if (dtemp < dT)
 		    dT = dtemp;
 		}
-	    uTempRung = pkdNewDtToRung(dT,pkd->param.dDelta,pkd->param.iMaxRung-1);
-	    if ( uTempRung < uRungLo ) uTempRung = uRungLo;
-	    pkd->pStore[i].uNewRung = uTempRung;
+	    pkd->pStore[i].uNewRung = pkdNewDtToRung(dT,pkd->param.dDelta,pkd->param.iMaxRung-1);
 	    }
 	}
     }
@@ -2476,14 +2465,11 @@ void pkdAccelStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,
 void pkdDensityStep(PKD pkd, uint8_t uRungLo, uint8_t uRungHi, double dEta, double dRhoFac) {
     int i;
     double dT;
-    uint8_t uTempRung;
 
     for (i=0;i<pkdLocal(pkd);++i) {
 	if (pkdIsDstActive(&(pkd->pStore[i]),uRungLo,uRungHi)) {
 	    dT = dEta/sqrt(pkd->pStore[i].fDensity*dRhoFac);
-	    uTempRung = pkdNewDtToRung(dT,pkd->param.dDelta,pkd->param.iMaxRung-1);
-	    if ( uTempRung < uRungLo ) uTempRung = uRungLo;
-	    pkd->pStore[i].uNewRung = uTempRung;
+	    pkd->pStore[i].uNewRung = pkdNewDtToRung(dT,pkd->param.dDelta,pkd->param.iMaxRung-1);
 	    }
 	}
     }
@@ -2503,13 +2489,25 @@ uint8_t pkdNewDtToRung(double dT, double dDelta, uint8_t uMaxRung) {
     return uRung;
     }
 
-int pkdDtToRung(PKD pkd,uint8_t uRung,double dDelta,int iMaxRung,int bAll,int *nRungCount) {
+int pkdUpdateRung(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
+		  uint8_t uRung,int iMaxRung,int *nRungCount) {
     int i;
     int iTempRung;
     for (i=0;i<iMaxRung;++i) nRungCount[i] = 0;
     for (i=0;i<pkdLocal(pkd);++i) {
-	if ( pkdIsDstActive(&pkd->pStore[i],uRung,MAX_RUNG) ) {
-	    pkd->pStore[i].uRung = pkd->pStore[i].uNewRung;
+	if ( pkdIsDstActive(&pkd->pStore[i],uRungLo,uRungHi) ) {
+	    if (pkd->pStore[i].uRung==7) {
+		printf( "UR:%lu: p.uRung %d, iMaxRung: %d, uRung: %d, uNewRung:%d\n",
+			pkd->pStore[i].iOrder, pkd->pStore[i].uRung, iMaxRung, uRung,
+			pkd->pStore[i].uNewRung);
+		}
+
+	    if ( pkd->pStore[i].uNewRung >= iMaxRung )
+		pkd->pStore[i].uRung = iMaxRung-1;
+	    else if ( pkd->pStore[i].uNewRung >= uRung )
+		pkd->pStore[i].uRung = pkd->pStore[i].uNewRung;
+	    else if ( pkd->pStore[i].uRung > uRung)
+		pkd->pStore[i].uRung = uRung;
 	    }
 	/*
 	** Now produce a count of particles in rungs.
@@ -3502,3 +3500,50 @@ int pkdDeepestPot(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
     *fPot= pkd->pStore[iLocal].fPot;
     return nChecked;
     }
+#if 0
+/*
+** Density Profile
+*/
+void pkdProfile(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
+		double *dCenter, double dMinRadius, double dMaxRadius,
+		int nBins, double *dMass, double *dVolume) {
+    PARTICLE *p;
+    double d2, r2, r, r1;
+    double dx, dy, dz;
+    double dLogMinRadius, dLogMaxRadius, dLogRadius;
+    int i,n,iBin;
+
+    assert(dMinRadius>0.0);
+    assert(dMaxRadius>dMinRadius);
+
+    r2 = dMaxRadius*dMaxRadius;
+    dLogMinRadius = log10(dMinRadius);
+    dLogMaxRadius = log10(dMaxRadius);
+    dLogRadius = dLogMaxRadius - dLogMinRadius;
+
+    r = 0.0;
+    for( iBin=0; iBin<nBins; iBin++ ) {
+	dMass[iBin] = 0.0;
+	r1 = pow(10,dLogRadius*(iBin+1)/nBins);
+	dVolume[iBin] = (4.0/3.0) * M_PI * (r1*r1*r1 - r*r*r);
+	r = r1;
+	}
+
+    n = pkdLocal(pkd);
+    for (i=0;i<n;++i) {
+	p = &pkd->pStore[i];
+	if (pkdIsSrcActive(p,uRungLo,uRungHi)) {
+	    dx = p->r[0] - dCenter[0];
+	    dy = p->r[1] - dCenter[1];
+	    dz = p->r[2] - dCenter[2];
+	    d2 = dx*dx + dy*dy + dz*dz;
+	    if ( d2 < dMinRadius ) d2 = dMinRadius;
+	    if ( d2 < r2 ) {
+		iBin = (log10(sqrt(d2))-dMinRadius)/dLogRadius * nBins;
+		if ( iBin >= nBins ) iBin = nBins-1;
+		dMass[iBin] += pkdMass(pkd,p);
+		}
+	    }
+	}
+    }
+#endif

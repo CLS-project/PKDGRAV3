@@ -122,7 +122,7 @@ enum pst_service {
     PST_MARKSMOOTH,
     PST_RESMOOTH,
     PST_INITACCEL,
-    PST_DTTORUNG,
+    PST_UPDATERUNG,
     PST_INITDT,
     PST_ORDWEIGHT,
     PST_SETWRITESTART,
@@ -691,17 +691,17 @@ struct inReSmooth {
     };
 void pstReSmooth(PST,void *,int,void *,int *);
 
-/* PST_DTTORUNG */
-struct inDtToRung {
-    int iRung;
-    double dDelta;
-    int iMaxRung;
-    int bAll;
+/* PST_UPDATERUNG */
+struct inUpdateRung {
+    uint8_t uRungLo;  /* Minimum Rung to modify */
+    uint8_t uRungHi;  /* Maximum Rung to modify */
+    uint8_t uMinRung; /* Minimum it can be set to */
+    uint8_t uMaxRung; /* Maximum it can be set to */
     };
-struct outDtToRung {
+struct outUpdateRung {
     uint64_t nRungCount[256];
     };
-void pstDtToRung(PST,void *,int,void *,int *);
+void pstUpdateRung(PST,void *,int,void *,int *);
 
 /* PST_ORDWEIGHT */
 struct inOrdWeight {
@@ -971,10 +971,10 @@ void pstHostname(PST,void *,int,void *,int *);
 #ifdef __linux__
 /* PST_MEMSTATUS */
 struct outMemStatus {
-    unsigned long minflt;
-    unsigned long majflt;
-    unsigned long vsize;
-    unsigned long rss;
+    uint64_t minflt;
+    uint64_t majflt;
+    uint64_t vsize;
+    uint64_t rss;
     };
 void pstMemStatus(PST,void *,int,void *,int *);
 #endif

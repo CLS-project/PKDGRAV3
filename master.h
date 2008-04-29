@@ -161,7 +161,7 @@ void msrAddDelParticles(MSR msr);
 void msrGravStep(MSR msr, double dTime);
 void msrAccelStep(MSR msr,uint8_t uRungLo,uint8_t uRungHi,double dTime);
 void msrDensityStep(MSR msr,uint8_t uRungLo,uint8_t uRungHi,double dTime);
-int msrDtToRung(MSR msr, int iRung, double dDelta, int bAll);
+int msrUpdateRung(MSR msr, uint8_t uRung);
 
 /*
 ** Interface functions.

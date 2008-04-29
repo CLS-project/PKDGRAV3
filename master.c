@@ -121,7 +121,7 @@ _msrMakePath(const char *dir,const char *base,char *path) {
 void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     MSR msr;
     int i,j,ret;
-    int id,nDigits;
+    int nDigits;
     struct inSetAdd inAdd;
     struct inGetMap inGM;
 
@@ -1337,14 +1337,12 @@ double getTime(MSR msr, double dExpansion, double *dvFac) {
 #ifdef USE_HDF5
 #ifdef USE_MDL_IO
 static double _msrIORead(MSR msr, const char *achFilename, int iStep ) {
-    LCL *plcl = msr->pst->plcl;
     struct inStartLoad load;
     struct inIOLoad in;
     struct inPlanLoad inPlan;
     struct outPlanLoad outPlan;
     double dTime, dvFac;
     int nPlan;
-    int outSize;
     char *p1, *p2;
     int n, i;
     total_t N;
@@ -1592,7 +1590,6 @@ static double _msrReadTipsy(MSR msr, const char *achFilename) {
     char achInFile[PST_FILENAME_SIZE];
     LCL *plcl = msr->pst->plcl;
     double dTime,aTo,tTo,z;
-    uint64_t tlong;
 
     strcpy(in.achInFile,achFilename);
 
@@ -1967,9 +1964,9 @@ void msrOneNodeWriteTipsy(MSR msr, struct inWriteTipsy *in, int bCheckpoint) {
     char achOutFile[PST_FILENAME_SIZE];
     int inswap;
 #ifdef USE_HDF5
-    hid_t fileID;
-    IOHDF5 io;
-    IOHDF5V ioDen, ioPot;
+    hid_t fileID=0;
+    IOHDF5 io=0;
+    IOHDF5V ioDen=0, ioPot=0;
 #endif
 
     pst0 = msr->pst;
@@ -2642,7 +2639,7 @@ void msrHostname(MSR msr) {
     assert(out != NULL);
     pstHostname(msr->pst,0,0,out,&iDum);
     printf("Host Names:\n");
-    PRINTGRID("% 8.8s",szHostname);
+    PRINTGRID("%8.8s",szHostname);
     printf("MPI Rank:\n");
     PRINTGRID("% 8d",iMpiID);
     }
@@ -2655,11 +2652,11 @@ void msrMemStatus(MSR msr) {
     assert(out != NULL);
     pstMemStatus(msr->pst,0,0,out,&iDum);
     printf("Virtual Size (MB):\n");
-    PRINTGRID("% 8d",vsize);
+    PRINTGRID("%8"PRIu64,vsize);
     printf("Resident (MB):\n");
-    PRINTGRID("% 8d",rss);
+    PRINTGRID("%8"PRIu64,rss);
     printf("Major faults:\n");
-    PRINTGRID("% 8d",majflt);
+    PRINTGRID("%8"PRIu64,majflt);
 #endif
     }
 
@@ -2778,7 +2775,6 @@ void msrCalcEandL(MSR msr,int bFirst,double dTime,double *E,double *T,
 
 void msrDrift(MSR msr,double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi) {
     struct inDrift in;
-    int j;
 
     in.dTime = dTime;
     if (msr->param.csm->bComove) {
@@ -3177,30 +3173,30 @@ void msrDensityStep(MSR msr,uint8_t uRungLo,uint8_t uRungHi,double dTime) {
 ** Returns the Very Active rung based on the number of very active particles desired,
 ** or the fixed rung that was specified in the parameters.
 */
-int msrDtToRung(MSR msr, int iRung, double dDelta, int bAll) {
-    struct inDtToRung in;
-    struct outDtToRung out;
+int msrUpdateRung(MSR msr, uint8_t uRung) {
+    struct inUpdateRung in;
+    struct outUpdateRung out;
     int iTempRung,iOutMaxRung,iRungVeryActive;
     uint64_t sum;
     char c;
 
-    in.iRung = iRung;
-    in.dDelta = dDelta;
-    in.iMaxRung = msrMaxRung(msr);
-    in.bAll = bAll;
+    in.uRungLo = uRung;
+    in.uRungHi = msrMaxRung(msr);
+    in.uMinRung = uRung;
+    in.uMaxRung = msrMaxRung(msr);
 
-    pstDtToRung(msr->pst, &in, sizeof(in), &out, NULL);
+    pstUpdateRung(msr->pst, &in, sizeof(in), &out, NULL);
 
     iTempRung =msrMaxRung(msr)-1;
     while (out.nRungCount[iTempRung] == 0 && iTempRung > 0) --iTempRung;
     iOutMaxRung = iTempRung;
 
-    while (out.nRungCount[iOutMaxRung] <= msr->param.nTruncateRung && iOutMaxRung > iRung) {
+    while (out.nRungCount[iOutMaxRung] <= msr->param.nTruncateRung && iOutMaxRung > uRung) {
 	msrprintf(msr,"n_CurrMaxRung = %"PRIu64"  (iCurrMaxRung = %d):  Promoting particles to iCurrMaxrung = %d\n",
 		  out.nRungCount[iOutMaxRung],iOutMaxRung,iOutMaxRung-1);
 
-	in.iMaxRung = iOutMaxRung; /* Note this is the forbidden rung so no -1 here */
-	pstDtToRung(msr->pst, &in, sizeof(in), &out, NULL);
+	in.uMaxRung = iOutMaxRung; /* Note this is the forbidden rung so no -1 here */
+	pstUpdateRung(msr->pst, &in, sizeof(in), &out, NULL);
 
 	iTempRung =msrMaxRung(msr)-1;
 	while (out.nRungCount[iTempRung] == 0 && iTempRung > 0) --iTempRung;
@@ -3267,6 +3263,7 @@ void msrTopStepKDK(MSR msr,
     if (iAdjust && (iRung < msrMaxRung(msr)-1)) {
 	msrprintf(msr,"%*cAdjust, iRung: %d\n",2*iRung+2,' ',iRung);
 	msrActiveRung(msr, iRung, 1);
+
 	if (msr->param.bAccelStep) {
 	    msrAccelStep(msr,iRung,MAX_RUNG,dTime);
 	    }
@@ -3277,7 +3274,7 @@ void msrTopStepKDK(MSR msr,
 	    msrBuildTree(msr,dTime,0);
 	    msrDensityStep(msr,iRung,MAX_RUNG,dTime);
 	    }
-	iRungVeryActive = msrDtToRung(msr,iRung,dDelta,1);
+	iRungVeryActive = msrUpdateRung(msr,iRung);
 	}
     msrprintf(msr,"%*cmsrKickOpen  at iRung: %d 0.5*dDelta: %g\n",
 	      2*iRung+2,' ',iRung,0.5*dDelta);
@@ -3306,7 +3303,6 @@ void msrTopStepKDK(MSR msr,
 	msrActiveRung(msr,iKickRung,1);
 	bSplitVA = 0;
 	msrDomainDecomp(msr,iKickRung,1,bSplitVA);
-	msrSetRung(msr,iKickRung,MAX_RUNG,iKickRung);
 
 	if (msrDoGravity(msr)) {
 	    msrActiveRung(msr,iKickRung,1);
@@ -3495,6 +3491,9 @@ void msrTopStepHermite(MSR msr,
     if (iAdjust && (iRung < msrMaxRung(msr)-1)) {
 	msrprintf(msr,"%*cAdjust, iRung: %d\n",2*iRung+2,' ',iRung);
 	msrActiveRung(msr, iRung, 1);
+
+	... initdt
+
 	if (msr->param.bAarsethStep) {
 	    msrAarsethStep(msr);
 	    }
@@ -3508,7 +3507,7 @@ void msrTopStepHermite(MSR msr,
 	    msrBuildTree(msr,dTime,bNeedEwald);
 	    msrDensityStep(msr,iRung,MAX_RUNG,dTime);
 	    }
-	iRungVeryActive = msrDtToRung(msr,iRung,dDelta,1);
+	iRungVeryActive = msrUpdateRung(msr,iRung,dDelta);
 	}
 
     if ((msrCurrMaxRung(msr) > iRung) && (iRungVeryActive > iRung)) {
@@ -3541,7 +3540,6 @@ void msrTopStepHermite(MSR msr,
 	msrActiveRung(msr,iKickRung,1);
 	bSplitVA = 0;
 	msrDomainDecomp(msr,iKickRung,1,bSplitVA);
-	msrSetRung(msr,iKickRung,MAX_RUNG,iKickRung);
 
 	if (msrDoGravity(msr)) {
 	    msrActiveRung(msr,iKickRung,1);
