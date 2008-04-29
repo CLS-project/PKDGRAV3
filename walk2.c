@@ -93,7 +93,6 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
     double dirLsum,normLsum,adotai,maga;
     double tax,tay,taz;
     double fWeight = 0.0;
-    double dEwaldFlop;
     double dShiftFlop;
     double dRhoFac;
     FLOAT dMin,min2,d2,fourh2;
