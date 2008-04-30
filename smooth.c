@@ -1257,9 +1257,15 @@ void smFof(SMX smx,int nFOFsDone,SMF *smf) {
     int iStart[3],iEnd[3];
     int ix,iy,iz;
 
-    FLOAT r[3],l[3],relpos[3],lx,ly,lz,fBall,fBall2Max,rho;
+    FLOAT r[3],l[3],relpos[3],lx,ly,lz,fBall,fBall2Max,rho,fvBall2;
     FLOAT fMass;
     int nTree,cnt,tmp;
+
+    /* 
+    ** By default we want no phase-space FOF on the first call to smFof (which is the
+    ** case if nFOFsDone == 0) if smf->bTauAbs is not set.
+    */
+    fvBall2 = -1.0;
     cnt = 0;
     if (smx->bPeriodic) {
 	lx = pkd->fPeriod[0];
@@ -1351,11 +1357,12 @@ void smFof(SMX smx,int nFOFsDone,SMF *smf) {
 		p[pn].fBall = smf->dTau2;
 		if (smf->dTau2 > pow(fMass/smf->Delta,0.6666) ) /*enforces at least virial density for linking*/
 		    p[pn].fBall = pow(fMass/smf->Delta,0.6666);
-		pkd->groupBin[p[pn].pBin].fvBall2 = smf->dVTau2;
+		fvBall2 = smf->dVTau2;
+		assert(fvBall2 > 0);
 		}
 	    else {
 		p[pn].fBall = smf->dTau2*pow(fMass,0.6666);
-		pkd->groupBin[p[pn].pBin].fvBall2 = -1.0; /* No phase space FOF in this case */
+		fvBall2 = -1.0; /* No phase space FOF in this case */
 		}
 	    if (p[pn].fBall > fBall2Max) fBall2Max = p[pn].fBall;
 	    }
@@ -1412,9 +1419,16 @@ void smFof(SMX smx,int nFOFsDone,SMF *smf) {
 		    /* Do not add particles that are already in a group*/
 		    if (smx->nnList[pnn].pPart->pGroup) continue;
 
-		    /* Check phase space distance */
-		    if (pkd->groupBin[p[pi].pBin].fvBall2 > 0.0) {
-			if (phase_dist(pkd,&p[pi],smx->nnList[pnn].pPart,smf->H) > 1.0) continue;
+		    /* Check phase space distance */	    
+		    if (nFOFsDone > 0) {
+			if (pkd->groupBin[p[pi].pBin].fvBall2 > 0.0) {
+			    if (phase_dist(pkd,-1.0,&p[pi],smx->nnList[pnn].pPart,smf->H) > 1.0) continue;
+			    }
+			}
+		    else {
+			if (fvBall2 > 0.0) {
+			    if (phase_dist(pkd,fvBall2,&p[pi],smx->nnList[pnn].pPart,smf->H) > 1.0) continue;
+			    }
 			}
 
 		    /*
@@ -1427,12 +1441,23 @@ void smFof(SMX smx,int nFOFsDone,SMF *smf) {
 		else {	 /* Nonlocal neighbors: */
 
 		    /* Make remote member linking symmetric by using smaller linking length if different: */
-		    if (pkd->groupBin[p[pi].pBin].fvBall2 > 0.0) { /* Check phase space distance */
-			if (phase_dist(pkd,&p[pi],smx->nnList[pnn].pPart,smf->H) > 1.0 ||
-				phase_dist(pkd,smx->nnList[pnn].pPart,&p[pi],smf->H) > 1.0) continue;
+		    if (nFOFsDone > 0) {
+			if (pkd->groupBin[p[pi].pBin].fvBall2 > 0.0) { /* Check phase space distance */
+			    if (phase_dist(pkd,-1.0,&p[pi],smx->nnList[pnn].pPart,smf->H) > 1.0 ||
+				phase_dist(pkd,-1.0,smx->nnList[pnn].pPart,&p[pi],smf->H) > 1.0) continue;
+			    }
+			else { /* real space distance */
+			    if (smx->nnList[pnn].fDist2 > smx->nnList[pnn].pPart->fBall) continue;
+			    }
 			}
-		    else { /* real space distance */
-			if (smx->nnList[pnn].fDist2 > smx->nnList[pnn].pPart->fBall) continue;
+		    else {
+			if (fvBall2 > 0.0) { /* Check phase space distance */
+			    if (phase_dist(pkd,fvBall2,&p[pi],smx->nnList[pnn].pPart,smf->H) > 1.0 ||
+				phase_dist(pkd,fvBall2,smx->nnList[pnn].pPart,&p[pi],smf->H) > 1.0) continue;
+			    }
+			else { /* real space distance */
+			    if (smx->nnList[pnn].fDist2 > smx->nnList[pnn].pPart->fBall) continue;
+			    }
 			}
 
 		    /* Add to RM list if new */
@@ -1609,7 +1634,7 @@ int CmpParticleGroupIds(const void *v1,const void *v2) {
     }
 
 
-FLOAT phase_dist(PKD pkd,PARTICLE *pa,PARTICLE *pb,double H) {
+FLOAT phase_dist(PKD pkd,double dvTau2,PARTICLE *pa,PARTICLE *pb,double H) {
     int j;
     FLOAT dx,dv,dx2,dv2;
 
@@ -1624,7 +1649,12 @@ FLOAT phase_dist(PKD pkd,PARTICLE *pa,PARTICLE *pb,double H) {
 	dv = (pa->v[j] - pb->v[j]) + H*(pa->r[j] - pb->r[j]);
 	dv2 += dv*dv;
 	}
-    dv2 /= pkd->groupBin[pa->pBin].fvBall2;
+    if (dvTau2 > 0) {
+	dv2 /= dvTau2;
+	}
+    else {
+	dv2 /= pkd->groupBin[pa->pBin].fvBall2;
+	}
     return(dx2 + dv2);
     }
 
