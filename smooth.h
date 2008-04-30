@@ -123,10 +123,5 @@ void smReSmooth(SMX,SMF *);
 void smFof(SMX smx, int nFOFsDone, SMF *smf);
 int smGroupMerge(SMF *smf,int bPeriodic);
 int smGroupProfiles(SMX smx, SMF *smf,int bPeriodic,int nTotalGroups,int bLogBins,int nFOFsDone);
-FLOAT corrPos(FLOAT com, FLOAT r,FLOAT l);
-int CmpParticleGroupIds(const void *v1,const void *v2);
-int CmpRMs(const void *v1,const void *v2);
-int CmpProtoGroups(const void *v1,const void *v2);
-FLOAT phase_dist(PKD,PARTICLE *p1,PARTICLE *p2,double h);
 
 #endif

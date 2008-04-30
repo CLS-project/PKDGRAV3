@@ -1242,6 +1242,46 @@ void smReSmooth(SMX smx,SMF *smf) {
     }
 
 
+FLOAT phase_dist(PKD pkd,double dvTau2,PARTICLE *pa,PARTICLE *pb,double H) {
+    int j;
+    FLOAT dx,dv,dx2,dv2;
+
+    dx2=0.0;
+    for (j=0;j<3;++j) {
+	dx = pa->r[j] - pb->r[j];
+	dx2 += dx*dx;
+	}
+    dx2 /= pa->fBall;   /* this is actually fBall2! */
+    dv2 = 0.0;
+    for (j=0;j<3;++j) {
+	dv = (pa->v[j] - pb->v[j]) + H*(pa->r[j] - pb->r[j]);
+	dv2 += dv*dv;
+	}
+    if (dvTau2 > 0) {
+	dv2 /= dvTau2;
+	}
+    else {
+	dv2 /= pkd->groupBin[pa->pBin].fvBall2;
+	}
+    return(dx2 + dv2);
+    }
+
+
+FLOAT corrPos(FLOAT com, FLOAT r,FLOAT l) {
+    if (com > 0.2*l && r< -0.2*l) return r + l;
+    else if (com < - 0.2*l && r > 0.2*l) return r - l;
+    else return r;
+    }
+
+
+int CmpRMs(const void *v1,const void *v2) {
+    FOFRM *rm1 = (FOFRM *)v1;
+    FOFRM *rm2 = (FOFRM *)v2;
+    if (rm1->iPid != rm1->iPid) return(rm1->iPid - rm2->iPid);
+    else return(rm1->iIndex - rm2->iIndex);
+    }
+
+
 void smFof(SMX smx,int nFOFsDone,SMF *smf) {
 
     PKD pkd = smx->pkd;
@@ -1622,11 +1662,6 @@ void smFof(SMX smx,int nFOFsDone,SMF *smf) {
     }
 
 
-FLOAT corrPos(FLOAT com, FLOAT r,FLOAT l) {
-    if (com > 0.2*l && r< -0.2*l) return r + l;
-    else if (com < - 0.2*l && r > 0.2*l) return r - l;
-    else return r;
-    }
 int CmpParticleGroupIds(const void *v1,const void *v2) {
     PARTICLE *p1 = (PARTICLE *)v1;
     PARTICLE *p2 = (PARTICLE *)v2;
@@ -1634,42 +1669,13 @@ int CmpParticleGroupIds(const void *v1,const void *v2) {
     }
 
 
-FLOAT phase_dist(PKD pkd,double dvTau2,PARTICLE *pa,PARTICLE *pb,double H) {
-    int j;
-    FLOAT dx,dv,dx2,dv2;
-
-    dx2=0.0;
-    for (j=0;j<3;++j) {
-	dx = pa->r[j] - pb->r[j];
-	dx2 += dx*dx;
-	}
-    dx2 /= pa->fBall;   /* this is actually fBall2! */
-    dv2 = 0.0;
-    for (j=0;j<3;++j) {
-	dv = (pa->v[j] - pb->v[j]) + H*(pa->r[j] - pb->r[j]);
-	dv2 += dv*dv;
-	}
-    if (dvTau2 > 0) {
-	dv2 /= dvTau2;
-	}
-    else {
-	dv2 /= pkd->groupBin[pa->pBin].fvBall2;
-	}
-    return(dx2 + dv2);
-    }
-
-
-int CmpRMs(const void *v1,const void *v2) {
-    FOFRM *rm1 = (FOFRM *)v1;
-    FOFRM *rm2 = (FOFRM *)v2;
-    if (rm1->iPid != rm1->iPid) return(rm1->iPid - rm2->iPid);
-    else return(rm1->iIndex - rm2->iIndex);
-    }
 int CmpProtoGroups(const void *v1,const void *v2) {
     FOFPG *g1 = (FOFPG *)v1;
     FOFPG *g2 = (FOFPG *)v2;
     return(g1->iId - g2->iId);
     }
+
+
 int CmpGroups(const void *v1,const void *v2) {
     FOFGD *g1 = (FOFGD *)v1;
     FOFGD *g2 = (FOFGD *)v2;
@@ -1679,6 +1685,8 @@ int CmpGroups(const void *v1,const void *v2) {
     else
 	return -1;
     }
+
+
 int smGroupMerge(SMF *smf,int bPeriodic) {
     PKD pkd = smf->pkd;
     MDL mdl = smf->pkd->mdl;
