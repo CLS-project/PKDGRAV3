@@ -842,9 +842,9 @@ uint64_t hilbert3d(float x,float y,float z) {
     uint64_t s = 0;
     uint32_t m,ux,uy,uz,ut;
 
-    ux = (*(uint32_t *)&x)>>2;
-    uy = (*(uint32_t *)&y)>>2;
-    uz = (*(uint32_t *)&z)>>2;
+    ux = (UNION_CAST(x,float,uint32_t))>>2;
+    uy = (UNION_CAST(y,float,uint32_t))>>2;
+    uz = (UNION_CAST(z,float,uint32_t))>>2;
 
     m = 0x00100000;
 
