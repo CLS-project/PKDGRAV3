@@ -57,6 +57,20 @@ AM_CONDITIONAL(USE_EFENCE, test "x$EFENCE_DIR" != "xno")
 AM_CONDITIONAL(HAVE_EFENCE_PATH, test "x$EFENCE_DIR" != "xyes")
 AC_SUBST([EFENCE_PATH],[$EFENCE_DIR])
 
+# Python
+AC_ARG_WITH(python,
+  [  --with-python=VERSION   enable python scripting],
+  [PYTHON_VER="${withval}"],[PYTHON_VER=no])
+if test "x$PYTHON_VER" != "xno" ; then
+AC_DEFINE([USE_PYTHON],1,
+  [Defined if python support should be compiled into pkdgrav2])
+fi
+AM_CONDITIONAL(USE_PYTHON, test "x$PYTHON_VER" != "xno")
+if test "x$PYTHON_VER" = "xyes" ; then
+  PYTHON_VER="2.4"
+fi
+AC_SUBST([PYTHON_VER],[$PYTHON_VER])
+
 # HDF5 I/O
 AC_ARG_ENABLE(hdf5,
   [  --enable-hdf5                  enable I/O using HDF5 libraries],

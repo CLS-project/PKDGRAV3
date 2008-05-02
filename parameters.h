@@ -103,6 +103,9 @@ struct parameters {
     char achDataSubPath[256];
     char achOutTypes[256];
     char achCheckTypes[256];
+#ifdef USE_PYTHON
+    char achScriptFile[256];
+#endif
     double dGrowDeltaM;
     double dGrowStartT;
     double dGrowEndT;

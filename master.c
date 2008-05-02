@@ -19,6 +19,7 @@
 #include <time.h>
 #include <sys/time.h>
 #include <math.h>
+#include <wordexp.h>
 
 #ifdef HAVE_SYS_PARAM_H
 #include <sys/param.h> /* for MAXHOSTNAMELEN, if available */
@@ -109,7 +110,7 @@ _msrMakePath(const char *dir,const char *base,char *path) {
 
     if (!path) return;
     path[0] = 0;
-    if (dir) {
+    if (dir&&dir[0]) {
 	strcat(path,dir);
 	strcat(path,"/");
 	}
@@ -355,7 +356,7 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.csm->dOmegab = 0.0;
     prmAddParam(msr->prm,"dOmegab",2,&msr->param.csm->dOmegab,
 		sizeof(double),"Omb", "<dOmegab> = 0.0");
-    strcpy(msr->param.achDataSubPath,".");
+    strcpy(msr->param.achDataSubPath,"");
     prmAddParam(msr->prm,"achDataSubPath",3,msr->param.achDataSubPath,256,
 		NULL,NULL);
     msr->param.dExtraStore = 0.1;
@@ -523,7 +524,11 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     prmAddParam(msr->prm,"iSeed",1,&msr->param.iSeed,
 		sizeof(int),"seed","<Random seed for IC> = 0");
 #endif
-
+#ifdef USE_PYTHON
+    strcpy(msr->param.achScriptFile,"");
+    prmAddParam(msr->prm,"achScript",3,msr->param.achScriptFile,256,"script",
+		"<Python script for analysis> = \"\"");
+#endif
     msr->param.bWriteIC = 0;
     prmAddParam(msr->prm,"bWriteIC",1,&msr->param.bWriteIC,
 		sizeof(int),"wic","<Write IC after generating> = 0");
@@ -587,10 +592,14 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
 	}
     else
 #endif
-	if (!msr->param.achInFile[0]) {
-	    puts("ERROR: no input file specified");
-	    _msrExit(msr,1);
-	    }
+#ifdef USE_PYTHON
+	if (msr->param.achScriptFile[0]) {}
+	else
+#endif
+	    if (!msr->param.achInFile[0]) {
+		puts("ERROR: no input file specified");
+		_msrExit(msr,1);
+		}
 
     if (msr->param.dTheta <= 0) {
 	if (msr->param.dTheta == 0 && msr->param.bVWarnings)
@@ -1190,8 +1199,8 @@ void msrOneNodeReadTipsy(MSR msr, struct inReadTipsy *in) {
 	 * Read particles into the local storage.
 	 */
 	assert(plcl->pkd->nStore >= nParts[id]);
-	pkdReadTipsy(plcl->pkd,achInFile,achOutName,nStart,nParts[id],
-		     in->bStandard,in->dvFac,in->bDoublePos);
+	pkdReadTipsy(plcl->pkd,achInFile,nStart,nParts[id],
+		     in->bStandard,in->dvFac,in->bDoublePos,0);
 	nStart += nParts[id];
 	/*
 	 * Now shove them over to the remote processor.
@@ -1206,8 +1215,8 @@ void msrOneNodeReadTipsy(MSR msr, struct inReadTipsy *in) {
     /*
      * Now read our own particles.
      */
-    pkdReadTipsy(plcl->pkd,achInFile,achOutName,0,nParts[0],in->bStandard,in->dvFac,
-		 in->bDoublePos);
+    pkdReadTipsy(plcl->pkd,achInFile,0,nParts[0],in->bStandard,in->dvFac,
+		 in->bDoublePos,0);
     }
 
 int xdrHeader(XDR *pxdrs,struct dump *ph) {
@@ -4815,8 +4824,107 @@ void msrWrite(MSR msr,char *pszFileName,double dTime,int bCheckpoint) {
     }
 
 
+static struct inReadFile * fileScan(MSR msr, const char *achFilename, double *pdExpansion) {
+    wordexp_t files;
+    struct inReadFile *read;
+    struct inFile *file;
+    int i;
+    FILE *fp;
+    struct dump h;
+    uint64_t iOffset;
+    off_t oStart, oEnd, oSize;
+
+    wordexp(achFilename, &files, 0);
+    if ( files.we_wordc <= 0 ) {
+	printf("No such file: %s\n", achFilename);
+	_msrExit(msr,1);
+	}
+
+    assert(files.we_wordc<=PST_MAX_FILES);
+    read = malloc(sizeof(struct inReadFile) + files.we_wordc*sizeof(struct inFile) );
+    assert(read != NULL);
+    file = (struct inFile *)(read+1);
+
+    msr->nDark = msr->nGas = msr->nStar = msr->N = 0;
+    iOffset = 0;
+
+    read->nFiles = files.we_wordc;
+    for( i=0; i<files.we_wordc; i++ ) {
+	assert( strlen(files.we_wordv[i]) < sizeof(file[i].achFilename) );
+	strcpy( file[i].achFilename, files.we_wordv[i] );
+	printf( "Opening %s\n", files.we_wordv[i] );
+#ifdef USE_HDF5
+	if ( H5Fis_hdf5(file[i].achFilename) ) {
+	    hid_t fileID;
+	    IOHDF5 io;
+
+	    fileID=H5Fopen(file[i].achFilename, H5F_ACC_RDONLY, H5P_DEFAULT);
+	    if ( fileID < 0 ) {
+		printf("Could not open InFile:%s\n",file[i].achFilename);
+		_msrExit(msr,1);
+		}
+
+	    io = ioHDF5Initialize( fileID, 32768, IOHDF5_SINGLE );
+
+	    msr->nDark += (file[i].nDark = ioHDF5DarkCount(io));
+	    msr->nGas  += (file[i].nGas = ioHDF5GasCount(io));
+	    msr->nStar += (file[i].nStar = ioHDF5StarCount(io));
+	    assert(ioHDF5ReadAttribute( io, "dTime", H5T_NATIVE_DOUBLE, pdExpansion ));
+	    ioHDF5Finish(io);
+	    H5Fclose(fileID);
+	    }
+	else {
+#endif
+	    fp = fopen(file[i].achFilename,"r");
+	    if (!fp) {
+		printf("Could not open InFile:%s\n",file[i].achFilename);
+		_msrExit(msr,1);
+		}
+
+	    if ( i == 0 ) {
+		if (msr->param.bStandard) {
+		    XDR xdrs;
+		    xdrstdio_create(&xdrs,fp,XDR_DECODE);
+		    xdrHeader(&xdrs,&h);
+		    xdr_destroy(&xdrs);
+		    }
+		else {
+		    fread(&h,sizeof(struct dump),1,fp);
+		    }
+		msr->N = h.nbodies;
+		msr->nDark = h.ndark;
+		msr->nGas = h.nsph;
+		msr->nStar = h.nstar;
+		*pdExpansion = h.time;
+		/* For now, simplify the logic below */
+		assert( msr->nGas==0 && msr->nStar==0 );
+		assert( msr->N == msr->nDark + msr->nGas + msr->nStar );
+		}
+	    oStart = ftello(fp);
+	    fseeko(fp, 0, SEEK_END);
+	    oEnd = ftello(fp);
+	    fclose(fp);
+	    oSize = oEnd-oStart;
+	    file[i].nDark = oSize / (msr->param.bStandard?(msr->param.bDoublePos?48:36):sizeof(struct dark_particle));
+	    file[i].nGas = 0;
+	    file[i].nStar = 0;
+#ifdef USE_HDF5
+	    }
+#endif
+	}
+    msr->N = msr->nDark + msr->nGas + msr->nStar;
+
+    wordfree(&files);
+
+    return read;
+    }
+
+
 double msrRead(MSR msr, int iStep) {
-    double dTime;
+    double dTime,dExpansion;
+    struct inReadFile *read;
+    struct inFile *file;
+
 #ifdef PLANETS
     dTime = msrReadSS(msr); /* must use "Solar System" (SS) I/O format... */
 #else
@@ -4838,19 +4946,50 @@ double msrRead(MSR msr, int iStep) {
 	}
     else {
 #endif
+	read = fileScan(msr,achFilename,&dExpansion);
+	file = (struct inFile *)(read+1);
+
+	dTime = getTime(msr,dExpansion,&read->dvFac);
 
 
+	read->nNodeStart = 0;
+	read->nNodeEnd = msr->N - 1;
+	read->nBucket = msr->param.nBucket;
+	read->nDark = msr->nDark;
+	read->nGas = msr->nGas;
+	read->nStar = msr->nStar;
+	read->bStandard = msr->param.bStandard;
+	read->bDoublePos = msr->param.bDoublePos;
+	read->fExtraStore = msr->param.dExtraStore;
+	read->fPeriod[0] = msr->param.dxPeriod;
+	read->fPeriod[1] = msr->param.dyPeriod;
+	read->fPeriod[2] = msr->param.dzPeriod;
+
+	read->eFileType = PST_FILE_TYPE_TIPSY;
+#ifdef USE_HDF5
+	if ( H5Fis_hdf5(file[0].achFilename) )
+	    read->eFileType = PST_FILE_TYPE_HDF5;
+#endif
+	if (msr->param.bParaRead)
+	    pstReadFile(msr->pst,read,sizeof(struct inReadFile) + read->nFiles*sizeof(struct inFile),NULL,NULL);
+	else
+	    assert(0); /*msrOneNodeReadTipsy(msr, &in);*/
+	msrSetClasses(msr);
+	msrprintf(msr,"Input file has been successfully read.\n");
+#if 0
+	
 #ifdef USE_HDF5
 	/* We can automatically detect if a given file is in HDF5 format */
-	if ( H5Fis_hdf5(achFilename) ) {
-	    dTime = _msrReadHDF5(msr,achFilename);
+	if ( H5Fis_hdf5(file[0].achFilename) ) {
+	    dTime = _msrReadHDF5(msr,file[0].achFilename);
 	    }
 	else
 #endif
 	    /* This is always executed if not using HDF5 */
 	    {
-	    dTime = _msrReadTipsy(msr,achFilename);
+	    dTime = _msrReadTipsy(msr,file[0].achFilename);
 	    }
+#endif
 #endif
 
 #ifdef USE_MDL_IO
@@ -4864,6 +5003,7 @@ double msrRead(MSR msr, int iStep) {
 	mdlSetComm(msr->mdl,0);
 	}
 #endif
+    free(read);
 
 #ifdef USE_MDL_IO
     }
@@ -5008,8 +5148,81 @@ void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint) {
     ** Don't allow duplicate outputs.
     */
     while (msrOutTime(msr,dTime));
+    }
 
+void msrSelSrcAll(MSR msr) {
+    pstSelSrcAll(msr->pst, NULL, 0, NULL, NULL );
+    }
+void msrSelDstAll(MSR msr) {
+    pstSelDstAll(msr->pst, NULL, 0, NULL, NULL );
+    }
+uint64_t msrSelSrcMass(MSR msr,double dMinMass,double dMaxMass) {
+    struct inSelMass in;
+    struct outSelMass out;
+    int nOut;
 
+    in.dMinMass = dMinMass;
+    in.dMaxMass = dMaxMass;
+    pstSelSrcMass(msr->pst, &in, sizeof(in), &out, &nOut);
+    return out.nSelected;
+    }
+uint64_t msrSelDstMass(MSR msr,double dMinMass,double dMaxMass) {
+    struct inSelMass in;
+    struct outSelMass out;
+    int nOut;
+
+    in.dMinMass = dMinMass;
+    in.dMaxMass = dMaxMass;
+    pstSelDstMass(msr->pst, &in, sizeof(in), &out, &nOut);
+    return out.nSelected;
     }
 
 
+
+void msrDeepestPot(MSR msr,double *r, float *fPot) {
+    struct inDeepestPot in;
+    struct outDeepestPot out;
+    int nOut;
+    int d;
+
+    in.uRungLo = 0;
+    in.uRungHi = msrMaxRung(msr)-1;
+    pstDeepestPot(msr->pst, &in, sizeof(in), &out, &nOut);
+    for(d=0; d<3; d++ ) r[d] = out.r[d];
+    if ( fPot ) *fPot = out.fPot;
+    }
+
+void msrDeleteProfile(MSR msr) {
+    LCL *plcl;
+    PST pst0;
+
+    pst0 = msr->pst;
+    while (pst0->nLeaves > 1)
+	pst0 = pst0->pstLower;
+    plcl = pst0->plcl;
+
+    if (plcl->pkd->profileBins) mdlFree(msr->mdl,plcl->pkd->profileBins);
+    plcl->pkd->profileBins = NULL;
+    }
+
+PROFILEBIN *msrProfile(MSR msr, double *r, double dMinRadius, double dMaxRadius, int nBins ) {
+    struct inProfile in;
+    int i;
+    LCL *plcl;
+    PST pst0;
+
+    pst0 = msr->pst;
+    while (pst0->nLeaves > 1)
+	pst0 = pst0->pstLower;
+    plcl = pst0->plcl;
+
+    for(i=0; i<3; i++) in.dCenter[i] = r[i];
+    in.dMinRadius = dMinRadius;
+    in.dMaxRadius = dMaxRadius;
+    in.nBins = nBins;
+    in.uRungLo = 0;
+    in.uRungHi = msrMaxRung(msr)-1;
+    pstProfile(msr->pst, &in, sizeof(in), NULL, NULL);
+
+    return plcl->pkd->profileBins;
+    }

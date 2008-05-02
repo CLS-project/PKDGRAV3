@@ -21,6 +21,10 @@
 #include "io.h"
 #endif
 
+#ifdef USE_PYTHON
+#include "python.h"
+#endif
+
 #ifdef USE_MDL_IO
 static void main_io(MDL mdl) {
     IO io;
@@ -176,7 +180,13 @@ int main(int argc,char **argv) {
 	msrLogParams(msr,fpLog);
 	}
 
-    if (msrSteps(msr) > 0) {
+#ifdef USE_PYTHON
+    /* If a script file was specified, enter analysis mode */
+    if ( msr->param.achScriptFile[0] ) iStep = 0;
+    else
+#endif
+	iStep = msrSteps(msr);
+    if (iStep > 0) {
 	if (msrComove(msr)) {
 	    msrSwitchTheta(msr,dTime);
 	    }
@@ -311,28 +321,40 @@ int main(int argc,char **argv) {
 
     /* No steps were requested */
     else {
-	if (msrDoGravity(msr)) {
-	    msrActiveRung(msr,0,1); /* Activate all particles */
-	    msrDomainDecomp(msr,0,1,0);
-	    msrUpdateSoft(msr,dTime);
-	    msrBuildTree(msr,dTime,msr->param.bEwald);
-
-	    msrGravity(msr,0,MAX_RUNG,dTime,msr->param.iStartStep,msr->param.bEwald,&iSec,&nActive);
-	    if (msr->param.bGravStep && msr->param.iTimeStepCrit == -1) {
-		msrGravity(msr,0,MAX_RUNG,dTime,msr->param.iStartStep,msr->param.bEwald,&iSec,&nActive);
-		}
-
-	    msrCalcEandL(msr,MSR_INIT_E,dTime,&E,&T,&U,&Eth,L);
-	    dMultiEff = 1.0;
-	    if (msrLogInterval(msr)) {
-		(void) fprintf(fpLog,"%e %e %.16e %e %e %e %.16e %.16e %.16e "
-			       "%i %e\n",dTime,
-			       1.0/csmTime2Exp(msr->param.csm,dTime)-1.0,
-			       E,T,U,Eth,L[0],L[1],L[2],iSec,dMultiEff);
-		}
+#ifdef USE_PYTHON
+	if ( msr->param.achScriptFile[0] ) {
+	    ppyInitialize(msr);
+	    ppyRunScript(msr->param.achScriptFile);
 	    }
+	else {
 
-	msrOutput(msr,0,dTime,0);
+#endif
+	    if (msrDoGravity(msr)) {
+		msrActiveRung(msr,0,1); /* Activate all particles */
+		msrDomainDecomp(msr,0,1,0);
+		msrUpdateSoft(msr,dTime);
+		msrBuildTree(msr,dTime,msr->param.bEwald);
+
+		msrGravity(msr,0,MAX_RUNG,dTime,msr->param.iStartStep,msr->param.bEwald,&iSec,&nActive);
+		if (msr->param.bGravStep && msr->param.iTimeStepCrit == -1) {
+		    msrGravity(msr,0,MAX_RUNG,dTime,msr->param.iStartStep,msr->param.bEwald,&iSec,&nActive);
+		    }
+
+		msrCalcEandL(msr,MSR_INIT_E,dTime,&E,&T,&U,&Eth,L);
+		dMultiEff = 1.0;
+		if (msrLogInterval(msr)) {
+			(void) fprintf(fpLog,"%e %e %.16e %e %e %e %.16e %.16e %.16e "
+				       "%i %e\n",dTime,
+				       1.0/csmTime2Exp(msr->param.csm,dTime)-1.0,
+				       E,T,U,Eth,L[0],L[1],L[2],iSec,dMultiEff);
+		    }
+		}
+
+	    msrOutput(msr,0,dTime,0);
+#ifdef USE_PYTHON
+	    }
+#endif
+
 	}
 
     if (msrLogInterval(msr)) (void) fclose(fpLog);

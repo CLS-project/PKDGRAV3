@@ -521,6 +521,13 @@ typedef struct groupBin {
     /*     FLOAT psi; */
     } FOFBIN;
 
+typedef struct profileBin {
+    double dRadius;
+    double dMassInBin;
+    double dVolume;
+    uint64_t nParticles;
+    } PROFILEBIN;
+
 typedef struct pkdContext {
     MDL mdl;
     int idSelf;
@@ -599,6 +606,9 @@ typedef struct pkdContext {
     int nBins;
 
     FOFBIN *groupBin;
+
+    PROFILEBIN *profileBins;
+
     /*
     ** Oh heck, just put all the parameters in here!
     ** This is set in pkdInitStep.
@@ -695,8 +705,8 @@ void pkdStopTimer(PKD,int);
 void pkdInitialize(PKD *,MDL,int,int,FLOAT *,uint64_t,uint64_t,uint64_t);
 void pkdFinish(PKD);
 int pkdVerify(PKD pkd);
-void pkdReadTipsy(PKD pkd,char *pszFileName, char *achOutName,uint64_t nStart,int nLocal,
-		  int bStandard,double dvFac,int bDoublePos);
+void pkdReadTipsy(PKD pkd,char *pszFileName, uint64_t nStart,int nLocal,
+		  int bStandard,double dvFac,int bDoublePos,int bNoHeader);
 #ifdef USE_HDF5
 void pkdReadHDF5(PKD pkd, IOHDF5 io, double dvFac,
 		 uint64_t nStart, int nLocal );
@@ -848,7 +858,14 @@ void pkdGenerateIC(PKD pkd, GRAFICCTX gctx, int iDim,
 int pkdGetClasses( PKD pkd, int nMax, PARTCLASS *pClass );
 void pkdSetClasses( PKD pkd, int n, PARTCLASS *pClass, int bUpdate );
 
+int pkdSelSrcAll(PKD pkd);
+int pkdSelDstAll(PKD pkd);
+int pkdSelSrcMass(PKD pkd,double dMinMass, double dMaxMass);
+int pkdSelDstMass(PKD pkd,double dMinMass, double dMaxMass);
+
 int pkdDeepestPot(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
     double *r, float *fPot);
-
+void pkdProfile(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
+		double *dCenter, double dMinRadius, double dMaxRadius,
+		int nBins );
 #endif

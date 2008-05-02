@@ -139,6 +139,9 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_SETADD,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstSetAdd,
 		  sizeof(struct inSetAdd),0);
+    mdlAddService(mdl,PST_READFILE,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstReadFile,
+		  sizeof(struct inReadFile)+PST_MAX_FILES*sizeof(struct inFile),0);
     mdlAddService(mdl,PST_READTIPSY,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstReadTipsy,
 		  sizeof(struct inReadTipsy),0);
@@ -434,9 +437,24 @@ void pstAddServices(PST pst,MDL mdl) {
 		  (void (*)(void *,void *,int,void *,int *)) pstSwapClasses,
 		  PKD_MAX_CLASSES*sizeof(PARTCLASS),
 		  PKD_MAX_CLASSES*sizeof(PARTCLASS));
+    mdlAddService(mdl,PST_SELSRCALL,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstSelSrcAll,
+		  0, 0 );
+    mdlAddService(mdl,PST_SELDSTALL,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstSelDstAll,
+		  0, 0 );
+    mdlAddService(mdl,PST_SELSRCMASS,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstSelSrcMass,
+		  sizeof(struct inSelMass), sizeof(struct outSelMass));
+    mdlAddService(mdl,PST_SELDSTMASS,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstSelDstMass,
+		  sizeof(struct inSelMass), sizeof(struct outSelMass));
     mdlAddService(mdl,PST_DEEPESTPOT,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstDeepestPot,
 		  sizeof(struct inDeepestPot), sizeof(struct outDeepestPot));
+    mdlAddService(mdl,PST_PROFILE,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstProfile,
+		  sizeof(struct inProfile), 0);
     }
 
 void pstInitialize(PST *ppst,MDL mdl,LCL *plcl) {
@@ -580,6 +598,73 @@ void pstOneNodeReadInit(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     if (pnOut) *pnOut = nThreads*sizeof(*pout);
     }
 
+
+void pstReadFile(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl = pst->plcl;
+    struct inReadFile *in = vin;
+    struct inFile *inf = (struct inFile *)(in+1);
+    hid_t fileID;
+    IOHDF5 io;
+    uint64_t nNodeStart,nNodeEnd,nNodeTotal,nNodeSplit,nStore;
+    uint64_t nFileStart, nFileEnd, nThisStart, nThisEnd;
+    int i;
+
+    mdlassert(pst->mdl,nIn == sizeof(struct inReadFile) + in->nFiles*sizeof(struct inFile));
+
+    nNodeStart = in->nNodeStart;
+    nNodeEnd = in->nNodeEnd;
+    nNodeTotal = nNodeEnd - nNodeStart + 1;
+    if (pst->nLeaves > 1) {
+	nNodeSplit = nNodeStart + pst->nLower*(nNodeTotal/pst->nLeaves);
+	in->nNodeStart = nNodeSplit;
+	mdlReqService(pst->mdl,pst->idUpper,PST_READFILE,in,nIn);
+	in->nNodeStart = nNodeStart;
+	in->nNodeEnd = nNodeSplit - 1;
+	pstReadFile(pst->pstLower,in,nIn,NULL,NULL);
+	in->nNodeEnd = nNodeEnd;
+	mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
+	}
+    else {
+	/*
+	** Determine the size of the local particle store.
+	*/
+	nStore = nNodeTotal + (int)ceil(nNodeTotal*in->fExtraStore);
+
+	pkdInitialize(&plcl->pkd,pst->mdl,nStore,in->nBucket,in->fPeriod,
+		      in->nDark,in->nGas,in->nStar);
+
+	nFileStart = 0;
+	for( i=0; i<in->nFiles; i++,nFileStart=nFileEnd+1 ) {
+	    nFileEnd = nFileStart + inf[i].nDark + inf[i].nGas + inf[i].nStar - 1;
+	    if ( nFileStart > nNodeEnd || nFileEnd < nNodeStart ) continue;
+
+	    nThisStart = ( nNodeStart > nFileStart ) ? nNodeStart - nFileStart : 0;
+	    nThisEnd = ( nNodeEnd < nFileEnd ) ? nNodeEnd - nFileStart : nFileEnd - nFileStart;
+
+	    switch( in->eFileType ) {
+	    case PST_FILE_TYPE_TIPSY:
+		pkdReadTipsy(plcl->pkd,inf[i].achFilename,nThisStart,nThisEnd-nThisStart+1,
+			     in->bStandard,in->dvFac,in->bDoublePos,i!=0);
+		break;
+#ifdef USE_HDF5
+	    case PST_FILE_TYPE_HDF5:
+		fileID=H5Fopen(inf[i].achFilename, H5F_ACC_RDONLY, H5P_DEFAULT);
+		assert(fileID >= 0);
+		io = ioHDF5Initialize( fileID, 32768, IOHDF5_SINGLE );
+		assert( io != NULL );
+		pkdReadHDF5(plcl->pkd, io, in->dvFac, nThisStart, nThisEnd-nThisStart+1);
+		ioHDF5Finish(io);
+		H5Fclose(fileID);
+		break;
+#endif
+	    default:
+		assert(0);
+		}
+	    }
+	}
+    if (pnOut) *pnOut = 0;
+    }
+
 #ifdef USE_HDF5
 void pstReadHDF5(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
@@ -681,8 +766,8 @@ void pstReadTipsy(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	nStore = nFileTotal + (int)ceil(nFileTotal*in->fExtraStore);
 	pkdInitialize(&plcl->pkd,pst->mdl,nStore,in->nBucket,in->fPeriod,
 		      in->nDark,in->nGas,in->nStar);
-	pkdReadTipsy(plcl->pkd,achInFile,achOutName,nFileStart,nFileTotal,in->bStandard,
-		     in->dvFac,in->bDoublePos);
+	pkdReadTipsy(plcl->pkd,achInFile,nFileStart,nFileTotal,in->bStandard,
+		     in->dvFac,in->bDoublePos,0);
 	}
     if (pnOut) *pnOut = 0;
     }
@@ -3819,18 +3904,86 @@ void pstSwapClasses(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     pkdSetClasses( plcl->pkd, n, in, 0 );
     }
 
+
+void pstSelSrcAll(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl = pst->plcl;
+    if (pst->nLeaves > 1) {
+	mdlReqService(pst->mdl,pst->idUpper,PST_SELSRCALL,vin,nIn);
+	pstSelSrcAll(pst->pstLower,vin,nIn,vout,pnOut);
+	mdlGetReply(pst->mdl,pst->idUpper,vout,pnOut);
+	}
+    else {
+	pkdSelSrcAll(plcl->pkd);
+	}
+    if (pnOut) *pnOut = 0;
+    }
+void pstSelDstAll(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl = pst->plcl;
+    if (pst->nLeaves > 1) {
+	mdlReqService(pst->mdl,pst->idUpper,PST_SELDSTALL,vin,nIn);
+	pstSelDstAll(pst->pstLower,vin,nIn,vout,pnOut);
+	mdlGetReply(pst->mdl,pst->idUpper,vout,pnOut);
+	}
+    else {
+	pkdSelDstAll(plcl->pkd);
+	}
+    if (pnOut) *pnOut = 0;
+    }
+void pstSelSrcMass(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl = pst->plcl;
+    struct inSelMass *in = vin;
+    struct outSelMass *out = vout;
+    struct outSelMass outUpper;
+    int nOut;
+
+    assert( nIn==sizeof(struct inSelMass) );
+    if (pst->nLeaves > 1) {
+	mdlReqService(pst->mdl,pst->idUpper,PST_SELSRCMASS,vin,nIn);
+	pstSelSrcMass(pst->pstLower,vin,nIn,vout,pnOut);
+	mdlGetReply(pst->mdl,pst->idUpper,&outUpper,&nOut);
+	assert(nOut == sizeof(struct outSelMass));
+	out->nSelected += outUpper.nSelected;
+	}
+    else {
+	out->nSelected = pkdSelSrcMass(plcl->pkd,in->dMinMass,in->dMaxMass);
+	}
+    if (pnOut) *pnOut = sizeof(struct outSelMass);
+    }
+void pstSelDstMass(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl = pst->plcl;
+    struct inSelMass *in = vin;
+    struct outSelMass *out = vout;
+    struct outSelMass outUpper;
+    int nOut;
+
+    assert( nIn==sizeof(struct inSelMass) );
+    if (pst->nLeaves > 1) {
+	mdlReqService(pst->mdl,pst->idUpper,PST_SELSRCMASS,vin,nIn);
+	pstSelDstMass(pst->pstLower,vin,nIn,vout,pnOut);
+	mdlGetReply(pst->mdl,pst->idUpper,&outUpper,&nOut);
+	assert(nOut == sizeof(struct outSelMass));
+	out->nSelected += outUpper.nSelected;
+	}
+    else {
+	out->nSelected = pkdSelDstMass(plcl->pkd,in->dMinMass,in->dMaxMass);
+	}
+    if (pnOut) *pnOut = sizeof(struct outSelMass);
+    }
+
+
 void pstDeepestPot(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct inDeepestPot *in = vin;
     struct outDeepestPot *out = vout;
     struct outDeepestPot outUpper;
+    int nOut;
 
     assert( nIn==sizeof(struct inDeepestPot) );
     if (pst->nLeaves > 1) {
 	mdlReqService(pst->mdl,pst->idUpper,PST_DEEPESTPOT,vin,nIn);
 	pstDeepestPot(pst->pstLower,vin,nIn,vout,pnOut);
-	mdlGetReply(pst->mdl,pst->idUpper,&outUpper,pnOut);
-	assert(*pnOut == sizeof(struct outDeepestPot));
+	mdlGetReply(pst->mdl,pst->idUpper,&outUpper,&nOut);
+	assert(nOut == sizeof(struct outDeepestPot));
 	if ( out->nChecked==0 || (outUpper.nChecked && outUpper.fPot < out->fPot) ) {
 	    out->r[0] = outUpper.r[0];
 	    out->r[1] = outUpper.r[1];
@@ -3845,25 +3998,22 @@ void pstDeepestPot(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	}
     if (pnOut) *pnOut = sizeof(struct outDeepestPot);
     }
-#if 0
+
 void pstProfile(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct inProfile *in = vin;
-    struct outProfile *out = vout;
-    struct outProfile outUpper;
+    int i;
 
     assert( nIn==sizeof(struct inProfile) );
     if (pst->nLeaves > 1) {
 	mdlReqService(pst->mdl,pst->idUpper,PST_PROFILE,vin,nIn);
 	pstProfile(pst->pstLower,vin,nIn,vout,pnOut);
-	mdlGetReply(pst->mdl,pst->idUpper,&outUpper,pnOut);
-	assert(*pnOut == sizeof(struct outProfile));
+	mdlGetReply(pst->mdl,pst->idUpper,vout,pnOut);
 	}
     else {
 	pkdProfile(plcl->pkd,in->uRungLo,in->uRungHi,
-		   in->dCenter, in->dRadius, in->nBins,
-		   out->dMass, out->dVolume);
+		   in->dCenter, in->dMinRadius, in->dMaxRadius,
+		   in->nBins);
 	}
-    if (pnOut) *pnOut = sizeof(struct outProfile);
+    if (pnOut) *pnOut = 0;
     }
-#endif

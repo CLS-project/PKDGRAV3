@@ -301,6 +301,8 @@ void pkdInitialize(PKD *ppkd,MDL mdl,int nStore,int nBucket,FLOAT *fPeriod,
     mdlassert(mdl,pkd->piActive != NULL);
     pkd->piInactive = malloc(pkd->nMaxBucketActive*sizeof(PARTICLE *));
     mdlassert(mdl,pkd->piInactive != NULL);
+
+    pkd->profileBins = NULL;
     }
 
 
@@ -311,7 +313,8 @@ void pkdFinish(PKD pkd) {
 	/*
 	** Close caching space and free up nodes.
 	*/
-	mdlFinishCache(pkd->mdl,CID_CELL);
+	if (pkd->nNodes > 0)
+	    mdlFinishCache(pkd->mdl,CID_CELL);
 	mdlFree(pkd->mdl,pkd->kdNodes);
 	}
     /*
@@ -397,7 +400,7 @@ void pkdSetClasses( PKD pkd, int n, PARTCLASS *pClass, int bUpdate ) {
     pkd->nClasses = n;
     }
 
-void pkdSeek(PKD pkd,FILE *fp,uint64_t nStart,int bStandard,int bDoublePos) {
+void pkdSeek(PKD pkd,FILE *fp,uint64_t nStart,int bStandard,int bDoublePos,int bNoHeader) {
     off_t MAX_OFFSET = 2147483640;
     off_t lStart;
     int iErr;
@@ -406,7 +409,8 @@ void pkdSeek(PKD pkd,FILE *fp,uint64_t nStart,int bStandard,int bDoublePos) {
     ** This may be a bit dicey, but it should work as long
     ** as no one changes the tipsy binary format!
     */
-    if (bStandard) lStart = 32;
+    if (bNoHeader) lStart = 0;
+    else if (bStandard) lStart = 32;
     else lStart = sizeof(struct dump);
     if (nStart > pkd->nGas) {
 	if (bStandard) lStart += pkd->nGas*(bDoublePos?60:48);
@@ -530,17 +534,19 @@ void pkdReadHDF5(PKD pkd, IOHDF5 io, double dvFac,
     FLOAT fSoft, fMass;
     uint64_t iOrder;
     int i, j;
+    IOHDF5V ioPot;
+
+    ioPot  = ioHDFF5NewVector( io, "potential",IOHDF5_SINGLE );
+
 
     ioHDF5SeekDark( io, nStart );
-
-    pkd->nLocal = nLocal;
-    pkd->nActive = nLocal;
+    ioHDF5SeekVector( ioPot, nStart );
 
     /*
     ** General initialization.
     */
     for (i=0;i<nLocal;++i) {
-	p = &pkd->pStore[i];
+	p = &pkd->pStore[pkd->nLocal+i];
 	p->uRung = p->uNewRung = 0;
 	p->bSrcActive = p->bDstActive = 1;
 	p->fDensity = 0.0;
@@ -555,7 +561,7 @@ void pkdReadHDF5(PKD pkd, IOHDF5 io, double dvFac,
 	}
 
     for (i=0;i<nLocal;++i) {
-	p = &pkd->pStore[i];
+	p = &pkd->pStore[pkd->nLocal+i];
 	p->iOrder = nStart + i;
 
 	if (pkdIsDark(pkd,p)) {
@@ -579,7 +585,14 @@ void pkdReadHDF5(PKD pkd, IOHDF5 io, double dvFac,
 	for (j=0;j<3;++j) p->v[j] *= dvFac;
 	p->iClass = getClass(pkd,fMass,fSoft);
 	p->iOrder = iOrder;
+	p->fPot = ioHDF5GetVector(ioPot);
 	}
+
+    pkd->nLocal += nLocal;
+    pkd->nActive += nLocal;
+
+
+
     }
 #endif
 
@@ -613,8 +626,8 @@ void pkdIOInitialize( PKD pkd, int nLocal) {
     }
 #endif
 
-void pkdReadTipsy(PKD pkd,char *pszFileName, char *achOutName,uint64_t nStart,int nLocal,
-		  int bStandard,double dvFac,int bDoublePos) {
+void pkdReadTipsy(PKD pkd,char *pszFileName, uint64_t nStart,int nLocal,
+		  int bStandard,double dvFac,int bDoublePos,int bNoHeader) {
     FILE *fp;
     int i,j;
     PARTICLE *p;
@@ -626,13 +639,11 @@ void pkdReadTipsy(PKD pkd,char *pszFileName, char *achOutName,uint64_t nStart,in
     double dTmp;
     float mass=0.0;
 
-    pkd->nLocal = nLocal;
-    pkd->nActive = nLocal;
     /*
     ** General initialization.
     */
     for (i=0;i<nLocal;++i) {
-	p = &pkd->pStore[i];
+	p = &pkd->pStore[pkd->nLocal+i];
 	p->uRung = p->uNewRung = 0;
 	p->bSrcActive = p->bDstActive = 1;
 	p->fDensity = 0.0;
@@ -653,7 +664,7 @@ void pkdReadTipsy(PKD pkd,char *pszFileName, char *achOutName,uint64_t nStart,in
     /*
     ** Seek to right place in file.
     */
-    pkdSeek(pkd,fp,nStart,bStandard,bDoublePos);
+    pkdSeek(pkd,fp,nStart,bStandard,bDoublePos,bNoHeader);
     /*
     ** Read Stuff!
     */
@@ -662,7 +673,7 @@ void pkdReadTipsy(PKD pkd,char *pszFileName, char *achOutName,uint64_t nStart,in
 	XDR xdrs;
 	xdrstdio_create(&xdrs,fp,XDR_DECODE);
 	for (i=0;i<nLocal;++i) {
-	    p = &pkd->pStore[i];
+	    p = &pkd->pStore[pkd->nLocal+i];
 	    p->iOrder = nStart + i;
 	    if (pkdIsDark(pkd,p)) {
 		xdr_float(&xdrs,&fTmp);
@@ -753,7 +764,7 @@ void pkdReadTipsy(PKD pkd,char *pszFileName, char *achOutName,uint64_t nStart,in
 	}
     else {
 	for (i=0;i<nLocal;++i) {
-	    p = &pkd->pStore[i];
+	    p = &pkd->pStore[pkd->nLocal+i];
 	    p->iOrder = nStart + i;
 	    if (pkdIsDark(pkd,p)) {
 		fread(&dp,sizeof(struct dark_particle),1,fp);
@@ -791,6 +802,10 @@ void pkdReadTipsy(PKD pkd,char *pszFileName, char *achOutName,uint64_t nStart,in
 
 	    }
 	}
+
+    pkd->nLocal += nLocal;
+    pkd->nActive += nLocal;
+
     fclose(fp);
     }
 
@@ -1503,7 +1518,7 @@ void pkdWriteTipsy(PKD pkd,char *pszFileName,uint64_t nStart,
     */
     fp = fopen(pszFileName,"r+");
     mdlassert(pkd->mdl,fp != NULL);
-    pkdSeek(pkd,fp,nStart,bStandard,bDoublePos);
+    pkdSeek(pkd,fp,nStart,bStandard,bDoublePos,0);
 
     if (bStandard) {
 	FLOAT vTemp;
@@ -2496,12 +2511,6 @@ int pkdUpdateRung(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     for (i=0;i<iMaxRung;++i) nRungCount[i] = 0;
     for (i=0;i<pkdLocal(pkd);++i) {
 	if ( pkdIsDstActive(&pkd->pStore[i],uRungLo,uRungHi) ) {
-	    if (pkd->pStore[i].uRung==7) {
-		printf( "UR:%lu: p.uRung %d, iMaxRung: %d, uRung: %d, uNewRung:%d\n",
-			pkd->pStore[i].iOrder, pkd->pStore[i].uRung, iMaxRung, uRung,
-			pkd->pStore[i].uNewRung);
-		}
-
 	    if ( pkd->pStore[i].uNewRung >= iMaxRung )
 		pkd->pStore[i].uRung = iMaxRung-1;
 	    else if ( pkd->pStore[i].uNewRung >= uRung )
@@ -3476,6 +3485,57 @@ void pkdKeplerDrift(PKD pkd,double dt,double mu, int tag_VA) {
 #endif /* SYMBA */
 #endif /* PLANETS */
 
+
+int pkdSelSrcAll(PKD pkd) {
+    PARTICLE *p;
+    int i;
+    int n=pkdLocal(pkd);
+    for( i=0; i<n; i++ ) pkd->pStore[i].bSrcActive = 1;
+    return n;
+    }
+int pkdSelDstAll(PKD pkd) {
+    PARTICLE *p;
+    int i;
+    int n=pkdLocal(pkd);
+    for( i=0; i<n; i++ ) pkd->pStore[i].bDstActive = 1;
+    return n;
+    }
+
+
+
+
+int pkdSelSrcMass(PKD pkd,double dMinMass, double dMaxMass) {
+    PARTICLE *p;
+    double m;
+    int i,n,nSelected;
+
+    n = pkdLocal(pkd);
+    nSelected = 0;
+    for( i=0; i<n; i++ ) {
+	p = &pkd->pStore[i];
+	m = pkdMass(pkd,p);
+	p->bSrcActive = (m >= dMinMass && m <=dMaxMass);
+	if ( p->bSrcActive ) nSelected++;
+	}
+    return nSelected;
+    }
+
+int pkdSelDstMass(PKD pkd,double dMinMass, double dMaxMass) {
+    PARTICLE *p;
+    double m;
+    int i,n,nSelected;
+
+    n = pkdLocal(pkd);
+    nSelected = 0;
+    for( i=0; i<n; i++ ) {
+	p = &pkd->pStore[i];
+	m = pkdMass(pkd,p);
+	p->bDstActive = (m >= dMinMass && m <=dMaxMass);
+	if ( p->bDstActive ) nSelected++;
+	}
+    return nSelected;
+    }
+
 /*
 **  Find the source particle with the deepest potential
 */
@@ -3500,32 +3560,55 @@ int pkdDeepestPot(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
     *fPot= pkd->pStore[iLocal].fPot;
     return nChecked;
     }
-#if 0
+
+
+void combProfileBins(void *b1, void *b2) {
+    PROFILEBIN * pBin1 = (PROFILEBIN *)b1;
+    PROFILEBIN * pBin2 = (PROFILEBIN *)b2;
+
+    pBin1->dMassInBin += pBin2->dMassInBin;
+    pBin1->nParticles += pBin2->nParticles;
+    }
+
+void initProfileBins(void *b) {
+    PROFILEBIN * pBin = (PROFILEBIN *)b;
+    pBin->dRadius = 0.0;
+    pBin->dMassInBin = 0.0;
+    pBin->dVolume = 0.0;
+    pBin->nParticles = 0;
+    }
+
 /*
 ** Density Profile
 */
 void pkdProfile(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
 		double *dCenter, double dMinRadius, double dMaxRadius,
-		int nBins, double *dMass, double *dVolume) {
+		int nBins) {
     PARTICLE *p;
     double d2, r2, r, r1;
-    double dx, dy, dz;
+    double dx, dy, dz, deltaR;
     double dLogMinRadius, dLogMaxRadius, dLogRadius;
     int i,n,iBin;
+    PROFILEBIN *pBin;
 
     assert(dMinRadius>0.0);
     assert(dMaxRadius>dMinRadius);
+
+    assert( pkd->profileBins == NULL );
+    pkd->profileBins = mdlMalloc(pkd->mdl,nBins*sizeof(PROFILEBIN));
 
     r2 = dMaxRadius*dMaxRadius;
     dLogMinRadius = log10(dMinRadius);
     dLogMaxRadius = log10(dMaxRadius);
     dLogRadius = dLogMaxRadius - dLogMinRadius;
-
+    deltaR = dLogRadius / nBins;
     r = 0.0;
     for( iBin=0; iBin<nBins; iBin++ ) {
-	dMass[iBin] = 0.0;
-	r1 = pow(10,dLogRadius*(iBin+1)/nBins);
-	dVolume[iBin] = (4.0/3.0) * M_PI * (r1*r1*r1 - r*r*r);
+	pkd->profileBins[iBin].nParticles = 0;
+	pkd->profileBins[iBin].dMassInBin = 0.0;
+	r1 = pow(10,dLogMinRadius+deltaR*(iBin+1));
+	pkd->profileBins[iBin].dRadius = r1;
+	pkd->profileBins[iBin].dVolume = (4.0/3.0) * M_PI * (r1*r1*r1 - r*r*r);
 	r = r1;
 	}
 
@@ -3537,13 +3620,34 @@ void pkdProfile(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
 	    dy = p->r[1] - dCenter[1];
 	    dz = p->r[2] - dCenter[2];
 	    d2 = dx*dx + dy*dy + dz*dz;
-	    if ( d2 < dMinRadius ) d2 = dMinRadius;
+
+	    if ( d2 < dMinRadius*dMinRadius ) d2 = dMinRadius*dMinRadius;
 	    if ( d2 < r2 ) {
-		iBin = (log10(sqrt(d2))-dMinRadius)/dLogRadius * nBins;
+		iBin = (log10(sqrt(d2))-dLogMinRadius)/dLogRadius * nBins;
 		if ( iBin >= nBins ) iBin = nBins-1;
-		dMass[iBin] += pkdMass(pkd,p);
+		assert(iBin>=0);
+		pkd->profileBins[iBin].dMassInBin += pkdMass(pkd,p);
+		pkd->profileBins[iBin].nParticles++;
 		}
 	    }
 	}
+
+    /* Combine the work from all processors */
+    mdlCOcache(pkd->mdl,CID_BIN,pkd->profileBins,sizeof(PROFILEBIN),nBins,initProfileBins,combProfileBins);
+    if (pkd->idSelf != 0) {
+	for (i=0; i<nBins; i++) {
+	    if (pkd->profileBins[i].dMassInBin > 0.0) {
+		pBin = mdlAquire(pkd->mdl,CID_BIN,i,0);
+		*pBin = pkd->profileBins[i];
+		mdlRelease(pkd->mdl,CID_BIN,pBin);
+		}
+	    }
+	}
+    mdlFinishCache(pkd->mdl,CID_BIN);
+
+    /* Only the main processor needs the result */
+    if (pkd->idSelf != 0) {
+	mdlFree(pkd->mdl,pkd->profileBins);
+	pkd->profileBins = NULL;
+	}
     }
-#endif

@@ -58,11 +58,13 @@ typedef struct pstContext {
 
 #define PST_SERVICES		100
 #define PST_FILENAME_SIZE	512
+#define PST_MAX_FILES           128
 
 enum pst_service {
     PST_SRV_STOP,
     PST_SPLITIO,
     PST_SETADD,
+    PST_READFILE,
     PST_READTIPSY,
     PST_PEANOHILBERTCOUNT,
     PST_DOMAINDECOMP,
@@ -173,7 +175,13 @@ enum pst_service {
     PST_SETCLASSES,
     PST_SWAPCLASSES,
 
+    PST_SELSRCALL,
+    PST_SELDSTALL,
+    PST_SELSRCMASS,
+    PST_SELDSTMASS,
+
     PST_DEEPESTPOT,
+    PST_PROFILE,
     };
 
 void pstAddServices(PST,MDL);
@@ -208,6 +216,37 @@ void pstReadTipsy(PST,void *,int,void *,int *);
 #ifdef USE_HDF5
 void pstReadHDF5(PST,void *,int,void *,int *);
 #endif
+
+
+/* PST_READFILE */
+struct inFile {
+    char achFilename[PST_FILENAME_SIZE];
+    uint64_t nDark;
+    uint64_t nGas;
+    uint64_t nStar;
+    };
+
+#define PST_FILE_TYPE_TIPSY 0
+#define PST_FILE_TYPE_HDF5 1
+
+struct inReadFile {
+    uint64_t nNodeStart; /* First particle to read (of total) */
+    uint64_t nNodeEnd;   /* Last particle to read (of total) */
+    uint64_t nDark;      /* Total Dark */
+    uint64_t nGas;       /* Total Gas */
+    uint64_t nStar;      /* Total Star */
+    double fPeriod[3];
+    double dvFac;
+    float fExtraStore;
+    int nBucket;
+    int nFiles;
+    uint8_t bStandard;
+    uint8_t bDoublePos;
+    short   eFileType;
+    /* plus an array of inFile */
+    };
+void pstReadFile(PST,void *,int,void *,int *);
+
 
 struct inPeanoHilbertCount {
     };
@@ -989,6 +1028,21 @@ void pstSetClasses(PST,void *,int,void *,int *);
 void pstSwapClasses(PST,void *,int,void *,int *);
 
 
+/* PST_SELSRCALL */
+void pstSelSrcAll(PST pst,void *vin,int nIn,void *vout,int *pnOut);
+void pstSelDstAll(PST pst,void *vin,int nIn,void *vout,int *pnOut);
+
+/* PST_SELSRCMASS */
+struct inSelMass {
+    double dMinMass;
+    double dMaxMass;
+    };
+struct outSelMass {
+    uint64_t nSelected;
+    };
+void pstSelSrcMass(PST pst,void *vin,int nIn,void *vout,int *pnOut);
+void pstSelDstMass(PST pst,void *vin,int nIn,void *vout,int *pnOut);
+
 /* PST_DEEPESTPOT - Input inDeepestPot - Output outDeepestPot */
 struct inDeepestPot {
     uint8_t uRungLo;
@@ -1000,5 +1054,16 @@ struct outDeepestPot {
     float    fPot;
     };
 void pstDeepestPot(PST pst,void *vin,int nIn,void *vout,int *pnOut);
+
+/* PST_PROFILE */
+struct inProfile {
+    double dCenter[3];
+    double dMinRadius;
+    double dMaxRadius;
+    int nBins;
+    uint8_t uRungLo;
+    uint8_t uRungHi;
+    };
+void pstProfile(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 
 #endif

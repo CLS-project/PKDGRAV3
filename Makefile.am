@@ -61,6 +61,9 @@ MDL=@MDL_PATH@
 if USE_PNG
 SOURCES += png.c
 endif
+if USE_PYTHON
+SOURCES += python.c
+endif
 
 pkdgrav2m_null_SOURCES = $(SOURCES) $(MDL)/null/mdl.c
 pkdgrav2m_null_CFLAGS = -I$(MDL)/null/ $(AM_CFLAGS)
@@ -76,6 +79,10 @@ if HAVE_EFENCE_PATH
 pkdgrav2m_null_LDADD += -L @EFENCE_PATH@
 endif
 pkdgrav2m_null_LDADD += -lefence
+endif
+if USE_PYTHON
+pkdgrav2m_null_LDADD += -L /usr/lib64/python$(PYTHON_VER)/config -lpython$(PYTHON_VER) -lutil
+pkdgrav2m_null_CFLAGS += -I /usr/include/python$(PYTHON_VER)
 endif
 
 if HAVE_MPI
@@ -103,6 +110,10 @@ pkdgrav2m_mpi_LDADD += -L @EFENCE_PATH@
 endif
 pkdgrav2m_mpi_LDADD += -lefence
 endif
+if USE_PYTHON
+pkdgrav2m_mpi_LDADD += -L /usr/lib64/python$(PYTHON_VER)/config -lpython$(PYTHON_VER) -lutil
+pkdgrav2m_mpi_CFLAGS += -I /usr/include/python$(PYTHON_VER)
+endif
 endif
 
 if HAVE_PTHREAD
@@ -121,6 +132,10 @@ pkdgrav2m_pthread_LDADD += -L @EFENCE_PATH@
 endif
 pkdgrav2m_pthread_LDADD += -lefence
 endif
+if USE_PYTHON
+pkdgrav2m_pthread_LDADD += -L /usr/lib64/python$(PYTHON_VER)/config -lpython$(PYTHON_VER) -lutil
+pkdgrav2m_pthread_CFLAGS += -I /usr/include/python$(PYTHON_VER)
+endif
 endif
 
 if HAVE_SISCI
@@ -138,6 +153,10 @@ if HAVE_EFENCE_PATH
 pkdgrav2m_sisci_LDADD += -L @EFENCE_PATH@
 endif
 pkdgrav2m_sisci_LDADD += -lefence
+endif
+if USE_PYTHON
+pkdgrav2m_sisci_LDADD += -L /usr/lib64/python$(PYTHON_VER)/config -lpython$(PYTHON_VER) -lutil
+pkdgrav2m_sisci_CFLAGS += -I /usr/include/python$(PYTHON_VER)
 endif
 endif
 

@@ -231,4 +231,14 @@ void msrKeplerDrift(MSR msr,double dDelta);
 void msrHostname(MSR msr);
 void msrMemStatus(MSR msr);
 
+
+void msrSelSrcAll(MSR msr);
+void msrSelDstAll(MSR msr);
+uint64_t msrSelSrcMass(MSR msr,double dMinMass,double dMaxMass);
+uint64_t msrSelDstMass(MSR msr,double dMinMass,double dMaxMass);
+
+void msrDeepestPot(MSR msr,double *r, float *fPot);
+PROFILEBIN *msrProfile(MSR msr, double *r, double dMinRadius, double dMaxRadius, int nBins );
+void msrDeleteProfile(MSR msr);
+
 #endif
