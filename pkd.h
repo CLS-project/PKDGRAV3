@@ -27,6 +27,11 @@ typedef uint_fast32_t local_t; /* Count of particles locally (per processor) */
 typedef uint_fast64_t total_t; /* Count of particles globally (total number) */
 
 /*
+** Handy type punning macro.
+*/
+#define UNION_CAST(x, sourceType, destType) \
+	(((union {sourceType a; destType b;})x).b)
+/*
 ** The following sort of definition should really be in a global
 ** configuration header file -- someday...
 */
@@ -244,6 +249,7 @@ typedef struct kdNode {
     FLOAT r[3];
     FLOAT a[3];  /* a_cm is used in determining the timestep in the new grav stepping */
     FLOAT v[3];
+    uint32_t nActive; /* local active count used for DD */
     MOMR mom;
     uint8_t uMinRung;
     uint8_t uMaxRung;
@@ -673,6 +679,8 @@ void pkdCombineCells(KDN *pkdn,KDN *p1,KDN *p2);
 void pkdDistribCells(PKD,int,KDN *);
 void pkdCalcRoot(PKD,MOMC *);
 void pkdDistribRoot(PKD,MOMC *);
+void pkdTreeNumSrcActive(PKD pkd,uint8_t uRungLo,uint8_t uRungHi);
+void pkdBoundWalk(PKD pkd,BND *pbnd,uint8_t uRungLo,uint8_t uRungHi,uint32_t *pnActive,uint32_t *pnContained);
 
 #include "parameters.h"
 /*
