@@ -186,7 +186,6 @@ static void writeSet(
 
 static void flushVector( IOHDF5V iov ) {
     if ( iov->nBuffered ) {
-
 	if ( iov->set_id == H5I_INVALID_HID ) {
 	    iov->set_id = newSet(
 			      iov->io->darkBase.group_id, iov->name,
@@ -738,8 +737,10 @@ IOHDF5V ioHDFF5NewVector( IOHDF5 io, const char *name, int bDouble ) {
 	assert(iov->s!=NULL);
 	iov->d = NULL;
 	}
+    iov->nTotal = 0;
     iov->nBuffered = 0;
     iov->iOffset = 0;
+    iov->iIndex = 0;
 
     return iov;
     }
@@ -752,6 +753,46 @@ void ioHDF5AddVector( IOHDF5V iov, PINDEX iOrder, FLOAT v ) {
     if ( ++iov->nBuffered == iov->io->iChunkSize )
 	flushVector(iov);
     }
+
+void ioHDF5SeekVector( IOHDF5V iov, PINDEX Offset ) {
+    iov->nBuffered = iov->iIndex = 0;
+    iov->iOffset = Offset;
+    }
+
+
+FLOAT ioHDF5GetVector( IOHDF5V iov ) {
+    FLOAT v;
+    if ( iov->iIndex >= iov->nBuffered ) {
+	iov->iOffset += iov->nBuffered;
+	if ( iov->set_id == H5I_INVALID_HID ) {
+	    iov->set_id = H5Dopen(iov->io->darkBase.group_id, iov->name);
+	    H5assert(iov->set_id);
+	    iov->nTotal = getSetSize(iov->set_id);
+	    }
+	if (iov->iOffset >= iov->nTotal ) {
+	    printf( "iIndex=%lu iOffset=%lu nTotal=%lu\n", iov->iIndex, iov->iOffset, iov->nTotal );
+	    }
+	assert( iov->iOffset < iov->nTotal );
+	iov->nBuffered = iov->io->iChunkSize;
+	if ( iov->nBuffered > iov->nTotal - iov->iOffset )
+	    iov->nBuffered = iov->nTotal - iov->iOffset;
+
+	if ( iov->diskFloat == H5T_NATIVE_FLOAT )
+	    readSet( iov->set_id, iov->s, iov->diskFloat, iov->iOffset, iov->nBuffered, 1 );
+	else
+	    readSet( iov->set_id, iov->d, iov->diskFloat, iov->iOffset, iov->nBuffered, 1 );
+
+	iov->iIndex = 0;
+	}
+
+    if ( iov->diskFloat == H5T_NATIVE_FLOAT )
+	v = iov->s[iov->iIndex];
+    else
+	v = iov->d[iov->iIndex];
+    iov->iIndex++;
+    return v;
+    }
+
 
 void ioHDF5AddDark( IOHDF5 io, PINDEX iOrder,
 		    const FLOAT *r, const FLOAT *v,

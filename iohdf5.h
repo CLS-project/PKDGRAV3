@@ -65,7 +65,10 @@ extern "C" {
 	hid_t   set_id;           /* vector */
 
 	PINDEX  iOffset;          /* Particle offset into the file */
-	uint_fast32_t nBuffered;        /* Number of buffered particles */
+	PINDEX  nTotal;
+	uint_fast32_t iIndex;     /* Next particle in memory to read */
+	uint_fast32_t nBuffered;  /* Number of buffered particles */
+
 	char    name[32];
 
 	float   *s;
@@ -119,6 +122,8 @@ extern "C" {
 
     IOHDF5V ioHDFF5NewVector( IOHDF5 io, const char *name, int bDouble );
     void ioHDF5AddVector( IOHDF5V iov, PINDEX iOrder, FLOAT v );
+    FLOAT ioHDF5GetVector( IOHDF5V iov );
+    void ioHDF5SeekVector( IOHDF5V iov, PINDEX Offset );
 
 
     void ioHDF5WriteAttribute( IOHDF5 io, const char *name,
