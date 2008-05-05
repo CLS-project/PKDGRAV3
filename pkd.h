@@ -860,8 +860,9 @@ void pkdSetClasses( PKD pkd, int n, PARTCLASS *pClass, int bUpdate );
 
 int pkdSelSrcAll(PKD pkd);
 int pkdSelDstAll(PKD pkd);
-int pkdSelSrcMass(PKD pkd,double dMinMass, double dMaxMass);
-int pkdSelDstMass(PKD pkd,double dMinMass, double dMaxMass);
+
+int pkdSelSrcMass(PKD pkd,double dMinMass, double dMaxMass, int setIfTrue, int clearIfFalse );
+int pkdSelDstMass(PKD pkd,double dMinMass, double dMaxMass, int setIfTrue, int clearIfFalse );
 
 int pkdDeepestPot(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
     double *r, float *fPot);

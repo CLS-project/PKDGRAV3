@@ -323,8 +323,10 @@ int main(int argc,char **argv) {
     else {
 #ifdef USE_PYTHON
 	if ( msr->param.achScriptFile[0] ) {
-	    ppyInitialize(msr);
-	    ppyRunScript(msr->param.achScriptFile);
+	    PPY ppy;
+	    ppyInitialize(&ppy,msr,dTime);
+	    ppyRunScript(ppy,msr->param.achScriptFile);
+	    ppyFinish(ppy);
 	    }
 	else {
 

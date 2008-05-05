@@ -3485,6 +3485,20 @@ void pkdKeplerDrift(PKD pkd,double dt,double mu, int tag_VA) {
 #endif /* SYMBA */
 #endif /* PLANETS */
 
+/*
+** This function checks the predicate and returns a new value based on the flags.
+** setIfTrue:    >0 -> return true if the predicate is true
+**               <0 -> "clear if true"
+** clearIfFalse: >0 -> return false if the predicate is false
+**               <0 -> "set if false"
+** A value of zero for either results in no action for the "IfTrue" or "IfFalse" flags.
+** Conflicting options (e.g., setIfTrue and setIfFalse) result in a toggle.
+*/
+static inline int isSelected( int predicate, int setIfTrue, int clearIfFalse, int value ) {
+    int s = (predicate&(setIfTrue>0)) | (~predicate&(clearIfFalse<0));
+    int c = (predicate&(setIfTrue<0)) | (~predicate&(clearIfFalse>0));
+    return (~s&~c&value) | (s&~(c&value));
+    }
 
 int pkdSelSrcAll(PKD pkd) {
     PARTICLE *p;
@@ -3501,10 +3515,7 @@ int pkdSelDstAll(PKD pkd) {
     return n;
     }
 
-
-
-
-int pkdSelSrcMass(PKD pkd,double dMinMass, double dMaxMass) {
+int pkdSelSrcMass(PKD pkd,double dMinMass, double dMaxMass, int setIfTrue, int clearIfFalse ) {
     PARTICLE *p;
     double m;
     int i,n,nSelected;
@@ -3514,13 +3525,13 @@ int pkdSelSrcMass(PKD pkd,double dMinMass, double dMaxMass) {
     for( i=0; i<n; i++ ) {
 	p = &pkd->pStore[i];
 	m = pkdMass(pkd,p);
-	p->bSrcActive = (m >= dMinMass && m <=dMaxMass);
+	p->bSrcActive = isSelected((m >= dMinMass && m <=dMaxMass),setIfTrue,clearIfFalse,p->bSrcActive);
 	if ( p->bSrcActive ) nSelected++;
 	}
     return nSelected;
     }
 
-int pkdSelDstMass(PKD pkd,double dMinMass, double dMaxMass) {
+int pkdSelDstMass(PKD pkd,double dMinMass, double dMaxMass, int setIfTrue, int clearIfFalse ) {
     PARTICLE *p;
     double m;
     int i,n,nSelected;
@@ -3530,7 +3541,7 @@ int pkdSelDstMass(PKD pkd,double dMinMass, double dMaxMass) {
     for( i=0; i<n; i++ ) {
 	p = &pkd->pStore[i];
 	m = pkdMass(pkd,p);
-	p->bDstActive = (m >= dMinMass && m <=dMaxMass);
+	p->bDstActive = isSelected((m >= dMinMass && m <=dMaxMass),setIfTrue,clearIfFalse,p->bDstActive);
 	if ( p->bDstActive ) nSelected++;
 	}
     return nSelected;
@@ -3586,9 +3597,9 @@ void pkdProfile(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
 		int nBins) {
     PARTICLE *p;
     double d2, r2, r, r1;
-    double dx, dy, dz, deltaR;
+    double dx[3], deltaR;
     double dLogMinRadius, dLogMaxRadius, dLogRadius;
-    int i,n,iBin;
+    int i,j,n,iBin;
     PROFILEBIN *pBin;
 
     assert(dMinRadius>0.0);
@@ -3616,11 +3627,19 @@ void pkdProfile(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
     for (i=0;i<n;++i) {
 	p = &pkd->pStore[i];
 	if (pkdIsSrcActive(p,uRungLo,uRungHi)) {
-	    dx = p->r[0] - dCenter[0];
-	    dy = p->r[1] - dCenter[1];
-	    dz = p->r[2] - dCenter[2];
-	    d2 = dx*dx + dy*dy + dz*dz;
-
+	    d2 = 0.0;
+	    for( j=0; j<3; j++ ) {
+		dx[j] = p->r[j] - dCenter[j];
+		/*
+		** If the particle is outside the radius, then we need to check for
+		** a periodic wrap that would put it inside the radius.
+		 */
+		if ( dx[j]*dx[j] >= r2 && pkd->param.bPeriodic ) {
+		    if ( dx[j]<0.0 ) dx[j] += pkd->fPeriod[j];
+		    else dx[j] -= pkd->fPeriod[j];
+		    }
+		d2 += dx[j]*dx[j];
+		}
 	    if ( d2 < dMinRadius*dMinRadius ) d2 = dMinRadius*dMinRadius;
 	    if ( d2 < r2 ) {
 		iBin = (log10(sqrt(d2))-dLogMinRadius)/dLogRadius * nBins;

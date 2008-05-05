@@ -234,8 +234,8 @@ void msrMemStatus(MSR msr);
 
 void msrSelSrcAll(MSR msr);
 void msrSelDstAll(MSR msr);
-uint64_t msrSelSrcMass(MSR msr,double dMinMass,double dMaxMass);
-uint64_t msrSelDstMass(MSR msr,double dMinMass,double dMaxMass);
+uint64_t msrSelSrcMass(MSR msr,double dMinMass,double dMaxMass,int setIfTrue,int ClearIfFalse);
+uint64_t msrSelDstMass(MSR msr,double dMinMass,double dMaxMass,int setIfTrue,int ClearIfFalse);
 
 void msrDeepestPot(MSR msr,double *r, float *fPot);
 PROFILEBIN *msrProfile(MSR msr, double *r, double dMinRadius, double dMaxRadius, int nBins );

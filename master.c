@@ -20,6 +20,7 @@
 #include <sys/time.h>
 #include <math.h>
 #include <wordexp.h>
+#include <sys/stat.h>
 
 #ifdef HAVE_SYS_PARAM_H
 #include <sys/param.h> /* for MAXHOSTNAMELEN, if available */
@@ -4039,9 +4040,26 @@ void msrFof(MSR msr,int nFOFsDone,int iSmoothType,int bSymmetric, double exp) {
 	}
     }
 
+static void mktmpdir( const char *dirname ) {
+    struct stat s;
+    if ( stat(dirname,&s) == 0 ) {
+	if ( S_ISDIR(s.st_mode) )
+	    return;
+	}
+    mkdir( dirname, 0700 );
+    }
+
+
+
 void msrGroupMerge(MSR msr, double exp) {
     struct inGroupMerge in;
     int nGroups;
+
+    /* Create these directories if they don't exist */
+    mktmpdir("tmpgrids");
+    mktmpdir("tmplinks");
+    mktmpdir("tmpdens");
+
     in.bPeriodic = msr->param.bPeriodic;
     in.smf.nMinMembers = msr->param.nMinMembers;
     in.smf.Delta = msr->param.Delta;
@@ -4513,7 +4531,6 @@ void msrGravSun(MSR msr) {
     in.dSunMass = msr->dSunMass;
 
     pstGravSun(msr->pst,&in,sizeof(in),NULL,NULL);
-
     }
 
 static char *
@@ -5270,23 +5287,27 @@ void msrSelSrcAll(MSR msr) {
 void msrSelDstAll(MSR msr) {
     pstSelDstAll(msr->pst, NULL, 0, NULL, NULL );
     }
-uint64_t msrSelSrcMass(MSR msr,double dMinMass,double dMaxMass) {
+uint64_t msrSelSrcMass(MSR msr,double dMinMass,double dMaxMass,int setIfTrue,int clearIfFalse) {
     struct inSelMass in;
     struct outSelMass out;
     int nOut;
 
     in.dMinMass = dMinMass;
     in.dMaxMass = dMaxMass;
+    in.setIfTrue = setIfTrue;
+    in.clearIfFalse = clearIfFalse;
     pstSelSrcMass(msr->pst, &in, sizeof(in), &out, &nOut);
     return out.nSelected;
     }
-uint64_t msrSelDstMass(MSR msr,double dMinMass,double dMaxMass) {
+uint64_t msrSelDstMass(MSR msr,double dMinMass,double dMaxMass,int setIfTrue,int clearIfFalse) {
     struct inSelMass in;
     struct outSelMass out;
     int nOut;
 
     in.dMinMass = dMinMass;
     in.dMaxMass = dMaxMass;
+    in.setIfTrue = setIfTrue;
+    in.clearIfFalse = clearIfFalse;
     pstSelDstMass(msr->pst, &in, sizeof(in), &out, &nOut);
     return out.nSelected;
     }

@@ -1058,6 +1058,8 @@ void pstSelDstAll(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 struct inSelMass {
     double dMinMass;
     double dMaxMass;
+    int setIfTrue;
+    int clearIfFalse;
     };
 struct outSelMass {
     uint64_t nSelected;

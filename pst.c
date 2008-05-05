@@ -611,8 +611,10 @@ void pstReadFile(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct inReadFile *in = vin;
     struct inFile *inf = (struct inFile *)(in+1);
+#ifdef USE_HDF5
     hid_t fileID;
     IOHDF5 io;
+#endif
     uint64_t nNodeStart,nNodeEnd,nNodeTotal,nNodeSplit,nStore;
     uint64_t nFileStart, nFileEnd, nThisStart, nThisEnd;
     int i;
@@ -4016,7 +4018,7 @@ void pstSelSrcMass(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	out->nSelected += outUpper.nSelected;
 	}
     else {
-	out->nSelected = pkdSelSrcMass(plcl->pkd,in->dMinMass,in->dMaxMass);
+	out->nSelected = pkdSelSrcMass(plcl->pkd,in->dMinMass,in->dMaxMass,in->setIfTrue,in->clearIfFalse);
 	}
     if (pnOut) *pnOut = sizeof(struct outSelMass);
     }
@@ -4036,7 +4038,7 @@ void pstSelDstMass(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	out->nSelected += outUpper.nSelected;
 	}
     else {
-	out->nSelected = pkdSelDstMass(plcl->pkd,in->dMinMass,in->dMaxMass);
+	out->nSelected = pkdSelDstMass(plcl->pkd,in->dMinMass,in->dMaxMass,in->setIfTrue,in->clearIfFalse);
 	}
     if (pnOut) *pnOut = sizeof(struct outSelMass);
     }

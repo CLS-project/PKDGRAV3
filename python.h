@@ -1,6 +1,7 @@
 #ifndef PYTHON_H
 #define PYTHON_H
-void ppyInitialize(MSR msr);
-void ppyFinish();
-void ppyRunScript(const char *achFilename);
+typedef void *PPY;
+void ppyInitialize(PPY *ppy, MSR msr,double dTime);
+void ppyFinish(PPY ppy);
+void ppyRunScript(PPY ppy,const char *achFilename);
 #endif
