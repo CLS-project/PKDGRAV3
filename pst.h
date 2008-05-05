@@ -87,6 +87,8 @@ enum pst_service {
     PST_CALCROOT,
     PST_DISTRIBROOT,
     PST_ENFORCEPERIODIC,
+    PST_TREENUMSRCACTIVE,
+    PST_BOUNDSWALK,
     PST_SMOOTH,
     PST_GRAVITY,
     PST_GRAVEXTERNAL,
@@ -441,6 +443,26 @@ void pstDistribRoot(PST,void *,int,void *,int *);
 
 /* PST_ENFORCEPERIODIC */
 void pstEnforcePeriodic(PST,void *,int,void *,int *);
+
+/* PST_TREENUMSRCACTIVE */
+struct inTreeNumSrcActive {
+    uint8_t uRungLo;
+    uint8_t uRungHi;
+    };
+void pstTreeNumSrcActive(PST,void *,int,void *,int *);
+
+/* PST_BOUNDSWALK */
+struct inBoundsWalk {
+    BND bnd;
+    uint16_t bDoThis;  /* is this element to be computed? */
+    uint8_t uRungLo;
+    uint8_t uRungHi;
+};
+struct outBoundsWalk {
+    uint64_t nActive;
+    uint64_t nContained;
+};
+void pstBoundsWalk(PST,void *,int,void *,int *);
 
 /* PST_SMOOTH */
 struct inSmooth {

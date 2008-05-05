@@ -751,3 +751,98 @@ void pkdCalcRoot(PKD pkd,MOMC *pmom) {
 void pkdDistribRoot(PKD pkd,MOMC *pmom) {
     pkd->momRoot = *pmom;
     }
+
+
+void pkdTreeNumSrcActive(PKD pkd,uint8_t uRungLo,uint8_t uRungHi) {
+    KDN *c = pkd->kdNodes;
+    int iNode,pj;
+
+    iNode = ROOT;
+    while (1) {
+	while (c[iNode].iLower) {
+	    iNode = c[iNode].iLower;
+	    }
+	/*
+	** We have to test each particle of the bucket for activity.
+	*/
+	c[iNode].nActive = 0;
+	for (pj=c[iNode].pLower;pj<=c[iNode].pUpper;++pj) {
+	    if (pkdIsSrcActive(&pkd->pStore[pj],uRungLo,uRungHi)) ++c[iNode].nActive;
+	}
+	while (iNode & 1) {
+	    iNode = c[iNode].iParent;
+	    if (!iNode) return;	/* exit point!!! */
+	    c[iNode].nActive = c[c[iNode].iLower].nActive + c[c[iNode].iLower + 1].nActive;
+	}
+	++iNode;
+    }
+}
+
+
+void pkdBoundWalk(PKD pkd,BND *pbnd,uint8_t uRungLo,uint8_t uRungHi,uint32_t *pnActive,uint32_t *pnContained) {
+    KDN *c = pkd->kdNodes;
+    double d;
+    int iNode,pj;    
+
+    *pnActive = 0;
+    *pnContained = 0;
+    iNode = ROOT;
+    while (1) {
+	d = fabs(pbnd->fCenter[0] - c[iNode].bnd.fCenter[0]) - pbnd->fMax[0];
+	if (d - c[iNode].bnd.fMax[0] > 0) goto NoIntersect;
+	else if (d + c[iNode].bnd.fMax[0] <= 0) {
+	    d = fabs(pbnd->fCenter[1] - c[iNode].bnd.fCenter[1]) - pbnd->fMax[1];
+	    if (d - c[iNode].bnd.fMax[1] > 0) goto NoIntersect;
+	    else if (d + c[iNode].bnd.fMax[1] <= 0) {
+		d = fabs(pbnd->fCenter[2] - c[iNode].bnd.fCenter[2]) - pbnd->fMax[2];
+		if (d - c[iNode].bnd.fMax[2] > 0) goto NoIntersect;
+		else if (d + c[iNode].bnd.fMax[2] <= 0) goto Contained;
+		}
+	    else {
+		d = fabs(pbnd->fCenter[2] - c[iNode].bnd.fCenter[2]) - pbnd->fMax[2];
+		if (d - c[iNode].bnd.fMax[2] > 0) goto NoIntersect;
+		}
+	    }
+	else {
+	    d = fabs(pbnd->fCenter[1] - c[iNode].bnd.fCenter[1]) - pbnd->fMax[1];
+	    if (d - c[iNode].bnd.fMax[1] > 0) goto NoIntersect;
+	    d = fabs(pbnd->fCenter[2] - c[iNode].bnd.fCenter[2]) - pbnd->fMax[2];
+	    if (d - c[iNode].bnd.fMax[2] > 0) goto NoIntersect;
+	    }	
+	/*
+	** We have an intersection to test!
+	*/
+	if (c[iNode].iLower) {
+	    iNode = c[iNode].iLower;
+	    continue;
+	    }
+	else {
+	    /*
+	    ** We have to test each active particle of the bucket for containment.
+	    */
+	    for (pj=c[iNode].pLower;pj<=c[iNode].pUpper;++pj) {
+		if (fabs(pbnd->fCenter[0] - pkd->pStore[pj].r[0]) - pbnd->fMax[0] > 0) continue;
+		if (fabs(pbnd->fCenter[1] - pkd->pStore[pj].r[1]) - pbnd->fMax[1] > 0) continue;
+		if (fabs(pbnd->fCenter[2] - pkd->pStore[pj].r[2]) - pbnd->fMax[2] > 0) continue;
+		/*
+		** This particle is contained.
+		*/
+		*pnContained += 1;
+		if (pkdIsSrcActive(&pkd->pStore[pj],uRungLo,uRungHi)) *pnActive += 1;
+		}
+	    }
+
+    Contained:
+	/*
+	** Cell is contained within the bounds.
+	*/
+	*pnContained += (c[iNode].pUpper - c[iNode].pLower + 1);
+	*pnActive += c[iNode].nActive;  /* this must be set with SrcActive for all cells first */
+    NoIntersect:
+	while (iNode & 1) {
+	    iNode = c[iNode].iParent;
+	    if (!iNode) return;    /* exit point */
+	}
+	++iNode;
+    }
+}
