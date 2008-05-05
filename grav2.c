@@ -87,6 +87,8 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
     v4sf piax, piay, piaz;
     v4sf ppot, pmass, p4soft2;
     v4sf padotai,pimaga,psmooth2,pirsum,pnorms;
+#else
+    double fourh2;
 #endif
 
 #ifdef USE_SIMD_MOMR
