@@ -14,6 +14,7 @@
 #include "smooth.h"
 #include "pkd.h"
 #include "smoothfcn.h"
+#include <sys/stat.h>
 
 int smInitialize(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bGasOnly,
 		 int bPeriodic,int bSymmetric,int iSmoothType,
@@ -1686,6 +1687,14 @@ int CmpGroups(const void *v1,const void *v2) {
 	return -1;
     }
 
+static void mktmpdir( const char *dirname ) {
+    struct stat s;
+    if ( stat(dirname,&s) == 0 ) {
+	if ( S_ISDIR(s.st_mode) )
+	    return;
+	}
+    mkdir( dirname, 0700 );
+    }
 
 int smGroupMerge(SMF *smf,int bPeriodic) {
     PKD pkd = smf->pkd;
@@ -1931,13 +1940,22 @@ int smGroupMerge(SMF *smf,int bPeriodic) {
     free(pkd->remoteMember);
     pkd->nRm = 0;
 
+    /*
+    ** Create these directories if they don't exist.
+    ** This was already done in master.c, but this could
+    ** be a local directory so we check again.
+    */
+    mktmpdir("tmpgrids");
+    mktmpdir("tmplinks");
+    mktmpdir("tmpdens");
+
     /*  Update and write the groups ids of the local particles */
     sprintf(filename,"tmpgrids/p%i.a%le.grids",pkd->idSelf,smf->a);
-    pFile = fopen(filename,"a");
+    pFile = fopen(filename,"a"); assert(pFile != NULL);
     sprintf(filename,"tmplinks/p%i.a%le.links",pkd->idSelf,smf->a);
-    lFile = fopen(filename,"a");
+    lFile = fopen(filename,"a"); assert( lFile != NULL );
     sprintf(filename,"tmpdens/p%i.a%le.dens",pkd->idSelf,smf->a);
-    dFile = fopen(filename,"a");
+    dFile = fopen(filename,"a"); assert( dFile != NULL );
     for (pi=0;pi<nTree ;pi++) {
 	index = (p[pi].pGroup - 1 - pkd->idSelf)/pkd->nThreads ;
 	if (index >= 0 && index < pkd->nGroups )
