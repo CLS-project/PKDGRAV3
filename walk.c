@@ -177,9 +177,23 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 		** for this cell.
 		*/
 		if (fabs(pkdc->dTimeStamp-dTime) > dSyncDelta) {
-		    dDriftFac = dTime - pkdc->dTimeStamp;
+                    /*
+                    ** We need to account for cosmological drift factor here!
+                    */
+                    if (pkd->param.csm->bComove) {
+                        /*
+                        ** This might get called quite a bit in this code. Better might
+                        ** be to store a dDriftFac within the CheckElt structure, thereby
+                        ** reducing the number of calls to csmComoveDriftFac. Otherwise
+                        ** we may need to speed this function up.
+                        */
+                        dDriftFac = csmComoveDriftFac(pkd->param.csm,pkdc->dTimeStamp,dTime - pkdc->dTimeStamp);
+                        }
+                    else {
+                        dDriftFac = dTime - pkdc->dTimeStamp;
+                        }
 		    for (j=0;j<3;++j) rCheck[j] = pkdc->r[j] +
-						      dDriftFac*pkdc->v[j] + pkd->Check[i].rOffset[j];
+			dDriftFac*pkdc->v[j] + pkd->Check[i].rOffset[j];
 		    }
 		else {
 		    dDriftFac = 0.0;

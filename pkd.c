@@ -800,7 +800,6 @@ void pkdReadTipsy(PKD pkd,char *pszFileName, uint64_t nStart,int nLocal,
 		}
 	    else mdlassert(pkd->mdl,0);
 	    p->iClass = getClass(pkd,fMass,fSoft);
-
 	    }
 	}
 
