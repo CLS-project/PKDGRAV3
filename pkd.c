@@ -2535,6 +2535,7 @@ void pkdDeleteParticle(PKD pkd, PARTICLE *p) {
        to-be-deleted VeryActive particles. */
 
     int j;
+    assert(0);
     if (pkd->param.bGravStep) {
 	p->dtGrav = 0.00001;
 	}
@@ -2567,6 +2568,7 @@ void pkdDeleteParticle(PKD pkd, PARTICLE *p) {
     }
 
 void pkdNewParticle(PKD pkd, PARTICLE *p) {
+    assert(0);
     mdlassert(pkd->mdl,pkd->nLocal < pkd->nStore);
     pkd->pStore[pkd->nLocal] = *p;
     pkd->pStore[pkd->nLocal].iOrder = -1;
@@ -2583,6 +2585,7 @@ void pkdColNParts(PKD pkd, int *pnNew, int *nDeltaGas, int *nDeltaDark,
     int newnLocal;
     PARTICLE *p;
 
+    assert(0);
     nNew = 0;
     ndGas = 0;
     ndDark = 0;
@@ -2629,6 +2632,7 @@ void pkdColNParts(PKD pkd, int *pnNew, int *nDeltaGas, int *nDeltaDark,
 void pkdNewOrder(PKD pkd,int nStart) {
     int pi;
 
+    assert(0);
     for (pi=0;pi<pkdLocal(pkd);pi++) {
 	if (pkd->pStore[pi].iOrder == -1) {
 	    pkd->pStore[pi].iOrder = nStart++;

@@ -94,8 +94,8 @@ void msrDomainColor(MSR);
 void msrReorder(MSR);
 void msrOutArray(MSR,char *,int);
 void msrOutVector(MSR,char *,int);
-void msrSmooth(MSR,double,int,int,int);
-void msrReSmooth(MSR,double,int,int,int);
+void msrSmooth(MSR,double,int,int);
+void msrReSmooth(MSR,double,int,int);
 void msrUpdateSoft(MSR,double);
 void msrGravity(MSR msr,uint8_t uRungLo, uint8_t uRungHi, double dTime,
 		double dStep,int bEwald,int *piSec,uint64_t *pnActive);

@@ -467,11 +467,9 @@ void pstBoundsWalk(PST,void *,int,void *,int *);
 /* PST_SMOOTH */
 struct inSmooth {
     int nSmooth;
-    int bGasOnly;
     int bPeriodic;
     int bSymmetric;
     int iSmoothType;
-    double dfBall2OverSoft2;
     SMF smf;
     };
 void pstSmooth(PST,void *,int,void *,int *);
@@ -743,11 +741,9 @@ void pstSetRungVeryActive(PST,void *,int,void *,int *);
 /* PST_RESMOOTH */
 struct inReSmooth {
     int nSmooth;
-    int bGasOnly;
     int bPeriodic;
     int bSymmetric;
     int iSmoothType;
-    double dfBall2OverSoft2;
     SMF smf;
     };
 void pstReSmooth(PST,void *,int,void *,int *);

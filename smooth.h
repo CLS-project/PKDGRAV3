@@ -28,13 +28,10 @@ typedef struct pqNode {
 
 typedef struct smContext {
     PKD pkd;
-    int bLowhFix;
-    double dfBall2OverSoft2;
     void (*fcnSmooth)(PARTICLE *,int,NN *,SMF *);
     void (*fcnPost)(PARTICLE *,SMF *);
     int nSmooth;
     int nQueue;
-    int bGasOnly;
     int bPeriodic;
     PQ *pq;
     int nnListSize;
@@ -112,9 +109,8 @@ typedef struct smContext {
 	}
 
 
-int smInitialize(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bGasOnly,
-		 int bPeriodic,int bSymmetric,int iSmoothType,
-		 double dfBall2OverSoft2);
+int smInitialize(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,
+		 int bPeriodic,int bSymmetric,int iSmoothType);
 
 void smFinish(SMX,SMF *);
 void smSmooth(SMX,SMF *);

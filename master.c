@@ -242,10 +242,10 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
 		"softout","enable/disable soft outputs = -softout");
     msr->param.bDoAccOutput = 0;
     prmAddParam(msr->prm,"bDoAccOutput",0,&msr->param.bDoAccOutput,sizeof(int),
-		"softout","enable/disable soft outputs = -accout");
+		"accout","enable/disable acceleration outputs = -accout");
     msr->param.bDoPotOutput = 0;
     prmAddParam(msr->prm,"bDoPotOutput",0,&msr->param.bDoPotOutput,sizeof(int),
-		"softout","enable/disable soft outputs = -potout");
+		"potout","enable/disable potential outputs = -potout");
     msr->param.bDoRungOutput = 0;
     prmAddParam(msr->prm,"bDoRungOutput",0,&msr->param.bDoRungOutput,sizeof(int),
 		"rungout","enable/disable rung outputs = -rungout");
@@ -2635,15 +2635,13 @@ void msrOutVector(MSR msr,char *pszFile,int iType) {
     }
 
 
-void msrSmooth(MSR msr,double dTime,int iSmoothType,int bGasOnly,
-	       int bSymmetric) {
+void msrSmooth(MSR msr,double dTime,int iSmoothType,int bSymmetric) {
     struct inSmooth in;
 
     /*
     ** Make sure that the type of tree is a density binary tree!
     */
     in.nSmooth = msr->param.nSmooth;
-    in.bGasOnly = bGasOnly;
     in.bPeriodic = msr->param.bPeriodic;
     in.bSymmetric = bSymmetric;
     in.iSmoothType = iSmoothType;
@@ -2672,15 +2670,13 @@ void msrSmooth(MSR msr,double dTime,int iSmoothType,int bGasOnly,
     }
 
 
-void msrReSmooth(MSR msr,double dTime,int iSmoothType,int bGasOnly,
-		 int bSymmetric) {
+void msrReSmooth(MSR msr,double dTime,int iSmoothType,int bSymmetric) {
     struct inReSmooth in;
 
     /*
     ** Make sure that the type of tree is a density binary tree!
     */
     in.nSmooth = msr->param.nSmooth;
-    in.bGasOnly = bGasOnly;
     in.bPeriodic = msr->param.bPeriodic;
     in.bSymmetric = bSymmetric;
     in.iSmoothType = iSmoothType;
@@ -3279,12 +3275,11 @@ void msrAccelStep(MSR msr,uint8_t uRungLo,uint8_t uRungHi,double dTime) {
 void msrDensityStep(MSR msr,uint8_t uRungLo,uint8_t uRungHi,double dTime) {
     struct inDensityStep in;
     double expand;
-    int bGasOnly,bSymmetric;
+    int bSymmetric;
 
     msrprintf(msr,"Calculating Rung Densities...\n");
-    bGasOnly = 0;
     bSymmetric = 0;
-    msrSmooth(msr,dTime,SMX_DENSITY,bGasOnly,bSymmetric);
+    msrSmooth(msr,dTime,SMX_DENSITY,bSymmetric);
     in.dEta = msrEta(msr);
     expand = csmTime2Exp(msr->param.csm,dTime);
     in.dRhoFac = 1.0/(expand*expand*expand);
@@ -4776,7 +4771,7 @@ void msrTopStepSymba(MSR msr,
     /*
      * check min.distance (drmin2) during drift
      */
-    msrSmooth(msr,dTime,SMX_SYMBA,0,0);
+    msrSmooth(msr,dTime,SMX_SYMBA,0);
     /*
      * Determine p->iRung from p->drmin
      ** If drmin2 < 3Hill, (but drmin > 3Hill), this interacting pair
@@ -5169,7 +5164,7 @@ void msrCalcBound(MSR msr,BND *pbnd) {
 
 void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint) {
     char achFile[PATH_MAX];
-    int bGasOnly,bSymmetric;
+    int bSymmetric;
     int nFOFsDone;
     int i;
 
@@ -5198,9 +5193,8 @@ void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint) {
 	msrActiveRung(msr,0,1); /* Activate all particles */
 	msrDomainDecomp(msr,0,1,0);
 	msrBuildTree(msr,dTime,0);
-	bGasOnly = 0;
 	bSymmetric = 0; /* FOR TESTING!!*/
-	msrSmooth(msr,dTime,SMX_DENSITY,bGasOnly,bSymmetric);
+	msrSmooth(msr,dTime,SMX_DENSITY,bSymmetric);
 	}
     nFOFsDone = 0;
     while ( msr->param.nFindGroups > nFOFsDone) {

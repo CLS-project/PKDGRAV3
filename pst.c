@@ -2640,9 +2640,8 @@ void pstSmooth(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	LCL *plcl = pst->plcl;
 	SMX smx;
 
-	smInitialize(&smx,plcl->pkd,&in->smf,in->nSmooth,in->bGasOnly,
-		     in->bPeriodic,in->bSymmetric,in->iSmoothType,
-		     in->dfBall2OverSoft2);
+	smInitialize(&smx,plcl->pkd,&in->smf,in->nSmooth,
+		     in->bPeriodic,in->bSymmetric,in->iSmoothType);
 	smSmooth(smx,&in->smf);
 	smFinish(smx,&in->smf);
 	assert(pkdVerify(plcl->pkd));
@@ -2664,9 +2663,8 @@ void pstReSmooth(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	LCL *plcl = pst->plcl;
 	SMX smx;
 
-	smInitialize(&smx,plcl->pkd,&in->smf,in->nSmooth,in->bGasOnly,
-		     in->bPeriodic,in->bSymmetric,in->iSmoothType,
-		     in->dfBall2OverSoft2);
+	smInitialize(&smx,plcl->pkd,&in->smf,in->nSmooth,
+		     in->bPeriodic,in->bSymmetric,in->iSmoothType);
 	smReSmooth(smx,&in->smf);
 	smFinish(smx,&in->smf);
 	}
@@ -3316,9 +3314,8 @@ void pstFof(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	LCL *plcl = pst->plcl;
 	SMX smx;
 	(&in->smf)->pkd = pst->plcl->pkd;
-	smInitialize(&smx,plcl->pkd,&in->smf,in->nSmooth,0,
-		     in->bPeriodic,in->bSymmetric,in->iSmoothType,
-		     0.0);
+	smInitialize(&smx,plcl->pkd,&in->smf,in->nSmooth,
+		     in->bPeriodic,in->bSymmetric,in->iSmoothType);
 	smFof(smx,in->nFOFsDone,&in->smf);
 	smFinish(smx,&in->smf);
 	}
@@ -3360,9 +3357,8 @@ void pstGroupProfiles(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	LCL *plcl = pst->plcl;
 	SMX smx;
 	(&in->smf)->pkd = pst->plcl->pkd;
-	smInitialize(&smx,plcl->pkd,&in->smf,in->nSmooth,0,
-		     in->bPeriodic,in->bSymmetric,in->iSmoothType,
-		     0.0);
+	smInitialize(&smx,plcl->pkd,&in->smf,in->nSmooth,
+		     in->bPeriodic,in->bSymmetric,in->iSmoothType);
 	*nBins = smGroupProfiles(smx, &in->smf,in->bPeriodic,in->nTotalGroups,in->bLogBins,in->nFOFsDone);
 	smFinish(smx,&in->smf);
 	}

@@ -16,9 +16,7 @@
 #include "smoothfcn.h"
 #include <sys/stat.h>
 
-int smInitialize(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bGasOnly,
-		 int bPeriodic,int bSymmetric,int iSmoothType,
-		 double dfBall2OverSoft2 ) {
+int smInitialize(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodic,int bSymmetric,int iSmoothType) {
     SMX smx;
     void (*initParticle)(void *) = NULL;
     void (*init)(void *) = NULL;
@@ -32,7 +30,6 @@ int smInitialize(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bGasOnly,
     smx->pkd = pkd;
     if (smf != NULL) smf->pkd = pkd;
     smx->nSmooth = nSmooth;
-    smx->bGasOnly = bGasOnly;
     smx->bPeriodic = bPeriodic;
 
     switch (iSmoothType) {
@@ -252,17 +249,9 @@ PQ *pqSearchLocal(SMX smx,FLOAT r[3],int *pbDone) {
 	    else {
 		Smin[sm++] = min1;
 		}
-#ifdef GASOLINE
-	    if (smx->bGasOnly && c[iCell].nGas == 0) goto LoadNotContained;
-#endif
 	    }
 	pWant = c[iCell].pLower + smx->nSmooth - smx->nQueue - 1;
-#ifdef GASOLINE
-	if (smx->bGasOnly) pEnd = c[iCell].pLower + c[iCell].nGas - 1;
-	else pEnd = c[iCell].pUpper;
-#else
 	pEnd = c[iCell].pUpper;
-#endif
 	if (pWant > pEnd) {
 	    for (pj=c[iCell].pLower;pj<=pEnd;++pj) {
 		dx = r[0] - p[pj].r[0];
@@ -296,9 +285,6 @@ PQ *pqSearchLocal(SMX smx,FLOAT r[3],int *pbDone) {
 		}
 	    goto NoIntersect;  /* done loading phase */
 	    }
-#ifdef GASOLINE
-    LoadNoIntersect:
-#endif
 	while (iCell == S[sp]) {
 	    if (!sp) {
 		*pbDone = 0;
@@ -317,17 +303,8 @@ PQ *pqSearchLocal(SMX smx,FLOAT r[3],int *pbDone) {
 	    --sp;
 	    iCell = c[iCell].iParent;
 	    }
-#ifdef GASOLINE
-    LoadNotContained:
-#endif
 	iCell ^= 1;
 	if (sm) --sm;
-#ifdef GASOLINE
-	if (smx->bGasOnly && c[iCell].nGas == 0) {
-	    iCell = c[iCell].iParent;
-	    goto LoadNoIntersect;
-	    }
-#endif
 	S[++sp] = iCell;
 	}
     /*
@@ -339,28 +316,9 @@ PQ *pqSearchLocal(SMX smx,FLOAT r[3],int *pbDone) {
 	*/
 	while (c[iCell].iLower) {
 	    iCell = c[iCell].iLower;
-#ifdef GASOLINE
-	    if (smx->bGasOnly) {
-		if (c[iCell].nGas == 0) min1 = pq->fDist2;
-		else {
-		    MINDIST(c[iCell].bnd,r,min1);
-		    }
-		++iCell;
-		if (c[iCell].nGas == 0) min2 = pq->fDist2;
-		else {
-		    MINDIST(c[iCell].bnd,r,min2);
-		    }
-		}
-	    else {
-		MINDIST(c[iCell].bnd,r,min1);
-		++iCell;
-		MINDIST(c[iCell].bnd,r,min2);
-		}
-#else
 	    MINDIST(c[iCell].bnd,r,min1);
 	    ++iCell;
 	    MINDIST(c[iCell].bnd,r,min2);
-#endif
 	    if (min1 < min2) {
 		Smin[sm++] = min2;
 		--iCell;
@@ -371,12 +329,7 @@ PQ *pqSearchLocal(SMX smx,FLOAT r[3],int *pbDone) {
 		if (min2 >= pq->fDist2) goto NotContained;
 		}
 	    }
-#ifdef GASOLINE
-	if (smx->bGasOnly) pEnd = c[iCell].pLower + c[iCell].nGas - 1;
-	else pEnd = c[iCell].pUpper;
-#else
 	pEnd = c[iCell].pUpper;
-#endif
 	for (pj=c[iCell].pLower;pj<=pEnd;++pj) {
 	    dx = r[0] - p[pj].r[0];
 	    dy = r[1] - p[pj].r[1];
@@ -431,12 +384,6 @@ PQ *pqSearchLocal(SMX smx,FLOAT r[3],int *pbDone) {
 	*/
 	if (sm) min2 = Smin[--sm];
 	else {
-#ifdef GASOLINE
-	    if (smx->bGasOnly && c[iCell].nGas == 0) {
-		iCell = c[iCell].iParent;
-		goto NoIntersect;
-		}
-#endif
 	    MINDIST(c[iCell].bnd,r,min2);
 	    }
 	if (min2 >= pq->fDist2) {
@@ -496,17 +443,9 @@ PQ *pqSearchRemote(SMX smx,PQ *pq,int id,FLOAT r[3]) {
 		if (id != idSelf) mdlRelease(mdl,CID_CELL,pkdn);
 		pkdn = pkdu;
 		}
-#ifdef GASOLINE
-	    if (smx->bGasOnly && pkdn->nGas == 0) goto LoadNotContained;
-#endif
 	    }
 	pWant = pkdn->pLower + smx->nSmooth - smx->nQueue - 1;
-#ifdef GASOLINE
-	if (smx->bGasOnly) pEnd = pkdn->pLower + pkdn->nGas - 1;
-	else pEnd = pkdn->pUpper;
-#else
 	pEnd = pkdn->pUpper;
-#endif
 	if (pWant > pEnd) {
 	    for (pj=pkdn->pLower;pj<=pEnd;++pj) {
 		if (id == idSelf) {
@@ -571,9 +510,6 @@ PQ *pqSearchRemote(SMX smx,PQ *pq,int id,FLOAT r[3]) {
 		}
 	    goto NoIntersect;  /* done loading phase */
 	    }
-#ifdef GASOLINE
-    LoadNoIntersect:
-#endif
 	while (iCell == S[sp]) {
 	    if (!sp) {
 		if (id != idSelf) mdlRelease(mdl,CID_CELL,pkdn);
@@ -587,9 +523,6 @@ PQ *pqSearchRemote(SMX smx,PQ *pq,int id,FLOAT r[3]) {
 		pkdn = mdlAquire(mdl,CID_CELL,iCell,id);
 		}
 	    }
-#ifdef GASOLINE
-    LoadNotContained:
-#endif
 	iCell ^= 1;
 	if (id == idSelf) pkdn = &c[iCell];
 	else {
@@ -597,17 +530,6 @@ PQ *pqSearchRemote(SMX smx,PQ *pq,int id,FLOAT r[3]) {
 	    pkdn = mdlAquire(mdl,CID_CELL,iCell,id);
 	    }
 	if (sm) --sm;
-#ifdef GASOLINE
-	if (smx->bGasOnly && pkdn->nGas == 0) {
-	    iCell = pkdn->iParent;
-	    if (id == idSelf) pkdn = &c[iCell];
-	    else {
-		mdlRelease(mdl,CID_CELL,pkdn);
-		pkdn = mdlAquire(mdl,CID_CELL,iCell,id);
-		}
-	    goto LoadNoIntersect;
-	    }
-#endif
 	S[++sp] = iCell;
 	}
 StartSearch:
@@ -625,34 +547,11 @@ StartSearch:
 		mdlRelease(mdl,CID_CELL,pkdn);
 		pkdn = mdlAquire(mdl,CID_CELL,iCell,id);
 		}
-#ifdef GASOLINE
-	    if (smx->bGasOnly) {
-		if (pkdn->nGas == 0) min1 = pq->fDist2;
-		else {
-		    MINDIST(pkdn->bnd,r,min1);
-		    }
-		++iCell;
-		if (id == idSelf) pkdu = &c[iCell];
-		else pkdu = mdlAquire(mdl,CID_CELL,iCell,id);
-		if (pkdu->nGas == 0) min2 = pq->fDist2;
-		else {
-		    MINDIST(pkdu->bnd,r,min2);
-		    }
-		}
-	    else {
-		MINDIST(pkdn->bnd,r,min1);
-		++iCell;
-		if (id == idSelf) pkdu = &c[iCell];
-		else pkdu = mdlAquire(mdl,CID_CELL,iCell,id);
-		MINDIST(pkdu->bnd,r,min2);
-		}
-#else
 	    MINDIST(pkdn->bnd,r,min1);
 	    ++iCell;
 	    if (id == idSelf) pkdu = &c[iCell];
 	    else pkdu = mdlAquire(mdl,CID_CELL,iCell,id);
 	    MINDIST(pkdu->bnd,r,min2);
-#endif
 	    if (min1 < min2) {
 		Smin[sm++] = min2;
 		--iCell;
@@ -666,12 +565,7 @@ StartSearch:
 		if (min2 >= pq->fDist2) goto NotContained;
 		}
 	    }
-#ifdef GASOLINE
-	if (smx->bGasOnly) pEnd = pkdn->pLower + pkdn->nGas - 1;
-	else pEnd = pkdn->pUpper;
-#else
 	pEnd = pkdn->pUpper;
-#endif
 	for (pj=pkdn->pLower;pj<=pEnd;++pj) {
 	    if (id == idSelf) p = &smx->pkd->pStore[pj];
 	    else p = mdlAquire(mdl,CID_PARTICLE,pj,id);
@@ -718,17 +612,6 @@ StartSearch:
 	*/
 	if (sm) min2 = Smin[--sm];
 	else {
-#ifdef GASOLINE
-	    if (smx->bGasOnly && pkdn->nGas == 0) {
-		iCell = pkdn->iParent;
-		if (id == idSelf) pkdn = &c[iCell];
-		else {
-		    mdlRelease(mdl,CID_CELL,pkdn);
-		    pkdn = mdlAquire(mdl,CID_CELL,iCell,id);
-		    }
-		goto NoIntersect;
-		}
-#endif
 	    MINDIST(pkdn->bnd,r,min2);
 	    }
 	if (min2 >= pq->fDist2) {
@@ -783,9 +666,6 @@ PQ *pqSearch(SMX smx,PQ *pq,FLOAT r[3],int bReplica,int *pbDone) {
 	    else {
 		Smin[sm++] = min1;
 		}
-#ifdef GASOLINE
-	    if (smx->bGasOnly && c[iCell].nGas == 0) goto LoadNotContained;
-#endif
 	    }
 	id = c[iCell].pLower;	/* this is the thread id in LTT */
 	if (bReplica || id != idSelf) {
@@ -796,9 +676,6 @@ PQ *pqSearch(SMX smx,PQ *pq,FLOAT r[3],int bReplica,int *pbDone) {
 	    if (*pbDone) return pq;	/* early exit */
 	    }
 	if (smx->nQueue == smx->nSmooth) goto NoIntersect;  /* done loading phase */
-#ifdef GASOLINE
-    LoadNoIntersect:
-#endif
 	while (iCell == S[sp]) {
 	    if (!sp) {
 		return NULL;		/* EXIT, could not load enough particles! */
@@ -806,17 +683,8 @@ PQ *pqSearch(SMX smx,PQ *pq,FLOAT r[3],int bReplica,int *pbDone) {
 	    --sp;
 	    iCell = c[iCell].iParent;
 	    }
-#ifdef GASOLINE
-    LoadNotContained:
-#endif
 	iCell ^= 1;
 	if (sm) --sm;
-#ifdef GASOLINE
-	if (smx->bGasOnly && c[iCell].nGas == 0) {
-	    iCell = c[iCell].iParent;
-	    goto LoadNoIntersect;
-	    }
-#endif
 	S[++sp] = iCell;
 	}
     /*
@@ -829,28 +697,9 @@ StartSearch:
 	*/
 	while (c[iCell].iLower) {
 	    iCell = c[iCell].iLower;
-#ifdef GASOLINE
-	    if (smx->bGasOnly) {
-		if (c[iCell].nGas == 0) min1 = pq->fDist2;
-		else {
-		    MINDIST(c[iCell].bnd,r,min1);
-		    }
-		++iCell;
-		if (c[iCell].nGas == 0) min2 = pq->fDist2;
-		else {
-		    MINDIST(c[iCell].bnd,r,min2);
-		    }
-		}
-	    else {
-		MINDIST(c[iCell].bnd,r,min1);
-		++iCell;
-		MINDIST(c[iCell].bnd,r,min2);
-		}
-#else
 	    MINDIST(c[iCell].bnd,r,min1);
 	    ++iCell;
 	    MINDIST(c[iCell].bnd,r,min2);
-#endif
 	    if (min1 < min2) {
 		Smin[sm++] = min2;
 		--iCell;
@@ -898,12 +747,6 @@ StartSearch:
 	*/
 	if (sm) min2 = Smin[--sm];
 	else {
-#ifdef GASOLINE
-	    if (smx->bGasOnly && c[iCell].nGas == 0) {
-		iCell = c[iCell].iParent;
-		goto NoIntersect;
-		}
-#endif
 	    MINDIST(c[iCell].bnd,r,min2);
 	    }
 	if (min2 >= pq->fDist2) {
@@ -1011,11 +854,6 @@ void smGatherLocal(SMX smx,FLOAT fBall2,FLOAT r[3]) {
     nCnt = smx->nnListSize;
     iCell = ROOT;
     while (1) {
-#ifdef GASOLINE
-	if (smx->bGasOnly && c[iCell].nGas == 0) {
-	    goto NoIntersect;
-	    }
-#endif
 	MINDIST(c[iCell].bnd,r,min2);
 	if (min2 > fBall2) {
 	    goto NoIntersect;
@@ -1029,12 +867,7 @@ void smGatherLocal(SMX smx,FLOAT fBall2,FLOAT r[3]) {
 	    continue;
 	    }
 	else {
-#ifdef GASOLINE
-	    if (smx->bGasOnly) pEnd = c[iCell].pLower + c[iCell].nGas - 1;
-	    else pEnd = c[iCell].pUpper;
-#else
 	    pEnd = c[iCell].pUpper;
-#endif
 	    for (pj=c[iCell].pLower;pj<=pEnd;++pj) {
 		dx = r[0] - p[pj].r[0];
 		dy = r[1] - p[pj].r[1];
@@ -1083,11 +916,6 @@ void smGatherRemote(SMX smx,FLOAT fBall2,FLOAT r[3],int id) {
     iCell = ROOT;
     pkdn = mdlAquire(mdl,CID_CELL,iCell,id);
     while (1) {
-#ifdef GASOLINE
-	if (smx->bGasOnly && pkdn->nGas == 0) {
-	    goto NoIntersect;
-	    }
-#endif
 	MINDIST(pkdn->bnd,r,min2);
 	if (min2 > fBall2) {
 	    goto NoIntersect;
@@ -1103,12 +931,7 @@ void smGatherRemote(SMX smx,FLOAT fBall2,FLOAT r[3],int id) {
 	    continue;
 	    }
 	else {
-#ifdef GASOLINE
-	    if (smx->bGasOnly) pEnd = pkdn->pLower + pkdn->nGas - 1;
-	    else pEnd = pkdn->pUpper;
-#else
 	    pEnd = pkdn->pUpper;
-#endif
 	    for (pj=pkdn->pLower;pj<=pEnd;++pj) {
 		pp = mdlAquire(mdl,CID_PARTICLE,pj,id);
 		dx = r[0] - pp->r[0];
@@ -1158,11 +981,6 @@ void smGather(SMX smx,FLOAT fBall2,FLOAT r[3]) {
 
     iCell = ROOT;
     while (1) {
-#ifdef GASOLINE
-	if (smx->bGasOnly && c[iCell].nGas == 0) {
-	    goto NoIntersect;
-	    }
-#endif
 	MINDIST(c[iCell].bnd,r,min2);
 	if (min2 > fBall2) {
 	    goto NoIntersect;
