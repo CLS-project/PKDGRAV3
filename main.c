@@ -338,8 +338,7 @@ int main(int argc,char **argv) {
 		msrBuildTree(msr,dTime,msr->param.bEwald);
 
 		msrGravity(msr,0,MAX_RUNG,dTime,msr->param.iStartStep,msr->param.bEwald,&iSec,&nActive);
-//		if (msr->param.bGravStep && msr->param.iTimeStepCrit == -1) {
-		if (msr->param.bGravStep) {
+		if (msr->param.bGravStep && msr->param.iTimeStepCrit == -1) {
 		    msrGravity(msr,0,MAX_RUNG,dTime,msr->param.iStartStep,msr->param.bEwald,&iSec,&nActive);
 		    }
 
