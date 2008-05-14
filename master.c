@@ -5097,7 +5097,6 @@ double msrRead(MSR msr, int iStep) {
 	read->fPeriod[0] = msr->param.dxPeriod;
 	read->fPeriod[1] = msr->param.dyPeriod;
 	read->fPeriod[2] = msr->param.dzPeriod;
-
 	read->eFileType = PST_FILE_TYPE_TIPSY;
 #ifdef USE_HDF5
 	if ( H5Fis_hdf5(file[0].achFilename) )
@@ -5105,26 +5104,23 @@ double msrRead(MSR msr, int iStep) {
 #endif
 	if (msr->param.bParaRead)
 	    pstReadFile(msr->pst,read,sizeof(struct inReadFile) + read->nFiles*sizeof(struct inFile),NULL,NULL);
-	else
-	    assert(0); /*msrOneNodeReadTipsy(msr, &in);*/
+	else {
+#ifdef USE_HDF5
+	    assert(read->nFiles==1);
+	    /* We can automatically detect if a given file is in HDF5 format */
+	    if ( H5Fis_hdf5(file[0].achFilename) ) {
+		dTime = _msrReadHDF5(msr,file[0].achFilename);
+		}
+	    else
+#endif
+		/* This is always executed if not using HDF5 */
+		{
+		dTime = _msrReadTipsy(msr,file[0].achFilename);
+		}
+#endif
+	    }
 	msrSetClasses(msr);
 	msrprintf(msr,"Input file has been successfully read.\n");
-#if 0
-	
-#ifdef USE_HDF5
-	/* We can automatically detect if a given file is in HDF5 format */
-	if ( H5Fis_hdf5(file[0].achFilename) ) {
-	    dTime = _msrReadHDF5(msr,file[0].achFilename);
-	    }
-	else
-#endif
-	    /* This is always executed if not using HDF5 */
-	    {
-	    dTime = _msrReadTipsy(msr,file[0].achFilename);
-	    }
-#endif
-#endif
-
 #ifdef USE_MDL_IO
     /* If we are using I/O processors, then preallocate space to save */
     if ( mdlIO(msr->mdl) ) {
