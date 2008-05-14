@@ -84,7 +84,7 @@ int msrCheckForStop(MSR msr);
 void msrFinish(MSR);
 double msrGenerateIC(MSR);
 double msrRead(MSR, int iStep);
-void msrWrite(MSR,char *,double, int bCheckpoint );
+void msrWrite(MSR,const char *,double, int bCheckpoint );
 void msrSetSoft(MSR msr,double);
 void msrDomainDecomp(MSR,int iRung,int bGreater,int bSplitVA);
 void msrBuildTree(MSR msr,double dTime,int bNeedEwald);
@@ -156,7 +156,7 @@ void msrActiveMaskRung(MSR msr, unsigned int iSetMask, int iRung, int bGreater);
 /*------------------*/
 
 void msrVelocityRung(MSR msr,int iRung,double dDelta,double dTime,int bAll);
-void msrCalcWriteStart(MSR);
+uint64_t msrCalcWriteStart(MSR);
 void msrAddDelParticles(MSR msr);
 void msrGravStep(MSR msr, double dTime);
 void msrAccelStep(MSR msr,uint8_t uRungLo,uint8_t uRungHi,double dTime);
@@ -236,6 +236,12 @@ void msrSelSrcAll(MSR msr);
 void msrSelDstAll(MSR msr);
 uint64_t msrSelSrcMass(MSR msr,double dMinMass,double dMaxMass,int setIfTrue,int ClearIfFalse);
 uint64_t msrSelDstMass(MSR msr,double dMinMass,double dMaxMass,int setIfTrue,int ClearIfFalse);
+uint64_t msrSelSrcSphere(MSR msr,double *r, double dRadius,int setIfTrue,int clearIfFalse);
+uint64_t msrSelDstSphere(MSR msr,double *r, double dRadius,int setIfTrue,int clearIfFalse);
+uint64_t msrSelSrcCylinder(MSR msr,double *dP1, double *dP2, double dRadius,
+		      int setIfTrue, int clearIfFalse );
+uint64_t msrSelDstCylinder(MSR msr,double *dP1, double *dP2, double dRadius,
+		      int setIfTrue, int clearIfFalse );
 
 void msrDeepestPot(MSR msr,double *r, float *fPot);
 PROFILEBIN *msrProfile(MSR msr, double *r, double dMinRadius, double dMaxRadius, int nBins );

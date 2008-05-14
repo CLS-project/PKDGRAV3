@@ -243,7 +243,7 @@ void pkdInitialize(PKD *ppkd,MDL mdl,int nStore,int nBucket,FLOAT *fPeriod,
     /*pkd->nMaxNodes = (int)ceil(3.0*nStore/floor(nBucket - sqrt(nBucket)));*/
     /* j is an estimate of the lower limit of the total number of cells */
     j = 2.0 / (PKD_MAX_CELL_SIZE*PKD_MAX_CELL_SIZE*PKD_MAX_CELL_SIZE*mdlThreads(mdl));
-    pkd->nMaxNodes = (int)ceil(5.0*nStore/floor(nBucket-sqrt(nBucket))) + j;
+    pkd->nMaxNodes = (int)ceil(15.0*nStore/floor(nBucket-sqrt(nBucket))) + j;
     if ( pkd->nMaxNodes < j ) pkd->nMaxNodes = j;
     pkd->kdNodes = mdlMalloc(pkd->mdl,pkd->nMaxNodes*sizeof(KDN));
     mdlassert(mdl,pkd->kdNodes != NULL);
@@ -536,11 +536,11 @@ void pkdReadHDF5(PKD pkd, IOHDF5 io, double dvFac,
     int i, j;
     IOHDF5V ioPot;
 
-    ioPot  = ioHDFF5NewVector( io, "potential",IOHDF5_SINGLE );
+//    ioPot  = ioHDFF5NewVector( io, "potential",IOHDF5_SINGLE );
 
 
     ioHDF5SeekDark( io, nStart );
-    ioHDF5SeekVector( ioPot, nStart );
+//    ioHDF5SeekVector( ioPot, nStart );
 
     /*
     ** General initialization.
@@ -585,7 +585,8 @@ void pkdReadHDF5(PKD pkd, IOHDF5 io, double dvFac,
 	for (j=0;j<3;++j) p->v[j] *= dvFac;
 	p->iClass = getClass(pkd,fMass,fSoft);
 	p->iOrder = iOrder;
-	p->fPot = ioHDF5GetVector(ioPot);
+//	p->fPot = ioHDF5GetVector(ioPot);
+	p->fPot = 0.0;
 	}
 
     pkd->nLocal += nLocal;
@@ -1358,6 +1359,19 @@ int pkdNodes(PKD pkd) {
     return(pkd->nNodes);
     }
 
+int pkdNumSrcActive(PKD pkd,uint8_t uRungLo,uint8_t uRungHi) {
+    int i, n;
+    for (n=0,i=0;i<pkdLocal(pkd);++i)
+	if ( pkdIsSrcActive(&pkd->pStore[i],uRungLo,uRungHi) ) n++;
+    return n;
+    }
+
+int pkdNumDstActive(PKD pkd,uint8_t uRungLo,uint8_t uRungHi) {
+    int i, n;
+    for (n=0,i=0;i<pkdLocal(pkd);++i)
+	if ( pkdIsDstActive(&pkd->pStore[i],uRungLo,uRungHi) ) n++;
+    return n;
+    }
 
 int pkdColOrdRejects(PKD pkd,uint64_t nOrdSplit,int iSplitSide) {
     int nSplit,iRejects,i;
@@ -1469,6 +1483,7 @@ void pkdWriteHDF5(PKD pkd, IOHDF5 io, IOHDF5V ioDen, IOHDF5V ioPot, double dvFac
 
     for (i=0;i<pkdLocal(pkd);++i) {
 	p = &pkd->pStore[i];
+	if ( !pkdIsSrcActive(p,0,MAX_RUNG) ) continue;
 
 	v[0] = p->v[0] * dvFac;
 	v[1] = p->v[1] * dvFac;
@@ -1501,8 +1516,8 @@ void pkdWriteHDF5(PKD pkd, IOHDF5 io, IOHDF5V ioDen, IOHDF5V ioPot, double dvFac
 
 #endif
 
-void pkdWriteTipsy(PKD pkd,char *pszFileName,uint64_t nStart,
-		   int bStandard,double dvFac,int bDoublePos) {
+uint32_t pkdWriteTipsy(PKD pkd,char *pszFileName,uint64_t nStart,
+		       int bStandard,double dvFac,int bDoublePos) {
     PARTICLE *p;
     FILE *fp;
     int i,j;
@@ -1512,6 +1527,7 @@ void pkdWriteTipsy(PKD pkd,char *pszFileName,uint64_t nStart,
     int nout;
     float fTmp;
     double dTmp;
+    uint32_t nCount;
 
     /*
     ** Seek past the header and up to nStart.
@@ -1520,6 +1536,7 @@ void pkdWriteTipsy(PKD pkd,char *pszFileName,uint64_t nStart,
     mdlassert(pkd->mdl,fp != NULL);
     pkdSeek(pkd,fp,nStart,bStandard,bDoublePos,0);
 
+    nCount = 0;
     if (bStandard) {
 	FLOAT vTemp;
 	XDR xdrs;
@@ -1529,6 +1546,8 @@ void pkdWriteTipsy(PKD pkd,char *pszFileName,uint64_t nStart,
 	xdrstdio_create(&xdrs,fp,XDR_ENCODE);
 	for (i=0;i<pkdLocal(pkd);++i) {
 	    p = &pkd->pStore[i];
+	    if ( !pkdIsSrcActive(p,0,MAX_RUNG) ) continue;
+	    nCount++;
 	    if (pkdIsDark(pkd,p)) {
 		fTmp = pkdMass(pkd,p);
 		assert(fTmp > 0.0);
@@ -1625,6 +1644,8 @@ void pkdWriteTipsy(PKD pkd,char *pszFileName,uint64_t nStart,
 	*/
 	for (i=0;i<pkdLocal(pkd);++i) {
 	    p = &pkd->pStore[i];
+	    if ( !pkdIsSrcActive(p,0,MAX_RUNG) ) continue;
+	    nCount++;
 	    if (pkdIsDark(pkd,p)) {
 		for (j=0;j<3;++j) {
 		    dp.pos[j] = p->r[j];
@@ -1665,6 +1686,7 @@ void pkdWriteTipsy(PKD pkd,char *pszFileName,uint64_t nStart,
 	}
     nout = fclose(fp);
     mdlassert(pkd->mdl,nout == 0);
+    return nCount;
     }
 
 
@@ -2471,7 +2493,7 @@ void pkdAccelStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,
 		if (dtemp < dT)
 		    dT = dtemp;
 		}
-	    pkd->pStore[i].uNewRung = pkdNewDtToRung(dT,pkd->param.dDelta,pkd->param.iMaxRung-1);
+	    pkd->pStore[i].uNewRung = pkdDtToRung(dT,pkd->param.dDelta,pkd->param.iMaxRung-1);
 	    }
 	}
     }
@@ -2484,12 +2506,12 @@ void pkdDensityStep(PKD pkd, uint8_t uRungLo, uint8_t uRungHi, double dEta, doub
     for (i=0;i<pkdLocal(pkd);++i) {
 	if (pkdIsDstActive(&(pkd->pStore[i]),uRungLo,uRungHi)) {
 	    dT = dEta/sqrt(pkd->pStore[i].fDensity*dRhoFac);
-	    pkd->pStore[i].uNewRung = pkdNewDtToRung(dT,pkd->param.dDelta,pkd->param.iMaxRung-1);
+	    pkd->pStore[i].uNewRung = pkdDtToRung(dT,pkd->param.dDelta,pkd->param.iMaxRung-1);
 	    }
 	}
     }
 
-uint8_t pkdNewDtToRung(double dT, double dDelta, uint8_t uMaxRung) {
+uint8_t pkdDtToRung(double dT, double dDelta, uint8_t uMaxRung) {
     int iSteps;
     uint8_t uRung;
 
@@ -3551,6 +3573,134 @@ int pkdSelDstMass(PKD pkd,double dMinMass, double dMaxMass, int setIfTrue, int c
     return nSelected;
     }
 
+int pkdSelSrcSphere(PKD pkd,double *r, double dRadius, int setIfTrue, int clearIfFalse ) {
+    PARTICLE *p;
+    double d2,dx,dy,dz,dRadius2;
+    int i,n,nSelected;
+
+    n = pkdLocal(pkd);
+    nSelected = 0;
+    dRadius2 = dRadius*dRadius;
+    for( i=0; i<n; i++ ) {
+	p = &pkd->pStore[i];
+	dx = r[0] - p->r[0];
+	dy = r[1] - p->r[1];
+	dz = r[2] - p->r[2];
+
+	d2 = dx*dx + dy*dy + dz*dz;
+	p->bSrcActive = isSelected((d2<=dRadius2),setIfTrue,clearIfFalse,p->bSrcActive);
+	if ( p->bSrcActive ) nSelected++;
+	}
+    return nSelected;
+    }
+
+int pkdSelDstSphere(PKD pkd,double *r, double dRadius, int setIfTrue, int clearIfFalse ) {
+    PARTICLE *p;
+    double d2,dx,dy,dz,dRadius2;
+    int i,n,nSelected;
+
+    n = pkdLocal(pkd);
+    nSelected = 0;
+    dRadius2 = dRadius*dRadius;
+    for( i=0; i<n; i++ ) {
+	p = &pkd->pStore[i];
+	dx = r[0] - p->r[0];
+	dy = r[1] - p->r[1];
+	dz = r[2] - p->r[2];
+
+	d2 = dx*dx + dy*dy + dz*dz;
+	p->bDstActive = isSelected((d2<=dRadius2),setIfTrue,clearIfFalse,p->bSrcActive);
+	if ( p->bDstActive ) nSelected++;
+	}
+    return nSelected;
+    }
+
+/*
+** Select all particles that fall inside a cylinder between two points P1 and P2
+** with radius dRadius.
+*/
+int pkdSelSrcCylinder(PKD pkd,double *dP1, double *dP2, double dRadius,
+		      int setIfTrue, int clearIfFalse ) {
+    PARTICLE *p;
+    double dCyl[3], dPart[3];
+    double dLength2, dRadius2, dL2;
+    double pdotr;
+    int i,j,n,nSelected;
+    int predicate;
+
+    dRadius2 = dRadius*dRadius;
+    dLength2 = 0.0;
+    for( j=0;j<3;j++ ) {
+	dCyl[j] = dP2[j] - dP1[j];
+	dLength2 += dCyl[j] * dCyl[j];
+	}
+    n = pkdLocal(pkd);
+    nSelected = 0;
+    for( i=0; i<n; i++ ) {
+	p = &pkd->pStore[i];
+
+	pdotr = 0.0;
+	for( j=0;j<3;j++ ) {
+	    dPart[j] = p->r[j] - dP1[j];
+	    pdotr += dPart[j] * dCyl[j];
+	    }
+
+	if ( pdotr < 0.0 || pdotr > dLength2 ) predicate = 0;
+	else {
+	    dL2 = dPart[0]*dPart[0] + dPart[1]*dPart[1] + dPart[2]*dPart[2] - pdotr*pdotr/dLength2;
+	    predicate = (dL2 <= dRadius2);
+	    }
+	p->bSrcActive = isSelected(predicate,setIfTrue,clearIfFalse,p->bSrcActive);
+	if ( p->bSrcActive ) nSelected++;
+	}
+    return nSelected;
+    }
+
+/*
+** Select all particles that fall inside a cylinder between two points P1 and P2
+** with radius dRadius.
+*/
+int pkdSelDstCylinder(PKD pkd,double *dP1, double *dP2, double dRadius,
+		      int setIfTrue, int clearIfFalse ) {
+    PARTICLE *p;
+    double dCyl[3], dPart[3];
+    double dLength2, dRadius2, dL2;
+    double pdotr;
+    int i,j,n,nSelected;
+    int predicate;
+
+    dRadius2 = dRadius*dRadius;
+    dLength2 = 0.0;
+    for( j=0;j<3;j++ ) {
+	dCyl[j] = dP2[j] - dP1[j];
+	dLength2 += dCyl[j] * dCyl[j];
+	}
+
+    n = pkdLocal(pkd);
+    nSelected = 0;
+    for( i=0; i<n; i++ ) {
+	p = &pkd->pStore[i];
+
+	pdotr = 0.0;
+	for( j=0;j<3;j++ ) {
+	    dPart[j] = p->r[j] - dP1[j];
+	    pdotr += dPart[j] * dCyl[j];
+	    }
+
+	if ( pdotr < 0.0 || pdotr > dLength2 ) predicate = 0;
+	else {
+	    dL2 = dPart[0]*dPart[0] + dPart[1]*dPart[1] + dPart[2]*dPart[2] - pdotr*pdotr/dLength2;
+	    predicate = (dL2 <= dRadius2);
+	    }
+	p->bDstActive = isSelected(predicate,setIfTrue,clearIfFalse,p->bSrcActive);
+	if ( p->bDstActive ) nSelected++;
+	}
+    return nSelected;
+    }
+
+
+
+
 /*
 **  Find the source particle with the deepest potential
 */
@@ -3574,103 +3724,4 @@ int pkdDeepestPot(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
     r[2] = pkd->pStore[iLocal].r[2];
     *fPot= pkd->pStore[iLocal].fPot;
     return nChecked;
-    }
-
-
-void combProfileBins(void *b1, void *b2) {
-    PROFILEBIN * pBin1 = (PROFILEBIN *)b1;
-    PROFILEBIN * pBin2 = (PROFILEBIN *)b2;
-
-    pBin1->dMassInBin += pBin2->dMassInBin;
-    pBin1->nParticles += pBin2->nParticles;
-    }
-
-void initProfileBins(void *b) {
-    PROFILEBIN * pBin = (PROFILEBIN *)b;
-    pBin->dRadius = 0.0;
-    pBin->dMassInBin = 0.0;
-    pBin->dVolume = 0.0;
-    pBin->nParticles = 0;
-    }
-
-/*
-** Density Profile
-*/
-void pkdProfile(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
-		double *dCenter, double dMinRadius, double dMaxRadius,
-		int nBins) {
-    PARTICLE *p;
-    double d2, r2, r, r1;
-    double dx[3], deltaR;
-    double dLogMinRadius, dLogMaxRadius, dLogRadius;
-    int i,j,n,iBin;
-    PROFILEBIN *pBin;
-
-    assert(dMinRadius>0.0);
-    assert(dMaxRadius>dMinRadius);
-
-    assert( pkd->profileBins == NULL );
-    pkd->profileBins = mdlMalloc(pkd->mdl,nBins*sizeof(PROFILEBIN));
-
-    r2 = dMaxRadius*dMaxRadius;
-    dLogMinRadius = log10(dMinRadius);
-    dLogMaxRadius = log10(dMaxRadius);
-    dLogRadius = dLogMaxRadius - dLogMinRadius;
-    deltaR = dLogRadius / nBins;
-    r = 0.0;
-    for( iBin=0; iBin<nBins; iBin++ ) {
-	pkd->profileBins[iBin].nParticles = 0;
-	pkd->profileBins[iBin].dMassInBin = 0.0;
-	r1 = pow(10,dLogMinRadius+deltaR*(iBin+1));
-	pkd->profileBins[iBin].dRadius = r1;
-	pkd->profileBins[iBin].dVolume = (4.0/3.0) * M_PI * (r1*r1*r1 - r*r*r);
-	r = r1;
-	}
-
-    n = pkdLocal(pkd);
-    for (i=0;i<n;++i) {
-	p = &pkd->pStore[i];
-	if (pkdIsSrcActive(p,uRungLo,uRungHi)) {
-	    d2 = 0.0;
-	    for( j=0; j<3; j++ ) {
-		dx[j] = p->r[j] - dCenter[j];
-		/*
-		** If the particle is outside the radius, then we need to check for
-		** a periodic wrap that would put it inside the radius.
-		 */
-		if ( dx[j]*dx[j] >= r2 && pkd->param.bPeriodic ) {
-		    if ( dx[j]<0.0 ) dx[j] += pkd->fPeriod[j];
-		    else dx[j] -= pkd->fPeriod[j];
-		    }
-		d2 += dx[j]*dx[j];
-		}
-	    if ( d2 < dMinRadius*dMinRadius ) d2 = dMinRadius*dMinRadius;
-	    if ( d2 < r2 ) {
-		iBin = (log10(sqrt(d2))-dLogMinRadius)/dLogRadius * nBins;
-		if ( iBin >= nBins ) iBin = nBins-1;
-		assert(iBin>=0);
-		pkd->profileBins[iBin].dMassInBin += pkdMass(pkd,p);
-		pkd->profileBins[iBin].nParticles++;
-		}
-	    }
-	}
-
-    /* Combine the work from all processors */
-    mdlCOcache(pkd->mdl,CID_BIN,pkd->profileBins,sizeof(PROFILEBIN),nBins,initProfileBins,combProfileBins);
-    if (pkd->idSelf != 0) {
-	for (i=0; i<nBins; i++) {
-	    if (pkd->profileBins[i].dMassInBin > 0.0) {
-		pBin = mdlAquire(pkd->mdl,CID_BIN,i,0);
-		*pBin = pkd->profileBins[i];
-		mdlRelease(pkd->mdl,CID_BIN,pBin);
-		}
-	    }
-	}
-    mdlFinishCache(pkd->mdl,CID_BIN);
-
-    /* Only the main processor needs the result */
-    if (pkd->idSelf != 0) {
-	mdlFree(pkd->mdl,pkd->profileBins);
-	pkd->profileBins = NULL;
-	}
     }

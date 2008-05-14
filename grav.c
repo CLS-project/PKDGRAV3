@@ -73,6 +73,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
     double xxx,xxz,yyy,yyz,xxy,xyy,xyz;
     double tx,ty,tz;
     double fourh2;
+    double dtGrav;
     double rholoc,rhopmax,rhopmaxlocal,dirDTS,d2DTS,dsmooth2;
     momFloat tax,tay,taz,adotai,maga,dirsum,normsum;
 #ifdef HERMITE
@@ -91,7 +92,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 #ifdef SOFTSQUARE
     double ptwoh2;
 #endif
-    int i,j,k,l,nN,nSP,na,nia,nSoft,nActive;
+    int i,j,k,nN,nSP,na,nia,nSoft,nActive;
 
     /*
     ** dynamical time-stepping stuff
@@ -108,7 +109,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
     for (i=pkdn->pLower;i<=pkdn->pUpper;++i) {
 	if ( !pkdIsDstActive(&p[i],uRungLo,uRungHi) ) continue;
 	++nActive;
-	p[i].dtGrav = 0.0;
+	dtGrav = 0.0;
 	fPot = 0;
 	ax = 0;
 	ay = 0;
@@ -404,7 +405,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 	** required.
 	*/
 	if (bEwald) {
-	    *pdEwFlop += pkdParticleEwald(pkd,&p[i]);
+	    *pdEwFlop += pkdParticleEwald(pkd,uRungLo,uRungHi,&p[i]);
 	    }
 
 	/*
@@ -415,15 +416,24 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 	    /*
 	    ** Use new acceleration here!
 	    */
-	    tx = p[i].a[0];
-	    ty = p[i].a[1];
-	    tz = p[i].a[2];
-	    maga = sqrt(tx*tx + ty*ty + tz*tz);
-	    p[i].dtGrav = maga*dirsum/normsum + pkd->param.dPreFacRhoLoc*rholoc;
-	    p[i].fDensity = rholoc;
-	    if (pkd->param.iTimeStepCrit > 0) {
-		p[i].dtGrav = (rhopmax > p[i].dtGrav)?rhopmax:p[i].dtGrav;
+	    if ( normsum > 0.0 ) {
+		tx = p[i].a[0];
+		ty = p[i].a[1];
+		tz = p[i].a[2];
+		maga = sqrt(tx*tx + ty*ty + tz*tz);
+		dtGrav = maga*dirsum/normsum;
 		}
+	    else dtGrav = 0.0;
+	    dtGrav += pkd->param.dPreFacRhoLoc*rholoc;
+	    if (pkd->param.iTimeStepCrit > 0) {
+		dtGrav = (rhopmax > dtGrav)?rhopmax:dtGrav;
+		}
+	    if ( dtGrav > 0.0 ) {
+		double dT = pkd->param.dEta/sqrt(dtGrav*dRhoFac);
+		p[i].uNewRung = pkdDtToRung(dT,pkd->param.dDelta,pkd->param.iMaxRung-1);
+		}
+	    else p[i].uNewRung = 0;
+	    p[i].fDensity = rholoc;
 	    }
 	} /* end of i-loop over particles in the bucket */
     /*
@@ -556,8 +566,14 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 					  vx,vy,vz,rv,v2,a3,pi->iOrder,pj->iOrder);
 		    }
 #endif
-		pi->dtGrav = (rhopmaxlocal > pi->dtGrav)?rhopmaxlocal:pi->dtGrav;
-		pj->dtGrav = (rhopmaxlocal > pj->dtGrav)?rhopmaxlocal:pj->dtGrav;
+		if ( rhopmaxlocal > 0.0 ) {
+		    double dT = pkd->param.dEta/sqrt(rhopmaxlocal*dRhoFac);
+		    uint8_t uNewRung = pkdDtToRung(dT,pkd->param.dDelta,pkd->param.iMaxRung-1);
+		    if ( uNewRung > pi->uNewRung ) pi->uNewRung = uNewRung;
+		    if ( uNewRung > pj->uNewRung ) pj->uNewRung = uNewRung;
+		    }
+		//pi->dtGrav = (rhopmaxlocal > pi->dtGrav)?rhopmaxlocal:pi->dtGrav;
+		//pj->dtGrav = (rhopmaxlocal > pj->dtGrav)?rhopmaxlocal:pj->dtGrav;
 		}
 
 #ifdef SYMBA
@@ -685,7 +701,12 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 					  vx,vy,vz,rv,v2,a3,pi->iOrder,pj->iOrder);
 		    }
 #endif
-		pi->dtGrav = (rhopmaxlocal > pi->dtGrav)?rhopmaxlocal:pi->dtGrav;
+		if ( rhopmaxlocal > 0.0 ) {
+		    double dT = pkd->param.dEta/sqrt(rhopmaxlocal*dRhoFac);
+		    uint8_t uNewRung = pkdDtToRung(dT,pkd->param.dDelta,pkd->param.iMaxRung-1);
+		    if ( uNewRung > pi->uNewRung ) pi->uNewRung = uNewRung;
+		    }
+		//pi->dtGrav = (rhopmaxlocal > pi->dtGrav)?rhopmaxlocal:pi->dtGrav;
 		}
 #ifdef SYMBA
 	    if (a2 < 3.0) dir2 *= a1;

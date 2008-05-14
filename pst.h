@@ -181,6 +181,10 @@ enum pst_service {
     PST_SELDSTALL,
     PST_SELSRCMASS,
     PST_SELDSTMASS,
+    PST_SELSRCSPHERE,
+    PST_SELDSTSPHERE,
+    PST_SELSRCCYLINDER,
+    PST_SELDSTCYLINDER,
 
     PST_DEEPESTPOT,
     PST_PROFILE,
@@ -1062,6 +1066,33 @@ struct outSelMass {
     };
 void pstSelSrcMass(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 void pstSelDstMass(PST pst,void *vin,int nIn,void *vout,int *pnOut);
+
+/* PST_SELSRCSPHERE */
+struct inSelSphere {
+    double r[3];
+    double dRadius;
+    int setIfTrue;
+    int clearIfFalse;
+    };
+struct outSelSphere {
+    uint64_t nSelected;
+    };
+void pstSelSrcSphere(PST pst,void *vin,int nIn,void *vout,int *pnOut);
+void pstSelDstSphere(PST pst,void *vin,int nIn,void *vout,int *pnOut);
+
+/* PST_SELSRCCYLINDER */
+struct inSelCylinder {
+    double dP1[3];
+    double dP2[3];
+    double dRadius;
+    int setIfTrue;
+    int clearIfFalse;
+    };
+struct outSelCylinder {
+    uint64_t nSelected;
+    };
+void pstSelSrcCylinder(PST pst,void *vin,int nIn,void *vout,int *pnOut);
+void pstSelDstCylinder(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 
 /* PST_DEEPESTPOT - Input inDeepestPot - Output outDeepestPot */
 struct inDeepestPot {

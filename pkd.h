@@ -745,9 +745,11 @@ int pkdLocal(PKD);
 int pkdActive(PKD);
 int pkdInactive(PKD);
 int pkdNodes(PKD);
+int pkdNumSrcActive(PKD pkd,uint8_t uRungLo,uint8_t uRungHi);
+int pkdNumDstActive(PKD pkd,uint8_t uRungLo,uint8_t uRungHi);
 int pkdColOrdRejects(PKD,uint64_t,int);
 void pkdLocalOrder(PKD);
-void pkdWriteTipsy(PKD,char *,uint64_t,int,double,int);
+uint32_t pkdWriteTipsy(PKD,char *,uint64_t,int,double,int);
 #ifdef USE_HDF5
 void pkdWriteHDF5(PKD pkd, IOHDF5 io,IOHDF5V ioDen, IOHDF5V ioPot, double dvFac);
 #endif
@@ -788,7 +790,7 @@ void pkdAccelStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,
 void pkdDensityStep(PKD pkd, uint8_t uRungLo, uint8_t uRungHi, double dEta, double dRhoFac);
 int pkdUpdateRung(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
 		  uint8_t uRung,int iMaxRung,int *nRungCount);
-uint8_t pkdNewDtToRung(double dT, double dDelta, uint8_t uMaxRung);
+uint8_t pkdDtToRung(double dT, double dDelta, uint8_t uMaxRung);
 int pkdOrdWeight(PKD pkd,uint64_t iOrdSplit,int iSplitSide,int iFrom,int iTo,
 		 int *pnLow,int *pnHigh);
 void pkdDeleteParticle(PKD pkd, PARTICLE *p);
@@ -863,7 +865,12 @@ int pkdSelDstAll(PKD pkd);
 
 int pkdSelSrcMass(PKD pkd,double dMinMass, double dMaxMass, int setIfTrue, int clearIfFalse );
 int pkdSelDstMass(PKD pkd,double dMinMass, double dMaxMass, int setIfTrue, int clearIfFalse );
-
+int pkdSelDstSphere(PKD pkd,double *r, double dRadius, int setIfTrue, int clearIfFalse );
+int pkdSelDstSphere(PKD pkd,double *r, double dRadius, int setIfTrue, int clearIfFalse );
+int pkdSelSrcCylinder(PKD pkd,double *dP1, double *dP2, double dRadius,
+		      int setIfTrue, int clearIfFalse );
+int pkdSelDstCylinder(PKD pkd,double *dP1, double *dP2, double dRadius,
+		      int setIfTrue, int clearIfFalse );
 int pkdDeepestPot(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
     double *r, float *fPot);
 void pkdProfile(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,

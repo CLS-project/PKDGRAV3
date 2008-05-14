@@ -32,7 +32,10 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
     double tempI;
     double dEwFlop;
     double dRhoFac;
-    FLOAT dMin,dMax,min2,max2,d2,h2;
+    FLOAT dMin,dMax,min2,max2;
+#if defined(SOFTLINEAR) || defined(SOFTSQUARE)
+    FLOAT d2,h2;
+#endif
     FLOAT rCheck[3];
     FLOAT rOffset[3];
     int iStack,ism;
@@ -52,7 +55,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 	assert(pkd->nVeryActive != 0);
 	assert(pkd->nVeryActive == pkd->kdNodes[VAROOT].pUpper - pkd->kdNodes[VAROOT].pLower + 1);
 	}
-    else if (!pkdIsCellActive(pkd,&pkd->kdNodes[ROOT])) return 0;
+    else if (!pkdIsCellActive(&pkd->kdNodes[ROOT],uRungLo,uRungHi)) return 0;
     /*
     ** SyncDelta is used to compare the current time to the time of a cell to decide
     ** if they are synchronous. We need some sort of sensible minimum difference
@@ -174,21 +177,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 		** for this cell.
 		*/
 		if (fabs(pkdc->dTimeStamp-dTime) > dSyncDelta) {
-		    /*
-		    ** We need to account for cosmological drift factor here!
-		    */
-		    if (pkd->param.csm->bComove && pkd->param.bCannonical) {
-			/*
-			** This might get called quite a bit in this code. Better might
-			** be to store a dDriftFac within the CheckElt structure, thereby
-			** reducing the number of calls to csmComoveDriftFac. Otherwise
-			** we may need to speed this function up.
-			*/
-			dDriftFac = csmComoveDriftFac(pkd->param.csm,pkdc->dTimeStamp,dTime - pkdc->dTimeStamp);
-			}
-		    else {
-			dDriftFac = dTime - pkdc->dTimeStamp;
-			}
+		    dDriftFac = dTime - pkdc->dTimeStamp;
 		    for (j=0;j<3;++j) rCheck[j] = pkdc->r[j] +
 						      dDriftFac*pkdc->v[j] + pkd->Check[i].rOffset[j];
 		    }
@@ -517,7 +506,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 	    ** rung check here when we start using tree repair, but
 	    ** for now this is just as good.
 	    */
-	    if (pkdIsCellActive(pkd,c+iCell)) {
+	    if (pkdIsCellActive(c+iCell,uRungLo,uRungHi)) {
 		/*
 		** iCell is active, continue processing it.
 		** Put the sibling onto the checklist.
@@ -533,7 +522,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 		** hit the sibling. See the goto InactiveAscend below
 		** for how this is done.
 		*/
-		if (pkdIsCellActive(pkd,c+iCell+1)) {
+		if (pkdIsCellActive(c+iCell+1,uRungLo,uRungHi)) {
 		    /*
 		    ** Sibling is active as well.
 		    ** Push Checklist for the sibling onto the stack
@@ -606,7 +595,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 		}
 	    }
 	++iCell;
-	if (!pkdIsCellActive(pkd,c+iCell)) goto InactiveAscend;
+	if (!pkdIsCellActive(c+iCell,uRungLo,uRungHi)) goto InactiveAscend;
 	/*
 	** Pop the Checklist from the top of the stack,
 	** also getting the state of the interaction list.

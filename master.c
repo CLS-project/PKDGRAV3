@@ -2010,10 +2010,10 @@ void msrOneNodeWriteTipsy(MSR msr, struct inWriteTipsy *in, int bCheckpoint) {
 #endif
 	/* This is always executed if not using HDF5 */
 	{
-	pkdWriteTipsy(plcl->pkd,achOutFile,plcl->nWriteStart,in->bStandard,
-		      in->dvFac,in->bDoublePos);
+	nStart = pkdWriteTipsy(plcl->pkd,achOutFile,plcl->nWriteStart,in->bStandard,
+			       in->dvFac,in->bDoublePos);
 	}
-    nStart = plcl->pkd->nLocal;
+    /*nStart = plcl->pkd->nLocal;*/
     assert(msr->pMap[0] == 0);
     for (i=1;i<msr->nThreads;++i) {
 	id = msr->pMap[i];
@@ -2035,10 +2035,10 @@ void msrOneNodeWriteTipsy(MSR msr, struct inWriteTipsy *in, int bCheckpoint) {
 #endif
 	    /* This is always executed if not using HDF5 */
 	    {
-	    pkdWriteTipsy(plcl->pkd,achOutFile,nStart, in->bStandard,
-			  in->dvFac, in->bDoublePos);
+	    nStart += pkdWriteTipsy(plcl->pkd,achOutFile,nStart, in->bStandard,
+				    in->dvFac, in->bDoublePos);
 	    }
-	nStart += plcl->pkd->nLocal;
+	/*nStart += plcl->pkd->nLocal;*/
 	/*
 	 * Swap them back again.
 	 */
@@ -2056,32 +2056,37 @@ void msrOneNodeWriteTipsy(MSR msr, struct inWriteTipsy *in, int bCheckpoint) {
 	}
 #endif
 
-    assert(nStart == msr->N);
+    /*assert(nStart == msr->N);*/
+    assert(nStart <= msr->N);
     }
 
 
-void msrCalcWriteStart(MSR msr) {
+uint64_t msrCalcWriteStart(MSR msr) {
     struct outSetTotal out;
     struct inSetWriteStart in;
 
     pstSetTotal(msr->pst,NULL,0,&out,NULL);
-    assert(out.nTotal == msr->N);
+    /*This was true before IsSrcActive:assert(out.nTotal == msr->N);*/
+    assert(out.nTotal <= msr->N);
     in.nWriteStart = 0;
     pstSetWriteStart(msr->pst,&in,sizeof(in),NULL,NULL);
+    return out.nTotal;
     }
 
 
-void _msrWriteTipsy(MSR msr,char *pszFileName,double dTime,int bCheckpoint) {
+void _msrWriteTipsy(MSR msr,const char *pszFileName,double dTime,int bCheckpoint) {
     FILE *fp;
     struct dump h;
     struct inWriteTipsy in;
     char achOutFile[PST_FILENAME_SIZE];
     LCL *plcl = msr->pst->plcl;
+    uint64_t N;
+
     /*
     ** Calculate where to start writing.
     ** This sets plcl->nWriteStart.
     */
-    msrCalcWriteStart(msr);
+    N = msrCalcWriteStart(msr);
     /*
     ** Add Data Subpath for local and non-local names.
     */
@@ -2096,8 +2101,10 @@ void _msrWriteTipsy(MSR msr,char *pszFileName,double dTime,int bCheckpoint) {
     /*
     ** Assume tipsy format for now.
     */
-    h.nbodies = msr->N;
-    h.ndark = msr->nDark;
+    /* So that "N" can be nDark */
+    assert(msr->nGas==0&&msr->nStar==0);
+    h.nbodies = N; /*msr->N;*/
+    h.ndark = N; /*msr->nDark;*/
     h.nsph = msr->nGas;
     h.nstar = msr->nStar;
     if (msr->param.csm->bComove) {
@@ -2237,7 +2244,7 @@ void domaintreeids(DC *node,int *leafcount) {
 ** The initial value of plast can be an address of a pointer to DC, and if it 
 ** hasn't changed after this function, then this depth of the tree doesn't exist.
 */
-int domaindepthlink(DC *node,DC **plast,int depth) {
+void domaindepthlink(DC *node,DC **plast,int depth) {
     if (depth) {
 	if (node->nLeaves > 1) {
 	    assert(node->lower != NULL);
@@ -4929,7 +4936,7 @@ void msrKeplerDrift(MSR msr,double dDelta) {
 #endif /* SYMBA */
 #endif /* PLANETS*/
 
-void msrWrite(MSR msr,char *pszFileName,double dTime,int bCheckpoint) {
+void msrWrite(MSR msr,const char *pszFileName,double dTime,int bCheckpoint) {
 #ifdef PLANETS
     msrWriteSS(msr,pszFileName,dTime);
 #else
@@ -5306,7 +5313,69 @@ uint64_t msrSelDstMass(MSR msr,double dMinMass,double dMaxMass,int setIfTrue,int
     return out.nSelected;
     }
 
+uint64_t msrSelSrcSphere(MSR msr,double *r, double dRadius,int setIfTrue,int clearIfFalse) {
+    struct inSelSphere in;
+    struct outSelSphere out;
+    int nOut;
 
+    in.r[0] = r[0];
+    in.r[1] = r[1];
+    in.r[2] = r[2];
+    in.dRadius = dRadius;
+    in.setIfTrue = setIfTrue;
+    in.clearIfFalse = clearIfFalse;
+    pstSelSrcSphere(msr->pst, &in, sizeof(in), &out, &nOut);
+    return out.nSelected;
+    }
+
+uint64_t msrSelDstSphere(MSR msr,double *r, double dRadius,int setIfTrue,int clearIfFalse) {
+    struct inSelSphere in;
+    struct outSelSphere out;
+    int nOut;
+
+    in.r[0] = r[0];
+    in.r[1] = r[1];
+    in.r[2] = r[2];
+    in.dRadius = dRadius;
+    in.setIfTrue = setIfTrue;
+    in.clearIfFalse = clearIfFalse;
+    pstSelDstSphere(msr->pst, &in, sizeof(in), &out, &nOut);
+    return out.nSelected;
+    }
+
+uint64_t msrSelSrcCylinder(MSR msr,double *dP1, double *dP2, double dRadius,
+			   int setIfTrue, int clearIfFalse ) {
+    struct inSelCylinder in;
+    struct outSelCylinder out;
+    int nOut,j;
+
+    for(j=0;j<3;j++) {
+	in.dP1[j] = dP1[j];
+	in.dP2[j] = dP2[j];
+	}
+    in.dRadius = dRadius;
+    in.setIfTrue = setIfTrue;
+    in.clearIfFalse = clearIfFalse;
+    pstSelSrcCylinder(msr->pst, &in, sizeof(in), &out, &nOut);
+    return out.nSelected;
+    }
+
+uint64_t msrSelDstCylinder(MSR msr,double *dP1, double *dP2, double dRadius,
+			   int setIfTrue, int clearIfFalse ) {
+    struct inSelCylinder in;
+    struct outSelCylinder out;
+    int nOut,j;
+
+    for(j=0;j<3;j++) {
+	in.dP1[j] = dP1[j];
+	in.dP2[j] = dP2[j];
+	}
+    in.dRadius = dRadius;
+    in.setIfTrue = setIfTrue;
+    in.clearIfFalse = clearIfFalse;
+    pstSelDstCylinder(msr->pst, &in, sizeof(in), &out, &nOut);
+    return out.nSelected;
+    }
 
 void msrDeepestPot(MSR msr,double *r, float *fPot) {
     struct inDeepestPot in;

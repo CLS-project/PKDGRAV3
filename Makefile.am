@@ -32,7 +32,7 @@ clean-local:
 	rm -f $(EXTRA_PROGRAMS)
 
 SOURCES  = cosmo.c master.c param.c pst.c smooth.c tree.c ewald.c
-SOURCES += main.c moments.c outtype.c pkd.c romberg.c smoothfcn.c
+SOURCES += main.c moments.c outtype.c pkd.c analysis.c romberg.c smoothfcn.c
 if PLANETS
 SOURCES += ssio.c collision.c kepler.c
 endif

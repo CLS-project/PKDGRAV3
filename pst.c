@@ -457,6 +457,18 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_SELDSTMASS,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstSelDstMass,
 		  sizeof(struct inSelMass), sizeof(struct outSelMass));
+    mdlAddService(mdl,PST_SELSRCSPHERE,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstSelSrcSphere,
+		  sizeof(struct inSelSphere), sizeof(struct outSelSphere));
+    mdlAddService(mdl,PST_SELDSTSPHERE,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstSelDstSphere,
+		  sizeof(struct inSelSphere), sizeof(struct outSelSphere));
+    mdlAddService(mdl,PST_SELSRCCYLINDER,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstSelSrcCylinder,
+		  sizeof(struct inSelCylinder), sizeof(struct outSelCylinder));
+    mdlAddService(mdl,PST_SELDSTCYLINDER,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstSelDstCylinder,
+		  sizeof(struct inSelCylinder), sizeof(struct outSelCylinder));
     mdlAddService(mdl,PST_DEEPESTPOT,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstDeepestPot,
 		  sizeof(struct inDeepestPot), sizeof(struct outDeepestPot));
@@ -3039,10 +3051,11 @@ void pstSetTotal(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	pst->nTotal = out->nTotal;
 	}
     else {
-	pst->nTotal = pkdLocal(plcl->pkd);
+	/*pst->nTotal = pkdLocal(plcl->pkd);*/
+	pst->nTotal = pkdNumSrcActive(plcl->pkd,0,MAX_RUNG);
 	out->nTotal = pst->nTotal;
 	}
-    mdlassert(pst->mdl,out->nTotal > 0 );
+    mdlassert(pst->mdl,out->nTotal >= 0 );
     if (pnOut) *pnOut = sizeof(struct outSetTotal);
     }
 
@@ -4027,7 +4040,7 @@ void pstSelDstMass(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 
     assert( nIn==sizeof(struct inSelMass) );
     if (pst->nLeaves > 1) {
-	mdlReqService(pst->mdl,pst->idUpper,PST_SELSRCMASS,vin,nIn);
+	mdlReqService(pst->mdl,pst->idUpper,PST_SELDSTMASS,vin,nIn);
 	pstSelDstMass(pst->pstLower,vin,nIn,vout,pnOut);
 	mdlGetReply(pst->mdl,pst->idUpper,&outUpper,&nOut);
 	assert(nOut == sizeof(struct outSelMass));
@@ -4038,7 +4051,93 @@ void pstSelDstMass(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	}
     if (pnOut) *pnOut = sizeof(struct outSelMass);
     }
+void pstSelSrcSphere(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl = pst->plcl;
+    struct inSelSphere *in = vin;
+    struct outSelSphere *out = vout;
+    struct outSelSphere outUpper;
+    int nOut;
 
+    assert( nIn==sizeof(struct inSelSphere) );
+    if (pst->nLeaves > 1) {
+	mdlReqService(pst->mdl,pst->idUpper,PST_SELSRCSPHERE,vin,nIn);
+	pstSelSrcSphere(pst->pstLower,vin,nIn,vout,pnOut);
+	mdlGetReply(pst->mdl,pst->idUpper,&outUpper,&nOut);
+	assert(nOut == sizeof(struct outSelSphere));
+	out->nSelected += outUpper.nSelected;
+	}
+    else {
+	out->nSelected = pkdSelSrcSphere(
+	    plcl->pkd,in->r,in->dRadius,in->setIfTrue,in->clearIfFalse);
+	}
+    if (pnOut) *pnOut = sizeof(struct outSelSphere);
+    }
+
+void pstSelDstSphere(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl = pst->plcl;
+    struct inSelSphere *in = vin;
+    struct outSelSphere *out = vout;
+    struct outSelSphere outUpper;
+    int nOut;
+
+    assert( nIn==sizeof(struct inSelSphere) );
+    if (pst->nLeaves > 1) {
+	mdlReqService(pst->mdl,pst->idUpper,PST_SELDSTSPHERE,vin,nIn);
+	pstSelDstSphere(pst->pstLower,vin,nIn,vout,pnOut);
+	mdlGetReply(pst->mdl,pst->idUpper,&outUpper,&nOut);
+	assert(nOut == sizeof(struct outSelSphere));
+	out->nSelected += outUpper.nSelected;
+	}
+    else {
+	out->nSelected = pkdSelDstSphere(
+	    plcl->pkd,in->r,in->dRadius,in->setIfTrue,in->clearIfFalse);
+	}
+    if (pnOut) *pnOut = sizeof(struct outSelSphere);
+    }
+
+void pstSelSrcCylinder(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl = pst->plcl;
+    struct inSelCylinder *in = vin;
+    struct outSelCylinder *out = vout;
+    struct outSelCylinder outUpper;
+    int nOut;
+
+    assert( nIn==sizeof(struct inSelCylinder) );
+    if (pst->nLeaves > 1) {
+	mdlReqService(pst->mdl,pst->idUpper,PST_SELSRCCYLINDER,vin,nIn);
+	pstSelSrcCylinder(pst->pstLower,vin,nIn,vout,pnOut);
+	mdlGetReply(pst->mdl,pst->idUpper,&outUpper,&nOut);
+	assert(nOut == sizeof(struct outSelCylinder));
+	out->nSelected += outUpper.nSelected;
+	}
+    else {
+	out->nSelected = pkdSelSrcCylinder(
+	    plcl->pkd,in->dP1,in->dP2,in->dRadius,in->setIfTrue,in->clearIfFalse);
+	}
+    if (pnOut) *pnOut = sizeof(struct outSelCylinder);
+    }
+
+void pstSelDstCylinder(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl = pst->plcl;
+    struct inSelCylinder *in = vin;
+    struct outSelCylinder *out = vout;
+    struct outSelCylinder outUpper;
+    int nOut;
+
+    assert( nIn==sizeof(struct inSelCylinder) );
+    if (pst->nLeaves > 1) {
+	mdlReqService(pst->mdl,pst->idUpper,PST_SELDSTCYLINDER,vin,nIn);
+	pstSelDstCylinder(pst->pstLower,vin,nIn,vout,pnOut);
+	mdlGetReply(pst->mdl,pst->idUpper,&outUpper,&nOut);
+	assert(nOut == sizeof(struct outSelCylinder));
+	out->nSelected += outUpper.nSelected;
+	}
+    else {
+	out->nSelected = pkdSelDstCylinder(
+	    plcl->pkd,in->dP1,in->dP2,in->dRadius,in->setIfTrue,in->clearIfFalse);
+	}
+    if (pnOut) *pnOut = sizeof(struct outSelCylinder);
+    }
 
 void pstDeepestPot(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;

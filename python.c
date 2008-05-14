@@ -1,4 +1,5 @@
 #include <Python.h>
+#include <marshal.h>
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
@@ -62,6 +63,95 @@ ppy_msr_SelDstMass(PyObject *self, PyObject *args, PyObject *kwobj) {
     nSelected = msrSelDstMass(ppy_msr,dMinMass,dMaxMass,setIfTrue,clearIfFalse);
     return Py_BuildValue("L", nSelected);
 }
+
+static PyObject *
+ppy_msr_SelSrcSphere(PyObject *self, PyObject *args) {
+    double r[3], dRadius;
+    int setIfTrue=1, clearIfFalse=1;
+    uint64_t nSelected;
+
+    if ( !PyArg_ParseTuple(
+	     args, "(ddd)d|ii:SelSrcSphere",
+	     r+0, r+1, r+2, &dRadius, &setIfTrue, &clearIfFalse) )
+	return NULL;
+    nSelected = msrSelSrcSphere(ppy_msr,r,dRadius,setIfTrue,clearIfFalse);
+    return Py_BuildValue("L", nSelected);
+}
+
+static PyObject *
+ppy_msr_SelDstSphere(PyObject *self, PyObject *args) {
+    double r[3], dRadius;
+    int setIfTrue=1, clearIfFalse=1;
+    uint64_t nSelected;
+
+    if ( !PyArg_ParseTuple(
+	     args, "(ddd)d|ii:SelDstSphere",
+	     r+0, r+1, r+2, &dRadius, &setIfTrue, &clearIfFalse) )
+	return NULL;
+    nSelected = msrSelDstSphere(ppy_msr,r,dRadius,setIfTrue,clearIfFalse);
+    return Py_BuildValue("L", nSelected);
+}
+
+static PyObject *
+ppy_msr_SelSrcCylinder(PyObject *self, PyObject *args) {
+    double dP1[3],dP2[3],dRadius;
+    int setIfTrue=1, clearIfFalse=1;
+    uint64_t nSelected;
+
+    if ( !PyArg_ParseTuple(
+	     args, "(ddd)(ddd)d|ii:SelSrcSphere",
+	     dP1+0, dP1+1, dP1+2, dP2+0, dP2+1, dP2+2, &dRadius,
+	     &setIfTrue, &clearIfFalse) )
+	return NULL;
+    nSelected = msrSelSrcCylinder(ppy_msr,dP1,dP2,dRadius,setIfTrue,clearIfFalse);
+    return Py_BuildValue("L", nSelected);
+}
+
+static PyObject *
+ppy_msr_SelDstCylinder(PyObject *self, PyObject *args) {
+    double dP1[3],dP2[3],dRadius;
+    int setIfTrue=1, clearIfFalse=1;
+    uint64_t nSelected;
+
+    if ( !PyArg_ParseTuple(
+	     args, "(ddd)(ddd)(ddd)d|ii:SelDstSphere",
+	     dP1+0, dP1+1, dP1+2, dP2+0, dP2+1, dP2+2, &dRadius,
+	     &setIfTrue, &clearIfFalse) )
+	return NULL;
+    nSelected = msrSelDstCylinder(ppy_msr,dP1,dP2,dRadius,setIfTrue,clearIfFalse);
+    return Py_BuildValue("L", nSelected);
+}
+
+#if 0
+static PyObject *
+ppy_msr_SelSrc(PyObject *self, PyObject *args) {
+    uint64_t nSelected = 0;
+    PyObject *object;
+    if ( !PyArg_ParseTuple(
+	     args, "O:SelSrc",
+	     &object) )
+	return NULL;
+    if ( !PyCallable_Check(object) ) {
+	PyErr_SetString(PyExc_TypeError, "SelSrc argument is not callable");
+	return NULL;
+	}
+#if 0
+    PyObject *o = PyMarshal_WriteObjectToString(object,Py_MARSHAL_VERSION);
+    assert( o!=NULL );
+
+    if ( !PyString_Check(o) ) {
+	PyErr_SetString(PyExc_TypeError, "PyMarshal did not return a string");
+	return NULL;
+	}
+    int iSize = PyString_GET_SIZE(o);
+    const char *szData = PyString_AS_STRING(o);
+
+    printf( "Object size: %d\n", iSize );
+    Py_DECREF(o);
+#endif
+    return Py_BuildValue("L", nSelected);
+}
+#endif
 
 static PyObject *
 ppy_msr_DeepestPotential(PyObject *self, PyObject *args) {
@@ -186,10 +276,35 @@ ppy_msr_GroupProfiles(PyObject *self, PyObject *args, PyObject *kwobj) {
     return Py_None;
 }
 
+static PyObject *
+ppy_msr_Write(PyObject *self, PyObject *args, PyObject *kwobj) {
+    static char *kwlist[]={"Name","Checkpoint","Time",NULL};
+    double dTime = 0.0;
+    int bCheckpoint = 0;
+    const char *fname;
+    PyObject *v, *dict;
+
+    dict = PyModule_GetDict(global_ppy->module);
+    if ( (v = PyDict_GetItemString(dict, "dTime")) == NULL )
+	return NULL;
+    dTime = PyFloat_AsDouble(v);
+    if ( !PyArg_ParseTupleAndKeywords(
+	     args, kwobj, "s|id:Write", kwlist,
+	     &fname,&bCheckpoint, &dTime ) )
+	return NULL;
+    msrWrite(ppy_msr,fname,dTime,bCheckpoint);
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+
 
 
 
 static PyMethodDef ppy_msr_methods[] = {
+/*
+    {"SelSrc", ppy_msr_SelSrc, METH_VARARGS,
+     "Selects source particles based on a supplied function"},
+*/
     {"SelSrcAll", ppy_msr_SelSrcAll, METH_NOARGS,
      "Selects all particles as operation source."},
     {"SelDstAll", ppy_msr_SelDstAll, METH_NOARGS,
@@ -198,6 +313,15 @@ static PyMethodDef ppy_msr_methods[] = {
      "Selects source particles with a specific mass range."},
     {"SelDstMass", (PyCFunction)ppy_msr_SelDstMass, METH_VARARGS|METH_KEYWORDS,
      "Selects destination particles with a specific mass range."},
+    {"SelSrcSphere", ppy_msr_SelSrcSphere, METH_VARARGS,
+     "Selects source particles inside a given sphere."},
+    {"SelDstSphere", ppy_msr_SelDstSphere, METH_VARARGS,
+     "Selects destination particles inside a given sphere."},
+    {"SelSrcCylinder", ppy_msr_SelSrcCylinder, METH_VARARGS,
+     "Selects source particles inside a given cylinder."},
+    {"SelDstCylinder", ppy_msr_SelDstCylinder, METH_VARARGS,
+     "Selects destination particles inside a given cylinder."},
+
     {"DeepestPotential", ppy_msr_DeepestPotential, METH_NOARGS,
      "Finds the most bound particle (deepest potential)"},
     {"Profile", ppy_msr_Profile, METH_VARARGS,
@@ -213,6 +337,8 @@ static PyMethodDef ppy_msr_methods[] = {
      "Friends of Friends"},
     {"GroupProfiles", (PyCFunction)ppy_msr_GroupProfiles, METH_VARARGS|METH_KEYWORDS,
      "Group Profiles"},
+    {"Write", (PyCFunction)ppy_msr_Write, METH_VARARGS|METH_KEYWORDS,
+     "Write source particles to a file"},
 
     {NULL, NULL, 0, NULL}
 };
@@ -247,7 +373,19 @@ void ppyFinish(PPY vppy) {
 void ppyRunScript(PPY vppy,const char *achFilename) {
     ppyCtx *ppy = (ppyCtx *)vppy;
     FILE *fp;
+    PyObject *dict;
+
     assert(Py_IsInitialized());
+
+    // Set parameters for easy access
+    dict = PyModule_GetDict(ppy->module);
+
+    PyDict_SetItemString(dict, "achOutName", Py_BuildValue("s",ppy_msr->param.achOutName));
+
+
+
+
+
     printf("---------------------------------------"
 	   "---------------------------------------\n"
 	   "Running Python Script %s\n"

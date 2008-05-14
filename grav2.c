@@ -421,7 +421,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 	    dtGrav += pkd->param.dPreFacRhoLoc*rholoc;
 	    if ( dtGrav > 0.0 ) {
 		dT = pkd->param.dEta/sqrt(dtGrav*dRhoFac);
-		p[i].uNewRung = pkdNewDtToRung(dT,pkd->param.dDelta,pkd->param.iMaxRung-1);
+		p[i].uNewRung = pkdDtToRung(dT,pkd->param.dDelta,pkd->param.iMaxRung-1);
 		}
 	    else p[i].uNewRung = 0;
 	    p[i].fDensity = rholoc;
