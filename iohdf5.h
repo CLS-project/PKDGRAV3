@@ -120,6 +120,7 @@ extern "C" {
 			FLOAT fMass, FLOAT fSoft, float fPot,
 			FLOAT fMetals, FLOAT fTForm);
 
+    IOHDF5V ioHDFF5OpenVector( IOHDF5 io, const char *name, int bDouble );
     IOHDF5V ioHDFF5NewVector( IOHDF5 io, const char *name, int bDouble );
     void ioHDF5AddVector( IOHDF5V iov, PINDEX iOrder, FLOAT v );
     FLOAT ioHDF5GetVector( IOHDF5V iov );

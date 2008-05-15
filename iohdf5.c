@@ -711,6 +711,49 @@ PINDEX ioHDF5StarCount( IOHDF5 io ) {
     return io->starBase.nTotal;
     }
 
+IOHDF5V ioHDFF5OpenVector( IOHDF5 io, const char *name, int bDouble ) {
+    hid_t set_id;
+    IOHDF5V iov;
+
+    H5E_BEGIN_TRY {
+	set_id = H5Dopen(io->darkBase.group_id, name);
+	} H5E_END_TRY;
+    if ( set_id == H5I_INVALID_HID ) return NULL;
+
+    /* Make the new vector and link it onto the vector list */
+    iov = malloc( sizeof(struct ioHDF5v) ); assert( iov != NULL );
+    iov->next = io->vectorList;
+    io->vectorList = iov;
+    iov->io = io;
+    iov->diskFloat = bDouble ? io->memFloat : H5T_NATIVE_FLOAT;
+    iov->set_id = set_id;
+    iov->nTotal = getSetSize(iov->set_id);
+
+    assert( strlen(name) < sizeof(iov->name) );
+    strcpy( iov->name, name );
+
+    // Filled with cheese - FIXME
+
+    if ( bDouble ) {
+	iov->d = (double*)malloc( io->iChunkSize * sizeof(double) );
+	assert(iov->d!=NULL);
+	iov->s = NULL;
+	}
+    else {
+	iov->s = (float*)malloc( io->iChunkSize * sizeof(float) );
+	assert(iov->s!=NULL);
+	iov->d = NULL;
+	}
+    iov->nBuffered = 0;
+    iov->iOffset = 0;
+    iov->iIndex = 0;
+
+    return iov;
+    }
+
+
+
+
 IOHDF5V ioHDFF5NewVector( IOHDF5 io, const char *name, int bDouble ) {
     IOHDF5V iov;
 
