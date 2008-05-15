@@ -181,6 +181,8 @@ enum pst_service {
     PST_SELDSTALL,
     PST_SELSRCMASS,
     PST_SELDSTMASS,
+    PST_SELSRCBOX,
+    PST_SELDSTBOX,
     PST_SELSRCSPHERE,
     PST_SELDSTSPHERE,
     PST_SELSRCCYLINDER,
@@ -1066,6 +1068,18 @@ struct outSelMass {
     };
 void pstSelSrcMass(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 void pstSelDstMass(PST pst,void *vin,int nIn,void *vout,int *pnOut);
+
+struct inSelBox {
+    double dCenter[3];
+    double dSize[3];
+    int setIfTrue;
+    int clearIfFalse;
+    };
+struct outSelBox {
+    uint64_t nSelected;
+    };
+void pstSelSrcBox(PST pst,void *vin,int nIn,void *vout,int *pnOut);
+void pstSelDstBox(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 
 /* PST_SELSRCSPHERE */
 struct inSelSphere {

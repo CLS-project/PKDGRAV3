@@ -457,6 +457,12 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_SELDSTMASS,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstSelDstMass,
 		  sizeof(struct inSelMass), sizeof(struct outSelMass));
+    mdlAddService(mdl,PST_SELSRCBOX,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstSelSrcBox,
+		  sizeof(struct inSelBox), sizeof(struct outSelBox));
+    mdlAddService(mdl,PST_SELDSTBOX,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstSelDstBox,
+		  sizeof(struct inSelBox), sizeof(struct outSelBox));
     mdlAddService(mdl,PST_SELSRCSPHERE,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstSelSrcSphere,
 		  sizeof(struct inSelSphere), sizeof(struct outSelSphere));
@@ -4051,6 +4057,52 @@ void pstSelDstMass(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	}
     if (pnOut) *pnOut = sizeof(struct outSelMass);
     }
+
+void pstSelSrcBox(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl = pst->plcl;
+    struct inSelBox *in = vin;
+    struct outSelBox *out = vout;
+    struct outSelBox outUpper;
+    int nOut;
+
+    assert( nIn==sizeof(struct inSelBox) );
+    if (pst->nLeaves > 1) {
+	mdlReqService(pst->mdl,pst->idUpper,PST_SELSRCBOX,vin,nIn);
+	pstSelSrcBox(pst->pstLower,vin,nIn,vout,pnOut);
+	mdlGetReply(pst->mdl,pst->idUpper,&outUpper,&nOut);
+	assert(nOut == sizeof(struct outSelBox));
+	out->nSelected += outUpper.nSelected;
+	}
+    else {
+	out->nSelected = pkdSelSrcBox(
+	    plcl->pkd,in->dCenter,in->dSize,in->setIfTrue,in->clearIfFalse);
+	}
+    if (pnOut) *pnOut = sizeof(struct outSelBox);
+    }
+void pstSelDstBox(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl = pst->plcl;
+    struct inSelBox *in = vin;
+    struct outSelBox *out = vout;
+    struct outSelBox outUpper;
+    int nOut;
+
+    assert( nIn==sizeof(struct inSelBox) );
+    if (pst->nLeaves > 1) {
+	mdlReqService(pst->mdl,pst->idUpper,PST_SELDSTBOX,vin,nIn);
+	pstSelDstBox(pst->pstLower,vin,nIn,vout,pnOut);
+	mdlGetReply(pst->mdl,pst->idUpper,&outUpper,&nOut);
+	assert(nOut == sizeof(struct outSelBox));
+	out->nSelected += outUpper.nSelected;
+	}
+    else {
+	out->nSelected = pkdSelDstBox(
+	    plcl->pkd,in->dCenter,in->dSize,in->setIfTrue,in->clearIfFalse);
+	}
+    if (pnOut) *pnOut = sizeof(struct outSelBox);
+    }
+
+
+
 void pstSelSrcSphere(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct inSelSphere *in = vin;

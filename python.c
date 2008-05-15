@@ -65,6 +65,33 @@ ppy_msr_SelDstMass(PyObject *self, PyObject *args, PyObject *kwobj) {
 }
 
 static PyObject *
+ppy_msr_SelSrcBox(PyObject *self, PyObject *args) {
+    double dCenter[3], dSize[3];
+    int setIfTrue=1, clearIfFalse=1;
+    uint64_t nSelected;
+
+    if ( !PyArg_ParseTuple(
+	     args, "(ddd)(ddd)|ii:SelSrcBox",
+	     dCenter+0, dCenter+1, dCenter+2, dSize+0, dSize+1, dSize+2, &setIfTrue, &clearIfFalse) )
+	return NULL;
+    nSelected = msrSelSrcBox(ppy_msr,dCenter,dSize,setIfTrue,clearIfFalse);
+    return Py_BuildValue("L", nSelected);
+}
+static PyObject *
+ppy_msr_SelDstBox(PyObject *self, PyObject *args) {
+    double dCenter[3], dSize[3];
+    int setIfTrue=1, clearIfFalse=1;
+    uint64_t nSelected;
+
+    if ( !PyArg_ParseTuple(
+	     args, "(ddd)(ddd)|ii:SelDstBox",
+	     dCenter+0, dCenter+1, dCenter+2, dSize+0, dSize+1, dSize+2, &setIfTrue, &clearIfFalse) )
+	return NULL;
+    nSelected = msrSelDstBox(ppy_msr,dCenter,dSize,setIfTrue,clearIfFalse);
+    return Py_BuildValue("L", nSelected);
+}
+
+static PyObject *
 ppy_msr_SelSrcSphere(PyObject *self, PyObject *args) {
     double r[3], dRadius;
     int setIfTrue=1, clearIfFalse=1;
@@ -298,8 +325,6 @@ ppy_msr_Write(PyObject *self, PyObject *args, PyObject *kwobj) {
 }
 
 
-
-
 static PyMethodDef ppy_msr_methods[] = {
 /*
     {"SelSrc", ppy_msr_SelSrc, METH_VARARGS,
@@ -313,6 +338,10 @@ static PyMethodDef ppy_msr_methods[] = {
      "Selects source particles with a specific mass range."},
     {"SelDstMass", (PyCFunction)ppy_msr_SelDstMass, METH_VARARGS|METH_KEYWORDS,
      "Selects destination particles with a specific mass range."},
+    {"SelSrcBox", ppy_msr_SelSrcBox, METH_VARARGS,
+     "Selects source particles inside a given box."},
+    {"SelDstBox", ppy_msr_SelDstBox, METH_VARARGS,
+     "Selects destination particles inside a given box."},
     {"SelSrcSphere", ppy_msr_SelSrcSphere, METH_VARARGS,
      "Selects source particles inside a given sphere."},
     {"SelDstSphere", ppy_msr_SelDstSphere, METH_VARARGS,

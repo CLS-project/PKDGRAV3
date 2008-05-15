@@ -536,11 +536,14 @@ void pkdReadHDF5(PKD pkd, IOHDF5 io, double dvFac,
     int i, j;
     IOHDF5V ioPot;
 
-//    ioPot  = ioHDFF5NewVector( io, "potential",IOHDF5_SINGLE );
+    /*
+    ** Best effort.  If the vector is not part of the file, NULL is returned.
+    */
+    ioPot = ioHDFF5OpenVector( io, "potential",IOHDF5_SINGLE );
 
 
     ioHDF5SeekDark( io, nStart );
-//    ioHDF5SeekVector( ioPot, nStart );
+    if ( ioPot ) ioHDF5SeekVector( ioPot, nStart );
 
     /*
     ** General initialization.
@@ -585,15 +588,12 @@ void pkdReadHDF5(PKD pkd, IOHDF5 io, double dvFac,
 	for (j=0;j<3;++j) p->v[j] *= dvFac;
 	p->iClass = getClass(pkd,fMass,fSoft);
 	p->iOrder = iOrder;
-//	p->fPot = ioHDF5GetVector(ioPot);
-	p->fPot = 0.0;
+	if ( ioPot ) p->fPot = ioHDF5GetVector(ioPot);
+	else p->fPot = 0.0;
 	}
 
     pkd->nLocal += nLocal;
     pkd->nActive += nLocal;
-
-
-
     }
 #endif
 
@@ -3567,6 +3567,44 @@ int pkdSelDstMass(PKD pkd,double dMinMass, double dMaxMass, int setIfTrue, int c
 	p = &pkd->pStore[i];
 	m = pkdMass(pkd,p);
 	p->bDstActive = isSelected((m >= dMinMass && m <=dMaxMass),setIfTrue,clearIfFalse,p->bDstActive);
+	if ( p->bDstActive ) nSelected++;
+	}
+    return nSelected;
+    }
+
+int pkdSelSrcBox(PKD pkd,double *dCenter, double *dSize, int setIfTrue, int clearIfFalse ) {
+    PARTICLE *p;
+    int i,j,n,nSelected;
+    int predicate;
+
+    n = pkdLocal(pkd);
+    nSelected = 0;
+    for( i=0; i<n; i++ ) {
+	p = &pkd->pStore[i];
+	predicate = 1;
+	for(j=0; j<3; j++ ) {
+	    double dx = dCenter[j] - p->r[j];
+	    predicate = predicate && dx < dSize[j] && dx >= -dSize[j];
+	    }
+	p->bSrcActive = isSelected(predicate,setIfTrue,clearIfFalse,p->bSrcActive);
+	if ( p->bSrcActive ) nSelected++;
+	}
+    return nSelected;
+    }
+
+int pkdSelDstBox(PKD pkd,double *dCenter, double *dSize, int setIfTrue, int clearIfFalse ) {
+    PARTICLE *p;
+    int i,j,n,nSelected;
+    int predicate;
+
+    n = pkdLocal(pkd);
+    nSelected = 0;
+    for( i=0; i<n; i++ ) {
+	p = &pkd->pStore[i];
+	predicate = 1;
+	for(j=0; j<3; j++ )
+	    predicate = predicate && fabs(dCenter[j] - p->r[j]) <= dSize[j];
+	p->bDstActive = isSelected(predicate,setIfTrue,clearIfFalse,p->bDstActive);
 	if ( p->bDstActive ) nSelected++;
 	}
     return nSelected;

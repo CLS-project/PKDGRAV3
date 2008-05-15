@@ -5309,6 +5309,40 @@ uint64_t msrSelDstMass(MSR msr,double dMinMass,double dMaxMass,int setIfTrue,int
     return out.nSelected;
     }
 
+uint64_t msrSelSrcBox(MSR msr,double *dCenter, double *dSize,int setIfTrue,int clearIfFalse) {
+    struct inSelBox in;
+    struct outSelBox out;
+    int nOut;
+
+    in.dCenter[0] = dCenter[0];
+    in.dCenter[1] = dCenter[1];
+    in.dCenter[2] = dCenter[2];
+    in.dSize[0] = dSize[0];
+    in.dSize[1] = dSize[1];
+    in.dSize[2] = dSize[2];
+    in.setIfTrue = setIfTrue;
+    in.clearIfFalse = clearIfFalse;
+    pstSelSrcBox(msr->pst, &in, sizeof(in), &out, &nOut);
+    return out.nSelected;
+    }
+uint64_t msrSelDstBox(MSR msr,double *dCenter, double *dSize,int setIfTrue,int clearIfFalse) {
+    struct inSelBox in;
+    struct outSelBox out;
+    int nOut;
+
+    in.dCenter[0] = dCenter[0];
+    in.dCenter[1] = dCenter[1];
+    in.dCenter[2] = dCenter[2];
+    in.dSize[0] = dSize[0];
+    in.dSize[1] = dSize[1];
+    in.dSize[2] = dSize[2];
+    in.setIfTrue = setIfTrue;
+    in.clearIfFalse = clearIfFalse;
+    pstSelDstBox(msr->pst, &in, sizeof(in), &out, &nOut);
+    return out.nSelected;
+    }
+
+
 uint64_t msrSelSrcSphere(MSR msr,double *r, double dRadius,int setIfTrue,int clearIfFalse) {
     struct inSelSphere in;
     struct outSelSphere out;
