@@ -5,50 +5,6 @@
 #include <math.h>
 #include "pkd.h"
 
-double illinois(double (*func)(double,void *),void *ctx,double r,double s,double xacc,int *pnIter) {
-    const int maxIter = 100;
-    double t,fr,fs,ft,phis,phir,gamma;
-    int i;
-
-    fr = func(r,ctx);
-    fs = func(s,ctx);
-    assert(fr*fs < 0);
-    t = (s*fr - r*fs)/(fr - fs);
-    for (i=0;i < maxIter && fabs(t-s) > xacc;++i) {
-	ft = func(t,ctx);
-	if (ft*fs < 0) {
-	    /*
-	    ** Unmodified step.
-	    */
-	    r = s;
-	    s = t;
-	    fr = fs;
-	    fs = ft;
-	}
-	else {
-	    /*
-	    ** Modified step to make sure we do not retain the 
-	    ** endpoint r indefinitely.
-	    */
-#if 1
-	    phis = ft/fs;
-	    phir = ft/fr;
-	    gamma = 1 - (phis/(1-phir));  /* method 3 */
-	    if (gamma < 0) gamma = 0.5;
-#else
-	    gamma = 0.5;    /* illinois */
-#endif
-	    fr *= gamma;
-	    s = t;
-	    fs = ft;
-	}
-	t = (s*fr - r*fs)/(fr - fs);
-    }
-    *pnIter = i;
-    return(t);
-}
-
-
 static void combProfileBins(void *b1, void *b2) {
     PROFILEBIN * pBin1 = (PROFILEBIN *)b1;
     PROFILEBIN * pBin2 = (PROFILEBIN *)b2;
@@ -73,7 +29,7 @@ static void initProfileBins(void *b) {
 ** reference point.  If a periodic boundary is in effect then the smallest
 ** possible distance is returned.
 */
-double pkdGetDistance(PKD pkd,PARTICLE *p, double *dCenter ) {
+double pkdGetDistance2(PKD pkd,PARTICLE *p, double *dCenter ) {
     double d2;
     double dx,dx2;
     int j;
@@ -111,7 +67,7 @@ int pkdShellCount(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
     for (i=0;i<n;++i) {
 	p = &pkd->pStore[i];
 	if (pkdIsSrcActive(p,uRungLo,uRungHi)) {
-	    d2 = pkdGetDistance(pkd,p,dCenter);
+	    d2 = pkdGetDistance2(pkd,p,dCenter);
 	    if ( d2>=r2min || d2 < r2max )
 		iCount ++;
 	    }
@@ -123,14 +79,17 @@ int pkdShellCount(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
 static int cmpRadiusLite(const void *pva,const void *pvb) {
     PLITE *pa = (PLITE *)pva;
     PLITE *pb = (PLITE *)pvb;
-    return(pa->r[0] - pb->r[0]);
+    double d = pa->r[0] - pb->r[0];
+    if ( d > 0 ) return 1;
+    else if ( d < 0 ) return -1;
+    return 0;
     }
 
 /*
 ** Use the pLite structure to calculate the distance to each particle
-** Sort by Radius when finished.
+** Sort by distance when finished.
 */
-void pkdCalcRadius(PKD pkd, double *dCenter) {
+void pkdCalcDistance(PKD pkd, double *dCenter) {
     PLITE *pl = pkd->pLite;
     int i;
 
@@ -139,7 +98,7 @@ void pkdCalcRadius(PKD pkd, double *dCenter) {
     */
     for (i=0;i<pkd->nLocal;++i) {
 	PARTICLE *p = &pkd->pStore[i];
-	pl[i].r[0] = pkdGetDistance(pkd,p,dCenter);
+	pl[i].r[0] = pkdGetDistance2(pkd,p,dCenter);
 	pl[i].r[1] = pkdMass(pkd,p);
 	pl[i].r[2] = 0.0;
 	pl[i].i = i;
@@ -148,53 +107,51 @@ void pkdCalcRadius(PKD pkd, double *dCenter) {
     }
 
 /*
+** Count the number of elements that are interior to r2
+*/
+uint_fast32_t pkdCountDistance(PKD pkd, double r2 ) {
+    PLITE *pl = pkd->pLite;
+    uint64_t lo,hi,i;
+
+    lo = 0;
+    hi = pkd->nLocal;
+    while( lo<hi ) {
+	i = (lo+hi) / 2;
+	if ( pl[i].r[0] > r2 ) hi = i;
+	else lo = i+1;
+	}
+    return hi;
+    }
+
+/*
 ** Density Profile
 */
 void pkdProfile(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
-		double *dCenter, double dMinRadius, double dMaxRadius,
-		int nBins) {
-    PARTICLE *p;
-    double d2, r2, r, r1;
-    double deltaR;
-    double dLogMinRadius, dLogMaxRadius, dLogRadius;
-    int i,n,iBin;
+		double *dCenter, double *dRadii, int nBins) {
+    PLITE *pl = pkd->pLite;
+    double r;
+    int i,iBin,lo,hi;
     PROFILEBIN *pBin;
 
-    assert(dMinRadius>0.0);
-    assert(dMaxRadius>dMinRadius);
-
-    assert( pkd->profileBins == NULL );
+    if ( pkd->profileBins != NULL ) mdlFree(pkd->mdl,pkd->profileBins);
     pkd->profileBins = mdlMalloc(pkd->mdl,nBins*sizeof(PROFILEBIN));
-
-    r2 = dMaxRadius*dMaxRadius;
-    dLogMinRadius = log10(dMinRadius);
-    dLogMaxRadius = log10(dMaxRadius);
-    dLogRadius = dLogMaxRadius - dLogMinRadius;
-    deltaR = dLogRadius / nBins;
+    assert( pkd->profileBins != NULL );
     r = 0.0;
-    for( iBin=0; iBin<nBins; iBin++ ) {
+
+    lo = 0;
+    for(iBin=0;iBin<nBins;iBin++) {
+	assert( dRadii[iBin] > r );
 	pkd->profileBins[iBin].nParticles = 0;
 	pkd->profileBins[iBin].dMassInBin = 0.0;
-	r1 = pow(10,dLogMinRadius+deltaR*(iBin+1));
-	pkd->profileBins[iBin].dRadius = r1;
-	pkd->profileBins[iBin].dVolume = (4.0/3.0) * M_PI * (r1*r1*r1 - r*r*r);
-	r = r1;
-	}
-
-    n = pkdLocal(pkd);
-    for (i=0;i<n;++i) {
-	p = &pkd->pStore[i];
-	if (pkdIsSrcActive(p,uRungLo,uRungHi)) {
-	    d2 = pkdGetDistance(pkd,p,dCenter);
-	    if ( d2 < dMinRadius*dMinRadius ) d2 = dMinRadius*dMinRadius;
-	    if ( d2 < r2 ) {
-		iBin = (log10(sqrt(d2))-dLogMinRadius)/dLogRadius * nBins;
-		if ( iBin >= nBins ) iBin = nBins-1;
-		assert(iBin>=0);
-		pkd->profileBins[iBin].dMassInBin += pkdMass(pkd,p);
-		pkd->profileBins[iBin].nParticles++;
-		}
+	pkd->profileBins[iBin].dRadius = dRadii[iBin];
+	pkd->profileBins[iBin].dVolume = (4.0/3.0) * M_PI * (dRadii[iBin]*dRadii[iBin]*dRadii[iBin] - r*r*r);
+	hi = pkdCountDistance(pkd,dRadii[iBin]*dRadii[iBin]);
+	for(i=lo; i<hi; i++ ) {
+	    pkd->profileBins[iBin].dMassInBin += pl[i].r[1];
+	    pkd->profileBins[iBin].nParticles++;
 	    }
+	r = dRadii[iBin];
+	lo = hi;
 	}
 
     /* Combine the work from all processors */

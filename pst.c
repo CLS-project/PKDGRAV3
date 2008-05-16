@@ -480,8 +480,14 @@ void pstAddServices(PST pst,MDL mdl) {
 		  sizeof(struct inDeepestPot), sizeof(struct outDeepestPot));
     mdlAddService(mdl,PST_PROFILE,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstProfile,
-		  sizeof(struct inProfile), 0);
-    }
+		  sizeof(struct inProfile), 0); 
+    mdlAddService(mdl,PST_CALCDISTANCE,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstCalcDistance,
+		  sizeof(struct inCalcDistance), 0);
+    mdlAddService(mdl,PST_COUNTDISTANCE,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstCountDistance,
+		  sizeof(struct inCountDistance), sizeof(struct outCountDistance));
+   }
 
 void pstInitialize(PST *ppst,MDL mdl,LCL *plcl) {
     PST pst;
@@ -2589,8 +2595,8 @@ void pstBoundsWalk(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     int i,nThreads;
     uint32_t nActive,nContained;
 
-    mdlassert(pst->mdl,nIn == 3*nThreads*sizeof(struct inBoundsWalk));
     nThreads = mdlThreads(pst->mdl);
+    mdlassert(pst->mdl,nIn == 3*nThreads*sizeof(struct inBoundsWalk));
     if (pst->nLeaves > 1) {
 	mdlReqService(pst->mdl,pst->idUpper,PST_BOUNDSWALK,vin,nIn);
 	otmp = malloc(nThreads*sizeof(struct outBoundsWalk));
@@ -4222,8 +4228,6 @@ void pstDeepestPot(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 void pstProfile(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct inProfile *in = vin;
-    int i;
-
     assert( nIn==sizeof(struct inProfile) );
     if (pst->nLeaves > 1) {
 	mdlReqService(pst->mdl,pst->idUpper,PST_PROFILE,vin,nIn);
@@ -4232,8 +4236,44 @@ void pstProfile(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	}
     else {
 	pkdProfile(plcl->pkd,in->uRungLo,in->uRungHi,
-		   in->dCenter, in->dMinRadius, in->dMaxRadius,
-		   in->nBins);
+		   in->dCenter, in->dRadii, in->nBins);
 	}
     if (pnOut) *pnOut = 0;
+    }
+
+void pstCalcDistance(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl = pst->plcl;
+    struct inCalcDistance *in = vin;
+
+    assert( nIn==sizeof(struct inCalcDistance) );
+    if (pst->nLeaves > 1) {
+	mdlReqService(pst->mdl,pst->idUpper,PST_CALCDISTANCE,vin,nIn);
+	pstCalcDistance(pst->pstLower,vin,nIn,vout,pnOut);
+	mdlGetReply(pst->mdl,pst->idUpper,vout,pnOut);
+	}
+    else {
+	pkdCalcDistance(plcl->pkd,in->dCenter);
+	}
+    if (pnOut) *pnOut = 0;
+    }
+
+void pstCountDistance(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl = pst->plcl;
+    struct inCountDistance *in = vin;
+    struct outCountDistance *out = vout;
+    struct outCountDistance outUpper;
+    int nOut;
+
+    assert( nIn==sizeof(struct inCountDistance) );
+    if (pst->nLeaves > 1) {
+	mdlReqService(pst->mdl,pst->idUpper,PST_COUNTDISTANCE,vin,nIn);
+	pstCountDistance(pst->pstLower,vin,nIn,vout,pnOut);
+	mdlGetReply(pst->mdl,pst->idUpper,&outUpper,&nOut);
+	assert(nOut==sizeof(struct outCountDistance));
+	out->nCount += outUpper.nCount;
+	}
+    else {
+	out->nCount = pkdCountDistance(plcl->pkd,in->dRadius2);
+	}
+    if (pnOut) *pnOut = sizeof(struct outCountDistance);
     }

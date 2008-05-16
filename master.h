@@ -236,6 +236,8 @@ void msrSelSrcAll(MSR msr);
 void msrSelDstAll(MSR msr);
 uint64_t msrSelSrcMass(MSR msr,double dMinMass,double dMaxMass,int setIfTrue,int ClearIfFalse);
 uint64_t msrSelDstMass(MSR msr,double dMinMass,double dMaxMass,int setIfTrue,int ClearIfFalse);
+uint64_t msrSelSrcBox(MSR msr,double *dCenter, double *dSize,int setIfTrue,int clearIfFalse);
+uint64_t msrSelDstBox(MSR msr,double *dCenter, double *dSize,int setIfTrue,int clearIfFalse);
 uint64_t msrSelSrcSphere(MSR msr,double *r, double dRadius,int setIfTrue,int clearIfFalse);
 uint64_t msrSelDstSphere(MSR msr,double *r, double dRadius,int setIfTrue,int clearIfFalse);
 uint64_t msrSelSrcCylinder(MSR msr,double *dP1, double *dP2, double dRadius,
@@ -244,7 +246,7 @@ uint64_t msrSelDstCylinder(MSR msr,double *dP1, double *dP2, double dRadius,
 		      int setIfTrue, int clearIfFalse );
 
 void msrDeepestPot(MSR msr,double *r, float *fPot);
-PROFILEBIN *msrProfile(MSR msr, double *r, double dMinRadius, double dMaxRadius, int nBins );
+PROFILEBIN *msrProfile(MSR msr, double *r, double dMaxRadius, int nBins, int nAccuracy );
 void msrDeleteProfile(MSR msr);
 
 #endif

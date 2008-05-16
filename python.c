@@ -190,17 +190,18 @@ ppy_msr_DeepestPotential(PyObject *self, PyObject *args) {
 
 static PyObject *
 ppy_msr_Profile(PyObject *self, PyObject *args) {
-    double r[3], dMinR, dMaxR, dMassEncl, dRho;
-    int nBins, i;
+    double r[3], dMaxR, dMassEncl, dRho;
+    int nBins, nAccuracy, i;
     const PROFILEBIN *pBins;
     PyObject *List;
 
     nBins = 100;
+    nAccuracy = 2; /* +/- 2 particles per bin */
     if ( !PyArg_ParseTuple(
-	     args, "(ddd)dd|i:Profile",
-	     r+0, r+1, r+2, &dMinR, &dMaxR, &nBins ) )
+	     args, "(ddd)d|ii:Profile",
+	     r+0, r+1, r+2, &dMaxR, &nBins, &nAccuracy ) )
 	return NULL;
-    pBins = msrProfile(ppy_msr,r,dMinR,dMaxR,nBins);
+    pBins = msrProfile(ppy_msr,r,dMaxR,nBins,nAccuracy);
     List = PyList_New( nBins );
     dMassEncl = 0.0;
     for(i=0; i<nBins; i++ ) {

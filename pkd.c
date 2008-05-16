@@ -3526,14 +3526,12 @@ static inline int isSelected( int predicate, int setIfTrue, int clearIfFalse, in
     }
 
 int pkdSelSrcAll(PKD pkd) {
-    PARTICLE *p;
     int i;
     int n=pkdLocal(pkd);
     for( i=0; i<n; i++ ) pkd->pStore[i].bSrcActive = 1;
     return n;
     }
 int pkdSelDstAll(PKD pkd) {
-    PARTICLE *p;
     int i;
     int n=pkdLocal(pkd);
     for( i=0; i<n; i++ ) pkd->pStore[i].bDstActive = 1;

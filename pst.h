@@ -190,6 +190,8 @@ enum pst_service {
 
     PST_DEEPESTPOT,
     PST_PROFILE,
+    PST_CALCDISTANCE,
+    PST_COUNTDISTANCE,
     };
 
 void pstAddServices(PST,MDL);
@@ -1121,14 +1123,29 @@ struct outDeepestPot {
 void pstDeepestPot(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 
 /* PST_PROFILE */
+#define PST_MAX_PROFILE_BINS 1000
 struct inProfile {
     double dCenter[3];
-    double dMinRadius;
-    double dMaxRadius;
-    int nBins;
+    uint16_t nBins;
     uint8_t uRungLo;
     uint8_t uRungHi;
+    double dRadii[PST_MAX_PROFILE_BINS];
     };
 void pstProfile(PST pst,void *vin,int nIn,void *vout,int *pnOut);
+
+/* PST_CALCDISTANCE */
+struct inCalcDistance {
+    double dCenter[3];
+    };
+void pstCalcDistance(PST pst,void *vin,int nIn,void *vout,int *pnOut);
+
+/* PST_COUNTDISTANCE */
+struct inCountDistance {
+    double dRadius2;
+    };
+struct outCountDistance {
+    uint64_t nCount;
+    };
+void pstCountDistance(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 
 #endif

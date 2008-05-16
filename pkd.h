@@ -867,7 +867,7 @@ int pkdSelSrcMass(PKD pkd,double dMinMass, double dMaxMass, int setIfTrue, int c
 int pkdSelDstMass(PKD pkd,double dMinMass, double dMaxMass, int setIfTrue, int clearIfFalse );
 int pkdSelSrcBox(PKD pkd,double *dCenter, double *dSize, int setIfTrue, int clearIfFalse );
 int pkdSelDstBox(PKD pkd,double *dCenter, double *dSize, int setIfTrue, int clearIfFalse );
-int pkdSelDstSphere(PKD pkd,double *r, double dRadius, int setIfTrue, int clearIfFalse );
+int pkdSelSrcSphere(PKD pkd,double *r, double dRadius, int setIfTrue, int clearIfFalse );
 int pkdSelDstSphere(PKD pkd,double *r, double dRadius, int setIfTrue, int clearIfFalse );
 int pkdSelSrcCylinder(PKD pkd,double *dP1, double *dP2, double dRadius,
 		      int setIfTrue, int clearIfFalse );
@@ -876,6 +876,9 @@ int pkdSelDstCylinder(PKD pkd,double *dP1, double *dP2, double dRadius,
 int pkdDeepestPot(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
     double *r, float *fPot);
 void pkdProfile(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
-		double *dCenter, double dMinRadius, double dMaxRadius,
-		int nBins );
+		double *dCenter, double *dRadii, int nBins);
+
+void pkdCalcDistance(PKD pkd, double *dCenter);
+uint_fast32_t pkdCountDistance(PKD pkd, double r2 );
+
 #endif

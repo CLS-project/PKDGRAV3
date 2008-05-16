@@ -5433,9 +5433,89 @@ void msrDeleteProfile(MSR msr) {
     plcl->pkd->profileBins = NULL;
     }
 
-PROFILEBIN *msrProfile(MSR msr, double *r, double dMinRadius, double dMaxRadius, int nBins ) {
-    struct inProfile in;
+void msrCalcDistance(MSR msr,double *dCenter) {
+    struct inCalcDistance in;
+    int j;
+
+    for(j=0;j<3;j++) in.dCenter[j] = dCenter[j];
+    pstCalcDistance(msr->pst, &in, sizeof(in), NULL, NULL);
+    }
+
+uint64_t msrCountDistance(MSR msr,double dRadius2) {
+    struct inCountDistance in;
+    struct outCountDistance out;
+    int nOut;
+    in.dRadius2 = dRadius2;
+    pstCountDistance(msr->pst, &in, sizeof(in), &out, &nOut);
+    assert( nOut == sizeof(out) );
+    return out.nCount;
+    }
+
+static double illinois(double (*func)(double,void *),void *ctx,double r,double s,double xacc,double yacc,int *pnIter) {
+    const int maxIter = 100;
+    double t,fr,fs,ft,phis,phir,gamma;
     int i;
+
+    fr = func(r,ctx);
+    fs = func(s,ctx);
+    assert(fr*fs < 0);
+    t = (s*fr - r*fs)/(fr - fs);
+    for (i=0;i < maxIter && fabs(t-s) > xacc;++i) {
+	ft = func(t,ctx);
+	if ( fabs(ft) <= yacc ) break;
+	if (ft*fs < 0) {
+	    /*
+	    ** Unmodified step.
+	    */
+	    r = s;
+	    s = t;
+	    fr = fs;
+	    fs = ft;
+	}
+	else {
+	    /*
+	    ** Modified step to make sure we do not retain the 
+	    ** endpoint r indefinitely.
+	    */
+#if 1
+	    phis = ft/fs;
+	    phir = ft/fr;
+	    gamma = 1 - (phis/(1-phir));  /* method 3 */
+	    if (gamma < 0) gamma = 0.5;
+#else
+	    gamma = 0.5;    /* illinois */
+#endif
+	    fr *= gamma;
+	    s = t;
+	    fs = ft;
+	}
+	t = (s*fr - r*fs)/(fr - fs);
+    }
+    *pnIter = i;
+    return(t);
+}
+
+typedef struct {
+    double dCenter[3];
+    uint64_t nTotal;  /* Total number of particles in the range */
+    uint64_t nTarget; /* Target number of particles */
+    uint64_t nSelected;
+    MSR msr;
+    } PROFILECTX;
+
+static double countShells(double r,void *vctx) {
+    PROFILECTX *ctx = vctx;
+    ctx->nSelected = msrCountDistance(ctx->msr,r*r);
+    return 1.0*ctx->nSelected - 1.0*ctx->nTarget;
+    }
+
+PROFILEBIN *msrProfile(MSR msr, double *r, double dMaxRadius, int nBins, int nAccuracy ) {
+    PROFILECTX ctx;
+    int nIter;
+    struct inProfile *in;
+    int i, iBin;
+    double dRadius;
+    double dFrac;
     LCL *plcl;
     PST pst0;
 
@@ -5444,13 +5524,35 @@ PROFILEBIN *msrProfile(MSR msr, double *r, double dMinRadius, double dMaxRadius,
 	pst0 = pst0->pstLower;
     plcl = pst0->plcl;
 
-    for(i=0; i<3; i++) in.dCenter[i] = r[i];
-    in.dMinRadius = dMinRadius;
-    in.dMaxRadius = dMaxRadius;
-    in.nBins = nBins;
-    in.uRungLo = 0;
-    in.uRungHi = msrMaxRung(msr)-1;
-    pstProfile(msr->pst, &in, sizeof(in), NULL, NULL);
+    in = malloc(sizeof(struct inProfile));
+    assert(in!=NULL);
+
+    msrCalcDistance(msr,r);
+
+    /*
+    ** Invoke the root finder to determine where the radius of each bin should be located.
+    */
+    ctx.nTotal = msrSelSrcSphere(msr,r,dMaxRadius,1,1);
+    ctx.msr = msr;
+    for(i=0;i<3;i++) ctx.dCenter[i] = r[i];
+
+    assert( nBins>0);
+    dFrac = 1.0 / nBins;
+    dRadius = 0.0;
+    for( iBin=0; iBin<nBins-1; iBin++ ) {
+	ctx.nTarget = ctx.nTotal * dFrac * (iBin+1);
+	in->dRadii[iBin] = dRadius = illinois( countShells, &ctx, dRadius, dMaxRadius,
+					       0.0, 1.0*nAccuracy, &nIter );
+	}
+    in->dRadii[nBins-1] = dMaxRadius;
+
+    for(i=0; i<3; i++) in->dCenter[i] = r[i];
+    in->nBins = nBins;
+    in->uRungLo = 0;
+    in->uRungHi = msrMaxRung(msr)-1;
+    pstProfile(msr->pst, in, sizeof(struct inProfile), NULL, NULL);
+
+    free(in);
 
     return plcl->pkd->profileBins;
     }
