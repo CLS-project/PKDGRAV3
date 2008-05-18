@@ -452,18 +452,16 @@ void pstDistribRoot(PST,void *,int,void *,int *);
 /* PST_ENFORCEPERIODIC */
 void pstEnforcePeriodic(PST,void *,int,void *,int *);
 
-<<<<<<< pst.h
 /* PST_TREENUMSRCACTIVE */
 struct inTreeNumSrcActive {
     uint8_t uRungLo;
     uint8_t uRungHi;
-}
+};
 void pstTreeNumSrcActive(PST,void *,int,void *,int *);
 
 /* PST_BOUNDSWALK */
 struct inBoundsWalk {
     BND bnd;
-    uint16_t bDoThis;  /* is this element to be computed? */
     uint8_t uRungLo;
     uint8_t uRungHi;
 };
@@ -473,28 +471,6 @@ struct outBoundsWalk {
 };
 void pstBoundsWalk(PST,void *,int,void *,int *);
 
-=======
-/* PST_TREENUMSRCACTIVE */
-struct inTreeNumSrcActive {
-    uint8_t uRungLo;
-    uint8_t uRungHi;
-    };
-void pstTreeNumSrcActive(PST,void *,int,void *,int *);
-
-/* PST_BOUNDSWALK */
-struct inBoundsWalk {
-    BND bnd;
-    uint16_t bDoThis;  /* is this element to be computed? */
-    uint8_t uRungLo;
-    uint8_t uRungHi;
-};
-struct outBoundsWalk {
-    uint64_t nActive;
-    uint64_t nContained;
-};
-void pstBoundsWalk(PST,void *,int,void *,int *);
-
->>>>>>> 1.67
 /* PST_SMOOTH */
 struct inSmooth {
     int nSmooth;

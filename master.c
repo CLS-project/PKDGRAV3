@@ -2244,7 +2244,7 @@ void domaintreeids(DC *node,int *leafcount) {
 ** The initial value of plast can be an address of a pointer to DC, and if it 
 ** hasn't changed after this function, then this depth of the tree doesn't exist.
 */
-void domaindepthlink(DC *node,DC **plast,int depth) {
+int domaindepthlink(DC *node,DC **plast,int depth) {
     if (depth) {
 	if (node->nLeaves > 1) {
 	    assert(node->lower != NULL);
@@ -2259,17 +2259,16 @@ void domaindepthlink(DC *node,DC **plast,int depth) {
     }
 }
 
-
+#if 0
 void msrDomainDecomp2(MSR msr,uint8_t uRungLo,uint8_t uRungHi) {
     struct inTreeNumSrcActive inSActive;
-    int depth;
     
     /*
     ** Set the active counter for all cells of the already built tree.
     */    
     inSActive.uRungLo = uRungLo;
     inSActive.uRungHi = uRungHi;
-    pstTreeNumSrcActive(msr->pst,&inSActive,sizeof(inSActive),NULL,NULL);
+    pstTreeNumSrcActive(msr->pst,inSActive,sizeof(inSActive),NULL,NULL);
 
     /*
     ** Now start the process of sorting out all the bounds.
@@ -2277,12 +2276,11 @@ void msrDomainDecomp2(MSR msr,uint8_t uRungLo,uint8_t uRungHi) {
     ** calculated.
     */
     depth = 0;
-/*
     while (msr->aDepthLink[depth+1]) {
 	
     }
-*/
 }
+#endif
 
 void msrDomainDecomp(MSR msr,int iRung,int bGreater,int bSplitVA) {
     struct inDomainDecomp in;

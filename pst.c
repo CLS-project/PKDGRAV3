@@ -2570,7 +2570,6 @@ void pstEnforcePeriodic(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     }
 
 
-<<<<<<< pst.c
 void pstTreeNumSrcActive(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct inTreeNumSrcActive *in = vin;
@@ -2582,7 +2581,7 @@ void pstTreeNumSrcActive(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
 	}
     else {
-	pkdTreeNumSrcActive(plcl->pkd,in.uRungLo,in.uRungHi);
+	pkdTreeNumSrcActive(plcl->pkd,in->uRungLo,in->uRungHi);
 	}
     if (pnOut) *pnOut = 0;
     }
@@ -2622,71 +2621,6 @@ void pstBoundsWalk(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     }
 
 
-=======
-void pstTreeNumSrcActive(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
-    LCL *plcl = pst->plcl;
-    struct inTreeNumSrcActive *in = vin;
-
-    mdlassert(pst->mdl,nIn == sizeof(BND));
-    if (pst->nLeaves > 1) {
-	mdlReqService(pst->mdl,pst->idUpper,PST_TREENUMSRCACTIVE,vin,nIn);
-	pstTreeNumSrcActive(pst->pstLower,vin,nIn,NULL,NULL);
-	mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
-	}
-    else {
-	pkdTreeNumSrcActive(plcl->pkd,in->uRungLo,in->uRungHi);
-	}
-    if (pnOut) *pnOut = 0;
-    }
-
-
-void pstBoundsWalk(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
-    LCL *plcl = pst->plcl;
-    struct inBoundsWalk *in = vin;
-    struct outBoundsWalk *out = vout;
-    struct outBoundsWalk *otmp;
-    int i,nThreads;
-    uint32_t nActive,nContained;
-
-    nThreads = mdlThreads(pst->mdl);
-    mdlassert(pst->mdl,nIn == 3*nThreads*sizeof(struct inBoundsWalk));
-    if (pst->nLeaves > 1) {
-	mdlReqService(pst->mdl,pst->idUpper,PST_BOUNDSWALK,vin,nIn);
-	otmp = malloc(nThreads*sizeof(struct outBoundsWalk));
-	mdlassert(pst->mdl,otmp != NULL);
-	pstBoundsWalk(pst->pstLower,vin,nIn,otmp,NULL);
-	mdlGetReply(pst->mdl,pst->idUpper,out,NULL);
-	for (i=0;i<3*nThreads;++i) {
-	    if (in[i].bDoThis) {
-		out[i].nActive += otmp[i].nActive;
-		out[i].nContained += otmp[i].nContained;
-	    }
-	    else {
-		out[i].nActive = 0;
-		out[i].nContained = 0;
-	    }
-	}
-	free(otmp);
-	}
-    else {
-	for (i=0;i<3*nThreads;++i) {
-	    if (in[i].bDoThis) {
-		pkdBoundWalk(plcl->pkd,&in[i].bnd,in[i].uRungLo,in[i].uRungHi,&nActive,&nContained);
-		out[i].nActive = nActive;
-		out[i].nContained = nContained;
-	    }
-	    else {
-		out[i].nActive = 0;
-		out[i].nContained = 0;
-	    }
-	}
-
-	}
-    if (pnOut) *pnOut = 3*nThreads*sizeof(struct outBoundsWalk);
-    }
-
-
->>>>>>> 1.94
 #ifdef CHANGESOFT
 void pstPhysicalSoft(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
