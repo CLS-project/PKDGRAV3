@@ -4216,7 +4216,7 @@ void pstDeepestPot(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 void pstProfile(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct inProfile *in = vin;
-    assert( nIn==sizeof(struct inProfile) );
+    /*assert( nIn==sizeof(struct inProfile) );*/
     if (pst->nLeaves > 1) {
 	mdlReqService(pst->mdl,pst->idUpper,PST_PROFILE,vin,nIn);
 	pstProfile(pst->pstLower,vin,nIn,vout,pnOut);

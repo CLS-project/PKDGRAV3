@@ -189,25 +189,67 @@ ppy_msr_DeepestPotential(PyObject *self, PyObject *args) {
 }
 
 static PyObject *
-ppy_msr_Profile(PyObject *self, PyObject *args) {
-    double r[3], dMaxR, dMassEncl, dRho;
-    int nBins, nAccuracy, i;
+ppy_msr_LogProfile(PyObject *self, PyObject *args) {
+    double r[3], dMinR, dMaxR, dMassEncl, dRho, R0, R1;
+    int nBins, nAccuracy, nMinParticles, i;
     const PROFILEBIN *pBins;
     PyObject *List;
 
     nBins = 100;
     nAccuracy = 2; /* +/- 2 particles per bin */
     if ( !PyArg_ParseTuple(
-	     args, "(ddd)d|ii:Profile",
-	     r+0, r+1, r+2, &dMaxR, &nBins, &nAccuracy ) )
+	     args, "(ddd)dd|iii:LogProfile",
+	     r+0, r+1, r+2, &dMinR, &dMaxR, &nBins, &nAccuracy, &nMinParticles ) )
 	return NULL;
-    pBins = msrProfile(ppy_msr,r,dMaxR,nBins,nAccuracy);
+    pBins = msrLogProfile(ppy_msr,r,dMinR,dMaxR,nBins,nAccuracy,nMinParticles);
     List = PyList_New( nBins );
     dMassEncl = 0.0;
+    R0 = log10(pBins[0].dRadius);
     for(i=0; i<nBins; i++ ) {
 	dMassEncl += pBins[i].dMassInBin;
 	dRho = pBins[i].dMassInBin/pBins[i].dVolume;
-	PyList_SetItem(List,i,Py_BuildValue("(dLdd)",pBins[i].dRadius, pBins[i].nParticles, dRho, dMassEncl));
+	R1 = log10(pBins[i].dRadius);
+	PyList_SetItem(
+	    List,i,Py_BuildValue("(ddLdd)",
+				 pBins[i].dRadius,
+				 pow(10,0.5*(R1+R0)),
+				 pBins[i].nParticles, dRho, dMassEncl));
+	R0 = R1;
+	}
+    msrDeleteProfile(ppy_msr);
+    return List;
+}
+
+static PyObject *
+ppy_msr_Profile(PyObject *self, PyObject *args) {
+    double r[3], dMinR, dMaxR, dMassEncl, dRho;
+    int nBins, nPerBin, nAccuracy, i;
+    const PROFILEBIN *pBins;
+    PyObject *List;
+
+    nAccuracy = 2; /* +/- 2 particles per bin */
+    nBins = 200;
+    nPerBin = 0;
+    if ( !PyArg_ParseTuple(
+	     args, "(ddd)ddi|ii:Profile",
+	     r+0, r+1, r+2, &dMinR, &dMaxR, &nBins, &nPerBin, &nAccuracy ) )
+	return NULL;
+    msrProfile(ppy_msr,&pBins,&nBins,r,dMinR,dMaxR,nBins,nPerBin,nAccuracy);
+
+    List = PyList_New( nBins );
+    assert( List !=NULL );
+    dMassEncl = 0.0;
+
+    for(i=0; i<nBins; i++ ) {
+	PyObject *tuple;
+	dMassEncl += pBins[i].dMassInBin;
+	assert(pBins[i].dVolume>0.0);
+	dRho = pBins[i].dMassInBin/pBins[i].dVolume;
+	tuple = Py_BuildValue("(dLdd)",
+			      pBins[i].dRadius,
+			      pBins[i].nParticles, dRho, dMassEncl);
+	assert(tuple != NULL);
+	assert( PyList_SetItem(List,i,tuple) >= 0 );
 	}
     msrDeleteProfile(ppy_msr);
     return List;
@@ -351,12 +393,12 @@ static PyMethodDef ppy_msr_methods[] = {
      "Selects source particles inside a given cylinder."},
     {"SelDstCylinder", ppy_msr_SelDstCylinder, METH_VARARGS,
      "Selects destination particles inside a given cylinder."},
-
     {"DeepestPotential", ppy_msr_DeepestPotential, METH_NOARGS,
      "Finds the most bound particle (deepest potential)"},
+    {"LogProfile", ppy_msr_LogProfile, METH_VARARGS,
+     "Generate a logrithmic density profile"},
     {"Profile", ppy_msr_Profile, METH_VARARGS,
      "Generate a density profile"},
-
     {"Reorder", ppy_msr_Reorder, METH_NOARGS,
      "Reorders the particles by iOrder"},
     {"DomainDecomp", (PyCFunction)ppy_msr_DomainDecomp, METH_VARARGS|METH_KEYWORDS,

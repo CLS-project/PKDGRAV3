@@ -246,7 +246,12 @@ uint64_t msrSelDstCylinder(MSR msr,double *dP1, double *dP2, double dRadius,
 		      int setIfTrue, int clearIfFalse );
 
 void msrDeepestPot(MSR msr,double *r, float *fPot);
-PROFILEBIN *msrProfile(MSR msr, double *r, double dMaxRadius, int nBins, int nAccuracy );
+PROFILEBIN *msrLogProfile(MSR msr, double *r, double dMinRadius, double dMaxRadius,
+			  int nBins, int nAccuracy, int nMinParticles );
+void msrProfile(
+    MSR msr, const PROFILEBIN **pBins, int *pnBins,
+    double *r, double dMinRadius, double dMaxRadius,
+    int nBins, int nPerBin, int nAccuracy );
 void msrDeleteProfile(MSR msr);
 
 #endif

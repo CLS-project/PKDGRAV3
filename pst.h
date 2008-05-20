@@ -1122,10 +1122,10 @@ struct outDeepestPot {
 void pstDeepestPot(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 
 /* PST_PROFILE */
-#define PST_MAX_PROFILE_BINS 1000
+#define PST_MAX_PROFILE_BINS 1000000
 struct inProfile {
     double dCenter[3];
-    uint16_t nBins;
+    uint32_t nBins;
     uint8_t uRungLo;
     uint8_t uRungHi;
     double dRadii[PST_MAX_PROFILE_BINS];
