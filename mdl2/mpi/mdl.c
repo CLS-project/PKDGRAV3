@@ -1569,7 +1569,6 @@ void *mdlDoMiss(MDL mdl, int cid, int iIndex, int id, mdlkey_t iKey, int lock) {
     int idVic;
     int iVictim,*pi;
     char ach[80];
-    unsigned long iLineSize_64,iLineSize_8;
     CAHEAD *caFlsh;
     char *pszFlsh;
     MPI_Status status;
