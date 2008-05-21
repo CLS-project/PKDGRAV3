@@ -92,14 +92,13 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 #ifdef SOFTSQUARE
     double ptwoh2;
 #endif
-    int i,j,k,nN,nSP,na,nia,nSoft,nActive;
+    int i,j,k,nSP,na,nia,nSoft,nActive;
 
     /*
     ** dynamical time-stepping stuff
     */
     RHOLOCAL *rholocal;
-    nN = nPart+pkdn->pUpper-pkdn->pLower; /* total number of neighbouring particles (without particle itself) */
-    rholocal = malloc(nN*sizeof(RHOLOCAL));
+    rholocal = malloc(nPart*sizeof(RHOLOCAL));
     assert(rholocal != NULL);
     /*
     ** Now process the two interaction lists for each active particle.
@@ -223,30 +222,15 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 		rholocal[j].d2 = d2;
 		}
 	    /*
-	    ** Add bucket particles to the array rholocal as well!
-	    ** Not including yourself!!
-	    */
-	    k = nPart;
-	    for (j=pkdn->pLower;j<=pkdn->pUpper;++j) {
-		if (p[i].iOrder == p[j].iOrder) continue;
-		x = p[i].r[0] - p[j].r[0];
-		y = p[i].r[1] - p[j].r[1];
-		z = p[i].r[2] - p[j].r[2];
-		d2 = x*x + y*y + z*z;
-		rholocal[k].m = pkdMass(pkd,&p[j]);
-		rholocal[k].d2 = d2;
-		k += 1;
-		}
-	    /*
 	    ** Calculate local density only in the case of more than 1 neighbouring particle!
 	    */
-	    if (nN > 1) {
-		nSP = (nN < pkd->param.nPartRhoLoc)?nN:pkd->param.nPartRhoLoc;
-		HEAPrholocal(nN,nSP,rholocal);
-		dsmooth2 = rholocal[nN-nSP].d2;
+	    if (nPart > 1) {
+		nSP = (nPart < pkd->param.nPartRhoLoc)?nPart:pkd->param.nPartRhoLoc;
+		HEAPrholocal(nPart,nSP,rholocal);
+		dsmooth2 = rholocal[nPart-nSP].d2;
 		SQRT1(dsmooth2,dir);
 		dir *= dir;
-		for (j=(nN - nSP);j<nN;++j) {
+		for (j=(nPart - nSP);j<nPart;++j) {
 		    d2 = rholocal[j].d2*dir;
 		    d2 = (1-d2);
 		    rholoc += d2*rholocal[j].m;
