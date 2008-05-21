@@ -1345,119 +1345,6 @@ double getTime(MSR msr, double dExpansion, double *dvFac) {
     }
 
 #ifdef USE_HDF5
-#ifdef USE_MDL_IO
-static double _msrIORead(MSR msr, const char *achFilename, int iStep ) {
-    struct inStartLoad load;
-    struct inIOLoad in;
-    struct inPlanLoad inPlan;
-    struct outPlanLoad outPlan;
-    double dTime, dvFac;
-    int nPlan;
-    char *p1, *p2;
-    int n, i;
-    total_t N;
-
-    /* Load the files into the I/O processors */
-    strcpy( load.achInName, achFilename );
-    p1 = strstr( load.achInName, "&N" );
-    if ( p1 ) {
-	p2 = strstr( achFilename, "&N" );
-	assert( p2 != NULL );
-	n = p1 - load.achInName;
-	strcpy( p1, msrOutName(msr) );
-	strcat( p1, p2+2 );
-	}
-    p1 = strstr( load.achInName, "&S" );
-    if ( p1 ) {
-	p2 = strstr( achFilename, "&S" );
-	assert( p2 != NULL );
-	n = p1 - load.achInName;
-	sprintf( p1, "%05d", iStep );
-	strcat( p1+5, p2+2 );
-	}
-
-    /* First we ask the I/O processors to see how many files we have, and how
-       many particles there are in each file. The number of files can be
-       different from the number of I/O processors (if, for example, the run
-       was started with a different number of processors) */
-    strcpy(inPlan.achInName,load.achInName);
-    mdlSetComm(msr->mdl,1);
-    mdlReqService(msr->mdl,0,IO_PLAN_LOAD,&inPlan,sizeof(inPlan));
-    mdlGetReply(msr->mdl,0,&outPlan,&nPlan);
-    mdlSetComm(msr->mdl,0);
-
-    /* Count the total number of particles */
-    load.nFiles = 0;
-    N = 0;
-    for ( i=0; i<MDL_MAX_IO_PROCS; i++ ) {
-	if ( outPlan.nCount[i] ) {
-	    assert( load.nFiles == i );
-	    load.nFiles++;
-	    }
-	load.nCount[i] = outPlan.nCount[i];
-	N += outPlan.nCount[i];
-	}
-
-    msr->nDark = N;
-    msr->nGas  = 0;
-    msr->nStar = 0;
-    msr->N = msr->nDark+msr->nGas+msr->nStar;
-    msr->nMaxOrder = msr->N;
-    msr->nMaxOrderGas = msr->nGas;
-    msr->nMaxOrderDark = msr->nGas + msr->nDark;
-
-    dTime = getTime(msr,outPlan.dExpansion,&dvFac);
-    msr->dEcosmo = outPlan.dEcosmo;
-    msr->dTimeOld = outPlan.dTimeOld;
-    msr->dUOld = outPlan.dUOld;
-    if (msr->param.bVStart)
-	printf("Reading file...\nN:%"PRIu64" nDark:%"PRIu64" nGas:%"PRIu64" nStar:%"PRIu64"\n",msr->N,
-	       msr->nDark,msr->nGas,msr->nStar);
-
-    /* Fire up the load process.  The I/O processors will enter start an
-     mdlSend() eventually (after loading the data). */
-    mdlSetComm(msr->mdl,1);
-    mdlReqService(msr->mdl,0,IO_START_LOAD,&load,sizeof(load));
-    mdlSetComm(msr->mdl,0);
-
-    in.nDark = msr->nDark;
-    in.nGas = msr->nGas;
-    in.nStar = msr->nStar;
-    in.dvFac = dvFac;
-    in.fExtraStore = msr->param.dExtraStore;
-    /*
-    ** Provide the period.
-    */
-    in.fPeriod[0] = msr->param.dxPeriod;
-    in.fPeriod[1] = msr->param.dyPeriod;
-    in.fPeriod[2] = msr->param.dzPeriod;
-    in.nBucket = msr->param.nBucket;
-
-    pstIOLoad( msr->pst, &in, sizeof(in), NULL, NULL );
-
-    mdlSetComm(msr->mdl,1);
-    mdlGetReply(msr->mdl,0,NULL,NULL);
-    mdlSetComm(msr->mdl,0);
-
-    msrprintf(msr,"Input file has been successfully read.\n");
-
-    /*
-    ** Now read in the output points, passing the initial time.
-    ** We do this only if nSteps is not equal to zero.
-    */
-    if (msrSteps(msr) > 0) msrReadOuts(msr,dTime);
-    /*
-    ** Set up the output counter.
-    */
-    for (msr->iOut=0;msr->iOut<msr->nOuts;++msr->iOut) {
-	if (dTime < msr->pdOutTime[msr->iOut]) break;
-	}
-
-
-    return dTime;
-    }
-#endif
-
 static double _msrReadHDF5(MSR msr, const char *achFilename) {
     hid_t fileID;
     IOHDF5 io;
@@ -5070,55 +4957,48 @@ double msrRead(MSR msr, int iStep) {
     /* Add Data Subpath for local and non-local names. */
     _msrMakePath(msr->param.achDataSubPath,msr->param.achInFile,achFilename);
 
-#ifdef USE_MDL_IO
-    /* If we have MDL I/O, and the MDL pattern is part of the file */
-    if ( mdlIO(msr->mdl) && strstr(achFilename,"&I")!=NULL ) {
-	dTime = _msrIORead(msr,achFilename, iStep);
-	}
+    read = fileScan(msr,achFilename,&dExpansion);
+    file = (struct inFile *)(read+1);
+
+    dTime = getTime(msr,dExpansion,&read->dvFac);
+
+
+    read->nNodeStart = 0;
+    read->nNodeEnd = msr->N - 1;
+    read->nBucket = msr->param.nBucket;
+    read->nDark = msr->nDark;
+    read->nGas = msr->nGas;
+    read->nStar = msr->nStar;
+    read->bStandard = msr->param.bStandard;
+    read->bDoublePos = msr->param.bDoublePos;
+    read->fExtraStore = msr->param.dExtraStore;
+    read->fPeriod[0] = msr->param.dxPeriod;
+    read->fPeriod[1] = msr->param.dyPeriod;
+    read->fPeriod[2] = msr->param.dzPeriod;
+    read->eFileType = PST_FILE_TYPE_TIPSY;
+#ifdef USE_HDF5
+    if ( H5Fis_hdf5(file[0].achFilename) )
+	read->eFileType = PST_FILE_TYPE_HDF5;
+#endif
+    if (msr->param.bParaRead)
+	pstReadFile(msr->pst,read,sizeof(struct inReadFile) + read->nFiles*sizeof(struct inFile),NULL,NULL);
     else {
-#endif
-	read = fileScan(msr,achFilename,&dExpansion);
-	file = (struct inFile *)(read+1);
-
-	dTime = getTime(msr,dExpansion,&read->dvFac);
-
-
-	read->nNodeStart = 0;
-	read->nNodeEnd = msr->N - 1;
-	read->nBucket = msr->param.nBucket;
-	read->nDark = msr->nDark;
-	read->nGas = msr->nGas;
-	read->nStar = msr->nStar;
-	read->bStandard = msr->param.bStandard;
-	read->bDoublePos = msr->param.bDoublePos;
-	read->fExtraStore = msr->param.dExtraStore;
-	read->fPeriod[0] = msr->param.dxPeriod;
-	read->fPeriod[1] = msr->param.dyPeriod;
-	read->fPeriod[2] = msr->param.dzPeriod;
-	read->eFileType = PST_FILE_TYPE_TIPSY;
 #ifdef USE_HDF5
-	if ( H5Fis_hdf5(file[0].achFilename) )
-	    read->eFileType = PST_FILE_TYPE_HDF5;
-#endif
-	if (msr->param.bParaRead)
-	    pstReadFile(msr->pst,read,sizeof(struct inReadFile) + read->nFiles*sizeof(struct inFile),NULL,NULL);
-	else {
-#ifdef USE_HDF5
-	    assert(read->nFiles==1);
-	    /* We can automatically detect if a given file is in HDF5 format */
-	    if ( H5Fis_hdf5(file[0].achFilename) ) {
-		dTime = _msrReadHDF5(msr,file[0].achFilename);
-		}
-	    else
-#endif
-		/* This is always executed if not using HDF5 */
-		{
-		dTime = _msrReadTipsy(msr,file[0].achFilename);
-		}
-#endif
+	assert(read->nFiles==1);
+	/* We can automatically detect if a given file is in HDF5 format */
+	if ( H5Fis_hdf5(file[0].achFilename) ) {
+	    dTime = _msrReadHDF5(msr,file[0].achFilename);
 	    }
-	msrSetClasses(msr);
-	msrprintf(msr,"Input file has been successfully read.\n");
+	else
+#endif
+	    /* This is always executed if not using HDF5 */
+	    {
+	    dTime = _msrReadTipsy(msr,file[0].achFilename);
+	    }
+#endif
+	}
+    msrSetClasses(msr);
+    msrprintf(msr,"Input file has been successfully read.\n");
 #ifdef USE_MDL_IO
     /* If we are using I/O processors, then preallocate space to save */
     if ( mdlIO(msr->mdl) ) {
@@ -5132,9 +5012,6 @@ double msrRead(MSR msr, int iStep) {
 #endif
     free(read);
 
-#ifdef USE_MDL_IO
-    }
-#endif
     /*
     ** If this is a non-periodic box, then we must precalculate the bounds.
     ** We throw away the result, but PKD will keep track for later.

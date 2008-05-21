@@ -141,7 +141,6 @@ enum pst_service {
     PST_CLEARTIMER,
     PST_FINDIOS,
     PST_STARTIO,
-    PST_IO_LOAD,
 #ifdef PLANETS
     PST_READSS,
     PST_WRITESS,

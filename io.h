@@ -44,8 +44,6 @@ enum io_services {
     IO_SRV_STOP,
     IO_SETUP,
     IO_START_SAVE,
-    IO_PLAN_LOAD,
-    IO_START_LOAD,
 
     /* These are requested by the I/O master */
     IO_ALLOCATE,
@@ -85,27 +83,6 @@ struct inStartRecv {
     char achOutName[PST_FILENAME_SIZE];
     };
 void ioStartRecv(IO,void *,int,void *,int *);
-
-/* IO_PLAN_LOAD */
-struct inPlanLoad {
-    char achInName[PST_FILENAME_SIZE];
-    };
-struct outPlanLoad {
-    double dExpansion;
-    double dEcosmo;
-    double dTimeOld;
-    double dUOld;
-    total_t nCount[MDL_MAX_IO_PROCS];
-    };
-void ioPlanLoad(IO,void *,int,void *,int *);
-
-/* IO_START_LOAD */
-struct inStartLoad {
-    char achInName[PST_FILENAME_SIZE];
-    int32_t nFiles;
-    total_t nCount[MDL_MAX_IO_PROCS];
-    };
-void ioStartLoad(IO,void *,int,void *,int *);
 
 /* IO_START_SEND */
 struct inStartSend {

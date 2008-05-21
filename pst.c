@@ -110,7 +110,6 @@
 **  InitRelaxation        -       -      |
 **  FindIOS               Yes     Yes    |
 **  StartIO               Yes     -      |
-**  IOLoad                Yes     -      |
 **  ReadSS                Yes     -      |
 **  WriteSS               Yes     -      |
 **  SunIndirect           Yes     Yes    |
@@ -368,9 +367,6 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_STARTIO,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstStartIO,
 		  sizeof(struct inStartIO),0);
-    mdlAddService(mdl,PST_IO_LOAD,pst,
-		  (void (*)(void *,void *,int,void *,int *)) pstIOLoad,
-		  sizeof(struct inIOLoad),0);
 #endif
 
 #ifdef PLANETS
@@ -2345,47 +2341,6 @@ static int pstUnpackIO(void *vctx, int *id, size_t nSize, void *vBuff) {
 		       ctx->iMinOrder, ctx->iMaxOrder,
 		       ctx->dvFac);
     }
-
-void pstIOLoad(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
-    LCL *plcl = pst->plcl;
-    struct inIOLoad *in = vin;
-    struct ctxIO ctx;
-    total_t N, iCount, i, nStore;
-
-    mdlassert(pst->mdl,nIn == sizeof(struct inIOLoad));
-
-    if (pst->nLeaves > 1) {
-	mdlReqService(pst->mdl,pst->idUpper,PST_IO_LOAD,vin,nIn);
-	pstIOLoad(pst->pstLower,vin,nIn,NULL,NULL);
-	mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
-	}
-    else {
-	N = in->nDark + in->nGas + in->nStar;
-	iCount = N/mdlThreads(pst->mdl);
-	i = mdlSelf(pst->mdl);
-
-	ctx.iIndex = 0;
-	ctx.iMinOrder = i * iCount;
-	ctx.iMaxOrder = (i+1) * iCount;
-	if ( i+1 == mdlThreads(pst->mdl) )
-	    ctx.iMaxOrder = N;
-	ctx.dvFac = in->dvFac;
-	iCount = ctx.iMaxOrder - ctx.iMinOrder;
-
-	nStore = iCount + (int)ceil(iCount*in->fExtraStore);
-	pkdInitialize(&plcl->pkd,pst->mdl,nStore,in->nBucket,in->fPeriod,
-		      in->nDark,in->nGas,in->nStar);
-	ctx.pkd = plcl->pkd;
-
-	pkdIOInitialize(plcl->pkd,iCount);
-
-	/* Receive from (optionally) each I/O processor */
-	mdlSetComm(pst->mdl,1);
-	mdlRecv(pst->mdl,-1,pstUnpackIO,&ctx);
-	mdlSetComm(pst->mdl,0);
-	}
-    }
-
 
 void pstStartIO(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
