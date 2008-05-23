@@ -71,6 +71,13 @@ typedef uint_fast64_t total_t; /* Count of particles globally (total number) */
 
 #define MAX_TIMERS		10
 
+/*
+** Memory models.  Each is a bit mask that indicates that additional fields should be
+** added to the particle structure.
+*/
+#define PKD_MODEL_GROUPS   (1<<0)  /* Group profiling */
+#define PKD_MODEL_VELOCITY (1<<0)  /* Velocity Required */
+
 
 /*
 ** This constant is used to limit the size of a cell.
@@ -118,10 +125,12 @@ typedef struct particle {
     float aPRIVATE[3];
     float fPotPRIVATE;
     /*-----Simulating------------*/
-    double v[3];
+    /* Now a memory model */
+    /*double vPRIVATE[3];*/
     /*-----Group-Finding---------*/
-    int pGroup;
-    int pBin;
+    /* Now a memory model */
+    /*int pGroup;*/
+    /*int pBin;*/
 
 #ifdef RELAXATION
     FLOAT fRelax;
@@ -539,6 +548,7 @@ typedef struct pkdContext {
     KDN *kdNodes;
     int iParticleSize;
     PARTICLE *pStorePRIVATE;
+    PARTICLE *pTempPRIVATE;
     PARTCLASS *pClass;
     int nClasses;
     int nMaxBucketActive;
@@ -548,6 +558,7 @@ typedef struct pkdContext {
     /*
     ** Advanced memory models
     */
+    int oVelocity;
     int oGroup;
     int oBin;
 
@@ -668,19 +679,29 @@ static inline PARTICLE *pkdParticle( PKD pkd, int i ) {
     PARTICLE *p = (PARTICLE *)(v + pkd->iParticleSize*i);
     return p;
     }
+static inline void pkdSaveParticle(PKD pkd, PARTICLE *a) {
+    memcpy(pkd->pTempPRIVATE,a,pkdParticleSize(pkd));
+    }
+static inline void pkdLoadParticle(PKD pkd, PARTICLE *a) {
+    memcpy(a,pkd->pTempPRIVATE,pkdParticleSize(pkd));
+    }
 static inline void pkdCopyParticle(PKD pkd, PARTICLE *a, PARTICLE *b) {
-    *a = *b;
+    memcpy(a,b,pkdParticleSize(pkd));
     }
 static inline void pkdSwapParticle(PKD pkd, PARTICLE *a, PARTICLE *b) {
-    PARTICLE t;
-    t = *a;
-    *a = *b;
-    *b = t;
+    pkdSaveParticle(pkd,a);
+    pkdCopyParticle(pkd,a,b);
+    pkdLoadParticle(pkd,b);
     }
 
-static inline uint32_t *pkdInt32( PARTICLE *p, int iOffset ) {
+static inline double *pkdDouble( PARTICLE *p, int iOffset ) {
     char *v = (char *)p;
-    return (uint32_t *)(v + iOffset);
+    return (double *)(v + iOffset);
+    }
+
+static inline int32_t *pkdInt32( PARTICLE *p, int iOffset ) {
+    char *v = (char *)p;
+    return (int32_t *)(v + iOffset);
     }
 
 /* Here is the new way of getting mass and softening */
@@ -692,6 +713,9 @@ static inline FLOAT pkdSoft( PKD pkd, PARTICLE *p ) {
     }
 static inline FLOAT pkdSoft0( PKD pkd, PARTICLE *p ) {
     return pkd->pClass[p->iClass].fSoft0;
+    }
+static inline double *pkdVel( PKD pkd, PARTICLE *p ) {
+    return pkdDouble(p,pkd->oVelocity);
     }
 static inline float *pkdAccel( PKD pkd, PARTICLE *p ) {
     return p->aPRIVATE;
@@ -735,7 +759,7 @@ double pkdGetWallClockTimer(PKD,int);
 void pkdClearTimer(PKD,int);
 void pkdStartTimer(PKD,int);
 void pkdStopTimer(PKD,int);
-void pkdInitialize(PKD *,MDL,int,int,FLOAT *,uint64_t,uint64_t,uint64_t);
+void pkdInitialize(PKD *,MDL,int,int,FLOAT *,uint64_t,uint64_t,uint64_t,uint64_t);
 void pkdFinish(PKD);
 void pkdReadTipsy(PKD pkd,char *pszFileName, uint64_t nStart,int nLocal,
 		  int bStandard,double dvFac,int bDoublePos,int bNoHeader);

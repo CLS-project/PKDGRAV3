@@ -212,6 +212,7 @@ struct inReadTipsy {
     uint64_t nDark;
     uint64_t nGas;
     uint64_t nStar;
+    uint64_t mMemoryModel;
     int nBucket;
     float fExtraStore;
     FLOAT fPeriod[3];
@@ -244,6 +245,7 @@ struct inReadFile {
     uint64_t nDark;      /* Total Dark */
     uint64_t nGas;       /* Total Gas */
     uint64_t nStar;      /* Total Star */
+    uint64_t mMemoryModel;
     double fPeriod[3];
     double dvFac;
     float fExtraStore;

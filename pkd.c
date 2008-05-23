@@ -134,7 +134,7 @@ void pkdStopTimer(PKD pkd,int iTimer) {
 static int pkdParticleAddDouble(PKD pkd,int n) {
     int iOffset = pkd->iParticleSize;
     mdlassert( pkd->mdl, pkd->pStorePRIVATE == NULL );
-    mdlassert( pkd->mdl, iOffset & (sizeof(double)-1) == 0 );
+    mdlassert( pkd->mdl, (iOffset & (sizeof(double)-1)) == 0 );
     pkd->iParticleSize += sizeof(double) * n;
     return iOffset;
     }
@@ -143,7 +143,7 @@ static int pkdParticleAddDouble(PKD pkd,int n) {
 static int pkdParticleAddFloat(PKD pkd,int n) {
     int iOffset = pkd->iParticleSize;
     mdlassert( pkd->mdl, pkd->pStorePRIVATE == NULL );
-    mdlassert( pkd->mdl, iOffset & (sizeof(float)-1) == 0 );
+    mdlassert( pkd->mdl, (iOffset & (sizeof(float)-1)) == 0 );
     pkd->iParticleSize += sizeof(float) * n;
     return iOffset;
     }
@@ -152,8 +152,8 @@ static int pkdParticleAddFloat(PKD pkd,int n) {
 static int pkdParticleAddInt64(PKD pkd,int n) {
     int iOffset = pkd->iParticleSize;
     mdlassert( pkd->mdl, pkd->pStorePRIVATE == NULL );
-    mdlassert( pkd->mdl, iOffset & (sizeof(uint64_t)-1) == 0 );
-    pkd->iParticleSize += sizeof(uint64_t) * n;
+    mdlassert( pkd->mdl, (iOffset & (sizeof(int64_t)-1)) == 0 );
+    pkd->iParticleSize += sizeof(int64_t) * n;
     return iOffset;
     }
 
@@ -161,13 +161,14 @@ static int pkdParticleAddInt64(PKD pkd,int n) {
 static int pkdParticleAddInt32(PKD pkd,int n) {
     int iOffset = pkd->iParticleSize;
     mdlassert( pkd->mdl, pkd->pStorePRIVATE == NULL );
-    mdlassert( pkd->mdl, iOffset & (sizeof(uint32_t)-1) == 0 );
-    pkd->iParticleSize += sizeof(uint32_t) * n;
+    mdlassert( pkd->mdl, (iOffset & (sizeof(int32_t)-1)) == 0 );
+    pkd->iParticleSize += sizeof(int32_t) * n;
     return iOffset;
     }
 
 void pkdInitialize(PKD *ppkd,MDL mdl,int nStore,int nBucket,FLOAT *fPeriod,
-		   uint64_t nDark,uint64_t nGas,uint64_t nStar) {
+		   uint64_t nDark,uint64_t nGas,uint64_t nStar,
+		   uint64_t mMemoryModel) {
     PKD pkd;
     int j,ism;
 
@@ -201,11 +202,19 @@ void pkdInitialize(PKD *ppkd,MDL mdl,int nStore,int nBucket,FLOAT *fPeriod,
     */
     pkd->iParticleSize = sizeof(PARTICLE);
 
-    pkd->oGroup = 0; /* pkdParticleAddInt32(pkd,1);*/
-    pkd->oBin   = 0; /* pkdParticleAddInt32(pkd,1);*/
+    if ( mMemoryModel && PKD_MODEL_VELOCITY )
+	pkd->oVelocity = pkdParticleAddDouble(pkd,3);
+    else
+	pkd->oVelocity = 0;
 
-    mdlassert( mdl, pkd->iParticleSize == sizeof(PARTICLE) );
-
+    if ( mMemoryModel && PKD_MODEL_GROUPS ) {
+	pkd->oGroup = pkdParticleAddInt32(pkd,1);
+	pkd->oBin   = pkdParticleAddInt32(pkd,1);
+	}
+    else {
+	pkd->oGroup = 0;
+	pkd->oBin   = 0;
+	}
 
     /*
     ** Allocate the main particle store.
@@ -220,6 +229,8 @@ void pkdInitialize(PKD *ppkd,MDL mdl,int nStore,int nBucket,FLOAT *fPeriod,
     */
     pkd->pStorePRIVATE = mdlMalloc(pkd->mdl,(nStore+1)*pkdParticleSize(pkd));
     mdlassert(mdl,pkd->pStorePRIVATE != NULL);
+    pkd->pTempPRIVATE = malloc(pkdParticleSize(pkd));
+    mdlassert(mdl,pkd->pTempPRIVATE != NULL);
 
     /*
     ** We support up to 256 classes
@@ -529,6 +540,7 @@ void pkdReadHDF5(PKD pkd, IOHDF5 io, double dvFac,
     float *pPot;
     FLOAT dT1, dT2;
     FLOAT fSoft, fMass;
+    double *v, dummyv[3];
     uint64_t iOrder;
     int i, j;
     IOHDF5V ioPot;
@@ -564,19 +576,23 @@ void pkdReadHDF5(PKD pkd, IOHDF5 io, double dvFac,
     for (i=0;i<nLocal;++i) {
 	p = pkdParticle(pkd,pkd->nLocal+i);
 	pPot = pkdPot(pkd,p);
+
+	if (pkd->oVelocity) v = pkdVel(pkd,p);
+	else v = dummyv;
+
 	p->iOrder = nStart + i;
 
 	if (pkdIsDark(pkd,p)) {
-	    ioHDF5GetDark( io, &iOrder, p->r, p->v,
+	    ioHDF5GetDark( io, &iOrder, p->r, v,
 			   &fMass, &fSoft, pPot );
 	    }
 	else if (pkdIsGas(pkd,p)) {
-	    ioHDF5GetGas( io, &iOrder, p->r, p->v,
+	    ioHDF5GetGas( io, &iOrder, p->r, v,
 			  &fMass, &fSoft, pPot,
 			  &dT1, &dT2 );
 	    }
 	else if (pkdIsStar(pkd,p)) {
-	    ioHDF5GetStar( io, &iOrder, p->r, p->v,
+	    ioHDF5GetStar( io, &iOrder, p->r, v,
 			   &fMass, &fSoft, pPot,
 			   &dT1, &dT2 );
 	    }
@@ -584,7 +600,7 @@ void pkdReadHDF5(PKD pkd, IOHDF5 io, double dvFac,
 	if (fSoft < sqrt(2.0e-38)) { /* set minimum softening */
 	    fSoft = sqrt(2.0e-38);
 	    }
-	for (j=0;j<3;++j) p->v[j] *= dvFac;
+	for (j=0;j<3;++j) v[j] *= dvFac;
 	p->iClass = getClass(pkd,fMass,fSoft);
 	p->iOrder = iOrder;
 	if ( ioPot ) *pPot = ioHDF5GetVector(ioPot);
@@ -634,6 +650,7 @@ void pkdReadTipsy(PKD pkd,char *pszFileName, uint64_t nStart,int nLocal,
     int i,j;
     PARTICLE *p;
     float *a, *pPot;
+    double *v, dummyv[3];
     struct dark_particle dp;
     struct gas_particle gp;
     struct star_particle sp;
@@ -679,6 +696,8 @@ void pkdReadTipsy(PKD pkd,char *pszFileName, uint64_t nStart,int nLocal,
 	for (i=0;i<nLocal;++i) {
 	    p = pkdParticle(pkd,pkd->nLocal+i);
 	    pPot = pkdPot(pkd,p);
+	    if (pkd->oVelocity) v = pkdVel(pkd,p);
+	    else v = dummyv;
 	    p->iOrder = nStart + i;
 	    if (pkdIsDark(pkd,p)) {
 		xdr_float(&xdrs,&fTmp);
@@ -699,7 +718,7 @@ void pkdReadTipsy(PKD pkd,char *pszFileName, uint64_t nStart,int nLocal,
 		for (j=0;j<3;++j) {
 		    xdr_float(&xdrs,&fTmp);
 		    vTemp = fTmp;
-		    p->v[j] = dvFac*vTemp;
+		    v[j] = dvFac*vTemp;
 		    }
 		xdr_float(&xdrs,&fTmp);
 		fSoft = fTmp;
@@ -724,7 +743,7 @@ void pkdReadTipsy(PKD pkd,char *pszFileName, uint64_t nStart,int nLocal,
 		for (j=0;j<3;++j) {
 		    xdr_float(&xdrs,&fTmp);
 		    vTemp = fTmp;
-		    p->v[j] = dvFac*vTemp;
+		    v[j] = dvFac*vTemp;
 		    }
 
 		xdr_float(&xdrs,&fTmp);
@@ -753,7 +772,7 @@ void pkdReadTipsy(PKD pkd,char *pszFileName, uint64_t nStart,int nLocal,
 		for (j=0;j<3;++j) {
 		    xdr_float(&xdrs,&fTmp);
 		    vTemp = fTmp;
-		    p->v[j] = dvFac*vTemp;
+		    v[j] = dvFac*vTemp;
 		    }
 		xdr_float(&xdrs,&fTmp);
 		xdr_float(&xdrs,&fTmp);
@@ -771,12 +790,14 @@ void pkdReadTipsy(PKD pkd,char *pszFileName, uint64_t nStart,int nLocal,
 	for (i=0;i<nLocal;++i) {
 	    p = pkdParticle(pkd,pkd->nLocal+i);
 	    pPot = pkdPot(pkd,p);
+	    if (pkd->oVelocity) v = pkdVel(pkd,p);
+	    else v = dummyv;
 	    p->iOrder = nStart + i;
 	    if (pkdIsDark(pkd,p)) {
 		fread(&dp,sizeof(struct dark_particle),1,fp);
 		for (j=0;j<3;++j) {
 		    p->r[j] = dp.pos[j];
-		    p->v[j] = dvFac*dp.vel[j];
+		    v[j] = dvFac*dp.vel[j];
 		    }
 		fMass = dp.mass;
 		mass += dp.mass;
@@ -787,7 +808,7 @@ void pkdReadTipsy(PKD pkd,char *pszFileName, uint64_t nStart,int nLocal,
 		fread(&gp,sizeof(struct gas_particle),1,fp);
 		for (j=0;j<3;++j) {
 		    p->r[j] = gp.pos[j];
-		    p->v[j] = dvFac*gp.vel[j];
+		    v[j] = dvFac*gp.vel[j];
 		    }
 		fMass = gp.mass;
 		fSoft = gp.hsmooth;
@@ -797,7 +818,7 @@ void pkdReadTipsy(PKD pkd,char *pszFileName, uint64_t nStart,int nLocal,
 		fread(&sp,sizeof(struct star_particle),1,fp);
 		for (j=0;j<3;++j) {
 		    p->r[j] = sp.pos[j];
-		    p->v[j] = dvFac*sp.vel[j];
+		    v[j] = dvFac*sp.vel[j];
 		    }
 		fMass = sp.mass;
 		fSoft = sp.eps;
@@ -1469,10 +1490,14 @@ int pkdUnpackIO(PKD pkd,
 	PARTICLE *p = pkdParticle(pkd,I);
 	float *a = pkdAccel(pkd,p);
 	float *pPot = pkdPot(pkd,p);
+	double *v, dummyv[3];
+
+	if (pkd->oVelocity) v = pkdVel(pkd,p);
+	else v = dummyv;
 
 	for ( d=0; d<3; d++ ) {
 	    p->r[d]  = io[i].r[d];
-	    p->v[d]  = io[i].v[d] * dvFac; //FIXME: times??
+	    v[d]  = io[i].v[d] * dvFac; //FIXME: times??
 	    a[d]  = 0.0;
 	    }
 	p->iOrder = io[i].iOrder;
@@ -1501,14 +1526,20 @@ int pkdPackIO(PKD pkd,
 	      double dvFac ) {
     PARTICLE *p;
     float *pPot;
+    double *v, dummyv[3];
     local_t i;
     int nCopied, d;
+
+    dummyv[0] = dummyv[1] = dummyv[2] = 0.0;
 
     mdlassert(pkd->mdl,*iIndex<=pkd->nLocal);
 
     for ( i=*iIndex,nCopied=0; nCopied < nMax && i < pkd->nLocal; i++ ) {
 	p = pkdParticle(pkd,i);
 	pPot = pkdPot(pkd,p);
+	if (pkd->oVelocity) v = pkdVel(pkd,p);
+	else v = dummyv;
+
 	/* Not a particle of interest? */
 	if ( p->iOrder<iMinOrder || p->iOrder>=iMaxOrder)
 	    continue;
@@ -1518,7 +1549,7 @@ int pkdPackIO(PKD pkd,
 
 	for ( d=0; d<3; d++ ) {
 	    io[nCopied].r[d] = p->r[d];
-	    io[nCopied].v[d] = p->v[d] * dvFac;
+	    io[nCopied].v[d] = v[d] * dvFac;
 	    }
 	io[nCopied].iOrder= p->iOrder;
 	io[nCopied].fMass = pkdMass(pkd,p);
@@ -1536,16 +1567,21 @@ void pkdWriteHDF5(PKD pkd, IOHDF5 io, IOHDF5V ioDen, IOHDF5V ioPot, double dvFac
     PARTICLE *p;
     float *pPot;
     FLOAT v[3], fSoft, fMass;
+    double *pv, dummyv[3];
     int i;
+
+    dummyv[0] = dummyv[1] = dummyv[2] = 0.0;
 
     for (i=0;i<pkdLocal(pkd);++i) {
 	p = pkdParticle(pkd,i);
 	if ( !pkdIsSrcActive(p,0,MAX_RUNG) ) continue;
 	pPot = pkdPot(pkd,p);
+	if (pkd->oVelocity) pv = pkdVel(pkd,p);
+	else pv = dummyv;
 
-	v[0] = p->v[0] * dvFac;
-	v[1] = p->v[1] * dvFac;
-	v[2] = p->v[2] * dvFac;
+	v[0] = pv[0] * dvFac;
+	v[1] = pv[1] * dvFac;
+	v[2] = pv[2] * dvFac;
 	fSoft = pkdSoft0(pkd,p);
 	fMass = pkdMass(pkd,p);
 	if (pkdIsDark(pkd,p)) {
@@ -1578,6 +1614,7 @@ uint32_t pkdWriteTipsy(PKD pkd,char *pszFileName,uint64_t nStart,
 		       int bStandard,double dvFac,int bDoublePos) {
     PARTICLE *p;
     float *pPot;
+    double *v, dummyv[3];
     FILE *fp;
     int i,j;
     struct dark_particle dp;
@@ -1595,6 +1632,8 @@ uint32_t pkdWriteTipsy(PKD pkd,char *pszFileName,uint64_t nStart,
     mdlassert(pkd->mdl,fp != NULL);
     pkdSeek(pkd,fp,nStart,bStandard,bDoublePos,0);
 
+    dummyv[0] = dummyv[1] = dummyv[2] = 0.0;
+
     nCount = 0;
     if (bStandard) {
 	FLOAT vTemp;
@@ -1606,6 +1645,8 @@ uint32_t pkdWriteTipsy(PKD pkd,char *pszFileName,uint64_t nStart,
 	for (i=0;i<pkdLocal(pkd);++i) {
 	    p = pkdParticle(pkd,i);
 	    pPot = pkdPot(pkd,p);
+	    if (pkd->oVelocity) v = pkdVel(pkd,p);
+	    else v = dummyv;
 	    if ( !pkdIsSrcActive(p,0,MAX_RUNG) ) continue;
 	    nCount++;
 	    if (pkdIsDark(pkd,p)) {
@@ -1625,7 +1666,7 @@ uint32_t pkdWriteTipsy(PKD pkd,char *pszFileName,uint64_t nStart,
 			}
 		    }
 		for (j=0;j<3;++j) {
-		    vTemp = dvFac*p->v[j];
+		    vTemp = dvFac*v[j];
 		    fTmp = vTemp;
 		    IOCheck(xdr_float(&xdrs,&fTmp));
 		    }
@@ -1651,7 +1692,7 @@ uint32_t pkdWriteTipsy(PKD pkd,char *pszFileName,uint64_t nStart,
 			}
 		    }
 		for (j=0;j<3;++j) {
-		    vTemp = dvFac*p->v[j];
+		    vTemp = dvFac*v[j];
 		    fTmp = vTemp;
 		    IOCheck(xdr_float(&xdrs,&fTmp));
 		    }
@@ -1682,7 +1723,7 @@ uint32_t pkdWriteTipsy(PKD pkd,char *pszFileName,uint64_t nStart,
 			}
 		    }
 		for (j=0;j<3;++j) {
-		    vTemp = dvFac*p->v[j];
+		    vTemp = dvFac*v[j];
 		    fTmp = vTemp;
 		    IOCheck(xdr_float(&xdrs,&fTmp));
 		    }
@@ -1706,11 +1747,13 @@ uint32_t pkdWriteTipsy(PKD pkd,char *pszFileName,uint64_t nStart,
 	    p = pkdParticle(pkd,i);
 	    if ( !pkdIsSrcActive(p,0,MAX_RUNG) ) continue;
 	    pPot = pkdPot(pkd,p);
+	    if (pkd->oVelocity) v = pkdVel(pkd,p);
+	    else v = dummyv;
 	    nCount++;
 	    if (pkdIsDark(pkd,p)) {
 		for (j=0;j<3;++j) {
 		    dp.pos[j] = p->r[j];
-		    dp.vel[j] = dvFac*p->v[j];
+		    dp.vel[j] = dvFac*v[j];
 		    }
 		dp.mass = pkdMass(pkd,p);
 		dp.eps = pkdSoft0(pkd,p);
@@ -1720,7 +1763,7 @@ uint32_t pkdWriteTipsy(PKD pkd,char *pszFileName,uint64_t nStart,
 	    else if (pkdIsGas(pkd,p)) {
 		for (j=0;j<3;++j) {
 		    gp.pos[j] = p->r[j];
-		    gp.vel[j] = dvFac*p->v[j];
+		    gp.vel[j] = dvFac*v[j];
 		    }
 		gp.mass = pkdMass(pkd,p);
 		gp.hsmooth = pkdSoft0(pkd,p);
@@ -1733,7 +1776,7 @@ uint32_t pkdWriteTipsy(PKD pkd,char *pszFileName,uint64_t nStart,
 	    else if (pkdIsStar(pkd,p)) {
 		for (j=0;j<3;++j) {
 		    sp.pos[j] = p->r[j];
-		    sp.vel[j] = dvFac*p->v[j];
+		    sp.vel[j] = dvFac*v[j];
 		    }
 		sp.mass = pkdMass(pkd,p);
 		sp.eps = pkdSoft0(pkd,p);
@@ -1865,8 +1908,11 @@ void pkdCalcEandL(PKD pkd,double *T,double *U,double *Eth,double L[]) {
 
     PARTICLE *p;
     float *pPot;
+    double *v;
     FLOAT rx,ry,rz,vx,vy,vz,fMass;
     int i,n;
+
+    assert(pkd->oVelocity);
 
     n = pkdLocal(pkd);
     *T = 0.0;
@@ -1877,8 +1923,9 @@ void pkdCalcEandL(PKD pkd,double *T,double *U,double *Eth,double L[]) {
 	p = pkdParticle(pkd,i);
 	fMass = pkdMass(pkd,p);
 	pPot = pkdPot(pkd,p);
+	v = pkdVel(pkd,p);
 	rx = p->r[0]; ry = p->r[1]; rz = p->r[2];
-	vx = p->v[0]; vy = p->v[1]; vz = p->v[2];
+	vx = v[0]; vy = v[1]; vz = v[2];
 	*T += 0.5*fMass*(vx*vx + vy*vy + vz*vz);
 	*U += 0.5*fMass*(*pPot);
 	L[0] += fMass*(ry*vz - rz*vy);
@@ -1897,10 +1944,13 @@ void pkdCalcEandL(PKD pkd,double *T,double *U,double *Eth,double L[]) {
 */
 void pkdDrift(PKD pkd,double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi) {
     PARTICLE *p;
+    double *v;
     int i,j,n;
     double dMin[3],dMax[3];
 
     mdlDiag(pkd->mdl, "Into pkdDrift\n");
+    assert(pkd->oVelocity);
+
 #ifdef USE_BSC
     MPItrace_event(10000,4);
 #endif
@@ -1912,11 +1962,12 @@ void pkdDrift(PKD pkd,double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi
     for (i=0;i<n;++i) {
 	p = pkdParticle(pkd,i);
 	if (pkdIsDstActive(p,uRungLo,uRungHi)) {
+	    v = pkdVel(pkd,p);
 	    /*
 	    ** Update particle positions
 	    */
 	    for (j=0;j<3;++j) {
-		p->r[j] += dDelta*p->v[j];
+		p->r[j] += dDelta*v[j];
 		}
 	    pkdMinMax(p->r,dMin,dMax);
 	    }
@@ -2457,8 +2508,11 @@ void pkdKickKDKClose(PKD pkd,double dTime,double dDelta,uint8_t uRungLo,uint8_t 
 
 void pkdKick(PKD pkd,double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi) {
     PARTICLE *p;
+    double *v;
     float *a;
     int i,j,n;
+
+    assert(pkd->oVelocity);
 
     pkdClearTimer(pkd,1);
     pkdStartTimer(pkd,1);
@@ -2468,8 +2522,9 @@ void pkdKick(PKD pkd,double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi)
 	p = pkdParticle(pkd,i);
 	if (pkdIsDstActive(p,uRungLo,uRungHi)) {
 	    a = pkdAccel(pkd,p);
+	    v = pkdVel(pkd,p);
 	    for (j=0;j<3;++j) {
-		p->v[j] += a[j]*dDelta;
+		v[j] += a[j]*dDelta;
 		}
 	    }
 	}
@@ -2527,6 +2582,7 @@ void pkdAccelStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,
 		  int bDoGravity,int bEpsAcc,int bSqrtPhi,double dhMinOverSoft) {
     PARTICLE *p;
     float *a, *pPot;
+    double *v;
     int i;
     double vel;
     double acc;
@@ -2534,15 +2590,18 @@ void pkdAccelStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,
     double dT;
     FLOAT fSoft;
 
+    assert(pkd->oVelocity);
+
     for (i=0;i<pkdLocal(pkd);++i) {
 	p = pkdParticle(pkd,i);
 	if (pkdIsDstActive(p,uRungLo,uRungHi)) {
+	    v = pkdVel(pkd,p);
 	    a = pkdAccel(pkd,p);
 	    fSoft = pkdSoft(pkd,p);
 	    vel = 0;
 	    acc = 0;
 	    for (j=0;j<3;j++) {
-		vel += p->v[j]*p->v[j];
+		vel += v[j]*v[j];
 		acc += a[j]*a[j];
 		}
 	    mdlassert(pkd->mdl,vel >= 0);

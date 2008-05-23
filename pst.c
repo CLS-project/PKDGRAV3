@@ -620,7 +620,7 @@ void pstOneNodeReadInit(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	*/
 	nStore = nFileTotal + (int)ceil(nFileTotal*in->fExtraStore);
 	pkdInitialize(&plcl->pkd,pst->mdl,nStore,in->nBucket,in->fPeriod,
-		      in->nDark,in->nGas,in->nStar);
+		      in->nDark,in->nGas,in->nStar,in->mMemoryModel);
 	pout[pst->idSelf] = nFileTotal; /* Truncated: okay */
 	}
     if (pnOut) *pnOut = nThreads*sizeof(*pout);
@@ -661,7 +661,7 @@ void pstReadFile(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	nStore = nNodeTotal + (int)ceil(nNodeTotal*in->fExtraStore);
 
 	pkdInitialize(&plcl->pkd,pst->mdl,nStore,in->nBucket,in->fPeriod,
-		      in->nDark,in->nGas,in->nStar);
+		      in->nDark,in->nGas,in->nStar,in->mMemoryModel);
 
 	nFileStart = 0;
 	for( i=0; i<in->nFiles; i++,nFileStart=nFileEnd+1 ) {
@@ -738,7 +738,7 @@ void pstReadHDF5(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	*/
 	nStore = nFileTotal + (int)ceil(nFileTotal*in->fExtraStore);
 	pkdInitialize(&plcl->pkd,pst->mdl,nStore,in->nBucket,in->fPeriod,
-		      in->nDark,in->nGas,in->nStar);
+		      in->nDark,in->nGas,in->nStar,in->mMemoryModel);
 
 
 	fileID=H5Fopen(achInFile, H5F_ACC_RDONLY, H5P_DEFAULT);
@@ -795,7 +795,7 @@ void pstReadTipsy(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	*/
 	nStore = nFileTotal + (int)ceil(nFileTotal*in->fExtraStore);
 	pkdInitialize(&plcl->pkd,pst->mdl,nStore,in->nBucket,in->fPeriod,
-		      in->nDark,in->nGas,in->nStar);
+		      in->nDark,in->nGas,in->nStar,in->mMemoryModel);
 	pkdReadTipsy(plcl->pkd,achInFile,nFileStart,nFileTotal,in->bStandard,
 		     in->dvFac,in->bDoublePos,0);
 	}

@@ -1078,6 +1078,16 @@ void smReSmooth(SMX smx,SMF *smf) {
 FLOAT phase_dist(PKD pkd,double dvTau2,PARTICLE *pa,PARTICLE *pb,double H) {
     int j;
     FLOAT dx,dv,dx2,dv2;
+    uint32_t *paBin;
+    double *va, *vb;
+
+    assert(pkd->oGroup); /* Validate memory model */
+    assert(pkd->oBin); /* Validate memory model */
+    assert(pkd->oVelocity); /* Validate memory model */
+    paBin = pkdInt32(pa,pkd->oBin);
+
+    va = pkdVel(pkd,pa);
+    vb = pkdVel(pkd,pb);
 
     dx2=0.0;
     for (j=0;j<3;++j) {
@@ -1087,14 +1097,14 @@ FLOAT phase_dist(PKD pkd,double dvTau2,PARTICLE *pa,PARTICLE *pb,double H) {
     dx2 /= pa->fBall;   /* this is actually fBall2! */
     dv2 = 0.0;
     for (j=0;j<3;++j) {
-	dv = (pa->v[j] - pb->v[j]) + H*(pa->r[j] - pb->r[j]);
+	dv = (va[j] - vb[j]) + H*(pa->r[j] - pb->r[j]);
 	dv2 += dv*dv;
 	}
     if (dvTau2 > 0) {
 	dv2 /= dvTau2;
 	}
     else {
-	dv2 /= pkd->groupBin[pa->pBin].fvBall2;
+	dv2 /= pkd->groupBin[*paBin].fvBall2;
 	}
     return(dx2 + dv2);
     }
@@ -1121,6 +1131,10 @@ void smFof(SMX smx,int nFOFsDone,SMF *smf) {
     MDL mdl = smx->pkd->mdl;
     PARTICLE *p;
     float *pPot;
+    int32_t *pBin;
+    int32_t *pGroup;
+    int32_t *pPartGroup;
+    double *v;
     FOFRM* rm;
     FOFPG* protoGroup;
     FOFBIN *bin;
@@ -1134,6 +1148,10 @@ void smFof(SMX smx,int nFOFsDone,SMF *smf) {
     FLOAT r[3],l[3],relpos[3],lx,ly,lz,fBall,fBall2Max,rho,fvBall2;
     FLOAT fMass;
     int nTree,cnt,tmp;
+
+    assert(pkd->oGroup); /* Validate memory model */
+    assert(pkd->oBin); /* Validate memory model */
+    assert(pkd->oVelocity); /* Validate memory model */
 
     /* 
     ** By default we want no phase-space FOF on the first call to smFof (which is the
@@ -1198,20 +1216,22 @@ void smFof(SMX smx,int nFOFsDone,SMF *smf) {
 	for (pn=0;pn<nTree;pn++) {
 	    p = pkdParticle(pkd,pn);
 	    fMass = pkdMass(pkd,p);
-	    if ( p->pBin >= 0 ) {
+	    pBin = pkdInt32(p,pkd->oBin);
+	    pGroup = pkdInt32(p,pkd->oGroup);
+	    if ( *pBin >= 0 ) {
 		for (j = 0; j < 3; j++)	{
-		    relpos[j] = corrPos(pkd->groupBin[p->pBin].com[j], p->r[j], l[j])
-				- pkd->groupBin[p->pBin].com[j];
+		    relpos[j] = corrPos(pkd->groupBin[*pBin].com[j], p->r[j], l[j])
+				- pkd->groupBin[*pBin].com[j];
 		    }
-		rho = pkd->groupBin[p->pBin].fDensity;
+		rho = pkd->groupBin[*pBin].fDensity;
 		if (rho > p->fDensity) rho =  p->fDensity;
 		p->fBall = pow(fMass/(rho*smf->fContrast),2.0/3.0);
 
 		/* set velocity linking length in case of a phase space FOF */
-		pkd->groupBin[p->pBin].fvBall2 = 2.0*(pkd->groupBin[p->pBin].v2[0] +
-						    pkd->groupBin[p->pBin].v2[1] +
-						    pkd->groupBin[p->pBin].v2[2]);
-		pkd->groupBin[p->pBin].fvBall2 *= pow(smf->fContrast,-2.0/3.0);
+		pkd->groupBin[*pBin].fvBall2 = 2.0*(pkd->groupBin[*pBin].v2[0] +
+						    pkd->groupBin[*pBin].v2[1] +
+						    pkd->groupBin[*pBin].v2[2]);
+		pkd->groupBin[*pBin].fvBall2 *= pow(smf->fContrast,-2.0/3.0);
 
 		if (p->fBall > smf->dTau2*pow(fMass/ smf->fContrast,2.0/3.0) )
 		    p->fBall = smf->dTau2*pow(fMass/ smf->fContrast,2.0/3.0);
@@ -1220,15 +1240,17 @@ void smFof(SMX smx,int nFOFsDone,SMF *smf) {
 		p->fBall = 0.0;
 		}
 	    if (p->fBall > fBall2Max) fBall2Max = p->fBall;
-	    p->pGroup = 0;
+	    *pGroup = 0;
 	    }
 	}
     else {
 	for (pn=0;pn<nTree;pn++) {
 	    p = pkdParticle(pkd,pn);
 	    fMass = pkdMass(pkd,p);
-	    p->pBin = p->pGroup; /* temp. store old groupIDs for doing the links*/
-	    p->pGroup = 0;
+	    pBin = pkdInt32(p,pkd->oBin);
+	    pGroup = pkdInt32(p,pkd->oGroup);
+	    *pBin = *pGroup; /* temp. store old groupIDs for doing the links*/
+	    *pGroup = 0;
 	    if (smf->bTauAbs) {
 		p->fBall = smf->dTau2;
 		if (smf->dTau2 > pow(fMass/smf->Delta,0.6666) ) /*enforces at least virial density for linking*/
@@ -1251,7 +1273,9 @@ void smFof(SMX smx,int nFOFsDone,SMF *smf) {
     /* Starting FOF search now... */
     for (pn=0;pn<nTree;pn++) {
 	p = pkdParticle(pkd,pn);
-	if (p->pGroup ) continue;
+	pBin = pkdInt32(p,pkd->oBin);
+	pGroup = pkdInt32(p,pkd->oGroup);
+	if (*pGroup ) continue;
 	iGroup++;
 	assert(iGroup < iMaxGroups);
 	protoGroup[iGroup].nMembers = 0;
@@ -1260,7 +1284,7 @@ void smFof(SMX smx,int nFOFsDone,SMF *smf) {
 	/*
 	** Mark particle and add it to the do-fifo
 	*/
-	p->pGroup = iGroup;
+	*pGroup = iGroup;
 	Fifo[iTail] = pn; iTail++;
 	if (iTail == nFifo) iTail = 0;
 	while (iHead != iTail) {
@@ -1295,11 +1319,12 @@ void smFof(SMX smx,int nFOFsDone,SMF *smf) {
 	    for (pnn=0;pnn<nCnt;++pnn ) {
 		if (smx->nnbRemote[pnn] == 0) {
 		    /* Do not add particles that are already in a group*/
-		    if (smx->nnList[pnn].pPart->pGroup) continue;
+		    pPartGroup = pkdInt32(smx->nnList[pnn].pPart,pkd->oBin);
+		    if (*pPartGroup) continue;
 
 		    /* Check phase space distance */	    
 		    if (nFOFsDone > 0) {
-			if (pkd->groupBin[p->pBin].fvBall2 > 0.0) {
+			if (pkd->groupBin[*pBin].fvBall2 > 0.0) {
 			    if (phase_dist(pkd,-1.0,p,smx->nnList[pnn].pPart,smf->H) > 1.0) continue;
 			    }
 			}
@@ -1312,7 +1337,7 @@ void smFof(SMX smx,int nFOFsDone,SMF *smf) {
 		    /*
 		    **  Mark particle and add it to the do-fifo
 		    */
-		    smx->nnList[pnn].pPart->pGroup = iGroup;
+		    *pPartGroup = iGroup;
 		    Fifo[iTail] = smx->nnList[pnn].iIndex;iTail++;
 		    if (iTail == nFifo) iTail = 0;
 		    }
@@ -1320,7 +1345,7 @@ void smFof(SMX smx,int nFOFsDone,SMF *smf) {
 
 		    /* Make remote member linking symmetric by using smaller linking length if different: */
 		    if (nFOFsDone > 0) {
-			if (pkd->groupBin[p->pBin].fvBall2 > 0.0) { /* Check phase space distance */
+			if (pkd->groupBin[*pBin].fvBall2 > 0.0) { /* Check phase space distance */
 			    if (phase_dist(pkd,-1.0,p,smx->nnList[pnn].pPart,smf->H) > 1.0 ||
 				phase_dist(pkd,-1.0,smx->nnList[pnn].pPart,p,smf->H) > 1.0) continue;
 			    }
@@ -1371,10 +1396,11 @@ void smFof(SMX smx,int nFOFsDone,SMF *smf) {
     */
     for (pn=0; pn<nTree ; pn++) {
 	p = pkdParticle(pkd,pn);
-	if (p->pGroup >=0 && p->pGroup < iMaxGroups)
-	    ++(protoGroup[p->pGroup].nMembers);
+	pGroup = pkdInt32(p,pkd->oGroup);
+	if (*pGroup >=0 && *pGroup < iMaxGroups)
+	    ++(protoGroup[*pGroup].nMembers);
 	else
-	    printf("ERROR: idSelf=%i , p->pGroup=%i too large. iMaxGroups=%i \n",pkd->idSelf,p->pGroup,iMaxGroups);
+	    printf("ERROR: idSelf=%i , p->pGroup=%i too large. iMaxGroups=%i \n",pkd->idSelf,*pGroup,iMaxGroups);
 	}
     /*
     ** Create a remapping and give unique local Ids !
@@ -1398,7 +1424,8 @@ void smFof(SMX smx,int nFOFsDone,SMF *smf) {
     */
     for (pi=0; pi<nTree ; pi++) {
 	p = pkdParticle(pkd,pi);
-	p->pGroup = protoGroup[p->pGroup].iId;
+	pGroup = pkdInt32(p,pkd->oGroup);
+	*pGroup = protoGroup[*pGroup].iId;
 	}
     /*
     ** Allocate memory for group data
@@ -1447,18 +1474,20 @@ void smFof(SMX smx,int nFOFsDone,SMF *smf) {
     */
     for (pi=0;pi<nTree ;++pi) {
 	p = pkdParticle(pkd,pi);
+	pGroup = pkdInt32(p,pkd->oGroup);
 	fMass = pkdMass(pkd,p);
-	if (p->pGroup != tmp) {
-	    i = (p->pGroup - 1 - pkd->idSelf)/pkd->nThreads;
+	v = pkdVel(pkd,p);
+	if (*pGroup != tmp) {
+	    i = (*pGroup - 1 - pkd->idSelf)/pkd->nThreads;
 #if 0
 	    if (TYPETest(p,TYPE_GAS) )
 		pkd->groupData[i].fGasMass += fMass;
 	    if (TYPETest(p,TYPE_STAR) )
 		pkd->groupData[i].fStarMass += fMass;
 #endif
-	    pkd->groupData[i].fVelDisp += (p->v[0]*p->v[0]+p->v[1]*p->v[1]+p->v[2]*p->v[2])*fMass;
+	    pkd->groupData[i].fVelDisp += (v[0]*v[0]+v[1]*v[1]+v[2]*v[2])*fMass;
 	    for (j=0;j<3;j++) {
-		pkd->groupData[i].fVelSigma2[j] += ( p->v[j]*p->v[j] )*fMass;
+		pkd->groupData[i].fVelSigma2[j] += ( v[j]*v[j] )*fMass;
 		if (pkd->groupData[i].fMass > 0.0)
 		    r[j] = corrPos(pkd->groupData[i].r[j]/pkd->groupData[i].fMass, p->r[j], l[j]);
 		else  r[j] = p->r[j];
@@ -1466,7 +1495,7 @@ void smFof(SMX smx,int nFOFsDone,SMF *smf) {
 		pkd->groupData[i].fDeltaR2 +=  r[j]* r[j]*fMass;
 		if (r[j] > pkd->groupData[i].rmax[j]) pkd->groupData[i].rmax[j] = r[j];
 		if (r[j] < pkd->groupData[i].rmin[j]) pkd->groupData[i].rmin[j] = r[j];
-		pkd->groupData[i].v[j] += p->v[j]*fMass;
+		pkd->groupData[i].v[j] += v[j]*fMass;
 		}
 	    pkd->groupData[i].fMass += fMass;
 	    /* use absolute values of particle potential, sign of pot has changed in pkdgrav2*/
@@ -1528,6 +1557,8 @@ int smGroupMerge(SMF *smf,int bPeriodic) {
     MDL mdl = smf->pkd->mdl;
     PARTICLE *p;
     PARTICLE *pPart;
+    uint32_t *pBin, *pGroup;
+    uint32_t *pPartGroup;
     FLOAT l[3], r,min,max,corr;
     int pi,id,i,j,k,index,listSize, sgListSize, lsgListSize;
     int nLSubGroups,nSubGroups,nMyGroups;
@@ -1595,16 +1626,17 @@ int smGroupMerge(SMF *smf,int bPeriodic) {
 		if (iHead == nFifo) iHead = 0;
 		if (rm.iPid == pkd->idSelf) {
 		    pPart = pkdParticle(pkd,rm.iIndex);
+		    pPartGroup = pkdInt32(pPart,pkd->oGroup);
 		    /* Local: Have I got this group already? If RM not in a group, ignore it */
-		    if (pPart->pGroup == pkd->groupData[i].iLocalId || pPart->pGroup == tmp
-			    || pPart->pGroup == 0 ) goto NextRemoteMember;
+		    if (*pPartGroup == pkd->groupData[i].iLocalId || *pPartGroup == tmp
+			    || *pPartGroup == 0 ) goto NextRemoteMember;
 		    for (k=0; k < nLSubGroups ;k++) {
-			if (lSubGroup[k]->iLocalId == pPart->pGroup) {
+			if (lSubGroup[k]->iLocalId == *pPartGroup) {
 			    goto NextRemoteMember;
 			    }
 			}
 		    /* Local: New subgroup found, add to list: */
-		    sG = pkd->groupData + (pPart->pGroup - 1 - pkd->idSelf)/pkd->nThreads;
+		    sG = pkd->groupData + (*pPartGroup - 1 - pkd->idSelf)/pkd->nThreads;
 		    if (nLSubGroups >= lsgListSize) {
 			lsgListSize *= 1.5;
 			lSubGroup = (FOFGD **)realloc(lSubGroup, lsgListSize*sizeof(FOFGD *));
@@ -1626,18 +1658,19 @@ int smGroupMerge(SMF *smf,int bPeriodic) {
 		else {
 		    pPart = mdlAquire(mdl,CID_PARTICLE,rm.iIndex,rm.iPid);
 		    mdlRelease(mdl,CID_PARTICLE,pPart);
+		    pPartGroup = pkdInt32(pPart,pkd->oBin);
 		    /* Remote: ignore if not in a group */
-		    if (pPart->pGroup == tmp) {
+		    if (*pPartGroup == tmp) {
 			goto NextRemoteMember;
 			}
 		    /* Remote: Have I got this group already? */
 		    for (k=0; k < nSubGroups ;++k) {
-			if (pPart->pGroup == subGroup[k]->iLocalId) {
+			if (*pPartGroup == subGroup[k]->iLocalId) {
 			    goto NextRemoteMember;
 			    }
 			}
 		    /* Remote: New subgroup found, add to list: */
-		    index = (pPart->pGroup - 1 - rm.iPid)/pkd->nThreads ;
+		    index = (*pPartGroup - 1 - rm.iPid)/pkd->nThreads ;
 		    sG = mdlAquire(mdl,CID_GROUP,index,rm.iPid);
 		    if (nSubGroups >= sgListSize) {
 			sgListSize *= 1.5;
@@ -1785,13 +1818,15 @@ int smGroupMerge(SMF *smf,int bPeriodic) {
     dFile = fopen(filename,"a"); assert( dFile != NULL );
     for (pi=0;pi<nTree ;pi++) {
 	p = pkdParticle(pkd,pi);
-	index = (p->pGroup - 1 - pkd->idSelf)/pkd->nThreads ;
+	pBin = pkdInt32(p,pkd->oBin);
+	pGroup = pkdInt32(p,pkd->oGroup);
+	index = (*pGroup - 1 - pkd->idSelf)/pkd->nThreads ;
 	if (index >= 0 && index < pkd->nGroups )
-	    p->pGroup = pkd->groupData[index].iGlobalId;
-	else p->pGroup = 0;
+	    *pGroup = pkd->groupData[index].iGlobalId;
+	else *pGroup = 0;
 	fprintf(dFile, "%lu %.8g\n",  p->iOrder, p->fDensity);
-	if (p->pGroup) fprintf(pFile, "%lu %i\n",  p->iOrder, p->pGroup);
-	if (p->pBin && p->pGroup)fprintf(lFile, "%i %i\n", p->pGroup, p->pBin);
+	if (*pGroup) fprintf(pFile, "%lu %i\n",  p->iOrder, *pGroup);
+	if (*pBin && *pGroup)fprintf(lFile, "%i %i\n", *pGroup, *pBin);
 	}
     fclose(pFile);fclose(lFile);fclose(dFile);
 
@@ -1878,6 +1913,8 @@ int smGroupProfiles(SMX smx, SMF *smf,int bPeriodic, int nTotalGroups,int bLogBi
     PKD pkd = smf->pkd;
     MDL mdl = smf->pkd->mdl;
     PARTICLE *p;
+    uint32_t *pBin, *pPartBin;
+    double *v;
     double dx2;
     FLOAT l[3],L[3],r[3],relvel[3],com[3],V,Rprev,Vprev,Mprev,vcirc,vcircMax,rvcircMax,M,R,binFactor;
     FLOAT rvir,Mvir,Delta,fBall,lastbin,minSoft,rho,rhoinner,fMass,fSoft;
@@ -1889,6 +1926,10 @@ int smGroupProfiles(SMX smx, SMF *smf,int bPeriodic, int nTotalGroups,int bLogBi
     FOFBIN *bin;
 
     if (nTotalGroups==0) return 0;
+
+    assert(pkd->oGroup); /* Validate memory model */
+    assert(pkd->oBin); /* Validate memory model */
+    assert(pkd->oVelocity); /* Validate memory model */
 
     Delta = smf->Delta; /* density contrast over critial density within rvir  */
     binFactor = smf->binFactor; /* to assure that the bins always reach out to the tidal/virial radius */
@@ -2010,7 +2051,8 @@ int smGroupProfiles(SMX smx, SMF *smf,int bPeriodic, int nTotalGroups,int bLogBi
     */
     for (pn=0;pn<nTree;pn++) {
 	p = pkdParticle(pkd,pn);
-	p->pBin = -1;
+	pBin = pkdInt32(p,pkd->oBin);
+	*pBin = -1;
 	}
     for (index=0; index< nTotalGroups; index++) {
 	if (pkd->groupData[index].nRemoteMembers > 0) {
@@ -2049,10 +2091,11 @@ int smGroupProfiles(SMX smx, SMF *smf,int bPeriodic, int nTotalGroups,int bLogBi
 		}
 	    nCnt = smx->nnListSize;
 	    for (pnn=0;pnn<nCnt;++pnn ) {
+		v = pkdVel(pkd,smx->nnList[pnn].pPart);
 		dx2=0.0;
 		for (j = 0; j < 3; j++) {
 		    r[j] = corrPos(com[j], smx->nnList[pnn].pPart->r[j], l[j])	- com[j];
-		    relvel[j] = smx->nnList[pnn].pPart->v[j] - pkd->groupData[index].v[j];
+		    relvel[j] = v[j] - pkd->groupData[index].v[j];
 		    dx2 += pow(r[j],2);
 		    }
 		iBin = pkd->groupData[index].iFirstRm;
@@ -2074,7 +2117,8 @@ int smGroupProfiles(SMX smx, SMF *smf,int bPeriodic, int nTotalGroups,int bLogBi
 		pkd->groupBin[iBin+k].L[0] += fMass*(r[1]*relvel[2] - r[2]*relvel[1]);
 		pkd->groupBin[iBin+k].L[1] += fMass*(r[2]*relvel[0] - r[0]*relvel[2]);
 		pkd->groupBin[iBin+k].L[2] += fMass*(r[0]*relvel[1] - r[1]*relvel[0]);
-		smx->nnList[pnn].pPart->pBin = iBin+k;
+		pPartBin = pkdInt32(smx->nnList[pnn].pPart,pkd->oBin);
+		*pPartBin = iBin+k;
 	    nextParticle:
 		;
 		}

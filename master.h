@@ -83,7 +83,7 @@ int msrGetLock(MSR msr);
 int msrCheckForStop(MSR msr);
 void msrFinish(MSR);
 double msrGenerateIC(MSR);
-double msrRead(MSR, int iStep);
+double msrRead(MSR msr, int iStep);
 void msrWrite(MSR,const char *,double, int bCheckpoint );
 void msrSetSoft(MSR msr,double);
 void msrDomainDecomp(MSR,int iRung,int bGreater,int bSplitVA);

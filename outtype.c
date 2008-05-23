@@ -35,7 +35,8 @@ FLOAT ArrType(PKD pkd,PARTICLE *p,int iType) {
     case OUT_SOFT_ARRAY:
 	return pkdSoft(pkd,p);
     case OUT_GROUP_ARRAY:
-	return (p->pGroup);
+	assert(pkd->oGroup);
+	return *pkdInt32(p,pkd->oGroup);
 #ifdef RELAXATION
     case OUT_RELAX_ARRAY:
 	return (p->fRelax);
@@ -48,11 +49,13 @@ FLOAT ArrType(PKD pkd,PARTICLE *p,int iType) {
 
 FLOAT VecType(PKD pkd,PARTICLE *p,int iDim,int iType) {
     float *a;
+    double *v;
     switch (iType) {
     case OUT_POS_VECTOR:
 	return(p->r[iDim]);
     case OUT_VEL_VECTOR:
-	return(p->v[iDim]);
+	v = pkdVel(pkd,p);
+	return(v[iDim]);
     case OUT_ACCEL_VECTOR:
 	a = pkdAccel(pkd,p);
 	return(a[iDim]);

@@ -317,7 +317,7 @@ DonePart:
 ** do for now.
 */
 void ShuffleParticles(PKD pkd,int iStart) {
-    PARTICLE Temp, *p, *pNew, *pNewer;
+    PARTICLE *p, *pNew, *pNewer;
     int i,iNew,iNewer,iTemp;
 
     /*
@@ -327,7 +327,7 @@ void ShuffleParticles(PKD pkd,int iStart) {
     iTemp = iStart;
     while (1) {
 	p = pkdParticle(pkd,iTemp);
-	pkdCopyParticle(pkd,&Temp,p);
+	pkdSaveParticle(pkd,p);
 	i = iTemp;
 	iNew = pkd->pLite[i].i;
 	while (iNew != iTemp) {
@@ -353,7 +353,7 @@ void ShuffleParticles(PKD pkd,int iStart) {
 	    p = pkdParticle(pkd,i);
 	    iNew = pkd->pLite[i].i;
 	    }
-	pkdCopyParticle(pkd,p,&Temp);
+	pkdLoadParticle(pkd,p);
 	pkd->pLite[i].i = 0;
 	while (!pkd->pLite[iTemp].i) {
 	    if (++iTemp == pkd->nLocal) return;
@@ -369,8 +369,11 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp) {
     MOMR mom;
     FLOAT m,fMass,fSoft,x,y,z,vx,vy,vz,ax,ay,az,ft,d2,d2Max,dih2,b;
     float *a;
+    double *v;
     int pj,d,nDepth,ism;
     const int nMaxStackIncrease = 1;
+
+    assert(pkd->oVelocity); /* Validate memory model */
 
     nDepth = 1;
     while (1) {
@@ -423,14 +426,15 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp) {
 	p = pkdParticle(pkd,pj);
 	m = pkdMass(pkd,p);
 	fSoft = pkdSoft(pkd,p);
+	v = pkdVel(pkd,p);
 	fMass = m;
 	dih2 = m/(fSoft*fSoft);
 	x = m*p->r[0];
 	y = m*p->r[1];
 	z = m*p->r[2];
-	vx = m*p->v[0];
-	vy = m*p->v[1];
-	vz = m*p->v[2];
+	vx = m*v[0];
+	vy = m*v[1];
+	vz = m*v[2];
 	a = pkdAccel(pkd,p);
 	ax = m*a[0];
 	ay = m*a[1];
@@ -440,14 +444,15 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp) {
 	    p = pkdParticle(pkd,pj);
 	    m = pkdMass(pkd,p);
 	    fSoft = pkdSoft(pkd,p);
+	    v = pkdVel(pkd,p);
 	    fMass += m;
 	    dih2 += m/(fSoft*fSoft);
 	    x += m*p->r[0];
 	    y += m*p->r[1];
 	    z += m*p->r[2];
-	    vx += m*p->v[0];
-	    vy += m*p->v[1];
-	    vz += m*p->v[2];
+	    vx += m*v[0];
+	    vy += m*v[1];
+	    vz += m*v[2];
 	    a = pkdAccel(pkd,p);
 	    ax += m*a[0];
 	    ay += m*a[1];

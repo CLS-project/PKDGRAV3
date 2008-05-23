@@ -1345,7 +1345,7 @@ double getTime(MSR msr, double dExpansion, double *dvFac) {
     }
 
 #ifdef USE_HDF5
-static double _msrReadHDF5(MSR msr, const char *achFilename) {
+static double _msrReadHDF5(MSR msr, const char *achFilename, uint64_t mMemoryModel) {
     hid_t fileID;
     IOHDF5 io;
 
@@ -1397,6 +1397,7 @@ static double _msrReadHDF5(MSR msr, const char *achFilename) {
     in.nDark = msr->nDark;
     in.nGas = msr->nGas;
     in.nStar = msr->nStar;
+    in.mMemoryModel = mMemoryModel;
     in.bStandard = msr->param.bStandard;
     in.bDoublePos = msr->param.bDoublePos;
     strcpy(in.achOutName,msr->param.achOutName);
@@ -1479,7 +1480,7 @@ double msrGenerateIC(MSR msr) {
     }
 #endif
 
-static double _msrReadTipsy(MSR msr, const char *achFilename) {
+static double _msrReadTipsy(MSR msr, const char *achFilename, uint64_t mMemoryModel) {
     FILE *fp;
     struct dump h;
     double dExpansion;
@@ -1663,6 +1664,7 @@ static double _msrReadTipsy(MSR msr, const char *achFilename) {
     in.nDark = msr->nDark;
     in.nGas = msr->nGas;
     in.nStar = msr->nStar;
+    in.mMemoryModel = mMemoryModel;
     in.bStandard = msr->param.bStandard;
     in.bDoublePos = msr->param.bDoublePos;
     strcpy(in.achOutName,msr->param.achOutName);
@@ -4943,6 +4945,11 @@ double msrRead(MSR msr, int iStep) {
     struct inReadFile *read;
     struct inFile *file;
 
+    uint64_t mMemoryModel = 0;
+
+    if (msr->param.nFindGroups > 0) mMemoryModel |= PKD_MODEL_GROUPS|PKD_MODEL_VELOCITY;
+    if (msrDoGravity(msr)) mMemoryModel |= PKD_MODEL_VELOCITY;
+
 #ifdef PLANETS
     dTime = msrReadSS(msr); /* must use "Solar System" (SS) I/O format... */
 #else
@@ -4969,6 +4976,7 @@ double msrRead(MSR msr, int iStep) {
     read->nDark = msr->nDark;
     read->nGas = msr->nGas;
     read->nStar = msr->nStar;
+    read->mMemoryModel = mMemoryModel;
     read->bStandard = msr->param.bStandard;
     read->bDoublePos = msr->param.bDoublePos;
     read->fExtraStore = msr->param.dExtraStore;
@@ -4987,13 +4995,13 @@ double msrRead(MSR msr, int iStep) {
 	assert(read->nFiles==1);
 	/* We can automatically detect if a given file is in HDF5 format */
 	if ( H5Fis_hdf5(file[0].achFilename) ) {
-	    dTime = _msrReadHDF5(msr,file[0].achFilename);
+	    dTime = _msrReadHDF5(msr,file[0].achFilename,mMemoryModel);
 	    }
 	else
 #endif
 	    /* This is always executed if not using HDF5 */
 	    {
-	    dTime = _msrReadTipsy(msr,file[0].achFilename);
+	    dTime = _msrReadTipsy(msr,file[0].achFilename,mMemoryModel);
 	    }
 #endif
 	}
