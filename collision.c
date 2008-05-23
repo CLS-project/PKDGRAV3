@@ -28,7 +28,7 @@ pkdNextCollision(PKD pkd,double *dt,int *iOrder1,int *iOrder2) {
     int i;
 
     for (i=0;i<pkdLocal(pkd);i++) {
-	p = &pkd->pStore[i];
+	p = pkdParticle(pkd,i);
 	if (!p->iColflag) continue; /* skip particles wihout collision flag */
 	if (!pkdIsActive(pkd,p)) continue; /* skip over inactive particles */
 	if (p->iOrder < 0) continue; /* skip over deleted particles */
@@ -50,7 +50,7 @@ pkdGetColliderInfo(PKD pkd,int iOrder,COLLIDER *c) {
     int i,j,k;
 
     for (i=0;i<pkdLocal(pkd);i++) {
-	p = &pkd->pStore[i];
+	p = pkdParticle(pkd,i);
 	if (p->iOrder == iOrder) {
 	    c->id.iPid = pkd->idSelf;
 	    c->id.iOrder = iOrder;
@@ -566,19 +566,19 @@ pkdDoCollision(PKD pkd,double dt,const COLLIDER *pc1,const COLLIDER *pc2,
 	 ** tracking purposes.
 	 */
 	if (pMrg) {
-	    PutColliderInfo(&c[0],INT_MAX,&pkd->pStore[pMrg->iIndex],dt);
+	    PutColliderInfo(&c[0],INT_MAX,pkdParticle(pkd,pMrg->iIndex),dt);
 	    if (bDiagInfo) cOut[0].id = *pMrg; /* struct copy */
 	    }
 	if (pDel) {
-	    pkdDeleteParticle(pkd,&pkd->pStore[pDel->iIndex]);
+	    pkdDeleteParticle(pkd,pkdParticle(pkd,pDel->iIndex));
 	    if (bDiagInfo && !pMrg) cOut[0].id = *pOth; /* may need merger info */
 	    }
 	}
     else if (n == 2) { /* bounce or mass transfer */
 	if (c1.id.iPid == pkd->idSelf)
-	    PutColliderInfo(&c[0],c2.id.iOrder,&pkd->pStore[c1.id.iIndex],dt);
+	    PutColliderInfo(&c[0],c2.id.iOrder,pkdParticle(pkd,c1.id.iIndex),dt);
 	if (c2.id.iPid == pkd->idSelf) {
-	    PutColliderInfo(&c[1],c1.id.iOrder,&pkd->pStore[c2.id.iIndex],dt);
+	    PutColliderInfo(&c[1],c1.id.iOrder,pkdParticle(pkd,c2.id.iIndex),dt);
 	    }
 	}
     else { /* fragmentation */
@@ -799,39 +799,39 @@ void pkdCheckHelioDist(PKD pkd,double *dT,double *dSM) {
     PARTICLE *p;
 
     n = pkdLocal(pkd);
-    p = pkd->pStore;
     *dT = 0.0;
     *dSM = 0.0;
 
     for (i=0;i<n;++i) {
-	if (p[i].iOrder < 0) continue;
-	a2 = (p[i].r[0]*p[i].r[0] + p[i].r[1]*p[i].r[1] + p[i].r[2]*p[i].r[2]);
+	p = pkdParticle(pkd,i);
+	if (p->iOrder < 0) continue;
+	a2 = (p->r[0]*p->r[0] + p->r[1]*p->r[1] + p->r[2]*p->r[2]);
 
 	if (a2 < rsun || a2 > resc) {
 	    a2 = sqrt(a2);
 	    rsun = sqrt(rsun);
 	    resc = sqrt(resc);
 	    printf("particle %d is deleted with heliocentric distance %e",
-		   p[i].iOrder,a2);
+		   p->iOrder,a2);
 	    double moi;
 	    /* kinetic and rotational energy */
-	    moi = 0.4*p[i].fMass*p[i].fSoft*p[i].fSoft;
+	    moi = 0.4*p->fMass*p->fSoft*p->fSoft;
 	    for (k=0;k<3;k++) {
-		*dT -=  0.5*(p[i].fMass*(p[i].v[k]*p[i].v[k]) +
-			     moi*(p[i].w[k]*p[i].w[k]));
+		*dT -=  0.5*(p->fMass*(p->v[k]*p->v[k]) +
+			     moi*(p->w[k]*p->w[k]));
 		}
 	    /* add potential change due to Sun*/
-	    *dT += p[i].fMass*pkd->dSunMass/a2;
+	    *dT += p->fMass*pkd->dSunMass/a2;
 
 	    if (a2 < rsun) {
-		*dSM += p[i].fMass;
+		*dSM += p->fMass;
 		}
 	    else if (a2 > resc) {
 		/* potential from other particles */
-		*dT -= p[i].fPot;
+		*dT -= p->fPot;
 		}
 	    printf(" dE = %e \n",*dT);
-	    pkdDeleteParticle(pkd,&p[i]);
+	    pkdDeleteParticle(pkd,p);
 	    }
 	}
     }

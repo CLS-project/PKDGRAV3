@@ -23,17 +23,19 @@
 
 
 void InitializeParticles(PKD pkd,int bExcludeVeryActive,BND *pbnd) {
-    PLITE *p = pkd->pLite;
+    PLITE *pLite = pkd->pLite;
     PLITE t;
+    PARTICLE *p;
     int i,j;
 
     /*
     ** Initialize the temporary particles.
     */
     for (i=0;i<pkd->nLocal;++i) {
-	for (j=0;j<3;++j) p[i].r[j] = pkd->pStore[i].r[j];
-	p[i].i = i;
-	p[i].uRung = pkd->pStore[i].uRung;
+	p = pkdParticle(pkd,i);
+	for (j=0;j<3;++j) pLite[i].r[j] = p->r[j];
+	pLite[i].i = i;
+	pLite[i].uRung = p->uRung;
 	}
     /*
     **It is only forseen that there are 4 reserved nodes at present 0-NULL, 1-ROOT, 2-UNUSED, 3-VAROOT.
@@ -52,24 +54,24 @@ void InitializeParticles(PKD pkd,int bExcludeVeryActive,BND *pbnd) {
 	i = 0;
 	j = pkd->nLocal - 1;
 	while (i <= j) {
-	    if ( p[i].uRung <= pkdRungVeryActive(pkd) ) ++i;
+	    if ( pLite[i].uRung <= pkdRungVeryActive(pkd) ) ++i;
 	    else break;
 	    }
 	while (i <= j) {
-	    if ( p[j].uRung > pkdRungVeryActive(pkd) ) --j;
+	    if ( pLite[j].uRung > pkdRungVeryActive(pkd) ) --j;
 	    else break;
 	    }
 	if (i < j) {
-	    t = p[i];
-	    p[i] = p[j];
-	    p[j] = t;
+	    t = pLite[i];
+	    pLite[i] = pLite[j];
+	    pLite[j] = t;
 	    while (1) {
-		while ((p[++i].uRung <= pkdRungVeryActive(pkd)));
-		while (p[--j].uRung > pkdRungVeryActive(pkd));
+		while ((pLite[++i].uRung <= pkdRungVeryActive(pkd)));
+		while (pLite[--j].uRung > pkdRungVeryActive(pkd));
 		if (i < j) {
-		    t = p[i];
-		    p[i] = p[j];
-		    p[j] = t;
+		    t = pLite[i];
+		    pLite[i] = pLite[j];
+		    pLite[j] = t;
 		    }
 		else break;
 		}
@@ -315,7 +317,7 @@ DonePart:
 ** do for now.
 */
 void ShuffleParticles(PKD pkd,int iStart) {
-    PARTICLE Temp;
+    PARTICLE Temp, *p, *pNew, *pNewer;
     int i,iNew,iNewer,iTemp;
 
     /*
@@ -324,11 +326,14 @@ void ShuffleParticles(PKD pkd,int iStart) {
     */
     iTemp = iStart;
     while (1) {
-	Temp = pkd->pStore[iTemp];
+	p = pkdParticle(pkd,iTemp);
+	pkdCopyParticle(pkd,&Temp,p);
 	i = iTemp;
 	iNew = pkd->pLite[i].i;
-	iNewer = pkd->pLite[iNew].i;
 	while (iNew != iTemp) {
+	    pNew = pkdParticle(pkd,iNew);
+	    iNewer = pkd->pLite[iNew].i;
+	    pNewer = pkdParticle(pkd,iNewer);
 	    /* Particles are being shuffled here in a non-linear order.
 	    ** Being smart humans, we can tell the CPU where the next chunk
 	    ** of data can be found.  The limit is 8 outstanding prefetches
@@ -337,23 +342,18 @@ void ShuffleParticles(PKD pkd,int iStart) {
 #if defined(__GNUC__) || defined(__INTEL_COMPILER)
 	    __builtin_prefetch((char *)(pkd->pLite+iNewer)
 			       + offsetof(struct pLite,i), 1, 3 );
-	    __builtin_prefetch((char *)(pkd->pStore+iNewer)+0,1,0);
+	    __builtin_prefetch((char *)(pNewer)+0,1,0);
 #ifndef __ALTIVEC__
-	    __builtin_prefetch((char *)(pkd->pStore+iNewer)+64,1,0);
-#endif
-	    __builtin_prefetch((char *)(pkd->pStore+iNewer)+128,1,0);
-#ifndef __ALTIVEC__
-	    __builtin_prefetch((char *)(pkd->pStore+iNewer)+192,1,0);
-
+	    __builtin_prefetch((char *)(pNewer)+64,1,0);
 #endif
 #endif
-	    pkd->pStore[i] = pkd->pStore[iNew];
+	    pkdCopyParticle(pkd,p,pNew);
 	    pkd->pLite[i].i = 0;
 	    i = iNew;
+	    p = pkdParticle(pkd,i);
 	    iNew = pkd->pLite[i].i;
-	    iNewer = pkd->pLite[iNew].i;
 	    }
-	pkd->pStore[i] = Temp;
+	pkdCopyParticle(pkd,p,&Temp);
 	pkd->pLite[i].i = 0;
 	while (!pkd->pLite[iTemp].i) {
 	    if (++iTemp == pkd->nLocal) return;
@@ -363,11 +363,12 @@ void ShuffleParticles(PKD pkd,int iStart) {
 
 
 void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp) {
-    PARTICLE *p = pkd->pStore;
+    PARTICLE *p;
     KDN *c = pkd->kdNodes;
     KDN *pkdn,*pkdl,*pkdu;
     MOMR mom;
     FLOAT m,fMass,fSoft,x,y,z,vx,vy,vz,ax,ay,az,ft,d2,d2Max,dih2,b;
+    float *a;
     int pj,d,nDepth,ism;
     const int nMaxStackIncrease = 1;
 
@@ -397,14 +398,16 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp) {
 	*/
 	pkdn = &c[iNode];
 	pj = pkdn->pLower;
+	p = pkdParticle(pkd,pj);
 	for (d=0;d<3;++d) {
-	    ft = p[pj].r[d];
+	    ft = p->r[d];
 	    pkdn->bnd.fCenter[d] = ft;
 	    pkdn->bnd.fMax[d] = ft;
 	    }
 	for (++pj;pj<=pkdn->pUpper;++pj) {
+	    p = pkdParticle(pkd,pj);
 	    for (d=0;d<3;++d) {
-		ft = p[pj].r[d];
+		ft = p->r[d];
 		if (ft < pkdn->bnd.fCenter[d])
 		    pkdn->bnd.fCenter[d] = ft;
 		else if (ft > pkdn->bnd.fMax[d])
@@ -417,36 +420,40 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp) {
 	    pkdn->bnd.fMax[d] = 0.5*(pkdn->bnd.fMax[d] - ft);
 	    }
 	pj = pkdn->pLower;
-	m = pkdMass(pkd,&p[pj]);
-	fSoft = pkdSoft(pkd,&p[pj]);
+	p = pkdParticle(pkd,pj);
+	m = pkdMass(pkd,p);
+	fSoft = pkdSoft(pkd,p);
 	fMass = m;
 	dih2 = m/(fSoft*fSoft);
-	x = m*p[pj].r[0];
-	y = m*p[pj].r[1];
-	z = m*p[pj].r[2];
-	vx = m*p[pj].v[0];
-	vy = m*p[pj].v[1];
-	vz = m*p[pj].v[2];
-	ax = m*p[pj].a[0];
-	ay = m*p[pj].a[1];
-	az = m*p[pj].a[2];
-	pkdn->uMinRung = pkdn->uMaxRung = p[pj].uRung;
+	x = m*p->r[0];
+	y = m*p->r[1];
+	z = m*p->r[2];
+	vx = m*p->v[0];
+	vy = m*p->v[1];
+	vz = m*p->v[2];
+	a = pkdAccel(pkd,p);
+	ax = m*a[0];
+	ay = m*a[1];
+	az = m*a[2];
+	pkdn->uMinRung = pkdn->uMaxRung = p->uRung;
 	for (++pj;pj<=pkdn->pUpper;++pj) {
-	    m = pkdMass(pkd,&p[pj]);
-	    fSoft = pkdSoft(pkd,&p[pj]);
+	    p = pkdParticle(pkd,pj);
+	    m = pkdMass(pkd,p);
+	    fSoft = pkdSoft(pkd,p);
 	    fMass += m;
 	    dih2 += m/(fSoft*fSoft);
-	    x += m*p[pj].r[0];
-	    y += m*p[pj].r[1];
-	    z += m*p[pj].r[2];
-	    vx += m*p[pj].v[0];
-	    vy += m*p[pj].v[1];
-	    vz += m*p[pj].v[2];
-	    ax += m*p[pj].a[0];
-	    ay += m*p[pj].a[1];
-	    az += m*p[pj].a[2];
-	    if ( p[pj].uRung > pkdn->uMaxRung ) pkdn->uMaxRung = p[pj].uRung;
-	    if ( p[pj].uRung < pkdn->uMinRung ) pkdn->uMinRung = p[pj].uRung;
+	    x += m*p->r[0];
+	    y += m*p->r[1];
+	    z += m*p->r[2];
+	    vx += m*p->v[0];
+	    vy += m*p->v[1];
+	    vz += m*p->v[2];
+	    a = pkdAccel(pkd,p);
+	    ax += m*a[0];
+	    ay += m*a[1];
+	    az += m*a[2];
+	    if ( p->uRung > pkdn->uMaxRung ) pkdn->uMaxRung = p->uRung;
+	    if ( p->uRung < pkdn->uMinRung ) pkdn->uMinRung = p->uRung;
 	    }
 	m = 1/fMass;
 	pkdn->r[0] = m*x;
@@ -464,17 +471,19 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp) {
 	** Now calculate the reduced multipole moment.
 	*/
 	pj = pkdn->pLower;
-	x = p[pj].r[0] - pkdn->r[0];
-	y = p[pj].r[1] - pkdn->r[1];
-	z = p[pj].r[2] - pkdn->r[2];
+	p = pkdParticle(pkd,pj);
+	x = p->r[0] - pkdn->r[0];
+	y = p->r[1] - pkdn->r[1];
+	z = p->r[2] - pkdn->r[2];
 
-	m = pkdMass(pkd,&p[pj]);
+	m = pkdMass(pkd,p);
 	d2Max = momMakeMomr(&pkdn->mom,m,x,y,z);
 	for (++pj;pj<=pkdn->pUpper;++pj) {
-	    x = p[pj].r[0] - pkdn->r[0];
-	    y = p[pj].r[1] - pkdn->r[1];
-	    z = p[pj].r[2] - pkdn->r[2];
-	    m = pkdMass(pkd,&p[pj]);
+	    p = pkdParticle(pkd,pj);
+	    x = p->r[0] - pkdn->r[0];
+	    y = p->r[1] - pkdn->r[1];
+	    z = p->r[2] - pkdn->r[2];
+	    m = pkdMass(pkd,p);
 	    d2 = momMakeMomr(&mom,m,x,y,z);
 	    momAddMomr(&pkdn->mom,&mom);
 	    /*
@@ -527,14 +536,16 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp) {
 	    pkdCombineCells(pkdn,pkdl,pkdu);
 	    pj = pkdn->pLower;
 	    if (pkdn->pUpper - pj < NMAX_OPENCALC) {
-		x = p[pj].r[0] - pkdn->r[0];
-		y = p[pj].r[1] - pkdn->r[1];
-		z = p[pj].r[2] - pkdn->r[2];
+		p = pkdParticle(pkd,pj);
+		x = p->r[0] - pkdn->r[0];
+		y = p->r[1] - pkdn->r[1];
+		z = p->r[2] - pkdn->r[2];
 		d2Max = x*x + y*y + z*z;
 		for (++pj;pj<=pkdn->pUpper;++pj) {
-		    x = p[pj].r[0] - pkdn->r[0];
-		    y = p[pj].r[1] - pkdn->r[1];
-		    z = p[pj].r[2] - pkdn->r[2];
+		    p = pkdParticle(pkd,pj);
+		    x = p->r[0] - pkdn->r[0];
+		    y = p->r[1] - pkdn->r[1];
+		    z = p->r[2] - pkdn->r[2];
 		    d2 = x*x + y*y + z*z;
 		    d2Max = (d2 > d2Max)?d2:d2Max;
 		    }
@@ -632,6 +643,7 @@ void pkdCombineCells(KDN *pkdn,KDN *p1,KDN *p2) {
 
 
 void pkdVATreeBuild(PKD pkd,int nBucket,FLOAT diCrit2,double dTimeStamp) {
+    PARTICLE *p;
     int i,j,iStart;
 
     iStart = pkd->nLocal - pkd->nVeryActive;
@@ -639,9 +651,10 @@ void pkdVATreeBuild(PKD pkd,int nBucket,FLOAT diCrit2,double dTimeStamp) {
     ** First initialize the very active temporary particles.
     */
     for (i=iStart;i<pkd->nLocal;++i) {
-	for (j=0;j<3;++j) pkd->pLite[i].r[j] = pkd->pStore[i].r[j];
+	p = pkdParticle(pkd,i);
+	for (j=0;j<3;++j) pkd->pLite[i].r[j] = p->r[j];
 	pkd->pLite[i].i = i;
-	pkd->pLite[i].uRung = pkd->pStore[i].uRung;
+	pkd->pLite[i].uRung = p->uRung;
 	}
     /*
     ** Then clear the VA tree by setting the node index back to one node past the end
@@ -723,7 +736,7 @@ void pkdDistribCells(PKD pkd,int nCell,KDN *pkdn) {
 ** Multipole Ewald with reduced multipoles.
 */
 void pkdCalcRoot(PKD pkd,MOMC *pmom) {
-    PARTICLE *p = pkd->pStore;
+    PARTICLE *p;
     FLOAT xr = pkd->kdTop[ROOT].r[0];
     FLOAT yr = pkd->kdTop[ROOT].r[1];
     FLOAT zr = pkd->kdTop[ROOT].r[2];
@@ -732,16 +745,18 @@ void pkdCalcRoot(PKD pkd,MOMC *pmom) {
     MOMC mc;
     int i = 0;
 
-    x = p[i].r[0] - xr;
-    y = p[i].r[1] - yr;
-    z = p[i].r[2] - zr;
-    fMass = pkdMass(pkd,&p[i]);
+    p = pkdParticle(pkd,i);
+    x = p->r[0] - xr;
+    y = p->r[1] - yr;
+    z = p->r[2] - zr;
+    fMass = pkdMass(pkd,p);
     momMakeMomc(pmom,fMass,x,y,z);
     for (++i;i<pkd->nLocal;++i) {
-	fMass = pkdMass(pkd,&p[i]);
-	x = p[i].r[0] - xr;
-	y = p[i].r[1] - yr;
-	z = p[i].r[2] - zr;
+	p = pkdParticle(pkd,i);
+	fMass = pkdMass(pkd,p);
+	x = p->r[0] - xr;
+	y = p->r[1] - yr;
+	z = p->r[2] - zr;
 	momMakeMomc(&mc,fMass,x,y,z);
 	momAddMomc(pmom,&mc);
 	}
@@ -755,6 +770,7 @@ void pkdDistribRoot(PKD pkd,MOMC *pmom) {
 
 void pkdTreeNumSrcActive(PKD pkd,uint8_t uRungLo,uint8_t uRungHi) {
     KDN *c = pkd->kdNodes;
+    PARTICLE *p;
     int iNode,pj;
 
     iNode = ROOT;
@@ -767,7 +783,8 @@ void pkdTreeNumSrcActive(PKD pkd,uint8_t uRungLo,uint8_t uRungHi) {
 	*/
 	c[iNode].nActive = 0;
 	for (pj=c[iNode].pLower;pj<=c[iNode].pUpper;++pj) {
-	    if (pkdIsSrcActive(&pkd->pStore[pj],uRungLo,uRungHi)) ++c[iNode].nActive;
+	    p = pkdParticle(pkd,pj);
+	    if (pkdIsSrcActive(p,uRungLo,uRungHi)) ++c[iNode].nActive;
 	}
 	while (iNode & 1) {
 	    iNode = c[iNode].iParent;
@@ -781,6 +798,7 @@ void pkdTreeNumSrcActive(PKD pkd,uint8_t uRungLo,uint8_t uRungHi) {
 
 void pkdBoundWalk(PKD pkd,BND *pbnd,uint8_t uRungLo,uint8_t uRungHi,uint32_t *pnActive,uint32_t *pnContained) {
     KDN *c = pkd->kdNodes;
+    PARTICLE *p;
     double d;
     int iNode,pj;    
 
@@ -821,14 +839,15 @@ void pkdBoundWalk(PKD pkd,BND *pbnd,uint8_t uRungLo,uint8_t uRungHi,uint32_t *pn
 	    ** We have to test each active particle of the bucket for containment.
 	    */
 	    for (pj=c[iNode].pLower;pj<=c[iNode].pUpper;++pj) {
-		if (fabs(pbnd->fCenter[0] - pkd->pStore[pj].r[0]) - pbnd->fMax[0] > 0) continue;
-		if (fabs(pbnd->fCenter[1] - pkd->pStore[pj].r[1]) - pbnd->fMax[1] > 0) continue;
-		if (fabs(pbnd->fCenter[2] - pkd->pStore[pj].r[2]) - pbnd->fMax[2] > 0) continue;
+		p = pkdParticle(pkd,pj);
+		if (fabs(pbnd->fCenter[0] - p->r[0]) - pbnd->fMax[0] > 0) continue;
+		if (fabs(pbnd->fCenter[1] - p->r[1]) - pbnd->fMax[1] > 0) continue;
+		if (fabs(pbnd->fCenter[2] - p->r[2]) - pbnd->fMax[2] > 0) continue;
 		/*
 		** This particle is contained.
 		*/
 		*pnContained += 1;
-		if (pkdIsSrcActive(&pkd->pStore[pj],uRungLo,uRungHi)) *pnActive += 1;
+		if (pkdIsSrcActive(p,uRungLo,uRungHi)) *pnActive += 1;
 		}
 	    }
 

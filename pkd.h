@@ -115,8 +115,8 @@ typedef struct particle {
     float fBall;
     float fDensity;
     /*-----Gravity---------------*/
-    float a[3];
-    float fPot;
+    float aPRIVATE[3];
+    float fPotPRIVATE;
     /*-----Simulating------------*/
     double v[3];
     /*-----Group-Finding---------*/
@@ -193,45 +193,31 @@ typedef struct bndBound {
 	}\
     }
 
-#define PARTITION(p,t,i,j,LOWER_CONDITION,UPPER_CONDITION) {\
-    while (i <= j) {\
-	if (LOWER_CONDITION) ++i;\
-	else break;\
-	}\
-    while (i <= j) {\
-	if (UPPER_CONDITION) --j;\
-	else break;\
-	}\
-    if (i < j) {\
-	t = p[i];\
-	p[i] = p[j];\
-	p[j] = t;\
-	while (1) {\
-	    ++i;\
-	    while (LOWER_CONDITION) ++i;\
-	    --j;\
-	    while (UPPER_CONDITION) --j;\
-	    if (i < j) {\
-		t = p[i];\
-		p[i] = p[j];\
-		p[j] = t;\
-		}\
-	    else break;\
-	    }\
-	}\
+/*
+** General partition macro
+** i,j: [start,end] element...  last element is NOT n+1
+** ii,dj: Increment i and decrement j
+** SWAP: Swap the i'th and j'th element
+** LOWER,UPPER: comparison predicates
+** e.g.,
+** PARTICLE *pi = pkdParticle(pkd,i);
+** PARTICLE *pj = pkdParticle(pkd,j);
+**    PARTITION(pi,pj,
+**              pi=pkdParticle(pkd,++i),pj=pkdParticle(pkd,--j),
+**              pkdSwapParticle(pkd,pi,pj),
+**	        pi->r[d] >= fSplit,pj->r[d] < fSplit);
+*/
+#define PARTITION(i,j,ii,dj,SWAP,LOWER,UPPER)	\
+    {						\
+    while (i <= j && (LOWER)) { ii; }		\
+    while (i <= j && (UPPER)) { dj; }		\
+    while (i < j) {				\
+	{ SWAP; }				\
+	do { ii; } while (LOWER);		\
+	do { dj; } while (UPPER);		\
+	}					\
     }
 
-#define SWAP(A,B,T) { T = A; A = B; B = T; }
-#define PARTITION2(P,T,ELEM,i,j,CMPL,CMPU) \
-{\
-    while (i <= j && ((P[i] ELEM) CMPL)) { ++i; } \
-    while (i <= j && ((P[j] ELEM) CMPU)) { --j; } \
-    while (i < j) { \
-	SWAP(P[i], P[j], T); \
-	while ((P[++i] ELEM) CMPL) { } \
-	while ((P[--j] ELEM) CMPU) { } \
-    }\
-}
 
 typedef struct kdNode {
     BND bnd;
@@ -551,13 +537,20 @@ typedef struct pkdContext {
     int nNonVANodes;    /* number of nodes *not* in Very Active Tree, or index to the start of the VA nodes (except VAROOT) */
     BND bnd;
     KDN *kdNodes;
-    PARTICLE *pStore;
+    int iParticleSize;
+    PARTICLE *pStorePRIVATE;
     PARTCLASS *pClass;
     int nClasses;
     int nMaxBucketActive;
     PARTICLE **piActive;
     PARTICLE **piInactive;
     PLITE *pLite;
+    /*
+    ** Advanced memory models
+    */
+    int oGroup;
+    int oBin;
+
     /*
     ** Tree walk variables.
     */
@@ -657,6 +650,39 @@ static inline int pkdIsActive(PKD pkd, PARTICLE *p ) {
     return pkdIsRungActive(pkd,p->uRung);
     }
 
+/*
+** The particle storage will soon be variable based on the memory model.
+** The following three routines must be used instead of accessing pStore
+** directly.  pkdParticle will return a pointer to the i'th particle.
+** The Size and Base functions are intended for cache routines; no other
+** code should care about sizes of the particle structure.
+*/
+static inline PARTICLE *pkdParticleBase( PKD pkd ) {
+    return pkd->pStorePRIVATE;
+    }
+static inline size_t pkdParticleSize( PKD pkd ) {
+    return pkd->iParticleSize;
+    }
+static inline PARTICLE *pkdParticle( PKD pkd, int i ) {
+    char *v = (char *)pkd->pStorePRIVATE;
+    PARTICLE *p = (PARTICLE *)(v + pkd->iParticleSize*i);
+    return p;
+    }
+static inline void pkdCopyParticle(PKD pkd, PARTICLE *a, PARTICLE *b) {
+    *a = *b;
+    }
+static inline void pkdSwapParticle(PKD pkd, PARTICLE *a, PARTICLE *b) {
+    PARTICLE t;
+    t = *a;
+    *a = *b;
+    *b = t;
+    }
+
+static inline uint32_t *pkdInt32( PARTICLE *p, int iOffset ) {
+    char *v = (char *)p;
+    return (uint32_t *)(v + iOffset);
+    }
+
 /* Here is the new way of getting mass and softening */
 static inline FLOAT pkdMass( PKD pkd, PARTICLE *p ) {
     return pkd->pClass[p->iClass].fMass;
@@ -667,6 +693,13 @@ static inline FLOAT pkdSoft( PKD pkd, PARTICLE *p ) {
 static inline FLOAT pkdSoft0( PKD pkd, PARTICLE *p ) {
     return pkd->pClass[p->iClass].fSoft0;
     }
+static inline float *pkdAccel( PKD pkd, PARTICLE *p ) {
+    return p->aPRIVATE;
+    }
+static inline float *pkdPot( PKD pkd, PARTICLE *p ) {
+    return &p->fPotPRIVATE;
+    }
+
 
 typedef struct CacheStatistics {
     double dpNumAccess;
@@ -704,7 +737,6 @@ void pkdStartTimer(PKD,int);
 void pkdStopTimer(PKD,int);
 void pkdInitialize(PKD *,MDL,int,int,FLOAT *,uint64_t,uint64_t,uint64_t);
 void pkdFinish(PKD);
-int pkdVerify(PKD pkd);
 void pkdReadTipsy(PKD pkd,char *pszFileName, uint64_t nStart,int nLocal,
 		  int bStandard,double dvFac,int bDoublePos,int bNoHeader);
 #ifdef USE_HDF5

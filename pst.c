@@ -1078,9 +1078,9 @@ void _pstRootSplit(PST pst,int iSplitDim,int bDoRootFind,int bDoSplitDimFind,
 
     /*
     ** Now we see if the TOTAL number of particles in the lower and upper
-    ** subsets exceeds the local pStores. If so then we need to find a new
-    ** boundary to distribute the INACTIVE particles so that everything
-    ** fits.
+    ** subsets exceeds the local particle stores. If so then we need to
+    ** find a new boundary to distribute the INACTIVE particles so that
+    ** everything fits.
     */
     inWtWrap.iSplitDim = d;
     fl = pst->fSplit + 1e-6*pst->bnd.fMax[dBnd];
@@ -2025,7 +2025,6 @@ void pstSwapAll(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 
     plcl = lpst->plcl;
     pkdSwapAll(plcl->pkd, *pidSwap);
-    assert(pkdVerify(plcl->pkd));
     }
 
 
@@ -2159,7 +2158,6 @@ void pstLocalOrder(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	}
     else {
 	pkdLocalOrder(plcl->pkd);
-	assert(pkdVerify(plcl->pkd));
 	}
     if (pnOut) *pnOut = 0;
     }
@@ -2182,7 +2180,6 @@ void pstActiveOrder(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	}
     else {
 	*pnActive = pkdActiveOrder(plcl->pkd);
-	assert(pkdVerify(plcl->pkd));
 	}
     if (pnOut) *pnOut = sizeof(uint64_t);
     /*
@@ -2443,7 +2440,6 @@ void pstBuildTree(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	for (i=1;i<in->nCell;++i) pkdn[i].pUpper = 0; /* used flag = unused */
 
 	pkdTreeBuild(plcl->pkd,in->nBucket,in->diCrit2,&pkdn[iCell],in->bExcludeVeryActive,in->dTimeStamp);
-	assert(pkdVerify(plcl->pkd));
 
 	pkdn[iCell].iLower = 0;
 	pkdn[iCell].pLower = pst->idSelf;
@@ -2611,7 +2607,6 @@ void pstSmooth(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 		     in->bPeriodic,in->bSymmetric,in->iSmoothType);
 	smSmooth(smx,&in->smf);
 	smFinish(smx,&in->smf);
-	assert(pkdVerify(plcl->pkd));
 	}
     if (pnOut) *pnOut = 0;
     }
@@ -2672,7 +2667,6 @@ void pstGravity(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	pkdGravAll(plcl->pkd,in->uRungLo,in->uRungHi,in->dTime,in->nReps,in->bPeriodic,
 		   4,in->bEwald,in->dEwCut,in->dEwhCut, &out[id].nActive,
 		   &out[id].dPartSum,&out[id].dCellSum,&out[id].cs,&out[id].dFlop);
-	assert(pkdVerify(plcl->pkd));
 	out[id].dWalkTime = pkdGetWallClockTimer(plcl->pkd,1);
 #ifdef INSTRUMENT
 	out[id].dComputing     = mdlTimeComputing(pst->mdl);
@@ -2719,7 +2713,6 @@ void pstDrift(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	}
     else {
 	pkdDrift(plcl->pkd,in->dTime,in->dDelta,in->uRungLo,in->uRungHi);
-	assert(pkdVerify(plcl->pkd));
 	}
     if (pnOut) *pnOut = 0;
     }
@@ -2766,7 +2759,6 @@ void pstStepVeryActiveKDK(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 			     in->iRung, in->iRung, in->iRung, 0, in->diCrit2,
 			     &out->nMaxRung, in->aSunInact, in->adSunInact,
 			     in->dSunMass);
-	assert(pkdVerify(plcl->pkd));
 	mdlCacheBarrier(pst->mdl,CID_CELL);
 	}
     if (pnOut) *pnOut = sizeof(*out);
@@ -2937,7 +2929,7 @@ void pstROParticleCache(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	** Start particle caching space.
 	*/
 	PKD pkd = plcl->pkd;
-	mdlROcache(pkd->mdl,CID_PARTICLE,pkd->pStore,sizeof(PARTICLE),
+	mdlROcache(pkd->mdl,CID_PARTICLE,pkdParticleBase(pkd),pkdParticleSize(pkd),
 		   pkdLocal(pkd));
 
 	}
@@ -2982,7 +2974,6 @@ void pstKick(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	}
     else {
 	pkdKick(plcl->pkd,in->dTime,in->dDelta,in->uRungLo,in->uRungHi);
-	assert(pkdVerify(plcl->pkd));
 	out->Time = pkdGetTimer(plcl->pkd,1);
 	out->MaxTime = out->Time;
 	out->SumTime = out->Time;
@@ -3122,7 +3113,6 @@ pstAccelStep(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     else {
 	pkdAccelStep(plcl->pkd,in->uRungLo,in->uRungHi,in->dEta,in->dVelFac,in->dAccFac,
 		     in->bDoGravity,in->bEpsAcc,in->bSqrtPhi,in->dhMinOverSoft);
-	assert(pkdVerify(plcl->pkd));
 	}
     if (pnOut) *pnOut = 0;
     }
@@ -3140,7 +3130,6 @@ pstDensityStep(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	}
     else {
 	pkdDensityStep(plcl->pkd,in->uRungLo,in->uRungHi,in->dEta,in->dRhoFac);
-	assert(pkdVerify(plcl->pkd));
 	}
     if (pnOut) *pnOut = 0;
     }

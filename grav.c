@@ -63,7 +63,8 @@ void HEAPrholocal(int n, int k, RHOLOCAL ra[]) {
 */
 int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,int nCell,
 		    double dirLsum,double normLsum,int bEwald,double *pdFlop,double *pdEwFlop,double dRhoFac) {
-    PARTICLE *p = pkd->pStore;
+    PARTICLE *p;
+    float *a;
     PARTICLE *pi,*pj;
     KDN *pkdn = pBucket;
     const double onethird = 1.0/3.0;
@@ -106,7 +107,9 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
     nActive = 0;
     nSoft = 0;
     for (i=pkdn->pLower;i<=pkdn->pUpper;++i) {
-	if ( !pkdIsDstActive(&p[i],uRungLo,uRungHi) ) continue;
+	p = pkdParticle(pkd,i);
+	a = pkdAccel(pkd,p);
+	if ( !pkdIsDstActive(p,uRungLo,uRungHi) ) continue;
 	++nActive;
 	dtGrav = 0.0;
 	fPot = 0;
@@ -119,25 +122,25 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 	adz = 0;
 #endif
 #ifdef SYMBA
-	p[i].drmin = 10000.0;
-	p[i].n_VA = 0; /* number of particles within 3 hill radius*/
+	p->drmin = 10000.0;
+	p->n_VA = 0; /* number of particles within 3 hill radius*/
 #endif
 	rhopmax = 0;
 	rholoc = 0;
 	dsmooth2 = 0;
-	maga = sqrt(p[i].a[0]*p[i].a[0] + p[i].a[1]*p[i].a[1] + p[i].a[2]*p[i].a[2]);
+	maga = sqrt(a[0]*a[0] + a[1]*a[1] + a[2]*a[2]);
 	dirsum = dirLsum;
 	normsum = normLsum;
 
 	for (j=0;j<nCell;++j) {
-	    x = p[i].r[0] - ilc[j].x;
-	    y = p[i].r[1] - ilc[j].y;
-	    z = p[i].r[2] - ilc[j].z;
+	    x = p->r[0] - ilc[j].x;
+	    y = p->r[1] - ilc[j].y;
+	    z = p->r[2] - ilc[j].z;
 	    d2 = x*x + y*y + z*z;
 #ifdef HERMITE
-	    vx = p[i].v[0] - ilc[j].vx;
-	    vy = p[i].v[1] - ilc[j].vy;
-	    vz = p[i].v[2] - ilc[j].vz;
+	    vx = p->v[0] - ilc[j].vx;
+	    vy = p->v[1] - ilc[j].vy;
+	    vz = p->v[2] - ilc[j].vz;
 	    rv = x*vx + y*vy + z*vz;
 #endif
 	    SQRT1(d2,dir);
@@ -195,7 +198,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 	    tax = xx + xxx + tx - x*dir2;
 	    tay = xy + xxy + ty - y*dir2;
 	    taz = xz + xxz + tz - z*dir2;
-	    adotai = p[i].a[0]*tax + p[i].a[1]*tay + p[i].a[2]*taz;
+	    adotai = a[0]*tax + a[1]*tay + a[2]*taz;
 	    if (adotai > 0) {
 		adotai /= maga;
 		dirsum += dirDTS*adotai*adotai;
@@ -206,6 +209,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 	    az += taz;
 	    } /* end of cell list gravity loop */
 	mdlCacheCheck(pkd->mdl);
+
 	/*
 	** Calculate local density and kernel smoothing length for dynamical time-stepping
 	*/
@@ -214,9 +218,9 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 	    ** Add particles to array rholocal first
 	    */
 	    for (j=0;j<nPart;++j) {
-		x = p[i].r[0] - ilp[j].x;
-		y = p[i].r[1] - ilp[j].y;
-		z = p[i].r[2] - ilp[j].z;
+		x = p->r[0] - ilp[j].x;
+		y = p->r[1] - ilp[j].y;
+		z = p->r[2] - ilp[j].z;
 		d2 = x*x + y*y + z*z;
 		rholocal[j].m = ilp[j].m;
 		rholocal[j].d2 = d2;
@@ -240,35 +244,35 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 	    assert(rholoc >= 0);
 	    }
 #ifdef SOFTSQUARE
-	ptwoh2 = 2*pkdSoft(pkd,&p[i])*pkdSoft(pkd,&p[i]);
+	ptwoh2 = 2*pkdSoft(pkd,p)*pkdSoft(pkd,p);
 #endif
 	for (j=0;j<nPart;++j) {
-	    x = p[i].r[0] - ilp[j].x;
-	    y = p[i].r[1] - ilp[j].y;
-	    z = p[i].r[2] - ilp[j].z;
+	    x = p->r[0] - ilp[j].x;
+	    y = p->r[1] - ilp[j].y;
+	    z = p->r[2] - ilp[j].z;
 	    d2 = x*x + y*y + z*z;
 	    d2DTS = d2;
 #ifdef HERMITE
 	    if (pkd->param.bHermite || pkd->param.iTimeStepCrit > 0) {
-		vx = p[i].v[0] - ilp[j].vx;
-		vy = p[i].v[1] - ilp[j].vy;
-		vz = p[i].v[2] - ilp[j].vz;
+		vx = p->v[0] - ilp[j].vx;
+		vy = p->v[1] - ilp[j].vy;
+		vz = p->v[2] - ilp[j].vz;
 		v2 = vx*vx + vy*vy + vz*vz;
 		rv = x*vx + y*vy + z*vz;
 		}
 #endif
 #ifdef SYMBA
-	    a1 = p[i].r[0]*p[i].r[0]+p[i].r[1]*p[i].r[1]+p[i].r[2]*p[i].r[2];
+	    a1 = p->r[0]*p->r[0]+p->r[1]*p->r[1]+p->r[2]*p->r[2];
 	    a2 = ilp[j].x*ilp[j].x + ilp[j].y*ilp[j].y + ilp[j].z*ilp[j].z;
 	    a1 = 0.5*(sqrt(a1) + sqrt(a2));
-	    a1 *= cbrt((pkdMass(pkd,&p[i]) + ilp[j].m)/(3.0*dSunMass));
+	    a1 *= cbrt((pkdMass(pkd,p) + ilp[j].m)/(3.0*dSunMass));
 	    a2 = sqrt(d2)/a1;
-	    p[i].drmin = (a2 < p[i].drmin)?a2:p[i].drmin;
+	    p->drmin = (a2 < p->drmin)?a2:p->drmin;
 	    if (a2 < 3.0) {
-		p[i].iOrder_VA[p[i].n_VA] = ilp[j].iOrder;
-		p[i].hill_VA[p[i].n_VA] = a1;
-		p[i].n_VA++;
-		assert(p[i].iOrder != ilp[j].iOrder);
+		p->iOrder_VA[p->n_VA] = ilp[j].iOrder;
+		p->hill_VA[p->n_VA] = a1;
+		p->n_VA++;
+		assert(p->iOrder != ilp[j].iOrder);
 		if (a2 > rsym2) {
 		    a1 = symfac*(1.0-a2/3.0); /*symfac is defined in pkd.h */
 		    a1 *= a1*(2.0*a1 -3.0);
@@ -285,14 +289,14 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 	    fourh2 = ptwoh2 + ilp[j].twoh2;
 #endif
 #ifdef SOFTLINEAR
-	    fourh2 = pkdSoft(pkd,&p[i]) + ilp[j].h;
+	    fourh2 = pkdSoft(pkd,p) + ilp[j].h;
 	    fourh2 *= fourh2;
 #endif
 #if !defined(SOFTLINEAR) && !defined(SOFTSQUARE)
 #ifdef SOFTENING_NOT_MASS_WEIGHTED
 	    fourh2 = ilp[j].fourh2;
 #else
-	    fourh2 = softmassweight(pkdMass(pkd,&p[i]),4*pkdSoft(pkd,&p[i])*pkdSoft(pkd,&p[i]),ilp[j].m,ilp[j].fourh2);
+	    fourh2 = softmassweight(pkdMass(pkd,p),4*pkdSoft(pkd,p)*pkdSoft(pkd,p),ilp[j].m,ilp[j].fourh2);
 #endif
 #endif
 	    if (d2 > fourh2) {
@@ -303,11 +307,11 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 #ifdef PLANETS
 		if (pkd->param.bCollision) { /* have to use soft-linear */
 		    pkd->iCollisionflag = 1; /*this is for veryactivehermite */
-		    p[i].iColflag = 1;
-		    p[i].iOrderCol = ilp[j].iOrder;
-		    p[i].dtCol = 1.0*p[i].iOrgIdx;
+		    p->iColflag = 1;
+		    p->iOrderCol = ilp[j].iOrder;
+		    p->dtCol = 1.0*p->iOrgIdx;
 		    printf("dr = %e, dr = %e, pi = %i, pj = %i, ilp  \n",
-			   sqrt(d2),sqrt(fourh2),p[i].iOrgIdx,ilp[j].iOrder);
+			   sqrt(d2),sqrt(fourh2),p->iOrgIdx,ilp[j].iOrder);
 		    }
 #endif
 		/*
@@ -328,16 +332,16 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 	       3: Planet
 	    */
 	    if (pkd->param.bGravStep && pkd->param.iTimeStepCrit > 0 &&
-		    (ilp[j].iOrder < pkd->param.nPartColl || p[i].iOrder < pkd->param.nPartColl)) {
+		    (ilp[j].iOrder < pkd->param.nPartColl || p->iOrder < pkd->param.nPartColl)) {
 
-		summ = pkdMass(pkd,&p[i])+ilp[j].m;
+		summ = pkdMass(pkd,p)+ilp[j].m;
 		rhopmaxlocal = summ*dir2;
 #ifdef HERMITE
 		if ((pkd->param.iTimeStepCrit == 1 || pkd->param.iTimeStepCrit == 3) && ilp[j].m > 0) {
-		    a3 = p[i].r[0]*p[i].r[0]+p[i].r[1]*p[i].r[1]+p[i].r[2]*p[i].r[2];
+		    a3 = p->r[0]*p->r[0]+p->r[1]*p->r[1]+p->r[2]*p->r[2];
 		    a3 = a3*sqrt(a3);
 		    rhopmaxlocal = pkdRho(pkd,rhopmaxlocal,summ,sqrt(fourh2),&dir2,&dir,x,y,z,
-					  vx,vy,vz,rv,v2,a3,p[i].iOrder,ilp[j].iOrder);
+					  vx,vy,vz,rv,v2,a3,p->iOrder,ilp[j].iOrder);
 		    }
 #endif
 		rhopmax = (rhopmaxlocal > rhopmax)?rhopmaxlocal:rhopmax;
@@ -350,7 +354,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 	    tax = -x*dir2;
 	    tay = -y*dir2;
 	    taz = -z*dir2;
-	    adotai = p[i].a[0]*tax + p[i].a[1]*tay + p[i].a[2]*taz;
+	    adotai = a[0]*tax + a[1]*tay + a[2]*taz;
 	    if (adotai > 0 && d2DTS >= dsmooth2) {
 		adotai /= maga;
 		dirsum += dir*adotai*adotai;
@@ -375,21 +379,21 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 	** Note that after this point we cannot use the new timestepping criterion since we
 	** overwrite the acceleration.
 	*/
-	p[i].fPot = fPot;
-	p[i].a[0] = ax;
-	p[i].a[1] = ay;
-	p[i].a[2] = az;
+	p->fPot = fPot;
+	a[0] = ax;
+	a[1] = ay;
+	a[2] = az;
 #ifdef HERMITE
-	p[i].ad[0] = adx;
-	p[i].ad[1] = ady;
-	p[i].ad[2] = adz;
+	p->ad[0] = adx;
+	p->ad[1] = ady;
+	p->ad[2] = adz;
 #endif
 	/*
 	** Now finally calculate the Ewald correction for this particle, if it is
 	** required.
 	*/
 	if (bEwald) {
-	    *pdEwFlop += pkdParticleEwald(pkd,uRungLo,uRungHi,&p[i]);
+	    *pdEwFlop += pkdParticleEwald(pkd,uRungLo,uRungHi,p);
 	    }
 
 	/*
@@ -401,9 +405,9 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 	    ** Use new acceleration here!
 	    */
 	    if ( normsum > 0.0 ) {
-		tx = p[i].a[0];
-		ty = p[i].a[1];
-		tz = p[i].a[2];
+		tx = a[0];
+		ty = a[1];
+		tz = a[2];
 		maga = sqrt(tx*tx + ty*ty + tz*tz);
 		dtGrav = maga*dirsum/normsum;
 		}
@@ -414,10 +418,10 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 		}
 	    if ( dtGrav > 0.0 ) {
 		double dT = pkd->param.dEta/sqrt(dtGrav*dRhoFac);
-		p[i].uNewRung = pkdDtToRung(dT,pkd->param.dDelta,pkd->param.iMaxRung-1);
+		p->uNewRung = pkdDtToRung(dT,pkd->param.dDelta,pkd->param.iMaxRung-1);
 		}
-	    else p[i].uNewRung = 0;
-	    p[i].fDensity = rholoc;
+	    else p->uNewRung = 0;
+	    p->fDensity = rholoc;
 	    }
 	} /* end of i-loop over particles in the bucket */
     /*
@@ -430,8 +434,9 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
     na = 0;
     nia = 0;
     for (i=pkdn->pLower;i<=pkdn->pUpper;++i) {
-	if (pkdIsDstActive(&p[i],uRungLo,uRungHi)) pkd->piActive[na++] = &p[i];
-	else pkd->piInactive[nia++] = &p[i];
+	p = pkdParticle(pkd,i);
+	if (pkdIsDstActive(p,uRungLo,uRungHi)) pkd->piActive[na++] = p;
+	else pkd->piInactive[nia++] = p;
 	}
     /*
     ** Active-Active Interactions.
@@ -568,9 +573,10 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 	    ay += y*dir2*pkdMass(pkd,pj);
 	    az += z*dir2*pkdMass(pkd,pj);
 	    pj->fPot -= dir*pkdMass(pkd,pi);
-	    pj->a[0] += x*dir2*pkdMass(pkd,pi);
-	    pj->a[1] += y*dir2*pkdMass(pkd,pi);
-	    pj->a[2] += z*dir2*pkdMass(pkd,pi);
+	    a = pkdAccel(pkd,pj);
+	    a[0] += x*dir2*pkdMass(pkd,pi);
+	    a[1] += y*dir2*pkdMass(pkd,pi);
+	    a[2] += z*dir2*pkdMass(pkd,pi);
 #ifdef HERMITE
 	    dir5 = 3.0*rv*dir2*dir*dir;
 	    adx += (vx*dir2-x*dir5)*pkdMass(pkd,pj);
@@ -583,9 +589,10 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 
 	    } /* end of j-loop */
 	pi->fPot -= fPot;
-	pi->a[0] -= ax;
-	pi->a[1] -= ay;
-	pi->a[2] -= az;
+	a = pkdAccel(pkd,pi);
+	a[0] -= ax;
+	a[1] -= ay;
+	a[2] -= az;
 #ifdef HERMITE
 	pi->ad[0] -= adx;
 	pi->ad[1] -= ady;
@@ -708,9 +715,10 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 
 	    } /* end of j-loop */
 	pi->fPot -= fPot;
-	pi->a[0] -= ax;
-	pi->a[1] -= ay;
-	pi->a[2] -= az;
+	a = pkdAccel(pkd,pi);
+	a[0] -= ax;
+	a[1] -= ay;
+	a[2] -= az;
 #ifdef HERMITE
 	pi->ad[0] -= adx;
 	pi->ad[1] -= ady;

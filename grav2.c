@@ -57,9 +57,10 @@ static const struct CONSTS {
 */
 int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *pLoc,ILP ilp,ILC ilc,
 		    double dirLsum,double normLsum,int bEwald,double *pdFlop,double *pdEwFlop,double dRhoFac) {
-    PARTICLE *p = pkd->pStore;
+    PARTICLE *p;
     KDN *pkdn = pBucket;
     const double onethird = 1.0/3.0;
+    float *a, *pPot;
     momFloat ax,ay,az,fPot;
     double x,y,z,d2,dir,dir2;
     FLOAT fMass,fSoft;
@@ -106,9 +107,12 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 	     + pkdn->bnd.fMax[1]*pkdn->bnd.fMax[1]
 	     + pkdn->bnd.fMax[2]*pkdn->bnd.fMax[2]);
     for (i=pkdn->pLower;i<=pkdn->pUpper;++i) {
-	if ( !pkdIsDstActive(&p[i],uRungLo,uRungHi) ) continue;
-	fMass = pkdMass(pkd,&p[i]);
-	fSoft = pkdSoft(pkd,&p[i]);
+	p = pkdParticle(pkd,i);
+	pPot = pkdPot(pkd,p);
+	if ( !pkdIsDstActive(p,uRungLo,uRungHi) ) continue;
+	fMass = pkdMass(pkd,p);
+	fSoft = pkdSoft(pkd,p);
+	a = pkdAccel(pkd,p);
 	++nActive;
 	fPot = 0;
 	ax = 0;
@@ -116,9 +120,9 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 	az = 0;
 	rholoc = 0;
 	dsmooth2 = 0;
-	tx = p[i].a[0];
-	ty = p[i].a[1];
-	tz = p[i].a[2];
+	tx = a[0];
+	ty = a[1];
+	tz = a[2];
 	dimaga = tx*tx + ty*ty + tz*tz;
 	if (dimaga > 0) {
 	    dimaga = 1.0/sqrt(dimaga);
@@ -132,21 +136,21 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 	    /*
 	    ** Evaluate local expansion.
 	    */
-	    x = p[i].r[0] - pkdn->r[0];
-	    y = p[i].r[1] - pkdn->r[1];
-	    z = p[i].r[2] - pkdn->r[2];
+	    x = p->r[0] - pkdn->r[0];
+	    y = p->r[1] - pkdn->r[1];
+	    z = p->r[2] - pkdn->r[2];
 	    momEvalLocr(pLoc,x,y,z,&fPot,&ax,&ay,&az);
 	    }
 
 #ifdef USE_SIMD_MOMR
-	momEvalSIMDMomr( nCellILC, ilc, p[i].r, p[i].a,
+	momEvalSIMDMomr( nCellILC, ilc, p->r, p->a,
 			 &ax, &ay, &az, &fPot, &dirsum, &normsum );
 #else
 	ILC_LOOP(ilc,ctile) {
 	    for (j=0;j<ctile->nCell;++j) {
-		x = p[i].r[0] - ctile->d[j].x.f;
-		y = p[i].r[1] - ctile->d[j].y.f;
-		z = p[i].r[2] - ctile->d[j].z.f;
+		x = p->r[0] - ctile->d[j].x.f;
+		y = p->r[1] - ctile->d[j].y.f;
+		z = p->r[2] - ctile->d[j].z.f;
 		d2 = x*x + y*y + z*z;
 		SQRT1(d2,dir);
 		dirDTS = dir;
@@ -193,7 +197,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 		tax = xx + xxx + tx - x*dir2;
 		tay = xy + xxy + ty - y*dir2;
 		taz = xz + xxz + tz - z*dir2;
-		adotai = p[i].a[0]*tax + p[i].a[1]*tay + p[i].a[2]*taz;
+		adotai = a[0]*tax + a[1]*tay + a[2]*taz;
 		if (adotai > 0) {
 		    adotai *= dimaga;
 		    dirsum += dirDTS*adotai*adotai;
@@ -210,13 +214,13 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 	/*
 	** Part 1: Calculate distance between particle and each interaction
 	*/
-	fx = p[i].r[0] - ilp->cx;
-	fy = p[i].r[1] - ilp->cy;
-	fz = p[i].r[2] - ilp->cz;
+	fx = p->r[0] - ilp->cx;
+	fy = p->r[1] - ilp->cy;
+	fz = p->r[2] - ilp->cz;
 
-	ilp->cx = p[i].r[0]; /* => cx += fx */
-	ilp->cy = p[i].r[1];
-	ilp->cz = p[i].r[2];
+	ilp->cx = p->r[0]; /* => cx += fx */
+	ilp->cy = p->r[1];
+	ilp->cz = p->r[2];
 
 
 	ilpCompute(ilp,fx,fy,fz);
@@ -263,9 +267,9 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 	pirsum = SIMD_LOADS(dirsum);
 	pnorms = SIMD_LOADS(normsum);
 
-	piax    = SIMD_SPLAT(p[i].a[0]);
-	piay    = SIMD_SPLAT(p[i].a[1]);
-	piaz    = SIMD_SPLAT(p[i].a[2]);
+	piax    = SIMD_SPLAT(a[0]);
+	piay    = SIMD_SPLAT(a[1]);
+	piaz    = SIMD_SPLAT(a[2]);
 	pmass   = SIMD_SPLAT(fMass);
 	p4soft2 = SIMD_SPLAT(4.0*fSoft*fSoft);
 
@@ -365,7 +369,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 		tax = -tile->d.dx.f[j]*dir2;
 		tay = -tile->d.dy.f[j]*dir2;
 		taz = -tile->d.dz.f[j]*dir2;
-		adotai = p[i].a[0]*tax + p[i].a[1]*tay + p[i].a[2]*taz;
+		adotai = p->a[0]*tax + p->a[1]*tay + p->a[2]*taz;
 		if (adotai > 0 && d2DTS >= dsmooth2) {
 		    adotai *= dimaga;
 		    dirsum += dir*adotai*adotai;
@@ -384,16 +388,16 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 	** Note that after this point we cannot use the new timestepping criterion since we
 	** overwrite the acceleration.
 	*/
-	p[i].fPot = fPot;
-	p[i].a[0] = ax;
-	p[i].a[1] = ay;
-	p[i].a[2] = az;
+	*pPot = fPot;
+	a[0] = ax;
+	a[1] = ay;
+	a[2] = az;
 	/*
 	** Now finally calculate the Ewald correction for this particle, if it is
 	** required.
 	*/
 	if (bEwald) {
-	    *pdEwFlop += pkdParticleEwald(pkd,uRungLo,uRungHi,&p[i]);
+	    *pdEwFlop += pkdParticleEwald(pkd,uRungLo,uRungHi,p);
 	    }
 	/*
 	** Set value for time-step, note that we have the current ewald acceleration
@@ -411,9 +415,9 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 		/*
 		** Use new acceleration here!
 		*/
-		tx = p[i].a[0];
-		ty = p[i].a[1];
-		tz = p[i].a[2];
+		tx = a[0];
+		ty = a[1];
+		tz = a[2];
 		maga = sqrt(tx*tx + ty*ty + tz*tz);
 		dtGrav = maga*dirsum/normsum;
 		}
@@ -421,10 +425,10 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 	    dtGrav += pkd->param.dPreFacRhoLoc*rholoc;
 	    if ( dtGrav > 0.0 ) {
 		dT = pkd->param.dEta/sqrt(dtGrav*dRhoFac);
-		p[i].uNewRung = pkdDtToRung(dT,pkd->param.dDelta,pkd->param.iMaxRung-1);
+		p->uNewRung = pkdDtToRung(dT,pkd->param.dDelta,pkd->param.iMaxRung-1);
 		}
-	    else p[i].uNewRung = 0;
-	    p[i].fDensity = rholoc;
+	    else p->uNewRung = 0;
+	    p->fDensity = rholoc;
 	    }
 	} /* end of i-loop cells & particles */
 

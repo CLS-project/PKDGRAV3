@@ -23,7 +23,7 @@
 */
 int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,int bEwald,
 		int bVeryActive,double *pdFlop,double *pdPartSum,double *pdCellSum) {
-    PARTICLE *p = pkd->pStore;
+    PARTICLE *p;
     PARTICLE *pRemote;
     KDN *c;
     KDN *pkdc;
@@ -381,22 +381,23 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 				assert(pkd->ilp != NULL);
 				}
 			    for (pj=pkdc->pLower;pj<=pkdc->pUpper;++pj) {
-				pkd->ilp[nPart].iOrder = p[pj].iOrder;
-				pkd->ilp[nPart].m = pkdMass(pkd,&p[pj]);
-				pkd->ilp[nPart].x = p[pj].r[0] + dDriftFac*p[pj].v[0] + pkd->Check[i].rOffset[0];
-				pkd->ilp[nPart].y = p[pj].r[1] + dDriftFac*p[pj].v[1] + pkd->Check[i].rOffset[1];
-				pkd->ilp[nPart].z = p[pj].r[2] + dDriftFac*p[pj].v[2] + pkd->Check[i].rOffset[2];
-				pkd->ilp[nPart].vx = p[pj].v[0];
-				pkd->ilp[nPart].vy = p[pj].v[1];
-				pkd->ilp[nPart].vz = p[pj].v[2];
+				p = pkdParticle(pkd,pj);
+				pkd->ilp[nPart].iOrder = p->iOrder;
+				pkd->ilp[nPart].m = pkdMass(pkd,p);
+				pkd->ilp[nPart].x = p->r[0] + dDriftFac*p->v[0] + pkd->Check[i].rOffset[0];
+				pkd->ilp[nPart].y = p->r[1] + dDriftFac*p->v[1] + pkd->Check[i].rOffset[1];
+				pkd->ilp[nPart].z = p->r[2] + dDriftFac*p->v[2] + pkd->Check[i].rOffset[2];
+				pkd->ilp[nPart].vx = p->v[0];
+				pkd->ilp[nPart].vy = p->v[1];
+				pkd->ilp[nPart].vz = p->v[2];
 #ifdef SOFTLINEAR
-				pkd->ilp[nPart].h = p[pj].fSoft;
+				pkd->ilp[nPart].h = p->fSoft;
 #endif
 #ifdef SOFTSQUARE
-				pkd->ilp[nPart].twoh2 = 2*p[pj].fSoft*p[pj].fSoft;
+				pkd->ilp[nPart].twoh2 = 2*p->fSoft*p->fSoft;
 #endif
 #if !defined(SOFTLINEAR) && !defined(SOFTSQUARE)
-				pkd->ilp[nPart].fourh2 = 4*pkdSoft(pkd,&p[pj])*pkdSoft(pkd,&p[pj]);
+				pkd->ilp[nPart].fourh2 = 4*pkdSoft(pkd,p)*pkdSoft(pkd,p);
 #endif
 				++nPart;
 				}

@@ -85,7 +85,7 @@ double dMonopoleThetaFac = 1.5;
 */
 int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,int bEwald,
 		int bVeryActive,double *pdFlop,double *pdPartSum,double *pdCellSum) {
-    PARTICLE *p = pkd->pStore;
+    PARTICLE *p;
     PARTICLE *pRemote;
     KDN *c;
     KDN *pkdc;
@@ -261,10 +261,11 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 		}
 	    }
 	for (pj=c[iCellDescend].pLower;pj<=c[iCellDescend].pUpper;++pj) {
-	    if (!pkdIsDstActive(&p[pj],uRungLo,uRungHi)) continue;
-	    cx = p[pj].r[0];
-	    cy = p[pj].r[1];
-	    cz = p[pj].r[2];
+	    p = pkdParticle(pkd,pj);
+	    if (!pkdIsDstActive(p,uRungLo,uRungHi)) continue;
+	    cx = p->r[0];
+	    cy = p->r[1];
+	    cz = p->r[2];
 	    break;
 	    }
 	assert(pj <= c[iCell].pUpper);  /* otherwise we did not come to an active particle */
@@ -532,14 +533,15 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 			    ** Interact += Pacticles(pkdc);
 			    */
 			    for (pj=pkdc->pLower;pj<=pkdc->pUpper;++pj) {
-				fMass = pkdMass(pkd,&p[pj]);
-				fSoft = pkdSoft(pkd,&p[pj]);
+				p = pkdParticle(pkd,pj);
+				fMass = pkdMass(pkd,p);
+				fSoft = pkdSoft(pkd,p);
 				ilpAppend(pkd->ilp,
-					  p[pj].r[0] + pkd->Check[i].rOffset[0],
-					  p[pj].r[1] + pkd->Check[i].rOffset[1],
-					  p[pj].r[2] + pkd->Check[i].rOffset[2],
+					  p->r[0] + pkd->Check[i].rOffset[0],
+					  p->r[1] + pkd->Check[i].rOffset[1],
+					  p->r[2] + pkd->Check[i].rOffset[2],
 					  fMass, 4*fSoft*fSoft,
-					  p[pj].iOrder, p[pj].v[0], p[pj].v[1], p[pj].v[2]);
+					  p->iOrder, p->v[0], p->v[1], p->v[2]);
 				}
 			    }
 			else {
@@ -763,12 +765,13 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 	n = pkdc->pUpper - pkdc->pLower + 1;
 	//ADDBACK:printf("G CPU:%d increased particle list size to %d\n",mdlSelf(pkd->mdl),pkd->nMaxPart);
 	for (pj=pkdc->pLower;pj<=pkdc->pUpper;++pj) {
-	    fMass = pkdMass(pkd,&p[pj]);
-	    fSoft = pkdSoft(pkd,&p[pj]);
+	    p = pkdParticle(pkd,pj);
+	    fMass = pkdMass(pkd,p);
+	    fSoft = pkdSoft(pkd,p);
 	    ilpAppend( pkd->ilp,
-		       p[pj].r[0], p[pj].r[1], p[pj].r[2],
+		       p->r[0], p->r[1], p->r[2],
 		       fMass, 4*fSoft*fSoft,
-		       p[pj].iOrder, p[pj].v[0], p[pj].v[1], p[pj].v[2] );
+		       p->iOrder, p->v[0], p->v[1], p->v[2] );
 	    }
 
 	/*

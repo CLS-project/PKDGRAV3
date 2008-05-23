@@ -65,7 +65,7 @@ int pkdShellCount(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
     n = pkdLocal(pkd);
     iCount = 0;
     for (i=0;i<n;++i) {
-	p = &pkd->pStore[i];
+	p = pkdParticle(pkd,i);
 	if (pkdIsSrcActive(p,uRungLo,uRungHi)) {
 	    d2 = pkdGetDistance2(pkd,p,dCenter);
 	    if ( d2>=r2min || d2 < r2max )
@@ -97,7 +97,7 @@ void pkdCalcDistance(PKD pkd, double *dCenter) {
     ** Initialize the temporary particles.
     */
     for (i=0;i<pkd->nLocal;++i) {
-	PARTICLE *p = &pkd->pStore[i];
+	PARTICLE *p = pkdParticle(pkd,i);
 	pl[i].r[0] = pkdGetDistance2(pkd,p,dCenter);
 	pl[i].r[1] = pkdMass(pkd,p);
 	pl[i].r[2] = 0.0;

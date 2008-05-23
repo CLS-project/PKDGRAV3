@@ -86,19 +86,21 @@ int smInitialize(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodic,int bSymme
     nTree = pkd->kdNodes[ROOT].pUpper + 1;
     if (initParticle != NULL) {
 	for (pi=0;pi<nTree;++pi) {
-	    /*if (TYPETest(&(pkd->pStore[pi]),smx->eParticleTypes))*/
-	    initParticle(&pkd->pStore[pi]);
+	    /*if (TYPETest(p,smx->eParticleTypes))*/
+	    initParticle(pkdParticle(pkd,pi));
 	    }
 	}
     /*
     ** Start particle caching space (cell cache is already active).
     */
     if (bSymmetric) {
-	mdlCOcache(pkd->mdl,CID_PARTICLE,pkd->pStore,sizeof(PARTICLE),
+	mdlCOcache(pkd->mdl,CID_PARTICLE,
+		   pkdParticleBase(pkd),pkdParticleSize(pkd),
 		   nTree,init,comb);
 	}
     else {
-	mdlROcache(pkd->mdl,CID_PARTICLE,pkd->pStore,sizeof(PARTICLE),
+	mdlROcache(pkd->mdl,CID_PARTICLE,
+		   pkdParticleBase(pkd),pkdParticleSize(pkd),
 		   nTree);
 	}
     /*
@@ -142,6 +144,7 @@ int smInitialize(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodic,int bSymme
 
 void smFinish(SMX smx,SMF *smf) {
     PKD pkd = smx->pkd;
+    PARTICLE *p;
     int pi;
     char achOut[128];
 
@@ -185,8 +188,9 @@ void smFinish(SMX smx,SMF *smf) {
     */
     if (smx->fcnPost != NULL) {
 	for (pi=0;pi<pkd->nLocal;++pi) {
-	    /*if (TYPETest(&(pkd->pStore[pi]),smx->eParticleTypes))*/
-	    smx->fcnPost(&pkd->pStore[pi],smf);
+	    p = pkdParticle(pkd,pi);
+	    /*if (TYPETest(p,smx->eParticleTypes))*/
+	    smx->fcnPost(p,smf);
 	    }
 	}
     /*
@@ -210,8 +214,9 @@ void smFinish(SMX smx,SMF *smf) {
 ** pqSearchRemote function setting id == idSelf.
 */
 PQ *pqSearchLocal(SMX smx,FLOAT r[3],int *pbDone) {
-    PARTICLE *p = smx->pkd->pStore;
+    PKD pkd = smx->pkd;
     KDN *c = smx->pkd->kdNodes;
+    PARTICLE *p;
     PQ *pq;
     FLOAT dx,dy,dz,dMin,min1,min2,fDist2;
     FLOAT *Smin = smx->Smin;
@@ -254,31 +259,34 @@ PQ *pqSearchLocal(SMX smx,FLOAT r[3],int *pbDone) {
 	pEnd = c[iCell].pUpper;
 	if (pWant > pEnd) {
 	    for (pj=c[iCell].pLower;pj<=pEnd;++pj) {
-		dx = r[0] - p[pj].r[0];
-		dy = r[1] - p[pj].r[1];
-		dz = r[2] - p[pj].r[2];
-		pq[smx->nQueue].pPart = &p[pj];
+		p = pkdParticle(pkd,pj);
+		dx = r[0] - p->r[0];
+		dy = r[1] - p->r[1];
+		dz = r[2] - p->r[2];
+		pq[smx->nQueue].pPart = p;
 		pq[smx->nQueue].fDist2 = dx*dx + dy*dy + dz*dz;
 		++smx->nQueue;
 		}
 	    }
 	else {
 	    for (pj=c[iCell].pLower;pj<=pWant;++pj) {
-		dx = r[0] - p[pj].r[0];
-		dy = r[1] - p[pj].r[1];
-		dz = r[2] - p[pj].r[2];
-		pq[smx->nQueue].pPart = &p[pj];
+		p = pkdParticle(pkd,pj);
+		dx = r[0] - p->r[0];
+		dy = r[1] - p->r[1];
+		dz = r[2] - p->r[2];
+		pq[smx->nQueue].pPart = p;
 		pq[smx->nQueue].fDist2 = dx*dx + dy*dy + dz*dz;
 		++smx->nQueue;
 		}
 	    PQ_BUILD(pq,smx->nSmooth,pq);
 	    for (;pj<=pEnd;++pj) {
-		dx = r[0] - p[pj].r[0];
-		dy = r[1] - p[pj].r[1];
-		dz = r[2] - p[pj].r[2];
+		p = pkdParticle(pkd,pj);
+		dx = r[0] - p->r[0];
+		dy = r[1] - p->r[1];
+		dz = r[2] - p->r[2];
 		fDist2 = dx*dx + dy*dy + dz*dz;
 		if (fDist2 < pq->fDist2) {
-		    pq->pPart = &p[pj];
+		    pq->pPart = p;
 		    pq->fDist2 = fDist2;
 		    PQ_REPLACE(pq);
 		    }
@@ -331,12 +339,13 @@ PQ *pqSearchLocal(SMX smx,FLOAT r[3],int *pbDone) {
 	    }
 	pEnd = c[iCell].pUpper;
 	for (pj=c[iCell].pLower;pj<=pEnd;++pj) {
-	    dx = r[0] - p[pj].r[0];
-	    dy = r[1] - p[pj].r[1];
-	    dz = r[2] - p[pj].r[2];
+	    p = pkdParticle(pkd,pj);
+	    dx = r[0] - p->r[0];
+	    dy = r[1] - p->r[1];
+	    dz = r[2] - p->r[2];
 	    fDist2 = dx*dx + dy*dy + dz*dz;
 	    if (fDist2 < pq->fDist2) {
-		pq->pPart = &p[pj];
+		pq->pPart = p;
 		pq->fDist2 = fDist2;
 		PQ_REPLACE(pq);
 		}
@@ -397,6 +406,7 @@ PQ *pqSearchLocal(SMX smx,FLOAT r[3],int *pbDone) {
 
 
 PQ *pqSearchRemote(SMX smx,PQ *pq,int id,FLOAT r[3]) {
+    PKD pkd = smx->pkd;
     MDL mdl = smx->pkd->mdl;
     KDN *c = smx->pkd->kdNodes;
     PARTICLE *p;
@@ -449,7 +459,7 @@ PQ *pqSearchRemote(SMX smx,PQ *pq,int id,FLOAT r[3]) {
 	if (pWant > pEnd) {
 	    for (pj=pkdn->pLower;pj<=pEnd;++pj) {
 		if (id == idSelf) {
-		    p = &smx->pkd->pStore[pj];
+		    p = pkdParticle(pkd,pj);
 		    pq[smx->nQueue].bRemote = 0;
 		    }
 		else {
@@ -470,7 +480,7 @@ PQ *pqSearchRemote(SMX smx,PQ *pq,int id,FLOAT r[3]) {
 	else {
 	    for (pj=pkdn->pLower;pj<=pWant;++pj) {
 		if (id == idSelf) {
-		    p = &smx->pkd->pStore[pj];
+		    p = pkdParticle(pkd,pj);
 		    pq[smx->nQueue].bRemote = 0;
 		    }
 		else {
@@ -489,7 +499,7 @@ PQ *pqSearchRemote(SMX smx,PQ *pq,int id,FLOAT r[3]) {
 		}
 	    PQ_BUILD(pq,smx->nSmooth,pq);
 	    for (;pj<=pEnd;++pj) {
-		if (id == idSelf) p = &smx->pkd->pStore[pj];
+		if (id == idSelf) p = pkdParticle(pkd,pj);
 		else p = mdlAquire(mdl,CID_PARTICLE,pj,id);
 		dx = r[0] - p->r[0];
 		dy = r[1] - p->r[1];
@@ -567,7 +577,7 @@ StartSearch:
 	    }
 	pEnd = pkdn->pUpper;
 	for (pj=pkdn->pLower;pj<=pEnd;++pj) {
-	    if (id == idSelf) p = &smx->pkd->pStore[pj];
+	    if (id == idSelf) p = pkdParticle(pkd,pj);
 	    else p = mdlAquire(mdl,CID_PARTICLE,pj,id);
 	    dx = r[0] - p->r[0];
 	    dy = r[1] - p->r[1];
@@ -760,7 +770,7 @@ StartSearch:
 
 void smSmooth(SMX smx,SMF *smf) {
     PKD pkd = smx->pkd;
-    PARTICLE *p = pkd->pStore;
+    PARTICLE *p;
     PQ *pq;
     FLOAT r[3],fBall;
     int iStart[3],iEnd[3];
@@ -768,10 +778,11 @@ void smSmooth(SMX smx,SMF *smf) {
     int ix,iy,iz;
 
     for (pi=0;pi<pkd->nLocal;++pi) {
-	/*if (!TYPETest(&(p[pi]),smx->eParticleTypes)) continue;*/
+	p = pkdParticle(pkd,pi);
+	/*if (!TYPETest(p,smx->eParticleTypes)) continue;*/
 	pq = NULL;
 	smx->nQueue = 0;
-	pq = pqSearch(smx,pq,p[pi].r,0,&bDone);
+	pq = pqSearch(smx,pq,p->r,0,&bDone);
 	/*
 	** Search in replica boxes if it is required.
 	*/
@@ -783,15 +794,15 @@ void smSmooth(SMX smx,SMF *smf) {
 	    */
 	    fBall = sqrt(pq->fDist2);
 	    for (j=0;j<3;++j) {
-		iStart[j] = floor((p[pi].r[j] - fBall)/pkd->fPeriod[j] + 0.5);
-		iEnd[j] = floor((p[pi].r[j] + fBall)/pkd->fPeriod[j] + 0.5);
+		iStart[j] = floor((p->r[j] - fBall)/pkd->fPeriod[j] + 0.5);
+		iEnd[j] = floor((p->r[j] + fBall)/pkd->fPeriod[j] + 0.5);
 		}
 	    for (ix=iStart[0];ix<=iEnd[0];++ix) {
-		r[0] = p[pi].r[0] - ix*pkd->fPeriod[0];
+		r[0] = p->r[0] - ix*pkd->fPeriod[0];
 		for (iy=iStart[1];iy<=iEnd[1];++iy) {
-		    r[1] = p[pi].r[1] - iy*pkd->fPeriod[1];
+		    r[1] = p->r[1] - iy*pkd->fPeriod[1];
 		    for (iz=iStart[2];iz<=iEnd[2];++iz) {
-			r[2] = p[pi].r[2] - iz*pkd->fPeriod[2];
+			r[2] = p->r[2] - iz*pkd->fPeriod[2];
 			if (ix || iy || iz) {
 			    pq = pqSearch(smx,pq,r,1,&bDone);
 			    }
@@ -812,7 +823,7 @@ void smSmooth(SMX smx,SMF *smf) {
 	** within the replica volume.
 	*/
 
-	p[pi].fBall = sqrt(pq->fDist2);
+	p->fBall = sqrt(pq->fDist2);
 	for (i=0;i<smx->nSmooth;++i) {
 	    smx->nnList[i].pPart = smx->pq[i].pPart;
 	    smx->nnList[i].fDist2 = smx->pq[i].fDist2;
@@ -824,7 +835,7 @@ void smSmooth(SMX smx,SMF *smf) {
 	/*
 	** Apply smooth funtion to the neighbor list.
 	*/
-	smx->fcnSmooth(&p[pi],smx->nSmooth,smx->nnList,smf);
+	smx->fcnSmooth(p,smx->nSmooth,smx->nnList,smf);
 	/*
 	** Call mdlCacheCheck to make sure we are making progress!
 	*/
@@ -842,8 +853,9 @@ void smSmooth(SMX smx,SMF *smf) {
 
 
 void smGatherLocal(SMX smx,FLOAT fBall2,FLOAT r[3]) {
+    PKD pkd = smx->pkd;
     KDN *c = smx->pkd->kdNodes;
-    PARTICLE *p = smx->pkd->pStore;
+    PARTICLE *p;
     FLOAT min2,dx,dy,dz,fDist2;
     int *S = smx->S;
     int sp = 0;
@@ -869,9 +881,10 @@ void smGatherLocal(SMX smx,FLOAT fBall2,FLOAT r[3]) {
 	else {
 	    pEnd = c[iCell].pUpper;
 	    for (pj=c[iCell].pLower;pj<=pEnd;++pj) {
-		dx = r[0] - p[pj].r[0];
-		dy = r[1] - p[pj].r[1];
-		dz = r[2] - p[pj].r[2];
+		p = pkdParticle(pkd,pj);
+		dx = r[0] - p->r[0];
+		dy = r[1] - p->r[1];
+		dz = r[2] - p->r[2];
 		fDist2 = dx*dx + dy*dy + dz*dz;
 		if (fDist2 <= fBall2) {
 		    if (nCnt >= smx->nnListMax) {
@@ -885,7 +898,7 @@ void smGatherLocal(SMX smx,FLOAT fBall2,FLOAT r[3]) {
 		    smx->nnList[nCnt].dx = dx;
 		    smx->nnList[nCnt].dy = dy;
 		    smx->nnList[nCnt].dz = dz;
-		    smx->nnList[nCnt].pPart = &p[pj];
+		    smx->nnList[nCnt].pPart = p;
 		    smx->nnList[nCnt].iPid = idSelf;
 		    smx->nnList[nCnt].iIndex = pj;
 		    smx->nnbRemote[nCnt] = 0;
@@ -1011,44 +1024,45 @@ void smGather(SMX smx,FLOAT fBall2,FLOAT r[3]) {
 
 void smReSmooth(SMX smx,SMF *smf) {
     PKD pkd = smx->pkd;
-    PARTICLE *p = pkd->pStore;
+    PARTICLE *p;
     FLOAT r[3],fBall;
     int iStart[3],iEnd[3];
     int pi,i,j;
     int ix,iy,iz;
 
     for (pi=0;pi<pkd->nLocal;++pi) {
-	/*if (!TYPETest(&(p[pi]),smx->eParticleTypes)) continue;*/
+	p = pkdParticle(pkd,pi);
+	/*if (!TYPETest(p,smx->eParticleTypes)) continue;*/
 	smx->nnListSize = 0;
 	/*
 	** Note for implementing SLIDING PATCH, the offsets for particles are
 	** negative here, reflecting the relative +ve offset of the simulation
 	** volume.
 	*/
-	fBall = p[pi].fBall;
+	fBall = p->fBall;
 	if (smx->bPeriodic) {
 	    for (j=0;j<3;++j) {
-		iStart[j] = floor((p[pi].r[j] - fBall)/pkd->fPeriod[j] + 0.5);
-		iEnd[j] = floor((p[pi].r[j] + fBall)/pkd->fPeriod[j] + 0.5);
+		iStart[j] = floor((p->r[j] - fBall)/pkd->fPeriod[j] + 0.5);
+		iEnd[j] = floor((p->r[j] + fBall)/pkd->fPeriod[j] + 0.5);
 		}
 	    for (ix=iStart[0];ix<=iEnd[0];++ix) {
-		r[0] = p[pi].r[0] - ix*pkd->fPeriod[0];
+		r[0] = p->r[0] - ix*pkd->fPeriod[0];
 		for (iy=iStart[1];iy<=iEnd[1];++iy) {
-		    r[1] = p[pi].r[1] - iy*pkd->fPeriod[1];
+		    r[1] = p->r[1] - iy*pkd->fPeriod[1];
 		    for (iz=iStart[2];iz<=iEnd[2];++iz) {
-			r[2] = p[pi].r[2] - iz*pkd->fPeriod[2];
+			r[2] = p->r[2] - iz*pkd->fPeriod[2];
 			smGather(smx,fBall*fBall,r);
 			}
 		    }
 		}
 	    }
 	else {
-	    smGather(smx,fBall*fBall,p[pi].r);
+	    smGather(smx,fBall*fBall,p->r);
 	    }
 	/*
 	** Apply smooth funtion to the neighbor list.
 	*/
-	smx->fcnSmooth(&p[pi],smx->nnListSize,smx->nnList,smf);
+	smx->fcnSmooth(p,smx->nnListSize,smx->nnList,smf);
 	/*
 	** Release aquired pointers.
 	*/
@@ -1105,7 +1119,8 @@ void smFof(SMX smx,int nFOFsDone,SMF *smf) {
 
     PKD pkd = smx->pkd;
     MDL mdl = smx->pkd->mdl;
-    PARTICLE *p = smx->pkd->pStore;
+    PARTICLE *p;
+    float *pPot;
     FOFRM* rm;
     FOFPG* protoGroup;
     FOFBIN *bin;
@@ -1181,59 +1196,62 @@ void smFof(SMX smx,int nFOFsDone,SMF *smf) {
 	** Why based on nTree here? We should activate certain particles.
 	*/
 	for (pn=0;pn<nTree;pn++) {
-	    fMass = pkdMass(pkd,&p[pn]);
-	    if ( p[pn].pBin >= 0 ) {
+	    p = pkdParticle(pkd,pn);
+	    fMass = pkdMass(pkd,p);
+	    if ( p->pBin >= 0 ) {
 		for (j = 0; j < 3; j++)	{
-		    relpos[j] = corrPos(pkd->groupBin[p[pn].pBin].com[j], p[pn].r[j], l[j])
-				- pkd->groupBin[p[pn].pBin].com[j];
+		    relpos[j] = corrPos(pkd->groupBin[p->pBin].com[j], p->r[j], l[j])
+				- pkd->groupBin[p->pBin].com[j];
 		    }
-		rho = pkd->groupBin[p[pn].pBin].fDensity;
-		if (rho > p[pn].fDensity) rho =  p[pn].fDensity;
-		p[pn].fBall = pow(fMass/(rho*smf->fContrast),2.0/3.0);
+		rho = pkd->groupBin[p->pBin].fDensity;
+		if (rho > p->fDensity) rho =  p->fDensity;
+		p->fBall = pow(fMass/(rho*smf->fContrast),2.0/3.0);
 
 		/* set velocity linking length in case of a phase space FOF */
-		pkd->groupBin[p[pn].pBin].fvBall2 = 2.0*(pkd->groupBin[p[pn].pBin].v2[0] +
-						    pkd->groupBin[p[pn].pBin].v2[1] +
-						    pkd->groupBin[p[pn].pBin].v2[2]);
-		pkd->groupBin[p[pn].pBin].fvBall2 *= pow(smf->fContrast,-2.0/3.0);
+		pkd->groupBin[p->pBin].fvBall2 = 2.0*(pkd->groupBin[p->pBin].v2[0] +
+						    pkd->groupBin[p->pBin].v2[1] +
+						    pkd->groupBin[p->pBin].v2[2]);
+		pkd->groupBin[p->pBin].fvBall2 *= pow(smf->fContrast,-2.0/3.0);
 
-		if (p[pn].fBall > smf->dTau2*pow(fMass/ smf->fContrast,2.0/3.0) )
-		    p[pn].fBall = smf->dTau2*pow(fMass/ smf->fContrast,2.0/3.0);
+		if (p->fBall > smf->dTau2*pow(fMass/ smf->fContrast,2.0/3.0) )
+		    p->fBall = smf->dTau2*pow(fMass/ smf->fContrast,2.0/3.0);
 		}
 	    else {
-		p[pn].fBall = 0.0;
+		p->fBall = 0.0;
 		}
-	    if (p[pn].fBall > fBall2Max) fBall2Max = p[pn].fBall;
-	    p[pn].pGroup = 0;
+	    if (p->fBall > fBall2Max) fBall2Max = p->fBall;
+	    p->pGroup = 0;
 	    }
 	}
     else {
 	for (pn=0;pn<nTree;pn++) {
-	    fMass = pkdMass(pkd,&p[pn]);
-	    p[pn].pBin = p[pn].pGroup; /* temp. store old groupIDs for doing the links*/
-	    p[pn].pGroup = 0;
+	    p = pkdParticle(pkd,pn);
+	    fMass = pkdMass(pkd,p);
+	    p->pBin = p->pGroup; /* temp. store old groupIDs for doing the links*/
+	    p->pGroup = 0;
 	    if (smf->bTauAbs) {
-		p[pn].fBall = smf->dTau2;
+		p->fBall = smf->dTau2;
 		if (smf->dTau2 > pow(fMass/smf->Delta,0.6666) ) /*enforces at least virial density for linking*/
-		    p[pn].fBall = pow(fMass/smf->Delta,0.6666);
+		    p->fBall = pow(fMass/smf->Delta,0.6666);
 		fvBall2 = smf->dVTau2;
 		assert(fvBall2 > 0);
 		}
 	    else {
-		p[pn].fBall = smf->dTau2*pow(fMass,0.6666);
+		p->fBall = smf->dTau2*pow(fMass,0.6666);
 		fvBall2 = -1.0; /* No phase space FOF in this case */
 		}
-	    if (p[pn].fBall > fBall2Max) fBall2Max = p[pn].fBall;
+	    if (p->fBall > fBall2Max) fBall2Max = p->fBall;
 	    }
 	/* Have to restart particle chache, since we will need
-	 * the updated p[pn].fBall now */
+	 * the updated p->fBall now */
 	mdlFinishCache(mdl,CID_PARTICLE);
-	mdlROcache(mdl,CID_PARTICLE,p,sizeof(PARTICLE),nTree);
+	mdlROcache(mdl,CID_PARTICLE,pkdParticleBase(pkd),pkdParticleSize(pkd),nTree);
 	}
 
     /* Starting FOF search now... */
     for (pn=0;pn<nTree;pn++) {
-	if (p[pn].pGroup ) continue;
+	p = pkdParticle(pkd,pn);
+	if (p->pGroup ) continue;
 	iGroup++;
 	assert(iGroup < iMaxGroups);
 	protoGroup[iGroup].nMembers = 0;
@@ -1242,35 +1260,36 @@ void smFof(SMX smx,int nFOFsDone,SMF *smf) {
 	/*
 	** Mark particle and add it to the do-fifo
 	*/
-	p[pn].pGroup = iGroup;
+	p->pGroup = iGroup;
 	Fifo[iTail] = pn; iTail++;
 	if (iTail == nFifo) iTail = 0;
 	while (iHead != iTail) {
 	    pi = Fifo[iHead];iHead++;
+	    p = pkdParticle(pkd,pi);
 	    if (iHead == nFifo) iHead=0;
 	    /*
-	    ** Do a Ball Gather at the radius p[pi].fBall
+	    ** Do a Ball Gather at the radius p->fBall
 	    */
 	    smx->nnListSize =0;
-	    fBall = sqrt(p[pi].fBall);
+	    fBall = sqrt(p->fBall);
 	    if (smx->bPeriodic) {
 		for (j=0;j<3;++j) {
-		    iStart[j] = floor((p[pi].r[j] - fBall)/pkd->fPeriod[j] + 0.5);
-		    iEnd[j] = floor((p[pi].r[j] + fBall)/pkd->fPeriod[j] + 0.5);
+		    iStart[j] = floor((p->r[j] - fBall)/pkd->fPeriod[j] + 0.5);
+		    iEnd[j] = floor((p->r[j] + fBall)/pkd->fPeriod[j] + 0.5);
 		    }
 		for (ix=iStart[0];ix<=iEnd[0];++ix) {
-		    r[0] = p[pi].r[0] - ix*pkd->fPeriod[0];
+		    r[0] = p->r[0] - ix*pkd->fPeriod[0];
 		    for (iy=iStart[1];iy<=iEnd[1];++iy) {
-			r[1] = p[pi].r[1] - iy*pkd->fPeriod[1];
+			r[1] = p->r[1] - iy*pkd->fPeriod[1];
 			for (iz=iStart[2];iz<=iEnd[2];++iz) {
-			    r[2] = p[pi].r[2] - iz*pkd->fPeriod[2];
-			    smGather(smx,p[pi].fBall,r);
+			    r[2] = p->r[2] - iz*pkd->fPeriod[2];
+			    smGather(smx,p->fBall,r);
 			    }
 			}
 		    }
 		}
 	    else {
-		smGather(smx,p[pi].fBall,p[pi].r);
+		smGather(smx,p->fBall,p->r);
 		}
 	    nCnt = smx->nnListSize;
 	    for (pnn=0;pnn<nCnt;++pnn ) {
@@ -1280,13 +1299,13 @@ void smFof(SMX smx,int nFOFsDone,SMF *smf) {
 
 		    /* Check phase space distance */	    
 		    if (nFOFsDone > 0) {
-			if (pkd->groupBin[p[pi].pBin].fvBall2 > 0.0) {
-			    if (phase_dist(pkd,-1.0,&p[pi],smx->nnList[pnn].pPart,smf->H) > 1.0) continue;
+			if (pkd->groupBin[p->pBin].fvBall2 > 0.0) {
+			    if (phase_dist(pkd,-1.0,p,smx->nnList[pnn].pPart,smf->H) > 1.0) continue;
 			    }
 			}
 		    else {
 			if (fvBall2 > 0.0) {
-			    if (phase_dist(pkd,fvBall2,&p[pi],smx->nnList[pnn].pPart,smf->H) > 1.0) continue;
+			    if (phase_dist(pkd,fvBall2,p,smx->nnList[pnn].pPart,smf->H) > 1.0) continue;
 			    }
 			}
 
@@ -1301,9 +1320,9 @@ void smFof(SMX smx,int nFOFsDone,SMF *smf) {
 
 		    /* Make remote member linking symmetric by using smaller linking length if different: */
 		    if (nFOFsDone > 0) {
-			if (pkd->groupBin[p[pi].pBin].fvBall2 > 0.0) { /* Check phase space distance */
-			    if (phase_dist(pkd,-1.0,&p[pi],smx->nnList[pnn].pPart,smf->H) > 1.0 ||
-				phase_dist(pkd,-1.0,smx->nnList[pnn].pPart,&p[pi],smf->H) > 1.0) continue;
+			if (pkd->groupBin[p->pBin].fvBall2 > 0.0) { /* Check phase space distance */
+			    if (phase_dist(pkd,-1.0,p,smx->nnList[pnn].pPart,smf->H) > 1.0 ||
+				phase_dist(pkd,-1.0,smx->nnList[pnn].pPart,p,smf->H) > 1.0) continue;
 			    }
 			else { /* real space distance */
 			    if (smx->nnList[pnn].fDist2 > smx->nnList[pnn].pPart->fBall) continue;
@@ -1311,8 +1330,8 @@ void smFof(SMX smx,int nFOFsDone,SMF *smf) {
 			}
 		    else {
 			if (fvBall2 > 0.0) { /* Check phase space distance */
-			    if (phase_dist(pkd,fvBall2,&p[pi],smx->nnList[pnn].pPart,smf->H) > 1.0 ||
-				phase_dist(pkd,fvBall2,smx->nnList[pnn].pPart,&p[pi],smf->H) > 1.0) continue;
+			    if (phase_dist(pkd,fvBall2,p,smx->nnList[pnn].pPart,smf->H) > 1.0 ||
+				phase_dist(pkd,fvBall2,smx->nnList[pnn].pPart,p,smf->H) > 1.0) continue;
 			    }
 			else { /* real space distance */
 			    if (smx->nnList[pnn].fDist2 > smx->nnList[pnn].pPart->fBall) continue;
@@ -1351,10 +1370,11 @@ void smFof(SMX smx,int nFOFsDone,SMF *smf) {
     ** Now we can already reject small groups if they are local
     */
     for (pn=0; pn<nTree ; pn++) {
-	if (p[pn].pGroup >=0 && p[pn].pGroup < iMaxGroups)
-	    ++(protoGroup[p[pn].pGroup].nMembers);
+	p = pkdParticle(pkd,pn);
+	if (p->pGroup >=0 && p->pGroup < iMaxGroups)
+	    ++(protoGroup[p->pGroup].nMembers);
 	else
-	    printf("ERROR: idSelf=%i , p[pn].pGroup=%i too large. iMaxGroups=%i \n",pkd->idSelf,p[pn].pGroup,iMaxGroups);
+	    printf("ERROR: idSelf=%i , p->pGroup=%i too large. iMaxGroups=%i \n",pkd->idSelf,p->pGroup,iMaxGroups);
 	}
     /*
     ** Create a remapping and give unique local Ids !
@@ -1377,7 +1397,8 @@ void smFof(SMX smx,int nFOFsDone,SMF *smf) {
     ** Update the particle groups ids.
     */
     for (pi=0; pi<nTree ; pi++) {
-	p[pi].pGroup = protoGroup[p[pi].pGroup].iId;
+	p = pkdParticle(pkd,pi);
+	p->pGroup = protoGroup[p->pGroup].iId;
 	}
     /*
     ** Allocate memory for group data
@@ -1425,35 +1446,37 @@ void smFof(SMX smx,int nFOFsDone,SMF *smf) {
     ** Calculate local group properties
     */
     for (pi=0;pi<nTree ;++pi) {
-	fMass = pkdMass(pkd,&p[pi]);
-	if (p[pi].pGroup != tmp) {
-	    i = (p[pi].pGroup - 1 - pkd->idSelf)/pkd->nThreads;
+	p = pkdParticle(pkd,pi);
+	fMass = pkdMass(pkd,p);
+	if (p->pGroup != tmp) {
+	    i = (p->pGroup - 1 - pkd->idSelf)/pkd->nThreads;
 #if 0
-	    if (TYPETest(&p[pi],TYPE_GAS) )
+	    if (TYPETest(p,TYPE_GAS) )
 		pkd->groupData[i].fGasMass += fMass;
-	    if (TYPETest(&p[pi],TYPE_STAR) )
+	    if (TYPETest(p,TYPE_STAR) )
 		pkd->groupData[i].fStarMass += fMass;
 #endif
-	    pkd->groupData[i].fVelDisp += (p[pi].v[0]*p[pi].v[0]+p[pi].v[1]*p[pi].v[1]+p[pi].v[2]*p[pi].v[2])*fMass;
+	    pkd->groupData[i].fVelDisp += (p->v[0]*p->v[0]+p->v[1]*p->v[1]+p->v[2]*p->v[2])*fMass;
 	    for (j=0;j<3;j++) {
-		pkd->groupData[i].fVelSigma2[j] += ( p[pi].v[j]*p[pi].v[j] )*fMass;
+		pkd->groupData[i].fVelSigma2[j] += ( p->v[j]*p->v[j] )*fMass;
 		if (pkd->groupData[i].fMass > 0.0)
-		    r[j] = corrPos(pkd->groupData[i].r[j]/pkd->groupData[i].fMass, p[pi].r[j], l[j]);
-		else  r[j] = p[pi].r[j];
+		    r[j] = corrPos(pkd->groupData[i].r[j]/pkd->groupData[i].fMass, p->r[j], l[j]);
+		else  r[j] = p->r[j];
 		pkd->groupData[i].r[j] += r[j]*fMass;
 		pkd->groupData[i].fDeltaR2 +=  r[j]* r[j]*fMass;
 		if (r[j] > pkd->groupData[i].rmax[j]) pkd->groupData[i].rmax[j] = r[j];
 		if (r[j] < pkd->groupData[i].rmin[j]) pkd->groupData[i].rmin[j] = r[j];
-		pkd->groupData[i].v[j] += p[pi].v[j]*fMass;
+		pkd->groupData[i].v[j] += p->v[j]*fMass;
 		}
 	    pkd->groupData[i].fMass += fMass;
 	    /* use absolute values of particle potential, sign of pot has changed in pkdgrav2*/
-	    if (fabs(p[pi].fPot) > pkd->groupData[i].potmin) {
-		pkd->groupData[i].potmin = fabs(p[pi].fPot);
+	    pPot = pkdPot(pkd,p);
+	    if (fabs(*pPot) > pkd->groupData[i].potmin) {
+		pkd->groupData[i].potmin = fabs(*pPot);
 		for (j=0;j<3;j++)pkd->groupData[i].rpotmin[j]=r[j];
 		}
-	    if ( p[pi].fDensity > pkd->groupData[i].denmax) {
-		pkd->groupData[i].denmax = p[pi].fDensity;
+	    if ( p->fDensity > pkd->groupData[i].denmax) {
+		pkd->groupData[i].denmax = p->fDensity;
 		for (j=0;j<3;j++)pkd->groupData[i].rdenmax[j]=r[j];
 		}
 	    if (nFOFsDone > 0) {
@@ -1481,20 +1504,6 @@ void smFof(SMX smx,int nFOFsDone,SMF *smf) {
     }
 
 
-int CmpParticleGroupIds(const void *v1,const void *v2) {
-    PARTICLE *p1 = (PARTICLE *)v1;
-    PARTICLE *p2 = (PARTICLE *)v2;
-    return(p1->pGroup - p2->pGroup);
-    }
-
-
-int CmpProtoGroups(const void *v1,const void *v2) {
-    FOFPG *g1 = (FOFPG *)v1;
-    FOFPG *g2 = (FOFPG *)v2;
-    return(g1->iId - g2->iId);
-    }
-
-
 int CmpGroups(const void *v1,const void *v2) {
     FOFGD *g1 = (FOFGD *)v1;
     FOFGD *g2 = (FOFGD *)v2;
@@ -1517,7 +1526,7 @@ static void mktmpdir( const char *dirname ) {
 int smGroupMerge(SMF *smf,int bPeriodic) {
     PKD pkd = smf->pkd;
     MDL mdl = smf->pkd->mdl;
-    PARTICLE *p = smf->pkd->pStore;
+    PARTICLE *p;
     PARTICLE *pPart;
     FLOAT l[3], r,min,max,corr;
     int pi,id,i,j,k,index,listSize, sgListSize, lsgListSize;
@@ -1559,7 +1568,7 @@ int smGroupMerge(SMF *smf,int bPeriodic) {
     /*
     ** Start RO particle cache.
     */
-    mdlROcache(mdl,CID_PARTICLE,p,sizeof(PARTICLE), nTree);
+    mdlROcache(mdl,CID_PARTICLE,pkdParticleBase(pkd),pkdParticleSize(pkd), nTree);
     /*
     ** Start CO group data cache.
     */
@@ -1585,7 +1594,7 @@ int smGroupMerge(SMF *smf,int bPeriodic) {
 		rm = rmFifo[iHead++];
 		if (iHead == nFifo) iHead = 0;
 		if (rm.iPid == pkd->idSelf) {
-		    pPart = pkd->pStore + rm.iIndex;
+		    pPart = pkdParticle(pkd,rm.iIndex);
 		    /* Local: Have I got this group already? If RM not in a group, ignore it */
 		    if (pPart->pGroup == pkd->groupData[i].iLocalId || pPart->pGroup == tmp
 			    || pPart->pGroup == 0 ) goto NextRemoteMember;
@@ -1775,13 +1784,14 @@ int smGroupMerge(SMF *smf,int bPeriodic) {
     sprintf(filename,"tmpdens/p%i.a%le.dens",pkd->idSelf,smf->a);
     dFile = fopen(filename,"a"); assert( dFile != NULL );
     for (pi=0;pi<nTree ;pi++) {
-	index = (p[pi].pGroup - 1 - pkd->idSelf)/pkd->nThreads ;
+	p = pkdParticle(pkd,pi);
+	index = (p->pGroup - 1 - pkd->idSelf)/pkd->nThreads ;
 	if (index >= 0 && index < pkd->nGroups )
-	    p[pi].pGroup = pkd->groupData[index].iGlobalId;
-	else p[pi].pGroup = 0;
-	fprintf(dFile, "%lu %.8g\n",  p[pi].iOrder, p[pi].fDensity);
-	if (p[pi].pGroup) fprintf(pFile, "%lu %i\n",  p[pi].iOrder, p[pi].pGroup);
-	if (p[pi].pBin && p[pi].pGroup)fprintf(lFile, "%i %i\n", p[pi].pGroup, p[pi].pBin);
+	    p->pGroup = pkd->groupData[index].iGlobalId;
+	else p->pGroup = 0;
+	fprintf(dFile, "%lu %.8g\n",  p->iOrder, p->fDensity);
+	if (p->pGroup) fprintf(pFile, "%lu %i\n",  p->iOrder, p->pGroup);
+	if (p->pBin && p->pGroup)fprintf(lFile, "%i %i\n", p->pGroup, p->pBin);
 	}
     fclose(pFile);fclose(lFile);fclose(dFile);
 
@@ -1867,7 +1877,7 @@ int smGroupMerge(SMF *smf,int bPeriodic) {
 int smGroupProfiles(SMX smx, SMF *smf,int bPeriodic, int nTotalGroups,int bLogBins, int nFOFsDone) {
     PKD pkd = smf->pkd;
     MDL mdl = smf->pkd->mdl;
-    PARTICLE *p = smf->pkd->pStore;
+    PARTICLE *p;
     double dx2;
     FLOAT l[3],L[3],r[3],relvel[3],com[3],V,Rprev,Vprev,Mprev,vcirc,vcircMax,rvcircMax,M,R,binFactor;
     FLOAT rvir,Mvir,Delta,fBall,lastbin,minSoft,rho,rhoinner,fMass,fSoft;
@@ -1897,7 +1907,7 @@ int smGroupProfiles(SMX smx, SMF *smf,int bPeriodic, int nTotalGroups,int bLogBi
     */
     minSoft=1.0;
     for (pn=0;pn<nTree;pn++) {
-	fSoft = pkdSoft(pkd,&p[pn]);
+	fSoft = pkdSoft(pkd,pkdParticle(pkd,pn));
 	if (fSoft<minSoft)minSoft=fSoft;
 	}
     /*
@@ -1999,7 +2009,8 @@ int smGroupProfiles(SMX smx, SMF *smf,int bPeriodic, int nTotalGroups,int bLogBi
     ** Add local particles to their correspondig bins
     */
     for (pn=0;pn<nTree;pn++) {
-	p[pn].pBin = -1;
+	p = pkdParticle(pkd,pn);
+	p->pBin = -1;
 	}
     for (index=0; index< nTotalGroups; index++) {
 	if (pkd->groupData[index].nRemoteMembers > 0) {

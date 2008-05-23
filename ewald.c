@@ -17,6 +17,7 @@
 
 int pkdParticleEwald(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,PARTICLE *p) {
     MOMC mom = pkd->momRoot;
+    float *pPot = pkdPot(pkd,p);
     double fPot,ax,ay,az;
     double dx,dy,dz,x,y,z,r2,dir,dir2,a,alphan,L;
     double xx,xxx,xxy,xxz,yy,yyy,yyz,xyy,zz,zzz,xzz,yzz,xy,xyz,xz,yz;
@@ -25,6 +26,7 @@ int pkdParticleEwald(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,PARTICLE *p) {
     double g0,g1,g2,g3,g4,g5;
     double onethird = 1.0/3.0;
     double hdotx,s,c;
+    float *pa;
     int i,ix,iy,iz,bInHole,bInHolex,bInHolexy;
     int nFlop;
     int nLoop = 0;
@@ -161,10 +163,11 @@ int pkdParticleEwald(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,PARTICLE *p) {
 	ay += pkd->ew.ewt[i].hy*(pkd->ew.ewt[i].hCfac*s - pkd->ew.ewt[i].hSfac*c);
 	az += pkd->ew.ewt[i].hz*(pkd->ew.ewt[i].hCfac*s - pkd->ew.ewt[i].hSfac*c);
 	}
-    p->fPot += fPot;
-    p->a[0] += ax;
-    p->a[1] += ay;
-    p->a[2] += az;
+    *pPot += fPot;
+    pa = pkdAccel(pkd,p);
+    pa[0] += ax;
+    pa[1] += ay;
+    pa[2] += az;
     nFlop = nLoop*447 + pkd->ew.nEwhLoop*58;
     return(nFlop);
     }
