@@ -222,9 +222,9 @@ int main(int argc,char **argv) {
 	msrDriftSun(msr,dTime,0.5*msrDelta(msr));
 #endif
 #endif
-#ifdef RELAXATION
-	msrInitRelaxation(msr);
-#endif
+	if ( msr->param.bTraceRelaxation) {
+	    msrInitRelaxation(msr);
+	    }
 #ifdef HERMITE
 	if (msr->param.bHermite) {
 	    msrActiveRung(msr,0,1); /* Activate all particles */
@@ -279,14 +279,12 @@ int main(int argc,char **argv) {
 			       1.0/csmTime2Exp(msr->param.csm,dTime)-1.0,
 			       E,T,U,Eth,L[0],L[1],L[2],lSec,dMultiEff);
 		}
-#ifdef RELAXATION
 	    if ( msr->param.bTraceRelaxation) {
 		msrActiveRung(msr,0,1); /* Activate all particles */
 		msrDomainDecomp(msr,0,1,0);
 		msrBuildTree(msr,dTime,0);
 		msrRelaxation(msr,dTime,msrDelta(msr),SMX_RELAXATION,0);
 		}
-#endif
 	    /*
 	    ** Check for user interrupt.
 	    */

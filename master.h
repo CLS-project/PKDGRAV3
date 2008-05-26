@@ -197,10 +197,8 @@ void msrGroupMerge(MSR msr,double exp);
 void msrGroupProfiles(MSR msr,int nFOFsDone,int iSmoothType,int bSymmetric, double exp);
 void msrOutGroups(MSR msr,char *,int,double dTime);
 void msrDeleteGroups(MSR msr);
-#ifdef RELAXATION
 void msrInitRelaxation(MSR msr);
 void msrRelaxation(MSR msr,double dTime,double deltaT,int iSmoothType,int bSymmetric);
-#endif /* RELAXATION  */
 
 #ifdef PLANETS
 double msrReadSS(MSR msr);

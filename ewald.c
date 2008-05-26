@@ -17,7 +17,7 @@
 
 int pkdParticleEwald(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,PARTICLE *p) {
     MOMC mom = pkd->momRoot;
-    float *pPot = pkdPot(pkd,p);
+    float *pPot;
     double fPot,ax,ay,az;
     double dx,dy,dz,x,y,z,r2,dir,dir2,a,alphan,L;
     double xx,xxx,xxy,xxz,yy,yyy,yyz,xyy,zz,zzz,xzz,yzz,xy,xyz,xz,yz;
@@ -31,7 +31,12 @@ int pkdParticleEwald(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,PARTICLE *p) {
     int nFlop;
     int nLoop = 0;
 
+    assert(pkd->oAcceleration); /* Validate memory model */
+    assert(pkd->oPotential); /* Validate memory model */
+
     if (!pkdIsDstActive(p,uRungLo,uRungHi)) return 0;
+    pa = pkdAccel(pkd,p);
+    pPot = pkdPot(pkd,p);
 
     L = pkd->fPeriod[0];
     fPot = mom.m*pkd->ew.k1;
@@ -164,7 +169,6 @@ int pkdParticleEwald(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,PARTICLE *p) {
 	az += pkd->ew.ewt[i].hz*(pkd->ew.ewt[i].hCfac*s - pkd->ew.ewt[i].hSfac*c);
 	}
     *pPot += fPot;
-    pa = pkdAccel(pkd,p);
     pa[0] += ax;
     pa[1] += ay;
     pa[2] += az;

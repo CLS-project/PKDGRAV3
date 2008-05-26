@@ -75,9 +75,12 @@ typedef uint_fast64_t total_t; /* Count of particles globally (total number) */
 ** Memory models.  Each is a bit mask that indicates that additional fields should be
 ** added to the particle structure.
 */
-#define PKD_MODEL_GROUPS   (1<<0)  /* Group profiling */
-#define PKD_MODEL_VELOCITY (1<<0)  /* Velocity Required */
-
+#define PKD_MODEL_VELOCITY     (1<<0)  /* Velocity Required */
+#define PKD_MODEL_ACCELERATION (1<<1)  /* Acceleration Required */
+#define PKD_MODEL_POTENTIAL    (1<<2)  /* Potential Required */
+#define PKD_MODEL_GROUPS       (1<<3)  /* Group profiling */
+#define PKD_MODEL_HERMITE      (1<<4)  /* Hermite integrator */
+#define PKD_MODEL_RELAXATION   (1<<5)  /* Trace relaxation */
 
 /*
 ** This constant is used to limit the size of a cell.
@@ -109,6 +112,19 @@ typedef struct partclass {
     double fSoft0; /* Softening from file */
     } PARTCLASS;
 
+typedef struct hermitefields {
+    double ad[3];
+    double r0[3];
+    double v0[3];
+    double a0[3];
+    double ad0[3];
+    double rp[3];
+    double vp[3];
+    double app[3];
+    double adpp[3];
+    double dTime0;
+    } HERMITEFIELDS;
+
 typedef struct particle {
     /*-----Base-Particle-Data----*/
     uint64_t iOrder     : 42;
@@ -121,32 +137,8 @@ typedef struct particle {
     /*-----Used-for-Smooth-------*/
     float fBall;
     float fDensity;
-    /*-----Gravity---------------*/
-    float aPRIVATE[3];
-    float fPotPRIVATE;
-    /*-----Simulating------------*/
-    /* Now a memory model */
-    /*double vPRIVATE[3];*/
-    /*-----Group-Finding---------*/
-    /* Now a memory model */
-    /*int pGroup;*/
-    /*int pBin;*/
+    /* a, fPot, v, pGroup, pBin moved to memory models */
 
-#ifdef RELAXATION
-    FLOAT fRelax;
-#endif
-#ifdef HERMITE
-    FLOAT ad[3];
-    FLOAT r0[3];
-    FLOAT v0[3];
-    FLOAT a0[3];
-    FLOAT ad0[3];
-    FLOAT rp[3];
-    FLOAT vp[3];
-    FLOAT app[3];
-    FLOAT adpp[3];
-    FLOAT dTime0;
-#endif  /* Hermite */
 #ifdef PLANETS
     /* (collision stuff) */
     int iOrgIdx;		/* for tracking of mergers, aggregates etc. */
@@ -558,9 +550,13 @@ typedef struct pkdContext {
     /*
     ** Advanced memory models
     */
-    int oVelocity;
-    int oGroup;
-    int oBin;
+    int oAcceleration; /* Three doubles */
+    int oVelocity; /* Three floats */
+    int oPotential; /* One float */
+    int oGroup; /* One int32 */
+    int oBin; /* One int32 */
+    int oHermite; /* Hermite structure */
+    int oRelaxation;
 
     /*
     ** Tree walk variables.
@@ -694,9 +690,10 @@ static inline void pkdSwapParticle(PKD pkd, PARTICLE *a, PARTICLE *b) {
     pkdLoadParticle(pkd,b);
     }
 
-static inline double *pkdDouble( PARTICLE *p, int iOffset ) {
+static inline void *pkdField( PARTICLE *p, int iOffset ) {
     char *v = (char *)p;
-    return (double *)(v + iOffset);
+    /*assert(iOffset);*/ /* Remove this for better performance */
+    return (void *)(v + iOffset);
     }
 
 static inline int32_t *pkdInt32( PARTICLE *p, int iOffset ) {
@@ -715,13 +712,13 @@ static inline FLOAT pkdSoft0( PKD pkd, PARTICLE *p ) {
     return pkd->pClass[p->iClass].fSoft0;
     }
 static inline double *pkdVel( PKD pkd, PARTICLE *p ) {
-    return pkdDouble(p,pkd->oVelocity);
+    return pkdField(p,pkd->oVelocity);
     }
 static inline float *pkdAccel( PKD pkd, PARTICLE *p ) {
-    return p->aPRIVATE;
+    return pkdField(p,pkd->oAcceleration);
     }
 static inline float *pkdPot( PKD pkd, PARTICLE *p ) {
-    return &p->fPotPRIVATE;
+    return pkdField(p,pkd->oPotential);
     }
 
 
@@ -861,9 +858,7 @@ void pkdColNParts(PKD pkd, int *pnNew, int *nDeltaGas, int *nDeltaDark,
 void pkdNewOrder(PKD pkd, int nStart);
 void pkdSetNParts(PKD pkd, int nGas, int nDark, int nStar, int nMaxOrderGas,
 		  int nMaxOrderDark);
-#ifdef RELAXATION
 void pkdInitRelaxation(PKD pkd);
-#endif
 
 int pkdPackIO(PKD pkd,
 	      PIO *io, int nMax,

@@ -19,9 +19,7 @@
 #define OUT_GROUP_PROFILES 116
 void pkdOutGroup(PKD,char *,int,int,double);
 
-#ifdef RELAXATION
 #define OUT_RELAX_ARRAY 120
-#endif
 #define OUT_POS_VECTOR		1
 #define OUT_VEL_VECTOR		2
 #define OUT_ACCEL_VECTOR	3

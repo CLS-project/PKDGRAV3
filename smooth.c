@@ -55,7 +55,6 @@ int smInitialize(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodic,int bSymme
 	comb = NULL;
 	smx->fcnPost = NULL;
 	break;
-#ifdef RELAXATION
     case SMX_RELAXATION:
 	assert(bSymmetric == 0);
 	smx->fcnSmooth = AddRelaxation;
@@ -64,7 +63,6 @@ int smInitialize(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodic,int bSymme
 	comb = NULL;
 	smx->fcnPost = NULL;
 	break;
-#endif /* RELAXATION */
 #ifdef SYMBA
     case SMX_SYMBA:
 	assert(bSymmetric == 0);
@@ -1152,6 +1150,7 @@ void smFof(SMX smx,int nFOFsDone,SMF *smf) {
     assert(pkd->oGroup); /* Validate memory model */
     assert(pkd->oBin); /* Validate memory model */
     assert(pkd->oVelocity); /* Validate memory model */
+    assert(pkd->oPotential); /* Validate memory model */
 
     /* 
     ** By default we want no phase-space FOF on the first call to smFof (which is the

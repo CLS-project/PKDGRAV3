@@ -374,6 +374,7 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp) {
     const int nMaxStackIncrease = 1;
 
     assert(pkd->oVelocity); /* Validate memory model */
+    assert(pkd->oAcceleration); /* Validate memory model */
 
     nDepth = 1;
     while (1) {
@@ -424,6 +425,7 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp) {
 	    }
 	pj = pkdn->pLower;
 	p = pkdParticle(pkd,pj);
+	a = pkdAccel(pkd,p);
 	m = pkdMass(pkd,p);
 	fSoft = pkdSoft(pkd,p);
 	v = pkdVel(pkd,p);
@@ -435,13 +437,13 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp) {
 	vx = m*v[0];
 	vy = m*v[1];
 	vz = m*v[2];
-	a = pkdAccel(pkd,p);
 	ax = m*a[0];
 	ay = m*a[1];
 	az = m*a[2];
 	pkdn->uMinRung = pkdn->uMaxRung = p->uRung;
 	for (++pj;pj<=pkdn->pUpper;++pj) {
 	    p = pkdParticle(pkd,pj);
+	    a = pkdAccel(pkd,p);
 	    m = pkdMass(pkd,p);
 	    fSoft = pkdSoft(pkd,p);
 	    v = pkdVel(pkd,p);
@@ -453,7 +455,6 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp) {
 	    vx += m*v[0];
 	    vy += m*v[1];
 	    vz += m*v[2];
-	    a = pkdAccel(pkd,p);
 	    ax += m*a[0];
 	    ay += m*a[1];
 	    az += m*a[2];

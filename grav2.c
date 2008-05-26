@@ -68,7 +68,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
     double dtGrav;
     momFloat adotai,maga,dimaga,dirsum,normsum;
     momFloat tax,tay,taz,tmon;
-    double rholoc,dirDTS,d2DTS,dsmooth2,fSoftMedian,fEps,fEps2;
+    double rholoc,dirDTS,dsmooth2,fSoftMedian,fEps,fEps2;
 #ifndef USE_SIMD_MOMR
     double g2,g3,g4;
     double xx,xy,xz,yy,yz,zz;
@@ -91,6 +91,9 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 #else
     double fourh2;
 #endif
+
+    assert(pkd->oPotential);
+    assert(pkd->oAcceleration);
 
 #ifdef USE_SIMD_MOMR
     nCellILC = nCell;
@@ -342,6 +345,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 #else
 	ILP_LOOP(ilp,tile) {
 	    for (j=0;j<tile->nPart;++j) {
+		double d2DTS;
 		d2 = tile->d.d2.f[j];
 		d2DTS = d2;
 		fourh2 = softmassweight(fMass,4*fSoft*fSoft,

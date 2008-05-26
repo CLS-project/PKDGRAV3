@@ -51,10 +51,8 @@ struct parameters {
 #endif
     int bDoRungOutput;
     int bDoGravity;
-#ifdef HERMITE
     int bHermite;
     int bAarsethStep;
-#endif
     int nBucket;
     int iOutInterval;
     int iCheckInterval;
@@ -128,9 +126,7 @@ struct parameters {
     double Delta;
     double binFactor;
     int bLogBins;
-#ifdef RELAXATION
     int	bTraceRelaxation;
-#endif
 #ifdef PLANETS
     int bHeliocentric;
     int bCollision;

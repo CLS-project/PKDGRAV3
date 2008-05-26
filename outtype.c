@@ -25,9 +25,11 @@ FLOAT ArrType(PKD pkd,PARTICLE *p,int iType) {
 	return(p->fDensity);
     case OUT_COLOR_ARRAY:
     case OUT_POT_ARRAY:
+	assert(pkd->oPotential);
 	a = pkdPot(pkd,p);
 	return(*a);
     case OUT_AMAG_ARRAY:
+	assert(pkd->oAcceleration); /* Validate memory model */
 	a = pkdAccel(pkd,p);
 	return(sqrt(a[0]*a[0] + a[1]*a[1] + a[2]*a[2]));
     case OUT_RUNG_ARRAY:
@@ -37,10 +39,10 @@ FLOAT ArrType(PKD pkd,PARTICLE *p,int iType) {
     case OUT_GROUP_ARRAY:
 	assert(pkd->oGroup);
 	return *pkdInt32(p,pkd->oGroup);
-#ifdef RELAXATION
     case OUT_RELAX_ARRAY:
-	return (p->fRelax);
-#endif
+	assert(pkd->oRelaxation);
+	a = pkdField(p,pkd->oRelaxation);
+	return *a;
     default:
 	return(0.0);
 	}
@@ -54,9 +56,11 @@ FLOAT VecType(PKD pkd,PARTICLE *p,int iDim,int iType) {
     case OUT_POS_VECTOR:
 	return(p->r[iDim]);
     case OUT_VEL_VECTOR:
+	assert(pkd->oVelocity); /* Validate memory model */
 	v = pkdVel(pkd,p);
 	return(v[iDim]);
     case OUT_ACCEL_VECTOR:
+	assert(pkd->oAcceleration); /* Validate memory model */
 	a = pkdAccel(pkd,p);
 	return(a[iDim]);
     default:

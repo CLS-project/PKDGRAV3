@@ -853,10 +853,7 @@ struct inGroupProfiles {
 void pstFof(PST,void *,int,void *,int *);
 void pstGroupMerge(PST,void *,int,void *,int *);
 void pstGroupProfiles(PST,void *,int,void *,int *);
-#ifdef RELAXATION
 void pstInitRelaxation(PST,void *,int,void *,int *);
-#endif
-
 
 #ifdef PLANETS
 /* PLANETS begin */

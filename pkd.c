@@ -130,6 +130,15 @@ void pkdStopTimer(PKD pkd,int iTimer) {
     pkd->ti[iTimer].iActive--;
     }
 
+/* Add a structure: assume double alignment */
+static int pkdParticleAddStruct(PKD pkd,int n) {
+    int iOffset = pkd->iParticleSize;
+    mdlassert( pkd->mdl, pkd->pStorePRIVATE == NULL );
+    mdlassert( pkd->mdl, (iOffset & (sizeof(double)-1)) == 0 );
+    pkd->iParticleSize += n;
+    return iOffset;
+    }
+
 /* Add n doubles to the particle structure */
 static int pkdParticleAddDouble(PKD pkd,int n) {
     int iOffset = pkd->iParticleSize;
@@ -202,12 +211,32 @@ void pkdInitialize(PKD *ppkd,MDL mdl,int nStore,int nBucket,FLOAT *fPeriod,
     */
     pkd->iParticleSize = sizeof(PARTICLE);
 
-    if ( mMemoryModel && PKD_MODEL_VELOCITY )
+    if ( mMemoryModel & PKD_MODEL_VELOCITY )
 	pkd->oVelocity = pkdParticleAddDouble(pkd,3);
     else
 	pkd->oVelocity = 0;
 
-    if ( mMemoryModel && PKD_MODEL_GROUPS ) {
+    if ( mMemoryModel & PKD_MODEL_RELAXATION )
+	pkd->oRelaxation = pkdParticleAddDouble(pkd,1);
+    else
+	pkd->oRelaxation = 0;
+
+    if ( mMemoryModel & PKD_MODEL_HERMITE )
+	pkd->oHermite = pkdParticleAddStruct(pkd,sizeof(HERMITEFIELDS));
+    else
+	pkd->oHermite = 0;
+
+    if ( mMemoryModel & PKD_MODEL_ACCELERATION )
+	pkd->oAcceleration = pkdParticleAddFloat(pkd,3);
+    else
+	pkd->oAcceleration = 0;
+
+    if ( mMemoryModel & PKD_MODEL_POTENTIAL )
+	pkd->oPotential = pkdParticleAddFloat(pkd,1);
+    else
+	pkd->oPotential = 0;
+
+    if ( mMemoryModel & PKD_MODEL_GROUPS ) {
 	pkd->oGroup = pkdParticleAddInt32(pkd,1);
 	pkd->oBin   = pkdParticleAddInt32(pkd,1);
 	}
@@ -226,6 +255,10 @@ void pkdInitialize(PKD *ppkd,MDL mdl,int nStore,int nBucket,FLOAT *fPeriod,
     ** determining the force on the sun. The easiest way to do this is to
     ** allocate one hidden particle, which won't interfere with the rest of
     ** the code (hopefully). pkd->pStore[pkd->nStore] is this particle.
+    **
+    ** We also allocate a temporary particle used for swapping.  We need to do
+    ** this now because the outside world can no longer know the size of a
+    ** particle.
     */
     pkd->pStorePRIVATE = mdlMalloc(pkd->mdl,(nStore+1)*pkdParticleSize(pkd));
     mdlassert(mdl,pkd->pStorePRIVATE != NULL);
@@ -537,7 +570,7 @@ void pkdGenerateIC(PKD pkd, GRAFICCTX gctx,  int iDim,
 void pkdReadHDF5(PKD pkd, IOHDF5 io, double dvFac,
 		 uint64_t nStart, int nLocal ) {
     PARTICLE *p;
-    float *pPot;
+    float *pPot,dummypot;
     FLOAT dT1, dT2;
     FLOAT fSoft, fMass;
     double *v, dummyv[3];
@@ -559,7 +592,6 @@ void pkdReadHDF5(PKD pkd, IOHDF5 io, double dvFac,
     */
     for (i=0;i<nLocal;++i) {
 	p = pkdParticle(pkd,pkd->nLocal+i);
-	float *a = pkdAccel(pkd,p);
 	p->uRung = p->uNewRung = 0;
 	p->bSrcActive = p->bDstActive = 1;
 	p->fDensity = 0.0;
@@ -568,14 +600,18 @@ void pkdReadHDF5(PKD pkd, IOHDF5 io, double dvFac,
 	** Clear the accelerations so that the timestepping calculations do not
 	** get funny uninitialized values!
 	*/
-	for (j=0;j<3;++j) {
-	    a[j] = 0.0;
+	if ( pkd->oAcceleration ) {
+	    float *a = pkdAccel(pkd,p);
+	    for (j=0;j<3;++j) {
+		a[j] = 0.0;
+		}
 	    }
 	}
 
     for (i=0;i<nLocal;++i) {
 	p = pkdParticle(pkd,pkd->nLocal+i);
-	pPot = pkdPot(pkd,p);
+	if ( pkd->oPotential) pPot = pkdPot(pkd,p);
+	else pPot = &dummypot;
 
 	if (pkd->oVelocity) v = pkdVel(pkd,p);
 	else v = dummyv;
@@ -617,7 +653,6 @@ void pkdReadHDF5(PKD pkd, IOHDF5 io, double dvFac,
 void pkdIOInitialize( PKD pkd, int nLocal) {
     int i, j;
     PARTICLE *p;
-    float *a;
 
     pkd->nLocal = pkd->nActive = nLocal;
 
@@ -626,7 +661,6 @@ void pkdIOInitialize( PKD pkd, int nLocal) {
     */
     for (i=0;i<nLocal;++i) {
 	p = pkdParticle(pkd,i);
-	a = pkdAccel(pkd,p);
 	p->uRung = p->uNewRung = 0;
 	p->bSrcActive = p->bDstActive = 1;
 	p->iClass = 0;
@@ -636,8 +670,11 @@ void pkdIOInitialize( PKD pkd, int nLocal) {
 	** Clear the accelerations so that the timestepping calculations do not
 	** get funny uninitialized values!
 	*/
-	for (j=0;j<3;++j) {
-	    a[j] = 0.0;
+	if ( pkd->oAcceleration ) {
+	    float *a = pkdAccel(pkd,p);
+	    for (j=0;j<3;++j) {
+		a[j] = 0.0;
+		}
 	    }
 	}
 
@@ -649,7 +686,7 @@ void pkdReadTipsy(PKD pkd,char *pszFileName, uint64_t nStart,int nLocal,
     FILE *fp;
     int i,j;
     PARTICLE *p;
-    float *a, *pPot;
+    float *pPot, dummypot;
     double *v, dummyv[3];
     struct dark_particle dp;
     struct gas_particle gp;
@@ -664,7 +701,6 @@ void pkdReadTipsy(PKD pkd,char *pszFileName, uint64_t nStart,int nLocal,
     */
     for (i=0;i<nLocal;++i) {
 	p = pkdParticle(pkd,pkd->nLocal+i);
-	a = pkdAccel(pkd,p);
 	p->uRung = p->uNewRung = 0;
 	p->bSrcActive = p->bDstActive = 1;
 	p->fDensity = 0.0;
@@ -673,8 +709,11 @@ void pkdReadTipsy(PKD pkd,char *pszFileName, uint64_t nStart,int nLocal,
 	** Clear the accelerations so that the timestepping calculations do not
 	** get funny uninitialized values!
 	*/
-	for (j=0;j<3;++j) {
-	    a[j] = 0.0;
+	if ( pkd->oAcceleration ) {
+	    float *a = pkdAccel(pkd,p);
+	    for (j=0;j<3;++j) {
+		a[j] = 0.0;
+		}
 	    }
 	}
     /*
@@ -695,7 +734,8 @@ void pkdReadTipsy(PKD pkd,char *pszFileName, uint64_t nStart,int nLocal,
 	xdrstdio_create(&xdrs,fp,XDR_DECODE);
 	for (i=0;i<nLocal;++i) {
 	    p = pkdParticle(pkd,pkd->nLocal+i);
-	    pPot = pkdPot(pkd,p);
+	    if ( pkd->oPotential) pPot = pkdPot(pkd,p);
+	    else pPot = &dummypot;
 	    if (pkd->oVelocity) v = pkdVel(pkd,p);
 	    else v = dummyv;
 	    p->iOrder = nStart + i;
@@ -789,7 +829,8 @@ void pkdReadTipsy(PKD pkd,char *pszFileName, uint64_t nStart,int nLocal,
     else {
 	for (i=0;i<nLocal;++i) {
 	    p = pkdParticle(pkd,pkd->nLocal+i);
-	    pPot = pkdPot(pkd,p);
+	    if ( pkd->oPotential) pPot = pkdPot(pkd,p);
+	    else pPot = &dummypot;
 	    if (pkd->oVelocity) v = pkdVel(pkd,p);
 	    else v = dummyv;
 	    p->iOrder = nStart + i;
@@ -1296,7 +1337,6 @@ int pkdUpperOrdPart(PKD pkd,uint64_t nOrdSplit,int i,int j) {
 
 
 int pkdActiveOrder(PKD pkd) {
-    PARTICLE pTemp;
     int i=0;
     int j=pkdLocal(pkd)-1;
     PARTICLE *pi, *pj;
@@ -1488,12 +1528,16 @@ int pkdUnpackIO(PKD pkd,
     for ( i=0; i<nMax; i++ ) {
 	local_t I = *iIndex + i;
 	PARTICLE *p = pkdParticle(pkd,I);
-	float *a = pkdAccel(pkd,p);
-	float *pPot = pkdPot(pkd,p);
+	float *a, dummya[3];
+	float *pPot, dummypot;
 	double *v, dummyv[3];
 
+	if ( pkd->oPotential) pPot = pkdPot(pkd,p);
+	else pPot = &dummypot;
 	if (pkd->oVelocity) v = pkdVel(pkd,p);
 	else v = dummyv;
+	if ( pkd->oAcceleration ) a = pkdAccel(pkd,p);
+	else a = dummya;
 
 	for ( d=0; d<3; d++ ) {
 	    p->r[d]  = io[i].r[d];
@@ -1525,18 +1569,20 @@ int pkdPackIO(PKD pkd,
 	      total_t iMaxOrder,
 	      double dvFac ) {
     PARTICLE *p;
-    float *pPot;
+    float *pPot, dummypot;
     double *v, dummyv[3];
     local_t i;
     int nCopied, d;
 
     dummyv[0] = dummyv[1] = dummyv[2] = 0.0;
+    dummypot = 0.0;
 
     mdlassert(pkd->mdl,*iIndex<=pkd->nLocal);
 
     for ( i=*iIndex,nCopied=0; nCopied < nMax && i < pkd->nLocal; i++ ) {
 	p = pkdParticle(pkd,i);
-	pPot = pkdPot(pkd,p);
+	if ( pkd->oPotential) pPot = pkdPot(pkd,p);
+	else pPot = &dummypot;
 	if (pkd->oVelocity) v = pkdVel(pkd,p);
 	else v = dummyv;
 
@@ -1565,17 +1611,18 @@ int pkdPackIO(PKD pkd,
 #ifdef USE_HDF5
 void pkdWriteHDF5(PKD pkd, IOHDF5 io, IOHDF5V ioDen, IOHDF5V ioPot, double dvFac) {
     PARTICLE *p;
-    float *pPot;
+    float *pPot, dummypot;
     FLOAT v[3], fSoft, fMass;
     double *pv, dummyv[3];
     int i;
 
     dummyv[0] = dummyv[1] = dummyv[2] = 0.0;
-
+    dummypot = 0.0;
     for (i=0;i<pkdLocal(pkd);++i) {
 	p = pkdParticle(pkd,i);
 	if ( !pkdIsSrcActive(p,0,MAX_RUNG) ) continue;
-	pPot = pkdPot(pkd,p);
+	if ( pkd->oPotential) pPot = pkdPot(pkd,p);
+	else pPot = &dummypot;
 	if (pkd->oVelocity) pv = pkdVel(pkd,p);
 	else pv = dummyv;
 
@@ -1613,7 +1660,7 @@ void pkdWriteHDF5(PKD pkd, IOHDF5 io, IOHDF5V ioDen, IOHDF5V ioPot, double dvFac
 uint32_t pkdWriteTipsy(PKD pkd,char *pszFileName,uint64_t nStart,
 		       int bStandard,double dvFac,int bDoublePos) {
     PARTICLE *p;
-    float *pPot;
+    float *pPot, dummypot;
     double *v, dummyv[3];
     FILE *fp;
     int i,j;
@@ -1633,7 +1680,7 @@ uint32_t pkdWriteTipsy(PKD pkd,char *pszFileName,uint64_t nStart,
     pkdSeek(pkd,fp,nStart,bStandard,bDoublePos,0);
 
     dummyv[0] = dummyv[1] = dummyv[2] = 0.0;
-
+    dummypot = 0.0;
     nCount = 0;
     if (bStandard) {
 	FLOAT vTemp;
@@ -1644,7 +1691,8 @@ uint32_t pkdWriteTipsy(PKD pkd,char *pszFileName,uint64_t nStart,
 	xdrstdio_create(&xdrs,fp,XDR_ENCODE);
 	for (i=0;i<pkdLocal(pkd);++i) {
 	    p = pkdParticle(pkd,i);
-	    pPot = pkdPot(pkd,p);
+	    if ( pkd->oPotential) pPot = pkdPot(pkd,p);
+	    else pPot = &dummypot;
 	    if (pkd->oVelocity) v = pkdVel(pkd,p);
 	    else v = dummyv;
 	    if ( !pkdIsSrcActive(p,0,MAX_RUNG) ) continue;
@@ -1746,7 +1794,8 @@ uint32_t pkdWriteTipsy(PKD pkd,char *pszFileName,uint64_t nStart,
 	for (i=0;i<pkdLocal(pkd);++i) {
 	    p = pkdParticle(pkd,i);
 	    if ( !pkdIsSrcActive(p,0,MAX_RUNG) ) continue;
-	    pPot = pkdPot(pkd,p);
+	    if ( pkd->oPotential) pPot = pkdPot(pkd,p);
+	    else pPot = &dummypot;
 	    if (pkd->oVelocity) v = pkdVel(pkd,p);
 	    else v = dummyv;
 	    nCount++;
@@ -1913,6 +1962,7 @@ void pkdCalcEandL(PKD pkd,double *T,double *U,double *Eth,double L[]) {
     int i,n;
 
     assert(pkd->oVelocity);
+    assert(pkd->oPotential);
 
     n = pkdLocal(pkd);
     *T = 0.0;
@@ -2513,6 +2563,7 @@ void pkdKick(PKD pkd,double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi)
     int i,j,n;
 
     assert(pkd->oVelocity);
+    assert(pkd->oAcceleration);
 
     pkdClearTimer(pkd,1);
     pkdStartTimer(pkd,1);
@@ -2591,6 +2642,8 @@ void pkdAccelStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,
     FLOAT fSoft;
 
     assert(pkd->oVelocity);
+    assert(pkd->oAcceleration);
+    assert(pkd->oPotential);
 
     for (i=0;i<pkdLocal(pkd);++i) {
 	p = pkdParticle(pkd,i);
@@ -2833,18 +2886,18 @@ int pkdIsStar(PKD pkd,PARTICLE *p) {
     else return 0;
     }
 
-#ifdef RELAXATION
 void pkdInitRelaxation(PKD pkd) {
     PARTICLE *p;
+    double *pRelax;
     int i;
 
+    assert(pkd->oRelaxation);
     for (i=0;i<pkdLocal(pkd);++i) {
 	p = pkdParticle(pkd,i);
-	p->fRelax = 0.0;
+	pRelax = pkdField(p,pkd->oRelaxation);
+	*pRelax = 0.0;
 	}
     }
-
-#endif /* RELAXATION */
 
 #ifdef PLANETS
 void
@@ -3892,8 +3945,9 @@ int pkdDeepestPot(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
     PARTICLE *p, *pLocal;
     float *pPot, *pPotLocal;
 
-    n = pkdLocal(pkd);
+    assert(pkd->oPotential);
 
+    n = pkdLocal(pkd);
     pLocal = pkdParticle(pkd,0);
     pPotLocal = pkdPot(pkd,pLocal);
     nChecked = 0;

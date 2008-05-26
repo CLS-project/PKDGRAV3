@@ -47,10 +47,14 @@ pkdGetColliderInfo(PKD pkd,int iOrder,COLLIDER *c) {
      */
 
     PARTICLE *p;
+    HERMITEFIELDS *ph;
     int i,j,k;
+
+    assert ( pkd->oHermite ); /* Hermite integrator is required */
 
     for (i=0;i<pkdLocal(pkd);i++) {
 	p = pkdParticle(pkd,i);
+	ph = pkdField(p,pkd->oHermite);
 	if (p->iOrder == iOrder) {
 	    c->id.iPid = pkd->idSelf;
 	    c->id.iOrder = iOrder;
@@ -62,10 +66,8 @@ pkdGetColliderInfo(PKD pkd,int iOrder,COLLIDER *c) {
 		c->r[j] = p->r[j];
 		c->v[j] = p->v[j];
 		c->w[j] = p->w[j];
-#ifdef HERMITE
 		c->a[j] = p->a[j];
-		c->ad[j] = p->ad[j];
-#endif
+		c->ad[j] = ph->ad[j];
 		}
 #ifdef SYMBA
 	    c->drmin = p->drmin;
@@ -98,6 +100,10 @@ void PutColliderInfo(const COLLIDER *c,int iOrder2,PARTICLE *p,double dt) {
 
     int i,k;
     double r;
+    HERMITEFIELDS *ph;
+
+    assert ( pkd->oHermite ); /* Hermite integrator is required */
+
 
     p->fMass = c->fMass;
     p->fSoft = c->fRadius;
@@ -108,10 +114,8 @@ void PutColliderInfo(const COLLIDER *c,int iOrder2,PARTICLE *p,double dt) {
 	p->r[i] = c->r[i];
 	p->v[i] = c->v[i];
 	p->w[i] = c->w[i];
-#ifdef HERMITE
 	p->a[i] = c->a[i];
-	p->ad[i] = c->ad[i];
-#endif
+	ph->ad[i] = c->ad[i];
 	}
 
 #ifdef SYMBA
@@ -170,10 +174,8 @@ pkdMerge(PKD pkd,const COLLIDER *c1,const COLLIDER *c2,double dDensity,
 	com_vel[k] = (m1*c1->v[k] + m2*c2->v[k])/m;
 	vc1[k] = c1->v[k] - com_vel[k];
 	vc2[k] = c2->v[k] - com_vel[k];
-#ifdef HERMITE
 	com_a[k] = (m1*c1->a[k] + m2*c2->a[k])/m;
 	com_ad[k] = (m1*c1->ad[k] + m2*c2->ad[k])/m;
-#endif
 	}
 
     ang_mom[0] = m1*(rc1[1]*vc1[2] - rc1[2]*vc1[1]) + i1*c1->w[0] +
@@ -198,10 +200,8 @@ pkdMerge(PKD pkd,const COLLIDER *c1,const COLLIDER *c2,double dDensity,
 	c->r[k] = com_pos[k];
 	c->v[k] = com_vel[k];
 	c->w[k] = ang_mom[k]/i;
-#ifdef HERMITE
 	c->a[k] = com_a[k];
 	c->ad[k] = com_ad[k];
-#endif
 	}
 #ifdef SYMBA
     c->drmin = c1->drmin;

@@ -356,10 +356,8 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_GROUPPROFILES,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstGroupProfiles,
 		  sizeof(struct inGroupProfiles),sizeof(int));
-#ifdef RELAXATION
     mdlAddService(mdl,PST_INITRELAXATION,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstInitRelaxation,0,0);
-#endif
 #ifdef USE_MDL_IO
     mdlAddService(mdl,PST_FINDIOS,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstFindIOS,
@@ -2328,17 +2326,6 @@ static int pstPackIO(void *vctx, int *id, size_t nSize, void *vBuff) {
     }
 
 
-static int pstUnpackIO(void *vctx, int *id, size_t nSize, void *vBuff) {
-    CTXIO ctx = vctx;
-    PIO *io = (PIO *)vBuff;
-
-    return pkdUnpackIO(ctx->pkd,
-		       io, nSize/sizeof(PIO),
-		       &ctx->iIndex,
-		       ctx->iMinOrder, ctx->iMaxOrder,
-		       ctx->dvFac);
-    }
-
 void pstStartIO(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct inStartIO *in = vin;
@@ -3322,7 +3309,6 @@ void pstGroupProfiles(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     if (pnOut) *pnOut = sizeof(int);
     }
 
-#ifdef RELAXATION
 void pstInitRelaxation(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
 
@@ -3337,7 +3323,6 @@ void pstInitRelaxation(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	}
     if (pnOut) *pnOut = 0;
     }
-#endif /* RELAXATION */
 
 /* PLANETS begin */
 #ifdef PLANETS

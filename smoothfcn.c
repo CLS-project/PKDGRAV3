@@ -154,12 +154,17 @@ void combGroupBins(void *b1, void *b2) {
     gb1->L[2]  += gb2->L[2];
     }
 
-#ifdef RELAXATION
 void AddRelaxation(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
+    PKD pkd = smf->pkd;
     FLOAT  fNorm,ih2,vSigma2,L,fRel,e,pmax,pmin,vMean[3],feps;
     FLOAT beta,gamma,rho;
     int i,j;
     PARTICLE *q;
+    double *v;
+    double *pRelax;
+
+    assert( pkd->oRelaxation);
+    pRelax = pkdField(p,pkd->oRelaxation);
 
     beta = 10.0; /* pmax=beta*l, large beta parameter reduces eps dependence  */
     gamma = 0.17; /* gamma scales overall relaxation time */
@@ -174,10 +179,11 @@ void AddRelaxation(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
     fNorm = M_1_PI*sqrt(ih2)*ih2;
     for (i=0;i<nSmooth;++i) {
 	q = nnList[i].pPart;
-	rho += q->fMass;
+	v = pkdVel(pkd,q);
+	rho += pkdMass(pkd,q);
 	for (j=0;j<3;++j) {
-	    vSigma2 += q->v[j]*q->v[j];
-	    vMean[j] += q->v[j];
+	    vSigma2 += v[j]*v[j];
+	    vMean[j] += v[j];
 	    }
 	}
     vSigma2 /= nSmooth;
@@ -187,17 +193,16 @@ void AddRelaxation(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
 	vSigma2 -= vMean[j]*vMean[j];
 	}
     vSigma2 = 0.33333*vSigma2; /* now its the one dimensional vel.dispersion squared */
-    pmin = 2.0*p->fMass/(6.0*vSigma2);  /* pmin in comoving units */
-    e = feps*p->fSoft;
+    pmin = 2.0*pkdMass(pkd,p)/(6.0*vSigma2);  /* pmin in comoving units */
+    e = feps*pkdSoft(pkd,p);
     if (pmin < e) pmin = e; /* pmin is the bigger one of epsilon and p90 */
-    pmax = beta*pow(p->fMass/rho, 0.333333); /* pmax=beta*mean interp. separation */
+    pmax = beta*pow(pkdMass(pkd,p)/rho, 0.333333); /* pmax=beta*mean interp. separation */
     if (pmax < pmin || vSigma2 < 0) return;  /* no relaxation if pmin > pmax */
     L = pmax/pmin;
     fRel = 0.5*( log(1+L*L) - L*L/(1+L*L) );
-    fRel *= p->fMass*rho*pow(vSigma2, -1.5)/gamma;
-    p->fRelax += fRel * smf->dDeltaT;
+    fRel *= pkdMass(pkd,p)*rho*pow(vSigma2, -1.5)/gamma;
+    *pRelax += fRel * smf->dDeltaT;
     }
-#endif  /* RELAXATION */
 
 #ifdef SYMBA
 void DrmininDrift(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {

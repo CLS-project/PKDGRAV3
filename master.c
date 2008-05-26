@@ -402,14 +402,12 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.bDoGravity = 1;
     prmAddParam(msr->prm,"bDoGravity",0,&msr->param.bDoGravity,sizeof(int),"g",
 		"enable/disable interparticle gravity = +g");
-#ifdef HERMITE
     msr->param.bHermite = 0;
     prmAddParam(msr->prm,"bHermite",0,&msr->param.bHermite,
 		sizeof(int),"hrm","<Hermite integratot>");
     msr->param.bAarsethStep = 0;
     prmAddParam(msr->prm,"bAarsethStep",0,&msr->param.bAarsethStep,sizeof(int),
 		"aas","<Aarseth timestepping>");
-#endif
     msr->param.iWallRunTime = 0;
     prmAddParam(msr->prm,"iWallRunTime",1,&msr->param.iWallRunTime,
 		sizeof(int),"wall",
@@ -453,11 +451,9 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.bLogBins = 0;
     prmAddParam(msr->prm,"bLogBins",0,&msr->param.bLogBins,
 		sizeof(int),"bLogBins","use logaritmic bins instead of linear = -bLogBins");
-#ifdef RELAXATION
     msr->param.bTraceRelaxation = 0;
     prmAddParam(msr->prm,"bTraceRelaxation",0,&msr->param.bTraceRelaxation,sizeof(int),
 		"rtrace","<enable/disable relaxation tracing> = -rtrace");
-#endif /* RELAXATION */
 
 #ifdef PLANETS
     msr->param.bCollision = 0;
@@ -798,9 +794,6 @@ void msrLogParams(MSR msr,FILE *fp) {
 #ifdef DEBUG
     fprintf(fp," DEBUG");
 #endif
-#ifdef RELAXATION
-    fprintf(fp,"RELAXATION");
-#endif
 #ifdef _REENTRANT
     fprintf(fp," _REENTRANT");
 #endif
@@ -862,10 +855,8 @@ void msrLogParams(MSR msr,FILE *fp) {
     fprintf(fp," dPreFacRhoLoc: %g", msr->param.dPreFacRhoLoc);
     fprintf(fp," nPartColl: %d", msr->param.nPartColl);
     fprintf(fp,"\n# bDoGravity: %d",msr->param.bDoGravity);
-#ifdef HERMITE
     fprintf(fp," bHermite: %d",msr->param.bHermite);
     fprintf(fp," bAarsethStep: %d",msr->param.bAarsethStep);
-#endif
     fprintf(fp,"\n# dFracNoDomainDecomp: %g",msr->param.dFracNoDomainDecomp);
     fprintf(fp," dFracNoDomainRootFind: %g",msr->param.dFracNoDomainRootFind);
     fprintf(fp," dFracNoDomainDimChoice: %g",msr->param.dFracNoDomainDimChoice);
@@ -886,9 +877,7 @@ void msrLogParams(MSR msr,FILE *fp) {
     fprintf(fp," Delta: %g",msr->param.Delta);
     fprintf(fp," binFactor: %g",msr->param.binFactor);
     fprintf(fp," bLogBins: %d",msr->param.bLogBins);
-#ifdef RELAXATION
     fprintf(fp,"\n# Relaxation estimate: bTraceRelaxation: %d",msr->param.bTraceRelaxation);
-#endif
 #ifdef PLANETS
 #ifdef SYMBA
     fprintf(fp," bSymba: %d",msr->param.bSymba);
@@ -4101,18 +4090,21 @@ void msrDeleteGroups(MSR msr) {
     plcl->pkd->nBins = 0;
     plcl->pkd->nGroups = 0;
     }
-#ifdef RELAXATION
+
 void msrInitRelaxation(MSR msr) {
     pstInitRelaxation(msr->pst,NULL,0,NULL,NULL);
     }
+
 void msrRelaxation(MSR msr,double dTime,double deltaT,int iSmoothType,int bSymmetric) {
     struct inSmooth in;
     in.nSmooth = msr->param.nSmooth;
     in.bPeriodic = msr->param.bPeriodic;
     in.bSymmetric = bSymmetric;
     in.iSmoothType = iSmoothType;
+#if 0
     in.dfBall2OverSoft2 = (msr->param.bLowerSoundSpeed ? 0 :
 			   4.0*msr->param.dhMinOverSoft*msr->param.dhMinOverSoft);
+#endif
     if (msrComove(msr)) {
 	in.smf.H = csmTime2Hub(msr->param.csm,dTime);
 	in.smf.a = csmTime2Exp(msr->param.csm,dTime);
@@ -4134,7 +4126,6 @@ void msrRelaxation(MSR msr,double dTime,double deltaT,int iSmoothType,int bSymme
 	pstSmooth(msr->pst,&in,sizeof(in),NULL,NULL);
 	}
     }
-#endif /* RELAXATION */
 
 #ifdef PLANETS
 void
@@ -4947,8 +4938,11 @@ double msrRead(MSR msr, int iStep) {
 
     uint64_t mMemoryModel = 0;
 
-    if (msr->param.nFindGroups > 0) mMemoryModel |= PKD_MODEL_GROUPS|PKD_MODEL_VELOCITY;
-    if (msrDoGravity(msr)) mMemoryModel |= PKD_MODEL_VELOCITY;
+    if (msr->param.nFindGroups > 0) mMemoryModel |= PKD_MODEL_GROUPS|PKD_MODEL_VELOCITY|PKD_MODEL_POTENTIAL;
+    if (msrDoGravity(msr)) mMemoryModel |= PKD_MODEL_VELOCITY|PKD_MODEL_ACCELERATION|PKD_MODEL_POTENTIAL;
+    if (msr->param.bHermite) mMemoryModel |= PKD_MODEL_HERMITE;
+    if (msr->param.bTraceRelaxation) mMemoryModel |= PKD_MODEL_RELAXATION;
+
 
 #ifdef PLANETS
     dTime = msrReadSS(msr); /* must use "Solar System" (SS) I/O format... */
@@ -5125,7 +5119,6 @@ void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint) {
 	    }
 	}
 
-#ifdef RELAXATION
     if ( msr->param.bTraceRelaxation) {
 	msrReorder(msr);
 	msrBuildName(msr,achFile,iStep);
@@ -5133,7 +5126,6 @@ void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint) {
 	strncat(achFile,".relax",256);
 	msrOutArray(msr,achFile,OUT_RELAX_ARRAY);
 	}
-#endif
     if (msrDoDensity(msr) && !msr->param.nFindGroups) {
 	msrReorder(msr);
 	msrBuildName(msr,achFile,iStep);
