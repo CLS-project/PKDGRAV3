@@ -212,7 +212,6 @@ typedef struct bndBound {
 */
 #define PARTITION(LT,LE,INCI,DECJ,SWAP,LOWER,UPPER)	\
     {							\
-    assert(pi<=pj);					\
     while ((LE) && (LOWER)) { INCI; }			\
     while ((LT) && (UPPER)) { DECJ; }			\
     while (LT) {					\
