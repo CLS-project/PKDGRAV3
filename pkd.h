@@ -196,27 +196,30 @@ typedef struct bndBound {
 
 /*
 ** General partition macro
-** i,j: [start,end] element...  last element is NOT n+1
+** LT,LE: Compare less-than/less-than or equal
 ** ii,dj: Increment i and decrement j
 ** SWAP: Swap the i'th and j'th element
 ** LOWER,UPPER: comparison predicates
 ** e.g.,
 ** PARTICLE *pi = pkdParticle(pkd,i);
 ** PARTICLE *pj = pkdParticle(pkd,j);
-**    PARTITION(pi,pj,
+**    PARTITION(pi<pj,pi<=pj,
 **              pi=pkdParticle(pkd,++i),pj=pkdParticle(pkd,--j),
 **              pkdSwapParticle(pkd,pi,pj),
 **	        pi->r[d] >= fSplit,pj->r[d] < fSplit);
+** When finished, the 'I' variable points to the first element of
+** the upper partition (or one past the end).
 */
-#define PARTITION(i,j,ii,dj,SWAP,LOWER,UPPER)	\
-    {						\
-    while (i <= j && (LOWER)) { ii; }		\
-    while (i <= j && (UPPER)) { dj; }		\
-    while (i < j) {				\
-	{ SWAP; }				\
-	do { ii; } while (LOWER);		\
-	do { dj; } while (UPPER);		\
-	}					\
+#define PARTITION(LT,LE,INCI,DECJ,SWAP,LOWER,UPPER)	\
+    {							\
+    assert(pi<=pj);					\
+    while ((LE) && (LOWER)) { INCI; }			\
+    while ((LT) && (UPPER)) { DECJ; }			\
+    while (LT) {					\
+	{ SWAP; }					\
+	do { DECJ; } while (UPPER);			\
+	do { INCI; } while (LOWER);			\
+	}						\
     }
 
 

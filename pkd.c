@@ -1168,7 +1168,7 @@ int pkdLowerPart(PKD pkd,int d,FLOAT fSplit,int i,int j) {
     PARTICLE *pi, *pj;
     pi = pkdParticle(pkd,i);
     pj = pkdParticle(pkd,j);
-    PARTITION(pi,pj,
+    PARTITION(pi<pj,pi<=pj,
 	       pi=pkdParticle(pkd,++i),pj=pkdParticle(pkd,--j),
 	       pkdSwapParticle(pkd,pi,pj),
 	       pi->r[d] >= fSplit,pj->r[d] < fSplit);
@@ -1180,7 +1180,7 @@ int pkdUpperPart(PKD pkd,int d,FLOAT fSplit,int i,int j) {
     PARTICLE *pi, *pj;
     pi = pkdParticle(pkd,i);
     pj = pkdParticle(pkd,j);
-    PARTITION(pi,pj,
+    PARTITION(pi<pj,pi<=pj,
 	       pi=pkdParticle(pkd,++i),pj=pkdParticle(pkd,--j),
 	       pkdSwapParticle(pkd,pi,pj),
 	       pi->r[d] < fSplit,pj->r[d] >= fSplit);
@@ -1194,7 +1194,7 @@ int pkdLowerPartWrap(PKD pkd,int d,FLOAT fSplit1,FLOAT fSplit2,int iVASplitSide,
 
     if (fSplit1 > fSplit2) {
 	if (iVASplitSide < 0) {
-	    PARTITION(pi,pj,
+	    PARTITION(pi<pj,pi<=pj,
 		       pi=pkdParticle(pkd,++i),pj=pkdParticle(pkd,--j),
 		       pkdSwapParticle(pkd,pi,pj),
 		       (pi->r[d] < fSplit2 || pi->r[d] >= fSplit1) &&
@@ -1203,7 +1203,7 @@ int pkdLowerPartWrap(PKD pkd,int d,FLOAT fSplit1,FLOAT fSplit2,int iVASplitSide,
 		       pkdIsVeryActive(pkd,pj));
 	    }
 	else if (iVASplitSide > 0) {
-	    PARTITION(pi,pj,
+	    PARTITION(pi<pj,pi<=pj,
 		       pi=pkdParticle(pkd,++i),pj=pkdParticle(pkd,--j),
 		       pkdSwapParticle(pkd,pi,pj),
 		       (pi->r[d] < fSplit2 || pi->r[d] >= fSplit1) ||
@@ -1212,7 +1212,7 @@ int pkdLowerPartWrap(PKD pkd,int d,FLOAT fSplit1,FLOAT fSplit2,int iVASplitSide,
 		       !pkdIsVeryActive(pkd,pj));
 	    }
 	else {
-	    PARTITION(pi,pj,
+	    PARTITION(pi<pj,pi<=pj,
 		       pi=pkdParticle(pkd,++i),pj=pkdParticle(pkd,--j),
 		       pkdSwapParticle(pkd,pi,pj),
 		       (pi->r[d] < fSplit2 || pi->r[d] >= fSplit1),
@@ -1221,7 +1221,7 @@ int pkdLowerPartWrap(PKD pkd,int d,FLOAT fSplit1,FLOAT fSplit2,int iVASplitSide,
 	}
     else {
 	if (iVASplitSide < 0) {
-	    PARTITION(pi,pj,
+	    PARTITION(pi<pj,pi<=pj,
 		       pi=pkdParticle(pkd,++i),pj=pkdParticle(pkd,--j),
 		       pkdSwapParticle(pkd,pi,pj),
 		       (pi->r[d] < fSplit2 && pi->r[d] >= fSplit1) &&
@@ -1230,7 +1230,7 @@ int pkdLowerPartWrap(PKD pkd,int d,FLOAT fSplit1,FLOAT fSplit2,int iVASplitSide,
 		       pkdIsVeryActive(pkd,pj));
 	    }
 	else if (iVASplitSide > 0) {
-	    PARTITION(pi,pj,
+	    PARTITION(pi<pj,pi<=pj,
 		       pi=pkdParticle(pkd,++i),pj=pkdParticle(pkd,--j),
 		       pkdSwapParticle(pkd,pi,pj),
 		       (pi->r[d] < fSplit2 && pi->r[d] >= fSplit1) ||
@@ -1239,7 +1239,7 @@ int pkdLowerPartWrap(PKD pkd,int d,FLOAT fSplit1,FLOAT fSplit2,int iVASplitSide,
 		       !pkdIsVeryActive(pkd,pj));
 	    }
 	else {
-	    PARTITION(pi,pj,
+	    PARTITION(pi<pj,pi<=pj,
 		       pi=pkdParticle(pkd,++i),pj=pkdParticle(pkd,--j),
 		       pkdSwapParticle(pkd,pi,pj),
 		       (pi->r[d] < fSplit2 && pi->r[d] >= fSplit1),
@@ -1256,7 +1256,7 @@ int pkdUpperPartWrap(PKD pkd,int d,FLOAT fSplit1,FLOAT fSplit2,int iVASplitSide,
 
     if (fSplit1 > fSplit2) {
 	if (iVASplitSide < 0) {
-	    PARTITION(pi,pj,
+	    PARTITION(pi<pj,pi<=pj,
 		       pi=pkdParticle(pkd,++i),pj=pkdParticle(pkd,--j),
 		       pkdSwapParticle(pkd,pi,pj),
 		       (pi->r[d] >= fSplit2 && pi->r[d] < fSplit1) ||
@@ -1265,7 +1265,7 @@ int pkdUpperPartWrap(PKD pkd,int d,FLOAT fSplit1,FLOAT fSplit2,int iVASplitSide,
 		       !pkdIsVeryActive(pkd,pj));
 	    }
 	else if (iVASplitSide > 0) {
-	    PARTITION(pi,pj,
+	    PARTITION(pi<pj,pi<=pj,
 		       pi=pkdParticle(pkd,++i),pj=pkdParticle(pkd,--j),
 		       pkdSwapParticle(pkd,pi,pj),
 		       (pi->r[d] >= fSplit2 && pi->r[d] < fSplit1) &&
@@ -1274,7 +1274,7 @@ int pkdUpperPartWrap(PKD pkd,int d,FLOAT fSplit1,FLOAT fSplit2,int iVASplitSide,
 		       pkdIsVeryActive(pkd,pj));
 	    }
 	else {
-	    PARTITION(pi,pj,
+	    PARTITION(pi<pj,pi<=pj,
 		       pi=pkdParticle(pkd,++i),pj=pkdParticle(pkd,--j),
 		       pkdSwapParticle(pkd,pi,pj),
 		       (pi->r[d] >= fSplit2 && pi->r[d] < fSplit1),
@@ -1283,7 +1283,7 @@ int pkdUpperPartWrap(PKD pkd,int d,FLOAT fSplit1,FLOAT fSplit2,int iVASplitSide,
 	}
     else {
 	if (iVASplitSide < 0) {
-	    PARTITION(pi,pj,
+	    PARTITION(pi<pj,pi<=pj,
 		       pi=pkdParticle(pkd,++i),pj=pkdParticle(pkd,--j),
 		       pkdSwapParticle(pkd,pi,pj),
 		       (pi->r[d] >= fSplit2 || pi->r[d] < fSplit1) ||
@@ -1292,7 +1292,7 @@ int pkdUpperPartWrap(PKD pkd,int d,FLOAT fSplit1,FLOAT fSplit2,int iVASplitSide,
 		       !pkdIsVeryActive(pkd,pj));
 	    }
 	else if (iVASplitSide > 0) {
-	    PARTITION(pi,pj,
+	    PARTITION(pi<pj,pi<=pj,
 		       pi=pkdParticle(pkd,++i),pj=pkdParticle(pkd,--j),
 		       pkdSwapParticle(pkd,pi,pj),
 		       (pi->r[d] >= fSplit2 || pi->r[d] < fSplit1) &&
@@ -1301,7 +1301,7 @@ int pkdUpperPartWrap(PKD pkd,int d,FLOAT fSplit1,FLOAT fSplit2,int iVASplitSide,
 		       pkdIsVeryActive(pkd,pj));
 	    }
 	else {
-	    PARTITION(pi,pj,
+	    PARTITION(pi<pj,pi<=pj,
 		       pi=pkdParticle(pkd,++i),pj=pkdParticle(pkd,--j),
 		       pkdSwapParticle(pkd,pi,pj),
 		       (pi->r[d] >= fSplit2 || pi->r[d] < fSplit1),
@@ -1316,7 +1316,7 @@ int pkdLowerOrdPart(PKD pkd,uint64_t nOrdSplit,int i,int j) {
     PARTICLE *pi, *pj;
     pi = pkdParticle(pkd,i);
     pj = pkdParticle(pkd,j);
-    PARTITION(pi,pj,
+    PARTITION(pi<pj,pi<=pj,
 	       pi=pkdParticle(pkd,++i),pj=pkdParticle(pkd,--j),
 	       pkdSwapParticle(pkd,pi,pj),
 	       pi->iOrder >= nOrdSplit,pj->iOrder < nOrdSplit);
@@ -1328,7 +1328,7 @@ int pkdUpperOrdPart(PKD pkd,uint64_t nOrdSplit,int i,int j) {
     PARTICLE *pi, *pj;
     pi = pkdParticle(pkd,i);
     pj = pkdParticle(pkd,j);
-    PARTITION(pi,pj,
+    PARTITION(pi<pj,pi<=pj,
 	       pi=pkdParticle(pkd,++i),pj=pkdParticle(pkd,--j),
 	       pkdSwapParticle(pkd,pi,pj),
 	       pi->iOrder < nOrdSplit,pj->iOrder >= nOrdSplit);
@@ -1342,7 +1342,7 @@ int pkdActiveOrder(PKD pkd) {
     PARTICLE *pi, *pj;
     pi = pkdParticle(pkd,i);
     pj = pkdParticle(pkd,j);
-    PARTITION(pi,pj,
+    PARTITION(pi<pj,pi<=pj,
 	       pi=pkdParticle(pkd,++i),pj=pkdParticle(pkd,--j),
 	       pkdSwapParticle(pkd,pi,pj),
 	       pkdIsActive(pkd,pi),!pkdIsActive(pkd,pj));
