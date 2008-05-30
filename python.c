@@ -189,40 +189,8 @@ ppy_msr_DeepestPotential(PyObject *self, PyObject *args) {
 }
 
 static PyObject *
-ppy_msr_LogProfile(PyObject *self, PyObject *args) {
-    double r[3], dMinR, dMaxR, dMassEncl, dRho, R0, R1;
-    int nBins, nAccuracy, nMinParticles, i;
-    const PROFILEBIN *pBins;
-    PyObject *List;
-
-    nBins = 100;
-    nAccuracy = 2; /* +/- 2 particles per bin */
-    if ( !PyArg_ParseTuple(
-	     args, "(ddd)dd|iii:LogProfile",
-	     r+0, r+1, r+2, &dMinR, &dMaxR, &nBins, &nAccuracy, &nMinParticles ) )
-	return NULL;
-    pBins = msrLogProfile(ppy_msr,r,dMinR,dMaxR,nBins,nAccuracy,nMinParticles);
-    List = PyList_New( nBins );
-    dMassEncl = 0.0;
-    R0 = log10(pBins[0].dRadius);
-    for(i=0; i<nBins; i++ ) {
-	dMassEncl += pBins[i].dMassInBin;
-	dRho = pBins[i].dMassInBin/pBins[i].dVolume;
-	R1 = log10(pBins[i].dRadius);
-	PyList_SetItem(
-	    List,i,Py_BuildValue("(ddLdd)",
-				 pBins[i].dRadius,
-				 pow(10,0.5*(R1+R0)),
-				 pBins[i].nParticles, dRho, dMassEncl));
-	R0 = R1;
-	}
-    msrDeleteProfile(ppy_msr);
-    return List;
-}
-
-static PyObject *
 ppy_msr_Profile(PyObject *self, PyObject *args) {
-    double r[3], dMinR, dMaxR, dMassEncl, dRho;
+    double r[3], dMinR, dLogR, dMaxR, dMassEncl, dRho;
     int nBins, nPerBin, nAccuracy, i;
     const PROFILEBIN *pBins;
     PyObject *List;
@@ -231,10 +199,10 @@ ppy_msr_Profile(PyObject *self, PyObject *args) {
     nBins = 200;
     nPerBin = 0;
     if ( !PyArg_ParseTuple(
-	     args, "(ddd)ddi|ii:Profile",
-	     r+0, r+1, r+2, &dMinR, &dMaxR, &nBins, &nPerBin, &nAccuracy ) )
+	     args, "(ddd)dddi|ii:Profile",
+	     r+0, r+1, r+2, &dMinR, &dLogR, &dMaxR, &nPerBin, &nBins, &nAccuracy ) )
 	return NULL;
-    msrProfile(ppy_msr,&pBins,&nBins,r,dMinR,dMaxR,nBins,nPerBin,nAccuracy);
+    msrProfile(ppy_msr,&pBins,&nBins,r,dMinR,dLogR,dMaxR,nPerBin,nBins,nAccuracy);
 
     List = PyList_New( nBins );
     assert( List !=NULL );
@@ -347,7 +315,21 @@ ppy_msr_GroupProfiles(PyObject *self, PyObject *args, PyObject *kwobj) {
 }
 
 static PyObject *
-ppy_msr_Write(PyObject *self, PyObject *args, PyObject *kwobj) {
+ppy_msr_Load(PyObject *self, PyObject *args, PyObject *kwobj) {
+    static char *kwlist[]={"Name",NULL};
+    const char *fname;
+
+    if ( !PyArg_ParseTupleAndKeywords(
+	     args, kwobj, "s:Load", kwlist,
+	     &fname ) )
+	return NULL;
+    msrRead(ppy_msr,fname);
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+
+static PyObject *
+ppy_msr_Save(PyObject *self, PyObject *args, PyObject *kwobj) {
     static char *kwlist[]={"Name","Checkpoint","Time",NULL};
     double dTime = 0.0;
     int bCheckpoint = 0;
@@ -359,13 +341,17 @@ ppy_msr_Write(PyObject *self, PyObject *args, PyObject *kwobj) {
 	return NULL;
     dTime = PyFloat_AsDouble(v);
     if ( !PyArg_ParseTupleAndKeywords(
-	     args, kwobj, "s|id:Write", kwlist,
+	     args, kwobj, "s|id:Save", kwlist,
 	     &fname,&bCheckpoint, &dTime ) )
 	return NULL;
     msrWrite(ppy_msr,fname,dTime,bCheckpoint);
     Py_INCREF(Py_None);
     return Py_None;
 }
+
+
+
+
 
 
 static PyMethodDef ppy_msr_methods[] = {
@@ -395,8 +381,6 @@ static PyMethodDef ppy_msr_methods[] = {
      "Selects destination particles inside a given cylinder."},
     {"DeepestPotential", ppy_msr_DeepestPotential, METH_NOARGS,
      "Finds the most bound particle (deepest potential)"},
-    {"LogProfile", ppy_msr_LogProfile, METH_VARARGS,
-     "Generate a logrithmic density profile"},
     {"Profile", ppy_msr_Profile, METH_VARARGS,
      "Generate a density profile"},
     {"Reorder", ppy_msr_Reorder, METH_NOARGS,
@@ -409,8 +393,10 @@ static PyMethodDef ppy_msr_methods[] = {
      "Friends of Friends"},
     {"GroupProfiles", (PyCFunction)ppy_msr_GroupProfiles, METH_VARARGS|METH_KEYWORDS,
      "Group Profiles"},
-    {"Write", (PyCFunction)ppy_msr_Write, METH_VARARGS|METH_KEYWORDS,
-     "Write source particles to a file"},
+    {"Load", (PyCFunction)ppy_msr_Load, METH_VARARGS|METH_KEYWORDS,
+     "Load an input file"},
+    {"Save", (PyCFunction)ppy_msr_Save, METH_VARARGS|METH_KEYWORDS,
+     "Save particles to a file"},
 
     {NULL, NULL, 0, NULL}
 };

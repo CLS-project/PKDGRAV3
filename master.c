@@ -4931,7 +4931,7 @@ static struct inReadFile * fileScan(MSR msr, const char *achFilename, double *pd
     }
 
 
-double msrRead(MSR msr, int iStep) {
+double msrRead(MSR msr, const char *achInFile) {
     double dTime,dExpansion;
     struct inReadFile *read;
     struct inFile *file;
@@ -4943,20 +4943,16 @@ double msrRead(MSR msr, int iStep) {
     if (msr->param.bHermite) mMemoryModel |= PKD_MODEL_HERMITE;
     if (msr->param.bTraceRelaxation) mMemoryModel |= PKD_MODEL_RELAXATION;
 
+    mMemoryModel |= PKD_MODEL_POTENTIAL;
+
 
 #ifdef PLANETS
     dTime = msrReadSS(msr); /* must use "Solar System" (SS) I/O format... */
 #else
     char achFilename[PST_FILENAME_SIZE];
 
-    if ( ! msr->param.achInFile[0] ) {
-	printf("No input file specified\n");
-	_msrExit(msr,1);
-	return -1.0;
-	}
-
     /* Add Data Subpath for local and non-local names. */
-    _msrMakePath(msr->param.achDataSubPath,msr->param.achInFile,achFilename);
+    _msrMakePath(msr->param.achDataSubPath,achInFile,achFilename);
 
     read = fileScan(msr,achFilename,&dExpansion);
     file = (struct inFile *)(read+1);
@@ -5316,11 +5312,12 @@ void msrCalcDistance(MSR msr,double *dCenter) {
     pstCalcDistance(msr->pst, &in, sizeof(in), NULL, NULL);
     }
 
-uint64_t msrCountDistance(MSR msr,double dRadius2) {
+uint64_t msrCountDistance(MSR msr,double dRadius2Inner, double dRadius2Outer) {
     struct inCountDistance in;
     struct outCountDistance out;
     int nOut;
-    in.dRadius2 = dRadius2;
+    in.dRadius2Inner = dRadius2Inner;
+    in.dRadius2Outer = dRadius2Outer;
     pstCountDistance(msr->pst, &in, sizeof(in), &out, &nOut);
     assert( nOut == sizeof(out) );
     return out.nCount;
@@ -5366,146 +5363,84 @@ static double illinois(double (*func)(double,void *),void *ctx,double r,double s
 	}
 	t = (s*fr - r*fs)/(fr - fs);
     }
-    *pnIter = i;
+    if (pnIter) *pnIter = i;
     return(t);
 }
 
 typedef struct {
-    double dCenter[3];
     double dFrac;       /* Fraction of particles in each bin */
     uint64_t nTotal;    /* Total number of particles in the range */
     uint64_t nInner;    /* Number inside minimum radius */
     uint64_t nTarget;   /* Target number of particles */
     uint64_t nSelected;
     MSR msr;
-    } PROFILECTX;
+    } SPHERECTX;
 
-static double countShells(double r,void *vctx) {
-    PROFILECTX *ctx = vctx;
-    ctx->nSelected = msrCountDistance(ctx->msr,r*r);
+static double countSphere(double r,void *vctx) {
+    SPHERECTX *ctx = vctx;
+    ctx->nSelected = msrCountDistance(ctx->msr,0.0,r*r);
     return 1.0*ctx->nSelected - 1.0*ctx->nTarget;
     }
 
-/*
-** Logrithmic profile with a minimum number of particles per bin enforced.
-*/
-PROFILEBIN *msrLogProfile(MSR msr, double *r, double dMinRadius, double dMaxRadius,
-			  int nBins, int nAccuracy, int nMinParticles ) {
-    PROFILECTX ctx;
-    int nIter;
-    struct inProfile *in;
-    int i, iBin;
-    uint64_t n, N;
-    double dRadius, dLogMin, dLogMax;
-    LCL *plcl;
-    PST pst0;
-
-    pst0 = msr->pst;
-    while (pst0->nLeaves > 1)
-	pst0 = pst0->pstLower;
-    plcl = pst0->plcl;
-
-    in = malloc(sizeof(struct inProfile));
-    assert(in!=NULL);
-
-    if ( nMinParticles < nAccuracy ) nMinParticles = nAccuracy;
-
-    /*
-    ** Calculate the distance of every particle to the given point, and sort the particles
-    ** into distance order.  This makes the subsequent searches much faster.
-    */
-    msrCalcDistance(msr,r);
-
-    ctx.nTotal = msrSelSrcSphere(msr,r,dMaxRadius,1,1);
-    ctx.msr = msr;
-    for(i=0;i<3;i++) ctx.dCenter[i] = r[i];
-
-    /*
-    ** The mininum radius is either given directly, or by the minimum number of particles.
-    */
-    assert( dMinRadius > 0.0 || nMinParticles > nAccuracy );
-    if ( dMinRadius == 0.0 ) {
-	ctx.nTarget = nMinParticles;
-	dMinRadius = illinois( countShells, &ctx, 0.0, dMaxRadius,
-			       0.0, 1.0*nAccuracy, &nIter );
-	n = ctx.nSelected;
-	}
-    else {
-	n = msrCountDistance(msr,dMinRadius*dMinRadius);
-	if ( n < nMinParticles-nAccuracy ) {
-	    ctx.nTarget = nMinParticles;
-	    dMinRadius = illinois( countShells, &ctx, 0.0, dMaxRadius,
-				   0.0, 1.0*nAccuracy, &nIter );
-	    n = ctx.nSelected;
-	    }
-	}
-
-    in->dRadii[0] = dMinRadius;
-    N = n;
-
-    /*
-    ** Calculate the radius of each subsequent bin.  The default is to assume a logrithmic
-    ** binning, but if we don't have enough particles in a bin, use the root finder.
-    */
-
-    dLogMax = log10(dMaxRadius);
-    for( iBin=1; iBin<nBins-1; iBin++ ) {
-	int nBinsRem = nBins - iBin;
-	dLogMin = log10(in->dRadii[iBin-1]);
-	dRadius = pow(10,(dLogMax-dLogMin)/nBinsRem + dLogMin);
-	n = msrCountDistance(msr,dRadius*dRadius);
-	if ( n-N < nMinParticles-nAccuracy ) {
-	    ctx.nTarget = N + nMinParticles;
-	    dRadius = illinois( countShells, &ctx, 0.0, dMaxRadius,
-				   0.0, 1.0*nAccuracy, &nIter );
-	    n = ctx.nSelected;
-	    }
-	in->dRadii[iBin] = dRadius;
-	N = n;
-	}
-    in->dRadii[nBins-1] = dMaxRadius;
-
-    for(i=0; i<3; i++) in->dCenter[i] = r[i];
-    in->nBins = nBins;
-    in->uRungLo = 0;
-    in->uRungHi = msrMaxRung(msr)-1;
-    pstProfile(msr->pst, in, sizeof(struct inProfile), NULL, NULL);
-
-    free(in);
-
-    return plcl->pkd->profileBins;
-    }
-
-
-static void profileRootFind( double *dBins, int lo, int hi, int nAccuracy, PROFILECTX *ctx ) {
+static void profileRootFind( double *dBins, int lo, int hi, int nAccuracy, SPHERECTX *ctx ) {
     int nIter;
     int iBin = (lo+hi) / 2;
     if ( lo == iBin ) return;
 
     ctx->nTarget = (ctx->nTotal-ctx->nInner) * ctx->dFrac * iBin + ctx->nInner;
-    dBins[iBin] = illinois( countShells, ctx, dBins[lo], dBins[hi], 0.0, 1.0*nAccuracy, &nIter );
+    dBins[iBin] = illinois( countSphere, ctx, dBins[lo], dBins[hi], 0.0, 1.0*nAccuracy, &nIter );
     profileRootFind(dBins,lo,iBin,nAccuracy,ctx);
     profileRootFind(dBins,iBin,hi,nAccuracy,ctx);
     }
 
+
+typedef struct {
+    double rMiddle;
+    total_t nTarget;   /* Target number of particles */
+    MSR msr;
+    } SHELLCTX;
+
+static double countShell(double rInner,void *vctx) {
+    SHELLCTX *ctx = vctx;
+    double rOuter;
+    local_t nSelected;
+
+    if ( rInner == ctx->rMiddle ) nSelected = 0;
+    else {
+	rOuter = pow(10,2.0*log10(ctx->rMiddle)-log10(rInner));
+	nSelected = msrCountDistance(ctx->msr,rInner*rInner,rOuter*rOuter);
+	}
+    return 1.0*nSelected - 1.0*ctx->nTarget;
+    }
+
+
 /*
-** Calculate profiles with equal sized bins
+** Calculate a profile.
+** Bins are of equal size (same number of particles) between dMinRadius and dLogRadius.
+** From dLogRadius to dMaxRadius, the binning is done logarithmicly.
+** Setting dLogRadius to dMinRadius results in purely logarithmic binning, while
+** setting dLogRadius to dMaxRadius results in purely equal sized binning.
 */
-void msrProfile(
-    MSR msr, const PROFILEBIN **pBins, int *pnBins,
-    double *r, double dMinRadius, double dMaxRadius,
-    int nBins, int nPerBin, int nAccuracy ) {
-    PROFILECTX ctx;
+void msrProfile( MSR msr, const PROFILEBIN **pBins, int *pnBins,
+		 double *r, double dMinRadius, double dLogRadius, double dMaxRadius,
+		 int nPerBin, int nBins, int nAccuracy ) {
+    SPHERECTX ctxSphere;
+    SHELLCTX ctxShell;
     double sec, dsec;
     struct inProfile *in;
     size_t inSize;
     int i;
-    double dRadius;
+    int nBinsInner;
+    total_t N,n;
     LCL *plcl;
     PST pst0;
 
-    assert( nBins>0 || nPerBin>0 );
-    assert( nBins==0 || nPerBin==0 );
+    assert(dMinRadius<=dLogRadius);
+    assert(dLogRadius<=dMaxRadius);
+    assert(dLogRadius==dMinRadius || nPerBin>0);
+    assert(dLogRadius==dMaxRadius || nBins>0);
+
+    if ( dLogRadius == dMaxRadius ) nBins = 0;
 
     pst0 = msr->pst;
     while (pst0->nLeaves > 1)
@@ -5514,46 +5449,104 @@ void msrProfile(
 
     msrCalcDistance(msr,r);
 
-    ctx.nTotal = msrSelSrcSphere(msr,r,dMaxRadius,1,1);
-    ctx.nInner = msrSelSrcSphere(msr,r,dMinRadius,1,1);
-    ctx.msr = msr;
-    for(i=0;i<3;i++) ctx.dCenter[i] = r[i];
-
-    /* Figure out how many bins are needed */
-    if ( nBins == 0 ) {
-	nBins = (ctx.nTotal-ctx.nInner) / nPerBin;
-	if ( nBins > PST_MAX_PROFILE_BINS ) {
-	    nPerBin = (ctx.nTotal-ctx.nInner) / (PST_MAX_PROFILE_BINS+1) + 1;
-	    if (msr->param.bVWarnings)
-		fprintf(stderr,"WARNING: Maximum bins exceeded...  setting particles per bin to %d\n", nPerBin);
-	    }
+    if ( dLogRadius > dMinRadius ) {
+	/*
+	** The inner radius is calculated such that the logarithmic mid-point
+	** falls on dMinRadius.  This is done so that the profile is plotted
+	** all the way to the inner radius.  The correct radius must be between
+	** dMinRadius and the logrithmic difference between dMinRadius and
+	** dMaxRadius below dMinRadius.
+	*/
+	ctxShell.rMiddle = dMinRadius;
+	ctxShell.nTarget = nPerBin;
+	ctxShell.msr = msr;
+	dMinRadius = illinois( countShell, &ctxShell,
+			       pow(10,2.0*log10(dMinRadius)-log10(dMaxRadius)), dMinRadius,
+			       0.0, 0.0, NULL );
+	N = msrCountDistance(msr,dMinRadius*dMinRadius,dLogRadius*dLogRadius);
+	nBinsInner = (N+nPerBin/2) / nPerBin;
 	}
-    assert( nBins>0);
-    assert( nAccuracy < nBins/2 );
+    else {
+	double dOuter;
 
-    inSize = sizeof(struct inProfile)-sizeof(in->dRadii[0])*(sizeof(in->dRadii)/sizeof(in->dRadii[0])-nBins-1);
+	nBinsInner = 0;
+
+	/*
+	** Calculate the logarithmic mid-point and verify that there are enough particles
+	** in the first bin.  If not, invoke the root finder.
+	*/
+	ctxShell.rMiddle = dMinRadius;
+	ctxShell.nTarget = nPerBin;
+	ctxShell.msr = msr;
+	dMinRadius = pow(10,(2.0*(nBins+1)*log10(dMinRadius)-log10(dMaxRadius))/(2*nBins));
+	dOuter = pow(10,2.0*log10(ctxShell.rMiddle)-log10(dMinRadius));
+	N = msrCountDistance(msr, dMinRadius*dMinRadius,dOuter*dOuter);
+	if ( N < nPerBin-nAccuracy ) {
+	    dMinRadius = illinois( countShell, &ctxShell,
+				   pow(10,2.0*log10(dMinRadius)-log10(dMaxRadius)), dMinRadius,
+				   0.0, 0.0, NULL );
+	    }
+	dLogRadius = dMinRadius;
+	}
+
+    inSize = sizeof(struct inProfile)-sizeof(in->dRadii[0])*(sizeof(in->dRadii)/sizeof(in->dRadii[0])-nBins-nBinsInner-1);
     in = malloc(inSize);
     assert(in!=NULL);
 
-    ctx.dFrac = 1.0 / nBins;
-    dRadius = 0.0;
     in->dRadii[0] = dMinRadius;
+
+    /*
+    ** Inner, fixed size bins
+    */
+    if ( nBinsInner ) {
+	sec = msrTime();
+	msrprintf(msr, "Root finding for %d bins\n", nBinsInner );
+	ctxSphere.nTotal = msrCountDistance(msr,0.0,dLogRadius*dLogRadius);
+	ctxSphere.nInner = msrCountDistance(msr,0.0,dMinRadius*dMinRadius);
+	ctxSphere.msr = msr;
+	ctxSphere.dFrac = 1.0 / nBinsInner;
+	in->dRadii[nBinsInner] = dLogRadius;
+	profileRootFind( in->dRadii, 0, nBinsInner, nAccuracy, &ctxSphere );
+	dsec = msrTime() - sec;
+	msrprintf(msr,"Root finding complete, Wallclock: %f secs\n\n",dsec);
+	}
+
+    /*
+    ** Now logarithmic binning for the outer region.  We still obey nPerBin
+    ** as the minimum number of particles to include in each bin.
+    */
+    if ( nBins ) {
+	double dLogMin; // = log10(dLogRadius);
+	double dLogMax = log10(dMaxRadius);
+	double dRadius;
+	//double dDelta = (dLogMax-dLogMin) / nBins;
+
+
+	ctxSphere.nTotal = msrSelSrcSphere(msr,r,dMaxRadius,1,1);
+	ctxSphere.msr = msr;
+
+	N = msrCountDistance(msr,0.0,dLogRadius*dLogRadius);
+	for( i=1; i<nBins; i++ ) {
+	    //in->dRadii[nBinsInner+i] = pow10(dLogMin+i*dDelta);
+	    int nBinsRem = nBins - i + 1;
+
+	    dLogMin = log10(in->dRadii[nBinsInner+i-1]);
+	    dRadius = pow(10,(dLogMax-dLogMin)/nBinsRem + dLogMin);
+	    n = msrCountDistance(msr,0.0,dRadius*dRadius);
+	    if ( n-N < nPerBin-nAccuracy ) {
+		ctxSphere.nTarget = N + nPerBin;
+		dRadius = illinois( countSphere, &ctxSphere, 0.0, dMaxRadius,
+				    0.0, 1.0*nAccuracy, NULL );
+		n = ctxSphere.nSelected;
+		}
+	    in->dRadii[nBinsInner+i] = dRadius;
+	    N = n;
+	    }
+	}
+
+    nBins = nBins+nBinsInner;
+
     in->dRadii[nBins] = dMaxRadius;
-
-    sec = msrTime();
-    msrprintf(msr, "Root finding for %d bins\n", nBins );
-#ifdef NAIVE_PROFILE
-    for( iBin=1; iBin<nBins; iBin++ ) {
-        ctx.nTarget = (ctx.nTotal-ctx.nInner) * ctx.dFrac * iBin + ctx.nInner;
-        in->dRadii[iBin] = dRadius = illinois( countShells, &ctx, dRadius, dMaxRadius,
-                                               0.0, 1.0*nAccuracy, &nIter );
-        }
-#else
-    profileRootFind( in->dRadii, 0, nBins, nAccuracy, &ctx );
-#endif
-
-    dsec = msrTime() - sec;
-    msrprintf(msr,"Root finding complete, Wallclock: %f secs\n\n",dsec);
 
     sec = msrTime();
     msrprintf( msr, "Profiling\n" );

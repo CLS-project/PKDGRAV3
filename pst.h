@@ -1138,7 +1138,8 @@ void pstCalcDistance(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 
 /* PST_COUNTDISTANCE */
 struct inCountDistance {
-    double dRadius2;
+    double dRadius2Inner;
+    double dRadius2Outer;
     };
 struct outCountDistance {
     uint64_t nCount;

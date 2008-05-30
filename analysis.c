@@ -109,18 +109,27 @@ void pkdCalcDistance(PKD pkd, double *dCenter) {
 /*
 ** Count the number of elements that are interior to r2
 */
-uint_fast32_t pkdCountDistance(PKD pkd, double r2 ) {
+uint_fast32_t pkdCountDistance(PKD pkd, double r2i, double r2o ) {
     PLITE *pl = pkd->pLite;
-    uint64_t lo,hi,i;
+    uint64_t lo,hi,i,upper;
 
     lo = 0;
     hi = pkd->nLocal;
     while( lo<hi ) {
 	i = (lo+hi) / 2;
-	if ( pl[i].r[0] > r2 ) hi = i;
+	if ( pl[i].r[0] >= r2o ) hi = i;
 	else lo = i+1;
 	}
-    return hi;
+    upper = hi;
+
+    lo = 0;
+    while( lo<hi ) {
+	i = (lo+hi) / 2;
+	if ( pl[i].r[0] >= r2i ) hi = i;
+	else lo = i+1;
+	}
+
+    return upper-hi;
     }
 
 /*
@@ -129,29 +138,35 @@ uint_fast32_t pkdCountDistance(PKD pkd, double r2 ) {
 void pkdProfile(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
 		double *dCenter, double *dRadii, int nBins) {
     PLITE *pl = pkd->pLite;
-    double r;
-    int i,iBin,lo,hi;
+    local_t n = pkdLocal(pkd);
+    double r0, r, r2;
+    int i,iBin;
     PROFILEBIN *pBin;
 
     if ( pkd->profileBins != NULL ) mdlFree(pkd->mdl,pkd->profileBins);
     pkd->profileBins = mdlMalloc(pkd->mdl,nBins*sizeof(PROFILEBIN));
     assert( pkd->profileBins != NULL );
-    r = 0.0;
 
-    lo = 0;
+    /*
+    ** Now we add all of the particles to the appropriate bin.  NOTE than both
+    ** the bins, and the particles are already sorted by distance from the center.
+    */
+    r0 = 0.0;
+    i = 0;
     for(iBin=0;iBin<nBins;iBin++) {
-	assert( dRadii[iBin] > r );
+	r = dRadii[iBin];
+	r2 = r*r;
+	assert( r > r0 );
 	pkd->profileBins[iBin].nParticles = 0;
 	pkd->profileBins[iBin].dMassInBin = 0.0;
-	pkd->profileBins[iBin].dRadius = dRadii[iBin];
-	pkd->profileBins[iBin].dVolume = (4.0/3.0) * M_PI * (dRadii[iBin]*dRadii[iBin]*dRadii[iBin] - r*r*r);
-	hi = pkdCountDistance(pkd,dRadii[iBin]*dRadii[iBin]);
-	for(i=lo; i<hi; i++ ) {
+	pkd->profileBins[iBin].dRadius = r;
+	pkd->profileBins[iBin].dVolume = (4.0/3.0) * M_PI * (r*r2 - r0*r0*r0);
+	while( pl[i].r[0] <= r2 && i<n) {
 	    pkd->profileBins[iBin].dMassInBin += pl[i].r[1];
 	    pkd->profileBins[iBin].nParticles++;
+	    i++;
 	    }
-	r = dRadii[iBin];
-	lo = hi;
+	r0 = r;
 	}
 
     /* Combine the work from all processors */

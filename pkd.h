@@ -932,6 +932,6 @@ void pkdProfile(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
 		double *dCenter, double *dRadii, int nBins);
 
 void pkdCalcDistance(PKD pkd, double *dCenter);
-uint_fast32_t pkdCountDistance(PKD pkd, double r2 );
+uint_fast32_t pkdCountDistance(PKD pkd, double r2i, double r2o );
 
 #endif

@@ -83,7 +83,7 @@ int msrGetLock(MSR msr);
 int msrCheckForStop(MSR msr);
 void msrFinish(MSR);
 double msrGenerateIC(MSR);
-double msrRead(MSR msr, int iStep);
+double msrRead(MSR msr,const char *achInFile);
 void msrWrite(MSR,const char *,double, int bCheckpoint );
 void msrSetSoft(MSR msr,double);
 void msrDomainDecomp(MSR,int iRung,int bGreater,int bSplitVA);
@@ -244,12 +244,10 @@ uint64_t msrSelDstCylinder(MSR msr,double *dP1, double *dP2, double dRadius,
 		      int setIfTrue, int clearIfFalse );
 
 void msrDeepestPot(MSR msr,double *r, float *fPot);
-PROFILEBIN *msrLogProfile(MSR msr, double *r, double dMinRadius, double dMaxRadius,
-			  int nBins, int nAccuracy, int nMinParticles );
 void msrProfile(
-    MSR msr, const PROFILEBIN **pBins, int *pnBins,
-    double *r, double dMinRadius, double dMaxRadius,
-    int nBins, int nPerBin, int nAccuracy );
+    MSR msr, const PROFILEBIN **pBins, int *pnBins, double *r,
+    double dMinRadius, double dLogRadius, double dMaxRadius,
+    int nPerBin, int nBins, int nAccuracy );
 void msrDeleteProfile(MSR msr);
 
 #endif

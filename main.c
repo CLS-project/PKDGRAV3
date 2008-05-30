@@ -145,10 +145,26 @@ int main(int argc,char **argv) {
 #ifdef USE_GRAFIC
     if (prmSpecified(msr->prm,"nGrid")) {
 	dTime = msrGenerateIC(msr);
+	msrInitStep(msr);
+	if (prmSpecified(msr->prm,"dSoft")) msrSetSoft(msr,msrSoft(msr));
 	}
     else {
 #endif
-	dTime = msrRead(msr,msr->param.iStartStep);
+#ifdef USE_PYTHON
+    /* If a script file was specified, enter analysis mode */
+	if ( !msr->param.achScriptFile[0] ) {
+#endif
+	    if ( ! msr->param.achInFile[0] ) {
+		printf("No input file specified\n");
+		return 1;
+		}
+	    dTime = msrRead(msr,msr->param.achInFile);
+	    msrInitStep(msr);
+	    if (prmSpecified(msr->prm,"dSoft")) msrSetSoft(msr,msrSoft(msr));
+
+#ifdef USE_PYTHON
+	    }
+#endif
 #ifdef USE_GRAFIC
 	}
 #endif
@@ -157,9 +173,6 @@ int main(int argc,char **argv) {
 	msrBuildIoName(msr,achFile,0);
 	msrWrite( msr,achFile,dTime,msr->param.bWriteIC-1);
 	}
-
-    msrInitStep(msr);
-    if (prmSpecified(msr->prm,"dSoft")) msrSetSoft(msr,msrSoft(msr));
 
     /*
     ** Now we have all the parameters for the simulation we can make a

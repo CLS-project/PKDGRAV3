@@ -186,6 +186,7 @@ void pkdInitialize(PKD *ppkd,MDL mdl,int nStore,int nBucket,FLOAT *fPeriod,
     pkd->mdl = mdl;
     pkd->idSelf = mdlSelf(mdl);
     pkd->nThreads = mdlThreads(mdl);
+    pkd->pStorePRIVATE = NULL;
     pkd->nStore = nStore;
     pkd->nLocal = 0;
     pkd->nDark = nDark;
@@ -260,6 +261,7 @@ void pkdInitialize(PKD *ppkd,MDL mdl,int nStore,int nBucket,FLOAT *fPeriod,
     ** this now because the outside world can no longer know the size of a
     ** particle.
     */
+    pkd->iParticleSize = (pkd->iParticleSize + sizeof(double) - 1 ) & ~(sizeof(double)-1);
     pkd->pStorePRIVATE = mdlMalloc(pkd->mdl,(nStore+1)*pkdParticleSize(pkd));
     mdlassert(mdl,pkd->pStorePRIVATE != NULL);
     pkd->pTempPRIVATE = malloc(pkdParticleSize(pkd));
@@ -762,8 +764,7 @@ void pkdReadTipsy(PKD pkd,char *pszFileName, uint64_t nStart,int nLocal,
 		    }
 		xdr_float(&xdrs,&fTmp);
 		fSoft = fTmp;
-		xdr_float(&xdrs,&fTmp);
-		*pPot = fTmp;
+		xdr_float(&xdrs,pPot);
 		}
 	    else if (pkdIsGas(pkd,p)) {
 		xdr_float(&xdrs,&fTmp);
@@ -791,8 +792,7 @@ void pkdReadTipsy(PKD pkd,char *pszFileName, uint64_t nStart,int nLocal,
 		xdr_float(&xdrs,&fTmp);
 		fSoft = fTmp;
 		xdr_float(&xdrs,&fTmp);
-		xdr_float(&xdrs,&fTmp);
-		*pPot = fTmp;
+		xdr_float(&xdrs,pPot);
 		}
 	    else if (pkdIsStar(pkd,p)) {
 		xdr_float(&xdrs,&fTmp);
@@ -818,8 +818,7 @@ void pkdReadTipsy(PKD pkd,char *pszFileName, uint64_t nStart,int nLocal,
 		xdr_float(&xdrs,&fTmp);
 		xdr_float(&xdrs,&fTmp);
 		fSoft = fTmp;
-		xdr_float(&xdrs,&fTmp);
-		*pPot = fTmp;
+		xdr_float(&xdrs,pPot);
 		}
 	    else mdlassert(pkd->mdl,0);
 	    p->iClass = getClass(pkd,fMass,fSoft);
@@ -3956,8 +3955,10 @@ int pkdDeepestPot(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
 	if (pkdIsSrcActive(p,uRungLo,uRungHi)) {
 	    nChecked++;
 	    pPot = pkdPot(pkd,p);
-	    if ( *pPot < *pPotLocal )
+	    if ( *pPot < *pPotLocal ) {
 		pLocal = p;
+		pPotLocal = pkdPot(pkd,pLocal);
+		}
 	    }
 	}
     r[0] = pLocal->r[0];

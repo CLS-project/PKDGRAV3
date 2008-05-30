@@ -4190,7 +4190,7 @@ void pstCountDistance(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	out->nCount += outUpper.nCount;
 	}
     else {
-	out->nCount = pkdCountDistance(plcl->pkd,in->dRadius2);
+	out->nCount = pkdCountDistance(plcl->pkd,in->dRadius2Inner,in->dRadius2Outer);
 	}
     if (pnOut) *pnOut = sizeof(struct outCountDistance);
     }
