@@ -431,7 +431,8 @@ void ppyFinish(PPY vppy) {
 void ppyRunScript(PPY vppy,const char *achFilename) {
     ppyCtx *ppy = (ppyCtx *)vppy;
     FILE *fp;
-    PyObject *dict;
+    PyObject *dict, *globals;
+    struct _node *node;
 
     assert(Py_IsInitialized());
 
@@ -442,6 +443,10 @@ void ppyRunScript(PPY vppy,const char *achFilename) {
 
 
 
+    globals = PyDict_New();
+    PyDict_SetItemString(globals, "__builtins__",
+			 PyEval_GetBuiltins());
+
 
 
     printf("---------------------------------------"
@@ -451,8 +456,27 @@ void ppyRunScript(PPY vppy,const char *achFilename) {
 	   "---------------------------------------\n",
 	   achFilename );
     fp = fopen(achFilename,"r");
+#if 1
     PyRun_SimpleFile(fp,achFilename);
     fclose(fp);
+#else
+    node = PyParser_SimpleParseFile(fp,achFilename,Py_file_input);
+    fclose(fp);
+    if ( node ) {
+	PyCodeObject *code = PyNode_Compile(node,achFilename);
+	if ( code ) {
+//	    PyObject *pFunc = PyObject_GetAttrString(code, "Nada");
+//	    if ( pFunc ) {
+//		printf("Yep\n");
+//		}
+	    PyObject *result = PyEval_EvalCode(code,globals,dict);
+	    Py_DECREF(result);
+	    }
+	Py_DECREF(code);
+	}
+    if(PyErr_Occurred()) PyErr_Print();
+
+#endif
     printf("---------------------------------------"
 	   "---------------------------------------\n" );
 

@@ -150,18 +150,18 @@ int main(int argc,char **argv) {
 	}
     else {
 #endif
-#ifdef USE_PYTHON
-    /* If a script file was specified, enter analysis mode */
-	if ( !msr->param.achScriptFile[0] ) {
-#endif
-	    if ( ! msr->param.achInFile[0] ) {
-		printf("No input file specified\n");
-		return 1;
-		}
+	if ( msr->param.achInFile[0] ) {
 	    dTime = msrRead(msr,msr->param.achInFile);
 	    msrInitStep(msr);
 	    if (prmSpecified(msr->prm,"dSoft")) msrSetSoft(msr,msrSoft(msr));
-
+	    }
+	else {
+#ifdef USE_PYTHON
+	    if ( !msr->param.achScriptFile[0] ) {
+#endif
+		printf("No input file specified\n");
+		return 1;
+		}
 #ifdef USE_PYTHON
 	    }
 #endif
