@@ -1,7 +1,7 @@
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
-#define USE_IO_TIPSY
+/*#define USE_IO_TIPSY*/
 #ifdef USE_IO_TIPSY
 #include <rpc/xdr.h>
 #endif
