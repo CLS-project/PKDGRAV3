@@ -318,12 +318,17 @@ static PyObject *
 ppy_msr_Load(PyObject *self, PyObject *args, PyObject *kwobj) {
     static char *kwlist[]={"Name",NULL};
     const char *fname;
+    double dTime;
+    PyObject *dict;
 
     if ( !PyArg_ParseTupleAndKeywords(
 	     args, kwobj, "s:Load", kwlist,
 	     &fname ) )
 	return NULL;
-    msrRead(ppy_msr,fname);
+    dTime = msrRead(ppy_msr,fname);
+    dict = PyModule_GetDict(global_ppy->module);
+    PyDict_SetItemString(dict, "dTime", Py_BuildValue("d",dTime));
+
     Py_INCREF(Py_None);
     return Py_None;
 }
