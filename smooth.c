@@ -187,8 +187,8 @@ void smFinish(SMX smx,SMF *smf) {
     if (smx->fcnPost != NULL) {
 	for (pi=0;pi<pkd->nLocal;++pi) {
 	    p = pkdParticle(pkd,pi);
-	    /*if (TYPETest(p,smx->eParticleTypes))*/
-	    smx->fcnPost(p,smf);
+	    if ( pkdIsSrcActive(p,0,MAX_RUNG) )
+		smx->fcnPost(p,smf);
 	    }
 	}
     /*
@@ -258,6 +258,7 @@ PQ *pqSearchLocal(SMX smx,FLOAT r[3],int *pbDone) {
 	if (pWant > pEnd) {
 	    for (pj=c[iCell].pLower;pj<=pEnd;++pj) {
 		p = pkdParticle(pkd,pj);
+		if ( !pkdIsSrcActive(p,0,MAX_RUNG) ) continue;
 		dx = r[0] - p->r[0];
 		dy = r[1] - p->r[1];
 		dz = r[2] - p->r[2];
@@ -269,6 +270,7 @@ PQ *pqSearchLocal(SMX smx,FLOAT r[3],int *pbDone) {
 	else {
 	    for (pj=c[iCell].pLower;pj<=pWant;++pj) {
 		p = pkdParticle(pkd,pj);
+		if ( !pkdIsSrcActive(p,0,MAX_RUNG) ) continue;
 		dx = r[0] - p->r[0];
 		dy = r[1] - p->r[1];
 		dz = r[2] - p->r[2];
@@ -278,6 +280,7 @@ PQ *pqSearchLocal(SMX smx,FLOAT r[3],int *pbDone) {
 		}
 	    PQ_BUILD(pq,smx->nSmooth,pq);
 	    for (;pj<=pEnd;++pj) {
+		if ( !pkdIsSrcActive(p,0,MAX_RUNG) ) continue;
 		p = pkdParticle(pkd,pj);
 		dx = r[0] - p->r[0];
 		dy = r[1] - p->r[1];
@@ -338,6 +341,7 @@ PQ *pqSearchLocal(SMX smx,FLOAT r[3],int *pbDone) {
 	pEnd = c[iCell].pUpper;
 	for (pj=c[iCell].pLower;pj<=pEnd;++pj) {
 	    p = pkdParticle(pkd,pj);
+	    if ( !pkdIsSrcActive(p,0,MAX_RUNG) ) continue;
 	    dx = r[0] - p->r[0];
 	    dy = r[1] - p->r[1];
 	    dz = r[2] - p->r[2];
@@ -464,6 +468,7 @@ PQ *pqSearchRemote(SMX smx,PQ *pq,int id,FLOAT r[3]) {
 		    p = mdlAquire(mdl,CID_PARTICLE,pj,id);
 		    pq[smx->nQueue].bRemote = 1;
 		    }
+		if ( !pkdIsSrcActive(p,0,MAX_RUNG) ) continue;
 		dx = r[0] - p->r[0];
 		dy = r[1] - p->r[1];
 		dz = r[2] - p->r[2];
@@ -485,6 +490,7 @@ PQ *pqSearchRemote(SMX smx,PQ *pq,int id,FLOAT r[3]) {
 		    p = mdlAquire(mdl,CID_PARTICLE,pj,id);
 		    pq[smx->nQueue].bRemote = 1;
 		    }
+		if ( !pkdIsSrcActive(p,0,MAX_RUNG) ) continue;
 		dx = r[0] - p->r[0];
 		dy = r[1] - p->r[1];
 		dz = r[2] - p->r[2];
@@ -499,6 +505,7 @@ PQ *pqSearchRemote(SMX smx,PQ *pq,int id,FLOAT r[3]) {
 	    for (;pj<=pEnd;++pj) {
 		if (id == idSelf) p = pkdParticle(pkd,pj);
 		else p = mdlAquire(mdl,CID_PARTICLE,pj,id);
+		if ( !pkdIsSrcActive(p,0,MAX_RUNG) ) continue;
 		dx = r[0] - p->r[0];
 		dy = r[1] - p->r[1];
 		dz = r[2] - p->r[2];
@@ -577,6 +584,7 @@ StartSearch:
 	for (pj=pkdn->pLower;pj<=pEnd;++pj) {
 	    if (id == idSelf) p = pkdParticle(pkd,pj);
 	    else p = mdlAquire(mdl,CID_PARTICLE,pj,id);
+	    if ( !pkdIsSrcActive(p,0,MAX_RUNG) ) continue;
 	    dx = r[0] - p->r[0];
 	    dy = r[1] - p->r[1];
 	    dz = r[2] - p->r[2];
@@ -777,7 +785,7 @@ void smSmooth(SMX smx,SMF *smf) {
 
     for (pi=0;pi<pkd->nLocal;++pi) {
 	p = pkdParticle(pkd,pi);
-	/*if (!TYPETest(p,smx->eParticleTypes)) continue;*/
+	if ( !pkdIsSrcActive(p,0,MAX_RUNG) ) continue;
 	pq = NULL;
 	smx->nQueue = 0;
 	pq = pqSearch(smx,pq,p->r,0,&bDone);
@@ -880,6 +888,7 @@ void smGatherLocal(SMX smx,FLOAT fBall2,FLOAT r[3]) {
 	    pEnd = c[iCell].pUpper;
 	    for (pj=c[iCell].pLower;pj<=pEnd;++pj) {
 		p = pkdParticle(pkd,pj);
+		if ( !pkdIsSrcActive(p,0,MAX_RUNG) ) continue;
 		dx = r[0] - p->r[0];
 		dy = r[1] - p->r[1];
 		dz = r[2] - p->r[2];
@@ -945,6 +954,7 @@ void smGatherRemote(SMX smx,FLOAT fBall2,FLOAT r[3],int id) {
 	    pEnd = pkdn->pUpper;
 	    for (pj=pkdn->pLower;pj<=pEnd;++pj) {
 		pp = mdlAquire(mdl,CID_PARTICLE,pj,id);
+		if ( !pkdIsSrcActive(pp,0,MAX_RUNG) ) continue;
 		dx = r[0] - pp->r[0];
 		dy = r[1] - pp->r[1];
 		dz = r[2] - pp->r[2];
@@ -1030,7 +1040,7 @@ void smReSmooth(SMX smx,SMF *smf) {
 
     for (pi=0;pi<pkd->nLocal;++pi) {
 	p = pkdParticle(pkd,pi);
-	/*if (!TYPETest(p,smx->eParticleTypes)) continue;*/
+	if ( !pkdIsSrcActive(p,0,MAX_RUNG) ) continue;
 	smx->nnListSize = 0;
 	/*
 	** Note for implementing SLIDING PATCH, the offsets for particles are
@@ -1272,6 +1282,7 @@ void smFof(SMX smx,int nFOFsDone,SMF *smf) {
     /* Starting FOF search now... */
     for (pn=0;pn<nTree;pn++) {
 	p = pkdParticle(pkd,pn);
+	if ( !pkdIsSrcActive(p,0,MAX_RUNG) ) continue;
 	pBin = pkdInt32(p,pkd->oBin);
 	pGroup = pkdInt32(p,pkd->oGroup);
 	if (*pGroup ) continue;
