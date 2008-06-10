@@ -470,6 +470,10 @@ void ppyInitialize(PPY *pvppy, MSR msr, double dTime) {
 
     dict = PyModule_GetDict(ppy->module);
     PyDict_SetItemString(dict, "dTime", Py_BuildValue("d",dTime));
+    PyDict_SetItemString(dict, "SMX_DENSITY", Py_BuildValue("i",SMX_DENSITY));
+    PyDict_SetItemString(dict, "SMX_MEANVEL", Py_BuildValue("i",SMX_MEANVEL));
+    PyDict_SetItemString(dict, "SMX_FOF", Py_BuildValue("i",SMX_FOF));
+    PyDict_SetItemString(dict, "SMX_RELAXATION", Py_BuildValue("i",SMX_RELAXATION));
     }
 
 void ppyFinish(PPY vppy) {
