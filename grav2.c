@@ -373,7 +373,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 		tax = -tile->d.dx.f[j]*dir2;
 		tay = -tile->d.dy.f[j]*dir2;
 		taz = -tile->d.dz.f[j]*dir2;
-		adotai = p->a[0]*tax + p->a[1]*tay + p->a[2]*taz;
+		adotai = a[0]*tax + a[1]*tay + a[2]*taz;
 		if (adotai > 0 && d2DTS >= dsmooth2) {
 		    adotai *= dimaga;
 		    dirsum += dir*adotai*adotai;
