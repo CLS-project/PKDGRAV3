@@ -55,6 +55,22 @@ int smInitialize(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodic,int bSymme
 	comb = combMeanVel;
 	smx->fcnPost = NULL;
 	break;
+    case SMX_DIVV:
+	assert( pkd->oVelSmooth); /* Validate memory model */
+	smx->fcnSmooth = bSymmetric?DivvSym:Divv;
+	initParticle = initDivv; /* Original Particle */
+	init = initDivv; /* Cached copies */
+	comb = combDivv;
+	smx->fcnPost = NULL;
+	break;
+    case SMX_VELDISP2:
+	assert( pkd->oVelSmooth); /* Validate memory model */
+	smx->fcnSmooth = bSymmetric?VelDisp2Sym:VelDisp2;
+	initParticle = initVelDisp2; /* Original Particle */
+	init = initVelDisp2; /* Cached copies */
+	comb = combVelDisp2;
+	smx->fcnPost = NULL;
+	break;
     case SMX_FOF:
 	assert(bSymmetric == 0);
 	smx->fcnSmooth = NULL;

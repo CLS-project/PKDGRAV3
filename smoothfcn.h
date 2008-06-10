@@ -52,6 +52,18 @@ void combMeanVel(void *,void *,void *);
 void MeanVel(PARTICLE *,int,NN *,SMF *);
 void MeanVelSym(PARTICLE *,int,NN *,SMF *);
 
+#define SMX_DIVV				3
+void initDivv(void *,void *);
+void combDivv(void *,void *,void *);
+void Divv(PARTICLE *,int,NN *,SMF *);
+void DivvSym(PARTICLE *,int,NN *,SMF *);
+
+#define SMX_VELDISP2				4
+void initVelDisp2(void *,void *);
+void combVelDisp2(void *,void *,void *);
+void VelDisp2(PARTICLE *,int,NN *,SMF *);
+void VelDisp2Sym(PARTICLE *,int,NN *,SMF *);
+
 #define SMX_FOF			25
 void initGroupIds(void *,void *p);
 void initGroupMerge(void *,void *g);

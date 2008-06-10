@@ -187,6 +187,160 @@ void MeanVelSym(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
 
 
 
+void initDivv(void *vpkd, void *pvoid) {
+    PKD pkd = (PKD)vpkd;
+    assert(pkd);
+    PARTICLE *p = pvoid;
+    VELSMOOTH *pvel = pkdField(p,pkd->oVelSmooth);
+    pvel->divv = 0.0;
+    }
+
+void combDivv(void *vpkd, void *p1void,void *p2void) {
+    PKD pkd = (PKD)vpkd;
+    assert(pkd);
+    PARTICLE *p1 = p1void;
+    PARTICLE *p2 = p2void;
+    VELSMOOTH *p1vel = pkdField(p1,pkd->oVelSmooth);
+    VELSMOOTH *p2vel = pkdField(p2,pkd->oVelSmooth);
+    p1vel->divv += p2vel->divv;
+    }
+
+void Divv(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
+    PKD pkd = smf->pkd;
+    PARTICLE *q;
+    double *qv;
+    double *pv;
+    VELSMOOTH *pvel;
+    float fNorm,ih2,r2,rs,fDensity,fMass,dvdotdr;
+    int i,j;
+
+    pvel = pkdField(p,pkd->oVelSmooth);
+    pv = pkdVel(pkd,p);
+    ih2 = 4.0/BALL2(p);
+    fNorm = M_1_PI*sqrt(ih2)*ih2*ih2;
+    for (i=0;i<nSmooth;++i) {
+	r2 = nnList[i].fDist2*ih2;
+	DKERNEL(rs,r2);
+	rs *= fNorm;
+	q = nnList[i].pPart;
+	fMass = pkdMass(pkd,q);
+	qv = pkdVel(pkd,q);
+	dvdotdr = 0.0;
+	for (j=0;j<3;++j) dvdotdr += (qv[j] - pv[j])*(q->r[j] - p->r[j]);
+	pvel->divv += rs*fMass*(q->fDensity - p->fDensity)/q->fDensity*dvdotdr;
+	}
+    }
+
+void DivvSym(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
+    PKD pkd = smf->pkd;
+    PARTICLE *q;
+    VELSMOOTH *pvel, *qvel;
+    double *pv, *qv;
+    float fNorm,ih2,r2,rs,fMassQ,fMassP,dvdotdr;
+    int i,j;
+
+    pvel = pkdField(p,pkd->oVelSmooth);
+    pv = pkdVel(pkd,p);
+    fMassP = pkdMass(pkd,p);
+    ih2 = 4.0/(BALL2(p));
+    fNorm = 0.5*M_1_PI*sqrt(ih2)*ih2*ih2;
+    for (i=0;i<nSmooth;++i) {
+	r2 = nnList[i].fDist2*ih2;
+	DKERNEL(rs,r2);
+	rs *= fNorm;
+	q = nnList[i].pPart;
+	qv = pkdVel(pkd,q);
+	qvel = pkdField(q,pkd->oVelSmooth);
+	fMassQ = pkdMass(pkd,q);
+	dvdotdr = 0.0;
+	for (j=0;j<3;++j) dvdotdr += (qv[j] - pv[j])*(q->r[j] - p->r[j]);
+	pvel->divv += rs*fMassQ*(q->fDensity - p->fDensity)/q->fDensity*dvdotdr;
+	qvel->divv += rs*fMassP*(p->fDensity - q->fDensity)/p->fDensity*dvdotdr;
+	}
+    }
+
+
+
+void initVelDisp2(void *vpkd, void *pvoid) {
+    PKD pkd = (PKD)vpkd;
+    assert(pkd);
+    PARTICLE *p = pvoid;
+    VELSMOOTH *pvel = pkdField(p,pkd->oVelSmooth);
+    pvel->veldisp2 = 0.0;
+    }
+
+void combVelDisp2(void *vpkd, void *p1void,void *p2void) {
+    PKD pkd = (PKD)vpkd;
+    assert(pkd);
+    PARTICLE *p1 = p1void;
+    PARTICLE *p2 = p2void;
+    VELSMOOTH *p1vel = pkdField(p1,pkd->oVelSmooth);
+    VELSMOOTH *p2vel = pkdField(p2,pkd->oVelSmooth);
+    p1vel->veldisp2 += p2vel->veldisp2;
+    }
+
+void VelDisp2(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
+    PKD pkd = smf->pkd;
+    PARTICLE *q;
+    double *qv;
+    double *pv;
+    VELSMOOTH *pvel;
+    float fNorm,ih2,r2,rs,fDensity,fMass,tv,tv2;
+    int i,j;
+
+    pvel = pkdField(p,pkd->oVelSmooth);
+    pv = pkdVel(pkd,p);
+    ih2 = 4.0/BALL2(p);
+    fNorm = M_1_PI*sqrt(ih2)*ih2*ih2;
+    for (i=0;i<nSmooth;++i) {
+	r2 = nnList[i].fDist2*ih2;
+	DKERNEL(rs,r2);
+	rs *= fNorm;
+	q = nnList[i].pPart;
+	fMass = pkdMass(pkd,q);
+	qv = pkdVel(pkd,q);
+	tv2 = 0.0;
+	for (j=0;j<3;++j) {
+	    tv = qv[j] - pvel->vmean[j] - pvel->divv*(q->r[j] - p->r[j]);
+	    tv2 += tv*tv;
+	    }
+	pvel->veldisp2 += rs*fMass/q->fDensity*tv2;
+	}
+    }
+
+void VelDisp2Sym(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
+    PKD pkd = smf->pkd;
+    PARTICLE *q;
+    VELSMOOTH *pvel, *qvel;
+    double *pv, *qv;
+    float fNorm,ih2,r2,rs,fMassQ,fMassP,tv,tv2;
+    int i,j;
+
+    pvel = pkdField(p,pkd->oVelSmooth);
+    pv = pkdVel(pkd,p);
+    fMassP = pkdMass(pkd,p);
+    ih2 = 4.0/(BALL2(p));
+    fNorm = 0.5*M_1_PI*sqrt(ih2)*ih2*ih2;
+    for (i=0;i<nSmooth;++i) {
+	r2 = nnList[i].fDist2*ih2;
+	DKERNEL(rs,r2);
+	rs *= fNorm;
+	q = nnList[i].pPart;
+	qv = pkdVel(pkd,q);
+	qvel = pkdField(q,pkd->oVelSmooth);
+	fMassQ = pkdMass(pkd,q);
+	tv2 = 0.0;
+	for (j=0;j<3;++j) {
+	    tv = qv[j] - pvel->vmean[j] - pvel->divv*(q->r[j] - p->r[j]);
+	    tv2 += tv*tv;
+	    }
+	pvel->veldisp2 += rs*fMassQ/q->fDensity*tv2;
+	pvel->veldisp2 += rs*fMassP/p->fDensity*tv2;
+	}
+    }
+
+
+
 void initGroupMerge(void *vpkd, void *g) {
     }
 void combGroupMerge(void *vpkd, void *g1, void *g2) {
