@@ -52,6 +52,10 @@ FLOAT ArrType(PKD pkd,PARTICLE *p,int iType) {
 	assert(pkd->oVelSmooth); /* Validate memory model */
 	pvel = pkdField(p,pkd->oVelSmooth);
 	return(pvel->veldisp2);
+    case OUT_VELDISP_ARRAY:
+	assert(pkd->oVelSmooth); /* Validate memory model */
+	pvel = pkdField(p,pkd->oVelSmooth);
+	return(sqrt(pvel->veldisp2));
     case OUT_PHASEDENS_ARRAY:
 	assert(pkd->oVelSmooth); /* Validate memory model */
 	pvel = pkdField(p,pkd->oVelSmooth);

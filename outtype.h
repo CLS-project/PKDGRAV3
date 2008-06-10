@@ -12,7 +12,8 @@
 
 #define OUT_DIVV_ARRAY          7
 #define OUT_VELDISP2_ARRAY      8
-#define OUT_PHASEDENS_ARRAY     9
+#define OUT_VELDISP_ARRAY       9
+#define OUT_PHASEDENS_ARRAY     10
 
 #define OUT_SOFT_ARRAY          32
 

@@ -227,7 +227,7 @@ void Divv(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
 	qv = pkdVel(pkd,q);
 	dvdotdr = 0.0;
 	for (j=0;j<3;++j) dvdotdr += (qv[j] - pv[j])*(q->r[j] - p->r[j]);
-	pvel->divv += rs*fMass*(q->fDensity - p->fDensity)/q->fDensity*dvdotdr;
+	pvel->divv += rs*fMass/q->fDensity*dvdotdr;
 	}
     }
 
@@ -254,8 +254,8 @@ void DivvSym(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
 	fMassQ = pkdMass(pkd,q);
 	dvdotdr = 0.0;
 	for (j=0;j<3;++j) dvdotdr += (qv[j] - pv[j])*(q->r[j] - p->r[j]);
-	pvel->divv += rs*fMassQ*(q->fDensity - p->fDensity)/q->fDensity*dvdotdr;
-	qvel->divv += rs*fMassP*(p->fDensity - q->fDensity)/p->fDensity*dvdotdr;
+	pvel->divv += rs*fMassQ/q->fDensity*dvdotdr;
+	qvel->divv += rs*fMassP/p->fDensity*dvdotdr;
 	}
     }
 

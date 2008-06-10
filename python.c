@@ -411,7 +411,6 @@ ppy_msr_SaveVector(PyObject *self, PyObject *args, PyObject *kwobj) {
 	     args, kwobj, "si:SaveVector", kwlist,
 	     &fname,&iType ) )
 	return NULL;
-    msrReorder(ppy_msr);
     msrOutVector(ppy_msr,fname,iType);
     Py_INCREF(Py_None);
     return Py_None;
@@ -426,7 +425,6 @@ ppy_msr_SaveArray(PyObject *self, PyObject *args, PyObject *kwobj) {
 	     args, kwobj, "si:SaveArray", kwlist,
 	     &fname,&iType ) )
 	return NULL;
-    msrReorder(ppy_msr);
     msrOutArray(ppy_msr,fname,iType);
     Py_INCREF(Py_None);
     return Py_None;
@@ -526,6 +524,7 @@ void ppyInitialize(PPY *pvppy, MSR msr, double dTime) {
     PyDict_SetItemString(dict, "OUT_SOFT_ARRAY", Py_BuildValue("i",OUT_SOFT_ARRAY));
     PyDict_SetItemString(dict, "OUT_DIVV_ARRAY", Py_BuildValue("i",OUT_DIVV_ARRAY));
     PyDict_SetItemString(dict, "OUT_VELDISP2_ARRAY", Py_BuildValue("i",OUT_VELDISP2_ARRAY));
+    PyDict_SetItemString(dict, "OUT_VELDISP_ARRAY", Py_BuildValue("i",OUT_VELDISP_ARRAY));
     PyDict_SetItemString(dict, "OUT_PHASEDENS_ARRAY", Py_BuildValue("i",OUT_PHASEDENS_ARRAY));
     }
 
