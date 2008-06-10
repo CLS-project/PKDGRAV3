@@ -18,9 +18,9 @@
 
 int smInitialize(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodic,int bSymmetric,int iSmoothType) {
     SMX smx;
-    void (*initParticle)(void *) = NULL;
-    void (*init)(void *) = NULL;
-    void (*comb)(void *,void *) = NULL;
+    void (*initParticle)(void *,void *) = NULL;
+    void (*init)(void *,void *) = NULL;
+    void (*comb)(void *,void *,void *) = NULL;
     int pi;
     int nTree;
     int iTopDepth;
@@ -47,6 +47,14 @@ int smInitialize(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodic,int bSymme
 	comb = combDensity;
 	smx->fcnPost = NULL;
 	break;
+    case SMX_MEANVEL:
+	assert( pkd->oVelSmooth); /* Validate memory model */
+	smx->fcnSmooth = bSymmetric?MeanVelSym:MeanVel;
+	initParticle = initMeanVel; /* Original Particle */
+	init = initMeanVel; /* Cached copies */
+	comb = combMeanVel;
+	smx->fcnPost = NULL;
+	break;
     case SMX_FOF:
 	assert(bSymmetric == 0);
 	smx->fcnSmooth = NULL;
@@ -56,6 +64,7 @@ int smInitialize(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodic,int bSymme
 	smx->fcnPost = NULL;
 	break;
     case SMX_RELAXATION:
+	assert( pkd->oRelaxation); /* Validate memory model */
 	assert(bSymmetric == 0);
 	smx->fcnSmooth = AddRelaxation;
 	initParticle = NULL;
@@ -85,7 +94,7 @@ int smInitialize(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodic,int bSymme
     if (initParticle != NULL) {
 	for (pi=0;pi<nTree;++pi) {
 	    /*if (TYPETest(p,smx->eParticleTypes))*/
-	    initParticle(pkdParticle(pkd,pi));
+	    initParticle(pkd,pkdParticle(pkd,pi));
 	    }
 	}
     /*
@@ -94,7 +103,7 @@ int smInitialize(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodic,int bSymme
     if (bSymmetric) {
 	mdlCOcache(pkd->mdl,CID_PARTICLE,
 		   pkdParticleBase(pkd),pkdParticleSize(pkd),
-		   nTree,init,comb);
+		   nTree,pkd,init,comb);
 	}
     else {
 	mdlROcache(pkd->mdl,CID_PARTICLE,
@@ -1613,7 +1622,7 @@ int smGroupMerge(SMF *smf,int bPeriodic) {
     /*
     ** Start CO group data cache.
     */
-    mdlCOcache(mdl,CID_GROUP,pkd->groupData,sizeof(FOFGD), pkd->nGroups,initGroupMerge,combGroupMerge);
+    mdlCOcache(mdl,CID_GROUP,pkd->groupData,sizeof(FOFGD), pkd->nGroups,pkd,initGroupMerge,combGroupMerge);
     /*
     ** Start RO remote member cache.
     */
@@ -2137,7 +2146,7 @@ int smGroupProfiles(SMX smx, SMF *smf,int bPeriodic, int nTotalGroups,int bLogBi
     /*
     ** Start CO group profiles cache.
     */
-    mdlCOcache(mdl,CID_BIN,pkd->groupBin,sizeof(FOFBIN),nBins,initGroupBins,combGroupBins);
+    mdlCOcache(mdl,CID_BIN,pkd->groupBin,sizeof(FOFBIN),nBins,pkd,initGroupBins,combGroupBins);
     if (pkd->idSelf != 0) {
 	for (i=0; i< nBins; i++) {
 	    if (pkd->groupBin[i].fMassInBin > 0.0) {

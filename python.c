@@ -290,6 +290,52 @@ ppy_msr_Fof(PyObject *self, PyObject *args, PyObject *kwobj) {
     return Py_None;
 }
 
+static PyObject *
+ppy_msr_Smooth(PyObject *self, PyObject *args, PyObject *kwobj) {
+    static char *kwlist[]={"iSmoothType","bSymmetric",NULL};
+    PyObject *v, *dict;
+    int iSmoothType;
+    int bSymmetric = 1;
+    double dTime;
+
+    dict = PyModule_GetDict(global_ppy->module);
+    if ( (v = PyDict_GetItemString(dict, "dTime")) == NULL )
+	return NULL;
+    dTime = PyFloat_AsDouble(v);
+    if ( !PyArg_ParseTupleAndKeywords(
+	     args, kwobj, "i|id:Smooth", kwlist,
+	     &iSmoothType,&bSymmetric, &dTime ) )
+	return NULL;
+    msrSmooth(ppy_msr,dTime,iSmoothType,bSymmetric);
+
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+
+static PyObject *
+ppy_msr_ReSmooth(PyObject *self, PyObject *args, PyObject *kwobj) {
+    static char *kwlist[]={"iSmoothType","bSymmetric",NULL};
+    PyObject *v, *dict;
+    int iSmoothType;
+    int bSymmetric = 1;
+    double dTime;
+
+    dict = PyModule_GetDict(global_ppy->module);
+    if ( (v = PyDict_GetItemString(dict, "dTime")) == NULL )
+	return NULL;
+    dTime = PyFloat_AsDouble(v);
+    if ( !PyArg_ParseTupleAndKeywords(
+	     args, kwobj, "i|id:ReSmooth", kwlist,
+	     &iSmoothType,&bSymmetric, &dTime ) )
+	return NULL;
+    msrReSmooth(ppy_msr,dTime,iSmoothType,bSymmetric);
+
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+
+
+
 
 static PyObject *
 ppy_msr_GroupProfiles(PyObject *self, PyObject *args, PyObject *kwobj) {
@@ -355,10 +401,6 @@ ppy_msr_Save(PyObject *self, PyObject *args, PyObject *kwobj) {
 }
 
 
-
-
-
-
 static PyMethodDef ppy_msr_methods[] = {
 /*
     {"SelSrc", ppy_msr_SelSrc, METH_VARARGS,
@@ -394,6 +436,10 @@ static PyMethodDef ppy_msr_methods[] = {
      "Reorder the particles by position"},
     {"BuildTree", (PyCFunction)ppy_msr_BuildTree, METH_VARARGS|METH_KEYWORDS,
      "Build the spatial tree"},
+    {"Smooth", (PyCFunction)ppy_msr_Smooth, METH_VARARGS|METH_KEYWORDS,
+     "Smooth"},
+    {"ReSmooth", (PyCFunction)ppy_msr_ReSmooth, METH_VARARGS|METH_KEYWORDS,
+     "ReSmooth"},
     {"Fof", (PyCFunction)ppy_msr_Fof, METH_VARARGS|METH_KEYWORDS,
      "Friends of Friends"},
     {"GroupProfiles", (PyCFunction)ppy_msr_GroupProfiles, METH_VARARGS|METH_KEYWORDS,

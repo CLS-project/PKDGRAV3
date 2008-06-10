@@ -83,6 +83,7 @@ typedef uint_fast64_t total_t; /* Count of particles globally (total number) */
 #define PKD_MODEL_RELAXATION   (1<<5)  /* Trace relaxation */
 #define PKD_MODEL_MASS         (1<<6)  /* Mass for each particle */
 #define PKD_MODEL_SOFTENING    (1<<7)  /* Softening for each particle */
+#define PKD_MODEL_VELSMOOTH    (1<<8)  /* Velocity Smoothing */
 
 /*
 ** This constant is used to limit the size of a cell.
@@ -125,6 +126,12 @@ typedef struct hermitefields {
     double adpp[3];
     double dTime0;
     } HERMITEFIELDS;
+
+typedef struct velsmooth {
+    float vmean[3];
+    float divv;
+    float veldisp2;
+    } VELSMOOTH;
 
 typedef struct particle {
     /*-----Base-Particle-Data----*/
@@ -565,6 +572,7 @@ typedef struct pkdContext {
     int oBin; /* One int32 */
     int oHermite; /* Hermite structure */
     int oRelaxation;
+    int oVelSmooth;
 
     /*
     ** Tree walk variables.

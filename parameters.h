@@ -162,6 +162,7 @@ struct parameters {
     int bMemSoft;
     int bMemHermite;
     int bMemRelaxation;
+    int bMemVelSmooth;
     };
 
 #endif

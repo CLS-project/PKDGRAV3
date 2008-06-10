@@ -5,7 +5,7 @@
 #include <math.h>
 #include "pkd.h"
 
-static void combProfileBins(void *b1, void *b2) {
+static void combProfileBins(void *vpkd, void *b1, void *b2) {
     PROFILEBIN * pBin1 = (PROFILEBIN *)b1;
     PROFILEBIN * pBin2 = (PROFILEBIN *)b2;
 
@@ -13,7 +13,7 @@ static void combProfileBins(void *b1, void *b2) {
     pBin1->nParticles += pBin2->nParticles;
     }
 
-static void initProfileBins(void *b) {
+static void initProfileBins(void *vpkd, void *b) {
     PROFILEBIN * pBin = (PROFILEBIN *)b;
     pBin->dRadius = 0.0;
     pBin->dMassInBin = 0.0;
@@ -170,7 +170,7 @@ void pkdProfile(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
 	}
 
     /* Combine the work from all processors */
-    mdlCOcache(pkd->mdl,CID_BIN,pkd->profileBins,sizeof(PROFILEBIN),nBins,initProfileBins,combProfileBins);
+    mdlCOcache(pkd->mdl,CID_BIN,pkd->profileBins,sizeof(PROFILEBIN),nBins,pkd,initProfileBins,combProfileBins);
     if (pkd->idSelf != 0) {
 	for (i=0; i<nBins; i++) {
 	    if (pkd->profileBins[i].dMassInBin > 0.0) {

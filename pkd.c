@@ -227,6 +227,11 @@ void pkdInitialize(PKD *ppkd,MDL mdl,int nStore,int nBucket,FLOAT *fPeriod,
     else
 	pkd->oHermite = 0;
 
+    if ( mMemoryModel & PKD_MODEL_VELSMOOTH )
+	pkd->oVelSmooth = pkdParticleAddStruct(pkd,sizeof(VELSMOOTH));
+    else
+	pkd->oVelSmooth = 0;
+
     if ( mMemoryModel & PKD_MODEL_ACCELERATION )
 	pkd->oAcceleration = pkdParticleAddFloat(pkd,3);
     else

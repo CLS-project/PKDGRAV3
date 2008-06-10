@@ -69,17 +69,17 @@
 void NullSmooth(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
     }
 
-void initDensity(void *p) {
+void initDensity(void *vpkd, void *p) {
     ((PARTICLE *)p)->fDensity = 0.0;
     }
 
-void combDensity(void *p1,void *p2) {
+void combDensity(void *vpkd, void *p1,void *p2) {
     ((PARTICLE *)p1)->fDensity += ((PARTICLE *)p2)->fDensity;
     }
 
 void Density(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
-    FLOAT ih2,r2,rs,fDensity,fMass;
+    float ih2,r2,rs,fDensity,fMass;
     int i;
 
     ih2 = 4.0/BALL2(p);
@@ -96,7 +96,7 @@ void Density(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
 void DensitySym(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
     PARTICLE *q;
-    FLOAT fNorm,ih2,r2,rs,fMassQ,fMassP;
+    float fNorm,ih2,r2,rs,fMassQ,fMassP;
     int i;
     fMassP = pkdMass(pkd,p);
     ih2 = 4.0/(BALL2(p));
@@ -112,9 +112,84 @@ void DensitySym(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
 	}
     }
 
-void initGroupMerge(void *g) {
+
+void initMeanVel(void *vpkd, void *pvoid) {
+    PKD pkd = (PKD)vpkd;
+    assert(pkd);
+    PARTICLE *p = pvoid;
+    VELSMOOTH *pvel = pkdField(p,pkd->oVelSmooth);
+    int j;
+    for(j=0;j<3;++j) pvel->vmean[j] = 0.0;
     }
-void combGroupMerge(void *g1, void *g2) {
+
+void combMeanVel(void *vpkd, void *p1void,void *p2void) {
+    PKD pkd = (PKD)vpkd;
+    assert(pkd);
+    PARTICLE *p1 = p1void;
+    PARTICLE *p2 = p2void;
+    VELSMOOTH *p1vel = pkdField(p1,pkd->oVelSmooth);
+    VELSMOOTH *p2vel = pkdField(p2,pkd->oVelSmooth);
+    int j;
+
+    for (j=0;j<3;++j) p1vel->vmean[j] += p2vel->vmean[j];
+    }
+
+void MeanVel(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
+    PKD pkd = smf->pkd;
+    PARTICLE *q;
+    double *qv;
+    VELSMOOTH *pvel;
+    float v[3];
+    float ih2,r2,rs,fDensity,fMass;
+    int i,j;
+
+    pvel = pkdField(p,pkd->oVelSmooth);
+    ih2 = 4.0/BALL2(p);
+    for (j=0;j<3;++j) v[j] = 0.0;
+    for (i=0;i<nSmooth;++i) {
+	r2 = nnList[i].fDist2*ih2;
+	KERNEL(rs,r2);
+	q = nnList[i].pPart;
+	fMass = pkdMass(pkd,q);
+	qv = pkdVel(pkd,q);
+	for (j=0;j<3;++j) v[j] += rs*fMass/q->fDensity*qv[j];
+	}
+    for (j=0;j<3;++j) pvel->vmean[j] = M_1_PI*sqrt(ih2)*ih2*v[j];
+    }
+
+void MeanVelSym(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
+    PKD pkd = smf->pkd;
+    PARTICLE *q;
+    VELSMOOTH *pvel, *qvel;
+    double *pv, *qv;
+    float fNorm,ih2,r2,rs,fMassQ,fMassP;
+    int i,j;
+
+    pv = pkdVel(pkd,p);
+    pvel = pkdField(p,pkd->oVelSmooth);
+    fMassP = pkdMass(pkd,p);
+    ih2 = 4.0/(BALL2(p));
+    fNorm = 0.5*M_1_PI*sqrt(ih2)*ih2;
+    for (i=0;i<nSmooth;++i) {
+	r2 = nnList[i].fDist2*ih2;
+	KERNEL(rs,r2);
+	rs *= fNorm;
+	q = nnList[i].pPart;
+	qv = pkdVel(pkd,q);
+	qvel = pkdField(q,pkd->oVelSmooth);
+	fMassQ = pkdMass(pkd,q);
+	for (j=0;j<3;++j) {
+	    pvel->vmean[j] += rs*fMassQ/q->fDensity*qv[j];
+	    qvel->vmean[j] += rs*fMassP/p->fDensity*pv[j];
+	    }
+	}
+    }
+
+
+
+void initGroupMerge(void *vpkd, void *g) {
+    }
+void combGroupMerge(void *vpkd, void *g1, void *g2) {
     FOFGD * gd1 = (FOFGD *)g1;
     FOFGD * gd2 = (FOFGD *)g2;
 
@@ -126,7 +201,7 @@ void combGroupMerge(void *g1, void *g2) {
     gd1->bMyGroup *= gd2->bMyGroup;
     gd2->bMyGroup *= gd1->bMyGroup;
     }
-void initGroupBins(void *b) {
+void initGroupBins(void *vpkd, void *b) {
     FOFBIN * gb1 = (FOFBIN *)b;
 
     gb1->nMembers = 0;
@@ -139,7 +214,7 @@ void initGroupBins(void *b) {
     gb1->L[1] = 0.0;
     gb1->L[2] = 0.0;
     }
-void combGroupBins(void *b1, void *b2) {
+void combGroupBins(void *vpkd, void *b1, void *b2) {
     FOFBIN * gb1 = (FOFBIN *)b1;
     FOFBIN * gb2 = (FOFBIN *)b2;
 
@@ -163,7 +238,6 @@ void AddRelaxation(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
     double *v;
     double *pRelax;
 
-    assert( pkd->oRelaxation);
     pRelax = pkdField(p,pkd->oRelaxation);
 
     beta = 10.0; /* pmax=beta*l, large beta parameter reduces eps dependence  */

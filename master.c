@@ -555,6 +555,9 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.bMemRelaxation = 0;
     prmAddParam(msr->prm,"bMemRelaxation",1,&msr->param.bMemRelaxation,
 		sizeof(int),"Mr","<Particles have relaxation> = 0");
+    msr->param.bMemVelSmooth = 0;
+    prmAddParam(msr->prm,"bMemVelSmooth",1,&msr->param.bMemVelSmooth,
+		sizeof(int),"Mvs","<Particles support velocity smoothing> = 0");
 
     /*
     ** Set the box center to (0,0,0) for now!
@@ -4971,6 +4974,7 @@ double msrRead(MSR msr, const char *achInFile) {
     if (msr->param.bMemSoft)         mMemoryModel |= PKD_MODEL_SOFTENING;
     if (msr->param.bMemHermite)      mMemoryModel |= PKD_MODEL_HERMITE;
     if (msr->param.bMemRelaxation)   mMemoryModel |= PKD_MODEL_RELAXATION;
+    if (msr->param.bMemVelSmooth)    mMemoryModel |= PKD_MODEL_VELSMOOTH;
 
 #ifdef PLANETS
     dTime = msrReadSS(msr); /* must use "Solar System" (SS) I/O format... */

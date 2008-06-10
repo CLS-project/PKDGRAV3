@@ -41,23 +41,23 @@ typedef struct nNeighbor {
 void NullSmooth(PARTICLE *,int,NN *,SMF *);
 
 #define SMX_DENSITY				1
-void initDensity(void *);
-void combDensity(void *,void *);
+void initDensity(void *,void *);
+void combDensity(void *,void *,void *);
 void Density(PARTICLE *,int,NN *,SMF *);
 void DensitySym(PARTICLE *,int,NN *,SMF *);
 
 #define SMX_MEANVEL				2
-void initMeanVel(void *);
-void combMeanVel(void *,void *);
+void initMeanVel(void *,void *);
+void combMeanVel(void *,void *,void *);
 void MeanVel(PARTICLE *,int,NN *,SMF *);
 void MeanVelSym(PARTICLE *,int,NN *,SMF *);
 
 #define SMX_FOF			25
-void initGroupIds(void *p);
-void initGroupMerge(void *g);
-void combGroupMerge(void *g1, void *g2);
-void initGroupBins(void *b);
-void combGroupBins(void *b1, void *b2);
+void initGroupIds(void *,void *p);
+void initGroupMerge(void *,void *g);
+void combGroupMerge(void *,void *g1, void *g2);
+void initGroupBins(void *,void *b);
+void combGroupBins(void *,void *b1, void *b2);
 
 #define SMX_RELAXATION		26
 void AddRelaxation(PARTICLE *,int,NN *,SMF *);
