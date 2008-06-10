@@ -82,8 +82,9 @@ typedef struct cacheSpace {
     int nCheckIn;
     int nCheckOut;
     CAHEAD caReq;
-    void (*init)(void *);
-    void (*combine)(void *,void *);
+    void *ctx;
+    void (*init)(void *,void *);
+    void (*combine)(void *,void *,void *);
     /*
      ** Statistics stuff.
      */
@@ -285,7 +286,7 @@ void *mdlMalloc(MDL,size_t);
 void mdlFree(MDL,void *);
 void mdlROcache(MDL,int,void *,int,int);
 void mdlCOcache(MDL,int,void *,int,int,
-		void (*)(void *),void (*)(void *,void *));
+		void *,void (*)(void*,void *),void (*)(void*,void *,void *));
 void mdlFinishCache(MDL,int);
 void mdlCacheCheck(MDL);
 void mdlCacheBarrier(MDL,int);

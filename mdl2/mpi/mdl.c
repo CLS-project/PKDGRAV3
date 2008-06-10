@@ -972,7 +972,7 @@ int mdlCacheReceive(MDL mdl,char *pLine) {
 	n *= c->iDataSize;
 	iDataSize = c->iDataSize;
 	for (i=0;i<n;i+=iDataSize) {
-	    (*c->combine)(&t[i],&pszRcv[i]);
+		(*c->combine)(c->ctx,&t[i],&pszRcv[i]);
 	    }
 	ret = 0;
 	break;
@@ -991,7 +991,7 @@ int mdlCacheReceive(MDL mdl,char *pLine) {
 	     ** the cache line.
 	     */
 	    for (i=0;i<c->iLineSize;i+=c->iDataSize) {
-		(*c->init)(&pLine[i]);
+		    (*c->init)(c->ctx,&pLine[i]);
 		}
 	    }
 	ret = 1;
@@ -1284,7 +1284,7 @@ void mdlROcache(MDL mdl,int cid,void *pData,int iDataSize,int nData) {
  ** Initialize a Combiner caching space.
  */
 void mdlCOcache(MDL mdl,int cid,void *pData,int iDataSize,int nData,
-		void (*init)(void *),void (*combine)(void *,void *)) {
+		void *ctx,void (*init)(void *,void *),void (*combine)(void *,void *,void *)) {
     CACHE *c;
     int id;
     CAHEAD caIn;
@@ -1295,6 +1295,7 @@ void mdlCOcache(MDL mdl,int cid,void *pData,int iDataSize,int nData,
     c->init = init;
     assert(combine);
     c->combine = combine;
+    c->ctx = ctx;
     /*
      ** THIS IS A SYNCHRONIZE!!!
      */
