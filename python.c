@@ -293,7 +293,7 @@ ppy_msr_Fof(PyObject *self, PyObject *args, PyObject *kwobj) {
 
 static PyObject *
 ppy_msr_Smooth(PyObject *self, PyObject *args, PyObject *kwobj) {
-    static char *kwlist[]={"iSmoothType","bSymmetric",NULL};
+    static char *kwlist[]={"iSmoothType","bSymmetric","dTime",NULL};
     PyObject *v, *dict;
     int iSmoothType;
     int bSymmetric = 1;
@@ -307,6 +307,7 @@ ppy_msr_Smooth(PyObject *self, PyObject *args, PyObject *kwobj) {
 	     args, kwobj, "i|id:Smooth", kwlist,
 	     &iSmoothType,&bSymmetric, &dTime ) )
 	return NULL;
+
     msrSmooth(ppy_msr,dTime,iSmoothType,bSymmetric);
 
     Py_INCREF(Py_None);
@@ -315,7 +316,7 @@ ppy_msr_Smooth(PyObject *self, PyObject *args, PyObject *kwobj) {
 
 static PyObject *
 ppy_msr_ReSmooth(PyObject *self, PyObject *args, PyObject *kwobj) {
-    static char *kwlist[]={"iSmoothType","bSymmetric",NULL};
+    static char *kwlist[]={"iSmoothType","bSymmetric","dTime",NULL};
     PyObject *v, *dict;
     int iSmoothType;
     int bSymmetric = 1;
@@ -410,6 +411,7 @@ ppy_msr_SaveVector(PyObject *self, PyObject *args, PyObject *kwobj) {
 	     args, kwobj, "si:SaveVector", kwlist,
 	     &fname,&iType ) )
 	return NULL;
+    msrReorder(ppy_msr);
     msrOutVector(ppy_msr,fname,iType);
     Py_INCREF(Py_None);
     return Py_None;
@@ -424,6 +426,7 @@ ppy_msr_SaveArray(PyObject *self, PyObject *args, PyObject *kwobj) {
 	     args, kwobj, "si:SaveArray", kwlist,
 	     &fname,&iType ) )
 	return NULL;
+    msrReorder(ppy_msr);
     msrOutArray(ppy_msr,fname,iType);
     Py_INCREF(Py_None);
     return Py_None;
