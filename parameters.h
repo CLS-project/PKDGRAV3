@@ -150,6 +150,18 @@ struct parameters {
     int nGrid;
     int iSeed;
 #endif
+
+    /*
+    ** Memory models.  Other parameters can force these to be set.
+    */
+    int bMemAcceleration;
+    int bMemVelocity;
+    int bMemPotential;
+    int bMemGroups;
+    int bMemMass;
+    int bMemSoft;
+    int bMemHermite;
+    int bMemRelaxation;
     };
 
 #endif

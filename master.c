@@ -530,6 +530,31 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     prmAddParam(msr->prm,"bWriteIC",1,&msr->param.bWriteIC,
 		sizeof(int),"wic","<Write IC after generating> = 0");
 
+    /* Memory models */
+    msr->param.bMemAcceleration = 0;
+    prmAddParam(msr->prm,"bMemAcceleration",1,&msr->param.bMemAcceleration,
+		sizeof(int),"Ma","<Particles have acceleration> = 0");
+    msr->param.bMemVelocity = 0;
+    prmAddParam(msr->prm,"bMemVelocity",1,&msr->param.bMemVelocity,
+		sizeof(int),"Mv","<Particles have velocity> = 0");
+    msr->param.bMemPotential = 0;
+    prmAddParam(msr->prm,"bMemPotential",1,&msr->param.bMemPotential,
+		sizeof(int),"Mp","<Particles have potential> = 0");
+    msr->param.bMemGroups = 0;
+    prmAddParam(msr->prm,"bMemGroups",1,&msr->param.bMemGroups,
+		sizeof(int),"Mg","<Particles support group finding> = 0");
+    msr->param.bMemMass = 0;
+    prmAddParam(msr->prm,"bMemMass",1,&msr->param.bMemMass,
+		sizeof(int),"Mm","<Particles have mass> = 0");
+    msr->param.bMemSoft = 0;
+    prmAddParam(msr->prm,"bMemSoft",1,&msr->param.bMemSoft,
+		sizeof(int),"Ms","<Particles have softening> = 0");
+    msr->param.bMemHermite = 0;
+    prmAddParam(msr->prm,"bMemHermite",1,&msr->param.bMemHermite,
+		sizeof(int),"Mh","<Particles have fields for the hermite integrator> = 0");
+    msr->param.bMemRelaxation = 0;
+    prmAddParam(msr->prm,"bMemRelaxation",1,&msr->param.bMemRelaxation,
+		sizeof(int),"Mr","<Particles have relaxation> = 0");
 
     /*
     ** Set the box center to (0,0,0) for now!
@@ -629,10 +654,6 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
 	    printf("WARNING: bPhysicalSoft reset to 0 for non-comoving (bComove == 0)\n");
 	    msr->param.bPhysicalSoft = 0;
 	    }
-#ifndef CHANGESOFT
-	fprintf(stderr,"ERROR: You must compile with -DCHANGESOFT to use changing softening options\n");
-	_msrExit(msr,1);
-#endif
 	}
     /*
     ** Determine the period of the box that we are using.
@@ -788,9 +809,6 @@ void msrLogParams(MSR msr,FILE *fp) {
 #endif
 #endif
     fprintf(fp,"# Preprocessor macros:");
-#ifdef CHANGESOFT
-    fprintf(fp," CHANGESOFT");
-#endif
 #ifdef DEBUG
     fprintf(fp," DEBUG");
 #endif
@@ -2585,7 +2603,6 @@ void msrReSmooth(MSR msr,double dTime,int iSmoothType,int bSymmetric) {
     }
 
 void msrUpdateSoft(MSR msr,double dTime) {
-#ifdef CHANGESOFT
     if (!(msr->param.bPhysicalSoft)) return;
     if (msr->param.bPhysicalSoft) {
 	struct inPhysicalSoft in;
@@ -2598,7 +2615,6 @@ void msrUpdateSoft(MSR msr,double dTime) {
 
 	pstPhysicalSoft(msr->pst,&in,sizeof(in),NULL,NULL);
 	}
-#endif
     }
 
 #define PRINTGRID(FRM,VAR) {\
@@ -4935,16 +4951,26 @@ double msrRead(MSR msr, const char *achInFile) {
     double dTime,dExpansion;
     struct inReadFile *read;
     struct inFile *file;
-
     uint64_t mMemoryModel = 0;
 
+    /*
+    ** Figure out what memory models are in effect.  Configuration flags
+    ** can be used to request a specific model, but certain operations
+    ** will force these flags to be on.
+    */
     if (msr->param.nFindGroups > 0) mMemoryModel |= PKD_MODEL_GROUPS|PKD_MODEL_VELOCITY|PKD_MODEL_POTENTIAL;
     if (msrDoGravity(msr)) mMemoryModel |= PKD_MODEL_VELOCITY|PKD_MODEL_ACCELERATION|PKD_MODEL_POTENTIAL;
     if (msr->param.bHermite) mMemoryModel |= PKD_MODEL_HERMITE;
     if (msr->param.bTraceRelaxation) mMemoryModel |= PKD_MODEL_RELAXATION;
 
-    mMemoryModel |= PKD_MODEL_POTENTIAL;
-
+    if (msr->param.bMemAcceleration) mMemoryModel |= PKD_MODEL_ACCELERATION;
+    if (msr->param.bMemVelocity)     mMemoryModel |= PKD_MODEL_VELOCITY;
+    if (msr->param.bMemPotential)    mMemoryModel |= PKD_MODEL_POTENTIAL;
+    if (msr->param.bMemGroups)       mMemoryModel |= PKD_MODEL_GROUPS;
+    if (msr->param.bMemMass)         mMemoryModel |= PKD_MODEL_MASS;
+    if (msr->param.bMemSoft)         mMemoryModel |= PKD_MODEL_SOFTENING;
+    if (msr->param.bMemHermite)      mMemoryModel |= PKD_MODEL_HERMITE;
+    if (msr->param.bMemRelaxation)   mMemoryModel |= PKD_MODEL_RELAXATION;
 
 #ifdef PLANETS
     dTime = msrReadSS(msr); /* must use "Solar System" (SS) I/O format... */

@@ -81,6 +81,8 @@ typedef uint_fast64_t total_t; /* Count of particles globally (total number) */
 #define PKD_MODEL_GROUPS       (1<<3)  /* Group profiling */
 #define PKD_MODEL_HERMITE      (1<<4)  /* Hermite integrator */
 #define PKD_MODEL_RELAXATION   (1<<5)  /* Trace relaxation */
+#define PKD_MODEL_MASS         (1<<6)  /* Mass for each particle */
+#define PKD_MODEL_SOFTENING    (1<<7)  /* Softening for each particle */
 
 /*
 ** This constant is used to limit the size of a cell.
@@ -109,7 +111,6 @@ typedef struct pIO {
 typedef struct partclass {
     double fMass;  /* Particle mass */
     double fSoft;  /* Current softening */
-    double fSoft0; /* Softening from file */
     } PARTCLASS;
 
 typedef struct hermitefields {
@@ -544,6 +545,9 @@ typedef struct pkdContext {
     PARTICLE *pStorePRIVATE;
     PARTICLE *pTempPRIVATE;
     PARTCLASS *pClass;
+    float fSoftFix;
+    float fSoftFac;
+    float fSoftMax;
     int nClasses;
     int nMaxBucketActive;
     PARTICLE **piActive;
@@ -556,6 +560,8 @@ typedef struct pkdContext {
     int oVelocity; /* Three floats */
     int oPotential; /* One float */
     int oGroup; /* One int32 */
+    int oMass; /* One float */
+    int oSoft; /* One float */
     int oBin; /* One int32 */
     int oHermite; /* Hermite structure */
     int oRelaxation;
@@ -704,14 +710,28 @@ static inline int32_t *pkdInt32( PARTICLE *p, int iOffset ) {
     }
 
 /* Here is the new way of getting mass and softening */
-static inline FLOAT pkdMass( PKD pkd, PARTICLE *p ) {
+static inline float pkdMass( PKD pkd, PARTICLE *p ) {
+    if ( pkd->oMass ) {
+	float *pMass = pkdField(p,pkd->oMass);
+	return *pMass;
+	}
     return pkd->pClass[p->iClass].fMass;
     }
-static inline FLOAT pkdSoft( PKD pkd, PARTICLE *p ) {
+static inline FLOAT pkdSoft0( PKD pkd, PARTICLE *p ) {
+    if ( pkd->oSoft ) {
+	float *pSoft = pkdField(p,pkd->oSoft);
+	return *pSoft;
+	}
     return pkd->pClass[p->iClass].fSoft;
     }
-static inline FLOAT pkdSoft0( PKD pkd, PARTICLE *p ) {
-    return pkd->pClass[p->iClass].fSoft0;
+static inline FLOAT pkdSoft( PKD pkd, PARTICLE *p ) {
+    float fSoft;
+
+    if ( pkd->fSoftFix > 0.0 ) fSoft = pkd->fSoftFix;
+    else fSoft = pkdSoft0(pkd,p);
+    fSoft *= pkd->fSoftFac;
+    if ( fSoft > pkd->fSoftMax ) fSoft = pkd->fSoftMax;
+    return fSoft;
     }
 static inline double *pkdVel( PKD pkd, PARTICLE *p ) {
     return pkdField(p,pkd->oVelocity);
@@ -773,10 +793,7 @@ void pkdIOInitialize( PKD pkd, int nLocal);
 void pkdSetSoft(PKD pkd,double dSoft);
 void pkdCalcBound(PKD,BND *);
 void pkdEnforcePeriodic(PKD,BND *);
-
-#ifdef CHANGESOFT
 void pkdPhysicalSoft(PKD pkd,double dSoftMax,double dFac,int bSoftMaxMul);
-#endif
 
 void pkdBucketWeight(PKD pkd,int iBucket,FLOAT fWeight);
 int pkdWeight(PKD,int,FLOAT,int,int,int,int *,int *,FLOAT *,FLOAT *);

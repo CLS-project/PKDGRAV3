@@ -285,11 +285,9 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_SETSOFT,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstSetSoft,
 		  sizeof(struct inSetSoft),0);
-#ifdef CHANGESOFT
     mdlAddService(mdl,PST_PHYSICALSOFT,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstPhysicalSoft,
 		  sizeof(struct inPhysicalSoft),0);
-#endif
     mdlAddService(mdl,PST_SETTOTAL,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstSetTotal,
 		  0,sizeof(struct outSetTotal));
@@ -2558,8 +2556,6 @@ void pstBoundsWalk(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     if (pnOut) *pnOut = n*sizeof(struct outBoundsWalk);
     }
 
-
-#ifdef CHANGESOFT
 void pstPhysicalSoft(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct inPhysicalSoft *in = vin;
@@ -2575,7 +2571,6 @@ void pstPhysicalSoft(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	}
     if (pnOut) *pnOut = 0;
     }
-#endif
 
 void pstSmooth(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     struct inSmooth *in = vin;

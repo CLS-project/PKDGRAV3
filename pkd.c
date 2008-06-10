@@ -237,6 +237,16 @@ void pkdInitialize(PKD *ppkd,MDL mdl,int nStore,int nBucket,FLOAT *fPeriod,
     else
 	pkd->oPotential = 0;
 
+    if ( mMemoryModel & PKD_MODEL_MASS )
+	pkd->oMass = pkdParticleAddFloat(pkd,1);
+    else
+	pkd->oMass = 0;
+
+    if ( mMemoryModel & PKD_MODEL_SOFTENING )
+	pkd->oSoft = pkdParticleAddFloat(pkd,1);
+    else
+	pkd->oSoft = 0;
+
     if ( mMemoryModel & PKD_MODEL_GROUPS ) {
 	pkd->oGroup = pkdParticleAddInt32(pkd,1);
 	pkd->oBin   = pkdParticleAddInt32(pkd,1);
@@ -273,8 +283,12 @@ void pkdInitialize(PKD *ppkd,MDL mdl,int nStore,int nBucket,FLOAT *fPeriod,
     pkd->pClass = malloc(PKD_MAX_CLASSES*sizeof(PARTCLASS));
     mdlassert(mdl,pkd->pClass != NULL);
     for (j=0;j<PKD_MAX_CLASSES;j++)
-	pkd->pClass[j].fMass = pkd->pClass[j].fSoft = pkd->pClass[j].fSoft0 = -1.0;
+	pkd->pClass[j].fMass = pkd->pClass[j].fSoft = -1.0;
     pkd->nClasses = 0;
+
+    pkd->fSoftFix = 0.0;
+    pkd->fSoftFac = 1.0;
+    pkd->fSoftMax = HUGE;
     /*
     ** Now also allocate all node storage here.
     ** We guess that the upper bound is based on the number of particles in
@@ -391,18 +405,32 @@ void pkdFinish(PKD pkd) {
     free(pkd);
     }
 
-static uint8_t getClass( PKD pkd, FLOAT fMass, FLOAT fSoft ) {
+static void getClass( PKD pkd, float fMass, float fSoft, PARTICLE *p ) {
     int i;
+
+    if ( pkd->oMass ) {
+	float *pMass = pkdField(p,pkd->oMass);
+	*pMass = fMass;
+	fMass = 0.0;
+	}
+    if ( pkd->oSoft ) {
+	float *pSoft = pkdField(p,pkd->oSoft);
+	*pSoft = fSoft;
+	fSoft = 0.0;
+	}
+    /* NOTE: The above can both be true, in which case a "zero" class is recorded */
 
     /* TODO: This is a linear search which is fine for a small number of classes */
     for ( i=0; i<pkd->nClasses; i++ )
-	if ( pkd->pClass[i].fMass == fMass && pkd->pClass[i].fSoft0 == fSoft )
-	    return i;
-    assert( pkd->nClasses < PKD_MAX_CLASSES );
-    i = pkd->nClasses++;
-    pkd->pClass[i].fSoft = pkd->pClass[i].fSoft0 = fSoft;
-    pkd->pClass[i].fMass = fMass;
-    return i;
+	if ( pkd->pClass[i].fMass == fMass && pkd->pClass[i].fSoft == fSoft )
+	    break;
+    if ( i == pkd->nClasses ) {
+	assert( pkd->nClasses < PKD_MAX_CLASSES );
+	i = pkd->nClasses++;
+	pkd->pClass[i].fSoft = fSoft;
+	pkd->pClass[i].fMass = fMass;
+	}
+    p->iClass = i;
     }
 
 int pkdGetClasses( PKD pkd, int nMax, PARTCLASS *pClass ) {
@@ -532,10 +560,6 @@ void pkdGenerateIC(PKD pkd, GRAFICCTX gctx,  int iDim,
     a = graficGetExpansionFactor(gctx);
     dvFac = bComove ? a*a : 1.0;
 
-    pkd->nClasses = 1;
-    pkd->pClass[0].fSoft = pkd->pClass[0].fSoft0 = fSoft;
-    pkd->pClass[0].fMass = fMass;
-
     for ( i=0; i<n1; i++ ) {
 	for ( j=0; j<n2; j++ ) {
 	    for ( k=0; k<n3; k++ ) {
@@ -549,12 +573,12 @@ void pkdGenerateIC(PKD pkd, GRAFICCTX gctx,  int iDim,
 		** do not get funny uninitialized values!
 		*/
 		p->a[0] = p->a[1] = p->a[2] = 0.0;
-
 		p->r[d] = graficGetPosition(gctx,i,j,k,d) - 0.5;
 		if ( p->r[d] < -0.5 ) p->r[d] += 1.0;
 		if ( p->r[d] >= 0.5 ) p->r[d] -= 1.0;
 		assert( p->r[d] >= -0.5 && p->r[d] < 0.5 );
 		p->v[d] = graficGetVelocity(gctx,i,j,k) * dvFac;
+		getClass(pkd,fMass,fSoft,p);
 		p->iOrder = 0; /* FIXME */
 		p->iClass = 0;
 		pi++;
@@ -639,7 +663,7 @@ void pkdReadHDF5(PKD pkd, IOHDF5 io, double dvFac,
 	    fSoft = sqrt(2.0e-38);
 	    }
 	for (j=0;j<3;++j) v[j] *= dvFac;
-	p->iClass = getClass(pkd,fMass,fSoft);
+	getClass(pkd,fMass,fSoft,p);
 	p->iOrder = iOrder;
 	if ( ioPot ) *pPot = ioHDF5GetVector(ioPot);
 	else *pPot = 0.0;
@@ -821,7 +845,7 @@ void pkdReadTipsy(PKD pkd,char *pszFileName, uint64_t nStart,int nLocal,
 		xdr_float(&xdrs,pPot);
 		}
 	    else mdlassert(pkd->mdl,0);
-	    p->iClass = getClass(pkd,fMass,fSoft);
+	    getClass(pkd,fMass,fSoft,p);
 	    }
 	xdr_destroy(&xdrs);
 	}
@@ -865,7 +889,7 @@ void pkdReadTipsy(PKD pkd,char *pszFileName, uint64_t nStart,int nLocal,
 		*pPot = sp.phi;
 		}
 	    else mdlassert(pkd->mdl,0);
-	    p->iClass = getClass(pkd,fMass,fSoft);
+	    getClass(pkd,fMass,fSoft,p);
 	    }
 	}
 
@@ -1544,7 +1568,7 @@ int pkdUnpackIO(PKD pkd,
 	    a[d]  = 0.0;
 	    }
 	p->iOrder = io[i].iOrder;
-	p->iClass = getClass(pkd,io[i].fMass,io[i].fSoft);
+	getClass(pkd,io[i].fMass,io[i].fSoft,p);
 	p->fDensity = io[i].fDensity;
 	*pPot = io[i].fPot;
 	}
@@ -1848,34 +1872,13 @@ void pkdSetSoft(PKD pkd,double dSoft) {
     if (dSoft < sqrt(2.0e-38)) { /* set minimum softening */
 	dSoft = sqrt(2.0e-38);
 	}
-    for (i=0;i<pkd->nClasses;i++)
-	pkd->pClass[i].fSoft = dSoft;
+    pkd->fSoftFix = dSoft;
     }
 
-#ifdef CHANGESOFT
 void pkdPhysicalSoft(PKD pkd,double dSoftMax,double dFac,int bSoftMaxMul) {
-    int i,n;
-
-    n = pkd->nClasses;
-    mdlassert(pkd->mdl,dFac > 0);
-    if (bSoftMaxMul) {
-	for (i=0;i<n;++i) {
-	    mdlassert(pkd->mdl,pkd->pClass[i].fSoft0 > 0);
-	    pkd->pClass[i].fSoft = pkd->pClass[i].fSoft0*dFac;
-	    mdlassert(pkd->mdl,pkd->pClass[i].fSoft > 0);
-	    }
-	}
-    else {
-	mdlassert(pkd->mdl,dSoftMax > 0);
-	for (i=0;i<n;++i) {
-	    mdlassert(pkd->mdl,pkd->pClass[i].fSoft0 > 0);
-	    pkd->pClass[i].fSoft = pkd->pClass[i].fSoft0*dFac;
-	    if (pkd->pClass[i].fSoft > dSoftMax) pkd->pClass[i].fSoft = dSoftMax;
-	    mdlassert(pkd->mdl,pkd->pClass[i].fSoft > 0);
-	    }
-	}
+    pkd->fSoftFac = dFac;
+    pkd->fSoftMax = bSoftMaxMul ? dSoftMax : HUGE;
     }
-#endif
 
 #ifdef USE_BSC_trace
 static int foo = 0;
@@ -2774,7 +2777,7 @@ void pkdDeleteParticle(PKD pkd, PARTICLE *p) {
 
     p->iOrder = -2 - p->iOrder;
 
-    p->iClass = getClass(pkd,0.0,0.0); /* Special "DELETED" class */
+    getClass(pkd,0.0,0.0,p); /* Special "DELETED" class */
     }
 
 void pkdNewParticle(PKD pkd, PARTICLE *p) {
@@ -2939,7 +2942,7 @@ pkdReadSS(PKD pkd,char *pszFileName,int nStart,int nLocal) {
 	if (ssioData(&ssio,&data))
 	    mdlassert(pkd->mdl,0); /* error during read in ss file */
 	p->iOrgIdx = data.org_idx;
-	p->iClass = getClass(data.mass,data.radius);
+	getClass(data.mass,data.radius,p);
 	for (j=0;j<3;++j) p->r[j] = data.pos[j];
 	for (j=0;j<3;++j) p->v[j] = data.vel[j];
 	for (j=0;j<3;++j) p->w[j] = data.spin[j];
