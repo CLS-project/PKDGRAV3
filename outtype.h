@@ -10,6 +10,10 @@
 #define OUT_IMASS_ARRAY		5
 #define OUT_RUNG_ARRAY		6
 
+#define OUT_DIVV_ARRAY          7
+#define OUT_VELDISP2_ARRAY      8
+#define OUT_PHASEDENS_ARRAY     9
+
 #define OUT_SOFT_ARRAY          32
 
 #define OUT_GROUP_ARRAY	112

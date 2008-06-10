@@ -509,6 +509,8 @@ void ppyInitialize(PPY *pvppy, MSR msr, double dTime) {
 
     PyDict_SetItemString(dict, "SMX_DENSITY", Py_BuildValue("i",SMX_DENSITY));
     PyDict_SetItemString(dict, "SMX_MEANVEL", Py_BuildValue("i",SMX_MEANVEL));
+    PyDict_SetItemString(dict, "SMX_DIVV", Py_BuildValue("i",SMX_DIVV));
+    PyDict_SetItemString(dict, "SMX_VELDISP2", Py_BuildValue("i",SMX_VELDISP2));
     PyDict_SetItemString(dict, "SMX_FOF", Py_BuildValue("i",SMX_FOF));
     PyDict_SetItemString(dict, "SMX_RELAXATION", Py_BuildValue("i",SMX_RELAXATION));
     PyDict_SetItemString(dict, "OUT_POS_VECTOR", Py_BuildValue("i",OUT_POS_VECTOR));
@@ -522,6 +524,9 @@ void ppyInitialize(PPY *pvppy, MSR msr, double dTime) {
     PyDict_SetItemString(dict, "OUT_IMASS_ARRAY", Py_BuildValue("i",OUT_IMASS_ARRAY));
     PyDict_SetItemString(dict, "OUT_RUNG_ARRAY", Py_BuildValue("i",OUT_RUNG_ARRAY));
     PyDict_SetItemString(dict, "OUT_SOFT_ARRAY", Py_BuildValue("i",OUT_SOFT_ARRAY));
+    PyDict_SetItemString(dict, "OUT_DIVV_ARRAY", Py_BuildValue("i",OUT_DIVV_ARRAY));
+    PyDict_SetItemString(dict, "OUT_VELDISP2_ARRAY", Py_BuildValue("i",OUT_VELDISP2_ARRAY));
+    PyDict_SetItemString(dict, "OUT_PHASEDENS_ARRAY", Py_BuildValue("i",OUT_PHASEDENS_ARRAY));
     }
 
 void ppyFinish(PPY vppy) {

@@ -20,6 +20,7 @@
 
 FLOAT ArrType(PKD pkd,PARTICLE *p,int iType) {
     float *a;
+    VELSMOOTH *pvel;
     switch (iType) {
     case OUT_DENSITY_ARRAY:
 	return(p->fDensity);
@@ -43,6 +44,18 @@ FLOAT ArrType(PKD pkd,PARTICLE *p,int iType) {
 	assert(pkd->oRelaxation);
 	a = pkdField(p,pkd->oRelaxation);
 	return *a;
+    case OUT_DIVV_ARRAY:
+	assert(pkd->oVelSmooth); /* Validate memory model */
+	pvel = pkdField(p,pkd->oVelSmooth);
+	return(pvel->divv);
+    case OUT_VELDISP2_ARRAY:
+	assert(pkd->oVelSmooth); /* Validate memory model */
+	pvel = pkdField(p,pkd->oVelSmooth);
+	return(pvel->veldisp2);
+    case OUT_PHASEDENS_ARRAY:
+	assert(pkd->oVelSmooth); /* Validate memory model */
+	pvel = pkdField(p,pkd->oVelSmooth);
+	return(p->fDensity*pow(pvel->veldisp2,-1.5));
     default:
 	return(0.0);
 	}
