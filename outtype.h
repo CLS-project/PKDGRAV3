@@ -23,6 +23,7 @@ void pkdOutGroup(PKD,char *,int,int,double);
 #define OUT_POS_VECTOR		1
 #define OUT_VEL_VECTOR		2
 #define OUT_ACCEL_VECTOR	3
+#define OUT_MEANVEL_VECTOR      4
 
 void pkdOutArray(PKD,char *,int);
 void pkdOutVector(PKD,char *,int,int);

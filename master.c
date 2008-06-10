@@ -2399,7 +2399,7 @@ void msrReorder(MSR msr) {
     }
 
 
-void msrOutArray(MSR msr,char *pszFile,int iType) {
+void msrOutArray(MSR msr,const char *pszFile,int iType) {
     struct inOutArray in;
     char achOutFile[PST_FILENAME_SIZE];
     LCL *plcl;
@@ -2467,7 +2467,7 @@ void msrOutArray(MSR msr,char *pszFile,int iType) {
     }
 
 
-void msrOutVector(MSR msr,char *pszFile,int iType) {
+void msrOutVector(MSR msr,const char *pszFile,int iType) {
     struct inOutVector in;
     char achOutFile[PST_FILENAME_SIZE];
     LCL *plcl;

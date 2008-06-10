@@ -52,6 +52,8 @@ FLOAT ArrType(PKD pkd,PARTICLE *p,int iType) {
 FLOAT VecType(PKD pkd,PARTICLE *p,int iDim,int iType) {
     float *a;
     double *v;
+    VELSMOOTH *pvel;
+
     switch (iType) {
     case OUT_POS_VECTOR:
 	return(p->r[iDim]);
@@ -59,6 +61,10 @@ FLOAT VecType(PKD pkd,PARTICLE *p,int iDim,int iType) {
 	assert(pkd->oVelocity); /* Validate memory model */
 	v = pkdVel(pkd,p);
 	return(v[iDim]);
+    case OUT_MEANVEL_VECTOR:
+	assert(pkd->oVelSmooth); /* Validate memory model */
+	pvel = pkdField(p,pkd->oVelSmooth);
+	return(pvel->vmean[iDim]);
     case OUT_ACCEL_VECTOR:
 	assert(pkd->oAcceleration); /* Validate memory model */
 	a = pkdAccel(pkd,p);

@@ -5,6 +5,7 @@
 #endif
 #include <stdint.h>
 #include "master.h"
+#include "outtype.h"
 #include "python.h"
 
 /**********************************************************************\
@@ -400,6 +401,34 @@ ppy_msr_Save(PyObject *self, PyObject *args, PyObject *kwobj) {
     return Py_None;
 }
 
+static PyObject *
+ppy_msr_SaveVector(PyObject *self, PyObject *args, PyObject *kwobj) {
+    static char *kwlist[]={"Name","Type",NULL};
+    const char *fname;
+    int iType;
+    if ( !PyArg_ParseTupleAndKeywords(
+	     args, kwobj, "si:SaveVector", kwlist,
+	     &fname,&iType ) )
+	return NULL;
+    msrOutVector(ppy_msr,fname,iType);
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+
+static PyObject *
+ppy_msr_SaveArray(PyObject *self, PyObject *args, PyObject *kwobj) {
+    static char *kwlist[]={"Name","Type",NULL};
+    const char *fname;
+    int iType;
+    if ( !PyArg_ParseTupleAndKeywords(
+	     args, kwobj, "si:SaveArray", kwlist,
+	     &fname,&iType ) )
+	return NULL;
+    msrOutArray(ppy_msr,fname,iType);
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+
 
 static PyMethodDef ppy_msr_methods[] = {
 /*
@@ -448,6 +477,10 @@ static PyMethodDef ppy_msr_methods[] = {
      "Load an input file"},
     {"Save", (PyCFunction)ppy_msr_Save, METH_VARARGS|METH_KEYWORDS,
      "Save particles to a file"},
+    {"SaveVector", (PyCFunction)ppy_msr_SaveVector, METH_VARARGS|METH_KEYWORDS,
+     "Save a vector to a file"},
+    {"SaveArray", (PyCFunction)ppy_msr_SaveArray, METH_VARARGS|METH_KEYWORDS,
+     "Save an array to a file"},
 
     {NULL, NULL, 0, NULL}
 };
@@ -470,10 +503,22 @@ void ppyInitialize(PPY *pvppy, MSR msr, double dTime) {
 
     dict = PyModule_GetDict(ppy->module);
     PyDict_SetItemString(dict, "dTime", Py_BuildValue("d",dTime));
+
     PyDict_SetItemString(dict, "SMX_DENSITY", Py_BuildValue("i",SMX_DENSITY));
     PyDict_SetItemString(dict, "SMX_MEANVEL", Py_BuildValue("i",SMX_MEANVEL));
     PyDict_SetItemString(dict, "SMX_FOF", Py_BuildValue("i",SMX_FOF));
     PyDict_SetItemString(dict, "SMX_RELAXATION", Py_BuildValue("i",SMX_RELAXATION));
+    PyDict_SetItemString(dict, "OUT_POS_VECTOR", Py_BuildValue("i",OUT_POS_VECTOR));
+    PyDict_SetItemString(dict, "OUT_VEL_VECTOR", Py_BuildValue("i",OUT_VEL_VECTOR));
+    PyDict_SetItemString(dict, "OUT_ACCEL_VECTOR", Py_BuildValue("i",OUT_ACCEL_VECTOR));
+    PyDict_SetItemString(dict, "OUT_MEANVEL_VECTOR", Py_BuildValue("i",OUT_MEANVEL_VECTOR));
+    PyDict_SetItemString(dict, "OUT_COLOR_ARRAY", Py_BuildValue("i",OUT_COLOR_ARRAY));
+    PyDict_SetItemString(dict, "OUT_DENSITY_ARRAY", Py_BuildValue("i",OUT_DENSITY_ARRAY));
+    PyDict_SetItemString(dict, "OUT_POT_ARRAY", Py_BuildValue("i",OUT_POT_ARRAY));
+    PyDict_SetItemString(dict, "OUT_AMAG_ARRAY", Py_BuildValue("i",OUT_AMAG_ARRAY));
+    PyDict_SetItemString(dict, "OUT_IMASS_ARRAY", Py_BuildValue("i",OUT_IMASS_ARRAY));
+    PyDict_SetItemString(dict, "OUT_RUNG_ARRAY", Py_BuildValue("i",OUT_RUNG_ARRAY));
+    PyDict_SetItemString(dict, "OUT_SOFT_ARRAY", Py_BuildValue("i",OUT_SOFT_ARRAY));
     }
 
 void ppyFinish(PPY vppy) {
