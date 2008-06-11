@@ -13,15 +13,17 @@
 		ak = sqrt(ar2); \
 		if (ar2 < 1.0) ak = 6.*0.25/350./3. *(1360+ar2*(-2880 \
 			 +ar2*(3528+ak*(-1890+ak*(-240+ak*(270-6*ar2)))))); \
-		else ak = 6.*0.25/350./3. *(7040-1152/ak+ak*(-10080+ak*(2880+ak*(4200 \
+		else if (ar2 < 4.0) ak = 6.*0.25/350./3. *(7040-1152/ak+ak*(-10080+ak*(2880+ak*(4200 \
 			 +ak*(-3528+ak*(630+ak*(240+ak*(-90+2*ar2)))))))); \
+		else ak = 0.0;\
 		}
 #define DKERNEL(adk,ar2) { \
 		adk = sqrt(ar2); \
 		if (ar2 < 1.0) adk = 6.*0.25/350./3. * (-2880*2 \
 			 +ar2*(3528*4+ adk*(-1890*5 + adk*(-240*6+ adk*(270*7-6*9*ar2))))); \
-		else adk = 6.*0.25/350./3. *((1152/ar2-10080)/adk+(2880*2+adk*(4200*3 \
+		else if (ar2 < 4.0) adk = 6.*0.25/350./3. *((1152/ar2-10080)/adk+(2880*2+adk*(4200*3 \
 			 +adk*(-3528*4+adk*(630*5+adk*(240*6 +adk*(-90*7+2*9*ar2))))))); \
+		else adk = 0.0;\
 		}
 
 #else
@@ -52,16 +54,18 @@
 #define KERNEL(ak,ar2) { \
 		ak = 2.0 - sqrt(ar2); \
 		if (ar2 < 1.0) ak = (1.0 - 0.75*ak*ar2); \
-		else ak = 0.25*ak*ak*ak; \
+		else if (ar2 < 4.0) ak = 0.25*ak*ak*ak; \
+		else ak = 0.0;\
 		}
 #define DKERNEL(adk,ar2) { \
 		adk = sqrt(ar2); \
 		if (ar2 < 1.0) { \
 			adk = -3 + 2.25*adk; \
 			} \
-		else { \
+		else if (ar2 < 4.0) { \
 			adk = -0.75*(2.0-adk)*(2.0-adk)/adk; \
 			} \
+		else adk = 0.0;\
 		}
 #endif
 #endif
@@ -217,7 +221,7 @@ void Divv(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
     pvel = pkdField(p,pkd->oVelSmooth);
     pv = pkdVel(pkd,p);
     ih2 = 4.0/BALL2(p);
-    fNorm = M_1_PI*sqrt(ih2)*ih2*ih2;
+    fNorm = M_1_PI*ih2*ih2;
     for (i=0;i<nSmooth;++i) {
 	r2 = nnList[i].fDist2*ih2;
 	DKERNEL(rs,r2);
@@ -225,8 +229,7 @@ void Divv(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
 	q = nnList[i].pPart;
 	fMass = pkdMass(pkd,q);
 	qv = pkdVel(pkd,q);
-	dvdotdr = 0.0;
-	for (j=0;j<3;++j) dvdotdr += (qv[j] - pv[j])*(q->r[j] - p->r[j]);
+	dvdotdr = (qv[0] - pv[0])*nnList[i].dx + (qv[1] - pv[1])*nnList[i].dy + (qv[2] - pv[2])*nnList[i].dz;
 	pvel->divv += rs*fMass/q->fDensity*dvdotdr;
 	}
     }
@@ -243,7 +246,7 @@ void DivvSym(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
     pv = pkdVel(pkd,p);
     fMassP = pkdMass(pkd,p);
     ih2 = 4.0/(BALL2(p));
-    fNorm = 0.5*M_1_PI*sqrt(ih2)*ih2*ih2;
+    fNorm = 0.5*M_1_PI*ih2*ih2;
     for (i=0;i<nSmooth;++i) {
 	r2 = nnList[i].fDist2*ih2;
 	DKERNEL(rs,r2);
@@ -252,8 +255,7 @@ void DivvSym(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
 	qv = pkdVel(pkd,q);
 	qvel = pkdField(q,pkd->oVelSmooth);
 	fMassQ = pkdMass(pkd,q);
-	dvdotdr = 0.0;
-	for (j=0;j<3;++j) dvdotdr += (qv[j] - pv[j])*(q->r[j] - p->r[j]);
+	dvdotdr = (qv[0] - pv[0])*nnList[i].dx + (qv[1] - pv[1])*nnList[i].dy + (qv[2] - pv[2])*nnList[i].dz;
 	pvel->divv += rs*fMassQ/q->fDensity*dvdotdr;
 	qvel->divv += rs*fMassP/p->fDensity*dvdotdr;
 	}
@@ -291,19 +293,22 @@ void VelDisp2(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
     pvel = pkdField(p,pkd->oVelSmooth);
     pv = pkdVel(pkd,p);
     ih2 = 4.0/BALL2(p);
-    fNorm = M_1_PI*sqrt(ih2)*ih2*ih2;
+    fNorm = M_1_PI*sqrt(ih2)*ih2;
     for (i=0;i<nSmooth;++i) {
 	r2 = nnList[i].fDist2*ih2;
-	DKERNEL(rs,r2);
+	KERNEL(rs,r2);
 	rs *= fNorm;
 	q = nnList[i].pPart;
 	fMass = pkdMass(pkd,q);
 	qv = pkdVel(pkd,q);
-	tv2 = 0.0;
-	for (j=0;j<3;++j) {
-	    tv = qv[j] - pvel->vmean[j] - pvel->divv*(q->r[j] - p->r[j]);
-	    tv2 += tv*tv;
-	    }
+
+	tv = qv[0] - pvel->vmean[0] - pvel->divv*nnList[i].dx;
+	tv2 = tv*tv;
+	tv = qv[1] - pvel->vmean[1] - pvel->divv*nnList[i].dy;
+	tv2 += tv*tv;
+	tv = qv[2] - pvel->vmean[2] - pvel->divv*nnList[i].dz;
+	tv2 += tv*tv;
+
 	pvel->veldisp2 += rs*fMass/q->fDensity*tv2;
 	}
     }
@@ -320,22 +325,25 @@ void VelDisp2Sym(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
     pv = pkdVel(pkd,p);
     fMassP = pkdMass(pkd,p);
     ih2 = 4.0/(BALL2(p));
-    fNorm = 0.5*M_1_PI*sqrt(ih2)*ih2*ih2;
+    fNorm = 0.5*M_1_PI*sqrt(ih2)*ih2;
     for (i=0;i<nSmooth;++i) {
 	r2 = nnList[i].fDist2*ih2;
-	DKERNEL(rs,r2);
+	KERNEL(rs,r2);
 	rs *= fNorm;
 	q = nnList[i].pPart;
 	qv = pkdVel(pkd,q);
 	qvel = pkdField(q,pkd->oVelSmooth);
 	fMassQ = pkdMass(pkd,q);
-	tv2 = 0.0;
-	for (j=0;j<3;++j) {
-	    tv = qv[j] - pvel->vmean[j] - pvel->divv*(q->r[j] - p->r[j]);
-	    tv2 += tv*tv;
-	    }
+
+	tv = qv[0] - pvel->vmean[0] - pvel->divv*nnList[i].dx;
+	tv2 = tv*tv;
+	tv = qv[1] - pvel->vmean[1] - pvel->divv*nnList[i].dy;
+	tv2 += tv*tv;
+	tv = qv[2] - pvel->vmean[2] - pvel->divv*nnList[i].dz;
+	tv2 += tv*tv;
+
 	pvel->veldisp2 += rs*fMassQ/q->fDensity*tv2;
-	pvel->veldisp2 += rs*fMassP/p->fDensity*tv2;
+	qvel->veldisp2 += rs*fMassP/p->fDensity*tv2;
 	}
     }
 
