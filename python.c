@@ -66,6 +66,36 @@ ppy_msr_SelDstMass(PyObject *self, PyObject *args, PyObject *kwobj) {
 }
 
 static PyObject *
+ppy_msr_SelSrcPhaseDensity(PyObject *self, PyObject *args, PyObject *kwobj) {
+    static char *kwlist[] = { "MinDensity", "MaxDensity", "setIfTrue", "clearIfFalse", NULL };
+    double dMinDensity, dMaxDensity;
+    int setIfTrue=1, clearIfFalse=1;
+    uint64_t nSelected;
+
+    if ( !PyArg_ParseTupleAndKeywords(
+	     args, kwobj, "dd|ii:SelSrcPhaseDensity", kwlist,
+	     &dMinDensity, &dMaxDensity, &setIfTrue, &clearIfFalse) )
+	return NULL;
+    nSelected = msrSelSrcPhaseDensity(ppy_msr,dMinDensity,dMaxDensity,setIfTrue,clearIfFalse);
+    return Py_BuildValue("L", nSelected);
+}
+
+static PyObject *
+ppy_msr_SelDstPhaseDensity(PyObject *self, PyObject *args, PyObject *kwobj) {
+    static char *kwlist[] = { "MinDensity", "MaxDensity", "setIfTrue", "clearIfFalse", NULL };
+    double dMinDensity, dMaxDensity;
+    int setIfTrue=1, clearIfFalse=1;
+    uint64_t nSelected;
+
+    if ( !PyArg_ParseTupleAndKeywords(
+	     args, kwobj, "dd|ii:SelDstPhaseDensity", kwlist,
+	     &dMinDensity, &dMaxDensity, &setIfTrue, &clearIfFalse) )
+	return NULL;
+    nSelected = msrSelDstPhaseDensity(ppy_msr,dMinDensity,dMaxDensity,setIfTrue,clearIfFalse);
+    return Py_BuildValue("L", nSelected);
+}
+
+static PyObject *
 ppy_msr_SelSrcBox(PyObject *self, PyObject *args) {
     double dCenter[3], dSize[3];
     int setIfTrue=1, clearIfFalse=1;
@@ -345,7 +375,7 @@ ppy_msr_GroupProfiles(PyObject *self, PyObject *args, PyObject *kwobj) {
     double dExp;
     double dTime = 0.0;
     int nFOFsDone = 0;
-    int bSymmetric = 0;
+    int bSymmetric = 1;
     PyObject *v, *dict;
 
     dict = PyModule_GetDict(global_ppy->module);
@@ -444,6 +474,10 @@ static PyMethodDef ppy_msr_methods[] = {
      "Selects source particles with a specific mass range."},
     {"SelDstMass", (PyCFunction)ppy_msr_SelDstMass, METH_VARARGS|METH_KEYWORDS,
      "Selects destination particles with a specific mass range."},
+    {"SelSrcPhaseDensity", (PyCFunction)ppy_msr_SelSrcPhaseDensity, METH_VARARGS|METH_KEYWORDS,
+     "Selects source particles with a specific phase space density."},
+    {"SelDstPhaseDensity", (PyCFunction)ppy_msr_SelDstPhaseDensity, METH_VARARGS|METH_KEYWORDS,
+     "Selects destination particles with a specific phase space density."},
     {"SelSrcBox", ppy_msr_SelSrcBox, METH_VARARGS,
      "Selects source particles inside a given box."},
     {"SelDstBox", ppy_msr_SelDstBox, METH_VARARGS,

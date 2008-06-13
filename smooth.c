@@ -1354,7 +1354,7 @@ void smFof(SMX smx,int nFOFsDone,SMF *smf) {
 	    for (pnn=0;pnn<nCnt;++pnn ) {
 		if (smx->nnbRemote[pnn] == 0) {
 		    /* Do not add particles that are already in a group*/
-		    pPartGroup = pkdInt32(smx->nnList[pnn].pPart,pkd->oBin);
+		    pPartGroup = pkdInt32(smx->nnList[pnn].pPart,pkd->oGroup);
 		    if (*pPartGroup) continue;
 
 		    /* Check phase space distance */	    
@@ -1593,7 +1593,7 @@ int smGroupMerge(SMF *smf,int bPeriodic) {
     PARTICLE *p;
     PARTICLE *pPart;
     uint32_t *pBin, *pGroup;
-    uint32_t *pPartGroup;
+    uint32_t *pPartGroup, iPartGroup;
     FLOAT l[3], r,min,max,corr;
     int pi,id,i,j,k,index,listSize, sgListSize, lsgListSize;
     int nLSubGroups,nSubGroups,nMyGroups;
@@ -1638,6 +1638,7 @@ int smGroupMerge(SMF *smf,int bPeriodic) {
     /*
     ** Start CO group data cache.
     */
+    /*printf( "Processor %d cache has %d entries\n", mdlSelf(mdl), pkd->nGroups );*/
     mdlCOcache(mdl,CID_GROUP,pkd->groupData,sizeof(FOFGD), pkd->nGroups,pkd,initGroupMerge,combGroupMerge);
     /*
     ** Start RO remote member cache.
@@ -1692,20 +1693,20 @@ int smGroupMerge(SMF *smf,int bPeriodic) {
 		    }
 		else {
 		    pPart = mdlAquire(mdl,CID_PARTICLE,rm.iIndex,rm.iPid);
+		    iPartGroup = * pkdInt32(pPart,pkd->oGroup);
 		    mdlRelease(mdl,CID_PARTICLE,pPart);
-		    pPartGroup = pkdInt32(pPart,pkd->oBin);
 		    /* Remote: ignore if not in a group */
-		    if (*pPartGroup == tmp) {
+		    if (iPartGroup == tmp) {
 			goto NextRemoteMember;
 			}
 		    /* Remote: Have I got this group already? */
 		    for (k=0; k < nSubGroups ;++k) {
-			if (*pPartGroup == subGroup[k]->iLocalId) {
+			if (iPartGroup == subGroup[k]->iLocalId) {
 			    goto NextRemoteMember;
 			    }
 			}
 		    /* Remote: New subgroup found, add to list: */
-		    index = (*pPartGroup - 1 - rm.iPid)/pkd->nThreads ;
+		    index = (iPartGroup - 1 - rm.iPid)/pkd->nThreads ;
 		    sG = mdlAquire(mdl,CID_GROUP,index,rm.iPid);
 		    if (nSubGroups >= sgListSize) {
 			sgListSize *= 1.5;

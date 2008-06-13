@@ -180,6 +180,9 @@ enum pst_service {
     PST_SELDSTALL,
     PST_SELSRCMASS,
     PST_SELDSTMASS,
+    PST_SELSRCPHASEDENSITY,
+    PST_SELDSTPHASEDENSITY,
+
     PST_SELSRCBOX,
     PST_SELDSTBOX,
     PST_SELSRCSPHERE,
@@ -1065,6 +1068,20 @@ struct outSelMass {
 void pstSelSrcMass(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 void pstSelDstMass(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 
+/* PST_SELSRCPHASEDENSITY */
+struct inSelPhaseDensity {
+    double dMinDensity;
+    double dMaxDensity;
+    int setIfTrue;
+    int clearIfFalse;
+    };
+struct outSelPhaseDensity {
+    uint64_t nSelected;
+    };
+void pstSelSrcPhaseDensity(PST pst,void *vin,int nIn,void *vout,int *pnOut);
+void pstSelDstPhaseDensity(PST pst,void *vin,int nIn,void *vout,int *pnOut);
+
+/* PST_SELSRCBOX */
 struct inSelBox {
     double dCenter[3];
     double dSize[3];

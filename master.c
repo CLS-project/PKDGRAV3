@@ -2421,8 +2421,10 @@ void msrOutArray(MSR msr,const char *pszFile,int iType) {
 	** Add local Data Path.
 	*/
 	_msrMakePath(plcl->pszDataPath,in.achOutFile,achOutFile);
-	fp = fopen(achOutFile,"w");
 
+	msrprintf(msr, "Writing array to %s\n", achOutFile );
+
+	fp = fopen(achOutFile,"w");
 	if (!fp) {
 	    printf("Could not open Array Output File:%s\n",achOutFile);
 	    _msrExit(msr,1);
@@ -2490,8 +2492,10 @@ void msrOutVector(MSR msr,const char *pszFile,int iType) {
 	** Add local Data Path.
 	*/
 	_msrMakePath(plcl->pszDataPath,in.achOutFile,achOutFile);
-	fp = fopen(achOutFile,"w");
 
+	msrprintf(msr, "Writing vector to %s\n", achOutFile );
+
+	fp = fopen(achOutFile,"w");
 	if (!fp) {
 	    printf("Could not open Vector Output File:%s\n",achOutFile);
 	    _msrExit(msr,1);
@@ -5207,6 +5211,30 @@ uint64_t msrSelDstMass(MSR msr,double dMinMass,double dMaxMass,int setIfTrue,int
     in.setIfTrue = setIfTrue;
     in.clearIfFalse = clearIfFalse;
     pstSelDstMass(msr->pst, &in, sizeof(in), &out, &nOut);
+    return out.nSelected;
+    }
+uint64_t msrSelSrcPhaseDensity(MSR msr,double dMinPhaseDensity,double dMaxPhaseDensity,int setIfTrue,int clearIfFalse) {
+    struct inSelPhaseDensity in;
+    struct outSelPhaseDensity out;
+    int nOut;
+
+    in.dMinDensity = dMinPhaseDensity;
+    in.dMaxDensity = dMaxPhaseDensity;
+    in.setIfTrue = setIfTrue;
+    in.clearIfFalse = clearIfFalse;
+    pstSelSrcPhaseDensity(msr->pst, &in, sizeof(in), &out, &nOut);
+    return out.nSelected;
+    }
+uint64_t msrSelDstPhaseDensity(MSR msr,double dMinPhaseDensity,double dMaxPhaseDensity,int setIfTrue,int clearIfFalse) {
+    struct inSelPhaseDensity in;
+    struct outSelPhaseDensity out;
+    int nOut;
+
+    in.dMinDensity = dMinPhaseDensity;
+    in.dMaxDensity = dMaxPhaseDensity;
+    in.setIfTrue = setIfTrue;
+    in.clearIfFalse = clearIfFalse;
+    pstSelDstPhaseDensity(msr->pst, &in, sizeof(in), &out, &nOut);
     return out.nSelected;
     }
 

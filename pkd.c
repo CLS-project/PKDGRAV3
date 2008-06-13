@@ -3779,6 +3779,42 @@ int pkdSelDstMass(PKD pkd,double dMinMass, double dMaxMass, int setIfTrue, int c
     return nSelected;
     }
 
+int pkdSelSrcPhaseDensity(PKD pkd,double dMinDensity, double dMaxDensity, int setIfTrue, int clearIfFalse ) {
+    PARTICLE *p;
+    VELSMOOTH *pvel;
+    float density;
+    int i,n,nSelected;
+
+    n = pkdLocal(pkd);
+    nSelected = 0;
+    for( i=0; i<n; i++ ) {
+	p = pkdParticle(pkd,i);
+	pvel = pkdField(p,pkd->oVelSmooth);
+	density = p->fDensity * pow(pvel->veldisp2,-1.5);
+	p->bSrcActive = isSelected((density >= dMinDensity && density <=dMaxDensity),setIfTrue,clearIfFalse,p->bSrcActive);
+	if ( p->bSrcActive ) nSelected++;
+	}
+    return nSelected;
+    }
+
+int pkdSelDstPhaseDensity(PKD pkd,double dMinDensity, double dMaxDensity, int setIfTrue, int clearIfFalse ) {
+    PARTICLE *p;
+    VELSMOOTH *pvel;
+    float density;
+    int i,n,nSelected;
+
+    n = pkdLocal(pkd);
+    nSelected = 0;
+    for( i=0; i<n; i++ ) {
+	p = pkdParticle(pkd,i);
+	pvel = pkdField(p,pkd->oVelSmooth);
+	density = p->fDensity * pow(pvel->veldisp2,-1.5);
+	p->bDstActive = isSelected((density >= dMinDensity && density <=dMaxDensity),setIfTrue,clearIfFalse,p->bDstActive);
+	if ( p->bDstActive ) nSelected++;
+	}
+    return nSelected;
+    }
+
 int pkdSelSrcBox(PKD pkd,double *dCenter, double *dSize, int setIfTrue, int clearIfFalse ) {
     PARTICLE *p;
     int i,j,n,nSelected;

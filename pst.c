@@ -449,6 +449,12 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_SELDSTMASS,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstSelDstMass,
 		  sizeof(struct inSelMass), sizeof(struct outSelMass));
+    mdlAddService(mdl,PST_SELSRCPHASEDENSITY,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstSelSrcPhaseDensity,
+		  sizeof(struct inSelPhaseDensity), sizeof(struct outSelPhaseDensity));
+    mdlAddService(mdl,PST_SELDSTPHASEDENSITY,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstSelDstPhaseDensity,
+		  sizeof(struct inSelPhaseDensity), sizeof(struct outSelPhaseDensity));
     mdlAddService(mdl,PST_SELSRCBOX,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstSelSrcBox,
 		  sizeof(struct inSelBox), sizeof(struct outSelBox));
@@ -3974,6 +3980,48 @@ void pstSelDstMass(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	out->nSelected = pkdSelDstMass(plcl->pkd,in->dMinMass,in->dMaxMass,in->setIfTrue,in->clearIfFalse);
 	}
     if (pnOut) *pnOut = sizeof(struct outSelMass);
+    }
+
+void pstSelSrcPhaseDensity(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl = pst->plcl;
+    struct inSelPhaseDensity *in = vin;
+    struct outSelPhaseDensity *out = vout;
+    struct outSelPhaseDensity outUpper;
+    int nOut;
+
+    assert( nIn==sizeof(struct inSelPhaseDensity) );
+    if (pst->nLeaves > 1) {
+	mdlReqService(pst->mdl,pst->idUpper,PST_SELSRCPHASEDENSITY,vin,nIn);
+	pstSelSrcPhaseDensity(pst->pstLower,vin,nIn,vout,pnOut);
+	mdlGetReply(pst->mdl,pst->idUpper,&outUpper,&nOut);
+	assert(nOut == sizeof(struct outSelPhaseDensity));
+	out->nSelected += outUpper.nSelected;
+	}
+    else {
+	out->nSelected = pkdSelSrcPhaseDensity(plcl->pkd,in->dMinDensity,in->dMaxDensity,in->setIfTrue,in->clearIfFalse);
+	}
+    if (pnOut) *pnOut = sizeof(struct outSelPhaseDensity);
+    }
+
+void pstSelDstPhaseDensity(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl = pst->plcl;
+    struct inSelPhaseDensity *in = vin;
+    struct outSelPhaseDensity *out = vout;
+    struct outSelPhaseDensity outUpper;
+    int nOut;
+
+    assert( nIn==sizeof(struct inSelPhaseDensity) );
+    if (pst->nLeaves > 1) {
+	mdlReqService(pst->mdl,pst->idUpper,PST_SELDSTPHASEDENSITY,vin,nIn);
+	pstSelDstPhaseDensity(pst->pstLower,vin,nIn,vout,pnOut);
+	mdlGetReply(pst->mdl,pst->idUpper,&outUpper,&nOut);
+	assert(nOut == sizeof(struct outSelPhaseDensity));
+	out->nSelected += outUpper.nSelected;
+	}
+    else {
+	out->nSelected = pkdSelDstPhaseDensity(plcl->pkd,in->dMinDensity,in->dMaxDensity,in->setIfTrue,in->clearIfFalse);
+	}
+    if (pnOut) *pnOut = sizeof(struct outSelPhaseDensity);
     }
 
 void pstSelSrcBox(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
