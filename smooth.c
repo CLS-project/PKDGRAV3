@@ -2017,6 +2017,7 @@ int smGroupProfiles(SMX smx, SMF *smf,int bPeriodic, int nTotalGroups,int bLogBi
 	nBins += pkd->groupData[i].nRemoteMembers;
 	if (pkd->groupData[i].iGlobalId > maxId ) maxId = pkd->groupData[i].iGlobalId;
 	}
+    if ( pkd->groupBin != NULL ) free(pkd->groupBin);
     pkd->groupBin = (FOFBIN *) malloc( (nBins+1)*sizeof(FOFBIN) );
     assert(pkd->groupBin != NULL);
     /*

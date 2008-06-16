@@ -364,6 +364,7 @@ void pkdInitialize(PKD *ppkd,MDL mdl,int nStore,int nBucket,FLOAT *fPeriod,
     mdlassert(mdl,pkd->piInactive != NULL);
 
     pkd->profileBins = NULL;
+    pkd->groupBin = NULL;
     }
 
 
