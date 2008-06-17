@@ -195,7 +195,7 @@ uint64_t msrMaxOrder(MSR msr);
 void msrFof(MSR msr,int nFOFsDone,int iSmoothType,int bSymmetric, double exp);
 void msrGroupMerge(MSR msr,double exp);
 void msrGroupProfiles(MSR msr,int nFOFsDone,int iSmoothType,int bSymmetric, double exp);
-void msrOutGroups(MSR msr,char *,int,double dTime);
+void msrOutGroups(MSR msr,const char *,int,double dTime);
 void msrDeleteGroups(MSR msr);
 void msrInitRelaxation(MSR msr);
 void msrRelaxation(MSR msr,double dTime,double deltaT,int iSmoothType,int bSymmetric);

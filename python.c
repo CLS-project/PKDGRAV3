@@ -413,10 +413,10 @@ ppy_msr_Load(PyObject *self, PyObject *args, PyObject *kwobj) {
 
 static PyObject *
 ppy_msr_Save(PyObject *self, PyObject *args, PyObject *kwobj) {
-    static char *kwlist[]={"Name","Checkpoint","Time",NULL};
-    double dTime = 0.0;
-    int bCheckpoint = 0;
+    static char *kwlist[]={"Name","Type","Time",NULL};
     const char *fname;
+    int iType = 0;
+    double dTime = 0.0;
     PyObject *v, *dict;
 
     dict = PyModule_GetDict(global_ppy->module);
@@ -425,9 +425,48 @@ ppy_msr_Save(PyObject *self, PyObject *args, PyObject *kwobj) {
     dTime = PyFloat_AsDouble(v);
     if ( !PyArg_ParseTupleAndKeywords(
 	     args, kwobj, "s|id:Save", kwlist,
-	     &fname,&bCheckpoint, &dTime ) )
+	     &fname,&iType, &dTime ) )
 	return NULL;
-    msrWrite(ppy_msr,fname,dTime,bCheckpoint);
+    switch(iType) {
+    case OUT_TIPSY_STD:
+    case OUT_TIPSY_DBL:
+	msrWrite(ppy_msr,fname,dTime,iType==OUT_TIPSY_DBL);
+	break;
+
+    case OUT_COLOR_ARRAY:
+    case OUT_DENSITY_ARRAY:
+    case OUT_POT_ARRAY:
+    case OUT_AMAG_ARRAY:
+    case OUT_IMASS_ARRAY:
+    case OUT_RUNG_ARRAY:
+    case OUT_DIVV_ARRAY:
+    case OUT_VELDISP2_ARRAY:
+    case OUT_VELDISP_ARRAY:
+    case OUT_PHASEDENS_ARRAY:
+    case OUT_SOFT_ARRAY:
+    case OUT_GROUP_ARRAY:
+    case OUT_RELAX_ARRAY:
+	msrOutVector(ppy_msr,fname,iType);
+	break;
+
+    case OUT_POS_VECTOR:
+    case OUT_VEL_VECTOR:
+    case OUT_ACCEL_VECTOR:
+    case OUT_MEANVEL_VECTOR:
+	msrOutVector(ppy_msr,fname,iType);
+	break;
+
+    case OUT_GROUP_TIPSY_NAT:
+    case OUT_GROUP_TIPSY_STD:
+    case OUT_GROUP_STATS:
+    case OUT_GROUP_PROFILES:
+	msrOutGroups(ppy_msr,fname,iType,dTime);
+	break;
+
+    default:
+	assert(0);
+	}
+
     Py_INCREF(Py_None);
     return Py_None;
 }
@@ -545,6 +584,9 @@ void ppyInitialize(PPY *pvppy, MSR msr, double dTime) {
     PyDict_SetItemString(dict, "SMX_VELDISP2", Py_BuildValue("i",SMX_VELDISP2));
     PyDict_SetItemString(dict, "SMX_FOF", Py_BuildValue("i",SMX_FOF));
     PyDict_SetItemString(dict, "SMX_RELAXATION", Py_BuildValue("i",SMX_RELAXATION));
+
+    PyDict_SetItemString(dict, "OUT_TIPSY_STD", Py_BuildValue("i",OUT_TIPSY_STD));
+    PyDict_SetItemString(dict, "OUT_TIPSY_DBL", Py_BuildValue("i",OUT_TIPSY_DBL));
     PyDict_SetItemString(dict, "OUT_POS_VECTOR", Py_BuildValue("i",OUT_POS_VECTOR));
     PyDict_SetItemString(dict, "OUT_VEL_VECTOR", Py_BuildValue("i",OUT_VEL_VECTOR));
     PyDict_SetItemString(dict, "OUT_ACCEL_VECTOR", Py_BuildValue("i",OUT_ACCEL_VECTOR));
@@ -560,6 +602,13 @@ void ppyInitialize(PPY *pvppy, MSR msr, double dTime) {
     PyDict_SetItemString(dict, "OUT_VELDISP2_ARRAY", Py_BuildValue("i",OUT_VELDISP2_ARRAY));
     PyDict_SetItemString(dict, "OUT_VELDISP_ARRAY", Py_BuildValue("i",OUT_VELDISP_ARRAY));
     PyDict_SetItemString(dict, "OUT_PHASEDENS_ARRAY", Py_BuildValue("i",OUT_PHASEDENS_ARRAY));
+    PyDict_SetItemString(dict, "OUT_SOFT_ARRAY", Py_BuildValue("i",OUT_SOFT_ARRAY));
+    PyDict_SetItemString(dict, "OUT_GROUP_ARRAY", Py_BuildValue("i",OUT_GROUP_ARRAY));
+    PyDict_SetItemString(dict, "OUT_RELAX_ARRAY", Py_BuildValue("i",OUT_RELAX_ARRAY));
+    PyDict_SetItemString(dict, "OUT_GROUP_TIPSY_NAT", Py_BuildValue("i",OUT_GROUP_TIPSY_NAT));
+    PyDict_SetItemString(dict, "OUT_GROUP_TIPSY_STD", Py_BuildValue("i",OUT_GROUP_TIPSY_STD));
+    PyDict_SetItemString(dict, "OUT_GROUP_STATS", Py_BuildValue("i",OUT_GROUP_STATS));
+    PyDict_SetItemString(dict, "OUT_GROUP_PROFILES", Py_BuildValue("i",OUT_GROUP_PROFILES));
     }
 
 void ppyFinish(PPY vppy) {

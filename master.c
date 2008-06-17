@@ -4012,7 +4012,7 @@ void msrGroupProfiles(MSR msr,int nFOFsDone,int iSmoothType,int bSymmetric, doub
     printf("MASTER: TOTAL bins: %i TOTAL groups: %i \n" ,nBins,msr->nGroups);
     }
 
-void msrOutGroups(MSR msr,char *pszFile,int iOutType, double dTime) {
+void msrOutGroups(MSR msr,const char *pszFile,int iOutType, double dTime) {
 
     struct inOutArray in;
     char achOutFile[PST_FILENAME_SIZE];
