@@ -1018,6 +1018,7 @@ void smGatherRemote(SMX smx,FLOAT fBall2,FLOAT r[3],int id) {
 		    smx->nnbRemote[nCnt] = 1;
 		    ++nCnt;
 		    }
+		else mdlRelease(mdl,CID_PARTICLE,pp);
 		}
 	    }
     NoIntersect:
