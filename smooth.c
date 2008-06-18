@@ -305,8 +305,8 @@ PQ *pqSearchLocal(SMX smx,FLOAT r[3],int *pbDone) {
 		}
 	    PQ_BUILD(pq,smx->nSmooth,pq);
 	    for (;pj<=pEnd;++pj) {
-		if ( !pkdIsSrcActive(p,0,MAX_RUNG) ) continue;
 		p = pkdParticle(pkd,pj);
+		if ( !pkdIsSrcActive(p,0,MAX_RUNG) ) continue;
 		dx = r[0] - p->r[0];
 		dy = r[1] - p->r[1];
 		dz = r[2] - p->r[2];
@@ -493,7 +493,10 @@ PQ *pqSearchRemote(SMX smx,PQ *pq,int id,FLOAT r[3]) {
 		    p = mdlAquire(mdl,CID_PARTICLE,pj,id);
 		    pq[smx->nQueue].bRemote = 1;
 		    }
-		if ( !pkdIsSrcActive(p,0,MAX_RUNG) ) continue;
+		if ( !pkdIsSrcActive(p,0,MAX_RUNG) ) {
+		    if (id != idSelf) mdlRelease(mdl,CID_PARTICLE,p);
+		    continue;
+		    }
 		dx = r[0] - p->r[0];
 		dy = r[1] - p->r[1];
 		dz = r[2] - p->r[2];
@@ -515,7 +518,10 @@ PQ *pqSearchRemote(SMX smx,PQ *pq,int id,FLOAT r[3]) {
 		    p = mdlAquire(mdl,CID_PARTICLE,pj,id);
 		    pq[smx->nQueue].bRemote = 1;
 		    }
-		if ( !pkdIsSrcActive(p,0,MAX_RUNG) ) continue;
+		if ( !pkdIsSrcActive(p,0,MAX_RUNG) ) {
+		    if (id != idSelf) mdlRelease(mdl,CID_PARTICLE,p);
+		    continue;
+		    }
 		dx = r[0] - p->r[0];
 		dy = r[1] - p->r[1];
 		dz = r[2] - p->r[2];
@@ -530,7 +536,10 @@ PQ *pqSearchRemote(SMX smx,PQ *pq,int id,FLOAT r[3]) {
 	    for (;pj<=pEnd;++pj) {
 		if (id == idSelf) p = pkdParticle(pkd,pj);
 		else p = mdlAquire(mdl,CID_PARTICLE,pj,id);
-		if ( !pkdIsSrcActive(p,0,MAX_RUNG) ) continue;
+		if ( !pkdIsSrcActive(p,0,MAX_RUNG) ) {
+		    if (id != idSelf) mdlRelease(mdl,CID_PARTICLE,p);
+		    continue;
+		    }
 		dx = r[0] - p->r[0];
 		dy = r[1] - p->r[1];
 		dz = r[2] - p->r[2];
@@ -609,7 +618,10 @@ StartSearch:
 	for (pj=pkdn->pLower;pj<=pEnd;++pj) {
 	    if (id == idSelf) p = pkdParticle(pkd,pj);
 	    else p = mdlAquire(mdl,CID_PARTICLE,pj,id);
-	    if ( !pkdIsSrcActive(p,0,MAX_RUNG) ) continue;
+	    if ( !pkdIsSrcActive(p,0,MAX_RUNG) ) {
+		if (id != idSelf) mdlRelease(mdl,CID_PARTICLE,p);
+		continue;
+		}
 	    dx = r[0] - p->r[0];
 	    dy = r[1] - p->r[1];
 	    dz = r[2] - p->r[2];
@@ -810,6 +822,7 @@ void smSmooth(SMX smx,SMF *smf) {
 
     for (pi=0;pi<pkd->nLocal;++pi) {
 	p = pkdParticle(pkd,pi);
+	if ( !pkdIsDstActive(p,0,MAX_RUNG) ) continue;
 	if ( !pkdIsSrcActive(p,0,MAX_RUNG) ) continue;
 	pq = NULL;
 	smx->nQueue = 0;
@@ -979,7 +992,10 @@ void smGatherRemote(SMX smx,FLOAT fBall2,FLOAT r[3],int id) {
 	    pEnd = pkdn->pUpper;
 	    for (pj=pkdn->pLower;pj<=pEnd;++pj) {
 		pp = mdlAquire(mdl,CID_PARTICLE,pj,id);
-		if ( !pkdIsSrcActive(pp,0,MAX_RUNG) ) continue;
+		if ( !pkdIsSrcActive(pp,0,MAX_RUNG) ) {
+		    mdlRelease(mdl,CID_PARTICLE,pp);
+		    continue;
+		    }
 		dx = r[0] - pp->r[0];
 		dy = r[1] - pp->r[1];
 		dz = r[2] - pp->r[2];
@@ -1065,6 +1081,7 @@ void smReSmooth(SMX smx,SMF *smf) {
 
     for (pi=0;pi<pkd->nLocal;++pi) {
 	p = pkdParticle(pkd,pi);
+	if ( !pkdIsDstActive(p,0,MAX_RUNG) ) continue;
 	if ( !pkdIsSrcActive(p,0,MAX_RUNG) ) continue;
 	smx->nnListSize = 0;
 	/*
