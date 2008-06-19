@@ -535,12 +535,14 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     prmAddParam(msr->prm,"bWriteIC",1,&msr->param.bWriteIC,
 		sizeof(int),"wic","<Write IC after generating> = 0");
 
+#ifdef USE_LUSTRE
     msr->param.nStripeSize = 0;
     prmAddParam(msr->prm,"nStripeSize",1,&msr->param.nStripeSize,
 		sizeof(int),"nStripeSize","<Lustre stripe size> = 0");
     msr->param.nStripeCount = 0;
     prmAddParam(msr->prm,"nStripeCount",1,&msr->param.nStripeCount,
 		sizeof(int),"nStripeCount","<Lustre stripe count> = 0");
+#endif
 
     /* Memory models */
     msr->param.bMemAcceleration = 0;

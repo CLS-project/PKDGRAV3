@@ -151,8 +151,10 @@ struct parameters {
     int iSeed;
 #endif
 
+#ifdef USE_LUSTRE
     int nStripeSize;
     int nStripeCount;
+#endif
 
     /*
     ** Memory models.  Other parameters can force these to be set.
