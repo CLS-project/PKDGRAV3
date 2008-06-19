@@ -202,6 +202,15 @@ typedef struct bndBound {
 	}\
     }
 
+static inline int IN_BND(const FLOAT *R,const BND *b) {
+    int i;
+    for( i=0; i<3; i++ )
+	if ( R[i]<b->fCenter[i]-b->fMax[i] || R[i]>=b->fCenter[i]+b->fMax[i] )
+	    return 0;
+    return 1;
+    }
+
+
 /*
 ** General partition macro
 ** LT,LE: Compare less-than/less-than or equal
@@ -957,7 +966,7 @@ int pkdDeepestPot(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
     double *r, float *fPot);
 void pkdProfile(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
 		double *dCenter, double *dRadii, int nBins);
-
+int pkdFindProcessor(const PKD pkd, const FLOAT *R);
 void pkdCalcDistance(PKD pkd, double *dCenter);
 uint_fast32_t pkdCountDistance(PKD pkd, double r2i, double r2o );
 

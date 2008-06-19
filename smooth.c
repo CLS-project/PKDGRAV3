@@ -212,7 +212,7 @@ void smFinish(SMX smx,SMF *smf) {
     if (smx->fcnPost != NULL) {
 	for (pi=0;pi<pkd->nLocal;++pi) {
 	    p = pkdParticle(pkd,pi);
-	    if ( pkdIsSrcActive(p,0,MAX_RUNG) )
+	    if ( pkdIsSrcActive(p,0,MAX_RUNG) && pkdIsDstActive(p,0,MAX_RUNG) )
 		smx->fcnPost(p,smf);
 	    }
 	}
@@ -1071,57 +1071,61 @@ void smGather(SMX smx,FLOAT fBall2,FLOAT r[3]) {
 	}
     }
 
+void smReSmoothOne(SMX smx,SMF *smf,void *p,FLOAT *R,FLOAT fBall) {
+    PKD pkd = smx->pkd;
+    FLOAT r[3];
+    int iStart[3],iEnd[3];
+    int i,j;
+    int ix,iy,iz;
+
+    smx->nnListSize = 0;
+    /*
+    ** Note for implementing SLIDING PATCH, the offsets for particles are
+    ** negative here, reflecting the relative +ve offset of the simulation
+    ** volume.
+    */
+    if (smx->bPeriodic) {
+	for (j=0;j<3;++j) {
+	    iStart[j] = floor((R[j] - fBall)/pkd->fPeriod[j] + 0.5);
+	    iEnd[j] = floor((R[j] + fBall)/pkd->fPeriod[j] + 0.5);
+	    }
+	for (ix=iStart[0];ix<=iEnd[0];++ix) {
+	    r[0] = R[0] - ix*pkd->fPeriod[0];
+	    for (iy=iStart[1];iy<=iEnd[1];++iy) {
+		r[1] = R[1] - iy*pkd->fPeriod[1];
+		for (iz=iStart[2];iz<=iEnd[2];++iz) {
+		    r[2] = R[2] - iz*pkd->fPeriod[2];
+		    smGather(smx,fBall*fBall,r);
+		    }
+		}
+	    }
+	}
+    else {
+	smGather(smx,fBall*fBall,R);
+	}
+    /*
+    ** Apply smooth funtion to the neighbor list.
+    */
+    smx->fcnSmooth(p,smx->nnListSize,smx->nnList,smf);
+    /*
+    ** Release aquired pointers.
+    */
+    for (i=0;i<smx->nnListSize;++i) {
+	if (smx->nnbRemote[i]) {
+	    mdlRelease(pkd->mdl,CID_PARTICLE,smx->nnList[i].pPart);
+	    }
+	}
+    }
 
 void smReSmooth(SMX smx,SMF *smf) {
     PKD pkd = smx->pkd;
     PARTICLE *p;
-    FLOAT r[3],fBall;
-    int iStart[3],iEnd[3];
-    int pi,i,j;
-    int ix,iy,iz;
+    int pi;
 
     for (pi=0;pi<pkd->nLocal;++pi) {
 	p = pkdParticle(pkd,pi);
-	if ( !pkdIsDstActive(p,0,MAX_RUNG) ) continue;
-	if ( !pkdIsSrcActive(p,0,MAX_RUNG) ) continue;
-	smx->nnListSize = 0;
-	/*
-	** Note for implementing SLIDING PATCH, the offsets for particles are
-	** negative here, reflecting the relative +ve offset of the simulation
-	** volume.
-	*/
-	fBall = p->fBall;
-	if (smx->bPeriodic) {
-	    for (j=0;j<3;++j) {
-		iStart[j] = floor((p->r[j] - fBall)/pkd->fPeriod[j] + 0.5);
-		iEnd[j] = floor((p->r[j] + fBall)/pkd->fPeriod[j] + 0.5);
-		}
-	    for (ix=iStart[0];ix<=iEnd[0];++ix) {
-		r[0] = p->r[0] - ix*pkd->fPeriod[0];
-		for (iy=iStart[1];iy<=iEnd[1];++iy) {
-		    r[1] = p->r[1] - iy*pkd->fPeriod[1];
-		    for (iz=iStart[2];iz<=iEnd[2];++iz) {
-			r[2] = p->r[2] - iz*pkd->fPeriod[2];
-			smGather(smx,fBall*fBall,r);
-			}
-		    }
-		}
-	    }
-	else {
-	    smGather(smx,fBall*fBall,p->r);
-	    }
-	/*
-	** Apply smooth funtion to the neighbor list.
-	*/
-	smx->fcnSmooth(p,smx->nnListSize,smx->nnList,smf);
-	/*
-	** Release aquired pointers.
-	*/
-	for (i=0;i<smx->nnListSize;++i) {
-	    if (smx->nnbRemote[i]) {
-		mdlRelease(pkd->mdl,CID_PARTICLE,smx->nnList[i].pPart);
-		}
-	    }
+	if ( pkdIsDstActive(p,0,MAX_RUNG) && pkdIsSrcActive(p,0,MAX_RUNG) )
+	    smReSmoothOne(smx,smf,p,p->r,p->fBall);
 	}
     }
 
