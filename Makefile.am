@@ -84,6 +84,9 @@ if USE_PYTHON
 pkdgrav2m_null_LDADD += -L /usr/lib64/python$(PYTHON_VER)/config -lpython$(PYTHON_VER) -lutil
 pkdgrav2m_null_CFLAGS += -I /usr/include/python$(PYTHON_VER)
 endif
+if LUSTRE
+pkdgrav2m_null_LDADD += -llustreapi
+endif
 
 if HAVE_MPI
 pkdgrav2m_mpi_LDADD =
@@ -114,6 +117,9 @@ if USE_PYTHON
 pkdgrav2m_mpi_LDADD += -L /usr/lib64/python$(PYTHON_VER)/config -lpython$(PYTHON_VER) -lutil
 pkdgrav2m_mpi_CFLAGS += -I /usr/include/python$(PYTHON_VER)
 endif
+if LUSTRE
+pkdgrav2m_mpi_LDADD += -llustreapi
+endif
 endif
 
 if HAVE_PTHREAD
@@ -136,6 +142,9 @@ if USE_PYTHON
 pkdgrav2m_pthread_LDADD += -L /usr/lib64/python$(PYTHON_VER)/config -lpython$(PYTHON_VER) -lutil
 pkdgrav2m_pthread_CFLAGS += -I /usr/include/python$(PYTHON_VER)
 endif
+if LUSTRE
+pkdgrav2m_pthread_LDADD += -llustreapi
+endif
 endif
 
 if HAVE_SISCI
@@ -157,6 +166,9 @@ endif
 if USE_PYTHON
 pkdgrav2m_sisci_LDADD += -L /usr/lib64/python$(PYTHON_VER)/config -lpython$(PYTHON_VER) -lutil
 pkdgrav2m_sisci_CFLAGS += -I /usr/include/python$(PYTHON_VER)
+endif
+if LUSTRE
+pkdgrav2m_sisci_LDADD += -llustreapi
 endif
 endif
 

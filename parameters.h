@@ -151,6 +151,9 @@ struct parameters {
     int iSeed;
 #endif
 
+    int nStripeSize;
+    int nStripeCount;
+
     /*
     ** Memory models.  Other parameters can force these to be set.
     */

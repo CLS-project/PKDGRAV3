@@ -37,6 +37,11 @@
 #endif
 #include "ssio.h"
 
+#ifdef USE_LUSTRE
+#include <lustre/liblustreapi.h>
+#include <lustre/lustre_user.h>
+#endif
+
 #ifdef USE_BSC
 #include "mpitrace_user_events.h"
 #endif
@@ -529,6 +534,13 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.bWriteIC = 0;
     prmAddParam(msr->prm,"bWriteIC",1,&msr->param.bWriteIC,
 		sizeof(int),"wic","<Write IC after generating> = 0");
+
+    msr->param.nStripeSize = 0;
+    prmAddParam(msr->prm,"nStripeSize",1,&msr->param.nStripeSize,
+		sizeof(int),"nStripeSize","<Lustre stripe size> = 0");
+    msr->param.nStripeCount = 0;
+    prmAddParam(msr->prm,"nStripeCount",1,&msr->param.nStripeCount,
+		sizeof(int),"nStripeCount","<Lustre stripe count> = 0");
 
     /* Memory models */
     msr->param.bMemAcceleration = 0;
@@ -1972,7 +1984,6 @@ uint64_t msrCalcWriteStart(MSR msr) {
     return out.nTotal;
     }
 
-
 void _msrWriteTipsy(MSR msr,const char *pszFileName,double dTime,int bCheckpoint) {
     FILE *fp;
     struct dump h;
@@ -2023,6 +2034,15 @@ void _msrWriteTipsy(MSR msr,const char *pszFileName,double dTime,int bCheckpoint
     else {
 	msrprintf(msr,"Writing file...\nTime:%g\n",dTime);
 	}
+
+    /* Best effort lustre striping request */
+#ifdef USE_LUSTRE
+    if ( prmSpecified(msr->prm,"nStripeCount") || prmSpecified(msr->prm,"nStripeSize") ) {
+	unlink(achOutFile);
+	llapi_file_create(achOutFile,msr->param.nStripeSize,
+			  -1,msr->param.nStripeCount,0);
+	}
+#endif
 
 #ifdef USE_HDF5
     if ( msr->param.bHDF5 ) {

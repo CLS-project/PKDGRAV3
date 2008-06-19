@@ -164,6 +164,16 @@ AC_ARG_WITH(gd,
    fi
 ])
 
+# Lustre support
+AC_ARG_ENABLE(lustre,
+  [  --enable-lustre                enable support for lustre],
+  [LUSTRE=yes])
+if test "x$LUSTRE" = "xyes" ; then
+   AC_DEFINE([USE_LUSTRE], 1,
+ 	[Define if lustre support should be included.])
+fi
+AM_CONDITIONAL(LUSTRE, test "x$LUSTRE" = "xyes")
+
 # Enable BSC Tracing
 AC_ARG_ENABLE(bsc-trace,
   [  --enable-bsc-trace             enable tracing at BSC],
@@ -235,7 +245,6 @@ AC_ARG_ENABLE(simd-locr,
    else
      USE_SIMD_LOCR="$USE_SIMD"
    fi])
-
 
 # The floating point data type for moments
 if test "x$USE_SIMD_MOMR" = "xyes" -o "x$USE_SIMD_LOCR" = "xyes" ; then
