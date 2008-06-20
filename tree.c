@@ -441,6 +441,7 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp) {
 	ay = m*a[1];
 	az = m*a[2];
 	pkdn->uMinRung = pkdn->uMaxRung = p->uRung;
+	pkdn->bDstActive = 0;
 	for (++pj;pj<=pkdn->pUpper;++pj) {
 	    p = pkdParticle(pkd,pj);
 	    a = pkdAccel(pkd,p);
@@ -460,6 +461,7 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp) {
 	    az += m*a[2];
 	    if ( p->uRung > pkdn->uMaxRung ) pkdn->uMaxRung = p->uRung;
 	    if ( p->uRung < pkdn->uMinRung ) pkdn->uMinRung = p->uRung;
+	    if ( p->bDstActive ) pkdn->bDstActive = 1;
 	    }
 	m = 1/fMass;
 	pkdn->r[0] = m*x;
@@ -476,22 +478,21 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp) {
 	/*
 	** Now calculate the reduced multipole moment.
 	*/
-	pj = pkdn->pLower;
-	p = pkdParticle(pkd,pj);
-	x = p->r[0] - pkdn->r[0];
-	y = p->r[1] - pkdn->r[1];
-	z = p->r[2] - pkdn->r[2];
-
-	m = pkdMass(pkd,p);
-	d2Max = momMakeMomr(&pkdn->mom,m,x,y,z);
-	for (++pj;pj<=pkdn->pUpper;++pj) {
+	momClearMomr(&pkdn->mom);
+	d2Max = 0;
+	for (pj=pkdn->pLower;pj<=pkdn->pUpper;++pj) {
 	    p = pkdParticle(pkd,pj);
 	    x = p->r[0] - pkdn->r[0];
 	    y = p->r[1] - pkdn->r[1];
 	    z = p->r[2] - pkdn->r[2];
-	    m = pkdMass(pkd,p);
-	    d2 = momMakeMomr(&mom,m,x,y,z);
-	    momAddMomr(&pkdn->mom,&mom);
+	    if (pkdIsSrcActive(p,0,MAX_RUNG)) {
+		m = pkdMass(pkd,p);
+		d2 = momMakeMomr(&mom,m,x,y,z);
+		momAddMomr(&pkdn->mom,&mom);
+		}
+	    else {
+		d2 = x*x + y*y + z*z;
+		}
 	    /*
 	    ** Update bounding ball and softened bounding ball.
 	    */
@@ -627,6 +628,7 @@ void pkdCombineCells(KDN *pkdn,KDN *p1,KDN *p2) {
     pkdn->fSoft2 = 1.0/(ifMass*(m1/p1->fSoft2 + m2/p2->fSoft2));
     pkdn->uMinRung = p1->uMinRung < p2->uMinRung ? p1->uMinRung : p2->uMinRung;
     pkdn->uMaxRung = p1->uMaxRung > p2->uMaxRung ? p1->uMaxRung : p2->uMaxRung;
+    pkdn->bDstActive = p1->bDstActive || p2->bDstActive;
 
     /*
     ** Now calculate the reduced multipole moment.

@@ -259,6 +259,7 @@ typedef struct kdNode {
     MOMR mom;
     uint8_t uMinRung;
     uint8_t uMaxRung;
+    uint8_t bDstActive;
     } KDN;
 
 
@@ -662,10 +663,6 @@ static inline int pkdIsDstActive(PARTICLE *p,uint8_t uRungLo,uint8_t uRungHi) {
 
 static inline int pkdIsSrcActive(PARTICLE *p,uint8_t uRungLo,uint8_t uRungHi) {
     return((p->uRung >= uRungLo)&&(p->uRung <= uRungHi)&&p->bSrcActive);
-    }
-
-static inline int pkdIsCellActive(KDN *c,uint8_t uRungLo,uint8_t uRungHi) {
-    return uRungLo <= c->uMaxRung && uRungHi >= c->uMinRung;
     }
 
 static inline int pkdRungVeryActive(PKD pkd) {
