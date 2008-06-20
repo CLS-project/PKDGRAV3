@@ -18,123 +18,149 @@
 #include <fcntl.h>
 #endif
 
-FLOAT ArrType(PKD pkd,PARTICLE *p,int iType) {
+/* Write an integer */
+static void writeInteger(PKD pkd,FILE *fp,PARTICLE *p,int iType,int iDim) {
+    uint64_t v;
+
+    switch (iType) {
+    case OUT_IORDER_ARRAY:
+	v = p->iOrder;
+	break;
+    default:
+	v = 0;
+	}
+    fprintf(fp,"%"PRIu64"\n",v);
+    }
+
+static void writeFloat(PKD pkd,FILE *fp,PARTICLE *p,int iType,int iDim) {
     float *a;
+    double v;
     VELSMOOTH *pvel;
     switch (iType) {
     case OUT_DENSITY_ARRAY:
-	return(p->fDensity);
+	v = p->fDensity;
+	break;
     case OUT_COLOR_ARRAY:
+	assert(0);
     case OUT_POT_ARRAY:
 	assert(pkd->oPotential);
 	a = pkdPot(pkd,p);
-	return(*a);
+	v = *a;
+	break;
     case OUT_AMAG_ARRAY:
 	assert(pkd->oAcceleration); /* Validate memory model */
 	a = pkdAccel(pkd,p);
-	return(sqrt(a[0]*a[0] + a[1]*a[1] + a[2]*a[2]));
+	v = sqrt(a[0]*a[0] + a[1]*a[1] + a[2]*a[2]);
+	break;
     case OUT_RUNG_ARRAY:
-	return(p->uRung);
+	v = p->uRung;
+	break;
     case OUT_SOFT_ARRAY:
-	return pkdSoft(pkd,p);
+	v = pkdSoft(pkd,p);
+	break;
     case OUT_GROUP_ARRAY:
 	assert(pkd->oGroup);
-	return *pkdInt32(p,pkd->oGroup);
+	v = *pkdInt32(p,pkd->oGroup);
+	break;
     case OUT_RELAX_ARRAY:
 	assert(pkd->oRelaxation);
 	a = pkdField(p,pkd->oRelaxation);
-	return *a;
+	v = *a;
+	break;
     case OUT_DIVV_ARRAY:
 	assert(pkd->oVelSmooth); /* Validate memory model */
 	pvel = pkdField(p,pkd->oVelSmooth);
-	return(pvel->divv);
+	v = pvel->divv;
+	break;
     case OUT_VELDISP2_ARRAY:
 	assert(pkd->oVelSmooth); /* Validate memory model */
 	pvel = pkdField(p,pkd->oVelSmooth);
-	return(pvel->veldisp2);
+	v = pvel->veldisp2;
     case OUT_VELDISP_ARRAY:
 	assert(pkd->oVelSmooth); /* Validate memory model */
 	pvel = pkdField(p,pkd->oVelSmooth);
-	return(sqrt(pvel->veldisp2));
+	v = sqrt(pvel->veldisp2);
+	break;
     case OUT_PHASEDENS_ARRAY:
 	assert(pkd->oVelSmooth); /* Validate memory model */
 	pvel = pkdField(p,pkd->oVelSmooth);
-	return(p->fDensity*pow(pvel->veldisp2,-1.5));
-    default:
-	return(0.0);
-	}
-    }
-
-
-FLOAT VecType(PKD pkd,PARTICLE *p,int iDim,int iType) {
-    float *a;
-    double *v;
-    VELSMOOTH *pvel;
-
-    switch (iType) {
+	v = p->fDensity*pow(pvel->veldisp2,-1.5);
+	break;
     case OUT_POS_VECTOR:
-	return(p->r[iDim]);
+	v = p->r[iDim];
+	break;
     case OUT_VEL_VECTOR:
 	assert(pkd->oVelocity); /* Validate memory model */
-	v = pkdVel(pkd,p);
-	return(v[iDim]);
+	v = pkdVel(pkd,p)[iDim];
+	break;
     case OUT_MEANVEL_VECTOR:
 	assert(pkd->oVelSmooth); /* Validate memory model */
 	pvel = pkdField(p,pkd->oVelSmooth);
-	return(pvel->vmean[iDim]);
+	v = pvel->vmean[iDim];
+	break;
     case OUT_ACCEL_VECTOR:
 	assert(pkd->oAcceleration); /* Validate memory model */
 	a = pkdAccel(pkd,p);
-	return(a[iDim]);
+	v = a[iDim];
+	break;
     default:
-	return(0.0);
+	v = 0.0;
 	}
+    fprintf(fp,"%.8g\n",v);
     }
 
 
-void pkdOutArray(PKD pkd,char *pszFileName,int iArrType) {
+void pkdOutASCII(PKD pkd,char *pszFileName,int iType,int iDim) {
     FILE *fp;
     FLOAT fOut;
     int i;
+    void (*fnOut)(PKD pkd,FILE *fp,PARTICLE *p,int iType,int iDim);
+
+    switch(iType) {
+    case OUT_IORDER_ARRAY:
+	fnOut = writeInteger;
+	break;
+
+    case OUT_DENSITY_ARRAY:
+    case OUT_COLOR_ARRAY:
+    case OUT_POT_ARRAY:
+    case OUT_AMAG_ARRAY:
+    case OUT_RUNG_ARRAY:
+    case OUT_SOFT_ARRAY:
+    case OUT_GROUP_ARRAY:
+    case OUT_RELAX_ARRAY:
+    case OUT_DIVV_ARRAY:
+    case OUT_VELDISP2_ARRAY:
+    case OUT_VELDISP_ARRAY:
+    case OUT_PHASEDENS_ARRAY:
+
+    case OUT_POS_VECTOR:
+    case OUT_VEL_VECTOR:
+    case OUT_MEANVEL_VECTOR:
+    case OUT_ACCEL_VECTOR:
+	fnOut = writeFloat;
+	break;
+
+    default:
+	assert(0);
+	}
 
     fp = fopen (pszFileName,"a");
     assert(fp != NULL);
+
     /*
-     ** Write Array Elements!
+     ** Write Elements!
      */
     for (i=0;i<pkd->nLocal;++i) {
-	fOut = ArrType(pkd,pkdParticle(pkd,i),iArrType);
-	fprintf(fp,"%.8g\n",fOut);
+	PARTICLE *p = pkdParticle(pkd,i);
+	if ( pkdIsSrcActive(p,0,MAX_RUNG) )
+	    (*fnOut)(pkd,fp,p,iType,iDim);
 	}
-    i = fclose(fp);
-    if (i != 0) {
-	perror("pkdOutArray: could not close file");
+    if (fclose(fp) != 0) {
+	perror("pkdOutASCII: could not close file");
 	exit(1);
 	}
     }
-
-
-void pkdOutVector(PKD pkd,char *pszFileName,int iDim,int iVecType) {
-    FILE *fp;
-    FLOAT fOut;
-    int i;
-
-    fp = fopen (pszFileName,"a");
-    assert(fp != NULL);
-    /*
-     ** Write Vector Elements!
-     */
-    for (i=0;i<pkd->nLocal;++i) {
-	fOut = VecType(pkd,pkdParticle(pkd,i),iDim,iVecType);
-	fprintf(fp,"%.8g\n",fOut);
-	}
-    i = fclose(fp);
-    if (i != 0) {
-	perror("pkdOutVector: could not close file");
-	exit(1);
-	}
-    }
-
 void pkdOutGroup(PKD pkd,char *pszFileName,int iType, int nStart,double dvFac) {
     FILE *fp;
     int i,j,nout,lStart;

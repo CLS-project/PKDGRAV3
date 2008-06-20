@@ -433,6 +433,7 @@ ppy_msr_Save(PyObject *self, PyObject *args, PyObject *kwobj) {
 	msrWrite(ppy_msr,fname,dTime,iType==OUT_TIPSY_DBL);
 	break;
 
+    case OUT_IORDER_ARRAY:
     case OUT_COLOR_ARRAY:
     case OUT_DENSITY_ARRAY:
     case OUT_POT_ARRAY:
@@ -446,7 +447,7 @@ ppy_msr_Save(PyObject *self, PyObject *args, PyObject *kwobj) {
     case OUT_SOFT_ARRAY:
     case OUT_GROUP_ARRAY:
     case OUT_RELAX_ARRAY:
-	msrOutVector(ppy_msr,fname,iType);
+	msrOutArray(ppy_msr,fname,iType);
 	break;
 
     case OUT_POS_VECTOR:
@@ -591,6 +592,7 @@ void ppyInitialize(PPY *pvppy, MSR msr, double dTime) {
     PyDict_SetItemString(dict, "OUT_VEL_VECTOR", Py_BuildValue("i",OUT_VEL_VECTOR));
     PyDict_SetItemString(dict, "OUT_ACCEL_VECTOR", Py_BuildValue("i",OUT_ACCEL_VECTOR));
     PyDict_SetItemString(dict, "OUT_MEANVEL_VECTOR", Py_BuildValue("i",OUT_MEANVEL_VECTOR));
+    PyDict_SetItemString(dict, "OUT_IORDER_ARRAY", Py_BuildValue("i",OUT_IORDER_ARRAY));
     PyDict_SetItemString(dict, "OUT_COLOR_ARRAY", Py_BuildValue("i",OUT_COLOR_ARRAY));
     PyDict_SetItemString(dict, "OUT_DENSITY_ARRAY", Py_BuildValue("i",OUT_DENSITY_ARRAY));
     PyDict_SetItemString(dict, "OUT_POT_ARRAY", Py_BuildValue("i",OUT_POT_ARRAY));

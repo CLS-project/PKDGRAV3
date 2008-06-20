@@ -2214,7 +2214,7 @@ void pstOutArray(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	    strcat(achOutFile,"/");
 	    }
 	strcat(achOutFile,in->achOutFile);
-	pkdOutArray(plcl->pkd,achOutFile,in->iType);
+	pkdOutASCII(plcl->pkd,achOutFile,in->iType,0);
 	}
     if (pnOut) *pnOut = 0;
     }
@@ -2244,7 +2244,7 @@ void pstOutVector(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	    strcat(achOutFile,"/");
 	    }
 	strcat(achOutFile,in->achOutFile);
-	pkdOutVector(plcl->pkd,achOutFile,in->iDim,in->iType);
+	pkdOutASCII(plcl->pkd,achOutFile,in->iType,in->iDim);
 	}
     if (pnOut) *pnOut = 0;
     }

@@ -17,21 +17,21 @@
 #define OUT_VELDISP_ARRAY       18
 #define OUT_PHASEDENS_ARRAY     19
 #define OUT_SOFT_ARRAY          20
+#define OUT_POS_VECTOR		21
+#define OUT_VEL_VECTOR		22
+#define OUT_ACCEL_VECTOR	23
+#define OUT_MEANVEL_VECTOR      24
+
+#define OUT_IORDER_ARRAY        25
 
 #define OUT_GROUP_ARRAY	112
 #define OUT_GROUP_TIPSY_NAT	113
 #define OUT_GROUP_TIPSY_STD	114
 #define OUT_GROUP_STATS 115
 #define OUT_GROUP_PROFILES 116
-void pkdOutGroup(PKD,char *,int,int,double);
-
 #define OUT_RELAX_ARRAY 120
-#define OUT_POS_VECTOR		21
-#define OUT_VEL_VECTOR		22
-#define OUT_ACCEL_VECTOR	23
-#define OUT_MEANVEL_VECTOR      24
 
-void pkdOutArray(PKD,char *,int);
-void pkdOutVector(PKD,char *,int,int);
+void pkdOutGroup(PKD,char *,int,int,double);
+void pkdOutASCII(PKD pkd,char *pszFileName,int iType,int iDim);
 
 #endif

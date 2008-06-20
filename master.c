@@ -2429,6 +2429,7 @@ void msrOutArray(MSR msr,const char *pszFile,int iType) {
     FILE *fp;
     int id,i;
     int inswap;
+    struct outSetTotal total;
 
     pst0 = msr->pst;
     while (pst0->nLeaves > 1)
@@ -2457,16 +2458,18 @@ void msrOutArray(MSR msr,const char *pszFile,int iType) {
 	_msrExit(msr,1);
 	return;
 	}
+
     /*
     ** Write the Header information and close the file again.
     */
-    fprintf(fp,"%"PRIu64"\n",msr->N);
+    pstSetTotal(msr->pst,NULL,0,&total,NULL);
+    fprintf(fp,"%"PRIu64"\n",total.nTotal);
     fclose(fp);
     /*
      * First write our own particles.
      */
     assert(msr->pMap[0] == 0);
-    pkdOutArray(plcl->pkd,achOutFile,iType);
+    pkdOutASCII(plcl->pkd,achOutFile,iType,0);
     for (i=1;i<msr->nThreads;++i) {
 	id = msr->pMap[i];
 	/*
@@ -2479,7 +2482,7 @@ void msrOutArray(MSR msr,const char *pszFile,int iType) {
 	/*
 	 * Write the swapped particles.
 	 */
-	pkdOutArray(plcl->pkd,achOutFile,iType);
+	pkdOutASCII(plcl->pkd,achOutFile,iType,0);
 	/*
 	 * Swap them back again.
 	 */
@@ -2500,6 +2503,7 @@ void msrOutVector(MSR msr,const char *pszFile,int iType) {
     int id,i;
     int inswap;
     int iDim;
+    struct outSetTotal total;
 
     pst0 = msr->pst;
     while (pst0->nLeaves > 1)
@@ -2531,7 +2535,8 @@ void msrOutVector(MSR msr,const char *pszFile,int iType) {
     /*
     ** Write the Header information and close the file again.
     */
-    fprintf(fp,"%"PRIu64"\n",msr->N);
+    pstSetTotal(msr->pst,NULL,0,&total,NULL);
+    fprintf(fp,"%"PRIu64"\n",total.nTotal);
     fclose(fp);
 
     /*
@@ -2539,7 +2544,7 @@ void msrOutVector(MSR msr,const char *pszFile,int iType) {
      */
     assert(msr->pMap[0] == 0);
     for (iDim=0;iDim<3;++iDim) {
-	pkdOutVector(plcl->pkd,achOutFile,iDim,iType);
+	pkdOutASCII(plcl->pkd,achOutFile,iType,iDim);
 	for (i=1;i<msr->nThreads;++i) {
 	    id = msr->pMap[i];
 	    /*
@@ -2552,7 +2557,7 @@ void msrOutVector(MSR msr,const char *pszFile,int iType) {
 	    /*
 	     * Write the swapped particles.
 	     */
-	    pkdOutVector(plcl->pkd,achOutFile,iDim,iType);
+	    pkdOutASCII(plcl->pkd,achOutFile,iType,iDim);
 	    /*
 	     * Swap them back again.
 	     */
