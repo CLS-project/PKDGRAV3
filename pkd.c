@@ -3788,7 +3788,7 @@ int pkdSelSrcById(PKD pkd,uint64_t idStart, uint64_t idEnd, int setIfTrue, int c
     nSelected = 0;
     for( i=0; i<n; i++ ) {
 	p = pkdParticle(pkd,i);
-	p->bSrcActive = isSelected((p->iOrder >= idStart && p->iOrder <idEnd),setIfTrue,clearIfFalse,p->bSrcActive);
+	p->bSrcActive = isSelected((p->iOrder >= idStart && p->iOrder <= idEnd),setIfTrue,clearIfFalse,p->bSrcActive);
 	if ( p->bSrcActive ) nSelected++;
 	}
     return nSelected;
@@ -3802,7 +3802,7 @@ int pkdSelDstById(PKD pkd,uint64_t idStart, uint64_t idEnd, int setIfTrue, int c
     nSelected = 0;
     for( i=0; i<n; i++ ) {
 	p = pkdParticle(pkd,i);
-	p->bDstActive = isSelected((p->iOrder >= idStart && p->iOrder <idEnd),setIfTrue,clearIfFalse,p->bDstActive);
+	p->bDstActive = isSelected((p->iOrder >= idStart && p->iOrder <= idEnd),setIfTrue,clearIfFalse,p->bDstActive);
 	if ( p->bDstActive ) nSelected++;
 	}
     return nSelected;
