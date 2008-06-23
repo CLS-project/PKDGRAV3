@@ -361,6 +361,7 @@ void ShuffleParticles(PKD pkd,int iStart) {
 	}
     }
 
+static double zeroV[3] = {0.0,0.0,0.0};
 
 void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp) {
     PARTICLE *p;
@@ -428,7 +429,8 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp) {
 	a = pkdAccel(pkd,p);
 	m = pkdMass(pkd,p);
 	fSoft = pkdSoft(pkd,p);
-	v = pkdVel(pkd,p);
+	if ( pkd->oVelocity ) v = pkdVel(pkd,p);
+	else v = zeroV;
 	fMass = m;
 	dih2 = m/(fSoft*fSoft);
 	x = m*p->r[0];
@@ -447,7 +449,8 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp) {
 	    a = pkdAccel(pkd,p);
 	    m = pkdMass(pkd,p);
 	    fSoft = pkdSoft(pkd,p);
-	    v = pkdVel(pkd,p);
+	    if ( pkd->oVelocity ) v = pkdVel(pkd,p);
+	    else v = zeroV;
 	    fMass += m;
 	    dih2 += m/(fSoft*fSoft);
 	    x += m*p->r[0];
