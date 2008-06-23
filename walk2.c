@@ -330,7 +330,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 		** If this cell has no mass, meaning it is not source active for gravity then we
 		** can remove it from the checklist (ignore it).
 		*/
-		if (pkdc->fMass == 0.0) {
+		if (pkdc->mom.m == 0.0) {
 		    if (id >= 0 && id != pkd->idSelf) {
 			mdlRelease(pkd->mdl,CID_CELL,pkdc);
 			}
