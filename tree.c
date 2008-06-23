@@ -620,6 +620,14 @@ void pkdCombineCells(KDN *pkdn,KDN *p1,KDN *p2) {
     m1 = p1->mom.m;
     m2 = p2->mom.m;
     ifMass = 1/(m1 + m2);
+    /*
+    ** In the case where a cell has all its particles source inactive mom.m == 0, which is ok, but we
+    ** still need a reasonable center in order to define opening balls in the tree code.
+    */
+    if ( m1==0.0 || m2 == 0.0 ) {
+	ifMass = 1.0;
+	m1 = m2 = 0.5;
+	}
     for (j=0;j<3;++j) {
 	pkdn->r[j] = ifMass*(m1*r1[j] + m2*r2[j]);
 	pkdn->v[j] = ifMass*(m1*p1->v[j] + m2*p2->v[j]);
