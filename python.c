@@ -483,7 +483,28 @@ ppy_msr_Load(PyObject *self, PyObject *args, PyObject *kwobj) {
     const char *fname;
     double dTime;
     int iType = IN_TIPSY_STD;
-    PyObject *dict;
+    PyObject *dict, *v;
+
+    dict = PyModule_GetDict(global_ppy->module);
+
+    if ( (v = PyDict_GetItemString(dict, "bMemAcceleration")) != NULL )
+	ppy_msr->param.bMemAcceleration = PyInt_AsLong(v);
+    if ( (v = PyDict_GetItemString(dict, "bMemVelocity")) != NULL )
+	ppy_msr->param.bMemVelocity = PyInt_AsLong(v);
+    if ( (v = PyDict_GetItemString(dict, "bMemPotential")) != NULL )
+	ppy_msr->param.bMemPotential = PyInt_AsLong(v);
+    if ( (v = PyDict_GetItemString(dict, "bMemGroups")) != NULL )
+	ppy_msr->param.bMemGroups = PyInt_AsLong(v);
+    if ( (v = PyDict_GetItemString(dict, "bMemMass")) != NULL )
+	ppy_msr->param.bMemMass = PyInt_AsLong(v);
+    if ( (v = PyDict_GetItemString(dict, "bMemSoft")) != NULL )
+	ppy_msr->param.bMemSoft = PyInt_AsLong(v);
+    if ( (v = PyDict_GetItemString(dict, "bMemHermite")) != NULL )
+	ppy_msr->param.bMemHermite = PyInt_AsLong(v);
+    if ( (v = PyDict_GetItemString(dict, "bMemRelaxation")) != NULL )
+	ppy_msr->param.bMemRelaxation = PyInt_AsLong(v);
+    if ( (v = PyDict_GetItemString(dict, "bMemVelSmooth")) != NULL )
+	ppy_msr->param.bMemVelSmooth = PyInt_AsLong(v);
 
     if ( !PyArg_ParseTupleAndKeywords(
 	     args, kwobj, "s|i:Load", kwlist,
@@ -494,7 +515,6 @@ ppy_msr_Load(PyObject *self, PyObject *args, PyObject *kwobj) {
     case IN_TIPSY_DBL:
     case IN_TIPSY_NAT:
 	dTime = msrRead(ppy_msr,fname);
-	dict = PyModule_GetDict(global_ppy->module);
 	PyDict_SetItemString(dict, "dTime", Py_BuildValue("d",dTime));
 	break;
 
