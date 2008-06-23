@@ -515,6 +515,7 @@ ppy_msr_Load(PyObject *self, PyObject *args, PyObject *kwobj) {
     case IN_TIPSY_DBL:
     case IN_TIPSY_NAT:
 	dTime = msrRead(ppy_msr,fname);
+	msrInitStep(ppy_msr);
 	PyDict_SetItemString(dict, "dTime", Py_BuildValue("d",dTime));
 	break;
 
