@@ -326,6 +326,16 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 #endif
 		    n = pkdc->pUpper - pkdc->pLower + 1;
 		    }
+		/*
+		** If this cell has no mass, meaning it is not source active for gravity then we
+		** can remove it from the checklist (ignore it).
+		*/
+		if (pkdc->fMass == 0.0) {
+		    if (id >= 0 && id != pkd->idSelf) {
+			mdlRelease(pkd->mdl,CID_CELL,pkdc);
+			}
+		    continue;
+		    }
 		for (j=0;j<3;++j) rCheck[j] = pkdc->r[j] + pkd->Check[i].rOffset[j];
 		d2 = 0;
 		for (j=0;j<3;++j) {
@@ -534,14 +544,16 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 			    */
 			    for (pj=pkdc->pLower;pj<=pkdc->pUpper;++pj) {
 				p = pkdParticle(pkd,pj);
-				fMass = pkdMass(pkd,p);
-				fSoft = pkdSoft(pkd,p);
-				ilpAppend(pkd->ilp,
-					  p->r[0] + pkd->Check[i].rOffset[0],
-					  p->r[1] + pkd->Check[i].rOffset[1],
-					  p->r[2] + pkd->Check[i].rOffset[2],
-					  fMass, 4*fSoft*fSoft,
-					  p->iOrder, p->v[0], p->v[1], p->v[2]);
+				if (pkdIsSrcActive(p,0,MAX_RUNG)) {
+				    fMass = pkdMass(pkd,p);
+				    fSoft = pkdSoft(pkd,p);
+				    ilpAppend(pkd->ilp,
+					      p->r[0] + pkd->Check[i].rOffset[0],
+					      p->r[1] + pkd->Check[i].rOffset[1],
+					      p->r[2] + pkd->Check[i].rOffset[2],
+					      fMass, 4*fSoft*fSoft,
+					      p->iOrder, p->v[0], p->v[1], p->v[2]);
+				    }
 				}
 			    }
 			else {
@@ -555,19 +567,21 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 #endif
 			    for (pj=pkdc->pLower;pj<=pkdc->pUpper;++pj) {
 				pRemote = mdlAquire(pkd->mdl,CID_PARTICLE,pj,id);
-				/*
-				** NOTE: We can only use iClass here if the class table was
-				** merged during a parallel read with GetClasses/SetClasses.
-				** There is no problem id a serial read was performed.
-				*/
-				fMass = pkdMass(pkd,pRemote);
-				fSoft = pkdSoft(pkd,pRemote);
-				ilpAppend(pkd->ilp,
-					  pRemote->r[0] + pkd->Check[i].rOffset[0],
-					  pRemote->r[1] + pkd->Check[i].rOffset[1],
-					  pRemote->r[2] + pkd->Check[i].rOffset[2],
-					  fMass, 4*fSoft*fSoft,
-					  pRemote->iOrder, pRemote->v[0], pRemote->v[1], pRemote->v[2] );
+				if (pkdIsSrcActive(pRemote,0,MAX_RUNG)) {
+				    /*
+				    ** NOTE: We can only use iClass here if the class table was
+				    ** merged during a parallel read with GetClasses/SetClasses.
+				    ** There is no problem id a serial read was performed.
+				    */
+				    fMass = pkdMass(pkd,pRemote);
+				    fSoft = pkdSoft(pkd,pRemote);
+				    ilpAppend(pkd->ilp,
+					      pRemote->r[0] + pkd->Check[i].rOffset[0],
+					      pRemote->r[1] + pkd->Check[i].rOffset[1],
+					      pRemote->r[2] + pkd->Check[i].rOffset[2],
+					      fMass, 4*fSoft*fSoft,
+					      pRemote->iOrder, pRemote->v[0], pRemote->v[1], pRemote->v[2] );
+				    }
 				mdlRelease(pkd->mdl,CID_PARTICLE,pRemote);
 				}
 #ifdef TIME_WALK_WORK
@@ -592,7 +606,6 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 			}
 		    }
 		else if (iOpen == -2) {
-		    //int ii, ib;
 		    /*
 		    ** No intersection, accept multipole!
 		    ** Interact += Moment(pkdc);
@@ -600,9 +613,6 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 		    ctile = pkd->ilc->tile;
 		    if ( ctile->nCell == ctile->nMaxCell )
 			ctile = ilcExtend(pkd->ilc);
-		    //printf("D CPU:%d increased cell list size to %d\n",mdlSelf(pkd->mdl),pkd->nMaxCell);
-		    //ib = ctile->nCell >> 2;
-		    //ii = ctile->nCell & 3;
 		    j = ctile->nCell;
 
 		    ctile->d[j].x.f = rCheck[0];
@@ -766,12 +776,14 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 	//ADDBACK:printf("G CPU:%d increased particle list size to %d\n",mdlSelf(pkd->mdl),pkd->nMaxPart);
 	for (pj=pkdc->pLower;pj<=pkdc->pUpper;++pj) {
 	    p = pkdParticle(pkd,pj);
-	    fMass = pkdMass(pkd,p);
-	    fSoft = pkdSoft(pkd,p);
-	    ilpAppend( pkd->ilp,
-		       p->r[0], p->r[1], p->r[2],
-		       fMass, 4*fSoft*fSoft,
-		       p->iOrder, p->v[0], p->v[1], p->v[2] );
+	    if (pkdIsSrcActive(p,0,MAX_RUNG)) {
+		fMass = pkdMass(pkd,p);
+		fSoft = pkdSoft(pkd,p);
+		ilpAppend( pkd->ilp,
+			   p->r[0], p->r[1], p->r[2],
+			   fMass, 4*fSoft*fSoft,
+			   p->iOrder, p->v[0], p->v[1], p->v[2] );
+		}
 	    }
 
 	/*
