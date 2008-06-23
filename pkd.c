@@ -304,7 +304,7 @@ void pkdInitialize(PKD *ppkd,MDL mdl,int nStore,int nBucket,FLOAT *fPeriod,
     /*pkd->nMaxNodes = (int)ceil(3.0*nStore/floor(nBucket - sqrt(nBucket)));*/
     /* j is an estimate of the lower limit of the total number of cells */
     j = 2.0 / (PKD_MAX_CELL_SIZE*PKD_MAX_CELL_SIZE*PKD_MAX_CELL_SIZE*mdlThreads(mdl));
-    pkd->nMaxNodes = (int)ceil(15.0*nStore/floor(nBucket-sqrt(nBucket))) + j;
+    pkd->nMaxNodes = (int)ceil(3.0*nStore/floor(nBucket-sqrt(nBucket))) + j;
     if ( pkd->nMaxNodes < j ) pkd->nMaxNodes = j;
     pkd->kdNodes = mdlMalloc(pkd->mdl,pkd->nMaxNodes*sizeof(KDN));
     mdlassert(mdl,pkd->kdNodes != NULL);
@@ -3779,6 +3779,35 @@ int pkdSelDstMass(PKD pkd,double dMinMass, double dMaxMass, int setIfTrue, int c
 	}
     return nSelected;
     }
+
+int pkdSelSrcById(PKD pkd,uint64_t idStart, uint64_t idEnd, int setIfTrue, int clearIfFalse ) {
+    PARTICLE *p;
+    int i,n,nSelected;
+
+    n = pkdLocal(pkd);
+    nSelected = 0;
+    for( i=0; i<n; i++ ) {
+	p = pkdParticle(pkd,i);
+	p->bSrcActive = isSelected((p->iOrder >= idStart && p->iOrder <=idEnd),setIfTrue,clearIfFalse,p->bSrcActive);
+	if ( p->bSrcActive ) nSelected++;
+	}
+    return nSelected;
+    }
+
+int pkdSelDstById(PKD pkd,uint64_t idStart, uint64_t idEnd, int setIfTrue, int clearIfFalse ) {
+    PARTICLE *p;
+    int i,n,nSelected;
+
+    n = pkdLocal(pkd);
+    nSelected = 0;
+    for( i=0; i<n; i++ ) {
+	p = pkdParticle(pkd,i);
+	p->bDstActive = isSelected((p->iOrder >= idStart && p->iOrder <=idEnd),setIfTrue,clearIfFalse,p->bDstActive);
+	if ( p->bDstActive ) nSelected++;
+	}
+    return nSelected;
+    }
+
 
 int pkdSelSrcPhaseDensity(PKD pkd,double dMinDensity, double dMaxDensity, int setIfTrue, int clearIfFalse ) {
     PARTICLE *p;

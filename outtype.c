@@ -112,7 +112,6 @@ static void writeFloat(PKD pkd,FILE *fp,PARTICLE *p,int iType,int iDim) {
 
 void pkdOutASCII(PKD pkd,char *pszFileName,int iType,int iDim) {
     FILE *fp;
-    FLOAT fOut;
     int i;
     void (*fnOut)(PKD pkd,FILE *fp,PARTICLE *p,int iType,int iDim);
 

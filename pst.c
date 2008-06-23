@@ -443,6 +443,12 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_SELDSTALL,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstSelDstAll,
 		  0, 0 );
+    mdlAddService(mdl,PST_SELSRCBYID,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstSelSrcById,
+		  sizeof(struct inSelById), sizeof(struct outSelById));
+    mdlAddService(mdl,PST_SELDSTBYID,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstSelDstById,
+		  sizeof(struct inSelById), sizeof(struct outSelById));
     mdlAddService(mdl,PST_SELSRCMASS,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstSelSrcMass,
 		  sizeof(struct inSelMass), sizeof(struct outSelMass));
@@ -485,6 +491,9 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_COUNTDISTANCE,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstCountDistance,
 		  sizeof(struct inCountDistance), sizeof(struct outCountDistance));
+    mdlAddService(mdl,PST_PEAKVC,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstPeakVc,
+		  PST_MAX_PEAKVC*sizeof(struct inPeakVc), PST_MAX_PEAKVC*sizeof(struct outPeakVc));
    }
 
 void pstInitialize(PST *ppst,MDL mdl,LCL *plcl) {
@@ -3941,6 +3950,47 @@ void pstSelDstAll(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	}
     if (pnOut) *pnOut = 0;
     }
+
+void pstSelSrcById(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl = pst->plcl;
+    struct inSelById *in = vin;
+    struct outSelById *out = vout;
+    struct outSelById outUpper;
+    int nOut;
+
+    assert( nIn==sizeof(struct inSelById) );
+    if (pst->nLeaves > 1) {
+	mdlReqService(pst->mdl,pst->idUpper,PST_SELSRCBYID,vin,nIn);
+	pstSelSrcById(pst->pstLower,vin,nIn,vout,pnOut);
+	mdlGetReply(pst->mdl,pst->idUpper,&outUpper,&nOut);
+	assert(nOut == sizeof(struct outSelById));
+	out->nSelected += outUpper.nSelected;
+	}
+    else {
+	out->nSelected = pkdSelSrcById(plcl->pkd,in->idStart,in->idEnd,in->setIfTrue,in->clearIfFalse);
+	}
+    if (pnOut) *pnOut = sizeof(struct outSelById);
+    }
+void pstSelDstById(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl = pst->plcl;
+    struct inSelById *in = vin;
+    struct outSelById *out = vout;
+    struct outSelById outUpper;
+    int nOut;
+
+    assert( nIn==sizeof(struct inSelById) );
+    if (pst->nLeaves > 1) {
+	mdlReqService(pst->mdl,pst->idUpper,PST_SELDSTBYID,vin,nIn);
+	pstSelDstById(pst->pstLower,vin,nIn,vout,pnOut);
+	mdlGetReply(pst->mdl,pst->idUpper,&outUpper,&nOut);
+	assert(nOut == sizeof(struct outSelById));
+	out->nSelected += outUpper.nSelected;
+	}
+    else {
+	out->nSelected = pkdSelDstById(plcl->pkd,in->idStart,in->idEnd,in->setIfTrue,in->clearIfFalse);
+	}
+    if (pnOut) *pnOut = sizeof(struct outSelById);
+    }
 void pstSelSrcMass(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct inSelMass *in = vin;
@@ -4236,4 +4286,30 @@ void pstCountDistance(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	out->nCount = pkdCountDistance(plcl->pkd,in->dRadius2Inner,in->dRadius2Outer);
 	}
     if (pnOut) *pnOut = sizeof(struct outCountDistance);
+    }
+
+void pstPeakVc(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl = pst->plcl;
+    struct inPeakVc *in = vin;
+    struct outPeakVc *out = vin;
+    int N, i, j;
+
+    N = nIn/sizeof(struct inPeakVc);
+    assert( N*sizeof(struct inPeakVc) == nIn );
+    if (pst->nLeaves > 1) {
+	i = 0;
+	j = N-1;
+	PARTITION(i<j,i<=j,++i,--j,{int t=i; i=j; j=t;},in[i].iProcessor<pst->idUpper,in[j].iProcessor>=pst->idUpper);
+	mdlReqService(pst->mdl,pst->idUpper,PST_PEAKVC,&in[i],(N-i)*sizeof(struct inPeakVc));
+	pstPeakVc(pst->pstLower,vin,i*sizeof(struct inPeakVc),vout,pnOut);
+	mdlGetReply(pst->mdl,pst->idUpper,&out[i],pnOut);
+	}
+    else {
+//	SMX smx;
+//	smInitialize(&smx,plcl->pkd,&in->smf,in->nSmooth,
+//		     in->bPeriodic,in->bSymmetric,in->iSmoothType);
+//	smReSmooth(smx,&in->smf);
+//	smFinish(smx,&in->smf);
+	}
+    if (pnOut) *pnOut = N*sizeof(struct outPeakVc);
     }

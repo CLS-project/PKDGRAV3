@@ -200,8 +200,9 @@ int pkdFindProcessor(const PKD pkd, const FLOAT *R) {
     assert ( IN_BND(R,&Top[iCell].bnd) );
 
     /* Descend the tree until we find the processor for point R */
-    while( (iLower=Top[iCell].iLower) )
+    while( (iLower=Top[iCell].iLower) ) {
 	if ( !IN_BND(R,&Top[++iCell].bnd) ) iCell = iLower;
+	}
 
     return Top[iCell].pLower;
     }

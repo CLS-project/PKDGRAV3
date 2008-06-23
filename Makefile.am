@@ -32,7 +32,7 @@ clean-local:
 	rm -f $(EXTRA_PROGRAMS)
 
 SOURCES  = cosmo.c master.c param.c pst.c smooth.c tree.c ewald.c
-SOURCES += main.c moments.c outtype.c pkd.c analysis.c romberg.c smoothfcn.c
+SOURCES += main.c moments.c intype.c outtype.c pkd.c analysis.c romberg.c smoothfcn.c
 if PLANETS
 SOURCES += ssio.c collision.c kepler.c
 endif
@@ -81,6 +81,7 @@ endif
 pkdgrav2m_null_LDADD += -lefence
 endif
 if USE_PYTHON
+pkdgrav2m_null_LDFLAGS = -Xlinker -export-dynamic 
 pkdgrav2m_null_LDADD += -L /usr/lib64/python$(PYTHON_VER)/config -lpython$(PYTHON_VER) -lutil
 pkdgrav2m_null_CFLAGS += -I /usr/include/python$(PYTHON_VER)
 endif
@@ -114,6 +115,7 @@ endif
 pkdgrav2m_mpi_LDADD += -lefence
 endif
 if USE_PYTHON
+pkdgrav2m_mpi_LDFLAGS = -Xlinker -export-dynamic 
 pkdgrav2m_mpi_LDADD += -L /usr/lib64/python$(PYTHON_VER)/config -lpython$(PYTHON_VER) -lutil
 pkdgrav2m_mpi_CFLAGS += -I /usr/include/python$(PYTHON_VER)
 endif
@@ -139,6 +141,7 @@ endif
 pkdgrav2m_pthread_LDADD += -lefence
 endif
 if USE_PYTHON
+pkdgrav2m_pthread_LDFLAGS = -Xlinker -export-dynamic 
 pkdgrav2m_pthread_LDADD += -L /usr/lib64/python$(PYTHON_VER)/config -lpython$(PYTHON_VER) -lutil
 pkdgrav2m_pthread_CFLAGS += -I /usr/include/python$(PYTHON_VER)
 endif
@@ -164,6 +167,7 @@ endif
 pkdgrav2m_sisci_LDADD += -lefence
 endif
 if USE_PYTHON
+pkdgrav2m_sisci_LDFLAGS = -Xlinker -export-dynamic 
 pkdgrav2m_sisci_LDADD += -L /usr/lib64/python$(PYTHON_VER)/config -lpython$(PYTHON_VER) -lutil
 pkdgrav2m_sisci_CFLAGS += -I /usr/include/python$(PYTHON_VER)
 endif

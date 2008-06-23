@@ -79,7 +79,7 @@ double msrTime() {
 #endif
 
 void _msrLeader(void) {
-    puts("pkdgrav2.2 Joachim Stadel & Doug Potter Sept 2007");
+    puts("pkdgrav"PACKAGE_VERSION" Joachim Stadel & Doug Potter Sept 2007");
     puts("USAGE: pkdgrav2 [SETTINGS | FLAGS] [SIM_FILE]");
     puts("SIM_FILE: Configuration file of a particular simulation, which");
     puts("          includes desired settings and relevant input and");
@@ -5216,6 +5216,34 @@ void msrSelSrcAll(MSR msr) {
 void msrSelDstAll(MSR msr) {
     pstSelDstAll(msr->pst, NULL, 0, NULL, NULL );
     }
+
+uint64_t msrSelSrcById(MSR msr,uint64_t idStart,uint64_t idEnd,int setIfTrue,int clearIfFalse) {
+    struct inSelById in;
+    struct outSelById out;
+    int nOut;
+
+    in.idStart = idStart;
+    in.idEnd = idEnd;
+    in.setIfTrue = setIfTrue;
+    in.clearIfFalse = clearIfFalse;
+    pstSelSrcById(msr->pst, &in, sizeof(in), &out, &nOut);
+    return out.nSelected;
+    }
+
+uint64_t msrSelDstById(MSR msr,uint64_t idStart,uint64_t idEnd,int setIfTrue,int clearIfFalse) {
+    struct inSelById in;
+    struct outSelById out;
+    int nOut;
+
+    in.idStart = idStart;
+    in.idEnd = idEnd;
+    in.setIfTrue = setIfTrue;
+    in.clearIfFalse = clearIfFalse;
+    pstSelDstById(msr->pst, &in, sizeof(in), &out, &nOut);
+    return out.nSelected;
+    }
+
+
 uint64_t msrSelSrcMass(MSR msr,double dMinMass,double dMaxMass,int setIfTrue,int clearIfFalse) {
     struct inSelMass in;
     struct outSelMass out;
@@ -5647,4 +5675,19 @@ void msrProfile( MSR msr, const PROFILEBIN **pBins, int *pnBins,
 
     if ( pBins ) *pBins = plcl->pkd->profileBins;
     if ( pnBins ) *pnBins = nBins+1;
+    }
+
+void msrPeakVc(MSR msr,int N,struct inPeakVc *in) {
+    LCL *plcl;
+    PST pst0;
+    int i;
+
+    pst0 = msr->pst;
+    while (pst0->nLeaves > 1)
+	pst0 = pst0->pstLower;
+    plcl = pst0->plcl;
+
+    for(i=0; i<N; i++) {
+	in[i].iProcessor = pkdFindProcessor(plcl->pkd, in[i].dCenter);
+	}
     }

@@ -58,7 +58,7 @@ typedef struct pstContext {
 
 #define PST_SERVICES		100
 #define PST_FILENAME_SIZE	512
-#define PST_MAX_FILES           128
+#define PST_MAX_FILES           800
 
 enum pst_service {
     PST_SRV_STOP,
@@ -180,6 +180,8 @@ enum pst_service {
     PST_SELDSTALL,
     PST_SELSRCMASS,
     PST_SELDSTMASS,
+    PST_SELSRCBYID,
+    PST_SELDSTBYID,
     PST_SELSRCPHASEDENSITY,
     PST_SELDSTPHASEDENSITY,
 
@@ -194,6 +196,7 @@ enum pst_service {
     PST_PROFILE,
     PST_CALCDISTANCE,
     PST_COUNTDISTANCE,
+    PST_PEAKVC,
     };
 
 void pstAddServices(PST,MDL);
@@ -1068,6 +1071,19 @@ struct outSelMass {
 void pstSelSrcMass(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 void pstSelDstMass(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 
+/* PST_SELSRCBYID */
+struct inSelById {
+    double idStart;
+    double idEnd;
+    int setIfTrue;
+    int clearIfFalse;
+    };
+struct outSelById {
+    uint64_t nSelected;
+    };
+void pstSelSrcById(PST pst,void *vin,int nIn,void *vout,int *pnOut);
+void pstSelDstById(PST pst,void *vin,int nIn,void *vout,int *pnOut);
+
 /* PST_SELSRCPHASEDENSITY */
 struct inSelPhaseDensity {
     double dMinDensity;
@@ -1159,5 +1175,17 @@ struct outCountDistance {
     uint64_t nCount;
     };
 void pstCountDistance(PST pst,void *vin,int nIn,void *vout,int *pnOut);
+
+/* PST_PEAKVC */
+#define PST_MAX_PEAKVC 1000000
+struct inPeakVc {
+    double dCenter[3];
+    int iGroup;
+    short iProcessor;
+    };
+struct outPeakVc {
+    double dPeakVc;
+    };
+void pstPeakVc(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 
 #endif

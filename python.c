@@ -6,6 +6,7 @@
 #include <stdint.h>
 #include "master.h"
 #include "outtype.h"
+#include "intype.h"
 #include "python.h"
 
 /**********************************************************************\
@@ -180,6 +181,35 @@ ppy_msr_SelDstCylinder(PyObject *self, PyObject *args) {
     return Py_BuildValue("L", nSelected);
 }
 
+static PyObject *
+ppy_msr_SelSrcById(PyObject *self, PyObject *args) {
+    uint64_t idStart,idEnd;
+    int setIfTrue=1, clearIfFalse=1;
+    uint64_t nSelected;
+
+    if ( !PyArg_ParseTuple(
+	     args, "LL|ii:SelSrcById",
+	     &idStart, &idEnd, &setIfTrue, &clearIfFalse) )
+	return NULL;
+    nSelected = msrSelSrcById(ppy_msr,idStart,idEnd,setIfTrue,clearIfFalse);
+    return Py_BuildValue("L", nSelected);
+}
+
+static PyObject *
+ppy_msr_SelDstById(PyObject *self, PyObject *args) {
+    uint64_t idStart,idEnd;
+    int setIfTrue=1, clearIfFalse=1;
+    uint64_t nSelected;
+
+    if ( !PyArg_ParseTuple(
+	     args, "ll|ii:SelDstById",
+	     &idStart, &idEnd, &setIfTrue, &clearIfFalse) )
+	return NULL;
+    nSelected = msrSelDstById(ppy_msr,idStart,idEnd,setIfTrue,clearIfFalse);
+    return Py_BuildValue("L", nSelected);
+}
+
+
 #if 0
 static PyObject *
 ppy_msr_SelSrc(PyObject *self, PyObject *args) {
@@ -297,6 +327,31 @@ ppy_msr_BuildTree(PyObject *self, PyObject *args, PyObject *kwobj) {
     return Py_None;
 }
 
+
+static PyObject *
+ppy_msr_Gravity(PyObject *self, PyObject *args, PyObject *kwobj) {
+    static char *kwlist[]={"Time","Ewald",NULL};
+    double dTime = 0.0;
+    int bEwald = ppy_msr->param.bEwald;
+    PyObject *v, *dict;
+    uint64_t nActive;
+    int iSec = 0;
+
+    dict = PyModule_GetDict(global_ppy->module);
+    if ( (v = PyDict_GetItemString(dict, "dTime")) == NULL )
+	return NULL;
+    dTime = PyFloat_AsDouble(v);
+    if ( !PyArg_ParseTupleAndKeywords(
+	     args, kwobj, "|di:Gravity", kwlist,
+	     &dTime, &bEwald ) )
+	return NULL;
+
+    msrGravity(ppy_msr,0,MAX_RUNG,dTime,ppy_msr->param.iStartStep,bEwald,&iSec,&nActive);
+
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+
 static PyObject *
 ppy_msr_Fof(PyObject *self, PyObject *args, PyObject *kwobj) {
     static char *kwlist[]={"FOFsDone","Symmetric","Time",NULL};
@@ -367,6 +422,36 @@ ppy_msr_ReSmooth(PyObject *self, PyObject *args, PyObject *kwobj) {
 }
 
 
+static PyObject *
+ppy_msr_PeakVc(PyObject *self, PyObject *args, PyObject *kwobj) {
+    static char *kwlist[]={"Centers",NULL};
+    PyObject *list, *item;
+    int N, i;
+    struct inPeakVc *in;
+
+    if ( !PyArg_ParseTupleAndKeywords(
+	     args, kwobj, "O:PeakVc", kwlist,
+	     &list ) )
+	return NULL;
+
+    N = PyList_Size(list);
+    in = malloc(sizeof(struct inPeakVc)*N);
+    assert(in!=NULL);
+
+    for( i=0; i<N; i++ ) {
+	item = PyList_GetItem(list,i);
+	if ( !PyArg_ParseTuple(
+		 item, "ddd:PeakVc",
+		 &in[i].dCenter[0], &in[i].dCenter[1], &in[i].dCenter[2] ) )
+	    return NULL;
+	}
+    msrPeakVc(ppy_msr,N,in);
+
+    free(in);
+
+    Py_INCREF(Py_None);
+    return Py_None;
+}
 
 
 static PyObject *
@@ -383,7 +468,7 @@ ppy_msr_GroupProfiles(PyObject *self, PyObject *args, PyObject *kwobj) {
 	return NULL;
     dTime = PyFloat_AsDouble(v);
     if ( !PyArg_ParseTupleAndKeywords(
-	     args, kwobj, "|iid:BuildTree", kwlist,
+	     args, kwobj, "|iid:GroupProfiles", kwlist,
 	     &nFOFsDone,& bSymmetric, &dTime ) )
 	return NULL;
     dExp = csmTime2Exp(ppy_msr->param.csm,dTime);
@@ -394,18 +479,34 @@ ppy_msr_GroupProfiles(PyObject *self, PyObject *args, PyObject *kwobj) {
 
 static PyObject *
 ppy_msr_Load(PyObject *self, PyObject *args, PyObject *kwobj) {
-    static char *kwlist[]={"Name",NULL};
+    static char *kwlist[]={"Name","Type",NULL};
     const char *fname;
     double dTime;
+    int iType = IN_TIPSY_STD;
     PyObject *dict;
 
     if ( !PyArg_ParseTupleAndKeywords(
-	     args, kwobj, "s:Load", kwlist,
-	     &fname ) )
+	     args, kwobj, "s|i:Load", kwlist,
+	     &fname, &iType ) )
 	return NULL;
-    dTime = msrRead(ppy_msr,fname);
-    dict = PyModule_GetDict(global_ppy->module);
-    PyDict_SetItemString(dict, "dTime", Py_BuildValue("d",dTime));
+    switch(iType) {
+    case IN_TIPSY_STD:
+    case IN_TIPSY_DBL:
+    case IN_TIPSY_NAT:
+	dTime = msrRead(ppy_msr,fname);
+	dict = PyModule_GetDict(global_ppy->module);
+	PyDict_SetItemString(dict, "dTime", Py_BuildValue("d",dTime));
+	break;
+
+    case IN_SRC_MARK:
+    case IN_DST_MARK:
+	break;
+
+    default:
+	assert(0);
+	}
+
+
 
     Py_INCREF(Py_None);
     return Py_None;
@@ -514,6 +615,10 @@ static PyMethodDef ppy_msr_methods[] = {
      "Selects source particles with a specific mass range."},
     {"SelDstMass", (PyCFunction)ppy_msr_SelDstMass, METH_VARARGS|METH_KEYWORDS,
      "Selects destination particles with a specific mass range."},
+    {"SelSrcById", (PyCFunction)ppy_msr_SelSrcById, METH_VARARGS,
+     "Selects source particles with a specific id range."},
+    {"SelDstById", (PyCFunction)ppy_msr_SelDstById, METH_VARARGS,
+     "Selects destination particles with a specific id range."},
     {"SelSrcPhaseDensity", (PyCFunction)ppy_msr_SelSrcPhaseDensity, METH_VARARGS|METH_KEYWORDS,
      "Selects source particles with a specific phase space density."},
     {"SelDstPhaseDensity", (PyCFunction)ppy_msr_SelDstPhaseDensity, METH_VARARGS|METH_KEYWORDS,
@@ -540,6 +645,8 @@ static PyMethodDef ppy_msr_methods[] = {
      "Reorder the particles by position"},
     {"BuildTree", (PyCFunction)ppy_msr_BuildTree, METH_VARARGS|METH_KEYWORDS,
      "Build the spatial tree"},
+    {"Gravity", (PyCFunction)ppy_msr_Gravity, METH_VARARGS|METH_KEYWORDS,
+     "Calculate gravity"},
     {"Smooth", (PyCFunction)ppy_msr_Smooth, METH_VARARGS|METH_KEYWORDS,
      "Smooth"},
     {"ReSmooth", (PyCFunction)ppy_msr_ReSmooth, METH_VARARGS|METH_KEYWORDS,
@@ -548,6 +655,8 @@ static PyMethodDef ppy_msr_methods[] = {
      "Friends of Friends"},
     {"GroupProfiles", (PyCFunction)ppy_msr_GroupProfiles, METH_VARARGS|METH_KEYWORDS,
      "Group Profiles"},
+    {"PeakVc", (PyCFunction)ppy_msr_PeakVc, METH_VARARGS|METH_KEYWORDS,
+     "Calculate peak circular velocities"},
     {"Load", (PyCFunction)ppy_msr_Load, METH_VARARGS|METH_KEYWORDS,
      "Load an input file"},
     {"Save", (PyCFunction)ppy_msr_Save, METH_VARARGS|METH_KEYWORDS,
