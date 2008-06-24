@@ -893,7 +893,7 @@ int mdlCacheReceive(MDL mdl,char *pLine) {
     char *pszRpl;
     char *t;
     int id, iTag;
-    int n,i;
+    int s,n,i;
     MPI_Status status;
     int ret;
     int iLineSize;
@@ -944,12 +944,24 @@ int mdlCacheReceive(MDL mdl,char *pLine) {
 	phRpl->cid = ph->cid;
 	phRpl->mid = MDL_MID_CACHERPL;
 	phRpl->id = mdl->idSelf;
+
+#ifdef OLD_CACHE
 	t = &c->pData[ph->iLine*c->iLineSize];
 	if (t+c->iLineSize > c->pData + c->nData*c->iDataSize)
 	    iLineSize = size_t_to_int(c->pData + c->nData*c->iDataSize - t);
 	else
 	    iLineSize = c->iLineSize;
 	for (i=0;i<iLineSize;++i) pszRpl[i] = t[i];
+#else
+	s = ph->iLine*MDL_CACHELINE_ELTS;
+	n = s + MDL_CACHELINE_ELTS;
+	if ( n > c->nData ) n = c->nData;
+	iLineSize = (n-s) * c->iDataSize;
+	for(i=s; i<n; i++ ) {
+	    t = (*c->getElt)(c->pData,i,c->iDataSize);
+	    memcpy(pszRpl+(i-s)*c->iDataSize,t,c->iDataSize);
+	    }
+#endif
 	if (mdl->pmidRpl[ph->id] != -1) {
 	    MPI_Wait(&mdl->pReqRpl[ph->id], &status);
 	    }
@@ -961,6 +973,7 @@ int mdlCacheReceive(MDL mdl,char *pLine) {
 	break;
     case MDL_MID_CACHEFLSH:
 	assert(c->iType == MDL_COCACHE);
+#ifdef OLD_CACHE
 	i = ph->iLine*MDL_CACHELINE_ELTS;
 	t = &c->pData[i*c->iDataSize];
 	/*
@@ -974,6 +987,15 @@ int mdlCacheReceive(MDL mdl,char *pLine) {
 	for (i=0;i<n;i+=iDataSize) {
 		(*c->combine)(c->ctx,&t[i],&pszRcv[i]);
 	    }
+#else
+	s = ph->iLine*MDL_CACHELINE_ELTS;
+	n = s + MDL_CACHELINE_ELTS;
+	if (n > c->nData) n = c->nData;
+	for(i=s;i<n;i++) {
+		(*c->combine)(c->ctx,(*c->getElt)(c->pData,i,c->iDataSize),
+			      &pszRcv[(i-s)*c->iDataSize]);
+	    }
+#endif
 	ret = 0;
 	break;
     case MDL_MID_CACHERPL:
@@ -1098,9 +1120,20 @@ void mdlFree(MDL mdl,void *p) {
     }
 
 /*
+** This is the default element fetch routine.  It impliments the old behaviour
+** of a single large array.  New data structures need to be more clever.
+*/
+static void *getArrayElement(void *vData,int i,int iDataSize) {
+    char *pData = vData;
+    return pData + i*iDataSize;
+    }
+
+/*
  ** Common initialization for all types of caches.
  */
-CACHE *CacheInitialize(MDL mdl,int cid,void *pData,int iDataSize,int nData) {
+CACHE *CacheInitialize(MDL mdl,int cid,
+		       void * (*getElt)(void *pData,int i,int iDataSize),
+		       void *pData,int iDataSize,int nData) {
     CACHE *c;
     int i,nMaxCacheIds;
     int first;
@@ -1150,6 +1183,7 @@ CACHE *CacheInitialize(MDL mdl,int cid,void *pData,int iDataSize,int nData) {
 	}
     c = &mdl->cache[cid];
     assert(c->iType == MDL_NOCACHE);
+    c->getElt = getElt==NULL ? getArrayElement : getElt;
     c->pData = pData;
     c->iDataSize = iDataSize;
     c->nData = nData;
@@ -1224,13 +1258,15 @@ CACHE *CacheInitialize(MDL mdl,int cid,void *pData,int iDataSize,int nData) {
 /*
  ** Initialize a Read-Only caching space.
  */
-void mdlROcache(MDL mdl,int cid,void *pData,int iDataSize,int nData) {
+void mdlROcache(MDL mdl,int cid,
+		void * (*getElt)(void *pData,int i,int iDataSize),
+		void *pData,int iDataSize,int nData) {
     CACHE *c;
     int id;
     CAHEAD caIn;
     char achDiag[256];
 
-    c = CacheInitialize(mdl,cid,pData,iDataSize,nData);
+    c = CacheInitialize(mdl,cid,getElt,pData,iDataSize,nData);
     c->iType = MDL_ROCACHE;
     /*
      ** For an ROcache these two functions are not needed.
@@ -1283,13 +1319,15 @@ void mdlROcache(MDL mdl,int cid,void *pData,int iDataSize,int nData) {
 /*
  ** Initialize a Combiner caching space.
  */
-void mdlCOcache(MDL mdl,int cid,void *pData,int iDataSize,int nData,
+void mdlCOcache(MDL mdl,int cid,
+		void * (*getElt)(void *pData,int i,int iDataSize),
+		void *pData,int iDataSize,int nData,
 		void *ctx,void (*init)(void *,void *),void (*combine)(void *,void *,void *)) {
     CACHE *c;
     int id;
     CAHEAD caIn;
 
-    c = CacheInitialize(mdl,cid,pData,iDataSize,nData);
+    c = CacheInitialize(mdl,cid,getElt,pData,iDataSize,nData);
     c->iType = MDL_COCACHE;
     assert(init);
     c->init = init;
@@ -1691,10 +1729,12 @@ void mdlRelease(MDL mdl,int cid,void *p) {
 	--c->pTag[iLine].nLock;
 	assert(c->pTag[iLine].nLock >= 0);
 	}
+#ifdef OLD_CACHE
     else {
 	iData = ((char *)p - c->pData) / c->iDataSize;
 	assert(iData < c->nData);
 	}
+#endif
     }
 
 
