@@ -381,7 +381,7 @@ ppy_msr_Smooth(PyObject *self, PyObject *args, PyObject *kwobj) {
     static char *kwlist[]={"iSmoothType","bSymmetric","dTime",NULL};
     PyObject *v, *dict;
     int iSmoothType;
-    int bSymmetric = 1;
+    int bSymmetric = 0;
     double dTime;
 
     dict = PyModule_GetDict(global_ppy->module);
@@ -404,7 +404,7 @@ ppy_msr_ReSmooth(PyObject *self, PyObject *args, PyObject *kwobj) {
     static char *kwlist[]={"iSmoothType","bSymmetric","dTime",NULL};
     PyObject *v, *dict;
     int iSmoothType;
-    int bSymmetric = 1;
+    int bSymmetric = 0;
     double dTime;
 
     dict = PyModule_GetDict(global_ppy->module);
@@ -460,7 +460,7 @@ ppy_msr_GroupProfiles(PyObject *self, PyObject *args, PyObject *kwobj) {
     double dExp;
     double dTime = 0.0;
     int nFOFsDone = 0;
-    int bSymmetric = 1;
+    int bSymmetric = 0;
     PyObject *v, *dict;
 
     dict = PyModule_GetDict(global_ppy->module);
