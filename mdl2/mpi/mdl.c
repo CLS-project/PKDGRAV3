@@ -945,14 +945,6 @@ int mdlCacheReceive(MDL mdl,char *pLine) {
 	phRpl->mid = MDL_MID_CACHERPL;
 	phRpl->id = mdl->idSelf;
 
-#ifdef OLD_CACHE
-	t = &c->pData[ph->iLine*c->iLineSize];
-	if (t+c->iLineSize > c->pData + c->nData*c->iDataSize)
-	    iLineSize = size_t_to_int(c->pData + c->nData*c->iDataSize - t);
-	else
-	    iLineSize = c->iLineSize;
-	for (i=0;i<iLineSize;++i) pszRpl[i] = t[i];
-#else
 	s = ph->iLine*MDL_CACHELINE_ELTS;
 	n = s + MDL_CACHELINE_ELTS;
 	if ( n > c->nData ) n = c->nData;
@@ -961,7 +953,6 @@ int mdlCacheReceive(MDL mdl,char *pLine) {
 	    t = (*c->getElt)(c->pData,i,c->iDataSize);
 	    memcpy(pszRpl+(i-s)*c->iDataSize,t,c->iDataSize);
 	    }
-#endif
 	if (mdl->pmidRpl[ph->id] != -1) {
 	    MPI_Wait(&mdl->pReqRpl[ph->id], &status);
 	    }
@@ -973,21 +964,6 @@ int mdlCacheReceive(MDL mdl,char *pLine) {
 	break;
     case MDL_MID_CACHEFLSH:
 	assert(c->iType == MDL_COCACHE);
-#ifdef OLD_CACHE
-	i = ph->iLine*MDL_CACHELINE_ELTS;
-	t = &c->pData[i*c->iDataSize];
-	/*
-	 ** Make sure we don't combine beyond the number of data elements!
-	 */
-	n = i + MDL_CACHELINE_ELTS;
-	if (n > c->nData) n = c->nData;
-	n -= i;
-	n *= c->iDataSize;
-	iDataSize = c->iDataSize;
-	for (i=0;i<n;i+=iDataSize) {
-		(*c->combine)(c->ctx,&t[i],&pszRcv[i]);
-	    }
-#else
 	s = ph->iLine*MDL_CACHELINE_ELTS;
 	n = s + MDL_CACHELINE_ELTS;
 	if (n > c->nData) n = c->nData;
@@ -995,7 +971,6 @@ int mdlCacheReceive(MDL mdl,char *pLine) {
 		(*c->combine)(c->ctx,(*c->getElt)(c->pData,i,c->iDataSize),
 			      &pszRcv[(i-s)*c->iDataSize]);
 	    }
-#endif
 	ret = 0;
 	break;
     case MDL_MID_CACHERPL:

@@ -64,7 +64,7 @@ typedef struct cacheHeader {
 
 typedef struct cacheSpace {
     int iType;
-    char *pData;
+    void *pData;
     int iDataSize;
     int nData;
     int iLineSize;
@@ -341,7 +341,7 @@ static inline void *mdlAquire(MDL mdl,int cid,int iIndex,int id) {
      ** Is it a local request? This should not happen in pkdgrav2.
      */
     if (id == mdl->idSelf) {
-	return(&c->pData[iIndex*c->iDataSize]);
+	return (*c->getElt)(c->pData,iIndex,c->iDataSize);
 	}
     return(mdlDoMiss(mdl, cid, iIndex, id, iKey, lock));
     }
