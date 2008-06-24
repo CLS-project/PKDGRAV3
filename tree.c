@@ -443,7 +443,7 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp) {
 	ay = m*a[1];
 	az = m*a[2];
 	pkdn->uMinRung = pkdn->uMaxRung = p->uRung;
-	pkdn->bDstActive = 0;
+	pkdn->bDstActive = p->bDstActive;
 	for (++pj;pj<=pkdn->pUpper;++pj) {
 	    p = pkdParticle(pkd,pj);
 	    a = pkdAccel(pkd,p);
