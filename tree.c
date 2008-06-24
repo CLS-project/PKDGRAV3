@@ -725,7 +725,7 @@ void pkdTreeBuild(PKD pkd,int nBucket,FLOAT diCrit2,KDN *pkdn,int bExcludeVeryAc
     /*
     ** Finally activate a read only cache for remote access.
     */
-    mdlROcache(pkd->mdl,CID_CELL,pkd->kdNodes,sizeof(KDN),pkd->nNodes);
+    mdlROcache(pkd->mdl,CID_CELL,NULL,pkd->kdNodes,sizeof(KDN),pkd->nNodes);
     /*
     ** Copy the root node for the top-tree construction.
     */

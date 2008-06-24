@@ -170,7 +170,7 @@ void pkdProfile(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
 	}
 
     /* Combine the work from all processors */
-    mdlCOcache(pkd->mdl,CID_BIN,pkd->profileBins,sizeof(PROFILEBIN),nBins,pkd,initProfileBins,combProfileBins);
+    mdlCOcache(pkd->mdl,CID_BIN,NULL,pkd->profileBins,sizeof(PROFILEBIN),nBins,pkd,initProfileBins,combProfileBins);
     if (pkd->idSelf != 0) {
 	for (i=0; i<nBins; i++) {
 	    if (pkd->profileBins[i].dMassInBin > 0.0) {

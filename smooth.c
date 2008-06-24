@@ -117,12 +117,12 @@ int smInitialize(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodic,int bSymme
     ** Start particle caching space (cell cache is already active).
     */
     if (bSymmetric) {
-	mdlCOcache(pkd->mdl,CID_PARTICLE,
+	mdlCOcache(pkd->mdl,CID_PARTICLE,NULL,
 		   pkdParticleBase(pkd),pkdParticleSize(pkd),
 		   nTree,pkd,init,comb);
 	}
     else {
-	mdlROcache(pkd->mdl,CID_PARTICLE,
+	mdlROcache(pkd->mdl,CID_PARTICLE,NULL,
 		   pkdParticleBase(pkd),pkdParticleSize(pkd),
 		   nTree);
 	}
@@ -1254,7 +1254,7 @@ void smFof(SMX smx,int nFOFsDone,SMF *smf) {
     fBall2Max = 0.0;
 
     if ( nFOFsDone > 0) {
-	mdlROcache(mdl,CID_BIN,pkd->groupBin,sizeof(FOFBIN),pkd->nBins);
+	mdlROcache(mdl,CID_BIN,NULL,pkd->groupBin,sizeof(FOFBIN),pkd->nBins);
 	if (pkd->idSelf != 0) {
 	    for (i=0; i< pkd->nBins; i++) {
 
@@ -1323,7 +1323,7 @@ void smFof(SMX smx,int nFOFsDone,SMF *smf) {
 	/* Have to restart particle chache, since we will need
 	 * the updated p->fBall now */
 	mdlFinishCache(mdl,CID_PARTICLE);
-	mdlROcache(mdl,CID_PARTICLE,pkdParticleBase(pkd),pkdParticleSize(pkd),nTree);
+	mdlROcache(mdl,CID_PARTICLE,NULL,pkdParticleBase(pkd),pkdParticleSize(pkd),nTree);
 	}
 
     /* Starting FOF search now... */
@@ -1656,16 +1656,16 @@ int smGroupMerge(SMF *smf,int bPeriodic) {
     /*
     ** Start RO particle cache.
     */
-    mdlROcache(mdl,CID_PARTICLE,pkdParticleBase(pkd),pkdParticleSize(pkd), nTree);
+    mdlROcache(mdl,CID_PARTICLE,NULL,pkdParticleBase(pkd),pkdParticleSize(pkd), nTree);
     /*
     ** Start CO group data cache.
     */
     /*printf( "Processor %d cache has %d entries\n", mdlSelf(mdl), pkd->nGroups );*/
-    mdlCOcache(mdl,CID_GROUP,pkd->groupData,sizeof(FOFGD), pkd->nGroups,pkd,initGroupMerge,combGroupMerge);
+    mdlCOcache(mdl,CID_GROUP,NULL,pkd->groupData,sizeof(FOFGD), pkd->nGroups,pkd,initGroupMerge,combGroupMerge);
     /*
     ** Start RO remote member cache.
     */
-    mdlROcache(mdl,CID_RM,pkd->remoteMember,sizeof(FOFRM),pkd->nRm);
+    mdlROcache(mdl,CID_RM,NULL,pkd->remoteMember,sizeof(FOFRM),pkd->nRm);
 
     for (i=0; i < pkd->nGroups ;i++) {
 	nSubGroups = 0;
@@ -1926,7 +1926,7 @@ int smGroupMerge(SMF *smf,int bPeriodic) {
 	}
     pkd->groupData[nMyGroups].bMyGroup = 0;
     /* Start RO group data cache and master reads and saves all the group data. */
-    mdlROcache(mdl,CID_GROUP,pkd->groupData,sizeof(FOFGD), nMyGroups + 1);
+    mdlROcache(mdl,CID_GROUP,NULL,pkd->groupData,sizeof(FOFGD), nMyGroups + 1);
     if (pkd->idSelf == 0) {
 	listSize = pkd->nThreads*(pkd->nGroups+1);
 	pkd->groupData = (FOFGD *) realloc(pkd->groupData,listSize*sizeof(FOFGD));
@@ -2016,7 +2016,7 @@ int smGroupProfiles(SMX smx, SMF *smf,int bPeriodic, int nTotalGroups,int bLogBi
 	pkd->groupData = (FOFGD *) realloc(pkd->groupData,nTotalGroups*sizeof(FOFGD));
 	assert(pkd->groupData != NULL);
 	}
-    mdlROcache(mdl,CID_GROUP,pkd->groupData,sizeof(FOFGD),pkd->nGroups);
+    mdlROcache(mdl,CID_GROUP,NULL,pkd->groupData,sizeof(FOFGD),pkd->nGroups);
     if (pkd->idSelf != 0) {
 	for (i=0; i< nTotalGroups; i++) {
 	    gdp = mdlAquire(mdl,CID_GROUP,i,0);
@@ -2062,6 +2062,7 @@ int smGroupProfiles(SMX smx, SMF *smf,int bPeriodic, int nTotalGroups,int bLogBi
 	else {
 	    /* estimate virial radius, assuming isothermal shperes */
 	    lastbin = pow(pkd->groupData[i].fAvgDens,0.5)*pkd->groupData[i].fDeltaR2*binFactor;
+#if 0
 	    for (k=i+1; k < nTotalGroups; k++) {
 		/* if a larger group is nearby limit lastbin to 0.75 of its distance*/
 		/* 	if(pkd->groupData[k].fAvgDens*pkd->groupData[k].fAvgDens*pkd->groupData[k].fMass > */
@@ -2071,6 +2072,7 @@ int smGroupProfiles(SMX smx, SMF *smf,int bPeriodic, int nTotalGroups,int bLogBi
 		if (lastbin > dx2)lastbin = dx2;
 		/* 	} */
 		}
+#endif
 	    }
 	for (j=0; j < pkd->groupData[i].nRemoteMembers; j++) {
 	    assert(iBin < nBins);
@@ -2186,7 +2188,7 @@ int smGroupProfiles(SMX smx, SMF *smf,int bPeriodic, int nTotalGroups,int bLogBi
     /*
     ** Start CO group profiles cache.
     */
-    mdlCOcache(mdl,CID_BIN,pkd->groupBin,sizeof(FOFBIN),nBins,pkd,initGroupBins,combGroupBins);
+    mdlCOcache(mdl,CID_BIN,NULL,pkd->groupBin,sizeof(FOFBIN),nBins,pkd,initGroupBins,combGroupBins);
     if (pkd->idSelf != 0) {
 	for (i=0; i< nBins; i++) {
 	    if (pkd->groupBin[i].fMassInBin > 0.0) {

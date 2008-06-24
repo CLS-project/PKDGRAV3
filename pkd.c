@@ -304,7 +304,7 @@ void pkdInitialize(PKD *ppkd,MDL mdl,int nStore,int nBucket,FLOAT *fPeriod,
     /*pkd->nMaxNodes = (int)ceil(3.0*nStore/floor(nBucket - sqrt(nBucket)));*/
     /* j is an estimate of the lower limit of the total number of cells */
     j = 2.0 / (PKD_MAX_CELL_SIZE*PKD_MAX_CELL_SIZE*PKD_MAX_CELL_SIZE*mdlThreads(mdl));
-    pkd->nMaxNodes = (int)ceil(3.0*nStore/floor(nBucket-sqrt(nBucket))) + j;
+    pkd->nMaxNodes = (int)ceil(5.0*nStore/floor(nBucket-sqrt(nBucket))) + j;
     if ( pkd->nMaxNodes < j ) pkd->nMaxNodes = j;
     pkd->kdNodes = mdlMalloc(pkd->mdl,pkd->nMaxNodes*sizeof(KDN));
     mdlassert(mdl,pkd->kdNodes != NULL);
@@ -1920,7 +1920,7 @@ pkdGravAll(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,int bP
     /*
     ** Start particle caching space (cell cache already active).
     */
-    mdlROcache(pkd->mdl,CID_PARTICLE,pkdParticleBase(pkd),pkdParticleSize(pkd),
+    mdlROcache(pkd->mdl,CID_PARTICLE,NULL,pkdParticleBase(pkd),pkdParticleSize(pkd),
 	       pkdLocal(pkd));
     /*
     ** Calculate newtonian gravity, including replicas if any.
