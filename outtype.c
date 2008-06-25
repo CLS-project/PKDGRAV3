@@ -26,6 +26,10 @@ static void writeInteger(PKD pkd,FILE *fp,PARTICLE *p,int iType,int iDim) {
     case OUT_IORDER_ARRAY:
 	v = p->iOrder;
 	break;
+    case OUT_GROUP_ARRAY:
+	assert(pkd->oGroup);
+	v = *pkdInt32(p,pkd->oGroup);
+	break;
     default:
 	v = 0;
 	}
@@ -57,10 +61,6 @@ static void writeFloat(PKD pkd,FILE *fp,PARTICLE *p,int iType,int iDim) {
 	break;
     case OUT_SOFT_ARRAY:
 	v = pkdSoft(pkd,p);
-	break;
-    case OUT_GROUP_ARRAY:
-	assert(pkd->oGroup);
-	v = *pkdInt32(p,pkd->oGroup);
 	break;
     case OUT_RELAX_ARRAY:
 	assert(pkd->oRelaxation);
@@ -117,6 +117,7 @@ void pkdOutASCII(PKD pkd,char *pszFileName,int iType,int iDim) {
 
     switch(iType) {
     case OUT_IORDER_ARRAY:
+    case OUT_GROUP_ARRAY:
 	fnOut = writeInteger;
 	break;
 
@@ -126,7 +127,6 @@ void pkdOutASCII(PKD pkd,char *pszFileName,int iType,int iDim) {
     case OUT_AMAG_ARRAY:
     case OUT_RUNG_ARRAY:
     case OUT_SOFT_ARRAY:
-    case OUT_GROUP_ARRAY:
     case OUT_RELAX_ARRAY:
     case OUT_DIVV_ARRAY:
     case OUT_VELDISP2_ARRAY:
