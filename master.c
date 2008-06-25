@@ -2917,9 +2917,9 @@ void msrReadOuts(MSR msr,double dTime) {
     /*
     ** Add Data Subpath for local and non-local names.
     */
-    achFile[0] = 0;
-    sprintf(achFile,"%s/%s.red",msr->param.achDataSubPath,
-	    msr->param.achOutName);
+    _msrMakePath(msr->param.achDataSubPath,msr->param.achOutName,achFile);
+    strcat(achFile,".red");
+
     /*
     ** Add local Data Path.
     */
@@ -5083,7 +5083,13 @@ double msrRead(MSR msr, const char *achInFile) {
 	msrCalcBound(msr,&bnd);
 	}
 
-return dTime;
+    /*
+    ** Now read in the output points, passing the initial time.
+    ** We do this only if nSteps is not equal to zero.
+    */
+    if (msrSteps(msr) > 0) msrReadOuts(msr,dTime);
+
+    return dTime;
     }
 
 
