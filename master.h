@@ -253,5 +253,8 @@ void msrProfile(
     double dMinRadius, double dLogRadius, double dMaxRadius,
     int nPerBin, int nBins, int nAccuracy );
 void msrDeleteProfile(MSR msr);
+
+void msrCalcCOM(MSR msr,const double *dCenter, double dRadius,
+		double *com, double *vcm, double *L, double *M);
 void msrPeakVc(MSR msr,int N,struct inPeakVc *in);
 #endif

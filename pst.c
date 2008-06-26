@@ -488,6 +488,9 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_CALCDISTANCE,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstCalcDistance,
 		  sizeof(struct inCalcDistance), 0);
+    mdlAddService(mdl,PST_CALCCOM,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstCalcCOM,
+		  sizeof(struct inCalcCOM), sizeof(struct outCalcCOM));
     mdlAddService(mdl,PST_COUNTDISTANCE,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstCountDistance,
 		  sizeof(struct inCountDistance), sizeof(struct outCountDistance));
@@ -4242,11 +4245,12 @@ void pstProfile(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     if (pst->nLeaves > 1) {
 	mdlReqService(pst->mdl,pst->idUpper,PST_PROFILE,vin,nIn);
 	pstProfile(pst->pstLower,vin,nIn,vout,pnOut);
-	mdlGetReply(pst->mdl,pst->idUpper,vout,pnOut);
+	mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
 	}
     else {
 	pkdProfile(plcl->pkd,in->uRungLo,in->uRungHi,
-		   in->dCenter, in->dRadii, in->nBins);
+		   in->dCenter, in->dRadii, in->nBins,
+		   in->com, in->vcm, in->L);
 	}
     if (pnOut) *pnOut = 0;
     }
@@ -4254,6 +4258,7 @@ void pstProfile(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 void pstCalcDistance(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct inCalcDistance *in = vin;
+    int i;
 
     assert( nIn==sizeof(struct inCalcDistance) );
     if (pst->nLeaves > 1) {
@@ -4265,6 +4270,34 @@ void pstCalcDistance(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	pkdCalcDistance(plcl->pkd,in->dCenter);
 	}
     if (pnOut) *pnOut = 0;
+    }
+
+void pstCalcCOM(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl = pst->plcl;
+    struct inCalcCOM *in = vin;
+    struct outCalcCOM *out = vout;
+    struct outCalcCOM outUpper;
+    int i;
+
+    assert( nIn==sizeof(struct inCalcCOM) );
+    assert( vout != NULL );
+    if (pst->nLeaves > 1) {
+	mdlReqService(pst->mdl,pst->idUpper,PST_CALCCOM,vin,nIn);
+	pstCalcCOM(pst->pstLower,vin,nIn,vout,pnOut);
+	mdlGetReply(pst->mdl,pst->idUpper,&outUpper,pnOut);
+	out->N += outUpper.N;
+	out->M += outUpper.M;
+	for(i=0; i<3; i++ ) {
+	    out->com[i] += outUpper.com[i];
+	    out->vcm[i] += outUpper.vcm[i];
+	    out->L[i] += outUpper.L[i];
+	    }
+	}
+    else {
+	pkdCalcCOM(plcl->pkd,in->dCenter,in->dRadius,
+		   out->com, out->vcm, out->L, &out->M, &out->N);
+	}
+    if (pnOut) *pnOut = sizeof(struct outCalcCOM);
     }
 
 void pstCountDistance(PST pst,void *vin,int nIn,void *vout,int *pnOut) {

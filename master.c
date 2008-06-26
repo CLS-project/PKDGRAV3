@@ -5423,12 +5423,38 @@ void msrDeleteProfile(MSR msr) {
     plcl->pkd->profileBins = NULL;
     }
 
-void msrCalcDistance(MSR msr,double *dCenter) {
+void msrCalcDistance(MSR msr,const double *dCenter, double dRadius ) {
     struct inCalcDistance in;
     int j;
 
     for(j=0;j<3;j++) in.dCenter[j] = dCenter[j];
+    in.dRadius = dRadius;
     pstCalcDistance(msr->pst, &in, sizeof(in), NULL, NULL);
+    }
+
+void msrCalcCOM(MSR msr,const double *dCenter, double dRadius,
+		double *com, double *vcm, double *L, double *M) {
+    struct inCalcCOM in;
+    struct outCalcCOM out;
+    int nOut;
+    int j;
+    double T[3];
+
+    for(j=0;j<3;j++) in.dCenter[j] = dCenter[j];
+    in.dRadius = dRadius;
+    pstCalcCOM(msr->pst, &in, sizeof(in), &out, &nOut);
+    assert( nOut == sizeof(out) );
+
+    *M = out.M;
+    if ( out.M > 0.0 ) {
+	for( j=0; j<3; j++ ) {
+	    com[j] = out.com[j] / out.M;
+	    vcm[j] = out.vcm[j] / out.M;
+	    }
+	cross_product(T, com, vcm);
+	vec_add_const_mult(L,out.L,-out.M,T);
+	for( j=0; j<3; j++ ) L[j] /= out.M;
+	}
     }
 
 uint64_t msrCountDistance(MSR msr,double dRadius2Inner, double dRadius2Outer) {
@@ -5540,15 +5566,17 @@ static double countShell(double rInner,void *vctx) {
 ** Setting dLogRadius to dMinRadius results in purely logarithmic binning, while
 ** setting dLogRadius to dMaxRadius results in purely equal sized binning.
 */
-void msrProfile( MSR msr, const PROFILEBIN **pBins, int *pnBins,
+void msrProfile( MSR msr, const PROFILEBIN **ppBins, int *pnBins,
 		 double *r, double dMinRadius, double dLogRadius, double dMaxRadius,
 		 int nPerBin, int nBins, int nAccuracy ) {
     SPHERECTX ctxSphere;
     SHELLCTX ctxShell;
+    PROFILEBIN *pBins;
     double sec, dsec;
+    double com[3], vcm[3], L[3], M;
     struct inProfile *in;
     size_t inSize;
-    int i;
+    int i,j;
     int nBinsInner;
     total_t N,n;
     LCL *plcl;
@@ -5566,7 +5594,8 @@ void msrProfile( MSR msr, const PROFILEBIN **pBins, int *pnBins,
         pst0 = pst0->pstLower;
     plcl = pst0->plcl;
 
-    msrCalcDistance(msr,r);
+    msrCalcDistance(msr,r,dMaxRadius);
+    msrCalcCOM(msr,r,dMaxRadius,com,vcm,L,&M);
 
     if ( dLogRadius > dMinRadius ) {
 	/*
@@ -5669,17 +5698,41 @@ void msrProfile( MSR msr, const PROFILEBIN **pBins, int *pnBins,
 
     sec = msrTime();
     msrprintf( msr, "Profiling\n" );
-    for(i=0; i<3; i++) in->dCenter[i] = r[i];
+    for(i=0; i<3; i++) {
+	in->dCenter[i] = r[i];
+	in->com[i] = com[i];
+	in->vcm[i] = vcm[i];
+	in->L[i] = L[i];
+	}
     in->nBins = nBins+1;
     in->uRungLo = 0;
     in->uRungHi = msrMaxRung(msr)-1;
     pstProfile(msr->pst, in, inSize, NULL, NULL);
     free(in);
 
+    /*
+    ** Finalize bin values
+    */
+    pBins = plcl->pkd->profileBins;
+    for( i=0; i<nBins+1; i++ ) {
+	if ( pBins[i].dMassInBin > 0.0 ) {
+	    pBins[i].vel_radial /= pBins[i].dMassInBin;
+	    pBins[i].vel_radial_sigma /= pBins[i].dMassInBin;
+	    pBins[i].vel_tang_sigma = sqrt(pBins[i].vel_tang_sigma / pBins[i].dMassInBin);
+	    if (pBins[i].vel_radial_sigma > pBins[i].vel_radial*pBins[i].vel_radial)
+		pBins[i].vel_radial_sigma = sqrt(pBins[i].vel_radial_sigma-pBins[i].vel_radial*pBins[i].vel_radial);
+	    else
+		pBins[i].vel_radial_sigma = 0.0;
+	    for(j=0; j<3;j++) {
+		pBins[i].L[j] /= pBins[i].dMassInBin;
+		}
+	    }
+	}
+
     dsec = msrTime() - sec;
     msrprintf(msr,"Profiling complete, Wallclock: %f secs\n\n",dsec);
 
-    if ( pBins ) *pBins = plcl->pkd->profileBins;
+    if ( ppBins ) *ppBins = plcl->pkd->profileBins;
     if ( pnBins ) *pnBins = nBins+1;
     }
 

@@ -3,6 +3,8 @@
 
 #include <stdint.h>
 #include <sys/resource.h>
+#include <string.h>
+
 #include "mdl.h"
 #ifndef HAVE_CONFIG_H
 #include "floattype.h"
@@ -532,6 +534,10 @@ typedef struct profileBin {
     double dRadius;
     double dMassInBin;
     double dVolume;
+    double L[3];
+    double vel_radial;
+    double vel_radial_sigma;
+    double vel_tang_sigma;
     uint64_t nParticles;
     } PROFILEBIN;
 
@@ -964,9 +970,37 @@ int pkdSelDstCylinder(PKD pkd,double *dP1, double *dP2, double dRadius,
 int pkdDeepestPot(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
     double *r, float *fPot);
 void pkdProfile(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
-		double *dCenter, double *dRadii, int nBins);
+		const double *dCenter, const double *dRadii, int nBins,
+		const double *com, const double *vcm, const double *L);
 int pkdFindProcessor(const PKD pkd, const FLOAT *R);
 void pkdCalcDistance(PKD pkd, double *dCenter);
 uint_fast32_t pkdCountDistance(PKD pkd, double r2i, double r2o );
+void pkdCalcCOM(PKD pkd, double *dCenter, double dRadius,
+		double *com, double *vcm, double *L,
+		double *M, uint64_t *N);
+
+static inline void vec_sub(double *r,const double *a,const double *b ) {
+    int i;
+    for (i=0; i<3; i++) r[i] = a[i] - b[i];
+}
+
+static inline void vec_add_const_mult(double *r,const double *a,double c,const double *b) {
+    int i;
+    for (i=0; i<3; i++) r[i] = a[i] + c * b[i];
+}
+
+static inline double dot_product(const double *a,const double *b) {
+    int i;
+    double r = 0.0;
+    for(i=0; i<3; i++) r += a[i]*b[i];
+    return r;
+    }
+
+static inline void cross_product(double *r,const double *a,const double *b) {
+    r[0] = a[1] * b[2] - a[2] * b[1] ;
+    r[1] = a[2] * b[0] - a[0] * b[2] ;
+    r[2] = a[0] * b[1] - a[1] * b[0] ;
+}
+
 
 #endif

@@ -251,10 +251,11 @@ ppy_msr_DeepestPotential(PyObject *self, PyObject *args) {
 
 static PyObject *
 ppy_msr_Profile(PyObject *self, PyObject *args) {
-    double r[3], dMinR, dLogR, dMaxR, dMassEncl, dRho;
+    double r[3], dMinR, dLogR, dMaxR, dMassEncl, dRho, dVel;
     int nBins, nPerBin, nAccuracy, i;
     const PROFILEBIN *pBins;
     PyObject *List;
+    double radius_old;
 
     nAccuracy = 2; /* +/- 2 particles per bin */
     nBins = 200;
@@ -269,14 +270,29 @@ ppy_msr_Profile(PyObject *self, PyObject *args) {
     assert( List !=NULL );
     dMassEncl = 0.0;
 
+    radius_old = 0.0;
     for(i=0; i<nBins; i++ ) {
 	PyObject *tuple;
+	double ang, ang_theta, ang_phi, vel_circ;
+	double radius_mean;
+
 	dMassEncl += pBins[i].dMassInBin;
 	assert(pBins[i].dVolume>0.0);
 	dRho = pBins[i].dMassInBin/pBins[i].dVolume;
-	tuple = Py_BuildValue("(dLdd)",
+	dVel = sqrt(dMassEncl/pBins[i].dRadius);
+
+	radius_mean = (pBins[i].dRadius + radius_old ) * 0.5;
+	radius_old = pBins[i].dRadius;
+	ang = sqrt(dot_product(pBins[i].L,pBins[i].L));
+	if(ang > 0.0) ang_theta = 180.*acos(pBins[i].L[2]/ang)/M_PI;
+	else ang_theta = 0.0;
+	ang_phi = 180.*atan2(pBins[i].L[1],pBins[i].L[0])/M_PI ;
+	vel_circ = ang / radius_mean ;
+	tuple = Py_BuildValue("(dLdddddddddd)",
 			      pBins[i].dRadius,
-			      pBins[i].nParticles, dRho, dMassEncl);
+			      pBins[i].nParticles, dRho, dMassEncl,
+			      dVel,pBins[i].vel_radial,pBins[i].vel_radial_sigma,
+			      vel_circ, pBins[i].vel_tang_sigma, ang, ang_theta, ang_phi );
 	assert(tuple != NULL);
 	assert( PyList_SetItem(List,i,tuple) >= 0 );
 	}

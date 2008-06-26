@@ -5,31 +5,47 @@
 #include <math.h>
 #include "pkd.h"
 
-static void combProfileBins(void *vpkd, void *b1, void *b2) {
+/*
+** Combiner cache functions
+*/
+static void combProfileBins1(void *vpkd, void *b1, void *b2) {
     PROFILEBIN * pBin1 = (PROFILEBIN *)b1;
     PROFILEBIN * pBin2 = (PROFILEBIN *)b2;
 
     pBin1->dMassInBin += pBin2->dMassInBin;
     pBin1->nParticles += pBin2->nParticles;
+    pBin1->L[0] += pBin2->L[0];
+    pBin1->L[1] += pBin2->L[1];
+    pBin1->L[2] += pBin2->L[2];
+    pBin1->vel_radial += pBin2->vel_radial;
+    pBin1->vel_radial_sigma += pBin2->vel_radial_sigma;
     }
 
-static void initProfileBins(void *vpkd, void *b) {
+static void initProfileBins1(void *vpkd, void *b) {
     PROFILEBIN * pBin = (PROFILEBIN *)b;
-    pBin->dRadius = 0.0;
     pBin->dMassInBin = 0.0;
-    pBin->dVolume = 0.0;
+    pBin->L[0] = pBin->L[1] = pBin->L[2] = 0.0;
+    pBin->vel_radial = pBin->vel_radial_sigma = 0.0;
     pBin->nParticles = 0;
     }
 
+static void combProfileBins2(void *vpkd, void *b1, void *b2) {
+    PROFILEBIN * pBin1 = (PROFILEBIN *)b1;
+    PROFILEBIN * pBin2 = (PROFILEBIN *)b2;
+    pBin1->vel_tang_sigma += pBin2->vel_tang_sigma;
+    }
 
-
+static void initProfileBins2(void *vpkd, void *b) {
+    PROFILEBIN * pBin = (PROFILEBIN *)b;
+    pBin->vel_tang_sigma = 0.0;
+    }
 
 /*
 ** This function will calculate the distance between a particle and a
 ** reference point.  If a periodic boundary is in effect then the smallest
 ** possible distance is returned.
 */
-double pkdGetDistance2(PKD pkd,PARTICLE *p, double *dCenter ) {
+double pkdGetDistance2(PKD pkd,PARTICLE *p, const double *dCenter ) {
     double d2;
     double dx,dx2;
     int j;
@@ -98,12 +114,43 @@ void pkdCalcDistance(PKD pkd, double *dCenter) {
     */
     for (i=0;i<pkd->nLocal;++i) {
 	PARTICLE *p = pkdParticle(pkd,i);
+	double m = pkdMass(pkd,p);
+	double *v = pkdVel(pkd,p);
 	pl[i].r[0] = pkdGetDistance2(pkd,p,dCenter);
-	pl[i].r[1] = pkdMass(pkd,p);
+	pl[i].r[1] = m;
 	pl[i].r[2] = 0.0;
 	pl[i].i = i;
 	}
     qsort(pkd->pLite,pkdLocal(pkd),sizeof(PLITE),cmpRadiusLite);
+    }
+
+/*
+** Return the mass weighted center of mass and velocity
+*/
+void pkdCalcCOM(PKD pkd, double *dCenter, double dRadius,
+		double *com, double *vcm, double *L,
+		double *M, uint64_t *N) {
+    double d2, dRadius2, T[3];
+    int i;
+
+    for( i=0; i<3; i++ ) com[i] = vcm[i] = L[i] = 0.0;
+    *M = 0.0;
+    *N = 0;
+    dRadius2 = dRadius * dRadius;
+    for (i=0;i<pkd->nLocal;++i) {
+	PARTICLE *p = pkdParticle(pkd,i);
+	double m = pkdMass(pkd,p);
+	double *v = pkdVel(pkd,p);
+	d2 = pkdGetDistance2(pkd,p,dCenter );
+	if ( d2 < dRadius2 ) {
+	    *M += m;
+	    vec_add_const_mult(com, com, m, p->r);
+	    vec_add_const_mult(vcm, vcm, m, v);
+	    cross_product(T, p->r, v);
+	    vec_add_const_mult(L, L, m, T);
+	    (*N)++;
+	    }
+	}
     }
 
 /*
@@ -136,16 +183,35 @@ uint_fast32_t pkdCountDistance(PKD pkd, double r2i, double r2o ) {
 ** Density Profile
 */
 void pkdProfile(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
-		double *dCenter, double *dRadii, int nBins) {
+		const double *dCenter, const double *dRadii, int nBins,
+		const double *com, const double *vcm, const double *L) {
     PLITE *pl = pkd->pLite;
     local_t n = pkdLocal(pkd);
     double r0, r, r2;
     int i,iBin;
     PROFILEBIN *pBin;
 
-    if ( pkd->profileBins != NULL ) mdlFree(pkd->mdl,pkd->profileBins);
-    pkd->profileBins = mdlMalloc(pkd->mdl,nBins*sizeof(PROFILEBIN));
-    assert( pkd->profileBins != NULL );
+    if (pkd->idSelf == 0) {
+	if ( pkd->profileBins != NULL ) mdlFree(pkd->mdl,pkd->profileBins);
+	pkd->profileBins = mdlMalloc(pkd->mdl,nBins*sizeof(PROFILEBIN));
+	assert( pkd->profileBins != NULL );
+	r0 = 0.0;
+	for(iBin=0;iBin<nBins;iBin++) {
+	    pBin = &pkd->profileBins[iBin];
+	    r = dRadii[iBin];
+	    r2 = r*r;
+	    assert( r > r0 );
+	    pBin->nParticles = 0;
+	    pBin->dMassInBin = 0.0;
+	    pBin->dRadius = r;
+	    pBin->dVolume = (4.0/3.0) * M_PI * (r*r2 - r0*r0*r0);
+	    pBin->L[0] = pBin->L[1] = pBin->L[2] = 0.0;
+	    pBin->vel_radial = pBin->vel_radial_sigma = 0.0;
+	    pBin->vel_tang_sigma = 0.0;
+	    r0 = r;
+	    }
+	}
+    mdlCOcache(pkd->mdl,CID_BIN,NULL,pkd->profileBins,sizeof(PROFILEBIN),pkd->idSelf==0?nBins:0,pkd,initProfileBins1,combProfileBins1);
 
     /*
     ** Now we add all of the particles to the appropriate bin.  NOTE than both
@@ -154,39 +220,80 @@ void pkdProfile(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
     r0 = 0.0;
     i = 0;
     for(iBin=0;iBin<nBins;iBin++) {
+	pBin = mdlAquire(pkd->mdl,CID_BIN,iBin,0);
+	r = pBin->dRadius;
 	r = dRadii[iBin];
 	r2 = r*r;
 	assert( r > r0 );
-	pkd->profileBins[iBin].nParticles = 0;
-	pkd->profileBins[iBin].dMassInBin = 0.0;
-	pkd->profileBins[iBin].dRadius = r;
-	pkd->profileBins[iBin].dVolume = (4.0/3.0) * M_PI * (r*r2 - r0*r0*r0);
+
 	while( pl[i].r[0] <= r2 && i<n) {
-	    pkd->profileBins[iBin].dMassInBin += pl[i].r[1];
-	    pkd->profileBins[iBin].nParticles++;
+	    PARTICLE *p = pkdParticle(pkd,pl[i].i);
+	    double m = pkdMass(pkd,p);
+	    double *v = pkdVel(pkd,p);
+	    double delta_x[3], delta_v[3], ang_mom[3], dx2, vel;
+	    double vel_tang[3], vel_shell[3], vel_tang_pec[3];
+
+	    pBin->dMassInBin += pl[i].r[1];
+	    pBin->nParticles++;
+
+	    vec_sub(delta_x,p->r,com);
+	    vec_sub(delta_v,v,vcm);
+	    cross_product(ang_mom,delta_x,delta_v);
+	    vec_add_const_mult(pBin->L,pBin->L,m,ang_mom);
+	    dx2 = dot_product(delta_x,delta_x);
+	    if(dx2 != 0.0)
+		vel = dot_product(delta_x,delta_v)/sqrt(dx2);
+	    else
+		vel = sqrt(dot_product(delta_v,delta_v));
+	    pBin->vel_radial += m * vel;
+	    pBin->vel_radial_sigma += m * vel * vel;
 	    i++;
 	    }
 	r0 = r;
+	mdlRelease(pkd->mdl,CID_BIN,pBin);
 	}
+    mdlFinishCache(pkd->mdl,CID_BIN);
 
-    /* Combine the work from all processors */
-    mdlCOcache(pkd->mdl,CID_BIN,NULL,pkd->profileBins,sizeof(PROFILEBIN),nBins,pkd,initProfileBins,combProfileBins);
-    if (pkd->idSelf != 0) {
-	for (i=0; i<nBins; i++) {
-	    if (pkd->profileBins[i].dMassInBin > 0.0) {
-		pBin = mdlAquire(pkd->mdl,CID_BIN,i,0);
-		*pBin = pkd->profileBins[i];
-		mdlRelease(pkd->mdl,CID_BIN,pBin);
+    /* We need angular momentum to calculate tangental velocity sigma, so we reopen the cache */
+    mdlCOcache(pkd->mdl,CID_BIN,NULL,pkd->profileBins,sizeof(PROFILEBIN),pkd->idSelf?0:nBins,pkd,initProfileBins2,combProfileBins2);
+    r0 = 0.0;
+    i = 0;
+    for(iBin=0;iBin<nBins;iBin++) {
+	pBin = mdlAquire(pkd->mdl,CID_BIN,iBin,0);
+	r = dRadii[iBin];
+	r2 = r*r;
+	assert( r > r0 );
+	while( pl[i].r[0] <= r2 && i<n) {
+	    PARTICLE *p = pkdParticle(pkd,pl[i].i);
+	    double m = pkdMass(pkd,p);
+	    double *v = pkdVel(pkd,p);
+	    double delta_x[3], delta_v[3], dx2;
+	    double vel_tang[3], vel_shell[3], vel_tang_pec[3];
+
+	    vec_sub(delta_x,p->r,com);
+	    vec_sub(delta_v,v,vcm);
+	    dx2 = dot_product(delta_x,delta_x);
+
+	    if(dx2 != 0.0) {
+		vec_add_const_mult(vel_tang,delta_v,-dot_product(delta_v,delta_x) / dx2, delta_x);
+		cross_product(vel_shell,pBin->L,delta_x);
+		vec_add_const_mult(vel_tang_pec,vel_tang,-1.0 / dx2,vel_shell);
+		pBin->vel_tang_sigma += m * dot_product(vel_tang_pec,vel_tang_pec);
 		}
+	    i++;
 	    }
+	r0 = r;
+	mdlRelease(pkd->mdl,CID_BIN,pBin);
 	}
     mdlFinishCache(pkd->mdl,CID_BIN);
 
     /* Only the main processor needs the result */
+#if 0
     if (pkd->idSelf != 0) {
 	mdlFree(pkd->mdl,pkd->profileBins);
 	pkd->profileBins = NULL;
 	}
+#endif
     }
 
 /*
