@@ -286,14 +286,6 @@ void pkdProfile(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
 	mdlRelease(pkd->mdl,CID_BIN,pBin);
 	}
     mdlFinishCache(pkd->mdl,CID_BIN);
-
-    /* Only the main processor needs the result */
-#if 0
-    if (pkd->idSelf != 0) {
-	mdlFree(pkd->mdl,pkd->profileBins);
-	pkd->profileBins = NULL;
-	}
-#endif
     }
 
 /*
