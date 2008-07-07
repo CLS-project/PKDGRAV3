@@ -5,6 +5,99 @@
 #include <math.h>
 #include "pkd.h"
 
+#define SHAPES
+
+static void transpose(double mat[3][3],double trans_mat[3][3]) {
+    int i,j ;
+
+    for (i=0; i<3; i++) {
+        for (j=0; j<3; j++) {
+            trans_mat[i][j] = mat[j][i];
+	    }
+	}
+    }
+
+
+#define ROTATE(a,i,j,k,l) g=a[i][j];h=a[k][l];a[i][j]=g-s*(h+g*tau);\
+        a[k][l]=h+s*(g-h*tau);
+
+static void jacobi(double a[4][4],int n,double d[4],double v[4][4], int *nrot) {
+    int j,iq,ip,i;
+    double tresh,theta,tau,t,sm,s,h,g,c ;
+    double b[4],z[4] ;
+
+    for (ip=1;ip<=n;ip++) {
+	for (iq=1;iq<=n;iq++) v[ip][iq]=0.0;
+	v[ip][ip]=1.0;
+        }
+    for (ip=1;ip<=n;ip++) {
+	b[ip]=d[ip]=a[ip][ip];
+	z[ip]=0.0;
+        }
+    *nrot=0;
+    for (i=1;i<=100;i++) {
+	sm=0.0;
+	for (ip=1;ip<=n-1;ip++) {
+	    for (iq=ip+1;iq<=n;iq++)
+		sm += fabs(a[ip][iq]);
+	    }
+	if (sm <= 1.0e-12) {
+	    return;
+	    }
+	if (i < 4)
+	    tresh=0.2*sm/(n*n);
+	else
+	    tresh=0.0;
+	for (ip=1;ip<=n-1;ip++) {
+	    for (iq=ip+1;iq<=n;iq++) {
+		g=100.0*fabs(a[ip][iq]);
+		if (i > 4 && fabs(d[ip])+g == fabs(d[ip])
+		    && fabs(d[iq])+g == fabs(d[iq]))
+		    a[ip][iq]=0.0;
+		else if (fabs(a[ip][iq]) > tresh) {
+		    h=d[iq]-d[ip];
+		    if (fabs(h)+g == fabs(h))
+			t=(a[ip][iq])/h;
+		    else {
+			theta=0.5*h/(a[ip][iq]);
+			t=1.0/(fabs(theta)+
+			       sqrt(1.0+theta*theta));
+			if (theta < 0.0) t = -t;
+			}
+		    c=1.0/sqrt(1+t*t);
+		    s=t*c;
+		    tau=s/(1.0+c);
+		    h=t*a[ip][iq];
+		    z[ip] -= h;
+		    z[iq] += h;
+		    d[ip] -= h;
+		    d[iq] += h;
+		    a[ip][iq]=0.0;
+		    for (j=1;j<=ip-1;j++) {
+			ROTATE(a,j,ip,j,iq)
+			    }
+		    for (j=ip+1;j<=iq-1;j++) {
+			ROTATE(a,ip,j,j,iq)
+			    }
+		    for (j=iq+1;j<=n;j++) {
+			ROTATE(a,ip,j,iq,j)
+			    }
+		    for (j=1;j<=n;j++) {
+			ROTATE(v,j,ip,j,iq)
+			    }
+		    ++(*nrot);
+		    }
+		}
+	    }
+	for (ip=1;ip<=n;ip++) {
+	    b[ip] += z[ip];
+	    d[ip]=b[ip];
+	    z[ip]=0.0;
+	    }
+        }
+    printf("<error in jacobi>\n") ;
+    }
+
 /*
 ** Combiner cache functions
 */
@@ -39,6 +132,32 @@ static void initProfileBins2(void *vpkd, void *b) {
     PROFILEBIN * pBin = (PROFILEBIN *)b;
     pBin->vel_tang_sigma = 0.0;
     }
+
+#ifdef SHAPES
+static void combShapesBins1(void *vpkd, void *b1, void *b2) {
+    SHAPESBIN * pBin1 = (SHAPESBIN *)b1;
+    SHAPESBIN * pBin2 = (SHAPESBIN *)b2;
+    int j,k;
+    pBin1->dMassEnclosed += pBin2->dMassEnclosed;
+    for (j=0; j<3; j++) {
+        pBin1->com[j] += pBin2->com[j];
+        for (k=0; k<3; k++) {
+            pBin1->dInertia[j][k] += pBin2->dInertia[j][k];
+	    }
+	}
+    }
+static void initShapesBins1(void *vpkd, void *b) {
+    SHAPESBIN * pBin = (SHAPESBIN *)b;
+    int j,k;
+    pBin->dMassEnclosed = 0.0;
+    for (j=0; j<3; j++) {
+        pBin->com[j] = 0.0;
+        for (k=0; k<3; k++) {
+            pBin->dInertia[j][k] = 0.0;
+	    }
+	}
+    }
+#endif
 
 /*
 ** This function will calculate the distance between a particle and a
@@ -178,6 +297,200 @@ uint_fast32_t pkdCountDistance(PKD pkd, double r2i, double r2o ) {
 
     return upper-hi;
     }
+
+#ifdef SHAPES
+
+double ell_distance2(const double *r,SHAPESBIN *pShape, double ba, double ca) {
+    double dx[3], dx_rot[3];
+    int i;
+
+    for ( i=0; i<3; i++ ) dx[i] = r[i] - pShape->ell_center[i];
+    matrix_vector_mult(dx_rot,pShape->ell_matrix,dx);
+    return dx_rot[0] * dx_rot[0]
+	+ dx_rot[1] * dx_rot[1] / ba / ba
+	+ dx_rot[2] * dx_rot[2] / ca / ca;
+    }
+
+
+/*
+** NB: We assume that shells do NOT cross.  In other words, if a particle is part
+**     of bin n, then it is always part of bin n+1, n+2, ... etc.  In principle
+**     this is not necessarily true, but it would be extremely odd for the centers
+**     to be off by that much.  This assumption greatly improves the performance,
+**     taking the algorithm from Nbin * Npart down to Npart.
+*/
+static void CalculateInertia(PKD pkd,int nBins, const double *dRadii, SHAPESBIN *shapesBins) {
+    PLITE *pl = pkd->pLite;
+    local_t n = pkdLocal(pkd);
+    SHAPESBIN *pShape;
+    double r, r2;
+    int i, j, k;
+    int iBin;
+    double I[3][3];
+    double ell_matrix[3][3], ell_matrix_inv[3][3];
+
+
+    mdlCOcache(pkd->mdl,CID_SHAPES,NULL,shapesBins,sizeof(SHAPESBIN),pkd->idSelf==0?nBins:0,pkd,initShapesBins1,combShapesBins1);
+
+    /*
+    ** The most efficient way to handle this is to do the calculations for all bins
+    */
+    for(i=iBin=0;i<n;i++) {
+
+	PARTICLE *p = pkdParticle(pkd,pl[i].i);
+	double m = pkdMass(pkd,p);
+	double *v = pkdVel(pkd,p);
+
+	r = dRadii[iBin];
+	r2 = r*r;
+
+	/* Find the bin: Assume that the last particle was close to the correct bin */
+	while( pl[i].r[0]<dRadii[iBin]*dRadii[iBin] && iBin < nBins ) ++iBin;
+	while( pl[i].r[0]>dRadii[iBin]*dRadii[iBin] ) --iBin;
+
+	pShape = mdlAquire(pkd->mdl,CID_SHAPES,iBin,0);
+	pShape->dMassEnclosed += m;
+	for (j=0; j<3; j++) {
+	    pShape->com[j] += m * p->r[j] ;
+	    for (k=0; k<=j; k++) {
+		pShape->dInertia[j][k] += m * p->r[j] * p->r[k];
+		}
+	    }
+	mdlRelease(pkd->mdl,CID_SHAPES,pShape);
+
+	}
+    mdlFinishCache(pkd->mdl,CID_SHAPES);
+
+    if (pkd->idSelf == 0) {
+	double inertia_cm[4][4];
+	double evectors[4][4];
+	double evalues[4];
+	double VecProd[4], ScalProd;
+	double ba, ca, theta, phi, psi;
+	int nrot;
+	int ia, ib, ic;
+	for(i=iBin=0;iBin<nBins;iBin++) {
+	    pShape = &shapesBins[iBin];
+
+	    for (j=0; j<3; j++) {
+		for (k=0; k<3; k++) {
+		    if (k<=j) inertia_cm[j+1][k+1] = ((pShape->dInertia[j][k] - pShape->com[j] * pShape->com[k] / pShape->dMassEnclosed) / pShape->dMassEnclosed);
+		    else      inertia_cm[j+1][k+1] = ((pShape->dInertia[k][j] - pShape->com[k] * pShape->com[j] / pShape->dMassEnclosed) / pShape->dMassEnclosed);
+		    }
+		evalues[j+1] = inertia_cm[j+1][j+1] ;
+		}
+	    jacobi(inertia_cm,3,evalues,evectors,&nrot) ;
+	    if(evalues[1] >= evalues[2] && evalues[1] >= evalues[3]){
+		ia = 1 ;
+		if(evalues[2] >= evalues[3]){
+		    ib = 2 ;
+		    ic = 3 ;
+		    }
+		else{
+		    ib = 3 ;
+		    ic = 2 ;
+		    }
+		}
+	    else if(evalues[2] > evalues[1] && evalues[2] >= evalues[3]){
+		ia = 2 ;
+		if(evalues[1] >= evalues[3]){
+		    ib = 1 ;
+		    ic = 3 ;
+		    }
+		else{
+		    ib = 3 ;
+		    ic = 1 ;
+		    }
+		}
+	    else{
+		ia = 3 ;
+		if(evalues[1] >= evalues[2]){
+		    ib = 1 ;
+		    ic = 2 ;
+		    }
+		else{
+		    ib = 2 ;
+		    ic = 1 ;
+		    }
+		}
+
+	    /* Check if Eigenvectors are righthanded in 3D :
+	       ev[ib] x ev[ic] = ev[ia] */
+
+	    VecProd[1] =  evectors[2][ib]*evectors[3][ic]
+		- evectors[3][ib]*evectors[2][ic];
+	    VecProd[2] = -evectors[1][ib]*evectors[3][ic]
+		+ evectors[3][ib]*evectors[1][ic];
+	    VecProd[3] =  evectors[1][ib]*evectors[2][ic]
+		- evectors[2][ib]*evectors[1][ic];
+	    ScalProd   =  evectors[1][ia]*VecProd[1] + evectors[2][ia]*VecProd[2]
+		+ evectors[3][ia]*VecProd[3];
+	    if (ScalProd < 0.0) {
+		for(i=0; i<3; i++) evectors[i+1][ia] = -evectors[i+1][ia];
+		}
+
+	    ba = sqrt((double)(evalues[ib]/evalues[ia])) ;
+	    ca = sqrt((double)(evalues[ic]/evalues[ia])) ;
+
+	    /* euler angles for a zyz rotation */
+	    theta = 180. / M_PI * acos((double) evectors[3][ic]);
+	    phi =   180. / M_PI * acos((double) evectors[1][ic]/sqrt(evectors[1][ic]*evectors[1][ic] + evectors[2][ic]*evectors[2][ic]));
+	    psi =   180. / M_PI * acos((double) (-evectors[2][ic]*evectors[1][ib] + evectors[1][ic]*evectors[2][ib])/
+				     sqrt(evectors[1][ic]*evectors[1][ic] + evectors[2][ic]*evectors[2][ic]));
+
+	    /* inverse acos is only defined between 0 and pi therefore we must
+	       deal with pi to 2*pi */
+	    if(evectors[2][ic] < 0.0) phi = 360. - phi; /* phi always positive */
+	    if(evectors[3][ib] < 0.0) psi = 360. - psi; /* psi always positive */ 
+
+	    for(i = 0; i<3; i++){
+		//ell_center[i] = pShape->com[i] / pShape->dMassEnclosed;
+		}
+	    for(i=0;i<3;i++){
+		ell_matrix_inv[i][0] = evectors[i+1][ia];
+		ell_matrix_inv[i][1] = evectors[i+1][ib];
+		ell_matrix_inv[i][2] = evectors[i+1][ic];
+		}
+	    transpose(ell_matrix_inv,ell_matrix);
+	    }
+	}
+
+
+    }
+
+/*
+** Calculate shapes for existing profile bins
+*/
+void pkdShapes(PKD pkd, int nBins, const double *dCenter, const double *dRadii) {
+    SHAPESBIN *shapesBins;
+    int i, j, k;
+
+    if (pkd->idSelf == 0) {
+	shapesBins = mdlMalloc(pkd->mdl,nBins*sizeof(SHAPESBIN));
+	assert( shapesBins != NULL );
+	/* Start with the given center for every bin */
+	for( i=0; i<nBins; i++ ) {
+	    for (j=0; j<3; j++) {
+		shapesBins[i].ell_center[j] = dCenter[j];
+		for (k=0; k<=j; k++) {
+		    shapesBins[i].ell_matrix[j][k] = (j==k) ? 1.0 : 0.0;
+		    }
+		}
+	    }
+	}
+    else shapesBins = NULL;
+
+    mdlROcache(pkd->mdl,CID_BIN,NULL,pkd->profileBins,sizeof(PROFILEBIN),pkd->idSelf?0:nBins);
+    CalculateInertia(pkd,nBins,dRadii,shapesBins);
+    mdlFinishCache(pkd->mdl,CID_BIN);
+
+    if (pkd->idSelf == 0) {
+	mdlFree(pkd->mdl,shapesBins);
+	}
+
+
+    }
+#endif
 
 /*
 ** Density Profile

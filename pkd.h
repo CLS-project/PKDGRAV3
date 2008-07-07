@@ -43,6 +43,7 @@ typedef uint_fast64_t total_t; /* Count of particles globally (total number) */
 #define CID_GROUP	2
 #define CID_RM		3
 #define CID_BIN		4
+#define CID_SHAPES	5
 /*
 ** Here we define some special reserved nodes. Node-0 is a sentinel or null node, node-1
 ** is here defined as the ROOT of the local tree (or top tree), node-2 is unused and
@@ -541,6 +542,14 @@ typedef struct profileBin {
     uint64_t nParticles;
     } PROFILEBIN;
 
+typedef struct shapesBin {
+    double com[3];
+    double dMassEnclosed;
+    double dInertia[3][3];
+    double ell_matrix[3][3];
+    double ell_center[3];
+    } SHAPESBIN;
+
 typedef struct pkdContext {
     MDL mdl;
     int idSelf;
@@ -837,6 +846,9 @@ int pkdLocal(PKD);
 int pkdActive(PKD);
 int pkdInactive(PKD);
 int pkdNodes(PKD);
+static inline KDN *pkdTreeNode(PKD pkd,int iNode) {
+    return &pkd->kdNodes[iNode];
+    }
 int pkdNumSrcActive(PKD pkd,uint8_t uRungLo,uint8_t uRungHi);
 int pkdNumDstActive(PKD pkd,uint8_t uRungLo,uint8_t uRungHi);
 int pkdColOrdRejects(PKD,uint64_t,int);
@@ -989,6 +1001,14 @@ static inline void vec_add_const_mult(double *r,const double *a,double c,const d
     for (i=0; i<3; i++) r[i] = a[i] + c * b[i];
 }
 
+static inline void matrix_vector_mult(double *b,double mat[3][3], const double *a) {
+    int i,j ;
+    for (i=0; i<3; i++) {
+        b[i] = 0.0;
+        for (j=0; j<3; j++) b[i] += mat[i][j] * a[j];
+    }
+}
+
 static inline double dot_product(const double *a,const double *b) {
     int i;
     double r = 0.0;
@@ -1001,6 +1021,17 @@ static inline void cross_product(double *r,const double *a,const double *b) {
     r[1] = a[2] * b[0] - a[0] * b[2] ;
     r[2] = a[0] * b[1] - a[1] * b[0] ;
 }
+
+static inline void mat_transpose(double mat[3][3], double trans_mat[3][3]) {
+    int i,j ;
+    for (i=0; i<3; i++) {
+        for (j=0; j<3; j++) {
+            trans_mat[i][j] = mat[j][i];
+	    }
+	}
+    }
+
+
 
 
 #endif

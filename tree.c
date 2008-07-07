@@ -26,6 +26,7 @@ void InitializeParticles(PKD pkd,int bExcludeVeryActive,BND *pbnd) {
     PLITE *pLite = pkd->pLite;
     PLITE t;
     PARTICLE *p;
+    KDN *pNode;
     int i,j;
 
     /*
@@ -78,30 +79,32 @@ void InitializeParticles(PKD pkd,int bExcludeVeryActive,BND *pbnd) {
 	    }
 	pkd->nVeryActive = pkd->nLocal - i;
 
+	pNode = pkdTreeNode(pkd,VAROOT);
 	if (pkd->nVeryActive > 0)
 	    /*   printf("%d:nVeryActive = %d\n",mdlSelf(pkd->mdl),pkd->nVeryActive);*/
 	    /*
 	    ** Set up the very active root node.
 	    */
-	    pkd->kdNodes[VAROOT].iLower = 0;
-	pkd->kdNodes[VAROOT].iParent = 0;
-	pkd->kdNodes[VAROOT].pLower = pkd->nLocal - pkd->nVeryActive;
-	pkd->kdNodes[VAROOT].pUpper = pkd->nLocal - 1;
+	    pNode->iLower = 0;
+	pNode->iParent = 0;
+	pNode->pLower = pkd->nLocal - pkd->nVeryActive;
+	pNode->pUpper = pkd->nLocal - 1;
 	for (j=0;j<3;++j) {
-	    pkd->kdNodes[VAROOT].bnd.fCenter[j] = pbnd->fCenter[j];
-	    pkd->kdNodes[VAROOT].bnd.fMax[j] = pbnd->fMax[j];
+	    pNode->bnd.fCenter[j] = pbnd->fCenter[j];
+	    pNode->bnd.fMax[j] = pbnd->fMax[j];
 	    }
 	}
     /*
     ** Set up the root node.
     */
-    pkd->kdNodes[ROOT].iLower = 0;
-    pkd->kdNodes[ROOT].iParent = 0;
-    pkd->kdNodes[ROOT].pLower = 0;
-    pkd->kdNodes[ROOT].pUpper = pkd->nLocal - pkd->nVeryActive - 1;
+    pNode = pkdTreeNode(pkd,ROOT);
+    pNode->iLower = 0;
+    pNode->iParent = 0;
+    pNode->pLower = 0;
+    pNode->pUpper = pkd->nLocal - pkd->nVeryActive - 1;
     for (j=0;j<3;++j) {
-	pkd->kdNodes[ROOT].bnd.fCenter[j] = pbnd->fCenter[j];
-	pkd->kdNodes[ROOT].bnd.fMax[j] = pbnd->fMax[j];
+	pNode->bnd.fCenter[j] = pbnd->fCenter[j];
+	pNode->bnd.fMax[j] = pbnd->fMax[j];
 	}
     }
 
@@ -114,6 +117,8 @@ void InitializeParticles(PKD pkd,int bExcludeVeryActive,BND *pbnd) {
 #define TEMP_S_INCREASE 100
 void BuildTemp(PKD pkd,int iNode,int M) {
     PLITE *p = pkd->pLite;
+    KDN *pNode = pkdTreeNode(pkd,iNode);
+    KDN *pLeft, *pRight;
     PLITE t;
     FLOAT fSplit;
     FLOAT ls,rs;
@@ -144,31 +149,31 @@ void BuildTemp(PKD pkd,int iNode,int M) {
 	mdlassert(pkd->mdl,pkd->piInactive != NULL);
 	}
 
-    if (pkd->kdNodes[iNode].pUpper - pkd->kdNodes[iNode].pLower + 1 <= M)
+    if (pNode->pUpper - pNode->pLower + 1 <= M)
 	goto DonePart;
 
-    assert( pkd->kdNodes[iNode].bnd.fMax[0] > 0.0 ||
-	    pkd->kdNodes[iNode].bnd.fMax[1] > 0.0 ||
-	    pkd->kdNodes[iNode].bnd.fMax[2] > 0.0 );
+    assert( pNode->bnd.fMax[0] > 0.0 ||
+	    pNode->bnd.fMax[1] > 0.0 ||
+	    pNode->bnd.fMax[2] > 0.0 );
     while (1) {
 	/*
 	** Begin new stage!
 	** Calculate the appropriate fSplit.
 	** Pick longest dimension and split it in half.
 	*/
-	if (pkd->kdNodes[iNode].bnd.fMax[0] < pkd->kdNodes[iNode].bnd.fMax[1]) {
-	    if (pkd->kdNodes[iNode].bnd.fMax[1] < pkd->kdNodes[iNode].bnd.fMax[2]) d = 2;
+	if (pNode->bnd.fMax[0] < pNode->bnd.fMax[1]) {
+	    if (pNode->bnd.fMax[1] < pNode->bnd.fMax[2]) d = 2;
 	    else d = 1;
 	    }
-	else if (pkd->kdNodes[iNode].bnd.fMax[0] < pkd->kdNodes[iNode].bnd.fMax[2]) d = 2;
+	else if (pNode->bnd.fMax[0] < pNode->bnd.fMax[2]) d = 2;
 	else d = 0;
-	fSplit = pkd->kdNodes[iNode].bnd.fCenter[d];
+	fSplit = pNode->bnd.fCenter[d];
 	/*
 	** Now start the partitioning of the particles about
 	** fSplit on dimension given by d.
 	*/
-	i = pkd->kdNodes[iNode].pLower;
-	j = pkd->kdNodes[iNode].pUpper;
+	i = pNode->pLower;
+	j = pNode->pUpper;
 	while (i <= j) {
 	    if (p[i].r[d] < fSplit) ++i;
 	    else break;
@@ -193,8 +198,8 @@ void BuildTemp(PKD pkd,int iNode,int M) {
 		}
 	    }
 
-	nl = i - pkd->kdNodes[iNode].pLower;
-	nr = pkd->kdNodes[iNode].pUpper - i + 1;
+	nl = i - pNode->pLower;
+	nr = pNode->pUpper - i + 1;
 	if (nl > 0 && nr > 0) {
 	    /*
 	    ** Allocate 2 new tree nodes making sure that we have
@@ -202,33 +207,35 @@ void BuildTemp(PKD pkd,int iNode,int M) {
 	    */
 	    assert(pkd->nNodes+2 <= pkd->nMaxNodes);
 	    iLeft = pkd->nNodes++;
-	    pkd->kdNodes[iLeft].iParent = iNode;
-	    pkd->kdNodes[iLeft].pLower = pkd->kdNodes[iNode].pLower;
-	    pkd->kdNodes[iLeft].pUpper = i-1;
+	    pLeft = pkdTreeNode(pkd,iLeft);
+	    pLeft->iParent = iNode;
+	    pLeft->pLower = pNode->pLower;
+	    pLeft->pUpper = i-1;
 	    iRight = pkd->nNodes++;
+	    pRight = pkdTreeNode(pkd,iRight);
 	    assert(iRight & 1);
-	    pkd->kdNodes[iRight].iParent = iNode;
-	    pkd->kdNodes[iRight].pLower = i;
-	    pkd->kdNodes[iRight].pUpper = pkd->kdNodes[iNode].pUpper;
-	    pkd->kdNodes[iNode].iLower = iLeft;
+	    pRight->iParent = iNode;
+	    pRight->pLower = i;
+	    pRight->pUpper = pNode->pUpper;
+	    pNode->iLower = iLeft;
 	    /*
 	    ** Now deal with the bounds.
 	    */
 	    for (j=0;j<3;++j) {
 		if (j == d) {
-		    pkd->kdNodes[iRight].bnd.fMax[j] = pkd->kdNodes[iLeft].bnd.fMax[j] = 0.5*pkd->kdNodes[iNode].bnd.fMax[j];
-		    pkd->kdNodes[iLeft].bnd.fCenter[j] = pkd->kdNodes[iNode].bnd.fCenter[j] - pkd->kdNodes[iLeft].bnd.fMax[j];
-		    pkd->kdNodes[iRight].bnd.fCenter[j] = pkd->kdNodes[iNode].bnd.fCenter[j] + pkd->kdNodes[iRight].bnd.fMax[j];
+		    pRight->bnd.fMax[j] = pLeft->bnd.fMax[j] = 0.5*pNode->bnd.fMax[j];
+		    pLeft->bnd.fCenter[j] = pNode->bnd.fCenter[j] - pLeft->bnd.fMax[j];
+		    pRight->bnd.fCenter[j] = pNode->bnd.fCenter[j] + pRight->bnd.fMax[j];
 		    }
 		else {
-		    pkd->kdNodes[iLeft].bnd.fCenter[j] = pkd->kdNodes[iNode].bnd.fCenter[j];
-		    pkd->kdNodes[iLeft].bnd.fMax[j] = pkd->kdNodes[iNode].bnd.fMax[j];
-		    pkd->kdNodes[iRight].bnd.fCenter[j] = pkd->kdNodes[iNode].bnd.fCenter[j];
-		    pkd->kdNodes[iRight].bnd.fMax[j] = pkd->kdNodes[iNode].bnd.fMax[j];
+		    pLeft->bnd.fCenter[j] = pNode->bnd.fCenter[j];
+		    pLeft->bnd.fMax[j] = pNode->bnd.fMax[j];
+		    pRight->bnd.fCenter[j] = pNode->bnd.fCenter[j];
+		    pRight->bnd.fMax[j] = pNode->bnd.fMax[j];
 		    }
 		}
-	    MAXSIDE(pkd->kdNodes[iLeft].bnd.fMax,ls);
-	    MAXSIDE(pkd->kdNodes[iRight].bnd.fMax,rs);
+	    MAXSIDE(pLeft->bnd.fMax,ls);
+	    MAXSIDE(pRight->bnd.fMax,rs);
 	    /*
 	    ** Now figure out which subfile to process next.
 	    */
@@ -255,7 +262,7 @@ void BuildTemp(PKD pkd,int iNode,int M) {
 		** Right must be a bucket in this case!
 		*/
 		iNode = iLeft;   /* process lower subfile */
-		pkd->kdNodes[iRight].iLower = 0;
+		pRight->iLower = 0;
 		++nBucket;
 		}
 	    else if (rc) {
@@ -263,16 +270,16 @@ void BuildTemp(PKD pkd,int iNode,int M) {
 		** Left must be a bucket in this case!
 		*/
 		iNode = iRight;   /* process upper subfile */
-		pkd->kdNodes[iLeft].iLower = 0;
+		pLeft->iLower = 0;
 		++nBucket;
 		}
 	    else {
 		/*
 		** Both are buckets (we need to pop from the stack to get the next subfile.
 		*/
-		pkd->kdNodes[iLeft].iLower = 0;
+		pLeft->iLower = 0;
 		++nBucket;
-		pkd->kdNodes[iRight].iLower = 0;
+		pRight->iLower = 0;
 		++nBucket;
 		if (s) iNode = S[--s];		/* pop tn */
 		else break;
@@ -282,30 +289,31 @@ void BuildTemp(PKD pkd,int iNode,int M) {
 	    /*
 	    ** No nodes allocated, Change the bounds if needed!
 	    */
-	    if (d >= 0 && d < 3) pkd->kdNodes[iNode].bnd.fMax[d] *= 0.5;
+	    if (d >= 0 && d < 3) pNode->bnd.fMax[d] *= 0.5;
 	    if (nl > 0) {
-		if (d >= 0 && d < 3) pkd->kdNodes[iNode].bnd.fCenter[d] -= pkd->kdNodes[iNode].bnd.fMax[d];
-		MAXSIDE(pkd->kdNodes[iNode].bnd.fMax,ls);
+		if (d >= 0 && d < 3) pNode->bnd.fCenter[d] -= pNode->bnd.fMax[d];
+		MAXSIDE(pNode->bnd.fMax,ls);
 		lc = ((nl > M)||((nl > 1)&&(ls>PKD_MAX_CELL_SIZE))); /* this condition means the node is not a bucket */
 		if (!lc) {
-		    pkd->kdNodes[iNode].iLower = 0;
+		    pNode->iLower = 0;
 		    ++nBucket;
 		    if (s) iNode = S[--s];		/* pop tn */
 		    else break;
 		    }
 		}
 	    else {
-		if (d >= 0 && d < 3) pkd->kdNodes[iNode].bnd.fCenter[d] += pkd->kdNodes[iNode].bnd.fMax[d];
-		MAXSIDE(pkd->kdNodes[iRight].bnd.fMax,rs);
+		if (d >= 0 && d < 3) pNode->bnd.fCenter[d] += pNode->bnd.fMax[d];
+		MAXSIDE(pRight->bnd.fMax,rs);
 		rc = ((nr > M)||((nr > 1)&&(rs>PKD_MAX_CELL_SIZE)));
 		if (!rc) {
-		    pkd->kdNodes[iNode].iLower = 0;
+		    pNode->iLower = 0;
 		    ++nBucket;
 		    if (s) iNode = S[--s];		/* pop tn */
 		    else break;
 		    }
 		}
 	    }
+	pNode = pkdTreeNode(pkd,iNode);
 	}
 DonePart:
     free(S);

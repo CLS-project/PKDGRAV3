@@ -566,7 +566,7 @@ void ioMakePNG(IO io,void *vin,int nIn,void *vout,int *pnOut) {
 	assert( slice != NULL );
 	for ( Is=0; Is<N; Is+=Ss ) {
 	    Ss = (N-Is) > Ns ? Ns : (N-Is);
-	    mdlReduce(io->mdl,limg+Is,slice,Ss,MPI_FLOAT,MPI_MAX,0);
+	    mdlReduce(io->mdl,limg+Is,slice,Ss,MDL_FLOAT,MDL_MAX,0);
 	    memcpy(limg+Is,slice,Ss*sizeof(float));
 	    }
 	makeName( io, achOutName, make->achOutName, mdlSelf(io->mdl) );
@@ -583,7 +583,7 @@ void ioMakePNG(IO io,void *vin,int nIn,void *vout,int *pnOut) {
     else {
 	for ( Is=0; Is<N; Is+=Ss ) {
 	    Ss = (N-Is) > Ns ? Ns : (N-Is);
-	    mdlReduce(io->mdl,limg+Is,0,Ss,MPI_FLOAT,MPI_MAX,0);
+	    mdlReduce(io->mdl,limg+Is,0,Ss,MDL_FLOAT,MDL_MAX,0);
 	    }
 	}
 
