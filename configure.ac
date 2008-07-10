@@ -10,7 +10,11 @@ AC_CONFIG_HEADER([config.h])
 # Checks for programs.
 AC_PROG_CC
 AC_PROG_MAKE_SET
-AC_CHECK_PROG([MPICC],mpicc,mpicc,no)
+
+AC_ARG_WITH(mpicc,
+  [  --with-mpicc=mpicc      specify the name of the MPI compiler],
+  [MPICC="${withval}"],[AC_CHECK_PROG([MPICC],mpicc,mpicc,no)])
+AC_SUBST(MPICC)
 
 # The floating point data type - This should be detected and --with-float added
 AC_DEFINE([FLOAT],double,
@@ -18,36 +22,28 @@ AC_DEFINE([FLOAT],double,
 AC_DEFINE([FLOAT_MAXVAL],HUGE,
 	[This defines the maximum value that a FLOAT can represent.])
 
-# Local expansions
+# This adds processor specific timing to the code - default disabled
 AC_ARG_ENABLE(instrument,
   [  --enable-instrument            Enable instrumentation code],
-  [INSTRUMENT=yes])
+  [INSTRUMENT="$enableval"],[INSTRUMENT="no"])
 if test "x$INSTRUMENT" = "xyes" ; then
    AC_DEFINE([INSTRUMENT], 1,
  	[Instrument the code.])
 fi
 
-# Local expansions
+# Local expansions - default is enabled
 AC_ARG_ENABLE(local-expansion,
-  [  --enable-local-expansion       enable local expansion code],
-  [LOCAL_EXPANSION=yes])
-# Local expansions
+  [  --disable-local-expansion      disable local expansion code],
+  [LOCAL_EXPANSION="$enableval"],[LOCAL_EXPANION="yes"])
+# Local expansions... this is the preferred flag
 AC_ARG_ENABLE(fmm,
-  [  --enable-fmm                   enable local expansion code],
-  [LOCAL_EXPANSION=yes])
-if test "x$LOCAL_EXPANSION" = "xyes" ; then
+  [  --disable-fmm                  disable local expansion code],
+  [LOCAL_EXPANSION="$enableval"],[LOCAL_EXPANION="yes"])
+if test "x$LOCAL_EXPANSION" != "xno" ; then
    AC_DEFINE([LOCAL_EXPANSION], 1,
  	[Define if local expansions should be used.])
 fi
-AM_CONDITIONAL(LOCAL_EXPANSION, test "x$LOCAL_EXPANSION" = "xyes")
-
-# With particle-cell interactions
-AC_ARG_ENABLE(particle-cell,
-  [  --enable-particle-cell         enable particle-cell interactions],
-  [WITH_PARTICLE_CELL=yes
-   AC_DEFINE([WITH_PARTICLE_CELL], 1,
- 	[Define if particle-cell interactions should be used.])])
-AM_CONDITIONAL(WITH_PARTICLE_CELL, test "x$WITH_PARTICLE_CELL" = "xyes")
+AM_CONDITIONAL(LOCAL_EXPANSION, test "x$LOCAL_EXPANSION" != "xno")
 
 # Electric fence
 AC_ARG_WITH(efence,
@@ -74,7 +70,7 @@ AC_SUBST([PYTHON_VER],[$PYTHON_VER])
 # HDF5 I/O
 AC_ARG_ENABLE(hdf5,
   [  --enable-hdf5                  enable I/O using HDF5 libraries],
-  [USE_HDF5=yes
+  [USE_HDF5="$enableval"
    AC_DEFINE([USE_HDF5], 1,
  	[Define if HDF5 I/O should be available.])])
 AC_ARG_WITH(hdf5,
@@ -127,7 +123,6 @@ AC_ARG_ENABLE(mdl-io,
 AM_CONDITIONAL(USE_MDL_IO, test "x$USE_MDL_IO" = "xyes")
 AM_CONDITIONAL(USE_HDF5, test "x$USE_HDF5" = "xyes")
 
-
 # SISCI MDL
 AC_ARG_WITH(sisci,
   [  --with-sisci[=/opt/DIS]   path to SISCI installation],
@@ -177,74 +172,31 @@ AM_CONDITIONAL(LUSTRE, test "x$LUSTRE" = "xyes")
 # Enable BSC Tracing
 AC_ARG_ENABLE(bsc-trace,
   [  --enable-bsc-trace             enable tracing at BSC],
-  [USE_BSC=yes
-   AC_DEFINE([USE_BSC], 1,
- 	[Define if BSC tracing should be used.])])
+  [USE_BSC="$enableval"])
+AC_DEFINE([USE_BSC], 1,
+  [Define if BSC tracing should be used.])
 AM_CONDITIONAL(USE_BSC, test "x$USE_BSC" = "xyes")
 
 # Enable SIMD version (SSE,Altivec)
 AC_ARG_ENABLE(simd,
   [  --enable-simd                  enable SIMD optimizations],
-  [USE_SIMD=yes
-   AC_DEFINE([USE_SIMD], 1,
- 	[Define if SIMD optimizations should be used.])])
-
-USE_SIMD_LOCR="no"
-AC_ARG_ENABLE(simd-locr,
-  [  --enable-simd-locr            enable LOCR SIMD optimizations (experimental)],
-  [if test "x$enableval" = "xyes" ; then
-     USE_SIMD_LOCR="yes"
-   elif test "x$enableval" = "xno" ; then
-     USE_SIMD_LOCR="no"
-   fi])
-if test "x$USE_SIMD_LOCR" == "xyes" -a "x$LOCAL_EXPANSION" = "xyes" ; then
-  USE_SIMD=yes
-  AC_DEFINE([USE_SIMD_LOCR],1, 
- 	[Define if SIMD optimizations should be used for LOCRs.])
-fi
-AM_CONDITIONAL(USE_SIMD_LOCR,test "x$USE_SIMD_LOCR" != "xno")
+  [USE_SIMD="$enableval"])
 
 USE_SIMD_MOMR="no"
 AC_ARG_ENABLE(simd-momr,
   [  --enable-simd-momr             enable MOMR SIMD optimizations],
-  [if test "x$enableval" = "xyes" ; then
-     USE_SIMD_MOMR="yes"
-   elif test "x$enableval" = "xno" ; then
-     USE_SIMD_MOMR="no"
-   fi])
+  [USE_SIMD_MOMR="$enableval"])
 if test "x$USE_SIMD_MOMR" = "xyes" ; then
   USE_SIMD=yes
-  AC_DEFINE([USE_SIMD_MOMR],1, 
- 	[Define if SIMD optimizations should be used for MOMRs.])
 fi
-AM_CONDITIONAL(USE_SIMD_MOMR,test "x$USE_SIMD_MOMR" != "xno")
 
 USE_SIMD_PP="$USE_SIMD"
 AC_ARG_ENABLE(simd-pp,
   [  --disable-simd-pp              disable PP SIMD optimizations],
-  [if test "x$enableval" = "xyes" ; then
-     USE_SIMD_PP="yes"
-   elif test "x$enableval" = "xno" ; then
-     USE_SIMD_PP="no"
-   fi])
-if test "x$USE_SIMD_PP" == "xyes" ; then
-  USE_SIMD=yes
-  AC_DEFINE([USE_SIMD_PP],1, 
- 	[Define if SIMD optimizations should be used for PP interactions.])
+  [USE_SIMD_PP="$enableval"])
+if test "x$USE_SIMD_PP" != "xno" ; then
+  USE_SIMD="$USE_SIMD_PP"
 fi
-AM_CONDITIONAL(USE_SIMD_PP,test "x$USE_SIMD_PP" == "xyes")
-
-AM_CONDITIONAL(USE_SIMD, test "x$USE_SIMD" = "xyes")
-
-AC_ARG_ENABLE(simd-locr,
-  [  --disable-simd-locr            disable LOCR SIMD optimizations],
-  [if test "x$enableval" = "xyes" ; then
-     USE_SIMD_LOCR="yes"
-   elif test "x$enableval" = "xno" ; then
-     USE_SIMD_LOCR="no"
-   else
-     USE_SIMD_LOCR="$USE_SIMD"
-   fi])
 
 # The floating point data type for moments
 if test "x$USE_SIMD_MOMR" = "xyes" -o "x$USE_SIMD_LOCR" = "xyes" ; then
@@ -369,7 +321,7 @@ AC_CHECK_LIB([m], [fabs])
 # FIXME: Replace `main' with a function in `-lz':
 #AC_CHECK_LIB([z], [main])
 
-if test "x$USE_SIMD" == "xyes" ; then
+if test "x$USE_SIMD" != "xno" ; then
   AC_CHECK_FUNCS([posix_memalign],HAVE_POSIX_MEMALIGN=yes)
 
   AC_MSG_CHECKING([if the compiler accepts -msse3])
@@ -412,10 +364,33 @@ if test "x$USE_SIMD" == "xyes" ; then
     CFLAGS="$oldCFLAGS"
   fi
   if test "x$SIMD_CFLAGS" = "x" ; then
-    AC_MSG_ERROR([SIMD was requested, but the compiler doesn't seem to support it.])
+    if test "x$USE_SIMD" = "xyes" ; then
+      AC_MSG_ERROR([SIMD was requested, but the compiler doesn't seem to support it.])
+    else
+      USE_SIMD=no
+      USE_SIMD_PP=no
+      USE_SIMD_MOMR=no
+    fi
   fi
   AC_SUBST(SIMD_CFLAGS)
 fi
+
+if test "x$USE_SIMD" != "xno" ; then
+  AC_DEFINE([USE_SIMD], 1, [Define if SIMD optimizations should be used.])
+fi
+if test "x$USE_SIMD_PP" != "xno" ; then
+  AC_DEFINE([USE_SIMD_PP],1, 
+ 	[Define if SIMD optimizations should be used for PP interactions.])
+fi
+if test "x$USE_SIMD_MOMR" = "xyes" ; then
+  AC_DEFINE([USE_SIMD_MOMR],1, 
+ 	[Define if SIMD optimizations should be used for MOMRs.])
+fi
+
+AM_CONDITIONAL(USE_SIMD, test "x$USE_SIMD" = "xyes")
+AM_CONDITIONAL(USE_SIMD_PP,test "x$USE_SIMD_PP" != "xno")
+AM_CONDITIONAL(USE_SIMD_MOMR,test "x$USE_SIMD_MOMR" = "xyes")
+
 if test "x$HAVE_POSIX_MEMALIGN" == "xyes" ; then
   AC_DEFINE([HAVE_POSIX_MEMALIGN],1, 
  	[Define if posix_memalign should be used instead of malloc for SIMD.])

@@ -11,7 +11,7 @@ if HAVE_MPI
 EXTRA_PROGRAMS	+= pkdgrav2m_mpi
 TARGETS	+= mpi
 mpi:
-	$(MAKE) CC=mpicc $(AM_MAKEFLAGS) pkdgrav2m_mpi
+	$(MAKE) CC=@MPICC@ $(AM_MAKEFLAGS) pkdgrav2m_mpi
 endif
 
 if HAVE_SISCI
@@ -41,9 +41,9 @@ SOURCES += grav2.c walk2.c
 SOURCES += ilp.c ilc.c
 if USE_SIMD
 AM_CFLAGS = @SIMD_CFLAGS@
-if USE_SIMD_LOCR
-SOURCES += ../bsc/momGenLocrAddSIMDMomr.c
-endif
+#if USE_SIMD_LOCR
+#SOURCES += ../bsc/momGenLocrAddSIMDMomr.c
+#endif
 if USE_SIMD_MOMR
 SOURCES += ../bsc/momEvalSIMDMomr.c
 endif
