@@ -382,9 +382,6 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp) {
     int pj,d,nDepth,ism;
     const int nMaxStackIncrease = 1;
 
-    assert(pkd->oVelocity); /* Validate memory model */
-    assert(pkd->oAcceleration); /* Validate memory model */
-
     nDepth = 1;
     while (1) {
 	while (c[iNode].iLower) {
@@ -434,11 +431,10 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp) {
 	    }
 	pj = pkdn->pLower;
 	p = pkdParticle(pkd,pj);
-	a = pkdAccel(pkd,p);
+	a = pkd->oAcceleration ? pkdAccel(pkd,p) : zeroV;
 	m = pkdMass(pkd,p);
 	fSoft = pkdSoft(pkd,p);
-	if ( pkd->oVelocity ) v = pkdVel(pkd,p);
-	else v = zeroV;
+	v = pkd->oVelocity ? pkdVel(pkd,p) : zeroV;
 	fMass = m;
 	dih2 = m/(fSoft*fSoft);
 	x = m*p->r[0];
@@ -454,11 +450,10 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp) {
 	pkdn->bDstActive = p->bDstActive;
 	for (++pj;pj<=pkdn->pUpper;++pj) {
 	    p = pkdParticle(pkd,pj);
-	    a = pkdAccel(pkd,p);
+	    a = pkd->oAcceleration ? pkdAccel(pkd,p) : zeroV;
 	    m = pkdMass(pkd,p);
 	    fSoft = pkdSoft(pkd,p);
-	    if ( pkd->oVelocity ) v = pkdVel(pkd,p);
-	    else v = zeroV;
+	    v = pkd->oVelocity ? pkdVel(pkd,p) : zeroV;
 	    fMass += m;
 	    dih2 += m/(fSoft*fSoft);
 	    x += m*p->r[0];
