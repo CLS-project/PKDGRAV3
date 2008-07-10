@@ -104,10 +104,14 @@ fi
 AC_ARG_WITH(grafic,
   [  --with-grafic=PATH      base path of GRAFIC IC library],
   [AC_SUBST([GRAFIC_PATH],[${withval}])
-   USE_GRAFIC=yes
+   USE_GRAFIC="$enableval"
    AC_DEFINE([USE_GRAFIC], 1,
  	[Define GRAFICIC IC should be available.])],
   [USE_GRAFIC=no])
+if test "$USE_GRAFIC" != "yes" -a -d grafic++ ; then
+  USE_GRAFIC=yes
+  GRAFIC_PATH=grafic++
+fi
 AM_CONDITIONAL(USE_GRAFIC,test "x$USE_GRAFIC" == "xyes")
 
 # MDL dedicated I/O
@@ -173,8 +177,10 @@ AM_CONDITIONAL(LUSTRE, test "x$LUSTRE" = "xyes")
 AC_ARG_ENABLE(bsc-trace,
   [  --enable-bsc-trace             enable tracing at BSC],
   [USE_BSC="$enableval"])
-AC_DEFINE([USE_BSC], 1,
-  [Define if BSC tracing should be used.])
+if test "x$USE_BSC" = "xyes" ; then
+  AC_DEFINE([USE_BSC], 1,
+    [Define if BSC tracing should be used.])
+fi
 AM_CONDITIONAL(USE_BSC, test "x$USE_BSC" = "xyes")
 
 # Enable SIMD version (SSE,Altivec)
