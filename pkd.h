@@ -756,7 +756,7 @@ static inline FLOAT pkdSoft0( PKD pkd, PARTICLE *p ) {
 static inline FLOAT pkdSoft( PKD pkd, PARTICLE *p ) {
     float fSoft;
 
-    if ( pkd->fSoftFix > 0.0 ) fSoft = pkd->fSoftFix;
+    if ( pkd->fSoftFix >= 0.0 ) fSoft = pkd->fSoftFix;
     else fSoft = pkdSoft0(pkd,p);
     fSoft *= pkd->fSoftFac;
     if ( fSoft > pkd->fSoftMax ) fSoft = pkd->fSoftMax;

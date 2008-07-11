@@ -291,7 +291,7 @@ void pkdInitialize(PKD *ppkd,MDL mdl,int nStore,int nBucket,FLOAT *fPeriod,
 	pkd->pClass[j].fMass = pkd->pClass[j].fSoft = -1.0;
     pkd->nClasses = 0;
 
-    pkd->fSoftFix = 0.0;
+    pkd->fSoftFix = -1.0;
     pkd->fSoftFac = 1.0;
     pkd->fSoftMax = HUGE;
     /*
@@ -1873,11 +1873,6 @@ uint32_t pkdWriteTipsy(PKD pkd,char *pszFileName,uint64_t nStart,
 
 
 void pkdSetSoft(PKD pkd,double dSoft) {
-    int i;
-
-    if (dSoft < sqrt(2.0e-38)) { /* set minimum softening */
-	dSoft = sqrt(2.0e-38);
-	}
     pkd->fSoftFix = dSoft;
     }
 
