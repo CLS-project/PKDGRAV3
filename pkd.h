@@ -277,7 +277,7 @@ typedef struct kdNew {
 	    double dSplit;
 	    uint32_t iLower;
 	    uint32_t iUpper;
-	uint32_t iParent:
+	    uint32_t iParent:
 	    uint16_t idLower;
 	    uint16_t idUpper;
 	    uint16_t idParent;
@@ -287,7 +287,7 @@ typedef struct kdNew {
 	    uint32_t iPart[MAX_NBUCKET];
 	    } b;
 	};
-uint64_t uCount:48
+    uint64_t uCount:48
     MOMR mom;
     } KDNEW;
 #endif

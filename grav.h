@@ -5,7 +5,11 @@
 #include "moments.h"
 
 static inline double softmassweight(double m1,double h12,double m2,double h22) {
-    return((m1+m2)*(h12*h22)/(h22*m1+h12*m2));
+    double tmp = h12*h22;
+    if (m1 == 0.0) return(h22);
+    if (m2 == 0.0) return(h12);
+    if (tmp > 0.0) return((m1+m2)*tmp/(h22*m1+h12*m2));
+    else return(0.0);
     }
 
 void PPInteractSIMD( int nPart, ILP ilp, const FLOAT *r, const FLOAT *a,

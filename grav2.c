@@ -57,13 +57,14 @@ static const struct CONSTS {
 */
 int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *pLoc,ILP ilp,ILC ilc,
 		    double dirLsum,double normLsum,int bEwald,double *pdFlop,double *pdEwFlop,double dRhoFac) {
-    PARTICLE *p;
+    PARTICLE *p,*pj;
     KDN *pkdn = pBucket;
     const double onethird = 1.0/3.0;
     float *a, *pPot;
     momFloat ax,ay,az,fPot;
     double x,y,z,d2,dir,dir2;
     FLOAT fMass,fSoft;
+    FLOAT fMassTmp,fSoftTmp;
     float fx, fy, fz;
     double dtGrav;
     momFloat adotai,maga,dimaga,dirsum,normsum;
@@ -91,6 +92,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 #else
     double fourh2;
 #endif
+    ILPCHECKPT checkPt;
 
     assert(pkd->oPotential);
     assert(pkd->oAcceleration);
@@ -109,10 +111,16 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 	   *(pkdn->bnd.fMax[0]*pkdn->bnd.fMax[0]
 	     + pkdn->bnd.fMax[1]*pkdn->bnd.fMax[1]
 	     + pkdn->bnd.fMax[2]*pkdn->bnd.fMax[2]);
+    /*
+    ** Save the ilp list so that we can restore it for each particle. We will be 
+    ** adding the local bucket interactions within this loop, and so modifying the 
+    ** ilp.
+    */
+    ilpCheckPt(ilp,&checkPt);
     for (i=pkdn->pLower;i<=pkdn->pUpper;++i) {
 	p = pkdParticle(pkd,i);
-	pPot = pkdPot(pkd,p);
 	if ( !pkdIsDstActive(p,uRungLo,uRungHi) ) continue;
+	pPot = pkdPot(pkd,p);
 	fMass = pkdMass(pkd,p);
 	fSoft = pkdSoft(pkd,p);
 	a = pkdAccel(pkd,p);
@@ -121,7 +129,6 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 	ax = 0;
 	ay = 0;
 	az = 0;
-	rholoc = 0;
 	dsmooth2 = 0;
 	tx = a[0];
 	ty = a[1];
@@ -225,7 +232,17 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 	ilp->cy = p->r[1];
 	ilp->cz = p->r[2];
 
-
+	for (j=pkdn->pLower;j<=pkdn->pUpper;++j) {
+	    if (j == i) continue;
+	    pj = pkdParticle(pkd,j);
+	    if (pkdIsSrcActive(pj,0,MAX_RUNG)) {
+		fMassTmp = pkdMass(pkd,pj);
+		fSoftTmp = pkdSoft(pkd,pj);
+		ilpAppend(ilp,pj->r[0],pj->r[1],pj->r[2],
+		    fMassTmp, 4*fSoftTmp*fSoftTmp,
+		    pj->iOrder, pj->v[0], pj->v[1], pj->v[2]);
+		}
+	    }
 	ilpCompute(ilp,fx,fy,fz);
 
 
@@ -236,6 +253,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 	    /*
 	    ** Calculate local density only in the case of more than 1 neighbouring particle!
 	    */
+	    rholoc = 0.0;
 	    nPartX = ilpCount(ilp);
 	    if (nPartX > 1) {
 		nSP = (nPartX < pkd->param.nPartRhoLoc)?nPartX:pkd->param.nPartRhoLoc;
@@ -247,10 +265,16 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 		SQRT1(dsmooth2,dir);
 		dir2 = dir * dir;
 		for (j=0;j<nSP;++j) {
+		    /*
+		    ** We keep this test for masses above zero for safety. 
+		    ** Tracer particles should be implemented by having bSrcActive = 0!
+		    */
 		    assert(ilp->first->s.m.f[j] > 0.0);
-		    assert(ilp->first->s.fourh2.f[j] > 0.0);
-		    fEps = fSoftMedian/ilp->first->s.fourh2.f[j];
-		    if (fEps > 1.0) fEps = 1.0;
+		    if (ilp->first->s.fourh2.f[j] > 0.0) {
+			fEps = fSoftMedian/ilp->first->s.fourh2.f[j];
+			if (fEps > 1.0) fEps = 1.0;
+			}
+		    else fEps = 1.0;
 		    fEps2 = fEps*fEps;
 		    d2 = ilp->first->s.d2.f[j]*dir2*fEps2;
 		    d2 = (1-d2);
@@ -434,6 +458,10 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 	    else p->uNewRung = 0;
 	    p->fDensity = rholoc;
 	    }
+	/*
+	** Restore the ilp to the same state that GravInteract was called.
+	*/
+	ilpRestore(ilp,&checkPt);
 	} /* end of i-loop cells & particles */
 
     *pdFlop += nActive*(ilpCount(pkd->ilp)*40 + ilcCount(pkd->ilc)*200) + nSoft*15;

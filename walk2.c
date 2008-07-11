@@ -765,31 +765,9 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 	*/
 	assert(nCheck == 0);
 	/*
-	** Add Bucket self interactions.
-	*/
-	pkdc = &c[iCell];
-	/*
-	** Local Self-Bucket Interaction.
-	** Interact += Pacticles(pkdc);
-	*/
-	n = pkdc->pUpper - pkdc->pLower + 1;
-	//ADDBACK:printf("G CPU:%d increased particle list size to %d\n",mdlSelf(pkd->mdl),pkd->nMaxPart);
-	for (pj=pkdc->pLower;pj<=pkdc->pUpper;++pj) {
-	    p = pkdParticle(pkd,pj);
-	    if (pkdIsSrcActive(p,0,MAX_RUNG)) {
-		fMass = pkdMass(pkd,p);
-		fSoft = pkdSoft(pkd,p);
-		ilpAppend( pkd->ilp,
-			   p->r[0], p->r[1], p->r[2],
-			   fMass, 4*fSoft*fSoft,
-			   p->iOrder, p->v[0], p->v[1], p->v[2] );
-		}
-	    }
-
-	/*
 	** Now calculate gravity on this bucket!
 	*/
-	nActive = pkdGravInteract(pkd,uRungLo,uRungHi,pkdc,&L,pkd->ilp,pkd->ilc,
+	nActive = pkdGravInteract(pkd,uRungLo,uRungHi,&c[iCell],&L,pkd->ilp,pkd->ilc,
 				  dirLsum,normLsum,bEwald,pdFlop,&dEwFlop,dRhoFac);
 	/*
 	** Update the limit for a shift of the center here based on the opening radius of this
