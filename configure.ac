@@ -83,7 +83,8 @@ AC_ARG_WITH(hdf5,
    USE_HDF5=yes
    AC_DEFINE([USE_HDF5], 1,
  	[Define if HDF5 I/O should be available.])])
-
+AC_DEFINE([H5_USE_16_API],1,
+        [Use the HDF5 1.6 API instead of later versions])
 
 if test "${cross_compiling}" = "no";
 then
