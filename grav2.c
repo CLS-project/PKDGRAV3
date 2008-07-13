@@ -224,13 +224,6 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 	/*
 	** Part 1: Calculate distance between particle and each interaction
 	*/
-	fx = p->r[0] - ilp->cx;
-	fy = p->r[1] - ilp->cy;
-	fz = p->r[2] - ilp->cz;
-
-	ilp->cx = p->r[0]; /* => cx += fx */
-	ilp->cy = p->r[1];
-	ilp->cz = p->r[2];
 
 	for (j=pkdn->pLower;j<=pkdn->pUpper;++j) {
 	    if (j == i) continue;
@@ -243,6 +236,13 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 		    pj->iOrder, pj->v[0], pj->v[1], pj->v[2]);
 		}
 	    }
+	fx = p->r[0] - ilp->cx;
+	fy = p->r[1] - ilp->cy;
+	fz = p->r[2] - ilp->cz;
+
+	ilp->cx = p->r[0]; /* => cx += fx */
+	ilp->cy = p->r[1];
+	ilp->cz = p->r[2];
 	ilpCompute(ilp,fx,fy,fz);
 
 
