@@ -94,16 +94,16 @@ float ilpSelect(ILP ilp,uint32_t n,float *rMax);
 float ilpSelectMass(ILP ilp,uint32_t n, uint32_t N);
 
 #if defined(SYMBA) || defined(PLANETS)
-#define ilpAppend_1(ilp,I) tile->d.iOrder.i[i] = (I);
+#define ilpAppend_1(ilp,I) tile->d.iOrder.i[ILP_APPEND_i] = (I);
 #else
 #define ilpAppend_1(ilp,I)
 #endif
 
 #if defined(HERMITE)
 #define ilpAppend_2(ilp,VX,VY,VZ)					\
-    tile->d.vx.f[i] = (VX);					\
-    tile->d.vy.f[i] = (VY);					\
-    tile->d.vz.f[i] = (VZ);
+    tile->d.vx.f[ILP_APPEND_i] = (VX);					\
+    tile->d.vy.f[ILP_APPEND_i] = (VY);					\
+    tile->d.vz.f[ILP_APPEND_i] = (VZ);
 #else
 #define ilpAppend_2(ilp,VX,VY,VZ)
 #endif
@@ -112,15 +112,15 @@ float ilpSelectMass(ILP ilp,uint32_t n, uint32_t N);
 #define ilpAppend(ilp,X,Y,Z,M,S,I,VX,VY,VZ)				\
     {									\
 	ILPTILE tile = (ilp)->tile;					\
-	uint_fast32_t i;						\
+	uint_fast32_t ILP_APPEND_i;						\
 	if ( tile->nPart == tile->nMaxPart ) tile = ilpExtend((ilp));	\
-	i = tile->nPart;						\
-	tile->d.dx.f[i] = (ilp)->cx - (X);				\
-	tile->d.dy.f[i] = (ilp)->cy - (Y);				\
-	tile->d.dz.f[i] = (ilp)->cz - (Z);				\
+	ILP_APPEND_i = tile->nPart;						\
+	tile->d.dx.f[ILP_APPEND_i] = (ilp)->cx - (X);				\
+	tile->d.dy.f[ILP_APPEND_i] = (ilp)->cy - (Y);				\
+	tile->d.dz.f[ILP_APPEND_i] = (ilp)->cz - (Z);				\
 	assert( (M) > 0.0 );						\
-	tile->d.m.f[i] = (M);						\
-	tile->d.fourh2.f[i] = (S);					\
+	tile->d.m.f[ILP_APPEND_i] = (M);						\
+	tile->d.fourh2.f[ILP_APPEND_i] = (S);					\
 	ilpAppend_1((ilp),I);						\
 	ilpAppend_2((ilp),VX,VY,VZ);					\
 	++tile->nPart;							\
