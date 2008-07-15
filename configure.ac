@@ -109,12 +109,13 @@ AC_ARG_WITH(grafic,
    AC_DEFINE([USE_GRAFIC], 1,
  	[Define GRAFICIC IC should be available.])],
   [USE_GRAFIC=no])
-if test "$USE_GRAFIC" != "yes" -a -d grafic++ ; then
-  USE_GRAFIC=yes
-  GRAFIC_PATH=grafic++
-fi
+dnl if test "$USE_GRAFIC" != "yes" -a -d grafic ; then
+dnl   USE_GRAFIC=yes
+dnl   GRAFIC_PATH=grafic
+dnl   AC_CONFIG_SUBDIRS(grafic)
+dnl fi
 AM_CONDITIONAL(USE_GRAFIC,test "x$USE_GRAFIC" == "xyes")
-
+			       
 # MDL dedicated I/O
 AC_ARG_ENABLE(mdl-io,
   [  --enable-mdl-io                enable dedicated I/O processors (MPI/pthread)],
@@ -331,12 +332,20 @@ AC_CHECK_LIB([m], [fabs])
 if test "x$USE_SIMD" != "xno" ; then
   AC_CHECK_FUNCS([posix_memalign],HAVE_POSIX_MEMALIGN=yes)
 
-  AC_MSG_CHECKING([if the compiler accepts -msse3])
-  oldCFLAGS="$CFLAGS"; CFLAGS="-msse3"
-  AC_TRY_COMPILE([#include <pmmintrin.h>],[__m128 r;],
-	AC_MSG_RESULT(yes); SIMD_CFLAGS="-msse3",
+  AC_MSG_CHECKING([if the compiler accepts -march=native])
+  oldCFLAGS="$CFLAGS"; CFLAGS="-march=native"
+  AC_TRY_COMPILE([],[],
+	AC_MSG_RESULT(yes); SIMD_CFLAGS="-march=native",
 	AC_MSG_RESULT(no);)
   CFLAGS="$oldCFLAGS"
+  if test "x$SIMD_CFLAGS" = "x" ; then
+    AC_MSG_CHECKING([if the compiler accepts -msse3])
+    oldCFLAGS="$CFLAGS"; CFLAGS="-msse3"
+    AC_TRY_COMPILE([#include <pmmintrin.h>],[__m128 r;],
+	AC_MSG_RESULT(yes); SIMD_CFLAGS="-msse3",
+	AC_MSG_RESULT(no);)
+    CFLAGS="$oldCFLAGS"
+  fi
   if test "x$SIMD_CFLAGS" = "x" ; then
     AC_MSG_CHECKING([if the compiler accepts -msse2])
     oldCFLAGS="$CFLAGS"; CFLAGS="-msse2"
