@@ -370,6 +370,7 @@ void ShuffleParticles(PKD pkd,int iStart) {
     }
 
 static double zeroV[3] = {0.0,0.0,0.0};
+static float  zeroF[3] = {0.0,0.0,0.0};
 
 void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp) {
     PARTICLE *p;
@@ -431,7 +432,7 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp) {
 	    }
 	pj = pkdn->pLower;
 	p = pkdParticle(pkd,pj);
-	a = pkd->oAcceleration ? pkdAccel(pkd,p) : zeroV;
+	a = pkd->oAcceleration ? pkdAccel(pkd,p) : zeroF;
 	m = pkdMass(pkd,p);
 	fSoft = pkdSoft(pkd,p);
 	v = pkd->oVelocity ? pkdVel(pkd,p) : zeroV;
@@ -450,7 +451,7 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp) {
 	pkdn->bDstActive = p->bDstActive;
 	for (++pj;pj<=pkdn->pUpper;++pj) {
 	    p = pkdParticle(pkd,pj);
-	    a = pkd->oAcceleration ? pkdAccel(pkd,p) : zeroV;
+	    a = pkd->oAcceleration ? pkdAccel(pkd,p) : zeroF;
 	    m = pkdMass(pkd,p);
 	    fSoft = pkdSoft(pkd,p);
 	    v = pkd->oVelocity ? pkdVel(pkd,p) : zeroV;
