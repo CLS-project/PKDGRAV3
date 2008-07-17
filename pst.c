@@ -4258,7 +4258,6 @@ void pstProfile(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 void pstCalcDistance(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct inCalcDistance *in = vin;
-    int i;
 
     assert( nIn==sizeof(struct inCalcDistance) );
     if (pst->nLeaves > 1) {

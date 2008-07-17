@@ -2165,7 +2165,7 @@ void domaintreeids(DC *node,int *leafcount) {
 ** The initial value of plast can be an address of a pointer to DC, and if it 
 ** hasn't changed after this function, then this depth of the tree doesn't exist.
 */
-int domaindepthlink(DC *node,DC **plast,int depth) {
+void domaindepthlink(DC *node,DC **plast,int depth) {
     if (depth) {
 	if (node->nLeaves > 1) {
 	    assert(node->lower != NULL);
