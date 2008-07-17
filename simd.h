@@ -6,6 +6,12 @@
 
 #ifdef USE_SIMD
 
+#ifdef HAVE_ANSIDECL_H
+#include <ansidecl.h>
+#else
+#define ATTRIBUTE_ALIGNED_ALIGNOF(m)
+#endif
+
 #if defined(__SSE__)
 #include <xmmintrin.h>
 #ifdef __SSE2__
@@ -26,9 +32,9 @@
 #endif
 
 #if defined(__SSE__)
-typedef __m128 v4sf;
-typedef __m128 v4bool;
-typedef int v4i __attribute__ ((vector_size(16)));
+typedef ATTRIBUTE_ALIGNED_ALIGNOF(__m128) __m128 v4sf;
+typedef ATTRIBUTE_ALIGNED_ALIGNOF(__m128) __m128 v4bool;
+typedef ATTRIBUTE_ALIGNED_ALIGNOF(__m128) int v4i __attribute__ ((vector_size(16)));
 #else
 typedef vector float v4sf;
 typedef vector bool int v4bool;
