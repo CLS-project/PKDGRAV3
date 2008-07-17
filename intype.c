@@ -1,6 +1,7 @@
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
+#include <inttypes.h>
 #include "intype.h"
 
 static void *openMark(PKD pkd,FILE *fp) {

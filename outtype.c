@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include <assert.h>
+#include <inttypes.h>
 #include "pkd.h"
 #include "outtype.h"
 #ifndef HAVE_CONFIG_H
