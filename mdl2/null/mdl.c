@@ -10,6 +10,7 @@
 #include <limits.h>
 #include <assert.h>
 #include <stdarg.h>
+#include <unistd.h>
 #include <sys/time.h>
 #include <sys/resource.h>
 #include "mdl.h"
@@ -108,10 +109,12 @@ void mdlPrintTimer(MDL mdl,char *message, mdlTimer *t0) {
     }
 #endif
 
-int mdlInitialize(MDL *pmdl,char **argv,void (*fcnChild)(MDL)) {
+int mdlInitialize(MDL *pmdl,char **argv,void (*fcnChild)(MDL),void (*fcnIOChild)(MDL)) {
     MDL mdl;
     int i,nThreads,bDiag,bThreads;
     char *p,ach[256],achDiag[256];
+
+    assert(fcnIOChild==NULL);
 
     *pmdl = NULL;
     mdl = malloc(sizeof(struct mdlContext));
@@ -193,6 +196,10 @@ int mdlInitialize(MDL *pmdl,char **argv,void (*fcnChild)(MDL)) {
     mdl->bDiag = bDiag;
     mdl->nThreads = nThreads;
     *pmdl = mdl;
+
+    gethostname(mdl->nodeName,sizeof(mdl->nodeName));
+    mdl->nodeName[sizeof(mdl->nodeName)-1] = 0;
+
     /*
      ** A unik!
      */
@@ -246,6 +253,14 @@ int mdlSelf(MDL mdl) {
     return(mdl->idSelf);
     }
 
+/*
+** This function returns the absolute ID, when using IO threads. This is 
+** only really useful for debugging. For now it is equivalent to mdlSelf
+** since IO threads are not supported yet.
+*/
+int mdlOldSelf(MDL mdl) {
+    return(mdl->idSelf);
+    }
 
 /*
  ** This is a tricky function. It initiates a bilateral transfer between
@@ -269,6 +284,9 @@ int mdlSwap(MDL mdl,int id,size_t nBufBytes,void *vBuf,size_t nOutBytes,
     return 0;
     }
 
+const char *mdlName(MDL mdl) {
+    return mdl->nodeName;
+    }
 
 void mdlDiag(MDL mdl,char *psz) {
     if (mdl->bDiag) {
@@ -359,11 +377,21 @@ void mdlFree(MDL mdl,void *p) {
     free(p);
     }
 
+/*
+** This is the default element fetch routine.  It impliments the old behaviour
+** of a single large array.  New data structures need to be more clever.
+*/
+static void *getArrayElement(void *vData,int i,int iDataSize) {
+    char *pData = vData;
+    return pData + i*iDataSize;
+    }
 
 /*
  ** Common initialization for all types of caches.
  */
-CACHE *CacheInitialize(MDL mdl,int cid,void *pData,int iDataSize,int nData) {
+CACHE *CacheInitialize(MDL mdl,int cid,
+    void * (*getElt)(void *pData,int i,int iDataSize),
+    void *pData,int iDataSize,int nData) {
     CACHE *c;
     int i,nMaxCacheIds;
 
@@ -389,6 +417,7 @@ CACHE *CacheInitialize(MDL mdl,int cid,void *pData,int iDataSize,int nData) {
 	}
     c = &mdl->cache[cid];
     assert(c->iType == MDL_NOCACHE);
+    c->getElt = getElt==NULL ? getArrayElement : getElt;
     c->pData = pData;
     c->iDataSize = iDataSize;
     c->nData = nData;
@@ -404,10 +433,13 @@ CACHE *CacheInitialize(MDL mdl,int cid,void *pData,int iDataSize,int nData) {
 /*
  ** Initialize a Read-Only caching space.
  */
-void mdlROcache(MDL mdl,int cid,void *pData,int iDataSize,int nData) {
+
+void mdlROcache(MDL mdl,int cid,
+    void * (*getElt)(void *pData,int i,int iDataSize),
+    void *pData,int iDataSize,int nData) {
     CACHE *c;
 
-    c = CacheInitialize(mdl,cid,pData,iDataSize,nData);
+    c = CacheInitialize(mdl,cid,getElt,pData,iDataSize,nData);
     c->iType = MDL_ROCACHE;
     c->init = NULL;
     c->combine = NULL;
@@ -417,14 +449,17 @@ void mdlROcache(MDL mdl,int cid,void *pData,int iDataSize,int nData) {
 /*
  ** Initialize a Combiner caching space.
  */
-void mdlCOcache(MDL mdl,int cid,void *pData,int iDataSize,int nData,
-		void (*init)(void *),void (*combine)(void *,void *)) {
+void mdlCOcache(MDL mdl,int cid,
+    void * (*getElt)(void *pData,int i,int iDataSize),
+    void *pData,int iDataSize,int nData,
+    void *ctx,void (*init)(void *,void *),void (*combine)(void *,void *,void *)) {
     CACHE *c;
 
-    c = CacheInitialize(mdl,cid,pData,iDataSize,nData);
+    c = CacheInitialize(mdl,cid,getElt,pData,iDataSize,nData);
     c->iType = MDL_COCACHE;
     c->init = init;
     c->combine = combine;
+    c->ctx = ctx;
     }
 
 
@@ -452,7 +487,7 @@ void *mdlAquire(MDL mdl,int cid,int iIndex,int id) {
 
     ++c->nAccess;
     assert(id == mdl->idSelf);
-    return(&c->pData[iIndex*c->iDataSize]);
+    return (*c->getElt)(c->pData,iIndex,c->iDataSize);
     }
 
 

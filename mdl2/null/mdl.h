@@ -7,15 +7,19 @@
 #define vsnprintf(a,b,c,d) vsprintf((a),(c),(d))
 #endif
 
+#define MAX_PROCESSOR_NAME      256
+
 #define SRV_STOP		0
 
 typedef struct cacheSpace {
     int iType;
-    char *pData;
+    void *pData;
     int iDataSize;
     int nData;
-    void (*init)(void *);
-    void (*combine)(void *,void *);
+    void *ctx;
+    void (*init)(void *,void *);
+    void (*combine)(void *,void *,void *);
+    void * (*getElt)(void *pData,int i,int iDataSize);
     /*
      ** Statistics stuff.
      */
@@ -57,6 +61,8 @@ typedef struct mdlContext {
     int iMaxDataSize;
     int nMaxCacheIds;
     CACHE *cache;
+
+    char nodeName[MAX_PROCESSOR_NAME];
     } * MDL;
 
 
@@ -132,10 +138,12 @@ void mdlPrintTimer(MDL mdl,char *message,mdlTimer *);
  ** General Functions
  */
 double mdlCpuTimer(MDL);
-int mdlInitialize(MDL *,char **,void (*)(MDL));
+int mdlInitialize(MDL *pmdl,char **argv,void (*fcnChild)(MDL),void (*fcnIOChild)(MDL));
 void mdlFinish(MDL);
 int mdlThreads(MDL);
 int mdlSelf(MDL);
+int mdlOldSelf(MDL);
+const char *mdlName(MDL);
 int mdlSwap(MDL,int,size_t,void *,size_t,size_t *,size_t *);
 void mdlDiag(MDL,char *);
 void mdlAddService(MDL,int,void *,void (*)(void *,void *,int,void *,int *),
@@ -148,9 +156,13 @@ void mdlHandler(MDL);
  */
 void *mdlMalloc(MDL,int);
 void mdlFree(MDL,void *);
-void mdlROcache(MDL,int,void *,int,int);
-void mdlCOcache(MDL,int,void *,int,int,
-		void (*)(void *),void (*)(void *,void *));
+void mdlROcache(MDL mdl,int cid,
+                void * (*getElt)(void *pData,int i,int iDataSize),
+                void *pData,int iDataSize,int nData);
+void mdlCOcache(MDL mdl,int cid,
+                void * (*getElt)(void *pData,int i,int iDataSize),
+                void *pData,int iDataSize,int nData,
+                void *ctx,void (*init)(void *,void *),void (*combine)(void *,void *,void *));
 void mdlFinishCache(MDL,int);
 void mdlCacheCheck(MDL);
 void mdlCacheBarrier(MDL,int);
