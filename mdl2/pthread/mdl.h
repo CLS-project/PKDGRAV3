@@ -74,7 +74,7 @@ typedef struct swxStruct {
 
 typedef struct cacheSpace {
     int iType;
-    char *pData;
+    void *pData;
     int iDataSize;
     int nData;
     size_t pDataMax;
@@ -89,8 +89,12 @@ typedef struct cacheSpace {
     CTAG *pTag;
     char *pLine;
     int nCheckOut;
-    void (*init)(void *);
-    void (*combine)(void *,void *);
+
+    void *ctx;
+    void (*init)(void *,void *);
+    void (*combine)(void *,void *,void *);
+    void * (*getElt)(void *pData,int i,int iDataSize);
+
     /*
      ** Statistics stuff.
      */
@@ -262,9 +266,13 @@ void mdlFFT( MDLFFT fft, fftw_real *data, int bInverse );
  */
 void *mdlMalloc(MDL,size_t);
 void mdlFree(MDL,void *);
-void mdlROcache(MDL,int,void *,int,int);
-void mdlCOcache(MDL,int,void *,int,int,
-		void (*)(void *),void (*)(void *,void *));
+void mdlROcache(MDL mdl,int cid,
+                void * (*getElt)(void *pData,int i,int iDataSize),
+                void *pData,int iDataSize,int nData);
+void mdlCOcache(MDL mdl,int cid,
+                void * (*getElt)(void *pData,int i,int iDataSize),
+                void *pData,int iDataSize,int nData,
+                void *ctx,void (*init)(void *,void *),void (*combine)(void *,void *,void *));
 void mdlFinishCache(MDL,int);
 void *mdlAquire(MDL,int,int,int);
 void mdlPrefetch(MDL,int,int,int);

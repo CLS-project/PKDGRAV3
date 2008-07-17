@@ -837,7 +837,8 @@ int mdlCacheReceive(MDL mdl) {
 	 * Data is out; unlock it
 	 */
 	pthread_mutex_unlock(&pmbx->mux);
-	t = &c->pData[i*((size_t)c->iDataSize)];
+	t = c->getElt(c->pData,i,c->iDataSize);
+	//t = &c->pData[i*((size_t)c->iDataSize)];
 	/*
 	 ** Make sure we don't combine beyond the number of data elements!
 	 */
@@ -846,7 +847,7 @@ int mdlCacheReceive(MDL mdl) {
 	n -= i;
 	n *= c->iDataSize;
 	for (i=0;i<n;i+=c->iDataSize) {
-	    (*c->combine)(&t[i],&c->pLine[i]);
+	    (*c->combine)(c->ctx,&t[i],&c->pLine[i]);
 	    }
 	return(0);
     default:
@@ -906,9 +907,20 @@ void mdlFree(MDL mdl,void *p) {
     }
 
 /*
+** This is the default element fetch routine.  It impliments the old behaviour
+** of a single large array.  New data structures need to be more clever.
+*/
+static void *getArrayElement(void *vData,int i,int iDataSize) {
+    char *pData = vData;
+    return pData + i*iDataSize;
+    }
+
+/*
  ** Common initialization for all types of caches.
  */
-CACHE *CacheInitialize(MDL mdl,int cid,void *pData,int iDataSize,int nData) {
+CACHE *CacheInitialize(MDL mdl,int cid,
+                       void * (*getElt)(void *pData,int i,int iDataSize),
+                       void *pData,int iDataSize,int nData) {
     CACHE *c;
     int i,nMaxCacheIds;
 
@@ -934,6 +946,7 @@ CACHE *CacheInitialize(MDL mdl,int cid,void *pData,int iDataSize,int nData) {
 	}
     c = &mdl->cache[cid];
     assert(c->iType == MDL_NOCACHE);
+    c->getElt = getElt==NULL ? getArrayElement : getElt;
     c->pData = pData;
     c->iDataSize = iDataSize;
     c->nData = nData;
@@ -949,16 +962,19 @@ CACHE *CacheInitialize(MDL mdl,int cid,void *pData,int iDataSize,int nData) {
 /*
  ** Initialize a caching space.
  */
-void mdlROcache(MDL mdl,int cid,void *pData,int iDataSize,int nData) {
+void mdlROcache(MDL mdl,int cid,
+    void * (*getElt)(void *pData,int i,int iDataSize),
+    void *pData,int iDataSize,int nData) {
     CACHE *c;
 
-    c = CacheInitialize(mdl,cid,pData,iDataSize,nData);
+    c = CacheInitialize(mdl,cid,getElt,pData,iDataSize,nData);
     c->iType = MDL_ROCACHE;
     /*
      ** For an ROcache these two functions are not needed.
      */
     c->init = NULL;
     c->combine = NULL;
+    c->ctx = NULL;
     /*
      ** THIS IS A SYNCHRONIZE!!!
      */
@@ -968,16 +984,19 @@ void mdlROcache(MDL mdl,int cid,void *pData,int iDataSize,int nData) {
 /*
  ** Initialize a combiner caching space.
  */
-void mdlCOcache(MDL mdl,int cid,void *pData,int iDataSize,int nData,
-		void (*init)(void *),void (*combine)(void *,void *)) {
+void mdlCOcache(MDL mdl,int cid,
+    void * (*getElt)(void *pData,int i,int iDataSize),
+    void *pData,int iDataSize,int nData,
+    void *ctx,void (*init)(void *,void *),void (*combine)(void *,void *,void *)) {
     CACHE *c;
     int i;
 
-    c = CacheInitialize(mdl,cid,pData,iDataSize,nData);
+    c = CacheInitialize(mdl,cid,getElt,pData,iDataSize,nData);
 
     c->iType = MDL_COCACHE;
     c->init = init;
     c->combine = combine;
+    c->ctx = ctx;
     c->iLineSize = MDL_CACHELINE_ELTS*c->iDataSize;
     c->iKeyShift = 0;
     while ((1 << c->iKeyShift) < mdl->nThreads) ++c->iKeyShift;
@@ -1179,7 +1198,8 @@ void *mdlAquire(MDL mdl,int cid,int iIndex,int id) {
 
     if (c->iType == MDL_ROCACHE || id == mdl->idSelf) {
 	CACHE *cc = &mdl->pmdl[id]->cache[cid];
-	return(&cc->pData[iIndex*((size_t)c->iDataSize)]);
+	return c->getElt(cc->pData,iIndex,c->iDataSize);
+	//return(&cc->pData[iIndex*((size_t)c->iDataSize)]);
 	}
 
     ++c->nAccess;
@@ -1229,6 +1249,8 @@ void *doMiss(MDL mdl, int cid, int iIndex, int id, mdlkey_t iKey, int lock) {
     int iVictim,*pi;
     char ach[80];
     int iLineSize;
+    char *t;
+    int s,n;
 
     /*
      ** Cache Miss.
@@ -1306,15 +1328,22 @@ Await:
      */
     cc = &mdl->pmdl[id]->cache[cid];
 
-    if ((iLine+1)*c->iLineSize > cc->pDataMax) {
-	iLineSize = size_t_to_int(cc->pDataMax - iLine*c->iLineSize);
-	}
-    else {
-	iLineSize = c->iLineSize;
-	}
+    s = iLine*MDL_CACHELINE_ELTS;
+    n = s + MDL_CACHELINE_ELTS;
+    if ( n > cc->nData ) n = cc->nData;
+    iLineSize = (n-s) * cc->iDataSize;
+    t = (*cc->getElt)(cc->pData,i,cc->iDataSize);
+    memcpy(pLine,t,iLineSize);
 
-    for (i = 0; i < iLineSize; i++)
-	pLine[i] = cc->pData[iLine*c->iLineSize + i];
+//    if ((iLine+1)*c->iLineSize > cc->pDataMax) {
+//	iLineSize = size_t_to_int(cc->pDataMax - iLine*c->iLineSize);
+//	}
+//    else {
+//	iLineSize = c->iLineSize;
+//	}
+//
+//    for (i = 0; i < iLineSize; i++)
+//	pLine[i] = cc->pData[iLine*c->iLineSize + i];
 
     if (c->iType == MDL_COCACHE) {
 	/*
@@ -1322,7 +1351,7 @@ Await:
 	 ** the cache line.
 	 */
 	for (i=0;i<iLineSize;i+=c->iDataSize) {
-	    (*c->init)(&pLine[i]);
+	    (*c->init)(c->ctx,&pLine[i]);
 	    }
 	}
 
@@ -1345,10 +1374,12 @@ void mdlRelease(MDL mdl,int cid,void *p) {
 	--c->pTag[iLine].nLock;
 	assert(c->pTag[iLine].nLock >= 0);
 	}
+#ifdef OLD_CACHE
     else {
 	iData = size_t_to_int(((char *)p - c->pData) / c->iDataSize);
 	assert(iData >= 0 && iData < c->nData);
 	}
+#endif
     }
 
 
