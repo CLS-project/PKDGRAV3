@@ -255,8 +255,46 @@ void mdlHandler(MDL);
 /*
 ** Collective operations
 */
+#define MDL_BAND  MPI_BAND
+#define MDL_BOR MPI_BOR
+#define MDL_BXOR MPI_BXOR
+#define MDL_LAND MPI_LAND
+#define MDL_LOR MPI_LOR
+#define MDL_LXOR MPI_LXOR
+#define MDL_MAX MPI_MAX
+#define MDL_MAXLOC MPI_MAXLOC
+#define MDL_MIN MPI_MIN
+#define MDL_MINLOC MPI_MINLOC
+#define MDL_PROD MPI_PROD
+#define MDL_REPLACE MPI_REPLACE
+#define MDL_SUM MPI_SUM
+
+#define MDL_BYTE MPI_BYTE
+#define MDL_INT MPI_INT
+#define MDL_LONG MPI_LONG
+#define MDL_LONG_LONG_INT MPI_LONG_LONG_INT
+#define MDL_SHORT MPI_SHORT
+#define MDL_UNSIGNED MPI_UNSIGNED
+#define MDL_UNSIGNED_LONG MPI_UNSIGNED_LONG
+#define MDL_UNSIGNED_LONG_LONG MPI_UNSIGNED_LONG_LONG
+#define MDL_UNSIGNED_SHORT MPI_UNSIGNED_SHORT
+#define MDL_DOUBLE_INT MPI_DOUBLE_INT
+#define MDL_FLOAT_INT MPI_FLOAT_INT
+#define MDL_LONG_INT MPI_LONG_INT
+#define MDL_LONG_DOUBLE_INT MPI_LONG_DOUBLE_INT
+#define MDL_SHORT_INT MPI_SHORT_INT
+#define MDL_2INT MPI_2INT
+#define MDL_COMPLEX  MPI_COMPLEX
+#define MDL_DOUBLE MPI_DOUBLE
+#define MDL_DOUBLE_PRECISION MPI_DOUBLE_PRECISION
+#define MDL_FLOAT MPI_FLOAT
+#define MDL_LONG_DOUBLE MPI_LONG_DOUBLE
+#define MDL_REAL MPI_REAL
+#define MDL_LOGICAL  MPI_LOGICAL
+
 typedef MPI_Op MDL_Op;
 typedef MPI_Datatype MDL_Datatype;
+#define MDL_Op_create(f,c,o) MPI_Op_create(f,c,o) 
 int mdlReduce ( MDL mdl, void *sendbuf, void *recvbuf, int count,
 		MDL_Datatype datatype, MDL_Op op, int root );
 
