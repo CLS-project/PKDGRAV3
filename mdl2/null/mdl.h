@@ -1,7 +1,13 @@
 #ifndef MDL_HINCLUDED
 #define MDL_HINCLUDED
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
 #include <stdio.h>
 #include <assert.h>
+#ifdef INSTRUMENT
+#include "cycle.h"
+#endif
 
 #if defined(__osf__) || defined(__sgi)
 #define vsnprintf(a,b,c,d) vsprintf((a),(c),(d))
@@ -61,8 +67,11 @@ typedef struct mdlContext {
     int iMaxDataSize;
     int nMaxCacheIds;
     CACHE *cache;
-
     char nodeName[MAX_PROCESSOR_NAME];
+#ifdef INSTRUMENT
+    ticks nTicks;
+    double dComputing;
+#endif
     } * MDL;
 
 
@@ -176,6 +185,13 @@ double mdlNumAccess(MDL,int);
 double mdlMissRatio(MDL,int);
 double mdlCollRatio(MDL,int);
 double mdlMinRatio(MDL,int);
+
+#ifdef INSTRUMENT
+void mdlTimeReset(MDL);
+double mdlTimeComputing(MDL);
+double mdlTimeSynchronizing(MDL);
+double mdlTimeWaiting(MDL);
+#endif
 
 #endif
 

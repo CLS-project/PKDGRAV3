@@ -200,6 +200,11 @@ int mdlInitialize(MDL *pmdl,char **argv,void (*fcnChild)(MDL),void (*fcnIOChild)
     gethostname(mdl->nodeName,sizeof(mdl->nodeName));
     mdl->nodeName[sizeof(mdl->nodeName)-1] = 0;
 
+#ifdef INSTRUMENT
+    mdl->dComputing = 0.0;
+    mdl->nTicks = getticks();
+#endif
+
     /*
      ** A unik!
      */
@@ -466,6 +471,14 @@ void mdlCOcache(MDL mdl,int cid,
 void mdlFinishCache(MDL mdl,int cid) {
     CACHE *c = &mdl->cache[cid];
 
+#ifdef INSTRUMENT
+	{
+	ticks nTicks = getticks();
+	mdl->dComputing += elapsed( nTicks, mdl->nTicks );
+	mdl->nTicks = nTicks;
+	}
+#endif
+
     /*
      ** Free up storage and finish.
      */
@@ -527,3 +540,28 @@ double mdlMinRatio(MDL mdl,int cid) {
     if (dAccess > 0.0) return(c->nMin/dAccess);
     else return(0.0);
     }
+
+#ifdef INSTRUMENT
+void mdlTimeReset(MDL mdl) {
+    mdl->dComputing = 0.0;
+    mdl->nTicks = getticks();
+    }
+
+static double TimeFraction(MDL mdl) {
+    double dTotal = mdl->dComputing;
+    if ( dTotal <= 0.0 ) return 0.0;
+    return 100.0 / dTotal;
+    }
+
+double mdlTimeComputing(MDL mdl) {
+    return mdl->dComputing * TimeFraction(mdl);
+    }
+
+double mdlTimeSynchronizing(MDL mdl) {
+    return 0.0;
+    }
+
+double mdlTimeWaiting(MDL mdl) {
+    return 0.0;
+    }
+#endif
