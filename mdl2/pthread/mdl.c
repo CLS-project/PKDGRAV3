@@ -437,6 +437,12 @@ int mdlInitialize(MDL *pmdl,char **argv,void (*fcnChild)(MDL),void (*fcnIOChild)
     gethostname(mdl->nodeName,MAX_PROCESSOR_NAME);
     /* make sure it is null terminated, stupid UNIX */
     mdl->nodeName[MAX_PROCESSOR_NAME-1] = 0;
+
+#ifdef INSTRUMENT
+    mdl->dWaiting = mdl->dComputing = mdl->dSynchronizing = 0.0;
+    mdl->nTicks = getticks();
+#endif
+
     return(nThreads);
     }
 
@@ -1121,6 +1127,14 @@ void mdlFinishCache(MDL mdl,int cid) {
     int i,id;
     mdlkey_t iKey;
 
+#ifdef INSTRUMENT
+	{
+	ticks nTicks = getticks();
+	mdl->dComputing += elapsed( nTicks, mdl->nTicks );
+	mdl->nTicks = nTicks;
+	}
+#endif
+
     /*
      ** THIS IS A SYNCHRONIZE!!!
      */
@@ -1182,6 +1196,14 @@ void mdlFinishCache(MDL mdl,int cid) {
 	}
     c->iType = MDL_NOCACHE;
     AdjustDataSize(mdl);
+
+#ifdef INSTRUMENT
+	{
+	ticks nTicks = getticks();
+	mdl->dSynchronizing += elapsed( nTicks, mdl->nTicks );
+	mdl->nTicks = nTicks;
+	}
+#endif
     }
 
 void *doMiss(MDL mdl, int cid, int iIndex, int id, mdlkey_t iKey, int lock);
@@ -1251,6 +1273,14 @@ void *doMiss(MDL mdl, int cid, int iIndex, int id, mdlkey_t iKey, int lock) {
     int iLineSize;
     char *t;
     int s,n;
+
+#ifdef INSTRUMENT
+	{
+	ticks nTicks = getticks();
+	mdl->dComputing += elapsed( nTicks, mdl->nTicks );
+	mdl->nTicks = nTicks;
+	}
+#endif
 
     /*
      ** Cache Miss.
@@ -1355,6 +1385,13 @@ Await:
 	    }
 	}
 
+#ifdef INSTRUMENT
+	{
+	ticks nTicks = getticks();
+	mdl->dWaiting += elapsed( nTicks, mdl->nTicks );
+	mdl->nTicks = nTicks;
+	}
+#endif
     return(&pLine[iElt*c->iDataSize]);
     }
 
@@ -1387,6 +1424,14 @@ void mdlCacheBarrier(MDL mdl,int cid) {
     CACHE *c = &mdl->cache[cid];
     int id;
 
+#ifdef INSTRUMENT
+	{
+	ticks nTicks = getticks();
+	mdl->dComputing += elapsed( nTicks, mdl->nTicks );
+	mdl->nTicks = nTicks;
+	}
+#endif
+
     /*
     ** THIS IS A SYNCHRONIZE!!!
     */
@@ -1417,6 +1462,13 @@ void mdlCacheBarrier(MDL mdl,int cid) {
     else {
 	mdlBarrier(mdl);
 	}
+#ifdef INSTRUMENT
+	{
+	ticks nTicks = getticks();
+	mdl->dSynchronizing += elapsed( nTicks, mdl->nTicks );
+	mdl->nTicks = nTicks;
+	}
+#endif
     }
 
 
@@ -1464,6 +1516,31 @@ double mdlMinRatio(MDL mdl,int cid) {
     if (dAccess > 0.0) return(c->nMin/dAccess);
     else return(0.0);
     }
+
+#ifdef INSTRUMENT
+void mdlTimeReset(MDL mdl) {
+    mdl->dWaiting = mdl->dComputing = mdl->dSynchronizing = 0.0;
+    mdl->nTicks = getticks();
+    }
+
+static double TimeFraction(MDL mdl) {
+    double dTotal = mdl->dComputing + mdl->dWaiting + mdl->dSynchronizing;
+    if ( dTotal <= 0.0 ) return 0.0;
+    return 100.0 / dTotal;
+    }
+
+double mdlTimeComputing(MDL mdl) {
+    return mdl->dComputing * TimeFraction(mdl);
+    }
+
+double mdlTimeSynchronizing(MDL mdl) {
+    return mdl->dSynchronizing * TimeFraction(mdl);
+    }
+
+double mdlTimeWaiting(MDL mdl) {
+    return mdl->dWaiting * TimeFraction(mdl);
+    }
+#endif
 
 #ifdef MDL_FFTW
 size_t mdlFFTInitialize(MDL mdl,MDLFFT *pfft,

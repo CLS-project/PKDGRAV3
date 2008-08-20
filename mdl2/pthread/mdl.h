@@ -1,5 +1,8 @@
 #ifndef MDL_HINCLUDED
 #define MDL_HINCLUDED
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
 #include <stdio.h>
 #include <pthread.h>
 #include <assert.h>
@@ -7,6 +10,9 @@
 
 #ifdef MDL_FFTW
 #include <srfftw_threads.h>
+#endif
+#ifdef INSTRUMENT
+#include "cycle.h"
 #endif
 
 #ifdef __osf__
@@ -148,6 +154,12 @@ typedef struct mdlContext {
     int iMaxDataSize;
     CACHE *cache;
     char nodeName[MAX_PROCESSOR_NAME];
+#ifdef INSTRUMENT
+    ticks nTicks;
+    double dWaiting;
+    double dComputing;
+    double dSynchronizing;
+#endif
     } * MDL;
 
 
@@ -286,5 +298,12 @@ double mdlNumAccess(MDL,int);
 double mdlMissRatio(MDL,int);
 double mdlCollRatio(MDL,int);
 double mdlMinRatio(MDL,int);
+
+#ifdef INSTRUMENT
+void mdlTimeReset(MDL);
+double mdlTimeComputing(MDL);
+double mdlTimeSynchronizing(MDL);
+double mdlTimeWaiting(MDL);
+#endif
 
 #endif
