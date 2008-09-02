@@ -82,7 +82,7 @@ pkdgrav2m_null_LDADD += -lefence
 endif
 if USE_PYTHON
 pkdgrav2m_null_LDFLAGS = -Xlinker -export-dynamic 
-pkdgrav2m_null_LDADD += -L /usr/lib64/python$(PYTHON_VER)/config -lpython$(PYTHON_VER) -lutil
+pkdgrav2m_null_LDADD += -L /usr/lib64/python$(PYTHON_VER)/config -lpython$(PYTHON_VER) -ldl -lrt -lutil
 pkdgrav2m_null_CFLAGS += -I /usr/include/python$(PYTHON_VER)
 endif
 if LUSTRE
@@ -116,7 +116,7 @@ pkdgrav2m_mpi_LDADD += -lefence
 endif
 if USE_PYTHON
 pkdgrav2m_mpi_LDFLAGS = -Xlinker -export-dynamic 
-pkdgrav2m_mpi_LDADD += -L /usr/lib64/python$(PYTHON_VER)/config -lpython$(PYTHON_VER) -lutil
+pkdgrav2m_mpi_LDADD += -L /usr/lib64/python$(PYTHON_VER)/config -lpython$(PYTHON_VER) -ldl -lutil
 pkdgrav2m_mpi_CFLAGS += -I /usr/include/python$(PYTHON_VER)
 endif
 if LUSTRE
@@ -142,7 +142,7 @@ pkdgrav2m_pthread_LDADD += -lefence
 endif
 if USE_PYTHON
 pkdgrav2m_pthread_LDFLAGS = -Xlinker -export-dynamic 
-pkdgrav2m_pthread_LDADD += -L /usr/lib64/python$(PYTHON_VER)/config -lpython$(PYTHON_VER) -lutil
+pkdgrav2m_pthread_LDADD += -L /usr/lib64/python$(PYTHON_VER)/config -lpython$(PYTHON_VER) -ldl -lutil
 pkdgrav2m_pthread_CFLAGS += -I /usr/include/python$(PYTHON_VER)
 endif
 if LUSTRE
@@ -168,7 +168,7 @@ pkdgrav2m_sisci_LDADD += -lefence
 endif
 if USE_PYTHON
 pkdgrav2m_sisci_LDFLAGS = -Xlinker -export-dynamic 
-pkdgrav2m_sisci_LDADD += -L /usr/lib64/python$(PYTHON_VER)/config -lpython$(PYTHON_VER) -lutil
+pkdgrav2m_sisci_LDADD += -L /usr/lib64/python$(PYTHON_VER)/config -lpython$(PYTHON_VER) -ldl -lutil
 pkdgrav2m_sisci_CFLAGS += -I /usr/include/python$(PYTHON_VER)
 endif
 if LUSTRE
