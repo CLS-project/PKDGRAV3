@@ -31,16 +31,24 @@ all-local: $(TARGETS)
 clean-local:
 	rm -f $(EXTRA_PROGRAMS)
 
-SOURCES  = cosmo.c master.c param.c pst.c smooth.c tree.c ewald.c
-SOURCES += main.c moments.c intype.c outtype.c pkd.c analysis.c romberg.c smoothfcn.c
+SOURCES = main.c tree.c analysis.c romberg.c tipsydefs.h
+noinst_HEADERS = bt.h parameters.h grav.h walk.h cycle.h
+SOURCES        += cosmo.c master.c param.c pst.c smooth.c ewald.c
+noinst_HEADERS += cosmo.h master.h param.h pst.h smooth.h ewald.h meval.h qeval.h
+SOURCES        += moments.c intype.c outtype.c pkd.c smoothfcn.c
+noinst_HEADERS += moments.h intype.h outtype.h pkd.h smoothfcn.h
+
 if PLANETS
 SOURCES += ssio.c collision.c kepler.c
+noinst_HEADERS += ssio.h collision.h kepler.h
 endif
 if LOCAL_EXPANSION
 SOURCES += grav2.c walk2.c
 SOURCES += ilp.c ilc.c
+noinst_HEADERS += ilp.h ilc.h
 if USE_SIMD
 AM_CFLAGS = @SIMD_CFLAGS@
+noinst_HEADERS += simd.h
 #if USE_SIMD_LOCR
 #SOURCES += ../bsc/momGenLocrAddSIMDMomr.c
 #endif
@@ -53,19 +61,24 @@ SOURCES += grav.c walk.c
 endif
 if USE_HDF5
 SOURCES += iohdf5.c
+noinst_HEADERS += iohdf5.h
 endif
 if USE_MDL_IO
 SOURCES += io.c
+noinst_HEADERS += io.h
 endif
 MDL=@MDL_PATH@
 if USE_PNG
 SOURCES += png.c
+noinst_HEADERS += png.h
 endif
 if USE_PYTHON
 SOURCES += python.c
+noinst_HEADERS += python.h
 endif
 
 pkdgrav2m_null_SOURCES = $(SOURCES) $(MDL)/null/mdl.c
+noinst_HEADERS += $(MDL)/null/mdl.h
 pkdgrav2m_null_CFLAGS = -I$(MDL)/null/ $(AM_CFLAGS)
 pkdgrav2m_null_LDADD =
 if USE_PNG
@@ -92,6 +105,7 @@ endif
 if HAVE_MPI
 pkdgrav2m_mpi_LDADD =
 pkdgrav2m_mpi_SOURCES = $(SOURCES) $(MDL)/mpi/mdl.c
+noinst_HEADERS += $(MDL)/mpi/mdl.h
 pkdgrav2m_mpi_CFLAGS = -I$(MDL)/mpi/ $(AM_CFLAGS)
 if USE_BSC
 pkdgrav2m_mpi_LDADD += -L /gpfs/apps/CEPBATOOLS/mpitrace-devel/64/lib -ldl -lmpitrace_burst
@@ -126,6 +140,7 @@ endif
 
 if HAVE_PTHREAD
 pkdgrav2m_pthread_SOURCES = $(SOURCES) $(MDL)/pthread/mdl.c
+noinst_HEADERS += $(MDL)/pthread/mdl.h
 pkdgrav2m_pthread_CFLAGS = -I$(MDL)/pthread/ $(AM_CFLAGS)
 pkdgrav2m_pthread_LDADD = -lpthread
 if USE_PNG
@@ -152,6 +167,7 @@ endif
 
 if HAVE_SISCI
 pkdgrav2m_sisci_SOURCES = $(SOURCES) $(MDL)/sisci/mdl.c
+noinst_HEADERS += $(MDL)/sisci/mdl.h
 pkdgrav2m_sisci_CFLAGS = -I$(MDL)/sisci/ $(AM_CFLAGS) -I$(SISCI_PATH)/include
 pkdgrav2m_sisci_LDADD = -lpthread -L $(SISCI_PATH)/lib64 -lsisci
 if USE_PNG

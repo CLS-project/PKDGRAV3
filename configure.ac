@@ -2,8 +2,8 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.59)
-AC_INIT(pkdgrav2m, 2.2, bugs@pkdgrav2.org)
-AM_INIT_AUTOMAKE(pkdgrav2m,2.2)
+AC_INIT(pkdgrav2m, 2.2.2, bugs@pkdgrav2.org)
+AM_INIT_AUTOMAKE(pkdgrav2m,2.2.2)
 AC_CONFIG_SRCDIR([main.c])
 AC_CONFIG_HEADER([config.h])
 
@@ -69,10 +69,12 @@ AC_SUBST([PYTHON_VER],[$PYTHON_VER])
 
 # HDF5 I/O
 AC_ARG_ENABLE(hdf5,
-  [  --enable-hdf5                  enable I/O using HDF5 libraries],
-  [USE_HDF5="$enableval"
+  [  --disable-hdf5                 disable support for I/O using HDF5 libraries],
+  [USE_HDF5="$enableval"],[USE_HDF5="yes"])
+if test "x$USE_HDF5" != "xno" ; then
    AC_DEFINE([USE_HDF5], 1,
- 	[Define if HDF5 I/O should be available.])])
+ 	[Define if HDF5 I/O should be available.])
+fi
 AC_ARG_WITH(hdf5,
   [  --with-hdf5=PATH        path to HDF5 installation],
   [CFLAGS="$CFLAGS -I${withval}/include"
@@ -86,21 +88,24 @@ AC_ARG_WITH(hdf5,
 AC_DEFINE([H5_USE_16_API],1,
         [Use the HDF5 1.6 API instead of later versions])
 
-if test "${cross_compiling}" = "no";
-then
 AC_ARG_WITH(mdl,
   [  --with-mdl=PATH         base path of MDL source],
-  [AC_CHECK_FILE([${withval}],[MDL_PATH="${withval}"],[AC_MSG_ERROR([MDL does not exist at ${withval}])])],
-  [AC_CHECK_FILE([../mdl2],
-	[AC_SUBST([MDL_PATH],../mdl2)],
-	[AC_CHECK_FILE([../mdl],[AC_SUBST([MDL_PATH],../mdl)],[AC_MSG_ERROR([Cannot locate MDL, try --with-mdl=PATH])])]
-   )])
-else
-AC_ARG_WITH(mdl,
-  [  --with-mdl=PATH         base path of MDL source],
-  [MDL_PATH="${withval}"]
-  [MDL_PATH="../mdl2"])
-fi
+  [if test -d "${withval}" ; then
+     MDL_PATH="${withval}"
+   else
+     AC_MSG_ERROR([MDL does not exist at ${withval}])
+   fi
+  ],
+  [for D in mdl2 mdl ../mdl2 ../mdl ; do
+     if test -d $D ; then
+       MDL_PATH="$D"
+       break
+     fi
+   done
+   if test -z "${MDL_PATH}" ; then
+     AC_MSG_ERROR([Cannot locate MDL, try --with-mdl=PATH])
+   fi])
+AC_SUBST([MDL_PATH],[$MDL_PATH])
 
 AC_ARG_WITH(grafic,
   [  --with-grafic=PATH      base path of GRAFIC IC library],
