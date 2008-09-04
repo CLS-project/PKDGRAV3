@@ -2,3 +2,51 @@
     Removed use of a temporary tree from the code. There is now a fixed amount
     of cell storage which cannot be exceeded. kdTemp is no longer referenced in
     tree.c.
+
+Resolved Issues:
+
+pkdgrav2m - 2.2.2
+===============
+
+Reduced memory usage
+
+- 0000045: [Build] Makefile doesn't use MPICC (dpotter) - resolved.
+- 0000043: [Group Finding] Segfault when running FOF (stadel) - resolved.
+- 0000036: [Tree Build] Correlated errors are high at the box boundary (stadel) - resolved.
+- 0000040: [Tree Build] Bounds are set to 0,0,0 when bPeriodic=0 (dpotter) - resolved.
+- 0000041: [Gravity] Particle positions are not updated (dpotter) - resolved.
+- 0000039: [Tree Build] Hangs during tree build (dpotter) - resolved.
+- 0000053: [Build] make null doesn't work - closed.
+
+pkdgrav2m - 2.2.1
+=================
+- 0000024: [Domain] Domain control fractions are not validated at startup (dpotter) - closed.
+- 0000001: [Domain] No output if iWallLimit is reached and we are not at an OutInterval (dpotter) - closed.
+- 0000023: [Gravity] Possible memory corruption (dpotter) - closed.
+- 0000028: [Tree Build] Segfault when assigning to newly SIMD_malloc()'d variable (dpotter) - closed.
+
+pkdgrav2m - 2.2
+===============
+
+Working SIMD for P-P and non-reallocated ILP and ILC
+
+- 0000018: Log file is overwritten on restart (dpotter) - closed.
+- 0000005: A few rogue particles occasionally drop to deep rungs with CO GravStepping. (mzemp) - closed.
+- 0000020: Particle, Cell, and Check lists grow dramatically right after reorder. (stadel) - closed.
+- 0000011: Crashes when using pthreads MDL and very active particles. (stadel) - closed.
+- 0000008: Creating density files hangs (dpotter) - closed.
+- 0000014: Stops doing domain decomposition on base steps under certain conditions. (stadel) - closed.
+
+pkdgrav2m - 2.1.1
+=================
+- 0000017: density was calculated incorrectly when using walk2/grav2.c (stadel) - closed.
+- 0000012: Problem with assertion: nHigh <= nUpperStore at file pst.c - closed.
+
+pkdgrav2m - 2.1
+===============
+- 0000006: mdlCacheBarrier is missing from pthread and null MDL (dpotter) - closed.
+- 0000007: Local Expansions do not work (dpotter) - closed.
+- 0000009: Local expansions cause particles to sink to lower rungs (stadel) - closed.
+- 0000003: alarming output to do with VA timestepping (stadel) - closed.
+- 0000002: First Gravity always reports Step 0 instead of iStartStep (stadel) - closed.
+
