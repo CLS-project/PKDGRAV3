@@ -1,0 +1,148 @@
+			   pkdgrav2m 2.2.2
+			  September 4, 2008
+
+		Joachim Stadel <stadel@physik.uzh.ch>
+		 Doug Potter <dpotter@physik.uzh.ch>
+
+Quick Start
+-----------
+
+To compile the code, simply run:
+
+    ./configure
+    make
+
+This will build two or three executables:
+
+    pkdgrav2m_null     Single processor version of pkdgrav2m
+    pkdgrav2m_pthread  Version that uses pthreads for parallelization
+    pkdgrav2m_mpi      Version that uses MPI (if mpicc is available)
+
+Configuration
+-------------
+
+There are several flags to configure that affect the features and performance 
+of pkdgrav2.  Flags are selected by adding them to the configure command, for
+example, to request that more detailed instrumentation be performed:
+
+    ./configure --enable-instrument
+
+For a list of all options to configure, use --help as in:
+
+    ./configure --help
+
+The following are the available options.
+
+    --with-mpicc=mpicc
+
+    By default, the MPI compiler is assumed to be mpicc.  If mpicc is not
+    found on the system, then MPI support is disabled.  If your system
+    uses a different MPI compiler then it can be specified with this flag.
+
+    --disable-simd
+
+    By default, SIMD (single instruction, multiple data) instructions are
+    enabled.  SIMD is supported for Intel (SSE/SSE2) and IBM (Altivec)
+    architectures.  This gives a noticable performance boost for machines
+    on which it is supported.
+
+    --enable-instrument
+
+    This turnes on detailed timing information for the various phases of
+    computation and communication.  It uses the Matteo Frigo "cycle.h"
+    for access to high resolution hardware timers.  Enabling this has
+    virtually no impact on performance, but is not available on all
+    architectures.
+
+    --disable-hdf5
+
+    Normally, pkdgrav2 will support Tipsy and HDF5 format files.  This
+    will disable support for HDF5.
+
+    --with-hdf5=PATH
+
+    If the HDF5 libraries and include files are not in the default path,
+    this option can be used to specify where they were installed.
+
+    --with-python=VERSION
+
+    Python can be used for scripting for various analysis tasks.  Python
+    is not enabled by default.  This option enables Python and specifies
+    which version to use.
+
+    --enable-mdl-io
+
+    This turns on MDL I/O.  This is a special form of I/O whereby a certain
+    number (specified at runtime) of MPI processors are reserved for
+    performing I/O and are not available for computing.  When output is to
+    be written, the data is transfered to the I/O processors and computing
+    continues while I/O is performed.
+
+    --enable-png
+
+    When enabled, the I/O processors will also generate a PNG image of the
+    current simulation after the file has been written.
+
+    --with-gd=PATH
+
+    If the gd graphic library is not in the default path, this flag can be
+    used to specify the location.  The gd library is only required if PNG
+    support is enabled.
+
+    --enable-lustre
+
+    This enables support for the Lustre file system.  When enabled, pkdgrav2
+    is linked to the lustreapi library.  This enables nStripeSize and
+    nStripeCount parameters for output files.
+
+Build
+-----
+
+Once the configure script has been run to produce a Makefile and config.h,
+the "make" command is used to build the program.  "make" without any
+parameters will build all available executables.  It is more common to
+only require one version of the code, for example the MPI version.  For this
+reason, a parameter can be appended to the "make" command to specify which
+version should be built.  The available versions are:
+
+    mpi			make mpi
+    pthread		make pthread
+    null		make null
+
+To build only the MPI version (pkdgrav2m_mpi), the following command would
+be used:
+
+    make mpi
+
+Running
+-------
+
+Running pkdgrav2 is similar for each version with minor differences.  All
+versions take the name of the parameters file, and possibly extra flags
+as follows.
+
+    pkdgrav2m_null
+    --------------
+    This version takes only a single parameters; the name of the file
+    containing the parameters.
+
+	./pkdgrav2m_null simfile.par
+
+    pkdgrav2m_pthread
+    -----------------
+    This version has an optional flag "-sz" which specifies the number of
+    processors to use.  If not specified, it defaults to the number of
+    CPUs for Linux systems, or one CPU otherwise.  Normally this flag is
+    specified, as in:
+
+	./pkdgrav2m_pthread -sz 4 simfile.par
+
+    pkdgrav2m_mpi
+    -------------
+    This version is run using the MPI system on the cluster in question.
+    Normally this involves a special command (often "mpirun" or "mpiexec"),
+    for example:
+
+	mpiexec pkdgrav2m_mpi simfile.par
+
+    Consult your cluster documentation on how to run MPI programs.
