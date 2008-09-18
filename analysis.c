@@ -1,8 +1,7 @@
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
-const char *pkdgrav2_module_id = "$Id$";
-const char *_module_id = "$Id$";
+const char *analysis_module_id = "$Id$";
 #include <assert.h>
 #include <math.h>
 #include "pkd.h"
