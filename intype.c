@@ -1,6 +1,8 @@
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
+const char *intype_module_id = "$Id$";
+
 #include <inttypes.h>
 #include "intype.h"
 

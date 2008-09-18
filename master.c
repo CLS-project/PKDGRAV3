@@ -1,6 +1,7 @@
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
+const char *master_module_id = "$Id$";
 
 #define _LARGEFILE_SOURCE
 #define _FILE_OFFSET_BITS 64

@@ -1,6 +1,7 @@
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
+const char *smooth_module_id = "$Id$";
 
 #include <stdio.h>
 #include <stdlib.h>

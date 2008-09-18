@@ -1,6 +1,7 @@
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
+const char *ewald_module_id = "$Id$";
 
 #include <stdio.h>
 #ifdef HAVE_MALLOC_H

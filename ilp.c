@@ -1,6 +1,8 @@
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
+const char *ilp_module_id = "$Id$";
+
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>

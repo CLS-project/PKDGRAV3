@@ -1,6 +1,7 @@
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
+const char *outtype_module_id = "$Id$";
 
 #include <stdio.h>
 #include <stdlib.h>

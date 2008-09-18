@@ -1,6 +1,7 @@
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
+const char *ssio_module_id = "$Id$";
 
 #ifdef PLANETS
 

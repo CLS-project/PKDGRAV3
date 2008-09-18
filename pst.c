@@ -1,6 +1,7 @@
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
+const char *pst_module_id = "$Id$";
 
 #include <math.h>
 #include <stdlib.h>

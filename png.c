@@ -1,6 +1,8 @@
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
+const char *png_module_id = "$Id$";
+
 #include <stdint.h>
 #include <assert.h>
 #include <malloc.h>

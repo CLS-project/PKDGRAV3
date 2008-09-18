@@ -1,6 +1,7 @@
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
+const char *kepler_module_id = "$Id$";
 
 #ifdef SYMBA /* also needs PLANET */
 /* The routines in kepler.c solve kepler's equation for various ecc. and dm */

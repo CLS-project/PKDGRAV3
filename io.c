@@ -1,6 +1,8 @@
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
+const char *io_module_id = "$Id$";
+
 /*#define USE_IO_TIPSY*/
 #ifdef USE_IO_TIPSY
 #include <rpc/xdr.h>

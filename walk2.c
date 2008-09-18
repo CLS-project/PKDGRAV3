@@ -1,6 +1,7 @@
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
+const char *walk2_module_id = "$Id$";
 
 #ifdef PROFILE_GRAVWALK
 #include "VtuneApi.h"

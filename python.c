@@ -3,6 +3,8 @@
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
+const char *python_module_id = "$Id$";
+
 #include <stdint.h>
 #include "master.h"
 #include "outtype.h"

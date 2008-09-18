@@ -1,6 +1,7 @@
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
+const char *collision_module_id = "$Id$";
 
 #ifdef PLANETS
 
