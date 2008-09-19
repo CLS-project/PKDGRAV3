@@ -16,6 +16,8 @@
 #include <pthread.h>
 #include "mdl.h"
 
+const char *pthread_mdl_module_id = "PTHREAD ($Id$)";
+
 #if (__i486__)
 #include <linux/smp.h>		/* FOR LINUX ONLY!!! */
 #else
@@ -438,7 +440,7 @@ int mdlInitialize(MDL *pmdl,char **argv,void (*fcnChild)(MDL),void (*fcnIOChild)
     /* make sure it is null terminated, stupid UNIX */
     mdl->nodeName[MAX_PROCESSOR_NAME-1] = 0;
 
-#ifdef INSTRUMENT
+#if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
     mdl->dWaiting = mdl->dComputing = mdl->dSynchronizing = 0.0;
     mdl->nTicks = getticks();
 #endif
@@ -1127,7 +1129,7 @@ void mdlFinishCache(MDL mdl,int cid) {
     int i,id;
     mdlkey_t iKey;
 
-#ifdef INSTRUMENT
+#if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
 	{
 	ticks nTicks = getticks();
 	mdl->dComputing += elapsed( nTicks, mdl->nTicks );
@@ -1197,7 +1199,7 @@ void mdlFinishCache(MDL mdl,int cid) {
     c->iType = MDL_NOCACHE;
     AdjustDataSize(mdl);
 
-#ifdef INSTRUMENT
+#if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
 	{
 	ticks nTicks = getticks();
 	mdl->dSynchronizing += elapsed( nTicks, mdl->nTicks );
@@ -1274,7 +1276,7 @@ void *doMiss(MDL mdl, int cid, int iIndex, int id, mdlkey_t iKey, int lock) {
     char *t;
     int s,n;
 
-#ifdef INSTRUMENT
+#if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
 	{
 	ticks nTicks = getticks();
 	mdl->dComputing += elapsed( nTicks, mdl->nTicks );
@@ -1385,7 +1387,7 @@ Await:
 	    }
 	}
 
-#ifdef INSTRUMENT
+#if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
 	{
 	ticks nTicks = getticks();
 	mdl->dWaiting += elapsed( nTicks, mdl->nTicks );
@@ -1424,7 +1426,7 @@ void mdlCacheBarrier(MDL mdl,int cid) {
     CACHE *c = &mdl->cache[cid];
     int id;
 
-#ifdef INSTRUMENT
+#if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
 	{
 	ticks nTicks = getticks();
 	mdl->dComputing += elapsed( nTicks, mdl->nTicks );
@@ -1462,7 +1464,7 @@ void mdlCacheBarrier(MDL mdl,int cid) {
     else {
 	mdlBarrier(mdl);
 	}
-#ifdef INSTRUMENT
+#if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
 	{
 	ticks nTicks = getticks();
 	mdl->dSynchronizing += elapsed( nTicks, mdl->nTicks );
@@ -1517,7 +1519,7 @@ double mdlMinRatio(MDL mdl,int cid) {
     else return(0.0);
     }
 
-#ifdef INSTRUMENT
+#if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
 void mdlTimeReset(MDL mdl) {
     mdl->dWaiting = mdl->dComputing = mdl->dSynchronizing = 0.0;
     mdl->nTicks = getticks();

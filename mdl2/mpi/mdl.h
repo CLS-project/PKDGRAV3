@@ -145,7 +145,7 @@ typedef struct mdlContext {
     int nMaxCacheIds;
     CACHE *cache;
     char nodeName[MPI_MAX_PROCESSOR_NAME];
-#ifdef INSTRUMENT
+#if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
     ticks nTicks;
     double dWaiting;
     double dComputing;
@@ -394,7 +394,7 @@ double mdlMissRatio(MDL,int);
 double mdlCollRatio(MDL,int);
 double mdlMinRatio(MDL,int);
 
-#ifdef INSTRUMENT
+#if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
 void mdlTimeReset(MDL);
 double mdlTimeComputing(MDL);
 double mdlTimeSynchronizing(MDL);

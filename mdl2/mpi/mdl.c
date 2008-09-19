@@ -18,6 +18,8 @@
 #include "mpitrace_user_events.h"
 #endif
 
+const char *mpi_mdl_module_id = "MPI ($Id$)";
+
 #define MDL_NOCACHE			0
 #define MDL_ROCACHE			1
 #define MDL_COCACHE			2
@@ -1134,7 +1136,7 @@ CACHE *CacheInitialize(MDL mdl,int cid,
 	MPI_Irecv(mdl->pszRcv,mdl->iCaBufSize, MPI_BYTE, MPI_ANY_SOURCE,
 		  MDL_TAG_CACHECOM, mdl->commMDL, &mdl->ReqRcv);
 
-#ifdef INSTRUMENT
+#if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
 	mdl->dWaiting = mdl->dComputing = mdl->dSynchronizing = 0.0;
 	mdl->nTicks = getticks();
 #endif
@@ -1361,7 +1363,7 @@ void mdlFinishCache(MDL mdl,int cid) {
     MPI_Request reqBoth[2];
     int index;
 
-#ifdef INSTRUMENT
+#if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
 	{
 	ticks nTicks = getticks();
 	mdl->dComputing += elapsed( nTicks, mdl->nTicks );
@@ -1498,7 +1500,7 @@ void mdlFinishCache(MDL mdl,int cid) {
 	MPI_Wait(&mdl->ReqRcv, &status);
 	}
     MPI_Barrier(mdl->commMDL);
-#ifdef INSTRUMENT
+#if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
 	{
 	ticks nTicks = getticks();
 	mdl->dSynchronizing += elapsed( nTicks, mdl->nTicks );
@@ -1513,7 +1515,7 @@ void mdlCacheBarrier(MDL mdl,int cid) {
     CAHEAD caOut;
     int id;
 
-#ifdef INSTRUMENT
+#if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
 	{
 	ticks nTicks = getticks();
 	mdl->dComputing += elapsed( nTicks, mdl->nTicks );
@@ -1551,7 +1553,7 @@ void mdlCacheBarrier(MDL mdl,int cid) {
 	}
     c->nCheckOut = 0;
     MPI_Barrier(mdl->commMDL);
-#ifdef INSTRUMENT
+#if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
 	{
 	ticks nTicks = getticks();
 	mdl->dSynchronizing += elapsed( nTicks, mdl->nTicks );
@@ -1589,7 +1591,7 @@ void *mdlDoMiss(MDL mdl, int cid, int iIndex, int id, mdlkey_t iKey, int lock) {
     MPI_Request reqFlsh;
 
 
-#ifdef INSTRUMENT
+#if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
 	{
 	ticks nTicks = getticks();
 	mdl->dComputing += elapsed( nTicks, mdl->nTicks );
@@ -1678,7 +1680,7 @@ Await:
 	if (mdlCacheReceive(mdl,pLine)) {
 	    if (caFlsh)
 		MPI_Wait(&reqFlsh, &status);
-#ifdef INSTRUMENT
+#if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
 		{
 		ticks nTicks = getticks();
 		mdl->dWaiting += elapsed( nTicks, mdl->nTicks );
@@ -1746,7 +1748,7 @@ double mdlMinRatio(MDL mdl,int cid) {
     else return(0.0);
     }
 
-#ifdef INSTRUMENT
+#if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
 void mdlTimeReset(MDL mdl) {
     mdl->dWaiting = mdl->dComputing = mdl->dSynchronizing = 0.0;
     mdl->nTicks = getticks();

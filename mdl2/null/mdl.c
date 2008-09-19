@@ -15,6 +15,7 @@
 #include <sys/resource.h>
 #include "mdl.h"
 
+const char *null_mdl_module_id = "NULL ($Id$)";
 
 #define MDL_NOCACHE			0
 #define MDL_ROCACHE			1
@@ -200,7 +201,7 @@ int mdlInitialize(MDL *pmdl,char **argv,void (*fcnChild)(MDL),void (*fcnIOChild)
     gethostname(mdl->nodeName,sizeof(mdl->nodeName));
     mdl->nodeName[sizeof(mdl->nodeName)-1] = 0;
 
-#ifdef INSTRUMENT
+#if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
     mdl->dComputing = 0.0;
     mdl->nTicks = getticks();
 #endif
@@ -471,7 +472,7 @@ void mdlCOcache(MDL mdl,int cid,
 void mdlFinishCache(MDL mdl,int cid) {
     CACHE *c = &mdl->cache[cid];
 
-#ifdef INSTRUMENT
+#if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
 	{
 	ticks nTicks = getticks();
 	mdl->dComputing += elapsed( nTicks, mdl->nTicks );
@@ -541,7 +542,7 @@ double mdlMinRatio(MDL mdl,int cid) {
     else return(0.0);
     }
 
-#ifdef INSTRUMENT
+#if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
 void mdlTimeReset(MDL mdl) {
     mdl->dComputing = 0.0;
     mdl->nTicks = getticks();

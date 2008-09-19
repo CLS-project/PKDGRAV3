@@ -68,7 +68,7 @@ typedef struct mdlContext {
     int nMaxCacheIds;
     CACHE *cache;
     char nodeName[MAX_PROCESSOR_NAME];
-#ifdef INSTRUMENT
+#if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
     ticks nTicks;
     double dComputing;
 #endif
@@ -186,7 +186,7 @@ double mdlMissRatio(MDL,int);
 double mdlCollRatio(MDL,int);
 double mdlMinRatio(MDL,int);
 
-#ifdef INSTRUMENT
+#if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
 void mdlTimeReset(MDL);
 double mdlTimeComputing(MDL);
 double mdlTimeSynchronizing(MDL);
