@@ -46,13 +46,12 @@ The following are the available options.
     architectures.  This gives a noticable performance boost for machines
     on which it is supported.
 
-    --enable-instrument
+    --disable-instrument
 
-    This turnes on detailed timing information for the various phases of
+    This turnes off detailed timing information for the various phases of
     computation and communication.  It uses the Matteo Frigo "cycle.h"
-    for access to high resolution hardware timers.  Enabling this has
-    virtually no impact on performance, but is not available on all
-    architectures.
+    for access to high resolution hardware timers.  By default, this
+    feature is enabled on those architectures on which it is supported.
 
     --disable-hdf5
 

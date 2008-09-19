@@ -2669,7 +2669,7 @@ void pstGravity(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 		   4,in->bEwald,in->dEwCut,in->dEwhCut, &out[id].nActive,
 		   &out[id].dPartSum,&out[id].dCellSum,&out[id].cs,&out[id].dFlop);
 	out[id].dWalkTime = pkdGetWallClockTimer(plcl->pkd,1);
-#ifdef INSTRUMENT
+#if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
 	out[id].dComputing     = mdlTimeComputing(pst->mdl);
 	out[id].dWaiting       = mdlTimeWaiting(pst->mdl);
 	out[id].dSynchronizing = mdlTimeSynchronizing(pst->mdl);

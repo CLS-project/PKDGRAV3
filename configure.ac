@@ -24,8 +24,8 @@ AC_DEFINE([FLOAT_MAXVAL],HUGE,
 
 # This adds processor specific timing to the code - default disabled
 AC_ARG_ENABLE(instrument,
-  [  --enable-instrument            Enable instrumentation code],
-  [INSTRUMENT="$enableval"],[INSTRUMENT="no"])
+  [  --disable-instrument           Disable instrumentation code],
+  [INSTRUMENT="$enableval"],[INSTRUMENT="yes"])
 if test "x$INSTRUMENT" = "xyes" ; then
    AC_DEFINE([INSTRUMENT], 1,
  	[Instrument the code.])

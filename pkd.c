@@ -1893,7 +1893,7 @@ pkdGravAll(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,int bP
     int bVeryActive = 0;
 
     pkdClearTimer(pkd,1);
-#ifdef INSTRUMENT
+#if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
     mdlTimeReset(pkd->mdl);
 #endif
 

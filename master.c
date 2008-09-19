@@ -2771,7 +2771,7 @@ void msrGravity(MSR msr,uint8_t uRungLo, uint8_t uRungHi, double dTime,
 	*/
 	printf("Walk Timings:\n");
 	PRINTGRID("% 8.2f",dWalkTime);
-#ifdef INSTRUMENT
+#if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
 	/* Okay: Compute + Wait + Imbalance = 100.0 by definition
 		printf("Compute Percentage:\n");
 		PRINTGRID("% 8.2f",dComputing);*/
