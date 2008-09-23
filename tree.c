@@ -304,7 +304,7 @@ void BuildTemp(PKD pkd,int iNode,int M) {
 		}
 	    else {
 		if (d >= 0 && d < 3) pNode->bnd.fCenter[d] += pNode->bnd.fMax[d];
-		MAXSIDE(pRight->bnd.fMax,rs);
+		MAXSIDE(pNode->bnd.fMax,rs);
 		rc = ((nr > M)||((nr > 1)&&(rs>PKD_MAX_CELL_SIZE)));
 		if (!rc) {
 		    pNode->iLower = 0;
