@@ -3,6 +3,7 @@
 #endif
 const char *intype_module_id = "$Id$";
 
+#include <stdlib.h>
 #include <inttypes.h>
 #include "intype.h"
 
