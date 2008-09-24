@@ -48,6 +48,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
     int nPart;
     int nCell;
     double dSyncDelta;
+    double *v;
 
     /*
     ** If we are doing the very active gravity then check that there is a very active tree!
@@ -383,14 +384,15 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 				}
 			    for (pj=pkdc->pLower;pj<=pkdc->pUpper;++pj) {
 				p = pkdParticle(pkd,pj);
+				v = pkdVel(pkd,p);
 				pkd->ilp[nPart].iOrder = p->iOrder;
 				pkd->ilp[nPart].m = pkdMass(pkd,p);
-				pkd->ilp[nPart].x = p->r[0] + dDriftFac*p->v[0] + pkd->Check[i].rOffset[0];
-				pkd->ilp[nPart].y = p->r[1] + dDriftFac*p->v[1] + pkd->Check[i].rOffset[1];
-				pkd->ilp[nPart].z = p->r[2] + dDriftFac*p->v[2] + pkd->Check[i].rOffset[2];
-				pkd->ilp[nPart].vx = p->v[0];
-				pkd->ilp[nPart].vy = p->v[1];
-				pkd->ilp[nPart].vz = p->v[2];
+				pkd->ilp[nPart].x = p->r[0] + dDriftFac*v[0] + pkd->Check[i].rOffset[0];
+				pkd->ilp[nPart].y = p->r[1] + dDriftFac*v[1] + pkd->Check[i].rOffset[1];
+				pkd->ilp[nPart].z = p->r[2] + dDriftFac*v[2] + pkd->Check[i].rOffset[2];
+				pkd->ilp[nPart].vx = v[0];
+				pkd->ilp[nPart].vy = v[1];
+				pkd->ilp[nPart].vz = v[2];
 #ifdef SOFTLINEAR
 				pkd->ilp[nPart].h = p->fSoft;
 #endif
@@ -415,14 +417,15 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 				}
 			    for (pj=pkdc->pLower;pj<=pkdc->pUpper;++pj) {
 				pRemote = mdlAquire(pkd->mdl,CID_PARTICLE,pj,id);
+				v = pkdVel(pkd,pRemote);
 				pkd->ilp[nPart].iOrder = pRemote->iOrder;
 				pkd->ilp[nPart].m = pkdMass(pkd,pRemote);
-				pkd->ilp[nPart].x = pRemote->r[0] + dDriftFac*pRemote->v[0] + pkd->Check[i].rOffset[0];
-				pkd->ilp[nPart].y = pRemote->r[1] + dDriftFac*pRemote->v[1] + pkd->Check[i].rOffset[1];
-				pkd->ilp[nPart].z = pRemote->r[2] + dDriftFac*pRemote->v[2] + pkd->Check[i].rOffset[2];
-				pkd->ilp[nPart].vx = pRemote->v[0];
-				pkd->ilp[nPart].vy = pRemote->v[1];
-				pkd->ilp[nPart].vz = pRemote->v[2];
+				pkd->ilp[nPart].x = pRemote->r[0] + dDriftFac*v[0] + pkd->Check[i].rOffset[0];
+				pkd->ilp[nPart].y = pRemote->r[1] + dDriftFac*v[1] + pkd->Check[i].rOffset[1];
+				pkd->ilp[nPart].z = pRemote->r[2] + dDriftFac*v[2] + pkd->Check[i].rOffset[2];
+				pkd->ilp[nPart].vx = v[0];
+				pkd->ilp[nPart].vy = v[1];
+				pkd->ilp[nPart].vz = v[2];
 #ifdef SOFTLINEAR
 				pkd->ilp[nPart].h = pRemote->fSoft;
 #endif

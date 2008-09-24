@@ -69,7 +69,8 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
     PARTICLE *pi,*pj;
     KDN *pkdn = pBucket;
     const double onethird = 1.0/3.0;
-    double ax,ay,az,fPot;
+    float *pPot, fPot;
+    double ax,ay,az;
     double x,y,z,d2,dir,dir2,g2,g3,g4;
     double xx,xy,xz,yy,yz,zz;
     double xxx,xxz,yyy,yyz,xxy,xyy,xyz;
@@ -380,7 +381,8 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 	** Note that after this point we cannot use the new timestepping criterion since we
 	** overwrite the acceleration.
 	*/
-	p->fPot = fPot;
+	pPot = pkdPot(pkd,p);
+	*pPot = fPot;
 	a[0] = ax;
 	a[1] = ay;
 	a[2] = az;
@@ -573,7 +575,8 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 	    ax += x*dir2*pkdMass(pkd,pj);
 	    ay += y*dir2*pkdMass(pkd,pj);
 	    az += z*dir2*pkdMass(pkd,pj);
-	    pj->fPot -= dir*pkdMass(pkd,pi);
+	    pPot = pkdPot(pkd,pj);
+	    *pPot -= dir*pkdMass(pkd,pi);
 	    a = pkdAccel(pkd,pj);
 	    a[0] += x*dir2*pkdMass(pkd,pi);
 	    a[1] += y*dir2*pkdMass(pkd,pi);
@@ -589,7 +592,8 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 #endif
 
 	    } /* end of j-loop */
-	pi->fPot -= fPot;
+	pPot = pkdPot(pkd,pi);
+	*pPot -= fPot;
 	a = pkdAccel(pkd,pi);
 	a[0] -= ax;
 	a[1] -= ay;
@@ -715,7 +719,8 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 #endif
 
 	    } /* end of j-loop */
-	pi->fPot -= fPot;
+	pPot = pkdPot(pkd,pi);
+	*pPot -= fPot;
 	a = pkdAccel(pkd,pi);
 	a[0] -= ax;
 	a[1] -= ay;
