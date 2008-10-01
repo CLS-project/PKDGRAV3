@@ -286,6 +286,13 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 		}
 	    assert(rholoc >= 0.0);
 	    }
+	else {
+	    dsmooth2 = 0.0;
+#ifdef USE_SIMD_PP
+	    psmooth2 = consts.zero;
+#endif	    
+	    }
+	
 
 #ifdef USE_SIMD_PP
 	pax = SIMD_LOADS(ax);
@@ -309,17 +316,23 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 		v4bool vcmp;
 		int msk;
 
-		t1 = SIMD_MUL(SIMD_ADD(pmass,tile->d.m.p[j]),SIMD_MUL(p4soft2,tile->d.fourh2.p[j]));
-		t2 = SIMD_ADD(SIMD_MUL(tile->d.fourh2.p[j],pmass),SIMD_MUL(p4soft2,tile->d.m.p[j]));
+		vcmp = SIMD_CMP_GT(tile->d.fourh2.p[j],consts.zero);
+		msk = SIMD_ALL_ZERO(vcmp); /* softenings are not zero */
+		if(msk) {
+		    t1 = SIMD_MUL(SIMD_ADD(pmass,tile->d.m.p[j]),SIMD_MUL(p4soft2,tile->d.fourh2.p[j]));
+		    t2 = SIMD_ADD(SIMD_MUL(tile->d.fourh2.p[j],pmass),SIMD_MUL(p4soft2,tile->d.m.p[j]));
 #if defined(__SSE2__) || defined(__ALTIVEC__)
-		pfourh2 = SIMD_RE_EXACT(t2);
-		pfourh2 = SIMD_MUL(pfourh2,t1);
+		    pfourh2 = SIMD_RE_EXACT(t2);
+		    pfourh2 = SIMD_MUL(pfourh2,t1);
 #else
-		pfourh2 = SIMD_DIV(t1,t2);
+		    pfourh2 = SIMD_DIV(t1,t2);
 #endif
-		vcmp = SIMD_CMP_LT(tile->d.d2.p[j],pfourh2);
-		pd2 = SIMD_MAX(tile->d.d2.p[j],pfourh2);
-		msk = SIMD_ALL_ZERO(vcmp);  /* zero means nothing is softened - optimization */
+		    vcmp = SIMD_CMP_LT(tile->d.d2.p[j],pfourh2);
+		    pd2 = SIMD_MAX(tile->d.d2.p[j],pfourh2);
+		    msk = SIMD_ALL_ZERO(vcmp);  /* zero means nothing is softened - optimization */
+		} else {
+		    pd2 = tile->d.d2.p[j];
+		}
 
 		pir = SIMD_RSQRT_EXACT(pd2);
 		pir2 = SIMD_MUL(pir,pir);

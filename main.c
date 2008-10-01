@@ -6,6 +6,9 @@ const char *pkdgrav2_module_id = PACKAGE_STRING
 
 #define _LARGEFILE_SOURCE
 #define _FILE_OFFSET_BITS 64
+#ifdef ENABLE_FE
+#include <fenv.h>
+#endif
 #include <stdio.h>
 #include <math.h>
 #include <stdlib.h>
@@ -107,6 +110,9 @@ int main(int argc,char **argv) {
 #endif /* TINY_PTHREAD_STACK */
 #ifdef USE_BT
     bt_initialize();
+#endif
+#ifdef ENABLE_FE
+    feenableexcept(FE_INVALID|FE_DIVBYZERO|FE_OVERFLOW);
 #endif
 #ifndef CCC
     /* no stdout buffering */

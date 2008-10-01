@@ -383,6 +383,7 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp) {
     double *v;
     int pj,d,nDepth,ism;
     const int nMaxStackIncrease = 1;
+    int bSoftZero = 0;
 
     nDepth = 1;
     while (1) {
@@ -438,7 +439,12 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp) {
 	fSoft = pkdSoft(pkd,p);
 	v = pkd->oVelocity ? pkdVel(pkd,p) : zeroV;
 	fMass = m;
-	dih2 = m/(fSoft*fSoft);
+	if(fSoft == 0.0) {
+	    dih2 = 0.0;
+	    bSoftZero = 1;
+	    }
+	else
+	    dih2 = m/(fSoft*fSoft);
 	x = m*p->r[0];
 	y = m*p->r[1];
 	z = m*p->r[2];
@@ -457,7 +463,10 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp) {
 	    fSoft = pkdSoft(pkd,p);
 	    v = pkd->oVelocity ? pkdVel(pkd,p) : zeroV;
 	    fMass += m;
-	    dih2 += m/(fSoft*fSoft);
+	    if(fSoft == 0.0)
+		bSoftZero = 1;
+	    else
+		dih2 += m/(fSoft*fSoft);
 	    x += m*p->r[0];
 	    y += m*p->r[1];
 	    z += m*p->r[2];
@@ -482,7 +491,10 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp) {
 	pkdn->a[1] = m*ay;
 	pkdn->a[2] = m*az;
 	dih2 *= m;
-	pkdn->fSoft2 = 1/dih2;
+	if(bSoftZero)
+	    pkdn->fSoft2 = 0.0;
+	else
+	    pkdn->fSoft2 = 1/dih2;
 	/*
 	** Now calculate the reduced multipole moment.
 	*/
@@ -641,7 +653,10 @@ void pkdCombineCells(KDN *pkdn,KDN *p1,KDN *p2) {
 	pkdn->v[j] = ifMass*(m1*p1->v[j] + m2*p2->v[j]);
 	pkdn->a[j] = ifMass*(m1*p1->a[j] + m2*p2->a[j]);
 	}
-    pkdn->fSoft2 = 1.0/(ifMass*(m1/p1->fSoft2 + m2/p2->fSoft2));
+    if(p1->fSoft2 == 0.0 || p2->fSoft2 == 0.0)
+	pkdn->fSoft2 = 0.0;
+    else
+	pkdn->fSoft2 = 1.0/(ifMass*(m1/p1->fSoft2 + m2/p2->fSoft2));
     pkdn->uMinRung = p1->uMinRung < p2->uMinRung ? p1->uMinRung : p2->uMinRung;
     pkdn->uMaxRung = p1->uMaxRung > p2->uMaxRung ? p1->uMaxRung : p2->uMaxRung;
     pkdn->bDstActive = p1->bDstActive || p2->bDstActive;

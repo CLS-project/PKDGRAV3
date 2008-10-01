@@ -147,7 +147,7 @@ static inline void ilpCompute(ILP ilp, float fx, float fy, float fz ) {
 	if ( r != 0 ) {
 	    for ( j=r; j<ILP_ALIGN_SIZE; j++ ) {
 		int o = (n<<ILP_ALIGN_BITS) + j;
-		tile->d.dx.f[o] = tile->d.dy.f[o] = tile->d.dz.f[o] = 0;
+		tile->d.dx.f[o] = tile->d.dy.f[o] = tile->d.dz.f[o] = 1e18;
 		tile->d.m.f[o] = 0;
 		tile->d.fourh2.f[o] = tile->d.fourh2.f[0];
 		}
