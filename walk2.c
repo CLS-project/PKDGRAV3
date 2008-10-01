@@ -349,7 +349,8 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 		    /*
 		    ** Accept local expansion, but check softening.
 		    */
-		    if (d2 > fourh2) iOpen = -1;
+		    if (n<=1/* || c[iCell].pUpper - c[iCell].pLower < 1*/) iOpen=1;
+		    else if (d2 > fourh2) iOpen = -1;
 		    else {
 			/*
 			** We want to test if it can be used as a softened monopole.
@@ -471,6 +472,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 			    }
 			}
 		    }
+
 		if (iOpen == 0) {
 		    pkd->Check[ii++] = pkd->Check[i];
 		    }
