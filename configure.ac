@@ -2,8 +2,8 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.59)
-AC_INIT(pkdgrav2m, 2.2.2, bugs@pkdgrav2.org)
-AM_INIT_AUTOMAKE(pkdgrav2m,2.2.2)
+AC_INIT(pkdgrav2m, 2.2.3, bugs@pkdgrav2.org)
+AM_INIT_AUTOMAKE(pkdgrav2m,2.2.3)
 AC_CONFIG_SRCDIR([main.c])
 AC_CONFIG_HEADER([config.h])
 
