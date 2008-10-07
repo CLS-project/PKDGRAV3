@@ -916,8 +916,8 @@ int _pstRejMatch(PST pst,int n1,OREJ *p1,int n2,OREJ *p2,int *pidSwap) {
 void _pstRootSplit(PST pst,int iSplitDim,int bDoRootFind,int bDoSplitDimFind,
 		   int bSplitVA) {
     int NUM_SAFETY = 4;			/* slop space when filling up memory */
-    int nSafeTot;				/* total slop space we have to play with */
-    int margin;					/* more slop */
+    uint64_t nSafeTot;			/* total slop space we have to play with */
+    uint64_t margin;			/* more slop */
     int d,ittr,nOut;
     /*
     ** Why are these initialized to -1 here???
