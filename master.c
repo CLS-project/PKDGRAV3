@@ -369,6 +369,15 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.dExtraStore = 0.1;
     prmAddParam(msr->prm,"dExtraStore",2,&msr->param.dExtraStore,
 		sizeof(double),NULL,NULL);
+    msr->param.dExtraNodes = 2.0;
+    prmAddParam(msr->prm,"dExtraNodes",2,&msr->param.dExtraNodes,
+		sizeof(double),NULL,NULL);
+#ifdef MDL_CACHE_SIZE
+    msr->param.iCacheSize = MDL_CACHE_SIZE;
+#else
+    msr->param.iCacheSize = 0;
+#endif
+    prmAddParam(msr->prm,"iCacheSize",1,&msr->param.iCacheSize,sizeof(int),NULL,NULL);
     msr->param.nSmooth = 64;
     prmAddParam(msr->prm,"nSmooth",1,&msr->param.nSmooth,sizeof(int),"s",
 		"<number of particles to smooth over> = 64");
@@ -864,6 +873,8 @@ void msrLogParams(MSR msr,FILE *fp) {
     fprintf(fp," nSteps: %d",msr->param.nSteps);
     fprintf(fp," nSmooth: %d",msr->param.nSmooth);
     fprintf(fp," dExtraStore: %f",msr->param.dExtraStore);
+    fprintf(fp," dExtraNodes: %f",msr->param.dExtraNodes);
+    fprintf(fp," iCacheSize: %d",msr->param.iCacheSize);
     if (prmSpecified(msr->prm,"dSoft"))
 	fprintf(fp," dSoft: %g",msr->param.dSoft);
     else
@@ -1433,6 +1444,8 @@ static double _msrReadHDF5(MSR msr, const char *achFilename, uint64_t mMemoryMod
     ** particles.
     */
     in.fExtraStore = msr->param.dExtraStore;
+    in.fExtraNodes = msr->param.dExtraNodes;
+    in.iCacheSize  = msr->param.iCacheSize;
     /*
     ** Provide the period.
     */
@@ -1478,6 +1491,8 @@ double msrGenerateIC(MSR msr) {
     in.omegav= msr->param.csm->dLambda;
     in.bComove = msr->param.csm->bComove;
     in.fExtraStore = msr->param.dExtraStore;
+    in.fExtraNodes = msr->param.dExtraNodes;
+    in.iCacheSize  = msr->parm.iCacheSize;
     in.fPeriod[0] = msr->param.dxPeriod;
     in.fPeriod[1] = msr->param.dyPeriod;
     in.fPeriod[2] = msr->param.dzPeriod;
@@ -1700,6 +1715,8 @@ static double _msrReadTipsy(MSR msr, const char *achFilename, uint64_t mMemoryMo
     ** particles.
     */
     in.fExtraStore = msr->param.dExtraStore;
+    in.fExtraNodes = msr->param.dExtraNodes;
+    in.iCacheSize  = msr->param.iCacheSize;
     /*
     ** Provide the period.
     */
@@ -1838,6 +1855,8 @@ void msrSaveParameters(MSR msr, IOHDF5 io) {
     ioHDF5WriteAttribute( io, "bDoPotOutput", H5T_NATIVE_INT, &msr->param.bDoPotOutput );
     ioHDF5WriteAttribute( io, "dEta", H5T_NATIVE_DOUBLE, &msr->param.dEta );
     ioHDF5WriteAttribute( io, "dExtraStore", H5T_NATIVE_DOUBLE, &msr->param.dExtraStore );
+    ioHDF5WriteAttribute( io, "dExtraNodes", H5T_NATIVE_DOUBLE, &msr->param.dExtraNodes );
+    ioHDF5WriteAttribute( io, "iCacheSize", H5T_NATIVE_INT, &msr->param.iCacheSize );
     ioHDF5WriteAttribute( io, "dSoft", H5T_NATIVE_DOUBLE, &msr->param.dSoft );
     ioHDF5WriteAttribute( io, "dSoftMax", H5T_NATIVE_DOUBLE, &msr->param.dSoftMax );
     ioHDF5WriteAttribute( io, "dDelta", H5T_NATIVE_DOUBLE, &msr->param.dDelta );
@@ -4311,6 +4330,8 @@ msrReadSS(MSR msr) {
      ** particles.
      */
     in.fExtraStore = msr->param.dExtraStore;
+    in.fExtraNodes = msr->param.dExtraNodes;
+    in.iCacheSize  = msr->parm.iCacheSize;
 
     in.fPeriod[0] = msr->param.dxPeriod;
     in.fPeriod[1] = msr->param.dyPeriod;
@@ -5032,6 +5053,8 @@ double msrRead(MSR msr, const char *achInFile) {
     read->bStandard = msr->param.bStandard;
     read->bDoublePos = msr->param.bDoublePos;
     read->fExtraStore = msr->param.dExtraStore;
+    read->fExtraNodes = msr->param.dExtraNodes;
+    read->iCacheSize  = msr->param.iCacheSize;
     read->fPeriod[0] = msr->param.dxPeriod;
     read->fPeriod[1] = msr->param.dyPeriod;
     read->fPeriod[2] = msr->param.dzPeriod;

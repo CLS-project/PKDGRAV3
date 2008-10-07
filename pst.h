@@ -221,7 +221,9 @@ struct inReadTipsy {
     uint64_t nStar;
     uint64_t mMemoryModel;
     int nBucket;
+    int iCacheSize;
     float fExtraStore;
+    float fExtraNodes;
     FLOAT fPeriod[3];
     int bStandard;
     double dvFac;
@@ -256,8 +258,10 @@ struct inReadFile {
     double fPeriod[3];
     double dvFac;
     float fExtraStore;
+    float fExtraNodes;
     int nBucket;
     int nFiles;
+    int iCacheSize;
     uint8_t bStandard;
     uint8_t bDoublePos;
     short   eFileType;

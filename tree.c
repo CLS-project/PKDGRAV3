@@ -206,7 +206,11 @@ void BuildTemp(PKD pkd,int iNode,int M) {
 	    ** Allocate 2 new tree nodes making sure that we have
 	    ** allocated enough storage.
 	    */
-	    assert(pkd->nNodes+2 <= pkd->nMaxNodes);
+	    if ( pkd->nNodes+2 > pkd->nMaxNodes ) {
+		fprintf(stderr, "ERROR: insufficent nodes available in tree build"
+			"-- Increase dExtraNodes\n");
+		assert(pkd->nNodes+2 <= pkd->nMaxNodes);
+		}
 	    iLeft = pkd->nNodes++;
 	    pLeft = pkdTreeNode(pkd,iLeft);
 	    pLeft->iParent = iNode;

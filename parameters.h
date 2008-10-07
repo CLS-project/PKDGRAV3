@@ -75,8 +75,10 @@ struct parameters {
     int bDoSoftOutput;
     int bDoAccOutput;
     int bDoPotOutput;
+    int iCacheSize;
     double dEta;
     double dExtraStore;
+    double dExtraNodes;
     double dSoft;
     double dSoftMax;
     double dDelta;

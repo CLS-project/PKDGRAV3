@@ -807,7 +807,9 @@ double pkdGetWallClockTimer(PKD,int);
 void pkdClearTimer(PKD,int);
 void pkdStartTimer(PKD,int);
 void pkdStopTimer(PKD,int);
-void pkdInitialize(PKD *,MDL,int,int,FLOAT *,uint64_t,uint64_t,uint64_t,uint64_t);
+void pkdInitialize(PKD *ppkd,MDL mdl,int nStore,int nBucket,float fExtraNodes,int iCacheSize,
+		   FLOAT *fPeriod,uint64_t nDark,uint64_t nGas,uint64_t nStar,
+		   uint64_t mMemoryModel);
 void pkdFinish(PKD);
 void pkdReadTipsy(PKD pkd,char *pszFileName, uint64_t nStart,int nLocal,
 		  int bStandard,double dvFac,int bDoublePos,int bNoHeader);

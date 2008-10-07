@@ -176,8 +176,8 @@ static int pkdParticleAddInt32(PKD pkd,int n) {
     return iOffset;
     }
 
-void pkdInitialize(PKD *ppkd,MDL mdl,int nStore,int nBucket,FLOAT *fPeriod,
-		   uint64_t nDark,uint64_t nGas,uint64_t nStar,
+void pkdInitialize(PKD *ppkd,MDL mdl,int nStore,int nBucket,float fExtraNodes, int iCacheSize,
+		   FLOAT *fPeriod,uint64_t nDark,uint64_t nGas,uint64_t nStar,
 		   uint64_t mMemoryModel) {
     PKD pkd;
     int j,ism;
@@ -283,6 +283,10 @@ void pkdInitialize(PKD *ppkd,MDL mdl,int nStore,int nBucket,FLOAT *fPeriod,
     pkd->pTempPRIVATE = malloc(pkdParticleSize(pkd));
     mdlassert(mdl,pkd->pTempPRIVATE != NULL);
 
+#ifdef MDL_CACHE_SIZE
+    if ( iCacheSize > 0 ) mdlSetCacheSize(pkd->mdl,iCacheSize);
+#endif
+
     /*
     ** We support up to 256 classes
     */
@@ -302,10 +306,9 @@ void pkdInitialize(PKD *ppkd,MDL mdl,int nStore,int nBucket,FLOAT *fPeriod,
     ** less than nBucket, and roughly given by nBucket-sqrt(nBucket).  For
     ** small numbers of particles, we must correct for the minimum cell size.
     */
-    /*pkd->nMaxNodes = (int)ceil(3.0*nStore/floor(nBucket - sqrt(nBucket)));*/
     /* j is an estimate of the lower limit of the total number of cells */
     j = 2.0 / (PKD_MAX_CELL_SIZE*PKD_MAX_CELL_SIZE*PKD_MAX_CELL_SIZE*mdlThreads(mdl));
-    pkd->nMaxNodes = (int)ceil(5.0*nStore/floor(nBucket-sqrt(nBucket))) + j;
+    pkd->nMaxNodes = (int)ceil((fExtraNodes+1.0)*nStore/floor(nBucket-sqrt(nBucket)));
     if ( pkd->nMaxNodes < j ) pkd->nMaxNodes = j;
     pkd->kdNodes = mdlMalloc(pkd->mdl,pkd->nMaxNodes*sizeof(KDN));
     mdlassert(mdl,pkd->kdNodes != NULL);
