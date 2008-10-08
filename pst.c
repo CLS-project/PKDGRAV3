@@ -3002,7 +3002,6 @@ void pstSetTotal(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	pst->nTotal = pkdNumSrcActive(plcl->pkd,0,MAX_RUNG);
 	out->nTotal = pst->nTotal;
 	}
-    mdlassert(pst->mdl,out->nTotal >= 0 );
     if (pnOut) *pnOut = sizeof(struct outSetTotal);
     }
 
@@ -4337,12 +4336,14 @@ void pstPeakVc(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	pstPeakVc(pst->pstLower,vin,i*sizeof(struct inPeakVc),vout,pnOut);
 	mdlGetReply(pst->mdl,pst->idUpper,&out[i],pnOut);
 	}
+/*
     else {
-//	SMX smx;
-//	smInitialize(&smx,plcl->pkd,&in->smf,in->nSmooth,
-//		     in->bPeriodic,in->bSymmetric,in->iSmoothType);
-//	smReSmooth(smx,&in->smf);
-//	smFinish(smx,&in->smf);
+	SMX smx;
+	smInitialize(&smx,plcl->pkd,&in->smf,in->nSmooth,
+		     in->bPeriodic,in->bSymmetric,in->iSmoothType);
+	smReSmooth(smx,&in->smf);
+	smFinish(smx,&in->smf);
 	}
+*/
     if (pnOut) *pnOut = N*sizeof(struct outPeakVc);
     }

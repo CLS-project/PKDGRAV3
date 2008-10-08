@@ -8,9 +8,10 @@ const char *intype_module_id = "$Id$";
 #include "intype.h"
 
 static void *openMark(PKD pkd,FILE *fp) {
-    uint64_t N, nDark, nGas, nStar, i;
+    uint64_t N, nDark, nGas, nStar;
     fscanf(fp,"%"PRIu64" %"PRIu64" %"PRIu64, &nDark, &nGas, &nStar);
     N = nDark + nGas + nStar;
+    return NULL;
     }
 
 static int readMark(void *ctx,FILE *fp,uint64_t i,int iType,int iDim) {

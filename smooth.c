@@ -1568,7 +1568,7 @@ void smFof(SMX smx,int nFOFsDone,SMF *smf) {
 		}
 	    if (nFOFsDone > 0) {
 		assert(0); /* p[pn] ??  Not p[pi] ?? */
-		//rho = p[pn].fMass/(pow(p[pn].fBall ,3.0/2.0)*smf->fContrast);
+		/*rho = p[pn].fMass/(pow(p[pn].fBall ,3.0/2.0)*smf->fContrast);*/
 		if (rho > pkd->groupData[i].rhoBG)pkd->groupData[i].rhoBG = rho;
 		}
 	    else {

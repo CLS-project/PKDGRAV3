@@ -107,7 +107,6 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
     */
     nActive = 0;
     nSoft = 0;
-    //rMax = 0.0;
     rMax = pkd->param.nPartRhoLoc/(pkdn->pUpper-pkdn->pLower+1)
 	   *(pkdn->bnd.fMax[0]*pkdn->bnd.fMax[0]
 	     + pkdn->bnd.fMax[1]*pkdn->bnd.fMax[1]

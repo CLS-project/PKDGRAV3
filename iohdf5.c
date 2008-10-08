@@ -229,7 +229,6 @@ static void flushBase( IOHDF5 io, IOBASE *Base ) {
 				Base->group_id, FIELD_VELOCITY,
 				io->iChunkSize, 0, 3, io->diskFloat_V );
 	    if ( Base->Order.iOrder != NULL ) {
-		//assert( sizeof(PINDEX) == 4 );
 		Base->Order.setOrder_id = newSet(
 					      Base->group_id, FIELD_ORDER,
 					      io->iChunkSize, 0, 1, dataType);
@@ -352,9 +351,7 @@ static void baseInitialize( IOHDF5 io, IOBASE *Base,
 	assert( Base->nTotal == getSetSize(Base->setV_id) );
 	Base->Order.setOrder_id = H5Dopen(Base->group_id,FIELD_ORDER);
 	Base->Class.setClass_id = H5Dopen(Base->group_id,FIELD_CLASS);
-	//if ( Base->Class.setClass_id != H5I_INVALID_HID ) {
 	readClassTable( io, Base );
-	//}
 	}
 
     /* No group: we have to create this later.  We delay until later because
@@ -639,7 +636,6 @@ static int getBase( IOHDF5 io, IOBASE *Base, PINDEX *iOrder,
 		     H5T_NATIVE_UINT8, Base->iOffset, Base->nBuffered, 1 );
 	    }
 	}
-    //*iOrder = Base->iOffset + Base->iIndex; /*FIXME: */
     *iOrder = Base->Class.Class[0].iOrderStart + Base->iOffset + Base->iIndex; /*FIXME: */
     r[0] = Base->R[Base->iIndex].v[0];
     r[1] = Base->R[Base->iIndex].v[1];
@@ -735,7 +731,7 @@ IOHDF5V ioHDFF5OpenVector( IOHDF5 io, const char *name, int bDouble ) {
     assert( strlen(name) < sizeof(iov->name) );
     strcpy( iov->name, name );
 
-    // Filled with cheese - FIXME
+    /* Filled with cheese - FIXME */
 
     if ( bDouble ) {
 	iov->d = (double*)malloc( io->iChunkSize * sizeof(double) );
@@ -771,7 +767,7 @@ IOHDF5V ioHDFF5NewVector( IOHDF5 io, const char *name, int bDouble ) {
     assert( strlen(name) < sizeof(iov->name) );
     strcpy( iov->name, name );
 
-    // Filled with cheese - FIXME
+    /* Filled with cheese - FIXME */
 
     if ( bDouble ) {
 	iov->d = (double*)malloc( io->iChunkSize * sizeof(double) );

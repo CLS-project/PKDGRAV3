@@ -84,7 +84,6 @@ int main(int argc,char **argv) {
     long lSec=0,lStart;
     int i,iStep,iSec=0,iStop=0;
     uint64_t nActive;
-    //char achBaseMask[256];
 #ifdef TINY_PTHREAD_STACK
     static int first = 1;
     static char **save_argv;
@@ -130,8 +129,6 @@ int main(int argc,char **argv) {
     printf("%s\n", PACKAGE_STRING );
 
     msrInitialize(&msr,mdl,argc,argv);
-
-    //(void) strncpy(achBaseMask,msr->param.achDigitMask,256);
 
     /*
     ** Establish safety lock.

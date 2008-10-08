@@ -3,6 +3,7 @@
 #endif
 const char *analysis_module_id = "$Id$";
 #include <assert.h>
+#include <stdlib.h>
 #include <math.h>
 #include "pkd.h"
 
@@ -235,7 +236,6 @@ void pkdCalcDistance(PKD pkd, double *dCenter) {
     for (i=0;i<pkd->nLocal;++i) {
 	PARTICLE *p = pkdParticle(pkd,i);
 	double m = pkdMass(pkd,p);
-	double *v = pkdVel(pkd,p);
 	pl[i].r[0] = pkdGetDistance2(pkd,p,dCenter);
 	pl[i].r[1] = m;
 	pl[i].r[2] = 0.0;
@@ -327,7 +327,6 @@ static void CalculateInertia(PKD pkd,int nBins, const double *dRadii, SHAPESBIN 
     double r, r2;
     int i, j, k;
     int iBin;
-    double I[3][3];
     double ell_matrix[3][3], ell_matrix_inv[3][3];
 
 
@@ -340,7 +339,6 @@ static void CalculateInertia(PKD pkd,int nBins, const double *dRadii, SHAPESBIN 
 
 	PARTICLE *p = pkdParticle(pkd,pl[i].i);
 	double m = pkdMass(pkd,p);
-	double *v = pkdVel(pkd,p);
 
 	r = dRadii[iBin];
 	r2 = r*r;
@@ -444,9 +442,11 @@ static void CalculateInertia(PKD pkd,int nBins, const double *dRadii, SHAPESBIN 
 	    if(evectors[2][ic] < 0.0) phi = 360. - phi; /* phi always positive */
 	    if(evectors[3][ib] < 0.0) psi = 360. - psi; /* psi always positive */ 
 
+/*
 	    for(i = 0; i<3; i++){
-		//ell_center[i] = pShape->com[i] / pShape->dMassEnclosed;
+		ell_center[i] = pShape->com[i] / pShape->dMassEnclosed;
 		}
+*/
 	    for(i=0;i<3;i++){
 		ell_matrix_inv[i][0] = evectors[i+1][ia];
 		ell_matrix_inv[i][1] = evectors[i+1][ib];

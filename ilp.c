@@ -145,9 +145,6 @@ float ilpSelect(ILP ilp,uint32_t n, float *rMax) {
     last_i = upper_i = last->nPart-1;
 
     cmp = *rMax;
-    //m = tile->nPart <= n*2 ? tile->nPart-1 : n*2;
-    //if ( last == ilp->first && m > last_i ) m = last_i;
-    //cmp = tile->s.d2.f[m];
     for (;;) {
 	for (;;) { /* Partition loop */
 	    for (;;) { /* Find a large value */

@@ -1384,8 +1384,6 @@ double getTime(MSR msr, double dExpansion, double *dvFac) {
 static double _msrReadHDF5(MSR msr, const char *achFilename, uint64_t mMemoryModel) {
     hid_t fileID;
     IOHDF5 io;
-
-    //struct dump h;
     double dExpansion;
     struct inReadTipsy in;
     char achInFile[PST_FILENAME_SIZE];
@@ -1823,7 +1821,6 @@ void msrSaveParameters(MSR msr, IOHDF5 io) {
     ioHDF5WriteAttribute( io, "bAccelStep", H5T_NATIVE_INT, &msr->param.bAccelStep );
     ioHDF5WriteAttribute( io, "bDensityStep", H5T_NATIVE_INT, &msr->param.bDensityStep );
     ioHDF5WriteAttribute( io, "iTimeStepCrit", H5T_NATIVE_INT, &msr->param.iTimeStepCrit );
-    //ioHDF5WriteAttribute( io, "nPColl", H5T_NATIVE_INT, &msr->param.nPColl );
     ioHDF5WriteAttribute( io, "nTruncateRung", H5T_NATIVE_INT, &msr->param.nTruncateRung );
     ioHDF5WriteAttribute( io, "bDoDensity", H5T_NATIVE_INT, &msr->param.bDoDensity );
 #ifdef USE_PNG
@@ -5138,7 +5135,6 @@ void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint) {
     printf( "Writing output for step %d\n", iStep );
     msrBuildIoName(msr,achFile,iStep);
 
-    //sprintf(achFile,msr->param.achDigitMask,msrOutName(msr),iStep);
 #ifdef PLANETS
     msrReorder(msr);
 #ifdef SYMBA
@@ -5209,28 +5205,24 @@ void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint) {
     if ( msr->param.bTraceRelaxation) {
 	msrReorder(msr);
 	msrBuildName(msr,achFile,iStep);
-	//sprintf(achFile,achBaseMask,msrOutName(msr),iStep);
 	strncat(achFile,".relax",256);
 	msrOutArray(msr,achFile,OUT_RELAX_ARRAY);
 	}
     if (msrDoDensity(msr) && !msr->param.nFindGroups) {
 	msrReorder(msr);
 	msrBuildName(msr,achFile,iStep);
-	// sprintf(achFile,achBaseMask,msrOutName(msr),iStep);
 	strncat(achFile,".den",256);
 	msrOutArray(msr,achFile,OUT_DENSITY_ARRAY);
 	}
     if (msr->param.bDoRungOutput) {
 	msrReorder(msr);
 	msrBuildName(msr,achFile,iStep);
-	//sprintf(achFile,achBaseMask,msrOutName(msr),iStep);
 	strncat(achFile,".rung",256);
 	msrOutArray(msr,achFile,OUT_RUNG_ARRAY);
 	}
     if (msr->param.bDoSoftOutput) {
 	msrReorder(msr);
 	msrBuildName(msr,achFile,iStep);
-	//sprintf(achFile,achBaseMask,msrOutName(msr),iStep);
 	strncat(achFile,".soft",256);
 	msrOutArray(msr,achFile,OUT_SOFT_ARRAY);
 	}
@@ -5688,18 +5680,15 @@ void msrProfile( MSR msr, const PROFILEBIN **ppBins, int *pnBins,
     ** as the minimum number of particles to include in each bin.
     */
     if ( nBins ) {
-	double dLogMin; // = log10(dLogRadius);
+	double dLogMin;
 	double dLogMax = log10(dMaxRadius);
 	double dRadius;
-	//double dDelta = (dLogMax-dLogMin) / nBins;
-
 
 	ctxSphere.nTotal = msrSelSrcSphere(msr,r,dMaxRadius,1,1);
 	ctxSphere.msr = msr;
 
 	N = msrCountDistance(msr,0.0,dLogRadius*dLogRadius);
 	for( i=1; i<nBins; i++ ) {
-	    //in->dRadii[nBinsInner+i] = pow10(dLogMin+i*dDelta);
 	    int nBinsRem = nBins - i + 1;
 
 	    dLogMin = log10(in->dRadii[nBinsInner+i-1]);

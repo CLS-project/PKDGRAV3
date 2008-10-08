@@ -1574,7 +1574,7 @@ int pkdUnpackIO(PKD pkd,
 
 	for ( d=0; d<3; d++ ) {
 	    p->r[d]  = io[i].r[d];
-	    v[d]  = io[i].v[d] * dvFac; //FIXME: times??
+	    v[d]  = io[i].v[d] * dvFac; /*FIXME: times??*/
 	    a[d]  = 0.0;
 	    }
 	p->iOrder = io[i].iOrder;
