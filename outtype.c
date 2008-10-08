@@ -298,6 +298,7 @@ void pkdOutGroup(PKD pkd,char *pszFileName,int iType, int nStart,double dvFac) {
 	    fprintf(fp,"\n");
 	    }
 	}
+    else assert(0);
     i = fclose(fp);
     if (i != 0) {
 	perror("pkdOutGroup: could not close file");

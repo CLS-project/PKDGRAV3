@@ -545,7 +545,7 @@ void pkdProfile(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
 	    double m = pkdMass(pkd,p);
 	    double *v = pkdVel(pkd,p);
 	    double delta_x[3], delta_v[3], ang_mom[3], dx2, vel;
-	    double vel_tang[3], vel_shell[3], vel_tang_pec[3];
+	    /*double vel_tang[3], vel_shell[3], vel_tang_pec[3];*/
 
 	    pBin->dMassInBin += pl[i].r[1];
 	    pBin->nParticles++;

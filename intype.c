@@ -24,7 +24,7 @@ static void doneMark(void *ctx) {
 
 void pkdInASCII(PKD pkd,char *pszFileName,int iType,int iDim) {
     FILE *fp;
-    uint64_t N, nDark, nGas, nStar, i;
+    uint64_t i;
     void *ctx;
     void * (*fnOpen)(PKD pkd,FILE *fp);
     int (*fnRead)(void *ctx,FILE *fp,uint64_t i,int iType,int iDim);
@@ -46,7 +46,8 @@ void pkdInASCII(PKD pkd,char *pszFileName,int iType,int iDim) {
     assert(fp != NULL);
 
     ctx = (*fnOpen)(pkd,fp);
-    while ((*fnRead)(ctx,fp,i,iType,iDim)>0) {}
+    i = 0;
+    while ((*fnRead)(ctx,fp,i++,iType,iDim)>0) {}
     (*fnDone)(ctx);
 
 

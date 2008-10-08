@@ -145,7 +145,7 @@ void MeanVel(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
     double *qv;
     VELSMOOTH *pvel;
     float v[3];
-    float ih2,r2,rs,fDensity,fMass;
+    float ih2,r2,rs,fMass;
     int i,j;
 
     pvel = pkdField(p,pkd->oVelSmooth);
@@ -216,8 +216,8 @@ void Divv(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
     double *qv;
     double *pv;
     VELSMOOTH *pvel;
-    float fNorm,ih2,r2,rs,fDensity,fMass,dvdotdr;
-    int i,j;
+    float fNorm,ih2,r2,rs,fMass,dvdotdr;
+    int i;
 
     pvel = pkdField(p,pkd->oVelSmooth);
     pv = pkdVel(pkd,p);
@@ -241,7 +241,7 @@ void DivvSym(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
     VELSMOOTH *pvel, *qvel;
     double *pv, *qv;
     float fNorm,ih2,r2,rs,fMassQ,fMassP,dvdotdr;
-    int i,j;
+    int i;
 
     pvel = pkdField(p,pkd->oVelSmooth);
     pv = pkdVel(pkd,p);
@@ -288,8 +288,8 @@ void VelDisp2(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
     double *qv;
     double *pv;
     VELSMOOTH *pvel;
-    float fNorm,ih2,r2,rs,fDensity,fMass,tv,tv2;
-    int i,j;
+    float fNorm,ih2,r2,rs,fMass,tv,tv2;
+    int i;
 
     pvel = pkdField(p,pkd->oVelSmooth);
     pv = pkdVel(pkd,p);
@@ -320,7 +320,7 @@ void VelDisp2Sym(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
     VELSMOOTH *pvel, *qvel;
     double *pv, *qv;
     float fNorm,ih2,r2,rs,fMassQ,fMassP,tv,tv2;
-    int i,j;
+    int i;
 
     pvel = pkdField(p,pkd->oVelSmooth);
     pv = pkdVel(pkd,p);

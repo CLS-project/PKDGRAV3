@@ -1134,7 +1134,7 @@ void smReSmooth(SMX smx,SMF *smf) {
 FLOAT phase_dist(PKD pkd,double dvTau2,PARTICLE *pa,PARTICLE *pb,double H) {
     int j;
     FLOAT dx,dv,dx2,dv2;
-    uint32_t *paBin;
+    int32_t *paBin;
     double *va, *vb;
 
     assert(pkd->oGroup); /* Validate memory model */
@@ -1615,8 +1615,8 @@ int smGroupMerge(SMF *smf,int bPeriodic) {
     MDL mdl = smf->pkd->mdl;
     PARTICLE *p;
     PARTICLE *pPart;
-    uint32_t *pBin, *pGroup;
-    uint32_t *pPartGroup, iPartGroup;
+    int32_t *pBin, *pGroup;
+    int32_t *pPartGroup, iPartGroup;
     FLOAT l[3], r,min,max,corr;
     int pi,id,i,j,k,index,listSize, sgListSize, lsgListSize;
     int nLSubGroups,nSubGroups,nMyGroups;
@@ -1883,8 +1883,8 @@ int smGroupMerge(SMF *smf,int bPeriodic) {
 	if (index >= 0 && index < pkd->nGroups )
 	    *pGroup = pkd->groupData[index].iGlobalId;
 	else *pGroup = 0;
-	fprintf(dFile, "%lu %.8g\n",  p->iOrder, p->fDensity);
-	if (*pGroup) fprintf(pFile, "%lu %i\n",  p->iOrder, *pGroup);
+	fprintf(dFile, "%lu %.8g\n",  (uint64_t)p->iOrder, p->fDensity);
+	if (*pGroup) fprintf(pFile, "%lu %i\n",  (uint64_t)p->iOrder, *pGroup);
 	if (*pBin && *pGroup)fprintf(lFile, "%i %i\n", *pGroup, *pBin);
 	}
     fclose(pFile);fclose(lFile);fclose(dFile);
@@ -1972,7 +1972,7 @@ int smGroupProfiles(SMX smx, SMF *smf,int bPeriodic, int nTotalGroups,int bLogBi
     PKD pkd = smf->pkd;
     MDL mdl = smf->pkd->mdl;
     PARTICLE *p;
-    uint32_t *pBin, *pPartBin;
+    int32_t *pBin, *pPartBin;
     double *v;
     double dx2;
     FLOAT l[3],L[3],r[3],relvel[3],com[3],V,Rprev,Vprev,Mprev,vcirc,vcircMax,rvcircMax,M,R,binFactor;
