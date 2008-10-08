@@ -374,7 +374,7 @@ void mdlHandler(MDL mdl) {
  ** For PVM and most machines these functions are trivial, but on the
  ** T3D and perhaps some future machines these functions are required.
  */
-void *mdlMalloc(MDL mdl,int iSize) {
+void *mdlMalloc(MDL mdl,size_t iSize) {
     return(malloc(iSize));
     }
 
@@ -390,6 +390,9 @@ void mdlFree(MDL mdl,void *p) {
 static void *getArrayElement(void *vData,int i,int iDataSize) {
     char *pData = vData;
     return pData + i*iDataSize;
+    }
+
+void mdlSetCacheSize(MDL mdl,int cacheSize) {
     }
 
 /*

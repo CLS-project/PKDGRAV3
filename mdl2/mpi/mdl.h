@@ -109,6 +109,7 @@ typedef struct mdlContext {
     int nThreads;
     int nIO;
     int commCount;
+    int cacheSize;
     MPI_Comm commMDL;  /* Current active communicator */
     MPI_Comm commList[MDL_MAX_COMM];
     /*MPI_Comm commWork;*/
@@ -323,6 +324,7 @@ void mdlFFT( MDLFFT fft, fftw_real *data, int bInverse );
  */
 void *mdlMalloc(MDL,size_t);
 void mdlFree(MDL,void *);
+void mdlSetCacheSize(MDL,int);
 void mdlROcache(MDL mdl,int cid,
 		void * (*getElt)(void *pData,int i,int iDataSize),
 		void *pData,int iDataSize,int nData);

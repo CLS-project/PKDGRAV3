@@ -393,6 +393,7 @@ int mdlInitialize(MDL *pmdl,char **argv,void (*fcnChild)(MDL),void (*fcnIOChild)
 	    tmdl->idSelf = i;
 	    tmdl->bDiag = bDiag;
 	    tmdl->nThreads = nThreads;
+	    tmdl->cacheSize = MDL_CACHE_SIZE;
 	    if (tmdl->bDiag) {
 		char *tmp = strrchr(argv[0],'/');
 		if (!tmp) tmp = argv[0];
@@ -923,6 +924,10 @@ static void *getArrayElement(void *vData,int i,int iDataSize) {
     return pData + i*iDataSize;
     }
 
+void mdlSetCacheSize(MDL mdl,int cacheSize) {
+    mdl->cacheSize = cacheSize;
+    }
+
 /*
  ** Common initialization for all types of caches.
  */
@@ -1027,7 +1032,7 @@ void mdlCOcache(MDL mdl,int cid,
     /*
      ** Determine the number of cache lines to be allocated.
      */
-    c->nLines = (MDL_CACHE_SIZE/c->iDataSize) >> MDL_CACHELINE_BITS;
+    c->nLines = (mdl->cacheSize/c->iDataSize) >> MDL_CACHELINE_BITS;
     assert(c->nLines < MDL_RANDMOD);
     c->nTrans = 1;
     while (c->nTrans < c->nLines) c->nTrans *= 2;

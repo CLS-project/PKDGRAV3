@@ -300,6 +300,7 @@ int mdlInitialize(MDL *pmdl,char **argv,
     /*
      ** Initialize caching spaces.
      */
+    mdl->cacheSize = MDL_CACHE_SIZE;
     for (i=0;i<mdl->nMaxCacheIds;++i) {
 	mdl->cache[i].iType = MDL_NOCACHE;
 	}
@@ -1105,6 +1106,10 @@ static void *getArrayElement(void *vData,int i,int iDataSize) {
     return pData + i*iDataSize;
     }
 
+void mdlSetCacheSize(MDL mdl,int cacheSize) {
+    mdl->cacheSize = cacheSize;
+    }
+
 /*
  ** Common initialization for all types of caches.
  */
@@ -1188,7 +1193,8 @@ CACHE *CacheInitialize(MDL mdl,int cid,
     /*
      ** Determine the number of cache lines to be allocated.
      */
-    c->nLines = (MDL_CACHE_SIZE/c->iDataSize) >> MDL_CACHELINE_BITS;
+    assert( mdl->cacheSize >= (1<<MDL_CACHELINE_BITS)*10*c->iDataSize);
+    c->nLines = (mdl->cacheSize/c->iDataSize) >> MDL_CACHELINE_BITS;
     c->iLine = 1;
     c->nTrans = 1;
     while (c->nTrans < c->nLines) c->nTrans *= 2;
