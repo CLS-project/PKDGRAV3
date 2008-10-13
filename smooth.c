@@ -1166,9 +1166,9 @@ FLOAT phase_dist(PKD pkd,double dvTau2,PARTICLE *pa,PARTICLE *pb,double H) {
     }
 
 
-FLOAT corrPos(FLOAT com, FLOAT r,FLOAT l) {
-    if (com > 0.2*l && r< -0.2*l) return r + l;
-    else if (com < - 0.2*l && r > 0.2*l) return r - l;
+FLOAT corrPos(FLOAT com, FLOAT r, FLOAT l) {
+    if (com > 0.25*l && r < -0.25*l) return r + l;
+    else if (com < -0.25*l && r > 0.25*l) return r - l;
     else return r;
     }
 
