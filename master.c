@@ -3974,7 +3974,7 @@ void msrFof(MSR msr,int nFOFsDone,int iSmoothType,int bSymmetric, double exp) {
     in.smf.Delta = msr->param.Delta;
     if (msr->param.bVStep) {
 	double sec,dsec;
-	printf("Doing FOF with dTau2=%e , dVTau=%e ...\n", in.smf.dTau2, in.smf.dVTau2);
+	printf("Doing FOF with dTau2=%e , dVTau2=%e ...\n", in.smf.dTau2, in.smf.dVTau2);
 	sec = msrTime();
 	pstFof(msr->pst,&in,sizeof(in),NULL,NULL);
 	dsec = msrTime() - sec;
