@@ -69,9 +69,9 @@ AC_SUBST([PYTHON_VER],[$PYTHON_VER])
 
 # HDF5 I/O
 AC_ARG_ENABLE(hdf5,
-  [  --disable-hdf5                 disable support for I/O using HDF5 libraries],
+  [  --enable-hdf5                  enable support for I/O using HDF5 libraries],
   [USE_HDF5="$enableval"],[USE_HDF5="yes"])
-if test "x$USE_HDF5" != "xno" ; then
+if test "x$USE_HDF5" = "xyes" ; then
    AC_DEFINE([USE_HDF5], 1,
  	[Define if HDF5 I/O should be available.])
 fi
@@ -192,7 +192,7 @@ AM_CONDITIONAL(USE_BSC, test "x$USE_BSC" = "xyes")
 
 # Enable SIMD version (SSE,Altivec)
 AC_ARG_ENABLE(simd,
-  [  --enable-simd                  enable SIMD optimizations],
+  [  --disable-simd                 disable SIMD optimizations],
   [USE_SIMD="$enableval"])
 
 USE_SIMD_MOMR="no"
@@ -384,7 +384,37 @@ if test "x$USE_SIMD" != "xno" ; then
 	AC_MSG_RESULT(no);)
     CFLAGS="$oldCFLAGS"
   fi
-  if test "x$SIMD_CFLAGS" = "x" ; then
+  AC_MSG_CHECKING([for SSE2/3 support])
+  oldCFLAGS="$CFLAGS"; CFLAGS="$SIMD_CFLAGS"
+  AC_TRY_COMPILE([
+#if defined(__SSE__) && defined(__SSE2__)
+#include <xmmintrin.h>
+#include <emmintrin.h>
+#ifdef __SSE3__
+#include <pmmintrin.h>
+#endif
+#else
+#error 'NO SSE'
+#endif
+],[__m128 x;],
+	AC_MSG_RESULT(yes);SIMD_OK=yes,
+	AC_MSG_RESULT(no);)
+  CFLAGS="$oldCFLAGS"
+  if test "x$SIMD_OK" = "x" ; then
+    oldCFLAGS="$CFLAGS"; CFLAGS="$SIMD_CFLAGS"
+    AC_MSG_CHECKING([for Altivec support])
+    AC_TRY_COMPILE([
+#if defined(__ALTIVEC__)
+#include <altivec.h>
+#else
+#error 'No Altivec'
+#endif
+],[vector float x;],
+	AC_MSG_RESULT(yes);SIMD_OK=yes,
+	AC_MSG_RESULT(no);)
+  CFLAGS="$oldCFLAGS"
+fi
+  if test "x$SIMD_OK" != "xyes" ; then
     if test "x$USE_SIMD" = "xyes" ; then
       AC_MSG_ERROR([SIMD was requested, but the compiler doesn't seem to support it.])
     else
