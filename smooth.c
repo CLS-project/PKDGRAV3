@@ -1166,9 +1166,16 @@ FLOAT phase_dist(PKD pkd,double dvTau2,PARTICLE *pa,PARTICLE *pb,double H) {
     }
 
 
-FLOAT corrPos(FLOAT com, FLOAT r, FLOAT l) {
+FLOAT corrPos(FLOAT com,FLOAT r,FLOAT l) {
     if (com > 0.25*l && r < -0.25*l) return r + l;
     else if (com < -0.25*l && r > 0.25*l) return r - l;
+    else return r;
+    }
+
+
+FLOAT PutInBox(FLOAT r,FLOAT l) {
+    if (r < -0.5*l) return r + l;
+    else if (r > 0.5*l) return r - l;
     else return r;
     }
 
@@ -1176,8 +1183,8 @@ FLOAT corrPos(FLOAT com, FLOAT r, FLOAT l) {
 int CmpRMs(const void *v1,const void *v2) {
     FOFRM *rm1 = (FOFRM *)v1;
     FOFRM *rm2 = (FOFRM *)v2;
-    if (rm1->iPid != rm1->iPid) return(rm1->iPid - rm2->iPid);
-    else return(rm1->iIndex - rm2->iIndex);
+    if (rm1->iPid != rm1->iPid) return (rm1->iPid - rm2->iPid);
+    else return (rm1->iIndex - rm2->iIndex);
     }
 
 
@@ -1277,8 +1284,7 @@ void smFof(SMX smx,int nFOFsDone,SMF *smf) {
 	    pGroup = pkdInt32(p,pkd->oGroup);
 	    if ( *pBin >= 0 ) {
 		for (j = 0; j < 3; j++)	{
-		    relpos[j] = corrPos(pkd->groupBin[*pBin].com[j], p->r[j], l[j])
-				- pkd->groupBin[*pBin].com[j];
+		    relpos[j] = corrPos(pkd->groupBin[*pBin].com[j],p->r[j],l[j]) - pkd->groupBin[*pBin].com[j];
 		    }
 		rho = pkd->groupBin[*pBin].fDensity;
 		if (rho > p->fDensity) rho =  p->fDensity;
@@ -1464,12 +1470,12 @@ void smFof(SMX smx,int nFOFsDone,SMF *smf) {
     ** Create a remapping and give unique local Ids !
     */
     iMaxGroups = iGroup;
-    iGroup= 1+ pkd->idSelf;
+    iGroup= 1 + pkd->idSelf;
     pkd->nGroups = 0;
     protoGroup[0].iId = tmp;
-    for (i=1;i <= iMaxGroups ;i++) {
+    for (i=1;i<=iMaxGroups;i++) {
 	protoGroup[i].iId = iGroup;
-	if (protoGroup[i].nMembers < smf->nMinMembers && protoGroup[i].nRemoteMembers == 0 ) {
+	if (protoGroup[i].nMembers < smf->nMinMembers && protoGroup[i].nRemoteMembers == 0) {
 	    protoGroup[i].iId = tmp;
 	    }
 	else {
@@ -1480,7 +1486,7 @@ void smFof(SMX smx,int nFOFsDone,SMF *smf) {
     /*
     ** Update the particle groups ids.
     */
-    for (pi=0; pi<nTree ; pi++) {
+    for (pi=0;pi<nTree;pi++) {
 	p = pkdParticle(pkd,pi);
 	pGroup = pkdInt32(p,pkd->oGroup);
 	*pGroup = protoGroup[*pGroup].iId;
@@ -1491,7 +1497,7 @@ void smFof(SMX smx,int nFOFsDone,SMF *smf) {
     pkd->groupData = (FOFGD *) malloc((1+pkd->nGroups)*sizeof(FOFGD));
     assert(pkd->groupData != NULL);
     k=1;
-    for (i=0 ; i < pkd->nGroups;i++) {
+    for (i=0;i<pkd->nGroups;i++) {
 	while (protoGroup[k].iId == tmp) k++;
 	pkd->groupData[i].iGlobalId = protoGroup[k].iId;
 	pkd->groupData[i].iLocalId = protoGroup[k].iId;
@@ -1509,11 +1515,11 @@ void smFof(SMX smx,int nFOFsDone,SMF *smf) {
 	    pkd->groupData[i].fVelSigma2[j] = 0.0;
 	    pkd->groupData[i].r[j] = 0.0;
 	    pkd->groupData[i].v[j] = 0.0;
-	    pkd->groupData[i].rmax[j] = -l[j];
-	    pkd->groupData[i].rmin[j] = l[j];
+	    pkd->groupData[i].rmax[j] = -2.0*l[j];
+	    pkd->groupData[i].rmin[j] = 2.0*l[j];
 	    }
 	pkd->groupData[i].fDeltaR2 = 0.0;
-	pkd->groupData[i].potmin = -1.0;
+	pkd->groupData[i].potmin = FLOAT_MAXVAL;
 	pkd->groupData[i].denmax = -1.0;
 	pkd->groupData[i].vcircMax = 0.0;
 	pkd->groupData[i].rvcircMax = 0.0;
@@ -1530,7 +1536,7 @@ void smFof(SMX smx,int nFOFsDone,SMF *smf) {
     /*
     ** Calculate local group properties
     */
-    for (pi=0;pi<nTree ;++pi) {
+    for (pi=0;pi<nTree;++pi) {
 	p = pkdParticle(pkd,pi);
 	pGroup = pkdInt32(p,pkd->oGroup);
 	fMass = pkdMass(pkd,p);
@@ -1545,31 +1551,30 @@ void smFof(SMX smx,int nFOFsDone,SMF *smf) {
 #endif
 	    pkd->groupData[i].fVelDisp += (v[0]*v[0]+v[1]*v[1]+v[2]*v[2])*fMass;
 	    for (j=0;j<3;j++) {
-		pkd->groupData[i].fVelSigma2[j] += ( v[j]*v[j] )*fMass;
+		pkd->groupData[i].fVelSigma2[j] += v[j]*v[j]*fMass;
 		if (pkd->groupData[i].fMass > 0.0)
-		    r[j] = corrPos(pkd->groupData[i].r[j]/pkd->groupData[i].fMass, p->r[j], l[j]);
+		    r[j] = corrPos(pkd->groupData[i].r[j]/pkd->groupData[i].fMass,p->r[j],l[j]);
 		else  r[j] = p->r[j];
 		pkd->groupData[i].r[j] += r[j]*fMass;
-		pkd->groupData[i].fDeltaR2 +=  r[j]* r[j]*fMass;
+		pkd->groupData[i].fDeltaR2 +=  r[j]*r[j]*fMass;
 		if (r[j] > pkd->groupData[i].rmax[j]) pkd->groupData[i].rmax[j] = r[j];
 		if (r[j] < pkd->groupData[i].rmin[j]) pkd->groupData[i].rmin[j] = r[j];
 		pkd->groupData[i].v[j] += v[j]*fMass;
 		}
 	    pkd->groupData[i].fMass += fMass;
-	    /* use absolute values of particle potential, sign of pot has changed in pkdgrav2*/
 	    pPot = pkdPot(pkd,p);
-	    if (fabs(*pPot) > pkd->groupData[i].potmin) {
-		pkd->groupData[i].potmin = fabs(*pPot);
-		for (j=0;j<3;j++)pkd->groupData[i].rpotmin[j]=r[j];
+	    if (*pPot < pkd->groupData[i].potmin) {
+		pkd->groupData[i].potmin = *pPot;
+		for (j=0;j<3;j++) pkd->groupData[i].rpotmin[j] = r[j];
 		}
-	    if ( p->fDensity > pkd->groupData[i].denmax) {
+	    if (p->fDensity > pkd->groupData[i].denmax) {
 		pkd->groupData[i].denmax = p->fDensity;
-		for (j=0;j<3;j++)pkd->groupData[i].rdenmax[j]=r[j];
+		for (j=0;j<3;j++) pkd->groupData[i].rdenmax[j] = r[j];
 		}
 	    if (nFOFsDone > 0) {
 		assert(0); /* p[pn] ??  Not p[pi] ?? */
 		/*rho = p[pn].fMass/(pow(p[pn].fBall ,3.0/2.0)*smf->fContrast);*/
-		if (rho > pkd->groupData[i].rhoBG)pkd->groupData[i].rhoBG = rho;
+		if (rho > pkd->groupData[i].rhoBG) pkd->groupData[i].rhoBG = rho;
 		}
 	    else {
 		pkd->groupData[i].rhoBG = 1.0;
@@ -1594,11 +1599,8 @@ void smFof(SMX smx,int nFOFsDone,SMF *smf) {
 int CmpGroups(const void *v1,const void *v2) {
     FOFGD *g1 = (FOFGD *)v1;
     FOFGD *g2 = (FOFGD *)v2;
-    /* use maxima of fabs(potential) to order groups*/
-    if ( g1->potmin > g2->potmin )
-	return 1;
-    else
-	return -1;
+    if (g1->potmin < g2->potmin) return 1;
+    else return -1;
     }
 
 static void mktmpdir( const char *dirname ) {
@@ -1774,26 +1776,26 @@ int smGroupMerge(SMF *smf,int bPeriodic) {
 		/*
 		** Nonlocal group big enough: calculate properties
 		*/
-		for (k=0;k < nSubGroups;++k) {
+		for (k=0;k<nSubGroups;++k) {
 		    sG = subGroup[k];
 		    sG->iGlobalId = pkd->groupData[i].iGlobalId;
 		    sG->bMyGroup = 0;
-		    if ( sG->denmax > pkd->groupData[i].denmax) {
+		    if (sG->denmax > pkd->groupData[i].denmax) {
 			pkd->groupData[i].denmax = sG->denmax;
-			for (j=0;j<3;j++)pkd->groupData[i].rdenmax[j]=
-				corrPos(pkd->groupData[i].r[j]/pkd->groupData[i].fMass, sG->rdenmax[j], l[j]);
+			for (j=0;j<3;j++) pkd->groupData[i].rdenmax[j] =
+				corrPos(pkd->groupData[i].r[j]/pkd->groupData[i].fMass,sG->rdenmax[j],l[j]);
 			}
-		    if ( sG->potmin > pkd->groupData[i].potmin) {
+		    if (sG->potmin < pkd->groupData[i].potmin) {
 			pkd->groupData[i].potmin = sG->potmin;
-			for (j=0;j<3;j++)pkd->groupData[i].rpotmin[j]=
-				corrPos(pkd->groupData[i].r[j]/pkd->groupData[i].fMass, sG->rpotmin[j], l[j]);
+			for (j=0;j<3;j++) pkd->groupData[i].rpotmin[j] =
+				corrPos(pkd->groupData[i].r[j]/pkd->groupData[i].fMass,sG->rpotmin[j],l[j]);
 			}
 		    for (j=0;j<3;j++) {
-			r = corrPos(pkd->groupData[i].r[j]/pkd->groupData[i].fMass, sG->r[j]/sG->fMass, l[j]);
+			r = corrPos(pkd->groupData[i].r[j]/pkd->groupData[i].fMass,sG->r[j]/sG->fMass,l[j]);
 			pkd->groupData[i].r[j] += r*sG->fMass;
-			max = corrPos(pkd->groupData[i].r[j]/pkd->groupData[i].fMass, sG->rmax[j], l[j]);
+			max = corrPos(pkd->groupData[i].r[j]/pkd->groupData[i].fMass,sG->rmax[j],l[j]);
 			if (max > pkd->groupData[i].rmax[j]) pkd->groupData[i].rmax[j] = max;
-			min = corrPos(pkd->groupData[i].r[j]/pkd->groupData[i].fMass, sG->rmin[j], l[j]);
+			min = corrPos(pkd->groupData[i].r[j]/pkd->groupData[i].fMass,sG->rmin[j],l[j]);
 			if (min < pkd->groupData[i].rmin[j]) pkd->groupData[i].rmin[j] = min;
 			pkd->groupData[i].fVelSigma2[j] += sG->fVelSigma2[j];
 			pkd->groupData[i].v[j] += sG->v[j];
@@ -1806,27 +1808,26 @@ int smGroupMerge(SMF *smf,int bPeriodic) {
 		    pkd->groupData[i].fDeltaR2 += sG->fDeltaR2;
 		    pkd->groupData[i].fMass += sG->fMass;
 		    }
-		for (k=0;k < nLSubGroups;++k) {
-
+		for (k=0;k<nLSubGroups;++k) {
 		    sG = lSubGroup[k];
 		    sG->iGlobalId = pkd->groupData[i].iGlobalId;
 		    sG->bMyGroup = 0;
-		    if ( sG->denmax > pkd->groupData[i].denmax) {
+		    if (sG->denmax > pkd->groupData[i].denmax) {
 			pkd->groupData[i].denmax = sG->denmax;
-			for (j=0;j<3;j++)pkd->groupData[i].rdenmax[j]=
-				corrPos(pkd->groupData[i].r[j]/pkd->groupData[i].fMass, sG->rdenmax[j], l[j]);
+			for (j=0;j<3;j++) pkd->groupData[i].rdenmax[j] =
+				corrPos(pkd->groupData[i].r[j]/pkd->groupData[i].fMass,sG->rdenmax[j],l[j]);
 			}
-		    if ( sG->potmin > pkd->groupData[i].potmin) {
+		    if (sG->potmin < pkd->groupData[i].potmin) {
 			pkd->groupData[i].potmin = sG->potmin;
-			for (j=0;j<3;j++)pkd->groupData[i].rpotmin[j]=
-				corrPos(pkd->groupData[i].r[j]/pkd->groupData[i].fMass, sG->rpotmin[j], l[j]);
+			for (j=0;j<3;j++) pkd->groupData[i].rpotmin[j] =
+				corrPos(pkd->groupData[i].r[j]/pkd->groupData[i].fMass,sG->rpotmin[j],l[j]);
 			}
 		    for (j=0;j<3;j++) {
-			r = corrPos(pkd->groupData[i].r[j]/pkd->groupData[i].fMass, sG->r[j]/sG->fMass, l[j]);
+			r = corrPos(pkd->groupData[i].r[j]/pkd->groupData[i].fMass,sG->r[j]/sG->fMass,l[j]);
 			pkd->groupData[i].r[j] += r*sG->fMass;
-			max = corrPos(pkd->groupData[i].r[j]/pkd->groupData[i].fMass, sG->rmax[j], l[j]);
+			max = corrPos(pkd->groupData[i].r[j]/pkd->groupData[i].fMass,sG->rmax[j],l[j]);
 			if (max > pkd->groupData[i].rmax[j]) pkd->groupData[i].rmax[j] = max;
-			min = corrPos(pkd->groupData[i].r[j]/pkd->groupData[i].fMass, sG->rmin[j], l[j]);
+			min = corrPos(pkd->groupData[i].r[j]/pkd->groupData[i].fMass,sG->rmin[j],l[j]);
 			if (min < pkd->groupData[i].rmin[j]) pkd->groupData[i].rmin[j] = min;
 			pkd->groupData[i].fVelSigma2[j] += sG->fVelSigma2[j];
 			pkd->groupData[i].v[j] += sG->v[j];
@@ -1895,28 +1896,42 @@ int smGroupMerge(SMF *smf,int bPeriodic) {
 	if (pkd->groupData[i].bMyGroup && pkd->groupData[i].iGlobalId != 0) {
 	    for (j=0;j<3;j++) {
 		pkd->groupData[i].r[j] /= pkd->groupData[i].fMass;
-		if (pkd->groupData[i].r[j] > 0.5*l[j]) pkd->groupData[i].r[j] -= l[j];
-		if (pkd->groupData[i].r[j] < -0.5*l[j]) pkd->groupData[i].r[j] += l[j];
+		}
+	    /* 
+	    ** Do not calculate fDeltaR2 with the corrected positions!
+	    */
+	    pkd->groupData[i].fDeltaR2 /= pkd->groupData[i].fMass;
+	    pkd->groupData[i].fDeltaR2 -= pkd->groupData[i].r[0]*pkd->groupData[i].r[0]
+		+ pkd->groupData[i].r[1]*pkd->groupData[i].r[1]
+		+ pkd->groupData[i].r[2]*pkd->groupData[i].r[2];
+	    pkd->groupData[i].fDeltaR2 = pow(pkd->groupData[i].fDeltaR2,0.5);
+	    /* 
+	    ** Now put all the positions back into the box and normalise the rest
+	    */
+	    for (j=0;j<3;j++) {
+		pkd->groupData[i].r[j] = PutInBox(pkd->groupData[i].r[j],l[j]);
+		pkd->groupData[i].rpotmin[j] = PutInBox(pkd->groupData[i].rpotmin[j],l[j]);
+		pkd->groupData[i].rdenmax[j] = PutInBox(pkd->groupData[i].rdenmax[j],l[j]);
 		pkd->groupData[i].v[j] /= pkd->groupData[i].fMass;
-		pkd->groupData[i].fVelSigma2[j] =
-		    pkd->groupData[i].fVelSigma2[j]/pkd->groupData[i].fMass - pkd->groupData[i].v[j]*pkd->groupData[i].v[j];
-		pkd->groupData[i].fVelSigma2[j] = pow(pkd->groupData[i].fVelSigma2[j], 0.5);
+		pkd->groupData[i].fVelSigma2[j] /= pkd->groupData[i].fMass;
+		pkd->groupData[i].fVelSigma2[j] -= pkd->groupData[i].v[j]*pkd->groupData[i].v[j];
+		pkd->groupData[i].fVelSigma2[j] = pow(pkd->groupData[i].fVelSigma2[j],0.5);
 		}
 	    pkd->groupData[i].fRadius = 0.0;
 	    pkd->groupData[i].fRadius += pkd->groupData[i].rmax[0]-pkd->groupData[i].rmin[0];
 	    pkd->groupData[i].fRadius += pkd->groupData[i].rmax[1]-pkd->groupData[i].rmin[1];
 	    pkd->groupData[i].fRadius += pkd->groupData[i].rmax[2]-pkd->groupData[i].rmin[2];
 	    pkd->groupData[i].fRadius /= 6.0;
-	    pkd->groupData[i].fVelDisp =
-		pkd->groupData[i].fVelDisp/pkd->groupData[i].fMass - pkd->groupData[i].v[0]*pkd->groupData[i].v[0]
-		- pkd->groupData[i].v[1]*pkd->groupData[i].v[1]- pkd->groupData[i].v[2]*pkd->groupData[i].v[2];
-	    pkd->groupData[i].fVelDisp = pow(pkd->groupData[i].fVelDisp, 0.5);
-	    pkd->groupData[i].fDeltaR2 /= pkd->groupData[i].fMass;
-	    pkd->groupData[i].fDeltaR2 -= pkd->groupData[i].r[0]*pkd->groupData[i].r[0]
-					  + pkd->groupData[i].r[1]*pkd->groupData[i].r[1] + pkd->groupData[i].r[2]*pkd->groupData[i].r[2];
-	    pkd->groupData[i].fDeltaR2 = pow(pkd->groupData[i].fDeltaR2, 0.5);
+	    pkd->groupData[i].fVelDisp /= pkd->groupData[i].fMass;
+	    pkd->groupData[i].fVelDisp -= pkd->groupData[i].v[0]*pkd->groupData[i].v[0]
+		+ pkd->groupData[i].v[1]*pkd->groupData[i].v[1] 
+		+ pkd->groupData[i].v[2]*pkd->groupData[i].v[2];
+	    pkd->groupData[i].fVelDisp = pow(pkd->groupData[i].fVelDisp,0.5);
+	    /* 
+	    ** Calculate fAvgDens using half mass radius and assuming spherical halos 
+	    */
 	    pkd->groupData[i].fAvgDens = 0.5*pkd->groupData[i].fMass
-					 *0.238732414/pow(pkd->groupData[i].fDeltaR2,3.0);/*using half mass radius and assuming spherical halos*/
+					 *0.238732414/pow(pkd->groupData[i].fDeltaR2,3.0);
 	    pkd->groupData[nMyGroups] = pkd->groupData[i];
 	    nMyGroups++;
 	    }
@@ -2156,7 +2171,7 @@ int smGroupProfiles(SMX smx, SMF *smf,int bPeriodic, int nTotalGroups,int bLogBi
 		v = pkdVel(pkd,smx->nnList[pnn].pPart);
 		dx2=0.0;
 		for (j = 0; j < 3; j++) {
-		    r[j] = corrPos(com[j], smx->nnList[pnn].pPart->r[j], l[j])	- com[j];
+		    r[j] = corrPos(com[j],smx->nnList[pnn].pPart->r[j],l[j]) - com[j];
 		    relvel[j] = v[j] - pkd->groupData[index].v[j];
 		    dx2 += pow(r[j],2);
 		    }
