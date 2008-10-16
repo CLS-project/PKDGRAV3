@@ -78,9 +78,9 @@ fi
 AC_ARG_WITH(hdf5,
   [  --with-hdf5=PATH        path to HDF5 installation],
   [CFLAGS="$CFLAGS -I${withval}/include"
-   LDFLAGS="$LDFLAGS -L${withval}/lib"
+   LDFLAGS="$LDFLAGS -L${withval}/lib64"
    if test -n "${need_dash_r}"; then
-	LDFLAGS="$LDFLAGS -R${withval}/lib"
+	LDFLAGS="$LDFLAGS -R${withval}/lib64"
    fi
    USE_HDF5=yes
    AC_DEFINE([USE_HDF5], 1,
