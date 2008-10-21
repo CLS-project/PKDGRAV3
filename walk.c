@@ -17,7 +17,7 @@ const char *walk_module_id = "$Id$";
 #include "floattype.h"
 #endif
 
-#define WALK_MINMULTIPOLE	3
+#define WALK_MINMULTIPOLE	4
 
 /*
 ** Returns total number of active particles for which gravity was calculated.
