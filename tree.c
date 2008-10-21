@@ -448,7 +448,11 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp) {
 	    bSoftZero = 1;
 	    }
 	else
+#ifdef CLASSIC_SOFTENING
+	    dih2 = m*fSoft;
+#else
 	    dih2 = m/(fSoft*fSoft);
+#endif
 	x = m*p->r[0];
 	y = m*p->r[1];
 	z = m*p->r[2];
@@ -470,7 +474,11 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp) {
 	    if(fSoft == 0.0)
 		bSoftZero = 1;
 	    else
+#ifdef CLASSIC_SOFTENING
+		dih2 += m*fSoft;
+#else
 		dih2 += m/(fSoft*fSoft);
+#endif
 	    x += m*p->r[0];
 	    y += m*p->r[1];
 	    z += m*p->r[2];
@@ -498,7 +506,11 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp) {
 	if(bSoftZero)
 	    pkdn->fSoft2 = 0.0;
 	else
+#ifdef CLASSIC_SOFTENING
+	    pkdn->fSoft2 = dih2*dih2;
+#else
 	    pkdn->fSoft2 = 1/dih2;
+#endif
 	/*
 	** Now calculate the reduced multipole moment.
 	*/
