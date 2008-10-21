@@ -294,7 +294,7 @@ momFloat momMakeMomr(MOMR *mr,momFloat m,momFloat x,momFloat y,momFloat z) {
     momFloat y2 = y*y;
     momFloat d2 = x2 + y2 + z*z;
 
-    assert( m > 0.0 );
+    /*assert( m > 0.0 ); -- massless tracer particles are allowed*/
 
     mr->m = m;
     /*

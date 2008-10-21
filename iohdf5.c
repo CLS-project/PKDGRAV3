@@ -578,9 +578,9 @@ static void addOrder( IOHDF5 io, IOBASE *Base,
 /* If the structures have not been allocated, do so now */
 static void allocateBase( IOHDF5 io, IOBASE *Base ) {
     if ( Base->R == NULL ) {
-	Base->R    = (ioV3*)malloc( io->iChunkSize * sizeof(ioV3) );
+	Base->R    = (ioHDF5V3*)malloc( io->iChunkSize * sizeof(ioHDF5V3) );
 	assert( Base->R != NULL );
-	Base->V    = (ioV3*)malloc( io->iChunkSize * sizeof(ioV3) );
+	Base->V    = (ioHDF5V3*)malloc( io->iChunkSize * sizeof(ioHDF5V3) );
 	assert( Base->V != NULL );
 	}
     }

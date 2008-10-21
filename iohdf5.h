@@ -10,7 +10,7 @@ extern "C" {
 
     typedef struct {
 	FLOAT v[3];
-	} ioV3;
+	} ioHDF5V3;
 
     typedef uint64_t PINDEX;
 
@@ -51,8 +51,8 @@ extern "C" {
 	IOORDER Order;
 	IOCLASS Class;
 
-	ioV3    *R;               /* Positions (always present) */
-	ioV3    *V;               /* Velocities (always present) */
+	ioHDF5V3 *R;              /* Positions (always present) */
+	ioHDF5V3 *V;              /* Velocities (always present) */
 
 	} IOBASE;
 

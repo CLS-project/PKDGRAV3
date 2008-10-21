@@ -1,6 +1,8 @@
 #ifndef IO_HINCLUDED
 #define IO_HINCLUDED
+#ifdef USE_HDF5
 #include "iohdf5.h"
+#endif
 #include "mdl.h"
 
 #define MAX_IO_CLASSES 256
@@ -10,6 +12,10 @@ typedef struct {
     FLOAT    dMass;
     FLOAT    dSoft;
     } ioClass;
+
+typedef struct {
+    FLOAT v[3];
+    } ioV3;
 
 typedef struct ioContext {
     MDL mdl;
@@ -66,6 +72,8 @@ struct inStartSave {
     double dUOld;
     total_t N;
     int    bCheckpoint;
+    int    iStandard;
+    int    bHDF5;
     char achOutName[PST_FILENAME_SIZE];
     };
 void ioStartSave(IO,void *,int,void *,int *);
@@ -80,6 +88,8 @@ struct inStartRecv {
     total_t iIndex;
     local_t nCount;
     int    bCheckpoint;
+    int    iStandard;
+    int    bHDF5;
     char achOutName[PST_FILENAME_SIZE];
     };
 void ioStartRecv(IO,void *,int,void *,int *);

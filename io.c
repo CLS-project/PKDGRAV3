@@ -3,10 +3,7 @@
 #endif
 const char *io_module_id = "$Id$";
 
-/*#define USE_IO_TIPSY*/
-#ifdef USE_IO_TIPSY
 #include <rpc/xdr.h>
-#endif
 
 #ifdef HAVE_MALLOC_H
 #include <malloc.h>
@@ -20,7 +17,9 @@ const char *io_module_id = "$Id$";
 #include <math.h>
 #include <inttypes.h>
 
+#ifdef USE_HDF5
 #include "iohdf5.h"
+#endif
 #include "pst.h"
 #include "io.h"
 
@@ -44,7 +43,7 @@ static void makeName( IO io, char *achOutName, const char *inName, int iIndex ) 
     }
 
 
-
+#ifdef USE_HDF5
 /* Create an HDF5 file for output */
 hid_t ioCreate( const char *filename ) {
     hid_t fileID;
@@ -65,162 +64,134 @@ hid_t ioOpen( const char *filename ) {
 
     return fileID;
     }
-
+#endif
 
 
 static void ioSave(IO io, const char *filename, total_t N,
 		   double dTime,
 		   double dEcosmo, double dTimeOld, double dUOld,
-		   int bDouble ) {
+		   int bDouble, int iStandard, int bHDF5 ) {
+#ifdef USE_HDF5
     hid_t fileID;
     IOHDF5 iohdf5;
     IOHDF5V ioDen;
     IOHDF5V ioPot;
-    local_t i;
-#ifdef USE_IO_TIPSY
+#endif
     char *tname = malloc(strlen(filename)+5);
     FILE *tfp;
     XDR xdr;
     int j;
     float fTmp;
+    local_t i;
+/* Make sure we save something */
+#ifndef USE_HDF5
+    if ( iStandard < 0 ) iStandard = 1;
+#else
+    if ( !bHDF5 && iStandard < 0 ) iStandard = 1;
 #endif
 
-#ifdef USE_IO_TIPSY
-    strcpy(tname,filename);
-    strcat(tname,".std");
-    tfp = fopen(tname,"wb");
-    assert( tfp != NULL );
-    free(tname);
-    xdrstdio_create(&xdr,tfp,XDR_ENCODE);
-    if ( mdlSelf(io->mdl) == 0 ) {
+    if ( iStandard >= 0 ) {
 	uint32_t nBodies = N;
 	uint32_t nDims = 3;
 	uint32_t nZero = 0;
-	assert(xdr_double(&xdr,&dTime));
-	assert(xdr_u_int(&xdr,&nBodies));
-	assert(xdr_u_int(&xdr,&nDims));
-	assert(xdr_u_int(&xdr,&nZero));
-	assert(xdr_u_int(&xdr,&nBodies));
-	assert(xdr_u_int(&xdr,&nZero));
-	assert(xdr_u_int(&xdr,&nZero));
-	}
-#endif
 
-    /* Create the output file */
-    fileID = ioCreate(filename);
-    iohdf5 = ioHDF5Initialize( fileID, CHUNKSIZE, bDouble );
-    ioDen  = ioHDFF5NewVector( iohdf5, "density",  IOHDF5_SINGLE );
-    ioPot  = ioHDFF5NewVector( iohdf5, "potential",IOHDF5_SINGLE );
-
-    ioHDF5WriteAttribute( iohdf5, "dTime",   H5T_NATIVE_DOUBLE, &dTime );
-    ioHDF5WriteAttribute( iohdf5, "dEcosmo", H5T_NATIVE_DOUBLE, &dEcosmo );
-    ioHDF5WriteAttribute( iohdf5, "dTimeOld",H5T_NATIVE_DOUBLE, &dTimeOld );
-    ioHDF5WriteAttribute( iohdf5, "dUOld",   H5T_NATIVE_DOUBLE, &dUOld );
-
-    for ( i=0; i<io->N; i++ ) {
-	/*	ioHDF5AddDark(iohdf5, io->iMinOrder+i,
-			      io->r[i].v, io->v[i].v,
-			      io->m[i], io->s[i], io->p[i] );*/
-	ioHDF5AddDark(iohdf5, io->iMinOrder+i,
-		      io->r[i].v, io->v[i].v,
-		      io->ioClasses[io->vClass[i]].dMass,
-		      io->ioClasses[io->vClass[i]].dSoft, io->p[i] );
-	ioHDF5AddVector( ioDen, io->iMinOrder+i, io->d[i] );
-	ioHDF5AddVector( ioPot, io->iMinOrder+1, io->p[i] );
-
-#ifdef USE_IO_TIPSY
-	fTmp = io->ioClasses[io->vClass[i]].dMass;
-	xdr_float(&xdr,&fTmp);
-	for (j=0;j<3;j++) {
-	    if (bDouble)
-		xdr_double(&xdr,&io->r[i].v[j]);
-	    else {
-		fTmp = io->r[i].v[j];
-		xdr_float(&xdr,&fTmp);
+	strcpy(tname,filename);
+	if ( iStandard > 0 ) strcat(tname,".std");
+	else strcat(tname,".bin");
+	tfp = fopen(tname,"wb");
+	assert( tfp != NULL );
+	free(tname);
+	if ( iStandard > 0 ) {
+	    xdrstdio_create(&xdr,tfp,XDR_ENCODE);
+	    if ( mdlSelf(io->mdl) == 0 ) {
+		assert(xdr_double(&xdr,&dTime));
+		assert(xdr_u_int(&xdr,&nBodies));
+		assert(xdr_u_int(&xdr,&nDims));
+		assert(xdr_u_int(&xdr,&nZero));
+		assert(xdr_u_int(&xdr,&nBodies));
+		assert(xdr_u_int(&xdr,&nZero));
+		assert(xdr_u_int(&xdr,&nZero));
 		}
 	    }
-	for (j=0;j<3;j++) {
-	    fTmp = io->v[i].v[j];
-	    xdr_float(&xdr,&fTmp);
-	    }
-	fTmp = io->ioClasses[io->vClass[i]].dSoft;
-	xdr_float(&xdr,&fTmp);
-	fTmp = io->p[i];
-	xdr_float(&xdr,&fTmp);
-#endif
-	}
-    ioHDF5Finish(iohdf5);
-
-    H5assert(H5Fflush(fileID,H5F_SCOPE_GLOBAL));
-    H5assert(H5Fclose(fileID));
-
-#ifdef USE_IO_TIPSY
-    xdr_destroy(&xdr);
-    fclose(tfp);
-#endif
-    }
-
-
-static void ioLoad(IO io, const char *filename,
-		   total_t iIndex, total_t N,
-		   double *dTime, double *dEcosmo,
-		   double *dTimeOld, double *dUOld ) {
-    hid_t fileID;
-    IOHDF5 iohdf5;
-    PINDEX iOrder = 0;
-    local_t iOffset;
-    local_t i, iClass;
-
-    /* Open the output file */
-    fileID = ioOpen(filename);
-    iohdf5 = ioHDF5Initialize( fileID, CHUNKSIZE, 0 );
-
-    ioHDF5ReadAttribute( iohdf5, "dTime",   H5T_NATIVE_DOUBLE, dTime );
-    ioHDF5ReadAttribute( iohdf5, "dEcosmo", H5T_NATIVE_DOUBLE, dEcosmo );
-    ioHDF5ReadAttribute( iohdf5, "dTimeOld",H5T_NATIVE_DOUBLE, dTimeOld );
-    ioHDF5ReadAttribute( iohdf5, "dUOld",   H5T_NATIVE_DOUBLE, dUOld );
-
-    if ( N == 0 ) N = ioHDF5DarkCount( iohdf5 ) - iIndex;
-    iOffset = io->N;
-    io->N += N;
-
-    assert( io->N <= io->nAllocated );
-
-    if ( iIndex ) ioHDF5SeekDark( iohdf5, iIndex );
-
-    /*printf( "%s: %lu -> %lu\n", filename, iIndex, iIndex+N );*/
-
-    for ( i=0; i<N; i++ ) {
-	local_t iLocal = iOffset + i;
-	FLOAT dMass, dSoft;
-	float fPot;
-
-	ioHDF5GetDark(iohdf5, &iOrder,
-		      io->r[iLocal].v, io->v[iLocal].v,
-		      &dMass, &dSoft, &fPot );
-
-	/*FIXME: linear search - MAX 256, <10 typical */
-	for ( iClass=0; iClass<io->nClasses; iClass++ )
-	    if ( io->ioClasses[iClass].dMass == dMass && io->ioClasses[iClass].dSoft == dSoft )
-		break;
-	if ( iClass != io->nClasses ) {
-	    io->ioClasses[iClass].iMaxOrder = iOrder;
-	    }
 	else {
-	    assert( iClass<MAX_IO_CLASSES);
-	    io->nClasses++;
-	    io->ioClasses[iClass].dMass = dMass;
-	    io->ioClasses[iClass].dSoft = dSoft;
-	    io->ioClasses[iClass].iMinOrder = iOrder;
-	    io->ioClasses[iClass].iMaxOrder = iOrder;
+	    fwrite(&dTime,sizeof(dTime),1,tfp);
+	    fwrite(&nBodies,sizeof(nBodies),1,tfp);
+	    fwrite(&nDims,sizeof(nDims),1,tfp);
+	    fwrite(&nZero,sizeof(nZero),1,tfp);
+	    fwrite(&nBodies,sizeof(nBodies),1,tfp);
+	    fwrite(&nZero,sizeof(nZero),1,tfp);
+	    fwrite(&nZero,sizeof(nZero),1,tfp);
 	    }
-	io->vClass[iLocal] = iClass;
 	}
 
-    ioHDF5Finish(iohdf5);
+#ifdef USE_HDF5
+    if ( bHDF5 ) {
+	/* Create the output file */
+	fileID = ioCreate(filename);
+	iohdf5 = ioHDF5Initialize( fileID, CHUNKSIZE, bDouble ? IOHDF5_DOUBLE : IOHDF5_SINGLE );
+	ioDen  = ioHDFF5NewVector( iohdf5, "density",  IOHDF5_SINGLE );
+	ioPot  = ioHDFF5NewVector( iohdf5, "potential",IOHDF5_SINGLE );
+	ioHDF5WriteAttribute( iohdf5, "dTime",   H5T_NATIVE_DOUBLE, &dTime );
+	ioHDF5WriteAttribute( iohdf5, "dEcosmo", H5T_NATIVE_DOUBLE, &dEcosmo );
+	ioHDF5WriteAttribute( iohdf5, "dTimeOld",H5T_NATIVE_DOUBLE, &dTimeOld );
+	ioHDF5WriteAttribute( iohdf5, "dUOld",   H5T_NATIVE_DOUBLE, &dUOld );
+	}
+#endif
+    for ( i=0; i<io->N; i++ ) {
+#ifdef USE_HDF5
+	if ( bHDF5 ) {
+	    /*	ioHDF5AddDark(iohdf5, io->iMinOrder+i,
+	      io->r[i].v, io->v[i].v,
+	      io->m[i], io->s[i], io->p[i] );*/
+	    ioHDF5AddDark(iohdf5, io->iMinOrder+i,
+			  io->r[i].v, io->v[i].v,
+			  io->ioClasses[io->vClass[i]].dMass,
+			  io->ioClasses[io->vClass[i]].dSoft, io->p[i] );
+	    ioHDF5AddVector( ioDen, io->iMinOrder+i, io->d[i] );
+	    ioHDF5AddVector( ioPot, io->iMinOrder+1, io->p[i] );
+	    }
+#endif
+	if ( iStandard >= 0 ) {
+	    fTmp = io->ioClasses[io->vClass[i]].dMass;
+	    if (iStandard) xdr_float(&xdr,&fTmp);
+	    else fwrite(&fTmp,sizeof(fTmp),1,tfp);
+	    for (j=0;j<3;j++) {
+		if (bDouble)
+		    if ( iStandard ) xdr_double(&xdr,&io->r[i].v[j]);
+		    else fwrite(&io->r[i].v[j],sizeof(io->r[i].v[j]),1,tfp);
+		else {
+		    fTmp = io->r[i].v[j];
+		    if (iStandard) xdr_float(&xdr,&fTmp);
+		    else fwrite(&fTmp,sizeof(fTmp),1,tfp);
+		    }
+		}
+	    for (j=0;j<3;j++) {
+		fTmp = io->v[i].v[j];
+		if (iStandard) xdr_float(&xdr,&fTmp);
+		else fwrite(&fTmp,sizeof(fTmp),1,tfp);
+		}
+	    fTmp = io->ioClasses[io->vClass[i]].dSoft;
+	    if (iStandard) xdr_float(&xdr,&fTmp);
+	    else fwrite(&fTmp,sizeof(fTmp),1,tfp);
+	    fTmp = io->p[i];
+	    if (iStandard) xdr_float(&xdr,&fTmp);
+	    else fwrite(&fTmp,sizeof(fTmp),1,tfp);
+	    }
+	}
+#ifdef USE_HDF5
+    if ( bHDF5 ) {
+	ioHDF5Finish(iohdf5);
+	H5assert(H5Fflush(fileID,H5F_SCOPE_GLOBAL));
+	H5assert(H5Fclose(fileID));
+	}
+#endif
 
-    H5assert(H5Fclose(fileID));
+    if ( iStandard >= 0 ) {
+	if ( iStandard > 0 ) xdr_destroy(&xdr);
+	fclose(tfp);
+	}
     }
+
 
 void ioInitialize(IO *pio,MDL mdl) {
     IO io;
@@ -254,9 +225,6 @@ void ioAddServices(IO io,MDL mdl) {
     mdlAddService(mdl,IO_START_RECV,io,
 		  (void (*)(void *,void *,int,void *,int *)) ioStartRecv,
 		  sizeof(struct inStartRecv),0);
-    mdlAddService(mdl,IO_START_SEND,io,
-		  (void (*)(void *,void *,int,void *,int *)) ioStartSend,
-		  sizeof(struct inStartSend),0);
 #ifdef USE_PNG
     mdlAddService(mdl,IO_MAKE_PNG,io,
 		  (void (*)(void *,void *,int,void *,int *)) ioMakePNG,
@@ -282,13 +250,15 @@ void ioStartSave(IO io,void *vin,int nIn,void *vout,int *pnOut) {
     mdlassert(io->mdl,mdlSelf(io->mdl)==0);
 
     mdlSetComm(io->mdl,0); /* Talk to our peers */
-    recv.dTime   = save->dTime;
-    recv.dEcosmo = save->dEcosmo;
-    recv.dTimeOld= save->dTimeOld;
-    recv.dUOld   = save->dUOld;
+    recv.dTime     = save->dTime;
+    recv.dEcosmo   = save->dEcosmo;
+    recv.dTimeOld  = save->dTimeOld;
+    recv.dUOld     = save->dUOld;
     strcpy(recv.achOutName,save->achOutName);
     recv.bCheckpoint = save->bCheckpoint;
-    recv.N       = save->N;
+    recv.N         = save->N;
+    recv.iStandard = save->iStandard;
+    recv.bHDF5     = save->bHDF5;
     iCount = save->N / mdlIO(io->mdl);
 
     printf( "Starting to save %"PRIu64" particles (~%"PRIu64" per I/O node)\n",
@@ -496,38 +466,10 @@ void ioStartRecv(IO io,void *vin,int nIn,void *vout,int *pnOut) {
     makeName( io, achOutName, recv->achOutName, mdlSelf(io->mdl) );
 
     ioSave(io, achOutName, recv->N, recv->dTime, recv->dEcosmo,
-	   recv->dTimeOld, recv->dUOld,
-	   recv->bCheckpoint ? IOHDF5_DOUBLE : IOHDF5_SINGLE );
+	   recv->dTimeOld, recv->dUOld, recv->bCheckpoint,
+	   recv->iStandard, recv->bHDF5 );
     }
 
-
-void ioStartSend(IO io,void *vin,int nIn,void *vout,int *pnOut) {
-    struct inStartSend *send = vin;
-    char achInName[256];
-    double dTime, dEcosmo, dTimeOld, dUOld;
-    int i;
-    local_t n, O;
-
-    io->iMinOrder = send->iMinOrder;
-    io->iMaxOrder = send->iMaxOrder;
-    io->nTotal = send->N;
-    io->N = 0;
-    for ( i=send->iFirstFile; i<=send->iLastFile; i++ ) {
-	O = i==send->iFirstFile ? send->iFirstOffset : 0;
-	n = i==send->iLastFile ? send->iLastOffset-O : 0;
-	makeName( io, achInName, send->achInName, i );
-	ioLoad(io, achInName, O, n, &dTime, &dEcosmo, &dTimeOld, &dUOld );
-	}
-    assert( io->N == io->iMaxOrder - io->iMinOrder );
-
-    n = send->N / mdlThreads(io->mdl);
-
-    io->iOrder = io->iMinOrder;
-    mdlSetComm(io->mdl,1); /* Talk to the work process */
-    mdlSend(io->mdl,-1,ioPackIO,io);
-    mdlSetComm(io->mdl,0);
-
-    }
 
 #ifdef USE_PNG
 void ioMakePNG(IO io,void *vin,int nIn,void *vout,int *pnOut) {

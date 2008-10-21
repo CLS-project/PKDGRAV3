@@ -125,9 +125,6 @@ AM_CONDITIONAL(USE_GRAFIC,test "x$USE_GRAFIC" == "xyes")
 AC_ARG_ENABLE(mdl-io,
   [  --enable-mdl-io                enable dedicated I/O processors (MPI/pthread)],
   [USE_MDL_IO=yes
-   USE_HDF5=yes
-   AC_DEFINE([USE_HDF5], 1,
- 	[Define if HDF5 I/O should be available.])
    AC_DEFINE([USE_MDL_IO], 1,
  	[Define if MDL style I/O should be used.])
    AC_DEFINE([MDL_MAX_IO_PROCS],128,[The maximum number of IO processors])])
