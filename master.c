@@ -1766,6 +1766,8 @@ void msrIOWrite(MSR msr, const char *achOutName, double dTime, int bCheckpoint) 
     save.dEcosmo     = msr->dEcosmo;
     save.dTimeOld    = msr->dTimeOld;
     save.dUOld       = msr->dUOld;
+    save.iStandard   = prmSpecified(msr->prm,"bStandard") ? msr->param.bStandard : -1;
+    save.bHDF5       = msr->param.bHDF5;
 
     strcpy(save.achOutName,achOutName);
     mdlSetComm(msr->mdl,1);
