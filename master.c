@@ -20,7 +20,9 @@ const char *master_module_id = "$Id$";
 #include <time.h>
 #include <sys/time.h>
 #include <math.h>
+#if defined(HAVE_WORDEXP) && defined(HAVE_WORDFREE)
 #include <wordexp.h>
+#endif
 #include <sys/stat.h>
 
 #ifdef HAVE_SYS_PARAM_H
@@ -4907,7 +4909,6 @@ void msrWrite(MSR msr,const char *pszFileName,double dTime,int bCheckpoint) {
 
 
 static struct inReadFile * fileScan(MSR msr, const char *achFilename, double *pdExpansion) {
-    wordexp_t files;
     struct inReadFile *read;
     struct inFile *file;
     int i;
@@ -4915,6 +4916,9 @@ static struct inReadFile * fileScan(MSR msr, const char *achFilename, double *pd
     struct dump h;
     uint64_t iOffset;
     off_t oStart, oEnd, oSize;
+
+#if defined(HAVE_WORDEXP) && defined(HAVE_WORDFREE)
+    wordexp_t files;
 
     wordexp(achFilename, &files, 0);
     if ( files.we_wordc <= 0 ) {
@@ -4925,16 +4929,31 @@ static struct inReadFile * fileScan(MSR msr, const char *achFilename, double *pd
     assert(files.we_wordc<=PST_MAX_FILES);
     read = malloc(sizeof(struct inReadFile) + files.we_wordc*sizeof(struct inFile) );
     assert(read != NULL);
+    read->nFiles = files.we_wordc;
+#else
+    read = malloc(sizeof(struct inReadFile) + sizeof(struct inFile) );
+    assert(read != NULL);
+    read->nFiles = 1;
+    printf( "REMINDER: Wildcards not expanded. wordexp() not available.\n" );
+#endif
+
     file = (struct inFile *)(read+1);
 
     msr->nDark = msr->nGas = msr->nStar = msr->N = 0;
     iOffset = 0;
 
-    read->nFiles = files.we_wordc;
-    for( i=0; i<files.we_wordc; i++ ) {
+    for( i=0; i<read->nFiles; i++ ) {
+
+#if defined(HAVE_WORDEXP) && defined(HAVE_WORDFREE)
 	assert( strlen(files.we_wordv[i]) < sizeof(file[i].achFilename) );
 	strcpy( file[i].achFilename, files.we_wordv[i] );
-	printf( "Opening %s\n", files.we_wordv[i] );
+#else
+	assert( strlen(achFilename) < sizeof(file[i].achFilename) );
+	strcpy( file[i].achFilename, achFilename );
+#endif
+
+	printf( "Opening %s\n", file[i].achFilename );
+
 #ifdef USE_HDF5
 	if ( H5Fis_hdf5(file[i].achFilename) ) {
 	    hid_t fileID;
@@ -4957,6 +4976,7 @@ static struct inReadFile * fileScan(MSR msr, const char *achFilename, double *pd
 	    }
 	else {
 #endif
+
 	    fp = fopen(file[i].achFilename,"r");
 	    if (!fp) {
 		printf("Could not open InFile:%s\n",file[i].achFilename);
@@ -4996,7 +5016,9 @@ static struct inReadFile * fileScan(MSR msr, const char *achFilename, double *pd
 	}
     msr->N = msr->nDark + msr->nGas + msr->nStar;
 
+#if defined(HAVE_WORDEXP) && defined(HAVE_WORDFREE)
     wordfree(&files);
+#endif
 
     return read;
     }

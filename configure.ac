@@ -480,7 +480,7 @@ AC_MSG_RESULT($rtc_ok)
 fi
 
 # Checks for library functions.
-AC_CHECK_FUNCS([floor gethostname gettimeofday memset pow sqrt strchr strdup strrchr strstr ])
+AC_CHECK_FUNCS([wordexp wordfree floor gethostname gettimeofday memset pow sqrt strchr strdup strrchr strstr ])
 
 AC_CONFIG_FILES([Makefile])
 AC_OUTPUT
