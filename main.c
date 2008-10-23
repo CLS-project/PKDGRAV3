@@ -328,9 +328,9 @@ int main(int argc,char **argv) {
 	    if (msrOutTime(msr,dTime) || iStep == msrSteps(msr) || iStop ||
 		    (msrOutInterval(msr) > 0 && iStep%msrOutInterval(msr) == 0) ||
 		    (msrCheckInterval(msr) > 0 && iStep%msrCheckInterval(msr) == 0)) {
-		msrOutput(msr,iStep,dTime,
-			  (msrCheckInterval(msr)>0 && iStep%msrCheckInterval(msr) == 0)
-			  || iStep == msrSteps(msr) || iStop);
+		msrOutput(msr,iStep,dTime, msrCheckInterval(msr)>0
+			  && (iStep%msrCheckInterval(msr) == 0
+			      || iStep == msrSteps(msr) || iStop));
 		}
 	    }
 	}
