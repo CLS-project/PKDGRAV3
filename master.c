@@ -5197,7 +5197,8 @@ void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint) {
 	msrReorder(msr);
 	sprintf(achFile,"%s.%i.fof",msrOutName(msr),nFOFsDone);
 	/*msrOutArray(msr,achFile,OUT_GROUP_ARRAY);*/
-	sprintf(achFile,"%s.stats",msrOutName(msr));
+	msrBuildName(msr,achFile,iStep);
+	strncat(achFile,".stats",256);
 	msrOutGroups(msr,achFile,OUT_GROUP_STATS,dTime);
 	if ( msr->nBins > 0) {
 	    msrBuildName(msr,achFile,iStep);
