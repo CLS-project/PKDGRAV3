@@ -1287,15 +1287,8 @@ void smFof(SMX smx,int nFOFsDone,SMF *smf) {
     protoGroup[iGroup].iId = iGroup;
     protoGroup[iGroup].treeRemoteMembers = NULL;
 
-#ifdef OLD_REMOTE
-    iRmIndex = 0;
-    nRmListSize = nTree;
-    rm = (FOFRM *)malloc(nRmListSize*sizeof(FOFRM));
-    assert(rm != NULL);
-#else
     nRmListSize = 0;
     rb_type_create(&rm_type,sizeof(RM_NODE),0,CmpRMs,0,0);
-#endif
 
     pkd->nGroups = 0;
     pkd->nMaxRm = 0;
@@ -1468,42 +1461,16 @@ void smFof(SMX smx,int nFOFsDone,SMF *smf) {
 			    if (smx->nnList[pnn].fDist2 > smx->nnList[pnn].pPart->fBall) continue;
 			    }
 			}
-
-#ifdef OLD_REMOTE
 		    /* Add to RM list if new */
-		    if (iRmIndex==nRmListSize) {
-			nRmListSize = nRmListSize*2;
-			rm = (FOFRM *) realloc(rm,(nRmListSize)*sizeof(FOFRM));
-			assert(rm != NULL);
-			}
-		    rm[iRmIndex].iIndex = smx->nnList[pnn].iIndex ;
-		    rm[iRmIndex].iPid = smx->nnList[pnn].iPid;
-		    /*
-		    ** This does a quicksort for every newly added remote member. This is not very 
-		    ** elegant and should be rewritten. The better way to handle this is to use a hash table
-		    ** or at the very least a heap structure, so that this test is at most O(log N).
-		    */
-		    if (bsearch (rm+iRmIndex,rm+iRmIndex-nRmCnt,nRmCnt, sizeof(FOFRM),CmpRMs) == NULL ) {
-			nRmCnt++;
-			iRmIndex++;
-			qsort(rm+iRmIndex-nRmCnt,nRmCnt,sizeof(FOFRM),CmpRMs);
-			}
-#else
 		    rm_data.iIndex = smx->nnList[pnn].iIndex ;
 		    rm_data.iPid = smx->nnList[pnn].iPid;
 		    if ( rb_insert(&rm_type,&protoGroup[iGroup].treeRemoteMembers,&rm_data) ) {
 			nRmCnt++;
 			nRmListSize++;
 			}
-#endif
 		    }
 		}
 	    }
-	/* FIFO done for this group, add remote Members to the group data before doing next group: */
-#ifdef OLD_REMOTE
-	protoGroup[iGroup].iFirstRm = iRmIndex - nRmCnt;
-	protoGroup[iGroup].nRemoteMembers = nRmCnt;
-#endif
 	if ( nRmCnt > pkd->nMaxRm ) pkd->nMaxRm = nRmCnt;
 	}
     free(Fifo);
@@ -1547,12 +1514,9 @@ void smFof(SMX smx,int nFOFsDone,SMF *smf) {
     /*
     ** Allocate the remote members array
     */
-#ifdef OLD_REMOTE
-#else
     pkd->nRm = nRmListSize;
     pkd->remoteMember = mdlMalloc(mdl,(pkd->nRm+1)*sizeof(FOFRM));
     iRmIndex = 0;
-#endif
     /*
     ** Allocate memory for group data
     */
@@ -1564,15 +1528,10 @@ void smFof(SMX smx,int nFOFsDone,SMF *smf) {
 	pkd->groupData[i].iGlobalId = protoGroup[k].iId;
 	pkd->groupData[i].iLocalId = protoGroup[k].iId;
 	pkd->groupData[i].nLocal = protoGroup[k].nMembers;
-#ifdef OLD_REMOTE
-	pkd->groupData[i].iFirstRm = protoGroup[k].iFirstRm;
-	pkd->groupData[i].nRemoteMembers = protoGroup[k].nRemoteMembers;
-#else
 	pkd->groupData[i].iFirstRm = iRmIndex;
 	pkd->groupData[i].nRemoteMembers = copy_rm(pkd->remoteMember+iRmIndex,protoGroup[k].treeRemoteMembers);
 	iRmIndex += pkd->groupData[i].nRemoteMembers;
 	rb_free(&rm_type, &protoGroup[k].treeRemoteMembers);
-#endif
 	k++;
 	pkd->groupData[i].bMyGroup = 1;
 	pkd->groupData[i].fMass = 0.0;
@@ -1599,16 +1558,8 @@ void smFof(SMX smx,int nFOFsDone,SMF *smf) {
 	if (pkd->groupData[i].nRemoteMembers == 0) cnt++;
 	}
     free(protoGroup);
-
-#ifdef OLD_REMOTE
-    rm  = (FOFRM *) realloc(rm,(1+iRmIndex)*sizeof(FOFRM));
-    pkd->remoteMember = rm;
-    pkd->nRm = iRmIndex;
-#else
     /* Sanity check: the list size should match the number of elements copied */
     assert( iRmIndex == nRmListSize );
-#endif
-
     /*
     ** Calculate local group properties
     */
