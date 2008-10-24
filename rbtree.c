@@ -6,6 +6,11 @@
 **
 **  http://eternallyconfuzzled.com/tuts/datastructures/jsw_tut_rbtree.aspx
 */
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+const char *rbtree_module_id = "$Id$";
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
