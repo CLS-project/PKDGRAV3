@@ -15,6 +15,7 @@ const char *smooth_module_id = "$Id$";
 #include "smooth.h"
 #include "pkd.h"
 #include "smoothfcn.h"
+#include "rbtree.h"
 #include <sys/stat.h>
 
 int smInitialize(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodic,int bSymmetric,int iSmoothType) {
@@ -1179,14 +1180,40 @@ FLOAT PutInBox(FLOAT r,FLOAT l) {
     else return r;
     }
 
+typedef struct {
+    RB_NODE node;
+    FOFRM   data;
+    } RM_NODE;
 
-int CmpRMs(const void *v1,const void *v2) {
+typedef struct protoGroup {
+    int iId;
+    int nMembers;
+    RB_TREE treeRemoteMembers;
+    } FOFPG;
+
+/*
+**  Copy the given tree (recursively) to an array
+*/
+int copy_rm( FOFRM *rm,RB_NODE *node) {
+    int iCount = 0;
+    if ( node != NULL ) {
+	RM_NODE *rmnode = (RM_NODE *)(node);
+	iCount = copy_rm( rm, node->link[0] );
+	rm += iCount;
+	*rm++ = rmnode->data;
+	iCount++;
+	if ( rmnode->data.iIndex < 0 ) printf("ERROR: %d\n", rmnode->data.iIndex );
+	iCount += copy_rm( rm, node->link[1] );
+	}
+    return iCount;
+    }
+
+int CmpRMs(void *ctx,const void *v1,const void *v2) {
     FOFRM *rm1 = (FOFRM *)v1;
     FOFRM *rm2 = (FOFRM *)v2;
     if (rm1->iPid != rm1->iPid) return (rm1->iPid - rm2->iPid);
     else return (rm1->iIndex - rm2->iIndex);
     }
-
 
 void smFof(SMX smx,int nFOFsDone,SMF *smf) {
 
@@ -1198,11 +1225,14 @@ void smFof(SMX smx,int nFOFsDone,SMF *smf) {
     int32_t *pGroup;
     int32_t *pPartGroup;
     double *v;
-    FOFRM* rm;
+    //FOFRM* rm;
+    RB_TYPE rm_type;
+    FOFRM   rm_data;
     FOFPG* protoGroup;
     FOFBIN *bin;
 
-    int pi,pn,pnn,nCnt,i,j,k,nRmCnt, iRmIndex,nRmListSize;
+    int pi,pn,pnn,nCnt,i,j,k;
+    int nRmListSize,nRmCnt,iRmIndex;
     int nFifo, iHead, iTail, iMaxGroups, iGroup;
     int *Fifo;
     int iStart[3],iEnd[3];
@@ -1241,22 +1271,32 @@ void smFof(SMX smx,int nFOFsDone,SMF *smf) {
     iTail = 0;
     tmp = pkd->nDark+pkd->nGas+pkd->nStar;
 
-    iGroup = 0;
     nTree = pkd->kdNodes[ROOT].pUpper + 1;
     iMaxGroups = nTree+1;
-    nRmListSize = nTree;
     nFifo = nTree;
     Fifo = (int *)malloc(nFifo*sizeof(int));
     assert(Fifo != NULL);
 
-    protoGroup = (FOFPG *)malloc(iMaxGroups*sizeof(FOFPG));
     /*used something smaller than FOFGD here to reduce memory usage*/
+    protoGroup = (FOFPG *)malloc(iMaxGroups*sizeof(FOFPG));
     assert(protoGroup != NULL);
 
+    /* This is the "empty" group */
+    iGroup = 0;
+    protoGroup[iGroup].nMembers = 0;
+    protoGroup[iGroup].iId = iGroup;
+    protoGroup[iGroup].treeRemoteMembers = NULL;
+
+#ifdef OLD_REMOTE
+    iRmIndex = 0;
+    nRmListSize = nTree;
     rm = (FOFRM *)malloc(nRmListSize*sizeof(FOFRM));
     assert(rm != NULL);
+#else
+    nRmListSize = 0;
+    rb_type_create(&rm_type,sizeof(RM_NODE),0,CmpRMs,0,0);
+#endif
 
-    iRmIndex = 0;
     pkd->nGroups = 0;
     pkd->nMaxRm = 0;
     fBall2Max = 0.0;
@@ -1344,7 +1384,9 @@ void smFof(SMX smx,int nFOFsDone,SMF *smf) {
 	assert(iGroup < iMaxGroups);
 	protoGroup[iGroup].nMembers = 0;
 	protoGroup[iGroup].iId = iGroup;
+	protoGroup[iGroup].treeRemoteMembers = NULL;
 	nRmCnt = 0;
+
 	/*
 	** Mark particle and add it to the do-fifo
 	*/
@@ -1427,6 +1469,7 @@ void smFof(SMX smx,int nFOFsDone,SMF *smf) {
 			    }
 			}
 
+#ifdef OLD_REMOTE
 		    /* Add to RM list if new */
 		    if (iRmIndex==nRmListSize) {
 			nRmListSize = nRmListSize*2;
@@ -1445,12 +1488,22 @@ void smFof(SMX smx,int nFOFsDone,SMF *smf) {
 			iRmIndex++;
 			qsort(rm+iRmIndex-nRmCnt,nRmCnt,sizeof(FOFRM),CmpRMs);
 			}
+#else
+		    rm_data.iIndex = smx->nnList[pnn].iIndex ;
+		    rm_data.iPid = smx->nnList[pnn].iPid;
+		    if ( rb_insert(&rm_type,&protoGroup[iGroup].treeRemoteMembers,&rm_data) ) {
+			nRmCnt++;
+			nRmListSize++;
+			}
+#endif
 		    }
 		}
 	    }
 	/* FIFO done for this group, add remote Members to the group data before doing next group: */
+#ifdef OLD_REMOTE
 	protoGroup[iGroup].iFirstRm = iRmIndex - nRmCnt;
 	protoGroup[iGroup].nRemoteMembers = nRmCnt;
+#endif
 	if ( nRmCnt > pkd->nMaxRm ) pkd->nMaxRm = nRmCnt;
 	}
     free(Fifo);
@@ -1475,7 +1528,7 @@ void smFof(SMX smx,int nFOFsDone,SMF *smf) {
     protoGroup[0].iId = tmp;
     for (i=1;i<=iMaxGroups;i++) {
 	protoGroup[i].iId = iGroup;
-	if (protoGroup[i].nMembers < smf->nMinMembers && protoGroup[i].nRemoteMembers == 0) {
+	if (protoGroup[i].nMembers < smf->nMinMembers && protoGroup[i].treeRemoteMembers == NULL) {
 	    protoGroup[i].iId = tmp;
 	    }
 	else {
@@ -1492,6 +1545,15 @@ void smFof(SMX smx,int nFOFsDone,SMF *smf) {
 	*pGroup = protoGroup[*pGroup].iId;
 	}
     /*
+    ** Allocate the remote members array
+    */
+#ifdef OLD_REMOTE
+#else
+    pkd->nRm = nRmListSize;
+    pkd->remoteMember = mdlMalloc(mdl,(pkd->nRm+1)*sizeof(FOFRM));
+    iRmIndex = 0;
+#endif
+    /*
     ** Allocate memory for group data
     */
     pkd->groupData = (FOFGD *) malloc((1+pkd->nGroups)*sizeof(FOFGD));
@@ -1502,8 +1564,15 @@ void smFof(SMX smx,int nFOFsDone,SMF *smf) {
 	pkd->groupData[i].iGlobalId = protoGroup[k].iId;
 	pkd->groupData[i].iLocalId = protoGroup[k].iId;
 	pkd->groupData[i].nLocal = protoGroup[k].nMembers;
+#ifdef OLD_REMOTE
 	pkd->groupData[i].iFirstRm = protoGroup[k].iFirstRm;
 	pkd->groupData[i].nRemoteMembers = protoGroup[k].nRemoteMembers;
+#else
+	pkd->groupData[i].iFirstRm = iRmIndex;
+	pkd->groupData[i].nRemoteMembers = copy_rm(pkd->remoteMember+iRmIndex,protoGroup[k].treeRemoteMembers);
+	iRmIndex += pkd->groupData[i].nRemoteMembers;
+	rb_free(&rm_type, &protoGroup[k].treeRemoteMembers);
+#endif
 	k++;
 	pkd->groupData[i].bMyGroup = 1;
 	pkd->groupData[i].fMass = 0.0;
@@ -1530,9 +1599,16 @@ void smFof(SMX smx,int nFOFsDone,SMF *smf) {
 	if (pkd->groupData[i].nRemoteMembers == 0) cnt++;
 	}
     free(protoGroup);
+
+#ifdef OLD_REMOTE
     rm  = (FOFRM *) realloc(rm,(1+iRmIndex)*sizeof(FOFRM));
     pkd->remoteMember = rm;
     pkd->nRm = iRmIndex;
+#else
+    /* Sanity check: the list size should match the number of elements copied */
+    assert( iRmIndex == nRmListSize );
+#endif
+
     /*
     ** Calculate local group properties
     */
@@ -1543,12 +1619,6 @@ void smFof(SMX smx,int nFOFsDone,SMF *smf) {
 	v = pkdVel(pkd,p);
 	if (*pGroup != tmp) {
 	    i = (*pGroup - 1 - pkd->idSelf)/pkd->nThreads;
-#if 0
-	    if (TYPETest(p,TYPE_GAS) )
-		pkd->groupData[i].fGasMass += fMass;
-	    if (TYPETest(p,TYPE_STAR) )
-		pkd->groupData[i].fStarMass += fMass;
-#endif
 	    pkd->groupData[i].fVelDisp += (v[0]*v[0]+v[1]*v[1]+v[2]*v[2])*fMass;
 	    for (j=0;j<3;j++) {
 		pkd->groupData[i].fVelSigma2[j] += v[j]*v[j]*fMass;
@@ -1857,7 +1927,7 @@ int smGroupMerge(SMF *smf,int bPeriodic) {
     free(subGroup);
     free(lSubGroup);
     free(rmFifo);
-    free(pkd->remoteMember);
+    mdlFree(mdl,pkd->remoteMember);
     pkd->nRm = 0;
 
     /*

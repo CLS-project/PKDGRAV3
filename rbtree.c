@@ -98,11 +98,13 @@ static RB_NODE *make_node(const RB_TYPE *rbt, void *data) {
 
 int rb_insert( const RB_TYPE *rbt, RB_TREE *root, void *data ) {
     RB_NODE *node = *root;
-    int cmp = -1;
+    int cmp;
+    int ins = 0;
     if ( node == NULL ) {
 	/* Empty tree case */
 	*root = node = make_node(rbt,data);
 	assert(node!=NULL);
+	ins = 1;
 	}
     else {
 	RB_NODE head = {{0,0},0}; /* False tree root */
@@ -122,6 +124,7 @@ int rb_insert( const RB_TYPE *rbt, RB_TREE *root, void *data ) {
 		/* Insert new node at the bottom */
 		p->link[dir] = q = make_node(rbt,data);
 		assert(q!=NULL);
+		ins = 1;
 		}
 	    else if ( is_red ( q->link[0] ) && is_red ( q->link[1] ) ) {
 		/* Color flip */
@@ -162,7 +165,7 @@ int rb_insert( const RB_TYPE *rbt, RB_TREE *root, void *data ) {
     /* Make root black */
     node->red = 0;
  
-    return cmp != 0;
+    return ins;
     }
 
 int rb_remove ( const RB_TYPE *rbt, RB_TREE *root, void *data ) {

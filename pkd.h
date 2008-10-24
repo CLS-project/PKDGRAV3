@@ -504,13 +504,6 @@ typedef struct groupData {
     int iFirstRm;
     } FOFGD;
 
-typedef struct protoGroup {
-    int iId;
-    int nMembers;
-    int nRemoteMembers;
-    int iFirstRm;
-    } FOFPG;
-
 typedef struct groupBin {
     int iId;
     int nMembers;
