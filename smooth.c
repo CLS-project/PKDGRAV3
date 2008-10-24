@@ -1202,7 +1202,6 @@ int copy_rm( FOFRM *rm,RB_NODE *node) {
 	rm += iCount;
 	*rm++ = rmnode->data;
 	iCount++;
-	if ( rmnode->data.iIndex < 0 ) printf("ERROR: %d\n", rmnode->data.iIndex );
 	iCount += copy_rm( rm, node->link[1] );
 	}
     return iCount;
@@ -1216,7 +1215,6 @@ int CmpRMs(void *ctx,const void *v1,const void *v2) {
     }
 
 void smFof(SMX smx,int nFOFsDone,SMF *smf) {
-
     PKD pkd = smx->pkd;
     MDL mdl = smx->pkd->mdl;
     PARTICLE *p;
