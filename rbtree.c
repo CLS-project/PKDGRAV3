@@ -32,7 +32,7 @@ static RB_NODE *rb_double ( RB_NODE *node, int dir ) {
     }
 
 void rb_type_create(
-    RB_TYPE *rbt, int iSize, void *ctx,
+    RB_TYPE *rbt, size_t iSize, void *ctx,
     int (*cmp)(void*,const void *,const void *),
     RB_NODE *(*newnode)(void*,const void*),
     void (*delnode)(void*,RB_NODE*) ) {
@@ -56,7 +56,7 @@ void rb_free( const RB_TYPE *rbt, RB_TREE *root ) {
 	}
     }
 
-void docount( RB_NODE *node, int *piSize ) {
+static void docount( RB_NODE *node, size_t *piSize ) {
     if ( node != NULL ) {
 	(*piSize)++;
 	docount(node->link[0],piSize);
@@ -65,8 +65,8 @@ void docount( RB_NODE *node, int *piSize ) {
     }
 
 
-int rb_size( RB_TREE *root ) {
-    int iSize = 0;
+size_t rb_size( RB_TREE *root ) {
+    size_t iSize = 0;
     docount(*root,&iSize);
     return iSize;
     }
