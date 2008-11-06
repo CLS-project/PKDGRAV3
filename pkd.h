@@ -258,8 +258,8 @@ typedef struct kdNode {
     FLOAT r[3];
     FLOAT a[3];  /* a_cm is used in determining the timestep in the new grav stepping */
     FLOAT v[3];
-    uint32_t nActive; /* local active count used for DD */
     MOMR mom;
+    uint32_t nActive; /* local active count used for DD */
     uint8_t uMinRung;
     uint8_t uMaxRung;
     uint8_t bDstActive;
