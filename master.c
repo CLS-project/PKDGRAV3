@@ -2032,6 +2032,15 @@ void _msrWriteTipsy(MSR msr,const char *pszFileName,double dTime,int bCheckpoint
     in.bStandard = msr->param.bStandard;
     in.bDoublePos = msr->param.bDoublePos;
     /*
+    ** If bParaWrite is 0, then we write serially; if it is 1, then we write
+    ** in parallel using all available threads, otherwise we write in parallel
+    ** using the specified number of threads.  The latter option will reduce
+    ** the total amount of simultaneous I/O for file systems that cannot
+    ** handle it.
+    */
+    in.nProcessors = msr->param.bParaWrite==1 ? msr->nThreads:msr->param.bParaWrite;
+
+    /*
     ** Assume tipsy format for now.
     */
     /* So that "N" can be nDark */
@@ -2050,13 +2059,20 @@ void _msrWriteTipsy(MSR msr,const char *pszFileName,double dTime,int bCheckpoint
 	}
     h.ndim = 3;
     h.time = in.dTime;
-    if (msr->param.csm->bComove) {
-	msrprintf(msr,"Writing file...\nTime:%g Redshift:%g\n",
-		  dTime,(1.0/h.time - 1.0));
+    if ( msr->param.bParaWrite ) {
+	if ( msr->param.bParaWrite > 1 )
+	    msrprintf(msr,"Writing file in parallel (but limited to %d processors) ...\n",in.nProcessors);
+	else
+	    msrprintf(msr,"Writing file in parallel ...\n");
 	}
     else {
-	msrprintf(msr,"Writing file...\nTime:%g\n",dTime);
+	msrprintf(msr,"Writing file serially ...\n");
 	}
+
+    if (msr->param.csm->bComove)
+	msrprintf(msr,"Time:%g Redshift:%g\n",dTime,(1.0/h.time - 1.0));
+    else
+	msrprintf(msr,"Time:%g\n",dTime);
 
     /* Best effort lustre striping request */
 #ifdef USE_LUSTRE
@@ -5080,6 +5096,16 @@ double msrRead(MSR msr, const char *achInFile) {
     read->fPeriod[1] = msr->param.dyPeriod;
     read->fPeriod[2] = msr->param.dzPeriod;
     read->eFileType = PST_FILE_TYPE_TIPSY;
+
+    /*
+    ** If bParaRead is 0, then we read serially; if it is 1, then we read
+    ** in parallel using all available threads, otherwise we read in parallel
+    ** using the specified number of threads.  The latter option will reduce
+    ** the total amount of simultaneous I/O for file systems that cannot
+    ** handle it.
+    */
+    read->nProcessors = msr->param.bParaRead==1 ? msr->nThreads:msr->param.bParaRead;
+
 #ifdef USE_HDF5
     if ( H5Fis_hdf5(file[0].achFilename) )
 	read->eFileType = PST_FILE_TYPE_HDF5;

@@ -660,13 +660,30 @@ void pstReadFile(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     nNodeEnd = in->nNodeEnd;
     nNodeTotal = nNodeEnd - nNodeStart + 1;
     if (pst->nLeaves > 1) {
+	int nProcessors = in->nProcessors;
+	int nProcUpper = pst->nUpper * nProcessors / pst->nLeaves;
+	int nProcLower = nProcessors - nProcUpper;
 	nNodeSplit = nNodeStart + pst->nLower*(nNodeTotal/pst->nLeaves);
-	in->nNodeStart = nNodeSplit;
-	mdlReqService(pst->mdl,pst->idUpper,PST_READFILE,in,nIn);
+
+	if ( nProcessors > 1 ) {
+	    in->nProcessors = nProcUpper;
+	    in->nNodeStart = nNodeSplit;
+	    in->nNodeEnd = nNodeEnd;
+	    mdlReqService(pst->mdl,pst->idUpper,PST_READFILE,in,nIn);
+	    }
+
+	in->nProcessors = nProcLower;
 	in->nNodeStart = nNodeStart;
 	in->nNodeEnd = nNodeSplit - 1;
 	pstReadFile(pst->pstLower,in,nIn,NULL,NULL);
-	in->nNodeEnd = nNodeEnd;
+
+	if ( nProcessors <= 1 ) {
+	    in->nProcessors = nProcUpper;
+	    in->nNodeStart = nNodeSplit;
+	    in->nNodeEnd = nNodeEnd;
+	    mdlReqService(pst->mdl,pst->idUpper,PST_READFILE,in,nIn);
+	    }
+
 	mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
 	}
     else {
@@ -2269,9 +2286,22 @@ void pstWriteTipsy(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     char achOutFile[PST_FILENAME_SIZE];
 
     mdlassert(pst->mdl,nIn == sizeof(struct inWriteTipsy));
+
     if (pst->nLeaves > 1) {
-	mdlReqService(pst->mdl,pst->idUpper,PST_WRITETIPSY,in,nIn);
+	int nProcessors = in->nProcessors;
+	int nProcUpper = pst->nUpper * nProcessors / pst->nLeaves;
+	int nProcLower = nProcessors - nProcUpper;
+	if ( nProcessors > 1 ) {
+	    in->nProcessors = nProcUpper;
+	    mdlReqService(pst->mdl,pst->idUpper,PST_WRITETIPSY,in,nIn);
+	    }
+	/*	mdlReqService(pst->mdl,pst->idUpper,PST_WRITETIPSY,in,nIn);*/
+	in->nProcessors = nProcLower;
 	pstWriteTipsy(pst->pstLower,in,nIn,NULL,NULL);
+	if ( nProcessors <= 1 ) {
+	    in->nProcessors = nProcUpper;
+	    mdlReqService(pst->mdl,pst->idUpper,PST_WRITETIPSY,in,nIn);
+	    }
 	mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
 	}
     else {

@@ -262,6 +262,7 @@ struct inReadFile {
     int nBucket;
     int nFiles;
     int iCacheSize;
+    int nProcessors;
     uint8_t bStandard;
     uint8_t bDoublePos;
     short   eFileType;
@@ -395,6 +396,7 @@ struct inWriteTipsy {
     double dvFac;
     int bDoublePos;
     int bStandard;
+    int nProcessors;
     char achOutFile[PST_FILENAME_SIZE];
     };
 void pstWriteTipsy(PST,void *,int,void *,int *);
