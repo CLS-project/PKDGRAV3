@@ -469,7 +469,6 @@ AC_CHECK_TYPE([hrtime_t],[AC_DEFINE(HAVE_HRTIME_T, 1, [Define to 1 if hrtime_t i
 #endif])
 
 AC_CHECK_FUNCS([gethrtime read_real_time time_base_to_time clock_gettime mach_absolute_time])
-
 dnl Cray UNICOS _rtc() (real-time clock) intrinsic
 AC_MSG_CHECKING([for _rtc intrinsic])
 rtc_ok=yes
@@ -480,8 +479,8 @@ AC_MSG_RESULT($rtc_ok)
 fi
 
 # Checks for library functions.
-AC_CHECK_FUNCS([wordexp wordfree])
-AC_CHECK_FUNCS([gethostname floor gettimeofday memset pow sqrt strchr strdup strrchr strstr ],,[AC_MSG_ERROR([not found])])
+AC_CHECK_FUNCS([wordexp wordfree glob globfree gethostname getpagesize mkdir])
+AC_CHECK_FUNCS([floor gettimeofday pow sqrt strchr strdup strrchr strstr ],,[AC_MSG_ERROR([not found])])
 
 AC_CONFIG_FILES([Makefile])
 AC_OUTPUT
