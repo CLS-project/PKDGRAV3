@@ -70,11 +70,7 @@ AC_SUBST([PYTHON_VER],[$PYTHON_VER])
 # HDF5 I/O
 AC_ARG_ENABLE(hdf5,
   [  --enable-hdf5                  enable support for I/O using HDF5 libraries],
-  [USE_HDF5="$enableval"],[USE_HDF5="yes"])
-if test "x$USE_HDF5" = "xyes" ; then
-   AC_DEFINE([USE_HDF5], 1,
- 	[Define if HDF5 I/O should be available.])
-fi
+  [USE_HDF5="$enableval"])
 AC_ARG_WITH(hdf5,
   [  --with-hdf5=PATH        path to HDF5 installation],
   [CFLAGS="$CFLAGS -I${withval}/include"
@@ -83,10 +79,20 @@ AC_ARG_WITH(hdf5,
 	LDFLAGS="$LDFLAGS -R${withval}/lib64"
    fi
    USE_HDF5=yes
+   ])
+if test "x$USE_HDF5" = "xyes" ; then
+  AC_CHECK_LIB([hdf5],[H5Fopen],[],[AC_MSG_ERROR([The HDF5 library cannot be located])])
+elif test "x$USE_HDF5" != "xno" ; then
+  AC_CHECK_LIB([hdf5],[H5Fopen],[USE_HDF5="yes"])
+fi
+if test "x$USE_HDF5" = "xyes" ; then
+   AC_CHECK_LIB([z], [inflate],[],[AC_MSG_ERROR([The HDF5 library needs libz])])
+   AC_CHECK_LIB([gpfs], [gpfs_fcntl])
    AC_DEFINE([USE_HDF5], 1,
- 	[Define if HDF5 I/O should be available.])])
-AC_DEFINE([H5_USE_16_API],1,
+ 	[Define if HDF5 I/O should be available.])
+   AC_DEFINE([H5_USE_16_API],1,
         [Use the HDF5 1.6 API instead of later versions])
+fi
 
 AC_ARG_WITH(mdl,
   [  --with-mdl=PATH         base path of MDL source],
@@ -166,6 +172,10 @@ AC_ARG_WITH(gd,
 	LDFLAGS="$LDFLAGS -R${withval}/lib"
    fi
 ])
+if test "x$USE_PNG" = "xyes" ; then
+  AC_CHECK_LIB([png],[png_create_write_struct],[],[AC_MSG_ERROR([The png library cannot be located])])
+  AC_CHECK_LIB([gd],[gdImageCreateTrueColor],[],[AC_MSG_ERROR([The gd library cannot be located])])
+fi
 
 # Lustre support
 AC_ARG_ENABLE(lustre,
@@ -316,20 +326,9 @@ if test "x$MPICC" != "xno" ; then
 fi
 AM_CONDITIONAL(HAVE_MPI,test "x$HAVE_MPI" = "xyes")
 
-# Checks for libraries.
-if test "x$USE_HDF5" = "xyes" ; then
-	save_CC="$CC"
-	 CC=mpicc
-	 AC_CHECK_LIB([z], [inflate])
-	 AC_CHECK_LIB([gpfs], [gpfs_fcntl])
-	 AC_CHECK_LIB([hdf5], [H5open])
-	CC="$save_CC"
-fi
 AC_CHECK_LIB([m], [fabs])
 # FIXME: Replace `main' with a function in `-lrt':
 #AC_CHECK_LIB([rt], [main])
-# FIXME: Replace `main' with a function in `-lz':
-#AC_CHECK_LIB([z], [main])
 
 if test "x$USE_SIMD" != "xno" ; then
   AC_CHECK_FUNCS([posix_memalign],HAVE_POSIX_MEMALIGN=yes)
@@ -435,7 +434,7 @@ if test "x$USE_SIMD_MOMR" = "xyes" ; then
  	[Define if SIMD optimizations should be used for MOMRs.])
 fi
 
-AM_CONDITIONAL(USE_SIMD, test "x$USE_SIMD" = "xyes")
+AM_CONDITIONAL(USE_SIMD, test "x$USE_SIMD" != "xno")
 AM_CONDITIONAL(USE_SIMD_PP,test "x$USE_SIMD_PP" != "xno")
 AM_CONDITIONAL(USE_SIMD_MOMR,test "x$USE_SIMD_MOMR" = "xyes")
 
