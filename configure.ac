@@ -81,12 +81,13 @@ AC_ARG_WITH(hdf5,
    USE_HDF5=yes
    ])
 if test "x$USE_HDF5" = "xyes" ; then
-  AC_CHECK_LIB([hdf5],[H5Fopen],[],[AC_MSG_ERROR([The HDF5 library cannot be located])])
+  AC_CHECK_LIB([hdf5],[H5Fopen],,[AC_MSG_ERROR([The HDF5 library cannot be located])])
 elif test "x$USE_HDF5" != "xno" ; then
-  AC_CHECK_LIB([hdf5],[H5Fopen],[USE_HDF5="yes"])
+  USE_HDF5="yes"
+  AC_CHECK_LIB([hdf5],[H5Fopen],,[USE_HDF5="no"])
 fi
 if test "x$USE_HDF5" = "xyes" ; then
-   AC_CHECK_LIB([z], [inflate],[],[AC_MSG_ERROR([The HDF5 library needs libz])])
+   AC_CHECK_LIB([z], [inflate],,[AC_MSG_ERROR([The HDF5 library needs libz])])
    AC_CHECK_LIB([gpfs], [gpfs_fcntl])
    AC_DEFINE([USE_HDF5], 1,
  	[Define if HDF5 I/O should be available.])
@@ -173,8 +174,8 @@ AC_ARG_WITH(gd,
    fi
 ])
 if test "x$USE_PNG" = "xyes" ; then
-  AC_CHECK_LIB([png],[png_create_write_struct],[],[AC_MSG_ERROR([The png library cannot be located])])
-  AC_CHECK_LIB([gd],[gdImageCreateTrueColor],[],[AC_MSG_ERROR([The gd library cannot be located])])
+  AC_CHECK_LIB([png],[png_create_write_struct],,[AC_MSG_ERROR([The png library cannot be located])])
+  AC_CHECK_LIB([gd],[gdImageCreateTrueColor],,[AC_MSG_ERROR([The gd library cannot be located])])
 fi
 
 # Lustre support
@@ -479,7 +480,8 @@ AC_MSG_RESULT($rtc_ok)
 fi
 
 # Checks for library functions.
-AC_CHECK_FUNCS([wordexp wordfree floor gethostname gettimeofday memset pow sqrt strchr strdup strrchr strstr ])
+AC_CHECK_FUNCS([wordexp wordfree])
+AC_CHECK_FUNCS([gethostname floor gettimeofday memset pow sqrt strchr strdup strrchr strstr ],,[AC_MSG_ERROR([not found])])
 
 AC_CONFIG_FILES([Makefile])
 AC_OUTPUT
