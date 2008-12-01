@@ -22,6 +22,8 @@ const char *master_module_id = "$Id$";
 #include <math.h>
 #if defined(HAVE_WORDEXP) && defined(HAVE_WORDFREE)
 #include <wordexp.h>
+#elif defined(HAVE_GLOB) && defined(HAVE_GLOBFREE)
+#include <glob.h>
 #endif
 #include <sys/stat.h>
 
@@ -4005,13 +4007,19 @@ void msrFof(MSR msr,int nFOFsDone,int iSmoothType,int bSymmetric, double exp) {
 	}
     }
 
+/*
+**  If the mkdir() function is available, then create the specified directory
+**  if it doesn't already exist.
+*/
 static void mktmpdir( const char *dirname ) {
+#ifdef HAVE_MKDIR
     struct stat s;
     if ( stat(dirname,&s) == 0 ) {
 	if ( S_ISDIR(s.st_mode) )
 	    return;
 	}
     mkdir( dirname, 0700 );
+#endif
     }
 
 
@@ -4943,9 +4951,19 @@ static struct inReadFile * fileScan(MSR msr, const char *achFilename, double *pd
 	}
 
     assert(files.we_wordc<=PST_MAX_FILES);
-    read = malloc(sizeof(struct inReadFile) + files.we_wordc*sizeof(struct inFile) );
+    read = malloc(sizeof(struct inReadFile) + files.we_wordc*sizeof(struct inFile));
     assert(read != NULL);
     read->nFiles = files.we_wordc;
+#elif defined(HAVE_GLOB) && defined(HAVE_GLOBFREE)
+    glob_t files;
+    if (glob(achFilename,GLOB_ERR|GLOB_NOSORT,NULL,&files) || files.gl_pathc==0) {
+	printf("No such file: %s\n", achFilename);
+	_msrExit(msr,1);
+	}
+    assert(files.gl_pathc<=PST_MAX_FILES);
+    read = malloc(sizeof(struct inReadFile) + files.gl_pathc*sizeof(struct inFile));
+    assert(read != NULL);
+    read->nFiles = files.gl_pathc;
 #else
     read = malloc(sizeof(struct inReadFile) + sizeof(struct inFile) );
     assert(read != NULL);
@@ -4963,6 +4981,9 @@ static struct inReadFile * fileScan(MSR msr, const char *achFilename, double *pd
 #if defined(HAVE_WORDEXP) && defined(HAVE_WORDFREE)
 	assert( strlen(files.we_wordv[i]) < sizeof(file[i].achFilename) );
 	strcpy( file[i].achFilename, files.we_wordv[i] );
+#elif defined(HAVE_GLOB) && defined(HAVE_GLOBFREE)
+	assert( strlen(files.gl_pathv[i]) < sizeof(file[i].achFilename) );
+	strcpy( file[i].achFilename, files.gl_pathv[i] );
 #else
 	assert( strlen(achFilename) < sizeof(file[i].achFilename) );
 	strcpy( file[i].achFilename, achFilename );
@@ -5034,6 +5055,8 @@ static struct inReadFile * fileScan(MSR msr, const char *achFilename, double *pd
 
 #if defined(HAVE_WORDEXP) && defined(HAVE_WORDFREE)
     wordfree(&files);
+#elif defined(HAVE_GLOB) && defined(HAVE_GLOBFREE)
+    globfree(&files);
 #endif
 
     return read;
