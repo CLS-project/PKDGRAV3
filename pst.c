@@ -3867,7 +3867,11 @@ void pstMemStatus(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 		    out[id].vsize  = atol(f)/1024/1024;
 		    break;
 		case 23:
+#ifdef HAVE_GETPAGESIZE
 		    out[id].rss    = atol(f)*getpagesize()/1024/1024;
+#else
+		    out[id].rss    = atol(f)/1024;
+#endif
 		    break;
 		default: break;
 		    }
