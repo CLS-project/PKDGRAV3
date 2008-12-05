@@ -449,9 +449,9 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.nBins = 0;
     prmAddParam(msr->prm,"nBins",1,&msr->param.nBins,sizeof(int),"nBins",
 		"<number of bin in profiles, no profiles if 0 or negative> = 0");
-    msr->param.bUsePotmin = 0;
-    prmAddParam(msr->prm,"bUsePotmin",0,&msr->param.bUsePotmin,sizeof(int),"bUsePotmin",
-		"<if 1 use minima of pot. instead of com for fist FOF level profiles> = 0");
+    msr->param.iCentreType = 2;
+    prmAddParam(msr->prm,"iCentreType",0,&msr->param.iCentreType,sizeof(int),"iCentreType",
+		"<sets centre type for group finder: 0 com; 1 potmin; 2 denmax> = 2");
     msr->param.nMinProfile = 2000;
     prmAddParam(msr->prm,"nMinProfile",1,&msr->param.nMinProfile,sizeof(int),"nMinProfile",
 		"<minimum number of particles in a group to make a profile> = 2000");
@@ -921,7 +921,7 @@ void msrLogParams(MSR msr,FILE *fp) {
     fprintf(fp," bTauAbs: %d",msr->param.bTauAbs);
     fprintf(fp," nMinMembers: %d",msr->param.nMinMembers);
     fprintf(fp," nBins: %d",msr->param.nBins);
-    fprintf(fp," bUsePotmin: %d",msr->param.bUsePotmin);
+    fprintf(fp," iCentreType: %d",msr->param.iCentreType);
     fprintf(fp," nMinProfile: %d",msr->param.nMinProfile);
     fprintf(fp," fBinsRescale: %g",msr->param.fBinsRescale);
     fprintf(fp," fContrast: %g",msr->param.fContrast);
@@ -4065,7 +4065,7 @@ void msrGroupProfiles(MSR msr,int nFOFsDone,int iSmoothType,int bSymmetric, doub
     in.smf.nBins = msr->param.nBins;
     in.smf.nMinProfile = msr->param.nMinProfile/pow(msr->param.fBinsRescale, nFOFsDone);
     in.bLogBins = msr->param.bLogBins;
-    in.smf.bUsePotmin = msr->param.bUsePotmin;
+    in.smf.iCentreType = msr->param.iCentreType;
     in.smf.Delta = msr->param.Delta;
     in.smf.binFactor = msr->param.binFactor;
     in.smf.a = exp;

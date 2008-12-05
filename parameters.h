@@ -121,7 +121,7 @@ struct parameters {
     double dVTau;
     int bTauAbs;
     int	nBins;
-    int	bUsePotmin;
+    int	iCentreType;
     int	nMinProfile;
     double fBinsRescale;
     double fContrast;

@@ -219,7 +219,15 @@ void pkdOutGroup(PKD pkd,char *pszFileName,int iType, int nStart,double dvFac) {
 	for (i=0;i<pkd->nGroups;++i) {
 	    if (pkd->groupData[i].bMyGroup) {
 		for (j=0;j<3;++j) {
-		    sp.pos[j] = pkd->groupData[i].r[j];
+		    if (pkd->param.iCentreType == 1) {
+			sp.pos[j] = pkd->groupData[i].rpotmin[j];
+			}
+		    else if (pkd->param.iCentreType == 2) {
+			sp.pos[j] = pkd->groupData[i].rdenmax[j];
+			}
+		    else {
+			sp.pos[j] = pkd->groupData[i].r[j];
+			}
 		    sp.vel[j] = dvFac*pkd->groupData[i].v[j];
 		    }
 		sp.mass = pkd->groupData[i].fMass;
@@ -252,7 +260,15 @@ void pkdOutGroup(PKD pkd,char *pszFileName,int iType, int nStart,double dvFac) {
 		fTmp = pkd->groupData[i].fMass;
 		xdr_float(&xdrs,&fTmp);
 		for (j=0;j<3;++j) {
-		    fTmp = pkd->groupData[i].r[j];
+		    if (pkd->param.iCentreType == 1) {
+			fTmp = pkd->groupData[i].rpotmin[j];
+			}
+		    else if (pkd->param.iCentreType == 2) {
+			fTmp = pkd->groupData[i].rdenmax[j];
+			}
+		    else {
+			fTmp = pkd->groupData[i].r[j];
+			}
 		    xdr_float(&xdrs,&fTmp);
 		    }
 		for (j=0;j<3;++j) {

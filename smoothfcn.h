@@ -19,7 +19,7 @@ typedef struct smfParameters {
     int nMinMembers;
     int nMinProfile;
     int nBins;
-    int bUsePotmin;
+    int iCentreType;
     FLOAT fContrast;
     FLOAT Delta;
     FLOAT binFactor;

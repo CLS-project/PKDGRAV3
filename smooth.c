@@ -2154,10 +2154,10 @@ int smGroupProfiles(SMX smx, SMF *smf,int bPeriodic, int nTotalGroups,int bLogBi
 	if (pkd->groupData[index].nRemoteMembers > 0) {
 	    k = pkd->groupData[index].iFirstRm + pkd->groupData[index].nRemoteMembers -1;
 	    for (j = 0; j < 3; j++) {
-		if (nFOFsDone == 0 && smf->bUsePotmin==1) {
+		if (nFOFsDone == 0 && smf->iCentreType==1) {
 		    com[j] = pkd->groupData[index].rpotmin[j];
 		    }
-		else if (smf->bUsePotmin == 2) {
+		else if (smf->iCentreType == 2) {
 		    com[j] =  pkd->groupData[index].rdenmax[j];
 		    }
 		else {
