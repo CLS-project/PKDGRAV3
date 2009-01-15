@@ -450,7 +450,7 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     prmAddParam(msr->prm,"nBins",1,&msr->param.nBins,sizeof(int),"nBins",
 		"<number of bin in profiles, no profiles if 0 or negative> = 0");
     msr->param.iCentreType = 2;
-    prmAddParam(msr->prm,"iCentreType",0,&msr->param.iCentreType,sizeof(int),"iCentreType",
+    prmAddParam(msr->prm,"iCentreType",1,&msr->param.iCentreType,sizeof(int),"iCentreType",
 		"<sets centre type for group finder: 0 com; 1 potmin; 2 denmax> = 2");
     msr->param.nMinProfile = 2000;
     prmAddParam(msr->prm,"nMinProfile",1,&msr->param.nMinProfile,sizeof(int),"nMinProfile",
@@ -464,10 +464,10 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.Delta = 200.0;
     prmAddParam(msr->prm,"Delta",2,&msr->param.Delta,sizeof(double),"Delta",
 		"<the density contrast whitin the virial radius over simulation unit density> = 200.0");
-    msr->param.binFactor = 3.0;
+    msr->param.binFactor = 1.5;
     prmAddParam(msr->prm,"binFactor",2,&msr->param.binFactor,sizeof(double),"binFactor",
-		"<ratio of largest spherical bin to fof determined group radius> = 3.0");
-    msr->param.bLogBins = 0;
+		"<ratio of largest spherical bin to fof determined group radius> = 1.5");
+    msr->param.bLogBins = 1;
     prmAddParam(msr->prm,"bLogBins",0,&msr->param.bLogBins,
 		sizeof(int),"bLogBins","use logaritmic bins instead of linear = -bLogBins");
     msr->param.bTraceRelaxation = 0;
