@@ -77,8 +77,8 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
     double tx,ty,tz;
     double fourh2;
     double dtGrav;
-    double rholoc,rhopmax,rhopmaxlocal,dirDTS,d2DTS,dsmooth2;
-    momFloat tax,tay,taz,adotai,maga,dirsum,normsum;
+    double rholoc,rhopmax,rhopmaxlocal,dirDTS,d2DTS,dsmooth2,dT;
+    momFloat tax,tay,taz,adotai,maga,dimaga,dirsum,normsum;
 #ifdef HERMITE
     double adx,ady,adz;
     double dir5;
@@ -113,7 +113,8 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 	a = pkdAccel(pkd,p);
 	if ( !pkdIsDstActive(p,uRungLo,uRungHi) ) continue;
 	++nActive;
-	dtGrav = 0.0;
+	dtGrav = 0;
+	dT = 0;
 	fPot = 0;
 	ax = 0;
 	ay = 0;
@@ -130,7 +131,14 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 	rhopmax = 0;
 	rholoc = 0;
 	dsmooth2 = 0;
-	maga = sqrt(a[0]*a[0] + a[1]*a[1] + a[2]*a[2]);
+	tx = a[0];
+	ty = a[1];
+	tz = a[2];
+	maga = tx*tx + ty*ty + tz*tz;
+	dimaga = maga;
+	if (dimaga > 0) {
+	    dimaga = 1.0/sqrt(dimaga);
+	    }
 	dirsum = dirLsum;
 	normsum = normLsum;
 
@@ -202,7 +210,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 	    taz = xz + xxz + tz - z*dir2;
 	    adotai = a[0]*tax + a[1]*tay + a[2]*taz;
 	    if (adotai > 0) {
-		adotai /= maga;
+		adotai *= dimaga;
 		dirsum += dirDTS*adotai*adotai;
 		normsum += adotai*adotai;
 		}
@@ -235,13 +243,13 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 		HEAPrholocal(nPart,nSP,rholocal);
 		dsmooth2 = rholocal[nPart-nSP].d2;
 		SQRT1(dsmooth2,dir);
-		dir *= dir;
+		dir2 = dir * dir;
 		for (j=(nPart - nSP);j<nPart;++j) {
-		    d2 = rholocal[j].d2*dir;
+		    d2 = rholocal[j].d2*dir2;
 		    d2 = (1-d2);
 		    rholoc += d2*rholocal[j].m;
 		    }
-		rholoc = 1.875*M_1_PI*rholoc*dir*sqrt(dir); /* F1 Kernel (15/8) */
+		rholoc = 1.875*M_1_PI*rholoc*dir2*dir; /* F1 Kernel (15/8) */
 		}
 	    assert(rholoc >= 0);
 	    }
@@ -328,10 +336,12 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 		dir2 *= 1.0 + d2*(1.5 + d2*(135.0/16.0));
 		++nSoft;
 		}
-	    /* GravStep
-	       iTimeStepCrit = 1: MZ eccentricity correction
-	       2: Normal
-	       3: Planet
+	    /*
+	    ** GravStep if iTimeStepCrit =
+	    ** 0: mean field regime for dynamical time (normal/standard setting)
+	    ** 1: gravitational scattering regime for dynamical time with eccentricity correction
+	    ** 2: Normal
+	    ** 3: Planet
 	    */
 	    if (pkd->param.bGravStep && pkd->param.iTimeStepCrit > 0 &&
 		    (ilp[j].iOrder < pkd->param.nPartColl || p->iOrder < pkd->param.nPartColl)) {
@@ -358,7 +368,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 	    taz = -z*dir2;
 	    adotai = a[0]*tax + a[1]*tay + a[2]*taz;
 	    if (adotai > 0 && d2DTS >= dsmooth2) {
-		adotai /= maga;
+		adotai *= dimaga;
 		dirsum += dir*adotai*adotai;
 		normsum += adotai*adotai;
 		}
@@ -405,9 +415,14 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 	*/
 	if (pkd->param.bGravStep) {
 	    /*
-	    ** Use new acceleration here!
+	    ** If this is the first time through, the accelerations will have 
+	    ** all been zero resulting in zero for normsum (and nan for dtGrav).
+	    ** We repeat this process again, so dtGrav will be correct.
 	    */
-	    if ( normsum > 0.0 ) {
+	    if (normsum > 0.0) {
+		/*
+		** Use new acceleration here!
+		*/
 		tx = a[0];
 		ty = a[1];
 		tz = a[2];
@@ -419,8 +434,8 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 	    if (pkd->param.iTimeStepCrit > 0) {
 		dtGrav = (rhopmax > dtGrav)?rhopmax:dtGrav;
 		}
-	    if ( dtGrav > 0.0 ) {
-		double dT = pkd->param.dEta/sqrt(dtGrav*dRhoFac);
+	    if (dtGrav > 0.0) {
+		dT = pkd->param.dEta/sqrt(dtGrav*dRhoFac);
 		p->uNewRung = pkdDtToRung(dT,pkd->param.dDelta,pkd->param.iMaxRung-1);
 		}
 	    else p->uNewRung = 0;
@@ -658,10 +673,6 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 		dir2 = dir*dir*dir;
 		}
 	    else {
-		/*
-		** This uses the Dehnen K1 kernel function now, it's fast!
-		** (no more lookup tables)
-		*/
 #ifdef PLANETS
 		if (pkd->param.bCollision) {
 		    pkd->iCollisionflag = 1; /*this is for veryactivehermite */
@@ -671,7 +682,10 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 		    printf("dr = %e, r1+r2 = %e, pi = %i, pj = %i, active-inactive \n",sqrt(d2),sqrt(fourh2),pi->iOrgIdx,pj->iOrgIdx);
 		    }
 #endif
-
+		/*
+		** This uses the Dehnen K1 kernel function now, it's fast!
+		** (no more lookup tables)
+		*/
 		SQRT1(fourh2,dir);
 		dir2 = dir*dir;
 		d2 *= dir2;
@@ -681,8 +695,9 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 		dir2 *= 1.0 + d2*(1.5 + d2*(135.0/16.0));
 		++nSoft;
 		}
-
-	    /* GravStep */
+	    /* 
+	    ** GravStep
+	    */
 	    if (pkd->param.bGravStep && pkd->param.iTimeStepCrit > 0 &&
 		    (pj->iOrder < pkd->param.nPartColl || pi->iOrder < pkd->param.nPartColl)) {
 

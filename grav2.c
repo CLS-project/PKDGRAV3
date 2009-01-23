@@ -67,7 +67,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
     FLOAT fMass,fSoft;
     FLOAT fMassTmp,fSoftTmp;
     float fx, fy, fz;
-    double dtGrav;
+    double dtGrav, dT;
     momFloat adotai,maga,dimaga,dirsum,normsum;
     momFloat tax,tay,taz,tmon;
     double rholoc,dirDTS,dsmooth2,fSoftMedian,fEps,fEps2;
@@ -125,6 +125,8 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 	fSoft = pkdSoft(pkd,p);
 	a = pkdAccel(pkd,p);
 	++nActive;
+	dtGrav = 0;
+	dT = 0;
 	fPot = 0;
 	ax = 0;
 	ay = 0;
@@ -133,7 +135,8 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 	tx = a[0];
 	ty = a[1];
 	tz = a[2];
-	dimaga = tx*tx + ty*ty + tz*tz;
+	maga = tx*tx + ty*ty + tz*tz;
+	dimaga = maga;
 	if (dimaga > 0) {
 	    dimaga = 1.0/sqrt(dimaga);
 	    }
@@ -446,13 +449,12 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 	*/
 	if (pkd->param.bGravStep) {
 	    double dT;
-
 	    /*
 	    ** If this is the first time through, the accelerations will have 
 	    ** all been zero resulting in zero for normsum (and nan for dtGrav).
 	    ** We repeat this process again, so dtGrav will be correct.
 	    */
-	    if ( normsum > 0.0 ) {
+	    if (normsum > 0.0) {
 		/*
 		** Use new acceleration here!
 		*/
@@ -464,7 +466,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 		}
 	    else dtGrav = 0.0;
 	    dtGrav += pkd->param.dPreFacRhoLoc*rholoc;
-	    if ( dtGrav > 0.0 ) {
+	    if (dtGrav > 0.0) {
 		dT = pkd->param.dEta/sqrt(dtGrav*dRhoFac);
 		p->uNewRung = pkdDtToRung(dT,pkd->param.dDelta,pkd->param.iMaxRung-1);
 		}
