@@ -566,7 +566,7 @@ typedef struct pkdContext {
     int nNonVANodes;    /* number of nodes *not* in Very Active Tree, or index to the start of the VA nodes (except VAROOT) */
     BND bnd;
     KDN *kdNodes;
-    int iParticleSize;
+    size_t iParticleSize;
     PARTICLE *pStorePRIVATE;
     PARTICLE *pTempPRIVATE;
     PARTCLASS *pClass;
@@ -702,7 +702,7 @@ static inline size_t pkdParticleSize( PKD pkd ) {
     }
 static inline PARTICLE *pkdParticle( PKD pkd, int i ) {
     char *v = (char *)pkd->pStorePRIVATE;
-    PARTICLE *p = (PARTICLE *)(v + pkd->iParticleSize*i);
+    PARTICLE *p = (PARTICLE *)(v + ((uint64_t)i)*pkd->iParticleSize);
     return p;
     }
 static inline void pkdSaveParticle(PKD pkd, PARTICLE *a) {
