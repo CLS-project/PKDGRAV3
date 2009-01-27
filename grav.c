@@ -242,13 +242,14 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
             */
             k = nPart;
             for (j=pkdn->pLower;j<=pkdn->pUpper;++j) {
-                if (p[i].iOrder == p[j].iOrder) continue;
-                x = p[i].r[0] - p[j].r[0];
-                y = p[i].r[1] - p[j].r[1];
-                z = p[i].r[2] - p[j].r[2];
-                d2 = x*x + y*y + z*z;
-                rholocal[k].m = pkdMass(pkd,&p[j]);
-                rholocal[k].d2 = d2;
+		pj = pkdParticle(pkd,j);
+		if (p->iOrder == pj->iOrder) continue;
+		x = p->r[0] - pj->r[0];
+		y = p->r[1] - pj->r[1];
+		z = p->r[2] - pj->r[2];
+		d2 = x*x + y*y + z*z;
+		rholocal[k].m = pkdMass(pkd,pj);
+		rholocal[k].d2 = d2;
                 k += 1;
                 }
 	    assert(k==nN);
@@ -261,7 +262,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 		dsmooth2 = rholocal[nN-nSP].d2;
 		SQRT1(dsmooth2,dir);
 		dir2 = dir * dir;
-		for (j=(nN - nSP);j<nN;++j) {
+		for (j=(nN-nSP);j<nN;++j) {
 		    d2 = rholocal[j].d2*dir2;
 		    d2 = (1-d2);
 		    rholoc += d2*rholocal[j].m;
