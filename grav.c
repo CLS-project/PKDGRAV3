@@ -76,8 +76,8 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
     double xxx,xxz,yyy,yyz,xxy,xyy,xyz;
     double tx,ty,tz;
     double fourh2;
-    double dtGrav;
-    double rholoc,rhopmax,rhopmaxlocal,dirDTS,d2DTS,dsmooth2,dT;
+    double dtGrav,dT;
+    double rholoc,rhopmax,rhopmaxlocal,dirDTS,d2DTS,dsmooth2;
     momFloat tax,tay,taz,adotai,maga,dimaga,dirsum,normsum;
 #ifdef HERMITE
     double adx,ady,adz;
@@ -114,8 +114,6 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 	a = pkdAccel(pkd,p);
 	if ( !pkdIsDstActive(p,uRungLo,uRungHi) ) continue;
 	++nActive;
-	dtGrav = 0;
-	dT = 0;
 	fPot = 0;
 	ax = 0;
 	ay = 0;
@@ -130,7 +128,6 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 	p->n_VA = 0; /* number of particles within 3 hill radius*/
 #endif
 	rhopmax = 0;
-	rholoc = 0;
 	dsmooth2 = 0;
 	tx = a[0];
 	ty = a[1];
@@ -228,6 +225,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 	    /*
 	    ** Add particles to array rholocal first
 	    */
+	    rholoc = 0;
 	    for (j=0;j<nPart;++j) {
 		x = p->r[0] - ilp[j].x;
 		y = p->r[1] - ilp[j].y;

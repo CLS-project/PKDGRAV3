@@ -67,7 +67,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
     FLOAT fMass,fSoft;
     FLOAT fMassTmp,fSoftTmp;
     float fx, fy, fz;
-    double dtGrav, dT;
+    double dtGrav,dT;
     momFloat adotai,maga,dimaga,dirsum,normsum;
     momFloat tax,tay,taz,tmon;
     double rholoc,dirDTS,dsmooth2,fSoftMedian,fEps,fEps2;
@@ -81,8 +81,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
     double tx,ty,tz;
     ILPTILE tile;
     ILCTILE ctile;
-    int nPartX;
-    int i,j,nSP,nSoft,nActive;
+    int i,j,nN,nSP,nSoft,nActive;
     float rMax;
 #if defined(USE_SIMD_PP)
     v4sf t1, t2, t3;
@@ -125,8 +124,6 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 	fSoft = pkdSoft(pkd,p);
 	a = pkdAccel(pkd,p);
 	++nActive;
-	dtGrav = 0;
-	dT = 0;
 	fPot = 0;
 	ax = 0;
 	ay = 0;
@@ -239,6 +236,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 		    pj->iOrder, pj->v[0], pj->v[1], pj->v[2]);
 		}
 	    }
+
 	fx = p->r[0] - ilp->cx;
 	fy = p->r[1] - ilp->cy;
 	fz = p->r[2] - ilp->cz;
@@ -248,7 +246,6 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 	ilp->cz = p->r[2];
 	ilpCompute(ilp,fx,fy,fz);
 
-
 	/*
 	** Calculate local density and kernel smoothing length for dynamical time-stepping
 	*/
@@ -256,10 +253,10 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 	    /*
 	    ** Calculate local density only in the case of more than 1 neighbouring particle!
 	    */
-	    rholoc = 0.0;
-	    nPartX = ilpCount(ilp);
-	    if (nPartX > 1) {
-		nSP = (nPartX < pkd->param.nPartRhoLoc)?nPartX:pkd->param.nPartRhoLoc;
+	    rholoc = 0;
+	    nN = ilpCount(ilp);
+	    if (nN > 1) {
+		nSP = (nN < pkd->param.nPartRhoLoc)?nN:pkd->param.nPartRhoLoc;
 		dsmooth2 = ilpSelect(ilp,nSP,&rMax);
 #ifdef USE_SIMD
 		psmooth2 = SIMD_SPLAT(dsmooth2);
@@ -279,10 +276,12 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 			}
 		    else fEps = 1.0;
 		    fEps2 = fEps*fEps;
-		    d2 = ilp->first->s.d2.f[j]*dir2*fEps2;
+/* 		    d2 = ilp->first->s.d2.f[j]*dir2*fEps2; */
+		    d2 = ilp->first->s.d2.f[j]*dir2;
 		    d2 = (1-d2);
 		    if (d2 < 0) d2 = 0.0;
-		    rholoc += d2*ilp->first->s.m.f[j]*fEps2*fEps;
+/* 		    rholoc += d2*ilp->first->s.m.f[j]*fEps2*fEps; */
+		    rholoc += d2*ilp->first->s.m.f[j];
 		    }
 		rholoc = 1.875*M_1_PI*rholoc*dir2*dir; /* F1 Kernel (15/8) */
 		}
@@ -448,7 +447,6 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 	** in this now as well!
 	*/
 	if (pkd->param.bGravStep) {
-	    double dT;
 	    /*
 	    ** If this is the first time through, the accelerations will have 
 	    ** all been zero resulting in zero for normsum (and nan for dtGrav).
