@@ -25,8 +25,10 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 		    double dirLsum,double normLsum,int bEwald,double *pdFlop,double *pdEwFlop,double dRhoFac);
 #endif
 
+double pkdRho1(double rhopmaxlocal, double summ, double dir, double x, double y, double z, double vx, double vy, double vz);
+
 #ifdef HERMITE
-double pkdRho(PKD pkd, double rhopmaxlocal,double summ, double sumr, double *dir2,
+double pkdRho3(PKD pkd, double rhopmaxlocal,double summ, double sumr, double *dir2,
 	      double *dir, double x, double y, double z, double vx, double vy, double vz,
 	      double rv, double v2, double a3, int iOrder,int jOrder);
 #endif

@@ -66,6 +66,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 		    double dirLsum,double normLsum,int bEwald,double *pdFlop,double *pdEwFlop,double dRhoFac) {
     PARTICLE *p;
     float *a;
+    double *vi,*vj;
     PARTICLE *pi,*pj;
     KDN *pkdn = pBucket;
     const double onethird = 1.0/3.0;
@@ -79,11 +80,12 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
     double dtGrav,dT;
     double rholoc,rhopmax,rhopmaxlocal,dirDTS,d2DTS,dsmooth2;
     momFloat tax,tay,taz,adotai,maga,dimaga,dirsum,normsum;
+    double vx,vy,vz;
 #ifdef HERMITE
+    double v2;
     double adx,ady,adz;
     double dir5;
     double rv, a3;
-    double vx,vy,vz,v2;
 #endif
     double summ;
 #ifdef PLANETS
@@ -354,21 +356,30 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 		}
 	    /*
 	    ** GravStep if iTimeStepCrit =
-	    ** 0: mean field regime for dynamical time (normal/standard setting)
-	    ** 1: gravitational scattering regime for dynamical time with eccentricity correction
+	    ** 0: Mean field regime for dynamical time (normal/standard setting)
+	    ** 1: Gravitational scattering regime for dynamical time with eccentricity correction
 	    ** 2: Normal
 	    ** 3: Planet
 	    */
-	    if (pkd->param.bGravStep && pkd->param.iTimeStepCrit > 0 &&
-		    (ilp[j].iOrder < pkd->param.nPartColl || p->iOrder < pkd->param.nPartColl)) {
-
+	    if (pkd->param.bGravStep && pkd->param.iTimeStepCrit > 0 && 
+		((p->iOrder < pkd->param.nPartColl && p->iOrder >= 0) || (ilp[j].iOrder < pkd->param.nPartColl && ilp[j].iOrder >= 0))) {
 		summ = pkdMass(pkd,p)+ilp[j].m;
 		rhopmaxlocal = summ*dir2;
+		/*
+		** Gravitational scattering regime (iTimeStepCrit=1)
+		*/
+		if (pkd->param.iTimeStepCrit == 1) {
+		    vi = pkdVel(pkd,p);
+		    vx = vi[0] - ilp[j].vx;
+		    vy = vi[1] - ilp[j].vy;
+		    vz = vi[2] - ilp[j].vz;
+		    rhopmaxlocal = pkdRho1(rhopmaxlocal,summ,dir,x,y,z,vx,vy,vz);
+		    }
 #ifdef HERMITE
-		if ((pkd->param.iTimeStepCrit == 1 || pkd->param.iTimeStepCrit == 3) && ilp[j].m > 0) {
+		if (pkd->param.iTimeStepCrit == 3 && ilp[j].m > 0) {
 		    a3 = p->r[0]*p->r[0]+p->r[1]*p->r[1]+p->r[2]*p->r[2];
 		    a3 = a3*sqrt(a3);
-		    rhopmaxlocal = pkdRho(pkd,rhopmaxlocal,summ,sqrt(fourh2),&dir2,&dir,x,y,z,
+		    rhopmaxlocal = pkdRho3(pkd,rhopmaxlocal,summ,sqrt(fourh2),&dir2,&dir,x,y,z,
 					  vx,vy,vz,rv,v2,a3,p->iOrder,ilp[j].iOrder);
 		    }
 #endif
@@ -574,29 +585,38 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 		dir2 *= 1.0 + d2*(1.5 + d2*(135.0/16.0));
 		++nSoft;
 		}
-
-	    /* GravStep */
+	    /* 
+	    ** GravStep
+	    */
 	    if (pkd->param.bGravStep && pkd->param.iTimeStepCrit > 0 &&
-		    (pj->iOrder < pkd->param.nPartColl || pi->iOrder < pkd->param.nPartColl)) {
-
+		((pi->iOrder < pkd->param.nPartColl && pi->iOrder >= 0) || (pj->iOrder < pkd->param.nPartColl && pj->iOrder >= 0))) {
 		summ = pkdMass(pkd,pi)+pkdMass(pkd,pj);
 		rhopmaxlocal = summ*dir2;
+		/*
+		** Gravitational scattering regime (iTimeStepCrit=1)
+		*/
+		if (pkd->param.iTimeStepCrit == 1) {
+		    vi = pkdVel(pkd,pi);
+		    vj = pkdVel(pkd,pj);
+		    vx = vi[0] - vj[0];
+		    vy = vi[1] - vj[1];
+		    vz = vi[2] - vj[2];
+		    rhopmaxlocal = pkdRho1(rhopmaxlocal,summ,dir,x,y,z,vx,vy,vz);
+		    }
 #ifdef HERMITE
-		if ((pkd->param.iTimeStepCrit == 1 || pkd->param.iTimeStepCrit == 3) && pkdMass(pkd,pj)> 0) {
-		    a3 = pi->r[0]*pi->r[0]+pi->r[1]*pi->r[1]+pi->r[2]*pi->r[2];
+		if (pkd->param.iTimeStepCrit == 3 && ilp[j].m > 0) {
+		    a3 = p->r[0]*p->r[0]+p->r[1]*p->r[1]+p->r[2]*p->r[2];
 		    a3 = a3*sqrt(a3);
-		    rhopmaxlocal = pkdRho(pkd,rhopmaxlocal,summ,sqrt(fourh2),&dir2,&dir,x,y,z,
-					  vx,vy,vz,rv,v2,a3,pi->iOrder,pj->iOrder);
+		    rhopmaxlocal = pkdRho3(pkd,rhopmaxlocal,summ,sqrt(fourh2),&dir2,&dir,x,y,z,
+					  vx,vy,vz,rv,v2,a3,p->iOrder,ilp[j].iOrder);
 		    }
 #endif
 		if ( rhopmaxlocal > 0.0 ) {
-		    double dT = pkd->param.dEta/sqrt(rhopmaxlocal*dRhoFac);
+		    dT = pkd->param.dEta/sqrt(rhopmaxlocal*dRhoFac);
 		    uint8_t uNewRung = pkdDtToRung(dT,pkd->param.dDelta,pkd->param.iMaxRung-1);
 		    if ( uNewRung > pi->uNewRung ) pi->uNewRung = uNewRung;
 		    if ( uNewRung > pj->uNewRung ) pj->uNewRung = uNewRung;
 		    }
-		//pi->dtGrav = (rhopmaxlocal > pi->dtGrav)?rhopmaxlocal:pi->dtGrav;
-		//pj->dtGrav = (rhopmaxlocal > pj->dtGrav)?rhopmaxlocal:pj->dtGrav;
 		}
 
 #ifdef SYMBA
@@ -715,25 +735,33 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 	    ** GravStep
 	    */
 	    if (pkd->param.bGravStep && pkd->param.iTimeStepCrit > 0 &&
-		    (pj->iOrder < pkd->param.nPartColl || pi->iOrder < pkd->param.nPartColl)) {
-
+		((pi->iOrder < pkd->param.nPartColl && pi->iOrder >= 0) || (pj->iOrder < pkd->param.nPartColl && pj->iOrder >= 0))) {
 		summ = pkdMass(pkd,pi)+pkdMass(pkd,pj);
 		rhopmaxlocal = summ*dir2;
-
+		/*
+		** Gravitational scattering regime (iTimeStepCrit=1)
+		*/
+		if (pkd->param.iTimeStepCrit == 1) {
+		    vi = pkdVel(pkd,pi);
+		    vj = pkdVel(pkd,pj);
+		    vx = vi[0] - vj[0];
+		    vy = vi[1] - vj[1];
+		    vz = vi[2] - vj[2];
+		    rhopmaxlocal = pkdRho1(rhopmaxlocal,summ,dir,x,y,z,vx,vy,vz);
+		    }
 #ifdef HERMITE
-		if ((pkd->param.iTimeStepCrit == 1 || pkd->param.iTimeStepCrit == 3) && pkdMass(pkd,pj)> 0) {
-		    a3 = pi->r[0]*pi->r[0]+pi->r[1]*pi->r[1]+pi->r[2]*pi->r[2];
+		if (pkd->param.iTimeStepCrit == 3 && ilp[j].m > 0) {
+		    a3 = p->r[0]*p->r[0]+p->r[1]*p->r[1]+p->r[2]*p->r[2];
 		    a3 = a3*sqrt(a3);
-		    rhopmaxlocal = pkdRho(pkd,rhopmaxlocal,summ,sqrt(fourh2),&dir2,&dir,x,y,z,
-					  vx,vy,vz,rv,v2,a3,pi->iOrder,pj->iOrder);
+		    rhopmaxlocal = pkdRho3(pkd,rhopmaxlocal,summ,sqrt(fourh2),&dir2,&dir,x,y,z,
+					  vx,vy,vz,rv,v2,a3,p->iOrder,ilp[j].iOrder);
 		    }
 #endif
 		if ( rhopmaxlocal > 0.0 ) {
-		    double dT = pkd->param.dEta/sqrt(rhopmaxlocal*dRhoFac);
+		    dT = pkd->param.dEta/sqrt(rhopmaxlocal*dRhoFac);
 		    uint8_t uNewRung = pkdDtToRung(dT,pkd->param.dDelta,pkd->param.iMaxRung-1);
 		    if ( uNewRung > pi->uNewRung ) pi->uNewRung = uNewRung;
 		    }
-		//pi->dtGrav = (rhopmaxlocal > pi->dtGrav)?rhopmaxlocal:pi->dtGrav;
 		}
 #ifdef SYMBA
 	    if (a2 < 3.0) dir2 *= a1;
@@ -766,73 +794,81 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
     return(nActive);
     }
 
+/*
+** Gravitational scattering regime (iTimeStepCrit=1)
+*/
+double pkdRho1(double rhopmaxlocal, double summ, double dir, double x, double y, double z, double vx, double vy, double vz) {
+
+    double Etot, L2, ecc, eccfac, v2;
+    /*
+    ** Etot and L are normalized by the reduced mass 
+    */
+    v2 = vx*vx + vy*vy + vz*vz;
+    Etot = 0.5*v2 - summ*dir;
+    L2 = (y*vz - z*vy)*(y*vz - z*vy) + (z*vx - x*vz)*(z*vx - x*vz) + (x*vy - y*vx)*(x*vy - y*vx);
+    ecc = 1+2*Etot*L2/(summ*summ);
+    ecc = (ecc <= 0)?0:sqrt(ecc);
+    eccfac = (1 + 2*ecc)/fabs(1-ecc);
+    eccfac = (eccfac > ECCFACMAX)?ECCFACMAX:eccfac;
+    if (eccfac > 1.0) rhopmaxlocal *= eccfac;
+    return rhopmaxlocal;
+    }
+/*
+** Planet (iTimeStepCrit=3)
+*/
 #ifdef HERMITE
-double pkdRho(PKD pkd, double rhopmaxlocal,double summ, double sumr, double *dir2,
+#ifdef PLANETS
+double pkdRho3(PKD pkd, double rhopmaxlocal,double summ, double sumr, double *dir2,
 	      double *dir, double x, double y, double z, double vx, double vy, double vz,
 	      double rv, double v2, double a3, int iOrder,int jOrder) {
 
-    if (pkd->param.iTimeStepCrit == 1) {
-	double Etot, L2, ecc, eccfac;
-	/* Etot and L are normalized by the reduced mass */
-	Etot = 0.5*v2 - summ*(*dir);
-	L2 = (y*vz - z*vy)*(y*vz - z*vy) + (z*vx - x*vz)*(z*vx - x*vz) +
-	     (x*vy - y*vx)*(x*vy - y*vx);
-	ecc = 1+2*Etot*L2/summ/summ;
-	ecc = (ecc <= 0)?0:sqrt(ecc);
-	eccfac = (2*ecc + 1)/fabs(1-ecc);
-	eccfac = (eccfac > ECCFACMAX)?ECCFACMAX:eccfac;
-	if (eccfac > 1.0) rhopmaxlocal *= eccfac;
-	}
-#ifdef PLANETS
-    if (pkd->param.iTimeStepCrit == 3) {
-	double hill, vd, vesc2;
-	double dr, dr3, dr5;
-	double fhill = 3.0;
-	double rhof;
-
-	hill = a3*summ/3.0;
-	if (fhill*fhill*fhill*(*dir2)*hill > 1.0) {
-	    hill = pow(hill, 1.0/3.0);
-
-	    rhopmaxlocal = 3.0*(summ*(*dir2)+ 0.5*sumr*rv*rv*(*dir2)*(*dir2)/(*dir));
-
+    double hill, vd, vesc2;
+    double dr, dr3, dr5;
+    double fhill = 3.0;
+    double rhof;
+    
+    hill = a3*summ/3.0;
+    if (fhill*fhill*fhill*(*dir2)*hill > 1.0) {
+	hill = pow(hill, 1.0/3.0);
+	
+	rhopmaxlocal = 3.0*(summ*(*dir2)+ 0.5*sumr*rv*rv*(*dir2)*(*dir2)/(*dir));
+	
+	vesc2 = 2.0*summ/sumr;
+	rhof = (rv*(*dir))*(rv*(*dir))/vesc2;
+	if (rhof < 3.0) rhof = 3.0;
+	
+	rhopmaxlocal *= sqrt((*dir)*hill);
+	a3 /= rhof;
+	if (rhopmaxlocal*a3 > 1.0) {
+	    dr = rv*(*dir)*pkd->param.dEta/sqrt(rhopmaxlocal);
+	    }
+	else {
+	    dr = rv*(*dir)*pkd->param.dEta*sqrt(a3);
+	    }
+	
+	dr = 1.0/(*dir)+0.5*dr;
+	
+	if (dr < 0.0) {
 	    vesc2 = 2.0*summ/sumr;
-	    rhof = (rv*(*dir))*(rv*(*dir))/vesc2;
-	    if (rhof < 3.0) rhof = 3.0;
-
-	    rhopmaxlocal *= sqrt((*dir)*hill);
-	    a3 /= rhof;
-	    if (rhopmaxlocal*a3 > 1.0) {
-		dr = rv*(*dir)*pkd->param.dEta/sqrt(rhopmaxlocal);
-		}
-	    else {
-		dr = rv*(*dir)*pkd->param.dEta*sqrt(a3);
-		}
-
-	    dr = 1.0/(*dir)+0.5*dr;
-
-	    if (dr < 0.0) {
-		vesc2 = 2.0*summ/sumr;
-		printf("pi %d, pj %d, dr0/rhill %e, dr1/rhill %e, v/vesc %e, \n",
-		       iOrder,jOrder,1.0/((*dir)*hill), dr/hill, sqrt(v2/vesc2));
-		dr = fhill*hill;
-		*dir = 1.0/dr;
-		*dir2 = (*dir)*(*dir)*(*dir);
-
-		}
-
-	    /* if mutual distance < fhill Hill radius */
-	    if (dr < fhill*hill) {
-		dr3 = dr*dr*dr*sqrt(dr/hill);
-		dr5 = dr3*dr*dr;
-		rhopmaxlocal = 3.0*(summ/dr3 + 0.5*sumr*rv*rv/dr5);
-		/*rhopmaxlocal = rhof*summ/dr3;*/
-		rhopmaxlocal = (rhopmaxlocal > 1.0/a3)?rhopmaxlocal:(1.0/a3);
-		}
+	    printf("pi %d, pj %d, dr0/rhill %e, dr1/rhill %e, v/vesc %e, \n",
+		   iOrder,jOrder,1.0/((*dir)*hill), dr/hill, sqrt(v2/vesc2));
+	    dr = fhill*hill;
+	    *dir = 1.0/dr;
+	    *dir2 = (*dir)*(*dir)*(*dir);
+	    
+	    }
+	
+	/* if mutual distance < fhill Hill radius */
+	if (dr < fhill*hill) {
+	    dr3 = dr*dr*dr*sqrt(dr/hill);
+	    dr5 = dr3*dr*dr;
+	    rhopmaxlocal = 3.0*(summ/dr3 + 0.5*sumr*rv*rv/dr5);
+	    /*rhopmaxlocal = rhof*summ/dr3;*/
+	    rhopmaxlocal = (rhopmaxlocal > 1.0/a3)?rhopmaxlocal:(1.0/a3);
 	    }
 	}
-#endif
     return(rhopmaxlocal);
     }
-
 #endif
+#endif
+
