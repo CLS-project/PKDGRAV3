@@ -423,27 +423,13 @@ typedef struct CheckStack {
     } CSTACK;
 
 /*
-** components required for time-step calculation (particle-bucket list)
+** components required for time-step calculation (only grav.c)
 */
-
-typedef struct RhoEncArray {
-    int index;
-    double x;
-    double y;
-    double z;
-    double dir;
-    double rhoenc;
-    } RHOENC;
 
 typedef struct RhoLocalArray {
     double d2;
     double m;
     } RHOLOCAL;
-
-typedef struct heapStruct {
-    int index;
-    double rhoenc;
-    } HEAPSTRUCT;
 
 typedef struct ewaldTable {
     double hx,hy,hz;
