@@ -16,8 +16,6 @@ const char *pkd_module_id = "$Id$";
 #include <assert.h>
 #include <errno.h>
 #include <sys/time.h>
-#include <time.h> /* added MZ */
-
 #include <rpc/types.h>
 #include <rpc/xdr.h>
 
@@ -40,12 +38,6 @@ const char *pkd_module_id = "$Id$";
 #include "mpitrace_user_events.h"
 #endif
 
-double Zeit() { /* added MZ */
-    struct timeval tv;
-
-    gettimeofday(&tv,NULL);
-    return (tv.tv_sec+(tv.tv_usec*1e-6));
-    }
 
 double pkdGetTimer(PKD pkd,int iTimer) {
     return(pkd->ti[iTimer].sec);
@@ -2065,8 +2057,6 @@ void pkdStepVeryActiveKDK(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dStep, 
     int j;
 #endif
 
-    double time1,time2; /* added MZ 1.6.2006 */
-
     if (iAdjust && (iRung < pkd->param.iMaxRung-1)) {
 
 	/*
@@ -2151,8 +2141,6 @@ void pkdStepVeryActiveKDK(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dStep, 
 		       2*iRung+2,' ',iRung,iKickRung,*pnMaxRung);
 		}
 
-	    time1 = Zeit(); /* added MZ 1.6.2006 */
-
 	    pkdActiveRung(pkd,iKickRung,1);
 	    pkdVATreeBuild(pkd,pkd->param.nBucket,diCrit2,dTime);
 	    pkdGravityVeryActive(pkd,uRungLo,uRungHi,dTime,pkd->param.bEwald && pkd->param.bPeriodic,pkd->param.nReplicas,dStep);
@@ -2171,10 +2159,6 @@ void pkdStepVeryActiveKDK(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dStep, 
 		pkdGravSun(pkd,aSun,adSun,dSunMass);
 		}
 #endif
-
-	    time2 = Zeit();
-	    if (pkd->param.bVDetails)
-		printf("Time: %g\n",time2-time1);
 	    }
 	/*
 	 * move time back to 1/2 step so that KickClose can integrate
@@ -2206,8 +2190,6 @@ pkdStepVeryActiveHermite(PKD pkd, double dStep, double dTime, double dDelta,
 
     double aSun[3], adSun[3];
     int j;
-
-    double time1,time2; /* added MZ 1.6.2006 */
 
     if (iAdjust && (iRung < pkd->param.iMaxRung-1)) {
 	pkdActiveRung(pkd, iRung, 1);
@@ -2282,8 +2264,6 @@ pkdStepVeryActiveHermite(PKD pkd, double dStep, double dTime, double dDelta,
 		       2*iRung+2,' ',iRung,iKickRung,*pnMaxRung);
 		}
 
-	    time1 = Zeit(); /* added MZ 1.6.2006 */
-
 	    pkdActiveRung(pkd,iKickRung,1);
 	    pkdVATreeBuild(pkd,pkd->param.nBucket,diCrit2,dTime);
 	    pkdGravityVeryActive(pkd,dTime,pkd->param.bEwald && pkd->param.bPeriodic,pkd->param.nReplicas,dStep);
@@ -2323,11 +2303,6 @@ pkdStepVeryActiveHermite(PKD pkd, double dStep, double dTime, double dDelta,
 	    if (pkd->param.bCollision && pkd->iCollisionflag) pkdDoCollisionVeryActive(pkd,dTime);
 #endif
 	    pkdCopy0(pkd,dTime);
-
-	    time2 = Zeit();
-	    if (pkd->param.bVDetails)
-		printf("Time: %g\n",time2-time1);
-
 	    }
 	}
     }
