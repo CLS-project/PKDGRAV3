@@ -39,12 +39,12 @@ typedef struct ilpTile {
 	ilpFloat d2;                /* Distance squared: calculated */
 	ilpFloat m;                 /* Mass */
 	ilpFloat fourh2;            /* Softening: calculated */
-#ifdef HERMITE
+/* #ifdef HERMITE */
 	ilpFloat vx, vy, vz;
-#endif
-#if defined(SYMBA) || defined(PLANETS)
+/* #endif */
+/* #if defined(SYMBA) || defined(PLANETS) */
 	ilpInt64 iOrder;
-#endif
+/* #endif */
 	} d;
     /* Everything in this structure is sorted */
     struct {
@@ -93,20 +93,20 @@ static inline uint32_t ilpCount(ILP ilp) {
 float ilpSelect(ILP ilp,uint32_t n,float *rMax);
 float ilpSelectMass(ILP ilp,uint32_t n, uint32_t N);
 
-#if defined(SYMBA) || defined(PLANETS)
+/* #if defined(SYMBA) || defined(PLANETS) */
 #define ilpAppend_1(ilp,I) tile->d.iOrder.i[ILP_APPEND_i] = (I);
-#else
-#define ilpAppend_1(ilp,I)
-#endif
+/* #else */
+/* #define ilpAppend_1(ilp,I) */
+/* #endif */
 
-#if defined(HERMITE)
+/* #if defined(HERMITE) */
 #define ilpAppend_2(ilp,VX,VY,VZ)					\
     tile->d.vx.f[ILP_APPEND_i] = (VX);					\
     tile->d.vy.f[ILP_APPEND_i] = (VY);					\
     tile->d.vz.f[ILP_APPEND_i] = (VZ);
-#else
-#define ilpAppend_2(ilp,VX,VY,VZ)
-#endif
+/* #else */
+/* #define ilpAppend_2(ilp,VX,VY,VZ) */
+/* #endif */
 
 
 #define ilpAppend(ilp,X,Y,Z,M,S,I,VX,VY,VZ)				\

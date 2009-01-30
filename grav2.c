@@ -50,6 +50,7 @@ static const struct CONSTS {
     dir = 1/sqrt(d2);\
     }
 
+#define ECCFACMAX 10000
 
 /*
 ** This version of grav.c does all the operations inline, including
@@ -62,6 +63,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
     KDN *pkdn = pBucket;
     const double onethird = 1.0/3.0;
     float *a, *pPot;
+    double *v, *vTmp;
     momFloat ax,ay,az,fPot;
     double x,y,z,d2,dir,dir2;
     FLOAT fMass,fSoft;
@@ -70,7 +72,9 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
     double dtGrav,dT;
     momFloat adotai,maga,dimaga,dirsum,normsum;
     momFloat tax,tay,taz,tmon;
-    double rholoc,dirDTS,dsmooth2,fSoftMedian,fEps,fEps2;
+    double rholoc,rhopmax,rhopmaxlocal,dirDTS,dsmooth2,fSoftMedian,fEps,fEps2;
+    double vx,vy,vz;
+    double summ;
 #ifndef USE_SIMD_MOMR
     double g2,g3,g4;
     double xx,xy,xz,yy,yz,zz;
@@ -122,6 +126,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 	pPot = pkdPot(pkd,p);
 	fMass = pkdMass(pkd,p);
 	fSoft = pkdSoft(pkd,p);
+	v = pkdVel(pkd,p);
 	a = pkdAccel(pkd,p);
 	++nActive;
 	fPot = 0;
@@ -231,9 +236,8 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 	    if (pkdIsSrcActive(pj,0,MAX_RUNG)) {
 		fMassTmp = pkdMass(pkd,pj);
 		fSoftTmp = pkdSoft(pkd,pj);
-		ilpAppend(ilp,pj->r[0],pj->r[1],pj->r[2],
-		    fMassTmp, 4*fSoftTmp*fSoftTmp,
-		    pj->iOrder, pj->v[0], pj->v[1], pj->v[2]);
+		vTmp = pkdVel(pkd,pj);
+		ilpAppend(ilp,pj->r[0],pj->r[1],pj->r[2],fMassTmp,4*fSoftTmp*fSoftTmp,pj->iOrder,vTmp[0],vTmp[1],vTmp[2]);
 		}
 	    }
 
@@ -407,7 +411,27 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 		    dir2 *= 1.0 + d2*(1.5 + d2*(135.0/16.0));
 		    ++nSoft;
 		    }
-
+		/*
+		** GravStep if iTimeStepCrit =
+		** 0: Mean field regime for dynamical time (normal/standard setting)
+		** 1: Gravitational scattering regime for dynamical time with eccentricity correction
+		*/
+		if (pkd->param.bGravStep && pkd->param.iTimeStepCrit > 0 && 
+		    ((p->iOrder < pkd->param.nPartColl && p->iOrder >= 0) || (tile->d.iOrder.i[j] < pkd->param.nPartColl && tile->d.iOrder.i[j] >= 0))) {
+		    summ = fMass+tile->d.m.f[j];
+		    rhopmaxlocal = summ*dir2;
+		    /*
+		    ** Gravitational scattering regime (iTimeStepCrit=1)
+		    */
+		    if (pkd->param.iTimeStepCrit == 1) {
+			vx = v[0] - tile->d.vx.f[j];
+			vy = v[1] - tile->d.vy.f[j];
+			vz = v[2] - tile->d.vz.f[j];
+			rhopmaxlocal = pkdRho1(rhopmaxlocal,summ,dir,tile->d.dx.f[j],tile->d.dy.f[j],tile->d.dz.f[j],vx,vy,vz);
+			}
+		    rhopmax = (rhopmaxlocal > rhopmax)?rhopmaxlocal:rhopmax;
+		    }
+		
 		dir2 *= tile->d.m.f[j];
 		tax = -tile->d.dx.f[j]*dir2;
 		tay = -tile->d.dy.f[j]*dir2;
@@ -464,6 +488,9 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 		}
 	    else dtGrav = 0.0;
 	    dtGrav += pkd->param.dPreFacRhoLoc*rholoc;
+	    if (pkd->param.iTimeStepCrit > 0) {
+		dtGrav = (rhopmax > dtGrav)?rhopmax:dtGrav;
+		}
 	    if (dtGrav > 0.0) {
 		dT = pkd->param.dEta/sqrt(dtGrav*dRhoFac);
 		p->uNewRung = pkdDtToRung(dT,pkd->param.dDelta,pkd->param.iMaxRung-1);
@@ -479,4 +506,24 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 
     *pdFlop += nActive*(ilpCount(pkd->ilp)*40 + ilcCount(pkd->ilc)*200) + nSoft*15;
     return(nActive);
+    }
+
+/*
+** Gravitational scattering regime (iTimeStepCrit=1)
+*/
+double pkdRho1(double rhopmaxlocal, double summ, double dir, double x, double y, double z, double vx, double vy, double vz) {
+
+    double Etot, L2, ecc, eccfac, v2;
+    /*
+    ** Etot and L are normalized by the reduced mass 
+    */
+    v2 = vx*vx + vy*vy + vz*vz;
+    Etot = 0.5*v2 - summ*dir;
+    L2 = (y*vz - z*vy)*(y*vz - z*vy) + (z*vx - x*vz)*(z*vx - x*vz) + (x*vy - y*vx)*(x*vy - y*vx);
+    ecc = 1+2*Etot*L2/(summ*summ);
+    ecc = (ecc <= 0)?0:sqrt(ecc);
+    eccfac = (1 + 2*ecc)/fabs(1-ecc);
+    eccfac = (eccfac > ECCFACMAX)?ECCFACMAX:eccfac;
+    if (eccfac > 1.0) rhopmaxlocal *= eccfac;
+    return rhopmaxlocal;
     }

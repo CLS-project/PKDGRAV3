@@ -96,6 +96,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
     double fWeight = 0.0;
     double dShiftFlop;
     double dRhoFac;
+    double *v;
     FLOAT dMin,min2,d2,fourh2;
     FLOAT fMass,fSoft;
     FLOAT rCheck[3];
@@ -550,12 +551,13 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 				if (pkdIsSrcActive(p,0,MAX_RUNG)) {
 				    fMass = pkdMass(pkd,p);
 				    fSoft = pkdSoft(pkd,p);
+				    v = pkdVel(pkd,p);
 				    ilpAppend(pkd->ilp,
 					      p->r[0] + pkd->Check[i].rOffset[0],
 					      p->r[1] + pkd->Check[i].rOffset[1],
 					      p->r[2] + pkd->Check[i].rOffset[2],
 					      fMass, 4*fSoft*fSoft,
-					      p->iOrder, p->v[0], p->v[1], p->v[2]);
+					      p->iOrder, v[0], v[1], v[2]);
 				    }
 				}
 			    }
@@ -578,12 +580,13 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 				    */
 				    fMass = pkdMass(pkd,pRemote);
 				    fSoft = pkdSoft(pkd,pRemote);
+				    v = pkdVel(pkd,pRemote);
 				    ilpAppend(pkd->ilp,
 					      pRemote->r[0] + pkd->Check[i].rOffset[0],
 					      pRemote->r[1] + pkd->Check[i].rOffset[1],
 					      pRemote->r[2] + pkd->Check[i].rOffset[2],
 					      fMass, 4*fSoft*fSoft,
-					      pRemote->iOrder, pRemote->v[0], pRemote->v[1], pRemote->v[2] );
+					      pRemote->iOrder, v[0], v[1], v[2]);
 				    }
 				mdlRelease(pkd->mdl,CID_PARTICLE,pRemote);
 				}
