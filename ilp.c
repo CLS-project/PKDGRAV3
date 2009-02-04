@@ -216,7 +216,7 @@ float ilpSelect(ILP ilp,uint32_t n, float *rMax) {
 	    }
 	/* Exactly the right number.  Good. */
 	else break;
-	if ( upper == lower && upper_i <= lower_i ) break;
+	/*if ( upper == lower && upper_i <= lower_i ) break;*/
 
 	/* Adjust bounds for next iteration */
 	tile = lower;
@@ -299,33 +299,14 @@ float ilpSelectMass(ILP ilp,uint32_t n, uint32_t N) {
     cmp = tile->s.m.f[m];
 
     for (;;) {
-#if 0
-	for (;;) { /* Partition loop */
-	    while (tile_i<=last_i && tile->s.m.f[tile_i] < cmp )
-		tile_i++;
-	    while (last_i > tile_i && tile->s.m.f[last_i] > cmp )
-		--last_i;
-
-	    /* Swap the large and small values */
-	    if ( tile_i<last_i ) {
-		SwapIlpEntry(tile,last_i,tile,tile_i);
-		tile_i++;
-		if ( tile_i == last_i ) break;
-		last_i--;
-		}
-	    else break;
-	    }
-#else
 	PARTITION(tile_i<last_i,tile_i<=last_i,tile_i++,--last_i,
 		  SwapIlpEntry(tile,tile_i,tile,last_i),
 		  tile->s.m.f[tile_i] < cmp,tile->s.m.f[last_i] > cmp);
 
-#endif
-	if ( tile_i >= n ) upper_i = tile_i-1;   /* Too many in the first partition */
+	if ( tile_i > n ) upper_i = tile_i-1;   /* Too many in the first partition */
 	else if ( tile_i < n ) lower_i = tile_i; /* Too few in this partition */
 	else break;                              /* Exactly the right number */
-
-	if ( upper_i <= lower_i ) break;
+	/*if ( upper_i <= lower_i ) break;*/
 
 	tile_i = lower_i;
 	last_i = upper_i;
@@ -344,9 +325,8 @@ float ilpSelectMass(ILP ilp,uint32_t n, uint32_t N) {
     SwapIlpEntry(tile,i,tile,n-1);
     v = tile->s.fourh2.f[n-1];
 
-/* Turn this off for normal operation */
 #if 0
-    // Check
+    /* This test code, if enabled, verifies that the ILP is properly partitioned */
     float mn,mx;
     mn = tile->s.m.f[0];
     mx = tile->s.m.f[n];
