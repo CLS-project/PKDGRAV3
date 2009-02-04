@@ -9,6 +9,8 @@ const char *ilp_module_id = "$Id$";
 #include <assert.h>
 
 #include "ilp.h"
+#include "pkd.h" /* for PARTITION macro */
+
 
 /*
 ** Private: Create a new tile
@@ -82,7 +84,7 @@ void ilpFinish(ILP ilp) {
     free(ilp);
     }
 
-static float Swap(ILPTILE t1, size_t i1, ILPTILE t2, size_t i2) {
+static void SwapIlpEntry(ILPTILE t1, size_t i1, ILPTILE t2, size_t i2) {
     float v;
 
     v = t1->s.m.f[i1];
@@ -96,10 +98,42 @@ static float Swap(ILPTILE t1, size_t i1, ILPTILE t2, size_t i2) {
     v = t1->s.fourh2.f[i1];
     t1->s.fourh2.f[i1] = t2->s.fourh2.f[i2];
     t2->s.fourh2.f[i2] = v;
-
-    return v;
     }
 
+static inline void IncTilePtr( ILPTILE *pTile, size_t *iTile) {
+    if ( ++*iTile == (*pTile)->nPart ) {
+	*pTile = (*pTile)->next;
+	*iTile = 0;
+	}
+    }
+static inline void DecTilePtr( ILPTILE *pTile, size_t *iTile) {
+    if ( (*iTile)-- == 0 ) {
+	*pTile = (*pTile)->prev;
+	*iTile = (*pTile)->nPart-1;
+	}
+    }
+
+/*
+** Compare two tile pointers for < or <=
+** NOTE: It is never allowed that t1:i1 > t2:i2
+*/
+#define CmpTileLt(t1,i1,t2,i2) ((t1)==(t2) && (i1)<(i2))
+#define CmpTileLe(t1,i1,t2,i2) ((t1)==(t2) && (i1)<=(i2))
+
+/*
+** This function reorders the ILP such that the particles
+** with the "n" shortest distances are at the front.  No
+** other ordering is guaranteed, only that the first "n"
+** particles are closer than any of the other particles.
+** "rMax" is used as a hint as to what a good initial guess
+** might be for the distance that contains only the "n"
+** closest particles.
+**
+** Only the "s" (sorted) fields of the ILP are reordered;
+** this is done to optimize the data movement and more
+** importantly, because the size of the ILP is "popped" when
+** moving back up the tree and reordering would be disastrous.
+*/
 float ilpSelect(ILP ilp,uint32_t n, float *rMax) {
     ILPTILE  tile, last, lower, upper;
     size_t tile_i, last_i, lower_i, upper_i, m;
@@ -108,6 +142,7 @@ float ilpSelect(ILP ilp,uint32_t n, float *rMax) {
     float cmp;
 
     assert( n > 0 );
+    assert(ilp->first->nMaxPart >= n );
 
 #ifdef USE_SIMD_PP
     ILP_LOOP(ilp,tile) {
@@ -135,7 +170,7 @@ float ilpSelect(ILP ilp,uint32_t n, float *rMax) {
 	for (j=0;j<ilp->first->nPart;j++)
 	    if ( ilp->first->s.d2.f[j] > v )
 		v = ilp->first->s.d2.f[(i=j)];
-	Swap(ilp->first,i,ilp->first,ilp->first->nPart-1);
+	SwapIlpEntry(ilp->first,i,ilp->first,ilp->first->nPart-1);
 	return v;
 	}
 
@@ -144,88 +179,67 @@ float ilpSelect(ILP ilp,uint32_t n, float *rMax) {
     last = upper = ilp->tile;
     last_i = upper_i = last->nPart-1;
 
+    /*
+    ** Iteratively partition the ILP list until we have a split with
+    ** exactly "n" particles less than all of the others.
+    */
     cmp = *rMax;
+    if ( cmp <= 0.0 ) {
+	/* Choose a more sensible pivot value */
+	m = tile->nPart <= n*2 ? tile->nPart-1 : n*2;
+	if ( last == ilp->first && m > last_i ) m = last_i;
+	cmp = tile->s.d2.f[m];
+	}
     for (;;) {
-	for (;;) { /* Partition loop */
-	    for (;;) { /* Find a large value */
-		m = (tile != last) ? tile->nPart-1 : last_i;
-		while (tile_i<=m && tile->s.d2.f[tile_i] < cmp )
-		    tile_i++;
-		if ( tile != last && tile_i == tile->nPart ) {
-		    tile = tile->next;
-		    tile_i = 0;
-		    }
-		else break;
-		}
-	    for (;;) { /* Find a small value */
-		m = ( last != tile ) ? 0 : tile_i;
-		while (last_i > m && last->s.d2.f[last_i] > cmp )
-		    --last_i;
-		if ( last != tile && last_i == 0 && last->s.d2.f[0] > cmp ) {
-		    last = last->prev;
-		    last_i = last->nPart-1;
-		    }
-		else
-		    break;
-		}
-
-	    /* Swap the large and small values */
-	    if ( tile!=last || tile_i<last_i ) {
-		Swap(last,last_i,tile,tile_i);
-		if ( tile != last || tile_i < last_i ) {
-		    if ( ++tile_i == tile->nPart ) {
-			tile = tile->next;
-			tile_i = 0;
-			}
-		    if ( tile == last && tile_i == last_i ) break;
-		    if ( last_i-- == 0 ) {
-			last = last->prev;
-			last_i = last->nPart-1;
-			}
-		    }
-		}
-	    else break;
+	PARTITION(CmpTileLt(tile,tile_i,last,last_i),
+		  CmpTileLe(tile,tile_i,last,last_i),
+		  IncTilePtr(&tile,&tile_i),
+		  DecTilePtr(&last,&last_i),
+		  SwapIlpEntry(tile,tile_i,last,last_i),
+		  tile->s.d2.f[tile_i]<cmp,
+		  last->s.d2.f[last_i]>cmp);
+	if ( tile==NULL ) {
+	    tile = ilp->tile;
+	    tile_i = last->nPart;
 	    }
 
 	/* Too many in the first partition */
-	if ( tile != ilp->first || tile_i > n ) {
+	if ( CmpTileLt(ilp->first,n,tile,tile_i) ) {
 	    upper_i = tile_i;
 	    upper = tile;
-	    if ( upper_i-- == 0 ) {
-		upper = upper->prev;
-		upper_i = upper->nPart-1;
-		}
+	    DecTilePtr(&upper,&upper_i);
 	    }
 	/* Too few in this partition */
-	else if ( tile_i < n ) {
+	else if ( CmpTileLt(tile,tile_i,ilp->first,n) ) {
 	    lower = tile;
 	    lower_i = tile_i;
 	    }
+	/* Exactly the right number.  Good. */
 	else break;
-
 	if ( upper == lower && upper_i <= lower_i ) break;
 
+	/* Adjust bounds for next iteration */
 	tile = lower;
 	tile_i = lower_i;
-
 	last = upper;
 	last_i = upper_i;
 
+	/* Choose another pivot value */
 	m = tile->nPart <= n*2 ? tile->nPart-1 : n*2;
 	if ( last == ilp->first && m > last_i ) m = last_i;
 	cmp = tile->s.d2.f[m];
 	}
 
+    /* Find the largest of the lower partition, and move it to the end. */
     v = 0.0;
     i = 0;
     for (j=0;j<n;j++)
 	if ( ilp->first->s.d2.f[j] > v )
 	    v = ilp->first->s.d2.f[(i=j)];
-
-    Swap(ilp->first,i,ilp->first,n-1);
+    SwapIlpEntry(ilp->first,i,ilp->first,n-1);
 
 #if 0
-    // Check
+    /* This test code, if enabled, verifies that the ILP is properly partitioned */
     float mn,mx;
     mn = ilp->first->s.d2.f[0];
     mx = ilp->first->s.d2.f[n];
@@ -273,7 +287,8 @@ float ilpSelectMass(ILP ilp,uint32_t n, uint32_t N) {
 	for (j=0;j<N;j++)
 	    if ( tile->s.m.f[j] > v )
 		v = tile->s.m.f[(i=j)];
-	return Swap(tile,i,tile,N-1);
+	SwapIlpEntry(tile,i,tile,N-1);
+	return tile->s.fourh2.f[N-1];
 	}
 
     tile_i = lower_i = 0;
@@ -284,6 +299,7 @@ float ilpSelectMass(ILP ilp,uint32_t n, uint32_t N) {
     cmp = tile->s.m.f[m];
 
     for (;;) {
+#if 0
 	for (;;) { /* Partition loop */
 	    while (tile_i<=last_i && tile->s.m.f[tile_i] < cmp )
 		tile_i++;
@@ -292,14 +308,19 @@ float ilpSelectMass(ILP ilp,uint32_t n, uint32_t N) {
 
 	    /* Swap the large and small values */
 	    if ( tile_i<last_i ) {
-		Swap(tile,last_i,tile,tile_i);
+		SwapIlpEntry(tile,last_i,tile,tile_i);
 		tile_i++;
 		if ( tile_i == last_i ) break;
 		last_i--;
 		}
 	    else break;
 	    }
+#else
+	PARTITION(tile_i<last_i,tile_i<=last_i,tile_i++,--last_i,
+		  SwapIlpEntry(tile,tile_i,tile,last_i),
+		  tile->s.m.f[tile_i] < cmp,tile->s.m.f[last_i] > cmp);
 
+#endif
 	if ( tile_i >= n ) upper_i = tile_i-1;   /* Too many in the first partition */
 	else if ( tile_i < n ) lower_i = tile_i; /* Too few in this partition */
 	else break;                              /* Exactly the right number */
@@ -320,7 +341,8 @@ float ilpSelectMass(ILP ilp,uint32_t n, uint32_t N) {
 	if ( tile->s.m.f[j] > v )
 	    v = tile->s.m.f[(i=j)];
 
-    v = Swap(tile,i,tile,n-1);
+    SwapIlpEntry(tile,i,tile,n-1);
+    v = tile->s.fourh2.f[n-1];
 
 /* Turn this off for normal operation */
 #if 0

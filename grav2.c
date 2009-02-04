@@ -261,6 +261,11 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 	    nN = ilpCount(ilp);
 	    if (nN > 1) {
 		nSP = (nN < pkd->param.nPartRhoLoc)?nN:pkd->param.nPartRhoLoc;
+
+		/*
+		** Select the "nSP" closest particles and move them to the front of the ILP.
+		** NOTE: Only the "s" field (sorted) of the ILP is updated.
+		*/
 		dsmooth2 = ilpSelect(ilp,nSP,&rMax);
 #ifdef USE_SIMD
 		psmooth2 = SIMD_SPLAT(dsmooth2);

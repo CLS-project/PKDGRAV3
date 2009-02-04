@@ -229,15 +229,20 @@ static inline int IN_BND(const FLOAT *R,const BND *b) {
 **	        pi->r[d] >= fSplit,pj->r[d] < fSplit);
 ** When finished, the 'I' variable points to the first element of
 ** the upper partition (or one past the end).
+** NOTE: Because this function supports tiled data structures,
+**       the LT, followed by "if (LE)" needs to remain this way.
 */
 #define PARTITION(LT,LE,INCI,DECJ,SWAP,LOWER,UPPER)	\
     {							\
-    while ((LE) && (LOWER)) { INCI; }			\
-    while ((LT) && (UPPER)) { DECJ; }			\
-    while (LT) {					\
-	{ SWAP; }					\
-	do { DECJ; } while (UPPER);			\
-	do { INCI; } while (LOWER);			\
+    while ((LT) && (LOWER)) { INCI; }			\
+    if ((LE) && (LOWER)) { INCI; }			\
+    else {						\
+	while ((LT) && (UPPER)) { DECJ; }		\
+	while (LT) {					\
+		    { SWAP; }				\
+		    do { DECJ; } while (UPPER);	\
+		    do { INCI; } while (LOWER);		\
+	    }						\
 	}						\
     }
 
