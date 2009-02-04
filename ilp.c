@@ -199,8 +199,8 @@ float ilpSelect(ILP ilp,uint32_t n, float *rMax) {
 		  tile->s.d2.f[tile_i]<cmp,
 		  last->s.d2.f[last_i]>cmp);
 	if ( tile==NULL ) {
-	    tile = ilp->tile;
-	    tile_i = last->nPart;
+	    tile = upper;
+	    tile_i = upper_i+1;
 	    }
 
 	/* Too many in the first partition */
