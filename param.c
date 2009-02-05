@@ -107,6 +107,7 @@ int prmParseParam(PRM prm,char *pszFile) {
     char achBuf[PRM_LINE_SIZE];
     char *p,*q,*pszCmd,t;
     int iLine,ret;
+    int bWarnQuote=0;
 
     fpParam = fopen(pszFile,"r");
     if (!fpParam) {
@@ -184,8 +185,17 @@ int prmParseParam(PRM prm,char *pszFile) {
 	    p = pn->pValue;
 	    q = &p[strlen(p)];
 	    while (--q >= p) if (!isspace((int) *q)) break;
-	    ++q;
-	    *q = 0;
+	    if ( *q=='"' && *p=='"' && p != q) {
+		*q = 0;
+		strcpy(p,p+1);
+		}
+	    else {
+		*++q = 0;
+		if ( !bWarnQuote ) {
+		    fprintf(stderr,"WARNING: strings in parameter file should now be enclosed in quotes\n");
+		    bWarnQuote=1;
+		    }
+		}
 	    break;
 	case 4:
 	    assert(pn->iSize == sizeof(uint64_t));
