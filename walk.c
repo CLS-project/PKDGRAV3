@@ -170,7 +170,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 		else if (id < 0) {
 		    pkdc = &pkd->kdTop[pkd->Check[i].iCell];
 		    assert(pkdc->iLower != 0);
-		    n = WALK_MINMULTIPOLE;  /* See check below */
+		    n = WALK_MINMULTIPOLE - 1;  /* See check below */
 		    }
 		else {
 		    pkdc = mdlAquire(pkd->mdl,CID_CELL,pkd->Check[i].iCell,id);
