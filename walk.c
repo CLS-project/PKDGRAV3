@@ -237,7 +237,10 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 			    }
 			h2 = sqrt(pkdc->fSoft2) + sqrt(c[iCell].fSoft2);
 			h2 *= h2;
-			if (d2 > h2) iOpen = -1;
+			if (d2 > h2) {
+			    if (n >= WALK_MINMULTIPOLE) iOpen = -1;
+			    else iOpen = 2;
+			    }
 			else iOpen = 0;   /* in all other cases we can't decide until we get down to a bucket */
 #endif
 #ifdef SOFTSQUARE
@@ -250,11 +253,17 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 			    d2 += (rCheck[j] - c[iCell].r[j])*(rCheck[j] - c[iCell].r[j]);
 			    }
 			h2 = 2*(pkdc->fSoft2 + c[iCell].fSoft2);
-			if (d2 > h2) iOpen = -1;
+			if (d2 > h2) {
+			    if (n >= WALK_MINMULTIPOLE) iOpen = -1;
+			    else iOpen = 2;
+			    }
 			else iOpen = 0;   /* in all other cases we can't decide until we get down to a bucket */
 #endif
 #if !defined(SOFTLINEAR) && !defined(SOFTSQUARE)
-			if (min2 > 4*pkdc->fSoft2) iOpen = -1;
+			if (min2 > 4*pkdc->fSoft2) {
+			    if (n >= WALK_MINMULTIPOLE) iOpen = -1;
+			    else iOpen = 2;
+			    }
 			else if (max2 < 4*pkdc->fSoft2) iOpen = -2;  /* means we accept this cell as a softened monopole */
 			else iOpen = 0;  /* keep checking this cell */
 #endif
@@ -277,47 +286,46 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 		    ** By default we open the cell!
 		    */
 		    if (min2 > pkdc->fOpen2) {
-			if (n >= WALK_MINMULTIPOLE) {
 #ifdef SOFTLINEAR
-			    /*
-			    ** For symmetrized softening we need to calculate the distance between
-			    ** center of mass between the two cells.
-			    */
-			    d2 = 0;
-			    for (j=0;j<3;++j) {
-				d2 += (rCheck[j] - c[iCell].r[j])*(rCheck[j] - c[iCell].r[j]);
-				}
-			    h2 = sqrt(pkdc->fSoft2) + sqrt(c[iCell].fSoft2);
-			    h2 *= h2;
-			    if (d2 > h2) iOpen = -1;
-			    else iOpen = -2; /* means we treat this cell as a softened monopole */
+			/*
+			** For symmetrized softening we need to calculate the distance between
+			** center of mass between the two cells.
+			*/
+			d2 = 0;
+			for (j=0;j<3;++j) {
+			    d2 += (rCheck[j] - c[iCell].r[j])*(rCheck[j] - c[iCell].r[j]);
+			    }
+			h2 = sqrt(pkdc->fSoft2) + sqrt(c[iCell].fSoft2);
+			h2 *= h2;
+			if (d2 > h2) {
+			    if (n >= WALK_MINMULTIPOLE) iOpen = -1;
+			    else iOpen = 2;
+			    }
+			else iOpen = -2; /* means we treat this cell as a softened monopole */
 #endif
 #ifdef SOFTSQUARE
-			    /*
-			    ** For symmetrized softening we need to calculate the distance between
-			    ** center of mass between the two cells.
-			    */
-			    d2 = 0;
-			    for (j=0;j<3;++j) {
-				d2 += (rCheck[j] - c[iCell].r[j])*(rCheck[j] - c[iCell].r[j]);
-				}
-			    h2 = 2*(pkdc->fSoft2 + c[iCell].fSoft2);
-			    if (d2 > h2) iOpen = -1;
-			    else iOpen = -2; /* means we treat this cell as a softened monopole */
+			/*
+			** For symmetrized softening we need to calculate the distance between
+			** center of mass between the two cells.
+			*/
+			d2 = 0;
+			for (j=0;j<3;++j) {
+			    d2 += (rCheck[j] - c[iCell].r[j])*(rCheck[j] - c[iCell].r[j]);
+			    }
+			h2 = 2*(pkdc->fSoft2 + c[iCell].fSoft2);
+			if (d2 > h2) {
+			    if (n >= WALK_MINMULTIPOLE) iOpen = -1;
+			    else iOpen = 2;
+			    }
+			else iOpen = -2; /* means we treat this cell as a softened monopole */
 #endif
 #if !defined(SOFTLINEAR) && !defined(SOFTSQUARE)
-			    if (min2 > 4*pkdc->fSoft2) iOpen = -1;
-			    else iOpen = -2; /* means we treat this cell as a softened monopole */
+			if (min2 > 4*pkdc->fSoft2) {
+			    if (n >= WALK_MINMULTIPOLE) iOpen = -1;
+			    else iOpen = 2;
+			    }
+			else iOpen = -2; /* means we treat this cell as a softened monopole */
 #endif
-			    }
-			else {
-			    /*
-			    ** This bucket is accepted as a multipole interaction, but is being 
-			    ** opened for performance reasons. We do not want these less local
-			    ** PP-interactions from being used in the local density calculation.
-			    */
-			    iOpen = 2;
-			    }
 			}
 		    else {
 			iOpen = 1;
