@@ -1,5 +1,6 @@
 #ifndef MEVAL_HINCLUDED
 #define MEVAL_HINCLUDED
+#define MEVAL_H_MODULE_ID "$Id$"
 /*
  ** MEVAL() Macro, complete multipole supporting up to l=4
  **             Joachim Stadel (May 1995)

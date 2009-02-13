@@ -1,7 +1,6 @@
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
-const char *ssio_module_id = "$Id$";
 
 #ifdef PLANETS
 
@@ -14,6 +13,9 @@ const char *ssio_module_id = "$Id$";
 #include "ssio.h" /* also defines MAXPATHLEN */
 #include <string.h>
 #include <assert.h>
+
+const char *ssio_c_module_id = "$Id$";
+const char *ssio_h_module_id = SSIO_H_MODULE_ID;
 
 static const char *
 ssioBasename(const char *path) {

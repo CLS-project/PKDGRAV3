@@ -1,5 +1,6 @@
 #ifndef SMOOTHFCN_INCLUDED
 #define SMOOTHFCN_INCLUDED
+#define SMOOTHFCN_H_MODULE_ID "$Id$"
 
 #include "pkd.h"
 #ifndef HAVE_CONFIG_H

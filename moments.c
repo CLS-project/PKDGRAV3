@@ -1,13 +1,14 @@
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
-const char *moments_module_id = "$Id$";
 
 #include <stdio.h>
 #include <math.h>
 #include <assert.h>
 #include "moments.h"
 
+const char *moments_c_module_id = "$Id$";
+const char *moments_h_module_id = MOMENTS_H_MODULE_ID;
 
 /*
  ** This function adds the complete moment ma to the complete moment mc

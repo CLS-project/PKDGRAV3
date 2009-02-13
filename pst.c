@@ -1,7 +1,6 @@
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
-const char *pst_module_id = "$Id$";
 
 #include <math.h>
 #include <stdlib.h>
@@ -27,6 +26,9 @@ const char *pst_module_id = "$Id$";
 #ifdef USE_GRAFIC
 #include "grafic.h"
 #endif
+
+const char *pst_c_module_id = "$Id$";
+const char *pst_h_module_id = PST_H_MODULE_ID;
 
 /*
 ** Input:

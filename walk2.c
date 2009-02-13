@@ -1,7 +1,6 @@
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
-const char *walk2_module_id = "$Id$";
 
 #ifdef PROFILE_GRAVWALK
 #include "VtuneApi.h"
@@ -28,6 +27,9 @@ const char *walk2_module_id = "$Id$";
 #ifdef TIME_WALK_WORK
 #include <sys/time.h>
 #endif
+
+const char *walk2_module_id = "$Id$";
+const char *walk_h_module_id = WALK_H_MODULE_ID;
 
 
 #define WALK_MINMULTIPOLE	3

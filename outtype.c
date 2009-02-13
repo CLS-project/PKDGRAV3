@@ -1,7 +1,6 @@
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
-const char *outtype_module_id = "$Id$";
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -19,6 +18,9 @@ const char *outtype_module_id = "$Id$";
 #ifdef LARGEF
 #include <fcntl.h>
 #endif
+
+const char *outtype_c_module_id = "$Id$";
+const char *outtype_h_module_id = OUTTYPE_H_MODULE_ID;
 
 /* Write an integer */
 static void writeInteger(PKD pkd,FILE *fp,PARTICLE *p,int iType,int iDim) {

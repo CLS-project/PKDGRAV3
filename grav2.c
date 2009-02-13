@@ -1,7 +1,6 @@
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
-const char *grav2_module_id = "$Id$";
 
 #include <math.h>
 #include <stdlib.h>
@@ -19,6 +18,8 @@ const char *grav2_module_id = "$Id$";
 #include "ewald.h"
 #include "grav.h"
 
+const char *grav2_c_module_id = "$Id$";
+const char *grav_h_module_id = GRAV_H_MODULE_ID;
 
 #ifdef USE_SIMD
 static const struct CONSTS {

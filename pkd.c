@@ -1,7 +1,6 @@
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
-const char *pkd_module_id = "$Id$";
 
 #define _LARGEFILE_SOURCE
 #define _FILE_OFFSET_BITS 64
@@ -38,6 +37,9 @@ const char *pkd_module_id = "$Id$";
 #include "mpitrace_user_events.h"
 #endif
 
+const char *pkd_module_id = "$Id$";
+const char *pkd_h_module_id = PKD_H_MODULE_ID;
+const char *parameters_h_module_id = PARAMETERS_H_MODULE_ID;
 
 double pkdGetTimer(PKD pkd,int iTimer) {
     return(pkd->ti[iTimer].sec);

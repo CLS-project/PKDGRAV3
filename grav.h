@@ -1,5 +1,6 @@
 #ifndef GRAV_HINCLUDED
 #define GRAV_HINCLUDED
+#define GRAV_H_MODULE_ID "$Id$"
 
 #include "pkd.h"
 #include "moments.h"

@@ -1,7 +1,8 @@
-#ifdef PLANETS
-
 #ifndef SSIO_HINCLUDED
 #define SSIO_HINCLUDED
+#define SSIO_H_MODULE_ID "$Id$"
+
+#ifdef PLANETS
 
 /*
  ** ssio.h -- DCR 98-09-16

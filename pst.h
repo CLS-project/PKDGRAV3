@@ -1,5 +1,6 @@
 #ifndef PST_HINCLUDED
 #define PST_HINCLUDED
+#define PST_H_MODULE_ID "$Id$"
 
 #include "parameters.h"
 #include "pkd.h"

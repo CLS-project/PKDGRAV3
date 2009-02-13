@@ -9,13 +9,15 @@
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
-const char *rbtree_module_id = "$Id$";
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
 #include "rbtree.h"
+
+const char *rbtree_c_module_id = "$Id$";
+const char *rbtree_h_module_id = RBTREE_H_MODULE_ID;
 
 #define is_red(node) (node != NULL && node->red != 0)
 

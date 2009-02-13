@@ -1,7 +1,6 @@
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
-const char *grav_module_id = "$Id$";
 
 #include <math.h>
 #include <stdlib.h>
@@ -16,6 +15,9 @@ const char *grav_module_id = "$Id$";
 #include "moments.h"
 #include "grav.h"
 #include "ewald.h"
+
+const char *grav_c_module_id = "$Id$";
+const char *grav_h_module_id = GRAV_H_MODULE_ID;
 
 #define SQRT1(d2,dir)\
     {\

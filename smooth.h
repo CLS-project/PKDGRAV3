@@ -1,5 +1,6 @@
 #ifndef SMOOTH_HINCLUDED
 #define SMOOTH_HINCLUDED
+#define SMOOTH_H_MODULE_ID "$Id$"
 
 #include "pkd.h"
 #include "smoothfcn.h"

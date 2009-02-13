@@ -1,7 +1,6 @@
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
-const char *cosmo_module_id = "$Id$";
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -13,6 +12,9 @@ const char *cosmo_module_id = "$Id$";
 #endif
 
 #include "cosmo.h"
+
+const char *cosmo_c_module_id = "$Id$";
+const char *cosmo_h_module_id = COSMO_H_MODULE_ID;
 
 /*
  * Cosmological module for PKDGRAV.

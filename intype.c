@@ -1,11 +1,13 @@
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
-const char *intype_module_id = "$Id$";
 
 #include <stdlib.h>
 #include <inttypes.h>
 #include "intype.h"
+
+const char *intype_c_module_id = "$Id$";
+const char *intype_h_module_id = INTYPE_H_MODULE_ID;
 
 static void *openMark(PKD pkd,FILE *fp) {
     uint64_t N, nDark, nGas, nStar;

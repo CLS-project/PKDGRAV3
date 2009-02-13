@@ -3,6 +3,12 @@
 #include <signal.h>
 #include <execinfo.h>
 
+#include "bt.h"
+
+const char *bt_c_module_id = "$Id$";
+const char *bt_h_module_id = BT_H_MODULE_ID;
+
+
 static void signal_handler(int signo) {
     void *stack[20];
     char **functions;

@@ -1,5 +1,6 @@
 #ifndef MOMENTS_INCLUDED
 #define MOMENTS_INCLUDED
+#define MOMENTS_H_MODULE_ID "$Id$"
 
 #ifdef USE_SIMD
 #include "simd.h"

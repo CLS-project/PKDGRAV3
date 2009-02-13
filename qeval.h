@@ -1,5 +1,6 @@
 #ifndef QEVAL_HINCLUDED
 #define QEVAL_HINCLUDED
+#define QEVAL_H_MODULE_ID "$Id$"
 /*
  ** QEVAL() Macro, reduced multipole supporting up to l=4
  **             Joachim Stadel (May 1995)

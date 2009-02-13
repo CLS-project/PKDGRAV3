@@ -1,5 +1,6 @@
 #ifndef COSMO_HINCLUDED
 #define COSMO_HINCLUDED
+#define COSMO_H_MODULE_ID "$Id$"
 
 typedef struct csmContext {
     int bComove;

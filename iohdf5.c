@@ -17,13 +17,15 @@
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
-const char *iohdf5_module_id = "$Id$";
 
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "iohdf5.h"
+
+const char *iohdf5_c_module_id = "$Id$";
+const char *iohdf5_h_module_id = IOHDF5_H_MODULE_ID;
 
 #define GROUP_PARAMETERS "parameters"
 #define GROUP_DARK       "dark"

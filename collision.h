@@ -1,6 +1,7 @@
 #ifdef PLANETS
 #ifndef COLLISION_HINCLUDED
 #define COLLISION_HINCLUDED
+#define COLLISION_H_MODULE_ID "$Id$"
 
 #include "pkd.h" /*for PARTICLE struct */
 #include "ssio.h"  /*for SSDATA struct */

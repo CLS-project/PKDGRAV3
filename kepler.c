@@ -1,7 +1,6 @@
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
-const char *kepler_module_id = "$Id$";
 
 #ifdef SYMBA /* also needs PLANET */
 /* The routines in kepler.c solve kepler's equation for various ecc. and dm */
@@ -11,6 +10,9 @@ const char *kepler_module_id = "$Id$";
 #include <math.h>
 #include <assert.h>
 #include "kepler.h"
+
+const char *kepler_c_module_id = "$Id$";
+const char *kepler_h_module_id = KEPLER_H_MODULE_ID;
 
 int drift_dan(double mu, double *r, double *v, double dt) {
     /*This subroutine does the Danby and decides which vbles to use

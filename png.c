@@ -1,7 +1,6 @@
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
-const char *png_module_id = "$Id$";
 
 #include <stdint.h>
 #include <assert.h>
@@ -9,6 +8,9 @@ const char *png_module_id = "$Id$";
 #include <math.h>
 
 #include "png.h"
+
+const char *png_c_module_id = "$Id$";
+const char *png_h_module_id = PNG_H_MODULE_ID;
 
 /* Famous white, red, blue, black colour map */
 static int wrbb( float v ) {

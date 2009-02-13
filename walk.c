@@ -1,7 +1,6 @@
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
-const char *walk_module_id = "$Id$";
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -16,6 +15,9 @@ const char *walk_module_id = "$Id$";
 #ifndef HAVE_CONFIG_H
 #include "floattype.h"
 #endif
+
+const char *walk_c_module_id = "$Id$";
+const char *walk_h_module_id = WALK_H_MODULE_ID;
 
 #define WALK_MINMULTIPOLE	4
 

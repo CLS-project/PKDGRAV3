@@ -1,5 +1,6 @@
 #ifndef ILC_H
 #define ILC_H
+#define ILC_H_MODULE_ID "$Id$"
 #ifdef LOCAL_EXPANSION
 #ifndef ILC_PART_PER_TILE
 #define ILC_PART_PER_TILE 1024 /* 1024*100 ~ 100k */

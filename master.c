@@ -1,7 +1,6 @@
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
-const char *master_module_id = "$Id$";
 
 #define _LARGEFILE_SOURCE
 #define _FILE_OFFSET_BITS 64
@@ -50,6 +49,9 @@ const char *master_module_id = "$Id$";
 #ifdef USE_BSC
 #include "mpitrace_user_events.h"
 #endif
+
+const char *master_module_id = "$Id$";
+const char *master_h_module_id = MASTER_H_MODULE_ID;
 
 #define LOCKFILE ".lockfile"	/* for safety lock */
 #define STOPFILE "STOP"			/* for user interrupt */

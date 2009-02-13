@@ -1,5 +1,7 @@
 #ifndef SIMD_H
 #define SIMD_H
+#define SIMD_H_MODULE_ID "$Id$"
+
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif

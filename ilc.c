@@ -1,13 +1,15 @@
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
-const char *ilc_module_id = "$Id$";
 
 #include <stdint.h>
 #include <stdlib.h>
 #include <assert.h>
 
 #include "ilc.h"
+
+const char *ilc_c_module_id = "$Id$";
+const char *ilc_h_module_id = ILC_H_MODULE_ID;
 
 /*
 ** Private: Create a new tile

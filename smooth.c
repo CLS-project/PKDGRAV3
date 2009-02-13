@@ -1,7 +1,6 @@
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
-const char *smooth_module_id = "$Id$";
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -17,6 +16,9 @@ const char *smooth_module_id = "$Id$";
 #include "smoothfcn.h"
 #include "rbtree.h"
 #include <sys/stat.h>
+
+const char *smooth_c_module_id = "$Id$";
+const char *smooth_h_module_id = SMOOTH_H_MODULE_ID;
 
 int smInitialize(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodic,int bSymmetric,int iSmoothType) {
     SMX smx;

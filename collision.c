@@ -1,7 +1,8 @@
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
-const char *collision_module_id = "$Id$";
+const char *collision_c_module_id = "$Id$";
+const char *collision_h_module_id = COLLISION_H_MODULE_ID;
 
 #ifdef PLANETS
 
