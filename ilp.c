@@ -165,7 +165,7 @@ float ilpSelect(ILP ilp,uint32_t n, float *rMax) {
 
     /* If we have less than n particles, then there isn't any sense in partitioning. */
     if ( ilpCount(ilp) <= n ) {
-	v = 0.0;
+	v = ilp->first->s.d2.f[0];
 	i = 0;
 	for (j=0;j<ilp->first->nPart;j++)
 	    if ( ilp->first->s.d2.f[j] > v )
@@ -231,7 +231,7 @@ float ilpSelect(ILP ilp,uint32_t n, float *rMax) {
 	}
 
     /* Find the largest of the lower partition, and move it to the end. */
-    v = 0.0;
+    v = ilp->first->s.d2.f[0];
     i = 0;
     for (j=0;j<n;j++)
 	if ( ilp->first->s.d2.f[j] > v )
@@ -255,7 +255,8 @@ float ilpSelect(ILP ilp,uint32_t n, float *rMax) {
 		}
 	    }
 	}
-    assert( mn<=mx);
+    assert(mn<=mx);
+    assert(mn<=cmp && mx>=cmp);
 #endif
 
     /* Estimate a sensible rMax based on this rMax */
