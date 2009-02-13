@@ -224,7 +224,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 		    ** By default we just keep this checkcell on the
 		    ** checklist.
 		    */
-		    if (max2 <= pkdc->fOpen2 || n < WALK_MINMULTIPOLE) iOpen = 1;
+		    if (max2 <= pkdc->fOpen2 || n < WALK_MINMULTIPOLE) iOpen = 2;
 		    else if (min2 > pkdc->fOpen2) {
 #ifdef SOFTLINEAR
 			/*
@@ -388,6 +388,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 				p = pkdParticle(pkd,pj);
 				v = pkdVel(pkd,p);
 				pkd->ilp[nPart].iOrder = p->iOrder;
+				pkd->ilp[nPart].bNonLocalPP = (iOpen == 2)?1:0;
 				pkd->ilp[nPart].m = pkdMass(pkd,p);
 				pkd->ilp[nPart].x = p->r[0] + dDriftFac*v[0] + pkd->Check[i].rOffset[0];
 				pkd->ilp[nPart].y = p->r[1] + dDriftFac*v[1] + pkd->Check[i].rOffset[1];
@@ -421,6 +422,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 				pRemote = mdlAquire(pkd->mdl,CID_PARTICLE,pj,id);
 				v = pkdVel(pkd,pRemote);
 				pkd->ilp[nPart].iOrder = pRemote->iOrder;
+				pkd->ilp[nPart].bNonLocalPP = (iOpen == 2)?1:0;
 				pkd->ilp[nPart].m = pkdMass(pkd,pRemote);
 				pkd->ilp[nPart].x = pRemote->r[0] + dDriftFac*v[0] + pkd->Check[i].rOffset[0];
 				pkd->ilp[nPart].y = pRemote->r[1] + dDriftFac*v[1] + pkd->Check[i].rOffset[1];
@@ -476,6 +478,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 			assert(pkd->ilp != NULL);
 			}
 		    pkd->ilp[nPart].iOrder = -1; /* set iOrder to negative value for time step criterion */
+		    pkd->ilp[nPart].bNonLocalPP = 0;
 		    pkd->ilp[nPart].m = pkdc->mom.m;
 		    pkd->ilp[nPart].x = rCheck[0];
 		    pkd->ilp[nPart].y = rCheck[1];

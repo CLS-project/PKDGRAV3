@@ -238,7 +238,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 		fMassTmp = pkdMass(pkd,pj);
 		fSoftTmp = pkdSoft(pkd,pj);
 		vTmp = pkdVel(pkd,pj);
-		ilpAppend(ilp,pj->r[0],pj->r[1],pj->r[2],fMassTmp,4*fSoftTmp*fSoftTmp,pj->iOrder,vTmp[0],vTmp[1],vTmp[2]);
+		ilpAppend(ilp,pj->r[0],pj->r[1],pj->r[2],fMassTmp,4*fSoftTmp*fSoftTmp,pj->iOrder,vTmp[0],vTmp[1],vTmp[2],0);
 		}
 	    }
 

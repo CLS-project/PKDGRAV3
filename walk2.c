@@ -352,7 +352,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 		    /*
 		    ** Accept local expansion, but check softening.
 		    */
-		    if (n<=1/* || c[iCell].pUpper - c[iCell].pLower < 1*/) iOpen=1;
+		    if (n<=1/* || c[iCell].pUpper - c[iCell].pLower < 1*/) iOpen = 2;
 		    else if (d2 > fourh2) iOpen = -1;
 		    else {
 			/*
@@ -425,7 +425,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 				** This bucket did not have enough particles to make it worth accepting as a
 				** multipole, since it is faster to simply add P-P interactions at this stage.
 				*/
-				iOpen = 1;
+				iOpen = 2;
 				}
 			    }
 			}
@@ -471,7 +471,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 				}
 			    }
 			else {
-			    iOpen = 1;
+			    iOpen = 2;
 			    }
 			}
 		    }
@@ -559,7 +559,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 					      p->r[1] + pkd->Check[i].rOffset[1],
 					      p->r[2] + pkd->Check[i].rOffset[2],
 					      fMass, 4*fSoft*fSoft,
-					      p->iOrder, v[0], v[1], v[2]);
+					      p->iOrder, v[0], v[1], v[2], (iOpen == 2)?1:0);
 				    }
 				}
 			    }
@@ -588,7 +588,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 					      pRemote->r[1] + pkd->Check[i].rOffset[1],
 					      pRemote->r[2] + pkd->Check[i].rOffset[2],
 					      fMass, 4*fSoft*fSoft,
-					      pRemote->iOrder, v[0], v[1], v[2]);
+					      pRemote->iOrder, v[0], v[1], v[2], (iOpen == 2)?1:0);
 				    }
 				mdlRelease(pkd->mdl,CID_PARTICLE,pRemote);
 				}
@@ -660,7 +660,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 			      rCheck[0], rCheck[1], rCheck[2],
 			      pkdc->mom.m, 4*pkdc->fSoft2,
 			      -1, /* set iOrder to negative value for time step criterion */
-			      pkdc->v[0], pkdc->v[1], pkdc->v[2] );
+			      pkdc->v[0], pkdc->v[1], pkdc->v[2], 0);
 		    }
 		else {
 		    mdlassert(pkd->mdl,iOpen >= -3 && iOpen <= 1);
