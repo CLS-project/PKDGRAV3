@@ -23,6 +23,7 @@ void prmInitialize(PRM *pprm,void (*fcnLeader)(void),void (*fcnTrailer)(void)) {
     assert(prm != NULL);
     *pprm = prm;
     prm->pnHead = NULL;
+    prm->pszFilename = NULL;
     prm->fcnLeader = fcnLeader;
     prm->fcnTrailer = fcnTrailer;
     }
@@ -100,8 +101,12 @@ void prmArgUsage(PRM prm) {
     if (prm->fcnTrailer) (*prm->fcnTrailer)();
     }
 
-
-int prmParseParam(PRM prm,char *pszFile) {
+/*
+** If there was a parameter file specified, then parse it the "old"
+** way without using python.  We keep this around in case python is
+** not available or uses too much memory.
+*/
+int prmParseParam(PRM prm) {
     FILE *fpParam;
     PRM_NODE *pn;
     char achBuf[PRM_LINE_SIZE];
@@ -109,9 +114,10 @@ int prmParseParam(PRM prm,char *pszFile) {
     int iLine,ret;
     int bWarnQuote=0;
 
-    fpParam = fopen(pszFile,"r");
+    if (prm->pszFilename==NULL) return(1);
+    fpParam = fopen(prm->pszFilename,"r");
     if (!fpParam) {
-	printf("Could not open file:%s\n",pszFile);
+	printf("Could not open file:%s\n",prm->pszFilename);
 	return(0);
 	}
     p = fgets(achBuf,PRM_LINE_SIZE,fpParam);
@@ -155,6 +161,9 @@ int prmParseParam(PRM prm,char *pszFile) {
 	    ++p;
 	    if (*p == 0) goto syntax_error;
 	    }
+	pn->bFile = 1;
+	/* The command line is authoritative */
+	if (pn->bArg) goto new_line;
 	switch (pn->iType) {
 	case 0:
 	    assert(pn->iSize == sizeof(int));
@@ -205,7 +214,6 @@ int prmParseParam(PRM prm,char *pszFile) {
 	default:
 	    goto cmd_error;
 	    }
-	pn->bFile = 1;
     new_line:
 	p = fgets(achBuf,PRM_LINE_SIZE,fpParam);
 	++iLine;
@@ -218,7 +226,7 @@ syntax_error:
 	if (*q == '\n') *q = 0;
 	else ++q;
 	}
-    printf("Syntax error in %s(%d):\n%s",pszFile,iLine,achBuf);
+    printf("Syntax error in %s(%d):\n%s",prm->pszFilename,iLine,achBuf);
     fclose(fpParam);
     return(0);
 cmd_error:
@@ -227,49 +235,23 @@ cmd_error:
 	if (*q == '\n') *q = 0;
 	else ++q;
 	}
-    printf("Unrecognized command in %s(%d):%s\n",pszFile,iLine,achBuf);
+    printf("Unrecognized command in %s(%d):%s\n",prm->pszFilename,iLine,achBuf);
     fclose(fpParam);
     return(0);
     }
-
 
 int prmArgProc(PRM prm,int argc,char **argv) {
     int i,ret;
     PRM_NODE *pn;
 
     if (argc < 2) return(1);
+
     /*
-     ** Look for the sim_file name and process it first. If no
-     ** sim_file name then ignore and look at command line settings
-     ** and options. The cases are a bit tricky.
-     */
-    if (*argv[argc-1] != '-' && *argv[argc-1] != '+') {
-	if (*argv[argc-2] != '-') {
-	    if (!prmParseParam(prm,argv[argc-1])) return(0);
-	    --argc;
-	    }
-	else {
-	    pn = prm->pnHead;
-	    while (pn) {
-		if (pn->pszArg)
-		    if (!strcmp(&argv[argc-2][1],pn->pszArg)) break;
-		pn = pn->pnNext;
-		}
-	    if (pn) {
-		if (pn->iType == 0) {
-		    /*
-		     ** It's a boolean flag.
-		     */
-		    if (!prmParseParam(prm,argv[argc-1])) return(0);
-		    --argc;
-		    }
-		}
-	    else {
-		if (!prmParseParam(prm,argv[argc-1])) return(0);
-		--argc;
-		}
-	    }
-	}
+    ** Run through all command line arguments, setting the correct value
+    ** for each.  If the very last item is not an option or option value,
+    ** then it must be a parameter file, or python script if python is
+    ** supported.
+    */
     for (i=1;i<argc;++i) {
 	if (*argv[i] == '-' || *argv[i] == '+') {
 	    pn = prm->pnHead;
@@ -284,7 +266,10 @@ int prmArgProc(PRM prm,int argc,char **argv) {
 		return(0);
 		}
 	    }
-	else if (i == argc-1) return(1);
+	else if (i == argc-1) {
+	    prm->pszFilename = argv[i];
+	    return(1);
+	    }
 	else {
 	    printf("Unrecognized command line argument:%s\n",argv[i]);
 	    prmArgUsage(prm);

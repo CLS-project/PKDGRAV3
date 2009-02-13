@@ -597,12 +597,19 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->lcl.pszDataPath = getenv("PTOOLS_DATA_PATH");
     /*
     ** Process command line arguments.
-    ** (actual parameters read from the param file are set here)
     */
     ret = prmArgProc(msr->prm,argc,argv);
     if (!ret) {
 	_msrExit(msr,1);
 	}
+    /*
+    ** Now read parameter file if one was specified.
+    ** NOTE: command line argument take precedence.
+    */
+    if (!prmParseParam(msr->prm)) {
+	_msrExit(msr,1);
+	}
+
 
     if (nDigits < 1 || nDigits > 9) {
 	(void) fprintf(stderr,"Unreasonable number of filename digits.\n");
@@ -5245,7 +5252,7 @@ void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint) {
 	if (msr->param.nBins > 0) msrGroupProfiles(msr,nFOFsDone,SMX_FOF,0,csmTime2Exp(msr->param.csm,dTime));
 	msrReorder(msr);
 	sprintf(achFile,"%s.%i.fof",msrOutName(msr),nFOFsDone);
-	/*msrOutArray(msr,achFile,OUT_GROUP_ARRAY);*/
+	msrOutArray(msr,achFile,OUT_GROUP_ARRAY);
 	msrBuildName(msr,achFile,iStep);
 	strncat(achFile,".stats",256);
 	msrOutGroups(msr,achFile,OUT_GROUP_STATS,dTime);

@@ -15,6 +15,7 @@ typedef struct prmNode {
 
 typedef struct prmContext {
     PRM_NODE *pnHead;
+    const char *pszFilename;
     void (*fcnLeader)(void);
     void (*fcnTrailer)(void);
     } * PRM;
@@ -25,7 +26,7 @@ void prmInitialize(PRM *,void (*)(void),void (*)(void));
 void prmFinish(PRM);
 void prmAddParam(PRM,char *,int,void *,int,char *,char *);
 void prmArgUsage(PRM prm);
-int prmParseParam(PRM,char *);
+int prmParseParam(PRM);
 int prmArgProc(PRM,int,char **);
 int prmSpecified(PRM,char *);
 int prmArgSpecified(PRM,char *);
