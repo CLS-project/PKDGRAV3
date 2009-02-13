@@ -99,7 +99,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
     double dShiftFlop;
     double dRhoFac;
     double *v;
-    FLOAT dMin,min2,d2,fourh2;
+    FLOAT dMin,min2,d2,fOpenMax,fourh2;
     FLOAT fMass,fSoft;
     FLOAT rCheck[3];
     FLOAT rOffset[3];
@@ -318,7 +318,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 		else if (id < 0) {
 		    pkdc = &pkd->kdTop[pkd->Check[i].iCell];
 		    assert(pkdc->iLower != 0);
-		    n = WALK_MINMULTIPOLE;  /* See check below */
+		    n = WALK_MINMULTIPOLE - 1;  /* See check below, we always want to open this? */
 		    }
 		else {
 #ifdef TIME_WALK_WORK
@@ -348,12 +348,13 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 		    }
 		fourh2 = softmassweight(c[iCell].mom.m,4*c[iCell].fSoft2,pkdc->mom.m,4*pkdc->fSoft2);
 		iOpen = 0;
-		if (d2 > (c[iCell].fOpen + pkdc->fOpen)*(c[iCell].fOpen + pkdc->fOpen)) {
+		fOpenMax = c[iCell].fOpen;
+		if (pkdc->fOpen > fOpenMax) fOpenMax = pkdc->fOpen;
+		if (d2 > 4.0*fOpenMax*fOpenMax) {
 		    /*
 		    ** Accept local expansion, but check softening.
 		    */
-		    if (n<=1/* || c[iCell].pUpper - c[iCell].pLower < 1*/) iOpen = 2;
-		    else if (d2 > fourh2) iOpen = -1;
+		    if (d2 > fourh2) iOpen = -1;
 		    else {
 			/*
 			** We want to test if it can be used as a softened monopole.
@@ -387,14 +388,14 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 			    ** We can't open pkdc (it is a bucket).  At this point we would prefer to accept
 			    ** the bucket as a multipole expansion, but if that isn't possible use its particles.
 			    */
-			    if (n >= WALK_MINMULTIPOLE) {
-				min2 = 0;
-				for (j=0;j<3;++j) {
-				    dMin = fabs(rCheck[j] - c[iCell].bnd.fCenter[j]);
-				    dMin -= c[iCell].bnd.fMax[j];
-				    if (dMin > 0) min2 += dMin*dMin;
-				    }
-				if (min2 > pkdc->fOpen*pkdc->fOpen) {
+			    min2 = 0;
+			    for (j=0;j<3;++j) {
+				dMin = fabs(rCheck[j] - c[iCell].bnd.fCenter[j]);
+				dMin -= c[iCell].bnd.fMax[j];
+				if (dMin > 0) min2 += dMin*dMin;
+				}
+			    if (min2 > pkdc->fOpen*pkdc->fOpen) {
+				if (n >= WALK_MINMULTIPOLE) {
 				    if (min2 > fourh2) {
 					/*
 					** The multipole is also ok as far as softening goes, so accept it.
@@ -414,18 +415,18 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 				    }
 				else {
 				    /*
-				    ** This bucket cannot be accepted as a multipole.
-				    ** Opening will produce particles on the particle interaction list.
+				    ** This bucket did not have enough particles to make it worth accepting as a
+				    ** multipole, since it is faster to simply add P-P interactions at this stage.
 				    */
-				    iOpen = 1;
+				    iOpen = 2;
 				    }
 				}
 			    else {
 				/*
-				** This bucket did not have enough particles to make it worth accepting as a
-				** multipole, since it is faster to simply add P-P interactions at this stage.
+				** This bucket cannot be accepted as a multipole.
+				** Opening will produce particles on the particle interaction list.
 				*/
-				iOpen = 2;
+				iOpen = 1;
 				}
 			    }
 			}
@@ -438,14 +439,14 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 			** larger opening radius. We must try to use pkdc as a P-C interaction in
 			** this case, otherwise we have the danger of opening too many cells.
 			*/
-			if (n >= WALK_MINMULTIPOLE) {
-			    min2 = 0;
-			    for (j=0;j<3;++j) {
-				dMin = fabs(rCheck[j] - c[iCell].bnd.fCenter[j]);
-				dMin -= c[iCell].bnd.fMax[j];
-				if (dMin > 0) min2 += dMin*dMin;
-				}
-			    if (min2 > pkdc->fOpen*pkdc->fOpen) {
+			min2 = 0;
+			for (j=0;j<3;++j) {
+			    dMin = fabs(rCheck[j] - c[iCell].bnd.fCenter[j]);
+			    dMin -= c[iCell].bnd.fMax[j];
+			    if (dMin > 0) min2 += dMin*dMin;
+			    }
+			if (min2 > pkdc->fOpen*pkdc->fOpen) {
+			    if (n >= WALK_MINMULTIPOLE) {
 				if (min2 > fourh2) {
 				    /*
 				    ** The multipole is also ok as far as softening goes, so accept it.
@@ -465,17 +466,20 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 				}
 			    else {
 				/*
-				** We don't accept the particle-cell interaction, open the check cell!
+				** This bucket did not have enough particles to make it worth accepting as a
+				** multipole, since it is faster to simply add P-P interactions at this stage.
 				*/
-				iOpen = 1;
+				iOpen = 2;
 				}
 			    }
 			else {
-			    iOpen = 2;
+			    /*
+			    ** We don't accept the particle-cell interaction, open the check cell!
+			    */
+			    iOpen = 1;
 			    }
 			}
 		    }
-
 		if (iOpen == 0) {
 		    pkd->Check[ii++] = pkd->Check[i];
 		    }
@@ -560,6 +564,10 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 					      p->r[2] + pkd->Check[i].rOffset[2],
 					      fMass, 4*fSoft*fSoft,
 					      p->iOrder, v[0], v[1], v[2], (iOpen == 2)?1:0);
+				    /*
+				    ** If iOpen == 2, then we want to exclude this PP-interaction from 
+				    ** being considered in the local density.
+				    */
 				    }
 				}
 			    }
@@ -589,6 +597,10 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 					      pRemote->r[2] + pkd->Check[i].rOffset[2],
 					      fMass, 4*fSoft*fSoft,
 					      pRemote->iOrder, v[0], v[1], v[2], (iOpen == 2)?1:0);
+				    /*
+				    ** If iOpen == 2, then we want to exclude this PP-interaction from 
+				    ** being considered in the local density.
+				    */
 				    }
 				mdlRelease(pkd->mdl,CID_PARTICLE,pRemote);
 				}
@@ -661,9 +673,14 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 			      pkdc->mom.m, 4*pkdc->fSoft2,
 			      -1, /* set iOrder to negative value for time step criterion */
 			      pkdc->v[0], pkdc->v[1], pkdc->v[2], 0);
+		    /*
+		    ** We want to exclude this PP-interaction from being considered in the 
+		    ** local density since it is actually a softened monopole (a possibly 
+		    ** distant, accepted multipole interaction).
+		    */
 		    }
 		else {
-		    mdlassert(pkd->mdl,iOpen >= -3 && iOpen <= 1);
+		    mdlassert(pkd->mdl,iOpen >= -3 && iOpen <= 2);
 		    }
 		if (id >= 0 && id != pkd->idSelf) {
 		    mdlRelease(pkd->mdl,CID_CELL,pkdc);
