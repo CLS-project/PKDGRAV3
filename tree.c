@@ -382,7 +382,7 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp) {
     KDN *c = pkd->kdNodes;
     KDN *pkdn,*pkdl,*pkdu;
     MOMR mom;
-    FLOAT m,fMass,fSoft,x,y,z,vx,vy,vz,ax,ay,az,ft,d2,d2Max,dih2,b;
+    FLOAT m,fMass,fSoft,x,y,z,vx,vy,vz,ax,ay,az,ft,d2,d2Max,dih2,b,bmin;
     float *a;
     double *v;
     int pj,d,nDepth,ism;
@@ -414,6 +414,14 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp) {
 	** bounds and iMaxRung.
 	*/
 	pkdn = &c[iNode];
+	/*
+	** Before squeezing the bounds, calculate a minimum b value based on the splitting bounds alone.
+	** This gives us a better feel for the "size" of a bucket with only a single particle.
+	*/
+	MINSIDE(pkdn->bnd.fMax,bmin);
+	/*
+	** Now shrink wrap the bucket bounds.
+	*/
 	pj = pkdn->pLower;
 	p = pkdParticle(pkd,pj);
 	for (d=0;d<3;++d) {
@@ -538,6 +546,7 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp) {
 	** Now determine the opening radius for gravity.
 	*/
 	MAXSIDE(pkdn->bnd.fMax,b);
+	if (b < bmin) b = bmin;
 #ifdef CLASSICAL_FOPEN
 #ifdef LOCAL_EXPANSION
 	pkdn->fOpen = sqrt(FOPEN_FACTOR*d2Max*diCrit2);
@@ -574,6 +583,11 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp) {
 	    ** First find the CoM, just like for the bucket.
 	    */
 	    pkdn = &c[iNode];
+	    /*
+	    ** Before squeezing the bounds, calculate a minimum b value based on the splitting bounds alone.
+	    ** This gives us a better feel for the "size" of a bucket with only a single particle.
+	    */
+	    MINSIDE(pkdn->bnd.fMax,bmin);
 	    pkdl = &c[pkdn->iLower];
 	    pkdu = &c[pkdn->iLower + 1];
 	    pkdCombineCells(pkdn,pkdl,pkdu);
@@ -595,14 +609,16 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp) {
 		/*
 		** Now determine the opening radius for gravity.
 		*/
-		MAXSIDE(pkdn->bnd.fMax,b);
 #ifdef CLASSICAL_FOPEN
+		if (d2Max < 0.25*bmin*bmin) d2Max = 0.25*bmin*bmin;
 #ifdef LOCAL_EXPANSION
 		pkdn->fOpen = sqrt(FOPEN_FACTOR*d2Max*diCrit2);
 #else
 		pkdn->fOpen2 = FOPEN_FACTOR*d2Max*diCrit2;
 #endif
 #else
+		MAXSIDE(pkdn->bnd.fMax,b);
+		if (b < bmin) b = bmin;
 #ifdef LOCAL_EXPANSION
 		pkdn->fOpen = b*sqrt(diCrit2);
 		if (pkdn->fOpen < sqrt(d2Max)) pkdn->fOpen = sqrt(d2Max);
@@ -613,7 +629,7 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp) {
 #endif
 		}
 	    else {
-		CALCOPEN(pkdn,diCrit2);
+		CALCOPEN(pkdn,diCrit2,bmin);
 		}
 	    }
 	++iNode;

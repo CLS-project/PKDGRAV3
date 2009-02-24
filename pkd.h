@@ -313,6 +313,17 @@ typedef struct kdNew {
 	}\
     }
 
+#define MINSIDE(fMax,b) {\
+    if ((fMax)[0] < (fMax)[1]) {\
+	if ((fMax)[0] < (fMax)[2]) b = 2*(fMax)[0];\
+	else b = 2*(fMax)[2];\
+	}\
+    else {\
+	if ((fMax)[1] < (fMax)[2]) b = 2*(fMax)[1];\
+	else b = 2*(fMax)[2];\
+	}\
+    }
+
 #define CALCAXR(fMax,axr) {					\
     if ((fMax)[0] < (fMax)[1]) {				\
 	if ((fMax)[1] < (fMax)[2]) {				\
@@ -345,7 +356,7 @@ typedef struct kdNew {
 
 #ifdef CLASSICAL_FOPEN
 #ifdef LOCAL_EXPANSION
-#define CALCOPEN(pkdn,diCrit2) {		                \
+#define CALCOPEN(pkdn,diCrit2,minside) {		                \
     FLOAT CALCOPEN_d2 = 0;					\
     FLOAT CALCOPEN_b;						\
     int CALCOPEN_j;							\
@@ -354,10 +365,11 @@ typedef struct kdNew {
 	    (pkdn)->bnd.fMax[CALCOPEN_j];				\
 	CALCOPEN_d2 += CALCOPEN_d*CALCOPEN_d;				\
     }		\
+    if (CALCOPEN_d2 < 0.25*minside*minside) CALCOPEN_d2 = 0.25*minside*minside;   \
     (pkdn)->fOpen = sqrt(FOPEN_FACTOR*CALCOPEN_d2*(diCrit2));		\
 }
 #else
-#define CALCOPEN(pkdn,diCrit2) {		\
+#define CALCOPEN(pkdn,diCrit2,minside) {		\
     FLOAT CALCOPEN_d2 = 0;\
     FLOAT CALCOPEN_b;\
     int CALCOPEN_j;							\
@@ -366,12 +378,13 @@ typedef struct kdNew {
 	    (pkdn)->bnd.fMax[CALCOPEN_j];				\
 	CALCOPEN_d2 += CALCOPEN_d*CALCOPEN_d;				\
     }									\
+    if (CALCOPEN_d2 < 0.25*minside*minside) CALCOPEN_d2 = 0.25*minside*minside;   \
     (pkdn)->fOpen2 = FOPEN_FACTOR*CALCOPEN_d2*(diCrit2);\
 }
 #endif
 #else
 #ifdef LOCAL_EXPANSION
-#define CALCOPEN(pkdn,diCrit2) {		                \
+#define CALCOPEN(pkdn,diCrit2,minside) {		                \
     FLOAT CALCOPEN_d2 = 0;					\
     FLOAT CALCOPEN_b;						\
     int CALCOPEN_j;							\
@@ -381,11 +394,12 @@ typedef struct kdNew {
 	CALCOPEN_d2 += CALCOPEN_d*CALCOPEN_d;				\
     }		\
     MAXSIDE((pkdn)->bnd.fMax,CALCOPEN_b);     \
+    if (CALCOPEN_b < minside) CALCOPEN_b = minside;                          \
     (pkdn)->fOpen = CALCOPEN_b*sqrt(diCrit2);			\
     if ((pkdn)->fOpen < sqrt(CALCOPEN_d2)) (pkdn)->fOpen = sqrt(CALCOPEN_d2);\
 }
 #else
-#define CALCOPEN(pkdn,diCrit2) {		\
+#define CALCOPEN(pkdn,diCrit2,minside) {		\
     FLOAT CALCOPEN_d2 = 0;\
     FLOAT CALCOPEN_b;\
     int CALCOPEN_j;							\
@@ -396,6 +410,7 @@ typedef struct kdNew {
     }									\
     (pkdn)->fOpen2 = FOPEN_FACTOR*CALCOPEN_d2*(diCrit2);\
     MAXSIDE((pkdn)->bnd.fMax,CALCOPEN_b);				\
+    if (CALCOPEN_b < minside) CALCOPEN_b = minside;                          \
     (pkdn)->fOpen2 = CALCOPEN_b*CALCOPEN_b*(diCrit2);				\
     if ((pkdn)->fOpen2 < CALCOPEN_d2) (pkdn)->fOpen2 = CALCOPEN_d2;\
 }
