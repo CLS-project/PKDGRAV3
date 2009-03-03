@@ -371,13 +371,6 @@ void initGroupBins(void *vpkd, void *b) {
 
     gb1->nMembers = 0;
     gb1->fMassInBin = 0.0;
-    gb1->fMassEnclosed = 0.0;
-    gb1->v2[0] = 0.0;
-    gb1->v2[1] = 0.0;
-    gb1->v2[2] = 0.0;
-    gb1->L[0] = 0.0;
-    gb1->L[1] = 0.0;
-    gb1->L[2] = 0.0;
     }
 void combGroupBins(void *vpkd, void *b1, void *b2) {
     FOFBIN * gb1 = (FOFBIN *)b1;
@@ -386,12 +379,6 @@ void combGroupBins(void *vpkd, void *b1, void *b2) {
     /* add entries */
     gb1->nMembers += gb2->nMembers;
     gb1->fMassInBin += gb2->fMassInBin;
-    gb1->v2[0] += gb2->v2[0];
-    gb1->v2[1] += gb2->v2[1];
-    gb1->v2[2] += gb2->v2[2];
-    gb1->L[0]  += gb2->L[0];
-    gb1->L[1]  += gb2->L[1];
-    gb1->L[2]  += gb2->L[2];
     }
 
 void AddRelaxation(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {

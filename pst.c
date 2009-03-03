@@ -3307,7 +3307,7 @@ void pstFof(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	(&in->smf)->pkd = pst->plcl->pkd;
 	smInitialize(&smx,plcl->pkd,&in->smf,in->nSmooth,
 		     in->bPeriodic,in->bSymmetric,in->iSmoothType);
-	smFof(smx,in->nFOFsDone,&in->smf);
+	smFof(smx,&in->smf);
 	smFinish(smx,&in->smf);
 	}
     if (pnOut) *pnOut = 0;
@@ -3325,7 +3325,7 @@ void pstGroupMerge(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	mdlGetReply(pst->mdl,pst->idUpper,&nGroupsLeaf,pnOut);
 	*nGroups += nGroupsLeaf;
 	}
-    else {
+    else {      
 	(&in->smf)->pkd = pst->plcl->pkd;
 	*nGroups = smGroupMerge(&in->smf,in->bPeriodic);
 	}
@@ -3350,7 +3350,7 @@ void pstGroupProfiles(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	(&in->smf)->pkd = pst->plcl->pkd;
 	smInitialize(&smx,plcl->pkd,&in->smf,in->nSmooth,
 		     in->bPeriodic,in->bSymmetric,in->iSmoothType);
-	*nBins = smGroupProfiles(smx, &in->smf,in->bPeriodic,in->nTotalGroups,in->bLogBins,in->nFOFsDone);
+	*nBins = smGroupProfiles(smx,&in->smf,in->nTotalGroups);
 	smFinish(smx,&in->smf);
 	}
     if (pnOut) *pnOut = sizeof(int);

@@ -1,6 +1,7 @@
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
+const char *pkd_module_id = "$Id$";
 
 #define _LARGEFILE_SOURCE
 #define _FILE_OFFSET_BITS 64
@@ -37,9 +38,6 @@
 #include "mpitrace_user_events.h"
 #endif
 
-const char *pkd_module_id = "$Id$";
-const char *pkd_h_module_id = PKD_H_MODULE_ID;
-const char *parameters_h_module_id = PARAMETERS_H_MODULE_ID;
 
 double pkdGetTimer(PKD pkd,int iTimer) {
     return(pkd->ti[iTimer].sec);
@@ -249,11 +247,9 @@ void pkdInitialize(PKD *ppkd,MDL mdl,int nStore,int nBucket,float fExtraNodes, i
 
     if ( mMemoryModel & PKD_MODEL_GROUPS ) {
 	pkd->oGroup = pkdParticleAddInt32(pkd,1);
-	pkd->oBin   = pkdParticleAddInt32(pkd,1);
 	}
     else {
 	pkd->oGroup = 0;
-	pkd->oBin   = 0;
 	}
 
     /*

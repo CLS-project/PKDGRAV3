@@ -20,9 +20,8 @@ typedef struct smfParameters {
     int nMinMembers;
     int nMinProfile;
     int nBins;
-    int iCentreType;
-    FLOAT fContrast;
-    FLOAT Delta;
+    int iCenterType;
+    int bLogBins;
     FLOAT binFactor;
     PKD pkd; /* useful for diagnostics, etc. */
     } SMF;

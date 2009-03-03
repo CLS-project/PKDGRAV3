@@ -1,3 +1,4 @@
+
 #ifndef SMOOTH_HINCLUDED
 #define SMOOTH_HINCLUDED
 #define SMOOTH_H_MODULE_ID "$Id$"
@@ -117,8 +118,8 @@ void smFinish(SMX,SMF *);
 void smSmooth(SMX,SMF *);
 void smReSmooth(SMX,SMF *);
 
-void smFof(SMX smx, int nFOFsDone, SMF *smf);
-int smGroupMerge(SMF *smf,int bPeriodic);
-int smGroupProfiles(SMX smx, SMF *smf,int bPeriodic,int nTotalGroups,int bLogBins,int nFOFsDone);
+void smFof(SMX smx, SMF *smf);
+int smGroupMerge(SMF *smf, int bPeriodic);
+int smGroupProfiles(SMX smx, SMF *smf,int nTotalGroups);
 
 #endif

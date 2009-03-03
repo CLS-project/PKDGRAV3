@@ -116,17 +116,14 @@ struct parameters {
     /*
     ** Additional parameters for group finding.
     */
-    int	nFindGroups;
+    int	bFindGroups;
     int	nMinMembers;
     double dTau;
     double dVTau;
     int bTauAbs;
     int	nBins;
-    int	iCentreType;
+    int	iCenterType;
     int	nMinProfile;
-    double fBinsRescale;
-    double fContrast;
-    double Delta;
     double binFactor;
     int bLogBins;
     int	bTraceRelaxation;

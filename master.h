@@ -193,9 +193,9 @@ int msrMaxRung(MSR msr);
 void msrSwitchTheta(MSR msr,double);
 uint64_t msrMaxOrder(MSR msr);
 
-void msrFof(MSR msr,int nFOFsDone,int iSmoothType,int bSymmetric, double exp);
-void msrGroupMerge(MSR msr,double exp);
-void msrGroupProfiles(MSR msr,int nFOFsDone,int iSmoothType,int bSymmetric, double exp);
+void msrFof(MSR msr, double exp);
+void msrGroupMerge(MSR msr, double exp);
+void msrGroupProfiles(MSR msr, double exp);
 void msrOutGroups(MSR msr,const char *,int,double dTime);
 void msrDeleteGroups(MSR msr);
 void msrInitRelaxation(MSR msr);

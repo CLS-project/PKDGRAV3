@@ -178,32 +178,13 @@ void pkdOutGroup(PKD pkd,char *pszFileName,int iType, int nStart,double dvFac) {
 	    fprintf(fp,"%d ",pkd->groupData[i].iGlobalId);
 	    fprintf(fp,"%d ",pkd->groupData[i].nTotal);
 	    fprintf(fp,"%.8g ",pkd->groupData[i].fMass);
-	    fprintf(fp,"%.8g ",pkd->groupData[i].fGasMass);
-	    fprintf(fp,"%.8g ",pkd->groupData[i].fStarMass);
-	    fprintf(fp,"%.8g ",pkd->groupData[i].fAvgDens);
-	    fprintf(fp,"%.8g ",pkd->groupData[i].fRadius);
-	    fprintf(fp,"%.8g ",pkd->groupData[i].fDeltaR2);
-	    fprintf(fp,"%.8g ",dvFac*pkd->groupData[i].fVelDisp);
-	    fprintf(fp,"%.8g ",dvFac*pkd->groupData[i].fVelSigma2[0]);
-	    fprintf(fp,"%.8g ",dvFac*pkd->groupData[i].fVelSigma2[1]);
-	    fprintf(fp,"%.8g ",dvFac*pkd->groupData[i].fVelSigma2[2]);
+            fprintf(fp,"%.8g ",pkd->groupData[i].fRMSRadius);
 	    fprintf(fp,"%.8g ",pkd->groupData[i].r[0]);
 	    fprintf(fp,"%.8g ",pkd->groupData[i].r[1]);
 	    fprintf(fp,"%.8g ",pkd->groupData[i].r[2]);
-	    fprintf(fp,"%.8g ",pkd->groupData[i].rpotmin[0]);
-	    fprintf(fp,"%.8g ",pkd->groupData[i].rpotmin[1]);
-	    fprintf(fp,"%.8g ",pkd->groupData[i].rpotmin[2]);
-	    fprintf(fp,"%.8g ",pkd->groupData[i].rdenmax[0]);
-	    fprintf(fp,"%.8g ",pkd->groupData[i].rdenmax[1]);
-	    fprintf(fp,"%.8g ",pkd->groupData[i].rdenmax[2]);
 	    fprintf(fp,"%.8g ",dvFac*pkd->groupData[i].v[0]);
 	    fprintf(fp,"%.8g ",dvFac*pkd->groupData[i].v[1]);
 	    fprintf(fp,"%.8g ",dvFac*pkd->groupData[i].v[2]);
-	    fprintf(fp,"%.8g ",pkd->groupData[i].vcircMax);
-	    fprintf(fp,"%.8g ",pkd->groupData[i].rvcircMax);
-	    fprintf(fp,"%.8g ",pkd->groupData[i].rvir);
-	    fprintf(fp,"%.8g ",pkd->groupData[i].Mvir);
-	    fprintf(fp,"%.8g ",pkd->groupData[i].lambda);
 	    fprintf(fp,"\n");
 	    }
 	}
@@ -221,19 +202,11 @@ void pkdOutGroup(PKD pkd,char *pszFileName,int iType, int nStart,double dvFac) {
 	for (i=0;i<pkd->nGroups;++i) {
 	    if (pkd->groupData[i].bMyGroup) {
 		for (j=0;j<3;++j) {
-		    if (pkd->param.iCentreType == 1) {
-			sp.pos[j] = pkd->groupData[i].rpotmin[j];
-			}
-		    else if (pkd->param.iCentreType == 2) {
-			sp.pos[j] = pkd->groupData[i].rdenmax[j];
-			}
-		    else {
-			sp.pos[j] = pkd->groupData[i].r[j];
-			}
-		    sp.vel[j] = dvFac*pkd->groupData[i].v[j];
-		    }
+		  sp.pos[j] = pkd->groupData[i].r[j];
+		  sp.vel[j] = dvFac*pkd->groupData[i].v[j];
+		}
 		sp.mass = pkd->groupData[i].fMass;
-		sp.eps = pkd->groupData[i].fRadius;
+		sp.eps = pkd->groupData[i].fRMSRadius;
 		sp.tform = 0.0;
 		sp.metals = 0.0;
 		nout = fwrite(&sp,sizeof(struct star_particle),1,fp);
@@ -262,15 +235,7 @@ void pkdOutGroup(PKD pkd,char *pszFileName,int iType, int nStart,double dvFac) {
 		fTmp = pkd->groupData[i].fMass;
 		xdr_float(&xdrs,&fTmp);
 		for (j=0;j<3;++j) {
-		    if (pkd->param.iCentreType == 1) {
-			fTmp = pkd->groupData[i].rpotmin[j];
-			}
-		    else if (pkd->param.iCentreType == 2) {
-			fTmp = pkd->groupData[i].rdenmax[j];
-			}
-		    else {
-			fTmp = pkd->groupData[i].r[j];
-			}
+		    fTmp = pkd->groupData[i].r[j];
 		    xdr_float(&xdrs,&fTmp);
 		    }
 		for (j=0;j<3;++j) {
@@ -280,7 +245,7 @@ void pkdOutGroup(PKD pkd,char *pszFileName,int iType, int nStart,double dvFac) {
 		fTmp = 0.0;
 		xdr_float(&xdrs,&fTmp); /* metals */
 		xdr_float(&xdrs,&fTmp); /* t form */
-		fTmp = pkd->groupData[i].fRadius;
+		fTmp = pkd->groupData[i].fRMSRadius;
 		xdr_float(&xdrs,&fTmp); /* softening eps*/
 		fTmp = 0.0;
 		xdr_float(&xdrs,&fTmp); /* grav. potential phi*/
@@ -293,26 +258,9 @@ void pkdOutGroup(PKD pkd,char *pszFileName,int iType, int nStart,double dvFac) {
 	fp = fopen(pszFileName,"at");
 	assert(fp != NULL);
 	for (i=0;i< pkd->nBins;++i) {
-	    fprintf(fp,"%d ",pkd->groupBin[i].iId);
 	    fprintf(fp,"%.8g ",pkd->groupBin[i].fRadius);
 	    fprintf(fp,"%d ",pkd->groupBin[i].nMembers);
-	    fprintf(fp,"%.8g ",pkd->groupBin[i].fDensity);
-	    fprintf(fp,"%.8g ",pkd->groupBin[i].fMassEnclosed);
-	    fprintf(fp,"%.8g ",
-		    pow(pkd->groupBin[i].fMassEnclosed/pkd->groupBin[i].fRadius,0.5) );
-	    fprintf(fp,"%.8g ",dvFac*dvFac*pkd->groupBin[i].v2[0]);
-	    fprintf(fp,"%.8g ",dvFac*dvFac*pkd->groupBin[i].v2[1]);
-	    fprintf(fp,"%.8g ",dvFac*dvFac*pkd->groupBin[i].v2[2]);
-	    fprintf(fp,"%.8g ",dvFac*pkd->groupBin[i].L[0]);
-	    fprintf(fp,"%.8g ",dvFac*pkd->groupBin[i].L[1]);
-	    fprintf(fp,"%.8g ",dvFac*pkd->groupBin[i].L[2]);
-	    /*  	Shapes are not implemented yet: */
-	    /*				fprintf(fp,"%.8g ",pkd->groupBin[i].a); */
-	    /* 				fprintf(fp,"%.8g ",pkd->groupBin[i].b); */
-	    /* 				fprintf(fp,"%.8g ",pkd->groupBin[i].c); */
-	    /* 				fprintf(fp,"%.8g ",pkd->groupBin[i].phi); */
-	    /* 				fprintf(fp,"%.8g ",pkd->groupBin[i].theta); */
-	    /* 				fprintf(fp,"%.8g ",pkd->groupBin[i].psi); */
+	    fprintf(fp,"%.8g ",pkd->groupBin[i].fMassInBin);
 	    fprintf(fp,"\n");
 	    }
 	}

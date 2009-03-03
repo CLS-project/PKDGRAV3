@@ -840,23 +840,22 @@ struct inClearTimer {
 void pstClearTimer(PST,void *,int,void *,int *);
 
 struct inFof {
-    int nFOFsDone;
     int nSmooth;
     int bPeriodic;
     int bSymmetric;
     int iSmoothType;
+    int iCenterType;
     SMF smf;
     };
 struct inGroupMerge {
     int bPeriodic;
+    int iCenterType;
     SMF smf;
-    };
+  };
 struct inGroupProfiles {
     int nSmooth;
-    int nFOFsDone;
     int bPeriodic;
     int nTotalGroups;
-    int bLogBins;
     int bSymmetric;
     int iSmoothType;
     SMF smf;

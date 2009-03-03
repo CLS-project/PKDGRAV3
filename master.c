@@ -433,45 +433,36 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     prmAddParam(msr->prm,"iWallRunTime",1,&msr->param.iWallRunTime,
 		sizeof(int),"wall",
 		"<Maximum Wallclock time (in minutes) to run> = 0 = infinite");
-    msr->param.nFindGroups = 0;
-    prmAddParam(msr->prm,"nFindGroups",1,&msr->param.nFindGroups,sizeof(int),
-		"nFindGroups","<number of iterative FOFs> = 0");
+    msr->param.bFindGroups = 0;
+    prmAddParam(msr->prm,"bFindGroups",0,&msr->param.bFindGroups,sizeof(int),
+		"groupfinder","<enable/disable group finder> = -groupfinder");
     msr->param.nMinMembers = 16;
     prmAddParam(msr->prm,"nMinMembers",1,&msr->param.nMinMembers,sizeof(int),
 		"nMinMembers","<minimum number of group members> = 16");
     msr->param.dTau = 0.164;
     prmAddParam(msr->prm,"dTau",2,&msr->param.dTau,sizeof(double),"dTau",
-		"<linking lenght for first FOF in units of mean particle separation> = 0.164");
-    msr->param.dVTau = 1.0e10;
+		"<linking lenght for FOF in units of mean particle separation> = 0.164");
+    msr->param.dVTau = -1.0;
     prmAddParam(msr->prm,"dVTau",2,&msr->param.dVTau,sizeof(double),"dVTau",
-		"<velocity space linking lenght for phase-space FOF, set to HUGE for plain FOF> = 1.0e10");
+		"<velocity space linking lenght for phase-space FOF, set to -1 for plain FOF> = -1");
     msr->param.bTauAbs = 0;
     prmAddParam(msr->prm,"bTauAbs",0,&msr->param.bTauAbs,sizeof(int),"bTauAbs",
-		"<if 1 use simulation units for dTau, not mean particle separation> = 0");
+		"<if 1 use z=0 simulation units for dTau, not mean particle separation> = 0");
     msr->param.nBins = 0;
     prmAddParam(msr->prm,"nBins",1,&msr->param.nBins,sizeof(int),"nBins",
 		"<number of bin in profiles, no profiles if 0 or negative> = 0");
-    msr->param.iCentreType = 2;
-    prmAddParam(msr->prm,"iCentreType",1,&msr->param.iCentreType,sizeof(int),"iCentreType",
-		"<sets centre type for group finder: 0 com; 1 potmin; 2 denmax> = 2");
+    msr->param.iCenterType = 2;
+    prmAddParam(msr->prm,"iCenterType",1,&msr->param.iCenterType,sizeof(int),"iCenterType",
+		"<sets center type for group finder: 0 com; 1 potmin; 2 denmax> = 2");
     msr->param.nMinProfile = 2000;
     prmAddParam(msr->prm,"nMinProfile",1,&msr->param.nMinProfile,sizeof(int),"nMinProfile",
 		"<minimum number of particles in a group to make a profile> = 2000");
-    msr->param.fBinsRescale = 1.0;
-    prmAddParam(msr->prm,"fBinsRescale",2,&msr->param.fBinsRescale,sizeof(double),"fBinsRescale",
-		"<if bigger than one, nMinProfile gets smaller in recursive fofs> = 1.0");
-    msr->param.fContrast = 10.0;
-    prmAddParam(msr->prm,"fContrast",2,&msr->param.fContrast,sizeof(double),"fContrast",
-		"<the density contrast used for recursive fofs> = 10.0");
-    msr->param.Delta = 200.0;
-    prmAddParam(msr->prm,"Delta",2,&msr->param.Delta,sizeof(double),"Delta",
-		"<the density contrast whitin the virial radius over simulation unit density> = 200.0");
     msr->param.binFactor = 1.5;
     prmAddParam(msr->prm,"binFactor",2,&msr->param.binFactor,sizeof(double),"binFactor",
 		"<ratio of largest spherical bin to fof determined group radius> = 1.5");
     msr->param.bLogBins = 1;
     prmAddParam(msr->prm,"bLogBins",0,&msr->param.bLogBins,
-		sizeof(int),"bLogBins","use logaritmic bins instead of linear = -bLogBins");
+		sizeof(int),"bLogBins","use logaritmic bins instead of linear = +bLogBins");
     msr->param.bTraceRelaxation = 0;
     prmAddParam(msr->prm,"bTraceRelaxation",0,&msr->param.bTraceRelaxation,sizeof(int),
 		"rtrace","<enable/disable relaxation tracing> = -rtrace");
@@ -924,17 +915,14 @@ void msrLogParams(MSR msr,FILE *fp) {
     fprintf(fp," dGrowDeltaM: %g",msr->param.dGrowDeltaM);
     fprintf(fp," dGrowStartT: %g",msr->param.dGrowStartT);
     fprintf(fp," dGrowEndT: %g",msr->param.dGrowEndT);
-    fprintf(fp,"\n# Group Find: nFindGroups: %d",msr->param.nFindGroups);
+    fprintf(fp,"\n# Group Find: bFindGroups: %d",msr->param.bFindGroups);
     fprintf(fp," dTau: %g",msr->param.dTau);
     fprintf(fp," dVTau: %g",msr->param.dVTau);
     fprintf(fp," bTauAbs: %d",msr->param.bTauAbs);
     fprintf(fp," nMinMembers: %d",msr->param.nMinMembers);
     fprintf(fp," nBins: %d",msr->param.nBins);
-    fprintf(fp," iCentreType: %d",msr->param.iCentreType);
+    fprintf(fp," iCenterType: %d",msr->param.iCenterType);
     fprintf(fp," nMinProfile: %d",msr->param.nMinProfile);
-    fprintf(fp," fBinsRescale: %g",msr->param.fBinsRescale);
-    fprintf(fp," fContrast: %g",msr->param.fContrast);
-    fprintf(fp," Delta: %g",msr->param.Delta);
     fprintf(fp," binFactor: %g",msr->param.binFactor);
     fprintf(fp," bLogBins: %d",msr->param.bLogBins);
     fprintf(fp,"\n# Relaxation estimate: bTraceRelaxation: %d",msr->param.bTraceRelaxation);
@@ -3982,16 +3970,16 @@ int msrDoGravity(MSR msr) {
     return(msr->param.bDoGravity);
     }
 
-void msrFof(MSR msr,int nFOFsDone,int iSmoothType,int bSymmetric, double exp) {
+void msrFof(MSR msr, double exp) {
     struct inFof in;
-    in.nFOFsDone = nFOFsDone;
     in.nSmooth = msr->param.nSmooth;
     in.bPeriodic = msr->param.bPeriodic;
-    in.bSymmetric = bSymmetric;
-    in.iSmoothType = iSmoothType;
+    in.bSymmetric = 0;
+    in.iSmoothType = SMX_FOF;
     in.smf.a = exp;
     in.smf.dTau2 = pow(msr->param.dTau,2.0);
     in.smf.dVTau2 = pow(msr->param.dVTau,2.0);
+    in.smf.iCenterType = msr->param.iCenterType;
     if (msr->param.bTauAbs == 0) {
 	in.smf.dTau2 *= pow(msr->param.csm->dOmega0,-0.6666);
 	}
@@ -4001,8 +3989,6 @@ void msrFof(MSR msr,int nFOFsDone,int iSmoothType,int bSymmetric, double exp) {
 	}
     in.smf.bTauAbs = msr->param.bTauAbs;
     in.smf.nMinMembers = msr->param.nMinMembers;
-    in.smf.fContrast = msr->param.fContrast;
-    in.smf.Delta = msr->param.Delta;
     if (msr->param.bVStep) {
 	double sec,dsec;
 	printf("Doing FOF with dTau2=%e , dVTau2=%e ...\n", in.smf.dTau2, in.smf.dVTau2);
@@ -4044,7 +4030,7 @@ void msrGroupMerge(MSR msr, double exp) {
 
     in.bPeriodic = msr->param.bPeriodic;
     in.smf.nMinMembers = msr->param.nMinMembers;
-    in.smf.Delta = msr->param.Delta;
+    in.smf.iCenterType = msr->param.iCenterType;
     in.smf.a = exp;
     if (msr->param.bVStep) {
 	double sec,dsec;
@@ -4061,21 +4047,18 @@ void msrGroupMerge(MSR msr, double exp) {
     printf("MASTER: TOTAL groups: %i \n" ,nGroups);
     }
 
-void msrGroupProfiles(MSR msr,int nFOFsDone,int iSmoothType,int bSymmetric, double exp) {
+void msrGroupProfiles(MSR msr, double exp) {
     int nBins;
     struct inGroupProfiles in;
+    in.nSmooth = msr->param.nSmooth;
     in.bPeriodic = msr->param.bPeriodic;
     in.nTotalGroups = msr->nGroups;
-    in.nSmooth = msr->param.nSmooth;
-    in.bSymmetric = bSymmetric;
-    in.iSmoothType = iSmoothType;
-    in.nFOFsDone = nFOFsDone;
+    in.bSymmetric = 0;
+    in.iSmoothType = SMX_FOF;
     in.smf.nMinMembers = msr->param.nMinMembers;
     in.smf.nBins = msr->param.nBins;
-    in.smf.nMinProfile = msr->param.nMinProfile/pow(msr->param.fBinsRescale, nFOFsDone);
-    in.bLogBins = msr->param.bLogBins;
-    in.smf.iCentreType = msr->param.iCentreType;
-    in.smf.Delta = msr->param.Delta;
+    in.smf.nMinProfile = msr->param.nMinProfile;
+    in.smf.bLogBins = msr->param.bLogBins;
     in.smf.binFactor = msr->param.binFactor;
     in.smf.a = exp;
     if (msr->param.bVStep) {
@@ -5083,7 +5066,7 @@ double msrRead(MSR msr, const char *achInFile) {
     ** can be used to request a specific model, but certain operations
     ** will force these flags to be on.
     */
-    if (msr->param.nFindGroups > 0) mMemoryModel |= PKD_MODEL_GROUPS|PKD_MODEL_VELOCITY|PKD_MODEL_POTENTIAL;
+    if (msr->param.bFindGroups) mMemoryModel |= PKD_MODEL_GROUPS|PKD_MODEL_VELOCITY|PKD_MODEL_POTENTIAL;
     if (msrDoGravity(msr)) mMemoryModel |= PKD_MODEL_VELOCITY|PKD_MODEL_ACCELERATION|PKD_MODEL_POTENTIAL;
     if (msr->param.bHermite) mMemoryModel |= PKD_MODEL_HERMITE;
     if (msr->param.bTraceRelaxation) mMemoryModel |= PKD_MODEL_RELAXATION;
@@ -5234,24 +5217,23 @@ void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint) {
 #else
     if ( iStep ) msrWrite(msr,achFile,dTime,bCheckpoint );
 #endif
-    if (msrDoDensity(msr) || msr->param.nFindGroups) {
+    if (msrDoDensity(msr) || msr->param.bFindGroups) {
 	msrActiveRung(msr,0,1); /* Activate all particles */
 	msrDomainDecomp(msr,0,1,0);
 	msrBuildTree(msr,dTime,0);
 	bSymmetric = 0; /* FOR TESTING!!*/
 	msrSmooth(msr,dTime,SMX_DENSITY,bSymmetric);
 	}
-    nFOFsDone = 0;
-    while ( msr->param.nFindGroups > nFOFsDone) {
+    if ( msr->param.bFindGroups ) {
 	/*
 	** Build tree, activating all particles first (just in case).
 	*/
 	msrActiveRung(msr,0,1); /* Activate all particles */
 	msrDomainDecomp(msr,0,1,0);
 	msrBuildTree(msr,dTime,0);
-	msrFof(msr,nFOFsDone,SMX_FOF,0,csmTime2Exp(msr->param.csm,dTime));
+	msrFof(msr,csmTime2Exp(msr->param.csm,dTime));
 	msrGroupMerge(msr,csmTime2Exp(msr->param.csm,dTime));
-	if (msr->param.nBins > 0) msrGroupProfiles(msr,nFOFsDone,SMX_FOF,0,csmTime2Exp(msr->param.csm,dTime));
+	if (msr->param.nBins > 0) msrGroupProfiles(msr,csmTime2Exp(msr->param.csm,dTime));
 	msrReorder(msr);
 	sprintf(achFile,"%s.%i.fof",msrOutName(msr),nFOFsDone);
 	msrOutArray(msr,achFile,OUT_GROUP_ARRAY);
@@ -5291,7 +5273,7 @@ void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint) {
 	strncat(achFile,".relax",256);
 	msrOutArray(msr,achFile,OUT_RELAX_ARRAY);
 	}
-    if (msrDoDensity(msr) && !msr->param.nFindGroups) {
+    if ( msrDoDensity(msr) ) {
 	msrReorder(msr);
 	msrBuildName(msr,achFile,iStep);
 	strncat(achFile,".den",256);

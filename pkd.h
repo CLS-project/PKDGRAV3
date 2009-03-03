@@ -473,33 +473,15 @@ typedef struct remoteMember {
     int iPid;
     int iIndex;
     } FOFRM;
+
 typedef struct groupData {
     int iLocalId;
     int iGlobalId;
-    FLOAT fAvgDens;
-    FLOAT fVelDisp;
-    FLOAT fVelSigma2[3];
     FLOAT fMass;
-    FLOAT fGasMass;
-    FLOAT fStarMass;
-    FLOAT fRadius;
-    FLOAT fDeltaR2;
+    FLOAT fRMSRadius;
     FLOAT r[3];
-    FLOAT potmin;
-    FLOAT rpotmin[3];
-    FLOAT denmax;
-    FLOAT rdenmax[3];
-    FLOAT rmax[3];
-    FLOAT rmin[3];
+    FLOAT potordenmax;
     FLOAT v[3];
-    FLOAT vcircMax;
-    FLOAT rvcircMax;
-    FLOAT rvir;
-    FLOAT Mvir;
-    FLOAT lambda;
-    FLOAT rhoBG;
-    /*    FLOAT rTidal; */
-    /*    FLOAT mTidal; */
     int nLocal;
     int nTotal;
     int bMyGroup;
@@ -512,24 +494,10 @@ typedef struct groupData {
     } FOFGD;
 
 typedef struct groupBin {
-    int iId;
-    int nMembers;
-    FLOAT fRadius;
-    FLOAT fDensity;
-    FLOAT fMassInBin;
-    FLOAT fMassEnclosed;
-    FLOAT com[3];
-    FLOAT v2[3];
-    float fvBall2;
-    FLOAT L[3];
-    /*     Shapes are not implemented yet: */
-    /*     FLOAT a; */
-    /*     FLOAT b; */
-    /*     FLOAT c; */
-    /*     FLOAT phi; */
-    /*     FLOAT theta; */
-    /*     FLOAT psi; */
-    } FOFBIN;
+  FLOAT fRadius;
+  int nMembers;
+  FLOAT fMassInBin;
+} FOFBIN;
 
 typedef struct profileBin {
     double dRadius;
@@ -540,7 +508,7 @@ typedef struct profileBin {
     double vel_radial_sigma;
     double vel_tang_sigma;
     uint64_t nParticles;
-    } PROFILEBIN;
+  } PROFILEBIN;
 
 typedef struct shapesBin {
     double com[3];
@@ -594,7 +562,6 @@ typedef struct pkdContext {
     int oGroup; /* One int32 */
     int oMass; /* One float */
     int oSoft; /* One float */
-    int oBin; /* One int32 */
     int oHermite; /* Hermite structure */
     int oRelaxation;
     int oVelSmooth;
