@@ -173,7 +173,28 @@ static inline void ilpCompute(ILP ilp, float fx, float fy, float fz ) {
 	}
 #endif
     }
+
+static inline uint32_t ilpCountTN(ILP ilp, double size) {
+
+    ILPTILE tile;
+    uint32_t j, nTN;
+    double d2, size2;
+
+    nTN = 0;
+    size2 = size*size;
+
+    ILP_LOOP(ilp,tile) {
+	for (j=0;j<tile->nPart;++j) {
+	    d2 = tile->d.d2.f[j];
+	    if (d2 < size2) nTN++;
+	    }
+	}
+    
+    return nTN;
+    }
+
 #else /* LOCAL_EXPANSION */
+
 typedef struct ilPart {
     double m,x,y,z;
 #if defined(SOFTLINEAR)

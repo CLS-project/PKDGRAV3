@@ -86,7 +86,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
     double tx,ty,tz;
     ILPTILE tile;
     ILCTILE ctile;
-    int i,j,nN,nSP,nSoft,nActive;
+    int i,j,nN,nTN,nSP,nSoft,nActive;
     float rMax;
 #if defined(USE_SIMD_PP)
     v4sf t1, t2, t3;
@@ -260,8 +260,9 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 	    */
 	    rholoc = 0;
 	    nN = ilpCount(ilp);
-	    if (nN > 1) {
-		nSP = (nN < pkd->param.nPartRhoLoc)?nN:pkd->param.nPartRhoLoc;
+	    nTN = ilpCountTN(ilp,pkd->param.dFacExcludePart*pkdn->bnd.size);
+	    if (nTN > 1) {
+		nSP = (nTN < pkd->param.nPartRhoLoc)?nTN:pkd->param.nPartRhoLoc;
 
 		/*
 		** Select the "nSP" closest particles and move them to the front of the ILP.
