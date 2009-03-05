@@ -419,6 +419,7 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp) {
 	** This gives us a better feel for the "size" of a bucket with only a single particle.
 	*/
 	MINSIDE(pkdn->bnd.fMax,bmin);
+	pkdn->bnd.size = 2.0*(pkdn->bnd.fMax[0]+pkdn->bnd.fMax[1]+pkdn->bnd.fMax[2])/3.0;
 	/*
 	** Now shrink wrap the bucket bounds.
 	*/
@@ -588,6 +589,7 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp) {
 	    ** This gives us a better feel for the "size" of a bucket with only a single particle.
 	    */
 	    MINSIDE(pkdn->bnd.fMax,bmin);
+	    pkdn->bnd.size = 2.0*(pkdn->bnd.fMax[0]+pkdn->bnd.fMax[1]+pkdn->bnd.fMax[2])/3.0;
 	    pkdl = &c[pkdn->iLower];
 	    pkdu = &c[pkdn->iLower + 1];
 	    pkdCombineCells(pkdn,pkdl,pkdu);

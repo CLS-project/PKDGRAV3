@@ -287,7 +287,10 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
 		"nprholoc", "<Number of particles for local density in dynamical time-stepping>");
     msr->param.dPreFacRhoLoc = 4.0*M_PI/3.0;
     prmAddParam(msr->prm,"dPreFacRhoLoc",2,&msr->param.dPreFacRhoLoc,sizeof(double),
-		"nprholoc", "<Pre-factor for local density in dynamical time-stepping>");
+		"dprefacrholoc", "<Pre-factor for local density in dynamical time-stepping>");
+    msr->param.dFacExcludePart = 100;
+    prmAddParam(msr->prm,"dFacExcludePart",2,&msr->param.dFacExcludePart,sizeof(double),
+		"dfacexclp", "<Pre-factor for exluding far away particles on ILP list>");
     msr->param.nPartColl = 0;
     prmAddParam(msr->prm,"nPartColl",1,&msr->param.nPartColl,sizeof(int),
 		"npcoll", "<Number of particles in collisional regime>");
@@ -904,6 +907,7 @@ void msrLogParams(MSR msr,FILE *fp) {
     fprintf(fp,"\n# iTimeStepCrit: %d",msr->param.iTimeStepCrit);
     fprintf(fp," nPartRhoLoc: %d", msr->param.nPartRhoLoc);
     fprintf(fp," dPreFacRhoLoc: %g", msr->param.dPreFacRhoLoc);
+    fprintf(fp," dFacExcludePart: %g", msr->param.dFacExcludePart);
     fprintf(fp," nPartColl: %d", msr->param.nPartColl);
     fprintf(fp,"\n# bDoGravity: %d",msr->param.bDoGravity);
     fprintf(fp," bHermite: %d",msr->param.bHermite);

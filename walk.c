@@ -239,7 +239,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 			h2 *= h2;
 			if (d2 > h2) {
 			    if (n >= WALK_MINMULTIPOLE) iOpen = -1;
-			    else iOpen = 2;
+			    else iOpen = 1;
 			    }
 			else iOpen = 0;   /* in all other cases we can't decide until we get down to a bucket */
 #endif
@@ -255,14 +255,14 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 			h2 = 2*(pkdc->fSoft2 + c[iCell].fSoft2);
 			if (d2 > h2) {
 			    if (n >= WALK_MINMULTIPOLE) iOpen = -1;
-			    else iOpen = 2;
+			    else iOpen = 1;
 			    }
 			else iOpen = 0;   /* in all other cases we can't decide until we get down to a bucket */
 #endif
 #if !defined(SOFTLINEAR) && !defined(SOFTSQUARE)
 			if (min2 > 4*pkdc->fSoft2) {
 			    if (n >= WALK_MINMULTIPOLE) iOpen = -1;
-			    else iOpen = 2;
+			    else iOpen = 1;
 			    }
 			else if (max2 < 4*pkdc->fSoft2) iOpen = -2;  /* means we accept this cell as a softened monopole */
 			else iOpen = 0;  /* keep checking this cell */
@@ -299,7 +299,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 			h2 *= h2;
 			if (d2 > h2) {
 			    if (n >= WALK_MINMULTIPOLE) iOpen = -1;
-			    else iOpen = 2;
+			    else iOpen = 1;
 			    }
 			else iOpen = -2; /* means we treat this cell as a softened monopole */
 #endif
@@ -315,14 +315,14 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 			h2 = 2*(pkdc->fSoft2 + c[iCell].fSoft2);
 			if (d2 > h2) {
 			    if (n >= WALK_MINMULTIPOLE) iOpen = -1;
-			    else iOpen = 2;
+			    else iOpen = 1;
 			    }
 			else iOpen = -2; /* means we treat this cell as a softened monopole */
 #endif
 #if !defined(SOFTLINEAR) && !defined(SOFTSQUARE)
 			if (min2 > 4*pkdc->fSoft2) {
 			    if (n >= WALK_MINMULTIPOLE) iOpen = -1;
-			    else iOpen = 2;
+			    else iOpen = 1;
 			    }
 			else iOpen = -2; /* means we treat this cell as a softened monopole */
 #endif
@@ -408,7 +408,6 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 				p = pkdParticle(pkd,pj);
 				v = pkdVel(pkd,p);
 				pkd->ilp[nPart].iOrder = p->iOrder;
-				pkd->ilp[nPart].bNonLocalPP = (iOpen == 2)?1:0;
 				pkd->ilp[nPart].m = pkdMass(pkd,p);
 				pkd->ilp[nPart].x = p->r[0] + dDriftFac*v[0] + pkd->Check[i].rOffset[0];
 				pkd->ilp[nPart].y = p->r[1] + dDriftFac*v[1] + pkd->Check[i].rOffset[1];
@@ -442,7 +441,6 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 				pRemote = mdlAquire(pkd->mdl,CID_PARTICLE,pj,id);
 				v = pkdVel(pkd,pRemote);
 				pkd->ilp[nPart].iOrder = pRemote->iOrder;
-				pkd->ilp[nPart].bNonLocalPP = (iOpen == 2)?1:0;
 				pkd->ilp[nPart].m = pkdMass(pkd,pRemote);
 				pkd->ilp[nPart].x = pRemote->r[0] + dDriftFac*v[0] + pkd->Check[i].rOffset[0];
 				pkd->ilp[nPart].y = pRemote->r[1] + dDriftFac*v[1] + pkd->Check[i].rOffset[1];
@@ -498,7 +496,6 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 			assert(pkd->ilp != NULL);
 			}
 		    pkd->ilp[nPart].iOrder = -1; /* set iOrder to negative value for time step criterion */
-		    pkd->ilp[nPart].bNonLocalPP = 0;
 		    pkd->ilp[nPart].m = pkdc->mom.m;
 		    pkd->ilp[nPart].x = rCheck[0];
 		    pkd->ilp[nPart].y = rCheck[1];

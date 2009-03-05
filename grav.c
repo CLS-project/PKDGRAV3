@@ -80,7 +80,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
     double tx,ty,tz;
     double fourh2;
     double dtGrav,dT;
-    double rholoc,rhopmax,rhopmaxlocal,dirDTS,d2DTS,dsmooth2;
+    double rholoc,rhopmax,rhopmaxlocal,dirDTS,d2DTS,dsmooth2,size2;
     momFloat tax,tay,taz,adotai,maga,dimaga,dirsum,normsum;
     double vx,vy,vz;
 #ifdef HERMITE
@@ -99,13 +99,13 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 #ifdef SOFTSQUARE
     double ptwoh2;
 #endif
-    int i,j,k,nN,nSP,na,nia,nSoft,nActive;
+    int i,j,k,nN,nSP,nTN,na,nia,nSoft,nActive;
 
     /*
     ** dynamical time-stepping stuff
     */
     RHOLOCAL *rholocal;
-    nN = nPart+pkdn->pUpper-pkdn->pLower; /* total number of neighbouring particles (without particle itself) */
+    nN = nPart+pkdn->pUpper-pkdn->pLower; /* Total number of particles on ilp list (without particle itself) Attention: not all are true neigbours! */
     rholocal = malloc(nN*sizeof(RHOLOCAL));
     assert(rholocal != NULL);
     /*
@@ -230,19 +230,23 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 	    ** Add particles to array rholocal first
 	    */
 	    rholoc = 0;
+	    nTN = 0; /* Number of true neighbours, i.e. particles on ILP list with bNonLocalPP = 0 */
+	    size2 = pkd->param.dFacExcludePart*pkdn->bnd.size; 
+	    size2 *= size2; /* size2 estimate from tree.c that also works if there is only 1 particle in bucket */
 	    for (j=0;j<nPart;++j) {
 		x = p->r[0] - ilp[j].x;
 		y = p->r[1] - ilp[j].y;
 		z = p->r[2] - ilp[j].z;
 		d2 = x*x + y*y + z*z;
-		rholocal[j].m = ilp[j].m;
-		rholocal[j].d2 = d2;
+		if (d2 > size2) continue;
+		rholocal[nTN].m = ilp[j].m;
+		rholocal[nTN].d2 = d2;
+		nTN++;
 		}
 	    /*
             ** Add bucket particles to the array rholocal as well!
             ** Not including yourself!!
             */
-            k = nPart;
             for (j=pkdn->pLower;j<=pkdn->pUpper;++j) {
 		pj = pkdParticle(pkd,j);
 		if (p->iOrder == pj->iOrder) continue;
@@ -250,21 +254,20 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 		y = p->r[1] - pj->r[1];
 		z = p->r[2] - pj->r[2];
 		d2 = x*x + y*y + z*z;
-		rholocal[k].m = pkdMass(pkd,pj);
-		rholocal[k].d2 = d2;
-                k += 1;
+		rholocal[nTN].m = pkdMass(pkd,pj);
+		rholocal[nTN].d2 = d2;
+                nTN++;
                 }
-	    assert(k==nN);
 	    /*
 	    ** Calculate local density only in the case of more than 1 neighbouring particle!
 	    */
-	    if (nN > 1) {
-		nSP = (nN < pkd->param.nPartRhoLoc)?nN:pkd->param.nPartRhoLoc;
-		HEAPrholocal(nN,nSP,rholocal);
-		dsmooth2 = rholocal[nN-nSP].d2;
+	    if (nTN > 1) {
+		nSP = (nTN < pkd->param.nPartRhoLoc)?nTN:pkd->param.nPartRhoLoc;
+		HEAPrholocal(nTN,nSP,rholocal);
+		dsmooth2 = rholocal[nTN-nSP].d2;
 		SQRT1(dsmooth2,dir);
 		dir2 = dir * dir;
-		for (j=(nN-nSP);j<nN;++j) {
+		for (j=(nTN-nSP);j<nTN;++j) {
 		    d2 = rholocal[j].d2*dir2;
 		    d2 = (1-d2);
 		    rholoc += d2*rholocal[j].m;

@@ -93,6 +93,7 @@ struct parameters {
     double dyPeriod;
     double dzPeriod;
     double dPreFacRhoLoc;
+    double dFacExcludePart;
     CSM csm;
     double dRedTo;
     double dCentMass;

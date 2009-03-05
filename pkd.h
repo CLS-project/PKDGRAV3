@@ -194,6 +194,7 @@ typedef struct particle {
 typedef struct bndBound {
     double fCenter[3];
     double fMax[3];
+    double size;
     } BND;
 
 #define MINDIST(bnd,pos,min2) {\
