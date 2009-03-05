@@ -230,7 +230,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 	    ** Add particles to array rholocal first
 	    */
 	    rholoc = 0;
-	    nTN = 0; /* Number of true neighbours, i.e. particles on ILP list with bNonLocalPP = 0 */
+	    nTN = 0; /* Number of true neighbours, i.e. particles that fulfil the locality criterion defined by bnd.size */
 	    size2 = pkd->param.dFacExcludePart*pkdn->bnd.size; 
 	    size2 *= size2; /* size2 estimate from tree.c that also works if there is only 1 particle in bucket */
 	    for (j=0;j<nPart;++j) {
