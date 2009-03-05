@@ -46,7 +46,6 @@ typedef struct ilpTile {
 /* #if defined(SYMBA) || defined(PLANETS) */
 	ilpInt64 iOrder;
 /* #endif */
-	ilpInt64 bNonLocalPP;       /* Flag for non-local PP interaction */
 	} d;
     /* Everything in this structure is sorted */
     struct {
@@ -111,7 +110,7 @@ float ilpSelectMass(ILP ilp,uint32_t n, uint32_t N);
 /* #endif */
 
 
-#define ilpAppend(ilp,X,Y,Z,M,S,I,VX,VY,VZ,BNLPP)			\
+#define ilpAppend(ilp,X,Y,Z,M,S,I,VX,VY,VZ)				\
     {									\
     ILPTILE tile = (ilp)->tile;						\
     uint_fast32_t ILP_APPEND_i;						\
@@ -123,7 +122,6 @@ float ilpSelectMass(ILP ilp,uint32_t n, uint32_t N);
     assert( (M) > 0.0 );						\
     tile->d.m.f[ILP_APPEND_i] = (M);					\
     tile->d.fourh2.f[ILP_APPEND_i] = (S);				\
-    tile->d.bNonLocalPP.i[ILP_APPEND_i] = (BNLPP);			\
     ilpAppend_1((ilp),I);						\
     ilpAppend_2((ilp),VX,VY,VZ);					\
     ++tile->nPart;							\
@@ -191,7 +189,6 @@ typedef struct ilPart {
 #if defined(HERMITE) || !defined(LOCAL_EXPANSION)
     double vx,vy,vz;
 #endif
-    int bNonLocalPP;
     } ILP;
 #endif /* LOCAL_EXPANSION */
 
