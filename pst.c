@@ -500,6 +500,14 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_PEAKVC,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstPeakVc,
 		  PST_MAX_PEAKVC*sizeof(struct inPeakVc), PST_MAX_PEAKVC*sizeof(struct outPeakVc));
+#ifdef MDL_FFTW
+    mdlAddService(mdl,PST_MEASUREPK,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstMeasurePk,
+		  sizeof(struct inMeasurePk), sizeof(struct outMeasurePk));
+#endif
+    mdlAddService(mdl,PST_TOTALMASS,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstTotalMass,
+		  0, sizeof(struct outTotalMass));
    }
 
 void pstInitialize(PST *ppst,MDL mdl,LCL *plcl) {
@@ -636,6 +644,8 @@ void pstOneNodeReadInit(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	** Determine the size of the local particle store.
 	*/
 	nStore = nFileTotal + (int)ceil(nFileTotal*in->fExtraStore);
+
+	if (plcl->pkd) pkdFinish(plcl->pkd);
 	pkdInitialize(&plcl->pkd,pst->mdl,nStore,in->nBucket,in->fExtraNodes,in->iCacheSize,
 		      in->fPeriod,in->nDark,in->nGas,in->nStar,in->mMemoryModel);
 	pout[pst->idSelf] = nFileTotal; /* Truncated: okay */
@@ -694,6 +704,7 @@ void pstReadFile(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	*/
 	nStore = nNodeTotal + (int)ceil(nNodeTotal*in->fExtraStore);
 
+	if (plcl->pkd) pkdFinish(plcl->pkd);
 	pkdInitialize(&plcl->pkd,pst->mdl,nStore,in->nBucket,in->fExtraNodes,in->iCacheSize,
 		      in->fPeriod,in->nDark,in->nGas,in->nStar,in->mMemoryModel);
 
@@ -771,6 +782,7 @@ void pstReadHDF5(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	** Determine the size of the local particle store.
 	*/
 	nStore = nFileTotal + (int)ceil(nFileTotal*in->fExtraStore);
+	if (plcl->pkd) pkdFinish(plcl->pkd);
 	pkdInitialize(&plcl->pkd,pst->mdl,nStore,in->nBucket,in->fExtraNodes,in->iCacheSize,
 		      in->fPeriod,in->nDark,in->nGas,in->nStar,in->mMemoryModel);
 
@@ -828,6 +840,7 @@ void pstReadTipsy(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	** Determine the size of the local particle store.
 	*/
 	nStore = nFileTotal + (int)ceil(nFileTotal*in->fExtraStore);
+	if (plcl->pkd) pkdFinish(plcl->pkd);
 	pkdInitialize(&plcl->pkd,pst->mdl,nStore,in->nBucket,in->fExtraNodes,in->iCacheSize,
 		      in->fPeriod,in->nDark,in->nGas,in->nStar,in->mMemoryModel);
 	pkdReadTipsy(plcl->pkd,achInFile,nFileStart,nFileTotal,in->bStandard,
@@ -2226,6 +2239,7 @@ void pstOutArray(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct inOutArray *in = vin;
     char achOutFile[PST_FILENAME_SIZE];
+    PKDOUT pkdout;
 
     mdlassert(pst->mdl,nIn == sizeof(struct inOutArray));
     if (pst->nLeaves > 1) {
@@ -2246,7 +2260,9 @@ void pstOutArray(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	    strcat(achOutFile,"/");
 	    }
 	strcat(achOutFile,in->achOutFile);
-	pkdOutASCII(plcl->pkd,achOutFile,in->iType,0);
+	pkdout = pkdOpenOutASCII(plcl->pkd,achOutFile,"a",in->iType);
+	pkdOutASCII(plcl->pkd,pkdout,in->iType,0);
+	pkdCloseOutASCII(plcl->pkd,pkdout);
 	}
     if (pnOut) *pnOut = 0;
     }
@@ -2256,6 +2272,7 @@ void pstOutVector(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct inOutVector *in = vin;
     char achOutFile[PST_FILENAME_SIZE];
+    PKDOUT pkdout;
 
     mdlassert(pst->mdl,nIn == sizeof(struct inOutVector));
     if (pst->nLeaves > 1) {
@@ -2276,7 +2293,9 @@ void pstOutVector(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	    strcat(achOutFile,"/");
 	    }
 	strcat(achOutFile,in->achOutFile);
-	pkdOutASCII(plcl->pkd,achOutFile,in->iType,in->iDim);
+	pkdOpenOutASCII(plcl->pkd,achOutFile,"a",in->iType);
+	pkdOutASCII(plcl->pkd,pkdout,in->iType,in->iDim);
+	pkdCloseOutASCII(plcl->pkd,pkdout);
 	}
     if (pnOut) *pnOut = 0;
     }
@@ -3408,6 +3427,7 @@ pstReadSS(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	 ** Determine the size of the local particle store.
 	 */
 	nStore = nFileTotal + (int)ceil(nFileTotal*in->fExtraStore);
+	if (plcl->pkd) pkdFinish(plcl->pkd);
 	pkdInitialize(&plcl->pkd,pst->mdl,nStore,in->nBucket,in->fExtraNodes,in->iCacheSize,
 		      in->fPeriod,in->nDark,in->nGas,in->nStar);
 	pkdReadSS(plcl->pkd,achInFile,nFileStart,nFileTotal);
@@ -3759,6 +3779,7 @@ void pstGenerateIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	nLocal = nTotal / mdlThreads(pst->mdl);
 	nStore = nLocal + (int)ceil(nLocal*in->fExtraStore);
 
+	if (plcl->pkd) pkdFinish(plcl->pkd);
 	pkdInitialize(&plcl->pkd,pst->mdl,nStore,in->nBucket,in->fExtraNodes,in->iCacheSize,
 		      in->fPeriod,nTotal,0,0);
 
@@ -4385,3 +4406,53 @@ void pstPeakVc(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 */
     if (pnOut) *pnOut = N*sizeof(struct outPeakVc);
     }
+
+#ifdef MDL_FFTW
+void pstMeasurePk(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl = pst->plcl;
+    struct inMeasurePk *in = vin;
+    struct outMeasurePk *out = vout;
+    struct outMeasurePk outUpper;
+    int nOut;
+    int i;
+
+    assert( nIn==sizeof(struct inMeasurePk) );
+    if (pst->nLeaves > 1) {
+	mdlReqService(pst->mdl,pst->idUpper,PST_MEASUREPK,vin,nIn);
+	pstMeasurePk(pst->pstLower,vin,nIn,vout,pnOut);
+	mdlGetReply(pst->mdl,pst->idUpper,&outUpper,&nOut);
+	assert(nOut==sizeof(struct outMeasurePk));
+
+	for(i=0;i<=in->nGrid/2; i++) {
+	    out->fPower[i] += outUpper.fPower[i];
+	    out->nPower[i] += outUpper.nPower[i];
+	    }
+	}
+    else {
+	pkdMeasurePk(plcl->pkd, in->dCenter, in->dRadius,
+		     in->nGrid, out->fPower, out->nPower);
+	}
+    if (pnOut) *pnOut = sizeof(struct outMeasurePk);
+    }
+#endif
+
+void pstTotalMass(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl = pst->plcl;
+    struct outTotalMass *out = vout;
+    struct outTotalMass outUpper;
+    int nOut;
+    int i;
+
+    if (pst->nLeaves > 1) {
+	mdlReqService(pst->mdl,pst->idUpper,PST_TOTALMASS,vin,nIn);
+	pstTotalMass(pst->pstLower,vin,nIn,vout,pnOut);
+	mdlGetReply(pst->mdl,pst->idUpper,&outUpper,&nOut);
+	assert(nOut==sizeof(struct outTotalMass));
+	out->dMass += outUpper.dMass;
+	}
+    else {
+	out->dMass = pkdTotalMass(plcl->pkd);
+	}
+    if (pnOut) *pnOut = sizeof(struct outTotalMass);
+    }
+

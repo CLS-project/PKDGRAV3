@@ -2466,9 +2466,9 @@ void msrOutArray(MSR msr,const char *pszFile,int iType) {
     char achOutFile[PST_FILENAME_SIZE];
     LCL *plcl;
     PST pst0;
-    FILE *fp;
     int id,i;
     int inswap;
+    PKDOUT pkdout;
     struct outSetTotal total;
 
     pst0 = msr->pst;
@@ -2487,8 +2487,8 @@ void msrOutArray(MSR msr,const char *pszFile,int iType) {
 
 	msrprintf(msr, "Writing array to %s\n", achOutFile );
 
-	fp = fopen(achOutFile,"w");
-	if (!fp) {
+	pkdout = pkdOpenOutASCII(plcl->pkd,achOutFile,"wb",iType);
+	if (!pkdout) {
 	    printf("Could not open Array Output File:%s\n",achOutFile);
 	    _msrExit(msr,1);
 	    }
@@ -2503,13 +2503,13 @@ void msrOutArray(MSR msr,const char *pszFile,int iType) {
     ** Write the Header information and close the file again.
     */
     pstSetTotal(msr->pst,NULL,0,&total,NULL);
-    fprintf(fp,"%"PRIu64"\n",total.nTotal);
-    fclose(fp);
+    pkdOutHdr(plcl->pkd,pkdout,total.nTotal);
     /*
      * First write our own particles.
      */
     assert(msr->pMap[0] == 0);
-    pkdOutASCII(plcl->pkd,achOutFile,iType,0);
+
+    pkdOutASCII(plcl->pkd,pkdout,iType,0);
     for (i=1;i<msr->nThreads;++i) {
 	id = msr->pMap[i];
 	/*
@@ -2522,7 +2522,7 @@ void msrOutArray(MSR msr,const char *pszFile,int iType) {
 	/*
 	 * Write the swapped particles.
 	 */
-	pkdOutASCII(plcl->pkd,achOutFile,iType,0);
+	pkdOutASCII(plcl->pkd,pkdout,iType,0);
 	/*
 	 * Swap them back again.
 	 */
@@ -2531,6 +2531,8 @@ void msrOutArray(MSR msr,const char *pszFile,int iType) {
 	pkdSwapAll(plcl->pkd, id);
 	mdlGetReply(pst0->mdl,id,NULL,NULL);
 	}
+    pkdCloseOutASCII(plcl->pkd,pkdout);
+
     }
 
 
@@ -2539,7 +2541,7 @@ void msrOutVector(MSR msr,const char *pszFile,int iType) {
     char achOutFile[PST_FILENAME_SIZE];
     LCL *plcl;
     PST pst0;
-    FILE *fp;
+    PKDOUT pkdout;
     int id,i;
     int inswap;
     int iDim;
@@ -2561,8 +2563,8 @@ void msrOutVector(MSR msr,const char *pszFile,int iType) {
 
 	msrprintf(msr, "Writing vector to %s\n", achOutFile );
 
-	fp = fopen(achOutFile,"w");
-	if (!fp) {
+	pkdout = pkdOpenOutASCII(plcl->pkd,achOutFile,"wb",iType);
+	if (!pkdout) {
 	    printf("Could not open Vector Output File:%s\n",achOutFile);
 	    _msrExit(msr,1);
 	    }
@@ -2576,15 +2578,14 @@ void msrOutVector(MSR msr,const char *pszFile,int iType) {
     ** Write the Header information and close the file again.
     */
     pstSetTotal(msr->pst,NULL,0,&total,NULL);
-    fprintf(fp,"%"PRIu64"\n",total.nTotal);
-    fclose(fp);
+    pkdOutHdr(plcl->pkd,pkdout,total.nTotal);
 
     /*
      * First write our own particles.
      */
     assert(msr->pMap[0] == 0);
     for (iDim=0;iDim<3;++iDim) {
-	pkdOutASCII(plcl->pkd,achOutFile,iType,iDim);
+	pkdOutASCII(plcl->pkd,pkdout,iType,iDim);
 	for (i=1;i<msr->nThreads;++i) {
 	    id = msr->pMap[i];
 	    /*
@@ -2597,7 +2598,7 @@ void msrOutVector(MSR msr,const char *pszFile,int iType) {
 	    /*
 	     * Write the swapped particles.
 	     */
-	    pkdOutASCII(plcl->pkd,achOutFile,iType,iDim);
+	    pkdOutASCII(plcl->pkd,pkdout,iType,iDim);
 	    /*
 	     * Swap them back again.
 	     */
@@ -2607,6 +2608,7 @@ void msrOutVector(MSR msr,const char *pszFile,int iType) {
 	    mdlGetReply(pst0->mdl,id,NULL,NULL);
 	    }
 	}
+    pkdCloseOutASCII(plcl->pkd,pkdout);
     }
 
 
@@ -5832,3 +5834,30 @@ void msrPeakVc(MSR msr,int N,struct inPeakVc *in) {
 	in[i].iProcessor = pkdFindProcessor(plcl->pkd, in[i].dCenter);
 	}
     }
+
+#ifdef MDL_FFTW
+void msrMeasurePk(MSR msr,double *dCenter,double dRadius,int nGrid,float *Pk) {
+    struct inMeasurePk in;
+    struct outMeasurePk out;
+    int nOut;
+    int i;
+    double fftNormalize = 1.0 / (1.0*nGrid*nGrid*nGrid);
+
+    /* NOTE: reordering the particles by their z coordinate would be good here */
+    in.nGrid = nGrid;
+    in.dCenter[0] = dCenter[0];
+    in.dCenter[1] = dCenter[1];
+    in.dCenter[2] = dCenter[2];
+    in.dRadius = dRadius;
+    pstMeasurePk(msr->pst, &in, sizeof(in), &out, &nOut);
+    for( i=0; i<=nGrid/2; i++ ) {
+	/*printf( "%3d:  %.8g %ld\n", i, out.fPower[i], out.nPower[i] );*/
+	if ( out.nPower[i] == 0 ) Pk[i] = 0;
+	else Pk[i] = out.fPower[i]/out.nPower[i]*fftNormalize*1.0*fftNormalize;
+	}
+
+    /* At this point, Pk[] needs to be corrected by the box size */
+
+
+    }
+#endif

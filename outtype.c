@@ -23,7 +23,7 @@ const char *outtype_c_module_id = "$Id$";
 const char *outtype_h_module_id = OUTTYPE_H_MODULE_ID;
 
 /* Write an integer */
-static void writeInteger(PKD pkd,FILE *fp,PARTICLE *p,int iType,int iDim) {
+static uint64_t fetchInteger(PKD pkd,PARTICLE *p,int iType,int iDim) {
     uint64_t v;
 
     switch (iType) {
@@ -37,10 +37,56 @@ static void writeInteger(PKD pkd,FILE *fp,PARTICLE *p,int iType,int iDim) {
     default:
 	v = 0;
 	}
-    fprintf(fp,"%"PRIu64"\n",v);
+    return v;
     }
 
-static void writeFloat(PKD pkd,FILE *fp,PARTICLE *p,int iType,int iDim) {
+static void writeInteger(PKD pkd,void *ctxVoid,PARTICLE *p,int iType,int iDim) {
+    PKDOUT ctx = (PKDOUT)ctxVoid;
+    fprintf(ctx->fp,"%"PRIu64"\n",fetchInteger(pkd,p,iType,iDim));
+    }
+
+#ifdef HAVE_LIBBZ2
+static void writeIntegerBZ2(PKD pkd, void *ctxVoid,PARTICLE *p,int iType,int iDim) {
+    PKDOUT ctx = (PKDOUT)ctxVoid;
+    char buffer[100];
+    int bzerror;
+
+    sprintf(buffer,"%"PRIu64"\n",fetchInteger(pkd,p,iType,iDim));
+    BZ2_bzWrite(&bzerror,ctx->CTX.bz,buffer,strlen(buffer));
+    }
+#endif
+
+#ifdef HAVE_LIBZ
+static void writeIntegerZ(PKD pkd, void *ctxVoid,PARTICLE *p,int iType,int iDim) {
+    PKDOUT ctx = (PKDOUT)ctxVoid;
+    gzprintf(ctx->CTX.gz,"%"PRIu64"\n",fetchInteger(pkd,p,iType,iDim));
+    }
+#endif
+
+static void writeHdr(PKD pkd,void *ctxVoid,uint64_t N) {
+    PKDOUT ctx = (PKDOUT)ctxVoid;
+    fprintf(ctx->fp,"%"PRIu64"\n",N);
+    }
+
+
+#ifdef HAVE_LIBBZ2
+static void writeHdrBZ2(PKD pkd, void *ctxVoid,uint64_t N) {
+    PKDOUT ctx = (PKDOUT)ctxVoid;
+    char buffer[100];
+    int bzerror;
+    sprintf(buffer,"%"PRIu64"\n",N);
+    BZ2_bzWrite(&bzerror,ctx->CTX.bz,buffer,strlen(buffer));
+    }
+#endif
+
+#ifdef HAVE_LIBZ
+static void writeHdrZ(PKD pkd, void *ctxVoid,uint64_t N) {
+    PKDOUT ctx = (PKDOUT)ctxVoid;
+    gzprintf(ctx->CTX.gz,"%"PRIu64"\n",N);
+    }
+#endif
+
+static double fetchFloat(PKD pkd,PARTICLE *p,int iType,int iDim) {
     float *a;
     double v;
     VELSMOOTH *pvel;
@@ -110,19 +156,82 @@ static void writeFloat(PKD pkd,FILE *fp,PARTICLE *p,int iType,int iDim) {
     default:
 	v = 0.0;
 	}
-    fprintf(fp,"%.8g\n",v);
+    return v;
+    }
+static void writeFloat(PKD pkd,void *ctxVoid,PARTICLE *p,int iType,int iDim) {
+    PKDOUT ctx = (PKDOUT)ctxVoid;
+    fprintf(ctx->fp,"%.8g\n",fetchFloat(pkd,p,iType,iDim));
+    }
+#ifdef HAVE_LIBBZ2
+static void writeFloatBZ2(PKD pkd, void *ctxVoid,PARTICLE *p,int iType,int iDim) {
+    PKDOUT ctx = (PKDOUT)ctxVoid;
+    char buffer[100];
+    int bzerror;
+
+    sprintf(buffer,"%.8g\n",fetchFloat(pkd,p,iType,iDim));
+    BZ2_bzWrite(&bzerror,ctx->CTX.bz,buffer,strlen(buffer));
+    }
+#endif
+
+#ifdef HAVE_LIBZ
+static void writeFloatZ(PKD pkd, void *ctxVoid,PARTICLE *p,int iType,int iDim) {
+    PKDOUT ctx = (PKDOUT)ctxVoid;
+    gzprintf(ctx->CTX.gz,"%.8g\n",fetchFloat(pkd,p,iType,iDim));
+    }
+#endif
+
+static void closeFILE(PKD pkd, void *ctxVoid ) {
+    PKDOUT ctx = (PKDOUT)ctxVoid;
+    fclose(ctx->fp);
     }
 
+static void closeBZ2(PKD pkd, void *ctxVoid ) {
+    PKDOUT ctx = (PKDOUT)ctxVoid;
+    int bzerror;
+    unsigned int nbytes_in_lo32, nbytes_in_hi32,
+	nbytes_out_lo32, nbytes_out_hi32;
 
-void pkdOutASCII(PKD pkd,char *pszFileName,int iType,int iDim) {
-    FILE *fp;
-    int i;
-    void (*fnOut)(PKD pkd,FILE *fp,PARTICLE *p,int iType,int iDim);
+    BZ2_bzWriteClose64( &bzerror, ctx->CTX.bz, 0, 
+			&nbytes_in_lo32, &nbytes_in_hi32,
+			&nbytes_out_lo32, &nbytes_out_hi32 );
+    fclose(ctx->fp);
+    }
+
+static void closeZ(PKD pkd, void *ctxVoid ) {
+    PKDOUT ctx = (PKDOUT)ctxVoid;
+
+    if (gzclose(ctx->CTX.gz) != 0) {
+	perror("pkdOutASCII: could not close file");
+	exit(1);
+	}
+    }
+
+PKDOUT pkdOpenOutASCII(PKD pkd,char *pszFileName,const char *mode,int iType) {
+    PKDOUT ctx;
+    void (*fnOut)(PKD pkd,void *fp,PARTICLE *p,int iType,int iDim);
+#if defined(HAVE_LIBZ) || defined(HAVE_LIBBZ2)
+    size_t n;
+#ifdef HAVE_LIBBZ2
+    void (*fnOutBZ2)(PKD pkd,BZFILE *fp,PARTICLE *p,int iType,int iDim);
+#endif
+#ifdef HAVE_LIBZ
+    void (*fnOutZ)(PKD pkd,gzFile fp,PARTICLE *p,int iType,int iDim);
+#endif
+#endif
+
+    ctx = malloc(sizeof(struct pkdout)); assert(ctx!=NULL);
+    ctx->fp = NULL;
 
     switch(iType) {
     case OUT_IORDER_ARRAY:
     case OUT_GROUP_ARRAY:
 	fnOut = writeInteger;
+#ifdef HAVE_LIBBZ2
+	fnOutBZ2 = writeIntegerBZ2;
+#endif	
+#ifdef HAVE_LIBZ
+	fnOutZ = writeIntegerZ;
+#endif	
 	break;
 
     case OUT_DENSITY_ARRAY:
@@ -142,28 +251,81 @@ void pkdOutASCII(PKD pkd,char *pszFileName,int iType,int iDim) {
     case OUT_MEANVEL_VECTOR:
     case OUT_ACCEL_VECTOR:
 	fnOut = writeFloat;
+#ifdef HAVE_LIBBZ2
+	fnOutBZ2 = writeFloatBZ2;
+#endif
+#ifdef HAVE_LIBZ
+	fnOutZ = writeFloatZ;
+#endif
 	break;
 
     default:
 	assert(0);
 	}
 
-    fp = fopen (pszFileName,"a");
-    assert(fp != NULL);
+#if defined(HAVE_LIBZ) || defined(HAVE_LIBBZ2)
+    n = strlen(pszFileName);
+#ifdef HAVE_LIBBZ2
+    if ( n>4 && strcmp(pszFileName+n-4,".bz2")==0 ) {
+	int bzerror;
+	ctx->fp = fopen (pszFileName,mode);
+	assert(ctx->fp != NULL);
+	ctx->CTX.bz = BZ2_bzWriteOpen( &bzerror, ctx->fp, 9, 0, 0 );
+	ctx->fnOut = fnOutBZ2;
+	ctx->fnHdr = writeHdrBZ2;
+	ctx->fnClose = closeBZ2;
+	return ctx;
+	}
+#endif
+#ifdef HAVE_LIBZ
+    if ( n>3 && strcmp(pszFileName+n-3,".gz")==0 ) {
+	ctx->CTX.gz = gzopen(pszFileName,mode);
+	assert(ctx->CTX.gz!=NULL);
+	ctx->fnOut = fnOutZ;
+	ctx->fnHdr = writeHdrZ;
+	ctx->fnClose = closeZ;
+	return ctx;
+	}
+#endif
+
+#endif
+
+    ctx->fp = fopen (pszFileName,mode);
+    assert(ctx->fp != NULL);
+    ctx->fnOut = fnOut;
+    ctx->fnHdr = writeHdr;
+    ctx->fnClose = closeFILE;
+    return ctx;
+    }
+
+void pkdCloseOutASCII(PKD pkd,PKDOUT ctx) {
+    ctx->fnClose(pkd,ctx);
+    free(ctx);
+    }
+
+void pkdOutHdr(PKD pkd,PKDOUT ctx,uint64_t N) {
+    (*ctx->fnHdr)(pkd,ctx,N);
+    }
+
+void pkdOutASCII(PKD pkd,PKDOUT ctx,int iType,int iDim) {
+    int i;
 
     /*
-     ** Write Elements!
-     */
+    ** Write Elements!
+    */
     for (i=0;i<pkd->nLocal;++i) {
 	PARTICLE *p = pkdParticle(pkd,i);
 	if ( pkdIsSrcActive(p,0,MAX_RUNG) )
-	    (*fnOut)(pkd,fp,p,iType,iDim);
-	}
-    if (fclose(fp) != 0) {
-	perror("pkdOutASCII: could not close file");
-	exit(1);
+	    (*ctx->fnOut)(pkd,ctx,p,iType,iDim);
 	}
     }
+
+#ifdef USE_HDF5
+void pkdOutHDF5(PKD pkd,char *pszFileName,int iType,int iDim) {
+    assert(0);
+    }
+#endif
+
 void pkdOutGroup(PKD pkd,char *pszFileName,int iType, int nStart,double dvFac) {
     FILE *fp;
     int i,j,nout,lStart;

@@ -199,6 +199,10 @@ enum pst_service {
     PST_CALCCOM,
     PST_COUNTDISTANCE,
     PST_PEAKVC,
+#ifdef MDL_FFTW
+    PST_MEASUREPK,
+#endif
+    PST_TOTALMASS,
     };
 
 void pstAddServices(PST,MDL);
@@ -1212,5 +1216,26 @@ struct outPeakVc {
     double dPeakVc;
     };
 void pstPeakVc(PST pst,void *vin,int nIn,void *vout,int *pnOut);
+
+#ifdef MDL_FFTW
+#define PST_MAX_K 4096
+/* PST_MEASUREPK */
+struct inMeasurePk {
+    double dCenter[3];
+    double dRadius;
+    int nGrid;
+    };
+struct outMeasurePk {
+    float fPower[PST_MAX_K];
+    int   nPower[PST_MAX_K];
+    };
+void pstMeasurePk(PST pst,void *vin,int nIn,void *vout,int *pnOut);
+#endif
+
+/* PST_TOTALMASS */
+struct outTotalMass {
+    double dMass;
+    };
+void pstTotalMass(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 
 #endif

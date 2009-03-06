@@ -45,6 +45,8 @@ typedef uint_fast64_t total_t; /* Count of particles globally (total number) */
 #define CID_RM		3
 #define CID_BIN		4
 #define CID_SHAPES	5
+#define CID_PK          6
+
 /*
 ** Here we define some special reserved nodes. Node-0 is a sentinel or null node, node-1
 ** is here defined as the ROOT of the local tree (or top tree), node-2 is unused and
@@ -582,6 +584,7 @@ typedef struct pkdContext {
     ILC *ilc;
     int nMaxPart, nMaxCell;
 #endif
+
     /*
     ** New activation methods
     */
@@ -797,6 +800,7 @@ void pkdPhysicalSoft(PKD pkd,double dSoftMax,double dFac,int bSoftMaxMul);
 void pkdBucketWeight(PKD pkd,int iBucket,FLOAT fWeight);
 int pkdWeight(PKD,int,FLOAT,int,int,int,int *,int *,FLOAT *,FLOAT *);
 void pkdCountVA(PKD,int,FLOAT,int *,int *);
+double pkdTotalMass(PKD pkd);
 int pkdLowerPart(PKD,int,FLOAT,int,int);
 int pkdUpperPart(PKD,int,FLOAT,int,int);
 int pkdWeightWrap(PKD,int,FLOAT,FLOAT,int,int,int,int,int *,int *);
@@ -960,6 +964,10 @@ uint_fast32_t pkdCountDistance(PKD pkd, double r2i, double r2o );
 void pkdCalcCOM(PKD pkd, double *dCenter, double dRadius,
 		double *com, double *vcm, double *L,
 		double *M, uint64_t *N);
+#ifdef MDL_FFTW
+void pkdMeasurePk(PKD pkd, double dCenter[3], double dRadius,
+		  int nGrid, float *fPower, int *nPower);
+#endif
 
 static inline void vec_sub(double *r,const double *a,const double *b ) {
     int i;

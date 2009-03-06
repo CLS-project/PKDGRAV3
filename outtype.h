@@ -32,7 +32,33 @@
 #define OUT_GROUP_PROFILES 116
 #define OUT_RELAX_ARRAY 120
 
+#ifdef HAVE_LIBBZ2
+#include <bzlib.h>
+#endif
+#ifdef HAVE_LIBZ
+#include <zlib.h>
+#endif
+
+typedef struct pkdout {
+    FILE *fp;
+    union {
+#ifdef HAVE_LIBBZ2
+	BZFILE *bz;
+#endif
+#ifdef HAVE_LIBZ
+	gzFile gz;
+#endif
+	} CTX;
+    void (*fnOut)(PKD pkd,void *fp,PARTICLE *p,int iType,int iDim);
+    void (*fnHdr)(PKD pkd,void *ctx,uint64_t N);
+    void (*fnClose)(PKD pkd,void *ctx);
+    } *PKDOUT;
+
+PKDOUT pkdOpenOutASCII(PKD pkd,char *pszFileName,const char *mode,int iType);
+void pkdCloseOutASCII(PKD pkd,PKDOUT ctx);
+void pkdOutHdr(PKD pkd,PKDOUT ctx,uint64_t N);
+void pkdOutASCII(PKD pkd,PKDOUT ctx,int iType,int iDim);
+
 void pkdOutGroup(PKD,char *,int,int,double);
-void pkdOutASCII(PKD pkd,char *pszFileName,int iType,int iDim);
 
 #endif

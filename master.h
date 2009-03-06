@@ -258,4 +258,9 @@ void msrDeleteProfile(MSR msr);
 void msrCalcCOM(MSR msr,const double *dCenter, double dRadius,
 		double *com, double *vcm, double *L, double *M);
 void msrPeakVc(MSR msr,int N,struct inPeakVc *in);
+
+#ifdef MDL_FFTW
+void msrMeasurePk(MSR msr,double *dCenter,double dRadius,int nGrid,float *Pk);
+#endif
+
 #endif

@@ -471,7 +471,9 @@ void pkdSetClasses( PKD pkd, int n, PARTCLASS *pClass, int bUpdate ) {
     }
 
 void pkdSeek(PKD pkd,FILE *fp,uint64_t nStart,int bStandard,int bDoublePos,int bNoHeader) {
+#ifndef HAVE_FSEEKO
     off_t MAX_OFFSET = 2147483640;
+#endif
     off_t lStart;
     int iErr;
     /*
@@ -503,6 +505,9 @@ void pkdSeek(PKD pkd,FILE *fp,uint64_t nStart,int bStandard,int bDoublePos,int b
 	else lStart += nStart*sizeof(struct gas_particle);
 	}
 
+#ifdef HAVE_FSEEKO
+    fseeko(fp,lStart,SEEK_SET);
+#else
     /*fseek fails for offsets >= 2**31; this is an ugly workaround;*/
     if (lStart > MAX_OFFSET) {
 	iErr = fseek(fp,0,SEEK_SET);
@@ -527,6 +532,7 @@ void pkdSeek(PKD pkd,FILE *fp,uint64_t nStart,int bStandard,int bDoublePos,int b
 	    exit(errno);
 	    }
 	}
+#endif
     }
 
 
@@ -3691,6 +3697,21 @@ void pkdKeplerDrift(PKD pkd,double dt,double mu, int tag_VA) {
 
 #endif /* SYMBA */
 #endif /* PLANETS */
+
+double pkdTotalMass(PKD pkd) {
+    PARTICLE *p;
+    double m;
+    int i,n;
+
+    m = 0.0;
+    n = pkdLocal(pkd);
+    for( i=0; i<n; i++ ) {
+	p = pkdParticle(pkd,i);
+	if ( !pkdIsSrcActive(p,0,MAX_RUNG) ) continue;
+	m += pkdMass(pkd,p);
+	}
+    return m;
+    }
 
 /*
 ** This function checks the predicate and returns a new value based on the flags.
