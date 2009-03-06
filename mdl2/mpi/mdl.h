@@ -14,6 +14,9 @@
 #include "cycle.h"
 #endif
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #define SRV_STOP		0
 
@@ -298,6 +301,10 @@ typedef MPI_Datatype MDL_Datatype;
 #define MDL_Op_create(f,c,o) MPI_Op_create(f,c,o) 
 int mdlReduce ( MDL mdl, void *sendbuf, void *recvbuf, int count,
 		MDL_Datatype datatype, MDL_Op op, int root );
+int mdlAllreduce( MDL mdl, void *sendbuf, void *recvbuf, int count,
+		  MDL_Datatype datatype, MDL_Op op );
+int mdlAlltoall( MDL mdl, void *sendbuf, int scount, MDL_Datatype stype,
+		 void *recvbuf, int rcount, MDL_Datatype rtype);
 
 /*
 ** FFT Operations
@@ -308,16 +315,60 @@ typedef struct mdlFFTContext {
     rfftwnd_mpi_plan fplan;
     rfftwnd_mpi_plan iplan;
 
-    int rx, ry, rz; /* Real dimensions */
+    int n1, n2, n3; /* Real dimensions */
+    int a1r, a1k;   /* Actual size in r and k space */
     int sz, nz;     /* Start z and number of z */
     int sy, ny;     /* Transposed start and number */
     int nlocal;     /* Number of local elements */
+
+    uint32_t *rsz;  /* Starting z for each processor */
+    uint32_t *rsy;
+
+    uint32_t *zid;  /* Which processor has this z */
+    uint32_t *yid;
+
     } * MDLFFT;
 
 size_t mdlFFTInitialize(MDL mdl,MDLFFT *fft,
 			int nx,int ny,int nz,int bMeasure);
 void mdlFFTFinish( MDLFFT fft );
+fftw_real *mdlFFTMAlloc( MDLFFT fft );
+void mdlFFTFree( MDLFFT fft, void *p );
 void mdlFFT( MDLFFT fft, fftw_real *data, int bInverse );
+
+/*
+** This gives the processor on which the given "z" slab can
+** be found when in r-space (z is the major dimension).
+*/
+static inline int mdlFFTrId(MDLFFT fft, uint32_t x, uint32_t y, uint32_t z) {
+    return fft->zid[z];
+    }
+
+/*
+** This gives the processor on which the given "y" slab can
+** be found when in k-space (y is the major dimension).
+*/
+static inline int mdlFFTkId(MDLFFT fft, uint32_t x, uint32_t y, uint32_t z) {
+    return fft->yid[y];
+    }
+
+/*
+** This returns the index into the array on the appropriate processor
+** for the specified cell when in r-space.
+*/
+static inline int mdlFFTrIdx(MDLFFT fft, uint32_t x, uint32_t y, uint32_t z) {
+    z -= fft->rsz[fft->zid[z]]; /* Make "z" zero based for its processor */
+    return x + fft->a1r*(y + fft->n2*z); /* Local index */
+    }
+
+/*
+** This returns the index into the array on the appropriate processor
+** for the specified cell when in k-space.
+*/
+static inline int mdlFFTkIdx(MDLFFT fft, uint32_t x, uint32_t y, uint32_t z) {
+    y -= fft->rsy[fft->yid[y]]; /* Make "y" zero based for its processor */
+    return x + fft->a1k*(z + fft->n3*y); /* Local index */
+    }
 #endif
 /*
  ** Caching functions.
@@ -403,4 +454,7 @@ double mdlTimeSynchronizing(MDL);
 double mdlTimeWaiting(MDL);
 #endif
 
+#ifdef __cplusplus
+}
+#endif
 #endif

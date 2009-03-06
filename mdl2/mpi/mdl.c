@@ -520,6 +520,16 @@ int mdlReduce ( MDL mdl, void *sendbuf, void *recvbuf, int count,
     return MPI_Reduce( sendbuf, recvbuf, count, datatype, op, root, mdl->commMDL );
     }
 
+int mdlAllreduce ( MDL mdl, void *sendbuf, void *recvbuf, int count,
+		MDL_Datatype datatype, MDL_Op op ) {
+    return MPI_Allreduce( sendbuf, recvbuf, count, datatype, op, mdl->commMDL );
+    }
+
+int mdlAlltoall( MDL mdl, void *sendbuf, int scount, MDL_Datatype stype,
+		 void *recvbuf, int rcount, MDL_Datatype rtype) {
+    return MPI_Alltoall(sendbuf,scount,stype,
+			recvbuf,rcount,rtype,mdl->commMDL);
+    }
 /*
 ** This function will transfer a block of data using a pack function.
 ** The corresponding node must call mdlRecv.
@@ -900,7 +910,6 @@ int mdlCacheReceive(MDL mdl,char *pLine) {
     MPI_Status status;
     int ret;
     int iLineSize;
-    int iDataSize;
 #if 0
     char achDiag[256];
 #endif
@@ -1701,7 +1710,7 @@ Await:
 
 void mdlRelease(MDL mdl,int cid,void *p) {
     CACHE *c = &mdl->cache[cid];
-    int iData, iLine;
+    int iLine;
 
     iLine = ((char *)p - c->pLine) / c->iLineSize;
     /*
@@ -1783,25 +1792,51 @@ double mdlTimeWaiting(MDL mdl) {
 size_t mdlFFTInitialize(MDL mdl,MDLFFT *pfft,
 			int nx,int ny,int nz,int bMeasure) {
     MDLFFT fft;
+    int id, i;
+
     *pfft = NULL;
     fft = malloc(sizeof(struct mdlFFTContext));
     assert(fft != NULL);
 
-    fft->rx = nx;
-    fft->ry = ny;
-    fft->rz = nz;
+    fft->n1  = nx;
+    fft->n2  = ny;
+    fft->n3  = nz;
+
+    fft->a1k = fft->n1/2 + 1;
+    fft->a1r = 2 * fft->a1k;
 
     fft->mdl = mdl;
+
+    /* Contruct the FFTW plans */
     fft->fplan = rfftw3d_mpi_create_plan(mdl->commMDL,
 					 nz, ny, nx,
 					 FFTW_REAL_TO_COMPLEX,
 					 (bMeasure ? FFTW_MEASURE : FFTW_ESTIMATE) );
-
     fft->iplan = rfftw3d_mpi_create_plan(mdl->commMDL,
 					 /* dim.'s of REAL data --> */ nz, ny, nx,
 					 FFTW_COMPLEX_TO_REAL,
 					 (bMeasure ? FFTW_MEASURE : FFTW_ESTIMATE));
     rfftwnd_mpi_local_sizes( fft->fplan, &fft->nz, &fft->sz, &fft->ny, &fft->sy, &fft->nlocal);
+
+    /* Gather the starting indexes for later use */
+    fft->rsz = malloc(sizeof(*fft->rsz)*(mdl->nThreads+1)); assert(fft->rsz!=NULL);
+    fft->rsy = malloc(sizeof(*fft->rsy)*(mdl->nThreads+1)); assert(fft->rsy!=NULL);
+    MPI_Allgather(&fft->sz,sizeof(*fft->rsz),MPI_BYTE,
+		  fft->rsz,sizeof(*fft->rsz),MPI_BYTE,
+		  mdl->commMDL);
+    MPI_Allgather(&fft->sy,sizeof(*fft->rsy),MPI_BYTE,
+		  fft->rsy,sizeof(*fft->rsy),MPI_BYTE,
+		  mdl->commMDL);
+    fft->rsz[mdl->nThreads] = fft->n3;
+    fft->rsy[mdl->nThreads] = fft->n2;
+
+    /* Create a mapping for each z and y slab */
+    fft->zid = malloc(sizeof(*fft->zid)*(nz)); assert(fft->zid!=NULL);
+    fft->yid = malloc(sizeof(*fft->yid)*(ny)); assert(fft->yid!=NULL);
+    for(id=0; id<mdl->nThreads; id++ ) {
+	for( i=fft->rsz[id]; i<fft->rsz[id+1]; i++ ) fft->zid[i] = id;
+	for( i=fft->rsy[id]; i<fft->rsy[id+1]; i++ ) fft->yid[i] = id;
+	}
 
     *pfft = fft;
     return fft->nlocal;
@@ -1811,6 +1846,14 @@ void mdlFFTFinish( MDLFFT fft ) {
     rfftwnd_mpi_destroy_plan(fft->fplan);
     rfftwnd_mpi_destroy_plan(fft->iplan);
     free(fft);
+    }
+
+fftw_real *mdlFFTMAlloc( MDLFFT fft ) {
+    return mdlMalloc(fft->mdl,sizeof(fftw_real)*fft->nlocal);
+    }
+
+void mdlFFTFree( MDLFFT fft, void *p ) {
+    mdlFree(fft->mdl,p);
     }
 
 void mdlFFT( MDLFFT fft, fftw_real *data, int bInverse ) {
