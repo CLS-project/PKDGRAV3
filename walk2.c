@@ -418,7 +418,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 				    ** This bucket did not have enough particles to make it worth accepting as a
 				    ** multipole, since it is faster to simply add P-P interactions at this stage.
 				    */
-				    iOpen = 2;
+				    iOpen = 1;
 				    }
 				}
 			    else {
@@ -469,7 +469,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 				** This bucket did not have enough particles to make it worth accepting as a
 				** multipole, since it is faster to simply add P-P interactions at this stage.
 				*/
-				iOpen = 2;
+				iOpen = 1;
 				}
 			    }
 			else {
@@ -667,7 +667,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 			      pkdc->v[0], pkdc->v[1], pkdc->v[2]);
 		    }
 		else {
-		    mdlassert(pkd->mdl,iOpen >= -3 && iOpen <= 2);
+		    mdlassert(pkd->mdl,iOpen >= -3 && iOpen <= 1);
 		    }
 		if (id >= 0 && id != pkd->idSelf) {
 		    mdlRelease(pkd->mdl,CID_CELL,pkdc);
