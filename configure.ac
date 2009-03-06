@@ -31,6 +31,16 @@ if test "x$INSTRUMENT" = "xyes" ; then
  	[Instrument the code.])
 fi
 
+# This adds processor specific timing to the code - default disabled
+AC_ARG_ENABLE(fftw,
+  [  --enable-fftw                  Enable FFT support modules],
+  [FFTW="$enableval"],[FFTW="no"])
+if test "x$FFTW" = "xyes" ; then
+   AC_DEFINE([MDL_FFTW], 1,
+ 	[Include support for FFTW.])
+fi
+AM_CONDITIONAL(FFTW, test "x$FFTW" = "xyes")
+
 # Local expansions - default is enabled
 AC_ARG_ENABLE(local-expansion,
   [  --disable-local-expansion      disable local expansion code],
@@ -446,10 +456,17 @@ if test "x$HAVE_POSIX_MEMALIGN" == "xyes" ; then
 	[This is needed for posix_memalign to be defined in stdlib.h])
 fi
 
+AC_CHECK_LIB([bz2],[BZ2_bzWriteOpen])
+
 # Checks for header files.
 AC_FUNC_ALLOCA
+AC_FUNC_FSEEKO
+AC_FUNC_MALLOC
+AC_FUNC_REALLOC
+AC_FUNC_STAT
+AC_FUNC_VPRINTF
 AC_HEADER_STDC
-AC_CHECK_HEADERS([fcntl.h limits.h malloc.h stddef.h stdlib.h string.h sys/param.h sys/time.h unistd.h ansidecl.h])
+AC_CHECK_HEADERS([fcntl.h limits.h malloc.h stddef.h stdlib.h string.h sys/param.h sys/time.h unistd.h ansidecl.h fenv.h])
 
 # Checks for typedefs, structures, and compiler characteristics.
 AC_C_CONST
@@ -463,7 +480,7 @@ AC_SYS_LARGEFILE
 
 if test "x${INSTRUMENT}" == "xyes" ; then
 AC_CHECK_HEADERS([c_asm.h intrinsics.h mach/mach_time.h])
-
+AC_C_VOLATILE
 AC_CHECK_TYPE([hrtime_t],[AC_DEFINE(HAVE_HRTIME_T, 1, [Define to 1 if hrtime_t is defined in <sys/time.h>])],,[#if HAVE_SYS_TIME_H
 #include <sys/time.h>
 #endif])
@@ -480,7 +497,7 @@ fi
 
 # Checks for library functions.
 AC_CHECK_FUNCS([wordexp wordfree glob globfree gethostname getpagesize mkdir])
-AC_CHECK_FUNCS([floor gettimeofday pow sqrt strchr strdup strrchr strstr ],,[AC_MSG_ERROR([not found])])
+AC_CHECK_FUNCS([floor gettimeofday pow sqrt strchr strdup strrchr strstr],,[AC_MSG_ERROR([not found])])
 
 AC_CONFIG_FILES([Makefile])
 AC_OUTPUT

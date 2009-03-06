@@ -124,6 +124,9 @@ endif
 if LUSTRE
 pkdgrav2m_mpi_LDADD += -llustreapi
 endif
+if FFTW
+pkdgrav2m_mpi_LDADD += -lsrfftw_mpi -lsfftw_mpi -lsrfftw -lsfftw
+endif
 endif
 
 if HAVE_PTHREAD
