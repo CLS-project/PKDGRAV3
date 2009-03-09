@@ -810,8 +810,10 @@ static PyMethodDef msr_methods[] = {
      "Group Profiles"},
     {"PeakVc", (PyCFunction)ppy_msr_PeakVc, METH_VARARGS|METH_KEYWORDS,
      "Calculate peak circular velocities"},
+#ifdef MDL_FFTW
     {"MeasurePk", (PyCFunction)ppy_msr_MeasurePk, METH_VARARGS|METH_KEYWORDS,
      "Measure the power spectrum"},
+#endif
     {"Load", (PyCFunction)ppy_msr_Load, METH_VARARGS|METH_KEYWORDS,
      "Load an input file"},
     {"Save", (PyCFunction)ppy_msr_Save, METH_VARARGS|METH_KEYWORDS,
