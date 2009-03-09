@@ -1,3 +1,4 @@
+EXTRA_DIST = server.py
 EXTRA_PROGRAMS = pkdgrav2m_null
 TARGETS = null
 

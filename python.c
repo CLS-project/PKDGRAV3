@@ -1,4 +1,5 @@
 #include <Python.h>
+#include <structmember.h>
 #include <marshal.h>
 #ifdef HAVE_CONFIG_H
 #include "config.h"
@@ -749,8 +750,12 @@ ppy_msr_SaveArray(PyObject *self, PyObject *args, PyObject *kwobj) {
     return Py_None;
 }
 
+/**********************************************************************\
+ * MSR methods.  These methods are shared by both the "msr" module,
+ * and the "MSR" object.
+\**********************************************************************/
 
-static PyMethodDef ppy_msr_methods[] = {
+static PyMethodDef msr_methods[] = {
 /*
     {"SelSrc", ppy_msr_SelSrc, METH_VARARGS,
      "Selects source particles based on a supplied function"},
@@ -820,63 +825,128 @@ static PyMethodDef ppy_msr_methods[] = {
 };
 
 /**********************************************************************\
+ * MSR object.  We use a Python object for the MSR so that it can be
+ * accessed remotely via Pyro.  Here is what the pkdgrav2 python script
+ * ("the server") would look like:
+ *
+ **********************************************************************
+ * import msr
+ * import Pyro.core
+ *
+ * class remoteMSR(msr.MSR,Pyro.core.ObjBase):
+ *     def __init__(self):
+ *         Pyro.core.ObjBase.__init__(self)
+ *         msr.MSR.__init__(self)
+ *
+ * Pyro.core.initServer()
+ * daemon=Pyro.core.Daemon()
+ * uri=daemon.connect(remoteMSR(),"msr")
+ *
+ * print "The daemon runs on port:",daemon.port
+ * print "The object's uri is:",uri
+ *
+ * daemon.requestLoop()
+ **********************************************************************
+ *
+ * Here is how the client would connect to the server:
+ *
+ **********************************************************************
+ * import Pyro.core
+ * msr = Pyro.core.getProxyForURI("PYRO://ip:port/guid")
+ * msr.Load("runc03.bin")
+ **********************************************************************
+ *
+ * Obviously, the "Pyro" module needs to be available, and the URI
+ * needs to be replaced by what the server prints out.
+ *
+\**********************************************************************/
+
+typedef struct {
+    PyObject_HEAD
+    } MSRINSTANCE;
+
+static void msr_dealloc(MSRINSTANCE *self) {
+    self->ob_type->tp_free((PyObject*)self);
+    }
+
+static PyObject *msr_new(PyTypeObject *type, PyObject *args, PyObject *kwds) {
+    MSRINSTANCE *self;
+    self = (MSRINSTANCE *)type->tp_alloc(type, 0);
+    if (self == NULL) { return NULL; }
+    return (PyObject *)self;
+}
+
+static int msr_init(MSRINSTANCE *self, PyObject *args, PyObject *kwds) {
+    return 0;
+    }
+
+static PyMemberDef msr_members[] = {
+	{NULL} /* Sentinel */
+    };
+
+static PyGetSetDef msr_getseters[] = {
+    /*{"son", (getter)Father_getson, (setter)Father_setson, "son", NULL},*/
+	{NULL} /* Sentinel */
+    };
+
+static PyTypeObject msrType = {
+    PyObject_HEAD_INIT(NULL)
+    0, /*ob_size*/
+    "msr.MSR", /*tp_name*/
+    sizeof(MSRINSTANCE), /*tp_basicsize */
+    0, /*tp_itemsize*/
+    (destructor)msr_dealloc, /*tp_dealloc*/
+    0, /*tp_print*/
+    0, /*tp_getattr*/
+    0, /*tp_setattr*/
+    0, /*tp_compare*/
+    0, /*tp_repr*/
+    0, /*tp_as_number*/
+    0, /*tp_as_sequence*/
+    0, /*tp_as_mapping*/
+    0, /*tp_hash */
+    0, /*tp_call*/
+    0, /*tp_str*/
+    0, /*tp_getattro*/
+    0, /*tp_setattro*/
+    0, /*tp_as_buffer*/
+    Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE, /*tp_flags*/
+    "MSR objects", /* tp_doc */
+    0, /* tp_traverse */
+    0, /* tp_clear */
+    0, /* tp_richcompare */
+    0, /* tp_weaklistoffset */
+    0, /* tp_iter */
+    0, /* tp_iternext */
+    msr_methods, /* tp_methods */
+    msr_members, /* tp_members */
+    msr_getseters, /* tp_getset */
+    0, /* tp_base */
+    0, /* tp_dict */
+    0, /* tp_descr_get */
+    0, /* tp_descr_set */
+    0, /* tp_dictoffset */
+    (initproc)msr_init, /* tp_init */
+    0, /* tp_alloc */
+    msr_new, /* tp_new */
+    };
+/**********************************************************************\
+\**********************************************************************/
+
+
+
+
+
+
+
+
+/**********************************************************************\
  ** Parallel Python (ppy) setup
 \**********************************************************************/
-#ifdef OLD_PYTHON_MODULE
-void ppyInitialize(PPY *pvppy, MSR msr, double dTime) {
-    ppyCtx *ppy;
-    PyObject *dict;
-
-    ppy = malloc(sizeof(ppyCtx));
-    assert(ppy!=NULL);
-    *pvppy = global_ppy = ppy;
-
-    ppy_msr = msr;
-    Py_Initialize();
-    ppy->module = Py_InitModule( "msr", ppy_msr_methods );
-
-    dict = PyModule_GetDict(ppy->module);
-    PyDict_SetItemString(dict, "dTime", Py_BuildValue("d",dTime));
-
-    PyDict_SetItemString(dict, "SMX_DENSITY", Py_BuildValue("i",SMX_DENSITY));
-    PyDict_SetItemString(dict, "SMX_MEANVEL", Py_BuildValue("i",SMX_MEANVEL));
-    PyDict_SetItemString(dict, "SMX_DIVV", Py_BuildValue("i",SMX_DIVV));
-    PyDict_SetItemString(dict, "SMX_VELDISP2", Py_BuildValue("i",SMX_VELDISP2));
-    PyDict_SetItemString(dict, "SMX_FOF", Py_BuildValue("i",SMX_FOF));
-    PyDict_SetItemString(dict, "SMX_RELAXATION", Py_BuildValue("i",SMX_RELAXATION));
-
-    PyDict_SetItemString(dict, "OUT_TIPSY_STD", Py_BuildValue("i",OUT_TIPSY_STD));
-    PyDict_SetItemString(dict, "OUT_TIPSY_DBL", Py_BuildValue("i",OUT_TIPSY_DBL));
-    PyDict_SetItemString(dict, "OUT_POS_VECTOR", Py_BuildValue("i",OUT_POS_VECTOR));
-    PyDict_SetItemString(dict, "OUT_VEL_VECTOR", Py_BuildValue("i",OUT_VEL_VECTOR));
-    PyDict_SetItemString(dict, "OUT_ACCEL_VECTOR", Py_BuildValue("i",OUT_ACCEL_VECTOR));
-    PyDict_SetItemString(dict, "OUT_MEANVEL_VECTOR", Py_BuildValue("i",OUT_MEANVEL_VECTOR));
-    PyDict_SetItemString(dict, "OUT_IORDER_ARRAY", Py_BuildValue("i",OUT_IORDER_ARRAY));
-    PyDict_SetItemString(dict, "OUT_COLOR_ARRAY", Py_BuildValue("i",OUT_COLOR_ARRAY));
-    PyDict_SetItemString(dict, "OUT_DENSITY_ARRAY", Py_BuildValue("i",OUT_DENSITY_ARRAY));
-    PyDict_SetItemString(dict, "OUT_POT_ARRAY", Py_BuildValue("i",OUT_POT_ARRAY));
-    PyDict_SetItemString(dict, "OUT_AMAG_ARRAY", Py_BuildValue("i",OUT_AMAG_ARRAY));
-    PyDict_SetItemString(dict, "OUT_IMASS_ARRAY", Py_BuildValue("i",OUT_IMASS_ARRAY));
-    PyDict_SetItemString(dict, "OUT_RUNG_ARRAY", Py_BuildValue("i",OUT_RUNG_ARRAY));
-    PyDict_SetItemString(dict, "OUT_SOFT_ARRAY", Py_BuildValue("i",OUT_SOFT_ARRAY));
-    PyDict_SetItemString(dict, "OUT_DIVV_ARRAY", Py_BuildValue("i",OUT_DIVV_ARRAY));
-    PyDict_SetItemString(dict, "OUT_VELDISP2_ARRAY", Py_BuildValue("i",OUT_VELDISP2_ARRAY));
-    PyDict_SetItemString(dict, "OUT_VELDISP_ARRAY", Py_BuildValue("i",OUT_VELDISP_ARRAY));
-    PyDict_SetItemString(dict, "OUT_PHASEDENS_ARRAY", Py_BuildValue("i",OUT_PHASEDENS_ARRAY));
-    PyDict_SetItemString(dict, "OUT_SOFT_ARRAY", Py_BuildValue("i",OUT_SOFT_ARRAY));
-    PyDict_SetItemString(dict, "OUT_GROUP_ARRAY", Py_BuildValue("i",OUT_GROUP_ARRAY));
-    PyDict_SetItemString(dict, "OUT_RELAX_ARRAY", Py_BuildValue("i",OUT_RELAX_ARRAY));
-    PyDict_SetItemString(dict, "OUT_GROUP_TIPSY_NAT", Py_BuildValue("i",OUT_GROUP_TIPSY_NAT));
-    PyDict_SetItemString(dict, "OUT_GROUP_TIPSY_STD", Py_BuildValue("i",OUT_GROUP_TIPSY_STD));
-    PyDict_SetItemString(dict, "OUT_GROUP_STATS", Py_BuildValue("i",OUT_GROUP_STATS));
-    PyDict_SetItemString(dict, "OUT_GROUP_PROFILES", Py_BuildValue("i",OUT_GROUP_PROFILES));
-    }
-#else
-
 static void initModuleMSR(void) {
     PyObject *dict;
 
-    global_ppy->module = Py_InitModule("msr", ppy_msr_methods);
+    global_ppy->module = Py_InitModule("msr", msr_methods);
     global_ppy->bImported = 1;
 
     prm2ppy();
@@ -916,6 +986,23 @@ static void initModuleMSR(void) {
     PyDict_SetItemString(dict, "OUT_GROUP_TIPSY_STD", Py_BuildValue("i",OUT_GROUP_TIPSY_STD));
     PyDict_SetItemString(dict, "OUT_GROUP_STATS", Py_BuildValue("i",OUT_GROUP_STATS));
     PyDict_SetItemString(dict, "OUT_GROUP_PROFILES", Py_BuildValue("i",OUT_GROUP_PROFILES));
+
+    /* Import Pyro.core */
+/*    PyObject *main = PyImport_ImportModule("__main__");
+    PyObject *main_dict = PyModule_GetDict(main);
+    PyObject *pyro = PyImport_ImportModule("Pyro");
+    PyObject *pyro_dict = PyModule_GetDict(pyro);
+    PyObject *core = PyImport_ImportModule("Pyro.core");
+    PyObject *core_dict = PyModule_GetDict(core);
+    PyObject *ObjBase = PyDict_GetItemString(core_dict,"ObjBase");
+    PyDict_SetItemString(main_dict, "Pyro", pyro);
+    PyDict_SetItemString(pyro_dict, "core", core);
+*/
+    /* Initialize "MSR" object as well. */
+    if (PyType_Ready(&msrType) >= 0) {
+	Py_INCREF(&msrType);
+	PyModule_AddObject(global_ppy->module, "MSR", (PyObject *)&msrType);
+	}
     }
 
 
@@ -932,8 +1019,6 @@ void ppyInitialize(PPY *pvppy, MSR msr, double dTime) {
     Py_Initialize();
     ppy->mainModule = PyImport_AddModule("__main__"); 
     }
-#endif
-
 
 void ppyFinish(PPY vppy) {
     ppyCtx *ppy = (ppyCtx *)vppy;
@@ -988,99 +1073,3 @@ void ppyRunScript(PPY vppy,const char *achFilename) {
 	   "---------------------------------------\n" );
 
     }
-
-/**********************************************************************\
- * SERVER
-\**********************************************************************/
-
-#ifdef PYTHON_PYRO_SERVER
-
-typedef struct {
-    PyObject_HEAD
-    } MSRINSTANCE;
-
-static void msr_dealloc(MSRINSTANCE *self) {
-    self->ob_type->tp_free((PyObject*)self);
-    }
-
-static PyObject *msr_new(PyTypeObject *type, PyObject *args, PyObject *kwds) {
-    MSRINSTANCE *self;
-    self = (MSRINSTANCE *)type->tp_alloc(type, 0);
-    if (self == NULL) { return NULL; }
-    return (PyObject *)self;
-}
-
-static int msr_init(MSRINSTANCE *self, PyObject *args, PyObject *kwds) {
-    return 0;
-    }
-
-static PyMemberDef msr_members[] = {
-	{NULL} /* Sentinel */
-    };
-
-static PyGetSetDef msr_getseters[] = {
-    /*{"son", (getter)Father_getson, (setter)Father_setson, "son", NULL},*/
-	{NULL} /* Sentinel */
-    };
-
-static PyMethodDef msr_methods[] = {
-    /*{"info", (PyCFunction)Father_info, METH_NOARGS, "return info dic"},*/
-	{NULL} /* Sentinel */
-    };
-
-static PyTypeObject msrType = {
-    PyObject_HEAD_INIT(NULL)
-    0, /*ob_size*/
-    "msr.MSR", /*tp_name*/
-    sizeof(MSRINSTANCE), /*tp_basicsize */
-    0, /*tp_itemsize*/
-    (destructor)msr_dealloc, /*tp_dealloc*/
-    0, /*tp_print*/
-    0, /*tp_getattr*/
-    0, /*tp_setattr*/
-    0, /*tp_compare*/
-    0, /*tp_repr*/
-    0, /*tp_as_number*/
-    0, /*tp_as_sequence*/
-    0, /*tp_as_mapping*/
-    0, /*tp_hash */
-    0, /*tp_call*/
-    0, /*tp_str*/
-    0, /*tp_getattro*/
-    0, /*tp_setattro*/
-    0, /*tp_as_buffer*/
-    Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE, /*tp_flags*/
-    "MSR objects", /* tp_doc */
-    0, /* tp_traverse */
-    0, /* tp_clear */
-    0, /* tp_richcompare */
-    0, /* tp_weaklistoffset */
-    0, /* tp_iter */
-    0, /* tp_iternext */
-    msr_methods, /* tp_methods */
-    msr_members, /* tp_members */
-    msr_getseters, /* tp_getset */
-    0, /* tp_base */
-    0, /* tp_dict */
-    0, /* tp_descr_get */
-    0, /* tp_descr_set */
-    0, /* tp_dictoffset */
-    (initproc)msr_init, /* tp_init */
-    0, /* tp_alloc */
-    msr_new, /* tp_new */
-    };
-
-/*
-** Initialize the python module as a server using Pyro.
-*/
-void ppyInitializeServer(PPY *pvppy, MSR msr, double dTime) {
-
-
-
-
-    }
-
-
-
-
-#endif
