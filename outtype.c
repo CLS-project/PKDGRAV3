@@ -185,6 +185,7 @@ static void closeFILE(PKD pkd, void *ctxVoid ) {
     fclose(ctx->fp);
     }
 
+#ifdef HAVE_LIBBZ2
 static void closeBZ2(PKD pkd, void *ctxVoid ) {
     PKDOUT ctx = (PKDOUT)ctxVoid;
     int bzerror;
@@ -196,7 +197,8 @@ static void closeBZ2(PKD pkd, void *ctxVoid ) {
 			&nbytes_out_lo32, &nbytes_out_hi32 );
     fclose(ctx->fp);
     }
-
+#endif
+#ifdef HAVE_LIBZ
 static void closeZ(PKD pkd, void *ctxVoid ) {
     PKDOUT ctx = (PKDOUT)ctxVoid;
 
@@ -205,7 +207,7 @@ static void closeZ(PKD pkd, void *ctxVoid ) {
 	exit(1);
 	}
     }
-
+#endif
 PKDOUT pkdOpenOutASCII(PKD pkd,char *pszFileName,const char *mode,int iType) {
     PKDOUT ctx;
     void (*fnOut)(PKD pkd,void *fp,PARTICLE *p,int iType,int iDim);
