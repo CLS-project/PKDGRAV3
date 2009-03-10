@@ -323,6 +323,8 @@ typedef struct mdlFFTContext {
 
     uint32_t *rsz;  /* Starting z for each processor */
     uint32_t *rsy;
+    uint32_t *rnz;  /* Number of z slabs on each processor */
+    uint32_t *rny;
 
     uint32_t *zid;  /* Which processor has this z */
     uint32_t *yid;

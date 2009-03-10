@@ -1818,24 +1818,32 @@ size_t mdlFFTInitialize(MDL mdl,MDLFFT *pfft,
 					 (bMeasure ? FFTW_MEASURE : FFTW_ESTIMATE));
     rfftwnd_mpi_local_sizes( fft->fplan, &fft->nz, &fft->sz, &fft->ny, &fft->sy, &fft->nlocal);
 
+    /* Mapping from slab to processor */
+    fft->zid = malloc(sizeof(*fft->zid)*(nz)); assert(fft->zid!=NULL);
+    fft->yid = malloc(sizeof(*fft->yid)*(ny)); assert(fft->yid!=NULL);
+
     /* Gather the starting indexes for later use */
-    fft->rsz = malloc(sizeof(*fft->rsz)*(mdl->nThreads+1)); assert(fft->rsz!=NULL);
-    fft->rsy = malloc(sizeof(*fft->rsy)*(mdl->nThreads+1)); assert(fft->rsy!=NULL);
+    fft->rsz = malloc(sizeof(*fft->rsz)*mdl->nThreads); assert(fft->rsz!=NULL);
+    fft->rnz = malloc(sizeof(*fft->rnz)*mdl->nThreads); assert(fft->rnz!=NULL);
+    fft->rsy = malloc(sizeof(*fft->rsy)*mdl->nThreads); assert(fft->rsy!=NULL);
+    fft->rny = malloc(sizeof(*fft->rny)*mdl->nThreads); assert(fft->rny!=NULL);
     MPI_Allgather(&fft->sz,sizeof(*fft->rsz),MPI_BYTE,
 		  fft->rsz,sizeof(*fft->rsz),MPI_BYTE,
+		  mdl->commMDL);
+    MPI_Allgather(&fft->nz,sizeof(*fft->rnz),MPI_BYTE,
+		  fft->rnz,sizeof(*fft->rnz),MPI_BYTE,
 		  mdl->commMDL);
     MPI_Allgather(&fft->sy,sizeof(*fft->rsy),MPI_BYTE,
 		  fft->rsy,sizeof(*fft->rsy),MPI_BYTE,
 		  mdl->commMDL);
-    fft->rsz[mdl->nThreads] = fft->n3;
-    fft->rsy[mdl->nThreads] = fft->n2;
+    MPI_Allgather(&fft->ny,sizeof(*fft->rny),MPI_BYTE,
+		  fft->rny,sizeof(*fft->rny),MPI_BYTE,
+		  mdl->commMDL);
 
     /* Create a mapping for each z and y slab */
-    fft->zid = malloc(sizeof(*fft->zid)*(nz)); assert(fft->zid!=NULL);
-    fft->yid = malloc(sizeof(*fft->yid)*(ny)); assert(fft->yid!=NULL);
     for(id=0; id<mdl->nThreads; id++ ) {
-	for( i=fft->rsz[id]; i<fft->rsz[id+1]; i++ ) fft->zid[i] = id;
-	for( i=fft->rsy[id]; i<fft->rsy[id+1]; i++ ) fft->yid[i] = id;
+	for( i=fft->rsz[id]; i<fft->rsz[id]+fft->rnz[id]; i++ ) fft->zid[i] = id;
+	for( i=fft->rsy[id]; i<fft->rsy[id]+fft->rny[id]; i++ ) fft->yid[i] = id;
 	}
 
     *pfft = fft;
@@ -1845,6 +1853,12 @@ size_t mdlFFTInitialize(MDL mdl,MDLFFT *pfft,
 void mdlFFTFinish( MDLFFT fft ) {
     rfftwnd_mpi_destroy_plan(fft->fplan);
     rfftwnd_mpi_destroy_plan(fft->iplan);
+    free(fft->rsz);
+    free(fft->rnz);
+    free(fft->rsy);
+    free(fft->rny);
+    free(fft->zid);
+    free(fft->yid);
     free(fft);
     }
 
