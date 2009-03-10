@@ -832,7 +832,6 @@ void pkdMeasurePk(PKD pkd, double dCenter[3], double dRadius,
 	*/
 	if( r[0]>=0.0 && r[0]<1.0 && r[1]>=0.0 && r[1]<1.0 && r[2]>=0.0 && r[2]<1.0 )
 	    tsc_assign(pkd, fft, r[0], r[1], r[2], pkdMass(pkd,p));
-	mdlCacheCheck(pkd->mdl);
 	}
     mdlFinishCache(pkd->mdl,CID_PK);
 
