@@ -259,7 +259,7 @@ ppy_msr_SelDstCylinder(PyObject *self, PyObject *args) {
     uint64_t nSelected;
 
     if ( !PyArg_ParseTuple(
-	     args, "(ddd)(ddd)(ddd)d|ii:SelDstSphere",
+	     args, "(ddd)(ddd)d|ii:SelDstSphere",
 	     dP1+0, dP1+1, dP1+2, dP2+0, dP2+1, dP2+2, &dRadius,
 	     &setIfTrue, &clearIfFalse) )
 	return NULL;
@@ -989,8 +989,9 @@ static void initModuleMSR(void) {
     PyDict_SetItemString(dict, "OUT_GROUP_STATS", Py_BuildValue("i",OUT_GROUP_STATS));
     PyDict_SetItemString(dict, "OUT_GROUP_PROFILES", Py_BuildValue("i",OUT_GROUP_PROFILES));
 
-    /* Import Pyro.core */
-/*    PyObject *main = PyImport_ImportModule("__main__");
+    /* Import Pyro.core. */
+    /*
+    PyObject *main = PyImport_ImportModule("__main__");
     PyObject *main_dict = PyModule_GetDict(main);
     PyObject *pyro = PyImport_ImportModule("Pyro");
     PyObject *pyro_dict = PyModule_GetDict(pyro);
@@ -999,7 +1000,7 @@ static void initModuleMSR(void) {
     PyObject *ObjBase = PyDict_GetItemString(core_dict,"ObjBase");
     PyDict_SetItemString(main_dict, "Pyro", pyro);
     PyDict_SetItemString(pyro_dict, "core", core);
-*/
+    */
     /* Initialize "MSR" object as well. */
     if (PyType_Ready(&msrType) >= 0) {
 	Py_INCREF(&msrType);
