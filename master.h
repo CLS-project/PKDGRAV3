@@ -259,8 +259,10 @@ void msrCalcCOM(MSR msr,const double *dCenter, double dRadius,
 		double *com, double *vcm, double *L, double *M);
 void msrPeakVc(MSR msr,int N,struct inPeakVc *in);
 
+void msrInitGrid(MSR msr,int x,int y,int z);
+void msrGridProject(MSR msr,double x,double y,double z);
 #ifdef MDL_FFTW
-void msrMeasurePk(MSR msr,double *dCenter,double dRadius,int nGrid,float *Pk);
+void msrMeasurePk(MSR msr,double *dCenter,double dRadius,int nGrid,int bPeriodic,float *Pk);
 #endif
 
 #endif

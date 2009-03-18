@@ -465,7 +465,7 @@ ppy_msr_Fof(PyObject *self, PyObject *args, PyObject *kwobj) {
 	return NULL;
     dTime = PyFloat_AsDouble(v);
     if ( !PyArg_ParseTupleAndKeywords(
-	     args, kwobj, "|iid:BuildTree", kwlist,
+	     args, kwobj, "|d:BuildTree", kwlist,
 	     &dTime ) )
 	return NULL;
     dExp = csmTime2Exp(ppy_msr->param.csm,dTime);
@@ -552,26 +552,56 @@ ppy_msr_PeakVc(PyObject *self, PyObject *args, PyObject *kwobj) {
     return Py_None;
 }
 
+static PyObject *
+ppy_msr_InitGrid(PyObject *self, PyObject *args, PyObject *kwobj) {
+    static char *kwlist[]={"x","y","z",NULL};
+    int x, y, z;
+
+
+    if ( !PyArg_ParseTupleAndKeywords(
+	     args, kwobj, "iii:InitGrid", kwlist,
+	     &x, &y, &z ) )
+	return NULL;
+
+    msrInitGrid(ppy_msr,x,y,z);
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+
+static PyObject *
+ppy_msr_Project(PyObject *self, PyObject *args, PyObject *kwobj) {
+    static char *kwlist[]={"x","y","z",NULL};
+    double x=0.0, y=0.0, z=0.0;
+    if ( !PyArg_ParseTupleAndKeywords(
+	     args, kwobj, "|ddd:GridProject", kwlist,
+	     &x, &y, &z ) )
+	return NULL;
+    msrGridProject(ppy_msr,x,y,z);
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+
 
 #ifdef MDL_FFTW
 static PyObject *
 ppy_msr_MeasurePk(PyObject *self, PyObject *args, PyObject *kwobj) {
-    static char *kwlist[]={"nGrid","x","y","z","r",NULL};
+    static char *kwlist[]={"nGrid","x","y","z","r","Periodic",NULL};
     double dCenter[3] = {0.0,0.0,0.0};
     double dRadius = 0.5;
+    int bPeriodic = 1;
     int nGrid, iNyquist, i;
     float *fPk;
     PyObject *List, *value;
 
     if ( !PyArg_ParseTupleAndKeywords(
-	     args, kwobj, "i|dddd:MeasurePk", kwlist,
-	     &nGrid, dCenter+0, dCenter+1, dCenter+2, &dRadius ) )
+	     args, kwobj, "i|ddddi:MeasurePk", kwlist,
+	     &nGrid, dCenter+0, dCenter+1, dCenter+2, &dRadius, &bPeriodic ) )
 	return NULL;
     iNyquist = nGrid/2;
 
 
     fPk = malloc(sizeof(float)*(iNyquist+1));
-    msrMeasurePk(ppy_msr,dCenter,dRadius,nGrid,fPk);
+    msrMeasurePk(ppy_msr,dCenter,dRadius,nGrid,bPeriodic,fPk);
 
     List = PyList_New( iNyquist+1 );
     assert( List !=NULL );
@@ -596,7 +626,7 @@ ppy_msr_GroupProfiles(PyObject *self, PyObject *args, PyObject *kwobj) {
 	return NULL;
     dTime = PyFloat_AsDouble(v);
     if ( !PyArg_ParseTupleAndKeywords(
-	     args, kwobj, "|iid:GroupProfiles", kwlist,
+	     args, kwobj, "|d:GroupProfiles", kwlist,
 	     &dTime ) )
 	return NULL;
     dExp = csmTime2Exp(ppy_msr->param.csm,dTime);
@@ -810,6 +840,10 @@ static PyMethodDef msr_methods[] = {
      "Group Profiles"},
     {"PeakVc", (PyCFunction)ppy_msr_PeakVc, METH_VARARGS|METH_KEYWORDS,
      "Calculate peak circular velocities"},
+    {"InitGrid", (PyCFunction)ppy_msr_InitGrid, METH_VARARGS|METH_KEYWORDS,
+     "Initialize/allocate a GRID"},
+    {"Project", (PyCFunction)ppy_msr_Project, METH_VARARGS|METH_KEYWORDS,
+     "Project density onto the grid"},
 #ifdef MDL_FFTW
     {"MeasurePk", (PyCFunction)ppy_msr_MeasurePk, METH_VARARGS|METH_KEYWORDS,
      "Measure the power spectrum"},

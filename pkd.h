@@ -45,7 +45,8 @@ typedef uint_fast64_t total_t; /* Count of particles globally (total number) */
 #define CID_RM		3
 #define CID_BIN		4
 #define CID_SHAPES	5
-#define CID_PK          6
+#define CID_PK          2
+#define CID_PNG         2
 
 /*
 ** Here we define some special reserved nodes. Node-0 is a sentinel or null node, node-1
@@ -631,6 +632,9 @@ typedef struct pkdContext {
     double dSunMass;
     int    iCollisionflag; /*call pkddocollisionveryactive if iCollisionflag=1*/
 #endif
+
+    MDLGRID grid;
+    float *gridData;
     } * PKD;
 
 static inline void pkdMinMax( double *dVal, double *dMin, double *dMax ) {
@@ -964,9 +968,11 @@ uint_fast32_t pkdCountDistance(PKD pkd, double r2i, double r2o );
 void pkdCalcCOM(PKD pkd, double *dCenter, double dRadius,
 		double *com, double *vcm, double *L,
 		double *M, uint64_t *N);
+void pkdGridInitialize(PKD pkd, int n1, int n2, int n3, int a1, int s, int n);
+void pkdGridProject(PKD pkd);
 #ifdef MDL_FFTW
 void pkdMeasurePk(PKD pkd, double dCenter[3], double dRadius,
-		  int nGrid, float *fPower, int *nPower);
+		  int nGrid, int bPeriodic, float *fPower, int *nPower);
 #endif
 
 static inline void vec_sub(double *r,const double *a,const double *b ) {

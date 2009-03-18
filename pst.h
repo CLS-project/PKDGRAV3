@@ -199,6 +199,8 @@ enum pst_service {
     PST_CALCCOM,
     PST_COUNTDISTANCE,
     PST_PEAKVC,
+    PST_INITGRID,
+    PST_GRIDPROJECT,
 #ifdef MDL_FFTW
     PST_MEASUREPK,
 #endif
@@ -1217,6 +1219,19 @@ struct outPeakVc {
     };
 void pstPeakVc(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 
+/* PST_INITGRID */
+struct inInitGrid {
+    int n1, n2, n3, a1;
+    int s, n;
+    };
+void pstInitGrid(PST pst,void *vin,int nIn,void *vout,int *pnOut);
+
+/* PST_GRIDPROJECT */
+struct inGridProject {
+    double r[3];
+    };
+void pstGridProject(PST pst,void *vin,int nIn,void *vout,int *pnOut);
+
 #ifdef MDL_FFTW
 #define PST_MAX_K 4096
 /* PST_MEASUREPK */
@@ -1224,6 +1239,7 @@ struct inMeasurePk {
     double dCenter[3];
     double dRadius;
     int nGrid;
+    int bPeriodic;
     };
 struct outMeasurePk {
     float fPower[PST_MAX_K];

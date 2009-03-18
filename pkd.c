@@ -359,6 +359,9 @@ void pkdInitialize(PKD *ppkd,MDL mdl,int nStore,int nBucket,float fExtraNodes, i
 
     pkd->profileBins = NULL;
     pkd->groupBin = NULL;
+
+    pkd->grid = NULL;
+    pkd->gridData = NULL;
     }
 
 

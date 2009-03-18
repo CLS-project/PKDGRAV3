@@ -500,6 +500,12 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_PEAKVC,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstPeakVc,
 		  PST_MAX_PEAKVC*sizeof(struct inPeakVc), PST_MAX_PEAKVC*sizeof(struct outPeakVc));
+    mdlAddService(mdl,PST_INITGRID,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstInitGrid,
+		  sizeof(struct inInitGrid), 0);
+    mdlAddService(mdl,PST_GRIDPROJECT,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstGridProject,
+		  sizeof(struct inGridProject), 0);
 #ifdef MDL_FFTW
     mdlAddService(mdl,PST_MEASUREPK,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstMeasurePk,
@@ -4407,6 +4413,47 @@ void pstPeakVc(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     if (pnOut) *pnOut = N*sizeof(struct outPeakVc);
     }
 
+void pstInitGrid(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl = pst->plcl;
+    struct inInitGrid *in = vin;
+    int s = in->s;
+    int n = in->n;
+    assert( sizeof(struct inInitGrid) == nIn );
+    if (pst->nLeaves > 1) {
+
+	in->s = s + pst->nLower*n/pst->nLeaves;
+	in->n = s + n - in->s;
+
+
+	//in->n = n/2;
+	//in->s = in->n ? s + n - in->n : 0;
+	mdlReqService(pst->mdl,pst->idUpper,PST_INITGRID,vin,nIn);
+	in->n = n - in->n;
+	in->s = in->n ? s : 0;
+	pstInitGrid(pst->pstLower,vin,nIn,vout,pnOut);
+	mdlGetReply(pst->mdl,pst->idUpper,vout,pnOut);
+	}
+    else {
+	pkdGridInitialize(plcl->pkd,in->n1,in->n2,in->n3,in->a1,in->s,in->n);
+	}
+    if (pnOut) *pnOut = 0;
+    }
+
+void pstGridProject(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl = pst->plcl;
+    struct inGridProject *in = vin;
+    assert( sizeof(struct inGridProject) == nIn );
+    if (pst->nLeaves > 1) {
+	mdlReqService(pst->mdl,pst->idUpper,PST_GRIDPROJECT,vin,nIn);
+	pstGridProject(pst->pstLower,vin,nIn,vout,pnOut);
+	mdlGetReply(pst->mdl,pst->idUpper,vout,pnOut);
+	}
+    else {
+	pkdGridProject(plcl->pkd);
+	}
+    if (pnOut) *pnOut = 0;
+    }
+
 #ifdef MDL_FFTW
 void pstMeasurePk(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
@@ -4430,7 +4477,7 @@ void pstMeasurePk(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	}
     else {
 	pkdMeasurePk(plcl->pkd, in->dCenter, in->dRadius,
-		     in->nGrid, out->fPower, out->nPower);
+		     in->nGrid, in->bPeriodic, out->fPower, out->nPower);
 	}
     if (pnOut) *pnOut = sizeof(struct outMeasurePk);
     }

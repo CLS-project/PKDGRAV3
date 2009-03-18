@@ -5835,8 +5835,28 @@ void msrPeakVc(MSR msr,int N,struct inPeakVc *in) {
 	}
     }
 
+void msrInitGrid(MSR msr,int x,int y,int z) {
+    struct inInitGrid in;
+    in.n1 = x;
+    in.n2 = y;
+    in.n3 = z;
+    in.a1 = x;
+    in.s = 0;
+    in.n = z;
+
+    pstInitGrid(msr->pst, &in, sizeof(in), NULL, NULL);
+    }
+
+void msrGridProject(MSR msr,double x,double y,double z) {
+    struct inGridProject in;
+    in.r[0] = x;
+    in.r[1] = y;
+    in.r[2] = z;
+    pstGridProject(msr->pst, &in, sizeof(in), NULL, NULL);
+    }
+
 #ifdef MDL_FFTW
-void msrMeasurePk(MSR msr,double *dCenter,double dRadius,int nGrid,float *Pk) {
+void msrMeasurePk(MSR msr,double *dCenter,double dRadius,int nGrid,int bPeriodic,float *Pk) {
     struct inMeasurePk in;
     struct outMeasurePk out;
     int nOut;
@@ -5845,6 +5865,7 @@ void msrMeasurePk(MSR msr,double *dCenter,double dRadius,int nGrid,float *Pk) {
 
     /* NOTE: reordering the particles by their z coordinate would be good here */
     in.nGrid = nGrid;
+    in.bPeriodic = bPeriodic;
     in.dCenter[0] = dCenter[0];
     in.dCenter[1] = dCenter[1];
     in.dCenter[2] = dCenter[2];
