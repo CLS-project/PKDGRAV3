@@ -793,7 +793,7 @@ static void cell_accumulate(PKD pkd, MDLFFT fft,int nGrid, int x,int y,int z, fl
     mdlRelease(pkd->mdl,CID_PK,p);
     }
 
-static void tsc_assign(PKD pkd, MDLFFT fft, int nGrid, int bPeriodic,
+static void tsc_assign(PKD pkd, MDLFFT fft, int nGrid,
 		       double x, double y, double z, double mass) {
     int           ix, iy, iz, ixp1, iyp1, izp1, ixm1, iym1, izm1;
     float         rrx, rry, rrz;
@@ -874,7 +874,7 @@ static void tsc_assign(PKD pkd, MDLFFT fft, int nGrid, int bPeriodic,
 }
 
 void pkdMeasurePk(PKD pkd, double dCenter[3], double dRadius,
-		  int nGrid, int bPeriodic, float *fPower, int *nPower) {
+		  int nGrid, float *fPower, int *nPower) {
     PARTICLE *p;
     MDLFFT fft;
     fftw_real *fftData;
@@ -887,10 +887,19 @@ void pkdMeasurePk(PKD pkd, double dCenter[3], double dRadius,
     int i,j,k, sy, ey, idx, ks;
     int iNyquist;
     int nGridFFT;
+    int bPeriodic = 1;
 
     iNyquist = nGrid / 2;
     nGridFFT = bPeriodic ? nGrid : nGrid*2;
 
+    /* Non-periodic doesn't work, so always do a periodic FFT */
+#if 0
+    bPeriodic = pkd->param.bPeriodic;
+    if ( pkd->param.bPeriodic ) {
+	for(i=0;i<3;i++) {
+	    if ( fabs(dRadius-pkd->fPeriod[i]) > 1e-10 ) bPeriodic = 0;
+	}
+#endif
 
     /* Box scaling factor */
     dScale = 0.5 / dRadius;
@@ -921,7 +930,7 @@ void pkdMeasurePk(PKD pkd, double dCenter[3], double dRadius,
 	** then this particle is outside of the given box and should be ignored.
 	*/
 	if( r[0]>=0.0 && r[0]<1.0 && r[1]>=0.0 && r[1]<1.0 && r[2]>=0.0 && r[2]<1.0 )
-	    tsc_assign(pkd, fft, nGrid, bPeriodic, r[0], r[1], r[2], pkdMass(pkd,p));
+	    tsc_assign(pkd, fft, nGrid, r[0], r[1], r[2], pkdMass(pkd,p));
 	}
     mdlFinishCache(pkd->mdl,CID_PK);
 
@@ -1008,6 +1017,8 @@ void pkdMeasurePk(PKD pkd, double dCenter[3], double dRadius,
 	    }
 	}
     else {
+	assert(0);
+#if 0
 	sy = fft->kgrid->s;
 	ey = sy + fft->kgrid->n;
 	if ( sy < iNyquist ) sy = iNyquist;
@@ -1018,26 +1029,6 @@ void pkdMeasurePk(PKD pkd, double dCenter[3], double dRadius,
 		int kk = k>nGrid ? nGridFFT - k : k - iNyquist;
 		for(i=iNyquist;i<=nGrid;i++) {
 		    int ii = i - iNyquist;
-		    ks = sqrtl(ii*ii + jj*jj + kk*kk);
-		    idx = mdlFFTkIdx(fft,i,j,k);
-		    if ( ks >= 1 && ks <= iNyquist ) {
-			fPower[ks] += c_re(fftDataK[idx]);
-			nPower[ks] += 1;
-			}
-		    }
-		}
-	    }
-#if 0
-	sy = fft->grid->sy;
-	ey = sy + fft->grid->ny;
-	if ( sy < iNyquist ) sy = iNyquist;
-	if ( ey > nGrid+iNyquist ) ey = nGrid+iNyquist;
-	for(j=sy;j<ey;j++) {
-	    int jj = j>nGrid ? nGridFFT - iNyquist - j : j - iNyquist;
-	    for(k=iNyquist;k<nGrid+iNyquist;k++) {
-		int kk = k>nGrid ? nGridFFT - iNyquist - k : k - iNyquist;
-		for(i=iNyquist;i<=nGrid;i++) {
-		    int ii = i-iNyquist;
 		    ks = sqrtl(ii*ii + jj*jj + kk*kk);
 		    idx = mdlFFTkIdx(fft,i,j,k);
 		    if ( ks >= 1 && ks <= iNyquist ) {

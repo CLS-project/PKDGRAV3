@@ -585,23 +585,22 @@ ppy_msr_Project(PyObject *self, PyObject *args, PyObject *kwobj) {
 #ifdef MDL_FFTW
 static PyObject *
 ppy_msr_MeasurePk(PyObject *self, PyObject *args, PyObject *kwobj) {
-    static char *kwlist[]={"nGrid","x","y","z","r","Periodic",NULL};
+    static char *kwlist[]={"nGrid","x","y","z","r",NULL};
     double dCenter[3] = {0.0,0.0,0.0};
     double dRadius = 0.5;
-    int bPeriodic = 1;
     int nGrid, iNyquist, i;
     float *fPk;
     PyObject *List, *value;
 
     if ( !PyArg_ParseTupleAndKeywords(
 	     args, kwobj, "i|ddddi:MeasurePk", kwlist,
-	     &nGrid, dCenter+0, dCenter+1, dCenter+2, &dRadius, &bPeriodic ) )
+	     &nGrid, dCenter+0, dCenter+1, dCenter+2, &dRadius ) )
 	return NULL;
     iNyquist = nGrid/2;
 
 
     fPk = malloc(sizeof(float)*(iNyquist+1));
-    msrMeasurePk(ppy_msr,dCenter,dRadius,nGrid,bPeriodic,fPk);
+    msrMeasurePk(ppy_msr,dCenter,dRadius,nGrid,fPk);
 
     List = PyList_New( iNyquist+1 );
     assert( List !=NULL );

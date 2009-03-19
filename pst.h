@@ -1239,7 +1239,6 @@ struct inMeasurePk {
     double dCenter[3];
     double dRadius;
     int nGrid;
-    int bPeriodic;
     };
 struct outMeasurePk {
     float fPower[PST_MAX_K];

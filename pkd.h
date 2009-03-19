@@ -972,7 +972,7 @@ void pkdGridInitialize(PKD pkd, int n1, int n2, int n3, int a1, int s, int n);
 void pkdGridProject(PKD pkd);
 #ifdef MDL_FFTW
 void pkdMeasurePk(PKD pkd, double dCenter[3], double dRadius,
-		  int nGrid, int bPeriodic, float *fPower, int *nPower);
+		  int nGrid, float *fPower, int *nPower);
 #endif
 
 static inline void vec_sub(double *r,const double *a,const double *b ) {
