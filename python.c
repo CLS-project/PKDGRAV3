@@ -465,7 +465,7 @@ ppy_msr_Fof(PyObject *self, PyObject *args, PyObject *kwobj) {
 	return NULL;
     dTime = PyFloat_AsDouble(v);
     if ( !PyArg_ParseTupleAndKeywords(
-	     args, kwobj, "|d:BuildTree", kwlist,
+	     args, kwobj, "|d:Fof", kwlist,
 	     &dTime ) )
 	return NULL;
     dExp = csmTime2Exp(ppy_msr->param.csm,dTime);
@@ -593,7 +593,7 @@ ppy_msr_MeasurePk(PyObject *self, PyObject *args, PyObject *kwobj) {
     PyObject *List, *value;
 
     if ( !PyArg_ParseTupleAndKeywords(
-	     args, kwobj, "i|ddddi:MeasurePk", kwlist,
+	     args, kwobj, "i|dddd:MeasurePk", kwlist,
 	     &nGrid, dCenter+0, dCenter+1, dCenter+2, &dRadius ) )
 	return NULL;
     iNyquist = nGrid/2;
