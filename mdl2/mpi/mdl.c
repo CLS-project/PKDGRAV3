@@ -1788,89 +1788,137 @@ double mdlTimeWaiting(MDL mdl) {
     }
 #endif
 
+/*
+** GRID Geometry information.  The basic process is as follows:
+** - Initialize: Create a MDLGRID giving the global geometry information (total grid size)
+** - SetLocal:   Set the local grid geometry (which slabs are on this processor)
+** - GridShare:  Share this information between processors
+** - Malloc:     Allocate one or more grid instances
+** - Free:       Free the memory for all grid instances
+** - Finish:     Free the GRID geometry information.
+*/
+void mdlGridInitialize(MDL mdl,MDLGRID *pgrid,int n1,int n2,int n3,int a1) {
+    MDLGRID grid;
+    assert(n1>0&&n2>0&&n3>0);
+    assert(n1<=a1);
+    *pgrid = grid = malloc(sizeof(struct mdlGridContext)); assert(grid!=NULL);
+    grid->n1 = n1;
+    grid->n2 = n2;
+    grid->n3 = n3;
+    grid->a1 = a1;
+
+    /* This will be shared later (see mdlGridShare) */
+    grid->id = malloc(sizeof(*grid->id)*(grid->n3));    assert(grid->id!=NULL);
+    grid->rs = mdlMalloc(mdl,sizeof(*grid->rs)*mdl->nThreads); assert(grid->rs!=NULL);
+    grid->rn = mdlMalloc(mdl,sizeof(*grid->rn)*mdl->nThreads); assert(grid->rn!=NULL);
+
+    /* The following need to be set to appropriate values still. */
+    grid->s = grid->n = grid->nlocal = 0;
+    }
+
+void mdlGridFinish(MDL mdl, MDLGRID grid) {
+    if (grid->rs) free(grid->rs);
+    if (grid->rn) free(grid->rn);
+    if (grid->id) free(grid->id);
+    free(grid);
+    }
+
+void mdlGridSetLocal(MDL mdl,MDLGRID grid,int s, int n, int nlocal) {
+    assert( s>=0 && s<grid->n3);
+    assert( n>=0 && s+n<=grid->n3);
+    grid->s = s;
+    grid->n = n;
+    grid->nlocal = nlocal;
+    }
+
+/*
+** Share the local GRID information with other processors by,
+**   - finding the starting slab and number of slabs on each processor
+**   - building a mapping from slab to processor id.
+*/
+void mdlGridShare(MDL mdl,MDLGRID grid) {
+    int i, id;
+
+    MPI_Allgather(&grid->s,sizeof(*grid->rs),MPI_BYTE,
+		  grid->rs,sizeof(*grid->rs),MPI_BYTE,
+		  mdl->commMDL);
+    MPI_Allgather(&grid->n,sizeof(*grid->rn),MPI_BYTE,
+		  grid->rn,sizeof(*grid->rn),MPI_BYTE,
+		  mdl->commMDL);
+    /* Calculate on which processor each slab can be found. */
+    for(id=0; id<mdl->nThreads; id++ ) {
+	for( i=grid->rs[id]; i<grid->rs[id]+grid->rn[id]; i++ ) grid->id[i] = id;
+	}
+    }
+
+/*
+** Allocate the local elements.  The size of a single element is
+** given and the local GRID information is consulted to determine
+** how many to allocate.
+*/
+void *mdlGridMalloc(MDL mdl,MDLGRID grid,int nEntrySize) {
+    return mdlMalloc(mdl,nEntrySize*grid->nlocal);
+    }
+
+void mdlGridFree( MDL mdl, MDLGRID grid, void *p ) {
+    mdlFree(mdl,p);
+    }
+
 #ifdef MDL_FFTW
 size_t mdlFFTInitialize(MDL mdl,MDLFFT *pfft,
-			int nx,int ny,int nz,int bMeasure) {
+			int n1,int n2,int n3,int bMeasure) {
     MDLFFT fft;
-    int id, i;
+    int sz,nz,sy,ny,nlocal;
 
     *pfft = NULL;
     fft = malloc(sizeof(struct mdlFFTContext));
     assert(fft != NULL);
 
-    fft->n1  = nx;
-    fft->n2  = ny;
-    fft->n3  = nz;
-
-    fft->a1k = fft->n1/2 + 1;
-    fft->a1r = 2 * fft->a1k;
-
-    fft->mdl = mdl;
-
     /* Contruct the FFTW plans */
     fft->fplan = rfftw3d_mpi_create_plan(mdl->commMDL,
-					 nz, ny, nx,
+					 n3, n2, n1,
 					 FFTW_REAL_TO_COMPLEX,
 					 (bMeasure ? FFTW_MEASURE : FFTW_ESTIMATE) );
     fft->iplan = rfftw3d_mpi_create_plan(mdl->commMDL,
-					 /* dim.'s of REAL data --> */ nz, ny, nx,
+					 /* dim.'s of REAL data --> */ n3, n2, n1,
 					 FFTW_COMPLEX_TO_REAL,
 					 (bMeasure ? FFTW_MEASURE : FFTW_ESTIMATE));
-    rfftwnd_mpi_local_sizes( fft->fplan, &fft->nz, &fft->sz, &fft->ny, &fft->sy, &fft->nlocal);
+    rfftwnd_mpi_local_sizes( fft->fplan, &nz, &sz, &ny, &sy,&nlocal);
 
-    /* Mapping from slab to processor */
-    fft->zid = malloc(sizeof(*fft->zid)*(nz)); assert(fft->zid!=NULL);
-    fft->yid = malloc(sizeof(*fft->yid)*(ny)); assert(fft->yid!=NULL);
+    /*
+    ** Dimensions of k-space and r-space grid.  Note transposed order.
+    ** Note also that the "actual" dimension 1 side of the r-space array
+    ** can be (and usually is) larger than "n1" because of the inplace FFT.
+    */
+    mdlGridInitialize(mdl,&fft->rgrid,n1,n2,n3,2*(n1/2+1));
+    mdlGridInitialize(mdl,&fft->kgrid,n1/2+1,n3,n2,n1/2+1);
 
-    /* Gather the starting indexes for later use */
-    fft->rsz = malloc(sizeof(*fft->rsz)*mdl->nThreads); assert(fft->rsz!=NULL);
-    fft->rnz = malloc(sizeof(*fft->rnz)*mdl->nThreads); assert(fft->rnz!=NULL);
-    fft->rsy = malloc(sizeof(*fft->rsy)*mdl->nThreads); assert(fft->rsy!=NULL);
-    fft->rny = malloc(sizeof(*fft->rny)*mdl->nThreads); assert(fft->rny!=NULL);
-    MPI_Allgather(&fft->sz,sizeof(*fft->rsz),MPI_BYTE,
-		  fft->rsz,sizeof(*fft->rsz),MPI_BYTE,
-		  mdl->commMDL);
-    MPI_Allgather(&fft->nz,sizeof(*fft->rnz),MPI_BYTE,
-		  fft->rnz,sizeof(*fft->rnz),MPI_BYTE,
-		  mdl->commMDL);
-    MPI_Allgather(&fft->sy,sizeof(*fft->rsy),MPI_BYTE,
-		  fft->rsy,sizeof(*fft->rsy),MPI_BYTE,
-		  mdl->commMDL);
-    MPI_Allgather(&fft->ny,sizeof(*fft->rny),MPI_BYTE,
-		  fft->rny,sizeof(*fft->rny),MPI_BYTE,
-		  mdl->commMDL);
-
-    /* Create a mapping for each z and y slab */
-    for(id=0; id<mdl->nThreads; id++ ) {
-	for( i=fft->rsz[id]; i<fft->rsz[id]+fft->rnz[id]; i++ ) fft->zid[i] = id;
-	for( i=fft->rsy[id]; i<fft->rsy[id]+fft->rny[id]; i++ ) fft->yid[i] = id;
-	}
+    mdlGridSetLocal(mdl,fft->rgrid,sz,nz,nlocal);
+    mdlGridSetLocal(mdl,fft->kgrid,sy,ny,nlocal/2);
+    mdlGridShare(mdl,fft->rgrid);
+    mdlGridShare(mdl,fft->kgrid);
 
     *pfft = fft;
-    return fft->nlocal;
+    return nlocal;
     }
 
-void mdlFFTFinish( MDLFFT fft ) {
+void mdlFFTFinish( MDL mdl, MDLFFT fft ) {
     rfftwnd_mpi_destroy_plan(fft->fplan);
     rfftwnd_mpi_destroy_plan(fft->iplan);
-    free(fft->rsz);
-    free(fft->rnz);
-    free(fft->rsy);
-    free(fft->rny);
-    free(fft->zid);
-    free(fft->yid);
+    mdlGridFinish(mdl,fft->kgrid);
+    mdlGridFinish(mdl,fft->rgrid);
     free(fft);
     }
 
-fftw_real *mdlFFTMAlloc( MDLFFT fft ) {
-    return mdlMalloc(fft->mdl,sizeof(fftw_real)*fft->nlocal);
+fftw_real *mdlFFTMAlloc( MDL mdl, MDLFFT fft ) {
+    return mdlGridMalloc(mdl,fft->rgrid,sizeof(fftw_real));
     }
 
-void mdlFFTFree( MDLFFT fft, void *p ) {
-    mdlFree(fft->mdl,p);
+void mdlFFTFree( MDL mdl, MDLFFT fft, void *p ) {
+    mdlGridFree(mdl,fft->rgrid,p);
     }
 
-void mdlFFT( MDLFFT fft, fftw_real *data, int bInverse ) {
+void mdlFFT( MDL mdl, MDLFFT fft, fftw_real *data, int bInverse ) {
     rfftwnd_mpi_plan plan = bInverse ? fft->iplan : fft->fplan;
     rfftwnd_mpi(plan,1,data,0,FFTW_TRANSPOSED_ORDER);
     }

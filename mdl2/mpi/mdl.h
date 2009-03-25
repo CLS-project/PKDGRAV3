@@ -273,28 +273,8 @@ void mdlHandler(MDL);
 #define MDL_REPLACE MPI_REPLACE
 #define MDL_SUM MPI_SUM
 
-#define MDL_BYTE MPI_BYTE
-#define MDL_INT MPI_INT
-#define MDL_LONG MPI_LONG
-#define MDL_LONG_LONG_INT MPI_LONG_LONG_INT
-#define MDL_SHORT MPI_SHORT
-#define MDL_UNSIGNED MPI_UNSIGNED
-#define MDL_UNSIGNED_LONG MPI_UNSIGNED_LONG
-#define MDL_UNSIGNED_LONG_LONG MPI_UNSIGNED_LONG_LONG
-#define MDL_UNSIGNED_SHORT MPI_UNSIGNED_SHORT
-#define MDL_DOUBLE_INT MPI_DOUBLE_INT
-#define MDL_FLOAT_INT MPI_FLOAT_INT
-#define MDL_LONG_INT MPI_LONG_INT
-#define MDL_LONG_DOUBLE_INT MPI_LONG_DOUBLE_INT
-#define MDL_SHORT_INT MPI_SHORT_INT
-#define MDL_2INT MPI_2INT
-#define MDL_COMPLEX  MPI_COMPLEX
-#define MDL_DOUBLE MPI_DOUBLE
-#define MDL_DOUBLE_PRECISION MPI_DOUBLE_PRECISION
 #define MDL_FLOAT MPI_FLOAT
-#define MDL_LONG_DOUBLE MPI_LONG_DOUBLE
-#define MDL_REAL MPI_REAL
-#define MDL_LOGICAL  MPI_LOGICAL
+#define MDL_DOUBLE MPI_DOUBLE
 
 typedef MPI_Op MDL_Op;
 typedef MPI_Datatype MDL_Datatype;
@@ -307,70 +287,87 @@ int mdlAlltoall( MDL mdl, void *sendbuf, int scount, MDL_Datatype stype,
 		 void *recvbuf, int rcount, MDL_Datatype rtype);
 
 /*
+** Grid Operations
+*/
+
+typedef struct mdlGridContext {
+    int n1, n2, n3; /* Real dimensions */
+    int a1;         /* Actual size of dimension 1 */
+    int s, n;       /* Start and number of slabs */
+    int nlocal;     /* Number of local elements */
+
+    uint32_t *rs;  /* Starting slab for each processor */
+    uint32_t *rn;  /* Number of slabs on each processor */
+    uint32_t *id;  /* Which processor has this slab */
+    } * MDLGRID;
+
+
+/*
+** Allocate a MDLGRID context.  This has no actual data, but only describes
+** the grid geometry.  The global geometry is set.
+*/
+void mdlGridInitialize(MDL mdl,MDLGRID *pgrid,int n1,int n2,int n3,int a1);
+/*
+** Free all memory associated with a MDLGRID context.
+*/
+void mdlGridFinish(MDL mdl, MDLGRID grid);
+/*
+** Sets the local geometry (i.e., what is on this processor) of this grid.
+*/
+void mdlGridSetLocal(MDL mdl,MDLGRID grid,int s, int n, int nlocal);
+/*
+** Share the local geometry between processors.
+*/
+void mdlGridShare(MDL mdl,MDLGRID grid);
+/*
+** Allocate the local elements.  The size of a single element is
+** given and the local GRID information is consulted to determine
+** how many to allocate.
+*/
+void *mdlGridMalloc(MDL mdl,MDLGRID grid,int nEntrySize);
+void mdlGridFree( MDL mdl, MDLGRID grid, void *p );
+/*
+** This gives the processor on which the given slab can be found.
+*/
+static inline int mdlGridId(MDLGRID grid, uint32_t x, uint32_t y, uint32_t z) {
+    assert(z>=0&&z<grid->n3);
+    return grid->id[z];
+    }
+/*
+** This returns the index into the array on the appropriate processor.
+*/
+static inline int mdlGridIdx(MDLGRID grid, uint32_t x, uint32_t y, uint32_t z) {
+    assert(x>=0&&x<grid->a1&&y>=0&&y<grid->n2&&z>=0&&z<grid->n3);
+    z -= grid->rs[grid->id[z]]; /* Make "z" zero based for its processor */
+    return x + grid->a1*(y + grid->n2*z); /* Local index */
+    }
+
+/*
 ** FFT Operations
 */
 #ifdef MDL_FFTW
 typedef struct mdlFFTContext {
-    MDL mdl;
+    MDLGRID rgrid;
+    MDLGRID kgrid;
     rfftwnd_mpi_plan fplan;
     rfftwnd_mpi_plan iplan;
-
-    int n1, n2, n3; /* Real dimensions */
-    int a1r, a1k;   /* Actual size in r and k space */
-    int sz, nz;     /* Start z and number of z */
-    int sy, ny;     /* Transposed start and number */
-    int nlocal;     /* Number of local elements */
-
-    uint32_t *rsz;  /* Starting z for each processor */
-    uint32_t *rsy;
-    uint32_t *rnz;  /* Number of z slabs on each processor */
-    uint32_t *rny;
-
-    uint32_t *zid;  /* Which processor has this z */
-    uint32_t *yid;
-
     } * MDLFFT;
 
 size_t mdlFFTInitialize(MDL mdl,MDLFFT *fft,
 			int nx,int ny,int nz,int bMeasure);
-void mdlFFTFinish( MDLFFT fft );
-fftw_real *mdlFFTMAlloc( MDLFFT fft );
-void mdlFFTFree( MDLFFT fft, void *p );
-void mdlFFT( MDLFFT fft, fftw_real *data, int bInverse );
+void mdlFFTFinish( MDL mdl, MDLFFT fft );
+fftw_real *mdlFFTMAlloc( MDL mdl, MDLFFT fft );
+void mdlFFTFree( MDL mdl, MDLFFT fft, void *p );
+void mdlFFT( MDL mdl, MDLFFT fft, fftw_real *data, int bInverse );
 
-/*
-** This gives the processor on which the given "z" slab can
-** be found when in r-space (z is the major dimension).
-*/
-static inline int mdlFFTrId(MDLFFT fft, uint32_t x, uint32_t y, uint32_t z) {
-    return fft->zid[z];
-    }
+/* Grid accessors: r-space */
+#define mdlFFTrId(fft,x,y,z) mdlGridId((fft)->rgrid,x,y,z)
+#define mdlFFTrIdx(fft,x,y,z) mdlGridIdx((fft)->rgrid,x,y,z)
 
-/*
-** This gives the processor on which the given "y" slab can
-** be found when in k-space (y is the major dimension).
-*/
-static inline int mdlFFTkId(MDLFFT fft, uint32_t x, uint32_t y, uint32_t z) {
-    return fft->yid[y];
-    }
+/* Grid accessors: k-space (note permuted indices) */
+#define mdlFFTkId(fft,x,y,z) mdlGridId((fft)->kgrid,x,z,y)
+#define mdlFFTkIdx(fft,x,y,z) mdlGridIdx((fft)->kgrid,x,z,y)
 
-/*
-** This returns the index into the array on the appropriate processor
-** for the specified cell when in r-space.
-*/
-static inline int mdlFFTrIdx(MDLFFT fft, uint32_t x, uint32_t y, uint32_t z) {
-    z -= fft->rsz[fft->zid[z]]; /* Make "z" zero based for its processor */
-    return x + fft->a1r*(y + fft->n2*z); /* Local index */
-    }
-
-/*
-** This returns the index into the array on the appropriate processor
-** for the specified cell when in k-space.
-*/
-static inline int mdlFFTkIdx(MDLFFT fft, uint32_t x, uint32_t y, uint32_t z) {
-    y -= fft->rsy[fft->yid[y]]; /* Make "y" zero based for its processor */
-    return x + fft->a1k*(z + fft->n3*y); /* Local index */
-    }
 #endif
 /*
  ** Caching functions.

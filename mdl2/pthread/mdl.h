@@ -15,6 +15,10 @@
 #include "cycle.h"
 #endif
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #ifdef __osf__
 #define vsnprintf(a,b,c,d) vsprintf((a),(c),(d))
 #endif
@@ -306,6 +310,10 @@ void mdlTimeReset(MDL);
 double mdlTimeComputing(MDL);
 double mdlTimeSynchronizing(MDL);
 double mdlTimeWaiting(MDL);
+#endif
+
+#ifdef __cplusplus
+    }
 #endif
 
 #endif

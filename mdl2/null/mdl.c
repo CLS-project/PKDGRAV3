@@ -268,6 +268,36 @@ int mdlOldSelf(MDL mdl) {
     return(mdl->idSelf);
     }
 
+size_t typeSize(MDL_Datatype type) {
+    switch(type) {
+    case MDL_FLOAT: return sizeof(float);
+    case MDL_DOUBLE:return sizeof(double);
+    default: assert(0);
+	}
+    }
+
+/*
+** Collective operations
+*/
+int mdlReduce ( MDL mdl, void *sendbuf, void *recvbuf, int count,
+		MDL_Datatype datatype, MDL_Op op, int root ) {
+    memcpy(recvbuf,sendbuf,count*typeSize(datatype));
+    }
+
+int mdlAllreduce ( MDL mdl, void *sendbuf, void *recvbuf, int count,
+		   MDL_Datatype datatype, MDL_Op op ) {
+    memcpy(recvbuf,sendbuf,count*typeSize(datatype));
+    }
+
+int mdlAlltoall( MDL mdl, void *sendbuf, int scount, MDL_Datatype stype,
+		 void *recvbuf, int rcount, MDL_Datatype rtype) {
+    assert(rcount==scount && stype==rtype);
+    memcpy(recvbuf,sendbuf,scount*typeSize(stype));
+    }
+
+
+
+
 /*
  ** This is a tricky function. It initiates a bilateral transfer between
  ** two threads. Both threads MUST be expecting this transfer. The transfer
@@ -567,5 +597,93 @@ double mdlTimeSynchronizing(MDL mdl) {
 
 double mdlTimeWaiting(MDL mdl) {
     return 0.0;
+    }
+#endif
+
+/*
+** GRID Geometry information.  The basic process is as follows:
+** - Initialize: Create a MDLGRID giving the global geometry information (total grid size)
+** - SetLocal:   Set the local grid geometry (which slabs are on this processor)
+** - GridShare:  Share this information between processors
+** - Malloc:     Allocate one or more grid instances
+** - Free:       Free the memory for all grid instances
+** - Finish:     Free the GRID geometry information.
+*/
+void mdlGridInitialize(MDL mdl,MDLGRID *pgrid,int n1,int n2,int n3,int a1) {
+    MDLGRID grid;
+    assert(n1>0&&n2>0&&n3>0);
+    assert(a1<=n1);
+    *pgrid = grid = malloc(sizeof(struct mdlGridContext)); assert(grid!=NULL);
+    grid->n1 = n1;
+    grid->n2 = n2;
+    grid->n3 = n3;
+    grid->a1 = a1;
+    }
+
+void mdlGridFinish(MDL mdl, MDLGRID grid) {
+    free(grid);
+    }
+
+void mdlGridSetLocal(MDL mdl,MDLGRID grid,int s, int n, int nlocal) {
+    assert(s==0);
+    assert(s+n==grid->n3);
+    grid->nlocal = nlocal;
+    }
+
+/*
+** Share the local GRID information with other processors by,
+**   - finding the starting slab and number of slabs on each processor
+**   - building a mapping from slab to processor id.
+*/
+void mdlGridShare(MDL mdl,MDLGRID grid) {
+    }
+
+/*
+** Allocate the local elements.  The size of a single element is
+** given and the local GRID information is consulted to determine
+** how many to allocate.
+*/
+void *mdlGridMalloc(MDL mdl,MDLGRID grid,int nEntrySize) {
+    return mdlMalloc(mdl,nEntrySize*grid->nlocal);
+    }
+
+void mdlGridFree( MDL mdl, MDLGRID grid, void *p ) {
+    mdlFree(mdl,p);
+    }
+
+#ifdef MDL_FFTW
+size_t mdlFFTInitialize(MDL mdl,MDLFFT *pfft,
+			int nx,int ny,int nz,int bMeasure) {
+    MDLFFT fft;
+    *pfft = NULL;
+    fft = malloc(sizeof(struct mdlFFTContext));
+    assert(fft != NULL);
+
+    fft->rx = nx;
+    fft->ry = ny;
+    fft->rz = nz;
+
+    fft->mdl = mdl;
+    fft->fplan = rfftw3d_create_plan( nz, ny, nx,
+				      FFTW_REAL_TO_COMPLEX,
+				      FFTW_IN_PLACE | (bMeasure ? FFTW_MEASURE : FFTW_ESTIMATE) );
+
+    fft->iplan = rfftw3d_create_plan(/* dim.'s of REAL data --> */ nz, ny, nx,
+				     FFTW_COMPLEX_TO_REAL,
+				     FFTW_IN_PLACE | (bMeasure ? FFTW_MEASURE : FFTW_ESTIMATE));
+
+    *pfft = fft;
+    return nx * ny * nz;
+    }
+
+void mdlFFTFinish( MDLFFT fft ) {
+    rfftwnd_destroy_plan(fft->fplan);
+    rfftwnd_destroy_plan(fft->iplan);
+    free(fft);
+    }
+
+void mdlFFT( MDLFFT fft, fftw_real *data, int bInverse ) {
+    rfftwnd_plan plan = bInverse ? fft->iplan : fft->fplan;
+    rfftwnd_one(plan,data,0); /* ,FFTW_TRANSPOSED_ORDER); */
     }
 #endif

@@ -4,6 +4,7 @@
 #include "config.h"
 #endif
 #include <stdio.h>
+#include <stdint.h>
 #include <assert.h>
 #ifdef INSTRUMENT
 #include "cycle.h"
@@ -11,6 +12,10 @@
 
 #if defined(__osf__) || defined(__sgi)
 #define vsnprintf(a,b,c,d) vsprintf((a),(c),(d))
+#endif
+
+#ifdef __cplusplus
+extern "C" {
 #endif
 
 #define MAX_PROCESSOR_NAME      256
@@ -192,6 +197,108 @@ void mdlTimeReset(MDL);
 double mdlTimeComputing(MDL);
 double mdlTimeSynchronizing(MDL);
 double mdlTimeWaiting(MDL);
+#endif
+
+/*
+** Collective operations
+*/
+typedef int MDL_Op;
+
+#define MDL_BAND ((MDL_Op)0x40000001)
+#define MDL_BOR ((MDL_Op)0x40000002)
+#define MDL_BXOR ((MDL_Op)0x40000003)
+#define MDL_LAND ((MDL_Op)0x40000004)
+#define MDL_LOR ((MDL_Op)0x40000005)
+#define MDL_LXOR ((MDL_Op)0x40000006)
+#define MDL_MAX ((MDL_Op)0x40000007)
+#define MDL_MAXLOC ((MDL_Op)0x40000008)
+#define MDL_MIN ((MDL_Op)0x40000009)
+#define MDL_MINLOC ((MDL_Op)0x4000000a)
+#define MDL_PROD ((MDL_Op)0x4000000b)
+#define MDL_REPLACE ((MDL_Op)0x4000000c)
+#define MDL_SUM ((MDL_Op)0x4000000d)
+
+typedef int MDL_Datatype;
+#define MDL_FLOAT ((MDL_Datatype)0x50000001)
+#define MDL_DOUBLE ((MDL_Datatype)0x50000002)
+
+int mdlReduce ( MDL mdl, void *sendbuf, void *recvbuf, int count,
+		MDL_Datatype datatype, MDL_Op op, int root );
+int mdlAllreduce( MDL mdl, void *sendbuf, void *recvbuf, int count,
+		  MDL_Datatype datatype, MDL_Op op );
+int mdlAlltoall( MDL mdl, void *sendbuf, int scount, MDL_Datatype stype,
+		 void *recvbuf, int rcount, MDL_Datatype rtype);
+
+
+
+/*
+** Grid Operations
+*/
+
+typedef struct mdlGridContext {
+    int n1, n2, n3; /* Real dimensions */
+    int a1;         /* Actual size of dimension 1 */
+    int nlocal;     /* Number of local elements */
+    } * MDLGRID;
+
+
+/*
+** Allocate a MDLGRID context.  This has no actual data, but only describes
+** the grid geometry.  The global geometry is set.
+*/
+void mdlGridInitialize(MDL mdl,MDLGRID *pgrid,int n1,int n2,int n3,int a1);
+/*
+** Free all memory associated with a MDLGRID context.
+*/
+void mdlGridFinish(MDL mdl, MDLGRID grid);
+/*
+** Sets the local geometry (i.e., what is on this processor) of this grid.
+*/
+void mdlGridSetLocal(MDL mdl,MDLGRID grid,int s, int n, int nlocal);
+/*
+** Share the local geometry between processors.
+*/
+void mdlGridShare(MDL mdl,MDLGRID grid);
+/*
+** Allocate the local elements.  The size of a single element is
+** given and the local GRID information is consulted to determine
+** how many to allocate.
+*/
+void *mdlGridMalloc(MDL mdl,MDLGRID grid,int nEntrySize);
+void mdlGridFree( MDL mdl, MDLGRID grid, void *p );
+/*
+** This gives the processor on which the given slab can be found.
+*/
+static inline int mdlGridId(MDLGRID grid, uint32_t x, uint32_t y, uint32_t z) {
+    return 0; /* Always processor 0 */
+    }
+/*
+** This returns the index into the array on the appropriate processor.
+*/
+static inline int mdlGridIdx(MDLGRID grid, uint32_t x, uint32_t y, uint32_t z) {
+    assert(x>=0&&x<grid->a1&&y>=0&&y<grid->n2&&z>=0&&z<grid->n3);
+    return x + grid->a1*(y + grid->n2*z); /* Local index */
+    }
+
+/*
+** FFT Operations
+*/
+#ifdef MDL_FFTW
+typedef struct mdlFFTContext {
+    MDL mdl;
+    rfftwnd_plan fplan;
+    rfftwnd_plan iplan;
+    int rx, ry, rz; /* Real dimensions */
+    } * MDLFFT;
+
+size_t mdlFFTInitialize(MDL mdl,MDLFFT *fft,
+			int nx,int ny,int nz,int bMeasure);
+void mdlFFTFinish( MDLFFT fft );
+void mdlFFT( MDLFFT fft, fftw_real *data, int bInverse );
+#endif
+
+#ifdef __cplusplus
+    }
 #endif
 
 #endif
