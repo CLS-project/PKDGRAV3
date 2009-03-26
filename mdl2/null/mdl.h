@@ -6,6 +6,9 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <assert.h>
+#ifdef MDL_FFTW
+#include <srfftw.h>
+#endif
 #ifdef INSTRUMENT
 #include "cycle.h"
 #endif
@@ -285,16 +288,26 @@ static inline int mdlGridIdx(MDLGRID grid, uint32_t x, uint32_t y, uint32_t z) {
 */
 #ifdef MDL_FFTW
 typedef struct mdlFFTContext {
-    MDL mdl;
+    MDLGRID rgrid;
+    MDLGRID kgrid;
     rfftwnd_plan fplan;
     rfftwnd_plan iplan;
-    int rx, ry, rz; /* Real dimensions */
     } * MDLFFT;
 
 size_t mdlFFTInitialize(MDL mdl,MDLFFT *fft,
 			int nx,int ny,int nz,int bMeasure);
-void mdlFFTFinish( MDLFFT fft );
-void mdlFFT( MDLFFT fft, fftw_real *data, int bInverse );
+void mdlFFTFinish( MDL mdl, MDLFFT fft );
+fftw_real *mdlFFTMAlloc( MDL mdl, MDLFFT fft );
+void mdlFFTFree( MDL mdl, MDLFFT fft, void *p );
+void mdlFFT( MDL mdl, MDLFFT fft, fftw_real *data, int bInverse );
+
+/* Grid accessors: r-space */
+#define mdlFFTrId(fft,x,y,z) mdlGridId((fft)->rgrid,x,y,z)
+#define mdlFFTrIdx(fft,x,y,z) mdlGridIdx((fft)->rgrid,x,y,z)
+
+/* Grid accessors: k-space (note permuted indices) */
+#define mdlFFTkId(fft,x,y,z) mdlGridId((fft)->kgrid,x,z,y)
+#define mdlFFTkIdx(fft,x,y,z) mdlGridIdx((fft)->kgrid,x,z,y)
 #endif
 
 #ifdef __cplusplus

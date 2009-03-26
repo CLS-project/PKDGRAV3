@@ -653,36 +653,36 @@ void mdlGridFree( MDL mdl, MDLGRID grid, void *p ) {
 
 #ifdef MDL_FFTW
 size_t mdlFFTInitialize(MDL mdl,MDLFFT *pfft,
-			int nx,int ny,int nz,int bMeasure) {
+			int n1,int n2,int n3,int bMeasure) {
     MDLFFT fft;
     *pfft = NULL;
     fft = malloc(sizeof(struct mdlFFTContext));
     assert(fft != NULL);
 
-    fft->rx = nx;
-    fft->ry = ny;
-    fft->rz = nz;
-
-    fft->mdl = mdl;
-    fft->fplan = rfftw3d_create_plan( nz, ny, nx,
+    fft->fplan = rfftw3d_create_plan( n3, n2, n1,
 				      FFTW_REAL_TO_COMPLEX,
 				      FFTW_IN_PLACE | (bMeasure ? FFTW_MEASURE : FFTW_ESTIMATE) );
 
-    fft->iplan = rfftw3d_create_plan(/* dim.'s of REAL data --> */ nz, ny, nx,
+    fft->iplan = rfftw3d_create_plan(/* dim.'s of REAL data --> */ n3, n2, n1,
 				     FFTW_COMPLEX_TO_REAL,
 				     FFTW_IN_PLACE | (bMeasure ? FFTW_MEASURE : FFTW_ESTIMATE));
 
+    mdlGridInitialize(mdl,&fft->rgrid,n1,n2,n3,2*(n1/2+1));
+    mdlGridInitialize(mdl,&fft->kgrid,n1/2+1,n3,n2,n1/2+1);
+
+
+
     *pfft = fft;
-    return nx * ny * nz;
+    return n1 * n2 * n3;
     }
 
-void mdlFFTFinish( MDLFFT fft ) {
+void mdlFFTFinish( MDL mdl, MDLFFT fft ) {
     rfftwnd_destroy_plan(fft->fplan);
     rfftwnd_destroy_plan(fft->iplan);
     free(fft);
     }
 
-void mdlFFT( MDLFFT fft, fftw_real *data, int bInverse ) {
+void mdlFFT( MDL mdl, MDLFFT fft, fftw_real *data, int bInverse ) {
     rfftwnd_plan plan = bInverse ? fft->iplan : fft->fplan;
     rfftwnd_one(plan,data,0); /* ,FFTW_TRANSPOSED_ORDER); */
     }

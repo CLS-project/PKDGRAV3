@@ -1549,6 +1549,72 @@ double mdlTimeWaiting(MDL mdl) {
     }
 #endif
 
+/*
+** GRID Geometry information.  The basic process is as follows:
+** - Initialize: Create a MDLGRID giving the global geometry information (total grid size)
+** - SetLocal:   Set the local grid geometry (which slabs are on this processor)
+** - GridShare:  Share this information between processors
+** - Malloc:     Allocate one or more grid instances
+** - Free:       Free the memory for all grid instances
+** - Finish:     Free the GRID geometry information.
+*/
+void mdlGridInitialize(MDL mdl,MDLGRID *pgrid,int n1,int n2,int n3,int a1) {
+    MDLGRID grid;
+    assert(n1>0&&n2>0&&n3>0);
+    assert(n1<=a1);
+    *pgrid = grid = malloc(sizeof(struct mdlGridContext)); assert(grid!=NULL);
+    grid->n1 = n1;
+    grid->n2 = n2;
+    grid->n3 = n3;
+    grid->a1 = a1;
+
+    /* This will be shared later (see mdlGridShare) */
+    grid->id = malloc(sizeof(*grid->id)*(grid->n3));    assert(grid->id!=NULL);
+    grid->rs = mdlMalloc(mdl,sizeof(*grid->rs)*mdl->nThreads); assert(grid->rs!=NULL);
+    grid->rn = mdlMalloc(mdl,sizeof(*grid->rn)*mdl->nThreads); assert(grid->rn!=NULL);
+
+    /* The following need to be set to appropriate values still. */
+    grid->s = grid->n = grid->nlocal = 0;
+    }
+
+void mdlGridFinish(MDL mdl, MDLGRID grid) {
+    if (grid->rs) free(grid->rs);
+    if (grid->rn) free(grid->rn);
+    if (grid->id) free(grid->id);
+    free(grid);
+    }
+
+void mdlGridSetLocal(MDL mdl,MDLGRID grid,int s, int n, int nlocal) {
+    assert( s>=0 && s<grid->n3);
+    assert( n>=0 && s+n<=grid->n3);
+    grid->s = s;
+    grid->n = n;
+    grid->nlocal = nlocal;
+    }
+
+/*
+** Share the local GRID information with other processors by,
+**   - finding the starting slab and number of slabs on each processor
+**   - building a mapping from slab to processor id.
+*/
+void mdlGridShare(MDL mdl,MDLGRID grid) {
+    int i, id;
+    assert(0);
+    }
+
+/*
+** Allocate the local elements.  The size of a single element is
+** given and the local GRID information is consulted to determine
+** how many to allocate.
+*/
+void *mdlGridMalloc(MDL mdl,MDLGRID grid,int nEntrySize) {
+    return mdlMalloc(mdl,nEntrySize*grid->nlocal);
+    }
+
+void mdlGridFree( MDL mdl, MDLGRID grid, void *p ) {
+    mdlFree(mdl,p);
+    }
+
 #ifdef MDL_FFTW
 size_t mdlFFTInitialize(MDL mdl,MDLFFT *pfft,
 			int nx,int ny,int nz,int bMeasure) {
@@ -1584,19 +1650,19 @@ size_t mdlFFTInitialize(MDL mdl,MDLFFT *pfft,
     return fft->nlocal;
     }
 
-void mdlFFTFinish( MDLFFT fft ) {
+void mdlFFTFinish( MDL mdl, MDLFFT fft ) {
     rfftwnd_destroy_plan(fft->fplan);
     rfftwnd_destroy_plan(fft->iplan);
     free(fft);
     }
 
-void mdlFFT( MDLFFT fft, fftw_real *data, int bInverse ) {
+void mdlFFT( MDL mdl, MDLFFT fft, fftw_real *data, int bInverse ) {
     rfftwnd_mpi_plan plan = bInverse ? fft->iplan : fft->fplan;
 
     /* Only thread zero does the FFT as FFTW will create its own threads. */
-    if ( mdlSelf(fft->mdl) == 0 ) {
-	rfftwnd_threads(mdlThreads(fft->mdl),plan,1,data,0,FFTW_TRANSPOSED_ORDER);
+    if ( mdlSelf(mdl) == 0 ) {
+	rfftwnd_threads(mdlThreads(mdl),plan,1,data,0,FFTW_TRANSPOSED_ORDER);
 	}
-    mdlBarrier(fft->mdl);
+    mdlBarrier(mdl);
     }
 #endif
