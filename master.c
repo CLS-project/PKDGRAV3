@@ -5862,6 +5862,10 @@ void msrMeasurePk(MSR msr,double *dCenter,double dRadius,int nGrid,float *Pk) {
     int nOut;
     int i;
     double fftNormalize = 1.0 / (1.0*nGrid*nGrid*nGrid);
+    double sec,dsec;
+
+    printf("Measuring P(k)...\n");
+    sec = msrTime();
 
     /* NOTE: reordering the particles by their z coordinate would be good here */
     in.nGrid = nGrid;
@@ -5875,9 +5879,9 @@ void msrMeasurePk(MSR msr,double *dCenter,double dRadius,int nGrid,float *Pk) {
 	if ( out.nPower[i] == 0 ) Pk[i] = 0;
 	else Pk[i] = out.fPower[i]/out.nPower[i]*fftNormalize*1.0*fftNormalize;
 	}
-
     /* At this point, Pk[] needs to be corrected by the box size */
 
-
+    dsec = msrTime() - sec;
+    printf("P(k) Calculated, Wallclock: %f secs\n\n",dsec);
     }
 #endif
