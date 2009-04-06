@@ -272,6 +272,7 @@ PKDOUT pkdOpenOutASCII(PKD pkd,char *pszFileName,const char *mode,int iType) {
 	int bzerror;
 	ctx->fp = fopen (pszFileName,mode);
 	assert(ctx->fp != NULL);
+	setvbuf(ctx->fp,NULL,_IOFBF,1024*1024);
 	ctx->CTX.bz = BZ2_bzWriteOpen( &bzerror, ctx->fp, 9, 0, 0 );
 	ctx->fnOut = fnOutBZ2;
 	ctx->fnHdr = writeHdrBZ2;
@@ -294,6 +295,7 @@ PKDOUT pkdOpenOutASCII(PKD pkd,char *pszFileName,const char *mode,int iType) {
 
     ctx->fp = fopen (pszFileName,mode);
     assert(ctx->fp != NULL);
+    setvbuf(ctx->fp,NULL,_IOFBF,1024*1024);
     ctx->fnOut = fnOut;
     ctx->fnHdr = writeHdr;
     ctx->fnClose = closeFILE;
@@ -357,6 +359,7 @@ void pkdOutGroup(PKD pkd,char *pszFileName,int iType, int nStart,double dvFac) {
 	struct star_particle sp;
 	fp = fopen(pszFileName,"r+");
 	assert(fp != NULL);
+	setvbuf(fp,NULL,_IOFBF,1024*1024);
 	/*
 	 ** Seek past the header
 	 */
@@ -385,6 +388,7 @@ void pkdOutGroup(PKD pkd,char *pszFileName,int iType, int nStart,double dvFac) {
 
 	fp = fopen(pszFileName,"r+");
 	assert(fp != NULL);
+	setvbuf(fp,NULL,_IOFBF,1024*1024);
 	/*
 	 ** Seek past the header
 	 */
