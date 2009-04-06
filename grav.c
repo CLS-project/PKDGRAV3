@@ -24,8 +24,6 @@ const char *grav_h_module_id = GRAV_H_MODULE_ID;
     dir = 1/sqrt(d2);\
     }
 
-#define ECCFACMAX 10000
-
 void HEAPrholocal(int n, int k, RHOLOCAL ra[]) {
     int l,j,ir,i;
     RHOLOCAL rra;
@@ -270,6 +268,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 		for (j=(nTN-nSP);j<nTN;++j) {
 		    d2 = rholocal[j].d2*dir2;
 		    d2 = (1-d2);
+		    if (d2 < 0) d2 = 0.0;
 		    rholoc += d2*rholocal[j].m;
 		    }
 		rholoc = 1.875*M_1_PI*rholoc*dir2*dir; /* F1 Kernel (15/8) */
@@ -378,7 +377,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 		    vx = vi[0] - ilp[j].vx;
 		    vy = vi[1] - ilp[j].vy;
 		    vz = vi[2] - ilp[j].vz;
-		    rhopmaxlocal = pkdRho1(rhopmaxlocal,summ,dir,x,y,z,vx,vy,vz);
+		    rhopmaxlocal = pkdRho1(rhopmaxlocal,summ,dir,x,y,z,vx,vy,vz,pkd->param.dEccFacMax);
 		    }
 #ifdef HERMITE
 		if (pkd->param.iTimeStepCrit == 3 && ilp[j].m > 0) {
@@ -606,7 +605,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 		    vx = vi[0] - vj[0];
 		    vy = vi[1] - vj[1];
 		    vz = vi[2] - vj[2];
-		    rhopmaxlocal = pkdRho1(rhopmaxlocal,summ,dir,x,y,z,vx,vy,vz);
+		    rhopmaxlocal = pkdRho1(rhopmaxlocal,summ,dir,x,y,z,vx,vy,vz,pkd->param.dEccFacMax);
 		    }
 #ifdef HERMITE
 		if (pkd->param.iTimeStepCrit == 3 && ilp[j].m > 0) {
@@ -752,7 +751,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 		    vx = vi[0] - vj[0];
 		    vy = vi[1] - vj[1];
 		    vz = vi[2] - vj[2];
-		    rhopmaxlocal = pkdRho1(rhopmaxlocal,summ,dir,x,y,z,vx,vy,vz);
+		    rhopmaxlocal = pkdRho1(rhopmaxlocal,summ,dir,x,y,z,vx,vy,vz,pkd->param.dEccFacMax);
 		    }
 #ifdef HERMITE
 		if (pkd->param.iTimeStepCrit == 3 && ilp[j].m > 0) {
@@ -802,7 +801,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 /*
 ** Gravitational scattering regime (iTimeStepCrit=1)
 */
-double pkdRho1(double rhopmaxlocal, double summ, double dir, double x, double y, double z, double vx, double vy, double vz) {
+double pkdRho1(double rhopmaxlocal, double summ, double dir, double x, double y, double z, double vx, double vy, double vz, double EccFacMax) {
 
     double Etot, L2, ecc, eccfac, v2;
     /*
@@ -814,7 +813,7 @@ double pkdRho1(double rhopmaxlocal, double summ, double dir, double x, double y,
     ecc = 1+2*Etot*L2/(summ*summ);
     ecc = (ecc <= 0)?0:sqrt(ecc);
     eccfac = (1 + 2*ecc)/fabs(1-ecc);
-    eccfac = (eccfac > ECCFACMAX)?ECCFACMAX:eccfac;
+    eccfac = (eccfac > EccFacMax)?EccFacMax:eccfac;
     if (eccfac > 1.0) rhopmaxlocal *= eccfac;
     return rhopmaxlocal;
     }

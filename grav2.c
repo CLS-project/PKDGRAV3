@@ -51,8 +51,6 @@ static const struct CONSTS {
     dir = 1/sqrt(d2);\
     }
 
-#define ECCFACMAX 10000
-
 /*
 ** This version of grav.c does all the operations inline, including
 ** v_sqrt's and such.
@@ -434,7 +432,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 			vx = v[0] - tile->d.vx.f[j];
 			vy = v[1] - tile->d.vy.f[j];
 			vz = v[2] - tile->d.vz.f[j];
-			rhopmaxlocal = pkdRho1(rhopmaxlocal,summ,dir,tile->d.dx.f[j],tile->d.dy.f[j],tile->d.dz.f[j],vx,vy,vz);
+			rhopmaxlocal = pkdRho1(rhopmaxlocal,summ,dir,tile->d.dx.f[j],tile->d.dy.f[j],tile->d.dz.f[j],vx,vy,vz,pkd->param.dEccFacMax);
 			}
 		    rhopmax = (rhopmaxlocal > rhopmax)?rhopmaxlocal:rhopmax;
 		    }
@@ -518,7 +516,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 /*
 ** Gravitational scattering regime (iTimeStepCrit=1)
 */
-double pkdRho1(double rhopmaxlocal, double summ, double dir, double x, double y, double z, double vx, double vy, double vz) {
+double pkdRho1(double rhopmaxlocal, double summ, double dir, double x, double y, double z, double vx, double vy, double vz, double EccFacMax) {
 
     double Etot, L2, ecc, eccfac, v2;
     /*
@@ -530,7 +528,7 @@ double pkdRho1(double rhopmaxlocal, double summ, double dir, double x, double y,
     ecc = 1+2*Etot*L2/(summ*summ);
     ecc = (ecc <= 0)?0:sqrt(ecc);
     eccfac = (1 + 2*ecc)/fabs(1-ecc);
-    eccfac = (eccfac > ECCFACMAX)?ECCFACMAX:eccfac;
+    eccfac = (eccfac > EccFacMax)?EccFacMax:eccfac;
     if (eccfac > 1.0) rhopmaxlocal *= eccfac;
     return rhopmaxlocal;
     }

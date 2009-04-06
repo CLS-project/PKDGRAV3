@@ -291,6 +291,9 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.dFacExcludePart = 100;
     prmAddParam(msr->prm,"dFacExcludePart",2,&msr->param.dFacExcludePart,sizeof(double),
 		"dfacexclp", "<Pre-factor for exluding far away particles on ILP list>");
+    msr->param.dEccFacMax = 3000;
+    prmAddParam(msr->prm,"dEccFacMax",2,&msr->param.dEccFacMax,sizeof(double),
+		"deccfacmax", "<Maximum correction factor for eccentricity correction>");
     msr->param.nPartColl = 0;
     prmAddParam(msr->prm,"nPartColl",1,&msr->param.nPartColl,sizeof(int),
 		"npcoll", "<Number of particles in collisional regime>");
@@ -908,6 +911,7 @@ void msrLogParams(MSR msr,FILE *fp) {
     fprintf(fp," nPartRhoLoc: %d", msr->param.nPartRhoLoc);
     fprintf(fp," dPreFacRhoLoc: %g", msr->param.dPreFacRhoLoc);
     fprintf(fp," dFacExcludePart: %g", msr->param.dFacExcludePart);
+    fprintf(fp," dEccFacMax: %g", msr->param.dEccFacMax);
     fprintf(fp," nPartColl: %d", msr->param.nPartColl);
     fprintf(fp,"\n# bDoGravity: %d",msr->param.bDoGravity);
     fprintf(fp," bHermite: %d",msr->param.bHermite);
