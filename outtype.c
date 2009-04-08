@@ -446,16 +446,6 @@ void pkdFreeOutASCII(PKD pkd,PKDOUT ctx) {
 
 PKDOUT pkdOpenOutASCII(PKD pkd,char *pszFileName,const char *mode,int iFile,int iType) {
     PKDOUT ctx;
-    void (*fnOut)(PKD pkd,PKDOUT ctx,PARTICLE *p,int iType,int iDim);
-#if defined(HAVE_LIBZ) || defined(HAVE_LIBBZ2)
-    size_t n;
-#ifdef HAVE_LIBBZ2
-    void (*fnOutBZ2)(PKD pkd,PKDOUT ctx,PARTICLE *p,int iType,int iDim);
-#endif
-#ifdef HAVE_LIBZ
-    void (*fnOutZ)(PKD pkd,PKDOUT ctx,PARTICLE *p,int iType,int iDim);
-#endif
-#endif
 
     ctx = malloc(sizeof(struct pkdout)); assert(ctx!=NULL);
     ctx->fp = NULL;
