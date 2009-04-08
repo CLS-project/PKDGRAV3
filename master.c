@@ -396,6 +396,9 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.bStandard = 0;
     prmAddParam(msr->prm,"bStandard",0,&msr->param.bStandard,sizeof(int),"std",
 		"output in standard TIPSY binary format = -std");
+    msr->param.iCompress = 0;
+    prmAddParam(msr->prm,"iCompress",0,&msr->param.iCompress,sizeof(int),NULL,
+		"compression format, 0=none, 1=gzip, 2=bzip2");
     msr->param.bHDF5 = 0;
     prmAddParam(msr->prm,"bHDF5",0,&msr->param.bHDF5,sizeof(int),"hdf5",
 		"output in HDF5 format = -hdf5");
@@ -870,6 +873,7 @@ void msrLogParams(MSR msr,FILE *fp) {
     fprintf(fp,"\n# bParaRead: %d",msr->param.bParaRead);
     fprintf(fp," bParaWrite: %d",msr->param.bParaWrite);
     fprintf(fp," bStandard: %d",msr->param.bStandard);
+    fprintf(fp," iCompress: %d",msr->param.iCompress);
     fprintf(fp," bHDF5: %d",msr->param.bHDF5);
     fprintf(fp," nBucket: %d",msr->param.nBucket);
     fprintf(fp,"\n# iOutInterval: %d",msr->param.iOutInterval);
@@ -2464,157 +2468,134 @@ void msrReorder(MSR msr) {
     msr->iLastRungRT = -1;
     }
 
+void msrOutASCII(MSR msr,const char *pszFile,int iType,int nDims) {
+
+    char achOutFile[PST_FILENAME_SIZE];
+    LCL *plcl;
+    PST pst0;
+    int id,i,iDim;
+    int inswap;
+    PKDOUT pkdout;
+    const char *arrayOrVector;
+    struct outSetTotal total;
+
+
+    switch(nDims) {
+    case 1: arrayOrVector = "vector"; break;
+    case 3: arrayOrVector = "array";  break;
+    default:assert(nDims==1 || nDims==3);
+	}
+
+    pst0 = msr->pst;
+    while (pst0->nLeaves > 1)
+	pst0 = pst0->pstLower;
+    plcl = pst0->plcl;
+
+    pstSetTotal(msr->pst,NULL,0,&total,NULL);
+
+    if (pszFile) {
+	/*
+	** Add Data Subpath for local and non-local names.
+	*/
+	_msrMakePath(msr->param.achDataSubPath,pszFile,achOutFile);
+
+	switch(msr->param.iCompress) {
+#ifdef HAVE_LIBBZ2
+	case PKDOUT_TYPE_BZIP2:
+	    strcat(achOutFile,".bz2");
+	    break;
+#endif
+#ifdef HAVE_LIBZ
+	case PKDOUT_TYPE_ZLIB:
+	    strcat(achOutFile,".gz");
+	    break;
+#endif
+	default:
+	    break;
+	    }
+
+	msrprintf(msr, "Writing %s to %s\n", arrayOrVector, achOutFile );
+	}
+    else {
+	printf("No %s Output File specified\n", arrayOrVector);
+	_msrExit(msr,1);
+	return;
+	}
+
+    if (msr->param.bParaWrite && msr->param.iCompress) {
+	struct inCompressASCII in;
+	struct outCompressASCII out;
+	struct inWriteASCII inWrite;
+	int nOut;
+	FILE *fp;
+
+	fp = fopen(achOutFile,"wb");
+	if ( fp==NULL) {
+	    printf("Could not create %s Output File:%s\n",arrayOrVector, achOutFile);
+	    _msrExit(msr,1);
+	    }
+	fclose(fp);
+
+	inWrite.nFileOffset = 0;
+	for( iDim=0; iDim<nDims; iDim++ ) {
+	    in.nTotal = total.nTotal;
+	    in.iFile = msr->param.iCompress;
+	    in.iType = iType;
+	    in.iDim = iDim;
+	    pstCompressASCII(msr->pst,&in,sizeof(in),&out,&nOut);
+	    strcpy(inWrite.achOutFile,achOutFile);
+	    pstWriteASCII(msr->pst,&inWrite,sizeof(inWrite),NULL,NULL);
+	    inWrite.nFileOffset += out.nBytes;
+	    }
+	}
+    else {
+	pkdout = pkdOpenOutASCII(plcl->pkd,achOutFile,"wb",msr->param.iCompress,iType);
+	if (!pkdout) {
+	    printf("Could not open %s Output File:%s\n",arrayOrVector,achOutFile);
+	    _msrExit(msr,1);
+	    }
+
+	pkdOutHdr(plcl->pkd,pkdout,total.nTotal);
+
+	/*
+	 * First write our own particles.
+	 */
+	assert(msr->pMap[0] == 0);
+	for (iDim=0;iDim<nDims;++iDim) {
+	    pkdOutASCII(plcl->pkd,pkdout,iType,iDim);
+	    for (i=1;i<msr->nThreads;++i) {
+		id = msr->pMap[i];
+		/*
+		 * Swap particles with the remote processor.
+		 */
+		inswap = 0;
+		mdlReqService(pst0->mdl,id,PST_SWAPALL,&inswap,sizeof(inswap));
+		pkdSwapAll(plcl->pkd, id);
+		mdlGetReply(pst0->mdl,id,NULL,NULL);
+		/*
+		 * Write the swapped particles.
+		 */
+		pkdOutASCII(plcl->pkd,pkdout,iType,iDim);
+		/*
+		 * Swap them back again.
+		 */
+		inswap = 0;
+		mdlReqService(pst0->mdl,id,PST_SWAPALL,&inswap,sizeof(inswap));
+		pkdSwapAll(plcl->pkd,id);
+		mdlGetReply(pst0->mdl,id,NULL,NULL);
+		}
+	    }
+	pkdCloseOutASCII(plcl->pkd,pkdout);
+	}
+    }
 
 void msrOutArray(MSR msr,const char *pszFile,int iType) {
-    struct inOutArray in;
-    char achOutFile[PST_FILENAME_SIZE];
-    LCL *plcl;
-    PST pst0;
-    int id,i;
-    int inswap;
-    PKDOUT pkdout;
-    struct outSetTotal total;
-
-    pst0 = msr->pst;
-    while (pst0->nLeaves > 1)
-	pst0 = pst0->pstLower;
-    plcl = pst0->plcl;
-    if (pszFile) {
-	/*
-	** Add Data Subpath for local and non-local names.
-	*/
-	_msrMakePath(msr->param.achDataSubPath,pszFile,in.achOutFile);
-	/*
-	** Add local Data Path.
-	*/
-	_msrMakePath(plcl->pszDataPath,in.achOutFile,achOutFile);
-
-	msrprintf(msr, "Writing array to %s\n", achOutFile );
-
-	pkdout = pkdOpenOutASCII(plcl->pkd,achOutFile,"wb",iType);
-	if (!pkdout) {
-	    printf("Could not open Array Output File:%s\n",achOutFile);
-	    _msrExit(msr,1);
-	    }
-	}
-    else {
-	printf("No Array Output File specified\n");
-	_msrExit(msr,1);
-	return;
-	}
-
-    /*
-    ** Write the Header information and close the file again.
-    */
-    pstSetTotal(msr->pst,NULL,0,&total,NULL);
-    pkdOutHdr(plcl->pkd,pkdout,total.nTotal);
-    /*
-     * First write our own particles.
-     */
-    assert(msr->pMap[0] == 0);
-
-    pkdOutASCII(plcl->pkd,pkdout,iType,0);
-    for (i=1;i<msr->nThreads;++i) {
-	id = msr->pMap[i];
-	/*
-	 * Swap particles with the remote processor.
-	 */
-	inswap = 0;
-	mdlReqService(pst0->mdl,id,PST_SWAPALL,&inswap,sizeof(inswap));
-	pkdSwapAll(plcl->pkd, id);
-	mdlGetReply(pst0->mdl,id,NULL,NULL);
-	/*
-	 * Write the swapped particles.
-	 */
-	pkdOutASCII(plcl->pkd,pkdout,iType,0);
-	/*
-	 * Swap them back again.
-	 */
-	inswap = 0;
-	mdlReqService(pst0->mdl,id,PST_SWAPALL,&inswap,sizeof(inswap));
-	pkdSwapAll(plcl->pkd, id);
-	mdlGetReply(pst0->mdl,id,NULL,NULL);
-	}
-    pkdCloseOutASCII(plcl->pkd,pkdout);
-
+    msrOutASCII(msr,pszFile,iType,1);
     }
-
 
 void msrOutVector(MSR msr,const char *pszFile,int iType) {
-    struct inOutVector in;
-    char achOutFile[PST_FILENAME_SIZE];
-    LCL *plcl;
-    PST pst0;
-    PKDOUT pkdout;
-    int id,i;
-    int inswap;
-    int iDim;
-    struct outSetTotal total;
-
-    pst0 = msr->pst;
-    while (pst0->nLeaves > 1)
-	pst0 = pst0->pstLower;
-    plcl = pst0->plcl;
-    if (pszFile) {
-	/*
-	** Add Data Subpath for local and non-local names.
-	*/
-	_msrMakePath(msr->param.achDataSubPath,pszFile,in.achOutFile);
-	/*
-	** Add local Data Path.
-	*/
-	_msrMakePath(plcl->pszDataPath,in.achOutFile,achOutFile);
-
-	msrprintf(msr, "Writing vector to %s\n", achOutFile );
-
-	pkdout = pkdOpenOutASCII(plcl->pkd,achOutFile,"wb",iType);
-	if (!pkdout) {
-	    printf("Could not open Vector Output File:%s\n",achOutFile);
-	    _msrExit(msr,1);
-	    }
-	}
-    else {
-	printf("No Vector Output File specified\n");
-	_msrExit(msr,1);
-	return;
-	}
-    /*
-    ** Write the Header information and close the file again.
-    */
-    pstSetTotal(msr->pst,NULL,0,&total,NULL);
-    pkdOutHdr(plcl->pkd,pkdout,total.nTotal);
-
-    /*
-     * First write our own particles.
-     */
-    assert(msr->pMap[0] == 0);
-    for (iDim=0;iDim<3;++iDim) {
-	pkdOutASCII(plcl->pkd,pkdout,iType,iDim);
-	for (i=1;i<msr->nThreads;++i) {
-	    id = msr->pMap[i];
-	    /*
-	     * Swap particles with the remote processor.
-	     */
-	    inswap = 0;
-	    mdlReqService(pst0->mdl,id,PST_SWAPALL,&inswap,sizeof(inswap));
-	    pkdSwapAll(plcl->pkd, id);
-	    mdlGetReply(pst0->mdl,id,NULL,NULL);
-	    /*
-	     * Write the swapped particles.
-	     */
-	    pkdOutASCII(plcl->pkd,pkdout,iType,iDim);
-	    /*
-	     * Swap them back again.
-	     */
-	    inswap = 0;
-	    mdlReqService(pst0->mdl,id,PST_SWAPALL,&inswap,sizeof(inswap));
-	    pkdSwapAll(plcl->pkd,id);
-	    mdlGetReply(pst0->mdl,id,NULL,NULL);
-	    }
-	}
-    pkdCloseOutASCII(plcl->pkd,pkdout);
+    msrOutASCII(msr,pszFile,iType,3);
     }
-
 
 void msrSmooth(MSR msr,double dTime,int iSmoothType,int bSymmetric) {
     struct inSmooth in;
@@ -4087,8 +4068,6 @@ void msrGroupProfiles(MSR msr, double exp) {
     }
 
 void msrOutGroups(MSR msr,const char *pszFile,int iOutType, double dTime) {
-
-    struct inOutArray in;
     char achOutFile[PST_FILENAME_SIZE];
     LCL *plcl;
     PST pst0;
@@ -4103,11 +4082,7 @@ void msrOutGroups(MSR msr,const char *pszFile,int iOutType, double dTime) {
 	/*
 	** Add Data Subpath for local and non-local names.
 	*/
-	_msrMakePath(msr->param.achDataSubPath,pszFile,in.achOutFile);
-	/*
-	** Add local Data Path.
-	*/
-	_msrMakePath(plcl->pszDataPath,in.achOutFile,achOutFile);
+	_msrMakePath(msr->param.achDataSubPath,pszFile,achOutFile);
 
 	fp = fopen(achOutFile,"w");
 	if (!fp) {

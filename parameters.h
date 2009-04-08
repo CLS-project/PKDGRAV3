@@ -35,6 +35,7 @@ struct parameters {
     int bParaRead;
     int bParaWrite;
     int bStandard;
+    int iCompress;
     int bHDF5;
     int bDoublePos;
     int bGravStep;

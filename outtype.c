@@ -22,6 +22,39 @@
 const char *outtype_c_module_id = "$Id$";
 const char *outtype_h_module_id = OUTTYPE_H_MODULE_ID;
 
+#define OUTTYPE_UNKNOWN 0
+#define OUTTYPE_INTEGER 1
+#define OUTTYPE_FLOAT 2
+
+static int getType(int iType) {
+    switch(iType) {
+    case OUT_IORDER_ARRAY:
+    case OUT_GROUP_ARRAY:
+	return OUTTYPE_INTEGER;
+
+    case OUT_DENSITY_ARRAY:
+    case OUT_COLOR_ARRAY:
+    case OUT_POT_ARRAY:
+    case OUT_AMAG_ARRAY:
+    case OUT_RUNG_ARRAY:
+    case OUT_SOFT_ARRAY:
+    case OUT_RELAX_ARRAY:
+    case OUT_DIVV_ARRAY:
+    case OUT_VELDISP2_ARRAY:
+    case OUT_VELDISP_ARRAY:
+    case OUT_PHASEDENS_ARRAY:
+
+    case OUT_POS_VECTOR:
+    case OUT_VEL_VECTOR:
+    case OUT_MEANVEL_VECTOR:
+    case OUT_ACCEL_VECTOR:
+	return OUTTYPE_FLOAT;
+
+    default:
+	return OUTTYPE_UNKNOWN;
+	}
+    }
+
 /* Write an integer */
 static uint64_t fetchInteger(PKD pkd,PARTICLE *p,int iType,int iDim) {
     uint64_t v;
@@ -39,53 +72,6 @@ static uint64_t fetchInteger(PKD pkd,PARTICLE *p,int iType,int iDim) {
 	}
     return v;
     }
-
-static void writeInteger(PKD pkd,void *ctxVoid,PARTICLE *p,int iType,int iDim) {
-    PKDOUT ctx = (PKDOUT)ctxVoid;
-    fprintf(ctx->fp,"%"PRIu64"\n",fetchInteger(pkd,p,iType,iDim));
-    }
-
-#ifdef HAVE_LIBBZ2
-static void writeIntegerBZ2(PKD pkd, void *ctxVoid,PARTICLE *p,int iType,int iDim) {
-    PKDOUT ctx = (PKDOUT)ctxVoid;
-    char buffer[100];
-    int bzerror;
-
-    sprintf(buffer,"%"PRIu64"\n",fetchInteger(pkd,p,iType,iDim));
-    BZ2_bzWrite(&bzerror,ctx->CTX.bz,buffer,strlen(buffer));
-    }
-#endif
-
-#ifdef HAVE_LIBZ
-static void writeIntegerZ(PKD pkd, void *ctxVoid,PARTICLE *p,int iType,int iDim) {
-    PKDOUT ctx = (PKDOUT)ctxVoid;
-    gzprintf(ctx->CTX.gz,"%"PRIu64"\n",fetchInteger(pkd,p,iType,iDim));
-    }
-#endif
-
-static void writeHdr(PKD pkd,void *ctxVoid,uint64_t N) {
-    PKDOUT ctx = (PKDOUT)ctxVoid;
-    fprintf(ctx->fp,"%"PRIu64"\n",N);
-    }
-
-
-#ifdef HAVE_LIBBZ2
-static void writeHdrBZ2(PKD pkd, void *ctxVoid,uint64_t N) {
-    PKDOUT ctx = (PKDOUT)ctxVoid;
-    char buffer[100];
-    int bzerror;
-    sprintf(buffer,"%"PRIu64"\n",N);
-    BZ2_bzWrite(&bzerror,ctx->CTX.bz,buffer,strlen(buffer));
-    }
-#endif
-
-#ifdef HAVE_LIBZ
-static void writeHdrZ(PKD pkd, void *ctxVoid,uint64_t N) {
-    PKDOUT ctx = (PKDOUT)ctxVoid;
-    gzprintf(ctx->CTX.gz,"%"PRIu64"\n",N);
-    }
-#endif
-
 static double fetchFloat(PKD pkd,PARTICLE *p,int iType,int iDim) {
     float *a;
     double v;
@@ -158,152 +144,370 @@ static double fetchFloat(PKD pkd,PARTICLE *p,int iType,int iDim) {
 	}
     return v;
     }
-static void writeFloat(PKD pkd,void *ctxVoid,PARTICLE *p,int iType,int iDim) {
-    PKDOUT ctx = (PKDOUT)ctxVoid;
-    fprintf(ctx->fp,"%.8g\n",fetchFloat(pkd,p,iType,iDim));
+
+/******************************************************************************\
+ * Generic buffered output - flush needs to be customized for the type of
+ * output stream (ASCII,BZIP2,GZIP,etc.).
+\******************************************************************************/
+static void storeInteger(PKD pkd,PKDOUT ctx,PARTICLE *p,int iType,int iDim) {
+    int n = ctx->inOffset - ctx->inBuffer;
+    if ( PKDOUT_BUFFER_SIZE - n < 20 ) {
+	(*ctx->fnFlush)(pkd,ctx,0);
+	}
+    sprintf(ctx->inOffset,"%"PRIu64"\n",fetchInteger(pkd,p,iType,iDim));
+    assert(strlen(ctx->inOffset) < 20 );
+    while( *ctx->inOffset ) ++ctx->inOffset;
     }
+static void storeFloat(PKD pkd,PKDOUT ctx,PARTICLE *p,int iType,int iDim) {
+    if ( PKDOUT_BUFFER_SIZE - (ctx->inOffset-ctx->inBuffer) < 20 )
+	(*ctx->fnFlush)(pkd,ctx,0);
+    sprintf(ctx->inOffset,"%.8g\n",fetchFloat(pkd,p,iType,iDim));
+    assert(strlen(ctx->inOffset) < 20 );
+    while( *ctx->inOffset ) ++ctx->inOffset;
+    }
+static void storeHdr(PKD pkd,PKDOUT ctx,uint64_t N) {
+    if ( PKDOUT_BUFFER_SIZE - (ctx->inOffset-ctx->inBuffer) < 20 )
+	(*ctx->fnFlush)(pkd,ctx,0);
+    sprintf(ctx->inOffset,"%"PRIu64"\n",N);
+    while( *ctx->inOffset ) ++ctx->inOffset;
+    }
+static void finish(PKD pkd,PKDOUT ctx) {
+    (*ctx->fnFlush)(pkd,ctx,0); /* Flush input buffer */
+    (*ctx->fnFlush)(pkd,ctx,1); /* Finish output stream */
+    }
+
+/******************************************************************************\
+ * Regular ASCII
+\******************************************************************************/
+
+/*
+** Flush the input buffer by writing it directly to a file
+*/
+static void writeASCII(PKD pkd,PKDOUT ctx,int final) {
+    int n = ctx->inOffset - ctx->inBuffer;
+    fwrite(ctx->inBuffer,n,1,ctx->fp);
+    ctx->inOffset = ctx->inBuffer;
+    }
+
+static void closeASCII(PKD pkd,PKDOUT ctx) {
+    (*ctx->fnFlush)(pkd,ctx,0); /* Flush input buffer */
+    }
+
+/******************************************************************************\
+ * bzip2 compression
+\******************************************************************************/
+
 #ifdef HAVE_LIBBZ2
-static void writeFloatBZ2(PKD pkd, void *ctxVoid,PARTICLE *p,int iType,int iDim) {
-    PKDOUT ctx = (PKDOUT)ctxVoid;
-    char buffer[100];
-    int bzerror;
-
-    sprintf(buffer,"%.8g\n",fetchFloat(pkd,p,iType,iDim));
-    BZ2_bzWrite(&bzerror,ctx->CTX.bz,buffer,strlen(buffer));
+static void closeBZ2(PKD pkd,PKDOUT ctx) {
+    (*ctx->fnFlush)(pkd,ctx,0); /* Flush input buffer */
+    (*ctx->fnFlush)(pkd,ctx,1); /* Flush output buffer */
     }
-#endif
-
-#ifdef HAVE_LIBZ
-static void writeFloatZ(PKD pkd, void *ctxVoid,PARTICLE *p,int iType,int iDim) {
-    PKDOUT ctx = (PKDOUT)ctxVoid;
-    gzprintf(ctx->CTX.gz,"%.8g\n",fetchFloat(pkd,p,iType,iDim));
+/*
+** Write routine to write to an output file
+*/
+static void outputBZ2(PKD pkd,PKDOUT ctx) {
+    int n = ctx->CTX.bzStream->next_out - ctx->outBuffer->data;
+    fwrite(ctx->outBuffer->data,n,1,ctx->fp);
+    ctx->CTX.bzStream->avail_out = PKDOUT_BUFFER_SIZE;
+    ctx->CTX.bzStream->next_out = ctx->outBuffer->data;
     }
-#endif
-
-static void closeFILE(PKD pkd, void *ctxVoid ) {
-    PKDOUT ctx = (PKDOUT)ctxVoid;
-    fclose(ctx->fp);
-    }
-
-#ifdef HAVE_LIBBZ2
-static void closeBZ2(PKD pkd, void *ctxVoid ) {
-    PKDOUT ctx = (PKDOUT)ctxVoid;
-    int bzerror;
-    unsigned int nbytes_in_lo32, nbytes_in_hi32,
-	nbytes_out_lo32, nbytes_out_hi32;
-
-    BZ2_bzWriteClose64( &bzerror, ctx->CTX.bz, 0, 
-			&nbytes_in_lo32, &nbytes_in_hi32,
-			&nbytes_out_lo32, &nbytes_out_hi32 );
-    fclose(ctx->fp);
-    }
-#endif
-#ifdef HAVE_LIBZ
-static void closeZ(PKD pkd, void *ctxVoid ) {
-    PKDOUT ctx = (PKDOUT)ctxVoid;
-
-    if (gzclose(ctx->CTX.gz) != 0) {
-	perror("pkdOutASCII: could not close file");
-	exit(1);
+/*
+** Write routine to allocate a new buffer.
+*/
+static void bufferBZ2(PKD pkd,PKDOUT ctx) {
+    ctx->outBuffer->nBytes = PKDOUT_BUFFER_SIZE - ctx->CTX.bzStream->avail_out;
+    if ( ctx->CTX.bzStream->avail_out == 0 ) {
+	ctx->outBuffer = ctx->outBuffer->next = malloc(sizeof(PKDOUTBUFFER));
+	ctx->outBuffer->next = NULL;
+	ctx->outBuffer->nBytes = 0;
+	ctx->CTX.bzStream->avail_out = PKDOUT_BUFFER_SIZE;
+	ctx->CTX.bzStream->next_out = ctx->outBuffer->data;
 	}
     }
+/*
+** Called when the input buffer is (nearly) full.  Empties the input buffer by
+** compressing the data.  New output buffers are allocated as required.
+*/
+static void flushBZ2(PKD pkd,PKDOUT ctx,int final) {
+    int bzerror;
+    ctx->CTX.bzStream->next_in = ctx->inBuffer;
+    ctx->CTX.bzStream->avail_in = ctx->inOffset - ctx->inBuffer;
+    ctx->inOffset = ctx->inBuffer;
+    while(ctx->CTX.bzStream->avail_in) {
+	if (ctx->CTX.bzStream->avail_out==0) {
+	    ctx->nBytes += (ctx->outBuffer->nBytes=PKDOUT_BUFFER_SIZE);
+	    (*ctx->fnWrite)(pkd,ctx);
+	    }
+	bzerror = BZ2_bzCompress(ctx->CTX.bzStream,BZ_RUN);
+	assert(bzerror>=0);
+	}
+    if (final) {
+	do {
+	    bzerror = BZ2_bzCompress(ctx->CTX.bzStream,BZ_FINISH);
+	    (*ctx->fnWrite)(pkd,ctx);
+	    } while(bzerror>0&&bzerror!=BZ_STREAM_END);
+	(*ctx->fnWrite)(pkd,ctx);
+	ctx->outBuffer->nBytes = PKDOUT_BUFFER_SIZE - ctx->CTX.bzStream->avail_out;
+	ctx->nBytes += ctx->outBuffer->nBytes;
+	BZ2_bzCompressEnd(ctx->CTX.bzStream);
+	ctx->CTX.bzStream = NULL;
+	}
+    }
+
+static void setupBZ2(PKD pkd,PKDOUT ctx) {
+    ctx->fnClose = closeBZ2;
+    ctx->fnFlush = flushBZ2;
+    ctx->fnWrite = NULL; /* Still must be set */
+
+    ctx->CTX.bzStream = malloc(sizeof(bz_stream));
+    assert(ctx->CTX.bzStream!=NULL);
+    ctx->CTX.bzStream->bzalloc = NULL;
+    ctx->CTX.bzStream->bzfree = NULL;
+    ctx->CTX.bzStream->opaque = NULL;
+    ctx->CTX.bzStream->avail_out = PKDOUT_BUFFER_SIZE;
+    ctx->CTX.bzStream->next_out = ctx->outBuffer->data;
+    BZ2_bzCompressInit(ctx->CTX.bzStream,9,0,0);
+    }
 #endif
-PKDOUT pkdOpenOutASCII(PKD pkd,char *pszFileName,const char *mode,int iType) {
+
+/******************************************************************************\
+ * zlib compression
+\******************************************************************************/
+
+#ifdef HAVE_LIBZ
+/*
+** Flush the input buffer by writing it directly to a file
+*/
+static void closeZ(PKD pkd,PKDOUT ctx) {
+    (*ctx->fnFlush)(pkd,ctx,0); /* Flush input buffer */
+    (*ctx->fnFlush)(pkd,ctx,1); /* Flush output buffer */
+    }
+/*
+** Write routine to write to an output file
+*/
+static void outputZ(PKD pkd,PKDOUT ctx) {
+    int n = (char *)ctx->CTX.gzStream->next_out - ctx->outBuffer->data;
+    fwrite(ctx->outBuffer->data,n,1,ctx->fp);
+    ctx->CTX.gzStream->avail_out = PKDOUT_BUFFER_SIZE;
+    ctx->CTX.gzStream->next_out = ctx->outBuffer->data;
+    }
+/*
+** Write routine to allocate a new buffer.
+*/
+static void bufferZ(PKD pkd,PKDOUT ctx) {
+    ctx->outBuffer->nBytes = PKDOUT_BUFFER_SIZE - ctx->CTX.gzStream->avail_out;
+    if ( ctx->CTX.gzStream->avail_out == 0 ) {
+	ctx->outBuffer = ctx->outBuffer->next = malloc(sizeof(PKDOUTBUFFER));
+	ctx->outBuffer->next = NULL;
+	ctx->outBuffer->nBytes = 0;
+	ctx->CTX.gzStream->avail_out = PKDOUT_BUFFER_SIZE;
+	ctx->CTX.gzStream->next_out = ctx->outBuffer->data;
+	}
+    }
+/*
+** Called when the input buffer is (nearly) full.  Empties the input buffer by
+** compressing the data.  New output buffers are allocated as required.
+*/
+static void flushZ(PKD pkd,PKDOUT ctx,int final) {
+    int gzerror;
+    ctx->CTX.gzStream->next_in = ctx->inBuffer;
+    ctx->CTX.gzStream->avail_in = ctx->inOffset - ctx->inBuffer;
+    ctx->inOffset = ctx->inBuffer;
+
+    while(ctx->CTX.gzStream->avail_in) {
+	if (ctx->CTX.gzStream->avail_out==0) {
+	    ctx->nBytes += (ctx->outBuffer->nBytes=PKDOUT_BUFFER_SIZE);
+	    (*ctx->fnWrite)(pkd,ctx);
+	    }
+	gzerror = deflate(ctx->CTX.gzStream,0);
+	assert(gzerror>=0);
+	}
+    if (final) {
+	do {
+	    gzerror = deflate(ctx->CTX.gzStream,Z_FINISH);
+	    assert(gzerror>=0);
+	    (*ctx->fnWrite)(pkd,ctx);
+	    } while(gzerror!=Z_STREAM_END);
+	ctx->outBuffer->nBytes = PKDOUT_BUFFER_SIZE - ctx->CTX.gzStream->avail_out;
+	ctx->nBytes += ctx->outBuffer->nBytes;
+	deflateEnd(ctx->CTX.gzStream);
+	ctx->CTX.gzStream = NULL;
+	}
+    }
+
+void setupZ(PKD pkd,PKDOUT ctx) {
+    ctx->fnClose = closeZ;
+    ctx->fnFlush = flushZ;
+    ctx->fnWrite = NULL;
+
+    ctx->CTX.gzStream = malloc(sizeof(z_stream));
+    assert(ctx->CTX.gzStream!=NULL);
+    ctx->CTX.gzStream->zalloc = Z_NULL;
+    ctx->CTX.gzStream->zfree = Z_NULL;
+    ctx->CTX.gzStream->opaque = Z_NULL;
+    ctx->CTX.gzStream->avail_out = PKDOUT_BUFFER_SIZE;
+    ctx->CTX.gzStream->next_out = ctx->outBuffer->data;
+    deflateInit2(ctx->CTX.gzStream,Z_BEST_COMPRESSION,Z_DEFLATED,31,8,Z_DEFAULT_STRATEGY);
+    }
+#endif
+
+/******************************************************************************\
+ * Storage routines
+\******************************************************************************/
+
+PKDOUT pkdStartOutASCII(PKD pkd,int iFile, int iType) {
     PKDOUT ctx;
-    void (*fnOut)(PKD pkd,void *fp,PARTICLE *p,int iType,int iDim);
+
+    /*
+    ** Allocate the context, input buffer, and the first output buffer.
+    */
+    ctx = malloc(sizeof(struct pkdout)); assert(ctx!=NULL);
+    ctx->fp = NULL;
+    ctx->outBuffer = ctx->headBuffer = malloc(sizeof(PKDOUTBUFFER));
+    assert(ctx->outBuffer!=NULL);
+    ctx->outBuffer->next = NULL;
+    ctx->inBuffer = ctx->inOffset = malloc(PKDOUT_BUFFER_SIZE);
+    assert(ctx->inBuffer!=NULL);
+    ctx->nBytes = 0;
+
+    switch(getType(iType)) {
+    case OUTTYPE_INTEGER:
+	ctx->fnOut = storeInteger;
+	break;
+    case OUTTYPE_FLOAT:
+	ctx->fnOut = storeFloat;
+	break;
+    default:
+	assert(0);
+	}
+    ctx->fnHdr = storeHdr;
+    ctx->fnClose = finish;
+
+    switch(iFile) {
+#ifdef HAVE_LIBBZ2
+    case PKDOUT_TYPE_BZIP2:
+	setupBZ2(pkd,ctx);
+	ctx->fnWrite = bufferBZ2;
+	break;
+#endif
+#ifdef HAVE_LIBZ
+    case PKDOUT_TYPE_ZLIB:
+	setupZ(pkd,ctx);
+	ctx->fnWrite = bufferZ;
+	break;
+#endif
+    default:
+	assert(0);
+	}
+    return ctx;
+    }
+
+/*
+** Finish the output stream by flushing any remaining characters in the output
+** stream, and then finalizing it.  Compressed data is still available in the
+** output buffers
+*/
+void pkdFinishOutASCII(PKD pkd,PKDOUT ctx) {
+    (*ctx->fnClose)(pkd,ctx);
+    }
+
+/*
+** Returns the total number of bytes available in the output buffers.  This will
+** only return a valid number after Finish has been called.
+*/
+uint64_t pkdCountOutASCII(PKD pkd,PKDOUT ctx) {
+    return ctx->nBytes;
+    }
+
+void pkdDumpOutASCII(PKD pkd,PKDOUT ctx,FILE *fp) {
+    PKDOUTBUFFER *buf;
+    for(buf=ctx->headBuffer;buf!=NULL;buf=buf->next) {
+	fwrite(buf->data,buf->nBytes,1,fp);
+	}
+    }
+
+/*
+** Free up all buffers, and the PKDOUT context
+*/
+void pkdFreeOutASCII(PKD pkd,PKDOUT ctx) {
+    PKDOUTBUFFER *buf, *nxt;
+
+    free(ctx->inBuffer);
+    for(buf=ctx->headBuffer;buf!=NULL;buf=nxt) {
+	nxt = buf->next;
+	free(buf);
+	}
+    free(ctx);
+    }
+
+/******************************************************************************\
+ * File I/O routines
+\******************************************************************************/
+
+PKDOUT pkdOpenOutASCII(PKD pkd,char *pszFileName,const char *mode,int iFile,int iType) {
+    PKDOUT ctx;
+    void (*fnOut)(PKD pkd,PKDOUT ctx,PARTICLE *p,int iType,int iDim);
 #if defined(HAVE_LIBZ) || defined(HAVE_LIBBZ2)
     size_t n;
 #ifdef HAVE_LIBBZ2
-    void (*fnOutBZ2)(PKD pkd,BZFILE *fp,PARTICLE *p,int iType,int iDim);
+    void (*fnOutBZ2)(PKD pkd,PKDOUT ctx,PARTICLE *p,int iType,int iDim);
 #endif
 #ifdef HAVE_LIBZ
-    void (*fnOutZ)(PKD pkd,gzFile fp,PARTICLE *p,int iType,int iDim);
+    void (*fnOutZ)(PKD pkd,PKDOUT ctx,PARTICLE *p,int iType,int iDim);
 #endif
 #endif
 
     ctx = malloc(sizeof(struct pkdout)); assert(ctx!=NULL);
     ctx->fp = NULL;
+    ctx->outBuffer = ctx->headBuffer = malloc(sizeof(PKDOUTBUFFER));
+    assert(ctx->outBuffer!=NULL);
+    ctx->outBuffer->next = NULL;
+    ctx->inBuffer = ctx->inOffset = malloc(PKDOUT_BUFFER_SIZE);
+    assert(ctx->inBuffer!=NULL);
+    ctx->nBytes = 0;
 
-    switch(iType) {
-    case OUT_IORDER_ARRAY:
-    case OUT_GROUP_ARRAY:
-	fnOut = writeInteger;
-#ifdef HAVE_LIBBZ2
-	fnOutBZ2 = writeIntegerBZ2;
-#endif	
-#ifdef HAVE_LIBZ
-	fnOutZ = writeIntegerZ;
-#endif	
+    /* Determine how to handle the header and data */
+    switch(getType(iType)) {
+    case OUTTYPE_INTEGER:
+	ctx->fnOut = storeInteger;
 	break;
-
-    case OUT_DENSITY_ARRAY:
-    case OUT_COLOR_ARRAY:
-    case OUT_POT_ARRAY:
-    case OUT_AMAG_ARRAY:
-    case OUT_RUNG_ARRAY:
-    case OUT_SOFT_ARRAY:
-    case OUT_RELAX_ARRAY:
-    case OUT_DIVV_ARRAY:
-    case OUT_VELDISP2_ARRAY:
-    case OUT_VELDISP_ARRAY:
-    case OUT_PHASEDENS_ARRAY:
-
-    case OUT_POS_VECTOR:
-    case OUT_VEL_VECTOR:
-    case OUT_MEANVEL_VECTOR:
-    case OUT_ACCEL_VECTOR:
-	fnOut = writeFloat;
-#ifdef HAVE_LIBBZ2
-	fnOutBZ2 = writeFloatBZ2;
-#endif
-#ifdef HAVE_LIBZ
-	fnOutZ = writeFloatZ;
-#endif
+    case OUTTYPE_FLOAT:
+	ctx->fnOut = storeFloat;
 	break;
-
     default:
 	assert(0);
 	}
-
-#if defined(HAVE_LIBZ) || defined(HAVE_LIBBZ2)
-    n = strlen(pszFileName);
-#ifdef HAVE_LIBBZ2
-    if ( n>4 && strcmp(pszFileName+n-4,".bz2")==0 ) {
-	int bzerror;
-	ctx->fp = fopen (pszFileName,mode);
-	assert(ctx->fp != NULL);
-	setvbuf(ctx->fp,NULL,_IOFBF,1024*1024);
-	ctx->CTX.bz = BZ2_bzWriteOpen( &bzerror, ctx->fp, 9, 0, 0 );
-	ctx->fnOut = fnOutBZ2;
-	ctx->fnHdr = writeHdrBZ2;
-	ctx->fnClose = closeBZ2;
-	return ctx;
-	}
-#endif
-#ifdef HAVE_LIBZ
-    if ( n>3 && strcmp(pszFileName+n-3,".gz")==0 ) {
-	ctx->CTX.gz = gzopen(pszFileName,mode);
-	assert(ctx->CTX.gz!=NULL);
-	ctx->fnOut = fnOutZ;
-	ctx->fnHdr = writeHdrZ;
-	ctx->fnClose = closeZ;
-	return ctx;
-	}
-#endif
-
-#endif
+    ctx->fnHdr = storeHdr;
 
     ctx->fp = fopen (pszFileName,mode);
     assert(ctx->fp != NULL);
-    setvbuf(ctx->fp,NULL,_IOFBF,1024*1024);
-    ctx->fnOut = fnOut;
-    ctx->fnHdr = writeHdr;
-    ctx->fnClose = closeFILE;
+    setvbuf(ctx->fp,NULL,_IOFBF,PKDOUT_BUFFER_SIZE);
+
+    switch(iFile) {
+
+#ifdef HAVE_LIBBZ2
+    case PKDOUT_TYPE_BZIP2:
+	setupBZ2(pkd,ctx);
+	ctx->fnWrite = outputBZ2;
+	break;
+#endif
+#ifdef HAVE_LIBZ
+    case PKDOUT_TYPE_ZLIB:
+	setupZ(pkd,ctx);
+	ctx->fnWrite = outputZ;
+	break;
+#endif
+    default:
+	ctx->fnFlush = writeASCII;
+	ctx->fnClose = closeASCII;
+	}
     return ctx;
     }
 
 void pkdCloseOutASCII(PKD pkd,PKDOUT ctx) {
-    ctx->fnClose(pkd,ctx);
+    (*ctx->fnClose)(pkd,ctx);
+    fclose(ctx->fp);
+    free(ctx->inBuffer);
     free(ctx);
     }
 
@@ -359,7 +563,6 @@ void pkdOutGroup(PKD pkd,char *pszFileName,int iType, int nStart,double dvFac) {
 	struct star_particle sp;
 	fp = fopen(pszFileName,"r+");
 	assert(fp != NULL);
-	setvbuf(fp,NULL,_IOFBF,1024*1024);
 	/*
 	 ** Seek past the header
 	 */
@@ -388,7 +591,6 @@ void pkdOutGroup(PKD pkd,char *pszFileName,int iType, int nStart,double dvFac) {
 
 	fp = fopen(pszFileName,"r+");
 	assert(fp != NULL);
-	setvbuf(fp,NULL,_IOFBF,1024*1024);
 	/*
 	 ** Seek past the header
 	 */

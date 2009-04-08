@@ -21,7 +21,6 @@
 #include "mdl.h"
 #include "pst.h"
 #include "pkd.h"
-#include "outtype.h"
 #include "smooth.h"
 #ifdef USE_GRAFIC
 #include "grafic.h"
@@ -59,8 +58,6 @@ const char *pst_h_module_id = PST_H_MODULE_ID;
 **  ColOrdRejects         Yes     Gather |
 **  DomainOrder           Yes     -      |
 **  LocalOrder            -       -      | Bcast
-**  OutArray              Yes     -      | Serial order in PST
-**  OutVector             Yes     -      | Serial order in PST
 **  WriteTipsy            Yes     -      |
 **  BuildTree             Yes     Many   | Multiple cells
 **  DistribCells          Many    -      | Multiple cells
@@ -196,12 +193,12 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_LOCALORDER,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstLocalOrder,
 		  0,0);
-    mdlAddService(mdl,PST_OUTARRAY,pst,
-		  (void (*)(void *,void *,int,void *,int *)) pstOutArray,
-		  sizeof(struct inOutArray),0);
-    mdlAddService(mdl,PST_OUTVECTOR,pst,
-		  (void (*)(void *,void *,int,void *,int *)) pstOutVector,
-		  sizeof(struct inOutVector),0);
+    mdlAddService(mdl,PST_COMPRESSASCII,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstCompressASCII,
+		  sizeof(struct inCompressASCII),sizeof(struct outCompressASCII));
+    mdlAddService(mdl,PST_WRITEASCII,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstWriteASCII,
+		  sizeof(struct inWriteASCII),0);
     mdlAddService(mdl,PST_WRITETIPSY,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstWriteTipsy,
 		  sizeof(struct inWriteTipsy),0);
@@ -297,6 +294,9 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_SETWRITESTART,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstSetWriteStart,
 		  sizeof(struct inSetWriteStart),0);
+    mdlAddService(mdl,PST_ADDWRITESTART,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstAddWriteStart,
+		  sizeof(struct inAddWriteStart),0);
     mdlAddService(mdl,PST_ONENODEREADINIT,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstOneNodeReadInit,
 		  sizeof(struct inReadTipsy), nThreads*sizeof(int));
@@ -2240,72 +2240,82 @@ void pstActiveOrder(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     */
     }
 
-
-void pstOutArray(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+void pstAddWriteStart(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
-    struct inOutArray *in = vin;
-    char achOutFile[PST_FILENAME_SIZE];
-    PKDOUT pkdout;
+    struct inAddWriteStart *in = vin;
 
-    mdlassert(pst->mdl,nIn == sizeof(struct inOutArray));
+    mdlassert(pst->mdl,nIn == sizeof(struct inAddWriteStart));
     if (pst->nLeaves > 1) {
-	/*
-	** Non-Recursive Text output.
-	*/
-	pstOutArray(pst->pstLower,in,nIn,NULL,NULL);
-	mdlReqService(pst->mdl,pst->idUpper,PST_OUTARRAY,in,nIn);
+	mdlReqService(pst->mdl,pst->idUpper,PST_ADDWRITESTART,in,nIn);
+	pstAddWriteStart(pst->pstLower,in,nIn,NULL,NULL);
 	mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
 	}
     else {
-	/*
-	** Add the local Data Path to the provided filename.
-	*/
-	achOutFile[0] = 0;
-	if (plcl->pszDataPath) {
-	    strcat(achOutFile,plcl->pszDataPath);
-	    strcat(achOutFile,"/");
-	    }
-	strcat(achOutFile,in->achOutFile);
-	pkdout = pkdOpenOutASCII(plcl->pkd,achOutFile,"a",in->iType);
-	pkdOutASCII(plcl->pkd,pkdout,in->iType,0);
-	pkdCloseOutASCII(plcl->pkd,pkdout);
+	plcl->nWriteStart += in->nWriteStart;
 	}
     if (pnOut) *pnOut = 0;
     }
 
-
-void pstOutVector(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+void pstCompressASCII(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
-    struct inOutVector *in = vin;
-    char achOutFile[PST_FILENAME_SIZE];
-    PKDOUT pkdout;
+    struct inCompressASCII *in = vin;
+    struct outCompressASCII *out = vout;
+    struct outCompressASCII outUp;
+    struct inAddWriteStart inAdd;
 
-    mdlassert(pst->mdl,nIn == sizeof(struct inOutVector));
+    mdlassert(pst->mdl,nIn == sizeof(struct inCompressASCII));
     if (pst->nLeaves > 1) {
-	/*
-	** Non-Recursive Text output.
-	*/
-	pstOutVector(pst->pstLower,in,nIn,NULL,NULL);
-	mdlReqService(pst->mdl,pst->idUpper,PST_OUTVECTOR,in,nIn);
+	/* Instruct all processors to compress their data, and count it */
+	mdlReqService(pst->mdl,pst->idUpper,PST_COMPRESSASCII,in,nIn);
+	pstCompressASCII(pst->pstLower,in,nIn,vout,pnOut);
+	mdlGetReply(pst->mdl,pst->idUpper,&outUp,NULL);
+	/* Add the new offset from the left children to the right children */
+	inAdd.nWriteStart = out->nBytes;
+	mdlReqService(pst->mdl,pst->idUpper,PST_ADDWRITESTART,&inAdd,sizeof(inAdd));
+	mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
+	out->nBytes += outUp.nBytes;
+	}
+    else {
+	plcl->pkdout = pkdStartOutASCII(plcl->pkd,in->iFile,in->iType);
+	if (pst->idSelf==0 && in->iDim==0) {
+	    pkdOutHdr(plcl->pkd,plcl->pkdout,in->nTotal);
+	    }
+	pkdOutASCII(plcl->pkd,plcl->pkdout,in->iType,in->iDim);
+	pkdFinishOutASCII(plcl->pkd,plcl->pkdout);
+	out->nBytes = pkdCountOutASCII(plcl->pkd,plcl->pkdout);
+	plcl->nWriteStart = 0;
+	}
+    if (pnOut) *pnOut = sizeof(struct outCompressASCII);
+    }
+
+void pstWriteASCII(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl = pst->plcl;
+    struct inWriteASCII *in = vin;
+
+    mdlassert(pst->mdl,nIn == sizeof(struct inWriteASCII));
+    if (pst->nLeaves > 1) {
+	/* Instruct all processors to compress their data, and count it */
+	mdlReqService(pst->mdl,pst->idUpper,PST_WRITEASCII,in,nIn);
+	pstWriteASCII(pst->pstLower,in,nIn,NULL,NULL);
 	mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
 	}
     else {
-	/*
-	** Add the local Data Path to the provided filename.
-	*/
-	achOutFile[0] = 0;
-	if (plcl->pszDataPath) {
-	    strcat(achOutFile,plcl->pszDataPath);
-	    strcat(achOutFile,"/");
-	    }
-	strcat(achOutFile,in->achOutFile);
-	pkdOpenOutASCII(plcl->pkd,achOutFile,"a",in->iType);
-	pkdOutASCII(plcl->pkd,pkdout,in->iType,in->iDim);
-	pkdCloseOutASCII(plcl->pkd,pkdout);
+	FILE *fp = fopen (in->achOutFile,"r+");
+
+	mdlassert(plcl->pkd->mdl,fp != NULL);
+	setvbuf(fp,NULL,_IOFBF,PKDOUT_BUFFER_SIZE);
+#ifdef HAVE_FSEEKO
+	fseeko(fp,in->nFileOffset+plcl->nWriteStart,SEEK_SET);
+#else
+	assert(0);
+#endif
+	pkdDumpOutASCII(plcl->pkd,plcl->pkdout,fp);
+	pkdFreeOutASCII(plcl->pkd,plcl->pkdout);
+	fclose(fp);
+
 	}
     if (pnOut) *pnOut = 0;
     }
-
 
 void pstWriteTipsy(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;

@@ -10,6 +10,7 @@
 #include "floattype.h"
 #endif
 #include "moments.h"
+#include "outtype.h"
 
 #include "parameters.h"
 #include "cosmo.h"
@@ -32,6 +33,7 @@ typedef struct lclBlock {
     FLOAT fHigh;
     int nSplit;
     uint64_t nWriteStart;
+    PKDOUT pkdout;
     } LCL;
 
 typedef struct pstContext {
@@ -80,8 +82,8 @@ enum pst_service {
     PST_COLORDREJECTS,
     PST_DOMAINORDER,
     PST_LOCALORDER,
-    PST_OUTARRAY,
-    PST_OUTVECTOR,
+    PST_COMPRESSASCII,
+    PST_WRITEASCII,
     PST_WRITETIPSY,
     PST_BUILDTREE,
     PST_DISTRIBCELLS,
@@ -131,6 +133,7 @@ enum pst_service {
     PST_INITDT,
     PST_ORDWEIGHT,
     PST_SETWRITESTART,
+    PST_ADDWRITESTART,
     PST_COLNPARTS,
     PST_NEWORDER,
     PST_SETNPARTS,
@@ -382,20 +385,24 @@ void pstDomainOrder(PST,void *,int,void *,int *);
 /* PST_LOCALORDER */
 void pstLocalOrder(PST,void *,int,void *,int *);
 
-/* PST_OUTARRAY */
-struct inOutArray {
-    char achOutFile[PST_FILENAME_SIZE];
+/* PST_COMPRESSASCII */
+struct inCompressASCII {
+    uint64_t nTotal;
+    int iFile;
     int iType;
-    };
-void pstOutArray(PST,void *,int,void *,int *);
-
-/* PST_OUTVECTOR */
-struct inOutVector {
-    char achOutFile[PST_FILENAME_SIZE];
     int iDim;
-    int iType;
     };
-void pstOutVector(PST,void *,int,void *,int *);
+struct outCompressASCII {
+    uint64_t nBytes;
+    };
+void pstCompressASCII(PST,void *,int,void *,int *);
+
+/* PST_WRITEASCII */
+struct inWriteASCII {
+    uint64_t nFileOffset;
+    char achOutFile[PST_FILENAME_SIZE];
+    };
+void pstWriteASCII(PST,void *,int,void *,int *);
 
 /* PST_WRITETIPSY */
 struct inWriteTipsy {
@@ -802,6 +809,12 @@ struct inSetWriteStart {
     uint64_t nWriteStart;
     };
 void pstSetWriteStart(PST,void *,int,void *,int *);
+
+/* PST_ADDWRITESTART */
+struct inAddWriteStart {
+    uint64_t nWriteStart;
+    };
+void pstAddWriteStart(PST,void *,int,void *,int *);
 
 /* PST_COLNPARTS */
 struct outColNParts {
