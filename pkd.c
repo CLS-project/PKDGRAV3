@@ -4002,9 +4002,6 @@ int pkdSelDstCylinder(PKD pkd,double *dP1, double *dP2, double dRadius,
     return nSelected;
     }
 
-
-
-
 /*
 **  Find the source particle with the deepest potential
 */

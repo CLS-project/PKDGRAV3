@@ -335,6 +335,13 @@ ppy_msr_DeepestPotential(PyObject *self, PyObject *args) {
 }
 
 static PyObject *
+ppy_msr_TotalMass(PyObject *self, PyObject *args) {
+    double dMass;
+    dMass = msrTotalMass(ppy_msr);
+    return Py_BuildValue("d", dMass );
+}
+
+static PyObject *
 ppy_msr_Profile(PyObject *self, PyObject *args) {
     double r[3], dMinR, dLogR, dMaxR, dMassEncl, dRho, dVel;
     int nBins, nPerBin, nAccuracy, i;
@@ -819,6 +826,8 @@ static PyMethodDef msr_methods[] = {
      "Selects destination particles inside a given cylinder."},
     {"DeepestPotential", ppy_msr_DeepestPotential, METH_NOARGS,
      "Finds the most bound particle (deepest potential)"},
+    {"TotalMass", ppy_msr_TotalMass, METH_NOARGS,
+     "Returns the total mass of the selected particles"},
     {"Profile", ppy_msr_Profile, METH_VARARGS,
      "Generate a density profile"},
     {"Reorder", ppy_msr_Reorder, METH_NOARGS,

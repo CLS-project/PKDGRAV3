@@ -5476,6 +5476,14 @@ void msrDeepestPot(MSR msr,double *r, float *fPot) {
     if ( fPot ) *fPot = out.fPot;
     }
 
+double msrTotalMass(MSR msr) {
+    struct outTotalMass out;
+    int nOut;
+
+    pstTotalMass(msr->pst, NULL, 0, &out, &nOut);
+    return out.dMass;
+    }
+
 void msrDeleteProfile(MSR msr) {
     LCL *plcl;
     PST pst0;
