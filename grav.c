@@ -366,7 +366,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 	    ** 3: Planet
 	    */
 	    if (pkd->param.bGravStep && pkd->param.iTimeStepCrit > 0 && 
-		((p->iOrder < pkd->param.nPartColl && p->iOrder >= 0) || (ilp[j].iOrder < pkd->param.nPartColl && ilp[j].iOrder >= 0))) {
+		(p->iOrder < pkd->param.nPartColl || ilp[j].iOrder < pkd->param.nPartColl)) {
 		summ = pkdMass(pkd,p)+ilp[j].m;
 		rhopmaxlocal = summ*dir2;
 		/*
@@ -593,7 +593,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 	    ** GravStep
 	    */
 	    if (pkd->param.bGravStep && pkd->param.iTimeStepCrit > 0 &&
-		((pi->iOrder < pkd->param.nPartColl && pi->iOrder >= 0) || (pj->iOrder < pkd->param.nPartColl && pj->iOrder >= 0))) {
+		(pi->iOrder < pkd->param.nPartColl || pj->iOrder < pkd->param.nPartColl)) {
 		summ = pkdMass(pkd,pi)+pkdMass(pkd,pj);
 		rhopmaxlocal = summ*dir2;
 		/*
@@ -739,7 +739,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 	    ** GravStep
 	    */
 	    if (pkd->param.bGravStep && pkd->param.iTimeStepCrit > 0 &&
-		((pi->iOrder < pkd->param.nPartColl && pi->iOrder >= 0) || (pj->iOrder < pkd->param.nPartColl && pj->iOrder >= 0))) {
+		(pi->iOrder < pkd->param.nPartColl || pj->iOrder < pkd->param.nPartColl)) {
 		summ = pkdMass(pkd,pi)+pkdMass(pkd,pj);
 		rhopmaxlocal = summ*dir2;
 		/*

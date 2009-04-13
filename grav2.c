@@ -422,7 +422,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 		** 1: Gravitational scattering regime for dynamical time with eccentricity correction
 		*/
 		if (pkd->param.bGravStep && pkd->param.iTimeStepCrit > 0 && 
-		    ((p->iOrder < pkd->param.nPartColl && p->iOrder >= 0) || (tile->d.iOrder.i[j] < pkd->param.nPartColl && tile->d.iOrder.i[j] >= 0))) {
+		    (p->iOrder < pkd->param.nPartColl || tile->d.iOrder.i[j] < pkd->param.nPartColl)) {
 		    summ = fMass+tile->d.m.f[j];
 		    rhopmaxlocal = summ*dir2;
 		    /*
