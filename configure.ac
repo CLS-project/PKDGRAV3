@@ -195,8 +195,10 @@ AC_ARG_ENABLE(lustre,
 if test "x$LUSTRE" != "xno" ; then
   AC_MSG_CHECKING([for lustre])
   lustre_ok=yes
-  AC_TRY_LINK([#include <lustre/liblustreapi.h>
-], [llapi_file_create()], [AC_DEFINE(USE_LUSTRE,1,[Define if lustre support should be included.])], [lustre_ok=no])
+  saved_LIBS="$LIBS"
+  LIBS="$LIBS -llustreapi"
+  AC_TRY_LINK([], [llapi_file_create()], [AC_DEFINE(USE_LUSTRE,1,[Define if lustre support should be included.])], [lustre_ok=no])
+  LIBS="$saved_LIBS"
   AC_MSG_RESULT($lustre_ok)
   if test "x$LUSTRE" = "xyes" -a "x$lustre_ok" != "xyes" ; then
       AC_MSG_ERROR([Lustre support was requested, but it doesn't seem to be available.])
