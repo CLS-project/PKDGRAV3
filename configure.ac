@@ -191,12 +191,19 @@ fi
 # Lustre support
 AC_ARG_ENABLE(lustre,
   [  --enable-lustre                enable support for lustre],
-  [LUSTRE=yes])
-if test "x$LUSTRE" = "xyes" ; then
-   AC_DEFINE([USE_LUSTRE], 1,
- 	[Define if lustre support should be included.])
+  [LUSTRE="${enableval}"])
+if test "x$LUSTRE" != "xno" ; then
+  AC_MSG_CHECKING([for lustre])
+  lustre_ok=yes
+  AC_TRY_LINK([#include <lustre/liblustreapi.h>
+], [llapi_file_create()], [AC_DEFINE(USE_LUSTRE,1,[Define if lustre support should be included.])], [lustre_ok=no])
+  AC_MSG_RESULT($lustre_ok)
+  if test "x$LUSTRE" = "xyes" -a "x$lustre_ok" != "xyes" ; then
+      AC_MSG_ERROR([Lustre support was requested, but it doesn't seem to be available.])
+  fi
 fi
-AM_CONDITIONAL(LUSTRE, test "x$LUSTRE" = "xyes")
+
+AM_CONDITIONAL(LUSTRE, test "x$lustre_ok" = "xyes")
 
 # Enable BSC Tracing
 AC_ARG_ENABLE(bsc-trace,
