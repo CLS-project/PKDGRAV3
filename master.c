@@ -453,7 +453,7 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
 		"<linking lenght for FOF in units of mean particle separation> = 0.164");
     msr->param.dVTau = -1.0;
     prmAddParam(msr->prm,"dVTau",2,&msr->param.dVTau,sizeof(double),"dVTau",
-		"<velocity space linking lenght for phase-space FOF, set to -1 for plain FOF> = -1");
+		"<velocity space linking lenght for phase-space FOF, set to 0 for plain FOF> = 0");
     msr->param.bTauAbs = 0;
     prmAddParam(msr->prm,"bTauAbs",0,&msr->param.bTauAbs,sizeof(int),"bTauAbs",
 		"<if 1 use z=0 simulation units for dTau, not mean particle separation> = 0");
@@ -3982,7 +3982,13 @@ void msrFof(MSR msr, double exp) {
     in.smf.nMinMembers = msr->param.nMinMembers;
     if (msr->param.bVStep) {
 	double sec,dsec;
-	printf("Doing FOF with dTau2=%e , dVTau2=%e ...\n", in.smf.dTau2, in.smf.dVTau2);
+	if (msr->param.bTauAbs == 0){
+	  printf("Doing FOF with space linking lenght %e * m_p^(1/3) ,\n", sqrt(in.smf.dTau2) );
+	  printf("  and velocity linking lenght %e (ignored if 0) ...\n", sqrt(in.smf.dVTau2) );
+	  } else {
+	    printf("Doing FOF with fixed space linking lenght %e ,\n", sqrt(in.smf.dTau2) );
+	    printf("  and velocity linking lenght %e (ignored if 0) ...\n", sqrt(in.smf.dVTau2) );
+	}
 	sec = msrTime();
 	pstFof(msr->pst,&in,sizeof(in),NULL,NULL);
 	dsec = msrTime() - sec;
@@ -4013,12 +4019,6 @@ static void mktmpdir( const char *dirname ) {
 void msrGroupMerge(MSR msr, double exp) {
     struct inGroupMerge in;
     int nGroups;
-
-    /* Create these directories if they don't exist */
-    mktmpdir("tmpgrids");
-    mktmpdir("tmplinks");
-    mktmpdir("tmpdens");
-
     in.bPeriodic = msr->param.bPeriodic;
     in.smf.nMinMembers = msr->param.nMinMembers;
     in.smf.iCenterType = msr->param.iCenterType;
@@ -4046,6 +4046,7 @@ void msrGroupProfiles(MSR msr, double exp) {
     in.nTotalGroups = msr->nGroups;
     in.bSymmetric = 0;
     in.iSmoothType = SMX_FOF;
+    in.smf.iCenterType = msr->param.iCenterType; 
     in.smf.nMinMembers = msr->param.nMinMembers;
     in.smf.nBins = msr->param.nBins;
     in.smf.nMinProfile = msr->param.nMinProfile;
