@@ -1150,13 +1150,13 @@ FLOAT phase_dist(PKD pkd,double dvTau2,PARTICLE *pa,PARTICLE *pb,double H) {
 	}
     dx2 /= pa->fBall;   /* this is actually fBall2! */
     dv2 = 0.0;
-    for (j=0;j<3;++j) {
+    if (dvTau2 > 0) {
+      for (j=0;j<3;++j) {
 	dv = (va[j] - vb[j]) + H*(pa->r[j] - pb->r[j]);
 	dv2 += dv*dv;
-	}
-    if (dvTau2 > 0) {
-	dv2 /= dvTau2;
-	}
+        }
+      dv2 /= dvTau2;
+      }
     return(dx2 + dv2);
     }
 
@@ -1204,7 +1204,7 @@ int copy_rm( FOFRM *rm,RB_NODE *node) {
 int CmpRMs(void *ctx,const void *v1,const void *v2) {
     FOFRM *rm1 = (FOFRM *)v1;
     FOFRM *rm2 = (FOFRM *)v2;
-    if (rm1->iPid != rm1->iPid) return (rm1->iPid - rm2->iPid);
+    if (rm1->iPid != rm2->iPid) return (rm1->iPid - rm2->iPid);
     else return (rm1->iIndex - rm2->iIndex);
     }
 
@@ -1283,13 +1283,12 @@ void smFof(SMX smx,SMF *smf) {
       p = pkdParticle(pkd,pn);
       fMass = pkdMass(pkd,p);
       pGroup = pkdInt32(p,pkd->oGroup);
-      *pGroup = 0;
+      *pGroup = 0; 
       if (smf->bTauAbs) {
 	p->fBall = smf->dTau2;
 	/* enforce a real space linking length smaller than the mean particle separation at all times :*/
 	if (smf->dTau2 > 0.2*pow(fMass,0.6666) )
 	  p->fBall = 0.2*pow(fMass,0.6666);
-	fvBall2 = smf->dVTau2;
       }
       else {
 	p->fBall = smf->dTau2*pow(fMass,0.6666);
@@ -1297,7 +1296,7 @@ void smFof(SMX smx,SMF *smf) {
       if (p->fBall > fBall2Max) fBall2Max = p->fBall;
     }
 
-    /* the velocity space linking lenght is the same for all particles. Negative value means: do regular 3D FOF */
+    /* the velocity space linking lenght is the same for all particles. Zero means: do regular 3D FOF */
     fvBall2 = smf->dVTau2;
  
    /* Have to restart particle chache, since we will need the updated p->fBall now */
@@ -1383,6 +1382,7 @@ void smFof(SMX smx,SMF *smf) {
 		/* Add to remote member (RM) list if new */
 		rm_data.iIndex = smx->nnList[pnn].iIndex ;
 		rm_data.iPid = smx->nnList[pnn].iPid;
+
 		if ( rb_insert(&rm_type,&protoGroup[iGroup].treeRemoteMembers,&rm_data) ) {
 		  nRmCnt++;
 		  nRmListSize++;
@@ -1476,22 +1476,20 @@ void smFof(SMX smx,SMF *smf) {
 	    i = (*pGroup - 1 - pkd->idSelf)/pkd->nThreads;
 	    for (j=0;j<3;j++) {
 	      if (pkd->groupData[i].fMass > 0.0)
-		    r[j] = corrPos(pkd->groupData[i].r[j]/pkd->groupData[i].fMass,p->r[j],l[j]);
+		    r[j] = corrPos(pkd->groupData[i].rcom[j]/pkd->groupData[i].fMass,p->r[j],l[j]);
 		else  r[j] = p->r[j];
-		if(smf->iCenterType == 0) pkd->groupData[i].r[j] += r[j]*fMass;
+		pkd->groupData[i].rcom[j] += r[j]*fMass;
 		pkd->groupData[i].fRMSRadius +=  r[j]*r[j]*fMass;
 		pkd->groupData[i].v[j] += v[j]*fMass;
 		}
 	    pkd->groupData[i].fMass += fMass;
-	    if(smf->iCenterType <= 1){ /* maximum of fabs(potential) is stored in case 0 (center of mass) and 1 (centered on potential)*/
+	    if(smf->iCenterType == 1){ /* maximum of fabs(potential) is stored in case 1 (centered on potential)*/
 	      pPot = pkdPot(pkd,p);
 	      if ( fabs(*pPot) > pkd->groupData[i].potordenmax) {
 		pkd->groupData[i].potordenmax = fabs(*pPot);
-		if(smf->iCenterType == 1) {
-		  for (j=0;j<3;j++) pkd->groupData[i].r[j] = r[j];
-		}
+		for (j=0;j<3;j++) pkd->groupData[i].r[j] = r[j];
 	      }
-	    } else if (smf->iCenterType==2){
+	    } else if (smf->iCenterType==2 || smf->iCenterType==0){
 	      if (p->fDensity > pkd->groupData[i].potordenmax) {
 		pkd->groupData[i].potordenmax = p->fDensity;
 		for (j=0;j<3;j++) pkd->groupData[i].r[j] = r[j];
@@ -1585,10 +1583,13 @@ int smGroupMerge(SMF *smf,int bPeriodic) {
 	if (pkd->groupData[i].nRemoteMembers && pkd->groupData[i].bMyGroup) {
 
 	    /* Add all remote members to the Fifo: */
-	    for (j=pkd->groupData[i].iFirstRm; j < pkd->groupData[i].iFirstRm + pkd->groupData[i].nRemoteMembers ;j++)
-		rmFifo[iTail++] = pkd->remoteMember[j];
+	  for (j=pkd->groupData[i].iFirstRm; j < pkd->groupData[i].iFirstRm + pkd->groupData[i].nRemoteMembers ;j++){
+		rmFifo[iTail] = pkd->remoteMember[j];
+		iTail++;
+	  }
 	    while (iHead != iTail) {
-		rm = rmFifo[iHead++];
+		rm = rmFifo[iHead];
+		iHead++;
 		if (iHead == nFifo) iHead = 0;
 		if (rm.iPid == pkd->idSelf) {
 		    pPart = pkdParticle(pkd,rm.iIndex);
@@ -1613,7 +1614,8 @@ int smGroupMerge(SMF *smf,int bPeriodic) {
 			pkd->groupData[i].bMyGroup = 0;
 			goto NextGroup;
 			}
-		    if (sG->iLocalId < pkd->groupData[i].iGlobalId)pkd->groupData[i].iGlobalId = sG->iLocalId;
+		    if (sG->iLocalId < pkd->groupData[i].iGlobalId)
+		      pkd->groupData[i].iGlobalId = sG->iLocalId;
 		    pkd->groupData[i].nTotal += sG->nLocal;
 		    /* Add all its remote members to the Fifo: */
 		    for (j=sG->iFirstRm; j< sG->iFirstRm + sG->nRemoteMembers ;j++) {
@@ -1625,6 +1627,7 @@ int smGroupMerge(SMF *smf,int bPeriodic) {
 		    pPart = mdlAquire(mdl,CID_PARTICLE,rm.iIndex,rm.iPid);
 		    iPartGroup = * pkdInt32(pPart,pkd->oGroup);
 		    mdlRelease(mdl,CID_PARTICLE,pPart);
+		    
 		    /* Remote: ignore if not in a group */
 		    if (iPartGroup == tmp) {
 			goto NextRemoteMember;
@@ -1638,6 +1641,7 @@ int smGroupMerge(SMF *smf,int bPeriodic) {
 		    /* Remote: New subgroup found, add to list: */
 		    index = (iPartGroup - 1 - rm.iPid)/pkd->nThreads ;
 		    sG = mdlAquire(mdl,CID_GROUP,index,rm.iPid);
+		    
 		    if (nSubGroups >= sgListSize) {
 			sgListSize *= 1.5;
 			subGroup = (FOFGD **)realloc(subGroup, sgListSize*sizeof(FOFGD *));
@@ -1648,7 +1652,8 @@ int smGroupMerge(SMF *smf,int bPeriodic) {
 			pkd->groupData[i].bMyGroup = 0;
 			goto NextGroup;
 			}
-		    if (sG->iLocalId < pkd->groupData[i].iGlobalId)pkd->groupData[i].iGlobalId = sG->iLocalId;
+		    if (sG->iLocalId < pkd->groupData[i].iGlobalId) 
+		      pkd->groupData[i].iGlobalId = sG->iLocalId;
 		    pkd->groupData[i].nTotal += sG->nLocal;
 		    /* Add all its remote members to the Fifo: */
 		    for (j=sG->iFirstRm; j < sG->iFirstRm + sG->nRemoteMembers ;j++) {
@@ -1659,8 +1664,7 @@ int smGroupMerge(SMF *smf,int bPeriodic) {
 			}
 		    }
 	    NextRemoteMember:
-		if (0) {
-		    }
+		;
 		}
 	    if (pkd->groupData[i].nTotal < smf->nMinMembers) {
 		/*
@@ -1687,7 +1691,7 @@ int smGroupMerge(SMF *smf,int bPeriodic) {
 		  sG->iGlobalId = pkd->groupData[i].iGlobalId;
 		  sG->bMyGroup = 0;
 		  for (j=0;j<3;j++) {
-		    if(smf->iCenterType == 0) pkd->groupData[i].r[j] += sG->r[j];
+		    pkd->groupData[i].rcom[j] += sG->rcom[j];
 		    pkd->groupData[i].v[j] += sG->v[j];
 		  }
 		  pkd->groupData[i].fRMSRadius += sG->fRMSRadius;
@@ -1713,6 +1717,16 @@ int smGroupMerge(SMF *smf,int bPeriodic) {
     mdlFree(mdl,pkd->remoteMember);
     pkd->nRm = 0;
 
+    for (pi=0;pi<nTree ;pi++){
+      p = pkdParticle(pkd,pi);
+      pGroup = pkdInt32(p,pkd->oGroup);
+      index = (*pGroup - 1 - pkd->idSelf)/pkd->nThreads ;
+      if(index >= 0 && index < pkd->nGroups )
+	 *pGroup = pkd->groupData[index].iGlobalId;
+      else
+	*pGroup = 0;
+    }
+
     /*
     ** Here the embarasssingly parallel output of particle group ids,
     ** local density and group links were written. This was removed now.
@@ -1728,32 +1742,32 @@ int smGroupMerge(SMF *smf,int bPeriodic) {
     nMyGroups=0;
     for (i=0; i< pkd->nGroups;i++) {
 	if (pkd->groupData[i].bMyGroup && pkd->groupData[i].iGlobalId != 0) {
-	    for (j=0;j<3;j++) {
-	      if(smf->iCenterType == 0) pkd->groupData[i].r[j] /= pkd->groupData[i].fMass;
-	    }
+	    for (j=0;j<3;j++)
+	       pkd->groupData[i].rcom[j] /= pkd->groupData[i].fMass;
 	    /* 
 	    ** Do not calculate fDeltaR2 with the corrected positions!
 	    */
 	    pkd->groupData[i].fRMSRadius /= pkd->groupData[i].fMass;
-	    pkd->groupData[i].fRMSRadius -= pkd->groupData[i].r[0]*pkd->groupData[i].r[0]
-		+ pkd->groupData[i].r[1]*pkd->groupData[i].r[1]
-		+ pkd->groupData[i].r[2]*pkd->groupData[i].r[2];
+	    pkd->groupData[i].fRMSRadius -= pkd->groupData[i].rcom[0]*pkd->groupData[i].rcom[0]
+		+ pkd->groupData[i].rcom[1]*pkd->groupData[i].rcom[1]
+		+ pkd->groupData[i].rcom[2]*pkd->groupData[i].rcom[2];
 	    pkd->groupData[i].fRMSRadius = pow(pkd->groupData[i].fRMSRadius,0.5);
 	    /* 
 	    ** Now put all the positions back into the box and normalise the rest
 	    */
 	    for (j=0;j<3;j++) {
+   	        pkd->groupData[i].rcom[j] = PutInBox(pkd->groupData[i].rcom[j],l[j]);
 		pkd->groupData[i].r[j] = PutInBox(pkd->groupData[i].r[j],l[j]);
 		pkd->groupData[i].v[j] /= pkd->groupData[i].fMass;
 	    }
 	    pkd->groupData[nMyGroups] = pkd->groupData[i];
 	    nMyGroups++;
-	    }
 	}
+    }
     if (nMyGroups == pkd->nGroups) {
-	pkd->groupData = (FOFGD *) realloc(pkd->groupData,(nMyGroups+1)*sizeof(FOFGD));
-	assert(pkd->groupData != NULL);
-	}
+      pkd->groupData = (FOFGD *) realloc(pkd->groupData,(nMyGroups+1)*sizeof(FOFGD));
+      assert(pkd->groupData != NULL);
+    }
     pkd->groupData[nMyGroups].bMyGroup = 0;
 
     /* Below the master node collects all group information, to write it out later.
@@ -1939,7 +1953,10 @@ int smGroupProfiles(SMX smx, SMF *smf, int nTotalGroups) {
 	if (pkd->groupData[index].nRemoteMembers > 0) {
 	    k = pkd->groupData[index].iFirstRm + pkd->groupData[index].nRemoteMembers -1;
 	    for (j = 0; j < 3; j++) {
-	      com[j] = pkd->groupData[index].r[j];
+	      if(smf->iCenterType == 0)
+		com[j] = pkd->groupData[index].rcom[j];
+	      else
+		com[j] = pkd->groupData[index].r[j];
 	    }
 	    smx->nnListSize = 0;
 	    fBall = pkd->groupBin[k].fRadius;
