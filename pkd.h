@@ -484,6 +484,7 @@ typedef struct groupData {
     FLOAT fMass;
     FLOAT fRMSRadius;
     FLOAT r[3];
+  FLOAT rcom[3];
     FLOAT potordenmax;
     FLOAT v[3];
     int nLocal;
