@@ -18,11 +18,11 @@ typedef struct smfParameters {
     double dVTau2;
     int bTauAbs;
     int nMinMembers;
-    int nMinProfile;
     int nBins;
     int iCenterType;
     int bLogBins;
     FLOAT binFactor;
+    FLOAT fMinRadius;
     PKD pkd; /* useful for diagnostics, etc. */
     } SMF;
 

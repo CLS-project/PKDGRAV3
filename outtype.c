@@ -539,9 +539,12 @@ void pkdOutGroup(PKD pkd,char *pszFileName,int iType, int nStart,double dvFac) {
 	    fprintf(fp,"%d ",pkd->groupData[i].nTotal);
 	    fprintf(fp,"%.8g ",pkd->groupData[i].fMass);
             fprintf(fp,"%.8g ",pkd->groupData[i].fRMSRadius);
-	    fprintf(fp,"%.8g ",pkd->groupData[i].r[0]);
-	    fprintf(fp,"%.8g ",pkd->groupData[i].r[1]);
-	    fprintf(fp,"%.8g ",pkd->groupData[i].r[2]);
+            fprintf(fp,"%.11g ",pkd->groupData[i].rcom[0]);
+            fprintf(fp,"%.11g ",pkd->groupData[i].rcom[1]);
+            fprintf(fp,"%.11g ",pkd->groupData[i].rcom[2]);
+	    fprintf(fp,"%.11g ",pkd->groupData[i].r[0]);
+	    fprintf(fp,"%.11g ",pkd->groupData[i].r[1]);
+	    fprintf(fp,"%.11g ",pkd->groupData[i].r[2]);
 	    fprintf(fp,"%.8g ",dvFac*pkd->groupData[i].v[0]);
 	    fprintf(fp,"%.8g ",dvFac*pkd->groupData[i].v[1]);
 	    fprintf(fp,"%.8g ",dvFac*pkd->groupData[i].v[2]);

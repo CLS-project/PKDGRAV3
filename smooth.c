@@ -1455,6 +1455,7 @@ void smFof(SMX smx,SMF *smf) {
 	pkd->groupData[i].bMyGroup = 1;
 	pkd->groupData[i].fMass = 0.0;
 	for (j=0;j<3;j++) {
+	    pkd->groupData[i].rcom[j] = 0.0;
 	    pkd->groupData[i].r[j] = 0.0;
 	    pkd->groupData[i].v[j] = 0.0;
 	    }
@@ -1489,7 +1490,7 @@ void smFof(SMX smx,SMF *smf) {
 		pkd->groupData[i].potordenmax = fabs(*pPot);
 		for (j=0;j<3;j++) pkd->groupData[i].r[j] = r[j];
 	      }
-	    } else if (smf->iCenterType==2 || smf->iCenterType==0){
+	    } else {
 	      if (p->fDensity > pkd->groupData[i].potordenmax) {
 		pkd->groupData[i].potordenmax = p->fDensity;
 		for (j=0;j<3;j++) pkd->groupData[i].r[j] = r[j];
@@ -1751,7 +1752,7 @@ int smGroupMerge(SMF *smf,int bPeriodic) {
 	    pkd->groupData[i].fRMSRadius -= pkd->groupData[i].rcom[0]*pkd->groupData[i].rcom[0]
 		+ pkd->groupData[i].rcom[1]*pkd->groupData[i].rcom[1]
 		+ pkd->groupData[i].rcom[2]*pkd->groupData[i].rcom[2];
-	    pkd->groupData[i].fRMSRadius = pow(pkd->groupData[i].fRMSRadius,0.5);
+	    pkd->groupData[i].fRMSRadius = sqrt(pkd->groupData[i].fRMSRadius);
 	    /* 
 	    ** Now put all the positions back into the box and normalise the rest
 	    */
@@ -1828,10 +1829,9 @@ int smGroupProfiles(SMX smx, SMF *smf, int nTotalGroups) {
     int32_t *pBin, *pPartBin;
     double *v;
     double dx2;
-    FLOAT l[3],L[3],r[3],relvel[3],com[3],V,Rprev,Vprev,Mprev,vcirc,vcircMax,rvcircMax,M,R,binFactor;
-    FLOAT rvir,Mvir,fBall,lastbin,minSoft,rho,rhoinner,fMass,fSoft,fAvgDens;
-    int bLogBins,pn,i,j,k,iBin,nBins,maxId,nTree,index,nCnt,pnn;
-    int* iGroupIndex;
+    FLOAT l[3],L[3],r[3],relvel[3],com[3];
+    FLOAT rvir,Mvir,fBall,lastbin,fMass,fAvgDens;
+    int pn,i,j,k,iBin,nBins,nTree,index,nCnt,pnn;
     int iStart[3],iEnd[3];
     int ix,iy,iz;
     FOFGD *gdp;
@@ -1841,12 +1841,6 @@ int smGroupProfiles(SMX smx, SMF *smf, int nTotalGroups) {
 
     assert(pkd->oGroup); /* Validate memory model */
     assert(pkd->oVelocity); /* Validate memory model */
-
-    bLogBins = smf->bLogBins;
-    binFactor = smf->binFactor; /* to assure that the bins always reach out to the tidal/virial radius */
-
-    M=0.0;
-    R=0.0;
     if (smx->bPeriodic) {
 	for (j=0;j<3;j++) l[j] = pkd->fPeriod[j];
 	}
@@ -1854,16 +1848,6 @@ int smGroupProfiles(SMX smx, SMF *smf, int nTotalGroups) {
 	for (j=0;j<3;j++) l[j] = FLOAT_MAXVAL;
 	}
     nTree = pkd->kdNodes[ROOT].pUpper + 1;
-    /*
-    ** the smallest softening of all particles sets the innermost bin radius:
-    **
-    ** may not always be a good idea, e.g. with SPH. We could add an fMinBinRadius parameter instead
-    */
-    minSoft=1.0;
-    for (pn=0;pn<nTree;pn++) {
-	fSoft = pkdSoft(pkd,pkdParticle(pkd,pn));
-	if (fSoft<minSoft)minSoft=fSoft;
-	}
     /*
     ** Start RO group data cache and read all if you are not master
     **
@@ -1889,58 +1873,38 @@ int smGroupProfiles(SMX smx, SMF *smf, int nTotalGroups) {
 	}
     mdlFinishCache(mdl,CID_GROUP);
     /*
-    ** Calculate the number of bins and allocate memory for them.
+    ** Allocate memory for the bins.
     */
-    maxId = 0;
-    nBins = 0;
-    for (i=0; i< nTotalGroups; i++) {
-	if ( pkd->groupData[i].nTotal >= smf->nMinProfile ) { /* reusing RM field as bin pointer here */
-	    pkd->groupData[i].nRemoteMembers = smf->nBins;
-	    }
-	else pkd->groupData[i].nRemoteMembers = 0;
-	pkd->groupData[i].iFirstRm = nBins;
-	nBins += pkd->groupData[i].nRemoteMembers;
-	if (pkd->groupData[i].iGlobalId > maxId ) maxId = pkd->groupData[i].iGlobalId;
-	}
+    nBins = nTotalGroups*smf->nBins;
     if ( pkd->groupBin != NULL ) free(pkd->groupBin);
-    pkd->groupBin = (FOFBIN *) malloc( (nBins+1)*sizeof(FOFBIN) );
+    pkd->groupBin = (FOFBIN *) malloc( (nBins)*sizeof(FOFBIN) );
     assert(pkd->groupBin != NULL);
-    /*
-    ** Create a map group id -> index of group in the pkd->groupData array.
-    */
-    iGroupIndex = (int *) malloc( (maxId+1)*sizeof(int));
-    assert(iGroupIndex != NULL);
-    for (i=0; i< maxId+1; i++)iGroupIndex[i]= -1;
-    for (i=0; i< nTotalGroups; i++) {
-	iGroupIndex[pkd->groupData[i].iGlobalId] = i;
-	}
     /*
     ** Initalize bin array
     */
     iBin = 0;
     for (i=0; i< nTotalGroups; i++) {
-	if (bLogBins == 2) { /* logarithmic bins with same fixed non-comoving size for all groups */
-	    lastbin = binFactor/smf->a; /* NB: lastbin is actually the first bin in this case */
+	if (smf->bLogBins == 2) { /* logarithmic bins with same fixed non-comoving size for all groups */
+	    lastbin = smf->binFactor/smf->a; /* NB: lastbin is actually the first bin in this case */
 	    }
 	else {
 	  /* estimate virial radius, assuming isothermal shperes */
 	  fAvgDens = 0.5*pkd->groupData[i].fMass
 	    *0.238732414/pow(pkd->groupData[i].fRMSRadius,3.0); /*using half mass radius and assuming spherical halos*/
-	  lastbin = pow(fAvgDens,0.5)*pkd->groupData[i].fRMSRadius*binFactor;
+	  lastbin = pow(fAvgDens,0.5)*pkd->groupData[i].fRMSRadius*smf->binFactor;
 	}
-	for (j=0; j < pkd->groupData[i].nRemoteMembers; j++) {
-	    assert(iBin < nBins);
+	for (j=0; j < smf->nBins; j++) {
 	    pkd->groupBin[iBin].nMembers = 0;
-	    if (bLogBins == 1) {/* logarithmic bins */
-		dx2 = pkd->groupData[i].nRemoteMembers-(j+1);
-		pkd->groupBin[iBin].fRadius = minSoft*pow(lastbin/minSoft,((float) j)/( (float)pkd->groupData[i].nRemoteMembers-1.0));
+	    if (smf->bLogBins == 1) {/* logarithmic bins */
+		dx2 = smf->nBins-(j+1);
+		pkd->groupBin[iBin].fRadius = smf->fMinRadius*pow(lastbin/smf->fMinRadius,((float) j)/( (float)smf->nBins-1.0));
 		}
-	    else if (bLogBins == 2) {/* logarithmic bins with same fixed non-comoving size for all groups */
+	    else if (smf->bLogBins == 2) {/* logarithmic bins with same fixed non-comoving size for all groups */
 		pkd->groupBin[iBin].fRadius = lastbin*pow(10.0, 0.1*j);
 		}
 	    else { /* linear bins */
 		dx2 = j+1;
-		pkd->groupBin[iBin].fRadius = lastbin*dx2/pkd->groupData[i].nRemoteMembers;
+		pkd->groupBin[iBin].fRadius = lastbin*dx2/smf->nBins;
 		}
 	    pkd->groupBin[iBin].fMassInBin = 0.0;
 	    iBin++;
@@ -1950,57 +1914,50 @@ int smGroupProfiles(SMX smx, SMF *smf, int nTotalGroups) {
     ** Add local particles to their corresponding bins
     */
     for (index=0; index< nTotalGroups; index++) {
-	if (pkd->groupData[index].nRemoteMembers > 0) {
-	    k = pkd->groupData[index].iFirstRm + pkd->groupData[index].nRemoteMembers -1;
-	    for (j = 0; j < 3; j++) {
-	      if(smf->iCenterType == 0)
-		com[j] = pkd->groupData[index].rcom[j];
-	      else
-		com[j] = pkd->groupData[index].r[j];
-	    }
-	    smx->nnListSize = 0;
-	    fBall = pkd->groupBin[k].fRadius;
-	    if (smx->bPeriodic) {
-		for (j=0;j<3;++j) {
-		    iStart[j] = floor((com[j] - fBall)/pkd->fPeriod[j] + 0.5);
-		    iEnd[j] = floor((com[j] + fBall)/pkd->fPeriod[j] + 0.5);
-		    }
-		for (ix=iStart[0];ix<=iEnd[0];++ix) {
-		    r[0] = com[0] - ix*pkd->fPeriod[0];
-		    for (iy=iStart[1];iy<=iEnd[1];++iy) {
-			r[1] = com[1] - iy*pkd->fPeriod[1];
-			for (iz=iStart[2];iz<=iEnd[2];++iz) {
-			    r[2] = com[2] - iz*pkd->fPeriod[2];
-			    smGatherLocal(smx,fBall*fBall,r);
-			    }
-			}
-		    }
-		}
-	    else {
-		smGatherLocal(smx,fBall*fBall,com);
-		}
-	    nCnt = smx->nnListSize;
-	    for (pnn=0;pnn<nCnt;++pnn ) {
-	        dx2=0.0;
-		for (j = 0; j < 3; j++) {
-		    r[j] = corrPos(com[j],smx->nnList[pnn].pPart->r[j],l[j]) - com[j];
-		    dx2 += pow(r[j],2);
-		    }
-		iBin = pkd->groupData[index].iFirstRm;
-		k = 0;
-		while (dx2 > pkd->groupBin[iBin+k].fRadius*pkd->groupBin[iBin+k].fRadius) {
-		    k++;
-		    if ( k == pkd->groupData[index].nRemoteMembers) goto nextParticle;
-		    }
-		assert(iBin+k < nBins);
-		fMass = pkdMass(pkd,smx->nnList[pnn].pPart);
-		pkd->groupBin[iBin+k].nMembers++;
-		pkd->groupBin[iBin+k].fMassInBin += fMass;
-	    nextParticle:
-		;
-		}
-	    }
+      k = index*smf->nBins + smf->nBins-1;
+      fBall = pkd->groupBin[k].fRadius;
+      
+      for (j = 0; j < 3; j++) {
+	if(smf->iCenterType == 0)
+	  com[j] = pkd->groupData[index].rcom[j];
+	else
+	  com[j] = pkd->groupData[index].r[j];
+      }
+      smx->nnListSize = 0;
+      if (smx->bPeriodic) {
+	for (j=0;j<3;++j) {
+	  iStart[j] = floor((com[j] - fBall)/pkd->fPeriod[j] + 0.5);
+	  iEnd[j] = floor((com[j] + fBall)/pkd->fPeriod[j] + 0.5);
 	}
+	for (ix=iStart[0];ix<=iEnd[0];++ix) {
+	  r[0] = com[0] - ix*pkd->fPeriod[0];
+	  for (iy=iStart[1];iy<=iEnd[1];++iy) {
+	    r[1] = com[1] - iy*pkd->fPeriod[1];
+	    for (iz=iStart[2];iz<=iEnd[2];++iz) {
+	      r[2] = com[2] - iz*pkd->fPeriod[2];
+	      smGatherLocal(smx,fBall*fBall,r);
+	    }
+	  }
+	}
+      }
+      else {
+	smGatherLocal(smx,fBall*fBall,com);
+      }
+      nCnt = smx->nnListSize;
+      for (pnn=0;pnn<nCnt;++pnn ) {
+	iBin = index*smf->nBins;
+	k = 0;
+	while (smx->nnList[pnn].fDist2 > pkd->groupBin[iBin+k].fRadius*pkd->groupBin[iBin+k].fRadius) {
+	  k++;
+	  if ( k == smf->nBins) goto nextParticle;
+	}
+	fMass = pkdMass(pkd,smx->nnList[pnn].pPart);
+	pkd->groupBin[iBin+k].nMembers++;
+	pkd->groupBin[iBin+k].fMassInBin += fMass;
+      nextParticle:
+	;
+      }
+    }
     /*
     ** Start CO group profiles cache.
     */
@@ -2015,7 +1972,6 @@ int smGroupProfiles(SMX smx, SMF *smf, int nTotalGroups) {
 	    }
 	}
     mdlFinishCache(mdl,CID_BIN);
-    free(iGroupIndex);
     if (pkd->idSelf != 0) {
 	free(pkd->groupData);
 	free(pkd->groupBin);

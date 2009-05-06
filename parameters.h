@@ -126,8 +126,8 @@ struct parameters {
     int bTauAbs;
     int	nBins;
     int	iCenterType;
-    int	nMinProfile;
     double binFactor;
+    double fMinRadius;
     int bLogBins;
     int	bTraceRelaxation;
 #ifdef PLANETS

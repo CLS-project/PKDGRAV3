@@ -463,12 +463,12 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.iCenterType = 2;
     prmAddParam(msr->prm,"iCenterType",1,&msr->param.iCenterType,sizeof(int),"iCenterType",
 		"<sets center type for group finder: 0 com; 1 potmin; 2 denmax> = 2");
-    msr->param.nMinProfile = 2000;
-    prmAddParam(msr->prm,"nMinProfile",1,&msr->param.nMinProfile,sizeof(int),"nMinProfile",
-		"<minimum number of particles in a group to make a profile> = 2000");
-    msr->param.binFactor = 1.5;
+    msr->param.binFactor = 0.2;
     prmAddParam(msr->prm,"binFactor",2,&msr->param.binFactor,sizeof(double),"binFactor",
-		"<ratio of largest spherical bin to fof determined group radius> = 1.5");
+		"<ratio of largest spherical bin to fof determined group radius> = 0.2");
+    msr->param.fMinRadius = 1.0e-5;
+    prmAddParam(msr->prm,"fMinRadius",2,&msr->param.fMinRadius,sizeof(double),"fMinRadius",
+                "<radius of first, smallest spherical bin in the group profiles> = 1.0e-5");
     msr->param.bLogBins = 1;
     prmAddParam(msr->prm,"bLogBins",0,&msr->param.bLogBins,
 		sizeof(int),"bLogBins","use logaritmic bins instead of linear = +bLogBins");
@@ -934,8 +934,8 @@ void msrLogParams(MSR msr,FILE *fp) {
     fprintf(fp," nMinMembers: %d",msr->param.nMinMembers);
     fprintf(fp," nBins: %d",msr->param.nBins);
     fprintf(fp," iCenterType: %d",msr->param.iCenterType);
-    fprintf(fp," nMinProfile: %d",msr->param.nMinProfile);
     fprintf(fp," binFactor: %g",msr->param.binFactor);
+    fprintf(fp," fMinRadius: %g",msr->param.fMinRadius);
     fprintf(fp," bLogBins: %d",msr->param.bLogBins);
     fprintf(fp,"\n# Relaxation estimate: bTraceRelaxation: %d",msr->param.bTraceRelaxation);
 #ifdef PLANETS
@@ -4049,9 +4049,9 @@ void msrGroupProfiles(MSR msr, double exp) {
     in.smf.iCenterType = msr->param.iCenterType; 
     in.smf.nMinMembers = msr->param.nMinMembers;
     in.smf.nBins = msr->param.nBins;
-    in.smf.nMinProfile = msr->param.nMinProfile;
     in.smf.bLogBins = msr->param.bLogBins;
     in.smf.binFactor = msr->param.binFactor;
+    in.smf.fMinRadius = msr->param.fMinRadius;
     in.smf.a = exp;
     if (msr->param.bVStep) {
 	double sec,dsec;
