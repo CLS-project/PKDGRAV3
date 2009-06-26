@@ -119,8 +119,8 @@ static inline void DecTilePtr( ILPTILE *pTile, size_t *iTile) {
 ** Compare two tile pointers for < or <=
 ** NOTE: It is never allowed that t1:i1 > t2:i2
 */
-#define CmpTileLt(t1,i1,t2,i2) ((t1)!=(t2) || (i1)<(i2))
-#define CmpTileLe(t1,i1,t2,i2) ((t1)!=(t2) || (i1)<=(i2))
+#define CmpTileLt(t1,i1,t2,i2) ( (t1)==(t2) ? (i1)<(i2) : (t1)!=(t2->next) )
+#define CmpTileLe(t1,i1,t2,i2) ( (t1)==(t2) ? (i1)<=(i2): (t1)!=(t2->next) )
 
 /*
 ** This function reorders the ILP such that the particles
