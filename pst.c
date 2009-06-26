@@ -857,8 +857,9 @@ void pstReadTipsy(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 
 
 int _pstRejMatch(PST pst,int n1,OREJ *p1,int n2,OREJ *p2,int *pidSwap) {
-    int id,i,i1=-1,i2=-1,nLarge,id1,id2;
-    int s1,s2,r1,r2;
+    int id,i,i1=-1,i2=-1,id1,id2;
+    local_t nLarge;
+    total_t s1,s2,r1,r2;
 
     /*
     ** Check to see if there is enough space...
