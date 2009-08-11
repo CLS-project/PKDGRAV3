@@ -50,12 +50,6 @@ noinst_HEADERS += ilp.h ilc.h
 if USE_SIMD
 AM_CFLAGS = @SIMD_CFLAGS@
 noinst_HEADERS += simd.h
-#if USE_SIMD_LOCR
-#SOURCES += ../bsc/momGenLocrAddSIMDMomr.c
-#endif
-if USE_SIMD_MOMR
-SOURCES += ../bsc/momEvalSIMDMomr.c
-endif
 endif
 else
 SOURCES += grav.c walk.c
