@@ -1617,37 +1617,37 @@ void mdlGridFree( MDL mdl, MDLGRID grid, void *p ) {
 
 #ifdef MDL_FFTW
 size_t mdlFFTInitialize(MDL mdl,MDLFFT *pfft,
-			int nx,int ny,int nz,int bMeasure) {
+			int n1,int n2,int n3,int bMeasure) {
     MDLFFT fft;
-    float dx;
-    int n;
+    int nlocal=0, sz=0, sy=0;
 
     *pfft = NULL;
     fft = malloc(sizeof(struct mdlFFTContext));
     assert(fft != NULL);
 
-    fft->rx = nx;
-    fft->ry = ny;
-    fft->rz = nz;
-
-    fft->mdl = mdl;
-    fft->fplan = rfftw3d_create_plan(nz, ny, nx,
+    fft->fplan = rfftw3d_create_plan(n3, n2, n1,
 				     FFTW_REAL_TO_COMPLEX,
 				     (bMeasure ? FFTW_MEASURE : FFTW_ESTIMATE) );
-    fft->iplan = rfftw3d_create_plan(nz, ny, nx,
+    fft->iplan = rfftw3d_create_plan(n3, n2, n1,
 				     FFTW_COMPLEX_TO_REAL,
 				     (bMeasure ? FFTW_MEASURE : FFTW_ESTIMATE));
-    /* This is broken */
-    xx    fft->ny = nz/2 + 1;
-    fft->sy = 0; /* FIXME: thread processing is different here. */
-    fft->nz = 2*fft->ny;
-    fft->sz = 0; /* FIXME: thread processing is different here. */
-    fft->nlocal = nx*ny*fft->nz;
-    n = mdlThreads(mdl);
-    dx = (float)fft->nz / n;
+    /*
+    ** Dimensions of k-space and r-space grid.  Note transposed order.
+    ** Note also that the "actual" dimension 1 side of the r-space array
+    ** can be (and usually is) larger than "n1" because of the inplace FFT.
+    */
+    mdlGridInitialize(mdl,&fft->rgrid,n1,n2,n3,2*(n1/2+1));
+    mdlGridInitialize(mdl,&fft->kgrid,n1/2+1,n3,n2,n1/2+1);
+
+    mdlGridSetLocal(mdl,fft->rgrid,sz,n3,nlocal);
+    mdlGridSetLocal(mdl,fft->kgrid,sy,n2,nlocal/2);
+    mdlGridShare(mdl,fft->rgrid);
+    mdlGridShare(mdl,fft->kgrid);
+
+    assert(0);
 
     *pfft = fft;
-    return fft->nlocal;
+    return nlocal;
     }
 
 void mdlFFTFinish( MDL mdl, MDLFFT fft ) {
@@ -1657,11 +1657,11 @@ void mdlFFTFinish( MDL mdl, MDLFFT fft ) {
     }
 
 void mdlFFT( MDL mdl, MDLFFT fft, fftw_real *data, int bInverse ) {
-    rfftwnd_mpi_plan plan = bInverse ? fft->iplan : fft->fplan;
+    rfftwnd_plan plan = bInverse ? fft->iplan : fft->fplan;
 
     /* Only thread zero does the FFT as FFTW will create its own threads. */
     if ( mdlSelf(mdl) == 0 ) {
-	rfftwnd_threads(mdlThreads(mdl),plan,1,data,0,FFTW_TRANSPOSED_ORDER);
+	rfftwnd_threads(mdlThreads(mdl),plan,1,data,0);
 	}
     mdlBarrier(mdl);
     }
