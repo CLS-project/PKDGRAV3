@@ -40,6 +40,7 @@
 #include "io.h"
 #endif
 #include "ssio.h"
+#include "fio.h"
 
 #ifdef USE_LUSTRE
 #include <lustre/liblustreapi.h>
@@ -1138,19 +1139,20 @@ static void _SwapClasses(MSR msr, int id) {
     free(pClass);
     }
 
-#ifdef USE_HDF5
-void msrOneNodeReadHDF5(MSR msr, struct inReadTipsy *in) {
+void msrOneNodeRead(MSR msr, struct inReadFile *in) {
     int i,id;
     int *nParts;		/* number of particles for each processor */
     uint64_t nStart;
     PST pst0;
     LCL *plcl;
     char achInFile[PST_FILENAME_SIZE];
-    char achOutName[PST_FILENAME_SIZE];
     int nid;
     int inswap;
-    hid_t fileID;
-    IOHDF5 io;
+    FIO fio;
+    struct inFile *file;
+
+    assert(in->nFiles==1);
+    file = (struct inFile *)(in+1);
 
     nParts = malloc(msr->nThreads*sizeof(*nParts));
     for (id=0;id<msr->nThreads;++id) {
@@ -1170,13 +1172,10 @@ void msrOneNodeReadHDF5(MSR msr, struct inReadTipsy *in) {
     /*
     ** Add the local Data Path to the provided filename.
     */
-    _msrMakePath(plcl->pszDataPath,in->achInFile,achInFile);
-    _msrMakePath(plcl->pszDataPath,in->achOutName,achOutName);
+    _msrMakePath(plcl->pszDataPath,file[0].achFilename,achInFile);
 
-    fileID=H5Fopen(achInFile, H5F_ACC_RDONLY, H5P_DEFAULT);
-    assert(fileID >= 0);
-    io = ioHDF5Initialize( fileID, 32768, IOHDF5_SINGLE );
-    assert( io != NULL );
+    fio = fioOpen(achInFile,in->bDoublePos);
+    assert(fio!=NULL);
 
     nStart = nParts[0];
     assert(msr->pMap[0] == 0);
@@ -1186,7 +1185,7 @@ void msrOneNodeReadHDF5(MSR msr, struct inReadTipsy *in) {
 	 * Read particles into the local storage.
 	 */
 	assert(plcl->pkd->nStore >= nParts[id]);
-	pkdReadHDF5(plcl->pkd, io, in->dvFac, nStart, nParts[id]);
+	pkdReadFIO(plcl->pkd, fio, nStart, nParts[id], in->dvFac);
 	nStart += nParts[id];
 	/*
 	 * Now shove them over to the remote processor.
@@ -1201,72 +1200,9 @@ void msrOneNodeReadHDF5(MSR msr, struct inReadTipsy *in) {
     /*
      * Now read our own particles.
      */
-    pkdReadHDF5(plcl->pkd, io, in->dvFac, 0, nParts[0]);
+    pkdReadFIO(plcl->pkd, fio, 0, nParts[0], in->dvFac);
 
-    ioHDF5Finish(io);
-    H5Fclose(fileID);
-    }
-#endif
-
-void msrOneNodeReadTipsy(MSR msr, struct inReadTipsy *in) {
-    int i,id;
-    int *nParts;				/* number of particles for each processor */
-    uint64_t nStart;
-    PST pst0;
-    LCL *plcl;
-    char achInFile[PST_FILENAME_SIZE];
-    char achOutName[PST_FILENAME_SIZE];
-    int nid;
-    int inswap;
-
-    nParts = malloc(msr->nThreads*sizeof(*nParts));
-    assert(nParts!=NULL);
-    for (id=0;id<msr->nThreads;++id) {
-	nParts[id] = -1;
-	}
-
-    pstOneNodeReadInit(msr->pst, in, sizeof(*in), nParts, &nid);
-    assert((size_t)nid == msr->nThreads*sizeof(*nParts));
-    for (id=0;id<msr->nThreads;++id) {
-	assert(nParts[id] > 0);
-	}
-
-    pst0 = msr->pst;
-    while (pst0->nLeaves > 1)
-	pst0 = pst0->pstLower;
-    plcl = pst0->plcl;
-    /*
-    ** Add the local Data Path to the provided filename.
-    */
-    _msrMakePath(plcl->pszDataPath,in->achInFile,achInFile);
-    _msrMakePath(plcl->pszDataPath,in->achOutName,achOutName);
-
-    nStart = nParts[0];
-    assert(msr->pMap[0] == 0);
-    for (i=1;i<msr->nThreads;++i) {
-	id = msr->pMap[i];
-	/*
-	 * Read particles into the local storage.
-	 */
-	assert(plcl->pkd->nStore >= nParts[id]);
-	pkdReadTipsy(plcl->pkd,achInFile,nStart,nParts[id],
-		     in->bStandard,in->dvFac,in->bDoublePos,0);
-	nStart += nParts[id];
-	/*
-	 * Now shove them over to the remote processor.
-	 */
-	_SwapClasses(msr,id);
-	inswap = 0;
-	mdlReqService(pst0->mdl,id,PST_SWAPALL,&inswap,sizeof(inswap));
-	pkdSwapAll(plcl->pkd, id);
-	mdlGetReply(pst0->mdl,id,NULL,NULL);
-	}
-    assert(nStart == msr->N);
-    /*
-     * Now read our own particles.
-     */
-    pkdReadTipsy(plcl->pkd,achInFile,0,nParts[0],in->bStandard,in->dvFac,
-		 in->bDoublePos,0);
+    fioClose(fio);
     }
 
 int xdrHeader(XDR *pxdrs,struct dump *ph) {
@@ -1393,98 +1329,6 @@ double getTime(MSR msr, double dExpansion, double *dvFac) {
     return dTime;
     }
 
-#ifdef USE_HDF5
-static double _msrReadHDF5(MSR msr, const char *achFilename, uint64_t mMemoryModel) {
-    hid_t fileID;
-    IOHDF5 io;
-    double dExpansion;
-    struct inReadTipsy in;
-    char achInFile[PST_FILENAME_SIZE];
-    LCL *plcl = msr->pst->plcl;
-    double dTime;
-
-    strcpy(in.achInFile,achFilename);
-
-    /* Add local Data Path. */
-    _msrMakePath(plcl->pszDataPath,achFilename,achInFile);
-
-    fileID=H5Fopen(achInFile, H5F_ACC_RDONLY, H5P_DEFAULT);
-    if ( fileID < 0 ) {
-	printf("Could not open InFile:%s\n",achInFile);
-	_msrExit(msr,1);
-	}
-    io = ioHDF5Initialize( fileID, 32768, IOHDF5_SINGLE );
-
-    assert(ioHDF5ReadAttribute( io, "dTime", H5T_NATIVE_DOUBLE, &dExpansion ));
-    ioHDF5ReadAttribute( io, "dEcosmo", H5T_NATIVE_DOUBLE, &msr->dEcosmo );
-    ioHDF5ReadAttribute( io, "dTimeOld",H5T_NATIVE_DOUBLE, &msr->dTimeOld );
-    ioHDF5ReadAttribute( io, "dUOld",   H5T_NATIVE_DOUBLE, &msr->dUOld );
-
-    msr->nDark = ioHDF5DarkCount(io);
-    msr->nGas = ioHDF5GasCount(io);
-    msr->nStar = ioHDF5StarCount(io);
-    msr->N = msr->nDark+msr->nGas+msr->nStar;
-
-    msr->nMaxOrder = msr->N;
-    msr->nMaxOrderGas = msr->nGas;
-    msr->nMaxOrderDark = msr->nGas + msr->nDark;
-    assert(msr->N == msr->nDark+msr->nGas+msr->nStar);
-
-    ioHDF5Finish(io);
-    H5Fclose(fileID);
-
-    dTime = getTime(msr,dExpansion,&in.dvFac);
-    if (msr->param.bVStart)
-	printf("Reading file...\nN:%"PRIu64" nDark:%"PRIu64" nGas:%"PRIu64" nStar:%"PRIu64"\n",msr->N,
-	       msr->nDark,msr->nGas,msr->nStar);
-
-    in.nFileStart = 0;
-    in.nFileEnd = msr->N - 1;
-    in.nBucket = msr->param.nBucket;
-    in.nDark = msr->nDark;
-    in.nGas = msr->nGas;
-    in.nStar = msr->nStar;
-    in.mMemoryModel = mMemoryModel;
-    in.bStandard = msr->param.bStandard;
-    in.bDoublePos = msr->param.bDoublePos;
-    strcpy(in.achOutName,msr->param.achOutName);
-    /*
-    ** Since pstReadTipsy causes the allocation of the local particle
-    ** store, we need to tell it the percentage of extra storage it
-    ** should allocate for load balancing differences in the number of
-    ** particles.
-    */
-    in.fExtraStore = msr->param.dExtraStore;
-    in.fExtraNodes = msr->param.dExtraNodes;
-    in.iCacheSize  = msr->param.iCacheSize;
-    /*
-    ** Provide the period.
-    */
-    in.fPeriod[0] = msr->param.dxPeriod;
-    in.fPeriod[1] = msr->param.dyPeriod;
-    in.fPeriod[2] = msr->param.dzPeriod;
-
-    if (msr->param.bParaRead)
-	pstReadHDF5(msr->pst,&in,sizeof(in),NULL,NULL);
-    else
-	msrOneNodeReadHDF5(msr, &in);
-    msrSetClasses(msr);
-    msrprintf(msr,"Input file has been successfully read.\n");
-    /*
-    ** Now read in the output points, passing the initial time.
-    ** We do this only if nSteps is not equal to zero.
-    */
-    if (msrSteps(msr) > 0) msrReadOuts(msr,dTime);
-    /*
-    ** Set up the output counter.
-    */
-    for (msr->iOut=0;msr->iOut<msr->nOuts;++msr->iOut) {
-	if (dTime < msr->pdOutTime[msr->iOut]) break;
-	}
-    return(dTime);
-    }
-#endif
-
 #ifdef USE_GRAFIC
 double msrGenerateIC(MSR msr) {
     struct inGenerateIC in;
@@ -1530,231 +1374,6 @@ double msrGenerateIC(MSR msr) {
     return getTime(msr,out.dExpansion,&dvFac);
     }
 #endif
-
-static double _msrReadTipsy(MSR msr, const char *achFilename, uint64_t mMemoryModel) {
-    FILE *fp;
-    struct dump h;
-    double dExpansion;
-    struct inReadTipsy in;
-    char achInFile[PST_FILENAME_SIZE];
-    LCL *plcl = msr->pst->plcl;
-    double dTime,aTo,tTo,z;
-
-    strcpy(in.achInFile,achFilename);
-
-
-    /* Add local Data Path. */
-    _msrMakePath(plcl->pszDataPath,achFilename,achInFile);
-
-
-    fp = fopen(achInFile,"r");
-
-    if (!fp) {
-	printf("Could not open InFile:%s\n",achInFile);
-	_msrExit(msr,1);
-	}
-
-    /*
-    ** Assume tipsy format for now, and dark matter only.
-    */
-    if (msr->param.bStandard) {
-	XDR xdrs;
-
-	xdrstdio_create(&xdrs,fp,XDR_DECODE);
-	xdrHeader(&xdrs,&h);
-	xdr_destroy(&xdrs);
-	}
-    else {
-	fread(&h,sizeof(struct dump),1,fp);
-	}
-    fclose(fp);
-    msr->N = h.nbodies;
-    msr->nDark = h.ndark;
-    msr->nGas = h.nsph;
-    msr->nStar = h.nstar;
-    dExpansion = h.time;
-
-#if 0
-    if (h.pad) {
-	/*
-	** This means we are dealing with *large* tipsy files
-	** The pad field provides 8 more high bits to each of
-	** nbodies, nsph, ndark and nstar.
-	*/
-	tlong = h.pad & 0x000000ff;
-	tlong = tlong << 32;
-	msr->N += tlong;
-	tlong = h.pad & 0x0000ff00;
-	tlong = tlong << 24;
-	msr->nGas += tlong;
-	tlong = h.pad & 0x00ff0000;
-	tlong = tlong << 16;
-	msr->nDark += tlong;
-	tlong = h.pad & 0xff000000;
-	tlong = tlong << 8;
-	msr->nStar += tlong;
-	}
-#endif
-
-    msr->nMaxOrder = msr->N;
-    msr->nMaxOrderGas = msr->nGas;
-    msr->nMaxOrderDark = msr->nGas + msr->nDark;
-    assert(msr->N == msr->nDark+msr->nGas+msr->nStar);
-    if (msr->param.csm->bComove) {
-	if (msr->param.csm->dHubble0 == 0.0) {
-	    printf("No hubble constant specified\n");
-	    _msrExit(msr,1);
-	    }
-	dTime = csmExp2Time(msr->param.csm,dExpansion);
-	z = 1.0/dExpansion - 1.0;
-	if (msr->param.bVStart)
-	    printf("Input file, Time:%g Redshift:%g Expansion factor:%g iStartStep:%d\n",
-		   dTime,z,dExpansion,msr->param.iStartStep);
-	if (prmSpecified(msr->prm,"dRedTo")) {
-	    if (msr->param.dRedTo <= -1.0) {
-		printf("Badly specified final redshift (zTo <= -1.0), check -zto parameter.\n");
-		_msrExit(msr,1);
-		}
-	    if (!prmArgSpecified(msr->prm,"nSteps") &&
-		    prmArgSpecified(msr->prm,"dDelta")) {
-		aTo = 1.0/(msr->param.dRedTo + 1.0);
-		tTo = csmExp2Time(msr->param.csm,aTo);
-		if (msr->param.bVStart)
-		    printf("Simulation to Time:%g Redshift:%g Expansion factor:%g\n",
-			   tTo,1.0/aTo-1.0,aTo);
-		if (tTo < dTime) {
-		    printf("Badly specified final redshift, check -zto parameter.\n");
-		    _msrExit(msr,1);
-		    }
-		msr->param.nSteps = (int)ceil((tTo-dTime)/msr->param.dDelta);
-		msr->param.dDelta =
-		    (tTo-dTime)/(msr->param.nSteps -
-				 msr->param.iStartStep);
-		}
-	    else if (!prmArgSpecified(msr->prm,"dDelta") &&
-		     prmArgSpecified(msr->prm,"nSteps")) {
-		aTo = 1.0/(msr->param.dRedTo + 1.0);
-		tTo = csmExp2Time(msr->param.csm,aTo);
-		if (msr->param.bVStart)
-		    printf("Simulation to Time:%g Redshift:%g Expansion factor:%g\n",
-			   tTo,1.0/aTo-1.0,aTo);
-		if (tTo < dTime) {
-		    printf("Badly specified final redshift, check -zto parameter.\n");
-		    _msrExit(msr,1);
-		    }
-		if (msr->param.nSteps != 0)
-		    msr->param.dDelta =
-			(tTo-dTime)/(msr->param.nSteps -
-				     msr->param.iStartStep);
-
-		else
-		    msr->param.dDelta = 0.0;
-		}
-	    else if (!prmSpecified(msr->prm,"nSteps") &&
-		     prmFileSpecified(msr->prm,"dDelta")) {
-		aTo = 1.0/(msr->param.dRedTo + 1.0);
-		tTo = csmExp2Time(msr->param.csm,aTo);
-		if (msr->param.bVStart)
-		    printf("Simulation to Time:%g Redshift:%g Expansion factor:%g\n",
-			   tTo,1.0/aTo-1.0,aTo);
-		if (tTo < dTime) {
-		    printf("Badly specified final redshift, check -zto parameter.\n");
-		    _msrExit(msr,1);
-		    }
-		msr->param.nSteps = (int)ceil((tTo-dTime)/msr->param.dDelta);
-		msr->param.dDelta =
-		    (tTo-dTime)/(msr->param.nSteps -
-				 msr->param.iStartStep);
-		}
-	    else if (!prmSpecified(msr->prm,"dDelta") &&
-		     prmFileSpecified(msr->prm,"nSteps")) {
-		aTo = 1.0/(msr->param.dRedTo + 1.0);
-		tTo = csmExp2Time(msr->param.csm,aTo);
-		if (msr->param.bVStart)
-		    printf("Simulation to Time:%g Redshift:%g Expansion factor:%g\n",
-			   tTo,1.0/aTo-1.0,aTo);
-		if (tTo < dTime) {
-		    printf("Badly specified final redshift, check -zto parameter.\n");
-		    _msrExit(msr,1);
-		    }
-		if (msr->param.nSteps != 0)
-		    msr->param.dDelta =	(tTo-dTime)/(msr->param.nSteps
-						     - msr->param.iStartStep);
-		else
-		    msr->param.dDelta = 0.0;
-		}
-	    }
-	else {
-	    tTo = dTime + msr->param.nSteps*msr->param.dDelta;
-	    aTo = csmTime2Exp(msr->param.csm,tTo);
-	    if (msr->param.bVStart)
-		printf("Simulation to Time:%g Redshift:%g Expansion factor:%g\n",
-		       tTo,1.0/aTo-1.0,aTo);
-	    }
-	if (msr->param.csm->bComove) {
-	    in.dvFac = dExpansion*dExpansion;
-	    }
-	else {
-	    in.dvFac = 1.0;
-	    }
-	}
-    else {
-	dTime = dExpansion;
-	if (msr->param.bVStart) printf("Input file, Time:%g iStartStep:%d\n",dTime,msr->param.iStartStep);
-	tTo = dTime + (msr->param.nSteps - msr->param.iStartStep)*msr->param.dDelta;
-	if (msr->param.bVStart) {
-	    printf("Simulation to Time:%g\n",tTo);
-	    printf("Reading file...\nN:%"PRIu64" nDark:%"PRIu64" nGas:%"PRIu64" nStar:%"PRIu64" Time:%g\n",
-		   msr->N,msr->nDark,msr->nGas,msr->nStar,dTime);
-	    }
-	in.dvFac = 1.0;
-	}
-    in.nFileStart = 0;
-    in.nFileEnd = msr->N - 1;
-    in.nBucket = msr->param.nBucket;
-    in.nDark = msr->nDark;
-    in.nGas = msr->nGas;
-    in.nStar = msr->nStar;
-    in.mMemoryModel = mMemoryModel;
-    in.bStandard = msr->param.bStandard;
-    in.bDoublePos = msr->param.bDoublePos;
-    strcpy(in.achOutName,msr->param.achOutName);
-    /*
-    ** Since pstReadTipsy causes the allocation of the local particle
-    ** store, we need to tell it the percentage of extra storage it
-    ** should allocate for load balancing differences in the number of
-    ** particles.
-    */
-    in.fExtraStore = msr->param.dExtraStore;
-    in.fExtraNodes = msr->param.dExtraNodes;
-    in.iCacheSize  = msr->param.iCacheSize;
-    /*
-    ** Provide the period.
-    */
-    in.fPeriod[0] = msr->param.dxPeriod;
-    in.fPeriod[1] = msr->param.dyPeriod;
-    in.fPeriod[2] = msr->param.dzPeriod;
-
-    if (msr->param.bParaRead)
-	pstReadTipsy(msr->pst,&in,sizeof(in),NULL,NULL);
-    else
-	msrOneNodeReadTipsy(msr, &in);
-    msrSetClasses(msr);
-    msrprintf(msr,"Input file has been successfully read.\n");
-    /*
-    ** Now read in the output points, passing the initial time.
-    ** We do this only if nSteps is not equal to zero.
-    */
-    if (msrSteps(msr) > 0) msrReadOuts(msr,dTime);
-    /*
-    ** Set up the output counter.
-    */
-    for (msr->iOut=0;msr->iOut<msr->nOuts;++msr->iOut) {
-	if (dTime < msr->pdOutTime[msr->iOut]) break;
-	}
-    return(dTime);
-    }
-
 
 #ifdef USE_MDL_IO
 void msrIOWrite(MSR msr, const char *achOutName, double dTime, int bCheckpoint) {
@@ -2019,7 +1638,7 @@ uint64_t msrCalcWriteStart(MSR msr) {
     }
 
 void _msrWriteTipsy(MSR msr,const char *pszFileName,double dTime,int bCheckpoint) {
-    FILE *fp;
+    FIO fio;
     struct dump h;
     struct inWriteTipsy in;
     char achOutFile[PST_FILENAME_SIZE];
@@ -2103,22 +1722,12 @@ void _msrWriteTipsy(MSR msr,const char *pszFileName,double dTime,int bCheckpoint
 #endif
 	/* This is always executed if not using HDF5 */
 	{
-	fp = fopen(achOutFile,"w");
-	if (!fp) {
-	    printf("Could not open OutFile:%s\n",achOutFile);
-	    _msrExit(msr,1);
-	    }
-	if (in.bStandard) {
-	    XDR xdrs;
-
-	    xdrstdio_create(&xdrs,fp,XDR_ENCODE);
-	    xdrHeader(&xdrs,&h);
-	    xdr_destroy(&xdrs);
-	    }
-	else {
-	    fwrite(&h,sizeof(struct dump),1,fp);
-	    }
-	fclose(fp);
+	fio = fioTipsyCreate(achOutFile,
+			     msr->param.bDoublePos,
+			     msr->param.bStandard,in.dTime,
+			     msr->nGas, N, msr->nStar);
+	assert(fio!=NULL);
+	fioClose(fio);
 
 	if (msr->param.bParaWrite)
 	    pstWriteTipsy(msr->pst,&in,sizeof(in),NULL,NULL);
@@ -4913,10 +4522,11 @@ void msrWrite(MSR msr,const char *pszFileName,double dTime,int bCheckpoint) {
 static struct inReadFile * fileScan(MSR msr, const char *achFilename, double *pdExpansion) {
     struct inReadFile *read;
     struct inFile *file;
-    int i;
+    int i, j;
     FILE *fp;
+    FIO fio;
     struct dump h;
-    uint64_t iOffset;
+    int bStandard = 0;
     off_t oStart, oEnd, oSize;
 
 #if defined(HAVE_WORDEXP) && defined(HAVE_WORDFREE)
@@ -4948,14 +4558,11 @@ static struct inReadFile * fileScan(MSR msr, const char *achFilename, double *pd
     read->nFiles = 1;
     printf( "REMINDER: Wildcards not expanded. wordexp() not available.\n" );
 #endif
-
+    msr->nDark = msr->nGas = msr->nStar = msr->N = 0;
+    for( j=0; j<FIO_SPECIES_LAST; j++) read->nSpecies[j] = 0;
     file = (struct inFile *)(read+1);
 
-    msr->nDark = msr->nGas = msr->nStar = msr->N = 0;
-    iOffset = 0;
-
     for( i=0; i<read->nFiles; i++ ) {
-
 #if defined(HAVE_WORDEXP) && defined(HAVE_WORDFREE)
 	assert( strlen(files.we_wordv[i]) < sizeof(file[i].achFilename) );
 	strcpy( file[i].achFilename, files.we_wordv[i] );
@@ -4966,70 +4573,39 @@ static struct inReadFile * fileScan(MSR msr, const char *achFilename, double *pd
 	assert( strlen(achFilename) < sizeof(file[i].achFilename) );
 	strcpy( file[i].achFilename, achFilename );
 #endif
-
-	printf( "Opening %s\n", file[i].achFilename );
-
-#ifdef USE_HDF5
-	if ( H5Fis_hdf5(file[i].achFilename) ) {
-	    hid_t fileID;
-	    IOHDF5 io;
-
-	    fileID=H5Fopen(file[i].achFilename, H5F_ACC_RDONLY, H5P_DEFAULT);
-	    if ( fileID < 0 ) {
+	printf("Opening %s ...\n", file[i].achFilename);
+	if ( i==0 ) {
+	    fio = fioOpen(file[i].achFilename,msr->param.bDoublePos);
+	    if ( fio == NULL ) {
 		printf("Could not open InFile:%s\n",file[i].achFilename);
 		_msrExit(msr,1);
 		}
-
-	    io = ioHDF5Initialize( fileID, 32768, IOHDF5_SINGLE );
-
-	    msr->nDark += (file[i].nDark = ioHDF5DarkCount(io));
-	    msr->nGas  += (file[i].nGas = ioHDF5GasCount(io));
-	    msr->nStar += (file[i].nStar = ioHDF5StarCount(io));
-	    assert(ioHDF5ReadAttribute( io, "dTime", H5T_NATIVE_DOUBLE, pdExpansion ));
-	    ioHDF5Finish(io);
-	    H5Fclose(fileID);
+	    read->eFileType = fioFormat(fio);
+	    if (!fioGetAttr(fio,"dTime",FIO_TYPE_DOUBLE,pdExpansion)) *pdExpansion = 0.0;
+	    if (!fioGetAttr(fio,"dEcosmo",FIO_TYPE_DOUBLE,&msr->dEcosmo)) msr->dEcosmo = 0.0;
+	    if (!fioGetAttr(fio,"dTimeOld",FIO_TYPE_DOUBLE,&msr->dTimeOld)) msr->dTimeOld = 0.0;
+	    if (!fioGetAttr(fio,"dUOld",FIO_TYPE_DOUBLE,&msr->dUOld)) msr->dUOld = 0.0;
 	    }
 	else {
-#endif
-
-	    fp = fopen(file[i].achFilename,"r");
-	    if (!fp) {
+	    fioOpenNext(fio,file[i].achFilename);
+	    if ( fio == NULL ) {
 		printf("Could not open InFile:%s\n",file[i].achFilename);
 		_msrExit(msr,1);
 		}
-
-	    if ( i == 0 ) {
-		if (msr->param.bStandard) {
-		    XDR xdrs;
-		    xdrstdio_create(&xdrs,fp,XDR_DECODE);
-		    xdrHeader(&xdrs,&h);
-		    xdr_destroy(&xdrs);
-		    }
-		else {
-		    fread(&h,sizeof(struct dump),1,fp);
-		    }
-		msr->N = h.nbodies;
-		msr->nDark = h.ndark;
-		msr->nGas = h.nsph;
-		msr->nStar = h.nstar;
-		*pdExpansion = h.time;
-		/* For now, simplify the logic below */
-		assert( msr->nGas==0 && msr->nStar==0 );
-		assert( msr->N == msr->nDark + msr->nGas + msr->nStar );
-		}
-	    oStart = ftello(fp);
-	    fseeko(fp, 0, SEEK_END);
-	    oEnd = ftello(fp);
-	    fclose(fp);
-	    oSize = oEnd-oStart;
-	    file[i].nDark = oSize / (msr->param.bStandard?(msr->param.bDoublePos?48:36):sizeof(struct dark_particle));
-	    file[i].nGas = 0;
-	    file[i].nStar = 0;
-#ifdef USE_HDF5
 	    }
-#endif
+
+	msr->N     += fioGetN(fio,FIO_SPECIES_ALL);
+	msr->nGas  += fioGetN(fio,FIO_SPECIES_SPH);
+	msr->nDark += fioGetN(fio,FIO_SPECIES_DARK);
+	msr->nStar += fioGetN(fio,FIO_SPECIES_STAR);
+	for( j=0; j<FIO_SPECIES_LAST; j++) read->nSpecies[j] += (file[i].nSpecies[j] = fioGetN(fio,j));
 	}
-    msr->N = msr->nDark + msr->nGas + msr->nStar;
+    fioClose(fio);
+    assert(msr->N == msr->nDark + msr->nGas + msr->nStar);
+
+    if (msr->param.bVStart)
+	printf("Reading...\nN:%"PRIu64" nDark:%"PRIu64" nGas:%"PRIu64" nStar:%"PRIu64"\n",msr->N,
+	       msr->nDark,msr->nGas,msr->nStar);
 
 #if defined(HAVE_WORDEXP) && defined(HAVE_WORDFREE)
     wordfree(&files);
@@ -5039,7 +4615,6 @@ static struct inReadFile * fileScan(MSR msr, const char *achFilename, double *pd
 
     return read;
     }
-
 
 double msrRead(MSR msr, const char *achInFile) {
     double dTime,dExpansion;
@@ -5056,7 +4631,6 @@ double msrRead(MSR msr, const char *achInFile) {
     if (msrDoGravity(msr)) mMemoryModel |= PKD_MODEL_VELOCITY|PKD_MODEL_ACCELERATION|PKD_MODEL_POTENTIAL;
     if (msr->param.bHermite) mMemoryModel |= PKD_MODEL_HERMITE;
     if (msr->param.bTraceRelaxation) mMemoryModel |= PKD_MODEL_RELAXATION;
-
     if (msr->param.bMemAcceleration) mMemoryModel |= PKD_MODEL_ACCELERATION;
     if (msr->param.bMemVelocity)     mMemoryModel |= PKD_MODEL_VELOCITY;
     if (msr->param.bMemPotential)    mMemoryModel |= PKD_MODEL_POTENTIAL;
@@ -5080,13 +4654,12 @@ double msrRead(MSR msr, const char *achInFile) {
 
     dTime = getTime(msr,dExpansion,&read->dvFac);
 
-
     read->nNodeStart = 0;
     read->nNodeEnd = msr->N - 1;
     read->nBucket = msr->param.nBucket;
-    read->nDark = msr->nDark;
-    read->nGas = msr->nGas;
-    read->nStar = msr->nStar;
+    assert(msr->nDark==read->nSpecies[FIO_SPECIES_DARK]);
+    assert(msr->nGas==read->nSpecies[FIO_SPECIES_SPH]);
+    assert(msr->nStar==read->nSpecies[FIO_SPECIES_STAR]);
     read->mMemoryModel = mMemoryModel;
     read->bStandard = msr->param.bStandard;
     read->bDoublePos = msr->param.bDoublePos;
@@ -5096,7 +4669,6 @@ double msrRead(MSR msr, const char *achInFile) {
     read->fPeriod[0] = msr->param.dxPeriod;
     read->fPeriod[1] = msr->param.dyPeriod;
     read->fPeriod[2] = msr->param.dzPeriod;
-    read->eFileType = PST_FILE_TYPE_TIPSY;
 
     /*
     ** If bParaRead is 0, then we read serially; if it is 1, then we read
@@ -5107,27 +4679,12 @@ double msrRead(MSR msr, const char *achInFile) {
     */
     read->nProcessors = msr->param.bParaRead==1 ? msr->nThreads:msr->param.bParaRead;
 
-#ifdef USE_HDF5
-    if ( H5Fis_hdf5(file[0].achFilename) )
-	read->eFileType = PST_FILE_TYPE_HDF5;
-#endif
     if (msr->param.bParaRead)
 	pstReadFile(msr->pst,read,sizeof(struct inReadFile) + read->nFiles*sizeof(struct inFile),NULL,NULL);
     else {
-#ifdef USE_HDF5
-	assert(read->nFiles==1);
-	/* We can automatically detect if a given file is in HDF5 format */
-	if ( H5Fis_hdf5(file[0].achFilename) ) {
-	    dTime = _msrReadHDF5(msr,file[0].achFilename,mMemoryModel);
-	    }
-	else
-#endif
-	    /* This is always executed if not using HDF5 */
-	    {
-	    dTime = _msrReadTipsy(msr,file[0].achFilename,mMemoryModel);
-	    }
-#endif
+	msrOneNodeRead(msr,read);
 	}
+#endif
     msrSetClasses(msr);
     msrprintf(msr,"Input file has been successfully read.\n");
 #ifdef USE_MDL_IO

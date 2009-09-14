@@ -31,7 +31,7 @@ if test "x$INSTRUMENT" = "xyes" ; then
  	[Instrument the code.])
 fi
 
-# This adds processor specific timing to the code - default disabled
+# This adds FFTW analysis - default disabled
 AC_ARG_ENABLE(fftw,
   [  --enable-fftw                  Enable FFT support modules],
   [FFTW="$enableval"],[FFTW="no"])
@@ -66,16 +66,21 @@ AC_SUBST([EFENCE_PATH],[$EFENCE_DIR])
 # Python
 AC_ARG_WITH(python,
   [  --with-python=VERSION   enable python scripting],
-  [PYTHON_VER="${withval}"],[PYTHON_VER=no])
-if test "x$PYTHON_VER" != "xno" ; then
+  [PYTHON_EXE="${withval}"],[PYTHON_EXE=no])
+if test "x$PYTHON_EXE" != "xno" ; then
 AC_DEFINE([USE_PYTHON],1,
   [Defined if python support should be compiled into pkdgrav2])
 fi
-AM_CONDITIONAL(USE_PYTHON, test "x$PYTHON_VER" != "xno")
-if test "x$PYTHON_VER" = "xyes" ; then
-  PYTHON_VER="2.4"
+AM_CONDITIONAL(USE_PYTHON, test "x$PYTHON_EXE" != "xno")
+if test "x$PYTHON_EXE" = "xyes" ; then
+  PYTHON_EXE=python
 fi
+PYTHON_VER=`$PYTHON_EXE -c "import sys; import distutils.sysconfig as ds; sys.stdout.write(ds.get_python_version())"`
+PYTHON_INC=`$PYTHON_EXE -c "import sys; import distutils.sysconfig as ds; sys.stdout.write(ds.get_python_inc())"`
+PYTHON_LIB=`$PYTHON_EXE -c "import os; import sys; import distutils.sysconfig as ds; sys.stdout.write(os.path.join(ds.get_python_lib(plat_specific=1,standard_lib=1), 'config'))"`
 AC_SUBST([PYTHON_VER],[$PYTHON_VER])
+AC_SUBST([PYTHON_INC],[$PYTHON_INC])
+AC_SUBST([PYTHON_LIB],[$PYTHON_LIB])
 
 # HDF5 I/O
 AC_ARG_ENABLE(hdf5,

@@ -36,8 +36,8 @@ SOURCES = main.c tree.c analysis.c romberg.c
 noinst_HEADERS = bt.h parameters.h grav.h walk.h cycle.h tipsydefs.h
 SOURCES        += cosmo.c master.c param.c pst.c smooth.c ewald.c
 noinst_HEADERS += cosmo.h master.h param.h pst.h smooth.h ewald.h meval.h qeval.h
-SOURCES        += moments.c intype.c outtype.c pkd.c smoothfcn.c rbtree.c
-noinst_HEADERS += moments.h intype.h outtype.h pkd.h smoothfcn.h rbtree.h
+SOURCES        += moments.c intype.c outtype.c pkd.c smoothfcn.c rbtree.c fio.c
+noinst_HEADERS += moments.h intype.h outtype.h pkd.h smoothfcn.h rbtree.h fio.h
 
 if PLANETS
 SOURCES += ssio.c collision.c kepler.c
@@ -84,8 +84,8 @@ pkdgrav2m_null_LDADD += -lefence
 endif
 if USE_PYTHON
 pkdgrav2m_null_LDFLAGS = -Xlinker -export-dynamic 
-pkdgrav2m_null_LDADD += -L /usr/lib64/python$(PYTHON_VER)/config -lpython$(PYTHON_VER) -ldl -lrt -lutil
-pkdgrav2m_null_CFLAGS += -I /usr/include/python$(PYTHON_VER)
+pkdgrav2m_null_LDADD += -L $(PYTHON_LIB) -lpython$(PYTHON_VER) -ldl -lrt -lutil
+pkdgrav2m_null_CFLAGS += -I $(PYTHON_INC)
 endif
 if LUSTRE
 pkdgrav2m_null_LDADD += -llustreapi
@@ -113,8 +113,8 @@ pkdgrav2m_mpi_LDADD += -lefence
 endif
 if USE_PYTHON
 pkdgrav2m_mpi_LDFLAGS = -Xlinker -export-dynamic 
-pkdgrav2m_mpi_LDADD += -L /usr/lib64/python$(PYTHON_VER)/config -lpython$(PYTHON_VER) -ldl -lutil
-pkdgrav2m_mpi_CFLAGS += -I /usr/include/python$(PYTHON_VER)
+pkdgrav2m_mpi_LDADD += -L $(PYTHON_LIB) -lpython$(PYTHON_VER) -ldl -lutil
+pkdgrav2m_mpi_CFLAGS += -I $(PYTHON_INC)
 endif
 if LUSTRE
 pkdgrav2m_mpi_LDADD += -llustreapi
@@ -137,8 +137,8 @@ pkdgrav2m_pthread_LDADD += -lefence
 endif
 if USE_PYTHON
 pkdgrav2m_pthread_LDFLAGS = -Xlinker -export-dynamic 
-pkdgrav2m_pthread_LDADD += -L /usr/lib64/python$(PYTHON_VER)/config -lpython$(PYTHON_VER) -ldl -lutil
-pkdgrav2m_pthread_CFLAGS += -I /usr/include/python$(PYTHON_VER)
+pkdgrav2m_pthread_LDADD += -L $(PYTHON_LIB) -lpython$(PYTHON_VER) -ldl -lutil
+pkdgrav2m_pthread_CFLAGS += -I $(PYTHON_INC)
 endif
 if LUSTRE
 pkdgrav2m_pthread_LDADD += -llustreapi
@@ -158,8 +158,8 @@ pkdgrav2m_sisci_LDADD += -lefence
 endif
 if USE_PYTHON
 pkdgrav2m_sisci_LDFLAGS = -Xlinker -export-dynamic 
-pkdgrav2m_sisci_LDADD += -L /usr/lib64/python$(PYTHON_VER)/config -lpython$(PYTHON_VER) -ldl -lutil
-pkdgrav2m_sisci_CFLAGS += -I /usr/include/python$(PYTHON_VER)
+pkdgrav2m_sisci_LDADD += -L $(PYTHON_LIB) -lpython$(PYTHON_VER) -ldl -lutil
+pkdgrav2m_sisci_CFLAGS += -I $(PYTHON_INC)
 endif
 if LUSTRE
 pkdgrav2m_sisci_LDADD += -llustreapi

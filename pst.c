@@ -143,6 +143,7 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_READFILE,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstReadFile,
 		  sizeof(struct inReadFile)+PST_MAX_FILES*sizeof(struct inFile),0);
+#if 0
     mdlAddService(mdl,PST_READTIPSY,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstReadTipsy,
 		  sizeof(struct inReadTipsy),0);
@@ -150,6 +151,7 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_READHDF5,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstReadHDF5,
 		  sizeof(struct inReadTipsy),0);
+#endif
 #endif
     mdlAddService(mdl,PST_PEANOHILBERTCOUNT,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstPeanoHilbertCount,
@@ -299,7 +301,7 @@ void pstAddServices(PST pst,MDL mdl) {
 		  sizeof(struct inAddWriteStart),0);
     mdlAddService(mdl,PST_ONENODEREADINIT,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstOneNodeReadInit,
-		  sizeof(struct inReadTipsy), nThreads*sizeof(int));
+		  sizeof(struct inReadFile), nThreads*sizeof(int));
     mdlAddService(mdl,PST_SWAPALL,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstSwapAll,
 		  sizeof(int),0);
@@ -614,26 +616,26 @@ void pstGetMap(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 
 void pstOneNodeReadInit(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
-    struct inReadTipsy *in = vin;
+    struct inReadFile *in = vin;
     int *pout = vout;
     uint64_t nFileStart,nFileEnd,nFileTotal,nFileSplit,nStore;
     int *ptmp;
     int nThreads;
     int i;
 
-    mdlassert(pst->mdl,nIn == sizeof(struct inReadTipsy));
+    mdlassert(pst->mdl,nIn == sizeof(struct inReadFile));
     nThreads = mdlThreads(pst->mdl);
-    nFileStart = in->nFileStart;
-    nFileEnd = in->nFileEnd;
+    nFileStart = in->nNodeStart;
+    nFileEnd = in->nNodeEnd;
     nFileTotal = nFileEnd - nFileStart + 1;
     if (pst->nLeaves > 1) {
 	nFileSplit = nFileStart + pst->nLower*(nFileTotal/pst->nLeaves);
-	in->nFileStart = nFileSplit;
+	in->nNodeStart = nFileSplit;
 	mdlReqService(pst->mdl,pst->idUpper,PST_ONENODEREADINIT,in,nIn);
-	in->nFileStart = nFileStart;
-	in->nFileEnd = nFileSplit - 1;
+	in->nNodeStart = nFileStart;
+	in->nNodeEnd = nFileSplit - 1;
 	pstOneNodeReadInit(pst->pstLower,in,nIn,vout,pnOut);
-	in->nFileEnd = nFileEnd;
+	in->nNodeEnd = nFileEnd;
 	ptmp = malloc(nThreads*sizeof(*ptmp));
 	mdlassert(pst->mdl,ptmp != NULL);
 	mdlGetReply(pst->mdl,pst->idUpper,ptmp,pnOut);
@@ -653,7 +655,11 @@ void pstOneNodeReadInit(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 
 	if (plcl->pkd) pkdFinish(plcl->pkd);
 	pkdInitialize(&plcl->pkd,pst->mdl,nStore,in->nBucket,in->fExtraNodes,in->iCacheSize,
-		      in->fPeriod,in->nDark,in->nGas,in->nStar,in->mMemoryModel);
+		      in->fPeriod,
+		      in->nSpecies[FIO_SPECIES_DARK],
+		      in->nSpecies[FIO_SPECIES_SPH],
+		      in->nSpecies[FIO_SPECIES_STAR],
+		      in->mMemoryModel);
 	pout[pst->idSelf] = nFileTotal; /* Truncated: okay */
 	}
     if (pnOut) *pnOut = nThreads*sizeof(*pout);
@@ -664,10 +670,7 @@ void pstReadFile(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct inReadFile *in = vin;
     struct inFile *inf = (struct inFile *)(in+1);
-#ifdef USE_HDF5
-    hid_t fileID;
-    IOHDF5 io;
-#endif
+    FIO fio;
     uint64_t nNodeStart,nNodeEnd,nNodeTotal,nNodeSplit,nStore;
     uint64_t nFileStart, nFileEnd, nThisStart, nThisEnd;
     int i;
@@ -712,30 +715,34 @@ void pstReadFile(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 
 	if (plcl->pkd) pkdFinish(plcl->pkd);
 	pkdInitialize(&plcl->pkd,pst->mdl,nStore,in->nBucket,in->fExtraNodes,in->iCacheSize,
-		      in->fPeriod,in->nDark,in->nGas,in->nStar,in->mMemoryModel);
+		      in->fPeriod,
+		      in->nSpecies[FIO_SPECIES_DARK],
+		      in->nSpecies[FIO_SPECIES_SPH],
+		      in->nSpecies[FIO_SPECIES_STAR],
+		      in->mMemoryModel);
 
 	nFileStart = 0;
 	for( i=0; i<in->nFiles; i++,nFileStart=nFileEnd+1 ) {
-	    nFileEnd = nFileStart + inf[i].nDark + inf[i].nGas + inf[i].nStar - 1;
+	    nFileEnd = nFileStart + inf[i].nSpecies[FIO_SPECIES_ALL] - 1;
 	    if ( nFileStart > nNodeEnd || nFileEnd < nNodeStart ) continue;
-
 	    nThisStart = ( nNodeStart > nFileStart ) ? nNodeStart - nFileStart : 0;
 	    nThisEnd = ( nNodeEnd < nFileEnd ) ? nNodeEnd - nFileStart : nFileEnd - nFileStart;
 
 	    switch( in->eFileType ) {
-	    case PST_FILE_TYPE_TIPSY:
-		pkdReadTipsy(plcl->pkd,inf[i].achFilename,nThisStart,nThisEnd-nThisStart+1,
-			     in->bStandard,in->dvFac,in->bDoublePos,i!=0);
+	    case FIO_FORMAT_TIPSY:
+		pkdReadTipsy(plcl->pkd,inf[i].achFilename,nFileStart,
+			     in->nSpecies[FIO_SPECIES_SPH],
+			     in->nSpecies[FIO_SPECIES_DARK],
+			     in->nSpecies[FIO_SPECIES_STAR],
+			     nThisStart,nThisEnd-nThisStart+1,
+			     in->bStandard,in->dvFac,in->bDoublePos);
 		break;
 #ifdef USE_HDF5
-	    case PST_FILE_TYPE_HDF5:
-		fileID=H5Fopen(inf[i].achFilename, H5F_ACC_RDONLY, H5P_DEFAULT);
-		assert(fileID >= 0);
-		io = ioHDF5Initialize( fileID, 32768, IOHDF5_SINGLE );
-		assert( io != NULL );
-		pkdReadHDF5(plcl->pkd, io, in->dvFac, nThisStart, nThisEnd-nThisStart+1);
-		ioHDF5Finish(io);
-		H5Fclose(fileID);
+	    case FIO_FORMAT_HDF5:
+		fio = fioHDF5Open(inf[i].achFilename);
+		assert(fio!=NULL);
+		pkdReadFIO(plcl->pkd,fio,nThisStart,nThisEnd-nThisStart+1,in->dvFac);
+		fioClose(fio);
 		break;
 #endif
 	    default:
@@ -745,116 +752,6 @@ void pstReadFile(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	}
     if (pnOut) *pnOut = 0;
     }
-
-#ifdef USE_HDF5
-void pstReadHDF5(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
-    LCL *plcl = pst->plcl;
-    struct inReadTipsy *in = vin;
-    hid_t fileID;
-    IOHDF5 io;
-    uint64_t nFileStart,nFileEnd,nFileTotal,nFileSplit,nStore;
-    char achInFile[PST_FILENAME_SIZE];
-    char achOutName[PST_FILENAME_SIZE];
-
-    mdlassert(pst->mdl,nIn == sizeof(struct inReadTipsy));
-    nFileStart = in->nFileStart;
-    nFileEnd = in->nFileEnd;
-    nFileTotal = nFileEnd - nFileStart + 1;
-    if (pst->nLeaves > 1) {
-	nFileSplit = nFileStart + pst->nLower*(nFileTotal/pst->nLeaves);
-	in->nFileStart = nFileSplit;
-	mdlReqService(pst->mdl,pst->idUpper,PST_READHDF5,in,nIn);
-	in->nFileStart = nFileStart;
-	in->nFileEnd = nFileSplit - 1;
-	pstReadHDF5(pst->pstLower,in,nIn,NULL,NULL);
-	in->nFileEnd = nFileEnd;
-	mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
-	}
-    else {
-	/*
-	** Add the local Data Path to the provided filename.
-	*/
-	achInFile[0] = 0;
-	achOutName[0] = 0;
-	if (plcl->pszDataPath) {
-	    strcat(achInFile,plcl->pszDataPath);
-	    strcat(achInFile,"/");
-	    strcat(achOutName,plcl->pszDataPath);
-	    strcat(achOutName,"/");
-	    }
-	strcat(achInFile,in->achInFile);
-	strcat(achOutName,in->achOutName);
-	/*
-	** Determine the size of the local particle store.
-	*/
-	nStore = nFileTotal + (int)ceil(nFileTotal*in->fExtraStore);
-	if (plcl->pkd) pkdFinish(plcl->pkd);
-	pkdInitialize(&plcl->pkd,pst->mdl,nStore,in->nBucket,in->fExtraNodes,in->iCacheSize,
-		      in->fPeriod,in->nDark,in->nGas,in->nStar,in->mMemoryModel);
-
-
-	fileID=H5Fopen(achInFile, H5F_ACC_RDONLY, H5P_DEFAULT);
-	assert(fileID >= 0);
-	io = ioHDF5Initialize( fileID, 32768, IOHDF5_SINGLE );
-	assert( io != NULL );
-
-	pkdReadHDF5(plcl->pkd, io, in->dvFac, nFileStart, nFileTotal);
-
-	ioHDF5Finish(io);
-	H5Fclose(fileID);
-	}
-    if (pnOut) *pnOut = 0;
-    }
-#endif
-
-void pstReadTipsy(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
-    LCL *plcl = pst->plcl;
-    struct inReadTipsy *in = vin;
-    uint64_t nFileStart,nFileEnd,nFileTotal,nFileSplit,nStore;
-    char achInFile[PST_FILENAME_SIZE];
-    char achOutName[PST_FILENAME_SIZE];
-
-    mdlassert(pst->mdl,nIn == sizeof(struct inReadTipsy));
-    nFileStart = in->nFileStart;
-    nFileEnd = in->nFileEnd;
-    nFileTotal = nFileEnd - nFileStart + 1;
-    if (pst->nLeaves > 1) {
-	nFileSplit = nFileStart + pst->nLower*(nFileTotal/pst->nLeaves);
-	in->nFileStart = nFileSplit;
-	mdlReqService(pst->mdl,pst->idUpper,PST_READTIPSY,in,nIn);
-	in->nFileStart = nFileStart;
-	in->nFileEnd = nFileSplit - 1;
-	pstReadTipsy(pst->pstLower,in,nIn,NULL,NULL);
-	in->nFileEnd = nFileEnd;
-	mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
-	}
-    else {
-	/*
-	** Add the local Data Path to the provided filename.
-	*/
-	achInFile[0] = 0;
-	achOutName[0] = 0;
-	if (plcl->pszDataPath) {
-	    strcat(achInFile,plcl->pszDataPath);
-	    strcat(achInFile,"/");
-	    strcat(achOutName,plcl->pszDataPath);
-	    strcat(achOutName,"/");
-	    }
-	strcat(achInFile,in->achInFile);
-	strcat(achOutName,in->achOutName);
-	/*
-	** Determine the size of the local particle store.
-	*/
-	nStore = nFileTotal + (int)ceil(nFileTotal*in->fExtraStore);
-	if (plcl->pkd) pkdFinish(plcl->pkd);
-	pkdInitialize(&plcl->pkd,pst->mdl,nStore,in->nBucket,in->fExtraNodes,in->iCacheSize,
-		      in->fPeriod,in->nDark,in->nGas,in->nStar,in->mMemoryModel);
-	pkdReadTipsy(plcl->pkd,achInFile,nFileStart,nFileTotal,in->bStandard,
-		     in->dvFac,in->bDoublePos,0);
-	}
-    if (pnOut) *pnOut = 0;
-    }
-
 
 int _pstRejMatch(PST pst,int n1,OREJ *p1,int n2,OREJ *p2,int *pidSwap) {
     int id,i,i1=-1,i2=-1,id1,id2;

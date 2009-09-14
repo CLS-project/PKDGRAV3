@@ -20,9 +20,10 @@
 ** but we fallback to multiple fseek calls if required.
 */
 static int safe_fseek(FILE *fp,uint64_t lStart) {
-    int iErr;
 #ifdef HAVE_FSEEKO
     uint64_t lSeeked;
+    int iErr;
+    errno = 0;
     iErr = fseeko(fp,lStart,SEEK_SET);
     if (iErr) {
 	perror("safe_fseek failed");
@@ -33,14 +34,16 @@ static int safe_fseek(FILE *fp,uint64_t lStart) {
 	fprintf(stderr,"fseeko() borked: %lu != %lu\n", lStart, lSeeked);
 	exit(ESPIPE);
 	}
-    return iErr;
+    return 0;
 #else
     /* fseek fails for offsets >= 2**31; this is an ugly workaround */
     static const off_t MAX_OFFSET = 2147483640;
+    int iErr;
 
     if (lStart > MAX_OFFSET) {
-	iErr = fseek(fp,0,SEEK_SET);
-	if (iErr) {
+	errno = 0;
+	rewind(fp);
+	if (errno) {
 	    perror("safe_fseek failed");
 	    exit(errno);
 	    }
@@ -65,9 +68,80 @@ static int safe_fseek(FILE *fp,uint64_t lStart) {
 #endif
     }
 
+/*
+** This is used for the HDF5 group name.
+*/
+const char *fioSpeciesName(FIO_SPECIES eSpecies) {
+    switch(eSpecies) {
+    case FIO_SPECIES_DARK: return "dark";
+    case FIO_SPECIES_SPH:  return "sph";
+    case FIO_SPECIES_STAR: return "star";
+    default:
+	break;
+	}
+    return NULL;
+    }
+
+
+/******************************************************************************\
+** Stubs that are called when a feature is not supported.
+\******************************************************************************/
+
+static int  fioNoReadDark(
+    struct fioInfo *fio,uint64_t *piOrder,double *pdPos,double *pdVel,
+    float *pfMass,float *pfSoft,float *pfPot) {
+    fprintf(stderr,"Reading dark particles is not supported\n");
+    abort();
+    }
+
+static int fioNoReadSph(
+    struct fioInfo *fio,uint64_t *piOrder,double *pdPos,double *pdVel,
+    float *pfMass,float *pfSoft, float *pfPot,
+    float *pfRho,float *pfTemp, float *pfMetals) {
+    fprintf(stderr,"Reading SPH particles is not supported\n");
+    abort();
+    }
+
+static int fioNoReadStar(
+    struct fioInfo *fio,uint64_t *piOrder,double *pdPos,double *pdVel,
+    float *pfMass,float *pfSoft,float *pfPot,float *pfMetals, float *pfTform) {
+    fprintf(stderr,"Reading star particles is not supported\n");
+    abort();
+    }
+
+static int  fioNoWriteDark(
+    struct fioInfo *fio,const uint64_t *piOrder,const double *pdPos,const double *pdVel,
+    const float *pfMass,const float *pfSoft,const float *pfPot) {
+    fprintf(stderr,"Writing dark particles is not supported\n");
+    abort();
+    }
+
+static int fioNoWriteSph(
+    struct fioInfo *fio,const uint64_t *piOrder,const double *pdPos,const double *pdVel,
+    const float *pfMass,const float *pfSoft,const float *pfPot,
+    const float *pfRho,const float *pfTemp,const float *pfMetals) {
+    fprintf(stderr,"Writing SPH particles is not supported\n");
+    abort();
+    }
+
+static int fioNoWriteStar(
+    struct fioInfo *fio,const uint64_t *piOrder,const double *pdPos,const double *pdVel,
+    const float *pfMass,const float *pfSoft,const float *pfPot,const float *pfMetals,const float *pfTform) {
+    fprintf(stderr,"Writing star particles is not supported\n");
+    abort();
+    }
+
+static int fioNoOpenNext(
+    struct fioInfo *fio,const char *fileName) {
+    fprintf(stderr,"Opening multiple files is not supported\n");
+    abort();
+    }
+
 /******************************************************************************\
 ** TIPSY FORMAT
 \******************************************************************************/
+
+#define TIO_BUFFER_SIZE (1024*1024)
 
 typedef struct {
     double dTime;
@@ -83,37 +157,41 @@ typedef struct {
     float mass;
     float pos[3];
     float vel[3];
-    float phi;
     float eps;
+    float phi;
     } tipsyDark;
 
 typedef struct {
     float mass;
     float pos[3];
     float vel[3];
-    float phi;
     float rho;
     float temp;
     float hsmooth;
     float metals;
+    float phi;
     } tipsySph;
 
 typedef struct {
     float mass;
     float pos[3];
     float vel[3];
-    float phi;
-    float eps;
     float metals;
     float tform;
+    float eps;
+    float phi;
     } tipsyStar;
 
 typedef struct {
-    struct fioInfo fio;
+    struct fioInfo fio; /* "base class" */
     FILE *fp;
+    uint64_t nSphTotal, nDarkTotal, nStarTotal;
+    double dTime;
+    char *fpBuffer;
     XDR xdr;
-    off_t nHdrSize;
-    uint64_t iOrder;
+    off_t nHdrSize;     /* Size of header; 0 if second or subsequent file */
+    uint64_t iStart;    /* Index of first particle in the file fragment */
+    uint64_t iOrder;    /* Current particle index */
     } fioTipsy;
 
 static int xdrHeader(XDR *pxdr,tipsyHdr *ph) {
@@ -130,11 +208,12 @@ static int xdrHeader(XDR *pxdr,tipsyHdr *ph) {
 static int tipsyGetAttr(FIO fio,
     const char *attr, FIO_TYPE dataType, void *data) {
     fioTipsy *tio = (fioTipsy *)fio;
-
+    assert(fio->eFormat == FIO_FORMAT_TIPSY && fio->eMode==FIO_MODE_READING);
     if ( strcmp(attr,"dTime")==0 ) {
+	if (!tio->nHdrSize) return 0;
 	switch(dataType) {
-	case FIO_TYPE_FLOAT: *(float *)(data) = tio->fio.dTime; break;
-	case FIO_TYPE_DOUBLE:*(double *)(data) = tio->fio.dTime; break;
+	case FIO_TYPE_FLOAT: *(float *)(data) = tio->dTime; break;
+	case FIO_TYPE_DOUBLE:*(double *)(data) = tio->dTime; break;
 	default: return 0;
 	    }
 	return 1;
@@ -143,6 +222,19 @@ static int tipsyGetAttr(FIO fio,
     return 0;
     }
 
+static FIO_SPECIES tipsySpecies(FIO fio) {
+    fioTipsy *tio = (fioTipsy *)fio;
+    assert(fio->eFormat == FIO_FORMAT_TIPSY && fio->eMode==FIO_MODE_READING);
+    if (tio->iOrder<tio->fio.nSpecies[FIO_SPECIES_SPH]) return FIO_SPECIES_SPH;
+    else if (tio->iOrder<tio->fio.nSpecies[FIO_SPECIES_SPH]+tio->fio.nSpecies[FIO_SPECIES_DARK])
+	return FIO_SPECIES_DARK;
+    else if (tio->iOrder<tio->fio.nSpecies[FIO_SPECIES_SPH]+tio->fio.nSpecies[FIO_SPECIES_DARK]+tio->fio.nSpecies[FIO_SPECIES_STAR])
+	return FIO_SPECIES_STAR;
+    else return FIO_SPECIES_LAST;
+    }
+
+
+/* DARK PARTICLES */
 static int tipsyReadNativeDark(FIO fio,
     uint64_t *piOrder,double *pdPos,double *pdVel,
     float *pfMass,float *pfSoft,float *pfPot) {
@@ -151,9 +243,10 @@ static int tipsyReadNativeDark(FIO fio,
     int rc;
     int d;
 
+    assert(fio->eFormat == FIO_FORMAT_TIPSY && fio->eMode==FIO_MODE_READING);
     rc = fread(&dark,sizeof(dark),1,tio->fp);
     if (rc!=1) return 0;
-    *piOrder = tio->iOrder++;
+    *piOrder = tio->iOrder++ + tio->iStart;
     *pfMass = dark.mass;
     for(d=0;d<3;d++) {
 	pdPos[d] = dark.pos[d];
@@ -172,13 +265,14 @@ static int tipsyReadNativeDarkDbl(FIO fio,
     int d;
     int fTmp[3];
 
-    *piOrder = tio->iOrder++;
+    assert(fio->eFormat == FIO_FORMAT_TIPSY && fio->eMode==FIO_MODE_READING);
+    *piOrder = tio->iOrder++ + tio->iStart;
     rc = fread(pfMass,sizeof(float),1,tio->fp); if (rc!=1) return 0;
     rc = fread(pdPos,sizeof(double),3,tio->fp); if (rc!=3) return 0;
     rc = fread(fTmp,sizeof(float),3,tio->fp); if (rc!=3) return 0;
     for(d=0;d<3;d++) pdVel[d] = fTmp[d];
-    rc = fread(pfPot,sizeof(float),1,tio->fp); if (rc!=1) return 0;
     rc = fread(pfSoft,sizeof(float),1,tio->fp); if (rc!=1) return 0;
+    rc = fread(pfPot,sizeof(float),1,tio->fp); if (rc!=1) return 0;
     return 1;
     }
 
@@ -189,7 +283,8 @@ static int tipsyReadStandardDark(FIO fio,
     int d;
     float fTmp;
 
-    *piOrder = tio->iOrder++;
+    assert(fio->eFormat == FIO_FORMAT_TIPSY && fio->eMode==FIO_MODE_READING);
+    *piOrder = tio->iOrder++ + tio->iStart;
     if (!xdr_float(&tio->xdr,pfMass)) return 0;
     for(d=0;d<3;d++) {
 	if (!xdr_float(&tio->xdr,&fTmp)) return 0;
@@ -211,7 +306,8 @@ static int tipsyReadStandardDarkDbl(FIO fio,
     int d;
     float fTmp;
 
-    *piOrder = tio->iOrder++;
+    assert(fio->eFormat == FIO_FORMAT_TIPSY && fio->eMode==FIO_MODE_READING);
+    *piOrder = tio->iOrder++ + tio->iStart;
     if (!xdr_float(&tio->xdr,pfMass)) return 0;
     for(d=0;d<3;d++) {
 	if (!xdr_double(&tio->xdr,pdPos+d)) return 0;
@@ -225,16 +321,391 @@ static int tipsyReadStandardDarkDbl(FIO fio,
     return 1;
     }
 
+static int tipsyWriteNativeDark(FIO fio,
+    const uint64_t *piOrder,const double *pdPos,const double *pdVel,
+    const float *pfMass,const float *pfSoft,const float *pfPot) {
+    fioTipsy *tio = (fioTipsy *)fio;
+    tipsyDark dark;
+    int rc;
+    int d;
+
+    assert(fio->eFormat == FIO_FORMAT_TIPSY && fio->eMode==FIO_MODE_WRITING);
+    assert(*piOrder == tio->iOrder++ + tio->iStart);
+    dark.mass = *pfMass;
+    for(d=0;d<3;d++) {
+	dark.pos[d] = pdPos[d];
+	dark.vel[d] = pdVel[d];
+	}
+    dark.eps = *pfSoft;
+    dark.phi = *pfPot;
+
+    rc = fwrite(&dark,sizeof(dark),1,tio->fp);
+    if (rc!=1) return 0;
+
+    return 1;
+    }
+
+static int tipsyWriteNativeDarkDbl(FIO fio,
+    const uint64_t *piOrder,const double *pdPos,const double *pdVel,
+    const float *pfMass,const float *pfSoft,const float *pfPot) {
+    fioTipsy *tio = (fioTipsy *)fio;
+    int rc;
+    int d;
+    int fTmp[3];
+
+    assert(fio->eFormat == FIO_FORMAT_TIPSY && fio->eMode==FIO_MODE_WRITING);
+    assert(*piOrder == tio->iOrder++ + tio->iStart);
+    rc = fwrite(pfMass,sizeof(float),1,tio->fp); if (rc!=1) return 0;
+    rc = fwrite(pdPos,sizeof(double),3,tio->fp); if (rc!=3) return 0;
+    for(d=0;d<3;d++) fTmp[d] = pdVel[d];
+    rc = fwrite(fTmp,sizeof(float),3,tio->fp); if (rc!=3) return 0;
+    rc = fwrite(pfSoft,sizeof(float),1,tio->fp); if (rc!=1) return 0;
+    rc = fwrite(pfPot,sizeof(float),1,tio->fp); if (rc!=1) return 0;
+    return 1;
+    }
+
+static int tipsyWriteStandardDark(FIO fio,
+    const uint64_t *piOrder,const double *pdPos,const double *pdVel,
+    const float *pfMass,const float *pfSoft,const float *pfPot) {
+    fioTipsy *tio = (fioTipsy *)fio;
+    int d;
+    float fTmp;
+
+    assert(fio->eFormat == FIO_FORMAT_TIPSY && fio->eMode==FIO_MODE_WRITING);
+    assert(*piOrder == tio->iOrder++ + tio->iStart);
+    fTmp = *pfMass; if (!xdr_float(&tio->xdr,&fTmp)) return 0;
+    for(d=0;d<3;d++) {
+	fTmp = pdPos[d];
+	if (!xdr_float(&tio->xdr,&fTmp)) return 0;
+	}
+    for(d=0;d<3;d++) {
+	fTmp = pdVel[d];
+	if (!xdr_float(&tio->xdr,&fTmp)) return 0;
+	}
+    fTmp = *pfSoft; if (!xdr_float(&tio->xdr,&fTmp)) return 0;
+    fTmp = *pfPot; if (!xdr_float(&tio->xdr,&fTmp)) return 0;
+    return 1;
+    }
+
+static int tipsyWriteStandardDarkDbl(FIO fio,
+    const uint64_t *piOrder,const double *pdPos,const double *pdVel,
+    const float *pfMass,const float *pfSoft,const float *pfPot) {
+    fioTipsy *tio = (fioTipsy *)fio;
+    int d;
+    float fTmp;
+    double dTmp;
+
+    assert(fio->eFormat == FIO_FORMAT_TIPSY && fio->eMode==FIO_MODE_WRITING);
+    assert(*piOrder == tio->iOrder++ + tio->iStart);
+    fTmp = *pfMass; if (!xdr_float(&tio->xdr,&fTmp)) return 0;
+    for(d=0;d<3;d++) {
+	dTmp = pdPos[d]; if (!xdr_double(&tio->xdr,&dTmp)) return 0;
+	}
+    for(d=0;d<3;d++) {
+	fTmp = pdVel[d]; if (!xdr_float(&tio->xdr,&fTmp)) return 0;
+	}
+    fTmp = *pfSoft; if (!xdr_float(&tio->xdr,&fTmp)) return 0;
+    fTmp = *pfPot;  if (!xdr_float(&tio->xdr,&fTmp)) return 0;
+    return 1;
+    }
+
+/* SPH PARTICLES */
+static int tipsyReadNativeSph(
+    FIO fio,uint64_t *piOrder,double *pdPos,double *pdVel,
+    float *pfMass,float *pfSoft, float *pfPot,
+    float *pfRho, float *pfTemp, float *pfMetals) {
+    fioTipsy *tio = (fioTipsy *)fio;
+    tipsySph sph;
+    int rc;
+    int d;
+
+    assert(fio->eFormat == FIO_FORMAT_TIPSY && fio->eMode==FIO_MODE_READING);
+    rc = fread(&sph,sizeof(sph),1,tio->fp);
+    if (rc!=1) return 0;
+    *piOrder = tio->iOrder++ + tio->iStart;
+    *pfMass = sph.mass;
+    for(d=0;d<3;d++) {
+	pdPos[d] = sph.pos[d];
+	pdVel[d] = sph.vel[d];
+	}
+    *pfRho = sph.rho;
+    *pfTemp = sph.temp;
+    *pfSoft = sph.hsmooth;
+    *pfMetals = sph.metals;
+    *pfPot = sph.phi;
+    return 1;
+    }
+
+static int tipsyReadNativeSphDbl(
+    FIO fio,uint64_t *piOrder,double *pdPos,double *pdVel,
+    float *pfMass,float *pfSoft, float *pfPot,
+    float *pfRho,float *pfTemp, float *pfMetals) {
+    fioTipsy *tio = (fioTipsy *)fio;
+    int rc;
+    int d;
+    int fTmp[3];
+
+    assert(fio->eFormat == FIO_FORMAT_TIPSY && fio->eMode==FIO_MODE_READING);
+    *piOrder = tio->iOrder++ + tio->iStart;
+    rc = fread(pfMass,sizeof(float),1,tio->fp); if (rc!=1) return 0;
+    rc = fread(pdPos,sizeof(double),3,tio->fp); if (rc!=3) return 0;
+    rc = fread(fTmp,sizeof(float),3,tio->fp); if (rc!=3) return 0;
+    for(d=0;d<3;d++) pdVel[d] = fTmp[d];
+    rc = fread(pfRho,sizeof(float),1,tio->fp); if (rc!=1) return 0;
+    rc = fread(pfTemp,sizeof(float),1,tio->fp); if (rc!=1) return 0;
+    rc = fread(pfSoft,sizeof(float),1,tio->fp); if (rc!=1) return 0;
+    rc = fread(pfMetals,sizeof(float),1,tio->fp); if (rc!=1) return 0;
+    rc = fread(pfPot,sizeof(float),1,tio->fp); if (rc!=1) return 0;
+    return 1;
+    }
+
+static int tipsyReadStandardSph(
+    FIO fio,uint64_t *piOrder,double *pdPos,double *pdVel,
+    float *pfMass,float *pfSoft, float *pfPot,
+    float *pfRho, float *pfTemp, float *pfMetals) {
+    fioTipsy *tio = (fioTipsy *)fio;
+    int d;
+    float fTmp;
+
+    assert(fio->eFormat == FIO_FORMAT_TIPSY && fio->eMode==FIO_MODE_READING);
+    *piOrder = tio->iOrder++ + tio->iStart;
+    if (!xdr_float(&tio->xdr,pfMass)) return 0;
+    for(d=0;d<3;d++) {
+	if (!xdr_float(&tio->xdr,&fTmp)) return 0;
+	pdPos[d] = fTmp;
+	}
+    for(d=0;d<3;d++) {
+	if (!xdr_float(&tio->xdr,&fTmp)) return 0;
+	pdVel[d] = fTmp;
+	}
+    if (!xdr_float(&tio->xdr,pfRho)) return 0;
+    if (!xdr_float(&tio->xdr,pfTemp)) return 0;
+    if (!xdr_float(&tio->xdr,pfSoft)) return 0;
+    if (!xdr_float(&tio->xdr,pfMetals)) return 0;
+    if (!xdr_float(&tio->xdr,pfPot)) return 0;
+    return 1;
+    }
+
+static int tipsyReadStandardSphDbl(
+    FIO fio,uint64_t *piOrder,double *pdPos,double *pdVel,
+    float *pfMass,float *pfSoft, float *pfPot,
+    float *pfRho, float *pfTemp, float *pfMetals) {
+    fioTipsy *tio = (fioTipsy *)fio;
+    int d;
+    float fTmp;
+
+    assert(fio->eFormat == FIO_FORMAT_TIPSY && fio->eMode==FIO_MODE_READING);
+    *piOrder = tio->iOrder++ + tio->iStart;
+    if (!xdr_float(&tio->xdr,pfMass)) return 0;
+    for(d=0;d<3;d++) {
+	if (!xdr_double(&tio->xdr,pdPos+d)) return 0;
+	}
+    for(d=0;d<3;d++) {
+	if (!xdr_float(&tio->xdr,&fTmp)) return 0;
+	pdVel[d] = fTmp;
+	}
+    if (!xdr_float(&tio->xdr,pfRho)) return 0;
+    if (!xdr_float(&tio->xdr,pfTemp)) return 0;
+    if (!xdr_float(&tio->xdr,pfSoft)) return 0;
+    if (!xdr_float(&tio->xdr,pfMetals)) return 0;
+    if (!xdr_float(&tio->xdr,pfPot)) return 0;
+    return 1;
+    }
+
+/* STAR PARTICLES */
+static int tipsyReadNativeStar(
+    FIO fio,uint64_t *piOrder,double *pdPos,double *pdVel,
+    float *pfMass,float *pfSoft,float *pfPot,
+    float *pfMetals, float *pfTform) {
+    fioTipsy *tio = (fioTipsy *)fio;
+    tipsyStar star;
+    int rc;
+    int d;
+
+    assert(fio->eFormat == FIO_FORMAT_TIPSY && fio->eMode==FIO_MODE_READING);
+    rc = fread(&star,sizeof(star),1,tio->fp);
+    if (rc!=1) return 0;
+    *piOrder = tio->iOrder++ + tio->iStart;
+    *pfMass = star.mass;
+    for(d=0;d<3;d++) {
+	pdPos[d] = star.pos[d];
+	pdVel[d] = star.vel[d];
+	}
+    *pfMetals = star.metals;
+    *pfTform = star.tform;
+    *pfSoft = star.eps;
+    *pfPot = star.phi;
+    return 1;
+    }
+
+static int tipsyReadNativeStarDbl(
+    FIO fio,uint64_t *piOrder,double *pdPos,double *pdVel,
+    float *pfMass,float *pfSoft,float *pfPot,
+    float *pfMetals, float *pfTform) {
+    fioTipsy *tio = (fioTipsy *)fio;
+    int rc;
+    int d;
+    int fTmp[3];
+
+    assert(fio->eFormat == FIO_FORMAT_TIPSY && fio->eMode==FIO_MODE_READING);
+    *piOrder = tio->iOrder++ + tio->iStart;
+    rc = fread(pfMass,sizeof(float),1,tio->fp); if (rc!=1) return 0;
+    rc = fread(pdPos,sizeof(double),3,tio->fp); if (rc!=3) return 0;
+    rc = fread(fTmp,sizeof(float),3,tio->fp); if (rc!=3) return 0;
+    for(d=0;d<3;d++) pdVel[d] = fTmp[d];
+    rc = fread(pfMetals,sizeof(float),1,tio->fp); if (rc!=1) return 0;
+    rc = fread(pfTform,sizeof(float),1,tio->fp); if (rc!=1) return 0;
+    rc = fread(pfSoft,sizeof(float),1,tio->fp); if (rc!=1) return 0;
+    rc = fread(pfPot,sizeof(float),1,tio->fp); if (rc!=1) return 0;
+    return 1;
+    }
+
+static int tipsyReadStandardStar(
+    FIO fio,uint64_t *piOrder,double *pdPos,double *pdVel,
+    float *pfMass,float *pfSoft,float *pfPot,
+    float *pfMetals, float *pfTform) {
+    fioTipsy *tio = (fioTipsy *)fio;
+    int d;
+    float fTmp;
+
+    assert(fio->eFormat == FIO_FORMAT_TIPSY && fio->eMode==FIO_MODE_READING);
+    *piOrder = tio->iOrder++ + tio->iStart;
+    if (!xdr_float(&tio->xdr,pfMass)) return 0;
+    for(d=0;d<3;d++) {
+	if (!xdr_float(&tio->xdr,&fTmp)) return 0;
+	pdPos[d] = fTmp;
+	}
+    for(d=0;d<3;d++) {
+	if (!xdr_float(&tio->xdr,&fTmp)) return 0;
+	pdVel[d] = fTmp;
+	}
+    if (!xdr_float(&tio->xdr,pfMetals)) return 0;
+    if (!xdr_float(&tio->xdr,pfTform)) return 0;
+    if (!xdr_float(&tio->xdr,pfSoft)) return 0;
+    if (!xdr_float(&tio->xdr,pfPot)) return 0;
+    return 1;
+    }
+
+static int tipsyReadStandardStarDbl(
+    FIO fio,uint64_t *piOrder,double *pdPos,double *pdVel,
+    float *pfMass,float *pfSoft,float *pfPot,
+    float *pfMetals, float *pfTform) {
+    fioTipsy *tio = (fioTipsy *)fio;
+    int d;
+    float fTmp;
+
+    assert(fio->eFormat == FIO_FORMAT_TIPSY && fio->eMode==FIO_MODE_READING);
+    *piOrder = tio->iOrder++ + tio->iStart;
+    if (!xdr_float(&tio->xdr,pfMass)) return 0;
+    for(d=0;d<3;d++) {
+	if (!xdr_double(&tio->xdr,pdPos+d)) return 0;
+	}
+    for(d=0;d<3;d++) {
+	if (!xdr_float(&tio->xdr,&fTmp)) return 0;
+	pdVel[d] = fTmp;
+	}
+    if (!xdr_float(&tio->xdr,pfMetals)) return 0;
+    if (!xdr_float(&tio->xdr,pfTform)) return 0;
+    if (!xdr_float(&tio->xdr,pfSoft)) return 0;
+    if (!xdr_float(&tio->xdr,pfPot)) return 0;
+    return 1;
+    }
+
 static void tipsyCloseNative(FIO fio) {
     fioTipsy *tio = (fioTipsy *)fio;
+    assert(fio->eFormat == FIO_FORMAT_TIPSY);
     fclose(tio->fp);
+    if (tio->fpBuffer) free(tio->fpBuffer);
     free(tio);
     }
 
 static void tipsyCloseStandard(FIO fio) {
     fioTipsy *tio = (fioTipsy *)fio;
+    assert(fio->eFormat == FIO_FORMAT_TIPSY);
     xdr_destroy(&tio->xdr);
     tipsyCloseNative(fio);
+    }
+
+int fioTipsyIsDouble(FIO fio) {
+    fioTipsy *tio = (fioTipsy *)fio;
+    assert(fio->eFormat == FIO_FORMAT_TIPSY && fio->eMode==FIO_MODE_READING);
+    return tio->fio.fcnReadDark==tipsyReadStandardDarkDbl
+	|| tio->fio.fcnReadDark==tipsyReadNativeDarkDbl;
+    }
+
+int fioTipsyIsStandard(FIO fio) {
+    fioTipsy *tio = (fioTipsy *)fio;
+    assert(fio->eFormat == FIO_FORMAT_TIPSY && fio->eMode==FIO_MODE_READING);
+    return tio->fio.fcnReadDark==tipsyReadStandardDark
+	|| tio->fio.fcnReadDark==tipsyReadStandardDarkDbl;
+    }
+
+/*
+** Given an offset, calculate the particle number
+*/
+static uint64_t tipsyParticle(uint64_t iByte,uint64_t nHdrSize,
+    uint64_t nSph, uint64_t nDark, uint64_t nStar,
+    int nSphSize, int nDarkSize, int nStarSize ) {
+    uint64_t iPart,n;
+
+    iPart = 0;
+    iByte -= nHdrSize;
+
+    n = iByte / nSphSize;
+    if ( n > nSph ) n = nSph;
+    iPart += n;
+    iByte -= nSphSize * n;
+
+    n = iByte / nDarkSize;
+    if ( n > nDark ) n = nDark;
+    iPart += n;
+    iByte -= nDarkSize * n;
+
+    n = iByte / nStarSize;
+    assert( n<=nStar );
+    iPart += n;
+    iByte -= nStarSize * n;
+
+    assert(iByte==0);
+
+    return iPart;
+    }
+
+
+/*
+** Calculate the absolute offset of a given particle in a Tipsy file.
+*/
+static uint64_t tipsyOffset(
+    uint64_t iPart,uint64_t nHdrSize,
+    uint64_t nSph, uint64_t nDark, uint64_t nStar,
+    int nSphSize, int nDarkSize, int nStarSize ) {
+    uint64_t iByte;
+
+    iByte = nHdrSize;
+    if (iPart<nSph) {
+	iByte += iPart * nSphSize;
+	}
+    else {
+	iByte += nSph * nSphSize;
+	iPart -= nSph;
+
+	if (iPart<nDark) {
+	    iByte += iPart * nDarkSize;
+	    }
+	else {
+	    iByte += nDark * nDarkSize;
+	    iPart -= nDark;
+
+	    if (iPart<=nStar) {
+		iByte += iPart * nStarSize;
+		}
+	    else {
+		errno = ESPIPE;
+		return 0;
+		}
+	    }
+	}
+    return iByte;
     }
 
 static int tipsySeek(fioTipsy *tio,uint64_t iPart,FIO_SPECIES eSpecies,
@@ -252,29 +723,13 @@ static int tipsySeek(fioTipsy *tio,uint64_t iPart,FIO_SPECIES eSpecies,
 	fprintf(stderr,"Invalid particle species\n");
 	exit(1);
 	}
-    if (iPart<=tio->fio.nSpecies[FIO_SPECIES_SPH]) {
-	iByte += iPart * nSphSize;
-	}
-    else {
-	iByte += tio->fio.nSpecies[FIO_SPECIES_SPH] * nSphSize;
-	iPart -= tio->fio.nSpecies[FIO_SPECIES_SPH];
-
-	if (iPart<=tio->fio.nSpecies[FIO_SPECIES_DARK]) {
-	    iByte += iPart * nDarkSize;
-	    }
-	else {
-	    iByte += tio->fio.nSpecies[FIO_SPECIES_DARK] * nDarkSize;
-	    iPart -= tio->fio.nSpecies[FIO_SPECIES_DARK];
-
-	    if (iPart<=tio->fio.nSpecies[FIO_SPECIES_STAR]) {
-		iByte += iPart * nStarSize;
-		}
-	    else {
-		errno = ESPIPE;
-		return -1;
-		}
-	    }
-	}
+    tio->iOrder = iPart;
+    /* For file fragments, the first particle is not 0.  Adjust accordingly. */
+    iByte = tipsyOffset(iPart,tio->nHdrSize,
+			tio->fio.nSpecies[FIO_SPECIES_SPH],
+			tio->fio.nSpecies[FIO_SPECIES_DARK],
+			tio->fio.nSpecies[FIO_SPECIES_STAR],
+			nSphSize,nDarkSize,nStarSize);
     iOffset = iByte;
     assert(iOffset==iByte);
     rc = safe_fseek(tio->fp,iByte); assert(rc==0);
@@ -283,12 +738,14 @@ static int tipsySeek(fioTipsy *tio,uint64_t iPart,FIO_SPECIES eSpecies,
 
 static int tipsySeekNative(FIO fio,uint64_t iPart,FIO_SPECIES eSpecies) {
     fioTipsy *tio = (fioTipsy *)fio;
+    assert(fio->eFormat == FIO_FORMAT_TIPSY);
     return tipsySeek(tio,iPart,eSpecies,
 	sizeof(tipsySph),sizeof(tipsyDark),sizeof(tipsyStar));
     }
 
 static int tipsySeekNativeDbl(FIO fio,uint64_t iPart,FIO_SPECIES eSpecies) {
     fioTipsy *tio = (fioTipsy *)fio;
+    assert(fio->eFormat == FIO_FORMAT_TIPSY);
     return tipsySeek(tio,iPart,eSpecies,
 	sizeof(tipsySph)+3*sizeof(float),
 	sizeof(tipsyDark)+3*sizeof(float),
@@ -298,58 +755,193 @@ static int tipsySeekNativeDbl(FIO fio,uint64_t iPart,FIO_SPECIES eSpecies) {
 static int tipsySeekStandard(FIO fio,uint64_t iPart,FIO_SPECIES eSpecies) {
     fioTipsy *tio = (fioTipsy *)fio;
     int rc;
-    xdr_destroy(&tio->xdr);
+    assert(fio->eFormat == FIO_FORMAT_TIPSY);
+    /*xdr_destroy(&tio->xdr);*/
     rc = tipsySeekNative(fio,iPart,eSpecies);
-    xdrstdio_create(&tio->xdr,tio->fp,XDR_DECODE);
+    /*xdrstdio_create(&tio->xdr,tio->fp,fio->eMode==FIO_MODE_READING?XDR_DECODE:XDR_ENCODE);*/
     return rc;
     }
 
 static int tipsySeekStandardDbl(FIO fio,uint64_t iPart,FIO_SPECIES eSpecies) {
     fioTipsy *tio = (fioTipsy *)fio;
     int rc;
-    xdr_destroy(&tio->xdr);
+    assert(fio->eFormat == FIO_FORMAT_TIPSY);
+    /*xdr_destroy(&tio->xdr);*/
     rc = tipsySeekNativeDbl(fio,iPart,eSpecies);
-    xdrstdio_create(&tio->xdr,tio->fp,XDR_DECODE);
+    /*xdrstdio_create(&tio->xdr,tio->fp,fio->eMode==FIO_MODE_READING?XDR_DECODE:XDR_ENCODE);*/
     return rc;
     }
 
-FIO fioTipsyOpen(const char *fileName,int bDouble) {
-    fioTipsy *tio;
-    tipsyHdr h;
-    int rc,i;
+static uint64_t tipsyCountSpecies(uint64_t N, uint64_t *iStart, uint64_t *iLast) {
+    uint64_t n;
 
-    tio = malloc(sizeof(fioTipsy));
-    assert(tio!=NULL);
+    if ( *iStart >= N ) {
+	n = 0;
+	*iStart -= N; *iLast -= N;
+	}
+    else if ( *iLast > N) {
+	n = N - *iStart;
+	*iStart = 0; *iLast -= N;
+	}
+    else {
+	n = *iLast - *iStart;
+	*iStart = *iLast = 0;
+	}
+
+    return n;
+    }
+
+static void tipsyAdjustN(fioTipsy * tio) {
+    int i;
+    uint64_t iStart,iSize,iByte,iLast;
+    int iErr;
+
+#ifdef HAVE_FSEEKO
+    iErr = fseeko(tio->fp,0,SEEK_END);
+    if (iErr) {
+	perror("fseeko failed");
+	exit(errno);
+	}
+    iSize = ftello(tio->fp);
+#else
+    iErr = fseek(tio->fp,0,SEEK_END);
+    if (iErr) {
+	perror("fseek failed");
+	exit(errno);
+	}
+    iSize = ftell(tio->fp);
+#endif
+    iErr = safe_fseek(tio->fp,tio->nHdrSize); assert(iErr==0);
+
+    /* This is the byte offset to the first particle in this fragment */
+    iStart = tio->iStart;
+    iByte = tipsyOffset(
+	iStart,0,tio->nSphTotal,tio->nDarkTotal,tio->nStarTotal,
+	sizeof(tipsySph),sizeof(tipsyDark),sizeof(tipsyStar));
+    /* The index of the particle after the end of this fragment */
+    iLast = tipsyParticle(
+	iSize + iByte,tio->nHdrSize,tio->nSphTotal,tio->nDarkTotal,tio->nStarTotal,
+	sizeof(tipsySph),sizeof(tipsyDark),sizeof(tipsyStar));
+
+    /* Adjust the local number of particles in this fragment */
+    tio->fio.nSpecies[FIO_SPECIES_SPH]  = tipsyCountSpecies(tio->nSphTotal,&iStart,&iLast);
+    tio->fio.nSpecies[FIO_SPECIES_DARK] = tipsyCountSpecies(tio->nDarkTotal,&iStart,&iLast);
+    tio->fio.nSpecies[FIO_SPECIES_STAR] = tipsyCountSpecies(tio->nStarTotal,&iStart,&iLast);
+
+    /* Sum particle counts */
+    tio->fio.nSpecies[FIO_SPECIES_ALL] = 0;
+    for( i=1; i<FIO_SPECIES_LAST; i++)
+	tio->fio.nSpecies[FIO_SPECIES_ALL] += tio->fio.nSpecies[i];
+    }
+
+static int tipsyOpenNext(FIO fio,const char *fileName) {
+    fioTipsy *tio = (fioTipsy *)fio;
+
+    assert(fio->eFormat == FIO_FORMAT_TIPSY && fio->eMode==FIO_MODE_READING);
+    tio->iStart += fio->nSpecies[FIO_SPECIES_ALL];
     tio->iOrder = 0;
 
+    fclose(tio->fp);
     tio->fp = fopen(fileName,"r");
     if (tio->fp==NULL) {
 	free(tio);
-	return NULL;
+	return 0;
 	}
-    rc = fread(&h,sizeof(h),1,tio->fp);
-    if (rc!=1) {
-	fprintf(stderr,"Error reading Tipsy header\n");
-	fclose(tio->fp);
-	free(tio);
-	return NULL;
-	}
+    if (tio->fpBuffer != NULL) setvbuf(tio->fp,tio->fpBuffer,_IOFBF,TIO_BUFFER_SIZE);
+    tio->nHdrSize = 0;
 
+    tipsyAdjustN(tio);
+
+    return 1;
+    }
+
+
+static void tipsySetFunctions(fioTipsy *tio, int bDouble, int bStandard) {
     tio->fio.fcnGetAttr = tipsyGetAttr;
+    tio->fio.fcnSpecies = tipsySpecies;
+    tio->fio.fcnOpenNext= tipsyOpenNext;
 
-    /* Check for native binary format */
-    if (h.nDim>=1 && h.nDim<=3) {
-	if ( h.nDark + h.nSph + h.nStar != h.nBodies ) {
-	    fprintf(stderr,"Tipsy Header mismatch:"
-		    " nDim=%u nDark=%u nSph=%u nStar=%u nBodies=%u\n",
-		    h.nDim, h.nDark, h.nSph, h.nStar, h.nBodies);
-	    fclose(tio->fp);
-	    free(tio);
-	    return NULL;
-	    }
+    tio->fio.fcnWriteSph = fioNoWriteSph;
+    tio->fio.fcnWriteStar= fioNoWriteStar;
+    if ( bStandard ) {
+	tio->fio.fcnClose    = tipsyCloseStandard;
+	tio->fio.fcnSeek     = bDouble?tipsySeekStandardDbl:tipsySeekStandard;
+	tio->fio.fcnReadDark = bDouble?tipsyReadStandardDarkDbl:tipsyReadStandardDark;
+	tio->fio.fcnReadSph  = bDouble?tipsyReadStandardSphDbl:tipsyReadStandardSph;
+	tio->fio.fcnReadStar = bDouble?tipsyReadStandardStarDbl:tipsyReadStandardStar;
+	tio->fio.fcnWriteDark= bDouble?tipsyWriteStandardDarkDbl:tipsyWriteStandardDark;
+	//tio->fio.fcnWriteSph = bDouble?tipsyWriteStandardSphDbl:tipsyWriteStandardSph;
+	//tio->fio.fcnWriteStar= bDouble?tipsyWriteStandardStarDbl:tipsyWriteStandardStar;
+	}
+    else {
 	tio->fio.fcnClose    = tipsyCloseNative;
 	tio->fio.fcnSeek     = bDouble?tipsySeekNativeDbl:tipsySeekNative;
 	tio->fio.fcnReadDark = bDouble?tipsyReadNativeDarkDbl:tipsyReadNativeDark;
+	tio->fio.fcnReadSph  = bDouble?tipsyReadNativeSphDbl:tipsyReadNativeSph;
+	tio->fio.fcnReadStar = bDouble?tipsyReadNativeStarDbl:tipsyReadNativeStar;
+	tio->fio.fcnWriteDark= bDouble?tipsyWriteNativeDarkDbl:tipsyWriteNativeDark;
+	//tio->fio.fcnWriteSph = bDouble?tipsyWriteNativeSphDbl:tipsyWriteNativeSph;
+	//tio->fio.fcnWriteStar= bDouble?tipsyWriteNativeStarDbl:tipsyWriteNativeStar;
+	}
+    }
+
+/*
+** The pad field can extend the 32-bit integers to 40 bits, increasing
+** the maximum number of particles from 4e9 to 1e12 (1 trillion).
+** This checks if that is what has happened here.
+*/
+static void tipsySussHeader(tipsyHdr *h,uint64_t *pN, uint64_t *pDark,uint64_t *pSph, uint64_t *pStar) {
+    *pN = h->nPad & 0x000000ff;
+    *pN <<= 32;
+    *pN += h->nBodies;
+
+    *pSph = h->nPad & 0x0000ff00;
+    *pSph <<= 32;
+    *pSph += h->nSph;
+
+    *pDark = h->nPad & 0x00ff0000;
+    *pDark <<= 32;
+    *pDark += h->nDark;
+
+    *pStar = h->nPad & 0xff000000;
+    *pStar <<= 32;
+    *pStar += h->nStar;
+
+    /* There may be junk in the pad field, in which case we ignore it */
+    if ( *pN != *pDark + *pSph + *pStar ) {
+	*pN = h->nBodies;
+	*pDark = h->nDark;
+	*pSph  = h->nSph;
+	*pStar = h->nStar;
+	}
+    }
+
+
+/*
+** Read the header and detect native or standard
+*/
+static int tipsyDetectHeader(fioTipsy *tio, int bDouble) {
+    tipsyHdr h;
+    uint64_t N,nDark,nSph,nStar;
+    int rc;
+
+    assert(tio->fio.eFormat == FIO_FORMAT_TIPSY);
+    rc = fread(&h,sizeof(h),1,tio->fp);
+    if (rc!=1) {
+	fprintf(stderr,"Error reading Tipsy header\n");
+	return 0;
+	}
+
+    /* Check for native binary format */
+    if (h.nDim>=1 && h.nDim<=3) {
+	tipsySussHeader(&h,&N,&nDark,&nSph,&nStar);
+	if ( nDark + nSph + nStar != N ) {
+	    fprintf(stderr,"Tipsy Header mismatch:"
+		    " nDim=%u nDark=%lu nSph=%lu nStar=%lu nBodies=%lu\n",
+		    h.nDim, nDark, nSph, nStar, N);
+	    return 0;
+	    }
+	tipsySetFunctions(tio,bDouble,0);
 	}
 
     /* Okay, this must be "standard" format */
@@ -359,43 +951,858 @@ FIO fioTipsyOpen(const char *fileName,int bDouble) {
 	rc = xdrHeader(&tio->xdr,&h);
 	if (rc!=1) {
 	    perror("Error reading tipsy header");
-	    fclose(tio->fp);
-	    free(tio);
-	    return NULL;
+	    return 0;
 	    }
+	tipsySussHeader(&h,&N,&nDark,&nSph,&nStar);
 
-	if (h.nDim<1 || h.nDim>3 || h.nDark + h.nSph + h.nStar != h.nBodies ) {
+	if (h.nDim<1 || h.nDim>3 || nDark + nSph + nStar != N ) {
 	    fprintf(stderr,"Tipsy Header mismatch:"
-		    " nDim=%u nDark=%u nSph=%u nStar=%u nBodies=%u\n",
-		    h.nDim, h.nDark, h.nSph, h.nStar, h.nBodies);
+		    " nDim=%u nDark=%lu nSph=%lu nStar=%lu nBodies=%lu\n",
+		    h.nDim, nDark, nSph, nStar, N);
 	    xdr_destroy(&tio->xdr);
-	    fclose(tio->fp);
-	    free(tio);
-	    return NULL;
+	    return 0;
 	    }
-	tio->fio.fcnClose    = tipsyCloseStandard;
-	tio->fio.fcnSeek     = bDouble ? tipsySeekStandardDbl : tipsySeekStandard;
-	tio->fio.fcnReadDark = bDouble ? tipsyReadStandardDarkDbl : tipsyReadStandardDark;
+	tipsySetFunctions(tio,bDouble,1);
 	}
+    tio->nHdrSize = sizeof(h);
+    tio->dTime = h.dTime;
+    tio->nDarkTotal = tio->fio.nSpecies[FIO_SPECIES_DARK] = nDark;
+    tio->nSphTotal  = tio->fio.nSpecies[FIO_SPECIES_SPH]  = nSph;
+    tio->nStarTotal = tio->fio.nSpecies[FIO_SPECIES_STAR] = nStar;
+    return 1;
+    }
+
+static int tipsyWriteHeader(fioTipsy *tio, int bDouble, int bStandard) {
+    FIO fio = &tio->fio;
+    tipsyHdr h;
+    uint64_t N, nSph, nDark, nStar;
+    int rc;
+
+    nSph  = fioGetN(fio,FIO_SPECIES_SPH);
+    nDark = fioGetN(fio,FIO_SPECIES_DARK);
+    nStar = fioGetN(fio,FIO_SPECIES_STAR);
+    N = nSph + nDark + nStar;
+
+    h.dTime = tio->dTime;
+    h.nBodies = N;
+    h.nDim    = 3;
+    h.nSph    = nSph;
+    h.nDark   = nDark;
+    h.nStar   = nStar;
+    h.nPad    = ((N>>32)&0xff) + ((nSph>>24)&0xff00)
+	+ ((nDark>>16)&0xff0000) + ((nStar>>8)&0xff000000);
 
     tio->nHdrSize = sizeof(h);
-    tio->fio.dTime = h.dTime;
+    if (bStandard) {
+	rc = xdrHeader(&tio->xdr,&h);
+	if (rc!=1) {
+	    perror("Error writing tipsy header");
+	    return 0;
+	    }
+	}
+    else {
+	rc = fwrite(&h,sizeof(h),1,tio->fp);
+	if (rc!=1) {
+	    fprintf(stderr,"Error writing Tipsy header\n");
+	    return 0;
+	    }
+	}
+
+    return 1;
+    }
+
+
+/*
+** Open a partial Tipsy file.  A partial Tipsy file is one that has been split
+** into multiple files.  Only the first part has the header.  To rebuild the
+** original file, the parts need only be concatenated together.
+*/
+FIO fioTipsyOpenPart(const char *fileName,int bDouble,int bStandard,
+		     uint64_t nSph, uint64_t nDark, uint64_t nStar,
+		     uint64_t iStart) {
+    fioTipsy *tio;
+    int i;
+    uint64_t iSize,iByte,iLast;
+    int iErr;
+
+    assert(nSph+nDark+nStar>0);
+    tio = malloc(sizeof(fioTipsy));
+    assert(tio!=NULL);
+    tio->fio.eFormat = FIO_FORMAT_TIPSY;
+    tio->fio.eMode   = FIO_MODE_READING;
     for( i=0; i<FIO_SPECIES_LAST; i++)
-	tio->fio.nSpecies[i] = tio->fio.oSpecies[i] = 0;
-    tio->fio.nSpecies[FIO_SPECIES_DARK] = h.nDark;
-    tio->fio.nSpecies[FIO_SPECIES_SPH]  = h.nSph;
-    tio->fio.nSpecies[FIO_SPECIES_STAR] = h.nStar;
+	tio->fio.nSpecies[i] = 0;
+    tio->nSphTotal = nSph;
+    tio->nDarkTotal = nDark;
+    tio->nStarTotal = nStar;
+
+    tio->iOrder = 0;
+    tio->iStart = iStart;
+
+    tio->fp = fopen(fileName,"r");
+    if (tio->fp==NULL) {
+	free(tio);
+	return NULL;
+	}
+    tio->fpBuffer = malloc(TIO_BUFFER_SIZE);
+    if (tio->fpBuffer != NULL) setvbuf(tio->fp,tio->fpBuffer,_IOFBF,TIO_BUFFER_SIZE);
+
+    tio->nHdrSize = iStart ? 0 : sizeof(tipsyHdr);
+    if (tio->nHdrSize) {
+	tipsyDetectHeader(tio,bDouble);
+	assert(tio->fio.nSpecies[FIO_SPECIES_DARK] == nDark);
+	assert(tio->fio.nSpecies[FIO_SPECIES_SPH]  == nSph);
+	assert(tio->fio.nSpecies[FIO_SPECIES_STAR] == nStar);
+	}
+    else tio->dTime = 0.0;
+    if (bStandard) xdrstdio_create(&tio->xdr,tio->fp,XDR_DECODE);
+
+    tipsySetFunctions(tio,bDouble,bStandard);
+
+#ifdef HAVE_FSEEKO
+    iErr = fseeko(tio->fp,0,SEEK_END);
+    if (iErr) {
+	perror("fseeko failed");
+	exit(errno);
+	}
+    iSize = ftello(tio->fp);
+#else
+    iErr = fseek(tio->fp,0,SEEK_END);
+    if (iErr) {
+	perror("fseek failed");
+	exit(errno);
+	}
+    iSize = ftell(tio->fp);
+#endif
+    iErr = safe_fseek(tio->fp,tio->nHdrSize); assert(iErr==0);
+
+    /* This is the byte offset to the first particle in this fragment */
+    if ( iStart )
+	iByte = tipsyOffset(
+	    iStart,tio->nHdrSize,nSph,nDark,nStar,
+	    sizeof(tipsySph),sizeof(tipsyDark),sizeof(tipsyStar));
+    else
+	iByte = 0;
+    /* The index of the particle after the end of this fragment */
+    iLast = tipsyParticle(
+	iSize + iByte,tio->nHdrSize,nSph,nDark,nStar,
+	sizeof(tipsySph),sizeof(tipsyDark),sizeof(tipsyStar));
+
+    /* Adjust the local number of particles in this fragment */
+    tio->fio.nSpecies[FIO_SPECIES_SPH]  = tipsyCountSpecies(nSph,&iStart,&iLast);
+    tio->fio.nSpecies[FIO_SPECIES_DARK] = tipsyCountSpecies(nDark,&iStart,&iLast);
+    tio->fio.nSpecies[FIO_SPECIES_STAR] = tipsyCountSpecies(nStar,&iStart,&iLast);
+
+    /* Sum particle counts */
+    tio->fio.nSpecies[FIO_SPECIES_ALL] = 0;
     for( i=1; i<FIO_SPECIES_LAST; i++)
 	tio->fio.nSpecies[FIO_SPECIES_ALL] += tio->fio.nSpecies[i];
-    tio->fio.oSpecies[FIO_SPECIES_DARK] = tio->fio.oSpecies[FIO_SPECIES_SPH]
-	+ tio->fio.nSpecies[FIO_SPECIES_SPH];
-    tio->fio.oSpecies[FIO_SPECIES_STAR] = tio->fio.oSpecies[FIO_SPECIES_DARK]
-	+ tio->fio.nSpecies[FIO_SPECIES_DARK];
-    tio->fio.oSpecies[FIO_SPECIES_LAST] = tio->fio.oSpecies[FIO_SPECIES_STAR]
-	+ tio->fio.nSpecies[FIO_SPECIES_STAR];
+
     return &tio->fio;
     }
 
+
+FIO fioTipsyOpen(const char *fileName,int bDouble) {
+    fioTipsy *tio;
+    int i;
+
+    tio = malloc(sizeof(fioTipsy));
+    assert(tio!=NULL);
+    tio->fio.eFormat = FIO_FORMAT_TIPSY;
+    tio->fio.eMode   = FIO_MODE_READING;
+    tio->iOrder = tio->iStart = 0;
+
+    tio->fp = fopen(fileName,"r");
+    if (tio->fp==NULL) {
+	free(tio);
+	return NULL;
+	}
+    tio->fpBuffer = malloc(TIO_BUFFER_SIZE);
+    if (tio->fpBuffer != NULL) setvbuf(tio->fp,tio->fpBuffer,_IOFBF,TIO_BUFFER_SIZE);
+
+    if ( !tipsyDetectHeader(tio,bDouble) ) {
+	fclose(tio->fp);
+	if (tio->fpBuffer) free(tio->fpBuffer);
+	free(tio);
+	return NULL;
+	}
+    tipsyAdjustN(tio);
+
+    tio->fio.nSpecies[FIO_SPECIES_ALL] = 0;
+    for( i=1; i<FIO_SPECIES_LAST; i++)
+	tio->fio.nSpecies[FIO_SPECIES_ALL] += tio->fio.nSpecies[i];
+    return &tio->fio;
+    }
+
+FIO fioTipsyCreate(const char *fileName,int bDouble,int bStandard,
+		   double dTime,uint64_t nSph, uint64_t nDark, uint64_t nStar) {
+    fioTipsy *tio;
+    int i;
+
+    tio = malloc(sizeof(fioTipsy));
+    assert(tio!=NULL);
+    tio->fio.eFormat = FIO_FORMAT_TIPSY;
+    tio->fio.eMode   = FIO_MODE_WRITING;
+
+    for( i=0; i<FIO_SPECIES_LAST; i++)
+	tio->fio.nSpecies[i] = 0;
+    tio->fio.nSpecies[FIO_SPECIES_SPH]  = nSph;
+    tio->fio.nSpecies[FIO_SPECIES_DARK] = nDark;
+    tio->fio.nSpecies[FIO_SPECIES_STAR] = nStar;
+    for( i=1; i<FIO_SPECIES_LAST; i++)
+	tio->fio.nSpecies[FIO_SPECIES_ALL] += tio->fio.nSpecies[i];
+
+    tio->iOrder = tio->iStart = 0;
+    tio->dTime = dTime;
+
+    tio->fp = fopen(fileName,"w");
+    if (tio->fp==NULL) {
+	free(tio);
+	return NULL;
+	}
+    tio->fpBuffer = malloc(TIO_BUFFER_SIZE);
+    if (tio->fpBuffer != NULL) setvbuf(tio->fp,tio->fpBuffer,_IOFBF,TIO_BUFFER_SIZE);
+    if (bStandard) xdrstdio_create(&tio->xdr,tio->fp,XDR_ENCODE);
+
+    tipsySetFunctions(tio,bDouble,bStandard);
+    tipsyWriteHeader(tio,bDouble,bStandard);
+
+    return &tio->fio;
+    }
+
+FIO fioTipsyAppend(const char *fileName,int bDouble,int bStandard) {
+    fioTipsy *tio;
+    int i;
+
+    tio = malloc(sizeof(fioTipsy));
+    assert(tio!=NULL);
+    tio->fio.eFormat = FIO_FORMAT_TIPSY;
+    tio->fio.eMode   = FIO_MODE_WRITING;
+    tio->iOrder = tio->iStart = 0;
+
+    tio->fp = fopen(fileName,"r+");
+    if (tio->fp==NULL) {
+	free(tio);
+	return NULL;
+	}
+    tio->fpBuffer = malloc(TIO_BUFFER_SIZE);
+    if (tio->fpBuffer != NULL) setvbuf(tio->fp,tio->fpBuffer,_IOFBF,TIO_BUFFER_SIZE);
+
+    if ( !tipsyDetectHeader(tio,bDouble) ) {
+	fclose(tio->fp);
+	if (tio->fpBuffer) free(tio->fpBuffer);
+	free(tio);
+	return NULL;
+	}
+    tio->fio.nSpecies[FIO_SPECIES_ALL] = 0;
+    for( i=1; i<FIO_SPECIES_LAST; i++)
+	tio->fio.nSpecies[FIO_SPECIES_ALL] += tio->fio.nSpecies[i];
+
+    if (bStandard) xdrstdio_create(&tio->xdr,tio->fp,XDR_ENCODE);
+    tipsySetFunctions(tio,bDouble,bStandard);
+
+    return &tio->fio;
+    }
+
+/*
+** Create a partial Tipsy file.  A partial Tipsy file is one that has been split
+** into multiple files.  Only the first part has the header.  To rebuild the
+** original file, the parts need only be concatenated together.
+*/
+FIO fioTipsyCreatePart(const char *fileName,int bAppend,int bDouble,int bStandard,
+		       double dTime, uint64_t nSph, uint64_t nDark, uint64_t nStar,
+		       uint64_t iStart) {
+    fioTipsy *tio;
+    uint64_t iLast;
+    int i;
+
+    tio = malloc(sizeof(fioTipsy));
+    assert(tio!=NULL);
+    tio->fio.eFormat = FIO_FORMAT_TIPSY;
+    tio->fio.eMode   = FIO_MODE_WRITING;
+    tio->iOrder = 0;
+    tio->iStart = iStart;
+    tio->dTime = dTime;
+
+    for( i=0; i<FIO_SPECIES_LAST; i++)
+	tio->fio.nSpecies[i] = 0;
+
+    /* Adjust the local number of particles in this fragment */
+    iLast = nSph + nDark + nStar;
+    tio->fio.nSpecies[FIO_SPECIES_SPH]  = tipsyCountSpecies(nSph,&iStart,&iLast);
+    tio->fio.nSpecies[FIO_SPECIES_DARK] = tipsyCountSpecies(nDark,&iStart,&iLast);
+    tio->fio.nSpecies[FIO_SPECIES_STAR] = tipsyCountSpecies(nStar,&iStart,&iLast);
+    for( i=1; i<FIO_SPECIES_LAST; i++)
+	tio->fio.nSpecies[FIO_SPECIES_ALL] += tio->fio.nSpecies[i];
+
+    tio->fp = fopen(fileName,bAppend?"r+":"w");
+    if (tio->fp==NULL) {
+	free(tio);
+	return NULL;
+	}
+    tio->fpBuffer = malloc(TIO_BUFFER_SIZE);
+    if (tio->fpBuffer != NULL) setvbuf(tio->fp,tio->fpBuffer,_IOFBF,TIO_BUFFER_SIZE);
+    if (bStandard) xdrstdio_create(&tio->xdr,tio->fp,XDR_ENCODE);
+
+    tipsySetFunctions(tio,bDouble,bStandard);
+    if (tio->iStart) tio->nHdrSize = 0;
+    else if (!bAppend) tipsyWriteHeader(tio,bDouble,bStandard);
+    return &tio->fio;
+    }
+
+/******************************************************************************\
+** General HDF5 support routines.  Not "fio" specific.
+\******************************************************************************/
+#ifdef USE_HDF5
+#include <hdf5.h>
+
+/* Returns the number of records in a dataset */
+static hsize_t getSetSize(hid_t setID) {
+    hid_t spaceID;
+    hsize_t dims[2], maxs[2];
+    hsize_t rc;
+
+    spaceID = H5Dget_space(setID); assert(spaceID>=0);
+    assert( H5Sis_simple(spaceID) > 0 );
+    assert( H5Sget_simple_extent_ndims(spaceID) <= 3 );
+    H5Sget_simple_extent_dims(spaceID,dims,maxs);
+    H5Sclose(spaceID);
+    return dims[0];
+    }
+
+/* Create a dataset inside a group (positions, velocities, etc.) */
+static hid_t newSet(hid_t locID, const char *name, uint64_t chunk,
+		    uint64_t count, int nDims, hid_t dataType ) {
+    hid_t dataProperties, dataSpace, dataSet;
+    hsize_t /*@alt uint64_t[]@*/ iDims[2];
+    hsize_t /*@alt uint64_t[]@*/ iMax[2];
+    hsize_t rc;
+
+    /* Create a dataset property so we can set the chunk size */
+    dataProperties = H5Pcreate( H5P_DATASET_CREATE );
+    assert(dataProperties >= 0);
+    iDims[0] = chunk;
+    iDims[1] = 1;
+    rc = H5Pset_chunk( dataProperties, nDims>1?2:1, iDims ); assert(rc>=0);
+
+    /* Also request the FLETCHER checksum */
+    rc = H5Pset_filter(dataProperties,H5Z_FILTER_FLETCHER32,0,0,NULL); assert(rc>=0);
+
+    /* And the dataspace */
+    iDims[0] = count;
+    iDims[1] = nDims;
+    iMax[0] = H5S_UNLIMITED;
+    iMax[1] = nDims;
+
+    dataSpace = H5Screate_simple( nDims>1?2:1, iDims, iMax );
+    assert( dataSpace != H5I_INVALID_HID );
+
+    /* Create the data set */
+    dataSet = H5Dcreate( locID, name,
+			 dataType, dataSpace, dataProperties );
+    assert(dataSet != H5I_INVALID_HID);
+    H5Pclose( dataProperties );
+    H5Sclose( dataSpace );
+
+    return dataSet;
+    }
+
+/* Read part of a set from disk into memory */
+static void readSet(
+    hid_t set_id,           /* set from which to read the data */
+    void *pBuffer,          /* Buffer for the data */
+    hid_t memType,          /* Data type in memory */
+    hsize_t iOffset,        /* Offset into the set */
+    hsize_t nRows,          /* Number of rows to read */
+    hsize_t nCols ) {       /* Number of columns (normally 1 or 3) */
+    hid_t memSpace, diskSpace;
+    hsize_t dims[2], start[2];
+    herr_t rc;
+
+    dims[0] = nRows;
+    dims[1] = nCols;
+    memSpace = H5Screate_simple(nCols>1?2:1,dims,0);
+    diskSpace = H5Dget_space(set_id);
+    start[0] = iOffset;
+    start[1] = 0;
+
+    rc = H5Sselect_hyperslab(diskSpace,H5S_SELECT_SET,start,0,dims,0); assert(rc>=0);
+    rc = H5Dread(set_id,memType,memSpace,diskSpace,H5P_DEFAULT,pBuffer); assert(rc>=0);
+    rc = H5Sclose(memSpace); assert(rc>=0);
+    rc = H5Sclose(diskSpace); assert(rc>=0);
+    }
+
+
+/* Add an attribute to a group */
+static void writeAttribute( hid_t groupID, const char *name,
+			    hid_t dataType, void *data ) {
+    hid_t dataSpace, attrID;
+    hsize_t dims = 1;
+    herr_t rc;
+
+    dataSpace = H5Screate_simple( 1, &dims, NULL ); assert(dataSpace!=H5I_INVALID_HID);
+    attrID = H5Acreate( groupID,name,dataType,dataSpace,H5P_DEFAULT );
+    assert(attrID!=H5I_INVALID_HID);
+    rc = H5Awrite( attrID, dataType, data ); assert(rc>=0);
+    rc = H5Aclose( attrID ); assert(rc>=0);
+    rc = H5Sclose(dataSpace); assert(rc>=0);
+    }
+
+/* Read an attribute from a group */
+static int readAttribute( hid_t groupID, const char *name,
+			  hid_t dataType, void *data ) {
+    hid_t attrID;
+    herr_t rc;
+
+    attrID = H5Aopen_name( groupID,name );
+    if ( attrID == H5I_INVALID_HID ) return 0;
+    rc = H5Aread( attrID, dataType, data ); assert(rc>=0);
+    rc = H5Aclose( attrID ); assert(rc>=0);
+    return 1;
+    }
+
+/* Write part of a set from memory */
+static void writeSet(
+    hid_t set_id,           /* set into which to write the data */
+    const void *pBuffer,    /* Buffer containing the data */
+    hid_t memType,          /* Data type in memory */
+    hsize_t iOffset,        /* Offset into the set */
+    hsize_t nRows,          /* Number of rows to write */
+    hsize_t nCols ) {       /* Number of columns (normally 1 or 3) */
+    hid_t memSpace, diskSpace;
+    hsize_t dims[2], start[2], size[2];
+
+    dims[0] = nRows;
+    dims[1] = nCols;
+    memSpace = H5Screate_simple(nCols>1?2:1,dims,0);
+    size[0] = iOffset + nRows;
+    size[1] = nCols;
+    H5Dextend(set_id,size);
+    diskSpace = H5Dget_space(set_id);
+    start[0] = iOffset;
+    start[1] = 0;
+    H5Sselect_hyperslab(diskSpace,H5S_SELECT_SET,start,0,dims,0);
+    H5Dwrite(set_id,memType,memSpace,diskSpace,H5P_DEFAULT,pBuffer);
+    H5Sclose(memSpace);
+    H5Sclose(diskSpace);
+    }
+
+/******************************************************************************\
+** HDF5 FORMAT
+\******************************************************************************/
+
+#define CHUNK_SIZE 32768
+
+#define ATTR_IORDER      "iOrder"
+
+#define FIELD_POSITION   "position"
+#define FIELD_VELOCITY   "velocity"
+#define FIELD_POTENTIAL  "potential"
+#define FIELD_ORDER      "order"
+#define FIELD_CLASS      "class"
+#define FIELD_CLASSES    "classes"
+
+typedef struct {
+    double v[3];
+    } ioHDF5V3;
+
+typedef uint64_t PINDEX;
+
+typedef struct {
+    uint8_t iClass;
+    PINDEX  iOrderStart;       /* Start index of this class */
+    double  fMass;             /* Particle mass */
+    double  fSoft;             /* Softening */
+    PINDEX nCount;            /* Number of particles with this class */
+    } classEntry;
+
+typedef struct {
+    uint_fast32_t nClasses;   /* Number of different classes */
+    classEntry Class[256];
+    hid_t    setClass_id;
+    uint8_t  *piClass;         /* Class index (or NULL) */
+    double   *fMass;
+    double   *fSoft;
+    } IOCLASS;
+
+typedef struct {
+    PINDEX iStart;            /* Start iOrder number */
+    PINDEX iNext;             /* Next iOrder number (starts at iStart) */
+    PINDEX *iOrder;           /* Buffered iOrder numbers (or NULL) */
+    hid_t  setOrder_id;
+    } IOORDER;
+
+typedef struct {
+    PINDEX iOffset;           /* Particle offset into the file */
+    PINDEX  nTotal;           /* Total number of particles in the file */
+    uint_fast32_t iIndex;     /* Index of next particle in memory */
+    uint_fast32_t nBuffered;  /* Number of buffered particles */
+    hid_t group_id;
+    hid_t setR_id;            /* set of Positions */
+    ioHDF5V3 *R;              /* Positions (always present) */
+    hid_t setV_id;            /* set of Velocities */
+    ioHDF5V3 *V;              /* Velocities (always present) */
+    hid_t setPot_id;
+    float *pot;
+    IOORDER order;
+    IOCLASS class;
+    } IOBASE;
+
+typedef struct {
+    struct fioInfo fio;
+    hid_t fileID;
+    FIO_SPECIES eCurrent;
+    IOBASE base[FIO_SPECIES_LAST];
+    } fioHDF5;
+
+/* Create the type for the class table */
+static hid_t makeClassType(hid_t floatType, int bStart) {
+    hid_t tid;
+    hid_t dataType = sizeof(PINDEX)==4 ? H5T_NATIVE_UINT32 : H5T_NATIVE_UINT64;
+
+    tid = H5Tcreate (H5T_COMPOUND, sizeof(classEntry));
+    assert(tid!=H5I_INVALID_HID);
+    H5Tinsert(tid,"class",HOFFSET(classEntry,iClass), H5T_NATIVE_UINT8);
+    H5Tinsert(tid,"mass", HOFFSET(classEntry,fMass), floatType);
+    H5Tinsert(tid,"soft", HOFFSET(classEntry,fSoft), floatType);
+    if ( bStart )
+	H5Tinsert(tid,"start",HOFFSET(classEntry,iOrderStart), dataType);
+    return tid;
+    }
+
+static void writeClassTable(IOBASE *Base ) {
+    hid_t tid, set;
+
+    if ( Base->nTotal > 0 ) {
+	tid = makeClassType( H5T_NATIVE_DOUBLE, Base->class.piClass==NULL );
+
+	set = newSet(Base->group_id, FIELD_CLASSES,
+		     CHUNK_SIZE, Base->class.nClasses, 1, tid );
+
+	writeSet( set, Base->class.Class, tid,
+		  0, Base->class.nClasses, 1 );
+
+	H5Dclose(set);
+	H5Tclose(tid);
+	}
+    }
+
+static void readClassTable( IOBASE *Base ) {
+    hid_t tid, set;
+
+    set = H5Dopen( Base->group_id, FIELD_CLASSES );
+    if ( set != H5I_INVALID_HID ) {
+
+	if ( Base->class.setClass_id != H5I_INVALID_HID
+		&& Base->class.piClass == NULL ) {
+	    Base->class.piClass = (uint8_t *)malloc( CHUNK_SIZE * sizeof(uint8_t) );
+	    assert(Base->class.piClass != NULL );
+	    }
+	tid = makeClassType( H5T_NATIVE_DOUBLE, Base->class.piClass==NULL );
+	Base->class.nClasses = getSetSize(set);
+	readSet( set, Base->class.Class, tid,
+		 0, Base->class.nClasses, 1 );
+	H5Dclose(set);
+	H5Tclose(tid);
+	}
+
+    }
+
+static void addClass( IOBASE *base, PINDEX iOrder, double fMass, double fSoft ) {
+    IOCLASS *Class = &base->class;
+    uint_fast32_t i;
+
+    /* See if we already have this class: Mass/Softening pair */
+    for ( i=0; i<Class->nClasses; i++ ) {
+	if ( Class->Class[i].fMass == fMass && Class->Class[i].fSoft == fSoft )
+	    break;
+	}
+
+    /* Case 1: This is a new class */
+    if ( i == Class->nClasses ) {
+	assert( Class->nClasses < 256 ); /*TODO: handle this case */
+	Class->Class[i].iClass = i;
+	Class->Class[i].iOrderStart = iOrder;
+	Class->Class[i].fMass = fMass;
+	Class->Class[i].fSoft = fSoft;
+	Class->Class[i].nCount= 0;
+	Class->nClasses++;
+	if ( Class->piClass != NULL )
+	    Class->piClass[base->nBuffered] = i;
+	}
+
+    /* Case 2: This was the last class, and we might be compressing */
+    else if ( i == Class->nClasses - 1 && Class->piClass==NULL ) {
+	}
+
+    /* Case 3: A match, but a prior class */
+    else {
+	createClass(base);
+	Class->piClass[base->nBuffered] = i;
+	}
+    Class->Class[i].nCount++;
+    }
+
+static int hdf5GetAttr(
+    FIO fio,
+    const char *attr, FIO_TYPE dataType, void *data) {
+    fioHDF5 *hio = (fioHDF5 *)fio;
+    assert(fio->eFormat == FIO_FORMAT_HDF5);
+
+
+    return 0;
+    }
+
+static FIO_SPECIES hdf5Species (struct fioInfo *fio) {
+    fioHDF5 *hio = (fioHDF5 *)fio;
+    return hio->eCurrent;
+    }
+
+static int hdf5Seek(FIO fio,uint64_t iPart,FIO_SPECIES eSpecies) {
+    fioHDF5 *hio = (fioHDF5 *)fio;
+    IOBASE *base;
+    int i;
+
+    assert(fio->eFormat == FIO_FORMAT_HDF5);
+    if (eSpecies==FIO_SPECIES_ALL) {
+	for( i=1; i<FIO_SPECIES_LAST; i++) {
+	    base = &hio->base[i];
+	    if (iPart<base->nTotal) {
+		eSpecies = i;
+		break;
+		}
+	    iPart -= base->nTotal;
+	    }
+	assert(eSpecies!=FIO_SPECIES_ALL);
+	}
+    hio->eCurrent = eSpecies;
+    base = &hio->base[eSpecies];
+    base->iOffset = iPart;
+    base->iIndex = base->nBuffered = 0;
+    return 0;
+    }
+
+static int hdf5ReadDark(
+    FIO fio,uint64_t *piOrder,double *pdPos,double *pdVel,
+    float *pfMass,float *pfSoft,float *pfPot) {
+    fioHDF5 *hio = (fioHDF5 *)(fio);
+    IOBASE *base = &hio->base[hio->eCurrent];
+    int d;
+    int i, iClass;
+
+    assert(fio->eFormat == FIO_FORMAT_HDF5);
+    assert(hio->eCurrent == FIO_SPECIES_DARK);
+
+    /* If we have exhausted our buffered data, read more */
+    if (base->iIndex == base->nBuffered) {
+	hsize_t N;
+
+	base->iOffset += base->nBuffered;
+	base->iIndex = base->nBuffered = 0;
+	if ( base->iOffset >= base->nTotal ) return 0;
+
+	N = base->nTotal - base->iOffset;
+	base->nBuffered = N > CHUNK_SIZE ? CHUNK_SIZE : N;
+
+	readSet( base->setR_id, base->R, H5T_NATIVE_DOUBLE,
+		 base->iOffset, base->nBuffered, 3 );
+	readSet( base->setV_id, base->V, H5T_NATIVE_DOUBLE,
+		 base->iOffset, base->nBuffered, 3 );
+
+	if (base->setPot_id != H5I_INVALID_HID) {
+	    readSet( base->setPot_id, base->pot,
+		     H5T_NATIVE_FLOAT, base->iOffset, base->nBuffered, 1 );
+	    }
+	if (base->order.setOrder_id != H5I_INVALID_HID) {
+	    hid_t dataType = sizeof(PINDEX)==4
+		? H5T_NATIVE_UINT32 : H5T_NATIVE_UINT64;
+	    readSet( base->order.setOrder_id, base->order.iOrder,
+		     dataType, base->iOffset, base->nBuffered, 1 );
+	    }
+
+	if (base->class.setClass_id!=H5I_INVALID_HID) {
+	    readSet( base->class.setClass_id, base->class.piClass,
+		     H5T_NATIVE_UINT8, base->iOffset, base->nBuffered, 1 );
+	    }
+	}
+
+    /* Position and Velocity are always present */
+    for(d=0;d<3;d++) {
+	pdPos[d] = base->R[base->iIndex].v[d];
+	pdVel[d] = base->V[base->iIndex].v[d];
+	}
+
+    /* Potential is optional */
+    *pfPot = base->pot ? base->pot[base->iIndex] : 0.0;
+
+    /* iOrder is either sequential, or is listed for each particle */
+    if (base->order.setOrder_id != H5I_INVALID_HID) {
+	*piOrder = base->order.iOrder[base->iIndex];
+	}
+    else {
+	*piOrder = base->order.iStart + base->iOffset + base->iIndex;
+	}
+
+    /* If each particles has a unique class, use that */
+    if ( base->class.piClass == NULL ) {
+	assert(base->class.nClasses>=1);
+	for ( iClass=0; iClass<base->class.nClasses; iClass++ )
+	    if ( base->class.Class[iClass].iOrderStart > *piOrder )
+		break;
+	assert( iClass>0 );
+	--iClass;
+	}
+    /* Otherwise, the particles were sorted by class to save space */
+    else {
+	iClass = base->class.piClass[base->iIndex];
+	assert( iClass < base->class.nClasses );
+	}
+    *pfMass = base->class.Class[iClass].fMass;
+    *pfSoft = base->class.Class[iClass].fSoft;
+
+    /*
+    ** Next particle.  If we are at the end of this species,
+    ** advance to the start of the next species.
+    */
+    base->iIndex++;
+    if (base->iIndex==base->nTotal) {
+	for( i=hio->eCurrent+1; i<FIO_SPECIES_LAST; i++) {
+	    base = &hio->base[i];
+	    if ( base->nTotal ) {
+		hio->eCurrent = i;
+		base->iOffset = base->iIndex = base->nBuffered = 0;
+		}
+	    }
+	}
+    return 1;
+    }
+
+static int hdf5ReadSph(
+    FIO fio,uint64_t *piOrder,double *pdPos,double *pdVel,
+    float *pfMass,float *pfSoft, float *pfPot,
+    float *pfRho, float *pfTemp, float *pfMetals) {
+    return 0;
+    }
+
+static int hdf5ReadStar(
+    FIO fio,uint64_t *piOrder,double *pdPos,double *pdVel,
+    float *pfMass,float *pfSoft,float *pfPot,
+    float *pfMetals, float *pfTform) {
+    return 0;
+    }
+
+static void hdf5Close(FIO fio) {
+    fioHDF5 *hio = (fioHDF5 *)(fio);
+    int i;
+
+    for( i=1; i<FIO_SPECIES_LAST; i++) {
+	IOBASE *base = hio->base+i;
+	if (base->group_id!=H5I_INVALID_HID) {
+	    if (base->order.setOrder_id!=H5I_INVALID_HID) {
+		free(base->order.iOrder);
+		H5Dclose(base->group_id);
+		}
+	    free(base->V);
+	    H5Dclose(base->setV_id);
+	    free(base->R);
+	    H5Dclose(base->setR_id);
+	    H5Gclose(base->group_id);
+	    }
+	}
+    H5Fclose(hio->fileID);
+    }
+
+FIO fioHDF5Open(const char *fileName) {
+    fioHDF5 *hio;
+    H5E_auto_t save_func;
+    void *     save_data;
+    int i;
+    hid_t dataType = sizeof(PINDEX)==4 ? H5T_NATIVE_UINT32 : H5T_NATIVE_UINT64;
+
+    hio = malloc(sizeof(fioHDF5));
+    assert(hio!=NULL);
+    hio->fio.eFormat = FIO_FORMAT_HDF5;
+
+    for( i=0; i<FIO_SPECIES_LAST; i++)
+	hio->fio.nSpecies[i] = 0;
+
+    /* Open the HDF5 file. */
+    hio->fileID = H5Fopen(fileName, H5F_ACC_RDONLY, H5P_DEFAULT);
+    if ( hio->fileID < 0 ) {
+	free(hio);
+	return NULL;
+	}
+
+    /* Now open all of the available groups.  It's okay if some aren't there. */
+    H5Eget_auto(&save_func,&save_data);
+    H5Eset_auto(0,0);
+    for( i=1; i<FIO_SPECIES_LAST; i++) {
+	IOBASE *base = hio->base+i;
+	base->group_id = H5Gopen(hio->fileID,fioSpeciesName(i));
+	if (base->group_id!=H5I_INVALID_HID) {
+	    base->iOffset = 0;
+	    base->iIndex = base->nBuffered = 0;
+	    base->setR_id = H5Dopen(base->group_id,FIELD_POSITION);
+	    assert(base->setR_id!=H5I_INVALID_HID);
+	    base->R = malloc(sizeof(*base->R)*CHUNK_SIZE);
+	    base->setV_id = H5Dopen(base->group_id,FIELD_VELOCITY);
+	    assert(base->setV_id!=H5I_INVALID_HID);
+	    base->V = malloc(sizeof(*base->V)*CHUNK_SIZE);
+	    base->nTotal = hio->fio.nSpecies[i] = getSetSize(base->setR_id);
+	    assert(hio->fio.nSpecies[i] == getSetSize(base->setV_id));
+
+	    base->setPot_id = H5Dopen(base->group_id,FIELD_POTENTIAL);
+	    if (base->setPot_id!=H5I_INVALID_HID) {
+		base->pot = malloc(sizeof(*base->pot)*CHUNK_SIZE);
+		assert(base->pot!=NULL);
+		}
+	    else {
+		base->pot = NULL;
+		}
+
+	    base->class.setClass_id = H5Dopen(base->group_id,FIELD_CLASS);
+	    if (base->class.setClass_id!=H5I_INVALID_HID) {
+		base->class.piClass = malloc(sizeof(*base->class.piClass)*CHUNK_SIZE);
+		assert(base->class.piClass!=NULL);
+		}
+	    readClassTable( base );
+
+	    /* iOrder can have a starting value if they are sequential, or a list */
+	    base->order.setOrder_id = H5Dopen(base->group_id,FIELD_ORDER);
+	    base->order.iStart = 0;
+	    if (base->order.setOrder_id!=H5I_INVALID_HID) {
+		base->order.iOrder = malloc(sizeof(*base->order.iOrder)*CHUNK_SIZE);
+		assert(base->order.iOrder!=NULL);
+		}
+	    else {
+		base->order.iOrder = NULL;
+		readAttribute(base->group_id,ATTR_IORDER,dataType,&base->order.iStart);
+		}
+	    base->order.iNext = base->order.iStart;
+	    }
+	else base->nTotal = 0;
+	}
+    H5Eset_auto(save_func,save_data);
+
+    hio->eCurrent = 0;
+    for( i=1; i<FIO_SPECIES_LAST; i++) {
+	if (hio->eCurrent==0 && hio->fio.nSpecies[i]) hio->eCurrent=0;
+	hio->fio.nSpecies[FIO_SPECIES_ALL] += hio->fio.nSpecies[i];
+	}
+
+    hio->fio.fcnClose    = hdf5Close;
+    hio->fio.fcnSeek     = hdf5Seek;
+    hio->fio.fcnReadDark = hdf5ReadDark;
+    hio->fio.fcnReadSph  = hdf5ReadSph;
+    hio->fio.fcnReadStar = hdf5ReadStar;
+    hio->fio.fcnGetAttr  = hdf5GetAttr;
+    hio->fio.fcnSpecies  = hdf5Species;
+    hio->fio.fcnOpenNext = fioNoOpenNext;
+
+    return &hio->fio;
+    }
+
+#endif
 
 /******************************************************************************\
 ** GRAFIC FORMAT
@@ -440,14 +1847,19 @@ typedef struct {
     } graficFile;
 
 typedef struct {
-    struct fioInfo fio;
-    uint64_t iOrder;
-    double   vFactor;
-    double   pFactor1;
-    double   pFactor2;
     graficFile fp_velcx;
     graficFile fp_velcy;
     graficFile fp_velcz;
+    } graficLevel;
+
+typedef struct {
+    struct fioInfo fio;
+    uint64_t iOrder;
+    double   dTime;
+    double   vFactor;
+    double   pFactor1;
+    double   pFactor2;
+    graficLevel level0;
     } fioGrafic;
 
 /*
@@ -530,7 +1942,8 @@ static void graficReadHdr(graficFile *gf) {
 	gf->bDouble = 1;
 	break;
     default:
-	assert(0);
+	fprintf(stderr,"Invalid GRAFIC header size\n");
+	abort();
 	}
     rc = fread(&w2,sizeof(w2),1,gf->fp);
     assert(rc==1);
@@ -593,7 +2006,7 @@ static double graficRead(graficFile *gf) {
 
 static void graficSeekFile(graficFile *gf,uint64_t iDark) {
     uint64_t
-	nFloat,     /* Bytes in each float (could be double) */
+	sFloat,     /* Bytes in each float (could be double) */
 	iSlab,      /* Index of the slab */
 	iPart;      /* Index of the particle in the slab */
     uint64_t iByte; /* Byte offset into the file */
@@ -602,14 +2015,14 @@ static void graficSeekFile(graficFile *gf,uint64_t iDark) {
     int rc;
 
     /* Calculate the slab, particle in slab and byte offset */
-    nFloat = gf->bDouble ? sizeof(double) : sizeof(float);
+    sFloat = gf->bDouble ? sizeof(double) : sizeof(float);
     iSlab = iDark / gf->nPerSlab;
     assert( iSlab < gf->hdr.n3 );
     iPart = iDark - iSlab*gf->nPerSlab;
 
     iByte = gf->nHdrSize
-	+ iSlab * (nFloat*gf->nPerSlab + 2*sizeof(uint32_t))
-	+ iPart * nFloat + sizeof(uint32_t);
+	+ iSlab * (sFloat*gf->nPerSlab + 2*sizeof(uint32_t))
+	+ iPart * sFloat + sizeof(uint32_t);
     iOffset = iByte;
     assert(iOffset==iByte);
 
@@ -646,11 +2059,12 @@ static int graficCompare(graficFile *a,graficFile *b) {
 
 static int graficGetAttr(FIO fio,
     const char *attr, FIO_TYPE dataType, void *data) {
-    fioGrafic *gfio = (fioGrafic *)fio;
+    fioGrafic *gio = (fioGrafic *)fio;
+    assert(fio->eFormat == FIO_FORMAT_GRAFIC);
     if ( strcmp(attr,"dTime")==0 ) {
 	switch(dataType) {
-	case FIO_TYPE_FLOAT: *(float *)(data) = gfio->fio.dTime; break;
-	case FIO_TYPE_DOUBLE:*(double *)(data) = gfio->fio.dTime; break;
+	case FIO_TYPE_FLOAT: *(float *)(data) = gio->dTime; break;
+	case FIO_TYPE_DOUBLE:*(double *)(data) = gio->dTime; break;
 	default: return 0;
 	    }
 	return 1;
@@ -660,44 +2074,109 @@ static int graficGetAttr(FIO fio,
     }
 
 static int graficSeek(FIO fio,uint64_t iDark,FIO_SPECIES eSpecies) {
-    fioGrafic *gfio = (fioGrafic *)fio;
+    fioGrafic *gio = (fioGrafic *)fio;
 
-    graficSeekFile(&gfio->fp_velcx,iDark);
-    graficSeekFile(&gfio->fp_velcy,iDark);
-    graficSeekFile(&gfio->fp_velcz,iDark);
+    assert(fio->eFormat == FIO_FORMAT_GRAFIC);
+    graficSeekFile(&gio->level0.fp_velcx,iDark);
+    graficSeekFile(&gio->level0.fp_velcy,iDark);
+    graficSeekFile(&gio->level0.fp_velcz,iDark);
     return 0;
+    }
+
+static void graficSetPV(FIO fio,double *r,double *v,double x,double y,double z) {
+    fioGrafic *gio = (fioGrafic *)fio;
+    r[0] = 0.0 + x * gio->pFactor1 * gio->pFactor2 - 0.5;
+    r[1] = 0.0 + y * gio->pFactor1 * gio->pFactor2 - 0.5;
+    r[2] = 0.0 + z * gio->pFactor1 * gio->pFactor2 - 0.5;
+
+    v[0] = x * gio->vFactor;
+    v[1] = y * gio->vFactor;
+    v[2] = z * gio->vFactor;
     }
 
 static int graficReadDark(FIO fio,
 		   uint64_t *piOrder,double *pdPos,double *pdVel,
 		   float *pfMass,float *pfSoft,float *pfPot) {
-    double v[3];
-    fioGrafic *gfio = (fioGrafic *)fio;
-    *piOrder = gfio->iOrder++;
-
-    v[0] = graficRead(&gfio->fp_velcx);
-    v[1] = graficRead(&gfio->fp_velcy);
-    v[2] = graficRead(&gfio->fp_velcz);
-
-    pdVel[0] = v[0] * gfio->vFactor;
-    pdVel[1] = v[1] * gfio->vFactor;
-    pdVel[2] = v[2] * gfio->vFactor;
-
-
+    fioGrafic *gio = (fioGrafic *)fio;
+    assert(fio->eFormat == FIO_FORMAT_GRAFIC);
+    *piOrder = gio->iOrder++;
+    graficSetPV(fio,pdPos,pdVel,
+		graficRead(&gio->level0.fp_velcx),
+		graficRead(&gio->level0.fp_velcy),
+		graficRead(&gio->level0.fp_velcz) );
     if ( pfPot) *pfPot = 0.0;
     return 1;
     }
 
+static int graficReadSph(
+    FIO fio,uint64_t *piOrder,double *pdPos,double *pdVel,
+    float *pfMass,float *pfSoft,float *pfPot,
+    float *pfRho,float *pfTemp, float *pfMetals) {
+    fioGrafic *gio = (fioGrafic *)fio;
+    assert(fio->eFormat == FIO_FORMAT_GRAFIC);
+    *piOrder = gio->iOrder++;
+#if 0
+    graficSetPV(fio,pdPos,pdVel,
+		graficRead(&gio->level0.fp_velbx),
+		graficRead(&gio->level0.fp_velby),
+		graficRead(&gio->level0.fp_velbz) );
+    if ( pfPot) *pfPot = 0.0;
+    *pfRho = *pfTemp = *pfSoft = *pfMetals = 0.0;
+#endif
+    fprintf(stderr,"Reading baryon particles is not supported\n");
+    abort();
+    }
+
 static void graficClose(FIO fio) {
-    fioGrafic *gfio = (fioGrafic *)fio;
-    if ( gfio->fp_velcx.fp!=NULL ) fclose(gfio->fp_velcx.fp);
-    if ( gfio->fp_velcy.fp!=NULL ) fclose(gfio->fp_velcy.fp);
-    if ( gfio->fp_velcz.fp!=NULL ) fclose(gfio->fp_velcz.fp);
-    free(gfio);
+    fioGrafic *gio = (fioGrafic *)fio;
+    if ( gio->level0.fp_velcx.fp!=NULL ) fclose(gio->level0.fp_velcx.fp);
+    if ( gio->level0.fp_velcy.fp!=NULL ) fclose(gio->level0.fp_velcy.fp);
+    if ( gio->level0.fp_velcz.fp!=NULL ) fclose(gio->level0.fp_velcz.fp);
+    free(gio);
+    }
+
+typedef struct {
+    double omegam;
+    double omegav;
+    } ddplus_ctx;
+
+static double ddplus(void *ctx,double a) {
+    ddplus_ctx *dc = ctx;
+    double eta;
+    if ( a == 0.0 ) return 0.0;
+    eta = sqrt(dc->omegam/a + dc->omegav*a*a + 1.0 - dc->omegam - dc->omegav);
+    return 2.5/(eta*eta*eta);
+    }
+
+double dRombergO(void *CTX, double (*func)(void *, double), double a,
+                 double b, double eps);
+
+static double dplus(double a,double omegam,double omegav) {
+    double eta;
+    ddplus_ctx ddctx;
+
+    ddctx.omegam = omegam;
+    ddctx.omegav = omegav;
+    eta = sqrt(omegam/a + omegav*a*a + 1.0 - omegam - omegav);
+    return eta/a * dRombergO(&ddctx,ddplus,0,a,1e-8);
+}
+
+static double fomega(double a,double omegam,double omegav) {
+    double eta, omegak;
+    if ( omegam == 1.0 && omegav == 0.0 ) return 1.0;
+    omegak=1.0-omegam-omegav;
+    eta=sqrt(omegam/a+omegav*a*a+omegak);
+    return (2.5/dplus(a,omegam,omegav)-1.5*omegam/a-omegak)/(eta*eta);
+}
+
+static double dladt( double a, double omegam, double omegav ) {
+    double eta;
+    eta=sqrt(omegam/a+omegav*a*a+1.0-omegam-omegav);
+    return a * eta;
     }
 
 FIO fioGraficOpen(const char *dirName,int bDouble) {
-    fioGrafic *gfio;
+    fioGrafic *gio;
     struct stat s;
     size_t n;
     int i;
@@ -714,15 +2193,20 @@ FIO fioGraficOpen(const char *dirName,int bDouble) {
 	    }
 	}
 
-    gfio = malloc(sizeof(fioGrafic));
-    assert(gfio!=NULL);
+    gio = malloc(sizeof(fioGrafic));
+    assert(gio!=NULL);
+    gio->fio.eFormat = FIO_FORMAT_GRAFIC;
 
-    gfio->fio.fcnClose    = graficClose;
-    gfio->fio.fcnSeek     = graficSeek;
-    gfio->fio.fcnReadDark = graficReadDark;
-    gfio->fio.fcnGetAttr  = graficGetAttr;
+    gio->fio.fcnClose    = graficClose;
+    gio->fio.fcnSeek     = graficSeek;
+    gio->fio.fcnReadDark = graficReadDark;
+    gio->fio.fcnReadSph  = graficReadSph;
+    gio->fio.fcnReadStar = fioNoReadStar;
+    gio->fio.fcnGetAttr  = graficGetAttr;
+    gio->fio.fcnOpenNext = fioNoOpenNext;
+    gio->fio.fcnSpecies  = NULL;
 
-    gfio->fp_velcx.fp = gfio->fp_velcy.fp = gfio->fp_velcz.fp = NULL;
+    gio->level0.fp_velcx.fp = gio->level0.fp_velcy.fp = gio->level0.fp_velcz.fp = NULL;
 
     n = strlen(dirName) + 1;
     fileName = malloc(n + 1 + strlen("ic_velcx"));
@@ -731,55 +2215,49 @@ FIO fioGraficOpen(const char *dirName,int bDouble) {
     strcat(fileName,"/");
 
     strcpy(fileName+n,"ic_velcx");
-    if ( !graficOpen(&gfio->fp_velcx,fileName) ) {
+    if ( !graficOpen(&gio->level0.fp_velcx,fileName) ) {
 	free(fileName);
-	graficClose(&gfio->fio);
+	graficClose(&gio->fio);
 	return NULL;
 	}
     strcpy(fileName+n,"ic_velcy");
-    if ( !graficOpen(&gfio->fp_velcy,fileName) ) {
+    if ( !graficOpen(&gio->level0.fp_velcy,fileName) ) {
 	free(fileName);
-	graficClose(&gfio->fio);
+	graficClose(&gio->fio);
 	return NULL;
 	}
     strcpy(fileName+n,"ic_velcz");
-    if ( !graficOpen(&gfio->fp_velcz,fileName) ) {
+    if ( !graficOpen(&gio->level0.fp_velcz,fileName) ) {
 	free(fileName);
-	graficClose(&gfio->fio);
+	graficClose(&gio->fio);
 	return NULL;
 	}
-    gfio->iOrder = 0L;
+    gio->iOrder = 0L;
 
-    assert(graficCompare(&gfio->fp_velcx,&gfio->fp_velcy));
-    assert(graficCompare(&gfio->fp_velcx,&gfio->fp_velcz));
+    assert(graficCompare(&gio->level0.fp_velcx,&gio->level0.fp_velcy));
+    assert(graficCompare(&gio->level0.fp_velcx,&gio->level0.fp_velcz));
 
-    for( i=0; i<FIO_SPECIES_LAST; i++)
-	gfio->fio.nSpecies[i] = gfio->fio.oSpecies[i] = 0;
-    gfio->fio.nSpecies[FIO_SPECIES_DARK] = (uint64_t)gfio->fp_velcx.hdr.n1
-	* (uint64_t)gfio->fp_velcx.hdr.n2
-	* (uint64_t)gfio->fp_velcx.hdr.n3;
-    gfio->fio.nSpecies[FIO_SPECIES_SPH] = gfio->fio.nSpecies[FIO_SPECIES_DARK];
+    gio->fio.nSpecies[FIO_SPECIES_DARK] = (uint64_t)gio->level0.fp_velcx.hdr.n1
+	* (uint64_t)gio->level0.fp_velcx.hdr.n2
+	* (uint64_t)gio->level0.fp_velcx.hdr.n3;
+    gio->fio.nSpecies[FIO_SPECIES_SPH] = gio->fio.nSpecies[FIO_SPECIES_DARK];
     for( i=1; i<FIO_SPECIES_LAST; i++)
-	gfio->fio.nSpecies[FIO_SPECIES_ALL] += gfio->fio.nSpecies[i];
-    gfio->fio.oSpecies[FIO_SPECIES_SPH] = gfio->fio.oSpecies[FIO_SPECIES_DARK]
-	+ gfio->fio.nSpecies[FIO_SPECIES_DARK];
-    gfio->fio.dTime = gfio->fp_velcx.hdr.astart;
+	gio->fio.nSpecies[FIO_SPECIES_ALL] += gio->fio.nSpecies[i];
+    gio->dTime = gio->level0.fp_velcx.hdr.astart;
 
-    assert(gfio->fp_velcx.hdr.n1==gfio->fp_velcx.hdr.n2&&gfio->fp_velcx.hdr.n2==gfio->fp_velcx.hdr.n3);
+    assert(gio->level0.fp_velcx.hdr.n1==gio->level0.fp_velcx.hdr.n2&&gio->level0.fp_velcx.hdr.n2==gio->level0.fp_velcx.hdr.n3);
 
     /* Makes position dimensionless (i.e., be between 0 and 1) */
-    gfio->pFactor2 = 1.0 / (gfio->fp_velcx.hdr.n1*gfio->fp_velcx.hdr.dx);
-#if 0
-    gfio->pFactor1 = gfio->fp_velcx.hdr.astart / (
-        fomega(gfio->fp_velcx.hdr.astart,gfio->fp_velcx.hdr.omegam,gfio->fp_velcx.hdr.omegav)
-        * gfio->fp_velcx.hdr.H0
-        * dladt(gfio->fp_velcx.hdr.astart,gfio->fp_velcx.hdr.omegam,gfio->fp_velcx.hdr.omegav) );
-#endif
-    gfio->vFactor  = sqrt(8*M_PI/3) * gfio->pFactor2 / (gfio->fp_velcx.hdr.H0*gfio->fp_velcx.hdr.astart);
+    gio->pFactor2 = 1.0 / (gio->level0.fp_velcx.hdr.n1*gio->level0.fp_velcx.hdr.dx);
+    gio->pFactor1 = gio->level0.fp_velcx.hdr.astart / (
+        fomega(gio->level0.fp_velcx.hdr.astart,gio->level0.fp_velcx.hdr.omegam,gio->level0.fp_velcx.hdr.omegav)
+        * gio->level0.fp_velcx.hdr.H0
+        * dladt(gio->level0.fp_velcx.hdr.astart,gio->level0.fp_velcx.hdr.omegam,gio->level0.fp_velcx.hdr.omegav) );
+    gio->vFactor  = sqrt(8*M_PI/3) * gio->pFactor2 / (gio->level0.fp_velcx.hdr.H0*gio->level0.fp_velcx.hdr.astart);
 
 
     free(fileName);
-    return &gfio->fio;
+    return &gio->fio;
     }
 
 /******************************************************************************\
@@ -798,6 +2276,12 @@ FIO fioOpen(const char *fileName,int bDouble) {
 	return fioGraficOpen(fileName,bDouble);
 	}
 
+#ifdef USE_HDF5
+    else if ( H5Fis_hdf5(fileName) ) {
+	return fioHDF5Open(fileName);
+	}
+#endif
+
     /* Try tipsy as a last resort */
     else {
 	return fioTipsyOpen(fileName,bDouble);
@@ -806,64 +2290,314 @@ FIO fioOpen(const char *fileName,int bDouble) {
     return NULL;
     }
 
+#if 0
+
+typedef struct {
+    struct fioInfo fio; /* "base class" */
+    } fioMany;
+
+/* Open multiple files, possibly with wild cards if supported */
+FIO fioOpenMany(int nFiles, const char *fileName[],int bDouble) {
+    int i;
+
+    for( i=0; i<nFiles; i++ ) {
+
+#if defined(HAVE_WORDEXP) && defined(HAVE_WORDFREE)
+	wordexp_t files;
+
+	wordexp(fileName[i], &files, 0);
+	if ( files.we_wordc <= 0 ) {
+	    printf("No such file: %s\n", fileName[i]);
+	    _msrExit(msr,1);
+	    }
+
+	assert(files.we_wordc<=PST_MAX_FILES);
+	read = malloc(sizeof(struct inReadFile) + files.we_wordc*sizeof(struct inFile));
+	assert(read != NULL);
+	read->nFiles = files.we_wordc;
+#elif defined(HAVE_GLOB) && defined(HAVE_GLOBFREE)
+	glob_t files;
+	if (glob(fileName[i],GLOB_ERR|GLOB_NOSORT,NULL,&files) || files.gl_pathc==0) {
+	    printf("No such file: %s\n", fileName[i]);
+	    _msrExit(msr,1);
+	    }
+	assert(files.gl_pathc<=PST_MAX_FILES);
+	read = malloc(sizeof(struct inReadFile) + files.gl_pathc*sizeof(struct inFile));
+	assert(read != NULL);
+	read->nFiles = files.gl_pathc;
+#else
+	read = malloc(sizeof(struct inReadFile) + sizeof(struct inFile) );
+	assert(read != NULL);
+	read->nFiles = 1;
+	printf( "REMINDER: Wildcards not expanded. wordexp() not available.\n" );
+#endif
+	}
+
+
+    }
+#endif
 
 #ifdef TEST_FIO
-#include "tipsy.h"
+/*#include "tipsy.h"*/
+
+#define ID(i,a) ((a)/32.0 + (i))
+
+
+static int write1(uint64_t nDark, int bStandard) {
+    FIO fio;
+    int i;
+
+    uint64_t iOrder;
+    double dPos[3], dVel[3];
+    float fMass, fSoft, fPot;
+
+    printf("Creating %s tipsy test file\n",
+	   bStandard ? "standard" : "native" );
+
+    fio = fioTipsyCreate("test1.std",0,0,bStandard,0,nDark,0);
+    iOrder = 0;
+    for( i=0; i<nDark; i++) {
+	iOrder = i;
+	//iOrder = nDark-i-1;
+	//fioSeek(fio,iOrder,FIO_SPECIES_ALL);
+
+	dPos[0] = ID(iOrder,1);
+	dPos[1] = ID(iOrder,2);
+	dPos[2] = ID(iOrder,3);
+	dVel[0] = ID(iOrder,4);
+	dVel[1] = ID(iOrder,5);
+	dVel[2] = ID(iOrder,6);
+	fMass   = ID(iOrder,7);
+	fSoft   = ID(iOrder,8);
+	fPot    = ID(iOrder,9);
+	fioWriteDark(fio,&iOrder,dPos,dVel,&fMass,&fSoft,&fPot);
+	}
+
+    fioClose(fio);
+    }
+
+
+static int write2(uint64_t nDark, int bStandard) {
+    FIO fio;
+    int i,j;
+
+    uint64_t iOrder;
+    double dPos[3], dVel[3];
+    float fMass, fSoft, fPot;
+
+    i = 0;
+    for(j=1; j<=2; j++) {
+	char fname[100];
+	sprintf(fname,"test%d.std",j);
+
+	printf("Creating %s tipsy test file : %s\n",
+	       bStandard ? "standard" : "native", fname );
+
+	fio = fioTipsyCreatePart(fname,0,0,0,bStandard,
+				 0, nDark, 0, i);
+	for( ; i<nDark && i<nDark/2*j; i++) {
+	    iOrder = i;
+	    //iOrder = nDark-i-1;
+	    //fioSeek(fio,iOrder,FIO_SPECIES_ALL);
+
+	    dPos[0] = ID(iOrder,1);
+	    dPos[1] = ID(iOrder,2);
+	    dPos[2] = ID(iOrder,3);
+	    dVel[0] = ID(iOrder,4);
+	    dVel[1] = ID(iOrder,5);
+	    dVel[2] = ID(iOrder,6);
+	    fMass   = ID(iOrder,7);
+	    fSoft   = ID(iOrder,8);
+	    fPot    = ID(iOrder,9);
+	    fioWriteDark(fio,&iOrder,dPos,dVel,&fMass,&fSoft,&fPot);
+	    }
+	fioClose(fio);
+	}
+    }
+
+static int read1(uint64_t nDark) {
+    FIO fio;
+    int i;
+
+    uint64_t iOrder;
+    double dPos[3], dVel[3];
+    float fMass, fSoft, fPot;
+
+    printf("Reading sequentially\n");
+
+    fio = fioTipsyOpen("test1.std",0);
+    assert(nDark == fioGetN(fio,FIO_SPECIES_DARK));
+
+    for( i=0; i<nDark; i++) {
+	fioReadDark(fio,&iOrder,dPos,dVel,&fMass,&fSoft,&fPot);
+	assert(iOrder == i);
+
+	assert(dPos[0] == ID(iOrder,1));
+	assert(dPos[1] == ID(iOrder,2));
+	assert(dPos[2] == ID(iOrder,3));
+	assert(dVel[0] == ID(iOrder,4));
+	assert(dVel[1] == ID(iOrder,5));
+	assert(dVel[2] == ID(iOrder,6));
+	assert(fMass == ID(iOrder,7));
+	assert(fSoft == ID(iOrder,8));
+	assert(fPot  == ID(iOrder,9));
+	}
+
+    fioClose(fio);
+    }
+
+static int read2(uint64_t nDark) {
+    FIO fio;
+    int i;
+
+    uint64_t iOrder;
+    double dPos[3], dVel[3];
+    float fMass, fSoft, fPot;
+
+    printf("Reading in reverse order\n");
+
+    fio = fioTipsyOpen("test1.std",0);
+    assert(nDark == fioGetN(fio,FIO_SPECIES_DARK));
+
+    for( i=0; i<nDark; i++) {
+	iOrder = nDark-i-1;
+	fioSeek(fio,iOrder,FIO_SPECIES_ALL);
+	fioReadDark(fio,&iOrder,dPos,dVel,&fMass,&fSoft,&fPot);
+	assert(iOrder == nDark-i-1);
+
+	assert(dPos[0] == ID(iOrder,1));
+	assert(dPos[1] == ID(iOrder,2));
+	assert(dPos[2] == ID(iOrder,3));
+	assert(dVel[0] == ID(iOrder,4));
+	assert(dVel[1] == ID(iOrder,5));
+	assert(dVel[2] == ID(iOrder,6));
+	assert(fMass == ID(iOrder,7));
+	assert(fSoft == ID(iOrder,8));
+	assert(fPot  == ID(iOrder,9));
+	}
+
+    fioClose(fio);
+    }
+
+static int read3(uint64_t nDark,FIO_SPECIES eSpecies) {
+    FIO fio;
+    int i;
+
+    uint64_t iOrder1, iOrder2;
+    double dPos[3], dVel[3];
+    float fMass, fSoft, fPot;
+
+    printf("Reading randomly\n");
+
+    fio = fioTipsyOpen("test1.std",0);
+    assert(nDark == fioGetN(fio,eSpecies));
+
+    for( i=0; i<nDark; i++) {
+	/* Randomly around the current position (faster as we stay in buffer) */
+	iOrder1 = (i + (rand()%1000)) % nDark;
+	fioSeek(fio,iOrder1,eSpecies);
+	fioReadDark(fio,&iOrder2,dPos,dVel,&fMass,&fSoft,&fPot);
+	assert(iOrder2 == iOrder1);
+
+	assert(dPos[0] == ID(iOrder1,1));
+	assert(dPos[1] == ID(iOrder1,2));
+	assert(dPos[2] == ID(iOrder1,3));
+	assert(dVel[0] == ID(iOrder1,4));
+	assert(dVel[1] == ID(iOrder1,5));
+	assert(dVel[2] == ID(iOrder1,6));
+	assert(fMass == ID(iOrder1,7));
+	assert(fSoft == ID(iOrder1,8));
+	assert(fPot  == ID(iOrder1,9));
+	}
+
+    fioClose(fio);
+    }
+
+static int readP1(uint64_t nDark) {
+    FIO fio;
+    int i,j;
+    int bStandard;
+    uint64_t iOrder;
+    double dPos[3], dVel[3];
+    float fMass, fSoft, fPot;
+
+    printf("Reading sequentially\n");
+
+    fio = fioTipsyOpen("test1.std",0);
+    //assert(nDark == fioGetN(fio,FIO_SPECIES_DARK));
+    bStandard = fioTipsyIsStandard(fio);
+    fioClose(fio);
+
+    i = 0;
+    for(j=1; j<=2; j++) {
+	char fname[100];
+	sprintf(fname,"test%d.std",j);
+
+	printf("Reading : %s\n", fname );
+
+	fio = fioTipsyOpenPart(fname,0,bStandard,
+				 0, nDark, 0, i);
+	for( ; i<nDark && i<nDark/2*j; i++) {
+	    iOrder = i;
+
+	    fioReadDark(fio,&iOrder,dPos,dVel,&fMass,&fSoft,&fPot);
+	    assert(iOrder == i);
+
+	    assert(dPos[0] == ID(iOrder,1));
+	    assert(dPos[1] == ID(iOrder,2));
+	    assert(dPos[2] == ID(iOrder,3));
+	    assert(dVel[0] == ID(iOrder,4));
+	    assert(dVel[1] == ID(iOrder,5));
+	    assert(dVel[2] == ID(iOrder,6));
+	    assert(fMass == ID(iOrder,7));
+	    assert(fSoft == ID(iOrder,8));
+	    assert(fPot  == ID(iOrder,9));
+	    }
+	fioClose(fio);
+
+	}
+    }
+
+static void readP2(uint64_t nDark) {
+    FIO fio;
+    int i;
+    int rc;
+    uint64_t iOrder;
+    double dPos[3], dVel[3];
+    float fMass, fSoft, fPot;
+
+    fio = fioOpen("foo1.std",0);
+    assert(fio!=NULL);
+    nDark=fioGetN(fio,FIO_SPECIES_DARK);
+    printf("nDark=%lu\n",nDark);
+
+    for( i=0; i<nDark; i++) {
+	rc=fioReadDark(fio,&iOrder,dPos,dVel,&fMass,&fSoft,&fPot);
+	assert(rc==1);
+	}
+
+    fioOpenNext(fio,"foo2.std");
+    nDark=fioGetN(fio,FIO_SPECIES_DARK);
+    printf("nDark=%lu\n",nDark);
+    for( i=0; i<nDark; i++) {
+	rc=fioReadDark(fio,&iOrder,dPos,dVel,&fMass,&fSoft,&fPot);
+	assert(rc==1);
+	}
+    }
+
 
 int main(int argc, char *argv[]) {
-    FIO fio;
-    uint64_t iOrder;
-    double pos[3], vel[3];
-    double dTime1, dTime2;
-    float mass,soft,pot;
-    TCTX ctx;
-    struct dark_particle *p;
-    int iType;
-    double dSoft;
-    int i, d;
-    uint64_t N, N2;
-    int iFail;
+    uint64_t nDark = 100000;
 
-    assert(argc==2);
-
-    fio = fioOpen(argv[1],0);
-    if ( fio == NULL ) {
-	perror(argv[1]);
-	exit(errno);
-	}
-    N = fioGetN(fio,FIO_SPECIES_ALL);
-    fioGetAttr(fio,"dTime",FIO_TYPE_DOUBLE,&dTime1);
-
-    TipsyInitialize(&ctx,0,argv[1]);
-    N2 = iTipsyNumParticles(ctx);
-    if ( N != N2 ) {
-	printf("Particle counts do not match: %lu != %lu\n", N, N2);
-	}
-    dTime2 = dTipsyTime(ctx);
-    if ( dTime1 != dTime2 ) {
-	printf("Simulation times do not match: %g != %g\n",
-	    dTime1, dTime2);
-	}
-
-    for(i=0;i<N;i++) {
-	fioReadDark(fio,&iOrder,pos,vel,&mass,&soft,&pot);
-	p = (struct dark_particle *)pTipsyRead(ctx,&iType,&dSoft);
-	iFail = 0;
-	for(d=0;d<3;d++) {
-	    if (p->pos[d]!=pos[d]) iFail++;
-	    if (p->vel[d]!=vel[d]) iFail++;
-	    }
-	if (iOrder!=i) iFail++;
-	if (mass!=p->mass) iFail++;
-	if (soft!=p->eps) iFail++;
-	if (pot!=p->phi) iFail++;
-	if ( iFail ) {
-	    printf("NO:\n");
-	    }
-	}
-
-    TipsyFinish(ctx);
-    fioClose(fio);
+#if 1
+    write1(nDark,1);
+    read1(nDark);
+    read2(nDark);
+    read3(nDark,FIO_SPECIES_ALL);
+    read3(nDark,FIO_SPECIES_DARK);
+    write2(nDark,1);
+    readP1(nDark);
+#endif
 
     return 0;
     }

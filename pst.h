@@ -68,7 +68,6 @@ enum pst_service {
     PST_SPLITIO,
     PST_SETADD,
     PST_READFILE,
-    PST_READTIPSY,
     PST_PEANOHILBERTCOUNT,
     PST_DOMAINDECOMP,
     PST_CALCBOUND,
@@ -222,48 +221,16 @@ struct inSetAdd {
     };
 void pstSetAdd(PST,void *,int,void *,int *);
 
-/* PST_READTIPSY */
-struct inReadTipsy {
-    uint64_t nFileStart;
-    uint64_t nFileEnd;
-    uint64_t nDark;
-    uint64_t nGas;
-    uint64_t nStar;
-    uint64_t mMemoryModel;
-    int nBucket;
-    int iCacheSize;
-    float fExtraStore;
-    float fExtraNodes;
-    FLOAT fPeriod[3];
-    int bStandard;
-    double dvFac;
-    int bDoublePos;
-    char achInFile[PST_FILENAME_SIZE];
-    char achOutName[PST_FILENAME_SIZE];
-    };
-void pstReadTipsy(PST,void *,int,void *,int *);
-#ifdef USE_HDF5
-void pstReadHDF5(PST,void *,int,void *,int *);
-#endif
-
-
 /* PST_READFILE */
 struct inFile {
     char achFilename[PST_FILENAME_SIZE];
-    uint64_t nDark;
-    uint64_t nGas;
-    uint64_t nStar;
+    uint64_t nSpecies[FIO_SPECIES_LAST];
     };
-
-#define PST_FILE_TYPE_TIPSY 0
-#define PST_FILE_TYPE_HDF5 1
 
 struct inReadFile {
     uint64_t nNodeStart; /* First particle to read (of total) */
     uint64_t nNodeEnd;   /* Last particle to read (of total) */
-    uint64_t nDark;      /* Total Dark */
-    uint64_t nGas;       /* Total Gas */
-    uint64_t nStar;      /* Total Star */
+    uint64_t nSpecies[FIO_SPECIES_LAST];
     uint64_t mMemoryModel;
     double fPeriod[3];
     double dvFac;

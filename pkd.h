@@ -16,6 +16,7 @@
 #include "ilc.h"
 #include "moments.h"
 #include "cosmo.h"
+#include "fio.h"
 #ifdef USE_HDF5
 #include "iohdf5.h"
 #endif
@@ -117,8 +118,9 @@ typedef struct pIO {
 #define MAX_RUNG     63
 
 typedef struct partclass {
-    double fMass;  /* Particle mass */
-    double fSoft;  /* Current softening */
+    double      fMass;    /* Particle mass */
+    double      fSoft;    /* Current softening */
+    FIO_SPECIES eSpecies; /* Species: dark, star, etc. */
     } PARTCLASS;
 
 typedef struct hermitefields {
@@ -738,6 +740,9 @@ static inline FLOAT pkdSoft( PKD pkd, PARTICLE *p ) {
     if ( fSoft > pkd->fSoftMax ) fSoft = pkd->fSoftMax;
     return fSoft;
     }
+static inline FIO_SPECIES pkdSpecies( PKD pkd, PARTICLE *p ) {
+    return pkd->pClass[p->iClass].eSpecies;
+    }
 static inline double *pkdVel( PKD pkd, PARTICLE *p ) {
     return pkdField(p,pkd->oVelocity);
     }
@@ -787,12 +792,11 @@ void pkdInitialize(PKD *ppkd,MDL mdl,int nStore,int nBucket,float fExtraNodes,in
 		   FLOAT *fPeriod,uint64_t nDark,uint64_t nGas,uint64_t nStar,
 		   uint64_t mMemoryModel);
 void pkdFinish(PKD);
-void pkdReadTipsy(PKD pkd,char *pszFileName, uint64_t nStart,int nLocal,
-		  int bStandard,double dvFac,int bDoublePos,int bNoHeader);
-#ifdef USE_HDF5
-void pkdReadHDF5(PKD pkd, IOHDF5 io, double dvFac,
-		 uint64_t nStart, int nLocal );
-#endif
+void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac);
+void pkdReadTipsy(PKD pkd,char *pszFileName, uint64_t iOrderStart,
+		  uint64_t nSph, uint64_t nDark, uint64_t nStar,
+		  uint64_t iFirst,int nLocal,
+		  int bStandard,double dvFac,int bDoublePos);
 #ifdef USE_MDL_IO
 void pkdIOInitialize( PKD pkd, int nLocal);
 #endif
