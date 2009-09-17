@@ -215,15 +215,24 @@ void pkdInitialize(PKD *ppkd,MDL mdl,int nStore,int nBucket,float fExtraNodes, i
     else
 	pkd->oRelaxation = 0;
 
-    if ( mMemoryModel & PKD_MODEL_SPH )
-	pkd->oSph = pkdParticleAddStruct(pkd,sizeof(SPHFIELDS));
-    else
-	pkd->oSph = 0;
-
-    if ( mMemoryModel & PKD_MODEL_STAR )
-	pkd->oStar = pkdParticleAddStruct(pkd,sizeof(STARFIELDS));
-    else
-	pkd->oStar = 0;
+    /*
+    ** A particle cannot be both a STAR and an SPH particle, so we allocate
+    ** the larger of the two and use the same offset.
+     */
+    if ( (mMemoryModel & PKD_MODEL_SPH) && (mMemoryModel & PKD_MODEL_STAR) ) {
+	pkd->oSph = pkd->oStar = pkdParticleAddStruct(
+	    pkd, sizeof(SPHFIELDS)>sizeof(STARFIELDS)?sizeof(SPHFIELDS):sizeof(STARFIELDS));
+	}
+    else {
+	if ( mMemoryModel & PKD_MODEL_SPH )
+	    pkd->oSph = pkdParticleAddStruct(pkd,sizeof(SPHFIELDS));
+	else
+	    pkd->oSph = 0;
+	if ( mMemoryModel & PKD_MODEL_STAR )
+	    pkd->oStar = pkdParticleAddStruct(pkd,sizeof(STARFIELDS));
+	else
+	    pkd->oStar = 0;
+	}
 
     if ( mMemoryModel & PKD_MODEL_HERMITE )
 	pkd->oHermite = pkdParticleAddStruct(pkd,sizeof(HERMITEFIELDS));
@@ -616,9 +625,11 @@ void pkdGenerateIC(PKD pkd, GRAFICCTX gctx,  int iDim,
 void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac) {
     int i,j;
     PARTICLE *p;
+    STARFIELDS *pStar;
+    SPHFIELDS *pSph;
     float *pPot, dummypot;
     double *v, dummyv[3];
-    float fMass, fSoft;
+    float fMass, fSoft, fMetals;
     FIO_SPECIES eSpecies;
     uint64_t iOrder;
 
@@ -646,10 +657,40 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac) {
 	else pPot = &dummypot;
 	if (pkd->oVelocity) v = pkdVel(pkd,p);
 	else v = dummyv;
+
+	/* Initialize SPH fields if present */
+	if (pkd->oSph) {
+	    pSph = pkdField(p,pkd->oSph);
+	    pSph->u = pSph->uPred = pSph->uDot = pSph->c = pSph->divv = pSph->BalsaraSwitch
+		= pSph->fMetals = pSph->diff = pSph->fMetalsPred = pSph->fMetalsDot = 0.0;
+	    }
+	else pSph = NULL;
+
+	/* Initialize Star fields if present */
+	if (pkd->oStar) {
+	    pStar = pkdField(p,pkd->oStar);
+	    pStar->fTimeForm = pStar->fESNrate = pStar->fMSN = pStar->fNSN = pStar->fMOxygenOut = pStar->fMIronOut
+		= pStar->fMFracOxygen = pStar->fMFracIron = pStar->fMFracOxygenPred = pStar->fMFracOxygenDot
+		= pStar->fMFracIronPred = pStar->fMFracIronDot = pStar->fSNMetals = pStar->fNSNtot
+		= pStar->fTimeCoolIsOffUntil = pStar->fMassForm = pStar->iGasOrder = 0.0;
+	    }
+	else pStar = NULL;
+
 	eSpecies = fioSpecies(fio);
 	switch(eSpecies) {
+	case FIO_SPECIES_SPH:
+	    assert(pSph);
+	    fioReadSph(fio,&iOrder,p->r,v,&fMass,&fSoft,pPot,
+		       &p->fDensity/*?*/,&pSph->u,&pSph->fMetals);
+	    pSph->u *= pkd->param.dTuFac;
+	    break;
 	case FIO_SPECIES_DARK:
 	    fioReadDark(fio,&iOrder,p->r,v,&fMass,&fSoft,pPot);
+	    break;
+	case FIO_SPECIES_STAR:
+	    assert(pStar);
+	    fioReadStar(fio,&iOrder,p->r,v,&fMass,&fSoft,pPot,
+			&fMetals/*?*/,&pStar->fTimeForm);
 	    break;
 	default:
 	    fprintf(stderr,"Unsupported particle type: %d\n",eSpecies);
