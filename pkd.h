@@ -145,6 +145,7 @@ typedef struct velsmooth {
     } VELSMOOTH;
 
 typedef struct sphfields {
+    double vPred[3];
     float u;	        /* thermal energy */ 
     float uPred;	/* predicted thermal energy */
     float uDot;
@@ -798,6 +799,15 @@ static inline float *pkdPot( PKD pkd, PARTICLE *p ) {
     return pkdField(p,pkd->oPotential);
     }
 /* Sph variables */
+static inline SPHFIELDS *pkdSph( PKD pkd, PARTICLE *p ) {
+    return ((SPHFIELDS *) pkdField(p,pkd->oSph));
+    }
+static inline STARFIELDS *pkdStar( PKD pkd, PARTICLE *p ) {
+    return ((STARFIELDS *) pkdField(p,pkd->oStar));
+    }
+static inline double *pkd_vPred( PKD pkd, PARTICLE *p ) {
+    return &(((SPHFIELDS *) pkdField(p,pkd->oSph))->vPred[0]);
+    }
 static inline float *pkd_u( PKD pkd, PARTICLE *p ) {
     return &(((SPHFIELDS *) pkdField(p,pkd->oSph))->u);
     }
@@ -918,7 +928,7 @@ pkdGravAll(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,int bP
 	   double *pdPartSum, double *pdCellSum,CASTAT *pcs, double *pdFlop);
 void pkdCalcE(PKD,double *,double *,double *);
 void pkdCalcEandL(PKD,double *,double *,double *,double []);
-void pkdDrift(PKD pkd,double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi);
+void pkdDrift(PKD pkd,double dTime,double dDelta,double,double,uint8_t uRungLo,uint8_t uRungHi);
 void pkdStepVeryActiveKDK(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dStep, double dTime, double dDelta,
 			  int iRung, int iKickRung, int iRungVeryActive,int iAdjust, double diCrit2,
 			  int *pnMaxRung, double aSunInact[], double adSunInact[], double dSunMass);
@@ -937,7 +947,7 @@ void pkdFirstDt(PKD pkd);
 #endif /* Hermite */
 void pkdKickKDKOpen(PKD pkd,double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi);
 void pkdKickKDKClose(PKD pkd,double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi);
-void pkdKick(PKD pkd,double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi);
+void pkdKick(PKD pkd,double dTime,double dDelta,double,double,double,uint8_t uRungLo,uint8_t uRungHi);
 void pkdSwapAll(PKD pkd, int idSwap);
 void pkdInitStep(PKD pkd,struct parameters *p,CSM csm);
 void pkdSetRung(PKD pkd,uint8_t uRungLo, uint8_t uRungHi, uint8_t uRung);

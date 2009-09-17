@@ -629,7 +629,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac) {
     SPHFIELDS *pSph;
     float *pPot, dummypot;
     double *v, dummyv[3];
-    float fMass, fSoft, fMetals;
+    float fMass, fSoft;
     FIO_SPECIES eSpecies;
     uint64_t iOrder;
 
@@ -688,9 +688,9 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac) {
 	    fioReadDark(fio,&iOrder,p->r,v,&fMass,&fSoft,pPot);
 	    break;
 	case FIO_SPECIES_STAR:
-	    assert(pStar);
+	    assert(pStar && pSph);
 	    fioReadStar(fio,&iOrder,p->r,v,&fMass,&fSoft,pPot,
-			&fMetals/*?*/,&pStar->fTimeForm);
+			&pSph->fMetals,&pStar->fTimeForm);
 	    break;
 	default:
 	    fprintf(stderr,"Unsupported particle type: %d\n",eSpecies);
@@ -1699,9 +1699,11 @@ void pkdCalcEandL(PKD pkd,double *T,double *U,double *Eth,double L[]) {
 ** Note that the drift funtion no longer wraps the particles around the periodic "unit" cell. This is
 ** now done by Domain Decomposition only.
 */
-void pkdDrift(PKD pkd,double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi) {
+void pkdDrift(PKD pkd,double dTime,double dDelta,double dDeltaVPred,double dDeltaUPred,uint8_t uRungLo,uint8_t uRungHi) {
     PARTICLE *p;
     double *v;
+    float *a;
+    SPHFIELDS *sph;
     int i,j,n;
     double dMin[3],dMax[3];
 
@@ -1716,19 +1718,45 @@ void pkdDrift(PKD pkd,double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi
 	dMax[j] = pkd->bnd.fCenter[j] + pkd->bnd.fMax[j];
 	}
     n = pkdLocal(pkd);
-    for (i=0;i<n;++i) {
-	p = pkdParticle(pkd,i);
-	if (pkdIsDstActive(p,uRungLo,uRungHi)) {
-	    v = pkdVel(pkd,p);
-	    /*
-	    ** Update particle positions
-	    */
-	    for (j=0;j<3;++j) {
-		p->r[j] += dDelta*v[j];
+    /*
+    ** Update particle positions
+    */
+    if (pkd->param.bDoGas && pkd->nGas) {
+	assert(pkd->oSph);
+	assert(pkd->oAcceleration);
+	for (i=0;i<n;++i) {
+	    p = pkdParticle(pkd,i);
+	    if (pkdIsDstActive(p,uRungLo,uRungHi)) {
+		v = pkdVel(pkd,p);
+		if (pkdIsGas(pkd,p)) {
+		    a = pkdAccel(pkd,p);
+		    sph = pkdSph(pkd,p);
+		    for (j=0;j<3;++j) { /* NB: Pred quantities must be done before std. */
+			sph->vPred[j] += a[j]*dDeltaVPred;
+			}
+		    sph->uPred += sph->uDot*dDeltaUPred;
+		    sph->fMetalsPred += sph->fMetalsDot*dDeltaUPred;
+		    }
+		for (j=0;j<3;++j) {
+		    p->r[j] += dDelta*v[j];
+		    }
+		pkdMinMax(p->r,dMin,dMax);
 		}
-	    pkdMinMax(p->r,dMin,dMax);
 	    }
 	}
+    else {
+	for (i=0;i<n;++i) {
+	    p = pkdParticle(pkd,i);
+	    if (pkdIsDstActive(p,uRungLo,uRungHi)) {
+		v = pkdVel(pkd,p);
+		for (j=0;j<3;++j) {
+		    p->r[j] += dDelta*v[j];
+		    }
+		pkdMinMax(p->r,dMin,dMax);
+		}
+	    }
+	}
+
     for (j=0;j<3;++j) {
 	pkd->bnd.fCenter[j] = 0.5*(dMin[j] + dMax[j]);
 	pkd->bnd.fMax[j] = 0.5*(dMax[j] - dMin[j]);
@@ -1834,7 +1862,7 @@ void pkdStepVeryActiveKDK(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dStep, 
 	/*
 	** This should drift *all* very actives!
 	*/
-	pkdDrift(pkd,dTime,dDriftFac,iRungVeryActive+1,MAX_RUNG);
+	pkdDrift(pkd,dTime,dDriftFac,0,0,iRungVeryActive+1,MAX_RUNG);
 	dTime += dDelta;
 	dStep += 1.0/(1 << iRung);
 
@@ -2235,21 +2263,22 @@ void pkdKickKDKOpen(PKD pkd,double dTime,double dDelta,uint8_t uRungLo,uint8_t u
     if (pkd->param.csm->bComove) {
 	dDelta = csmComoveKickFac(pkd->param.csm,dTime,dDelta);
     }
-    pkdKick(pkd,dTime,dDelta,uRungLo,uRungHi);
+    pkdKick(pkd,dTime,dDelta,0,0,0,uRungLo,uRungHi);
     }
 
 void pkdKickKDKClose(PKD pkd,double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi) {
     if (pkd->param.csm->bComove) {
 	dDelta = csmComoveKickFac(pkd->param.csm,dTime,dDelta);
     }
-    pkdKick(pkd,dTime,dDelta,uRungLo,uRungHi);
+    pkdKick(pkd,dTime,dDelta,0,0,0,uRungLo,uRungHi);
     }
 
 
-void pkdKick(PKD pkd,double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi) {
+void pkdKick(PKD pkd,double dTime,double dDelta,double dDeltaVPred,double dDeltaU,double dDeltaUPred,uint8_t uRungLo,uint8_t uRungHi) {
     PARTICLE *p;
     double *v;
     float *a;
+    SPHFIELDS *sph;
     int i,j,n;
 
     assert(pkd->oVelocity);
@@ -2258,17 +2287,44 @@ void pkdKick(PKD pkd,double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi)
     pkdClearTimer(pkd,1);
     pkdStartTimer(pkd,1);
 
-    n = pkdLocal(pkd);
-    for (i=0;i<n;++i) {
-	p = pkdParticle(pkd,i);
-	if (pkdIsDstActive(p,uRungLo,uRungHi)) {
-	    a = pkdAccel(pkd,p);
-	    v = pkdVel(pkd,p);
-	    for (j=0;j<3;++j) {
-		v[j] += a[j]*dDelta;
+    if (pkd->param.bDoGas && pkd->nGas) {
+	assert(pkd->oSph);
+	n = pkdLocal(pkd);
+	for (i=0;i<n;++i) {
+	    p = pkdParticle(pkd,i);
+	    if (pkdIsDstActive(p,uRungLo,uRungHi)) {
+		a = pkdAccel(pkd,p);
+		v = pkdVel(pkd,p);
+		if (pkdIsGas(pkd,p)) {
+		    sph = pkdSph(pkd,p);
+		    for (j=0;j<3;++j) { /* NB: Pred quantities must be done before std. */
+			sph->vPred[j] = v[j] + a[j]*dDeltaVPred;
+			}
+		    sph->uPred = sph->u + sph->uDot*dDeltaUPred;
+		    sph->u += sph->uDot*dDeltaU;
+		    sph->fMetalsPred = sph->fMetals + sph->fMetalsDot*dDeltaUPred;
+		    sph->fMetals += sph->fMetalsDot*dDeltaU;
+		    }
+		for (j=0;j<3;++j) {
+		    v[j] += a[j]*dDelta;
+		    }
 		}
 	    }
 	}
+    else {
+	n = pkdLocal(pkd);
+	for (i=0;i<n;++i) {
+	    p = pkdParticle(pkd,i);
+	    if (pkdIsDstActive(p,uRungLo,uRungHi)) {
+		a = pkdAccel(pkd,p);
+		v = pkdVel(pkd,p);
+		for (j=0;j<3;++j) {
+		    v[j] += a[j]*dDelta;
+		    }
+		}
+	    }
+	}
+
 
     pkdStopTimer(pkd,1);
     mdlDiag(pkd->mdl, "Done pkdkick\n");

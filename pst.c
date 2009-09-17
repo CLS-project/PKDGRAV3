@@ -2680,7 +2680,7 @@ void pstDrift(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
 	}
     else {
-	pkdDrift(plcl->pkd,in->dTime,in->dDelta,in->uRungLo,in->uRungHi);
+	pkdDrift(plcl->pkd,in->dTime,in->dDelta,in->dDeltaVPred,in->dDeltaUPred,in->uRungLo,in->uRungHi);
 	}
     if (pnOut) *pnOut = 0;
     }
@@ -2941,7 +2941,7 @@ void pstKick(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	if (outUp.MaxTime > out->MaxTime) out->MaxTime = outUp.MaxTime;
 	}
     else {
-	pkdKick(plcl->pkd,in->dTime,in->dDelta,in->uRungLo,in->uRungHi);
+	pkdKick(plcl->pkd,in->dTime,in->dDelta,in->dDeltaVPred,in->dDeltaU,in->dDeltaUPred,in->uRungLo,in->uRungHi);
 	out->Time = pkdGetTimer(plcl->pkd,1);
 	out->MaxTime = out->Time;
 	out->SumTime = out->Time;

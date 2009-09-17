@@ -27,6 +27,8 @@ typedef struct smfParameters {
     double alpha;
     double beta;
     double gamma;
+    double dDelta;
+    double dEtaCourant;
     int bViscosityLimiter;
     /* diffusion */
     double dMetalDiffusionCoeff;

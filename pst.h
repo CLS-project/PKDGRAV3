@@ -521,6 +521,8 @@ void pstCalcEandL(PST,void *,int,void *,int *);
 struct inDrift {
     double dTime;
     double dDelta;
+    double dDeltaVPred;
+    double dDeltaUPred;
     uint8_t uRungLo;
     uint8_t uRungHi;
     };
@@ -620,6 +622,9 @@ void pstFirstDt(PST,void *,int,void *,int *);
 struct inKick {
     double dTime;
     double dDelta;
+    double dDeltaVPred;
+    double dDeltaU;
+    double dDeltaUPred;
     uint8_t uRungLo;
     uint8_t uRungHi;
     };
