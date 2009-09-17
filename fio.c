@@ -82,6 +82,63 @@ const char *fioSpeciesName(FIO_SPECIES eSpecies) {
     return NULL;
     }
 
+#if 0
+/*
+** Given a list of one or more files, this function will expand any wildcards
+** present (if possible) and return a complete list of matching files.
+*/
+static int fileScan( int nMax, int nFiles, const char *szFilenames[]) {
+    int i, nScan, iIdx;
+
+    for( iIdx = 0; iIdx<nFiles; iIdx++ ) {
+
+#if defined(HAVE_WORDEXP) && defined(HAVE_WORDFREE)
+	wordexp_t files;
+
+	wordexp(szFilenames[iIdx], &files, 0);
+	if ( files.we_wordc <= 0 ) {
+	    return iIdx+1;
+	    }
+
+	assert(files.we_wordc<=nMax);
+	nScan = files.we_wordc;
+#elif defined(HAVE_GLOB) && defined(HAVE_GLOBFREE)
+	glob_t files;
+	if (glob(szFilenames[iIdx],GLOB_ERR|GLOB_NOSORT,NULL,&files) || files.gl_pathc==0) {
+	    return iIdx+1;
+	    }
+	assert(files.gl_pathc<=nMax);
+	nScan = files.gl_pathc;
+#else
+	nScan = 1;
+#endif
+
+
+	for( i=0; i<nScan; i++ ) {
+#if defined(HAVE_WORDEXP) && defined(HAVE_WORDFREE)
+	    assert( strlen(files.we_wordv[i]) < sizeof(file[i].achFilename) );
+	    strcpy( file[i].achFilename, files.we_wordv[i] );
+#elif defined(HAVE_GLOB) && defined(HAVE_GLOBFREE)
+	    assert( strlen(files.gl_pathv[i]) < sizeof(file[i].achFilename) );
+	    strcpy( file[i].achFilename, files.gl_pathv[i] );
+#else
+	    assert( strlen(achFilename) < sizeof(file[i].achFilename) );
+	    strcpy( file[i].achFilename, achFilename );
+#endif
+	    }
+
+	/* Finished: free memory used by wildcard routines */
+#if defined(HAVE_WORDEXP) && defined(HAVE_WORDFREE)
+	wordfree(&files);
+#elif defined(HAVE_GLOB) && defined(HAVE_GLOBFREE)
+	globfree(&files);
+#endif
+	}
+    }
+#endif
+
+
+
 
 /******************************************************************************\
 ** Stubs that are called when a feature is not supported.
@@ -110,23 +167,23 @@ static int fioNoReadStar(
     }
 
 static int  fioNoWriteDark(
-    struct fioInfo *fio,const uint64_t *piOrder,const double *pdPos,const double *pdVel,
-    const float *pfMass,const float *pfSoft,const float *pfPot) {
+    struct fioInfo *fio,uint64_t iOrder,const double *pdPos,const double *pdVel,
+    float fMass,float fSoft,float fPot) {
     fprintf(stderr,"Writing dark particles is not supported\n");
     abort();
     }
 
 static int fioNoWriteSph(
-    struct fioInfo *fio,const uint64_t *piOrder,const double *pdPos,const double *pdVel,
-    const float *pfMass,const float *pfSoft,const float *pfPot,
-    const float *pfRho,const float *pfTemp,const float *pfMetals) {
+    struct fioInfo *fio,uint64_t iOrder,const double *pdPos,const double *pdVel,
+    float fMass,float fSoft,float fPot,
+    float fRho,float fTemp,float fMetals) {
     fprintf(stderr,"Writing SPH particles is not supported\n");
     abort();
     }
 
 static int fioNoWriteStar(
-    struct fioInfo *fio,const uint64_t *piOrder,const double *pdPos,const double *pdVel,
-    const float *pfMass,const float *pfSoft,const float *pfPot,const float *pfMetals,const float *pfTform) {
+    struct fioInfo *fio,uint64_t iOrder,const double *pdPos,const double *pdVel,
+    float fMass,float fSoft,float fPot,float fMetals,float fTform) {
     fprintf(stderr,"Writing star particles is not supported\n");
     abort();
     }
@@ -192,6 +249,8 @@ typedef struct {
     off_t nHdrSize;     /* Size of header; 0 if second or subsequent file */
     uint64_t iStart;    /* Index of first particle in the file fragment */
     uint64_t iOrder;    /* Current particle index */
+    int bDoublePos;
+    int bDoubleVel;
     } fioTipsy;
 
 static int xdrHeader(XDR *pxdr,tipsyHdr *ph) {
@@ -239,40 +298,59 @@ static int tipsyReadNativeDark(FIO fio,
     uint64_t *piOrder,double *pdPos,double *pdVel,
     float *pfMass,float *pfSoft,float *pfPot) {
     fioTipsy *tio = (fioTipsy *)fio;
-    tipsyDark dark;
     int rc;
     int d;
+    float fTmp[3];
 
     assert(fio->eFormat == FIO_FORMAT_TIPSY && fio->eMode==FIO_MODE_READING);
-    rc = fread(&dark,sizeof(dark),1,tio->fp);
-    if (rc!=1) return 0;
     *piOrder = tio->iOrder++ + tio->iStart;
-    *pfMass = dark.mass;
-    for(d=0;d<3;d++) {
-	pdPos[d] = dark.pos[d];
-	pdVel[d] = dark.vel[d];
+    rc = fread(pfMass,sizeof(float),1,tio->fp); if (rc!=1) return 0;
+    if (tio->bDoublePos) {
+	rc = fread(pdPos,sizeof(double),3,tio->fp); if (rc!=3) return 0;
 	}
-    *pfSoft = dark.eps;
-    *pfPot = dark.phi;
+    else {
+	rc = fread(fTmp,sizeof(float),3,tio->fp); if (rc!=3) return 0;
+	for(d=0;d<3;d++) pdPos[d] = fTmp[d];
+	}
+    if (tio->bDoubleVel) {
+	rc = fread(pdVel,sizeof(double),3,tio->fp); if (rc!=3) return 0;
+	}
+    else {
+	rc = fread(fTmp,sizeof(float),3,tio->fp); if (rc!=3) return 0;
+	for(d=0;d<3;d++) pdVel[d] = fTmp[d];
+	}
+    rc = fread(pfSoft,sizeof(float),1,tio->fp); if (rc!=1) return 0;
+    rc = fread(pfPot,sizeof(float),1,tio->fp); if (rc!=1) return 0;
     return 1;
     }
 
-static int tipsyReadNativeDarkDbl(FIO fio,
-    uint64_t *piOrder,double *pdPos,double *pdVel,
-    float *pfMass,float *pfSoft,float *pfPot) {
+static int tipsyWriteNativeDark(FIO fio,
+    uint64_t iOrder,const double *pdPos,const double *pdVel,
+    float fMass,float fSoft,float fPot) {
     fioTipsy *tio = (fioTipsy *)fio;
     int rc;
     int d;
     int fTmp[3];
 
-    assert(fio->eFormat == FIO_FORMAT_TIPSY && fio->eMode==FIO_MODE_READING);
-    *piOrder = tio->iOrder++ + tio->iStart;
-    rc = fread(pfMass,sizeof(float),1,tio->fp); if (rc!=1) return 0;
-    rc = fread(pdPos,sizeof(double),3,tio->fp); if (rc!=3) return 0;
-    rc = fread(fTmp,sizeof(float),3,tio->fp); if (rc!=3) return 0;
-    for(d=0;d<3;d++) pdVel[d] = fTmp[d];
-    rc = fread(pfSoft,sizeof(float),1,tio->fp); if (rc!=1) return 0;
-    rc = fread(pfPot,sizeof(float),1,tio->fp); if (rc!=1) return 0;
+    assert(fio->eFormat == FIO_FORMAT_TIPSY && fio->eMode==FIO_MODE_WRITING);
+    assert(iOrder == tio->iOrder++ + tio->iStart);
+    rc = fwrite(&fMass,sizeof(float),1,tio->fp); if (rc!=1) return 0;
+    if (tio->bDoublePos) {
+	rc = fwrite(pdPos,sizeof(double),3,tio->fp); if (rc!=3) return 0;
+	}
+    else {
+	for(d=0;d<3;d++) fTmp[d] = pdPos[d];
+	rc = fwrite(fTmp,sizeof(float),3,tio->fp); if (rc!=3) return 0;
+	}
+    if (tio->bDoubleVel) {
+	rc = fwrite(pdVel,sizeof(double),3,tio->fp); if (rc!=3) return 0;
+	}
+    else {
+	for(d=0;d<3;d++) fTmp[d] = pdVel[d];
+	rc = fwrite(fTmp,sizeof(float),3,tio->fp); if (rc!=3) return 0;
+	}
+    rc = fwrite(&fSoft,sizeof(float),1,tio->fp); if (rc!=1) return 0;
+    rc = fwrite(&fPot,sizeof(float),1,tio->fp); if (rc!=1) return 0;
     return 1;
     }
 
@@ -287,156 +365,62 @@ static int tipsyReadStandardDark(FIO fio,
     *piOrder = tio->iOrder++ + tio->iStart;
     if (!xdr_float(&tio->xdr,pfMass)) return 0;
     for(d=0;d<3;d++) {
-	if (!xdr_float(&tio->xdr,&fTmp)) return 0;
-	pdPos[d] = fTmp;
+	if (tio->bDoublePos) {
+	    if (!xdr_double(&tio->xdr,pdPos+d)) return 0;
+	    }
+	else {
+	    if (!xdr_float(&tio->xdr,&fTmp)) return 0;
+	    pdPos[d] = fTmp;
+	    }
 	}
     for(d=0;d<3;d++) {
-	if (!xdr_float(&tio->xdr,&fTmp)) return 0;
-	pdVel[d] = fTmp;
+	if (tio->bDoubleVel) {
+	    if (!xdr_double(&tio->xdr,pdVel+d)) return 0;
+	    }
+	else {
+	    if (!xdr_float(&tio->xdr,&fTmp)) return 0;
+	    pdVel[d] = fTmp;
+	    }
 	}
     if (!xdr_float(&tio->xdr,pfSoft)) return 0;
     if (!xdr_float(&tio->xdr,pfPot)) return 0;
-    return 1;
-    }
-
-static int tipsyReadStandardDarkDbl(FIO fio,
-    uint64_t *piOrder,double *pdPos,double *pdVel,
-    float *pfMass,float *pfSoft,float *pfPot) {
-    fioTipsy *tio = (fioTipsy *)fio;
-    int d;
-    float fTmp;
-
-    assert(fio->eFormat == FIO_FORMAT_TIPSY && fio->eMode==FIO_MODE_READING);
-    *piOrder = tio->iOrder++ + tio->iStart;
-    if (!xdr_float(&tio->xdr,pfMass)) return 0;
-    for(d=0;d<3;d++) {
-	if (!xdr_double(&tio->xdr,pdPos+d)) return 0;
-	}
-    for(d=0;d<3;d++) {
-	if (!xdr_float(&tio->xdr,&fTmp)) return 0;
-	pdVel[d] = fTmp;
-	}
-    if (!xdr_float(&tio->xdr,pfSoft)) return 0;
-    if (!xdr_float(&tio->xdr,pfPot)) return 0;
-    return 1;
-    }
-
-static int tipsyWriteNativeDark(FIO fio,
-    const uint64_t *piOrder,const double *pdPos,const double *pdVel,
-    const float *pfMass,const float *pfSoft,const float *pfPot) {
-    fioTipsy *tio = (fioTipsy *)fio;
-    tipsyDark dark;
-    int rc;
-    int d;
-
-    assert(fio->eFormat == FIO_FORMAT_TIPSY && fio->eMode==FIO_MODE_WRITING);
-    assert(*piOrder == tio->iOrder++ + tio->iStart);
-    dark.mass = *pfMass;
-    for(d=0;d<3;d++) {
-	dark.pos[d] = pdPos[d];
-	dark.vel[d] = pdVel[d];
-	}
-    dark.eps = *pfSoft;
-    dark.phi = *pfPot;
-
-    rc = fwrite(&dark,sizeof(dark),1,tio->fp);
-    if (rc!=1) return 0;
-
-    return 1;
-    }
-
-static int tipsyWriteNativeDarkDbl(FIO fio,
-    const uint64_t *piOrder,const double *pdPos,const double *pdVel,
-    const float *pfMass,const float *pfSoft,const float *pfPot) {
-    fioTipsy *tio = (fioTipsy *)fio;
-    int rc;
-    int d;
-    int fTmp[3];
-
-    assert(fio->eFormat == FIO_FORMAT_TIPSY && fio->eMode==FIO_MODE_WRITING);
-    assert(*piOrder == tio->iOrder++ + tio->iStart);
-    rc = fwrite(pfMass,sizeof(float),1,tio->fp); if (rc!=1) return 0;
-    rc = fwrite(pdPos,sizeof(double),3,tio->fp); if (rc!=3) return 0;
-    for(d=0;d<3;d++) fTmp[d] = pdVel[d];
-    rc = fwrite(fTmp,sizeof(float),3,tio->fp); if (rc!=3) return 0;
-    rc = fwrite(pfSoft,sizeof(float),1,tio->fp); if (rc!=1) return 0;
-    rc = fwrite(pfPot,sizeof(float),1,tio->fp); if (rc!=1) return 0;
     return 1;
     }
 
 static int tipsyWriteStandardDark(FIO fio,
-    const uint64_t *piOrder,const double *pdPos,const double *pdVel,
-    const float *pfMass,const float *pfSoft,const float *pfPot) {
-    fioTipsy *tio = (fioTipsy *)fio;
-    int d;
-    float fTmp;
-
-    assert(fio->eFormat == FIO_FORMAT_TIPSY && fio->eMode==FIO_MODE_WRITING);
-    assert(*piOrder == tio->iOrder++ + tio->iStart);
-    fTmp = *pfMass; if (!xdr_float(&tio->xdr,&fTmp)) return 0;
-    for(d=0;d<3;d++) {
-	fTmp = pdPos[d];
-	if (!xdr_float(&tio->xdr,&fTmp)) return 0;
-	}
-    for(d=0;d<3;d++) {
-	fTmp = pdVel[d];
-	if (!xdr_float(&tio->xdr,&fTmp)) return 0;
-	}
-    fTmp = *pfSoft; if (!xdr_float(&tio->xdr,&fTmp)) return 0;
-    fTmp = *pfPot; if (!xdr_float(&tio->xdr,&fTmp)) return 0;
-    return 1;
-    }
-
-static int tipsyWriteStandardDarkDbl(FIO fio,
-    const uint64_t *piOrder,const double *pdPos,const double *pdVel,
-    const float *pfMass,const float *pfSoft,const float *pfPot) {
+    uint64_t iOrder,const double *pdPos,const double *pdVel,
+    float fMass,float fSoft,float fPot) {
     fioTipsy *tio = (fioTipsy *)fio;
     int d;
     float fTmp;
     double dTmp;
 
     assert(fio->eFormat == FIO_FORMAT_TIPSY && fio->eMode==FIO_MODE_WRITING);
-    assert(*piOrder == tio->iOrder++ + tio->iStart);
-    fTmp = *pfMass; if (!xdr_float(&tio->xdr,&fTmp)) return 0;
+    assert(iOrder == tio->iOrder++ + tio->iStart);
+    if (!xdr_float(&tio->xdr,&fMass)) return 0;
     for(d=0;d<3;d++) {
-	dTmp = pdPos[d]; if (!xdr_double(&tio->xdr,&dTmp)) return 0;
+	if (tio->bDoublePos) {
+	    dTmp = pdPos[d]; if (!xdr_double(&tio->xdr,&dTmp)) return 0;
+	    }
+	else {
+	    fTmp = pdPos[d]; if (!xdr_float(&tio->xdr,&fTmp)) return 0;
+	    }
 	}
     for(d=0;d<3;d++) {
-	fTmp = pdVel[d]; if (!xdr_float(&tio->xdr,&fTmp)) return 0;
+	if (tio->bDoubleVel) {
+	    dTmp = pdVel[d]; if (!xdr_double(&tio->xdr,&dTmp)) return 0;
+	    }
+	else {
+	    fTmp = pdVel[d]; if (!xdr_float(&tio->xdr,&fTmp)) return 0;
+	    }
 	}
-    fTmp = *pfSoft; if (!xdr_float(&tio->xdr,&fTmp)) return 0;
-    fTmp = *pfPot;  if (!xdr_float(&tio->xdr,&fTmp)) return 0;
+    if (!xdr_float(&tio->xdr,&fSoft)) return 0;
+    if (!xdr_float(&tio->xdr,&fPot)) return 0;
     return 1;
     }
 
 /* SPH PARTICLES */
 static int tipsyReadNativeSph(
-    FIO fio,uint64_t *piOrder,double *pdPos,double *pdVel,
-    float *pfMass,float *pfSoft, float *pfPot,
-    float *pfRho, float *pfTemp, float *pfMetals) {
-    fioTipsy *tio = (fioTipsy *)fio;
-    tipsySph sph;
-    int rc;
-    int d;
-
-    assert(fio->eFormat == FIO_FORMAT_TIPSY && fio->eMode==FIO_MODE_READING);
-    rc = fread(&sph,sizeof(sph),1,tio->fp);
-    if (rc!=1) return 0;
-    *piOrder = tio->iOrder++ + tio->iStart;
-    *pfMass = sph.mass;
-    for(d=0;d<3;d++) {
-	pdPos[d] = sph.pos[d];
-	pdVel[d] = sph.vel[d];
-	}
-    *pfRho = sph.rho;
-    *pfTemp = sph.temp;
-    *pfSoft = sph.hsmooth;
-    *pfMetals = sph.metals;
-    *pfPot = sph.phi;
-    return 1;
-    }
-
-static int tipsyReadNativeSphDbl(
     FIO fio,uint64_t *piOrder,double *pdPos,double *pdVel,
     float *pfMass,float *pfSoft, float *pfPot,
     float *pfRho,float *pfTemp, float *pfMetals) {
@@ -448,14 +432,61 @@ static int tipsyReadNativeSphDbl(
     assert(fio->eFormat == FIO_FORMAT_TIPSY && fio->eMode==FIO_MODE_READING);
     *piOrder = tio->iOrder++ + tio->iStart;
     rc = fread(pfMass,sizeof(float),1,tio->fp); if (rc!=1) return 0;
-    rc = fread(pdPos,sizeof(double),3,tio->fp); if (rc!=3) return 0;
-    rc = fread(fTmp,sizeof(float),3,tio->fp); if (rc!=3) return 0;
-    for(d=0;d<3;d++) pdVel[d] = fTmp[d];
+    if (tio->bDoublePos) {
+	rc = fread(pdPos,sizeof(double),3,tio->fp); if (rc!=3) return 0;
+	}
+    else {
+	rc = fread(fTmp,sizeof(float),3,tio->fp); if (rc!=3) return 0;
+	for(d=0;d<3;d++) pdPos[d] = fTmp[d];
+	}
+    if (tio->bDoubleVel) {
+	rc = fread(pdVel,sizeof(double),3,tio->fp); if (rc!=3) return 0;
+	}
+    else {
+	rc = fread(fTmp,sizeof(float),3,tio->fp); if (rc!=3) return 0;
+	for(d=0;d<3;d++) pdVel[d] = fTmp[d];
+	}
     rc = fread(pfRho,sizeof(float),1,tio->fp); if (rc!=1) return 0;
     rc = fread(pfTemp,sizeof(float),1,tio->fp); if (rc!=1) return 0;
     rc = fread(pfSoft,sizeof(float),1,tio->fp); if (rc!=1) return 0;
     rc = fread(pfMetals,sizeof(float),1,tio->fp); if (rc!=1) return 0;
     rc = fread(pfPot,sizeof(float),1,tio->fp); if (rc!=1) return 0;
+    return 1;
+    }
+
+
+static int tipsyWriteNativeSph(
+    struct fioInfo *fio,uint64_t iOrder,const double *pdPos,const double *pdVel,
+    float fMass,float fSoft,float fPot,
+    float fRho,float fTemp,float fMetals) {
+    fioTipsy *tio = (fioTipsy *)fio;
+    int rc;
+    int d;
+    int fTmp[3];
+
+    assert(fio->eFormat == FIO_FORMAT_TIPSY && fio->eMode==FIO_MODE_WRITING);
+    assert(iOrder == tio->iOrder++ + tio->iStart);
+
+    rc = fwrite(&fMass,sizeof(float),1,tio->fp); if (rc!=1) return 0;
+    if (tio->bDoublePos) {
+	rc = fwrite(pdPos,sizeof(double),3,tio->fp); if (rc!=3) return 0;
+	}
+    else {
+	for(d=0;d<3;d++) fTmp[d] = pdPos[d];
+	rc = fwrite(fTmp,sizeof(float),3,tio->fp); if (rc!=3) return 0;
+	}
+    if (tio->bDoubleVel) {
+	rc = fwrite(pdVel,sizeof(double),3,tio->fp); if (rc!=3) return 0;
+	}
+    else {
+	for(d=0;d<3;d++) fTmp[d] = pdVel[d];
+	rc = fwrite(fTmp,sizeof(float),3,tio->fp); if (rc!=3) return 0;
+	}
+    rc = fwrite(&fRho,sizeof(float),1,tio->fp); if (rc!=1) return 0;
+    rc = fwrite(&fTemp,sizeof(float),1,tio->fp); if (rc!=1) return 0;
+    rc = fwrite(&fSoft,sizeof(float),1,tio->fp); if (rc!=1) return 0;
+    rc = fwrite(&fMetals,sizeof(float),1,tio->fp); if (rc!=1) return 0;
+    rc = fwrite(&fPot,sizeof(float),1,tio->fp); if (rc!=1) return 0;
     return 1;
     }
 
@@ -471,12 +502,22 @@ static int tipsyReadStandardSph(
     *piOrder = tio->iOrder++ + tio->iStart;
     if (!xdr_float(&tio->xdr,pfMass)) return 0;
     for(d=0;d<3;d++) {
-	if (!xdr_float(&tio->xdr,&fTmp)) return 0;
-	pdPos[d] = fTmp;
+	if (tio->bDoublePos) {
+	    if (!xdr_double(&tio->xdr,pdPos+d)) return 0;
+	    }
+	else {
+	    if (!xdr_float(&tio->xdr,&fTmp)) return 0;
+	    pdPos[d] = fTmp;
+	    }
 	}
     for(d=0;d<3;d++) {
-	if (!xdr_float(&tio->xdr,&fTmp)) return 0;
-	pdVel[d] = fTmp;
+	if (tio->bDoubleVel) {
+	    if (!xdr_double(&tio->xdr,pdVel+d)) return 0;
+	    }
+	else {
+	    if (!xdr_float(&tio->xdr,&fTmp)) return 0;
+	    pdVel[d] = fTmp;
+	    }
 	}
     if (!xdr_float(&tio->xdr,pfRho)) return 0;
     if (!xdr_float(&tio->xdr,pfTemp)) return 0;
@@ -486,59 +527,49 @@ static int tipsyReadStandardSph(
     return 1;
     }
 
-static int tipsyReadStandardSphDbl(
-    FIO fio,uint64_t *piOrder,double *pdPos,double *pdVel,
-    float *pfMass,float *pfSoft, float *pfPot,
-    float *pfRho, float *pfTemp, float *pfMetals) {
+static int tipsyWriteStandardSph(
+    struct fioInfo *fio,uint64_t iOrder,const double *pdPos,const double *pdVel,
+    float fMass,float fSoft,float fPot,
+    float fRho,float fTemp,float fMetals) {
     fioTipsy *tio = (fioTipsy *)fio;
     int d;
     float fTmp;
+    double dTmp;
 
-    assert(fio->eFormat == FIO_FORMAT_TIPSY && fio->eMode==FIO_MODE_READING);
-    *piOrder = tio->iOrder++ + tio->iStart;
-    if (!xdr_float(&tio->xdr,pfMass)) return 0;
+    assert(fio->eFormat == FIO_FORMAT_TIPSY && fio->eMode==FIO_MODE_WRITING);
+    assert(iOrder == tio->iOrder++ + tio->iStart);
+
+    if (!xdr_float(&tio->xdr,&fMass)) return 0;
     for(d=0;d<3;d++) {
-	if (!xdr_double(&tio->xdr,pdPos+d)) return 0;
+	if (tio->bDoublePos) {
+	    dTmp = pdPos[d];
+	    if (!xdr_double(&tio->xdr,&dTmp)) return 0;
+	    }
+	else {
+	    fTmp = pdPos[d];
+	    if (!xdr_float(&tio->xdr,&fTmp)) return 0;
+	    }
 	}
     for(d=0;d<3;d++) {
-	if (!xdr_float(&tio->xdr,&fTmp)) return 0;
-	pdVel[d] = fTmp;
+	if (tio->bDoubleVel) {
+	    dTmp = pdVel[d];
+	    if (!xdr_double(&tio->xdr,&dTmp)) return 0;
+	    }
+	else {
+	    fTmp = pdVel[d];
+	    if (!xdr_float(&tio->xdr,&fTmp)) return 0;
+	    }
 	}
-    if (!xdr_float(&tio->xdr,pfRho)) return 0;
-    if (!xdr_float(&tio->xdr,pfTemp)) return 0;
-    if (!xdr_float(&tio->xdr,pfSoft)) return 0;
-    if (!xdr_float(&tio->xdr,pfMetals)) return 0;
-    if (!xdr_float(&tio->xdr,pfPot)) return 0;
+    if (!xdr_float(&tio->xdr,&fRho)) return 0;
+    if (!xdr_float(&tio->xdr,&fTemp)) return 0;
+    if (!xdr_float(&tio->xdr,&fSoft)) return 0;
+    if (!xdr_float(&tio->xdr,&fMetals)) return 0;
+    if (!xdr_float(&tio->xdr,&fPot)) return 0;
     return 1;
     }
 
 /* STAR PARTICLES */
 static int tipsyReadNativeStar(
-    FIO fio,uint64_t *piOrder,double *pdPos,double *pdVel,
-    float *pfMass,float *pfSoft,float *pfPot,
-    float *pfMetals, float *pfTform) {
-    fioTipsy *tio = (fioTipsy *)fio;
-    tipsyStar star;
-    int rc;
-    int d;
-
-    assert(fio->eFormat == FIO_FORMAT_TIPSY && fio->eMode==FIO_MODE_READING);
-    rc = fread(&star,sizeof(star),1,tio->fp);
-    if (rc!=1) return 0;
-    *piOrder = tio->iOrder++ + tio->iStart;
-    *pfMass = star.mass;
-    for(d=0;d<3;d++) {
-	pdPos[d] = star.pos[d];
-	pdVel[d] = star.vel[d];
-	}
-    *pfMetals = star.metals;
-    *pfTform = star.tform;
-    *pfSoft = star.eps;
-    *pfPot = star.phi;
-    return 1;
-    }
-
-static int tipsyReadNativeStarDbl(
     FIO fio,uint64_t *piOrder,double *pdPos,double *pdVel,
     float *pfMass,float *pfSoft,float *pfPot,
     float *pfMetals, float *pfTform) {
@@ -550,13 +581,56 @@ static int tipsyReadNativeStarDbl(
     assert(fio->eFormat == FIO_FORMAT_TIPSY && fio->eMode==FIO_MODE_READING);
     *piOrder = tio->iOrder++ + tio->iStart;
     rc = fread(pfMass,sizeof(float),1,tio->fp); if (rc!=1) return 0;
-    rc = fread(pdPos,sizeof(double),3,tio->fp); if (rc!=3) return 0;
-    rc = fread(fTmp,sizeof(float),3,tio->fp); if (rc!=3) return 0;
-    for(d=0;d<3;d++) pdVel[d] = fTmp[d];
+    if (tio->bDoublePos) {
+	rc = fread(pdPos,sizeof(double),3,tio->fp); if (rc!=3) return 0;
+	}
+    else {
+	rc = fread(fTmp,sizeof(float),3,tio->fp); if (rc!=3) return 0;
+	for(d=0;d<3;d++) pdPos[d] = fTmp[d];
+	}
+    if (tio->bDoubleVel) {
+	rc = fread(pdVel,sizeof(double),3,tio->fp); if (rc!=3) return 0;
+	}
+    else {
+	rc = fread(fTmp,sizeof(float),3,tio->fp); if (rc!=3) return 0;
+	for(d=0;d<3;d++) pdVel[d] = fTmp[d];
+	}
     rc = fread(pfMetals,sizeof(float),1,tio->fp); if (rc!=1) return 0;
     rc = fread(pfTform,sizeof(float),1,tio->fp); if (rc!=1) return 0;
     rc = fread(pfSoft,sizeof(float),1,tio->fp); if (rc!=1) return 0;
     rc = fread(pfPot,sizeof(float),1,tio->fp); if (rc!=1) return 0;
+    return 1;
+    }
+
+static int tipsyWriteNativeStar(
+    struct fioInfo *fio,uint64_t iOrder,const double *pdPos,const double *pdVel,
+    float fMass,float fSoft,float fPot,float fMetals,float fTform) {
+    fioTipsy *tio = (fioTipsy *)fio;
+    int rc;
+    int d;
+    int fTmp[3];
+
+    assert(fio->eFormat == FIO_FORMAT_TIPSY && fio->eMode==FIO_MODE_READING);
+    assert(iOrder == tio->iOrder++ + tio->iStart);
+    rc = fwrite(&fMass,sizeof(float),1,tio->fp); if (rc!=1) return 0;
+    if (tio->bDoublePos) {
+	rc = fwrite(pdPos,sizeof(double),3,tio->fp); if (rc!=3) return 0;
+	}
+    else {
+	for(d=0;d<3;d++) fTmp[d] = pdPos[d];
+	rc = fwrite(fTmp,sizeof(float),3,tio->fp); if (rc!=3) return 0;
+	}
+    if (tio->bDoubleVel) {
+	rc = fwrite(pdVel,sizeof(double),3,tio->fp); if (rc!=3) return 0;
+	}
+    else {
+	for(d=0;d<3;d++) fTmp[d] = pdVel[d];
+	rc = fwrite(fTmp,sizeof(float),3,tio->fp); if (rc!=3) return 0;
+	}
+    rc = fwrite(&fMetals,sizeof(float),1,tio->fp); if (rc!=1) return 0;
+    rc = fwrite(&fTform,sizeof(float),1,tio->fp); if (rc!=1) return 0;
+    rc = fwrite(&fSoft,sizeof(float),1,tio->fp); if (rc!=1) return 0;
+    rc = fwrite(&fPot,sizeof(float),1,tio->fp); if (rc!=1) return 0;
     return 1;
     }
 
@@ -572,12 +646,22 @@ static int tipsyReadStandardStar(
     *piOrder = tio->iOrder++ + tio->iStart;
     if (!xdr_float(&tio->xdr,pfMass)) return 0;
     for(d=0;d<3;d++) {
-	if (!xdr_float(&tio->xdr,&fTmp)) return 0;
-	pdPos[d] = fTmp;
+	if (tio->bDoublePos) {
+	    if (!xdr_double(&tio->xdr,pdPos+d)) return 0;
+	    }
+	else {
+	    if (!xdr_float(&tio->xdr,&fTmp)) return 0;
+	    pdPos[d] = fTmp;
+	    }
 	}
     for(d=0;d<3;d++) {
-	if (!xdr_float(&tio->xdr,&fTmp)) return 0;
-	pdVel[d] = fTmp;
+	if (tio->bDoubleVel) {
+	    if (!xdr_double(&tio->xdr,pdVel+d)) return 0;
+	    }
+	else {
+	    if (!xdr_float(&tio->xdr,&fTmp)) return 0;
+	    pdVel[d] = fTmp;
+	    }
 	}
     if (!xdr_float(&tio->xdr,pfMetals)) return 0;
     if (!xdr_float(&tio->xdr,pfTform)) return 0;
@@ -586,28 +670,41 @@ static int tipsyReadStandardStar(
     return 1;
     }
 
-static int tipsyReadStandardStarDbl(
-    FIO fio,uint64_t *piOrder,double *pdPos,double *pdVel,
-    float *pfMass,float *pfSoft,float *pfPot,
-    float *pfMetals, float *pfTform) {
+static int tipsyWriteStandardStar(
+    struct fioInfo *fio,uint64_t iOrder,const double *pdPos,const double *pdVel,
+    float fMass,float fSoft,float fPot,float fMetals,float fTform) {
     fioTipsy *tio = (fioTipsy *)fio;
     int d;
     float fTmp;
+    double dTmp;
 
     assert(fio->eFormat == FIO_FORMAT_TIPSY && fio->eMode==FIO_MODE_READING);
-    *piOrder = tio->iOrder++ + tio->iStart;
-    if (!xdr_float(&tio->xdr,pfMass)) return 0;
+    assert(iOrder == tio->iOrder++ + tio->iStart);
+    if (!xdr_float(&tio->xdr,&fMass)) return 0;
     for(d=0;d<3;d++) {
-	if (!xdr_double(&tio->xdr,pdPos+d)) return 0;
+	if (tio->bDoublePos) {
+	    dTmp = pdPos[d];
+	    if (!xdr_double(&tio->xdr,&dTmp)) return 0;
+	    }
+	else {
+	    fTmp = pdPos[d];
+	    if (!xdr_float(&tio->xdr,&fTmp)) return 0;
+	    }
 	}
     for(d=0;d<3;d++) {
-	if (!xdr_float(&tio->xdr,&fTmp)) return 0;
-	pdVel[d] = fTmp;
+	if (tio->bDoubleVel) {
+	    dTmp = pdVel[d];
+	    if (!xdr_double(&tio->xdr,&dTmp)) return 0;
+	    }
+	else {
+	    fTmp = pdVel[d];
+	    if (!xdr_float(&tio->xdr,&fTmp)) return 0;
+	    }
 	}
-    if (!xdr_float(&tio->xdr,pfMetals)) return 0;
-    if (!xdr_float(&tio->xdr,pfTform)) return 0;
-    if (!xdr_float(&tio->xdr,pfSoft)) return 0;
-    if (!xdr_float(&tio->xdr,pfPot)) return 0;
+    if (!xdr_float(&tio->xdr,&fMetals)) return 0;
+    if (!xdr_float(&tio->xdr,&fTform)) return 0;
+    if (!xdr_float(&tio->xdr,&fSoft)) return 0;
+    if (!xdr_float(&tio->xdr,&fPot)) return 0;
     return 1;
     }
 
@@ -629,15 +726,13 @@ static void tipsyCloseStandard(FIO fio) {
 int fioTipsyIsDouble(FIO fio) {
     fioTipsy *tio = (fioTipsy *)fio;
     assert(fio->eFormat == FIO_FORMAT_TIPSY && fio->eMode==FIO_MODE_READING);
-    return tio->fio.fcnReadDark==tipsyReadStandardDarkDbl
-	|| tio->fio.fcnReadDark==tipsyReadNativeDarkDbl;
+    return tio->bDoublePos;
     }
 
 int fioTipsyIsStandard(FIO fio) {
     fioTipsy *tio = (fioTipsy *)fio;
     assert(fio->eFormat == FIO_FORMAT_TIPSY && fio->eMode==FIO_MODE_READING);
-    return tio->fio.fcnReadDark==tipsyReadStandardDark
-	|| tio->fio.fcnReadDark==tipsyReadStandardDarkDbl;
+    return !tio->bDoublePos;
     }
 
 /*
@@ -861,27 +956,28 @@ static void tipsySetFunctions(fioTipsy *tio, int bDouble, int bStandard) {
     tio->fio.fcnSpecies = tipsySpecies;
     tio->fio.fcnOpenNext= tipsyOpenNext;
 
-    tio->fio.fcnWriteSph = fioNoWriteSph;
-    tio->fio.fcnWriteStar= fioNoWriteStar;
+    tio->bDoubleVel = 0;
+    tio->bDoublePos = bDouble || tio->bDoubleVel;
+
     if ( bStandard ) {
 	tio->fio.fcnClose    = tipsyCloseStandard;
-	tio->fio.fcnSeek     = bDouble?tipsySeekStandardDbl:tipsySeekStandard;
-	tio->fio.fcnReadDark = bDouble?tipsyReadStandardDarkDbl:tipsyReadStandardDark;
-	tio->fio.fcnReadSph  = bDouble?tipsyReadStandardSphDbl:tipsyReadStandardSph;
-	tio->fio.fcnReadStar = bDouble?tipsyReadStandardStarDbl:tipsyReadStandardStar;
-	tio->fio.fcnWriteDark= bDouble?tipsyWriteStandardDarkDbl:tipsyWriteStandardDark;
-	//tio->fio.fcnWriteSph = bDouble?tipsyWriteStandardSphDbl:tipsyWriteStandardSph;
-	//tio->fio.fcnWriteStar= bDouble?tipsyWriteStandardStarDbl:tipsyWriteStandardStar;
+	tio->fio.fcnSeek     = tipsySeekStandard;
+	tio->fio.fcnReadDark = tipsyReadStandardDark;
+	tio->fio.fcnReadSph  = tipsyReadStandardSph;
+	tio->fio.fcnReadStar = tipsyReadStandardStar;
+	tio->fio.fcnWriteDark= tipsyWriteStandardDark;
+	tio->fio.fcnWriteSph = tipsyWriteStandardSph;
+	tio->fio.fcnWriteStar= tipsyWriteStandardStar;
 	}
     else {
 	tio->fio.fcnClose    = tipsyCloseNative;
-	tio->fio.fcnSeek     = bDouble?tipsySeekNativeDbl:tipsySeekNative;
-	tio->fio.fcnReadDark = bDouble?tipsyReadNativeDarkDbl:tipsyReadNativeDark;
-	tio->fio.fcnReadSph  = bDouble?tipsyReadNativeSphDbl:tipsyReadNativeSph;
-	tio->fio.fcnReadStar = bDouble?tipsyReadNativeStarDbl:tipsyReadNativeStar;
-	tio->fio.fcnWriteDark= bDouble?tipsyWriteNativeDarkDbl:tipsyWriteNativeDark;
-	//tio->fio.fcnWriteSph = bDouble?tipsyWriteNativeSphDbl:tipsyWriteNativeSph;
-	//tio->fio.fcnWriteStar= bDouble?tipsyWriteNativeStarDbl:tipsyWriteNativeStar;
+	tio->fio.fcnSeek     = tipsySeekNative;
+	tio->fio.fcnReadDark = tipsyReadNativeDark;
+	tio->fio.fcnReadSph  = tipsyReadNativeSph;
+	tio->fio.fcnReadStar = tipsyReadNativeStar;
+	tio->fio.fcnWriteDark= tipsyWriteNativeDark;
+	tio->fio.fcnWriteSph = tipsyWriteNativeSph;
+	tio->fio.fcnWriteStar= tipsyWriteNativeStar;
 	}
     }
 

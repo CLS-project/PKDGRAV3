@@ -123,16 +123,16 @@ typedef struct fioInfo {
 	float *pfMetals, float *pfTform);
 
     int  (*fcnWriteDark) (struct fioInfo *fio,
-	const uint64_t *piOrder,const double *pdPos,const double *pdVel,
-	const float *pfMass,const float *pfSoft,const float *pfPot);
+	uint64_t iOrder,const double *pdPos,const double *pdVel,
+	float fMass,float fSoft,float fPot);
     int  (*fcnWriteSph) (
-	struct fioInfo *fio,const uint64_t *piOrder,const double *pdPos,const double *pdVel,
-	const float *pfMass,const float *pfSoft,const float *pfPot,
-	const float *pfRho,const float *pfTemp,const float *pfMetals);
+	struct fioInfo *fio,uint64_t iOrder,const double *pdPos,const double *pdVel,
+	float fMass,float fSoft,float fPot,
+	float fRho,float fTemp,float fMetals);
     int  (*fcnWriteStar) (struct fioInfo *fio,
-	const uint64_t *piOrder,const double *pdPos,const double *pdVel,
-	const float *pfMass,const float *pfSoft,const float *pfPot,
-	const float *pfMetals,const float *pfTform);
+	uint64_t iOrder,const double *pdPos,const double *pdVel,
+	float fMass,float fSoft,float fPot,
+	float fMetals,float fTform);
 
     int  (*fcnGetAttr)(struct fioInfo *fio,
 	const char *attr, FIO_TYPE dataType, void *data);
@@ -226,23 +226,23 @@ static inline int fioReadStar(
 ** Write a particle.  Must already be positioned at the appropriate particle.
 */
 static inline int fioWriteDark(
-    FIO fio,const uint64_t *piOrder,const double *pdPos,const double *pdVel,
-    const float *pfMass,const float *pfSoft,const float *pfPot) {
-    return (*fio->fcnWriteDark)(fio,piOrder,pdPos,pdVel,pfMass,pfSoft,pfPot);
+    FIO fio,uint64_t iOrder,const double *pdPos,const double *pdVel,
+    float fMass,float fSoft,float fPot) {
+    return (*fio->fcnWriteDark)(fio,iOrder,pdPos,pdVel,fMass,fSoft,fPot);
     }
 static inline int  fioWriteSph(
-    FIO fio,const uint64_t *piOrder,const double *pdPos,const double *pdVel,
-    const float *pfMass,const float *pfSoft,const float *pfPot,
-    const float *pfRho,const float *pfTemp,const float *pfMetals) {
-    return (*fio->fcnWriteSph)(fio,piOrder,pdPos,pdVel,pfMass,pfSoft,pfPot,
-			      pfRho,pfTemp,pfMetals);
+    FIO fio,uint64_t iOrder,const double *pdPos,const double *pdVel,
+    float fMass,float fSoft,float fPot,
+    float fRho,float fTemp,float fMetals) {
+    return (*fio->fcnWriteSph)(fio,iOrder,pdPos,pdVel,fMass,fSoft,fPot,
+			      fRho,fTemp,fMetals);
     }
 static inline int fioWriteStar(
-    FIO fio,const uint64_t *piOrder,const double *pdPos,const double *pdVel,
-    const float *pfMass,const float *pfSoft,const float *pfPot,
-    const float *pfMetals,const float *pfTform) {
-    return (*fio->fcnWriteStar)(fio,piOrder,pdPos,pdVel,pfMass,pfSoft,pfPot,
-			       pfMetals,pfTform);
+    FIO fio,uint64_t iOrder,const double *pdPos,const double *pdVel,
+    float fMass,float fSoft,float fPot,
+    float fMetals,float fTform) {
+    return (*fio->fcnWriteStar)(fio,iOrder,pdPos,pdVel,fMass,fSoft,fPot,
+			       fMetals,fTform);
     }
 /*
 ** Returns the value of a given attribute.  Only "dTime" is available for

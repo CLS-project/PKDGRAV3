@@ -1528,6 +1528,8 @@ uint32_t pkdWriteTipsy(PKD pkd,char *pszFileName,uint64_t iFirst,
 		       int bStandard,double dvFac,int bDoublePos) {
     FIO fio;
     PARTICLE *p;
+    STARFIELDS *pStar;
+    SPHFIELDS *pSph;
     float *pPot, dummypot;
     double *v, dummyv[3];
     float fMass, fSoft;
@@ -1549,15 +1551,32 @@ uint32_t pkdWriteTipsy(PKD pkd,char *pszFileName,uint64_t iFirst,
 	else pPot = &dummypot;
 	if (pkd->oVelocity) v = pkdVel(pkd,p);
 	else v = dummyv;
+	/* Initialize SPH fields if present */
+	if (pkd->oSph) pSph = pkdField(p,pkd->oSph);
+	else pSph = NULL;
+	if (pkd->oStar) pStar = pkdField(p,pkd->oStar);
+	else pStar = NULL;
 	fMass = pkdMass(pkd,p);
 	fSoft = pkdSoft0(pkd,p);
 	iOrder = p->iOrder;
 	nCount++;
 	switch(pkdSpecies(pkd,p)) {
+	case FIO_SPECIES_SPH:
+	    assert(pSph);
+	    assert(pkd->param.dTuFac>0.0);
+	    fioWriteSph(fio,iOrder,p->r,v,fMass,fSoft,*pPot,
+		       p->fDensity,pSph->u/pkd->param.dTuFac,pSph->fMetals);
+	    break;
 	case FIO_SPECIES_DARK:
-	    fioWriteDark(fio,&iOrder,p->r,v,&fMass,&fSoft,pPot);
+	    fioWriteDark(fio,iOrder,p->r,v,fMass,fSoft,*pPot);
+	    break;
+	case FIO_SPECIES_STAR:
+	    assert(pStar && pSph);
+	    fioWriteStar(fio,iOrder,p->r,v,fMass,fSoft,*pPot,
+		       pSph->fMetals,pStar->fTimeForm);
 	    break;
 	default:
+	    fprintf(stderr,"Unsupported particle type: %d\n",pkdSpecies(pkd,p));
 	    assert(0);
 	    }
 
