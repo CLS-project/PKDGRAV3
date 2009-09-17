@@ -215,24 +215,15 @@ void pkdInitialize(PKD *ppkd,MDL mdl,int nStore,int nBucket,float fExtraNodes, i
     else
 	pkd->oRelaxation = 0;
 
-    /*
-    ** A particle cannot be both a STAR and an SPH particle, so we allocate
-    ** the larger of the two and use the same offset.
-     */
-    if ( (mMemoryModel & PKD_MODEL_SPH) && (mMemoryModel & PKD_MODEL_STAR) ) {
-	pkd->oSph = pkd->oStar = pkdParticleAddStruct(
-	    pkd, sizeof(SPHFIELDS)>sizeof(STARFIELDS)?sizeof(SPHFIELDS):sizeof(STARFIELDS));
-	}
-    else {
-	if ( mMemoryModel & PKD_MODEL_SPH )
-	    pkd->oSph = pkdParticleAddStruct(pkd,sizeof(SPHFIELDS));
-	else
-	    pkd->oSph = 0;
-	if ( mMemoryModel & PKD_MODEL_STAR )
-	    pkd->oStar = pkdParticleAddStruct(pkd,sizeof(STARFIELDS));
-	else
-	    pkd->oStar = 0;
-	}
+    if ( mMemoryModel & PKD_MODEL_SPH )
+	pkd->oSph = pkdParticleAddStruct(pkd,sizeof(SPHFIELDS));
+    else
+	pkd->oSph = 0;
+
+    if ( mMemoryModel & PKD_MODEL_STAR )
+	pkd->oStar = pkdParticleAddStruct(pkd,sizeof(STARFIELDS));
+    else
+	pkd->oStar = 0;
 
     if ( mMemoryModel & PKD_MODEL_HERMITE )
 	pkd->oHermite = pkdParticleAddStruct(pkd,sizeof(HERMITEFIELDS));
