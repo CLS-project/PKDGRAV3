@@ -92,6 +92,8 @@ typedef uint_fast64_t total_t; /* Count of particles globally (total number) */
 #define PKD_MODEL_MASS         (1<<6)  /* Mass for each particle */
 #define PKD_MODEL_SOFTENING    (1<<7)  /* Softening for each particle */
 #define PKD_MODEL_VELSMOOTH    (1<<8)  /* Velocity Smoothing */
+#define PKD_MODEL_SPH          (1<<9)  /* Sph Fields */
+#define PKD_MODEL_STAR         (1<<10) /* Star Fields */
 
 /*
 ** This constant is used to limit the size of a cell.
@@ -141,6 +143,47 @@ typedef struct velsmooth {
     float divv;
     float veldisp2;
     } VELSMOOTH;
+
+typedef struct sphfields {
+    float u;	        /* thermal energy */ 
+    float uPred;	/* predicted thermal energy */
+    float uDot;
+    float c;		/* sound speed */
+    float divv;		
+    float BalsaraSwitch;    /* Balsara viscosity reduction */
+    float fMetals;	    /* mass fraction in metals, a.k.a, Z - tipsy output variable */
+
+    /* diffusion */
+    float diff; 
+    float fMetalsPred;
+    float fMetalsDot;
+
+    } SPHFIELDS;
+
+typedef struct starfields {
+    float fTimeForm;
+    
+    float fESNrate;
+    float fMSN;
+    float fNSN;           
+    float fMOxygenOut;
+    float fMIronOut;
+    float fMFracOxygen;
+    float fMFracIron;
+
+    /* diffusion */
+    float fMFracOxygenPred;
+    float fMFracOxygenDot;
+    float fMFracIronPred;
+    float fMFracIronDot;
+    
+    float fSNMetals;
+    float fNSNtot;
+    float fTimeCoolIsOffUntil;
+    float fMassForm;	        /* record original mass of star */
+    int iGasOrder;		/* gas from which star formed */
+    } STARFIELDS;   
+    
 
 typedef struct particle {
     /*-----Base-Particle-Data----*/
@@ -569,6 +612,8 @@ typedef struct pkdContext {
     int oGroup; /* One int32 */
     int oMass; /* One float */
     int oSoft; /* One float */
+    int oSph; /* Sph structure */
+    int oStar; /* Star structure */
     int oHermite; /* Hermite structure */
     int oRelaxation;
     int oVelSmooth;
@@ -752,7 +797,34 @@ static inline float *pkdAccel( PKD pkd, PARTICLE *p ) {
 static inline float *pkdPot( PKD pkd, PARTICLE *p ) {
     return pkdField(p,pkd->oPotential);
     }
-
+/* Sph variables */
+static inline float *pkd_u( PKD pkd, PARTICLE *p ) {
+    return &(((SPHFIELDS *) pkdField(p,pkd->oSph))->u);
+    }
+static inline float *pkd_uPred( PKD pkd, PARTICLE *p ) {
+    return &(((SPHFIELDS *) pkdField(p,pkd->oSph))->uPred);
+    }
+static inline float *pkd_uDot( PKD pkd, PARTICLE *p ) {
+    return &(((SPHFIELDS *) pkdField(p,pkd->oSph))->uDot);
+    }
+static inline float *pkd_c( PKD pkd, PARTICLE *p ) {
+    return &(((SPHFIELDS *) pkdField(p,pkd->oSph))->c);
+    }
+static inline float *pkd_divv( PKD pkd, PARTICLE *p ) {
+    return &(((SPHFIELDS *) pkdField(p,pkd->oSph))->divv);
+    }
+static inline float *pkd_fMetals( PKD pkd, PARTICLE *p ) {
+    return &(((SPHFIELDS *) pkdField(p,pkd->oSph))->fMetals);
+    }
+static inline float *pkd_diff( PKD pkd, PARTICLE *p ) {
+    return &(((SPHFIELDS *) pkdField(p,pkd->oSph))->diff);
+    }
+static inline float *pkd_fMetalsDot( PKD pkd, PARTICLE *p ) {
+    return &(((SPHFIELDS *) pkdField(p,pkd->oSph))->fMetalsDot);
+    }
+static inline float *pkd_fMetalsPred( PKD pkd, PARTICLE *p ) {
+    return &(((SPHFIELDS *) pkdField(p,pkd->oSph))->fMetalsPred);
+    }
 
 typedef struct CacheStatistics {
     double dpNumAccess;

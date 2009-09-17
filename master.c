@@ -589,6 +589,131 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.bMemVelSmooth = 0;
     prmAddParam(msr->prm,"bMemVelSmooth",1,&msr->param.bMemVelSmooth,
 		sizeof(int),"Mvs","<Particles support velocity smoothing> = 0");
+/* Gas Parameters */
+    msr->param.bDoGas = 0;
+    prmAddParam(msr->prm,"bDoGas",0,&msr->param.bDoGas,sizeof(int),"gas",
+		"calculate gas/don't calculate gas = +gas");
+    msr->param.bGasAdiabatic = 1;
+    prmAddParam(msr->prm,"bGasAdiabatic",0,&msr->param.bGasAdiabatic,
+		sizeof(int),"GasAdiabatic",
+		"<Gas is Adiabatic> = +GasAdiabatic");
+    msr->param.bGasIsothermal = 0;
+    prmAddParam(msr->prm,"bGasIsothermal",0,&msr->param.bGasIsothermal,
+		sizeof(int),"GasIsothermal",
+		"<Gas is Isothermal> = +GasIsothermal");
+    msr->param.bGasCooling = 0;
+    prmAddParam(msr->prm,"bGasCooling",0,&msr->param.bGasCooling,
+		sizeof(int),"GasCooling",
+		"<Gas is Cooling> = +GasCooling");
+    msr->param.dEtaCourant = 0.4;
+    prmAddParam(msr->prm,"dEtaCourant",2,&msr->param.dEtaCourant,sizeof(double),"etaC",
+				"<Courant criterion> = 0.4");
+    msr->param.dEtauDot = 0.25;
+    prmAddParam(msr->prm,"dEtauDot",2,&msr->param.dEtauDot,sizeof(double),"etau",
+		"<uDot criterion> = 0.25");
+    msr->param.dConstAlpha = 1.0; 
+    prmAddParam(msr->prm,"dConstAlpha",2,&msr->param.dConstAlpha,
+		sizeof(double),"alpha",
+		"<Alpha constant in viscosity> = 1.0 or 0.5 (bBulkViscosity)");
+    msr->param.dConstBeta = 2.0; 
+    prmAddParam(msr->prm,"dConstBeta",2,&msr->param.dConstBeta,
+		sizeof(double),"beta",
+		"<Beta constant in viscosity> = 2.0 or 0.5 (bBulkViscosity)");
+    msr->param.dConstGamma = 5.0/3.0;
+    prmAddParam(msr->prm,"dConstGamma",2,&msr->param.dConstGamma,
+		sizeof(double),"gamma",
+		"<Ratio of specific heats> = 5/3");
+    msr->param.dMeanMolWeight = 1.0;
+    prmAddParam(msr->prm,"dMeanMolWeight",2,&msr->param.dMeanMolWeight,
+		sizeof(double),"mmw",
+		"<Mean molecular weight in amu> = 1.0");
+    msr->param.dGasConst = 1.0;
+    prmAddParam(msr->prm,"dGasConst",2,&msr->param.dGasConst,
+		sizeof(double),"gcnst",
+		"<Gas Constant>");
+    msr->param.dKBoltzUnit = 1.0;
+    prmAddParam(msr->prm,"dKBoltzUnit",2,&msr->param.dKBoltzUnit,
+		sizeof(double),"kb",
+		"<Boltzmann Constant in System Units>");
+    msr->param.dMetalDiffusionCoeff = 0;
+    prmAddParam(msr->prm,"dMetalDiffusionCoeff",2,&msr->param.dMetalDiffusionCoeff,
+		sizeof(double),"metaldiff",
+		"<Coefficient in Metal Diffusion> = 0.0");
+    msr->param.dThermalDiffusionCoeff = 0;
+    prmAddParam(msr->prm,"dThermalDiffusionCoeff",2,&msr->param.dThermalDiffusionCoeff,
+		sizeof(double),"thermaldiff",
+		"<Coefficient in Thermal Diffusion> = 0.0");
+    msr->param.dMsolUnit = 1.0;
+    prmAddParam(msr->prm,"dMsolUnit",2,&msr->param.dMsolUnit,
+		sizeof(double),"msu",
+		"<Solar mass/system mass unit>");
+    msr->param.dKpcUnit = 1000.0;
+    prmAddParam(msr->prm,"dKpcUnit",2,&msr->param.dKpcUnit,
+		sizeof(double),"kpcu",
+		"<Kiloparsec/system length unit>");
+    msr->param.ddHonHLimit = 0.1;
+    prmAddParam(msr->prm,"ddHonHLimit",2,&msr->param.ddHonHLimit,
+		sizeof(double),"dhonh",
+		"<|dH|/H Limiter> = 0.1");
+    msr->param.bViscosityLimiter = 1;
+    prmAddParam(msr->prm,"bViscosityLimiter",1,&msr->param.bViscosityLimiter,sizeof(int),
+		"vlim","<bViscosity Limiter> = 1");
+    msr->param.bStarForm = 0;
+    prmAddParam(msr->prm,"bStarForm",0,&msr->param.bStarForm,sizeof(int),
+		"stfm","<Star Forming> = 0");
+    msr->param.bFeedBack = 0;
+    prmAddParam(msr->prm,"bFeedBack",0,&msr->param.bFeedBack,sizeof(int),
+		"fdbk","<Stars provide feedback> = 0");
+
+    /* END Gas/Star Parameters */
+    /* Gas parameter checks */
+
+    /* bolzman constant in cgs */
+#define KBOLTZ	1.38e-16
+    /* mass of hydrogen atom in grams */
+#define MHYDR 1.67e-24
+    /* solar mass in grams */
+#define MSOLG 1.99e33
+    /* G in cgs */
+#define GCGS 6.67e-8
+    /* kiloparsec in centimeters */
+#define KPCCM 3.085678e21
+    /* Thompson cross-section (cm^2) */
+#define SIGMAT 6.6524e-25
+    /* Speed of Light cm/s */
+#define LIGHTSPEED 2.9979e10
+    /*
+    ** Convert kboltz/mhydrogen to system units, assuming that
+    ** G == 1.
+    */
+    if(prmSpecified(msr->prm, "dMsolUnit") &&
+       prmSpecified(msr->prm, "dKpcUnit")) {
+	msr->param.dGasConst = msr->param.dKpcUnit*KPCCM*KBOLTZ
+	    /MHYDR/GCGS/msr->param.dMsolUnit/MSOLG;
+	/* code energy per unit mass --> erg per g */
+	msr->param.dErgPerGmUnit = GCGS*msr->param.dMsolUnit*MSOLG/(msr->param.dKpcUnit*KPCCM);
+	/* code density --> g per cc */
+	msr->param.dGmPerCcUnit = (msr->param.dMsolUnit*MSOLG)/pow(msr->param.dKpcUnit*KPCCM,3.0);
+	/* code time --> seconds */
+	msr->param.dSecUnit = sqrt(1/(msr->param.dGmPerCcUnit*GCGS));
+	/* code comoving density --> g per cc = msr->param.dGmPerCcUnit (1+z)^3 */
+	msr->param.dComovingGmPerCcUnit = msr->param.dGmPerCcUnit;
+	}
+    else {
+	msr->param.dSecUnit = 1;
+	msr->param.dComovingGmPerCcUnit = 1;
+	msr->param.dGmPerCcUnit = 1;
+	msr->param.dErgPerGmUnit = 1;
+	}
+
+    msr->param.dTuFac = msr->param.dGasConst/(msr->param.dConstGamma - 1)/
+		msr->param.dMeanMolWeight;
+
+    /* Star parameter checks */
+    if (msr->param.bStarForm) msr->param.bMemMass = 1;
+
+
+    /* END Gas Parameter Checks */
 
     /*
     ** Set the box center to (0,0,0) for now!
@@ -3570,6 +3695,87 @@ int msrDoGravity(MSR msr) {
     return(msr->param.bDoGravity);
     }
 
+/* Gas routines */
+
+int msrDoGas(MSR msr) {
+    return(msr->param.bDoGas);
+    }
+
+void msrInitSph(MSR msr,double dTime)
+    {
+    /* Init gas, internal energy, cooling, time step, forces, ... */
+
+    }
+
+void msrInitCooling(MSR msr)
+    {
+    }
+
+void msrSph(MSR msr, double dTime) 
+    {
+#if (0)
+    msrActiveTypeRung(msr,TYPE_GAS,TYPE_ACTIVE,iKickRung,1);
+    msrActiveType(msr,TYPE_GAS,TYPE_TREEACTIVE|TYPE_SMOOTHACTIVE);
+    if (msr->param.bVDetails)
+	printf("SPH: nActive %d nTreeActive %d nSmoothActive %d\n",msr->nActive,
+	       msr->nTreeActive,msr->nSmoothActive);
+
+    msrBuildTree(msr,1,-1.0,1);
+    msrActiveTypeRung(msr,TYPE_GAS,TYPE_ACTIVE,iKickRung,1);
+
+    if (msr->param.bFastGas && msr->nActive < msr->nGas*msr->param.dFracFastGas) {
+	msrResetType(msr,TYPE_GAS,TYPE_SMOOTHDONE|TYPE_NbrOfACTIVE|TYPE_Scatter|TYPE_DensZeroed );
+	msrActiveType(msr,TYPE_ACTIVE,TYPE_SMOOTHACTIVE|TYPE_DensACTIVE );
+	if (msr->param.bVDetails)
+	    printf("Dens Active Particles: %d\n",msr->nSmoothActive );
+	
+	/* Density for Actives and mark Gather neighbours */
+	msrSmooth(msr,dTime,SMX_DENDVDX,1); 
+	/* mark Scatter Neighbours */
+	msrMarkSmooth(msr,dTime,1,TYPE_Scatter); 
+	/* They need density too... */
+	msrActiveType(msr,TYPE_ACTIVE|TYPE_NbrOfACTIVE|TYPE_Scatter, TYPE_DensACTIVE );
+	/* ...but don't redo Actives in smooth*/
+	msrActiveExactType(msr,TYPE_DensACTIVE|TYPE_ACTIVE, 
+			   TYPE_DensACTIVE,TYPE_SMOOTHACTIVE);
+	/* Density for Neighbours and mark scatter neighbours of actives */
+	msrSmooth(msr,dTime,SMX_DENDVDX,0);
+
+	/* We want direct neighbours of Actives only for resmooth */
+	msrActiveType(msr,TYPE_NbrOfACTIVE,TYPE_SMOOTHACTIVE);
+	if (msr->param.bVDetails)
+	    printf("SPH: Density Zeroed: %d ",
+		   msrCountType(msr,TYPE_DensZeroed,TYPE_DensZeroed));
+	
+	if (msr->param.bVDetails)
+	    printf("SPH: Neighbours: %d ",
+		   msrCountType(msr,TYPE_ACTIVE|TYPE_NbrOfACTIVE,TYPE_NbrOfACTIVE));
+	}
+    else {
+	msrResetType(msr,TYPE_GAS,TYPE_SMOOTHDONE|TYPE_NbrOfACTIVE );
+	msrActiveType(msr,TYPE_ACTIVE,TYPE_SMOOTHACTIVE|TYPE_DensACTIVE );
+	if (msr->param.bVDetails)
+	    printf("SPH: Dens Active Particles: %d\n",msr->nSmoothActive );
+	msrActiveType(msr,TYPE_GAS,TYPE_SMOOTHACTIVE );
+	msrSmooth(msr,dTime,SMX_DENDVDX,1);
+	if (msr->param.bVDetails)
+	    printf("SPH: Neighbours: %d ",
+		   msrCountType(msr,TYPE_NbrOfACTIVE,TYPE_NbrOfACTIVE ) );
+	msrActiveType(msr,TYPE_NbrOfACTIVE,TYPE_SMOOTHACTIVE);
+	}
+    
+    if (msr->param.bVDetails)
+	printf("SPH: Smooth Active Particles: %d\n",msr->nSmoothActive);
+    
+    msrGetGasPressure(msr);
+
+    msrBallMax(msr,iKickRung,1);
+
+#endif /* 0 */
+    }
+
+/* END Gas routines */
+
 void msrFof(MSR msr, double exp) {
     struct inFof in;
     in.nSmooth = msr->param.nSmooth;
@@ -4630,6 +4836,8 @@ double msrRead(MSR msr, const char *achInFile) {
     if (msr->param.bFindGroups) mMemoryModel |= PKD_MODEL_GROUPS|PKD_MODEL_VELOCITY|PKD_MODEL_POTENTIAL;
     if (msrDoGravity(msr)) mMemoryModel |= PKD_MODEL_VELOCITY|PKD_MODEL_ACCELERATION|PKD_MODEL_POTENTIAL;
     if (msr->param.bHermite) mMemoryModel |= PKD_MODEL_HERMITE;
+    if (msr->param.bDoGas) mMemoryModel |= PKD_MODEL_SPH;		
+    if (msr->param.bStarForm) mMemoryModel |= PKD_MODEL_STAR;
     if (msr->param.bTraceRelaxation) mMemoryModel |= PKD_MODEL_RELAXATION;
     if (msr->param.bMemAcceleration) mMemoryModel |= PKD_MODEL_ACCELERATION;
     if (msr->param.bMemVelocity)     mMemoryModel |= PKD_MODEL_VELOCITY;
@@ -4653,6 +4861,9 @@ double msrRead(MSR msr, const char *achInFile) {
     file = (struct inFile *)(read+1);
 
     dTime = getTime(msr,dExpansion,&read->dvFac);
+    
+    if (msr->nGas)  mMemoryModel |= PKD_MODEL_SPH;		
+    if (msr->nStar) mMemoryModel |= PKD_MODEL_STAR;
 
     read->nNodeStart = 0;
     read->nNodeEnd = msr->N - 1;

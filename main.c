@@ -232,6 +232,10 @@ int main(int argc,char **argv) {
 			       E,T,U,Eth,L[0],L[1],L[2],iSec,dMultiEff);
 		}
 	    }
+	if (msr->param.bDoGas) {
+	    /* Initialize SPH, Cooling and SF/FB and gas time step */
+	    msrInitSph(msr, dTime);
+	    }
 #ifdef PLANETS
 	if (msr->param.bHeliocentric) {
 	    msrGravSun(msr);

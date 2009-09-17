@@ -200,6 +200,10 @@ void msrOutGroups(MSR msr,const char *,int,double dTime);
 void msrDeleteGroups(MSR msr);
 void msrInitRelaxation(MSR msr);
 void msrRelaxation(MSR msr,double dTime,double deltaT,int iSmoothType,int bSymmetric);
+/* Gas routines */
+void msrInitSph(MSR,double);
+void msrSph(MSR msr, double);
+/* END Gas routines */
 
 #ifdef PLANETS
 double msrReadSS(MSR msr);

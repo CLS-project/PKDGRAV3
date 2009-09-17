@@ -215,6 +215,16 @@ void pkdInitialize(PKD *ppkd,MDL mdl,int nStore,int nBucket,float fExtraNodes, i
     else
 	pkd->oRelaxation = 0;
 
+    if ( mMemoryModel & PKD_MODEL_SPH )
+	pkd->oSph = pkdParticleAddStruct(pkd,sizeof(SPHFIELDS));
+    else
+	pkd->oSph = 0;
+
+    if ( mMemoryModel & PKD_MODEL_STAR )
+	pkd->oStar = pkdParticleAddStruct(pkd,sizeof(STARFIELDS));
+    else
+	pkd->oStar = 0;
+
     if ( mMemoryModel & PKD_MODEL_HERMITE )
 	pkd->oHermite = pkdParticleAddStruct(pkd,sizeof(HERMITEFIELDS));
     else

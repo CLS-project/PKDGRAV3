@@ -23,6 +23,26 @@ typedef struct smfParameters {
     int bLogBins;
     FLOAT binFactor;
     FLOAT fMinRadius;
+    /* Gas */
+    double alpha;
+    double beta;
+    double gamma;
+    int bViscosityLimiter;
+    /* diffusion */
+    double dMetalDiffusionCoeff;
+    double dThermalDiffusionCoeff;
+    int bConstantDiffusion;
+    /* star form */
+    /*
+    double dMinMassFrac;
+    int bShortCoolShutoff;
+    int bSNTurnOffCooling;
+    int bSmallSNSmooth;
+    double dSecUnit;
+    double dGmUnit;
+    struct snContext sn;
+    */
+    /* end starform */   
     PKD pkd; /* useful for diagnostics, etc. */
     } SMF;
 

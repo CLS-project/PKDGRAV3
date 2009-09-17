@@ -78,6 +78,36 @@ struct parameters {
     int bDoAccOutput;
     int bDoPotOutput;
     int iCacheSize;
+    /* BEGIN Gas Parameters */
+    int bDoGas;
+    int bGasAdiabatic;
+    int bGasIsothermal;
+    int bGasCooling;
+    int bStarForm;
+    int bFeedBack;
+    int bViscosityLimiter;
+    double dEtaCourant;
+    double dEtauDot;
+    double dConstAlpha;
+    double dConstBeta;
+    double dConstGamma;
+    double dMeanMolWeight;
+    double dGasConst;
+    double dTuFac;
+    double dMsolUnit;
+    double dKpcUnit;
+    double ddHonHLimit;
+    double dKBoltzUnit;
+    double dGmPerCcUnit;
+    double dComovingGmPerCcUnit;
+    double dErgPerGmUnit;
+    double dSecUnit;
+    double dhMinOverSoft;
+    double dMetalDiffusionCoeff;
+    double dThermalDiffusionCoeff;
+    /* StarForm and Feedback */
+    
+    /* END Gas Parameters */
     double dEta;
     double dExtraStore;
     double dExtraNodes;
