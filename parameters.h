@@ -84,10 +84,11 @@ struct parameters {
     int bGasIsothermal;
     int bGasCooling;
     int bStarForm;
-    int bFeedBack;
-    int bViscosityLimiter;
+    int bFeedback;
+    int iViscosityLimiter;
+    int iDiffusion;
     double dEtaCourant;
-    double dEtauDot;
+    double dEtaUDot;
     double dConstAlpha;
     double dConstBeta;
     double dConstGamma;

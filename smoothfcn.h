@@ -8,6 +8,7 @@
 #endif
 
 typedef struct smfParameters {
+    int bComove;
     double H;
     double a;
     double dDeltaT;
@@ -29,11 +30,11 @@ typedef struct smfParameters {
     double gamma;
     double dDelta;
     double dEtaCourant;
-    int bViscosityLimiter;
+    int iViscosityLimiter;
     /* diffusion */
+    int iDiffusion;
     double dMetalDiffusionCoeff;
     double dThermalDiffusionCoeff;
-    int bConstantDiffusion;
     /* star form */
     /*
     double dMinMassFrac;
@@ -85,6 +86,17 @@ void initVelDisp2(void *,void *);
 void combVelDisp2(void *,void *,void *);
 void VelDisp2(PARTICLE *,int,NN *,SMF *);
 void VelDisp2Sym(PARTICLE *,int,NN *,SMF *);
+
+#define SMX_DENDVDX				5
+void initDenDVDX(void *,void *);
+void combDenDVDX(void *,void *,void *);
+void DenDVDX(PARTICLE *,int,NN *,SMF *);
+
+#define SMX_SPHFORCES				6
+void initSphForcesParticle(void *,void *);
+void initSphForces(void *,void *);
+void combSphForces(void *,void *,void *);
+void SphForces(PARTICLE *,int,NN *,SMF *);
 
 #define SMX_FOF			25
 void initGroupIds(void *,void *p);

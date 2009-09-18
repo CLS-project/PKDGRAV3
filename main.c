@@ -232,9 +232,11 @@ int main(int argc,char **argv) {
 			       E,T,U,Eth,L[0],L[1],L[2],iSec,dMultiEff);
 		}
 	    }
-	if (msr->param.bDoGas) {
+	if (msrDoGas(msr)) {
 	    /* Initialize SPH, Cooling and SF/FB and gas time step */
-	    msrInitSph(msr, dTime);
+	    /* May need to fix dTuFac conversion of T in IC first */
+	    msrInitSph(msr,dTime);
+	    msrInitCooling(msr);
 	    }
 #ifdef PLANETS
 	if (msr->param.bHeliocentric) {
@@ -351,17 +353,24 @@ int main(int argc,char **argv) {
 	else {
 
 #endif
-	    if (msrDoGravity(msr)) {
+	    if (msrDoGravity(msr) ||msrDoGas(msr)) {
 		msrActiveRung(msr,0,1); /* Activate all particles */
 		msrDomainDecomp(msr,0,1,0);
 		msrUpdateSoft(msr,dTime);
 		msrBuildTree(msr,dTime,msr->param.bEwald);
-
-		msrGravity(msr,0,MAX_RUNG,dTime,msr->param.iStartStep,msr->param.bEwald,&iSec,&nActive);
-		if (msr->param.bGravStep && msr->param.iTimeStepCrit == -1) {
+		
+		if (msrDoGravity(msr)) {
 		    msrGravity(msr,0,MAX_RUNG,dTime,msr->param.iStartStep,msr->param.bEwald,&iSec,&nActive);
+		    if (msr->param.bGravStep && msr->param.iTimeStepCrit == -1) {
+			msrGravity(msr,0,MAX_RUNG,dTime,msr->param.iStartStep,msr->param.bEwald,&iSec,&nActive);
+			}
 		    }
-
+		
+		if (msrDoGas(msr)) {
+		    msrInitSph(msr,dTime);
+		    msrInitCooling(msr);
+		    }
+		    
 		msrCalcEandL(msr,MSR_INIT_E,dTime,&E,&T,&U,&Eth,L);
 		dMultiEff = 1.0;
 		if (msrLogInterval(msr)) {
@@ -372,7 +381,8 @@ int main(int argc,char **argv) {
 		    }
 		}
 
-	    msrOutput(msr,0,dTime,0);
+	    msrOutput(msr,0,dTime,0);  /* JW: Will trash gas density */
+
 #ifdef USE_PYTHON
 	    }
 #endif

@@ -25,6 +25,11 @@
 
 #define OUT_IORDER_ARRAY        25
 
+#define OUT_UDOT_ARRAY          26
+#define OUT_U_ARRAY             27
+#define OUT_C_ARRAY             28
+#define OUT_HSPH_ARRAY          29
+
 #define OUT_GROUP_ARRAY	112
 #define OUT_GROUP_TIPSY_NAT	113
 #define OUT_GROUP_TIPSY_STD	114

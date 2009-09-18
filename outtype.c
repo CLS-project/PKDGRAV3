@@ -43,6 +43,10 @@ static int getType(int iType) {
     case OUT_VELDISP2_ARRAY:
     case OUT_VELDISP_ARRAY:
     case OUT_PHASEDENS_ARRAY:
+    case OUT_UDOT_ARRAY:
+    case OUT_U_ARRAY:
+    case OUT_C_ARRAY:
+    case OUT_HSPH_ARRAY:
 
     case OUT_POS_VECTOR:
     case OUT_VEL_VECTOR:
@@ -121,6 +125,18 @@ static double fetchFloat(PKD pkd,PARTICLE *p,int iType,int iDim) {
 	assert(pkd->oVelSmooth); /* Validate memory model */
 	pvel = pkdField(p,pkd->oVelSmooth);
 	v = p->fDensity*pow(pvel->veldisp2,-1.5);
+	break;
+    case OUT_UDOT_ARRAY:
+	v = pkdSph(pkd,p)->uDot;
+	break;
+    case OUT_U_ARRAY:
+	v = pkdSph(pkd,p)->u;
+	break;
+    case OUT_C_ARRAY:
+	v = pkdSph(pkd,p)->c;
+	break;
+    case OUT_HSPH_ARRAY:
+	v = p->fBall*0.5;
 	break;
     case OUT_POS_VECTOR:
 	v = p->r[iDim];

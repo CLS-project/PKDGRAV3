@@ -119,6 +119,291 @@ void DensitySym(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
 	}
     }
 
+void initDenDVDX(void *vpkd, void *p)
+{
+	}
+
+void combDenDVDX(void *vpkd, void *p1,void *p2)
+{
+	}
+
+/* Gather only version */
+/* JW: What types should dx etc... have -- why is NN using FLOAT ? */
+void DenDVDX(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf)
+    {
+    PKD pkd = smf->pkd;
+    PARTICLE *q;
+    SPHFIELDS *psph, *qsph;
+    double ih2,ih,r2,rs,rs1,fDensity,qMass,iden,fNorm,fNorm1,vFac,S;
+    double dvxdx , dvxdy , dvxdz, dvydx , dvydy , dvydz, dvzdx , dvzdy , dvzdz;
+    double dvx,dvy,dvz,dx,dy,dz,trace;
+    double curlv[3];
+    int i;
+
+    assert(pkd->oSph);
+    psph = pkdSph(pkd,p);
+    ih = 2.0/p->fBall;  ih2 = ih*ih;
+    vFac = (smf->bComove ? 1./(smf->a*smf->a) : 1.0); /* converts v to xdot (physical) */
+    fNorm = M_1_PI*ih2*ih;
+    fNorm1 = fNorm*ih2;	
+    fDensity = 0.0;
+    dvxdx = 0; dvxdy = 0; dvxdz= 0;
+    dvydx = 0; dvydy = 0; dvydz= 0;
+    dvzdx = 0; dvzdy = 0; dvzdz= 0;
+
+    for (i=0;i<nSmooth;++i) {  
+	r2 = nnList[i].fDist2*ih2;
+	q = nnList[i].pPart;
+	qMass = pkdMass(pkd,q);  
+	qsph = pkdSph(pkd,q);
+	KERNEL(rs,r2);
+	fDensity += rs*qMass;
+	DKERNEL(rs1,r2);
+	rs1 *= qMass;
+	dx = nnList[i].dx;
+	dy = nnList[i].dy;
+	dz = nnList[i].dz;
+	dvx = (-psph->vPred[0] + qsph->vPred[0])*vFac - dx*smf->H; /* NB: dx = px - qx */
+	dvy = (-psph->vPred[1] + qsph->vPred[1])*vFac - dy*smf->H;
+	dvz = (-psph->vPred[2] + qsph->vPred[2])*vFac - dz*smf->H;
+	dvxdx += dvx*dx*rs1;
+	dvxdy += dvx*dy*rs1;
+	dvxdz += dvx*dz*rs1;
+	dvydx += dvy*dx*rs1;
+	dvydy += dvy*dy*rs1;
+	dvydz += dvy*dz*rs1;
+	dvzdx += dvz*dx*rs1;
+	dvzdy += dvz*dy*rs1;
+	dvzdz += dvz*dz*rs1;
+	}
+    fDensity*=fNorm;
+    p->fDensity = fDensity; 
+    psph->c = sqrt(smf->gamma*(smf->gamma-1)*psph->uPred);
+    fNorm1 /= fDensity;
+    trace = dvxdx+dvydy+dvzdz;
+    psph->divv =  fNorm1*trace; /* physical */
+
+    psph->BalsaraSwitch=1;
+    if (smf->iViscosityLimiter) {
+	if (psph->divv!=0.0) {         	 
+	    curlv[0] = fNorm1*(dvzdy - dvydz); 
+	    curlv[1] = fNorm1*(dvxdz - dvzdx);
+	    curlv[2] = fNorm1*(dvydx - dvxdy);
+	    psph->BalsaraSwitch = fabs(psph->divv)/
+		(fabs(psph->divv)+sqrt(curlv[0]*curlv[0]+
+				       curlv[1]*curlv[1]+
+				       curlv[2]*curlv[2]));
+	    }
+	else { 
+	    psph->BalsaraSwitch = 0;
+	    }
+    
+	}
+
+    if (smf->iDiffusion) {
+	double onethirdtrace = (1./3.)*trace;
+	/* Build Traceless Strain Tensor (not yet normalized) */
+	double sxx = dvxdx - onethirdtrace; /* pure compression/expansion doesn't diffuse */
+	double syy = dvydy - onethirdtrace;
+	double szz = dvzdz - onethirdtrace;
+	double sxy = 0.5*(dvxdy + dvydx); /* pure rotation doesn't diffuse */
+	double sxz = 0.5*(dvxdz + dvzdx);
+	double syz = 0.5*(dvydz + dvzdy);
+	/* diff coeff., nu ~ C L^2 S (add C via dMetalDiffusionConstant, assume L ~ h) */
+	if (smf->iDiffusion == 2) psph->diff = 1;
+	else psph->diff = fNorm1*p->fBall*p->fBall*sqrt(2*(sxx*sxx + syy*syy + szz*szz + 2*(sxy*sxy + sxz*sxz + syz*syz)));
+	}
+    else psph->diff = 0;
+
+    }
+
+/* JW: Do I need to differentiate init of Original Particle and Cached Copy? 
+   -- YES accel zeroed on cache copy */
+void initSphForcesParticle(void *vpkd, void *p) {
+    PKD pkd = (PKD) vpkd;
+    if (pkdIsActive(pkd,p)) {
+	SPHFIELDS *psph = pkdSph(pkd,p);
+	psph->uDot = 0;
+	psph->fMetalsDot = 0;
+	}
+    }
+
+void initSphForces(void *vpkd, void *p) {
+    PKD pkd = (PKD) vpkd;
+    if (pkdIsActive(pkd,p)) {
+	SPHFIELDS *psph = pkdSph(pkd,p);
+	float *a = pkdAccel(pkd,p);
+	psph->uDot = 0;
+	psph->fMetalsDot = 0;
+	a[0] = 0;  
+	a[1] = 0;  
+	a[2] = 0; /* JW: Cached copies have zero accel! && rung */
+	((PARTICLE *)p)->uNewRung = 0;
+	}
+    }
+
+void combSphForces(void *vpkd, void *p1,void *p2) {
+    PKD pkd = (PKD) vpkd;
+    if (pkdIsActive(pkd,p1)) {
+	SPHFIELDS *psph1 = pkdSph(pkd,p1), *psph2 = pkdSph(pkd,p2);
+	float *a1 = pkdAccel(pkd,p1), *a2 = pkdAccel(pkd,p2);
+	psph1->uDot += psph2->uDot;
+	psph1->fMetalsDot += psph2->fMetalsDot;
+	a1[0] += a2[0];  
+	a1[1] += a2[1];  
+	a1[2] += a2[2]; 
+	if (((PARTICLE *) p2)->uNewRung > ((PARTICLE *) p1)->uNewRung) 
+	    ((PARTICLE *) p1)->uNewRung = ((PARTICLE *) p2)->uNewRung;
+	}
+    }
+
+void SphForces(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
+
+    PKD pkd = smf->pkd;
+    PARTICLE *q;
+    SPHFIELDS *psph, *qsph;
+    double ih2,r2,rs1,rq,rp;
+    double dx,dy,dz,dvx,dvy,dvz,dvdotdr;
+    double pPoverRho2,pPoverRho2f,pMass;
+    double qPoverRho2,qPoverRho2f;
+    double ph,pc,pDensity,visc,hav,absmu,Accp,Accq;
+    double fNorm,fNorm1,aFac,vFac,gammainv,dtC,dtMu,dtEst,dt2;
+    float *pa,*qa;
+    int i,pActive,qActive;
+    uint8_t uNewRung;
+
+    aFac = (smf->a);        /* comoving acceleration factor */
+    vFac = (smf->bComove ? 1./(smf->a*smf->a) : 1.0); /* converts v to xdot */
+    gammainv = 1/smf->gamma;
+    dtC = smf->dEtaCourant*(1+0.6*smf->alpha)/smf->a;
+    dtMu = smf->dEtaCourant*(0.6*smf->beta)/smf->a;
+
+    psph = pkdSph(pkd,p);
+    pc = psph->c;
+    pDensity = p->fDensity;
+    pMass = pkdMass(pkd,p);
+    pPoverRho2 = gammainv*psph->c*psph->c/p->fDensity;
+    pPoverRho2f = pPoverRho2;
+    ph = p->fBall;
+    /* JW: Active tests here -- Rung info in pkd */
+    pActive = pkdIsActive(pkd,p);
+    pa = pkdAccel(pkd,p);
+
+    ih2 = 4.0/(ph*ph);
+    fNorm = 0.5*M_1_PI*ih2/ph;
+    fNorm1 = fNorm*ih2;	/* converts to physical u */
+
+    for (i=0;i<nSmooth;++i) {
+	q = nnList[i].pPart;
+	/* JW: Active tests here -- Rung info in pkd */
+	qActive = pkdIsActive(pkd,q);
+	if (!pActive && !qActive) continue;
+	qsph = pkdSph(pkd,q);
+	qa = pkdAccel(pkd,q);
+
+	r2 = nnList[i].fDist2*ih2;
+	DKERNEL(rs1,r2);
+	rs1 *= fNorm1;
+	rp = rs1 * pMass;
+	rq = rs1 * pkdMass(pkd,q);
+
+	dx = nnList[i].dx;
+	dy = nnList[i].dy;
+	dz = nnList[i].dz;
+	dvx = psph->vPred[0] - qsph->vPred[0];
+	dvy = psph->vPred[1] - qsph->vPred[1];
+	dvz = psph->vPred[2] - qsph->vPred[2];
+	dvdotdr = vFac*(dvx*dx + dvy*dy + dvz*dz)
+	    + nnList[i].fDist2*smf->H;
+
+	qPoverRho2 = gammainv*qsph->c*qsph->c/q->fDensity;
+	qPoverRho2f = qPoverRho2;
+
+#define DIFFUSIONThermal() \
+    { double diff = 2*smf->dThermalDiffusionCoeff*(psph->diff+qsph->diff)*(psph->uPred-qsph->uPred) \
+		/(p->fDensity+q->fDensity); \
+      PACTIVE( psph->uDot += diff*rq ); \
+      QACTIVE( qsph->uDot -= diff*rp ); }
+
+#define DIFFUSIONMetals() \
+    { double diff = 2*smf->dMetalDiffusionCoeff*(psph->diff+qsph->diff)*(psph->fMetals - qsph->fMetals) \
+		/(p->fDensity+q->fDensity); \
+      PACTIVE( psph->fMetalsDot += diff*rq ); \
+      QACTIVE( qsph->fMetalsDot -= diff*rp ); }
+
+/* JW: Star form will need this! */
+#define DIFFUSIONMetalsOxygen() 
+#define DIFFUSIONMetalsIron() 
+#define SWITCHCOMBINE(a,b) (0.5*(a->BalsaraSwitch+b->BalsaraSwitch))
+#define ALPHA (smf->alpha)
+#define BETA (smf->beta)
+#define PRES_PDV(a,b) (a)
+#define PRES_ACC(a,b) (a+b)
+
+#define SphForcesACTIVECODE() \
+	    if (dvdotdr>0.0) { \
+		PACTIVE( psph->uDot += rq*PRES_PDV(pPoverRho2,qPoverRho2)*dvdotdr; ); \
+		QACTIVE( qsph->uDot += rp*PRES_PDV(qPoverRho2,pPoverRho2)*dvdotdr; ); \
+		PACTIVE( Accp = (PRES_ACC(pPoverRho2f,qPoverRho2f)); ); \
+		QACTIVE( Accq = (PRES_ACC(qPoverRho2f,pPoverRho2f)); ); \
+		absmu = 0; \
+		} \
+	    else {  \
+		hav=0.5*(ph+0.5*q->fBall);  /* h mean - using just hp probably ok */ \
+		absmu = -hav*dvdotdr*smf->a  \
+		    /(nnList[i].fDist2+0.01*hav*hav); /* mu multiply by a to be consistent with physical c */ \
+		/* viscosity term */ \
+		visc = SWITCHCOMBINE(psph,qsph)* \
+		    (ALPHA*(pc + qsph->c) + BETA*2*absmu)  \
+		    *absmu/(pDensity + q->fDensity); \
+		PACTIVE( psph->uDot += rq*(PRES_PDV(pPoverRho2,qPoverRho2) + 0.5*visc)*dvdotdr; ); \
+		QACTIVE( qsph->uDot += rp*(PRES_PDV(qPoverRho2,pPoverRho2) + 0.5*visc)*dvdotdr; ); \
+		PACTIVE( Accp = (PRES_ACC(pPoverRho2f,qPoverRho2f) + visc); ); \
+		QACTIVE( Accq = (PRES_ACC(qPoverRho2f,pPoverRho2f) + visc); ); \
+		} \
+	    dtEst = ph/(dtC*psph->c+dtMu*absmu);	\
+	    dt2 = 0.5*q->fBall/(dtC*qsph->c+dtMu*absmu);	\
+	    if (dt2 < dtEst) dtEst=dt2; \
+	    uNewRung = pkdDtToRung(dtEst,smf->dDelta,MAX_RUNG);	\
+            PACTIVE( if (uNewRung > p->uNewRung ) p->uNewRung = uNewRung; );	\
+            QACTIVE( if (uNewRung > q->uNewRung ) q->uNewRung = uNewRung; );	\
+	    PACTIVE( Accp *= rq*aFac; );/* aFac - convert to comoving acceleration */ \
+	    QACTIVE( Accq *= rp*aFac; ); \
+	    PACTIVE( pa[0] -= Accp * dx; ); \
+	    PACTIVE( pa[1] -= Accp * dy; ); \
+	    PACTIVE( pa[2] -= Accp * dz; ); \
+	    QACTIVE( qa[0] += Accq * dx; ); \
+	    QACTIVE( qa[1] += Accq * dy; ); \
+	    QACTIVE( qa[2] += Accq * dz; ); \
+            DIFFUSIONThermal(); \
+            DIFFUSIONMetals(); \
+            DIFFUSIONMetalsOxygen(); \
+            DIFFUSIONMetalsIron(); 
+/*            if (p->iOrder == 0 || q->iOrder == 0) { if (p->iOrder == 0) printf("sph%d%d  %d-%d %g %g\n",p->iActive&1,q->iActive&1,p->iOrder,q->iOrder,Accp,p->a[0]); else printf("sph%d%d  %d -%d %g %g\n",p->iActive&1,q->iActive&1,p->iOrder,q->iOrder,Accq,q->a[0]); } */
+
+
+	if (pActive) {
+	    if (qActive) {
+#define PACTIVE(xxx) xxx
+#define QACTIVE(xxx) xxx
+		SphForcesACTIVECODE();    
+		}
+	    else {
+#undef QACTIVE
+#define QACTIVE(xxx) 
+		    SphForcesACTIVECODE();    
+		    }
+		}
+	else if (qActive) {
+#undef PACTIVE
+#define PACTIVE(xxx) 
+#undef QACTIVE
+#define QACTIVE(xxx) xxx
+	    SphForcesACTIVECODE();    
+	    }
+	}
+    }
+
 
 void initMeanVel(void *vpkd, void *pvoid) {
     PKD pkd = (PKD)vpkd;

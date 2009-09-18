@@ -97,6 +97,7 @@ const char *pst_h_module_id = PST_H_MODULE_ID;
 **  DensityStep           Yes     -      |
 **  GetMap                Yes     Gather | sends back thread ids
 **  AccelStep             Yes     -      |
+**  SphStep               Yes     -      |
 **  SetRungVeryActive     Yes     -      |
 **  ReSmooth              Yes     -      |
 **  UpdateRung            Yes     Yes    |
@@ -329,6 +330,9 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_ACCELSTEP,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstAccelStep,
 		  sizeof(struct inAccelStep), 0);
+    mdlAddService(mdl,PST_SPHSTEP,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstSphStep,
+		  sizeof(struct inSphStep), 0);
     mdlAddService(mdl,PST_SETRUNGVERYACTIVE,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstSetRungVeryActive,
 		  sizeof(struct inSetRung),0);
@@ -3080,6 +3084,23 @@ pstAccelStep(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     else {
 	pkdAccelStep(plcl->pkd,in->uRungLo,in->uRungHi,in->dEta,in->dVelFac,in->dAccFac,
 		     in->bDoGravity,in->bEpsAcc,in->bSqrtPhi,in->dhMinOverSoft);
+	}
+    if (pnOut) *pnOut = 0;
+    }
+
+void
+pstSphStep(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl = pst->plcl;
+    struct inSphStep *in = vin;
+
+    mdlassert(pst->mdl,nIn == sizeof(struct inSphStep));
+    if (pst->nLeaves > 1) {
+	mdlReqService(pst->mdl,pst->idUpper,PST_SPHSTEP,vin,nIn);
+	pstSphStep(pst->pstLower,vin,nIn,vout,pnOut);
+	mdlGetReply(pst->mdl,pst->idUpper,vout,pnOut);
+	}
+    else {
+	pkdSphStep(plcl->pkd,in->uRungLo,in->uRungHi,in->dAccFac);
 	}
     if (pnOut) *pnOut = 0;
     }

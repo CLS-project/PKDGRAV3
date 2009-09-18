@@ -49,6 +49,23 @@ int smInitialize(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodic,int bSymme
 	comb = combDensity;
 	smx->fcnPost = NULL;
 	break;
+    case SMX_DENDVDX:
+	assert( pkd->oSph ); /* Validate memory model */
+	smx->fcnSmooth = DenDVDX;
+	initParticle = NULL; /* Original Particle */
+	init = initDenDVDX; /* Cached copies */
+	comb = combDenDVDX;
+	smx->fcnPost = NULL;
+	break;
+    case SMX_SPHFORCES:
+	assert( pkd->oSph ); /* Validate memory model */
+	assert( pkd->oAcceleration ); /* Validate memory model */
+	smx->fcnSmooth = SphForces;
+	initParticle = initSphForcesParticle; /* Original Particle */
+	init = initSphForces; /* Cached copies */
+	comb = combSphForces;
+	smx->fcnPost = NULL;
+	break;
     case SMX_MEANVEL:
 	assert( pkd->oVelSmooth); /* Validate memory model */
 	smx->fcnSmooth = bSymmetric?MeanVelSym:MeanVel;
@@ -112,6 +129,7 @@ int smInitialize(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodic,int bSymme
     if (initParticle != NULL) {
 	for (pi=0;pi<nTree;++pi) {
 	    /*if (TYPETest(p,smx->eParticleTypes))*/
+	    /* JW: should have an active test here */
 	    initParticle(pkd,pkdParticle(pkd,pi));
 	    }
 	}

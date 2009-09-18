@@ -122,6 +122,7 @@ enum pst_service {
     PST_CURRRUNG,
     PST_GRAVSTEP,
     PST_ACCELSTEP,
+    PST_SPHSTEP,
     PST_DENSITYSTEP,
     PST_GETMAP,
     PST_SETRUNGVERYACTIVE,
@@ -724,6 +725,14 @@ struct inAccelStep {
     uint8_t uRungHi;
     };
 void pstAccelStep(PST,void *,int,void *,int *);
+
+/* PST_SPHSTEP */
+struct inSphStep {
+    double dAccFac;
+    uint8_t uRungLo;
+    uint8_t uRungHi;
+    };
+void pstSphStep(PST,void *,int,void *,int *);
 
 /* PST_DENSITYSTEP */
 struct inDensityStep {

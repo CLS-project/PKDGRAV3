@@ -1678,9 +1678,6 @@ void pkdCalcEandL(PKD pkd,double *T,double *U,double *Eth,double L[]) {
     FLOAT rx,ry,rz,vx,vy,vz,fMass;
     int i,n;
 
-    assert(pkd->oVelocity);
-    assert(pkd->oPotential);
-
     n = pkdLocal(pkd);
     *T = 0.0;
     *U = 0.0;
@@ -1689,15 +1686,17 @@ void pkdCalcEandL(PKD pkd,double *T,double *U,double *Eth,double L[]) {
     for (i=0;i<n;++i) {
 	p = pkdParticle(pkd,i);
 	fMass = pkdMass(pkd,p);
-	pPot = pkdPot(pkd,p);
-	v = pkdVel(pkd,p);
-	rx = p->r[0]; ry = p->r[1]; rz = p->r[2];
-	vx = v[0]; vy = v[1]; vz = v[2];
-	*T += 0.5*fMass*(vx*vx + vy*vy + vz*vz);
-	*U += 0.5*fMass*(*pPot);
-	L[0] += fMass*(ry*vz - rz*vy);
-	L[1] += fMass*(rz*vx - rx*vz);
-	L[2] += fMass*(rx*vy - ry*vx);
+	if (pkd->oPotential) *U += 0.5*fMass*(*(pkdPot(pkd,p)));
+	if (pkd->oSph && pkdIsGas(pkd,p)) *Eth += fMass*pkdSph(pkd,p)->u;
+	if (pkd->oVelocity) {
+	    v = pkdVel(pkd,p);
+	    rx = p->r[0]; ry = p->r[1]; rz = p->r[2];
+	    vx = v[0]; vy = v[1]; vz = v[2];
+	    *T += 0.5*fMass*(vx*vx + vy*vy + vz*vz);
+	    L[0] += fMass*(ry*vz - rz*vy);
+	    L[1] += fMass*(rz*vx - rx*vz);
+	    L[2] += fMass*(rx*vy - ry*vx);
+	    }
 	}
     }
 
@@ -1731,7 +1730,7 @@ void pkdDrift(PKD pkd,double dTime,double dDelta,double dDeltaVPred,double dDelt
     /*
     ** Update particle positions
     */
-    if (pkd->param.bDoGas && pkd->nGas) {
+    if (pkd->param.bDoGas) {
 	assert(pkd->oSph);
 	assert(pkd->oAcceleration);
 	for (i=0;i<n;++i) {
@@ -2297,7 +2296,7 @@ void pkdKick(PKD pkd,double dTime,double dDelta,double dDeltaVPred,double dDelta
     pkdClearTimer(pkd,1);
     pkdStartTimer(pkd,1);
 
-    if (pkd->param.bDoGas && pkd->nGas) {
+    if (pkd->param.bDoGas) {
 	assert(pkd->oSph);
 	n = pkdLocal(pkd);
 	for (i=0;i<n;++i) {
@@ -2435,6 +2434,39 @@ void pkdAccelStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,
 		    dT = dtemp;
 		}
 	    p->uNewRung = pkdDtToRung(dT,pkd->param.dDelta,pkd->param.iMaxRung-1);
+	    }
+	}
+    }
+
+
+void pkdSphStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,double dAccFac) {
+    PARTICLE *p;
+    float *a, uDot;
+    int i,j,uNewRung;
+    double acc;
+    double dT;
+
+    assert(pkd->oAcceleration);
+    assert(pkd->oSph);
+
+    for (i=0;i<pkdLocal(pkd);++i) {
+	p = pkdParticle(pkd,i);
+	if (pkdIsDstActive(p,uRungLo,uRungHi) && pkdIsGas(pkd,p)) {
+	    a = pkdAccel(pkd,p);
+	    acc = 0;
+	    for (j=0;j<3;j++) {
+		acc += a[j]*a[j];
+		}
+	    acc = sqrt(acc)*dAccFac;
+	    dT = FLOAT_MAXVAL;
+	    if (acc>0) dT = pkd->param.dEta*sqrt(p->fBall/acc);
+	    uDot = fabs(*pkd_uDot(pkd,p));
+	    if (uDot>0) {
+		double dtemp = pkd->param.dEtaUDot*(*pkd_u(pkd,p))/uDot;
+		if (dtemp < dT) dT = dtemp;
+		}
+	    uNewRung = pkdDtToRung(dT,pkd->param.dDelta,pkd->param.iMaxRung-1);
+	    if (uNewRung > p->uNewRung) p->uNewRung = uNewRung;
 	    }
 	}
     }

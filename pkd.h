@@ -956,6 +956,7 @@ int pkdCurrRung(PKD pkd,uint8_t uRung);
 void pkdAccelStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,
 		  double dEta,double dVelFac,double dAccFac,
 		  int bDoGravity,int bEpsAcc,int bSqrtPhi,double dhMinOverSoft);
+void pkdSphStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,double dAccFac);
 void pkdDensityStep(PKD pkd, uint8_t uRungLo, uint8_t uRungHi, double dEta, double dRhoFac);
 int pkdUpdateRung(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
 		  uint8_t uRung,int iMaxRung,int *nRungCount);

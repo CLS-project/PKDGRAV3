@@ -95,6 +95,7 @@ void msrDomainColor(MSR);
 void msrReorder(MSR);
 void msrOutArray(MSR,const char *,int);
 void msrOutVector(MSR,const char *,int);
+void msrSmoothSetSMF(MSR msr, SMF *smf, double dTime);
 void msrSmooth(MSR,double,int,int);
 void msrReSmooth(MSR,double,int,int);
 void msrUpdateSoft(MSR,double);
@@ -202,7 +203,10 @@ void msrInitRelaxation(MSR msr);
 void msrRelaxation(MSR msr,double dTime,double deltaT,int iSmoothType,int bSymmetric);
 /* Gas routines */
 void msrInitSph(MSR,double);
-void msrSph(MSR msr, double);
+void msrSph(MSR msr, double dTime, double dStep);
+void msrSphStep(MSR msr,uint8_t uRungLo,uint8_t uRungHi,double dTime);
+void msrInitCooling(MSR msr);
+void msrCooling(MSR msr, double dTime, double dStep);
 /* END Gas routines */
 
 #ifdef PLANETS
