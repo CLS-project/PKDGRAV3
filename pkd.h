@@ -874,11 +874,11 @@ void pkdInitialize(PKD *ppkd,MDL mdl,int nStore,int nBucket,float fExtraNodes,in
 		   FLOAT *fPeriod,uint64_t nDark,uint64_t nGas,uint64_t nStar,
 		   uint64_t mMemoryModel);
 void pkdFinish(PKD);
-void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac);
+void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double dTuFac);
 void pkdReadTipsy(PKD pkd,char *pszFileName, uint64_t iOrderStart,
 		  uint64_t nSph, uint64_t nDark, uint64_t nStar,
 		  uint64_t iFirst,int nLocal,
-		  int bStandard,double dvFac,int bDoublePos);
+		  int bStandard,double dvFac,double dTuFac,int bDoublePos);
 #ifdef USE_MDL_IO
 void pkdIOInitialize( PKD pkd, int nLocal);
 #endif

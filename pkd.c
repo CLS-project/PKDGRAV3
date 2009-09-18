@@ -613,7 +613,7 @@ void pkdGenerateIC(PKD pkd, GRAFICCTX gctx,  int iDim,
 
 #endif
 
-void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac) {
+void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double dTuFac) {
     int i,j;
     PARTICLE *p;
     STARFIELDS *pStar;
@@ -671,9 +671,15 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac) {
 	switch(eSpecies) {
 	case FIO_SPECIES_SPH:
 	    assert(pSph);
+	    assert(dTuFac>0.0);
 	    fioReadSph(fio,&iOrder,p->r,v,&fMass,&fSoft,pPot,
 		       &p->fDensity/*?*/,&pSph->u,&pSph->fMetals);
-	    pSph->u *= pkd->param.dTuFac;
+	    pSph->u *= dTuFac;
+	    pSph->uPred = pSph->u;
+	    pSph->fMetalsPred = pSph->fMetals;
+	    pSph->vPred[0] = v[0];
+	    pSph->vPred[1] = v[1];
+	    pSph->vPred[2] = v[2]; /* density, divv, BalsaraSwitch, c from smooth */
 	    break;
 	case FIO_SPECIES_DARK:
 	    fioReadDark(fio,&iOrder,p->r,v,&fMass,&fSoft,pPot);
@@ -682,6 +688,9 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac) {
 	    assert(pStar && pSph);
 	    fioReadStar(fio,&iOrder,p->r,v,&fMass,&fSoft,pPot,
 			&pSph->fMetals,&pStar->fTimeForm);
+	    pSph->vPred[0] = v[0];
+	    pSph->vPred[1] = v[1];
+	    pSph->vPred[2] = v[2];
 	    break;
 	default:
 	    fprintf(stderr,"Unsupported particle type: %d\n",eSpecies);
@@ -731,7 +740,7 @@ void pkdIOInitialize( PKD pkd, int nLocal) {
 void pkdReadTipsy(PKD pkd,char *pszFileName, uint64_t iOrderStart,
 		  uint64_t nSph, uint64_t nDark, uint64_t nStar,
 		  uint64_t iFirst,int nLocal,
-		  int bStandard,double dvFac,int bDoublePos) {
+		  int bStandard,double dvFac,double dTuFac,int bDoublePos) {
     FIO fio;
     if (iOrderStart==0)
 	fio = fioTipsyOpen(pszFileName,bDoublePos);
@@ -739,7 +748,7 @@ void pkdReadTipsy(PKD pkd,char *pszFileName, uint64_t iOrderStart,
 	fio = fioTipsyOpenPart(pszFileName,bDoublePos,bStandard,
 			       nSph,nDark,nStar,iOrderStart);
     mdlassert(pkd->mdl,fio != NULL);
-    pkdReadFIO(pkd,fio,iFirst,nLocal,dvFac);
+    pkdReadFIO(pkd,fio,iFirst,nLocal,dvFac,dTuFac);
     fioClose(fio);
     }
 
@@ -2451,7 +2460,7 @@ void pkdSphStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,double dAccFac) {
 
     for (i=0;i<pkdLocal(pkd);++i) {
 	p = pkdParticle(pkd,i);
-	if (pkdIsDstActive(p,uRungLo,uRungHi) && pkdIsGas(pkd,p)) {
+	if (pkdIsActive(pkd,p) && pkdIsGas(pkd,p)) {
 	    a = pkdAccel(pkd,p);
 	    acc = 0;
 	    for (j=0;j<3;j++) {

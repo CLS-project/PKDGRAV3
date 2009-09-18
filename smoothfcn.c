@@ -275,8 +275,8 @@ void SphForces(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
     aFac = (smf->a);        /* comoving acceleration factor */
     vFac = (smf->bComove ? 1./(smf->a*smf->a) : 1.0); /* converts v to xdot */
     gammainv = 1/smf->gamma;
-    dtC = smf->dEtaCourant*(1+0.6*smf->alpha)/smf->a;
-    dtMu = smf->dEtaCourant*(0.6*smf->beta)/smf->a;
+    dtC = (1+0.6*smf->alpha)/(smf->a*smf->dEtaCourant);
+    dtMu = (0.6*smf->beta)/(smf->a*smf->dEtaCourant);
 
     psph = pkdSph(pkd,p);
     pc = psph->c;
@@ -284,12 +284,12 @@ void SphForces(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
     pMass = pkdMass(pkd,p);
     pPoverRho2 = gammainv*psph->c*psph->c/p->fDensity;
     pPoverRho2f = pPoverRho2;
-    ph = p->fBall;
+    ph = 0.5*p->fBall;
     /* JW: Active tests here -- Rung info in pkd */
     pActive = pkdIsActive(pkd,p);
     pa = pkdAccel(pkd,p);
 
-    ih2 = 4.0/(ph*ph);
+    ih2 = 1/(ph*ph);
     fNorm = 0.5*M_1_PI*ih2/ph;
     fNorm1 = fNorm*ih2;	/* converts to physical u */
 
@@ -349,10 +349,9 @@ void SphForces(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
 		absmu = 0; \
 		} \
 	    else {  \
-		hav=0.5*(ph+0.5*q->fBall);  /* h mean - using just hp probably ok */ \
+		hav=0.5*(ph+0.5*q->fBall);  /* h mean */ \
 		absmu = -hav*dvdotdr*smf->a  \
 		    /(nnList[i].fDist2+0.01*hav*hav); /* mu multiply by a to be consistent with physical c */ \
-		/* viscosity term */ \
 		visc = SWITCHCOMBINE(psph,qsph)* \
 		    (ALPHA*(pc + qsph->c) + BETA*2*absmu)  \
 		    *absmu/(pDensity + q->fDensity); \
@@ -369,6 +368,7 @@ void SphForces(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
             QACTIVE( if (uNewRung > q->uNewRung ) q->uNewRung = uNewRung; );	\
 	    PACTIVE( Accp *= rq*aFac; );/* aFac - convert to comoving acceleration */ \
 	    QACTIVE( Accq *= rp*aFac; ); \
+/*	    PACTIVE( if (!(p->iOrder%1000) && !(q->iOrder%10)) fprintf(stderr,"BA p: %d q: %d %g %g %g %g,  %g %g %g %g, %g %g %g %g\n",p->iOrder,q->iOrder,rs1,pkdMass(pkd,q),r2,ih2,pPoverRho2f,p->fDensity,psph->u,psph->c,Accp,rq,aFac,dx); ); */\
 	    PACTIVE( pa[0] -= Accp * dx; ); \
 	    PACTIVE( pa[1] -= Accp * dy; ); \
 	    PACTIVE( pa[2] -= Accp * dz; ); \
@@ -379,8 +379,6 @@ void SphForces(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
             DIFFUSIONMetals(); \
             DIFFUSIONMetalsOxygen(); \
             DIFFUSIONMetalsIron(); 
-/*            if (p->iOrder == 0 || q->iOrder == 0) { if (p->iOrder == 0) printf("sph%d%d  %d-%d %g %g\n",p->iActive&1,q->iActive&1,p->iOrder,q->iOrder,Accp,p->a[0]); else printf("sph%d%d  %d -%d %g %g\n",p->iActive&1,q->iActive&1,p->iOrder,q->iOrder,Accq,q->a[0]); } */
-
 
 	if (pActive) {
 	    if (qActive) {
@@ -401,7 +399,8 @@ void SphForces(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
 #define QACTIVE(xxx) xxx
 	    SphForcesACTIVECODE();    
 	    }
-	}
+
+	} /* end neighbour loop */
     }
 
 

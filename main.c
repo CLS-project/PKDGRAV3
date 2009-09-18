@@ -370,7 +370,9 @@ int main(int argc,char **argv) {
 		    msrInitSph(msr,dTime);
 		    msrInitCooling(msr);
 		    }
-		    
+		   
+		msrUpdateRung(msr,0); /* set rungs for output */
+ 
 		msrCalcEandL(msr,MSR_INIT_E,dTime,&E,&T,&U,&Eth,L);
 		dMultiEff = 1.0;
 		if (msrLogInterval(msr)) {

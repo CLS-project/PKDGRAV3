@@ -128,9 +128,9 @@ int smInitialize(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodic,int bSymme
     nTree = pkd->kdNodes[ROOT].pUpper + 1;
     if (initParticle != NULL) {
 	for (pi=0;pi<nTree;++pi) {
+	    PARTICLE *p = pkdParticle(pkd,pi);
 	    /*if (TYPETest(p,smx->eParticleTypes))*/
-	    /* JW: should have an active test here */
-	    initParticle(pkd,pkdParticle(pkd,pi));
+	    if (pkdIsActive(pkd,p)) initParticle(pkd,p);
 	    }
 	}
     /*

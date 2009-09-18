@@ -1000,6 +1000,8 @@ void msrLogParams(MSR msr,FILE *fp) {
 	fprintf(fp,"%s",hostname);
 #endif
     fprintf(fp,"\n# N: %"PRIu64,msr->N);
+    fprintf(fp," ngas: %"PRIu64,msr->nGas);
+    fprintf(fp," nstar: %"PRIu64,msr->nStar);
     fprintf(fp," nThreads: %d",msr->param.nThreads);
     fprintf(fp," bDiag: %d",msr->param.bDiag);
     fprintf(fp," Verbosity flags: (%d,%d,%d,%d,%d)",msr->param.bVWarnings,
@@ -1352,7 +1354,7 @@ void msrOneNodeRead(MSR msr, struct inReadFile *in) {
 	 * Read particles into the local storage.
 	 */
 	assert(plcl->pkd->nStore >= nParts[id]);
-	pkdReadFIO(plcl->pkd, fio, nStart, nParts[id], in->dvFac);
+	pkdReadFIO(plcl->pkd, fio, nStart, nParts[id], in->dvFac,in->dTuFac);
 	nStart += nParts[id];
 	/*
 	 * Now shove them over to the remote processor.
@@ -1367,7 +1369,7 @@ void msrOneNodeRead(MSR msr, struct inReadFile *in) {
     /*
      * Now read our own particles.
      */
-    pkdReadFIO(plcl->pkd, fio, 0, nParts[0], in->dvFac);
+    pkdReadFIO(plcl->pkd, fio, 0, nParts[0], in->dvFac, in->dTuFac);
 
     fioClose(fio);
     }
@@ -1841,9 +1843,9 @@ void _msrWriteTipsy(MSR msr,const char *pszFileName,double dTime,int bCheckpoint
     ** Assume tipsy format for now.
     */
     /* So that "N" can be nDark */
-    assert(msr->nGas==0&&msr->nStar==0);
-    h.nbodies = N; /*msr->N;*/
-    h.ndark = N; /*msr->nDark;*/
+    /* JW: What the heck is this? assert(msr->nGas==0&&msr->nStar==0); */
+    h.nbodies = msr->N;
+    h.ndark = msr->nDark;
     h.nsph = msr->nGas;
     h.nstar = msr->nStar;
     if (msr->param.csm->bComove) {
@@ -1892,7 +1894,7 @@ void _msrWriteTipsy(MSR msr,const char *pszFileName,double dTime,int bCheckpoint
 	fio = fioTipsyCreate(achOutFile,
 			     msr->param.bDoublePos,
 			     msr->param.bStandard,in.dTime,
-			     msr->nGas, N, msr->nStar);
+			     msr->nGas, msr->nDark, msr->nStar);
 	assert(fio!=NULL);
 	fioClose(fio);
 
@@ -2918,9 +2920,9 @@ msrInitStep(MSR msr) {
     pstInitStep(msr->pst, &in, sizeof(in), NULL, NULL);
 
     /*
-    ** Initialize particles to lowest rung. (what for?)
+    ** Initialize particles to lowest rung. (what for? JW: Seconded and removed)
     */
-    insr.uRung = msr->param.iMaxRung - 1;
+    insr.uRung = 0; /* msr->param.iMaxRung - 1; */
     insr.uRungLo = 0;
     insr.uRungHi = MAX_RUNG;
     pstSetRung(msr->pst, &insr, sizeof(insr), NULL, NULL);
@@ -3789,6 +3791,8 @@ void msrSph(MSR msr,double dTime, double dStep) {
 
     if (msr->param.bVStep) printf("Calculating Sph, Step:%f\n",dStep);
     sec = msrTime();
+    msrSelSrcAll(msr); /* JW: What is this actually doing? */
+    msrSelDstAll(msr);
     msrSmooth(msr,dTime,SMX_DENDVDX,1);  /* last parameter is CO cache? */
     msrSmooth(msr,dTime,SMX_SPHFORCES,1);
     /* work */
@@ -4904,6 +4908,7 @@ double msrRead(MSR msr, const char *achInFile) {
     file = (struct inFile *)(read+1);
 
     dTime = getTime(msr,dExpansion,&read->dvFac);
+    read->dTuFac = msr->param.dTuFac;
     
     if (msrDoGas(msr) || msr->nGas)  mMemoryModel |= (PKD_MODEL_SPH|PKD_MODEL_ACCELERATION|PKD_MODEL_VELOCITY);		
     if (msr->param.bStarForm || msr->nStar) mMemoryModel |= (PKD_MODEL_SPH|PKD_MODEL_ACCELERATION|PKD_MODEL_VELOCITY|PKD_MODEL_MASS|PKD_MODEL_STAR);
@@ -5067,17 +5072,17 @@ void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint) {
 	}
     if ( nFOFsDone )msrDeleteGroups(msr);
 
-    if (msrDoGravity(msr)) {
-	if (msr->param.bDoAccOutput) {
-	    msrReorder(msr);
-	    sprintf(achFile,"%s.acc",msrOutName(msr));
-	    msrOutVector(msr,achFile,OUT_ACCEL_VECTOR);
-	    }
-	if (msr->param.bDoPotOutput) {
-	    sprintf(achFile,"%s.pot",msrOutName(msr));
-	    msrReorder(msr);
-	    msrOutArray(msr,achFile,OUT_POT_ARRAY);
-	    }
+    if (msr->param.bDoAccOutput) {
+	msrReorder(msr);
+	msrBuildName(msr,achFile,iStep);
+	strncat(achFile,".acc",256);
+	msrOutVector(msr,achFile,OUT_ACCEL_VECTOR);
+	}
+    if (msr->param.bDoPotOutput) {
+	msrReorder(msr);
+	msrBuildName(msr,achFile,iStep);
+	strncat(achFile,".pot",256);
+	msrOutArray(msr,achFile,OUT_POT_ARRAY);
 	}
 
     if ( msr->param.bTraceRelaxation) {

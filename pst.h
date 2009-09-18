@@ -235,6 +235,7 @@ struct inReadFile {
     uint64_t mMemoryModel;
     double fPeriod[3];
     double dvFac;
+    double dTuFac;
     float fExtraStore;
     float fExtraNodes;
     int nBucket;
@@ -413,6 +414,7 @@ struct inIOLoad {
     uint64_t nGas;
     uint64_t nStar;
     double dvFac;
+    double dTuFac;
     int nBucket;
     float fExtraStore;
     FLOAT fPeriod[3];

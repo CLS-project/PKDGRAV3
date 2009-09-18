@@ -739,13 +739,13 @@ void pstReadFile(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 			     in->nSpecies[FIO_SPECIES_DARK],
 			     in->nSpecies[FIO_SPECIES_STAR],
 			     nThisStart,nThisEnd-nThisStart+1,
-			     in->bStandard,in->dvFac,in->bDoublePos);
+			     in->bStandard,in->dvFac,in->dTuFac,in->bDoublePos);
 		break;
 #ifdef USE_HDF5
 	    case FIO_FORMAT_HDF5:
 		fio = fioHDF5Open(inf[i].achFilename);
 		assert(fio!=NULL);
-		pkdReadFIO(plcl->pkd,fio,nThisStart,nThisEnd-nThisStart+1,in->dvFac);
+		pkdReadFIO(plcl->pkd,fio,nThisStart,nThisEnd-nThisStart+1,in->dvFac,in->dTuFac);
 		fioClose(fio);
 		break;
 #endif
