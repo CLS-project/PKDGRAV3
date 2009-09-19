@@ -310,7 +310,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 	    for (i=0;i<nCheck;++i) {
 		id = pkd->Check[i].id;
 		if (id == pkd->idSelf) {
-		    pkdc = kdn0 = pkdTreeNode(pkd,pkd->Check[i].iCell);
+		    pkdc = pkdTreeNode(pkd,pkd->Check[i].iCell);
 		    n = pkdc->pUpper - pkdc->pLower + 1;
 		    }
 		else if (id < 0) {
