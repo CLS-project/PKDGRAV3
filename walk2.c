@@ -254,7 +254,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 	*/
 	pkdd = pkdTreeNode(pkd,iCellDescend = iCell);
 	while (pkdd->iLower) {
-	    pkdTreeNode(pkd,iCellDescend = pkdd->iLower);
+	    pkdd = pkdTreeNode(pkd,iCellDescend = pkdd->iLower);
 	    if (!pkdIsCellActive(pkdd,uRungLo,uRungHi)) {
 		/*
 		** Move onto processing the sibling.
