@@ -591,7 +591,7 @@ typedef struct pkdContext {
     int nNodesFull;     /* number of nodes in the full tree (including very active particles) */
     int nNonVANodes;    /* number of nodes *not* in Very Active Tree, or index to the start of the VA nodes (except VAROOT) */
     BND bnd;
-    KDN *kdNodes;
+    KDN *kdNodesPRIVATE;
     size_t iParticleSize;
     PARTICLE *pStorePRIVATE;
     PARTICLE *pTempPRIVATE;
@@ -912,8 +912,10 @@ int pkdActive(PKD);
 int pkdInactive(PKD);
 int pkdNodes(PKD);
 static inline KDN *pkdTreeNode(PKD pkd,int iNode) {
-    return &pkd->kdNodes[iNode];
+    return &pkd->kdNodesPRIVATE[iNode];
     }
+void *pkdTreeNodeGetElement(void *vData,int i,int iDataSize);
+
 int pkdNumSrcActive(PKD pkd,uint8_t uRungLo,uint8_t uRungHi);
 int pkdNumDstActive(PKD pkd,uint8_t uRungLo,uint8_t uRungHi);
 int pkdColOrdRejects(PKD,uint64_t,int);

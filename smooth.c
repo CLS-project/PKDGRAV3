@@ -125,7 +125,7 @@ int smInitialize(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodic,int bSymme
     ** Initialize the ACTIVE particles in the tree.
     ** There are other particles in the tree -- just not active.
     */
-    nTree = pkd->kdNodes[ROOT].pUpper + 1;
+    nTree = pkdTreeNode(pkd,ROOT)->pUpper + 1;
     if (initParticle != NULL) {
 	for (pi=0;pi<nTree;++pi) {
 	    PARTICLE *p = pkdParticle(pkd,pi);
@@ -258,7 +258,7 @@ void smFinish(SMX smx,SMF *smf) {
 */
 PQ *pqSearchLocal(SMX smx,FLOAT r[3],int *pbDone) {
     PKD pkd = smx->pkd;
-    KDN *c = smx->pkd->kdNodes;
+    KDN *kdn;
     PARTICLE *p;
     PQ *pq;
     FLOAT dx,dy,dz,dMin,min1,min2,fDist2;
@@ -276,7 +276,7 @@ PQ *pqSearchLocal(SMX smx,FLOAT r[3],int *pbDone) {
     ** root, so that the pbDone flag can be correctly
     ** set.
     */
-    iCell = ROOT;
+    kdn = pkdTreeNode(pkd,iCell = ROOT);
     S[sp] = iCell;
     /*
     ** Start of PRIOQ Loading loop.
@@ -285,23 +285,23 @@ PQ *pqSearchLocal(SMX smx,FLOAT r[3],int *pbDone) {
 	/*
 	** Descend to bucket via the closest cell at each level.
 	*/
-	while (c[iCell].iLower) {
-	    iCell = c[iCell].iLower;
-	    MINDIST(c[iCell].bnd,r,min1);
-	    ++iCell;
-	    MINDIST(c[iCell].bnd,r,min2);
+	while (kdn->iLower) {
+	    kdn = pkdTreeNode(pkd,iCell = kdn->iLower);
+	    MINDIST(kdn->bnd,r,min1);
+	    kdn = pkdTreeNode(pkd,++iCell);
+	    MINDIST(kdn->bnd,r,min2);
 	    if (min1 < min2) {
 		Smin[sm++] = min2;
-		--iCell;
+		kdn = pkdTreeNode(pkd,--iCell);
 		}
 	    else {
 		Smin[sm++] = min1;
 		}
 	    }
-	pWant = c[iCell].pLower + smx->nSmooth - smx->nQueue - 1;
-	pEnd = c[iCell].pUpper;
+	pWant = kdn->pLower + smx->nSmooth - smx->nQueue - 1;
+	pEnd = kdn->pUpper;
 	if (pWant > pEnd) {
-	    for (pj=c[iCell].pLower;pj<=pEnd;++pj) {
+	    for (pj=kdn->pLower;pj<=pEnd;++pj) {
 		p = pkdParticle(pkd,pj);
 		if ( !pkdIsSrcActive(p,0,MAX_RUNG) ) continue;
 		dx = r[0] - p->r[0];
@@ -313,7 +313,7 @@ PQ *pqSearchLocal(SMX smx,FLOAT r[3],int *pbDone) {
 		}
 	    }
 	else {
-	    for (pj=c[iCell].pLower;pj<=pWant;++pj) {
+	    for (pj=kdn->pLower;pj<=pWant;++pj) {
 		p = pkdParticle(pkd,pj);
 		if ( !pkdIsSrcActive(p,0,MAX_RUNG) ) continue;
 		dx = r[0] - p->r[0];
@@ -355,9 +355,9 @@ PQ *pqSearchLocal(SMX smx,FLOAT r[3],int *pbDone) {
 		return NULL;		/* EXIT, could not load enough particles! */
 		}
 	    --sp;
-	    iCell = c[iCell].iParent;
+	    kdn = pkdTreeNode(pkd,iCell = kdn->iParent);
 	    }
-	iCell ^= 1;
+	kdn = pkdTreeNode(pkd,iCell ^= 1);
 	if (sm) --sm;
 	S[++sp] = iCell;
 	}
@@ -368,14 +368,14 @@ PQ *pqSearchLocal(SMX smx,FLOAT r[3],int *pbDone) {
 	/*
 	** Descend to bucket via the closest cell at each level.
 	*/
-	while (c[iCell].iLower) {
-	    iCell = c[iCell].iLower;
-	    MINDIST(c[iCell].bnd,r,min1);
-	    ++iCell;
-	    MINDIST(c[iCell].bnd,r,min2);
+	while (kdn->iLower) {
+	    kdn = pkdTreeNode(pkd,iCell = kdn->iLower);
+	    MINDIST(kdn->bnd,r,min1);
+	    kdn = pkdTreeNode(pkd,++iCell);
+	    MINDIST(kdn->bnd,r,min2);
 	    if (min1 < min2) {
 		Smin[sm++] = min2;
-		--iCell;
+		kdn = pkdTreeNode(pkd,--iCell);
 		if (min1 >= pq->fDist2) goto NotContained;
 		}
 	    else {
@@ -383,8 +383,8 @@ PQ *pqSearchLocal(SMX smx,FLOAT r[3],int *pbDone) {
 		if (min2 >= pq->fDist2) goto NotContained;
 		}
 	    }
-	pEnd = c[iCell].pUpper;
-	for (pj=c[iCell].pLower;pj<=pEnd;++pj) {
+	pEnd = kdn->pUpper;
+	for (pj=kdn->pLower;pj<=pEnd;++pj) {
 	    p = pkdParticle(pkd,pj);
 	    if ( !pkdIsSrcActive(p,0,MAX_RUNG) ) continue;
 	    dx = r[0] - p->r[0];
@@ -401,17 +401,17 @@ PQ *pqSearchLocal(SMX smx,FLOAT r[3],int *pbDone) {
 	while (iCell == S[sp]) {
 	    if (sp) {
 		--sp;
-		iCell = c[iCell].iParent;
+		kdn = pkdTreeNode(pkd,iCell = kdn->iParent);
 		}
 	    else {
 		/*
 		** Containment Test!
 		*/
 		for (j=0;j<3;++j) {
-		    dMin = c[iCell].bnd.fMax[j] -
-			   fabs(c[iCell].bnd.fCenter[j] - r[j]);
+		    dMin = kdn->bnd.fMax[j] -
+			   fabs(kdn->bnd.fCenter[j] - r[j]);
 		    if (dMin*dMin < pq->fDist2 || dMin < 0) {
-			iParent = c[iCell].iParent;
+			iParent = kdn->iParent;
 			if (!iParent) {
 			    *pbDone = 0;		/* EXIT, not contained! */
 			    break;
@@ -434,16 +434,16 @@ PQ *pqSearchLocal(SMX smx,FLOAT r[3],int *pbDone) {
 		}
 	    }
     NotContained:
-	iCell ^= 1;
+	kdn = pkdTreeNode(pkd,iCell ^= 1);
 	/*
 	** Intersection Test. (ball-test)
 	*/
 	if (sm) min2 = Smin[--sm];
 	else {
-	    MINDIST(c[iCell].bnd,r,min2);
+	    MINDIST(kdn->bnd,r,min2);
 	    }
 	if (min2 >= pq->fDist2) {
-	    iCell = c[iCell].iParent;
+	    kdn = pkdTreeNode(pkd,iCell = kdn->iParent);
 	    goto NoIntersect;
 	    }
 	S[++sp] = iCell;
@@ -455,7 +455,7 @@ PQ *pqSearchLocal(SMX smx,FLOAT r[3],int *pbDone) {
 PQ *pqSearchRemote(SMX smx,PQ *pq,int id,FLOAT r[3]) {
     PKD pkd = smx->pkd;
     MDL mdl = smx->pkd->mdl;
-    KDN *c = smx->pkd->kdNodes;
+    KDN *kdn;
     PARTICLE *p;
     KDN *pkdn,*pkdu;
     FLOAT dx,dy,dz,min1,min2,fDist2;
@@ -466,9 +466,9 @@ PQ *pqSearchRemote(SMX smx,PQ *pq,int id,FLOAT r[3]) {
     int sm = 0;
     int idSelf = smx->pkd->idSelf;
 
-    iCell = ROOT;
+    kdn = pkdTreeNode(pkd,iCell = ROOT);
     S[sp] = iCell;
-    if (id == idSelf) pkdn = &c[iCell];
+    if (id == idSelf) pkdn = kdn;
     else pkdn = mdlAquire(mdl,CID_CELL,iCell,id);
     if (smx->nQueue == smx->nSmooth) goto StartSearch;
     /*
@@ -479,21 +479,21 @@ PQ *pqSearchRemote(SMX smx,PQ *pq,int id,FLOAT r[3]) {
 	** Descend to bucket via the closest cell at each level.
 	*/
 	while (pkdn->iLower) {
-	    iCell = pkdn->iLower;
-	    if (id == idSelf) pkdn = &c[iCell];
+	    kdn = pkdTreeNode(pkd,iCell = pkdn->iLower);
+	    if (id == idSelf) pkdn = kdn;
 	    else {
 		mdlRelease(mdl,CID_CELL,pkdn);
 		pkdn = mdlAquire(mdl,CID_CELL,iCell,id);
 		}
 	    MINDIST(pkdn->bnd,r,min1);
-	    ++iCell;
-	    if (id == idSelf) pkdu = &c[iCell];
+	    kdn = pkdTreeNode(pkd,++iCell);
+	    if (id == idSelf) pkdu = kdn;
 	    else pkdu = mdlAquire(mdl,CID_CELL,iCell,id);
 	    MINDIST(pkdu->bnd,r,min2);
 	    if (min1 < min2) {
 		Smin[sm++] = min2;
 		if (id != idSelf) mdlRelease(mdl,CID_CELL,pkdu);
-		--iCell;
+		kdn = pkdTreeNode(pkd,--iCell);
 		}
 	    else {
 		Smin[sm++] = min1;
@@ -585,15 +585,15 @@ PQ *pqSearchRemote(SMX smx,PQ *pq,int id,FLOAT r[3]) {
 		return NULL;		/* EXIT, could not load enough particles! */
 		}
 	    --sp;
-	    iCell = pkdn->iParent;
-	    if (id == idSelf) pkdn = &c[iCell];
+	    kdn = pkdTreeNode(pkd,iCell = pkdn->iParent);
+	    if (id == idSelf) pkdn = kdn;
 	    else {
 		mdlRelease(mdl,CID_CELL,pkdn);
 		pkdn = mdlAquire(mdl,CID_CELL,iCell,id);
 		}
 	    }
-	iCell ^= 1;
-	if (id == idSelf) pkdn = &c[iCell];
+	kdn = pkdTreeNode(pkd,iCell ^= 1);
+	if (id == idSelf) pkdn = kdn;
 	else {
 	    mdlRelease(mdl,CID_CELL,pkdn);
 	    pkdn = mdlAquire(mdl,CID_CELL,iCell,id);
@@ -610,20 +610,20 @@ StartSearch:
 	** Descend to bucket via the closest cell at each level.
 	*/
 	while (pkdn->iLower) {
-	    iCell = pkdn->iLower;
-	    if (id == idSelf) pkdn = &c[iCell];
+	    kdn = pkdTreeNode(pkd,iCell = pkdn->iLower);
+	    if (id == idSelf) pkdn = kdn;
 	    else {
 		mdlRelease(mdl,CID_CELL,pkdn);
 		pkdn = mdlAquire(mdl,CID_CELL,iCell,id);
 		}
 	    MINDIST(pkdn->bnd,r,min1);
-	    ++iCell;
-	    if (id == idSelf) pkdu = &c[iCell];
+	    kdn = pkdTreeNode(pkd,++iCell);
+	    if (id == idSelf) pkdu = kdn;
 	    else pkdu = mdlAquire(mdl,CID_CELL,iCell,id);
 	    MINDIST(pkdu->bnd,r,min2);
 	    if (min1 < min2) {
 		Smin[sm++] = min2;
-		--iCell;
+		kdn = pkdTreeNode(pkd,--iCell);
 		if (id != idSelf) mdlRelease(mdl,CID_CELL,pkdu);
 		if (min1 >= pq->fDist2) goto NotContained;
 		}
@@ -666,16 +666,16 @@ StartSearch:
 		return pq;
 		}
 	    --sp;
-	    iCell = pkdn->iParent;
-	    if (id == idSelf) pkdn = &c[iCell];
+	    kdn = pkdTreeNode(pkd,iCell = pkdn->iParent);
+	    if (id == idSelf) pkdn = kdn;
 	    else {
 		mdlRelease(mdl,CID_CELL,pkdn);
 		pkdn = mdlAquire(mdl,CID_CELL,iCell,id);
 		}
 	    }
     NotContained:
-	iCell ^= 1;
-	if (id == idSelf) pkdn = &c[iCell];
+	kdn = pkdTreeNode(pkd,iCell ^= 1);
+	if (id == idSelf) pkdn = kdn;
 	else {
 	    mdlRelease(mdl,CID_CELL,pkdn);
 	    pkdn = mdlAquire(mdl,CID_CELL,iCell,id);
@@ -688,8 +688,8 @@ StartSearch:
 	    MINDIST(pkdn->bnd,r,min2);
 	    }
 	if (min2 >= pq->fDist2) {
-	    iCell = pkdn->iParent;
-	    if (id == idSelf) pkdn = &c[iCell];
+	    kdn = pkdTreeNode(pkd,iCell = pkdn->iParent);
+	    if (id == idSelf) pkdn = kdn;
 	    else {
 		mdlRelease(mdl,CID_CELL,pkdn);
 		pkdn = mdlAquire(mdl,CID_CELL,iCell,id);
@@ -702,7 +702,8 @@ StartSearch:
 
 
 PQ *pqSearch(SMX smx,PQ *pq,FLOAT r[3],int bReplica,int *pbDone) {
-    KDN *c = smx->pkd->kdTop;
+    PKD pkd = smx->pkd;
+    KDN *kdn;
     int idSelf = smx->pkd->idSelf;
     FLOAT *Smin = smx->SminT;
     int *S = smx->ST;
@@ -712,12 +713,12 @@ PQ *pqSearch(SMX smx,PQ *pq,FLOAT r[3],int bReplica,int *pbDone) {
     int sm = 0;
 
     *pbDone = 0;
-    if (bReplica) iCell = ROOT;
+    if (bReplica) kdn = pkdTreeNode(pkd,iCell = ROOT);
     else {
-	iCell = smx->pkd->iTopRoot;
-	assert(c[iCell].pLower == idSelf);
+	kdn = pkdTreeNode(pkd,iCell = pkd->iTopRoot);
+	assert(kdn->pLower == idSelf);
 	}
-    if (iCell != ROOT) S[sp] = c[iCell].iParent;
+    if (iCell != ROOT) S[sp] = kdn->iParent;
     else S[sp] = iCell;
     if (smx->nQueue == smx->nSmooth) goto StartSearch;
     /*
@@ -727,20 +728,20 @@ PQ *pqSearch(SMX smx,PQ *pq,FLOAT r[3],int bReplica,int *pbDone) {
 	/*
 	** Descend to bucket via the closest cell at each level.
 	*/
-	while (c[iCell].iLower) {
-	    iCell = c[iCell].iLower;
-	    MINDIST(c[iCell].bnd,r,min1);
-	    ++iCell;
-	    MINDIST(c[iCell].bnd,r,min2);
+	while (kdn->iLower) {
+	    kdn = pkdTreeNode(pkd,iCell = kdn->iLower);
+	    MINDIST(kdn->bnd,r,min1);
+	    kdn = pkdTreeNode(pkd,++iCell);
+	    MINDIST(kdn->bnd,r,min2);
 	    if (min1 < min2) {
 		Smin[sm++] = min2;
-		--iCell;
+		kdn = pkdTreeNode(pkd,--iCell);
 		}
 	    else {
 		Smin[sm++] = min1;
 		}
 	    }
-	id = c[iCell].pLower;	/* this is the thread id in LTT */
+	id = kdn->pLower;	/* this is the thread id in LTT */
 	if (bReplica || id != idSelf) {
 	    pq = pqSearchRemote(smx,pq,id,r);
 	    }
@@ -754,9 +755,9 @@ PQ *pqSearch(SMX smx,PQ *pq,FLOAT r[3],int bReplica,int *pbDone) {
 		return NULL;		/* EXIT, could not load enough particles! */
 		}
 	    --sp;
-	    iCell = c[iCell].iParent;
+	    kdn = pkdTreeNode(pkd,iCell = kdn->iParent);
 	    }
-	iCell ^= 1;
+	kdn = pkdTreeNode(pkd,iCell ^= 1);
 	if (sm) --sm;
 	S[++sp] = iCell;
 	}
@@ -768,14 +769,14 @@ StartSearch:
 	/*
 	** Descend to bucket via the closest cell at each level.
 	*/
-	while (c[iCell].iLower) {
-	    iCell = c[iCell].iLower;
-	    MINDIST(c[iCell].bnd,r,min1);
-	    ++iCell;
-	    MINDIST(c[iCell].bnd,r,min2);
+	while (kdn->iLower) {
+	    kdn = pkdTreeNode(pkd,iCell = kdn->iLower);
+	    MINDIST(kdn->bnd,r,min1);
+	    kdn = pkdTreeNode(pkd,++iCell);
+	    MINDIST(kdn->bnd,r,min2);
 	    if (min1 < min2) {
 		Smin[sm++] = min2;
-		--iCell;
+		kdn = pkdTreeNode(pkd,--iCell);
 		if (min1 >= pq->fDist2) goto NotContained;
 		}
 	    else {
@@ -783,23 +784,23 @@ StartSearch:
 		if (min2 >= pq->fDist2) goto NotContained;
 		}
 	    }
-	id = c[iCell].pLower;	/* this is the thread id in LTT */
+	id = kdn->pLower;	/* this is the thread id in LTT */
 	pq = pqSearchRemote(smx,pq,id,r);
     NoIntersect:
 	while (iCell == S[sp]) {
 	    if (sp) {
 		--sp;
-		iCell = c[iCell].iParent;
+		kdn = pkdTreeNode(pkd,iCell = kdn->iParent);
 		}
 	    else if (!bReplica) {
 		/*
 		** Containment Test!
 		*/
 		for (j=0;j<3;++j) {
-		    dMin = c[iCell].bnd.fMax[j] -
-			   fabs(c[iCell].bnd.fCenter[j] - r[j]);
+		    dMin = kdn->bnd.fMax[j] -
+			   fabs(kdn->bnd.fCenter[j] - r[j]);
 		    if (dMin*dMin < pq->fDist2 || dMin < 0) {
-			iParent = c[iCell].iParent;
+			iParent = kdn->iParent;
 			if (!iParent) {
 			    *pbDone = 0;
 			    return pq;
@@ -814,16 +815,16 @@ StartSearch:
 	    else return pq;
 	    }
     NotContained:
-	iCell ^= 1;
+	kdn = kdn = pkdTreeNode(pkd,iCell ^= 1);
 	/*
 	** Intersection Test. (ball-test)
 	*/
 	if (sm) min2 = Smin[--sm];
 	else {
-	    MINDIST(c[iCell].bnd,r,min2);
+	    MINDIST(kdn->bnd,r,min2);
 	    }
 	if (min2 >= pq->fDist2) {
-	    iCell = c[iCell].iParent;
+	    kdn = pkdTreeNode(pkd,iCell = kdn->iParent);
 	    goto NoIntersect;
 	    }
 	S[++sp] = iCell;
@@ -918,7 +919,7 @@ void smSmooth(SMX smx,SMF *smf) {
 
 void smGatherLocal(SMX smx,FLOAT fBall2,FLOAT r[3]) {
     PKD pkd = smx->pkd;
-    KDN *c = smx->pkd->kdNodes;
+    KDN *kdn;
     PARTICLE *p;
     FLOAT min2,dx,dy,dz,fDist2;
     int *S = smx->S;
@@ -928,23 +929,23 @@ void smGatherLocal(SMX smx,FLOAT fBall2,FLOAT r[3]) {
 
     idSelf = smx->pkd->idSelf;
     nCnt = smx->nnListSize;
-    iCell = ROOT;
+    kdn = pkdTreeNode(pkd,iCell = ROOT);
     while (1) {
-	MINDIST(c[iCell].bnd,r,min2);
+	MINDIST(kdn->bnd,r,min2);
 	if (min2 > fBall2) {
 	    goto NoIntersect;
 	    }
 	/*
 	** We have an intersection to test.
 	*/
-	if (c[iCell].iLower) {
-	    iCell = c[iCell].iLower;
+	if (kdn->iLower) {
+	    kdn = pkdTreeNode(pkd,iCell = kdn->iLower);
 	    S[sp++] = iCell+1;
 	    continue;
 	    }
 	else {
-	    pEnd = c[iCell].pUpper;
-	    for (pj=c[iCell].pLower;pj<=pEnd;++pj) {
+	    pEnd = kdn->pUpper;
+	    for (pj=kdn->pLower;pj<=pEnd;++pj) {
 		p = pkdParticle(pkd,pj);
 		if ( !pkdIsSrcActive(p,0,MAX_RUNG) ) continue;
 		dx = r[0] - p->r[0];
@@ -972,7 +973,7 @@ void smGatherLocal(SMX smx,FLOAT fBall2,FLOAT r[3]) {
 		}
 	    }
     NoIntersect:
-	if (sp) iCell = S[--sp];
+	if (sp) kdn = pkdTreeNode(pkd,iCell = S[--sp]);
 	else break;
 	}
     smx->nnListSize = nCnt;
@@ -1273,7 +1274,7 @@ void smFof(SMX smx,SMF *smf) {
     iTail = 0;
     tmp = pkd->nDark+pkd->nGas+pkd->nStar;
 
-    nTree = pkd->kdNodes[ROOT].pUpper + 1;
+    nTree = pkdTreeNode(pkd,ROOT)->pUpper + 1;
     iMaxGroups = nTree+1;
     nFifo = nTree;
     Fifo = (int *)malloc(nFifo*sizeof(int));
@@ -1565,7 +1566,7 @@ int smGroupMerge(SMF *smf,int bPeriodic) {
 	}
 
     tmp = pkd->nDark+pkd->nGas+pkd->nStar;
-    nTree = pkd->kdNodes[ROOT].pUpper + 1;
+    nTree = pkdTreeNode(pkd,ROOT)->pUpper + 1;
     nFifo = 30*pkd->nMaxRm + 1;
     sgListSize = 10*pkd->nThreads;
     lsgListSize = 10*pkd->nThreads;
@@ -1865,7 +1866,7 @@ int smGroupProfiles(SMX smx, SMF *smf, int nTotalGroups) {
     else {
 	for (j=0;j<3;j++) l[j] = FLOAT_MAXVAL;
 	}
-    nTree = pkd->kdNodes[ROOT].pUpper + 1;
+    nTree = pkdTreeNode(pkd,ROOT)->pUpper + 1;
     /*
     ** Start RO group data cache and read all if you are not master
     **

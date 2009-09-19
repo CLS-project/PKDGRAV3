@@ -379,7 +379,7 @@ static float  zeroF[3] = {0.0,0.0,0.0};
 
 void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp) {
     PARTICLE *p;
-    KDN *c = pkd->kdNodes;
+    //KDN *c = pkd->kdNodes;
     KDN *pkdn,*pkdl,*pkdu;
     MOMR mom;
     FLOAT m,fMass,fSoft,x,y,z,vx,vy,vz,ax,ay,az,ft,d2,d2Max,dih2,b,bmin;
@@ -391,8 +391,8 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp) {
 
     nDepth = 1;
     while (1) {
-	while (c[iNode].iLower) {
-	    iNode = c[iNode].iLower;
+	while (pkdTreeNode(pkd,iNode)->iLower) {
+	    iNode = pkdTreeNode(pkd,iNode)->iLower;
 	    ++nDepth;
 	    /*
 	    ** Is this the deepest in the tree so far? We might need to have more stack
@@ -413,7 +413,7 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp) {
 	** This includes M,CoM,Moments and special
 	** bounds and iMaxRung.
 	*/
-	pkdn = &c[iNode];
+	pkdn = pkdTreeNode(pkd,iNode);
 	/*
 	** Before squeezing the bounds, calculate a minimum b value based on the splitting bounds alone.
 	** This gives us a better feel for the "size" of a bucket with only a single particle.
@@ -572,7 +572,7 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp) {
 	** or to the parent.
 	*/
 	while (iNode & 1) {
-	    iNode = c[iNode].iParent;
+	    iNode = pkdTreeNode(pkd,iNode)->iParent;
 	    --nDepth;
 	    if (!iNode) {
 		assert(nDepth == 0);
@@ -583,15 +583,15 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp) {
 	    ** this cell to form the quantities for this cell.
 	    ** First find the CoM, just like for the bucket.
 	    */
-	    pkdn = &c[iNode];
+	    pkdn = pkdTreeNode(pkd,iNode);
 	    /*
 	    ** Before squeezing the bounds, calculate a minimum b value based on the splitting bounds alone.
 	    ** This gives us a better feel for the "size" of a bucket with only a single particle.
 	    */
 	    MINSIDE(pkdn->bnd.fMax,bmin);
 	    pkdn->bnd.size = 2.0*(pkdn->bnd.fMax[0]+pkdn->bnd.fMax[1]+pkdn->bnd.fMax[2])/3.0;
-	    pkdl = &c[pkdn->iLower];
-	    pkdu = &c[pkdn->iLower + 1];
+	    pkdl = pkdTreeNode(pkd,pkdn->iLower);
+	    pkdu = pkdTreeNode(pkd,pkdn->iLower + 1);
 	    pkdCombineCells(pkdn,pkdl,pkdu);
 	    pj = pkdn->pLower;
 	    if (pkdn->pUpper - pj < NMAX_OPENCALC) {
@@ -779,11 +779,12 @@ void pkdTreeBuild(PKD pkd,int nBucket,FLOAT diCrit2,KDN *pkdn,int bExcludeVeryAc
     /*
     ** Finally activate a read only cache for remote access.
     */
-    mdlROcache(pkd->mdl,CID_CELL,NULL,pkd->kdNodes,sizeof(KDN),pkd->nNodes);
+    mdlROcache(pkd->mdl,CID_CELL,pkdTreeNodeGetElement,pkd,
+	sizeof(KDN),pkd->nNodes);
     /*
     ** Copy the root node for the top-tree construction.
     */
-    *pkdn = pkd->kdNodes[ROOT];
+    *pkdn = *pkdTreeNode(pkd,ROOT);
     }
 
 
@@ -842,76 +843,79 @@ void pkdDistribRoot(PKD pkd,MOMC *pmom) {
 
 
 void pkdTreeNumSrcActive(PKD pkd,uint8_t uRungLo,uint8_t uRungHi) {
-    KDN *c = pkd->kdNodes;
+    //KDN *c = pkd->kdNodes;
+    KDN *kdn;
     PARTICLE *p;
     int iNode,pj;
 
-    iNode = ROOT;
+    kdn = pkdTreeNode(pkd,iNode = ROOT);
     while (1) {
-	while (c[iNode].iLower) {
-	    iNode = c[iNode].iLower;
+	while (kdn->iLower) {
+	    kdn = pkdTreeNode(pkd,iNode = kdn->iLower);
 	    }
 	/*
 	** We have to test each particle of the bucket for activity.
 	*/
-	c[iNode].nActive = 0;
-	for (pj=c[iNode].pLower;pj<=c[iNode].pUpper;++pj) {
+	kdn->nActive = 0;
+	for (pj=kdn->pLower;pj<=kdn->pUpper;++pj) {
 	    p = pkdParticle(pkd,pj);
-	    if (pkdIsSrcActive(p,uRungLo,uRungHi)) ++c[iNode].nActive;
+	    if (pkdIsSrcActive(p,uRungLo,uRungHi)) ++kdn->nActive;
 	}
 	while (iNode & 1) {
-	    iNode = c[iNode].iParent;
+	    kdn = pkdTreeNode(pkd,iNode = kdn->iParent);
 	    if (!iNode) return;	/* exit point!!! */
-	    c[iNode].nActive = c[c[iNode].iLower].nActive + c[c[iNode].iLower + 1].nActive;
+	    kdn->nActive = pkdTreeNode(pkd,kdn->iLower)->nActive
+		+ pkdTreeNode(pkd,kdn->iLower + 1)->nActive;
 	}
-	++iNode;
+	kdn = pkdTreeNode(pkd,++iNode);
     }
 }
 
 
 void pkdBoundWalk(PKD pkd,BND *pbnd,uint8_t uRungLo,uint8_t uRungHi,uint32_t *pnActive,uint32_t *pnContained) {
-    KDN *c = pkd->kdNodes;
+    //KDN *c = pkd->kdNodes;
+    KDN *kdn;
     PARTICLE *p;
     double d;
     int iNode,pj;    
 
     *pnActive = 0;
     *pnContained = 0;
-    iNode = ROOT;
+    kdn = pkdTreeNode(pkd,iNode = ROOT);
     while (1) {
-	d = fabs(pbnd->fCenter[0] - c[iNode].bnd.fCenter[0]) - pbnd->fMax[0];
-	if (d - c[iNode].bnd.fMax[0] > 0) goto NoIntersect;
-	else if (d + c[iNode].bnd.fMax[0] <= 0) {
-	    d = fabs(pbnd->fCenter[1] - c[iNode].bnd.fCenter[1]) - pbnd->fMax[1];
-	    if (d - c[iNode].bnd.fMax[1] > 0) goto NoIntersect;
-	    else if (d + c[iNode].bnd.fMax[1] <= 0) {
-		d = fabs(pbnd->fCenter[2] - c[iNode].bnd.fCenter[2]) - pbnd->fMax[2];
-		if (d - c[iNode].bnd.fMax[2] > 0) goto NoIntersect;
-		else if (d + c[iNode].bnd.fMax[2] <= 0) goto Contained;
+	d = fabs(pbnd->fCenter[0] - kdn->bnd.fCenter[0]) - pbnd->fMax[0];
+	if (d - kdn->bnd.fMax[0] > 0) goto NoIntersect;
+	else if (d + kdn->bnd.fMax[0] <= 0) {
+	    d = fabs(pbnd->fCenter[1] - kdn->bnd.fCenter[1]) - pbnd->fMax[1];
+	    if (d - kdn->bnd.fMax[1] > 0) goto NoIntersect;
+	    else if (d + kdn->bnd.fMax[1] <= 0) {
+		d = fabs(pbnd->fCenter[2] - kdn->bnd.fCenter[2]) - pbnd->fMax[2];
+		if (d - kdn->bnd.fMax[2] > 0) goto NoIntersect;
+		else if (d + kdn->bnd.fMax[2] <= 0) goto Contained;
 		}
 	    else {
-		d = fabs(pbnd->fCenter[2] - c[iNode].bnd.fCenter[2]) - pbnd->fMax[2];
-		if (d - c[iNode].bnd.fMax[2] > 0) goto NoIntersect;
+		d = fabs(pbnd->fCenter[2] - kdn->bnd.fCenter[2]) - pbnd->fMax[2];
+		if (d - kdn->bnd.fMax[2] > 0) goto NoIntersect;
 		}
 	    }
 	else {
-	    d = fabs(pbnd->fCenter[1] - c[iNode].bnd.fCenter[1]) - pbnd->fMax[1];
-	    if (d - c[iNode].bnd.fMax[1] > 0) goto NoIntersect;
-	    d = fabs(pbnd->fCenter[2] - c[iNode].bnd.fCenter[2]) - pbnd->fMax[2];
-	    if (d - c[iNode].bnd.fMax[2] > 0) goto NoIntersect;
+	    d = fabs(pbnd->fCenter[1] - kdn->bnd.fCenter[1]) - pbnd->fMax[1];
+	    if (d - kdn->bnd.fMax[1] > 0) goto NoIntersect;
+	    d = fabs(pbnd->fCenter[2] - kdn->bnd.fCenter[2]) - pbnd->fMax[2];
+	    if (d - kdn->bnd.fMax[2] > 0) goto NoIntersect;
 	    }	
 	/*
 	** We have an intersection to test!
 	*/
-	if (c[iNode].iLower) {
-	    iNode = c[iNode].iLower;
+	if (kdn->iLower) {
+	    kdn = pkdTreeNode(pkd,iNode = kdn->iLower);
 	    continue;
 	    }
 	else {
 	    /*
 	    ** We have to test each active particle of the bucket for containment.
 	    */
-	    for (pj=c[iNode].pLower;pj<=c[iNode].pUpper;++pj) {
+	    for (pj=kdn->pLower;pj<=kdn->pUpper;++pj) {
 		p = pkdParticle(pkd,pj);
 		if (fabs(pbnd->fCenter[0] - p->r[0]) - pbnd->fMax[0] > 0) continue;
 		if (fabs(pbnd->fCenter[1] - p->r[1]) - pbnd->fMax[1] > 0) continue;
@@ -928,13 +932,13 @@ void pkdBoundWalk(PKD pkd,BND *pbnd,uint8_t uRungLo,uint8_t uRungHi,uint32_t *pn
 	/*
 	** Cell is contained within the bounds.
 	*/
-	*pnContained += (c[iNode].pUpper - c[iNode].pLower + 1);
-	*pnActive += c[iNode].nActive;  /* this must be set with SrcActive for all cells first */
+	*pnContained += (kdn->pUpper - kdn->pLower + 1);
+	*pnActive += kdn->nActive;  /* this must be set with SrcActive for all cells first */
     NoIntersect:
 	while (iNode & 1) {
-	    iNode = c[iNode].iParent;
+	    kdn = pkdTreeNode(pkd,iNode = kdn->iParent);
 	    if (!iNode) return;    /* exit point */
 	}
-	++iNode;
+	kdn = pkdTreeNode(pkd,++iNode);
     }
 }

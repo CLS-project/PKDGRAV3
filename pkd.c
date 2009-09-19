@@ -312,8 +312,8 @@ void pkdInitialize(PKD *ppkd,MDL mdl,int nStore,int nBucket,float fExtraNodes, i
     j = 2.0 / (PKD_MAX_CELL_SIZE*PKD_MAX_CELL_SIZE*PKD_MAX_CELL_SIZE*mdlThreads(mdl));
     pkd->nMaxNodes = (int)ceil((fExtraNodes+1.0)*nStore/floor(nBucket-sqrt(nBucket)));
     if ( pkd->nMaxNodes < j ) pkd->nMaxNodes = j;
-    pkd->kdNodes = mdlMalloc(pkd->mdl,pkd->nMaxNodes*sizeof(KDN));
-    mdlassert(mdl,pkd->kdNodes != NULL);
+    pkd->kdNodesPRIVATE = mdlMalloc(pkd->mdl,pkd->nMaxNodes*sizeof(KDN));
+    mdlassert(mdl,pkd->kdNodesPRIVATE != NULL);
     /*
     ** pLite particles are also allocated and are quicker when sorting particle
     ** type operations such as tree building and domain decomposition are being
@@ -380,13 +380,13 @@ void pkdInitialize(PKD *ppkd,MDL mdl,int nStore,int nBucket,float fExtraNodes, i
 void pkdFinish(PKD pkd) {
     int ism;
 
-    if (pkd->kdNodes) {
+    if (pkd->kdNodesPRIVATE) {
 	/*
 	** Close caching space and free up nodes.
 	*/
 	if (pkd->nNodes > 0)
 	    mdlFinishCache(pkd->mdl,CID_CELL);
-	mdlFree(pkd->mdl,pkd->kdNodes);
+	mdlFree(pkd->mdl,pkd->kdNodesPRIVATE);
 	}
     /*
     ** Free Interaction lists.
@@ -1345,6 +1345,15 @@ int pkdLocal(PKD pkd) {
 
 int pkdNodes(PKD pkd) {
     return(pkd->nNodes);
+    }
+
+/*
+** Returns a pointer to the i'th KDN in the tree.  Used for fetching
+** cache element.  Normal code should call pkdTreeNode().
+*/
+void *pkdTreeNodeGetElement(void *vData,int i,int iDataSize) {
+    PKD pkd = vData;
+    return pkdTreeNode(pkd,i);
     }
 
 int pkdNumSrcActive(PKD pkd,uint8_t uRungLo,uint8_t uRungHi) {
