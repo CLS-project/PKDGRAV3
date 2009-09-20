@@ -306,7 +306,9 @@ typedef struct kdNode {
     int iParent;
     int pLower;		/* also serves as thread id for the LTT */
     int pUpper;		/* pUpper < 0 indicates no particles in tree! */
+#ifdef TREE_NODE_TIMESTAMP
     double dTimeStamp;
+#endif
 #ifdef LOCAL_EXPANSION
     FLOAT fOpen;
 #else

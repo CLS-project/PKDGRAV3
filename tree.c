@@ -569,7 +569,9 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp) {
 	/*
 	** Set the timestamp for the node.
 	*/
+#ifdef TREE_NODE_TIMESTAMP
 	pkdn->dTimeStamp = dTimeStamp;
+#endif
 	/*
 	** Finished with the bucket, move onto the next one,
 	** or to the parent.
@@ -653,6 +655,7 @@ void pkdCombineCells(PKD pkd,KDN *pkdn,KDN *p1,KDN *p2) {
 	r1[j] = p1->r[j];
 	r2[j] = p2->r[j];
 	}
+#ifdef TREE_NODE_TIMESTAMP
     if (p1->dTimeStamp > p2->dTimeStamp) {
 	/*
 	** Shift r2 to be time synchronous to p1->dTimeStamp.
@@ -674,6 +677,7 @@ void pkdCombineCells(PKD pkd,KDN *pkdn,KDN *p1,KDN *p2) {
 	*/
 	pkdn->dTimeStamp = p1->dTimeStamp;
 	}
+#endif
     if (pkd->oNodeMom) {
 	m1 = pkdNodeMom(pkd,p1)->m;
 	m2 = pkdNodeMom(pkd,p2)->m;
