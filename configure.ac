@@ -67,11 +67,10 @@ AC_SUBST([EFENCE_PATH],[$EFENCE_DIR])
 AC_ARG_WITH(python,
   [  --with-python=VERSION   enable python scripting],
   [PYTHON_EXE="${withval}"],[PYTHON_EXE=no])
+AM_CONDITIONAL(USE_PYTHON, test "x$PYTHON_EXE" != "xno")
 if test "x$PYTHON_EXE" != "xno" ; then
 AC_DEFINE([USE_PYTHON],1,
   [Defined if python support should be compiled into pkdgrav2])
-fi
-AM_CONDITIONAL(USE_PYTHON, test "x$PYTHON_EXE" != "xno")
 if test "x$PYTHON_EXE" = "xyes" ; then
   PYTHON_EXE=python
 fi
@@ -81,6 +80,7 @@ PYTHON_LIB=`$PYTHON_EXE -c "import os; import sys; import distutils.sysconfig as
 AC_SUBST([PYTHON_VER],[$PYTHON_VER])
 AC_SUBST([PYTHON_INC],[$PYTHON_INC])
 AC_SUBST([PYTHON_LIB],[$PYTHON_LIB])
+fi
 
 # HDF5 I/O
 AC_ARG_ENABLE(hdf5,
