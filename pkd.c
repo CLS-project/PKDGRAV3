@@ -123,6 +123,47 @@ void pkdStopTimer(PKD pkd,int iTimer) {
     pkd->ti[iTimer].iActive--;
     }
 
+/* Add a NODE structure: assume double alignment */
+static int pkdNodeAddStruct(PKD pkd,int n) {
+    int iOffset = pkd->iTreeNodeSize;
+    mdlassert( pkd->mdl, pkd->kdNodeListPRIVATE == NULL );
+    mdlassert( pkd->mdl, (iOffset & (sizeof(double)-1)) == 0 );
+    pkd->iTreeNodeSize += n;
+    return iOffset;
+    }
+/* Add n doubles to the node structure */
+static int pkdNodeAddDouble(PKD pkd,int n) {
+    int iOffset = pkd->iTreeNodeSize;
+    mdlassert( pkd->mdl, pkd->kdNodeListPRIVATE == NULL );
+    mdlassert( pkd->mdl, (iOffset & (sizeof(double)-1)) == 0 );
+    pkd->iTreeNodeSize += sizeof(double) * n;
+    return iOffset;
+    }
+/* Add n floats to the node structure */
+static int pkdNodeAddFloat(PKD pkd,int n) {
+    int iOffset = pkd->iTreeNodeSize;
+    mdlassert( pkd->mdl, pkd->kdNodeListPRIVATE == NULL );
+    mdlassert( pkd->mdl, (iOffset & (sizeof(float)-1)) == 0 );
+    pkd->iTreeNodeSize += sizeof(float) * n;
+    return iOffset;
+    }
+/* Add n 64-bit integers to the node structure */
+static int pkdNodeAddInt64(PKD pkd,int n) {
+    int iOffset = pkd->iTreeNodeSize;
+    mdlassert( pkd->mdl, pkd->kdNodeListPRIVATE == NULL );
+    mdlassert( pkd->mdl, (iOffset & (sizeof(int64_t)-1)) == 0 );
+    pkd->iTreeNodeSize += sizeof(int64_t) * n;
+    return iOffset;
+    }
+/* Add n 32-bit integers to the node structure */
+static int pkdNodeAddInt32(PKD pkd,int n) {
+    int iOffset = pkd->iTreeNodeSize;
+    mdlassert( pkd->mdl, pkd->kdNodeListPRIVATE == NULL );
+    mdlassert( pkd->mdl, (iOffset & (sizeof(int32_t)-1)) == 0 );
+    pkd->iTreeNodeSize += sizeof(int32_t) * n;
+    return iOffset;
+    }
+
 /* Add a structure: assume double alignment */
 static int pkdParticleAddStruct(PKD pkd,int n) {
     int iOffset = pkd->iParticleSize;
@@ -177,10 +218,16 @@ void pkdExtendTree(PKD pkd) {
 	    pkd->nTreeBitsLo, pkd->nTreeBitsHi);
 	assert( pkd->nTreeTiles < (1<<pkd->nTreeBitsHi) );
 	}
-    pkd->kdNodeListPRIVATE[pkd->nTreeTiles] = mdlMalloc(pkd->mdl,(1<<pkd->nTreeBitsLo)*sizeof(KDN));
+    pkd->kdNodeListPRIVATE[pkd->nTreeTiles] = mdlMalloc(pkd->mdl,(1<<pkd->nTreeBitsLo)*pkd->iTreeNodeSize);
     mdlassert(pkd->mdl,pkd->kdNodeListPRIVATE[pkd->nTreeTiles] != NULL);
     ++pkd->nTreeTiles;
     pkd->nMaxNodes = (1<<pkd->nTreeBitsLo) * pkd->nTreeTiles;
+    }
+
+void pkdAllocateTopTree(PKD pkd,int nCell) {
+    if (pkd->kdTopPRIVATE != NULL) free(pkd->kdTopPRIVATE);
+    pkd->kdTopPRIVATE = malloc(nCell*pkd->iTreeNodeSize);
+    assert(pkd->kdTopPRIVATE != NULL);
     }
 
 void pkdInitialize(
@@ -195,6 +242,7 @@ void pkdInitialize(
     pkd->mdl = mdl;
     pkd->idSelf = mdlSelf(mdl);
     pkd->nThreads = mdlThreads(mdl);
+    pkd->kdNodeListPRIVATE = NULL;
     pkd->pStorePRIVATE = NULL;
     pkd->nStore = nStore;
     pkd->nLocal = 0;
@@ -220,6 +268,7 @@ void pkdInitialize(
     ** descending size (i.e., doubles & int64 and then float & int32)
     */
     pkd->iParticleSize = sizeof(PARTICLE);
+    pkd->iTreeNodeSize = sizeof(KDN);
 
     if ( mMemoryModel & PKD_MODEL_VELOCITY )
 	pkd->oVelocity = pkdParticleAddDouble(pkd,3);
@@ -279,6 +328,14 @@ void pkdInitialize(
 	}
 
     /*
+    ** Tree node memory models
+    */
+    if ( mMemoryModel & PKD_MODEL_TREE_MOMENT )
+	pkd->oNodeMom = pkdNodeAddStruct(pkd,sizeof(MOMR));
+    else
+	pkd->oNodeMom = 0;
+
+    /*
     ** Allocate the main particle store.
     ** Need to use mdlMalloc() since the particles will need to be
     ** visible to all other processors thru mdlAquire() later on.
@@ -325,12 +382,13 @@ void pkdInitialize(
     ** small numbers of particles, we must correct for the minimum cell size.
     */
     /* Okay, now all we really do is allocate a single tree node "tile" */
+    pkd->iTreeNodeSize = (pkd->iTreeNodeSize + sizeof(double) - 1 ) & ~(sizeof(double)-1);
     pkd->nTreeBitsLo = nTreeBitsLo;
     pkd->nTreeBitsHi = nTreeBitsHi;
     pkd->iTreeMask = (1<<pkd->nTreeBitsLo) - 1;
     pkd->kdNodeListPRIVATE = mdlMalloc(pkd->mdl,(1<<pkd->nTreeBitsHi)*sizeof(KDN *));
     mdlassert(mdl,pkd->kdNodeListPRIVATE != NULL);
-    pkd->kdNodeListPRIVATE[0] = mdlMalloc(pkd->mdl,(1<<pkd->nTreeBitsLo)*sizeof(KDN));
+    pkd->kdNodeListPRIVATE[0] = mdlMalloc(pkd->mdl,(1<<pkd->nTreeBitsLo)*pkd->iTreeNodeSize);
     mdlassert(mdl,pkd->kdNodeListPRIVATE[0] != NULL);
     pkd->nTreeTiles = 1;
     pkd->nMaxNodes = (1<<pkd->nTreeBitsLo) * pkd->nTreeTiles;
@@ -342,7 +400,7 @@ void pkdInitialize(
     pkd->pLite = malloc((nStore+1)*sizeof(PLITE));
     mdlassert(mdl,pkd->pLite != NULL);
     pkd->nNodes = 0;
-    pkd->kdTop = NULL;
+    pkd->kdTopPRIVATE = NULL;
     /*
     ** Ewald stuff!
     */
@@ -432,7 +490,7 @@ void pkdFinish(PKD pkd) {
 	free(pkd->S[ism].Check);
 	}
     free(pkd->S);
-    if (pkd->kdTop) free(pkd->kdTop);
+    if (pkd->kdTopPRIVATE) free(pkd->kdTopPRIVATE);
     free(pkd->ew.ewt);
     free(pkd->pClass);
     mdlFree(pkd->mdl,pkd->pStorePRIVATE);

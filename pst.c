@@ -2403,7 +2403,7 @@ void pstBuildTree(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	iLower = LOWER(iCell);
 	iNext = UPPER(iCell);
 	MINSIDE(pst->bnd.fMax,minside);
-	pkdCombineCells(&pkdn[iCell],&pkdn[iLower],&pkdn[iNext]);
+	pkdCombineCells(plcl->pkd,&pkdn[iCell],&pkdn[iLower],&pkdn[iNext]);
 	CALCOPEN(&pkdn[iCell],in->diCrit2,minside);
 	/*
 	** Set all the pointers and flags.

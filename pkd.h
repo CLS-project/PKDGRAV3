@@ -95,6 +95,8 @@ typedef uint_fast64_t total_t; /* Count of particles globally (total number) */
 #define PKD_MODEL_SPH          (1<<9)  /* Sph Fields */
 #define PKD_MODEL_STAR         (1<<10) /* Star Fields */
 
+#define PKD_MODEL_TREE_MOMENT  (1<<24) /* Include moment in the tree */
+
 /*
 ** This constant is used to limit the size of a cell.
 */
@@ -314,7 +316,6 @@ typedef struct kdNode {
     FLOAT r[3];
     FLOAT a[3];  /* a_cm is used in determining the timestep in the new grav stepping */
     FLOAT v[3];
-    MOMR mom;
     uint32_t nActive; /* local active count used for DD */
     uint8_t uMinRung;
     uint8_t uMaxRung;
@@ -589,13 +590,14 @@ typedef struct pkdContext {
     uint64_t nMaxOrderDark;
     uint64_t nMaxOrderGas;
     FLOAT fPeriod[3];
-    KDN *kdTop;
+    char *kdTopPRIVATE; /* Because this is a variable size, we use a char pointer, not a KDN pointer! */
+    char **kdNodeListPRIVATE; /* BEWARE: also char instead of KDN */
     int iTopRoot;
     int nNodes;
     int nNodesFull;     /* number of nodes in the full tree (including very active particles) */
     int nNonVANodes;    /* number of nodes *not* in Very Active Tree, or index to the start of the VA nodes (except VAROOT) */
     BND bnd;
-    KDN **kdNodeListPRIVATE;
+    size_t iTreeNodeSize;
     size_t iParticleSize;
     PARTICLE *pStorePRIVATE;
     PARTICLE *pTempPRIVATE;
@@ -622,6 +624,11 @@ typedef struct pkdContext {
     int oHermite; /* Hermite structure */
     int oRelaxation;
     int oVelSmooth;
+
+    /*
+    ** Advanced memory models - Tree Nodes
+    */
+    int oNodeMom;
 
     /*
     ** Tree walk variables.
@@ -723,7 +730,21 @@ static inline int pkdIsActive(PKD pkd, PARTICLE *p ) {
     }
 
 /*
-** The particle storage will soon be variable based on the memory model.
+** A tree node is of variable size.  The following routines are used to
+** access individual fields.
+*/
+static inline void *pkdNodeField( KDN *n, int iOffset ) {
+    char *v = (char *)n;
+    /*assert(iOffset);*/ /* Remove this for better performance */
+    return (void *)(v + iOffset);
+    }
+
+static inline MOMR *pkdNodeMom(PKD pkd,KDN *n) {
+    return pkdNodeField(n,pkd->oNodeMom);
+    }
+
+/*
+** The size of a particle is variable based on the memory model.
 ** The following three routines must be used instead of accessing pStore
 ** directly.  pkdParticle will return a pointer to the i'th particle.
 ** The Size and Base functions are intended for cache routines; no other
@@ -857,7 +878,7 @@ typedef struct CacheStatistics {
 */
 void pkdVATreeBuild(PKD pkd,int nBucket,FLOAT diCrit2,double dTimeStamp);
 void pkdTreeBuild(PKD pkd,int nBucket,FLOAT dCrit,KDN *pkdn,int bExcludeVeryActive,double dTimeStamp);
-void pkdCombineCells(KDN *pkdn,KDN *p1,KDN *p2);
+void pkdCombineCells(PKD,KDN *pkdn,KDN *p1,KDN *p2);
 void pkdDistribCells(PKD,int,KDN *);
 void pkdCalcRoot(PKD,MOMC *);
 void pkdDistribRoot(PKD,MOMC *);
@@ -918,9 +939,13 @@ int pkdInactive(PKD);
 int pkdNodes(PKD);
 void pkdExtendTree(PKD pkd);
 static inline KDN *pkdTreeNode(PKD pkd,int iNode) {
-    return &pkd->kdNodeListPRIVATE[(iNode>>pkd->nTreeBitsLo)][iNode&pkd->iTreeMask];
+    return (KDN *)&pkd->kdNodeListPRIVATE[(iNode>>pkd->nTreeBitsLo)][pkd->iTreeNodeSize*(iNode&pkd->iTreeMask)];
     }
 void *pkdTreeNodeGetElement(void *vData,int i,int iDataSize);
+static inline KDN *pkdTopNode(PKD pkd,int iNode) {
+    return (KDN *)&pkd->kdTopPRIVATE[pkd->iTreeNodeSize*iNode];
+    }
+void pkdAllocateTopTree(PKD pkd,int nCell);
 
 int pkdNumSrcActive(PKD pkd,uint8_t uRungLo,uint8_t uRungHi);
 int pkdNumDstActive(PKD pkd,uint8_t uRungLo,uint8_t uRungHi);

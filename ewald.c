@@ -48,9 +48,9 @@ int pkdParticleEwald(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,PARTICLE *p) {
     ax = 0.0;
     ay = 0.0;
     az = 0.0;
-    dx = p->r[0] - pkd->kdTop[ROOT].r[0];
-    dy = p->r[1] - pkd->kdTop[ROOT].r[1];
-    dz = p->r[2] - pkd->kdTop[ROOT].r[2];
+    dx = p->r[0] - pkdTopNode(pkd,ROOT)->r[0];
+    dy = p->r[1] - pkdTopNode(pkd,ROOT)->r[1];
+    dz = p->r[2] - pkdTopNode(pkd,ROOT)->r[2];
     for (ix=-pkd->ew.nEwReps;ix<=pkd->ew.nEwReps;++ix) {
 	bInHolex = (ix >= -pkd->ew.nReps && ix <= pkd->ew.nReps);
 	x = dx + ix*L;

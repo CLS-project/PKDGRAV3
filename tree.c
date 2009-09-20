@@ -520,17 +520,17 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp) {
 	/*
 	** Now calculate the reduced multipole moment.
 	*/
-	momClearMomr(&pkdn->mom);
+	if (pkd->oNodeMom) momClearMomr(pkdNodeMom(pkd,pkdn));
 	d2Max = 0;
 	for (pj=pkdn->pLower;pj<=pkdn->pUpper;++pj) {
 	    p = pkdParticle(pkd,pj);
 	    x = p->r[0] - pkdn->r[0];
 	    y = p->r[1] - pkdn->r[1];
 	    z = p->r[2] - pkdn->r[2];
-	    if (pkdIsSrcActive(p,0,MAX_RUNG)) {
+	    if (pkd->oNodeMom && pkdIsSrcActive(p,0,MAX_RUNG)) {
 		m = pkdMass(pkd,p);
 		d2 = momMakeMomr(&mom,m,x,y,z);
-		momAddMomr(&pkdn->mom,&mom);
+		momAddMomr(pkdNodeMom(pkd,pkdn),&mom);
 		}
 	    else {
 		d2 = x*x + y*y + z*z;
@@ -589,7 +589,7 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp) {
 	    pkdn->bnd.size = 2.0*(pkdn->bnd.fMax[0]+pkdn->bnd.fMax[1]+pkdn->bnd.fMax[2])/3.0;
 	    pkdl = pkdTreeNode(pkd,pkdn->iLower);
 	    pkdu = pkdTreeNode(pkd,pkdn->iLower + 1);
-	    pkdCombineCells(pkdn,pkdl,pkdu);
+	    pkdCombineCells(pkd,pkdn,pkdl,pkdu);
 	    pj = pkdn->pLower;
 	    if (pkdn->pUpper - pj < NMAX_OPENCALC) {
 		p = pkdParticle(pkd,pj);
@@ -637,7 +637,7 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp) {
 
 
 
-void pkdCombineCells(KDN *pkdn,KDN *p1,KDN *p2) {
+void pkdCombineCells(PKD pkd,KDN *pkdn,KDN *p1,KDN *p2) {
     MOMR mom;
     FLOAT m1,m2,x,y,z,ifMass;
     FLOAT r1[3],r2[3];
@@ -668,14 +668,20 @@ void pkdCombineCells(KDN *pkdn,KDN *p1,KDN *p2) {
 	*/
 	pkdn->dTimeStamp = p1->dTimeStamp;
 	}
-    m1 = p1->mom.m;
-    m2 = p2->mom.m;
-    ifMass = 1/(m1 + m2);
-    /*
-    ** In the case where a cell has all its particles source inactive mom.m == 0, which is ok, but we
-    ** still need a reasonable center in order to define opening balls in the tree code.
-    */
-    if ( m1==0.0 || m2 == 0.0 ) {
+    if (pkd->oNodeMom) {
+	m1 = pkdNodeMom(pkd,p1)->m;
+	m2 = pkdNodeMom(pkd,p2)->m;
+	ifMass = 1/(m1 + m2);
+	/*
+	** In the case where a cell has all its particles source inactive mom.m == 0, which is ok, but we
+	** still need a reasonable center in order to define opening balls in the tree code.
+	*/
+	if ( m1==0.0 || m2 == 0.0 ) {
+	    ifMass = 1.0;
+	    m1 = m2 = 0.5;
+	    }
+	}
+    else {
 	ifMass = 1.0;
 	m1 = m2 = 0.5;
 	}
@@ -697,17 +703,19 @@ void pkdCombineCells(KDN *pkdn,KDN *p1,KDN *p2) {
     ** Shift the multipoles of each of the children
     ** to the CoM of this cell and add them up.
     */
-    pkdn->mom = p1->mom;
-    x = r1[0] - pkdn->r[0];
-    y = r1[1] - pkdn->r[1];
-    z = r1[2] - pkdn->r[2];
-    momShiftMomr(&pkdn->mom,x,y,z);
-    mom = p2->mom;
-    x = r2[0] - pkdn->r[0];
-    y = r2[1] - pkdn->r[1];
-    z = r2[2] - pkdn->r[2];
-    momShiftMomr(&mom,x,y,z);
-    momAddMomr(&pkdn->mom,&mom);
+    if (pkd->oNodeMom) {
+	*pkdNodeMom(pkd,pkdn) = *pkdNodeMom(pkd,p1);
+	x = r1[0] - pkdn->r[0];
+	y = r1[1] - pkdn->r[1];
+	z = r1[2] - pkdn->r[2];
+	momShiftMomr(pkdNodeMom(pkd,pkdn),x,y,z);
+	mom = *pkdNodeMom(pkd,p2);
+	x = r2[0] - pkdn->r[0];
+	y = r2[1] - pkdn->r[1];
+	z = r2[2] - pkdn->r[2];
+	momShiftMomr(&mom,x,y,z);
+	momAddMomr(pkdNodeMom(pkd,pkdn),&mom);
+	}
     BND_COMBINE(pkdn->bnd,p1->bnd,p2->bnd);
     }
 
@@ -777,7 +785,7 @@ void pkdTreeBuild(PKD pkd,int nBucket,FLOAT diCrit2,KDN *pkdn,int bExcludeVeryAc
     ** Finally activate a read only cache for remote access.
     */
     mdlROcache(pkd->mdl,CID_CELL,pkdTreeNodeGetElement,pkd,
-	sizeof(KDN),pkd->nNodes);
+	pkd->iTreeNodeSize,pkd->nNodes);
     /*
     ** Copy the root node for the top-tree construction.
     */
@@ -786,16 +794,15 @@ void pkdTreeBuild(PKD pkd,int nBucket,FLOAT diCrit2,KDN *pkdn,int bExcludeVeryAc
 
 
 void pkdDistribCells(PKD pkd,int nCell,KDN *pkdn) {
-    KDN *c;
+    KDN *kdn;
     int i;
 
-    if (pkd->kdTop != NULL) free(pkd->kdTop);
-    pkd->kdTop = malloc(nCell*sizeof(KDN));
-    assert(pkd->kdTop != NULL);
-    c = pkd->kdTop;
+    pkdAllocateTopTree(pkd,nCell);
+    kdn = pkdTopNode(pkd,0);
     for (i=1;i<nCell;++i) {
 	if (pkdn[i].pUpper) {
-	    c[i] = pkdn[i];
+	    kdn = pkdTopNode(pkd,i);
+	    *kdn = pkdn[i];
 	    if (pkdn[i].pLower == pkd->idSelf) pkd->iTopRoot = i;
 	    }
 	}
@@ -808,9 +815,9 @@ void pkdDistribCells(PKD pkd,int nCell,KDN *pkdn) {
 */
 void pkdCalcRoot(PKD pkd,MOMC *pmom) {
     PARTICLE *p;
-    FLOAT xr = pkd->kdTop[ROOT].r[0];
-    FLOAT yr = pkd->kdTop[ROOT].r[1];
-    FLOAT zr = pkd->kdTop[ROOT].r[2];
+    FLOAT xr = pkdTopNode(pkd,ROOT)->r[0];
+    FLOAT yr = pkdTopNode(pkd,ROOT)->r[1];
+    FLOAT zr = pkdTopNode(pkd,ROOT)->r[2];
     FLOAT x,y,z;
     FLOAT fMass;
     MOMC mc;

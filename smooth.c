@@ -1056,29 +1056,30 @@ void smGatherRemote(SMX smx,FLOAT fBall2,FLOAT r[3],int id) {
 
 
 void smGather(SMX smx,FLOAT fBall2,FLOAT r[3]) {
-    KDN *c = smx->pkd->kdTop;
-    int idSelf = smx->pkd->idSelf;
+    KDN *kdn;
+    PKD pkd = smx->pkd;
+    int idSelf = pkd->idSelf;
     int *S = smx->ST;
     FLOAT min2;
     int iCell,id;
     int sp = 0;
 
-    iCell = ROOT;
+    kdn = pkdTopNode(pkd,iCell = ROOT);
     while (1) {
-	MINDIST(c[iCell].bnd,r,min2);
+	MINDIST(kdn->bnd,r,min2);
 	if (min2 > fBall2) {
 	    goto NoIntersect;
 	    }
 	/*
 	** We have an intersection to test.
 	*/
-	if (c[iCell].iLower) {
-	    iCell = c[iCell].iLower;
+	if (kdn->iLower) {
+	    kdn = pkdTopNode(pkd,iCell = kdn->iLower);
 	    S[sp++] = iCell+1;
 	    continue;
 	    }
 	else {
-	    id = c[iCell].pLower; /* this is the thread id in LTT */
+	    id = kdn->pLower; /* this is the thread id in LTT */
 	    if (id != idSelf) {
 		smGatherRemote(smx,fBall2,r,id);
 		}
@@ -1087,7 +1088,7 @@ void smGather(SMX smx,FLOAT fBall2,FLOAT r[3]) {
 		}
 	    }
     NoIntersect:
-	if (sp) iCell = S[--sp];
+	if (sp) kdn = pkdTopNode(pkd,iCell = S[--sp]);
 	else break;
 	}
     }

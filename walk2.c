@@ -90,7 +90,8 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 		int bVeryActive,double *pdFlop,double *pdPartSum,double *pdCellSum) {
     PARTICLE *p;
     PARTICLE *pRemote;
-    KDN *c, *pkdc, *pkdd, *kdn0, *kdn1;
+    KDN *pkdc, *pkdd, *kdn0, *kdn1;
+    MOMR *mom;
     LOCR L;
     double dirLsum,normLsum,adotai,maga;
     double tax,tay,taz;
@@ -128,6 +129,9 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
     VTResume();
 #endif
 
+    assert(pkd->oNodeMom);
+    assert(pkd->oVelocity);
+
     /*
     ** If we are doing the very active gravity then check that there is a very active tree!
     ** Otherwise we check that the ROOT has active particles!
@@ -141,7 +145,6 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
     ** Initially we set our cell pointer to
     ** point to the top tree.
     */
-    c = pkd->kdTop;
     nTotActive = 0;
     ilpClear(pkd->ilp);
     ilcClear(pkd->ilc);
@@ -152,7 +155,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
     nMaxInitCheck = 2*nReps+1;
     nMaxInitCheck = nMaxInitCheck*nMaxInitCheck*nMaxInitCheck;	/* all replicas */
     iCell = pkd->iTopRoot;
-    while ((iCell = c[iCell].iParent)) ++nMaxInitCheck; /* all top tree siblings */
+    while ((iCell = pkdTopNode(pkd,iCell)->iParent)) ++nMaxInitCheck; /* all top tree siblings */
     assert(nMaxInitCheck < pkd->nMaxCheck);  /* we should definitely have enough to cover us here! */
     nCheck = 0;
     iStack = -1;
@@ -186,11 +189,11 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 		    /* If leaf of top tree, use root of
 		       local tree.
 		    */
-		    if (c[ROOT].iLower) {
+		    if (pkdTopNode(pkd,ROOT)->iLower) {
 			pkd->Check[nCheck].id = -1;
 			}
 		    else {
-			pkd->Check[nCheck].id = c[ROOT].pLower;
+			pkd->Check[nCheck].id = pkdTopNode(pkd,ROOT)->pLower;
 			}
 		    for (j=0;j<3;++j) pkd->Check[nCheck].rOffset[j] = rOffset[j];
 		    ++nCheck;
@@ -215,18 +218,18 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 	iCell = pkd->iTopRoot;
 	iSib = SIBLING(iCell);
 	while (iSib) {
-	    if (c[iSib].iLower) {
+	    if (pkdTopNode(pkd,iSib)->iLower) {
 		pkd->Check[nCheck].iCell = iSib;
 		pkd->Check[nCheck].id = -1;
 		}
 	    else {
 		/* If leaf of top tree, use root of local tree */
 		pkd->Check[nCheck].iCell = ROOT;
-		pkd->Check[nCheck].id = c[iSib].pLower;
+		pkd->Check[nCheck].id = pkdTopNode(pkd,iSib)->pLower;
 		}
 	    for (j=0;j<3;++j) pkd->Check[nCheck].rOffset[j] = 0.0;
 	    ++nCheck;
-	    iCell = c[iCell].iParent;
+	    iCell = pkdTopNode(pkd,iCell)->iParent;
 	    iSib = SIBLING(iCell);
 	    }
 	}
@@ -314,7 +317,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 		    n = pkdc->pUpper - pkdc->pLower + 1;
 		    }
 		else if (id < 0) {
-		    pkdc = &pkd->kdTop[pkd->Check[i].iCell];
+		    pkdc = pkdTopNode(pkd,pkd->Check[i].iCell);
 		    assert(pkdc->iLower != 0);
 		    n = WALK_MINMULTIPOLE - 1;  /* See check below, we always want to open this? */
 		    }
@@ -332,7 +335,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 		** If this cell has no mass, meaning it is not source active for gravity then we
 		** can remove it from the checklist (ignore it).
 		*/
-		if (pkdc->mom.m == 0.0) {
+		if (pkdNodeMom(pkd,pkdc)->m == 0.0) {
 		    if (id >= 0 && id != pkd->idSelf) {
 			mdlRelease(pkd->mdl,CID_CELL,pkdc);
 			}
@@ -344,7 +347,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 		    dx[j] = kdn0->r[j] - rCheck[j];
 		    d2 += dx[j]*dx[j];
 		    }
-		fourh2 = softmassweight(kdn0->mom.m,4*kdn0->fSoft2,pkdc->mom.m,4*pkdc->fSoft2);
+		fourh2 = softmassweight(pkdNodeMom(pkd,kdn0)->m,4*kdn0->fSoft2,pkdNodeMom(pkd,pkdc)->m,4*pkdc->fSoft2);
 		iOpen = 0;
 		fOpenMax = kdn0->fOpen;
 		if (pkdc->fOpen > fOpenMax) fOpenMax = pkdc->fOpen;
@@ -514,17 +517,17 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 			** (this is a bit tricky)
 			*/
 			if (id < 0) {
-			    if (pkd->kdTop[iCheckCell].pLower >= 0) {
+			    if (pkdTopNode(pkd,iCheckCell)->pLower >= 0) {
 				pkd->Check[nCheck].iCell = ROOT;
-				pkd->Check[nCheck].id = pkd->kdTop[iCheckCell].pLower;
+				pkd->Check[nCheck].id = pkdTopNode(pkd,iCheckCell)->pLower;
 				}
 			    else {
 				pkd->Check[nCheck].iCell = iCheckCell;
 				assert(pkd->Check[nCheck].id == -1);
 				}
-			    if (pkd->kdTop[iCheckCell+1].pLower >= 0) {
+			    if (pkdTopNode(pkd,iCheckCell+1)->pLower >= 0) {
 				pkd->Check[nCheck+1].iCell = ROOT;
-				pkd->Check[nCheck+1].id = pkd->kdTop[iCheckCell+1].pLower;
+				pkd->Check[nCheck+1].id = pkdTopNode(pkd,iCheckCell+1)->pLower;
 				}
 			    else {
 				pkd->Check[nCheck+1].iCell = iCheckCell+1;
@@ -606,7 +609,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 		    ** Add to the GLAM list to be evaluated later.
 		    */
 		    dir = 1.0/sqrt(d2);
-		    *pdFlop += momLocrAddMomr5(&L,&pkdc->mom,dir,dx[0],dx[1],dx[2],&tax,&tay,&taz);
+		    *pdFlop += momLocrAddMomr5(&L,pkdNodeMom(pkd,pkdc),dir,dx[0],dx[1],dx[2],&tax,&tay,&taz);
 		    adotai = pkdc->a[0]*(-tax) + pkdc->a[1]*(-tay) + pkdc->a[2]*(-taz); /* temporary hack to get it right */
 		    if (adotai > 0) {
 			maga = sqrt(pkdc->a[0]*pkdc->a[0] + pkdc->a[1]*pkdc->a[1] + pkdc->a[2]*pkdc->a[2]);
@@ -625,31 +628,32 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 			ctile = ilcExtend(pkd->ilc);
 		    j = ctile->nCell;
 
+		    mom = pkdNodeMom(pkd,pkdc);
 		    ctile->d[j].x.f = rCheck[0];
 		    ctile->d[j].y.f = rCheck[1];
 		    ctile->d[j].z.f = rCheck[2];
-		    ctile->d[j].m.f = pkdc->mom.m;
-		    ctile->d[j].xx.f = pkdc->mom.xx;
-		    ctile->d[j].yy.f = pkdc->mom.yy;
-		    ctile->d[j].xy.f = pkdc->mom.xy;
-		    ctile->d[j].xz.f = pkdc->mom.xz;
-		    ctile->d[j].yz.f = pkdc->mom.yz;
-		    ctile->d[j].xxx.f = pkdc->mom.xxx;
-		    ctile->d[j].xyy.f = pkdc->mom.xyy;
-		    ctile->d[j].xxy.f = pkdc->mom.xxy;
-		    ctile->d[j].yyy.f = pkdc->mom.yyy;
-		    ctile->d[j].xxz.f = pkdc->mom.xxz;
-		    ctile->d[j].yyz.f = pkdc->mom.yyz;
-		    ctile->d[j].xyz.f = pkdc->mom.xyz;
-		    ctile->d[j].xxxx.f = pkdc->mom.xxxx;
-		    ctile->d[j].xyyy.f = pkdc->mom.xyyy;
-		    ctile->d[j].xxxy.f = pkdc->mom.xxxy;
-		    ctile->d[j].yyyy.f = pkdc->mom.yyyy;
-		    ctile->d[j].xxxz.f = pkdc->mom.xxxz;
-		    ctile->d[j].yyyz.f = pkdc->mom.yyyz;
-		    ctile->d[j].xxyy.f = pkdc->mom.xxyy;
-		    ctile->d[j].xxyz.f = pkdc->mom.xxyz;
-		    ctile->d[j].xyyz.f = pkdc->mom.xyyz;
+		    ctile->d[j].m.f = mom->m;
+		    ctile->d[j].xx.f = mom->xx;
+		    ctile->d[j].yy.f = mom->yy;
+		    ctile->d[j].xy.f = mom->xy;
+		    ctile->d[j].xz.f = mom->xz;
+		    ctile->d[j].yz.f = mom->yz;
+		    ctile->d[j].xxx.f = mom->xxx;
+		    ctile->d[j].xyy.f = mom->xyy;
+		    ctile->d[j].xxy.f = mom->xxy;
+		    ctile->d[j].yyy.f = mom->yyy;
+		    ctile->d[j].xxz.f = mom->xxz;
+		    ctile->d[j].yyz.f = mom->yyz;
+		    ctile->d[j].xyz.f = mom->xyz;
+		    ctile->d[j].xxxx.f = mom->xxxx;
+		    ctile->d[j].xyyy.f = mom->xyyy;
+		    ctile->d[j].xxxy.f = mom->xxxy;
+		    ctile->d[j].yyyy.f = mom->yyyy;
+		    ctile->d[j].xxxz.f = mom->xxxz;
+		    ctile->d[j].yyyz.f = mom->yyyz;
+		    ctile->d[j].xxyy.f = mom->xxyy;
+		    ctile->d[j].xxyz.f = mom->xxyz;
+		    ctile->d[j].xyyz.f = mom->xyyz;
 		    ++ctile->nCell;
 		    }
 		else if (iOpen == -3) {
@@ -658,11 +662,11 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 		    ** interaction, so we need to treat is as a softened monopole by putting it
 		    ** on the particle interaction list.
 		    */
-		    ilpAppend(pkd->ilp,
-			      rCheck[0], rCheck[1], rCheck[2],
-			      pkdc->mom.m, 4*pkdc->fSoft2,
-			      -1, /* set iOrder to negative value for time step criterion */
-			      pkdc->v[0], pkdc->v[1], pkdc->v[2]);
+		    ilpAppend(
+			pkd->ilp, rCheck[0], rCheck[1], rCheck[2],
+			pkdNodeMom(pkd,pkdc)->m, 4*pkdc->fSoft2,
+			-1, /* set iOrder to negative value for time step criterion */
+			pkdc->v[0], pkdc->v[1], pkdc->v[2]);
 		    }
 		else {
 		    mdlassert(pkd->mdl,iOpen >= -3 && iOpen <= 1);
