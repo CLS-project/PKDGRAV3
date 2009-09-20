@@ -335,6 +335,18 @@ void pkdInitialize(
     else
 	pkd->oNodeMom = 0;
 
+    if ( mMemoryModel & PKD_MODEL_VELOCITY )
+	pkd->oNodeVelocity = pkdNodeAddDouble(pkd,3);
+    else
+	pkd->oNodeVelocity = 0;
+
+    /* The acceleration is required for the new time step criteria */
+#ifdef LOCAL_EXPANSION
+    pkd->oNodeAcceleration = pkdNodeAddDouble(pkd,3);
+#else
+    pkd->oNodeAcceleration = 0;
+#endif
+
     /*
     ** Allocate the main particle store.
     ** Need to use mdlMalloc() since the particles will need to be
@@ -375,13 +387,12 @@ void pkdInitialize(
     pkd->fSoftFac = 1.0;
     pkd->fSoftMax = HUGE;
     /*
-    ** Now also allocate all node storage here.
-    ** We guess that the upper bound is based on the number of particles in
-    ** a bucket. The mean number of particles per bucket is always somewhat
-    ** less than nBucket, and roughly given by nBucket-sqrt(nBucket).  For
-    ** small numbers of particles, we must correct for the minimum cell size.
+    ** Now we setup the node storage for the tree.  This storage is no longer
+    ** continguous as the MDL now supports non-contiguous arrays.  We allocate
+    ** a single "tile" for the tree.  If this is not sufficient, then additional
+    ** tiles are allocated dynamically.  The default parameters allow for 2^32
+    ** nodes total which is the integer limit anyway.
     */
-    /* Okay, now all we really do is allocate a single tree node "tile" */
     pkd->iTreeNodeSize = (pkd->iTreeNodeSize + sizeof(double) - 1 ) & ~(sizeof(double)-1);
     pkd->nTreeBitsLo = nTreeBitsLo;
     pkd->nTreeBitsHi = nTreeBitsHi;

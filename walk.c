@@ -52,6 +52,10 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
     double dSyncDelta;
     double *v;
 
+    assert(pkd->oNodeMom);
+    assert(pkd->oNodeVelocity);
+    assert(pkd->oVelocity);
+
     /*
     ** If we are doing the very active gravity then check that there is a very active tree!
     */
@@ -195,8 +199,9 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
                     else {
                         dDriftFac = dTime - pkdc->dTimeStamp;
                         }
-		    for (j=0;j<3;++j) rCheck[j] = pkdc->r[j] +
-			dDriftFac*pkdc->v[j] + pkd->Check[i].rOffset[j];
+		    for (j=0;j<3;++j)
+			rCheck[j] = pkdc->r[j] +
+			    dDriftFac*pkdNodeVel(pkd,pkdc)[j] + pkd->Check[i].rOffset[j];
 		    }
 		else {
 		    dDriftFac = 0.0;
@@ -499,9 +504,12 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 		    pkd->ilp[nPart].x = rCheck[0];
 		    pkd->ilp[nPart].y = rCheck[1];
 		    pkd->ilp[nPart].z = rCheck[2];
-		    pkd->ilp[nPart].vx = pkdc->v[0];
-		    pkd->ilp[nPart].vy = pkdc->v[1];
-		    pkd->ilp[nPart].vz = pkdc->v[2];
+		    if (pkd->oNodeVelocity) {
+			double *pVel = pkdNodeVel(pkd,pkdc);
+			pkd->ilp[nPart].vx = pVel[0];
+			pkd->ilp[nPart].vy = pVel[1];
+			pkd->ilp[nPart].vz = pVel[2];
+			}
 #ifdef SOFTLINEAR
 		    pkd->ilp[nPart].h = sqrt(pkdc->fSoft2);
 #endif

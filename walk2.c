@@ -98,7 +98,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
     double fWeight = 0.0;
     double dShiftFlop;
     double dRhoFac;
-    double *v;
+    double *v, *a;
     FLOAT dMin,min2,d2,fOpenMax,fourh2;
     FLOAT fMass,fSoft;
     FLOAT rCheck[3];
@@ -130,6 +130,8 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 #endif
 
     assert(pkd->oNodeMom);
+    assert(pkd->oNodeVelocity);
+    assert(pkd->oNodeAcceleration);
     assert(pkd->oVelocity);
 
     /*
@@ -609,10 +611,11 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 		    ** Add to the GLAM list to be evaluated later.
 		    */
 		    dir = 1.0/sqrt(d2);
+		    a = pkdNodeAccel(pkd,pkdc);
 		    *pdFlop += momLocrAddMomr5(&L,pkdNodeMom(pkd,pkdc),dir,dx[0],dx[1],dx[2],&tax,&tay,&taz);
-		    adotai = pkdc->a[0]*(-tax) + pkdc->a[1]*(-tay) + pkdc->a[2]*(-taz); /* temporary hack to get it right */
+		    adotai = a[0]*(-tax) + a[1]*(-tay) + a[2]*(-taz); /* temporary hack to get it right */
 		    if (adotai > 0) {
-			maga = sqrt(pkdc->a[0]*pkdc->a[0] + pkdc->a[1]*pkdc->a[1] + pkdc->a[2]*pkdc->a[2]);
+			maga = sqrt(a[0]*a[0] + a[1]*a[1] + a[2]*a[2]);
 			adotai /= maga;
 			dirLsum += dir*adotai*adotai;
 			normLsum += adotai*adotai;
@@ -662,11 +665,12 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 		    ** interaction, so we need to treat is as a softened monopole by putting it
 		    ** on the particle interaction list.
 		    */
+		    double *pVel = pkdNodeVel(pkd,pkdc);
 		    ilpAppend(
 			pkd->ilp, rCheck[0], rCheck[1], rCheck[2],
 			pkdNodeMom(pkd,pkdc)->m, 4*pkdc->fSoft2,
 			-1, /* set iOrder to negative value for time step criterion */
-			pkdc->v[0], pkdc->v[1], pkdc->v[2]);
+			pVel[0], pVel[1], pVel[2]);
 		    }
 		else {
 		    mdlassert(pkd->mdl,iOpen >= -3 && iOpen <= 1);

@@ -299,8 +299,8 @@ static inline int IN_BND(const FLOAT *R,const BND *b) {
 	}						\
     }
 
-
 typedef struct kdNode {
+    double r[3];
     BND bnd;
     int iLower;
     int iParent;
@@ -313,9 +313,6 @@ typedef struct kdNode {
     FLOAT fOpen2;
 #endif
     FLOAT fSoft2;
-    FLOAT r[3];
-    FLOAT a[3];  /* a_cm is used in determining the timestep in the new grav stepping */
-    FLOAT v[3];
     uint32_t nActive; /* local active count used for DD */
     uint8_t uMinRung;
     uint8_t uMaxRung;
@@ -614,7 +611,7 @@ typedef struct pkdContext {
     ** Advanced memory models
     */
     int oAcceleration; /* Three doubles */
-    int oVelocity; /* Three floats */
+    int oVelocity; /* Three doubles */
     int oPotential; /* One float */
     int oGroup; /* One int32 */
     int oMass; /* One float */
@@ -628,7 +625,9 @@ typedef struct pkdContext {
     /*
     ** Advanced memory models - Tree Nodes
     */
-    int oNodeMom;
+    int oNodeMom; /* a MOMR */
+    int oNodeVelocity; /* Three doubles */
+    int oNodeAcceleration; /* Three doubles */
 
     /*
     ** Tree walk variables.
@@ -738,9 +737,14 @@ static inline void *pkdNodeField( KDN *n, int iOffset ) {
     /*assert(iOffset);*/ /* Remove this for better performance */
     return (void *)(v + iOffset);
     }
-
 static inline MOMR *pkdNodeMom(PKD pkd,KDN *n) {
     return pkdNodeField(n,pkd->oNodeMom);
+    }
+static inline double *pkdNodeVel( PKD pkd, KDN *n ) {
+    return pkdNodeField(n,pkd->oNodeVelocity);
+    }
+static inline double *pkdNodeAccel( PKD pkd, KDN *n ) {
+    return pkdNodeField(n,pkd->oNodeAcceleration);
     }
 
 /*

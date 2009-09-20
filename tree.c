@@ -502,12 +502,18 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp) {
 	pkdn->r[0] = m*x;
 	pkdn->r[1] = m*y;
 	pkdn->r[2] = m*z;
-	pkdn->v[0] = m*vx;
-	pkdn->v[1] = m*vy;
-	pkdn->v[2] = m*vz;
-	pkdn->a[0] = m*ax;
-	pkdn->a[1] = m*ay;
-	pkdn->a[2] = m*az;
+	if (pkd->oNodeVelocity) {
+	    double *pVel = pkdNodeVel(pkd,pkdn);
+	    pVel[0] = m*vx;
+	    pVel[1] = m*vy;
+	    pVel[2] = m*vz;
+	    }
+	if (pkd->oNodeAcceleration) {
+	    double *pAcc = pkdNodeAccel(pkd,pkdn);
+	    pAcc[0] = m*ax;
+	    pAcc[1] = m*ay;
+	    pAcc[2] = m*az;
+	    }
 	dih2 *= m;
 	if(bSoftZero)
 	    pkdn->fSoft2 = 0.0;
@@ -687,8 +693,12 @@ void pkdCombineCells(PKD pkd,KDN *pkdn,KDN *p1,KDN *p2) {
 	}
     for (j=0;j<3;++j) {
 	pkdn->r[j] = ifMass*(m1*r1[j] + m2*r2[j]);
-	pkdn->v[j] = ifMass*(m1*p1->v[j] + m2*p2->v[j]);
-	pkdn->a[j] = ifMass*(m1*p1->a[j] + m2*p2->a[j]);
+	if (pkd->oNodeVelocity)
+	    pkdNodeVel(pkd,pkdn)[j]
+		= ifMass*(m1*pkdNodeVel(pkd,p1)[j] + m2*pkdNodeVel(pkd,p2)[j]);
+	if (pkd->oNodeAcceleration)
+	    pkdNodeAccel(pkd,pkdn)[j]
+		= ifMass*(m1*pkdNodeAccel(pkd,p1)[j] + m2*pkdNodeAccel(pkd,p2)[j]);
 	}
     if(p1->fSoft2 == 0.0 || p2->fSoft2 == 0.0)
 	pkdn->fSoft2 = 0.0;
