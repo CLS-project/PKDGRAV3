@@ -28,7 +28,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 		int bVeryActive,double *pdFlop,double *pdPartSum,double *pdCellSum) {
     PARTICLE *p;
     PARTICLE *pRemote;
-    KDN *c;
+    KDN *kdn;
     KDN *pkdc;
     double dDriftFac;
     double fWeight;
@@ -57,9 +57,9 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
     */
     if (bVeryActive) {
 	assert(pkd->nVeryActive != 0);
-	assert(pkd->nVeryActive == pkd->kdNodes[VAROOT].pUpper - pkd->kdNodes[VAROOT].pLower + 1);
+	assert(pkd->nVeryActive == pkdTreeNode(pkd,VAROOT)->pUpper - pkdTreeNode(pkd,VAROOT)->pLower + 1);
 	}
-    else if (!pkdIsCellActive(&pkd->kdNodes[ROOT],uRungLo,uRungHi)) return 0;
+    else if (!pkdIsCellActive(pkdTreeNode(pkd,ROOT),uRungLo,uRungHi)) return 0;
     /*
     ** SyncDelta is used to compare the current time to the time of a cell to decide
     ** if they are synchronous. We need some sort of sensible minimum difference
@@ -70,7 +70,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
     ** Initially we set our cell pointer to
     ** point to the top tree.
     */
-    c = pkd->kdTop;
+
     /*
     ** Allocate initial interaction lists.
     */
@@ -80,7 +80,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
     nMaxInitCheck = 2*nReps+1;
     nMaxInitCheck = nMaxInitCheck*nMaxInitCheck*nMaxInitCheck;	/* all replicas */
     iCell = pkd->iTopRoot;
-    while ((iCell = c[iCell].iParent)) ++nMaxInitCheck; /* all top tree siblings */
+    while ((iCell = pkdTopNode(pkd,iCell)->iParent)) ++nMaxInitCheck; /* all top tree siblings */
     assert(nMaxInitCheck < pkd->nMaxCheck);
     nCheck = 0;
     iStack = -1;
@@ -108,11 +108,11 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 		    /* If leaf of top tree, use root of
 		       local tree.
 		    */
-		    if (c[ROOT].iLower) {
+		    if (pkdTopNode(pkd,ROOT)->iLower) {
 			pkd->Check[nCheck].id = -1;
 			}
 		    else {
-			pkd->Check[nCheck].id = c[ROOT].pLower;
+			pkd->Check[nCheck].id = pkdTopNode(pkd,ROOT)->pLower;
 			}
 		    for (j=0;j<3;++j) pkd->Check[nCheck].rOffset[j] = rOffset[j];
 		    ++nCheck;
@@ -133,18 +133,18 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 	iCell = pkd->iTopRoot;
 	iSib = SIBLING(iCell);
 	while (iSib) {
-	    if (c[iSib].iLower) {
+	    if (pkdTopNode(pkd,iSib)->iLower) {
 		pkd->Check[nCheck].iCell = iSib;
 		pkd->Check[nCheck].id = -1;
 		}
 	    else {
 		/* If leaf of top tree, use root of local tree */
 		pkd->Check[nCheck].iCell = ROOT;
-		pkd->Check[nCheck].id = c[iSib].pLower;
+		pkd->Check[nCheck].id = pkdTopNode(pkd,iSib)->pLower;
 		}
 	    for (j=0;j<3;++j) pkd->Check[nCheck].rOffset[j] = 0.0;
 	    ++nCheck;
-	    iCell = c[iCell].iParent;
+	    iCell = pkdTopNode(pkd,iCell)->iParent;
 	    iSib = SIBLING(iCell);
 	    }
 	}
@@ -152,9 +152,8 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
     ** Now switch the cell pointer to point to
     ** the local tree.
     */
-    c = pkd->kdNodes;
-    if (bVeryActive) iCell = VAROOT;
-    else iCell = ROOT;
+    if (bVeryActive) kdn = pkdTreeNode(pkd,iCell = VAROOT);
+    else kdn = pkdTreeNode(pkd,iCell = ROOT);
     while (1) {
 	while (1) {
 	    /*
@@ -164,11 +163,11 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 	    for (i=0;i<nCheck;++i) {
 		id = pkd->Check[i].id;
 		if (id == pkd->idSelf) {
-		    pkdc = &pkd->kdNodes[pkd->Check[i].iCell];
+		    pkdc = pkdTreeNode(pkd,pkd->Check[i].iCell);
 		    n = pkdc->pUpper - pkdc->pLower + 1;
 		    }
 		else if (id < 0) {
-		    pkdc = &pkd->kdTop[pkd->Check[i].iCell];
+		    pkdc = pkdTopNode(pkd,pkd->Check[i].iCell);
 		    assert(pkdc->iLower != 0);
 		    n = WALK_MINMULTIPOLE - 1;  /* See check below */
 		    }
@@ -203,7 +202,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 		    dDriftFac = 0.0;
 		    for (j=0;j<3;++j) rCheck[j] = pkdc->r[j] + pkd->Check[i].rOffset[j];
 		    }
-		if (c[iCell].iLower) {
+		if (kdn->iLower) {
 		    /*
 		    ** If this cell is not a bucket calculate the min distance
 		    ** from the center of mass of the check cell to the bounding
@@ -214,9 +213,9 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 		    min2 = 0;
 		    max2 = 0;
 		    for (j=0;j<3;++j) {
-			dMin = fabs(rCheck[j] - c[iCell].bnd.fCenter[j]);
-			dMax = dMin + c[iCell].bnd.fMax[j];
-			dMin -= c[iCell].bnd.fMax[j];
+			dMin = fabs(rCheck[j] - kdn->bnd.fCenter[j]);
+			dMax = dMin + kdn->bnd.fMax[j];
+			dMin -= kdn->bnd.fMax[j];
 			if (dMin > 0) min2 += dMin*dMin;
 			max2 += dMax*dMax;
 			}
@@ -233,9 +232,9 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 			*/
 			d2 = 0;
 			for (j=0;j<3;++j) {
-			    d2 += (rCheck[j] - c[iCell].r[j])*(rCheck[j] - c[iCell].r[j]);
+			    d2 += (rCheck[j] - kdn->r[j])*(rCheck[j] - kdn->r[j]);
 			    }
-			h2 = sqrt(pkdc->fSoft2) + sqrt(c[iCell].fSoft2);
+			h2 = sqrt(pkdc->fSoft2) + sqrt(kdn->fSoft2);
 			h2 *= h2;
 			if (d2 > h2) {
 			    if (n >= WALK_MINMULTIPOLE) iOpen = -1;
@@ -250,9 +249,9 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 			*/
 			d2 = 0;
 			for (j=0;j<3;++j) {
-			    d2 += (rCheck[j] - c[iCell].r[j])*(rCheck[j] - c[iCell].r[j]);
+			    d2 += (rCheck[j] - kdn->r[j])*(rCheck[j] - kdn->r[j]);
 			    }
-			h2 = 2*(pkdc->fSoft2 + c[iCell].fSoft2);
+			h2 = 2*(pkdc->fSoft2 + kdn->fSoft2);
 			if (d2 > h2) {
 			    if (n >= WALK_MINMULTIPOLE) iOpen = -1;
 			    else iOpen = 1;
@@ -278,8 +277,8 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 		    */
 		    min2 = 0;
 		    for (j=0;j<3;++j) {
-			dMin = fabs(rCheck[j] - c[iCell].bnd.fCenter[j]);
-			dMin -= c[iCell].bnd.fMax[j];
+			dMin = fabs(rCheck[j] - kdn->bnd.fCenter[j]);
+			dMin -= kdn->bnd.fMax[j];
 			if (dMin > 0) min2 += dMin*dMin;
 			}
 		    /*
@@ -293,9 +292,9 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 			*/
 			d2 = 0;
 			for (j=0;j<3;++j) {
-			    d2 += (rCheck[j] - c[iCell].r[j])*(rCheck[j] - c[iCell].r[j]);
+			    d2 += (rCheck[j] - kdn->r[j])*(rCheck[j] - kdn->r[j]);
 			    }
-			h2 = sqrt(pkdc->fSoft2) + sqrt(c[iCell].fSoft2);
+			h2 = sqrt(pkdc->fSoft2) + sqrt(kdn->fSoft2);
 			h2 *= h2;
 			if (d2 > h2) {
 			    if (n >= WALK_MINMULTIPOLE) iOpen = -1;
@@ -310,9 +309,9 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 			*/
 			d2 = 0;
 			for (j=0;j<3;++j) {
-			    d2 += (rCheck[j] - c[iCell].r[j])*(rCheck[j] - c[iCell].r[j]);
+			    d2 += (rCheck[j] - kdn->r[j])*(rCheck[j] - kdn->r[j]);
 			    }
-			h2 = 2*(pkdc->fSoft2 + c[iCell].fSoft2);
+			h2 = 2*(pkdc->fSoft2 + kdn->fSoft2);
 			if (d2 > h2) {
 			    if (n >= WALK_MINMULTIPOLE) iOpen = -1;
 			    else iOpen = 1;
@@ -366,16 +365,16 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 			** (this is a bit tricky)
 			*/
 			if (id < 0 ) {
-			    if (pkd->kdTop[iCheckCell].pLower >= 0) {
+			    if (pkdTopNode(pkd,iCheckCell)->pLower >= 0) {
 				pkd->Check[nCheck].iCell = ROOT;
-				pkd->Check[nCheck].id = pkd->kdTop[iCheckCell].pLower;
+				pkd->Check[nCheck].id = pkdTopNode(pkd,iCheckCell)->pLower;
 				}
 			    else {
 				pkd->Check[nCheck].iCell = iCheckCell;
 				}
-			    if (pkd->kdTop[iCheckCell+1].pLower >= 0) {
+			    if (pkdTopNode(pkd,iCheckCell+1)->pLower >= 0) {
 				pkd->Check[nCheck+1].iCell = ROOT;
-				pkd->Check[nCheck+1].id = pkd->kdTop[iCheckCell+1].pLower;
+				pkd->Check[nCheck+1].id = pkdTopNode(pkd,iCheckCell+1)->pLower;
 				}
 			    else {
 				pkd->Check[nCheck+1].iCell = iCheckCell+1;
@@ -476,7 +475,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 		    pkd->ilc[nCell].x = rCheck[0];
 		    pkd->ilc[nCell].y = rCheck[1];
 		    pkd->ilc[nCell].z = rCheck[2];
-		    pkd->ilc[nCell].mom = pkdc->mom;
+		    pkd->ilc[nCell].mom = *pkdNodeMom(pkd,pkdc);
 #ifdef HERMITE
 		    pkd->ilc[nCell].vx = pkdc->v[0];
 		    pkd->ilc[nCell].vy = pkdc->v[1];
@@ -496,7 +495,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 			assert(pkd->ilp != NULL);
 			}
 		    pkd->ilp[nPart].iOrder = -1; /* set iOrder to negative value for time step criterion */
-		    pkd->ilp[nPart].m = pkdc->mom.m;
+		    pkd->ilp[nPart].m = pkdNodeMom(pkd,pkdc)->m;
 		    pkd->ilp[nPart].x = rCheck[0];
 		    pkd->ilp[nPart].y = rCheck[1];
 		    pkd->ilp[nPart].z = rCheck[2];
@@ -527,8 +526,8 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 	    ** Now prepare to proceed to the next deeper
 	    ** level of the tree.
 	    */
-	    if (!c[iCell].iLower) break;
-	    iCell = c[iCell].iLower;
+	    if (!kdn->iLower) break;
+	    kdn = pkdTreeNode(pkd,iCell = kdn->iLower);
 	    /*
 	    ** Now add the siblings of iCell to the
 	    ** Checklist.
@@ -547,7 +546,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 	    ** rung check here when we start using tree repair, but
 	    ** for now this is just as good.
 	    */
-	    if (pkdIsCellActive(c+iCell,uRungLo,uRungHi)) {
+	    if (pkdIsCellActive(kdn,uRungLo,uRungHi)) {
 		/*
 		** iCell is active, continue processing it.
 		** Put the sibling onto the checklist.
@@ -563,7 +562,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 		** hit the sibling. See the goto InactiveAscend below
 		** for how this is done.
 		*/
-		if (pkdIsCellActive(c+iCell+1,uRungLo,uRungHi)) {
+		if (pkdIsCellActive(pkdTreeNode(pkd,iCell+1),uRungLo,uRungHi)) {
 		    /*
 		    ** Sibling is active as well.
 		    ** Push Checklist for the sibling onto the stack
@@ -590,7 +589,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 		/*
 		** Move onto processing the sibling.
 		*/
-		++iCell;
+		kdn = pkdTreeNode(pkd,++iCell);
 		}
 	    }
 	/*
@@ -603,7 +602,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 	** We no longer add *this bucket to any interaction list, this is now done with an
 	** N(N-1)/2 loop in pkdBucketInteract().
 	*/
-	pkdc = &c[iCell];
+	pkdc = kdn;
 	/*
 	** Now calculate gravity on this bucket!
 	*/
@@ -625,7 +624,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 
 	while (iCell & 1) {
 	InactiveAscend:
-	    iCell = c[iCell].iParent;
+	    kdn = pkdTreeNode(pkd,iCell = kdn->iParent);
 	    if (!iCell) {
 		/*
 		** Make sure stack is empty and free its storage.
@@ -635,8 +634,8 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 		return(nTotActive);
 		}
 	    }
-	++iCell;
-	if (!pkdIsCellActive(c+iCell,uRungLo,uRungHi)) goto InactiveAscend;
+	kdn = pkdTreeNode(pkd,++iCell);
+	if (!pkdIsCellActive(kdn,uRungLo,uRungHi)) goto InactiveAscend;
 	/*
 	** Pop the Checklist from the top of the stack,
 	** also getting the state of the interaction list.
