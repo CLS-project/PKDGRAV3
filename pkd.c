@@ -168,9 +168,25 @@ static int pkdParticleAddInt32(PKD pkd,int n) {
     return iOffset;
     }
 
-void pkdInitialize(PKD *ppkd,MDL mdl,int nStore,int nBucket,float fExtraNodes, int iCacheSize,
-		   FLOAT *fPeriod,uint64_t nDark,uint64_t nGas,uint64_t nStar,
-		   uint64_t mMemoryModel) {
+/* Extend the tree by adding more nodes */
+void pkdExtendTree(PKD pkd) {
+    if ( pkd->nTreeTiles >= (1<<pkd->nTreeBitsHi) ) {
+	fprintf(stderr, "ERROR: insufficent nodes available in tree build"
+	    "-- Increase nTreeBitsLo and/or nTreeBitsHi\n"
+	    "nTreeBitsLo=%d nTreeBitsHi=%d\n",
+	    pkd->nTreeBitsLo, pkd->nTreeBitsHi);
+	assert( pkd->nTreeTiles < (1<<pkd->nTreeBitsHi) );
+	}
+    pkd->kdNodeListPRIVATE[pkd->nTreeTiles] = mdlMalloc(pkd->mdl,(1<<pkd->nTreeBitsLo)*sizeof(KDN));
+    mdlassert(pkd->mdl,pkd->kdNodeListPRIVATE[pkd->nTreeTiles] != NULL);
+    ++pkd->nTreeTiles;
+    pkd->nMaxNodes = (1<<pkd->nTreeBitsLo) * pkd->nTreeTiles;
+    }
+
+void pkdInitialize(
+    PKD *ppkd,MDL mdl,int nStore,int nBucket,int nTreeBitsLo, int nTreeBitsHi,
+    int iCacheSize,FLOAT *fPeriod,uint64_t nDark,uint64_t nGas,uint64_t nStar,
+    uint64_t mMemoryModel) {
     PKD pkd;
     int j,ism;
 
@@ -308,12 +324,16 @@ void pkdInitialize(PKD *ppkd,MDL mdl,int nStore,int nBucket,float fExtraNodes, i
     ** less than nBucket, and roughly given by nBucket-sqrt(nBucket).  For
     ** small numbers of particles, we must correct for the minimum cell size.
     */
-    /* j is an estimate of the lower limit of the total number of cells */
-    j = 2.0 / (PKD_MAX_CELL_SIZE*PKD_MAX_CELL_SIZE*PKD_MAX_CELL_SIZE*mdlThreads(mdl));
-    pkd->nMaxNodes = (int)ceil((fExtraNodes+1.0)*nStore/floor(nBucket-sqrt(nBucket)));
-    if ( pkd->nMaxNodes < j ) pkd->nMaxNodes = j;
-    pkd->kdNodesPRIVATE = mdlMalloc(pkd->mdl,pkd->nMaxNodes*sizeof(KDN));
-    mdlassert(mdl,pkd->kdNodesPRIVATE != NULL);
+    /* Okay, now all we really do is allocate a single tree node "tile" */
+    pkd->nTreeBitsLo = nTreeBitsLo;
+    pkd->nTreeBitsHi = nTreeBitsHi;
+    pkd->iTreeMask = (1<<pkd->nTreeBitsLo) - 1;
+    pkd->kdNodeListPRIVATE = mdlMalloc(pkd->mdl,(1<<pkd->nTreeBitsHi)*sizeof(KDN *));
+    mdlassert(mdl,pkd->kdNodeListPRIVATE != NULL);
+    pkd->kdNodeListPRIVATE[0] = mdlMalloc(pkd->mdl,(1<<pkd->nTreeBitsLo)*sizeof(KDN));
+    mdlassert(mdl,pkd->kdNodeListPRIVATE[0] != NULL);
+    pkd->nTreeTiles = 1;
+    pkd->nMaxNodes = (1<<pkd->nTreeBitsLo) * pkd->nTreeTiles;
     /*
     ** pLite particles are also allocated and are quicker when sorting particle
     ** type operations such as tree building and domain decomposition are being
@@ -379,14 +399,17 @@ void pkdInitialize(PKD *ppkd,MDL mdl,int nStore,int nBucket,float fExtraNodes, i
 
 void pkdFinish(PKD pkd) {
     int ism;
+    int i;
 
-    if (pkd->kdNodesPRIVATE) {
+    if (pkd->kdNodeListPRIVATE) {
 	/*
 	** Close caching space and free up nodes.
 	*/
 	if (pkd->nNodes > 0)
 	    mdlFinishCache(pkd->mdl,CID_CELL);
-	mdlFree(pkd->mdl,pkd->kdNodesPRIVATE);
+	for( i=0; i<pkd->nTreeTiles; i++)
+	    mdlFree(pkd->mdl,pkd->kdNodeListPRIVATE[i]);
+	mdlFree(pkd->mdl,pkd->kdNodeListPRIVATE);
 	}
     /*
     ** Free Interaction lists.

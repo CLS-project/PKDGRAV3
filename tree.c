@@ -207,9 +207,7 @@ void BuildTemp(PKD pkd,int iNode,int M) {
 	    ** allocated enough storage.
 	    */
 	    if ( pkd->nNodes+2 > pkd->nMaxNodes ) {
-		fprintf(stderr, "ERROR: insufficent nodes available in tree build"
-			"-- Increase dExtraNodes\n");
-		assert(pkd->nNodes+2 <= pkd->nMaxNodes);
+		pkdExtendTree(pkd);
 		}
 	    iLeft = pkd->nNodes++;
 	    pLeft = pkdTreeNode(pkd,iLeft);
@@ -379,7 +377,6 @@ static float  zeroF[3] = {0.0,0.0,0.0};
 
 void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp) {
     PARTICLE *p;
-    //KDN *c = pkd->kdNodes;
     KDN *pkdn,*pkdl,*pkdu;
     MOMR mom;
     FLOAT m,fMass,fSoft,x,y,z,vx,vy,vz,ax,ay,az,ft,d2,d2Max,dih2,b,bmin;
@@ -843,7 +840,6 @@ void pkdDistribRoot(PKD pkd,MOMC *pmom) {
 
 
 void pkdTreeNumSrcActive(PKD pkd,uint8_t uRungLo,uint8_t uRungHi) {
-    //KDN *c = pkd->kdNodes;
     KDN *kdn;
     PARTICLE *p;
     int iNode,pj;
@@ -873,7 +869,6 @@ void pkdTreeNumSrcActive(PKD pkd,uint8_t uRungLo,uint8_t uRungHi) {
 
 
 void pkdBoundWalk(PKD pkd,BND *pbnd,uint8_t uRungLo,uint8_t uRungHi,uint32_t *pnActive,uint32_t *pnContained) {
-    //KDN *c = pkd->kdNodes;
     KDN *kdn;
     PARTICLE *p;
     double d;

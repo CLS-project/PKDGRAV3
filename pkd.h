@@ -578,20 +578,24 @@ typedef struct pkdContext {
     int nLocal;
     int nVeryActive;
     int nActive;
+    int nTreeBitsLo;
+    int nTreeBitsHi;
+    int iTreeMask;
+    int nTreeTiles;
+    int nMaxNodes;
     uint64_t nDark;
     uint64_t nGas;
     uint64_t nStar;
     uint64_t nMaxOrderDark;
     uint64_t nMaxOrderGas;
     FLOAT fPeriod[3];
-    int nMaxNodes;   /* for kdTemp */
     KDN *kdTop;
     int iTopRoot;
     int nNodes;
     int nNodesFull;     /* number of nodes in the full tree (including very active particles) */
     int nNonVANodes;    /* number of nodes *not* in Very Active Tree, or index to the start of the VA nodes (except VAROOT) */
     BND bnd;
-    KDN *kdNodesPRIVATE;
+    KDN **kdNodeListPRIVATE;
     size_t iParticleSize;
     PARTICLE *pStorePRIVATE;
     PARTICLE *pTempPRIVATE;
@@ -870,9 +874,10 @@ double pkdGetWallClockTimer(PKD,int);
 void pkdClearTimer(PKD,int);
 void pkdStartTimer(PKD,int);
 void pkdStopTimer(PKD,int);
-void pkdInitialize(PKD *ppkd,MDL mdl,int nStore,int nBucket,float fExtraNodes,int iCacheSize,
-		   FLOAT *fPeriod,uint64_t nDark,uint64_t nGas,uint64_t nStar,
-		   uint64_t mMemoryModel);
+void pkdInitialize(
+    PKD *ppkd,MDL mdl,int nStore,int nBucket,int nTreeBitsLo, int nTreeBitsHi,
+    int iCacheSize,FLOAT *fPeriod,uint64_t nDark,uint64_t nGas,uint64_t nStar,
+    uint64_t mMemoryModel);
 void pkdFinish(PKD);
 void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double dTuFac);
 void pkdReadTipsy(PKD pkd,char *pszFileName, uint64_t iOrderStart,
@@ -911,8 +916,9 @@ int pkdLocal(PKD);
 int pkdActive(PKD);
 int pkdInactive(PKD);
 int pkdNodes(PKD);
+void pkdExtendTree(PKD pkd);
 static inline KDN *pkdTreeNode(PKD pkd,int iNode) {
-    return &pkd->kdNodesPRIVATE[iNode];
+    return &pkd->kdNodeListPRIVATE[(iNode>>pkd->nTreeBitsLo)][iNode&pkd->iTreeMask];
     }
 void *pkdTreeNodeGetElement(void *vData,int i,int iDataSize);
 

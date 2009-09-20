@@ -69,6 +69,8 @@ struct parameters {
     int iMaxRung;
     int nRungVeryActive;
     int nPartVeryActive;
+    int nTreeBitsLo;
+    int nTreeBitsHi;
     int iWallRunTime;
     int bPhysicalSoft;
     int bSoftMaxMul;
@@ -111,7 +113,6 @@ struct parameters {
     /* END Gas Parameters */
     double dEta;
     double dExtraStore;
-    double dExtraNodes;
     double dSoft;
     double dSoftMax;
     double dDelta;

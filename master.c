@@ -382,9 +382,14 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.dExtraStore = 0.1;
     prmAddParam(msr->prm,"dExtraStore",2,&msr->param.dExtraStore,
 		sizeof(double),NULL,NULL);
-    msr->param.dExtraNodes = 2.0;
-    prmAddParam(msr->prm,"dExtraNodes",2,&msr->param.dExtraNodes,
-		sizeof(double),NULL,NULL);
+    msr->param.nTreeBitsLo = 14;
+    prmAddParam(msr->prm,"nTreeBitsLo",1,&msr->param.nTreeBitsLo,
+	sizeof(int),"treelo",
+	"<number of low bits for treer> = 14");
+    msr->param.nTreeBitsHi = 18;
+    prmAddParam(msr->prm,"nTreeBitsHi",1,&msr->param.nTreeBitsHi,
+	sizeof(int),"treehi",
+	"<number of high bits for treer> = 18");
 #ifdef MDL_CACHE_SIZE
     msr->param.iCacheSize = MDL_CACHE_SIZE;
 #else
@@ -1026,7 +1031,8 @@ void msrLogParams(MSR msr,FILE *fp) {
     fprintf(fp," nSteps: %d",msr->param.nSteps);
     fprintf(fp," nSmooth: %d",msr->param.nSmooth);
     fprintf(fp," dExtraStore: %f",msr->param.dExtraStore);
-    fprintf(fp," dExtraNodes: %f",msr->param.dExtraNodes);
+    fprintf(fp," nTreeBitsLo: %d",msr->param.nTreeBitsLo);
+    fprintf(fp," nTreeBitsHi: %d",msr->param.nTreeBitsHi);
     fprintf(fp," iCacheSize: %d",msr->param.iCacheSize);
     if (prmSpecified(msr->prm,"dSoft"))
 	fprintf(fp," dSoft: %g",msr->param.dSoft);
@@ -1515,7 +1521,8 @@ double msrGenerateIC(MSR msr) {
     in.omegav= msr->param.csm->dLambda;
     in.bComove = msr->param.csm->bComove;
     in.fExtraStore = msr->param.dExtraStore;
-    in.fExtraNodes = msr->param.dExtraNodes;
+    in.nTreeBitsLo = msr->param.nTreeBitsLo;
+    in.nTreeBitsHi = msr->param.nTreeBitsHi;
     in.iCacheSize  = msr->parm.iCacheSize;
     in.fPeriod[0] = msr->param.dxPeriod;
     in.fPeriod[1] = msr->param.dyPeriod;
@@ -1655,7 +1662,8 @@ void msrSaveParameters(MSR msr, IOHDF5 io) {
     ioHDF5WriteAttribute( io, "bDoPotOutput", H5T_NATIVE_INT, &msr->param.bDoPotOutput );
     ioHDF5WriteAttribute( io, "dEta", H5T_NATIVE_DOUBLE, &msr->param.dEta );
     ioHDF5WriteAttribute( io, "dExtraStore", H5T_NATIVE_DOUBLE, &msr->param.dExtraStore );
-    ioHDF5WriteAttribute( io, "dExtraNodes", H5T_NATIVE_DOUBLE, &msr->param.dExtraNodes );
+    ioHDF5WriteAttribute( io, "nTreeBitsLo", H5T_NATIVE_INT, &msr->param.nTreeBitsLo );
+    ioHDF5WriteAttribute( io, "nTreeBitsHi", H5T_NATIVE_INT, &msr->param.nTreeBitsHi );
     ioHDF5WriteAttribute( io, "iCacheSize", H5T_NATIVE_INT, &msr->param.iCacheSize );
     ioHDF5WriteAttribute( io, "dSoft", H5T_NATIVE_DOUBLE, &msr->param.dSoft );
     ioHDF5WriteAttribute( io, "dSoftMax", H5T_NATIVE_DOUBLE, &msr->param.dSoftMax );
@@ -4197,7 +4205,8 @@ msrReadSS(MSR msr) {
      ** particles.
      */
     in.fExtraStore = msr->param.dExtraStore;
-    in.fExtraNodes = msr->param.dExtraNodes;
+    in.nTreeBitsLo = msr->param.nTreeBitsLo;
+    in.nTreeBitsHi = msr->param.nTreeBitsHi;
     in.iCacheSize  = msr->parm.iCacheSize;
 
     in.fPeriod[0] = msr->param.dxPeriod;
@@ -4923,7 +4932,8 @@ double msrRead(MSR msr, const char *achInFile) {
     read->bStandard = msr->param.bStandard;
     read->bDoublePos = msr->param.bDoublePos;
     read->fExtraStore = msr->param.dExtraStore;
-    read->fExtraNodes = msr->param.dExtraNodes;
+    read->nTreeBitsLo = msr->param.nTreeBitsLo;
+    read->nTreeBitsHi = msr->param.nTreeBitsHi;
     read->iCacheSize  = msr->param.iCacheSize;
     read->fPeriod[0] = msr->param.dxPeriod;
     read->fPeriod[1] = msr->param.dyPeriod;

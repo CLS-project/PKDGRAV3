@@ -658,12 +658,14 @@ void pstOneNodeReadInit(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	nStore = nFileTotal + (int)ceil(nFileTotal*in->fExtraStore);
 
 	if (plcl->pkd) pkdFinish(plcl->pkd);
-	pkdInitialize(&plcl->pkd,pst->mdl,nStore,in->nBucket,in->fExtraNodes,in->iCacheSize,
-		      in->fPeriod,
-		      in->nSpecies[FIO_SPECIES_DARK],
-		      in->nSpecies[FIO_SPECIES_SPH],
-		      in->nSpecies[FIO_SPECIES_STAR],
-		      in->mMemoryModel);
+	pkdInitialize(
+	    &plcl->pkd,pst->mdl,nStore,in->nBucket,
+	    in->nTreeBitsLo,in->nTreeBitsHi,
+	    in->iCacheSize,in->fPeriod,
+	    in->nSpecies[FIO_SPECIES_DARK],
+	    in->nSpecies[FIO_SPECIES_SPH],
+	    in->nSpecies[FIO_SPECIES_STAR],
+	    in->mMemoryModel);
 	pout[pst->idSelf] = nFileTotal; /* Truncated: okay */
 	}
     if (pnOut) *pnOut = nThreads*sizeof(*pout);
@@ -718,12 +720,14 @@ void pstReadFile(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	nStore = nNodeTotal + (int)ceil(nNodeTotal*in->fExtraStore);
 
 	if (plcl->pkd) pkdFinish(plcl->pkd);
-	pkdInitialize(&plcl->pkd,pst->mdl,nStore,in->nBucket,in->fExtraNodes,in->iCacheSize,
-		      in->fPeriod,
-		      in->nSpecies[FIO_SPECIES_DARK],
-		      in->nSpecies[FIO_SPECIES_SPH],
-		      in->nSpecies[FIO_SPECIES_STAR],
-		      in->mMemoryModel);
+	pkdInitialize(
+	    &plcl->pkd,pst->mdl,nStore,in->nBucket,
+	    in->nTreeBitsLo,in->nTreeBitsHi,
+	    in->iCacheSize,in->fPeriod,
+	    in->nSpecies[FIO_SPECIES_DARK],
+	    in->nSpecies[FIO_SPECIES_SPH],
+	    in->nSpecies[FIO_SPECIES_STAR],
+	    in->mMemoryModel);
 
 	nFileStart = 0;
 	for( i=0; i<in->nFiles; i++,nFileStart=nFileEnd+1 ) {

@@ -237,7 +237,8 @@ struct inReadFile {
     double dvFac;
     double dTuFac;
     float fExtraStore;
-    float fExtraNodes;
+    int nTreeBitsLo;
+    int nTreeBitsHi;
     int nBucket;
     int nFiles;
     int iCacheSize;
