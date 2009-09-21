@@ -803,21 +803,21 @@ void pkdTreeBuild(PKD pkd,int nBucket,FLOAT diCrit2,KDN *pkdn,int bExcludeVeryAc
     /*
     ** Copy the root node for the top-tree construction.
     */
-    *pkdn = *pkdTreeNode(pkd,ROOT);
+    pkdCopyNode(pkd,pkdn,pkdTreeNode(pkd,ROOT));
     }
 
 
 void pkdDistribCells(PKD pkd,int nCell,KDN *pkdn) {
-    KDN *kdn;
+    KDN *pSrc, *pDst;
     int i;
 
     pkdAllocateTopTree(pkd,nCell);
-    kdn = pkdTopNode(pkd,0);
     for (i=1;i<nCell;++i) {
-	if (pkdn[i].pUpper) {
-	    kdn = pkdTopNode(pkd,i);
-	    *kdn = pkdn[i];
-	    if (pkdn[i].pLower == pkd->idSelf) pkd->iTopRoot = i;
+	pSrc = pkdNode(pkd,pkdn,i);
+	if (pSrc->pUpper) {
+	    pDst = pkdTopNode(pkd,i);
+	    pkdCopyNode(pkd,pDst,pSrc);
+	    if (pDst->pLower == pkd->idSelf) pkd->iTopRoot = i;
 	    }
 	}
     }

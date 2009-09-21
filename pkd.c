@@ -1,7 +1,6 @@
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
-const char *pkd_module_id = "$Id$";
 
 #define _LARGEFILE_SOURCE
 #define _FILE_OFFSET_BITS 64
@@ -38,6 +37,8 @@ const char *pkd_module_id = "$Id$";
 #include "mpitrace_user_events.h"
 #endif
 
+const char *pkd_module_id = "$Id$";
+const char *pkd_h_module_id = PKD_H_MODULE_ID;
 
 double pkdGetTimer(PKD pkd,int iTimer) {
     return(pkd->ti[iTimer].sec);
@@ -346,6 +347,12 @@ void pkdInitialize(
 #else
     pkd->oNodeAcceleration = 0;
 #endif
+
+    /*
+    ** N.B.: Update pkdMaxNodeSize in pkd.h if you add fields.  We need to
+    **       know the size of a node when setting up the pst.
+    */
+    assert(pkdNodeSize(pkd)<=pkdMaxNodeSize());
 
     /*
     ** Allocate the main particle store.
@@ -828,22 +835,6 @@ void pkdIOInitialize( PKD pkd, int nLocal) {
 
     }
 #endif
-
-void pkdReadTipsy(PKD pkd,char *pszFileName, uint64_t iOrderStart,
-		  uint64_t nSph, uint64_t nDark, uint64_t nStar,
-		  uint64_t iFirst,int nLocal,
-		  int bStandard,double dvFac,double dTuFac,int bDoublePos) {
-    FIO fio;
-    if (iOrderStart==0)
-	fio = fioTipsyOpen(pszFileName,bDoublePos);
-    else
-	fio = fioTipsyOpenPart(pszFileName,bDoublePos,bStandard,
-			       nSph,nDark,nStar,iOrderStart);
-    mdlassert(pkd->mdl,fio != NULL);
-    pkdReadFIO(pkd,fio,iFirst,nLocal,dvFac,dTuFac);
-    fioClose(fio);
-    }
-
 
 void pkdCalcBound(PKD pkd,BND *pbnd) {
     double dMin[3],dMax[3];
@@ -1648,12 +1639,17 @@ uint32_t pkdWriteTipsy(PKD pkd,char *pszFileName,uint64_t iFirst,
     int i;
 
     fio = fioTipsyAppend(pszFileName,bDoublePos,bStandard);
-    assert(fio!=NULL);
+    if (fio==NULL) {
+	fprintf(stderr,"ERROR: unable to reopen tipsy file for output\n");
+	perror(pszFileName);
+	mdlassert(pkd->mdl,fio!=NULL);
+	}
     fioSeek(fio,iFirst,FIO_SPECIES_ALL);
 
     dummyv[0] = dummyv[1] = dummyv[2] = 0.0;
     dummypot = 0.0;
     nCount = 0;
+    /*printf("Writing %lu\n", pkdLocal(pkd));*/
     for (i=0;i<pkdLocal(pkd);++i) {
 	p = pkdParticle(pkd,i);
 	if ( !pkdIsSrcActive(p,0,MAX_RUNG) ) continue;

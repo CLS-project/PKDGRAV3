@@ -1324,10 +1324,6 @@ void msrOneNodeRead(MSR msr, struct inReadFile *in) {
     int nid;
     int inswap;
     FIO fio;
-    struct inFile *file;
-
-    assert(in->nFiles==1);
-    file = (struct inFile *)(in+1);
 
     nParts = malloc(msr->nThreads*sizeof(*nParts));
     for (id=0;id<msr->nThreads;++id) {
@@ -1347,10 +1343,14 @@ void msrOneNodeRead(MSR msr, struct inReadFile *in) {
     /*
     ** Add the local Data Path to the provided filename.
     */
-    _msrMakePath(plcl->pszDataPath,file[0].achFilename,achInFile);
+    _msrMakePath(plcl->pszDataPath,in->achFilename,achInFile);
 
-    fio = fioOpen(achInFile,in->bDoublePos);
-    assert(fio!=NULL);
+    fio = fioOpen(achInFile);
+    if (fio==NULL) {
+	fprintf(stderr,"ERROR: unable to open input file\n");
+	perror(achInFile);
+	_msrExit(msr,1);
+	}
 
     nStart = nParts[0];
     assert(msr->pMap[0] == 0);
@@ -1850,8 +1850,6 @@ void _msrWriteTipsy(MSR msr,const char *pszFileName,double dTime,int bCheckpoint
     /*
     ** Assume tipsy format for now.
     */
-    /* So that "N" can be nDark */
-    /* JW: What the heck is this? assert(msr->nGas==0&&msr->nStar==0); */
     h.nbodies = msr->N;
     h.ndark = msr->nDark;
     h.nsph = msr->nGas;
@@ -1903,7 +1901,11 @@ void _msrWriteTipsy(MSR msr,const char *pszFileName,double dTime,int bCheckpoint
 			     msr->param.bDoublePos,
 			     msr->param.bStandard,in.dTime,
 			     msr->nGas, msr->nDark, msr->nStar);
-	assert(fio!=NULL);
+	if (fio==NULL) {
+	    fprintf(stderr,"ERROR: unable to create output file\n");
+	    perror(achOutFile);
+	    _msrExit(msr,1);
+	    }
 	fioClose(fio);
 
 	if (msr->param.bParaWrite)
@@ -2190,16 +2192,25 @@ void msrDomainDecomp(MSR msr,int iRung,int bGreater,int bSplitVA) {
 void _BuildTree(MSR msr,double dTimeStamp,int bExcludeVeryActive,int bNeedEwald) {
     struct inBuildTree in;
     struct ioCalcRoot root;
+    PST pst0;
+    LCL *plcl;
+    PKD pkd;
     KDN *pkdn;
     int iDum,nCell;
     double sec,dsec;
+
+    pst0 = msr->pst;
+    while (pst0->nLeaves > 1)
+	pst0 = pst0->pstLower;
+    plcl = pst0->plcl;
+    pkd = plcl->pkd;
 
     msrprintf(msr,"Building local trees...\n\n");
 
     in.nBucket = msr->param.nBucket;
     in.diCrit2 = 1/(msr->dCrit*msr->dCrit);
     nCell = 1<<(1+(int)ceil(log((double)msr->nThreads)/log(2.0)));
-    pkdn = malloc(nCell*sizeof(KDN));
+    pkdn = malloc(nCell*pkdNodeSize(pkd));
     assert(pkdn != NULL);
     in.iCell = ROOT;
     in.nCell = nCell;
@@ -2211,7 +2222,7 @@ void _BuildTree(MSR msr,double dTimeStamp,int bExcludeVeryActive,int bNeedEwald)
     dsec = msrTime() - sec;
     msrprintf(msr,"Tree built, Wallclock: %f secs\n\n",dsec);
 
-    pstDistribCells(msr->pst,pkdn,nCell*(int)sizeof(KDN),NULL,NULL);
+    pstDistribCells(msr->pst,pkdn,nCell*pkdNodeSize(pkd),NULL,NULL);
     free(pkdn);
     if (!bExcludeVeryActive && bNeedEwald) {
 	/*
@@ -4782,108 +4793,11 @@ void msrWrite(MSR msr,const char *pszFileName,double dTime,int bCheckpoint) {
 #endif
     }
 
-
-static struct inReadFile * fileScan(MSR msr, const char *achFilename, double *pdExpansion) {
-    struct inReadFile *read;
-    struct inFile *file;
-    int i, j;
-    FILE *fp;
-    FIO fio;
-    struct dump h;
-    int bStandard = 0;
-    off_t oStart, oEnd, oSize;
-
-#if defined(HAVE_WORDEXP) && defined(HAVE_WORDFREE)
-    wordexp_t files;
-
-    wordexp(achFilename, &files, 0);
-    if ( files.we_wordc <= 0 ) {
-	printf("No such file: %s\n", achFilename);
-	_msrExit(msr,1);
-	}
-
-    assert(files.we_wordc<=PST_MAX_FILES);
-    read = malloc(sizeof(struct inReadFile) + files.we_wordc*sizeof(struct inFile));
-    assert(read != NULL);
-    read->nFiles = files.we_wordc;
-#elif defined(HAVE_GLOB) && defined(HAVE_GLOBFREE)
-    glob_t files;
-    if (glob(achFilename,GLOB_ERR|GLOB_NOSORT,NULL,&files) || files.gl_pathc==0) {
-	printf("No such file: %s\n", achFilename);
-	_msrExit(msr,1);
-	}
-    assert(files.gl_pathc<=PST_MAX_FILES);
-    read = malloc(sizeof(struct inReadFile) + files.gl_pathc*sizeof(struct inFile));
-    assert(read != NULL);
-    read->nFiles = files.gl_pathc;
-#else
-    read = malloc(sizeof(struct inReadFile) + sizeof(struct inFile) );
-    assert(read != NULL);
-    read->nFiles = 1;
-    printf( "REMINDER: Wildcards not expanded. wordexp() not available.\n" );
-#endif
-    msr->nDark = msr->nGas = msr->nStar = msr->N = 0;
-    for( j=0; j<FIO_SPECIES_LAST; j++) read->nSpecies[j] = 0;
-    file = (struct inFile *)(read+1);
-
-    for( i=0; i<read->nFiles; i++ ) {
-#if defined(HAVE_WORDEXP) && defined(HAVE_WORDFREE)
-	assert( strlen(files.we_wordv[i]) < sizeof(file[i].achFilename) );
-	strcpy( file[i].achFilename, files.we_wordv[i] );
-#elif defined(HAVE_GLOB) && defined(HAVE_GLOBFREE)
-	assert( strlen(files.gl_pathv[i]) < sizeof(file[i].achFilename) );
-	strcpy( file[i].achFilename, files.gl_pathv[i] );
-#else
-	assert( strlen(achFilename) < sizeof(file[i].achFilename) );
-	strcpy( file[i].achFilename, achFilename );
-#endif
-	printf("Opening %s ...\n", file[i].achFilename);
-	if ( i==0 ) {
-	    fio = fioOpen(file[i].achFilename,msr->param.bDoublePos);
-	    if ( fio == NULL ) {
-		printf("Could not open InFile:%s\n",file[i].achFilename);
-		_msrExit(msr,1);
-		}
-	    read->eFileType = fioFormat(fio);
-	    if (!fioGetAttr(fio,"dTime",FIO_TYPE_DOUBLE,pdExpansion)) *pdExpansion = 0.0;
-	    if (!fioGetAttr(fio,"dEcosmo",FIO_TYPE_DOUBLE,&msr->dEcosmo)) msr->dEcosmo = 0.0;
-	    if (!fioGetAttr(fio,"dTimeOld",FIO_TYPE_DOUBLE,&msr->dTimeOld)) msr->dTimeOld = 0.0;
-	    if (!fioGetAttr(fio,"dUOld",FIO_TYPE_DOUBLE,&msr->dUOld)) msr->dUOld = 0.0;
-	    }
-	else {
-	    fioOpenNext(fio,file[i].achFilename);
-	    if ( fio == NULL ) {
-		printf("Could not open InFile:%s\n",file[i].achFilename);
-		_msrExit(msr,1);
-		}
-	    }
-
-	msr->N     += fioGetN(fio,FIO_SPECIES_ALL);
-	msr->nGas  += fioGetN(fio,FIO_SPECIES_SPH);
-	msr->nDark += fioGetN(fio,FIO_SPECIES_DARK);
-	msr->nStar += fioGetN(fio,FIO_SPECIES_STAR);
-	for( j=0; j<FIO_SPECIES_LAST; j++) read->nSpecies[j] += (file[i].nSpecies[j] = fioGetN(fio,j));
-	}
-    fioClose(fio);
-    assert(msr->N == msr->nDark + msr->nGas + msr->nStar);
-
-    if (msr->param.bVStart)
-	printf("Reading...\nN:%"PRIu64" nDark:%"PRIu64" nGas:%"PRIu64" nStar:%"PRIu64"\n",msr->N,
-	       msr->nDark,msr->nGas,msr->nStar);
-
-#if defined(HAVE_WORDEXP) && defined(HAVE_WORDFREE)
-    wordfree(&files);
-#elif defined(HAVE_GLOB) && defined(HAVE_GLOBFREE)
-    globfree(&files);
-#endif
-
-    return read;
-    }
-
 double msrRead(MSR msr, const char *achInFile) {
     double dTime,dExpansion;
-    struct inReadFile *read;
-    struct inFile *file;
+    FIO fio;
+    int j;
+    struct inReadFile read;
     uint64_t mMemoryModel = 0;
 
     /*
@@ -4908,36 +4822,44 @@ double msrRead(MSR msr, const char *achInFile) {
 #ifdef PLANETS
     dTime = msrReadSS(msr); /* must use "Solar System" (SS) I/O format... */
 #else
-    char achFilename[PST_FILENAME_SIZE];
-
     /* Add Data Subpath for local and non-local names. */
-    _msrMakePath(msr->param.achDataSubPath,achInFile,achFilename);
+    _msrMakePath(msr->param.achDataSubPath,achInFile,read.achFilename);
 
-    read = fileScan(msr,achFilename,&dExpansion);
-    file = (struct inFile *)(read+1);
+    fio = fioOpen(read.achFilename);
+    if (fio==NULL) {
+	fprintf(stderr,"ERROR: unable to open input file\n");
+	perror(read.achFilename);
+	_msrExit(msr,1);
+	}
 
-    dTime = getTime(msr,dExpansion,&read->dvFac);
-    read->dTuFac = msr->param.dTuFac;
+    if (!fioGetAttr(fio,"dTime",FIO_TYPE_DOUBLE,&dExpansion)) dExpansion = 0.0;
+    if (!fioGetAttr(fio,"dEcosmo",FIO_TYPE_DOUBLE,&msr->dEcosmo)) msr->dEcosmo = 0.0;
+    if (!fioGetAttr(fio,"dTimeOld",FIO_TYPE_DOUBLE,&msr->dTimeOld)) msr->dTimeOld = 0.0;
+    if (!fioGetAttr(fio,"dUOld",FIO_TYPE_DOUBLE,&msr->dUOld)) msr->dUOld = 0.0;
+    msr->N     = fioGetN(fio,FIO_SPECIES_ALL);
+    msr->nGas  = fioGetN(fio,FIO_SPECIES_SPH);
+    msr->nDark = fioGetN(fio,FIO_SPECIES_DARK);
+    msr->nStar = fioGetN(fio,FIO_SPECIES_STAR);
+    fioClose(fio);
+
+    dTime = getTime(msr,dExpansion,&read.dvFac);
+    read.dTuFac = msr->param.dTuFac;
     
     if (msrDoGas(msr) || msr->nGas)  mMemoryModel |= (PKD_MODEL_SPH|PKD_MODEL_ACCELERATION|PKD_MODEL_VELOCITY);		
     if (msr->param.bStarForm || msr->nStar) mMemoryModel |= (PKD_MODEL_SPH|PKD_MODEL_ACCELERATION|PKD_MODEL_VELOCITY|PKD_MODEL_MASS|PKD_MODEL_STAR);
-
-    read->nNodeStart = 0;
-    read->nNodeEnd = msr->N - 1;
-    read->nBucket = msr->param.nBucket;
-    assert(msr->nDark==read->nSpecies[FIO_SPECIES_DARK]);
-    assert(msr->nGas==read->nSpecies[FIO_SPECIES_SPH]);
-    assert(msr->nStar==read->nSpecies[FIO_SPECIES_STAR]);
-    read->mMemoryModel = mMemoryModel;
-    read->bStandard = msr->param.bStandard;
-    read->bDoublePos = msr->param.bDoublePos;
-    read->fExtraStore = msr->param.dExtraStore;
-    read->nTreeBitsLo = msr->param.nTreeBitsLo;
-    read->nTreeBitsHi = msr->param.nTreeBitsHi;
-    read->iCacheSize  = msr->param.iCacheSize;
-    read->fPeriod[0] = msr->param.dxPeriod;
-    read->fPeriod[1] = msr->param.dyPeriod;
-    read->fPeriod[2] = msr->param.dzPeriod;
+    
+    read.nNodeStart = 0;
+    read.nNodeEnd = msr->N - 1;
+    read.nBucket = msr->param.nBucket;
+    read.mMemoryModel = mMemoryModel;
+    read.fExtraStore = msr->param.dExtraStore;
+    read.nTreeBitsLo = msr->param.nTreeBitsLo;
+    read.nTreeBitsHi = msr->param.nTreeBitsHi;
+    read.iCacheSize  = msr->param.iCacheSize;
+    read.fPeriod[0] = msr->param.dxPeriod;
+    read.fPeriod[1] = msr->param.dyPeriod;
+    read.fPeriod[2] = msr->param.dzPeriod;
+    for( j=0; j<FIO_SPECIES_LAST; j++) read.nSpecies[j] = fioGetN(fio,j);
 
     /*
     ** If bParaRead is 0, then we read serially; if it is 1, then we read
@@ -4946,12 +4868,12 @@ double msrRead(MSR msr, const char *achInFile) {
     ** the total amount of simultaneous I/O for file systems that cannot
     ** handle it.
     */
-    read->nProcessors = msr->param.bParaRead==1 ? msr->nThreads:msr->param.bParaRead;
+    read.nProcessors = msr->param.bParaRead==1 ? msr->nThreads:msr->param.bParaRead;
 
     if (msr->param.bParaRead)
-	pstReadFile(msr->pst,read,sizeof(struct inReadFile) + read->nFiles*sizeof(struct inFile),NULL,NULL);
+	pstReadFile(msr->pst,&read,sizeof(struct inReadFile),NULL,NULL);
     else {
-	msrOneNodeRead(msr,read);
+	msrOneNodeRead(msr,&read);
 	}
 #endif
     msrSetClasses(msr);
@@ -4967,7 +4889,6 @@ double msrRead(MSR msr, const char *achInFile) {
 	mdlSetComm(msr->mdl,0);
 	}
 #endif
-    free(read);
 
     /*
     ** If this is a non-periodic box, then we must precalculate the bounds.

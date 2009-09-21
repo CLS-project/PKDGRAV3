@@ -168,9 +168,6 @@ enum pst_service {
     PST_AARSETHSTEP,
     PST_FIRSTDT,
 #endif
-#ifdef USE_HDF5
-    PST_READHDF5,
-#endif
 #ifdef USE_GRAFIC
     PST_GENERATEIC,
 #endif
@@ -223,11 +220,6 @@ struct inSetAdd {
 void pstSetAdd(PST,void *,int,void *,int *);
 
 /* PST_READFILE */
-struct inFile {
-    char achFilename[PST_FILENAME_SIZE];
-    uint64_t nSpecies[FIO_SPECIES_LAST];
-    };
-
 struct inReadFile {
     uint64_t nNodeStart; /* First particle to read (of total) */
     uint64_t nNodeEnd;   /* Last particle to read (of total) */
@@ -240,13 +232,13 @@ struct inReadFile {
     int nTreeBitsLo;
     int nTreeBitsHi;
     int nBucket;
-    int nFiles;
+    //int nFiles;
     int iCacheSize;
     int nProcessors;
-    uint8_t bStandard;
-    uint8_t bDoublePos;
-    short   eFileType;
-    /* plus an array of inFile */
+    //uint8_t bStandard;
+    //uint8_t bDoublePos;
+    //short   eFileType;
+    char achFilename[PST_FILENAME_SIZE];
     };
 void pstReadFile(PST,void *,int,void *,int *);
 

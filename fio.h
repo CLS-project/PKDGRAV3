@@ -23,7 +23,7 @@
 **   FIO fio;
 **   uint64_t N, i;
 **
-**   fio = fioOpen("test.std",0);
+**   fio = fioOpen("test.std");
 **   if (fio==NULL) ...
 **
 **   N = fioGetN(fio,FIO_SPECIES_ALL);
@@ -51,7 +51,7 @@
 **   FIO fio;
 **   uint64_t nDark, i;
 **
-**   fio = fioOpen("test.std",0);
+**   fio = fioOpen("test.std");
 **   if (fio==NULL) ...
 **
 **   nDark = fioGetN(fio,FIO_SPECIES_DARK);
@@ -66,6 +66,8 @@
 #ifndef FIO_H
 #define FIO_H
 
+#define FIO_H_MODULE_ID "$Id$"
+
 /*
 ** These are the valid file formats
 */
@@ -74,6 +76,12 @@ typedef enum {
     FIO_FORMAT_HDF5,
     FIO_FORMAT_GRAFIC
     } FIO_FORMAT;
+
+/*
+** Here are the valid flags for Create
+*/
+#define FIO_FLAG_DOUBLE_POS 1
+#define FIO_FLAG_DOUBLE_VEL 2
 
 typedef enum {
     FIO_MODE_READING,
@@ -105,10 +113,14 @@ typedef struct fioInfo {
     FIO_FORMAT eFormat;
     FIO_MODE   eMode;
     uint64_t nSpecies[FIO_SPECIES_LAST];
+    /* This is for multi-file support */
+    int nFiles;
+    uint64_t *iFirst;
+    char **pszFiles;
+
     void (*fcnClose)(struct fioInfo *fio);
     int  (*fcnSeek) (struct fioInfo *fio,uint64_t iPart,FIO_SPECIES eSpecies);
     FIO_SPECIES (*fcnSpecies) (struct fioInfo *fio);
-    int (*fcnOpenNext)(struct fioInfo *fio, const char *fileName);
 
     int  (*fcnReadDark) (struct fioInfo *fio,
 	uint64_t *piOrder,double *pdPos,double *pdVel,
@@ -144,16 +156,9 @@ typedef struct fioInfo {
 
 /*
 ** Auto-detects the file format by looking at header information.
-** bDouble is required for Tipsy; there is no other way to reliably tell.
 */
-FIO fioOpen(const char *fileName,int bDouble);
-
-/*
-** Open the next file in a sequence of files.
-*/
-static inline int fioOpenNext(struct fioInfo *fio,const char *fileName) {
-    return (*fio->fcnOpenNext)(fio,fileName);
-    }
+FIO fioOpen(const char *fileName);
+FIO fioOpenMany(int nFiles, const char * const *fileNames);
 
 /*
 ** Close an open file of any format.
@@ -263,18 +268,6 @@ static inline int fioGetAttr(FIO fio,
 */
 FIO fioTipsyOpen(const char *fileName,int bDouble);
 
-/*
-** Opens a Tipsy file fragment (a file that has been split ala pkdgrav2).  The
-** TOTAL number of SPH, dark and star particles must be passed to this routine
-** which can be determined by using fioTipsyOpen on the first fragment.  The
-** iStart parameter is the starting particle number of this fragment.  Normally
-** this is determined by opening the fragments in order and getting the number
-** of particles in the file by calling fioGetN and keeping a running total.
-*/
-FIO fioTipsyOpenPart(const char *fileName,int bDouble,int bStandard,
-		     uint64_t nSph, uint64_t nDark, uint64_t nStar,
-		     uint64_t iStart);
-
 FIO fioTipsyCreate(const char *fileName,int bDouble,int bStandard,
 		   double dTime,uint64_t nSph, uint64_t nDark, uint64_t nStar);
 FIO fioTipsyAppend(const char *fileName,int bDouble,int bStandard);
@@ -300,7 +293,7 @@ FIO fioHDF5Open(const char *fileName);
 /*
 ** Create an HDF5 file.
 */
-FIO fioHDF5Create(const char *fileName,int bDouble);
+FIO fioHDF5Create(const char *fileName,int mFlags);
 
 /******************************************************************************\
 ** GRAFIC FORMAT
@@ -310,6 +303,6 @@ FIO fioHDF5Create(const char *fileName,int bDouble);
 ** Open a GRAFIC format initial condition file.  This can be detected automatically
 ** by fioOpen because the "file name" is the directory containing ic_vel[cb][xyz].
 */
-FIO fioGraficOpen(const char *dirName,int bDouble);
+FIO fioGraficOpen(const char *dirName,int mFlags);
 
 #endif

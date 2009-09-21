@@ -143,17 +143,7 @@ void pstAddServices(PST pst,MDL mdl) {
 		  sizeof(struct inSetAdd),0);
     mdlAddService(mdl,PST_READFILE,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstReadFile,
-		  sizeof(struct inReadFile)+PST_MAX_FILES*sizeof(struct inFile),0);
-#if 0
-    mdlAddService(mdl,PST_READTIPSY,pst,
-		  (void (*)(void *,void *,int,void *,int *)) pstReadTipsy,
-		  sizeof(struct inReadTipsy),0);
-#ifdef USE_HDF5
-    mdlAddService(mdl,PST_READHDF5,pst,
-		  (void (*)(void *,void *,int,void *,int *)) pstReadHDF5,
-		  sizeof(struct inReadTipsy),0);
-#endif
-#endif
+		  sizeof(struct inReadFile),0);
     mdlAddService(mdl,PST_PEANOHILBERTCOUNT,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstPeanoHilbertCount,
 		  sizeof(struct inPeanoHilbertCount),sizeof(struct outPeanoHilbertCount));
@@ -212,10 +202,10 @@ void pstAddServices(PST pst,MDL mdl) {
     nCell = 1<<(1+(int)ceil(log((double)nThreads)/log(2.0)));
     mdlAddService(mdl,PST_BUILDTREE,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstBuildTree,
-		  sizeof(struct inBuildTree),nCell*sizeof(KDN));
+		  sizeof(struct inBuildTree),nCell*pkdMaxNodeSize());
     mdlAddService(mdl,PST_DISTRIBCELLS,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstDistribCells,
-		  nCell*sizeof(KDN),0);
+		  nCell*pkdMaxNodeSize(),0);
     mdlAddService(mdl,PST_CALCROOT,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstCalcRoot,
 		  0,sizeof(struct ioCalcRoot));
@@ -675,13 +665,11 @@ void pstOneNodeReadInit(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 void pstReadFile(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct inReadFile *in = vin;
-    struct inFile *inf = (struct inFile *)(in+1);
     FIO fio;
     uint64_t nNodeStart,nNodeEnd,nNodeTotal,nNodeSplit,nStore;
-    uint64_t nFileStart, nFileEnd, nThisStart, nThisEnd;
     int i;
 
-    mdlassert(pst->mdl,nIn == sizeof(struct inReadFile) + in->nFiles*sizeof(struct inFile));
+    mdlassert(pst->mdl,nIn == sizeof(struct inReadFile));
 
     nNodeStart = in->nNodeStart;
     nNodeEnd = in->nNodeEnd;
@@ -729,34 +717,10 @@ void pstReadFile(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	    in->nSpecies[FIO_SPECIES_STAR],
 	    in->mMemoryModel);
 
-	nFileStart = 0;
-	for( i=0; i<in->nFiles; i++,nFileStart=nFileEnd+1 ) {
-	    nFileEnd = nFileStart + inf[i].nSpecies[FIO_SPECIES_ALL] - 1;
-	    if ( nFileStart > nNodeEnd || nFileEnd < nNodeStart ) continue;
-	    nThisStart = ( nNodeStart > nFileStart ) ? nNodeStart - nFileStart : 0;
-	    nThisEnd = ( nNodeEnd < nFileEnd ) ? nNodeEnd - nFileStart : nFileEnd - nFileStart;
-
-	    switch( in->eFileType ) {
-	    case FIO_FORMAT_TIPSY:
-		pkdReadTipsy(plcl->pkd,inf[i].achFilename,nFileStart,
-			     in->nSpecies[FIO_SPECIES_SPH],
-			     in->nSpecies[FIO_SPECIES_DARK],
-			     in->nSpecies[FIO_SPECIES_STAR],
-			     nThisStart,nThisEnd-nThisStart+1,
-			     in->bStandard,in->dvFac,in->dTuFac,in->bDoublePos);
-		break;
-#ifdef USE_HDF5
-	    case FIO_FORMAT_HDF5:
-		fio = fioHDF5Open(inf[i].achFilename);
-		assert(fio!=NULL);
-		pkdReadFIO(plcl->pkd,fio,nThisStart,nThisEnd-nThisStart+1,in->dvFac,in->dTuFac);
-		fioClose(fio);
-		break;
-#endif
-	    default:
-		assert(0);
-		}
-	    }
+	fio = fioOpen(in->achFilename);
+	assert(fio!=NULL);
+	pkdReadFIO(plcl->pkd,fio,nNodeStart,nNodeEnd-nNodeStart+1,in->dvFac,in->dTuFac);
+	fioClose(fio);
 	}
     if (pnOut) *pnOut = 0;
     }
@@ -2373,26 +2337,29 @@ void pstSetSoft(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 
 void pstBuildTree(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
+    PKD pkd = plcl->pkd;
     struct inBuildTree *in = vin;
     KDN *pkdn = vout;
-    KDN *ptmp;
+    KDN *ptmp, *pCell;
     FLOAT minside;
     int i,iCell,iLower,iNext;
 
     mdlassert(pst->mdl,nIn == sizeof(struct inBuildTree));
     iCell = in->iCell;
+    pCell = pkdNode(pkd,pkdn,iCell);
     if (pst->nLeaves > 1) {
 	in->iCell = UPPER(iCell);
 	mdlReqService(pst->mdl,pst->idUpper,PST_BUILDTREE,in,nIn);
 	in->iCell = LOWER(iCell);
 	pstBuildTree(pst->pstLower,in,nIn,vout,pnOut);
 	in->iCell = iCell;
-	ptmp = malloc(in->nCell*sizeof(KDN));
+	ptmp = malloc(in->nCell*pkdNodeSize(pkd));
 	mdlassert(pst->mdl,ptmp != NULL);
 	mdlGetReply(pst->mdl,pst->idUpper,ptmp,pnOut);
 	for (i=1;i<in->nCell;++i) {
-	    if (ptmp[i].pUpper) {
-		pkdn[i] = ptmp[i];
+	    KDN *pSrc = pkdNode(pkd,ptmp,i);
+	    if (pSrc->pUpper) {
+		pkdCopyNode(pkd,pkdNode(pkd,pkdn,i),pSrc);
 		}
 	    }
 	free(ptmp);
@@ -2403,36 +2370,37 @@ void pstBuildTree(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	iLower = LOWER(iCell);
 	iNext = UPPER(iCell);
 	MINSIDE(pst->bnd.fMax,minside);
-	pkdCombineCells(plcl->pkd,&pkdn[iCell],&pkdn[iLower],&pkdn[iNext]);
-	CALCOPEN(&pkdn[iCell],in->diCrit2,minside);
+	pkdCombineCells(pkd,pCell,pkdNode(pkd,pkdn,iLower),pkdNode(pkd,pkdn,iNext));
+	CALCOPEN(pCell,in->diCrit2,minside);
 	/*
 	** Set all the pointers and flags.
 	*/
-	pkdn[iCell].iLower = iLower;
-	pkdn[iCell].iParent = 0;
-	pkdn[iCell].pLower = -1;
-	pkdn[iCell].pUpper = 1;
-	pkdn[iLower].iParent = iCell;
-	pkdn[iNext].iParent = iCell;
+	pCell->iLower = iLower;
+	pCell->iParent = 0;
+	pCell->pLower = -1;
+	pCell->pUpper = 1;
+	pkdNode(pkd,pkdn,iLower)->iParent = iCell;
+	pkdNode(pkd,pkdn,iNext)->iParent = iCell;
 	}
     else {
-	for (i=1;i<in->nCell;++i) pkdn[i].pUpper = 0; /* used flag = unused */
+	for (i=1;i<in->nCell;++i) pkdNode(pkd,pkdn,i)->pUpper = 0; /* used flag = unused */
 
-	pkdTreeBuild(plcl->pkd,in->nBucket,in->diCrit2,&pkdn[iCell],in->bExcludeVeryActive,in->dTimeStamp);
+	pkdTreeBuild(plcl->pkd,in->nBucket,in->diCrit2,pCell,in->bExcludeVeryActive,in->dTimeStamp);
 
-	pkdn[iCell].iLower = 0;
-	pkdn[iCell].pLower = pst->idSelf;
-	pkdn[iCell].pUpper = 1;
+	pCell->iLower = 0;
+	pCell->pLower = pst->idSelf;
+	pCell->pUpper = 1;
 	}
     /*
     ** Calculated all cell properties, now pass up this cell info.
     */
-    if (pnOut) *pnOut = in->nCell*sizeof(KDN);
+    if (pnOut) *pnOut = in->nCell*pkdNodeSize(plcl->pkd);
     }
 
 
 void pstDistribCells(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
+    PKD pkd = plcl->pkd;
     KDN *pkdn = vin;
     int nCell;
 
@@ -2442,8 +2410,8 @@ void pstDistribCells(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
 	}
     else {
-	nCell = nIn/sizeof(KDN);
-	pkdDistribCells(plcl->pkd,nCell,pkdn);
+	nCell = nIn/pkdNodeSize(pkd);
+	pkdDistribCells(pkd,nCell,pkdn);
 	}
     if (pnOut) *pnOut = 0;
     }

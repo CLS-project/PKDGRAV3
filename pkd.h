@@ -734,6 +734,18 @@ static inline int pkdIsActive(PKD pkd, PARTICLE *p ) {
 ** A tree node is of variable size.  The following routines are used to
 ** access individual fields.
 */
+static inline KDN *pkdTreeBase( PKD pkd ) {
+    return (KDN *)pkd->kdNodeListPRIVATE;
+    }
+static inline size_t pkdNodeSize( PKD pkd ) {
+    return pkd->iTreeNodeSize;
+    }
+static inline size_t pkdMaxNodeSize() {
+    return sizeof(KDN) + sizeof(MOMR) + 6*sizeof(double);
+    }
+static inline void pkdCopyNode(PKD pkd, KDN *a, KDN *b) {
+    memcpy(a,b,pkdNodeSize(pkd));
+    }
 static inline void *pkdNodeField( KDN *n, int iOffset ) {
     char *v = (char *)n;
     /*assert(iOffset);*/ /* Remove this for better performance */
@@ -748,6 +760,19 @@ static inline double *pkdNodeVel( PKD pkd, KDN *n ) {
 static inline double *pkdNodeAccel( PKD pkd, KDN *n ) {
     return pkdNodeField(n,pkd->oNodeAcceleration);
     }
+static inline KDN *pkdNode(PKD pkd,KDN *pBase,int iNode) {
+    return (KDN *)&((char *)pBase)[pkd->iTreeNodeSize*iNode];
+    }
+int pkdNodes(PKD pkd);
+void pkdExtendTree(PKD pkd);
+static inline KDN *pkdTreeNode(PKD pkd,int iNode) {
+    return (KDN *)&pkd->kdNodeListPRIVATE[(iNode>>pkd->nTreeBitsLo)][pkd->iTreeNodeSize*(iNode&pkd->iTreeMask)];
+    }
+void *pkdTreeNodeGetElement(void *vData,int i,int iDataSize);
+static inline KDN *pkdTopNode(PKD pkd,int iNode) {
+    return (KDN *)&pkd->kdTopPRIVATE[pkd->iTreeNodeSize*iNode];
+    }
+void pkdAllocateTopTree(PKD pkd,int nCell);
 
 /*
 ** The size of a particle is variable based on the memory model.
@@ -907,10 +932,6 @@ void pkdInitialize(
     uint64_t mMemoryModel);
 void pkdFinish(PKD);
 void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double dTuFac);
-void pkdReadTipsy(PKD pkd,char *pszFileName, uint64_t iOrderStart,
-		  uint64_t nSph, uint64_t nDark, uint64_t nStar,
-		  uint64_t iFirst,int nLocal,
-		  int bStandard,double dvFac,double dTuFac,int bDoublePos);
 #ifdef USE_MDL_IO
 void pkdIOInitialize( PKD pkd, int nLocal);
 #endif
@@ -942,16 +963,6 @@ int pkdFreeStore(PKD);
 int pkdLocal(PKD);
 int pkdActive(PKD);
 int pkdInactive(PKD);
-int pkdNodes(PKD);
-void pkdExtendTree(PKD pkd);
-static inline KDN *pkdTreeNode(PKD pkd,int iNode) {
-    return (KDN *)&pkd->kdNodeListPRIVATE[(iNode>>pkd->nTreeBitsLo)][pkd->iTreeNodeSize*(iNode&pkd->iTreeMask)];
-    }
-void *pkdTreeNodeGetElement(void *vData,int i,int iDataSize);
-static inline KDN *pkdTopNode(PKD pkd,int iNode) {
-    return (KDN *)&pkd->kdTopPRIVATE[pkd->iTreeNodeSize*iNode];
-    }
-void pkdAllocateTopTree(PKD pkd,int nCell);
 
 int pkdNumSrcActive(PKD pkd,uint8_t uRungLo,uint8_t uRungHi);
 int pkdNumDstActive(PKD pkd,uint8_t uRungLo,uint8_t uRungHi);
