@@ -1,7 +1,6 @@
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
-const char *smooth_module_id = "$Id$";
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -17,6 +16,9 @@ const char *smooth_module_id = "$Id$";
 #include "smoothfcn.h"
 #include "rbtree.h"
 #include <sys/stat.h>
+
+const char *smooth_module_id = "$Id$";
+const char *smooth_h_module_id = SMOOTH_H_MODULE_ID;
 
 int smInitialize(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodic,int bSymmetric,int iSmoothType) {
     SMX smx;
@@ -713,9 +715,9 @@ PQ *pqSearch(SMX smx,PQ *pq,FLOAT r[3],int bReplica,int *pbDone) {
     int sm = 0;
 
     *pbDone = 0;
-    if (bReplica) kdn = pkdTreeNode(pkd,iCell = ROOT);
+    if (bReplica) kdn = pkdTopNode(pkd,iCell = ROOT);
     else {
-	kdn = pkdTreeNode(pkd,iCell = pkd->iTopRoot);
+	kdn = pkdTopNode(pkd,iCell = pkd->iTopRoot);
 	assert(kdn->pLower == idSelf);
 	}
     if (iCell != ROOT) S[sp] = kdn->iParent;
@@ -729,13 +731,13 @@ PQ *pqSearch(SMX smx,PQ *pq,FLOAT r[3],int bReplica,int *pbDone) {
 	** Descend to bucket via the closest cell at each level.
 	*/
 	while (kdn->iLower) {
-	    kdn = pkdTreeNode(pkd,iCell = kdn->iLower);
+	    kdn = pkdTopNode(pkd,iCell = kdn->iLower);
 	    MINDIST(kdn->bnd,r,min1);
-	    kdn = pkdTreeNode(pkd,++iCell);
+	    kdn = pkdTopNode(pkd,++iCell);
 	    MINDIST(kdn->bnd,r,min2);
 	    if (min1 < min2) {
 		Smin[sm++] = min2;
-		kdn = pkdTreeNode(pkd,--iCell);
+		kdn = pkdTopNode(pkd,--iCell);
 		}
 	    else {
 		Smin[sm++] = min1;
@@ -755,9 +757,9 @@ PQ *pqSearch(SMX smx,PQ *pq,FLOAT r[3],int bReplica,int *pbDone) {
 		return NULL;		/* EXIT, could not load enough particles! */
 		}
 	    --sp;
-	    kdn = pkdTreeNode(pkd,iCell = kdn->iParent);
+	    kdn = pkdTopNode(pkd,iCell = kdn->iParent);
 	    }
-	kdn = pkdTreeNode(pkd,iCell ^= 1);
+	kdn = pkdTopNode(pkd,iCell ^= 1);
 	if (sm) --sm;
 	S[++sp] = iCell;
 	}
@@ -770,13 +772,13 @@ StartSearch:
 	** Descend to bucket via the closest cell at each level.
 	*/
 	while (kdn->iLower) {
-	    kdn = pkdTreeNode(pkd,iCell = kdn->iLower);
+	    kdn = pkdTopNode(pkd,iCell = kdn->iLower);
 	    MINDIST(kdn->bnd,r,min1);
-	    kdn = pkdTreeNode(pkd,++iCell);
+	    kdn = pkdTopNode(pkd,++iCell);
 	    MINDIST(kdn->bnd,r,min2);
 	    if (min1 < min2) {
 		Smin[sm++] = min2;
-		kdn = pkdTreeNode(pkd,--iCell);
+		kdn = pkdTopNode(pkd,--iCell);
 		if (min1 >= pq->fDist2) goto NotContained;
 		}
 	    else {
@@ -790,7 +792,7 @@ StartSearch:
 	while (iCell == S[sp]) {
 	    if (sp) {
 		--sp;
-		kdn = pkdTreeNode(pkd,iCell = kdn->iParent);
+		kdn = pkdTopNode(pkd,iCell = kdn->iParent);
 		}
 	    else if (!bReplica) {
 		/*
@@ -815,7 +817,7 @@ StartSearch:
 	    else return pq;
 	    }
     NotContained:
-	kdn = kdn = pkdTreeNode(pkd,iCell ^= 1);
+	kdn = kdn = pkdTopNode(pkd,iCell ^= 1);
 	/*
 	** Intersection Test. (ball-test)
 	*/
@@ -824,7 +826,7 @@ StartSearch:
 	    MINDIST(kdn->bnd,r,min2);
 	    }
 	if (min2 >= pq->fDist2) {
-	    kdn = pkdTreeNode(pkd,iCell = kdn->iParent);
+	    kdn = pkdTopNode(pkd,iCell = kdn->iParent);
 	    goto NoIntersect;
 	    }
 	S[++sp] = iCell;
