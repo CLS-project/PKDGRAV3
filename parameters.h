@@ -80,6 +80,7 @@ struct parameters {
     int bDoAccOutput;
     int bDoPotOutput;
     int iCacheSize;
+    int bAddDelete;
     /* BEGIN Gas Parameters */
     int bDoGas;
     int bGasAdiabatic;

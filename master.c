@@ -670,6 +670,9 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.iDiffusion = 0;
     prmAddParam(msr->prm,"iDiffusion",1,&msr->param.iDiffusion,sizeof(int),
 		"idiff","<iDiffusion> = 0");
+    msr->param.bAddDelete = 0;
+    prmAddParam(msr->prm,"bAddDelete",0,&msr->param.bAddDelete,sizeof(int),
+		"adddel","<Add Delete Particles> = 0");
     /* Star Form parameters */
     msr->param.bStarForm = 0;
     prmAddParam(msr->prm,"bStarForm",0,&msr->param.bStarForm,sizeof(int),
@@ -703,6 +706,9 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
 	}
 
     /* Gas parameter checks */
+#ifdef CLASSICAL_FOPEN
+    fprintf(stderr,"WARNING: CLASSICAL_FOPEN\n");
+#endif
     /* bolzman constant in cgs */
 #define KBOLTZ	1.38e-16
     /* mass of hydrogen atom in grams */
@@ -743,7 +749,6 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
 
     msr->param.dTuFac = msr->param.dGasConst/(msr->param.dConstGamma - 1)/
 		msr->param.dMeanMolWeight;
-    fprintf(stderr,"TUFAC %g %g %g %g\n",msr->param.dTuFac,msr->param.dGasConst,msr->param.dConstGamma - 1,msr->param.dMeanMolWeight);
 
     if (prmSpecified(msr->prm, "dMetalDiffsionCoeff") || prmSpecified(msr->prm,"dThermalDiffusionCoeff")) {
 	if (!prmSpecified(msr->prm, "iDiffusion")) msr->param.iDiffusion=1;
@@ -751,6 +756,7 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
 
     /* Star parameter checks */
 
+    if (msr->param.bStarForm) msr->param.bAddDelete = 1;
 
     /* END Gas Parameter Checks */
 
@@ -3330,6 +3336,13 @@ void msrTopStepKDK(MSR msr,
     msrprintf(msr,"%*cKickClose, iRung: %d, 0.5*dDelta: %g\n",
 	      2*iRung+2,' ',iRung, 0.5*dDelta);
     msrKickKDKClose(msr,dTime,0.5*dDelta,iRung,iRung);
+
+    /* JW: Creating/Deleting/Merging is best done after the kick is closed 
+       -- Tree should still be valid from last force eval */
+    if (iKickRung == iRung) { /* Wait until all co-incident kicks complete 
+				 -- do any particles on iKickRung+ */
+	/* Form stars goes here -- Feedback isn't so clear */
+	}
     }
 
 
@@ -3714,6 +3727,29 @@ uint64_t msrMaxOrder(MSR msr) {
     return msr->nMaxOrder;
     }
 
+void msrGetNParts(MSR msr) { /* JW: Not pretty -- may be better way via fio */
+    struct outGetNParts outget;
+
+    pstGetNParts(msr->pst,NULL,0,&outget,NULL);
+    if (outget.iMaxOrderGas == -1) outget.iMaxOrderGas = 0;
+    if (outget.iMaxOrderDark == -1) outget.iMaxOrderDark = outget.iMaxOrderGas;
+    if (outget.iMaxOrderStar == -1) outget.iMaxOrderStar = outget.iMaxOrderDark;
+    assert(outget.nGas == msr->nGas);
+    assert(outget.nDark == msr->nDark);
+    assert(outget.nStar == msr->nStar);
+    msr->nMaxOrderGas = outget.iMaxOrderGas;
+    msr->nMaxOrderDark = outget.iMaxOrderDark;
+    msr->nMaxOrder = outget.iMaxOrderStar;
+    if (outget.iMaxOrderGas > msr->nMaxOrder) {
+	msr->nMaxOrder = outget.iMaxOrderGas;
+	fprintf(stderr,"WARNING: Largest iOrder of gas > Largest iOrder of star\n");
+	}
+    if (outget.iMaxOrderDark > msr->nMaxOrder) {
+	msr->nMaxOrder = outget.iMaxOrderDark;
+	fprintf(stderr,"WARNING: Largest iOrder of dark > Largest iOrder of star\n");
+	}
+    }
+
 void
 msrAddDelParticles(MSR msr) {
     struct outColNParts *pColNParts;
@@ -3754,7 +3790,7 @@ msrAddDelParticles(MSR msr) {
 	}
     msr->N = msr->nGas + msr->nDark + msr->nStar;
 
-    msr->nMaxOrderDark = msr->nMaxOrder;
+    /*msr->nMaxOrderDark = msr->nMaxOrder;*/
 
     pstNewOrder(msr->pst,pNewOrder,(int)sizeof(*pNewOrder)*msr->nThreads,NULL,NULL);
 
@@ -3766,6 +3802,7 @@ msrAddDelParticles(MSR msr) {
     in.nStar = msr->nStar;
     in.nMaxOrderGas = msr->nMaxOrderGas;
     in.nMaxOrderDark = msr->nMaxOrderDark;
+    in.nMaxOrder = msr->nMaxOrder;
     pstSetNParts(msr->pst,&in,sizeof(in),NULL,NULL);
 
 #ifdef PLANETS
@@ -4845,7 +4882,8 @@ double msrRead(MSR msr, const char *achInFile) {
     dTime = getTime(msr,dExpansion,&read.dvFac);
     read.dTuFac = msr->param.dTuFac;
     
-    if (msrDoGas(msr) || msr->nGas)  mMemoryModel |= (PKD_MODEL_SPH|PKD_MODEL_ACCELERATION|PKD_MODEL_VELOCITY);		
+    if (msr->nGas && !prmSpecified(msr->prm,"bDoGas")) msr->param.bDoGas = 1;
+    if (msrDoGas(msr)) mMemoryModel |= (PKD_MODEL_SPH|PKD_MODEL_ACCELERATION|PKD_MODEL_VELOCITY);		
     if (msr->param.bStarForm || msr->nStar) mMemoryModel |= (PKD_MODEL_SPH|PKD_MODEL_ACCELERATION|PKD_MODEL_VELOCITY|PKD_MODEL_MASS|PKD_MODEL_STAR);
     
     read.nNodeStart = 0;

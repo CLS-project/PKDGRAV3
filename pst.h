@@ -136,6 +136,7 @@ enum pst_service {
     PST_ADDWRITESTART,
     PST_COLNPARTS,
     PST_NEWORDER,
+    PST_GETNPARTS,
     PST_SETNPARTS,
     PST_DENSCHECK,
     PST_FOF,
@@ -804,6 +805,20 @@ void pstColNParts(PST, void *, int, void *, int *);
 /* PST_NEWORDER */
 void pstNewOrder(PST, void *, int, void *, int *);
 
+/* PST_GETNPARTS */
+/* see pkd.h
+ struct outGetNParts { 
+	int n;
+    int nGas;
+    int nDark;
+    int nStar;
+    int iMaxOrderGas;
+    int iMaxOrderDark;
+    int iMaxOrderStar;
+    };
+*/
+void pstGetNParts(PST, void *, int, void *, int *);
+
 /* PST_SETNPARTS */
 struct inSetNParts {
     uint64_t nGas;
@@ -811,6 +826,7 @@ struct inSetNParts {
     uint64_t nStar;
     uint64_t nMaxOrderGas;
     uint64_t nMaxOrderDark;
+    uint64_t nMaxOrder;
     };
 void pstSetNParts(PST, void *, int, void *, int *);
 

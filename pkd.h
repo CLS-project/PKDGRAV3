@@ -101,6 +101,7 @@ typedef uint_fast64_t total_t; /* Count of particles globally (total number) */
 ** This constant is used to limit the size of a cell.
 */
 #define PKD_MAX_CELL_SIZE (1e-2)
+#define PKD_MAX_CELL_SIZE 1e20
 
 typedef struct pLite {
     FLOAT r[3];
@@ -186,11 +187,13 @@ typedef struct starfields {
     float fMassForm;	        /* record original mass of star */
     int iGasOrder;		/* gas from which star formed */
     } STARFIELDS;   
-    
+
+#define IORDERBITS 42    
+#define IORDERMAX ((((uint64_t) 1)<<IORDERBITS)-1)
 
 typedef struct particle {
     /*-----Base-Particle-Data----*/
-    uint64_t iOrder     : 42;
+    uint64_t iOrder     :  IORDERBITS;
     uint8_t  uNewRung   :  6;
     uint8_t  uRung      :  6;
     uint8_t  bSrcActive :  1;
@@ -404,6 +407,7 @@ typedef struct kdNew {
 /*  We have found that this causes errors at domain boundaries and      */
 /*  recommend NOT setting this define.                                  */
 
+#define CLASSICAL_FOPEN
 #ifdef CLASSICAL_FOPEN
 #ifdef LOCAL_EXPANSION
 #define CALCOPEN(pkdn,diCrit2,minside) {		                \
@@ -586,8 +590,9 @@ typedef struct pkdContext {
     uint64_t nDark;
     uint64_t nGas;
     uint64_t nStar;
-    uint64_t nMaxOrderDark;
+/*    uint64_t nMaxOrderDark;
     uint64_t nMaxOrderGas;
+    uint64_t nMaxOrder; JW: Depr. */
     FLOAT fPeriod[3];
     char *kdTopPRIVATE; /* Because this is a variable size, we use a char pointer, not a KDN pointer! */
     char **kdNodeListPRIVATE; /* BEWARE: also char instead of KDN */
@@ -892,6 +897,15 @@ static inline float *pkd_fMetalsPred( PKD pkd, PARTICLE *p ) {
     return &(((SPHFIELDS *) pkdField(p,pkd->oSph))->fMetalsPred);
     }
 
+static inline int pkdIsDeleted(PKD pkd,PARTICLE *p) {
+    return (pkdSpecies(pkd,p) == FIO_SPECIES_LAST);
+    }
+
+static inline int pkdIsNew(PKD pkd,PARTICLE *p) {
+    return (p->iOrder == IORDERMAX);
+    }
+
+
 typedef struct CacheStatistics {
     double dpNumAccess;
     double dpMissRatio;
@@ -1023,8 +1037,20 @@ int pkdIsStar(PKD,PARTICLE *);
 void pkdColNParts(PKD pkd, int *pnNew, int *nDeltaGas, int *nDeltaDark,
 		  int *nDeltaStar);
 void pkdNewOrder(PKD pkd, int nStart);
+
+struct outGetNParts { 
+	int n;
+    int nGas;
+    int nDark;
+    int nStar;
+    int iMaxOrderGas;
+    int iMaxOrderDark;
+    int iMaxOrderStar;
+    };
+
+void pkdGetNParts(PKD pkd, struct outGetNParts *out );
 void pkdSetNParts(PKD pkd, int nGas, int nDark, int nStar, int nMaxOrderGas,
-		  int nMaxOrderDark);
+		  int nMaxOrderDark, int nMaxOrder);
 void pkdInitRelaxation(PKD pkd);
 
 int pkdPackIO(PKD pkd,

@@ -250,8 +250,9 @@ void pkdInitialize(
     pkd->nDark = nDark;
     pkd->nGas = nGas;
     pkd->nStar = nStar;
-    pkd->nMaxOrderGas = nGas;
+/*    pkd->nMaxOrderGas = nGas;
     pkd->nMaxOrderDark = nGas + nDark;
+    pkd->nMaxOrder = nGas+nDark+nStar;  JW: Deprecate this: Probably wrong if Order in input file */
     pkd->nRejects = 0;
     for (j=0;j<3;++j) {
 	pkd->fPeriod[j] = fPeriod[j];
@@ -2667,9 +2668,9 @@ void pkdDeleteParticle(PKD pkd, PARTICLE *p) {
 	}
 #endif
 
-    p->iOrder = -2 - p->iOrder;
+    /* p->iOrder = -2 - p->iOrder; JW: Not needed -- just preserve iOrder */
 
-    getClass(pkd,0.0,0.0,FIO_SPECIES_LAST,p); /* Special "DELETED" class */
+    getClass(pkd,0.0,0.0,FIO_SPECIES_LAST,p); /* Special "DELETED" class == FIO_SPECIES_LAST */
     }
 
 void pkdNewParticle(PKD pkd, PARTICLE *p) {
@@ -2678,7 +2679,7 @@ void pkdNewParticle(PKD pkd, PARTICLE *p) {
     mdlassert(pkd->mdl,pkd->nLocal < pkd->nStore);
     newp = pkdParticle(pkd,pkd->nLocal);
     pkdCopyParticle(pkd,newp,p);
-    newp->iOrder = -1;
+    newp->iOrder = IORDERMAX;
     pkd->nLocal++;
     }
 
@@ -2692,7 +2693,6 @@ void pkdColNParts(PKD pkd, int *pnNew, int *nDeltaGas, int *nDeltaDark,
     int newnLocal;
     PARTICLE *p;
 
-    assert(0);
     nNew = 0;
     ndGas = 0;
     ndDark = 0;
@@ -2702,25 +2702,32 @@ void pkdColNParts(PKD pkd, int *pnNew, int *nDeltaGas, int *nDeltaDark,
 	p = pkdParticle(pkd,pi);
 	if (pj < pi)
 	    pkdCopyParticle(pkd,pkdParticle(pkd,pj),p);
-	if (p->iOrder == -1) {
+	if (pkdIsNew(pkd,p)) {
 	    ++pj;
 	    ++nNew;
-	    ++ndDark;
+	    if (pkdIsGas(pkd, p))
+		++ndGas;
+	    else if (pkdIsDark(pkd, p))
+		++ndDark;
+	    else if (pkdIsStar(pkd, p))
+		++ndStar;
+	    else
+		mdlassert(pkd->mdl,0);
 	    if (pkdIsActive(pkd,p))
 		++pkd->nActive;
 	    continue;
 	    }
-	else if (p->iOrder < -1) {
-	    --newnLocal;
-	    p->iOrder = -2 - p->iOrder;
-	    if (pkdIsGas(pkd, p))
+	else if (pkdIsDeleted(pkd,p)) {
+	    --newnLocal; /* no idea about type now -- type info lost */
+	    --ndGas; /* JW: Hack fix this! */
+/*	    if (pkdIsGas(pkd, p))
 		--ndGas;
 	    else if (pkdIsDark(pkd, p))
 		--ndDark;
 	    else if (pkdIsStar(pkd, p))
 		--ndStar;
 	    else
-		mdlassert(pkd->mdl,0);
+	    mdlassert(pkd->mdl,0);*/
 	    if (pkdIsActive(pkd,p))
 		--pkd->nActive;
 	    }
@@ -2740,22 +2747,70 @@ void pkdNewOrder(PKD pkd,int nStart) {
     PARTICLE *p;
     int pi;
 
-    assert(0);
     for (pi=0;pi<pkdLocal(pkd);pi++) {
 	p = pkdParticle(pkd,pi);
-	if (p->iOrder == -1) {
+	if (p->iOrder == IORDERMAX) {
 	    p->iOrder = nStart++;
 	    }
 	}
     }
 
+void
+pkdGetNParts(PKD pkd, struct outGetNParts *out )
+{
+    int pi;
+    int n;
+    int nGas;
+    int nDark;
+    int nStar;
+    int iMaxOrderGas;
+    int iMaxOrderDark;
+    int iMaxOrderStar;
+    PARTICLE *p;
+    
+    n = 0;
+    nGas = 0;
+    nDark = 0;
+    nStar = 0;
+    iMaxOrderGas = -1;
+    iMaxOrderDark = -1;
+    iMaxOrderStar = -1;
+    for(pi = 0; pi < pkdLocal(pkd); pi++) {
+	p = pkdParticle(pkd,pi);
+	n++;
+	if(pkdIsGas(pkd, p)) {
+	    ++nGas;
+	    if (p->iOrder > iMaxOrderGas) iMaxOrderGas = p->iOrder;
+	    }
+	else if(pkdIsDark(pkd, p)) {
+	    ++nDark;
+	    if (p->iOrder > iMaxOrderDark) iMaxOrderDark = p->iOrder;
+	    }
+	else if(pkdIsStar(pkd, p)) {
+	    ++nStar;
+	    if (p->iOrder > iMaxOrderStar) iMaxOrderStar = p->iOrder;
+	    }
+	}
+    
+    out->n  = n;
+    out->nGas = nGas;
+    out->nDark = nDark;
+    out->nStar = nStar;
+    out->iMaxOrderGas = iMaxOrderGas;
+    out->iMaxOrderDark = iMaxOrderDark;
+    out->iMaxOrderStar = iMaxOrderStar;
+}
+
+
 void pkdSetNParts(PKD pkd,int nGas,int nDark,int nStar,int nMaxOrderGas,
-	     int nMaxOrderDark) {
+		  int nMaxOrderDark, int nMaxOrder) {
     pkd->nGas = nGas;
     pkd->nDark = nDark;
     pkd->nStar = nStar;
+/* JW: Depr.
+    pkd->nMaxOrder = nMaxOrder;
     pkd->nMaxOrderGas = nMaxOrderGas;
-    pkd->nMaxOrderDark = nMaxOrderDark;
+    pkd->nMaxOrderDark = nMaxOrderDark;*/
     }
 
 

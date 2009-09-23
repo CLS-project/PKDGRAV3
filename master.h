@@ -159,6 +159,7 @@ void msrActiveMaskRung(MSR msr, unsigned int iSetMask, int iRung, int bGreater);
 
 void msrVelocityRung(MSR msr,int iRung,double dDelta,double dTime,int bAll);
 uint64_t msrCalcWriteStart(MSR);
+void msrGetNParts(MSR msr);
 void msrAddDelParticles(MSR msr);
 void msrGravStep(MSR msr, double dTime);
 void msrAccelStep(MSR msr,uint8_t uRungLo,uint8_t uRungHi,double dTime);

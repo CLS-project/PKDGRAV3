@@ -157,6 +157,7 @@ int main(int argc,char **argv) {
 #endif
 	if ( msr->param.achInFile[0] ) {
 	    dTime = msrRead(msr,msr->param.achInFile);
+	    if (msr->param.bAddDelete) msrGetNParts(msr);
 	    msrInitStep(msr);
 	    if (prmSpecified(msr->prm,"dSoft")) msrSetSoft(msr,msrSoft(msr));
 	    }

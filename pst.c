@@ -103,6 +103,7 @@ const char *pst_h_module_id = PST_H_MODULE_ID;
 **  UpdateRung            Yes     Yes    |
 **  ColNParts             -       Gather |
 **  NewOrder              Scatter -      |
+**  GetNParts             -       Gather |
 **  SetNParts             Yes     -      |
 **  ClearTimer            Yes     -      |
 **  Fof                   Yes     -      |
@@ -338,6 +339,9 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_NEWORDER,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstNewOrder,
 		  nThreads*sizeof(int),0);
+    mdlAddService(mdl,PST_GETNPARTS,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstGetNParts,
+		  0,sizeof(struct outGetNParts));
     mdlAddService(mdl,PST_SETNPARTS,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstSetNParts,
 		  sizeof(struct inSetNParts),0);
@@ -3185,6 +3189,31 @@ pstNewOrder(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     }
 
 void
+pstGetNParts(PST pst,void *vin,int nIn,void *vout,int *pnOut)
+    {
+    struct outGetNParts *out = vout;
+    
+    if(pst->nLeaves > 1) {
+	struct outGetNParts outtmp;
+	mdlReqService(pst->mdl,pst->idUpper,PST_GETNPARTS,vin,nIn);
+	pstGetNParts(pst->pstLower,vin,nIn,vout,pnOut);
+	mdlGetReply(pst->mdl,pst->idUpper,(void *) &outtmp,pnOut);
+	
+	out->n += outtmp.n;
+	out->nGas += outtmp.nGas;
+	out->nDark += outtmp.nDark;
+	out->nStar += outtmp.nStar;
+	if (outtmp.iMaxOrderGas > out->iMaxOrderGas) out->iMaxOrderGas = outtmp.iMaxOrderGas;
+	if (outtmp.iMaxOrderDark > out->iMaxOrderDark) out->iMaxOrderDark = outtmp.iMaxOrderDark;
+	if (outtmp.iMaxOrderStar > out->iMaxOrderStar) out->iMaxOrderStar = outtmp.iMaxOrderStar;
+	}
+    else {
+	pkdGetNParts(pst->plcl->pkd, out);
+	}
+    if(pnOut) *pnOut = sizeof(struct outGetNParts);
+}
+
+void
 pstSetNParts(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     struct inSetNParts *in = vin;
 
@@ -3195,7 +3224,7 @@ pstSetNParts(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	}
     else {
 	pkdSetNParts(pst->plcl->pkd, in->nGas, in->nDark, in->nStar,
-		     in->nMaxOrderGas, in->nMaxOrderDark);
+		     in->nMaxOrderGas, in->nMaxOrderDark, in->nMaxOrder);
 	}
     if (pnOut) *pnOut = 0;
     }
