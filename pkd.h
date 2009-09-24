@@ -1106,6 +1106,8 @@ void pkdSetClasses( PKD pkd, int n, PARTCLASS *pClass, int bUpdate );
 
 int pkdSelSrcAll(PKD pkd);
 int pkdSelDstAll(PKD pkd);
+int pkdSelSrcGas(PKD pkd);
+int pkdSelDstGas(PKD pkd);
 
 int pkdSelSrcMass(PKD pkd,double dMinMass, double dMaxMass, int setIfTrue, int clearIfFalse );
 int pkdSelDstMass(PKD pkd,double dMinMass, double dMaxMass, int setIfTrue, int clearIfFalse );

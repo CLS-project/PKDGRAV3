@@ -846,7 +846,7 @@ void smSmooth(SMX smx,SMF *smf) {
     for (pi=0;pi<pkd->nLocal;++pi) {
 	p = pkdParticle(pkd,pi);
 	if ( !pkdIsDstActive(p,0,MAX_RUNG) ) continue;
-	if ( !pkdIsSrcActive(p,0,MAX_RUNG) ) continue;
+/*	if ( !pkdIsSrcActive(p,0,MAX_RUNG) ) continue; don't want this JW */
 	pq = NULL;
 	smx->nQueue = 0;
 	pq = pqSearch(smx,pq,p->r,0,&bDone);

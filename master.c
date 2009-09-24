@@ -3847,8 +3847,12 @@ void msrSph(MSR msr,double dTime, double dStep) {
 
     if (msr->param.bVStep) printf("Calculating Sph, Step:%f\n",dStep);
     sec = msrTime();
-    msrSelSrcAll(msr); /* JW: What is this actually doing? */
-    msrSelDstAll(msr);
+
+/* JW: Is the tree aware of this -- does it need to be? 
+       Will smooth behave correctly? */
+    msrSelSrcGas(msr); 
+    msrSelDstGas(msr);  
+
     msrSmooth(msr,dTime,SMX_DENDVDX,1);  /* last parameter is CO cache? */
     msrSmooth(msr,dTime,SMX_SPHFORCES,1);
     /* work */
@@ -5089,6 +5093,13 @@ void msrSelSrcAll(MSR msr) {
     }
 void msrSelDstAll(MSR msr) {
     pstSelDstAll(msr->pst, NULL, 0, NULL, NULL );
+    }
+
+void msrSelSrcGas(MSR msr) {
+    pstSelSrcGas(msr->pst, NULL, 0, NULL, NULL );
+    }
+void msrSelDstGas(MSR msr) {
+    pstSelDstGas(msr->pst, NULL, 0, NULL, NULL );
     }
 
 uint64_t msrSelSrcById(MSR msr,uint64_t idStart,uint64_t idEnd,int setIfTrue,int clearIfFalse) {

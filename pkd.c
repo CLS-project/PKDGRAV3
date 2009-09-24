@@ -774,6 +774,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
 	    assert(dTuFac>0.0);
 	    fioReadSph(fio,&iOrder,p->r,v,&fMass,&fSoft,pPot,
 		       &p->fDensity/*?*/,&pSph->u,&pSph->fMetals);
+/*	    if ((iOrder%1000)==0) printf("%d: %g %g %g\n",iOrder,pSph->u,dTuFac,pSph->u*dTuFac);*/
 	    pSph->u *= dTuFac;
 	    pSph->uPred = pSph->u;
 	    pSph->fMetalsPred = pSph->fMetals;
@@ -2556,6 +2557,16 @@ void pkdSphStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,double dAccFac) {
     assert(pkd->oAcceleration);
     assert(pkd->oSph);
 
+    j=0;
+    for (i=0;i<pkdLocal(pkd);++i) {
+	p = pkdParticle(pkd,i);
+	if (pkdIsActive(pkd,p) && pkdIsGas(pkd,p)) {
+	    if ((i%1000)==0) printf("%d %d: %g %g %g *%g* %g %g,\n",i,p->iOrder,*pkd_u(pkd,p),*pkd_uDot(pkd,p),*pkd_divv(pkd,p),*pkd_divv(pkd,p)*pkd->param.dDelta,pkd->param.dDelta,dT);
+	    j++;
+	    if (j>20) break;
+	    }
+	}
+
     for (i=0;i<pkdLocal(pkd);++i) {
 	p = pkdParticle(pkd,i);
 	if (pkdIsActive(pkd,p) && pkdIsGas(pkd,p)) {
@@ -2572,6 +2583,7 @@ void pkdSphStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,double dAccFac) {
 		double dtemp = pkd->param.dEtaUDot*(*pkd_u(pkd,p))/uDot;
 		if (dtemp < dT) dT = dtemp;
 		}
+	    printf("%d %d: %g %g %g *%g* %g %g,\n",i,p->iOrder,*pkd_u(pkd,p),*pkd_uDot(pkd,p),*pkd_divv(pkd,p),*pkd_divv(pkd,p)*pkd->param.dDelta,pkd->param.dDelta,dT);
 	    uNewRung = pkdDtToRung(dT,pkd->param.dDelta,pkd->param.iMaxRung-1);
 	    if (uNewRung > p->uNewRung) p->uNewRung = uNewRung;
 	    }
@@ -3697,6 +3709,28 @@ int pkdSelDstAll(PKD pkd) {
     int i;
     int n=pkdLocal(pkd);
     for( i=0; i<n; i++ ) pkdParticle(pkd,i)->bDstActive = 1;
+    return n;
+    }
+
+int pkdSelSrcGas(PKD pkd) {
+    int i;
+    int n=pkdLocal(pkd);
+    PARTICLE *p;
+    for( i=0; i<n; i++ ) {
+	p=pkdParticle(pkd,i);
+	if (pkdIsGas(pkd,p)) p->bSrcActive = 1; else p->bSrcActive = 0;
+	}
+    return n;
+    }
+
+int pkdSelDstGas(PKD pkd) {
+    int i;
+    int n=pkdLocal(pkd);
+    PARTICLE *p;
+    for( i=0; i<n; i++ ) {
+	p=pkdParticle(pkd,i);
+	if (pkdIsGas(pkd,p)) p->bDstActive = 1; else p->bDstActive = 0;
+	}
     return n;
     }
 

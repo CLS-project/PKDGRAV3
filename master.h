@@ -242,6 +242,8 @@ void msrMemStatus(MSR msr);
 
 void msrSelSrcAll(MSR msr);
 void msrSelDstAll(MSR msr);
+void msrSelSrcGas(MSR msr);
+void msrSelDstGas(MSR msr);
 uint64_t msrSelSrcMass(MSR msr,double dMinMass,double dMaxMass,int setIfTrue,int ClearIfFalse);
 uint64_t msrSelDstMass(MSR msr,double dMinMass,double dMaxMass,int setIfTrue,int ClearIfFalse);
 uint64_t msrSelSrcById(MSR msr,uint64_t idStart,uint64_t idEnd,int setIfTrue,int clearIfFalse);

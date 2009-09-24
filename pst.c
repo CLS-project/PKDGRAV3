@@ -446,6 +446,12 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_SELDSTALL,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstSelDstAll,
 		  0, 0 );
+    mdlAddService(mdl,PST_SELSRCGAS,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstSelSrcGas,
+		  0, 0 );
+    mdlAddService(mdl,PST_SELDSTGAS,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstSelDstGas,
+		  0, 0 );
     mdlAddService(mdl,PST_SELSRCBYID,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstSelSrcById,
 		  sizeof(struct inSelById), sizeof(struct outSelById));
@@ -3945,6 +3951,32 @@ void pstSelDstAll(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	}
     else {
 	pkdSelDstAll(plcl->pkd);
+	}
+    if (pnOut) *pnOut = 0;
+    }
+
+void pstSelSrcGas(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl = pst->plcl;
+    if (pst->nLeaves > 1) {
+	mdlReqService(pst->mdl,pst->idUpper,PST_SELSRCGAS,vin,nIn);
+	pstSelSrcGas(pst->pstLower,vin,nIn,vout,pnOut);
+	mdlGetReply(pst->mdl,pst->idUpper,vout,pnOut);
+	}
+    else {
+	pkdSelSrcGas(plcl->pkd);
+	}
+    if (pnOut) *pnOut = 0;
+    }
+
+void pstSelDstGas(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl = pst->plcl;
+    if (pst->nLeaves > 1) {
+	mdlReqService(pst->mdl,pst->idUpper,PST_SELDSTGAS,vin,nIn);
+	pstSelDstGas(pst->pstLower,vin,nIn,vout,pnOut);
+	mdlGetReply(pst->mdl,pst->idUpper,vout,pnOut);
+	}
+    else {
+	pkdSelDstGas(plcl->pkd);
 	}
     if (pnOut) *pnOut = 0;
     }

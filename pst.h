@@ -180,6 +180,8 @@ enum pst_service {
 
     PST_SELSRCALL,
     PST_SELDSTALL,
+    PST_SELSRCGAS,
+    PST_SELDSTGAS,
     PST_SELSRCMASS,
     PST_SELDSTMASS,
     PST_SELSRCBYID,
@@ -1075,6 +1077,10 @@ void pstSwapClasses(PST,void *,int,void *,int *);
 /* PST_SELSRCALL */
 void pstSelSrcAll(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 void pstSelDstAll(PST pst,void *vin,int nIn,void *vout,int *pnOut);
+
+/* PST_SELSRCGAS */
+void pstSelSrcGas(PST pst,void *vin,int nIn,void *vout,int *pnOut);
+void pstSelDstGas(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 
 /* PST_SELSRCMASS */
 struct inSelMass {
