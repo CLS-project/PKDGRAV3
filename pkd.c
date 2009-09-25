@@ -1634,7 +1634,7 @@ uint32_t pkdWriteTipsy(PKD pkd,char *pszFileName,uint64_t iFirst,
     STARFIELDS *pStar;
     SPHFIELDS *pSph;
     float *pPot, dummypot;
-    double *v, dummyv[3];
+    double v[3];
     float fMass, fSoft;
     uint32_t nCount;
     uint64_t iOrder;
@@ -1648,7 +1648,7 @@ uint32_t pkdWriteTipsy(PKD pkd,char *pszFileName,uint64_t iFirst,
 	}
     fioSeek(fio,iFirst,FIO_SPECIES_ALL);
 
-    dummyv[0] = dummyv[1] = dummyv[2] = 0.0;
+    v[0] = v[1] = v[2] = 0.0;
     dummypot = 0.0;
     nCount = 0;
     /*printf("Writing %lu\n", pkdLocal(pkd));*/
@@ -1657,8 +1657,12 @@ uint32_t pkdWriteTipsy(PKD pkd,char *pszFileName,uint64_t iFirst,
 	if ( !pkdIsSrcActive(p,0,MAX_RUNG) ) continue;
 	if ( pkd->oPotential) pPot = pkdPot(pkd,p);
 	else pPot = &dummypot;
-	if (pkd->oVelocity) v = pkdVel(pkd,p);
-	else v = dummyv;
+	if (pkd->oVelocity) {
+	    double *pV = pkdVel(pkd,p);
+	    v[0] = pV[0] * dvFac;
+	    v[1] = pV[1] * dvFac;
+	    v[2] = pV[2] * dvFac;
+	    }
 	/* Initialize SPH fields if present */
 	if (pkd->oSph) pSph = pkdField(p,pkd->oSph);
 	else pSph = NULL;
