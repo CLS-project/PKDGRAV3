@@ -368,7 +368,8 @@ void SphForces(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
             QACTIVE( if (uNewRung > q->uNewRung ) q->uNewRung = uNewRung; );	\
 	    PACTIVE( Accp *= rq*aFac; );/* aFac - convert to comoving acceleration */ \
 	    QACTIVE( Accq *= rp*aFac; ); \
-	    PACTIVE( if (p->iOrder==4243 || q->iOrder==4243) fprintf(stderr,"BA p: %d q: %d(%d)  %g %g %g  %g\n",p->iOrder,q->iOrder,pkdIsGas(pkd,q),PRES_PDV(qPoverRho2,pPoverRho2),0.5*visc,dvdotdr,psph->uDot); ); \
+/*	    PACTIVE( if (p->iOrder==0 || q->iOrder==0) fprintf(stderr,"BA p: %d q: %d(%d)  %g %g %g  %g\n",p->iOrder,q->iOrder,pkdIsGas(pkd,q),PRES_PDV(qPoverRho2,pPoverRho2),0.5*visc,dvdotdr,psph->uDot); );	\
+  if (p->iOrder==0 && q->iOrder==31775) assert(0); */			\
 	    PACTIVE( pa[0] -= Accp * dx; ); \
 	    PACTIVE( pa[1] -= Accp * dy; ); \
 	    PACTIVE( pa[2] -= Accp * dz; ); \

@@ -38,6 +38,8 @@ SOURCES        += cosmo.c master.c param.c pst.c smooth.c ewald.c
 noinst_HEADERS += cosmo.h master.h param.h pst.h smooth.h ewald.h meval.h qeval.h
 SOURCES        += moments.c intype.c outtype.c pkd.c smoothfcn.c rbtree.c fio.c
 noinst_HEADERS += moments.h intype.h outtype.h pkd.h smoothfcn.h rbtree.h fio.h
+SOURCES        += cooling.c cooling_module.F90
+noinst_HEADERS += cooling.h
 
 if PLANETS
 SOURCES += ssio.c collision.c kepler.c

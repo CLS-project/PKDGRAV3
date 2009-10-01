@@ -95,6 +95,9 @@ const char *pst_h_module_id = PST_H_MODULE_ID;
 **  ActiveRung            Yes     -      |
 **  CurrRung              Yes     Yes    |
 **  DensityStep           Yes     -      |
+**  CoolSetup             Yes     -      |
+**  Cooling               Yes     Yes    |
+**  CorrectEnergy         Yes     -      |
 **  GetMap                Yes     Gather | sends back thread ids
 **  AccelStep             Yes     -      |
 **  SphStep               Yes     -      |
@@ -315,6 +318,15 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_DENSITYSTEP,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstDensityStep,
 		  sizeof(struct inDensityStep),0);
+    mdlAddService(mdl,PST_COOLSETUP,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstCoolSetup,
+		  sizeof(struct inCoolSetup),0);
+    mdlAddService(mdl,PST_COOLING,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstCooling,
+		  sizeof(struct inCooling),sizeof(struct outCooling));
+    mdlAddService(mdl,PST_CORRECTENERGY,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstCorrectEnergy,
+		  sizeof(struct inCorrectEnergy),0);
     mdlAddService(mdl,PST_GETMAP,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstGetMap,
 		  sizeof(struct inGetMap),nThreads*sizeof(int));
@@ -3100,6 +3112,70 @@ pstDensityStep(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	}
     else {
 	pkdDensityStep(plcl->pkd,in->uRungLo,in->uRungHi,in->dEta,in->dRhoFac);
+	}
+    if (pnOut) *pnOut = 0;
+    }
+
+void pstCoolSetup(PST pst,void *vin,int nIn,void *vout,int *pnOut)
+    {
+    LCL *plcl = pst->plcl;
+    struct inCoolSetup *in = vin;
+    
+    if (pst->nLeaves > 1) {
+	mdlReqService(pst->mdl,pst->idUpper,PST_COOLSETUP,in,nIn);
+	pstCoolSetup(pst->pstLower,in,nIn,NULL,NULL);
+	mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
+	}
+    else {
+#if defined(COOLDEBUG)
+	(plcl->pkd->Cool)->mdl = plcl->pkd->mdl;
+#endif
+	CoolSetup((plcl->pkd->Cool),in->dGmPerCcUnit, in->dComovingGmPerCcUnit, in->dErgPerGmUnit, in->dSecUnit, in->dKpcUnit, in->dOmega0, in->dHubble0, in->dLambda, in->dOmegab, in->dOmegaRad, in->a, in->z, in->dTime, in->CoolParam);
+	}
+    if (pnOut) *pnOut = 0;
+    }
+
+void pstCooling(PST pst,void *vin,int nIn,void *vout,int *pnOut)
+    {
+    LCL *plcl = pst->plcl;
+    struct inCooling *in = vin;
+    struct outCooling *out = vout;
+    struct outCooling outUp;
+    
+    mdlassert(pst->mdl,nIn == sizeof(struct inCooling));
+    
+    if (pst->nLeaves > 1) {
+	mdlReqService(pst->mdl,pst->idUpper,PST_COOLING,in,nIn);
+	pstCooling(pst->pstLower,in,nIn,out,NULL);
+	mdlGetReply(pst->mdl,pst->idUpper,&outUp,NULL);
+	
+	out->SumTime += outUp.SumTime;
+	out->nSum += outUp.nSum;
+	if (outUp.MaxTime > out->MaxTime) out->MaxTime = outUp.MaxTime;
+	}
+    else {
+	pkdCooling(plcl->pkd,in->duDelta,in->dTime,in->z,in->bUpdateState,in->bUpdateTable,in->bIterateDt);
+	out->Time = pkdGetTimer(plcl->pkd,1);
+	out->MaxTime = out->Time;
+	out->SumTime = out->Time;
+	out->nSum = 1;
+	}
+
+    if (pnOut) *pnOut = sizeof(struct outCooling);
+    }
+
+void pstCorrectEnergy(PST pst,void *vin,int nIn,void *vout,int *pnOut)
+    {
+    LCL *plcl = pst->plcl;
+    struct inCorrectEnergy *in = vin;
+    
+    if (pst->nLeaves > 1) {
+	mdlReqService(pst->mdl,pst->idUpper,PST_CORRECTENERGY,vin,nIn);
+	pstCorrectEnergy(pst->pstLower,vin,nIn,NULL,NULL);
+	mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
+	}
+    else {
+	pkdCorrectEnergy(plcl->pkd,in->dTuFac,in->z,in->dTime,in->iDirection);
 	}
     if (pnOut) *pnOut = 0;
     }

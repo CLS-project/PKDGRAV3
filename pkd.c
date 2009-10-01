@@ -471,6 +471,8 @@ void pkdInitialize(
 
     pkd->grid = NULL;
     pkd->gridData = NULL;
+
+    pkd->Cool = CoolInit();
     }
 
 
@@ -775,12 +777,12 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
 	    fioReadSph(fio,&iOrder,p->r,v,&fMass,&fSoft,pPot,
 		       &p->fDensity/*?*/,&pSph->u,&pSph->fMetals);
 /*	    if ((iOrder%1000)==0) printf("%d: %g %g %g\n",iOrder,pSph->u,dTuFac,pSph->u*dTuFac);*/
-	    pSph->u *= dTuFac;
+	    pSph->u *= dTuFac; /* Can't do precise conversion until density known */
 	    pSph->uPred = pSph->u;
 	    pSph->fMetalsPred = pSph->fMetals;
-	    pSph->vPred[0] = v[0];
-	    pSph->vPred[1] = v[1];
-	    pSph->vPred[2] = v[2]; /* density, divv, BalsaraSwitch, c from smooth */
+	    pSph->vPred[0] = v[0]*dvFac;
+	    pSph->vPred[1] = v[1]*dvFac;
+	    pSph->vPred[2] = v[2]*dvFac; /* density, divv, BalsaraSwitch, c set in smooth */
 	    break;
 	case FIO_SPECIES_DARK:
 	    fioReadDark(fio,&iOrder,p->r,v,&fMass,&fSoft,pPot);
@@ -789,9 +791,9 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
 	    assert(pStar && pSph);
 	    fioReadStar(fio,&iOrder,p->r,v,&fMass,&fSoft,pPot,
 			&pSph->fMetals,&pStar->fTimeForm);
-	    pSph->vPred[0] = v[0];
-	    pSph->vPred[1] = v[1];
-	    pSph->vPred[2] = v[2];
+	    pSph->vPred[0] = v[0]*dvFac;
+	    pSph->vPred[1] = v[1]*dvFac;
+	    pSph->vPred[2] = v[2]*dvFac;
 	    break;
 	default:
 	    fprintf(stderr,"Unsupported particle type: %d\n",eSpecies);
@@ -1676,8 +1678,18 @@ uint32_t pkdWriteTipsy(PKD pkd,char *pszFileName,uint64_t iFirst,
 	case FIO_SPECIES_SPH:
 	    assert(pSph);
 	    assert(pkd->param.dTuFac>0.0);
-	    fioWriteSph(fio,iOrder,p->r,v,fMass,fSoft,*pPot,
-		       p->fDensity,pSph->u/pkd->param.dTuFac,pSph->fMetals);
+		{
+		double T, E;
+		COOLPARTICLE cp;
+		if (pkd->param.bGasCooling) {
+		    E = pSph->u;
+		    CoolTempFromEnergyCode( pkd->Cool, 
+					    &cp, &E, &T, p->fDensity, pSph->fMetals );
+		    }
+		else T = pSph->u/pkd->param.dTuFac;
+		fioWriteSph(fio,iOrder,p->r,v,fMass,fSoft,*pPot,
+			    p->fDensity,T,pSph->fMetals);
+		}
 	    break;
 	case FIO_SPECIES_DARK:
 	    fioWriteDark(fio,iOrder,p->r,v,fMass,fSoft,*pPot);
@@ -2556,20 +2568,10 @@ void pkdSphStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,double dAccFac) {
     float *a, uDot;
     int i,j,uNewRung;
     double acc;
-    double dT;
+    double dtNew;
 
     assert(pkd->oAcceleration);
     assert(pkd->oSph);
-
-    j=0;
-    for (i=0;i<pkdLocal(pkd);++i) {
-	p = pkdParticle(pkd,i);
-	if (pkdIsActive(pkd,p) && pkdIsGas(pkd,p)) {
-	    if ((i%1000)==0) printf("%d %d: %g %g %g *%g* %g %g,\n",i,p->iOrder,*pkd_u(pkd,p),*pkd_uDot(pkd,p),*pkd_divv(pkd,p),*pkd_divv(pkd,p)*pkd->param.dDelta,pkd->param.dDelta,dT);
-	    j++;
-	    if (j>20) break;
-	    }
-	}
 
     for (i=0;i<pkdLocal(pkd);++i) {
 	p = pkdParticle(pkd,i);
@@ -2580,21 +2582,141 @@ void pkdSphStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,double dAccFac) {
 		acc += a[j]*a[j];
 		}
 	    acc = sqrt(acc)*dAccFac;
-	    dT = FLOAT_MAXVAL;
-	    if (acc>0) dT = pkd->param.dEta*sqrt(p->fBall/acc);
+	    dtNew = FLOAT_MAXVAL;
+	    if (acc>0) dtNew = pkd->param.dEta*sqrt(p->fBall/acc);
 	    uDot = fabs(*pkd_uDot(pkd,p));
-	    if (uDot>0) {
+	    if (uDot > 0) {
 		double dtemp = pkd->param.dEtaUDot*(*pkd_u(pkd,p))/uDot;
-		if (dtemp < dT) dT = dtemp;
+		if (dtemp < dtNew) dtNew = dtemp;
 		}
-	    printf("%d %d: %g %g %g *%g* %g %g,\n",i,p->iOrder,*pkd_u(pkd,p),*pkd_uDot(pkd,p),*pkd_divv(pkd,p),*pkd_divv(pkd,p)*pkd->param.dDelta,pkd->param.dDelta,dT);
-	    uNewRung = pkdDtToRung(dT,pkd->param.dDelta,pkd->param.iMaxRung-1);
+/*	    if (!(p->iOrder%1000)) printf("%d %d: %g %g %g *%g* %g %g,\n",i,p->iOrder,*pkd_u(pkd,p),*pkd_uDot(pkd,p),*pkd_divv(pkd,p),1/(*pkd_divv(pkd,p)),pkd->param.dDelta,dtNew); */
+
+	    uNewRung = pkdDtToRung(dtNew,pkd->param.dDelta,pkd->param.iMaxRung-1);
 	    if (uNewRung > p->uNewRung) p->uNewRung = uNewRung;
 	    }
 	}
     }
 
+void pkdCooling(PKD pkd, double duDelta, double dTime, double z, int bUpdateState, int bUpdateTable, int bIterateDt )
+    {
+    PARTICLE *p;
+    int i,n;
+    SPHFIELDS *sph;
+    COOLPARTICLE cp;  /* Dummy: Not yet fully implemented */
+    double E,dt,ExternalHeating;
+  
+    pkdClearTimer(pkd,1);
+    pkdStartTimer(pkd,1);
+  
+    assert(pkd->oSph);
 
+    CoolSetTime( pkd->Cool, dTime, z, bUpdateTable );
+    
+    if (duDelta == 0) return;
+
+    if (bIterateDt) { /* Iterate Cooling & dt for each particle */
+	for (i=0;i<pkdLocal(pkd);++i) {
+	    p = pkdParticle(pkd,i);
+	    if (pkdIsActive(pkd,p) && pkdIsGas(pkd,p)) {
+		sph = pkdSph(pkd,p);
+		ExternalHeating = sph->uDot;
+		for (;;) {
+		    double uDot;
+
+		    E = sph->u;
+		    dt = pkd->param.dDelta/(2<<p->uNewRung); /* Rung Guess */
+		    CoolIntegrateEnergyCode(pkd->Cool, &cp, &E, ExternalHeating, p->fDensity, sph->fMetals, p->r, dt);
+		    uDot = (E-sph->u)/dt; 
+		    if (uDot != 0) {
+			double dtNew;
+			int uNewRung;
+			dtNew = pkd->param.dEtaUDot*sph->u/fabs(uDot);
+			uNewRung = pkdDtToRung(dtNew,pkd->param.dDelta,pkd->param.iMaxRung-1);
+			if (uNewRung > p->uNewRung) {
+			    p->uNewRung = uNewRung;
+			    continue;
+			    }
+			}
+		    sph->uDot = uDot;
+		    break;
+		    }
+/*	    printf("%d %d: %g %g %g *%g* %g %g,\n",i,p->iOrder,*pkd_u(pkd,p),*pkd_uDot(pkd,p),*pkd_divv(pkd,p),*pkd_divv(pkd,p)*pkd->param.dDelta,pkd->param.dDelta,dT); */
+		}
+	    }
+	}
+    else {
+	for (i=0;i<pkdLocal(pkd);++i) {
+	    p = pkdParticle(pkd,i);
+	    if (pkdIsActive(pkd,p) && pkdIsGas(pkd,p)) {
+		sph = pkdSph(pkd,p);
+		ExternalHeating = sph->uDot;
+		E = sph->u;
+		dt = pkd->param.dDelta/(2<<p->uRung); /* Actual Rung */
+		CoolIntegrateEnergyCode(pkd->Cool, &cp, &E, ExternalHeating, p->fDensity, sph->fMetals, p->r, duDelta);
+		sph->uDot = (E-sph->u)/dt; /* To let us interpolate/extrapolate uPred */
+		}
+	    }
+	}
+    
+    pkdStopTimer(pkd,1);
+    }
+
+void pkdCorrectEnergy(PKD pkd, double dTuFac, double z, double dTime, int iDirection )
+    {
+    PARTICLE *p;
+    SPHFIELDS *sph;
+    int i;
+    COOL *cl;
+    double T,E;
+    COOLPARTICLE cp; /* Dummy for now */
+
+    cl = pkd->Cool;
+    CoolSetTime( cl, dTime, z, 1 );
+
+    switch(iDirection)  {
+    case CORRECTENERGY_IN:
+	for(i=0;i<pkdLocal(pkd);++i) {
+	    p = pkdParticle(pkd,i);
+	    if (pkdIsGas(pkd,p)) {
+		sph = pkdSph(pkd,p);
+		T = sph->u/dTuFac;
+		CoolEnergyCodeFromTemp( cl, &cp, &E, &T, p->fDensity, sph->fMetals );
+		sph->u = E;
+		sph->uPred = E;
+		}
+	    }
+	break;
+	/* Careful using this -- it permanenty converts the thermal energy */
+    case CORRECTENERGY_OUT: 
+	for(i=0;i<pkdLocal(pkd);++i) {
+	    p = pkdParticle(pkd,i);
+	    if (pkdIsGas(pkd,p)) {
+		sph = pkdSph(pkd,p);
+		E = sph->u;
+		CoolTempFromEnergyCode( cl, &cp, &E, &T, p->fDensity, sph->fMetals );
+		sph->u = T*dTuFac;
+		sph->uPred = T*dTuFac;
+		}
+	    }
+	break;
+    case CORRECTENERGY_SPECIAL:
+	for(i=0;i<pkdLocal(pkd);++i) {
+	    p = pkdParticle(pkd,i);
+	    if (pkdIsGas(pkd,p)) {
+		sph = pkdSph(pkd,p);
+		T = sph->u/dTuFac; 
+		CoolInitEnergyCode( cl, &cp, &E, &T, p->fDensity, sph->fMetals );
+		sph->u = E;
+		sph->uPred = E;
+		}
+	    }
+	break;
+    default:
+	assert(0);
+	break;
+	}
+    }
+    
 void pkdDensityStep(PKD pkd, uint8_t uRungLo, uint8_t uRungHi, double dEta, double dRhoFac) {
     PARTICLE *p;
     int i;

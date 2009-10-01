@@ -2,7 +2,6 @@
 #define PST_HINCLUDED
 #define PST_H_MODULE_ID "$Id$"
 
-#include "parameters.h"
 #include "pkd.h"
 #include "mdl.h"
 #include "smoothfcn.h"
@@ -124,6 +123,9 @@ enum pst_service {
     PST_ACCELSTEP,
     PST_SPHSTEP,
     PST_DENSITYSTEP,
+    PST_COOLSETUP,
+    PST_COOLING,
+    PST_CORRECTENERGY,
     PST_GETMAP,
     PST_SETRUNGVERYACTIVE,
     PST_MARKSMOOTH,
@@ -740,6 +742,54 @@ struct inDensityStep {
     uint8_t uRungHi;
     };
 void pstDensityStep(PST,void *,int,void *,int *);
+
+/* PST_COOLSETUP */
+struct inCoolSetup {
+    double dGmPerCcUnit;
+    double dComovingGmPerCcUnit;
+    double dErgPerGmUnit;
+    double dSecUnit;
+    double dKpcUnit;
+
+    double dOmega0;
+    double dHubble0;
+    double dLambda;
+    double dOmegab;
+    double dOmegaRad;
+
+    double a;
+    double z;
+    double dTime;
+    COOLPARAM CoolParam;
+    };
+
+void pstCoolSetup(PST,void *,int,void *,int *);
+
+/* PST_COOLING */
+struct inCooling {
+    double duDelta;
+    double dTime;	
+    double z;
+    int bUpdateState;
+    int bUpdateTable;
+    int bIterateDt;
+    };
+struct outCooling {
+    double Time;
+    double MaxTime;
+    double SumTime;
+    int nSum;
+    };
+void pstCooling(PST,void *,int,void *,int *);
+
+/* PST_CORRECTENERGY */
+struct inCorrectEnergy {
+    double dTuFac;
+    double z;
+    double dTime;
+    double iDirection;
+    };
+void pstCorrectEnergy(PST, void *,int,void *,int *);
 
 /* PST_GETMAP */
 struct inGetMap {

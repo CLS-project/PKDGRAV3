@@ -10,6 +10,7 @@
 #ifndef HAVE_CONFIG_H
 #include "floattype.h"
 #endif
+#include "cooling.h" /* before parameters.h */
 #include "parameters.h"
 
 #include "ilp.h"
@@ -614,6 +615,8 @@ typedef struct pkdContext {
     PARTICLE **piActive;
     PARTICLE **piInactive;
     PLITE *pLite;
+    COOL *Cool; /* Cooling Context */
+
     /*
     ** Advanced memory models
     */
@@ -1021,6 +1024,11 @@ void pkdAccelStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,
 		  double dEta,double dVelFac,double dAccFac,
 		  int bDoGravity,int bEpsAcc,int bSqrtPhi,double dhMinOverSoft);
 void pkdSphStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,double dAccFac);
+void pkdCooling(PKD pkd,double,double,double,int,int,int);
+#define CORRECTENERGY_IN 1
+#define CORRECTENERGY_OUT 2
+#define CORRECTENERGY_SPECIAL 3
+void pkdCorrectEnergy(PKD pkd, double dTuFac, double z, double dTime, int iType );
 void pkdDensityStep(PKD pkd, uint8_t uRungLo, uint8_t uRungHi, double dEta, double dRhoFac);
 int pkdUpdateRung(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
 		  uint8_t uRung,int iMaxRung,int *nRungCount);

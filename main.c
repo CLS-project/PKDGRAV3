@@ -235,9 +235,9 @@ int main(int argc,char **argv) {
 	    }
 	if (msrDoGas(msr)) {
 	    /* Initialize SPH, Cooling and SF/FB and gas time step */
-	    /* May need to fix dTuFac conversion of T in IC first */
+	    msrCoolSetup(msr,dTime);
+	    /* Fix dTuFac conversion of T in InitSPH */
 	    msrInitSph(msr,dTime);
-	    msrInitCooling(msr);
 	    }
 #ifdef PLANETS
 	if (msr->param.bHeliocentric) {
@@ -368,8 +368,8 @@ int main(int argc,char **argv) {
 		    }
 		
 		if (msrDoGas(msr)) {
+		    msrCoolSetup(msr,dTime);
 		    msrInitSph(msr,dTime);
-		    msrInitCooling(msr);
 		    }
 		   
 		msrUpdateRung(msr,0); /* set rungs for output */

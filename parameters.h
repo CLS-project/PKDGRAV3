@@ -32,6 +32,7 @@ struct parameters {
     int bVRungStat;
     int bVDetails;
     int bPeriodic;
+    int bRestart;
     int bParaRead;
     int bParaWrite;
     int bStandard;
@@ -86,10 +87,12 @@ struct parameters {
     int bGasAdiabatic;
     int bGasIsothermal;
     int bGasCooling;
+    int bInitTFromCooling;
     int bStarForm;
     int bFeedback;
     int iViscosityLimiter;
     int iDiffusion;
+    int iRungCoolTableUpdate;
     double dEtaCourant;
     double dEtaUDot;
     double dConstAlpha;
@@ -109,6 +112,7 @@ struct parameters {
     double dhMinOverSoft;
     double dMetalDiffusionCoeff;
     double dThermalDiffusionCoeff;
+    COOLPARAM CoolParam;
     /* StarForm and Feedback */
     
     /* END Gas Parameters */

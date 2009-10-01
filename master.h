@@ -206,8 +206,8 @@ void msrRelaxation(MSR msr,double dTime,double deltaT,int iSmoothType,int bSymme
 void msrInitSph(MSR,double);
 void msrSph(MSR msr, double dTime, double dStep);
 void msrSphStep(MSR msr,uint8_t uRungLo,uint8_t uRungHi,double dTime);
-void msrInitCooling(MSR msr);
-void msrCooling(MSR msr, double dTime, double dStep);
+void msrCoolSetup(MSR msr, double);
+void msrCooling(MSR msr,double dTime,double dStep,double dDelta,int bUpdateState, int bUpdateTable,int bInterateDt);
 /* END Gas routines */
 
 #ifdef PLANETS
