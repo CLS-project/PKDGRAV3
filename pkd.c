@@ -238,6 +238,9 @@ void pkdInitialize(
     PKD pkd;
     int j,ism;
 
+#define RANDOM_SEED 1
+    srand(RANDOM_SEED);
+
     pkd = (PKD)malloc(sizeof(struct pkdContext));
     mdlassert(mdl,pkd != NULL);
     pkd->mdl = mdl;
@@ -542,8 +545,10 @@ static void getClass( PKD pkd, float fMass, float fSoft, FIO_SPECIES eSpecies, P
     for ( i=0; i<pkd->nClasses; i++ )
 	if ( pkd->pClass[i].fMass == fMass && pkd->pClass[i].fSoft == fSoft && pkd->pClass[i].eSpecies==eSpecies )
 	    break;
+
     if ( i == pkd->nClasses ) {
 	assert( pkd->nClasses < PKD_MAX_CLASSES );
+	fprintf(stderr,"New class %d: %g %g %d\n",i,fMass,fSoft,eSpecies);
 	i = pkd->nClasses++;
 	pkd->pClass[i].fSoft    = fSoft;
 	pkd->pClass[i].fMass    = fMass;
@@ -728,6 +733,13 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
 
     mdlassert(pkd->mdl,fio != NULL);
 
+    if (pkd->oStar) {
+	/* Make sure star class established -- how do all procs know of these classes? How do we ensure they agree on the class identifiers? */
+	p = pkdParticle(pkd,pkd->nLocal);
+	getClass(pkd,0,0,FIO_SPECIES_STAR,p);
+	fprintf(stderr,"INFO: Dummy star to establish star class\n");
+	}
+
     fioSeek(fio,iFirst,FIO_SPECIES_ALL);
     for (i=0;i<nLocal;++i) {
 	p = pkdParticle(pkd,pkd->nLocal+i);
@@ -762,17 +774,15 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
 	/* Initialize Star fields if present */
 	if (pkd->oStar) {
 	    pStar = pkdField(p,pkd->oStar);
-	    pStar->fTimeForm = pStar->fESNrate = pStar->fMSN = pStar->fNSN = pStar->fMOxygenOut = pStar->fMIronOut
-		= pStar->fMFracOxygen = pStar->fMFracIron = pStar->fMFracOxygenPred = pStar->fMFracOxygenDot
-		= pStar->fMFracIronPred = pStar->fMFracIronDot = pStar->fSNMetals = pStar->fNSNtot
-		= pStar->fTimeCoolIsOffUntil = pStar->fMassForm = pStar->iGasOrder = 0.0;
+	    pStar->fTimer = 0;
+//	    pStar->iGasOrder = IORDERMAX;
 	    }
 	else pStar = NULL;
 
 	eSpecies = fioSpecies(fio);
 	switch(eSpecies) {
 	case FIO_SPECIES_SPH:
-	    assert(pSph);
+	    assert(pSph); /* JW: Ccould convert to dark ... */
 	    assert(dTuFac>0.0);
 	    fioReadSph(fio,&iOrder,p->r,v,&fMass,&fSoft,pPot,
 		       &p->fDensity/*?*/,&pSph->u,&pSph->fMetals);
@@ -790,7 +800,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
 	case FIO_SPECIES_STAR:
 	    assert(pStar && pSph);
 	    fioReadStar(fio,&iOrder,p->r,v,&fMass,&fSoft,pPot,
-			&pSph->fMetals,&pStar->fTimeForm);
+			&pSph->fMetals,&pStar->fTimer);
 	    pSph->vPred[0] = v[0]*dvFac;
 	    pSph->vPred[1] = v[1]*dvFac;
 	    pSph->vPred[2] = v[2]*dvFac;
@@ -803,7 +813,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
 	for(j=0;j<3;++j) v[j] *= dvFac;
 	getClass(pkd,fMass,fSoft,eSpecies,p);
 	}
-
+    
     pkd->nLocal += nLocal;
     pkd->nActive += nLocal;
     }
@@ -1697,7 +1707,7 @@ uint32_t pkdWriteTipsy(PKD pkd,char *pszFileName,uint64_t iFirst,
 	case FIO_SPECIES_STAR:
 	    assert(pStar && pSph);
 	    fioWriteStar(fio,iOrder,p->r,v,fMass,fSoft,*pPot,
-		       pSph->fMetals,pStar->fTimeForm);
+		       pSph->fMetals,pStar->fTimer);
 	    break;
 	default:
 	    fprintf(stderr,"Unsupported particle type: %d\n",pkdSpecies(pkd,p));
@@ -1743,6 +1753,20 @@ pkdGravAll(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,int bP
 #ifdef USE_BSC
     MPItrace_event(10000,3);
 #endif
+
+/*
+    fprintf(stderr,"NASTY: setting uNewRung = 0\n");
+	{
+	PARTICLE *p;
+	int i;
+
+	for (i=0;i<pkdLocal(pkd);++i) {
+	    p = pkdParticle(pkd,i);
+	    if ( !pkdIsDstActive(p,uRungLo,uRungHi) ) continue;
+	    p->uNewRung = 0;
+	    }
+	}
+*/
 
     /*
     ** Set up Ewald tables and stuff.
@@ -2569,6 +2593,7 @@ void pkdSphStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,double dAccFac) {
     int i,j,uNewRung;
     double acc;
     double dtNew;
+    int u1,u2,u3;
 
     assert(pkd->oAcceleration);
     assert(pkd->oSph);
@@ -2576,6 +2601,7 @@ void pkdSphStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,double dAccFac) {
     for (i=0;i<pkdLocal(pkd);++i) {
 	p = pkdParticle(pkd,i);
 	if (pkdIsActive(pkd,p) && pkdIsGas(pkd,p)) {
+	    u1 = p->uNewRung;
 	    a = pkdAccel(pkd,p);
 	    acc = 0;
 	    for (j=0;j<3;j++) {
@@ -2584,20 +2610,101 @@ void pkdSphStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,double dAccFac) {
 	    acc = sqrt(acc)*dAccFac;
 	    dtNew = FLOAT_MAXVAL;
 	    if (acc>0) dtNew = pkd->param.dEta*sqrt(p->fBall/acc);
-	    uDot = fabs(*pkd_uDot(pkd,p));
-	    if (uDot > 0) {
-		double dtemp = pkd->param.dEtaUDot*(*pkd_u(pkd,p))/uDot;
+	    u2 = pkdDtToRung(dtNew,pkd->param.dDelta,pkd->param.iMaxRung-1);
+	    uDot = *pkd_uDot(pkd,p);
+	    if (uDot < 0) {
+		double dtemp = pkd->param.dEtaUDot*(*pkd_u(pkd,p))/fabs(uDot);
 		if (dtemp < dtNew) dtNew = dtemp;
+		u3 = pkdDtToRung(dtemp,pkd->param.dDelta,pkd->param.iMaxRung-1);
 		}
-/*	    if (!(p->iOrder%1000)) printf("%d %d: %g %g %g *%g* %g %g,\n",i,p->iOrder,*pkd_u(pkd,p),*pkd_uDot(pkd,p),*pkd_divv(pkd,p),1/(*pkd_divv(pkd,p)),pkd->param.dDelta,dtNew); */
+/*	    if (p->uRung > 5) printf("%d %d: %g %g %g *%g* %g %g,\n",i,p->iOrder,*pkd_u(pkd,p),*pkd_uDot(pkd,p),*pkd_divv(pkd,p),1/(*pkd_divv(pkd,p)),pkd->param.dDelta,dtNew); */
 
 	    uNewRung = pkdDtToRung(dtNew,pkd->param.dDelta,pkd->param.iMaxRung-1);
 	    if (uNewRung > p->uNewRung) p->uNewRung = uNewRung;
+	    if (!(p->iOrder%10000) || p->uNewRung > 5) printf("RUNG %d: grav+sph %d acc %d udot %d final %d\n",p->iOrder,u1,u2,u3,(int) p->uNewRung);
 	    }
 	}
     }
 
-void pkdCooling(PKD pkd, double duDelta, double dTime, double z, int bUpdateState, int bUpdateTable, int bIterateDt )
+void pkdStarForm(PKD pkd, double dRateCoeff, double dTMax, double dDenMin,
+		 double dDelta, double dTime,
+		 double dInitStarMass, double dESNPerStarMass, double dtCoolingShutoff,
+		 double dtFeedbackDelay,  double dMassLossPerStarMass,    
+		 double dZMassPerStarMass, double dMinGasMass,
+		 int bdivv,
+		 int *nFormed, /* number of stars formed */
+		 double *dMassFormed,	/* mass of stars formed */
+		 int *nDeleted) /* gas particles deleted */ {
+
+    PARTICLE *p;
+    COOLPARTICLE cp;
+    SPHFIELDS *sph;
+    int n = pkdLocal(pkd);
+    double T, E, dmstar, dt, prob;
+    PARTICLE *starp;
+    int i,j;
+    
+    assert(pkd->oStar);
+    assert(pkd->oSph);
+    assert(pkd->oMass);
+
+    *nFormed = 0;
+    *nDeleted = 0;
+    *dMassFormed = 0.0;
+    starp = (PARTICLE *) malloc(pkdParticleSize(pkd));
+    assert(starp != NULL);
+
+    for (i=0;i<pkdLocal(pkd);++i) {
+	p = pkdParticle(pkd,i);
+	if (pkdIsActive(pkd,p) && pkdIsGas(pkd,p)) {
+	    sph = pkdSph(pkd,p);
+	    if (p->fDensity < dDenMin || (bdivv && sph->divv >= 0.0)) continue;
+	    E = sph->u;
+	    CoolTempFromEnergyCode( pkd->Cool, &cp, &E, &T, p->fDensity, sph->fMetals );
+	    if (T > dTMax) continue;
+	    
+            /* Note: Ramses allows for multiple stars per step -- but we have many particles
+	      and he has one cell that may contain many times m_particle */
+	    dt = pkd->param.dDelta/(1<<p->uRung); /* Actual Rung */
+	    dmstar = dRateCoeff*sqrt(p->fDensity)*pkdMass(pkd,p)*dt;
+	    prob = 1.0 - exp(-dmstar/dInitStarMass); 
+	    if (!(p->iOrder%1000)) printf("SF %d: %g %g %g\n",p->iOrder,dmstar,dInitStarMass,prob);
+	    
+	    /* Star formation event? */
+	    if (rand()<RAND_MAX*prob) {
+		float *starpMass = pkdField(starp,pkd->oMass);
+		float *pMass = pkdField(p,pkd->oMass);
+		pkdCopyParticle(pkd, starp, p);	/* grab copy */
+		*pMass -= dInitStarMass;
+		*starpMass = dInitStarMass;
+//		pkdStar(pkd,starp)->iGasOrder = p->iOrder;
+		if (*pMass < 0) {
+		    *starpMass += *pMass;
+		    *pMass = 0;
+		    }
+	        if (*pMass < dMinGasMass) {
+		    pkdDeleteParticle(pkd, p);
+		    (*nDeleted)++;
+		    }
+
+                /* Time formed  
+		   -- in principle it could have formed any time between dTime-dt and dTime 
+		   so dTime-0.5*dt may be justified -- if dt v. large could have odd effects */
+		pkdStar(pkd,starp)->fTimer = -dTime; 
+		
+		getClass(pkd,0,0,FIO_SPECIES_STAR,starp); /* How do I make a new particle? */
+		(*nFormed)++;
+		*dMassFormed += *starpMass;
+		pkdNewParticle(pkd, starp);    
+		}
+	    }
+	}
+
+    free(starp);
+}
+
+
+void pkdCooling(PKD pkd, double dTime, double z, int bUpdateState, int bUpdateTable, int bIterateDt )
     {
     PARTICLE *p;
     int i,n;
@@ -2612,22 +2719,21 @@ void pkdCooling(PKD pkd, double duDelta, double dTime, double z, int bUpdateStat
 
     CoolSetTime( pkd->Cool, dTime, z, bUpdateTable );
     
-    if (duDelta == 0) return;
-
     if (bIterateDt) { /* Iterate Cooling & dt for each particle */
 	for (i=0;i<pkdLocal(pkd);++i) {
 	    p = pkdParticle(pkd,i);
 	    if (pkdIsActive(pkd,p) && pkdIsGas(pkd,p)) {
+		if (pkdStar(pkd,p)->fTimer > dTime) continue;
 		sph = pkdSph(pkd,p);
 		ExternalHeating = sph->uDot;
 		for (;;) {
 		    double uDot;
 
 		    E = sph->u;
-		    dt = pkd->param.dDelta/(2<<p->uNewRung); /* Rung Guess */
+		    dt = pkd->param.dDelta/(1<<p->uNewRung); /* Rung Guess */
 		    CoolIntegrateEnergyCode(pkd->Cool, &cp, &E, ExternalHeating, p->fDensity, sph->fMetals, p->r, dt);
 		    uDot = (E-sph->u)/dt; 
-		    if (uDot != 0) {
+		    if (uDot < 0) {
 			double dtNew;
 			int uNewRung;
 			dtNew = pkd->param.dEtaUDot*sph->u/fabs(uDot);
@@ -2648,11 +2754,12 @@ void pkdCooling(PKD pkd, double duDelta, double dTime, double z, int bUpdateStat
 	for (i=0;i<pkdLocal(pkd);++i) {
 	    p = pkdParticle(pkd,i);
 	    if (pkdIsActive(pkd,p) && pkdIsGas(pkd,p)) {
+		if (pkdStar(pkd,p)->fTimer > dTime) continue;
 		sph = pkdSph(pkd,p);
 		ExternalHeating = sph->uDot;
 		E = sph->u;
-		dt = pkd->param.dDelta/(2<<p->uRung); /* Actual Rung */
-		CoolIntegrateEnergyCode(pkd->Cool, &cp, &E, ExternalHeating, p->fDensity, sph->fMetals, p->r, duDelta);
+		dt = pkd->param.dDelta/(1<<p->uRung); /* Actual Rung */
+		CoolIntegrateEnergyCode(pkd->Cool, &cp, &E, ExternalHeating, p->fDensity, sph->fMetals, p->r, dt);
 		sph->uDot = (E-sph->u)/dt; /* To let us interpolate/extrapolate uPred */
 		}
 	    }
@@ -2761,6 +2868,7 @@ int pkdUpdateRung(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
 		p->uRung = p->uNewRung;
 	    else if ( p->uRung > uRung)
 		p->uRung = uRung;
+//	    if (!(p->iOrder%10000) || p->uRung > 5) printf("RUNG UPDATE(%d) %d: %d %d\n",pkdIsDstActive(p,uRungLo,uRungHi),p->iOrder,p->uNewRung,p->uRung);
 	    }
 	/*
 	** Now produce a count of particles in rungs.
@@ -2813,7 +2921,7 @@ void pkdDeleteParticle(PKD pkd, PARTICLE *p) {
 
 void pkdNewParticle(PKD pkd, PARTICLE *p) {
     PARTICLE *newp;
-    assert(0);
+
     mdlassert(pkd->mdl,pkd->nLocal < pkd->nStore);
     newp = pkdParticle(pkd,pkd->nLocal);
     pkdCopyParticle(pkd,newp,p);
@@ -3856,6 +3964,28 @@ int pkdSelDstGas(PKD pkd) {
     for( i=0; i<n; i++ ) {
 	p=pkdParticle(pkd,i);
 	if (pkdIsGas(pkd,p)) p->bDstActive = 1; else p->bDstActive = 0;
+	}
+    return n;
+    }
+
+int pkdSelSrcStar(PKD pkd) {
+    int i;
+    int n=pkdLocal(pkd);
+    PARTICLE *p;
+    for( i=0; i<n; i++ ) {
+	p=pkdParticle(pkd,i);
+	if (pkdIsStar(pkd,p)) p->bSrcActive = 1; else p->bSrcActive = 0;
+	}
+    return n;
+    }
+
+int pkdSelDstStar(PKD pkd) {
+    int i;
+    int n=pkdLocal(pkd);
+    PARTICLE *p;
+    for( i=0; i<n; i++ ) {
+	p=pkdParticle(pkd,i);
+	if (pkdIsStar(pkd,p)) p->bDstActive = 1; else p->bDstActive = 0;
 	}
     return n;
     }

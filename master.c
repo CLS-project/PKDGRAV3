@@ -695,6 +695,60 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.bFeedback = 0;
     prmAddParam(msr->prm,"bFeedback",0,&msr->param.bFeedback,sizeof(int),
 		"fdbk","<Stars provide feedback> = 0");
+    msr->param.SFdComovingDenMin = 0; /* RAMSES DEFAULT */
+    prmAddParam(msr->prm,"SFdComovingDenMin", 2, &msr->param.SFdComovingDenMin,
+		sizeof(double), "stODmin",
+		"<Minimum overdensity for forming stars> = 2");
+    msr->param.SFdPhysDenMin =  0.1/.76/1.66e-24; /* 0.1 nH/cc; RAMSES DEFAULT */
+    prmAddParam(msr->prm,"SFdPhysDenMin", 2, &msr->param.SFdPhysDenMin,
+		sizeof(double), "stPDmin",
+		"<Minimum physical density for forming stars (gm/cc)> =  7e-26");
+    msr->param.SFdInitStarMass = 0;
+    prmAddParam(msr->prm,"SFdInitStarMass", 2, &msr->param.SFdInitStarMass,
+		sizeof(double), "stm0",
+		"<Initial star mass> = 0");
+    msr->param.SFdESNPerStarMass = 5.0276521e+15; /* RAMSES DEFAULT */
+    prmAddParam(msr->prm,"SFdESNPerStarMass", 2, &msr->param.SFdESNPerStarMass,
+		sizeof(double), "ESNPerStarMass",
+		"<ESN per star mass, erg per g of stars> = 1.25e16");
+    msr->param.SFdTMax = 1e20; /* RAMSES DEFAULT */
+    prmAddParam(msr->prm,"SFdTMax", 2, &msr->param.SFdTMax,
+		sizeof(double), "SFdTMax",
+		"<Maximum temperature for forming stars, K> = 3e4");
+    msr->param.SFdEfficiency = 0.01; /* RAMSES DEFAULT */
+    prmAddParam(msr->prm,"SFdEfficiency", 2, &msr->param.SFdEfficiency,
+		sizeof(double), "SFdEfficiency",
+		"<SF Efficiency> = 0.1");
+    msr->param.SFdtCoolingShutoff = 30e6; /* RAMSES DEFAULT */
+    prmAddParam(msr->prm,"SFdtCoolingShutoff", 2, &msr->param.SFdtCoolingShutoff,
+		sizeof(double), "SFdtCoolingShutoff",
+		"<SF Cooling Shutoff duration> = 30e6");
+
+    msr->param.SFdtFeedbackDelay = 10e6; /* RAMSES DEFAULT */
+    prmAddParam(msr->prm,"SFdtFeedbackDelay", 2, &msr->param.SFdtFeedbackDelay,
+		sizeof(double), "SFdtFBD",
+		"<SF FB delay> = 10e6");
+    msr->param.SFdMassLossPerStarMass = 0.1; /* RAMSES DEFAULT */
+    prmAddParam(msr->prm,"SFdMassLossPerStarMass", 2, &msr->param.SFdMassLossPerStarMass,
+		sizeof(double), "SFMLPSM",
+		"<SFMSPSM > = 0.1");
+    msr->param.SFdZMassPerStarMass = 0.01; /* RAMSES DEFAULT */
+    prmAddParam(msr->prm,"SFdZMassPerStarMass", 2, &msr->param.SFdZMassPerStarMass,
+		sizeof(double), "SFZMPSM",
+		"<SF ZMPSM> = 0.01");
+    msr->param.SFdInitStarMass = 0; 
+    prmAddParam(msr->prm,"SFdInitStarMass", 2, &msr->param.SFdInitStarMass,
+		sizeof(double), "SFISM",
+		"<SF ISM> = ?");
+    msr->param.SFdMinGasMass = 0;
+    prmAddParam(msr->prm,"SFdMinGasMass", 2, &msr->param.SFdMinGasMass,
+		sizeof(double), "SFMGM",
+		"<SF MGM> = ?");
+
+    msr->param.SFbdivv = 0;
+    prmAddParam(msr->prm,"SFbdivv", 0, &msr->param.SFbdivv,
+		sizeof(int), "SFbdivv",
+		"<SF Use div v for star formation> = 1");
     /* END Gas/Star Parameters */
 
     /*
@@ -771,10 +825,12 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
 
     /* Star parameter checks */
 
-    if (msr->param.bStarForm) msr->param.bAddDelete = 1;
+    if (msr->param.bStarForm) {
+	msr->param.bAddDelete = 1;
+	if (!prmSpecified(msr->prm, "bFeedback")) msr->param.bFeedback=1;
+	}
 
-    /* END Gas Parameter Checks */
-
+    /* END Gas and Star Parameter Checks */
 
     if (nDigits < 1 || nDigits > 9) {
 	(void) fprintf(stderr,"Unreasonable number of filename digits.\n");
@@ -2422,6 +2478,7 @@ void msrSmoothSetSMF(MSR msr, SMF *smf, double dTime) {
 #ifdef SYMBA
     smf->dSunMass = msr->dSunMass;
 #endif
+    smf->dTime = dTime;
     if (msrComove(msr)) {
 	smf->bComove = 1;
 	smf->H = csmTime2Hub(msr->param.csm,dTime);
@@ -2441,6 +2498,13 @@ void msrSmoothSetSMF(MSR msr, SMF *smf, double dTime) {
     smf->iDiffusion = msr->param.iDiffusion;
     smf->dMetalDiffusionCoeff = msr->param.dMetalDiffusionCoeff;
     smf->dThermalDiffusionCoeff = msr->param.dThermalDiffusionCoeff;
+    /* For SF & FB in code units */
+#define SECONDSPERYEAR   31557600.
+    smf->SFdESNPerStarMass = msr->param.SFdESNPerStarMass/msr->param.dErgPerGmUnit;
+    smf->SFdtCoolingShutoff = msr->param.SFdtCoolingShutoff*SECONDSPERYEAR/msr->param.dSecUnit;
+    smf->SFdtFeedbackDelay = msr->param.SFdtFeedbackDelay*SECONDSPERYEAR/msr->param.dSecUnit;
+    smf->SFdMassLossPerStarMass = msr->param.SFdMassLossPerStarMass;
+    smf->SFdZMassPerStarMass = msr->param.SFdZMassPerStarMass;
     }
 
 void msrSmooth(MSR msr,double dTime,int iSmoothType,int bSymmetric) {
@@ -3202,7 +3266,8 @@ void msrTopStepKDK(MSR msr,
 	    msrDensityStep(msr,iRung,MAX_RUNG,dTime);
 	    }
 	iRungVeryActive = msrUpdateRung(msr,iRung);
-	}
+        }
+
     msrprintf(msr,"%*cmsrKickOpen  at iRung: %d 0.5*dDelta: %g\n",
 	      2*iRung+2,' ',iRung,0.5*dDelta);
     msrKickKDKOpen(msr,dTime,0.5*dDelta,iRung,iRung);
@@ -3241,6 +3306,7 @@ void msrTopStepKDK(MSR msr,
 	    msrGravity(msr,iKickRung,MAX_RUNG,dTime,dStep,msr->param.bEwald,piSec,&nActive);
 	    *pdActiveSum += (double)nActive/msr->N;
 	    }
+	
 #ifdef PLANETS
 	/* Sun's direct and indirect gravity */
 	if (msr->param.bHeliocentric) {
@@ -3249,7 +3315,7 @@ void msrTopStepKDK(MSR msr,
 #endif
 	if (msrDoGas(msr)) {
 	    msrSph(msr,dTime,dStep);
-	    msrCooling(msr,dTime,dStep,dDelta,0,
+	    msrCooling(msr,dTime,dStep,0,
 		       (iKickRung<=msr->param.iRungCoolTableUpdate ? 1:0),0);
 	    }
 	/*
@@ -3357,14 +3423,70 @@ void msrTopStepKDK(MSR msr,
 	      2*iRung+2,' ',iRung, 0.5*dDelta);
     msrKickKDKClose(msr,dTime,0.5*dDelta,iRung,iRung);
 
-    /* JW: Creating/Deleting/Merging is best done after the kick is closed 
-       -- Tree should still be valid from last force eval */
-    if (iKickRung == iRung) { /* Wait until all co-incident kicks complete 
-				 -- do any particles on iKickRung+ */
-	/* Form stars goes here -- Feedback isn't so clear */
+    /* JW: Creating/Deleting/Merging is best done outside (before or after) KDK cycle 
+       -- Tree should still be valid from last force eval (only Drifts + Deletes invalidate it) */
+    if (iKickRung == iRung) { /* Do all co-incident kicked p's in one go */
+	msrActiveRung(msr,iKickRung,1);
+	msrStarForm(msr, dTime); /* re-eval timesteps as needed for next step 
+					    -- apply to all neighbours */
 	}
     }
 
+void msrStarForm(MSR msr, double dTime)
+    {
+    struct inStarForm in;
+    struct outStarForm out;
+    double a,d1,d2;
+    double sec,sec1,dsec;
+
+    if(!msr->param.bStarForm) return;
+    sec = msrTime();
+
+    a = csmTime2Exp(msr->param.csm,dTime);
+    in.dDelta = 0;
+    /* Convert input parameters to code units */
+    in.dRateCoeff = msr->param.SFdEfficiency*sqrt(32/(3*M_PI)/pow(a,3)); /* G=1 */
+    in.dTMax = msr->param.SFdTMax;
+    d1 = msr->param.SFdComovingDenMin;
+    d2 = msr->param.SFdPhysDenMin/msr->param.dGmPerCcUnit*pow(a,3);
+    in.dDenMin = (d1>d2 ? d1 : d2);
+    
+    in.dTime = dTime;
+    in.dInitStarMass = msr->param.SFdInitStarMass;
+    in.dESNPerStarMass = msr->param.SFdESNPerStarMass/msr->param.dErgPerGmUnit;
+#define SECONDSPERYEAR   31557600.
+    in.dtCoolingShutoff = msr->param.SFdtCoolingShutoff*SECONDSPERYEAR/msr->param.dSecUnit;
+    in.dtFeedbackDelay = msr->param.SFdtFeedbackDelay*SECONDSPERYEAR/msr->param.dSecUnit;
+    in.dMassLossPerStarMass = msr->param.SFdMassLossPerStarMass;
+    in.dZMassPerStarMass = msr->param.SFdZMassPerStarMass;
+    in.dInitStarMass = msr->param.SFdInitStarMass;
+    in.dMinGasMass = msr->param.SFdMinGasMass;
+    in.bdivv = msr->param.SFbdivv;
+    
+    if (msr->param.bVDetails) printf("Star Form ... ");
+    
+    pstStarForm(msr->pst, &in, sizeof(in), &out, NULL);
+    if (msr->param.bVDetails)
+	printf("%d Stars formed with mass %g, %d gas deleted\n",
+	       out.nFormed, out.dMassFormed, out.nDeleted);
+    
+    msrSelSrcGas(msr); /* Not really sure what the setting here needs to be */
+    msrSelDstGas(msr);  
+    if (out.nDeleted) msrSmooth(msr, dTime, SMX_DIST_DELETED_GAS, 1);
+    if (out.nDeleted || out.nFormed) msrAddDelParticles(msr);
+    
+    sec1 = msrTime();
+    dsec = sec1 - sec;
+    printf("Star Formation Calculated, Wallclock: %f secs\n\n",dsec);
+
+    if (msr->param.bFeedback) {
+ 	msrSelSrcGas(msr); /* Not really sure what the setting here needs to be */
+	msrSelDstStar(msr);  
+	msrSmooth(msr, dTime, SMX_DIST_SN_ENERGY, 1);
+	dsec = msrTime() - sec1;
+	printf("Feedback Calculated, Wallclock: %f secs\n\n",dsec);
+	}
+    }
 
 void msrStepVeryActiveKDK(MSR msr, double dStep, double dTime, double dDelta,
 		     int iRung) {
@@ -3862,7 +3984,7 @@ void msrInitSph(MSR msr,double dTime)
 	struct inCorrectEnergy in;
 	double a;
 
-	msrSelSrcGas(msr); 
+ 	msrSelSrcGas(msr); /* Not really sure what the setting here needs to be */
 	msrSelDstGas(msr);  
 	msrSmooth(msr,dTime,SMX_DENDVDX,0);  
 
@@ -3885,8 +4007,8 @@ void msrInitSph(MSR msr,double dTime)
     /* Init forces, ... */
     msrActiveRung(msr,0,1);
     msrSph(msr,dTime,0);
-    msrSphStep(msr,0,MAX_RUNG,dTime); /* Requires SPH and cooling to be done */
-    msrCooling(msr,dTime,0,msr->param.dDelta,0,1,1); /* Interate cooling for consistent dt */
+    msrSphStep(msr,0,MAX_RUNG,dTime); /* Requires SPH */
+    msrCooling(msr,dTime,0,0,1,1); /* Interate cooling for consistent dt */
     }
 
 void msrSph(MSR msr,double dTime, double dStep) {
@@ -3897,7 +4019,8 @@ void msrSph(MSR msr,double dTime, double dStep) {
 
 /* JW: Is the tree aware of this -- does it need to be? 
        Will smooth behave correctly? */
-    msrSelSrcGas(msr); 
+
+    msrSelSrcGas(msr); /* Not really sure what the setting here needs to be */
     msrSelDstGas(msr);  
 
     msrSmooth(msr,dTime,SMX_DENDVDX,0);  
@@ -3936,7 +4059,7 @@ void msrCoolSetup(MSR msr, double dTime)
     pstCoolSetup(msr->pst,&in,sizeof(struct inCoolSetup),NULL,NULL);
     }
 
-void msrCooling(MSR msr,double dTime,double dStep,double dDelta,int bUpdateState, int bUpdateTable, int bIterateDt)
+void msrCooling(MSR msr,double dTime,double dStep,int bUpdateState, int bUpdateTable, int bIterateDt)
     {
     struct inCooling in;
     struct outCooling out;
@@ -3946,8 +4069,6 @@ void msrCooling(MSR msr,double dTime,double dStep,double dDelta,int bUpdateState
     if (msr->param.bVStep) printf("Calculating Cooling, Step:%f\n",dStep);
     sec = msrTime();
 
-    in.duDelta = dDelta;
-    dTime += dDelta/2.0;
     a = csmTime2Exp(msr->param.csm,dTime);
     in.z = 1/a - 1;
     in.dTime = dTime;
@@ -4976,7 +5097,7 @@ double msrRead(MSR msr, const char *achInFile) {
     read.dTuFac = msr->param.dTuFac;
     
     if (msr->nGas && !prmSpecified(msr->prm,"bDoGas")) msr->param.bDoGas = 1;
-    if (msrDoGas(msr)) mMemoryModel |= (PKD_MODEL_SPH|PKD_MODEL_ACCELERATION|PKD_MODEL_VELOCITY);		
+    if (msrDoGas(msr) || msr->nGas) mMemoryModel |= (PKD_MODEL_SPH|PKD_MODEL_ACCELERATION|PKD_MODEL_VELOCITY);		
     if (msr->param.bStarForm || msr->nStar) mMemoryModel |= (PKD_MODEL_SPH|PKD_MODEL_ACCELERATION|PKD_MODEL_VELOCITY|PKD_MODEL_MASS|PKD_MODEL_STAR);
     
     read.nNodeStart = 0;
@@ -5189,6 +5310,13 @@ void msrSelSrcGas(MSR msr) {
     }
 void msrSelDstGas(MSR msr) {
     pstSelDstGas(msr->pst, NULL, 0, NULL, NULL );
+    }
+
+void msrSelSrcStar(MSR msr) {
+    pstSelSrcStar(msr->pst, NULL, 0, NULL, NULL );
+    }
+void msrSelDstStar(MSR msr) {
+    pstSelDstStar(msr->pst, NULL, 0, NULL, NULL );
     }
 
 uint64_t msrSelSrcById(MSR msr,uint64_t idStart,uint64_t idEnd,int setIfTrue,int clearIfFalse) {

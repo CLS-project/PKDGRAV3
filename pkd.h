@@ -166,27 +166,7 @@ typedef struct sphfields {
     } SPHFIELDS;
 
 typedef struct starfields {
-    float fTimeForm;
-    
-    float fESNrate;
-    float fMSN;
-    float fNSN;           
-    float fMOxygenOut;
-    float fMIronOut;
-    float fMFracOxygen;
-    float fMFracIron;
-
-    /* diffusion */
-    float fMFracOxygenPred;
-    float fMFracOxygenDot;
-    float fMFracIronPred;
-    float fMFracIronDot;
-    
-    float fSNMetals;
-    float fNSNtot;
-    float fTimeCoolIsOffUntil;
-    float fMassForm;	        /* record original mass of star */
-    int iGasOrder;		/* gas from which star formed */
+    float fTimer;  /* For gas -- cooling shutoff, for stars -- when formed */
     } STARFIELDS;   
 
 #define IORDERBITS 42    
@@ -900,6 +880,10 @@ static inline float *pkd_fMetalsPred( PKD pkd, PARTICLE *p ) {
     return &(((SPHFIELDS *) pkdField(p,pkd->oSph))->fMetalsPred);
     }
 
+static inline float *pkd_Timer( PKD pkd, PARTICLE *p ) {
+    return &(((STARFIELDS *) pkdField(p,pkd->oStar))->fTimer);
+    }
+
 static inline int pkdIsDeleted(PKD pkd,PARTICLE *p) {
     return (pkdSpecies(pkd,p) == FIO_SPECIES_LAST);
     }
@@ -1024,7 +1008,14 @@ void pkdAccelStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,
 		  double dEta,double dVelFac,double dAccFac,
 		  int bDoGravity,int bEpsAcc,int bSqrtPhi,double dhMinOverSoft);
 void pkdSphStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,double dAccFac);
-void pkdCooling(PKD pkd,double,double,double,int,int,int);
+void pkdStarForm(PKD pkd, double dRateCoeff, double dTMax, double dDenMin,
+		 double dDelta, double dTime,
+		 double dInitStarMass, double dESNPerStarMass, double dtCoolingShutoff,
+		 double dtFeedbackDelay,  double dMassLossPerStarMass,    
+		 double dZMassPerStarMass, double dMinGasMass,
+		 int bdivv, int *nFormed, double *dMassFormed,
+		 int *nDeleted);
+void pkdCooling(PKD pkd,double,double,int,int,int);
 #define CORRECTENERGY_IN 1
 #define CORRECTENERGY_OUT 2
 #define CORRECTENERGY_SPECIAL 3
@@ -1111,11 +1102,14 @@ void pkdGenerateIC(PKD pkd, GRAFICCTX gctx, int iDim,
 #endif
 int pkdGetClasses( PKD pkd, int nMax, PARTCLASS *pClass );
 void pkdSetClasses( PKD pkd, int n, PARTCLASS *pClass, int bUpdate );
+static void getClass( PKD pkd, float fMass, float fSoft, FIO_SPECIES eSpecies, PARTICLE *p );
 
 int pkdSelSrcAll(PKD pkd);
 int pkdSelDstAll(PKD pkd);
 int pkdSelSrcGas(PKD pkd);
 int pkdSelDstGas(PKD pkd);
+int pkdSelSrcStar(PKD pkd);
+int pkdSelDstStar(PKD pkd);
 
 int pkdSelSrcMass(PKD pkd,double dMinMass, double dMaxMass, int setIfTrue, int clearIfFalse );
 int pkdSelDstMass(PKD pkd,double dMinMass, double dMaxMass, int setIfTrue, int clearIfFalse );

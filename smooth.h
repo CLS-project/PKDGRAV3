@@ -31,7 +31,7 @@ typedef struct pqNode {
 typedef struct smContext {
     PKD pkd;
     void (*fcnSmooth)(PARTICLE *,int,NN *,SMF *);
-    void (*fcnPost)(PARTICLE *,SMF *);
+    void (*fcnPost)(void *,PARTICLE *,SMF *);
     int nSmooth;
     int nQueue;
     int bPeriodic;

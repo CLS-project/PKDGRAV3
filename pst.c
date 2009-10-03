@@ -336,6 +336,9 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_SPHSTEP,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstSphStep,
 		  sizeof(struct inSphStep), 0);
+    mdlAddService(mdl,PST_STARFORM,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstStarForm,
+		  sizeof(struct inStarForm),sizeof(struct outStarForm));
     mdlAddService(mdl,PST_SETRUNGVERYACTIVE,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstSetRungVeryActive,
 		  sizeof(struct inSetRung),0);
@@ -463,6 +466,12 @@ void pstAddServices(PST pst,MDL mdl) {
 		  0, 0 );
     mdlAddService(mdl,PST_SELDSTGAS,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstSelDstGas,
+		  0, 0 );
+    mdlAddService(mdl,PST_SELSRCSTAR,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstSelSrcStar,
+		  0, 0 );
+    mdlAddService(mdl,PST_SELDSTSTAR,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstSelDstStar,
 		  0, 0 );
     mdlAddService(mdl,PST_SELSRCBYID,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstSelSrcById,
@@ -3100,6 +3109,36 @@ pstSphStep(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     }
 
 void
+pstStarForm(PST pst,void *vin,int nIn,void *vout,int *pnOut)
+    {
+    struct inStarForm *in = vin;
+    struct outStarForm *out = vout;
+    
+    mdlassert(pst->mdl,nIn == sizeof(struct inStarForm));
+    if (pst->nLeaves > 1) {
+	struct outStarForm fsStats;
+	
+	mdlReqService(pst->mdl,pst->idUpper,PST_STARFORM,in,nIn);
+	pstStarForm(pst->pstLower,in,nIn,vout,pnOut);
+	mdlGetReply(pst->mdl,pst->idUpper,&fsStats,NULL);
+	out->nFormed += fsStats.nFormed;
+	out->nDeleted += fsStats.nDeleted;
+	out->dMassFormed += fsStats.dMassFormed;
+		}
+    else {
+	pkdStarForm(pst->plcl->pkd, in->dRateCoeff, in->dTMax, in->dDenMin, in->dDelta, 
+		    in->dTime,
+		     in->dInitStarMass, in->dESNPerStarMass, in->dtCoolingShutoff,
+		    in->dtFeedbackDelay,    in->dMassLossPerStarMass,    
+		    in->dZMassPerStarMass,    in->dMinGasMass,
+		    in->bdivv,
+		     &out->nFormed, &out->dMassFormed, &out->nDeleted);
+	}
+    
+    if (pnOut) *pnOut = sizeof(struct outStarForm);
+    }
+
+void
 pstDensityStep(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct inDensityStep *in = vin;
@@ -3154,7 +3193,7 @@ void pstCooling(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 	if (outUp.MaxTime > out->MaxTime) out->MaxTime = outUp.MaxTime;
 	}
     else {
-	pkdCooling(plcl->pkd,in->duDelta,in->dTime,in->z,in->bUpdateState,in->bUpdateTable,in->bIterateDt);
+	pkdCooling(plcl->pkd,in->dTime,in->z,in->bUpdateState,in->bUpdateTable,in->bIterateDt);
 	out->Time = pkdGetTimer(plcl->pkd,1);
 	out->MaxTime = out->Time;
 	out->SumTime = out->Time;
@@ -4053,6 +4092,32 @@ void pstSelDstGas(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	}
     else {
 	pkdSelDstGas(plcl->pkd);
+	}
+    if (pnOut) *pnOut = 0;
+    }
+
+void pstSelSrcStar(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl = pst->plcl;
+    if (pst->nLeaves > 1) {
+	mdlReqService(pst->mdl,pst->idUpper,PST_SELSRCSTAR,vin,nIn);
+	pstSelSrcStar(pst->pstLower,vin,nIn,vout,pnOut);
+	mdlGetReply(pst->mdl,pst->idUpper,vout,pnOut);
+	}
+    else {
+	pkdSelSrcStar(plcl->pkd);
+	}
+    if (pnOut) *pnOut = 0;
+    }
+
+void pstSelDstStar(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl = pst->plcl;
+    if (pst->nLeaves > 1) {
+	mdlReqService(pst->mdl,pst->idUpper,PST_SELDSTSTAR,vin,nIn);
+	pstSelDstStar(pst->pstLower,vin,nIn,vout,pnOut);
+	mdlGetReply(pst->mdl,pst->idUpper,vout,pnOut);
+	}
+    else {
+	pkdSelDstStar(plcl->pkd);
 	}
     if (pnOut) *pnOut = 0;
     }

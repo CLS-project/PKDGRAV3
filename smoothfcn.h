@@ -9,6 +9,7 @@
 
 typedef struct smfParameters {
     int bComove;
+    double dTime;
     double H;
     double a;
     double dDeltaT;
@@ -36,15 +37,11 @@ typedef struct smfParameters {
     double dMetalDiffusionCoeff;
     double dThermalDiffusionCoeff;
     /* star form */
-    /*
-    double dMinMassFrac;
-    int bShortCoolShutoff;
-    int bSNTurnOffCooling;
-    int bSmallSNSmooth;
-    double dSecUnit;
-    double dGmUnit;
-    struct snContext sn;
-    */
+    double SFdESNPerStarMass;
+    double SFdtCoolingShutoff;
+    double SFdtFeedbackDelay;
+    double SFdMassLossPerStarMass;
+    double SFdZMassPerStarMass;
     /* end starform */   
     PKD pkd; /* useful for diagnostics, etc. */
     } SMF;
@@ -97,6 +94,16 @@ void initSphForcesParticle(void *,void *);
 void initSphForces(void *,void *);
 void combSphForces(void *,void *,void *);
 void SphForces(PARTICLE *,int,NN *,SMF *);
+
+#define SMX_DIST_DELETED_GAS                    7
+void initDistDeletedGas(void *,void *p1);
+void combDistDeletedGas(void *,void *p1,void *p2);
+void DistDeletedGas(PARTICLE *, int, NN *, SMF *);
+
+#define SMX_DIST_SN_ENERGY                      8
+void initDistSNEnergy(void *,void *p1);
+void combDistSNEnergy(void *,void *p1,void *p2);
+void DistSNEnergy(PARTICLE *p, int, NN *, SMF *);
 
 #define SMX_FOF			25
 void initGroupIds(void *,void *p);

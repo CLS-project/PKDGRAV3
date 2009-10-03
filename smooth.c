@@ -20,6 +20,14 @@
 const char *smooth_module_id = "$Id$";
 const char *smooth_h_module_id = SMOOTH_H_MODULE_ID;
 
+/* BADSMOOTH */
+//#define BADSMOOTH
+int cmpnnList(const void *a,const void *b) {
+    if (((NN *) a)->fDist2 < ((NN *) b)->fDist2) return -1;
+    return 1;
+    }
+/* BADSMOOTH */
+
 int smInitialize(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodic,int bSymmetric,int iSmoothType) {
     SMX smx;
     void (*initParticle)(void *,void *) = NULL;
@@ -33,6 +41,9 @@ int smInitialize(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodic,int bSymme
     assert(smx != NULL);
     smx->pkd = pkd;
     if (smf != NULL) smf->pkd = pkd;
+#ifdef BADSMOOTH
+    nSmooth=nSmooth*3;
+#endif
     smx->nSmooth = nSmooth;
     smx->bPeriodic = bPeriodic;
 
@@ -66,6 +77,22 @@ int smInitialize(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodic,int bSymme
 	initParticle = initSphForcesParticle; /* Original Particle */
 	init = initSphForces; /* Cached copies */
 	comb = combSphForces;
+	smx->fcnPost = NULL;
+	break;
+    case SMX_DIST_DELETED_GAS:
+	assert(bSymmetric != 0);
+	smx->fcnSmooth = DistDeletedGas;
+	initParticle = NULL;
+	init = initDistDeletedGas;
+	comb = combDistDeletedGas;
+	smx->fcnPost = NULL;
+	break;
+    case SMX_DIST_SN_ENERGY:
+	assert(bSymmetric != 0);
+	smx->fcnSmooth = DistSNEnergy;
+	initParticle = NULL;
+	init = initDistSNEnergy;
+	comb = combDistSNEnergy;
 	smx->fcnPost = NULL;
 	break;
     case SMX_MEANVEL:
@@ -235,7 +262,7 @@ void smFinish(SMX smx,SMF *smf) {
 	for (pi=0;pi<pkd->nLocal;++pi) {
 	    p = pkdParticle(pkd,pi);
 	    if ( pkdIsSrcActive(p,0,MAX_RUNG) && pkdIsDstActive(p,0,MAX_RUNG) )
-		smx->fcnPost(p,smf);
+		smx->fcnPost(pkd,p,smf);
 	    }
 	}
     /*
@@ -899,10 +926,34 @@ void smSmooth(SMX smx,SMF *smf) {
 	    smx->nnList[i].dz = smx->pq[i].dz;
 	    }
 
+#ifdef BADSMOOTH
+	for (i=0;i<smx->nSmooth;++i) {
+	    PARTICLE *q = smx->nnList[i].pPart;
+	    if (q == NULL || q < pkdParticleBase(pkd) || q > pkdParticle(pkd,pkdLocal(pkd)-1) || !pkdIsGas(pkd,q)) smx->nnList[i].fDist2 = 1e37;
+	    }
+	qsort(&(smx->nnList[0]),smx->nSmooth,sizeof(smx->nnList[0]),cmpnnList);
+	j=0;
+	for (i=0;i<smx->nSmooth;++i) {
+	    PARTICLE *q = smx->nnList[i].pPart;
+	    if (smx->nnList[i].fDist2 > 1e36) {
+		p->fBall = sqrt(smx->nnList[i].fDist2);	
+		break;
+		}
+	    j++;
+	    if (j > smx->nSmooth/3) {
+		p->fBall = sqrt(smx->nnList[i].fDist2);	
+		break;
+		}
+	    }
+	if (j<=smx->nSmooth/3) fprintf(stderr,"WARNING: Short smooth %d: %d\n",p->iOrder,j);
+
+	smx->fcnSmooth(p,j,smx->nnList,smf);
+#else
 	/*
 	** Apply smooth funtion to the neighbor list.
 	*/
 	smx->fcnSmooth(p,smx->nSmooth,smx->nnList,smf);
+#endif
 	/*
 	** Call mdlCacheCheck to make sure we are making progress!
 	*/

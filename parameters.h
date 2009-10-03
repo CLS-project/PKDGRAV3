@@ -114,6 +114,19 @@ struct parameters {
     double dThermalDiffusionCoeff;
     COOLPARAM CoolParam;
     /* StarForm and Feedback */
+    double SFdEfficiency;
+    double SFdTMax;
+    double SFdPhysDenMin;
+    double SFdComovingDenMin;
+    double SFdESNPerStarMass;
+    double SFdtCoolingShutoff;
+
+    double SFdtFeedbackDelay;
+    double SFdMassLossPerStarMass;
+    double SFdZMassPerStarMass;
+    double SFdInitStarMass;
+    double SFdMinGasMass;
+    int SFbdivv;
     
     /* END Gas Parameters */
     double dEta;

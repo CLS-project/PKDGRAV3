@@ -224,20 +224,21 @@ int main(int argc,char **argv) {
 		msrGravity(msr,0,MAX_RUNG,dTime,msr->param.iStartStep,msr->param.bEwald,&iSec,&nActive);
 		msrMemStatus(msr);
 		}
-	    msrCalcEandL(msr,MSR_INIT_E,dTime,&E,&T,&U,&Eth,L);
-	    dMultiEff = 1.0;
-	    if (msrLogInterval(msr)) {
-		(void) fprintf(fpLog,"%e %e %.16e %e %e %e %.16e %.16e %.16e "
-			       "%i %e\n",dTime,
-			       1.0/csmTime2Exp(msr->param.csm,dTime)-1.0,
-			       E,T,U,Eth,L[0],L[1],L[2],iSec,dMultiEff);
-		}
 	    }
 	if (msrDoGas(msr)) {
 	    /* Initialize SPH, Cooling and SF/FB and gas time step */
 	    msrCoolSetup(msr,dTime);
 	    /* Fix dTuFac conversion of T in InitSPH */
 	    msrInitSph(msr,dTime);
+	    }
+
+	msrCalcEandL(msr,MSR_INIT_E,dTime,&E,&T,&U,&Eth,L);
+	dMultiEff = 1.0;
+	if (msrLogInterval(msr)) {
+		(void) fprintf(fpLog,"%e %e %.16e %e %e %e %.16e %.16e %.16e "
+			       "%i %e\n",dTime,
+			       1.0/csmTime2Exp(msr->param.csm,dTime)-1.0,
+			       E,T,U,Eth,L[0],L[1],L[2],iSec,dMultiEff);
 	    }
 #ifdef PLANETS
 	if (msr->param.bHeliocentric) {

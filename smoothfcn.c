@@ -219,26 +219,34 @@ void DenDVDX(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf)
 
 /* JW: Do I need to differentiate init of Original Particle and Cached Copy? 
    -- YES accel zeroed on cache copy */
-void initSphForcesParticle(void *vpkd, void *p) {
+void initSphForcesParticle(void *vpkd, void *vp) {
     PKD pkd = (PKD) vpkd;
+    PARTICLE *p = vp;
     if (pkdIsActive(pkd,p)) {
 	SPHFIELDS *psph = pkdSph(pkd,p);
 	psph->uDot = 0;
 	psph->fMetalsDot = 0;
+//	if (!(p->iOrder%10000) || p->uRung > 5) printf("RUNG %d: Grav %d\n",p->iOrder,p->uNewRung);
+	if (!pkd->param.bDoGravity) { /* Normally these are zeroed in Gravity */
+	    p->uNewRung = 0;
+	    pkdAccel(pkd,p)[0] = 0;
+	    pkdAccel(pkd,p)[1] = 0;
+	    pkdAccel(pkd,p)[2] = 0;
+	    }
 	}
     }
 
-void initSphForces(void *vpkd, void *p) {
+void initSphForces(void *vpkd, void *vp) {
     PKD pkd = (PKD) vpkd;
+    PARTICLE *p = vp;
     if (pkdIsActive(pkd,p)) {
 	SPHFIELDS *psph = pkdSph(pkd,p);
-	float *a = pkdAccel(pkd,p);
 	psph->uDot = 0;
 	psph->fMetalsDot = 0;
-	a[0] = 0;  
-	a[1] = 0;  
-	a[2] = 0; /* JW: Cached copies have zero accel! && rung */
-	((PARTICLE *)p)->uNewRung = 0;
+	p->uNewRung = 0;
+	pkdAccel(pkd,p)[0] = 0;  
+	pkdAccel(pkd,p)[1] = 0;  
+	pkdAccel(pkd,p)[2] = 0; /* JW: Cached copies have zero accel! && rung */
 	}
     }
 
@@ -368,8 +376,8 @@ void SphForces(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
             QACTIVE( if (uNewRung > q->uNewRung ) q->uNewRung = uNewRung; );	\
 	    PACTIVE( Accp *= rq*aFac; );/* aFac - convert to comoving acceleration */ \
 	    QACTIVE( Accq *= rp*aFac; ); \
-/*	    PACTIVE( if (p->iOrder==0 || q->iOrder==0) fprintf(stderr,"BA p: %d q: %d(%d)  %g %g %g  %g\n",p->iOrder,q->iOrder,pkdIsGas(pkd,q),PRES_PDV(qPoverRho2,pPoverRho2),0.5*visc,dvdotdr,psph->uDot); );	\
-  if (p->iOrder==0 && q->iOrder==31775) assert(0); */			\
+	    /*	    PACTIVE( if (p->iOrder==17477 || q->iOrder==17477) fprintf(stderr,"BA p: %d q: %d(%d)  %g %g %g %g  %g %g %g\n",p->iOrder,q->iOrder,pkdIsGas(pkd,q),PRES_PDV(qPoverRho2,pPoverRho2),p->fDensity,p->fBall,pkdSph(pkd,p)->uPred,0.5*visc,dvdotdr,psph->uDot); ); */ \
+	    /* if (p->iOrder==0 && q->iOrder==31775) assert(0); */	\
 	    PACTIVE( pa[0] -= Accp * dx; ); \
 	    PACTIVE( pa[1] -= Accp * dy; ); \
 	    PACTIVE( pa[2] -= Accp * dz; ); \
@@ -404,6 +412,314 @@ void SphForces(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
 	} /* end neighbour loop */
     }
 
+void initDistDeletedGas(void *vpkd,void *vp)
+    {
+    PKD pkd = (PKD) vpkd;
+    PARTICLE *p = vp;
+/*
+ * Zero out accumulated quantities. 
+ */
+    if (pkdSpecies( pkd, p ) == FIO_SPECIES_LAST ) return; /* deleted */
+
+    *((float *) pkdField(p,pkd->oMass))=0;
+    p->r[0]=0;
+    p->r[1]=0;
+    p->r[2]=0;
+    pkdVel(pkd,p)[0] = 0;
+    pkdVel(pkd,p)[1] = 0;
+    pkdVel(pkd,p)[2] = 0;
+    pkd_vPred(pkd,p)[0] = 0;
+    pkd_vPred(pkd,p)[1] = 0;
+    pkd_vPred(pkd,p)[2] = 0;
+    pkdAccel(pkd,p)[0] = 0;
+    pkdAccel(pkd,p)[1] = 0;
+    pkdAccel(pkd,p)[2] = 0;
+    pkdSph(pkd,p)->u = 0;
+    pkdSph(pkd,p)->uPred = 0;
+    pkdSph(pkd,p)->uDot = 0;
+    pkdSph(pkd,p)->fMetals = 0;
+    pkdSph(pkd,p)->fMetalsDot = 0;
+    pkdSph(pkd,p)->fMetalsPred = 0;
+    }
+
+
+void combDistDeletedGas(void *vpkd,void *vp1,void *vp2)
+    {
+    PKD pkd = (PKD) vpkd;
+    PARTICLE *p1 = vp1,*p2=vp2;
+    float *p1mass, *p2mass;
+    double f1,f2,m;
+    /*
+     * Distribute u, v, and fMetals for particles returning from cache
+     * so that everything is conserved nicely.  
+     */
+    if (pkdSpecies( pkd, p1 ) == FIO_SPECIES_LAST ) return; /* deleted */
+
+    p2mass = pkdField(p2,pkd->oMass);
+    if (*p2mass > 0) {	
+	p1mass = pkdField(p1,pkd->oMass);
+	m = (*p1mass+*p2mass);
+	f1=(*p1mass)/m;
+	f2=(*p2mass)/m;
+	*p1mass = m;
+	p1->r[0]= f1*p1->r[0]+f2*p2->r[0];
+	p1->r[1]= f1*p1->r[1]+f2*p2->r[1];
+	p1->r[2]= f1*p1->r[2]+f2*p2->r[2];
+	pkdVel(pkd,p1)[0] = f1*pkdVel(pkd,p1)[0]+f2*pkdVel(pkd,p2)[0];
+	pkdVel(pkd,p1)[1] = f1*pkdVel(pkd,p1)[1]+f2*pkdVel(pkd,p2)[1];
+	pkdVel(pkd,p1)[2] = f1*pkdVel(pkd,p1)[2]+f2*pkdVel(pkd,p2)[2];
+	pkd_vPred(pkd,p1)[0] = f1*pkd_vPred(pkd,p1)[0]+f2*pkd_vPred(pkd,p2)[0];
+	pkd_vPred(pkd,p1)[1] = f1*pkd_vPred(pkd,p1)[1]+f2*pkd_vPred(pkd,p2)[1];
+	pkd_vPred(pkd,p1)[2] = f1*pkd_vPred(pkd,p1)[2]+f2*pkd_vPred(pkd,p2)[2];
+	pkdAccel(pkd,p1)[0] = f1*pkdAccel(pkd,p1)[0]+f2*pkdAccel(pkd,p2)[0];
+	pkdAccel(pkd,p1)[1] = f1*pkdAccel(pkd,p1)[1]+f2*pkdAccel(pkd,p2)[1];
+	pkdAccel(pkd,p1)[2] = f1*pkdAccel(pkd,p1)[2]+f2*pkdAccel(pkd,p2)[2];
+	pkdSph(pkd,p1)->u = f1*pkdSph(pkd,p1)->u+f2*pkdSph(pkd,p2)->u;
+	pkdSph(pkd,p1)->uPred = f1*pkdSph(pkd,p1)->uPred+f2*pkdSph(pkd,p2)->uPred;
+	pkdSph(pkd,p1)->uDot = f1*pkdSph(pkd,p1)->uDot+f2*pkdSph(pkd,p2)->uDot;
+	pkdSph(pkd,p1)->fMetals = f1*pkdSph(pkd,p1)->fMetals+f2*pkdSph(pkd,p2)->fMetals;
+	pkdSph(pkd,p1)->fMetalsPred = f1*pkdSph(pkd,p1)->fMetalsPred+f2*pkdSph(pkd,p2)->fMetalsPred;
+	pkdSph(pkd,p1)->fMetalsDot = f1*pkdSph(pkd,p1)->fMetalsDot+f2*pkdSph(pkd,p2)->fMetalsDot;
+	}
+    }
+
+void DistDeletedGas(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf)
+    {	
+    PKD pkd = (PKD) smf->pkd;
+    PARTICLE *q;
+    double fNorm,ih2,r2,rs,rstot,fp,fq;
+    float *pmass, *qmass;
+    double f1,f2,m,delta_m;
+    int i;
+    
+    /* JW: Assert deleted? -- yes once smooth is reliable */
+    if (!pkdSpecies( pkd, p ) == FIO_SPECIES_LAST ) return; /* not deleted */
+
+    pmass = pkdField(p,pkd->oMass);
+    if (*pmass <= 0) return;
+
+    ih2 = 4.0/(p->fBall*p->fBall);
+    rstot = 0;        
+    for (i=0;i<nSmooth;++i) {
+	q = nnList[i].pPart;
+	if (pkdSpecies( pkd, q ) == FIO_SPECIES_LAST ) continue; /* deleted */
+	assert(pkdIsGas(pkd,q));
+	r2 = nnList[i].fDist2*ih2;            
+	KERNEL(rs,r2);
+	rstot += rs;  
+        }
+    assert(rstot > 0); /* What if all neighbours deleted -- does that happen? */
+
+    fNorm = *pmass/rstot;
+    for (i=0;i<nSmooth;++i) {
+	q = nnList[i].pPart;
+	if (pkdSpecies( pkd, q ) == FIO_SPECIES_LAST ) continue; /* deleted */
+	
+	r2 = nnList[i].fDist2*ih2;            
+	KERNEL(rs,r2);
+
+	delta_m = rs*fNorm;
+	qmass = pkdField(q,pkd->oMass);
+	m = *qmass + delta_m;
+	fp = delta_m/m;
+	fq = (*qmass)/m;
+	*qmass = m;
+
+	q->r[0]= fq*q->r[0]+fp*p->r[0];
+	q->r[1]= fq*q->r[1]+fp*p->r[1];
+	q->r[2]= fq*q->r[2]+fp*p->r[2];
+	pkdVel(pkd,q)[0] = fq*pkdVel(pkd,q)[0]+fp*pkdVel(pkd,p)[0];
+	pkdVel(pkd,q)[1] = fq*pkdVel(pkd,q)[1]+fp*pkdVel(pkd,p)[1];
+	pkdVel(pkd,q)[2] = fq*pkdVel(pkd,q)[2]+fp*pkdVel(pkd,p)[2];
+	pkd_vPred(pkd,q)[0] = fq*pkd_vPred(pkd,q)[0]+fp*pkd_vPred(pkd,p)[0];
+	pkd_vPred(pkd,q)[1] = fq*pkd_vPred(pkd,q)[1]+fp*pkd_vPred(pkd,p)[1];
+	pkd_vPred(pkd,q)[2] = fq*pkd_vPred(pkd,q)[2]+fp*pkd_vPred(pkd,p)[2];
+	pkdAccel(pkd,q)[0] = fq*pkdAccel(pkd,q)[0]+fp*pkdAccel(pkd,p)[0];
+	pkdAccel(pkd,q)[1] = fq*pkdAccel(pkd,q)[1]+fp*pkdAccel(pkd,p)[1];
+	pkdAccel(pkd,q)[2] = fq*pkdAccel(pkd,q)[2]+fp*pkdAccel(pkd,p)[2];
+	pkdSph(pkd,q)->u = fq*pkdSph(pkd,q)->u+fp*pkdSph(pkd,p)->u;
+	pkdSph(pkd,q)->uPred = fq*pkdSph(pkd,q)->uPred+fp*pkdSph(pkd,p)->uPred;
+	pkdSph(pkd,q)->uDot = fq*pkdSph(pkd,q)->uDot+fp*pkdSph(pkd,p)->uDot;
+	pkdSph(pkd,q)->fMetals = fq*pkdSph(pkd,q)->fMetals+fp*pkdSph(pkd,p)->fMetals;
+	pkdSph(pkd,q)->fMetalsPred = fq*pkdSph(pkd,q)->fMetalsPred+fp*pkdSph(pkd,p)->fMetalsPred;
+	pkdSph(pkd,q)->fMetalsDot = fq*pkdSph(pkd,q)->fMetalsDot+fp*pkdSph(pkd,p)->fMetalsDot;
+        }
+    *pmass = 0; /* All distributed */
+}
+
+void initDistSNEnergy(void *vpkd,void *vp)
+    {
+    PKD pkd = (PKD) vpkd;
+    PARTICLE *p = vp;
+/*
+ * Zero out accumulated quantities. 
+ */
+    if (!pkdIsGas(pkd,p)) return; /* not gas */
+
+    *((float *) pkdField(p,pkd->oMass))=0;
+    p->r[0]=0;
+    p->r[1]=0;
+    p->r[2]=0;
+    pkdVel(pkd,p)[0] = 0;
+    pkdVel(pkd,p)[1] = 0;
+    pkdVel(pkd,p)[2] = 0;
+    pkd_vPred(pkd,p)[0] = 0;
+    pkd_vPred(pkd,p)[1] = 0;
+    pkd_vPred(pkd,p)[2] = 0;
+    pkdAccel(pkd,p)[0] = 0;
+    pkdAccel(pkd,p)[1] = 0;
+    pkdAccel(pkd,p)[2] = 0;
+    pkdSph(pkd,p)->u = 0;
+    pkdSph(pkd,p)->uPred = 0;
+    pkdSph(pkd,p)->uDot = 0;
+    pkdSph(pkd,p)->fMetals = 0;
+    pkdSph(pkd,p)->fMetalsDot = 0;
+    pkdSph(pkd,p)->fMetalsPred = 0;
+    }
+
+void combDistSNEnergy(void *vpkd,void *vp1,void *vp2)
+    {
+    PKD pkd = (PKD) vpkd;
+    PARTICLE *p1 = vp1,*p2=vp2;
+    float *p1mass, *p2mass;
+    double f1,f2,m;
+    /*
+     * Distribute u, v, and fMetals for particles returning from cache
+     * so that everything is conserved nicely.  
+     */ 
+    if (!pkdIsGas(pkd,p1)) return; /* not star */
+
+    p2mass = pkdField(p2,pkd->oMass);
+    if (*p2mass > 0) {	
+	p1mass = pkdField(p1,pkd->oMass);
+	m = (*p1mass+*p2mass);
+	f1=(*p1mass)/m;
+	f2=(*p2mass)/m;
+	*p1mass = m;
+	p1->r[0]= f1*p1->r[0]+f2*p2->r[0];
+	p1->r[1]= f1*p1->r[1]+f2*p2->r[1];
+	p1->r[2]= f1*p1->r[2]+f2*p2->r[2];
+	pkdVel(pkd,p1)[0] = f1*pkdVel(pkd,p1)[0]+f2*pkdVel(pkd,p2)[0];
+	pkdVel(pkd,p1)[1] = f1*pkdVel(pkd,p1)[1]+f2*pkdVel(pkd,p2)[1];
+	pkdVel(pkd,p1)[2] = f1*pkdVel(pkd,p1)[2]+f2*pkdVel(pkd,p2)[2];
+	pkd_vPred(pkd,p1)[0] = f1*pkd_vPred(pkd,p1)[0]+f2*pkd_vPred(pkd,p2)[0];
+	pkd_vPred(pkd,p1)[1] = f1*pkd_vPred(pkd,p1)[1]+f2*pkd_vPred(pkd,p2)[1];
+	pkd_vPred(pkd,p1)[2] = f1*pkd_vPred(pkd,p1)[2]+f2*pkd_vPred(pkd,p2)[2];
+	pkdAccel(pkd,p1)[0] = f1*pkdAccel(pkd,p1)[0]+f2*pkdAccel(pkd,p2)[0];
+	pkdAccel(pkd,p1)[1] = f1*pkdAccel(pkd,p1)[1]+f2*pkdAccel(pkd,p2)[1];
+	pkdAccel(pkd,p1)[2] = f1*pkdAccel(pkd,p1)[2]+f2*pkdAccel(pkd,p2)[2];
+	pkdSph(pkd,p1)->u = f1*pkdSph(pkd,p1)->u+f2*pkdSph(pkd,p2)->u;
+	pkdSph(pkd,p1)->uPred = f1*pkdSph(pkd,p1)->uPred+f2*pkdSph(pkd,p2)->uPred;
+	pkdSph(pkd,p1)->uDot = f1*pkdSph(pkd,p1)->uDot+f2*pkdSph(pkd,p2)->uDot;
+	pkdSph(pkd,p1)->fMetals = f1*pkdSph(pkd,p1)->fMetals+f2*pkdSph(pkd,p2)->fMetals;
+	pkdSph(pkd,p1)->fMetalsPred = f1*pkdSph(pkd,p1)->fMetalsPred+f2*pkdSph(pkd,p2)->fMetalsPred;
+	pkdSph(pkd,p1)->fMetalsDot = f1*pkdSph(pkd,p1)->fMetalsDot+f2*pkdSph(pkd,p2)->fMetalsDot;
+	}
+    }
+
+void DistSNEnergy(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf)
+    {
+    PKD pkd = (PKD) smf->pkd;
+    PARTICLE *q,*qmin;
+    float fNorm,ih2,r2,rs,r2min,fp,fq;
+    float *pmass, *qmass;
+    double f1,f2,m,im,delta_m,delta_u,delta_Z;
+    double dt,c,dtC,Timer;
+    int i,uNewRung;
+    
+    if (!pkdIsStar( pkd, p )) return; /* not a star */
+    Timer = *pkd_Timer(pkd,p);
+    if (Timer > 0) return;
+
+    dtC = (1+0.6*smf->alpha)/(smf->a*smf->dEtaCourant);
+
+    pmass = pkdField(p,pkd->oMass);
+
+    ih2 = 4.0/(p->fBall*p->fBall);
+    r2min = 1e37;
+    qmin = NULL;
+    for (i=0;i<nSmooth;++i) {
+	r2 = nnList[i].fDist2*ih2;            
+	q = nnList[i].pPart;
+	if (!pkdIsGas(pkd,q)) continue;
+	if (pkdSpecies( pkd, q ) == FIO_SPECIES_LAST ) continue; /* deleted */
+	if (r2 < r2min) {
+	    r2min = r2;
+	    qmin = q;
+	    }
+        }
+    assert(qmin!=NULL); /* What if all neighbours invalid -- does that happen? */
+    
+    /* Has it gone off yet ? */
+    if (smf->dTime + Timer < smf->SFdtFeedbackDelay-0.5*smf->pkd->param.dDelta/(1<<q->uRung)) {
+	/* Attempt to warn particles the SN is coming... by lowering timesteps */
+	qmass = pkdField(q,pkd->oMass);
+	delta_m = *pmass*smf->SFdMassLossPerStarMass;
+	m = *qmass + delta_m;
+	im = 1/m;
+	delta_u = smf->SFdESNPerStarMass*delta_m*im;
+
+	c = sqrt(smf->gamma*(smf->gamma-1)*(fq*pkdSph(pkd,q)->u+delta_u));
+	dt = 0.5*q->fBall/(dtC*c);
+	uNewRung = pkdDtToRung(dt,smf->pkd->param.dDelta,MAX_RUNG);	
+	for (i=0;i<nSmooth;++i) {
+	    q = nnList[i].pPart;
+	    if (!pkdIsGas(pkd,q)) continue;
+	    if (pkdSpecies( pkd, q ) == FIO_SPECIES_LAST ) continue; /* deleted */
+	    if (uNewRung > q->uNewRung) q->uNewRung = uNewRung;
+	    }
+	return; /* Now exit */
+	}
+
+
+	{
+	q = qmin;
+	qmass = pkdField(q,pkd->oMass);
+	delta_m = *pmass*smf->SFdMassLossPerStarMass;
+	m = *qmass + delta_m;
+	im = 1/m;
+	fp = delta_m*im;
+	fq = (*qmass)*im;
+	delta_u = smf->SFdESNPerStarMass*delta_m*im;
+	delta_Z = smf->SFdZMassPerStarMass*delta_m*im;
+	pkdStar(pkd,q)->fTimer = smf->dTime+smf->SFdtCoolingShutoff;
+
+	*qmass = m;
+	q->r[0]= fq*q->r[0]+fp*p->r[0];
+	q->r[1]= fq*q->r[1]+fp*p->r[1];
+	q->r[2]= fq*q->r[2]+fp*p->r[2];
+	pkdVel(pkd,q)[0] = fq*pkdVel(pkd,q)[0]+fp*pkdVel(pkd,p)[0];
+	pkdVel(pkd,q)[1] = fq*pkdVel(pkd,q)[1]+fp*pkdVel(pkd,p)[1];
+	pkdVel(pkd,q)[2] = fq*pkdVel(pkd,q)[2]+fp*pkdVel(pkd,p)[2];
+	pkd_vPred(pkd,q)[0] = fq*pkd_vPred(pkd,q)[0]+fp*pkd_vPred(pkd,p)[0];
+	pkd_vPred(pkd,q)[1] = fq*pkd_vPred(pkd,q)[1]+fp*pkd_vPred(pkd,p)[1];
+	pkd_vPred(pkd,q)[2] = fq*pkd_vPred(pkd,q)[2]+fp*pkd_vPred(pkd,p)[2];
+	pkdAccel(pkd,q)[0] = fq*pkdAccel(pkd,q)[0]+fp*pkdAccel(pkd,p)[0];
+	pkdAccel(pkd,q)[1] = fq*pkdAccel(pkd,q)[1]+fp*pkdAccel(pkd,p)[1];
+	pkdAccel(pkd,q)[2] = fq*pkdAccel(pkd,q)[2]+fp*pkdAccel(pkd,p)[2];
+	pkdSph(pkd,q)->u = fq*pkdSph(pkd,q)->u+delta_u;
+	pkdSph(pkd,q)->uPred = fq*pkdSph(pkd,q)->uPred+delta_u;
+	pkdSph(pkd,q)->fMetals = fq*pkdSph(pkd,q)->fMetals+delta_Z;
+	pkdSph(pkd,q)->fMetalsPred = fq*pkdSph(pkd,q)->fMetalsPred+delta_Z;
+
+	c = sqrt(smf->gamma*(smf->gamma-1)*pkdSph(pkd,q)->uPred);
+	dt = 0.5*q->fBall/(dtC*c);
+	uNewRung = pkdDtToRung(dt,smf->pkd->param.dDelta,MAX_RUNG);	
+    
+	if (q->uNewRung > uNewRung) uNewRung = q->uNewRung;
+	}
+
+    /* The SN is here ... lower timesteps */
+    for (i=0;i<nSmooth;++i) {
+	q = nnList[i].pPart;
+	if (!pkdIsGas(pkd,q)) continue;
+	if (pkdSpecies( pkd, q ) == FIO_SPECIES_LAST ) continue; /* deleted */
+	if (uNewRung > q->uNewRung) q->uNewRung = uNewRung;
+        }
+
+    *pmass -= delta_m; /* Lower star mass */
+    *pkd_Timer(pkd,p) = fabs(Timer); /* Mark star as FB'ed */
+}
 
 void initMeanVel(void *vpkd, void *pvoid) {
     PKD pkd = (PKD)vpkd;

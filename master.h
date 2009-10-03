@@ -207,7 +207,8 @@ void msrInitSph(MSR,double);
 void msrSph(MSR msr, double dTime, double dStep);
 void msrSphStep(MSR msr,uint8_t uRungLo,uint8_t uRungHi,double dTime);
 void msrCoolSetup(MSR msr, double);
-void msrCooling(MSR msr,double dTime,double dStep,double dDelta,int bUpdateState, int bUpdateTable,int bInterateDt);
+void msrCooling(MSR msr,double dTime,double dStep,int bUpdateState, int bUpdateTable,int bInterateDt);
+void msrStarForm( MSR, double);
 /* END Gas routines */
 
 #ifdef PLANETS
@@ -244,6 +245,8 @@ void msrSelSrcAll(MSR msr);
 void msrSelDstAll(MSR msr);
 void msrSelSrcGas(MSR msr);
 void msrSelDstGas(MSR msr);
+void msrSelSrcStar(MSR msr);
+void msrSelDstStar(MSR msr);
 uint64_t msrSelSrcMass(MSR msr,double dMinMass,double dMaxMass,int setIfTrue,int ClearIfFalse);
 uint64_t msrSelDstMass(MSR msr,double dMinMass,double dMaxMass,int setIfTrue,int ClearIfFalse);
 uint64_t msrSelSrcById(MSR msr,uint64_t idStart,uint64_t idEnd,int setIfTrue,int clearIfFalse);

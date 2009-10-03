@@ -122,6 +122,7 @@ enum pst_service {
     PST_GRAVSTEP,
     PST_ACCELSTEP,
     PST_SPHSTEP,
+    PST_STARFORM,
     PST_DENSITYSTEP,
     PST_COOLSETUP,
     PST_COOLING,
@@ -184,6 +185,8 @@ enum pst_service {
     PST_SELDSTALL,
     PST_SELSRCGAS,
     PST_SELDSTGAS,
+    PST_SELSRCSTAR,
+    PST_SELDSTSTAR,
     PST_SELSRCMASS,
     PST_SELDSTMASS,
     PST_SELSRCBYID,
@@ -734,6 +737,35 @@ struct inSphStep {
     };
 void pstSphStep(PST,void *,int,void *,int *);
 
+/* PST_STARFORM */
+struct inStarForm
+    {
+    double dRateCoeff;
+    double dTMax;
+    double dDenMin;
+    double dDelta;
+    
+    double dTime;
+    double dInitStarMass;
+    double dESNPerStarMass;
+    double dtCoolingShutoff;
+
+    double dtFeedbackDelay;
+    double dMassLossPerStarMass;
+    double dZMassPerStarMass;
+    double dMinGasMass;
+    int bdivv;
+    };
+
+struct outStarForm 
+    {
+    int nFormed;
+    int nDeleted;
+    double dMassFormed;
+    };
+
+void pstStarForm(PST,void *,int,void *,int *);
+
 /* PST_DENSITYSTEP */
 struct inDensityStep {
     double dEta;
@@ -767,7 +799,6 @@ void pstCoolSetup(PST,void *,int,void *,int *);
 
 /* PST_COOLING */
 struct inCooling {
-    double duDelta;
     double dTime;	
     double z;
     int bUpdateState;
@@ -1131,6 +1162,10 @@ void pstSelDstAll(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 /* PST_SELSRCGAS */
 void pstSelSrcGas(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 void pstSelDstGas(PST pst,void *vin,int nIn,void *vout,int *pnOut);
+
+/* PST_SELSRCSTAR */
+void pstSelSrcStar(PST pst,void *vin,int nIn,void *vout,int *pnOut);
+void pstSelDstStar(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 
 /* PST_SELSRCMASS */
 struct inSelMass {
