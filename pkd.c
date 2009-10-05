@@ -2756,7 +2756,10 @@ void pkdCooling(PKD pkd, double dTime, double z, int bUpdateState, int bUpdateTa
 	for (i=0;i<pkdLocal(pkd);++i) {
 	    p = pkdParticle(pkd,i);
 	    if (pkdIsActive(pkd,p) && pkdIsGas(pkd,p)) {
-		if (pkdStar(pkd,p)->fTimer > dTime) continue;
+		if (pkdStar(pkd,p)->fTimer > dTime) {
+//		    printf("COOLING shut off %d: %g %g %g  %g %g\n",p->iOrder,pkdStar(pkd,p)->fTimer,dTime,(dTime-pkdStar(pkd,p)->fTimer)*1.7861e+18/(365.*60*60*24.)/1e6,pkdSph(pkd,p)->u,pkdSph(pkd,p)->uPred);
+		    continue;
+		    }
 		sph = pkdSph(pkd,p);
 		ExternalHeating = sph->uDot;
 		E = sph->u;
@@ -2966,8 +2969,9 @@ void pkdColNParts(PKD pkd, int *pnNew, int *nDeltaGas, int *nDeltaDark,
 	    continue;
 	    }
 	else if (pkdIsDeleted(pkd,p)) {
+//	    printf("DELETE %d: %d %d  %g %g\n",p->iOrder,pkdIsGas(pkd,p),pkdIsStar(pkd,p),pkdMass(pkd,p),pkdStar(pkd,p)->fTimer);
 	    --newnLocal; /* no idea about type now -- type info lost */
-	    --ndGas; /* JW: Hack fix this! */
+	    --ndGas; /* JW: Hack: assume only gas deleted fix this! */
 /*	    if (pkdIsGas(pkd, p))
 		--ndGas;
 	    else if (pkdIsDark(pkd, p))

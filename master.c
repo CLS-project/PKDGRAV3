@@ -3473,9 +3473,18 @@ void msrStarForm(MSR msr, double dTime)
 	printf("%d Stars formed with mass %g, %d gas deleted\n",
 	       out.nFormed, out.dMassFormed, out.nDeleted);
     
-    msrSelSrcGas(msr); /* Not really sure what the setting here needs to be */
-    msrSelDstGas(msr);  
-    if (out.nDeleted) msrSmooth(msr, dTime, SMX_DIST_DELETED_GAS, 1);
+    if (out.nDeleted) {
+	msrSelSrcGas(msr); /* Not really sure what the setting here needs to be */
+	msrSelDstGas(msr);  
+	msrActiveRung(msr,0,1);
+	msrBuildTree(msr,dTime,msr->param.bEwald);
+	msrSmooth(msr, dTime, SMX_DIST_DELETED_GAS, 1);
+	}
+
+    /* Strictly speaking adding/deleting particles invalidates the tree 
+       In practice we can find deleted particles (and ignore them) and we aren't looking for 
+       any new star particles so we should be able to function with an old tree for FB 
+       Could do FB before the AddDel call if careful to exclude deleted particles */
     if (out.nDeleted || out.nFormed) msrAddDelParticles(msr);
     
     sec1 = msrTime();
@@ -3485,6 +3494,8 @@ void msrStarForm(MSR msr, double dTime)
     if (msr->param.bFeedback) {
  	msrSelSrcGas(msr); /* Not really sure what the setting here needs to be */
 	msrSelDstStar(msr);  
+	msrActiveRung(msr,0,1);
+	msrBuildTree(msr,dTime,msr->param.bEwald);
 	msrSmooth(msr, dTime, SMX_DIST_SN_ENERGY, 1);
 	dsec = msrTime() - sec1;
 	printf("Feedback Calculated, Wallclock: %f secs\n\n",dsec);

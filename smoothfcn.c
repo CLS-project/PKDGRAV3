@@ -627,12 +627,12 @@ void DistSNEnergy(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf)
     double dt,c,dtC,Timer;
     int i,uNewRung;
 
-    printf("STAR DIST %d\n",p->iOrder);
+//    printf("STAR DIST %d\n",p->iOrder);
     if (!pkdIsStar( pkd, p )) return; /* not a star */
     Timer = *pkd_Timer(pkd,p);
     if (Timer > 0) return;
 
-    printf("STAR DIST A %d\n",p->iOrder);
+//    printf("STAR DIST A %d\n",p->iOrder);
     dtC = (1+0.6*smf->alpha)/(smf->a*smf->dEtaCourant);
 
     pmass = pkdField(p,pkd->oMass);
@@ -674,7 +674,7 @@ void DistSNEnergy(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf)
 	return; /* Now exit */
 	}
 
-    printf("STAR DIST B %d\n",p->iOrder);
+//    printf("STAR DIST B %d\n",p->iOrder);
 
 	{
 	qmass = pkdField(q,pkd->oMass);
@@ -701,7 +701,7 @@ void DistSNEnergy(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf)
 	pkdAccel(pkd,q)[1] = fq*pkdAccel(pkd,q)[1]+fp*pkdAccel(pkd,p)[1];
 	pkdAccel(pkd,q)[2] = fq*pkdAccel(pkd,q)[2]+fp*pkdAccel(pkd,p)[2];
 	pkdSph(pkd,q)->u = fq*pkdSph(pkd,q)->u+delta_u;
-	printf("I'm HIT %d: %g %g\n",pkdSph(pkd,q)->uPred,pkdSph(pkd,q)->u);
+//	printf("I'm HIT %d by %d: %g %g\n",q->iOrder,p->iOrder,pkdSph(pkd,q)->uPred,pkdSph(pkd,q)->u);
 	pkdSph(pkd,q)->uPred = fq*pkdSph(pkd,q)->uPred+delta_u;
 	pkdSph(pkd,q)->fMetals = fq*pkdSph(pkd,q)->fMetals+delta_Z;
 	pkdSph(pkd,q)->fMetalsPred = fq*pkdSph(pkd,q)->fMetalsPred+delta_Z;
