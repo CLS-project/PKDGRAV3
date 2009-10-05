@@ -21,7 +21,7 @@ const char *smooth_module_id = "$Id$";
 const char *smooth_h_module_id = SMOOTH_H_MODULE_ID;
 
 /* BADSMOOTH */
-//#define BADSMOOTH
+#define BADSMOOTH
 int cmpnnList(const void *a,const void *b) {
     if (((NN *) a)->fDist2 < ((NN *) b)->fDist2) return -1;
     return 1;
@@ -781,6 +781,7 @@ PQ *pqSearch(SMX smx,PQ *pq,FLOAT r[3],int bReplica,int *pbDone) {
 	if (smx->nQueue == smx->nSmooth) goto NoIntersect;  /* done loading phase */
 	while (iCell == S[sp]) {
 	    if (!sp) {
+		assert(0);
 		return NULL;		/* EXIT, could not load enough particles! */
 		}
 	    --sp;

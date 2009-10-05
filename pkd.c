@@ -782,7 +782,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
 	eSpecies = fioSpecies(fio);
 	switch(eSpecies) {
 	case FIO_SPECIES_SPH:
-	    assert(pSph); /* JW: Ccould convert to dark ... */
+	    assert(pSph); /* JW: Could convert to dark ... */
 	    assert(dTuFac>0.0);
 	    fioReadSph(fio,&iOrder,p->r,v,&fMass,&fSoft,pPot,
 		       &p->fDensity/*?*/,&pSph->u,&pSph->fMetals);
@@ -1666,7 +1666,7 @@ uint32_t pkdWriteTipsy(PKD pkd,char *pszFileName,uint64_t iFirst,
     /*printf("Writing %lu\n", pkdLocal(pkd));*/
     for (i=0;i<pkdLocal(pkd);++i) {
 	p = pkdParticle(pkd,i);
-	if ( !pkdIsSrcActive(p,0,MAX_RUNG) ) continue;
+	if ( !pkdIsSrcActive(p,0,MAX_RUNG) ) continue;  /* JW: Ack! */
 	if ( pkd->oPotential) pPot = pkdPot(pkd,p);
 	else pPot = &dummypot;
 	if (pkd->oVelocity) {
@@ -2621,7 +2621,7 @@ void pkdSphStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,double dAccFac) {
 
 	    uNewRung = pkdDtToRung(dtNew,pkd->param.dDelta,pkd->param.iMaxRung-1);
 	    if (uNewRung > p->uNewRung) p->uNewRung = uNewRung;
-	    if (!(p->iOrder%10000) || p->uNewRung > 5) printf("RUNG %d: grav+sph %d acc %d udot %d final %d\n",p->iOrder,u1,u2,u3,(int) p->uNewRung);
+/*	    if (!(p->iOrder%10000) || p->uNewRung > 5) printf("RUNG %d: grav+sph %d acc %d udot %d final %d\n",p->iOrder,u1,u2,u3,(int) p->uNewRung);*/
 	    }
 	}
     }
@@ -2668,7 +2668,7 @@ void pkdStarForm(PKD pkd, double dRateCoeff, double dTMax, double dDenMin,
 	    dt = pkd->param.dDelta/(1<<p->uRung); /* Actual Rung */
 	    dmstar = dRateCoeff*sqrt(p->fDensity)*pkdMass(pkd,p)*dt;
 	    prob = 1.0 - exp(-dmstar/dInitStarMass); 
-	    if (!(p->iOrder%1000)) printf("SF %d: %g %g %g\n",p->iOrder,dmstar,dInitStarMass,prob);
+//	    if (!(p->iOrder%1000)) printf("SF %d: %g %g %g\n",p->iOrder,dmstar,dInitStarMass,prob);
 	    
 	    /* Star formation event? */
 	    if (rand()<RAND_MAX*prob) {
@@ -2692,7 +2692,9 @@ void pkdStarForm(PKD pkd, double dRateCoeff, double dTMax, double dDenMin,
 		   so dTime-0.5*dt may be justified -- if dt v. large could have odd effects */
 		pkdStar(pkd,starp)->fTimer = -dTime; 
 		
-		getClass(pkd,0,0,FIO_SPECIES_STAR,starp); /* How do I make a new particle? */
+		getClass(pkd,pkdMass(pkd,starp),pkdSoft(pkd,starp),FIO_SPECIES_STAR,starp); /* How do I make a new particle? -- this is bad it rewrites mass and soft for particle */
+		/* JW: If class doesn't exist this is very bad -- what is the soft? 
+		   For now force softening to exist to get around this */
 		(*nFormed)++;
 		*dMassFormed += *starpMass;
 		pkdNewParticle(pkd, starp);    
@@ -2993,9 +2995,11 @@ void pkdNewOrder(PKD pkd,int nStart) {
     PARTICLE *p;
     int pi;
 
+//    printf("NEWORDER: New particles from iOrder=%d\n",nStart);
     for (pi=0;pi<pkdLocal(pkd);pi++) {
 	p = pkdParticle(pkd,pi);
 	if (p->iOrder == IORDERMAX) {
+//	    printf("NEWORDER: Assigning new particle %d\n",nStart);
 	    p->iOrder = nStart++;
 	    }
 	}
@@ -3012,6 +3016,7 @@ pkdGetNParts(PKD pkd, struct outGetNParts *out )
     int iMaxOrderGas;
     int iMaxOrderDark;
     int iMaxOrderStar;
+    int iOrder;
     PARTICLE *p;
     
     n = 0;
@@ -3023,18 +3028,19 @@ pkdGetNParts(PKD pkd, struct outGetNParts *out )
     iMaxOrderStar = -1;
     for(pi = 0; pi < pkdLocal(pkd); pi++) {
 	p = pkdParticle(pkd,pi);
+	iOrder = p->iOrder;
 	n++;
 	if(pkdIsGas(pkd, p)) {
 	    ++nGas;
-	    if (p->iOrder > iMaxOrderGas) iMaxOrderGas = p->iOrder;
+	    if (iOrder > iMaxOrderGas) iMaxOrderGas = iOrder;
 	    }
 	else if(pkdIsDark(pkd, p)) {
 	    ++nDark;
-	    if (p->iOrder > iMaxOrderDark) iMaxOrderDark = p->iOrder;
+	    if (iOrder > iMaxOrderDark) iMaxOrderDark = iOrder;
 	    }
 	else if(pkdIsStar(pkd, p)) {
 	    ++nStar;
-	    if (p->iOrder > iMaxOrderStar) iMaxOrderStar = p->iOrder;
+	    if (iOrder > iMaxOrderStar) iMaxOrderStar = iOrder;
 	    }
 	}
     

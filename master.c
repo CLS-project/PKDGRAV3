@@ -2358,7 +2358,7 @@ void msrOutASCII(MSR msr,const char *pszFile,int iType,int nDims) {
 
 
     switch(nDims) {
-    case 1: arrayOrVector = "vector"; break;
+    case 1: arrayOrVector = "vector"; break; /* JW -- seems like a bug */
     case 3: arrayOrVector = "array";  break;
     default:assert(nDims==1 || nDims==3);
 	}
@@ -2633,6 +2633,9 @@ void msrGravity(MSR msr,uint8_t uRungLo, uint8_t uRungHi, double dTime,
     struct outGravity *out;
     int i,id,iDum;
     double sec,dsec,dTotFlop;
+
+    msrSelSrcAll(msr); /* Not really sure what the setting here needs to be */
+    msrSelDstAll(msr);  
 
     if (msr->param.bVStep) printf("Calculating Gravity, Step:%f\n",dStep);
     in.dTime = dTime;
@@ -3923,7 +3926,7 @@ msrAddDelParticles(MSR msr) {
 	      printf("need to rebuild tree, code in msrAddDelParticles()\n");
 	      printf("needs to be updated. Bailing out for now...\n");
 	      exit(-1); */
-	    pNewOrder[i] = msr->nMaxOrder;
+	    pNewOrder[i] = msr->nMaxOrder+1; /* JW: +1 was missing for some reason */
 	    msr->nMaxOrder += pColNParts[i].nNew;
 	    msr->nGas += pColNParts[i].nDeltaGas;
 	    msr->nDark += pColNParts[i].nDeltaDark;
@@ -5098,7 +5101,7 @@ double msrRead(MSR msr, const char *achInFile) {
     
     if (msr->nGas && !prmSpecified(msr->prm,"bDoGas")) msr->param.bDoGas = 1;
     if (msrDoGas(msr) || msr->nGas) mMemoryModel |= (PKD_MODEL_SPH|PKD_MODEL_ACCELERATION|PKD_MODEL_VELOCITY);		
-    if (msr->param.bStarForm || msr->nStar) mMemoryModel |= (PKD_MODEL_SPH|PKD_MODEL_ACCELERATION|PKD_MODEL_VELOCITY|PKD_MODEL_MASS|PKD_MODEL_STAR);
+    if (msr->param.bStarForm || msr->nStar) mMemoryModel |= (PKD_MODEL_SPH|PKD_MODEL_ACCELERATION|PKD_MODEL_VELOCITY|PKD_MODEL_MASS|PKD_MODEL_SOFTENING|PKD_MODEL_STAR);
     
     read.nNodeStart = 0;
     read.nNodeEnd = msr->N - 1;
@@ -5182,6 +5185,9 @@ void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint) {
     int nFOFsDone;
     int i;
 
+    msrSelSrcAll(msr); /* Not really sure what the setting here needs to be */
+    msrSelDstAll(msr);  
+
     printf( "Writing output for step %d\n", iStep );
     msrBuildIoName(msr,achFile,iStep);
 
@@ -5226,10 +5232,12 @@ void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint) {
 	bSymmetric = 0; /* FOR TESTING!!*/
 	msrSmooth(msr,dTime,SMX_DENSITY,bSymmetric);
 	}
+
     if ( msr->param.bFindGroups ) {
 	/*
 	** Build tree, activating all particles first (just in case).
 	*/
+	nFOFsDone = 0;
 	msrActiveRung(msr,0,1); /* Activate all particles */
 	msrDomainDecomp(msr,0,1,0);
 	msrBuildTree(msr,dTime,0);
@@ -5252,8 +5260,8 @@ void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint) {
 	if (	msr->param.bStandard) msrOutGroups(msr,achFile,OUT_GROUP_TIPSY_STD,dTime);
 	else msrOutGroups(msr,achFile,OUT_GROUP_TIPSY_NAT,dTime);
 	nFOFsDone++;
+	if ( nFOFsDone )msrDeleteGroups(msr);
 	}
-    if ( nFOFsDone )msrDeleteGroups(msr);
 
     if (msr->param.bDoAccOutput) {
 	msrReorder(msr);

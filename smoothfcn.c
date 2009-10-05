@@ -587,7 +587,7 @@ void combDistSNEnergy(void *vpkd,void *vp1,void *vp2)
      * Distribute u, v, and fMetals for particles returning from cache
      * so that everything is conserved nicely.  
      */ 
-    if (!pkdIsGas(pkd,p1)) return; /* not star */
+    if (!pkdIsGas(pkd,p1)) return; /* not gas */
 
     p2mass = pkdField(p2,pkd->oMass);
     if (*p2mass > 0) {	
@@ -626,11 +626,13 @@ void DistSNEnergy(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf)
     double f1,f2,m,im,delta_m,delta_u,delta_Z;
     double dt,c,dtC,Timer;
     int i,uNewRung;
-    
+
+    printf("STAR DIST %d\n",p->iOrder);
     if (!pkdIsStar( pkd, p )) return; /* not a star */
     Timer = *pkd_Timer(pkd,p);
     if (Timer > 0) return;
 
+    printf("STAR DIST A %d\n",p->iOrder);
     dtC = (1+0.6*smf->alpha)/(smf->a*smf->dEtaCourant);
 
     pmass = pkdField(p,pkd->oMass);
@@ -649,7 +651,8 @@ void DistSNEnergy(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf)
 	    }
         }
     assert(qmin!=NULL); /* What if all neighbours invalid -- does that happen? */
-    
+    q=qmin;
+
     /* Has it gone off yet ? */
     if (smf->dTime + Timer < smf->SFdtFeedbackDelay-0.5*smf->pkd->param.dDelta/(1<<q->uRung)) {
 	/* Attempt to warn particles the SN is coming... by lowering timesteps */
@@ -671,9 +674,9 @@ void DistSNEnergy(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf)
 	return; /* Now exit */
 	}
 
+    printf("STAR DIST B %d\n",p->iOrder);
 
 	{
-	q = qmin;
 	qmass = pkdField(q,pkd->oMass);
 	delta_m = *pmass*smf->SFdMassLossPerStarMass;
 	m = *qmass + delta_m;
@@ -698,6 +701,7 @@ void DistSNEnergy(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf)
 	pkdAccel(pkd,q)[1] = fq*pkdAccel(pkd,q)[1]+fp*pkdAccel(pkd,p)[1];
 	pkdAccel(pkd,q)[2] = fq*pkdAccel(pkd,q)[2]+fp*pkdAccel(pkd,p)[2];
 	pkdSph(pkd,q)->u = fq*pkdSph(pkd,q)->u+delta_u;
+	printf("I'm HIT %d: %g %g\n",pkdSph(pkd,q)->uPred,pkdSph(pkd,q)->u);
 	pkdSph(pkd,q)->uPred = fq*pkdSph(pkd,q)->uPred+delta_u;
 	pkdSph(pkd,q)->fMetals = fq*pkdSph(pkd,q)->fMetals+delta_Z;
 	pkdSph(pkd,q)->fMetalsPred = fq*pkdSph(pkd,q)->fMetalsPred+delta_Z;

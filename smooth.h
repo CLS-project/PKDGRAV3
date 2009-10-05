@@ -9,7 +9,7 @@
 #include "floattype.h"
 #endif
 
-#define NNLIST_INCREMENT	100		/* number of extra neighbor elements added to nnList */
+#define NNLIST_INCREMENT	200		/* number of extra neighbor elements added to nnList */
 
 #define PQ_LOAD_FACTOR 0.50
 
