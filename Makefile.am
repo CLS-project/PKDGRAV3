@@ -12,14 +12,13 @@ if HAVE_MPI
 EXTRA_PROGRAMS	+= pkdgrav2m_mpi
 TARGETS	+= mpi
 mpi:
-	$(MAKE) CC=@MPICC@ $(AM_MAKEFLAGS) pkdgrav2m_mpi
+	$(MAKE) CC=@MPICC@ FC=@MPIFC@ $(AM_MAKEFLAGS) pkdgrav2m_mpi
 endif
 
 if HAVE_SISCI
 EXTRA_PROGRAMS += pkdgrav2m_sisci
 sisci		: pkdgrav2m_sisci
 endif
-
 
 if USE_HDF5
 EXTRA_PROGRAMS += tip2hdf5 hdf52tip hdf5cat
@@ -77,7 +76,7 @@ endif
 pkdgrav2m_null_SOURCES = $(SOURCES) $(MDL)/null/mdl.c
 noinst_HEADERS += $(MDL)/null/mdl.h
 pkdgrav2m_null_CFLAGS = -I$(MDL)/null/ $(AM_CFLAGS)
-pkdgrav2m_null_LDADD =
+pkdgrav2m_null_LDADD = $(FLIBS)
 if USE_EFENCE
 if HAVE_EFENCE_PATH
 pkdgrav2m_null_LDADD += -L @EFENCE_PATH@

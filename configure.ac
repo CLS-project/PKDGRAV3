@@ -10,12 +10,19 @@ AC_CONFIG_HEADER([config.h])
 # Checks for programs.
 AC_PROG_CC
 AC_PROG_FC
+AC_FC_DUMMY_MAIN
+AC_FC_WRAPPERS
 AC_PROG_MAKE_SET
 
 AC_ARG_WITH(mpicc,
-  [  --with-mpicc=mpicc      specify the name of the MPI compiler],
+  [  --with-mpicc=mpicc      specify the name of the MPI C compiler],
   [MPICC="${withval}"],[AC_CHECK_PROG([MPICC],mpicc,mpicc,no)])
 AC_SUBST(MPICC)
+
+AC_ARG_WITH(mpif90,
+  [  --with-mpif90=mpif90    specify the name of the MPI f90 compiler],
+  [MPIFC="${withval}"],[AC_CHECK_PROG([MPIFC],mpif90,mpif90,no)])
+AC_SUBST(MPIFC)
 
 # The floating point data type - This should be detected and --with-float added
 AC_DEFINE([FLOAT],double,
