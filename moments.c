@@ -50,7 +50,7 @@ void momAddMomc(MOMC *mc,MOMC *ma) {
 
 
 /*
- ** This function adds the reduced moment ma to the reduced moment mc
+ ** This function adds the reduced moment ma to the reduced moment mr
  */
 void momAddMomr(MOMR *mr,MOMR *ma) {
     mr->m += ma->m;
@@ -75,6 +75,42 @@ void momAddMomr(MOMR *mr,MOMR *ma) {
     mr->xxyy += ma->xxyy;
     mr->xxyz += ma->xxyz;
     mr->xyyz += ma->xyyz;
+    }
+
+
+/*
+ ** This function adds the reduced scaled moment ma to the reduced scaled moment mr.
+ ** It needs to correctly rescale the moments of ma to be compatible with the scaling of mr.
+ */
+void momAddMomrs(MOMRS *mr,MOMRS *ma) {
+    float f,s;
+    assert(mr->s > 0.0);
+    f = ma->s/mr->s;
+    s = f*f;
+    mr->m += ma->m;
+    mr->xx += s*ma->xx;
+    mr->yy += s*ma->yy;
+    mr->xy += s*ma->xy;
+    mr->xz += s*ma->xz;
+    mr->yz += s*ma->yz;
+    s *= f;
+    mr->xxx += s*ma->xxx;
+    mr->xyy += s*ma->xyy;
+    mr->xxy += s*ma->xxy;
+    mr->yyy += s*ma->yyy;
+    mr->xxz += s*ma->xxz;
+    mr->yyz += s*ma->yyz;
+    mr->xyz += s*ma->xyz;
+    s *= f;
+    mr->xxxx += s*ma->xxxx;
+    mr->xyyy += s*ma->xyyy;
+    mr->xxxy += s*ma->xxxy;
+    mr->yyyy += s*ma->yyyy;
+    mr->xxxz += s*ma->xxxz;
+    mr->yyyz += s*ma->yyyz;
+    mr->xxyy += s*ma->xxyy;
+    mr->xxyz += s*ma->xxyz;
+    mr->xyyz += s*ma->xyyz;
     }
 
 
@@ -147,7 +183,43 @@ void momMulAddMomr(MOMR *mr,momFloat m,MOMR *ma) {
 
 
 /*
+ ** This function multiply-adds the reduced scaled moment ma
+ */
+void momMulAddMomrs(MOMRS *mr,float m,MOMRS *ma) {
+    float f;
+    assert(mr->s > 0.0);
+    f = ma->s/mr->s;
+    mr->m += m*ma->m;
+    m *= f*f;
+    mr->xx += m*ma->xx;
+    mr->yy += m*ma->yy;
+    mr->xy += m*ma->xy;
+    mr->xz += m*ma->xz;
+    mr->yz += m*ma->yz;
+    m *= f;
+    mr->xxx += m*ma->xxx;
+    mr->xyy += m*ma->xyy;
+    mr->xxy += m*ma->xxy;
+    mr->yyy += m*ma->yyy;
+    mr->xxz += m*ma->xxz;
+    mr->yyz += m*ma->yyz;
+    mr->xyz += m*ma->xyz;
+    m *= f;
+    mr->xxxx += m*ma->xxxx;
+    mr->xyyy += m*ma->xyyy;
+    mr->xxxy += m*ma->xxxy;
+    mr->yyyy += m*ma->yyyy;
+    mr->xxxz += m*ma->xxxz;
+    mr->yyyz += m*ma->yyyz;
+    mr->xxyy += m*ma->xxyy;
+    mr->xxyz += m*ma->xxyz;
+    mr->xyyz += m*ma->xyyz;
+    }
+
+
+/*
  ** This function subtracts the complete moment ma from the complete moment mc
+ ** (rarely used)
  */
 void momSubMomc(MOMC *mc,MOMC *ma) {
     mc->m -= ma->m;
@@ -187,6 +259,7 @@ void momSubMomc(MOMC *mc,MOMC *ma) {
 
 /*
  ** This function subtracts the reduced moment ma from the reduced moment mc
+ ** (rarely used)
  */
 void momSubMomr(MOMR *mr,MOMR *ma) {
     mr->m -= ma->m;
@@ -298,6 +371,85 @@ momFloat momMakeMomr(MOMR *mr,momFloat m,momFloat x,momFloat y,momFloat z) {
     /*assert( m > 0.0 ); -- massless tracer particles are allowed*/
 
     mr->m = m;
+    /*
+     ** Calculate the Quadrupole Moment.
+     */
+    tx = m*x;
+    ty = m*y;
+    mr->xy = tx*y;
+    mr->xz = tx*z;
+    mr->yz = ty*z;
+    tx *= x;
+    ty *= y;
+    m *= d2;
+    t = m/3;
+    mr->xx = tx - t;
+    mr->yy = ty - t;
+    /*
+     ** Calculate the Octopole Moment.
+     */
+    t = 0.2*m;
+    dx = tx - t;
+    dy = ty - t;
+    mr->xxy = dx*y;
+    mr->xxz = dx*z;
+    mr->yyz = dy*z;
+    mr->xyy = dy*x;
+    mr->xyz = mr->xy*z;
+    t *= 3;
+    mr->xxx = (tx - t)*x;
+    mr->yyy = (ty - t)*y;
+    /*
+     ** Calculate the Hexadecapole Moment.
+     */
+    t = m/7;
+    mr->xxyz = (tx - t)*y*z;
+    mr->xyyz = (ty - t)*x*z;
+    dx = (tx - 3*t)*x;
+    dy = (ty - 3*t)*y;
+    mr->xxxy = dx*y;
+    mr->xxxz = dx*z;
+    mr->xyyy = dy*x;
+    mr->yyyz = dy*z;
+    dx = t*(x2 - 0.1*d2);
+    dy = t*(y2 - 0.1*d2);
+    mr->xxxx = tx*x2 - 6*dx;
+    mr->yyyy = ty*y2 - 6*dy;
+    mr->xxyy = tx*y2 - dx - dy;
+
+    return(d2);
+    }
+
+
+/*
+ ** This function calculates a reduced scaled multipole from a single
+ ** particle at position <x,y,z> from the center of mass. A scaling
+ ** factor for the positions must also be specified, which should 
+ ** typically be the value of b_max.
+ ** The strange order of evaluation reduces the number of
+ ** multiplications to a minimum.
+ ** <x,y,z> := d := r(particle) - rcm.
+ ** returns: d^2 scaled by s^2.
+ **
+ ** OpCount (*,+) = (43,18) = ~60
+ */
+float momMakeMomrs(MOMRS *mr,float m,float s,float x,float y,float z) {
+    float tx,ty,t,dx,dy;
+    float x2;
+    float y2;
+    float d2;
+
+    assert(m > 0.0);
+    assert(s > 0.0);
+    x /= s;
+    y /= s;
+    z /= s;
+    x2 = x*x;
+    y2 = y*y;
+    d2 = x2 + y2 + z*z;
+
+    mr->m = m;
+    mr->s = s;
     /*
      ** Calculate the Quadrupole Moment.
      */
@@ -499,6 +651,70 @@ void momShiftMomr(MOMR *m,momFloat x,momFloat y,momFloat z) {
      */
     f.m = 0;
     momMulAddMomr(m,m->m,&f);
+    }
+
+
+/*
+ ** This function shifts a reduced scaled multipole (MOMRS) to a new center of mass.
+ ** <x,y,z> := d := rcm(old) - rcm(new).
+ **
+ ** OpCount ShiftMomr  (*,+) = (128,111)
+ **         MakeMomr   (*,+) = (43,18)
+ **         MulAddMomr (*,+) = (22,22)
+ **         Total      (*,+) = (193,151) = 344
+ */
+void momShiftMomrs(MOMRS *m,float x,float y,float z) {
+    MOMRS f;
+    float t,tx,ty,tz,txx,tyy,txy,tyz,txz;
+    const float twosevenths = 2.0/7.0;
+
+    momMakeMomrs(&f,1,m->s,x,y,z);
+    /* 
+    ** We actually end up doing these divisions twice here since they are done once
+    ** already in the above momMakeMomrs() function call.
+    */
+    x /= m->s;
+    y /= m->s;
+    z /= m->s;
+    /*
+     ** Calculate the correction terms.
+     */
+    tx = 0.4*(m->xx*x + m->xy*y + m->xz*z);
+    ty = 0.4*(m->xy*x + m->yy*y + m->yz*z);
+    tz = 0.4*(m->xz*x + m->yz*y - (m->xx + m->yy)*z);
+    t = tx*x + ty*y + tz*z;
+    txx = twosevenths*(m->xxx*x + m->xxy*y + m->xxz*z + 2*(m->xx*f.xx + m->xy*f.xy + m->xz*f.xz) - 0.5*t);
+    tyy = twosevenths*(m->xyy*x + m->yyy*y + m->yyz*z + 2*(m->xy*f.xy + m->yy*f.yy + m->yz*f.yz) - 0.5*t);
+    txy = twosevenths*(m->xxy*x + m->xyy*y + m->xyz*z + m->xy*(f.xx + f.yy) + (m->xx + m->yy)*f.xy + m->yz*f.xz + m->xz*f.yz);
+    tyz = twosevenths*(m->xyz*x + m->yyz*y - (m->xxy + m->yyy)*z - m->yz*f.xx - m->xx*f.yz + m->xz*f.xy + m->xy*f.xz);
+    txz = twosevenths*(m->xxz*x + m->xyz*y - (m->xxx + m->xyy)*z - m->xz*f.yy - m->yy*f.xz + m->yz*f.xy + m->xy*f.yz);
+    /*
+     ** Shift the Hexadecapole.
+     */
+    m->xxxx += 4*m->xxx*x + 6*(m->xx*f.xx - txx);
+    m->yyyy += 4*m->yyy*y + 6*(m->yy*f.yy - tyy);
+    m->xyyy += m->yyy*x + 3*(m->xyy*y + m->yy*f.xy + m->xy*f.yy - txy);
+    m->xxxy += m->xxx*y + 3*(m->xxy*x + m->xx*f.xy + m->xy*f.xx - txy);
+    m->xxxz += m->xxx*z + 3*(m->xxz*x + m->xx*f.xz + m->xz*f.xx - txz);
+    m->yyyz += m->yyy*z + 3*(m->yyz*y + m->yy*f.yz + m->yz*f.yy - tyz);
+    m->xxyy += 2*(m->xxy*y + m->xyy*x) + m->xx*f.yy + m->yy*f.xx + 4*m->xy*f.xy - txx - tyy;
+    m->xxyz += m->xxy*z + m->xxz*y + m->xx*f.yz + m->yz*f.xx + 2*(m->xyz*x + m->xy*f.xz + m->xz*f.xy) - tyz;
+    m->xyyz += m->xyy*z + m->yyz*x + m->yy*f.xz + m->xz*f.yy + 2*(m->xyz*y + m->xy*f.yz + m->yz*f.xy) - txz;
+    /*
+     ** Now shift the Octopole.
+     */
+    m->xxx += 3*(m->xx*x - tx);
+    m->xyy += 2*m->xy*y + m->yy*x - tx;
+    m->yyy += 3*(m->yy*y - ty);
+    m->xxy += 2*m->xy*x + m->xx*y - ty;
+    m->xxz += 2*m->xz*x + m->xx*z - tz;
+    m->yyz += 2*m->yz*y + m->yy*z - tz;
+    m->xyz += m->xy*z + m->xz*y + m->yz*x;
+    /*
+     ** Now deal with the monopole terms.
+     */
+    f.m = 0;
+    momMulAddMomrs(m,m->m,&f);
     }
 
 
@@ -720,7 +936,7 @@ void momEvalMomr(MOMR *m,momFloat dir,momFloat x,momFloat y,momFloat z,
     g3 = 5*g2*dir;
     g4 = 7*g3*dir;
     /*
-     ** Calculate the funky distance terms.
+     ** Calculate the trace-free distance terms.
      */
     x *= dir;
     y *= dir;
@@ -1774,9 +1990,316 @@ double momLocrAddMomr5(LOCR *l,MOMR *m,momFloat dir,momFloat x,momFloat y,momFlo
     l->xxxyz += (3*g4 + g5xx)*xy*z;
     l->xyyyz += (3*g4 + g5yy)*xy*z;
 
-    return 509.0; /* a guess right now */
+    return 509.0;
     }
 
+
+
+/*
+** Op Count = (*,+) = (129,77) = 206 
+*/
+double momLocrAddMono5(LOCR *l,momFloat m,momFloat dir,momFloat x,momFloat y,momFloat z,double *tax,double *tay,double *taz) {
+    const momFloat onethird = 1.0/3.0;
+    momFloat xx,xy,xz,yy,yz,zz;
+    momFloat xxx,xxy,xyy,yyy,xxz,xyz,yyz;
+    momFloat Ax,Ay,Az,A,Bxx,Bxy,Byy,Bxz,Byz,Bx,By,Bz,B,Cx,Cy,Cz,C;
+    momFloat R1,R2,R3,T2,T3;
+    momFloat g0,g1,g2,g3,g4,g5;
+    momFloat g4xx,g4yy,g5xx,g5yy,fxx,fyy;
+
+    x *= dir;
+    y *= dir;
+    z *= dir;
+    g0 = -dir;
+    g1 = -g0*dir;
+    g2 = -3*g1*dir;
+    g3 = -5*g2*dir;
+    g4 = -7*g3*dir;
+    g5 = -9*g4*dir;
+    /*
+    ** Calculate the funky distance terms.
+    */
+    xx = 0.5*x*x;
+    xy = x*y;
+    yy = 0.5*y*y;
+    xz = x*z;
+    yz = y*z;
+    zz = 0.5*z*z;
+    xxx = x*(onethird*xx - zz);
+    xxz = z*(xx - onethird*zz);
+    yyy = y*(onethird*yy - zz);
+    yyz = z*(yy - onethird*zz);
+    xx -= zz;
+    yy -= zz;
+    xxy = y*xx;
+    xyy = x*yy;
+    xyz = xy*z;
+
+    xx = x*x;
+    yy = y*y;
+
+    l->m += g0*m;
+    R1 = g1*m;
+    R2 = g2*m;
+    R3 = g3*m;
+
+    g1 *= dir;
+    g2 *= dir;
+    g3 *= dir;
+
+    T2 = g1*m;
+    T3 = g2*m;
+
+    *tax = -(x*R1);
+    *tay = -(y*R1);
+    *taz = -(z*R1);
+
+    g2 *= dir;
+
+    g4xx = g4*xx;
+    g4yy = g4*yy;
+
+    l->xxxx += (3*g2 + (6*g3 + g4xx)*xx)*m;
+    l->yyyy += (3*g2 + (6*g3 + g4yy)*yy)*m;
+    fxx = (3*g3 + g4xx)*m;
+    l->xxxy += fxx*xy;
+    l->xxxz += fxx*xz;
+    fyy = (3*g3 + g4yy)*m;
+    l->xyyy += fyy*xy;
+    l->yyyz += fyy*yz;
+    fxx = (g3 + g4xx);
+    l->xxyz += fxx*yz*m;
+    l->xxyy += (g2 + g3*xx + fxx*yy)*m;
+    l->xyyz += (g3 + g4yy)*xz*m;
+
+    g4 *= dir;
+
+    l->x -= *tax;
+    l->y -= *tay;
+    l->z -= *taz;
+
+    l->xx += T2 + R2*xx;
+    l->yy += T2 + R2*yy;
+    l->xy += R2*xy;
+    l->xz += R2*xz;
+    l->yz += R2*yz;
+
+    g3 *= dir;
+
+    g5xx = g5*xx;
+    g5yy = g5*yy;
+
+    fxx = T3 + R3*xx;
+    fyy = T3 + R3*yy;
+
+    l->xxy += fxx*y;
+    l->xxz += fxx*z;
+    l->xyy += fyy*x;
+    l->yyz += fyy*z;
+    l->xyz += R3*xy*z;
+
+    fxx += 2*T3;
+    fyy += 2*T3;
+
+    l->xxx += fxx*x;
+    l->yyy += fyy*y;
+
+    fxx = 3*g3 + (6*g4 + g5xx)*xx;
+    fyy = 3*g3 + (6*g4 + g5yy)*yy;
+
+    x *= m;
+    y *= m;
+    z *= m;
+
+    l->xxxxx += (15*g3 + (10*g4 + g5xx)*xx)*x;
+    l->yyyyy += (15*g3 + (10*g4 + g5yy)*yy)*y;
+    l->xxxyy += (3*g3 + 3*g4*yy + (g4 + g5yy)*xx)*x;
+    l->xxyyy += (3*g3 + 3*g4*xx + (g4 + g5xx)*yy)*y;
+    l->xxyyz += (g3 + g4*xx + (g4 + g5xx)*yy)*z;
+    l->xxxxy += fxx*y;
+    l->xxxxz += fxx*z;
+    l->xyyyy += fyy*x;
+    l->yyyyz += fyy*z;
+    l->xxxyz += (3*g4 + g5xx)*xy*z;
+    l->xyyyz += (3*g4 + g5yy)*xy*z;
+
+    return 206.0;
+    }
+
+
+
+/*
+** Op Count = (*,+,-) = (377,192,66) = 635
+*/
+double momLocrAddMomdr5(LOCR *l,float v,MOMDR *m,float u,float dir,float x,float y,float z,float *tax,float *tay,float *taz) {
+    const float onethird = 1.0f/3.0f;
+    float u2,u3;
+    float xx,xy,xz,yy,yz,zz;
+    float xxx,xxy,xyy,yyy,xxz,xyz,yyz;
+    float R1,R1x,R1y,R1z,R2xx,R2xy,R2xz,R2yy,R2yz,R2x,R2y,R2z,R2,R3xx,R3xy,R3yy,R3xz,R3yz,R3x,R3y,R3z,R3,R4x,R4y,R4z,R4;
+
+    u *= dir;
+    v *= -dir;
+    x *= dir;
+    y *= dir;
+    z *= dir;
+    u2 = 0.25*u*u;
+    /*
+    ** Calculate the trace-free distance terms.
+    */
+    xx = 0.5f*x*x;
+    xy = x*y;
+    yy = 0.5f*y*y;
+    xz = x*z;
+    yz = y*z;
+    zz = 0.5f*z*z;
+    xxx = x*(onethird*xx - zz);
+    xxz = z*(xx - onethird*zz);
+    yyy = y*(onethird*yy - zz);
+    yyz = z*(yy - onethird*zz);
+    xx -= zz;
+    yy -= zz;
+    xxy = y*xx;
+    xyy = x*yy;
+    xyz = xy*z;
+
+    u3 = u2*u;
+
+    /* 0.25*R2ij */
+    R2xx = u2*m->xx;
+    R2xy = u2*m->xy;
+    R2xz = u2*m->xz;
+    R2yy = u2*m->yy;
+    R2yz = u2*m->yz;
+
+    u2 *= (1.4f*4.0f/6.0f)*u2;  /* becomes u4! */
+
+    R1x = u*m->x;
+    R1y = u*m->y;
+    R1z = u*m->z;
+
+    R2x = 4.0*(x*R2xx + y*R2xy + z*R2xz);
+    R2y = 4.0*(x*R2xy + y*R2yy + z*R2yz);
+    R2z = 4.0*(x*R2xz + y*R2yz - z*(R2xx + R2yy));
+
+    R1 = x*m->x + y*m->y + z*m->z;
+
+    /* 0.25*R3ij */
+    R3xx = u3*(x*m->xxx + y*m->xxy + z*m->xxz);
+    R3xy = u3*(x*m->xxy + y*m->xyy + z*m->xyz);
+    R3yy = u3*(x*m->xyy + y*m->yyy + z*m->yyz);
+    R3xz = u3*(x*m->xxz + y*m->xyz - z*(m->xxx + m->xyy));
+    R3yz = u3*(x*m->xyz + y*m->yyz - z*(m->xxy + m->yyy));
+
+    /* 1.4f*R4i */
+    R4x = u2*(m->xxxx*xxx + m->xyyy*yyy + m->xxxy*xxy + m->xxxz*xxz + m->xxyy*xyy + m->xxyz*xyz + m->xyyz*yyz);
+    R4y = u2*(m->xyyy*xyy + m->xxxy*xxx + m->yyyy*yyy + m->yyyz*yyz + m->xxyy*xxy + m->xxyz*xxz + m->xyyz*xyz);
+    R4z = u2*(-m->xxxx*xxz - (m->xyyy + m->xxxy)*xyz - m->yyyy*yyz + m->xxxz*xxx + m->yyyz*yyy - m->xxyy*(xxz + yyz) + m->xxyz*xxy + m->xyyz*xyy);
+
+    R3x = 2.0f*(x*R3xx + y*R3xy + z*R3xz);
+    R3y = 2.0f*(x*R3xy + y*R3yy + z*R3yz);
+    R3z = 2.0f*(x*R3xz + y*R3yz - z*(R3xx + R3yy));
+
+    /* 1.4f*R4 */
+    R4 = 0.25f*(x*R4x + y*R4y + z*R4z);
+
+    R2 = 0.5f*(x*R2x + y*R2y + z*R2z);
+
+    R3 = onethird*(x*R3x + y*R3y + z*R3z);
+
+    xx = x*x;
+    yy = y*y;
+
+    /*
+    ** Now we use the 'R's.
+    */
+    l->m += dir*(m->m + (R1 + 1.5f*(R2 + (5.0f/3.0f)*(R3 + 1.25f*R4))));
+
+    dir *= v;
+    T0 = m->m + 1.5f*(R1 + (5.0f/3.0f)*(R2 + 1.75f*(R3 + (9.0f/7.0f)*R4)));
+
+    l->x += dir*(T0*x - 0.5f*(R1x + (R2x + 1.25f*(R3x + R4x))));
+    l->y += dir*(T0*y - 0.5f*(R1y + (R2y + 1.25f*(R3y + R4y))));
+    l->z += dir*(T0*z - 0.5f*(R1z + (R2z + 1.25f*(R3z + R4z))));
+
+    dir *= 0.5f*v;
+    T0 = 3.0f*(m->m + 5.0f*(R1 + 1.75f*(R2 + 1.8f*R3)));
+
+    t1 = R0 + R1 + 1.25f*(R2 + 1.4f*R3);
+    t1x = R1x + 1.25f*(R2x + 1.4f*R3x);
+    t1y = R1y + 1.25f*(R2y + 1.4f*R3y);
+    t1z = R1z + 1.25f*(R2z + 1.4f*R3z);
+    l->xx += dir*(T0*xx - t1 - 2.0f*x*t1x + R2xx + R3xx);
+    l->yy += dir*(T0*yy - t1 - 2.0f*y*t1y + R2yy + R3yy);
+    l->xy += dir*(T0*xy - y*t1x - x*t1y + R2xy + R3xy);
+    l->xz += dir*(T0*xz - z*t1x - x*t1z + R2xz + R3xz);
+    l->yz += dir*(T0*yz - z*t1y - y*t1z + R2yz + R3yz);
+
+    dir *= v;
+    T0 = 5.0f*(m->m + 1.75f*(R1 + 1.8f*R2));
+    txx = T0*xx;
+    tyy = T0*yy;
+
+    t1 = m->m + 1.25f*(R1 + 1.4f*R2);
+    t2x = 1.25f*(R1x + 1.4f*R2x);
+    t2y = 1.25f*(R1y + 1.4f*R2y);
+    t2z = 1.25f*(R1z + 1.4f*R2z);
+    t3x = 0.25f*(R1x + R2x);
+    t3y = 0.25f*(R1y + R2y);
+    t3z = 0.25f*(R1y + R2y);
+    t1xx = txx - (t1 + 2.5f*x*t2x);
+    t1yy = tyy - (t1 + 2.5f*y*t2y);
+    l->xxx += dir*(x*(txx - 3.0f*(t1 + x*t2x)) + 3.0f*(t3x + R2xx*x));
+    l->yyy += dir*(y*(tyy - 3.0f*(t1 + y*t2y)) + 3.0f*(t3y + R2yy*y));
+    l->xxy += dir*(y*t1xx - xx*t2y + (t3y + R2xx*y + 2.0f*R2xy*x));
+    l->xxz += dir*(z*t1xx - xx*t2z + (t3z + R2xx*z + 2.0f*R2xz*x));
+    l->xyy += dir*(x*t1yy - yy*t2x + (t3x + R2yy*x + 2.0f*R2xy*y));
+    l->yyz += dir*(z*t1yy - yy*t2z + (t3z + R2yy*z + 2.0f*R2yz*y));
+    l->xyz += dir*(T0*xyz - (yz*t2x + xz*t2y + xy*t2z) + (R2xy*z + R2yz*x + R2xz*y));
+
+    dir *= 0.25f*v;
+    T0 = 7.0f*(m->m + 1.8f*R1);
+    txx = T0*xx;
+    tyy = T0*yy;
+
+    t3xx = R1 + 2.0f*R1x*x;
+    t3yy = R1 + 2.0f*R1y*y;
+    t1 = m->m - R1;
+    l->xxxx += dir*(5.0f*xx*(txx - (6.0*m->m + 2.8f*(t3xx + 2.0f*R1))) + 3.0f*(t1 + 2.0f*t3xx)); 
+    l->yyyy += dir*(5.0f*yy*(tyy - (6.0*m->m + 2.8f*(t3yy + 2.0f*R1))) + 3.0f*(t1 + 2.0f*t3yy));
+    l->xxyy += dir*(5.0f*(yy*(txx - m->m - 1.4f*t3xx) - xx*(m->m + 1.4f*t3yy)) + (t1 + t3xx + t3yy));
+    t1xx = txx - 3.0f*(m->m + 0.7f*(R1 + t3xx));
+    t2xx = 7.0f*xx - 3.0f;
+    l->xxxy += dir*(5.0f*xy*t1xx - R1y*x*t2xx + 3.0f*R1x*y);
+    l->xxxz += dir*(5.0f*xz*t1xx - R1z*x*t2xx + 3.0f*R1x*z);
+    t1yy = tyy - 3.0f*(m->m + 0.7*(R1 + t3yy));
+    t2yy = 7.0f*yy - 3.0f;
+    l->xyyy += dir*(5.0f*xy*t1yy - R1x*y*t2yy + 3.0f*R1y*x);
+    l->yyyz += dir*(5.0f*yz*t1yy - R1z*y*t2yy + 3.0f*R1y*z);
+    l->xxyz += dir*(yz*(5.0f*(txx - m->m) - 7.0f*t3xx) - 7.0f*xx*(R1y*z + R1z*y) + (R1y*z + R1z*y));
+    l->xyyz += dir*(xz*(5.0f*(tyy - m->m) - 7.0f*t3yy) - 7.0f*yy*(R1x*z + R1z*x) + (R1x*z + R1z*x));
+
+    dir *= v*m->m;
+    x *= dir;
+    y *= dir;
+    z *= dir;
+
+    l->xxxxx += x*(7.0f*xx*(9.0f*xx - 10.0f) + 15.0f);
+    l->yyyyy += y*(7.0f*yy*(9.0f*yy - 10.0f) + 15.0f);
+    l->xxyyz += z*(7.0f*(xx*(9.0f*yy - 1.0f) - yy) + 1.0f);
+    txx = (3.0f*xx - 1.0f);
+    tyy = (3.0f*yy - 1.0f);
+    txxxx = (21.0f*xx*(txx - 1.0f) + 3.0f);
+    tyyyy = (21.0f*yy*(tyy - 1.0f) + 3.0f);
+    l->xxxxy += y*txxxx;
+    l->xxxxz += z*txxxx;
+    l->xyyyy += x*tyyyy;
+    l->yyyyz += z*tyyyy;
+    l->xxxyz += xy*z*(21.0f*txx);
+    l->xxxyy += x*(7.0f*(3.0f*yy*txx - xx) + 3.0f);
+    l->xyyyz += xy*z*(21.0f*tyy);
+    l->xxyyy += y*(7.0f*(3.0f*xx*tyy - yy) + 3.0f);
+}
 
 
 void momLoccAddMomrAccurate(LOCC *l,MOMC *m,momFloat g0,momFloat x,momFloat y,momFloat z) {
