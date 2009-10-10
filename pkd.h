@@ -51,14 +51,6 @@ typedef uint_fast64_t total_t; /* Count of particles globally (total number) */
 #define CID_PNG         2
 
 /*
-** Here we define some special reserved nodes. Node-0 is a sentinel or null node, node-1
-** is here defined as the ROOT of the local tree (or top tree), node-2 is unused and
-** node-3 is the root node for the very active tree.
-*/
-#define VAROOT          3
-#define ROOT		1
-#define NRESERVED_NODES 4
-/*
 ** These macros implement the index manipulation tricks we use for moving
 ** around in the top-tree. Note: these do NOT apply to the local-tree!
 */
@@ -122,6 +114,15 @@ typedef struct pIO {
 
 #define PKD_MAX_CLASSES 256
 #define MAX_RUNG     63
+
+/*
+** Here we define some special reserved nodes. Node-0 is a sentinel or null node, node-1
+** is here defined as the ROOT of the local tree (or top tree), node-2 is unused and
+** node-3 is the root node for the very active tree.
+*/
+#define VAROOT          3
+#define ROOT		1
+#define NRESERVED_NODES MAX_RUNG+1
 
 typedef struct partclass {
     double      fMass;    /* Particle mass */
@@ -302,33 +303,31 @@ typedef struct kdNode {
     uint32_t nActive; /* local active count used for DD */
     uint8_t uMinRung;
     uint8_t uMaxRung;
+  uint8_t bSrcActive;
     uint8_t bDstActive;
     } KDN;
 
 
 #ifdef NEW_TREE
-#define MAX_NBUCKET 7
+#define MAX_NBUCKET 5
 
 typedef struct kdNew {
-    double r[3];
-    double v[3];
+    float s;  /* scale of the cell, if -ve then it indicates a bucket! */
     union celltype {
 	struct cell {
 	    double dSplit;
 	    uint32_t iLower;
 	    uint32_t iUpper;
-	    uint32_t iParent:
 	    uint16_t idLower;
 	    uint16_t idUpper;
-	    uint16_t idParent;
-	    uint16_t uPad16;
 	    } c;
 	struct bucket {
 	    uint32_t iPart[MAX_NBUCKET];
 	    } b;
 	};
-    uint64_t uCount:48
-    MOMR mom;
+    FMOMR mom;
+    double r[3];
+    double v[3];
     } KDNEW;
 #endif
 
@@ -618,6 +617,7 @@ typedef struct pkdContext {
     int oNodeMom; /* a MOMR */
     int oNodeVelocity; /* Three doubles */
     int oNodeAcceleration; /* Three doubles */
+  int oNodeSPHBounds; /* Three Bounds */
 
     /*
     ** Tree walk variables.
