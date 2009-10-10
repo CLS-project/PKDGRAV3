@@ -18,12 +18,12 @@ typedef double momFloat;
 #endif
 
 typedef struct momDiaReduced {
-    float m;
+    float m,s;
     float x,y,z;
     float xx,yy,xy,xz,yz;
     float xxx,xyy,xxy,yyy,xxz,yyz,xyz;
     float xxxx,xyyy,xxxy,yyyy,xxxz,yyyz,xxyy,xxyz,xyyz;
-    } MOMDR;
+    } MOMRS;
 
 /*
  ** moment tensor components for reduced multipoles.
