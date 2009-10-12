@@ -607,13 +607,13 @@ void smSmooth(SMX smx,SMF *smf) {
     ** Initialize the priority queue first.
     */
     for (i=0;i<smx->nSmooth;++i) {
-	pq[i].pPart = &smx->pSentinel;
-	pq[i].bRemote = 0;
-	pq[i].dx = smx->pSentinel.r[0];
-	pq[i].dy = smx->pSentinel.r[1];
-	pq[i].dz = smx->pSentinel.r[2];
-	pq[i].fDist2 = pow(pq[i].dx,2) + pow(pq[i].dy,2) + 
-	    pow(pq[i].dz,2);
+	smx->pq[i].pPart = &smx->pSentinel;
+	smx->pq[i].bRemote = 0;
+	smx->pq[i].dx = smx->pSentinel.r[0];
+	smx->pq[i].dy = smx->pSentinel.r[1];
+	smx->pq[i].dz = smx->pSentinel.r[2];
+	smx->pq[i].fDist2 = pow(smx->pq[i].dx,2) + pow(smx->pq[i].dy,2) + 
+	    pow(smx->pq[i].dz,2);
     }
     for (j=0;j<3;++j) rLast[j] = 0.0;
 
@@ -624,14 +624,14 @@ void smSmooth(SMX smx,SMF *smf) {
 	** Correct distances and rebuild priority queue.
 	*/
 	for (i=0;i<smx->nSmooth;++i) {
-	    pq[i].dx += p->r[0]-rLast[0];
-	    pq[i].dy += p->r[1]-rLast[1];
-	    pq[i].dz += p->r[2]-rLast[2];
-	    pq[i].fDist2 = pow(pq[i].dx,2) + pow(pq[i].dy,2) + 
-		pow(pq[i].dz,2);
+	    smx->pq[i].dx += p->r[0]-rLast[0];
+	    smx->pq[i].dy += p->r[1]-rLast[1];
+	    smx->pq[i].dz += p->r[2]-rLast[2];
+	    smx->pq[i].fDist2 = pow(smx->pq[i].dx,2) + pow(smx->pq[i].dy,2) + 
+		pow(smx->pq[i].dz,2);
 	}
 	for (j=0;j<3;++j) rLast[j] = p->r[j];
-	PQ_BUILD(pq,smx->nSmooth,pq);
+	PQ_BUILD(smx->pq,smx->nSmooth,pq);
 
 	pq = pqSearch(smx,pq,p->r,0,&bDone);
 	/*
