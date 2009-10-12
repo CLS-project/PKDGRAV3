@@ -5240,7 +5240,10 @@ void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint) {
 	msrActiveRung(msr,0,1); /* Activate all particles */
 	msrDomainDecomp(msr,0,1,0);
 	msrBuildTree(msr,dTime,0);
+
+	msrSelSrcGas(msr);  /* FOR TESTING!! of gas active particles */
 	bSymmetric = 0; /* FOR TESTING!!*/
+
 	msrSmooth(msr,dTime,SMX_DENSITY,bSymmetric);
 	}
 
