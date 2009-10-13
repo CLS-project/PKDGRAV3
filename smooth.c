@@ -340,20 +340,20 @@ PQ *pqSearchLocal(SMX smx,PQ *pq,FLOAT r[3],int *pbDone) {
 	    fDist2 = dx*dx + dy*dy + dz*dz;
 	    if (fDist2 < pq->fDist2) {
 		smx->nInactive[pj] = 1; /* de-activate a particle that enters the queue */
-		if (pq->pid == idSelf) {
-		    smx->bInactive[pq->pj] = 0;
+		if (pq->iPid == idSelf) {
+		    smx->bInactive[pq->iIndex] = 0;
 		} 
 		else {
 		    PQ_HASHDEL(pq->pPart);
 		    mdlRelease(pkd->mdl,CID_PARTICLE,pq->pPart);
-		    pq->pid = idSelf;
+		    pq->iPid = idSelf;
 		}
 		pq->pPart = p;
 		pq->fDist2 = fDist2;
 		pq->dx = dx;
 		pq->dy = dy;
 		pq->dz = dz;
-		pq->pj = pj;
+		pq->iIndex = pj;
 		PQ_REPLACE(pq);
 	    }
 	}
@@ -462,10 +462,8 @@ PQ *pqSearchRemote(SMX smx,PQ *pq,int id,FLOAT r[3]) {
 	    fDist2 = dx*dx + dy*dy + dz*dz;
 	    if (fDist2 < pq->fDist2) {
 
-	        pq->pPart->bSrcActive = 1;
-	        p->bSrcActive = 0;
-		if (pq->pid == idSelf) {
-		    smx->bInactive[pq->pj] = 0;
+		if (pq->iPid == idSelf) {
+		    smx->bInactive[pq->iIndex] = 0;
 		}
 		else {
 		    PQ_HASHDEL(pq->pPart);
@@ -476,8 +474,8 @@ PQ *pqSearchRemote(SMX smx,PQ *pq,int id,FLOAT r[3]) {
 		pq->dx = dx;
 		pq->dy = dy;
 		pq->dz = dz;
-		pq->pj = pj;
-		pq->pid = id;
+		pq->iIndex = pj;
+		pq->iPid = id;
 		PQ_REPLACE(pq);
 	    }
 	    else mdlRelease(mdl,CID_PARTICLE,p);
@@ -630,8 +628,8 @@ void smSmooth(SMX smx,SMF *smf) {
     */
     for (i=0;i<smx->nSmooth;++i) {
 	smx->pq[i].pPart = &smx->pSentinel;
-	smx->pq[i].pj = pkd->nLocal;
-	smx->pq[i].pid = pkd->idSelf;
+	smx->pq[i].iIndex = pkd->nLocal;
+	smx->pq[i].iPid = pkd->idSelf;
 	smx->pq[i].dx = smx->pSentinel.r[0];
 	smx->pq[i].dy = smx->pSentinel.r[1];
 	smx->pq[i].dz = smx->pSentinel.r[2];
@@ -693,8 +691,8 @@ void smSmooth(SMX smx,SMF *smf) {
     ** Release aquired pointers and source-reactivate particles in prioq.
     */
     for (i=0;i<smx->nSmooth;++i) {
-	if (smx->pq[i].pid == pkd->idSelf) {
-	    smx->bInactive[smx->pq[i].pj] = 0;
+	if (smx->pq[i].iPid == pkd->idSelf) {
+	    smx->bInactive[smx->pq[i].iIndex] = 0;
 	}
 	else {
 	    PQ_HASHDEL(smx->pq[i].pPart);
