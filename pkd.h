@@ -1110,6 +1110,8 @@ int pkdSelSrcGas(PKD pkd);
 int pkdSelDstGas(PKD pkd);
 int pkdSelSrcStar(PKD pkd);
 int pkdSelDstStar(PKD pkd);
+int pkdSelSrcDeleted(PKD pkd);
+int pkdSelDstDeleted(PKD pkd);
 
 int pkdSelSrcMass(PKD pkd,double dMinMass, double dMaxMass, int setIfTrue, int clearIfFalse );
 int pkdSelDstMass(PKD pkd,double dMinMass, double dMaxMass, int setIfTrue, int clearIfFalse );

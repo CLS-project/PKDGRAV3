@@ -247,6 +247,8 @@ void msrSelSrcGas(MSR msr);
 void msrSelDstGas(MSR msr);
 void msrSelSrcStar(MSR msr);
 void msrSelDstStar(MSR msr);
+void msrSelSrcDeleted(MSR msr);
+void msrSelDstDeleted(MSR msr);
 uint64_t msrSelSrcMass(MSR msr,double dMinMass,double dMaxMass,int setIfTrue,int ClearIfFalse);
 uint64_t msrSelDstMass(MSR msr,double dMinMass,double dMaxMass,int setIfTrue,int ClearIfFalse);
 uint64_t msrSelSrcById(MSR msr,uint64_t idStart,uint64_t idEnd,int setIfTrue,int clearIfFalse);

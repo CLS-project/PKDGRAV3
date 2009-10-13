@@ -187,6 +187,8 @@ enum pst_service {
     PST_SELDSTGAS,
     PST_SELSRCSTAR,
     PST_SELDSTSTAR,
+    PST_SELSRCDELETED,
+    PST_SELDSTDELETED,
     PST_SELSRCMASS,
     PST_SELDSTMASS,
     PST_SELSRCBYID,
@@ -1166,6 +1168,10 @@ void pstSelDstGas(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 /* PST_SELSRCSTAR */
 void pstSelSrcStar(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 void pstSelDstStar(PST pst,void *vin,int nIn,void *vout,int *pnOut);
+
+/* PST_SELSRCDELETED */
+void pstSelSrcDeleted(PST pst,void *vin,int nIn,void *vout,int *pnOut);
+void pstSelDstDeleted(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 
 /* PST_SELSRCMASS */
 struct inSelMass {

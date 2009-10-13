@@ -419,7 +419,7 @@ void initDistDeletedGas(void *vpkd,void *vp)
 /*
  * Zero out accumulated quantities. 
  */
-    if (pkdSpecies( pkd, p ) == FIO_SPECIES_LAST ) return; /* deleted */
+    if (pkdIsDeleted(pkd,p)) return; /* deleted */
 
     *((float *) pkdField(p,pkd->oMass))=0;
     p->r[0]=0;
@@ -453,7 +453,7 @@ void combDistDeletedGas(void *vpkd,void *vp1,void *vp2)
      * Distribute u, v, and fMetals for particles returning from cache
      * so that everything is conserved nicely.  
      */
-    if (pkdSpecies( pkd, p1 ) == FIO_SPECIES_LAST ) return; /* deleted */
+    if (pkdIsDeleted(pkd,p1)) return; /* deleted */
 
     p2mass = pkdField(p2,pkd->oMass);
     if (*p2mass > 0) {	
@@ -493,16 +493,17 @@ void DistDeletedGas(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf)
     int i;
     
     /* JW: Assert deleted? -- yes once smooth is reliable */
-    if (!pkdSpecies( pkd, p ) == FIO_SPECIES_LAST ) return; /* not deleted */
+    if (!pkdIsDeleted( pkd, p )) return; /* not deleted */
 
     pmass = pkdField(p,pkd->oMass);
+//    printf("smoothing deleted gas from %d %d : %g\n",(int) p->iOrder,(int) pkdIsGas(pkd,p),pmass);
     if (*pmass <= 0) return;
 
     ih2 = 4.0/(p->fBall*p->fBall);
     rstot = 0;        
     for (i=0;i<nSmooth;++i) {
 	q = nnList[i].pPart;
-	if (pkdSpecies( pkd, q ) == FIO_SPECIES_LAST ) continue; /* deleted */
+	if (pkdIsDeleted(pkd,q)) continue; /* deleted */
 	assert(pkdIsGas(pkd,q));
 	r2 = nnList[i].fDist2*ih2;            
 	KERNEL(rs,r2);
@@ -513,7 +514,8 @@ void DistDeletedGas(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf)
     fNorm = *pmass/rstot;
     for (i=0;i<nSmooth;++i) {
 	q = nnList[i].pPart;
-	if (pkdSpecies( pkd, q ) == FIO_SPECIES_LAST ) continue; /* deleted */
+	if (pkdIsDeleted(pkd,q)) continue; /* deleted */
+//	printf("smoothing deleted gas to %d %d : %g %g\n",(int) q->iOrder,(int) pkdIsGas(pkd,q),pkdMass(pkd,q),pmass);
 	
 	r2 = nnList[i].fDist2*ih2;            
 	KERNEL(rs,r2);
@@ -644,7 +646,7 @@ void DistSNEnergy(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf)
 	r2 = nnList[i].fDist2*ih2;            
 	q = nnList[i].pPart;
 	if (!pkdIsGas(pkd,q)) continue;
-	if (pkdSpecies( pkd, q ) == FIO_SPECIES_LAST ) continue; /* deleted */
+	if (pkdIsDeleted(pkd,q)) continue; /* deleted */
 	if (r2 < r2min) {
 	    r2min = r2;
 	    qmin = q;
@@ -668,7 +670,7 @@ void DistSNEnergy(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf)
 	for (i=0;i<nSmooth;++i) {
 	    q = nnList[i].pPart;
 	    if (!pkdIsGas(pkd,q)) continue;
-	    if (pkdSpecies( pkd, q ) == FIO_SPECIES_LAST ) continue; /* deleted */
+	    if (pkdIsDeleted(pkd,q)) continue; /* deleted */
 	    if (uNewRung > q->uNewRung) q->uNewRung = uNewRung;
 	    }
 	return; /* Now exit */
@@ -717,7 +719,7 @@ void DistSNEnergy(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf)
     for (i=0;i<nSmooth;++i) {
 	q = nnList[i].pPart;
 	if (!pkdIsGas(pkd,q)) continue;
-	if (pkdSpecies( pkd, q ) == FIO_SPECIES_LAST ) continue; /* deleted */
+	if (pkdIsDeleted(pkd,q)) continue; /* deleted */
 	if (uNewRung > q->uNewRung) q->uNewRung = uNewRung;
         }
 

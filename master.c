@@ -1182,6 +1182,18 @@ void msrLogParams(MSR msr,FILE *fp) {
 	}
     fprintf(fp,"\n# STARFORM: bStarForm %d",msr->param.bStarForm);
     fprintf(fp," bFeedback %d",msr->param.bFeedback);
+    fprintf(fp," SFdEfficiency %g",msr->param.SFdEfficiency);
+    fprintf(fp," SFdTMax %g",msr->param.SFdTMax);
+    fprintf(fp," SFdPhysDenMin %g",msr->param.SFdPhysDenMin);
+    fprintf(fp," SFdComovingDenMin %g",msr->param.SFdComovingDenMin);
+    fprintf(fp," SFdESNPerStarMass %g",msr->param.SFdESNPerStarMass);
+    fprintf(fp,"\n# SFdtCoolingShutoff %g",msr->param.SFdtCoolingShutoff);
+    fprintf(fp," SFdtFeedbackDelay %g",msr->param.SFdtFeedbackDelay);
+    fprintf(fp," SFdMassLossPerStarMass %g",msr->param.SFdMassLossPerStarMass);
+    fprintf(fp," SFdZMassPerStarMass %g",msr->param.SFdZMassPerStarMass);
+    fprintf(fp," SFdInitStarMass %g",msr->param.SFdInitStarMass);
+    fprintf(fp," SFdMinGasMass %g",msr->param.SFdMinGasMass);
+    fprintf(fp," SFbdivv %d",msr->param.SFbdivv);
     /* -- */
     fprintf(fp,"\n# Group Find: bFindGroups: %d",msr->param.bFindGroups);
     fprintf(fp," dTau: %g",msr->param.dTau);
@@ -3475,7 +3487,7 @@ void msrStarForm(MSR msr, double dTime)
     
     if (out.nDeleted) {
 	msrSelSrcGas(msr); /* Not really sure what the setting here needs to be */
-	msrSelDstGas(msr);  
+	msrSelDstDeleted(msr);  
 	msrActiveRung(msr,0,1);
 	msrBuildTree(msr,dTime,msr->param.bEwald);
 	msrSmooth(msr, dTime, SMX_DIST_DELETED_GAS, 1);
@@ -5339,6 +5351,13 @@ void msrSelSrcStar(MSR msr) {
     }
 void msrSelDstStar(MSR msr) {
     pstSelDstStar(msr->pst, NULL, 0, NULL, NULL );
+    }
+
+void msrSelSrcDeleted(MSR msr) {
+    pstSelSrcDeleted(msr->pst, NULL, 0, NULL, NULL );
+    }
+void msrSelDstDeleted(MSR msr) {
+    pstSelDstDeleted(msr->pst, NULL, 0, NULL, NULL );
     }
 
 uint64_t msrSelSrcById(MSR msr,uint64_t idStart,uint64_t idEnd,int setIfTrue,int clearIfFalse) {

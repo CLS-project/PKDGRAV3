@@ -2683,7 +2683,9 @@ void pkdStarForm(PKD pkd, double dRateCoeff, double dTMax, double dDenMin,
 		    *pMass = 0;
 		    }
 	        if (*pMass < dMinGasMass) {
+//		    printf("Delete* particle %d %d %d %d, %g\n",(int) p->iOrder,(int) pkdIsGas(pkd,p),pkdSpecies( pkd, p ), FIO_SPECIES_SPH,*pMass);
 		    pkdDeleteParticle(pkd, p);
+//		    printf("Deleted particle %d %d %d %d, %g\n",(int) p->iOrder,(int) pkdIsGas(pkd,p),pkdSpecies( pkd, p ),FIO_SPECIES_LAST,*pMass);
 		    (*nDeleted)++;
 		    }
 
@@ -2920,8 +2922,7 @@ void pkdDeleteParticle(PKD pkd, PARTICLE *p) {
 #endif
 
     /* p->iOrder = -2 - p->iOrder; JW: Not needed -- just preserve iOrder */
-
-    getClass(pkd,0.0,0.0,FIO_SPECIES_LAST,p); /* Special "DELETED" class == FIO_SPECIES_LAST */
+    getClass(pkd,pkdMass(pkd,p),pkdSoft(pkd,p),FIO_SPECIES_LAST,p); /* Special "DELETED" class == FIO_SPECIES_LAST */
     }
 
 void pkdNewParticle(PKD pkd, PARTICLE *p) {
@@ -3996,6 +3997,28 @@ int pkdSelDstStar(PKD pkd) {
     for( i=0; i<n; i++ ) {
 	p=pkdParticle(pkd,i);
 	if (pkdIsStar(pkd,p)) p->bDstActive = 1; else p->bDstActive = 0;
+	}
+    return n;
+    }
+
+int pkdSelSrcDeleted(PKD pkd) {
+    int i;
+    int n=pkdLocal(pkd);
+    PARTICLE *p;
+    for( i=0; i<n; i++ ) {
+	p=pkdParticle(pkd,i);
+	if (pkdIsDeleted(pkd,p)) p->bSrcActive = 1; else p->bSrcActive = 0;
+	}
+    return n;
+    }
+
+int pkdSelDstDeleted(PKD pkd) {
+    int i;
+    int n=pkdLocal(pkd);
+    PARTICLE *p;
+    for( i=0; i<n; i++ ) {
+	p=pkdParticle(pkd,i);
+	if (pkdIsDeleted(pkd,p)) p->bDstActive = 1; else p->bDstActive = 0;
 	}
     return n;
     }
