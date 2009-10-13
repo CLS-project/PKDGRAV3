@@ -170,14 +170,12 @@ int smInitialize(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodic,int bSymme
     }
     /*
     ** Allocate Nearest-Neighbor List.
-    ** And also the associated list bRemote flags.
     */
     smx->nnListSize = 0;
     smx->nnListMax = NNLIST_INCREMENT;
     smx->nnList = malloc(smx->nnListMax*sizeof(NN));
     assert(smx->nnList != NULL);
-    smx->nnbRemote = malloc(smx->nnListMax*sizeof(int));
-    assert(smx->nnbRemote != NULL);
+
     /*
     ** Allocate priority queue.
     */
@@ -213,6 +211,11 @@ int smInitialize(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodic,int bSymme
     }
     smx->pSentinel.bSrcActive = 1;
     smx->pSentinel.bDstActive = 0;
+    /*
+    ** Need to cast the pLite to an array for char for local flags.
+    */
+    smx->bInactive = UNION_CAST(pkd->pLite,PLITE *,char *);
+   
     *psmx = smx;
     return(1);
 }
@@ -278,7 +281,6 @@ void smFinish(SMX smx,SMF *smf) {
     free(smx->SminT);
     free(smx->pq);
     free(smx->nnList);
-    free(smx->nnbRemote);
     free(smx);
 }
 
@@ -293,9 +295,10 @@ PQ *pqSearchLocal(SMX smx,PQ *pq,FLOAT r[3],int *pbDone) {
     FLOAT dx,dy,dz,dMin,min1,min2,fDist2;
     FLOAT *Smin = smx->Smin;
     int *S = smx->S;
-    int i,j,pj,pWant,pEnd,iCell,iParent;
+    int i,j,pj,pEnd,iCell,iParent;
     int sp = 0;
     int sm = 0;
+    int idSelf = pkd->idSelf;
 
     *pbDone = 1;	/* assume that we will complete the search */
     /*
@@ -329,24 +332,28 @@ PQ *pqSearchLocal(SMX smx,PQ *pq,FLOAT r[3],int *pbDone) {
 	}
 	pEnd = kdn->pUpper;
 	for (pj=kdn->pLower;pj<=pEnd;++pj) {
+	    if (smx->bInactive[pj]) continue;
 	    p = pkdParticle(pkd,pj);
-	    if (!p->bSrcActive) continue;
 	    dx = r[0] - p->r[0];
 	    dy = r[1] - p->r[1];
 	    dz = r[2] - p->r[2];
 	    fDist2 = dx*dx + dy*dy + dz*dz;
 	    if (fDist2 < pq->fDist2) {
-		pq->pPart->bSrcActive = 1; /* re-activate a particle that falls out of the queue */
-		p->bSrcActive = 0; /* de-activate a particle that enters the queue */
-		if (pq->bRemote) {
+		smx->nInactive[pj] = 1; /* de-activate a particle that enters the queue */
+		if (pq->pid == idSelf) {
+		    smx->bInactive[pq->pj] = 0;
+		} 
+		else {
+		    PQ_HASHDEL(pq->pPart);
 		    mdlRelease(pkd->mdl,CID_PARTICLE,pq->pPart);
-		    pq->bRemote = 0;
+		    pq->pid = idSelf;
 		}
 		pq->pPart = p;
 		pq->fDist2 = fDist2;
 		pq->dx = dx;
 		pq->dy = dy;
 		pq->dz = dz;
+		pq->pj = pj;
 		PQ_REPLACE(pq);
 	    }
 	}
@@ -404,11 +411,12 @@ PQ *pqSearchRemote(SMX smx,PQ *pq,int id,FLOAT r[3]) {
     FLOAT dx,dy,dz,min1,min2,fDist2;
     FLOAT *Smin = smx->Smin;
     int *S = smx->S;
-    int pj,pWant,pEnd,iCell;
+    int pj,pEnd,iCell;
     int sp = 0;
     int sm = 0;
+    int idSelf = pkd->idSelf;
 
-    assert(id != smx->pkd->idSelf);
+    assert(id != idSelf);
     kdn = pkdTreeNode(pkd,iCell = ROOT);
     S[sp] = iCell;
     pkdn = mdlAquire(mdl,CID_CELL,iCell,id);
@@ -443,6 +451,7 @@ PQ *pqSearchRemote(SMX smx,PQ *pq,int id,FLOAT r[3]) {
 	pEnd = pkdn->pUpper;
 	for (pj=pkdn->pLower;pj<=pEnd;++pj) {
 	    p = mdlAquire(mdl,CID_PARTICLE,pj,id);
+	    if (PQ_INQUEUE(p)) continue;
 	    if (!p->bSrcActive) {
 		mdlRelease(mdl,CID_PARTICLE,p);
 		continue;
@@ -452,17 +461,23 @@ PQ *pqSearchRemote(SMX smx,PQ *pq,int id,FLOAT r[3]) {
 	    dz = r[2] - p->r[2];
 	    fDist2 = dx*dx + dy*dy + dz*dz;
 	    if (fDist2 < pq->fDist2) {
+
 	        pq->pPart->bSrcActive = 1;
 	        p->bSrcActive = 0;
-		if (pq->bRemote) {
+		if (pq->pid == idSelf) {
+		    smx->bInactive[pq->pj] = 0;
+		}
+		else {
+		    PQ_HASHDEL(pq->pPart);
 		    mdlRelease(mdl,CID_PARTICLE,pq->pPart);
 		}
-		else pq->bRemote = 1;
 		pq->pPart = p;
 		pq->fDist2 = fDist2;
 		pq->dx = dx;
 		pq->dy = dy;
 		pq->dz = dz;
+		pq->pj = pj;
+		pq->pid = id;
 		PQ_REPLACE(pq);
 	    }
 	    else mdlRelease(mdl,CID_PARTICLE,p);
@@ -604,11 +619,19 @@ void smSmooth(SMX smx,SMF *smf) {
     int ix,iy,iz;
 
     /*
+    ** Initialize the bInactive flags for all local particles.
+    */
+    for (pi=0;pi<pkd->nLocal;++pi) {
+	p = pkdParticle(pkd,pi);
+	smx->bInactive = (p->bSrcActive)?0:1;
+    }
+    /*
     ** Initialize the priority queue first.
     */
     for (i=0;i<smx->nSmooth;++i) {
 	smx->pq[i].pPart = &smx->pSentinel;
-	smx->pq[i].bRemote = 0;
+	smx->pq[i].pj = pkd->nLocal;
+	smx->pq[i].pid = pkd->idSelf;
 	smx->pq[i].dx = smx->pSentinel.r[0];
 	smx->pq[i].dy = smx->pSentinel.r[1];
 	smx->pq[i].dz = smx->pSentinel.r[2];
@@ -658,19 +681,9 @@ void smSmooth(SMX smx,SMF *smf) {
 	}
 	p->fBall = sqrt(pq->fDist2);
 	/*
-	** I should not need to copy this info again here. JS
-	*/
-	for (i=0;i<smx->nSmooth;++i) {
-	    smx->nnList[i].pPart = smx->pq[i].pPart;
-	    smx->nnList[i].fDist2 = smx->pq[i].fDist2;
-	    smx->nnList[i].dx = smx->pq[i].dx;
-	    smx->nnList[i].dy = smx->pq[i].dy;
-	    smx->nnList[i].dz = smx->pq[i].dz;
-	}
-	/*
 	** Apply smooth funtion to the neighbor list.
 	*/
-	smx->fcnSmooth(p,smx->nSmooth,smx->nnList,smf);
+	smx->fcnSmooth(p,smx->nSmooth,smx->pq,smf);
 	/*
 	** Call mdlCacheCheck to make sure we are making progress!
 	*/
@@ -680,11 +693,12 @@ void smSmooth(SMX smx,SMF *smf) {
     ** Release aquired pointers and source-reactivate particles in prioq.
     */
     for (i=0;i<smx->nSmooth;++i) {
-	if (smx->pq[i].bRemote) {
-	    mdlRelease(pkd->mdl,CID_PARTICLE,smx->pq[i].pPart);
+	if (smx->pq[i].pid == pkd->idSelf) {
+	    smx->bInactive[smx->pq[i].pj] = 0;
 	}
 	else {
-	    smx->pq[i].pPart->bSrcActive = 1;
+	    PQ_HASHDEL(smx->pq[i].pPart);
+	    mdlRelease(pkd->mdl,CID_PARTICLE,smx->pq[i].pPart);
 	}
     }
 }
@@ -698,9 +712,8 @@ void smGatherLocal(SMX smx,FLOAT fBall2,FLOAT r[3]) {
     int *S = smx->S;
     int sp = 0;
     int iCell,pj,nCnt,pEnd;
-    int idSelf;
+    int idSelf = pkd->idSelf;
 
-    idSelf = smx->pkd->idSelf;
     nCnt = smx->nnListSize;
     kdn = pkdTreeNode(pkd,iCell = ROOT);
     while (1) {
@@ -730,17 +743,14 @@ void smGatherLocal(SMX smx,FLOAT fBall2,FLOAT r[3]) {
 			smx->nnListMax += NNLIST_INCREMENT;
 			smx->nnList = realloc(smx->nnList,smx->nnListMax*sizeof(NN));
 			assert(smx->nnList != NULL);
-			smx->nnbRemote = realloc(smx->nnbRemote,smx->nnListMax*sizeof(int));
-			assert(smx->nnbRemote != NULL);
 		    }
 		    smx->nnList[nCnt].fDist2 = fDist2;
 		    smx->nnList[nCnt].dx = dx;
 		    smx->nnList[nCnt].dy = dy;
 		    smx->nnList[nCnt].dz = dz;
 		    smx->nnList[nCnt].pPart = p;
-		    smx->nnList[nCnt].iPid = idSelf;
-		    smx->nnList[nCnt].iIndex = pj;
-		    smx->nnbRemote[nCnt] = 0;
+		    smx->nnList[nCnt].pj = pj;
+		    smx->nnList[nCnt].pid = idSelf;
 		    ++nCnt;
 		}
 	    }
@@ -799,17 +809,14 @@ void smGatherRemote(SMX smx,FLOAT fBall2,FLOAT r[3],int id) {
 			smx->nnListMax += NNLIST_INCREMENT;
 			smx->nnList = realloc(smx->nnList,smx->nnListMax*sizeof(NN));
 			assert(smx->nnList != NULL);
-			smx->nnbRemote = realloc(smx->nnbRemote,smx->nnListMax*sizeof(int));
-			assert(smx->nnbRemote != NULL);
 		    }
 		    smx->nnList[nCnt].fDist2 = fDist2;
 		    smx->nnList[nCnt].dx = dx;
 		    smx->nnList[nCnt].dy = dy;
 		    smx->nnList[nCnt].dz = dz;
 		    smx->nnList[nCnt].pPart = pp;
-		    smx->nnList[nCnt].iPid = id;
-		    smx->nnList[nCnt].iIndex = pj;
-		    smx->nnbRemote[nCnt] = 1;
+		    smx->nnList[nCnt].pj = pj;
+		    smx->nnList[nCnt].pid = id;
 		    ++nCnt;
 		}
 		else mdlRelease(mdl,CID_PARTICLE,pp);
@@ -866,6 +873,52 @@ void smGather(SMX smx,FLOAT fBall2,FLOAT r[3]) {
     }
 }
 
+void smDoGatherLocal(SMX smx,FLOAT fBall2,FLOAT r[3],void (*Do)(SMX,PARTICLE *,FLOAT)) {
+    PKD pkd = smx->pkd;
+    KDN *kdn;
+    PARTICLE *p;
+    FLOAT min2,dx,dy,dz,fDist2;
+    int *S = smx->S;
+    int sp = 0;
+    int iCell,pj,nCnt,pEnd;
+    int idSelf = pkd->idSelf;
+
+    nCnt = smx->nnListSize;
+    kdn = pkdTreeNode(pkd,iCell = ROOT);
+    while (1) {
+	MINDIST(kdn->bnd,r,min2);
+	if (min2 > fBall2) {
+	    goto NoIntersect;
+	}
+	/*
+	** We have an intersection to test.
+	*/
+	if (kdn->iLower) {
+	    kdn = pkdTreeNode(pkd,iCell = kdn->iLower);
+	    S[sp++] = iCell+1;
+	    continue;
+	}
+	else {
+	    pEnd = kdn->pUpper;
+	    for (pj=kdn->pLower;pj<=pEnd;++pj) {
+		p = pkdParticle(pkd,pj);
+		if ( !pkdIsSrcActive(p,0,MAX_RUNG) ) continue;
+		dx = r[0] - p->r[0];
+		dy = r[1] - p->r[1];
+		dz = r[2] - p->r[2];
+		fDist2 = dx*dx + dy*dy + dz*dz;
+		if (fDist2 <= fBall2) {
+		    Do(smx,p,fDist2);
+		}
+	    }
+	}
+    NoIntersect:
+	if (sp) kdn = pkdTreeNode(pkd,iCell = S[--sp]);
+	else break;
+    }
+}
+
+
 void smReSmoothOne(SMX smx,SMF *smf,void *p,FLOAT *R,FLOAT fBall) {
     PKD pkd = smx->pkd;
     FLOAT r[3];
@@ -906,7 +959,7 @@ void smReSmoothOne(SMX smx,SMF *smf,void *p,FLOAT *R,FLOAT fBall) {
     ** Release aquired pointers.
     */
     for (i=0;i<smx->nnListSize;++i) {
-	if (smx->nnbRemote[i]) {
+	if (smx->nnList[i].bRemote) {
 	    mdlRelease(pkd->mdl,CID_PARTICLE,smx->nnList[i].pPart);
 	}
     }
@@ -1021,6 +1074,7 @@ void smFof(SMX smx,SMF *smf) {
     int *Fifo;
     int iStart[3],iEnd[3];
     int ix,iy,iz;
+    int idSelf = pkd->idSelf;
 
     FLOAT r[3],l[3],relpos[3],lx,ly,lz,fBall,fBall2Max,rho,fvBall2;
     FLOAT fMass;
@@ -1099,7 +1153,7 @@ void smFof(SMX smx,SMF *smf) {
     /* Starting FOF search now... */
     for (pn=0;pn<nTree;pn++) {
 	p = pkdParticle(pkd,pn);
-	if ( !pkdIsSrcActive(p,0,MAX_RUNG) ) continue;
+	if ( !pkdIsDstActive(p,0,MAX_RUNG) ) continue;
 	pGroup = pkdInt32(p,pkd->oGroup);
 	if (*pGroup ) continue;
 	iGroup++;
@@ -1121,7 +1175,7 @@ void smFof(SMX smx,SMF *smf) {
 	    /*
 	    ** Do a Ball Gather at the radius p->fBall
 	    */
-	    smx->nnListSize =0;
+	    smx->nnListSize = 0;
 	    fBall = sqrt(p->fBall);
 	    if (smx->bPeriodic) {
 		for (j=0;j<3;++j) {
@@ -1144,7 +1198,7 @@ void smFof(SMX smx,SMF *smf) {
 	    }
 	    nCnt = smx->nnListSize;
 	    for (pnn=0;pnn<nCnt;++pnn ) {
-		if (smx->nnbRemote[pnn] == 0) { /* Local neighbors: */
+		if (smx->nnList[pnn].pid == idSelf) { /* Local neighbors: */
 
 		    /* Do not add particles which already are in a group*/
 		    pPartGroup = pkdInt32(smx->nnList[pnn].pPart,pkd->oGroup);
@@ -1158,7 +1212,7 @@ void smFof(SMX smx,SMF *smf) {
 		    **  Mark particle and add it to the do-fifo
 		    */
 		    *pPartGroup = iGroup;
-		    Fifo[iTail] = smx->nnList[pnn].iIndex;iTail++;
+		    Fifo[iTail] = smx->nnList[pnn].pj;iTail++;
 		    if (iTail == nFifo) iTail = 0;
 	      
 		} else {	 /* Nonlocal neighbors: */
@@ -1173,8 +1227,8 @@ void smFof(SMX smx,SMF *smf) {
 		    }
 		
 		    /* Add to remote member (RM) list if new */
-		    rm_data.iIndex = smx->nnList[pnn].iIndex ;
-		    rm_data.iPid = smx->nnList[pnn].iPid;
+		    rm_data.iIndex = smx->nnList[pnn].pj;
+		    rm_data.iPid = smx->nnList[pnn].pid;
 
 		    if ( rb_insert(&rm_type,&protoGroup[iGroup].treeRemoteMembers,&rm_data) ) {
 			nRmCnt++;
@@ -1202,7 +1256,7 @@ void smFof(SMX smx,SMF *smf) {
     ** Create a remapping and give unique local Ids !
     */
     iMaxGroups = iGroup;
-    iGroup= 1 + pkd->idSelf;
+    iGroup= 1 + idSelf;
     pkd->nGroups = 0;
     protoGroup[0].iId = tmp;
     for (i=1;i<=iMaxGroups;i++) {
@@ -1615,6 +1669,37 @@ int smGroupMerge(SMF *smf,int bPeriodic) {
     return nMyGroups;
 }
 
+
+void DoBins(SMX smx,PARTICLE *p,FLOAT fDist2) {
+    FOFGD *pCurGrp = smx->pCurrentGroup;
+    FOFBIN *pBin;
+    int iStart,nBins,pid;
+
+    iStart = pCurGrp->first.FirstBin;
+    nBins = pCurGrp->num.nBin;
+    pid = pCurGrp->pid;
+
+    /* JS: calc this in an arithmetic way. */
+    k = 0;
+    while (fDist2 > pkd->groupBin[iBin+k].fRadius*pkd->groupBin[iBin+k].fRadius) {
+	k++;
+	if ( k == smf->nBins) goto nextParticle;
+    }
+
+    
+
+    fMass = pkdMass(pkd,p);
+    if (pid != smx->pkd->idSelf) {
+	pBin = mdlAquire(smx->pkd->mdl,CID_BIN,iBin,pid);
+    } else {
+	pBin = pkd->groupBin[iBin];
+    }
+    pBin->nMembers++;
+    pBin->fMassInBin += fMass;
+    if (pid != smx->pkd->idSelf) mdlRelease(smx->pkd->mdl,CID_BIN,pBin);
+}
+
+
 int smGroupProfiles(SMX smx, SMF *smf, int nTotalGroups) {
     PKD pkd = smf->pkd;
     MDL mdl = smf->pkd->mdl;
@@ -1728,27 +1813,13 @@ int smGroupProfiles(SMX smx, SMF *smf, int nTotalGroups) {
 		    r[1] = com[1] - iy*pkd->fPeriod[1];
 		    for (iz=iStart[2];iz<=iEnd[2];++iz) {
 			r[2] = com[2] - iz*pkd->fPeriod[2];
-			smGatherLocal(smx,fBall*fBall,r);
+			smGatherLocal(smx,fBall*fBall,r,DoBins);
 		    }
 		}
 	    }
 	}
 	else {
-	    smGatherLocal(smx,fBall*fBall,com);
-	}
-	nCnt = smx->nnListSize;
-	for (pnn=0;pnn<nCnt;++pnn ) {
-	    iBin = index*smf->nBins;
-	    k = 0;
-	    while (smx->nnList[pnn].fDist2 > pkd->groupBin[iBin+k].fRadius*pkd->groupBin[iBin+k].fRadius) {
-		k++;
-		if ( k == smf->nBins) goto nextParticle;
-	    }
-	    fMass = pkdMass(pkd,smx->nnList[pnn].pPart);
-	    pkd->groupBin[iBin+k].nMembers++;
-	    pkd->groupBin[iBin+k].fMassInBin += fMass;
-	nextParticle:
-	    ;
+	    smGatherLocal(smx,fBall*fBall,com,DoBins);
 	}
     }
     /*
