@@ -377,7 +377,7 @@ int smInitialize(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodic,int bSymme
     smx->pFreeHash = &smx->pHash[i];
     for (;i<(smx->nHash+nSmooth-1);++i) {
 	smx->pHash[i].p = NULL;
-	smx->pHash[i].coll = smx->pHash[i+1].coll;
+	smx->pHash[i].coll = &smx->pHash[i+1];
     }
     smx->pHash[i].p = NULL;
     smx->pHash[i].coll = NULL;
