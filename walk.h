@@ -4,6 +4,13 @@
 
 #include "pkd.h"
 
+/*
+** This is really means that the cell MIGHT have an active particle, but it 
+** is not for certain, since the contained DstActive particles may not lie in 
+** the rung range. To be certain that there are actually active particles
+** one has to look at all particles of this cell (recursively walking the 
+** subcells).
+*/
 static inline int pkdIsCellActive(KDN *c,uint8_t uRungLo,uint8_t uRungHi) {
     return (uRungLo <= c->uMaxRung && uRungHi >= c->uMinRung) && c->bDstActive;
     }

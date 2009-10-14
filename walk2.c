@@ -258,24 +258,38 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 	** in order to set a good initial center for the P-P interaction list.
 	*/
 	pkdd = pkdTreeNode(pkd,iCellDescend = iCell);
-	while (pkdd->iLower) {
-	    pkdd = pkdTreeNode(pkd,iCellDescend = pkdd->iLower);
-	    if (!pkdIsCellActive(pkdd,uRungLo,uRungHi)) {
-		/*
-		** Move onto processing the sibling.
-		*/
-		pkdd = pkdTreeNode(pkd,++iCellDescend);
+	while (1) {
+	    while (pkdd->iLower) {
+		pkdd = pkdTreeNode(pkd,iCellDescend = pkdd->iLower);
+		if (!pkdIsCellActive(pkdd,uRungLo,uRungHi)) {
+		    /*
+		    ** Move onto processing the sibling.
+		    */
+		    pkdd = pkdTreeNode(pkd,++iCellDescend);
 		}
 	    }
-	for (pj=pkdd->pLower;pj<=pkdd->pUpper;++pj) {
-	    p = pkdParticle(pkd,pj);
-	    if (!pkdIsDstActive(p,uRungLo,uRungHi)) continue;
-	    cx = p->r[0];
-	    cy = p->r[1];
-	    cz = p->r[2];
-	    break;
+	    for (pj=pkdd->pLower;pj<=pkdd->pUpper;++pj) {
+		p = pkdParticle(pkd,pj);
+		if (!pkdIsDstActive(p,uRungLo,uRungHi)) continue;
+		cx = p->r[0];
+		cy = p->r[1];
+		cz = p->r[2];
+		goto found_it;
 	    }
-	assert(pj <= kdn0->pUpper);  /* otherwise we did not come to an active particle */
+	    while (iCellDescend&1) {
+		iCellDescend = pkdd->iParent;
+		if (bVeryActive) {
+		    if (iCellDescend == VAROOT) return 0;
+		}
+		else if (iCellDescend == ROOT) return 0;
+		pkdd = pkdTreeNode(pkd,iCellDescend);
+	    }
+	    /*
+	    ** Move onto processing the sibling.
+	    */
+	    pkdd = pkdTreeNode(pkd,++iCellDescend);
+	}
+    found_it:
 	d2c = (cx - pkd->ilp->cx)*(cx - pkd->ilp->cx) + (cy - pkd->ilp->cy)*(cy - pkd->ilp->cy) +
 	      (cz - pkd->ilp->cz)*(cz - pkd->ilp->cz);
 	/*if (d2c > pkd->ilp->d2cmax) {*/
