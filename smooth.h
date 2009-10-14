@@ -1,4 +1,3 @@
-
 #ifndef SMOOTH_HINCLUDED
 #define SMOOTH_HINCLUDED
 #define SMOOTH_H_MODULE_ID "$Id$"
@@ -13,7 +12,7 @@
 
 
 struct hashElement {
-    PARTICLE *p;
+    void *p;
     struct hashElement *coll;
 };
 
@@ -54,73 +53,6 @@ typedef struct smContext {
     int *ST;
     FLOAT *SminT;
     } * SMX;
-
-
-/*
-** Assumes that p does not already occur in the hash table!!!
-*/
-inline void smHashAdd(SMX smx,PARTICLE *p) {
-    struct hashElement *t;
-    uint32_t i = p%smx->nHash;
-    if (!smx->pHash[i].p) {
-	smx->pHash[i] = p;
-    }
-    else {
-	t = smx->pFreeHash;
-	assert(t != NULL);
-	smx->pFreeHash = t->coll;
-	t->coll = smx->pHash[i].coll;
-	smx->pHash[i].coll = t;
-	t->p = p;
-    }
-}
-
-/*
-** Assumes that p is definitely in the hash table!!!
-*/
-inline void smHashDel(SMX smx,PARTICLE *p) {
-    struct hashElement *t,*tt;
-    uint32_t i = p%smx->nHash;
-    if (!smx->pHash[i].coll) {
-	/*
-	** It has to be the first element.
-	*/
-	smx->pHash[i].p = NULL;
-    }
-    else if (smx->pHash[i].p == p) {
-	/*
-	** It is the first element, but there are others!
-	*/
-	t = smx->pHash[i].coll;
-	smx->pHash[i].coll = t->coll;
-	smx->pHash[i].p = t->p;
-	t->coll = smx->pFreeHash;
-	smx->pFreeHash = t;
-    }
-    else {
-	tt = &smx->pHash[i];
-	while (tt->next->p != p) tt = tt->next;
-	t = tt->coll;
-	tt->coll = t->coll; /* unlink */
-	t->coll = smx->pFreeHash;
-	smx->pFreeHash = t;	
-    }
-}
-
-
-inline int smHashPresent(SMX smx,PARTICLE *p) {
-    struct hashElement *t;
-    uint32_t i = p%smx->nHash;
-
-    if (smx->pHash[i].p == p) return 1;
-    t = smx->pHash[i].coll;
-    while (t) {
-	if (t->p == p) return 1;
-	else t = t->coll;
-    }
-    return 0;
-}
-
 
 
 int smInitialize(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,

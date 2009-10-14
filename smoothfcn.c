@@ -92,6 +92,7 @@ void Density(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
     ih2 = 4.0/BALL2(p);
     fDensity = 0.0;
     for (i=0;i<nSmooth;++i) {
+	if (p->iOrder == 0) printf("NN:%lld\n",nnList[i].pPart->iOrder);
 	fMass = pkdMass(pkd,nnList[i].pPart);
 	r2 = nnList[i].fDist2*ih2;
 	KERNEL(rs,r2);

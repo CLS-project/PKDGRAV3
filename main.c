@@ -369,8 +369,10 @@ int main(int argc,char **argv) {
 		    }
 		
 		if (msrDoGas(msr)) {
+/*
 		    msrCoolSetup(msr,dTime);
 		    msrInitSph(msr,dTime);
+*/
 		    }
 		   
 		msrUpdateRung(msr,0); /* set rungs for output */

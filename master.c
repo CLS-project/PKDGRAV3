@@ -5257,6 +5257,8 @@ void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint) {
 	bSymmetric = 0; /* FOR TESTING!!*/
 
 	msrSmooth(msr,dTime,SMX_DENSITY,bSymmetric);
+
+	msrSelSrcAll(msr);  /* FOR TESTING!! of gas active particles */
 	}
 
     if ( msr->param.bFindGroups ) {

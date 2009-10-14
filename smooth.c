@@ -13,7 +13,6 @@
 #include <assert.h>
 #include "smooth.h"
 #include "pkd.h"
-#include "smoothfcn.h"
 #include "rbtree.h"
 #include <sys/stat.h>
 
@@ -125,12 +124,80 @@ const int primes[1000] = {
 };
 
 
+/*
+** Assumes that p does not already occur in the hash table!!!
+*/
+void smHashAdd(SMX smx,void *p) {
+    struct hashElement *t;
+    uint32_t i = UNION_CAST(p,void *,uint64_t)%smx->nHash;
+    if (!smx->pHash[i].p) {
+	smx->pHash[i].p = p;
+    }
+    else {
+	t = smx->pFreeHash;
+	assert(t != NULL);
+	smx->pFreeHash = t->coll;
+	t->coll = smx->pHash[i].coll;
+	smx->pHash[i].coll = t;
+	t->p = p;
+    }
+}
+
+/*
+** Assumes that p is definitely in the hash table!!!
+*/
+void smHashDel(SMX smx,void *p) {
+    struct hashElement *t,*tt;
+    uint32_t i = UNION_CAST(p,void *,uint64_t)%smx->nHash;
+
+    if (!smx->pHash[i].coll) {
+	/*
+	** It has to be the first element.
+	*/
+	smx->pHash[i].p = NULL;
+    }
+    else if (smx->pHash[i].p == p) {
+	/*
+	** It is the first element, but there are others!
+	*/
+	t = smx->pHash[i].coll;
+	smx->pHash[i].coll = t->coll;
+	smx->pHash[i].p = t->p;
+	t->coll = smx->pFreeHash;
+	smx->pFreeHash = t;
+    }
+    else {
+	tt = &smx->pHash[i];
+	while (tt->coll->p != p) tt = tt->coll;
+	t = tt->coll;
+	tt->coll = t->coll; /* unlink */
+	t->coll = smx->pFreeHash;
+	smx->pFreeHash = t;	
+    }
+}
+
+
+int smHashPresent(SMX smx,void *p) {
+    struct hashElement *t;
+    uint32_t i = UNION_CAST(p,void *,uint64_t)%smx->nHash;
+
+    if (smx->pHash[i].p == p) return 1;
+    t = smx->pHash[i].coll;
+    while (t) {
+	if (t->p == p) return 1;
+	else t = t->coll;
+    }
+    return 0;
+}
+
+
+
 int smInitialize(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodic,int bSymmetric,int iSmoothType) {
     SMX smx;
     void (*initParticle)(void *,void *) = NULL;
     void (*init)(void *,void *) = NULL;
     void (*comb)(void *,void *,void *) = NULL;
-    int pi,j;
+    int i,pi,j;
     int nTree;
     int iTopDepth;
 
@@ -292,7 +359,7 @@ int smInitialize(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodic,int bSymme
     ** the 1000'th prime we end up using the result here as the hash table modulus.
     */
     smx->nHash = (int)floor(nSmooth*1.543765241931);
-    for (i=0;i<1000,++i) {
+    for (i=0;i<1000;++i) {
 	if (primes[i] > smx->nHash) {
 	    smx->nHash = primes[i];
 	    break;
@@ -486,7 +553,7 @@ PQ *pqSearchLocal(SMX smx,PQ *pq,FLOAT r[3],int *pbDone) {
 		pq->dy = dy;
 		pq->dz = dz;
 		pq->iIndex = pj;
-		smx->nInactive[pj] = 1; /* de-activate a particle that enters the queue */
+		smx->bInactive[pj] = 1; /* de-activate a particle that enters the queue */
 		PQ_REPLACE(pq);
 	    }
 	}
@@ -584,7 +651,7 @@ PQ *pqSearchRemote(SMX smx,PQ *pq,int id,FLOAT r[3]) {
 	pEnd = pkdn->pUpper;
 	for (pj=pkdn->pLower;pj<=pEnd;++pj) {
 	    p = mdlAquire(mdl,CID_PARTICLE,pj,id);
-	    if (smHashPresent(p)) continue;
+	    if (smHashPresent(smx,p)) continue;
 	    if (!p->bSrcActive) {
 		mdlRelease(mdl,CID_PARTICLE,p);
 		continue;
@@ -756,7 +823,7 @@ void smSmooth(SMX smx,SMF *smf) {
 	p = pkdParticle(pkd,pi);
 	smx->bInactive[pi] = (p->bSrcActive)?0:1;
     }
-    smx->nInactive[pkd->nLocal] = 0;  /* initialize for Sentinel, but this is not really needed */
+    smx->bInactive[pkd->nLocal] = 0;  /* initialize for Sentinel, but this is not really needed */
     /*
     ** Initialize the priority queue first.
     */
@@ -829,7 +896,7 @@ void smSmooth(SMX smx,SMF *smf) {
 	    smx->bInactive[smx->pq[i].iIndex] = 0;
 	}
 	else {
-	    PQ_HASHDEL(smx->pq[i].pPart);
+	    smHashDel(smx,smx->pq[i].pPart);
 	    mdlRelease(pkd->mdl,CID_PARTICLE,smx->pq[i].pPart);
 	}
     }
@@ -881,8 +948,8 @@ void smGatherLocal(SMX smx,FLOAT fBall2,FLOAT r[3]) {
 		    smx->nnList[nCnt].dy = dy;
 		    smx->nnList[nCnt].dz = dz;
 		    smx->nnList[nCnt].pPart = p;
-		    smx->nnList[nCnt].pj = pj;
-		    smx->nnList[nCnt].pid = idSelf;
+		    smx->nnList[nCnt].iIndex = pj;
+		    smx->nnList[nCnt].iPid = idSelf;
 		    ++nCnt;
 		}
 	    }
@@ -947,8 +1014,8 @@ void smGatherRemote(SMX smx,FLOAT fBall2,FLOAT r[3],int id) {
 		    smx->nnList[nCnt].dy = dy;
 		    smx->nnList[nCnt].dz = dz;
 		    smx->nnList[nCnt].pPart = pp;
-		    smx->nnList[nCnt].pj = pj;
-		    smx->nnList[nCnt].pid = id;
+		    smx->nnList[nCnt].iIndex = pj;
+		    smx->nnList[nCnt].iPid = id;
 		    ++nCnt;
 		}
 		else mdlRelease(mdl,CID_PARTICLE,pp);
@@ -970,7 +1037,6 @@ void smGatherRemote(SMX smx,FLOAT fBall2,FLOAT r[3],int id) {
 void smGather(SMX smx,FLOAT fBall2,FLOAT r[3]) {
     KDN *kdn;
     PKD pkd = smx->pkd;
-    int idSelf = pkd->idSelf;
     int *S = smx->ST;
     FLOAT min2;
     int iCell,id;
@@ -992,7 +1058,7 @@ void smGather(SMX smx,FLOAT fBall2,FLOAT r[3]) {
 	}
 	else {
 	    id = kdn->pLower; /* this is the thread id in LTT */
-	    if (id != idSelf) {
+	    if (id != pkd->idSelf) {
 		smGatherRemote(smx,fBall2,r,id);
 	    }
 	    else {
@@ -1091,7 +1157,7 @@ void smReSmoothOne(SMX smx,SMF *smf,void *p,FLOAT *R,FLOAT fBall) {
     ** Release aquired pointers.
     */
     for (i=0;i<smx->nnListSize;++i) {
-	if (smx->nnList[i].bRemote) {
+	if (smx->nnList[i].iPid != pkd->idSelf) {
 	    mdlRelease(pkd->mdl,CID_PARTICLE,smx->nnList[i].pPart);
 	}
     }
@@ -1330,7 +1396,7 @@ void smFof(SMX smx,SMF *smf) {
 	    }
 	    nCnt = smx->nnListSize;
 	    for (pnn=0;pnn<nCnt;++pnn ) {
-		if (smx->nnList[pnn].pid == idSelf) { /* Local neighbors: */
+		if (smx->nnList[pnn].iPid == idSelf) { /* Local neighbors: */
 
 		    /* Do not add particles which already are in a group*/
 		    pPartGroup = pkdInt32(smx->nnList[pnn].pPart,pkd->oGroup);
@@ -1344,7 +1410,7 @@ void smFof(SMX smx,SMF *smf) {
 		    **  Mark particle and add it to the do-fifo
 		    */
 		    *pPartGroup = iGroup;
-		    Fifo[iTail] = smx->nnList[pnn].pj;iTail++;
+		    Fifo[iTail] = smx->nnList[pnn].iIndex;iTail++;
 		    if (iTail == nFifo) iTail = 0;
 	      
 		} else {	 /* Nonlocal neighbors: */
@@ -1359,8 +1425,8 @@ void smFof(SMX smx,SMF *smf) {
 		    }
 		
 		    /* Add to remote member (RM) list if new */
-		    rm_data.iIndex = smx->nnList[pnn].pj;
-		    rm_data.iPid = smx->nnList[pnn].pid;
+		    rm_data.iIndex = smx->nnList[pnn].iIndex;
+		    rm_data.iPid = smx->nnList[pnn].iPid;
 
 		    if ( rb_insert(&rm_type,&protoGroup[iGroup].treeRemoteMembers,&rm_data) ) {
 			nRmCnt++;
@@ -1802,6 +1868,7 @@ int smGroupMerge(SMF *smf,int bPeriodic) {
 }
 
 
+#if 0
 void DoBins(SMX smx,PARTICLE *p,FLOAT fDist2) {
     FOFGD *pCurGrp = smx->pCurrentGroup;
     FOFBIN *pBin;
@@ -1830,9 +1897,10 @@ void DoBins(SMX smx,PARTICLE *p,FLOAT fDist2) {
     pBin->fMassInBin += fMass;
     if (pid != smx->pkd->idSelf) mdlRelease(smx->pkd->mdl,CID_BIN,pBin);
 }
-
+#endif
 
 int smGroupProfiles(SMX smx, SMF *smf, int nTotalGroups) {
+#if 0
     PKD pkd = smf->pkd;
     MDL mdl = smf->pkd->mdl;
     PARTICLE *p;
@@ -1974,4 +2042,7 @@ int smGroupProfiles(SMX smx, SMF *smf, int nTotalGroups) {
     }
     pkd->nBins =  nBins;
     return nBins;
+#endif
 }
+
+
