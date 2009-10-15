@@ -2659,8 +2659,10 @@ void pkdStarForm(PKD pkd, double dRateCoeff, double dTMax, double dDenMin,
 	if (pkdIsActive(pkd,p) && pkdIsGas(pkd,p)) {
 	    sph = pkdSph(pkd,p);
 	    if (p->fDensity < dDenMin || (bdivv && sph->divv >= 0.0)) continue;
-	    E = sph->u;
-	    CoolTempFromEnergyCode( pkd->Cool, &cp, &E, &T, p->fDensity, sph->fMetals );
+	    E = sph->uPred;
+	    if (pkd->param.bGasCooling) 
+		CoolTempFromEnergyCode( pkd->Cool, &cp, &E, &T, p->fDensity, sph->fMetals );
+	    else T=E/pkd->param.dTuFac;
 	    if (T > dTMax) continue;
 	    
             /* Note: Ramses allows for multiple stars per step -- but we have many particles
@@ -2724,7 +2726,7 @@ void pkdCooling(PKD pkd, double dTime, double z, int bUpdateState, int bUpdateTa
     if (bIsothermal)  {
 	for (i=0;i<pkdLocal(pkd);++i) {
 	    p = pkdParticle(pkd,i);
-	    sph->uDot = 0;
+	    pkdSph(pkd,p)->uDot = 0;
 	    }
 	}
     else {

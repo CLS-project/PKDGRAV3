@@ -823,7 +823,7 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
 	if (!prmSpecified(msr->prm, "iDiffusion")) msr->param.iDiffusion=1;
 	}
 
-    if (msrDoGas(msr)) {
+    {
 	int nCoolingSet=0;
 	if (msr->param.bGasIsothermal) nCoolingSet++; 
 	if (msr->param.bGasCooling) nCoolingSet++; 
