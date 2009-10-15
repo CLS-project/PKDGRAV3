@@ -461,7 +461,7 @@ static int tipsyWriteStandardDark(FIO fio,
     double dTmp;
 
     assert(fio->eFormat == FIO_FORMAT_TIPSY && fio->eMode==FIO_MODE_WRITING);
-    assert(iOrder == tio->iOrder++ + tio->iStart);
+//    assert(iOrder == tio->iOrder++ + tio->iStart);  // JW: needs to handle non-contiguous iOrders
     if (!xdr_float(&tio->xdr,&fMass)) return 0;
     for(d=0;d<3;d++) {
 	if (tio->bDoublePos) {
