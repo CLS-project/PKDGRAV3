@@ -52,11 +52,11 @@ AM_CONDITIONAL(FFTW, test "x$FFTW" = "xyes")
 # Local expansions - default is enabled
 AC_ARG_ENABLE(local-expansion,
   [  --disable-local-expansion      disable local expansion code],
-  [LOCAL_EXPANSION="$enableval"],[LOCAL_EXPANION="yes"])
+  [LOCAL_EXPANSION="$enableval"],[LOCAL_EXPANSION="yes"])
 # Local expansions... this is the preferred flag
 AC_ARG_ENABLE(fmm,
   [  --disable-fmm                  disable local expansion code],
-  [LOCAL_EXPANSION="$enableval"],[LOCAL_EXPANION="yes"])
+  [LOCAL_EXPANSION="$enableval"],[LOCAL_EXPANSION="yes"])
 if test "x$LOCAL_EXPANSION" != "xno" ; then
    AC_DEFINE([LOCAL_EXPANSION], 1,
  	[Define if local expansions should be used.])
