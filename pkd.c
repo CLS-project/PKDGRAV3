@@ -2708,7 +2708,7 @@ void pkdStarForm(PKD pkd, double dRateCoeff, double dTMax, double dDenMin,
 }
 
 
-void pkdCooling(PKD pkd, double dTime, double z, int bUpdateState, int bUpdateTable, int bIterateDt )
+void pkdCooling(PKD pkd, double dTime, double z, int bUpdateState, int bUpdateTable, int bIterateDt, int bIsothermal )
     {
     PARTICLE *p;
     int i,n;
@@ -2721,57 +2721,65 @@ void pkdCooling(PKD pkd, double dTime, double z, int bUpdateState, int bUpdateTa
   
     assert(pkd->oSph);
 
-    CoolSetTime( pkd->Cool, dTime, z, bUpdateTable );
-    
-    if (bIterateDt) { /* Iterate Cooling & dt for each particle */
+    if (bIsothermal)  {
 	for (i=0;i<pkdLocal(pkd);++i) {
 	    p = pkdParticle(pkd,i);
-	    if (pkdIsActive(pkd,p) && pkdIsGas(pkd,p)) {
-		if (pkdStar(pkd,p)->fTimer > dTime) continue;
-		sph = pkdSph(pkd,p);
-		ExternalHeating = sph->uDot;
-		for (;;) {
-		    double uDot;
-
-		    E = sph->u;
-		    dt = pkd->param.dDelta/(1<<p->uNewRung); /* Rung Guess */
-		    CoolIntegrateEnergyCode(pkd->Cool, &cp, &E, ExternalHeating, p->fDensity, sph->fMetals, p->r, dt);
-		    uDot = (E-sph->u)/dt; 
-		    if (uDot < 0) {
-			double dtNew;
-			int uNewRung;
-			dtNew = pkd->param.dEtaUDot*sph->u/fabs(uDot);
-			uNewRung = pkdDtToRung(dtNew,pkd->param.dDelta,pkd->param.iMaxRung-1);
-			if (uNewRung > p->uNewRung) {
-			    p->uNewRung = uNewRung;
-			    continue;
-			    }
-			}
-		    sph->uDot = uDot;
-		    break;
-		    }
-/*	    printf("%d %d: %g %g %g *%g* %g %g,\n",i,p->iOrder,*pkd_u(pkd,p),*pkd_uDot(pkd,p),*pkd_divv(pkd,p),*pkd_divv(pkd,p)*pkd->param.dDelta,pkd->param.dDelta,dT); */
-		}
+	    sph->uDot = 0;
 	    }
 	}
     else {
-	for (i=0;i<pkdLocal(pkd);++i) {
-	    p = pkdParticle(pkd,i);
-	    if (pkdIsActive(pkd,p) && pkdIsGas(pkd,p)) {
-		if (pkdStar(pkd,p)->fTimer > dTime) {
-//		    printf("COOLING shut off %d: %g %g %g  %g %g\n",p->iOrder,pkdStar(pkd,p)->fTimer,dTime,(dTime-pkdStar(pkd,p)->fTimer)*1.7861e+18/(365.*60*60*24.)/1e6,pkdSph(pkd,p)->u,pkdSph(pkd,p)->uPred);
-		    continue;
+
+	CoolSetTime( pkd->Cool, dTime, z, bUpdateTable );
+	
+	if (bIterateDt) { /* Iterate Cooling & dt for each particle */
+	    for (i=0;i<pkdLocal(pkd);++i) {
+		p = pkdParticle(pkd,i);
+		if (pkdIsActive(pkd,p) && pkdIsGas(pkd,p)) {
+		    if (pkdStar(pkd,p)->fTimer > dTime) continue;
+		    sph = pkdSph(pkd,p);
+		    ExternalHeating = sph->uDot;
+		    for (;;) {
+			double uDot;
+			
+			E = sph->u;
+			dt = pkd->param.dDelta/(1<<p->uNewRung); /* Rung Guess */
+			CoolIntegrateEnergyCode(pkd->Cool, &cp, &E, ExternalHeating, p->fDensity, sph->fMetals, p->r, dt);
+			uDot = (E-sph->u)/dt; 
+			if (uDot < 0) {
+			    double dtNew;
+			    int uNewRung;
+			    dtNew = pkd->param.dEtaUDot*sph->u/fabs(uDot);
+			    uNewRung = pkdDtToRung(dtNew,pkd->param.dDelta,pkd->param.iMaxRung-1);
+			    if (uNewRung > p->uNewRung) {
+				p->uNewRung = uNewRung;
+				continue;
+				}
+			    }
+			sph->uDot = uDot;
+			break;
+			}
+/*	    printf("%d %d: %g %g %g *%g* %g %g,\n",i,p->iOrder,*pkd_u(pkd,p),*pkd_uDot(pkd,p),*pkd_divv(pkd,p),*pkd_divv(pkd,p)*pkd->param.dDelta,pkd->param.dDelta,dT); */
 		    }
-		sph = pkdSph(pkd,p);
-		ExternalHeating = sph->uDot;
-		E = sph->u;
-		dt = pkd->param.dDelta/(1<<p->uRung); /* Actual Rung */
-		CoolIntegrateEnergyCode(pkd->Cool, &cp, &E, ExternalHeating, p->fDensity, sph->fMetals, p->r, dt);
-		sph->uDot = (E-sph->u)/dt; /* To let us interpolate/extrapolate uPred */
+		}
+	    }
+	else {
+	    for (i=0;i<pkdLocal(pkd);++i) {
+		p = pkdParticle(pkd,i);
+		if (pkdIsActive(pkd,p) && pkdIsGas(pkd,p)) {
+		    if (pkdStar(pkd,p)->fTimer > dTime) {
+//		    printf("COOLING shut off %d: %g %g %g  %g %g\n",p->iOrder,pkdStar(pkd,p)->fTimer,dTime,(dTime-pkdStar(pkd,p)->fTimer)*1.7861e+18/(365.*60*60*24.)/1e6,pkdSph(pkd,p)->u,pkdSph(pkd,p)->uPred);
+			continue;
+			}
+		    sph = pkdSph(pkd,p);
+		    ExternalHeating = sph->uDot;
+		    E = sph->u;
+		    dt = pkd->param.dDelta/(1<<p->uRung); /* Actual Rung */
+		    CoolIntegrateEnergyCode(pkd->Cool, &cp, &E, ExternalHeating, p->fDensity, sph->fMetals, p->r, dt);
+		    sph->uDot = (E-sph->u)/dt; /* To let us interpolate/extrapolate uPred */
+		    }
 		}
 	    }
 	}
-    
     pkdStopTimer(pkd,1);
     }
 

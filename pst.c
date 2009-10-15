@@ -3199,7 +3199,7 @@ void pstCooling(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 	if (outUp.MaxTime > out->MaxTime) out->MaxTime = outUp.MaxTime;
 	}
     else {
-	pkdCooling(plcl->pkd,in->dTime,in->z,in->bUpdateState,in->bUpdateTable,in->bIterateDt);
+	pkdCooling(plcl->pkd,in->dTime,in->z,in->bUpdateState,in->bUpdateTable,in->bIterateDt,in->bIsothermal);
 	out->Time = pkdGetTimer(plcl->pkd,1);
 	out->MaxTime = out->Time;
 	out->SumTime = out->Time;

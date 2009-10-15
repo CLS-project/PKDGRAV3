@@ -823,6 +823,19 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
 	if (!prmSpecified(msr->prm, "iDiffusion")) msr->param.iDiffusion=1;
 	}
 
+    if (msrDoGas(msr)) {
+	int nCoolingSet=0;
+	if (msr->param.bGasIsothermal) nCoolingSet++; 
+	if (msr->param.bGasCooling) nCoolingSet++; 
+	if (!prmSpecified(msr->prm, "bGasAdiabatic") && nCoolingSet) msr->param.bGasAdiabatic=0;
+	else if (msr->param.bGasAdiabatic) nCoolingSet++;
+
+	if (nCoolingSet != 1) {
+	    fprintf(stderr,"One of bGasAdiabatic (%d), bGasIsothermal (%d) and bGasCooling (%d) may be set\n", msr->param.bGasAdiabatic, msr->param.bGasIsothermal, msr->param.bGasCooling);
+	    assert(0);
+	    }
+	}
+    
     /* Star parameter checks */
 
     if (msr->param.bStarForm) {
@@ -4091,7 +4104,7 @@ void msrCooling(MSR msr,double dTime,double dStep,int bUpdateState, int bUpdateT
     struct outCooling out;
     double a,sec,dsec;
 	
-    if (!msr->param.bGasCooling) return;
+    if (!msr->param.bGasCooling && !msr->param.bGasIsothermal) return;
     if (msr->param.bVStep) printf("Calculating Cooling, Step:%f\n",dStep);
     sec = msrTime();
 
@@ -4101,6 +4114,7 @@ void msrCooling(MSR msr,double dTime,double dStep,int bUpdateState, int bUpdateT
     in.bUpdateState = bUpdateState;
     in.bUpdateTable = bUpdateTable;
     in.bIterateDt = bIterateDt;
+    in.bIsothermal = msr->param.bGasIsothermal;
     
     if (bUpdateTable) {
 	printf("Cooling: Updating Tables to z=%g\n",in.z);

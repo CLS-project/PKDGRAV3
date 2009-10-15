@@ -806,6 +806,7 @@ struct inCooling {
     int bUpdateState;
     int bUpdateTable;
     int bIterateDt;
+    int bIsothermal;
     };
 struct outCooling {
     double Time;
