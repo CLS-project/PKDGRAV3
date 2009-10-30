@@ -226,7 +226,7 @@ void initSphForcesParticle(void *vpkd, void *vp) {
 	SPHFIELDS *psph = pkdSph(pkd,p);
 	psph->uDot = 0;
 	psph->fMetalsDot = 0;
-//	if (!(p->iOrder%10000) || p->uRung > 5) printf("RUNG %d: Grav %d\n",p->iOrder,p->uNewRung);
+//	if (!(p->iOrder%10000) || (p->uRung > 5 && !(p->iOrder%1000))) printf("RUNG %d: Grav %d\n",p->iOrder,p->uNewRung);
 	if (!pkd->param.bDoGravity) { /* Normally these are zeroed in Gravity */
 	    p->uNewRung = 0;
 	    pkdAccel(pkd,p)[0] = 0;
@@ -372,6 +372,7 @@ void SphForces(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
 	    dt2 = 0.5*q->fBall/(dtC*qsph->c+dtMu*absmu);	\
 	    if (dt2 < dtEst) dtEst=dt2; \
 	    uNewRung = pkdDtToRung(dtEst,smf->dDelta,MAX_RUNG);	\
+	    /*	    if (uNewRung > 5) if (!(p->iOrder%1000)) printf("RUNG %d: Sph %d  h %g tpc %g tp %g hq %g tqc %g tq %g\n",p->iOrder,uNewRung,ph,ph/(dtC*psph->c),ph/(dtMu*absmu),0.5*q->fBall,0.5*q->fBall/(dtC*qsph->c),0.5*q->fBall/(dtMu*absmu)); */ \
             PACTIVE( if (uNewRung > p->uNewRung ) p->uNewRung = uNewRung; );	\
             QACTIVE( if (uNewRung > q->uNewRung ) q->uNewRung = uNewRung; );	\
 	    PACTIVE( Accp *= rq*aFac; );/* aFac - convert to comoving acceleration */ \
@@ -626,17 +627,46 @@ void DistSNEnergy(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf)
     float fNorm,ih2,r2,rs,r2min,fp,fq;
     float *pmass, *qmass;
     double f1,f2,m,im,delta_m,delta_u,delta_Z;
-    double dt,c,dtC,Timer;
+    double dtp,dt,c,dtC,dtNew,Timer;
     int i,uNewRung;
 
 //    printf("STAR DIST %d\n",p->iOrder);
     if (!pkdIsStar( pkd, p )) return; /* not a star */
+
     Timer = *pkd_Timer(pkd,p);
-    if (Timer > 0) return;
+    dtp = smf->pkd->param.dDelta/(1<<p->uRung);/* size of step just completed by star */
+
+    if (p->iOrder == 32769) printf("SFTEST %i: FB? %g %g  %d %d %d  %d\n",p->iOrder,smf->dTime,dtp,p->uRung,smf->pkd->uMinRungActive,smf->pkd->uMaxRungActive,pkdIsActive(pkd,p));
+
+    if(smf->dTime-dtp > Timer+smf->SFdtFeedbackDelay) {
+	assert(pkdSph(pkd,p)->u == 0); /* Star must have fedback by now */
+	return;
+	}
+
+    // OLD: sign of Timer approach    if (Timer > 0) return;
+    assert(pkdSph(pkd,p)->u == 1); /* Star must not have fedback */
+
+    /* Keep star timestep of order Courant time in FB region */
+    dtNew=smf->SFdFBFac*p->fBall;
+    uNewRung = pkdDtToRung(dtNew,pkd->param.dDelta,pkd->param.iMaxRung-1);
+    if (uNewRung > p->uNewRung) p->uNewRung = uNewRung;
+
+    /* Has it gone off yet ? */
+    if (smf->dTime <= Timer + smf->SFdtFeedbackDelay) {
+	/* No -- but attempt to warn particles the SN is coming... by lowering timesteps */
+	/* Star dt should be suppressed in right way -- see param.SFdvFB */
+	uNewRung = p->uNewRung;
+	for (i=0;i<nSmooth;++i) {
+	    q = nnList[i].pPart;
+	    if (!pkdIsGas(pkd,q)) continue;
+	    if (pkdIsDeleted(pkd,q)) continue; /* deleted */
+	    if (uNewRung > q->uNewRung) q->uNewRung = uNewRung;
+	    }
+	return; /* Now exit */
+	}
 
 //    printf("STAR DIST A %d\n",p->iOrder);
     dtC = (1+0.6*smf->alpha)/(smf->a*smf->dEtaCourant);
-
     pmass = pkdField(p,pkd->oMass);
 
     ih2 = 4.0/(p->fBall*p->fBall);
@@ -655,29 +685,7 @@ void DistSNEnergy(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf)
     assert(qmin!=NULL); /* What if all neighbours invalid -- does that happen? */
     q=qmin;
 
-    /* Has it gone off yet ? */
-    if (smf->dTime + Timer < smf->SFdtFeedbackDelay-0.5*smf->pkd->param.dDelta/(1<<q->uRung)) {
-	/* Attempt to warn particles the SN is coming... by lowering timesteps */
-	qmass = pkdField(q,pkd->oMass);
-	delta_m = *pmass*smf->SFdMassLossPerStarMass;
-	m = *qmass + delta_m;
-	im = 1/m;
-	delta_u = smf->SFdESNPerStarMass*delta_m*im;
-
-	c = sqrt(smf->gamma*(smf->gamma-1)*(fq*pkdSph(pkd,q)->u+delta_u));
-	dt = 0.5*q->fBall/(dtC*c);
-	uNewRung = pkdDtToRung(dt,smf->pkd->param.dDelta,MAX_RUNG);	
-	for (i=0;i<nSmooth;++i) {
-	    q = nnList[i].pPart;
-	    if (!pkdIsGas(pkd,q)) continue;
-	    if (pkdIsDeleted(pkd,q)) continue; /* deleted */
-	    if (uNewRung > q->uNewRung) q->uNewRung = uNewRung;
-	    }
-	return; /* Now exit */
-	}
-
 //    printf("STAR DIST B %d\n",p->iOrder);
-
 	{
 	qmass = pkdField(q,pkd->oMass);
 	delta_m = *pmass*smf->SFdMassLossPerStarMass;
@@ -724,7 +732,8 @@ void DistSNEnergy(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf)
         }
 
     *pmass -= delta_m; /* Lower star mass */
-    *pkd_Timer(pkd,p) = fabs(Timer); /* Mark star as FB'ed */
+    pkdSph(pkd,p)->u = 0; /* Mark star as fedback */
+    if (p->iOrder == 32769) printf("SFTEST %i: FB YES %20.14g %g\n",p->iOrder,smf->dTime,dtp);
 }
 
 void initMeanVel(void *vpkd, void *pvoid) {

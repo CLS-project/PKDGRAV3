@@ -232,12 +232,10 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 	for (j=pkdn->pLower;j<=pkdn->pUpper;++j) {
 	    if (j == i) continue;
 	    pj = pkdParticle(pkd,j);
-	    if (pkdIsSrcActive(pj,0,MAX_RUNG)) {
-		fMassTmp = pkdMass(pkd,pj);
-		fSoftTmp = pkdSoft(pkd,pj);
-		vTmp = pkdVel(pkd,pj);
-		ilpAppend(ilp,pj->r[0],pj->r[1],pj->r[2],fMassTmp,4*fSoftTmp*fSoftTmp,pj->iOrder,vTmp[0],vTmp[1],vTmp[2]);
-		}
+	    fMassTmp = pkdMass(pkd,pj);
+	    fSoftTmp = pkdSoft(pkd,pj);
+	    vTmp = pkdVel(pkd,pj);
+	    ilpAppend(ilp,pj->r[0],pj->r[1],pj->r[2],fMassTmp,4*fSoftTmp*fSoftTmp,pj->iOrder,vTmp[0],vTmp[1],vTmp[2]);
 	    }
 
 	fx = p->r[0] - ilp->cx;
@@ -276,7 +274,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 		for (j=0;j<nSP;++j) {
 		    /*
 		    ** We keep this test for masses above zero for safety. 
-		    ** Tracer particles should be implemented by having bSrcActive = 0!
+		    ** Tracer particles should work without this assert.
 		    */
 		    assert(ilp->first->s.m.f[j] > 0.0);
 		    if (ilp->first->s.fourh2.f[j] > 0.0) {
@@ -500,7 +498,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 		dT = pkd->param.dEta/sqrt(dtGrav*dRhoFac);
 		p->uNewRung = pkdDtToRung(dT,pkd->param.dDelta,pkd->param.iMaxRung-1);
 		}
-	    else p->uNewRung = 0;
+	    else p->uNewRung = 0; /* Assumes current uNewRung is outdated -- not ideal */
 	    p->fDensity = rholoc;
 	    }
 	/*

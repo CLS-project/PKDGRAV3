@@ -190,6 +190,7 @@ int msrPNGResolution(MSR msr);
 int msrDoGravity(MSR msr);
 void msrInitStep(MSR msr);
 void msrSetRung(MSR msr, uint8_t uRungLo, uint8_t uRungHi, int uRung);
+void msrZeroNewRung(MSR msr, uint8_t uRungLo, uint8_t uRungHi, int uRung);
 int msrMaxRung(MSR msr);
 
 void msrSwitchTheta(MSR msr,double);
@@ -208,7 +209,7 @@ void msrSph(MSR msr, double dTime, double dStep);
 void msrSphStep(MSR msr,uint8_t uRungLo,uint8_t uRungHi,double dTime);
 void msrCoolSetup(MSR msr, double);
 void msrCooling(MSR msr,double dTime,double dStep,int bUpdateState, int bUpdateTable,int bInterateDt);
-void msrStarForm( MSR, double);
+void msrStarForm( MSR, double, int);
 /* END Gas routines */
 
 #ifdef PLANETS
@@ -246,7 +247,7 @@ void msrSelDstAll(MSR msr);
 void msrSelSrcGas(MSR msr);
 void msrSelDstGas(MSR msr);
 void msrSelSrcStar(MSR msr);
-void msrSelDstStar(MSR msr);
+void msrSelDstStar(MSR msr, int, double);
 void msrSelSrcDeleted(MSR msr);
 void msrSelDstDeleted(MSR msr);
 uint64_t msrSelSrcMass(MSR msr,double dMinMass,double dMaxMass,int setIfTrue,int ClearIfFalse);

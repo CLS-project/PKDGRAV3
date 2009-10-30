@@ -42,6 +42,7 @@ typedef struct smfParameters {
     double SFdtFeedbackDelay;
     double SFdMassLossPerStarMass;
     double SFdZMassPerStarMass;
+    double SFdFBFac;
     /* end starform */   
     PKD pkd; /* useful for diagnostics, etc. */
     } SMF;

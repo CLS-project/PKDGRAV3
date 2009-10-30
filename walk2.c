@@ -571,17 +571,15 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 			    */
 			    for (pj=pkdc->pLower;pj<=pkdc->pUpper;++pj) {
 				p = pkdParticle(pkd,pj);
-				if (pkdIsSrcActive(p,0,MAX_RUNG)) {
-				    fMass = pkdMass(pkd,p);
-				    fSoft = pkdSoft(pkd,p);
-				    v = pkdVel(pkd,p);
-				    ilpAppend(pkd->ilp,
-					      p->r[0] + pkd->Check[i].rOffset[0],
-					      p->r[1] + pkd->Check[i].rOffset[1],
-					      p->r[2] + pkd->Check[i].rOffset[2],
-					      fMass, 4*fSoft*fSoft,
-					      p->iOrder, v[0], v[1], v[2]);
-				    }
+				fMass = pkdMass(pkd,p);
+				fSoft = pkdSoft(pkd,p);
+				v = pkdVel(pkd,p);
+				ilpAppend(pkd->ilp,
+					  p->r[0] + pkd->Check[i].rOffset[0],
+					  p->r[1] + pkd->Check[i].rOffset[1],
+					  p->r[2] + pkd->Check[i].rOffset[2],
+					  fMass, 4*fSoft*fSoft,
+					  p->iOrder, v[0], v[1], v[2]);
 				}
 			    }
 			else {
@@ -595,22 +593,20 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 #endif
 			    for (pj=pkdc->pLower;pj<=pkdc->pUpper;++pj) {
 				pRemote = mdlAquire(pkd->mdl,CID_PARTICLE,pj,id);
-				if (pkdIsSrcActive(pRemote,0,MAX_RUNG)) {
-				    /*
-				    ** NOTE: We can only use iClass here if the class table was
-				    ** merged during a parallel read with GetClasses/SetClasses.
-				    ** There is no problem id a serial read was performed.
-				    */
-				    fMass = pkdMass(pkd,pRemote);
-				    fSoft = pkdSoft(pkd,pRemote);
-				    v = pkdVel(pkd,pRemote);
-				    ilpAppend(pkd->ilp,
-					      pRemote->r[0] + pkd->Check[i].rOffset[0],
-					      pRemote->r[1] + pkd->Check[i].rOffset[1],
-					      pRemote->r[2] + pkd->Check[i].rOffset[2],
-					      fMass, 4*fSoft*fSoft,
-					      pRemote->iOrder, v[0], v[1], v[2]);
-				    }
+				/*
+				** NOTE: We can only use iClass here if the class table was
+				** merged during a parallel read with GetClasses/SetClasses.
+				** There is no problem id a serial read was performed.
+				*/
+				fMass = pkdMass(pkd,pRemote);
+				fSoft = pkdSoft(pkd,pRemote);
+				v = pkdVel(pkd,pRemote);
+				ilpAppend(pkd->ilp,
+					  pRemote->r[0] + pkd->Check[i].rOffset[0],
+					  pRemote->r[1] + pkd->Check[i].rOffset[1],
+					  pRemote->r[2] + pkd->Check[i].rOffset[2],
+					  fMass, 4*fSoft*fSoft,
+					  pRemote->iOrder, v[0], v[1], v[2]);
 				mdlRelease(pkd->mdl,CID_PARTICLE,pRemote);
 				}
 #ifdef TIME_WALK_WORK

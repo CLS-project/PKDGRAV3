@@ -533,7 +533,7 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp) {
 	    x = p->r[0] - pkdn->r[0];
 	    y = p->r[1] - pkdn->r[1];
 	    z = p->r[2] - pkdn->r[2];
-	    if (pkd->oNodeMom && pkdIsSrcActive(p,0,MAX_RUNG)) {
+	    if (pkd->oNodeMom) {
 		m = pkdMass(pkd,p);
 		d2 = momMakeMomr(&mom,m,x,y,z);
 		momAddMomr(pkdNodeMom(pkd,pkdn),&mom);

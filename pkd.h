@@ -168,6 +168,7 @@ typedef struct sphfields {
 
 typedef struct starfields {
     float fTimer;  /* For gas -- cooling shutoff, for stars -- when formed */
+    double totaltime; /* diagnostic -- get rid of it */
     } STARFIELDS;   
 
 #define IORDERBITS 42    
@@ -387,7 +388,8 @@ typedef struct kdNew {
 /*  We have found that this causes errors at domain boundaries and      */
 /*  recommend NOT setting this define.                                  */
 
-#define CLASSICAL_FOPEN
+//#define CLASSICAL_FOPEN
+
 #ifdef CLASSICAL_FOPEN
 #ifdef LOCAL_EXPANSION
 #define CALCOPEN(pkdn,diCrit2,minside) {		                \
@@ -704,6 +706,10 @@ static inline int pkdIsSrcActive(PARTICLE *p,uint8_t uRungLo,uint8_t uRungHi) {
     return((p->uRung >= uRungLo)&&(p->uRung <= uRungHi)&&p->bSrcActive);
     }
 
+static inline int pkdIsRungRange(PARTICLE *p,uint8_t uRungLo,uint8_t uRungHi) {
+    return((p->uRung >= uRungLo)&&(p->uRung <= uRungHi));
+    }
+
 static inline int pkdRungVeryActive(PKD pkd) {
     return pkd->uRungVeryActive;
     }
@@ -1002,6 +1008,7 @@ void pkdKick(PKD pkd,double dTime,double dDelta,double,double,double,uint8_t uRu
 void pkdSwapAll(PKD pkd, int idSwap);
 void pkdInitStep(PKD pkd,struct parameters *p,CSM csm);
 void pkdSetRung(PKD pkd,uint8_t uRungLo, uint8_t uRungHi, uint8_t uRung);
+void pkdZeroNewRung(PKD pkd,uint8_t uRungLo, uint8_t uRungHi, uint8_t uRung);
 void pkdActiveRung(PKD pkd, int iRung, int bGreater);
 int pkdCurrRung(PKD pkd,uint8_t uRung);
 void pkdAccelStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,
@@ -1109,7 +1116,7 @@ int pkdSelDstAll(PKD pkd);
 int pkdSelSrcGas(PKD pkd);
 int pkdSelDstGas(PKD pkd);
 int pkdSelSrcStar(PKD pkd);
-int pkdSelDstStar(PKD pkd);
+int pkdSelDstStar(PKD pkd, int, double);
 int pkdSelSrcDeleted(PKD pkd);
 int pkdSelDstDeleted(PKD pkd);
 

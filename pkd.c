@@ -1754,20 +1754,6 @@ pkdGravAll(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,int bP
     MPItrace_event(10000,3);
 #endif
 
-/*
-    fprintf(stderr,"NASTY: setting uNewRung = 0\n");
-	{
-	PARTICLE *p;
-	int i;
-
-	for (i=0;i<pkdLocal(pkd);++i) {
-	    p = pkdParticle(pkd,i);
-	    if ( !pkdIsDstActive(p,uRungLo,uRungHi) ) continue;
-	    p->uNewRung = 0;
-	    }
-	}
-*/
-
     /*
     ** Set up Ewald tables and stuff.
     */
@@ -1883,7 +1869,7 @@ void pkdDrift(PKD pkd,double dTime,double dDelta,double dDeltaVPred,double dDelt
 	assert(pkd->oAcceleration);
 	for (i=0;i<n;++i) {
 	    p = pkdParticle(pkd,i);
-	    if (pkdIsDstActive(p,uRungLo,uRungHi)) {
+	    if (pkdIsRungRange(p,uRungLo,uRungHi)) {
 		v = pkdVel(pkd,p);
 		if (pkdIsGas(pkd,p)) {
 		    a = pkdAccel(pkd,p);
@@ -1898,13 +1884,14 @@ void pkdDrift(PKD pkd,double dTime,double dDelta,double dDeltaVPred,double dDelt
 		    p->r[j] += dDelta*v[j];
 		    }
 		pkdMinMax(p->r,dMin,dMax);
+		if (p->iOrder == 32769) printf("SFTEST %i: drift %20.14g   %g\n",p->iOrder,dTime,dDeltaUPred);
 		}
 	    }
 	}
     else {
 	for (i=0;i<n;++i) {
 	    p = pkdParticle(pkd,i);
-	    if (pkdIsDstActive(p,uRungLo,uRungHi)) {
+	    if (pkdIsRungRange(p,uRungLo,uRungHi)) {
 		v = pkdVel(pkd,p);
 		for (j=0;j<3;++j) {
 		    p->r[j] += dDelta*v[j];
@@ -2449,7 +2436,7 @@ void pkdKick(PKD pkd,double dTime,double dDelta,double dDeltaVPred,double dDelta
 	n = pkdLocal(pkd);
 	for (i=0;i<n;++i) {
 	    p = pkdParticle(pkd,i);
-	    if (pkdIsDstActive(p,uRungLo,uRungHi)) {
+	    if (pkdIsRungRange(p,uRungLo,uRungHi)) {
 		a = pkdAccel(pkd,p);
 		v = pkdVel(pkd,p);
 		if (pkdIsGas(pkd,p)) {
@@ -2462,6 +2449,7 @@ void pkdKick(PKD pkd,double dTime,double dDelta,double dDeltaVPred,double dDelta
 		    sph->fMetalsPred = sph->fMetals + sph->fMetalsDot*dDeltaUPred;
 		    sph->fMetals += sph->fMetalsDot*dDeltaU;
 		    }
+		if (p->iOrder == 32769) printf("SFTEST %i: kick %g   %g %g\n",p->iOrder,dTime,dDeltaU,dDeltaU*2);
 		for (j=0;j<3;++j) {
 		    v[j] += a[j]*dDelta;
 		    }
@@ -2472,7 +2460,7 @@ void pkdKick(PKD pkd,double dTime,double dDelta,double dDeltaVPred,double dDelta
 	n = pkdLocal(pkd);
 	for (i=0;i<n;++i) {
 	    p = pkdParticle(pkd,i);
-	    if (pkdIsDstActive(p,uRungLo,uRungHi)) {
+	    if (pkdIsRungRange(p,uRungLo,uRungHi)) {
 		a = pkdAccel(pkd,p);
 		v = pkdVel(pkd,p);
 		for (j=0;j<3;++j) {
@@ -2510,6 +2498,17 @@ void pkdSetRung(PKD pkd,uint8_t uRungLo, uint8_t uRungHi, uint8_t uRung) {
 	}
     }
 
+void pkdZeroNewRung(PKD pkd,uint8_t uRungLo, uint8_t uRungHi, uint8_t uRung) {  /* JW: Ugly -- need to clean up */
+    PARTICLE *p;
+    int i;
+
+    for (i=0;i<pkdLocal(pkd);++i) {
+	p = pkdParticle(pkd,i);
+	if ( !pkdIsActive(pkd,p) ) continue;
+	p->uNewRung = 0;
+	}
+    }
+
 void pkdActiveRung(PKD pkd, int iRung, int bGreater) {
     pkd->uMinRungActive = iRung;
     pkd->uMaxRungActive = bGreater ? 255 : iRung;
@@ -2537,7 +2536,7 @@ void pkdAccelStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,
     PARTICLE *p;
     float *a, *pPot;
     double *v;
-    int i;
+    int i,uNewRung;
     double vel;
     double acc;
     int j;
@@ -2550,7 +2549,7 @@ void pkdAccelStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,
 
     for (i=0;i<pkdLocal(pkd);++i) {
 	p = pkdParticle(pkd,i);
-	if (pkdIsDstActive(p,uRungLo,uRungHi)) {
+	if (pkdIsActive(pkd,p)) {
 	    v = pkdVel(pkd,p);
 	    a = pkdAccel(pkd,p);
 	    fSoft = pkdSoft(pkd,p);
@@ -2581,7 +2580,8 @@ void pkdAccelStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,
 		if (dtemp < dT)
 		    dT = dtemp;
 		}
-	    p->uNewRung = pkdDtToRung(dT,pkd->param.dDelta,pkd->param.iMaxRung-1);
+	    uNewRung = pkdDtToRung(dT,pkd->param.dDelta,pkd->param.iMaxRung-1);
+	    if (uNewRung > p->uNewRung) p->uNewRung = uNewRung;
 	    }
 	}
     }
@@ -2592,7 +2592,7 @@ void pkdSphStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,double dAccFac) {
     float *a, uDot;
     int i,j,uNewRung;
     double acc;
-    double dtNew;
+    double dtNew,dtC;
     int u1,u2,u3;
 
     assert(pkd->oAcceleration);
@@ -2600,28 +2600,38 @@ void pkdSphStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,double dAccFac) {
 
     for (i=0;i<pkdLocal(pkd);++i) {
 	p = pkdParticle(pkd,i);
-	if (pkdIsActive(pkd,p) && pkdIsGas(pkd,p)) {
-	    u1 = p->uNewRung;
-	    a = pkdAccel(pkd,p);
-	    acc = 0;
-	    for (j=0;j<3;j++) {
-		acc += a[j]*a[j];
-		}
-	    acc = sqrt(acc)*dAccFac;
-	    dtNew = FLOAT_MAXVAL;
-	    if (acc>0) dtNew = pkd->param.dEta*sqrt(p->fBall/acc);
-	    u2 = pkdDtToRung(dtNew,pkd->param.dDelta,pkd->param.iMaxRung-1);
-	    uDot = *pkd_uDot(pkd,p);
-	    if (uDot < 0) {
-		double dtemp = pkd->param.dEtaUDot*(*pkd_u(pkd,p))/fabs(uDot);
-		if (dtemp < dtNew) dtNew = dtemp;
-		u3 = pkdDtToRung(dtemp,pkd->param.dDelta,pkd->param.iMaxRung-1);
-		}
+	if (pkdIsActive(pkd,p)) {
+	    if (pkdIsGas(pkd,p)) {
+		u1 = p->uNewRung;
+		a = pkdAccel(pkd,p);
+		acc = 0;
+		for (j=0;j<3;j++) {
+		    acc += a[j]*a[j];
+		    }
+		acc = sqrt(acc)*dAccFac;
+		dtNew = FLOAT_MAXVAL;
+		if (acc>0) dtNew = pkd->param.dEta*sqrt(p->fBall/acc);
+		u2 = pkdDtToRung(dtNew,pkd->param.dDelta,pkd->param.iMaxRung-1);
+		uDot = *pkd_uDot(pkd,p);
+		u3=0;
+		if (uDot < 0) {
+		    double dtemp = pkd->param.dEtaUDot*(*pkd_u(pkd,p))/fabs(uDot);
+		    if (dtemp < dtNew) dtNew = dtemp;
+		    u3 = pkdDtToRung(dtemp,pkd->param.dDelta,pkd->param.iMaxRung-1);
+		    }
 /*	    if (p->uRung > 5) printf("%d %d: %g %g %g *%g* %g %g,\n",i,p->iOrder,*pkd_u(pkd,p),*pkd_uDot(pkd,p),*pkd_divv(pkd,p),1/(*pkd_divv(pkd,p)),pkd->param.dDelta,dtNew); */
 
-	    uNewRung = pkdDtToRung(dtNew,pkd->param.dDelta,pkd->param.iMaxRung-1);
-	    if (uNewRung > p->uNewRung) p->uNewRung = uNewRung;
-/*	    if (!(p->iOrder%10000) || p->uNewRung > 5) printf("RUNG %d: grav+sph %d acc %d udot %d final %d\n",p->iOrder,u1,u2,u3,(int) p->uNewRung);*/
+		uNewRung = pkdDtToRung(dtNew,pkd->param.dDelta,pkd->param.iMaxRung-1);
+		if (uNewRung > p->uNewRung) p->uNewRung = uNewRung;
+		if (!(p->iOrder%10000) || (p->uNewRung > 5 && !(p->iOrder%1000))) {
+		    SPHFIELDS *sph = pkdSph(pkd,p);
+		    double T, E = sph->u;
+		    COOLPARTICLE cp;
+		    if (pkd->param.bGasIsothermal) T = E/pkd->param.dTuFac;
+		    else CoolTempFromEnergyCode( pkd->Cool, &cp, &E, &T, p->fDensity, sph->fMetals );
+//		    printf("RUNG %d: grav+sph %d acc %d udot %d final %d (prev %d)\nRUNG %d: dens %16.10g temp %g r %g\n",p->iOrder,u1,u2,u3,(int) p->uNewRung,p->uRung, p->iOrder, p->fDensity, T, sqrt(p->r[0]*p->r[0]+p->r[1]*p->r[1]));
+		    }
+		}
 	    }
 	}
     }
@@ -2654,10 +2664,23 @@ void pkdStarForm(PKD pkd, double dRateCoeff, double dTMax, double dDenMin,
     starp = (PARTICLE *) malloc(pkdParticleSize(pkd));
     assert(starp != NULL);
 
+    printf("pkdSF calc dTime %g\n",dTime);
     for (i=0;i<pkdLocal(pkd);++i) {
 	p = pkdParticle(pkd,i);
+	
+	if (p->iOrder==6667) {
+	    dt = pkd->param.dDelta/(1<<p->uRung); /* Actual Rung */
+	    printf("SF %d: %d %d %d %g\n",p->iOrder,pkdIsActive(pkd,p),pkdIsGas(pkd,p),p->uRung,dt,pkdStar(pkd,p)->totaltime);
+	    }
 	if (pkdIsActive(pkd,p) && pkdIsGas(pkd,p)) {
 	    sph = pkdSph(pkd,p);
+	    dt = pkd->param.dDelta/(1<<p->uRung); /* Actual Rung */
+	    pkdStar(pkd,p)->totaltime += dt;
+	    if (p->iOrder==6667) {
+		printf("SF %d: %d %d %d %g AFTER PLUS\n",p->iOrder,pkdIsActive(pkd,p),pkdIsGas(pkd,p),p->uRung,dt,pkdStar(pkd,p)->totaltime);
+		}
+
+
 	    if (p->fDensity < dDenMin || (bdivv && sph->divv >= 0.0)) continue;
 	    E = sph->uPred;
 	    if (pkd->param.bGasCooling) 
@@ -2667,10 +2690,16 @@ void pkdStarForm(PKD pkd, double dRateCoeff, double dTMax, double dDenMin,
 	    
             /* Note: Ramses allows for multiple stars per step -- but we have many particles
 	      and he has one cell that may contain many times m_particle */
-	    dt = pkd->param.dDelta/(1<<p->uRung); /* Actual Rung */
+	    if (pkd->param.bGasCooling) {
+		if (fabs(pkdStar(pkd,p)->totaltime-dTime) > 1e-3*dt) {
+		    printf("total time error: %i,  %g %g %g\n",p->iOrder,pkdStar(pkd,p)->totaltime,dTime,dt);
+		    assert(0);
+		    }
+		}
+
 	    dmstar = dRateCoeff*sqrt(p->fDensity)*pkdMass(pkd,p)*dt;
 	    prob = 1.0 - exp(-dmstar/dInitStarMass); 
-//	    if (!(p->iOrder%1000)) printf("SF %d: %g %g %g\n",p->iOrder,dmstar,dInitStarMass,prob);
+//	    if (!(p->iOrder%1000)) printf("SF %d: %g %g %g  %g\n",p->iOrder,dt,dmstar,dInitStarMass,prob);
 	    
 	    /* Star formation event? */
 	    if (rand()<RAND_MAX*prob) {
@@ -2693,8 +2722,10 @@ void pkdStarForm(PKD pkd, double dRateCoeff, double dTMax, double dDenMin,
 
                 /* Time formed  
 		   -- in principle it could have formed any time between dTime-dt and dTime 
-		   so dTime-0.5*dt may be justified -- if dt v. large could have odd effects */
-		pkdStar(pkd,starp)->fTimer = -dTime; 
+		   so dTime-0.5*dt is good -- just check it's less that dtFB */
+		if (dt < dtFeedbackDelay) pkdStar(pkd,starp)->fTimer = dTime-dt*.5;
+		else pkdStar(pkd,starp)->fTimer = dTime-0.5*dtFeedbackDelay;
+		pkdSph(pkd,starp)->u = 1; /* no FB yet */
 		
 		getClass(pkd,pkdMass(pkd,starp),pkdSoft(pkd,starp),FIO_SPECIES_STAR,starp); /* How do I make a new particle? -- this is bad it rewrites mass and soft for particle */
 		/* JW: If class doesn't exist this is very bad -- what is the soft? 
@@ -2807,6 +2838,7 @@ void pkdCorrectEnergy(PKD pkd, double dTuFac, double z, double dTime, int iDirec
 		CoolEnergyCodeFromTemp( cl, &cp, &E, &T, p->fDensity, sph->fMetals );
 		sph->u = E;
 		sph->uPred = E;
+		pkdStar(pkd,p)->totaltime = dTime;
 		}
 	    }
 	break;
@@ -2848,7 +2880,7 @@ void pkdDensityStep(PKD pkd, uint8_t uRungLo, uint8_t uRungHi, double dEta, doub
 
     for (i=0;i<pkdLocal(pkd);++i) {
 	p = pkdParticle(pkd,i);
-	if (pkdIsDstActive(p,uRungLo,uRungHi)) {
+	if (pkdIsActive(pkd,p)) {
 	    dT = dEta/sqrt(p->fDensity*dRhoFac);
 	    p->uNewRung = pkdDtToRung(dT,pkd->param.dDelta,pkd->param.iMaxRung-1);
 	    }
@@ -2876,16 +2908,19 @@ int pkdUpdateRung(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     int i;
     int iTempRung;
     for (i=0;i<iMaxRung;++i) nRungCount[i] = 0;
+	
+//    printf("RUNG UPDATES %d %d %d\n",uRungLo,uRungHi,uRung);
     for (i=0;i<pkdLocal(pkd);++i) {
 	p = pkdParticle(pkd,i);
-	if ( pkdIsDstActive(p,uRungLo,uRungHi) ) {
+	if ( pkdIsActive(pkd,p) ) {
 	    if ( p->uNewRung >= iMaxRung )
 		p->uRung = iMaxRung-1;
 	    else if ( p->uNewRung >= uRung )
 		p->uRung = p->uNewRung;
 	    else if ( p->uRung > uRung)
 		p->uRung = uRung;
-//	    if (!(p->iOrder%10000) || p->uRung > 5) printf("RUNG UPDATE(%d) %d: %d %d\n",pkdIsDstActive(p,uRungLo,uRungHi),p->iOrder,p->uNewRung,p->uRung);
+
+//	    if (!(p->iOrder%10000) || (p->uRung > 5 && !(p->iOrder%1000))) printf("RUNG %d: UPDATED %d %d\n",p->iOrder,p->uNewRung,p->uRung);
 	    }
 	/*
 	** Now produce a count of particles in rungs.
@@ -4000,13 +4035,27 @@ int pkdSelSrcStar(PKD pkd) {
     return n;
     }
 
-int pkdSelDstStar(PKD pkd) {
+int pkdSelDstStar(PKD pkd, int bFB, double dTimeFB) {
     int i;
     int n=pkdLocal(pkd);
     PARTICLE *p;
-    for( i=0; i<n; i++ ) {
-	p=pkdParticle(pkd,i);
-	if (pkdIsStar(pkd,p)) p->bDstActive = 1; else p->bDstActive = 0;
+
+    if (bFB) {
+	for( i=0; i<n; i++ ) {
+	    p=pkdParticle(pkd,i);
+	    if (pkdIsStar(pkd,p) && pkdIsActive(pkd,p)) {
+		double dtp = pkd->param.dDelta/(1<<p->uRung);
+		if (dTimeFB-dtp < *pkd_Timer(pkd,p)) p->bDstActive = 1; 
+		else p->bDstActive = 0;
+		}
+	    else p->bDstActive = 0;
+	    }
+	}
+    else {
+	for( i=0; i<n; i++ ) {
+	    p=pkdParticle(pkd,i);
+	    if (pkdIsStar(pkd,p)) p->bDstActive = 1; else p->bDstActive = 0;
+	    }
 	}
     return n;
     }

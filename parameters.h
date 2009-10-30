@@ -109,6 +109,7 @@ struct parameters {
     double dComovingGmPerCcUnit;
     double dErgPerGmUnit;
     double dSecUnit;
+    double dKmPerSecUnit;
     double dhMinOverSoft;
     double dMetalDiffusionCoeff;
     double dThermalDiffusionCoeff;
@@ -126,6 +127,7 @@ struct parameters {
     double SFdZMassPerStarMass;
     double SFdInitStarMass;
     double SFdMinGasMass;
+    double SFdvFB;
     int SFbdivv;
     
     /* END Gas Parameters */

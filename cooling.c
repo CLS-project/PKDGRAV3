@@ -115,7 +115,7 @@ void clApplyT2Floor( COOL *cl, double nH, double *pT2 ) {
     if (cl->CoolParam.bTFloor) {
 	double T2Floor = cl->CoolParam.dTFloor_T2star*pow(nH/cl->nISM,
 							  cl->CoolParam.dTFloor_gstar-1)
-	    +cl->CoolParam.dTFloor_T2min;
+	    +cl->CoolParam.dTFloor_T2min;  /* How Ramses does floor Tf1+Tf2 */
 	if (*pT2 < T2Floor) *pT2 = T2Floor;
 	}
     }
@@ -127,7 +127,7 @@ void CoolIntegrateEnergyCode(COOL *cl, COOLPARTICLE *cp, double *ECode,
     double dt;
     double nH,T2,deltaT2,ZSolar;
 
-    /* How Ramses does PdV - op. split -- 
+    /* How Ramses does PdV - operator split -- 
        better to do predictor corrector or include cts. PdV heating in cooling */
     *ECode += ExternalHeatingCode*tStep; 
 

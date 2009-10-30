@@ -117,6 +117,7 @@ enum pst_service {
     PST_ACTIVEORDER,
     PST_INITSTEP,
     PST_SETRUNG,
+    PST_ZERONEWRUNG,
     PST_ACTIVERUNG,
     PST_CURRRUNG,
     PST_GRAVSTEP,
@@ -679,6 +680,14 @@ struct inSetRung {
     };
 void pstSetRung(PST,void *,int,void *,int *);
 
+/* PST_ZERONEWRUNG */
+struct inZeroNewRung {
+    uint8_t uRung;
+    uint8_t uRungLo;
+    uint8_t uRungHi;
+    };
+void pstZeroNewRung(PST,void *,int,void *,int *);
+
 /* PST_INITSTEP */
 struct inInitStep {
     struct parameters param;
@@ -1167,6 +1176,10 @@ void pstSelSrcGas(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 void pstSelDstGas(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 
 /* PST_SELSRCSTAR */
+struct inSelDstStar {
+    int bFB;
+    double dTimeFB;
+    };
 void pstSelSrcStar(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 void pstSelDstStar(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 

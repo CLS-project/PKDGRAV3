@@ -92,6 +92,7 @@ const char *pst_h_module_id = PST_H_MODULE_ID;
 **  ActiveOrder           -       Yes    |
 **  InitStep              Yes     -      |
 **  SetRung               Yes     -      |
+**  ZeroNewRung           Yes     -      |
 **  ActiveRung            Yes     -      |
 **  CurrRung              Yes     Yes    |
 **  DensityStep           Yes     -      |
@@ -309,6 +310,9 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_SETRUNG,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstSetRung,
 		  sizeof(struct inSetRung),0);
+    mdlAddService(mdl,PST_ZERONEWRUNG,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstZeroNewRung,
+		  sizeof(struct inZeroNewRung),0);
     mdlAddService(mdl,PST_ACTIVERUNG,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstActiveRung,
 		  sizeof(struct inActiveRung),0);
@@ -353,7 +357,7 @@ void pstAddServices(PST pst,MDL mdl) {
 		  0,nThreads*sizeof(struct outColNParts));
     mdlAddService(mdl,PST_NEWORDER,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstNewOrder,
-		  nThreads*sizeof(int),0);
+		  nThreads*sizeof(uint64_t),0);
     mdlAddService(mdl,PST_GETNPARTS,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstGetNParts,
 		  0,sizeof(struct outGetNParts));
@@ -472,7 +476,7 @@ void pstAddServices(PST pst,MDL mdl) {
 		  0, 0 );
     mdlAddService(mdl,PST_SELDSTSTAR,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstSelDstStar,
-		  0, 0 );
+		  sizeof(struct inSelDstStar), 0 );
     mdlAddService(mdl,PST_SELSRCDELETED,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstSelSrcDeleted,
 		  0, 0 );
@@ -3025,6 +3029,23 @@ pstSetRung(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     }
 
 void
+pstZeroNewRung(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl = pst->plcl;
+    struct inZeroNewRung *in = vin;
+
+    mdlassert(pst->mdl,nIn == sizeof(*in));
+    if (pst->nLeaves > 1) {
+	mdlReqService(pst->mdl,pst->idUpper,PST_ZERONEWRUNG,vin,nIn);
+	pstZeroNewRung(pst->pstLower,vin,nIn,NULL,NULL);
+	mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
+	}
+    else {
+	pkdZeroNewRung(plcl->pkd,in->uRungLo,in->uRungHi,in->uRung);
+	}
+    if (pnOut) *pnOut = 0;
+    }
+
+void
 pstInitStep(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct inInitStep *in = vin;
@@ -4117,13 +4138,16 @@ void pstSelSrcStar(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 
 void pstSelDstStar(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
+    struct inSelDstStar *in = vin;
+    assert(nIn==sizeof(struct inSelDstStar));
+
     if (pst->nLeaves > 1) {
 	mdlReqService(pst->mdl,pst->idUpper,PST_SELDSTSTAR,vin,nIn);
 	pstSelDstStar(pst->pstLower,vin,nIn,vout,pnOut);
 	mdlGetReply(pst->mdl,pst->idUpper,vout,pnOut);
 	}
     else {
-	pkdSelDstStar(plcl->pkd);
+	pkdSelDstStar(plcl->pkd,in->bFB,in->dTimeFB);
 	}
     if (pnOut) *pnOut = 0;
     }

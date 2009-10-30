@@ -699,7 +699,7 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     prmAddParam(msr->prm,"SFdComovingDenMin", 2, &msr->param.SFdComovingDenMin,
 		sizeof(double), "stODmin",
 		"<Minimum overdensity for forming stars> = 2");
-    msr->param.SFdPhysDenMin =  0.1/.76/1.66e-24; /* 0.1 nH/cc; RAMSES DEFAULT */
+    msr->param.SFdPhysDenMin =  0.1/.76*1.66e-24; /* 0.1 nH/cc; RAMSES DEFAULT */
     prmAddParam(msr->prm,"SFdPhysDenMin", 2, &msr->param.SFdPhysDenMin,
 		sizeof(double), "stPDmin",
 		"<Minimum physical density for forming stars (gm/cc)> =  7e-26");
@@ -744,6 +744,10 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     prmAddParam(msr->prm,"SFdMinGasMass", 2, &msr->param.SFdMinGasMass,
 		sizeof(double), "SFMGM",
 		"<SF MGM> = ?");
+    msr->param.SFdvFB = 100;
+    prmAddParam(msr->prm,"SFdvFB", 2, &msr->param.SFdvFB,
+		sizeof(double), "SFVFB",
+		"<SF dvFB sound speed in FB region expected, km/s> = 100");
 
     msr->param.SFbdivv = 0;
     prmAddParam(msr->prm,"SFbdivv", 0, &msr->param.SFbdivv,
@@ -806,11 +810,14 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
 	msr->param.dGmPerCcUnit = (msr->param.dMsolUnit*MSOLG)/pow(msr->param.dKpcUnit*KPCCM,3.0);
 	/* code time --> seconds */
 	msr->param.dSecUnit = sqrt(1/(msr->param.dGmPerCcUnit*GCGS));
+	/* code speed --> km/s */
+	msr->param.dKmPerSecUnit = sqrt(GCGS*msr->param.dMsolUnit*MSOLG/(msr->param.dKpcUnit*KPCCM))/1e5;
 	/* code comoving density --> g per cc = msr->param.dGmPerCcUnit (1+z)^3 */
 	msr->param.dComovingGmPerCcUnit = msr->param.dGmPerCcUnit;
 	}
     else {
 	msr->param.dSecUnit = 1;
+	msr->param.dKmPerSecUnit = 1;
 	msr->param.dComovingGmPerCcUnit = 1;
 	msr->param.dGmPerCcUnit = 1;
 	msr->param.dErgPerGmUnit = 1;
@@ -992,6 +999,10 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
 	}
     if (msr->param.bGravStep) {
 	msr->param.bEpsAccStep = 0;   /* we must do this because the meaning of Eta is different */
+	}
+    if (msr->param.bDoGravity && !msr->param.bEpsAccStep && !msr->param.bDensityStep && !msr->param.bSqrtPhiStep && !msr->param.bGravStep) {
+	puts("ERROR: need some kind of timstep criterion with gravity...");
+	_msrExit(msr,1);
 	}
 
 #ifdef PLANETS
@@ -1183,6 +1194,7 @@ void msrLogParams(MSR msr,FILE *fp) {
     fprintf(fp," dhMinOverSoft: %g",msr->param.dhMinOverSoft);
     fprintf(fp," dMetalDiffusionCoeff: %g",msr->param.dMetalDiffusionCoeff);
     fprintf(fp," dThermalDiffusionCoeff: %g",msr->param.dThermalDiffusionCoeff);
+    if (msr->param.bGasCooling) CoolLogParams( &msr->param.CoolParam, fp );
     fprintf(fp,"\n# UNITS: dKBoltzUnit: %g",msr->param.dKBoltzUnit);
     fprintf(fp," dMsolUnit: %g",msr->param.dMsolUnit);
     fprintf(fp," dKpcUnit: %g",msr->param.dKpcUnit);
@@ -1191,7 +1203,7 @@ void msrLogParams(MSR msr,FILE *fp) {
 	fprintf(fp," dErgPerGmUnit: %g", msr->param.dErgPerGmUnit );
 	fprintf(fp," dGmPerCcUnit (z=0): %g", msr->param.dGmPerCcUnit );
 	fprintf(fp," dSecUnit: %g", msr->param.dSecUnit );
-	fprintf(fp," dKmPerSecUnit (z=0): %g", sqrt(GCGS*msr->param.dMsolUnit*MSOLG/(msr->param.dKpcUnit*KPCCM))/1e5 );
+	fprintf(fp," dKmPerSecUnit (z=0): %g", msr->param.dKmPerSecUnit );
 	}
     fprintf(fp,"\n# STARFORM: bStarForm %d",msr->param.bStarForm);
     fprintf(fp," bFeedback %d",msr->param.bFeedback);
@@ -2525,11 +2537,15 @@ void msrSmoothSetSMF(MSR msr, SMF *smf, double dTime) {
     smf->dThermalDiffusionCoeff = msr->param.dThermalDiffusionCoeff;
     /* For SF & FB in code units */
 #define SECONDSPERYEAR   31557600.
-    smf->SFdESNPerStarMass = msr->param.SFdESNPerStarMass/msr->param.dErgPerGmUnit;
+    if (msr->param.bGasIsothermal) smf->SFdESNPerStarMass = 0;
+    else smf->SFdESNPerStarMass = msr->param.SFdESNPerStarMass/msr->param.dErgPerGmUnit;
     smf->SFdtCoolingShutoff = msr->param.SFdtCoolingShutoff*SECONDSPERYEAR/msr->param.dSecUnit;
-    smf->SFdtFeedbackDelay = msr->param.SFdtFeedbackDelay*SECONDSPERYEAR/msr->param.dSecUnit;
+    /* avoid alignment in steps + feedback time -- increase FB time by small tweak */
+    smf->SFdtFeedbackDelay = msr->param.SFdtFeedbackDelay*1.0000013254678*SECONDSPERYEAR/msr->param.dSecUnit;
     smf->SFdMassLossPerStarMass = msr->param.SFdMassLossPerStarMass;
     smf->SFdZMassPerStarMass = msr->param.SFdZMassPerStarMass;
+    smf->SFdFBFac = 0.5/((1+0.6*smf->alpha)/(smf->a*smf->dEtaCourant))
+	/(msr->param.SFdvFB/msr->param.dKmPerSecUnit);
     }
 
 void msrSmooth(MSR msr,double dTime,int iSmoothType,int bSymmetric) {
@@ -3076,6 +3092,16 @@ void msrSetRung(MSR msr, uint8_t uRungLo, uint8_t uRungHi, int uRung) {
     }
 
 
+void msrZeroNewRung(MSR msr, uint8_t uRungLo, uint8_t uRungHi, int uRung) {
+    struct inZeroNewRung in;
+
+    in.uRung = uRung;
+    in.uRungLo = uRungLo;
+    in.uRungHi = uRungHi;
+    pstZeroNewRung(msr->pst, &in, sizeof(in), NULL, NULL);
+    }
+
+
 int msrMaxRung(MSR msr) {
     return msr->param.iMaxRung;
     }
@@ -3279,6 +3305,9 @@ void msrTopStepKDK(MSR msr,
 
     if (iAdjust && (iRung < msrMaxRung(msr)-1)) {
 	msrprintf(msr,"%*cAdjust, iRung: %d\n",2*iRung+2,' ',iRung);
+	/* JW: Note -- can't trash uRungNew here! Force calcs set values for it! */
+	msrSelSrcAll(msr); /* Not really sure what the setting here needs to be */
+	msrSelDstAll(msr); /* */
 	msrActiveRung(msr, iRung, 1);
 	if (msr->param.bAccelStep) {
 	    msrAccelStep(msr,iRung,MAX_RUNG,dTime);
@@ -3324,8 +3353,12 @@ void msrTopStepKDK(MSR msr,
 	bSplitVA = 0;
 	msrDomainDecomp(msr,iKickRung,1,bSplitVA);
 
+	/* JW: Good place to zero uNewRung */
+	msrZeroNewRung(msr,iKickRung,MAX_RUNG,iKickRung); /* brute force */
 	if (msrDoGravity(msr) || msrDoGas(msr)) {
 	    msrActiveRung(msr,iKickRung,1);
+	    msrSelSrcAll(msr); /* Not really sure what the setting here needs to be */
+	    msrSelDstAll(msr); /* */
 	    if (msrDoGravity(msr)) msrUpdateSoft(msr,dTime);
 	    msrprintf(msr,"%*cForces, iRung: %d to %d\n",2*iRung+2,' ',iKickRung,iRung);
 	    msrBuildTree(msr,dTime,msr->param.bEwald);
@@ -3342,7 +3375,7 @@ void msrTopStepKDK(MSR msr,
 	    }
 #endif
 	if (msrDoGas(msr)) {
-	    msrSph(msr,dTime,dStep);
+	    msrSph(msr,dTime,dStep);  /* dTime = Time at end of kick */
 	    msrCooling(msr,dTime,dStep,0,
 		       (iKickRung<=msr->param.iRungCoolTableUpdate ? 1:0),0);
 	    }
@@ -3449,18 +3482,19 @@ void msrTopStepKDK(MSR msr,
 
     msrprintf(msr,"%*cKickClose, iRung: %d, 0.5*dDelta: %g\n",
 	      2*iRung+2,' ',iRung, 0.5*dDelta);
-    msrKickKDKClose(msr,dTime,0.5*dDelta,iRung,iRung);
+    msrKickKDKClose(msr,dTime,0.5*dDelta,iRung,iRung); /* uses dTime-0.5*dDelta */
 
+    dTime += 0.5*dDelta; /* Important to have correct time at step end for SF! */
     /* JW: Creating/Deleting/Merging is best done outside (before or after) KDK cycle 
        -- Tree should still be valid from last force eval (only Drifts + Deletes invalidate it) */
     if (iKickRung == iRung) { /* Do all co-incident kicked p's in one go */
-	msrActiveRung(msr,iKickRung,1);
-	msrStarForm(msr, dTime); /* re-eval timesteps as needed for next step 
+	printf("SFTEST Call msrStarFrom: %20.14g  %d %d\n",dTime,iRung,iKickRung);
+	msrStarForm(msr, dTime, iKickRung); /* re-eval timesteps as needed for next step 
 					    -- apply to all neighbours */
 	}
     }
 
-void msrStarForm(MSR msr, double dTime)
+void msrStarForm(MSR msr, double dTime, int iRung)
     {
     struct inStarForm in;
     struct outStarForm out;
@@ -3484,7 +3518,7 @@ void msrStarForm(MSR msr, double dTime)
     in.dESNPerStarMass = msr->param.SFdESNPerStarMass/msr->param.dErgPerGmUnit;
 #define SECONDSPERYEAR   31557600.
     in.dtCoolingShutoff = msr->param.SFdtCoolingShutoff*SECONDSPERYEAR/msr->param.dSecUnit;
-    in.dtFeedbackDelay = msr->param.SFdtFeedbackDelay*SECONDSPERYEAR/msr->param.dSecUnit;
+    in.dtFeedbackDelay = msr->param.SFdtFeedbackDelay*1.0000013254678*SECONDSPERYEAR/msr->param.dSecUnit;
     in.dMassLossPerStarMass = msr->param.SFdMassLossPerStarMass;
     in.dZMassPerStarMass = msr->param.SFdZMassPerStarMass;
     in.dInitStarMass = msr->param.SFdInitStarMass;
@@ -3493,6 +3527,7 @@ void msrStarForm(MSR msr, double dTime)
     
     if (msr->param.bVDetails) printf("Star Form ... ");
     
+    msrActiveRung(msr,iRung,1); /* important to limit to active gas only */
     pstStarForm(msr->pst, &in, sizeof(in), &out, NULL);
     if (msr->param.bVDetails)
 	printf("%d Stars formed with mass %g, %d gas deleted\n",
@@ -3500,10 +3535,10 @@ void msrStarForm(MSR msr, double dTime)
     
     if (out.nDeleted) {
 	msrSelSrcGas(msr); /* Not really sure what the setting here needs to be */
-	msrSelDstDeleted(msr);  
-	msrActiveRung(msr,0,1);
-	msrBuildTree(msr,dTime,msr->param.bEwald);
-	msrSmooth(msr, dTime, SMX_DIST_DELETED_GAS, 1);
+	msrSelDstDeleted(msr); /* Select only deleted particles */
+	msrActiveRung(msr,0,1); /* costs nothing -- may be redundant */
+//	msrBuildTree(msr,dTime,msr->param.bEwald);
+	msrSmooth(msr, dTime, SMX_DIST_DELETED_GAS, 1); /* use full smooth to account for deleted */
 	}
 
     /* Strictly speaking adding/deleting particles invalidates the tree 
@@ -3517,11 +3552,12 @@ void msrStarForm(MSR msr, double dTime)
     printf("Star Formation Calculated, Wallclock: %f secs\n\n",dsec);
 
     if (msr->param.bFeedback) {
+	msrActiveRung(msr,iRung,1); /* costs nothing -- important to limit to active stars only */
  	msrSelSrcGas(msr); /* Not really sure what the setting here needs to be */
-	msrSelDstStar(msr);  
-	msrActiveRung(msr,0,1);
-	msrBuildTree(msr,dTime,msr->param.bEwald);
-	msrSmooth(msr, dTime, SMX_DIST_SN_ENERGY, 1);
+	msrSelDstStar(msr,1,dTime); /* Select only stars that have FB to do */ 
+//	msrBuildTree(msr,dTime,msr->param.bEwald);
+	msrSmooth(msr, dTime, SMX_DIST_SN_ENERGY, 1); /* full smooth for stars */
+
 	dsec = msrTime() - sec1;
 	printf("Feedback Calculated, Wallclock: %f secs\n\n",dsec);
 	}
@@ -4063,6 +4099,7 @@ void msrSph(MSR msr,double dTime, double dStep) {
     msrSelDstGas(msr);  
 
     msrSmooth(msr,dTime,SMX_DENDVDX,0);  
+
     msrSmooth(msr,dTime,SMX_SPHFORCES,1); /* Should be a resmooth */
 
     dsec = msrTime() - sec;
@@ -5365,8 +5402,11 @@ void msrSelDstGas(MSR msr) {
 void msrSelSrcStar(MSR msr) {
     pstSelSrcStar(msr->pst, NULL, 0, NULL, NULL );
     }
-void msrSelDstStar(MSR msr) {
-    pstSelDstStar(msr->pst, NULL, 0, NULL, NULL );
+void msrSelDstStar(MSR msr, int bFB, double dTime) {
+    struct inSelDstStar in;
+    in.bFB = bFB;
+    in.dTimeFB = dTime-msr->param.SFdtFeedbackDelay*1.0000013254678*SECONDSPERYEAR/msr->param.dSecUnit;
+    pstSelDstStar(msr->pst, &in, sizeof(in), NULL, NULL );
     }
 
 void msrSelSrcDeleted(MSR msr) {

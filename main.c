@@ -369,10 +369,10 @@ int main(int argc,char **argv) {
 		    }
 		
 		if (msrDoGas(msr)) {
-/*
+		    /* Initialize SPH, Cooling and SF/FB and gas time step */
 		    msrCoolSetup(msr,dTime);
+		    /* Fix dTuFac conversion of T in InitSPH */
 		    msrInitSph(msr,dTime);
-*/
 		    }
 		   
 		msrUpdateRung(msr,0); /* set rungs for output */
