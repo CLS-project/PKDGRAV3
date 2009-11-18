@@ -88,12 +88,16 @@ typedef uint_fast64_t total_t; /* Count of particles globally (total number) */
 #define PKD_MODEL_SPH          (1<<9)  /* Sph Fields */
 #define PKD_MODEL_STAR         (1<<10) /* Star Fields */
 
-#define PKD_MODEL_TREE_MOMENT  (1<<24) /* Include moment in the tree */
+#define PKD_MODEL_NODE_MOMENT  (1<<24) /* Include moment in the tree */
+#define PKD_MODEL_NODE_ACCEL   (1<<25) /* mean accel on cell (for grav step) */
+#define PKD_MODEL_NODE_VEL     (1<<26) /* center of mass velocity for cells */
+#define PKD_MODEL_NODE_SPHBNDS (1<<27) /* Include 3 extra bounds in tree */
 
 /*
 ** This constant is used to limit the size of a cell.
+** Was #define PKD_MAX_CELL_SIZE (1e-2), but in this version of the code it is
+** no longer needed!
 */
-#define PKD_MAX_CELL_SIZE (1e-2)
 #define PKD_MAX_CELL_SIZE 1e20
 
 typedef struct pLite {
@@ -150,6 +154,7 @@ typedef struct velsmooth {
     } VELSMOOTH;
 
 typedef struct sphfields {
+    char *pNeighborList; /* pointer to nearest neighbor list - compressed */
     double vPred[3];
     float u;	        /* thermal energy */ 
     float uPred;	/* predicted thermal energy */
@@ -292,22 +297,25 @@ typedef struct kdNode {
     int iParent;
     int pLower;		/* also serves as thread id for the LTT */
     int pUpper;		/* pUpper < 0 indicates no particles in tree! */
-#ifdef TREE_NODE_TIMESTAMP
-    double dTimeStamp;
-#endif
 #ifdef LOCAL_EXPANSION
     FLOAT fOpen;
 #else
     FLOAT fOpen2;
 #endif
     FLOAT fSoft2;
-    uint32_t nActive; /* local active count used for DD */
+    uint32_t nActive; /* local active count used for walk2 */
     uint8_t uMinRung;
     uint8_t uMaxRung;
-  uint8_t bSrcActive;
+    uint8_t bSrcActive;
     uint8_t bDstActive;
     } KDN;
 
+typedef struct sphBounds {
+    struct minmaxBound {
+	double min[3];
+	double max[3];
+    } A,B,BI;
+} SPHBNDS;
 
 #ifdef NEW_TREE
 #define MAX_NBUCKET 5
@@ -332,7 +340,7 @@ typedef struct kdNew {
     } KDNEW;
 #endif
 
-#define NMAX_OPENCALC	100
+#define NMAX_OPENCALC	1000000000  /* huge value for now, since lower values break right now */
 
 #define FOPEN_FACTOR	4.0/3.0
 
@@ -387,8 +395,6 @@ typedef struct kdNew {
 /*  #define CLASSICAL_FOPEN if you want the original opening criterion. */
 /*  We have found that this causes errors at domain boundaries and      */
 /*  recommend NOT setting this define.                                  */
-
-//#define CLASSICAL_FOPEN
 
 #ifdef CLASSICAL_FOPEN
 #ifdef LOCAL_EXPANSION
@@ -528,7 +534,7 @@ typedef struct groupData {
     void *subGroups;
     int nRemoteMembers;
     int iFirstRm;
-    } FOFGD;
+} FOFGD;
 
 typedef struct groupBin {
   FLOAT fRadius;
@@ -619,7 +625,7 @@ typedef struct pkdContext {
     int oNodeMom; /* a MOMR */
     int oNodeVelocity; /* Three doubles */
     int oNodeAcceleration; /* Three doubles */
-  int oNodeSPHBounds; /* Three Bounds */
+    int oNodeSphBounds; /* Three Bounds */
 
     /*
     ** Tree walk variables.
@@ -754,6 +760,9 @@ static inline double *pkdNodeVel( PKD pkd, KDN *n ) {
 static inline double *pkdNodeAccel( PKD pkd, KDN *n ) {
     return pkdNodeField(n,pkd->oNodeAcceleration);
     }
+static inline SPHBNDS *pkdNodeSphBounds( PKD pkd, KDN *n ) {
+    return pkdNodeField(n,pkd->oNodeSphBounds);
+    }
 static inline KDN *pkdNode(PKD pkd,KDN *pBase,int iNode) {
     return (KDN *)&((char *)pBase)[pkd->iTreeNodeSize*iNode];
     }
@@ -885,6 +894,9 @@ static inline float *pkd_fMetalsDot( PKD pkd, PARTICLE *p ) {
 static inline float *pkd_fMetalsPred( PKD pkd, PARTICLE *p ) {
     return &(((SPHFIELDS *) pkdField(p,pkd->oSph))->fMetalsPred);
     }
+static inline char **pkd_pNeighborList( PKD pkd, PARTICLE *p ) {
+    return &(((SPHFIELDS *) pkdField(p,pkd->oSph))->pNeighborList);
+    }
 
 static inline float *pkd_Timer( PKD pkd, PARTICLE *p ) {
     return &(((STARFIELDS *) pkdField(p,pkd->oStar))->fTimer);
@@ -914,8 +926,8 @@ typedef struct CacheStatistics {
 /*
 ** From tree.c:
 */
-void pkdVATreeBuild(PKD pkd,int nBucket,FLOAT diCrit2,double dTimeStamp);
-void pkdTreeBuild(PKD pkd,int nBucket,FLOAT dCrit,KDN *pkdn,int bExcludeVeryActive,double dTimeStamp);
+void pkdVATreeBuild(PKD pkd,int nBucket,FLOAT diCrit2);
+void pkdTreeBuild(PKD pkd,int nBucket,FLOAT dCrit,KDN *pkdn,int bExcludeVeryActive);
 void pkdCombineCells(PKD,KDN *pkdn,KDN *p1,KDN *p2);
 void pkdDistribCells(PKD,int,KDN *);
 void pkdCalcRoot(PKD,MOMC *);
@@ -983,8 +995,7 @@ void
 pkdGravAll(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,int bPeriodic,
 	   int iOrder,int bEwald,double fEwCut,double fEwhCut,int *nActive,
 	   double *pdPartSum, double *pdCellSum,CASTAT *pcs, double *pdFlop);
-void pkdCalcE(PKD,double *,double *,double *);
-void pkdCalcEandL(PKD,double *,double *,double *,double []);
+void pkdCalcEandL(PKD pkd,double *T,double *U,double *Eth,double *L,double *F,double *W);
 void pkdDrift(PKD pkd,double dTime,double dDelta,double,double,uint8_t uRungLo,uint8_t uRungHi);
 void pkdStepVeryActiveKDK(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dStep, double dTime, double dDelta,
 			  int iRung, int iKickRung, int iRungVeryActive,int iAdjust, double diCrit2,

@@ -30,7 +30,6 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
     PARTICLE *pRemote;
     KDN *kdn;
     KDN *pkdc;
-    double dDriftFac;
     double fWeight;
     double tempI;
     double dEwFlop;
@@ -49,13 +48,10 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
     int iOpen;
     int nPart;
     int nCell;
-    double dSyncDelta;
     double *v;
 
     assert(pkd->oNodeMom);
     assert(pkd->oNodeVelocity);
-    assert(pkd->oVelocity);
-
     /*
     ** If we are doing the very active gravity then check that there is a very active tree!
     */
@@ -64,12 +60,6 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 	assert(pkd->nVeryActive == pkdTreeNode(pkd,VAROOT)->pUpper - pkdTreeNode(pkd,VAROOT)->pLower + 1);
 	}
     else if (!pkdIsCellActive(pkdTreeNode(pkd,ROOT),uRungLo,uRungHi)) return 0;
-    /*
-    ** SyncDelta is used to compare the current time to the time of a cell to decide
-    ** if they are synchronous. We need some sort of sensible minimum difference
-    ** and we can use the maximum rung for this purpose.
-    */
-    dSyncDelta = pkd->param.dDelta*pow(2.0,-(pkd->param.iMaxRung+2.0));
     /*
     ** Initially we set our cell pointer to
     ** point to the top tree.
@@ -178,34 +168,6 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 		else {
 		    pkdc = mdlAquire(pkd->mdl,CID_CELL,pkd->Check[i].iCell,id);
 		    n = pkdc->pUpper - pkdc->pLower + 1;
-		    }
-		/*
-		** If the cell is not time synchronous, then work out a drift factor
-		** for this cell.
-		*/
-		if (fabs(pkdc->dTimeStamp-dTime) > dSyncDelta) {
-                    /*
-                    ** We need to account for cosmological drift factor here!
-                    */
-                    if (pkd->param.csm->bComove) {
-                        /*
-                        ** This might get called quite a bit in this code. Better might
-                        ** be to store a dDriftFac within the CheckElt structure, thereby
-                        ** reducing the number of calls to csmComoveDriftFac. Otherwise
-                        ** we may need to speed this function up.
-                        */
-                        dDriftFac = csmComoveDriftFac(pkd->param.csm,pkdc->dTimeStamp,dTime - pkdc->dTimeStamp);
-                        }
-                    else {
-                        dDriftFac = dTime - pkdc->dTimeStamp;
-                        }
-		    for (j=0;j<3;++j)
-			rCheck[j] = pkdc->r[j] +
-			    dDriftFac*pkdNodeVel(pkd,pkdc)[j] + pkd->Check[i].rOffset[j];
-		    }
-		else {
-		    dDriftFac = 0.0;
-		    for (j=0;j<3;++j) rCheck[j] = pkdc->r[j] + pkd->Check[i].rOffset[j];
 		    }
 		if (kdn->iLower) {
 		    /*
@@ -413,9 +375,9 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 				v = pkdVel(pkd,p);
 				pkd->ilp[nPart].iOrder = p->iOrder;
 				pkd->ilp[nPart].m = pkdMass(pkd,p);
-				pkd->ilp[nPart].x = p->r[0] + dDriftFac*v[0] + pkd->Check[i].rOffset[0];
-				pkd->ilp[nPart].y = p->r[1] + dDriftFac*v[1] + pkd->Check[i].rOffset[1];
-				pkd->ilp[nPart].z = p->r[2] + dDriftFac*v[2] + pkd->Check[i].rOffset[2];
+				pkd->ilp[nPart].x = p->r[0] + pkd->Check[i].rOffset[0];
+				pkd->ilp[nPart].y = p->r[1] + pkd->Check[i].rOffset[1];
+				pkd->ilp[nPart].z = p->r[2] + pkd->Check[i].rOffset[2];
 				pkd->ilp[nPart].vx = v[0];
 				pkd->ilp[nPart].vy = v[1];
 				pkd->ilp[nPart].vz = v[2];
@@ -446,9 +408,9 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 				v = pkdVel(pkd,pRemote);
 				pkd->ilp[nPart].iOrder = pRemote->iOrder;
 				pkd->ilp[nPart].m = pkdMass(pkd,pRemote);
-				pkd->ilp[nPart].x = pRemote->r[0] + dDriftFac*v[0] + pkd->Check[i].rOffset[0];
-				pkd->ilp[nPart].y = pRemote->r[1] + dDriftFac*v[1] + pkd->Check[i].rOffset[1];
-				pkd->ilp[nPart].z = pRemote->r[2] + dDriftFac*v[2] + pkd->Check[i].rOffset[2];
+				pkd->ilp[nPart].x = pRemote->r[0] + pkd->Check[i].rOffset[0];
+				pkd->ilp[nPart].y = pRemote->r[1] + pkd->Check[i].rOffset[1];
+				pkd->ilp[nPart].z = pRemote->r[2] + pkd->Check[i].rOffset[2];
 				pkd->ilp[nPart].vx = v[0];
 				pkd->ilp[nPart].vy = v[1];
 				pkd->ilp[nPart].vz = v[2];

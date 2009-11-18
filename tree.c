@@ -375,10 +375,11 @@ void ShuffleParticles(PKD pkd,int iStart) {
 static double zeroV[3] = {0.0,0.0,0.0};
 static float  zeroF[3] = {0.0,0.0,0.0};
 
-void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp) {
+void Create(PKD pkd,int iNode,FLOAT diCrit2) {
     PARTICLE *p;
     KDN *pkdn,*pkdl,*pkdu;
     MOMR mom;
+    SPHBNDS *bn;
     FLOAT m,fMass,fSoft,x,y,z,vx,vy,vz,ax,ay,az,ft,d2,d2Max,dih2,b,bmin;
     float *a;
     double *v;
@@ -411,6 +412,7 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp) {
 	** bounds and iMaxRung.
 	*/
 	pkdn = pkdTreeNode(pkd,iNode);
+	pkdn->nActive = 0;
 	/*
 	** Before squeezing the bounds, calculate a minimum b value based on the splitting bounds alone.
 	** This gives us a better feel for the "size" of a bucket with only a single particle.
@@ -470,6 +472,7 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp) {
 	az = m*a[2];
 	pkdn->uMinRung = pkdn->uMaxRung = p->uRung;
 	pkdn->bDstActive = p->bDstActive;
+	if (pkdIsActive(pkd,p)) ++pkdn->nActive;
 	for (++pj;pj<=pkdn->pUpper;++pj) {
 	    p = pkdParticle(pkd,pj);
 	    a = pkd->oAcceleration ? pkdAccel(pkd,p) : zeroF;
@@ -497,6 +500,7 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp) {
 	    if ( p->uRung > pkdn->uMaxRung ) pkdn->uMaxRung = p->uRung;
 	    if ( p->uRung < pkdn->uMinRung ) pkdn->uMinRung = p->uRung;
 	    if ( p->bDstActive ) pkdn->bDstActive = 1;
+	    if (pkdIsActive(pkd,p)) ++pkdn->nActive;
 	    }
 	m = 1/fMass;
 	pkdn->r[0] = m*x;
@@ -567,11 +571,46 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp) {
 #endif
 #endif
 	/*
-	** Set the timestamp for the node.
+	** Calculate bucket fast gas bounds.
 	*/
-#ifdef TREE_NODE_TIMESTAMP
-	pkdn->dTimeStamp = dTimeStamp;
-#endif
+	if (pkd->oNodeSphBounds) {
+	    bn = pkdNodeSphBounds(pkd,pkdn);
+	    /*
+	    ** Default bounds always makes the cell look infinitely far away, regardless from where.
+	    */
+	    for (d=0;d<3;++d) bn->A.min[d] = HUGE_VAL;
+	    for (d=0;d<3;++d) bn->A.max[d] = -HUGE_VAL;
+	    for (d=0;d<3;++d) bn->B.min[d] = HUGE_VAL;
+	    for (d=0;d<3;++d) bn->B.max[d] = -HUGE_VAL;
+	    for (d=0;d<3;++d) bn->BI.min[d] = HUGE_VAL;
+	    for (d=0;d<3;++d) bn->BI.max[d] = -HUGE_VAL;
+	    for (pj=pkdn->pLower;pj<=pkdn->pUpper;++pj) {
+		p = pkdParticle(pkd,pj);
+		if (pkdIsGas(pkd,p)) {
+		    /*
+		    ** This first ball bound over all gas particles is only used for remote searching.
+		    */
+		    for (d=0;d<3;++d) bn->B.min[d] = fmin(bn->B.min[d],p->r[d] - (1+pkd->param.ddHonHLimit)*p->fBall);
+		    for (d=0;d<3;++d) bn->B.max[d] = fmax(bn->B.max[d],p->r[d] + (1+pkd->param.ddHonHLimit)*p->fBall);
+		    if (pkdIsActive(pkd,p)) {
+			for (d=0;d<3;++d) bn->A.min[d] = fmin(bn->A.min[d],p->r[d]);
+			for (d=0;d<3;++d) bn->A.max[d] = fmax(bn->A.max[d],p->r[d]);
+		    }
+		    else {
+			for (d=0;d<3;++d) bn->BI.min[d] = fmin(bn->BI.min[d],p->r[d] - (1+pkd->param.ddHonHLimit)*p->fBall);
+			for (d=0;d<3;++d) bn->BI.max[d] = fmax(bn->BI.max[d],p->r[d] + (1+pkd->param.ddHonHLimit)*p->fBall);
+		    }
+		}
+	    }
+	    /*
+	    ** Note that minimums can always safely be increased and maximums safely decreased in parallel, even on 
+	    ** a shared memory machine, without needing locking since these bounds should always simply be seen as being
+	    ** a conservative bound on the particles in the algorithms. This is true AS LONG AS a double precision store
+	    ** operation is atomic (i.e., that the individual bytes are not written one-by-one). We take advantage of 
+	    ** this fact in the fast gas algorithm where we locally reduce the bounds to exclude particles which have 
+	    ** already been completed in the direct neighbor search phase.
+	    */
+	}
 	/*
 	** Finished with the bucket, move onto the next one,
 	** or to the parent.
@@ -647,6 +686,7 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2,double dTimeStamp) {
 
 void pkdCombineCells(PKD pkd,KDN *pkdn,KDN *p1,KDN *p2) {
     MOMR mom;
+    SPHBNDS *b1,*b2,*bn;
     FLOAT m1,m2,x,y,z,ifMass;
     FLOAT r1[3],r2[3];
     int j;
@@ -655,29 +695,6 @@ void pkdCombineCells(PKD pkd,KDN *pkdn,KDN *p1,KDN *p2) {
 	r1[j] = p1->r[j];
 	r2[j] = p2->r[j];
 	}
-#ifdef TREE_NODE_TIMESTAMP
-    if (p1->dTimeStamp > p2->dTimeStamp) {
-	/*
-	** Shift r2 to be time synchronous to p1->dTimeStamp.
-	*/
-	pkdn->dTimeStamp = p1->dTimeStamp;
-	assert(0);  /* need to code the shift y*/
-	}
-    else if (p1->dTimeStamp < p2->dTimeStamp) {
-	/*
-	** Shift r1 to be time synchronous to p2->dTimeStamp.
-	*/
-	pkdn->dTimeStamp = p2->dTimeStamp;
-	assert(0); /* need to code the shift */
-	}
-    else {
-	/*
-	** Both child cells are time synchronous so we don't need to
-	** shift either of them and we can also use the timestamp of either.
-	*/
-	pkdn->dTimeStamp = p1->dTimeStamp;
-	}
-#endif
     if (pkd->oNodeMom) {
 	m1 = pkdNodeMom(pkd,p1)->m;
 	m2 = pkdNodeMom(pkd,p2)->m;
@@ -711,7 +728,8 @@ void pkdCombineCells(PKD pkd,KDN *pkdn,KDN *p1,KDN *p2) {
     pkdn->uMinRung = p1->uMinRung < p2->uMinRung ? p1->uMinRung : p2->uMinRung;
     pkdn->uMaxRung = p1->uMaxRung > p2->uMaxRung ? p1->uMaxRung : p2->uMaxRung;
     pkdn->bDstActive = p1->bDstActive || p2->bDstActive;
-
+    if (0xffffffffu - p1->nActive < p2->nActive) pkdn->nActive = 0xffffffffu; 
+    else pkdn->nActive = p1->nActive + p2->nActive;
     /*
     ** Now calculate the reduced multipole moment.
     ** Shift the multipoles of each of the children
@@ -731,10 +749,24 @@ void pkdCombineCells(PKD pkd,KDN *pkdn,KDN *p1,KDN *p2) {
 	momAddMomr(pkdNodeMom(pkd,pkdn),&mom);
 	}
     BND_COMBINE(pkdn->bnd,p1->bnd,p2->bnd);
+    /*
+    ** Combine the special fast gas ball bounds for SPH.
+    */
+    if (pkd->oNodeSphBounds) {
+	b1 = pkdNodeSphBounds(pkd,p1);
+	b2 = pkdNodeSphBounds(pkd,p2);
+	bn = pkdNodeSphBounds(pkd,pkdn);
+	for (j=0;j<3;++j) bn->A.min[j] = fmin(b1->A.min[j],b2->A.min[j]);
+	for (j=0;j<3;++j) bn->A.max[j] = fmax(b1->A.max[j],b2->A.max[j]);
+	for (j=0;j<3;++j) bn->B.min[j] = fmin(b1->B.min[j],b2->B.min[j]);
+	for (j=0;j<3;++j) bn->B.max[j] = fmax(b1->B.max[j],b2->B.max[j]);
+	for (j=0;j<3;++j) bn->BI.min[j] = fmin(b1->BI.min[j],b2->BI.min[j]);
+	for (j=0;j<3;++j) bn->BI.max[j] = fmax(b1->BI.max[j],b2->BI.max[j]);
     }
+}
 
 
-void pkdVATreeBuild(PKD pkd,int nBucket,FLOAT diCrit2,double dTimeStamp) {
+void pkdVATreeBuild(PKD pkd,int nBucket,FLOAT diCrit2) {
     PARTICLE *p;
     int i,j,iStart;
 
@@ -757,11 +789,11 @@ void pkdVATreeBuild(PKD pkd,int nBucket,FLOAT diCrit2,double dTimeStamp) {
 
     ShuffleParticles(pkd,iStart);
 
-    Create(pkd,VAROOT,diCrit2,dTimeStamp);
+    Create(pkd,VAROOT,diCrit2);
     }
 
 
-void pkdTreeBuild(PKD pkd,int nBucket,FLOAT diCrit2,KDN *pkdn,int bExcludeVeryActive,double dTimeStamp) {
+void pkdTreeBuild(PKD pkd,int nBucket,FLOAT diCrit2,KDN *pkdn,int bExcludeVeryActive) {
     int iStart;
 
     if (pkd->nNodes > 0) {
@@ -789,7 +821,7 @@ void pkdTreeBuild(PKD pkd,int nBucket,FLOAT diCrit2,KDN *pkdn,int bExcludeVeryAc
 	}
     iStart = 0;
     ShuffleParticles(pkd,iStart);
-    Create(pkd,ROOT,diCrit2,dTimeStamp);
+    Create(pkd,ROOT,diCrit2);
 
     pkdStopTimer(pkd,0);
 #ifdef USE_BSC

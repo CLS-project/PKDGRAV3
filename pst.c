@@ -2426,7 +2426,7 @@ void pstBuildTree(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     else {
 	for (i=1;i<in->nCell;++i) pkdNode(pkd,pkdn,i)->pUpper = 0; /* used flag = unused */
 
-	pkdTreeBuild(plcl->pkd,in->nBucket,in->diCrit2,pCell,in->bExcludeVeryActive,in->dTimeStamp);
+	pkdTreeBuild(plcl->pkd,in->nBucket,in->diCrit2,pCell,in->bExcludeVeryActive);
 
 	pCell->iLower = 0;
 	pCell->pLower = pst->idSelf;
@@ -2678,9 +2678,11 @@ void pstCalcEandL(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	out->U += outLcl.U;
 	out->Eth += outLcl.Eth;
 	for (k=0;k<3;k++) out->L[k] = outLcl.L[k];
+	for (k=0;k<3;k++) out->F[k] = outLcl.F[k];
+	out->W += outLcl.W;
 	}
     else {
-	pkdCalcEandL(plcl->pkd,&out->T,&out->U,&out->Eth,out->L);
+	pkdCalcEandL(plcl->pkd,&out->T,&out->U,&out->Eth,out->L,out->F,&out->W);
 	}
     if (pnOut) *pnOut = sizeof(struct outCalcEandL);
     }

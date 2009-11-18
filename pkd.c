@@ -335,22 +335,28 @@ void pkdInitialize(
     /*
     ** Tree node memory models
     */
-    if ( mMemoryModel & PKD_MODEL_TREE_MOMENT )
+    if ( mMemoryModel & PKD_MODEL_NODE_MOMENT )
 	pkd->oNodeMom = pkdNodeAddStruct(pkd,sizeof(MOMR));
     else
 	pkd->oNodeMom = 0;
 
-    if ( mMemoryModel & PKD_MODEL_VELOCITY )
+    if ( mMemoryModel & PKD_MODEL_NODE_VEL )
 	pkd->oNodeVelocity = pkdNodeAddDouble(pkd,3);
     else
 	pkd->oNodeVelocity = 0;
 
     /* The acceleration is required for the new time step criteria */
-#ifdef LOCAL_EXPANSION
-    pkd->oNodeAcceleration = pkdNodeAddDouble(pkd,3);
-#else
-    pkd->oNodeAcceleration = 0;
-#endif
+    if ( mMemoryModel & PKD_MODEL_NODE_ACCEL )
+	pkd->oNodeAcceleration = pkdNodeAddDouble(pkd,3);
+    else
+	pkd->oNodeAcceleration = 0;
+    /*
+    ** Three extra bounds are required by the fast gas SPH code.
+    */
+    if ( mMemoryModel & PKD_MODEL_NODE_SPHBNDS )
+	pkd->oNodeSphBounds = pkdNodeAddStruct(pkd,sizeof(SPHBNDS));
+    else
+	pkd->oNodeSphBounds = 0;
 
     /*
     ** N.B.: Update pkdMaxNodeSize in pkd.h if you add fields.  We need to
@@ -1022,6 +1028,10 @@ void pkdPeanoHilbertCount(PKD pkd) {
     */
     }
 #endif
+
+
+void pkdTreeWeight(PKD pkd) {
+}
 
 
 /*
@@ -1803,12 +1813,13 @@ pkdGravAll(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,int bP
     }
 
 
-void pkdCalcEandL(PKD pkd,double *T,double *U,double *Eth,double L[]) {
+void pkdCalcEandL(PKD pkd,double *T,double *U,double *Eth,double *L,double *F,double *W) {
     /* L is calculated with respect to the origin (0,0,0) */
 
     PARTICLE *p;
     float *pPot;
     double *v;
+    float *a;
     FLOAT rx,ry,rz,vx,vy,vz,fMass;
     int i,n;
 
@@ -1816,11 +1827,20 @@ void pkdCalcEandL(PKD pkd,double *T,double *U,double *Eth,double L[]) {
     *T = 0.0;
     *U = 0.0;
     *Eth = 0.0;
-    L[0] = L[1] = L[2] = 0;
+    L[0] = L[1] = L[2] = 0.0;
+    F[0] = F[1] = F[2] = 0.0;
+    *W = 0.0;
     for (i=0;i<n;++i) {
 	p = pkdParticle(pkd,i);
 	fMass = pkdMass(pkd,p);
 	if (pkd->oPotential) *U += 0.5*fMass*(*(pkdPot(pkd,p)));
+	if (pkd->oAcceleration) {
+	    a = pkdAccel(pkd,p);
+	    *W += fMass*(p->r[0]*a[0] + p->r[1]*a[1] + p->r[2]*a[2]);
+	    F[0] += fMass*a[0];
+	    F[1] += fMass*a[1];
+	    F[2] += fMass*a[2];
+	}
 	if (pkd->oSph && pkdIsGas(pkd,p)) *Eth += fMass*pkdSph(pkd,p)->u;
 	if (pkd->oVelocity) {
 	    v = pkdVel(pkd,p);
@@ -2022,7 +2042,7 @@ void pkdStepVeryActiveKDK(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dStep, 
 		}
 
 	    pkdActiveRung(pkd,iKickRung,1);
-	    pkdVATreeBuild(pkd,pkd->param.nBucket,diCrit2,dTime);
+	    pkdVATreeBuild(pkd,pkd->param.nBucket,diCrit2);
 	    pkdGravityVeryActive(pkd,uRungLo,uRungHi,dTime,pkd->param.bEwald && pkd->param.bPeriodic,pkd->param.nReplicas,dStep);
 
 #ifdef PLANETS
@@ -2888,19 +2908,15 @@ void pkdDensityStep(PKD pkd, uint8_t uRungLo, uint8_t uRungHi, double dEta, doub
     }
 
 uint8_t pkdDtToRung(double dT, double dDelta, uint8_t uMaxRung) {
-    int iSteps;
-    uint8_t uRung;
+    double dRung;
 
     assert(dT>0.0);
-    iSteps = dDelta/dT;
-    uRung = 0;
-    while (iSteps) {
-	++uRung;
-	iSteps >>= 1;
-	}
-    if ( uRung > uMaxRung ) uRung = uMaxRung;
-    return uRung;
+    dRung = log2(dDelta/dT);
+    dRung = (dRung > 0)?dRung:0;
+    if (dRung > (double)uMaxRung) return(uMaxRung);
+    else return((uint8_t)floor(dRung));
     }
+
 
 int pkdUpdateRung(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
 		  uint8_t uRung,int iMaxRung,int *nRungCount) {

@@ -431,7 +431,6 @@ void pstIOLoad(PST,void *,int,void *,int *);
 /* PST_BUILDTREE */
 struct inBuildTree {
     double diCrit2;
-    double dTimeStamp;
     int nBucket;
     int iCell;
     int nCell;
@@ -521,6 +520,8 @@ struct outCalcEandL {
     double U;
     double Eth;
     double L[3];
+    double F[3];
+    double W;
     };
 void pstCalcEandL(PST,void *,int,void *,int *);
 

@@ -205,6 +205,9 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.nBucket = 8;
     prmAddParam(msr->prm,"nBucket",1,&msr->param.nBucket,sizeof(int),"b",
 		"<max number of particles in a bucket> = 8");
+    msr->param.n2min = 50;
+    prmAddParam(msr->prm,"n2min",1,&msr->param.n2min,sizeof(int),"nn",
+		"<minimum number of p-p interactions for using c-c interactions> = 50");
     msr->param.iStartStep = 0;
     prmAddParam(msr->prm,"iStartStep",1,&msr->param.iStartStep,
 		sizeof(int),"nstart","<initial step numbering> = 0");
@@ -597,6 +600,18 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.bMemVelSmooth = 0;
     prmAddParam(msr->prm,"bMemVelSmooth",1,&msr->param.bMemVelSmooth,
 		sizeof(int),"Mvs","<Particles support velocity smoothing> = 0");
+    msr->param.bMemNodeMoment = 0;
+    prmAddParam(msr->prm,"bMemNodeMoment",1,&msr->param.bMemNodeMoment,
+		sizeof(int),"MNm","<Tree nodes support multipole moments> = 0");
+    msr->param.bMemNodeAcceleration = 0;
+    prmAddParam(msr->prm,"bMemNodeAcceleration",1,&msr->param.bMemNodeAcceleration,
+		sizeof(int),"MNa","<Tree nodes support acceleration (for bGravStep)> = 0");
+    msr->param.bMemNodeVelocity = 0;
+    prmAddParam(msr->prm,"bMemNodeVelocity",1,&msr->param.bMemNodeVelocity,
+		sizeof(int),"MNv","<Tree nodes support velocity (for iTimeStepCrit = 1)> = 0");
+    msr->param.bMemNodeSphBounds = 0;
+    prmAddParam(msr->prm,"bMemNodeSphBounds",1,&msr->param.bMemNodeSphBounds,
+		sizeof(int),"MNsph","<Tree nodes support fast-gas bounds> = 0");
 /* Gas Parameters */
     msr->param.bDoGas = 0;
     prmAddParam(msr->prm,"bDoGas",0,&msr->param.bDoGas,sizeof(int),"gas",
@@ -965,10 +980,14 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     /*
     ** Determine opening type.
     */
-
     msr->dCrit = msr->param.dTheta;
     if (!prmSpecified(msr->prm,"dTheta2"))
 	msr->param.dTheta2 = msr->param.dTheta;
+    /*
+    ** Make sure n2min is greater than nBucket^2!
+    msr->param.n2min = (msr->param.n2min < msr->param.nBucket*msr->param.nBucket+1)?
+	msr->param.nBucket*msr->param.nBucket+1:msr->param.n2min;
+    */
     /*
     ** Initialize comove variables.
     */
@@ -978,32 +997,52 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->nOuts = 0;
 
     /*
-    ** Check timestepping.
+    ** Check timestepping and gravity combinations.
     */
-
-    if (msr->param.iMaxRung < 1) {
-	msr->param.iMaxRung = 1;
-	if (msr->param.bVWarnings)
-	    (void) fprintf(stderr,"WARNING: iMaxRung set to 1\n");
+    if (msr->param.bDoGravity) {
+	if (msr->param.iMaxRung < 1) {
+	    msr->param.iMaxRung = 1;
+	    if (msr->param.bVWarnings) fprintf(stderr,"WARNING: iMaxRung set to 1, SINGLE STEPPING run!\n");
+	    /*
+	    ** For single stepping we don't need fancy timestepping variables.
+	    */
+	    msr->param.bMemNodeAcceleration = 0;
+	    msr->param.bMemNodeVelocity = 0;
 	}
-
-    if (msr->param.bGravStep && !msr->param.bDoGravity) {
-	puts("ERROR: need gravity to use gravity stepping...");
-	_msrExit(msr,1);
+	else {
+	    if (msr->param.bEpsAccStep || msr->param.bSqrtPhiStep) {
+		msr->param.bAccelStep = 1;
+	    }
+	    if ((msr->param.bAccelStep || msr->param.bSqrtPhiStep || msr->param.bDensityStep) && msr->param.bGravStep) {
+		/*
+		** We cannot combine these 2 types of timestepping criteria, we need to choose one
+		** or the other basic timestep criterion, in this case we choose only bGravStep.
+		*/
+		msr->param.bAccelStep = 0;
+		msr->param.bEpsAccStep = 0;
+		msr->param.bSqrtPhiStep = 0;
+		msr->param.bDensityStep = 0;
+		if (msr->param.bVWarnings) fprintf(stderr,"WARNING: bGravStep set in combination with older criteria, now using ONLY bGravStep!\n");
+	    }
+	    else if (!msr->param.bAccelStep && !msr->param.bGravStep && !msr->param.bDensityStep) {
+		msr->param.bGravStep = 1;
+		if (msr->param.bVWarnings) fprintf(stderr,"WARNING: none of bAccelStep, bDensityStep, or bGravStep set, now using bGravStep!\n");
+	    }
+	    /*
+	    ** Set the needed memory model based on the chosen timestepping method.
+	    */
+	    if (msr->param.bGravStep) {
+		msr->param.bMemNodeAcceleration = 1;
+		if (msr->param.iTimeStepCrit == 1) {
+		    msr->param.bMemNodeVelocity = 1;
+		}
+	    } 
+	    else {
+		msr->param.bMemNodeAcceleration = 0;
+		msr->param.bMemNodeVelocity = 0;
+	    }
 	}
-    if (msr->param.bEpsAccStep || msr->param.bSqrtPhiStep) {
-	msr->param.bAccelStep = 1;
-	}
-    else {
-	msr->param.bAccelStep = 0;
-	}
-    if (msr->param.bGravStep) {
-	msr->param.bEpsAccStep = 0;   /* we must do this because the meaning of Eta is different */
-	}
-    if (msr->param.bDoGravity && !msr->param.bEpsAccStep && !msr->param.bDensityStep && !msr->param.bSqrtPhiStep && !msr->param.bGravStep) {
-	puts("ERROR: need some kind of timstep criterion with gravity...");
-	_msrExit(msr,1);
-	}
+    }
 
 #ifdef PLANETS
     switch (msr->param.iCollLogOption) {
@@ -1122,6 +1161,7 @@ void msrLogParams(MSR msr,FILE *fp) {
     fprintf(fp," iCompress: %d",msr->param.iCompress);
     fprintf(fp," bHDF5: %d",msr->param.bHDF5);
     fprintf(fp," nBucket: %d",msr->param.nBucket);
+    fprintf(fp," n2min: %d",msr->param.n2min);
     fprintf(fp,"\n# iOutInterval: %d",msr->param.iOutInterval);
     fprintf(fp," iCheckInterval: %d",msr->param.iCheckInterval);
     fprintf(fp," iLogInterval: %d",msr->param.iLogInterval);
@@ -1756,6 +1796,7 @@ void msrSaveParameters(MSR msr, IOHDF5 io) {
     ioHDF5WriteAttribute( io, "bDoRungOutput", H5T_NATIVE_INT, &msr->param.bDoRungOutput );
     ioHDF5WriteAttribute( io, "bDoGravity", H5T_NATIVE_INT, &msr->param.bDoGravity );
     ioHDF5WriteAttribute( io, "nBucket", H5T_NATIVE_INT, &msr->param.nBucket );
+    ioHDF5WriteAttribute( io, "n2min", H5T_NATIVE_INT, &msr->param.n2min );
     ioHDF5WriteAttribute( io, "iOutInterval", H5T_NATIVE_INT, &msr->param.iOutInterval );
     ioHDF5WriteAttribute( io, "iCheckInterval", H5T_NATIVE_INT, &msr->param.iCheckInterval );
     ioHDF5WriteAttribute( io, "iLogInterval", H5T_NATIVE_INT, &msr->param.iLogInterval );
@@ -2306,7 +2347,7 @@ void msrDomainDecomp(MSR msr,int iRung,int bGreater,int bSplitVA) {
 ** This the meat of the tree build, but will be called by differently named
 ** functions in order to implement special features without recoding...
 */
-void _BuildTree(MSR msr,double dTimeStamp,int bExcludeVeryActive,int bNeedEwald) {
+void _BuildTree(MSR msr,int bExcludeVeryActive,int bNeedEwald) {
     struct inBuildTree in;
     struct ioCalcRoot root;
     PST pst0;
@@ -2332,7 +2373,6 @@ void _BuildTree(MSR msr,double dTimeStamp,int bExcludeVeryActive,int bNeedEwald)
     in.iCell = ROOT;
     in.nCell = nCell;
     in.bExcludeVeryActive = bExcludeVeryActive;
-    in.dTimeStamp = dTimeStamp;
     sec = msrTime();
     pstBuildTree(msr->pst,&in,sizeof(in),pkdn,&iDum);
     msrprintf(msr,"Done pstBuildTree\n");
@@ -2355,13 +2395,13 @@ void _BuildTree(MSR msr,double dTimeStamp,int bExcludeVeryActive,int bNeedEwald)
 
 void msrBuildTree(MSR msr,double dTime,int bNeedEwald) {
     const int bExcludeVeryActive = 0;
-    _BuildTree(msr,dTime,bExcludeVeryActive,bNeedEwald);
+    _BuildTree(msr,bExcludeVeryActive,bNeedEwald);
     }
 
 void msrBuildTreeExcludeVeryActive(MSR msr,double dTime) {
     const int bNeedEwald = 0;
     const int bExcludeVeryActive = 1;
-    _BuildTree(msr,dTime,bExcludeVeryActive,bNeedEwald);
+    _BuildTree(msr,bExcludeVeryActive,bNeedEwald);
     }
 
 void msrReorder(MSR msr) {
@@ -2748,8 +2788,7 @@ void msrGravity(MSR msr,uint8_t uRungLo, uint8_t uRungHi, double dTime,
     }
 
 
-void msrCalcEandL(MSR msr,int bFirst,double dTime,double *E,double *T,
-		  double *U,double *Eth,double L[]) {
+void msrCalcEandL(MSR msr,int bFirst,double dTime,double *E,double *T,double *U,double *Eth,double *L,double *F,double *W) {
     struct outCalcEandL out;
     double a;
     int k;
@@ -2759,6 +2798,8 @@ void msrCalcEandL(MSR msr,int bFirst,double dTime,double *E,double *T,
     *U = out.U;
     *Eth = out.Eth;
     for (k=0;k<3;k++) L[k] = out.L[k];
+    for (k=0;k<3;k++) F[k] = out.F[k];
+    *W = out.W;
     /*
     ** Do the comoving coordinates stuff.
     ** Currently L is not adjusted for this. Should it be?
@@ -5134,7 +5175,7 @@ double msrRead(MSR msr, const char *achInFile) {
     ** will force these flags to be on.
     */
     if (msr->param.bFindGroups) mMemoryModel |= PKD_MODEL_GROUPS|PKD_MODEL_VELOCITY|PKD_MODEL_POTENTIAL;
-    if (msrDoGravity(msr)) mMemoryModel |= PKD_MODEL_VELOCITY|PKD_MODEL_ACCELERATION|PKD_MODEL_POTENTIAL|PKD_MODEL_TREE_MOMENT;
+    if (msrDoGravity(msr)) mMemoryModel |= PKD_MODEL_VELOCITY|PKD_MODEL_ACCELERATION|PKD_MODEL_POTENTIAL|PKD_MODEL_NODE_MOMENT;
     if (msr->param.bHermite) mMemoryModel |= PKD_MODEL_HERMITE;
     if (msr->param.bTraceRelaxation) mMemoryModel |= PKD_MODEL_RELAXATION;
     if (msr->param.bMemAcceleration) mMemoryModel |= PKD_MODEL_ACCELERATION;
@@ -5146,6 +5187,10 @@ double msrRead(MSR msr, const char *achInFile) {
     if (msr->param.bMemHermite)      mMemoryModel |= PKD_MODEL_HERMITE;
     if (msr->param.bMemRelaxation)   mMemoryModel |= PKD_MODEL_RELAXATION;
     if (msr->param.bMemVelSmooth)    mMemoryModel |= PKD_MODEL_VELSMOOTH;
+    if (msr->param.bMemNodeAcceleration) mMemoryModel |= PKD_MODEL_NODE_ACCEL;
+    if (msr->param.bMemNodeVelocity) mMemoryModel |= PKD_MODEL_NODE_VEL;
+    if (msr->param.bMemNodeMoment) mMemoryModel |= PKD_MODEL_NODE_MOMENT;
+    if (msr->param.bMemNodeSphBounds) mMemoryModel |= PKD_MODEL_NODE_SPHBNDS;
 
 #ifdef PLANETS
     dTime = msrReadSS(msr); /* must use "Solar System" (SS) I/O format... */
