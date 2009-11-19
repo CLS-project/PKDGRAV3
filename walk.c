@@ -48,10 +48,22 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
     int iOpen;
     int nPart;
     int nCell;
+    double zero[3];
     double *v;
 
     assert(pkd->oNodeMom);
     assert(pkd->oNodeVelocity);
+
+    for (j=0;j<3;++j) zero[j] = 0.0;
+    v = &zero[0];
+    assert(pkd->oNodeMom);
+    if (pkd->param.bGravStep) {
+	if (pkd->param.iTimeStepCrit == 1) {
+	    assert(pkd->oNodeVelocity);
+	    assert(pkd->oVelocity);
+	}
+    }
+
     /*
     ** If we are doing the very active gravity then check that there is a very active tree!
     */
@@ -372,12 +384,12 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 				}
 			    for (pj=pkdc->pLower;pj<=pkdc->pUpper;++pj) {
 				p = pkdParticle(pkd,pj);
-				v = pkdVel(pkd,p);
 				pkd->ilp[nPart].iOrder = p->iOrder;
 				pkd->ilp[nPart].m = pkdMass(pkd,p);
 				pkd->ilp[nPart].x = p->r[0] + pkd->Check[i].rOffset[0];
 				pkd->ilp[nPart].y = p->r[1] + pkd->Check[i].rOffset[1];
 				pkd->ilp[nPart].z = p->r[2] + pkd->Check[i].rOffset[2];
+				if (pkd->param.bGravStep && pkd->param.iTimeStepCrit == 1) v = pkdNodeVel(pkd,pkdc);
 				pkd->ilp[nPart].vx = v[0];
 				pkd->ilp[nPart].vy = v[1];
 				pkd->ilp[nPart].vz = v[2];
@@ -405,12 +417,12 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 				}
 			    for (pj=pkdc->pLower;pj<=pkdc->pUpper;++pj) {
 				pRemote = mdlAquire(pkd->mdl,CID_PARTICLE,pj,id);
-				v = pkdVel(pkd,pRemote);
 				pkd->ilp[nPart].iOrder = pRemote->iOrder;
 				pkd->ilp[nPart].m = pkdMass(pkd,pRemote);
 				pkd->ilp[nPart].x = pRemote->r[0] + pkd->Check[i].rOffset[0];
 				pkd->ilp[nPart].y = pRemote->r[1] + pkd->Check[i].rOffset[1];
 				pkd->ilp[nPart].z = pRemote->r[2] + pkd->Check[i].rOffset[2];
+				if (pkd->param.bGravStep && pkd->param.iTimeStepCrit == 1) v = pkdVel(pkd,pRemote);
 				pkd->ilp[nPart].vx = v[0];
 				pkd->ilp[nPart].vy = v[1];
 				pkd->ilp[nPart].vz = v[2];
@@ -444,6 +456,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 		    pkd->ilc[nCell].z = rCheck[2];
 		    pkd->ilc[nCell].mom = *pkdNodeMom(pkd,pkdc);
 #ifdef HERMITE
+		    v = pkdNodeVel(pkd,pkdc);
 		    pkd->ilc[nCell].vx = pkdc->v[0];
 		    pkd->ilc[nCell].vy = pkdc->v[1];
 		    pkd->ilc[nCell].vz = pkdc->v[2];
@@ -466,12 +479,10 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 		    pkd->ilp[nPart].x = rCheck[0];
 		    pkd->ilp[nPart].y = rCheck[1];
 		    pkd->ilp[nPart].z = rCheck[2];
-		    if (pkd->oNodeVelocity) {
-			double *pVel = pkdNodeVel(pkd,pkdc);
-			pkd->ilp[nPart].vx = pVel[0];
-			pkd->ilp[nPart].vy = pVel[1];
-			pkd->ilp[nPart].vz = pVel[2];
-			}
+		    if (pkd->param.bGravStep && pkd->param.iTimeStepCrit == 1) v = pkdNodeVel(pkd,pkdc);
+		    pkd->ilp[nPart].vx = v[0];
+		    pkd->ilp[nPart].vy = v[1];
+		    pkd->ilp[nPart].vz = v[2];
 #ifdef SOFTLINEAR
 		    pkd->ilp[nPart].h = sqrt(pkdc->fSoft2);
 #endif
