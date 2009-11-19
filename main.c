@@ -79,7 +79,7 @@ int main(int argc,char **argv) {
     FILE *fpLog = NULL;
     char achFile[256];			/*DEBUG use MAXPATHLEN here (& elsewhere)? -- DCR*/
     double dTime;
-    double E=0,T=0,U=0,Eth=0,L[3]={0,0,0};
+    double E=0,T=0,U=0,Eth=0,L[3]={0,0,0},F[3]={0,0,0},W=0;
     double dMultiEff=0;
     long lSec=0,lStart;
     int i,iStep,iSec=0,iStop=0;
@@ -232,13 +232,13 @@ int main(int argc,char **argv) {
 	    msrInitSph(msr,dTime);
 	    }
 
-	msrCalcEandL(msr,MSR_INIT_E,dTime,&E,&T,&U,&Eth,L);
+	msrCalcEandL(msr,MSR_INIT_E,dTime,&E,&T,&U,&Eth,L,F,&W);
 	dMultiEff = 1.0;
 	if (msrLogInterval(msr)) {
 		(void) fprintf(fpLog,"%e %e %.16e %e %e %e %.16e %.16e %.16e "
-			       "%i %e\n",dTime,
+			       "%.16e %.16e %.16e %.16e %i %e\n",dTime,
 			       1.0/csmTime2Exp(msr->param.csm,dTime)-1.0,
-			       E,T,U,Eth,L[0],L[1],L[2],iSec,dMultiEff);
+			       E,T,U,Eth,L[0],L[1],L[2],F[0],F[1],F[2],W,iSec,dMultiEff);
 	    }
 #ifdef PLANETS
 	if (msr->param.bHeliocentric) {
@@ -298,12 +298,12 @@ int main(int argc,char **argv) {
 	    ** Note: no extra gravity calculation required.
 	    */
 	    if (msrLogInterval(msr) && iStep%msrLogInterval(msr) == 0) {
-		msrCalcEandL(msr,MSR_STEP_E,dTime,&E,&T,&U,&Eth,L);
+		msrCalcEandL(msr,MSR_STEP_E,dTime,&E,&T,&U,&Eth,L,F,&W);
 		lSec = time(0) - lSec;
 		(void) fprintf(fpLog,"%e %e %.16e %e %e %e %.16e %.16e "
-			       "%.16e %li %e\n",dTime,
+			       "%.16e %.16e %.16e %.16e %.16e %li %e\n",dTime,
 			       1.0/csmTime2Exp(msr->param.csm,dTime)-1.0,
-			       E,T,U,Eth,L[0],L[1],L[2],lSec,dMultiEff);
+			       E,T,U,Eth,L[0],L[1],L[2],F[0],F[1],F[2],W,lSec,dMultiEff);
 		}
 	    if ( msr->param.bTraceRelaxation) {
 		msrActiveRung(msr,0,1); /* Activate all particles */
@@ -377,13 +377,13 @@ int main(int argc,char **argv) {
 		   
 		msrUpdateRung(msr,0); /* set rungs for output */
  
-		msrCalcEandL(msr,MSR_INIT_E,dTime,&E,&T,&U,&Eth,L);
+		msrCalcEandL(msr,MSR_INIT_E,dTime,&E,&T,&U,&Eth,L,F,&W);
 		dMultiEff = 1.0;
 		if (msrLogInterval(msr)) {
-			(void) fprintf(fpLog,"%e %e %.16e %e %e %e %.16e %.16e %.16e "
-				       "%i %e\n",dTime,
-				       1.0/csmTime2Exp(msr->param.csm,dTime)-1.0,
-				       E,T,U,Eth,L[0],L[1],L[2],iSec,dMultiEff);
+		    (void) fprintf(fpLog,"%e %e %.16e %e %e %e %.16e %.16e "
+			       "%.16e %.16e %.16e %.16e %.16e %li %e\n",dTime,
+			       1.0/csmTime2Exp(msr->param.csm,dTime)-1.0,
+			       E,T,U,Eth,L[0],L[1],L[2],F[0],F[1],F[2],W,iSec,dMultiEff);
 		    }
 		}
 
