@@ -621,9 +621,9 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 		    ** Add to the GLAM list to be evaluated later.
 		    */
 		    dir = 1.0/sqrt(d2);
-		    a = pkdNodeAccel(pkd,pkdc);
+		    a = pkdNodeAccel(pkd,kdn0);
 		    *pdFlop += momLocrAddMomr5(&L,pkdNodeMom(pkd,pkdc),dir,dx[0],dx[1],dx[2],&tax,&tay,&taz);
-		    adotai = a[0]*(-tax) + a[1]*(-tay) + a[2]*(-taz); /* temporary hack to get it right */
+		    adotai = a[0]*tax + a[1]*tay + a[2]*taz;
 		    if (adotai > 0) {
 			maga = sqrt(a[0]*a[0] + a[1]*a[1] + a[2]*a[2]);
 			adotai /= maga;
