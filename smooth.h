@@ -2,6 +2,7 @@
 #define SMOOTH_HINCLUDED
 #define SMOOTH_H_MODULE_ID "$Id$"
 
+#include "listcomp.h"
 #include "pkd.h"
 #include "smoothfcn.h"
 #ifndef HAVE_CONFIG_H
@@ -14,6 +15,12 @@
 struct hashElement {
     void *p;
     struct hashElement *coll;
+};
+
+struct smExtraArray {
+    uint32_t iIndex;
+    char bInactive;
+    char bDone;
 };
 
 
@@ -29,8 +36,17 @@ typedef struct smContext {
     /*
     ** Flags to mark local particles which are inactive either because they
     ** are source inactive or because they are already present in the prioq.
+    ** In this extra array is also space for a queue of particles, needed 
+    ** for the fast gas routines or for friends-of-friends.
+    ** This will point to the pLite array, so it will be destroyed after a tree
+    ** build or domain decomposition.
     */
-    char *bInactive;
+    struct smExtraArray *ea;
+    /*
+    ** Flags to mark local particles which are finished in the processing
+    ** of the smFastGas routine. They have updated their densities.
+    */
+    char *bDone;
     /*
     ** Hash table to indicate whether a remote particle is already present in the 
     ** priority queue.
@@ -52,6 +68,10 @@ typedef struct smContext {
      */
     int *ST;
     FLOAT *SminT;
+    /*
+    ** Context for nearest neighbor lists.
+    */
+    LCODE lcmp;
     } * SMX;
 
 

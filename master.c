@@ -2611,7 +2611,7 @@ void msrSmooth(MSR msr,double dTime,int iSmoothType,int bSymmetric) {
 
 
 void msrReSmooth(MSR msr,double dTime,int iSmoothType,int bSymmetric) {
-    struct inReSmooth in;
+    struct inSmooth in;
 
     in.nSmooth = msr->param.nSmooth;
     in.bPeriodic = msr->param.bPeriodic;

@@ -191,7 +191,6 @@ int smHashPresent(SMX smx,void *p) {
 }
 
 
-
 int smInitialize(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodic,int bSymmetric,int iSmoothType) {
     SMX smx;
     void (*initParticle)(void *,void *) = NULL;
@@ -205,11 +204,12 @@ int smInitialize(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodic,int bSymme
     assert(smx != NULL);
     smx->pkd = pkd;
     if (smf != NULL) smf->pkd = pkd;
-#ifdef BADSMOOTH
-    nSmooth=nSmooth*3;
-#endif
     smx->nSmooth = nSmooth;
     smx->bPeriodic = bPeriodic;
+    /*
+    ** Initialize the context for compressed nearest neighbor lists.
+    */
+    smx->lcmp = lcodeInit(pkd->nThreads,pkd->idSelf,pkd->nLocal,nSmooth);
 
     switch (iSmoothType) {
     case SMX_NULL:
@@ -411,10 +411,10 @@ int smInitialize(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodic,int bSymme
     smx->pSentinel.bSrcActive = 1;
     smx->pSentinel.bDstActive = 0;
     /*
-    ** Need to cast the pLite to an array for char for local flags.
+    ** Need to cast the pLite to an array of extra stuff.
     */
-    smx->bInactive = UNION_CAST(pkd->pLite,PLITE *,char *);
-   
+    assert(sizeof(PLITE) >= sizeof(struct smExtraArray));
+    smx->ea = UNION_CAST(pkd->pLite,PLITE *,struct smExtraArray *);
     *psmx = smx;
     return(1);
 }
@@ -471,6 +471,10 @@ void smFinish(SMX smx,SMF *smf) {
 		smx->fcnPost(pkd,p,smf);
 	}
     }
+    /*
+    ** Finish compressed lists.
+    */
+    lcodeFinish(smx->lcmp);
     /*
     ** Free up context storage.
     */
@@ -532,7 +536,7 @@ PQ *pqSearchLocal(SMX smx,PQ *pq,FLOAT r[3],int *pbDone) {
 	}
 	pEnd = kdn->pUpper;
 	for (pj=kdn->pLower;pj<=pEnd;++pj) {
-	    if (smx->bInactive[pj]) continue;
+	    if (smx->ea[pj].bInactive) continue;
 	    p = pkdParticle(pkd,pj);
 	    dx = r[0] - p->r[0];
 	    dy = r[1] - p->r[1];
@@ -540,7 +544,7 @@ PQ *pqSearchLocal(SMX smx,PQ *pq,FLOAT r[3],int *pbDone) {
 	    fDist2 = dx*dx + dy*dy + dz*dz;
 	    if (fDist2 < pq->fDist2) {
 		if (pq->iPid == idSelf) {
-		    smx->bInactive[pq->iIndex] = 0;
+		    smx->ea[pq->iIndex].bInactive = 0;
 		} 
 		else {
 		    smHashDel(smx,pq->pPart);
@@ -553,7 +557,7 @@ PQ *pqSearchLocal(SMX smx,PQ *pq,FLOAT r[3],int *pbDone) {
 		pq->dy = dy;
 		pq->dz = dz;
 		pq->iIndex = pj;
-		smx->bInactive[pj] = 1; /* de-activate a particle that enters the queue */
+		smx->ea[pj].bInactive = 1; /* de-activate a particle that enters the queue */
 		PQ_REPLACE(pq);
 	    }
 	}
@@ -662,7 +666,7 @@ PQ *pqSearchRemote(SMX smx,PQ *pq,int id,FLOAT r[3]) {
 	    fDist2 = dx*dx + dy*dy + dz*dz;
 	    if (fDist2 < pq->fDist2) {
 		if (pq->iPid == idSelf) {
-		    smx->bInactive[pq->iIndex] = 0;
+		    smx->ea[pq->iIndex].bInactive = 0;
 		}
 		else {
 		    smHashDel(smx,pq->pPart);
@@ -821,9 +825,9 @@ void smSmooth(SMX smx,SMF *smf) {
     */
     for (pi=0;pi<pkd->nLocal;++pi) {
 	p = pkdParticle(pkd,pi);
-	smx->bInactive[pi] = (p->bSrcActive)?0:1;
+	smx->ea[pi].bInactive = (p->bSrcActive)?0:1;
     }
-    smx->bInactive[pkd->nLocal] = 0;  /* initialize for Sentinel, but this is not really needed */
+    smx->ea[pkd->nLocal].bInactive = 0;  /* initialize for Sentinel, but this is not really needed */
     /*
     ** Initialize the priority queue first.
     */
@@ -893,12 +897,1354 @@ void smSmooth(SMX smx,SMF *smf) {
     */
     for (i=0;i<smx->nSmooth;++i) {
 	if (smx->pq[i].iPid == pkd->idSelf) {
-	    smx->bInactive[smx->pq[i].iIndex] = 0;
+	    smx->ea[smx->pq[i].iIndex].bInactive = 0;
 	}
 	else {
 	    smHashDel(smx,smx->pq[i].pPart);
 	    mdlRelease(pkd->mdl,CID_PARTICLE,smx->pq[i].pPart);
 	}
+    }
+}
+
+
+void UpdateSphBounds(SMX smx) {
+    PKD pkd = smx->pkd;
+    PARTICLE *p;
+    KDN *pkdn,*p1,*p2;
+    SPHBNDS *bn,*b1,*b2;
+    double Bmin[3];
+    double Bmax[3];
+    double BImin[3];
+    double BImax[3];
+    uint32_t iNode;
+    int nDepth,d,pi,pj;
+
+    assert(pkd->oNodeSphBounds);
+    nDepth = 1;
+    while (1) {
+	while (pkdTreeNode(pkd,iNode)->iLower) {
+	    iNode = pkdTreeNode(pkd,iNode)->iLower;
+	    ++nDepth;
+	}
+	/*
+	** Now calculate all bucket quantities!
+	*/
+	pkdn = pkdTreeNode(pkd,iNode);
+	/*
+	** Update bucket fast gas bounds.
+	** Default bounds always makes the cell look infinitely far away, regardless from where.
+	*/
+	for (d=0;d<3;++d) Bmin[d] = HUGE_VAL;
+	for (d=0;d<3;++d) Bmax[d] = -HUGE_VAL;
+	for (d=0;d<3;++d) BImin[d] = HUGE_VAL;
+	for (d=0;d<3;++d) BImax[d] = -HUGE_VAL;
+	for (pj=pkdn->pLower;pj<=pkdn->pUpper;++pj) {
+	    p = pkdParticle(pkd,pj);
+	    if (pkdIsGas(pkd,p)) {
+		if (smx->ea[pi].bDone) {
+		    /*
+		    ** Use the actual currently calculated fBall.
+		    */
+		    for (d=0;d<3;++d) Bmin[d] = fmin(Bmin[d],p->r[d] - p->fBall);
+		    for (d=0;d<3;++d) Bmax[d] = fmax(Bmax[d],p->r[d] + p->fBall);
+		    /*
+		    ** If the particle is inactive and we have calculated it already, then we
+		    ** actually don't want it included in our BI ball bound. No test needed here.
+		    ** if (!pkdActive(pkd,p)) Ignore this particle in the BI ball bound;
+		    */
+		}
+		else {
+		    /*
+		    ** Use the old fBall, but increased by the factor given by the maximum growth of hsmooth.
+		    */
+		    for (d=0;d<3;++d) Bmin[d] = fmin(Bmin[d],p->r[d] - (1+pkd->param.ddHonHLimit)*p->fBall);
+		    for (d=0;d<3;++d) Bmax[d] = fmax(Bmax[d],p->r[d] + (1+pkd->param.ddHonHLimit)*p->fBall);
+		    if (!pkdIsActive(pkd,p)) {
+			for (d=0;d<3;++d) BImin[d] = fmin(BImin[d],p->r[d] - (1+pkd->param.ddHonHLimit)*p->fBall);
+			for (d=0;d<3;++d) BImax[d] = fmax(BImax[d],p->r[d] + (1+pkd->param.ddHonHLimit)*p->fBall);
+		    }
+		}
+	    }
+	    /*
+	    ** Note that minimums can always safely be increased and maximums safely decreased in parallel, even on 
+	    ** a shared memory machine, without needing locking since these bounds should always simply be seen as being
+	    ** a conservative bound on the particles in the algorithms. This is true AS LONG AS a double precision store
+	    ** operation is atomic (i.e., that the individual bytes are not written one-by-one). We take advantage of 
+	    ** this fact in the fast gas algorithm where we locally reduce the bounds to exclude particles which have 
+	    ** already been completed in the direct neighbor search phase.
+	    */
+	    bn = pkdNodeSphBounds(pkd,pkdn);
+	    for (d=0;d<3;++d) bn->B.min[d] = Bmin[d];
+	    for (d=0;d<3;++d) bn->B.max[d] = Bmax[d];
+	    for (d=0;d<3;++d) bn->BI.min[d] = BImin[d];
+	    for (d=0;d<3;++d) bn->BI.max[d] = BImax[d];
+	}
+	/*
+	** Finished with the bucket, move onto the next one,
+	** or to the parent.
+	*/
+	while (iNode & 1) {
+	    iNode = pkdTreeNode(pkd,iNode)->iParent;
+	    --nDepth;
+	    if (!iNode) {
+		assert(nDepth == 0);
+		return;	/* exit point!!! */
+	    }
+	    pkdn = pkdTreeNode(pkd,iNode);
+	    p1 = pkdTreeNode(pkd,pkdn->iLower);
+	    p2 = pkdTreeNode(pkd,pkdn->iLower + 1);
+	    b1 = pkdNodeSphBounds(pkd,p1);
+	    b2 = pkdNodeSphBounds(pkd,p2);
+	    bn = pkdNodeSphBounds(pkd,pkdn);
+	    for (d=0;d<3;++d) bn->B.min[d] = fmin(b1->B.min[d],b2->B.min[d]);
+	    for (d=0;d<3;++d) bn->B.max[d] = fmax(b1->B.max[d],b2->B.max[d]);
+	    for (d=0;d<3;++d) bn->BI.min[d] = fmin(b1->BI.min[d],b2->BI.min[d]);
+	    for (d=0;d<3;++d) bn->BI.max[d] = fmax(b1->BI.max[d],b2->BI.max[d]);
+	}
+	++iNode;
+    }
+}
+
+
+static inline int iOpenInactive(PKD pkd,KDN *k,CELT *check,KDN **pc,PARTICLE **pp) {
+    PARTICLE *p;
+    KDN *c;
+    SPHBNDS *bk,*bc;
+    double sk,sc;  /* size proxies for the cells */
+    int iCell,iPart,j;
+        
+    bk = pkdNodeSphBounds(pkd,k);
+    if (check->iCell < 0) {
+	iPart = -check->iCell;
+	if (check->id == pkd->idSelf) {
+	    p = pkdParticle(pkd,iPart);
+	}
+	else {
+	    p = mdlAquire(pkd->mdl,CID_PARTICLE,iPart,check->id);
+	}
+	for (j=0;j<3;++j) {
+	    /*
+	    ** If any of the dimensions show no overlap, then the 2 bounds do not overlap.
+	    */
+	    if (bk->BI.max[j] < p->r[j]+check->rOffset[j] || 
+		bk->BI.min[j] > p->r[j]+check->rOffset[j]) return(10); /* ignore particle */
+	}
+	if (k->iLower) return(0); /* particle stays on the checklist (open k) */
+	else return(1);  /* test particle by particle */
+	*pc = NULL;
+	*pp = p;
+    }
+    else {
+	iCell = check->iCell;
+	if (check->id == pkd->idSelf) {
+	    c = pkdTreeNode(pkd,iCell);
+	}
+	else if (check->id < 0) {
+	    c = pkdTopNode(pkd,iCell);
+	    assert(c->iLower != 0);
+	}
+	else {
+	    c = mdlAquire(pkd->mdl,CID_CELL,iCell,check->id);
+	}
+	*pc = c;
+	*pp = NULL;
+	bc = pkdNodeSphBounds(pkd,c);
+	for (j=0;j<3;++j) {
+	    /*
+	    ** If any of the dimensions show no overlap, then the 2 bounds do not overlap.
+	    */
+	    if (bk->BI.max[j] < bc->A.min[j]+check->rOffset[j] || 
+		bk->BI.min[j] > bc->A.max[j]+check->rOffset[j]) return(10); /* ignore cell */
+	}
+	if (k->iLower) {
+	    /*
+	    ** Open the larger of the 2 cells. We use a Manhatten metric to define the size.
+	    */
+	    sk = 0; sc = 0;
+	    for (j=0;j<3;++j) {
+		sk += bk->BI.max[j] - bk->BI.min[j];  
+		sc += bc->A.max[j] - bc->A.min[j];
+	    }
+	    if (sk > sc) return(0); /* cell stays on checklist (open cell k) */
+	    else if (c->iLower) return(3); /* open cell c */
+	    else return(2); /* open the bucket c */
+	}
+	else if (c->iLower) return(3); /* open cell c */
+	else return(2); /* open the bucket c */
+    }
+}
+
+
+void BoundWalkInactive(SMX smx,uint32_t *puHead) {
+    PKD pkd = smx->pkd;
+    PARTICLE *p,*pp;
+    KDN *k,*c,*kSib;
+    FLOAT rOffset[3];
+    FLOAT d2;
+    int iStack,ism;
+    int ix,iy,iz,bRep;
+    int nMaxInitCheck,nCheck;
+    int iCell,iSib,iCheckCell;
+    int i,ii,j,n,id,pj;
+    int iOpen;
+
+    assert(pkd->oNodeSphBounds);
+    /*
+    ** Allocate Checklist.
+    */
+    nMaxInitCheck = 3;
+    nMaxInitCheck = nMaxInitCheck*nMaxInitCheck*nMaxInitCheck;	/* all replicas */
+    iCell = pkd->iTopRoot;
+    while ((iCell = pkdTopNode(pkd,iCell)->iParent)) ++nMaxInitCheck; /* all top tree siblings */
+    assert(nMaxInitCheck < pkd->nMaxCheck);  /* we should definitely have enough to cover us here! */
+    nCheck = 0;
+    iStack = -1;
+    /*
+    ** First we add any replicas of the entire box
+    ** to the Checklist.
+    */
+    for (ix=-1;ix<=1;++ix) {
+	rOffset[0] = ix*pkd->fPeriod[0];
+	for (iy=-1;iy<=1;++iy) {
+	    rOffset[1] = iy*pkd->fPeriod[1];
+	    for (iz=-1;iz<=1;++iz) {
+		rOffset[2] = iz*pkd->fPeriod[2];
+		bRep = ix || iy || iz;
+		if (bRep) {
+		    pkd->Check[nCheck].iCell = ROOT;
+		    /* If leaf of top tree, use root of
+		       local tree.
+		    */
+		    if (pkdTopNode(pkd,ROOT)->iLower) {
+			pkd->Check[nCheck].id = -1;
+			}
+		    else {
+			pkd->Check[nCheck].id = pkdTopNode(pkd,ROOT)->pLower;
+			}
+		    for (j=0;j<3;++j) pkd->Check[nCheck].rOffset[j] = rOffset[j];
+		    ++nCheck;
+		    }
+		}
+	    }
+	}
+    /*
+    ** This adds all siblings of a chain leading from the local tree leaf in the top
+    ** tree up to the ROOT of the top tree.
+    */
+    iCell = pkd->iTopRoot;
+    iSib = SIBLING(iCell);
+    while (iSib) {
+	if (pkdTopNode(pkd,iSib)->iLower) {
+	    pkd->Check[nCheck].iCell = iSib;
+	    pkd->Check[nCheck].id = -1;
+	}
+	else {
+	    /* If leaf of top tree, use root of local tree */
+	    pkd->Check[nCheck].iCell = ROOT;
+	    pkd->Check[nCheck].id = pkdTopNode(pkd,iSib)->pLower;
+	}
+	for (j=0;j<3;++j) pkd->Check[nCheck].rOffset[j] = 0.0;
+	++nCheck;
+	iCell = pkdTopNode(pkd,iCell)->iParent;
+	iSib = SIBLING(iCell);
+    }
+    /*
+    ** We are now going to work on the local tree.
+    ** Make iCell point to the root of the tree again.
+    */
+    k = pkdTreeNode(pkd,iCell = ROOT);
+    while (1) {
+	while (1) {
+	    /*
+	    ** Process the Checklist.
+	    */
+/*
+	    printf("\nCELL:%d ",iCell);
+*/
+	    ii = 0;
+	    for (i=0;i<nCheck;++i) {
+		iOpen = iOpenInactive(pkd,k,&pkd->Check[i],&c,&pp);
+/*
+		printf("%1d",iOpen);
+*/
+		switch (iOpen) {
+		case 0:
+		    /*
+		    ** This checkcell stays on the checklist.
+		    */
+		    pkd->Check[ii++] = pkd->Check[i];
+		    break;
+		case 1:
+		    /*
+		    ** We check individual particles against each other here.
+		    */
+		    for (pj=k->pLower;pj<=k->pUpper;++pj) {
+			p = pkdParticle(pkd,pj);
+			/*
+			** Have we potentially missed this particle?
+			*/
+			if (pkdIsGas(pkd,p) && !pkdIsActive(pkd,p) && !smx->ea[pj].bDone) {
+			    d2 = 0;
+			    for (j=0;j<3;++j) {
+				d2 += pow(p->r[j] - (pp->r[j] + pkd->Check[i].rOffset[j]),2);
+			    }
+			    if (d2 < pow((1+pkd->param.ddHonHLimit)*p->fBall,2)) {
+				/*
+				** Needs an updated density, so add it to the head of the 
+				** do queue.
+				*/
+				if (*puHead == 0) *puHead = pkd->nLocal-1;
+				else --(*puHead);
+				smx->ea[*puHead].iIndex = smx->pq[i].iIndex;
+			    }
+			}
+		    }
+		    break;
+		case 2:
+		    /*
+		    ** Now I am trying to open a bucket, which means I place each of its particles
+		    ** on the checklist. These are marked by a negative cell id.
+		    */
+		    if (nCheck + (c->pUpper - c->pLower + 1) > pkd->nMaxCheck) {
+			pkd->nMaxCheck += (c->pUpper - c->pLower + 1) + 1000;
+			pkd->Check = realloc(pkd->Check,pkd->nMaxCheck*sizeof(CELT));
+			assert(pkd->Check != NULL);
+			for (ism=0;ism<pkd->nMaxStack;++ism) {
+			    pkd->S[ism].Check = realloc(pkd->S[ism].Check,pkd->nMaxCheck*sizeof(CELT));
+			    assert(pkd->S[ism].Check != NULL);
+			}
+			printf("Case 2: CPU:%d increased checklist size to %d\n",mdlSelf(pkd->mdl),pkd->nMaxCheck);
+		    }
+		    for (pj=c->pLower;pj<=c->pUpper;++pj) {
+			if (pkd->Check[i].id == pkd->idSelf) p = pkdParticle(pkd,pj);
+			else p = mdlAquire(pkd->mdl,CID_PARTICLE,pj,pkd->Check[i].id);
+			/*
+			** Only add those particle which we really need to check here!
+			*/
+			if (pkdIsGas(pkd,p) && pkdIsActive(pkd,p)) {
+			    pkd->Check[nCheck] = pkd->Check[i];
+			    pkd->Check[nCheck].iCell = -pj;
+			    ++nCheck;
+			}
+			if (pkd->Check[i].id != pkd->idSelf) mdlRelease(pkd->mdl,CID_PARTICLE,p);
+		    }
+		    break;
+		case 3:
+		    /*
+		    ** Open the cell.
+		    ** Here we ASSUME that the children of
+		    ** c are all in sequential memory order!
+		    ** (the new tree build assures this)
+		    ** (also true for the top tree)
+		    ** We could do a prefetch here for non-local
+		    ** cells.
+		    */
+		    if (nCheck + 2 > pkd->nMaxCheck) {
+			pkd->nMaxCheck += 1000;
+			pkd->Check = realloc(pkd->Check,pkd->nMaxCheck*sizeof(CELT));
+			assert(pkd->Check != NULL);
+			for (ism=0;ism<pkd->nMaxStack;++ism) {
+			    pkd->S[ism].Check = realloc(pkd->S[ism].Check,pkd->nMaxCheck*sizeof(CELT));
+			    assert(pkd->S[ism].Check != NULL);
+			}
+			printf("Case 3: CPU:%d increased checklist size to %d\n",mdlSelf(pkd->mdl),pkd->nMaxCheck);
+		    }
+		    iCheckCell = c->iLower;
+		    pkd->Check[nCheck] = pkd->Check[i];
+		    pkd->Check[nCheck+1] = pkd->Check[i];
+		    /*
+		    ** If we are opening a leaf of the top tree
+		    ** we need to correctly set the processor id.
+		    ** (this is a bit tricky)
+		    */
+		    if (pkd->Check[i].id < 0) {
+			if (pkdTopNode(pkd,iCheckCell)->pLower >= 0) {
+			    pkd->Check[nCheck].iCell = ROOT;
+			    pkd->Check[nCheck].id = pkdTopNode(pkd,iCheckCell)->pLower;
+			}
+			else {
+			    pkd->Check[nCheck].iCell = iCheckCell;
+			    assert(pkd->Check[nCheck].id == -1);
+			}
+			if (pkdTopNode(pkd,iCheckCell+1)->pLower >= 0) {
+			    pkd->Check[nCheck+1].iCell = ROOT;
+			    pkd->Check[nCheck+1].id = pkdTopNode(pkd,iCheckCell+1)->pLower;
+			}
+			else {
+			    pkd->Check[nCheck+1].iCell = iCheckCell+1;
+			    assert(pkd->Check[nCheck+1].id == -1);
+			}
+		    }
+		    else {
+			pkd->Check[nCheck].iCell = iCheckCell;
+			pkd->Check[nCheck+1].iCell = iCheckCell+1;
+			assert(pkd->Check[nCheck].id == pkd->Check[i].id);
+			assert(pkd->Check[nCheck+1].id == pkd->Check[i].id);
+		    }
+		    nCheck += 2;
+		    break;
+		case 10:
+		    /*
+		    ** This checkcell is removed from the checklist since it has no overlap with the current cell.
+		    */
+		    break;		
+		}
+		if (pkd->Check[i].id >= 0 && pkd->Check[i].id != pkd->idSelf) {
+		    if (c) mdlRelease(pkd->mdl,CID_CELL,c);
+		    if (pp) mdlRelease(pkd->mdl,CID_PARTICLE,pp);
+		}
+	    }
+	    nCheck = ii;
+	    /*
+	    ** Done processing of the Checklist.
+	    ** Now prepare to proceed to the next deeper
+	    ** level of the tree.
+	    */
+	    if (!k->iLower) break;
+	    k = pkdTreeNode(pkd,iCell = k->iLower);
+	    /*
+	    ** Make sure all the check lists are long enough to handle 1 more cell.
+	    */
+	    if (nCheck == pkd->nMaxCheck) {
+		pkd->nMaxCheck += 1000;
+		pkd->Check = realloc(pkd->Check,pkd->nMaxCheck*sizeof(CELT));
+		assert(pkd->Check != NULL);
+		for (ism=0;ism<pkd->nMaxStack;++ism) {
+		    pkd->S[ism].Check = realloc(pkd->S[ism].Check,pkd->nMaxCheck*sizeof(CELT));
+		    assert(pkd->S[ism].Check != NULL);
+		    }
+		printf("F CPU:%d increased check list size to %d\n",mdlSelf(pkd->mdl),pkd->nMaxCheck);
+		}
+	    /*
+	    ** Check iCell has any inactive.
+	    */
+	    if (k->nActive < (k->pUpper-k->pLower+1)) {
+		/*
+		** iCell has inactives, continue processing it.
+		** Put the sibling onto the checklist.
+		*/
+		pkd->Check[nCheck].iCell = iCell + 1;
+		pkd->Check[nCheck].id = pkd->idSelf;
+		for (j=0;j<3;++j) pkd->Check[nCheck].rOffset[j] = 0.0;
+		++nCheck;
+		/*
+		** Test whether the sibling has inactives as well.
+		** If not we don't push it onto the stack, but we
+		** have to be careful to not pop the stack when we
+		** hit the sibling. See the goto "InactiveAscend" below
+		** for how this is done.
+		*/
+		kSib = pkdTreeNode(pkd,iCell+1);
+		if (kSib->nActive < (kSib->pUpper-kSib->pLower+1)) {
+		    /*
+		    ** Sibling has inactives as well.
+		    ** Push Checklist for the sibling onto the stack
+		    ** before proceeding deeper in the tree.
+		    */
+		    ++iStack;
+		    assert(iStack < pkd->nMaxStack);
+		    pkd->S[iStack].nCheck = nCheck;
+		    /*
+		    ** Maybe use a memcpy here!
+		    ** for (i=0;i<nCheck;++i) pkd->S[iStack].Check[i] = pkd->Check[i];
+		    */
+		    memcpy(pkd->S[iStack].Check,pkd->Check,nCheck*sizeof(CELT));
+		    pkd->S[iStack].Check[nCheck-1].iCell = iCell;
+		    }
+		}
+	    else {
+		/*
+		** Skip iCell, but add it to the Checklist.
+		** No need to push anything onto the stack here.
+		*/
+		pkd->Check[nCheck].iCell = iCell;
+		pkd->Check[nCheck].id = pkd->idSelf;
+		for (j=0;j<3;++j) pkd->Check[nCheck].rOffset[j] = 0.0;
+		++nCheck;
+		/*
+		** Move onto processing the sibling.
+		*/
+		k = pkdTreeNode(pkd,++iCell);
+		}
+	    }
+	/*
+	** Now the interaction list should be complete and the
+	** Checklist should be empty!
+	*/
+	assert(nCheck == 0);
+
+	while (iCell & 1) {
+	InactiveAscend:
+	    k = pkdTreeNode(pkd,iCell = k->iParent);
+	    if (!iCell) {
+		/*
+		** Make sure stack is empty.
+		*/
+		assert(iStack == -1);
+		return;
+		}
+	    }
+	k = pkdTreeNode(pkd,++iCell);
+	if (k->nActive == (k->pUpper-k->pLower+1)) goto InactiveAscend;
+	/*
+	** Pop the Checklist from the top of the stack,
+	** also getting the state of the interaction list.
+	*/
+	nCheck = pkd->S[iStack].nCheck;
+	/*
+	** Use a memcpy here. This is where we would win with lists since we could simply take the
+	** pointer to this list. We would have to link the old checklist into the freelist.
+	** for (i=0;i<nCheck;++i) Check[i] = S[iStack].Check[i];
+	*/
+	memcpy(pkd->Check,pkd->S[iStack].Check,nCheck*sizeof(CELT));
+	--iStack;
+	}
+    }
+
+
+static inline int iOpenActive(PKD pkd,KDN *k,CELT *check,KDN **pc,PARTICLE **pp) {
+    PARTICLE *p;
+    KDN *c;
+    SPHBNDS *bk,*bc;
+    double sk,sc;  /* size proxies for the cells */
+    int iCell,iPart,j;
+    double dx0,dy0,dz0,dx1,dy1,dz1,xc,yc,zc,mink2;
+        
+    bk = pkdNodeSphBounds(pkd,k);
+    if (check->iCell < 0) {
+	iPart = -check->iCell;
+	if (check->id == pkd->idSelf) {
+	    p = pkdParticle(pkd,iPart);
+	}
+	else {
+	    p = mdlAquire(pkd->mdl,CID_PARTICLE,iPart,check->id);
+	}
+	xc = p->r[0] + check->rOffset[0];
+	yc = p->r[1] + check->rOffset[1];
+	zc = p->r[2] + check->rOffset[2];
+	dx0 = xc - bk->A.max[0];
+	dx1 = xc - bk->A.min[0];
+	dy0 = yc - bk->A.max[1];
+	dy1 = yc - bk->A.min[1];
+	dz0 = zc - bk->A.max[2];
+	dz1 = zc - bk->A.min[2];
+	mink2 = (dx0>0)?dx0*dx0:0 + (dx1<0)?dx1*dx1:0 +
+	    (dy0>0)?dy0*dy0:0 + (dy1<0)?dy1*dy1:0 + 
+	    (dz0>0)?dz0*dz0:0 + (dz1<0)?dz1*dz1:0;
+	/*
+	** We have to be extra careful here when comparing to the fBalls of remote particles, for which
+	** we don't exactly know if they have an updated softening or not. Safe is to multiply all by 
+	** the maximum hsmooth growth factor regardless of their state.
+	*/
+	if (mink2 > pow((1+pkd->param.ddHonHLimit)*p->fBall,2)) return(10);
+	if (k->iLower) return(0); /* particle stays on the checklist (open k) */
+	else return(1);  /* test particle by particle */
+	*pc = NULL;
+	*pp = p;
+    }
+    else {
+	iCell = check->iCell;
+	if (check->id == pkd->idSelf) {
+	    c = pkdTreeNode(pkd,iCell);
+	}
+	else if (check->id < 0) {
+	    c = pkdTopNode(pkd,iCell);
+	    assert(c->iLower != 0);
+	}
+	else {
+	    c = mdlAquire(pkd->mdl,CID_CELL,iCell,check->id);
+	}
+	*pc = c;
+	*pp = NULL;
+	bc = pkdNodeSphBounds(pkd,c);
+	for (j=0;j<3;++j) {
+	    /*
+	    ** If any of the dimensions show no overlap, then the 2 bounds do not overlap.
+	    */
+	    if (bk->A.max[j] < bc->B.min[j]+check->rOffset[j] || 
+		bk->A.min[j] > bc->B.max[j]+check->rOffset[j]) return(10); /* ignore cell */
+	}
+	if (k->iLower) {
+	    /*
+	    ** Open the larger of the 2 cells. We use a Manhatten metric to define the size.
+	    */
+	    sk = 0; sc = 0;
+	    for (j=0;j<3;++j) {
+		sk += bk->A.max[j] - bk->A.min[j];  
+		sc += bc->B.max[j] - bc->B.min[j];
+	    }
+	    if (sk > sc) return(0); /* cell stays on checklist (open cell k) */
+	    else if (c->iLower) return(3); /* open cell c */
+	    else return(2); /* open the bucket c */
+	}
+	else if (c->iLower) return(3); /* open cell c */
+	else return(2); /* open the bucket c */
+    }
+}
+
+
+void BoundWalkActive(SMX smx,LIST **ppList,int *pnMaxpList) {
+    PKD pkd = smx->pkd;
+    PARTICLE *p,*pp;
+    KDN *k,*c,*kSib;
+    FLOAT rOffset[3];
+    FLOAT d2;
+    int iStack,ism;
+    int ix,iy,iz,bRep;
+    int nMaxInitCheck,nCheck;
+    int iCell,iSib,iCheckCell;
+    int i,ii,j,n,pj;
+    int iOpen;
+    int nList;
+    char **ppCList;
+    uint32_t iIndex,iPid;
+
+    assert(pkd->oNodeSphBounds);
+    /*
+    ** Allocate Checklist.
+    */
+    nMaxInitCheck = 3;
+    nMaxInitCheck = nMaxInitCheck*nMaxInitCheck*nMaxInitCheck;	/* all replicas */
+    iCell = pkd->iTopRoot;
+
+    while ((iCell = pkdTopNode(pkd,iCell)->iParent)) ++nMaxInitCheck; /* all top tree siblings */
+    assert(nMaxInitCheck < pkd->nMaxCheck);  /* we should definitely have enough to cover us here! */
+
+    nCheck = 0;
+    iStack = -1;
+    /*
+    ** First we add the replicas of the entire box
+    ** to the Checklist.
+    */
+    for (ix=-1;ix<=1;++ix) {
+	rOffset[0] = ix*pkd->fPeriod[0];
+	for (iy=-1;iy<=1;++iy) {
+	    rOffset[1] = iy*pkd->fPeriod[1];
+	    for (iz=-1;iz<=1;++iz) {
+		rOffset[2] = iz*pkd->fPeriod[2];
+		bRep = ix || iy || iz;
+		if (bRep) {
+		    pkd->Check[nCheck].iCell = ROOT;
+		    /* If leaf of top tree, use root of
+		       local tree.
+		    */
+		    if (pkdTopNode(pkd,ROOT)->iLower) {
+			pkd->Check[nCheck].id = -1;
+			}
+		    else {
+			pkd->Check[nCheck].id = pkdTopNode(pkd,ROOT)->pLower;
+			}
+		    for (j=0;j<3;++j) pkd->Check[nCheck].rOffset[j] = rOffset[j];
+		    ++nCheck;
+		    }
+		}
+	    }
+	}
+    /*
+    ** This adds all siblings of a chain leading from the local tree leaf in the top
+    ** tree up to the ROOT of the top tree.
+    */
+    iCell = pkd->iTopRoot;
+    iSib = SIBLING(iCell);
+    while (iSib) {
+	if (pkdTopNode(pkd,iSib)->iLower) {
+	    pkd->Check[nCheck].iCell = iSib;
+	    pkd->Check[nCheck].id = -1;
+	}
+	else {
+	    /* If leaf of top tree, use root of local tree */
+	    pkd->Check[nCheck].iCell = ROOT;
+	    pkd->Check[nCheck].id = pkdTopNode(pkd,iSib)->pLower;
+	}
+	for (j=0;j<3;++j) pkd->Check[nCheck].rOffset[j] = 0.0;
+	++nCheck;
+	iCell = pkdTopNode(pkd,iCell)->iParent;
+	iSib = SIBLING(iCell);
+    }
+    /*
+    ** We are now going to work on the local tree.
+    ** Make iCell point to the root of the tree again.
+    */
+    k = pkdTreeNode(pkd,iCell = ROOT);
+    while (1) {
+	while (1) {
+	    /*
+	    ** Process the Checklist.
+	    */
+/*
+	    printf("\nCELL:%d ",iCell);
+*/
+	    ii = 0;
+	    for (i=0;i<nCheck;++i) {
+		iOpen = iOpenActive(pkd,k,&pkd->Check[i],&c,&pp);
+/*
+		printf("%1d",iOpen);
+*/
+		switch (iOpen) {
+		case 0:
+		    /*
+		    ** This checkcell stays on the checklist.
+		    */
+		    pkd->Check[ii++] = pkd->Check[i];
+		    break;
+		case 1:
+		    iIndex = -pkd->Check[i].iCell;
+		    iPid = pkd->Check[i].id;
+		    /*
+		    ** We check individual particles against each other here.
+		    */
+		    for (pj=k->pLower;pj<=k->pUpper;++pj) {
+			p = pkdParticle(pkd,pj);
+			/*
+			** Is it possible that this particle is not on our list?
+			*/
+			if (pkdIsGas(pkd,p) && pkdIsActive(pkd,p)) {
+			    d2 = 0;
+			    for (j=0;j<3;++j) {
+				d2 += pow(p->r[j] - (pp->r[j] + pkd->Check[i].rOffset[j]),2);
+			    }
+			    /*
+			    ** Here the remote processor may have updated pp->fBall, but we have no easy way of 
+			    ** knowing this. We assume that it hasn't been updated, but if it has been then at 
+			    ** worst we are being overly conservative by an extra factor of dHonHlimit.
+			    ** We can cull the extra remote particles from the active lists in the next fast gas
+			    ** phase, although this is only really needed for iterative SPH calculations, such as
+			    ** radiative transfer.
+			    */
+			    if (d2 < pow((1+pkd->param.ddHonHLimit)*pp->fBall,2)) {
+				/*
+				** Check if particle pp (a remote particle) is on the list of particle p (local and active).
+				** If not, then add pp to p's list.
+				*/
+				ppCList = pkd_pNeighborList(pkd,p);
+				if (!bInList(smx->lcmp,*ppCList,iIndex,iPid)) {
+				    /*
+				    ** Add particle pp to the neighbor list of p!
+				    ** Unfortunately this means throwing away the old compressed list and creating a new one.
+				    ** Adding to an already compressed list would be a useful function, but we still would
+				    ** usually have to allocate/reallocate new storage for the compressed list of particle pp.
+				    */
+				    lcodeDecode(smx->lcmp,*ppCList,ppList,pnMaxpList,&nList);
+				    free(ppCList);
+				    if (nList == *pnMaxpList) {
+					*pnMaxpList *= 2;
+					*ppList = realloc(*ppList,(*pnMaxpList)*sizeof(LIST));
+					assert(*ppList != NULL);
+				    }
+				    (*ppList)[nList].iIndex = iIndex;
+				    (*ppList)[nList].iPid = iPid;
+				    ++nList;
+				    /*
+				    ** Compress the final list here as much as possible.
+				    */
+				    qsort(*ppList,nList,sizeof(LIST),lcodeCmpList);
+				    lcodeEncode(smx->lcmp,*ppList,nList,ppCList);
+				}
+			    }
+			}
+		    }
+		    break;
+		case 2:
+		    /*
+		    ** Now I am trying to open a bucket, which means I place each of its particles
+		    ** on the checklist. These are marked by a negative cell id.
+		    */
+		    if (nCheck + (c->pUpper - c->pLower + 1) > pkd->nMaxCheck) {
+			pkd->nMaxCheck += (c->pUpper - c->pLower + 1) + 1000;
+			pkd->Check = realloc(pkd->Check,pkd->nMaxCheck*sizeof(CELT));
+			assert(pkd->Check != NULL);
+			for (ism=0;ism<pkd->nMaxStack;++ism) {
+			    pkd->S[ism].Check = realloc(pkd->S[ism].Check,pkd->nMaxCheck*sizeof(CELT));
+			    assert(pkd->S[ism].Check != NULL);
+			}
+			printf("Case 2: CPU:%d increased checklist size to %d\n",mdlSelf(pkd->mdl),pkd->nMaxCheck);
+		    }
+		    for (pj=c->pLower;pj<=c->pUpper;++pj) {
+			if (pkd->Check[i].id == pkd->idSelf) p = pkdParticle(pkd,pj);
+			else p = mdlAquire(pkd->mdl,CID_PARTICLE,pj,pkd->Check[i].id);
+			/*
+			** Only add those particle which we really need to check here!
+			*/
+			if (pkdIsGas(pkd,p) && pkdIsActive(pkd,p)) {
+			    pkd->Check[nCheck] = pkd->Check[i];
+			    pkd->Check[nCheck].iCell = -pj;
+			    ++nCheck;
+			}
+			if (pkd->Check[i].id != pkd->idSelf) mdlRelease(pkd->mdl,CID_PARTICLE,p);
+		    }
+		    break;
+		case 3:
+		    /*
+		    ** Open the cell.
+		    ** Here we ASSUME that the children of
+		    ** c are all in sequential memory order!
+		    ** (the new tree build assures this)
+		    ** (also true for the top tree)
+		    ** We could do a prefetch here for non-local
+		    ** cells.
+		    */
+		    if (nCheck + 2 > pkd->nMaxCheck) {
+			pkd->nMaxCheck += 1000;
+			pkd->Check = realloc(pkd->Check,pkd->nMaxCheck*sizeof(CELT));
+			assert(pkd->Check != NULL);
+			for (ism=0;ism<pkd->nMaxStack;++ism) {
+			    pkd->S[ism].Check = realloc(pkd->S[ism].Check,pkd->nMaxCheck*sizeof(CELT));
+			    assert(pkd->S[ism].Check != NULL);
+			}
+			printf("Case 3: CPU:%d increased checklist size to %d\n",mdlSelf(pkd->mdl),pkd->nMaxCheck);
+		    }
+		    iCheckCell = c->iLower;
+		    pkd->Check[nCheck] = pkd->Check[i];
+		    pkd->Check[nCheck+1] = pkd->Check[i];
+		    /*
+		    ** If we are opening a leaf of the top tree
+		    ** we need to correctly set the processor id.
+		    ** (this is a bit tricky)
+		    */
+		    if (pkd->Check[i].id < 0) {
+			if (pkdTopNode(pkd,iCheckCell)->pLower >= 0) {
+			    /* no need to search local trees again */
+			    if (iPid = pkdTopNode(pkd,iCheckCell)->pLower != pkd->idSelf) {
+				pkd->Check[nCheck].iCell = ROOT;
+				pkd->Check[nCheck].id = iPid;
+				++nCheck;
+			    }
+			}
+			else {
+			    pkd->Check[nCheck].iCell = iCheckCell;
+			    assert(pkd->Check[nCheck].id == -1);
+			    ++nCheck;
+			}
+			if (pkdTopNode(pkd,iCheckCell+1)->pLower >= 0) {
+			    /* no need to search local trees again */
+			    if (iPid = pkdTopNode(pkd,iCheckCell+1)->pLower != pkd->idSelf) {
+				pkd->Check[nCheck].iCell = ROOT;
+				pkd->Check[nCheck].id = iPid;
+				++nCheck;
+			    }
+			}
+			else {
+			    pkd->Check[nCheck].iCell = iCheckCell+1;
+			    assert(pkd->Check[nCheck].id == -1);
+			    ++nCheck;
+			}
+		    }
+		    else {
+			pkd->Check[nCheck].iCell = iCheckCell;
+			pkd->Check[nCheck+1].iCell = iCheckCell+1;
+			assert(pkd->Check[nCheck].id == pkd->Check[i].id);
+			assert(pkd->Check[nCheck+1].id == pkd->Check[i].id);
+			nCheck += 2;
+		    }
+		    break;
+		case 10:
+		    /*
+		    ** This checkcell is removed from the checklist since it has no overlap with the current cell.
+		    */
+		    break;		
+		}
+		if (pkd->Check[i].id >= 0 && pkd->Check[i].id != pkd->idSelf) mdlRelease(pkd->mdl,CID_CELL,c);
+	    }
+	    nCheck = ii;
+	    /*
+	    ** Done processing of the Checklist.
+	    ** Now prepare to proceed to the next deeper
+	    ** level of the tree.
+	    */
+	    if (!k->iLower) break;
+	    k = pkdTreeNode(pkd,iCell = k->iLower);
+	    /*
+	    ** Check iCell has any active. It is actually active gas that we want to check here, but this
+	    ** will have to do. All bounds checking is done against the active gas particles, so there are
+	    ** only a few extra tests due to opening cells which may have actives, but no active gas particles.
+	    */
+	    if (k->nActive) {
+		/*
+		** iCell has actives, continue processing it.
+		** Do NOT put the sibling onto the checklist, since we only want to check remote cells!
+		*/
+		/*
+		** Test whether the sibling has inactives as well.
+		** If not we don't push it onto the stack, but we
+		** have to be careful to not pop the stack when we
+		** hit the sibling. See the goto "InactiveAscend" below
+		** for how this is done.
+		*/
+		kSib = pkdTreeNode(pkd,iCell+1);
+		if (kSib->nActive) {
+		    /*
+		    ** Sibling has actives as well.
+		    ** Push Checklist for the sibling onto the stack
+		    ** before proceeding deeper in the tree.
+		    */
+		    ++iStack;
+		    assert(iStack < pkd->nMaxStack);
+		    pkd->S[iStack].nCheck = nCheck;
+		    /*
+		    ** Maybe use a memcpy here!
+		    ** for (i=0;i<nCheck;++i) pkd->S[iStack].Check[i] = pkd->Check[i];
+		    */
+		    memcpy(pkd->S[iStack].Check,pkd->Check,nCheck*sizeof(CELT));
+		    }
+		}
+	    else {
+		/*
+		** Skip iCell and do NOT add it to the Checklist.
+		** No need to push anything onto the stack here.
+		*/
+		/*
+		** Move onto processing the sibling.
+		*/
+		k = pkdTreeNode(pkd,++iCell);
+		}
+	    }
+	/*
+	** Now the interaction list should be complete and the
+	** Checklist should be empty!
+	*/
+	assert(nCheck == 0);
+
+	while (iCell & 1) {
+	InactiveAscend:
+	    k = pkdTreeNode(pkd,iCell = k->iParent);
+	    if (!iCell) {
+		/*
+		** Make sure stack is empty.
+		*/
+		assert(iStack == -1);
+		return;
+		}
+	    }
+	k = pkdTreeNode(pkd,++iCell);
+	if (!k->nActive) goto InactiveAscend;
+	/*
+	** Pop the Checklist from the top of the stack,
+	** also getting the state of the interaction list.
+	*/
+	nCheck = pkd->S[iStack].nCheck;
+	/*
+	** Use a memcpy here. This is where we would win with lists since we could simply take the
+	** pointer to this list. We would have to link the old checklist into the freelist.
+	** for (i=0;i<nCheck;++i) Check[i] = S[iStack].Check[i];
+	*/
+	memcpy(pkd->Check,pkd->S[iStack].Check,nCheck*sizeof(CELT));
+	--iStack;
+	}
+    }
+
+
+void DoLocalSearch(SMX smx,SMF *smf,PARTICLE *p,double *rLast) {
+    PKD pkd = smx->pkd;
+    PQ *pq;
+    FLOAT fBall,r[3];
+    int i,j,bDone,ix,iy,iz;
+    int iStart[3],iEnd[3];
+
+    /*
+    ** Correct distances and rebuild priority queue.
+    */
+    for (i=0;i<smx->nSmooth;++i) {
+	smx->pq[i].dx += p->r[0]-rLast[0];
+	smx->pq[i].dy += p->r[1]-rLast[1];
+	smx->pq[i].dz += p->r[2]-rLast[2];
+	smx->pq[i].fDist2 = pow(smx->pq[i].dx,2) + pow(smx->pq[i].dy,2) + 
+	    pow(smx->pq[i].dz,2);
+    }
+    for (j=0;j<3;++j) rLast[j] = p->r[j];
+    PQ_BUILD(smx->pq,smx->nSmooth,pq);
+
+    pq = pqSearch(smx,pq,p->r,0,&bDone);
+    /*
+    ** Search in replica boxes if it is required.
+    */
+    if (!bDone && smx->bPeriodic) {
+	fBall = sqrt(pq->fDist2);
+	for (j=0;j<3;++j) {
+	    iStart[j] = floor((p->r[j] - fBall)/pkd->fPeriod[j] + 0.5);
+	    iEnd[j] = floor((p->r[j] + fBall)/pkd->fPeriod[j] + 0.5);
+	}
+	for (ix=iStart[0];ix<=iEnd[0];++ix) {
+	    r[0] = p->r[0] - ix*pkd->fPeriod[0];
+	    for (iy=iStart[1];iy<=iEnd[1];++iy) {
+		r[1] = p->r[1] - iy*pkd->fPeriod[1];
+		for (iz=iStart[2];iz<=iEnd[2];++iz) {
+		    r[2] = p->r[2] - iz*pkd->fPeriod[2];
+		    if (ix || iy || iz) {
+			pq = pqSearch(smx,pq,r,1,&bDone);
+		    }
+		}
+	    }
+	}
+    }
+    p->fBall = sqrt(pq->fDist2);
+    /*
+    ** Apply smooth funtion to the neighbor list.
+    */
+    smx->fcnSmooth(p,smx->nSmooth,smx->pq,smf);
+    /*
+    ** Call mdlCacheCheck to make sure we are making progress!
+    */
+    mdlCacheCheck(pkd->mdl);
+}
+
+
+/*
+** New fast gas method uses only read-only caching and an efficient method to determine nearest
+** neighbor lists for the the subsequent fast gas phase 2 code which calculates the SPH forces
+** in a momentum conserving way. The new method is also extremely conducive to iterative SPH 
+** calculations. All particles which interact with actives are found on the nearest neighbor list 
+** of the active particles ONLY. If particles are mutual active nearest neighbors then only one
+** of them is found on the interaction list of the other, EXCEPT in the case of a remote neighbor
+** where both directions of the interaction must be calculated (with the advantage that we never 
+** need the combiner cache of course). - Joachim Stadel
+*/
+void smFastGasPhase1(SMX smx,SMF *smf) {
+    PKD pkd = smx->pkd;
+    PARTICLE *p,*pp;
+    PQ *pq = smx->pq;
+    FLOAT r[3],fBall;
+    FLOAT rLast[3];
+    int iStart[3],iEnd[3];
+    int pi,pj,i,j,bDone;
+    int ix,iy,iz;
+    uint32_t uHead,uTail;
+    LIST *pList;
+    int nMaxpList;
+    int nList;
+    char **ppCList;
+
+    assert(pkd->oSph); /* Validate memory model */
+    assert(pkd->oNodeSphBounds); /* Validate memory model */
+    /*
+    ** Initialize a default sized list. We will make this 2*nSmooth to start with.
+    ** tList is a temporary list used to remove elements from a neighbor's own list.
+    */
+    nMaxpList = 2*pkd->param.nSmooth;
+    pList = malloc(nMaxpList*sizeof(LIST));
+    assert(pList != NULL);
+    /*
+    ** Initialize the bInactive and bDone flags for all local particles.
+    ** Set DstActive to initially be all rung-active gas particles.
+    */
+    uHead = 0;
+    uTail = 0;
+    for (pi=0;pi<pkd->nLocal;++pi) {
+	p = pkdParticle(pkd,pi);
+	smx->ea[pi].bInactive = (p->bSrcActive)?0:1;
+	smx->ea[pi].bDone = 0;
+	if (pkdIsGas(pkd,p) && pkdIsActive(pkd,p)) {
+	    /*
+	    ** Place it on the do queue.
+	    */
+	    smx->ea[uTail++].iIndex = pi;
+	}
+    }
+    smx->ea[pkd->nLocal].bInactive = 0;  /* initialize for Sentinel, but this is not really needed */
+    smx->ea[pkd->nLocal].bDone = 1;  /* initialize for Sentinel, but this is not really needed */
+    /*
+    ** Initialize the priority queue first.
+    */
+    for (i=0;i<smx->nSmooth;++i) {
+	smx->pq[i].pPart = &smx->pSentinel;
+	smx->pq[i].iIndex = pkd->nLocal;
+	smx->pq[i].iPid = pkd->idSelf;
+	smx->pq[i].dx = smx->pSentinel.r[0];
+	smx->pq[i].dy = smx->pSentinel.r[1];
+	smx->pq[i].dz = smx->pSentinel.r[2];
+	smx->pq[i].fDist2 = pow(smx->pq[i].dx,2) + pow(smx->pq[i].dy,2) + 
+	    pow(smx->pq[i].dz,2);
+    }
+    for (j=0;j<3;++j) rLast[j] = 0.0;
+
+    while (uHead != uTail) {
+	/*
+	** Remove leading element from the do queue.
+	*/
+	assert(uHead < pkd->nLocal);
+	pi = smx->ea[uHead++].iIndex;  
+	p = pkdParticle(pkd,pi);
+	DoLocalSearch(smx,smf,p,rLast);
+	/*
+	** Mark this particle as done.
+	*/
+	smx->ea[pi].bDone = 1;
+	if (pkdIsActive(pkd,p)) {
+	    nList = 0;
+	    /*
+	    ** Loop through the neighbors adding particles to the head of the 
+	    ** do queue which are both rung INACTIVE, local, not done, and also DstActive.
+	    */
+	    for (i=0;i<smx->nSmooth;++i) {
+		if (smx->pq[i].iPid == pkd->idSelf) {
+		    pp = pkdParticle(pkd,smx->pq[i].iIndex);
+		    if (pkdIsGas(pkd,pp)){
+			if (!pkdIsActive(pkd,pp)) {
+			    /* add this inactive particle to the list of p */
+			    if (nList == nMaxpList) {
+				nMaxpList *= 2;
+				pList = realloc(pList,nMaxpList*sizeof(LIST));
+				assert(pList != NULL);
+			    }
+			    pList[nList].iIndex = smx->pq[i].iIndex;
+			    pList[nList].iPid = smx->pq[i].iPid;
+			    ++nList;
+			    if (!smx->ea[smx->pq[i].iIndex].bDone) {
+				/*
+				** Needs an updated density, so add it to the head of the 
+				** do queue.
+				*/
+				if (uHead == 0) uHead = pkd->nLocal-1;
+				else --uHead;
+				smx->ea[uHead].iIndex = smx->pq[i].iIndex;
+			    }
+			}
+			else {
+			    /*
+			    ** pp is an active particle!
+			    */
+			    if (smx->ea[smx->pq[i].iIndex].bDone) {
+				/*
+				** If this (pi) particle was already added to the list of particle pj, then this
+				** was not correct, and we should remove pi from pj's list if we care about the
+				** ordering of the hsmooths among local particles (which we don't) as long as only
+				** one of the 2 particles (both active) has the other on its list then all is good. 
+				** If it is not in the list of pj, then we can simply add pj to the list of pi.
+				*/
+				ppCList = pkd_pNeighborList(pkd,pp);
+				if (!bInListLocal(smx->lcmp,*ppCList,pi)) {
+				    if (nList == nMaxpList) {
+					nMaxpList *= 2;
+					pList = realloc(pList,nMaxpList*sizeof(LIST));
+					assert(pList != NULL);
+				    }
+				    pList[nList].iIndex = smx->pq[i].iIndex;
+				    pList[nList].iPid = smx->pq[i].iPid;
+				    ++nList;
+				}
+			    }
+			    else {
+				/*
+				** We can't be sure about this particle since it has not had its up-to-date
+				** fBall calculated yet. We add it to p's particle list, but check later if this 
+				** needs to be corrected. If pp finds p as a neighbor, then the test must be performed.
+				*/
+				if (nList == nMaxpList) {
+				    nMaxpList *= 2;
+				    pList = realloc(pList,nMaxpList*sizeof(LIST));
+				    assert(pList != NULL);
+				}
+				pList[nList].iIndex = smx->pq[i].iIndex;
+				pList[nList].iPid = smx->pq[i].iPid;
+				++nList;
+			    }
+			}
+		    } /* end of if (pkdIsGas(pkd,pp)) */
+		    else {
+			/*
+			** We should never get here is the bSrcActive is set to 1 for all gas particles!
+			*/
+			assert(pkdIsGas(pkd,pp));
+		    } /* end of !pkdIsGas(pkd,pp) */
+		}
+		else {
+		    /*
+		    ** It is a remote particle and needs to be done at any case.
+		    */
+		    if (nList == nMaxpList) {
+			nMaxpList *= 2;
+			pList = realloc(pList,nMaxpList*sizeof(LIST));
+			assert(pList != NULL);
+		    }
+		    pList[nList].iIndex = smx->pq[i].iIndex;
+		    pList[nList].iPid = smx->pq[i].iPid;
+		    ++nList;
+		}
+	    }
+	    /*
+	    ** Compress the final list here as much as possible.
+	    */
+	    qsort(pList,nList,sizeof(LIST),lcodeCmpList);
+	    ppCList = pkd_pNeighborList(pkd,p);
+	    /*
+	    ** Free the old list if it exists!
+	    */
+	    if (*ppCList) free(*ppCList);
+	    lcodeEncode(smx->lcmp,pList,nList,ppCList);
+	}
+    }
+    /*
+    ** Update all local sph bounds, making sure we only increase current minimums and decrease current
+    ** maximums (only that is safe).
+    */
+    UpdateSphBounds(smx);
+    /*
+    ** Start of ball bound searching with the newly updated local bounds.
+    ** First we make all local inactive which haven't been done search for active particles within their
+    ** dHonHlimit extended ball bounds. We need to calculate new densities for these inactives and add them
+    ** to the lists of the local actives (can't add them to the lists of remote actives - these actives must 
+    ** find them on their own in the last pass if need be).
+    */
+    BoundWalkInactive(smx,&uHead);
+    /*
+    ** New inactive particles have been added to the head of the list.
+    */
+    while (uHead != uTail) {
+	/*
+	** Remove leading element from the do queue.
+	*/
+	assert(uHead < pkd->nLocal);
+	pi = smx->ea[uHead++].iIndex;  
+	p = pkdParticle(pkd,pi);
+	DoLocalSearch(smx,smf,p,rLast);
+	/*
+	** Mark this particle as done.
+	*/
+	smx->ea[pi].bDone = 1;
+	for (i=0;i<smx->nSmooth;++i) {
+	    if (smx->pq[i].iPid == pkd->idSelf) {
+		pp = pkdParticle(pkd,smx->pq[i].iIndex);
+		if (pkdIsGas(pkd,pp) && pkdIsActive(pkd,pp)) {
+		    /*
+		    ** Add this particle to the neighbor list of pp!
+		    ** Unfortunately this means throwing away the old compressed list and creating a new one.
+		    ** Adding to an already compressed list would be a useful function, but we still would
+		    ** usually have to allocate/reallocate new storage for the compressed list of particle pp.
+		    */
+		    ppCList = pkd_pNeighborList(pkd,pp);
+		    lcodeDecode(smx->lcmp,*ppCList,&pList,&nMaxpList,&nList);
+		    free(ppCList);
+		    if (nList == nMaxpList) {
+			nMaxpList *= 2;
+			pList = realloc(pList,nMaxpList*sizeof(LIST));
+			assert(pList != NULL);
+		    }
+		    pList[nList].iIndex = pi;
+		    pList[nList].iPid = pkd->idSelf;
+		    ++nList;
+		    /*
+		    ** Compress the final list here as much as possible.
+		    */
+		    qsort(pList,nList,sizeof(LIST),lcodeCmpList);
+		    lcodeEncode(smx->lcmp,pList,nList,ppCList);
+		}
+	    }
+	}
+    }
+    /*
+    ** Update all local sph bounds, making sure we only increase current minimums and decrease current
+    ** maximums (only that is safe). We are really only interested in the ball bound for all particles (B) from here
+    ** on now, although the completed inactives will again cause a shrink in BI ball bounds.
+    */
+    UpdateSphBounds(smx);
+    /*
+    ** In this last pass we make all local active search for REMOTE actives AND inactives which have not already
+    ** been added to our lists. If they haven't, then add them, their densities will have been updated already.
+    ** This is the only part where extra particles, other than true nearest neighbors at this step are added to 
+    ** local lists. So only remote neighbors are a superset of the actual remote neighbors.
+    */
+    BoundWalkActive(smx,&pList,&nMaxpList);
+    /*
+    ** Release aquired pointers and source-reactivate particles in prioq.
+    */
+    for (i=0;i<smx->nSmooth;++i) {
+	if (smx->pq[i].iPid == pkd->idSelf) {
+	    smx->ea[smx->pq[i].iIndex].bInactive = 0;
+	}
+	else {
+	    smHashDel(smx,smx->pq[i].pPart);
+	    mdlRelease(pkd->mdl,CID_PARTICLE,smx->pq[i].pPart);
+	}
+    }    
+    free(pList);
+}
+
+
+void smFastGasPhase2(SMX smx,SMF *smf) {
+    PKD pkd = smx->pkd;
+    PARTICLE *p,*pp;
+    LIST *pList;
+    double dx,dy,dz,fDist2;
+    int nMaxpList,nList,i,j,nCnt,pi;
+    char **ppCList;
+
+    assert(pkd->oSph); /* Validate memory model */
+    assert(pkd->oNodeSphBounds); /* Validate memory model */
+    /*
+    ** Initialize a default sized list. We will make this 2*nSmooth to start with.
+    ** tList is a temporary list used to remove elements from a neighbor's own list.
+    */
+    nMaxpList = 2*pkd->param.nSmooth;
+    pList = malloc(nMaxpList*sizeof(LIST));
+    assert(pList != NULL);
+
+    for (pi=0;pi<pkd->nLocal;++pi) {
+	p = pkdParticle(pkd,pi);
+	if (pkdIsGas(pkd,p) && pkdIsActive(pkd,p)) {
+	    ppCList = pkd_pNeighborList(pkd,p);
+	    lcodeDecode(smx->lcmp,*ppCList,&pList,&nMaxpList,&nList);
+	    if (nList > smx->nnListMax) {
+		smx->nnListMax += NNLIST_INCREMENT;
+		smx->nnList = realloc(smx->nnList,smx->nnListMax*sizeof(NN));
+		assert(smx->nnList != NULL);
+	    }
+	    nCnt = 0;
+	    for (i=0;i<nList;++i) {
+		if (pList[i].iPid == pkd->idSelf) {
+		    pp = pkdParticle(pkd,pList[i].iIndex);
+		}
+		else {
+		    pp = mdlAquire(pkd->mdl,CID_PARTICLE,pList[i].iIndex,pList[i].iPid);
+		}
+		dx = p->r[0] - pp->r[0];
+		dy = p->r[1] - pp->r[1];
+		dz = p->r[2] - pp->r[2];
+		if (smx->bPeriodic) {
+		    /*
+		    ** Correct for periodic boundaries.
+		    */
+		    if (dx > 0.5*pkd->fPeriod[0]) dx -= pkd->fPeriod[0];
+		    else if (dx < -0.5*pkd->fPeriod[0]) dx += pkd->fPeriod[0];
+		    if (dy > 0.5*pkd->fPeriod[1]) dy -= pkd->fPeriod[1];
+		    else if (dy < -0.5*pkd->fPeriod[1]) dy += pkd->fPeriod[1];
+		    if (dz > 0.5*pkd->fPeriod[2]) dz -= pkd->fPeriod[2];
+		    else if (dz < -0.5*pkd->fPeriod[2]) dz += pkd->fPeriod[2];
+		}
+		fDist2 = dx*dx + dy*dy + dz*dz;
+		if (fDist2 < p->fBall*p->fBall || fDist2 < pp->fBall*pp->fBall) {
+		    smx->nnList[nCnt].fDist2 = fDist2;
+		    smx->nnList[nCnt].dx = dx;
+		    smx->nnList[nCnt].dy = dy;
+		    smx->nnList[nCnt].dz = dz;
+		    smx->nnList[nCnt].pPart = pp;
+		    smx->nnList[nCnt].iIndex = pList[i].iIndex;
+		    smx->nnList[nCnt].iPid = pList[i].iPid;
+		    ++nCnt;
+		}
+		else {
+		    /*
+		    ** This particle is not a neighbor in any sense now and can be
+		    ** removed from the list. But for now we don't bother!
+		    */
+		    if (pList[i].iPid != pkd->idSelf) mdlRelease(pkd->mdl,CID_PARTICLE,pp);
+		}
+	    } /* end of for (i=0;i<nList;++i) */
+	    /*
+	    ** Apply smooth funtion to the neighbor list.
+	    */
+	    smx->fcnSmooth(p,nCnt,smx->nnList,smf);
+	    /*
+	    ** Release aquired pointers.
+	    */
+	    for (i=0;i<nCnt;++i) {
+		if (smx->nnList[i].iPid != pkd->idSelf) {
+		    mdlRelease(pkd->mdl,CID_PARTICLE,smx->nnList[i].pPart);
+		}
+	    }
+	    /*
+	    ** Call mdlCacheCheck to make sure we are making progress!
+	    */
+	    mdlCacheCheck(pkd->mdl);
+	} /* end of p is active... */
     }
 }
 

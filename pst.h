@@ -91,6 +91,8 @@ enum pst_service {
     PST_TREENUMSRCACTIVE,
     PST_BOUNDSWALK,
     PST_SMOOTH,
+    PST_FASTGASPHASE1,
+    PST_FASTGASPHASE2,
     PST_GRAVITY,
     PST_GRAVEXTERNAL,
     PST_CALCEANDL,
@@ -482,6 +484,16 @@ struct inSmooth {
     };
 void pstSmooth(PST,void *,int,void *,int *);
 
+/* PST_RESMOOTH */
+void pstReSmooth(PST,void *,int,void *,int *);
+
+/* PST_FASTGASPHASE1 */
+void pstFastGasPhase1(PST,void *,int,void *,int *);
+
+/* PST_FASTGASPHASE2 */
+void pstFastGasPhase2(PST,void *,int,void *,int *);
+
+
 /* PST_GRAVITY */
 struct inGravity {
     double dTime;
@@ -842,16 +854,6 @@ struct inGetMap {
 void pstGetMap(PST,void *,int,void *,int *);
 
 void pstSetRungVeryActive(PST,void *,int,void *,int *);
-
-/* PST_RESMOOTH */
-struct inReSmooth {
-    int nSmooth;
-    int bPeriodic;
-    int bSymmetric;
-    int iSmoothType;
-    SMF smf;
-    };
-void pstReSmooth(PST,void *,int,void *,int *);
 
 /* PST_UPDATERUNG */
 struct inUpdateRung {

@@ -67,6 +67,8 @@ const char *pst_h_module_id = PST_H_MODULE_ID;
 **  TreeNumSrcActive      Bcast   -      |
 **  BoundsWalk            Many    Many   | Bcast Many, Reduce Many
 **  Smooth                Yes     -      |
+**  FastGasPhase1         Yes     -      |
+**  FastGasPhase2         Yes     -      |
 **  Gravity               Yes     Gather |
 **  CalcEandL             -       Reduce |
 **  Drift                 Bcast   -      |
@@ -229,6 +231,12 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_SMOOTH,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstSmooth,
 		  sizeof(struct inSmooth),0);
+    mdlAddService(mdl,PST_FASTGASPHASE1,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstFastGasPhase1,
+		  sizeof(struct inSmooth),0);
+    mdlAddService(mdl,PST_FASTGASPHASE2,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstFastGasPhase2,
+		  sizeof(struct inSmooth),0);
     mdlAddService(mdl,PST_GRAVITY,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstGravity,
 		  sizeof(struct inGravity),nThreads*sizeof(struct outGravity));
@@ -348,7 +356,7 @@ void pstAddServices(PST pst,MDL mdl) {
 		  sizeof(struct inSetRung),0);
     mdlAddService(mdl,PST_RESMOOTH,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstReSmooth,
-		  sizeof(struct inReSmooth),0);
+		  sizeof(struct inSmooth),0);
     mdlAddService(mdl,PST_UPDATERUNG,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstUpdateRung,
 		  sizeof(struct inUpdateRung),sizeof(struct outUpdateRung));
@@ -2597,10 +2605,54 @@ void pstSmooth(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     }
 
 
-void pstReSmooth(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
-    struct inReSmooth *in = vin;
+void pstFastGasPhase1(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    struct inSmooth *in = vin;
 
-    mdlassert(pst->mdl,nIn == sizeof(struct inReSmooth));
+    mdlassert(pst->mdl,nIn == sizeof(struct inSmooth));
+    if (pst->nLeaves > 1) {
+	mdlReqService(pst->mdl,pst->idUpper,PST_FASTGASPHASE1,in,nIn);
+	pstFastGasPhase1(pst->pstLower,in,nIn,NULL,NULL);
+	mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
+	}
+    else {
+	LCL *plcl = pst->plcl;
+	SMX smx;
+
+	smInitialize(&smx,plcl->pkd,&in->smf,in->nSmooth,
+		     in->bPeriodic,in->bSymmetric,in->iSmoothType);
+	smFastGasPhase1(smx,&in->smf);
+	smFinish(smx,&in->smf);
+	}
+    if (pnOut) *pnOut = 0;
+    }
+
+
+void pstFastGasPhase2(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    struct inSmooth *in = vin;
+
+    mdlassert(pst->mdl,nIn == sizeof(struct inSmooth));
+    if (pst->nLeaves > 1) {
+	mdlReqService(pst->mdl,pst->idUpper,PST_FASTGASPHASE2,in,nIn);
+	pstFastGasPhase2(pst->pstLower,in,nIn,NULL,NULL);
+	mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
+	}
+    else {
+	LCL *plcl = pst->plcl;
+	SMX smx;
+
+	smInitialize(&smx,plcl->pkd,&in->smf,in->nSmooth,
+		     in->bPeriodic,in->bSymmetric,in->iSmoothType);
+	smFastGasPhase2(smx,&in->smf);
+	smFinish(smx,&in->smf);
+	}
+    if (pnOut) *pnOut = 0;
+    }
+
+
+void pstReSmooth(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    struct inSmooth *in = vin;
+
+    mdlassert(pst->mdl,nIn == sizeof(struct inSmooth));
     if (pst->nLeaves > 1) {
 	mdlReqService(pst->mdl,pst->idUpper,PST_RESMOOTH,in,nIn);
 	pstReSmooth(pst->pstLower,in,nIn,NULL,NULL);
