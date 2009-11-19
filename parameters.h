@@ -57,6 +57,7 @@ struct parameters {
     int bHermite;
     int bAarsethStep;
     int nBucket;
+    int n2min;
     int iOutInterval;
     int iCheckInterval;
     int iLogInterval;
@@ -223,6 +224,10 @@ struct parameters {
     int bMemHermite;
     int bMemRelaxation;
     int bMemVelSmooth;
+    int bMemNodeMoment;
+    int bMemNodeAcceleration;
+    int bMemNodeVelocity;
+    int bMemNodeSphBounds;
     };
 
 #endif
