@@ -27,6 +27,7 @@ typedef struct lcodeContext {
 } * LCODE;
 
 
+void lcodePrintList(LIST *p,int nList);
 int lcodeCmpList(const void *v1,const void *v2);
 LCODE lcodeInit(uint32_t nThreads,uint32_t idSelf,uint32_t nLocal,uint32_t nSmooth);
 void lcodeFinish(LCODE ctx);

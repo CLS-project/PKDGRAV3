@@ -226,6 +226,13 @@ int smInitialize(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodic,int bSymme
 	comb = combDensity;
 	smx->fcnPost = NULL;
 	break;
+    case SMX_PRINTNN:
+	smx->fcnSmooth = PrintNN;
+	initParticle = NULL; /* Original Particle */
+	init = NULL; /* Cached copies */
+	comb = NULL;
+	smx->fcnPost = NULL;
+	break;
     case SMX_DENDVDX:
 	assert( pkd->oSph ); /* Validate memory model */
 	smx->fcnSmooth = DenDVDX;
@@ -917,10 +924,11 @@ void UpdateSphBounds(SMX smx) {
     double BImin[3];
     double BImax[3];
     uint32_t iNode;
-    int nDepth,d,pi,pj;
+    int nDepth,d,pj;
 
     assert(pkd->oNodeSphBounds);
     nDepth = 1;
+    iNode = ROOT;
     while (1) {
 	while (pkdTreeNode(pkd,iNode)->iLower) {
 	    iNode = pkdTreeNode(pkd,iNode)->iLower;
@@ -941,7 +949,7 @@ void UpdateSphBounds(SMX smx) {
 	for (pj=pkdn->pLower;pj<=pkdn->pUpper;++pj) {
 	    p = pkdParticle(pkd,pj);
 	    if (pkdIsGas(pkd,p)) {
-		if (smx->ea[pi].bDone) {
+		if (smx->ea[pj].bDone) {
 		    /*
 		    ** Use the actual currently calculated fBall.
 		    */
@@ -1912,6 +1920,9 @@ void smFastGasPhase1(SMX smx,SMF *smf) {
     int nMaxpList;
     int nList;
     char **ppCList;
+    LIST *tList=NULL;
+    int ntList = 0;
+    int nMaxtList = 0;
 
     assert(pkd->oSph); /* Validate memory model */
     assert(pkd->oNodeSphBounds); /* Validate memory model */
@@ -1962,6 +1973,7 @@ void smFastGasPhase1(SMX smx,SMF *smf) {
 	*/
 	assert(uHead < pkd->nLocal);
 	pi = smx->ea[uHead++].iIndex;  
+	if (uHead == pkd->nLocal) uHead = 0;
 	p = pkdParticle(pkd,pi);
 	DoLocalSearch(smx,smf,p,rLast);
 	/*
@@ -1976,6 +1988,11 @@ void smFastGasPhase1(SMX smx,SMF *smf) {
 	    */
 	    for (i=0;i<smx->nSmooth;++i) {
 		if (smx->pq[i].iPid == pkd->idSelf) {
+		    /*
+		    ** We skip the self interaction here, and do not add 
+		    ** it to the compressed list.
+		    */
+		    if (smx->pq[i].iIndex == pi) continue;
 		    pp = pkdParticle(pkd,smx->pq[i].iIndex);
 		    if (pkdIsGas(pkd,pp)){
 			if (!pkdIsActive(pkd,pp)) {
@@ -2011,6 +2028,12 @@ void smFastGasPhase1(SMX smx,SMF *smf) {
 				** If it is not in the list of pj, then we can simply add pj to the list of pi.
 				*/
 				ppCList = pkd_pNeighborList(pkd,pp);
+/*
+				printf("%p---------------check local list----------------- %d\n",*ppCList,pi);
+				lcodeDecode(smx->lcmp,*ppCList,&tList,&nMaxtList,&ntList);
+				printf("%d--",smx->pq[i].iIndex);
+				lcodePrintList(tList,ntList);
+*/				
 				if (!bInListLocal(smx->lcmp,*ppCList,pi)) {
 				    if (nList == nMaxpList) {
 					nMaxpList *= 2;
@@ -2070,6 +2093,10 @@ void smFastGasPhase1(SMX smx,SMF *smf) {
 	    */
 	    if (*ppCList) free(*ppCList);
 	    lcodeEncode(smx->lcmp,pList,nList,ppCList);
+/*
+	    printf("%p-%d--",*ppCList,pi);
+	    lcodePrintList(pList,nList);
+*/
 	}
     }
     /*
@@ -2094,6 +2121,7 @@ void smFastGasPhase1(SMX smx,SMF *smf) {
 	*/
 	assert(uHead < pkd->nLocal);
 	pi = smx->ea[uHead++].iIndex;  
+	if (uHead == pkd->nLocal) uHead = 0;
 	p = pkdParticle(pkd,pi);
 	DoLocalSearch(smx,smf,p,rLast);
 	/*
@@ -2125,6 +2153,7 @@ void smFastGasPhase1(SMX smx,SMF *smf) {
 		    ** Compress the final list here as much as possible.
 		    */
 		    qsort(pList,nList,sizeof(LIST),lcodeCmpList);
+		    lcodePrintList(pList,nList);
 		    lcodeEncode(smx->lcmp,pList,nList,ppCList);
 		}
 	    }

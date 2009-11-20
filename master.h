@@ -97,6 +97,8 @@ void msrOutArray(MSR,const char *,int);
 void msrOutVector(MSR,const char *,int);
 void msrSmoothSetSMF(MSR msr, SMF *smf, double dTime);
 void msrSmooth(MSR,double,int,int);
+void msrFastGasPhase1(MSR,double,int);
+void msrFastGasPhase2(MSR,double,int);
 void msrReSmooth(MSR,double,int,int);
 void msrUpdateSoft(MSR,double);
 void msrGravity(MSR msr,uint8_t uRungLo, uint8_t uRungHi, double dTime,

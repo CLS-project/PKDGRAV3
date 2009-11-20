@@ -363,10 +363,13 @@ int main(int argc,char **argv) {
 		
 		if (msrDoGravity(msr)) {
 		    msrGravity(msr,0,MAX_RUNG,dTime,msr->param.iStartStep,msr->param.bEwald,&iSec,&nActive);
-		    if (msr->param.bGravStep && msr->param.iTimeStepCrit == -1) {
+		    msrMemStatus(msr);
+		    if (msr->param.bGravStep) {
+			msrBuildTree(msr,dTime,msr->param.bEwald);
 			msrGravity(msr,0,MAX_RUNG,dTime,msr->param.iStartStep,msr->param.bEwald,&iSec,&nActive);
-			}
+			msrMemStatus(msr);
 		    }
+		}
 		
 		if (msrDoGas(msr)) {
 		    /* Initialize SPH, Cooling and SF/FB and gas time step */

@@ -353,8 +353,10 @@ void pkdInitialize(
     /*
     ** Three extra bounds are required by the fast gas SPH code.
     */
-    if ( mMemoryModel & PKD_MODEL_NODE_SPHBNDS )
+    if ( mMemoryModel & PKD_MODEL_NODE_SPHBNDS ) {
+	printf("Added sph bounds\n");
 	pkd->oNodeSphBounds = pkdNodeAddStruct(pkd,sizeof(SPHBNDS));
+    }
     else
 	pkd->oNodeSphBounds = 0;
 

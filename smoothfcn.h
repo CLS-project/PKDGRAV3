@@ -170,6 +170,9 @@ void initDistSNEnergy(void *,void *p1);
 void combDistSNEnergy(void *,void *p1,void *p2);
 void DistSNEnergy(PARTICLE *p, int, NN *, SMF *);
 
+#define SMX_PRINTNN                            9
+void PrintNN(PARTICLE *,int,NN *,SMF *);
+
 #define SMX_FOF			25
 void initGroupIds(void *,void *p);
 void initGroupMerge(void *,void *g);

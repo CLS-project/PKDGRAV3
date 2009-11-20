@@ -741,7 +741,7 @@ static inline size_t pkdNodeSize( PKD pkd ) {
     return pkd->iTreeNodeSize;
     }
 static inline size_t pkdMaxNodeSize() {
-    return sizeof(KDN) + sizeof(MOMR) + 6*sizeof(double);
+    return sizeof(KDN) + sizeof(MOMR) + 6*sizeof(double) + sizeof(SPHBNDS);
     }
 static inline void pkdCopyNode(PKD pkd, KDN *a, KDN *b) {
     memcpy(a,b,pkdNodeSize(pkd));

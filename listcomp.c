@@ -46,7 +46,7 @@ uint32_t ones32(register uint32_t x)
 }
 
 
-void PrintList(LIST *p,int nList) {
+void lcodePrintList(LIST *p,int nList) {
     int i;
     
     for (i=0;i<nList;) {
@@ -307,6 +307,8 @@ int lcodeEncode(LCODE ctx,LIST *aList,uint32_t nList,char **ppOutput) {
     ** Start of encoding. First local members, so skip forward until
     ** iPid in the list first equals ctx->idSelf.
     */
+    ctx->uIndex = 0;
+    ctx->uMask = 1;
     nOutBits = 0;
     for (ip=0;ip<nList;++ip) if (aList[ip].iPid == ctx->idSelf) break;
     for (il=ip;il<nList;++il) if (aList[il].iPid != ctx->idSelf) break;

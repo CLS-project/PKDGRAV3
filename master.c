@@ -997,6 +997,13 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->nOuts = 0;
 
     /*
+    ** Check if fast gas boundaries are needed.
+    */
+    if (msr->param.bDoGas) {
+	msr->param.bMemNodeSphBounds = 1;
+    }
+
+    /*
     ** Check timestepping and gravity combinations.
     */
     if (msr->param.bDoGravity) {
@@ -2606,6 +2613,50 @@ void msrSmooth(MSR msr,double dTime,int iSmoothType,int bSymmetric) {
 	}
     else {
 	pstSmooth(msr->pst,&in,sizeof(in),NULL,NULL);
+	}
+    }
+
+
+void msrFastGasPhase1(MSR msr,double dTime,int iSmoothType) {
+    struct inSmooth in;
+
+    in.nSmooth = msr->param.nSmooth;
+    in.bPeriodic = msr->param.bPeriodic;
+    in.bSymmetric = 0;
+    in.iSmoothType = iSmoothType;
+    msrSmoothSetSMF(msr, &(in.smf), dTime);
+    if (msr->param.bVStep) {
+	double sec,dsec;
+	printf("FastGas Phase 1 Smoothing...\n");
+	sec = msrTime();
+	pstFastGasPhase1(msr->pst,&in,sizeof(in),NULL,NULL);
+	dsec = msrTime() - sec;
+	printf("FastGas Phase 1 Smooth Calculated, Wallclock: %f secs\n\n",dsec);
+	}
+    else {
+	pstFastGasPhase1(msr->pst,&in,sizeof(in),NULL,NULL);
+	}
+    }
+
+
+void msrFastGasPhase2(MSR msr,double dTime,int iSmoothType) {
+    struct inSmooth in;
+
+    in.nSmooth = msr->param.nSmooth;
+    in.bPeriodic = msr->param.bPeriodic;
+    in.bSymmetric = 0;
+    in.iSmoothType = iSmoothType;
+    msrSmoothSetSMF(msr, &(in.smf), dTime);
+    if (msr->param.bVStep) {
+	double sec,dsec;
+	printf("FastGas Phase 2 Smoothing...\n");
+	sec = msrTime();
+	pstFastGasPhase2(msr->pst,&in,sizeof(in),NULL,NULL);
+	dsec = msrTime() - sec;
+	printf("FastGas Phase 2 Smooth Calculated, Wallclock: %f secs\n\n",dsec);
+	}
+    else {
+	pstFastGasPhase2(msr->pst,&in,sizeof(in),NULL,NULL);
 	}
     }
 
@@ -5190,7 +5241,6 @@ double msrRead(MSR msr, const char *achInFile) {
     if (msr->param.bMemNodeAcceleration) mMemoryModel |= PKD_MODEL_NODE_ACCEL;
     if (msr->param.bMemNodeVelocity) mMemoryModel |= PKD_MODEL_NODE_VEL;
     if (msr->param.bMemNodeMoment) mMemoryModel |= PKD_MODEL_NODE_MOMENT;
-    if (msr->param.bMemNodeSphBounds) mMemoryModel |= PKD_MODEL_NODE_SPHBNDS;
 
 #ifdef PLANETS
     dTime = msrReadSS(msr); /* must use "Solar System" (SS) I/O format... */
@@ -5219,7 +5269,7 @@ double msrRead(MSR msr, const char *achInFile) {
     read.dTuFac = msr->param.dTuFac;
     
     if (msr->nGas && !prmSpecified(msr->prm,"bDoGas")) msr->param.bDoGas = 1;
-    if (msrDoGas(msr) || msr->nGas) mMemoryModel |= (PKD_MODEL_SPH|PKD_MODEL_ACCELERATION|PKD_MODEL_VELOCITY);		
+    if (msrDoGas(msr) || msr->nGas) mMemoryModel |= (PKD_MODEL_SPH|PKD_MODEL_ACCELERATION|PKD_MODEL_VELOCITY|PKD_MODEL_NODE_SPHBNDS);		
     if (msr->param.bStarForm || msr->nStar) mMemoryModel |= (PKD_MODEL_SPH|PKD_MODEL_ACCELERATION|PKD_MODEL_VELOCITY|PKD_MODEL_MASS|PKD_MODEL_SOFTENING|PKD_MODEL_STAR);
     
     read.nNodeStart = 0;
@@ -5345,16 +5395,22 @@ void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint) {
 	}
 
     if (msrDoDensity(msr) || msr->param.bFindGroups) {
-	msrActiveRung(msr,0,1); /* Activate all particles */
+#ifdef FASTGAS_TESTING
+	msrActiveRung(msr,3,1); /* Activate some particles */
 	msrDomainDecomp(msr,0,1,0);
 	msrBuildTree(msr,dTime,0);
 
 	msrSelSrcGas(msr);  /* FOR TESTING!! of gas active particles */
-	bSymmetric = 0; /* FOR TESTING!!*/
-
-	msrSmooth(msr,dTime,SMX_DENSITY,bSymmetric);
-
+	msrFastGasPhase1(msr,dTime,SMX_DENSITY);
+	msrFastGasPhase2(msr,dTime,SMX_PRINTNN);
 	msrSelSrcAll(msr);  /* FOR TESTING!! of gas active particles */
+#else
+	msrActiveRung(msr,0,1); /* Activate all particles */
+	msrDomainDecomp(msr,0,1,0);
+	msrBuildTree(msr,dTime,0);
+	bSymmetric = 0;  /* should be set in param file! */
+	msrSmooth(msr,dTime,SMX_DENSITY,bSymmetric);
+#endif
 	}
 
     if ( msr->param.bFindGroups ) {

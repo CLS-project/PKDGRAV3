@@ -119,6 +119,21 @@ void DensitySym(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
 	}
     }
 
+void PrintNN(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
+    PKD pkd = smf->pkd;
+    float ih2,r2,rs,fDensity,fMass;
+    int i;
+
+    printf("%d:",p->iOrder);
+    for (i=0;i<nSmooth;++i) {
+	if (pkdIsActive(pkd,nnList[i].pPart))
+	    printf("%d ",nnList[i].pPart->iOrder);
+	else 
+	    printf("\033[7m%d\033[0m ",nnList[i].pPart->iOrder);
+	}
+    printf("\n");
+    }
+
 void initDenDVDX(void *vpkd, void *p)
 {
 	}
