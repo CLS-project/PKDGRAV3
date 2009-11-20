@@ -51,9 +51,6 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
     double zero[3];
     double *v;
 
-    assert(pkd->oNodeMom);
-    assert(pkd->oNodeVelocity);
-
     for (j=0;j<3;++j) zero[j] = 0.0;
     v = &zero[0];
     assert(pkd->oNodeMom);
