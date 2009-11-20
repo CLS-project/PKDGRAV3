@@ -92,7 +92,9 @@ LCODE lcodeInit(uint32_t nThreads,uint32_t idSelf,uint32_t nLocal,uint32_t nSmoo
     ctx->idSelf = idSelf;
     ctx->nPrefix = ones32(ctx->mPrefix);
     ctx->nSuffix = ones32(ctx->mSuffix);
+/*
     printf("\nnBitsPrefix:%d nBitsSuffix:%d\n",ctx->nPrefix,ctx->nSuffix);
+*/
     ctx->aCode = NULL;
     ctx->nCode = 0;
     ctx->uIndex = 0;
@@ -477,7 +479,9 @@ int lcodeEncode(LCODE ctx,LIST *aList,uint32_t nList,char **ppOutput) {
     }
     OutZero(ctx);
     ++nOutBits;
+/*
     printf("nOutBits:%d\n",nOutBits);
+*/
     nBytes = (ctx->uMask == 1)?ctx->uIndex:ctx->uIndex+1;
     assert(nBytes*8 >= nOutBits);
     *ppOutput = malloc(nBytes);
