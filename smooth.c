@@ -1083,7 +1083,10 @@ static inline int iOpenInactive(PKD pkd,KDN *k,CELT *check,KDN **pc,PARTICLE **p
 }
 
 
-void BoundWalkInactive(SMX smx,uint32_t *puHead) {
+/*
+** Returns the number of elements added to the do queue.
+*/
+uint32_t BoundWalkInactive(SMX smx) {
     PKD pkd = smx->pkd;
     PARTICLE *p,*pp;
     KDN *k,*c,*kSib;
@@ -1095,8 +1098,10 @@ void BoundWalkInactive(SMX smx,uint32_t *puHead) {
     int iCell,iSib,iCheckCell;
     int i,ii,j,n,id,pj;
     int iOpen;
+    uint32_t nDo;
 
     assert(pkd->oNodeSphBounds);
+    nDo = 0;
     /*
     ** Allocate Checklist.
     */
@@ -1200,12 +1205,18 @@ void BoundWalkInactive(SMX smx,uint32_t *puHead) {
 			    }
 			    if (d2 < pow((1+pkd->param.ddHonHLimit)*p->fBall,2)) {
 				/*
-				** Needs an updated density, so add it to the head of the 
+				** Needs an updated density, so add it to the end of the 
 				** do queue.
 				*/
-				if (*puHead == 0) *puHead = pkd->nLocal-1;
-				else --(*puHead);
-				smx->ea[*puHead].iIndex = smx->pq[i].iIndex;
+				assert(nDo < pkd->nLocal);
+				smx->ea[nDo++].iIndex = pj;
+/*
+				printf("Added inactive:%d due to active:%d\n",pj,-pkd->Check[i].iCell);
+*/
+				/*
+				** Set the particle as done here, so that we don't try to add it again!
+				*/
+				smx->ea[pj].bDone = 1;
 			    }
 			}
 		    }
@@ -1391,7 +1402,7 @@ void BoundWalkInactive(SMX smx,uint32_t *puHead) {
 		** Make sure stack is empty.
 		*/
 		assert(iStack == -1);
-		return;
+		return(nDo);
 		}
 	    }
 	k = pkdTreeNode(pkd,++iCell);
@@ -1637,7 +1648,8 @@ void BoundWalkActive(SMX smx,LIST **ppList,int *pnMaxpList) {
 				    ** usually have to allocate/reallocate new storage for the compressed list of particle pp.
 				    */
 				    lcodeDecode(smx->lcmp,*ppCList,ppList,pnMaxpList,&nList);
-				    free(ppCList);
+				    assert(*ppCList != NULL);
+				    free(*ppCList);
 				    if (nList == *pnMaxpList) {
 					*pnMaxpList *= 2;
 					*ppList = realloc(*ppList,(*pnMaxpList)*sizeof(LIST));
@@ -2115,9 +2127,13 @@ void smFastGasPhase1(SMX smx,SMF *smf) {
     ** to the lists of the local actives (can't add them to the lists of remote actives - these actives must 
     ** find them on their own in the last pass if need be).
     */
-    BoundWalkInactive(smx,&uHead);
+    uHead = 0;
+    uTail = BoundWalkInactive(smx);
+/*
+    printf("After BoundWalkInactive added %d new inactive particles. They get new densities now.\n",uTail);
+*/
     /*
-    ** New inactive particles have been added to the head of the list.
+    ** New inactive particles have been added to the list.
     */
     while (uHead != uTail) {
 	/*
@@ -2129,9 +2145,8 @@ void smFastGasPhase1(SMX smx,SMF *smf) {
 	p = pkdParticle(pkd,pi);
 	DoLocalSearch(smx,smf,p,rLast);
 	/*
-	** Mark this particle as done.
+	** Note that this particle is already marked as done by BoundWalkInactive!
 	*/
-	smx->ea[pi].bDone = 1;
 	for (i=0;i<smx->nSmooth;++i) {
 	    if (smx->pq[i].iPid == pkd->idSelf) {
 		pp = pkdParticle(pkd,smx->pq[i].iIndex);
@@ -2144,7 +2159,8 @@ void smFastGasPhase1(SMX smx,SMF *smf) {
 		    */
 		    ppCList = pkd_pNeighborList(pkd,pp);
 		    lcodeDecode(smx->lcmp,*ppCList,&pList,&nMaxpList,&nList);
-		    free(ppCList);
+		    assert(*ppCList != NULL);
+		    free(*ppCList);
 		    if (nList == nMaxpList) {
 			nMaxpList *= 2;
 			pList = realloc(pList,nMaxpList*sizeof(LIST));
@@ -2157,7 +2173,9 @@ void smFastGasPhase1(SMX smx,SMF *smf) {
 		    ** Compress the final list here as much as possible.
 		    */
 		    qsort(pList,nList,sizeof(LIST),lcodeCmpList);
+/*
 		    lcodePrintList(pList,nList);
+*/
 		    lcodeEncode(smx->lcmp,pList,nList,ppCList);
 		}
 	    }
