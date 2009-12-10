@@ -1030,6 +1030,8 @@ static inline int iOpenInactive(PKD pkd,KDN *k,CELT *check,KDN **pc,PARTICLE **p
 	else {
 	    p = mdlAquire(pkd->mdl,CID_PARTICLE,iPart,check->id);
 	}
+	*pc = NULL;
+	*pp = p;
 	for (j=0;j<3;++j) {
 	    /*
 	    ** If any of the dimensions show no overlap, then the 2 bounds do not overlap.
@@ -1039,8 +1041,6 @@ static inline int iOpenInactive(PKD pkd,KDN *k,CELT *check,KDN **pc,PARTICLE **p
 	}
 	if (k->iLower) return(0); /* particle stays on the checklist (open k) */
 	else return(1);  /* test particle by particle */
-	*pc = NULL;
-	*pp = p;
     }
     else {
 	iCell = check->iCell;
@@ -1111,30 +1111,32 @@ void BoundWalkInactive(SMX smx,uint32_t *puHead) {
     ** First we add any replicas of the entire box
     ** to the Checklist.
     */
-    for (ix=-1;ix<=1;++ix) {
-	rOffset[0] = ix*pkd->fPeriod[0];
-	for (iy=-1;iy<=1;++iy) {
-	    rOffset[1] = iy*pkd->fPeriod[1];
-	    for (iz=-1;iz<=1;++iz) {
-		rOffset[2] = iz*pkd->fPeriod[2];
-		bRep = ix || iy || iz;
-		if (bRep) {
-		    pkd->Check[nCheck].iCell = ROOT;
-		    /* If leaf of top tree, use root of
-		       local tree.
-		    */
-		    if (pkdTopNode(pkd,ROOT)->iLower) {
-			pkd->Check[nCheck].id = -1;
+    if (smx->bPeriodic) {
+	for (ix=-1;ix<=1;++ix) {
+	    rOffset[0] = ix*pkd->fPeriod[0];
+	    for (iy=-1;iy<=1;++iy) {
+		rOffset[1] = iy*pkd->fPeriod[1];
+		for (iz=-1;iz<=1;++iz) {
+		    rOffset[2] = iz*pkd->fPeriod[2];
+		    bRep = ix || iy || iz;
+		    if (bRep) {
+			pkd->Check[nCheck].iCell = ROOT;
+			/* If leaf of top tree, use root of
+			   local tree.
+			*/
+			if (pkdTopNode(pkd,ROOT)->iLower) {
+			    pkd->Check[nCheck].id = -1;
 			}
-		    else {
-			pkd->Check[nCheck].id = pkdTopNode(pkd,ROOT)->pLower;
+			else {
+			    pkd->Check[nCheck].id = pkdTopNode(pkd,ROOT)->pLower;
 			}
-		    for (j=0;j<3;++j) pkd->Check[nCheck].rOffset[j] = rOffset[j];
-		    ++nCheck;
+			for (j=0;j<3;++j) pkd->Check[nCheck].rOffset[j] = rOffset[j];
+			++nCheck;
 		    }
 		}
 	    }
 	}
+    }
     /*
     ** This adds all siblings of a chain leading from the local tree leaf in the top
     ** tree up to the ROOT of the top tree.
@@ -1427,6 +1429,8 @@ static inline int iOpenActive(PKD pkd,KDN *k,CELT *check,KDN **pc,PARTICLE **pp)
 	else {
 	    p = mdlAquire(pkd->mdl,CID_PARTICLE,iPart,check->id);
 	}
+	*pc = NULL;
+	*pp = p;
 	xc = p->r[0] + check->rOffset[0];
 	yc = p->r[1] + check->rOffset[1];
 	zc = p->r[2] + check->rOffset[2];
@@ -1447,8 +1451,6 @@ static inline int iOpenActive(PKD pkd,KDN *k,CELT *check,KDN **pc,PARTICLE **pp)
 	if (mink2 > pow((1+pkd->param.ddHonHLimit)*p->fBall,2)) return(10);
 	if (k->iLower) return(0); /* particle stays on the checklist (open k) */
 	else return(1);  /* test particle by particle */
-	*pc = NULL;
-	*pp = p;
     }
     else {
 	iCell = check->iCell;
@@ -1524,30 +1526,32 @@ void BoundWalkActive(SMX smx,LIST **ppList,int *pnMaxpList) {
     ** First we add the replicas of the entire box
     ** to the Checklist.
     */
-    for (ix=-1;ix<=1;++ix) {
-	rOffset[0] = ix*pkd->fPeriod[0];
-	for (iy=-1;iy<=1;++iy) {
-	    rOffset[1] = iy*pkd->fPeriod[1];
-	    for (iz=-1;iz<=1;++iz) {
-		rOffset[2] = iz*pkd->fPeriod[2];
-		bRep = ix || iy || iz;
-		if (bRep) {
-		    pkd->Check[nCheck].iCell = ROOT;
-		    /* If leaf of top tree, use root of
-		       local tree.
-		    */
-		    if (pkdTopNode(pkd,ROOT)->iLower) {
-			pkd->Check[nCheck].id = -1;
+    if (smx->bPeriodic) {
+	for (ix=-1;ix<=1;++ix) {
+	    rOffset[0] = ix*pkd->fPeriod[0];
+	    for (iy=-1;iy<=1;++iy) {
+		rOffset[1] = iy*pkd->fPeriod[1];
+		for (iz=-1;iz<=1;++iz) {
+		    rOffset[2] = iz*pkd->fPeriod[2];
+		    bRep = ix || iy || iz;
+		    if (bRep) {
+			pkd->Check[nCheck].iCell = ROOT;
+			/* If leaf of top tree, use root of
+			   local tree.
+			*/
+			if (pkdTopNode(pkd,ROOT)->iLower) {
+			    pkd->Check[nCheck].id = -1;
 			}
-		    else {
-			pkd->Check[nCheck].id = pkdTopNode(pkd,ROOT)->pLower;
+			else {
+			    pkd->Check[nCheck].id = pkdTopNode(pkd,ROOT)->pLower;
 			}
-		    for (j=0;j<3;++j) pkd->Check[nCheck].rOffset[j] = rOffset[j];
-		    ++nCheck;
+			for (j=0;j<3;++j) pkd->Check[nCheck].rOffset[j] = rOffset[j];
+			++nCheck;
 		    }
 		}
 	    }
 	}
+    }
     /*
     ** This adds all siblings of a chain leading from the local tree leaf in the top
     ** tree up to the ROOT of the top tree.
