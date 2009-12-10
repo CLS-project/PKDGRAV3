@@ -1090,13 +1090,16 @@ uint32_t BoundWalkInactive(SMX smx) {
     PKD pkd = smx->pkd;
     PARTICLE *p,*pp;
     KDN *k,*c,*kSib;
+    SPHBNDS *bn;
+    double BImin[3];
+    double BImax[3];
     FLOAT rOffset[3];
     FLOAT d2;
     int iStack,ism;
     int ix,iy,iz,bRep;
     int nMaxInitCheck,nCheck;
     int iCell,iSib,iCheckCell;
-    int i,ii,j,n,id,pj;
+    int i,ii,j,n,id,pj,d;
     int iOpen;
     uint32_t nDo;
 
@@ -1193,6 +1196,8 @@ uint32_t BoundWalkInactive(SMX smx) {
 		    /*
 		    ** We check individual particles against each other here.
 		    */
+		    for (d=0;d<3;++d) BImin[d] = HUGE_VAL;
+		    for (d=0;d<3;++d) BImax[d] = -HUGE_VAL;		    
 		    for (pj=k->pLower;pj<=k->pUpper;++pj) {
 			p = pkdParticle(pkd,pj);
 			/*
@@ -1218,8 +1223,24 @@ uint32_t BoundWalkInactive(SMX smx) {
 				*/
 				smx->ea[pj].bDone = 1;
 			    }
+			    else {
+				/*
+				** The particle remains not done, and we can use it to calculate the inactive
+				** ball bounds.
+				*/
+				for (d=0;d<3;++d) BImin[d] = fmin(BImin[d],p->r[d] - (1+pkd->param.ddHonHLimit)*p->fBall);
+				for (d=0;d<3;++d) BImax[d] = fmax(BImax[d],p->r[d] + (1+pkd->param.ddHonHLimit)*p->fBall);
+			    }
 			}
 		    }
+		    /*
+		    ** If any particles were added to the Do queue in this part we can shrink
+		    ** the ball bounds for inactives for this bucket at this stage! This will tend to make
+		    ** the further checks trivial once all inactives in a bucket are done.
+		    */
+		    bn = pkdNodeSphBounds(pkd,k);
+		    for (d=0;d<3;++d) bn->BI.min[d] = BImin[d];
+		    for (d=0;d<3;++d) bn->BI.max[d] = BImax[d];
 		    break;
 		case 2:
 		    /*
@@ -1321,7 +1342,9 @@ uint32_t BoundWalkInactive(SMX smx) {
 	    ** Now prepare to proceed to the next deeper
 	    ** level of the tree.
 	    */
-	    if (!k->iLower) break;
+	    if (!k->iLower) {
+		break;
+	    }
 	    k = pkdTreeNode(pkd,iCell = k->iLower);
 	    /*
 	    ** Make sure all the check lists are long enough to handle 1 more cell.
