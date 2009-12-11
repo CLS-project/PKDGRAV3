@@ -1690,6 +1690,7 @@ void BoundWalkActive(SMX smx,LIST **ppList,int *pnMaxpList) {
 				    ** usually have to allocate/reallocate new storage for the compressed list of particle pp.
 				    */
 				    lcodeDecode(smx->lcmp,*ppCList,ppList,pnMaxpList,&nList);
+				    assert(*ppCList != NULL);
 				    free(*ppCList);
 				    if (nList == *pnMaxpList) {
 					*pnMaxpList *= 2;
@@ -2053,6 +2054,7 @@ void smFastGasPhase1(SMX smx,SMF *smf) {
 	    if (*ppCList) {
 		lcodeDecode(smx->lcmp,*ppCList,&pList,&nMaxpList,&nList);
 		free(*ppCList);
+		*ppCList = NULL;
 	    }
 	    nInitList = nList;
 	    /*
@@ -2248,9 +2250,7 @@ void smFastGasPhase1(SMX smx,SMF *smf) {
     */
     uHead = 0;
     uTail = BoundWalkInactive(smx);
-/*
     printf("After BoundWalkInactive added %d new inactive particles. They get new densities now.\n",uTail);
-*/
     /*
     ** New inactive particles have been added to the list.
     */
