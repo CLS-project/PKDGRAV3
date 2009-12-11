@@ -2083,6 +2083,7 @@ void smFastGasPhase1(SMX smx,SMF *smf) {
 			    pList[nList].iIndex = smx->pq[i].iIndex;
 			    pList[nList].iPid = smx->pq[i].iPid;
 			    ++nList;
+			DontAddToList:
 			    if (!smx->ea[smx->pq[i].iIndex].bDone) {
 				/*
 				** Needs an updated density, so add it to the head of the 
@@ -2091,7 +2092,6 @@ void smFastGasPhase1(SMX smx,SMF *smf) {
 				if (uHead == 0) uHead = pkd->nLocal;
 				smx->ea[--uHead].iIndex = smx->pq[i].iIndex;
 			    }
-			DontAddToList:
 			}
 			else {
 			    /*
