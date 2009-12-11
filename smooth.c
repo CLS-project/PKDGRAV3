@@ -2050,7 +2050,7 @@ void smFastGasPhase1(SMX smx,SMF *smf) {
 	    ** its list then decode the list and start adding to it.
 	    */
 	    ppCList = pkd_pNeighborList(pkd,p);
-	    if (ppCList) {
+	    if (*ppCList) {
 		lcodeDecode(smx->lcmp,*ppCList,&pList,&nMaxpList,&nList);
 		free(*ppCList);
 	    }
