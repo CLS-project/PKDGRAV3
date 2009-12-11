@@ -1171,6 +1171,15 @@ uint32_t BoundWalkInactive(SMX smx) {
     ** Make iCell point to the root of the tree again.
     */
     k = pkdTreeNode(pkd,iCell = ROOT);
+    /*
+    ** If iCell is now a bucket we add it to its own checklist.
+    */
+    if (k->iLower == 0) {
+	pkd->Check[nCheck].iCell = iCell;
+	pkd->Check[nCheck].id = pkd->idSelf;
+	for (j=0;j<3;++j) pkd->Check[nCheck].rOffset[j] = 0.0;
+	++nCheck;
+    }
     while (1) {
 	while (1) {
 	    /*
@@ -1347,9 +1356,9 @@ uint32_t BoundWalkInactive(SMX smx) {
 	    }
 	    k = pkdTreeNode(pkd,iCell = k->iLower);
 	    /*
-	    ** Make sure all the check lists are long enough to handle 1 more cell.
+	    ** Make sure all the check lists are long enough to handle 2 more cells.
 	    */
-	    if (nCheck == pkd->nMaxCheck) {
+	    if (nCheck+1 >= pkd->nMaxCheck) {
 		pkd->nMaxCheck += 1000;
 		pkd->Check = realloc(pkd->Check,pkd->nMaxCheck*sizeof(CELT));
 		assert(pkd->Check != NULL);
@@ -1371,6 +1380,15 @@ uint32_t BoundWalkInactive(SMX smx) {
 		pkd->Check[nCheck].id = pkd->idSelf;
 		for (j=0;j<3;++j) pkd->Check[nCheck].rOffset[j] = 0.0;
 		++nCheck;
+		/*
+		** If iCell is now a bucket we add it to its own checklist.
+		*/
+		if (k->iLower == 0) {
+		    pkd->Check[nCheck].iCell = iCell;
+		    pkd->Check[nCheck].id = pkd->idSelf;
+		    for (j=0;j<3;++j) pkd->Check[nCheck].rOffset[j] = 0.0;
+		    ++nCheck;
+		}
 		/*
 		** Test whether the sibling has inactives as well.
 		** If not we don't push it onto the stack, but we
