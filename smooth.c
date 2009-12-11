@@ -2195,7 +2195,7 @@ void smFastGasPhase1(SMX smx,SMF *smf) {
 			** pp is an active particle!
 			*/
 			ppCList = pkd_pNeighborList(pkd,pp);
-			if (!ppCList) {
+			if (*ppCList == NULL) {
 			    /*
 			    ** Start a new compressed list for particle pp.
 			    */
