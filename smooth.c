@@ -1970,16 +1970,14 @@ void smFastGasPhase1(SMX smx,SMF *smf) {
     FLOAT r[3],fBall;
     FLOAT rLast[3];
     int iStart[3],iEnd[3];
-    int pi,pj,i,j,bDone;
+    int pi,pj,i,j,bDone,ii;
     int ix,iy,iz;
     uint32_t uHead,uTail;
     LIST *pList;
     int nMaxpList;
     int nList;
+    int nInitList;
     char **ppCList;
-    LIST *tList=NULL;
-    int ntList = 0;
-    int nMaxtList = 0;
 
     assert(pkd->oSph); /* Validate memory model */
     assert(pkd->oNodeSphBounds); /* Validate memory model */
@@ -2001,6 +1999,14 @@ void smFastGasPhase1(SMX smx,SMF *smf) {
 	smx->ea[pi].bInactive = (p->bSrcActive)?0:1;
 	smx->ea[pi].bDone = 0;
 	if (pkdIsGas(pkd,p) && pkdIsActive(pkd,p)) {
+	    /*
+	    ** Clear the neighbor list of this particle!
+	    */
+	    ppCList = pkd_pNeighborList(pkd,p);
+	    if (ppCList) {
+		free(*ppCList);
+		*ppCList = NULL;
+	    }
 	    /*
 	    ** Place it on the do queue.
 	    */
@@ -2040,6 +2046,16 @@ void smFastGasPhase1(SMX smx,SMF *smf) {
 	if (pkdIsActive(pkd,p)) {
 	    nList = 0;
 	    /*
+	    ** If this active particle already had inactive neighbors added to
+	    ** its list then decode the list and start adding to it.
+	    */
+	    ppCList = pkd_pNeighborList(pkd,p);
+	    if (ppClist != NULL) {
+		lcodeDecode(smx->lcmp,*ppCList,&pList,&nMaxpList,&nList);
+		free(*ppCList);
+	    }
+	    nInitList = nList;
+	    /*
 	    ** Loop through the neighbors adding particles to the head of the 
 	    ** do queue which are both rung INACTIVE, local, not done, and also DstActive.
 	    */
@@ -2053,7 +2069,12 @@ void smFastGasPhase1(SMX smx,SMF *smf) {
 		    pp = pkdParticle(pkd,smx->pq[i].iIndex);
 		    if (pkdIsGas(pkd,pp)){
 			if (!pkdIsActive(pkd,pp)) {
-			    /* add this inactive particle to the list of p */
+			    /* add this inactive particle to the list of p, but it may
+			    ** already have been added IF p started with a list! */
+			    for (ii=0;ii<nInitList;++ii) {
+				if (pList[ii].iIndex == smx->pq[i].iIndex && 
+				    pList[ii].iPid == smx->pq[i].iPid) goto DontAddToList;
+			    }
 			    if (nList == nMaxpList) {
 				nMaxpList *= 2;
 				pList = realloc(pList,nMaxpList*sizeof(LIST));
@@ -2064,12 +2085,13 @@ void smFastGasPhase1(SMX smx,SMF *smf) {
 			    ++nList;
 			    if (!smx->ea[smx->pq[i].iIndex].bDone) {
 				/*
-				** Needs an updated density, so add it to the tail of the 
+				** Needs an updated density, so add it to the head of the 
 				** do queue.
 				*/
-				if (uTail == pkd->nLocal) uTail = 0;
-				smx->ea[uTail++].iIndex = smx->pq[i].iIndex;
+				if (uHead == 0) uHead = pkd->nLocal;
+				smx->ea[--uHead].iIndex = smx->pq[i].iIndex;
 			    }
+			DontAddToList:
 			}
 			else {
 			    /*
@@ -2120,7 +2142,7 @@ void smFastGasPhase1(SMX smx,SMF *smf) {
 		    } /* end of if (pkdIsGas(pkd,pp)) */
 		    else {
 			/*
-			** We should never get here is the bSrcActive is set to 1 for all gas particles!
+			** We should never get here if the bSrcActive is set to 1 for all gas particles!
 			*/
 			assert(pkdIsGas(pkd,pp));
 		    } /* end of !pkdIsGas(pkd,pp) */
@@ -2171,12 +2193,20 @@ void smFastGasPhase1(SMX smx,SMF *smf) {
 		    if (pkdIsGas(pkd,pp) && pkdIsActive(pkd,pp)) {
 			/*
 			** pp is an active particle!
-			** It should already have a list since all actives were processed
-			** first. Inactives were added to the tail of the Do queue!
 			*/
-			assert(smx->ea[smx->pq[i].iIndex].bDone);
 			ppCList = pkd_pNeighborList(pkd,pp);
-			if (!bInListLocal(smx->lcmp,*ppCList,pi)) {
+			if (!ppCList) {
+			    /*
+			    ** Start a new compressed list for particle pp.
+			    */
+			    pList[0].iIndex = pi;
+			    pList[0].iPid = pkd->idSelf;
+			    /*
+			    ** Compress the final list here as much as possible.
+			    */
+			    lcodeEncode(smx->lcmp,pList,1,ppCList);
+			}
+			else if (!bInListLocal(smx->lcmp,*ppCList,pi)) {
 			    /*
 			    ** Add this particle to the neighbor list of pp!
 			    ** Unfortunately this means throwing away the old compressed list and creating a new one.
@@ -2184,7 +2214,6 @@ void smFastGasPhase1(SMX smx,SMF *smf) {
 			    ** usually have to allocate/reallocate new storage for the compressed list of particle pp.
 			    */
 			    lcodeDecode(smx->lcmp,*ppCList,&pList,&nMaxpList,&nList);
-			    assert(*ppCList != NULL);
 			    free(*ppCList);
 			    if (nList == nMaxpList) {
 				nMaxpList *= 2;
@@ -2198,16 +2227,12 @@ void smFastGasPhase1(SMX smx,SMF *smf) {
 			    ** Compress the final list here as much as possible.
 			    */
 			    qsort(pList,nList,sizeof(LIST),lcodeCmpList);
-/*
-                            lcodePrintList(pList,nList);
-*/
 			    lcodeEncode(smx->lcmp,pList,nList,ppCList);
 			}
 		    } /* end of if (pkdIsGas(pkd,pp) && pkdIsActive(pkd,pp)) */
 		}
 	    }
-	}
-	
+	}	
     }
     /*
     ** Update all local sph bounds, making sure we only increase current minimums and decrease current
@@ -2253,8 +2278,8 @@ void smFastGasPhase1(SMX smx,SMF *smf) {
 		    */
 		    ppCList = pkd_pNeighborList(pkd,pp);
 		    assert(smx->ea[smx->pq[i].iIndex].bDone);
-		    lcodeDecode(smx->lcmp,*ppCList,&pList,&nMaxpList,&nList);
 		    assert(*ppCList != NULL);
+		    lcodeDecode(smx->lcmp,*ppCList,&pList,&nMaxpList,&nList);
 		    free(*ppCList);
 		    if (nList == nMaxpList) {
 			nMaxpList *= 2;
@@ -2317,7 +2342,6 @@ void smFastGasPhase2(SMX smx,SMF *smf) {
     assert(pkd->oNodeSphBounds); /* Validate memory model */
     /*
     ** Initialize a default sized list. We will make this 2*nSmooth to start with.
-    ** tList is a temporary list used to remove elements from a neighbor's own list.
     */
     nMaxpList = 2*pkd->param.nSmooth;
     pList = malloc(nMaxpList*sizeof(LIST));
