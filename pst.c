@@ -4067,7 +4067,7 @@ void pstGetClasses(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	mdlassert(pst->mdl,n*sizeof(PARTCLASS)== *pnOut);
 	for ( i=0; i<nUp; i++ ) {
 	    for ( j=0; j<n; j++ ) {
-		if ( outUp[i].fMass==out[j].fMass && outUp[i].fSoft==out[j].fSoft )
+		if ( outUp[i].fMass==out[j].fMass && outUp[i].fSoft==out[j].fSoft && outUp[i].eSpecies==out[j].eSpecies)
 		    break;
 		}
 	    if ( j == n ) {
