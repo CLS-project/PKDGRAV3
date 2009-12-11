@@ -1989,7 +1989,7 @@ void smFastGasPhase1(SMX smx,SMF *smf) {
 	    smx->ea[uTail++].iIndex = pi;
 	}
     }
-    smx->ea[pkd->nLocal].bInactive = 0;  /* initialize for Sentinel, but this is not really needed */
+    smx->ea[pkd->nLocal].bInactive = 1;  /* initialize for Sentinel, but this is not really needed */
     smx->ea[pkd->nLocal].bDone = 1;  /* initialize for Sentinel, but this is not really needed */
     /*
     ** Initialize the priority queue first.
@@ -2046,12 +2046,11 @@ void smFastGasPhase1(SMX smx,SMF *smf) {
 			    ++nList;
 			    if (!smx->ea[smx->pq[i].iIndex].bDone) {
 				/*
-				** Needs an updated density, so add it to the head of the 
+				** Needs an updated density, so add it to the tail of the 
 				** do queue.
 				*/
-				if (uHead == 0) uHead = pkd->nLocal-1;
-				else --uHead;
-				smx->ea[uHead].iIndex = smx->pq[i].iIndex;
+				if (uTail == pkd->nLocal) uTail = 0;
+				smx->ea[uTail++].iIndex = smx->pq[i].iIndex;
 			    }
 			}
 			else {
