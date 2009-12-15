@@ -110,6 +110,149 @@ void lcodeFinish(LCODE ctx) {
 }
 
 
+static inline void OutOne(LCODE ctx) {
+    if (ctx->uIndex == ctx->nCode) {
+	ctx->nCode += 256;
+	ctx->aCode = realloc(ctx->aCode,ctx->nCode);
+	assert(ctx->aCode != NULL);
+    }
+    ctx->aCode[ctx->uIndex] |= ctx->uMask;
+    ctx->uMask <<= 1;
+    if (!ctx->uMask) {
+	++ctx->uIndex;
+	ctx->uMask = 1;
+    }
+}
+
+static inline void OutZero(LCODE ctx) {
+    if (ctx->uIndex == ctx->nCode) {
+	ctx->nCode += 256;
+	ctx->aCode = realloc(ctx->aCode,ctx->nCode);
+	assert(ctx->aCode != NULL);
+    }
+    ctx->aCode[ctx->uIndex] &= ~ctx->uMask;
+    ctx->uMask <<= 1;
+    if (!ctx->uMask) {
+	++ctx->uIndex;
+	ctx->uMask = 1;
+    }
+}
+
+static inline int OutPid(LCODE ctx,uint32_t uPid) {
+    int i;
+    OutOne(ctx);
+    for (i=ctx->nPid-1;i>=0;--i) {
+	if (uPid & (1<<i)) OutOne(ctx);
+	else OutZero(ctx);
+    }
+    return(1+ctx->nPid);
+}
+
+
+static inline void InPid(LCODE ctx,uint32_t *uPid) {
+    int i;
+    *uPid = 0;
+    for (i=0;i<ctx->nPid;++i) {
+	*uPid <<= 1;
+	if (InOne(ctx)) *uPid |= 1;
+    }
+}
+
+
+static inline int OutPrefix(LCODE ctx,uint32_t uPrefix) {
+    int i;
+    uPrefix >>= ctx->nSuffix;
+    for (i=ctx->nPrefix-1;i>=0;--i) {
+	if (uPrefix & (1<<i)) OutOne(ctx);
+	else OutZero(ctx);
+    }
+    return(ctx->nPrefix);
+}
+
+
+static inline void SkipPrefix(LCODE ctx) {
+    int i;
+
+    for (i=0;i<ctx->nPrefix;++i) {
+	ctx->uMask <<= 1;
+	if (!ctx->uMask) {
+	    ++ctx->uIndex;
+	    ctx->uMask = 1;
+	}
+    }
+}
+
+static inline int OutRun(LCODE ctx,uint32_t uStart,uint32_t uEnd) {
+    int i;
+    OutOne(ctx);
+    for (i=ctx->nSuffix-1;i>=0;--i) {
+	if (uStart & (1<<i)) OutOne(ctx);
+	else OutZero(ctx);
+    }
+    for (i=ctx->nSuffix-1;i>=0;--i) {
+	if (uEnd & (1<<i)) OutOne(ctx);
+	else OutZero(ctx);
+    }
+    return(1+2*ctx->nSuffix);
+}
+
+
+static inline void SkipRun(LCODE ctx) {
+    int i;
+
+    for (i=0;i<(2*ctx->nSuffix);++i) {
+	ctx->uMask <<= 1;
+	if (!ctx->uMask) {
+	    ++ctx->uIndex;
+	    ctx->uMask = 1;
+	}
+    }
+}
+
+static inline int OutSingle(LCODE ctx,uint32_t uStart) {
+    int i;
+    OutZero(ctx);
+    for (i=ctx->nSuffix-1;i>=0;--i) {
+	if (uStart & (1<<i)) OutOne(ctx);
+	else OutZero(ctx);
+    }
+    return(1+ctx->nSuffix);
+}
+
+static inline void SkipSingle(LCODE ctx) {
+    int i;
+
+    for (i=0;i<ctx->nSuffix;++i) {
+	ctx->uMask <<= 1;
+	if (!ctx->uMask) {
+	    ++ctx->uIndex;
+	    ctx->uMask = 1;
+	}
+    }
+}
+
+static inline int OutSuffix(LCODE ctx,uint32_t uStart) {
+    int i;
+    for (i=ctx->nSuffix-1;i>=0;--i) {
+	if (uStart & (1<<i)) OutOne(ctx);
+	else OutZero(ctx);
+    }
+    return(ctx->nSuffix);
+}
+
+static inline void BackSkipSuffix(LCODE ctx) {
+    int i;
+
+    for (i=0;i<ctx->nSuffix;++i) {
+	ctx->uMask >>= 1;
+	if (!ctx->uMask) {
+	    --ctx->uIndex;
+	    ctx->uMask = 1<<7;
+	}
+    }
+}
+
+
 int lcodeEncode(LCODE ctx,LIST *aList,uint32_t nList,char **ppOutput) {
     uint32_t uPrefix,iPid;
     uint32_t nOutBits;
@@ -380,29 +523,6 @@ int lcodeDecode(LCODE ctx,char *pInput,LIST **ppList,int *pnMaxList,int *pnList)
     return(nBytes);
 }
 
-
-int bInListLocal(LCODE ctx,char *pInput,uint32_t iIndex) {
-    int nList = 0;
-    uint32_t uPrefix;
-    uint32_t uStart,uEnd,u,uPid;
-
-    ctx->uIndex = 0;
-    ctx->uMask = 1;
-    ctx->inCode = pInput;
-    while (InOne(ctx)) {
-	InPrefix(ctx,&uPrefix);
-	while (InOne(ctx)) {
-	    InRun(ctx,uPrefix,&uStart,&uEnd);
-	    if (iIndex >= uStart && iIndex <= uEnd) return(1);
-	}
-	while (!InOne(ctx)) {
-	    InSingle(ctx,uPrefix,&u);
-	    if (iIndex == u) return(1);
-	}
-    }
-    return(0);
-}
-    
 
 #if (0)
 /*
