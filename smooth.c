@@ -2014,6 +2014,8 @@ void smFastGasPhase1(SMX smx,SMF *smf) {
 	    smx->ea[uTail++].iIndex = pi;
 	}
     }
+    if (uTail == 0) return;  /* no active particles??? */
+    else if (uTail == pkd->nLocal) uTail = 0;  /* wrap uTail around in this case */
     smx->ea[pkd->nLocal].bInactive = 1;  /* initialize for Sentinel, but this is not really needed */
     smx->ea[pkd->nLocal].bDone = 1;  /* initialize for Sentinel, but this is not really needed */
     /*
@@ -2250,7 +2252,10 @@ void smFastGasPhase1(SMX smx,SMF *smf) {
     */
     uHead = 0;
     uTail = BoundWalkInactive(smx);
+    assert(uTail < pkd->nLocal);
+/*
     printf("After BoundWalkInactive added %d new inactive particles. They get new densities now.\n",uTail);
+*/
     /*
     ** New inactive particles have been added to the list.
     */
