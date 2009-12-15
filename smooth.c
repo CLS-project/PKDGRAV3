@@ -2033,7 +2033,7 @@ void smFastGasPhase1(SMX smx,SMF *smf) {
     }
     for (j=0;j<3;++j) rLast[j] = 0.0;
 
-    while (uHead != uTail) {
+    do {
 	/*
 	** Remove leading element from the do queue.
 	*/
@@ -2237,7 +2237,7 @@ void smFastGasPhase1(SMX smx,SMF *smf) {
 		}
 	    }
 	}	
-    }
+    } while (uHead != uTail);
     /*
     ** Update all local sph bounds, making sure we only increase current minimums and decrease current
     ** maximums (only that is safe).
