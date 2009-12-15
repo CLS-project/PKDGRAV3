@@ -462,10 +462,10 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
 		"nMinMembers","<minimum number of group members> = 16");
     msr->param.dTau = 0.164;
     prmAddParam(msr->prm,"dTau",2,&msr->param.dTau,sizeof(double),"dTau",
-		"<linking lenght for FOF in units of mean particle separation> = 0.164");
+		"<linking length for FOF in units of mean particle separation> = 0.164");
     msr->param.dVTau = -1.0;
     prmAddParam(msr->prm,"dVTau",2,&msr->param.dVTau,sizeof(double),"dVTau",
-		"<velocity space linking lenght for phase-space FOF, set to 0 for plain FOF> = 0");
+		"<velocity space linking length for phase-space FOF, set to 0 for plain FOF> = 0");
     msr->param.bTauAbs = 0;
     prmAddParam(msr->prm,"bTauAbs",0,&msr->param.bTauAbs,sizeof(int),"bTauAbs",
 		"<if 1 use z=0 simulation units for dTau, not mean particle separation> = 0");
@@ -4286,11 +4286,11 @@ void msrFof(MSR msr, double exp) {
     if (msr->param.bVStep) {
 	double sec,dsec;
 	if (msr->param.bTauAbs == 0){
-	  printf("Doing FOF with space linking lenght %e * m_p^(1/3) ,\n", sqrt(in.smf.dTau2) );
-	  printf("  and velocity linking lenght %e (ignored if 0) ...\n", sqrt(in.smf.dVTau2) );
+	  printf("Doing FOF with space linking length %e * m_p^(1/3) ,\n", sqrt(in.smf.dTau2) );
+	  printf("  and velocity linking length %e (ignored if 0) ...\n", sqrt(in.smf.dVTau2) );
 	  } else {
-	    printf("Doing FOF with fixed space linking lenght %e ,\n", sqrt(in.smf.dTau2) );
-	    printf("  and velocity linking lenght %e (ignored if 0) ...\n", sqrt(in.smf.dVTau2) );
+	    printf("Doing FOF with fixed space linking length %e ,\n", sqrt(in.smf.dTau2) );
+	    printf("  and velocity linking length %e (ignored if 0) ...\n", sqrt(in.smf.dVTau2) );
 	}
 	sec = msrTime();
 	pstFof(msr->pst,&in,sizeof(in),NULL,NULL);

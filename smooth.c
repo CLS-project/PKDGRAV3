@@ -2844,7 +2844,7 @@ void smFof(SMX smx,SMF *smf) {
     pkd->nMaxRm = 0;
     fBall2Max = 0.0;
 
-    /* set spatial linking lenght for each particle (mass dependend when bTauAbs=0) */
+    /* set spatial linking length for each particle (mass dependend when bTauAbs=0) */
     for (pn=0;pn<nTree;pn++) {
 	p = pkdParticle(pkd,pn);
 	fMass = pkdMass(pkd,p);
@@ -2862,7 +2862,7 @@ void smFof(SMX smx,SMF *smf) {
 	if (p->fBall > fBall2Max) fBall2Max = p->fBall;
     }
 
-    /* the velocity space linking lenght is the same for all particles. Zero means: do regular 3D FOF */
+    /* the velocity space linking length is the same for all particles. Zero means: do regular 3D FOF */
     fvBall2 = smf->dVTau2;
  
     /* Have to restart particle chache, since we will need the updated p->fBall now */
