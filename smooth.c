@@ -1925,15 +1925,11 @@ void DoLocalSearch(SMX smx,SMF *smf,PARTICLE *p,double *rLast) {
     */
     if (!bDone && smx->bPeriodic) {
 	fBall = sqrt(pq->fDist2);
-	for (j=0;j<3;++j) {
-	    iStart[j] = floor((p->r[j] - fBall)/pkd->fPeriod[j] + 0.5);
-	    iEnd[j] = floor((p->r[j] + fBall)/pkd->fPeriod[j] + 0.5);
-	}
-	for (ix=iStart[0];ix<=iEnd[0];++ix) {
+	for (ix=-1;ix<=1;++ix) {
 	    r[0] = p->r[0] - ix*pkd->fPeriod[0];
-	    for (iy=iStart[1];iy<=iEnd[1];++iy) {
+	    for (iy=-1;iy<=1;++iy) {
 		r[1] = p->r[1] - iy*pkd->fPeriod[1];
-		for (iz=iStart[2];iz<=iEnd[2];++iz) {
+		for (iz=-1;iz<=1;++iz) {
 		    r[2] = p->r[2] - iz*pkd->fPeriod[2];
 		    if (ix || iy || iz) {
 			pq = pqSearch(smx,pq,r,1,&bDone);
