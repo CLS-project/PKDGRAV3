@@ -338,7 +338,7 @@ void pkdInitialize(
     ** Tree node memory models
     */
     if ( mMemoryModel & PKD_MODEL_NODE_MOMENT )
-	pkd->oNodeMom = pkdNodeAddStruct(pkd,sizeof(FMOMR));
+	pkd->oNodeMom = pkdNodeAddStruct(pkd,sizeof(MOMR));
     else
 	pkd->oNodeMom = 0;
 
