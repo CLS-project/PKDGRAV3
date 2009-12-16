@@ -2000,7 +2000,7 @@ void smFastGasPhase1(SMX smx,SMF *smf) {
 	    ** Clear the neighbor list of this particle!
 	    */
 	    ppCList = pkd_pNeighborList(pkd,p);
-	    if (ppCList) {
+	    if (*ppCList) {
 		free(*ppCList);
 		*ppCList = NULL;
 	    }

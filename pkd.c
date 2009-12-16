@@ -236,6 +236,8 @@ void pkdInitialize(
     int iCacheSize,FLOAT *fPeriod,uint64_t nDark,uint64_t nGas,uint64_t nStar,
     uint64_t mMemoryModel) {
     PKD pkd;
+    PARTICLE *p;
+    uint32_t pi;
     int j,ism;
 
 #define RANDOM_SEED 1
@@ -336,7 +338,7 @@ void pkdInitialize(
     ** Tree node memory models
     */
     if ( mMemoryModel & PKD_MODEL_NODE_MOMENT )
-	pkd->oNodeMom = pkdNodeAddStruct(pkd,sizeof(MOMR));
+	pkd->oNodeMom = pkdNodeAddStruct(pkd,sizeof(FMOMR));
     else
 	pkd->oNodeMom = 0;
 
@@ -390,6 +392,15 @@ void pkdInitialize(
 #ifdef MDL_CACHE_SIZE
     if ( iCacheSize > 0 ) mdlSetCacheSize(pkd->mdl,iCacheSize);
 #endif
+    /*
+    ** Initialize neighbor list pointer to NULL if present.
+    */
+    if (pkd->oSph) {
+	for (pi=0;pi<(pkd->nStore+1);++pi) {
+	    p = pkdParticle(pkd,pi);
+	    *pkd_pNeighborList(pkd,p) = NULL;
+	}
+    }
 
     /*
     ** We support up to 256 classes
@@ -488,6 +499,9 @@ void pkdInitialize(
 
 
 void pkdFinish(PKD pkd) {
+    PARTICLE *p;
+    char **ppCList;
+    uint32_t pi;
     int ism;
     int i;
 
@@ -525,6 +539,19 @@ void pkdFinish(PKD pkd) {
     if (pkd->kdTopPRIVATE) free(pkd->kdTopPRIVATE);
     free(pkd->ew.ewt);
     free(pkd->pClass);
+    /*
+    ** Free any neighbor lists that were left hanging around.
+    */
+    if (pkd->oSph) {
+	for (pi=0;pi<(pkd->nStore+1);++pi) {
+	    p = pkdParticle(pkd,pi);
+	    ppCList = pkd_pNeighborList(pkd,p);
+	    if (*ppCList) {
+		free(*ppCList);
+		*ppCList = NULL;
+	    }
+	}
+    }
     mdlFree(pkd->mdl,pkd->pStorePRIVATE);
     free(pkd->pLite);
     free(pkd->piActive);
