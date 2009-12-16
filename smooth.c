@@ -1997,7 +1997,7 @@ void smFastGasPhase1(SMX smx,SMF *smf) {
 	smx->ea[pi].bDone = 0;
 	if (pkdIsGas(pkd,p) && pkdIsActive(pkd,p)) {
 	    /*
-	    ** Clear the neighbor list of this particle!
+	    ** Clear the neighbor list of this active gas particle!
 	    */
 	    ppCList = pkd_pNeighborList(pkd,p);
 	    if (*ppCList) {
@@ -2111,16 +2111,21 @@ void smFastGasPhase1(SMX smx,SMF *smf) {
 				lcodeDecode(smx->lcmp,*ppCList,&tList,&nMaxtList,&ntList);
 				printf("%d--",smx->pq[i].iIndex);
 				lcodePrintList(tList,ntList);
-*/				
-				if (!bInListLocal(smx->lcmp,*ppCList,pi)) {
-				    if (nList == nMaxpList) {
-					nMaxpList *= 2;
-					pList = realloc(pList,nMaxpList*sizeof(LIST));
-					assert(pList != NULL);
+*/		
+				if (*ppCList) {
+				    /*
+				    ** pp certainly does have a list.
+				    */
+				    if (!bInListLocal(smx->lcmp,*ppCList,pi)) {
+					if (nList == nMaxpList) {
+					    nMaxpList *= 2;
+					    pList = realloc(pList,nMaxpList*sizeof(LIST));
+					    assert(pList != NULL);
+					}
+					pList[nList].iIndex = smx->pq[i].iIndex;
+					pList[nList].iPid = smx->pq[i].iPid;
+					++nList;
 				    }
-				    pList[nList].iIndex = smx->pq[i].iIndex;
-				    pList[nList].iPid = smx->pq[i].iPid;
-				    ++nList;
 				}
 			    }
 			    else {
@@ -2169,8 +2174,13 @@ void smFastGasPhase1(SMX smx,SMF *smf) {
 	    /*
 	    ** Free the old list if it exists!
 	    */
-	    if (*ppCList) free(*ppCList);
-	    lcodeEncode(smx->lcmp,pList,nList,ppCList);
+	    if (*ppCList) {
+		free(*ppCList);
+		*ppCList = NULL;
+	    }
+	    if (nList) {
+		lcodeEncode(smx->lcmp,pList,nList,ppCList);
+	    }
 /*
 	    printf("%p-%d--",*ppCList,pi);
 	    lcodePrintList(pList,nList);
