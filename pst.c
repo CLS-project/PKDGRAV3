@@ -69,6 +69,7 @@ const char *pst_h_module_id = PST_H_MODULE_ID;
 **  Smooth                Yes     -      |
 **  FastGasPhase1         Yes     -      |
 **  FastGasPhase2         Yes     -      |
+**  FastGasCleanup        Yes     -      |
 **  Gravity               Yes     Gather |
 **  CalcEandL             -       Reduce |
 **  Drift                 Bcast   -      |
@@ -237,6 +238,9 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_FASTGASPHASE2,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstFastGasPhase2,
 		  sizeof(struct inSmooth),0);
+    mdlAddService(mdl,PST_FASTGASCLEANUP,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstFastGasCleanup,
+		  0,0);
     mdlAddService(mdl,PST_GRAVITY,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstGravity,
 		  sizeof(struct inGravity),nThreads*sizeof(struct outGravity));
@@ -2644,6 +2648,21 @@ void pstFastGasPhase2(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 		     in->bPeriodic,in->bSymmetric,in->iSmoothType);
 	smFastGasPhase2(smx,&in->smf);
 	smFinish(smx,&in->smf);
+	}
+    if (pnOut) *pnOut = 0;
+    }
+
+
+void pstFastGasCleanup(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl = pst->plcl;
+    mdlassert(pst->mdl,nIn == 0);
+    if (pst->nLeaves > 1) {
+	mdlReqService(pst->mdl,pst->idUpper,PST_FASTGASCLEANUP,NULL,0);
+	pstFastGasCleanup(pst->pstLower,NULL,0,NULL,NULL);
+	mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
+	}
+    else {
+	pkdFastGasCleanup(plcl->pkd);
 	}
     if (pnOut) *pnOut = 0;
     }

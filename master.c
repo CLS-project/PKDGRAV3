@@ -2326,6 +2326,15 @@ void msrDomainDecomp(MSR msr,int iRung,int bGreater,int bSplitVA) {
 	pstCombineBound(msr->pst,NULL,0,&in.bnd,NULL);
 	}
 
+    /*
+    ** If we are doing SPH we need to make absolutely certain to clear
+    ** all neighbor lists here since the pointers in the particles will
+    ** only be valid on the node where it was malloc'ed!
+    */
+    if (msr->param.bDoGas) {
+	pstFastGasCleanup(msr->pst,NULL,0,NULL,NULL);
+    }
+
 #ifdef USE_BSC
     MPItrace_event(10000, 2 );
 #endif
@@ -5241,6 +5250,7 @@ double msrRead(MSR msr, const char *achInFile) {
     if (msr->param.bMemNodeAcceleration) mMemoryModel |= PKD_MODEL_NODE_ACCEL;
     if (msr->param.bMemNodeVelocity) mMemoryModel |= PKD_MODEL_NODE_VEL;
     if (msr->param.bMemNodeMoment) mMemoryModel |= PKD_MODEL_NODE_MOMENT;
+    if (msr->param.bMemNodeSphBounds) mMemoryModel |= PKD_MODEL_NODE_SPHBNDS;
 
 #ifdef PLANETS
     dTime = msrReadSS(msr); /* must use "Solar System" (SS) I/O format... */

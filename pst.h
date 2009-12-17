@@ -93,6 +93,7 @@ enum pst_service {
     PST_SMOOTH,
     PST_FASTGASPHASE1,
     PST_FASTGASPHASE2,
+    PST_FASTGASCLEANUP,
     PST_GRAVITY,
     PST_GRAVEXTERNAL,
     PST_CALCEANDL,
@@ -492,6 +493,9 @@ void pstFastGasPhase1(PST,void *,int,void *,int *);
 
 /* PST_FASTGASPHASE2 */
 void pstFastGasPhase2(PST,void *,int,void *,int *);
+
+/* PST_FASTGASCLEANUP */
+void pstFastGasCleanup(PST,void *,int,void *,int *);
 
 
 /* PST_GRAVITY */

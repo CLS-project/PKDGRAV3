@@ -82,6 +82,10 @@ void smFinish(SMX,SMF *);
 void smSmooth(SMX,SMF *);
 void smReSmooth(SMX,SMF *);
 
+void smFastGasPhase1(SMX smx,SMF *smf);
+void smFastGasPhase2(SMX smx,SMF *smf);
+void pkdFastGasCleanup(PKD pkd);  /* frees up the neighbor lists */
+
 void smFof(SMX smx, SMF *smf);
 int smGroupMerge(SMF *smf, int bPeriodic);
 int smGroupProfiles(SMX smx, SMF *smf,int nTotalGroups);

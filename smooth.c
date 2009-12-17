@@ -2350,7 +2350,6 @@ void smFastGasPhase2(SMX smx,SMF *smf) {
     char **ppCList;
 
     assert(pkd->oSph); /* Validate memory model */
-    assert(pkd->oNodeSphBounds); /* Validate memory model */
     /*
     ** Initialize a default sized list. We will make this 2*nSmooth to start with.
     */
@@ -2362,70 +2361,89 @@ void smFastGasPhase2(SMX smx,SMF *smf) {
 	p = pkdParticle(pkd,pi);
 	if (pkdIsGas(pkd,p) && pkdIsActive(pkd,p)) {
 	    ppCList = pkd_pNeighborList(pkd,p);
-	    lcodeDecode(smx->lcmp,*ppCList,&pList,&nMaxpList,&nList);
-	    if (nList > smx->nnListMax) {
-		smx->nnListMax = nList + NNLIST_INCREMENT;
-		smx->nnList = realloc(smx->nnList,smx->nnListMax*sizeof(NN));
-		assert(smx->nnList != NULL);
-	    }
-	    nCnt = 0;
-	    for (i=0;i<nList;++i) {
-		if (pList[i].iPid == pkd->idSelf) {
-		    pp = pkdParticle(pkd,pList[i].iIndex);
+	    if (*ppCList) {
+		lcodeDecode(smx->lcmp,*ppCList,&pList,&nMaxpList,&nList);
+		if (nList > smx->nnListMax) {
+		    smx->nnListMax = nList + NNLIST_INCREMENT;
+		    smx->nnList = realloc(smx->nnList,smx->nnListMax*sizeof(NN));
+		    assert(smx->nnList != NULL);
 		}
-		else {
-		    pp = mdlAquire(pkd->mdl,CID_PARTICLE,pList[i].iIndex,pList[i].iPid);
+		nCnt = 0;
+		for (i=0;i<nList;++i) {
+		    if (pList[i].iPid == pkd->idSelf) {
+			pp = pkdParticle(pkd,pList[i].iIndex);
+		    }
+		    else {
+			pp = mdlAquire(pkd->mdl,CID_PARTICLE,pList[i].iIndex,pList[i].iPid);
+		    }
+		    dx = p->r[0] - pp->r[0];
+		    dy = p->r[1] - pp->r[1];
+		    dz = p->r[2] - pp->r[2];
+		    if (smx->bPeriodic) {
+			/*
+			** Correct for periodic boundaries.
+			*/
+			if (dx > 0.5*pkd->fPeriod[0]) dx -= pkd->fPeriod[0];
+			else if (dx < -0.5*pkd->fPeriod[0]) dx += pkd->fPeriod[0];
+			if (dy > 0.5*pkd->fPeriod[1]) dy -= pkd->fPeriod[1];
+			else if (dy < -0.5*pkd->fPeriod[1]) dy += pkd->fPeriod[1];
+			if (dz > 0.5*pkd->fPeriod[2]) dz -= pkd->fPeriod[2];
+			else if (dz < -0.5*pkd->fPeriod[2]) dz += pkd->fPeriod[2];
+		    }
+		    fDist2 = dx*dx + dy*dy + dz*dz;
+		    if (fDist2 < p->fBall*p->fBall || fDist2 < pp->fBall*pp->fBall) {
+			smx->nnList[nCnt].fDist2 = fDist2;
+			smx->nnList[nCnt].dx = dx;
+			smx->nnList[nCnt].dy = dy;
+			smx->nnList[nCnt].dz = dz;
+			smx->nnList[nCnt].pPart = pp;
+			smx->nnList[nCnt].iIndex = pList[i].iIndex;
+			smx->nnList[nCnt].iPid = pList[i].iPid;
+			++nCnt;
+		    }
+		    else {
+			/*
+			** This particle is not a neighbor in any sense now and can be
+			** removed from the list. But for now we don't bother!
+			*/
+			if (pList[i].iPid != pkd->idSelf) mdlRelease(pkd->mdl,CID_PARTICLE,pp);
+		    }
+		} /* end of for (i=0;i<nList;++i) */
+		/*
+		** Apply smooth funtion to the neighbor list.
+		*/
+		smx->fcnSmooth(p,nCnt,smx->nnList,smf);
+		/*
+		** Release aquired pointers.
+		*/
+		for (i=0;i<nCnt;++i) {
+		    if (smx->nnList[i].iPid != pkd->idSelf) {
+			mdlRelease(pkd->mdl,CID_PARTICLE,smx->nnList[i].pPart);
+		    }
 		}
-		dx = p->r[0] - pp->r[0];
-		dy = p->r[1] - pp->r[1];
-		dz = p->r[2] - pp->r[2];
-		if (smx->bPeriodic) {
-		    /*
-		    ** Correct for periodic boundaries.
-		    */
-		    if (dx > 0.5*pkd->fPeriod[0]) dx -= pkd->fPeriod[0];
-		    else if (dx < -0.5*pkd->fPeriod[0]) dx += pkd->fPeriod[0];
-		    if (dy > 0.5*pkd->fPeriod[1]) dy -= pkd->fPeriod[1];
-		    else if (dy < -0.5*pkd->fPeriod[1]) dy += pkd->fPeriod[1];
-		    if (dz > 0.5*pkd->fPeriod[2]) dz -= pkd->fPeriod[2];
-		    else if (dz < -0.5*pkd->fPeriod[2]) dz += pkd->fPeriod[2];
-		}
-		fDist2 = dx*dx + dy*dy + dz*dz;
-		if (fDist2 < p->fBall*p->fBall || fDist2 < pp->fBall*pp->fBall) {
-		    smx->nnList[nCnt].fDist2 = fDist2;
-		    smx->nnList[nCnt].dx = dx;
-		    smx->nnList[nCnt].dy = dy;
-		    smx->nnList[nCnt].dz = dz;
-		    smx->nnList[nCnt].pPart = pp;
-		    smx->nnList[nCnt].iIndex = pList[i].iIndex;
-		    smx->nnList[nCnt].iPid = pList[i].iPid;
-		    ++nCnt;
-		}
-		else {
-		    /*
-		    ** This particle is not a neighbor in any sense now and can be
-		    ** removed from the list. But for now we don't bother!
-		    */
-		    if (pList[i].iPid != pkd->idSelf) mdlRelease(pkd->mdl,CID_PARTICLE,pp);
-		}
-	    } /* end of for (i=0;i<nList;++i) */
-	    /*
-	    ** Apply smooth funtion to the neighbor list.
-	    */
-	    smx->fcnSmooth(p,nCnt,smx->nnList,smf);
-	    /*
-	    ** Release aquired pointers.
-	    */
-	    for (i=0;i<nCnt;++i) {
-		if (smx->nnList[i].iPid != pkd->idSelf) {
-		    mdlRelease(pkd->mdl,CID_PARTICLE,smx->nnList[i].pPart);
-		}
-	    }
-	    /*
-	    ** Call mdlCacheCheck to make sure we are making progress!
-	    */
-	    mdlCacheCheck(pkd->mdl);
+		/*
+		** Call mdlCacheCheck to make sure we are making progress!
+		*/
+		mdlCacheCheck(pkd->mdl);
+	    } /* end of if (*ppCList) */
 	} /* end of p is active... */
+    }
+}
+
+
+void pkdFastGasCleanup(PKD pkd) {
+    PARTICLE *p;
+    uint32_t pi;
+    char **ppCList;
+
+    assert(pkd->oSph); /* Validate memory model */
+    for (pi=0;pi<pkd->nLocal;++pi) {
+	p = pkdParticle(pkd,pi);
+	ppCList = pkd_pNeighborList(pkd,p);
+	if (*ppCList) {
+	    free(*ppCList);
+	    *ppCList = NULL;
+	}
     }
 }
 
