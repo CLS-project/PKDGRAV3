@@ -770,7 +770,7 @@ void pstReadFile(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	    in->nSpecies[FIO_SPECIES_STAR],
 	    in->mMemoryModel);
 
-	fio = fioOpen(in->achFilename);
+	fio = fioOpen(in->achFilename,in->dOmega0,in->dOmegab);
 	assert(fio!=NULL);
 	pkdReadFIO(plcl->pkd,fio,nNodeStart,nNodeEnd-nNodeStart+1,in->dvFac,in->dTuFac);
 	fioClose(fio);

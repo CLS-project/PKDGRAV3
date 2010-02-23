@@ -242,6 +242,8 @@ struct inReadFile {
     double fPeriod[3];
     double dvFac;
     double dTuFac;
+    double dOmega0;
+    double dOmegab;
     float fExtraStore;
     int nTreeBitsLo;
     int nTreeBitsHi;

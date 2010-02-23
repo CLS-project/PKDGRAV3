@@ -80,8 +80,11 @@ typedef enum {
 /*
 ** Here are the valid flags for Create
 */
-#define FIO_FLAG_DOUBLE_POS 1
-#define FIO_FLAG_DOUBLE_VEL 2
+#define FIO_FLAG_DOUBLE_POS    1
+#define FIO_FLAG_DOUBLE_VEL    2
+#define FIO_FLAG_COMPRESS_MASS 4
+#define FIO_FLAG_COMPRESS_SOFT 8
+#define FIO_FLAG_CHECKPOINT    16
 
 typedef enum {
     FIO_MODE_READING,
@@ -93,7 +96,10 @@ typedef enum {
 */
 typedef enum {
     FIO_TYPE_FLOAT=0,
-    FIO_TYPE_DOUBLE
+    FIO_TYPE_DOUBLE,
+    FIO_TYPE_UINT32,
+    FIO_TYPE_UINT64,
+    FIO_TYPE_UINT8,
     } FIO_TYPE;
 
 /*
@@ -108,15 +114,20 @@ typedef enum {
     FIO_SPECIES_LAST /* Must be last */
     } FIO_SPECIES;
 
+typedef struct {
+    int nFiles;       /* Total number of files */
+    uint64_t *iFirst; /* Starting particle index for i'th file */
+    char **pszFiles;  /* Filename of i'th file */
+    } fioFileList;
+
 /* This structure should be treated as PRIVATE.  Call the "fio" routines. */
 typedef struct fioInfo {
     FIO_FORMAT eFormat;
     FIO_MODE   eMode;
     uint64_t nSpecies[FIO_SPECIES_LAST];
+
     /* This is for multi-file support */
-    int nFiles;
-    uint64_t *iFirst;
-    char **pszFiles;
+    fioFileList fileList;
 
     void (*fcnClose)(struct fioInfo *fio);
     int  (*fcnSeek) (struct fioInfo *fio,uint64_t iPart,FIO_SPECIES eSpecies);
@@ -148,6 +159,8 @@ typedef struct fioInfo {
 
     int  (*fcnGetAttr)(struct fioInfo *fio,
 	const char *attr, FIO_TYPE dataType, void *data);
+    int  (*fcnSetAttr)(struct fioInfo *fio,
+	const char *attr, FIO_TYPE dataType, void *data);
     } *FIO;
 
 /******************************************************************************\
@@ -157,8 +170,8 @@ typedef struct fioInfo {
 /*
 ** Auto-detects the file format by looking at header information.
 */
-FIO fioOpen(const char *fileName);
-FIO fioOpenMany(int nFiles, const char * const *fileNames);
+FIO fioOpen(const char *fileName,double dOmega0,double dOmegab);
+FIO fioOpenMany(int nFiles, const char * const *fileNames,double dOmega0,double dOmegab);
 
 /*
 ** Close an open file of any format.
@@ -258,6 +271,15 @@ static inline int fioGetAttr(FIO fio,
     return (*fio->fcnGetAttr)(fio,attr,dataType,data);
     }
 
+/*
+** Sets an arbitrary attribute.  Only supported for HDF5; other formats
+** return 0 indicating that it was not successful.
+*/
+static inline int fioSetAttr(FIO fio,
+    const char *attr, FIO_TYPE dataType, void *data) {
+    return (*fio->fcnSetAttr)(fio,attr,dataType,data);
+    }
+
 /******************************************************************************\
 ** TIPSY FORMAT
 \******************************************************************************/
@@ -303,6 +325,6 @@ FIO fioHDF5Create(const char *fileName,int mFlags);
 ** Open a GRAFIC format initial condition file.  This can be detected automatically
 ** by fioOpen because the "file name" is the directory containing ic_vel[cb][xyz].
 */
-FIO fioGraficOpen(const char *dirName,int mFlags);
+FIO fioGraficOpen(const char *dirName,double dOmega0,double dOmegab);
 
 #endif

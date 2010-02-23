@@ -1509,7 +1509,7 @@ void msrOneNodeRead(MSR msr, struct inReadFile *in) {
     */
     _msrMakePath(plcl->pszDataPath,in->achFilename,achInFile);
 
-    fio = fioOpen(achInFile);
+    fio = fioOpen(achInFile,msr->param.csm->dOmega0,msr->param.csm->dOmegab);
     if (fio==NULL) {
 	fprintf(stderr,"ERROR: unable to open input file\n");
 	perror(achInFile);
@@ -5258,7 +5258,7 @@ double msrRead(MSR msr, const char *achInFile) {
     /* Add Data Subpath for local and non-local names. */
     _msrMakePath(msr->param.achDataSubPath,achInFile,read.achFilename);
 
-    fio = fioOpen(read.achFilename);
+    fio = fioOpen(read.achFilename,msr->param.csm->dOmega0,msr->param.csm->dOmegab);
     if (fio==NULL) {
 	fprintf(stderr,"ERROR: unable to open input file\n");
 	perror(read.achFilename);
@@ -5290,6 +5290,8 @@ double msrRead(MSR msr, const char *achInFile) {
     read.nTreeBitsLo = msr->param.nTreeBitsLo;
     read.nTreeBitsHi = msr->param.nTreeBitsHi;
     read.iCacheSize  = msr->param.iCacheSize;
+    read.dOmega0 = msr->param.csm->dOmega0;
+    read.dOmegab = msr->param.csm->dOmegab;
     read.fPeriod[0] = msr->param.dxPeriod;
     read.fPeriod[1] = msr->param.dyPeriod;
     read.fPeriod[2] = msr->param.dzPeriod;
