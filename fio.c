@@ -2001,11 +2001,18 @@ static int hdf5GetAttr(
     FIO fio,
     const char *attr, FIO_TYPE dataType, void *data) {
     fioHDF5 *hio = (fioHDF5 *)fio;
+    H5E_auto_t save_func;
+    void *     save_data;
+    int rc;
 
     assert(fio->eFormat == FIO_FORMAT_HDF5);
     assert(fio->eMode == FIO_MODE_READING);
 
-    return readAttribute(hio->parametersID,attr,fio2hdf(dataType),data);
+    H5Eget_auto(&save_func,&save_data);
+    H5Eset_auto(0,0);
+    rc = readAttribute(hio->parametersID,attr,fio2hdf(dataType),data);
+    H5Eset_auto(save_func,save_data);
+    return rc;
     }
 
 static int hdf5SetAttr(
