@@ -188,10 +188,10 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.bRestart = 0;
     prmAddParam(msr->prm,"bRestart",0,&msr->param.bRestart,sizeof(int),"restart",
 		"restart from checkpoint");
-    msr->param.bParaRead = 1;
+    msr->param.bParaRead = 64;
     prmAddParam(msr->prm,"bParaRead",0,&msr->param.bParaRead,sizeof(int),"par",
 		"enable/disable parallel reading of files = +par");
-    msr->param.bParaWrite = 1;
+    msr->param.bParaWrite = 0;
     prmAddParam(msr->prm,"bParaWrite",0,&msr->param.bParaWrite,sizeof(int),"paw",
 		"enable/disable parallel writing of files = +paw");
     msr->param.bDoDensity = 1;
