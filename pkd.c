@@ -583,7 +583,6 @@ static void getClass( PKD pkd, float fMass, float fSoft, FIO_SPECIES eSpecies, P
 
     if ( i == pkd->nClasses ) {
 	assert( pkd->nClasses < PKD_MAX_CLASSES );
-	fprintf(stderr,"New class %d: %g %g %d\n",i,fMass,fSoft,eSpecies);
 	i = pkd->nClasses++;
 	pkd->pClass[i].fSoft    = fSoft;
 	pkd->pClass[i].fMass    = fMass;
