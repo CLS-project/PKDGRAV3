@@ -1151,20 +1151,21 @@ void pstGenerateIC(PST,void *,int,void *,int *);
 /* PST_HOSTNAME */
 struct outHostname {
     int  iMpiID;
-    char szHostname[12];
+    char szHostname[20];
     };
 void pstHostname(PST,void *,int,void *,int *);
 
-#ifdef __linux__
 /* PST_MEMSTATUS */
 struct outMemStatus {
+#ifdef __linux__
     uint64_t minflt;
     uint64_t majflt;
     uint64_t vsize;
     uint64_t rss;
+#endif
+    uint64_t nCheck;
     };
 void pstMemStatus(PST,void *,int,void *,int *);
-#endif
 
 /* PST_GETCLASSES - Output PARTCLASS[] */
 void pstGetClasses(PST,void *,int,void *,int *);

@@ -2706,8 +2706,9 @@ void msrUpdateSoft(MSR msr,double dTime) {
 	}
     }
 
-#define PRINTGRID(FRM,VAR) {\
-    printf("      % 8d % 8d % 8d % 8d % 8d % 8d % 8d % 8d % 8d % 8d\n",0,1,2,3,4,5,6,7,8,9);\
+#define PRINTGRID(w,FRM,VAR) {						\
+    printf("      % *d % *d % *d % *d % *d % *d % *d % *d % *d % *d\n",\
+	   w,0,w,1,w,2,w,3,w,4,w,5,w,6,w,7,w,8,w,9);		       \
     for (i=0;i<msr->nThreads/10;++i) {\
 	printf("%4d: "FRM" "FRM" "FRM" "FRM" "FRM" "FRM" "FRM" "FRM" "FRM" "FRM"\n",i*10,\
 	       out[i*10+0].VAR,out[i*10+1].VAR,out[i*10+2].VAR,out[i*10+3].VAR,out[i*10+4].VAR,\
@@ -2747,25 +2748,27 @@ void msrHostname(MSR msr) {
     assert(out != NULL);
     pstHostname(msr->pst,0,0,out,&iDum);
     printf("Host Names:\n");
-    PRINTGRID("%8.8s",szHostname);
+    PRINTGRID(12,"%12.12s",szHostname);
     printf("MPI Rank:\n");
-    PRINTGRID("% 8d",iMpiID);
+    PRINTGRID(8,"% 8d",iMpiID);
     }
 
 void msrMemStatus(MSR msr) {
-#ifdef __linux__
     struct outMemStatus *out;
     int i,iDum;
     out = malloc(msr->nThreads*sizeof(struct outMemStatus));
     assert(out != NULL);
     pstMemStatus(msr->pst,0,0,out,&iDum);
+#ifdef __linux__
     printf("Virtual Size (MB):\n");
-    PRINTGRID("%8"PRIu64,vsize);
+    PRINTGRID(8,"%8"PRIu64,vsize);
     printf("Resident (MB):\n");
-    PRINTGRID("%8"PRIu64,rss);
+    PRINTGRID(8,"%8"PRIu64,rss);
     printf("Major faults:\n");
-    PRINTGRID("%8"PRIu64,majflt);
+    PRINTGRID(8,"%8"PRIu64,majflt);
 #endif
+    printf("Checklist size:\n");
+    PRINTGRID(8,"%8"PRIu64,nCheck);
     }
 
 void msrGravity(MSR msr,uint8_t uRungLo, uint8_t uRungHi, double dTime,
@@ -2827,22 +2830,22 @@ void msrGravity(MSR msr,uint8_t uRungLo, uint8_t uRungHi, double dTime,
 	** Now comes the really verbose output for each processor.
 	*/
 	printf("Walk Timings:\n");
-	PRINTGRID("% 8.2f",dWalkTime);
+	PRINTGRID(8,"% 8.2f",dWalkTime);
 #if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
 	/* Okay: Compute + Wait + Imbalance = 100.0 by definition
 		printf("Compute Percentage:\n");
-		PRINTGRID("% 8.2f",dComputing);*/
+		PRINTGRID(8,"% 8.2f",dComputing);*/
 	printf("Cache Wait Percentage:\n");
-	PRINTGRID("% 8.2f",dWaiting);
+	PRINTGRID(8,"% 8.2f",dWaiting);
 	printf("Load Imbalance Percentage:\n");
-	PRINTGRID("% 8.2f",dSynchronizing);
+	PRINTGRID(8,"% 8.2f",dSynchronizing);
 #endif
 	printf("Number of Active:\n");
-	PRINTGRID("% 8d",nActive);
+	PRINTGRID(8,"% 8d",nActive);
 	printf("Average Number of P-P per Active Particle:\n");
-	PRINTGRID("% 8.1f",dPartSum);
+	PRINTGRID(8,"% 8.1f",dPartSum);
 	printf("Average Number of P-C per Active Particle:\n");
-	PRINTGRID("% 8.1f",dCellSum);
+	PRINTGRID(8,"% 8.1f",dCellSum);
 	}
     free(out);
     }

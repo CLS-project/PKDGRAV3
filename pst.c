@@ -456,11 +456,9 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_HOSTNAME,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstHostname,
 		  0,nThreads*sizeof(struct outHostname));
-#ifdef __linux__
     mdlAddService(mdl,PST_MEMSTATUS,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstMemStatus,
 		  0,nThreads*sizeof(struct outMemStatus));
-#endif
     mdlAddService(mdl,PST_GETCLASSES,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstGetClasses,
 		  0, PKD_MAX_CLASSES*sizeof(PARTCLASS));
@@ -4000,8 +3998,8 @@ void pstHostname(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     if (pnOut) *pnOut = nThreads*sizeof(struct outHostname);
     }
 
-#ifdef __linux__
 void pstMemStatus(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl = pst->plcl;
     struct outMemStatus *out = vout;
     struct outMemStatus *outUp;
     int nThreads = mdlThreads(pst->mdl);
@@ -4034,6 +4032,7 @@ void pstMemStatus(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	for (id=0;id<nThreads;++id) out[id].vsize = 0;
 	id = pst->idSelf;
 
+#ifdef __linux__
 	fp = fopen("/proc/self/stat","r");
 	if ( fp != NULL ) {
 	    fgets(buffer,sizeof(buffer),fp);
@@ -4060,10 +4059,11 @@ void pstMemStatus(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 		f = strtok(NULL," ");
 		}
 	    }
+#endif
+	out[id].nCheck = plcl->pkd->nMaxCheck;
 	}
     if (pnOut) *pnOut = nThreads*sizeof(struct outMemStatus);
     }
-#endif
 
 
 void pstGetClasses(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
