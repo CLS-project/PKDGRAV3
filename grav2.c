@@ -23,15 +23,15 @@ const char *grav_h_module_id = GRAV_H_MODULE_ID;
 
 #ifdef USE_SIMD
 static const struct CONSTS {
-    v4sf zero;
-    v4sf half;
-    v4sf one;
-    v4sf threehalves;
-    v4sf three;
-    v4sf four;
-    v4sf R3_8;
-    v4sf R45_32;
-    v4sf R135_16;
+    v4 zero;
+    v4 half;
+    v4 one;
+    v4 threehalves;
+    v4 three;
+    v4 four;
+    v4 R3_8;
+    v4 R45_32;
+    v4 R135_16;
     } consts = {
 	{0.0,     0.0,     0.0,     0.0},
     {0.5,     0.5,     0.5,     0.5},
@@ -297,7 +297,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 	else {
 	    dsmooth2 = 0.0;
 #ifdef USE_SIMD_PP
-	    psmooth2 = consts.zero;
+	    psmooth2 = consts.zero.p;
 #endif	    
 	    }
 	
@@ -324,7 +324,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 		v4bool vcmp;
 		int msk;
 
-		vcmp = SIMD_CMP_GT(tile->d.fourh2.p[j],consts.zero);
+		vcmp = SIMD_CMP_GT(tile->d.fourh2.p[j],consts.zero.p);
 		msk = SIMD_ALL_ZERO(vcmp); /* softenings are not zero */
 		if(msk) {
 		    t1 = SIMD_MUL(SIMD_ADD(pmass,tile->d.m.p[j]),SIMD_MUL(p4soft2,tile->d.fourh2.p[j]));
@@ -350,25 +350,25 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 		/* pir and pir2 are valid now for both softened and unsoftened particles */
 		/* Now we apply the fix to softened particles only */
 		if (msk) {
-		    pd2 = SIMD_SUB(consts.one,pd2);
+		    pd2 = SIMD_SUB(consts.one.p,pd2);
 		    pd2 = SIMD_AND(vcmp,pd2);
-		    t1 = SIMD_MADD(consts.R45_32, pd2, consts.R3_8);
-		    t1 = SIMD_MADD(t1, pd2, consts.half);
-		    t1 = SIMD_MADD(t1, pd2, consts.one);
-		    t2 = SIMD_MADD(consts.R135_16, pd2, consts.threehalves);
-		    t2 = SIMD_MADD(t2, pd2, consts.one);
+		    t1 = SIMD_MADD(consts.R45_32.p, pd2, consts.R3_8.p);
+		    t1 = SIMD_MADD(t1, pd2, consts.half.p);
+		    t1 = SIMD_MADD(t1, pd2, consts.one.p);
+		    t2 = SIMD_MADD(consts.R135_16.p, pd2, consts.threehalves.p);
+		    t2 = SIMD_MADD(t2, pd2, consts.one.p);
 		    pir = SIMD_MUL(pir,t1);
 		    pir2 = SIMD_MUL(pir2,t2);
 		    }
 		pir2 = SIMD_MUL(pir2,tile->d.m.p[j]);
 
-		t1 = SIMD_NMSUB(tile->d.dx.p[j],pir2,consts.zero);
-		t2 = SIMD_NMSUB(tile->d.dy.p[j],pir2,consts.zero);
-		t3 = SIMD_NMSUB(tile->d.dz.p[j],pir2,consts.zero);
+		t1 = SIMD_NMSUB(tile->d.dx.p[j],pir2,consts.zero.p);
+		t2 = SIMD_NMSUB(tile->d.dy.p[j],pir2,consts.zero.p);
+		t3 = SIMD_NMSUB(tile->d.dz.p[j],pir2,consts.zero.p);
 
 		/* Time stepping criteria stuff */
 		padotai = SIMD_MADD(piaz,t3,SIMD_MADD(piay,t2,SIMD_MUL(piax,t1)));
-		vcmp = SIMD_AND(SIMD_CMP_GT(padotai,consts.zero),SIMD_CMP_GE(tile->d.d2.p[j],psmooth2));
+		vcmp = SIMD_AND(SIMD_CMP_GT(padotai,consts.zero.p),SIMD_CMP_GE(tile->d.d2.p[j],psmooth2));
 		padotai= SIMD_AND(padotai,vcmp);
 		padotai= SIMD_MUL(padotai,pimaga);
 		pd2 = SIMD_MUL(padotai,padotai);
