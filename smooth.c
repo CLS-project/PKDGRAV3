@@ -129,7 +129,7 @@ const int primes[1000] = {
 */
 void smHashAdd(SMX smx,void *p) {
     struct hashElement *t;
-    uint32_t i = UNION_CAST(p,void *,uint64_t)%smx->nHash;
+    uint32_t i = ((intptr_t)(p))%smx->nHash;
     if (!smx->pHash[i].p) {
 	smx->pHash[i].p = p;
     }
@@ -148,7 +148,7 @@ void smHashAdd(SMX smx,void *p) {
 */
 void smHashDel(SMX smx,void *p) {
     struct hashElement *t,*tt;
-    uint32_t i = UNION_CAST(p,void *,uint64_t)%smx->nHash;
+    uint32_t i = ((intptr_t)(p))%smx->nHash;
 
     if (!smx->pHash[i].coll) {
 	/*
@@ -179,7 +179,7 @@ void smHashDel(SMX smx,void *p) {
 
 int smHashPresent(SMX smx,void *p) {
     struct hashElement *t;
-    uint32_t i = UNION_CAST(p,void *,uint64_t)%smx->nHash;
+    uint32_t i = ((intptr_t)(p))%smx->nHash;
 
     if (smx->pHash[i].p == p) return 1;
     t = smx->pHash[i].coll;
@@ -421,7 +421,7 @@ int smInitialize(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodic,int bSymme
     ** Need to cast the pLite to an array of extra stuff.
     */
     assert(sizeof(PLITE) >= sizeof(struct smExtraArray));
-    smx->ea = UNION_CAST(pkd->pLite,PLITE *,struct smExtraArray *);
+    smx->ea = (struct smExtraArray *)(pkd->pLite);
     *psmx = smx;
     return(1);
 }
