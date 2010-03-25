@@ -1942,7 +1942,7 @@ static void class_get(float *pfMass,float *pfSoft,IOCLASS *ioClass,PINDEX iOrder
 ** IOORDER "class"
 */
 
-ioorder_open(IOORDER *order,hid_t group_id) {
+void ioorder_open(IOORDER *order,hid_t group_id) {
     hid_t dataType = sizeof(PINDEX)==4 ? H5T_NATIVE_UINT32 : H5T_NATIVE_UINT64;
     order->groupID = group_id;
     field_open(&order->fldOrder,group_id,FIELD_ORDER,dataType,1);
@@ -1953,13 +1953,13 @@ ioorder_open(IOORDER *order,hid_t group_id) {
     order->iNext = order->iStart;
     }
 
-ioorder_create(IOORDER *order, hid_t group_id, PINDEX iOrder) {
+void ioorder_create(IOORDER *order, hid_t group_id, PINDEX iOrder) {
     field_reset(&order->fldOrder);
     order->groupID = group_id;
     order->iStart = order->iNext = iOrder;
     }
 
-ioorder_close(IOORDER *order) {
+void ioorder_close(IOORDER *order) {
     field_close(&order->fldOrder);
     }
 
