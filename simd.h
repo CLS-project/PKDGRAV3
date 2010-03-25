@@ -44,8 +44,8 @@ typedef vector bool int v4i;
 #endif
 
 typedef union {
-    v4sf p;
     float f[4];
+    v4sf p;
     } v4;
 
 #if defined(HAVE_POSIX_MEMALIGN)
@@ -114,9 +114,9 @@ static inline v4sf SIMD_LOAD(float a, float b, float c, float d ) {
 #define SIMD_RSQRT(a) _mm_rsqrt_ps(a)
 #define SIMD_RE(a) _mm_rcp_ps(a);
 static inline v4sf SIMD_RE_EXACT(v4sf a) {
-    static const v4sf one = {1.0,1.0,1.0,1.0};
+    static const v4 one = {1.0,1.0,1.0,1.0};
     v4sf r = SIMD_RE(a);
-    return _mm_add_ps(_mm_mul_ps(r,_mm_sub_ps(one,_mm_mul_ps(r,a))),r);
+    return _mm_add_ps(_mm_mul_ps(r,_mm_sub_ps(one.p,_mm_mul_ps(r,a))),r);
     }
 #define SIMD_MAX(a,b) _mm_max_ps(a,b)
 #define SIMD_MIN(a,b) _mm_min_ps(a,b)
@@ -158,13 +158,13 @@ static inline v4sf SIMD_RE_EXACT( v4sf a) {
 #endif
 
 static inline v4sf SIMD_RSQRT_EXACT(v4sf B) {
-    static const v4sf one = {1.0,1.0,1.0,1.0};
-    static const v4sf half= {0.5,0.5,0.5,0.5};
+    static const v4 one = {1.0,1.0,1.0,1.0};
+    static const v4 half= {0.5,0.5,0.5,0.5};
     v4sf r, t1, t2;
     r = SIMD_RSQRT(B);          /* dir = 1/sqrt(d2) */
     t1 = SIMD_MUL(r,r);         /* dir*dir */
-    t2 = SIMD_MUL(r,half);      /* 0.5*dir */
-    t1 = SIMD_NMSUB(B,t1,one);  /* 1 - dir*dir*a */
+    t2 = SIMD_MUL(r,half.p);      /* 0.5*dir */
+    t1 = SIMD_NMSUB(B,t1,one.p);  /* 1 - dir*dir*a */
     r = SIMD_MADD(t1,t2,r);     /* 0.5*dir*(1-dir*dir*a)+dir */
     return r;
     }
