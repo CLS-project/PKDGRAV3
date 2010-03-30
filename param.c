@@ -26,6 +26,8 @@ void prmInitialize(PRM *pprm,void (*fcnLeader)(void),void (*fcnTrailer)(void)) {
     *pprm = prm;
     prm->pnHead = NULL;
     prm->pszFilename = NULL;
+    prm->script_argc = 0;
+    prm->script_argv = NULL;
     prm->fcnLeader = fcnLeader;
     prm->fcnTrailer = fcnTrailer;
     }
@@ -255,7 +257,7 @@ int prmArgProc(PRM prm,int argc,char **argv) {
     ** supported.
     */
     for (i=1;i<argc;++i) {
-	if (*argv[i] == '-' || *argv[i] == '+') {
+	if ((*argv[i] == '-' || *argv[i] == '+') && argv[i][1] ) {
 	    pn = prm->pnHead;
 	    while (pn) {
 		if (pn->pszArg)
@@ -268,6 +270,22 @@ int prmArgProc(PRM prm,int argc,char **argv) {
 		return(0);
 		}
 	    }
+#ifdef USE_PYTHON
+	else {
+	    int j;
+	    if ( strcmp(argv[i],"-") != 0 ) {
+		prm->pszFilename = argv[i];
+		}
+	    i++;
+	    prm->script_argc = argc - i + 1;
+	    prm->script_argv = malloc(prm->script_argc * sizeof(char *));
+	    assert(prm->script_argv != NULL);
+	    for( j=1; j<prm->script_argc; j++)
+		prm->script_argv[j] = argv[i++];
+	    prm->script_argv[0] = NULL;
+	    return(1);
+	    }
+#else
 	else if (i == argc-1) {
 	    prm->pszFilename = argv[i];
 	    return(1);
@@ -277,6 +295,7 @@ int prmArgProc(PRM prm,int argc,char **argv) {
 	    prmArgUsage(prm);
 	    return(0);
 	    }
+#endif
 	switch (pn->iType) {
 	case 0:
 	    /*
@@ -361,6 +380,14 @@ int prmArgProc(PRM prm,int argc,char **argv) {
 	    }
 	pn->bArg = 1;
 	}
+
+#ifdef USE_PYTHON
+    prm->script_argc = 1;
+    prm->script_argv = malloc(prm->script_argc * sizeof(char *));
+    assert(prm->script_argv != NULL);
+    prm->script_argv[0] = NULL;
+#endif
+
     return(1);
     }
 

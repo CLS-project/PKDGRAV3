@@ -349,7 +349,8 @@ int main(int argc,char **argv) {
 	if ( msr->param.achScriptFile[0] ) {
 	    PPY ppy;
 	    ppyInitialize(&ppy,msr,dTime);
-	    ppyRunScript(ppy,msr->param.achScriptFile);
+	    msr->prm->script_argv[0] = msr->param.achScriptFile;
+	    ppyRunScript(ppy,msr->prm->script_argc,msr->prm->script_argv);
 	    ppyFinish(ppy);
 	    }
 	else {

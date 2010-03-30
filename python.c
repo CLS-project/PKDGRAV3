@@ -1072,29 +1072,30 @@ void ppyFinish(PPY vppy) {
     global_ppy = NULL;
     }
 
-void ppyRunScript(PPY vppy,const char *achFilename) {
+void ppyRunScript(PPY vppy,int argc, char *argv[]) {
     ppyCtx *ppy = (ppyCtx *)vppy;
     FILE *fp;
     PyObject *dict, *globals;
     struct _node *node;
 
     assert(Py_IsInitialized());
+    assert(argc>0);
 
     globals = PyDict_New();
     PyDict_SetItemString(globals, "__builtins__",
 			 PyEval_GetBuiltins());
 
-
+    PySys_SetArgv(argc, argv);
 
     printf("---------------------------------------"
 	   "---------------------------------------\n"
 	   "Running Python Script %s\n"
 	   "---------------------------------------"
 	   "---------------------------------------\n",
-	   achFilename );
-    fp = fopen(achFilename,"r");
+	   argv[0] );
+    fp = fopen(argv[0],"r");
 #if 1
-    PyRun_SimpleFile(fp,achFilename);
+    PyRun_SimpleFile(fp,argv[0]);
     fclose(fp);
 #else
     node = PyParser_SimpleParseFile(fp,achFilename,Py_file_input);

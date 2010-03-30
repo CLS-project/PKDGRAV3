@@ -17,6 +17,8 @@ typedef struct prmNode {
 typedef struct prmContext {
     PRM_NODE *pnHead;
     const char *pszFilename;
+    int script_argc;
+    char **script_argv;
     void (*fcnLeader)(void);
     void (*fcnTrailer)(void);
     } * PRM;
