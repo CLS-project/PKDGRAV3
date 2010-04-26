@@ -59,7 +59,7 @@ int main( int argc, char *argv[] ) {
     if ( optind < argc )
 	inName = argv[optind++];
     else {
-	fprintf(stderr, "Missing HDF5 input file\n" );
+	fprintf(stderr, "Missing input file\n" );
 	bError = 1;
 	}
 
@@ -71,8 +71,9 @@ int main( int argc, char *argv[] ) {
 	}
 
     if ( bError ) {
-	fprintf(stderr, "Usage: %s [-p] <inhdf5> <outtipsy>\n"
-		"  -p,--pipe  Create a pipe instead of writing a regular file\n",
+	fprintf(stderr, "Usage: %s [-p] <input> <outtipsy>\n"
+		"  -d,--double  Output double precision positions\n"
+		"  -n,--native  Output a native tipsy binary\n",
 		argv[0] );
 	exit(1);
 	}
