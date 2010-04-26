@@ -24,6 +24,8 @@ if USE_HDF5
 EXTRA_PROGRAMS += tip2hdf5 hdf52tip hdf5cat
 endif
 
+EXTRA_PROGRAMS += tostd
+
 null	: pkdgrav2m_null
 
 all-local: $(TARGETS)
@@ -172,3 +174,5 @@ tip2hdf5_SOURCES = tip2hdf5.c iohdf5.c
 hdf52tip_SOURCES = hdf52tip.c iohdf5.c
 hdf5cat_SOURCES = hdf5cat.c iohdf5.c
 endif
+
+tostd_SOURCES = tostd.c fio.c romberg.c
