@@ -603,9 +603,10 @@ void pkdOutGroup(PKD pkd,char *pszFileName,int iType, int nStart,double dvFac) {
 	/*
 	 ** Seek past the header
 	 */
-	lStart = 32;
-	lStart += nStart*44;
+	//lStart = 32;
+	//lStart += nStart*44;
 
+	lStart = sizeof(struct dump);
 	fseek(fp,lStart,SEEK_SET);
 
 	xdrstdio_create(&xdrs,fp,XDR_ENCODE);

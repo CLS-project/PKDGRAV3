@@ -30,6 +30,8 @@ void InitializeParticles(PKD pkd,int bExcludeVeryActive,BND *pbnd) {
     KDN *pNode;
     int i,j;
 
+    double *fCenter, *fMax;
+
     /*
     ** Initialize the temporary particles.
     */
@@ -81,6 +83,7 @@ void InitializeParticles(PKD pkd,int bExcludeVeryActive,BND *pbnd) {
 	pkd->nVeryActive = pkd->nLocal - i;
 
 	pNode = pkdTreeNode(pkd,VAROOT);
+        pBND bnd = pkdNodeBnd(pkd, pNode);
 	if (pkd->nVeryActive > 0)
 	    /*   printf("%d:nVeryActive = %d\n",mdlSelf(pkd->mdl),pkd->nVeryActive);*/
 	    /*
@@ -91,8 +94,8 @@ void InitializeParticles(PKD pkd,int bExcludeVeryActive,BND *pbnd) {
 	pNode->pLower = pkd->nLocal - pkd->nVeryActive;
 	pNode->pUpper = pkd->nLocal - 1;
 	for (j=0;j<3;++j) {
-	    pNode->bnd.fCenter[j] = pbnd->fCenter[j];
-	    pNode->bnd.fMax[j] = pbnd->fMax[j];
+	    bnd.fCenter[j] = pbnd->fCenter[j];
+	    bnd.fMax[j] = pbnd->fMax[j];
 	    }
 	}
     /*
@@ -103,9 +106,10 @@ void InitializeParticles(PKD pkd,int bExcludeVeryActive,BND *pbnd) {
     pNode->iParent = 0;
     pNode->pLower = 0;
     pNode->pUpper = pkd->nLocal - pkd->nVeryActive - 1;
+    pBND bnd = pkdNodeBnd(pkd, pNode);
     for (j=0;j<3;++j) {
-	pNode->bnd.fCenter[j] = pbnd->fCenter[j];
-	pNode->bnd.fMax[j] = pbnd->fMax[j];
+	bnd.fCenter[j] = pbnd->fCenter[j];
+	bnd.fMax[j] = pbnd->fMax[j];
 	}
     }
 
@@ -119,6 +123,7 @@ void InitializeParticles(PKD pkd,int bExcludeVeryActive,BND *pbnd) {
 void BuildTemp(PKD pkd,int iNode,int M) {
     PLITE *p = pkd->pLite;
     KDN *pNode = pkdTreeNode(pkd,iNode);
+    pBND bnd = pkdNodeBnd(pkd,pNode);
     KDN *pLeft, *pRight;
     PLITE t;
     FLOAT fSplit;
@@ -153,22 +158,22 @@ void BuildTemp(PKD pkd,int iNode,int M) {
     if (pNode->pUpper - pNode->pLower + 1 <= M)
 	goto DonePart;
 
-    assert( pNode->bnd.fMax[0] > 0.0 ||
-	    pNode->bnd.fMax[1] > 0.0 ||
-	    pNode->bnd.fMax[2] > 0.0 );
+    assert( bnd.fMax[0] > 0.0 ||
+	    bnd.fMax[1] > 0.0 ||
+	    bnd.fMax[2] > 0.0 );
     while (1) {
 	/*
 	** Begin new stage!
 	** Calculate the appropriate fSplit.
 	** Pick longest dimension and split it in half.
 	*/
-	if (pNode->bnd.fMax[0] < pNode->bnd.fMax[1]) {
-	    if (pNode->bnd.fMax[1] < pNode->bnd.fMax[2]) d = 2;
+	if (bnd.fMax[0] < bnd.fMax[1]) {
+	    if (bnd.fMax[1] < bnd.fMax[2]) d = 2;
 	    else d = 1;
 	    }
-	else if (pNode->bnd.fMax[0] < pNode->bnd.fMax[2]) d = 2;
+	else if (bnd.fMax[0] < bnd.fMax[2]) d = 2;
 	else d = 0;
-	fSplit = pNode->bnd.fCenter[d];
+	fSplit = bnd.fCenter[d];
 	/*
 	** Now start the partitioning of the particles about
 	** fSplit on dimension given by d.
@@ -221,24 +226,28 @@ void BuildTemp(PKD pkd,int iNode,int M) {
 	    pRight->pLower = i;
 	    pRight->pUpper = pNode->pUpper;
 	    pNode->iLower = iLeft;
+
+            pBND lbnd = pkdNodeBnd(pkd, pLeft);
+            pBND rbnd = pkdNodeBnd(pkd, pRight);
+
 	    /*
 	    ** Now deal with the bounds.
 	    */
 	    for (j=0;j<3;++j) {
 		if (j == d) {
-		    pRight->bnd.fMax[j] = pLeft->bnd.fMax[j] = 0.5*pNode->bnd.fMax[j];
-		    pLeft->bnd.fCenter[j] = pNode->bnd.fCenter[j] - pLeft->bnd.fMax[j];
-		    pRight->bnd.fCenter[j] = pNode->bnd.fCenter[j] + pRight->bnd.fMax[j];
+		    rbnd.fMax[j] = lbnd.fMax[j] = 0.5*bnd.fMax[j];
+		    lbnd.fCenter[j] = bnd.fCenter[j] - lbnd.fMax[j];
+		    rbnd.fCenter[j] = bnd.fCenter[j] + rbnd.fMax[j];
 		    }
 		else {
-		    pLeft->bnd.fCenter[j] = pNode->bnd.fCenter[j];
-		    pLeft->bnd.fMax[j] = pNode->bnd.fMax[j];
-		    pRight->bnd.fCenter[j] = pNode->bnd.fCenter[j];
-		    pRight->bnd.fMax[j] = pNode->bnd.fMax[j];
+		    lbnd.fCenter[j] = bnd.fCenter[j];
+		    lbnd.fMax[j] = bnd.fMax[j];
+		    rbnd.fCenter[j] = bnd.fCenter[j];
+		    rbnd.fMax[j] = bnd.fMax[j];
 		    }
 		}
-	    MAXSIDE(pLeft->bnd.fMax,ls);
-	    MAXSIDE(pRight->bnd.fMax,rs);
+	    MAXSIDE(lbnd.fMax,ls);
+	    MAXSIDE(rbnd.fMax,rs);
 	    /*
 	    ** Now figure out which subfile to process next.
 	    */
@@ -292,10 +301,10 @@ void BuildTemp(PKD pkd,int iNode,int M) {
 	    /*
 	    ** No nodes allocated, Change the bounds if needed!
 	    */
-	    if (d >= 0 && d < 3) pNode->bnd.fMax[d] *= 0.5;
+	    if (d >= 0 && d < 3) bnd.fMax[d] *= 0.5;
 	    if (nl > 0) {
-		if (d >= 0 && d < 3) pNode->bnd.fCenter[d] -= pNode->bnd.fMax[d];
-		MAXSIDE(pNode->bnd.fMax,ls);
+		if (d >= 0 && d < 3) bnd.fCenter[d] -= bnd.fMax[d];
+		MAXSIDE(bnd.fMax,ls);
 		lc = ((nl > M)||((nl > 1)&&(ls>PKD_MAX_CELL_SIZE))); /* this condition means the node is not a bucket */
 		if (!lc) {
 		    pNode->iLower = 0;
@@ -305,8 +314,8 @@ void BuildTemp(PKD pkd,int iNode,int M) {
 		    }
 		}
 	    else {
-		if (d >= 0 && d < 3) pNode->bnd.fCenter[d] += pNode->bnd.fMax[d];
-		MAXSIDE(pNode->bnd.fMax,rs);
+		if (d >= 0 && d < 3) bnd.fCenter[d] += bnd.fMax[d];
+		MAXSIDE(bnd.fMax,rs);
 		rc = ((nr > M)||((nr > 1)&&(rs>PKD_MAX_CELL_SIZE)));
 		if (!rc) {
 		    pNode->iLower = 0;
@@ -317,6 +326,7 @@ void BuildTemp(PKD pkd,int iNode,int M) {
 		}
 	    }
 	pNode = pkdTreeNode(pkd,iNode);
+        bnd = pkdNodeBnd(pkd, pNode);
 	}
 DonePart:
     free(S);
@@ -412,13 +422,14 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2) {
 	** bounds and iMaxRung.
 	*/
 	pkdn = pkdTreeNode(pkd,iNode);
+        pBND bnd = pkdNodeBnd(pkd, pkdn);
 	pkdn->nActive = 0;
 	/*
 	** Before squeezing the bounds, calculate a minimum b value based on the splitting bounds alone.
 	** This gives us a better feel for the "size" of a bucket with only a single particle.
 	*/
-	MINSIDE(pkdn->bnd.fMax,bmin);
-	pkdn->bnd.size = 2.0*(pkdn->bnd.fMax[0]+pkdn->bnd.fMax[1]+pkdn->bnd.fMax[2])/3.0;
+	MINSIDE(bnd.fMax,bmin);
+	*bnd.size = 2.0*(bnd.fMax[0]+bnd.fMax[1]+bnd.fMax[2])/3.0;
 	/*
 	** Now shrink wrap the bucket bounds.
 	*/
@@ -426,23 +437,23 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2) {
 	p = pkdParticle(pkd,pj);
 	for (d=0;d<3;++d) {
 	    ft = p->r[d];
-	    pkdn->bnd.fCenter[d] = ft;
-	    pkdn->bnd.fMax[d] = ft;
+	    bnd.fCenter[d] = ft;
+	    bnd.fMax[d] = ft;
 	    }
 	for (++pj;pj<=pkdn->pUpper;++pj) {
 	    p = pkdParticle(pkd,pj);
 	    for (d=0;d<3;++d) {
 		ft = p->r[d];
-		if (ft < pkdn->bnd.fCenter[d])
-		    pkdn->bnd.fCenter[d] = ft;
-		else if (ft > pkdn->bnd.fMax[d])
-		    pkdn->bnd.fMax[d] = ft;
+		if (ft < bnd.fCenter[d])
+		    bnd.fCenter[d] = ft;
+		else if (ft > bnd.fMax[d])
+		    bnd.fMax[d] = ft;
 		}
 	    }
 	for (d=0;d<3;++d) {
-	    ft = pkdn->bnd.fCenter[d];
-	    pkdn->bnd.fCenter[d] = 0.5*(pkdn->bnd.fMax[d] + ft);
-	    pkdn->bnd.fMax[d] = 0.5*(pkdn->bnd.fMax[d] - ft);
+	    ft = bnd.fCenter[d];
+	    bnd.fCenter[d] = 0.5*(bnd.fMax[d] + ft);
+	    bnd.fMax[d] = 0.5*(bnd.fMax[d] - ft);
 	    }
 	pj = pkdn->pLower;
 	p = pkdParticle(pkd,pj);
@@ -553,7 +564,7 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2) {
 	/*
 	** Now determine the opening radius for gravity.
 	*/
-	MAXSIDE(pkdn->bnd.fMax,b);
+	MAXSIDE(bnd.fMax,b);
 	if (b < bmin) b = bmin;
 #ifdef CLASSICAL_FOPEN
 #ifdef LOCAL_EXPANSION
@@ -628,12 +639,13 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2) {
 	    ** First find the CoM, just like for the bucket.
 	    */
 	    pkdn = pkdTreeNode(pkd,iNode);
+            pBND bnd = pkdNodeBnd(pkd, pkdn);
 	    /*
 	    ** Before squeezing the bounds, calculate a minimum b value based on the splitting bounds alone.
 	    ** This gives us a better feel for the "size" of a bucket with only a single particle.
 	    */
-	    MINSIDE(pkdn->bnd.fMax,bmin);
-	    pkdn->bnd.size = 2.0*(pkdn->bnd.fMax[0]+pkdn->bnd.fMax[1]+pkdn->bnd.fMax[2])/3.0;
+	    MINSIDE(bnd.fMax,bmin);
+	    *bnd.size = 2.0*(bnd.fMax[0]+bnd.fMax[1]+bnd.fMax[2])/3.0;
 	    pkdl = pkdTreeNode(pkd,pkdn->iLower);
 	    pkdu = pkdTreeNode(pkd,pkdn->iLower + 1);
 	    pkdCombineCells(pkd,pkdn,pkdl,pkdu);
@@ -663,7 +675,7 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2) {
 		pkdn->fOpen2 = FOPEN_FACTOR*d2Max*diCrit2;
 #endif
 #else
-		MAXSIDE(pkdn->bnd.fMax,b);
+		MAXSIDE(bnd.fMax,b);
 		if (b < bmin) b = bmin;
 #ifdef LOCAL_EXPANSION
 		pkdn->fOpen = b*sqrt(diCrit2);
@@ -690,6 +702,10 @@ void pkdCombineCells(PKD pkd,KDN *pkdn,KDN *p1,KDN *p2) {
     FLOAT m1,m2,x,y,z,ifMass;
     FLOAT r1[3],r2[3];
     int j;
+
+    pBND bnd = pkdNodeBnd(pkd, pkdn);
+    pBND p1bnd = pkdNodeBnd(pkd, p1);
+    pBND p2bnd = pkdNodeBnd(pkd, p2);
 
     for (j=0;j<3;++j) {
 	r1[j] = p1->r[j];
@@ -748,7 +764,7 @@ void pkdCombineCells(PKD pkd,KDN *pkdn,KDN *p1,KDN *p2) {
 	momShiftMomr(&mom,x,y,z);
 	momAddMomr(pkdNodeMom(pkd,pkdn),&mom);
 	}
-    BND_COMBINE(pkdn->bnd,p1->bnd,p2->bnd);
+    BND_COMBINE(bnd,p1bnd,p2bnd);
     /*
     ** Combine the special fast gas ball bounds for SPH.
     */
@@ -927,30 +943,32 @@ void pkdBoundWalk(PKD pkd,BND *pbnd,uint8_t uRungLo,uint8_t uRungHi,uint32_t *pn
     double d;
     int iNode,pj;    
 
+    pBND bnd = pkdNodeBnd(pkd, kdn);
+
     *pnActive = 0;
     *pnContained = 0;
     kdn = pkdTreeNode(pkd,iNode = ROOT);
     while (1) {
-	d = fabs(pbnd->fCenter[0] - kdn->bnd.fCenter[0]) - pbnd->fMax[0];
-	if (d - kdn->bnd.fMax[0] > 0) goto NoIntersect;
-	else if (d + kdn->bnd.fMax[0] <= 0) {
-	    d = fabs(pbnd->fCenter[1] - kdn->bnd.fCenter[1]) - pbnd->fMax[1];
-	    if (d - kdn->bnd.fMax[1] > 0) goto NoIntersect;
-	    else if (d + kdn->bnd.fMax[1] <= 0) {
-		d = fabs(pbnd->fCenter[2] - kdn->bnd.fCenter[2]) - pbnd->fMax[2];
-		if (d - kdn->bnd.fMax[2] > 0) goto NoIntersect;
-		else if (d + kdn->bnd.fMax[2] <= 0) goto Contained;
+	d = fabs(pbnd->fCenter[0] - bnd.fCenter[0]) - pbnd->fMax[0];
+	if (d - bnd.fMax[0] > 0) goto NoIntersect;
+	else if (d + bnd.fMax[0] <= 0) {
+	    d = fabs(pbnd->fCenter[1] - bnd.fCenter[1]) - pbnd->fMax[1];
+	    if (d - bnd.fMax[1] > 0) goto NoIntersect;
+	    else if (d + bnd.fMax[1] <= 0) {
+		d = fabs(pbnd->fCenter[2] - bnd.fCenter[2]) - pbnd->fMax[2];
+		if (d - bnd.fMax[2] > 0) goto NoIntersect;
+		else if (d + bnd.fMax[2] <= 0) goto Contained;
 		}
 	    else {
-		d = fabs(pbnd->fCenter[2] - kdn->bnd.fCenter[2]) - pbnd->fMax[2];
-		if (d - kdn->bnd.fMax[2] > 0) goto NoIntersect;
+		d = fabs(pbnd->fCenter[2] - bnd.fCenter[2]) - pbnd->fMax[2];
+		if (d - bnd.fMax[2] > 0) goto NoIntersect;
 		}
 	    }
 	else {
-	    d = fabs(pbnd->fCenter[1] - kdn->bnd.fCenter[1]) - pbnd->fMax[1];
-	    if (d - kdn->bnd.fMax[1] > 0) goto NoIntersect;
-	    d = fabs(pbnd->fCenter[2] - kdn->bnd.fCenter[2]) - pbnd->fMax[2];
-	    if (d - kdn->bnd.fMax[2] > 0) goto NoIntersect;
+	    d = fabs(pbnd->fCenter[1] - bnd.fCenter[1]) - pbnd->fMax[1];
+	    if (d - bnd.fMax[1] > 0) goto NoIntersect;
+	    d = fabs(pbnd->fCenter[2] - bnd.fCenter[2]) - pbnd->fMax[2];
+	    if (d - bnd.fMax[2] > 0) goto NoIntersect;
 	    }	
 	/*
 	** We have an intersection to test!

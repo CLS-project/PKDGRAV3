@@ -219,6 +219,9 @@ enum pst_service {
     PST_MEASUREPK,
 #endif
     PST_TOTALMASS,
+    PST_BUILDPSDTREE,
+    PST_PSD,
+    PST_PSFOF,
     };
 
 void pstAddServices(PST,MDL);
@@ -1378,5 +1381,22 @@ struct outTotalMass {
     double dMass;
     };
 void pstTotalMass(PST pst,void *vin,int nIn,void *vout,int *pnOut);
+
+/* PST_PSD */
+struct inPSD {
+    int nSmooth;
+    int bPeriodic;
+    int bSymmetric;
+    int iSmoothType;
+    SMF smf;
+    };
+struct outPSD {
+    int dummy;
+    };
+void pstBuildPsdTree(PST pst,void *vin,int nIn,void *vout,int *pnOut);
+void pstPSD(PST pst,void *vin,int nIn,void *vout,int *pnOut);
+
+/* PST_PSFOF */
+void pstPsFof(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 
 #endif

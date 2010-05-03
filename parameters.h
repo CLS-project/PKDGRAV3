@@ -224,10 +224,13 @@ struct parameters {
     int bMemHermite;
     int bMemRelaxation;
     int bMemVelSmooth;
+    int bMemPsMetric;
     int bMemNodeMoment;
     int bMemNodeAcceleration;
     int bMemNodeVelocity;
     int bMemNodeSphBounds;
+    int bMemNodeBnd;
+    int bMemNodeBnd6;
     };
 
 #endif

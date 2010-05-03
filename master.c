@@ -158,7 +158,7 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.nThreads = 1;
     prmAddParam(msr->prm,"nThreads",1,&msr->param.nThreads,sizeof(int),"sz",
 		"<nThreads>");
-    msr->param.bDiag = 0;
+    msr->param.bDiag = 1;
     prmAddParam(msr->prm,"bDiag",0,&msr->param.bDiag,sizeof(int),"d",
 		"enable/disable per thread diagnostic output");
     msr->param.bOverwrite = 0;
@@ -600,6 +600,9 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.bMemVelSmooth = 0;
     prmAddParam(msr->prm,"bMemVelSmooth",1,&msr->param.bMemVelSmooth,
 		sizeof(int),"Mvs","<Particles support velocity smoothing> = 0");
+    msr->param.bMemPsMetric = 0;
+    prmAddParam(msr->prm,"bPsMetric",1,&msr->param.bMemPsMetric,
+		sizeof(int),"Mpsb","<Particles support phase-space metric> = 0");
     msr->param.bMemNodeMoment = 0;
     prmAddParam(msr->prm,"bMemNodeMoment",1,&msr->param.bMemNodeMoment,
 		sizeof(int),"MNm","<Tree nodes support multipole moments> = 0");
@@ -612,6 +615,19 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.bMemNodeSphBounds = 0;
     prmAddParam(msr->prm,"bMemNodeSphBounds",1,&msr->param.bMemNodeSphBounds,
 		sizeof(int),"MNsph","<Tree nodes support fast-gas bounds> = 0");
+
+    msr->param.bMemNodeBnd = 1;
+    //prmAddParam(msr->prm,"bMemNodeBnd",1,&msr->param.bMemNodeBnd,
+	//	sizeof(int),"MNbnd","<Tree nodes support 3D bounds> = 1");
+
+#if USE_PSD
+    msr->param.bMemNodeBnd6 = 1;
+    prmAddParam(msr->prm,"bMemNodeBnd6",1,&msr->param.bMemNodeBnd6,
+		sizeof(int),"MNbnd6","<Tree nodes support 6D bounds> = 0");
+#else
+    msr->param.bMemNodeBnd6 = 0;
+#endif
+
 /* Gas Parameters */
     msr->param.bDoGas = 0;
     prmAddParam(msr->prm,"bDoGas",0,&msr->param.bDoGas,sizeof(int),"gas",
@@ -773,7 +789,11 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     /*
     ** Set the box center to (0,0,0) for now!
     */
+#ifdef USE_PSD
     for (j=0;j<3;++j) msr->fCenter[j] = 0.0;
+#else
+    for (j=0;j<6;++j) msr->fCenter[j] = 0.0;
+#endif
     /*
     ** Define any "LOCAL" parameters (LCL)
     */
@@ -2092,6 +2112,7 @@ void msrSetSoft(MSR msr,double dSoft) {
     }
 
 
+#if 0
 typedef struct DomainCell {
     struct DomainCell *lower;
     struct DomainCell *upper;
@@ -2180,6 +2201,7 @@ void domaindepthlink(DC *node,DC **plast,int depth) {
 	plast = &node->next;
     }
 }
+#endif
 
 #if 0
 void msrDomainDecomp2(MSR msr,uint8_t uRungLo,uint8_t uRungHi) {
@@ -2313,12 +2335,21 @@ void msrDomainDecomp(MSR msr,int iRung,int bGreater,int bSplitVA) {
 	    msr->param.dxPeriod < FLOAT_MAXVAL &&
 	    msr->param.dyPeriod < FLOAT_MAXVAL &&
 	    msr->param.dzPeriod < FLOAT_MAXVAL) {
+#ifdef USE_PSD
+	for (j=0;j<6;++j) {
+	    in.bnd.fCenter[j] = msr->fCenter[j];
+	    }
+#else
 	for (j=0;j<3;++j) {
 	    in.bnd.fCenter[j] = msr->fCenter[j];
 	    }
+#endif
 	in.bnd.fMax[0] = 0.5*msr->param.dxPeriod;
 	in.bnd.fMax[1] = 0.5*msr->param.dyPeriod;
 	in.bnd.fMax[2] = 0.5*msr->param.dzPeriod;
+	in.bnd.fMax[3] = HUGE_VAL;
+	in.bnd.fMax[4] = HUGE_VAL;
+	in.bnd.fMax[5] = HUGE_VAL;
 
 	pstEnforcePeriodic(msr->pst,&in.bnd,sizeof(BND),NULL,NULL);
 	}
@@ -5239,7 +5270,8 @@ double msrRead(MSR msr, const char *achInFile) {
     */
     if (msr->param.bFindGroups) mMemoryModel |= PKD_MODEL_GROUPS|PKD_MODEL_VELOCITY|PKD_MODEL_POTENTIAL;
     if (msrDoGravity(msr)) mMemoryModel |= PKD_MODEL_VELOCITY|PKD_MODEL_ACCELERATION|PKD_MODEL_POTENTIAL|PKD_MODEL_NODE_MOMENT;
-    if (msr->param.bHermite) mMemoryModel |= PKD_MODEL_HERMITE;
+
+    if (msr->param.bHermite)         mMemoryModel |= PKD_MODEL_HERMITE;
     if (msr->param.bTraceRelaxation) mMemoryModel |= PKD_MODEL_RELAXATION;
     if (msr->param.bMemAcceleration) mMemoryModel |= PKD_MODEL_ACCELERATION;
     if (msr->param.bMemVelocity)     mMemoryModel |= PKD_MODEL_VELOCITY;
@@ -5250,10 +5282,15 @@ double msrRead(MSR msr, const char *achInFile) {
     if (msr->param.bMemHermite)      mMemoryModel |= PKD_MODEL_HERMITE;
     if (msr->param.bMemRelaxation)   mMemoryModel |= PKD_MODEL_RELAXATION;
     if (msr->param.bMemVelSmooth)    mMemoryModel |= PKD_MODEL_VELSMOOTH;
+    if (msr->param.bMemPsMetric)     mMemoryModel |= PKD_MODEL_PSMETRIC;
+
     if (msr->param.bMemNodeAcceleration) mMemoryModel |= PKD_MODEL_NODE_ACCEL;
-    if (msr->param.bMemNodeVelocity) mMemoryModel |= PKD_MODEL_NODE_VEL;
-    if (msr->param.bMemNodeMoment) mMemoryModel |= PKD_MODEL_NODE_MOMENT;
-    if (msr->param.bMemNodeSphBounds) mMemoryModel |= PKD_MODEL_NODE_SPHBNDS;
+    if (msr->param.bMemNodeVelocity)     mMemoryModel |= PKD_MODEL_NODE_VEL;
+    if (msr->param.bMemNodeMoment)       mMemoryModel |= PKD_MODEL_NODE_MOMENT;
+    if (msr->param.bMemNodeSphBounds)    mMemoryModel |= PKD_MODEL_NODE_SPHBNDS;
+
+    if (msr->param.bMemNodeBnd)          mMemoryModel |= PKD_MODEL_NODE_BND;
+    if (msr->param.bMemNodeBnd6)         mMemoryModel |= PKD_MODEL_NODE_BND | PKD_MODEL_NODE_BND6;
 
 #ifdef PLANETS
     dTime = msrReadSS(msr); /* must use "Solar System" (SS) I/O format... */
@@ -5276,7 +5313,6 @@ double msrRead(MSR msr, const char *achInFile) {
     msr->nGas  = fioGetN(fio,FIO_SPECIES_SPH);
     msr->nDark = fioGetN(fio,FIO_SPECIES_DARK);
     msr->nStar = fioGetN(fio,FIO_SPECIES_STAR);
-    fioClose(fio);
 
     dTime = getTime(msr,dExpansion,&read.dvFac);
     read.dTuFac = msr->param.dTuFac;
@@ -5299,6 +5335,8 @@ double msrRead(MSR msr, const char *achInFile) {
     read.fPeriod[1] = msr->param.dyPeriod;
     read.fPeriod[2] = msr->param.dzPeriod;
     for( j=0; j<FIO_SPECIES_LAST; j++) read.nSpecies[j] = fioGetN(fio,j);
+
+    fioClose(fio);
 
     /*
     ** If bParaRead is 0, then we read serially; if it is 1, then we read
@@ -5339,6 +5377,19 @@ double msrRead(MSR msr, const char *achInFile) {
 	    msr->param.dzPeriod >= FLOAT_MAXVAL) {
 	BND bnd;
 	msrCalcBound(msr,&bnd);
+#ifdef USE_PSD
+        printf("%i] %g %g\n"
+               "    %g %g\n"
+               "    %g %g\n"
+               "    %g %g\n"
+               "    %g %g\n"
+               "    %g %g\n", 0, bnd.fCenter[0] - bnd.fMax[0],bnd.fCenter[0] + bnd.fMax[0], 
+                                 bnd.fCenter[1] - bnd.fMax[1],bnd.fCenter[1] + bnd.fMax[1], 
+                                 bnd.fCenter[2] - bnd.fMax[2],bnd.fCenter[2] + bnd.fMax[2], 
+                                 bnd.fCenter[3] - bnd.fMax[3],bnd.fCenter[3] + bnd.fMax[3], 
+                                 bnd.fCenter[4] - bnd.fMax[4],bnd.fCenter[4] + bnd.fMax[4], 
+                                 bnd.fCenter[5] - bnd.fMax[5],bnd.fCenter[5] + bnd.fMax[5]);
+#endif
 	}
 
     /*
@@ -5352,6 +5403,7 @@ double msrRead(MSR msr, const char *achInFile) {
 
 
 void msrCalcBound(MSR msr,BND *pbnd) {
+    printf("msrCalcBound\n");
     /*
     ** This sets the local pkd->bnd.
     */
@@ -6114,4 +6166,106 @@ void msrMeasurePk(MSR msr,double *dCenter,double dRadius,int nGrid,float *Pk) {
     dsec = msrTime() - sec;
     printf("P(k) Calculated, Wallclock: %f secs\n\n",dsec);
     }
+#endif
+
+#if USE_PSD
+void _BuildPsdTree(MSR msr,int bExcludeVeryActive,int bNeedEwald) {
+    struct inBuildTree in;
+    struct ioCalcRoot root;
+    PST pst0;
+    LCL *plcl;
+    PKD pkd;
+    KDN *pkdn;
+    int iDum,nCell;
+    double sec,dsec;
+
+    pst0 = msr->pst;
+    while (pst0->nLeaves > 1)
+	pst0 = pst0->pstLower;
+    plcl = pst0->plcl;
+    pkd = plcl->pkd;
+
+    msrprintf(msr,"Building local trees...\n\n");
+
+    in.nBucket = msr->param.nBucket;
+    in.diCrit2 = 1/(msr->dCrit*msr->dCrit);
+    nCell = 1<<(1+(int)ceil(log((double)msr->nThreads)/log(2.0)));
+    pkdn = malloc(nCell*pkdNodeSize(pkd));
+    assert(pkdn != NULL);
+    in.iCell = ROOT;
+    in.nCell = nCell;
+    in.bExcludeVeryActive = bExcludeVeryActive;
+    sec = msrTime();
+    pstBuildPsdTree(msr->pst,&in,sizeof(in),pkdn,&iDum);
+    msrprintf(msr,"Done pstBuildTree\n");
+    dsec = msrTime() - sec;
+    msrprintf(msr,"Tree built, Wallclock: %f secs\n\n",dsec);
+
+    pstDistribCells(msr->pst,pkdn,nCell*pkdNodeSize(pkd),NULL,NULL);
+    free(pkdn);
+    if (!bExcludeVeryActive && bNeedEwald) {
+	/*
+	** For simplicity we will skip calculating the Root for all particles
+	** with exclude very active since there are missing particles which
+	** could add to the mass and because it probably is not important to
+	** update the root so frequently.
+	*/
+	pstCalcRoot(msr->pst,NULL,0,&root,&iDum);
+	pstDistribRoot(msr->pst,&root,sizeof(struct ioCalcRoot),NULL,NULL);
+	}
+    }
+
+void msrBuildPsdTree(MSR msr,double dTime,int bNeedEwald) {
+    const int bExcludeVeryActive = 0;
+    bNeedEwald = 0;
+    fprintf(stderr, "%i\n", msr->param.nMinMembers);
+    _BuildPsdTree(msr,bExcludeVeryActive,bNeedEwald);
+    }
+
+void msrPSD(MSR msr) {
+    struct inPSD in;
+    in.nSmooth = msr->param.nSmooth;
+    in.bPeriodic = 0; //msr->param.bPeriodic;
+    in.bSymmetric = 0;
+    in.iSmoothType = 1;
+
+    //msr->pst.iSplitDim = 0;
+
+    if (msr->param.bVStep) {
+	double sec,dsec;
+	msrprintf(msr, "Calculating Phase-Space Density...\n");
+	sec = msrTime();
+        pstPSD(msr->pst,&in,sizeof(in),NULL,NULL);
+	dsec = msrTime() - sec;
+	msrprintf(msr, "Phase-Space Density Calculated, Wallclock: %f secs\n\n",dsec);
+	}
+    else {
+        pstPSD(msr->pst,&in,sizeof(in),NULL,NULL);
+	}
+    }
+
+void msrPsFof(MSR msr, double exp) {
+    struct inFof in;
+    in.nSmooth = msr->param.nSmooth;
+    in.bPeriodic = msr->param.bPeriodic;
+    in.bSymmetric = 0;
+    in.iSmoothType = 2;
+    in.smf.a = exp;
+    in.smf.dTau2 = pow(msr->param.dTau,2.0);
+    in.smf.dVTau2 = pow(msr->param.dVTau,2.0);
+    in.smf.iCenterType = msr->param.iCenterType;
+    if (msr->param.bTauAbs == 0) {
+	in.smf.dTau2 *= pow(msr->param.csm->dOmega0,-0.6666);
+	}
+    else {
+	in.smf.dTau2 /= exp*exp;
+	in.smf.dVTau2 *= exp*exp;
+	}
+    in.smf.bTauAbs = msr->param.bTauAbs;
+    in.smf.nMinMembers = msr->param.nMinMembers;
+    printf("msrPsFof -- Calculating Groups in Phase-space\n");
+    pstPsFof(msr->pst,&in,sizeof(in),NULL,NULL);
+    msr->nGroups = msr->pst->plcl->pkd->nGroups;
+    }
+
 #endif

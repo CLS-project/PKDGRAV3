@@ -33,8 +33,8 @@ all-local: $(TARGETS)
 clean-local:
 	rm -f $(EXTRA_PROGRAMS)
 
-SOURCES = main.c tree.c analysis.c romberg.c
-noinst_HEADERS = bt.h parameters.h grav.h walk.h cycle.h tipsydefs.h
+SOURCES = main.c tree.c analysis.c romberg.c psdtree.c psd.c bt.c
+noinst_HEADERS = bt.h parameters.h grav.h walk.h cycle.h tipsydefs.h psdtree.h psd.h
 SOURCES        += cosmo.c master.c param.c pst.c smooth.c ewald.c
 noinst_HEADERS += cosmo.h master.h param.h pst.h smooth.h ewald.h meval.h qeval.h
 SOURCES        += moments.c intype.c outtype.c pkd.c smoothfcn.c rbtree.c fio.c listcomp.c

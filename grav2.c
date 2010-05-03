@@ -60,6 +60,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 		    double dirLsum,double normLsum,int bEwald,double *pdFlop,double *pdEwFlop,double dRhoFac) {
     PARTICLE *p,*pj;
     KDN *pkdn = pBucket;
+    pBND bnd = pkdNodeBnd(pkd, pkdn);
     const double onethird = 1.0/3.0;
     float *a, *pPot;
     double *v, *vTmp;
@@ -110,9 +111,9 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
     nActive = 0;
     nSoft = 0;
     rMax = pkd->param.nPartRhoLoc/(pkdn->pUpper-pkdn->pLower+1)
-	   *(pkdn->bnd.fMax[0]*pkdn->bnd.fMax[0]
-	     + pkdn->bnd.fMax[1]*pkdn->bnd.fMax[1]
-	     + pkdn->bnd.fMax[2]*pkdn->bnd.fMax[2]);
+	   *(bnd.fMax[0]*bnd.fMax[0]
+	     + bnd.fMax[1]*bnd.fMax[1]
+	     + bnd.fMax[2]*bnd.fMax[2]);
     /*
     ** Save the ilp list so that we can restore it for each particle. We will be 
     ** adding the local bucket interactions within this loop, and so modifying the 
@@ -256,7 +257,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 	    */
 	    rholoc = 0;
 	    nN = ilpCount(ilp);
-	    nTN = ilpCountTN(ilp,pkd->param.dFacExcludePart*pkdn->bnd.size);
+	    nTN = ilpCountTN(ilp,pkd->param.dFacExcludePart * (*bnd.size) );
 	    if (nTN > 1) {
 		nSP = (nTN < pkd->param.nPartRhoLoc)?nTN:pkd->param.nPartRhoLoc;
 

@@ -20,7 +20,11 @@ typedef struct msrContext {
     PST pst;
     MDL mdl;
     LCL lcl;
+#ifdef USE_PSD
+    FLOAT fCenter[6];
+#else
     FLOAT fCenter[3];
+#endif
     /*
     ** Parameters.
     */
@@ -284,5 +288,7 @@ void msrGridProject(MSR msr,double x,double y,double z);
 #ifdef MDL_FFTW
 void msrMeasurePk(MSR msr,double *dCenter,double dRadius,int nGrid,float *Pk);
 #endif
+void msrBuildPsdTree(MSR msr,double dTime,int bNeedEwald);
+void msrPSD(MSR msr);
 
 #endif

@@ -30,6 +30,8 @@ const char *pkdgrav2_module_id = PACKAGE_STRING
 #include "python.h"
 #endif
 
+extern int pst_idSelf;
+
 #ifdef USE_MDL_IO
 static void main_io(MDL mdl) {
     IO io;
@@ -63,6 +65,8 @@ void main_ch(MDL mdl) {
     lcl.pszDataPath = (char *)getenv("PTOOLS_DATA_PATH");
     lcl.pkd = NULL;
     pstInitialize(&pst,mdl,&lcl);
+    pst_idSelf = pst->idSelf;
+    fprintf(stderr, "pst_idSelf=%i\n", pst_idSelf);
 
     pstAddServices(pst,mdl);
 

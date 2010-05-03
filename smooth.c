@@ -510,6 +510,7 @@ PQ *pqSearchLocal(SMX smx,PQ *pq,FLOAT r[3],int *pbDone) {
     int sp = 0;
     int sm = 0;
     int idSelf = pkd->idSelf;
+    pBND bnd;
 
     *pbDone = 1;	/* assume that we will complete the search */
     /*
@@ -528,9 +529,11 @@ PQ *pqSearchLocal(SMX smx,PQ *pq,FLOAT r[3],int *pbDone) {
 	*/
 	while (kdn->iLower) {
 	    kdn = pkdTreeNode(pkd,iCell = kdn->iLower);
-	    MINDIST(kdn->bnd,r,min1);
+            bnd = pkdNodeBnd(pkd, kdn);
+	    MINDIST(bnd,r,min1);
 	    kdn = pkdTreeNode(pkd,++iCell);
-	    MINDIST(kdn->bnd,r,min2);
+            bnd = pkdNodeBnd(pkd, kdn);
+	    MINDIST(bnd,r,min2);
 	    if (min1 < min2) {
 		Smin[sm++] = min2;
 		kdn = pkdTreeNode(pkd,--iCell);
@@ -578,9 +581,9 @@ PQ *pqSearchLocal(SMX smx,PQ *pq,FLOAT r[3],int *pbDone) {
 		/*
 		** Containment Test!
 		*/
+                bnd = pkdNodeBnd(pkd, kdn);
 		for (j=0;j<3;++j) {
-		    dMin = kdn->bnd.fMax[j] -
-			fabs(kdn->bnd.fCenter[j] - r[j]);
+		    dMin = bnd.fMax[j] - fabs(bnd.fCenter[j] - r[j]);
 		    if (dMin*dMin < pq->fDist2 || dMin < 0) {
 			iParent = kdn->iParent;
 			if (!iParent) {
@@ -601,7 +604,8 @@ PQ *pqSearchLocal(SMX smx,PQ *pq,FLOAT r[3],int *pbDone) {
 	*/
 	if (sm) min2 = Smin[--sm];
 	else {
-	    MINDIST(kdn->bnd,r,min2);
+            bnd = pkdNodeBnd(pkd, kdn);
+	    MINDIST(bnd,r,min2);
 	}
 	if (min2 >= pq->fDist2) {
 	    kdn = pkdTreeNode(pkd,iCell = kdn->iParent);
@@ -626,6 +630,7 @@ PQ *pqSearchRemote(SMX smx,PQ *pq,int id,FLOAT r[3]) {
     int sp = 0;
     int sm = 0;
     int idSelf = pkd->idSelf;
+    pBND bnd;
 
     assert(id != idSelf);
     kdn = pkdTreeNode(pkd,iCell = ROOT);
@@ -642,10 +647,12 @@ PQ *pqSearchRemote(SMX smx,PQ *pq,int id,FLOAT r[3]) {
 	    kdn = pkdTreeNode(pkd,iCell = pkdn->iLower);
 	    mdlRelease(mdl,CID_CELL,pkdn);
 	    pkdn = mdlAquire(mdl,CID_CELL,iCell,id);
-	    MINDIST(pkdn->bnd,r,min1);
+            bnd = pkdNodeBnd(pkd, pkdn);
+	    MINDIST(bnd,r,min1);
 	    kdn = pkdTreeNode(pkd,++iCell);
 	    pkdu = mdlAquire(mdl,CID_CELL,iCell,id);
-	    MINDIST(pkdu->bnd,r,min2);
+            bnd = pkdNodeBnd(pkd, pkdu);
+	    MINDIST(bnd,r,min2);
 	    if (min1 < min2) {
 		Smin[sm++] = min2;
 		kdn = pkdTreeNode(pkd,--iCell);
@@ -711,7 +718,8 @@ PQ *pqSearchRemote(SMX smx,PQ *pq,int id,FLOAT r[3]) {
 	*/
 	if (sm) min2 = Smin[--sm];
 	else {
-	    MINDIST(pkdn->bnd,r,min2);
+            bnd = pkdNodeBnd(pkd, pkdn);
+	    MINDIST(bnd,r,min2);
 	}
 	if (min2 >= pq->fDist2) {
 	    kdn = pkdTreeNode(pkd,iCell = pkdn->iParent);
@@ -734,6 +742,7 @@ PQ *pqSearch(SMX smx,PQ *pq,FLOAT r[3],int bReplica,int *pbDone) {
     int j,iCell,id,iParent;
     int sp = 0;
     int sm = 0;
+    pBND bnd;
 
     *pbDone = 0;
     if (bReplica) kdn = pkdTopNode(pkd,iCell = ROOT);
@@ -750,9 +759,11 @@ PQ *pqSearch(SMX smx,PQ *pq,FLOAT r[3],int bReplica,int *pbDone) {
 	*/
 	while (kdn->iLower) {
 	    kdn = pkdTopNode(pkd,iCell = kdn->iLower);
-	    MINDIST(kdn->bnd,r,min1);
+            bnd = pkdNodeBnd(pkd, kdn);
+	    MINDIST(bnd,r,min1);
 	    kdn = pkdTopNode(pkd,++iCell);
-	    MINDIST(kdn->bnd,r,min2);
+            bnd = pkdNodeBnd(pkd, kdn);
+	    MINDIST(bnd,r,min2);
 	    if (min1 < min2) {
 		Smin[sm++] = min2;
 		kdn = pkdTopNode(pkd,--iCell);
@@ -781,9 +792,9 @@ PQ *pqSearch(SMX smx,PQ *pq,FLOAT r[3],int bReplica,int *pbDone) {
 		/*
 		** Containment Test!
 		*/
+                bnd = pkdNodeBnd(pkd, kdn);
 		for (j=0;j<3;++j) {
-		    dMin = kdn->bnd.fMax[j] -
-			fabs(kdn->bnd.fCenter[j] - r[j]);
+		    dMin = bnd.fMax[j] - fabs(bnd.fCenter[j] - r[j]);
 		    if (dMin*dMin < pq->fDist2 || dMin < 0) {
 			iParent = kdn->iParent;
 			if (!iParent) {
@@ -806,7 +817,8 @@ PQ *pqSearch(SMX smx,PQ *pq,FLOAT r[3],int bReplica,int *pbDone) {
 	*/
 	if (sm) min2 = Smin[--sm];
 	else {
-	    MINDIST(kdn->bnd,r,min2);
+            bnd = pkdNodeBnd(pkd, kdn);
+	    MINDIST(bnd,r,min2);
 	}
 	if (min2 >= pq->fDist2) {
 	    kdn = pkdTopNode(pkd,iCell = kdn->iParent);
@@ -900,7 +912,7 @@ void smSmooth(SMX smx,SMF *smf) {
 	mdlCacheCheck(pkd->mdl);
     }
     /*
-    ** Release aquired pointers and source-reactivate particles in prioq.
+    ** Release acquired pointers and source-reactivate particles in prioq.
     */
     for (i=0;i<smx->nSmooth;++i) {
 	if (smx->pq[i].iPid == pkd->idSelf) {
@@ -2326,7 +2338,7 @@ void smFastGasPhase1(SMX smx,SMF *smf) {
     */
     BoundWalkActive(smx,&pList,&nMaxpList);
     /*
-    ** Release aquired pointers and source-reactivate particles in prioq.
+    ** Release acquired pointers and source-reactivate particles in prioq.
     */
     for (i=0;i<smx->nSmooth;++i) {
 	if (smx->pq[i].iPid == pkd->idSelf) {
@@ -2414,7 +2426,7 @@ void smFastGasPhase2(SMX smx,SMF *smf) {
 		*/
 		smx->fcnSmooth(p,nCnt,smx->nnList,smf);
 		/*
-		** Release aquired pointers.
+		** Release acquired pointers.
 		*/
 		for (i=0;i<nCnt;++i) {
 		    if (smx->nnList[i].iPid != pkd->idSelf) {
@@ -2457,11 +2469,13 @@ void smGatherLocal(SMX smx,FLOAT fBall2,FLOAT r[3]) {
     int sp = 0;
     int iCell,pj,nCnt,pEnd;
     int idSelf = pkd->idSelf;
+    pBND bnd;
 
     nCnt = smx->nnListSize;
     kdn = pkdTreeNode(pkd,iCell = ROOT);
     while (1) {
-	MINDIST(kdn->bnd,r,min2);
+        bnd = pkdNodeBnd(pkd, kdn);
+	MINDIST(bnd,r,min2);
 	if (min2 > fBall2) {
 	    goto NoIntersect;
 	}
@@ -2508,7 +2522,8 @@ void smGatherLocal(SMX smx,FLOAT fBall2,FLOAT r[3]) {
 
 
 void smGatherRemote(SMX smx,FLOAT fBall2,FLOAT r[3],int id) {
-    MDL mdl = smx->pkd->mdl;
+    PKD pkd = smx->pkd;
+    MDL mdl = pkd->mdl;
     KDN *pkdn;
     PARTICLE *pp;
     FLOAT min2,dx,dy,dz,fDist2;
@@ -2516,13 +2531,15 @@ void smGatherRemote(SMX smx,FLOAT fBall2,FLOAT r[3],int id) {
     int sp = 0;
     int pj,nCnt,pEnd;
     int iCell;
+    pBND bnd;
 
     assert(id != smx->pkd->idSelf);
     nCnt = smx->nnListSize;
     iCell = ROOT;
     pkdn = mdlAquire(mdl,CID_CELL,iCell,id);
     while (1) {
-	MINDIST(pkdn->bnd,r,min2);
+        bnd = pkdNodeBnd(pkd, pkdn);
+	MINDIST(bnd,r,min2);
 	if (min2 > fBall2) {
 	    goto NoIntersect;
 	}
@@ -2586,10 +2603,12 @@ void smGather(SMX smx,FLOAT fBall2,FLOAT r[3]) {
     FLOAT min2;
     int iCell,id;
     int sp = 0;
+    pBND bnd;
 
     kdn = pkdTopNode(pkd,iCell = ROOT);
     while (1) {
-	MINDIST(kdn->bnd,r,min2);
+        bnd = pkdNodeBnd(pkd, kdn);
+	MINDIST(bnd,r,min2);
 	if (min2 > fBall2) {
 	    goto NoIntersect;
 	}
@@ -2625,11 +2644,13 @@ void smDoGatherLocal(SMX smx,FLOAT fBall2,FLOAT r[3],void (*Do)(SMX,PARTICLE *,F
     int sp = 0;
     int iCell,pj,nCnt,pEnd;
     int idSelf = pkd->idSelf;
+    pBND bnd;
 
     nCnt = smx->nnListSize;
     kdn = pkdTreeNode(pkd,iCell = ROOT);
     while (1) {
-	MINDIST(kdn->bnd,r,min2);
+        bnd = pkdNodeBnd(pkd, kdn);
+	MINDIST(bnd,r,min2);
 	if (min2 > fBall2) {
 	    goto NoIntersect;
 	}
@@ -2699,7 +2720,7 @@ void smReSmoothOne(SMX smx,SMF *smf,void *p,FLOAT *R,FLOAT fBall) {
     */
     smx->fcnSmooth(p,smx->nnListSize,smx->nnList,smf);
     /*
-    ** Release aquired pointers.
+    ** Release acquired pointers.
     */
     for (i=0;i<smx->nnListSize;++i) {
 	if (smx->nnList[i].iPid != pkd->idSelf) {

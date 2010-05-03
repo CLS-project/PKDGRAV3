@@ -39,6 +39,16 @@ if test "x$INSTRUMENT" = "xyes" ; then
  	[Instrument the code.])
 fi
 
+# This adds backtracing for crashed processes -- default enabled
+AC_ARG_ENABLE(bt,
+  [  --disable-bt           Disable backtracing code],
+  [BT="$enableval"],[BT="yes"])
+if test "x$BT" = "xyes" ; then
+   AC_DEFINE([USE_BT], 1,
+ 	[Print a backtrace on crash.])
+fi
+AM_CONDITIONAL(USE_BT, test "x$USE_BT" = "xyes")
+
 # This adds FFTW analysis - default disabled
 AC_ARG_ENABLE(fftw,
   [  --enable-fftw                  Enable FFT support modules],
@@ -341,6 +351,14 @@ AC_ARG_ENABLE(symba,
    AC_DEFINE([SYMBA], 1,
  	[Define if symba should be used.])])
 AM_CONDITIONAL(SYMBA, test "x$SYMBA" = "xyes")
+
+# PSD
+AC_ARG_ENABLE(psd,
+  [  --enable-psd               enable phase-space options],
+  [PSD=yes
+   AC_DEFINE([USE_PSD], 1,
+ 	[Define if phase-space coordinates/functions should be available.])])
+AM_CONDITIONAL(PSD, test "x$PSD" = "xyes")
 
 # Check if pthread is available
 AC_CHECK_LIB([pthread], [pthread_create],[HAVE_PTHREAD=yes],[HAVE_PTHREAD=no])

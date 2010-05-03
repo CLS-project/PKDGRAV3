@@ -105,12 +105,17 @@ static inline int iOpenOutcome(PKD pkd,KDN *k,CELT *check,KDN **pc) {
     else {
 	c = mdlAquire(pkd->mdl,CID_CELL,iCell,check->id);
     }
+
+    pBND cbnd = pkdNodeBnd(pkd, c);
+    pBND kbnd = pkdNodeBnd(pkd, k);
+
+
     *pc = c;
     if (pkdNodeMom(pkd,c)->m <= 0) iOpen = 10;  /* ignore this cell */
     else {
-	dx = fabs(k->r[0] - c->bnd.fCenter[0] - check->rOffset[0]) - c->bnd.fMax[0];
-	dy = fabs(k->r[1] - c->bnd.fCenter[1] - check->rOffset[1]) - c->bnd.fMax[1];
-	dz = fabs(k->r[2] - c->bnd.fCenter[2] - check->rOffset[2]) - c->bnd.fMax[2];
+	dx = fabs(k->r[0] - cbnd.fCenter[0] - check->rOffset[0]) - cbnd.fMax[0];
+	dy = fabs(k->r[1] - cbnd.fCenter[1] - check->rOffset[1]) - cbnd.fMax[1];
+	dz = fabs(k->r[2] - cbnd.fCenter[2] - check->rOffset[2]) - cbnd.fMax[2];
 	minc2 = (dx>0)?dx*dx:0 + (dy>0)?dy*dy:0 + (dz>0)?dz*dz:0;
 	fourh2 = softmassweight(pkdNodeMom(pkd,k)->m,4*k->fSoft2,pkdNodeMom(pkd,c)->m,4*c->fSoft2);
 	if (T1) {
@@ -130,9 +135,9 @@ static inline int iOpenOutcome(PKD pkd,KDN *k,CELT *check,KDN **pc) {
 	    zc = c->r[2] + check->rOffset[2];
 	    d2 = pow(k->r[0]-xc,2) + pow(k->r[1]-yc,2) + pow(k->r[2]-zc,2);
 	    d2Open = pow(c->fOpen + k->fOpen,2);
-	    dx = fabs(xc - k->bnd.fCenter[0]) - k->bnd.fMax[0];
-	    dy = fabs(yc - k->bnd.fCenter[1]) - k->bnd.fMax[1];
-	    dz = fabs(zc - k->bnd.fCenter[2]) - k->bnd.fMax[2];
+	    dx = fabs(xc - kbnd.fCenter[0]) - kbnd.fMax[0];
+	    dy = fabs(yc - kbnd.fCenter[1]) - kbnd.fMax[1];
+	    dz = fabs(zc - kbnd.fCenter[2]) - kbnd.fMax[2];
 	    mink2 = (dx>0)?dx*dx:0 + (dy>0)?dy*dy:0 + (dz>0)?dz*dz:0;
 
 	    if (c->fOpen > k->fOpen) iOpenB = iOpenA;
@@ -180,6 +185,10 @@ static inline int iOpenOutcomeOld(PKD pkd,KDN *k,CELT *check,KDN **pc) {
 	c = mdlAquire(pkd->mdl,CID_CELL,iCell,check->id);
 	nc = c->pUpper - c->pLower + 1;
     }
+
+    pBND cbnd = pkdNodeBnd(pkd, c);
+    pBND kbnd = pkdNodeBnd(pkd, k);
+
     *pc = c;
     if (pkdNodeMom(pkd,c)->m <= 0) iOpen = 10;  /* ignore this cell */
     else {
@@ -189,9 +198,9 @@ static inline int iOpenOutcomeOld(PKD pkd,KDN *k,CELT *check,KDN **pc) {
 	zc = c->r[2] + check->rOffset[2];
 	d2 = pow(k->r[0]-xc,2) + pow(k->r[1]-yc,2) + pow(k->r[2]-zc,2);
 	d2Open = pow(2.0*fmax(c->fOpen,k->fOpen),2);
-	dx = fabs(xc - k->bnd.fCenter[0]) - k->bnd.fMax[0];
-	dy = fabs(yc - k->bnd.fCenter[1]) - k->bnd.fMax[1];
-	dz = fabs(zc - k->bnd.fCenter[2]) - k->bnd.fMax[2];
+	dx = fabs(xc - kbnd.fCenter[0]) - kbnd.fMax[0];
+	dy = fabs(yc - kbnd.fCenter[1]) - kbnd.fMax[1];
+	dz = fabs(zc - kbnd.fCenter[2]) - kbnd.fMax[2];
 	mink2 = (dx>0)?dx*dx:0 + (dy>0)?dy*dy:0 + (dz>0)?dz*dz:0;
 	if (d2 > d2Open && d2 > fourh2) iOpen = 8;
 	else {

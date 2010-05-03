@@ -25,6 +25,7 @@
 #ifdef USE_GRAFIC
 #include "grafic.h"
 #endif
+#include "psdtree.h"
 
 const char *pst_c_module_id = "$Id$";
 const char *pst_h_module_id = PST_H_MODULE_ID;
@@ -561,6 +562,19 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_TOTALMASS,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstTotalMass,
 		  0, sizeof(struct outTotalMass));
+
+#ifdef USE_PSD
+    mdlAddService(mdl,PST_BUILDPSDTREE,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstBuildPsdTree,
+		  sizeof(struct inBuildTree),nCell*pkdMaxNodeSize());
+    mdlAddService(mdl,PST_PSD,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstPSD,
+		  sizeof(struct inPSD), 0);
+
+    mdlAddService(mdl,PST_PSFOF,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstPsFof,
+		  sizeof(struct inFof), 0);
+#endif
    }
 
 void pstInitialize(PST *ppst,MDL mdl,LCL *plcl) {
@@ -933,7 +947,7 @@ void _pstRootSplit(PST pst,int iSplitDim,int bDoRootFind,int bDoSplitDimFind,
 
     d = dBnd = pst->iSplitDim;
 
-    mdlassert(pst->mdl,d < 3);
+    // mdlassert(pst->mdl,d < 3);
 
     fl = pst->bnd.fCenter[dBnd] - pst->bnd.fMax[dBnd];
     fu = pst->bnd.fCenter[dBnd] + pst->bnd.fMax[dBnd];
@@ -1508,7 +1522,11 @@ void pstDomainDecomp(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     mdlprintf(pst->mdl,"Starting pstDomainDecomp\n");
 
     pst->bnd = in->bnd;
+
+    //pst->bnd.lastd = 6;
+
     if (pst->nLeaves > 1) {
+        printf("pstDomainDecomp leaves > 1\n");
 	if (pst->iSplitDim != -1 && in->nActive < NMINFORROOTFIND) {
 	    mdlprintf(pst->mdl,"Aborting RootFind -- too few actives.\n");
 	    in->bDoSplitDimFind = 0;
@@ -1598,7 +1616,19 @@ void pstDomainDecomp(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 		pst->bnd.fMax[0], pst->bnd.fMax[1], pst->bnd.fMax[2],
 		pst->bnd.fCenter[0], pst->bnd.fCenter[1], pst->bnd.fCenter[2]
 		);*/
+
 	plcl->pkd->bnd = pst->bnd;   /* This resets the local bounding box, but doesn't squeeze! */
+        float offs = 0.5 / (plcl->pkd->nLocal*1.0 - 1.0);
+#ifdef USE_PSD
+        for (j=0; j < 6; j++) {
+            pst->bnd.fMax[j] += offs;
+        }
+#else
+        for (j=0; j < 3; j++) {
+            pst->bnd.fMax[j] += offs;
+        }
+#endif
+
 	}
     if (pnOut) *pnOut = 0;
     }
@@ -2436,7 +2466,10 @@ void pstBuildTree(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     else {
 	for (i=1;i<in->nCell;++i) pkdNode(pkd,pkdn,i)->pUpper = 0; /* used flag = unused */
 
+#ifdef USE_PSD
 	pkdTreeBuild(plcl->pkd,in->nBucket,in->diCrit2,pCell,in->bExcludeVeryActive);
+        printf("[%i] Tree Depth: %i\n", pst->idSelf, psdTreeDepth(plcl->pkd));
+#endif
 
 	pCell->iLower = 0;
 	pCell->pLower = pst->idSelf;
@@ -2523,7 +2556,8 @@ void pstTreeNumSrcActive(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct inTreeNumSrcActive *in = vin;
 
-    mdlassert(pst->mdl,nIn == sizeof(BND));
+    assert(0);
+    mdlassert(pst->mdl,nIn == sizeof(BND)); /* jpc: Why BND(6)??? */
     if (pst->nLeaves > 1) {
 	mdlReqService(pst->mdl,pst->idUpper,PST_TREENUMSRCACTIVE,vin,nIn);
 	pstTreeNumSrcActive(pst->pstLower,vin,nIn,NULL,NULL);
@@ -4735,3 +4769,114 @@ void pstTotalMass(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     if (pnOut) *pnOut = sizeof(struct outTotalMass);
     }
 
+#ifdef USE_PSD
+void pstBuildPsdTree(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl = pst->plcl;
+    PKD pkd = plcl->pkd;
+    struct inBuildTree *in = vin;
+    KDN *pkdn = vout;
+    KDN *ptmp, *pCell;
+    FLOAT minside;
+    int i,iCell,iLower,iNext;
+
+    mdlassert(pst->mdl,nIn == sizeof(struct inBuildTree));
+    iCell = in->iCell;
+    pCell = pkdNode(pkd,pkdn,iCell);
+    if (pst->nLeaves > 1) {
+	in->iCell = UPPER(iCell);
+	mdlReqService(pst->mdl,pst->idUpper,PST_BUILDPSDTREE,in,nIn);
+	in->iCell = LOWER(iCell);
+	pstBuildPsdTree(pst->pstLower,in,nIn,vout,pnOut);
+	in->iCell = iCell;
+	ptmp = malloc(in->nCell*pkdNodeSize(pkd));
+	mdlassert(pst->mdl,ptmp != NULL);
+	mdlGetReply(pst->mdl,pst->idUpper,ptmp,pnOut);
+	for (i=1;i<in->nCell;++i) {
+	    KDN *pSrc = pkdNode(pkd,ptmp,i);
+	    if (pSrc->pUpper) {
+		pkdCopyNode(pkd,pkdNode(pkd,pkdn,i),pSrc);
+		}
+	    }
+	free(ptmp);
+	/*
+	** Combine to find cell CoM, bounds and multipoles.
+	** This also computes the opening radius for gravity.
+	*/
+	iLower = LOWER(iCell);
+	iNext = UPPER(iCell);
+	minside = min_side(pst->bnd.fMax);
+	pkdCombineCells(pkd,pCell,pkdNode(pkd,pkdn,iLower),pkdNode(pkd,pkdn,iNext));
+	//CALCOPEN(pCell,in->diCrit2,minside);
+	/*
+	** Set all the pointers and flags.
+	*/
+	pCell->iLower = iLower;
+	pCell->iParent = 0;
+	pCell->pLower = -1;
+	pCell->pUpper = 1;
+	pkdNode(pkd,pkdn,iLower)->iParent = iCell;
+	pkdNode(pkd,pkdn,iNext)->iParent = iCell;
+	}
+    else {
+	for (i=1;i<in->nCell;++i) pkdNode(pkd,pkdn,i)->pUpper = 0; /* used flag = unused */
+
+	//psdBuildTree(plcl->pkd,1,in->diCrit2,pCell);
+	psdBuildTree(plcl->pkd,in->nBucket,in->diCrit2,pCell);
+        printf("[%i] Tree Depth: %i\n", pst->idSelf, psdTreeDepth(plcl->pkd));
+
+	pCell->iLower = 0;
+	pCell->pLower = pst->idSelf;
+	pCell->pUpper = 1;
+	}
+    /*
+    ** Calculated all cell properties, now pass up this cell info.
+    */
+    if (pnOut) *pnOut = in->nCell*pkdNodeSize(plcl->pkd);
+    }
+
+void pstPSD(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    struct inSmooth *in = vin;
+
+    mdlassert(pst->mdl,nIn == sizeof(struct inPSD));
+    if (pst->nLeaves > 1) {
+	mdlReqService(pst->mdl,pst->idUpper,PST_PSD,in,nIn);
+	pstPSD(pst->pstLower,in,nIn,NULL,NULL);
+	mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
+	}
+    else {
+	LCL *plcl = pst->plcl;
+	SMX smx;
+
+        fprintf(stderr, "pstPSD %i\n", pst->idSelf);
+
+        psdInitialize(&smx,plcl->pkd,&in->smf,in->nSmooth,
+                     in->bPeriodic,in->bSymmetric,in->iSmoothType);
+        psdSmooth(smx,&in->smf);
+        psdFinish(smx,&in->smf);
+
+	}
+    if (pnOut) *pnOut = 0;
+    }
+
+void pstPsFof(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    struct inFof *in = vin;
+
+    mdlassert(pst->mdl,nIn == sizeof(struct inFof));
+    if (pst->nLeaves > 1) {
+	mdlReqService(pst->mdl,pst->idUpper,PST_PSFOF,in,nIn);
+	pstPsFof(pst->pstLower,in,nIn,NULL,NULL);
+	mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
+	}
+    else {
+	LCL *plcl = pst->plcl;
+	SMX smx;
+	(&in->smf)->pkd = pst->plcl->pkd;
+	psdInitialize(&smx,plcl->pkd,&in->smf,in->nSmooth,
+		     in->bPeriodic,in->bSymmetric,in->iSmoothType);
+	psdFof(smx,&in->smf);
+	psdFinish(smx,&in->smf);
+	}
+    if (pnOut) *pnOut = 0;
+    }
+
+#endif

@@ -669,6 +669,8 @@ ppy_msr_Load(PyObject *self, PyObject *args, PyObject *kwobj) {
 	ppy_msr->param.bMemRelaxation = PyInt_AsLong(v);
     if ( (v = PyDict_GetItemString(dict, "bMemVelSmooth")) != NULL )
 	ppy_msr->param.bMemVelSmooth = PyInt_AsLong(v);
+    if ( (v = PyDict_GetItemString(dict, "bMemPsMetric")) != NULL )
+	ppy_msr->param.bMemPsMetric = PyInt_AsLong(v);
 
     if ( !PyArg_ParseTupleAndKeywords(
 	     args, kwobj, "s|i:Load", kwlist,
@@ -786,6 +788,61 @@ ppy_msr_SaveArray(PyObject *self, PyObject *args, PyObject *kwobj) {
     return Py_None;
 }
 
+#ifdef USE_PSD
+static PyObject *
+ppy_msr_BuildPsdTree(PyObject *self, PyObject *args, PyObject *kwobj) {
+    static char *kwlist[]={"Time","Ewald",NULL};
+    double dTime = 0.0;
+    int bEwald = ppy_msr->param.bEwald;
+    PyObject *v, *dict;
+
+    dict = PyModule_GetDict(global_ppy->module);
+    if ( (v = PyDict_GetItemString(dict, "dTime")) == NULL )
+	return NULL;
+    dTime = PyFloat_AsDouble(v);
+    if ( !PyArg_ParseTupleAndKeywords(
+	     args, kwobj, "|di:BuildPsdTree", kwlist,
+	     &dTime, &bEwald ) )
+	return NULL;
+    msrBuildPsdTree(ppy_msr,dTime,bEwald);
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+
+static PyObject *
+ppy_msr_PSD(PyObject *self, PyObject *args, PyObject *kwobj) {
+    static char *kwlist[]={NULL};
+    PyObject *v, *dict;
+
+    msrPSD(ppy_msr);
+
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+
+static PyObject *
+ppy_msr_PsFof(PyObject *self, PyObject *args, PyObject *kwobj) {
+    static char *kwlist[]={"Time",NULL};
+    double dExp;
+    double dTime = 0.0;
+    PyObject *v, *dict;
+
+    dict = PyModule_GetDict(global_ppy->module);
+    if ( (v = PyDict_GetItemString(dict, "dTime")) == NULL )
+	return NULL;
+    dTime = PyFloat_AsDouble(v);
+    if ( !PyArg_ParseTupleAndKeywords(
+	     args, kwobj, "|d:PsFof", kwlist,
+	     &dTime ) )
+	return NULL;
+    dExp = csmTime2Exp(ppy_msr->param.csm,dTime);
+    msrPsFof(ppy_msr,dExp);
+    //msrGroupMerge(ppy_msr,dExp);
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+#endif
+
 /**********************************************************************\
  * MSR methods.  These methods are shared by both the "msr" module,
  * and the "MSR" object.
@@ -864,6 +921,14 @@ static PyMethodDef msr_methods[] = {
      "Save a vector to a file"},
     {"SaveArray", (PyCFunction)ppy_msr_SaveArray, METH_VARARGS|METH_KEYWORDS,
      "Save an array to a file"},
+#ifdef USE_PSD
+    {"BuildPsdTree", (PyCFunction)ppy_msr_BuildPsdTree, METH_VARARGS|METH_KEYWORDS,
+     "Build the phase-space tree"},
+    {"PSD", (PyCFunction)ppy_msr_PSD, METH_NOARGS,
+     "Calculate phase space density using EnBiD algorithm"},
+    {"PsFof", (PyCFunction)ppy_msr_PsFof, METH_VARARGS|METH_KEYWORDS,
+     "Phase-space Friends of Friends"},
+#endif
 
     {NULL, NULL, 0, NULL}
 };

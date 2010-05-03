@@ -87,11 +87,15 @@ typedef uint_fast64_t total_t; /* Count of particles globally (total number) */
 #define PKD_MODEL_VELSMOOTH    (1<<8)  /* Velocity Smoothing */
 #define PKD_MODEL_SPH          (1<<9)  /* Sph Fields */
 #define PKD_MODEL_STAR         (1<<10) /* Star Fields */
+#define PKD_MODEL_PSMETRIC     (1<<11) /* Phase-space metric*/
 
 #define PKD_MODEL_NODE_MOMENT  (1<<24) /* Include moment in the tree */
 #define PKD_MODEL_NODE_ACCEL   (1<<25) /* mean accel on cell (for grav step) */
 #define PKD_MODEL_NODE_VEL     (1<<26) /* center of mass velocity for cells */
 #define PKD_MODEL_NODE_SPHBNDS (1<<27) /* Include 3 extra bounds in tree */
+
+#define PKD_MODEL_NODE_BND     (1<<28) /* Include normal bounds in tree */
+#define PKD_MODEL_NODE_BND6    (1<<29) /* Include phase-space bounds in tree */
 
 /*
 ** This constant is used to limit the size of a cell.
@@ -102,9 +106,18 @@ typedef uint_fast64_t total_t; /* Count of particles globally (total number) */
 
 typedef struct pLite {
     FLOAT r[3];
+    FLOAT v[3];
+    float fMass;
     int i;
     uint8_t uRung;
     } PLITE;
+
+typedef struct {
+    FLOAT r[6];
+    float fMass;
+    int i;
+    uint8_t uRung;
+    } PLITE6;
 
 typedef struct pIO {
     total_t iOrder;
@@ -217,6 +230,39 @@ typedef struct particle {
 #endif/* PLANETS */
     } PARTICLE;
 
+#ifdef USE_PSD
+typedef struct {
+    double fCenter[6];
+    double fMax[6];
+    double size;
+    } BND;
+
+typedef struct {
+    double scale[6];
+    } PSMETRIC;
+#define BND_COMBINE(b,b1,b2)\
+{\
+	int BND_COMBINE_j;\
+	for (BND_COMBINE_j=0;BND_COMBINE_j<6;++BND_COMBINE_j) {\
+		FLOAT BND_COMBINE_t1,BND_COMBINE_t2,BND_COMBINE_max,BND_COMBINE_min;\
+		BND_COMBINE_t1 = (b1).fCenter[BND_COMBINE_j] + (b1).fMax[BND_COMBINE_j];\
+		BND_COMBINE_t2 = (b2).fCenter[BND_COMBINE_j] + (b2).fMax[BND_COMBINE_j];\
+		BND_COMBINE_max = (BND_COMBINE_t1 > BND_COMBINE_t2)?BND_COMBINE_t1:BND_COMBINE_t2;\
+		BND_COMBINE_t1 = (b1).fCenter[BND_COMBINE_j] - (b1).fMax[BND_COMBINE_j];\
+		BND_COMBINE_t2 = (b2).fCenter[BND_COMBINE_j] - (b2).fMax[BND_COMBINE_j];\
+		BND_COMBINE_min = (BND_COMBINE_t1 < BND_COMBINE_t2)?BND_COMBINE_t1:BND_COMBINE_t2;\
+		(b).fCenter[BND_COMBINE_j] = 0.5*(BND_COMBINE_max + BND_COMBINE_min);\
+		(b).fMax[BND_COMBINE_j] = 0.5*(BND_COMBINE_max - BND_COMBINE_min);\
+		}\
+	}
+
+#else
+typedef struct bndBound {
+    double fCenter[3];
+    double fMax[3];
+    double size;
+    } BND;
+
 #define BND_COMBINE(b,b1,b2)\
 {\
 	int BND_COMBINE_j;\
@@ -233,11 +279,14 @@ typedef struct particle {
 		}\
 	}
 
-typedef struct bndBound {
-    double fCenter[3];
-    double fMax[3];
-    double size;
-    } BND;
+#endif
+
+
+typedef struct {
+    double *fCenter;
+    double *fMax;
+    double *size;
+    } pBND;
 
 #define MINDIST(bnd,pos,min2) {\
     double BND_dMin;\
@@ -249,7 +298,19 @@ typedef struct bndBound {
 	}\
     }
 
-static inline int IN_BND(const FLOAT *R,const BND *b) {
+#if USE_PSD
+#define MINDIST6(bnd,pos,min2, scale) {\
+    double BND_dMin;\
+    int BND_j;\
+    (min2) = 0;					\
+    for (BND_j=0;BND_j<6;++BND_j) {\
+	BND_dMin = fabs((bnd).fCenter[BND_j] - (pos)[BND_j]) - (bnd).fMax[BND_j]; \
+	if (BND_dMin > 0) (min2) += BND_dMin*BND_dMin*scale[BND_j]*scale[BND_j];			\
+	}\
+    }
+#endif
+
+static inline int IN_BND(const FLOAT *R,const pBND *b) {
     int i;
     for( i=0; i<3; i++ )
 	if ( R[i]<b->fCenter[i]-b->fMax[i] || R[i]>=b->fCenter[i]+b->fMax[i] )
@@ -290,9 +351,27 @@ static inline int IN_BND(const FLOAT *R,const BND *b) {
 	}						\
     }
 
+#define NEW_STACK(S,inc) \
+    int S ## __s=0, S ## __ns=inc, S ## __inc=inc; \
+    do { S = malloc((S ## __ns)*sizeof(*S)); assert(S != NULL); } while (0)
+#define FREE_STACK(S) do { free(S); } while (0)
+
+#define PUSH(S,v) do { S[(S ## __s)++] = (v); } while (0)
+#define POP(S) (S[--(S ## __s)])
+#define STACK_EMPTY(S) (S ## __s == 0)
+#define EXTEND_STACK(S) do { \
+    if ( (S ## __s)+1 >= (S ## __ns) ) { \
+        assert( (S ## __s)+1 == (S ## __ns) ); \
+        (S ## __ns) += (S ## __inc); \
+        S = realloc(S,(S ## __ns)*sizeof(*S)); \
+        } \
+} while (0)
+
+
 typedef struct kdNode {
     double r[3];
-    BND bnd;
+    //double v[3];  // jonathan -- Now part of a memory model (5-MAY-2010)
+    //BND bnd;
     int iLower;
     int iParent;
     int pLower;		/* also serves as thread id for the LTT */
@@ -430,12 +509,13 @@ typedef struct kdNew {
     FLOAT CALCOPEN_d2 = 0;					\
     FLOAT CALCOPEN_b;						\
     int CALCOPEN_j;							\
+    pBND CALCOPEN_bnd = pkdNodeBnd(pkd, pkdn); \
     for (CALCOPEN_j=0;CALCOPEN_j<3;++CALCOPEN_j) {			\
-	FLOAT CALCOPEN_d = fabs((pkdn)->bnd.fCenter[CALCOPEN_j] - (pkdn)->r[CALCOPEN_j]) + \
-	    (pkdn)->bnd.fMax[CALCOPEN_j];				\
+	FLOAT CALCOPEN_d = fabs(CALCOPEN_bnd.fCenter[CALCOPEN_j] - (pkdn)->r[CALCOPEN_j]) + \
+	    CALCOPEN_bnd.fMax[CALCOPEN_j];				\
 	CALCOPEN_d2 += CALCOPEN_d*CALCOPEN_d;				\
     }		\
-    MAXSIDE((pkdn)->bnd.fMax,CALCOPEN_b);     \
+    MAXSIDE(CALCOPEN_bnd.fMax,CALCOPEN_b);     \
     if (CALCOPEN_b < minside) CALCOPEN_b = minside;                          \
     (pkdn)->fOpen = CALCOPEN_b*sqrt(diCrit2);			\
     if ((pkdn)->fOpen < sqrt(CALCOPEN_d2)) (pkdn)->fOpen = sqrt(CALCOPEN_d2);\
@@ -581,7 +661,11 @@ typedef struct pkdContext {
 /*    uint64_t nMaxOrderDark;
     uint64_t nMaxOrderGas;
     uint64_t nMaxOrder; JW: Depr. */
+#ifdef USE_PSD
+    FLOAT fPeriod[6];
+#else
     FLOAT fPeriod[3];
+#endif
     char *kdTopPRIVATE; /* Because this is a variable size, we use a char pointer, not a KDN pointer! */
     char **kdNodeListPRIVATE; /* BEWARE: also char instead of KDN */
     int iTopRoot;
@@ -618,6 +702,7 @@ typedef struct pkdContext {
     int oHermite; /* Hermite structure */
     int oRelaxation;
     int oVelSmooth;
+    int oPsMetric; /* Phase-space metric for density/group finding */
 
     /*
     ** Advanced memory models - Tree Nodes
@@ -626,6 +711,8 @@ typedef struct pkdContext {
     int oNodeVelocity; /* Three doubles */
     int oNodeAcceleration; /* Three doubles */
     int oNodeSphBounds; /* Three Bounds */
+    int oNodeBnd;
+    int oNodeBnd6;
 
     /*
     ** Tree walk variables.
@@ -703,6 +790,22 @@ static inline void pkdMinMax( double *dVal, double *dMin, double *dMax ) {
     dMax[2] = dVal[2] > dMax[2] ? dVal[2] : dMax[2];
     }
 
+static inline void pkdMinMax6( double *dVal0, double *dVal1, double *dMin, double *dMax ) {
+    dMin[0] = dVal0[0] < dMin[0] ? dVal0[0] : dMin[0];
+    dMin[1] = dVal0[1] < dMin[1] ? dVal0[1] : dMin[1];
+    dMin[2] = dVal0[2] < dMin[2] ? dVal0[2] : dMin[2];
+    dMin[3] = dVal1[0] < dMin[3] ? dVal1[0] : dMin[3];
+    dMin[4] = dVal1[1] < dMin[4] ? dVal1[1] : dMin[4];
+    dMin[5] = dVal1[2] < dMin[5] ? dVal1[2] : dMin[5];
+
+    dMax[0] = dVal0[0] > dMax[0] ? dVal0[0] : dMax[0];
+    dMax[1] = dVal0[1] > dMax[1] ? dVal0[1] : dMax[1];
+    dMax[2] = dVal0[2] > dMax[2] ? dVal0[2] : dMax[2];
+    dMax[3] = dVal1[0] > dMax[3] ? dVal1[0] : dMax[3];
+    dMax[4] = dVal1[1] > dMax[4] ? dVal1[1] : dMax[4];
+    dMax[5] = dVal1[2] > dMax[5] ? dVal1[2] : dMax[5];
+    }
+
 /* New, rung based ACTIVE/INACTIVE routines */
 static inline int pkdIsDstActive(PARTICLE *p,uint8_t uRungLo,uint8_t uRungHi) {
     return((p->uRung >= uRungLo)&&(p->uRung <= uRungHi)&&p->bDstActive);
@@ -741,7 +844,11 @@ static inline size_t pkdNodeSize( PKD pkd ) {
     return pkd->iTreeNodeSize;
     }
 static inline size_t pkdMaxNodeSize() {
-    return sizeof(KDN) + sizeof(MOMR) + 6*sizeof(double) + sizeof(SPHBNDS);
+#ifdef USE_PSD
+    return sizeof(KDN) + 13*sizeof(double) + sizeof(MOMR) + 6*sizeof(double) + sizeof(SPHBNDS);
+#else
+    return sizeof(KDN) + 13*sizeof(double) + sizeof(MOMR) + sizeof(SPHBNDS);
+#endif
     }
 static inline void pkdCopyNode(PKD pkd, KDN *a, KDN *b) {
     memcpy(a,b,pkdNodeSize(pkd));
@@ -763,6 +870,14 @@ static inline double *pkdNodeAccel( PKD pkd, KDN *n ) {
 static inline SPHBNDS *pkdNodeSphBounds( PKD pkd, KDN *n ) {
     return pkdNodeField(n,pkd->oNodeSphBounds);
     }
+
+static inline pBND pkdNodeBnd( PKD pkd, KDN *n ) {
+    const int o = pkd->oNodeBnd;
+    const int e = 3*sizeof(double)*(1+(pkd->oNodeBnd6!=0));
+    pBND t = { pkdNodeField(n,o),pkdNodeField(n,o+e), pkdNodeField(n,o+e+e) };
+    return t;
+    }
+
 static inline KDN *pkdNode(PKD pkd,KDN *pBase,int iNode) {
     return (KDN *)&((char *)pBase)[pkd->iTreeNodeSize*iNode];
     }
@@ -897,6 +1012,13 @@ static inline float *pkd_fMetalsPred( PKD pkd, PARTICLE *p ) {
 static inline char **pkd_pNeighborList( PKD pkd, PARTICLE *p ) {
     return &(((SPHFIELDS *) pkdField(p,pkd->oSph))->pNeighborList);
     }
+
+#ifdef USE_PSD
+/* Phase-space variables */
+static inline PSMETRIC *pkdPsMetric( PKD pkd, PARTICLE *p ) {
+    return ((PSMETRIC *) pkdField(p,pkd->oPsMetric));
+    }
+#endif
 
 static inline float *pkd_Timer( PKD pkd, PARTICLE *p ) {
     return &(((STARFIELDS *) pkdField(p,pkd->oStar))->fTimer);
