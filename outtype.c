@@ -32,6 +32,7 @@ static int getType(int iType) {
     case OUT_GROUP_ARRAY:
 	return OUTTYPE_INTEGER;
 
+    case OUT_BALL_ARRAY:
     case OUT_DENSITY_ARRAY:
     case OUT_COLOR_ARRAY:
     case OUT_POT_ARRAY:
@@ -83,6 +84,9 @@ static double fetchFloat(PKD pkd,PARTICLE *p,int iType,int iDim) {
     switch (iType) {
     case OUT_DENSITY_ARRAY:
 	v = p->fDensity;
+	break;
+    case OUT_BALL_ARRAY:
+	v = p->fBall;
 	break;
     case OUT_COLOR_ARRAY:
 	assert(0);

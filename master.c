@@ -790,9 +790,9 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     ** Set the box center to (0,0,0) for now!
     */
 #ifdef USE_PSD
-    for (j=0;j<3;++j) msr->fCenter[j] = 0.0;
-#else
     for (j=0;j<6;++j) msr->fCenter[j] = 0.0;
+#else
+    for (j=0;j<3;++j) msr->fCenter[j] = 0.0;
 #endif
     /*
     ** Define any "LOCAL" parameters (LCL)
@@ -2347,9 +2347,11 @@ void msrDomainDecomp(MSR msr,int iRung,int bGreater,int bSplitVA) {
 	in.bnd.fMax[0] = 0.5*msr->param.dxPeriod;
 	in.bnd.fMax[1] = 0.5*msr->param.dyPeriod;
 	in.bnd.fMax[2] = 0.5*msr->param.dzPeriod;
+#ifdef USE_PSD
 	in.bnd.fMax[3] = HUGE_VAL;
 	in.bnd.fMax[4] = HUGE_VAL;
 	in.bnd.fMax[5] = HUGE_VAL;
+#endif
 
 	pstEnforcePeriodic(msr->pst,&in.bnd,sizeof(BND),NULL,NULL);
 	}
@@ -5403,7 +5405,6 @@ double msrRead(MSR msr, const char *achInFile) {
 
 
 void msrCalcBound(MSR msr,BND *pbnd) {
-    printf("msrCalcBound\n");
     /*
     ** This sets the local pkd->bnd.
     */

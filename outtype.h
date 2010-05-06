@@ -9,6 +9,7 @@
 
 #define OUT_COLOR_ARRAY		10
 #define OUT_DENSITY_ARRAY	11
+#define OUT_BALL_ARRAY 121
 #define OUT_POT_ARRAY		12
 #define OUT_AMAG_ARRAY		13
 #define OUT_IMASS_ARRAY		14

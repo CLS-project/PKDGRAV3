@@ -668,6 +668,35 @@ PQ *pqSearchPsd(SMX smx,PQ *pq,FLOAT r[6],FLOAT scale[6], int bReplica,int *pbDo
 }
 
 
+#if 1
+void psdSmooth(SMX smx,SMF *smf) {
+    PKD pkd = smx->pkd;
+    PARTICLE *p;
+    int pi;
+    int N;
+    printf("psdSmooth (file)\n");
+
+    FILE *fp = fopen("test.den", "r"); assert(fp != NULL);
+    fscanf(fp, "%i\n", &N);
+    assert(N == pkd->nLocal);
+    for (pi=0;pi<pkd->nLocal;++pi) {
+        p = pkdParticle(pkd,pi);
+        fscanf(fp, "%f\n", &p->fDensity);
+    }
+    fclose(fp);
+
+    fp = fopen("test.ball", "r"); assert(fp != NULL);
+    fscanf(fp, "%i\n", &N);
+    assert(N == pkd->nLocal);
+    for (pi=0;pi<pkd->nLocal;++pi) {
+        p = pkdParticle(pkd,pi);
+        fscanf(fp, "%f\n", &p->fBall);
+    }
+    fclose(fp);
+    printf("psdSmooth (file) finished\n");
+}
+
+#else
 void psdSmooth(SMX smx,SMF *smf) {
     PKD pkd = smx->pkd;
     PARTICLE *p;
@@ -814,6 +843,7 @@ void psdSmooth(SMX smx,SMF *smf) {
 
     printf("psdSmooth Finished\n");
 }
+#endif
 
 void psdGatherLocal(SMX smx,FLOAT fBall2,FLOAT r[6],FLOAT scale[6]) {
     PKD pkd = smx->pkd;
@@ -1032,6 +1062,12 @@ static int CmpGroups(const void *v1,const void *v2) {
     return g2->nTotal - g1->nTotal;
 }
 
+typedef struct
+{
+    int pid;
+    int gid;
+} trial_group_t;
+
 void psdFof(SMX smx,SMF *smf) {
     PKD pkd = smx->pkd;
     MDL mdl = smx->pkd->mdl;
@@ -1060,7 +1096,9 @@ void psdFof(SMX smx,SMF *smf) {
 
 #define TEMP_S_INCREASE 100
     int *C;		/* this is the stack */
+    int *T;
     NEW_STACK(C, TEMP_S_INCREASE);
+    NEW_STACK(T, TEMP_S_INCREASE);
 
     assert(pkd->oGroup); /* Validate memory model */
     assert(pkd->oVelocity); /* Validate memory model */
@@ -1084,6 +1122,8 @@ void psdFof(SMX smx,SMF *smf) {
 
     nTree = pkdTreeNode(pkd,ROOT)->pUpper + 1;
     iMaxGroups = nTree+1;
+
+    trial_group_t *tg = malloc(nTree*sizeof(*tg));
 
     /*used something smaller than FOFGD here to reduce memory usage*/
     protoGroup = (FOFPG *)malloc(iMaxGroups*sizeof(FOFPG));
@@ -1117,6 +1157,8 @@ void psdFof(SMX smx,SMF *smf) {
 
     int trial_group = iGroup;
 
+    int active_groups = 0;
+
     /* Starting FOF search now... */
     for (pn=0;pn<nTree;pn++) 
     {
@@ -1127,11 +1169,11 @@ void psdFof(SMX smx,SMF *smf) {
         if (*pGroup ) continue;
 
 
-        
         if (trial_group == iGroup)
         {
             iGroup++;
-            printf("New Group %i\n", iGroup);
+            active_groups++;
+            printf("New Group %i / %i\n", iGroup, active_groups);
         }
 
         assert(iGroup < iMaxGroups);
@@ -1145,15 +1187,20 @@ void psdFof(SMX smx,SMF *smf) {
         pi = pn;
 
         assert(STACK_EMPTY(C));
+        assert(STACK_EMPTY(T));
         while (pi != -1) 
         {
+            fprintf(stderr, "%i\n", pi);
             EXTEND_STACK(C);
+            EXTEND_STACK(T);
 
             PUSH(C,pi);
+            PUSH(T,pi);
 
             p = pkdParticle(pkd,pi);
             pGroup = pkdInt32(p,pkd->oGroup);
             *pGroup = trial_group;
+
 
             /*
             ** Do a Ball Gather at the radius p->fBall
@@ -1206,26 +1253,60 @@ void psdFof(SMX smx,SMF *smf) {
             }
             nCnt = smx->nnListSize;
 
-            int pnn_max = -1;
-            for (pnn=0;pnn<nCnt;++pnn ) 
+            int nn_compar(const void *a0, const void *b0)
             {
-                if (*pkdInt32(smx->nnList[pnn_max].pPart,pkd->oGroup) == trial_group) continue;
+                NN *a = (NN *)a0;
+                NN *b = (NN *)b0;
+                if (a->fDist2 < b->fDist2) return -1;
+                if (a->fDist2 > b->fDist2) return +1;
+                return 0;
+            }
+            qsort(smx->nnList, nCnt, sizeof(*smx->nnList), nn_compar);
 
-                if ((int)(10*log10(smx->nnList[pnn].pPart->fDensity)) >= (int)(10*log10(fDensity)))
+            int pnn_max = -1;
+            assert(smx->nnList[0].pPart->r[0] == p->r[0]);
+            assert(smx->nnList[0].pPart->r[1] == p->r[1]);
+            assert(smx->nnList[0].pPart->r[2] == p->r[2]);
+
+            //fprintf(stderr, "%i\n", pi);
+            for (pnn=1;pnn<nCnt;++pnn ) 
+            {
+                //if (pi == smx->nnList[pnn].iIndex) continue;
+                if (*pkdInt32(smx->nnList[pnn].pPart,pkd->oGroup) == trial_group) continue;
+                //if ((smx->nnList[pnn].pPart->fDensity - fDensity)/fDensity > 0.8) continue;
+
+                if (smx->nnList[pnn].pPart->fDensity > fDensity)
+                //if ((smx->nnList[pnn].pPart->fDensity - fDensity)/fDensity > -0.5)
+                //if ((int)(10*log10(smx->nnList[pnn].pPart->fDensity)) >= (int)(10*log10(fDensity)))
                 {
                     pnn_max = pnn;
+                    break;
                 }
+
+                //fprintf(stderr, "%i  %f  %f  %f\n", pi, smx->nnList[pnn].pPart->fDensity, fDensity, (smx->nnList[pnn].pPart->fDensity - fDensity)/fDensity);
             }
 
             if (pnn_max == -1) /* Must be a peak */
             {
                 pi = -1;
+
+                if (p->fDensity < 1e9)
+                {
+                    if (!STACK_EMPTY(T))
+                    {
+                        POP(T);
+                        if (!STACK_EMPTY(T))
+                            pi = POP(T);
+                    }
+                }
+                //fprintf(stderr, "peak\n");
             }
             else 
             {
                 pPartGroup = pkdInt32(smx->nnList[pnn_max].pPart,pkd->oGroup);
                 if (*pPartGroup != 0) /* Found another group; join it */
                 {
+                    active_groups--;
                     trial_group = *pPartGroup;
                     pi = -1;
                 }
@@ -1236,27 +1317,33 @@ void psdFof(SMX smx,SMF *smf) {
             }
         }
 
+        CLEAR_STACK(T);
+
         while (!STACK_EMPTY(C))
         {
             pi = POP(C);
             p = pkdParticle(pkd,pi);
             pGroup = pkdInt32(p,pkd->oGroup);
             *pGroup = trial_group;
+
+            tg[pi].pid = pi;
+            tg[pi].gid = *pGroup;
         }
 
         if ( nRmCnt > pkd->nMaxRm ) pkd->nMaxRm = nRmCnt;
     }
 
+    
+
+
     /*
     ** Now we can already reject groups which are too small, if they are entirely local
     */
-    for (pn=0; pn<nTree ; pn++) {
-        p = pkdParticle(pkd,pn);
-        pGroup = pkdInt32(p,pkd->oGroup);
-        if (*pGroup >=0 && *pGroup < iMaxGroups)
-            ++(protoGroup[*pGroup].nMembers);
+    for (i=0; i<nTree ; i++) {
+        if (tg[i].gid >=0 && tg[i].gid < iMaxGroups)
+            protoGroup[tg[i].gid].nMembers++;
         else
-            printf("ERROR: idSelf=%i , p->pGroup=%i too large. iMaxGroups=%i \n",pkd->idSelf,*pGroup,iMaxGroups);
+            printf("ERROR: idSelf=%i , p->pGroup=%i too large. iMaxGroups=%i \n",pkd->idSelf,tg[i].gid,iMaxGroups);
     }
 
 #if 0
@@ -1282,13 +1369,34 @@ void psdFof(SMX smx,SMF *smf) {
     /*
     ** Update the particle groups ids.
     */
-    for (pi=0;pi<nTree;pi++) {
-        p = pkdParticle(pkd,pi);
-        pGroup = pkdInt32(p,pkd->oGroup);
-        if (protoGroup[*pGroup].nMembers < smf->nMinMembers)
-            *pGroup = 0;
-        //*pGroup = protoGroup[*pGroup].iId;
+    for (i=0;i<nTree;i++) 
+    {
+        if (protoGroup[tg[i].gid].nMembers < smf->nMinMembers)
+            tg[i].gid = 0;
     }
+
+    int tg_compar(const void *a0, const void *b0)
+    {
+        trial_group_t *a = (trial_group_t *)a0;
+        trial_group_t *b = (trial_group_t *)b0;
+        return a->gid - b->gid;
+    }
+    qsort(tg, nTree, sizeof(*tg), tg_compar);
+
+    trial_group = 0;
+    int last_group = 0;
+    for (i=0; i < nTree; i++)
+    {
+        if (tg[i].gid != last_group)
+        {
+            last_group = tg[i].gid;
+            trial_group++;
+        }
+
+        *pkdInt32(pkdParticle(pkd,tg[i].pid),pkd->oGroup) = trial_group;
+
+    }
+
 
 #if 0
     /*

@@ -1526,7 +1526,9 @@ void pstDomainDecomp(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     //pst->bnd.lastd = 6;
 
     if (pst->nLeaves > 1) {
+#if USE_PSD
         printf("pstDomainDecomp leaves > 1\n");
+#endif
 	if (pst->iSplitDim != -1 && in->nActive < NMINFORROOTFIND) {
 	    mdlprintf(pst->mdl,"Aborting RootFind -- too few actives.\n");
 	    in->bDoSplitDimFind = 0;
@@ -2466,8 +2468,9 @@ void pstBuildTree(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     else {
 	for (i=1;i<in->nCell;++i) pkdNode(pkd,pkdn,i)->pUpper = 0; /* used flag = unused */
 
-#ifdef USE_PSD
 	pkdTreeBuild(plcl->pkd,in->nBucket,in->diCrit2,pCell,in->bExcludeVeryActive);
+
+#ifdef USE_PSD
         printf("[%i] Tree Depth: %i\n", pst->idSelf, psdTreeDepth(plcl->pkd));
 #endif
 

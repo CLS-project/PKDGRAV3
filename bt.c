@@ -52,7 +52,6 @@ static void exit_handler() {
 
 
 void bt_initialize(void) {
-    //fprintf(stderr, "bt_initialize\n");
     signal(SIGBUS, signal_handler);
     signal(SIGILL, signal_handler);
     signal(SIGSEGV, signal_handler);

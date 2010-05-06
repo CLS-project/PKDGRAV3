@@ -104,20 +104,21 @@ typedef uint_fast64_t total_t; /* Count of particles globally (total number) */
 */
 #define PKD_MAX_CELL_SIZE 1e20
 
-typedef struct pLite {
-    FLOAT r[3];
-    FLOAT v[3];
-    float fMass;
-    int i;
-    uint8_t uRung;
-    } PLITE;
-
+#ifdef USE_PSD
 typedef struct {
     FLOAT r[6];
     float fMass;
     int i;
     uint8_t uRung;
     } PLITE6;
+#else
+typedef struct pLite {
+    FLOAT r[3];
+    int i;
+    uint8_t uRung;
+    } PLITE;
+#endif
+
 
 typedef struct pIO {
     total_t iOrder;
@@ -366,12 +367,12 @@ static inline int IN_BND(const FLOAT *R,const pBND *b) {
         S = realloc(S,(S ## __ns)*sizeof(*S)); \
         } \
 } while (0)
+#define CLEAR_STACK(S) do { S ## __s=0; } while (0)
 
 
 typedef struct kdNode {
     double r[3];
-    //double v[3];  // jonathan -- Now part of a memory model (5-MAY-2010)
-    //BND bnd;
+    //BND bnd;      /* jonathan -- Now part of a memory model (5-MAY-2010) */
     int iLower;
     int iParent;
     int pLower;		/* also serves as thread id for the LTT */
@@ -847,7 +848,7 @@ static inline size_t pkdMaxNodeSize() {
 #ifdef USE_PSD
     return sizeof(KDN) + 13*sizeof(double) + sizeof(MOMR) + 6*sizeof(double) + sizeof(SPHBNDS);
 #else
-    return sizeof(KDN) + 13*sizeof(double) + sizeof(MOMR) + sizeof(SPHBNDS);
+    return sizeof(KDN) +  7*sizeof(double) + sizeof(MOMR) + 6*sizeof(double) + sizeof(SPHBNDS);
 #endif
     }
 static inline void pkdCopyNode(PKD pkd, KDN *a, KDN *b) {
