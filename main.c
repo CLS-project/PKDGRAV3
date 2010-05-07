@@ -298,6 +298,7 @@ int main(int argc,char **argv) {
 		    }
 
 	    dTime += msrDelta(msr);
+	    lSec = time(0) - lSec;
 
 	    msrMemStatus(msr);
 
@@ -307,7 +308,6 @@ int main(int argc,char **argv) {
 	    */
 	    if (msrLogInterval(msr) && iStep%msrLogInterval(msr) == 0) {
 		msrCalcEandL(msr,MSR_STEP_E,dTime,&E,&T,&U,&Eth,L,F,&W);
-		lSec = time(0) - lSec;
 		(void) fprintf(fpLog,"%e %e %.16e %e %e %e %.16e %.16e "
 			       "%.16e %.16e %.16e %.16e %.16e %li %e\n",dTime,
 			       1.0/csmTime2Exp(msr->param.csm,dTime)-1.0,
