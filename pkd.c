@@ -799,7 +799,6 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
 	/* Make sure star class established -- how do all procs know of these classes? How do we ensure they agree on the class identifiers? */
 	p = pkdParticle(pkd,pkd->nLocal);
 	getClass(pkd,0,0,FIO_SPECIES_STAR,p);
-	fprintf(stderr,"INFO: Dummy star to establish star class\n");
 	}
 
     fioSeek(fio,iFirst,FIO_SPECIES_ALL);
