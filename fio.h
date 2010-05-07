@@ -68,6 +68,8 @@
 
 #define FIO_H_MODULE_ID "$Id$"
 
+#include <stdint.h>
+
 /*
 ** These are the valid file formats
 */
