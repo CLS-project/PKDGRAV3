@@ -233,6 +233,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 	for (j=pkdn->pLower;j<=pkdn->pUpper;++j) {
 	    if (j == i) continue;
 	    pj = pkdParticle(pkd,j);
+	    if ( !pkdIsSrcActive(pj,uRungLo,uRungHi) ) continue;
 	    fMassTmp = pkdMass(pkd,pj);
 	    fSoftTmp = pkdSoft(pkd,pj);
 	    vTmp = pkdVel(pkd,pj);
