@@ -38,8 +38,8 @@ void psdInitializeParticles(PKD pkd, BND *pbnd) {
     */
     for (i=0;i<pkd->nLocal;++i) {
 	p = pkdParticle(pkd,i);
-	for (j=0;j<3;++j) pLite[i].r[j] = p->r[j];
-	for (j=0;j<3;++j) pLite[i].v[j] = pkdVel(pkd,p)[j];
+	for (j=0;j<3;++j) pLite[i].r[j]   = p->r[j];
+	for (j=0;j<3;++j) pLite[i].r[j+3] = pkdVel(pkd,p)[j];
         pLite[i].fMass = pkdMass(pkd,p);
 	pLite[i].i = i;
 	}
@@ -167,8 +167,8 @@ static int max_side(const double *fMax)
 //#define SPLIT LONGDIMSPLIT
 #define TEMP_S_INCREASE 100
 void BuildPsdTemp(PKD pkd,int iNode,int M, int maxNb) {
-    PLITE6 *p = UNION_CAST(pkd->pLite, PLITE*, PLITE6*);
-    PLITE6 t;
+    PLITE *p = pkd->pLite;
+    PLITE t;
     KDN *pLeft, *pRight;
     KDN *pNode = pkdTreeNode(pkd,iNode);
     pBND bnd = pkdNodeBnd(pkd, pNode);

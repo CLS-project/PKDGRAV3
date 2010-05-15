@@ -105,12 +105,12 @@ typedef uint_fast64_t total_t; /* Count of particles globally (total number) */
 #define PKD_MAX_CELL_SIZE 1e20
 
 #ifdef USE_PSD
-typedef struct {
+typedef struct pLite {
     FLOAT r[6];
     float fMass;
     int i;
     uint8_t uRung;
-    } PLITE6;
+    } PLITE;
 #else
 typedef struct pLite {
     FLOAT r[3];
@@ -205,6 +205,9 @@ typedef struct particle {
     /*-----Used-for-Smooth-------*/
     float fBall;
     float fDensity;
+#if USE_PSD
+    float fDensityGrad[6];
+#endif
     /* a, fPot, v, pGroup, pBin moved to memory models */
 
 #ifdef PLANETS
