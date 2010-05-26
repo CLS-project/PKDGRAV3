@@ -6,14 +6,14 @@
 #include <getopt.h>
 #include <assert.h>
 #include <errno.h>
-#include <fio.h>
+#include "fio.h"
 
 #define BUFFER_SIZE (8*1024*1024)
 
 #define OPT_DOUBLE 'd'
 #define OPT_NATIVE 'n'
 
-int main( int argc, char *argv[] ) {
+int main( int argc, char **argv ) {
     int bError = 0;
     int bDouble = 0;
     int bNative = 0;
@@ -26,7 +26,8 @@ int main( int argc, char *argv[] ) {
 
     FIO fioIn, fioOut;
     FIO_SPECIES eSpecies;
-    const char *inName  = 0;
+    int inNameIndex = 0;
+    int inNameCount = 0;
     const char *outName = 0;
 
     //! Parse command line arguments (flags).
@@ -56,31 +57,36 @@ int main( int argc, char *argv[] ) {
 	    }
 	}
 
-    if ( optind < argc )
-	inName = argv[optind++];
+    if ( optind < argc ) {
+	inNameIndex = optind++;
+	inNameCount = argc - optind;
+	}
     else {
-	fprintf(stderr, "Missing input file\n" );
+	fprintf(stderr, "Missing input file(s)\n" );
 	bError = 1;
 	}
 
     if ( optind < argc )
-	outName = argv[optind++];
+	outName = argv[argc-1];
     else {
 	fprintf(stderr, "Missing Tipsy output file\n" );
 	bError = 1;
 	}
 
     if ( bError ) {
-	fprintf(stderr, "Usage: %s [-p] <input> <outtipsy>\n"
+	fprintf(stderr, "Usage: %s [-p] <input...> <outtipsy>\n"
 		"  -d,--double  Output double precision positions\n"
 		"  -n,--native  Output a native tipsy binary\n",
 		argv[0] );
 	exit(1);
 	}
 
-    fioIn = fioOpen(inName,0.0,0.0);
+
+    printf( "%s\n%s\n", argv[inNameIndex], outName);
+
+    fioIn = fioOpenMany(inNameCount,&argv[inNameIndex],0.0,0.0);
     if (fioIn==NULL) {
-	perror(inName);
+	perror(argv[inNameIndex]);
 	exit(errno);
 	}
     N     = fioGetN(fioIn,FIO_SPECIES_ALL);
@@ -99,7 +105,7 @@ int main( int argc, char *argv[] ) {
         eSpecies = fioSpecies(fioIn);
         switch(eSpecies) {
         case FIO_SPECIES_SPH:
-            fioReadSph(fioOut,&iOrder,r,v,&fMass,&fSoft,&fPot,&fRho,&u,&fMetals);
+            fioReadSph(fioIn,&iOrder,r,v,&fMass,&fSoft,&fPot,&fRho,&u,&fMetals);
 	    fioWriteSph(fioOut,iOrder,r,v,fMass,fSoft,fPot,fRho,u,fMetals);
             break;
         case FIO_SPECIES_DARK:
