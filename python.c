@@ -1002,7 +1002,7 @@ static PyGetSetDef msr_getseters[] = {
 static PyTypeObject msrType = {
     PyObject_HEAD_INIT(NULL)
     0, /*ob_size*/
-    "msr.MSR", /*tp_name*/
+    "MSR", /*tp_name*/
     sizeof(MSRINSTANCE), /*tp_basicsize */
     0, /*tp_itemsize*/
     (destructor)msr_dealloc, /*tp_dealloc*/
@@ -1043,25 +1043,7 @@ static PyTypeObject msrType = {
 /**********************************************************************\
 \**********************************************************************/
 
-
-
-
-
-
-
-
-/**********************************************************************\
- ** Parallel Python (ppy) setup
-\**********************************************************************/
-static void initModuleMSR(void) {
-    PyObject *dict;
-
-    global_ppy->module = Py_InitModule("msr", msr_methods);
-    global_ppy->bImported = 1;
-
-    prm2ppy();
-
-    dict = PyModule_GetDict(global_ppy->module);
+static void setConstants( PyObject *dict ) {
     PyDict_SetItemString(dict, "dTime", Py_BuildValue("d",global_ppy->dTime));
 
     PyDict_SetItemString(dict, "SMX_DENSITY", Py_BuildValue("i",SMX_DENSITY));
@@ -1097,6 +1079,23 @@ static void initModuleMSR(void) {
     PyDict_SetItemString(dict, "OUT_GROUP_TIPSY_STD", Py_BuildValue("i",OUT_GROUP_TIPSY_STD));
     PyDict_SetItemString(dict, "OUT_GROUP_STATS", Py_BuildValue("i",OUT_GROUP_STATS));
     PyDict_SetItemString(dict, "OUT_GROUP_PROFILES", Py_BuildValue("i",OUT_GROUP_PROFILES));
+    }
+
+
+/**********************************************************************\
+ ** Parallel Python (ppy) setup
+\**********************************************************************/
+static void initModuleMSR(void) {
+    PyObject *dict;
+
+//    global_ppy->module = Py_InitModule("msr", msr_methods);
+    global_ppy->module = global_ppy->mainModule;
+    global_ppy->bImported = 1;
+
+    prm2ppy();
+
+    dict = PyModule_GetDict(global_ppy->module);
+    setConstants(dict);
 
     /* Import Pyro.core. */
     /*
@@ -1130,6 +1129,13 @@ void ppyInitialize(PPY *pvppy, MSR msr, double dTime) {
     PyImport_AppendInittab("msr",initModuleMSR);
     Py_Initialize();
     ppy->mainModule = PyImport_AddModule("__main__"); 
+    global_ppy->module = global_ppy->mainModule;
+    if (PyType_Ready(&msrType) >= 0) {
+	Py_INCREF(&msrType);
+	PyObject *pymsr = PyObject_CallObject((PyObject *) &msrType, NULL);
+	PyModule_AddObject(ppy->mainModule, "msr", pymsr);
+	setConstants(PyModule_GetDict(global_ppy->mainModule));
+	}
     }
 
 void ppyFinish(PPY vppy) {
