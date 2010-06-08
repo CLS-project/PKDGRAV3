@@ -1,7 +1,7 @@
 # Here are the known FORTRAN name mangling schemes:
 #   gfortran:  __module_name__function_name
 #              __module_name_MOD_function_name
-#   pgi        module_name_function_name_
+#   portland   module_name_function_name_
 #   intel      module_name_mp_function_name_
 #   pathscale  TEST_ROUTINE.in.TEST_MODULE
 #   cray       test_routine$test_module_
@@ -71,7 +71,7 @@ case $ac_cv_[]_AC_LANG_ABBREV[]_module_mangling in
   "gnu44")
           AC_DEFINE(_AC_FC[_MOD_FUNC(mod,MOD,name,NAME)],  [__##mod##_MOD_##name])
           AC_DEFINE(_AC_FC[_MOD_FUNC_(mod,MOD,name,NAME)],  [__##mod##_MOD_##name]) ;;
-  "pgi")
+  "portland")
           AC_DEFINE(_AC_FC[_MOD_FUNC(mod,MOD,name,NAME)],  [mod##_##name##_])
           AC_DEFINE(_AC_FC[_MOD_FUNC_(mod,MOD,name,NAME)],  [mod##_##name##_]) ;;
   "intel")
