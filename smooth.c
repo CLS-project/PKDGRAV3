@@ -1781,7 +1781,7 @@ void BoundWalkActive(SMX smx,LIST **ppList,int *pnMaxpList) {
 		    if (pkd->Check[i].id < 0) {
 			if (pkdTopNode(pkd,iCheckCell)->pLower >= 0) {
 			    /* no need to search local trees again */
-			    if (iPid = pkdTopNode(pkd,iCheckCell)->pLower != pkd->idSelf) {
+			    if ((iPid = pkdTopNode(pkd,iCheckCell)->pLower) != pkd->idSelf) {
 				pkd->Check[nCheck].iCell = ROOT;
 				pkd->Check[nCheck].id = iPid;
 				++nCheck;
@@ -1794,7 +1794,7 @@ void BoundWalkActive(SMX smx,LIST **ppList,int *pnMaxpList) {
 			}
 			if (pkdTopNode(pkd,iCheckCell+1)->pLower >= 0) {
 			    /* no need to search local trees again */
-			    if (iPid = pkdTopNode(pkd,iCheckCell+1)->pLower != pkd->idSelf) {
+			    if ((iPid = pkdTopNode(pkd,iCheckCell+1)->pLower) != pkd->idSelf) {
 				pkd->Check[nCheck].iCell = ROOT;
 				pkd->Check[nCheck].id = iPid;
 				++nCheck;
