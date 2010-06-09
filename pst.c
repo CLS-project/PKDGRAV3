@@ -732,7 +732,6 @@ void pstReadFile(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     struct inReadFile *in = vin;
     FIO fio;
     uint64_t nNodeStart,nNodeEnd,nNodeTotal,nNodeSplit,nStore;
-    int i;
 
     mdlassert(pst->mdl,nIn == sizeof(struct inReadFile));
 
@@ -4757,7 +4756,6 @@ void pstTotalMass(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     struct outTotalMass *out = vout;
     struct outTotalMass outUpper;
     int nOut;
-    int i;
 
     if (pst->nLeaves > 1) {
 	mdlReqService(pst->mdl,pst->idUpper,PST_TOTALMASS,vin,nIn);

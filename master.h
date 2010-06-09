@@ -101,6 +101,7 @@ void msrOutArray(MSR,const char *,int);
 void msrOutVector(MSR,const char *,int);
 void msrSmoothSetSMF(MSR msr, SMF *smf, double dTime);
 void msrSmooth(MSR,double,int,int);
+int msrDoGas(MSR msr);
 void msrFastGasPhase1(MSR,double,int);
 void msrFastGasPhase2(MSR,double,int);
 void msrReSmooth(MSR,double,int,int);

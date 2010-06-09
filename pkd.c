@@ -661,7 +661,7 @@ void pkdSeek(PKD pkd,FILE *fp,uint64_t nStart,int bStandard,int bDoublePos) {
     off_t MAX_OFFSET = 2147483640;
 #endif
     off_t lStart;
-    int iErr;
+
     /*
     ** Seek according to true XDR size structures when bStandard is true.
     ** This may be a bit dicey, but it should work as long
@@ -1901,7 +1901,6 @@ void pkdCalcEandL(PKD pkd,double *T,double *U,double *Eth,double *L,double *F,do
     /* L is calculated with respect to the origin (0,0,0) */
 
     PARTICLE *p;
-    float *pPot;
     double *v;
     float *a;
     FLOAT rx,ry,rz,vx,vy,vz,fMass;
@@ -1988,7 +1987,6 @@ void pkdDrift(PKD pkd,double dTime,double dDelta,double dDeltaVPred,double dDelt
 		    p->r[j] += dDelta*v[j];
 		    }
 		pkdMinMax(p->r,dMin,dMax);
-		if (p->iOrder == 32769) printf("SFTEST %i: drift %20.14g   %g\n",p->iOrder,dTime,dDeltaUPred);
 		}
 	    }
 	}
@@ -2553,7 +2551,6 @@ void pkdKick(PKD pkd,double dTime,double dDelta,double dDeltaVPred,double dDelta
 		    sph->fMetalsPred = sph->fMetals + sph->fMetalsDot*dDeltaUPred;
 		    sph->fMetals += sph->fMetalsDot*dDeltaU;
 		    }
-		if (p->iOrder == 32769) printf("SFTEST %i: kick %g   %g %g\n",p->iOrder,dTime,dDeltaU,dDeltaU*2);
 		for (j=0;j<3;++j) {
 		    v[j] += a[j]*dDelta;
 		    }
@@ -2696,7 +2693,7 @@ void pkdSphStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,double dAccFac) {
     float *a, uDot;
     int i,j,uNewRung;
     double acc;
-    double dtNew,dtC;
+    double dtNew;
     int u1,u2,u3;
 
     assert(pkd->oAcceleration);
@@ -2753,10 +2750,9 @@ void pkdStarForm(PKD pkd, double dRateCoeff, double dTMax, double dDenMin,
     PARTICLE *p;
     COOLPARTICLE cp;
     SPHFIELDS *sph;
-    int n = pkdLocal(pkd);
     double T, E, dmstar, dt, prob;
     PARTICLE *starp;
-    int i,j;
+    int i;
     
     assert(pkd->oStar);
     assert(pkd->oSph);
@@ -2772,19 +2768,10 @@ void pkdStarForm(PKD pkd, double dRateCoeff, double dTMax, double dDenMin,
     for (i=0;i<pkdLocal(pkd);++i) {
 	p = pkdParticle(pkd,i);
 	
-	if (p->iOrder==6667) {
-	    dt = pkd->param.dDelta/(1<<p->uRung); /* Actual Rung */
-	    printf("SF %d: %d %d %d %g\n",p->iOrder,pkdIsActive(pkd,p),pkdIsGas(pkd,p),p->uRung,dt,pkdStar(pkd,p)->totaltime);
-	    }
 	if (pkdIsActive(pkd,p) && pkdIsGas(pkd,p)) {
 	    sph = pkdSph(pkd,p);
 	    dt = pkd->param.dDelta/(1<<p->uRung); /* Actual Rung */
 	    pkdStar(pkd,p)->totaltime += dt;
-	    if (p->iOrder==6667) {
-		printf("SF %d: %d %d %d %g AFTER PLUS\n",p->iOrder,pkdIsActive(pkd,p),pkdIsGas(pkd,p),p->uRung,dt,pkdStar(pkd,p)->totaltime);
-		}
-
-
 	    if (p->fDensity < dDenMin || (bdivv && sph->divv >= 0.0)) continue;
 	    E = sph->uPred;
 	    if (pkd->param.bGasCooling) 
@@ -2796,7 +2783,7 @@ void pkdStarForm(PKD pkd, double dRateCoeff, double dTMax, double dDenMin,
 	      and he has one cell that may contain many times m_particle */
 	    if (pkd->param.bGasCooling) {
 		if (fabs(pkdStar(pkd,p)->totaltime-dTime) > 1e-3*dt) {
-		    printf("total time error: %i,  %g %g %g\n",p->iOrder,pkdStar(pkd,p)->totaltime,dTime,dt);
+		    printf("total time error: %lu,  %g %g %g\n",p->iOrder,pkdStar(pkd,p)->totaltime,dTime,dt);
 		    assert(0);
 		    }
 		}
@@ -2848,7 +2835,7 @@ void pkdStarForm(PKD pkd, double dRateCoeff, double dTMax, double dDenMin,
 void pkdCooling(PKD pkd, double dTime, double z, int bUpdateState, int bUpdateTable, int bIterateDt, int bIsothermal )
     {
     PARTICLE *p;
-    int i,n;
+    int i;
     SPHFIELDS *sph;
     COOLPARTICLE cp;  /* Dummy: Not yet fully implemented */
     double E,dt,ExternalHeating;

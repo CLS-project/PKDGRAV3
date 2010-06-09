@@ -2002,7 +2002,6 @@ double momLocrAddMono5(LOCR *l,momFloat m,momFloat dir,momFloat x,momFloat y,mom
     const momFloat onethird = 1.0/3.0;
     momFloat xx,xy,xz,yy,yz,zz;
     momFloat xxx,xxy,xyy,yyy,xxz,xyz,yyz;
-    momFloat Ax,Ay,Az,A,Bxx,Bxy,Byy,Bxz,Byz,Bx,By,Bz,B,Cx,Cy,Cz,C;
     momFloat R1,R2,R3,T2,T3;
     momFloat g0,g1,g2,g3,g4,g5;
     momFloat g4xx,g4yy,g5xx,g5yy,fxx,fyy;

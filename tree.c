@@ -30,8 +30,6 @@ void InitializeParticles(PKD pkd,int bExcludeVeryActive,BND *pbnd) {
     KDN *pNode;
     int i,j;
 
-    double *fCenter, *fMax;
-
     /*
     ** Initialize the temporary particles.
     */
@@ -943,11 +941,12 @@ void pkdBoundWalk(PKD pkd,BND *pbnd,uint8_t uRungLo,uint8_t uRungHi,uint32_t *pn
     double d;
     int iNode,pj;    
 
-    pBND bnd = pkdNodeBnd(pkd, kdn);
+    pBND bnd;
 
     *pnActive = 0;
     *pnContained = 0;
     kdn = pkdTreeNode(pkd,iNode = ROOT);
+    bnd = pkdNodeBnd(pkd, kdn);
     while (1) {
 	d = fabs(pbnd->fCenter[0] - bnd.fCenter[0]) - pbnd->fMax[0];
 	if (d - bnd.fMax[0] > 0) goto NoIntersect;

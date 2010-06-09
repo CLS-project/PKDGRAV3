@@ -1413,7 +1413,6 @@ FIO fioTipsyCreatePart(const char *fileName,int bAppend,int bDouble,int bStandar
 static hsize_t getSetSize(hid_t setID) {
     hid_t spaceID;
     hsize_t dims[2], maxs[2];
-    hsize_t rc;
 
     spaceID = H5Dget_space(setID); assert(spaceID>=0);
     assert( H5Sis_simple(spaceID) > 0 );
@@ -2121,7 +2120,6 @@ static int hdf5ReadDark(
     float *pfMass,float *pfSoft,float *pfPot) {
     fioHDF5 *hio = (fioHDF5 *)(fio);
     IOBASE *base = &hio->base[hio->eCurrent];
-    int d;
     int i;
 
     assert(fio->eFormat == FIO_FORMAT_HDF5);
@@ -2201,6 +2199,7 @@ static int  hdf5WriteDark(
     if (++base->iIndex == CHUNK_SIZE) {
 	base_write(base);
 	}
+    return 1;
     }
 
 static int hdf5WriteSph(
@@ -2233,6 +2232,7 @@ static int hdf5WriteSph(
     if (++base->iIndex == CHUNK_SIZE) {
 	base_write(base);
 	}
+    return 1;
     }
 
 static int hdf5WriteStar(
@@ -2273,8 +2273,7 @@ FIO fioHDF5Open(const char *fileName) {
     fioHDF5 *hio;
     H5E_auto_t save_func;
     void *     save_data;
-    int i,j;
-    hid_t dataType = sizeof(PINDEX)==4 ? H5T_NATIVE_UINT32 : H5T_NATIVE_UINT64;
+    int i;
 
     hio = malloc(sizeof(fioHDF5));
     assert(hio!=NULL);
@@ -2348,8 +2347,7 @@ FIO fioHDF5Open(const char *fileName) {
 
 FIO fioHDF5Create(const char *fileName, int mFlags) {
     fioHDF5 *hio;
-    int i,j;
-    hid_t dataType = sizeof(PINDEX)==4 ? H5T_NATIVE_UINT32 : H5T_NATIVE_UINT64;
+    int i;
 
     hio = malloc(sizeof(fioHDF5));
     assert(hio!=NULL);
@@ -2774,6 +2772,7 @@ static int graficReadSph(
     if (pfTemp) *pfTemp = 0.0;
     if (pfSoft) *pfSoft = 0.0;
     if (pfMetals) *pfMetals = 0.0;
+    return 1;
     }
 
 static void graficClose(FIO fio) {
@@ -2982,6 +2981,7 @@ FIO fioGraficOpenMany(int nFiles, const char * const *dirNames,double dOmega0,do
     gio->nLevels = gio->fio.fileList.nFiles;
     gio->level = malloc(gio->nLevels*sizeof(graficLevel));
     assert(gio->level);
+    return &gio->fio;
     }
 
 

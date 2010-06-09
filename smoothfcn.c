@@ -121,15 +121,14 @@ void DensitySym(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
 
 void PrintNN(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
-    float ih2,r2,rs,fDensity,fMass;
     int i;
 
-    printf("%d:",p->iOrder);
+    printf("%lu:",p->iOrder);
     for (i=0;i<nSmooth;++i) {
 	if (pkdIsActive(pkd,nnList[i].pPart))
-	    printf("%d ",nnList[i].pPart->iOrder);
+	    printf("%lu ",nnList[i].pPart->iOrder);
 	else 
-	    printf("\033[7m%d\033[0m ",nnList[i].pPart->iOrder);
+	    printf("\033[7m%lu\033[0m ",nnList[i].pPart->iOrder);
 	}
     printf("\n");
     }
@@ -149,7 +148,7 @@ void DenDVDX(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf)
     PKD pkd = smf->pkd;
     PARTICLE *q;
     SPHFIELDS *psph, *qsph;
-    double ih2,ih,r2,rs,rs1,fDensity,qMass,iden,fNorm,fNorm1,vFac,S;
+    double ih2,ih,r2,rs,rs1,fDensity,qMass,fNorm,fNorm1,vFac;
     double dvxdx , dvxdy , dvxdz, dvydx , dvydy , dvydz, dvzdx , dvzdy , dvzdz;
     double dvx,dvy,dvz,dx,dy,dz,trace;
     double curlv[3];
@@ -505,7 +504,7 @@ void DistDeletedGas(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf)
     PARTICLE *q;
     double fNorm,ih2,r2,rs,rstot,fp,fq;
     float *pmass, *qmass;
-    double f1,f2,m,delta_m;
+    double m,delta_m;
     int i;
     
     /* JW: Assert deleted? -- yes once smooth is reliable */
@@ -639,9 +638,9 @@ void DistSNEnergy(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf)
     {
     PKD pkd = (PKD) smf->pkd;
     PARTICLE *q,*qmin;
-    float fNorm,ih2,r2,rs,r2min,fp,fq;
+    float ih2,r2,r2min,fp,fq;
     float *pmass, *qmass;
-    double f1,f2,m,im,delta_m,delta_u,delta_Z;
+    double m,im,delta_m,delta_u,delta_Z;
     double dtp,dt,c,dtC,dtNew,Timer;
     int i,uNewRung;
 
@@ -650,8 +649,6 @@ void DistSNEnergy(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf)
 
     Timer = *pkd_Timer(pkd,p);
     dtp = smf->pkd->param.dDelta/(1<<p->uRung);/* size of step just completed by star */
-
-    if (p->iOrder == 32769) printf("SFTEST %i: FB? %g %g  %d %d %d  %d\n",p->iOrder,smf->dTime,dtp,p->uRung,smf->pkd->uMinRungActive,smf->pkd->uMaxRungActive,pkdIsActive(pkd,p));
 
     if(smf->dTime-dtp > Timer+smf->SFdtFeedbackDelay) {
 	assert(pkdSph(pkd,p)->u == 0); /* Star must have fedback by now */
@@ -748,7 +745,6 @@ void DistSNEnergy(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf)
 
     *pmass -= delta_m; /* Lower star mass */
     pkdSph(pkd,p)->u = 0; /* Mark star as fedback */
-    if (p->iOrder == 32769) printf("SFTEST %i: FB YES %20.14g %g\n",p->iOrder,smf->dTime,dtp);
 }
 
 void initMeanVel(void *vpkd, void *pvoid) {

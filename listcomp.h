@@ -76,9 +76,8 @@ static inline void InSingle(LCODE ctx,uint32_t uPrefix,uint32_t *uStart) {
 }
 
 static inline int bInListLocal(LCODE ctx,char *pInput,uint32_t iIndex) {
-    int nList = 0;
     uint32_t uPrefix;
-    uint32_t uStart,uEnd,u,uPid;
+    uint32_t uStart,uEnd,u;
 
     ctx->uIndex = 0;
     ctx->uMask = 1;

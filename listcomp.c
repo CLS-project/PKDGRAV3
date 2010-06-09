@@ -641,7 +641,6 @@ int bListRemoveLocal(LCODE ctx,uint32_t iIndex) {
 #endif 
 
 int bInList(LCODE ctx,char *pInput,uint32_t iIndex,uint32_t iPid) {
-    int nList = 0;
     uint32_t uPrefix;
     uint32_t uStart,uEnd,u,uPid;
 

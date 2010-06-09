@@ -10,6 +10,7 @@
 #include <math.h>
 #include <assert.h>
 #include "cooling.h"
+#include "param.h"
 
 #ifdef FC_DUMMY_MAIN
 int FC_DUMMY_MAIN() { return 1; }
@@ -17,6 +18,11 @@ int FC_DUMMY_MAIN() { return 1; }
 
 
 #define SET_MODEL FC_MOD_FUNC_(cooling_module,COOLING_MODULE,set_model,SET_MODEL)
+void SET_MODEL(int *Nmodel, double *J0in_in, double *J0min_in, 
+	       double *alpha_in, double *normfacJ0_in, double *zreioniz_in,
+	       int *correct_cooling, double *realistic_ne, 
+	       double *h, double *omegab, double *omega0, double *omegaL, 
+	       double *astart_sim, double *pT2_sim);
 void RAMSES_set_model(int Nmodel, double J0in_in, double J0min_in, 
 		      double alpha_in, double normfacJ0_in, double zreioniz_in,
 		      int correct_cooling, double realistic_ne, 
@@ -31,17 +37,22 @@ void RAMSES_set_model(int Nmodel, double J0in_in, double J0min_in,
     }
 
 #define SET_TABLE FC_MOD_FUNC_(cooling_module,COOLING_MODULE,set_table,SET_TABLE)
+void SET_TABLE(double *aexp);
 void RAMSES_set_table(double aexp) {
     SET_TABLE(&aexp);
     }
 
 #define INTERPOLATE_TABLE FC_MOD_FUNC_(cooling_module,COOLING_MODULE,interpolate_table,INTERPOLATE_TABLE)
+void INTERPOLATE_TABLE(double *nHin,double *T2in,double *n_spec,
+		       double *pT,double *pmu);
 void RAMSES_interpolate_table(double nHin,double T2in,double *n_spec,
 			      double *pT,double *pmu) {
     INTERPOLATE_TABLE(&nHin,&T2in,n_spec,pT,pmu);
     }
 
 #define SOLVE_COOLING FC_MOD_FUNC_(cooling_module,COOLING_MODULE,solve_cooling,SOLVE_COOLING)
+void SOLVE_COOLING(double *nH,double *T2,double *ZSolar, double *dt,
+		   double *deltaT2, int *ncell);
 void RAMSES_solve_cooling(double *nH,double *T2,double *ZSolar, double dt,
 			  double *deltaT2, int ncell) {
     SOLVE_COOLING(nH,T2,ZSolar,&dt,deltaT2,&ncell);
@@ -52,6 +63,7 @@ COOL *CoolInit()
     COOL *cl;
     cl = (COOL *) malloc(sizeof(COOL));
     assert(cl!=NULL);
+    return cl;
     }
 
 void CoolSetup( COOL *cl, double dGmPerCcUnit,double dComovingGmPerCcUnit,

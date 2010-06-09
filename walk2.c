@@ -91,7 +91,6 @@ static inline int iOpenOutcome(PKD pkd,KDN *k,CELT *check,KDN **pc) {
     KDN *c;
     int T1,iCell;
     int iOpen,iOpenA,iOpenB;
-    uint64_t n2;
         
     if (T1 = (check->iCell < 0)) iCell = -check->iCell;
     else iCell = check->iCell;
@@ -186,7 +185,6 @@ static inline int iOpenOutcomeOld(PKD pkd,KDN *k,CELT *check,KDN **pc) {
 	nc = c->pUpper - c->pLower + 1;
     }
 
-    pBND cbnd = pkdNodeBnd(pkd, c);
     pBND kbnd = pkdNodeBnd(pkd, k);
 
     *pc = c;
@@ -249,7 +247,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
     int ix,iy,iz,bRep;
     int nMaxInitCheck,nCheck;
     int iCell,iSib,iCheckCell,iCellDescend;
-    int i,ii,j,n,id,pj,nActive,nTotActive;
+    int i,ii,j,pj,nActive,nTotActive;
     int iOpen;
     ILPTILE tile;
     ILCTILE ctile;
@@ -257,7 +255,6 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
     int ig,iv;
 #endif
 
-    double tempM;
     double tempI;
 
     double dEwFlop = 0.0;

@@ -4347,23 +4347,6 @@ void msrFof(MSR msr, double exp) {
 	}
     }
 
-/*
-**  If the mkdir() function is available, then create the specified directory
-**  if it doesn't already exist.
-*/
-static void mktmpdir( const char *dirname ) {
-#ifdef HAVE_MKDIR
-    struct stat s;
-    if ( stat(dirname,&s) == 0 ) {
-	if ( S_ISDIR(s.st_mode) )
-	    return;
-	}
-    mkdir( dirname, 0700 );
-#endif
-    }
-
-
-
 void msrGroupMerge(MSR msr, double exp) {
     struct inGroupMerge in;
     int nGroups;

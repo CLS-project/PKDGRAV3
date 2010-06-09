@@ -506,7 +506,7 @@ PQ *pqSearchLocal(SMX smx,PQ *pq,FLOAT r[3],int *pbDone) {
     FLOAT dx,dy,dz,dMin,min1,min2,fDist2;
     FLOAT *Smin = smx->Smin;
     int *S = smx->S;
-    int i,j,pj,pEnd,iCell,iParent;
+    int j,pj,pEnd,iCell,iParent;
     int sp = 0;
     int sm = 0;
     int idSelf = pkd->idSelf;
@@ -1110,7 +1110,7 @@ uint32_t BoundWalkInactive(SMX smx) {
     int ix,iy,iz,bRep;
     int nMaxInitCheck,nCheck;
     int iCell,iSib,iCheckCell;
-    int i,ii,j,n,id,pj,d;
+    int i,ii,j,pj,d;
     int iOpen;
     uint32_t nDo;
 
@@ -1566,7 +1566,7 @@ void BoundWalkActive(SMX smx,LIST **ppList,int *pnMaxpList) {
     int ix,iy,iz,bRep;
     int nMaxInitCheck,nCheck;
     int iCell,iSib,iCheckCell;
-    int i,ii,j,n,pj;
+    int i,ii,j,pj;
     int iOpen;
     int nList;
     char **ppCList;
@@ -1915,7 +1915,6 @@ void DoLocalSearch(SMX smx,SMF *smf,PARTICLE *p,double *rLast) {
     PQ *pq;
     FLOAT fBall,r[3];
     int i,j,bDone,ix,iy,iz;
-    int iStart[3],iEnd[3];
 
     /*
     ** Correct distances and rebuild priority queue.
@@ -1974,12 +1973,8 @@ void DoLocalSearch(SMX smx,SMF *smf,PARTICLE *p,double *rLast) {
 void smFastGasPhase1(SMX smx,SMF *smf) {
     PKD pkd = smx->pkd;
     PARTICLE *p,*pp;
-    PQ *pq = smx->pq;
-    FLOAT r[3],fBall;
     FLOAT rLast[3];
-    int iStart[3],iEnd[3];
-    int pi,pj,i,j,bDone,ii;
-    int ix,iy,iz;
+    int pi,i,j,ii;
     uint32_t uHead,uTail;
     LIST *pList;
     int nMaxpList;
@@ -2357,7 +2352,7 @@ void smFastGasPhase2(SMX smx,SMF *smf) {
     PARTICLE *p,*pp;
     LIST *pList;
     double dx,dy,dz,fDist2;
-    int nMaxpList,nList,i,j,nCnt,pi;
+    int nMaxpList,nList,i,nCnt,pi;
     char **ppCList;
 
     assert(pkd->oSph); /* Validate memory model */
@@ -2642,7 +2637,6 @@ void smDoGatherLocal(SMX smx,FLOAT fBall2,FLOAT r[3],void (*Do)(SMX,PARTICLE *,F
     int *S = smx->S;
     int sp = 0;
     int iCell,pj,nCnt,pEnd;
-    int idSelf = pkd->idSelf;
     pBND bnd;
 
     nCnt = smx->nnListSize;
@@ -2826,14 +2820,12 @@ void smFof(SMX smx,SMF *smf) {
     MDL mdl = smx->pkd->mdl;
     PARTICLE *p;
     float *pPot;
-    int32_t *pBin;
     int32_t *pGroup;
     int32_t *pPartGroup;
     double *v;
     RB_TYPE rm_type;
     FOFRM   rm_data;
     FOFPG* protoGroup;
-    FOFBIN *bin;
 
     int pi,pn,pnn,nCnt,i,j,k;
     int nRmListSize,nRmCnt,iRmIndex;
@@ -2843,7 +2835,7 @@ void smFof(SMX smx,SMF *smf) {
     int ix,iy,iz;
     int idSelf = pkd->idSelf;
 
-    FLOAT r[3],l[3],relpos[3],lx,ly,lz,fBall,fBall2Max,rho,fvBall2;
+    FLOAT r[3],l[3],lx,ly,lz,fBall,fBall2Max,fvBall2;
     FLOAT fMass;
     int nTree,tmp;
 
@@ -3121,30 +3113,17 @@ int CmpGroups(const void *v1,const void *v2) {
     return g1->nTotal - g2->nTotal;
 }
 
-static void mktmpdir( const char *dirname ) {
-    struct stat s;
-    if ( stat(dirname,&s) == 0 ) {
-	if ( S_ISDIR(s.st_mode) )
-	    return;
-    }
-    mkdir( dirname, 0700 );
-}
-
 int smGroupMerge(SMF *smf,int bPeriodic) {
     PKD pkd = smf->pkd;
     MDL mdl = smf->pkd->mdl;
     PARTICLE *p;
     PARTICLE *pPart;
-    int32_t *pBin, *pGroup;
+    int32_t *pGroup;
     int32_t *pPartGroup, iPartGroup;
-    FLOAT l[3], r,min,max,corr;
+    FLOAT l[3];
     int pi,id,i,j,k,index,listSize, sgListSize, lsgListSize;
     int nLSubGroups,nSubGroups,nMyGroups;
     int iHead, iTail, nFifo,tmp, nTree;
-    FILE * pFile; /* files for parallel output of group ids, links and densities*/
-    FILE * lFile;
-    FILE * dFile;
-    char filename [30];
 
     FOFGD *sG;
     FOFRM *rmFifo;
@@ -3392,7 +3371,7 @@ int smGroupMerge(SMF *smf,int bPeriodic) {
     **
     ** But since the amount of data is rather small (e.g. it gave ascii files of around 50 MB for VL-2)
     ** the current serial output of group data is not expected to become a bottleneck anytime soon.
-    /*
+    */
 
     /* Start RO group data cache and master reads and saves all the group data. */
     mdlROcache(mdl,CID_GROUP,NULL,pkd->groupData,sizeof(FOFGD), nMyGroups + 1);
@@ -3469,6 +3448,8 @@ void DoBins(SMX smx,PARTICLE *p,FLOAT fDist2) {
 #endif
 
 int smGroupProfiles(SMX smx, SMF *smf, int nTotalGroups) {
+    assert(0);
+    return 0;
 #if 0
     PKD pkd = smf->pkd;
     MDL mdl = smf->pkd->mdl;

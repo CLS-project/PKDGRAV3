@@ -393,7 +393,7 @@ int main(int argc,char **argv) {
 		dMultiEff = 1.0;
 		if (msrLogInterval(msr)) {
 		    (void) fprintf(fpLog,"%e %e %.16e %e %e %e %.16e %.16e "
-			       "%.16e %.16e %.16e %.16e %.16e %li %e\n",dTime,
+			       "%.16e %.16e %.16e %.16e %.16e %i %e\n",dTime,
 			       1.0/csmTime2Exp(msr->param.csm,dTime)-1.0,
 			       E,T,U,Eth,L[0],L[1],L[2],F[0],F[1],F[2],W,iSec,dMultiEff);
 		    }
