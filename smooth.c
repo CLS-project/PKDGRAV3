@@ -669,8 +669,7 @@ PQ *pqSearchRemote(SMX smx,PQ *pq,int id,FLOAT r[3]) {
 	pEnd = pkdn->pUpper;
 	for (pj=pkdn->pLower;pj<=pEnd;++pj) {
 	    p = mdlAquire(mdl,CID_PARTICLE,pj,id);
-	    if (smHashPresent(smx,p)) continue;
-	    if (!p->bSrcActive) {
+	    if (!p->bSrcActive || smHashPresent(smx,p)) {
 		mdlRelease(mdl,CID_PARTICLE,p);
 		continue;
 	    }
