@@ -12,11 +12,6 @@
 #include "cooling.h"
 #include "param.h"
 
-#ifdef FC_DUMMY_MAIN
-int FC_DUMMY_MAIN() { return 1; }
-#endif
-
-
 #define SET_MODEL FC_MOD_FUNC_(cooling_module,COOLING_MODULE,set_model,SET_MODEL)
 void SET_MODEL(int *Nmodel, double *J0in_in, double *J0min_in, 
 	       double *alpha_in, double *normfacJ0_in, double *zreioniz_in,

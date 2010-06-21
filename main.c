@@ -81,7 +81,11 @@ void main_ch(MDL mdl) {
 
 /*DEBUG Should opaque nature of "msr" be enforced in main()? -- DCR*/
 
-int main(int argc,char **argv) {
+#ifdef FC_DUMMY_MAIN
+int FC_DUMMY_MAIN() { return 1; }
+#endif
+
+int FC_MAIN(int argc,char **argv) {
     MDL mdl;
     MSR msr;
     FILE *fpLog = NULL;
