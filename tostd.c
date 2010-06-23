@@ -12,11 +12,15 @@
 
 #define OPT_DOUBLE 'd'
 #define OPT_NATIVE 'n'
+#define OPT_HDF5   '5'
+#define OPT_POTENTIAL 'p'
 
 int main( int argc, char **argv ) {
     int bError = 0;
     int bDouble = 0;
     int bNative = 0;
+    int bHDF5 = 0;
+    int bPotential = 0;
     uint64_t N, nSph, nDark, nStar, i;
     double dTime;
 
@@ -37,10 +41,12 @@ int main( int argc, char **argv ) {
 	static struct option long_options[] = {
 		{ "double",       0, 0, OPT_DOUBLE},
 		{ "native",       0, 0, OPT_NATIVE},
+		{ "hdf5",         0, 0, OPT_HDF5},
+		{ "potential",    0, 0, OPT_POTENTIAL},
 		{ NULL,   0, 0, 0 },
 	    };
 
-	c = getopt_long( argc, argv, "dn",
+	c = getopt_long( argc, argv, "dn5p",
 			 long_options, &option_index );
 	if ( c == -1 ) break;
 
@@ -51,10 +57,21 @@ int main( int argc, char **argv ) {
 	case OPT_NATIVE:
 	    bNative = 1;
 	    break;
+	case OPT_HDF5:
+	    bHDF5 = 1;
+	    break;
+	case OPT_POTENTIAL:
+	    bPotential = 1;
+	    break;
 	default:
 	    bError = 1;
 	    break;
 	    }
+	}
+
+    if (bNative && bHDF5) {
+	fprintf(stderr, "Specify only one of --hdf5 or --native\n" );
+	bError = 1;
 	}
 
     if ( optind < argc ) {
@@ -95,11 +112,20 @@ int main( int argc, char **argv ) {
     nStar = fioGetN(fioIn,FIO_SPECIES_STAR);
     if (!fioGetAttr(fioIn,"dTime",FIO_TYPE_DOUBLE,&dTime)) dTime = 0.0;
 
-    fioOut = fioTipsyCreate(outName,bDouble,!bNative,dTime,nSph,nDark,nStar);
+    if (bHDF5) {
+	int mFlag = FIO_FLAG_COMPRESS_MASS | FIO_FLAG_COMPRESS_SOFT;
+	if (bDouble) mFlag |= FIO_FLAG_DOUBLE_POS | FIO_FLAG_DOUBLE_VEL;
+	if (bPotential) mFlag |= FIO_FLAG_POTENTIAL;
+	fioOut = fioHDF5Create(outName,mFlag);
+	}
+    else {
+	fioOut = fioTipsyCreate(outName,bDouble,!bNative,dTime,nSph,nDark,nStar);
+	}
     if (fioOut==NULL) {
 	perror(outName);
 	exit(errno);
 	}
+    fioSetAttr(fioOut,"dTime",FIO_TYPE_DOUBLE,&dTime);
 
     for( i=0; i<N; i++ ) {
         eSpecies = fioSpecies(fioIn);

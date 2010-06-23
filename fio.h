@@ -86,7 +86,8 @@ typedef enum {
 #define FIO_FLAG_DOUBLE_VEL    2
 #define FIO_FLAG_COMPRESS_MASS 4
 #define FIO_FLAG_COMPRESS_SOFT 8
-#define FIO_FLAG_CHECKPOINT    16
+#define FIO_FLAG_CHECKPOINT    16 /* Restart - normally doublee */
+#define FIO_FLAG_POTENTIAL     32 /* Include the potential */
 
 typedef enum {
     FIO_MODE_READING,
@@ -117,6 +118,7 @@ typedef enum {
     } FIO_SPECIES;
 
 typedef struct {
+    int iFile;        /* Current file */
     int nFiles;       /* Total number of files */
     uint64_t *iFirst; /* Starting particle index for i'th file */
     char **pszFiles;  /* Filename of i'th file */
