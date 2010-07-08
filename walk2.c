@@ -205,8 +205,8 @@ static inline int iOpenOutcomeOld(PKD pkd,KDN *k,CELT *check,KDN **pc) {
 	    if (c->iLower == 0) iOpenA = 1;
 	    else iOpenA = 3;
 	    if (nc < walk_min_multipole || mink2 <= c->fOpen*c->fOpen) iOpenB = iOpenA;
-	    else if (mink2 > fourh2) iOpenB = 4;
-	    else if (mink2 > pow(fMonopoleThetaFac*c->fOpen,2)) iOpenB = 5;
+	    else if (mink2 > fourh2) return(4);
+	    else if (mink2 > pow(fMonopoleThetaFac*c->fOpen,2)) return(5);
 	    else iOpenB = iOpenA;
 	    if (c->fOpen > k->fOpen) {
 		if (c->iLower) iOpen = 3;
@@ -221,6 +221,112 @@ static inline int iOpenOutcomeOld(PKD pkd,KDN *k,CELT *check,KDN **pc) {
     return(iOpen);
 }
 
+/*
+** This implements the original pkdgrav Barnes Hut opening criterion.
+*/
+static inline int iOpenOutcomeBarnesHut(PKD pkd,KDN *k,CELT *check,KDN **pc) {
+  const double fMonopoleThetaFac = 1.5;    /* Note: here we don't use this */
+    const int walk_min_multipole = 3;
+    double dMin,dMax,min2,max2,d2,fourh2;
+    KDN *c;
+    int iCell,nc;
+    int iOpenA;
+    int j;
+        
+    assert(check->iCell > 0);
+    iCell = check->iCell;
+    if (check->id == pkd->idSelf) {
+	c = pkdTreeNode(pkd,iCell);
+	nc = c->pUpper - c->pLower + 1;
+    }
+    else if (check->id < 0) {
+        c = pkdTopNode(pkd,iCell);
+	assert(c->iLower != 0);
+	nc = walk_min_multipole-1; /* we never allow pp with this cell */
+    }
+    else {
+	c = mdlAquire(pkd->mdl,CID_CELL,iCell,check->id);
+	nc = c->pUpper - c->pLower + 1;
+    }
+
+    pBND kbnd = pkdNodeBnd(pkd, k);
+
+    *pc = c;
+
+    if (c->iLower == 0) iOpenA = 1;
+    else iOpenA = 3;
+
+    if (pkdNodeMom(pkd,c)->m <= 0) return(10);  /* ignore this cell */
+    else if (k->iLower) {
+	/*
+	** If this cell is not a bucket calculate the min distance
+	** from the center of mass of the check cell to the bounding
+	** box of the cell we are calculating gravity on. We also
+	** calculate the size of the ball (from checkcell CM) which
+	** just contains the this cell (radius^2 given by max2).
+	*/
+	min2 = 0;
+	max2 = 0;
+	for (j=0;j<3;++j) {
+	  dMin = fabs(c->r[j] + check->rOffset[j] - kbnd.fCenter[j]);
+	  dMax = dMin + kbnd.fMax[j];
+	  dMin -= kbnd.fMax[j];
+	  if (dMin > 0) min2 += dMin*dMin;
+	  max2 += dMax*dMax;
+	}
+	if (max2 <= c->fOpen*c->fOpen) return(iOpenA); /* open it for all particles of c */
+	else if (min2 > c->fOpen*c->fOpen) {
+	  /*
+	  ** For symmetrized softening we need to calculate the distance between
+	  ** center of mass between the two cells.
+	  */
+	  d2 = 0;
+	  for (j=0;j<3;++j) {
+	    d2 += pow(c->r[j] + check->rOffset[j] - k->r[j],2);
+	  }
+	  fourh2 = softmassweight(pkdNodeMom(pkd,k)->m,4*k->fSoft2,pkdNodeMom(pkd,c)->m,4*c->fSoft2);
+	  if (d2 > fourh2) {
+	    if (nc >= walk_min_multipole) return(4);  /* accept multipole */
+ 	    else return(iOpenA);  /* open the cell for performance reasons */
+	  }
+	  else return(0);   /* in all other cases we can't decide until we get down to a bucket */
+	}
+	else return(0);
+    }
+    else {
+      /*
+      ** If this cell is a bucket we have to either open the checkcell
+      ** and get the particles, or accept the multipole. For this
+      ** reason we only need to calculate min2.
+      */
+      min2 = 0;
+      for (j=0;j<3;++j) {
+	dMin = fabs(c->r[j] + check->rOffset[j] - kbnd.fCenter[j]);
+	dMin -= kbnd.fMax[j];
+	if (dMin > 0) min2 += dMin*dMin;
+      }
+      /*
+      ** By default we open the cell!
+      */
+      if (min2 > c->fOpen*c->fOpen) {
+	/*
+	** For symmetrized softening we need to calculate the distance between
+	** center of mass between the two cells.
+	*/
+	d2 = 0;
+	for (j=0;j<3;++j) {
+	    d2 += pow(c->r[j] + check->rOffset[j] - k->r[j],2);
+	}
+	fourh2 = softmassweight(pkdNodeMom(pkd,k)->m,4*k->fSoft2,pkdNodeMom(pkd,c)->m,4*c->fSoft2);
+	if (d2 > fourh2) {
+	  if (nc >= walk_min_multipole) return(4);  /* accept multipole */
+	  else return(iOpenA);  /* open the cell for performance reasons */
+	}
+	else return(5); /* means we treat this cell as a softened monopole */
+      }
+      else return(iOpenA);  /* open the cell */
+    }
+}
 
 /*
 ** Returns total number of active particles for which gravity was calculated.
