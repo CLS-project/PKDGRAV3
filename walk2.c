@@ -137,7 +137,7 @@ static inline int iOpenOutcome(PKD pkd,KDN *k,CELT *check,KDN **pc) {
 	    dx = fabs(xc - kbnd.fCenter[0]) - kbnd.fMax[0];
 	    dy = fabs(yc - kbnd.fCenter[1]) - kbnd.fMax[1];
 	    dz = fabs(zc - kbnd.fCenter[2]) - kbnd.fMax[2];
-	    mink2 = (dx>0)?dx*dx:0 + (dy>0)?dy*dy:0 + (dz>0)?dz*dz:0;
+	    mink2 = ((dx>0)?dx*dx:0) + ((dy>0)?dy*dy:0) + ((dz>0)?dz*dz:0);
 
 	    if (c->fOpen > k->fOpen) iOpenB = iOpenA;
 	    else if (k->iLower != 0) iOpenB = 0; /* keep this cell on the checklist */
@@ -199,7 +199,7 @@ static inline int iOpenOutcomeOld(PKD pkd,KDN *k,CELT *check,KDN **pc) {
 	dx = fabs(xc - kbnd.fCenter[0]) - kbnd.fMax[0];
 	dy = fabs(yc - kbnd.fCenter[1]) - kbnd.fMax[1];
 	dz = fabs(zc - kbnd.fCenter[2]) - kbnd.fMax[2];
-	mink2 = (dx>0)?dx*dx:0 + (dy>0)?dy*dy:0 + (dz>0)?dz*dz:0;
+	mink2 = ((dx>0)?dx*dx:0) + ((dy>0)?dy*dy:0) + ((dz>0)?dz*dz:0);
 	if (d2 > d2Open && d2 > fourh2) iOpen = 8;
 	else {
 	    if (c->iLower == 0) iOpenA = 1;
