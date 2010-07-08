@@ -178,6 +178,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 		    pkdc = mdlAquire(pkd->mdl,CID_CELL,pkd->Check[i].iCell,id);
 		    n = pkdc->pUpper - pkdc->pLower + 1;
 		    }
+		for (j=0;j<3;++j) rCheck[j] = pkdc->r[j] + pkd->Check[i].rOffset[j];
 		if (kdn->iLower) {
 		    /*
 		    ** If this cell is not a bucket calculate the min distance
