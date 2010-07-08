@@ -519,6 +519,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 	    cz = p->r[2];
 	    goto found_it;
 	}
+	assert(0); /* We didn't find an active particle */
     found_it:
 	d2c = (cx - pkd->ilp->cx)*(cx - pkd->ilp->cx) + (cy - pkd->ilp->cy)*(cy - pkd->ilp->cy) +
 	      (cz - pkd->ilp->cz)*(cz - pkd->ilp->cz);
