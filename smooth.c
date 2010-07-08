@@ -1503,9 +1503,9 @@ static inline int iOpenActive(PKD pkd,KDN *k,CELT *check,KDN **pc,PARTICLE **pp)
 	dy1 = yc - bk->A.min[1];
 	dz0 = zc - bk->A.max[2];
 	dz1 = zc - bk->A.min[2];
-	mink2 = (dx0>0)?dx0*dx0:0 + (dx1<0)?dx1*dx1:0 +
-	    (dy0>0)?dy0*dy0:0 + (dy1<0)?dy1*dy1:0 + 
-	    (dz0>0)?dz0*dz0:0 + (dz1<0)?dz1*dz1:0;
+	mink2 = ((dx0>0)?dx0*dx0:0) + ((dx1<0)?dx1*dx1:0) +
+	    ((dy0>0)?dy0*dy0:0) + ((dy1<0)?dy1*dy1:0) + 
+	    ((dz0>0)?dz0*dz0:0) + ((dz1<0)?dz1*dz1:0);
 	/*
 	** We have to be extra careful here when comparing to the fBalls of remote particles, for which
 	** we don't exactly know if they have an updated softening or not. Safe is to multiply all by 

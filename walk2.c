@@ -115,7 +115,7 @@ static inline int iOpenOutcome(PKD pkd,KDN *k,CELT *check,KDN **pc) {
 	dx = fabs(k->r[0] - cbnd.fCenter[0] - check->rOffset[0]) - cbnd.fMax[0];
 	dy = fabs(k->r[1] - cbnd.fCenter[1] - check->rOffset[1]) - cbnd.fMax[1];
 	dz = fabs(k->r[2] - cbnd.fCenter[2] - check->rOffset[2]) - cbnd.fMax[2];
-	minc2 = (dx>0)?dx*dx:0 + (dy>0)?dy*dy:0 + (dz>0)?dz*dz:0;
+	minc2 = ((dx>0)?dx*dx:0) + ((dy>0)?dy*dy:0) + ((dz>0)?dz*dz:0);
 	fourh2 = softmassweight(pkdNodeMom(pkd,k)->m,4*k->fSoft2,pkdNodeMom(pkd,c)->m,4*c->fSoft2);
 	if (T1) {
 	    if (k->iLower == 0) iOpenA = 1; /* add this cell as an "opened" bucket */
@@ -557,7 +557,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 	    printf("\nCELL:%d ",iCell);
 */
 	    for (i=0;i<nCheck;++i) {
-		iOpen = iOpenOutcomeOld(pkd,k,&pkd->Check[i],&c);
+		iOpen = iOpenOutcome(pkd,k,&pkd->Check[i],&c);
 /*
 		printf("%1d",iOpen);
 */
