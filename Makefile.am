@@ -35,14 +35,19 @@ all-local: $(TARGETS)
 clean-local:
 	rm -f $(EXTRA_PROGRAMS)
 
-SOURCES = main.c tree.c analysis.c romberg.c psdtree.c psd.c bt.c
-noinst_HEADERS = bt.h parameters.h grav.h walk.h cycle.h tipsydefs.h psdtree.h psd.h
+SOURCES = main.c tree.c analysis.c romberg.c bt.c
+noinst_HEADERS = bt.h parameters.h grav.h walk.h cycle.h tipsydefs.h
 SOURCES        += cosmo.c master.c param.c pst.c smooth.c ewald.c
 noinst_HEADERS += cosmo.h master.h param.h pst.h smooth.h ewald.h meval.h qeval.h
 SOURCES        += moments.c intype.c outtype.c pkd.c smoothfcn.c rbtree.c fio.c listcomp.c
 noinst_HEADERS += moments.h intype.h outtype.h pkd.h smoothfcn.h rbtree.h fio.h listcomp.h
 SOURCES        += cooling.c cooling_module.F90
 noinst_HEADERS += cooling.h
+
+if PSD
+SOURCES += psdtree.c psd.c
+noinst_HEADERS += psdtree.h psd.h
+endif
 
 if PLANETS
 SOURCES += ssio.c collision.c kepler.c
