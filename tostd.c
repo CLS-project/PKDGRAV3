@@ -4,7 +4,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <getopt.h>
-#include <assert.h>
 #include <errno.h>
 #include "fio.h"
 
@@ -92,14 +91,13 @@ int main( int argc, char **argv ) {
 
     if ( bError ) {
 	fprintf(stderr, "Usage: %s [-p] <input...> <outtipsy>\n"
-		"  -d,--double  Output double precision positions\n"
-		"  -n,--native  Output a native tipsy binary\n",
+		"  -d,--double    Output double precision positions\n"
+		"  -n,--native    Output a native tipsy binary\n",
+		"  -5,--hdf5      Output in HDF5 format\n",
+		"  -p,--potential Included potentials in HDF5 output\n",
 		argv[0] );
 	exit(1);
 	}
-
-
-    printf( "%s\n%s\n", argv[inNameIndex], outName);
 
     fioIn = fioOpenMany(inNameCount,&argv[inNameIndex],0.0,0.0);
     if (fioIn==NULL) {
@@ -144,16 +142,12 @@ int main( int argc, char **argv ) {
             break;
         default:
             fprintf(stderr,"Unsupported particle type: %d\n",eSpecies);
-            assert(0);
+            abort();
             }
-
-
 	}
 
     fioClose(fioOut);
     fioClose(fioIn);
-
-
 
     return 0;
     }
