@@ -91,19 +91,29 @@ static inline int iOpenOutcome(PKD pkd,KDN *k,CELT *check,KDN **pc) {
     KDN *c;
     int T1,iCell;
     int iOpen,iOpenA,iOpenB;
-        
+    int nc, nk, max_pp;
+
+    max_pp = 2 * pkd->param.nBucket;
+
     if (T1 = (check->iCell < 0)) iCell = -check->iCell;
     else iCell = check->iCell;
     if (check->id == pkd->idSelf) {
 	c = pkdTreeNode(pkd,iCell);
+	nc = c->pUpper - c->pLower + 1;
+	if (nc>max_pp) nc = max_pp;
     }
     else if (check->id < 0) {
         c = pkdTopNode(pkd,iCell);
+	nc = 2*pkd->param.nBucket + 1; /* we never allow pp with this cell */
 	assert(c->iLower != 0);
     }
     else {
 	c = mdlAquire(pkd->mdl,CID_CELL,iCell,check->id);
+	nc = c->pUpper - c->pLower + 1;
     }
+
+    nk = k->pUpper - k->pLower + 1;
+    if (nk>max_pp) nk = max_pp;
 
     pBND cbnd = pkdNodeBnd(pkd, c);
     pBND kbnd = pkdNodeBnd(pkd, k);
@@ -111,6 +121,7 @@ static inline int iOpenOutcome(PKD pkd,KDN *k,CELT *check,KDN **pc) {
 
     *pc = c;
     if (pkdNodeMom(pkd,c)->m <= 0) iOpen = 10;  /* ignore this cell */
+    else if (nc*nk <= max_pp) iOpen = 1;
     else {
 	dx = fabs(k->r[0] - cbnd.fCenter[0] - check->rOffset[0]) - cbnd.fMax[0];
 	dy = fabs(k->r[1] - cbnd.fCenter[1] - check->rOffset[1]) - cbnd.fMax[1];
@@ -118,7 +129,7 @@ static inline int iOpenOutcome(PKD pkd,KDN *k,CELT *check,KDN **pc) {
 	minc2 = ((dx>0)?dx*dx:0) + ((dy>0)?dy*dy:0) + ((dz>0)?dz*dz:0);
 	fourh2 = softmassweight(pkdNodeMom(pkd,k)->m,4*k->fSoft2,pkdNodeMom(pkd,c)->m,4*c->fSoft2);
 	if (T1) {
-	    if (k->iLower == 0) iOpenA = 1; /* add this cell as an "opened" bucket */
+	    if (k->iLower == 0) iOpenA = 1; /* add particles to interaction list */
 	    else iOpenA = 0; /* open this cell and add its children to the checklist */
 	    if (minc2 <= k->fOpen*k->fOpen) iOpen = iOpenA;  /* this cell simply stays on the checklist */
 	    else if (minc2 > fourh2) iOpen = 6;  /* Add particles of C to local expansion */
@@ -138,7 +149,7 @@ static inline int iOpenOutcome(PKD pkd,KDN *k,CELT *check,KDN **pc) {
 	    dy = fabs(yc - kbnd.fCenter[1]) - kbnd.fMax[1];
 	    dz = fabs(zc - kbnd.fCenter[2]) - kbnd.fMax[2];
 	    mink2 = ((dx>0)?dx*dx:0) + ((dy>0)?dy*dy:0) + ((dz>0)?dz*dz:0);
-
+	    
 	    if (c->fOpen > k->fOpen) iOpenB = iOpenA;
 	    else if (k->iLower != 0) iOpenB = 0; /* keep this cell on the checklist */
 	    else if (mink2 <= c->fOpen*c->fOpen) iOpenB = iOpenA;
@@ -557,7 +568,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 	    printf("\nCELL:%d ",iCell);
 */
 	    for (i=0;i<nCheck;++i) {
-		iOpen = iOpenOutcome(pkd,k,&pkd->Check[i],&c);
+		iOpen = iOpenOutcomeOld(pkd,k,&pkd->Check[i],&c);
 /*
 		printf("%1d",iOpen);
 */
@@ -601,7 +612,6 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 			    pkd->S[ism].Check = realloc(pkd->S[ism].Check,pkd->nMaxCheck*sizeof(CELT));
 			    assert(pkd->S[ism].Check != NULL);
 			}
-			printf("Case 2: CPU:%d increased checklist size to %d\n",mdlSelf(pkd->mdl),pkd->nMaxCheck);
 		    }
 		    pkd->Check[nCheck] = pkd->Check[i];
 		    pkd->Check[nCheck].iCell = -pkd->Check[nCheck].iCell;
@@ -625,7 +635,6 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 			    pkd->S[ism].Check = realloc(pkd->S[ism].Check,pkd->nMaxCheck*sizeof(CELT));
 			    assert(pkd->S[ism].Check != NULL);
 			}
-			printf("Case 3: CPU:%d increased checklist size to %d\n",mdlSelf(pkd->mdl),pkd->nMaxCheck);
 		    }
 		    iCheckCell = c->iLower;
 		    pkd->Check[nCheck] = pkd->Check[i];
@@ -900,7 +909,6 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 		    pkd->S[ism].Check = realloc(pkd->S[ism].Check,pkd->nMaxCheck*sizeof(CELT));
 		    assert(pkd->S[ism].Check != NULL);
 		    }
-		printf("F CPU:%d increased check list size to %d\n",mdlSelf(pkd->mdl),pkd->nMaxCheck);
 		}
 	    /*
 	    ** Check iCell is active. We eventually want to just to a
