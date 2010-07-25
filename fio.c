@@ -1492,7 +1492,6 @@ static int writeAttribute( hid_t groupID, const char *name,
     hsize_t dims = 1;
     herr_t rc;
 
-    //dataSpace = H5Screate_simple( 1, &dims, NULL ); assert(dataSpace!=H5I_INVALID_HID);
     dataSpace = H5Screate(H5S_SCALAR); assert(dataSpace!=H5I_INVALID_HID);
     attrID = H5Acreate( groupID,name,dataType,dataSpace,H5P_DEFAULT );
     assert(attrID!=H5I_INVALID_HID);
