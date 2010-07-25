@@ -65,7 +65,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
     float *a, *pPot;
     double *v, *vTmp;
     momFloat ax,ay,az,fPot;
-    double x,y,z,d2,dir,dir2;
+    double x,y,z,d2,dir,dir2,min_pc_d2;
     FLOAT fMass,fSoft;
     FLOAT fMassTmp,fSoftTmp;
     float fx, fy, fz;
@@ -161,12 +161,14 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 	momEvalSIMDMomr( nCellILC, ilc, p->r, p->a,
 			 &ax, &ay, &az, &fPot, &dirsum, &normsum );
 #else
+	min_pc_d2 = HUGE_VAL;
 	ILC_LOOP(ilc,ctile) {
 	    for (j=0;j<ctile->nCell;++j) {
 		x = p->r[0] - ctile->d[j].x.f;
 		y = p->r[1] - ctile->d[j].y.f;
 		z = p->r[2] - ctile->d[j].z.f;
 		d2 = x*x + y*y + z*z;
+		if (d2<min_pc_d2) min_pc_d2 = d2;
 		SQRT1(d2,dir);
 		dirDTS = dir;
 		dir2 = dir*dir;
@@ -258,7 +260,12 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 	    */
 	    rholoc = 0;
 	    nN = ilpCount(ilp);
-	    nTN = ilpCountTN(ilp,pkd->param.dFacExcludePart * (*bnd.size) );
+	    /*nTN = ilpCountTN(ilp,pow(pkd->param.dFacExcludePart * (*bnd.size),2) );*/
+	    nTN = ilpCountTN(ilp,min_pc_d2);
+	    if (nTN==0) {
+		printf("!: id=%lu nN=%d nTN=%d nCell=%d min_pc_d2=%e\n",
+		       p->iOrder, nN, nTN, ilcCount(ilc), min_pc_d2);
+		}
 	    if (nTN > 1) {
 		nSP = (nTN < pkd->param.nPartRhoLoc)?nTN:pkd->param.nPartRhoLoc;
 
@@ -285,6 +292,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 			}
 		    else fEps = 1.0;
 		    fEps2 = fEps*fEps;
+
 /* 		    d2 = ilp->first->s.d2.f[j]*dir2*fEps2; */
 		    d2 = ilp->first->s.d2.f[j]*dir2;
 		    d2 = (1-d2);
@@ -501,6 +509,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 		p->uNewRung = pkdDtToRung(dT,pkd->param.dDelta,pkd->param.iMaxRung-1);
 		}
 	    else p->uNewRung = 0; /* Assumes current uNewRung is outdated -- not ideal */
+
 	    p->fDensity = rholoc;
 	    }
 	/*

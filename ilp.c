@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
+#include <math.h>
 
 #include "ilp.h"
 #include "pkd.h" /* for PARTITION macro */
@@ -146,7 +147,7 @@ float ilpSelect(ILP ilp,uint32_t n, float *rMax) {
     assert( n > 0 );
     assert(ilp->first->nMaxPart >= n );
 
-#ifdef USE_SIMD_PP
+#ifdef USE_SIMD_PPneverfornow
     ILP_LOOP(ilp,tile) {
 	uint32_t n = (tile->nPart+ILP_ALIGN_MASK) >> ILP_ALIGN_BITS;
 	for ( j=0; j<n; j++ ) {
@@ -158,7 +159,7 @@ float ilpSelect(ILP ilp,uint32_t n, float *rMax) {
 #else
     ILP_LOOP(ilp,tile) {
 	for ( j=0; j<tile->nPart; j++ ) {
-	    tile->s.d2.f[j] = tile->d.d2.f[j];
+	    tile->s.d2.f[j] = tile->d.iOrder.i[j]>=0 ? tile->d.d2.f[j] : HUGE_VALF;
 	    tile->s.m.f[j] = tile->d.m.f[j];
 	    tile->s.fourh2.f[j] = tile->d.fourh2.f[j];
 	    }

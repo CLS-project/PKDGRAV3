@@ -24,8 +24,9 @@ typedef union {
 #endif
     } ilpFloat;
 
+
 typedef union {
-    uint64_t i[ILP_PART_PER_TILE];
+    int64_t i[ILP_PART_PER_TILE]; /* Signed because negative marks softened cells */
     } ilpInt64;
 
 
@@ -174,15 +175,13 @@ static inline void ilpCompute(ILP ilp, float fx, float fy, float fz ) {
 #endif
     }
 
-static inline uint32_t ilpCountTN(ILP ilp, double size) {
+static inline uint32_t ilpCountTN(ILP ilp, double size2) {
 
     ILPTILE tile;
     uint32_t j, nTN;
-    double d2, size2;
+    double d2;
 
     nTN = 0;
-    size2 = size*size;
-
     ILP_LOOP(ilp,tile) {
 	for (j=0;j<tile->nPart;++j) {
 	    d2 = tile->d.d2.f[j];
