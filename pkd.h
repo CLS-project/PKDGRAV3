@@ -1113,10 +1113,8 @@ int pkdNumSrcActive(PKD pkd,uint8_t uRungLo,uint8_t uRungHi);
 int pkdNumDstActive(PKD pkd,uint8_t uRungLo,uint8_t uRungHi);
 int pkdColOrdRejects(PKD,uint64_t,int);
 void pkdLocalOrder(PKD);
+uint32_t pkdWriteFIO(PKD pkd,FIO fio,double dvFac);
 uint32_t pkdWriteTipsy(PKD,char *,uint64_t,int,double,int);
-#ifdef USE_HDF5
-void pkdWriteHDF5(PKD pkd, IOHDF5 io,IOHDF5V ioDen, IOHDF5V ioPot, double dvFac);
-#endif
 void
 pkdGravAll(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,int bPeriodic,
 	   int iOrder,int bEwald,double fEwCut,double fEwhCut,int *nActive,

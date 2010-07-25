@@ -69,6 +69,7 @@
 #define FIO_H_MODULE_ID "$Id$"
 
 #include <stdint.h>
+#include <assert.h>
 
 /*
 ** These are the valid file formats
@@ -103,6 +104,8 @@ typedef enum {
     FIO_TYPE_UINT32,
     FIO_TYPE_UINT64,
     FIO_TYPE_UINT8,
+    FIO_TYPE_INT,
+    FIO_TYPE_STRING,
     } FIO_TYPE;
 
 /*
@@ -292,7 +295,7 @@ static inline int fioSetAttr(FIO fio,
 ** Open a Tipsy file.  The "fioOpen" routine can also be called and Tipsy format
 ** will be auto-detected.  Note that Standard/Native is detected automatically.
 */
-FIO fioTipsyOpen(const char *fileName,int bDouble);
+FIO fioTipsyOpen(const char *fileName);
 
 FIO fioTipsyCreate(const char *fileName,int bDouble,int bStandard,
 		   double dTime,uint64_t nSph, uint64_t nDark, uint64_t nStar);

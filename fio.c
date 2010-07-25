@@ -1258,7 +1258,7 @@ FIO fioTipsyOpenMany(int nFiles, const char * const *fileNames) {
     return tipsyOpen(&fileList);
     }
 
-FIO fioTipsyOpen(const char *fileName,int bDouble) {
+FIO fioTipsyOpen(const char *fileName) {
     return fioTipsyOpenMany(1,&fileName);
     }
 
@@ -1430,17 +1430,20 @@ static hid_t newSet(hid_t locID, const char *name, uint64_t chunk,
     /* Create a dataset property so we can set the chunk size */
     dataProperties = H5Pcreate( H5P_DATASET_CREATE );
     assert(dataProperties >= 0);
-    iDims[0] = chunk;
-    iDims[1] = 1;
-    rc = H5Pset_chunk( dataProperties, nDims>1?2:1, iDims ); assert(rc>=0);
+    if (chunk) {
+	iDims[0] = chunk;
+	iDims[1] = 1;
+	rc = H5Pset_chunk( dataProperties, nDims>1?2:1, iDims ); assert(rc>=0);
+	/* Also request the FLETCHER checksum */
+	rc = H5Pset_filter(dataProperties,H5Z_FILTER_FLETCHER32,0,0,NULL); assert(rc>=0);
+	}
 
-    /* Also request the FLETCHER checksum */
-    rc = H5Pset_filter(dataProperties,H5Z_FILTER_FLETCHER32,0,0,NULL); assert(rc>=0);
 
     /* And the dataspace */
     iDims[0] = count;
     iDims[1] = nDims;
-    iMax[0] = H5S_UNLIMITED;
+    if (chunk) iMax[0] = H5S_UNLIMITED;
+    else       iMax[0] = count;
     iMax[1] = nDims;
 
     dataSpace = H5Screate_simple( nDims>1?2:1, iDims, iMax );
@@ -1489,7 +1492,8 @@ static int writeAttribute( hid_t groupID, const char *name,
     hsize_t dims = 1;
     herr_t rc;
 
-    dataSpace = H5Screate_simple( 1, &dims, NULL ); assert(dataSpace!=H5I_INVALID_HID);
+    //dataSpace = H5Screate_simple( 1, &dims, NULL ); assert(dataSpace!=H5I_INVALID_HID);
+    dataSpace = H5Screate(H5S_SCALAR); assert(dataSpace!=H5I_INVALID_HID);
     attrID = H5Acreate( groupID,name,dataType,dataSpace,H5P_DEFAULT );
     assert(attrID!=H5I_INVALID_HID);
     rc = H5Awrite( attrID, dataType, data ); assert(rc>=0);
@@ -1549,7 +1553,7 @@ static void writeSet(
 **     - IOFIELD[] - Each data field (positions,velocities,etc.)
 \******************************************************************************/
 
-#define CHUNK_SIZE 32768
+#define CHUNK_SIZE (65536)
 
 #define GROUP_PARAMETERS "parameters"
 
@@ -1592,6 +1596,7 @@ typedef struct {
     hid_t memType;            /* ... of this type */
     hid_t setId;              /* ... in this set */
     uint32_t nValues;         /* ... with n-dimensions */
+    uint32_t nChunk;          /* ... by this size chunk */
     uint32_t iSize;           /* ... each this size */
     } IOFIELD;
 
@@ -1634,18 +1639,21 @@ typedef struct {
     struct fioInfo fio;
     hid_t fileID;
     hid_t parametersID;
+    hid_t stringType;
     int mFlags;
     FIO_SPECIES eCurrent;
     IOBASE base[FIO_SPECIES_LAST];
     } fioHDF5;
 
-static hid_t fio2hdf(FIO_TYPE dataType) {
+static hid_t fio2hdf(FIO_TYPE dataType,fioHDF5 *hio) {
     switch(dataType) {
     case FIO_TYPE_FLOAT:  return H5T_NATIVE_FLOAT;
     case FIO_TYPE_DOUBLE: return H5T_NATIVE_DOUBLE;
     case FIO_TYPE_UINT8:  return H5T_NATIVE_UINT8;
     case FIO_TYPE_UINT32: return H5T_NATIVE_UINT32;
     case FIO_TYPE_UINT64: return H5T_NATIVE_UINT64;
+    case FIO_TYPE_INT:    return H5T_NATIVE_INT;
+    case FIO_TYPE_STRING: return hio->stringType;
     default:
 	fprintf(stderr,"Invalid type specified: %d\n", dataType);
 	abort();
@@ -1729,7 +1737,8 @@ static void field_open(IOFIELD *field, hid_t groupID, const char *name, hid_t me
     field->setId = H5Dopen(groupID,name);
     if (field->setId != H5I_INVALID_HID) {
 	iSize = H5Tget_size(memType);
-	field->pBuffer = malloc(iSize*nValues*CHUNK_SIZE);
+	field->nChunk = CHUNK_SIZE;
+	field->pBuffer = malloc(iSize*nValues*field->nChunk);
 	assert(field->pBuffer);
 	field->memType = memType;
 	field->iSize   = iSize;
@@ -1761,10 +1770,11 @@ static inline int field_isopen(IOFIELD *field) {
 static void field_create(IOFIELD *field, hid_t groupID, const char *name, hid_t memType, hid_t diskType, int nValues ) {
     size_t iSize;
 
-    field->setId = newSet(groupID,name,CHUNK_SIZE,0,nValues,diskType);
+    field->nChunk = CHUNK_SIZE;
+    field->setId = newSet(groupID,name,field->nChunk,0,nValues,diskType);
     assert(field->setId!=H5I_INVALID_HID);
     iSize = H5Tget_size(memType);
-    field->pBuffer = malloc(iSize*nValues*CHUNK_SIZE);
+    field->pBuffer = malloc(iSize*nValues*field->nChunk);
     assert(field->pBuffer);
     field->memType = memType;
     field->iSize   = iSize;
@@ -1797,7 +1807,7 @@ static void class_flush(IOCLASS *ioClass,hid_t group_id) {
     if ( ioClass->nClasses > 0 ) {
 	tid = makeClassType( H5T_NATIVE_DOUBLE, !field_isopen(&ioClass->fldClasses));
 	set = newSet(group_id, FIELD_CLASSES,
-		     CHUNK_SIZE, ioClass->nClasses, 1, tid );
+		     256, ioClass->nClasses, 1, tid );
 
 	writeSet( set, ioClass->Class, tid,
 		  0, ioClass->nClasses, 1 );
@@ -1870,7 +1880,7 @@ static void class_add( IOBASE *base, PINDEX iOrder, float fMass, float fSoft ) {
 	    for( jClass=0; jClass<ioClass->nClasses; jClass++ ) {
 		for( iIndex = ioClass->Class[jClass].iOrderStart; iIndex<ioClass->Class[jClass+1].iOrderStart; iIndex++ ) {
 		    field_add_uint8_t(&jClass,&ioClass->fldClasses,n);
-		    if (++n == CHUNK_SIZE) {
+		    if (++n == ioClass->fldClasses.nChunk) {
 			field_write(&ioClass->fldClasses, iOffset, n );
 			iOffset += n;
 			n = 0;
@@ -2024,7 +2034,7 @@ static int hdf5GetAttr(
 
     H5Eget_auto(&save_func,&save_data);
     H5Eset_auto(0,0);
-    rc = readAttribute(hio->parametersID,attr,fio2hdf(dataType),data);
+    rc = readAttribute(hio->parametersID,attr,fio2hdf(dataType,hio),data);
     H5Eset_auto(save_func,save_data);
     return rc;
     }
@@ -2037,7 +2047,7 @@ static int hdf5SetAttr(
     assert(fio->eFormat == FIO_FORMAT_HDF5);
     assert(fio->eMode == FIO_MODE_WRITING);
 
-    return writeAttribute(hio->parametersID,attr,fio2hdf(dataType),data);
+    return writeAttribute(hio->parametersID,attr,fio2hdf(dataType,hio),data);
     }
 
 static FIO_SPECIES hdf5Species (struct fioInfo *fio) {
@@ -2283,6 +2293,7 @@ static void hdf5Close(FIO fio) {
 	    H5Gclose(base->group_id);
 	    }
 	}
+    H5Tclose(hio->stringType);
     H5Gclose(hio->parametersID);
     H5Fflush(hio->fileID,H5F_SCOPE_GLOBAL);
     assert(H5Fget_obj_count(hio->fileID,H5F_OBJ_ALL)==1);
@@ -2306,6 +2317,9 @@ FIO fioHDF5Open(const char *fileName) {
 	abort();
 	return NULL;
 	}
+
+    hio->stringType = H5Tcopy(H5T_C_S1);
+    H5Tset_size(hio->stringType, 256);
 
     /* Global parameters (dTime,etc.) are stored here */
     hio->parametersID = H5Gopen( hio->fileID, GROUP_PARAMETERS );
@@ -2382,6 +2396,9 @@ FIO fioHDF5Create(const char *fileName, int mFlags) {
 	return NULL;
 	}
     assert(H5Fget_obj_count(hio->fileID,H5F_OBJ_ALL)==1);
+
+    hio->stringType = H5Tcopy(H5T_C_S1);
+    H5Tset_size(hio->stringType, 256);
 
     /* Global parameters (dTime,etc.) are stored here */
     hio->parametersID = H5Gcreate( hio->fileID, GROUP_PARAMETERS, 0 );

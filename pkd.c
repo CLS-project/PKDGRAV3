@@ -29,10 +29,6 @@
 #include "parameters.h"
 #include "cosmo.h"
 
-#ifdef USE_HDF5
-#include "iohdf5.h"
-#endif
-
 #ifdef USE_BSC
 #include "mpitrace_user_events.h"
 #endif
@@ -1684,58 +1680,8 @@ int pkdPackIO(PKD pkd,
     return nCopied;
     }
 
-#ifdef USE_HDF5
-void pkdWriteHDF5(PKD pkd, IOHDF5 io, IOHDF5V ioDen, IOHDF5V ioPot, double dvFac) {
-    PARTICLE *p;
-    float *pPot, dummypot;
-    FLOAT v[3], fSoft, fMass;
-    double *pv, dummyv[3];
-    int i;
 
-    dummyv[0] = dummyv[1] = dummyv[2] = 0.0;
-    dummypot = 0.0;
-    for (i=0;i<pkdLocal(pkd);++i) {
-	p = pkdParticle(pkd,i);
-	if ( !pkdIsSrcActive(p,0,MAX_RUNG) ) continue;
-	if ( pkd->oPotential) pPot = pkdPot(pkd,p);
-	else pPot = &dummypot;
-	if (pkd->oVelocity) pv = pkdVel(pkd,p);
-	else pv = dummyv;
-
-	v[0] = pv[0] * dvFac;
-	v[1] = pv[1] * dvFac;
-	v[2] = pv[2] * dvFac;
-	fSoft = pkdSoft0(pkd,p);
-	fMass = pkdMass(pkd,p);
-	if (pkdIsDark(pkd,p)) {
-	    ioHDF5AddDark(io,p->iOrder,p->r,v,
-			  fMass,fSoft,*pPot );
-	    }
-	else if (pkdIsGas(pkd,p)) {
-	    assert(0);
-	    /* Why are temp and metals always set to zero? */
-	    ioHDF5AddGas( io,p->iOrder,p->r,v,
-			  fMass,fSoft,*pPot,0.0,0.0);
-	    }
-	else if (pkdIsStar(pkd,p)) {
-	    assert(0);
-	    /* Why are metals and tform always set to zero? */
-	    ioHDF5AddStar(io, p->iOrder, p->r, v,
-			  fMass,fSoft,*pPot,0.0,0.0);
-	    }
-	else mdlassert(pkd->mdl,0);
-
-	ioHDF5AddVector( ioDen, p->iOrder, p->fDensity );
-	ioHDF5AddVector( ioPot, p->iOrder, *pPot );
-	}
-    }
-
-
-#endif
-
-uint32_t pkdWriteTipsy(PKD pkd,char *pszFileName,uint64_t iFirst,
-		       int bStandard,double dvFac,int bDoublePos) {
-    FIO fio;
+uint32_t pkdWriteFIO(PKD pkd,FIO fio,double dvFac) {
     PARTICLE *p;
     STARFIELDS *pStar;
     SPHFIELDS *pSph;
@@ -1746,18 +1692,10 @@ uint32_t pkdWriteTipsy(PKD pkd,char *pszFileName,uint64_t iFirst,
     uint64_t iOrder;
     int i;
 
-    fio = fioTipsyAppend(pszFileName,bDoublePos,bStandard);
-    if (fio==NULL) {
-	fprintf(stderr,"ERROR: unable to reopen tipsy file for output\n");
-	perror(pszFileName);
-	mdlassert(pkd->mdl,fio!=NULL);
-	}
-    fioSeek(fio,iFirst,FIO_SPECIES_ALL);
 
     v[0] = v[1] = v[2] = 0.0;
     dummypot = 0.0;
     nCount = 0;
-    /*printf("Writing %lu\n", pkdLocal(pkd));*/
     for (i=0;i<pkdLocal(pkd);++i) {
 	p = pkdParticle(pkd,i);
 	if ( !pkdIsSrcActive(p,0,MAX_RUNG) ) continue;  /* JW: Ack! */
@@ -1809,6 +1747,24 @@ uint32_t pkdWriteTipsy(PKD pkd,char *pszFileName,uint64_t iFirst,
 	    }
 
 	}
+    return nCount;
+    }
+
+uint32_t pkdWriteTipsy(PKD pkd,char *pszFileName,uint64_t iFirst,
+		       int bStandard,double dvFac,int bDoublePos) {
+    FIO fio;
+    uint32_t nCount;
+    int i;
+
+    fio = fioTipsyAppend(pszFileName,bDoublePos,bStandard);
+    if (fio==NULL) {
+	fprintf(stderr,"ERROR: unable to reopen tipsy file for output\n");
+	perror(pszFileName);
+	mdlassert(pkd->mdl,fio!=NULL);
+	}
+
+    fioSeek(fio,iFirst,FIO_SPECIES_ALL);
+    nCount = pkdWriteFIO(pkd,fio,dvFac);
     fioClose(fio);
     return nCount;
     }
