@@ -191,7 +191,7 @@ int smHashPresent(SMX smx,void *p) {
 }
 
 
-int smInitialize(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodic,int bSymmetric,int iSmoothType) {
+static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodic,int bSymmetric,int iSmoothType,int bMakeCache) {
     SMX smx;
     void (*initParticle)(void *,void *) = NULL;
     void (*init)(void *,void *) = NULL;
@@ -224,6 +224,13 @@ int smInitialize(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodic,int bSymme
 	initParticle = initDensity; /* Original Particle */
 	init = initDensity; /* Cached copies */
 	comb = combDensity;
+	smx->fcnPost = NULL;
+	break;
+    case SMX_DENSITY_F1:
+	smx->fcnSmooth = DensityF1;
+	initParticle = initDensity; /* Original Particle */
+	init = NULL;
+	comb = NULL;
 	smx->fcnPost = NULL;
 	break;
     case SMX_PRINTNN:
@@ -336,16 +343,20 @@ int smInitialize(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodic,int bSymme
     /*
     ** Start particle caching space (cell cache is already active).
     */
-    if (bSymmetric) {
-	mdlCOcache(pkd->mdl,CID_PARTICLE,NULL,
-		   pkdParticleBase(pkd),pkdParticleSize(pkd),
-		   nTree,pkd,init,comb);
-    }
-    else {
-	mdlROcache(pkd->mdl,CID_PARTICLE,NULL,
-		   pkdParticleBase(pkd),pkdParticleSize(pkd),
-		   nTree);
-    }
+    if (bMakeCache) {
+	smx->bOwnCache = 1;
+	if (bSymmetric) {
+	    mdlCOcache(pkd->mdl,CID_PARTICLE,NULL,
+		       pkdParticleBase(pkd),pkdParticleSize(pkd),
+		       nTree,pkd,init,comb);
+	    }
+	else {
+	    mdlROcache(pkd->mdl,CID_PARTICLE,NULL,
+		       pkdParticleBase(pkd),pkdParticleSize(pkd),
+		       nTree);
+	    }
+	}
+    else smx->bOwnCache = 0;
     /*
     ** Allocate Nearest-Neighbor List.
     */
@@ -426,6 +437,13 @@ int smInitialize(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodic,int bSymme
     return(1);
 }
 
+int smInitialize(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodic,int bSymmetric,int iSmoothType) {
+    smInitializeBasic(psmx,pkd,smf,nSmooth,bPeriodic,bSymmetric,iSmoothType,1);
+    }
+
+int smInitializeRO(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodic,int iSmoothType) {
+    smInitializeBasic(psmx,pkd,smf,nSmooth,bPeriodic,0,iSmoothType,0);
+    }
 
 void smFinish(SMX smx,SMF *smf) {
     PKD pkd = smx->pkd;
@@ -463,7 +481,8 @@ void smFinish(SMX smx,SMF *smf) {
     /*
     ** Stop particle caching space.
     */
-    mdlFinishCache(smx->pkd->mdl,CID_PARTICLE);
+    if (smx->bOwnCache)
+	mdlFinishCache(smx->pkd->mdl,CID_PARTICLE);
     /*
     ** Now do any post calculations, these ususlly involve some sort of
     ** normalizations of the smoothed quantities, usually division by
@@ -828,100 +847,119 @@ PQ *pqSearch(SMX smx,PQ *pq,FLOAT r[3],int bReplica,int *pbDone) {
 }
 
 
+void smSmoothInitialize(SMX smx) {
+    int i;
+    /*
+    ** Initialize the priority queue first.
+    */
+    for (i=0;i<smx->nSmooth;++i) {
+	smx->pq[i].pPart = &smx->pSentinel;
+	smx->pq[i].iIndex = smx->pkd->nLocal;
+	smx->pq[i].iPid = smx->pkd->idSelf;
+	smx->pq[i].dx = smx->pSentinel.r[0];
+	smx->pq[i].dy = smx->pSentinel.r[1];
+	smx->pq[i].dz = smx->pSentinel.r[2];
+	smx->pq[i].fDist2 = pow(smx->pq[i].dx,2) + pow(smx->pq[i].dy,2) + 
+	    pow(smx->pq[i].dz,2);
+	}
+    for (i=0;i<3;++i) smx->rLast[i] = 0.0;
+    }
+
+void smSmoothFinish(SMX smx) {
+    int i;
+    /*
+    ** Release acquired pointers and source-reactivate particles in prioq.
+    */
+    for (i=0;i<smx->nSmooth;++i) {
+	if (smx->pq[i].iPid == smx->pkd->idSelf) {
+	    smx->ea[smx->pq[i].iIndex].bInactive = 0;
+	    }
+	else {
+	    smHashDel(smx,smx->pq[i].pPart);
+	    mdlRelease(smx->pkd->mdl,CID_PARTICLE,smx->pq[i].pPart);
+	    }
+	}
+    }
+
+void smSmoothSingle(SMX smx,SMF *smf,PARTICLE *p) {
+    PKD pkd = smx->pkd;
+    int ix,iy,iz;
+    FLOAT r[3],fBall;
+    int iStart[3],iEnd[3];
+    int j,bDone;
+    PQ *pq;
+
+    /*
+    ** Correct distances and rebuild priority queue.
+    */
+    for (j=0;j<smx->nSmooth;++j) {
+	smx->pq[j].dx += p->r[0]-smx->rLast[0];
+	smx->pq[j].dy += p->r[1]-smx->rLast[1];
+	smx->pq[j].dz += p->r[2]-smx->rLast[2];
+	smx->pq[j].fDist2 = pow(smx->pq[j].dx,2) + pow(smx->pq[j].dy,2) + 
+	    pow(smx->pq[j].dz,2);
+	}
+    for (j=0;j<3;++j) smx->rLast[j] = p->r[j];
+
+    PQ_BUILD(smx->pq,smx->nSmooth,pq);
+    pq = pqSearch(smx,pq,p->r,0,&bDone);
+    /*
+    ** Search in replica boxes if it is required.
+    */
+    if (!bDone && smx->bPeriodic) {
+	fBall = sqrt(pq->fDist2);
+	for (j=0;j<3;++j) {
+	    iStart[j] = floor((p->r[j] - fBall)/pkd->fPeriod[j] + 0.5);
+	    iEnd[j] = floor((p->r[j] + fBall)/pkd->fPeriod[j] + 0.5);
+	    }
+	for (ix=iStart[0];ix<=iEnd[0];++ix) {
+	    r[0] = p->r[0] - ix*pkd->fPeriod[0];
+	    for (iy=iStart[1];iy<=iEnd[1];++iy) {
+		r[1] = p->r[1] - iy*pkd->fPeriod[1];
+		for (iz=iStart[2];iz<=iEnd[2];++iz) {
+		    r[2] = p->r[2] - iz*pkd->fPeriod[2];
+		    if (ix || iy || iz) {
+			pq = pqSearch(smx,pq,r,1,&bDone);
+			}
+		    }
+		}
+	    }
+	}
+    p->fBall = sqrt(pq->fDist2);
+    /*
+    ** Apply smooth funtion to the neighbor list.
+    */
+    smx->fcnSmooth(p,smx->nSmooth,smx->pq,smf);
+    }
+
 void smSmooth(SMX smx,SMF *smf) {
     PKD pkd = smx->pkd;
     PARTICLE *p;
     PQ *pq = smx->pq;
-    FLOAT r[3],fBall;
-    FLOAT rLast[3];
-    int iStart[3],iEnd[3];
-    int pi,i,j,bDone;
-    int ix,iy,iz;
+    int pi,i,j;
 
     /*
     ** Initialize the bInactive flags for all local particles.
     */
     for (pi=0;pi<pkd->nLocal;++pi) {
 	p = pkdParticle(pkd,pi);
-	smx->ea[pi].bInactive = (p->bSrcActive)?0:1;
+	smx->ea[pi].bInactive = (p->bSrcActive?0:1);
     }
     smx->ea[pkd->nLocal].bInactive = 0;  /* initialize for Sentinel, but this is not really needed */
-    /*
-    ** Initialize the priority queue first.
-    */
-    for (i=0;i<smx->nSmooth;++i) {
-	smx->pq[i].pPart = &smx->pSentinel;
-	smx->pq[i].iIndex = pkd->nLocal;
-	smx->pq[i].iPid = pkd->idSelf;
-	smx->pq[i].dx = smx->pSentinel.r[0];
-	smx->pq[i].dy = smx->pSentinel.r[1];
-	smx->pq[i].dz = smx->pSentinel.r[2];
-	smx->pq[i].fDist2 = pow(smx->pq[i].dx,2) + pow(smx->pq[i].dy,2) + 
-	    pow(smx->pq[i].dz,2);
-    }
-    for (j=0;j<3;++j) rLast[j] = 0.0;
+    smSmoothInitialize(smx);
 
     for (pi=0;pi<pkd->nLocal;++pi) {
 	p = pkdParticle(pkd,pi);
 	if ( !pkdIsDstActive(p,0,MAX_RUNG) ) continue;
-	/*
-	** Correct distances and rebuild priority queue.
-	*/
-	for (i=0;i<smx->nSmooth;++i) {
-	    smx->pq[i].dx += p->r[0]-rLast[0];
-	    smx->pq[i].dy += p->r[1]-rLast[1];
-	    smx->pq[i].dz += p->r[2]-rLast[2];
-	    smx->pq[i].fDist2 = pow(smx->pq[i].dx,2) + pow(smx->pq[i].dy,2) + 
-		pow(smx->pq[i].dz,2);
-	}
-	for (j=0;j<3;++j) rLast[j] = p->r[j];
-	PQ_BUILD(smx->pq,smx->nSmooth,pq);
 
-	pq = pqSearch(smx,pq,p->r,0,&bDone);
-	/*
-	** Search in replica boxes if it is required.
-	*/
-	if (!bDone && smx->bPeriodic) {
-	    fBall = sqrt(pq->fDist2);
-	    for (j=0;j<3;++j) {
-		iStart[j] = floor((p->r[j] - fBall)/pkd->fPeriod[j] + 0.5);
-		iEnd[j] = floor((p->r[j] + fBall)/pkd->fPeriod[j] + 0.5);
-	    }
-	    for (ix=iStart[0];ix<=iEnd[0];++ix) {
-		r[0] = p->r[0] - ix*pkd->fPeriod[0];
-		for (iy=iStart[1];iy<=iEnd[1];++iy) {
-		    r[1] = p->r[1] - iy*pkd->fPeriod[1];
-		    for (iz=iStart[2];iz<=iEnd[2];++iz) {
-			r[2] = p->r[2] - iz*pkd->fPeriod[2];
-			if (ix || iy || iz) {
-			    pq = pqSearch(smx,pq,r,1,&bDone);
-			}
-		    }
-		}
-	    }
-	}
-	p->fBall = sqrt(pq->fDist2);
-	/*
-	** Apply smooth funtion to the neighbor list.
-	*/
-	smx->fcnSmooth(p,smx->nSmooth,smx->pq,smf);
+	smSmoothSingle(smx,smf,p);
+
 	/*
 	** Call mdlCacheCheck to make sure we are making progress!
 	*/
 	mdlCacheCheck(pkd->mdl);
     }
-    /*
-    ** Release acquired pointers and source-reactivate particles in prioq.
-    */
-    for (i=0;i<smx->nSmooth;++i) {
-	if (smx->pq[i].iPid == pkd->idSelf) {
-	    smx->ea[smx->pq[i].iIndex].bInactive = 0;
-	}
-	else {
-	    smHashDel(smx,smx->pq[i].pPart);
-	    mdlRelease(pkd->mdl,CID_PARTICLE,smx->pq[i].pPart);
-	}
-    }
+    smSmoothFinish(smx);
 }
 
 

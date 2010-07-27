@@ -32,6 +32,8 @@ typedef struct smContext {
     int nSmooth;
     int nQueue;
     int bPeriodic;
+    int bOwnCache;
+    FLOAT rLast[3]; /* For the snake */
     PQ *pq;
     /*
     ** Flags to mark local particles which are inactive either because they
@@ -77,8 +79,12 @@ typedef struct smContext {
 
 int smInitialize(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,
 		 int bPeriodic,int bSymmetric,int iSmoothType);
-
+int smInitializeRO(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,
+		   int bPeriodic,int iSmoothType);
 void smFinish(SMX,SMF *);
+void smSmoothInitialize(SMX smx);
+void smSmoothFinish(SMX smx);
+void smSmoothSingle(SMX smx,SMF *smf,PARTICLE *p);
 void smSmooth(SMX,SMF *);
 void smReSmooth(SMX,SMF *);
 
