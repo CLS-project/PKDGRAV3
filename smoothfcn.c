@@ -84,6 +84,23 @@ void combDensity(void *vpkd, void *p1,void *p2) {
     ((PARTICLE *)p1)->fDensity += ((PARTICLE *)p2)->fDensity;
     }
 
+void DensityF1(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
+    PKD pkd = smf->pkd;
+    float ih2,r2,rs,fDensity,fMass;
+    int i;
+
+    ih2 = 1.0/BALL2(p);
+    fDensity = 0.0;
+    for (i=0;i<nSmooth;++i) {
+	fMass = pkdMass(pkd,nnList[i].pPart);
+	r2 = nnList[i].fDist2*ih2;
+	rs = 1 - r2;
+	if (rs < 0) rs = 0.0;
+	fDensity += rs*fMass;
+	}
+    p->fDensity = 1.875*M_1_PI*sqrt(ih2)*ih2*fDensity; /* F1 Kernel (15/8) */
+    }
+
 void Density(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
     float ih2,r2,rs,fDensity,fMass;

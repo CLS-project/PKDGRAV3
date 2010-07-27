@@ -188,6 +188,9 @@ void AddRelaxation(PARTICLE *,int,NN *,SMF *);
 void DrmininDrift(PARTICLE *,int,NN *,SMF *);
 #endif
 
+#define SMX_DENSITY_F1          28
+void DensityF1(PARTICLE *,int,NN *,SMF *);
+
 #endif
 
 
