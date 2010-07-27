@@ -20,6 +20,7 @@
 #include "pkd.h"
 #include "walk.h"
 #include "grav.h"
+#include "smooth.h"
 #ifndef HAVE_CONFIG_H
 #include "floattype.h"
 #endif
@@ -87,6 +88,7 @@ float getTimer(TIMER *t) {
 */
 static inline int iOpenOutcome(PKD pkd,KDN *k,CELT *check,KDN **pc) {
     const double fMonopoleThetaFac = 1.5;
+    const double fThetaFac2 = 1.25 * 1.25;
     double dx,dy,dz,minc2,mink2,d2,d2Open,xc,yc,zc,fourh2;
     KDN *c;
     int T1,iCell;
@@ -131,7 +133,7 @@ static inline int iOpenOutcome(PKD pkd,KDN *k,CELT *check,KDN **pc) {
 	if (T1) {
 	    if (k->iLower == 0) iOpenA = 1; /* add particles to interaction list */
 	    else iOpenA = 0; /* open this cell and add its children to the checklist */
-	    if (minc2 <= k->fOpen*k->fOpen) iOpen = iOpenA;  /* this cell simply stays on the checklist */
+	    if (minc2 <= fThetaFac2*k->fOpen*k->fOpen) iOpen = iOpenA;  /* this cell simply stays on the checklist */
 	    else if (minc2 > fourh2) iOpen = 6;  /* Add particles of C to local expansion */
 	    else if (minc2 > pow(fMonopoleThetaFac*k->fOpen,2)) iOpen = 7;
 	    else iOpen = iOpenA;
@@ -144,7 +146,7 @@ static inline int iOpenOutcome(PKD pkd,KDN *k,CELT *check,KDN **pc) {
 	    yc = c->r[1] + check->rOffset[1];
 	    zc = c->r[2] + check->rOffset[2];
 	    d2 = pow(k->r[0]-xc,2) + pow(k->r[1]-yc,2) + pow(k->r[2]-zc,2);
-	    d2Open = pow(c->fOpen + k->fOpen,2);
+	    d2Open = pow(c->fOpen + k->fOpen,2) * fThetaFac2;
 	    dx = fabs(xc - kbnd.fCenter[0]) - kbnd.fMax[0];
 	    dy = fabs(yc - kbnd.fCenter[1]) - kbnd.fMax[1];
 	    dz = fabs(zc - kbnd.fCenter[2]) - kbnd.fMax[2];
@@ -152,7 +154,7 @@ static inline int iOpenOutcome(PKD pkd,KDN *k,CELT *check,KDN **pc) {
 	    
 	    if (c->fOpen > k->fOpen) iOpenB = iOpenA;
 	    else if (k->iLower != 0) iOpenB = 0; /* keep this cell on the checklist */
-	    else if (mink2 <= c->fOpen*c->fOpen) iOpenB = iOpenA;
+	    else if (mink2 <= fThetaFac2*c->fOpen*c->fOpen) iOpenB = iOpenA;
 	    else if (mink2 > fourh2) iOpenB = 4; /* add this cell to the P-C list */
 	    else if (mink2 > pow(fMonopoleThetaFac*c->fOpen,2)) iOpenB = 5; /* use this cell as a softened monopole */
 	    else iOpenB = iOpenA;
@@ -364,14 +366,15 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
     int ix,iy,iz,bRep;
     int nMaxInitCheck,nCheck;
     int iCell,iSib,iCheckCell,iCellDescend;
-    int i,ii,j,pj,nActive,nTotActive;
+    int i,ii,j,pi,pj,nActive,nTotActive;
     int iOpen;
     ILPTILE tile;
     ILCTILE ctile;
 #ifdef USE_SIMD_MOMR
     int ig,iv;
 #endif
-
+    SMX smx;
+    SMF smf;
     double tempI;
 
     double dEwFlop = 0.0;
@@ -408,6 +411,20 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
     nTotActive = 0;
     ilpClear(pkd->ilp);
     ilcClear(pkd->ilc);
+
+    /*
+    ** Setup smooth for calculating local densities when a particle has too few P-P interactions.
+    */
+    if (pkd->param.bGravStep) {
+	smInitializeRO(&smx,pkd,&smf,pkd->param.nPartRhoLoc+1,nReps?1:0,SMX_DENSITY_F1);
+	smSmoothInitialize(smx);
+	/* No particles are inactive for density calculation */
+	for (pi=0;pi<pkd->nLocal;++pi) {
+	    p = pkdParticle(pkd,pi);
+	    smx->ea[pi].bInactive = 0;
+	    }
+	}
+    else smx = NULL;
 
     /*
     ** Allocate Checklist.
@@ -543,9 +560,9 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 	    */
 	    ILP_LOOP( pkd->ilp, tile ) {
 		for ( j=0; j<tile->nPart; ++j ) {
-		    tile->d.dx.f[j] += cx - pkd->ilp->cx;
-		    tile->d.dy.f[j] += cy - pkd->ilp->cy;
-		    tile->d.dz.f[j] += cz - pkd->ilp->cz;
+		    tile->dx.f[j] += cx - pkd->ilp->cx;
+		    tile->dy.f[j] += cy - pkd->ilp->cy;
+		    tile->dz.f[j] += cz - pkd->ilp->cz;
 		    }
 		}
 	    pkd->ilp->cx = cx;
@@ -989,7 +1006,8 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 	** Now calculate gravity on this bucket!
 	*/
 	nActive = pkdGravInteract(pkd,uRungLo,uRungHi,k,&L,pkd->ilp,pkd->ilc,
-				  dirLsum,normLsum,bEwald,pdFlop,&dEwFlop,dRhoFac);
+				  dirLsum,normLsum,bEwald,pdFlop,&dEwFlop,dRhoFac,
+				  smx, &smf);
 	/*
 	** Update the limit for a shift of the center here based on the opening radius of this
 	** cell (the one we just evaluated).
@@ -1020,7 +1038,10 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 		VTPause();
 #endif
 		*pdFlop += dEwFlop;   /* Finally add the ewald score to get a proper float count */
-
+		if (smx) {
+		    smSmoothFinish(smx);
+		    smFinish(smx,&smf);
+		    }
 		return(nTotActive);
 		}
 	    }

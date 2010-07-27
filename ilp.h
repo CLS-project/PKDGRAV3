@@ -36,25 +36,16 @@ typedef struct ilpTile {
     uint32_t nMaxPart;          /* Maximum number of particles in this tile */
     uint32_t nPart;             /* Current number of particles */
 
-    struct {
-	ilpFloat dx, dy, dz;        /* Offset from ilp->cx, cy, cz */
-	ilpFloat d2;                /* Distance squared: calculated */
-	ilpFloat m;                 /* Mass */
-	ilpFloat fourh2;            /* Softening: calculated */
+    ilpFloat dx, dy, dz;        /* Offset from ilp->cx, cy, cz */
+    ilpFloat d2;                /* Distance squared: calculated */
+    ilpFloat m;                 /* Mass */
+    ilpFloat fourh2;            /* Softening: calculated */
 /* #ifdef HERMITE */
-	ilpFloat vx, vy, vz;
+    ilpFloat vx, vy, vz;
 /* #endif */
 /* #if defined(SYMBA) || defined(PLANETS) */
-	ilpInt64 iOrder;
+    ilpInt64 iOrder;
 /* #endif */
-	} d;
-    /* Everything in this structure is sorted */
-    struct {
-	ilpFloat d2;                /* Distance squared: calculated */
-	ilpFloat m;                 /* Mass */
-	ilpFloat fourh2;            /* Softening */
-	} s;
-
     } *ILPTILE;
 
 typedef struct ilpContext {
@@ -92,20 +83,17 @@ static inline uint32_t ilpCount(ILP ilp) {
     return ilp->nPrevious + ilp->tile->nPart;
     }
 
-float ilpSelect(ILP ilp,uint32_t n,float *rMax);
-float ilpSelectMass(ILP ilp,uint32_t n, uint32_t N);
-
 /* #if defined(SYMBA) || defined(PLANETS) */
-#define ilpAppend_1(ilp,I) tile->d.iOrder.i[ILP_APPEND_i] = (I);
+#define ilpAppend_1(ilp,I) tile->iOrder.i[ILP_APPEND_i] = (I);
 /* #else */
 /* #define ilpAppend_1(ilp,I) */
 /* #endif */
 
 /* #if defined(HERMITE) */
 #define ilpAppend_2(ilp,VX,VY,VZ)					\
-    tile->d.vx.f[ILP_APPEND_i] = (VX);					\
-    tile->d.vy.f[ILP_APPEND_i] = (VY);					\
-    tile->d.vz.f[ILP_APPEND_i] = (VZ);
+    tile->vx.f[ILP_APPEND_i] = (VX);					\
+    tile->vy.f[ILP_APPEND_i] = (VY);					\
+    tile->vz.f[ILP_APPEND_i] = (VZ);
 /* #else */
 /* #define ilpAppend_2(ilp,VX,VY,VZ) */
 /* #endif */
@@ -117,12 +105,12 @@ float ilpSelectMass(ILP ilp,uint32_t n, uint32_t N);
     uint_fast32_t ILP_APPEND_i;						\
     if ( tile->nPart == tile->nMaxPart ) tile = ilpExtend((ilp));	\
     ILP_APPEND_i = tile->nPart;						\
-    tile->d.dx.f[ILP_APPEND_i] = (ilp)->cx - (X);			\
-    tile->d.dy.f[ILP_APPEND_i] = (ilp)->cy - (Y);			\
-    tile->d.dz.f[ILP_APPEND_i] = (ilp)->cz - (Z);			\
+    tile->dx.f[ILP_APPEND_i] = (ilp)->cx - (X);			\
+    tile->dy.f[ILP_APPEND_i] = (ilp)->cy - (Y);			\
+    tile->dz.f[ILP_APPEND_i] = (ilp)->cz - (Z);			\
     assert( (M) > 0.0 );						\
-    tile->d.m.f[ILP_APPEND_i] = (M);					\
-    tile->d.fourh2.f[ILP_APPEND_i] = (S);				\
+    tile->m.f[ILP_APPEND_i] = (M);					\
+    tile->fourh2.f[ILP_APPEND_i] = (S);				\
     ilpAppend_1((ilp),I);						\
     ilpAppend_2((ilp),VX,VY,VZ);					\
     ++tile->nPart;							\
@@ -149,47 +137,30 @@ static inline void ilpCompute(ILP ilp, float fx, float fy, float fz ) {
 	if ( r != 0 ) {
 	    for ( j=r; j<ILP_ALIGN_SIZE; j++ ) {
 		int o = (n<<ILP_ALIGN_BITS) + j;
-		tile->d.dx.f[o] = tile->d.dy.f[o] = tile->d.dz.f[o] = 1e18;
-		tile->d.m.f[o] = 0;
-		tile->d.fourh2.f[o] = tile->d.fourh2.f[0];
+		tile->dx.f[o] = tile->dy.f[o] = tile->dz.f[o] = 1e18;
+		tile->m.f[o] = 0;
+		tile->fourh2.f[o] = tile->fourh2.f[0];
 		}
 	    n++;
 	    }
 	for ( j=0; j<n; j++ ) {
-	    tile->d.dx.p[j] = t1 = SIMD_ADD(tile->d.dx.p[j],px);
-	    tile->d.dy.p[j] = t2 = SIMD_ADD(tile->d.dy.p[j],py);
-	    tile->d.dz.p[j] = t3 = SIMD_ADD(tile->d.dz.p[j],pz);
-	    tile->d.d2.p[j] = SIMD_MADD(t3,t3,SIMD_MADD(t2,t2,SIMD_MUL(t1,t1)));
+	    tile->dx.p[j] = t1 = SIMD_ADD(tile->dx.p[j],px);
+	    tile->dy.p[j] = t2 = SIMD_ADD(tile->dy.p[j],py);
+	    tile->dz.p[j] = t3 = SIMD_ADD(tile->dz.p[j],pz);
+	    tile->d2.p[j] = SIMD_MADD(t3,t3,SIMD_MADD(t2,t2,SIMD_MUL(t1,t1)));
 	    }
 	}
 #else
     ILP_LOOP(ilp,tile) {
 	for (j=0;j<tile->nPart;++j) {
-	    tile->d.dx.f[j] += fx;
-	    tile->d.dy.f[j] += fy;
-	    tile->d.dz.f[j] += fz;
-	    tile->d.d2.f[j] = tile->d.dx.f[j]*tile->d.dx.f[j]
-			      + tile->d.dy.f[j]*tile->d.dy.f[j] + tile->d.dz.f[j]*tile->d.dz.f[j];
+	    tile->dx.f[j] += fx;
+	    tile->dy.f[j] += fy;
+	    tile->dz.f[j] += fz;
+	    tile->d2.f[j] = tile->dx.f[j]*tile->dx.f[j]
+			      + tile->dy.f[j]*tile->dy.f[j] + tile->dz.f[j]*tile->dz.f[j];
 	    }
 	}
 #endif
-    }
-
-static inline uint32_t ilpCountTN(ILP ilp, double size2) {
-
-    ILPTILE tile;
-    uint32_t j, nTN;
-    double d2;
-
-    nTN = 0;
-    ILP_LOOP(ilp,tile) {
-	for (j=0;j<tile->nPart;++j) {
-	    d2 = tile->d.d2.f[j];
-	    if (d2 < size2) nTN++;
-	    }
-	}
-    
-    return nTN;
     }
 
 #else /* LOCAL_EXPANSION */
