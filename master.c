@@ -353,7 +353,7 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.iTimeStepCrit = 0;
     prmAddParam(msr->prm,"iTimeStepCrit",1,&msr->param.iTimeStepCrit,sizeof(int),
 		"tsc", "<Criteria for dynamical time-stepping>");
-    msr->param.nPartRhoLoc = 32;
+    msr->param.nPartRhoLoc = 24;
     prmAddParam(msr->prm,"nPartRhoLoc",1,&msr->param.nPartRhoLoc,sizeof(int),
 		"nprholoc", "<Number of particles for local density in dynamical time-stepping>");
     msr->param.dPreFacRhoLoc = 4.0*M_PI/3.0;
