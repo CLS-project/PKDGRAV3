@@ -74,19 +74,19 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
     momFloat adotai,maga,dimaga,dirsum,normsum;
     momFloat tax,tay,taz,tmon;
     double rhopmax,rhopmaxlocal,dirDTS,dsmooth2;
-    double vx,vy,vz;
-    double summ;
 #ifndef USE_SIMD_MOMR
     double g2,g3,g4;
     double xx,xy,xz,yy,yz,zz;
     double xxx,xxz,yyy,yyz,xxy,xyy,xyz;
 #else
+    double summ;
+    double vx,vy,vz;
     int nCellILC;
 #endif
     double tx,ty,tz;
     ILPTILE tile;
     ILCTILE ctile;
-    int i,j,nN,nTN,nSP,nSoft,nActive;
+    int i,j,nSoft,nActive;
     float rMax;
 #if defined(USE_SIMD_PP)
     v4sf t1, t2, t3;
@@ -256,7 +256,8 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 	*/
 	if (pkd->param.bGravStep) {
 	    /*
-	    ** Calculate local density only in the case of more than 1 neighbouring particle!
+	    ** Calculate local density using smooth; this is fast because the particles are
+	    ** likely to be cached already because they will be on the P-P list.
 	    */
 	    smSmoothSingle(smx,smf,p);
 	    dsmooth2 = p->fBall * p->fBall;
@@ -271,7 +272,6 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 #endif	    
 	    }
 	
-
 #ifdef USE_SIMD_PP
 	pax = SIMD_LOADS(ax);
 	pay = SIMD_LOADS(ay);
@@ -462,7 +462,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 	    else dtGrav = 0.0;
 	    dtGrav += pkd->param.dPreFacRhoLoc*p->fDensity;
 	    if (pkd->param.iTimeStepCrit > 0) {
-		dtGrav = (rhopmax > dtGrav)?rhopmax:dtGrav;
+		dtGrav = (rhopmax > dtGrav?rhopmax:dtGrav);
 		}
 	    if (dtGrav > 0.0) {
 		dT = pkd->param.dEta/sqrt(dtGrav*dRhoFac);

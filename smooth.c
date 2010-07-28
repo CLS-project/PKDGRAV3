@@ -438,11 +438,11 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
 }
 
 int smInitialize(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodic,int bSymmetric,int iSmoothType) {
-    smInitializeBasic(psmx,pkd,smf,nSmooth,bPeriodic,bSymmetric,iSmoothType,1);
+    return smInitializeBasic(psmx,pkd,smf,nSmooth,bPeriodic,bSymmetric,iSmoothType,1);
     }
 
 int smInitializeRO(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodic,int iSmoothType) {
-    smInitializeBasic(psmx,pkd,smf,nSmooth,bPeriodic,0,iSmoothType,0);
+    return smInitializeBasic(psmx,pkd,smf,nSmooth,bPeriodic,0,iSmoothType,0);
     }
 
 void smFinish(SMX smx,SMF *smf) {
@@ -935,8 +935,7 @@ void smSmoothSingle(SMX smx,SMF *smf,PARTICLE *p) {
 void smSmooth(SMX smx,SMF *smf) {
     PKD pkd = smx->pkd;
     PARTICLE *p;
-    PQ *pq = smx->pq;
-    int pi,i,j;
+    int pi;
 
     /*
     ** Initialize the bInactive flags for all local particles.

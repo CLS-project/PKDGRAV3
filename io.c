@@ -84,7 +84,6 @@ static void ioSave(IO io, const char *filename, total_t N,
 		   int bDouble, int iStandard, int bHDF5 ) {
     FIO fio;
     char *tname;
-    local_t i;
     int nSph, nDark, nStar;
 
     nSph = nStar = 0;
@@ -166,11 +165,11 @@ void ioAddServices(IO io,MDL mdl) {
 */
 void ioStartSave(IO io,void *vin,int nIn,void *vout,int *pnOut) {
     int id;
-    float scale;
     struct inStartSave *save = vin;
     struct inStartRecv recv;
     total_t iCount;
 #ifdef USE_PNG
+    float scale;
     struct inMakePNG png;
 #endif
 

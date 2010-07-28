@@ -97,7 +97,7 @@ static inline int iOpenOutcome(PKD pkd,KDN *k,CELT *check,KDN **pc) {
 
     max_pp = 2 * pkd->param.nBucket;
 
-    if (T1 = (check->iCell < 0)) iCell = -check->iCell;
+    if ((T1 = (check->iCell < 0))) iCell = -check->iCell;
     else iCell = check->iCell;
     if (check->id == pkd->idSelf) {
 	c = pkdTreeNode(pkd,iCell);
@@ -238,7 +238,6 @@ static inline int iOpenOutcomeOld(PKD pkd,KDN *k,CELT *check,KDN **pc) {
 ** This implements the original pkdgrav Barnes Hut opening criterion.
 */
 static inline int iOpenOutcomeBarnesHut(PKD pkd,KDN *k,CELT *check,KDN **pc) {
-  const double fMonopoleThetaFac = 1.5;    /* Note: here we don't use this */
     const int walk_min_multipole = 3;
     double dMin,dMax,min2,max2,d2,fourh2;
     KDN *c;
@@ -416,7 +415,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
     ** Setup smooth for calculating local densities when a particle has too few P-P interactions.
     */
     if (pkd->param.bGravStep) {
-	smInitializeRO(&smx,pkd,&smf,pkd->param.nPartRhoLoc+1,nReps?1:0,SMX_DENSITY_F1);
+	smInitializeRO(&smx,pkd,&smf,pkd->param.nPartRhoLoc,nReps?1:0,SMX_DENSITY_F1);
 	smSmoothInitialize(smx);
 	/* No particles are inactive for density calculation */
 	for (pi=0;pi<pkd->nLocal;++pi) {
