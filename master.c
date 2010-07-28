@@ -484,6 +484,9 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.dRedTo = 0.0;
     prmAddParam(msr->prm,"dRedTo",2,&msr->param.dRedTo,sizeof(double),"zto",
 		"specifies final redshift for the simulation");
+    msr->param.dRedFrom = 0.0;
+    prmAddParam(msr->prm,"dRedFrom",2,&msr->param.dRedFrom,sizeof(double),"zto",
+		"specifies initial redshift for the simulation");
     msr->param.dGrowDeltaM = 0.0;
     prmAddParam(msr->prm,"dGrowDeltaM",2,&msr->param.dGrowDeltaM,
 		sizeof(double),"gmdm","<Total growth in mass/particle> = 0.0");
@@ -2971,7 +2974,6 @@ void msrCalcEandL(MSR msr,int bFirst,double dTime,double *E,double *T,double *U,
 void msrDrift(MSR msr,double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi) {
     struct inDrift in;
 
-    in.dTime = dTime;
     if (msr->param.csm->bComove) {
 	in.dDelta = csmComoveDriftFac(msr->param.csm,dTime,dDelta);
 	in.dDeltaVPred = csmComoveKickFac(msr->param.csm,dTime,dDelta);
@@ -2984,6 +2986,123 @@ void msrDrift(MSR msr,double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi
     in.uRungLo = uRungLo;
     in.uRungHi = uRungHi;
     pstDrift(msr->pst,&in,sizeof(in),NULL,NULL);
+    }
+
+void msrScaleVel(MSR msr,double dvFac) {
+    struct inScaleVel in;
+
+    in.dvFac = dvFac;
+    pstScaleVel(msr->pst,&in,sizeof(in),NULL,NULL);
+    }
+
+static double ddplus(double a,double omegam,double omegav) {
+    double eta;
+    if ( a == 0.0 ) return 0.0;
+    eta = sqrt(omegam/a + omegav*a*a + 1.0 - omegam - omegav);
+    return 2.5/(eta*eta*eta);
+    }
+
+static double Romberg(double a1, double b1, double eps/* = 1e-8*/,
+               double omegam,double omegav) {
+    static const int MAXLEV = 20;
+    double tllnew;
+    double tll;
+    double tlk[MAXLEV+1];
+    int n = 1;
+    int nsamples = 1;
+
+    tlk[0] = tllnew = (b1-a1)*ddplus(0.5*(b1+a1),omegam,omegav);
+    if(a1 == b1) return tllnew;
+
+    eps*=0.5;
+
+    do {
+        /*
+         * midpoint rule.
+         */
+        double deltax;
+        double tlktmp;
+        int i;
+
+        nsamples *= 3;
+        deltax = (b1-a1)/nsamples;
+        tlktmp = tlk[0];
+        tlk[0] = tlk[0]/3.0;
+        
+        for(i=0;i<nsamples/3;i++) {
+            tlk[0] += deltax*ddplus(a1 + (3*i + 0.5)*deltax,omegam,omegav);
+            tlk[0] += deltax*ddplus(a1 + (3*i + 2.5)*deltax,omegam,omegav);
+        }
+    
+        /*
+         * Romberg extrapolation.
+         */
+
+        for(i=0;i<n;i++) {
+            double tlknew = (pow(9.0, i+1.)*tlk[i] - tlktmp)
+                /(pow(9.0, i+1.) - 1.0);
+            
+            tlktmp = tlk[i+1];
+            tlk[i+1] = tlknew;
+        }
+        tll = tllnew;
+        tllnew = tlk[n];
+        n++;
+
+    } while((fabs((tllnew-tll)/(tllnew+tll)) > eps) && (n < MAXLEV));
+    assert((fabs((tllnew-tll)/(tllnew+tll)) < eps));
+    return tllnew;
+}
+
+static double dplus(double a,double omegam,double omegav) {
+    double eta;
+    eta = sqrt(omegam/a + omegav*a*a + 1.0 - omegam - omegav);
+    return eta/a * Romberg(0,a,1e-8,omegam,omegav);
+}
+
+static double fomega(double a,double omegam,double omegav) {
+    double eta, omegak;
+    if ( omegam == 1.0 && omegav == 0.0 ) return 1.0;
+    omegak=1.0-omegam-omegav;
+    eta=sqrt(omegam/a+omegav*a*a+omegak);
+    return (2.5/dplus(a,omegam,omegav)-1.5*omegam/a-omegak)/(eta*eta);
+}
+
+static double dladt( double a, double omegam, double omegav ) {
+    double eta;
+    eta=sqrt(omegam/a+omegav*a*a+1.0-omegam-omegav);
+    return a * eta;
+    }
+
+/*
+** Assumes that particles have been drifted using the Zel'dovich approximation.
+** This function will drift them to a new time.
+*/
+double msrAdjustTime(MSR msr, double aOld, double aNew) {
+    struct inDrift in;
+    double dOmegaM = msr->param.csm->dOmega0;
+    double dOmegaV = msr->param.csm->dLambda;
+    double dvFac;
+    double dOld, dNew;
+
+    dOld = fomega(aOld,dOmegaM,dOmegaV) * dladt(aOld,dOmegaM,dOmegaV);
+    dNew = fomega(aNew,dOmegaM,dOmegaV) * dladt(aNew,dOmegaM,dOmegaV);
+
+    dvFac = dOld / dNew;
+
+    in.dDeltaVPred = 0.0;
+    in.dDeltaUPred = 0.0;
+    in.uRungLo = 0;
+    in.uRungHi = MAX_RUNG;
+    msrprintf(msr,"Drifing particles from Time:%g Redshift:%g to Time:%g Redshift:%g ...\n",
+	      aOld, 1.0/aOld-1.0, aNew, 1.0/aNew-1.0);
+    msrprintf(msr,"WARNING: This only works if the input file is a Zel'dovich perturbed grid\n");
+    in.dDelta = -1.0 / (sqrt(8.0/3.0*M_PI)*dOld );
+    pstDrift(msr->pst,&in,sizeof(in),NULL,NULL);
+    msrScaleVel(msr,dvFac);
+    in.dDelta = pow(dplus(aNew,dOmegaM,dOmegaV)/dplus(aOld,dOmegaM,dOmegaV),2) / (sqrt(8.0/3.0*M_PI)*dNew );
+    pstDrift(msr->pst,&in,sizeof(in),NULL,NULL);
+    return getTime(msr,aNew,&dvFac);
     }
 
 /*

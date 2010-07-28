@@ -560,6 +560,31 @@ ppy_msr_PeakVc(PyObject *self, PyObject *args, PyObject *kwobj) {
 }
 
 static PyObject *
+ppy_msr_AdjustTime(PyObject *self, PyObject *args, PyObject *kwobj) {
+    static char *kwlist[]={"aNew",NULL};
+    int N, i;
+    double aOld, aNew;
+    double dTime;
+    PyObject *v, *dict;
+
+    dict = PyModule_GetDict(global_ppy->module);
+    if ( (v = PyDict_GetItemString(dict, "dTime")) == NULL )
+	return NULL;
+    dTime = PyFloat_AsDouble(v);
+    aOld = csmTime2Exp(ppy_msr->param.csm,dTime);
+
+    if ( !PyArg_ParseTupleAndKeywords(
+	     args, kwobj, "d:AdjustTime", kwlist,
+	     &aNew ) )
+	return NULL;
+
+    msrAdjustTime(ppy_msr,aOld,aNew);
+
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+
+static PyObject *
 ppy_msr_InitGrid(PyObject *self, PyObject *args, PyObject *kwobj) {
     static char *kwlist[]={"x","y","z",NULL};
     int x, y, z;
@@ -906,6 +931,8 @@ static PyMethodDef msr_methods[] = {
      "Group Profiles"},
     {"PeakVc", (PyCFunction)ppy_msr_PeakVc, METH_VARARGS|METH_KEYWORDS,
      "Calculate peak circular velocities"},
+    {"AdjustTime", (PyCFunction)ppy_msr_AdjustTime, METH_VARARGS|METH_KEYWORDS,
+     "Changing starting time for Zel'dovich ICs"},
     {"InitGrid", (PyCFunction)ppy_msr_InitGrid, METH_VARARGS|METH_KEYWORDS,
      "Initialize/allocate a GRID"},
     {"Project", (PyCFunction)ppy_msr_Project, METH_VARARGS|METH_KEYWORDS,

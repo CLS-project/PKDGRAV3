@@ -100,6 +100,7 @@ enum pst_service {
     PST_CALCEANDLEXT,
     PST_DRIFT,
     PST_DRIFTINACTIVE,
+    PST_SCALEVEL,
     PST_CACHEBARRIER,
     PST_ROPARTICLECACHE,
     PST_PARTICLECACHEFINISH,
@@ -548,7 +549,6 @@ void pstCalcEandL(PST,void *,int,void *,int *);
 
 /* PST_DRIFT */
 struct inDrift {
-    double dTime;
     double dDelta;
     double dDeltaVPred;
     double dDeltaUPred;
@@ -556,6 +556,12 @@ struct inDrift {
     uint8_t uRungHi;
     };
 void pstDrift(PST,void *,int,void *,int *);
+
+/* PST_DRIFT */
+struct inScaleVel {
+    double dvFac;
+    };
+void pstScaleVel(PST,void *,int,void *,int *);
 
 /* PST_ROPARTICLECACHE */
 

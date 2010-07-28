@@ -1120,7 +1120,8 @@ pkdGravAll(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,int bP
 	   int iOrder,int bEwald,double fEwCut,double fEwhCut,int *nActive,
 	   double *pdPartSum, double *pdCellSum,CASTAT *pcs, double *pdFlop);
 void pkdCalcEandL(PKD pkd,double *T,double *U,double *Eth,double *L,double *F,double *W);
-void pkdDrift(PKD pkd,double dTime,double dDelta,double,double,uint8_t uRungLo,uint8_t uRungHi);
+void pkdDrift(PKD pkd,double dDelta,double,double,uint8_t uRungLo,uint8_t uRungHi);
+void pkdScaleVel(PKD pkd,double dvFac);
 void pkdStepVeryActiveKDK(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dStep, double dTime, double dDelta,
 			  int iRung, int iKickRung, int iRungVeryActive,int iAdjust, double diCrit2,
 			  int *pnMaxRung, double aSunInact[], double adSunInact[], double dSunMass);

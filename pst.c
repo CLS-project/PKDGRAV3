@@ -251,6 +251,9 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_DRIFT,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstDrift,
 		  sizeof(struct inDrift),0);
+    mdlAddService(mdl,PST_SCALEVEL,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstScaleVel,
+		  sizeof(struct inScaleVel),0);
     mdlAddService(mdl,PST_CACHEBARRIER,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstCacheBarrier,
 		  0,0);
@@ -2804,7 +2807,23 @@ void pstDrift(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
 	}
     else {
-	pkdDrift(plcl->pkd,in->dTime,in->dDelta,in->dDeltaVPred,in->dDeltaUPred,in->uRungLo,in->uRungHi);
+	pkdDrift(plcl->pkd,in->dDelta,in->dDeltaVPred,in->dDeltaUPred,in->uRungLo,in->uRungHi);
+	}
+    if (pnOut) *pnOut = 0;
+    }
+
+void pstScaleVel(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl = pst->plcl;
+    struct inScaleVel *in = vin;
+
+    mdlassert(pst->mdl,nIn == sizeof(struct inScaleVel));
+    if (pst->nLeaves > 1) {
+	mdlReqService(pst->mdl,pst->idUpper,PST_SCALEVEL,in,nIn);
+	pstScaleVel(pst->pstLower,in,nIn,NULL,NULL);
+	mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
+	}
+    else {
+	pkdScaleVel(plcl->pkd,in->dvFac);
 	}
     if (pnOut) *pnOut = 0;
     }

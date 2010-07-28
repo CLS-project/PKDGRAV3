@@ -110,6 +110,8 @@ void msrGravity(MSR msr,uint8_t uRungLo, uint8_t uRungHi, double dTime,
 		double dStep,int bEwald,int *piSec,uint64_t *pnActive);
 void msrCalcEandL(MSR msr,int bFirst,double dTime,double *E,double *T,double *U,double *Eth,double *L,double *F,double *W);
 void msrDrift(MSR,double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi);
+void msrScaleVel(MSR msr,double dvFac);
+double msrAdjustTime(MSR msr, double aOld, double aNew);
 void msrKick(MSR,double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi);
 double msrReadCheck(MSR,int *);
 void msrWriteCheck(MSR,double,int);

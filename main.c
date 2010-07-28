@@ -171,6 +171,12 @@ int FC_MAIN(int argc,char **argv) {
 	    dTime = msrRead(msr,msr->param.achInFile);
 	    if (msr->param.bAddDelete) msrGetNParts(msr);
 	    msrInitStep(msr);
+	    if (prmSpecified(msr->prm,"dRedFrom")) {
+		double aOld, aNew;
+		aOld = csmTime2Exp(msr->param.csm,dTime);
+		aNew = 1.0 / (1.0 + msr->param.dRedFrom);
+		dTime = msrAdjustTime(msr,aOld,aNew);
+		}
 	    if (prmSpecified(msr->prm,"dSoft")) msrSetSoft(msr,msrSoft(msr));
 	    }
 	else {

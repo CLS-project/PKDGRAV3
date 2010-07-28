@@ -151,6 +151,7 @@ struct parameters {
     double dEccFacMax;
     CSM csm;
     double dRedTo;
+    double dRedFrom;
     double dCentMass;
     char achDigitMask[256];
     char achInFile[256];

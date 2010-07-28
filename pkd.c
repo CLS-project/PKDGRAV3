@@ -1754,7 +1754,6 @@ uint32_t pkdWriteTipsy(PKD pkd,char *pszFileName,uint64_t iFirst,
 		       int bStandard,double dvFac,int bDoublePos) {
     FIO fio;
     uint32_t nCount;
-    int i;
 
     fio = fioTipsyAppend(pszFileName,bDoublePos,bStandard);
     if (fio==NULL) {
@@ -1894,6 +1893,18 @@ void pkdCalcEandL(PKD pkd,double *T,double *U,double *Eth,double *L,double *F,do
     }
 
 
+void pkdScaleVel(PKD pkd,double dvFac) {
+    PARTICLE *p;
+    double *v;
+    int i,j,n;
+    n = pkdLocal(pkd);
+    for (i=0;i<n;++i) {
+	p = pkdParticle(pkd,i);
+	v = pkdVel(pkd,p);
+	for (j=0;j<3;++j) v[j] *= dvFac;
+	}
+    }
+
 /*
 ** Drift particles whose Rung falls between uRungLo (large step) and uRungHi (small step) inclusive,
 ** and those whose destination activity flag is set.
@@ -1901,7 +1912,7 @@ void pkdCalcEandL(PKD pkd,double *T,double *U,double *Eth,double *L,double *F,do
 ** Note that the drift funtion no longer wraps the particles around the periodic "unit" cell. This is
 ** now done by Domain Decomposition only.
 */
-void pkdDrift(PKD pkd,double dTime,double dDelta,double dDeltaVPred,double dDeltaUPred,uint8_t uRungLo,uint8_t uRungHi) {
+void pkdDrift(PKD pkd,double dDelta,double dDeltaVPred,double dDeltaUPred,uint8_t uRungLo,uint8_t uRungHi) {
     PARTICLE *p;
     double *v;
     float *a;
@@ -2064,7 +2075,7 @@ void pkdStepVeryActiveKDK(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dStep, 
 	/*
 	** This should drift *all* very actives!
 	*/
-	pkdDrift(pkd,dTime,dDriftFac,0,0,iRungVeryActive+1,MAX_RUNG);
+	pkdDrift(pkd,dDriftFac,0,0,iRungVeryActive+1,MAX_RUNG);
 	dTime += dDelta;
 	dStep += 1.0/(1 << iRung);
 
@@ -4418,4 +4429,3 @@ int pkdDeepestPot(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
 
 void pkdPSD(PKD pkd) {
     }
-

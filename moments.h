@@ -175,6 +175,7 @@ double momLocrAddMomr(LOCR *,MOMR *,momFloat,momFloat,momFloat,momFloat);
 void momGenLocrAddMomr(LOCR *l,MOMR *q,momFloat dir,
 		       momFloat g0,momFloat t1,momFloat t2,momFloat t3r,momFloat t4r,
 		       momFloat x,momFloat y,momFloat z);
+double momLocrAddMono5(LOCR *l,momFloat m,momFloat dir,momFloat x,momFloat y,momFloat z,double *tax,double *tay,double *taz);
 #ifdef USE_SIMD
 double momGenLocrAddVMomr(LOCR *l,int n,GLAM *p,momFloat ax,momFloat ay,momFloat az,momFloat *rhosum,momFloat *maisum);
 double momGenLocrAddSIMDMomr(LOCR *l,int n,GLAM *p,momFloat ax,momFloat ay,momFloat az,momFloat *rhosum,momFloat *maisum);
