@@ -120,18 +120,26 @@ typedef enum {
     FIO_SPECIES_LAST /* Must be last */
     } FIO_SPECIES;
 
+typedef uint64_t fioSpeciesList[FIO_SPECIES_LAST];
+
 typedef struct {
-    int iFile;        /* Current file */
-    int nFiles;       /* Total number of files */
-    uint64_t *iFirst; /* Starting particle index for i'th file */
-    char **pszFiles;  /* Filename of i'th file */
+    uint64_t       iFirst;      /* Starting particle index */
+    char *         pszFilename; /* Filename of this file */
+    fioSpeciesList nSpecies;    /* # of each species in this file */ 
+    } fioFileInfo;
+
+typedef struct {
+    int iFile;                /* Current file */
+    int nFiles;               /* Total number of files */
+    fioFileInfo *fileInfo;    /* Array of information for each file */
     } fioFileList;
 
 /* This structure should be treated as PRIVATE.  Call the "fio" routines. */
 typedef struct fioInfo {
     FIO_FORMAT eFormat;
     FIO_MODE   eMode;
-    uint64_t nSpecies[FIO_SPECIES_LAST];
+    fioSpeciesList nSpecies;
+    //uint64_t nSpecies[FIO_SPECIES_LAST];
 
     /* This is for multi-file support */
     fioFileList fileList;
@@ -291,12 +299,6 @@ static inline int fioSetAttr(FIO fio,
 ** TIPSY FORMAT
 \******************************************************************************/
 
-/*
-** Open a Tipsy file.  The "fioOpen" routine can also be called and Tipsy format
-** will be auto-detected.  Note that Standard/Native is detected automatically.
-*/
-FIO fioTipsyOpen(const char *fileName);
-
 FIO fioTipsyCreate(const char *fileName,int bDouble,int bStandard,
 		   double dTime,uint64_t nSph, uint64_t nDark, uint64_t nStar);
 FIO fioTipsyAppend(const char *fileName,int bDouble,int bStandard);
@@ -313,13 +315,6 @@ int fioTipsyIsStandard(FIO fio);
 \******************************************************************************/
 
 /*
-** Open an HDF5 file.  The "fioOpen" routine can also be called and HDF5 format
-** will be auto-detected.  Fragments need no special treatment as the starting
-** iOrder is saved as part of the metadata.
-*/
-FIO fioHDF5Open(const char *fileName);
-
-/*
 ** Create an HDF5 file.
 */
 FIO fioHDF5Create(const char *fileName,int mFlags);
@@ -327,11 +322,5 @@ FIO fioHDF5Create(const char *fileName,int mFlags);
 /******************************************************************************\
 ** GRAFIC FORMAT
 \******************************************************************************/
-
-/*
-** Open a GRAFIC format initial condition file.  This can be detected automatically
-** by fioOpen because the "file name" is the directory containing ic_vel[cb][xyz].
-*/
-FIO fioGraficOpen(const char *dirName,double dOmega0,double dOmegab);
 
 #endif

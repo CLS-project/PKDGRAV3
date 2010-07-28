@@ -91,10 +91,9 @@ const char *fioSpeciesName(FIO_SPECIES eSpecies) {
     }
 
 static void fioFree(FIO fio) {
-    if (fio->fileList.iFirst) free(fio->fileList.iFirst);
-    if (fio->fileList.pszFiles) {
-	free(fio->fileList.pszFiles[0]);
-	free(fio->fileList.pszFiles);
+    if (fio->fileList.fileInfo) {
+	if (fio->fileList.fileInfo[0].pszFilename) free(fio->fileList.fileInfo[0].pszFilename);
+	free(fio->fileList.fileInfo);
 	}
     }
 
@@ -150,10 +149,8 @@ static int fileScan( fioFileList *list, int nFiles, const char * const *szFilena
     ** names -- we have already calculated how big this needs to be.
     */
     list->nFiles = nScan;
-    list->iFirst = malloc(sizeof(uint64_t)*(nScan+1));
-    assert(list->iFirst);
-    list->pszFiles = malloc(sizeof(char *)*nScan);
-    assert(list->pszFiles);
+    list->fileInfo = malloc(sizeof(fioFileInfo)*(nScan+1));
+    assert(list->fileInfo);
     pszFilename = malloc(nSize);
     assert(pszFilename);
 
@@ -161,7 +158,8 @@ static int fileScan( fioFileList *list, int nFiles, const char * const *szFilena
     ** Great, now just copy the filenames into the new buffer
     */
     for( i=0; i<nScan; i++ ) {
-	list->pszFiles[i] = pszFilename;
+	list->fileInfo[i].pszFilename = pszFilename;
+	list->fileInfo[i].iFirst = 0;
 #if defined(HAVE_WORDEXP) && defined(HAVE_WORDFREE)
 	strcpy( pszFilename, files.we_wordv[i] );
 #elif defined(HAVE_GLOB) && defined(HAVE_GLOBFREE)
@@ -265,8 +263,7 @@ static void fioInitialize(FIO fio, FIO_FORMAT eFormat, FIO_MODE eMode) {
 
     for(i=0; i<FIO_SPECIES_LAST; i++) fio->nSpecies[i] = 0;
 
-    fio->fileList.pszFiles= NULL;
-    fio->fileList.iFirst  = NULL;
+    fio->fileList.fileInfo= NULL;
     fio->fileList.iFile   = 0;
     fio->fileList.nFiles  = 0;
 
@@ -283,6 +280,31 @@ static void fioInitialize(FIO fio, FIO_FORMAT eFormat, FIO_MODE eMode) {
     fio->fcnGetAttr   = fioNoGetAttr;
     fio->fcnSetAttr   = fioNoSetAttr;
     }
+
+/*
+** Runs through the file specific species counts and accumulates them.
+** The file specific total is set, as well as the global totals.
+*/
+static void fioTabulateSpecies(FIO fio) {
+    int iFile, iSpec;
+
+    assert(FIO_SPECIES_ALL==0);
+
+    /* We will accumulate, so zero the global totals */
+    for( iSpec=0; iSpec<FIO_SPECIES_LAST; iSpec++)
+	fio->nSpecies[iSpec] = 0;
+
+    /* Now accumulate for each file */
+    for( iFile=0; iFile<fio->fileList.nFiles; iFile++ ) {
+	fio->fileList.fileInfo[iFile].nSpecies[FIO_SPECIES_ALL] = 0;
+	for( iSpec=1; iSpec<FIO_SPECIES_LAST; iSpec++) {
+	    fio->nSpecies[iSpec] += fio->fileList.fileInfo[iFile].nSpecies[iSpec];
+	    fio->fileList.fileInfo[iFile].nSpecies[FIO_SPECIES_ALL] += fio->fileList.fileInfo[iFile].nSpecies[iSpec];
+	    }
+	fio->nSpecies[FIO_SPECIES_ALL] += fio->fileList.fileInfo[iFile].nSpecies[FIO_SPECIES_ALL];
+	}
+    }
+
 
 /******************************************************************************\
 ** TIPSY FORMAT
@@ -394,22 +416,22 @@ static int tipsySwitchFile(FIO fio) {
     fioTipsy *tio = (fioTipsy *)fio;
 
     assert(fio->fileList.iFile>=0 && fio->fileList.iFile<fio->fileList.nFiles);
-    if (tio->iOrder<fio->fileList.iFirst[fio->fileList.iFile]
-	|| tio->iOrder>=fio->fileList.iFirst[fio->fileList.iFile+1] ) {
+    if (tio->iOrder<fio->fileList.fileInfo[fio->fileList.iFile].iFirst
+	|| tio->iOrder>=fio->fileList.fileInfo[fio->fileList.iFile+1].iFirst ) {
 	int bStandard = fioTipsyIsStandard(fio);
 	if (bStandard) xdr_destroy(&tio->xdr);
 	fclose(tio->fp);
 
-	if (tio->iOrder < fio->fileList.iFirst[fio->fileList.iFile]) {
+	if (tio->iOrder < fio->fileList.fileInfo[fio->fileList.iFile].iFirst) {
 	    while(fio->fileList.iFile!=0)
-		if (fio->fileList.iFirst[--fio->fileList.iFile]<tio->iOrder) break;
+		if (fio->fileList.fileInfo[--fio->fileList.iFile].iFirst<tio->iOrder) break;
 	    }
-	else if (tio->iOrder >= fio->fileList.iFirst[fio->fileList.iFile+1]) {
+	else if (tio->iOrder >= fio->fileList.fileInfo[fio->fileList.iFile+1].iFirst) {
 	    while(++fio->fileList.iFile<fio->fileList.nFiles)
-		if (fio->fileList.iFirst[fio->fileList.iFile]<=tio->iOrder) break;
+		if (fio->fileList.fileInfo[fio->fileList.iFile].iFirst<=tio->iOrder) break;
 	    }
-	tio->fp = fopen(fio->fileList.pszFiles[fio->fileList.iFile],"r");
-	if (tio->fp == NULL) printf("Fail: %d %s\n",fio->fileList.iFile,fio->fileList.pszFiles[fio->fileList.iFile]);
+	tio->fp = fopen(fio->fileList.fileInfo[fio->fileList.iFile].pszFilename,"r");
+	if (tio->fp == NULL) printf("Fail: %d %s\n",fio->fileList.iFile,fio->fileList.fileInfo[fio->fileList.iFile].pszFilename);
 	if (tio->fp == NULL) return 1;
 	if (tio->fpBuffer != NULL) setvbuf(tio->fp,tio->fpBuffer,_IOFBF,TIO_BUFFER_SIZE);
 	if (bStandard) xdrstdio_create(&tio->xdr,tio->fp,XDR_DECODE);
@@ -963,7 +985,7 @@ static int tipsySeek(FIO fio,uint64_t iPart,FIO_SPECIES eSpecies) {
 			TIPSY_SPH_SIZE(1,3*tio->bDoublePos+3*tio->bDoubleVel),
 			TIPSY_DARK_SIZE(1,3*tio->bDoublePos+3*tio->bDoubleVel),
 			TIPSY_STAR_SIZE(1,3*tio->bDoublePos+3*tio->bDoubleVel))
-	- tipsyOffset(fio->fileList.iFirst[fio->fileList.iFile],0,
+	- tipsyOffset(fio->fileList.fileInfo[fio->fileList.iFile].iFirst,0,
 		      tio->fio.nSpecies[FIO_SPECIES_SPH],
 		      tio->fio.nSpecies[FIO_SPECIES_DARK],
 		      tio->fio.nSpecies[FIO_SPECIES_STAR],
@@ -1175,7 +1197,7 @@ static FIO tipsyOpen(fioFileList *fileList) {
     tio->iOrder = 0;
     tio->fio.fileList = *fileList;
 
-    tio->fp = fopen(tio->fio.fileList.pszFiles[0],"r");
+    tio->fp = fopen(tio->fio.fileList.fileInfo[0].pszFilename,"r");
     tio->fio.fileList.iFile = 0;
     if (tio->fp==NULL) {
 	free(tio);
@@ -1205,7 +1227,7 @@ static FIO tipsyOpen(fioFileList *fileList) {
     for( i=0; i<tio->fio.fileList.nFiles; i++) {
 	struct stat s;
 	/* The file/directory needs to exist */
-	if ( stat(tio->fio.fileList.pszFiles[i],&s) != 0 ) return NULL;
+	if ( stat(tio->fio.fileList.fileInfo[i].pszFilename,&s) != 0 ) return NULL;
 	if ( !S_ISREG(s.st_mode) ) return NULL;
 	nSize += (nSizes[i] = s.st_size);
 	}
@@ -1235,31 +1257,21 @@ static FIO tipsyOpen(fioFileList *fileList) {
     ** Okay, now we need to calculate the starting particle number for each
     ** file fragment.
     */
-    tio->fio.fileList.iFirst[0] = 0;
+    tio->fio.fileList.fileInfo[0].iFirst = 0;
     nSize = 0;
     for(i=1; i<=tio->fio.fileList.nFiles; i++ ) {
 	nSize += nSizes[i-1];
-	tio->fio.fileList.iFirst[i] = tipsyParticle(
+	tio->fio.fileList.fileInfo[i].iFirst = tipsyParticle(
 	    nSize,tio->nHdrSize,nSph,nDark,nStar,
 	    TIPSY_SPH_SIZE(1,3*tio->bDoublePos+3*tio->bDoubleVel),
 	    TIPSY_DARK_SIZE(1,3*tio->bDoublePos+3*tio->bDoubleVel),
 	    TIPSY_STAR_SIZE(1,3*tio->bDoublePos+3*tio->bDoubleVel));
 	}
-    assert(tio->fio.fileList.iFirst[tio->fio.fileList.nFiles]==tio->fio.nSpecies[FIO_SPECIES_ALL]);
+    assert(tio->fio.fileList.fileInfo[tio->fio.fileList.nFiles].iFirst==tio->fio.nSpecies[FIO_SPECIES_ALL]);
 
     free(nSizes);
 
     return &tio->fio;
-    }
-
-FIO fioTipsyOpenMany(int nFiles, const char * const *fileNames) {
-    fioFileList fileList;
-    fileScan(&fileList,nFiles,fileNames);
-    return tipsyOpen(&fileList);
-    }
-
-FIO fioTipsyOpen(const char *fileName) {
-    return fioTipsyOpenMany(1,&fileName);
     }
 
 FIO fioTipsyCreate(const char *fileName,int bDouble,int bStandard,
@@ -1271,9 +1283,11 @@ FIO fioTipsyCreate(const char *fileName,int bDouble,int bStandard,
     assert(tio!=NULL);
     fioInitialize(&tio->fio,FIO_FORMAT_TIPSY,FIO_MODE_WRITING);
 
-    tio->fio.fileList.pszFiles= NULL;
-    tio->fio.fileList.iFirst = malloc(sizeof(uint64_t)*2);
-    assert(tio->fio.fileList.iFirst);
+    tio->fio.fileList.fileInfo = NULL;
+
+    tio->fio.fileList.fileInfo = malloc(sizeof(fioFileInfo)*2);
+    assert(tio->fio.fileList.fileInfo);
+    tio->fio.fileList.fileInfo[0].pszFilename= strdup(fileName);
     tio->fio.fileList.nFiles  = 1;
 
     tio->fio.nSpecies[FIO_SPECIES_SPH]  = nSph;
@@ -1282,8 +1296,8 @@ FIO fioTipsyCreate(const char *fileName,int bDouble,int bStandard,
     for( i=1; i<FIO_SPECIES_LAST; i++)
 	tio->fio.nSpecies[FIO_SPECIES_ALL] += tio->fio.nSpecies[i];
 
-    tio->fio.fileList.iFirst[0] = 0;
-    tio->fio.fileList.iFirst[1] = tio->fio.nSpecies[FIO_SPECIES_ALL];
+    tio->fio.fileList.fileInfo[0].iFirst = 0;
+    tio->fio.fileList.fileInfo[1].iFirst = tio->fio.nSpecies[FIO_SPECIES_ALL];
 
     tio->iOrder = 0;
     tio->dTime = dTime;
@@ -1313,9 +1327,9 @@ FIO fioTipsyAppend(const char *fileName,int bDouble,int bStandard) {
     fioInitialize(&tio->fio,FIO_FORMAT_TIPSY,FIO_MODE_WRITING);
 
     tio->iOrder = 0;
-    tio->fio.fileList.pszFiles= NULL;
-    tio->fio.fileList.iFirst = malloc(sizeof(uint64_t)*2);
-    assert(tio->fio.fileList.iFirst);
+    tio->fio.fileList.fileInfo = malloc(sizeof(fioFileInfo)*2);
+    assert(tio->fio.fileList.fileInfo);
+    tio->fio.fileList.fileInfo[0].pszFilename= strdup(fileName);
     tio->fio.fileList.nFiles  = 1;
 
     tio->fp = fopen(fileName,"r+");
@@ -1337,8 +1351,8 @@ FIO fioTipsyAppend(const char *fileName,int bDouble,int bStandard) {
     for( i=1; i<FIO_SPECIES_LAST; i++)
 	tio->fio.nSpecies[FIO_SPECIES_ALL] += tio->fio.nSpecies[i];
 
-    tio->fio.fileList.iFirst[0] = 0;
-    tio->fio.fileList.iFirst[1] = tio->fio.nSpecies[FIO_SPECIES_ALL];
+    tio->fio.fileList.fileInfo[0].iFirst = 0;
+    tio->fio.fileList.fileInfo[1].iFirst = tio->fio.nSpecies[FIO_SPECIES_ALL];
 
     if (bStandard) xdrstdio_create(&tio->xdr,tio->fp,XDR_ENCODE);
     tipsySetFunctions(tio,bDouble,bStandard);
@@ -1362,9 +1376,9 @@ FIO fioTipsyCreatePart(const char *fileName,int bAppend,int bDouble,int bStandar
     assert(tio!=NULL);
     fioInitialize(&tio->fio,FIO_FORMAT_TIPSY,FIO_MODE_WRITING);
 
-    tio->fio.fileList.pszFiles= NULL;
-    tio->fio.fileList.iFirst = malloc(sizeof(uint64_t)*2);
-    assert(tio->fio.fileList.iFirst);
+    tio->fio.fileList.fileInfo = malloc(sizeof(fioFileInfo)*2);
+    assert(tio->fio.fileList.fileInfo);
+    tio->fio.fileList.fileInfo[0].pszFilename= strdup(fileName);
     tio->fio.fileList.nFiles  = 1;
 
     tio->iOrder = 0;
@@ -1381,8 +1395,8 @@ FIO fioTipsyCreatePart(const char *fileName,int bAppend,int bDouble,int bStandar
     for( i=1; i<FIO_SPECIES_LAST; i++)
 	tio->fio.nSpecies[FIO_SPECIES_ALL] += tio->fio.nSpecies[i];
 
-    tio->fio.fileList.iFirst[0] = iStart;
-    tio->fio.fileList.iFirst[1] = iStart + tio->fio.nSpecies[FIO_SPECIES_ALL];
+    tio->fio.fileList.fileInfo[0].iFirst = iStart;
+    tio->fio.fileList.fileInfo[1].iFirst = iStart + tio->fio.nSpecies[FIO_SPECIES_ALL];
 
     tio->fp = fopen(fileName,bAppend?"r+":"w");
     tio->fio.fileList.iFile = 0;
@@ -2269,61 +2283,27 @@ static int hdf5WriteStar(
     abort();
     }
 
-static void hdf5Close(FIO fio) {
-    fioHDF5 *hio = (fioHDF5 *)(fio);
-    int i, j;
-
-    for( i=1; i<FIO_SPECIES_LAST; i++) {
-	IOBASE *base = &hio->base[i];
-	if (base->group_id!=H5I_INVALID_HID) {
-	    if (fio->eMode==FIO_MODE_WRITING) {
-		ioorder_flush(&base->ioOrder);
-		class_flush(&base->ioClass,base->group_id);
-		class_write(&base->ioClass,base->iOffset,base->iIndex);
-		for(j=0; j<base->nFields; j++) {
-		    field_write(&base->fldFields[j],
-				base->iOffset, base->iIndex);
-		    }
-		}
-	    ioorder_close(&base->ioOrder);
-	    for(j=0; j<base->nFields; j++)
-		field_close(&base->fldFields[j]);
-	    class_close(&base->ioClass);
-	    H5Gclose(base->group_id);
-	    }
-	}
-    H5Tclose(hio->stringType);
-    H5Gclose(hio->parametersID);
-    H5Fflush(hio->fileID,H5F_SCOPE_GLOBAL);
-    assert(H5Fget_obj_count(hio->fileID,H5F_OBJ_ALL)==1);
-    H5Fclose(hio->fileID);
-    }
-
-FIO fioHDF5Open(const char *fileName) {
-    fioHDF5 *hio;
+/* Open the i'th file */
+static int hdf5OpenOne(fioHDF5 *hio, int iFile) {
     H5E_auto_t save_func;
     void *     save_data;
     int i;
 
-    hio = malloc(sizeof(fioHDF5));
-    assert(hio!=NULL);
-    fioInitialize(&hio->fio,FIO_FORMAT_HDF5,FIO_MODE_READING);
+    assert(iFile<hio->fio.fileList.nFiles);
+    hio->fio.fileList.iFile = iFile;
 
     /* Open the HDF5 file. */
-    hio->fileID = H5Fopen(fileName, H5F_ACC_RDONLY, H5P_DEFAULT);
+    hio->fileID = H5Fopen(hio->fio.fileList.fileInfo[iFile].pszFilename, H5F_ACC_RDONLY, H5P_DEFAULT);
     if ( hio->fileID < 0 ) {
-	free(hio);
 	abort();
-	return NULL;
+	return 0;
 	}
-
-    hio->stringType = H5Tcopy(H5T_C_S1);
-    H5Tset_size(hio->stringType, 256);
 
     /* Global parameters (dTime,etc.) are stored here */
     hio->parametersID = H5Gopen( hio->fileID, GROUP_PARAMETERS );
     if ( hio->parametersID == H5I_INVALID_HID ) {
 	abort();
+	return 0;
 	}
 
     /* Now open all of the available groups.  It's okay if some aren't there. */
@@ -2346,7 +2326,8 @@ FIO fioHDF5Open(const char *fileName) {
 			   FIELD_VELOCITY, H5T_NATIVE_DOUBLE,3 );
 		field_open(&base->fldFields[DARK_POTENTIAL],base->group_id,
 			   FIELD_POTENTIAL, H5T_NATIVE_FLOAT,1 );
-		base->nTotal = hio->fio.nSpecies[i] = field_size(&base->fldFields[DARK_POSITION]);
+		base->nTotal = hio->fio.fileList.fileInfo[iFile].nSpecies[i] = field_size(&base->fldFields[DARK_POSITION]);
+		hio->fio.nSpecies[i] += hio->fio.fileList.fileInfo[iFile].nSpecies[i];
 		class_open(&base->ioClass,base->group_id);
 		/* iOrder can have a starting value if they are sequential, or a list */
 		ioorder_open(&base->ioOrder,base->group_id);
@@ -2360,12 +2341,77 @@ FIO fioHDF5Open(const char *fileName) {
 	    }
 	}
     H5Eset_auto(save_func,save_data);
+    return 1;
+    }
 
+/* Close the current open file; does not destroy the context */
+static void hdf5CloseOne(fioHDF5 *hio) {
+    int i, j;
+
+    for( i=1; i<FIO_SPECIES_LAST; i++) {
+	IOBASE *base = &hio->base[i];
+	if (base->group_id!=H5I_INVALID_HID) {
+	    if (hio->fio.eMode==FIO_MODE_WRITING) {
+		ioorder_flush(&base->ioOrder);
+		class_flush(&base->ioClass,base->group_id);
+		class_write(&base->ioClass,base->iOffset,base->iIndex);
+		for(j=0; j<base->nFields; j++) {
+		    field_write(&base->fldFields[j],
+				base->iOffset, base->iIndex);
+		    }
+		}
+	    ioorder_close(&base->ioOrder);
+	    for(j=0; j<base->nFields; j++)
+		field_close(&base->fldFields[j]);
+	    class_close(&base->ioClass);
+	    H5Gclose(base->group_id);
+	    }
+	}
+    H5Gclose(hio->parametersID);
+    H5Fflush(hio->fileID,H5F_SCOPE_GLOBAL);
+    assert(H5Fget_obj_count(hio->fileID,H5F_OBJ_ALL)==1);
+    H5Fclose(hio->fileID);
+    }
+
+static void hdf5Close(FIO fio) {
+    fioHDF5 *hio = (fioHDF5 *)(fio);
+    hdf5CloseOne(hio);
+    H5Tclose(hio->stringType);
+    free(hio);
+    }
+
+static FIO hdf5Open(fioFileList *fileList) {
+    fioHDF5 *hio;
+    H5E_auto_t save_func;
+    void *     save_data;
+    int i, j;
+
+    hio = malloc(sizeof(fioHDF5));
+    assert(hio!=NULL);
+    fioInitialize(&hio->fio,FIO_FORMAT_HDF5,FIO_MODE_READING);
+
+    hio->fio.fileList = *fileList;
+    hio->fio.fileList.iFile = 0;
+
+    hio->stringType = H5Tcopy(H5T_C_S1);
+    H5Tset_size(hio->stringType, 256);
+
+    /* Scan the files - all but the first one */
+    for( i=hio->fio.fileList.nFiles-1; i>0; --i) {
+	hdf5OpenOne(hio,i);
+	hdf5CloseOne(hio);
+	}
+    /* Open the first HDF5 file. */
+    hdf5OpenOne(hio,0);
+
+    fioTabulateSpecies(&hio->fio);
+
+    /* Set the current species (the first one in the first file) */
     hio->eCurrent = 0;
     for( i=1; i<FIO_SPECIES_LAST; i++) {
-	if (hio->eCurrent==0 && hio->fio.nSpecies[i]) hio->eCurrent=i;
-	hio->fio.nSpecies[FIO_SPECIES_ALL] += hio->fio.nSpecies[i];
+	if (hio->eCurrent==0 && hio->fio.fileList.fileInfo[0].nSpecies[i]) hio->eCurrent=i;
 	}
+
     hio->fio.fcnClose    = hdf5Close;
     hio->fio.fcnSeek     = hdf5Seek;
     hio->fio.fcnReadDark = hdf5ReadDark;
@@ -2872,7 +2918,7 @@ static FIO_SPECIES graficSpecies(FIO fio) {
     else return FIO_SPECIES_LAST;
     }
 
-FIO fioGraficOpen(const char *dirName,double dOmega0,double dOmegab) {
+static FIO graficOpenDirectory(const char *dirName,double dOmega0,double dOmegab) {
     fioGrafic *gio;
     struct stat s;
     size_t n;
@@ -2894,9 +2940,10 @@ FIO fioGraficOpen(const char *dirName,double dOmega0,double dOmegab) {
     assert(gio!=NULL);
     gio->fio.eFormat = FIO_FORMAT_GRAFIC;
     gio->fio.eMode   = FIO_MODE_READING;
-    gio->fio.fileList.pszFiles= NULL;
-    gio->fio.fileList.iFirst = malloc(sizeof(uint64_t));
-    assert(gio->fio.fileList.iFirst);
+
+    gio->fio.fileList.fileInfo = malloc(sizeof(fioFileInfo)*2);
+    assert(gio->fio.fileList.fileInfo);
+    gio->fio.fileList.fileInfo[0].pszFilename= NULL;
     gio->fio.fileList.nFiles  = 1;
 
     gio->fio.fcnClose    = graficClose;
@@ -3012,7 +3059,7 @@ FIO fioGraficOpenMany(int nFiles, const char * const *dirNames,double dOmega0,do
     for( i=0; i<gio->fio.fileList.nFiles; i++) {
 	struct stat s;
 	/* The file/directory needs to exist */
-	if ( stat(gio->fio.fileList.pszFiles[i],&s) != 0 ) return NULL;
+	if ( stat(gio->fio.fileList.fileInfo[i].pszFilename,&s) != 0 ) return NULL;
 	if ( !S_ISDIR(s.st_mode) ) return NULL;
 	}
     gio->nLevels = gio->fio.fileList.nFiles;
@@ -3030,25 +3077,32 @@ FIO fioGraficOpenMany(int nFiles, const char * const *dirNames,double dOmega0,do
 FIO fioOpenMany(int nFiles, const char * const *fileNames,
 		double dOmega0,double dOmegab) {
     struct stat s;
-    const char *fileName = fileNames[0];
+    const char *fileName;
+    fioFileList fileList;
+
+    /* Turn any wildcard file names into real files before we do anything */
+    fileScan(&fileList,nFiles,fileNames);
+
+    /* Test only the first file; they need to be the same type anyway */
+    fileName = fileList.fileInfo[0].pszFilename;
 
     /* The file/directory needs to exist */
     if ( stat(fileName,&s) != 0 ) return NULL;
 
     /* If given a directory, then it must be a GRAFIC file */
     if ( S_ISDIR(s.st_mode) ) {
-	return fioGraficOpen(fileName,dOmega0,dOmegab);
+	return graficOpenDirectory(fileName,dOmega0,dOmegab);
 	}
 
 #ifdef USE_HDF5
     else if ( H5Fis_hdf5(fileName) ) {
-	return fioHDF5Open(fileName);
+	return hdf5Open(&fileList);
 	}
 #endif
 
     /* Try tipsy as a last resort */
     else {
-	return fioTipsyOpenMany(nFiles,fileNames);
+	return tipsyOpen(&fileList);
 	}
 
     return NULL;
