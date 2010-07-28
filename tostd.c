@@ -92,8 +92,8 @@ int main( int argc, char **argv ) {
     if ( bError ) {
 	fprintf(stderr, "Usage: %s [-p] <input...> <outtipsy>\n"
 		"  -d,--double    Output double precision positions\n"
-		"  -n,--native    Output a native tipsy binary\n",
-		"  -5,--hdf5      Output in HDF5 format\n",
+		"  -n,--native    Output a native tipsy binary\n"
+		"  -5,--hdf5      Output in HDF5 format\n"
 		"  -p,--potential Included potentials in HDF5 output\n",
 		argv[0] );
 	exit(1);
