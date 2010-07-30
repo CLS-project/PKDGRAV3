@@ -3088,7 +3088,7 @@ double msrAdjustTime(MSR msr, double aOld, double aNew) {
     dOld = fomega(aOld,dOmegaM,dOmegaV) * dladt(aOld,dOmegaM,dOmegaV);
     dNew = fomega(aNew,dOmegaM,dOmegaV) * dladt(aNew,dOmegaM,dOmegaV);
 
-    dvFac = dOld / dNew;
+    dvFac = dOld / dNew * pow(dplus(aNew,dOmegaM,dOmegaV)/dplus(aOld,dOmegaM,dOmegaV),2);
 
     in.dDeltaVPred = 0.0;
     in.dDeltaUPred = 0.0;
@@ -3100,7 +3100,7 @@ double msrAdjustTime(MSR msr, double aOld, double aNew) {
     in.dDelta = -1.0 / (sqrt(8.0/3.0*M_PI)*dOld );
     pstDrift(msr->pst,&in,sizeof(in),NULL,NULL);
     msrScaleVel(msr,dvFac);
-    in.dDelta = pow(dplus(aNew,dOmegaM,dOmegaV)/dplus(aOld,dOmegaM,dOmegaV),2) / (sqrt(8.0/3.0*M_PI)*dNew );
+    in.dDelta = 1.0 / (sqrt(8.0/3.0*M_PI)*dNew );
     pstDrift(msr->pst,&in,sizeof(in),NULL,NULL);
     return getTime(msr,aNew,&dvFac);
     }
