@@ -578,7 +578,8 @@ ppy_msr_AdjustTime(PyObject *self, PyObject *args, PyObject *kwobj) {
 	     &aNew ) )
 	return NULL;
 
-    msrAdjustTime(ppy_msr,aOld,aNew);
+    dTime = msrAdjustTime(ppy_msr,aOld,aNew);
+    PyDict_SetItemString(dict, "dTime", Py_BuildValue("d",dTime));
 
     Py_INCREF(Py_None);
     return Py_None;
