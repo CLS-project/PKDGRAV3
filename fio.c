@@ -2335,6 +2335,7 @@ static int hdf5OpenOne(fioHDF5 *hio, int iFile) {
 	    else base->nTotal = 0;
 	    break;
 	default:
+	    hio->fio.fileList.fileInfo[iFile].nSpecies[i] = 0;
 	    base->group_id = H5I_INVALID_HID;
 	    base->nTotal = 0;
 	    break;
