@@ -208,7 +208,8 @@ static inline int iOpenOutcomeOld(PKD pkd,KDN *k,CELT *check,KDN **pc) {
 	yc = c->r[1] + check->rOffset[1];
 	zc = c->r[2] + check->rOffset[2];
 	d2 = pow(k->r[0]-xc,2) + pow(k->r[1]-yc,2) + pow(k->r[2]-zc,2);
-	d2Open = pow(2.0*fmax(c->fOpen,k->fOpen),2);
+	/*d2Open = pow(2.0*fmax(c->fOpen,k->fOpen),2);*/
+	d2Open = pow(c->fOpen + k->fOpen,2);
 	dx = fabs(xc - kbnd.fCenter[0]) - kbnd.fMax[0];
 	dy = fabs(yc - kbnd.fCenter[1]) - kbnd.fMax[1];
 	dz = fabs(zc - kbnd.fCenter[2]) - kbnd.fMax[2];
@@ -218,8 +219,8 @@ static inline int iOpenOutcomeOld(PKD pkd,KDN *k,CELT *check,KDN **pc) {
 	    if (c->iLower == 0) iOpenA = 1;
 	    else iOpenA = 3;
 	    if (nc < walk_min_multipole || mink2 <= c->fOpen*c->fOpen) iOpenB = iOpenA;
-	    else if (mink2 > fourh2) return(4);
-	    else if (mink2 > pow(fMonopoleThetaFac*c->fOpen,2)) return(5);
+	    else if (mink2 > fourh2) iOpen = iOpenB = 4;
+	    else if (mink2 > pow(fMonopoleThetaFac*c->fOpen,2)) iOpen = iOpenB = 5;
 	    else iOpenB = iOpenA;
 	    if (c->fOpen > k->fOpen) {
 		if (c->iLower) iOpen = 3;
@@ -244,7 +245,7 @@ static inline int iOpenOutcomeBarnesHut(PKD pkd,KDN *k,CELT *check,KDN **pc) {
     int iCell,nc;
     int iOpenA;
     int j;
-        
+
     assert(check->iCell > 0);
     iCell = check->iCell;
     if (check->id == pkd->idSelf) {
