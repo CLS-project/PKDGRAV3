@@ -3086,22 +3086,26 @@ double msrAdjustTime(MSR msr, double aOld, double aNew) {
     double dOld, dNew;
 
     dOld = fomega(aOld,dOmegaM,dOmegaV) * dladt(aOld,dOmegaM,dOmegaV);
-    dNew = fomega(aNew,dOmegaM,dOmegaV) * dladt(aNew,dOmegaM,dOmegaV);
-
-    dvFac = dOld / dNew * pow(dplus(aNew,dOmegaM,dOmegaV)/dplus(aOld,dOmegaM,dOmegaV),2);
 
     in.dDeltaVPred = 0.0;
     in.dDeltaUPred = 0.0;
     in.uRungLo = 0;
     in.uRungHi = MAX_RUNG;
     msrprintf(msr,"Drifing particles from Time:%g Redshift:%g to Time:%g Redshift:%g ...\n",
-	      aOld, 1.0/aOld-1.0, aNew, 1.0/aNew-1.0);
+	      aOld, 1.0/aOld-1.0, aNew, aNew>0 ? 1.0/aNew-1.0 : INFINITY);
     msrprintf(msr,"WARNING: This only works if the input file is a Zel'dovich perturbed grid\n");
     in.dDelta = -1.0 / (sqrt(8.0/3.0*M_PI)*dOld );
     pstDrift(msr->pst,&in,sizeof(in),NULL,NULL);
-    msrScaleVel(msr,dvFac);
-    in.dDelta = 1.0 / (sqrt(8.0/3.0*M_PI)*dNew );
-    pstDrift(msr->pst,&in,sizeof(in),NULL,NULL);
+
+    if (aNew > 0.0) {
+	dNew = fomega(aNew,dOmegaM,dOmegaV) * dladt(aNew,dOmegaM,dOmegaV);
+	dvFac = dOld / dNew * pow(dplus(aNew,dOmegaM,dOmegaV)/dplus(aOld,dOmegaM,dOmegaV),2);
+	msrScaleVel(msr,dvFac);
+	in.dDelta = 1.0 / (sqrt(8.0/3.0*M_PI)*dNew );
+	pstDrift(msr->pst,&in,sizeof(in),NULL,NULL);
+	}
+    else aNew = 1e-5;
+
     return getTime(msr,aNew,&dvFac);
     }
 
