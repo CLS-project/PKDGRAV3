@@ -85,10 +85,11 @@ float getTimer(TIMER *t) {
 
 /*
 ** This is the new momentum conserving version of the opening criterion.
+** THIS NEEDS MORE TESTING
 */
 static inline int iOpenOutcome(PKD pkd,KDN *k,CELT *check,KDN **pc) {
     const double fMonopoleThetaFac = 1.5;
-    const double fThetaFac2 = 1.25 * 1.25;
+    const double fThetaFac2 = 1.1 * 1.1;
     double dx,dy,dz,minc2,mink2,d2,d2Open,xc,yc,zc,fourh2;
     KDN *c;
     int T1,iCell;
@@ -208,8 +209,8 @@ static inline int iOpenOutcomeOld(PKD pkd,KDN *k,CELT *check,KDN **pc) {
 	yc = c->r[1] + check->rOffset[1];
 	zc = c->r[2] + check->rOffset[2];
 	d2 = pow(k->r[0]-xc,2) + pow(k->r[1]-yc,2) + pow(k->r[2]-zc,2);
-	/*d2Open = pow(2.0*fmax(c->fOpen,k->fOpen),2);*/
-	d2Open = pow(c->fOpen + k->fOpen,2);
+	d2Open = pow(2.0*fmax(c->fOpen,k->fOpen),2);
+	/*d2Open = pow(c->fOpen + k->fOpen,2);"BSC" version used this*/
 	dx = fabs(xc - kbnd.fCenter[0]) - kbnd.fMax[0];
 	dy = fabs(yc - kbnd.fCenter[1]) - kbnd.fMax[1];
 	dz = fabs(zc - kbnd.fCenter[2]) - kbnd.fMax[2];
