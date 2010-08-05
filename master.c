@@ -2119,7 +2119,12 @@ void _msrWriteTipsy(MSR msr,const char *pszFileName,double dTime,int bCheckpoint
 
     if ( msr->param.bHDF5 ) {
 #ifdef USE_HDF5
-	fio = fioHDF5Create(achOutFile, (msr->param.bDoublePos?FIO_FLAG_CHECKPOINT:0) | FIO_FLAG_POTENTIAL);
+	fio = fioHDF5Create(
+	    achOutFile,
+	    FIO_FLAG_POTENTIAL
+	    | (msr->param.bDoublePos?FIO_FLAG_CHECKPOINT:0)
+	    | (msr->param.bMemMass?0:FIO_FLAG_COMPRESS_MASS)
+	    | (msr->param.bMemSoft?0:FIO_FLAG_COMPRESS_SOFT));
 	fioSetAttr(fio,"dTime",FIO_TYPE_DOUBLE,&in.dTime);
 	msrSaveParameters(msr,fio);
 	msrOneNodeWrite(msr,fio,in.dvFac);
