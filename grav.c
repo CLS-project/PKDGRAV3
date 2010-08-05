@@ -69,6 +69,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
     double *vi,*vj;
     PARTICLE *pi,*pj;
     KDN *pkdn = pBucket;
+    pBND kbnd;
     const double onethird = 1.0/3.0;
     float *pPot, fPot;
     double ax,ay,az;
@@ -98,6 +99,8 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
     double ptwoh2;
 #endif
     int i,j,k,nN,nSP,nTN,na,nia,nSoft,nActive;
+
+    kbnd = pkdNodeBnd(pkd, pkdn);
 
     /*
     ** dynamical time-stepping stuff
@@ -229,7 +232,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 	    */
 	    rholoc = 0;
 	    nTN = 0; /* Number of true neighbours, i.e. particles that fulfil the locality criterion defined by bnd.size */
-	    size2 = pkd->param.dFacExcludePart*pkdn->bnd.size; 
+	    size2 = pkd->param.dFacExcludePart * *kbnd.size; 
 	    size2 *= size2; /* size2 estimate from tree.c that also works if there is only 1 particle in bucket */
 	    for (j=0;j<nPart;++j) {
 		x = p->r[0] - ilp[j].x;

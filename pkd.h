@@ -375,7 +375,6 @@ static inline int IN_BND(const FLOAT *R,const pBND *b) {
 
 typedef struct kdNode {
     double r[3];
-    //BND bnd;      /* jonathan -- Now part of a memory model (5-MAY-2010) */
     int iLower;
     int iParent;
     int pLower;		/* also serves as thread id for the LTT */
@@ -529,13 +528,14 @@ typedef struct kdNew {
     FLOAT CALCOPEN_d2 = 0;\
     FLOAT CALCOPEN_b;\
     int CALCOPEN_j;							\
+    pBND CALCOPEN_bnd = pkdNodeBnd(pkd, pkdn); \
     for (CALCOPEN_j=0;CALCOPEN_j<3;++CALCOPEN_j) {			\
-	FLOAT CALCOPEN_d = fabs((pkdn)->bnd.fCenter[CALCOPEN_j] - (pkdn)->r[CALCOPEN_j]) + \
-	    (pkdn)->bnd.fMax[CALCOPEN_j];				\
+	FLOAT CALCOPEN_d = fabs(CALCOPEN_bnd.fCenter[CALCOPEN_j] - (pkdn)->r[CALCOPEN_j]) + \
+	    CALCOPEN_bnd.fMax[CALCOPEN_j];				\
 	CALCOPEN_d2 += CALCOPEN_d*CALCOPEN_d;				\
     }									\
     (pkdn)->fOpen2 = FOPEN_FACTOR*CALCOPEN_d2*(diCrit2);\
-    MAXSIDE((pkdn)->bnd.fMax,CALCOPEN_b);				\
+    MAXSIDE(CALCOPEN_bnd.fMax,CALCOPEN_b);				\
     if (CALCOPEN_b < minside) CALCOPEN_b = minside;                          \
     (pkdn)->fOpen2 = CALCOPEN_b*CALCOPEN_b*(diCrit2);				\
     if ((pkdn)->fOpen2 < CALCOPEN_d2) (pkdn)->fOpen2 = CALCOPEN_d2;\

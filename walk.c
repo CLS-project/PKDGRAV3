@@ -30,6 +30,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
     PARTICLE *pRemote;
     KDN *kdn;
     KDN *pkdc;
+    pBND kbnd;
     double fWeight;
     double tempI;
     double dEwFlop;
@@ -179,6 +180,8 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 		    n = pkdc->pUpper - pkdc->pLower + 1;
 		    }
 		for (j=0;j<3;++j) rCheck[j] = pkdc->r[j] + pkd->Check[i].rOffset[j];
+		
+		kbnd = pkdNodeBnd(pkd, kdn);
 		if (kdn->iLower) {
 		    /*
 		    ** If this cell is not a bucket calculate the min distance
@@ -190,9 +193,9 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 		    min2 = 0;
 		    max2 = 0;
 		    for (j=0;j<3;++j) {
-			dMin = fabs(rCheck[j] - kdn->bnd.fCenter[j]);
-			dMax = dMin + kdn->bnd.fMax[j];
-			dMin -= kdn->bnd.fMax[j];
+			dMin = fabs(rCheck[j] - kbnd.fCenter[j]);
+			dMax = dMin + kbnd.fMax[j];
+			dMin -= kbnd.fMax[j];
 			if (dMin > 0) min2 += dMin*dMin;
 			max2 += dMax*dMax;
 			}
@@ -254,8 +257,8 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 		    */
 		    min2 = 0;
 		    for (j=0;j<3;++j) {
-			dMin = fabs(rCheck[j] - kdn->bnd.fCenter[j]);
-			dMin -= kdn->bnd.fMax[j];
+			dMin = fabs(rCheck[j] - kbnd.fCenter[j]);
+			dMin -= kbnd.fMax[j];
 			if (dMin > 0) min2 += dMin*dMin;
 			}
 		    /*
