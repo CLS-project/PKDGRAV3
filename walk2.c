@@ -25,63 +25,9 @@
 #include "floattype.h"
 #endif
 #include "moments.h"
-#ifdef TIME_WALK_WORK
-#include <sys/time.h>
-#endif
 
 const char *walk2_module_id = "$Id$";
 const char *walk_h_module_id = WALK_H_MODULE_ID;
-
-
-#define WALK_MINMULTIPOLE	3
-
-
-#ifdef TIME_WALK_WORK
-typedef struct {
-    double fTimer;
-    struct timeval tv1;
-    } TIMER;
-
-void startTimer(TIMER *t) {
-    struct timezone tz;
-    gettimeofday(&t->tv1, &tz);
-    }
-
-void clearTimer(TIMER *t) {
-    t->fTimer = 0.0;
-    startTimer(t);
-    }
-
-float stopTimer(TIMER *t) {
-    struct timezone tz;
-    struct timeval tv2;
-
-    gettimeofday(&tv2, &tz);
-    tv2.tv_sec -= t->tv1.tv_sec;
-    if ( tv2.tv_usec < t->tv1.tv_usec ) {
-	tv2.tv_sec--;
-	tv2.tv_usec += 1000000;
-	}
-    tv2.tv_usec -= t->tv1.tv_usec;
-    t->fTimer += tv2.tv_sec + (float)tv2.tv_usec/1000000.0;
-    return t->fTimer;
-    }
-
-float getTimer(TIMER *t) {
-    struct timezone tz;
-    struct timeval tv2;
-
-    gettimeofday(&tv2, &tz);
-    tv2.tv_sec -= t->tv1.tv_sec;
-    if ( tv2.tv_usec < t->tv1.tv_usec ) {
-	tv2.tv_sec--;
-	tv2.tv_usec += 1000000;
-	}
-    tv2.tv_usec -= t->tv1.tv_usec;
-    return t->fTimer + tv2.tv_sec + (float)tv2.tv_usec/1000000.0;
-    }
-#endif
-
 
 /*
 ** This is the new momentum conserving version of the opening criterion.
@@ -252,16 +198,16 @@ static inline int iOpenOutcomeBarnesHut(PKD pkd,KDN *k,CELT *check,KDN **pc) {
     if (check->id == pkd->idSelf) {
 	c = pkdTreeNode(pkd,iCell);
 	nc = c->pUpper - c->pLower + 1;
-    }
+	}
     else if (check->id < 0) {
         c = pkdTopNode(pkd,iCell);
 	assert(c->iLower != 0);
 	nc = walk_min_multipole-1; /* we never allow pp with this cell */
-    }
+	}
     else {
 	c = mdlAquire(pkd->mdl,CID_CELL,iCell,check->id);
 	nc = c->pUpper - c->pLower + 1;
-    }
+	}
 
     pBND kbnd = pkdNodeBnd(pkd, k);
 
@@ -282,65 +228,65 @@ static inline int iOpenOutcomeBarnesHut(PKD pkd,KDN *k,CELT *check,KDN **pc) {
 	min2 = 0;
 	max2 = 0;
 	for (j=0;j<3;++j) {
-	  dMin = fabs(c->r[j] + check->rOffset[j] - kbnd.fCenter[j]);
-	  dMax = dMin + kbnd.fMax[j];
-	  dMin -= kbnd.fMax[j];
-	  if (dMin > 0) min2 += dMin*dMin;
-	  max2 += dMax*dMax;
-	}
+	    dMin = fabs(c->r[j] + check->rOffset[j] - kbnd.fCenter[j]);
+	    dMax = dMin + kbnd.fMax[j];
+	    dMin -= kbnd.fMax[j];
+	    if (dMin > 0) min2 += dMin*dMin;
+	    max2 += dMax*dMax;
+	    }
 	if (max2 <= c->fOpen*c->fOpen) return(iOpenA); /* open it for all particles of c */
 	else if (min2 > c->fOpen*c->fOpen) {
-	  /*
-	  ** For symmetrized softening we need to calculate the distance between
-	  ** center of mass between the two cells.
-	  */
-	  d2 = 0;
-	  for (j=0;j<3;++j) {
-	    d2 += pow(c->r[j] + check->rOffset[j] - k->r[j],2);
-	  }
-	  fourh2 = softmassweight(pkdNodeMom(pkd,k)->m,4*k->fSoft2,pkdNodeMom(pkd,c)->m,4*c->fSoft2);
-	  if (d2 > fourh2) {
-	    if (nc >= walk_min_multipole) return(4);  /* accept multipole */
- 	    else return(iOpenA);  /* open the cell for performance reasons */
-	  }
-	  else return(0);   /* in all other cases we can't decide until we get down to a bucket */
-	}
+	    /*
+	    ** For symmetrized softening we need to calculate the distance between
+	    ** center of mass between the two cells.
+	    */
+	    d2 = 0;
+	    for (j=0;j<3;++j) {
+		d2 += pow(c->r[j] + check->rOffset[j] - k->r[j],2);
+		}
+	    fourh2 = softmassweight(pkdNodeMom(pkd,k)->m,4*k->fSoft2,pkdNodeMom(pkd,c)->m,4*c->fSoft2);
+	    if (d2 > fourh2) {
+		if (nc >= walk_min_multipole) return(4);  /* accept multipole */
+		else return(iOpenA);  /* open the cell for performance reasons */
+		}
+	    else return(0);   /* in all other cases we can't decide until we get down to a bucket */
+	    }
 	else return(0);
-    }
+	}
     else {
-      /*
-      ** If this cell is a bucket we have to either open the checkcell
-      ** and get the particles, or accept the multipole. For this
-      ** reason we only need to calculate min2.
-      */
-      min2 = 0;
-      for (j=0;j<3;++j) {
-	dMin = fabs(c->r[j] + check->rOffset[j] - kbnd.fCenter[j]);
-	dMin -= kbnd.fMax[j];
-	if (dMin > 0) min2 += dMin*dMin;
-      }
-      /*
-      ** By default we open the cell!
-      */
-      if (min2 > c->fOpen*c->fOpen) {
 	/*
-	** For symmetrized softening we need to calculate the distance between
-	** center of mass between the two cells.
+	** If this cell is a bucket we have to either open the checkcell
+	** and get the particles, or accept the multipole. For this
+	** reason we only need to calculate min2.
 	*/
-	d2 = 0;
+	min2 = 0;
 	for (j=0;j<3;++j) {
-	    d2 += pow(c->r[j] + check->rOffset[j] - k->r[j],2);
+	    dMin = fabs(c->r[j] + check->rOffset[j] - kbnd.fCenter[j]);
+	    dMin -= kbnd.fMax[j];
+	    if (dMin > 0) min2 += dMin*dMin;
+	    }
+	/*
+	** By default we open the cell!
+	*/
+	if (min2 > c->fOpen*c->fOpen) {
+	    /*
+	    ** For symmetrized softening we need to calculate the distance between
+	    ** center of mass between the two cells.
+	    */
+	    d2 = 0;
+	    for (j=0;j<3;++j) {
+		d2 += pow(c->r[j] + check->rOffset[j] - k->r[j],2);
+		}
+	    fourh2 = softmassweight(pkdNodeMom(pkd,k)->m,4*k->fSoft2,pkdNodeMom(pkd,c)->m,4*c->fSoft2);
+	    if (d2 > fourh2) {
+		if (nc >= walk_min_multipole) return(4);  /* accept multipole */
+		else return(iOpenA);  /* open the cell for performance reasons */
+		}
+	    else return(5); /* means we treat this cell as a softened monopole */
+	    }
+	else return(iOpenA);  /* open the cell */
 	}
-	fourh2 = softmassweight(pkdNodeMom(pkd,k)->m,4*k->fSoft2,pkdNodeMom(pkd,c)->m,4*c->fSoft2);
-	if (d2 > fourh2) {
-	  if (nc >= walk_min_multipole) return(4);  /* accept multipole */
-	  else return(iOpenA);  /* open the cell for performance reasons */
-	}
-	else return(5); /* means we treat this cell as a softened monopole */
-      }
-      else return(iOpenA);  /* open the cell */
     }
-}
 
 /*
 ** Returns total number of active particles for which gravity was calculated.
@@ -586,7 +532,11 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 	    printf("\nCELL:%d ",iCell);
 */
 	    for (i=0;i<nCheck;++i) {
+#ifdef LOCAL_EXPANSION
 		iOpen = iOpenOutcomeOld(pkd,k,&pkd->Check[i],&c);
+#else
+		iOpen = iOpenOutcomeBarnesHut(pkd,k,&pkd->Check[i],&c);
+#endif
 /*
 		printf("%1d",iOpen);
 */
@@ -846,6 +796,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 		    }
 		    dir = 1.0/sqrt(d2);
 		    *pdFlop += momLocrAddMomr5(&L,pkdNodeMom(pkd,c),dir,dx[0],dx[1],dx[2],&tax,&tay,&taz);
+		    /*momLocrAddMomrAccurate(&L,pkdNodeMom(pkd,c),dir,dx[0],dx[1],dx[2]);*/
 		    adotai = a[0]*tax + a[1]*tay + a[2]*taz;
 		    if (adotai > 0) {
 			adotai /= maga;
