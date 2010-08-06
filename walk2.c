@@ -122,11 +122,11 @@ static inline int iOpenOutcome(PKD pkd,KDN *k,CELT *check,KDN **pc) {
 ** and also doesn't explicitly conserve momentum.
 */
 static inline int iOpenOutcomeOld(PKD pkd,KDN *k,CELT *check,KDN **pc) {
-    const double fMonopoleThetaFac = 1.5;
+    const double fMonopoleThetaFac = 1.6;
     const int walk_min_multipole = 3;
-    double dx,dy,dz,mink2,d2,d2Open,xc,yc,zc,fourh2;
+    double dx,dy,dz,mink2,d2,d2Open,xc,yc,zc,fourh2,minbnd2;
     KDN *c;
-    int iCell,nc;
+    int iCell,nc,j;
     int iOpen,iOpenA,iOpenB;
         
     assert(check->iCell > 0);
@@ -145,7 +145,8 @@ static inline int iOpenOutcomeOld(PKD pkd,KDN *k,CELT *check,KDN **pc) {
 	nc = c->pUpper - c->pLower + 1;
     }
 
-    pBND kbnd = pkdNodeBnd(pkd, k);
+    pBND kbnd = pkdNodeBnd(pkd,k);
+    pBND cbnd = pkdNodeBnd(pkd,c);
 
     *pc = c;
     if (pkdNodeMom(pkd,c)->m <= 0) iOpen = 10;  /* ignore this cell */
@@ -161,12 +162,20 @@ static inline int iOpenOutcomeOld(PKD pkd,KDN *k,CELT *check,KDN **pc) {
 	dy = fabs(yc - kbnd.fCenter[1]) - kbnd.fMax[1];
 	dz = fabs(zc - kbnd.fCenter[2]) - kbnd.fMax[2];
 	mink2 = ((dx>0)?dx*dx:0) + ((dy>0)?dy*dy:0) + ((dz>0)?dz*dz:0);
+	minbnd2 = 0;
+	for (j=0;j<3;++j) {
+	    dx = kbnd.fCenter[j] - kbnd.fMax[j] - cbnd.fCenter[j] - cbnd.fMax[j];
+	    if (dx > 0) minbnd2 += dx*dx;
+	    dx = cbnd.fCenter[j] - cbnd.fMax[j] - kbnd.fCenter[j] - kbnd.fMax[j];
+	    if (dx > 0) minbnd2 += dx*dx;
+	    }
+
 	if (d2 > d2Open && d2 > fourh2) iOpen = 8;
 	else {
 	    if (c->iLower == 0) iOpenA = 1;
 	    else iOpenA = 3;
 	    if (nc < walk_min_multipole || mink2 <= c->fOpen*c->fOpen) iOpenB = iOpenA;
-	    else if (mink2 > fourh2) iOpen = iOpenB = 4;
+	    else if (minbnd2 > fourh2) iOpen = iOpenB = 4;
 	    else if (mink2 > pow(fMonopoleThetaFac*c->fOpen,2)) iOpen = iOpenB = 5;
 	    else iOpenB = iOpenA;
 	    if (c->fOpen > k->fOpen) {
