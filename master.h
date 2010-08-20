@@ -41,7 +41,8 @@ typedef struct msrContext {
     uint64_t nMaxOrderGas;
     uint64_t nMaxOrderDark;
     int iCurrMaxRung;
-    double dCrit;
+    double dThetaMin;
+    double dThetaMax;
     /*
     ** Comoving coordinate variables.
     */
@@ -201,7 +202,6 @@ void msrInitStep(MSR msr);
 void msrSetRung(MSR msr, uint8_t uRungLo, uint8_t uRungHi, int uRung);
 void msrZeroNewRung(MSR msr, uint8_t uRungLo, uint8_t uRungHi, int uRung);
 int msrMaxRung(MSR msr);
-
 void msrSwitchTheta(MSR msr,double);
 uint64_t msrMaxOrder(MSR msr);
 

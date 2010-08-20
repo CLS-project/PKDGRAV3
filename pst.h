@@ -439,7 +439,6 @@ void pstIOLoad(PST,void *,int,void *,int *);
 
 /* PST_BUILDTREE */
 struct inBuildTree {
-    double diCrit2;
     int nBucket;
     int iCell;
     int nCell;
@@ -507,11 +506,13 @@ void pstFastGasCleanup(PST,void *,int,void *,int *);
 /* PST_GRAVITY */
 struct inGravity {
     double dTime;
+    double dEwCut;
+    double dEwhCut;
+    double dThetaMin;
+    double dThetaMax;
     int nReps;
     int bPeriodic;
     int bEwald;
-    double dEwCut;
-    double dEwhCut;
     uint8_t uRungLo;
     uint8_t uRungHi;
     };
@@ -581,7 +582,7 @@ struct inStepVeryActive {
     double dDelta;
     int iRung;
     int nMaxRung;
-    double diCrit2;
+    double dThetaMin;
     double aSunInact[3];
     double adSunInact[3];
     double dSunMass;
@@ -601,7 +602,7 @@ struct inStepVeryActiveH {
     double dDelta;
     int iRung;
     int nMaxRung;
-    double diCrit2;
+    double dThetaMin;
     double aSunInact[3];
     double adSunInact[3];
     double dSunMass;
@@ -1091,7 +1092,7 @@ struct inStepVeryActiveS {
     double dDelta;
     int iRung;
     int nMaxRung;
-    double diCrit2;
+    double dThetaMin;
     double dSunMass;
     };
 struct outStepVeryActiveS {

@@ -379,11 +379,7 @@ typedef struct kdNode {
     int iParent;
     int pLower;		/* also serves as thread id for the LTT */
     int pUpper;		/* pUpper < 0 indicates no particles in tree! */
-#ifdef LOCAL_EXPANSION
-    FLOAT fOpen;
-#else
-    FLOAT fOpen2;
-#endif
+    FLOAT bMax;
     FLOAT fSoft2;
     uint32_t nActive; /* local active count used for walk2 */
     uint8_t uMinRung;
@@ -422,9 +418,7 @@ typedef struct kdNew {
     } KDNEW;
 #endif
 
-#define NMAX_OPENCALC	1000000000  /* huge value for now, since lower values break right now */
-
-#define FOPEN_FACTOR	4.0/3.0
+#define NMAX_OPENCALC	1000
 
 #define MAXSIDE(fMax,b) {\
     if ((fMax)[0] > (fMax)[1]) {\
@@ -473,75 +467,21 @@ typedef struct kdNew {
     else axr = 1e6;						\
 }
 
-
-/*  #define CLASSICAL_FOPEN if you want the original opening criterion. */
-/*  We have found that this causes errors at domain boundaries and      */
-/*  recommend NOT setting this define.                                  */
-
-#ifdef CLASSICAL_FOPEN
-#ifdef LOCAL_EXPANSION
-#define CALCOPEN(pkdn,diCrit2,minside) {		                \
-    FLOAT CALCOPEN_d2 = 0;					\
-    FLOAT CALCOPEN_b;						\
-    int CALCOPEN_j;							\
-    for (CALCOPEN_j=0;CALCOPEN_j<3;++CALCOPEN_j) {			\
-	FLOAT CALCOPEN_d = fabs((pkdn)->bnd.fCenter[CALCOPEN_j] - (pkdn)->r[CALCOPEN_j]) + \
-	    (pkdn)->bnd.fMax[CALCOPEN_j];				\
-	CALCOPEN_d2 += CALCOPEN_d*CALCOPEN_d;				\
-    }		\
-    if (CALCOPEN_d2 < 0.25*minside*minside) CALCOPEN_d2 = 0.25*minside*minside;   \
-    (pkdn)->fOpen = sqrt(FOPEN_FACTOR*CALCOPEN_d2*(diCrit2));		\
-}
-#else
-#define CALCOPEN(pkdn,diCrit2,minside) {		\
-    FLOAT CALCOPEN_d2 = 0;\
-    FLOAT CALCOPEN_b;\
-    int CALCOPEN_j;							\
-    for (CALCOPEN_j=0;CALCOPEN_j<3;++CALCOPEN_j) {			\
-	FLOAT CALCOPEN_d = fabs((pkdn)->bnd.fCenter[CALCOPEN_j] - (pkdn)->r[CALCOPEN_j]) + \
-	    (pkdn)->bnd.fMax[CALCOPEN_j];				\
-	CALCOPEN_d2 += CALCOPEN_d*CALCOPEN_d;				\
-    }									\
-    if (CALCOPEN_d2 < 0.25*minside*minside) CALCOPEN_d2 = 0.25*minside*minside;   \
-    (pkdn)->fOpen2 = FOPEN_FACTOR*CALCOPEN_d2*(diCrit2);\
-}
-#endif
-#else
-#ifdef LOCAL_EXPANSION
-#define CALCOPEN(pkdn,diCrit2,minside) {		                \
-    FLOAT CALCOPEN_d2 = 0;					\
-    FLOAT CALCOPEN_b;						\
-    int CALCOPEN_j;							\
-    pBND CALCOPEN_bnd = pkdNodeBnd(pkd, pkdn); \
-    for (CALCOPEN_j=0;CALCOPEN_j<3;++CALCOPEN_j) {			\
-	FLOAT CALCOPEN_d = fabs(CALCOPEN_bnd.fCenter[CALCOPEN_j] - (pkdn)->r[CALCOPEN_j]) + \
-	    CALCOPEN_bnd.fMax[CALCOPEN_j];				\
-	CALCOPEN_d2 += CALCOPEN_d*CALCOPEN_d;				\
-    }		\
-    MAXSIDE(CALCOPEN_bnd.fMax,CALCOPEN_b);     \
-    if (CALCOPEN_b < minside) CALCOPEN_b = minside;                          \
-    (pkdn)->fOpen = CALCOPEN_b*sqrt(diCrit2);			\
-    if ((pkdn)->fOpen < sqrt(CALCOPEN_d2)) (pkdn)->fOpen = sqrt(CALCOPEN_d2);\
-}
-#else
-#define CALCOPEN(pkdn,diCrit2,minside) {		\
-    FLOAT CALCOPEN_d2 = 0;\
-    FLOAT CALCOPEN_b;\
-    int CALCOPEN_j;							\
-    pBND CALCOPEN_bnd = pkdNodeBnd(pkd, pkdn); \
-    for (CALCOPEN_j=0;CALCOPEN_j<3;++CALCOPEN_j) {			\
-	FLOAT CALCOPEN_d = fabs(CALCOPEN_bnd.fCenter[CALCOPEN_j] - (pkdn)->r[CALCOPEN_j]) + \
-	    CALCOPEN_bnd.fMax[CALCOPEN_j];				\
-	CALCOPEN_d2 += CALCOPEN_d*CALCOPEN_d;				\
-    }									\
-    (pkdn)->fOpen2 = FOPEN_FACTOR*CALCOPEN_d2*(diCrit2);\
-    MAXSIDE(CALCOPEN_bnd.fMax,CALCOPEN_b);				\
-    if (CALCOPEN_b < minside) CALCOPEN_b = minside;                          \
-    (pkdn)->fOpen2 = CALCOPEN_b*CALCOPEN_b*(diCrit2);				\
-    if ((pkdn)->fOpen2 < CALCOPEN_d2) (pkdn)->fOpen2 = CALCOPEN_d2;\
-}
-#endif
-#endif
+#define CALCOPEN(pkdn,minside) {					\
+        FLOAT CALCOPEN_d2 = 0;						\
+	FLOAT CALCOPEN_b;						\
+        int CALCOPEN_j;							\
+	pBND CALCOPEN_bnd = pkdNodeBnd(pkd, pkdn);			\
+        for (CALCOPEN_j=0;CALCOPEN_j<3;++CALCOPEN_j) {                  \
+            FLOAT CALCOPEN_d = fabs(CALCOPEN_bnd.fCenter[CALCOPEN_j] - (pkdn)->r[CALCOPEN_j]) + \
+                CALCOPEN_bnd.fMax[CALCOPEN_j];                          \
+            CALCOPEN_d2 += CALCOPEN_d*CALCOPEN_d;                       \
+            }								\
+	MAXSIDE(CALCOPEN_bnd.fMax,CALCOPEN_b);				\
+	if (CALCOPEN_b < minside) CALCOPEN_b = minside;			\
+	if (CALCOPEN_b*CALCOPEN_b < CALCOPEN_d2) CALCOPEN_b = sqrt(CALCOPEN_d2); \
+	(pkdn)->bMax = CALCOPEN_b;					\
+	}
 
 /*
 ** Components required for tree walking.
@@ -733,6 +673,16 @@ typedef struct pkdContext {
     ILC *ilc;
     int nMaxPart, nMaxCell;
 #endif
+
+    /*
+    ** Opening angle table for mass weighting.
+    */
+    float *fCritTheta;
+    float *fCritMass;
+    int nCritBins;
+    float dCritLogDelta;
+    float dCritThetaMin;
+    float dCritThetaMax;
 
     /*
     ** New activation methods
@@ -1048,12 +998,11 @@ typedef struct CacheStatistics {
     double dcMinRatio;
     } CASTAT;
 
-
 /*
 ** From tree.c:
 */
-void pkdVATreeBuild(PKD pkd,int nBucket,FLOAT diCrit2);
-void pkdTreeBuild(PKD pkd,int nBucket,FLOAT dCrit,KDN *pkdn,int bExcludeVeryActive);
+void pkdVATreeBuild(PKD pkd,int nBucket);
+void pkdTreeBuild(PKD pkd,int nBucket,KDN *pkdn,int bExcludeVeryActive);
 void pkdCombineCells(PKD,KDN *pkdn,KDN *p1,KDN *p2);
 void pkdDistribCells(PKD,int,KDN *);
 void pkdCalcRoot(PKD,MOMC *);
@@ -1082,6 +1031,7 @@ void pkdIOInitialize( PKD pkd, int nLocal);
 #endif
 
 void pkdSetSoft(PKD pkd,double dSoft);
+void pkdSetCrit(PKD pkd,double dCrit);
 void pkdCalcBound(PKD,BND *);
 void pkdEnforcePeriodic(PKD,BND *);
 void pkdPhysicalSoft(PKD pkd,double dSoftMax,double dFac,int bSoftMaxMul);
@@ -1117,8 +1067,8 @@ uint32_t pkdWriteFIO(PKD pkd,FIO fio,double dvFac);
 uint32_t pkdWriteTipsy(PKD,char *,uint64_t,int,double,int);
 void
 pkdGravAll(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,int bPeriodic,
-	   int iOrder,int bEwald,double fEwCut,double fEwhCut,int *nActive,
-	   double *pdPartSum, double *pdCellSum,CASTAT *pcs, double *pdFlop);
+	   int iOrder,int bEwald,double fEwCut,double fEwhCut,double dThetaMin,double dThetaMax,
+	   int *nActive,double *pdPartSum, double *pdCellSum,CASTAT *pcs, double *pdFlop);
 void pkdCalcEandL(PKD pkd,double *T,double *U,double *Eth,double *L,double *F,double *W);
 void pkdDrift(PKD pkd,double dDelta,double,double,uint8_t uRungLo,uint8_t uRungHi);
 void pkdScaleVel(PKD pkd,double dvFac);

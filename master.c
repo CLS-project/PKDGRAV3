@@ -392,6 +392,9 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
 		"<Barnes opening criterion> = 0.8");
     prmAddParam(msr->prm,"dTheta2",2,&msr->param.dTheta2,sizeof(double),
 		"theta2","<Barnes opening criterion for a >= daSwitchTheta> = 0.8");
+    msr->param.dThetaMax = 1.0;
+    prmAddParam(msr->prm,"dThetaMax",2,&msr->param.dThetaMax,sizeof(double),"thetamax",
+		"<Barnes opening criterion> = 1.0");
     msr->param.daSwitchTheta = 1./3.;
     prmAddParam(msr->prm,"daSwitchTheta",2,&msr->param.daSwitchTheta,sizeof(double),"aSwitchTheta",
 		"<a to switch theta at> = 1./3.");
@@ -1076,9 +1079,14 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     /*
     ** Determine opening type.
     */
-    msr->dCrit = msr->param.dTheta;
     if (!prmSpecified(msr->prm,"dTheta2"))
 	msr->param.dTheta2 = msr->param.dTheta;
+    msr->dThetaMin = msr->param.dTheta;
+    msr->dThetaMax = msr->param.dThetaMax;
+    if ( !prmSpecified(msr->prm,"dThetaMax") )
+	msr->dThetaMax = (1.0 + msr->dThetaMin) / 2.0;
+    /*msr->dThetaMax = prmSpecified(msr->prm,"dThetaMax") ? msr->param.dThetaMax : msr->dThetaMin;*/
+
     /*
     ** Make sure n2min is greater than nBucket^2!
     msr->param.n2min = (msr->param.n2min < msr->param.nBucket*msr->param.nBucket+1)?
@@ -1468,7 +1476,7 @@ void msrLogParams(MSR msr,FILE *fp) {
     fprintf(fp,"\n# bFixCollapse: %d",msr->param.CP.bFixCollapse);
 #endif /* PLANETS */
 
-    fprintf(fp," dTheta: %f",msr->param.dTheta);
+    fprintf(fp," dTheta: %f  dThetaMax: %f",msr->param.dTheta, msr->dThetaMax);
     fprintf(fp,"\n# dPeriod: %g",msr->param.dPeriod);
     fprintf(fp," dxPeriod: %g",
 	    msr->param.dxPeriod >= FLOAT_MAXVAL ? 0 : msr->param.dxPeriod);
@@ -2470,7 +2478,6 @@ void _BuildTree(MSR msr,int bExcludeVeryActive,int bNeedEwald) {
     msrprintf(msr,"Building local trees...\n\n");
 
     in.nBucket = msr->param.nBucket;
-    in.diCrit2 = 1/(msr->dCrit*msr->dCrit);
     nCell = 1<<(1+(int)ceil(log((double)msr->nThreads)/log(2.0)));
     pkdn = malloc(nCell*pkdNodeSize(pkd));
     assert(pkdn != NULL);
@@ -2878,6 +2885,8 @@ void msrGravity(MSR msr,uint8_t uRungLo, uint8_t uRungHi, double dTime,
     in.dEwhCut = msr->param.dEwhCut;
     in.uRungLo = uRungLo;
     in.uRungHi = uRungHi;
+    in.dThetaMin = msr->dThetaMin;
+    in.dThetaMax = msr->dThetaMax;
 
     out = malloc(msr->nThreads*sizeof(struct outGravity));
     assert(out != NULL);
@@ -3358,17 +3367,12 @@ double msrSoft(MSR msr) {
     return(msr->param.dSoft);
     }
 
-
 void msrSwitchTheta(MSR msr,double dTime) {
-    double a;
-
-    a = csmTime2Exp(msr->param.csm,dTime);
-    if (a >= msr->param.daSwitchTheta) msr->dCrit = msr->param.dTheta2;
+    double a = csmTime2Exp(msr->param.csm,dTime);
+    if (a >= msr->param.daSwitchTheta) msr->dThetaMin = msr->param.dTheta2;
     }
 
-
-void
-msrInitStep(MSR msr) {
+void msrInitStep(MSR msr) {
     struct inSetRung insr;
     struct inInitStep in;
 
@@ -3900,7 +3904,6 @@ void msrStepVeryActiveKDK(MSR msr, double dStep, double dTime, double dDelta,
     in.dTime = dTime;
     in.dDelta = dDelta;
     in.iRung = iRung;
-    in.diCrit2 = 1/(msr->dCrit*msr->dCrit);   /* could set a stricter opening criterion here */
     in.nMaxRung = msrCurrMaxRung(msr);
     /*TODO: Are the next two lines okay?  nMaxRung and iRung needed? */
     in.uRungLo = iRung;

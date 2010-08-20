@@ -33,10 +33,10 @@ const char *walk_h_module_id = WALK_H_MODULE_ID;
 ** This is the new momentum conserving version of the opening criterion.
 ** THIS NEEDS MORE TESTING
 */
-static inline int iOpenOutcome(PKD pkd,KDN *k,CELT *check,KDN **pc) {
-    const double fMonopoleThetaFac = 1.5;
+static inline int iOpenOutcome(PKD pkd,KDN *k,CELT *check,KDN **pc,double dThetaMin) {
+    const double fMonopoleThetaFac2 = 1.5 * 1.5;
     const double fThetaFac2 = 1.1 * 1.1;
-    double dx,dy,dz,minc2,mink2,d2,d2Open,xc,yc,zc,fourh2;
+    double dx,dy,dz,minc2,mink2,d2,d2Open,xc,yc,zc,fourh2,cOpen,kOpen,diCrit;
     KDN *c;
     int T1,iCell;
     int iOpen,iOpenA,iOpenB;
@@ -67,11 +67,13 @@ static inline int iOpenOutcome(PKD pkd,KDN *k,CELT *check,KDN **pc) {
     pBND cbnd = pkdNodeBnd(pkd, c);
     pBND kbnd = pkdNodeBnd(pkd, k);
 
-
     *pc = c;
     if (pkdNodeMom(pkd,c)->m <= 0) iOpen = 10;  /* ignore this cell */
     else if (nc*nk <= max_pp) iOpen = 1;
     else {
+	diCrit = 1.0 / dThetaMin;
+	cOpen = c->bMax * diCrit;
+	kOpen = k->bMax * diCrit;
 	dx = fabs(k->r[0] - cbnd.fCenter[0] - check->rOffset[0]) - cbnd.fMax[0];
 	dy = fabs(k->r[1] - cbnd.fCenter[1] - check->rOffset[1]) - cbnd.fMax[1];
 	dz = fabs(k->r[2] - cbnd.fCenter[2] - check->rOffset[2]) - cbnd.fMax[2];
@@ -80,9 +82,9 @@ static inline int iOpenOutcome(PKD pkd,KDN *k,CELT *check,KDN **pc) {
 	if (T1) {
 	    if (k->iLower == 0) iOpenA = 1; /* add particles to interaction list */
 	    else iOpenA = 0; /* open this cell and add its children to the checklist */
-	    if (minc2 <= fThetaFac2*k->fOpen*k->fOpen) iOpen = iOpenA;  /* this cell simply stays on the checklist */
+	    if (minc2 <= fThetaFac2*kOpen*kOpen) iOpen = iOpenA;  /* this cell simply stays on the checklist */
 	    else if (minc2 > fourh2) iOpen = 6;  /* Add particles of C to local expansion */
-	    else if (minc2 > pow(fMonopoleThetaFac*k->fOpen,2)) iOpen = 7;
+	    else if (minc2 > fMonopoleThetaFac2*kOpen*kOpen) iOpen = 7;
 	    else iOpen = iOpenA;
 	} 
 	else {
@@ -93,38 +95,186 @@ static inline int iOpenOutcome(PKD pkd,KDN *k,CELT *check,KDN **pc) {
 	    yc = c->r[1] + check->rOffset[1];
 	    zc = c->r[2] + check->rOffset[2];
 	    d2 = pow(k->r[0]-xc,2) + pow(k->r[1]-yc,2) + pow(k->r[2]-zc,2);
-	    d2Open = pow(c->fOpen + k->fOpen,2) * fThetaFac2;
+	    d2Open = pow(cOpen + kOpen,2) * fThetaFac2;
 	    dx = fabs(xc - kbnd.fCenter[0]) - kbnd.fMax[0];
 	    dy = fabs(yc - kbnd.fCenter[1]) - kbnd.fMax[1];
 	    dz = fabs(zc - kbnd.fCenter[2]) - kbnd.fMax[2];
 	    mink2 = ((dx>0)?dx*dx:0) + ((dy>0)?dy*dy:0) + ((dz>0)?dz*dz:0);
 	    
-	    if (c->fOpen > k->fOpen) iOpenB = iOpenA;
+	    if (cOpen > kOpen) iOpenB = iOpenA;
 	    else if (k->iLower != 0) iOpenB = 0; /* keep this cell on the checklist */
-	    else if (mink2 <= fThetaFac2*c->fOpen*c->fOpen) iOpenB = iOpenA;
+	    else if (mink2 <= fThetaFac2*cOpen*cOpen) iOpenB = iOpenA;
 	    else if (mink2 > fourh2) iOpenB = 4; /* add this cell to the P-C list */
-	    else if (mink2 > pow(fMonopoleThetaFac*c->fOpen,2)) iOpenB = 5; /* use this cell as a softened monopole */
+	    else if (mink2 > fMonopoleThetaFac2*cOpen*cOpen) iOpenB = 5; /* use this cell as a softened monopole */
 	    else iOpenB = iOpenA;
 
 	    if (d2 <= d2Open) iOpen = iOpenB;
 	    else if (minc2 > fourh2 && mink2 > fourh2) iOpen = 8;
-	    else if (d2 > fMonopoleThetaFac*fMonopoleThetaFac*d2Open) iOpen = 9; /* it is absolutely critical to include this case for large softening */
+	    else if (d2 > fMonopoleThetaFac2*d2Open) iOpen = 9; /* it is absolutely critical to include this case for large softening */
 	    else iOpen = iOpenB;
 	}
     }
     return(iOpen);
 }
 
+double brent(double x1, double x2, double (*my_f)(double v, void *params),void *params) {
+    static double EPS = 1e-12;
+    int iter;
+    double a=x1, b=x2, c, d, e, min1, min2;
+    double fa, fb, fc, p, q, r, s, tol1, xm;
+
+    fa = my_f(x1,params);
+    fb = my_f(x2,params);
+
+    if ( fb*fa > 0.0) abort();
+    fc = fb;
+    c = d = e = 0.0;
+    for(iter=1;iter<=100;iter++) {
+	if (fb*fc > 0.0) {
+	    c = a;
+	    fc = fa;
+	    e = d = b-a;
+	    }
+	if (fabs(fc) < fabs(fb)) {
+	    a = b;
+	    b = c;
+	    c = a;
+	    fa = fb;
+	    fb = fc;
+	    fc = fa;
+	    }
+	tol1 = 2.0*EPS*fabs(b)+0.5*1e-9;
+	xm = 0.5*(c-b);
+	if (fabs(xm) <= tol1 || fb == 0.0) return b;
+	if (fabs(e) >= tol1 && fabs(fa) > fabs(fb)) {
+	    s = fb/fa;
+	    if (a==c) {
+		p = 2.0*xm*s;
+		q = 1.0-s;
+		}
+	    else {
+		q = fa/fc;
+		r = fb/fc;
+		p = s*(2.0*xm*q*(q-r)-(b-a)*(r-1.0));
+		q = (q-1.0)*(r-1.0)*(s-1.0);
+		}
+	    if (p>0.0) q = -q;
+	    p = fabs(p);
+	    min1 = 3.0*xm*q - fabs(tol1*q);
+	    min2 = fabs(e*q);
+	    if (2.0*p < (min1 < min2 ? min1 : min2)) {
+		e = d;
+		d = p / q;
+		}
+	    else {
+		d = xm;
+		e = d;
+		}
+	    }
+	else {
+	    d = xm;
+	    e = d;
+	    }
+	a = b;
+	fa = fb;
+	if (fabs(d) > tol1)
+	    b += d;
+	else
+	    b += (xm > 0.0 ? fabs(tol1) : - fabs(tol1));
+	fb = my_f(b,params);
+	}
+    abort();
+    }
+
+struct theta_params { double alpha; };
+static double theta_function(double x, void * params) {
+    struct theta_params *p = params;
+    double x2,x4,ixm,ixm2;
+    x2 = x*x;
+    x4 = x2*x2;
+    ixm = 1.0 / (1-x);
+    ixm2 = ixm*ixm;
+    return p->alpha - x4*x2*x * ixm2;
+    }
+
+void pkdSetThetaTable(PKD pkd,double dThetaMin,double dThetaMax) {
+    struct theta_params params;
+    double dCritRatio;
+    double dMass;
+    int i;
+
+    if (dThetaMax!=pkd->dCritThetaMax) {
+	pkd->dCritThetaMax = dThetaMax;
+	pkd->dCritThetaMin = dThetaMin;
+	if (pkd->fCritMass==NULL) {
+	    pkd->nCritBins = 128;
+	    pkd->fCritMass = malloc(sizeof(float) * pkd->nCritBins);
+	    assert(pkd->fCritMass!=NULL);
+	    pkd->fCritTheta = malloc(sizeof(float) * pkd->nCritBins);
+	    assert(pkd->fCritTheta!=NULL);
+	    }
+
+	dCritRatio = pow(pkd->dCritThetaMin,7.0) / pow(1-pkd->dCritThetaMin,2.0);
+	for( i=0; i< pkd->nCritBins; i++ ) {
+	    pkd->fCritMass[i] = dMass = exp( -0.5*(pkd->nCritBins-i-1) );
+	    params.alpha = dCritRatio * pow(dMass,-1.0/3.0);
+	    pkd->fCritTheta[i] = brent(0.0,0.9999999, theta_function, &params);
+	    pkd->fCritTheta[i] = (pkd->fCritTheta[i]-pkd->dCritThetaMin)
+		/ (1-pkd->dCritThetaMin)
+		* (pkd->dCritThetaMax-pkd->dCritThetaMin) + pkd->dCritThetaMin;
+//	    printf("%g (%g) : %g\n", pkd->fCritMass[i], log(pkd->fCritMass[i]),
+//		   pkd->fCritTheta[i]);
+	    }
+	}
+    }
+
+/*
+** Estimate for log(1+x)
+*/
+static inline float lge(float x) {
+    float x2, x4;
+    x2 = x*x;
+    x4 = x2*x2;
+    return x - x2/2.0 + x2*x/3.0 - x4/4.0 + x4*x/5.0 - x4*x2/6.0;
+    }
+
+static inline float getTheta(PKD pkd,float fMass) {
+    int i,j,m;
+    float fInterval;
+
+    if (fMass<=pkd->fCritMass[0]) return pkd->dCritThetaMax;
+    if (fMass>=1.0) return pkd->dCritThetaMin;
+    assert(fMass>0.0 && fMass <= 1.0);
+    assert(fMass>=pkd->fCritMass[0]);
+
+    /* Locate the correct mass bin - binary search is better than ln? */
+    i=0;
+    j=pkd->nCritBins-1;
+    while(i<j) {
+	m = (j-i)/2 + i;
+	if (pkd->fCritMass[m] > fMass) j = m;
+	else i = m+1;
+	}
+    --i;
+
+    assert(i>=0 && i<pkd->nCritBins);
+    assert(pkd->fCritMass[i] <= fMass );
+    assert(pkd->fCritMass[i+1] >= fMass );
+
+    fInterval = lge((fMass-pkd->fCritMass[i])/pkd->fCritMass[i])*2.0;
+    assert(fInterval>=0.0 && fInterval <= 1.0);
+    return fInterval * (pkd->fCritTheta[i+1]-pkd->fCritTheta[i]) + pkd->fCritTheta[i];
+    }
 
 /*
 ** This implements the original pkdgrav2m opening criterion, which has been
 ** well tested, gives good force accuracy, but may not be the most efficient
 ** and also doesn't explicitly conserve momentum.
 */
-static inline int iOpenOutcomeOld(PKD pkd,KDN *k,CELT *check,KDN **pc) {
-    const double fMonopoleThetaFac = 1.6;
+static inline int iOpenOutcomeOld(PKD pkd,KDN *k,CELT *check,KDN **pc,double dThetaMin) {
+    const double fMonopoleThetaFac2 = 1.6 * 1.6;
     const int walk_min_multipole = 3;
-    double dx,dy,dz,mink2,d2,d2Open,xc,yc,zc,fourh2,minbnd2;
+    double dx,dy,dz,mink2,d2,d2Open,xc,yc,zc,fourh2,minbnd2,kOpen,cOpen,diCrit,dTotalMass;
     KDN *c;
     int iCell,nc,j;
     int iOpen,iOpenA,iOpenB;
@@ -148,16 +298,29 @@ static inline int iOpenOutcomeOld(PKD pkd,KDN *k,CELT *check,KDN **pc) {
     pBND kbnd = pkdNodeBnd(pkd,k);
     pBND cbnd = pkdNodeBnd(pkd,c);
 
+    dTotalMass = pkdNodeMom(pkd,pkdTreeNode(pkd,ROOT))->m;
+
     *pc = c;
     if (pkdNodeMom(pkd,c)->m <= 0) iOpen = 10;  /* ignore this cell */
     else {
+#if defined(TEST_SOFTENING)
+	double hk = sqrt(k->fSoft2);
+	double hc = sqrt(c->fSoft2);
+	fourh2 = 4.0 * (k->fSoft2*hk + c->fSoft2*hc)/(hk + hc);
+#else
 	fourh2 = softmassweight(pkdNodeMom(pkd,k)->m,4*k->fSoft2,pkdNodeMom(pkd,c)->m,4*c->fSoft2);
+#endif
 	xc = c->r[0] + check->rOffset[0];
 	yc = c->r[1] + check->rOffset[1];
 	zc = c->r[2] + check->rOffset[2];
 	d2 = pow(k->r[0]-xc,2) + pow(k->r[1]-yc,2) + pow(k->r[2]-zc,2);
-	d2Open = pow(2.0*fmax(c->fOpen,k->fOpen),2);
-	/*d2Open = pow(c->fOpen + k->fOpen,2);"BSC" version used this*/
+	diCrit = 1.0 / dThetaMin;
+	kOpen = 1.5*k->bMax*diCrit;
+	//cOpen = c->bMax*diCrit*pow(pkdNodeMom(pkd,c)->m/dTotalMass,(1.0/21.0));
+	//cOpen = c->bMax * diCrit;
+	cOpen = c->bMax/getTheta(pkd,pkdNodeMom(pkd,c)->m/dTotalMass);
+	d2Open = pow(2.0*fmax(cOpen,kOpen),2);
+	/*d2Open = pow(cOpen + kOpen,2);*/ /* "BSC" version used this*/
 	dx = fabs(xc - kbnd.fCenter[0]) - kbnd.fMax[0];
 	dy = fabs(yc - kbnd.fCenter[1]) - kbnd.fMax[1];
 	dz = fabs(zc - kbnd.fCenter[2]) - kbnd.fMax[2];
@@ -170,15 +333,17 @@ static inline int iOpenOutcomeOld(PKD pkd,KDN *k,CELT *check,KDN **pc) {
 	    if (dx > 0) minbnd2 += dx*dx;
 	    }
 
-	if (d2 > d2Open && d2 > fourh2) iOpen = 8;
+	if (d2 > d2Open && minbnd2 > fourh2) iOpen = 8;
 	else {
 	    if (c->iLower == 0) iOpenA = 1;
 	    else iOpenA = 3;
-	    if (nc < walk_min_multipole || mink2 <= c->fOpen*c->fOpen) iOpenB = iOpenA;
+	    //if (nc < walk_min_multipole || mink2 <= c->bMax*c->bMax*diCrit*diCrit) iOpenB = iOpenA;
+	    if (nc < walk_min_multipole || mink2 <= cOpen*cOpen) iOpenB = iOpenA;
 	    else if (minbnd2 > fourh2) iOpen = iOpenB = 4;
-	    else if (mink2 > pow(fMonopoleThetaFac*c->fOpen,2)) iOpen = iOpenB = 5;
+	    //else if (mink2 > fMonopoleThetaFac2*c->bMax*c->bMax*diCrit*diCrit) iOpen = iOpenB = 5;
+	    else if (mink2 > fMonopoleThetaFac2*cOpen*cOpen) iOpen = iOpenB = 5;
 	    else iOpenB = iOpenA;
-	    if (c->fOpen > k->fOpen) {
+	    if (cOpen > kOpen) {
 		if (c->iLower) iOpen = 3;
 		else iOpen = iOpenB;
 	    }
@@ -194,9 +359,9 @@ static inline int iOpenOutcomeOld(PKD pkd,KDN *k,CELT *check,KDN **pc) {
 /*
 ** This implements the original pkdgrav Barnes Hut opening criterion.
 */
-static inline int iOpenOutcomeBarnesHut(PKD pkd,KDN *k,CELT *check,KDN **pc) {
+static inline int iOpenOutcomeBarnesHut(PKD pkd,KDN *k,CELT *check,KDN **pc,double dThetaMin) {
     const int walk_min_multipole = 3;
-    double dMin,dMax,min2,max2,d2,fourh2;
+    double dMin,dMax,min2,max2,d2,fourh2,cOpen2;
     KDN *c;
     int iCell,nc;
     int iOpenA;
@@ -219,8 +384,9 @@ static inline int iOpenOutcomeBarnesHut(PKD pkd,KDN *k,CELT *check,KDN **pc) {
 	}
 
     pBND kbnd = pkdNodeBnd(pkd, k);
-
     *pc = c;
+
+    cOpen2 = c->bMax * c->bMax / (dThetaMin*dThetaMin);
 
     if (c->iLower == 0) iOpenA = 1;
     else iOpenA = 3;
@@ -243,8 +409,8 @@ static inline int iOpenOutcomeBarnesHut(PKD pkd,KDN *k,CELT *check,KDN **pc) {
 	    if (dMin > 0) min2 += dMin*dMin;
 	    max2 += dMax*dMax;
 	    }
-	if (max2 <= c->fOpen*c->fOpen) return(iOpenA); /* open it for all particles of c */
-	else if (min2 > c->fOpen*c->fOpen) {
+	if (max2 <= cOpen2) return(iOpenA); /* open it for all particles of c */
+	else if (min2 > cOpen2) {
 	    /*
 	    ** For symmetrized softening we need to calculate the distance between
 	    ** center of mass between the two cells.
@@ -277,7 +443,7 @@ static inline int iOpenOutcomeBarnesHut(PKD pkd,KDN *k,CELT *check,KDN **pc) {
 	/*
 	** By default we open the cell!
 	*/
-	if (min2 > c->fOpen*c->fOpen) {
+	if (min2 > cOpen2) {
 	    /*
 	    ** For symmetrized softening we need to calculate the distance between
 	    ** center of mass between the two cells.
@@ -301,7 +467,7 @@ static inline int iOpenOutcomeBarnesHut(PKD pkd,KDN *k,CELT *check,KDN **pc) {
 ** Returns total number of active particles for which gravity was calculated.
 */
 int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,int bEwald,
-		int bVeryActive,double *pdFlop,double *pdPartSum,double *pdCellSum) {
+		int bVeryActive,double dThetaMin,double dThetaMax,double *pdFlop,double *pdPartSum,double *pdCellSum) {
     PARTICLE *p;
     KDN *k,*c,*kFind,*kSib;
     MOMR *momc,*momk;
@@ -338,6 +504,11 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 #ifdef PROFILE_GRAVWALK
     VTResume();
 #endif
+
+    /*
+    ** If necessary, calculate the theta interpolation tables.
+    */
+    pkdSetThetaTable(pkd,dThetaMin,dThetaMax);
 
     for (j=0;j<3;++j) zero[j] = 0.0;
     a = &zero[0];
@@ -472,7 +643,6 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
     pkd->ilp->cx = 0;
     pkd->ilp->cy = 0;
     pkd->ilp->cz = 0;
-    pkd->ilp->d2cmax = 0;
 
     /*
     ** We are now going to work on the local tree.
@@ -507,7 +677,6 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
     found_it:
 	d2c = (cx - pkd->ilp->cx)*(cx - pkd->ilp->cx) + (cy - pkd->ilp->cy)*(cy - pkd->ilp->cy) +
 	      (cz - pkd->ilp->cz)*(cz - pkd->ilp->cz);
-	/*if (d2c > pkd->ilp->d2cmax) {*/
 	if ( d2c > 1e-5) {
 /*	    printf("%d:Shift of center too large for the coming interactions! old:(%.10g,%.10g,%.10g) new:(%.10g,%.10g,%.10g)\n",
   mdlSelf(pkd->mdl),pkd->ilp->cx,pkd->ilp->cy,pkd->ilp->cz,cx,cy,cz); */
@@ -524,7 +693,6 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 	    pkd->ilp->cx = cx;
 	    pkd->ilp->cy = cy;
 	    pkd->ilp->cz = cz;
-	    pkd->ilp->d2cmax = k->fOpen*k->fOpen;
 	    }
 	while (1) {
 	    /*
@@ -542,9 +710,9 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 */
 	    for (i=0;i<nCheck;++i) {
 #ifdef LOCAL_EXPANSION
-		iOpen = iOpenOutcomeOld(pkd,k,&pkd->Check[i],&c);
+		iOpen = iOpenOutcomeOld(pkd,k,&pkd->Check[i],&c,dThetaMin);
 #else
-		iOpen = iOpenOutcomeBarnesHut(pkd,k,&pkd->Check[i],&c);
+		iOpen = iOpenOutcomeBarnesHut(pkd,k,&pkd->Check[i],&c,dThetaMin);
 #endif
 /*
 		printf("%1d",iOpen);
@@ -973,7 +1141,6 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 	** Update the limit for a shift of the center here based on the opening radius of this
 	** cell (the one we just evaluated).
 	*/
-	pkd->ilp->d2cmax = k->fOpen*k->fOpen;
 	fWeight += (*pdFlop-tempI);
 	fWeight += dEwFlop;
 	if (nActive) {

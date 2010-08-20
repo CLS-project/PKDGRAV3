@@ -383,7 +383,7 @@ void ShuffleParticles(PKD pkd,int iStart) {
 static double zeroV[3] = {0.0,0.0,0.0};
 static float  zeroF[3] = {0.0,0.0,0.0};
 
-void Create(PKD pkd,int iNode,FLOAT diCrit2) {
+void Create(PKD pkd,int iNode) {
     PARTICLE *p;
     KDN *pkdn,*pkdl,*pkdu;
     MOMR mom;
@@ -465,8 +465,8 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2) {
 	    bSoftZero = 1;
 	    }
 	else
-#ifdef CLASSIC_SOFTENING
-	    dih2 = m*fSoft;
+#if defined(TEST_SOFTENING)
+	    dih2 = fSoft;
 #else
 	    dih2 = m/(fSoft*fSoft);
 #endif
@@ -492,8 +492,8 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2) {
 	    if(fSoft == 0.0)
 		bSoftZero = 1;
 	    else
-#ifdef CLASSIC_SOFTENING
-		dih2 += m*fSoft;
+#if defined(TEST_SOFTENING)
+	    if (fSoft>dih2) dih2=fSoft;
 #else
 		dih2 += m/(fSoft*fSoft);
 #endif
@@ -527,15 +527,16 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2) {
 	    pAcc[1] = m*ay;
 	    pAcc[2] = m*az;
 	    }
-	dih2 *= m;
 	if(bSoftZero)
 	    pkdn->fSoft2 = 0.0;
-	else
-#ifdef CLASSIC_SOFTENING
+	else {
+#if defined(TEST_SOFTENING)
 	    pkdn->fSoft2 = dih2*dih2;
 #else
-	    pkdn->fSoft2 = 1/dih2;
+	    pkdn->fSoft2 = 1/(dih2*m);
 #endif
+	    }
+
 	/*
 	** Now calculate the reduced multipole moment.
 	*/
@@ -562,23 +563,9 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2) {
 	/*
 	** Now determine the opening radius for gravity.
 	*/
-	MAXSIDE(bnd.fMax,b);
-	if (b < bmin) b = bmin;
-#ifdef CLASSICAL_FOPEN
-#ifdef LOCAL_EXPANSION
-	pkdn->fOpen = sqrt(FOPEN_FACTOR*d2Max*diCrit2);
-#else
-	pkdn->fOpen2 = FOPEN_FACTOR*d2Max*diCrit2;
-#endif
-#else
-#ifdef LOCAL_EXPANSION
-	pkdn->fOpen = b*sqrt(diCrit2);
-	if (pkdn->fOpen < sqrt(d2Max)) pkdn->fOpen = sqrt(d2Max);
-#else
-	pkdn->fOpen2 = b*b*diCrit2;
-	if (pkdn->fOpen2 < d2Max) pkdn->fOpen2 = d2Max;
-#endif
-#endif
+        MAXSIDE(bnd.fMax,b);
+        if (b < bmin) b = bmin;
+	pkdn->bMax = b;
 	/*
 	** Calculate bucket fast gas bounds.
 	*/
@@ -665,27 +652,13 @@ void Create(PKD pkd,int iNode,FLOAT diCrit2) {
 		/*
 		** Now determine the opening radius for gravity.
 		*/
-#ifdef CLASSICAL_FOPEN
-		if (d2Max < 0.25*bmin*bmin) d2Max = 0.25*bmin*bmin;
-#ifdef LOCAL_EXPANSION
-		pkdn->fOpen = sqrt(FOPEN_FACTOR*d2Max*diCrit2);
-#else
-		pkdn->fOpen2 = FOPEN_FACTOR*d2Max*diCrit2;
-#endif
-#else
 		MAXSIDE(bnd.fMax,b);
 		if (b < bmin) b = bmin;
-#ifdef LOCAL_EXPANSION
-		pkdn->fOpen = b*sqrt(diCrit2);
-		if (pkdn->fOpen < sqrt(d2Max)) pkdn->fOpen = sqrt(d2Max);
-#else
-		pkdn->fOpen2 = b*b*diCrit2;
-		if (pkdn->fOpen2 < d2Max) pkdn->fOpen2 = d2Max;
-#endif
-#endif
+		if (d2Max>b) b = d2Max;
+		pkdn->bMax = b;
 		}
 	    else {
-		CALCOPEN(pkdn,diCrit2,bmin);
+		CALCOPEN(pkdn,bmin);
 		}
 	    }
 	++iNode;
@@ -738,7 +711,11 @@ void pkdCombineCells(PKD pkd,KDN *pkdn,KDN *p1,KDN *p2) {
     if(p1->fSoft2 == 0.0 || p2->fSoft2 == 0.0)
 	pkdn->fSoft2 = 0.0;
     else
-	pkdn->fSoft2 = 1.0/(ifMass*(m1/p1->fSoft2 + m2/p2->fSoft2));
+#if defined(TEST_SOFTENING)
+	pkdn->fSoft2 = p1->fSoft2 > p2->fSoft2 ? p1->fSoft2 : p2->fSoft2;
+#else
+    	pkdn->fSoft2 = 1.0/(ifMass*(m1/p1->fSoft2 + m2/p2->fSoft2));
+#endif
     pkdn->uMinRung = p1->uMinRung < p2->uMinRung ? p1->uMinRung : p2->uMinRung;
     pkdn->uMaxRung = p1->uMaxRung > p2->uMaxRung ? p1->uMaxRung : p2->uMaxRung;
     pkdn->bDstActive = p1->bDstActive || p2->bDstActive;
@@ -780,7 +757,7 @@ void pkdCombineCells(PKD pkd,KDN *pkdn,KDN *p1,KDN *p2) {
 }
 
 
-void pkdVATreeBuild(PKD pkd,int nBucket,FLOAT diCrit2) {
+void pkdVATreeBuild(PKD pkd,int nBucket) {
     PARTICLE *p;
     int i,j,iStart;
 
@@ -803,11 +780,11 @@ void pkdVATreeBuild(PKD pkd,int nBucket,FLOAT diCrit2) {
 
     ShuffleParticles(pkd,iStart);
 
-    Create(pkd,VAROOT,diCrit2);
+    Create(pkd,VAROOT);
     }
 
 
-void pkdTreeBuild(PKD pkd,int nBucket,FLOAT diCrit2,KDN *pkdn,int bExcludeVeryActive) {
+void pkdTreeBuild(PKD pkd,int nBucket,KDN *pkdn,int bExcludeVeryActive) {
     int iStart;
 
     if (pkd->nNodes > 0) {
@@ -835,7 +812,7 @@ void pkdTreeBuild(PKD pkd,int nBucket,FLOAT diCrit2,KDN *pkdn,int bExcludeVeryAc
 	}
     iStart = 0;
     ShuffleParticles(pkd,iStart);
-    Create(pkd,ROOT,diCrit2);
+    Create(pkd,ROOT);
 
     pkdStopTimer(pkd,0);
 #ifdef USE_BSC

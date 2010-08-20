@@ -517,6 +517,11 @@ void pkdInitialize(
     pkd->grid = NULL;
     pkd->gridData = NULL;
 
+    pkd->fCritTheta = NULL;
+    pkd->fCritMass = NULL;
+    pkd->nCritBins = 0;
+    pkd->dCritThetaMin = 0.0;
+
     pkd->Cool = CoolInit();
     assert(pkdNodeSize(pkd) > 0);
     }
@@ -1784,8 +1789,8 @@ static int foo = 0;
 
 void
 pkdGravAll(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,int bPeriodic,
-	   int iOrder,int bEwald,double fEwCut,double fEwhCut,int *nActive,
-	   double *pdPartSum, double *pdCellSum,CASTAT *pcs, double *pdFlop) {
+	   int iOrder,int bEwald,double fEwCut,double fEwhCut,double dThetaMin,double dThetaMax,
+	   int *nActive,double *pdPartSum, double *pdCellSum,CASTAT *pcs, double *pdFlop) {
     int bVeryActive = 0;
 
     pkdClearTimer(pkd,1);
@@ -1802,7 +1807,6 @@ pkdGravAll(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,int bP
 #ifdef USE_BSC
     MPItrace_event(10000,3);
 #endif
-
     /*
     ** Set up Ewald tables and stuff.
     */
@@ -1821,7 +1825,7 @@ pkdGravAll(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,int bP
     *pdPartSum = 0.0;
     *pdCellSum = 0.0;
     pkdStartTimer(pkd,1);
-    *nActive = pkdGravWalk(pkd,uRungLo,uRungHi,dTime,nReps,bPeriodic && bEwald,bVeryActive,pdFlop,pdPartSum,pdCellSum);
+    *nActive = pkdGravWalk(pkd,uRungLo,uRungHi,dTime,nReps,bPeriodic && bEwald,bVeryActive,dThetaMin,dThetaMax,pdFlop,pdPartSum,pdCellSum);
     pkdStopTimer(pkd,1);
 
 #ifdef USE_BSC
@@ -1981,7 +1985,8 @@ void pkdDrift(PKD pkd,double dDelta,double dDeltaVPred,double dDeltaUPred,uint8_
     }
 
 
-void pkdGravityVeryActive(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int bEwald,int nReps,double dStep) {
+void pkdGravityVeryActive(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int bEwald,int nReps,
+			  double dStep,double dTheta) {
     int nActive;
     int bVeryActive = 1;
     double dFlop,dPartSum,dCellSum;
@@ -1992,12 +1997,12 @@ void pkdGravityVeryActive(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,i
     dFlop = 0.0;
     dPartSum = 0.0;
     dCellSum = 0.0;
-    nActive = pkdGravWalk(pkd,uRungLo,uRungHi,dTime,nReps,bEwald,bVeryActive,&dFlop,&dPartSum,&dCellSum);
+    nActive = pkdGravWalk(pkd,uRungLo,uRungHi,dTime,nReps,bEwald,bVeryActive,dTheta,dTheta,&dFlop,&dPartSum,&dCellSum);
     }
 
 
 void pkdStepVeryActiveKDK(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dStep, double dTime, double dDelta,
-			  int iRung, int iKickRung, int iRungVeryActive,int iAdjust, double diCrit2,
+			  int iRung, int iKickRung, int iRungVeryActive,int iAdjust, double dThetaMin,
 			  int *pnMaxRung, double aSunInact[], double adSunInact[], double dSunMass) {
     int nRungCount[256];
     double dDriftFac;
@@ -2046,14 +2051,14 @@ void pkdStepVeryActiveKDK(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dStep, 
 	** Recurse.
 	*/
 	pkdStepVeryActiveKDK(pkd,uRungLo,uRungHi,dStep,dTime,0.5*dDelta,iRung+1,iRung+1,iRungVeryActive,0,
-			     diCrit2,pnMaxRung,aSunInact,adSunInact,dSunMass);
+			     dThetaMin,pnMaxRung,aSunInact,adSunInact,dSunMass);
 	dStep += 1.0/(2 << iRung);
 	dTime += 0.5*dDelta;
 
 	pkdActiveRung(pkd,iRung,0);   /* is this needed? */
 
 	pkdStepVeryActiveKDK(pkd,uRungLo,uRungHi,dStep,dTime,0.5*dDelta,iRung+1,iKickRung,iRungVeryActive,1,
-			     diCrit2,pnMaxRung,aSunInact,adSunInact,dSunMass);
+			     dThetaMin,pnMaxRung,aSunInact,adSunInact,dSunMass);
 	}
     else {
 	if (pkd->param.bVDetails) {
@@ -2091,8 +2096,9 @@ void pkdStepVeryActiveKDK(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dStep, 
 		}
 
 	    pkdActiveRung(pkd,iKickRung,1);
-	    pkdVATreeBuild(pkd,pkd->param.nBucket,diCrit2);
-	    pkdGravityVeryActive(pkd,uRungLo,uRungHi,dTime,pkd->param.bEwald && pkd->param.bPeriodic,pkd->param.nReplicas,dStep);
+	    pkdVATreeBuild(pkd,pkd->param.nBucket);
+	    pkdGravityVeryActive(pkd,uRungLo,uRungHi,dTime,pkd->param.bEwald && pkd->param.bPeriodic,
+				 pkd->param.nReplicas,dStep,dThetaMin);
 
 #ifdef PLANETS
 	    /* Sun's gravity */
@@ -2131,7 +2137,7 @@ void pkdStepVeryActiveKDK(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dStep, 
 #ifdef HERMITE
 void
 pkdStepVeryActiveHermite(PKD pkd, double dStep, double dTime, double dDelta,
-			 int iRung, int iKickRung, int iRungVeryActive,int iAdjust, double diCrit2,
+			 int iRung, int iKickRung, int iRungVeryActive,int iAdjust, double dThetaMin,
 			 int *pnMaxRung, double aSunInact[], double adSunInact[], double dSunMass) {
     int nRungCount[256];
     double dDriftFac;
@@ -2168,12 +2174,12 @@ pkdStepVeryActiveHermite(PKD pkd, double dStep, double dTime, double dDelta,
 	** Recurse.
 	*/
 	pkdStepVeryActiveHermite(pkd,dStep,dTime,0.5*dDelta,iRung+1,iRung+1,iRungVeryActive,0,
-				 diCrit2,pnMaxRung,aSunInact,adSunInact,dSunMass);
+				 dThetaMin,pnMaxRung,aSunInact,adSunInact,dSunMass);
 	dStep += 1.0/(2 << iRung);
 	dTime += 0.5*dDelta;
 	pkdActiveRung(pkd,iRung,0);
 	pkdStepVeryActiveHermite(pkd,dStep,dTime,0.5*dDelta,iRung+1,iKickRung,iRungVeryActive,1,
-				 diCrit2,pnMaxRung,aSunInact,adSunInact,dSunMass);
+				 dThetaMin,pnMaxRung,aSunInact,adSunInact,dSunMass);
 	}
     else {
 	if (pkd->param.bVDetails) {
@@ -2214,7 +2220,7 @@ pkdStepVeryActiveHermite(PKD pkd, double dStep, double dTime, double dDelta,
 		}
 
 	    pkdActiveRung(pkd,iKickRung,1);
-	    pkdVATreeBuild(pkd,pkd->param.nBucket,diCrit2,dTime);
+	    pkdVATreeBuild(pkd,pkd->param.nBucket,dThetaMin,dTime);
 	    pkdGravityVeryActive(pkd,dTime,pkd->param.bEwald && pkd->param.bPeriodic,pkd->param.nReplicas,dStep);
 
 
@@ -3388,7 +3394,7 @@ void pkdHandSunMass(PKD pkd, double dSunMass) {
 void
 pkdStepVeryActiveSymba(PKD pkd, double dStep, double dTime, double dDelta,
 		       int iRung, int iKickRung, int iRungVeryActive,
-		       int iAdjust, double diCrit2,
+		       int iAdjust, double dThetaMin,
 		       int *pnMaxRung, double dSunMass, int multiflag) {
     int nRungCount[256];
     double dDriftFac;
@@ -3452,17 +3458,17 @@ pkdStepVeryActiveSymba(PKD pkd, double dStep, double dTime, double dDelta,
 	ddStep = 1.0/pow(3.0, iRung); /* this is currently unnecessary */
 
 	pkdStepVeryActiveSymba(pkd,dStep,dTime,ddDelta,iRung+1,iRung+1,iRungVeryActive,0,
-			       diCrit2,pnMaxRung,dSunMass,multiflag);
+			       dThetaMin,pnMaxRung,dSunMass,multiflag);
 	dStep += ddStep;
 	dTime += ddDelta;
 	pkdActiveRung(pkd,iRung,0);
 	pkdStepVeryActiveSymba(pkd,dStep,dTime,ddDelta,iRung+1,iRung+1,iRungVeryActive,1,
-			       diCrit2,pnMaxRung,dSunMass,multiflag);
+			       dThetaMin,pnMaxRung,dSunMass,multiflag);
 	dStep += ddStep;
 	dTime += ddDelta;
 	pkdActiveRung(pkd,iRung,0);
 	pkdStepVeryActiveSymba(pkd,dStep,dTime,ddDelta,iRung+1,iKickRung,iRungVeryActive,1,
-			       diCrit2,pnMaxRung,dSunMass,multiflag);
+			       dThetaMin,pnMaxRung,dSunMass,multiflag);
 
 	/* move time back to 1 step */
 	dTime -= dDelta;
