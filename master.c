@@ -1085,6 +1085,10 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->dThetaMax = msr->param.dThetaMax;
     if ( !prmSpecified(msr->prm,"dThetaMax") )
 	msr->dThetaMax = (1.0 + msr->dThetaMin) / 2.0;
+    if ( !prmSpecified(msr->prm,"nReplicas") && msr->param.nReplicas==1 ) {
+	if ( msr->dThetaMin < 0.52 ) msr->param.nReplicas = 2;
+	}
+
     /*msr->dThetaMax = prmSpecified(msr->prm,"dThetaMax") ? msr->param.dThetaMax : msr->dThetaMin;*/
 
     /*
@@ -3369,7 +3373,14 @@ double msrSoft(MSR msr) {
 
 void msrSwitchTheta(MSR msr,double dTime) {
     double a = csmTime2Exp(msr->param.csm,dTime);
-    if (a >= msr->param.daSwitchTheta) msr->dThetaMin = msr->param.dTheta2;
+    if (a >= msr->param.daSwitchTheta) {
+	msr->dThetaMin = msr->param.dTheta2;
+	if ( !prmSpecified(msr->prm,"dThetaMax") )
+	    msr->dThetaMax = (1.0 + msr->dThetaMin) / 2.0;
+	if ( !prmSpecified(msr->prm,"nReplicas") && msr->param.nReplicas==1 ) {
+	    if ( msr->dThetaMin < 0.52 ) msr->param.nReplicas = 2;
+	    }
+	}
     }
 
 void msrInitStep(MSR msr) {
