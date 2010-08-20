@@ -56,7 +56,6 @@ typedef struct ilcContext {
     ILCTILE first;              /* first tile in the chain */
     ILCTILE tile;               /* Current tile in the chain */
     double cx, cy, cz;          /* Center coordinates */
-    double d2cmax;
     uint32_t nPrevious;         /* Particles in tiles prior to "tile" */
     } *ILC;
 
