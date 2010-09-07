@@ -169,13 +169,16 @@ int FC_MAIN(int argc,char **argv) {
 #endif
 	if ( msr->param.achInFile[0] ) {
 	    dTime = msrRead(msr,msr->param.achInFile);
-	    if (msr->param.bAddDelete) msrGetNParts(msr);
 	    msrInitStep(msr);
+	    if (msr->param.bAddDelete) msrGetNParts(msr);
 	    if (prmSpecified(msr->prm,"dRedFrom")) {
 		double aOld, aNew;
 		aOld = csmTime2Exp(msr->param.csm,dTime);
 		aNew = 1.0 / (1.0 + msr->param.dRedFrom);
 		dTime = msrAdjustTime(msr,aOld,aNew);
+		/* Seriously, we shouldn't need to send parameters *again*.
+		   When we remove sending parameters, we should remove this. */
+		msrInitStep(msr);
 		}
 	    if (prmSpecified(msr->prm,"dSoft")) msrSetSoft(msr,msrSoft(msr));
 	    }
