@@ -22,7 +22,7 @@ EXTRA_PROGRAMS += pkdgrav2m_sisci
 sisci		: pkdgrav2m_sisci
 endif
 
-EXTRA_PROGRAMS += tostd
+EXTRA_PROGRAMS += tostd tdiff
 
 null	: pkdgrav2m_null
 
@@ -173,3 +173,4 @@ endif
 endif
 
 tostd_SOURCES = tostd.c fio.c romberg.c
+tdiff_SOURCES = tdiff.c fio.c romberg.c
