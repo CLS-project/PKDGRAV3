@@ -8,6 +8,10 @@
 
 #ifdef USE_SIMD
 
+#define SIMD_BITS 2
+#define SIMD_WIDTH (1<<SIMD_BITS)
+#define SIMD_MASK (SIMD_WIDTH-1)
+
 #ifdef HAVE_ANSIDECL_H
 #include <ansidecl.h>
 #else
@@ -44,7 +48,7 @@ typedef vector bool int v4i;
 #endif
 
 typedef union {
-    float f[4];
+    float f[SIMD_WIDTH];
     v4sf p;
     } v4;
 
