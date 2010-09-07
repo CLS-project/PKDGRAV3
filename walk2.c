@@ -316,8 +316,7 @@ static inline int iOpenOutcomeOld(PKD pkd,KDN *k,CELT *check,KDN **pc,double dTh
 	d2 = pow(k->r[0]-xc,2) + pow(k->r[1]-yc,2) + pow(k->r[2]-zc,2);
 	diCrit = 1.0 / dThetaMin;
 	kOpen = 1.5*k->bMax*diCrit;
-	//cOpen = c->bMax*diCrit*pow(pkdNodeMom(pkd,c)->m/dTotalMass,(1.0/21.0));
-	//cOpen = c->bMax * diCrit;
+	/*kOpen = 1.5*k->bMax/getTheta(pkd,pkdNodeMom(pkd,k)->m/dTotalMass);*/
 	cOpen = c->bMax/getTheta(pkd,pkdNodeMom(pkd,c)->m/dTotalMass);
 	d2Open = pow(2.0*fmax(cOpen,kOpen),2);
 	/*d2Open = pow(cOpen + kOpen,2);*/ /* "BSC" version used this*/
