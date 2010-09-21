@@ -266,6 +266,30 @@ static inline float getTheta(PKD pkd,float fMass) {
     return fInterval * (pkd->fCritTheta[i+1]-pkd->fCritTheta[i]) + pkd->fCritTheta[i];
     }
 
+static inline int getCheckCell(PKD pkd,CELT *check,KDN **pc) {
+    const int walk_min_multipole = 3;
+    KDN *c;
+    int nc;
+    assert(check->iCell > 0);
+    if (check->id == pkd->idSelf) {
+	*pc = c = pkdTreeNode(pkd,check->iCell);
+	nc = c->pUpper - c->pLower + 1;
+	}
+    else if (check->id < 0) {
+        *pc = c = pkdTopNode(pkd,check->iCell);
+	assert(c->iLower != 0);
+	nc = walk_min_multipole; /* we never allow pp with this cell */
+	}
+    else {
+	*pc = c = mdlAquire(pkd->mdl,CID_CELL,check->iCell,check->id);
+	nc = c->pUpper - c->pLower + 1;
+	}
+    if (check->cOpen < 0.0) {
+	check->cOpen = c->bMax/getTheta(pkd,pkdNodeMom(pkd,c)->m/pkdNodeMom(pkd,pkdTreeNode(pkd,ROOT))->m);
+	}
+    return nc;
+    }
+
 /*
 ** This implements the original pkdgrav2m opening criterion, which has been
 ** well tested, gives good force accuracy, but may not be the most efficient
@@ -274,33 +298,17 @@ static inline float getTheta(PKD pkd,float fMass) {
 static inline int iOpenOutcomeOld(PKD pkd,KDN *k,CELT *check,KDN **pc,double dThetaMin) {
     const double fMonopoleThetaFac2 = 1.6 * 1.6;
     const int walk_min_multipole = 3;
-    double dx,dy,dz,mink2,d2,d2Open,xc,yc,zc,fourh2,minbnd2,kOpen,cOpen,diCrit,dTotalMass;
+    double dx,dy,dz,mink2,d2,d2Open,xc,yc,zc,fourh2,minbnd2,kOpen,cOpen,diCrit;
     KDN *c;
-    int iCell,nc,j;
+    int nc,j;
     int iOpen,iOpenA,iOpenB;
         
-    assert(check->iCell > 0);
-    iCell = check->iCell;
-    if (check->id == pkd->idSelf) {
-	c = pkdTreeNode(pkd,iCell);
-	nc = c->pUpper - c->pLower + 1;
-    }
-    else if (check->id < 0) {
-        c = pkdTopNode(pkd,iCell);
-	assert(c->iLower != 0);
-	nc = walk_min_multipole; /* we never allow pp with this cell */
-    }
-    else {
-	c = mdlAquire(pkd->mdl,CID_CELL,iCell,check->id);
-	nc = c->pUpper - c->pLower + 1;
-    }
+    nc = getCheckCell(pkd,check,pc);
+    c = *pc;
 
     pBND kbnd = pkdNodeBnd(pkd,k);
     pBND cbnd = pkdNodeBnd(pkd,c);
 
-    dTotalMass = pkdNodeMom(pkd,pkdTreeNode(pkd,ROOT))->m;
-
-    *pc = c;
     if (pkdNodeMom(pkd,c)->m <= 0) iOpen = 10;  /* ignore this cell */
     else {
 #if defined(TEST_SOFTENING)
@@ -316,8 +324,7 @@ static inline int iOpenOutcomeOld(PKD pkd,KDN *k,CELT *check,KDN **pc,double dTh
 	d2 = pow(k->r[0]-xc,2) + pow(k->r[1]-yc,2) + pow(k->r[2]-zc,2);
 	diCrit = 1.0 / dThetaMin;
 	kOpen = 1.5*k->bMax*diCrit;
-	/*kOpen = 1.5*k->bMax/getTheta(pkd,pkdNodeMom(pkd,k)->m/dTotalMass);*/
-	cOpen = c->bMax/getTheta(pkd,pkdNodeMom(pkd,c)->m/dTotalMass);
+	cOpen = check->cOpen; /*c->bMax/getTheta(pkd,pkdNodeMom(pkd,c)->m/dTotalMass);*/
 	d2Open = pow(2.0*fmax(cOpen,kOpen),2);
 	/*d2Open = pow(cOpen + kOpen,2);*/ /* "BSC" version used this*/
 	dx = fabs(xc - kbnd.fCenter[0]) - kbnd.fMax[0];
@@ -589,6 +596,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 		bRep = ix || iy || iz;
 		if (bRep || bVeryActive) {
 		    pkd->Check[nCheck].iCell = ROOT;
+		    pkd->Check[nCheck].cOpen = -1.0;
 		    /* If leaf of top tree, use root of
 		       local tree.
 		    */
@@ -606,6 +614,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 		    ** Add the images of the very active tree to the checklist.
 		    */
 		    pkd->Check[nCheck].iCell = VAROOT;
+		    pkd->Check[nCheck].cOpen = -1.0;
 		    pkd->Check[nCheck].id = mdlSelf(pkd->mdl);
 		    for (j=0;j<3;++j) pkd->Check[nCheck].rOffset[j] = rOffset[j];
 		    ++nCheck;
@@ -630,6 +639,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 		pkd->Check[nCheck].iCell = ROOT;
 		pkd->Check[nCheck].id = pkdTopNode(pkd,iSib)->pLower;
 		}
+	    pkd->Check[nCheck].cOpen = -1.0;
 	    for (j=0;j<3;++j) pkd->Check[nCheck].rOffset[j] = 0.0;
 	    ++nCheck;
 	    iCell = pkdTopNode(pkd,iCell)->iParent;
@@ -759,6 +769,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 		    }
 		    pkd->Check[nCheck] = pkd->Check[i];
 		    pkd->Check[nCheck].iCell = -pkd->Check[nCheck].iCell;
+		    pkd->Check[nCheck].cOpen = -1.0;
 		    nCheck += 1;
 		    break;
 		case 3:
@@ -812,6 +823,8 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 			assert(pkd->Check[nCheck].id == pkd->Check[i].id);
 			assert(pkd->Check[nCheck+1].id == pkd->Check[i].id);
 		    }
+		    pkd->Check[nCheck].cOpen = -1.0;
+		    pkd->Check[nCheck+1].cOpen = -1.0;
 		    nCheck += 2;
 		    break;
 		case 4:
@@ -1067,6 +1080,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 		*/
 		pkd->Check[nCheck].iCell = iCell + 1;
 		pkd->Check[nCheck].id = pkd->idSelf;
+		pkd->Check[nCheck].cOpen = -1.0;
 		for (j=0;j<3;++j) pkd->Check[nCheck].rOffset[j] = 0.0;
 		++nCheck;
 		/*
@@ -1112,6 +1126,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 		*/
 		pkd->Check[nCheck].iCell = iCell;
 		pkd->Check[nCheck].id = pkd->idSelf;
+		pkd->Check[nCheck].cOpen = -1.0;
 		for (j=0;j<3;++j) pkd->Check[nCheck].rOffset[j] = 0.0;
 		++nCheck;
 		/*

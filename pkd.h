@@ -490,6 +490,7 @@ typedef struct kdNew {
 typedef struct CheckElt {
     int iCell;
     int id;
+    double cOpen;
     FLOAT rOffset[3];
     } CELT;
 
