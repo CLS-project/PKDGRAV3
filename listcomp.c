@@ -83,9 +83,12 @@ LCODE lcodeInit(uint32_t nThreads,uint32_t idSelf,uint32_t nLocal,uint32_t nSmoo
 
     ctx = malloc(sizeof(struct lcodeContext));
     assert(ctx != NULL);
-    ctx->mPid = swar32(nThreads);
-    ctx->mPrefix = swar32(nLocal);
-    ctx->mSuffix = swar32(nSmooth);
+    ctx->mPid = swar32(nThreads-1);
+    ctx->mPrefix = swar32(nLocal-1);
+/*
+    printf("%d\n",ctx->mPrefix);
+*/
+    ctx->mSuffix = swar32(nSmooth-1);
     ctx->mSuffix >>= 0;  /* shift back to an interval with most likely runs */
     ctx->mPrefix ^= ctx->mSuffix;
     ctx->nPid = ones32(ctx->mPid);
@@ -714,7 +717,7 @@ int main(void) {
     int nbListMax=0;
     int nList=0;
     uint32_t nLocal;
-    uint32_t nSmooth=30;
+    uint32_t nSmooth=32;
     uint32_t iPid;
     int i,nOutBytes,nInBytes;
     char *code;
@@ -727,9 +730,12 @@ int main(void) {
     }
     qsort(aList,nList,sizeof(LIST),lcodeCmpList);
 
-    PrintList(aList,nList);
+    lcodePrintList(aList,nList);
 
+/*
     nLocal = 10*aList[nList-1].iIndex;
+*/
+    nLocal = (1<<10);
     ctx = lcodeInit(8,4,nLocal,nSmooth);
     nOutBytes = lcodeEncode(ctx,aList,nList,&code);
     printf("\nnOutBytes = %d = %f bytes/element = %5.2f%%\n",
@@ -741,7 +747,7 @@ int main(void) {
     nInBytes = lcodeDecode(ctx,code,&bList,&nbListMax,&nList);
     assert(nInBytes == nOutBytes);
 
-    PrintList(bList,nList);
+    lcodePrintList(bList,nList);
 
     for (i=0;i<nList;++i) {
 	if (bInList(ctx,code,aList[i].iIndex,aList[i].iPid)) {
