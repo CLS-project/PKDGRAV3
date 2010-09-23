@@ -14,14 +14,9 @@ static inline double softmassweight(double m1,double h12,double m2,double h22) {
     else return(0.0);
     }
 
-void PPInteractSIMD( int nPart, ILP ilp, const FLOAT *r, const FLOAT *a,
-		     FLOAT fMass, FLOAT fSoft,
-		     momFloat *ax, momFloat *ay, momFloat *az,
-		     momFloat *fPot, momFloat *rhosum, momFloat *maisum );
-
 #ifdef LOCAL_EXPANSION
-int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *pLoc,ILP ilp,ILC ilc,
-		    double dirLsum,double normLsum,int bEwald,double *pdFlop,double *pdEwFlop,double dRhoFac,
+int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,FLOCR *pLoc,ILP ilp,ILC ilc,
+		    float dirLsum,float normLsum,int bEwald,double *pdFlop,double *pdEwFlop,double dRhoFac,
 		    SMX smx,SMF *smf);
 #else
 int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,int nCell,

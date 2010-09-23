@@ -360,7 +360,7 @@ void pkdInitialize(
     }
 
     if ( mMemoryModel & PKD_MODEL_NODE_MOMENT )
-	pkd->oNodeMom = pkdNodeAddStruct(pkd,sizeof(MOMR));
+	pkd->oNodeMom = pkdNodeAddStruct(pkd,sizeof(FMOMR));
     else
 	pkd->oNodeMom = 0;
 

@@ -379,8 +379,8 @@ typedef struct kdNode {
     int iParent;
     int pLower;		/* also serves as thread id for the LTT */
     int pUpper;		/* pUpper < 0 indicates no particles in tree! */
-    FLOAT bMax;
-    FLOAT fSoft2;
+    float bMax;
+    float fSoft2;
     uint32_t nActive; /* local active count used for walk2 */
     uint8_t uMinRung;
     uint8_t uMaxRung;
@@ -395,28 +395,6 @@ typedef struct sphBounds {
     } A,B,BI;
 } SPHBNDS;
 
-#ifdef NEW_TREE
-#define MAX_NBUCKET 5
-
-typedef struct kdNew {
-    float s;  /* scale of the cell, if -ve then it indicates a bucket! */
-    union celltype {
-	struct cell {
-	    double dSplit;
-	    uint32_t iLower;
-	    uint32_t iUpper;
-	    uint16_t idLower;
-	    uint16_t idUpper;
-	    } c;
-	struct bucket {
-	    uint32_t iPart[MAX_NBUCKET];
-	    } b;
-	};
-    FMOMR mom;
-    double r[3];
-    double v[3];
-    } KDNEW;
-#endif
 
 #define NMAX_OPENCALC	1000
 
@@ -467,20 +445,18 @@ typedef struct kdNew {
     else axr = 1e6;						\
 }
 
-#define CALCOPEN(pkdn,minside) {					\
+
+#define CALCOPEN(pkdn) {					\
         FLOAT CALCOPEN_d2 = 0;						\
-	FLOAT CALCOPEN_b;						\
         int CALCOPEN_j;							\
 	pBND CALCOPEN_bnd = pkdNodeBnd(pkd, pkdn);			\
         for (CALCOPEN_j=0;CALCOPEN_j<3;++CALCOPEN_j) {                  \
             FLOAT CALCOPEN_d = fabs(CALCOPEN_bnd.fCenter[CALCOPEN_j] - (pkdn)->r[CALCOPEN_j]) + \
                 CALCOPEN_bnd.fMax[CALCOPEN_j];                          \
             CALCOPEN_d2 += CALCOPEN_d*CALCOPEN_d;                       \
-            }								\
-	MAXSIDE(CALCOPEN_bnd.fMax,CALCOPEN_b);				\
-	if (CALCOPEN_b < minside) CALCOPEN_b = minside;			\
-	if (CALCOPEN_b*CALCOPEN_b < CALCOPEN_d2) CALCOPEN_b = sqrt(CALCOPEN_d2); \
-	(pkdn)->bMax = CALCOPEN_b;					\
+            }\
+        CALCOPEN_d2 = sqrt(CALCOPEN_d2);	  \
+        if (CALCOPEN_d2 < (pkdn)->bMax) (pkdn)->bMax = CALCOPEN_d2;	  \
 	}
 
 /*
@@ -504,10 +480,10 @@ typedef struct CheckStack {
 #endif
     int nCheck;
     CELT *Check;
-    LOCR L;
-    double dirLsum;
-    double normLsum;
-    double fWeight;
+    FLOCR L;
+    float dirLsum;
+    float normLsum;
+    float fWeight;
     } CSTACK;
 
 /*
@@ -652,7 +628,7 @@ typedef struct pkdContext {
     /*
     ** Advanced memory models - Tree Nodes
     */
-    int oNodeMom; /* a MOMR */
+    int oNodeMom; /* an FMOMR */
     int oNodeVelocity; /* Three doubles */
     int oNodeAcceleration; /* Three doubles */
     int oNodeSphBounds; /* Three Bounds */
@@ -800,9 +776,9 @@ static inline size_t pkdNodeSize( PKD pkd ) {
     }
 static inline size_t pkdMaxNodeSize() {
 #ifdef USE_PSD
-    return sizeof(KDN) + 13*sizeof(double) + sizeof(MOMR) + 6*sizeof(double) + sizeof(SPHBNDS);
+    return sizeof(KDN) + 13*sizeof(double) + sizeof(FMOMR) + 6*sizeof(double) + sizeof(SPHBNDS);
 #else
-    return sizeof(KDN) +  7*sizeof(double) + sizeof(MOMR) + 6*sizeof(double) + sizeof(SPHBNDS);
+    return sizeof(KDN) +  7*sizeof(double) + sizeof(FMOMR) + 6*sizeof(double) + sizeof(SPHBNDS);
 #endif
     }
 static inline void pkdCopyNode(PKD pkd, KDN *a, KDN *b) {
@@ -813,7 +789,7 @@ static inline void *pkdNodeField( KDN *n, int iOffset ) {
     /*assert(iOffset);*/ /* Remove this for better performance */
     return (void *)(v + iOffset);
     }
-static inline MOMR *pkdNodeMom(PKD pkd,KDN *n) {
+static inline FMOMR *pkdNodeMom(PKD pkd,KDN *n) {
     return pkdNodeField(n,pkd->oNodeMom);
     }
 static inline double *pkdNodeVel( PKD pkd, KDN *n ) {
@@ -899,14 +875,14 @@ static inline float pkdMass( PKD pkd, PARTICLE *p ) {
 	}
     return pkd->pClass[p->iClass].fMass;
     }
-static inline FLOAT pkdSoft0( PKD pkd, PARTICLE *p ) {
+static inline float pkdSoft0( PKD pkd, PARTICLE *p ) {
     if ( pkd->oSoft ) {
 	float *pSoft = pkdField(p,pkd->oSoft);
 	return *pSoft;
 	}
     return pkd->pClass[p->iClass].fSoft;
     }
-static inline FLOAT pkdSoft( PKD pkd, PARTICLE *p ) {
+static inline float pkdSoft( PKD pkd, PARTICLE *p ) {
     float fSoft;
 
     if ( pkd->fSoftFix >= 0.0 ) fSoft = pkd->fSoftFix;

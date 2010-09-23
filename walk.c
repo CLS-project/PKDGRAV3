@@ -203,8 +203,8 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 		    ** By default we just keep this checkcell on the
 		    ** checklist.
 		    */
-		    if (max2 <= pkdc->fOpen2) iOpen = 1;
-		    else if (min2 > pkdc->fOpen2) {
+		    if (max2 <= pkdc->fOpen*pkdc->fOpen) iOpen = 1;
+		    else if (min2 > pkdc->fOpen*pkdc->fOpen) {
 #ifdef SOFTLINEAR
 			/*
 			** For symmetrized softening we need to calculate the distance between
@@ -264,7 +264,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 		    /*
 		    ** By default we open the cell!
 		    */
-		    if (min2 > pkdc->fOpen2) {
+		    if (min2 > pkdc->fOpen*pkdc->fOpen) {
 #ifdef SOFTLINEAR
 			/*
 			** For symmetrized softening we need to calculate the distance between

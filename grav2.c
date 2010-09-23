@@ -56,34 +56,34 @@ static const struct CONSTS {
 ** v_sqrt's and such.
 ** Returns nActive.
 */
-int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *pLoc,ILP ilp,ILC ilc,
-		    double dirLsum,double normLsum,int bEwald,double *pdFlop,double *pdEwFlop,double dRhoFac,
+int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,FLOCR *pLoc,ILP ilp,ILC ilc,
+		    float dirLsum,float normLsum,int bEwald,double *pdFlop,double *pdEwFlop,double dRhoFac,
 		    SMX smx,SMF *smf) {
     PARTICLE *p,*pj;
     KDN *pkdn = pBucket;
-    pBND bnd = pkdNodeBnd(pkd, pkdn);
-    const double onethird = 1.0/3.0;
-    float *a, *pPot;
     double *v, *vTmp;
-    momFloat ax,ay,az,fPot;
-    double x,y,z,d2,dir,dir2;
-    FLOAT fMass,fSoft;
-    FLOAT fMassTmp,fSoftTmp;
-    float fx, fy, fz;
-    double dtGrav,dT;
-    momFloat adotai,maga,dimaga,dirsum,normsum;
-    momFloat tax,tay,taz,tmon;
-    double rhopmax,rhopmaxlocal,dirDTS,dsmooth2;
-#ifndef USE_SIMD_MOMR
-    double g2,g3,g4;
-    double xx,xy,xz,yy,yz,zz;
-    double xxx,xxz,yyy,yyz,xxy,xyy,xyz;
-#else
-    double summ;
     double vx,vy,vz;
-    int nCellILC;
+    pBND bnd = pkdNodeBnd(pkd, pkdn);
+    float *a, *pPot;
+    float ax,ay,az,fPot;
+    float d2,dir,dir2;
+    float fMass,fSoft;
+    float fMassTmp,fSoftTmp;
+    float fx, fy, fz;
+    float dtGrav,dT;
+    float adotai,maga,dimaga,dirsum,normsum;
+    float tax,tay,taz;
+    float rholoc,rhopmax,rhopmaxlocal,dirDTS,dsmooth2,fSoftMedian,fEps,fEps2;
+    float summ;
+#if defined(USE_SIMD_PC)
+#else
+    const float onethird = 1.0f/3.0f;
+    float u,g0,g2,g3,g4;
+    float x,y,z;
+    float tx,ty,tz;
+    float xx,xy,xz,yy,yz,zz;
+    float xxx,xxz,yyy,yyz,xxy,xyy,xyz;
 #endif
-    double tx,ty,tz;
     ILPTILE tile;
     ILCTILE ctile;
     int i,j,nSoft,nActive;
@@ -95,18 +95,12 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
     v4sf ppot, pmass, p4soft2;
     v4sf padotai,pimaga,psmooth2,pirsum,pnorms;
 #else
-    double fourh2;
+    float fourh2;
 #endif
     ILPCHECKPT checkPt;
 
     assert(pkd->oPotential);
     assert(pkd->oAcceleration);
-
-#ifdef USE_SIMD_MOMR
-    nCellILC = nCell;
-    momPadSIMDMomr( &nCellILC, ilc );
-#endif
-
     /*
     ** Now process the two interaction lists for each active particle.
     */
@@ -137,10 +131,10 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 	ay = 0;
 	az = 0;
 	dsmooth2 = 0;
-	tx = a[0];
-	ty = a[1];
-	tz = a[2];
-	maga = tx*tx + ty*ty + tz*tz;
+	fx = a[0];
+	fy = a[1];
+	fz = a[2];
+	maga = fx*fx + fy*fy + fz*fz;
 	dimaga = maga;
 	if (dimaga > 0) {
 	    dimaga = 1.0/sqrt(dimaga);
@@ -154,31 +148,36 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 	    /*
 	    ** Evaluate local expansion.
 	    */
-	    x = p->r[0] - pkdn->r[0];
-	    y = p->r[1] - pkdn->r[1];
-	    z = p->r[2] - pkdn->r[2];
-	    momEvalLocr(pLoc,x,y,z,&fPot,&ax,&ay,&az);
+	    fx = p->r[0] - pkdn->r[0];
+	    fy = p->r[1] - pkdn->r[1];
+	    fz = p->r[2] - pkdn->r[2];
+	    momEvalFlocr(pLoc,pkdn->bMax,x,y,z,&fPot,&ax,&ay,&az);
 	    }
 
-#ifdef USE_SIMD_MOMR
-	momEvalSIMDMomr( nCellILC, ilc, p->r, p->a,
-			 &ax, &ay, &az, &fPot, &dirsum, &normsum );
+	fx = p->r[0] - ilc->cx;
+	fy = p->r[1] - ilc->cy;
+	fz = p->r[2] - ilc->cz;
+
+	ilc->cx = p->r[0]; /* => cx += fx */
+	ilc->cy = p->r[1];
+	ilc->cz = p->r[2];
+	ilcCompute(ilc,fx,fy,fz);
+#if defined(USE_SIMD_PC)
 #else
 	ILC_LOOP(ilc,ctile) {
 	    for (j=0;j<ctile->nCell;++j) {
-		x = p->r[0] - ctile->d[j].x.f;
-		y = p->r[1] - ctile->d[j].y.f;
-		z = p->r[2] - ctile->d[j].z.f;
-		d2 = x*x + y*y + z*z;
-		SQRT1(d2,dir);
-		dirDTS = dir;
-		dir2 = dir*dir;
-		g2 = 3*dir*dir2*dir2;
-		g3 = 5*g2*dir2;
-		g4 = 7*g3*dir2;
+		SQRT1(ctile->d.d2.f[j],dir);
+		u = ctile->d.u.f[j]*dir;
+		g0 = dir;
+		g2 = 3*dir*u*u;
+		g3 = 5*g2*u;
+		g4 = 7*g3*u;
 		/*
 		** Calculate the funky distance terms.
 		*/
+		x = ctile->d.dx.f[j]*dir;
+		y = ctile->d.dy.f[j]*dir;
+		z = ctile->d.dz.f[j]*dir;
 		xx = 0.5*x*x;
 		xy = x*y;
 		xz = x*z;
@@ -197,24 +196,24 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 		/*
 		** Now calculate the interaction up to Hexadecapole order.
 		*/
-		tx = g4*(ctile->d[j].xxxx.f*xxx + ctile->d[j].xyyy.f*yyy + ctile->d[j].xxxy.f*xxy + ctile->d[j].xxxz.f*xxz + ctile->d[j].xxyy.f*xyy + ctile->d[j].xxyz.f*xyz + ctile->d[j].xyyz.f*yyz);
-		ty = g4*(ctile->d[j].xyyy.f*xyy + ctile->d[j].xxxy.f*xxx + ctile->d[j].yyyy.f*yyy + ctile->d[j].yyyz.f*yyz + ctile->d[j].xxyy.f*xxy + ctile->d[j].xxyz.f*xxz + ctile->d[j].xyyz.f*xyz);
-		tz = g4*(-ctile->d[j].xxxx.f*xxz - (ctile->d[j].xyyy.f + ctile->d[j].xxxy.f)*xyz - ctile->d[j].yyyy.f*yyz + ctile->d[j].xxxz.f*xxx + ctile->d[j].yyyz.f*yyy - ctile->d[j].xxyy.f*(xxz + yyz) + ctile->d[j].xxyz.f*xxy + ctile->d[j].xyyz.f*xyy);
+		tx = g4*(ctile->d.xxxx.f[j]*xxx + ctile->d.xyyy.f[j]*yyy + ctile->d.xxxy.f[j]*xxy + ctile->d.xxxz.f[j]*xxz + ctile->d.xxyy.f[j]*xyy + ctile->d.xxyz.f[j]*xyz + ctile->d.xyyz.f[j]*yyz);
+		ty = g4*(ctile->d.xyyy.f[j]*xyy + ctile->d.xxxy.f[j]*xxx + ctile->d.yyyy.f[j]*yyy + ctile->d.yyyz.f[j]*yyz + ctile->d.xxyy.f[j]*xxy + ctile->d.xxyz.f[j]*xxz + ctile->d.xyyz.f[j]*xyz);
+		tz = g4*(-ctile->d.xxxx.f[j]*xxz - (ctile->d.xyyy.f[j] + ctile->d.xxxy.f[j])*xyz - ctile->d.yyyy.f[j]*yyz + ctile->d.xxxz.f[j]*xxx + ctile->d.yyyz.f[j]*yyy - ctile->d.xxyy.f[j]*(xxz + yyz) + ctile->d.xxyz.f[j]*xxy + ctile->d.xyyz.f[j]*xyy);
 		g4 = 0.25*(tx*x + ty*y + tz*z);
-		xxx = g3*(ctile->d[j].xxx.f*xx + ctile->d[j].xyy.f*yy + ctile->d[j].xxy.f*xy + ctile->d[j].xxz.f*xz + ctile->d[j].xyz.f*yz);
-		xxy = g3*(ctile->d[j].xyy.f*xy + ctile->d[j].xxy.f*xx + ctile->d[j].yyy.f*yy + ctile->d[j].yyz.f*yz + ctile->d[j].xyz.f*xz);
-		xxz = g3*(-(ctile->d[j].xxx.f + ctile->d[j].xyy.f)*xz - (ctile->d[j].xxy.f + ctile->d[j].yyy.f)*yz + ctile->d[j].xxz.f*xx + ctile->d[j].yyz.f*yy + ctile->d[j].xyz.f*xy);
+		xxx = g3*(ctile->d.xxx.f[j]*xx + ctile->d.xyy.f[j]*yy + ctile->d.xxy.f[j]*xy + ctile->d.xxz.f[j]*xz + ctile->d.xyz.f[j]*yz);
+		xxy = g3*(ctile->d.xyy.f[j]*xy + ctile->d.xxy.f[j]*xx + ctile->d.yyy.f[j]*yy + ctile->d.yyz.f[j]*yz + ctile->d.xyz.f[j]*xz);
+		xxz = g3*(-(ctile->d.xxx.f[j] + ctile->d.xyy.f[j])*xz - (ctile->d.xxy.f[j] + ctile->d.yyy.f[j])*yz + ctile->d.xxz.f[j]*xx + ctile->d.yyz.f[j]*yy + ctile->d.xyz.f[j]*xy);
 		g3 = onethird*(xxx*x + xxy*y + xxz*z);
-		xx = g2*(ctile->d[j].xx.f*x + ctile->d[j].xy.f*y + ctile->d[j].xz.f*z);
-		xy = g2*(ctile->d[j].yy.f*y + ctile->d[j].xy.f*x + ctile->d[j].yz.f*z);
-		xz = g2*(-(ctile->d[j].xx.f + ctile->d[j].yy.f)*z + ctile->d[j].xz.f*x + ctile->d[j].yz.f*y);
+		xx = g2*(ctile->d.xx.f[j]*x + ctile->d.xy.f[j]*y + ctile->d.xz.f[j]*z);
+		xy = g2*(ctile->d.yy.f[j]*y + ctile->d.xy.f[j]*x + ctile->d.yz.f[j]*z);
+		xz = g2*(-(ctile->d.xx.f[j] + ctile->d.yy.f[j])*z + ctile->d.xz.f[j]*x + ctile->d.yz.f[j]*y);
 		g2 = 0.5*(xx*x + xy*y + xz*z);
-		tmon = ctile->d[j].m.f*dir;
-		dir2 *= tmon + 5*g2 + 7*g3 + 9*g4;
-		fPot -= tmon + g2 + g3 + g4;
-		tax = xx + xxx + tx - x*dir2;
-		tay = xy + xxy + ty - y*dir2;
-		taz = xz + xxz + tz - z*dir2;
+		g0 *= ctile->d.m.f[j];
+		fPot -= g0 + g2 + g3 + g4;
+		g0 += 5*g2 + 7*g3 + 9*g4;
+		tax = dir*(xx + xxx + tx - x*g0);
+		tay = dir*(xy + xxy + ty - y*g0);
+		taz = dir*(xz + xxz + tz - z*g0);
 		adotai = a[0]*tax + a[1]*tay + a[2]*taz;
 		if (adotai > 0) {
 		    adotai *= dimaga;
@@ -228,11 +227,9 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 	    } /* end of cell list gravity loop */
 #endif
 	mdlCacheCheck(pkd->mdl);
-
 	/*
 	** Part 1: Calculate distance between particle and each interaction
 	*/
-
 	for (j=pkdn->pLower;j<=pkdn->pUpper;++j) {
 	    if (j == i) continue;
 	    pj = pkdParticle(pkd,j);
@@ -453,10 +450,10 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 		/*
 		** Use new acceleration here!
 		*/
-		tx = a[0];
-		ty = a[1];
-		tz = a[2];
-		maga = sqrt(tx*tx + ty*ty + tz*tz);
+		fx = a[0];
+		fy = a[1];
+		fz = a[2];
+		maga = sqrt(fx*fx + fy*fy + fz*fz);
 		dtGrav = maga*dirsum/normsum;
 		}
 	    else dtGrav = 0.0;

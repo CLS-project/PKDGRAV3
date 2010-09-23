@@ -1804,66 +1804,6 @@ void momClearFmomr(FMOMR *l) {
     l->xyyz = 0;
     }
 
-void momClearLocc(LOCC *l) {
-    l->m = 0;
-    l->x = 0;
-    l->y = 0;
-    l->z = 0;
-    l->xx = 0;
-    l->yy = 0;
-    l->xy = 0;
-    l->xz = 0;
-    l->yz = 0;
-    l->xxx = 0;
-    l->xyy = 0;
-    l->xxy = 0;
-    l->yyy = 0;
-    l->xxz = 0;
-    l->yyz = 0;
-    l->xyz = 0;
-    l->xxxx = 0;
-    l->xyyy = 0;
-    l->xxxy = 0;
-    l->yyyy = 0;
-    l->xxxz = 0;
-    l->yyyz = 0;
-    l->xxyy = 0;
-    l->xxyz = 0;
-    l->xyyz = 0;
-    l->xxxxx = 0;
-    l->xyyyy = 0;
-    l->xxxxy = 0;
-    l->yyyyy = 0;
-    l->xxxxz = 0;
-    l->yyyyz = 0;
-    l->xxxyy = 0;
-    l->xxyyy = 0;
-    l->xxxyz = 0;
-    l->xyyyz = 0;
-    l->xxyyz = 0;
-    l->zz = 0;
-    l->xzz = 0;
-    l->yzz = 0;
-    l->zzz = 0;
-    l->xxzz = 0;
-    l->xyzz = 0;
-    l->xzzz = 0;
-    l->yyzz = 0;
-    l->yzzz = 0;
-    l->zzzz = 0;
-    l->xxxzz = 0;
-    l->xxyzz = 0;
-    l->xyyzz = 0;
-    l->yyyzz = 0;
-    l->xxzzz = 0;
-    l->xyzzz = 0;
-    l->yyzzz = 0;
-    l->xzzzz = 0;
-    l->yzzzz = 0;
-    l->zzzzz = 0;
-    }
-
-
 void momClearLocr(LOCR *l) {
     l->m = 0;
     l->x = 0;
@@ -2215,68 +2155,6 @@ void momMulAddFmomr(FMOMR *mr,float ur,float m,FMOMR *ma,float ua) {
 
 
 /*
-** This function adds the complete local expansion la to the complete local explansion lc.
-*/
-void momAddLocc(LOCC *lc,LOCC *la) {
-    lc->m += la->m;
-    lc->x += la->x;
-    lc->y += la->y;
-    lc->z += la->z;
-    lc->xx += la->xx;
-    lc->yy += la->yy;
-    lc->xy += la->xy;
-    lc->xz += la->xz;
-    lc->yz += la->yz;
-    lc->xxx += la->xxx;
-    lc->xyy += la->xyy;
-    lc->xxy += la->xxy;
-    lc->yyy += la->yyy;
-    lc->xxz += la->xxz;
-    lc->yyz += la->yyz;
-    lc->xyz += la->xyz;
-    lc->xxxx += la->xxxx;
-    lc->xyyy += la->xyyy;
-    lc->xxxy += la->xxxy;
-    lc->yyyy += la->yyyy;
-    lc->xxxz += la->xxxz;
-    lc->yyyz += la->yyyz;
-    lc->xxyy += la->xxyy;
-    lc->xxyz += la->xxyz;
-    lc->xyyz += la->xyyz;
-    lc->xxxxx += la->xxxxx;
-    lc->xyyyy += la->xyyyy;
-    lc->xxxxy += la->xxxxy;
-    lc->yyyyy += la->yyyyy;
-    lc->xxxxz += la->xxxxz;
-    lc->yyyyz += la->yyyyz;
-    lc->xxxyy += la->xxxyy;
-    lc->xxyyy += la->xxyyy;
-    lc->xxxyz += la->xxxyz;
-    lc->xyyyz += la->xyyyz;
-    lc->xxyyz += la->xxyyz;
-    lc->zz += la->zz;
-    lc->xzz += la->xzz;
-    lc->yzz += la->yzz;
-    lc->zzz += la->zzz;
-    lc->xxzz += la->xxzz;
-    lc->xyzz += la->xyzz;
-    lc->xzzz += la->xzzz;
-    lc->yyzz += la->yyzz;
-    lc->yzzz += la->yzzz;
-    lc->zzzz += la->zzzz;
-    lc->xxxzz += la->xxxzz;
-    lc->xxyzz += la->xxyzz;
-    lc->xyyzz += la->xyyzz;
-    lc->yyyzz += la->yyyzz;
-    lc->xxzzz += la->xxzzz;
-    lc->xyzzz += la->xyzzz;
-    lc->yyzzz += la->yyzzz;
-    lc->xzzzz += la->xzzzz;
-    lc->yzzzz += la->yzzzz;
-    lc->zzzzz += la->zzzzz;
-}
-
-/*
 ** This function adds the reduced local expansion la to the reduced local explansion lr.
 */
 void momAddLocr(LOCR *lr,LOCR *la) {
@@ -2575,30 +2453,6 @@ void momPrintFmomr(FMOMR *m,float u) {
     printf(" xxyy:%20.8g xxyz:%20.8g xyyy:%20.8g\n",m->xxyy*uu,m->xxyz*uu,m->xyyy*uu);
     printf(" xyyz:%20.8g yyyy:%20.8g yyyz:%20.8g\n",m->xyyz*uu,m->yyyy*uu,m->yyyz*uu);
     }
-
-void momPrintLocc(LOCC *m) {
-    printf("LOCC :%20.15g\n",(double)m->m);
-    printf("    x:%20.15g     y:%20.15g     z:%20.15g\n",(double)m->x,(double)m->y,(double)m->z);
-    printf("   xx:%20.15g    yy:%20.15g    zz:%20.15g\n",(double)m->xx,(double)m->yy,(double)m->zz);
-    printf("   xy:%20.15g    yz:%20.15g    xz:%20.15g\n",(double)m->xy,(double)m->yz,(double)m->xz);
-    printf("  xxx:%20.15g   xyy:%20.15g   xzz:%20.15g\n",(double)m->xxx,(double)m->xyy,(double)m->xzz);
-    printf("  xxy:%20.15g   yyy:%20.15g   yzz:%20.15g\n",(double)m->xxy,(double)m->yyy,(double)m->yzz);
-    printf("  xxz:%20.15g   yyz:%20.15g   zzz:%20.15g\n",(double)m->xxz,(double)m->yyz,(double)m->zzz);
-    printf("  xyz:%20.15g\n",(double)m->xyz);
-    printf(" xxxx:%20.15g  xxxy:%20.15g  xxxz:%20.15g\n",(double)m->xxxx,(double)m->xxxy,(double)m->xxxz);
-    printf(" xyyy:%20.15g  yyyy:%20.15g  yyyz:%20.15g\n",(double)m->xyyy,(double)m->yyyy,(double)m->yyyz);
-    printf(" xzzz:%20.15g  yzzz:%20.15g  zzzz:%20.15g\n",(double)m->xzzz,(double)m->yzzz,(double)m->zzzz);
-    printf(" xxyy:%20.15g  xxyz:%20.15g  xyyz:%20.15g\n",(double)m->xxyy,(double)m->xxyz,(double)m->xyyz);
-    printf(" yyzz:%20.15g  xxzz:%20.15g  xyzz:%20.15g\n",(double)m->yyzz,(double)m->xxzz,(double)m->xyzz);
-    printf("xxxxx:%20.15g xxxxy:%20.15g xxxxz:%20.15g\n",(double)m->xxxxx,(double)m->xxxxy,(double)m->xxxxz);
-    printf("xxxyy:%20.15g xxyyy:%20.15g xxxyz:%20.15g\n",(double)m->xxxyy,(double)m->xxyyy,(double)m->xxxyz);
-    printf("xyyyy:%20.15g yyyyy:%20.15g xxyyz:%20.15g\n",(double)m->xyyyy,(double)m->yyyyy,(double)m->xxyyz);
-    printf("xyyyz:%20.15g yyyyz:%20.15g xxxzz:%20.15g\n",(double)m->xyyyz,(double)m->yyyyz,(double)m->xxxzz);
-    printf("xxyzz:%20.15g xyyzz:%20.15g yyyzz:%20.15g\n",(double)m->xxyzz,(double)m->xyyzz,(double)m->yyyzz);
-    printf("xxzzz:%20.15g xyzzz:%20.15g yyzzz:%20.15g\n",(double)m->xxzzz,(double)m->xyzzz,(double)m->yyzzz);
-    printf("xzzzz:%20.15g yzzzz:%20.15g zzzzz:%20.15g\n",(double)m->xzzzz,(double)m->yzzzz,(double)m->zzzzz);
-    }
-
 
 void momPrintLocr(LOCR *m) {
     printf("LOCR :%20.15g\n",(double)m->m);

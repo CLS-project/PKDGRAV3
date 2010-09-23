@@ -386,7 +386,7 @@ static float  zeroF[3] = {0.0,0.0,0.0};
 void Create(PKD pkd,int iNode) {
     PARTICLE *p;
     KDN *pkdn,*pkdl,*pkdu;
-    MOMR mom;
+    FMOMR mom;
     SPHBNDS *bn;
     FLOAT m,fMass,fSoft,x,y,z,vx,vy,vz,ax,ay,az,ft,d2,d2Max,dih2,b,bmin;
     float *a;
@@ -536,36 +536,45 @@ void Create(PKD pkd,int iNode) {
 	    pkdn->fSoft2 = 1/(dih2*m);
 #endif
 	    }
-
-	/*
-	** Now calculate the reduced multipole moment.
-	*/
-	if (pkd->oNodeMom) momClearMomr(pkdNodeMom(pkd,pkdn));
 	d2Max = 0;
 	for (pj=pkdn->pLower;pj<=pkdn->pUpper;++pj) {
 	    p = pkdParticle(pkd,pj);
 	    x = p->r[0] - pkdn->r[0];
 	    y = p->r[1] - pkdn->r[1];
 	    z = p->r[2] - pkdn->r[2];
-	    if (pkd->oNodeMom) {
-		m = pkdMass(pkd,p);
-		d2 = momMakeMomr(&mom,m,x,y,z);
-		momAddMomr(pkdNodeMom(pkd,pkdn),&mom);
-		}
-	    else {
-		d2 = x*x + y*y + z*z;
-		}
+	    d2 = x*x + y*y + z*z;
 	    /*
 	    ** Update bounding ball and softened bounding ball.
 	    */
 	    d2Max = (d2 > d2Max)?d2:d2Max;
 	    }
+	pkdn->bMax = sqrt(d2Max);
 	/*
-	** Now determine the opening radius for gravity.
+	** Now calculate the reduced multipole moment.
+	** Note that we use the cell's openening radius as the scaling factor!
 	*/
-        MAXSIDE(bnd.fMax,b);
-        if (b < bmin) b = bmin;
-	pkdn->bMax = b;
+	if (pkd->oNodeMom) {
+	    momClearFmomr(pkdNodeMom(pkd,pkdn));
+/*
+	    printf("%d ",iNode);
+*/
+	    for (pj=pkdn->pLower;pj<=pkdn->pUpper;++pj) {
+		p = pkdParticle(pkd,pj);
+		x = p->r[0] - pkdn->r[0];
+		y = p->r[1] - pkdn->r[1];
+		z = p->r[2] - pkdn->r[2];
+/*
+		printf("m:%.7g x:%.7g y:%.7g z:%.7g ",m,x,y,z); 
+*/
+		m = pkdMass(pkd,p);
+		momMakeFmomr(&mom,m,pkdn->bMax,x,y,z);
+		momAddFmomr(pkdNodeMom(pkd,pkdn),&mom);
+	    }
+/*
+	    printf("\n");
+	    momPrintFmomr(pkdNodeMom(pkd,pkdn),pkdn->bMax);
+*/
+	}
 	/*
 	** Calculate bucket fast gas bounds.
 	*/
@@ -629,7 +638,6 @@ void Create(PKD pkd,int iNode) {
 	    ** Before squeezing the bounds, calculate a minimum b value based on the splitting bounds alone.
 	    ** This gives us a better feel for the "size" of a bucket with only a single particle.
 	    */
-	    MINSIDE(bnd.fMax,bmin);
 	    *bnd.size = 2.0*(bnd.fMax[0]+bnd.fMax[1]+bnd.fMax[2])/3.0;
 	    pkdl = pkdTreeNode(pkd,pkdn->iLower);
 	    pkdu = pkdTreeNode(pkd,pkdn->iLower + 1);
@@ -652,14 +660,14 @@ void Create(PKD pkd,int iNode) {
 		/*
 		** Now determine the opening radius for gravity.
 		*/
-		MAXSIDE(bnd.fMax,b);
-		if (b < bmin) b = bmin;
-		if (d2Max>b) b = d2Max;
-		pkdn->bMax = b;
+		pkdn->bMax = sqrt(d2Max);
 		}
 	    else {
-		CALCOPEN(pkdn,bmin);
-		}
+	      pkdn->bMax = HUGE_VAL;
+	    }
+	    pkdl = pkdTreeNode(pkd,pkdn->iLower);
+	    pkdu = pkdTreeNode(pkd,pkdn->iLower + 1);
+	    pkdCombineCells(pkd,pkdn,pkdl,pkdu);
 	    }
 	++iNode;
 	}
@@ -668,7 +676,7 @@ void Create(PKD pkd,int iNode) {
 
 
 void pkdCombineCells(PKD pkd,KDN *pkdn,KDN *p1,KDN *p2) {
-    MOMR mom;
+    FMOMR mom;
     SPHBNDS *b1,*b2,*bn;
     FLOAT m1,m2,x,y,z,ifMass;
     FLOAT r1[3],r2[3];
@@ -721,6 +729,8 @@ void pkdCombineCells(PKD pkd,KDN *pkdn,KDN *p1,KDN *p2) {
     pkdn->bDstActive = p1->bDstActive || p2->bDstActive;
     if (0xffffffffu - p1->nActive < p2->nActive) pkdn->nActive = 0xffffffffu; 
     else pkdn->nActive = p1->nActive + p2->nActive;
+    BND_COMBINE(bnd,p1bnd,p2bnd);
+    CALCOPEN(pkdn);  /* set bMax */
     /*
     ** Now calculate the reduced multipole moment.
     ** Shift the multipoles of each of the children
@@ -731,15 +741,19 @@ void pkdCombineCells(PKD pkd,KDN *pkdn,KDN *p1,KDN *p2) {
 	x = r1[0] - pkdn->r[0];
 	y = r1[1] - pkdn->r[1];
 	z = r1[2] - pkdn->r[2];
-	momShiftMomr(pkdNodeMom(pkd,pkdn),x,y,z);
+	momShiftFmomr(pkdNodeMom(pkd,pkdn),p1->bMax,x,y,z);
+
+	momRescaleFmomr(pkdNodeMom(pkd,pkdn),pkdn->bMax,p1->bMax);
+
 	mom = *pkdNodeMom(pkd,p2);
 	x = r2[0] - pkdn->r[0];
 	y = r2[1] - pkdn->r[1];
 	z = r2[2] - pkdn->r[2];
-	momShiftMomr(&mom,x,y,z);
-	momAddMomr(pkdNodeMom(pkd,pkdn),&mom);
+	momShiftFmomr(&mom,p2->bMax,x,y,z);
+
+	momScaledAddFmomr(pkdNodeMom(pkd,pkdn),pkdn->bMax,&mom,p2->bMax);
+
 	}
-    BND_COMBINE(bnd,p1bnd,p2bnd);
     /*
     ** Combine the special fast gas ball bounds for SPH.
     */

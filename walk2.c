@@ -469,6 +469,7 @@ static inline int iOpenOutcomeBarnesHut(PKD pkd,KDN *k,CELT *check,KDN **pc,doub
 	}
     }
 
+
 /*
 ** Returns total number of active particles for which gravity was calculated.
 */
@@ -476,20 +477,23 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 		int bVeryActive,double dThetaMin,double dThetaMax,double *pdFlop,double *pdPartSum,double *pdCellSum) {
     PARTICLE *p;
     KDN *k,*c,*kFind,*kSib;
-    MOMR *momc,*momk;
-    LOCR L;
-    double dirLsum,normLsum,adotai,maga;
-    double tax,tay,taz;
+    FMOMR *momc,*momk;
+    FLOCR L;
     double fWeight = 0.0;
     double dShiftFlop;
     double dRhoFac;
     double *v, *a, zero[3];
-    FLOAT d2,fourh2;
-    FLOAT fMass,fSoft;
     FLOAT rOffset[3];
     FLOAT xParent,yParent,zParent;
-    FLOAT dx[3],dir,dir2;
     FLOAT cx,cy,cz,d2c;
+
+    float d2,fourh2,bMaxParent;
+    float dirLsum,normLsum,adotai,maga;
+    float tax,tay,taz;
+    float dx[3],dir,dir2;
+
+    FLOAT fMass,fSoft;
+
     int iStack,ism;
     int ix,iy,iz,bRep;
     int nMaxInitCheck,nCheck;
@@ -572,7 +576,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
     /*
     ** Clear local expansion and the timestepping sums.
     */
-    momClearLocr(&L);
+    momClearFlocr(&L);
     dirLsum = 0;
     normLsum = 0;
     /*
@@ -832,38 +836,12 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 		    ** Accept multipole!
 		    ** Interact += Moment(c);
 		    */
-		    ctile = pkd->ilc->tile;
-		    if (ctile->nCell == ctile->nMaxCell) {
-			ctile = ilcExtend(pkd->ilc);
-		    }
-		    j = ctile->nCell;
-		    momc = pkdNodeMom(pkd,c);
-		    ctile->d[j].x.f = c->r[0] + pkd->Check[i].rOffset[0];
-		    ctile->d[j].y.f = c->r[1] + pkd->Check[i].rOffset[1];
-		    ctile->d[j].z.f = c->r[2] + pkd->Check[i].rOffset[2];
-		    ctile->d[j].m.f = momc->m;
-		    ctile->d[j].xx.f = momc->xx;
-		    ctile->d[j].yy.f = momc->yy;
-		    ctile->d[j].xy.f = momc->xy;
-		    ctile->d[j].xz.f = momc->xz;
-		    ctile->d[j].yz.f = momc->yz;
-		    ctile->d[j].xxx.f = momc->xxx;
-		    ctile->d[j].xyy.f = momc->xyy;
-		    ctile->d[j].xxy.f = momc->xxy;
-		    ctile->d[j].yyy.f = momc->yyy;
-		    ctile->d[j].xxz.f = momc->xxz;
-		    ctile->d[j].yyz.f = momc->yyz;
-		    ctile->d[j].xyz.f = momc->xyz;
-		    ctile->d[j].xxxx.f = momc->xxxx;
-		    ctile->d[j].xyyy.f = momc->xyyy;
-		    ctile->d[j].xxxy.f = momc->xxxy;
-		    ctile->d[j].yyyy.f = momc->yyyy;
-		    ctile->d[j].xxxz.f = momc->xxxz;
-		    ctile->d[j].yyyz.f = momc->yyyz;
-		    ctile->d[j].xxyy.f = momc->xxyy;
-		    ctile->d[j].xxyz.f = momc->xxyz;
-		    ctile->d[j].xyyz.f = momc->xyyz;
-		    ++ctile->nCell;
+		    ilcAppend(pkd->ilc,
+			      c->r[0] + pkd->Check[i].rOffset[0],
+			      c->r[1] + pkd->Check[i].rOffset[1],
+			      c->r[2] + pkd->Check[i].rOffset[2],
+			      pkdNodeMom(pkd,c),c->bMax,
+			      v[0],v[1],v[2]);
 		    break;
 		case 5:
 		    /*
@@ -903,7 +881,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 			    d2 += dx[j]*dx[j];
 			}
 			dir = 1.0/sqrt(d2);
-			*pdFlop += momLocrAddMono5(&L,pkdMass(pkd,p),dir,dx[0],dx[1],dx[2],&tax,&tay,&taz);
+			*pdFlop += momFlocrAddMono5(&L,k->bMax,pkdMass(pkd,p),dir,dx[0],dx[1],dx[2],&tax,&tay,&taz);
 			adotai = a[0]*tax + a[1]*tay + a[2]*taz;
 			if (adotai > 0) {
 			    adotai /= maga;
@@ -984,8 +962,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 			d2 += dx[j]*dx[j];
 		    }
 		    dir = 1.0/sqrt(d2);
-		    *pdFlop += momLocrAddMomr5(&L,pkdNodeMom(pkd,c),dir,dx[0],dx[1],dx[2],&tax,&tay,&taz);
-		    /*momLocrAddMomrAccurate(&L,pkdNodeMom(pkd,c),dir,dx[0],dx[1],dx[2]);*/
+		    *pdFlop += momFlocrAddFmomr5cm(&L,k->bMax,pkdNodeMom(pkd,c),c->bMax,dir,dx[0],dx[1],dx[2],&tax,&tay,&taz);
 		    adotai = a[0]*tax + a[1]*tay + a[2]*taz;
 		    if (adotai > 0) {
 			adotai /= maga;
@@ -1051,10 +1028,15 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 	    ** Now prepare to proceed to the next deeper
 	    ** level of the tree.
 	    */
+/*
+	    printf("iCell:%d\n",iCell);
+	    momPrintFlocr(&L,1.0);
+*/
 	    if (!k->iLower) break;
 	    xParent = k->r[0];
 	    yParent = k->r[1];
 	    zParent = k->r[2];
+	    bMaxParent = k->bMax;
 	    k = pkdTreeNode(pkd,iCell = k->iLower);
 	    /*
 	    ** Make sure all the check lists are long enough to handle 1 more cell.
@@ -1111,10 +1093,11 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 		    pkd->S[iStack].L = L;
 		    pkd->S[iStack].dirLsum = dirLsum;
 		    pkd->S[iStack].normLsum = normLsum;
-		    dShiftFlop = momShiftLocr(&pkd->S[iStack].L,
+		    dShiftFlop = momShiftFlocr(&pkd->S[iStack].L,bMaxParent,
 					      kSib->r[0] - xParent,
 					      kSib->r[1] - yParent,
 					      kSib->r[2] - zParent);
+		    momRescaleFlocr(&pkd->S[iStack].L,kSib->bMax,bMaxParent);
 		    pkd->S[iStack].fWeight = (*pdFlop-tempI) + dShiftFlop;
 		    pkd->S[iStack].fWeight += dEwFlop;
 		    }
@@ -1134,9 +1117,10 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 		*/
 		k = pkdTreeNode(pkd,++iCell);
 		}
-	    *pdFlop += momShiftLocr(&L,k->r[0] - xParent,
+	    *pdFlop += momShiftFlocr(&L,bMaxParent,k->r[0] - xParent,
 				    k->r[1] - yParent,
 				    k->r[2] - zParent);
+	    momRescaleFlocr(&L,k->bMax,bMaxParent);
 	    }
 	/*
 	** Now the interaction list should be complete and the
@@ -1144,7 +1128,9 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 	** Bucket!
 	*/
 	assert(nCheck == 0);
-
+/*
+	momPrintFlocr(&L,1.0);
+*/
 	/*
 	** Now calculate gravity on this bucket!
 	*/
@@ -1210,6 +1196,5 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 	tempI += dEwFlop;
 	--iStack;
 	}
-    printf("\n");
     }
 

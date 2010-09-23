@@ -2453,9 +2453,8 @@ void pstBuildTree(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	*/
 	iLower = LOWER(iCell);
 	iNext = UPPER(iCell);
-	MINSIDE(pst->bnd.fMax,minside);
+	pCell->bMax = HUGE_VAL;  /* initialize bMax for CombineCells */
 	pkdCombineCells(pkd,pCell,pkdNode(pkd,pkdn,iLower),pkdNode(pkd,pkdn,iNext));
-	CALCOPEN(pCell,minside);
 	/*
 	** Set all the pointers and flags.
 	*/

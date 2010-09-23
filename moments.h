@@ -1,7 +1,7 @@
 #ifndef MOMENTS_INCLUDED
 #define MOMENTS_INCLUDED
 
-#define MOMENTS_H_MODULE_ID "$Id$"
+#define MOMENTS_H_MODULE_ID "$Id"
 
 #ifdef MOMQUAD
 typedef long double momFloat;
@@ -75,7 +75,6 @@ typedef struct flocReduced {
     float xxxxx,xyyyy,xxxxy,yyyyy,xxxxz,yyyyz,xxxyy,xxyyy,xxxyz,xyyyz,xxyyz;
     } FLOCR;
 
-
 /*
 ** Multipole moment generating functions.
 */
@@ -97,13 +96,9 @@ double momShiftFlocr(FLOCR *l,float v,float x,float y,float z);
 /*
 ** All the variants of EvalMomr...
 */
-void momEvalMomr(MOMR *m,momFloat dir,momFloat x,momFloat y,momFloat z,
-		 momFloat *fPot,momFloat *ax,momFloat *ay,momFloat *az,momFloat *magai);
-void momGenEvalMomr(MOMR *m,momFloat g0,momFloat g1,momFloat g2,momFloat g3,momFloat g4,momFloat g5,
-		    momFloat x,momFloat y,momFloat z,
-		    momFloat *fPot,momFloat *ax,momFloat *ay,momFloat *az,momFloat *magai);
-void momEvalFmomrcm(FMOMR *m,float u,float dir,float x,float y,float z,
-		    float *fPot,float *ax,float *ay,float *az,float *magai);
+void momEvalMomr(MOMR *m,momFloat dir,momFloat x,momFloat y,momFloat z,momFloat *fPot,momFloat *ax,momFloat *ay,momFloat *az,momFloat *magai);
+void momGenEvalMomr(MOMR *m,momFloat g0,momFloat g1,momFloat g2,momFloat g3,momFloat g4,momFloat g5,momFloat x,momFloat y,momFloat z,momFloat *fPot,momFloat *ax,momFloat *ay,momFloat *az,momFloat *magai);
+void momEvalFmomrcm(FMOMR *m,float u,float dir,float x,float y,float z,float *fPot,float *ax,float *ay,float *az,float *magai);
 /*
 ** These are the prefered versions that should be used in pkdgrav2.
 */
@@ -125,7 +120,6 @@ void momEvalFlocr(FLOCR *l,float v,float x,float y,float z,
 void momClearMomc(MOMC *l);
 void momClearMomr(MOMR *l);
 void momClearFmomr(FMOMR *l);
-void momClearLocc(LOCC *l);
 void momClearLocr(LOCR *l);
 void momClearFlocr(FLOCR *l);
 void momAddMomc(MOMC *mc,MOMC *ma);
@@ -136,7 +130,6 @@ void momRescaleFmomr(FMOMR *mr,float unew,float uold);
 void momMulAddMomc(MOMC *mc,momFloat m,MOMC *ma);
 void momMulAddMomr(MOMR *mr,momFloat m,MOMR *ma);
 void momMulAddFmomr(FMOMR *mr,float ur,float m,FMOMR *ma,float ua);
-void momAddLocc(LOCC *lc,LOCC *la);
 void momAddLocr(LOCR *lr,LOCR *la);
 void momAddFlocr(FLOCR *lr,FLOCR *la);
 void momScaledAddFlocr(FLOCR *lr,float vr,FLOCR *la,float va);
@@ -149,7 +142,6 @@ void momSubMomr(MOMR *mr,MOMR *ma);
 void momPrintMomc(MOMC *m);
 void momPrintMomr(MOMR *m);
 void momPrintFmomr(FMOMR *m,float u);
-void momPrintLocc(LOCC *l);
 void momPrintLocr(LOCR *l);
 void momPrintFlocr(FLOCR *l,float u);
 
