@@ -97,12 +97,6 @@ typedef uint_fast64_t total_t; /* Count of particles globally (total number) */
 #define PKD_MODEL_NODE_BND     (1<<28) /* Include normal bounds in tree */
 #define PKD_MODEL_NODE_BND6    (1<<29) /* Include phase-space bounds in tree */
 
-/*
-** This constant is used to limit the size of a cell.
-** Was #define PKD_MAX_CELL_SIZE (1e-2), but in this version of the code it is
-** no longer needed!
-*/
-#define PKD_MAX_CELL_SIZE 1e20
 
 #ifdef USE_PSD
 typedef struct pLite {
@@ -400,23 +394,23 @@ typedef struct sphBounds {
 
 #define MAXSIDE(fMax,b) {\
     if ((fMax)[0] > (fMax)[1]) {\
-	if ((fMax)[0] > (fMax)[2]) b = 2*(fMax)[0];\
-	else b = 2*(fMax)[2];\
+	if ((fMax)[0] > (fMax)[2]) b = (fMax)[0];\
+	else b = (fMax)[2];\
 	}\
     else {\
-	if ((fMax)[1] > (fMax)[2]) b = 2*(fMax)[1];\
-	else b = 2*(fMax)[2];\
+	if ((fMax)[1] > (fMax)[2]) b = (fMax)[1];\
+	else b = (fMax)[2];\
 	}\
     }
 
 #define MINSIDE(fMax,b) {\
     if ((fMax)[0] < (fMax)[1]) {\
-	if ((fMax)[0] < (fMax)[2]) b = 2*(fMax)[0];\
-	else b = 2*(fMax)[2];\
+	if ((fMax)[0] < (fMax)[2]) b = (fMax)[0];\
+	else b = (fMax)[2];\
 	}\
     else {\
-	if ((fMax)[1] < (fMax)[2]) b = 2*(fMax)[1];\
-	else b = 2*(fMax)[2];\
+	if ((fMax)[1] < (fMax)[2]) b = (fMax)[1];\
+	else b = (fMax)[2];\
 	}\
     }
 

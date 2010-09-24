@@ -244,13 +244,11 @@ void BuildTemp(PKD pkd,int iNode,int M) {
 		    rbnd.fMax[j] = bnd.fMax[j];
 		    }
 		}
-	    MAXSIDE(lbnd.fMax,ls);
-	    MAXSIDE(rbnd.fMax,rs);
 	    /*
 	    ** Now figure out which subfile to process next.
 	    */
-	    lc = ((nl > M)||((nl > 1)&&(ls>PKD_MAX_CELL_SIZE))); /* this condition means the left child is not a bucket */
-	    rc = ((nr > M)||((nr > 1)&&(rs>PKD_MAX_CELL_SIZE)));
+	    lc = (nl > M); /* this condition means the left child is not a bucket */
+	    rc = (nr > M);
 	    if (rc && lc) {
 		/* Allocate more stack if required */
 		if ( s+1 >= ns ) {
@@ -303,7 +301,7 @@ void BuildTemp(PKD pkd,int iNode,int M) {
 	    if (nl > 0) {
 		if (d >= 0 && d < 3) bnd.fCenter[d] -= bnd.fMax[d];
 		MAXSIDE(bnd.fMax,ls);
-		lc = ((nl > M)||((nl > 1)&&(ls>PKD_MAX_CELL_SIZE))); /* this condition means the node is not a bucket */
+		lc = (nl > M); /* this condition means the node is not a bucket */
 		if (!lc) {
 		    pNode->iLower = 0;
 		    ++nBucket;
@@ -313,8 +311,7 @@ void BuildTemp(PKD pkd,int iNode,int M) {
 		}
 	    else {
 		if (d >= 0 && d < 3) bnd.fCenter[d] += bnd.fMax[d];
-		MAXSIDE(bnd.fMax,rs);
-		rc = ((nr > M)||((nr > 1)&&(rs>PKD_MAX_CELL_SIZE)));
+		rc = (nr > M);
 		if (!rc) {
 		    pNode->iLower = 0;
 		    ++nBucket;
@@ -536,7 +533,7 @@ void Create(PKD pkd,int iNode) {
 	    pkdn->fSoft2 = 1/(dih2*m);
 #endif
 	    }
-	d2Max = 0;
+	d2Max = bmin*bmin;
 	for (pj=pkdn->pLower;pj<=pkdn->pUpper;++pj) {
 	    p = pkdParticle(pkd,pj);
 	    x = p->r[0] - pkdn->r[0];
