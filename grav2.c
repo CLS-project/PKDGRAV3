@@ -167,6 +167,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,FLOCR *
 	ILC_LOOP(ilc,ctile) {
 	    for (j=0;j<ctile->nCell;++j) {
 		SQRT1(ctile->d.d2.f[j],dir);
+		dirDTS = dir;
 		u = ctile->d.u.f[j]*dir;
 		g0 = dir;
 		g2 = 3*dir*u*u;
