@@ -2552,7 +2552,8 @@ void msrOutASCII(MSR msr,const char *pszFile,int iType,int nDims) {
     switch(nDims) {
     case 1: arrayOrVector = "vector"; break; /* JW -- seems like a bug */
     case 3: arrayOrVector = "array";  break;
-    default:assert(nDims==1 || nDims==3);
+    default:arrayOrVector = NULL;
+	    assert(nDims==1 || nDims==3);
 	}
 
     pst0 = msr->pst;

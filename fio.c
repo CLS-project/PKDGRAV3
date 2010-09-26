@@ -1503,7 +1503,6 @@ static void readSet(
 static int writeAttribute( hid_t groupID, const char *name,
 			    hid_t dataType, void *data ) {
     hid_t dataSpace, attrID;
-    hsize_t dims = 1;
     herr_t rc;
 
     dataSpace = H5Screate(H5S_SCALAR); assert(dataSpace!=H5I_INVALID_HID);
@@ -2383,9 +2382,7 @@ static void hdf5Close(FIO fio) {
 
 static FIO hdf5Open(fioFileList *fileList) {
     fioHDF5 *hio;
-    H5E_auto_t save_func;
-    void *     save_data;
-    int i, j;
+    int i;
 
     hio = malloc(sizeof(fioHDF5));
     assert(hio!=NULL);

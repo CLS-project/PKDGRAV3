@@ -1182,7 +1182,6 @@ double momLocrAddMono5(LOCR *l,momFloat m,momFloat dir,momFloat x,momFloat y,mom
     const momFloat onethird = 1.0/3.0;
     momFloat xx,xy,xz,yy,yz,zz;
     momFloat xxx,xxy,xyy,yyy,xxz,xyz,yyz;
-    momFloat Ax,Ay,Az,A,Bxx,Bxy,Byy,Bxz,Byz,Bx,By,Bz,B,Cx,Cy,Cz,C;
     momFloat R1,R2,R3,T2,T3;
     momFloat g0,g1,g2,g3,g4,g5;
     momFloat g4xx,g4yy,g5xx,g5yy,fxx,fyy;
@@ -1316,8 +1315,7 @@ double momFlocrAddFmomr5cm(FLOCR *l,float v,FMOMR *m,float u,float dir,float x,f
     float xx,xy,xz,yy,yz,zz;
     float xxx,xxy,xyy,yyy,xxz,xyz,yyz;
     float R2xx,R2xy,R2xz,R2yy,R2yz,R2x,R2y,R2z,R2,R3xx,R3xy,R3yy,R3xz,R3yz,R3x,R3y,R3z,R3,R4x,R4y,R4z,R4;
-    float T0,txx,tyy,t1,t1x,t1y,t1z,t1xx,t1yy,t2x,t2y,t2z,t2xx,t2yy,t3x,t3y,t3z,t3xx,t3yy,txxxx,tyyyy;
-    float t2;
+    float T0,txx,tyy,t1,t1x,t1y,t1z,t1xx,t1yy,t2x,t2y,t2z,t2xx,t2yy,txxxx,tyyyy;
 
     u *= dir;
     x *= dir;
@@ -1485,9 +1483,8 @@ double momFlocrAddFmomr5cm(FLOCR *l,float v,FMOMR *m,float u,float dir,float x,f
 ** Op Count = (*,+,-) = (,,) = 
 */
 double momFlocrAddMono5(FLOCR *l,float v,float m,float dir,float x,float y,float z,float *tax,float *tay,float *taz) {
-    const float onethird = 1.0f/3.0f;
     float xx,xy,xz,yy,yz;
-    float T0,txx,tyy,t1,t2,t1x,t1y,t1z,t1xx,t1yy,txxxx,tyyyy;
+    float T0,txx,tyy,t1,t1xx,t1yy,t2,txxxx,tyyyy;
 
     x *= dir;
     y *= dir;
