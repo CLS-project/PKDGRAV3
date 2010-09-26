@@ -125,7 +125,7 @@ void BuildTemp(PKD pkd,int iNode,int M) {
     KDN *pLeft, *pRight;
     PLITE t;
     FLOAT fSplit;
-    FLOAT ls,rs;
+    FLOAT ls;
     int *S;		/* this is the stack */
     int s,ns;
     int iLeft,iRight;
@@ -385,7 +385,7 @@ void Create(PKD pkd,int iNode) {
     KDN *pkdn,*pkdl,*pkdu;
     FMOMR mom;
     SPHBNDS *bn;
-    FLOAT m,fMass,fSoft,x,y,z,vx,vy,vz,ax,ay,az,ft,d2,d2Max,dih2,b,bmin;
+    FLOAT m,fMass,fSoft,x,y,z,vx,vy,vz,ax,ay,az,ft,d2,d2Max,dih2,bmin;
     float *a;
     double *v;
     int pj,d,nDepth,ism;
@@ -636,10 +636,10 @@ void Create(PKD pkd,int iNode) {
 	    ** This gives us a better feel for the "size" of a bucket with only a single particle.
 	    */
 	    *bnd.size = 2.0*(bnd.fMax[0]+bnd.fMax[1]+bnd.fMax[2])/3.0;
+	    pj = pkdn->pLower;
 	    pkdl = pkdTreeNode(pkd,pkdn->iLower);
 	    pkdu = pkdTreeNode(pkd,pkdn->iLower + 1);
-	    pkdCombineCells(pkd,pkdn,pkdl,pkdu);
-	    pj = pkdn->pLower;
+	    pkdCombineCells1(pkd,pkdn,pkdl,pkdu);
 	    if (pkdn->pUpper - pj < NMAX_OPENCALC) {
 		p = pkdParticle(pkd,pj);
 		x = p->r[0] - pkdn->r[0];
@@ -662,31 +662,21 @@ void Create(PKD pkd,int iNode) {
 	    else {
 	      pkdn->bMax = HUGE_VAL;
 	    }
-	    pkdl = pkdTreeNode(pkd,pkdn->iLower);
-	    pkdu = pkdTreeNode(pkd,pkdn->iLower + 1);
-	    pkdCombineCells(pkd,pkdn,pkdl,pkdu);
+	    pkdCombineCells2(pkd,pkdn,pkdl,pkdu);
 	    }
 	++iNode;
 	}
     }
 
 
-
-void pkdCombineCells(PKD pkd,KDN *pkdn,KDN *p1,KDN *p2) {
-    FMOMR mom;
-    SPHBNDS *b1,*b2,*bn;
-    FLOAT m1,m2,x,y,z,ifMass;
-    FLOAT r1[3],r2[3];
+void pkdCombineCells1(PKD pkd,KDN *pkdn,KDN *p1,KDN *p2) {
+    FLOAT m1,m2,ifMass;
     int j;
 
     pBND bnd = pkdNodeBnd(pkd, pkdn);
     pBND p1bnd = pkdNodeBnd(pkd, p1);
     pBND p2bnd = pkdNodeBnd(pkd, p2);
 
-    for (j=0;j<3;++j) {
-	r1[j] = p1->r[j];
-	r2[j] = p2->r[j];
-	}
     if (pkd->oNodeMom) {
 	m1 = pkdNodeMom(pkd,p1)->m;
 	m2 = pkdNodeMom(pkd,p2)->m;
@@ -705,7 +695,7 @@ void pkdCombineCells(PKD pkd,KDN *pkdn,KDN *p1,KDN *p2) {
 	m1 = m2 = 0.5;
 	}
     for (j=0;j<3;++j) {
-	pkdn->r[j] = ifMass*(m1*r1[j] + m2*r2[j]);
+	pkdn->r[j] = ifMass*(m1*p1->r[j] + m2*p2->r[j]);
 	if (pkd->oNodeVelocity)
 	    pkdNodeVel(pkd,pkdn)[j]
 		= ifMass*(m1*pkdNodeVel(pkd,p1)[j] + m2*pkdNodeVel(pkd,p2)[j]);
@@ -727,6 +717,15 @@ void pkdCombineCells(PKD pkd,KDN *pkdn,KDN *p1,KDN *p2) {
     if (0xffffffffu - p1->nActive < p2->nActive) pkdn->nActive = 0xffffffffu; 
     else pkdn->nActive = p1->nActive + p2->nActive;
     BND_COMBINE(bnd,p1bnd,p2bnd);
+    }
+
+
+void pkdCombineCells2(PKD pkd,KDN *pkdn,KDN *p1,KDN *p2) {
+    FMOMR mom;
+    SPHBNDS *b1,*b2,*bn;
+    float x,y,z;
+    int j;
+
     CALCOPEN(pkdn);  /* set bMax */
     /*
     ** Now calculate the reduced multipole moment.
@@ -735,17 +734,17 @@ void pkdCombineCells(PKD pkd,KDN *pkdn,KDN *p1,KDN *p2) {
     */
     if (pkd->oNodeMom) {
 	*pkdNodeMom(pkd,pkdn) = *pkdNodeMom(pkd,p1);
-	x = r1[0] - pkdn->r[0];
-	y = r1[1] - pkdn->r[1];
-	z = r1[2] - pkdn->r[2];
+	x = p1->r[0] - pkdn->r[0];
+	y = p1->r[1] - pkdn->r[1];
+	z = p1->r[2] - pkdn->r[2];
 	momShiftFmomr(pkdNodeMom(pkd,pkdn),p1->bMax,x,y,z);
 
 	momRescaleFmomr(pkdNodeMom(pkd,pkdn),pkdn->bMax,p1->bMax);
 
 	mom = *pkdNodeMom(pkd,p2);
-	x = r2[0] - pkdn->r[0];
-	y = r2[1] - pkdn->r[1];
-	z = r2[2] - pkdn->r[2];
+	x = p2->r[0] - pkdn->r[0];
+	y = p2->r[1] - pkdn->r[1];
+	z = p2->r[2] - pkdn->r[2];
 	momShiftFmomr(&mom,p2->bMax,x,y,z);
 
 	momScaledAddFmomr(pkdNodeMom(pkd,pkdn),pkdn->bMax,&mom,p2->bMax);

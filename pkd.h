@@ -974,7 +974,8 @@ typedef struct CacheStatistics {
 */
 void pkdVATreeBuild(PKD pkd,int nBucket);
 void pkdTreeBuild(PKD pkd,int nBucket,KDN *pkdn,int bExcludeVeryActive);
-void pkdCombineCells(PKD,KDN *pkdn,KDN *p1,KDN *p2);
+void pkdCombineCells1(PKD,KDN *pkdn,KDN *p1,KDN *p2);
+void pkdCombineCells2(PKD,KDN *pkdn,KDN *p1,KDN *p2);
 void pkdDistribCells(PKD,int,KDN *);
 void pkdCalcRoot(PKD,MOMC *);
 void pkdDistribRoot(PKD,MOMC *);
