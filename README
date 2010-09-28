@@ -1,4 +1,4 @@
-			   pkdgrav2m 2.2.2
+			   pkdgrav2 2.2.2
 			  September 4, 2008
 
 		Joachim Stadel <stadel@physik.uzh.ch>
@@ -14,9 +14,9 @@ To compile the code, simply run:
 
 This will build two or three executables:
 
-    pkdgrav2m_null     Single processor version of pkdgrav2m
-    pkdgrav2m_pthread  Version that uses pthreads for parallelization
-    pkdgrav2m_mpi      Version that uses MPI (if mpicc is available)
+    pkdgrav2_null     Single processor version of pkdgrav2
+    pkdgrav2_pthread  Version that uses pthreads for parallelization
+    pkdgrav2_mpi      Version that uses MPI (if mpicc is available)
 
 Configuration
 -------------
@@ -108,7 +108,7 @@ version should be built.  The available versions are:
     pthread		make pthread
     null		make null
 
-To build only the MPI version (pkdgrav2m_mpi), the following command would
+To build only the MPI version (pkdgrav2_mpi), the following command would
 be used:
 
     make mpi
@@ -120,28 +120,28 @@ Running pkdgrav2 is similar for each version with minor differences.  All
 versions take the name of the parameters file, and possibly extra flags
 as follows.
 
-    pkdgrav2m_null
+    pkdgrav2_null
     --------------
     This version takes only a single parameters; the name of the file
     containing the parameters.
 
-	./pkdgrav2m_null simfile.par
+	./pkdgrav2_null simfile.par
 
-    pkdgrav2m_pthread
+    pkdgrav2_pthread
     -----------------
     This version has an optional flag "-sz" which specifies the number of
     processors to use.  If not specified, it defaults to the number of
     CPUs for Linux systems, or one CPU otherwise.  Normally this flag is
     specified, as in:
 
-	./pkdgrav2m_pthread -sz 4 simfile.par
+	./pkdgrav2_pthread -sz 4 simfile.par
 
-    pkdgrav2m_mpi
+    pkdgrav2_mpi
     -------------
     This version is run using the MPI system on the cluster in question.
     Normally this involves a special command (often "mpirun" or "mpiexec"),
     for example:
 
-	mpiexec pkdgrav2m_mpi simfile.par
+	mpiexec pkdgrav2_mpi simfile.par
 
     Consult your cluster documentation on how to run MPI programs.

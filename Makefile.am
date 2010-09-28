@@ -1,30 +1,30 @@
 ACLOCAL_AMFLAGS  = -I m4
 
 EXTRA_DIST = server.py
-EXTRA_PROGRAMS = pkdgrav2m_null
+EXTRA_PROGRAMS = pkdgrav2_null
 TARGETS = null
 
 if HAVE_PTHREAD
-EXTRA_PROGRAMS	+= pkdgrav2m_pthread
+EXTRA_PROGRAMS	+= pkdgrav2_pthread
 TARGETS	+= pthread
-pthread		: pkdgrav2m_pthread
+pthread		: pkdgrav2_pthread
 endif
 
 if HAVE_MPI
-EXTRA_PROGRAMS	+= pkdgrav2m_mpi
+EXTRA_PROGRAMS	+= pkdgrav2_mpi
 TARGETS	+= mpi
 mpi:
-	$(MAKE) CC=@MPICC@ FC=@MPIFC@ $(AM_MAKEFLAGS) pkdgrav2m_mpi
+	$(MAKE) CC=@MPICC@ FC=@MPIFC@ $(AM_MAKEFLAGS) pkdgrav2_mpi
 endif
 
 if HAVE_SISCI
-EXTRA_PROGRAMS += pkdgrav2m_sisci
-sisci		: pkdgrav2m_sisci
+EXTRA_PROGRAMS += pkdgrav2_sisci
+sisci		: pkdgrav2_sisci
 endif
 
 EXTRA_PROGRAMS += tostd tdiff
 
-null	: pkdgrav2m_null
+null	: pkdgrav2_null
 
 all-local: $(TARGETS)
 
@@ -78,97 +78,97 @@ SOURCES += python.c
 noinst_HEADERS += python.h
 endif
 
-pkdgrav2m_null_SOURCES = $(SOURCES) $(MDL)/null/mdl.c
+pkdgrav2_null_SOURCES = $(SOURCES) $(MDL)/null/mdl.c
 noinst_HEADERS += $(MDL)/null/mdl.h
-pkdgrav2m_null_CFLAGS = -I$(MDL)/null/ $(AM_CFLAGS)
-pkdgrav2m_null_LDADD = $(FLIBS)
+pkdgrav2_null_CFLAGS = -I$(MDL)/null/ $(AM_CFLAGS)
+pkdgrav2_null_LDADD = $(FLIBS)
 if USE_EFENCE
 if HAVE_EFENCE_PATH
-pkdgrav2m_null_LDADD += -L @EFENCE_PATH@
+pkdgrav2_null_LDADD += -L @EFENCE_PATH@
 endif
-pkdgrav2m_null_LDADD += -lefence
+pkdgrav2_null_LDADD += -lefence
 endif
 if USE_PYTHON
-pkdgrav2m_null_LDFLAGS = -Xlinker -export-dynamic 
-pkdgrav2m_null_LDADD += -L $(PYTHON_LIB) -lpython$(PYTHON_VER) -ldl -lrt -lutil
-pkdgrav2m_null_CFLAGS += -I $(PYTHON_INC)
+pkdgrav2_null_LDFLAGS = -Xlinker -export-dynamic 
+pkdgrav2_null_LDADD += -L $(PYTHON_LIB) -lpython$(PYTHON_VER) -ldl -lrt -lutil
+pkdgrav2_null_CFLAGS += -I $(PYTHON_INC)
 endif
 if LUSTRE
-pkdgrav2m_null_LDADD += -llustreapi
+pkdgrav2_null_LDADD += -llustreapi
 endif
 
 if HAVE_MPI
-pkdgrav2m_mpi_LDADD =
-pkdgrav2m_mpi_SOURCES = $(SOURCES) $(MDL)/mpi/mdl.c
+pkdgrav2_mpi_LDADD =
+pkdgrav2_mpi_SOURCES = $(SOURCES) $(MDL)/mpi/mdl.c
 noinst_HEADERS += $(MDL)/mpi/mdl.h
-pkdgrav2m_mpi_CFLAGS = -I$(MDL)/mpi/ $(AM_CFLAGS)
+pkdgrav2_mpi_CFLAGS = -I$(MDL)/mpi/ $(AM_CFLAGS)
 if USE_BSC
-pkdgrav2m_mpi_LDADD += -L /gpfs/apps/CEPBATOOLS/mpitrace-devel/64/lib -ldl -lmpitrace_burst
-pkdgrav2m_mpi_CFLAGS += -I/gpfs/apps/CEPBATOOLS/mpitrace-devel/64/include
+pkdgrav2_mpi_LDADD += -L /gpfs/apps/CEPBATOOLS/mpitrace-devel/64/lib -ldl -lmpitrace_burst
+pkdgrav2_mpi_CFLAGS += -I/gpfs/apps/CEPBATOOLS/mpitrace-devel/64/include
 endif
 if USE_GRAFIC
-pkdgrav2m_mpi_CFLAGS += -I@GRAFIC_PATH@
-pkdgrav2m_mpi_LDADD += -L @GRAFIC_PATH@ -lgrafic -lsrfftw_mpi -lsfftw_mpi -lsrfftw -lsfftw -lgfortran
+pkdgrav2_mpi_CFLAGS += -I@GRAFIC_PATH@
+pkdgrav2_mpi_LDADD += -L @GRAFIC_PATH@ -lgrafic -lsrfftw_mpi -lsfftw_mpi -lsrfftw -lsfftw -lgfortran
 #CCLD=mpicxx
 endif
 if USE_EFENCE
 if HAVE_EFENCE_PATH
-pkdgrav2m_mpi_LDADD += -L @EFENCE_PATH@
+pkdgrav2_mpi_LDADD += -L @EFENCE_PATH@
 endif
-pkdgrav2m_mpi_LDADD += -lefence
+pkdgrav2_mpi_LDADD += -lefence
 endif
 if USE_PYTHON
-pkdgrav2m_mpi_LDFLAGS = -Xlinker -export-dynamic 
-pkdgrav2m_mpi_LDADD += -L $(PYTHON_LIB) -lpython$(PYTHON_VER) -ldl -lutil
-pkdgrav2m_mpi_CFLAGS += -I $(PYTHON_INC)
+pkdgrav2_mpi_LDFLAGS = -Xlinker -export-dynamic 
+pkdgrav2_mpi_LDADD += -L $(PYTHON_LIB) -lpython$(PYTHON_VER) -ldl -lutil
+pkdgrav2_mpi_CFLAGS += -I $(PYTHON_INC)
 endif
 if LUSTRE
-pkdgrav2m_mpi_LDADD += -llustreapi
+pkdgrav2_mpi_LDADD += -llustreapi
 endif
 if FFTW
-pkdgrav2m_mpi_LDADD += -lsrfftw_mpi -lsfftw_mpi -lsrfftw -lsfftw
+pkdgrav2_mpi_LDADD += -lsrfftw_mpi -lsfftw_mpi -lsrfftw -lsfftw
 endif
 endif
 
 if HAVE_PTHREAD
-pkdgrav2m_pthread_SOURCES = $(SOURCES) $(MDL)/pthread/mdl.c
+pkdgrav2_pthread_SOURCES = $(SOURCES) $(MDL)/pthread/mdl.c
 noinst_HEADERS += $(MDL)/pthread/mdl.h
-pkdgrav2m_pthread_CFLAGS = -I$(MDL)/pthread/ $(AM_CFLAGS)
-pkdgrav2m_pthread_LDADD = -lpthread
+pkdgrav2_pthread_CFLAGS = -I$(MDL)/pthread/ $(AM_CFLAGS)
+pkdgrav2_pthread_LDADD = -lpthread
 if USE_EFENCE
 if HAVE_EFENCE_PATH
-pkdgrav2m_pthread_LDADD += -L @EFENCE_PATH@
+pkdgrav2_pthread_LDADD += -L @EFENCE_PATH@
 endif
-pkdgrav2m_pthread_LDADD += -lefence
+pkdgrav2_pthread_LDADD += -lefence
 endif
 if USE_PYTHON
-pkdgrav2m_pthread_LDFLAGS = -Xlinker -export-dynamic 
-pkdgrav2m_pthread_LDADD += -L $(PYTHON_LIB) -lpython$(PYTHON_VER) -ldl -lutil
-pkdgrav2m_pthread_CFLAGS += -I $(PYTHON_INC)
+pkdgrav2_pthread_LDFLAGS = -Xlinker -export-dynamic 
+pkdgrav2_pthread_LDADD += -L $(PYTHON_LIB) -lpython$(PYTHON_VER) -ldl -lutil
+pkdgrav2_pthread_CFLAGS += -I $(PYTHON_INC)
 endif
 if LUSTRE
-pkdgrav2m_pthread_LDADD += -llustreapi
+pkdgrav2_pthread_LDADD += -llustreapi
 endif
 endif
 
 if HAVE_SISCI
-pkdgrav2m_sisci_SOURCES = $(SOURCES) $(MDL)/sisci/mdl.c
+pkdgrav2_sisci_SOURCES = $(SOURCES) $(MDL)/sisci/mdl.c
 noinst_HEADERS += $(MDL)/sisci/mdl.h
-pkdgrav2m_sisci_CFLAGS = -I$(MDL)/sisci/ $(AM_CFLAGS) -I$(SISCI_PATH)/include
-pkdgrav2m_sisci_LDADD = -lpthread -L $(SISCI_PATH)/lib64 -lsisci
+pkdgrav2_sisci_CFLAGS = -I$(MDL)/sisci/ $(AM_CFLAGS) -I$(SISCI_PATH)/include
+pkdgrav2_sisci_LDADD = -lpthread -L $(SISCI_PATH)/lib64 -lsisci
 if USE_EFENCE
 if HAVE_EFENCE_PATH
-pkdgrav2m_sisci_LDADD += -L @EFENCE_PATH@
+pkdgrav2_sisci_LDADD += -L @EFENCE_PATH@
 endif
-pkdgrav2m_sisci_LDADD += -lefence
+pkdgrav2_sisci_LDADD += -lefence
 endif
 if USE_PYTHON
-pkdgrav2m_sisci_LDFLAGS = -Xlinker -export-dynamic 
-pkdgrav2m_sisci_LDADD += -L $(PYTHON_LIB) -lpython$(PYTHON_VER) -ldl -lutil
-pkdgrav2m_sisci_CFLAGS += -I $(PYTHON_INC)
+pkdgrav2_sisci_LDFLAGS = -Xlinker -export-dynamic 
+pkdgrav2_sisci_LDADD += -L $(PYTHON_LIB) -lpython$(PYTHON_VER) -ldl -lutil
+pkdgrav2_sisci_CFLAGS += -I $(PYTHON_INC)
 endif
 if LUSTRE
-pkdgrav2m_sisci_LDADD += -llustreapi
+pkdgrav2_sisci_LDADD += -llustreapi
 endif
 endif
 

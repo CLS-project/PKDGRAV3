@@ -5,7 +5,7 @@
 
 Resolved Issues:
 
-pkdgrav2m - 2.2.2
+pkdgrav2 - 2.2.2
 ===============
 
 Reduced memory usage
@@ -18,14 +18,14 @@ Reduced memory usage
 - 0000039: [Tree Build] Hangs during tree build (dpotter) - resolved.
 - 0000053: [Build] make null doesn't work - closed.
 
-pkdgrav2m - 2.2.1
+pkdgrav2 - 2.2.1
 =================
 - 0000024: [Domain] Domain control fractions are not validated at startup (dpotter) - closed.
 - 0000001: [Domain] No output if iWallLimit is reached and we are not at an OutInterval (dpotter) - closed.
 - 0000023: [Gravity] Possible memory corruption (dpotter) - closed.
 - 0000028: [Tree Build] Segfault when assigning to newly SIMD_malloc()'d variable (dpotter) - closed.
 
-pkdgrav2m - 2.2
+pkdgrav2 - 2.2
 ===============
 
 Working SIMD for P-P and non-reallocated ILP and ILC
@@ -37,12 +37,12 @@ Working SIMD for P-P and non-reallocated ILP and ILC
 - 0000008: Creating density files hangs (dpotter) - closed.
 - 0000014: Stops doing domain decomposition on base steps under certain conditions. (stadel) - closed.
 
-pkdgrav2m - 2.1.1
+pkdgrav2 - 2.1.1
 =================
 - 0000017: density was calculated incorrectly when using walk2/grav2.c (stadel) - closed.
 - 0000012: Problem with assertion: nHigh <= nUpperStore at file pst.c - closed.
 
-pkdgrav2m - 2.1
+pkdgrav2 - 2.1
 ===============
 - 0000006: mdlCacheBarrier is missing from pthread and null MDL (dpotter) - closed.
 - 0000007: Local Expansions do not work (dpotter) - closed.
