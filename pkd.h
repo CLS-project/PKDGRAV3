@@ -2,16 +2,16 @@
 #define PKD_HINCLUDED
 
 #include <stdint.h>
-#include <sys/resource.h>
 #include <string.h>
 
 #include "mdl.h"
 #ifndef HAVE_CONFIG_H
 #include "floattype.h"
 #endif
+#ifndef NO_COOLING
 #include "cooling.h" /* before parameters.h */
+#endif
 #include "parameters.h"
-
 #include "ilp.h"
 #include "ilc.h"
 #include "moments.h"
@@ -278,7 +278,6 @@ typedef struct bndBound {
 
 #endif
 
-
 typedef struct {
     double *fCenter;
     double *fMax;
@@ -442,7 +441,8 @@ typedef struct sphBounds {
 #define CALCOPEN(pkdn) {					\
         FLOAT CALCOPEN_d2 = 0;						\
         int CALCOPEN_j;							\
-	pBND CALCOPEN_bnd = pkdNodeBnd(pkd, pkdn);			\
+	pBND CALCOPEN_bnd; \
+	pkdNodeBnd(pkd, pkdn, &CALCOPEN_bnd);			\
         for (CALCOPEN_j=0;CALCOPEN_j<3;++CALCOPEN_j) {                  \
             FLOAT CALCOPEN_d = fabs(CALCOPEN_bnd.fCenter[CALCOPEN_j] - (pkdn)->r[CALCOPEN_j]) + \
                 CALCOPEN_bnd.fMax[CALCOPEN_j];                          \
@@ -600,7 +600,9 @@ typedef struct pkdContext {
     PARTICLE **piActive;
     PARTICLE **piInactive;
     PLITE *pLite;
+#ifndef NO_COOLING
     COOL *Cool; /* Cooling Context */
+#endif
 
     /*
     ** Advanced memory models
@@ -795,11 +797,12 @@ static inline SPHBNDS *pkdNodeSphBounds( PKD pkd, KDN *n ) {
     return pkdNodeField(n,pkd->oNodeSphBounds);
     }
 
-static inline pBND pkdNodeBnd( PKD pkd, KDN *n ) {
+static inline void pkdNodeBnd( PKD pkd, KDN *n, pBND *bnd ) {
     const int o = pkd->oNodeBnd;
     const int e = 3*sizeof(double)*(1+(pkd->oNodeBnd6!=0));
-    pBND t = { pkdNodeField(n,o),pkdNodeField(n,o+e), pkdNodeField(n,o+e+e) };
-    return t;
+    bnd->fCenter = pkdNodeField(n,o);
+    bnd->fMax = pkdNodeField(n,o+e);
+    bnd->size = pkdNodeField(n,o+e+e);
     }
 
 static inline KDN *pkdNode(PKD pkd,KDN *pBase,int iNode) {

@@ -6,10 +6,16 @@
 #define _FILE_OFFSET_BITS 64
 #include <stdio.h>
 #include <stdlib.h>
+#ifdef HAVE_UNISTD_H
 #include <unistd.h> /* for unlink() */
+#endif
 #include <stddef.h>
 #include <string.h>
+#ifdef HAVE_INTTYPES_H
 #include <inttypes.h>
+#else
+#define PRIu64 "llu"
+#endif
 #include <limits.h>
 #include <stdarg.h>
 #ifdef HAVE_MALLOC_H
@@ -17,7 +23,9 @@
 #endif
 #include <assert.h>
 #include <time.h>
+#ifdef HAVE_SYS_TIME_H
 #include <sys/time.h>
+#endif
 #include <math.h>
 #if defined(HAVE_WORDEXP) && defined(HAVE_WORDFREE)
 #include <wordexp.h>
@@ -29,8 +37,6 @@
 #ifdef HAVE_SYS_PARAM_H
 #include <sys/param.h> /* for MAXHOSTNAMELEN, if available */
 #endif
-#include <rpc/types.h>
-#include <rpc/xdr.h>
 
 #include "master.h"
 #include "tipsydefs.h"
@@ -64,10 +70,18 @@ void msrprintf(MSR msr, const char *Format, ... ) {
 	}
     }
 
-
-
-#define NEWTIME
-#ifdef NEWTIME
+#ifdef _MSC_VER
+double msrTime() {
+    FILETIME ft;
+    uint64_t clock;
+    GetSystemTimeAsFileTime(&ft);
+    clock = ft.dwHighDateTime;
+    clock <<= 32;
+    clock |= ft.dwLowDateTime;
+    /* clock is in 100 nano-second units */
+    return clock / 10000000UL;
+    }
+#else
 double msrTime() {
     struct timeval tv;
     struct timezone tz;
@@ -76,10 +90,6 @@ double msrTime() {
     tz.tz_dsttime=0;
     gettimeofday(&tv,NULL);
     return (tv.tv_sec+(tv.tv_usec*1e-6));
-    }
-#else
-double msrTime() {
-    return (1.0*time(0));
     }
 #endif
 
@@ -656,8 +666,11 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
 		sizeof(int),"iRungCoolTableUpdate",
 		"<Rung on which to update cool tables, def. 0>");
     msr->param.bInitTFromCooling = 0;
+
     /* Add any parameters specific to the cooling approach */
+#ifndef NO_COOLING
     CoolAddParams( &msr->param.CoolParam, msr->prm );
+#endif
 
     msr->param.dEtaCourant = 0.4;
     prmAddParam(msr->prm,"dEtaCourant",2,&msr->param.dEtaCourant,sizeof(double),"etaC",
@@ -1178,6 +1191,8 @@ void msrLogParams(MSR msr,FILE *fp) {
     fprintf(fp,"# Compiled: %s %s\n",__DATE__,__TIME__);
 #endif
 #endif
+#ifdef USE_BT
+#endif
     fprintf(fp,"# Preprocessor macros:");
 #ifdef DEBUG
     fprintf(fp," DEBUG");
@@ -1282,7 +1297,9 @@ void msrLogParams(MSR msr,FILE *fp) {
     fprintf(fp," dhMinOverSoft: %g",msr->param.dhMinOverSoft);
     fprintf(fp," dMetalDiffusionCoeff: %g",msr->param.dMetalDiffusionCoeff);
     fprintf(fp," dThermalDiffusionCoeff: %g",msr->param.dThermalDiffusionCoeff);
+#ifndef NO_COOLING
     if (msr->param.bGasCooling) CoolLogParams( &msr->param.CoolParam, fp );
+#endif
     fprintf(fp,"\n# UNITS: dKBoltzUnit: %g",msr->param.dKBoltzUnit);
     fprintf(fp," dMsolUnit: %g",msr->param.dMsolUnit);
     fprintf(fp," dKpcUnit: %g",msr->param.dKpcUnit);
@@ -1583,17 +1600,6 @@ void msrOneNodeRead(MSR msr, struct inReadFile *in) {
     pkdReadFIO(plcl->pkd, fio, 0, nParts[0], in->dvFac, in->dTuFac);
 
     fioClose(fio);
-    }
-
-int xdrHeader(XDR *pxdrs,struct dump *ph) {
-    if (!xdr_double(pxdrs,&ph->time)) return 0;
-    if (!xdr_u_int(pxdrs,&ph->nbodies)) return 0;
-    if (!xdr_u_int(pxdrs,&ph->ndim)) return 0;
-    if (!xdr_u_int(pxdrs,&ph->nsph)) return 0;
-    if (!xdr_u_int(pxdrs,&ph->ndark)) return 0;
-    if (!xdr_u_int(pxdrs,&ph->nstar)) return 0;
-    if (!xdr_u_int(pxdrs,&ph->pad)) return 0;
-    return 1;
     }
 
 double getTime(MSR msr, double dExpansion, double *dvFac) {
@@ -2877,9 +2883,9 @@ static double ddplus(double a,double omegam,double omegav) {
     return 2.5/(eta*eta*eta);
     }
 
+#define MAXLEV 20
 static double Romberg(double a1, double b1, double eps/* = 1e-8*/,
                double omegam,double omegav) {
-    static const int MAXLEV = 20;
     double tllnew;
     double tll;
     double tlk[MAXLEV+1];
@@ -2967,7 +2973,7 @@ double msrAdjustTime(MSR msr, double aOld, double aNew) {
     in.uRungLo = 0;
     in.uRungHi = MAX_RUNG;
     msrprintf(msr,"Drifing particles from Time:%g Redshift:%g to Time:%g Redshift:%g ...\n",
-	      aOld, 1.0/aOld-1.0, aNew, aNew>0 ? 1.0/aNew-1.0 : INFINITY);
+	      aOld, 1.0/aOld-1.0, aNew, aNew>0 ? 1.0/aNew-1.0 : 999999.0);
     msrprintf(msr,"WARNING: This only works if the input file is a Zel'dovich perturbed grid\n");
     in.dDelta = -1.0 / (sqrt(8.0/3.0*M_PI)*dOld );
     pstDrift(msr->pst,&in,sizeof(in),NULL,NULL);
@@ -3560,9 +3566,11 @@ void msrTopStepKDK(MSR msr,
 #endif
 	if (msrDoGas(msr)) {
 	    msrSph(msr,dTime,dStep);  /* dTime = Time at end of kick */
+#ifndef NO_COOLING
 	    msrCooling(msr,dTime,dStep,0,
 		       (iKickRung<=msr->param.iRungCoolTableUpdate ? 1:0),0);
-	    }
+#endif
+	}
 	/*
 	 * move time back to 1/2 step so that KickClose can integrate
 	 * from 1/2 through the timestep to the end.
@@ -4266,8 +4274,10 @@ void msrInitSph(MSR msr,double dTime)
     msrActiveRung(msr,0,1);
     msrSph(msr,dTime,0);
     msrSphStep(msr,0,MAX_RUNG,dTime); /* Requires SPH */
+#ifndef NO_COOLING
     msrCooling(msr,dTime,0,0,1,1); /* Interate cooling for consistent dt */
-    }
+#endif
+}
 
 void msrSph(MSR msr,double dTime, double dStep) {
     double sec,dsec;
@@ -4292,6 +4302,7 @@ void msrSph(MSR msr,double dTime, double dStep) {
     }
 
 
+#ifndef NO_COOLING
 void msrCoolSetup(MSR msr, double dTime)
     {
     struct inCoolSetup in;
@@ -4351,7 +4362,7 @@ void msrCooling(MSR msr,double dTime,double dStep,int bUpdateState, int bUpdateT
 	printf("Cooling Calculated, Wallclock: %f secs\n",  dsec);
 	}
     }
-
+#endif
 
 /* END Gas routines */
 
@@ -4461,12 +4472,6 @@ void msrOutGroups(MSR msr,const char *pszFile,int iOutType, double dTime) {
 	** Add Data Subpath for local and non-local names.
 	*/
 	_msrMakePath(msr->param.achDataSubPath,pszFile,achOutFile);
-
-	fp = fopen(achOutFile,"w");
-	if (!fp) {
-	    printf("Could not open Group Output File:%s\n",achOutFile);
-	    _msrExit(msr,1);
-	    }
 	}
     else {
 	printf("No Group Output File specified\n");
@@ -4488,36 +4493,23 @@ void msrOutGroups(MSR msr,const char *pszFile,int iOutType, double dTime) {
 	}
 
     if (iOutType == OUT_GROUP_TIPSY_NAT || iOutType == OUT_GROUP_TIPSY_STD) {
-	/*
-	** Write tipsy header.
-	*/
-	struct dump h;
-	h.nbodies = msr->nGroups;
-	h.ndark = 0;
-	h.nsph = 0;
-	h.nstar = msr->nGroups;
-	h.time = time;
-	h.ndim = 3;
-
-	if (msrComove(msr)) {
-	    printf("Writing file...\nTime:%g Redshift:%g\n",
-		   dTime,(1.0/h.time - 1.0));
+	FIO fio;
+	fio = fioTipsyCreate(achOutFile,0,iOutType==OUT_GROUP_TIPSY_STD,
+		    time, 0, 0, msr->nGroups, 0L);
+	if (!fio) {
+	    printf("Could not open Group Output File:%s\n",achOutFile);
+	    _msrExit(msr,1);
 	    }
-	else {
-	    printf("Writing file...\nTime:%g\n",dTime);
-	    }
-
-	if (iOutType == OUT_GROUP_TIPSY_STD) {
-	    XDR xdrs;
-	    xdrstdio_create(&xdrs,fp,XDR_ENCODE);
-	    xdrHeader(&xdrs,&h);
-	    xdr_destroy(&xdrs);
-	    }
-	else {
-	    fwrite(&h,sizeof(struct dump),1,fp);
-	    }
+	fioClose(fio);
 	}
-    fclose(fp);
+    else {
+	fp = fopen(achOutFile,"w");
+	if (!fp) {
+	    printf("Could not open Group Output File:%s\n",achOutFile);
+	    _msrExit(msr,1);
+	    }
+        fclose(fp);
+    }
     /*
      * Write the groups.
      */
@@ -5446,7 +5438,11 @@ void msrCalcBound(MSR msr,BND *pbnd) {
 */
 
 void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint) {
+#ifdef _MSC_VER
+    char achFile[MAX_PATH];
+#else
     char achFile[PATH_MAX];
+#endif
     int bSymmetric;
     int nFOFsDone;
     int i;

@@ -6,15 +6,17 @@
 #include <stdlib.h>
 #include <math.h>
 #include <assert.h>
+#ifdef HAVE_INTTYPES_H
 #include <inttypes.h>
+#else
+#define PRIu64 "llu"
+#endif
 #include "pkd.h"
 #include "outtype.h"
 #ifndef HAVE_CONFIG_H
 #include "floattype.h"
 #endif
 #include "tipsydefs.h"
-#include <rpc/types.h>
-#include <rpc/xdr.h>
 #ifdef LARGEF
 #include <fcntl.h>
 #endif
@@ -568,72 +570,22 @@ void pkdOutGroup(PKD pkd,char *pszFileName,int iType, int nStart,double dvFac) {
 	    fprintf(fp,"\n");
 	    }
 	}
-    else if (iType == OUT_GROUP_TIPSY_NAT) {
-
-	struct star_particle sp;
-	fp = fopen(pszFileName,"r+");
-	assert(fp != NULL);
-	/*
-	 ** Seek past the header
-	 */
-	lStart = sizeof(struct dump);
-	fseek(fp,lStart,SEEK_SET);
-
+    else if (iType == OUT_GROUP_TIPSY_NAT || iType == OUT_GROUP_TIPSY_STD) {
+	FIO fio;
+	fio = fioTipsyAppend(pszFileName,0,iType==OUT_GROUP_TIPSY_STD);
+	assert(fio != NULL);
 	for (i=0;i<pkd->nGroups;++i) {
 	    if (pkd->groupData[i].bMyGroup) {
+		double v[3];
 		for (j=0;j<3;++j) {
-		  sp.pos[j] = pkd->groupData[i].r[j];
-		  sp.vel[j] = dvFac*pkd->groupData[i].v[j];
-		}
-		sp.mass = pkd->groupData[i].fMass;
-		sp.eps = pkd->groupData[i].fRMSRadius;
-		sp.tform = 0.0;
-		sp.metals = 0.0;
-		nout = fwrite(&sp,sizeof(struct star_particle),1,fp);
-		mdlassert(pkd->mdl,nout == 1);
+		    v[j] = dvFac*pkd->groupData[i].v[j];
+		    }
+		fioWriteStar(fio,i,pkd->groupData[i].r,v,
+		    pkd->groupData[i].fMass,pkd->groupData[i].fRMSRadius,
+		    0.0, 0.0, 0.0);
 		}
 	    }
-	}
-    else if (iType == OUT_GROUP_TIPSY_STD) {
-
-	float fTmp;
-	XDR xdrs;
-
-	fp = fopen(pszFileName,"r+");
-	assert(fp != NULL);
-	/*
-	 ** Seek past the header
-	 */
-	//lStart = 32;
-	//lStart += nStart*44;
-
-	lStart = sizeof(struct dump);
-	fseek(fp,lStart,SEEK_SET);
-
-	xdrstdio_create(&xdrs,fp,XDR_ENCODE);
-	for (i=0;i<pkd->nGroups;++i) {
-	    if (pkd->groupData[i].bMyGroup) {
-		fTmp = pkd->groupData[i].fMass;
-		xdr_float(&xdrs,&fTmp);
-		for (j=0;j<3;++j) {
-		    fTmp = pkd->groupData[i].r[j];
-		    xdr_float(&xdrs,&fTmp);
-		    }
-		for (j=0;j<3;++j) {
-		    fTmp = dvFac*pkd->groupData[i].v[j];
-		    xdr_float(&xdrs,&fTmp);
-		    }
-		fTmp = 0.0;
-		xdr_float(&xdrs,&fTmp); /* metals */
-		xdr_float(&xdrs,&fTmp); /* t form */
-		fTmp = pkd->groupData[i].fRMSRadius;
-		xdr_float(&xdrs,&fTmp); /* softening eps*/
-		fTmp = 0.0;
-		xdr_float(&xdrs,&fTmp); /* grav. potential phi*/
-		}
-	    }
-	xdr_destroy(&xdrs);
-
+	fioClose(fio);
 	}
     else if (iType == OUT_GROUP_PROFILES) {
 	fp = fopen(pszFileName,"at");

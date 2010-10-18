@@ -261,10 +261,11 @@ struct inReadFile {
     };
 void pstReadFile(PST,void *,int,void *,int *);
 
-
 struct inPeanoHilbertCount {
+    int x;
     };
 struct outPeanoHilbertCount {
+    int x;
     };
 void pstPeanoHilbertCount(PST,void *,int,void *,int *);
 
@@ -814,6 +815,7 @@ struct inDensityStep {
     };
 void pstDensityStep(PST,void *,int,void *,int *);
 
+#ifndef NO_COOLING
 /* PST_COOLSETUP */
 struct inCoolSetup {
     double dGmPerCcUnit;
@@ -852,6 +854,7 @@ struct outCooling {
     int nSum;
     };
 void pstCooling(PST,void *,int,void *,int *);
+#endif
 
 /* PST_CORRECTENERGY */
 struct inCorrectEnergy {

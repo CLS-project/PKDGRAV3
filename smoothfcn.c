@@ -763,21 +763,24 @@ void DistSNEnergy(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf)
 
 void initMeanVel(void *vpkd, void *pvoid) {
     PKD pkd = (PKD)vpkd;
-    assert(pkd);
     PARTICLE *p = pvoid;
-    VELSMOOTH *pvel = pkdField(p,pkd->oVelSmooth);
+    VELSMOOTH *pvel;
     int j;
+    assert(pkd);
+    pvel = pkdField(p,pkd->oVelSmooth);
     for(j=0;j<3;++j) pvel->vmean[j] = 0.0;
     }
 
 void combMeanVel(void *vpkd, void *p1void,void *p2void) {
     PKD pkd = (PKD)vpkd;
-    assert(pkd);
     PARTICLE *p1 = p1void;
     PARTICLE *p2 = p2void;
-    VELSMOOTH *p1vel = pkdField(p1,pkd->oVelSmooth);
-    VELSMOOTH *p2vel = pkdField(p2,pkd->oVelSmooth);
+    VELSMOOTH *p1vel, *p2vel;
     int j;
+
+    assert(pkd);
+    p1vel = pkdField(p1,pkd->oVelSmooth);
+    p2vel = pkdField(p2,pkd->oVelSmooth);
 
     for (j=0;j<3;++j) p1vel->vmean[j] += p2vel->vmean[j];
     }
@@ -837,19 +840,21 @@ void MeanVelSym(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
 
 void initDivv(void *vpkd, void *pvoid) {
     PKD pkd = (PKD)vpkd;
-    assert(pkd);
     PARTICLE *p = pvoid;
-    VELSMOOTH *pvel = pkdField(p,pkd->oVelSmooth);
+    VELSMOOTH *pvel;
+    assert(pkd);
+    pvel = pkdField(p,pkd->oVelSmooth);
     pvel->divv = 0.0;
     }
 
 void combDivv(void *vpkd, void *p1void,void *p2void) {
     PKD pkd = (PKD)vpkd;
-    assert(pkd);
+    VELSMOOTH *p1vel,*p2vel;
     PARTICLE *p1 = p1void;
     PARTICLE *p2 = p2void;
-    VELSMOOTH *p1vel = pkdField(p1,pkd->oVelSmooth);
-    VELSMOOTH *p2vel = pkdField(p2,pkd->oVelSmooth);
+    assert(pkd);
+    p1vel = pkdField(p1,pkd->oVelSmooth);
+    p2vel = pkdField(p2,pkd->oVelSmooth);
     p1vel->divv += p2vel->divv;
     }
 
@@ -909,19 +914,21 @@ void DivvSym(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
 
 void initVelDisp2(void *vpkd, void *pvoid) {
     PKD pkd = (PKD)vpkd;
-    assert(pkd);
     PARTICLE *p = pvoid;
-    VELSMOOTH *pvel = pkdField(p,pkd->oVelSmooth);
+    VELSMOOTH *pvel;
+    assert(pkd);
+    pvel = pkdField(p,pkd->oVelSmooth);
     pvel->veldisp2 = 0.0;
     }
 
 void combVelDisp2(void *vpkd, void *p1void,void *p2void) {
     PKD pkd = (PKD)vpkd;
-    assert(pkd);
     PARTICLE *p1 = p1void;
     PARTICLE *p2 = p2void;
-    VELSMOOTH *p1vel = pkdField(p1,pkd->oVelSmooth);
-    VELSMOOTH *p2vel = pkdField(p2,pkd->oVelSmooth);
+    VELSMOOTH *p1vel,*p2vel;
+    assert(pkd);
+    p1vel = pkdField(p1,pkd->oVelSmooth);
+    p2vel = pkdField(p2,pkd->oVelSmooth);
     p1vel->veldisp2 += p2vel->veldisp2;
     }
 

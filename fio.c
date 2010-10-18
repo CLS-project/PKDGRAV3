@@ -10,7 +10,99 @@
 #include <math.h>
 #include <errno.h>
 #include <sys/stat.h>
+#ifndef NO_XDR
 #include <rpc/xdr.h>
+#else
+typedef struct {
+    FILE *fp;
+    int bEncoding;
+} XDR;
+
+#define XDR_ENCODE 1
+#define XDR_DECODE 2
+
+void xdrstdio_create(XDR *xdr,FILE *fp,int op) {
+    assert(op==XDR_ENCODE || op==XDR_DECODE);
+    xdr->bEncoding = (op==XDR_ENCODE);
+    xdr->fp = fp;
+}
+
+void xdr_destroy(XDR *xdr) {
+}
+
+int xdr_double(XDR *xdr, double *d) {
+    uint64_t v;
+    char c[8];
+    union {
+	double   d;
+	uint64_t v;
+    } u;
+    if (xdr->bEncoding) {
+        u.d = *d;
+	v = u.v;
+	c[0] = (v>>56) & 255;
+	c[1] = (v>>48) & 255;
+	c[2] = (v>>40) & 255;
+	c[3] = (v>>32) & 255;
+	c[4] = (v>>24) & 255;
+	c[5] = (v>>16) & 255;
+	c[6] = (v>>8)  & 255;
+	c[7] = (v>>0)  & 255;
+	return fwrite(c,sizeof(c),1,xdr->fp);
+    }
+    else {
+	if (fread(c,sizeof(c),1,xdr->fp)!=1) return 0;
+	u.v = (c[0]<<56) | (c[1]<<48) | (c[2]<<40) | (c[3]<<32)
+	     | (c[4]<<24) | (c[5]<<16) | (c[6]<<8) | c[7];
+	*d = u.d;
+	return 1;
+    }
+}
+
+int xdr_float(XDR *xdr, float *f) {
+    uint32_t v;
+    char c[4];
+    union {
+	float    f;
+	uint32_t v;
+    } u;
+    if (xdr->bEncoding) {
+        u.f = *f;
+	v = u.v;
+	c[0] = (v>>24) & 255;
+	c[1] = (v>>16) & 255;
+	c[2] = (v>>8)  & 255;
+	c[3] = (v>>0)  & 255;
+	return fwrite(c,sizeof(c),1,xdr->fp);
+    }
+    else {
+	if (fread(c,sizeof(c),1,xdr->fp)!=1) return 0;
+	u.v = (c[0]<<24) | (c[1]<<16) | (c[2]<<8) | c[3];
+	*f = u.f;
+	return 1;
+    }
+}
+
+int xdr_u_int(XDR *xdr, uint32_t *u) {
+    uint32_t v;
+    char c[4];
+    if (xdr->bEncoding) {
+        v = *u;
+	c[0] = (v>>24) & 255;
+	c[1] = (v>>16) & 255;
+	c[2] = (v>>8)  & 255;
+	c[3] = (v>>0)  & 255;
+	return fwrite(c,sizeof(c),1,xdr->fp);
+    }
+    else {
+	if (fread(c,sizeof(c),1,xdr->fp)!=1) return 0;
+	v = (c[0]<<24) | (c[1]<<16) | (c[2]<<8) | c[3];
+	*u = v;
+	return 1;
+    }
+}
+#endif
+
 #if defined(HAVE_WORDEXP) && defined(HAVE_WORDFREE)
 #include <wordexp.h>
 #elif defined(HAVE_GLOB) && defined(HAVE_GLOBFREE)
@@ -1225,7 +1317,11 @@ static FIO tipsyOpen(fioFileList *fileList) {
 	struct stat s;
 	/* The file/directory needs to exist */
 	if ( stat(tio->fio.fileList.fileInfo[i].pszFilename,&s) != 0 ) return NULL;
+#ifdef _MSC_VER
+	if ( !(s.st_mode&_S_IFREG) ) return NULL;
+#else
 	if ( !S_ISREG(s.st_mode) ) return NULL;
+#endif
 	nSize += (nSizes[i] = s.st_size);
 	}
 
@@ -2925,7 +3021,11 @@ static FIO graficOpenDirectory(const char *dirName,double dOmega0,double dOmegab
     ** that a directory was given as input.
     */
     if ( stat(dirName,&s) == 0 ) {
-        if ( !S_ISDIR(s.st_mode) ) {
+#ifdef _MSC_VER
+	if ( !(s.st_mode&_S_IFDIR) ) {
+#else
+	if ( !S_ISDIR(s.st_mode) ) {
+#endif
 	    errno = ENOTDIR;
             return NULL;
 	    }
@@ -3055,7 +3155,11 @@ FIO fioGraficOpenMany(int nFiles, const char * const *dirNames,double dOmega0,do
 	struct stat s;
 	/* The file/directory needs to exist */
 	if ( stat(gio->fio.fileList.fileInfo[i].pszFilename,&s) != 0 ) return NULL;
+#ifdef _MSC_VER
+	if ( !(s.st_mode&_S_IFDIR) ) return NULL;
+#else
 	if ( !S_ISDIR(s.st_mode) ) return NULL;
+#endif
 	}
     gio->nLevels = gio->fio.fileList.nFiles;
     gio->level = malloc(gio->nLevels*sizeof(graficLevel));
@@ -3085,7 +3189,11 @@ FIO fioOpenMany(int nFiles, const char * const *fileNames,
     if ( stat(fileName,&s) != 0 ) return NULL;
 
     /* If given a directory, then it must be a GRAFIC file */
-    if ( S_ISDIR(s.st_mode) ) {
+#ifdef _MSC_VER
+	if ( s.st_mode&_S_IFDIR ) {
+#else
+	if ( S_ISDIR(s.st_mode) ) {
+#endif
 	return graficOpenDirectory(fileName,dOmega0,dOmegab);
 	}
 

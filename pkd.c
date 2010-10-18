@@ -7,17 +7,18 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stddef.h>
-#include <inttypes.h>
 #ifdef HAVE_MALLOC_H
 #include <malloc.h>
 #endif
 #include <math.h>
 #include <assert.h>
 #include <errno.h>
+#ifdef HAVE_SYS_TIME_H
 #include <sys/time.h>
-#include <rpc/types.h>
-#include <rpc/xdr.h>
-
+#endif
+#ifdef HAVE_SYS_TYPES_H
+#include <sys/types.h>
+#endif
 #include "pkd.h"
 #include "ewald.h"
 #include "walk.h"
@@ -72,23 +73,40 @@ void pkdStartTimer(PKD pkd,int iTimer) {
     pkd->ti[iTimer].iActive++;
 
     if (pkd->ti[iTimer].iActive == 1) {
-	pkd->ti[iTimer].stamp = mdlCpuTimer(pkd->mdl);
+#ifdef _MSC_VER
+        FILETIME ft;
+        uint64_t clock;
+	GetSystemTimeAsFileTime(&ft);
+	clock = ft.dwHighDateTime;
+	clock <<= 32;
+	clock |= ft.dwLowDateTime;
+	/* clock is in 100 nano-second units */
+	pkd->ti[iTimer].wallclock_stamp = clock / 10000000UL;
+#else
 	gettimeofday(&tv,NULL);
 	pkd->ti[iTimer].wallclock_stamp = tv.tv_sec + 1e-6*(double) tv.tv_usec;
-	    {
+#endif
+	pkd->ti[iTimer].stamp = mdlCpuTimer(pkd->mdl);
+#ifdef __linux__
+	{
 	    struct rusage ru;
 
 	    getrusage(0,&ru);
 	    pkd->ti[iTimer].system_stamp = (double)ru.ru_stime.tv_sec + 1e-6*(double)ru.ru_stime.tv_usec;
 	    }
+#endif
 	}
     }
 
 
 void pkdStopTimer(PKD pkd,int iTimer) {
     double sec;
+#ifdef _MSC_VER
+    FILETIME ft;
+    uint64_t clock;
+#else
     struct timeval tv;
-
+#endif
     sec = -pkd->ti[iTimer].stamp;
     pkd->ti[iTimer].stamp = mdlCpuTimer(pkd->mdl);
     sec += pkd->ti[iTimer].stamp;
@@ -96,13 +114,23 @@ void pkdStopTimer(PKD pkd,int iTimer) {
     pkd->ti[iTimer].sec += sec;
 
     sec = -pkd->ti[iTimer].wallclock_stamp;
-    gettimeofday( &tv, NULL );
-    pkd->ti[iTimer].wallclock_stamp = tv.tv_sec + 1e-6*(double)tv.tv_usec;
+
+#ifdef _MSC_VER
+    GetSystemTimeAsFileTime(&ft);
+    clock = ft.dwHighDateTime;
+    clock <<= 32;
+    clock |= ft.dwLowDateTime;
+    /* clock is in 100 nano-second units */
+    pkd->ti[iTimer].wallclock_stamp = clock / 10000000UL;
+#else
+    gettimeofday(&tv,NULL);
+    pkd->ti[iTimer].wallclock_stamp = tv.tv_sec + 1e-6*(double) tv.tv_usec;
+#endif
     sec += pkd->ti[iTimer].wallclock_stamp;
     if (sec < 0.0) sec = 0.0;
     pkd->ti[iTimer].wallclock_sec += sec;
 
-#ifndef _CRAYMPP
+#ifdef __linux__
 	{
 	struct rusage ru;
 
@@ -519,7 +547,9 @@ void pkdInitialize(
     pkd->nCritBins = 0;
     pkd->dCritThetaMin = 0.0;
 
+#ifndef NO_COOLING
     pkd->Cool = CoolInit();
+#endif
     assert(pkdNodeSize(pkd) > 0);
     }
 
@@ -657,6 +687,7 @@ void pkdSetClasses( PKD pkd, int n, PARTCLASS *pClass, int bUpdate ) {
 void pkdSeek(PKD pkd,FILE *fp,uint64_t nStart,int bStandard,int bDoublePos) {
 #ifndef HAVE_FSEEKO
     off_t MAX_OFFSET = 2147483640;
+    int iErr;
 #endif
     off_t lStart;
 
@@ -990,9 +1021,9 @@ uint64_t hilbert3d(float x,float y,float z) {
     uint64_t s = 0;
     uint32_t m,ux,uy,uz,ut;
 
-    ux = (UNION_CAST(x,float,uint32_t))>>2;
-    uy = (UNION_CAST(y,float,uint32_t))>>2;
-    uz = (UNION_CAST(z,float,uint32_t))>>2;
+    ux = (*(uint32_t*)&x)>>2;
+    uy = (*(uint32_t*)&y)>>2;
+    uz = (*(uint32_t*)&z)>>2;
 
     m = 0x00100000;
 
@@ -1724,6 +1755,7 @@ uint32_t pkdWriteFIO(PKD pkd,FIO fio,double dvFac) {
 	    assert(pkd->param.dTuFac>0.0);
 		{
 		double T, E;
+#ifndef NO_COOLING
 		COOLPARTICLE cp;
 		if (pkd->param.bGasCooling) {
 		    E = pSph->u;
@@ -1731,6 +1763,9 @@ uint32_t pkdWriteFIO(PKD pkd,FIO fio,double dvFac) {
 					    &cp, &E, &T, p->fDensity, pSph->fMetals );
 		    }
 		else T = pSph->u/pkd->param.dTuFac;
+#else
+		T = pSph->u/pkd->param.dTuFac;
+#endif
 		fioWriteSph(fio,iOrder,p->r,v,fMass,fSoft,*pPot,
 			    p->fDensity,T,pSph->fMetals);
 		}
@@ -2640,14 +2675,14 @@ void pkdAccelStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,
 		dT = dEta*sqrt(fSoft/acc);
 		}
 	    if (bSqrtPhi) {
+		double dtemp;
 		/*
 		** NOTE: The factor of 3.5 keeps this criterion in sync
 		** with DensityStep. The nominal value of dEta for both
 		** cases is then 0.02-0.03.
 		*/
 		pPot = pkdPot(pkd,p);
-		double dtemp =
-		    dEta*3.5*sqrt(dAccFac*fabs(*pPot))/acc;
+		dtemp = dEta*3.5*sqrt(dAccFac*fabs(*pPot))/acc;
 		if (dtemp < dT)
 		    dT = dtemp;
 		}
@@ -2697,9 +2732,16 @@ void pkdSphStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,double dAccFac) {
 		if (!(p->iOrder%10000) || (p->uNewRung > 5 && !(p->iOrder%1000))) {
 		    SPHFIELDS *sph = pkdSph(pkd,p);
 		    double T, E = sph->u;
-		    COOLPARTICLE cp;
+#ifndef NO_COOLING
 		    if (pkd->param.bGasIsothermal) T = E/pkd->param.dTuFac;
-		    else CoolTempFromEnergyCode( pkd->Cool, &cp, &E, &T, p->fDensity, sph->fMetals );
+		    else {
+			COOLPARTICLE cp;
+			CoolTempFromEnergyCode( pkd->Cool, &cp, &E, &T, p->fDensity, sph->fMetals );
+		    }
+
+#else
+		    T = E/pkd->param.dTuFac;
+#endif
 //		    printf("RUNG %d: grav+sph %d acc %d udot %d final %d (prev %d)\nRUNG %d: dens %16.10g temp %g r %g\n",p->iOrder,u1,u2,u3,(int) p->uNewRung,p->uRung, p->iOrder, p->fDensity, T, sqrt(p->r[0]*p->r[0]+p->r[1]*p->r[1]));
 		    }
 		}
@@ -2718,7 +2760,9 @@ void pkdStarForm(PKD pkd, double dRateCoeff, double dTMax, double dDenMin,
 		 int *nDeleted) /* gas particles deleted */ {
 
     PARTICLE *p;
+#ifndef NO_COOLING
     COOLPARTICLE cp;
+#endif
     SPHFIELDS *sph;
     double T, E, dmstar, dt, prob;
     PARTICLE *starp;
@@ -2744,9 +2788,13 @@ void pkdStarForm(PKD pkd, double dRateCoeff, double dTMax, double dDenMin,
 	    pkdStar(pkd,p)->totaltime += dt;
 	    if (p->fDensity < dDenMin || (bdivv && sph->divv >= 0.0)) continue;
 	    E = sph->uPred;
+#ifndef NO_COOLING
 	    if (pkd->param.bGasCooling) 
 		CoolTempFromEnergyCode( pkd->Cool, &cp, &E, &T, p->fDensity, sph->fMetals );
 	    else T=E/pkd->param.dTuFac;
+#else
+	    T=E/pkd->param.dTuFac;
+#endif
 	    if (T > dTMax) continue;
 	    
             /* Note: Ramses allows for multiple stars per step -- but we have many particles
@@ -2807,7 +2855,9 @@ void pkdCooling(PKD pkd, double dTime, double z, int bUpdateState, int bUpdateTa
     PARTICLE *p;
     int i;
     SPHFIELDS *sph;
+#ifndef NO_COOLING
     COOLPARTICLE cp;  /* Dummy: Not yet fully implemented */
+#endif
     double E,dt,ExternalHeating;
   
     pkdClearTimer(pkd,1);
@@ -2823,8 +2873,9 @@ void pkdCooling(PKD pkd, double dTime, double z, int bUpdateState, int bUpdateTa
 	}
     else {
 
+#ifndef NO_COOLING
 	CoolSetTime( pkd->Cool, dTime, z, bUpdateTable );
-	
+#endif	
 	if (bIterateDt) { /* Iterate Cooling & dt for each particle */
 	    for (i=0;i<pkdLocal(pkd);++i) {
 		p = pkdParticle(pkd,i);
@@ -2837,7 +2888,9 @@ void pkdCooling(PKD pkd, double dTime, double z, int bUpdateState, int bUpdateTa
 			
 			E = sph->u;
 			dt = pkd->param.dDelta/(1<<p->uNewRung); /* Rung Guess */
+#ifndef NO_COOLING
 			CoolIntegrateEnergyCode(pkd->Cool, &cp, &E, ExternalHeating, p->fDensity, sph->fMetals, p->r, dt);
+#endif
 			uDot = (E-sph->u)/dt; 
 			if (uDot < 0) {
 			    double dtNew;
@@ -2868,7 +2921,9 @@ void pkdCooling(PKD pkd, double dTime, double z, int bUpdateState, int bUpdateTa
 		    ExternalHeating = sph->uDot;
 		    E = sph->u;
 		    dt = pkd->param.dDelta/(1<<p->uRung); /* Actual Rung */
+#ifndef NO_COOLING
 		    CoolIntegrateEnergyCode(pkd->Cool, &cp, &E, ExternalHeating, p->fDensity, sph->fMetals, p->r, dt);
+#endif
 		    sph->uDot = (E-sph->u)/dt; /* To let us interpolate/extrapolate uPred */
 		    }
 		}
@@ -2882,13 +2937,16 @@ void pkdCorrectEnergy(PKD pkd, double dTuFac, double z, double dTime, int iDirec
     PARTICLE *p;
     SPHFIELDS *sph;
     int i;
-    COOL *cl;
     double T,E;
+#ifndef NO_COOLING
+    COOL *cl;
     COOLPARTICLE cp; /* Dummy for now */
+#endif
 
+#ifndef NO_COOLING
     cl = pkd->Cool;
     CoolSetTime( cl, dTime, z, 1 );
-
+#endif
     switch(iDirection)  {
     case CORRECTENERGY_IN:
 	for(i=0;i<pkdLocal(pkd);++i) {
@@ -2896,7 +2954,9 @@ void pkdCorrectEnergy(PKD pkd, double dTuFac, double z, double dTime, int iDirec
 	    if (pkdIsGas(pkd,p)) {
 		sph = pkdSph(pkd,p);
 		T = sph->u/dTuFac;
+#ifndef NO_COOLING
 		CoolEnergyCodeFromTemp( cl, &cp, &E, &T, p->fDensity, sph->fMetals );
+#endif
 		sph->u = E;
 		sph->uPred = E;
 		pkdStar(pkd,p)->totaltime = dTime;
@@ -2910,7 +2970,9 @@ void pkdCorrectEnergy(PKD pkd, double dTuFac, double z, double dTime, int iDirec
 	    if (pkdIsGas(pkd,p)) {
 		sph = pkdSph(pkd,p);
 		E = sph->u;
+#ifndef NO_COOLING
 		CoolTempFromEnergyCode( cl, &cp, &E, &T, p->fDensity, sph->fMetals );
+#endif
 		sph->u = T*dTuFac;
 		sph->uPred = T*dTuFac;
 		}
@@ -2922,7 +2984,9 @@ void pkdCorrectEnergy(PKD pkd, double dTuFac, double z, double dTime, int iDirec
 	    if (pkdIsGas(pkd,p)) {
 		sph = pkdSph(pkd,p);
 		T = sph->u/dTuFac; 
+#ifndef NO_COOLING
 		CoolInitEnergyCode( cl, &cp, &E, &T, p->fDensity, sph->fMetals );
+#endif
 		sph->u = E;
 		sph->uPred = E;
 		}
@@ -2952,7 +3016,7 @@ uint8_t pkdDtToRung(double dT, double dDelta, uint8_t uMaxRung) {
     double dRung;
 
     assert(dT>0.0);
-    dRung = log2(dDelta/dT);
+    dRung = log(dDelta/dT) / M_LN2;
     dRung = (dRung > 0)?dRung:0;
     if (dRung > (double)uMaxRung) return(uMaxRung);
     else return((uint8_t)floor(dRung));

@@ -17,6 +17,11 @@
 #define ATTRIBUTE_ALIGNED_ALIGNOF(m)
 #endif
 
+#ifdef _MSC_VER
+#define __SSE__
+#define __SSE2__
+#endif
+
 #if defined(__SSE__)
 #include <xmmintrin.h>
 #ifdef __SSE2__

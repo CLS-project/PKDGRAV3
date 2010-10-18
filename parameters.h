@@ -113,7 +113,9 @@ struct parameters {
     double dhMinOverSoft;
     double dMetalDiffusionCoeff;
     double dThermalDiffusionCoeff;
+#ifndef NO_COOLING
     COOLPARAM CoolParam;
+#endif
     /* StarForm and Feedback */
     double SFdEfficiency;
     double SFdTMax;

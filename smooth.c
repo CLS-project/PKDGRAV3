@@ -544,10 +544,10 @@ PQ *pqSearchLocal(SMX smx,PQ *pq,FLOAT r[3],int *pbDone) {
 	*/
 	while (kdn->iLower) {
 	    kdn = pkdTreeNode(pkd,iCell = kdn->iLower);
-            bnd = pkdNodeBnd(pkd, kdn);
+            pkdNodeBnd(pkd, kdn, &bnd);
 	    MINDIST(bnd,r,min1);
 	    kdn = pkdTreeNode(pkd,++iCell);
-            bnd = pkdNodeBnd(pkd, kdn);
+            pkdNodeBnd(pkd, kdn, &bnd);
 	    MINDIST(bnd,r,min2);
 	    if (min1 < min2) {
 		Smin[sm++] = min2;
@@ -596,7 +596,7 @@ PQ *pqSearchLocal(SMX smx,PQ *pq,FLOAT r[3],int *pbDone) {
 		/*
 		** Containment Test!
 		*/
-                bnd = pkdNodeBnd(pkd, kdn);
+                pkdNodeBnd(pkd, kdn, &bnd);
 		for (j=0;j<3;++j) {
 		    dMin = bnd.fMax[j] - fabs(bnd.fCenter[j] - r[j]);
 		    if (dMin*dMin < pq->fDist2 || dMin < 0) {
@@ -619,7 +619,7 @@ PQ *pqSearchLocal(SMX smx,PQ *pq,FLOAT r[3],int *pbDone) {
 	*/
 	if (sm) min2 = Smin[--sm];
 	else {
-            bnd = pkdNodeBnd(pkd, kdn);
+            pkdNodeBnd(pkd, kdn, &bnd);
 	    MINDIST(bnd,r,min2);
 	}
 	if (min2 >= pq->fDist2) {
@@ -662,11 +662,11 @@ PQ *pqSearchRemote(SMX smx,PQ *pq,int id,FLOAT r[3]) {
 	    kdn = pkdTreeNode(pkd,iCell = pkdn->iLower);
 	    mdlRelease(mdl,CID_CELL,pkdn);
 	    pkdn = mdlAquire(mdl,CID_CELL,iCell,id);
-            bnd = pkdNodeBnd(pkd, pkdn);
+            pkdNodeBnd(pkd, pkdn, &bnd);
 	    MINDIST(bnd,r,min1);
 	    kdn = pkdTreeNode(pkd,++iCell);
 	    pkdu = mdlAquire(mdl,CID_CELL,iCell,id);
-            bnd = pkdNodeBnd(pkd, pkdu);
+            pkdNodeBnd(pkd, pkdu, &bnd);
 	    MINDIST(bnd,r,min2);
 	    if (min1 < min2) {
 		Smin[sm++] = min2;
@@ -732,7 +732,7 @@ PQ *pqSearchRemote(SMX smx,PQ *pq,int id,FLOAT r[3]) {
 	*/
 	if (sm) min2 = Smin[--sm];
 	else {
-            bnd = pkdNodeBnd(pkd, pkdn);
+            pkdNodeBnd(pkd, pkdn, &bnd);
 	    MINDIST(bnd,r,min2);
 	}
 	if (min2 >= pq->fDist2) {
@@ -773,10 +773,10 @@ PQ *pqSearch(SMX smx,PQ *pq,FLOAT r[3],int bReplica,int *pbDone) {
 	*/
 	while (kdn->iLower) {
 	    kdn = pkdTopNode(pkd,iCell = kdn->iLower);
-            bnd = pkdNodeBnd(pkd, kdn);
+            pkdNodeBnd(pkd, kdn, &bnd);
 	    MINDIST(bnd,r,min1);
 	    kdn = pkdTopNode(pkd,++iCell);
-            bnd = pkdNodeBnd(pkd, kdn);
+            pkdNodeBnd(pkd, kdn, &bnd);
 	    MINDIST(bnd,r,min2);
 	    if (min1 < min2) {
 		Smin[sm++] = min2;
@@ -806,7 +806,7 @@ PQ *pqSearch(SMX smx,PQ *pq,FLOAT r[3],int bReplica,int *pbDone) {
 		/*
 		** Containment Test!
 		*/
-                bnd = pkdNodeBnd(pkd, kdn);
+                pkdNodeBnd(pkd, kdn, &bnd);
 		for (j=0;j<3;++j) {
 		    dMin = bnd.fMax[j] - fabs(bnd.fCenter[j] - r[j]);
 		    if (dMin*dMin < pq->fDist2 || dMin < 0) {
@@ -831,7 +831,7 @@ PQ *pqSearch(SMX smx,PQ *pq,FLOAT r[3],int bReplica,int *pbDone) {
 	*/
 	if (sm) min2 = Smin[--sm];
 	else {
-            bnd = pkdNodeBnd(pkd, kdn);
+            pkdNodeBnd(pkd, kdn, &bnd);
 	    MINDIST(bnd,r,min2);
 	}
 	if (min2 >= pq->fDist2) {
@@ -2501,7 +2501,7 @@ void smGatherLocal(SMX smx,FLOAT fBall2,FLOAT r[3]) {
     nCnt = smx->nnListSize;
     kdn = pkdTreeNode(pkd,iCell = ROOT);
     while (1) {
-        bnd = pkdNodeBnd(pkd, kdn);
+        pkdNodeBnd(pkd, kdn, &bnd);
 	MINDIST(bnd,r,min2);
 	if (min2 > fBall2) {
 	    goto NoIntersect;
@@ -2565,7 +2565,7 @@ void smGatherRemote(SMX smx,FLOAT fBall2,FLOAT r[3],int id) {
     iCell = ROOT;
     pkdn = mdlAquire(mdl,CID_CELL,iCell,id);
     while (1) {
-        bnd = pkdNodeBnd(pkd, pkdn);
+        pkdNodeBnd(pkd, pkdn, &bnd);
 	MINDIST(bnd,r,min2);
 	if (min2 > fBall2) {
 	    goto NoIntersect;
@@ -2634,7 +2634,7 @@ void smGather(SMX smx,FLOAT fBall2,FLOAT r[3]) {
 
     kdn = pkdTopNode(pkd,iCell = ROOT);
     while (1) {
-        bnd = pkdNodeBnd(pkd, kdn);
+        pkdNodeBnd(pkd, kdn, &bnd);
 	MINDIST(bnd,r,min2);
 	if (min2 > fBall2) {
 	    goto NoIntersect;
@@ -2675,7 +2675,7 @@ void smDoGatherLocal(SMX smx,FLOAT fBall2,FLOAT r[3],void (*Do)(SMX,PARTICLE *,F
     nCnt = smx->nnListSize;
     kdn = pkdTreeNode(pkd,iCell = ROOT);
     while (1) {
-        bnd = pkdNodeBnd(pkd, kdn);
+        pkdNodeBnd(pkd, kdn, &bnd);
 	MINDIST(bnd,r,min2);
 	if (min2 > fBall2) {
 	    goto NoIntersect;

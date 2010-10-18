@@ -6,7 +6,11 @@
 #include <stdlib.h>
 #include <stddef.h>
 #include <stdint.h>
+#ifdef HAVE_INTTYPES_H
 #include <inttypes.h>
+#else
+#define PRIu64 "llu"
+#endif
 #ifdef HAVE_MALLOC_H
 #include <malloc.h>
 #endif

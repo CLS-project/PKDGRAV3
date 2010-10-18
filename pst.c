@@ -14,7 +14,11 @@
 #endif
 #include <assert.h>
 #include <stdint.h>
+#ifdef HAVE_INTTYPES_H
 #include <inttypes.h>
+#else
+#define PRIu64 "llu"
+#endif
 #ifdef __linux__
 #include <unistd.h>
 #endif
@@ -335,12 +339,14 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_DENSITYSTEP,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstDensityStep,
 		  sizeof(struct inDensityStep),0);
+#ifndef NO_COOLING
     mdlAddService(mdl,PST_COOLSETUP,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstCoolSetup,
 		  sizeof(struct inCoolSetup),0);
     mdlAddService(mdl,PST_COOLING,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstCooling,
 		  sizeof(struct inCooling),sizeof(struct outCooling));
+#endif
     mdlAddService(mdl,PST_CORRECTENERGY,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstCorrectEnergy,
 		  sizeof(struct inCorrectEnergy),0);
@@ -1609,6 +1615,7 @@ void pstDomainDecomp(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
 	}
     else {
+	float offs;
 	/*
 	** We always set plcl->pkd->bnd from pst->bnd.
 	*/
@@ -1619,7 +1626,7 @@ void pstDomainDecomp(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 		);*/
 
 	plcl->pkd->bnd = pst->bnd;   /* This resets the local bounding box, but doesn't squeeze! */
-        float offs = 0.5 / (plcl->pkd->nLocal*1.0 - 1.0);
+        offs= 0.5 / (plcl->pkd->nLocal*1.0 - 1.0);
 #ifdef USE_PSD
         for (j=0; j < 6; j++) {
             pst->bnd.fMax[j] += offs;
@@ -3303,6 +3310,7 @@ pstDensityStep(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     if (pnOut) *pnOut = 0;
     }
 
+#ifndef NO_COOLING
 void pstCoolSetup(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     {
     LCL *plcl = pst->plcl;
@@ -3318,7 +3326,7 @@ void pstCoolSetup(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 	(plcl->pkd->Cool)->mdl = plcl->pkd->mdl;
 #endif
 	CoolSetup((plcl->pkd->Cool),in->dGmPerCcUnit, in->dComovingGmPerCcUnit, in->dErgPerGmUnit, in->dSecUnit, in->dKpcUnit, in->dOmega0, in->dHubble0, in->dLambda, in->dOmegab, in->dOmegaRad, in->a, in->z, in->dTime, in->CoolParam);
-	}
+    }
     if (pnOut) *pnOut = 0;
     }
 
@@ -3350,6 +3358,7 @@ void pstCooling(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 
     if (pnOut) *pnOut = sizeof(struct outCooling);
     }
+#endif
 
 void pstCorrectEnergy(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     {
@@ -4069,7 +4078,7 @@ void pstMemStatus(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	** Now merge valid elements of outUp to out.
 	*/
 	for (id=0;id<nThreads;++id) {
-	    if (outUp[id].vsize)
+	    if (outUp[id].nCheck)
 		out[id] = outUp[id];
 	    }
 	free(outUp);
@@ -4079,7 +4088,7 @@ void pstMemStatus(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	char buffer[1024], *f;
 	int i;
 
-	for (id=0;id<nThreads;++id) out[id].vsize = 0;
+	for (id=0;id<nThreads;++id) out[id].nCheck = 0;
 	id = pst->idSelf;
 
 #ifdef __linux__

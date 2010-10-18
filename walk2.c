@@ -38,6 +38,7 @@ static inline int iOpenOutcome(PKD pkd,KDN *k,CELT *check,KDN **pc,double dTheta
     int T1,iCell;
     int iOpen,iOpenA,iOpenB;
     int nc, nk, max_pp;
+    pBND cbnd,kbnd;
 
     max_pp = 2 * pkd->param.nBucket;
 
@@ -61,8 +62,8 @@ static inline int iOpenOutcome(PKD pkd,KDN *k,CELT *check,KDN **pc,double dTheta
     nk = k->pUpper - k->pLower + 1;
     if (nk>max_pp) nk = max_pp;
 
-    pBND cbnd = pkdNodeBnd(pkd, c);
-    pBND kbnd = pkdNodeBnd(pkd, k);
+    pkdNodeBnd(pkd, c, &cbnd);
+    pkdNodeBnd(pkd, k, &kbnd);
 
     *pc = c;
     if (pkdNodeMom(pkd,c)->m <= 0) iOpen = 10;  /* ignore this cell */
@@ -299,12 +300,13 @@ static inline int iOpenOutcomeOld(PKD pkd,KDN *k,CELT *check,KDN **pc,double dTh
     KDN *c;
     int nc,j;
     int iOpen,iOpenA,iOpenB;
+    pBND kbnd,cbnd;
         
     nc = getCheckCell(pkd,check,pc);
     c = *pc;
 
-    pBND kbnd = pkdNodeBnd(pkd,k);
-    pBND cbnd = pkdNodeBnd(pkd,c);
+    pkdNodeBnd(pkd,k,&kbnd);
+    pkdNodeBnd(pkd,c,&cbnd);
 
     if (pkdNodeMom(pkd,c)->m <= 0) iOpen = 10;  /* ignore this cell */
     else {
@@ -369,6 +371,7 @@ static inline int iOpenOutcomeBarnesHut(PKD pkd,KDN *k,CELT *check,KDN **pc,doub
     int iCell,nc;
     int iOpenA;
     int j;
+    pBND kbnd;
 
     assert(check->iCell > 0);
     iCell = check->iCell;
@@ -386,7 +389,7 @@ static inline int iOpenOutcomeBarnesHut(PKD pkd,KDN *k,CELT *check,KDN **pc,doub
 	nc = c->pUpper - c->pLower + 1;
 	}
 
-    pBND kbnd = pkdNodeBnd(pkd, k);
+    pkdNodeBnd(pkd, k, &kbnd);
     *pc = c;
 
     cOpen2 = c->bMax * c->bMax / (dThetaMin*dThetaMin);

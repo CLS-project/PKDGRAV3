@@ -10,7 +10,9 @@
 #include <stddef.h>
 #include <assert.h>
 #include <time.h>
+#ifdef HAVE_SYS_TIME_H
 #include <sys/time.h>
+#endif
 #include "pkd.h"
 #include "moments.h"
 #include "meval.h"
@@ -60,7 +62,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,FLOCR *
     KDN *pkdn = pBucket;
     double *v, *vTmp;
     double vx,vy,vz;
-    pBND bnd = pkdNodeBnd(pkd, pkdn);
+    pBND bnd;
     float *a, *pPot;
     float ax,ay,az,fPot;
     float d2,dir,dir2;
@@ -98,6 +100,9 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,FLOCR *
 
     assert(pkd->oPotential);
     assert(pkd->oAcceleration);
+
+    pkdNodeBnd(pkd, pkdn, &bnd);
+
     /*
     ** Now process the two interaction lists for each active particle.
     */

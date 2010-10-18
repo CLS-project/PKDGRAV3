@@ -609,12 +609,12 @@ int pkdFindProcessor(const PKD pkd, const FLOAT *R) {
     pBND bnd;
 
     iCell = ROOT;
-    bnd = pkdNodeBnd(pkd, pkdTopNode(pkd,iCell));
+    pkdNodeBnd(pkd, pkdTopNode(pkd,iCell), &bnd);
     assert ( IN_BND(R,&bnd) );
 
     /* Descend the tree until we find the processor for point R */
     while( (iLower=pkdTopNode(pkd,iCell)->iLower) ) {
-        bnd = pkdNodeBnd(pkd, pkdTopNode(pkd,++iCell));
+        pkdNodeBnd(pkd, pkdTopNode(pkd,++iCell), &bnd);
 	if ( !IN_BND(R,&bnd) ) iCell = iLower;
 	}
 

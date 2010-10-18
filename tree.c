@@ -18,8 +18,9 @@
 #ifdef USE_BSC
 #include "mpitrace_user_events.h"
 #endif
+#ifdef HAVE_SYS_TIME_H
 #include <sys/time.h>
-
+#endif
 
 
 void InitializeParticles(PKD pkd,int bExcludeVeryActive,BND *pbnd) {
@@ -27,6 +28,7 @@ void InitializeParticles(PKD pkd,int bExcludeVeryActive,BND *pbnd) {
     PLITE t;
     PARTICLE *p;
     KDN *pNode;
+    pBND bnd;
     int i,j;
 
     /*
@@ -80,7 +82,7 @@ void InitializeParticles(PKD pkd,int bExcludeVeryActive,BND *pbnd) {
 	pkd->nVeryActive = pkd->nLocal - i;
 
 	pNode = pkdTreeNode(pkd,VAROOT);
-        pBND bnd = pkdNodeBnd(pkd, pNode);
+        pkdNodeBnd(pkd, pNode, &bnd);
 	if (pkd->nVeryActive > 0)
 	    /*   printf("%d:nVeryActive = %d\n",mdlSelf(pkd->mdl),pkd->nVeryActive);*/
 	    /*
@@ -103,7 +105,7 @@ void InitializeParticles(PKD pkd,int bExcludeVeryActive,BND *pbnd) {
     pNode->iParent = 0;
     pNode->pLower = 0;
     pNode->pUpper = pkd->nLocal - pkd->nVeryActive - 1;
-    pBND bnd = pkdNodeBnd(pkd, pNode);
+    pkdNodeBnd(pkd, pNode, &bnd);
     for (j=0;j<3;++j) {
 	bnd.fCenter[j] = pbnd->fCenter[j];
 	bnd.fMax[j] = pbnd->fMax[j];
@@ -120,7 +122,7 @@ void InitializeParticles(PKD pkd,int bExcludeVeryActive,BND *pbnd) {
 void BuildTemp(PKD pkd,int iNode,int M) {
     PLITE *p = pkd->pLite;
     KDN *pNode = pkdTreeNode(pkd,iNode);
-    pBND bnd = pkdNodeBnd(pkd,pNode);
+    pBND bnd,lbnd,rbnd;
     KDN *pLeft, *pRight;
     PLITE t;
     FLOAT fSplit;
@@ -132,6 +134,8 @@ void BuildTemp(PKD pkd,int iNode,int M) {
     int nr,nl;
     int lc,rc;
     int nBucket = 0;
+
+    pkdNodeBnd(pkd,pNode,&bnd);
 
     /*
     ** Allocate stack!
@@ -224,8 +228,8 @@ void BuildTemp(PKD pkd,int iNode,int M) {
 	    pRight->pUpper = pNode->pUpper;
 	    pNode->iLower = iLeft;
 
-            pBND lbnd = pkdNodeBnd(pkd, pLeft);
-            pBND rbnd = pkdNodeBnd(pkd, pRight);
+            pkdNodeBnd(pkd, pLeft, &lbnd);
+            pkdNodeBnd(pkd, pRight, &rbnd);
 
 	    /*
 	    ** Now deal with the bounds.
@@ -320,7 +324,7 @@ void BuildTemp(PKD pkd,int iNode,int M) {
 		}
 	    }
 	pNode = pkdTreeNode(pkd,iNode);
-        bnd = pkdNodeBnd(pkd, pNode);
+        pkdNodeBnd(pkd, pNode, &bnd);
 	}
 DonePart:
     free(S);
@@ -384,6 +388,7 @@ void Create(PKD pkd,int iNode) {
     KDN *pkdn,*pkdl,*pkdu;
     FMOMR mom;
     SPHBNDS *bn;
+    pBND bnd;
     FLOAT m,fMass,fSoft,x,y,z,vx,vy,vz,ax,ay,az,ft,d2,d2Max,dih2,bmin;
     float *a;
     double *v;
@@ -416,7 +421,7 @@ void Create(PKD pkd,int iNode) {
 	** bounds and iMaxRung.
 	*/
 	pkdn = pkdTreeNode(pkd,iNode);
-        pBND bnd = pkdNodeBnd(pkd, pkdn);
+        pkdNodeBnd(pkd, pkdn, &bnd);
 	pkdn->nActive = 0;
 	/*
 	** Before squeezing the bounds, calculate a minimum b value based on the splitting bounds alone.
@@ -629,7 +634,7 @@ void Create(PKD pkd,int iNode) {
 	    ** First find the CoM, just like for the bucket.
 	    */
 	    pkdn = pkdTreeNode(pkd,iNode);
-            pBND bnd = pkdNodeBnd(pkd, pkdn);
+            pkdNodeBnd(pkd, pkdn, &bnd);
 	    /*
 	    ** Before squeezing the bounds, calculate a minimum b value based on the splitting bounds alone.
 	    ** This gives us a better feel for the "size" of a bucket with only a single particle.
@@ -671,10 +676,11 @@ void Create(PKD pkd,int iNode) {
 void pkdCombineCells1(PKD pkd,KDN *pkdn,KDN *p1,KDN *p2) {
     FLOAT m1,m2,ifMass;
     int j;
+    pBND bnd, p1bnd, p2bnd;
 
-    pBND bnd = pkdNodeBnd(pkd, pkdn);
-    pBND p1bnd = pkdNodeBnd(pkd, p1);
-    pBND p2bnd = pkdNodeBnd(pkd, p2);
+    pkdNodeBnd(pkd, pkdn, &bnd);
+    pkdNodeBnd(pkd, p1, &p1bnd);
+    pkdNodeBnd(pkd, p2, &p2bnd);
 
     if (pkd->oNodeMom) {
 	m1 = pkdNodeMom(pkd,p1)->m;
@@ -926,13 +932,12 @@ void pkdBoundWalk(PKD pkd,BND *pbnd,uint8_t uRungLo,uint8_t uRungHi,uint32_t *pn
     PARTICLE *p;
     double d;
     int iNode,pj;    
-
     pBND bnd;
 
     *pnActive = 0;
     *pnContained = 0;
     kdn = pkdTreeNode(pkd,iNode = ROOT);
-    bnd = pkdNodeBnd(pkd, kdn);
+    pkdNodeBnd(pkd, kdn, &bnd);
     while (1) {
 	d = fabs(pbnd->fCenter[0] - bnd.fCenter[0]) - pbnd->fMax[0];
 	if (d - bnd.fMax[0] > 0) goto NoIntersect;

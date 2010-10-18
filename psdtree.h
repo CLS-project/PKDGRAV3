@@ -2,7 +2,6 @@
 #define PSDTREE_HINCLUDED
 
 #include <stdint.h>
-#include <sys/resource.h>
 #include <string.h>
 
 #include "mdl.h"

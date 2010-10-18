@@ -57,6 +57,7 @@ typedef struct pkdOutBuffer {
 
 typedef struct pkdout {
     FILE *fp;
+#if defined(HAVE_LIBBZ2) || defined(HAVE_LIBZ)
     union {
 #ifdef HAVE_LIBBZ2
 	bz_stream *bzStream;
@@ -65,6 +66,7 @@ typedef struct pkdout {
 	z_stream *gzStream;
 #endif
 	} CTX;
+#endif
     uint64_t nBytes;
     char *inBuffer;
     char *inOffset;

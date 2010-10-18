@@ -3,7 +3,11 @@
 #endif
 
 #include <stdlib.h>
+#ifdef HAVE_INTTYPES_H
 #include <inttypes.h>
+#else
+#define PRIu64 "llu"
+#endif
 #include "intype.h"
 
 static void *openMark(PKD pkd,FILE *fp) {
