@@ -4495,7 +4495,7 @@ void msrOutGroups(MSR msr,const char *pszFile,int iOutType, double dTime) {
     if (iOutType == OUT_GROUP_TIPSY_NAT || iOutType == OUT_GROUP_TIPSY_STD) {
 	FIO fio;
 	fio = fioTipsyCreate(achOutFile,0,iOutType==OUT_GROUP_TIPSY_STD,
-		    time, 0, 0, msr->nGroups, 0L);
+		    time, 0, 0, msr->nGroups);
 	if (!fio) {
 	    printf("Could not open Group Output File:%s\n",achOutFile);
 	    _msrExit(msr,1);

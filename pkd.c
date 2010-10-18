@@ -19,6 +19,9 @@
 #ifdef HAVE_SYS_TYPES_H
 #include <sys/types.h>
 #endif
+#ifdef __linux__
+#include <sys/resource.h>
+#endif
 #include "pkd.h"
 #include "ewald.h"
 #include "walk.h"
