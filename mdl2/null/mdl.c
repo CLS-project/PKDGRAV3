@@ -10,11 +10,16 @@
 #include <limits.h>
 #include <assert.h>
 #include <stdarg.h>
+#ifdef HAVE_UNISTD_H
 #include <unistd.h>
+#endif
+#ifdef HAVE_SYS_TIME_H
 #include <sys/time.h>
-#include <sys/resource.h>
+#endif
+#ifdef _MSC_VER
+#include <WinSock2.h> /* gethostname */
+#endif
 #include "mdl.h"
-
 const char *null_mdl_module_id = "NULL ($Id$)";
 
 #define MDL_NOCACHE			0
@@ -32,7 +37,7 @@ void _srvNull(void *p1,void *vin,int nIn,void *vout,int *pnOut) {
 
 
 double mdlCpuTimer(MDL mdl) {
-#ifndef _CRAYMPP
+#ifdef __linux__
     struct rusage ru;
 
     getrusage(0,&ru);
@@ -74,6 +79,16 @@ void mdldebug( MDL mdl, const char *format, ... ) {
 
 #ifdef MDLTIMER
 void mdlZeroTimer(MDL mdl, mdlTimer *t) {
+#ifdef _MSC_VER
+    FILETIME ft;
+    uint64_t clock;
+    GetSystemTimeAsFileTime(&ft);
+    clock = ft.dwHighDateTime;
+    clock <<= 32;
+    clock |= ft.dwLowDateTime;
+    /* clock is in 100 nano-second units */
+    t->wallclock = clock / 10000000UL;
+#else
     struct timezone tz;
     struct timeval tv;
     struct rusage ru;
@@ -84,9 +99,20 @@ void mdlZeroTimer(MDL mdl, mdlTimer *t) {
     getrusage(0,&ru);
     t->cpu = (double)ru.ru_utime.tv_sec + 1e-6*(double)ru.ru_utime.tv_usec;
     t->system = (double)ru.ru_stime.tv_sec + 1e-6*(double)ru.ru_stime.tv_usec;
+#endif
     }
 
 void mdlGetTimer(MDL mdl, mdlTimer *t0, mdlTimer *t) {
+#ifdef _MSC_VER
+    FILETIME ft;
+    uint64_t clock;
+    GetSystemTimeAsFileTime(&ft);
+    clock = ft.dwHighDateTime;
+    clock <<= 32;
+    clock |= ft.dwLowDateTime;
+    /* clock is in 100 nano-second units */
+    t->wallclock = clock / 10000000UL - t0->wallclock;
+#else
     struct timezone tz;
     struct timeval tv;
     struct rusage ru;
@@ -98,7 +124,8 @@ void mdlGetTimer(MDL mdl, mdlTimer *t0, mdlTimer *t) {
     tz.tz_dsttime = 0;
     gettimeofday(&tv,&tz);
     t->wallclock = tv.tv_sec + 1e-6*(double) tv.tv_usec - t0->wallclock;
-    }
+#endif
+}
 
 void mdlPrintTimer(MDL mdl,char *message, mdlTimer *t0) {
     mdlTimer lt;
