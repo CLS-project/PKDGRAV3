@@ -5,6 +5,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "pkdgrav2_null", "pkdgrav2_n
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "pkdgrav2_pthread", "pkdgrav2_pthread\pkdgrav2_pthread.vcxproj", "{A6EE5641-1CF1-44D9-950E-C71514B06592}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "pkdgrav2_mpi", "pkdgrav2_mpi\pkdgrav2_mpi.vcxproj", "{1E950CBE-E90C-4DC2-963E-1A34D8C544EE}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Win32 = Debug|Win32
@@ -26,6 +28,12 @@ Global
 		{A6EE5641-1CF1-44D9-950E-C71514B06592}.Release|Win32.ActiveCfg = Release|x64
 		{A6EE5641-1CF1-44D9-950E-C71514B06592}.Release|x64.ActiveCfg = Release|x64
 		{A6EE5641-1CF1-44D9-950E-C71514B06592}.Release|x64.Build.0 = Release|x64
+		{1E950CBE-E90C-4DC2-963E-1A34D8C544EE}.Debug|Win32.ActiveCfg = Debug|x64
+		{1E950CBE-E90C-4DC2-963E-1A34D8C544EE}.Debug|x64.ActiveCfg = Debug|x64
+		{1E950CBE-E90C-4DC2-963E-1A34D8C544EE}.Debug|x64.Build.0 = Debug|x64
+		{1E950CBE-E90C-4DC2-963E-1A34D8C544EE}.Release|Win32.ActiveCfg = Release|x64
+		{1E950CBE-E90C-4DC2-963E-1A34D8C544EE}.Release|x64.ActiveCfg = Release|x64
+		{1E950CBE-E90C-4DC2-963E-1A34D8C544EE}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
