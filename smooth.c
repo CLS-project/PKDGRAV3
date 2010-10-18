@@ -16,10 +16,6 @@
 #include "rbtree.h"
 #include <sys/stat.h>
 
-const char *smooth_module_id = "$Id$";
-const char *smooth_h_module_id = SMOOTH_H_MODULE_ID;
-
-
 const int primes[1000] = {
     2,     3,     5,     7,    11,    13,    17,    19,    23,    29,
     31,    37,    41,    43,    47,    53,    59,    61,    67,    71,

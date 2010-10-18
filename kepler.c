@@ -11,9 +11,6 @@
 #include <assert.h>
 #include "kepler.h"
 
-const char *kepler_c_module_id = "$Id$";
-const char *kepler_h_module_id = KEPLER_H_MODULE_ID;
-
 int drift_dan(double mu, double *r, double *v, double dt) {
     /*This subroutine does the Danby and decides which vbles to use
     **

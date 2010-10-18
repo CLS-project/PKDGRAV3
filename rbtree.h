@@ -1,6 +1,5 @@
 #ifndef RBTREE_H
 #define RBTREE_H
-#define RBTREE_H_MODULE_ID "$Id$"
 
 typedef struct rb_node {
     struct rb_node *link[2];

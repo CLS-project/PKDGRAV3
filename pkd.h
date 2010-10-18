@@ -1,6 +1,5 @@
 #ifndef PKD_HINCLUDED
 #define PKD_HINCLUDED
-#define PKD_H_MODULE_ID "$Id$"
 
 #include <stdint.h>
 #include <sys/resource.h>

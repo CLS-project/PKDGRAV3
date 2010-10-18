@@ -11,10 +11,6 @@
 #include "ilp.h"
 #include "pkd.h" /* for PARTITION macro */
 
-const char *ilp_c_module_id = "$Id$";
-const char *ilp_h_module_id = ILP_H_MODULE_ID;
-const char *simd_h_module_id = SIMD_H_MODULE_ID;
-
 /*
 ** Private: Create a new tile
 */

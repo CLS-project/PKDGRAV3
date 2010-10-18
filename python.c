@@ -11,9 +11,6 @@
 #include "intype.h"
 #include "python.h"
 
-const char *python_c_module_id = "$Id$";
-const char *python_h_module_id = PYTHON_H_MODULE_ID;
-
 /**********************************************************************\
  ** GLOBAL variables...  Sadly Python is not reentrant
 \**********************************************************************/

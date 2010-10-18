@@ -19,9 +19,6 @@
 #include <fcntl.h>
 #endif
 
-const char *outtype_c_module_id = "$Id$";
-const char *outtype_h_module_id = OUTTYPE_H_MODULE_ID;
-
 #define OUTTYPE_UNKNOWN 0
 #define OUTTYPE_INTEGER 1
 #define OUTTYPE_FLOAT 2

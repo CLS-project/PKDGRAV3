@@ -24,9 +24,6 @@
 
 #include "iohdf5.h"
 
-const char *iohdf5_c_module_id = "$Id$";
-const char *iohdf5_h_module_id = IOHDF5_H_MODULE_ID;
-
 #define GROUP_PARAMETERS "parameters"
 #define GROUP_DARK       "dark"
 #define GROUP_GAS        "gas"

@@ -20,9 +20,6 @@
 #include "pst.h"
 #include "io.h"
 
-const char *io_c_module_id = "$Id$";
-const char *io_h_module_id = IO_H_MODULE_ID;
-
 #define CHUNKSIZE (32*1024)
 #define MINVALUE (-1e20)
 

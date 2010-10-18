@@ -1,6 +1,5 @@
 #ifndef PSD_INCLUDED
 #define PSD_INCLUDED
-#define PSD_H_MODULE_ID "$Id$"
 
 #include "pkd.h"
 #ifndef HAVE_CONFIG_H

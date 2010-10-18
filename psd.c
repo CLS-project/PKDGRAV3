@@ -18,9 +18,6 @@
 #include "rbtree.h"
 #include <sys/stat.h>
 
-const char *psd_module_id = "$Id$";
-const char *psd_h_module_id = PSD_H_MODULE_ID;
-
 extern const int primes[];
 
 void initPsdDensity(void *vpkd, void *p) {

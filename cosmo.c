@@ -13,9 +13,6 @@
 
 #include "cosmo.h"
 
-const char *cosmo_c_module_id = "$Id$";
-const char *cosmo_h_module_id = COSMO_H_MODULE_ID;
-
 /*
  * Cosmological module for PKDGRAV.
  * N.B.  This code is being shared with skid and the I.C. generator.

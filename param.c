@@ -15,9 +15,6 @@
 #include <ctype.h>
 #include "param.h"
 
-const char *param_c_module_id = "$Id$";
-const char *param_h_module_id = PARAM_H_MODULE_ID;
-
 void prmInitialize(PRM *pprm,void (*fcnLeader)(void),void (*fcnTrailer)(void)) {
     PRM prm;
 

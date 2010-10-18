@@ -1,6 +1,5 @@
 #ifndef OUTTYPE_HINCLUDED
 #define OUTTYPE_HINCLUDED
-#define OUTTYPE_H_MODULE_ID "$Id$"
 
 #include "pkd.h"
 

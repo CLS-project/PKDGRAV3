@@ -1,7 +1,6 @@
 #ifdef SYMBA
 #ifndef KEPLER_HINCLUDED
 #define KEPLER_HINCLUDED
-#define KEPLER_H_MODULE_ID "$Id$"
 
 #define DANBYB  1.0e-13
 #define NLAG2   400;

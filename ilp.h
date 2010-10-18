@@ -1,6 +1,5 @@
 #ifndef ILP_H
 #define ILP_H
-#define ILP_H_MODULE_ID "$Id$"
 #ifdef LOCAL_EXPANSION
 #include <stdint.h>
 

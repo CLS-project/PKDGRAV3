@@ -1,6 +1,5 @@
 #ifndef TIPSYDEFS_HINCLUDED
 #define TIPSYDEFS_HINCLUDED
-#define TIPSYDEFS_H_MODULE_ID "$Id$"
 
 struct gas_particle {
     float mass;

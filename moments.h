@@ -1,8 +1,6 @@
 #ifndef MOMENTS_INCLUDED
 #define MOMENTS_INCLUDED
 
-#define MOMENTS_H_MODULE_ID "$Id"
-
 #ifdef MOMQUAD
 typedef long double momFloat;
 #define sqrt(x)	sqrtl(x)

@@ -1,6 +1,5 @@
 #ifndef EWALD_HINCLUDED
 #define EWALD_HINCLUDED
-#define EWALD_H_MODULE_ID "$Id$"
 
 #include "pkd.h"
 

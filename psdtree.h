@@ -1,6 +1,5 @@
 #ifndef PSDTREE_HINCLUDED
 #define PSDTREE_HINCLUDED
-#define PSDTREE_H_MODULE_ID "$Id$"
 
 #include <stdint.h>
 #include <sys/resource.h>

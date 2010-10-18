@@ -1,7 +1,6 @@
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
-const char *psdtree_module_id = "$Id";
 
 #ifdef USE_PSD
 

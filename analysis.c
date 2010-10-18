@@ -1,7 +1,6 @@
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
-const char *analysis_module_id = "$Id$";
 #include <assert.h>
 #include <stdlib.h>
 #include <math.h>

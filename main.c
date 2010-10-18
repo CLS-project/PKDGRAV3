@@ -1,8 +1,6 @@
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
-const char *pkdgrav2_module_id = PACKAGE_STRING
-    " ($Id$)";
 
 #define _LARGEFILE_SOURCE
 #define _FILE_OFFSET_BITS 64

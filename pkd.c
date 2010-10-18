@@ -33,9 +33,6 @@
 #include "mpitrace_user_events.h"
 #endif
 
-const char *pkd_module_id = "$Id$";
-const char *pkd_h_module_id = PKD_H_MODULE_ID;
-
 double pkdGetTimer(PKD pkd,int iTimer) {
     return(pkd->ti[iTimer].sec);
     }

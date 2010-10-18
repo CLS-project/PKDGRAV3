@@ -16,9 +16,6 @@
 #include <assert.h>
 #include "rbtree.h"
 
-const char *rbtree_c_module_id = "$Id$";
-const char *rbtree_h_module_id = RBTREE_H_MODULE_ID;
-
 #define is_red(node) (node != NULL && node->red != 0)
 
 static RB_NODE *rb_single ( RB_NODE *node, int dir ) {

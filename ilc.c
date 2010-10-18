@@ -8,9 +8,6 @@
 
 #include "ilc.h"
 
-const char *ilc_c_module_id = "$Id$";
-const char *ilc_h_module_id = ILC_H_MODULE_ID;
-
 /*
 ** Private: Create a new tile
 */

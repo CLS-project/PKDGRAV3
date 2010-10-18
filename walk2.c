@@ -26,9 +26,6 @@
 #endif
 #include "moments.h"
 
-const char *walk2_module_id = "$Id$";
-const char *walk_h_module_id = WALK_H_MODULE_ID;
-
 /*
 ** This is the new momentum conserving version of the opening criterion.
 ** THIS NEEDS MORE TESTING

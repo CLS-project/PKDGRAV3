@@ -27,9 +27,6 @@
 #endif
 #include "psdtree.h"
 
-const char *pst_c_module_id = "$Id$";
-const char *pst_h_module_id = PST_H_MODULE_ID;
-
 /*
 ** Input:
 **  Bcast   - The same data is sent to all processors

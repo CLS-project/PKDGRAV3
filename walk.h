@@ -1,6 +1,5 @@
 #ifndef WALK_HINCLUDED
 #define WALK_HINCLUDED
-#define WALK_H_MODULE_ID "$Id$"
 
 #include "pkd.h"
 

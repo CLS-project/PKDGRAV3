@@ -1,6 +1,5 @@
 #ifndef PNG_H
 #define PNG_H
-#define PNG_H_MODULE_ID "$Id$"
 
 #include <gd.h>
 #include <gdfontg.h>

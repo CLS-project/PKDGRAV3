@@ -1,6 +1,5 @@
 #ifndef PARAMETERS_HINCLUDED
 #define PARAMETERS_HINCLUDED
-#define PARAMETERS_H_MODULE_ID "$Id$"
 
 #include "cosmo.h"
 

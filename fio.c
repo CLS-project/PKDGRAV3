@@ -19,9 +19,6 @@
 
 #include "fio.h"
 
-const char *fio_module_id = "$Id$";
-const char *fio_h_module_id = FIO_H_MODULE_ID;
-
 /*
 ** This uses the best available seek routine to move to the specified
 ** 64-bit offset into a file.  The new "fseeko" function is preferred,

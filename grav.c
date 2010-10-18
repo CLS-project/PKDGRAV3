@@ -16,9 +16,6 @@
 #include "grav.h"
 #include "ewald.h"
 
-const char *grav_c_module_id = "$Id$";
-const char *grav_h_module_id = GRAV_H_MODULE_ID;
-
 #define SQRT1(d2,dir)\
     {\
     dir = 1/sqrt(d2);\

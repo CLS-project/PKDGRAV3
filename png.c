@@ -9,9 +9,6 @@
 
 #include "png.h"
 
-const char *png_c_module_id = "$Id$";
-const char *png_h_module_id = PNG_H_MODULE_ID;
-
 /* Famous white, red, blue, black colour map */
 static int wrbb( float v ) {
     if ( v < 0.0 ) v = 0.0;

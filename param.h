@@ -1,6 +1,5 @@
 #ifndef PARAM_HINCLUDED
 #define PARAM_HINCLUDED
-#define PARAM_H_MODULE_ID "$Id$"
 
 typedef struct prmNode {
     struct prmNode *pnNext;

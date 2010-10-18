@@ -1,6 +1,5 @@
 #ifndef SIMD_H
 #define SIMD_H
-#define SIMD_H_MODULE_ID "$Id$"
 
 #ifdef HAVE_CONFIG_H
 #include "config.h"
@@ -40,7 +39,8 @@
 #if defined(__SSE__)
 typedef ATTRIBUTE_ALIGNED_ALIGNOF(__m128) __m128 v4sf;
 typedef ATTRIBUTE_ALIGNED_ALIGNOF(__m128) __m128 v4bool;
-typedef ATTRIBUTE_ALIGNED_ALIGNOF(__m128) int v4i __attribute__ ((vector_size(16)));
+//typedef ATTRIBUTE_ALIGNED_ALIGNOF(__m128) int v4i __attribute__ ((vector_size(16)));
+typedef ATTRIBUTE_ALIGNED_ALIGNOF(__m128) __m128i v4i;
 #else
 typedef vector float v4sf;
 typedef vector bool int v4bool;

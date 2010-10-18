@@ -1,6 +1,5 @@
 #ifndef COOLING_HINCLUDED
 #define COOLING_HINCLUDED
-#define COOLING_H_MODULE_ID "$Id$"
 
 typedef struct CoolingParametersStruct {
     int    bUV;

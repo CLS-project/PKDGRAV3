@@ -14,12 +14,6 @@
 #include "qeval.h"
 #include "moments.h"
 
-const char *ewald_c_module_id = "$Id$";
-const char *ewald_h_module_id = EWALD_H_MODULE_ID;
-const char *meval_h_module_id = MEVAL_H_MODULE_ID;
-const char *qeval_h_module_id = QEVAL_H_MODULE_ID;
-
-
 int pkdParticleEwald(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,PARTICLE *p) {
     MOMC mom = pkd->momRoot;
     float *pPot;

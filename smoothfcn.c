@@ -6,9 +6,6 @@
 #include <assert.h>
 #include "smoothfcn.h"
 
-const char *smoothfcn_c_module_id = "$Id$";
-const char *smoothfcn_h_module_id = SMOOTHFCN_H_MODULE_ID;
-
 #ifdef M43D
 /* M43D Creates a 3D kernel by convolution of 3D tophats the way M4(1D) is made in 1D */
 #define BALL2(a) ((a)->fBall*(a)->fBall)

@@ -18,9 +18,6 @@
 #include "ewald.h"
 #include "grav.h"
 
-const char *grav2_c_module_id = "$Id$";
-const char *grav_h_module_id = GRAV_H_MODULE_ID;
-
 #ifdef USE_SIMD
 static const struct CONSTS {
     v4 zero;

@@ -6,9 +6,6 @@
 #include <inttypes.h>
 #include "intype.h"
 
-const char *intype_c_module_id = "$Id$";
-const char *intype_h_module_id = INTYPE_H_MODULE_ID;
-
 static void *openMark(PKD pkd,FILE *fp) {
     uint64_t N, nDark, nGas, nStar;
     fscanf(fp,"%"PRIu64" %"PRIu64" %"PRIu64, &nDark, &nGas, &nStar);

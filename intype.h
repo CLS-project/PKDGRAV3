@@ -1,6 +1,5 @@
 #ifndef INTYPE_HINCLUDED
 #define INTYPE_HINCLUDED
-#define INTYPE_H_MODULE_ID "$Id$"
 
 #include "pkd.h"
 

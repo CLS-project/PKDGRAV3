@@ -7,9 +7,6 @@
 #include <assert.h>
 #include "moments.h"
 
-const char *moments_c_module_id = "$Id$";
-const char *moments_h_module_id = MOMENTS_H_MODULE_ID;
-
 /*
  ** This function calculates a complete multipole from a single
  ** particle at position <x,y,z> from the center of mass.

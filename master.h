@@ -1,6 +1,5 @@
 #ifndef MASTER_HINCLUDED
 #define MASTER_HINCLUDED
-#define MASTER_H_MODULE_ID "$Id$"
 
 #include <stdint.h>
 

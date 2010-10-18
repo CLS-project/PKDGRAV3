@@ -1,6 +1,5 @@
 #ifndef IO_HINCLUDED
 #define IO_HINCLUDED
-#define IO_H_MODULE_ID "$Id$"
 #ifdef USE_HDF5
 #include "iohdf5.h"
 #endif

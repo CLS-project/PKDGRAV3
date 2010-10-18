@@ -66,8 +66,6 @@
 #ifndef FIO_H
 #define FIO_H
 
-#define FIO_H_MODULE_ID "$Id$"
-
 #include <stdint.h>
 #include <assert.h>
 

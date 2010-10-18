@@ -1,6 +1,5 @@
 #ifndef IOHDF5_H
 #define IOHDF5_H
-#define IOHDF5_H_MODULE_ID "$Id$"
 #include <hdf5.h>
 
 #ifdef __cplusplus
