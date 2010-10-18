@@ -239,9 +239,9 @@ int mdlAlltoall( MDL mdl, void *sendbuf, int scount, MDL_Datatype stype,
 */
 
 typedef struct mdlGridContext {
-    int n1, n2, n3; /* Real dimensions */
-    int a1;         /* Actual size of dimension 1 */
-    int nlocal;     /* Number of local elements */
+    uint32_t n1, n2, n3; /* Real dimensions */
+    uint32_t a1;         /* Actual size of dimension 1 */
+    uint32_t nlocal;     /* Number of local elements */
     } * MDLGRID;
 
 

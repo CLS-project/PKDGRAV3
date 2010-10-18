@@ -5,7 +5,10 @@
 #endif
 #include <stdio.h>
 #include <assert.h>
+#ifdef HAVE_INTTYPES_H
 #include <inttypes.h>
+#endif
+#include <stdint.h>
 #include "mpi.h"
 #ifdef MDL_FFTW
 #include <srfftw_mpi.h>

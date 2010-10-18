@@ -7,7 +7,9 @@
 #include <stdint.h>
 #include <pthread.h>
 #include <assert.h>
+#ifdef HAVE_UNISTD_H
 #include <unistd.h>
+#endif
 
 #ifdef MDL_FFTW
 #include <srfftw_threads.h>
