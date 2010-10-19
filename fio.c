@@ -525,7 +525,7 @@ static int tipsySwitchFile(FIO fio) {
 	    while(++fio->fileList.iFile<fio->fileList.nFiles)
 		if (fio->fileList.fileInfo[fio->fileList.iFile].iFirst<=tio->iOrder) break;
 	    }
-	tio->fp = fopen(fio->fileList.fileInfo[fio->fileList.iFile].pszFilename,"r");
+	tio->fp = fopen(fio->fileList.fileInfo[fio->fileList.iFile].pszFilename,"rb");
 	if (tio->fp == NULL) printf("Fail: %d %s\n",fio->fileList.iFile,fio->fileList.fileInfo[fio->fileList.iFile].pszFilename);
 	if (tio->fp == NULL) return 1;
 	if (tio->fpBuffer != NULL) setvbuf(tio->fp,tio->fpBuffer,_IOFBF,TIO_BUFFER_SIZE);
@@ -1292,7 +1292,7 @@ static FIO tipsyOpen(fioFileList *fileList) {
     tio->iOrder = 0;
     tio->fio.fileList = *fileList;
 
-    tio->fp = fopen(tio->fio.fileList.fileInfo[0].pszFilename,"r");
+    tio->fp = fopen(tio->fio.fileList.fileInfo[0].pszFilename,"rb");
     tio->fio.fileList.iFile = 0;
     if (tio->fp==NULL) {
 	free(tio);
@@ -1401,7 +1401,7 @@ FIO fioTipsyCreate(const char *fileName,int bDouble,int bStandard,
     tio->iOrder = 0;
     tio->dTime = dTime;
 
-    tio->fp = fopen(fileName,"w");
+    tio->fp = fopen(fileName,"wb");
     tio->fio.fileList.iFile = 0;
     if (tio->fp==NULL) {
 	free(tio);
@@ -1431,7 +1431,7 @@ FIO fioTipsyAppend(const char *fileName,int bDouble,int bStandard) {
     tio->fio.fileList.fileInfo[0].pszFilename= strdup(fileName);
     tio->fio.fileList.nFiles  = 1;
 
-    tio->fp = fopen(fileName,"r+");
+    tio->fp = fopen(fileName,"rb+");
     tio->fio.fileList.iFile = 0;
     if (tio->fp==NULL) {
 	free(tio);
@@ -1497,7 +1497,7 @@ FIO fioTipsyCreatePart(const char *fileName,int bAppend,int bDouble,int bStandar
     tio->fio.fileList.fileInfo[0].iFirst = iStart;
     tio->fio.fileList.fileInfo[1].iFirst = iStart + tio->fio.nSpecies[FIO_SPECIES_ALL];
 
-    tio->fp = fopen(fileName,bAppend?"r+":"w");
+    tio->fp = fopen(fileName,bAppend?"rb+":"wb");
     tio->fio.fileList.iFile = 0;
     if (tio->fp==NULL) {
 	free(tio);
