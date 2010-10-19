@@ -153,7 +153,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,FLOCR *
 	    fx = p->r[0] - pkdn->r[0];
 	    fy = p->r[1] - pkdn->r[1];
 	    fz = p->r[2] - pkdn->r[2];
-	    momEvalFlocr(pLoc,pkdn->bMax,x,y,z,&fPot,&ax,&ay,&az);
+	    momEvalFlocr(pLoc,pkdn->bMax,fx,fy,fz,&fPot,&ax,&ay,&az);
 	    }
 
 	fx = p->r[0] - ilc->cx;
