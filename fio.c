@@ -32,7 +32,7 @@ void xdr_destroy(XDR *xdr) {
 
 int xdr_double(XDR *xdr, double *d) {
     uint64_t v;
-    char c[8];
+    unsigned char c[8];
     union {
 	double   d;
 	uint64_t v;
@@ -52,8 +52,14 @@ int xdr_double(XDR *xdr, double *d) {
     }
     else {
 	if (fread(c,sizeof(c),1,xdr->fp)!=1) return 0;
-	u.v = (c[0]<<56) | (c[1]<<48) | (c[2]<<40) | (c[3]<<32)
-	     | (c[4]<<24) | (c[5]<<16) | (c[6]<<8) | c[7];
+	u.v = 0;   u.v |= c[0];
+	u.v <<= 8; u.v |= c[1];
+	u.v <<= 8; u.v |= c[2];
+	u.v <<= 8; u.v |= c[3];
+	u.v <<= 8; u.v |= c[4];
+	u.v <<= 8; u.v |= c[5];
+	u.v <<= 8; u.v |= c[6];
+	u.v <<= 8; u.v |= c[7];
 	*d = u.d;
 	return 1;
     }
@@ -61,7 +67,7 @@ int xdr_double(XDR *xdr, double *d) {
 
 int xdr_float(XDR *xdr, float *f) {
     uint32_t v;
-    char c[4];
+    unsigned char c[4];
     union {
 	float    f;
 	uint32_t v;
@@ -85,7 +91,7 @@ int xdr_float(XDR *xdr, float *f) {
 
 int xdr_u_int(XDR *xdr, uint32_t *u) {
     uint32_t v;
-    char c[4];
+    unsigned char c[4];
     if (xdr->bEncoding) {
         v = *u;
 	c[0] = (v>>24) & 255;
