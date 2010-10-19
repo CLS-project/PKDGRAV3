@@ -18,6 +18,8 @@
 #endif
 #ifdef _MSC_VER
 #include <WinSock2.h> /* gethostname */
+#else
+#include <sys/resource.h>
 #endif
 #include "mdl.h"
 const char *null_mdl_module_id = "NULL ($Id$)";
