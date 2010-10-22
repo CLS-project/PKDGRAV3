@@ -545,10 +545,12 @@ void pkdInitialize(
     pkd->grid = NULL;
     pkd->gridData = NULL;
 
+#ifdef USE_DEHNEN_THETA
     pkd->fCritTheta = NULL;
     pkd->fCritMass = NULL;
     pkd->nCritBins = 0;
     pkd->dCritThetaMin = 0.0;
+#endif
 
 #ifndef NO_COOLING
     pkd->Cool = CoolInit();

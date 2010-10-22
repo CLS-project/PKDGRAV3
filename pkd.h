@@ -657,12 +657,16 @@ typedef struct pkdContext {
     /*
     ** Opening angle table for mass weighting.
     */
+#ifdef USE_DEHNEN_THETA
     float *fCritTheta;
     float *fCritMass;
     int nCritBins;
     float dCritLogDelta;
     float dCritThetaMin;
     float dCritThetaMax;
+#else
+    float fiCritTheta;
+#endif
 
     /*
     ** New activation methods

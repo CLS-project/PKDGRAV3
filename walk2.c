@@ -115,6 +115,7 @@ static inline int iOpenOutcome(PKD pkd,KDN *k,CELT *check,KDN **pc,double dTheta
     return(iOpen);
 }
 
+#ifdef USE_DEHNEN_THETA
 double brent(double x1, double x2, double (*my_f)(double v, void *params),void *params) {
     static double EPS = 1e-12;
     int iter;
@@ -264,6 +265,7 @@ static inline float getTheta(PKD pkd,float fMass) {
     assert(fInterval>=0.0 && fInterval <= 1.0);
     return fInterval * (pkd->fCritTheta[i+1]-pkd->fCritTheta[i]) + pkd->fCritTheta[i];
     }
+#endif
 
 static inline int getCheckCell(PKD pkd,CELT *check,KDN **pc) {
     const int walk_min_multipole = 3;
@@ -284,7 +286,11 @@ static inline int getCheckCell(PKD pkd,CELT *check,KDN **pc) {
 	nc = c->pUpper - c->pLower + 1;
 	}
     if (check->cOpen < 0.0) {
+#ifdef USE_DEHNEN_THETA
 	check->cOpen = c->bMax/getTheta(pkd,pkdNodeMom(pkd,c)->m/pkdNodeMom(pkd,pkdTreeNode(pkd,ROOT))->m);
+#else
+	check->cOpen = c->bMax * pkd->fiCritTheta;
+#endif
 	}
     return nc;
     }
@@ -519,7 +525,11 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
     /*
     ** If necessary, calculate the theta interpolation tables.
     */
+#ifdef USE_DEHNEN_THETA
     pkdSetThetaTable(pkd,dThetaMin,dThetaMax);
+#else
+    pkd->fiCritTheta = 1.0f / dThetaMin;
+#endif
 
     for (j=0;j<3;++j) zero[j] = 0.0;
     a = &zero[0];
