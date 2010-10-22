@@ -283,6 +283,7 @@ static int  fioNoReadDark(
     float *pfMass,float *pfSoft,float *pfPot) {
     fprintf(stderr,"Reading dark particles is not supported\n");
     abort();
+    return 0;
     }
 
 static int fioNoReadSph(
@@ -291,6 +292,7 @@ static int fioNoReadSph(
     float *pfRho,float *pfTemp, float *pfMetals) {
     fprintf(stderr,"Reading SPH particles is not supported\n");
     abort();
+    return 0;
     }
 
 static int fioNoReadStar(
@@ -298,6 +300,7 @@ static int fioNoReadStar(
     float *pfMass,float *pfSoft,float *pfPot,float *pfMetals, float *pfTform) {
     fprintf(stderr,"Reading star particles is not supported\n");
     abort();
+    return 0;
     }
 
 static int  fioNoWriteDark(
@@ -305,6 +308,7 @@ static int  fioNoWriteDark(
     float fMass,float fSoft,float fPot) {
     fprintf(stderr,"Writing dark particles is not supported\n");
     abort();
+    return 0;
     }
 
 static int fioNoWriteSph(
@@ -313,6 +317,7 @@ static int fioNoWriteSph(
     float fRho,float fTemp,float fMetals) {
     fprintf(stderr,"Writing SPH particles is not supported\n");
     abort();
+    return 0;
     }
 
 static int fioNoWriteStar(
@@ -320,6 +325,7 @@ static int fioNoWriteStar(
     float fMass,float fSoft,float fPot,float fMetals,float fTform) {
     fprintf(stderr,"Writing star particles is not supported\n");
     abort();
+    return 0;
     }
 
 static int fioNoGetAttr(
@@ -335,6 +341,7 @@ static int fioNoSetAttr(
 static int fioNoSeek(FIO fio,uint64_t iPart,FIO_SPECIES eSpecies) {
     fprintf(stderr,"Seeking is not supported\n");
     abort();
+    return 0;
     }
 
 static void fioNoClose(FIO fio) {

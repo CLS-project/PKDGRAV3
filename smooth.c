@@ -905,8 +905,8 @@ void smSmoothSingle(SMX smx,SMF *smf,PARTICLE *p) {
     if (!bDone && smx->bPeriodic) {
 	fBall = sqrt(pq->fDist2);
 	for (j=0;j<3;++j) {
-	    iStart[j] = floor((p->r[j] - fBall)/pkd->fPeriod[j] + 0.5);
-	    iEnd[j] = floor((p->r[j] + fBall)/pkd->fPeriod[j] + 0.5);
+	    iStart[j] = d2i(floor((p->r[j] - fBall)/pkd->fPeriod[j] + 0.5));
+	    iEnd[j] = d2i(floor((p->r[j] + fBall)/pkd->fPeriod[j] + 0.5));
 	    }
 	for (ix=iStart[0];ix<=iEnd[0];++ix) {
 	    r[0] = p->r[0] - ix*pkd->fPeriod[0];
@@ -2724,8 +2724,8 @@ void smReSmoothOne(SMX smx,SMF *smf,void *p,FLOAT *R,FLOAT fBall) {
     */
     if (smx->bPeriodic) {
 	for (j=0;j<3;++j) {
-	    iStart[j] = floor((R[j] - fBall)/pkd->fPeriod[j] + 0.5);
-	    iEnd[j] = floor((R[j] + fBall)/pkd->fPeriod[j] + 0.5);
+	    iStart[j] = d2i(floor((R[j] - fBall)/pkd->fPeriod[j] + 0.5));
+	    iEnd[j] = d2i(floor((R[j] + fBall)/pkd->fPeriod[j] + 0.5));
 	}
 	for (ix=iStart[0];ix<=iEnd[0];++ix) {
 	    r[0] = R[0] - ix*pkd->fPeriod[0];
@@ -2971,8 +2971,8 @@ void smFof(SMX smx,SMF *smf) {
 	    fBall = sqrt(p->fBall);
 	    if (smx->bPeriodic) {
 		for (j=0;j<3;++j) {
-		    iStart[j] = floor((p->r[j] - fBall)/pkd->fPeriod[j] + 0.5);
-		    iEnd[j] = floor((p->r[j] + fBall)/pkd->fPeriod[j] + 0.5);
+		    iStart[j] = d2i(floor((p->r[j] - fBall)/pkd->fPeriod[j] + 0.5));
+		    iEnd[j] = d2i(floor((p->r[j] + fBall)/pkd->fPeriod[j] + 0.5));
 		}
 		for (ix=iStart[0];ix<=iEnd[0];++ix) {
 		    r[0] = p->r[0] - ix*pkd->fPeriod[0];
@@ -3232,7 +3232,7 @@ int smGroupMerge(SMF *smf,int bPeriodic) {
 		    /* Local: New subgroup found, add to list: */
 		    sG = pkd->groupData + (*pPartGroup - 1 - pkd->idSelf)/pkd->nThreads;
 		    if (nLSubGroups >= lsgListSize) {
-			lsgListSize *= 1.5;
+			lsgListSize = d2i(lsgListSize * 1.5);
 			lSubGroup = (FOFGD **)realloc(lSubGroup, lsgListSize*sizeof(FOFGD *));
 			assert(lSubGroup != NULL);
 		    }
@@ -3270,7 +3270,7 @@ int smGroupMerge(SMF *smf,int bPeriodic) {
 		    sG = mdlAquire(mdl,CID_GROUP,index,rm.iPid);
 		    
 		    if (nSubGroups >= sgListSize) {
-			sgListSize *= 1.5;
+			sgListSize = d2i(sgListSize * 1.5);
 			subGroup = (FOFGD **)realloc(subGroup, sgListSize*sizeof(FOFGD *));
 			assert(subGroup != NULL);
 		    }
@@ -3419,7 +3419,7 @@ int smGroupMerge(SMF *smf,int bPeriodic) {
 		mdlRelease(mdl,CID_GROUP,sG);
 		if (sG->bMyGroup != 0) {
 		    if (nMyGroups >= listSize-1) {
-			listSize *= 2.0;
+			listSize *= 2;
 			pkd->groupData = (FOFGD *) realloc(pkd->groupData, listSize*sizeof(FOFGD));
 			assert(pkd->groupData != NULL);
 		    }

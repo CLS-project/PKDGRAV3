@@ -16,6 +16,8 @@
 #ifndef _MATH_PRIVATE_H_
 #define _MATH_PRIVATE_H_
 
+#define __GNUC_PREREQ(M,m) 0
+
 #define LITTLE_ENDIAN 1
 #define __FLOAT_WORD_ORDER LITTLE_ENDIAN
 

@@ -182,6 +182,7 @@ double brent(double x1, double x2, double (*my_f)(double v, void *params),void *
 	fb = my_f(b,params);
 	}
     abort();
+    return 0.0;
     }
 
 struct theta_params { double alpha; };

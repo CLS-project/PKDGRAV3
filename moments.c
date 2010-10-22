@@ -669,7 +669,7 @@ double momShiftLocr(LOCR *l,momFloat x,momFloat y,momFloat z) {
  ** Op Count (/,*,+) = (1,162,173) = 336
  */
 double momShiftFlocr(FLOCR *l,float v,float x,float y,float z) {
-    const float onethird = 1.0/3.0;
+    const float onethird = 1.0f/3.0f;
     float iv,hx,hy,hz,tx,ty,tz;
     float L,Lx,Ly,Lz,Lxx,Lxy,Lxz,Lyy,Lyz,Lxxx,Lxxy,Lxxz,Lxyy,Lxyz,Lyyy,Lyyz;
     float Lxxxx,Lxxxy,Lxxyy,Lxyyy,Lyyyy,Lxxxz,Lxxyz,Lxyyz,Lyyyz;
@@ -1649,7 +1649,7 @@ void momEvalLocr(LOCR *l,momFloat x,momFloat y,momFloat z,
 
 void momEvalFlocr(FLOCR *l,float v,float x,float y,float z,
 		  float *fPot,float *ax,float *ay,float *az) {
-    const float onethird = 1.0/3.0f;
+    const float onethird = 1.0f/3.0f;
     float xx,xy,xz,yy,yz,zz,xxx,xxz,yyy,yyz,xxy,xyy,xyz,xxxx,xxxy,xxyy,xyyy,yyyy,xxxz,xxyz,xyyz,yyyz;
     float g1,A,Ax,Ay,Az,B,Bx,By,Bz,C,Cx,Cy,Cz,D,Dx,Dy,Dz;
     float iv;

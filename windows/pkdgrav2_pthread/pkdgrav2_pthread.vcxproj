@@ -44,7 +44,7 @@
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
-      <WarningLevel>TurnOffAllWarnings</WarningLevel>
+      <WarningLevel>Level2</WarningLevel>
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>HAVE_CONFIG_H;_IEEE_LIBM;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
@@ -55,7 +55,7 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
-      <WarningLevel>TurnOffAllWarnings</WarningLevel>
+      <WarningLevel>Level2</WarningLevel>
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
@@ -98,6 +98,7 @@
     <ClCompile Include="..\glibc\w_acosh.c" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\bt.h" />
     <ClInclude Include="..\..\collision.h" />
     <ClInclude Include="..\..\cooling.h" />
     <ClInclude Include="..\..\cosmo.h" />

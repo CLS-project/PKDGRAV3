@@ -89,7 +89,7 @@ void mdlZeroTimer(MDL mdl, mdlTimer *t) {
     clock <<= 32;
     clock |= ft.dwLowDateTime;
     /* clock is in 100 nano-second units */
-    t->wallclock = clock / 10000000UL;
+    t->wallclock = clock / 10000000.0;
 #else
     struct timezone tz;
     struct timeval tv;
@@ -301,7 +301,9 @@ size_t typeSize(MDL_Datatype type) {
     switch(type) {
     case MDL_FLOAT: return sizeof(float);
     case MDL_DOUBLE:return sizeof(double);
-    default: assert(0);
+    default:
+	assert(0);
+	return 0;
 	}
     }
 
@@ -311,17 +313,20 @@ size_t typeSize(MDL_Datatype type) {
 int mdlReduce ( MDL mdl, void *sendbuf, void *recvbuf, int count,
 		MDL_Datatype datatype, MDL_Op op, int root ) {
     memcpy(recvbuf,sendbuf,count*typeSize(datatype));
+    return 0;
     }
 
 int mdlAllreduce ( MDL mdl, void *sendbuf, void *recvbuf, int count,
 		   MDL_Datatype datatype, MDL_Op op ) {
     memcpy(recvbuf,sendbuf,count*typeSize(datatype));
+    return 0;
     }
 
 int mdlAlltoall( MDL mdl, void *sendbuf, int scount, MDL_Datatype stype,
 		 void *recvbuf, int rcount, MDL_Datatype rtype) {
     assert(rcount==scount && stype==rtype);
     memcpy(recvbuf,sendbuf,scount*typeSize(stype));
+    return 0;
     }
 
 

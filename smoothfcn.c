@@ -696,7 +696,7 @@ void DistSNEnergy(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf)
     pmass = pkdField(p,pkd->oMass);
 
     ih2 = 4.0/(p->fBall*p->fBall);
-    r2min = 1e37;
+    r2min = 1e37f;
     qmin = NULL;
     for (i=0;i<nSmooth;++i) {
 	r2 = nnList[i].fDist2*ih2;            

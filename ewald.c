@@ -198,7 +198,7 @@ void pkdEwaldInit(PKD pkd,int nReps,double fEwCut,double fhCut) {
     pkd->ew.Q3z = 0.5*(mom.xxz + mom.yyz + mom.zzz);
     pkd->ew.Q2 = 0.5*(mom.xx + mom.yy + mom.zz);
     pkd->ew.nReps = nReps;
-    pkd->ew.nEwReps = ceil(fEwCut);
+    pkd->ew.nEwReps = d2i(ceil(fEwCut));
     L = pkd->fPeriod[0];
     pkd->ew.fEwCut2 = fEwCut*fEwCut*L*L;
     pkd->ew.fInner2 = 1.2e-3*L*L;
@@ -210,7 +210,7 @@ void pkdEwaldInit(PKD pkd,int nReps,double fEwCut,double fhCut) {
     /*
     ** Now setup stuff for the h-loop.
     */
-    hReps = ceil(fhCut);
+    hReps = d2i(ceil(fhCut));
     k4 = M_PI*M_PI/(pkd->ew.alpha*pkd->ew.alpha*L*L);
     i = 0;
     for (hx=-hReps;hx<=hReps;++hx) {

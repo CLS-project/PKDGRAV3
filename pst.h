@@ -861,7 +861,7 @@ struct inCorrectEnergy {
     double dTuFac;
     double z;
     double dTime;
-    double iDirection;
+    int    iDirection;
     };
 void pstCorrectEnergy(PST, void *,int,void *,int *);
 
@@ -1224,8 +1224,8 @@ void pstSelDstMass(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 
 /* PST_SELSRCBYID */
 struct inSelById {
-    double idStart;
-    double idEnd;
+    uint64_t idStart;
+    uint64_t idEnd;
     int setIfTrue;
     int clearIfFalse;
     };

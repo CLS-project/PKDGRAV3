@@ -664,7 +664,7 @@ void pkdGridFinish(PKD pkd) {
 */
 static void initPng(void *vpkd, void *g) {
     float * r = (float *)g;
-    *r = 1e-20;
+    *r = 1e-20f;
     }
 static void combPng(void *vpkd, void *g1, void *g2) {
     float * r1 = (float *)g1;
@@ -690,7 +690,7 @@ void pkdGridProject(PKD pkd) {
     float *pCell, v;
     float r[3];
 
-    for( i=0; i<pkd->grid->nlocal; i++ ) pkd->gridData[i] = 1e-20;
+    for( i=0; i<pkd->grid->nlocal; i++ ) pkd->gridData[i] = 1e-20f;
 
     /* Now project the data onto the grid */
     mdlCOcache(pkd->mdl,CID_PNG,NULL,pkd->gridData,sizeof(*pkd->gridData),
@@ -706,8 +706,8 @@ void pkdGridProject(PKD pkd) {
 	r[2] = p->r[2];
 	if ( r[0]>=-0.5 && r[0]<0.5 && r[1]>=-0.5 && r[1]<0.5 ) {
 	    /* Calculate grid position and respect rounding */
-	    x = r[0] * pkd->grid->n2 + pkd->grid->n2/2;
-	    y = r[1] * pkd->grid->n3 + pkd->grid->n3/2;
+	    x = d2i(r[0] * pkd->grid->n2 + pkd->grid->n2/2);
+	    y = d2i(r[1] * pkd->grid->n3 + pkd->grid->n3/2);
 	    if ( x==pkd->grid->n2 ) x = pkd->grid->n2-1;
 	    if ( y==pkd->grid->n3 ) y = pkd->grid->n3-1;
 

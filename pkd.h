@@ -30,6 +30,14 @@
 typedef uint_fast32_t local_t; /* Count of particles locally (per processor) */
 typedef uint_fast64_t total_t; /* Count of particles globally (total number) */
 
+static inline int d2i(double d)  {
+    return (int)d;
+}
+
+static inline int64_t d2u64(double d) {
+    return (uint64_t)d;
+}
+
 /*
 ** Handy type punning macro.
 */
@@ -117,8 +125,8 @@ typedef struct pIO {
     total_t iOrder;
     double r[3];
     double v[3];
-    double fMass;
-    double fSoft;
+    float fMass;
+    float fSoft;
     float  fDensity;
     float  fPot;
     } PIO;
@@ -136,8 +144,8 @@ typedef struct pIO {
 #define NRESERVED_NODES MAX_RUNG+1
 
 typedef struct partclass {
-    double      fMass;    /* Particle mass */
-    double      fSoft;    /* Current softening */
+    float       fMass;    /* Particle mass */
+    float       fSoft;    /* Current softening */
     FIO_SPECIES eSpecies; /* Species: dark, star, etc. */
     } PARTCLASS;
 

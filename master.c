@@ -79,7 +79,7 @@ double msrTime() {
     clock <<= 32;
     clock |= ft.dwLowDateTime;
     /* clock is in 100 nano-second units */
-    return clock / 10000000UL;
+    return clock / 10000000.0;
     }
 #else
 double msrTime() {
@@ -1501,8 +1501,11 @@ void msrFinish(MSR msr) {
 static int CmpPC(const void *v1,const void *v2) {
     PARTCLASS *pClass1 = (PARTCLASS*)v1;
     PARTCLASS *pClass2 = (PARTCLASS*)v2;
-    if ( pClass1->fMass != pClass2->fMass ) return pClass1->fMass - pClass2->fMass;
-    return pClass1->fSoft - pClass2->fSoft;
+    if ( pClass1->fMass < pClass2->fMass ) return -1;
+    else if ( pClass1->fMass > pClass2->fMass ) return 1;
+    else if ( pClass1->fSoft < pClass2->fSoft ) return -1;
+    else if ( pClass1->fSoft > pClass2->fSoft ) return 1;
+    else return 0;
     }
 
 void msrSetClasses(MSR msr) {
@@ -2158,9 +2161,9 @@ void msrDomainDecomp2(MSR msr,uint8_t uRungLo,uint8_t uRungHi) {
 void msrDomainDecomp(MSR msr,int iRung,int bGreater,int bSplitVA) {
     struct inDomainDecomp in;
     uint64_t nActive;
-    const uint64_t nDD = msr->N*msr->param.dFracNoDomainDecomp;
-    const uint64_t nRT = msr->N*msr->param.dFracNoDomainRootFind;
-    const uint64_t nSD = msr->N*msr->param.dFracNoDomainDimChoice;
+    const uint64_t nDD = d2u64(msr->N*msr->param.dFracNoDomainDecomp);
+    const uint64_t nRT = d2u64(msr->N*msr->param.dFracNoDomainRootFind);
+    const uint64_t nSD = d2u64(msr->N*msr->param.dFracNoDomainDimChoice);
     double sec,dsec;
     int iRungDD,iRungRT,iRungSD;
     int i,j;
@@ -2762,7 +2765,7 @@ void msrGravity(MSR msr,uint8_t uRungLo, uint8_t uRungHi, double dTime,
     pstGravity(msr->pst,&in,sizeof(in),out,&iDum);
     dsec = msrTime() - sec;
 
-    *piSec = dsec;
+    *piSec = d2i(dsec);
     *pnActive = 0;
     for (id=0;id<msr->nThreads;++id) {
 	*pnActive += out[id].nActive;
@@ -5927,7 +5930,7 @@ static void profileRootFind( double *dBins, int lo, int hi, int nAccuracy, SPHER
     int iBin = (lo+hi) / 2;
     if ( lo == iBin ) return;
 
-    ctx->nTarget = (ctx->nTotal-ctx->nInner) * ctx->dFrac * iBin + ctx->nInner;
+    ctx->nTarget = d2u64((ctx->nTotal-ctx->nInner) * ctx->dFrac * iBin + ctx->nInner);
     dBins[iBin] = illinois( countSphere, ctx, dBins[lo], dBins[hi], 0.0, 1.0*nAccuracy, &nIter );
     profileRootFind(dBins,lo,iBin,nAccuracy,ctx);
     profileRootFind(dBins,iBin,hi,nAccuracy,ctx);

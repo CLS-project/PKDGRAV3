@@ -47,6 +47,7 @@ ln2	= 6.93147180559945286227e-01;  /* 0x3FE62E42, 0xFEFA39EF */
 #endif
 {	
 	double t;
+	double log1p(double v);
 	int32_t hx;
 	uint32_t lx;
 	EXTRACT_WORDS(hx,lx,x);

@@ -84,7 +84,7 @@ void pkdStartTimer(PKD pkd,int iTimer) {
 	clock <<= 32;
 	clock |= ft.dwLowDateTime;
 	/* clock is in 100 nano-second units */
-	pkd->ti[iTimer].wallclock_stamp = clock / 10000000UL;
+	pkd->ti[iTimer].wallclock_stamp = clock / 10000000.0;
 #else
 	gettimeofday(&tv,NULL);
 	pkd->ti[iTimer].wallclock_stamp = tv.tv_sec + 1e-6*(double) tv.tv_usec;
@@ -124,7 +124,7 @@ void pkdStopTimer(PKD pkd,int iTimer) {
     clock <<= 32;
     clock |= ft.dwLowDateTime;
     /* clock is in 100 nano-second units */
-    pkd->ti[iTimer].wallclock_stamp = clock / 10000000UL;
+    pkd->ti[iTimer].wallclock_stamp = clock / 10000000.0;
 #else
     gettimeofday(&tv,NULL);
     pkd->ti[iTimer].wallclock_stamp = tv.tv_sec + 1e-6*(double) tv.tv_usec;
@@ -1897,7 +1897,8 @@ void pkdCalcEandL(PKD pkd,double *T,double *U,double *Eth,double *L,double *F,do
     PARTICLE *p;
     double *v;
     float *a;
-    FLOAT rx,ry,rz,vx,vy,vz,fMass;
+    FLOAT rx,ry,rz,vx,vy,vz;
+    float fMass;
     int i,n;
 
     n = pkdLocal(pkd);
@@ -2952,48 +2953,48 @@ void pkdCorrectEnergy(PKD pkd, double dTuFac, double z, double dTime, int iDirec
 #endif
     switch(iDirection)  {
     case CORRECTENERGY_IN:
+#ifndef NO_COOLING
 	for(i=0;i<pkdLocal(pkd);++i) {
 	    p = pkdParticle(pkd,i);
 	    if (pkdIsGas(pkd,p)) {
 		sph = pkdSph(pkd,p);
 		T = sph->u/dTuFac;
-#ifndef NO_COOLING
 		CoolEnergyCodeFromTemp( cl, &cp, &E, &T, p->fDensity, sph->fMetals );
-#endif
 		sph->u = E;
 		sph->uPred = E;
 		pkdStar(pkd,p)->totaltime = dTime;
 		}
 	    }
+#endif
 	break;
 	/* Careful using this -- it permanenty converts the thermal energy */
     case CORRECTENERGY_OUT: 
+#ifndef NO_COOLING
 	for(i=0;i<pkdLocal(pkd);++i) {
 	    p = pkdParticle(pkd,i);
 	    if (pkdIsGas(pkd,p)) {
 		sph = pkdSph(pkd,p);
 		E = sph->u;
-#ifndef NO_COOLING
 		CoolTempFromEnergyCode( cl, &cp, &E, &T, p->fDensity, sph->fMetals );
-#endif
 		sph->u = T*dTuFac;
 		sph->uPred = T*dTuFac;
 		}
 	    }
+#endif
 	break;
     case CORRECTENERGY_SPECIAL:
+#ifndef NO_COOLING
 	for(i=0;i<pkdLocal(pkd);++i) {
 	    p = pkdParticle(pkd,i);
 	    if (pkdIsGas(pkd,p)) {
 		sph = pkdSph(pkd,p);
 		T = sph->u/dTuFac; 
-#ifndef NO_COOLING
 		CoolInitEnergyCode( cl, &cp, &E, &T, p->fDensity, sph->fMetals );
-#endif
 		sph->u = E;
 		sph->uPred = E;
 		}
 	    }
+#endif
 	break;
     default:
 	assert(0);

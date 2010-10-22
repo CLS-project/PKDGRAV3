@@ -7,7 +7,6 @@
 #define _USE_MATH_DEFINES
 #define NO_XDR
 #define NO_COOLING
-
 /* Define if softening can be changed. */
 #define CHANGESOFT 1
 
