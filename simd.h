@@ -167,14 +167,14 @@ static inline v4sf SIMD_RE_EXACT( v4sf a) {
 #endif
 
 static inline v4sf SIMD_RSQRT_EXACT(v4sf B) {
-    static const v4 one = {{1.0,1.0,1.0,1.0}};
+    static const v4 threehalves = {{1.5,1.5,1.5,1.5}};
     static const v4 half= {{0.5,0.5,0.5,0.5}};
     v4sf r, t1, t2;
     r = SIMD_RSQRT(B);          /* dir = 1/sqrt(d2) */
+    t2 = SIMD_MUL(B,half.p);      /* 0.5*d2 */
     t1 = SIMD_MUL(r,r);         /* dir*dir */
-    t2 = SIMD_MUL(r,half.p);      /* 0.5*dir */
-    t1 = SIMD_NMSUB(B,t1,one.p);  /* 1 - dir*dir*a */
-    r = SIMD_MADD(t1,t2,r);     /* 0.5*dir*(1-dir*dir*a)+dir */
+    t1 = SIMD_NMSUB(t1,t2,threehalves.p);  /* 1.5 - 0.5*d2*dir*dir */
+    r = SIMD_MUL(r,t1);     /* dir*(1.5 - 0.5*d2*dir*dir) */
     return r;
     }
 
