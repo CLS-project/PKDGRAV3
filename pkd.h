@@ -8,7 +8,7 @@
 #ifndef HAVE_CONFIG_H
 #include "floattype.h"
 #endif
-#ifndef NO_COOLING
+#ifdef COOLING
 #include "cooling.h" /* before parameters.h */
 #endif
 #include "parameters.h"
@@ -627,7 +627,7 @@ typedef struct pkdContext {
     PARTICLE **piActive;
     PARTICLE **piInactive;
     PLITE *pLite;
-#ifndef NO_COOLING
+#ifdef COOLING
     COOL *Cool; /* Cooling Context */
 #endif
 

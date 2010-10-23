@@ -815,7 +815,7 @@ struct inDensityStep {
     };
 void pstDensityStep(PST,void *,int,void *,int *);
 
-#ifndef NO_COOLING
+#ifdef COOLING
 /* PST_COOLSETUP */
 struct inCoolSetup {
     double dGmPerCcUnit;

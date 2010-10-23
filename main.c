@@ -246,7 +246,7 @@ int FC_MAIN(int argc,char **argv) {
 	    }
 	if (msrDoGas(msr)) {
 	    /* Initialize SPH, Cooling and SF/FB and gas time step */
-#ifndef NO_COOLING
+#ifdef COOLING
 	    msrCoolSetup(msr,dTime);
 #endif
 	    /* Fix dTuFac conversion of T in InitSPH */
@@ -395,7 +395,7 @@ int FC_MAIN(int argc,char **argv) {
 		
 		if (msrDoGas(msr)) {
 		    /* Initialize SPH, Cooling and SF/FB and gas time step */
-#ifndef NO_COOLING
+#ifdef COOLING
 		    msrCoolSetup(msr,dTime);
 #endif
 		    /* Fix dTuFac conversion of T in InitSPH */

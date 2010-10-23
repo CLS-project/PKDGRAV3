@@ -9,11 +9,6 @@ AC_CONFIG_HEADER([config.h])
 
 # Checks for programs.
 AC_PROG_CC
-AC_PROG_FC
-AC_FC_MAIN
-AC_FC_DUMMY_MAIN
-#AC_FC_WRAPPERS
-FC_MODULE_WRAPPERS
 AC_PROG_MAKE_SET
 
 AC_ARG_WITH(mpicc,
@@ -21,10 +16,28 @@ AC_ARG_WITH(mpicc,
   [MPICC="${withval}"],[AC_CHECK_PROG([MPICC],mpicc,mpicc,no)])
 AC_SUBST(MPICC)
 
+# Cooling
+AC_ARG_ENABLE(cooling,
+  [  --enable-cooling             enable cooling],
+  [COOLING=yes
+   AC_DEFINE([OOOLING], 1,
+ 	[Define if cooling module should be used.])])
+AM_CONDITIONAL(COOLING, test "x$COOLING" = "xyes")
+
+if test "x$COOLING" = "xyes" ; then
+#AC_PROG_FC
+#AC_FC_MAIN
+#AC_FC_DUMMY_MAIN
+##AC_FC_WRAPPERS
+#FC_MODULE_WRAPPERS
 AC_ARG_WITH(mpif90,
   [  --with-mpif90=mpif90    specify the name of the MPI f90 compiler],
   [MPIFC="${withval}"],[AC_CHECK_PROG([MPIFC],mpif90,mpif90,no)])
 AC_SUBST(MPIFC)
+else
+AC_DEFINE([FC_MAIN],main,
+	[C main function (varies if FORTRAN is being used).])
+fi
 
 # The floating point data type - This should be detected and --with-float added
 AC_DEFINE([FLOAT],double,
@@ -356,7 +369,7 @@ AM_CONDITIONAL(SYMBA, test "x$SYMBA" = "xyes")
 
 # PSD
 AC_ARG_ENABLE(psd,
-  [  --enable-psd               enable phase-space options],
+  [  --enable-psd                 enable phase-space options],
   [PSD=yes
    AC_DEFINE([USE_PSD], 1,
  	[Define if phase-space coordinates/functions should be available.])])

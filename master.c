@@ -668,7 +668,7 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.bInitTFromCooling = 0;
 
     /* Add any parameters specific to the cooling approach */
-#ifndef NO_COOLING
+#ifdef COOLING
     CoolAddParams( &msr->param.CoolParam, msr->prm );
 #endif
 
@@ -1297,7 +1297,7 @@ void msrLogParams(MSR msr,FILE *fp) {
     fprintf(fp," dhMinOverSoft: %g",msr->param.dhMinOverSoft);
     fprintf(fp," dMetalDiffusionCoeff: %g",msr->param.dMetalDiffusionCoeff);
     fprintf(fp," dThermalDiffusionCoeff: %g",msr->param.dThermalDiffusionCoeff);
-#ifndef NO_COOLING
+#ifdef COOLING
     if (msr->param.bGasCooling) CoolLogParams( &msr->param.CoolParam, fp );
 #endif
     fprintf(fp,"\n# UNITS: dKBoltzUnit: %g",msr->param.dKBoltzUnit);
@@ -3569,7 +3569,7 @@ void msrTopStepKDK(MSR msr,
 #endif
 	if (msrDoGas(msr)) {
 	    msrSph(msr,dTime,dStep);  /* dTime = Time at end of kick */
-#ifndef NO_COOLING
+#ifdef COOLING
 	    msrCooling(msr,dTime,dStep,0,
 		       (iKickRung<=msr->param.iRungCoolTableUpdate ? 1:0),0);
 #endif
@@ -4277,7 +4277,7 @@ void msrInitSph(MSR msr,double dTime)
     msrActiveRung(msr,0,1);
     msrSph(msr,dTime,0);
     msrSphStep(msr,0,MAX_RUNG,dTime); /* Requires SPH */
-#ifndef NO_COOLING
+#ifdef COOLING
     msrCooling(msr,dTime,0,0,1,1); /* Interate cooling for consistent dt */
 #endif
 }
@@ -4305,7 +4305,7 @@ void msrSph(MSR msr,double dTime, double dStep) {
     }
 
 
-#ifndef NO_COOLING
+#ifdef COOLING
 void msrCoolSetup(MSR msr, double dTime)
     {
     struct inCoolSetup in;

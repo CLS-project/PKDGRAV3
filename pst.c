@@ -339,7 +339,7 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_DENSITYSTEP,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstDensityStep,
 		  sizeof(struct inDensityStep),0);
-#ifndef NO_COOLING
+#ifdef COOLING
     mdlAddService(mdl,PST_COOLSETUP,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstCoolSetup,
 		  sizeof(struct inCoolSetup),0);
@@ -3313,7 +3313,7 @@ pstDensityStep(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     if (pnOut) *pnOut = 0;
     }
 
-#ifndef NO_COOLING
+#ifdef COOLING
 void pstCoolSetup(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     {
     LCL *plcl = pst->plcl;
