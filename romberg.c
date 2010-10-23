@@ -27,11 +27,10 @@ dRombergO(void *CTX,double (*func)(void *, double),double a,double b,
 
     tlk[0] = tllnew = (b-a)*(*func)(CTX, 0.5*(b+a));
     if (a == b) return tllnew;
-    tll = FLOAT_MAXVAL;
 
     eps*=0.5;
 
-    while ((fabs((tllnew-tll)/(tllnew+tll)) > eps) && (n < MAXLEV)) {
+    do {
 	/*
 	 * midpoint rule.
 	 */
@@ -63,7 +62,7 @@ dRombergO(void *CTX,double (*func)(void *, double),double a,double b,
 	tll = tllnew;
 	tllnew = tlk[n];
 	n++;
-	}
+	} while ((fabs((tllnew-tll)/(tllnew+tll)) > eps) && (n < MAXLEV));
 
     assert((fabs((tllnew-tll)/(tllnew+tll)) < eps));
 
