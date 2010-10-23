@@ -222,8 +222,6 @@ void pkdSetThetaTable(PKD pkd,double dThetaMin,double dThetaMax) {
 	    pkd->fCritTheta[i] = (pkd->fCritTheta[i]-pkd->dCritThetaMin)
 		/ (1-pkd->dCritThetaMin)
 		* (pkd->dCritThetaMax-pkd->dCritThetaMin) + pkd->dCritThetaMin;
-//	    printf("%g (%g) : %g\n", pkd->fCritMass[i], log(pkd->fCritMass[i]),
-//		   pkd->fCritTheta[i]);
 	    }
 	}
     }
@@ -662,13 +660,6 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 	    }
 	}
     /*
-    ** Initialize the PP interaction list center, just in case it has not been done yet!
-    */
-    pkd->ilp->cx = 0;
-    pkd->ilp->cy = 0;
-    pkd->ilp->cz = 0;
-
-    /*
     ** We are now going to work on the local tree.
     ** Make iCell point to the root of the tree again.
     */
@@ -702,8 +693,6 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 	d2c = (cx - pkd->ilp->cx)*(cx - pkd->ilp->cx) + (cy - pkd->ilp->cy)*(cy - pkd->ilp->cy) +
 	      (cz - pkd->ilp->cz)*(cz - pkd->ilp->cz);
 	if ( d2c > 1e-5) {
-/*	    printf("%d:Shift of center too large for the coming interactions! old:(%.10g,%.10g,%.10g) new:(%.10g,%.10g,%.10g)\n",
-  mdlSelf(pkd->mdl),pkd->ilp->cx,pkd->ilp->cy,pkd->ilp->cz,cx,cy,cz); */
 	    /*
 	    ** Correct all remaining PP interactions to this new center.
 	    */
@@ -717,6 +706,19 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 	    pkd->ilp->cx = cx;
 	    pkd->ilp->cy = cy;
 	    pkd->ilp->cz = cz;
+	    /*
+	    ** Correct all remaining PC interactions to this new center.
+	    */
+	    ILC_LOOP( pkd->ilc, ctile ) {
+		for ( j=0; j<ctile->nCell; ++j ) {
+		    ctile->dx.f[j] += cx - pkd->ilc->cx;
+		    ctile->dy.f[j] += cy - pkd->ilc->cy;
+		    ctile->dz.f[j] += cz - pkd->ilc->cz;
+		    }
+		}
+	    pkd->ilc->cx = cx;
+	    pkd->ilc->cy = cy;
+	    pkd->ilc->cz = cz;
 	    }
 	while (1) {
 	    /*
@@ -729,18 +731,12 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 		a = pkdNodeAccel(pkd,k);
 		maga = sqrt(a[0]*a[0] + a[1]*a[1] + a[2]*a[2]);
 	    }
-/*
-	    printf("\nCELL:%d ",iCell);
-*/
 	    for (i=0;i<nCheck;++i) {
 #ifdef LOCAL_EXPANSION
 		iOpen = iOpenOutcomeOld(pkd,k,&pkd->Check[i],&c,dThetaMin);
 #else
 		iOpen = iOpenOutcomeBarnesHut(pkd,k,&pkd->Check[i],&c,dThetaMin);
 #endif
-/*
-		printf("%1d",iOpen);
-*/
 		switch (iOpen) {
 		case 0:
 		    /*
@@ -973,7 +969,9 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 			d2 += dx[j]*dx[j];
 		    }
 		    dir = 1.0/sqrt(d2);
+
 		    *pdFlop += momFlocrAddFmomr5cm(&L,k->bMax,pkdNodeMom(pkd,c),c->bMax,dir,dx[0],dx[1],dx[2],&tax,&tay,&taz);
+
 		    adotai = a[0]*tax + a[1]*tay + a[2]*taz;
 		    if (adotai > 0) {
 			adotai /= maga;
@@ -1039,10 +1037,6 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 	    ** Now prepare to proceed to the next deeper
 	    ** level of the tree.
 	    */
-/*
-	    printf("iCell:%d\n",iCell);
-	    momPrintFlocr(&L,1.0);
-*/
 	    if (!k->iLower) break;
 	    xParent = k->r[0];
 	    yParent = k->r[1];
@@ -1139,9 +1133,6 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 	** Bucket!
 	*/
 	assert(nCheck == 0);
-/*
-	momPrintFlocr(&L,1.0);
-*/
 	/*
 	** Now calculate gravity on this bucket!
 	*/

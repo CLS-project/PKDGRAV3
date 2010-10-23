@@ -2291,7 +2291,7 @@ void momScaledAddFlocr(FLOCR *lr,float vr,FLOCR *la,float va) {
 void momRescaleFlocr(FLOCR *lr,float vnew,float vold) {
     float f,s;
     assert(vnew > 0.0 && vold > 0);
-    f = vold/vnew;
+    f = vnew/vold;
     s = f;
     lr->x *= s;
     lr->y *= s;
@@ -2465,12 +2465,12 @@ void momPrintLocr(LOCR *m) {
     }
 
 
-void momPrintFlocr(FLOCR *m,float u) {
+void momPrintFlocr(FLOCR *m,float v) {
+    double u = 1.0/((double)v);
     double uu;
     printf("FLOCR:%20.8g\n",m->m);
-    uu = u;
-    printf("    x:%20.8g     y:%20.8g     z:%20.8g\n",m->x*uu,m->y*uu,m->z*uu);
-    uu *= u; 
+    printf("    x:%20.8g     y:%20.8g     z:%20.8g\n",m->x*u,m->y*u,m->z*u);
+    uu = u*u;
     printf("   xx:%20.8g    xy:%20.8g    xz:%20.8g\n",m->xx*uu,m->xy*uu,m->xz*uu);
     printf("   yy:%20.8g    yz:%20.8g",m->yy*uu,m->yz*uu);
     uu *= u;

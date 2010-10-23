@@ -34,17 +34,15 @@ typedef struct ilcTile {
     uint32_t nMaxCell;          /* Maximum number of cells in this tile */
     uint32_t nCell;             /* Current number of cells */
 
-    struct {
-	ilcFloat dx,dy,dz;
-	ilcFloat d2;
+  ilcFloat dx,dy,dz;
+  ilcFloat d2;
 #ifdef HERMITE
-	ilcFloat vx,vy,vz;
+  ilcFloat vx,vy,vz;
 #endif
-	ilcFloat xxxx,xxxy,xxxz,xxyz,xxyy,yyyz,xyyz,xyyy,yyyy;
-	ilcFloat xxx,xyy,xxy,yyy,xxz,yyz,xyz;
-	ilcFloat xx,xy,xz,yy,yz;
-	ilcFloat m,u;
-	} d;
+  ilcFloat xxxx,xxxy,xxxz,xxyz,xxyy,yyyz,xyyz,xyyy,yyyy;
+  ilcFloat xxx,xyy,xxy,yyy,xxz,yyz,xyz;
+  ilcFloat xx,xy,xz,yy,yz;
+  ilcFloat m,u;
 /*
 ** ILP has some extra data here that gets partitioned to find the closest
 ** particles. ILC doesn't need this (at least not yet).
@@ -87,9 +85,9 @@ static inline uint32_t ilcCount(ILC ilc) {
 
 #if defined(HERMITE)
 #define ilcAppend_2(ilc,VX,VY,VZ)					\
-    tile->d.vx.f[ILC_APPEND_i] = (VX);					\
-    tile->d.vy.f[ILC_APPEND_i] = (VY);					\
-    tile->d.vz.f[ILC_APPEND_i] = (VZ);
+    tile->vx.f[ILC_APPEND_i] = (VX);					\
+    tile->vy.f[ILC_APPEND_i] = (VY);					\
+    tile->vz.f[ILC_APPEND_i] = (VZ);
 #else
 #define ilcAppend_2(ilc,VX,VY,VZ)
 #endif
@@ -101,33 +99,33 @@ static inline uint32_t ilcCount(ILC ilc) {
     uint_fast32_t ILC_APPEND_i;						\
     if ( tile->nCell == tile->nMaxCell ) tile = ilcExtend((ilc));	\
     ILC_APPEND_i = tile->nCell;						\
-    tile->d.dx.f[ILC_APPEND_i] = (ilc)->cx - (X);			\
-    tile->d.dy.f[ILC_APPEND_i] = (ilc)->cy - (Y);			\
-    tile->d.dz.f[ILC_APPEND_i] = (ilc)->cz - (Z);			\
+    tile->dx.f[ILC_APPEND_i] = (ilc)->cx - (X);			\
+    tile->dy.f[ILC_APPEND_i] = (ilc)->cy - (Y);			\
+    tile->dz.f[ILC_APPEND_i] = (ilc)->cz - (Z);			\
     assert( (M)->m > 0.0 );						\
-    tile->d.m.f[ILC_APPEND_i] = (M)->m;					\
-    tile->d.u.f[ILC_APPEND_i] = (U);					\
-    tile->d.xx.f[ILC_APPEND_i] = (M)->xx;      				\
-    tile->d.xy.f[ILC_APPEND_i] = (M)->xy;	       			\
-    tile->d.xz.f[ILC_APPEND_i] = (M)->xz;	       			\
-    tile->d.yy.f[ILC_APPEND_i] = (M)->yy;      				\
-    tile->d.yz.f[ILC_APPEND_i] = (M)->yz;				\
-    tile->d.xxx.f[ILC_APPEND_i] = (M)->xxx;            			\
-    tile->d.xxy.f[ILC_APPEND_i] = (M)->xxy;            			\
-    tile->d.xxz.f[ILC_APPEND_i] = (M)->xxz;            			\
-    tile->d.xyy.f[ILC_APPEND_i] = (M)->xyy;            			\
-    tile->d.xyz.f[ILC_APPEND_i] = (M)->xyz;            			\
-    tile->d.yyy.f[ILC_APPEND_i] = (M)->yyy;            			\
-    tile->d.yyz.f[ILC_APPEND_i] = (M)->yyz;            			\
-    tile->d.xxxx.f[ILC_APPEND_i] = (M)->xxxx;                  		\
-    tile->d.xxxy.f[ILC_APPEND_i] = (M)->xxxy;                  		\
-    tile->d.xxxz.f[ILC_APPEND_i] = (M)->xxxz;                  		\
-    tile->d.xxyy.f[ILC_APPEND_i] = (M)->xxyy;                  		\
-    tile->d.xxyz.f[ILC_APPEND_i] = (M)->xxyz;                  		\
-    tile->d.xyyy.f[ILC_APPEND_i] = (M)->xyyy;                  		\
-    tile->d.xyyz.f[ILC_APPEND_i] = (M)->xyyz;                  		\
-    tile->d.yyyy.f[ILC_APPEND_i] = (M)->yyyy;                  		\
-    tile->d.yyyz.f[ILC_APPEND_i] = (M)->yyyz;                  		\
+    tile->m.f[ILC_APPEND_i] = (M)->m;					\
+    tile->u.f[ILC_APPEND_i] = (U);					\
+    tile->xx.f[ILC_APPEND_i] = (M)->xx;      				\
+    tile->xy.f[ILC_APPEND_i] = (M)->xy;	       			\
+    tile->xz.f[ILC_APPEND_i] = (M)->xz;	       			\
+    tile->yy.f[ILC_APPEND_i] = (M)->yy;      				\
+    tile->yz.f[ILC_APPEND_i] = (M)->yz;				\
+    tile->xxx.f[ILC_APPEND_i] = (M)->xxx;            			\
+    tile->xxy.f[ILC_APPEND_i] = (M)->xxy;            			\
+    tile->xxz.f[ILC_APPEND_i] = (M)->xxz;            			\
+    tile->xyy.f[ILC_APPEND_i] = (M)->xyy;            			\
+    tile->xyz.f[ILC_APPEND_i] = (M)->xyz;            			\
+    tile->yyy.f[ILC_APPEND_i] = (M)->yyy;            			\
+    tile->yyz.f[ILC_APPEND_i] = (M)->yyz;            			\
+    tile->xxxx.f[ILC_APPEND_i] = (M)->xxxx;                  		\
+    tile->xxxy.f[ILC_APPEND_i] = (M)->xxxy;                  		\
+    tile->xxxz.f[ILC_APPEND_i] = (M)->xxxz;                  		\
+    tile->xxyy.f[ILC_APPEND_i] = (M)->xxyy;                  		\
+    tile->xxyz.f[ILC_APPEND_i] = (M)->xxyz;                  		\
+    tile->xyyy.f[ILC_APPEND_i] = (M)->xyyy;                  		\
+    tile->xyyz.f[ILC_APPEND_i] = (M)->xyyz;                  		\
+    tile->yyyy.f[ILC_APPEND_i] = (M)->yyyy;                  		\
+    tile->yyyz.f[ILC_APPEND_i] = (M)->yyyz;                  		\
     ilcAppend_2((ilc),VX,VY,VZ);					\
     ++tile->nCell;							\
     }
@@ -151,26 +149,26 @@ static inline void ilcCompute(ILC ilc, float fx, float fy, float fz ) {
 	if ( r != 0 ) {
 	    for ( j=r; j<ILC_ALIGN_SIZE; j++ ) {
 		int o = (n<<ILC_ALIGN_BITS) + j;
-		tile->d.dx.f[o] = tile->d.dy.f[o] = tile->d.dz.f[o] = 1e18;
-		tile->d.m.f[o] = 0;
+		tile->dx.f[o] = tile->dy.f[o] = tile->dz.f[o] = 1e18;
+		tile->m.f[o] = 0;
 		}
 	    n++;
 	    }
 	for ( j=0; j<n; j++ ) {
-	    tile->d.dx.p[j] = t1 = SIMD_ADD(tile->d.dx.p[j],px);
-	    tile->d.dy.p[j] = t2 = SIMD_ADD(tile->d.dy.p[j],py);
-	    tile->d.dz.p[j] = t3 = SIMD_ADD(tile->d.dz.p[j],pz);
-	    tile->d.d2.p[j] = SIMD_MADD(t3,t3,SIMD_MADD(t2,t2,SIMD_MUL(t1,t1)));
+	    tile->dx.p[j] = t1 = SIMD_ADD(tile->dx.p[j],px);
+	    tile->dy.p[j] = t2 = SIMD_ADD(tile->dy.p[j],py);
+	    tile->dz.p[j] = t3 = SIMD_ADD(tile->dz.p[j],pz);
+	    tile->d2.p[j] = SIMD_MADD(t3,t3,SIMD_MADD(t2,t2,SIMD_MUL(t1,t1)));
 	    }
 	}
 #else
     ILC_LOOP(ilc,tile) {
 	for (j=0;j<tile->nCell;++j) {
-	    tile->d.dx.f[j] += fx;
-	    tile->d.dy.f[j] += fy;
-	    tile->d.dz.f[j] += fz;
-	    tile->d.d2.f[j] = tile->d.dx.f[j]*tile->d.dx.f[j]
-			      + tile->d.dy.f[j]*tile->d.dy.f[j] + tile->d.dz.f[j]*tile->d.dz.f[j];
+	    tile->dx.f[j] += fx;
+	    tile->dy.f[j] += fy;
+	    tile->dz.f[j] += fz;
+	    tile->d2.f[j] = tile->dx.f[j]*tile->dx.f[j]
+			      + tile->dy.f[j]*tile->dy.f[j] + tile->dz.f[j]*tile->dz.f[j];
 	    }
 	}
 #endif

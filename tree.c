@@ -84,7 +84,6 @@ void InitializeParticles(PKD pkd,int bExcludeVeryActive,BND *pbnd) {
 	pNode = pkdTreeNode(pkd,VAROOT);
         pkdNodeBnd(pkd, pNode, &bnd);
 	if (pkd->nVeryActive > 0)
-	    /*   printf("%d:nVeryActive = %d\n",mdlSelf(pkd->mdl),pkd->nVeryActive);*/
 	    /*
 	    ** Set up the very active root node.
 	    */
@@ -389,7 +388,7 @@ void Create(PKD pkd,int iNode) {
     FMOMR mom;
     SPHBNDS *bn;
     pBND bnd;
-    FLOAT m,fMass,fSoft,x,y,z,vx,vy,vz,ax,ay,az,ft,d2,d2Max,dih2,bmin;
+    FLOAT m,fMass,fSoft,x,y,z,vx,vy,vz,ax,ay,az,ft,d2,d2Max,dih2,bmin,b;
     float *a;
     double *v;
     int pj,d,nDepth,ism;
@@ -537,7 +536,9 @@ void Create(PKD pkd,int iNode) {
 	    pkdn->fSoft2 = 1/(dih2*m);
 #endif
 	    }
-	d2Max = bmin*bmin;
+
+	//	d2Max = bmin*bmin;
+	d2Max = 0.0;
 	for (pj=pkdn->pLower;pj<=pkdn->pUpper;++pj) {
 	    p = pkdParticle(pkd,pj);
 	    x = p->r[0] - pkdn->r[0];
@@ -549,32 +550,28 @@ void Create(PKD pkd,int iNode) {
 	    */
 	    d2Max = (d2 > d2Max)?d2:d2Max;
 	    }
+#if (1)
+        MAXSIDE(bnd.fMax,b);
+        if (b < bmin) b = bmin;
+	pkdn->bMax = b;
+#else
 	pkdn->bMax = sqrt(d2Max);
+#endif
 	/*
 	** Now calculate the reduced multipole moment.
 	** Note that we use the cell's openening radius as the scaling factor!
 	*/
 	if (pkd->oNodeMom) {
 	    momClearFmomr(pkdNodeMom(pkd,pkdn));
-/*
-	    printf("%d ",iNode);
-*/
 	    for (pj=pkdn->pLower;pj<=pkdn->pUpper;++pj) {
 		p = pkdParticle(pkd,pj);
 		x = p->r[0] - pkdn->r[0];
 		y = p->r[1] - pkdn->r[1];
 		z = p->r[2] - pkdn->r[2];
-/*
-		printf("m:%.7g x:%.7g y:%.7g z:%.7g ",m,x,y,z); 
-*/
 		m = pkdMass(pkd,p);
 		momMakeFmomr(&mom,m,pkdn->bMax,x,y,z);
 		momAddFmomr(pkdNodeMom(pkd,pkdn),&mom);
 	    }
-/*
-	    printf("\n");
-	    momPrintFmomr(pkdNodeMom(pkd,pkdn),pkdn->bMax);
-*/
 	}
 	/*
 	** Calculate bucket fast gas bounds.
@@ -639,6 +636,7 @@ void Create(PKD pkd,int iNode) {
 	    ** Before squeezing the bounds, calculate a minimum b value based on the splitting bounds alone.
 	    ** This gives us a better feel for the "size" of a bucket with only a single particle.
 	    */
+	    MINSIDE(bnd.fMax,bmin);
 	    *bnd.size = 2.0*(bnd.fMax[0]+bnd.fMax[1]+bnd.fMax[2])/3.0;
 	    pj = pkdn->pLower;
 	    pkdl = pkdTreeNode(pkd,pkdn->iLower);
@@ -661,10 +659,17 @@ void Create(PKD pkd,int iNode) {
 		/*
 		** Now determine the opening radius for gravity.
 		*/
+#if (1)
+		MAXSIDE(bnd.fMax,b);
+		if (b < bmin) b = bmin;
+		if (d2Max>b) b = d2Max;
+		pkdn->bMax = b;
+#else
 		pkdn->bMax = sqrt(d2Max);
+#endif
 		}
 	    else {
-	      pkdn->bMax = HUGE_VAL;
+	      CALCOPEN(pkdn,bmin);  /* set bMax */
 	    }
 	    pkdCombineCells2(pkd,pkdn,pkdl,pkdu);
 	    }
@@ -731,7 +736,6 @@ void pkdCombineCells2(PKD pkd,KDN *pkdn,KDN *p1,KDN *p2) {
     float x,y,z;
     int j;
 
-    CALCOPEN(pkdn);  /* set bMax */
     /*
     ** Now calculate the reduced multipole moment.
     ** Shift the multipoles of each of the children

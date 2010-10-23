@@ -141,7 +141,7 @@ void momPrintMomc(MOMC *m);
 void momPrintMomr(MOMR *m);
 void momPrintFmomr(FMOMR *m,float u);
 void momPrintLocr(LOCR *l);
-void momPrintFlocr(FLOCR *l,float u);
+void momPrintFlocr(FLOCR *l,float v);
 
 
 #endif

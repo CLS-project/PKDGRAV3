@@ -168,9 +168,9 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,FLOCR *
 #else
 	ILC_LOOP(ilc,ctile) {
 	    for (j=0;j<ctile->nCell;++j) {
-		SQRT1(ctile->d.d2.f[j],dir);
+		SQRT1(ctile->d2.f[j],dir);
 		dirDTS = dir;
-		u = ctile->d.u.f[j]*dir;
+		u = ctile->u.f[j]*dir;
 		g0 = dir;
 		g2 = 3*dir*u*u;
 		g3 = 5*g2*u;
@@ -178,9 +178,9 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,FLOCR *
 		/*
 		** Calculate the funky distance terms.
 		*/
-		x = ctile->d.dx.f[j]*dir;
-		y = ctile->d.dy.f[j]*dir;
-		z = ctile->d.dz.f[j]*dir;
+		x = ctile->dx.f[j]*dir;
+		y = ctile->dy.f[j]*dir;
+		z = ctile->dz.f[j]*dir;
 		xx = 0.5*x*x;
 		xy = x*y;
 		xz = x*z;
@@ -199,19 +199,19 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,FLOCR *
 		/*
 		** Now calculate the interaction up to Hexadecapole order.
 		*/
-		tx = g4*(ctile->d.xxxx.f[j]*xxx + ctile->d.xyyy.f[j]*yyy + ctile->d.xxxy.f[j]*xxy + ctile->d.xxxz.f[j]*xxz + ctile->d.xxyy.f[j]*xyy + ctile->d.xxyz.f[j]*xyz + ctile->d.xyyz.f[j]*yyz);
-		ty = g4*(ctile->d.xyyy.f[j]*xyy + ctile->d.xxxy.f[j]*xxx + ctile->d.yyyy.f[j]*yyy + ctile->d.yyyz.f[j]*yyz + ctile->d.xxyy.f[j]*xxy + ctile->d.xxyz.f[j]*xxz + ctile->d.xyyz.f[j]*xyz);
-		tz = g4*(-ctile->d.xxxx.f[j]*xxz - (ctile->d.xyyy.f[j] + ctile->d.xxxy.f[j])*xyz - ctile->d.yyyy.f[j]*yyz + ctile->d.xxxz.f[j]*xxx + ctile->d.yyyz.f[j]*yyy - ctile->d.xxyy.f[j]*(xxz + yyz) + ctile->d.xxyz.f[j]*xxy + ctile->d.xyyz.f[j]*xyy);
+		tx = g4*(ctile->xxxx.f[j]*xxx + ctile->xyyy.f[j]*yyy + ctile->xxxy.f[j]*xxy + ctile->xxxz.f[j]*xxz + ctile->xxyy.f[j]*xyy + ctile->xxyz.f[j]*xyz + ctile->xyyz.f[j]*yyz);
+		ty = g4*(ctile->xyyy.f[j]*xyy + ctile->xxxy.f[j]*xxx + ctile->yyyy.f[j]*yyy + ctile->yyyz.f[j]*yyz + ctile->xxyy.f[j]*xxy + ctile->xxyz.f[j]*xxz + ctile->xyyz.f[j]*xyz);
+		tz = g4*(-ctile->xxxx.f[j]*xxz - (ctile->xyyy.f[j] + ctile->xxxy.f[j])*xyz - ctile->yyyy.f[j]*yyz + ctile->xxxz.f[j]*xxx + ctile->yyyz.f[j]*yyy - ctile->xxyy.f[j]*(xxz + yyz) + ctile->xxyz.f[j]*xxy + ctile->xyyz.f[j]*xyy);
 		g4 = 0.25*(tx*x + ty*y + tz*z);
-		xxx = g3*(ctile->d.xxx.f[j]*xx + ctile->d.xyy.f[j]*yy + ctile->d.xxy.f[j]*xy + ctile->d.xxz.f[j]*xz + ctile->d.xyz.f[j]*yz);
-		xxy = g3*(ctile->d.xyy.f[j]*xy + ctile->d.xxy.f[j]*xx + ctile->d.yyy.f[j]*yy + ctile->d.yyz.f[j]*yz + ctile->d.xyz.f[j]*xz);
-		xxz = g3*(-(ctile->d.xxx.f[j] + ctile->d.xyy.f[j])*xz - (ctile->d.xxy.f[j] + ctile->d.yyy.f[j])*yz + ctile->d.xxz.f[j]*xx + ctile->d.yyz.f[j]*yy + ctile->d.xyz.f[j]*xy);
+		xxx = g3*(ctile->xxx.f[j]*xx + ctile->xyy.f[j]*yy + ctile->xxy.f[j]*xy + ctile->xxz.f[j]*xz + ctile->xyz.f[j]*yz);
+		xxy = g3*(ctile->xyy.f[j]*xy + ctile->xxy.f[j]*xx + ctile->yyy.f[j]*yy + ctile->yyz.f[j]*yz + ctile->xyz.f[j]*xz);
+		xxz = g3*(-(ctile->xxx.f[j] + ctile->xyy.f[j])*xz - (ctile->xxy.f[j] + ctile->yyy.f[j])*yz + ctile->xxz.f[j]*xx + ctile->yyz.f[j]*yy + ctile->xyz.f[j]*xy);
 		g3 = onethird*(xxx*x + xxy*y + xxz*z);
-		xx = g2*(ctile->d.xx.f[j]*x + ctile->d.xy.f[j]*y + ctile->d.xz.f[j]*z);
-		xy = g2*(ctile->d.yy.f[j]*y + ctile->d.xy.f[j]*x + ctile->d.yz.f[j]*z);
-		xz = g2*(-(ctile->d.xx.f[j] + ctile->d.yy.f[j])*z + ctile->d.xz.f[j]*x + ctile->d.yz.f[j]*y);
+		xx = g2*(ctile->xx.f[j]*x + ctile->xy.f[j]*y + ctile->xz.f[j]*z);
+		xy = g2*(ctile->yy.f[j]*y + ctile->xy.f[j]*x + ctile->yz.f[j]*z);
+		xz = g2*(-(ctile->xx.f[j] + ctile->yy.f[j])*z + ctile->xz.f[j]*x + ctile->yz.f[j]*y);
 		g2 = 0.5*(xx*x + xy*y + xz*z);
-		g0 *= ctile->d.m.f[j];
+		g0 *= ctile->m.f[j];
 		fPot -= g0 + g2 + g3 + g4;
 		g0 += 5*g2 + 7*g3 + 9*g4;
 		tax = dir*(xx + xxx + tx - x*g0);
