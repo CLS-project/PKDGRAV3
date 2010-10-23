@@ -72,7 +72,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,FLOCR *
     float dtGrav,dT;
     float adotai,maga,dimaga,dirsum,normsum;
     float tax,tay,taz;
-    float rholoc,rhopmax,rhopmaxlocal,dirDTS,dsmooth2,fSoftMedian,fEps,fEps2;
+    float rholoc,rhopmax,rhopmaxlocal,dirDTS,fsmooth2,fSoftMedian,fEps,fEps2;
     float summ;
 #if defined(USE_SIMD_PC)
 #else
@@ -93,9 +93,8 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,FLOCR *
     v4sf piax, piay, piaz;
     v4sf ppot, pmass, p4soft2;
     v4sf padotai,pimaga,psmooth2,pirsum,pnorms;
-#else
-    float fourh2;
 #endif
+    float fourh2;
     ILPCHECKPT checkPt;
 
     assert(pkd->oPotential);
@@ -132,7 +131,6 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,FLOCR *
 	ax = 0;
 	ay = 0;
 	az = 0;
-	dsmooth2 = 0;
 	fx = a[0];
 	fy = a[1];
 	fz = a[2];
@@ -260,13 +258,16 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,FLOCR *
 	    ** likely to be cached already because they will be on the P-P list.
 	    */
 	    smSmoothSingle(smx,smf,p);
-	    dsmooth2 = p->fBall * p->fBall;
+	    fsmooth2 = p->fBall * p->fBall;
 #ifdef USE_SIMD
-	    psmooth2 = SIMD_SPLAT(dsmooth2);
+	    psmooth2 = SIMD_SPLAT(fsmooth2);
 #endif
 	    }
-	else {
-	    dsmooth2 = 0.0;
+	 else {
+	   /*
+	   ** We are not using GravStep!
+	   */
+	    fsmooth2 = 0.0;
 #ifdef USE_SIMD_PP
 	    psmooth2 = consts.zero.p;
 #endif	    
@@ -359,14 +360,15 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,FLOCR *
 	dirsum = SIMD_HADD(pirsum);
 	normsum = SIMD_HADD(pnorms);
 #else
+	/*
+	** DO NOT MODIFY THE CODE BELOW UP TO THE #endif!
+	** This code MUST match the SIMD code above.
+	*/
 	ILP_LOOP(ilp,tile) {
 	    for (j=0;j<tile->nPart;++j) {
-		double d2DTS;
 		d2 = tile->d2.f[j];
-		d2DTS = d2;
 		fourh2 = softmassweight(fMass,4*fSoft*fSoft,
 					tile->m.f[j],tile->fourh2.f[j]);
-
 		if (d2 > fourh2) {
 		    SQRT1(d2,dir);
 		    dir2 = dir*dir*dir;
@@ -384,33 +386,12 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,FLOCR *
 		    dir2 *= 1.0 + d2*(1.5 + d2*(135.0/16.0));
 		    ++nSoft;
 		    }
-		/*
-		** GravStep if iTimeStepCrit =
-		** 0: Mean field regime for dynamical time (normal/standard setting)
-		** 1: Gravitational scattering regime for dynamical time with eccentricity correction
-		*/
-		if (pkd->param.bGravStep && pkd->param.iTimeStepCrit > 0 && 
-		    (p->iOrder < pkd->param.nPartColl || tile->iOrder.i[j] < pkd->param.nPartColl)) {
-		    summ = fMass+tile->m.f[j];
-		    rhopmaxlocal = summ*dir2;
-		    /*
-		    ** Gravitational scattering regime (iTimeStepCrit=1)
-		    */
-		    if (pkd->param.iTimeStepCrit == 1) {
-			vx = v[0] - tile->vx.f[j];
-			vy = v[1] - tile->vy.f[j];
-			vz = v[2] - tile->vz.f[j];
-			rhopmaxlocal = pkdRho1(rhopmaxlocal,summ,dir,tile->dx.f[j],tile->dy.f[j],tile->dz.f[j],vx,vy,vz,pkd->param.dEccFacMax);
-			}
-		    rhopmax = (rhopmaxlocal > rhopmax)?rhopmaxlocal:rhopmax;
-		    }
-		
 		dir2 *= tile->m.f[j];
 		tax = -tile->dx.f[j]*dir2;
 		tay = -tile->dy.f[j]*dir2;
 		taz = -tile->dz.f[j]*dir2;
 		adotai = a[0]*tax + a[1]*tay + a[2]*taz;
-		if (adotai > 0 && d2DTS >= dsmooth2) {
+		if (adotai > 0 && tile->d2.f[j] >= fsmooth2) {
 		    adotai *= dimaga;
 		    dirsum += dir*adotai*adotai;
 		    normsum += adotai*adotai;
@@ -422,7 +403,6 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,FLOCR *
 		}
 	    } /* end of particle list gravity loop */
 #endif
-
 	/*
 	** Finally set new acceleration and potential.
 	** Note that after this point we cannot use the new timestepping criterion since we
@@ -461,9 +441,47 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,FLOCR *
 		}
 	    else dtGrav = 0.0;
 	    dtGrav += pkd->param.dPreFacRhoLoc*p->fDensity;
-	    if (pkd->param.iTimeStepCrit > 0) {
-		dtGrav = (rhopmax > dtGrav?rhopmax:dtGrav);
+	    if (pkd->param.iTimeStepCrit == 1) {
+	      /*
+	      ** GravStep if iTimeStepCrit =
+	      ** 0: Mean field regime for dynamical time (normal/standard setting)
+	      ** 1: Gravitational scattering regime for dynamical time with eccentricity correction
+	      */
+	      rhopmax = 0.0;
+	      ILP_LOOP(ilp,tile) {
+		for (j=0;j<tile->nPart;++j) {
+		  if (p->iOrder < pkd->param.nPartColl || tile->iOrder.i[j] < pkd->param.nPartColl) {
+		    d2 = tile->d2.f[j];
+		    fourh2 = softmassweight(fMass,4*fSoft*fSoft,
+					tile->m.f[j],tile->fourh2.f[j]);
+		    if (d2 > fourh2) {
+		      SQRT1(d2,dir);
+		      dir2 = dir*dir*dir;
+		    }
+		    else {
+		      /*
+		      ** This uses the Dehnen K1 kernel function now, it's fast!
+		      */
+		      SQRT1(fourh2,dir);
+		      dir2 = dir*dir;
+		      d2 *= dir2;
+		      dir2 *= dir;
+		      d2 = 1 - d2;
+		      dir *= 1.0 + d2*(0.5 + d2*(3.0/8.0 + d2*(45.0/32.0)));
+		      dir2 *= 1.0 + d2*(1.5 + d2*(135.0/16.0));
+		    }
+		    summ = fMass+tile->m.f[j];
+		    rhopmaxlocal = summ*dir2;
+		    vx = v[0] - tile->vx.f[j];
+		    vy = v[1] - tile->vy.f[j];
+		    vz = v[2] - tile->vz.f[j];
+		    rhopmaxlocal = pkdRho1(rhopmaxlocal,summ,dir,tile->dx.f[j],tile->dy.f[j],tile->dz.f[j],vx,vy,vz,pkd->param.dEccFacMax);
+		    rhopmax = (rhopmaxlocal > rhopmax)?rhopmaxlocal:rhopmax;
+		  }
 		}
+	      }
+	      dtGrav = (rhopmax > dtGrav?rhopmax:dtGrav);
+	    }
 	    if (dtGrav > 0.0) {
 		dT = pkd->param.dEta/sqrt(dtGrav*dRhoFac);
 		p->uNewRung = pkdDtToRung(dT,pkd->param.dDelta,pkd->param.iMaxRung-1);
