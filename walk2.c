@@ -25,6 +25,7 @@
 #include "floattype.h"
 #endif
 #include "moments.h"
+#include "cl.h"
 
 /*
 ** This is the new momentum conserving version of the opening criterion.
@@ -292,6 +293,83 @@ static inline int getCheckCell(PKD pkd,CELT *check,KDN **pc) {
 	}
     return nc;
     }
+
+/*
+** This implements the original pkdgrav2m opening criterion, which has been
+** well tested, gives good force accuracy, but may not be the most efficient
+** and also doesn't explicitly conserve momentum.
+*/
+static void iOpenOutcomeOldCL(PKD pkd,KDN *k,CLTILE tile,int iStart,double dThetaMin) {
+    const double fMonopoleThetaFac2 = 1.6 * 1.6;
+    const int walk_min_multipole = 3;
+
+    double dx,dy,dz,mink2,d2,d2Open,xc,yc,zc,fourh2,minbnd2,kOpen,cOpen,diCrit;
+    int nc,j,i;
+    int iOpen,iOpenA,iOpenB;
+    pBND kbnd;
+
+    pkdNodeBnd(pkd,k,&kbnd);
+
+    for(i=iStart; i<tile->nItems; ++i) {
+	if (tile->m.f[i] <= 0) iOpen = 10;  /* ignore this cell */
+	else {
+	    fourh2 = softmassweight(pkdNodeMom(pkd,k)->m,4*k->fSoft2,tile->m.f[i],tile->fourh2.f[i]);
+	    xc = tile->x.f[i] + tile->xOffset.f[i];
+	    yc = tile->y.f[i] + tile->yOffset.f[i];
+	    zc = tile->z.f[i] + tile->zOffset.f[i];
+	    d2 = pow(k->r[0]-xc,2) + pow(k->r[1]-yc,2) + pow(k->r[2]-zc,2);
+	    diCrit = 1.0 / dThetaMin;
+	    kOpen = 1.5*k->bMax*diCrit;
+	    cOpen = tile->cOpen.f[i]; /*c->bMax/getTheta(pkd,pkdNodeMom(pkd,c)->m/dTotalMass);*/
+	    d2Open = pow(2.0*fmax(cOpen,kOpen),2);
+	    /*d2Open = pow(cOpen + kOpen,2);*/ /* "BSC" version used this*/
+	    dx = fabs(xc - kbnd.fCenter[0]) - kbnd.fMax[0];
+	    dy = fabs(yc - kbnd.fCenter[1]) - kbnd.fMax[1];
+	    dz = fabs(zc - kbnd.fCenter[2]) - kbnd.fMax[2];
+	    mink2 = ((dx>0)?dx*dx:0) + ((dy>0)?dy*dy:0) + ((dz>0)?dz*dz:0);
+	    minbnd2 = 0;
+
+	    dx = kbnd.fCenter[0] - kbnd.fMax[0] -  tile->xCenter.f[i] - tile->xOffset.f[i] - tile->xMax.f[i];
+	    if (dx > 0) minbnd2 += dx*dx;
+	    dx = tile->xCenter.f[i] + tile->xOffset.f[i] - tile->xMax.f[i] - kbnd.fCenter[0] - kbnd.fMax[0];
+	    if (dx > 0) minbnd2 += dx*dx;
+
+	    dx = kbnd.fCenter[j] - kbnd.fMax[1] - tile->yCenter.f[i] - tile->yOffset.f[i] - tile->yMax.f[i];
+	    if (dx > 0) minbnd2 += dx*dx;
+	    dx = tile->yCenter.f[i] + tile->yOffset.f[i] - tile->yMax.f[i] - kbnd.fCenter[1] - kbnd.fMax[1];
+	    if (dx > 0) minbnd2 += dx*dx;
+
+    	    dx = kbnd.fCenter[2] - kbnd.fMax[2] - tile->zCenter.f[i] - tile->zOffset.f[i] - tile->zMax.f[i];
+	    if (dx > 0) minbnd2 += dx*dx;
+	    dx = tile->zCenter.f[i] + tile->zOffset.f[i] - tile->zMax.f[i] - kbnd.fCenter[2] - kbnd.fMax[2];
+	    if (dx > 0) minbnd2 += dx*dx;
+
+	    if (d2 > d2Open && minbnd2 > fourh2) iOpen = 8;
+	    else {
+		if (tile->iLower.i[i] == 0) iOpenA = 1;
+		else iOpenA = 3;
+		//if (nc < walk_min_multipole || mink2 <= c->bMax*c->bMax*diCrit*diCrit) iOpenB = iOpenA;
+		if (nc < walk_min_multipole || mink2 <= cOpen*cOpen) iOpenB = iOpenA;
+		else if (minbnd2 > fourh2) iOpen = iOpenB = 4;
+		//else if (mink2 > fMonopoleThetaFac2*c->bMax*c->bMax*diCrit*diCrit) iOpen = iOpenB = 5;
+		else if (mink2 > fMonopoleThetaFac2*cOpen*cOpen) iOpen = iOpenB = 5;
+		else iOpenB = iOpenA;
+		if (cOpen > kOpen) {
+		    if (tile->iLower.i[i]) iOpen = 3;
+		    else iOpen = iOpenB;
+		}
+		else {
+		    if (k->iLower) iOpen = 0;
+		    else iOpen = iOpenB;
+		}
+	    }
+	}
+	tile->iOpen.i[i] = iOpen;
+    }
+}
+
+
+
 
 /*
 ** This implements the original pkdgrav2m opening criterion, which has been
