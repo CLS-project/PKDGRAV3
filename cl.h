@@ -89,6 +89,7 @@ static inline void clAppend(CL cl,int iCell, int id,int iLower,int nc,
     uint_fast32_t i;
     if ( tile->nItems == tile->nMaxItems ) tile = clExtend((cl));
     i = tile->nItems;
+    tile->iOpen.i[i] = 0;
     tile->iCell.i[i] = (iCell);
     tile->id.i[i] = (id);
     tile->iLower.i[i] = (iLower);
@@ -111,6 +112,28 @@ static inline void clAppend(CL cl,int iCell, int id,int iLower,int nc,
     ++tile->nItems;
     }
 
+static inline void clCopyItem(CLTILE A, int Ai, CLTILE B, int Bi) {
+    A->iOpen.i[Ai]   = B->iOpen.i[Bi];
+    A->iCell.i[Ai]   = B->iCell.i[Bi];
+    A->id.i[Ai]      = B->id.i[Bi];
+    A->iLower.i[Ai]  = B->iLower.i[Bi];
+    A->nc.i[Ai]      = B->nc.i[Bi];
+    A->cOpen.f[Ai]   = B->cOpen.f[Bi];
+    A->m.f[Ai]       = B->m.f[Bi];
+    A->fourh2.f[Ai]  = B->fourh2.f[Bi];
+    A->x.f[Ai]       = B->x.f[Bi];
+    A->y.f[Ai]       = B->y.f[Bi];
+    A->z.f[Ai]       = B->z.f[Bi];
+    A->xOffset.f[Ai] = B->xOffset.f[Bi];
+    A->yOffset.f[Ai] = B->yOffset.f[Bi];
+    A->zOffset.f[Ai] = B->zOffset.f[Bi];
+    A->xCenter.f[Ai] = B->xCenter.f[Bi];
+    A->yCenter.f[Ai] = B->yCenter.f[Bi];
+    A->zCenter.f[Ai] = B->zCenter.f[Bi];
+    A->xMax.f[Ai]    = B->xMax.f[Bi];
+    A->yMax.f[Ai]    = B->yMax.f[Bi];
+    A->zMax.f[Ai]    = B->zMax.f[Bi];
+}
 #define CL_LOOP(cl,tile) for( tile=(cl)->first; tile!=(cl)->tile->next; tile=tile->next )
 
 #endif
