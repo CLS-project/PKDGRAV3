@@ -1105,6 +1105,8 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
 	}
     }
 
+    msr->nOuts = msr->iOut = 0;
+
 #ifdef PLANETS
     switch (msr->param.iCollLogOption) {
     case COLL_LOG_NONE:
