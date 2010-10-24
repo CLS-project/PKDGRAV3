@@ -70,6 +70,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\..\analysis.c" />
+    <ClCompile Include="..\..\cl.c" />
     <ClCompile Include="..\..\cosmo.c" />
     <ClCompile Include="..\..\ewald.c" />
     <ClCompile Include="..\..\fio.c" />
@@ -99,6 +100,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\bt.h" />
+    <ClInclude Include="..\..\cl.h" />
     <ClInclude Include="..\..\collision.h" />
     <ClInclude Include="..\..\cooling.h" />
     <ClInclude Include="..\..\cosmo.h" />
