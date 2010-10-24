@@ -142,15 +142,16 @@ static inline void ilcCompute(ILC ilc, float fx, float fy, float fz ) {
     py = SIMD_SPLAT(fy);
     pz = SIMD_SPLAT(fz);
 
-    ILC_LOOP(ilp,tile) {
+    ILC_LOOP(ilc,tile) {
 	uint32_t n = tile->nCell >> ILC_ALIGN_BITS; /* # Packed floats */
 	uint32_t r = tile->nCell &  ILC_ALIGN_MASK; /* Remaining */
 
 	if ( r != 0 ) {
 	    for ( j=r; j<ILC_ALIGN_SIZE; j++ ) {
 		int o = (n<<ILC_ALIGN_BITS) + j;
-		tile->dx.f[o] = tile->dy.f[o] = tile->dz.f[o] = 1e18;
-		tile->m.f[o] = 0;
+		tile->dx.f[o] = tile->dy.f[o] = tile->dz.f[o] = 1e18f;
+		tile->m.f[o] = 0.0f;
+		tile->u.f[o] = 0.0f;
 		}
 	    n++;
 	    }

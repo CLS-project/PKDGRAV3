@@ -132,11 +132,17 @@ static inline void ilpCompute(ILP ilp, float fx, float fy, float fz ) {
 	uint32_t n = tile->nPart >> ILP_ALIGN_BITS; /* # Packed floats */
 	uint32_t r = tile->nPart &  ILP_ALIGN_MASK; /* Remaining */
 
+	/*
+	** This is a little trick to speed up the calculation. By setting
+	** unused entries in the list to have a zero mass, the resulting
+	** forces are zero. Setting the distance to a large value avoids
+	** softening the non-existent forces which is slightly faster.
+	*/
 	if ( r != 0 ) {
 	    for ( j=r; j<ILP_ALIGN_SIZE; j++ ) {
 		int o = (n<<ILP_ALIGN_BITS) + j;
 		tile->dx.f[o] = tile->dy.f[o] = tile->dz.f[o] = 1e18f;
-		tile->m.f[o] = 0;
+		tile->m.f[o] = 0.0f;
 		tile->fourh2.f[o] = tile->fourh2.f[0];
 		}
 	    n++;

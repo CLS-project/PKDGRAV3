@@ -13,6 +13,8 @@
 */
 static ILCTILE newTile(ILCTILE prev) {
     ILCTILE tile = SIMD_malloc(sizeof(struct ilcTile));
+    int i;
+
     assert( tile != NULL );
     assert(ILC_PART_PER_TILE%4 == 0 );
 
@@ -20,6 +22,19 @@ static ILCTILE newTile(ILCTILE prev) {
     tile->prev = prev;
     tile->nMaxCell = ILC_PART_PER_TILE;
     tile->nCell = 0;
+
+    for(i=0; i<tile->nMaxCell; ++i) {
+	tile->dx.f[i] = tile->dy.f[i] = tile->dz.f[i] = tile->d2.f[i] = 1.0;
+#ifdef HERMITE
+	tile->vx.f[i] = tile->vy.f[i] = tile->vz.f[i] = 1.0;
+#endif
+	tile->xxxx.f[i] = tile->xxxy.f[i] = tile->xxxz.f[i] = tile->xxyz.f[i] = 
+	    tile->xxyy.f[i] = tile->yyyz.f[i] = tile->xyyy.f[i] = tile->yyyy.f[i] = 1.0f;
+	tile->xxx.f[i] = tile->xyy.f[i] = tile->xxy.f[i] = tile->yyy.f[i] = 
+	    tile->xxz.f[i] = tile->yyz.f[i] = tile->xyz.f[i] = 1.0f;
+	tile->xx.f[i] = tile->xy.f[i] = tile->xz.f[i] = tile->yy.f[i] = tile->yz.f[i] = 1.0f;
+	tile->m.f[i] = tile->u.f[i] = 0.0f;
+	}
     return tile;
     }
 

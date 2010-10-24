@@ -23,21 +23,31 @@
 #ifdef USE_SIMD
 static const struct CONSTS {
     v4 zero;
+    v4 onequarter;
+    v4 onethird;
     v4 half;
     v4 one;
     v4 threehalves;
     v4 three;
     v4 four;
+    v4 five;
+    v4 seven;
+    v4 nine;
     v4 R3_8;
     v4 R45_32;
     v4 R135_16;
     } consts = {
 	{{0.0,     0.0,     0.0,     0.0}},
+	{{0.25,    0.25,    0.25,    0.25}},
+	{{1.0f/3.0f, 1.0f/3.0f, 1.0f/3.0f, 1.0f/3.0f}},
 	{{0.5,     0.5,     0.5,     0.5}},
 	{{1.0,     1.0,     1.0,     1.0}},
 	{{1.5,     1.5,     1.5,     1.5}},
 	{{3.0,     3.0,     3.0,     3.0}},
 	{{4.0,     4.0,     4.0,     4.0}},
+	{{5.0,     5.0,     5.0,     5.0}},
+	{{7.0,     7.0,     7.0,     7.0}},
+	{{9.0,     9.0,     9.0,     9.0}},
 	{{3.0/8.0, 3.0/8.0, 3.0/8.0, 3.0/8.0}},
 	{{45.0/32.0, 45.0/32.0, 45.0/32.0, 45.0/32.0}},
 	{{135.0/16.0, 135.0/16.0, 135.0/16.0, 135.0/16.0}},
@@ -72,9 +82,14 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,FLOCR *
     float dtGrav,dT;
     float adotai,maga,dimaga,dirsum,normsum;
     float tax,tay,taz;
-    float rholoc,rhopmax,rhopmaxlocal,dirDTS,fsmooth2,fSoftMedian,fEps,fEps2;
+    float rholoc,rhopmax,rhopmaxlocal,fsmooth2,fSoftMedian,fEps,fEps2;
     float summ;
 #if defined(USE_SIMD_PC)
+    v4sf u,g0,g2,g3,g4;
+    v4sf x,y,z;
+    v4sf tx,ty,tz;
+    v4sf xx,xy,xz,yy,yz,zz;
+    v4sf xxx,xxz,yyy,yyz,xxy,xyy,xyz;
 #else
     const float onethird = 1.0f/3.0f;
     float u,g0,g2,g3,g4;
@@ -163,11 +178,108 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,FLOCR *
 	ilc->cz = p->r[2];
 	ilcCompute(ilc,fx,fy,fz);
 #if defined(USE_SIMD_PC)
+	pax = SIMD_LOADS(ax);
+	pay = SIMD_LOADS(ay);
+	paz = SIMD_LOADS(az);
+	ppot= SIMD_LOADS(fPot);
+	pirsum = SIMD_LOADS(dirsum);
+	pnorms = SIMD_LOADS(normsum);
+
+	piax    = SIMD_SPLAT(a[0]);
+	piay    = SIMD_SPLAT(a[1]);
+	piaz    = SIMD_SPLAT(a[2]);
+	pmass   = SIMD_SPLAT(fMass);
+	p4soft2 = SIMD_SPLAT(4.0*fSoft*fSoft);
+
+	ILC_LOOP(ilc,ctile) {
+	    uint32_t n = (ctile->nCell+ILP_ALIGN_MASK) >> ILP_ALIGN_BITS;
+	    for (j=0;j<n;++j) {
+		v4sf pir, pd2;
+		v4bool vcmp;
+		pir = SIMD_RSQRT_EXACT(ctile->d2.p[j]);
+		u = SIMD_MUL(ctile->u.p[j],pir);
+		g0 = pir;
+		g2 = SIMD_MUL(SIMD_MUL(consts.three.p,pir),SIMD_MUL(u,u));
+		g3 = SIMD_MUL(consts.five.p,SIMD_MUL(g2,u));
+		g4 = SIMD_MUL(consts.seven.p,SIMD_MUL(g3,u));
+		/*
+		** Calculate the funky distance terms.
+		*/
+		x = SIMD_MUL(ctile->dx.p[j],pir);
+		y = SIMD_MUL(ctile->dy.p[j],pir);
+		z = SIMD_MUL(ctile->dz.p[j],pir);
+		xx = SIMD_MUL(consts.half.p,SIMD_MUL(x,x));
+		xy = SIMD_MUL(x,y);
+		xz = SIMD_MUL(x,z);
+		yy = SIMD_MUL(consts.half.p,SIMD_MUL(y,y));
+		yz = SIMD_MUL(y,z);
+		zz = SIMD_MUL(consts.half.p,SIMD_MUL(z,z));
+		xxx = SIMD_MUL(x,SIMD_SUB(SIMD_MUL(consts.onethird.p,xx),zz));
+		xxz = SIMD_MUL(z,SIMD_SUB(xx,SIMD_MUL(consts.onethird.p,zz)));
+		yyy = SIMD_MUL(y,SIMD_SUB(SIMD_MUL(consts.onethird.p,yy),zz));
+		yyz = SIMD_MUL(z,SIMD_SUB(yy,SIMD_MUL(consts.onethird.p,zz)));
+		xx = SIMD_SUB(xx,zz);
+		yy = SIMD_SUB(yy,zz);
+		xxy = SIMD_MUL(y,xx);
+		xyy = SIMD_MUL(x,yy);
+		xyz = SIMD_MUL(xy,z);
+		/*
+		** Now calculate the interaction up to Hexadecapole order.
+		*/
+		tx = SIMD_MUL(g4,SIMD_MADD(ctile->xxxx.p[j],xxx,SIMD_MADD(ctile->xyyy.p[j],yyy,
+		    SIMD_MADD(ctile->xxxy.p[j],xxy,SIMD_MADD(ctile->xxxz.p[j],xxz,
+		    SIMD_MADD(ctile->xxyy.p[j],xyy,SIMD_MADD(ctile->xxyz.p[j],xyz,SIMD_MUL(ctile->xyyz.p[j],yyz))))))));
+		ty = SIMD_MUL(g4,SIMD_MADD(ctile->xyyy.p[j],xyy,SIMD_MADD(ctile->xxxy.p[j],xxx,
+		    SIMD_MADD(ctile->yyyy.p[j],yyy,SIMD_MADD(ctile->yyyz.p[j],yyz,SIMD_MADD(ctile->xxyy.p[j],xxy,
+		    SIMD_MADD(ctile->xxyz.p[j],xxz,SIMD_MUL(ctile->xyyz.p[j],xyz))))))));
+		tz = SIMD_MUL(g4,SIMD_NMSUB(ctile->xxxx.p[j],xxz,SIMD_NMSUB(SIMD_ADD(ctile->xyyy.p[j],ctile->xxxy.p[j]),xyz,
+			SIMD_NMSUB(ctile->yyyy.p[j],yyz,SIMD_NMSUB(ctile->xxyy.p[j],SIMD_ADD(xxz,yyz),
+			SIMD_MADD(ctile->xxxz.p[j],xxx,SIMD_MADD(ctile->yyyz.p[j],yyy,SIMD_MADD(ctile->xxyz.p[j],xxy,SIMD_MUL(ctile->xyyz.p[j],xyy)))))))));
+		g4 = SIMD_MUL(consts.onequarter.p,SIMD_MADD(tx,x,SIMD_MADD(ty,y,SIMD_MUL(tz,z))));
+		xxx = SIMD_MUL(g3,SIMD_MADD(ctile->xxx.p[j],xx,SIMD_MADD(ctile->xyy.p[j],yy,
+		    SIMD_MADD(ctile->xxy.p[j],xy,SIMD_MADD(ctile->xxz.p[j],xz,SIMD_MUL(ctile->xyz.p[j],yz))))));
+		xxy = SIMD_MUL(g3,SIMD_MADD(ctile->xyy.p[j],xy,SIMD_MADD(ctile->xxy.p[j],xx,SIMD_MADD(ctile->yyy.p[j],yy,
+		    SIMD_MADD(ctile->yyz.p[j],yz,SIMD_MUL(ctile->xyz.p[j],xz))))));
+		xxz = SIMD_MUL(g3,SIMD_NMSUB(SIMD_ADD(ctile->xxx.p[j],ctile->xyy.p[j]),xz,
+			    SIMD_NMSUB(SIMD_ADD(ctile->xxy.p[j],ctile->yyy.p[j]),yz,
+			    SIMD_MADD(ctile->xxz.p[j],xx,SIMD_MADD(ctile->yyz.p[j],yy,SIMD_MUL(ctile->xyz.p[j],xy))))));
+		g3 = SIMD_MUL(consts.onethird.p,SIMD_MADD(xxx,x,SIMD_MADD(xxy,y,SIMD_MUL(xxz,z))));
+		xx = SIMD_MUL(g2,SIMD_MADD(ctile->xx.p[j],x,SIMD_MADD(ctile->xy.p[j],y,SIMD_MUL(ctile->xz.p[j],z))));
+		xy = SIMD_MUL(g2,SIMD_MADD(ctile->yy.p[j],y,SIMD_MADD(ctile->xy.p[j],x,SIMD_MUL(ctile->yz.p[j],z))));
+		xz = SIMD_MUL(g2,SIMD_NMSUB(SIMD_ADD(ctile->xx.p[j],ctile->yy.p[j]),z,SIMD_MADD(ctile->xz.p[j],x,SIMD_MUL(ctile->yz.p[j],y))));
+		g2 = SIMD_MUL(consts.half.p,SIMD_MADD(xx,x,SIMD_MADD(xy,y,SIMD_MUL(xz,z))));
+		g0 = SIMD_MUL(g0,ctile->m.p[j]);
+		ppot = SIMD_SUB(ppot,SIMD_ADD(SIMD_ADD(g0,g2),SIMD_ADD(g3,g4)));
+		g0 = SIMD_MADD(consts.five.p,g2,SIMD_MADD(consts.seven.p,g3,SIMD_MADD(consts.nine.p,g4,g0)));
+		t1 = SIMD_MUL(pir,SIMD_NMSUB(x,g0,SIMD_ADD(xx,SIMD_ADD(xxx,tx))));
+		t2 = SIMD_MUL(pir,SIMD_NMSUB(y,g0,SIMD_ADD(xy,SIMD_ADD(xxy,ty))));
+		t3 = SIMD_MUL(pir,SIMD_NMSUB(z,g0,SIMD_ADD(xz,SIMD_ADD(xxz,tz))));
+
+		/* Time stepping criteria stuff */
+		padotai = SIMD_MADD(piaz,t3,SIMD_MADD(piay,t2,SIMD_MUL(piax,t1)));
+		vcmp = SIMD_CMP_GT(padotai,consts.zero.p);
+		padotai= SIMD_AND(padotai,vcmp);
+		padotai= SIMD_MUL(padotai,pimaga);
+		pd2 = SIMD_MUL(padotai,padotai);
+		pirsum = SIMD_MADD(pir,pd2,pirsum);
+		pnorms = SIMD_ADD(pnorms,pd2);
+
+		pax = SIMD_ADD(pax,t1);
+		pay = SIMD_ADD(pay,t2);
+		paz = SIMD_ADD(paz,t3);
+		}
+	    }
+
+	ax = SIMD_HADD(pax);
+	ay = SIMD_HADD(pay);
+	az = SIMD_HADD(paz);
+	fPot = SIMD_HADD(ppot);
+	dirsum = SIMD_HADD(pirsum);
+	normsum = SIMD_HADD(pnorms);
 #else
 	ILC_LOOP(ilc,ctile) {
 	    for (j=0;j<ctile->nCell;++j) {
 		SQRT1(ctile->d2.f[j],dir);
-		dirDTS = dir;
 		u = ctile->u.f[j]*dir;
 		g0 = dir;
 		g2 = 3*dir*u*u;
@@ -218,7 +330,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,FLOCR *
 		adotai = a[0]*tax + a[1]*tay + a[2]*taz;
 		if (adotai > 0) {
 		    adotai *= dimaga;
-		    dirsum += dirDTS*adotai*adotai;
+		    dirsum += dir*adotai*adotai;
 		    normsum += adotai*adotai;
 		    }
 		ax += tax;
@@ -274,6 +386,10 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,FLOCR *
 	    }
 	
 #ifdef USE_SIMD_PP
+	 /*
+	 ** The list sets mass to zero for unused entries which results
+	 ** in zero forces. Be careful if that is changed.
+	 */
 	pax = SIMD_LOADS(ax);
 	pay = SIMD_LOADS(ay);
 	paz = SIMD_LOADS(az);
@@ -336,6 +452,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,FLOCR *
 		t1 = SIMD_NMSUB(tile->dx.p[j],pir2,consts.zero.p);
 		t2 = SIMD_NMSUB(tile->dy.p[j],pir2,consts.zero.p);
 		t3 = SIMD_NMSUB(tile->dz.p[j],pir2,consts.zero.p);
+		ppot = SIMD_NMSUB(tile->m.p[j],pir,ppot);
 
 		/* Time stepping criteria stuff */
 		padotai = SIMD_MADD(piaz,t3,SIMD_MADD(piay,t2,SIMD_MUL(piax,t1)));
@@ -346,7 +463,6 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,FLOCR *
 		pirsum = SIMD_MADD(pir,pd2,pirsum);
 		pnorms = SIMD_ADD(pnorms,pd2);
 
-		ppot = SIMD_NMSUB(tile->m.p[j],pir,ppot);
 		pax = SIMD_ADD(pax,t1);
 		pay = SIMD_ADD(pay,t2);
 		paz = SIMD_ADD(paz,t3);

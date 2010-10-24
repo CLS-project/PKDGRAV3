@@ -16,6 +16,8 @@
 */
 static ILPTILE newTile(ILPTILE prev) {
     ILPTILE tile = SIMD_malloc(sizeof(struct ilpTile));
+    int i;
+
     assert( tile != NULL );
     assert(ILP_PART_PER_TILE%4 == 0 );
 
@@ -23,6 +25,16 @@ static ILPTILE newTile(ILPTILE prev) {
     tile->prev = prev;
     tile->nMaxPart = ILP_PART_PER_TILE;
     tile->nPart = 0;
+
+    /*
+    ** We need valid data for the SIMD PP code. This is probably the best way.
+    */
+    for(i=0; i<tile->nMaxPart; ++i) {
+	tile->dx.f[i] = tile->dy.f[i] = tile->dz.f[i] = tile->d2.f[i] = 1.0f;
+	tile->vx.f[i] = tile->vy.f[i] = tile->vz.f[i] = tile->fourh2.f[i] = 1.0f;
+	tile->m.f[i] = 0.0;
+	tile->iOrder.i[i] = 0;
+        }
     return tile;
     }
 

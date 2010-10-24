@@ -343,6 +343,9 @@
 /* Define if SIMD optimizations should be used for PP interactions. */
 #define USE_SIMD_PP 1
 
+/* Define if SIMD optimizations should be used for PC interactions. */
+#define USE_SIMD_PC 1
+
 /* Version number of package */
 #define VERSION "2.2.9"
 
