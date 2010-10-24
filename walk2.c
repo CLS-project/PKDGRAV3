@@ -337,9 +337,9 @@ static inline int iOpenOutcomeOld(PKD pkd,KDN *k,CELT *check,KDN **pc,double dTh
 	mink2 = ((dx>0)?dx*dx:0) + ((dy>0)?dy*dy:0) + ((dz>0)?dz*dz:0);
 	minbnd2 = 0;
 	for (j=0;j<3;++j) {
-	    dx = kbnd.fCenter[j] - kbnd.fMax[j] - cbnd.fCenter[j] - cbnd.fMax[j];
+	    dx = kbnd.fCenter[j] - kbnd.fMax[j] - cbnd.fCenter[j] - check->rOffset[j] - cbnd.fMax[j];
 	    if (dx > 0) minbnd2 += dx*dx;
-	    dx = cbnd.fCenter[j] - cbnd.fMax[j] - kbnd.fCenter[j] - kbnd.fMax[j];
+	    dx = cbnd.fCenter[j] + check->rOffset[j] - cbnd.fMax[j] - kbnd.fCenter[j] - kbnd.fMax[j];
 	    if (dx > 0) minbnd2 += dx*dx;
 	    }
 

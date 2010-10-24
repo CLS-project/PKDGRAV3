@@ -277,6 +277,10 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,FLOCR *
 	dirsum = SIMD_HADD(pirsum);
 	normsum = SIMD_HADD(pnorms);
 #else
+	/*
+	** DO NOT MODIFY THE CODE BELOW UP TO THE #endif!
+	** This code MUST match the SIMD code above.
+	*/
 	ILC_LOOP(ilc,ctile) {
 	    for (j=0;j<ctile->nCell;++j) {
 		SQRT1(ctile->d2.f[j],dir);
@@ -327,6 +331,9 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,FLOCR *
 		tax = dir*(xx + xxx + tx - x*g0);
 		tay = dir*(xy + xxy + ty - y*g0);
 		taz = dir*(xz + xxz + tz - z*g0);
+		/*
+		** Calculations for determining the timestep.
+		*/
 		adotai = a[0]*tax + a[1]*tay + a[2]*taz;
 		if (adotai > 0) {
 		    adotai *= dimaga;
@@ -506,13 +513,16 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,FLOCR *
 		tax = -tile->dx.f[j]*dir2;
 		tay = -tile->dy.f[j]*dir2;
 		taz = -tile->dz.f[j]*dir2;
+		fPot -= tile->m.f[j]*dir;
+		/*
+		** Calculations for determining the timestep.
+		*/
 		adotai = a[0]*tax + a[1]*tay + a[2]*taz;
 		if (adotai > 0 && tile->d2.f[j] >= fsmooth2) {
 		    adotai *= dimaga;
 		    dirsum += dir*adotai*adotai;
 		    normsum += adotai*adotai;
 		    }
-		fPot -= tile->m.f[j]*dir;
 		ax += tax;
 		ay += tay;
 		az += taz;
