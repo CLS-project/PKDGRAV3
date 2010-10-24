@@ -276,6 +276,14 @@ if test "x$USE_SIMD_PP" != "xno" ; then
   USE_SIMD="$USE_SIMD_PP"
 fi
 
+USE_SIMD_PC="$USE_SIMD"
+AC_ARG_ENABLE(simd-pc,
+  [  --disable-simd-pc              disable PC SIMD optimizations],
+  [USE_SIMD_PC="$enableval"])
+if test "x$USE_SIMD_PC" != "xno" ; then
+  USE_SIMD="$USE_SIMD_PC"
+fi
+
 # The floating point data type for moments
 if test "x$USE_SIMD_MOMR" = "xyes" -o "x$USE_SIMD_LOCR" = "xyes" ; then
 AC_DEFINE([MOMFLOAT],float,
@@ -482,6 +490,7 @@ fi
     else
       USE_SIMD=no
       USE_SIMD_PP=no
+      USE_SIMD_PC=no
       USE_SIMD_MOMR=no
     fi
   fi
@@ -495,6 +504,10 @@ if test "x$USE_SIMD_PP" != "xno" ; then
   AC_DEFINE([USE_SIMD_PP],1, 
  	[Define if SIMD optimizations should be used for PP interactions.])
 fi
+if test "x$USE_SIMD_PC" != "xno" ; then
+  AC_DEFINE([USE_SIMD_PC],1, 
+ 	[Define if SIMD optimizations should be used for PC interactions.])
+fi
 if test "x$USE_SIMD_MOMR" = "xyes" ; then
   AC_DEFINE([USE_SIMD_MOMR],1, 
  	[Define if SIMD optimizations should be used for MOMRs.])
@@ -502,6 +515,7 @@ fi
 
 AM_CONDITIONAL(USE_SIMD, test "x$USE_SIMD" != "xno")
 AM_CONDITIONAL(USE_SIMD_PP,test "x$USE_SIMD_PP" != "xno")
+AM_CONDITIONAL(USE_SIMD_PC,test "x$USE_SIMD_PC" != "xno")
 AM_CONDITIONAL(USE_SIMD_MOMR,test "x$USE_SIMD_MOMR" = "xyes")
 
 if test "x$HAVE_POSIX_MEMALIGN" == "xyes" ; then
