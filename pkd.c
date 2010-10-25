@@ -533,7 +533,7 @@ void pkdInitialize(
     assert(pkd->S != NULL);
     for (ism=0;ism<pkd->nMaxStack;++ism) {
 #ifdef LOCAL_EXPANSION
-	clInitialize(pkd->S[ism].cl);
+	clInitialize(&pkd->S[ism].cl);
 #else
 	pkd->S[ism].Check = malloc(pkd->nMaxCheck*sizeof(CELT));
 	assert(pkd->S[ism].Check != NULL);

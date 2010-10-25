@@ -498,7 +498,7 @@ static void iOpenOutcomeOldCL(PKD pkd,KDN *k,CLTILE tile,int iStart,double dThet
 	    dx = tile->xCenter.f[i] + tile->xOffset.f[i] - tile->xMax.f[i] - kbnd.fCenter[0] - kbnd.fMax[0];
 	    if (dx > 0) minbnd2 += dx*dx;
 
-	    dx = kbnd.fCenter[j] - kbnd.fMax[1] - tile->yCenter.f[i] - tile->yOffset.f[i] - tile->yMax.f[i];
+	    dx = kbnd.fCenter[1] - kbnd.fMax[1] - tile->yCenter.f[i] - tile->yOffset.f[i] - tile->yMax.f[i];
 	    if (dx > 0) minbnd2 += dx*dx;
 	    dx = tile->yCenter.f[i] + tile->yOffset.f[i] - tile->yMax.f[i] - kbnd.fCenter[1] - kbnd.fMax[1];
 	    if (dx > 0) minbnd2 += dx*dx;
@@ -667,7 +667,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
     int ix,iy,iz,bRep;
     int nMaxInitCheck;
     int id,iCell,iSib,iLower,iCheckCell,iCellDescend;
-    int i,j,pi,pj,nActive,nTotActive;
+    int i,j,jTile,pi,pj,nActive,nTotActive;
     float cOpen,kOpen;
     pBND cbnd,kbnd;
     int nc,nk;
@@ -775,7 +775,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 			id = -1;
 			}
 		    else {
-			id = c->pLower;
+			id = pkdTopNode(pkd,ROOT)->pLower;
 			}
 		    nc = getCell(pkd,ROOT,id,&cOpen,&c);
 		    pkdNodeBnd(pkd,c,&cbnd);
@@ -900,23 +900,23 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 		    }
 		clClear(pkd->clNew);
 		CL_LOOP(pkd->cl,cltile) {
-		    for (j=0;j<cltile->nItems;++j) {
-			switch (cltile->iOpen.i[j]) {
+		    for (jTile=0;jTile<cltile->nItems;++jTile) {
+			switch (cltile->iOpen.i[jTile]) {
 			case 0:
 			    /*
 			    ** This checkcell stays on the checklist.
 			    */
-			    clAppendItem(pkd->S[iStack+1].cl,cltile,j);
+			    clAppendItem(pkd->S[iStack+1].cl,cltile,jTile);
 			    break;
 			case 1:
 			    /*
 			    ** This checkcell's particles are added to the P-P list.
 			    */
-			    iCell = cltile->iCell.i[j];
-			    id = cltile->id.i[j];
-			    dOffset[0] = cltile->xOffset.f[j];
-			    dOffset[1] = cltile->yOffset.f[j];
-			    dOffset[2] = cltile->zOffset.f[j];
+			    iCell = cltile->iCell.i[jTile];
+			    id = cltile->id.i[jTile];
+			    dOffset[0] = cltile->xOffset.f[jTile];
+			    dOffset[1] = cltile->yOffset.f[jTile];
+			    dOffset[2] = cltile->zOffset.f[jTile];
 			    if (id == pkd->idSelf) c = pkdTreeNode(pkd,iCell);
 			    else c = mdlAquire(pkd->mdl,CID_CELL,iCell,id);
 			    for (pj=c->pLower;pj<=c->pUpper;++pj) {
@@ -941,8 +941,8 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 			    ** on the checklist. This is marked by a negative cell id. Could prefetch all the 
 			    ** bucket's particles at this point if we want.
 			    */
-			    cltile->iCell.i[j] = -cltile->iCell.i[j]; 
-			    clAppendItem(pkd->clNew,cltile,j);
+			    cltile->iCell.i[jTile] = -cltile->iCell.i[jTile]; 
+			    clAppendItem(pkd->clNew,cltile,jTile);
 			    break;
 			case 3:
 			    /*
@@ -955,9 +955,9 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 			    ** cells.
 			    */
 			    cOpen = -1.0f;
-			    iCheckCell = cltile->iLower.i[j];
+			    iCheckCell = cltile->iLower.i[jTile];
 			    assert(iCheckCell > 0);
-			    id = cltile->id.i[j];
+			    id = cltile->id.i[jTile];
 			    if (iCheckCell == ROOT) {
 				/* We must progress to the children of this local tree root cell. */
 				assert(id < 0);
@@ -978,18 +978,18 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 				    */
 				    nc = c->pUpper - c->pLower + 1;
 				    pkdNodeBnd(pkd,c,&cbnd);
-				    fOffset[0] = cltile->xOffset.f[j];
-				    fOffset[1] = cltile->yOffset.f[j];
-				    fOffset[2] = cltile->zOffset.f[j];
+				    fOffset[0] = cltile->xOffset.f[jTile];
+				    fOffset[1] = cltile->yOffset.f[jTile];
+				    fOffset[2] = cltile->zOffset.f[jTile];
 				    clAppend(pkd->clNew,ROOT,id,0,nc,cOpen,pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c->r,fOffset,cbnd.fCenter,cbnd.fMax);
 				    break; /* finished, don't add children */
 				    }
 				}			    
 			    nc = getCell(pkd,iCheckCell,id,&cOpen,&c);
 			    pkdNodeBnd(pkd,c,&cbnd);
-			    fOffset[0] = cltile->xOffset.f[j];
-			    fOffset[1] = cltile->yOffset.f[j];
-			    fOffset[2] = cltile->zOffset.f[j];
+			    fOffset[0] = cltile->xOffset.f[jTile];
+			    fOffset[1] = cltile->yOffset.f[jTile];
+			    fOffset[2] = cltile->zOffset.f[jTile];
 			    clAppend(pkd->clNew,iCheckCell,id,c->iLower,nc,cOpen,pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c->r,fOffset,cbnd.fCenter,cbnd.fMax);
 			    if (id >= 0 && id != pkd->idSelf) mdlRelease(pkd->mdl,CID_CELL,c);
 			    /*
@@ -1006,8 +1006,8 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 			    ** Accept multipole!
 			    ** Interact += Moment(c);
 			    */
-			    iCell = cltile->iCell.i[j];
-			    id = cltile->id.i[j];
+			    iCell = cltile->iCell.i[jTile];
+			    id = cltile->id.i[jTile];
 			    if (id == pkd->idSelf) c = pkdTreeNode(pkd,iCell);
 			    else if (id == -1) c = pkdTreeNode(pkd,iCell);
 			    else c = mdlAquire(pkd->mdl,CID_CELL,iCell,id);
@@ -1017,9 +1017,9 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 			    */
 			    if (pkd->oNodeVelocity) v = pkdNodeVel(pkd,c);
 			    ilcAppend(pkd->ilc,
-				cltile->x.f[j] + cltile->xOffset.f[j],
-				cltile->y.f[j] + cltile->yOffset.f[j],
-				cltile->z.f[j] + cltile->zOffset.f[j],
+				cltile->x.f[jTile] + cltile->xOffset.f[jTile],
+				cltile->y.f[jTile] + cltile->yOffset.f[jTile],
+				cltile->z.f[jTile] + cltile->zOffset.f[jTile],
 				pkdNodeMom(pkd,c),c->bMax,
 				v[0],v[1],v[2]);
 			    if (id != -1 && id != pkd->idSelf) mdlRelease(pkd->mdl,CID_CELL,c);
@@ -1030,17 +1030,17 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 			    ** interaction, so we need to treat is as a softened monopole by putting it
 			    ** on the particle interaction list.
 			    */
-			    iCell = cltile->iCell.i[j];
-			    id = cltile->id.i[j];
+			    iCell = cltile->iCell.i[jTile];
+			    id = cltile->id.i[jTile];
 			    if (id == pkd->idSelf) c = pkdTreeNode(pkd,iCell);
 			    else if (id == -1) c = pkdTreeNode(pkd,iCell);
 			    else c = mdlAquire(pkd->mdl,CID_CELL,iCell,id);
 			    if (pkd->oNodeVelocity) v = pkdNodeVel(pkd,c);
 			    ilpAppend(pkd->ilp,
-				cltile->x.f[j] + cltile->xOffset.f[j],
-				cltile->y.f[j] + cltile->yOffset.f[j],
-				cltile->z.f[j] + cltile->zOffset.f[j],
-				cltile->m.f[j], cltile->fourh2.f[j],
+				cltile->x.f[jTile] + cltile->xOffset.f[jTile],
+				cltile->y.f[jTile] + cltile->yOffset.f[jTile],
+				cltile->z.f[jTile] + cltile->zOffset.f[jTile],
+				cltile->m.f[jTile], cltile->fourh2.f[jTile],
 				-1, /* set iOrder to negative value for time step criterion */
 				v[0], v[1], v[2]);
 			    if (id != -1 && id != pkd->idSelf) mdlRelease(pkd->mdl,CID_CELL,c);
@@ -1050,11 +1050,11 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 			    ** This is accepting an "opened" bucket's particles as monopoles for the
 			    ** local expansion.
 			    */
-			    iCell = -cltile->iCell.i[j];
-			    id = cltile->id.i[j];
-			    dOffset[0] = cltile->xOffset.f[j];
-			    dOffset[1] = cltile->yOffset.f[j];
-			    dOffset[2] = cltile->zOffset.f[j];
+			    iCell = -cltile->iCell.i[jTile];
+			    id = cltile->id.i[jTile];
+			    dOffset[0] = cltile->xOffset.f[jTile];
+			    dOffset[1] = cltile->yOffset.f[jTile];
+			    dOffset[2] = cltile->zOffset.f[jTile];
 			    if (id == pkd->idSelf) c = pkdTreeNode(pkd,iCell);
 			    else c = mdlAquire(pkd->mdl,CID_CELL,iCell,id);
 			    for (pj=c->pLower;pj<=c->pUpper;++pj) {
@@ -1089,11 +1089,11 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 			    ** This is the inverse of accepting a cell as a softened monopole, here we calculate the first 
 			    ** order local expansion of each softened particle of the checkcell.
 			    */
-			    iCell = -cltile->iCell.i[j];
-			    id = cltile->id.i[j];
-			    dOffset[0] = cltile->xOffset.f[j];
-			    dOffset[1] = cltile->yOffset.f[j];
-			    dOffset[2] = cltile->zOffset.f[j];
+			    iCell = -cltile->iCell.i[jTile];
+			    id = cltile->id.i[jTile];
+			    dOffset[0] = cltile->xOffset.f[jTile];
+			    dOffset[1] = cltile->yOffset.f[jTile];
+			    dOffset[2] = cltile->zOffset.f[jTile];
 			    if (id == pkd->idSelf) c = pkdTreeNode(pkd,iCell);
 			    else c = mdlAquire(pkd->mdl,CID_CELL,iCell,id);
 			    for (pj=c->pLower;pj<=c->pUpper;++pj) {
@@ -1151,11 +1151,11 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 			    /*
 			    ** Local expansion accepted!
 			    */
-			    iCell = cltile->iCell.i[j];
-			    id = cltile->id.i[j];
-			    dOffset[0] = cltile->xOffset.f[j];
-			    dOffset[1] = cltile->yOffset.f[j];
-			    dOffset[2] = cltile->zOffset.f[j];
+			    iCell = cltile->iCell.i[jTile];
+			    id = cltile->id.i[jTile];
+			    dOffset[0] = cltile->xOffset.f[jTile];
+			    dOffset[1] = cltile->yOffset.f[jTile];
+			    dOffset[2] = cltile->zOffset.f[jTile];
 			    if (id == pkd->idSelf) c = pkdTreeNode(pkd,iCell);
 			    else if (id == -1) c = pkdTreeNode(pkd,iCell);
 			    else c = mdlAquire(pkd->mdl,CID_CELL,iCell,id);
@@ -1180,11 +1180,11 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 			    /*
 			    ** Here we compute the local expansion due to a single monopole term which could be softened.
 			    */
-			    iCell = cltile->iCell.i[j];
-			    id = cltile->id.i[j];
-			    dOffset[0] = cltile->xOffset.f[j];
-			    dOffset[1] = cltile->yOffset.f[j];
-			    dOffset[2] = cltile->zOffset.f[j];
+			    iCell = cltile->iCell.i[jTile];
+			    id = cltile->id.i[jTile];
+			    dOffset[0] = cltile->xOffset.f[jTile];
+			    dOffset[1] = cltile->yOffset.f[jTile];
+			    dOffset[2] = cltile->zOffset.f[jTile];
 			    if (id == pkd->idSelf) c = pkdTreeNode(pkd,iCell);
 			    else if (id == -1) c = pkdTreeNode(pkd,iCell);
 			    else c = mdlAquire(pkd->mdl,CID_CELL,iCell,id);
@@ -1327,7 +1327,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 		clTemp = pkd->cl;
 		pkd->cl = pkd->S[iStack+1].cl;
 		pkd->S[iStack+1].cl = clTemp;
-		clAppend(pkd->S[iStack].cl,iCell,pkd->idSelf,k->iLower,nk,kOpen,pkdNodeMom(pkd,k)->m,4.0f*k->fSoft2,k->r,fOffset,kbnd.fCenter,kbnd.fMax);
+		clAppend(pkd->cl,iCell,pkd->idSelf,k->iLower,nk,kOpen,pkdNodeMom(pkd,k)->m,4.0f*k->fSoft2,k->r,fOffset,kbnd.fCenter,kbnd.fMax);
 		/*
 		** Move onto processing the sibling.
 		*/
@@ -1394,6 +1394,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 	** Grab the checklist from the stack.
 	*/
 	clTemp = pkd->cl;
+	assert(clCount(pkd->cl) == 0);
 	pkd->cl = pkd->S[iStack].cl;
 	pkd->S[iStack].cl = clTemp;
 	L = pkd->S[iStack].L;

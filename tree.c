@@ -408,7 +408,7 @@ void Create(PKD pkd,int iNode) {
 		pkd->S = realloc(pkd->S,(pkd->nMaxStack+nMaxStackIncrease)*sizeof(CSTACK));
 		assert(pkd->S != NULL);
 		for (ism=pkd->nMaxStack;ism<(pkd->nMaxStack+nMaxStackIncrease);++ism) {
-		    clInitialize(pkd->S[ism].cl);
+		    clInitialize(&pkd->S[ism].cl);
 		    }
 		pkd->nMaxStack += nMaxStackIncrease;
 		}
