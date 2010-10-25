@@ -294,17 +294,181 @@ static inline int getCheckCell(PKD pkd,CELT *check,KDN **pc) {
     return nc;
     }
 
+#ifdef USE_SIMD
+static const struct CONSTS {
+    v4 zero;
+    v4 one;
+    v4 threehalves;
+    v4 two;
+    v4 fMonopoleThetaFac2;
+    } consts = {
+	{{0.0,      0.0,      0.0,      0.0}},
+	{{1.0,      1.0,      1.0,      1.0}},
+	{{1.5,      1.5,      1.5,      1.5}},
+	{{2.0,      2.0,      2.0,      2.0}},
+	{{1.6f*1.6f,1.6f*1.6f,1.6f*1.6f,1.6f*1.6f}},
+};
+static const struct ICONSTS {
+    i4 zero;
+    i4 one;
+    i4 two;
+    i4 three;
+    i4 four;
+    i4 five;
+    i4 six;
+    i4 seven;
+    i4 eight;
+    /* no nine */
+    i4 ten;
+    i4 walk_min_multipole;
+    } iconsts = {
+	{{0, 0, 0, 0}},
+	{{1, 1, 1, 1}},
+	{{2, 2, 2, 2}},
+	{{3, 3, 3, 3}},
+	{{4, 4, 4, 4}},
+	{{5, 5, 5, 5}},
+	{{6, 6, 6, 6}},
+	{{7, 7, 7, 7}},
+	{{8, 8, 8, 8}},
+	{{10,10,10,10}},
+	{{3, 3, 3, 3}},
+};
+
+static union {
+    uint32_t u[4];
+    v4sf p;
+} const_fabs = {
+	{0x7fffffff,0x7fffffff,0x7fffffff,0x7fffffff}
+};
+
+/*
+** This implements the original pkdgrav2m opening criterion, which has been
+** well tested, gives good force accuracy, but may not be the most efficient
+** and also doesn't explicitly conserve momentum.
+*/
+static void iOpenOutcomeOldSIMD(PKD pkd,KDN *k,CLTILE tile,int iStart,double dThetaMin) {
+    v4i T0,T1,T2,T3,T4,T5,T6,T7,P1,P2,P3,P4;
+    v4sf T,xc,yc,zc,dx,dy,dz,d2,diCrit,cOpen,cOpen2,d2Open,mink2,minbnd2,fourh2;
+    int i,iBeg,iEnd;
+    v4i iOpen,iOpenA,iOpenB;
+    pBND kbnd;
+
+    v4sf k_xCenter, k_yCenter, k_zCenter, k_xMax, k_yMax, k_zMax;
+    v4sf k_xMinBnd, k_yMinBnd, k_zMinBnd, k_xMaxBnd, k_yMaxBnd, k_zMaxBnd;
+    v4sf k_x, k_y, k_z, k_m, k_4h2, k_bMax, k_Open;
+    v4i  k_iLower;
+
+    assert ( pkdNodeMom(pkd,k)->m > 0.0f );
+
+    diCrit = SIMD_SPLAT(1.0f/dThetaMin);
+
+    pkdNodeBnd(pkd,k,&kbnd);
+    k_xMinBnd = SIMD_SPLAT(kbnd.fCenter[0]-kbnd.fMax[0]);
+    k_yMinBnd = SIMD_SPLAT(kbnd.fCenter[1]-kbnd.fMax[1]);
+    k_zMinBnd = SIMD_SPLAT(kbnd.fCenter[2]-kbnd.fMax[2]);
+    k_xMaxBnd = SIMD_SPLAT(kbnd.fCenter[0]+kbnd.fMax[0]);
+    k_yMaxBnd = SIMD_SPLAT(kbnd.fCenter[1]+kbnd.fMax[1]);
+    k_zMaxBnd = SIMD_SPLAT(kbnd.fCenter[2]+kbnd.fMax[2]);
+    k_xCenter = SIMD_SPLAT(kbnd.fCenter[0]);
+    k_yCenter = SIMD_SPLAT(kbnd.fCenter[1]);
+    k_zCenter = SIMD_SPLAT(kbnd.fCenter[2]);
+    k_xMax = SIMD_SPLAT(kbnd.fMax[0]);
+    k_yMax = SIMD_SPLAT(kbnd.fMax[1]);
+    k_zMax = SIMD_SPLAT(kbnd.fMax[2]);
+    k_x = SIMD_SPLAT(k->r[0]);
+    k_y = SIMD_SPLAT(k->r[1]);
+    k_z = SIMD_SPLAT(k->r[2]);
+    k_m = SIMD_SPLAT(pkdNodeMom(pkd,k)->m);
+    k_4h2 = SIMD_SPLAT(4.0f*k->fSoft2);
+    k_bMax = SIMD_SPLAT(k->bMax);
+    k_iLower = SIMD_SPLATI32(k->iLower);
+    k_Open = SIMD_MUL(consts.threehalves.p,SIMD_MUL(k_bMax,diCrit));
+
+    iBeg = iStart >> CL_ALIGN_BITS;
+    iEnd = (tile->nItems+CL_ALIGN_MASK) >> CL_ALIGN_BITS;
+
+    for(i=iBeg; i<iEnd; ++i) {
+	T = SIMD_OR(SIMD_CMP_GT(tile->m.p[i],consts.zero.p),SIMD_CMP_GT(k_4h2,consts.zero.p));
+	fourh2 = SIMD_OR(SIMD_AND(T,tile->fourh2.p[i]),SIMD_ANDNOT(T,consts.one.p));
+	fourh2 = SIMD_DIV(SIMD_MUL(SIMD_MUL(SIMD_ADD(k_m,tile->m.p[i]),k_4h2),fourh2),
+	    SIMD_ADD(SIMD_MUL(fourh2,k_m),SIMD_MUL(k_4h2,tile->m.p[i])));
+	xc = SIMD_ADD(tile->x.p[i],tile->xOffset.p[i]);
+	yc = SIMD_ADD(tile->y.p[i],tile->yOffset.p[i]);
+	zc = SIMD_ADD(tile->z.p[i],tile->zOffset.p[i]);
+	dx = SIMD_SUB(k_x,xc);
+	dy = SIMD_SUB(k_y,yc);
+	dz = SIMD_SUB(k_z,zc);
+	d2 = SIMD_MADD(dx,dx,SIMD_MADD(dy,dy,SIMD_MUL(dz,dy)));
+	cOpen = tile->cOpen.p[i];
+	cOpen2 = SIMD_MUL(cOpen,cOpen);
+	d2Open = SIMD_MUL(consts.two.p,SIMD_MAX(cOpen,k_Open));
+	d2Open = SIMD_MUL(d2Open,d2Open);
+	dx = SIMD_SUB(SIMD_AND(const_fabs.p,SIMD_SUB(xc,k_xCenter)),k_xMax);
+	dy = SIMD_SUB(SIMD_AND(const_fabs.p,SIMD_SUB(yc,k_yCenter)),k_yMax);
+	dz = SIMD_SUB(SIMD_AND(const_fabs.p,SIMD_SUB(zc,k_zCenter)),k_zMax);
+	dx = SIMD_AND(dx,SIMD_CMP_GT(dx,consts.zero.p));
+	dy = SIMD_AND(dy,SIMD_CMP_GT(dy,consts.zero.p));
+	dz = SIMD_AND(dz,SIMD_CMP_GT(dz,consts.zero.p));
+	mink2 = SIMD_MADD(dx,dx,SIMD_MADD(dy,dy,SIMD_MUL(dz,dy)));
+
+	minbnd2 = consts.zero.p;
+
+	dx = SIMD_SUB(k_xMinBnd,SIMD_ADD(tile->xCenter.p[i],SIMD_ADD(tile->xOffset.p[i],tile->xMax.p[i])));
+	dx = SIMD_AND(dx,SIMD_CMP_GT(dx,consts.zero.p));
+	minbnd2 = SIMD_MADD(dx,dx,minbnd2);
+	dx = SIMD_SUB(SIMD_SUB(SIMD_ADD(tile->xCenter.p[i],tile->xOffset.p[i]),tile->xMax.p[i]),k_xMaxBnd);
+	dx = SIMD_AND(dx,SIMD_CMP_GT(dx,consts.zero.p));
+	minbnd2 = SIMD_MADD(dx,dx,minbnd2);
+
+	dx = SIMD_SUB(k_yMinBnd,SIMD_ADD(tile->yCenter.p[i],SIMD_ADD(tile->yOffset.p[i],tile->yMax.p[i])));
+	dx = SIMD_AND(dx,SIMD_CMP_GT(dx,consts.zero.p));
+	minbnd2 = SIMD_MADD(dx,dx,minbnd2);
+	dx = SIMD_SUB(SIMD_SUB(SIMD_ADD(tile->yCenter.p[i],tile->yOffset.p[i]),tile->yMax.p[i]),k_yMaxBnd);
+	dx = SIMD_AND(dx,SIMD_CMP_GT(dx,consts.zero.p));
+	minbnd2 = SIMD_MADD(dx,dx,minbnd2);
+
+	dx = SIMD_SUB(k_zMinBnd,SIMD_ADD(tile->zCenter.p[i],SIMD_ADD(tile->zOffset.p[i],tile->zMax.p[i])));
+	dx = SIMD_AND(dx,SIMD_CMP_GT(dx,consts.zero.p));
+	minbnd2 = SIMD_MADD(dx,dx,minbnd2);
+	dx = SIMD_SUB(SIMD_SUB(SIMD_ADD(tile->zCenter.p[i],tile->zOffset.p[i]),tile->zMax.p[i]),k_zMaxBnd);
+	dx = SIMD_AND(dx,SIMD_CMP_GT(dx,consts.zero.p));
+	minbnd2 = SIMD_MADD(dx,dx,minbnd2);
+
+	T0 = SIMD_F2I(SIMD_CMP_GT(tile->m.p[i],consts.zero.p));
+	T1 = SIMD_F2I(SIMD_AND(SIMD_CMP_GT(d2,d2Open),SIMD_CMP_GT(minbnd2,fourh2)));
+	T2 = SIMD_CMP_EQ_EPI32(tile->iLower.p[i],iconsts.zero.p);
+	T3 = SIMD_OR_EPI32(SIMD_CMP_GT_EPI32(iconsts.walk_min_multipole.p,tile->nc.p[i]),SIMD_F2I(SIMD_CMP_LE(mink2,cOpen2)));
+	T4 = SIMD_F2I(SIMD_CMP_GT(minbnd2,fourh2));
+	T5 = SIMD_F2I(SIMD_CMP_GT(mink2,SIMD_MUL(consts.fMonopoleThetaFac2.p,cOpen2)));
+	T6 = SIMD_F2I(SIMD_CMP_GT(cOpen,k_Open));
+	T7 = SIMD_CMP_EQ_EPI32(k_iLower,iconsts.zero.p);
+	iOpenA = SIMD_OR_EPI32(SIMD_AND_EPI32(T2,iconsts.one.p),SIMD_ANDNOT_EPI32(T2,iconsts.three.p));
+	iOpenB = SIMD_OR_EPI32(SIMD_AND_EPI32(T3,iOpenA),SIMD_ANDNOT_EPI32(T3,
+		    SIMD_OR_EPI32(SIMD_AND_EPI32(T4,iconsts.four.p),SIMD_ANDNOT_EPI32(T4,
+		    SIMD_OR_EPI32(SIMD_AND_EPI32(T5,iconsts.five.p),SIMD_ANDNOT_EPI32(T5,iOpenA))))));
+	P1 = SIMD_OR_EPI32(SIMD_AND_EPI32(T2,iOpenB),SIMD_ANDNOT_EPI32(T2,iconsts.three.p));
+	P2 = SIMD_OR_EPI32(SIMD_AND_EPI32(T7,iconsts.zero.p),SIMD_ANDNOT_EPI32(T7,iOpenB));
+	P3 = SIMD_OR_EPI32(SIMD_AND_EPI32(T6,P1),SIMD_ANDNOT_EPI32(T6,P2));
+	P4 = SIMD_OR_EPI32(SIMD_AND_EPI32(T1,iconsts.eight.p),SIMD_ANDNOT_EPI32(T1,P3));
+	iOpen = SIMD_OR_EPI32(SIMD_AND_EPI32(T0,P4),SIMD_ANDNOT_EPI32(T0,iconsts.ten.p));
+	tile->iOpen.p[i] = iOpen;
+    }
+}
+
+#endif
+
 /*
 ** This implements the original pkdgrav2m opening criterion, which has been
 ** well tested, gives good force accuracy, but may not be the most efficient
 ** and also doesn't explicitly conserve momentum.
 */
 static void iOpenOutcomeOldCL(PKD pkd,KDN *k,CLTILE tile,int iStart,double dThetaMin) {
-    const double fMonopoleThetaFac2 = 1.6 * 1.6;
+    const float fMonopoleThetaFac2 = 1.6 * 1.6;
     const int walk_min_multipole = 3;
 
-    double dx,dy,dz,mink2,d2,d2Open,xc,yc,zc,fourh2,minbnd2,kOpen,cOpen,diCrit;
-    int nc,j,i;
+    float dx,dy,dz,mink2,d2,d2Open,xc,yc,zc,fourh2,minbnd2,kOpen,cOpen,diCrit;
+    int j,i;
     int iOpen,iOpenA,iOpenB;
     pBND kbnd;
 
@@ -320,9 +484,8 @@ static void iOpenOutcomeOldCL(PKD pkd,KDN *k,CLTILE tile,int iStart,double dThet
 	    d2 = pow(k->r[0]-xc,2) + pow(k->r[1]-yc,2) + pow(k->r[2]-zc,2);
 	    diCrit = 1.0 / dThetaMin;
 	    kOpen = 1.5*k->bMax*diCrit;
-	    cOpen = tile->cOpen.f[i]; /*c->bMax/getTheta(pkd,pkdNodeMom(pkd,c)->m/dTotalMass);*/
+	    cOpen = tile->cOpen.f[i];
 	    d2Open = pow(2.0*fmax(cOpen,kOpen),2);
-	    /*d2Open = pow(cOpen + kOpen,2);*/ /* "BSC" version used this*/
 	    dx = fabs(xc - kbnd.fCenter[0]) - kbnd.fMax[0];
 	    dy = fabs(yc - kbnd.fCenter[1]) - kbnd.fMax[1];
 	    dz = fabs(zc - kbnd.fCenter[2]) - kbnd.fMax[2];
@@ -348,11 +511,9 @@ static void iOpenOutcomeOldCL(PKD pkd,KDN *k,CLTILE tile,int iStart,double dThet
 	    else {
 		if (tile->iLower.i[i] == 0) iOpenA = 1;
 		else iOpenA = 3;
-		//if (nc < walk_min_multipole || mink2 <= c->bMax*c->bMax*diCrit*diCrit) iOpenB = iOpenA;
-		if (nc < walk_min_multipole || mink2 <= cOpen*cOpen) iOpenB = iOpenA;
-		else if (minbnd2 > fourh2) iOpen = iOpenB = 4;
-		//else if (mink2 > fMonopoleThetaFac2*c->bMax*c->bMax*diCrit*diCrit) iOpen = iOpenB = 5;
-		else if (mink2 > fMonopoleThetaFac2*cOpen*cOpen) iOpen = iOpenB = 5;
+		if (tile->nc.i[i] < walk_min_multipole || mink2 <= cOpen*cOpen) iOpenB = iOpenA;
+		else if (minbnd2 > fourh2) iOpenB = 4;
+		else if (mink2 > fMonopoleThetaFac2*cOpen*cOpen) iOpenB = 5;
 		else iOpenB = iOpenA;
 		if (cOpen > kOpen) {
 		    if (tile->iLower.i[i]) iOpen = 3;
@@ -367,9 +528,6 @@ static void iOpenOutcomeOldCL(PKD pkd,KDN *k,CLTILE tile,int iStart,double dThet
 	tile->iOpen.i[i] = iOpen;
     }
 }
-
-
-
 
 /*
 ** This implements the original pkdgrav2m opening criterion, which has been
@@ -427,9 +585,9 @@ static inline int iOpenOutcomeOld(PKD pkd,KDN *k,CELT *check,KDN **pc,double dTh
 	    else iOpenA = 3;
 	    //if (nc < walk_min_multipole || mink2 <= c->bMax*c->bMax*diCrit*diCrit) iOpenB = iOpenA;
 	    if (nc < walk_min_multipole || mink2 <= cOpen*cOpen) iOpenB = iOpenA;
-	    else if (minbnd2 > fourh2) iOpen = iOpenB = 4;
+	    else if (minbnd2 > fourh2) iOpenB = 4;
 	    //else if (mink2 > fMonopoleThetaFac2*c->bMax*c->bMax*diCrit*diCrit) iOpen = iOpenB = 5;
-	    else if (mink2 > fMonopoleThetaFac2*cOpen*cOpen) iOpen = iOpenB = 5;
+	    else if (mink2 > fMonopoleThetaFac2*cOpen*cOpen) iOpenB = 5;
 	    else iOpenB = iOpenA;
 	    if (cOpen > kOpen) {
 		if (c->iLower) iOpen = 3;

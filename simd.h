@@ -44,7 +44,6 @@
 #if defined(__SSE__)
 typedef ATTRIBUTE_ALIGNED_ALIGNOF(__m128) __m128 v4sf;
 typedef ATTRIBUTE_ALIGNED_ALIGNOF(__m128) __m128 v4bool;
-//typedef ATTRIBUTE_ALIGNED_ALIGNOF(__m128) int v4i __attribute__ ((vector_size(16)));
 typedef ATTRIBUTE_ALIGNED_ALIGNOF(__m128) __m128i v4i;
 #else
 typedef vector float v4sf;
@@ -56,6 +55,12 @@ typedef union {
     float f[SIMD_WIDTH];
     v4sf p;
     } v4;
+typedef union {
+    int32_t  i[SIMD_WIDTH];
+    uint32_t u[SIMD_WIDTH];
+    v4i      p;
+    v4sf     pf;
+    } i4;
 
 #if defined(HAVE_POSIX_MEMALIGN)
 static inline void * SIMD_malloc( size_t newSize ) {
@@ -81,6 +86,21 @@ static inline v4sf SIMD_SPLAT(float f) {
 #else
     v4 r;
     r.f[0] = r.f[1] = r.f[2] = r.f[3] = f;
+    return r.p;
+    /*return (v4sf)(f,f,f,f);*/
+#endif
+    }
+
+static inline v4i SIMD_SPLATI32(int i) {
+#ifdef __SSE__
+    return _mm_set1_epi32(i);
+#else
+typedef union {
+    int i[SIMD_WIDTH];
+    v4i p;
+    } i4;
+    i4 r;
+    r.i[0] = r.i[1] = r.i[2] = r.i[3] = i;
     return r.p;
     /*return (v4sf)(f,f,f,f);*/
 #endif
@@ -129,6 +149,8 @@ static inline v4sf SIMD_RE_EXACT(v4sf a) {
     }
 #define SIMD_MAX(a,b) _mm_max_ps(a,b)
 #define SIMD_MIN(a,b) _mm_min_ps(a,b)
+#define SIMD_CMP_EQ(a,b) _mm_cmpeq_ps(a,b)
+#define SIMD_CMP_NE(a,b) _mm_cmpne_ps(a,b)
 #define SIMD_CMP_LE(a,b) _mm_cmple_ps(a,b)
 #define SIMD_CMP_LT(a,b) _mm_cmplt_ps(a,b)
 #define SIMD_CMP_GE(a,b) _mm_cmpge_ps(a,b)
@@ -138,6 +160,13 @@ static inline v4sf SIMD_RE_EXACT(v4sf a) {
 #define SIMD_OR(a,b) _mm_or_ps(a,b)
 #define SIMD_XOR(a,b) _mm_xor_ps(a,b)
 #define SIMD_ALL_ZERO(a) _mm_movemask_ps(a)
+#define SIMD_I2F(a) _mm_castsi128_ps(a)
+#define SIMD_F2I(a) _mm_castps_si128(a)
+#define SIMD_CMP_EQ_EPI32(a,b) _mm_cmpeq_epi32(a,b)
+#define SIMD_CMP_GT_EPI32(a,b) _mm_cmpgt_epi32(a,b)
+#define SIMD_AND_EPI32(a,b) _mm_and_si128(a,b)
+#define SIMD_ANDNOT_EPI32(a,b) _mm_andnot_si128(a,b)
+#define SIMD_OR_EPI32(a,b) _mm_or_si128(a,b)
 #else
 static v4sf   simd_zero  = {0,0,0,0};
 static v4bool simd_false = {0,0,0,0};
@@ -155,6 +184,8 @@ static inline v4sf SIMD_RE_EXACT( v4sf a) {
     }
 #define SIMD_MAX(a,b) vec_max(a,b)
 #define SIMD_MIN(a,b) vec_min(a,b)
+#define SIMD_CMP_EQ(a,b) vec_cmpeq(a,b)
+#define SIMD_CMP_NE(a,b) vec_cmpne(a,b)
 #define SIMD_CMP_LE(a,b) vec_cmple(a,b)
 #define SIMD_CMP_LT(a,b) vec_cmplt(a,b)
 #define SIMD_CMP_GE(a,b) vec_cmpge(a,b)
@@ -164,6 +195,9 @@ static inline v4sf SIMD_RE_EXACT( v4sf a) {
 #define SIMD_OR(a,b) vec_or(a,b)
 #define SIMD_XOR(a,b) vec_xor(a,b)
 #define SIMD_ALL_ZERO(a) (!vec_all_eq(a,simd_false))
+#define SIMD_F_TO_I(a) (a)
+#define SIMD_CMP_EQ_EPI32(a,b) vec_cmpeq(a,b)
+#define SIMD_CMP_GT_EPI32(a,b) vec_cmpgt(a,b)
 #endif
 
 static inline v4sf SIMD_RSQRT_EXACT(v4sf B) {
