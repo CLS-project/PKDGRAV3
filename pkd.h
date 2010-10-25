@@ -14,6 +14,7 @@
 #include "parameters.h"
 #include "ilp.h"
 #include "ilc.h"
+#include "cl.h"
 #include "moments.h"
 #include "cosmo.h"
 #include "fio.h"
@@ -482,24 +483,26 @@ typedef struct sphBounds {
 /*
 ** Components required for tree walking.
 */
-
+#ifndef LOCAL_EXPANSION
 typedef struct CheckElt {
     int iCell;
     int id;
     double cOpen;
     FLOAT rOffset[3];
     } CELT;
+#endif
 
 typedef struct CheckStack {
 #ifdef LOCAL_EXPANSION
     ILPCHECKPT PartChkPt;
     ILCCHECKPT CellChkPt;
+    CL cl;
 #else
     int nPart;
     int nCell;
-#endif
     int nCheck;
     CELT *Check;
+#endif
     FLOCR L;
     float dirLsum;
     float normLsum;
@@ -662,15 +665,17 @@ typedef struct pkdContext {
     */
     int nMaxStack;
     CSTACK *S;
-    int nMaxCheck;
-    CELT *Check;
 #ifdef LOCAL_EXPANSION
     ILP ilp;
     ILC ilc;
+    CL cl;
+    CL clNew;
 #else
     ILP *ilp;
     ILC *ilc;
+    CELT *Check;
     int nMaxPart, nMaxCell;
+    int nMaxCheck;
 #endif
 
     /*

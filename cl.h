@@ -148,6 +148,6 @@ static inline void clAppendItem(CL cl, CLTILE B, int Bi) {
 	B->xCenter.f[Bi],B->yCenter.f[Bi],B->zCenter.f[Bi],B->xMax.f[Bi],B->yMax.f[Bi],B->zMax.f[Bi],B->iOpen.i[Bi]);
     }
 
-#define CL_LOOP(cl,tile) for( tile=(cl)->first; tile!=(cl)->tile->next; tile=tile->next )
+#define CL_LOOP(CL,CL_TILE) for( CL_TILE=(CL)->first; CL_TILE!=(CL)->tile->next; CL_TILE=CL_TILE->next )
 
 #endif

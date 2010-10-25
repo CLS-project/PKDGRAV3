@@ -1057,7 +1057,7 @@ void UpdateSphBounds(SMX smx) {
     }
 }
 
-
+#if 0
 static inline int iOpenInactive(PKD pkd,KDN *k,CELT *check,KDN **pc,PARTICLE **pp) {
     PARTICLE *p;
     KDN *c;
@@ -1125,12 +1125,13 @@ static inline int iOpenInactive(PKD pkd,KDN *k,CELT *check,KDN **pc,PARTICLE **p
 	else return(2); /* open the bucket c */
     }
 }
-
+#endif
 
 /*
 ** Returns the number of elements added to the do queue.
 */
 uint32_t BoundWalkInactive(SMX smx) {
+#if 0
     PKD pkd = smx->pkd;
     PARTICLE *p,*pp;
     KDN *k,*c,*kSib;
@@ -1505,9 +1506,10 @@ uint32_t BoundWalkInactive(SMX smx) {
 	memcpy(pkd->Check,pkd->S[iStack].Check,nCheck*sizeof(CELT));
 	--iStack;
 	}
+#endif
     }
 
-
+#if 0
 static inline int iOpenActive(PKD pkd,KDN *k,CELT *check,KDN **pc,PARTICLE **pp) {
     PARTICLE *p;
     KDN *c;
@@ -1587,9 +1589,10 @@ static inline int iOpenActive(PKD pkd,KDN *k,CELT *check,KDN **pc,PARTICLE **pp)
 	else return(2); /* open the bucket c */
     }
 }
-
+#endif
 
 void BoundWalkActive(SMX smx,LIST **ppList,int *pnMaxpList) {
+#if 0
     PKD pkd = smx->pkd;
     PARTICLE *p,*pp;
     KDN *k,*c,*kSib;
@@ -1940,6 +1943,7 @@ void BoundWalkActive(SMX smx,LIST **ppList,int *pnMaxpList) {
 	memcpy(pkd->Check,pkd->S[iStack].Check,nCheck*sizeof(CELT));
 	--iStack;
 	}
+#endif
     }
 
 

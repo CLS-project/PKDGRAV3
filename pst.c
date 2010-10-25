@@ -4122,7 +4122,7 @@ void pstMemStatus(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 		}
 	    }
 #endif
-	out[id].nCheck = plcl->pkd->nMaxCheck;
+	out[id].nCheck = clCount(plcl->pkd->cl);
 	}
     if (pnOut) *pnOut = nThreads*sizeof(struct outMemStatus);
     }

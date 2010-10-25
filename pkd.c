@@ -517,9 +517,14 @@ void pkdInitialize(
     /*
     ** Allocate Checklist.
     */
+#ifdef LOCAL_EXPANSION
+    clInitialize(&pkd->cl);
+    clInitialize(&pkd->clNew);
+#else
     pkd->nMaxCheck = 10000;
     pkd->Check = malloc(pkd->nMaxCheck*sizeof(CELT));
     assert(pkd->Check != NULL);
+#endif
     /*
     ** Allocate the stack.
     */
@@ -527,8 +532,12 @@ void pkdInitialize(
     pkd->S = malloc(pkd->nMaxStack*sizeof(CSTACK));
     assert(pkd->S != NULL);
     for (ism=0;ism<pkd->nMaxStack;++ism) {
+#ifdef LOCAL_EXPANSION
+	clInitialize(pkd->S[ism].cl);
+#else
 	pkd->S[ism].Check = malloc(pkd->nMaxCheck*sizeof(CELT));
 	assert(pkd->S[ism].Check != NULL);
+#endif
 	}
     /*
     ** Allocate initial particle pointer arrays for active/inactive particles.
@@ -589,12 +598,13 @@ void pkdFinish(PKD pkd) {
     /*
     ** Free checklist.
     */
-    free(pkd->Check);
+    clFinish(pkd->cl);
+    clFinish(pkd->clNew);
     /*
     ** Free Stack.
     */
     for (ism=0;ism<pkd->nMaxStack;++ism) {
-	free(pkd->S[ism].Check);
+	clFinish(pkd->S[ism].cl);
 	}
     free(pkd->S);
     if (pkd->kdTopPRIVATE) free(pkd->kdTopPRIVATE);

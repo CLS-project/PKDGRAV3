@@ -31,6 +31,7 @@
 ** This is the new momentum conserving version of the opening criterion.
 ** THIS NEEDS MORE TESTING
 */
+#if 0
 static inline int iOpenOutcome(PKD pkd,KDN *k,CELT *check,KDN **pc,double dThetaMin) {
     const double fMonopoleThetaFac2 = 1.5 * 1.5;
     const double fThetaFac2 = 1.1 * 1.1;
@@ -115,6 +116,7 @@ static inline int iOpenOutcome(PKD pkd,KDN *k,CELT *check,KDN **pc,double dTheta
     }
     return(iOpen);
 }
+#endif
 
 #ifdef USE_DEHNEN_THETA
 double brent(double x1, double x2, double (*my_f)(double v, void *params),void *params) {
@@ -266,29 +268,28 @@ static inline float getTheta(PKD pkd,float fMass) {
     }
 #endif
 
-static inline int getCheckCell(PKD pkd,CELT *check,KDN **pc) {
-    const int walk_min_multipole = 3;
+static inline int getCell(PKD pkd,int iCell,int id,float *pcOpen,KDN **pc) {
     KDN *c;
     int nc;
-    assert(check->iCell > 0);
-    if (check->id == pkd->idSelf) {
-	*pc = c = pkdTreeNode(pkd,check->iCell);
+    assert(iCell > 0);
+    if (id == pkd->idSelf) {
+	*pc = c = pkdTreeNode(pkd,iCell);
 	nc = c->pUpper - c->pLower + 1;
 	}
-    else if (check->id < 0) {
-        *pc = c = pkdTopNode(pkd,check->iCell);
+    else if (id < 0) {
+        *pc = c = pkdTopNode(pkd,iCell);
 	assert(c->iLower != 0);
-	nc = walk_min_multipole; /* we never allow pp with this cell */
+	nc = 1000000000; /* we never allow pp with this cell */
 	}
     else {
-	*pc = c = mdlAquire(pkd->mdl,CID_CELL,check->iCell,check->id);
+	*pc = c = mdlAquire(pkd->mdl,CID_CELL,iCell,id);
 	nc = c->pUpper - c->pLower + 1;
 	}
-    if (check->cOpen < 0.0) {
+    if (*pcOpen < 0.0) {
 #ifdef USE_DEHNEN_THETA
-	check->cOpen = c->bMax/getTheta(pkd,pkdNodeMom(pkd,c)->m/pkdNodeMom(pkd,pkdTreeNode(pkd,ROOT))->m);
+	*pcOpen = c->bMax/getTheta(pkd,pkdNodeMom(pkd,c)->m/pkdNodeMom(pkd,pkdTreeNode(pkd,ROOT))->m);
 #else
-	check->cOpen = c->bMax * pkd->fiCritTheta;
+	*pcOpen = c->bMax * pkd->fiCritTheta;
 #endif
 	}
     return nc;
@@ -529,79 +530,7 @@ static void iOpenOutcomeOldCL(PKD pkd,KDN *k,CLTILE tile,int iStart,double dThet
     }
 }
 
-/*
-** This implements the original pkdgrav2m opening criterion, which has been
-** well tested, gives good force accuracy, but may not be the most efficient
-** and also doesn't explicitly conserve momentum.
-*/
-static inline int iOpenOutcomeOld(PKD pkd,KDN *k,CELT *check,KDN **pc,double dThetaMin) {
-    const double fMonopoleThetaFac2 = 1.6 * 1.6;
-    const int walk_min_multipole = 3;
-    double dx,dy,dz,mink2,d2,d2Open,xc,yc,zc,fourh2,minbnd2,kOpen,cOpen,diCrit;
-    KDN *c;
-    int nc,j;
-    int iOpen,iOpenA,iOpenB;
-    pBND kbnd,cbnd;
-        
-    nc = getCheckCell(pkd,check,pc);
-    c = *pc;
-
-    pkdNodeBnd(pkd,k,&kbnd);
-    pkdNodeBnd(pkd,c,&cbnd);
-
-    if (pkdNodeMom(pkd,c)->m <= 0) iOpen = 10;  /* ignore this cell */
-    else {
-#if defined(TEST_SOFTENING)
-	double hk = sqrt(k->fSoft2);
-	double hc = sqrt(c->fSoft2);
-	fourh2 = 4.0 * (k->fSoft2*hk + c->fSoft2*hc)/(hk + hc);
-#else
-	fourh2 = softmassweight(pkdNodeMom(pkd,k)->m,4*k->fSoft2,pkdNodeMom(pkd,c)->m,4*c->fSoft2);
-#endif
-	xc = c->r[0] + check->rOffset[0];
-	yc = c->r[1] + check->rOffset[1];
-	zc = c->r[2] + check->rOffset[2];
-	d2 = pow(k->r[0]-xc,2) + pow(k->r[1]-yc,2) + pow(k->r[2]-zc,2);
-	diCrit = 1.0 / dThetaMin;
-	kOpen = 1.5*k->bMax*diCrit;
-	cOpen = check->cOpen; /*c->bMax/getTheta(pkd,pkdNodeMom(pkd,c)->m/dTotalMass);*/
-	d2Open = pow(2.0*fmax(cOpen,kOpen),2);
-	/*d2Open = pow(cOpen + kOpen,2);*/ /* "BSC" version used this*/
-	dx = fabs(xc - kbnd.fCenter[0]) - kbnd.fMax[0];
-	dy = fabs(yc - kbnd.fCenter[1]) - kbnd.fMax[1];
-	dz = fabs(zc - kbnd.fCenter[2]) - kbnd.fMax[2];
-	mink2 = ((dx>0)?dx*dx:0) + ((dy>0)?dy*dy:0) + ((dz>0)?dz*dz:0);
-	minbnd2 = 0;
-	for (j=0;j<3;++j) {
-	    dx = kbnd.fCenter[j] - kbnd.fMax[j] - cbnd.fCenter[j] - check->rOffset[j] - cbnd.fMax[j];
-	    if (dx > 0) minbnd2 += dx*dx;
-	    dx = cbnd.fCenter[j] + check->rOffset[j] - cbnd.fMax[j] - kbnd.fCenter[j] - kbnd.fMax[j];
-	    if (dx > 0) minbnd2 += dx*dx;
-	    }
-
-	if (d2 > d2Open && minbnd2 > fourh2) iOpen = 8;
-	else {
-	    if (c->iLower == 0) iOpenA = 1;
-	    else iOpenA = 3;
-	    //if (nc < walk_min_multipole || mink2 <= c->bMax*c->bMax*diCrit*diCrit) iOpenB = iOpenA;
-	    if (nc < walk_min_multipole || mink2 <= cOpen*cOpen) iOpenB = iOpenA;
-	    else if (minbnd2 > fourh2) iOpenB = 4;
-	    //else if (mink2 > fMonopoleThetaFac2*c->bMax*c->bMax*diCrit*diCrit) iOpen = iOpenB = 5;
-	    else if (mink2 > fMonopoleThetaFac2*cOpen*cOpen) iOpenB = 5;
-	    else iOpenB = iOpenA;
-	    if (cOpen > kOpen) {
-		if (c->iLower) iOpen = 3;
-		else iOpen = iOpenB;
-	    }
-	    else {
-		if (k->iLower) iOpen = 0;
-		else iOpen = iOpenB;
-	    }
-	}
-    }
-    return(iOpen);
-}
-
+#if 0
 /*
 ** This implements the original pkdgrav Barnes Hut opening criterion.
 */
@@ -709,7 +638,7 @@ static inline int iOpenOutcomeBarnesHut(PKD pkd,KDN *k,CELT *check,KDN **pc,doub
 	else return(iOpenA);  /* open the cell */
 	}
     }
-
+#endif
 
 /*
 ** Returns total number of active particles for which gravity was calculated.
@@ -717,32 +646,35 @@ static inline int iOpenOutcomeBarnesHut(PKD pkd,KDN *k,CELT *check,KDN **pc,doub
 int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,int bEwald,
 		int bVeryActive,double dThetaMin,double dThetaMax,double *pdFlop,double *pdPartSum,double *pdCellSum) {
     PARTICLE *p;
-    KDN *k,*c,*kFind,*kSib;
+    KDN *k,*c,*kFind;
     FMOMR *momc,*momk;
     FLOCR L;
     double fWeight = 0.0;
     double dShiftFlop;
     double dRhoFac;
     double *v, *a, zero[3];
-    FLOAT rOffset[3];
-    FLOAT xParent,yParent,zParent;
-    FLOAT cx,cy,cz,d2c;
-
-    float d2,fourh2,bMaxParent;
+    double dOffset[3];
+    double xParent,yParent,zParent;
+    double cx,cy,cz,d2c;
+    double d2,fourh2;
+    double dx[3],dir,dir2;
+    float fOffset[3];
+    float bMaxParent;
     float dirLsum,normLsum,adotai,maga;
     float tax,tay,taz;
-    float dx[3],dir,dir2;
-
-    FLOAT fMass,fSoft;
-
+    float fMass,fSoft;
     int iStack,ism;
     int ix,iy,iz,bRep;
-    int nMaxInitCheck,nCheck;
-    int iCell,iSib,iCheckCell,iCellDescend;
-    int i,ii,j,pi,pj,nActive,nTotActive;
-    int iOpen;
+    int nMaxInitCheck;
+    int id,iCell,iSib,iLower,iCheckCell,iCellDescend;
+    int i,j,pi,pj,nActive,nTotActive;
+    float cOpen,kOpen;
+    pBND cbnd,kbnd;
+    int nc,nk;
     ILPTILE tile;
     ILCTILE ctile;
+    CL clTemp;
+    CLTILE cltile;
 #ifdef USE_SIMD_MOMR
     int ig,iv;
 #endif
@@ -793,7 +725,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
     nTotActive = 0;
     ilpClear(pkd->ilp);
     ilcClear(pkd->ilc);
-
+    clClear(pkd->cl);
     /*
     ** Setup smooth for calculating local densities when a particle has too few P-P interactions.
     */
@@ -808,15 +740,6 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 	}
     else smx = NULL;
 
-    /*
-    ** Allocate Checklist.
-    */
-    nMaxInitCheck = 2*nReps+1;
-    nMaxInitCheck = nMaxInitCheck*nMaxInitCheck*nMaxInitCheck;	/* all replicas */
-    iCell = pkd->iTopRoot;
-    while ((iCell = pkdTopNode(pkd,iCell)->iParent)) ++nMaxInitCheck; /* all top tree siblings */
-    assert(nMaxInitCheck < pkd->nMaxCheck);  /* we should definitely have enough to cover us here! */
-    nCheck = 0;
     iStack = -1;
     /*
     ** Clear local expansion and the timestepping sums.
@@ -837,36 +760,36 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
     ** to the Checklist.
     */
     for (ix=-nReps;ix<=nReps;++ix) {
-	rOffset[0] = ix*pkd->fPeriod[0];
+	fOffset[0] = ix*pkd->fPeriod[0];
 	for (iy=-nReps;iy<=nReps;++iy) {
-	    rOffset[1] = iy*pkd->fPeriod[1];
+	    fOffset[1] = iy*pkd->fPeriod[1];
 	    for (iz=-nReps;iz<=nReps;++iz) {
-		rOffset[2] = iz*pkd->fPeriod[2];
+		fOffset[2] = iz*pkd->fPeriod[2];
 		bRep = ix || iy || iz;
 		if (bRep || bVeryActive) {
-		    pkd->Check[nCheck].iCell = ROOT;
-		    pkd->Check[nCheck].cOpen = -1.0;
 		    /* If leaf of top tree, use root of
 		       local tree.
 		    */
+		    cOpen = -1.0f;
 		    if (pkdTopNode(pkd,ROOT)->iLower) {
-			pkd->Check[nCheck].id = -1;
+			id = -1;
 			}
 		    else {
-			pkd->Check[nCheck].id = pkdTopNode(pkd,ROOT)->pLower;
+			id = c->pLower;
 			}
-		    for (j=0;j<3;++j) pkd->Check[nCheck].rOffset[j] = rOffset[j];
-		    ++nCheck;
+		    nc = getCell(pkd,ROOT,id,&cOpen,&c);
+		    pkdNodeBnd(pkd,c,&cbnd);
+		    clAppend(pkd->cl,ROOT,id,c->iLower,nc,cOpen,pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c->r,fOffset,cbnd.fCenter,cbnd.fMax);
 		    }
 		if (bRep && bVeryActive) {
 		    /*
 		    ** Add the images of the very active tree to the checklist.
 		    */
-		    pkd->Check[nCheck].iCell = VAROOT;
-		    pkd->Check[nCheck].cOpen = -1.0;
-		    pkd->Check[nCheck].id = mdlSelf(pkd->mdl);
-		    for (j=0;j<3;++j) pkd->Check[nCheck].rOffset[j] = rOffset[j];
-		    ++nCheck;
+		    cOpen = -1.0f;
+		    id = mdlSelf(pkd->mdl);
+		    nc = getCell(pkd,VAROOT,id,&cOpen,&c);
+		    pkdNodeBnd(pkd,c,&cbnd);
+		    clAppend(pkd->cl,VAROOT,id,c->iLower,nc,cOpen,pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c->r,fOffset,cbnd.fCenter,cbnd.fMax);
 		    }
 		}
 	    }
@@ -876,21 +799,17 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 	** This adds all siblings of a chain leading from the local tree leaf in the top
 	** tree up to the ROOT of the top tree.
 	*/
+	for (j=0;j<3;++j) fOffset[j] = 0.0f;
 	iCell = pkd->iTopRoot;
 	iSib = SIBLING(iCell);
 	while (iSib) {
-	    if (pkdTopNode(pkd,iSib)->iLower) {
-		pkd->Check[nCheck].iCell = iSib;
-		pkd->Check[nCheck].id = -1;
-		}
-	    else {
-		/* If leaf of top tree, use root of local tree */
-		pkd->Check[nCheck].iCell = ROOT;
-		pkd->Check[nCheck].id = pkdTopNode(pkd,iSib)->pLower;
-		}
-	    pkd->Check[nCheck].cOpen = -1.0;
-	    for (j=0;j<3;++j) pkd->Check[nCheck].rOffset[j] = 0.0;
-	    ++nCheck;
+	    cOpen = -1.0f;
+	    id = -1;
+	    iLower = pkdTopNode(pkd,iSib)->iLower;
+	    if (!iLower) iLower = ROOT;  /* something other than zero for openening crit - iLower usually can't be == ROOT */
+	    nc = getCell(pkd,iSib,id,&cOpen,&c);
+	    pkdNodeBnd(pkd,c,&cbnd);
+	    clAppend(pkd->cl,iSib,id,iLower,nc,cOpen,pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c->r,fOffset,cbnd.fCenter,cbnd.fMax);
 	    iCell = pkdTopNode(pkd,iCell)->iParent;
 	    iSib = SIBLING(iCell);
 	    }
@@ -962,312 +881,366 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 	    */
 	    tempI = *pdFlop;
 	    tempI += dEwFlop;
-	    ii = 0;
 	    if (pkd->param.bGravStep) {
 		a = pkdNodeAccel(pkd,k);
 		maga = sqrt(a[0]*a[0] + a[1]*a[1] + a[2]*a[2]);
 	    }
-	    for (i=0;i<nCheck;++i) {
+	    /*
+	    ** For cells which will remain on the checklist for a further deeper level of 
+	    ** level of the tree we will be using the stack cl (even if no push happens later).
+	    */
+	    clClear(pkd->S[iStack+1].cl);
+	    do {
+		CL_LOOP(pkd->cl,cltile) {
 #ifdef LOCAL_EXPANSION
-		iOpen = iOpenOutcomeOld(pkd,k,&pkd->Check[i],&c,dThetaMin);
+		    iOpenOutcomeOldCL(pkd,k,cltile,0,dThetaMin);
 #else
-		iOpen = iOpenOutcomeBarnesHut(pkd,k,&pkd->Check[i],&c,dThetaMin);
+		    assert(NULL);
 #endif
-		switch (iOpen) {
-		case 0:
-		    /*
-		    ** This checkcell stays on the checklist.
-		    */
-		    pkd->Check[ii++] = pkd->Check[i];
-		    break;
-		case 1:
-		    /*
-		    ** This checkcell's particles are added to the P-P list.
-		    */
-		    for (pj=c->pLower;pj<=c->pUpper;++pj) {
-			if (pkd->Check[i].id == pkd->idSelf) p = pkdParticle(pkd,pj);
-			else p = mdlAquire(pkd->mdl,CID_PARTICLE,pj,pkd->Check[i].id);
-			fMass = pkdMass(pkd,p);
-			fSoft = pkdSoft(pkd,p);
-			if (pkd->param.bGravStep && pkd->param.iTimeStepCrit == 1) v = pkdVel(pkd,p);
-			ilpAppend(pkd->ilp,
-				  p->r[0] + pkd->Check[i].rOffset[0],
-				  p->r[1] + pkd->Check[i].rOffset[1],
-				  p->r[2] + pkd->Check[i].rOffset[2],
-				  fMass, 4*fSoft*fSoft,
-				  p->iOrder, v[0], v[1], v[2]);
-			if (pkd->Check[i].id != pkd->idSelf) mdlRelease(pkd->mdl,CID_PARTICLE,p);
 		    }
-		    break;
-		case 2:
-		    /*
-		    ** Now I am trying to open a bucket, which means I keep this cell as an "opened bucket"
-		    ** on the checklist. This is marked by a negative cell id. Could prefetch all the 
-		    ** bucket's particles at this point if we want.
-		    */
-		    if (nCheck + 1 > pkd->nMaxCheck) {
-			pkd->nMaxCheck += 1000;
-			pkd->Check = realloc(pkd->Check,pkd->nMaxCheck*sizeof(CELT));
-			assert(pkd->Check != NULL);
-			for (ism=0;ism<pkd->nMaxStack;++ism) {
-			    pkd->S[ism].Check = realloc(pkd->S[ism].Check,pkd->nMaxCheck*sizeof(CELT));
-			    assert(pkd->S[ism].Check != NULL);
-			}
-		    }
-		    pkd->Check[nCheck] = pkd->Check[i];
-		    pkd->Check[nCheck].iCell = -pkd->Check[nCheck].iCell;
-		    pkd->Check[nCheck].cOpen = -1.0;
-		    nCheck += 1;
-		    break;
-		case 3:
-		    /*
-		    ** Open the cell.
-		    ** Here we ASSUME that the children of
-		    ** c are all in sequential memory order!
-		    ** (the new tree build assures this)
-		    ** (also true for the top tree)
-		    ** We could do a prefetch here for non-local
-		    ** cells.
-		    */
-		    if (nCheck + 2 > pkd->nMaxCheck) {
-			pkd->nMaxCheck += 1000;
-			pkd->Check = realloc(pkd->Check,pkd->nMaxCheck*sizeof(CELT));
-			assert(pkd->Check != NULL);
-			for (ism=0;ism<pkd->nMaxStack;++ism) {
-			    pkd->S[ism].Check = realloc(pkd->S[ism].Check,pkd->nMaxCheck*sizeof(CELT));
-			    assert(pkd->S[ism].Check != NULL);
-			}
-		    }
-		    iCheckCell = c->iLower;
-		    pkd->Check[nCheck] = pkd->Check[i];
-		    pkd->Check[nCheck+1] = pkd->Check[i];
-		    /*
-		    ** If we are opening a leaf of the top tree
-		    ** we need to correctly set the processor id.
-		    ** (this is a bit tricky)
-		    */
-		    if (pkd->Check[i].id < 0) {
-			if (pkdTopNode(pkd,iCheckCell)->pLower >= 0) {
-			    pkd->Check[nCheck].iCell = ROOT;
-			    pkd->Check[nCheck].id = pkdTopNode(pkd,iCheckCell)->pLower;
-			}
-			else {
-			    pkd->Check[nCheck].iCell = iCheckCell;
-			    assert(pkd->Check[nCheck].id == -1);
-			}
-			if (pkdTopNode(pkd,iCheckCell+1)->pLower >= 0) {
-			    pkd->Check[nCheck+1].iCell = ROOT;
-			    pkd->Check[nCheck+1].id = pkdTopNode(pkd,iCheckCell+1)->pLower;
-			}
-			else {
-			    pkd->Check[nCheck+1].iCell = iCheckCell+1;
-			    assert(pkd->Check[nCheck+1].id == -1);
-			}
-		    }
-		    else {
-			pkd->Check[nCheck].iCell = iCheckCell;
-			pkd->Check[nCheck+1].iCell = iCheckCell+1;
-			assert(pkd->Check[nCheck].id == pkd->Check[i].id);
-			assert(pkd->Check[nCheck+1].id == pkd->Check[i].id);
-		    }
-		    pkd->Check[nCheck].cOpen = -1.0;
-		    pkd->Check[nCheck+1].cOpen = -1.0;
-		    nCheck += 2;
-		    break;
-		case 4:
-		    /*
-		    ** Accept multipole!
-		    ** Interact += Moment(c);
-		    */
-		    ilcAppend(pkd->ilc,
-			      c->r[0] + pkd->Check[i].rOffset[0],
-			      c->r[1] + pkd->Check[i].rOffset[1],
-			      c->r[2] + pkd->Check[i].rOffset[2],
-			      pkdNodeMom(pkd,c),c->bMax,
-			      v[0],v[1],v[2]);
-		    break;
-		case 5:
-		    /*
-		    ** We accept this multipole from the opening criterion, but it is a softened
-		    ** interaction, so we need to treat is as a softened monopole by putting it
-		    ** on the particle interaction list.
-		    */
-		    if (pkd->param.bGravStep && pkd->param.iTimeStepCrit == 1) v = pkdNodeVel(pkd,c);
-		    ilpAppend(pkd->ilp,
-			      c->r[0] + pkd->Check[i].rOffset[0],
-			      c->r[1] + pkd->Check[i].rOffset[1],
-			      c->r[2] + pkd->Check[i].rOffset[2],
-			      pkdNodeMom(pkd,c)->m, 4*c->fSoft2,
-			      -1, /* set iOrder to negative value for time step criterion */
-			      v[0], v[1], v[2]);
-		    break;
-		case 6:
-		    /*
-		    ** This is accepting an "opened" bucket's particles as monopoles for the
-		    ** local expansion.
-		    */
-		    for (pj=c->pLower;pj<=c->pUpper;++pj) {
-			/*
-			** NOTE: We can only use iClass here if the class table was
-			** merged during a parallel read with GetClasses/SetClasses.
-			** There is no problem id a serial read was performed.
-			*/
-			if (pkd->Check[i].id == pkd->idSelf) p = pkdParticle(pkd,pj);
-			else p = mdlAquire(pkd->mdl,CID_PARTICLE,pj,pkd->Check[i].id);
-			if (pkdMass(pkd,p) <= 0.0) continue;
-			/*
-			** Monopole Local expansion accepted!
-			*/
-			d2 = 0;
-			for (j=0;j<3;++j) {
-			    dx[j] = k->r[j] - (p->r[j] + pkd->Check[i].rOffset[j]);
-			    d2 += dx[j]*dx[j];
-			}
-			dir = 1.0/sqrt(d2);
-			*pdFlop += momFlocrAddMono5(&L,k->bMax,pkdMass(pkd,p),dir,dx[0],dx[1],dx[2],&tax,&tay,&taz);
-			adotai = a[0]*tax + a[1]*tay + a[2]*taz;
-			if (adotai > 0) {
-			    adotai /= maga;
-			    dirLsum += dir*adotai*adotai;
-			    normLsum += adotai*adotai;
-			}
-			if (pkd->Check[i].id != pkd->idSelf) mdlRelease(pkd->mdl,CID_PARTICLE,p);
-		    }
-		    break;
-		case 7:
-		    /*
-		    ** This is accepting an "opened" bucket's particles with this (k) cell as a softened monopole.
-		    ** This is the inverse of accepting a cell as a softened monopole, here we calculate the first 
-		    ** order local expansion of each softened particle of the checkcell.
-		    */
-		    for (pj=c->pLower;pj<=c->pUpper;++pj) {
-			/*
-			** NOTE: We can only use iClass here if the class table was
-			** merged during a parallel read with GetClasses/SetClasses.
-			** There is no problem id a serial read was performed.
-			*/
-			if (pkd->Check[i].id == pkd->idSelf) p = pkdParticle(pkd,pj);
-			else p = mdlAquire(pkd->mdl,CID_PARTICLE,pj,pkd->Check[i].id);
-			fMass = pkdMass(pkd,p);
-			if (fMass <= 0.0) continue;
-			fSoft = pkdSoft(pkd,p);
-			momk = pkdNodeMom(pkd,k);
-			/*
-			** Monopole Local expansion accepted!
-			*/
-			d2 = 0;
-			for (j=0;j<3;++j) {
-			    dx[j] = k->r[j] - (p->r[j] + pkd->Check[i].rOffset[j]);
-			    d2 += dx[j]*dx[j];
-			}
-			dir = 1.0/sqrt(d2);
-			fourh2 = softmassweight(fMass,4*fSoft*fSoft,momk->m,4*k->fSoft2);
-			if (d2 > fourh2) {
-			    dir = 1.0/sqrt(d2);
-			    dir2 = dir*dir*dir;
-			}
-			else {
+		clClear(pkd->clNew);
+		CL_LOOP(pkd->cl,cltile) {
+		    for (j=0;j<cltile->nItems;++j) {
+			switch (cltile->iOpen.i[j]) {
+			case 0:
 			    /*
-			    ** This uses the Dehnen K1 kernel function now, it's fast!
+			    ** This checkcell stays on the checklist.
 			    */
-			    dir = 1.0/sqrt(fourh2);
-			    dir2 = dir*dir;
-			    d2 *= dir2;
-			    dir2 *= dir;
-			    d2 = 1 - d2;
-			    dir *= 1.0 + d2*(0.5 + d2*(3.0/8.0 + d2*(45.0/32.0)));
-			    dir2 *= 1.0 + d2*(1.5 + d2*(135.0/16.0));
-			}
-			dir2 *= fMass;
-			tax = -dx[0]*dir2;
-			tay = -dx[1]*dir2;
-			taz = -dx[2]*dir2;
-			L.m -= fMass*dir;
-			L.x -= tax;
-			L.y -= tay;
-			L.z -= taz;
-			adotai = a[0]*tax + a[1]*tay + a[2]*taz;
-			if (adotai > 0) {
-			    adotai /= maga;
-			    dirLsum += dir*adotai*adotai;
-			    normLsum += adotai*adotai;
-			}
-			if (pkd->Check[i].id != pkd->idSelf) mdlRelease(pkd->mdl,CID_PARTICLE,p);
-		    }
-		    break;
-		case 8:
-		    /*
-		    ** Local expansion accepted!
-		    */
-		    d2 = 0;
-		    for (j=0;j<3;++j) {
-			dx[j] = k->r[j] - (c->r[j] + pkd->Check[i].rOffset[j]);
-			d2 += dx[j]*dx[j];
-		    }
-		    dir = 1.0/sqrt(d2);
+			    clAppendItem(pkd->S[iStack+1].cl,cltile,j);
+			    break;
+			case 1:
+			    /*
+			    ** This checkcell's particles are added to the P-P list.
+			    */
+			    iCell = cltile->iCell.i[j];
+			    id = cltile->id.i[j];
+			    dOffset[0] = cltile->xOffset.f[j];
+			    dOffset[1] = cltile->yOffset.f[j];
+			    dOffset[2] = cltile->zOffset.f[j];
+			    if (id == pkd->idSelf) c = pkdTreeNode(pkd,iCell);
+			    else c = mdlAquire(pkd->mdl,CID_CELL,iCell,id);
+			    for (pj=c->pLower;pj<=c->pUpper;++pj) {
+				if (id == pkd->idSelf) p = pkdParticle(pkd,pj);
+				else p = mdlAquire(pkd->mdl,CID_PARTICLE,pj,id);
+				fMass = pkdMass(pkd,p);
+				fSoft = pkdSoft(pkd,p);
+				if (pkd->param.bGravStep && pkd->param.iTimeStepCrit == 1) v = pkdVel(pkd,p);
+				ilpAppend(pkd->ilp,
+				    p->r[0] + dOffset[0],
+				    p->r[1] + dOffset[1],
+				    p->r[2] + dOffset[2],
+				    fMass, 4*fSoft*fSoft,
+				    p->iOrder, v[0], v[1], v[2]);
+				if (id != pkd->idSelf) mdlRelease(pkd->mdl,CID_PARTICLE,p);
+				}
+			    if (id != pkd->idSelf) mdlRelease(pkd->mdl,CID_CELL,c);
+			    break;
+			case 2:
+			    /*
+			    ** Now I am trying to open a bucket, which means I keep this cell as an "opened bucket"
+			    ** on the checklist. This is marked by a negative cell id. Could prefetch all the 
+			    ** bucket's particles at this point if we want.
+			    */
+			    cltile->iCell.i[j] = -cltile->iCell.i[j]; 
+			    clAppendItem(pkd->clNew,cltile,j);
+			    break;
+			case 3:
+			    /*
+			    ** Open the cell.
+			    ** Here we ASSUME that the children of
+			    ** c are all in sequential memory order!
+			    ** (the new tree build assures this)
+			    ** (also true for the top tree)
+			    ** We could do a prefetch here for non-local
+			    ** cells.
+			    */
+			    cOpen = -1.0f;
+			    iCheckCell = cltile->iLower.i[j];
+			    assert(iCheckCell > 0);
+			    id = cltile->id.i[j];
+			    if (iCheckCell == ROOT) {
+				/* We must progress to the children of this local tree root cell. */
+				assert(id < 0);
+				id = pkdTopNode(pkd,iCheckCell)->pLower;
+				if (id == pkd->idSelf) {
+				    c = pkdTreeNode(pkd,iCheckCell);
+				    iCheckCell = c->iLower;
+				    }
+				else {
+				    c = mdlAquire(pkd->mdl,CID_CELL,iCheckCell,id);
+				    iCheckCell = c->iLower;
+				    mdlRelease(pkd->mdl,CID_CELL,c);
+				    }
+				if (!iCheckCell) {
+				    /*
+				    ** The ROOT of a local tree is actually a bucket! An irritating case...
+				    ** This is a rare case though, and as such we simply check the local ROOT bucket once more.
+				    */
+				    nc = c->pUpper - c->pLower + 1;
+				    pkdNodeBnd(pkd,c,&cbnd);
+				    fOffset[0] = cltile->xOffset.f[j];
+				    fOffset[1] = cltile->yOffset.f[j];
+				    fOffset[2] = cltile->zOffset.f[j];
+				    clAppend(pkd->clNew,ROOT,id,0,nc,cOpen,pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c->r,fOffset,cbnd.fCenter,cbnd.fMax);
+				    break; /* finished, don't add children */
+				    }
+				}			    
+			    nc = getCell(pkd,iCheckCell,id,&cOpen,&c);
+			    pkdNodeBnd(pkd,c,&cbnd);
+			    fOffset[0] = cltile->xOffset.f[j];
+			    fOffset[1] = cltile->yOffset.f[j];
+			    fOffset[2] = cltile->zOffset.f[j];
+			    clAppend(pkd->clNew,iCheckCell,id,c->iLower,nc,cOpen,pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c->r,fOffset,cbnd.fCenter,cbnd.fMax);
+			    if (id >= 0 && id != pkd->idSelf) mdlRelease(pkd->mdl,CID_CELL,c);
+			    /*
+			    ** Also add the sibling of check->iLower.
+			    */
+			    ++iCheckCell;
+			    nc = getCell(pkd,iCheckCell,id,&cOpen,&c);
+			    pkdNodeBnd(pkd,c,&cbnd);
+			    clAppend(pkd->clNew,iCheckCell,id,c->iLower,nc,cOpen,pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c->r,fOffset,cbnd.fCenter,cbnd.fMax);
+			    if (id >= 0 && id != pkd->idSelf) mdlRelease(pkd->mdl,CID_CELL,c);
+			    break;
+			case 4:
+			    /*
+			    ** Accept multipole!
+			    ** Interact += Moment(c);
+			    */
+			    iCell = cltile->iCell.i[j];
+			    id = cltile->id.i[j];
+			    if (id == pkd->idSelf) c = pkdTreeNode(pkd,iCell);
+			    else if (id == -1) c = pkdTreeNode(pkd,iCell);
+			    else c = mdlAquire(pkd->mdl,CID_CELL,iCell,id);
+			    /*
+			    ** Center of mass velocity is used by the planets code to get higher derivatives of the 
+			    ** acceleration and could be used to drift cell moments as an approximation.
+			    */
+			    if (pkd->oNodeVelocity) v = pkdNodeVel(pkd,c);
+			    ilcAppend(pkd->ilc,
+				cltile->x.f[j] + cltile->xOffset.f[j],
+				cltile->y.f[j] + cltile->yOffset.f[j],
+				cltile->z.f[j] + cltile->zOffset.f[j],
+				pkdNodeMom(pkd,c),c->bMax,
+				v[0],v[1],v[2]);
+			    if (id != -1 && id != pkd->idSelf) mdlRelease(pkd->mdl,CID_CELL,c);
+			    break;
+			case 5:
+			    /*
+			    ** We accept this multipole from the opening criterion, but it is a softened
+			    ** interaction, so we need to treat is as a softened monopole by putting it
+			    ** on the particle interaction list.
+			    */
+			    iCell = cltile->iCell.i[j];
+			    id = cltile->id.i[j];
+			    if (id == pkd->idSelf) c = pkdTreeNode(pkd,iCell);
+			    else if (id == -1) c = pkdTreeNode(pkd,iCell);
+			    else c = mdlAquire(pkd->mdl,CID_CELL,iCell,id);
+			    if (pkd->oNodeVelocity) v = pkdNodeVel(pkd,c);
+			    ilpAppend(pkd->ilp,
+				cltile->x.f[j] + cltile->xOffset.f[j],
+				cltile->y.f[j] + cltile->yOffset.f[j],
+				cltile->z.f[j] + cltile->zOffset.f[j],
+				cltile->m.f[j], cltile->fourh2.f[j],
+				-1, /* set iOrder to negative value for time step criterion */
+				v[0], v[1], v[2]);
+			    if (id != -1 && id != pkd->idSelf) mdlRelease(pkd->mdl,CID_CELL,c);
+			    break;
+			case 6:
+			    /*
+			    ** This is accepting an "opened" bucket's particles as monopoles for the
+			    ** local expansion.
+			    */
+			    iCell = -cltile->iCell.i[j];
+			    id = cltile->id.i[j];
+			    dOffset[0] = cltile->xOffset.f[j];
+			    dOffset[1] = cltile->yOffset.f[j];
+			    dOffset[2] = cltile->zOffset.f[j];
+			    if (id == pkd->idSelf) c = pkdTreeNode(pkd,iCell);
+			    else c = mdlAquire(pkd->mdl,CID_CELL,iCell,id);
+			    for (pj=c->pLower;pj<=c->pUpper;++pj) {
+				if (id == pkd->idSelf) p = pkdParticle(pkd,pj);
+				else p = mdlAquire(pkd->mdl,CID_PARTICLE,pj,id);
+				if (pkdMass(pkd,p) <= 0.0) continue;
+				/*
+				** Monopole Local expansion accepted!
+				*/
+				d2 = 0;
+				for (j=0;j<3;++j) {
+				    dx[j] = k->r[j] - (p->r[j] + dOffset[j]);
+				    d2 += dx[j]*dx[j];
+				    }
+				dir = 1.0/sqrt(d2);
 
-		    *pdFlop += momFlocrAddFmomr5cm(&L,k->bMax,pkdNodeMom(pkd,c),c->bMax,dir,dx[0],dx[1],dx[2],&tax,&tay,&taz);
+				*pdFlop += momFlocrAddMono5(&L,k->bMax,pkdMass(pkd,p),dir,dx[0],dx[1],dx[2],&tax,&tay,&taz);
 
-		    adotai = a[0]*tax + a[1]*tay + a[2]*taz;
-		    if (adotai > 0) {
-			adotai /= maga;
-			dirLsum += dir*adotai*adotai;
-			normLsum += adotai*adotai;
-		    }
-		    break;
-		case 9:
-		    /*
-		    ** Here we compute the local expansion due to a single monopole term which could be softened.
-		    */
-		    momk = pkdNodeMom(pkd,k);
-		    momc = pkdNodeMom(pkd,c);
-		    d2 = 0;
-		    for (j=0;j<3;++j) {
-			dx[j] = k->r[j] - (c->r[j] + pkd->Check[i].rOffset[j]);
-			d2 += dx[j]*dx[j];
-		    }
-		    dir = 1.0/sqrt(d2);
-		    fourh2 = softmassweight(momc->m,4*c->fSoft2,momk->m,4*k->fSoft2);
-		    if (d2 > fourh2) {
-			dir = 1.0/sqrt(d2);
-			dir2 = dir*dir*dir;
-		    }
-		    else {
-			/*
-			** This uses the Dehnen K1 kernel function now, it's fast!
-			*/
-			dir = 1.0/sqrt(fourh2);
-			dir2 = dir*dir;
-			d2 *= dir2;
-			dir2 *= dir;
-			d2 = 1 - d2;
-			dir *= 1.0 + d2*(0.5 + d2*(3.0/8.0 + d2*(45.0/32.0)));
-			dir2 *= 1.0 + d2*(1.5 + d2*(135.0/16.0));
-		    }
-		    dir2 *= momc->m;
-		    tax = -dx[0]*dir2;
-		    tay = -dx[1]*dir2;
-		    taz = -dx[2]*dir2;
-		    L.m -= momc->m*dir;
-		    L.x -= tax;
-		    L.y -= tay;
-		    L.z -= taz;
-		    adotai = a[0]*tax + a[1]*tay + a[2]*taz;
-		    if (adotai > 0) {
-			adotai /= maga;
-			dirLsum += dir*adotai*adotai;
-			normLsum += adotai*adotai;
-		    }
-		    break;
-		case 10:
-		    /*
-		    ** This checkcell is removed from the checklist since it has zero/negative mass.
-		    */
-		    break;		
-		}
-		if (pkd->Check[i].id >= 0 && pkd->Check[i].id != pkd->idSelf) mdlRelease(pkd->mdl,CID_CELL,c);
-	    }
-	    nCheck = ii;
+				adotai = a[0]*tax + a[1]*tay + a[2]*taz;
+				if (adotai > 0) {
+				    adotai /= maga;
+				    dirLsum += dir*adotai*adotai;
+				    normLsum += adotai*adotai;
+				    }
+				if (id != pkd->idSelf) mdlRelease(pkd->mdl,CID_PARTICLE,p);
+				}
+			    if (id != pkd->idSelf) mdlRelease(pkd->mdl,CID_CELL,c);
+			    break;
+			case 7:
+			    /*
+			    ** This is accepting an "opened" bucket's particles with this (k) cell as a softened monopole.
+			    ** This is the inverse of accepting a cell as a softened monopole, here we calculate the first 
+			    ** order local expansion of each softened particle of the checkcell.
+			    */
+			    iCell = -cltile->iCell.i[j];
+			    id = cltile->id.i[j];
+			    dOffset[0] = cltile->xOffset.f[j];
+			    dOffset[1] = cltile->yOffset.f[j];
+			    dOffset[2] = cltile->zOffset.f[j];
+			    if (id == pkd->idSelf) c = pkdTreeNode(pkd,iCell);
+			    else c = mdlAquire(pkd->mdl,CID_CELL,iCell,id);
+			    for (pj=c->pLower;pj<=c->pUpper;++pj) {
+				if (id == pkd->idSelf) p = pkdParticle(pkd,pj);
+				else p = mdlAquire(pkd->mdl,CID_PARTICLE,pj,id);
+				fMass = pkdMass(pkd,p);
+				if (fMass <= 0.0) continue;
+				fSoft = pkdSoft(pkd,p);
+				momk = pkdNodeMom(pkd,k);
+				/*
+				** Monopole Local expansion accepted!
+				*/
+				d2 = 0;
+				for (j=0;j<3;++j) {
+				    dx[j] = k->r[j] - (p->r[j] + dOffset[j]);
+				    d2 += dx[j]*dx[j];
+				    }
+				dir = 1.0/sqrt(d2);
+				fourh2 = softmassweight(fMass,4*fSoft*fSoft,momk->m,4*k->fSoft2);
+				if (d2 > fourh2) {
+				    dir = 1.0/sqrt(d2);
+				    dir2 = dir*dir*dir;
+				    }
+				else {
+				    /*
+				    ** This uses the Dehnen K1 kernel function now, it's fast!
+				    */
+				    dir = 1.0/sqrt(fourh2);
+				    dir2 = dir*dir;
+				    d2 *= dir2;
+				    dir2 *= dir;
+				    d2 = 1 - d2;
+				    dir *= 1.0 + d2*(0.5 + d2*(3.0/8.0 + d2*(45.0/32.0)));
+				    dir2 *= 1.0 + d2*(1.5 + d2*(135.0/16.0));
+				    }
+				dir2 *= fMass;
+				tax = -dx[0]*dir2;
+				tay = -dx[1]*dir2;
+				taz = -dx[2]*dir2;
+				L.m -= fMass*dir;
+				L.x -= tax;
+				L.y -= tay;
+				L.z -= taz;
+				adotai = a[0]*tax + a[1]*tay + a[2]*taz;
+				if (adotai > 0) {
+				    adotai /= maga;
+				    dirLsum += dir*adotai*adotai;
+				    normLsum += adotai*adotai;
+				    }
+				if (id != pkd->idSelf) mdlRelease(pkd->mdl,CID_PARTICLE,p);
+				}
+			    if (id != pkd->idSelf) mdlRelease(pkd->mdl,CID_CELL,c);
+			    break;
+			case 8:
+			    /*
+			    ** Local expansion accepted!
+			    */
+			    iCell = cltile->iCell.i[j];
+			    id = cltile->id.i[j];
+			    dOffset[0] = cltile->xOffset.f[j];
+			    dOffset[1] = cltile->yOffset.f[j];
+			    dOffset[2] = cltile->zOffset.f[j];
+			    if (id == pkd->idSelf) c = pkdTreeNode(pkd,iCell);
+			    else if (id == -1) c = pkdTreeNode(pkd,iCell);
+			    else c = mdlAquire(pkd->mdl,CID_CELL,iCell,id);
+			    d2 = 0;
+			    for (j=0;j<3;++j) {
+				dx[j] = k->r[j] - (c->r[j] + dOffset[j]);
+				d2 += dx[j]*dx[j];
+				}
+			    dir = 1.0/sqrt(d2);
+
+			    *pdFlop += momFlocrAddFmomr5cm(&L,k->bMax,pkdNodeMom(pkd,c),c->bMax,dir,dx[0],dx[1],dx[2],&tax,&tay,&taz);
+
+			    adotai = a[0]*tax + a[1]*tay + a[2]*taz;
+			    if (adotai > 0) {
+				adotai /= maga;
+				dirLsum += dir*adotai*adotai;
+				normLsum += adotai*adotai;
+				}
+			    if (id != -1 && id != pkd->idSelf) mdlRelease(pkd->mdl,CID_CELL,c);
+			    break;
+			case 9:
+			    /*
+			    ** Here we compute the local expansion due to a single monopole term which could be softened.
+			    */
+			    iCell = cltile->iCell.i[j];
+			    id = cltile->id.i[j];
+			    dOffset[0] = cltile->xOffset.f[j];
+			    dOffset[1] = cltile->yOffset.f[j];
+			    dOffset[2] = cltile->zOffset.f[j];
+			    if (id == pkd->idSelf) c = pkdTreeNode(pkd,iCell);
+			    else if (id == -1) c = pkdTreeNode(pkd,iCell);
+			    else c = mdlAquire(pkd->mdl,CID_CELL,iCell,id);
+			    momk = pkdNodeMom(pkd,k);
+			    momc = pkdNodeMom(pkd,c);
+			    d2 = 0;
+			    for (j=0;j<3;++j) {
+				dx[j] = k->r[j] - (c->r[j] + dOffset[j]);
+				d2 += dx[j]*dx[j];
+				}
+			    dir = 1.0/sqrt(d2);
+			    fourh2 = softmassweight(momc->m,4*c->fSoft2,momk->m,4*k->fSoft2);
+			    if (d2 > fourh2) {
+				dir = 1.0/sqrt(d2);
+				dir2 = dir*dir*dir;
+				}
+			    else {
+				/*
+				** This uses the Dehnen K1 kernel function now, it's fast!
+				*/
+				dir = 1.0/sqrt(fourh2);
+				dir2 = dir*dir;
+				d2 *= dir2;
+				dir2 *= dir;
+				d2 = 1 - d2;
+				dir *= 1.0 + d2*(0.5 + d2*(3.0/8.0 + d2*(45.0/32.0)));
+				dir2 *= 1.0 + d2*(1.5 + d2*(135.0/16.0));
+				}
+			    dir2 *= momc->m;
+			    tax = -dx[0]*dir2;
+			    tay = -dx[1]*dir2;
+			    taz = -dx[2]*dir2;
+			    L.m -= momc->m*dir;
+			    L.x -= tax;
+			    L.y -= tay;
+			    L.z -= taz;
+			    adotai = a[0]*tax + a[1]*tay + a[2]*taz;
+			    if (adotai > 0) {
+				adotai /= maga;
+				dirLsum += dir*adotai*adotai;
+				normLsum += adotai*adotai;
+				}
+			    if (id != -1 && id != pkd->idSelf) mdlRelease(pkd->mdl,CID_CELL,c);
+			    break;
+			case 10:
+			    /*
+			    ** This checkcell is removed from the checklist since it has zero/negative mass.
+			    */
+			    break;		
+			    }
+			}
+		    } /* end of CL_LOOP */
+		clTemp = pkd->cl;
+		pkd->cl = pkd->clNew;
+		pkd->clNew = clTemp;
+		} while (clCount(pkd->cl));
 	    /*
 	    ** Done processing of the Checklist.
 	    ** Now prepare to proceed to the next deeper
@@ -1278,19 +1251,11 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 	    yParent = k->r[1];
 	    zParent = k->r[2];
 	    bMaxParent = k->bMax;
-	    k = pkdTreeNode(pkd,iCell = k->iLower);
-	    /*
-	    ** Make sure all the check lists are long enough to handle 1 more cell.
-	    */
-	    if (nCheck == pkd->nMaxCheck) {
-		pkd->nMaxCheck += 1000;
-		pkd->Check = realloc(pkd->Check,pkd->nMaxCheck*sizeof(CELT));
-		assert(pkd->Check != NULL);
-		for (ism=0;ism<pkd->nMaxStack;++ism) {
-		    pkd->S[ism].Check = realloc(pkd->S[ism].Check,pkd->nMaxCheck*sizeof(CELT));
-		    assert(pkd->S[ism].Check != NULL);
-		    }
-		}
+	    for (j=0;j<3;++j) fOffset[j] = 0.0f;
+	    kOpen = -1.0f;
+	    iCell = k->iLower;
+	    nk = getCell(pkd,iCell,pkd->idSelf,&kOpen,&k);
+	    pkdNodeBnd(pkd,k,&kbnd);
 	    /*
 	    ** Check iCell is active. We eventually want to just to a
 	    ** rung check here when we start using tree repair, but
@@ -1301,11 +1266,25 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 		** iCell is active, continue processing it.
 		** Put the sibling onto the checklist.
 		*/
-		pkd->Check[nCheck].iCell = iCell + 1;
-		pkd->Check[nCheck].id = pkd->idSelf;
-		pkd->Check[nCheck].cOpen = -1.0;
-		for (j=0;j<3;++j) pkd->Check[nCheck].rOffset[j] = 0.0;
-		++nCheck;
+		cOpen = -1.0f;
+		iSib = iCell+1;
+		nc = getCell(pkd,iSib,pkd->idSelf,&cOpen,&c);
+		if (c->nActive) {
+		    /*
+		    ** Sibling is active so we need to clone the checklist!
+		    */
+		    clClone(pkd->cl,pkd->S[iStack+1].cl);
+		    }
+		else {
+		    /*
+		    ** Otherwise we can simple grab it.
+		    */
+		    clTemp = pkd->cl;
+		    pkd->cl = pkd->S[iStack+1].cl;
+		    pkd->S[iStack+1].cl = clTemp;
+		    }
+		pkdNodeBnd(pkd,c,&cbnd);
+		clAppend(pkd->cl,iSib,pkd->idSelf,c->iLower,nc,cOpen,pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c->r,fOffset,cbnd.fCenter,cbnd.fMax);
 		/*
 		** Test whether the sibling is active as well.
 		** If not we don't push it onto the stack, but we
@@ -1313,8 +1292,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 		** hit the sibling. See the goto InactiveAscend below
 		** for how this is done.
 		*/
-		kSib = pkdTreeNode(pkd,iCell+1);
-		if (kSib->nActive) {
+		if (c->nActive) {
 		    /*
 		    ** Sibling is active as well.
 		    ** Push Checklist for the sibling onto the stack
@@ -1324,21 +1302,18 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 		    assert(iStack < pkd->nMaxStack);
 		    ilpCheckPt(pkd->ilp,&pkd->S[iStack].PartChkPt);
 		    ilcCheckPt(pkd->ilc,&pkd->S[iStack].CellChkPt);
-		    pkd->S[iStack].nCheck = nCheck;
 		    /*
-		    ** Maybe use a memcpy here!
-		    ** for (i=0;i<nCheck;++i) pkd->S[iStack].Check[i] = pkd->Check[i];
+		    ** Note here we already have the correct elements in S[iStack] (iStack+1 was used previously), just need to add one.
 		    */
-		    memcpy(pkd->S[iStack].Check,pkd->Check,nCheck*sizeof(CELT));
-		    pkd->S[iStack].Check[nCheck-1].iCell = iCell;
+		    clAppend(pkd->S[iStack].cl,iCell,pkd->idSelf,k->iLower,nk,kOpen,pkdNodeMom(pkd,k)->m,4.0f*k->fSoft2,k->r,fOffset,kbnd.fCenter,kbnd.fMax);
 		    pkd->S[iStack].L = L;
 		    pkd->S[iStack].dirLsum = dirLsum;
 		    pkd->S[iStack].normLsum = normLsum;
 		    dShiftFlop = momShiftFlocr(&pkd->S[iStack].L,bMaxParent,
-					      kSib->r[0] - xParent,
-					      kSib->r[1] - yParent,
-					      kSib->r[2] - zParent);
-		    momRescaleFlocr(&pkd->S[iStack].L,kSib->bMax,bMaxParent);
+					      c->r[0] - xParent,
+					      c->r[1] - yParent,
+					      c->r[2] - zParent);
+		    momRescaleFlocr(&pkd->S[iStack].L,c->bMax,bMaxParent);
 		    pkd->S[iStack].fWeight = (*pdFlop-tempI) + dShiftFlop;
 		    pkd->S[iStack].fWeight += dEwFlop;
 		    }
@@ -1347,12 +1322,12 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 		/*
 		** Skip iCell, but add it to the Checklist.
 		** No need to push anything onto the stack here.
+		** We can simply grab it the checklist from the Stack.
 		*/
-		pkd->Check[nCheck].iCell = iCell;
-		pkd->Check[nCheck].id = pkd->idSelf;
-		pkd->Check[nCheck].cOpen = -1.0;
-		for (j=0;j<3;++j) pkd->Check[nCheck].rOffset[j] = 0.0;
-		++nCheck;
+		clTemp = pkd->cl;
+		pkd->cl = pkd->S[iStack+1].cl;
+		pkd->S[iStack+1].cl = clTemp;
+		clAppend(pkd->S[iStack].cl,iCell,pkd->idSelf,k->iLower,nk,kOpen,pkdNodeMom(pkd,k)->m,4.0f*k->fSoft2,k->r,fOffset,kbnd.fCenter,kbnd.fMax);
 		/*
 		** Move onto processing the sibling.
 		*/
@@ -1367,10 +1342,6 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 	** Now the interaction list should be complete and the
 	** Checklist should be empty! Calculate gravity on this
 	** Bucket!
-	*/
-	assert(nCheck == 0);
-	/*
-	** Now calculate gravity on this bucket!
 	*/
 	nActive = pkdGravInteract(pkd,uRungLo,uRungHi,k,&L,pkd->ilp,pkd->ilc,
 				  dirLsum,normLsum,bEwald,pdFlop,&dEwFlop,dRhoFac,
@@ -1419,13 +1390,12 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 	*/
 	ilpRestore(pkd->ilp,&pkd->S[iStack].PartChkPt);
 	ilcRestore(pkd->ilc,&pkd->S[iStack].CellChkPt);
-	nCheck = pkd->S[iStack].nCheck;
 	/*
-	** Use a memcpy here. This is where we would win with lists since we could simply take the
-	** pointer to this list. We would have to link the old checklist into the freelist.
-	** for (i=0;i<nCheck;++i) Check[i] = S[iStack].Check[i];
+	** Grab the checklist from the stack.
 	*/
-	memcpy(pkd->Check,pkd->S[iStack].Check,nCheck*sizeof(CELT));
+	clTemp = pkd->cl;
+	pkd->cl = pkd->S[iStack].cl;
+	pkd->S[iStack].cl = clTemp;
 	L = pkd->S[iStack].L;
 	dirLsum = pkd->S[iStack].dirLsum;
 	normLsum = pkd->S[iStack].normLsum;
