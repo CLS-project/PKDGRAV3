@@ -83,13 +83,15 @@ static inline uint32_t clCount(CL cl) {
     return cl->nPrevious + cl->tile->nItems;
     }
 
-static inline void clAppend(CL cl,int iCell, int id,int iLower,int nc,
-    float cOpen,float m,float fourh2,float *r,float *fOffset,float *fCenter,float *fMax) {
+static inline void clAppendAll(CL cl,int iCell, int id,int iLower,int nc,
+    float cOpen,float m,float fourh2,float x, float y, float z,
+    float xOffset,float yOffset,float zOffset,float xCenter,float yCenter,float zCenter,
+    float xMax,float yMax,float zMax,int iOpen) {
     CLTILE tile = (cl)->tile;
     uint_fast32_t i;
     if ( tile->nItems == tile->nMaxItems ) tile = clExtend((cl));
     i = tile->nItems;
-    tile->iOpen.i[i] = 0;
+    tile->iOpen.i[i] = iOpen;
     tile->iCell.i[i] = (iCell);
     tile->id.i[i] = (id);
     tile->iLower.i[i] = (iLower);
@@ -97,20 +99,25 @@ static inline void clAppend(CL cl,int iCell, int id,int iLower,int nc,
     tile->cOpen.f[i] = (cOpen);
     tile->m.f[i] = (m);
     tile->fourh2.f[i] = (fourh2);
-    tile->x.f[i] = (r)[0];
-    tile->y.f[i] = (r)[1];
-    tile->z.f[i] = (r)[2];
-    tile->xOffset.f[i] = (fOffset)[0];
-    tile->yOffset.f[i] = (fOffset)[1];
-    tile->zOffset.f[i] = (fOffset)[2];
-    tile->xCenter.f[i] = (fCenter)[0];
-    tile->yCenter.f[i] = (fCenter)[1];
-    tile->zCenter.f[i] = (fCenter)[2];
-    tile->xMax.f[i] = (fMax)[0];
-    tile->yMax.f[i] = (fMax)[1];
-    tile->zMax.f[i] = (fMax)[2];
+    tile->x.f[i] = x;
+    tile->y.f[i] = y;
+    tile->z.f[i] = z;
+    tile->xOffset.f[i] = xOffset;
+    tile->yOffset.f[i] = yOffset;
+    tile->zOffset.f[i] = zOffset;
+    tile->xCenter.f[i] = xCenter;
+    tile->yCenter.f[i] = yCenter;
+    tile->zCenter.f[i] = zCenter;
+    tile->xMax.f[i] = xMax;
+    tile->yMax.f[i] = yMax;
+    tile->zMax.f[i] = zMax;
     ++tile->nItems;
     }
+
+#define clAppend(cl,iCell,id,iLower,nc,cOpen,m,fourh2,r,fOffset,fCenter,fMax)\
+    clAppendAll(cl,iCell,id,iLower,nc,cOpen,m,fourh2,r[0],r[1],r[2],\
+    fOffset[0],fOffset[1],fOffset[2],fCenter[0],fCenter[1],fCenter[2],\
+    fMax[0],fMax[1],fMax[2],0)
 
 static inline void clCopyItem(CLTILE A, int Ai, CLTILE B, int Bi) {
     A->iOpen.i[Ai]   = B->iOpen.i[Bi];
@@ -134,6 +141,13 @@ static inline void clCopyItem(CLTILE A, int Ai, CLTILE B, int Bi) {
     A->yMax.f[Ai]    = B->yMax.f[Bi];
     A->zMax.f[Ai]    = B->zMax.f[Bi];
 }
+
+static inline void clAppendItem(CL cl, CLTILE B, int Bi) {
+    clAppendAll(cl,B->iCell.i[Bi],B->id.i[Bi],B->iLower.i[Bi], B->nc.i[Bi], B->cOpen.f[Bi], B->m.f[Bi], B->fourh2.f[Bi],
+	B->x.f[Bi], B->y.f[Bi], B->z.f[Bi],B->xOffset.f[Bi],B->yOffset.f[Bi],B->zOffset.f[Bi],
+	B->xCenter.f[Bi],B->yCenter.f[Bi],B->zCenter.f[Bi],B->xMax.f[Bi],B->yMax.f[Bi],B->zMax.f[Bi],B->iOpen.i[Bi]);
+    }
+
 #define CL_LOOP(cl,tile) for( tile=(cl)->first; tile!=(cl)->tile->next; tile=tile->next )
 
 #endif
