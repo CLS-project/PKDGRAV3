@@ -398,13 +398,18 @@ void Create(PKD pkd,int iNode) {
     nDepth = 1;
     while (1) {
 	while (pkdTreeNode(pkd,iNode)->iLower) {
+/*
+	    printf("%2d:%d\n",nDepth,iNode);
+*/
 	    iNode = pkdTreeNode(pkd,iNode)->iLower;
 	    ++nDepth;
 	    /*
 	    ** Is this the deepest in the tree so far? We might need to have more stack
 	    ** elements for the tree walk!
+	    ** nMaxStack == nDepth guarantees that there is at least one deeper
+	    ** stack entry available than what is needed to walk the tree.
 	    */
-	    if (nDepth > pkd->nMaxStack/*+1*/) {
+	    if (nDepth > pkd->nMaxStack) {
 		pkd->S = realloc(pkd->S,(pkd->nMaxStack+nMaxStackIncrease)*sizeof(CSTACK));
 		assert(pkd->S != NULL);
 		for (ism=pkd->nMaxStack;ism<(pkd->nMaxStack+nMaxStackIncrease);++ism) {
@@ -413,6 +418,9 @@ void Create(PKD pkd,int iNode) {
 		pkd->nMaxStack += nMaxStackIncrease;
 		}
 	    }
+/*
+	printf("%2d:%d\n",nDepth,iNode);
+*/
 	/*
 	** Now calculate all bucket quantities!
 	** This includes M,CoM,Moments and special

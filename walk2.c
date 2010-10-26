@@ -681,7 +681,6 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
     SMX smx;
     SMF smf;
     double tempI;
-
     double dEwFlop = 0.0;
 
 #ifdef PROFILE_GRAVWALK
@@ -912,13 +911,13 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 			    /*
 			    ** This checkcell's particles are added to the P-P list.
 			    */
-			    iCell = cltile->iCell.i[jTile];
+			    iCheckCell = cltile->iCell.i[jTile];
 			    id = cltile->id.i[jTile];
 			    dOffset[0] = cltile->xOffset.f[jTile];
 			    dOffset[1] = cltile->yOffset.f[jTile];
 			    dOffset[2] = cltile->zOffset.f[jTile];
-			    if (id == pkd->idSelf) c = pkdTreeNode(pkd,iCell);
-			    else c = mdlAquire(pkd->mdl,CID_CELL,iCell,id);
+			    if (id == pkd->idSelf) c = pkdTreeNode(pkd,iCheckCell);
+			    else c = mdlAquire(pkd->mdl,CID_CELL,iCheckCell,id);
 			    for (pj=c->pLower;pj<=c->pUpper;++pj) {
 				if (id == pkd->idSelf) p = pkdParticle(pkd,pj);
 				else p = mdlAquire(pkd->mdl,CID_PARTICLE,pj,id);
@@ -1006,11 +1005,11 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 			    ** Accept multipole!
 			    ** Interact += Moment(c);
 			    */
-			    iCell = cltile->iCell.i[jTile];
+			    iCheckCell = cltile->iCell.i[jTile];
 			    id = cltile->id.i[jTile];
-			    if (id == pkd->idSelf) c = pkdTreeNode(pkd,iCell);
-			    else if (id == -1) c = pkdTreeNode(pkd,iCell);
-			    else c = mdlAquire(pkd->mdl,CID_CELL,iCell,id);
+			    if (id == pkd->idSelf) c = pkdTreeNode(pkd,iCheckCell);
+			    else if (id == -1) c = pkdTreeNode(pkd,iCheckCell);
+			    else c = mdlAquire(pkd->mdl,CID_CELL,iCheckCell,id);
 			    /*
 			    ** Center of mass velocity is used by the planets code to get higher derivatives of the 
 			    ** acceleration and could be used to drift cell moments as an approximation.
@@ -1030,11 +1029,11 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 			    ** interaction, so we need to treat is as a softened monopole by putting it
 			    ** on the particle interaction list.
 			    */
-			    iCell = cltile->iCell.i[jTile];
+			    iCheckCell = cltile->iCell.i[jTile];
 			    id = cltile->id.i[jTile];
-			    if (id == pkd->idSelf) c = pkdTreeNode(pkd,iCell);
-			    else if (id == -1) c = pkdTreeNode(pkd,iCell);
-			    else c = mdlAquire(pkd->mdl,CID_CELL,iCell,id);
+			    if (id == pkd->idSelf) c = pkdTreeNode(pkd,iCheckCell);
+			    else if (id == -1) c = pkdTreeNode(pkd,iCheckCell);
+			    else c = mdlAquire(pkd->mdl,CID_CELL,iCheckCell,id);
 			    if (pkd->oNodeVelocity) v = pkdNodeVel(pkd,c);
 			    ilpAppend(pkd->ilp,
 				cltile->x.f[jTile] + cltile->xOffset.f[jTile],
@@ -1050,13 +1049,13 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 			    ** This is accepting an "opened" bucket's particles as monopoles for the
 			    ** local expansion.
 			    */
-			    iCell = -cltile->iCell.i[jTile];
+			    iCheckCell = -cltile->iCell.i[jTile];
 			    id = cltile->id.i[jTile];
 			    dOffset[0] = cltile->xOffset.f[jTile];
 			    dOffset[1] = cltile->yOffset.f[jTile];
 			    dOffset[2] = cltile->zOffset.f[jTile];
-			    if (id == pkd->idSelf) c = pkdTreeNode(pkd,iCell);
-			    else c = mdlAquire(pkd->mdl,CID_CELL,iCell,id);
+			    if (id == pkd->idSelf) c = pkdTreeNode(pkd,iCheckCell);
+			    else c = mdlAquire(pkd->mdl,CID_CELL,iCheckCell,id);
 			    for (pj=c->pLower;pj<=c->pUpper;++pj) {
 				if (id == pkd->idSelf) p = pkdParticle(pkd,pj);
 				else p = mdlAquire(pkd->mdl,CID_PARTICLE,pj,id);
@@ -1089,13 +1088,13 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 			    ** This is the inverse of accepting a cell as a softened monopole, here we calculate the first 
 			    ** order local expansion of each softened particle of the checkcell.
 			    */
-			    iCell = -cltile->iCell.i[jTile];
+			    iCheckCell = -cltile->iCell.i[jTile];
 			    id = cltile->id.i[jTile];
 			    dOffset[0] = cltile->xOffset.f[jTile];
 			    dOffset[1] = cltile->yOffset.f[jTile];
 			    dOffset[2] = cltile->zOffset.f[jTile];
-			    if (id == pkd->idSelf) c = pkdTreeNode(pkd,iCell);
-			    else c = mdlAquire(pkd->mdl,CID_CELL,iCell,id);
+			    if (id == pkd->idSelf) c = pkdTreeNode(pkd,iCheckCell);
+			    else c = mdlAquire(pkd->mdl,CID_CELL,iCheckCell,id);
 			    for (pj=c->pLower;pj<=c->pUpper;++pj) {
 				if (id == pkd->idSelf) p = pkdParticle(pkd,pj);
 				else p = mdlAquire(pkd->mdl,CID_PARTICLE,pj,id);
@@ -1151,14 +1150,14 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 			    /*
 			    ** Local expansion accepted!
 			    */
-			    iCell = cltile->iCell.i[jTile];
+			    iCheckCell = cltile->iCell.i[jTile];
 			    id = cltile->id.i[jTile];
 			    dOffset[0] = cltile->xOffset.f[jTile];
 			    dOffset[1] = cltile->yOffset.f[jTile];
 			    dOffset[2] = cltile->zOffset.f[jTile];
-			    if (id == pkd->idSelf) c = pkdTreeNode(pkd,iCell);
-			    else if (id == -1) c = pkdTreeNode(pkd,iCell);
-			    else c = mdlAquire(pkd->mdl,CID_CELL,iCell,id);
+			    if (id == pkd->idSelf) c = pkdTreeNode(pkd,iCheckCell);
+			    else if (id == -1) c = pkdTreeNode(pkd,iCheckCell);
+			    else c = mdlAquire(pkd->mdl,CID_CELL,iCheckCell,id);
 			    d2 = 0;
 			    for (j=0;j<3;++j) {
 				dx[j] = k->r[j] - (c->r[j] + dOffset[j]);
@@ -1180,14 +1179,14 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 			    /*
 			    ** Here we compute the local expansion due to a single monopole term which could be softened.
 			    */
-			    iCell = cltile->iCell.i[jTile];
+			    iCheckCell = cltile->iCell.i[jTile];
 			    id = cltile->id.i[jTile];
 			    dOffset[0] = cltile->xOffset.f[jTile];
 			    dOffset[1] = cltile->yOffset.f[jTile];
 			    dOffset[2] = cltile->zOffset.f[jTile];
-			    if (id == pkd->idSelf) c = pkdTreeNode(pkd,iCell);
-			    else if (id == -1) c = pkdTreeNode(pkd,iCell);
-			    else c = mdlAquire(pkd->mdl,CID_CELL,iCell,id);
+			    if (id == pkd->idSelf) c = pkdTreeNode(pkd,iCheckCell);
+			    else if (id == -1) c = pkdTreeNode(pkd,iCheckCell);
+			    else c = mdlAquire(pkd->mdl,CID_CELL,iCheckCell,id);
 			    momk = pkdNodeMom(pkd,k);
 			    momc = pkdNodeMom(pkd,c);
 			    d2 = 0;
