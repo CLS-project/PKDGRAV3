@@ -1506,6 +1506,8 @@ uint32_t BoundWalkInactive(SMX smx) {
 	memcpy(pkd->Check,pkd->S[iStack].Check,nCheck*sizeof(CELT));
 	--iStack;
 	}
+#else
+    return 0;
 #endif
     }
 
