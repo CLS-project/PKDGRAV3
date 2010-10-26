@@ -400,7 +400,7 @@ static void iOpenOutcomeOldSIMD(PKD pkd,KDN *k,CLTILE tile,int iStart,double dTh
 	dx = SIMD_SUB(k_x,xc);
 	dy = SIMD_SUB(k_y,yc);
 	dz = SIMD_SUB(k_z,zc);
-	d2 = SIMD_MADD(dx,dx,SIMD_MADD(dy,dy,SIMD_MUL(dz,dy)));
+	d2 = SIMD_MADD(dx,dx,SIMD_MADD(dy,dy,SIMD_MUL(dz,dz)));
 	cOpen = tile->cOpen.p[i];
 	cOpen2 = SIMD_MUL(cOpen,cOpen);
 	d2Open = SIMD_MUL(consts.two.p,SIMD_MAX(cOpen,k_Open));
@@ -411,7 +411,7 @@ static void iOpenOutcomeOldSIMD(PKD pkd,KDN *k,CLTILE tile,int iStart,double dTh
 	dx = SIMD_AND(dx,SIMD_CMP_GT(dx,consts.zero.p));
 	dy = SIMD_AND(dy,SIMD_CMP_GT(dy,consts.zero.p));
 	dz = SIMD_AND(dz,SIMD_CMP_GT(dz,consts.zero.p));
-	mink2 = SIMD_MADD(dx,dx,SIMD_MADD(dy,dy,SIMD_MUL(dz,dy)));
+	mink2 = SIMD_MADD(dx,dx,SIMD_MADD(dy,dy,SIMD_MUL(dz,dz)));
 
 	minbnd2 = consts.zero.p;
 
@@ -449,7 +449,7 @@ static void iOpenOutcomeOldSIMD(PKD pkd,KDN *k,CLTILE tile,int iStart,double dTh
 		    SIMD_OR_EPI32(SIMD_AND_EPI32(T4,iconsts.four.p),SIMD_ANDNOT_EPI32(T4,
 		    SIMD_OR_EPI32(SIMD_AND_EPI32(T5,iconsts.five.p),SIMD_ANDNOT_EPI32(T5,iOpenA))))));
 	P1 = SIMD_OR_EPI32(SIMD_AND_EPI32(T2,iOpenB),SIMD_ANDNOT_EPI32(T2,iconsts.three.p));
-	P2 = SIMD_OR_EPI32(SIMD_AND_EPI32(T7,iconsts.zero.p),SIMD_ANDNOT_EPI32(T7,iOpenB));
+	P2 = SIMD_OR_EPI32(SIMD_ANDNOT_EPI32(T7,iconsts.zero.p),SIMD_AND_EPI32(T7,iOpenB));
 	P3 = SIMD_OR_EPI32(SIMD_AND_EPI32(T6,P1),SIMD_ANDNOT_EPI32(T6,P2));
 	P4 = SIMD_OR_EPI32(SIMD_AND_EPI32(T1,iconsts.eight.p),SIMD_ANDNOT_EPI32(T1,P3));
 	iOpen = SIMD_OR_EPI32(SIMD_AND_EPI32(T0,P4),SIMD_ANDNOT_EPI32(T0,iconsts.ten.p));
@@ -457,7 +457,7 @@ static void iOpenOutcomeOldSIMD(PKD pkd,KDN *k,CLTILE tile,int iStart,double dTh
     }
 }
 
-#endif
+#else
 
 /*
 ** This implements the original pkdgrav2m opening criterion, which has been
@@ -529,6 +529,7 @@ static void iOpenOutcomeOldCL(PKD pkd,KDN *k,CLTILE tile,int iStart,double dThet
 	tile->iOpen.i[i] = iOpen;
     }
 }
+#endif
 
 #if 0
 /*
@@ -892,7 +893,11 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 	    do {
 		CL_LOOP(pkd->cl,cltile) {
 #ifdef LOCAL_EXPANSION
+#ifdef USE_SIMD
+		    iOpenOutcomeOldSIMD(pkd,k,cltile,0,dThetaMin);
+#else
 		    iOpenOutcomeOldCL(pkd,k,cltile,0,dThetaMin);
+#endif
 #else
 		    assert(NULL);
 #endif
