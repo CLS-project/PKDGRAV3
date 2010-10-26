@@ -145,8 +145,8 @@ momFloat momMakeMomr(MOMR *mr,momFloat m,momFloat x,momFloat y,momFloat z) {
  ** This function calculates a reduced scaled multipole from a single
  ** particle at position <x,y,z> from the any type of "center". A scaling
  ** factor 'u' for the positions must also be specified, which should 
- ** typically be the value of b_max, or better yet the longest side of 
- ** the cell.
+ ** typically be the value of b_max.
+ **
  ** The strange order of evaluation reduces the number of
  ** multiplications to a minimum.
  ** <x,y,z> := d := r(particle) - rcm.
@@ -217,6 +217,85 @@ float momMakeFmomr(FMOMR *mr,float m,float u,float x,float y,float z) {
     mr->xxyy = tx*y2 - dx - dy;
     return(d2);
     }
+
+
+#if 0
+/*
+ ** This function calculates a reduced scaled time derivative multipole 
+ ** from a single particle at position <x,y,z> and velocity <vx,vy,vz> 
+ ** from the any type of "center". A scaling factor 'u' for the positions
+ ** and velocities must also be specified, which should 
+ ** typically be the value of b_max.
+ ** The strange order of evaluation reduces the number of
+ ** multiplications to a minimum.
+ ** <x,y,z> := d := r(particle) - rcm.
+ ** returns: d^2 scaled by u^2.
+ **
+ ** OpCount (*,+) = 
+ */
+float momMakeDotFmomr(FMOMR *mr,float m,float u,float x,float y,float z,float vx,float vy,float vz) {
+    float tx,ty,t,dx,dy;
+    float x2;
+    float y2;
+    float d2,iu;
+
+    assert(u > 0.0);
+    iu = 1.0f/u;
+    x *= iu;
+    y *= iu;
+    z *= iu;
+    vx *= iu;
+    vy *= iu;
+    vz *= iu;
+
+    mr->m = m;
+    tx = m*x;
+    ty = m*y;
+    tz = m*z;
+    /*
+     ** Calculate the Quadrupole Moment.
+     */
+    mr->xy = tx*vy + ty*vx;
+    mr->xz = tx*vz + tz*vx;
+    mr->yz = ty*vz + tz*vy;
+    t = (2.0f/3.0f)*(tx*vx + ty*vy + tz*vz);
+    mr->xx = 2.0f*tx*vx - t;
+    mr->yy = 2.0f*ty*vy - t;
+
+    /*
+     ** Calculate the Octopole Moment.
+     */
+    t = 0.2f*m;
+    dx = tx - t;
+    dy = ty - t;
+    mr->xxy = dx*y;
+    mr->xxz = dx*z;
+    mr->yyz = dy*z;
+    mr->xyy = dy*x;
+    mr->xyz = mr->xy*z;
+    t *= 3.0f;
+    mr->xxx = (tx - t)*x;
+    mr->yyy = (ty - t)*y;
+    /*
+     ** Calculate the Hexadecapole Moment.
+     */
+    t = (1.0f/7.0f)*m;
+    mr->xxyz = (tx - t)*y*z;
+    mr->xyyz = (ty - t)*x*z;
+    dx = (tx - 3.0f*t)*x;
+    dy = (ty - 3.0f*t)*y;
+    mr->xxxy = dx*y;
+    mr->xxxz = dx*z;
+    mr->xyyy = dy*x;
+    mr->yyyz = dy*z;
+    dx = t*(x2 - 0.1f*d2);
+    dy = t*(y2 - 0.1f*d2);
+    mr->xxxx = tx*x2 - 6.0f*dx;
+    mr->yyyy = ty*y2 - 6.0f*dy;
+    mr->xxyy = tx*y2 - dx - dy;
+    return(d2);
+    }
+#endif
 
 
 /*

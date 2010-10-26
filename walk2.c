@@ -953,7 +953,6 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 			    ** We could do a prefetch here for non-local
 			    ** cells.
 			    */
-			    cOpen = -1.0f;
 			    iCheckCell = cltile->iLower.i[jTile];
 			    assert(iCheckCell > 0);
 			    id = cltile->id.i[jTile];
@@ -984,6 +983,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 				    break; /* finished, don't add children */
 				    }
 				}			    
+			    cOpen = -1.0f;
 			    nc = getCell(pkd,iCheckCell,id,&cOpen,&c);
 			    pkdNodeBnd(pkd,c,&cbnd);
 			    fOffset[0] = cltile->xOffset.f[jTile];
@@ -995,6 +995,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 			    ** Also add the sibling of check->iLower.
 			    */
 			    ++iCheckCell;
+			    cOpen = -1.0f;
 			    nc = getCell(pkd,iCheckCell,id,&cOpen,&c);
 			    pkdNodeBnd(pkd,c,&cbnd);
 			    clAppend(pkd->clNew,iCheckCell,id,c->iLower,nc,cOpen,pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c->r,fOffset,cbnd.fCenter,cbnd.fMax);
