@@ -83,29 +83,36 @@ void clFinish(CL cl) {
     }
 
 CLTILE clClone(CL cl,CL src) {
-    CLTILE tile;
+    CLTILE tile, newtile, next, prev;
     float r[3], fOffset[3], fCenter[3], fMax[3];
-    int j;
+    int j, n;
 
     clClear(cl);
     CL_LOOP(src,tile) {
-	for ( j=0; j<tile->nItems; ++j ) {
-	    r[0] = tile->x.f[j];
-	    r[1] = tile->y.f[j];
-	    r[2] = tile->z.f[j];
-	    fOffset[0] = tile->xOffset.f[j];
-	    fOffset[1] = tile->yOffset.f[j];
-	    fOffset[2] = tile->zOffset.f[j];
-	    fCenter[0] = tile->xCenter.f[j];
-	    fCenter[1] = tile->yCenter.f[j];
-	    fCenter[2] = tile->zCenter.f[j];
-	    fMax[0] = tile->xMax.f[j];
-	    fMax[1] = tile->yMax.f[j];
-	    fMax[2] = tile->zMax.f[j];
-	    clAppend(cl,tile->iCell.i[j],tile->id.i[j],tile->iLower.i[j],tile->nc.i[j],
-		tile->cOpen.f[j],tile->m.f[j],tile->fourh2.f[j],
-		r,fOffset,fCenter,fMax);
-	}
+	newtile = cl->tile;
+	if (newtile->nItems) newtile=clExtend(cl);
+	newtile->nMaxItems = tile->nMaxItems;
+	n = newtile->nItems = tile->nItems;
+
+	memcpy(&newtile->iCell.p,&tile->iCell.p,n*sizeof(tile->iCell.i[0]));
+	memcpy(&newtile->id.p,&tile->id.p,n*sizeof(tile->id.i[0]));
+	memcpy(&newtile->iLower.p,&tile->iLower.p,n*sizeof(tile->iLower.i[0]));
+	memcpy(&newtile->nc.p,&tile->nc.p,n*sizeof(tile->nc.i[0]));
+	memcpy(&newtile->cOpen.p,&tile->cOpen.p,n*sizeof(tile->cOpen.f[0]));
+	memcpy(&newtile->m.p,&tile->m.p,n*sizeof(tile->m.f[0]));
+	memcpy(&newtile->fourh2.p,&tile->fourh2.p,n*sizeof(tile->fourh2.f[0]));
+	memcpy(&newtile->x.p,&tile->x.p,n*sizeof(tile->x.f[0]));
+	memcpy(&newtile->y.p,&tile->y.p,n*sizeof(tile->y.f[0]));
+	memcpy(&newtile->z.p,&tile->z.p,n*sizeof(tile->z.f[0]));
+	memcpy(&newtile->xOffset.p,&tile->xOffset.p,n*sizeof(tile->xOffset.f[0]));
+	memcpy(&newtile->yOffset.p,&tile->yOffset.p,n*sizeof(tile->yOffset.f[0]));
+	memcpy(&newtile->zOffset.p,&tile->zOffset.p,n*sizeof(tile->zOffset.f[0]));
+	memcpy(&newtile->xCenter.p,&tile->xCenter.p,n*sizeof(tile->xCenter.f[0]));
+	memcpy(&newtile->yCenter.p,&tile->yCenter.p,n*sizeof(tile->yCenter.f[0]));
+	memcpy(&newtile->zCenter.p,&tile->zCenter.p,n*sizeof(tile->zCenter.f[0]));
+	memcpy(&newtile->xMax.p,&tile->xMax.p,n*sizeof(tile->xMax.f[0]));
+	memcpy(&newtile->yMax.p,&tile->yMax.p,n*sizeof(tile->yMax.f[0]));
+	memcpy(&newtile->zMax.p,&tile->zMax.p,n*sizeof(tile->zMax.f[0]));
     }
     return cl->tile;
 }
