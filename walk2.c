@@ -285,7 +285,7 @@ static inline int getCell(PKD pkd,int iCell,int id,float *pcOpen,KDN **pc) {
 	*pc = c = mdlAquire(pkd->mdl,CID_CELL,iCell,id);
 	nc = c->pUpper - c->pLower + 1;
 	}
-    if (*pcOpen < 0.0) {
+    if (*pcOpen < 0.0f) {
 #ifdef USE_DEHNEN_THETA
 	*pcOpen = c->bMax/getTheta(pkd,pkdNodeMom(pkd,c)->m/pkdNodeMom(pkd,pkdTreeNode(pkd,ROOT))->m);
 #else
@@ -321,6 +321,7 @@ static const struct ICONSTS {
     i4 eight;
     /* no nine */
     i4 ten;
+    i4 sixtyfour;
     i4 walk_min_multipole;
     } iconsts = {
 	{{0, 0, 0, 0}},
@@ -333,6 +334,7 @@ static const struct ICONSTS {
 	{{7, 7, 7, 7}},
 	{{8, 8, 8, 8}},
 	{{10,10,10,10}},
+	{{64,64,64,64}},
 	{{3, 3, 3, 3}},
 };
 
@@ -358,7 +360,7 @@ static void iOpenOutcomeOldSIMD(PKD pkd,KDN *k,CLTILE tile,int iStart,double dTh
     v4sf k_xCenter, k_yCenter, k_zCenter, k_xMax, k_yMax, k_zMax;
     v4sf k_xMinBnd, k_yMinBnd, k_zMinBnd, k_xMaxBnd, k_yMaxBnd, k_zMaxBnd;
     v4sf k_x, k_y, k_z, k_m, k_4h2, k_bMax, k_Open;
-    v4i  k_iLower;
+    v4i  k_iLower, k_nk;
 
     assert ( pkdNodeMom(pkd,k)->m > 0.0f );
 
@@ -384,6 +386,7 @@ static void iOpenOutcomeOldSIMD(PKD pkd,KDN *k,CLTILE tile,int iStart,double dTh
     k_4h2 = SIMD_SPLAT(4.0f*k->fSoft2);
     k_bMax = SIMD_SPLAT(k->bMax);
     k_iLower = SIMD_SPLATI32(k->iLower);
+    k_nk = SIMD_SPLATI32(k->pUpper-k->pLower+1);
     k_Open = SIMD_MUL(consts.threehalves.p,SIMD_MUL(k_bMax,diCrit));
 
     iBeg = iStart >> CL_ALIGN_BITS;
@@ -443,13 +446,14 @@ static void iOpenOutcomeOldSIMD(PKD pkd,KDN *k,CLTILE tile,int iStart,double dTh
 	T4 = SIMD_F2I(SIMD_CMP_GT(minbnd2,fourh2));
 	T5 = SIMD_F2I(SIMD_CMP_GT(mink2,SIMD_MUL(consts.fMonopoleThetaFac2.p,cOpen2)));
 	T6 = SIMD_F2I(SIMD_CMP_GT(cOpen,k_Open));
-	T7 = SIMD_CMP_EQ_EPI32(k_iLower,iconsts.zero.p);
+	/*invert:T7 = SIMD_CMP_EQ_EPI32(k_iLower,iconsts.zero.p);*/
+	T7 = SIMD_CMP_GT_EPI32(k_nk,iconsts.sixtyfour.p);
 	iOpenA = SIMD_OR_EPI32(SIMD_AND_EPI32(T2,iconsts.one.p),SIMD_ANDNOT_EPI32(T2,iconsts.three.p));
 	iOpenB = SIMD_OR_EPI32(SIMD_AND_EPI32(T3,iOpenA),SIMD_ANDNOT_EPI32(T3,
 		    SIMD_OR_EPI32(SIMD_AND_EPI32(T4,iconsts.four.p),SIMD_ANDNOT_EPI32(T4,
 		    SIMD_OR_EPI32(SIMD_AND_EPI32(T5,iconsts.five.p),SIMD_ANDNOT_EPI32(T5,iOpenA))))));
 	P1 = SIMD_OR_EPI32(SIMD_AND_EPI32(T2,iOpenB),SIMD_ANDNOT_EPI32(T2,iconsts.three.p));
-	P2 = SIMD_OR_EPI32(SIMD_ANDNOT_EPI32(T7,iconsts.zero.p),SIMD_AND_EPI32(T7,iOpenB));
+	P2 = SIMD_OR_EPI32(SIMD_AND_EPI32(T7,iconsts.zero.p),SIMD_ANDNOT_EPI32(T7,iOpenB));
 	P3 = SIMD_OR_EPI32(SIMD_AND_EPI32(T6,P1),SIMD_ANDNOT_EPI32(T6,P2));
 	P4 = SIMD_OR_EPI32(SIMD_AND_EPI32(T1,iconsts.eight.p),SIMD_ANDNOT_EPI32(T1,P3));
 	iOpen = SIMD_OR_EPI32(SIMD_AND_EPI32(T0,P4),SIMD_ANDNOT_EPI32(T0,iconsts.ten.p));
@@ -465,15 +469,16 @@ static void iOpenOutcomeOldSIMD(PKD pkd,KDN *k,CLTILE tile,int iStart,double dTh
 ** and also doesn't explicitly conserve momentum.
 */
 static void iOpenOutcomeOldCL(PKD pkd,KDN *k,CLTILE tile,int iStart,double dThetaMin) {
-    const float fMonopoleThetaFac2 = 1.6 * 1.6;
+    const float fMonopoleThetaFac2 = 1.6f * 1.6f;
     const int walk_min_multipole = 3;
 
     float dx,dy,dz,mink2,d2,d2Open,xc,yc,zc,fourh2,minbnd2,kOpen,cOpen,diCrit;
-    int j,i;
+    int j,i,nk;
     int iOpen,iOpenA,iOpenB;
     pBND kbnd;
 
     pkdNodeBnd(pkd,k,&kbnd);
+    nk = k->pUpper - k->pLower + 1;
 
     for(i=iStart; i<tile->nItems; ++i) {
 	if (tile->m.f[i] <= 0) iOpen = 10;  /* ignore this cell */
@@ -521,7 +526,8 @@ static void iOpenOutcomeOldCL(PKD pkd,KDN *k,CLTILE tile,int iStart,double dThet
 		    else iOpen = iOpenB;
 		}
 		else {
-		    if (k->iLower) iOpen = 0;
+/*		    if (k->iLower) iOpen = 0;*/
+		    if (nk>64) iOpen = 0;
 		    else iOpen = iOpenB;
 		}
 	    }
@@ -1251,7 +1257,8 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 	    ** Now prepare to proceed to the next deeper
 	    ** level of the tree.
 	    */
-	    if (!k->iLower) break;
+//	    if (!k->iLower) break;
+	    if ((k->pUpper-k->pLower+1)<=64) break;
 	    xParent = k->r[0];
 	    yParent = k->r[1];
 	    zParent = k->r[2];
