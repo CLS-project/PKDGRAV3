@@ -268,13 +268,13 @@ double acosh(double x);
 #define PACKAGE_NAME "pkdgrav2"
 
 /* Define to the full name and version of this package. */
-#define PACKAGE_STRING "pkdgrav2 2.2.9"
+#define PACKAGE_STRING "pkdgrav2 2.2.11"
 
 /* Define to the one symbol short name of this package. */
 #define PACKAGE_TARNAME "pkdgrav2"
 
 /* Define to the version of this package. */
-#define PACKAGE_VERSION "2.2.9"
+#define PACKAGE_VERSION "2.2.11"
 
 /* Define if planets should be used. */
 /* #undef PLANETS */
@@ -351,7 +351,7 @@ double acosh(double x);
 #define USE_SIMD_PC 1
 
 /* Version number of package */
-#define VERSION "2.2.9"
+#define VERSION "2.2.11"
 
 /* Number of bits in a file offset, on hosts where this is settable. */
 /* #undef _FILE_OFFSET_BITS */
