@@ -278,7 +278,6 @@ static inline int getCell(PKD pkd,int iCell,int id,float *pcOpen,KDN **pc) {
 	}
     else if (id < 0) {
         *pc = c = pkdTopNode(pkd,iCell);
-	assert(c->iLower != 0);
 	nc = 1000000000; /* we never allow pp with this cell */
 	}
     else {
@@ -673,7 +672,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
     int iStack,ism;
     int ix,iy,iz,bRep;
     int nMaxInitCheck;
-    int id,iCell,iSib,iLower,iCheckCell,iCellDescend;
+    int id,iCell,iSib,iLower,iCheckCell,iCheckLower,iCellDescend;
     int i,j,jTile,pi,pj,nActive,nTotActive;
     float cOpen,kOpen;
     pBND cbnd,kbnd;
@@ -777,12 +776,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 		       local tree.
 		    */
 		    cOpen = -1.0f;
-		    if (pkdTopNode(pkd,ROOT)->iLower) {
-			id = -1;
-			}
-		    else {
-			id = pkdTopNode(pkd,ROOT)->pLower;
-			}
+		    id = -1;
 		    nc = getCell(pkd,ROOT,id,&cOpen,&c);
 		    pkdNodeBnd(pkd,c,&cbnd);
 		    clAppend(pkd->cl,ROOT,id,c->iLower,nc,cOpen,pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c->r,fOffset,cbnd.fCenter,cbnd.fMax);
@@ -927,6 +921,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 			    dOffset[0] = cltile->xOffset.f[jTile];
 			    dOffset[1] = cltile->yOffset.f[jTile];
 			    dOffset[2] = cltile->zOffset.f[jTile];
+			    assert(id >= 0);
 			    if (id == pkd->idSelf) c = pkdTreeNode(pkd,iCheckCell);
 			    else c = mdlAquire(pkd->mdl,CID_CELL,iCheckCell,id);
 			    for (pj=c->pLower;pj<=c->pUpper;++pj) {
@@ -964,23 +959,25 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 			    ** We could do a prefetch here for non-local
 			    ** cells.
 			    */
-			    iCheckCell = cltile->iLower.i[jTile];
-			    assert(iCheckCell > 0);
+			    iCheckCell = cltile->iCell.i[jTile];
+			    iCheckLower = cltile->iLower.i[jTile];
+			    assert(iCheckLower > 0);
 			    id = cltile->id.i[jTile];
-			    if (iCheckCell == ROOT) {
+			    if (iCheckLower == ROOT) {
 				/* We must progress to the children of this local tree root cell. */
 				assert(id < 0);
 				id = pkdTopNode(pkd,iCheckCell)->pLower;
+				assert(id >= 0);
 				if (id == pkd->idSelf) {
-				    c = pkdTreeNode(pkd,iCheckCell);
-				    iCheckCell = c->iLower;
+				    c = pkdTreeNode(pkd,ROOT);
+				    iCheckLower = c->iLower;
 				    }
 				else {
-				    c = mdlAquire(pkd->mdl,CID_CELL,iCheckCell,id);
-				    iCheckCell = c->iLower;
+				    c = mdlAquire(pkd->mdl,CID_CELL,ROOT,id);
+				    iCheckLower = c->iLower;
 				    mdlRelease(pkd->mdl,CID_CELL,c);
 				    }
-				if (!iCheckCell) {
+				if (!iCheckLower) {
 				    /*
 				    ** The ROOT of a local tree is actually a bucket! An irritating case...
 				    ** This is a rare case though, and as such we simply check the local ROOT bucket once more.
@@ -995,21 +992,25 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 				    }
 				}			    
 			    cOpen = -1.0f;
-			    nc = getCell(pkd,iCheckCell,id,&cOpen,&c);
+			    nc = getCell(pkd,iCheckLower,id,&cOpen,&c);
 			    pkdNodeBnd(pkd,c,&cbnd);
 			    fOffset[0] = cltile->xOffset.f[jTile];
 			    fOffset[1] = cltile->yOffset.f[jTile];
 			    fOffset[2] = cltile->zOffset.f[jTile];
-			    clAppend(pkd->clNew,iCheckCell,id,c->iLower,nc,cOpen,pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c->r,fOffset,cbnd.fCenter,cbnd.fMax);
+			    iLower = c->iLower;
+			    if (id == -1 && !iLower) iLower = ROOT;  /* something other than zero for openening crit - iLower usually can't be == ROOT */
+			    clAppend(pkd->clNew,iCheckLower,id,iLower,nc,cOpen,pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c->r,fOffset,cbnd.fCenter,cbnd.fMax);
 			    if (id >= 0 && id != pkd->idSelf) mdlRelease(pkd->mdl,CID_CELL,c);
 			    /*
 			    ** Also add the sibling of check->iLower.
 			    */
-			    ++iCheckCell;
+			    ++iCheckLower;
 			    cOpen = -1.0f;
-			    nc = getCell(pkd,iCheckCell,id,&cOpen,&c);
+			    nc = getCell(pkd,iCheckLower,id,&cOpen,&c);
 			    pkdNodeBnd(pkd,c,&cbnd);
-			    clAppend(pkd->clNew,iCheckCell,id,c->iLower,nc,cOpen,pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c->r,fOffset,cbnd.fCenter,cbnd.fMax);
+			    iLower = c->iLower;
+			    if (id == -1 && !iLower) iLower = ROOT;  /* something other than zero for openening crit - iLower usually can't be == ROOT */
+			    clAppend(pkd->clNew,iCheckLower,id,iLower,nc,cOpen,pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c->r,fOffset,cbnd.fCenter,cbnd.fMax);
 			    if (id >= 0 && id != pkd->idSelf) mdlRelease(pkd->mdl,CID_CELL,c);
 			    break;
 			case 4:
