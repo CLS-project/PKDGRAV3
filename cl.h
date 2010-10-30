@@ -17,14 +17,14 @@
 */
 typedef union {
     float f[CL_PART_PER_TILE];
-#ifdef USE_SIMD_PC
+#ifdef USE_SIMD
     v4sf p[CL_PART_PER_TILE/4];
 #endif
     } clFloat;
 
 typedef union {
     int32_t i[CL_PART_PER_TILE];
-#ifdef USE_SIMD_PC
+#ifdef USE_SIMD
     v4i p[CL_PART_PER_TILE/4];
 #endif
     } clInt32;

@@ -5,6 +5,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <assert.h>
+#include <string.h>
 
 #include "cl.h"
 
@@ -93,7 +94,7 @@ CLTILE clClone(CL cl,CL src) {
 	if (newtile->nItems) newtile=clExtend(cl);
 	newtile->nMaxItems = tile->nMaxItems;
 	n = newtile->nItems = tile->nItems;
-
+#ifdef USE_SIMD
 	memcpy(&newtile->iCell.p,&tile->iCell.p,n*sizeof(tile->iCell.i[0]));
 	memcpy(&newtile->id.p,&tile->id.p,n*sizeof(tile->id.i[0]));
 	memcpy(&newtile->iLower.p,&tile->iLower.p,n*sizeof(tile->iLower.i[0]));
@@ -113,6 +114,27 @@ CLTILE clClone(CL cl,CL src) {
 	memcpy(&newtile->xMax.p,&tile->xMax.p,n*sizeof(tile->xMax.f[0]));
 	memcpy(&newtile->yMax.p,&tile->yMax.p,n*sizeof(tile->yMax.f[0]));
 	memcpy(&newtile->zMax.p,&tile->zMax.p,n*sizeof(tile->zMax.f[0]));
+#else
+	memcpy(&newtile->iCell.i,&tile->iCell.i,n*sizeof(tile->iCell.i[0]));
+	memcpy(&newtile->id.i,&tile->id.i,n*sizeof(tile->id.i[0]));
+	memcpy(&newtile->iLower.i,&tile->iLower.i,n*sizeof(tile->iLower.i[0]));
+	memcpy(&newtile->nc.i,&tile->nc.i,n*sizeof(tile->nc.i[0]));
+	memcpy(&newtile->cOpen.f,&tile->cOpen.f,n*sizeof(tile->cOpen.f[0]));
+	memcpy(&newtile->m.f,&tile->m.f,n*sizeof(tile->m.f[0]));
+	memcpy(&newtile->fourh2.f,&tile->fourh2.f,n*sizeof(tile->fourh2.f[0]));
+	memcpy(&newtile->x.f,&tile->x.f,n*sizeof(tile->x.f[0]));
+	memcpy(&newtile->y.f,&tile->y.f,n*sizeof(tile->y.f[0]));
+	memcpy(&newtile->z.f,&tile->z.f,n*sizeof(tile->z.f[0]));
+	memcpy(&newtile->xOffset.f,&tile->xOffset.f,n*sizeof(tile->xOffset.f[0]));
+	memcpy(&newtile->yOffset.f,&tile->yOffset.f,n*sizeof(tile->yOffset.f[0]));
+	memcpy(&newtile->zOffset.f,&tile->zOffset.f,n*sizeof(tile->zOffset.f[0]));
+	memcpy(&newtile->xCenter.f,&tile->xCenter.f,n*sizeof(tile->xCenter.f[0]));
+	memcpy(&newtile->yCenter.f,&tile->yCenter.f,n*sizeof(tile->yCenter.f[0]));
+	memcpy(&newtile->zCenter.f,&tile->zCenter.f,n*sizeof(tile->zCenter.f[0]));
+	memcpy(&newtile->xMax.f,&tile->xMax.f,n*sizeof(tile->xMax.f[0]));
+	memcpy(&newtile->yMax.f,&tile->yMax.f,n*sizeof(tile->yMax.f[0]));
+	memcpy(&newtile->zMax.f,&tile->zMax.f,n*sizeof(tile->zMax.f[0]));
+#endif
     }
     return cl->tile;
 }
