@@ -1021,7 +1021,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 			    iCheckCell = cltile->iCell.i[jTile];
 			    id = cltile->id.i[jTile];
 			    if (id == pkd->idSelf) c = pkdTreeNode(pkd,iCheckCell);
-			    else if (id == -1) c = pkdTreeNode(pkd,iCheckCell);
+			    else if (id == -1) c = pkdTopNode(pkd,iCheckCell);
 			    else c = mdlAquire(pkd->mdl,CID_CELL,iCheckCell,id);
 			    /*
 			    ** Center of mass velocity is used by the planets code to get higher derivatives of the 
@@ -1045,7 +1045,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 			    iCheckCell = cltile->iCell.i[jTile];
 			    id = cltile->id.i[jTile];
 			    if (id == pkd->idSelf) c = pkdTreeNode(pkd,iCheckCell);
-			    else if (id == -1) c = pkdTreeNode(pkd,iCheckCell);
+			    else if (id == -1) c = pkdTopNode(pkd,iCheckCell);
 			    else c = mdlAquire(pkd->mdl,CID_CELL,iCheckCell,id);
 			    if (pkd->oNodeVelocity) v = pkdNodeVel(pkd,c);
 			    ilpAppend(pkd->ilp,
@@ -1169,7 +1169,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 			    dOffset[1] = cltile->yOffset.f[jTile];
 			    dOffset[2] = cltile->zOffset.f[jTile];
 			    if (id == pkd->idSelf) c = pkdTreeNode(pkd,iCheckCell);
-			    else if (id == -1) c = pkdTreeNode(pkd,iCheckCell);
+			    else if (id == -1) c = pkdTopNode(pkd,iCheckCell);
 			    else c = mdlAquire(pkd->mdl,CID_CELL,iCheckCell,id);
 			    d2 = 0;
 			    for (j=0;j<3;++j) {
@@ -1198,7 +1198,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 			    dOffset[1] = cltile->yOffset.f[jTile];
 			    dOffset[2] = cltile->zOffset.f[jTile];
 			    if (id == pkd->idSelf) c = pkdTreeNode(pkd,iCheckCell);
-			    else if (id == -1) c = pkdTreeNode(pkd,iCheckCell);
+			    else if (id == -1) c = pkdTopNode(pkd,iCheckCell);
 			    else c = mdlAquire(pkd->mdl,CID_CELL,iCheckCell,id);
 			    momk = pkdNodeMom(pkd,k);
 			    momc = pkdNodeMom(pkd,c);
