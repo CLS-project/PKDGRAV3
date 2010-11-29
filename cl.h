@@ -78,6 +78,7 @@ CLTILE clClear(CL cl);          /* Go back to, and return first tile (empty) */
 CLTILE clClone(CL cl, CL src);  /* Make "cl" the same as "src" */
 void clInitialize(CL *cl);
 void clFinish(CL cl);
+size_t clMemory(CL cl);
 
 static inline uint32_t clCount(CL cl) {
     return cl->nPrevious + cl->tile->nItems;

@@ -631,6 +631,30 @@ void pkdFinish(PKD pkd) {
     free(pkd);
     }
 
+size_t pkdClCount(PKD pkd) {
+    size_t nCount = clCount(pkd->cl);
+    int i;
+    for(i=0; i<pkd->nMaxStack; ++i)
+	nCount += clCount(pkd->S[i].cl);
+    return nCount;
+    }
+
+size_t pkdClMemory(PKD pkd) {
+    size_t nBytes = clMemory(pkd->cl);
+    int i;
+    for(i=0; i<pkd->nMaxStack; ++i)
+	nBytes += clMemory(pkd->S[i].cl);
+    return nBytes;
+    }
+
+size_t pkdIlpMemory(PKD pkd) {
+    return ilpMemory(pkd->ilp);
+    }
+
+size_t pkdIlcMemory(PKD pkd) {
+    return ilcMemory(pkd->ilc);
+    }
+
 static void getClass( PKD pkd, float fMass, float fSoft, FIO_SPECIES eSpecies, PARTICLE *p ) {
     int i;
 

@@ -1197,7 +1197,9 @@ struct outMemStatus {
     uint64_t vsize;
     uint64_t rss;
 #endif
-    uint64_t nCheck;
+    uint64_t nBytesCl;
+    uint64_t nBytesIlp;
+    uint64_t nBytesIlc;
     };
 void pstMemStatus(PST,void *,int,void *,int *);
 

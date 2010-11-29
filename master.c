@@ -2805,8 +2805,12 @@ void msrMemStatus(MSR msr) {
     printf("Major faults:\n");
     PRINTGRID(8,"%8"PRIu64,majflt);
 #endif
-    printf("Checklist size:\n");
-    PRINTGRID(8,"%8"PRIu64,nCheck);
+    printf("Checklist size (MB):\n");
+    PRINTGRID(8,"%8"PRIu64,nBytesCl/1024/1024);
+    printf("Particle List size (MB):\n");
+    PRINTGRID(8,"%8"PRIu64,nBytesIlp/1024/1024);
+    printf("Cell List size (MB):\n");
+    PRINTGRID(8,"%8"PRIu64,nBytesIlc/1204/1024);
     }
 
 void msrGravity(MSR msr,uint8_t uRungLo, uint8_t uRungHi, double dTime,

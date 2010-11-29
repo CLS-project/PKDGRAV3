@@ -11,6 +11,14 @@
 #include "ilp.h"
 #include "pkd.h" /* for PARTITION macro */
 
+size_t ilpMemory(ILP ilp) {
+    size_t nBytes = sizeof(struct ilpContext);
+    ILPTILE tile;
+    for(tile=ilp->first;tile!=NULL;tile=tile->next)
+	nBytes += sizeof(struct ilpTile);
+    return nBytes;
+    }
+
 /*
 ** Private: Create a new tile
 */

@@ -64,6 +64,7 @@ ILPTILE ilpExtend(ILP ilp);    /* Add tile and return new tile */
 ILPTILE ilpClear(ILP ilp);     /* Go back to, and return first tile (empty) */
 void ilpInitialize(ILP *ilp);
 void ilpFinish(ILP ilp);
+size_t ilpMemory(ILP ilp);
 
 static inline void ilpCheckPt(ILP ilp,ILPCHECKPT *cp) {
     cp->tile = ilp->tile;

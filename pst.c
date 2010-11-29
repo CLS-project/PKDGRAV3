@@ -4239,7 +4239,7 @@ void pstMemStatus(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	** Now merge valid elements of outUp to out.
 	*/
 	for (id=0;id<nThreads;++id) {
-	    if (outUp[id].nCheck)
+	    if (outUp[id].nBytesCl)
 		out[id] = outUp[id];
 	    }
 	free(outUp);
@@ -4249,7 +4249,7 @@ void pstMemStatus(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	char buffer[1024], *f;
 	int i;
 
-	for (id=0;id<nThreads;++id) out[id].nCheck = 0;
+	for (id=0;id<nThreads;++id) out[id].nBytesCl = 0;
 	id = pst->idSelf;
 
 #ifdef __linux__
@@ -4280,7 +4280,10 @@ void pstMemStatus(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 		}
 	    }
 #endif
-	out[id].nCheck = clCount(plcl->pkd->cl);
+	out[id].nBytesCl = pkdClMemory(plcl->pkd);
+	out[id].nBytesIlp = pkdIlpMemory(plcl->pkd);
+	out[id].nBytesIlc = pkdIlcMemory(plcl->pkd);
+
 	}
     if (pnOut) *pnOut = nThreads*sizeof(struct outMemStatus);
     }

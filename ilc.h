@@ -66,6 +66,7 @@ ILCTILE ilcExtend(ILC ilc);    /* Add tile and return new tile */
 ILCTILE ilcClear(ILC ilc);     /* Go back to, and return first tile (empty) */
 void ilcInitialize(ILC *ilc);
 void ilcFinish(ILC ilc);
+size_t ilcMemory(ILC ilc);
 
 static inline void ilcCheckPt(ILC ilc,ILCCHECKPT *cp) {
     cp->tile = ilc->tile;

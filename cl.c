@@ -9,6 +9,14 @@
 
 #include "cl.h"
 
+size_t clMemory(CL cl) {
+    size_t nBytes = sizeof(struct clContext);
+    CLTILE tile;
+    for(tile=cl->first;tile!=NULL;tile=tile->next)
+	nBytes += sizeof(struct clTile);
+    return nBytes;
+    }
+
 /*
 ** Private: Create a new tile
 */

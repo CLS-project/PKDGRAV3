@@ -1035,6 +1035,10 @@ void pkdInitialize(
     int iCacheSize,FLOAT *fPeriod,uint64_t nDark,uint64_t nGas,uint64_t nStar,
     uint64_t mMemoryModel);
 void pkdFinish(PKD);
+size_t pkdClCount(PKD pkd);
+size_t pkdClMemory(PKD pkd);
+size_t pkdIlcMemory(PKD pkd);
+size_t pkdIlpMemory(PKD pkd);
 void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double dTuFac);
 #ifdef USE_MDL_IO
 void pkdIOInitialize( PKD pkd, int nLocal);

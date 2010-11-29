@@ -8,6 +8,14 @@
 
 #include "ilc.h"
 
+size_t ilcMemory(ILC ilc) {
+    size_t nBytes = sizeof(struct ilcContext);
+    ILCTILE tile;
+    for(tile=ilc->first;tile!=NULL;tile=tile->next)
+	nBytes += sizeof(struct ilcTile);
+    return nBytes;
+    }
+
 /*
 ** Private: Create a new tile
 */
