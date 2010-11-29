@@ -205,6 +205,9 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_WRITETIPSY,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstWriteTipsy,
 		  sizeof(struct inWriteTipsy),0);
+    mdlAddService(mdl,PST_WRITE,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstWrite,
+		  sizeof(struct inWrite),0);
     /*
     ** Calculate the number of levels in the top tree and use it to
     ** define the size of the messages.
@@ -674,6 +677,7 @@ void pstGetMap(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 #endif
 	}
     else {
+	assert(in->nStart == pst->idSelf);
 	out[in->nStart] = pst->idSelf;
 	}
     if (pnOut) *pnOut = mdlThreads(pst->mdl)*sizeof(int);
@@ -2276,7 +2280,7 @@ void pstWriteASCII(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     if (pnOut) *pnOut = 0;
     }
 
-void pstWriteTipsy(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+void pstWriteTipsyOld(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct inWriteTipsy *in = vin;
     char achOutFile[PST_FILENAME_SIZE];
@@ -2291,7 +2295,6 @@ void pstWriteTipsy(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	    in->nProcessors = nProcUpper;
 	    mdlReqService(pst->mdl,pst->idUpper,PST_WRITETIPSY,in,nIn);
 	    }
-	/*	mdlReqService(pst->mdl,pst->idUpper,PST_WRITETIPSY,in,nIn);*/
 	in->nProcessors = nProcLower;
 	pstWriteTipsy(pst->pstLower,in,nIn,NULL,NULL);
 	if ( nProcessors <= 1 ) {
@@ -2315,6 +2318,161 @@ void pstWriteTipsy(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	}
     if (pnOut) *pnOut = 0;
     }
+
+void pstWriteTipsy(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl;
+    PST pst0;
+    struct inWriteTipsy *in = vin;
+    char achOutFile[PST_FILENAME_SIZE];
+
+    mdlassert(pst->mdl,nIn == sizeof(struct inWriteTipsy));
+
+    pst0 = pst;
+    while (pst0->nLeaves > 1)
+	pst0 = pst0->pstLower;
+    plcl = pst0->plcl;
+
+    if (pst->nLeaves > 1 && in->nProcessors > 1) {
+	int nProcessors = in->nProcessors;
+	int nProcUpper = pst->nUpper * nProcessors / pst->nLeaves;
+	int nProcLower = nProcessors - nProcUpper;
+	if ( nProcessors > 1 ) {
+	    in->nProcessors = nProcUpper;
+	    in->iIndex += nProcLower;
+	    mdlReqService(pst->mdl,pst->idUpper,PST_WRITETIPSY,in,nIn);
+	    in->iIndex -= nProcLower;
+	    in->nProcessors = nProcLower;
+	    pstWriteTipsy(pst->pstLower,in,nIn,NULL,NULL);
+	    }
+	else {
+	    in->nProcessors = nProcLower;
+	    pstWriteTipsy(pst->pstLower,in,nIn,NULL,NULL);
+	    in->nProcessors = nProcUpper;
+	    mdlReqService(pst->mdl,pst->idUpper,PST_WRITETIPSY,in,nIn);
+	    }
+	mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
+	}
+    else {
+	FIO fio;
+	uint32_t nCount;
+	int i;
+
+	/*
+	** Add the local Data Path to the provided filename.
+	*/
+	achOutFile[0] = 0;
+	if (plcl->pszDataPath) {
+	    strcat(achOutFile,plcl->pszDataPath);
+	    strcat(achOutFile,"/");
+	    }
+	strcat(achOutFile,in->achOutFile);
+
+	fio = fioTipsyAppend(achOutFile,in->bDoublePos,in->bStandard);
+	if (fio==NULL) {
+	    fprintf(stderr,"ERROR: unable to reopen tipsy file for output\n");
+	    perror(achOutFile);
+	    mdlassert(pst->mdl,fio!=NULL);
+	    }
+
+	fioSeek(fio,plcl->nWriteStart,FIO_SPECIES_ALL);
+	nCount = pkdWriteFIO(plcl->pkd,fio,in->dvFac);
+	for (i=pst->idSelf+1;i<pst->idSelf+pst->nLeaves;++i) {
+
+	    int id = i; //msr->pMap[i];
+	    int inswap;
+	    /*
+	     * Swap particles with the remote processor.
+	     */
+	    inswap = pst->idSelf;
+	    mdlReqService(pst0->mdl,id,PST_SWAPALL,&inswap,sizeof(inswap));
+	    pkdSwapAll(plcl->pkd, id);
+	    mdlGetReply(pst0->mdl,id,NULL,NULL);
+	    /*
+	     * Write the swapped particles.
+	     */
+	    nCount += pkdWriteFIO(plcl->pkd,fio,in->dvFac);
+	    /*
+	     * Swap them back again.
+	     */
+	    inswap = pst->idSelf;
+	    mdlReqService(pst0->mdl,id,PST_SWAPALL,&inswap,sizeof(inswap));
+	    pkdSwapAll(plcl->pkd, id);
+	    mdlGetReply(pst0->mdl,id,NULL,NULL);
+	    }
+	fioClose(fio);
+	}
+    if (pnOut) *pnOut = 0;
+    }
+
+void pstWrite(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl;
+    PST pst0;
+    struct inWrite *in = vin;
+    FIO fio;
+    uint32_t nCount;
+    int i;
+
+    mdlassert(pst->mdl,nIn == sizeof(struct inWrite));
+
+    pst0 = pst;
+    while (pst0->nLeaves > 1)
+	pst0 = pst0->pstLower;
+    plcl = pst0->plcl;
+
+    if (in->bHDF5) {
+	fio = fioHDF5Create(in->achOutFile,in->mFlags);
+	if (fio) {
+	    fioSetAttr(fio, "dTime",    FIO_TYPE_DOUBLE, &in->dTime);
+	    /* Restart information */
+	    fioSetAttr(fio, "dEcosmo",  FIO_TYPE_DOUBLE, &in->dEcosmo );
+	    fioSetAttr(fio, "dTimeOld", FIO_TYPE_DOUBLE, &in->dTimeOld );
+	    fioSetAttr(fio, "dUOld",    FIO_TYPE_DOUBLE, &in->dUOld );
+	    }
+	}
+    else {
+	fio = fioTipsyCreatePart(in->achOutFile,0,in->bDoublePos,in->bStandard, in->dTime, 
+				 in->nSph, in->nDark, in->nStar, plcl->nWriteStart);
+	if (fio) {
+	    fioSeek(fio,plcl->nWriteStart,FIO_SPECIES_ALL);
+	    }
+	}
+    if (fio==NULL) {
+	fprintf(stderr,"ERROR: unable to create file for output\n");
+	perror(in->achOutFile);
+	mdlassert(pst->mdl,fio!=NULL);
+	}
+
+    nCount = pkdWriteFIO(plcl->pkd,fio,in->dvFac);
+    for (i=pst->idSelf+1;i<pst->idSelf+in->nProcessors; ++i) {
+
+	int id = i; //msr->pMap[i];
+	int inswap;
+	/*
+	 * Swap particles with the remote processor.
+	 */
+	inswap = pst->idSelf;
+	mdlReqService(pst0->mdl,id,PST_SWAPALL,&inswap,sizeof(inswap));
+	pkdSwapAll(plcl->pkd, id);
+	mdlGetReply(pst0->mdl,id,NULL,NULL);
+	/*
+	 * Write the swapped particles.
+	 */
+	nCount += pkdWriteFIO(plcl->pkd,fio,in->dvFac);
+	/*
+	 * Swap them back again.
+	 */
+	inswap = pst->idSelf;
+	mdlReqService(pst0->mdl,id,PST_SWAPALL,&inswap,sizeof(inswap));
+	pkdSwapAll(plcl->pkd, id);
+	mdlGetReply(pst0->mdl,id,NULL,NULL);
+	}
+    fioClose(fio);
+
+    if (pnOut) *pnOut = 0;
+    }
+
+
+
 
 #ifdef USE_MDL_IO
 void pstFindIOS(PST pst,void *vin,int nIn,void *vout,int *pnOut) {

@@ -82,6 +82,7 @@ enum pst_service {
     PST_COMPRESSASCII,
     PST_WRITEASCII,
     PST_WRITETIPSY,
+    PST_WRITE,
     PST_BUILDTREE,
     PST_DISTRIBCELLS,
     PST_CALCROOT,
@@ -393,9 +394,30 @@ struct inWriteTipsy {
     int bDoublePos;
     int bStandard;
     int nProcessors;
+    int iIndex;
     char achOutFile[PST_FILENAME_SIZE];
     };
 void pstWriteTipsy(PST,void *,int,void *,int *);
+
+/* PST_WRITE */
+struct inWrite {
+    double dTime;
+    double dEcosmo;
+    double dTimeOld;
+    double dUOld;
+    double dvFac;
+    uint64_t nSph;
+    uint64_t nDark;
+    uint64_t nStar;
+    int bDoublePos;
+    int bStandard;
+    int iIndex;
+    int nProcessors;
+    int bHDF5;
+    int mFlags;
+    char achOutFile[PST_FILENAME_SIZE];
+    };
+void pstWrite(PST,void *,int,void *,int *);
 
 #ifdef USE_MDL_IO
 /* PST_FINDIOS */

@@ -2173,6 +2173,97 @@ static FIO_SPECIES hdf5Species (struct fioInfo *fio) {
     return hio->eCurrent;
     }
 
+/* Open the i'th file */
+static int hdf5OpenOne(fioHDF5 *hio, int iFile) {
+    H5E_auto_t save_func;
+    void *     save_data;
+    int i;
+
+    assert(iFile<hio->fio.fileList.nFiles);
+    hio->fio.fileList.iFile = iFile;
+
+    /* Open the HDF5 file. */
+    hio->fileID = H5Fopen(hio->fio.fileList.fileInfo[iFile].pszFilename, H5F_ACC_RDONLY, H5P_DEFAULT);
+    if ( hio->fileID < 0 ) {
+	abort();
+	return 0;
+	}
+
+    /* Global parameters (dTime,etc.) are stored here */
+    hio->parametersID = H5Gopen( hio->fileID, GROUP_PARAMETERS );
+    if ( hio->parametersID == H5I_INVALID_HID ) {
+	abort();
+	return 0;
+	}
+
+    /* Now open all of the available groups.  It's okay if some aren't there. */
+    H5Eget_auto(&save_func,&save_data);
+    H5Eset_auto(0,0);
+    for( i=1; i<FIO_SPECIES_LAST; i++) {
+	IOBASE *base = hio->base+i;
+
+	switch(i) {
+	case FIO_SPECIES_DARK:
+	    base->group_id = H5Gopen(hio->fileID,fioSpeciesName(i));
+	    if (base->group_id!=H5I_INVALID_HID) {
+		base->iOffset = 0;
+		base->iIndex = base->nBuffered = 0;
+
+		alloc_fields(base,DARK_N);
+		field_open(&base->fldFields[DARK_POSITION],base->group_id,
+			   FIELD_POSITION, H5T_NATIVE_DOUBLE,3 );
+		field_open(&base->fldFields[DARK_VELOCITY],base->group_id,
+			   FIELD_VELOCITY, H5T_NATIVE_DOUBLE,3 );
+		field_open(&base->fldFields[DARK_POTENTIAL],base->group_id,
+			   FIELD_POTENTIAL, H5T_NATIVE_FLOAT,1 );
+		base->nTotal = hio->fio.fileList.fileInfo[iFile].nSpecies[i] = field_size(&base->fldFields[DARK_POSITION]);
+		hio->fio.nSpecies[i] += hio->fio.fileList.fileInfo[iFile].nSpecies[i];
+		class_open(&base->ioClass,base->group_id);
+		/* iOrder can have a starting value if they are sequential, or a list */
+		ioorder_open(&base->ioOrder,base->group_id);
+		}
+	    else base->nTotal = 0;
+	    break;
+	default:
+	    hio->fio.fileList.fileInfo[iFile].nSpecies[i] = 0;
+	    base->group_id = H5I_INVALID_HID;
+	    base->nTotal = 0;
+	    break;
+	    }
+	}
+    H5Eset_auto(save_func,save_data);
+    return 1;
+    }
+
+/* Close the current open file; does not destroy the context */
+static void hdf5CloseOne(fioHDF5 *hio) {
+    int i, j;
+
+    for( i=1; i<FIO_SPECIES_LAST; i++) {
+	IOBASE *base = &hio->base[i];
+	if (base->group_id!=H5I_INVALID_HID) {
+	    if (hio->fio.eMode==FIO_MODE_WRITING) {
+		ioorder_flush(&base->ioOrder);
+		class_flush(&base->ioClass,base->group_id);
+		class_write(&base->ioClass,base->iOffset,base->iIndex);
+		for(j=0; j<base->nFields; j++) {
+		    field_write(&base->fldFields[j],
+				base->iOffset, base->iIndex);
+		    }
+		}
+	    ioorder_close(&base->ioOrder);
+	    for(j=0; j<base->nFields; j++)
+		field_close(&base->fldFields[j]);
+	    class_close(&base->ioClass);
+	    H5Gclose(base->group_id);
+	    }
+	}
+    H5Gclose(hio->parametersID);
+    H5Fflush(hio->fileID,H5F_SCOPE_GLOBAL);
+    assert(H5Fget_obj_count(hio->fileID,H5F_OBJ_ALL)==1);
+    H5Fclose(hio->fileID);
+    }
+
 static int hdf5Seek(FIO fio,uint64_t iPart,FIO_SPECIES eSpecies) {
     fioHDF5 *hio = (fioHDF5 *)fio;
     IOBASE *base;
@@ -2197,13 +2288,16 @@ static int hdf5Seek(FIO fio,uint64_t iPart,FIO_SPECIES eSpecies) {
     return 0;
     }
 
-static int base_read(IOBASE *base) {
+static int base_read(fioHDF5 *hio,IOBASE *base) {
     hsize_t N;
     int i;
 
     base->iOffset += base->nBuffered;
     base->iIndex = base->nBuffered = 0;
-    if ( base->iOffset >= base->nTotal ) return 0;
+    if ( base->iOffset >= base->nTotal ) {
+	hdf5CloseOne(hio);
+	hdf5OpenOne(hio,++hio->fio.fileList.iFile);
+	}
 
     N = base->nTotal - base->iOffset;
     base->nBuffered = N > CHUNK_SIZE ? CHUNK_SIZE : N;
@@ -2272,7 +2366,7 @@ static int hdf5ReadDark(
 
     /* If we have exhausted our buffered data, read more */
     if (base->iIndex == base->nBuffered) {
-	base_read(base);
+	base_read(hio,base);
 	}
 
     /* Position and Velocity are always present */
@@ -2386,97 +2480,6 @@ static int hdf5WriteStar(
     float fMass,float fSoft,float fPot,float fMetals,float fTform) {
     fprintf(stderr,"Writing star particles is not supported\n");
     abort();
-    }
-
-/* Open the i'th file */
-static int hdf5OpenOne(fioHDF5 *hio, int iFile) {
-    H5E_auto_t save_func;
-    void *     save_data;
-    int i;
-
-    assert(iFile<hio->fio.fileList.nFiles);
-    hio->fio.fileList.iFile = iFile;
-
-    /* Open the HDF5 file. */
-    hio->fileID = H5Fopen(hio->fio.fileList.fileInfo[iFile].pszFilename, H5F_ACC_RDONLY, H5P_DEFAULT);
-    if ( hio->fileID < 0 ) {
-	abort();
-	return 0;
-	}
-
-    /* Global parameters (dTime,etc.) are stored here */
-    hio->parametersID = H5Gopen( hio->fileID, GROUP_PARAMETERS );
-    if ( hio->parametersID == H5I_INVALID_HID ) {
-	abort();
-	return 0;
-	}
-
-    /* Now open all of the available groups.  It's okay if some aren't there. */
-    H5Eget_auto(&save_func,&save_data);
-    H5Eset_auto(0,0);
-    for( i=1; i<FIO_SPECIES_LAST; i++) {
-	IOBASE *base = hio->base+i;
-
-	switch(i) {
-	case FIO_SPECIES_DARK:
-	    base->group_id = H5Gopen(hio->fileID,fioSpeciesName(i));
-	    if (base->group_id!=H5I_INVALID_HID) {
-		base->iOffset = 0;
-		base->iIndex = base->nBuffered = 0;
-
-		alloc_fields(base,DARK_N);
-		field_open(&base->fldFields[DARK_POSITION],base->group_id,
-			   FIELD_POSITION, H5T_NATIVE_DOUBLE,3 );
-		field_open(&base->fldFields[DARK_VELOCITY],base->group_id,
-			   FIELD_VELOCITY, H5T_NATIVE_DOUBLE,3 );
-		field_open(&base->fldFields[DARK_POTENTIAL],base->group_id,
-			   FIELD_POTENTIAL, H5T_NATIVE_FLOAT,1 );
-		base->nTotal = hio->fio.fileList.fileInfo[iFile].nSpecies[i] = field_size(&base->fldFields[DARK_POSITION]);
-		hio->fio.nSpecies[i] += hio->fio.fileList.fileInfo[iFile].nSpecies[i];
-		class_open(&base->ioClass,base->group_id);
-		/* iOrder can have a starting value if they are sequential, or a list */
-		ioorder_open(&base->ioOrder,base->group_id);
-		}
-	    else base->nTotal = 0;
-	    break;
-	default:
-	    hio->fio.fileList.fileInfo[iFile].nSpecies[i] = 0;
-	    base->group_id = H5I_INVALID_HID;
-	    base->nTotal = 0;
-	    break;
-	    }
-	}
-    H5Eset_auto(save_func,save_data);
-    return 1;
-    }
-
-/* Close the current open file; does not destroy the context */
-static void hdf5CloseOne(fioHDF5 *hio) {
-    int i, j;
-
-    for( i=1; i<FIO_SPECIES_LAST; i++) {
-	IOBASE *base = &hio->base[i];
-	if (base->group_id!=H5I_INVALID_HID) {
-	    if (hio->fio.eMode==FIO_MODE_WRITING) {
-		ioorder_flush(&base->ioOrder);
-		class_flush(&base->ioClass,base->group_id);
-		class_write(&base->ioClass,base->iOffset,base->iIndex);
-		for(j=0; j<base->nFields; j++) {
-		    field_write(&base->fldFields[j],
-				base->iOffset, base->iIndex);
-		    }
-		}
-	    ioorder_close(&base->ioOrder);
-	    for(j=0; j<base->nFields; j++)
-		field_close(&base->fldFields[j]);
-	    class_close(&base->ioClass);
-	    H5Gclose(base->group_id);
-	    }
-	}
-    H5Gclose(hio->parametersID);
-    H5Fflush(hio->fileID,H5F_SCOPE_GLOBAL);
-    assert(H5Fget_obj_count(hio->fileID,H5F_OBJ_ALL)==1);
-    H5Fclose(hio->fileID);
     }
 
 static void hdf5Close(FIO fio) {

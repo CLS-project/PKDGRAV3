@@ -1822,43 +1822,6 @@ void msrIOWrite(MSR msr, const char *achOutName, double dTime, int bCheckpoint) 
     }
 #endif
 
-#ifdef USE_HDF5
-/*
-** This function saves all of the input parameters, as well as single-variable
-** state information.
-*/
-void msrSaveParameters(MSR msr, FIO fio) {
-    PRM_NODE *pn;
-
-    /* We really shouldn't know about this structure, but what can you do? */
-    for( pn=msr->prm->pnHead; pn!=NULL; pn=pn->pnNext ) {
-	switch (pn->iType) {
-	case 0:
-	case 1:
-	    assert(pn->iSize == sizeof(int));
-	    fioSetAttr(fio,pn->pszName,FIO_TYPE_INT,pn->pValue);
-	    break;
-	case 2:
-	    assert(pn->iSize == sizeof(double));
-	    fioSetAttr(fio,pn->pszName,FIO_TYPE_DOUBLE,pn->pValue);
-	    break;
-	case 3:
-	    fioSetAttr(fio,pn->pszName,FIO_TYPE_STRING,pn->pValue);
-	    break;
-	case 4:
-	    assert(pn->iSize == sizeof(uint64_t));
-	    fioSetAttr(fio,pn->pszName,FIO_TYPE_UINT64,pn->pValue);
-	    break;
-	    }
-	}
-
-    /* Restart information */
-    fioSetAttr(fio, "dEcosmo",  FIO_TYPE_DOUBLE, &msr->dEcosmo );
-    fioSetAttr(fio, "dTimeOld", FIO_TYPE_DOUBLE, &msr->dTimeOld );
-    fioSetAttr(fio, "dUOld",    FIO_TYPE_DOUBLE, &msr->dUOld );
-    }
-#endif
-
 /*
 ** This function makes some DANGEROUS assumptions!!!
 ** Main problem is that it calls pkd level routines, bypassing the
@@ -1907,31 +1870,41 @@ void msrOneNodeWrite(MSR msr, FIO fio, double dvFac) {
     }
 
 
-uint64_t msrCalcWriteStart(MSR msr) {
-    struct outSetTotal out;
-    struct inSetWriteStart in;
+static void makeName( char *achOutName, const char *inName, int iIndex ) {
+    char *p;
 
-    pstSetTotal(msr->pst,NULL,0,&out,NULL);
-    /*This was true before IsSrcActive:assert(out.nTotal == msr->N);*/
-    assert(out.nTotal <= msr->N);
-    in.nWriteStart = 0;
-    pstSetWriteStart(msr->pst,&in,sizeof(in),NULL,NULL);
-    return out.nTotal;
+    strcpy( achOutName, inName );
+    p = strstr( achOutName, "&I" );
+    if ( p ) {
+	int n = p - achOutName;
+	sprintf( p, "%03d", iIndex );
+	strcat( p, inName + n + 2 );
+	}
+    else {
+	p = achOutName + strlen(achOutName);
+	sprintf(p,".%03d", iIndex);
+	}
     }
 
-void _msrWriteTipsy(MSR msr,const char *pszFileName,double dTime,int bCheckpoint) {
-    FIO fio;
-    struct dump h;
-    struct inWriteTipsy in;
+/*
+** This function makes some DANGEROUS assumptions!!!
+** Main problem is that it calls pkd level routines, bypassing the
+** pst level. It uses plcl pointer which is not desirable.
+*/
+void msrAllNodeWrite(MSR msr, const char *pszFileName, double dTime, double dvFac) {
+    int i, nProcessors;
+    int L, U;
+    PST pst0;
+    LCL *plcl;
     char achOutFile[PST_FILENAME_SIZE];
-    LCL *plcl = msr->pst->plcl;
-    uint64_t N;
+    struct inWrite in;
 
-    /*
-    ** Calculate where to start writing.
-    ** This sets plcl->nWriteStart.
-    */
-    N = msrCalcWriteStart(msr);
+    pst0 = msr->pst;
+    while (pst0->nLeaves > 1)
+	pst0 = pst0->pstLower;
+    plcl = pst0->plcl;
+
+
     /*
     ** Add Data Subpath for local and non-local names.
     */
@@ -1950,7 +1923,112 @@ void _msrWriteTipsy(MSR msr,const char *pszFileName,double dTime,int bCheckpoint
     ** the total amount of simultaneous I/O for file systems that cannot
     ** handle it.
     */
-    in.nProcessors = msr->param.bParaWrite==1 ? msr->nThreads:msr->param.bParaWrite;
+    nProcessors = msr->param.bParaWrite==0?1:(msr->param.bParaWrite==1 ? msr->nThreads:msr->param.bParaWrite);
+    in.iIndex = 0;
+
+    if (msr->param.csm->bComove) {
+	in.dTime = csmTime2Exp(msr->param.csm,dTime);
+	in.dvFac = 1.0/(in.dTime*in.dTime);
+	}
+    else {
+	in.dTime = dTime;
+	in.dvFac = 1.0;
+	}
+    in.dEcosmo  = msr->dEcosmo;
+    in.dTimeOld = msr->dTimeOld;
+    in.dUOld    = msr->dUOld;
+
+    in.nDark = msr->nDark;
+    in.nSph  = msr->nGas;
+    in.nStar = msr->nStar;
+
+    in.bHDF5 = msr->param.bHDF5;
+    in.mFlags = FIO_FLAG_POTENTIAL
+	| (msr->param.bDoublePos?FIO_FLAG_CHECKPOINT:0)
+	| (msr->param.bMemMass?0:FIO_FLAG_COMPRESS_MASS)
+	| (msr->param.bMemSoft?0:FIO_FLAG_COMPRESS_SOFT);
+
+    /*
+    ** Request the other processors start writing
+    */
+    for(i=1; i<nProcessors; ++i) {
+	makeName(in.achOutFile,achOutFile,i);
+	L = msr->nThreads * i / nProcessors;
+	U = msr->nThreads * (i+1) / nProcessors;
+	printf("%d: %d to %d (%d)\n", i, L, U-1, U-L);
+	in.iIndex = i;
+	in.nProcessors = U - L;
+	mdlReqService(pst0->mdl,L,PST_WRITE,&in,sizeof(in));
+	}
+
+    /*
+    ** Now do ourselves
+    */
+    if (nProcessors>1) makeName(in.achOutFile,achOutFile,0);
+    else strcpy(in.achOutFile,achOutFile);
+
+    L = 0;
+    U = msr->nThreads / nProcessors;
+    printf("%d: %d to %d (%d)\n", 0, L, U-1, U-L);
+    in.iIndex = 0;
+    in.nProcessors = U - L;
+    pstWrite(msr->pst,&in,sizeof(in),NULL,NULL);
+
+    for(i=1; i<nProcessors; ++i) {
+	L = msr->nThreads * i / nProcessors;
+	mdlGetReply(pst0->mdl,L,NULL,NULL);
+	}
+
+    }
+
+
+uint64_t msrCalcWriteStart(MSR msr) {
+    struct outSetTotal out;
+    struct inSetWriteStart in;
+
+    pstSetTotal(msr->pst,NULL,0,&out,NULL);
+    /*This was true before IsSrcActive:assert(out.nTotal == msr->N);*/
+    assert(out.nTotal <= msr->N);
+    in.nWriteStart = 0;
+    pstSetWriteStart(msr->pst,&in,sizeof(in),NULL,NULL);
+    return out.nTotal;
+    }
+
+void _msrWriteTipsy(MSR msr,const char *pszFileName,double dTime,int bCheckpoint) {
+    FIO fio;
+    struct dump h;
+    struct inWriteTipsy in;
+    char achOutFile[PST_FILENAME_SIZE];
+    LCL *plcl = msr->pst->plcl;
+    int nProcessors, i;
+    uint64_t N;
+
+    /*
+    ** Calculate where to start writing.
+    ** This sets plcl->nWriteStart.
+    */
+    N = msrCalcWriteStart(msr);
+    /*
+    ** Add Data Subpath for local and non-local names.
+    */
+    _msrMakePath(msr->param.achDataSubPath,pszFileName,in.achOutFile);
+    /*
+    ** Add local Data Path.
+    */
+    _msrMakePath(plcl->pszDataPath,in.achOutFile,achOutFile);
+
+    in.bStandard = msr->param.bStandard;
+    in.bDoublePos = msr->param.bDoublePos;
+
+    /*
+    ** If bParaWrite is 0, then we write serially; if it is 1, then we write
+    ** in parallel using all available threads, otherwise we write in parallel
+    ** using the specified number of threads.  The latter option will reduce
+    ** the total amount of simultaneous I/O for file systems that cannot
+    ** handle it.
+    */
+    in.nProcessors = nProcessors = msr->param.bParaWrite==1 ? msr->nThreads:msr->param.bParaWrite;
+    in.iIndex = 0;
 
     /*
     ** Assume tipsy format for now.
@@ -1996,42 +2074,35 @@ void _msrWriteTipsy(MSR msr,const char *pszFileName,double dTime,int bCheckpoint
 	}
 #endif
 
-    if ( msr->param.bHDF5 ) {
-#ifdef USE_HDF5
-	fio = fioHDF5Create(
-	    achOutFile,
-	    FIO_FLAG_POTENTIAL
-	    | (msr->param.bDoublePos?FIO_FLAG_CHECKPOINT:0)
-	    | (msr->param.bMemMass?0:FIO_FLAG_COMPRESS_MASS)
-	    | (msr->param.bMemSoft?0:FIO_FLAG_COMPRESS_SOFT));
-	fioSetAttr(fio,"dTime",FIO_TYPE_DOUBLE,&in.dTime);
-	msrSaveParameters(msr,fio);
-	msrOneNodeWrite(msr,fio,in.dvFac);
-	fioClose(fio);
-#else
-	assert(0);
-#endif
-	}
-    else {
-	fio = fioTipsyCreate(achOutFile,
-			     msr->param.bDoublePos,
-			     msr->param.bStandard,in.dTime,
-			     msr->nGas, msr->nDark, msr->nStar);
-	if (fio==NULL) {
-	    fprintf(stderr,"ERROR: unable to create output file\n");
-	    perror(achOutFile);
-	    _msrExit(msr,1);
-	    }
+//    if ( msr->param.bHDF5 ) {
+//#ifdef USE_HDF5
+//	fio = fioHDF5Create(
+//	    achOutFile,
+//	    FIO_FLAG_POTENTIAL
+//	    | (msr->param.bDoublePos?FIO_FLAG_CHECKPOINT:0)
+//	    | (msr->param.bMemMass?0:FIO_FLAG_COMPRESS_MASS)
+//	    | (msr->param.bMemSoft?0:FIO_FLAG_COMPRESS_SOFT));
+//	fioSetAttr(fio,"dTime",FIO_TYPE_DOUBLE,&in.dTime);
+//	msrSaveParameters(msr,fio);
+//	msrOneNodeWrite(msr,fio,in.dvFac);
+//	fioClose(fio);
+//#else
+//	assert(0);
+//#endif
+//	}
+//    else {
+//	fio = fioTipsyCreate(achOutFile,
+//			     msr->param.bDoublePos,
+//			     msr->param.bStandard,in.dTime,
+//			     msr->nGas, msr->nDark, msr->nStar);
+//	if (fio==NULL) {
+//	    fprintf(stderr,"ERROR: unable to create output file\n");
+//	    perror(achOutFile);
+//	    _msrExit(msr,1);
+//	    }
 
-	if (msr->param.bParaWrite) {
-	    fioClose(fio);
-	    pstWriteTipsy(msr->pst,&in,sizeof(in),NULL,NULL);
-	    }
-	else {
-	    msrOneNodeWrite(msr, fio, in.dvFac);
-	    fioClose(fio);
-	    }
-	}
+	msrAllNodeWrite(msr,in.achOutFile, dTime, in.dvFac);
+//	}
 
     msrprintf(msr,"Output file has been successfully written.\n");
     }

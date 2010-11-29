@@ -107,6 +107,37 @@ void prmArgUsage(PRM prm) {
     }
 
 /*
+** This function saves all of the input parameters, as well as single-variable
+** state information.
+*/
+void prmSave(PRM prm, FIO fio) {
+    PRM_NODE *pn;
+
+    /* We really shouldn't know about this structure, but what can you do? */
+    for( pn=prm->pnHead; pn!=NULL; pn=pn->pnNext ) {
+	assert(pn->pValue);
+	switch (pn->iType) {
+	case 0:
+	case 1:
+	    assert(pn->iSize == sizeof(int));
+	    fioSetAttr(fio,pn->pszName,FIO_TYPE_INT,pn->pValue);
+	    break;
+	case 2:
+	    assert(pn->iSize == sizeof(double));
+	    fioSetAttr(fio,pn->pszName,FIO_TYPE_DOUBLE,pn->pValue);
+	    break;
+	case 3:
+	    fioSetAttr(fio,pn->pszName,FIO_TYPE_STRING,pn->pValue);
+	    break;
+	case 4:
+	    assert(pn->iSize == sizeof(uint64_t));
+	    fioSetAttr(fio,pn->pszName,FIO_TYPE_UINT64,pn->pValue);
+	    break;
+	    }
+	}
+    }
+
+/*
 ** If there was a parameter file specified, then parse it the "old"
 ** way without using python.  We keep this around in case python is
 ** not available or uses too much memory.

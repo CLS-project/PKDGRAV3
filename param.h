@@ -1,6 +1,8 @@
 #ifndef PARAM_HINCLUDED
 #define PARAM_HINCLUDED
 
+#include "fio.h"
+
 typedef struct prmNode {
     struct prmNode *pnNext;
     char *pszName;
@@ -28,6 +30,7 @@ void prmInitialize(PRM *,void (*)(void),void (*)(void));
 void prmFinish(PRM);
 void prmAddParam(PRM,char *,int,void *,int,char *,char *);
 void prmArgUsage(PRM prm);
+void prmSave(PRM prm, FIO fio);
 int prmParseParam(PRM);
 int prmArgProc(PRM,int,char **);
 int prmSpecified(PRM,char *);

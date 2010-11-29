@@ -23,7 +23,7 @@
 #define CHUNKSIZE (32*1024)
 #define MINVALUE (-1e20)
 
-static void makeName( IO io, char *achOutName, const char *inName, int iIndex ) {
+static void makeName( char *achOutName, const char *inName, int iIndex ) {
     char *p;
 
     strcpy( achOutName, inName );
@@ -38,30 +38,6 @@ static void makeName( IO io, char *achOutName, const char *inName, int iIndex ) 
 	sprintf(p,".%03d", iIndex);
 	}
     }
-
-
-#ifdef USE_HDF5
-/* Create an HDF5 file for output */
-hid_t ioCreate( const char *filename ) {
-    hid_t fileID;
-
-    /* Create the output file */
-    fileID = H5Fcreate( filename, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT );
-    H5assert(fileID);
-
-    return fileID;
-    }
-
-hid_t ioOpen( const char *filename ) {
-    hid_t fileID;
-
-    /* Create the output file */
-    fileID = H5Fopen( filename, H5F_ACC_RDONLY, H5P_DEFAULT );
-    H5assert(fileID);
-
-    return fileID;
-    }
-#endif
 
 static void writeToFIO(IO io, FIO fio) {
     local_t i;
@@ -387,7 +363,7 @@ void ioStartRecv(IO io,void *vin,int nIn,void *vout,int *pnOut) {
     mdlRecv(io->mdl,-1,ioUnpackIO,io);
     mdlSetComm(io->mdl,0);
 
-    makeName( io, achOutName, recv->achOutName, mdlSelf(io->mdl) );
+    makeName( achOutName, recv->achOutName, mdlSelf(io->mdl) );
 
     ioSave(io, achOutName, recv->N, recv->dTime, recv->dEcosmo,
 	   recv->dTimeOld, recv->dUOld, recv->bCheckpoint,
@@ -437,7 +413,7 @@ void ioMakePNG(IO io,void *vin,int nIn,void *vout,int *pnOut) {
 	    mdlReduce(io->mdl,limg+Is,slice,Ss,MDL_FLOAT,MDL_MAX,0);
 	    memcpy(limg+Is,slice,Ss*sizeof(float));
 	    }
-	makeName( io, achOutName, make->achOutName, mdlSelf(io->mdl) );
+	makeName( achOutName, make->achOutName, mdlSelf(io->mdl) );
 	sprintf(achOutName+strlen(achOutName),"-%.1f.png", make->scale );
 	fp = fopen( achOutName, "wb" );
 	if ( fp != NULL ) {
