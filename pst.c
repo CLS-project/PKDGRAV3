@@ -4280,9 +4280,10 @@ void pstMemStatus(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 		}
 	    }
 #endif
-	out[id].nBytesCl = pkdClMemory(plcl->pkd);
-	out[id].nBytesIlp = pkdIlpMemory(plcl->pkd);
-	out[id].nBytesIlc = pkdIlcMemory(plcl->pkd);
+	out[id].nBytesTree = pkdTreeMemory(plcl->pkd);
+	out[id].nBytesCl   = pkdClMemory(plcl->pkd);
+	out[id].nBytesIlp  = pkdIlpMemory(plcl->pkd);
+	out[id].nBytesIlc  = pkdIlcMemory(plcl->pkd);
 
 	}
     if (pnOut) *pnOut = nThreads*sizeof(struct outMemStatus);

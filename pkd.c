@@ -655,6 +655,10 @@ size_t pkdIlcMemory(PKD pkd) {
     return ilcMemory(pkd->ilc);
     }
 
+size_t pkdTreeMemory(PKD pkd) {
+    return pkd->nTreeTiles * (1<<pkd->nTreeBitsLo) * pkd->iTreeNodeSize;
+    }
+
 static void getClass( PKD pkd, float fMass, float fSoft, FIO_SPECIES eSpecies, PARTICLE *p ) {
     int i;
 

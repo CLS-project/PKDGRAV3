@@ -1212,7 +1212,7 @@ void msrLogParams(MSR msr,FILE *fp) {
     fprintf(fp,"\n# N: %"PRIu64,msr->N);
     fprintf(fp," ngas: %"PRIu64,msr->nGas);
     fprintf(fp," nstar: %"PRIu64,msr->nStar);
-    fprintf(fp," nThreads: %d",msr->param.nThreads);
+    fprintf(fp," nThreads: %d",msr->nThreads);
     fprintf(fp," bDiag: %d",msr->param.bDiag);
     fprintf(fp," Verbosity flags: (%d,%d,%d,%d,%d)",msr->param.bVWarnings,
 	    msr->param.bVStart,msr->param.bVStep,msr->param.bVRungStat,
@@ -1955,7 +1955,6 @@ void msrAllNodeWrite(MSR msr, const char *pszFileName, double dTime, double dvFa
 	makeName(in.achOutFile,achOutFile,i);
 	L = msr->nThreads * i / nProcessors;
 	U = msr->nThreads * (i+1) / nProcessors;
-	printf("%d: %d to %d (%d)\n", i, L, U-1, U-L);
 	in.iIndex = i;
 	in.nProcessors = U - L;
 	mdlReqService(pst0->mdl,L,PST_WRITE,&in,sizeof(in));
@@ -1969,7 +1968,6 @@ void msrAllNodeWrite(MSR msr, const char *pszFileName, double dTime, double dvFa
 
     L = 0;
     U = msr->nThreads / nProcessors;
-    printf("%d: %d to %d (%d)\n", 0, L, U-1, U-L);
     in.iIndex = 0;
     in.nProcessors = U - L;
     pstWrite(msr->pst,&in,sizeof(in),NULL,NULL);
@@ -2805,6 +2803,8 @@ void msrMemStatus(MSR msr) {
     printf("Major faults:\n");
     PRINTGRID(8,"%8"PRIu64,majflt);
 #endif
+    printf("Tree size (MB):\n");
+    PRINTGRID(8,"%8"PRIu64,nBytesTree/1024/1024);
     printf("Checklist size (MB):\n");
     PRINTGRID(8,"%8"PRIu64,nBytesCl/1024/1024);
     printf("Particle List size (MB):\n");

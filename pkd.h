@@ -1039,6 +1039,7 @@ size_t pkdClCount(PKD pkd);
 size_t pkdClMemory(PKD pkd);
 size_t pkdIlcMemory(PKD pkd);
 size_t pkdIlpMemory(PKD pkd);
+size_t pkdTreeMemory(PKD pkd);
 void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double dTuFac);
 #ifdef USE_MDL_IO
 void pkdIOInitialize( PKD pkd, int nLocal);
