@@ -2267,9 +2267,24 @@ static void hdf5CloseOne(fioHDF5 *hio) {
 static int hdf5Seek(FIO fio,uint64_t iPart,FIO_SPECIES eSpecies) {
     fioHDF5 *hio = (fioHDF5 *)fio;
     IOBASE *base;
-    int i;
+    int i, iFile;
 
     assert(fio->eFormat == FIO_FORMAT_HDF5);
+
+    /* First identify the correct file */
+    for(iFile=0; iFile<fio->fileList.nFiles; ++iFile) {
+	if (iPart>=fio->fileList.fileInfo[iFile].nSpecies[eSpecies])
+	    iPart -= fio->fileList.fileInfo[iFile].nSpecies[eSpecies];
+	else
+	    break;
+	}
+
+    /* Open the proper file if necessary */
+    if (iFile!=fio->fileList.iFile) {
+	hdf5CloseOne(hio);
+	hdf5OpenOne(hio,iFile);
+	}
+
     if (eSpecies==FIO_SPECIES_ALL) {
 	for( i=1; i<FIO_SPECIES_LAST; i++) {
 	    base = &hio->base[i];
