@@ -409,7 +409,6 @@ struct inWrite {
     uint64_t nSph;
     uint64_t nDark;
     uint64_t nStar;
-    int bDoublePos;
     int bStandard;
     int iIndex;
     int nProcessors;

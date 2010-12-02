@@ -1891,7 +1891,7 @@ static void makeName( char *achOutName, const char *inName, int iIndex ) {
 ** Main problem is that it calls pkd level routines, bypassing the
 ** pst level. It uses plcl pointer which is not desirable.
 */
-void msrAllNodeWrite(MSR msr, const char *pszFileName, double dTime, double dvFac) {
+void msrAllNodeWrite(MSR msr, const char *pszFileName, double dTime, double dvFac, int bDouble) {
     int i, nProcessors;
     int L, U;
     PST pst0;
@@ -1915,7 +1915,6 @@ void msrAllNodeWrite(MSR msr, const char *pszFileName, double dTime, double dvFa
     _msrMakePath(plcl->pszDataPath,in.achOutFile,achOutFile);
 
     in.bStandard = msr->param.bStandard;
-    in.bDoublePos = msr->param.bDoublePos;
     /*
     ** If bParaWrite is 0, then we write serially; if it is 1, then we write
     ** in parallel using all available threads, otherwise we write in parallel
@@ -1944,7 +1943,7 @@ void msrAllNodeWrite(MSR msr, const char *pszFileName, double dTime, double dvFa
 
     in.bHDF5 = msr->param.bHDF5;
     in.mFlags = FIO_FLAG_POTENTIAL
-	| (msr->param.bDoublePos?FIO_FLAG_CHECKPOINT:0)
+	| ((bDouble||msr->param.bDoublePos)?FIO_FLAG_CHECKPOINT:0)
 	| (msr->param.bMemMass?0:FIO_FLAG_COMPRESS_MASS)
 	| (msr->param.bMemSoft?0:FIO_FLAG_COMPRESS_SOFT);
 
@@ -2099,7 +2098,7 @@ void _msrWriteTipsy(MSR msr,const char *pszFileName,double dTime,int bCheckpoint
 //	    _msrExit(msr,1);
 //	    }
 
-	msrAllNodeWrite(msr,in.achOutFile, dTime, in.dvFac);
+	msrAllNodeWrite(msr,in.achOutFile, dTime, in.dvFac, bCheckpoint);
 //	}
 
     msrprintf(msr,"Output file has been successfully written.\n");

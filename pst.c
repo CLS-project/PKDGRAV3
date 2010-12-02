@@ -2430,7 +2430,7 @@ void pstWrite(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	    }
 	}
     else {
-	fio = fioTipsyCreatePart(in->achOutFile,0,in->bDoublePos,in->bStandard, in->dTime, 
+	fio = fioTipsyCreatePart(in->achOutFile,0,in->mFlags&FIO_FLAG_CHECKPOINT,in->bStandard, in->dTime, 
 				 in->nSph, in->nDark, in->nStar, plcl->nWriteStart);
 	if (fio) {
 	    fioSeek(fio,plcl->nWriteStart,FIO_SPECIES_ALL);
