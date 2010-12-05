@@ -405,7 +405,9 @@ static inline void *mdlAquire(MDL mdl,int cid,int iIndex,int id) {
     /*
      ** Determine memory block key value and cache line.
      */
-    iKey = ((iIndex&MDL_INDEX_MASK) << c->iKeyShift)| id;
+    iKey = iIndex & MDL_INDEX_MASK;
+    iKey <<= c->iKeyShift;
+    iKey |= id;
     i = c->pTrans[iKey & c->iTransMask];
     /*
      ** Check for a match!
