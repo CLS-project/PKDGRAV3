@@ -1603,8 +1603,8 @@ void msrOneNodeRead(MSR msr, struct inReadFile *in) {
      * Now read our own particles.
      */
     pkdReadFIO(plcl->pkd, fio, 0, nParts[0], in->dvFac, in->dTuFac);
-
     fioClose(fio);
+    free(nParts);
     }
 
 double getTime(MSR msr, double dExpansion, double *dvFac) {
@@ -2786,6 +2786,7 @@ void msrHostname(MSR msr) {
     PRINTGRID(12,"%12.12s",szHostname);
     printf("MPI Rank:\n");
     PRINTGRID(8,"% 8d",iMpiID);
+    free(out);
     }
 
 void msrMemStatus(MSR msr) {
@@ -2810,6 +2811,7 @@ void msrMemStatus(MSR msr) {
     PRINTGRID(8,"%8"PRIu64,nBytesIlp/1024/1024);
     printf("Cell List size (MB):\n");
     PRINTGRID(8,"%8"PRIu64,nBytesIlc/1204/1024);
+    free(out);
     }
 
 void msrGravity(MSR msr,uint8_t uRungLo, uint8_t uRungHi, double dTime,
@@ -4704,6 +4706,7 @@ msrOneNodeReadSS(MSR msr,struct inReadSS *in) {
      * Now read our own particles.
      */
     pkdReadSS(plcl->pkd,achInFile,0,nParts[0]);
+    free(nParts);
     }
 
 double
