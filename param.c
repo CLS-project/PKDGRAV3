@@ -232,7 +232,9 @@ int prmParseParam(PRM prm) {
 	    while (--q >= p) if (!isspace((int) *q)) break;
 	    if ( *q=='"' && *p=='"' && p != q) {
 		*q = 0;
-		strcpy(p,p+1);
+		do {
+		    p[0] = p[1];
+		} while(*++p);
 		}
 	    else {
 		*++q = 0;

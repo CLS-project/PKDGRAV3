@@ -279,9 +279,6 @@ void pkdInitialize(
     pkd->nDark = nDark;
     pkd->nGas = nGas;
     pkd->nStar = nStar;
-/*    pkd->nMaxOrderGas = nGas;
-    pkd->nMaxOrderDark = nGas + nDark;
-    pkd->nMaxOrder = nGas+nDark+nStar;  JW: Deprecate this: Probably wrong if Order in input file */
     pkd->nRejects = 0;
     for (j=0;j<3;++j) {
 	pkd->fPeriod[j] = fPeriod[j];
@@ -624,6 +621,7 @@ void pkdFinish(PKD pkd) {
 	}
     }
     mdlFree(pkd->mdl,pkd->pStorePRIVATE);
+    free(pkd->pTempPRIVATE);
     free(pkd->pLite);
     free(pkd->piActive);
     free(pkd->piInactive);
@@ -928,11 +926,11 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
 	    pSph->vPred[2] = v[2]*dvFac; /* density, divv, BalsaraSwitch, c set in smooth */
 	    break;
 	case FIO_SPECIES_DARK:
-	    fioReadDark(fio,&iOrder,p->r,v,&fMass,&fSoft,pPot);
+	    fioReadDark(fio,&iOrder,p->r,v,&fMass,&fSoft,pPot,&p->fDensity);
 	    break;
 	case FIO_SPECIES_STAR:
 	    assert(pStar && pSph);
-	    fioReadStar(fio,&iOrder,p->r,v,&fMass,&fSoft,pPot,
+	    fioReadStar(fio,&iOrder,p->r,v,&fMass,&fSoft,pPot,&p->fDensity,
 			&pSph->fMetals,&pStar->fTimer);
 	    pSph->vPred[0] = v[0]*dvFac;
 	    pSph->vPred[1] = v[1]*dvFac;
@@ -1814,11 +1812,11 @@ uint32_t pkdWriteFIO(PKD pkd,FIO fio,double dvFac) {
 		}
 	    break;
 	case FIO_SPECIES_DARK:
-	    fioWriteDark(fio,iOrder,p->r,v,fMass,fSoft,*pPot);
+	    fioWriteDark(fio,iOrder,p->r,v,fMass,fSoft,*pPot,p->fDensity);
 	    break;
 	case FIO_SPECIES_STAR:
 	    assert(pStar && pSph);
-	    fioWriteStar(fio,iOrder,p->r,v,fMass,fSoft,*pPot,
+	    fioWriteStar(fio,iOrder,p->r,v,fMass,fSoft,*pPot,p->fDensity,
 		       pSph->fMetals,pStar->fTimer);
 	    break;
 	default:
@@ -3228,34 +3226,28 @@ pkdGetNParts(PKD pkd, struct outGetNParts *out )
     int nGas;
     int nDark;
     int nStar;
-    int iMaxOrderGas;
-    int iMaxOrderDark;
-    int iMaxOrderStar;
-    int iOrder;
+    total_t iMaxOrder;
+    total_t iOrder;
     PARTICLE *p;
     
     n = 0;
     nGas = 0;
     nDark = 0;
     nStar = 0;
-    iMaxOrderGas = -1;
-    iMaxOrderDark = -1;
-    iMaxOrderStar = -1;
+    iMaxOrder = 0;
     for(pi = 0; pi < pkdLocal(pkd); pi++) {
 	p = pkdParticle(pkd,pi);
 	iOrder = p->iOrder;
+	if (iOrder>iMaxOrder) iMaxOrder = iOrder;
 	n++;
 	if(pkdIsGas(pkd, p)) {
 	    ++nGas;
-	    if (iOrder > iMaxOrderGas) iMaxOrderGas = iOrder;
 	    }
 	else if(pkdIsDark(pkd, p)) {
 	    ++nDark;
-	    if (iOrder > iMaxOrderDark) iMaxOrderDark = iOrder;
 	    }
 	else if(pkdIsStar(pkd, p)) {
 	    ++nStar;
-	    if (iOrder > iMaxOrderStar) iMaxOrderStar = iOrder;
 	    }
 	}
     
@@ -3263,21 +3255,14 @@ pkdGetNParts(PKD pkd, struct outGetNParts *out )
     out->nGas = nGas;
     out->nDark = nDark;
     out->nStar = nStar;
-    out->iMaxOrderGas = iMaxOrderGas;
-    out->iMaxOrderDark = iMaxOrderDark;
-    out->iMaxOrderStar = iMaxOrderStar;
+    out->nMaxOrder = iMaxOrder;
 }
 
 
-void pkdSetNParts(PKD pkd,int nGas,int nDark,int nStar,int nMaxOrderGas,
-		  int nMaxOrderDark, int nMaxOrder) {
+void pkdSetNParts(PKD pkd,int nGas,int nDark,int nStar) {
     pkd->nGas = nGas;
     pkd->nDark = nDark;
     pkd->nStar = nStar;
-/* JW: Depr.
-    pkd->nMaxOrder = nMaxOrder;
-    pkd->nMaxOrderGas = nMaxOrderGas;
-    pkd->nMaxOrderDark = nMaxOrderDark;*/
     }
 
 

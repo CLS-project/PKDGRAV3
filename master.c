@@ -804,6 +804,8 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
 		"<SF Use div v for star formation> = 1");
     /* END Gas/Star Parameters */
 
+    msr->param.bAccelStep = 0;
+
     /*
     ** Set the box center to (0,0,0) for now!
     */
@@ -1750,8 +1752,6 @@ double msrGenerateIC(MSR msr) {
     msr->nStar = 0;
     msr->N = msr->nDark+msr->nGas+msr->nStar;
     msr->nMaxOrder = msr->N;
-    msr->nMaxOrderGas = msr->nGas;
-    msr->nMaxOrderDark = msr->nGas + msr->nDark;
 
     if (msr->param.bVStart)
 	printf("Generating IC...\nN:%"PRIu64" nDark:%"PRIu64
@@ -1942,7 +1942,7 @@ void msrAllNodeWrite(MSR msr, const char *pszFileName, double dTime, double dvFa
     in.nStar = msr->nStar;
 
     in.bHDF5 = msr->param.bHDF5;
-    in.mFlags = FIO_FLAG_POTENTIAL
+    in.mFlags = FIO_FLAG_POTENTIAL | FIO_FLAG_DENSITY
 	| ((bDouble||msr->param.bDoublePos)?FIO_FLAG_CHECKPOINT:0)
 	| (msr->param.bMemMass?0:FIO_FLAG_COMPRESS_MASS)
 	| (msr->param.bMemSoft?0:FIO_FLAG_COMPRESS_SOFT);
@@ -4220,15 +4220,11 @@ void msrGetNParts(MSR msr) { /* JW: Not pretty -- may be better way via fio */
     struct outGetNParts outget;
 
     pstGetNParts(msr->pst,NULL,0,&outget,NULL);
-    if (outget.iMaxOrderGas == -1) outget.iMaxOrderGas = 0;
-    if (outget.iMaxOrderDark == -1) outget.iMaxOrderDark = outget.iMaxOrderGas;
-    if (outget.iMaxOrderStar == -1) outget.iMaxOrderStar = outget.iMaxOrderDark;
     assert(outget.nGas == msr->nGas);
     assert(outget.nDark == msr->nDark);
     assert(outget.nStar == msr->nStar);
-    msr->nMaxOrderGas = outget.iMaxOrderGas;
-    msr->nMaxOrderDark = outget.iMaxOrderDark;
-    msr->nMaxOrder = outget.iMaxOrderStar;
+    msr->nMaxOrder = outget.nMaxOrder;
+#if 0
     if (outget.iMaxOrderGas > msr->nMaxOrder) {
 	msr->nMaxOrder = outget.iMaxOrderGas;
 	fprintf(stderr,"WARNING: Largest iOrder of gas > Largest iOrder of star\n");
@@ -4237,6 +4233,7 @@ void msrGetNParts(MSR msr) { /* JW: Not pretty -- may be better way via fio */
 	msr->nMaxOrder = outget.iMaxOrderDark;
 	fprintf(stderr,"WARNING: Largest iOrder of dark > Largest iOrder of star\n");
 	}
+#endif
     }
 
 void
@@ -4289,9 +4286,6 @@ msrAddDelParticles(MSR msr) {
     in.nGas = msr->nGas;
     in.nDark = msr->nDark;
     in.nStar = msr->nStar;
-    in.nMaxOrderGas = msr->nMaxOrderGas;
-    in.nMaxOrderDark = msr->nMaxOrderDark;
-    in.nMaxOrder = msr->nMaxOrder;
     pstSetNParts(msr->pst,&in,sizeof(in),NULL,NULL);
 
 #ifdef PLANETS
@@ -4754,8 +4748,6 @@ msrReadSS(MSR msr) {
     msr->N = msr->nDark = head.n_data;
     msr->nGas = msr->nStar = 0;
     msr->nMaxOrder = msr->N;
-    msr->nMaxOrderGas = msr->nGas; /* NOW ALWAYS ZERO : was always -1 */
-    msr->nMaxOrderDark = msr->nDark;
     msr->nPlanets = head.n_planets;
     msr->dEcoll = head.dEcoll;
     msr->dSunMass = head.dSunMass;
@@ -5418,6 +5410,8 @@ double msrRead(MSR msr, const char *achInFile) {
     msr->nGas  = fioGetN(fio,FIO_SPECIES_SPH);
     msr->nDark = fioGetN(fio,FIO_SPECIES_DARK);
     msr->nStar = fioGetN(fio,FIO_SPECIES_STAR);
+
+    msr->nMaxOrder = msr->N;
 
     dTime = getTime(msr,dExpansion,&read.dvFac);
     read.dTuFac = msr->param.dTuFac;

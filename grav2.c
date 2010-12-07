@@ -117,6 +117,9 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,FLOCR *
 
     pkdNodeBnd(pkd, pkdn, &bnd);
 
+
+    normsum = dirsum = maga = 0.0;
+
     /*
     ** Now process the two interaction lists for each active particle.
     */

@@ -79,6 +79,7 @@ ILPTILE ilpClear(ILP ilp) {
     ilp->nPrevious = 0;
     assert( ilp->tile != NULL );
     ilp->tile->nPart = 0;
+    ilp->cx = ilp->cy = ilp->cz = 0.0;
     return ilp->tile;
     }
 

@@ -47,7 +47,7 @@ static void writeToFIO(IO io, FIO fio) {
 		     io->r[i].v, io->v[i].v,
 		     io->ioClasses[io->vClass[i]].dMass,
 		     io->ioClasses[io->vClass[i]].dSoft,
-		     io->p[i] );
+		     io->p[i], io->d[i] );
 	}
     }
 

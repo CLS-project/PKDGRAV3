@@ -37,8 +37,6 @@ typedef struct msrContext {
     uint64_t nGas;
     uint64_t nStar;
     uint64_t nMaxOrder;		/* Order number of last particle */
-    uint64_t nMaxOrderGas;
-    uint64_t nMaxOrderDark;
     int iCurrMaxRung;
     double dThetaMin;
     double dThetaMax;

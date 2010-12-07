@@ -581,8 +581,8 @@ void pkdOutGroup(PKD pkd,char *pszFileName,int iType, int nStart,double dvFac) {
 		    v[j] = dvFac*pkd->groupData[i].v[j];
 		    }
 		fioWriteStar(fio,i,pkd->groupData[i].r,v,
-		    pkd->groupData[i].fMass,pkd->groupData[i].fRMSRadius,
-		    0.0, 0.0, 0.0);
+			     pkd->groupData[i].fMass,pkd->groupData[i].fRMSRadius,
+			     0.0, 0.0, 0.0, 0.0);
 		}
 	    }
 	fioClose(fio);

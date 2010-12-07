@@ -192,6 +192,13 @@ static void fioFree(FIO fio) {
 	}
     }
 
+static void fileScanFree(fioFileList *list) {
+    if (list->fileInfo) {
+	free(list->fileInfo[0].pszFilename);
+	free(list->fileInfo);
+	}
+    }
+
 /*
 ** Given a list of one or more files, this function will expand any wildcards
 ** present (if possible) and return a complete list of matching files.
@@ -280,7 +287,7 @@ static int fileScan( fioFileList *list, int nFiles, const char * const *szFilena
 
 static int  fioNoReadDark(
     struct fioInfo *fio,uint64_t *piOrder,double *pdPos,double *pdVel,
-    float *pfMass,float *pfSoft,float *pfPot) {
+    float *pfMass,float *pfSoft,float *pfPot,float *pfDen) {
     fprintf(stderr,"Reading dark particles is not supported\n");
     abort();
     return 0;
@@ -288,8 +295,8 @@ static int  fioNoReadDark(
 
 static int fioNoReadSph(
     struct fioInfo *fio,uint64_t *piOrder,double *pdPos,double *pdVel,
-    float *pfMass,float *pfSoft, float *pfPot,
-    float *pfRho,float *pfTemp, float *pfMetals) {
+    float *pfMass,float *pfSoft, float *pfPot,float *pfDen,
+    float *pfTemp, float *pfMetals) {
     fprintf(stderr,"Reading SPH particles is not supported\n");
     abort();
     return 0;
@@ -297,7 +304,7 @@ static int fioNoReadSph(
 
 static int fioNoReadStar(
     struct fioInfo *fio,uint64_t *piOrder,double *pdPos,double *pdVel,
-    float *pfMass,float *pfSoft,float *pfPot,float *pfMetals, float *pfTform) {
+    float *pfMass,float *pfSoft,float *pfPot,float *pfDen,float *pfMetals, float *pfTform) {
     fprintf(stderr,"Reading star particles is not supported\n");
     abort();
     return 0;
@@ -305,7 +312,7 @@ static int fioNoReadStar(
 
 static int  fioNoWriteDark(
     struct fioInfo *fio,uint64_t iOrder,const double *pdPos,const double *pdVel,
-    float fMass,float fSoft,float fPot) {
+    float fMass,float fSoft,float fPot,float fDen) {
     fprintf(stderr,"Writing dark particles is not supported\n");
     abort();
     return 0;
@@ -313,8 +320,8 @@ static int  fioNoWriteDark(
 
 static int fioNoWriteSph(
     struct fioInfo *fio,uint64_t iOrder,const double *pdPos,const double *pdVel,
-    float fMass,float fSoft,float fPot,
-    float fRho,float fTemp,float fMetals) {
+    float fMass,float fSoft,float fPot,float fDen,
+    float fTemp,float fMetals) {
     fprintf(stderr,"Writing SPH particles is not supported\n");
     abort();
     return 0;
@@ -322,7 +329,7 @@ static int fioNoWriteSph(
 
 static int fioNoWriteStar(
     struct fioInfo *fio,uint64_t iOrder,const double *pdPos,const double *pdVel,
-    float fMass,float fSoft,float fPot,float fMetals,float fTform) {
+    float fMass,float fSoft,float fPot,float fDen,float fMetals,float fTform) {
     fprintf(stderr,"Writing star particles is not supported\n");
     abort();
     return 0;
@@ -544,7 +551,7 @@ static int tipsySwitchFile(FIO fio) {
 /* DARK PARTICLES */
 static int tipsyReadNativeDark(FIO fio,
     uint64_t *piOrder,double *pdPos,double *pdVel,
-    float *pfMass,float *pfSoft,float *pfPot) {
+    float *pfMass,float *pfSoft,float *pfPot,float *pfDen) {
     fioTipsy *tio = (fioTipsy *)fio;
     int rc;
     int d;
@@ -571,12 +578,13 @@ static int tipsyReadNativeDark(FIO fio,
 	}
     rc = fread(pfSoft,sizeof(float),1,tio->fp); if (rc!=1) return 0;
     rc = fread(pfPot,sizeof(float),1,tio->fp); if (rc!=1) return 0;
+    *pfDen = 0.0f;
     return 1;
     }
 
 static int tipsyWriteNativeDark(FIO fio,
     uint64_t iOrder,const double *pdPos,const double *pdVel,
-    float fMass,float fSoft,float fPot) {
+    float fMass,float fSoft,float fPot,float fDen) {
     fioTipsy *tio = (fioTipsy *)fio;
     int rc;
     int d;
@@ -606,7 +614,7 @@ static int tipsyWriteNativeDark(FIO fio,
 
 static int tipsyReadStandardDark(FIO fio,
     uint64_t *piOrder,double *pdPos,double *pdVel,
-    float *pfMass,float *pfSoft,float *pfPot) {
+    float *pfMass,float *pfSoft,float *pfPot,float *pfDen) {
     fioTipsy *tio = (fioTipsy *)fio;
     int d;
     float fTmp;
@@ -635,12 +643,13 @@ static int tipsyReadStandardDark(FIO fio,
 	}
     if (!xdr_float(&tio->xdr,pfSoft)) return 0;
     if (!xdr_float(&tio->xdr,pfPot)) return 0;
+    *pfDen = 0.0f;
     return 1;
     }
 
 static int tipsyWriteStandardDark(FIO fio,
     uint64_t iOrder,const double *pdPos,const double *pdVel,
-    float fMass,float fSoft,float fPot) {
+    float fMass,float fSoft,float fPot,float fDen) {
     fioTipsy *tio = (fioTipsy *)fio;
     int d;
     float fTmp;
@@ -673,8 +682,8 @@ static int tipsyWriteStandardDark(FIO fio,
 /* SPH PARTICLES */
 static int tipsyReadNativeSph(
     FIO fio,uint64_t *piOrder,double *pdPos,double *pdVel,
-    float *pfMass,float *pfSoft, float *pfPot,
-    float *pfRho,float *pfTemp, float *pfMetals) {
+    float *pfMass,float *pfSoft, float *pfPot,float *pfDen,
+    float *pfTemp, float *pfMetals) {
     fioTipsy *tio = (fioTipsy *)fio;
     int rc;
     int d;
@@ -698,7 +707,7 @@ static int tipsyReadNativeSph(
 	rc = fread(fTmp,sizeof(float),3,tio->fp); if (rc!=3) return 0;
 	for(d=0;d<3;d++) pdVel[d] = fTmp[d];
 	}
-    rc = fread(pfRho,sizeof(float),1,tio->fp); if (rc!=1) return 0;
+    rc = fread(pfDen,sizeof(float),1,tio->fp); if (rc!=1) return 0;
     rc = fread(pfTemp,sizeof(float),1,tio->fp); if (rc!=1) return 0;
     rc = fread(pfSoft,sizeof(float),1,tio->fp); if (rc!=1) return 0;
     rc = fread(pfMetals,sizeof(float),1,tio->fp); if (rc!=1) return 0;
@@ -709,8 +718,8 @@ static int tipsyReadNativeSph(
 
 static int tipsyWriteNativeSph(
     struct fioInfo *fio,uint64_t iOrder,const double *pdPos,const double *pdVel,
-    float fMass,float fSoft,float fPot,
-    float fRho,float fTemp,float fMetals) {
+    float fMass,float fSoft,float fPot,float fDen,
+    float fTemp,float fMetals) {
     fioTipsy *tio = (fioTipsy *)fio;
     int rc;
     int d;
@@ -734,7 +743,7 @@ static int tipsyWriteNativeSph(
 	for(d=0;d<3;d++) fTmp[d] = pdVel[d];
 	rc = fwrite(fTmp,sizeof(float),3,tio->fp); if (rc!=3) return 0;
 	}
-    rc = fwrite(&fRho,sizeof(float),1,tio->fp); if (rc!=1) return 0;
+    rc = fwrite(&fDen,sizeof(float),1,tio->fp); if (rc!=1) return 0;
     rc = fwrite(&fTemp,sizeof(float),1,tio->fp); if (rc!=1) return 0;
     rc = fwrite(&fSoft,sizeof(float),1,tio->fp); if (rc!=1) return 0;
     rc = fwrite(&fMetals,sizeof(float),1,tio->fp); if (rc!=1) return 0;
@@ -744,8 +753,8 @@ static int tipsyWriteNativeSph(
 
 static int tipsyReadStandardSph(
     FIO fio,uint64_t *piOrder,double *pdPos,double *pdVel,
-    float *pfMass,float *pfSoft, float *pfPot,
-    float *pfRho, float *pfTemp, float *pfMetals) {
+    float *pfMass,float *pfSoft, float *pfPot,float *pfDen,
+    float *pfTemp, float *pfMetals) {
     fioTipsy *tio = (fioTipsy *)fio;
     int d;
     float fTmp;
@@ -772,7 +781,7 @@ static int tipsyReadStandardSph(
 	    pdVel[d] = fTmp;
 	    }
 	}
-    if (!xdr_float(&tio->xdr,pfRho)) return 0;
+    if (!xdr_float(&tio->xdr,pfDen)) return 0;
     if (!xdr_float(&tio->xdr,pfTemp)) return 0;
     if (!xdr_float(&tio->xdr,pfSoft)) return 0;
     if (!xdr_float(&tio->xdr,pfMetals)) return 0;
@@ -782,8 +791,8 @@ static int tipsyReadStandardSph(
 
 static int tipsyWriteStandardSph(
     struct fioInfo *fio,uint64_t iOrder,const double *pdPos,const double *pdVel,
-    float fMass,float fSoft,float fPot,
-    float fRho,float fTemp,float fMetals) {
+    float fMass,float fSoft,float fPot,float fDen,
+    float fTemp,float fMetals) {
     fioTipsy *tio = (fioTipsy *)fio;
     int d;
     float fTmp;
@@ -813,7 +822,7 @@ static int tipsyWriteStandardSph(
 	    if (!xdr_float(&tio->xdr,&fTmp)) return 0;
 	    }
 	}
-    if (!xdr_float(&tio->xdr,&fRho)) return 0;
+    if (!xdr_float(&tio->xdr,&fDen)) return 0;
     if (!xdr_float(&tio->xdr,&fTemp)) return 0;
     if (!xdr_float(&tio->xdr,&fSoft)) return 0;
     if (!xdr_float(&tio->xdr,&fMetals)) return 0;
@@ -824,7 +833,7 @@ static int tipsyWriteStandardSph(
 /* STAR PARTICLES */
 static int tipsyReadNativeStar(
     FIO fio,uint64_t *piOrder,double *pdPos,double *pdVel,
-    float *pfMass,float *pfSoft,float *pfPot,
+    float *pfMass,float *pfSoft,float *pfPot,float *pfDen,
     float *pfMetals, float *pfTform) {
     fioTipsy *tio = (fioTipsy *)fio;
     int rc;
@@ -853,12 +862,13 @@ static int tipsyReadNativeStar(
     rc = fread(pfTform,sizeof(float),1,tio->fp); if (rc!=1) return 0;
     rc = fread(pfSoft,sizeof(float),1,tio->fp); if (rc!=1) return 0;
     rc = fread(pfPot,sizeof(float),1,tio->fp); if (rc!=1) return 0;
+    *pfDen = 0.0f;
     return 1;
     }
 
 static int tipsyWriteNativeStar(
     struct fioInfo *fio,uint64_t iOrder,const double *pdPos,const double *pdVel,
-    float fMass,float fSoft,float fPot,float fMetals,float fTform) {
+    float fMass,float fSoft,float fPot,float fDen,float fMetals,float fTform) {
     fioTipsy *tio = (fioTipsy *)fio;
     int rc;
     int d;
@@ -890,7 +900,7 @@ static int tipsyWriteNativeStar(
 
 static int tipsyReadStandardStar(
     FIO fio,uint64_t *piOrder,double *pdPos,double *pdVel,
-    float *pfMass,float *pfSoft,float *pfPot,
+    float *pfMass,float *pfSoft,float *pfPot,float *pfDen,
     float *pfMetals, float *pfTform) {
     fioTipsy *tio = (fioTipsy *)fio;
     int d;
@@ -922,12 +932,13 @@ static int tipsyReadStandardStar(
     if (!xdr_float(&tio->xdr,pfTform)) return 0;
     if (!xdr_float(&tio->xdr,pfSoft)) return 0;
     if (!xdr_float(&tio->xdr,pfPot)) return 0;
+    *pfDen = 0.0f;
     return 1;
     }
 
 static int tipsyWriteStandardStar(
     struct fioInfo *fio,uint64_t iOrder,const double *pdPos,const double *pdVel,
-    float fMass,float fSoft,float fPot,float fMetals,float fTform) {
+    float fMass,float fSoft,float fPot,float fDen,float fMetals,float fTform) {
     fioTipsy *tio = (fioTipsy *)fio;
     int d;
     float fTmp;
@@ -968,6 +979,7 @@ static void tipsyCloseNative(FIO fio) {
     assert(fio->eFormat == FIO_FORMAT_TIPSY);
     fclose(tio->fp);
     if (tio->fpBuffer) free(tio->fpBuffer);
+    fileScanFree(&fio->fileList);
     free(tio);
     }
 
@@ -1693,7 +1705,8 @@ static void writeSet(
 #define DARK_POSITION    0
 #define DARK_VELOCITY    1
 #define DARK_POTENTIAL   2
-#define DARK_N           3
+#define DARK_DENSITY     3
+#define DARK_N           4
 
 #define SPH_POSITION    0
 #define SPH_VELOCITY    1
@@ -2216,6 +2229,8 @@ static int hdf5OpenOne(fioHDF5 *hio, int iFile) {
 			   FIELD_VELOCITY, H5T_NATIVE_DOUBLE,3 );
 		field_open(&base->fldFields[DARK_POTENTIAL],base->group_id,
 			   FIELD_POTENTIAL, H5T_NATIVE_FLOAT,1 );
+		field_open(&base->fldFields[DARK_DENSITY],base->group_id,
+			   FIELD_DENSITY, H5T_NATIVE_FLOAT,1 );
 		base->nTotal = hio->fio.fileList.fileInfo[iFile].nSpecies[i] = field_size(&base->fldFields[DARK_POSITION]);
 		hio->fio.nSpecies[i] += hio->fio.fileList.fileInfo[iFile].nSpecies[i];
 		class_open(&base->ioClass,base->group_id);
@@ -2367,11 +2382,15 @@ static void base_create(fioHDF5 *hio,IOBASE *base,int iSpecies,int nFields,uint6
 	field_create(&base->fldFields[DARK_POTENTIAL],base->group_id,
 		     FIELD_POTENTIAL, H5T_NATIVE_FLOAT, H5T_NATIVE_FLOAT,1 );
 	}
+    if ( hio->mFlags&FIO_FLAG_DENSITY) {
+	field_create(&base->fldFields[DARK_DENSITY],base->group_id,
+		     FIELD_DENSITY, H5T_NATIVE_FLOAT, H5T_NATIVE_FLOAT,1 );
+	}
     }
 
 static int hdf5ReadDark(
     FIO fio,uint64_t *piOrder,double *pdPos,double *pdVel,
-    float *pfMass,float *pfSoft,float *pfPot) {
+    float *pfMass,float *pfSoft,float *pfPot,float *pfDen) {
     fioHDF5 *hio = (fioHDF5 *)(fio);
     IOBASE *base = &hio->base[hio->eCurrent];
     int i;
@@ -2390,7 +2409,11 @@ static int hdf5ReadDark(
 
     /* Potential is optional */
     if ( !field_get_float(pfPot,&base->fldFields[DARK_POTENTIAL],base->iIndex) )
-	*pfPot = 0;
+	*pfPot = 0.0f;
+
+    /* Density is optional */
+    if ( !field_get_float(pfDen,&base->fldFields[DARK_DENSITY],base->iIndex) )
+	*pfDen = 0.0f;
 
     /* iOrder is either sequential, or is listed for each particle */
     *piOrder = ioorder_get(&base->ioOrder,base->iOffset,base->iIndex);
@@ -2418,21 +2441,21 @@ static int hdf5ReadDark(
 
 static int hdf5ReadSph(
     FIO fio,uint64_t *piOrder,double *pdPos,double *pdVel,
-    float *pfMass,float *pfSoft, float *pfPot,
-    float *pfRho, float *pfTemp, float *pfMetals) {
+    float *pfMass,float *pfSoft, float *pfPot,float *pfDen,
+    float *pfTemp, float *pfMetals) {
     return 0;
     }
 
 static int hdf5ReadStar(
     FIO fio,uint64_t *piOrder,double *pdPos,double *pdVel,
-    float *pfMass,float *pfSoft,float *pfPot,
+    float *pfMass,float *pfSoft,float *pfPot,float *pfDen,
     float *pfMetals, float *pfTform) {
     return 0;
     }
 
 static int  hdf5WriteDark(
     struct fioInfo *fio,uint64_t iOrder,const double *pdPos,const double *pdVel,
-    float fMass,float fSoft,float fPot) {
+    float fMass,float fSoft,float fPot,float fDen) {
     fioHDF5 *hio = (fioHDF5 *)(fio);
     IOBASE *base = &hio->base[FIO_SPECIES_DARK];
 
@@ -2449,6 +2472,7 @@ static int  hdf5WriteDark(
     field_add_double(pdPos,&base->fldFields[DARK_POSITION],base->iIndex);
     field_add_double(pdVel,&base->fldFields[DARK_VELOCITY],base->iIndex);
     field_add_float(&fPot,&base->fldFields[DARK_POTENTIAL],base->iIndex);
+    field_add_float(&fDen,&base->fldFields[DARK_DENSITY],base->iIndex);
 
     /* If we have exhausted our buffered data, read more */
     if (++base->iIndex == CHUNK_SIZE) {
@@ -2459,8 +2483,8 @@ static int  hdf5WriteDark(
 
 static int hdf5WriteSph(
     struct fioInfo *fio,uint64_t iOrder,const double *pdPos,const double *pdVel,
-    float fMass,float fSoft,float fPot,
-    float fRho,float fTemp,float fMetals) {
+    float fMass,float fSoft,float fPot,float fDen,
+    float fTemp,float fMetals) {
     fioHDF5 *hio = (fioHDF5 *)(fio);
     IOBASE *base = &hio->base[FIO_SPECIES_SPH];
     assert(fio->eFormat == FIO_FORMAT_HDF5);
@@ -2480,6 +2504,7 @@ static int hdf5WriteSph(
     field_add_double(pdPos,&base->fldFields[DARK_POSITION],base->iIndex);
     field_add_double(pdVel,&base->fldFields[DARK_VELOCITY],base->iIndex);
     field_add_float(&fPot,&base->fldFields[DARK_POTENTIAL],base->iIndex);
+    field_add_float(&fDen,&base->fldFields[DARK_DENSITY],base->iIndex);
     field_add_float(&fTemp,&base->fldFields[SPH_TEMPERATURE],base->iIndex);
     field_add_float(&fMetals,&base->fldFields[SPH_METALS],base->iIndex);
 
@@ -2492,7 +2517,7 @@ static int hdf5WriteSph(
 
 static int hdf5WriteStar(
     struct fioInfo *fio,uint64_t iOrder,const double *pdPos,const double *pdVel,
-    float fMass,float fSoft,float fPot,float fMetals,float fTform) {
+    float fMass,float fSoft,float fPot,float fDen,float fMetals,float fTform) {
     fprintf(stderr,"Writing star particles is not supported\n");
     abort();
     }
@@ -2501,6 +2526,7 @@ static void hdf5Close(FIO fio) {
     fioHDF5 *hio = (fioHDF5 *)(fio);
     hdf5CloseOne(hio);
     H5Tclose(hio->stringType);
+    fileScanFree(&fio->fileList);
     free(hio);
     }
 
@@ -2942,8 +2968,8 @@ static void graficSetPV(FIO fio,double *r,double *v,double x,double y,double z) 
     }
 
 static int graficReadDark(FIO fio,
-		   uint64_t *piOrder,double *pdPos,double *pdVel,
-		   float *pfMass,float *pfSoft,float *pfPot) {
+			  uint64_t *piOrder,double *pdPos,double *pdVel,
+			  float *pfMass,float *pfSoft,float *pfPot,float *pfDen) {
     fioGrafic *gio = (fioGrafic *)fio;
     assert(fio->eFormat == FIO_FORMAT_GRAFIC);
     assert(gio->iOrder >= gio->fio.nSpecies[FIO_SPECIES_SPH]);
@@ -2954,14 +2980,15 @@ static int graficReadDark(FIO fio,
 		graficRead(&gio->level[0].fp_velcz) );
     *pfMass = gio->mValueCDM;
     *pfSoft = gio->sValue;
-    if ( pfPot) *pfPot = 0.0;
+    if ( pfPot) *pfPot = 0.0f;
+    if ( pfDen) *pfDen = 0.0f;
     return 1;
     }
 
 static int graficReadSph(
     FIO fio,uint64_t *piOrder,double *pdPos,double *pdVel,
-    float *pfMass,float *pfSoft,float *pfPot,
-    float *pfRho,float *pfTemp, float *pfMetals) {
+    float *pfMass,float *pfSoft,float *pfPot,float *pfDen,
+    float *pfTemp, float *pfMetals) {
     fioGrafic *gio = (fioGrafic *)fio;
     assert(fio->eFormat == FIO_FORMAT_GRAFIC);
     assert(gio->iOrder < gio->fio.nSpecies[FIO_SPECIES_SPH]);
@@ -2973,7 +3000,7 @@ static int graficReadSph(
     *pfMass = gio->mValueBar;
     *pfSoft = gio->sValue;
     if (pfPot) *pfPot = 0.0;
-    if (pfRho) *pfRho = 0.0;
+    if (pfDen) *pfDen = 0.0;
     if (pfTemp) *pfTemp = 0.0;
     if (pfSoft) *pfSoft = 0.0;
     if (pfMetals) *pfMetals = 0.0;

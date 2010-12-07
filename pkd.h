@@ -602,9 +602,6 @@ typedef struct pkdContext {
     uint64_t nDark;
     uint64_t nGas;
     uint64_t nStar;
-/*    uint64_t nMaxOrderDark;
-    uint64_t nMaxOrderGas;
-    uint64_t nMaxOrder; JW: Depr. */
 #ifdef USE_PSD
     FLOAT fPeriod[6];
 #else
@@ -1146,18 +1143,15 @@ void pkdColNParts(PKD pkd, int *pnNew, int *nDeltaGas, int *nDeltaDark,
 void pkdNewOrder(PKD pkd, int nStart);
 
 struct outGetNParts { 
-	int n;
-    int nGas;
-    int nDark;
-    int nStar;
-    int iMaxOrderGas;
-    int iMaxOrderDark;
-    int iMaxOrderStar;
+    local_t n;
+    local_t nGas;
+    local_t nDark;
+    local_t nStar;
+    total_t nMaxOrder;
     };
 
 void pkdGetNParts(PKD pkd, struct outGetNParts *out );
-void pkdSetNParts(PKD pkd, int nGas, int nDark, int nStar, int nMaxOrderGas,
-		  int nMaxOrderDark, int nMaxOrder);
+void pkdSetNParts(PKD pkd, int nGas, int nDark, int nStar);
 void pkdInitRelaxation(PKD pkd);
 
 int pkdPackIO(PKD pkd,

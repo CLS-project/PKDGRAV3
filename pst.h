@@ -949,9 +949,6 @@ void pstNewOrder(PST, void *, int, void *, int *);
     int nGas;
     int nDark;
     int nStar;
-    int iMaxOrderGas;
-    int iMaxOrderDark;
-    int iMaxOrderStar;
     };
 */
 void pstGetNParts(PST, void *, int, void *, int *);
@@ -961,9 +958,6 @@ struct inSetNParts {
     uint64_t nGas;
     uint64_t nDark;
     uint64_t nStar;
-    uint64_t nMaxOrderGas;
-    uint64_t nMaxOrderDark;
-    uint64_t nMaxOrder;
     };
 void pstSetNParts(PST, void *, int, void *, int *);
 

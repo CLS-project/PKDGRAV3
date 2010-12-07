@@ -87,6 +87,7 @@ typedef enum {
 #define FIO_FLAG_COMPRESS_SOFT 8
 #define FIO_FLAG_CHECKPOINT    16 /* Restart - normally doublee */
 #define FIO_FLAG_POTENTIAL     32 /* Include the potential */
+#define FIO_FLAG_DENSITY       64 /* Include the density */
 
 typedef enum {
     FIO_MODE_READING,
@@ -148,26 +149,26 @@ typedef struct fioInfo {
 
     int  (*fcnReadDark) (struct fioInfo *fio,
 	uint64_t *piOrder,double *pdPos,double *pdVel,
-	float *pfMass,float *pfSoft,float *pfPot);
+			 float *pfMass,float *pfSoft,float *pfPot,float *pfDen);
     int  (*fcnReadSph) (
 	struct fioInfo *fio,uint64_t *piOrder,double *pdPos,double *pdVel,
-	float *pfMass,float *pfSoft,float *pfPot,
-	float *pfRho,float *pfTemp, float *pfMetals);
+	float *pfMass,float *pfSoft,float *pfPot,float *pfDen,
+	float *pfTemp, float *pfMetals);
     int  (*fcnReadStar) (struct fioInfo *fio,
 	uint64_t *piOrder,double *pdPos,double *pdVel,
-	float *pfMass,float *pfSoft,float *pfPot,
+	 float *pfMass,float *pfSoft,float *pfPot,float *pfDen,
 	float *pfMetals, float *pfTform);
 
     int  (*fcnWriteDark) (struct fioInfo *fio,
 	uint64_t iOrder,const double *pdPos,const double *pdVel,
-	float fMass,float fSoft,float fPot);
+	float fMass,float fSoft,float fPot,float fDen);
     int  (*fcnWriteSph) (
 	struct fioInfo *fio,uint64_t iOrder,const double *pdPos,const double *pdVel,
-	float fMass,float fSoft,float fPot,
-	float fRho,float fTemp,float fMetals);
+	float fMass,float fSoft,float fPot,float fDen,
+	float fTemp,float fMetals);
     int  (*fcnWriteStar) (struct fioInfo *fio,
 	uint64_t iOrder,const double *pdPos,const double *pdVel,
-	float fMass,float fSoft,float fPot,
+	float fMass,float fSoft,float fPot,float fDen,
 	float fMetals,float fTform);
 
     int  (*fcnGetAttr)(struct fioInfo *fio,
@@ -236,21 +237,21 @@ static inline FIO_SPECIES fioSpecies(struct fioInfo *fio) {
 */
 static inline int fioReadDark(
     FIO fio,uint64_t *piOrder,double *pdPos,double *pdVel,
-    float *pfMass,float *pfSoft,float *pfPot) {
-    return (*fio->fcnReadDark)(fio,piOrder,pdPos,pdVel,pfMass,pfSoft,pfPot);
+    float *pfMass,float *pfSoft,float *pfPot,float *pfDen) {
+    return (*fio->fcnReadDark)(fio,piOrder,pdPos,pdVel,pfMass,pfSoft,pfPot,pfDen);
     }
 static inline int  fioReadSph(
     FIO fio,uint64_t *piOrder,double *pdPos,double *pdVel,
-    float *pfMass,float *pfSoft,float *pfPot,
-    float *pfRho,float *pfTemp,float *pfMetals) {
-    return (*fio->fcnReadSph)(fio,piOrder,pdPos,pdVel,pfMass,pfSoft,pfPot,
-			      pfRho,pfTemp,pfMetals);
+    float *pfMass,float *pfSoft,float *pfPot,float *pfDen,
+    float *pfTemp,float *pfMetals) {
+    return (*fio->fcnReadSph)(fio,piOrder,pdPos,pdVel,pfMass,pfSoft,pfPot,pfDen,
+			      pfTemp,pfMetals);
     }
 static inline int fioReadStar(
     FIO fio,uint64_t *piOrder,double *pdPos,double *pdVel,
-    float *pfMass,float *pfSoft,float *pfPot,
+    float *pfMass,float *pfSoft,float *pfPot,float *pfDen,
     float *pfMetals,float *pfTform) {
-    return (*fio->fcnReadStar)(fio,piOrder,pdPos,pdVel,pfMass,pfSoft,pfPot,
+    return (*fio->fcnReadStar)(fio,piOrder,pdPos,pdVel,pfMass,pfSoft,pfPot,pfDen,
 			       pfMetals,pfTform);
     }
 /*
@@ -258,21 +259,21 @@ static inline int fioReadStar(
 */
 static inline int fioWriteDark(
     FIO fio,uint64_t iOrder,const double *pdPos,const double *pdVel,
-    float fMass,float fSoft,float fPot) {
-    return (*fio->fcnWriteDark)(fio,iOrder,pdPos,pdVel,fMass,fSoft,fPot);
+    float fMass,float fSoft,float fPot,float fDen) {
+    return (*fio->fcnWriteDark)(fio,iOrder,pdPos,pdVel,fMass,fSoft,fPot,fDen);
     }
 static inline int  fioWriteSph(
     FIO fio,uint64_t iOrder,const double *pdPos,const double *pdVel,
-    float fMass,float fSoft,float fPot,
-    float fRho,float fTemp,float fMetals) {
-    return (*fio->fcnWriteSph)(fio,iOrder,pdPos,pdVel,fMass,fSoft,fPot,
-			      fRho,fTemp,fMetals);
+    float fMass,float fSoft,float fPot,float fDen,
+    float fTemp,float fMetals) {
+    return (*fio->fcnWriteSph)(fio,iOrder,pdPos,pdVel,fMass,fSoft,fPot,fDen,
+			      fTemp,fMetals);
     }
 static inline int fioWriteStar(
     FIO fio,uint64_t iOrder,const double *pdPos,const double *pdVel,
-    float fMass,float fSoft,float fPot,
+    float fMass,float fSoft,float fPot,float fDen,
     float fMetals,float fTform) {
-    return (*fio->fcnWriteStar)(fio,iOrder,pdPos,pdVel,fMass,fSoft,fPot,
+    return (*fio->fcnWriteStar)(fio,iOrder,pdPos,pdVel,fMass,fSoft,fPot,fDen,
 			       fMetals,fTform);
     }
 /*

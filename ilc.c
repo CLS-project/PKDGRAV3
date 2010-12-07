@@ -79,6 +79,7 @@ ILCTILE ilcClear(ILC ilc) {
     ilc->nPrevious = 0;
     assert( ilc->tile != NULL );
     ilc->tile->nCell = 0;
+    ilc->cx = ilc->cy = ilc->cz = 0.0;
     return ilc->tile;
     }
 

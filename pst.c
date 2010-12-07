@@ -3642,9 +3642,7 @@ pstGetNParts(PST pst,void *vin,int nIn,void *vout,int *pnOut)
 	out->nGas += outtmp.nGas;
 	out->nDark += outtmp.nDark;
 	out->nStar += outtmp.nStar;
-	if (outtmp.iMaxOrderGas > out->iMaxOrderGas) out->iMaxOrderGas = outtmp.iMaxOrderGas;
-	if (outtmp.iMaxOrderDark > out->iMaxOrderDark) out->iMaxOrderDark = outtmp.iMaxOrderDark;
-	if (outtmp.iMaxOrderStar > out->iMaxOrderStar) out->iMaxOrderStar = outtmp.iMaxOrderStar;
+	if (outtmp.nMaxOrder > out->nMaxOrder) out->nMaxOrder = outtmp.nMaxOrder;
 	}
     else {
 	pkdGetNParts(pst->plcl->pkd, out);
@@ -3662,8 +3660,7 @@ pstSetNParts(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	mdlGetReply(pst->mdl, pst->idUpper, vout, pnOut);
 	}
     else {
-	pkdSetNParts(pst->plcl->pkd, in->nGas, in->nDark, in->nStar,
-		     in->nMaxOrderGas, in->nMaxOrderDark, in->nMaxOrder);
+	pkdSetNParts(pst->plcl->pkd, in->nGas, in->nDark, in->nStar);
 	}
     if (pnOut) *pnOut = 0;
     }
