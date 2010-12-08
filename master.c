@@ -1869,23 +1869,6 @@ void msrOneNodeWrite(MSR msr, FIO fio, double dvFac) {
     assert(nStart <= msr->N);
     }
 
-
-static void makeName( char *achOutName, const char *inName, int iIndex ) {
-    char *p;
-
-    strcpy( achOutName, inName );
-    p = strstr( achOutName, "&I" );
-    if ( p ) {
-	int n = p - achOutName;
-	sprintf( p, "%03d", iIndex );
-	strcat( p, inName + n + 2 );
-	}
-    else {
-	p = achOutName + strlen(achOutName);
-	sprintf(p,".%03d", iIndex);
-	}
-    }
-
 /*
 ** This function makes some DANGEROUS assumptions!!!
 ** Main problem is that it calls pkd level routines, bypassing the
@@ -1947,11 +1930,21 @@ void msrAllNodeWrite(MSR msr, const char *pszFileName, double dTime, double dvFa
 	| (msr->param.bMemMass?0:FIO_FLAG_COMPRESS_MASS)
 	| (msr->param.bMemSoft?0:FIO_FLAG_COMPRESS_SOFT);
 
+    strcpy(in.achOutFile,achOutFile);
+
+    if (!msr->param.bHDF5) {
+	FIO fio;
+	fio = fioTipsyCreate(achOutFile,
+			     in.mFlags&FIO_FLAG_CHECKPOINT,
+			     in.bStandard,in.dTime,
+			     in.nSph, in.nDark, in.nStar);
+	fioClose(fio);
+	}
+
     /*
     ** Request the other processors start writing
     */
     for(i=1; i<nProcessors; ++i) {
-	makeName(in.achOutFile,achOutFile,i);
 	L = msr->nThreads * i / nProcessors;
 	U = msr->nThreads * (i+1) / nProcessors;
 	in.iIndex = i;
@@ -1962,8 +1955,6 @@ void msrAllNodeWrite(MSR msr, const char *pszFileName, double dTime, double dvFa
     /*
     ** Now do ourselves
     */
-    if (nProcessors>1) makeName(in.achOutFile,achOutFile,0);
-    else strcpy(in.achOutFile,achOutFile);
 
     L = 0;
     U = msr->nThreads / nProcessors;
@@ -1993,11 +1984,11 @@ uint64_t msrCalcWriteStart(MSR msr) {
 
 void _msrWriteTipsy(MSR msr,const char *pszFileName,double dTime,int bCheckpoint) {
     FIO fio;
-    struct dump h;
-    struct inWriteTipsy in;
+    char achOutFile1[PST_FILENAME_SIZE];
     char achOutFile[PST_FILENAME_SIZE];
     LCL *plcl = msr->pst->plcl;
     int nProcessors, i;
+    double dvFac, dExp;
     uint64_t N;
 
     /*
@@ -2008,14 +1999,11 @@ void _msrWriteTipsy(MSR msr,const char *pszFileName,double dTime,int bCheckpoint
     /*
     ** Add Data Subpath for local and non-local names.
     */
-    _msrMakePath(msr->param.achDataSubPath,pszFileName,in.achOutFile);
+    _msrMakePath(msr->param.achDataSubPath,pszFileName,achOutFile1);
     /*
     ** Add local Data Path.
     */
-    _msrMakePath(plcl->pszDataPath,in.achOutFile,achOutFile);
-
-    in.bStandard = msr->param.bStandard;
-    in.bDoublePos = msr->param.bDoublePos;
+    _msrMakePath(plcl->pszDataPath,achOutFile1,achOutFile);
 
     /*
     ** If bParaWrite is 0, then we write serially; if it is 1, then we write
@@ -2024,41 +2012,31 @@ void _msrWriteTipsy(MSR msr,const char *pszFileName,double dTime,int bCheckpoint
     ** the total amount of simultaneous I/O for file systems that cannot
     ** handle it.
     */
-    in.nProcessors = nProcessors = msr->param.bParaWrite==1 ? msr->nThreads:msr->param.bParaWrite;
-    in.iIndex = 0;
+    nProcessors = msr->param.bParaWrite==1 ? msr->nThreads:msr->param.bParaWrite;
 
-    /*
-    ** Assume tipsy format for now.
-    */
-    h.nbodies = msr->N;
-    h.ndark = msr->nDark;
-    h.nsph = msr->nGas;
-    h.nstar = msr->nStar;
     if (msr->param.csm->bComove) {
-	in.dTime = csmTime2Exp(msr->param.csm,dTime);
-	in.dvFac = 1.0/(in.dTime*in.dTime);
+	dExp = csmTime2Exp(msr->param.csm,dTime);
+	dvFac = 1.0/(dExp*dExp);
 	}
     else {
-	in.dTime = dTime;
-	in.dvFac = 1.0;
+	dExp = dTime;
+	dvFac = 1.0;
 	}
-    h.ndim = 3;
-    h.time = in.dTime;
-    if ( msr->param.bHDF5 || !msr->param.bParaWrite ) {
+    if ( !msr->param.bParaWrite ) {
 	msrprintf(msr,"Writing %s in %s format serially ...\n",
 		  achOutFile, (msr->param.bHDF5?"HDF5":"Tipsy"));
 	}
     else {
 	if ( msr->param.bParaWrite > 1 )
 	    msrprintf(msr,"Writing %s in %s format in parallel (but limited to %d processors) ...\n",
-		      achOutFile, (msr->param.bHDF5?"HDF5":"Tipsy"), in.nProcessors);
+		      achOutFile, (msr->param.bHDF5?"HDF5":"Tipsy"), nProcessors);
 	else
 	    msrprintf(msr,"Writing %s in %s format in parallel ...\n",
 		      achOutFile, (msr->param.bHDF5?"HDF5":"Tipsy"));
 	}
 
     if (msr->param.csm->bComove)
-	msrprintf(msr,"Time:%g Redshift:%g\n",dTime,(1.0/h.time - 1.0));
+	msrprintf(msr,"Time:%g Redshift:%g\n",dTime,(1.0/dExp - 1.0));
     else
 	msrprintf(msr,"Time:%g\n",dTime);
 
@@ -2071,35 +2049,7 @@ void _msrWriteTipsy(MSR msr,const char *pszFileName,double dTime,int bCheckpoint
 	}
 #endif
 
-//    if ( msr->param.bHDF5 ) {
-//#ifdef USE_HDF5
-//	fio = fioHDF5Create(
-//	    achOutFile,
-//	    FIO_FLAG_POTENTIAL
-//	    | (msr->param.bDoublePos?FIO_FLAG_CHECKPOINT:0)
-//	    | (msr->param.bMemMass?0:FIO_FLAG_COMPRESS_MASS)
-//	    | (msr->param.bMemSoft?0:FIO_FLAG_COMPRESS_SOFT));
-//	fioSetAttr(fio,"dTime",FIO_TYPE_DOUBLE,&in.dTime);
-//	msrSaveParameters(msr,fio);
-//	msrOneNodeWrite(msr,fio,in.dvFac);
-//	fioClose(fio);
-//#else
-//	assert(0);
-//#endif
-//	}
-//    else {
-//	fio = fioTipsyCreate(achOutFile,
-//			     msr->param.bDoublePos,
-//			     msr->param.bStandard,in.dTime,
-//			     msr->nGas, msr->nDark, msr->nStar);
-//	if (fio==NULL) {
-//	    fprintf(stderr,"ERROR: unable to create output file\n");
-//	    perror(achOutFile);
-//	    _msrExit(msr,1);
-//	    }
-
-	msrAllNodeWrite(msr,in.achOutFile, dTime, in.dvFac, bCheckpoint);
-//	}
+    msrAllNodeWrite(msr, achOutFile, dTime, dvFac, bCheckpoint);
 
     msrprintf(msr,"Output file has been successfully written.\n");
     }

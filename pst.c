@@ -2404,7 +2404,24 @@ void pstWriteTipsy(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     if (pnOut) *pnOut = 0;
     }
 
+static void makeName( char *achOutName, const char *inName, int iIndex ) {
+    char *p;
+
+    strcpy( achOutName, inName );
+    p = strstr( achOutName, "&I" );
+    if ( p ) {
+	int n = p - achOutName;
+	sprintf( p, "%03d", iIndex );
+	strcat( p, inName + n + 2 );
+	}
+    else {
+	p = achOutName + strlen(achOutName);
+	sprintf(p,".%03d", iIndex);
+	}
+    }
+
 void pstWrite(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    char achOutFile[PST_FILENAME_SIZE];
     LCL *plcl;
     PST pst0;
     struct inWrite *in = vin;
@@ -2420,7 +2437,8 @@ void pstWrite(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     plcl = pst0->plcl;
 
     if (in->bHDF5) {
-	fio = fioHDF5Create(in->achOutFile,in->mFlags);
+	makeName(achOutFile,in->achOutFile,in->iIndex);
+	fio = fioHDF5Create(achOutFile,in->mFlags);
 	if (fio) {
 	    fioSetAttr(fio, "dTime",    FIO_TYPE_DOUBLE, &in->dTime);
 	    /* Restart information */
@@ -2430,8 +2448,9 @@ void pstWrite(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	    }
 	}
     else {
-	fio = fioTipsyCreatePart(in->achOutFile,0,in->mFlags&FIO_FLAG_CHECKPOINT,in->bStandard, in->dTime, 
-				 in->nSph, in->nDark, in->nStar, plcl->nWriteStart);
+/*	fio = fioTipsyCreatePart(in->achOutFile,0,in->mFlags&FIO_FLAG_CHECKPOINT,in->bStandard, in->dTime, 
+  in->nSph, in->nDark, in->nStar, plcl->nWriteStart);*/
+	fio = fioTipsyAppend(in->achOutFile,in->mFlags&FIO_FLAG_CHECKPOINT,in->bStandard);
 	if (fio) {
 	    fioSeek(fio,plcl->nWriteStart,FIO_SPECIES_ALL);
 	    }
