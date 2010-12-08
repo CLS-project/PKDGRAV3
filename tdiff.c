@@ -154,12 +154,12 @@ int main( int argc, char **argv ) {
             fioReadSph(fioIn2,&iOrder2,r2,v2,&fMass2,&fSoft2,&fPot2,&fRho2,&u2,&fMetals2);
             break;
         case FIO_SPECIES_DARK:
-            fioReadDark(fioIn1,&iOrder1,r1,v1,&fMass1,&fSoft1,&fPot1);
-            fioReadDark(fioIn2,&iOrder2,r2,v2,&fMass2,&fSoft2,&fPot2);
+            fioReadDark(fioIn1,&iOrder1,r1,v1,&fMass1,&fSoft1,&fPot1,&fRho1);
+            fioReadDark(fioIn2,&iOrder2,r2,v2,&fMass2,&fSoft2,&fPot2,&fRho2);
             break;
         case FIO_SPECIES_STAR:
-            fioReadStar(fioIn1,&iOrder1,r1,v1,&fMass1,&fSoft1,&fPot1,&fMetals1,&fTimer1);
-            fioReadStar(fioIn2,&iOrder2,r2,v2,&fMass2,&fSoft2,&fPot2,&fMetals2,&fTimer2);
+            fioReadStar(fioIn1,&iOrder1,r1,v1,&fMass1,&fSoft1,&fPot1,&fRho1,&fMetals1,&fTimer1);
+            fioReadStar(fioIn2,&iOrder2,r2,v2,&fMass2,&fSoft2,&fPot2,&fRho2,&fMetals2,&fTimer2);
             break;
         default:
             fprintf(stderr,"Unsupported particle type: %d\n",eSpecies);
