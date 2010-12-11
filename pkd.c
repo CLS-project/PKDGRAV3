@@ -642,6 +642,7 @@ size_t pkdClMemory(PKD pkd) {
     int i;
     for(i=0; i<pkd->nMaxStack; ++i)
 	nBytes += clMemory(pkd->S[i].cl);
+    nBytes += clMemory(NULL);
     return nBytes;
     }
 

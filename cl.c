@@ -9,11 +9,22 @@
 
 #include "cl.h"
 
+/* NOT THREAD SAFE -- FIX ME */
+static CLTILE clFreeList = NULL;
+
 size_t clMemory(CL cl) {
-    size_t nBytes = sizeof(struct clContext);
+    size_t nBytes;
     CLTILE tile;
-    for(tile=cl->first;tile!=NULL;tile=tile->next)
-	nBytes += sizeof(struct clTile);
+    if (cl==NULL) {
+        nBytes = 0;
+        for(tile=clFreeList;tile!=NULL;tile=tile->next)
+	    nBytes += sizeof(struct clTile);
+    }
+    else {
+        nBytes = sizeof(struct clContext);
+        for(tile=cl->first;tile!=NULL;tile=tile->next)
+	    nBytes += sizeof(struct clTile);
+    }
     return nBytes;
     }
 
@@ -21,8 +32,15 @@ size_t clMemory(CL cl) {
 ** Private: Create a new tile
 */
 static CLTILE newTile(CLTILE prev) {
-    CLTILE tile = SIMD_malloc(sizeof(struct clTile));
+    CLTILE tile;
 
+    if (clFreeList) {
+        tile = clFreeList;
+	clFreeList = clFreeList->next;
+    }
+    else {
+        tile = SIMD_malloc(sizeof(struct clTile));
+    }
     assert( tile != NULL );
     assert(CL_PART_PER_TILE%4 == 0 );
 
@@ -63,6 +81,11 @@ CLTILE clExtend(CL cl) {
 */
 CLTILE clClear(CL cl) {
     assert( cl != NULL );
+    if (cl->tile!=cl->first) {
+        cl->tile->next = clFreeList;
+        clFreeList = cl->first->next;
+        cl->first->next = NULL;
+    }
     cl->tile = cl->first;
     cl->nPrevious = 0;
     assert( cl->tile != NULL );
