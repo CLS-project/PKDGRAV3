@@ -202,9 +202,6 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_WRITEASCII,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstWriteASCII,
 		  sizeof(struct inWriteASCII),0);
-    mdlAddService(mdl,PST_WRITETIPSY,pst,
-		  (void (*)(void *,void *,int,void *,int *)) pstWriteTipsy,
-		  sizeof(struct inWriteTipsy),0);
     mdlAddService(mdl,PST_WRITE,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstWrite,
 		  sizeof(struct inWrite),0);
@@ -2280,130 +2277,6 @@ void pstWriteASCII(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     if (pnOut) *pnOut = 0;
     }
 
-void pstWriteTipsyOld(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
-    LCL *plcl = pst->plcl;
-    struct inWriteTipsy *in = vin;
-    char achOutFile[PST_FILENAME_SIZE];
-
-    mdlassert(pst->mdl,nIn == sizeof(struct inWriteTipsy));
-
-    if (pst->nLeaves > 1) {
-	int nProcessors = in->nProcessors;
-	int nProcUpper = pst->nUpper * nProcessors / pst->nLeaves;
-	int nProcLower = nProcessors - nProcUpper;
-	if ( nProcessors > 1 ) {
-	    in->nProcessors = nProcUpper;
-	    mdlReqService(pst->mdl,pst->idUpper,PST_WRITETIPSY,in,nIn);
-	    }
-	in->nProcessors = nProcLower;
-	pstWriteTipsy(pst->pstLower,in,nIn,NULL,NULL);
-	if ( nProcessors <= 1 ) {
-	    in->nProcessors = nProcUpper;
-	    mdlReqService(pst->mdl,pst->idUpper,PST_WRITETIPSY,in,nIn);
-	    }
-	mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
-	}
-    else {
-	/*
-	** Add the local Data Path to the provided filename.
-	*/
-	achOutFile[0] = 0;
-	if (plcl->pszDataPath) {
-	    strcat(achOutFile,plcl->pszDataPath);
-	    strcat(achOutFile,"/");
-	    }
-	strcat(achOutFile,in->achOutFile);
-	pkdWriteTipsy(plcl->pkd,achOutFile,plcl->nWriteStart,
-		      in->bStandard,in->dvFac,in->bDoublePos);
-	}
-    if (pnOut) *pnOut = 0;
-    }
-
-void pstWriteTipsy(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
-    LCL *plcl;
-    PST pst0;
-    struct inWriteTipsy *in = vin;
-    char achOutFile[PST_FILENAME_SIZE];
-
-    mdlassert(pst->mdl,nIn == sizeof(struct inWriteTipsy));
-
-    pst0 = pst;
-    while (pst0->nLeaves > 1)
-	pst0 = pst0->pstLower;
-    plcl = pst0->plcl;
-
-    if (pst->nLeaves > 1 && in->nProcessors > 1) {
-	int nProcessors = in->nProcessors;
-	int nProcUpper = pst->nUpper * nProcessors / pst->nLeaves;
-	int nProcLower = nProcessors - nProcUpper;
-	if ( nProcessors > 1 ) {
-	    in->nProcessors = nProcUpper;
-	    in->iIndex += nProcLower;
-	    mdlReqService(pst->mdl,pst->idUpper,PST_WRITETIPSY,in,nIn);
-	    in->iIndex -= nProcLower;
-	    in->nProcessors = nProcLower;
-	    pstWriteTipsy(pst->pstLower,in,nIn,NULL,NULL);
-	    }
-	else {
-	    in->nProcessors = nProcLower;
-	    pstWriteTipsy(pst->pstLower,in,nIn,NULL,NULL);
-	    in->nProcessors = nProcUpper;
-	    mdlReqService(pst->mdl,pst->idUpper,PST_WRITETIPSY,in,nIn);
-	    }
-	mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
-	}
-    else {
-	FIO fio;
-	uint32_t nCount;
-	int i;
-
-	/*
-	** Add the local Data Path to the provided filename.
-	*/
-	achOutFile[0] = 0;
-	if (plcl->pszDataPath) {
-	    strcat(achOutFile,plcl->pszDataPath);
-	    strcat(achOutFile,"/");
-	    }
-	strcat(achOutFile,in->achOutFile);
-
-	fio = fioTipsyAppend(achOutFile,in->bDoublePos,in->bStandard);
-	if (fio==NULL) {
-	    fprintf(stderr,"ERROR: unable to reopen tipsy file for output\n");
-	    perror(achOutFile);
-	    mdlassert(pst->mdl,fio!=NULL);
-	    }
-
-	fioSeek(fio,plcl->nWriteStart,FIO_SPECIES_ALL);
-	nCount = pkdWriteFIO(plcl->pkd,fio,in->dvFac);
-	for (i=pst->idSelf+1;i<pst->idSelf+pst->nLeaves;++i) {
-
-	    int id = i; //msr->pMap[i];
-	    int inswap;
-	    /*
-	     * Swap particles with the remote processor.
-	     */
-	    inswap = pst->idSelf;
-	    mdlReqService(pst0->mdl,id,PST_SWAPALL,&inswap,sizeof(inswap));
-	    pkdSwapAll(plcl->pkd, id);
-	    mdlGetReply(pst0->mdl,id,NULL,NULL);
-	    /*
-	     * Write the swapped particles.
-	     */
-	    nCount += pkdWriteFIO(plcl->pkd,fio,in->dvFac);
-	    /*
-	     * Swap them back again.
-	     */
-	    inswap = pst->idSelf;
-	    mdlReqService(pst0->mdl,id,PST_SWAPALL,&inswap,sizeof(inswap));
-	    pkdSwapAll(plcl->pkd, id);
-	    mdlGetReply(pst0->mdl,id,NULL,NULL);
-	    }
-	fioClose(fio);
-	}
-    if (pnOut) *pnOut = 0;
-    }
-
 static void makeName( char *achOutName, const char *inName, int iIndex ) {
     char *p;
 
@@ -2448,13 +2321,19 @@ void pstWrite(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	    }
 	}
     else {
-/*	fio = fioTipsyCreatePart(in->achOutFile,0,in->mFlags&FIO_FLAG_CHECKPOINT,in->bStandard, in->dTime, 
-  in->nSph, in->nDark, in->nStar, plcl->nWriteStart);*/
-	fio = fioTipsyAppend(in->achOutFile,in->mFlags&FIO_FLAG_CHECKPOINT,in->bStandard);
-	if (fio) {
-	    fioSeek(fio,plcl->nWriteStart,FIO_SPECIES_ALL);
+        if (strstr(in->achOutFile, "&I" )) {
+	    makeName(achOutFile,in->achOutFile,in->iIndex);
+	    fio = fioTipsyCreatePart(achOutFile,0,in->mFlags&FIO_FLAG_CHECKPOINT,
+				     in->bStandard, in->dTime, 
+				     in->nSph, in->nDark, in->nStar, plcl->nWriteStart);
 	    }
-	}
+	else {
+	    fio = fioTipsyAppend(in->achOutFile,in->mFlags&FIO_FLAG_CHECKPOINT,in->bStandard);
+	    if (fio) {
+	        fioSeek(fio,plcl->nWriteStart,FIO_SPECIES_ALL);
+	        }
+	    }
+        }
     if (fio==NULL) {
 	fprintf(stderr,"ERROR: unable to create file for output\n");
 	perror(in->achOutFile);

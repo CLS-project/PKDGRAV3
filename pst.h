@@ -81,7 +81,6 @@ enum pst_service {
     PST_LOCALORDER,
     PST_COMPRESSASCII,
     PST_WRITEASCII,
-    PST_WRITETIPSY,
     PST_WRITE,
     PST_BUILDTREE,
     PST_DISTRIBCELLS,
@@ -386,18 +385,6 @@ struct inWriteASCII {
     char achOutFile[PST_FILENAME_SIZE];
     };
 void pstWriteASCII(PST,void *,int,void *,int *);
-
-/* PST_WRITETIPSY */
-struct inWriteTipsy {
-    double dTime;
-    double dvFac;
-    int bDoublePos;
-    int bStandard;
-    int nProcessors;
-    int iIndex;
-    char achOutFile[PST_FILENAME_SIZE];
-    };
-void pstWriteTipsy(PST,void *,int,void *,int *);
 
 /* PST_WRITE */
 struct inWrite {
