@@ -5309,6 +5309,13 @@ double msrRead(MSR msr, const char *achInFile) {
     int j;
     struct inReadFile read;
     uint64_t mMemoryModel = 0;
+    LCL *plcl;
+    PST pst0;
+
+    pst0 = msr->pst;
+    while (pst0->nLeaves > 1)
+	pst0 = pst0->pstLower;
+    plcl = pst0->plcl;
 
     /*
     ** Figure out what memory models are in effect.  Configuration flags
@@ -5404,6 +5411,9 @@ double msrRead(MSR msr, const char *achInFile) {
 #endif
     msrSetClasses(msr);
     msrprintf(msr,"Input file has been successfully read.\n");
+    msrprintf(msr,"Allocated %lu MB for particle store on each processor.\n",
+	      pkdParticleMemory(plcl->pkd)/(1024*1024));
+
 #ifdef USE_MDL_IO
     /* If we are using I/O processors, then preallocate space to save */
     if ( mdlIO(msr->mdl) ) {
