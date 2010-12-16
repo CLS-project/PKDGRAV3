@@ -85,7 +85,7 @@ typedef enum {
 #define FIO_FLAG_DOUBLE_VEL    2
 #define FIO_FLAG_COMPRESS_MASS 4
 #define FIO_FLAG_COMPRESS_SOFT 8
-#define FIO_FLAG_CHECKPOINT    16 /* Restart - normally doublee */
+#define FIO_FLAG_CHECKPOINT    16 /* Restart - normally double */
 #define FIO_FLAG_POTENTIAL     32 /* Include the potential */
 #define FIO_FLAG_DENSITY       64 /* Include the density */
 
@@ -137,6 +137,7 @@ typedef struct {
 typedef struct fioInfo {
     FIO_FORMAT eFormat;
     FIO_MODE   eMode;
+    int        mFlags;
     fioSpeciesList nSpecies;
     //uint64_t nSpecies[FIO_SPECIES_LAST];
 
@@ -294,18 +295,20 @@ static inline int fioSetAttr(FIO fio,
     return (*fio->fcnSetAttr)(fio,attr,dataType,data);
     }
 
+static inline int fioGetFlags(FIO fio) {
+    return fio->mFlags;
+    }
+
 /******************************************************************************\
 ** TIPSY FORMAT
 \******************************************************************************/
 
-FIO fioTipsyCreate(const char *fileName,int bDouble,int bStandard,
+FIO fioTipsyCreate(const char *fileName,int mFlags,int bStandard,
 		   double dTime,uint64_t nSph, uint64_t nDark, uint64_t nStar);
-FIO fioTipsyAppend(const char *fileName,int bDouble,int bStandard);
-FIO fioTipsyCreatePart(const char *fileName,int bAppend,int bDouble,int bStandard,
+FIO fioTipsyAppend(const char *fileName,int mFlags,int bStandard);
+FIO fioTipsyCreatePart(const char *fileName,int bAppend,int mFlags,int bStandard,
 		       double dTime, uint64_t nSph, uint64_t nDark, uint64_t nStar,
 		       uint64_t iStart);
-
-
 int fioTipsyIsDouble(FIO fio);
 int fioTipsyIsStandard(FIO fio);
 

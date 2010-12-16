@@ -123,7 +123,7 @@ int xdr_u_int(XDR *xdr, uint32_t *u) {
 ** but we fallback to multiple fseek calls if required.
 */
 static int safe_fseek(FILE *fp,uint64_t lStart) {
-#ifdef HAVE_FSEEKO
+#ifdef HAVE_FSEEKO_ACTUALLY_OFTEN_BORKED_SO_DONT_USE_THIS
     uint64_t lSeeked;
     int iErr;
     errno = 0;
@@ -364,11 +364,12 @@ static FIO_SPECIES fioNoSpecies(FIO fio) {
 ** Generic Initialization - Provide default functions where possible
 \******************************************************************************/
 
-static void fioInitialize(FIO fio, FIO_FORMAT eFormat, FIO_MODE eMode) {
+static void fioInitialize(FIO fio, FIO_FORMAT eFormat, FIO_MODE eMode, int mFlags) {
     int i;
 
     fio->eFormat = eFormat;
     fio->eMode   = eMode;
+    fio->mFlags  = mFlags;
 
     for(i=0; i<FIO_SPECIES_LAST; i++) fio->nSpecies[i] = 0;
 
@@ -1143,12 +1144,12 @@ static uint64_t tipsyCountSpecies(uint64_t N, uint64_t *iStart, uint64_t *iLast)
     return n;
     }
 
-static void tipsySetFunctions(fioTipsy *tio, int bDouble, int bStandard) {
+static void tipsySetFunctions(fioTipsy *tio, int mFlags, int bStandard) {
     tio->fio.fcnGetAttr = tipsyGetAttr;
     tio->fio.fcnSpecies = tipsySpecies;
 
-    tio->bDoubleVel = (bDouble&2) != 0;
-    tio->bDoublePos = (bDouble&1) || tio->bDoubleVel;
+    tio->bDoubleVel = (mFlags&FIO_FLAG_DOUBLE_VEL) != 0;
+    tio->bDoublePos = (mFlags&FIO_FLAG_DOUBLE_POS) != 0 || tio->bDoubleVel;
 
     if ( bStandard ) {
 	tio->fio.fcnClose    = tipsyCloseStandard;
@@ -1207,7 +1208,7 @@ static void tipsySussHeader(tipsyHdr *h,uint64_t *pN, uint64_t *pDark,uint64_t *
 /*
 ** Read the header and detect native or standard
 */
-static int tipsyDetectHeader(fioTipsy *tio, int bDouble) {
+static int tipsyDetectHeader(fioTipsy *tio, int mFlags) {
     tipsyHdr h;
     uint64_t N,nDark,nSph,nStar;
     int rc;
@@ -1228,7 +1229,7 @@ static int tipsyDetectHeader(fioTipsy *tio, int bDouble) {
 		    h.nDim, nDark, nSph, nStar, N);
 	    return 0;
 	    }
-	tipsySetFunctions(tio,bDouble,0);
+	tipsySetFunctions(tio,mFlags,0);
 	}
 
     /* Okay, this must be "standard" format */
@@ -1249,7 +1250,7 @@ static int tipsyDetectHeader(fioTipsy *tio, int bDouble) {
 	    xdr_destroy(&tio->xdr);
 	    return 0;
 	    }
-	tipsySetFunctions(tio,bDouble,1);
+	tipsySetFunctions(tio,mFlags,1);
 	}
     tio->nHdrSize = sizeof(h);
     tio->dTime = h.dTime;
@@ -1306,7 +1307,7 @@ static FIO tipsyOpen(fioFileList *fileList) {
 
     tio = malloc(sizeof(fioTipsy));
     assert(tio!=NULL);
-    fioInitialize(&tio->fio,FIO_FORMAT_TIPSY,FIO_MODE_READING);
+    fioInitialize(&tio->fio,FIO_FORMAT_TIPSY,FIO_MODE_READING,0);
 
     tio->iOrder = 0;
     tio->fio.fileList = *fileList;
@@ -1320,7 +1321,7 @@ static FIO tipsyOpen(fioFileList *fileList) {
     tio->fpBuffer = malloc(TIO_BUFFER_SIZE);
     if (tio->fpBuffer != NULL) setvbuf(tio->fp,tio->fpBuffer,_IOFBF,TIO_BUFFER_SIZE);
 
-    if ( !tipsyDetectHeader(tio,/*bDouble*/0) ) {
+    if ( !tipsyDetectHeader(tio,/*set below*/0) ) {
 	fclose(tio->fp);
 	if (tio->fpBuffer) free(tio->fpBuffer);
 	free(tio);
@@ -1392,14 +1393,14 @@ static FIO tipsyOpen(fioFileList *fileList) {
     return &tio->fio;
     }
 
-FIO fioTipsyCreate(const char *fileName,int bDouble,int bStandard,
+FIO fioTipsyCreate(const char *fileName,int mFlags,int bStandard,
 		   double dTime,uint64_t nSph, uint64_t nDark, uint64_t nStar) {
     fioTipsy *tio;
     int i;
 
     tio = malloc(sizeof(fioTipsy));
     assert(tio!=NULL);
-    fioInitialize(&tio->fio,FIO_FORMAT_TIPSY,FIO_MODE_WRITING);
+    fioInitialize(&tio->fio,FIO_FORMAT_TIPSY,FIO_MODE_WRITING,mFlags);
 
     tio->fio.fileList.fileInfo = NULL;
 
@@ -1430,19 +1431,19 @@ FIO fioTipsyCreate(const char *fileName,int bDouble,int bStandard,
     if (tio->fpBuffer != NULL) setvbuf(tio->fp,tio->fpBuffer,_IOFBF,TIO_BUFFER_SIZE);
     if (bStandard) xdrstdio_create(&tio->xdr,tio->fp,XDR_ENCODE);
 
-    tipsySetFunctions(tio,bDouble,bStandard);
+    tipsySetFunctions(tio,mFlags,bStandard);
     tipsyWriteHeader(tio,bStandard);
 
     return &tio->fio;
     }
 
-FIO fioTipsyAppend(const char *fileName,int bDouble,int bStandard) {
+FIO fioTipsyAppend(const char *fileName,int mFlags,int bStandard) {
     fioTipsy *tio;
     int i;
 
     tio = malloc(sizeof(fioTipsy));
     assert(tio!=NULL);
-    fioInitialize(&tio->fio,FIO_FORMAT_TIPSY,FIO_MODE_WRITING);
+    fioInitialize(&tio->fio,FIO_FORMAT_TIPSY,FIO_MODE_WRITING,mFlags);
 
     tio->iOrder = 0;
     tio->fio.fileList.fileInfo = malloc(sizeof(fioFileInfo)*2);
@@ -1459,7 +1460,7 @@ FIO fioTipsyAppend(const char *fileName,int bDouble,int bStandard) {
     tio->fpBuffer = malloc(TIO_BUFFER_SIZE);
     if (tio->fpBuffer != NULL) setvbuf(tio->fp,tio->fpBuffer,_IOFBF,TIO_BUFFER_SIZE);
 
-    if ( !tipsyDetectHeader(tio,bDouble) ) {
+    if ( !tipsyDetectHeader(tio,mFlags) ) {
 	fclose(tio->fp);
 	if (tio->fpBuffer) free(tio->fpBuffer);
 	free(tio);
@@ -1473,7 +1474,7 @@ FIO fioTipsyAppend(const char *fileName,int bDouble,int bStandard) {
     tio->fio.fileList.fileInfo[1].iFirst = tio->fio.nSpecies[FIO_SPECIES_ALL];
 
     if (bStandard) xdrstdio_create(&tio->xdr,tio->fp,XDR_ENCODE);
-    tipsySetFunctions(tio,bDouble,bStandard);
+    tipsySetFunctions(tio,mFlags,bStandard);
 
     return &tio->fio;
     }
@@ -1483,7 +1484,7 @@ FIO fioTipsyAppend(const char *fileName,int bDouble,int bStandard) {
 ** into multiple files.  Only the first part has the header.  To rebuild the
 ** original file, the parts need only be concatenated together.
 */
-FIO fioTipsyCreatePart(const char *fileName,int bAppend,int bDouble,int bStandard,
+FIO fioTipsyCreatePart(const char *fileName,int bAppend,int mFlags,int bStandard,
 		       double dTime, uint64_t nSph, uint64_t nDark, uint64_t nStar,
 		       uint64_t iStart) {
     fioTipsy *tio;
@@ -1492,7 +1493,7 @@ FIO fioTipsyCreatePart(const char *fileName,int bAppend,int bDouble,int bStandar
 
     tio = malloc(sizeof(fioTipsy));
     assert(tio!=NULL);
-    fioInitialize(&tio->fio,FIO_FORMAT_TIPSY,FIO_MODE_WRITING);
+    fioInitialize(&tio->fio,FIO_FORMAT_TIPSY,FIO_MODE_WRITING,mFlags);
 
     tio->fio.fileList.fileInfo = malloc(sizeof(fioFileInfo)*2);
     assert(tio->fio.fileList.fileInfo);
@@ -1526,7 +1527,7 @@ FIO fioTipsyCreatePart(const char *fileName,int bAppend,int bDouble,int bStandar
     if (tio->fpBuffer != NULL) setvbuf(tio->fp,tio->fpBuffer,_IOFBF,TIO_BUFFER_SIZE);
     if (bStandard) xdrstdio_create(&tio->xdr,tio->fp,XDR_ENCODE);
 
-    tipsySetFunctions(tio,bDouble,bStandard);
+    tipsySetFunctions(tio,mFlags,bStandard);
     if (iStart) tio->nHdrSize = 0;
     else tipsyWriteHeader(tio,bStandard);
     return &tio->fio;
@@ -2229,8 +2230,12 @@ static int hdf5OpenOne(fioHDF5 *hio, int iFile) {
 			   FIELD_VELOCITY, H5T_NATIVE_DOUBLE,3 );
 		field_open(&base->fldFields[DARK_POTENTIAL],base->group_id,
 			   FIELD_POTENTIAL, H5T_NATIVE_FLOAT,1 );
+		if (base->fldFields[DARK_POTENTIAL].setId == H5I_INVALID_HID)
+		    hio->fio.mFlags &= ~FIO_FLAG_POTENTIAL;
 		field_open(&base->fldFields[DARK_DENSITY],base->group_id,
 			   FIELD_DENSITY, H5T_NATIVE_FLOAT,1 );
+		if (base->fldFields[DARK_DENSITY].setId == H5I_INVALID_HID)
+		    hio->fio.mFlags &= ~FIO_FLAG_DENSITY;
 		base->nTotal = hio->fio.fileList.fileInfo[iFile].nSpecies[i] = field_size(&base->fldFields[DARK_POSITION]);
 		hio->fio.nSpecies[i] += hio->fio.fileList.fileInfo[iFile].nSpecies[i];
 		class_open(&base->ioClass,base->group_id);
@@ -2536,7 +2541,7 @@ static FIO hdf5Open(fioFileList *fileList) {
 
     hio = malloc(sizeof(fioHDF5));
     assert(hio!=NULL);
-    fioInitialize(&hio->fio,FIO_FORMAT_HDF5,FIO_MODE_READING);
+    fioInitialize(&hio->fio,FIO_FORMAT_HDF5,FIO_MODE_READING,0);
 
     hio->fio.fileList = *fileList;
     hio->fio.fileList.iFile = 0;
@@ -2545,6 +2550,7 @@ static FIO hdf5Open(fioFileList *fileList) {
     H5Tset_size(hio->stringType, 256);
 
     /* Scan the files - all but the first one */
+    hio->fio.mFlags |= FIO_FLAG_DENSITY | FIO_FLAG_POTENTIAL;
     for( i=hio->fio.fileList.nFiles-1; i>0; --i) {
 	hdf5OpenOne(hio,i);
 	hdf5CloseOne(hio);
@@ -2578,7 +2584,7 @@ FIO fioHDF5Create(const char *fileName, int mFlags) {
 
     hio = malloc(sizeof(fioHDF5));
     assert(hio!=NULL);
-    fioInitialize(&hio->fio,FIO_FORMAT_HDF5,FIO_MODE_WRITING);
+    fioInitialize(&hio->fio,FIO_FORMAT_HDF5,FIO_MODE_WRITING,mFlags);
 
     hio->mFlags = mFlags;
 
