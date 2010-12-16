@@ -323,6 +323,7 @@ int mdlInitialize(MDL *pmdl,char **argv,
      */
     mdl->cache = malloc(mdl->nMaxCacheIds*sizeof(CACHE));
     assert(mdl->cache != NULL);
+    mdl->freeCacheLines = NULL;
     /*
      ** Initialize caching spaces.
      */
@@ -458,6 +459,7 @@ int mdlInitialize(MDL *pmdl,char **argv,
 
 void mdlFinish(MDL mdl) {
     int i;
+    FREECACHELINES *fcl, *fcn;
 
     MPI_Barrier(mdl->commMDL);
     for ( i=0; i<mdl->commCount; i++ )
@@ -474,6 +476,10 @@ void mdlFinish(MDL mdl) {
     /*
      ** Deallocate storage.
      */
+    for(fcl=mdl->freeCacheLines;fcl!=NULL;fcl=fcn) {
+	fcn = fcl->next;
+	free(fcl);
+	}
     free(mdl->psrv);
     free(mdl->pszIn);
     free(mdl->pszOut);
@@ -1261,9 +1267,17 @@ CACHE *CacheInitialize(MDL mdl,int cid,
     /*
      ** Allocate cache data lines.
      */
-    c->pLine = malloc(c->nLines*c->iLineSize);
+    if (mdl->freeCacheLines) {
+	c->pLine = (char *)mdl->freeCacheLines;
+	mdl->freeCacheLines = mdl->freeCacheLines->next;
+	}
+    else {
+	c->pLine = malloc(mdl->cacheSize);
+	}
+    /*c->pLine = malloc(c->nLines*c->iLineSize);*/
     assert(c->pLine != NULL);
     c->nCheckOut = 0;
+
     /*
      ** Set up the request message as much as possible!
      */
@@ -1512,7 +1526,12 @@ void mdlFinishCache(MDL mdl,int cid) {
      */
     free(c->pTrans);
     free(c->pTag);
-    free(c->pLine);
+    {
+        FREECACHELINES *fcl = (FREECACHELINES *)c->pLine;
+	fcl->next = mdl->freeCacheLines;
+	mdl->freeCacheLines = fcl;
+    }
+    /*free(c->pLine);*/
     c->iType = MDL_NOCACHE;
 
     AdjustDataSize(mdl);

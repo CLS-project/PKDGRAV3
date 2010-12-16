@@ -110,6 +110,9 @@ typedef struct serviceRec {
     void (*fcnService)(void *,void *,int,void *,int *);
     } SERVICE;
 
+typedef struct freeCacheLines {
+    struct freeCacheLines *next;
+    } FREECACHELINES;
 
 typedef struct mdlContext {
     int nThreads;
@@ -151,6 +154,7 @@ typedef struct mdlContext {
     char *pszFlsh;
     int nMaxCacheIds;
     CACHE *cache;
+    FREECACHELINES *freeCacheLines;
     char nodeName[MPI_MAX_PROCESSOR_NAME];
 #if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
     ticks nTicks;
