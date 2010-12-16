@@ -526,6 +526,7 @@ struct inGravity {
     };
 struct outGravity {
     int nActive;
+    int nLocal;
     double dPartSum;
     double dCellSum;
     double dFlop;

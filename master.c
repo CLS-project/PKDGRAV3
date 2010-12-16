@@ -2755,12 +2755,12 @@ void msrMemStatus(MSR msr) {
 #endif
     printf("Tree size (MB):\n");
     PRINTGRID(8,"%8"PRIu64,nBytesTree/1024/1024);
-    printf("Checklist size (MB):\n");
-    PRINTGRID(8,"%8"PRIu64,nBytesCl/1024/1024);
-    printf("Particle List size (MB):\n");
-    PRINTGRID(8,"%8"PRIu64,nBytesIlp/1024/1024);
-    printf("Cell List size (MB):\n");
-    PRINTGRID(8,"%8"PRIu64,nBytesIlc/1204/1024);
+    printf("Checklist size (KB):\n");
+    PRINTGRID(8,"%8"PRIu64,nBytesCl/1024);
+    printf("Particle List size (KB):\n");
+    PRINTGRID(8,"%8"PRIu64,nBytesIlp/1024);
+    printf("Cell List size (KB):\n");
+    PRINTGRID(8,"%8"PRIu64,nBytesIlc/1024);
     free(out);
     }
 
@@ -2826,6 +2826,14 @@ void msrGravity(MSR msr,uint8_t uRungLo, uint8_t uRungHi, double dTime,
 	*/
 	printf("Walk Timings:\n");
 	PRINTGRID(8,"% 8.2f",dWalkTime);
+	printf("Particle Cache Accesses:\n");
+	PRINTGRID(8,"% 8.2f",cs.dpNumAccess);
+	printf("Particle Cache Miss Ratio:\n");
+	PRINTGRID(8,"% 8.2f",cs.dpMissRatio);
+	printf("Cell Cache Accesses:\n");
+	PRINTGRID(8,"% 8.2f",cs.dcNumAccess);
+	printf("Cell Cache Miss Ratio:\n");
+	PRINTGRID(8,"% 8.2f",cs.dcMissRatio);
 #if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
 	/* Okay: Compute + Wait + Imbalance = 100.0 by definition
 		printf("Compute Percentage:\n");
@@ -2837,6 +2845,8 @@ void msrGravity(MSR msr,uint8_t uRungLo, uint8_t uRungHi, double dTime,
 #endif
 	printf("Number of Active:\n");
 	PRINTGRID(8,"% 8d",nActive);
+	printf("Number of Local Particles:\n");
+	PRINTGRID(8,"% 8d",nLocal);
 	printf("Average Number of P-P per Active Particle:\n");
 	PRINTGRID(8,"% 8.1f",dPartSum);
 	printf("Average Number of P-C per Active Particle:\n");
