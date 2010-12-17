@@ -1989,6 +1989,7 @@ void _msrWriteTipsy(MSR msr,const char *pszFileName,double dTime,int bCheckpoint
     LCL *plcl = msr->pst->plcl;
     int nProcessors, i;
     double dvFac, dExp;
+    double sec,dsec;
     uint64_t N;
 
     /*
@@ -2049,9 +2050,11 @@ void _msrWriteTipsy(MSR msr,const char *pszFileName,double dTime,int bCheckpoint
 	}
 #endif
 
+    sec = msrTime();
     msrAllNodeWrite(msr, achOutFile, dTime, dvFac, bCheckpoint);
+    dsec = msrTime() - sec;
 
-    msrprintf(msr,"Output file has been successfully written.\n");
+    msrprintf(msr,"Output file has been successfully written, Wallclock: %f secs.\n", dsec);
     }
 
 
@@ -5317,6 +5320,7 @@ double msrRead(MSR msr, const char *achInFile) {
     double dTime,dExpansion;
     FIO fio;
     int j;
+    double sec,dsec;
     struct inReadFile read;
     uint64_t mMemoryModel = 0;
     LCL *plcl;
@@ -5356,6 +5360,7 @@ double msrRead(MSR msr, const char *achInFile) {
     if (msr->param.bMemNodeBnd)          mMemoryModel |= PKD_MODEL_NODE_BND;
     if (msr->param.bMemNodeBnd6)         mMemoryModel |= PKD_MODEL_NODE_BND | PKD_MODEL_NODE_BND6;
 
+    sec = msrTime();
 #ifdef PLANETS
     dTime = msrReadSS(msr); /* must use "Solar System" (SS) I/O format... */
 #else
@@ -5412,15 +5417,15 @@ double msrRead(MSR msr, const char *achInFile) {
     ** handle it.
     */
     read.nProcessors = msr->param.bParaRead==1 ? msr->nThreads:msr->param.bParaRead;
-
     if (msr->param.bParaRead)
 	pstReadFile(msr->pst,&read,sizeof(struct inReadFile),NULL,NULL);
     else {
 	msrOneNodeRead(msr,&read);
 	}
 #endif
+    dsec = msrTime() - sec;
     msrSetClasses(msr);
-    msrprintf(msr,"Input file has been successfully read.\n");
+    msrprintf(msr,"Input file has been successfully read, Wallclock: %f secs.\n", dsec);
     msrprintf(msr,"Allocated %lu MB for particle store on each processor.\n",
 	      pkdParticleMemory(plcl->pkd)/(1024*1024));
 
