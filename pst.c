@@ -1111,16 +1111,15 @@ void _pstRootSplit(PST pst,int iSplitDim,int bDoRootFind,int bDoSplitDimFind,
 		  pst->idSelf, NUM_SAFETY, nLowTot, nLowerStore, nHighTot, nUpperStore);
 	}
 
-    /*margin = nSafeTot/pst->nLeaves/20;*/
-    margin = log(pst->nLeaves-1)/log(mdlThreads(pst->mdl)) * 0.90 * nSafeTot/pst->nLeaves;
+    margin = nSafeTot/pst->nLeaves/20;
     if (margin < NUM_SAFETY/2) margin = NUM_SAFETY/2;
 
     mdlprintf(pst->mdl,"id: %d  %d Low %"PRIu64"/%"PRIu64"   %d High %"PRIu64"/%"PRIu64"  NUM_SAFETY %d margin %d\n",
 	      pst->idSelf, pst->nLower,nLowTot, nLowerStore, pst->nUpper,nHighTot, nUpperStore,NUM_SAFETY,margin);
 
 
-    if (nLowTot > nLowerStore-margin*pst->nLower) {
-	sprintf(ach,"id: %d: nLowTot > nLowerStore-margin*pst->nLower %"PRIu64" %"PRIu64" %d %d\n",
+    if (nLowTot > nLowerStore-NUM_SAFETY*pst->nLower) {
+	sprintf(ach,"id: %d: nLowTot > nLowerStore-NUM_SAFETY*pst->nLower %"PRIu64" %"PRIu64" %d %d\n",
 		pst->idSelf, nLowTot, nLowerStore, NUM_SAFETY, pst->nLower);
 	mdlDiag(pst->mdl,ach);
 	if (fm > pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd]) fm=pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd];
@@ -1196,8 +1195,8 @@ void _pstRootSplit(PST pst,int iSplitDim,int bDoRootFind,int bDoSplitDimFind,
 	mdlassert(pst->mdl,nLowTot <= nLowerStore);
 	mdlPrintTimer(pst->mdl,"TIME fix lower II _pstRootSplit ",&t);
 	}
-    else if (nHighTot > nUpperStore-margin*pst->nUpper) {
-	sprintf(ach,"id: %d: nHighTot > nUpperStore-margin*pst->nUpper %"PRIu64" %"PRIu64" %d %d\n",
+    else if (nHighTot > nUpperStore-NUM_SAFETY*pst->nUpper) {
+	sprintf(ach,"id: %d: nHighTot > nUpperStore-NUM_SAFETY*pst->nUpper %"PRIu64" %"PRIu64" %d %d\n",
 		pst->idSelf, nHighTot, nUpperStore, NUM_SAFETY, pst->nUpper);
 	mdlDiag(pst->mdl,ach);
 	if (fm > pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd]) fm=pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd];
@@ -1274,8 +1273,8 @@ void _pstRootSplit(PST pst,int iSplitDim,int bDoRootFind,int bDoSplitDimFind,
 	mdlPrintTimer(pst->mdl,"TIME fix upper II _pstRootSplit ",&t);
 	}
 
-    if (nLowTot < margin*pst->nLower) {
-	sprintf(ach,"id: %d: nLowTot < margin*pst->nLower %"PRIu64" %"PRIu64" %d %d\n",
+    if (nLowTot < NUM_SAFETY*pst->nLower) {
+	sprintf(ach,"id: %d: nLowTot < NUM_SAFETY*pst->nLower %"PRIu64" %"PRIu64" %d %d\n",
 		pst->idSelf, nLowTot, nLowerStore, NUM_SAFETY, pst->nLower);
 	mdlDiag(pst->mdl,ach);
 	if (fm > pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd]) fm=pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd];
@@ -1316,7 +1315,7 @@ void _pstRootSplit(PST pst,int iSplitDim,int bDoRootFind,int bDoSplitDimFind,
 		nDiff = nLowTot - nLast;
 	    nLast = nLowTot;
 	    if (nLowTot > margin*pst->nLower) fl = fm;
-	    else if (nLowTot < margin*pst->nLower) fu = fm;
+	    else if (nLowTot < NUM_SAFETY*pst->nLower) fu = fm;
 	    else {
 		fl = fm;
 		break;
@@ -1343,8 +1342,8 @@ void _pstRootSplit(PST pst,int iSplitDim,int bDoRootFind,int bDoSplitDimFind,
 	mdlassert(pst->mdl,nLowTot <= nLowerStore);
 	mdlPrintTimer(pst->mdl,"TIME fix lower II _pstRootSplit ",&t);
 	}
-    if (nHighTot < margin*pst->nUpper) {
-	sprintf(ach,"id: %d: nHighTot > nUpperStore-margin*pst->nUpper %"PRIu64" %"PRIu64" %d %d\n",
+    if (nHighTot < NUM_SAFETY*pst->nUpper) {
+	sprintf(ach,"id: %d: nHighTot > nUpperStore-NUM_SAFETY*pst->nUpper %"PRIu64" %"PRIu64" %d %d\n",
 		pst->idSelf, nHighTot, nUpperStore, NUM_SAFETY, pst->nUpper);
 	mdlDiag(pst->mdl,ach);
 	if (fm > pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd]) fm=pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd];
@@ -1385,7 +1384,7 @@ void _pstRootSplit(PST pst,int iSplitDim,int bDoRootFind,int bDoSplitDimFind,
 		nDiff = nLowTot - nLast;
 	    nLast = nLowTot;
 	    if (nHighTot > margin*pst->nUpper) fu = fm;
-	    else if (nHighTot < margin*pst->nUpper) fl = fm;
+	    else if (nHighTot < NUM_SAFETY*pst->nUpper) fl = fm;
 	    else {
 		fu = fm;
 		break;
@@ -1404,7 +1403,7 @@ void _pstRootSplit(PST pst,int iSplitDim,int bDoRootFind,int bDoSplitDimFind,
 	mdlprintf(pst->mdl, "id: %d (%d) Fix Too few High %d th guess reverse split: %f (%f,%f) (%f,%f) Low %"PRIu64" High %"PRIu64"\n",
 		  pst->idSelf, pst->iLvl, ittr, fm, fl, fu, pst->bnd.fCenter[dBnd]-pst->bnd.fMax[dBnd],
 		  pst->bnd.fCenter[dBnd]+pst->bnd.fMax[dBnd],nLowTot,nHighTot);
-	if (nHighTot != nUpperStore-margin*pst->nUpper) {
+	if (nHighTot != nUpperStore-NUM_SAFETY*pst->nUpper) {
 	    if (abs(nDiff) > 1)
 		mdlprintf(pst->mdl, "id: %d delta of %d, check NUM_SAFETY\n",
 			  pst->idSelf, nDiff);
