@@ -866,7 +866,7 @@ static inline size_t pkdParticleSize( PKD pkd ) {
     return pkd->iParticleSize;
     }
 static inline size_t pkdParticleMemory(PKD pkd) {
-    return pkd->iParticleSize * pkd->nStore;
+    return (pkd->iParticleSize + sizeof(PLITE)) * (pkd->nStore+1);
     }
 static inline PARTICLE *pkdParticle( PKD pkd, int i ) {
     char *v = (char *)pkd->pStorePRIVATE;
