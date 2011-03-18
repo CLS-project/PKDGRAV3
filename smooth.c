@@ -3159,7 +3159,7 @@ int smGroupMerge(SMF *smf,int bPeriodic) {
     PARTICLE *pPart;
     int32_t *pGroup;
     int32_t *pPartGroup, iPartGroup;
-    FLOAT l[3];
+    FLOAT l[3], rtmp,rcomsubgroup;
     int pi,id,i,j,k,index,listSize, sgListSize, lsgListSize;
     int nLSubGroups,nSubGroups,nMyGroups;
     int iHead, iTail, nFifo,tmp, nTree;
@@ -3216,9 +3216,15 @@ int smGroupMerge(SMF *smf,int bPeriodic) {
 	if (pkd->groupData[i].nRemoteMembers && pkd->groupData[i].bMyGroup) {
 
 	    /* Add all remote members to the Fifo: */
-	    for (j=pkd->groupData[i].iFirstRm; j < pkd->groupData[i].iFirstRm + pkd->groupData[i].nRemoteMembers ;j++){
-		rmFifo[iTail] = pkd->remoteMember[j];
-		iTail++;
+	  for (j=pkd->groupData[i].iFirstRm; j < pkd->groupData[i].iFirstRm + pkd->groupData[i].nRemoteMembers ;j++){
+	      if (iTail >= nFifo)
+		{
+		  nFifo *= 2;
+		  rmFifo = (FOFRM *)realloc(rmFifo,nFifo*sizeof(FOFRM));
+		  assert(rmFifo != NULL);
+		}
+	      rmFifo[iTail] = pkd->remoteMember[j];		
+	      iTail++;
 	    }
 	    while (iHead != iTail) {
 		rm = rmFifo[iHead];
@@ -3252,8 +3258,14 @@ int smGroupMerge(SMF *smf,int bPeriodic) {
 		    pkd->groupData[i].nTotal += sG->nLocal;
 		    /* Add all its remote members to the Fifo: */
 		    for (j=sG->iFirstRm; j< sG->iFirstRm + sG->nRemoteMembers ;j++) {
-			rmFifo[iTail++] = pkd->remoteMember[j];
-			if (iTail == nFifo) iTail = 0;
+		      rmFifo[iTail++] = pkd->remoteMember[j];			
+		      if (iTail >= nFifo)
+			{
+			  nFifo *= 2;
+			  rmFifo = (FOFRM *)realloc(rmFifo,nFifo*sizeof(FOFRM));
+			  assert(rmFifo != NULL);
+			}		      
+		      if (iTail == nFifo) iTail = 0;
 		    }
 		}
 		else {
@@ -3292,6 +3304,12 @@ int smGroupMerge(SMF *smf,int bPeriodic) {
 		    for (j=sG->iFirstRm; j < sG->iFirstRm + sG->nRemoteMembers ;j++) {
 			remoteRM = mdlAquire(mdl,CID_RM,j,rm.iPid);
 			rmFifo[iTail++] = *remoteRM;
+			if (iTail >= nFifo)
+			  {
+			    nFifo *= 2;
+			    rmFifo = (FOFRM *)realloc(rmFifo,nFifo*sizeof(FOFRM));
+			    assert(rmFifo != NULL);
+			  }
 			if (iTail == nFifo) iTail = 0;
 			mdlRelease(mdl,CID_RM,remoteRM);
 		    }
@@ -3322,12 +3340,17 @@ int smGroupMerge(SMF *smf,int bPeriodic) {
 		    if(k < nSubGroups) sG = subGroup[k];
 		    else sG = lSubGroup[k-nSubGroups];
 		    sG->iGlobalId = pkd->groupData[i].iGlobalId;
-		    sG->bMyGroup = 0;
-		    for (j=0;j<3;j++) {
-			pkd->groupData[i].rcom[j] += sG->rcom[j];
-			pkd->groupData[i].v[j] += sG->v[j];
+		    sG->bMyGroup = 0;		    
+		    for (j=0;j<3;j++) { /** including check for groups split across period bounds **/
+		      rtmp = sG->rcom[j]/sG->fMass;      /* might be across period */
+		      rcomsubgroup = corrPos(pkd->groupData[i].rcom[j]/pkd->groupData[i].fMass,rtmp,l[j]);      		
+		      pkd->groupData[i].rcom[j] += rcomsubgroup*sG->fMass;
+		      if (rcomsubgroup != rtmp){  /** shift across periodic boundary **/
+			sG->fRMSRadius  += sG->fMass * (pow(rcomsubgroup,2)-pow(rtmp,2));
+		      } 
+		      pkd->groupData[i].v[j] += sG->v[j];
 		    }
-		    pkd->groupData[i].fRMSRadius += sG->fRMSRadius;
+		    pkd->groupData[i].fRMSRadius += sG->fRMSRadius;  
 		    pkd->groupData[i].fMass += sG->fMass;
 		}
 	    }
