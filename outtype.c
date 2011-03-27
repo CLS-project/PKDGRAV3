@@ -343,6 +343,10 @@ static void flushZ(PKD pkd,PKDOUT ctx,int final) {
 	}
     if (final) {
 	do {
+	    if (ctx->CTX.gzStream->avail_out==0) {
+		ctx->nBytes += (ctx->outBuffer->nBytes=PKDOUT_BUFFER_SIZE);
+		(*ctx->fnWrite)(pkd,ctx);
+		}
 	    gzerror = deflate(ctx->CTX.gzStream,Z_FINISH);
 	    assert(gzerror>=0);
 	    (*ctx->fnWrite)(pkd,ctx);
@@ -569,6 +573,11 @@ void pkdOutGroup(PKD pkd,char *pszFileName,int iType, int nStart,double dvFac) {
 	    fprintf(fp,"%.8g ",dvFac*pkd->groupData[i].v[2]);
 	    fprintf(fp,"\n");
 	    }
+	i = fclose(fp);
+	if (i != 0) {
+	    perror("pkdOutGroup: could not close file");
+	    exit(1);
+	    }
 	}
     else if (iType == OUT_GROUP_TIPSY_NAT || iType == OUT_GROUP_TIPSY_STD) {
 	FIO fio;
@@ -596,11 +605,11 @@ void pkdOutGroup(PKD pkd,char *pszFileName,int iType, int nStart,double dvFac) {
 	    fprintf(fp,"%.8g ",pkd->groupBin[i].fMassInBin);
 	    fprintf(fp,"\n");
 	    }
+	i = fclose(fp);
+	if (i != 0) {
+	    perror("pkdOutGroup: could not close file");
+	    exit(1);
+	    }
 	}
     else assert(0);
-    i = fclose(fp);
-    if (i != 0) {
-	perror("pkdOutGroup: could not close file");
-	exit(1);
-	}
     }
