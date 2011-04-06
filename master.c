@@ -39,6 +39,7 @@
 #endif
 
 #include "master.h"
+#include "illinois.h"
 #include "tipsydefs.h"
 #include "outtype.h"
 #include "smoothfcn.h"
@@ -5913,50 +5914,6 @@ uint64_t msrCountDistance(MSR msr,double dRadius2Inner, double dRadius2Outer) {
     assert( nOut == sizeof(out) );
     return out.nCount;
     }
-
-static double illinois(double (*func)(double,void *),void *ctx,double r,double s,double xacc,double yacc,int *pnIter) {
-    const int maxIter = 100;
-    double t,fr,fs,ft,phis,phir,gamma;
-    int i;
-
-    fr = func(r,ctx);
-    fs = func(s,ctx);
-    assert(fr*fs < 0);
-    t = (s*fr - r*fs)/(fr - fs);
-    for (i=0;i < maxIter && fabs(t-s) > xacc;++i) {
-	ft = func(t,ctx);
-	if ( fabs(ft) <= yacc ) break;
-	if (ft*fs < 0) {
-	    /*
-	    ** Unmodified step.
-	    */
-	    r = s;
-	    s = t;
-	    fr = fs;
-	    fs = ft;
-	}
-	else {
-	    /*
-	    ** Modified step to make sure we do not retain the 
-	    ** endpoint r indefinitely.
-	    */
-#if 1
-	    phis = ft/fs;
-	    phir = ft/fr;
-	    gamma = 1 - (phis/(1-phir));  /* method 3 */
-	    if (gamma < 0) gamma = 0.5;
-#else
-	    gamma = 0.5;    /* illinois */
-#endif
-	    fr *= gamma;
-	    s = t;
-	    fs = ft;
-	}
-	t = (s*fr - r*fs)/(fr - fs);
-    }
-    if (pnIter) *pnIter = i;
-    return(t);
-}
 
 typedef struct {
     double dFrac;       /* Fraction of particles in each bin */
