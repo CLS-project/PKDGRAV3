@@ -2808,7 +2808,7 @@ FLOAT corrPos(FLOAT c,FLOAT r,FLOAT l) {
     FLOAT d;
 
     d = r-c;
-    if (d > 0.5*l) return r - l;
+    if (d >= 0.5*l) return r - l;
     else if (d < -0.5*l) return r + l;
     else return r;
 }
@@ -2816,7 +2816,7 @@ FLOAT corrPos(FLOAT c,FLOAT r,FLOAT l) {
 
 FLOAT PutInBox(FLOAT r,FLOAT l) {
     if (r < -0.5*l) return r + l;
-    else if (r > 0.5*l) return r - l;
+    else if (r >= 0.5*l) return r - l;
     else return r;
 }
 
@@ -2932,11 +2932,11 @@ void smFof(SMX smx,SMF *smf) {
 	if (smf->bTauAbs) {
 	    p->fBall = smf->dTau2;
 	    /* enforce a real space linking length smaller than the mean particle separation at all times :*/
-	    if (smf->dTau2 > 0.2*pow(fMass,0.6666) )
-		p->fBall = 0.2*pow(fMass,0.6666);
+	    if (smf->dTau2 > 0.2*pow(fMass,2.0/3.0) )
+		p->fBall = 0.2*pow(fMass,2.0/3.0);
 	}
 	else {
-	    p->fBall = smf->dTau2*pow(fMass,0.6666);
+	    p->fBall = smf->dTau2*pow(fMass,2.0/3.0);
 	}
 	if (p->fBall > fBall2Max) fBall2Max = p->fBall;
     }
@@ -3152,6 +3152,30 @@ int CmpGroups(const void *v1,const void *v2) {
     return g1->nTotal - g2->nTotal;
 }
 
+/*
+ * This will expand the FIFO by doubling nFifo, reallocating the memory and
+ * moving the head-to-end part to the end (and updating iHead)
+ *                     tail     nFifo
+ * Before: |XXXXXXXXXXX|XXXXXXXX|
+ *         0           head
+ *
+ *                     tail                           nFifo
+ * After:  |XXXXXXXXXXX|                     |XXXXXXXX|
+ *                                           head
+ */
+static void expandFIFO( int *iHead, int *iTail, int *nFifo, FOFRM **rmFifo ) {
+    int nOld, nMove;
+    assert(*iHead == *iTail);
+    nOld = *nFifo;
+    nMove = *nFifo - *iHead;
+    *nFifo *= 2;
+    *rmFifo = (FOFRM *)realloc(*rmFifo,*nFifo*sizeof(FOFRM));
+    assert(*rmFifo != NULL);
+    memmove(*rmFifo + *nFifo - nMove, *rmFifo + *iHead, nMove*sizeof(FOFRM));
+    *iHead = *nFifo - nMove;
+    }
+
+
 int smGroupMerge(SMF *smf,int bPeriodic) {
     PKD pkd = smf->pkd;
     MDL mdl = smf->pkd->mdl;
@@ -3217,19 +3241,13 @@ int smGroupMerge(SMF *smf,int bPeriodic) {
 
 	    /* Add all remote members to the Fifo: */
 	  for (j=pkd->groupData[i].iFirstRm; j < pkd->groupData[i].iFirstRm + pkd->groupData[i].nRemoteMembers ;j++){
-	      if (iTail >= nFifo)
-		{
-		  nFifo *= 2;
-		  rmFifo = (FOFRM *)realloc(rmFifo,nFifo*sizeof(FOFRM));
-		  assert(rmFifo != NULL);
-		}
 	      rmFifo[iTail] = pkd->remoteMember[j];		
-	      iTail++;
+	      if (++iTail == nFifo) iTail = 0;
+	      if (iTail == iHead) expandFIFO(&iHead,&iTail,&nFifo,&rmFifo);
 	    }
 	    while (iHead != iTail) {
 		rm = rmFifo[iHead];
-		iHead++;
-		if (iHead == nFifo) iHead = 0;
+		if (++iHead == nFifo) iHead = 0;
 		if (rm.iPid == pkd->idSelf) {
 		    pPart = pkdParticle(pkd,rm.iIndex);
 		    pPartGroup = pkdInt32(pPart,pkd->oGroup);
@@ -3258,14 +3276,9 @@ int smGroupMerge(SMF *smf,int bPeriodic) {
 		    pkd->groupData[i].nTotal += sG->nLocal;
 		    /* Add all its remote members to the Fifo: */
 		    for (j=sG->iFirstRm; j< sG->iFirstRm + sG->nRemoteMembers ;j++) {
-		      rmFifo[iTail++] = pkd->remoteMember[j];			
-		      if (iTail >= nFifo)
-			{
-			  nFifo *= 2;
-			  rmFifo = (FOFRM *)realloc(rmFifo,nFifo*sizeof(FOFRM));
-			  assert(rmFifo != NULL);
-			}		      
-		      if (iTail == nFifo) iTail = 0;
+		      rmFifo[iTail] = pkd->remoteMember[j];			
+		      if (++iTail == nFifo) iTail = 0;
+		      if (iTail == iHead) expandFIFO(&iHead,&iTail,&nFifo,&rmFifo);
 		    }
 		}
 		else {
@@ -3303,14 +3316,9 @@ int smGroupMerge(SMF *smf,int bPeriodic) {
 		    /* Add all its remote members to the Fifo: */
 		    for (j=sG->iFirstRm; j < sG->iFirstRm + sG->nRemoteMembers ;j++) {
 			remoteRM = mdlAquire(mdl,CID_RM,j,rm.iPid);
-			rmFifo[iTail++] = *remoteRM;
-			if (iTail >= nFifo)
-			  {
-			    nFifo *= 2;
-			    rmFifo = (FOFRM *)realloc(rmFifo,nFifo*sizeof(FOFRM));
-			    assert(rmFifo != NULL);
-			  }
-			if (iTail == nFifo) iTail = 0;
+			rmFifo[iTail] = *remoteRM;
+			if (++iTail == nFifo) iTail = 0;
+			if (iTail == iHead) expandFIFO(&iHead,&iTail,&nFifo,&rmFifo);
 			mdlRelease(mdl,CID_RM,remoteRM);
 		    }
 		}
