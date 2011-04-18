@@ -519,10 +519,78 @@ static FIO_SPECIES tipsySpecies(FIO fio) {
     }
 
 /*
+** Given an offset, calculate the particle number
+*/
+static uint64_t tipsyParticle(uint64_t iByte,uint64_t nHdrSize,
+    uint64_t nSph, uint64_t nDark, uint64_t nStar,
+    int nSphSize, int nDarkSize, int nStarSize ) {
+    uint64_t iPart,n;
+
+    iPart = 0;
+    iByte -= nHdrSize;
+
+    n = iByte / nSphSize;
+    if ( n > nSph ) n = nSph;
+    iPart += n;
+    iByte -= nSphSize * n;
+
+    n = iByte / nDarkSize;
+    if ( n > nDark ) n = nDark;
+    iPart += n;
+    iByte -= nDarkSize * n;
+
+    n = iByte / nStarSize;
+    assert( n<=nStar );
+    iPart += n;
+    iByte -= nStarSize * n;
+
+    assert(iByte==0);
+
+    return iPart;
+    }
+
+
+/*
+** Calculate the absolute offset of a given particle in a Tipsy file.
+*/
+static uint64_t tipsyOffset(
+    uint64_t iPart,uint64_t nHdrSize,
+    uint64_t nSph, uint64_t nDark, uint64_t nStar,
+    int nSphSize, int nDarkSize, int nStarSize ) {
+    uint64_t iByte;
+
+    iByte = nHdrSize;
+    if (iPart<nSph) {
+	iByte += iPart * nSphSize;
+	}
+    else {
+	iByte += nSph * nSphSize;
+	iPart -= nSph;
+
+	if (iPart<nDark) {
+	    iByte += iPart * nDarkSize;
+	    }
+	else {
+	    iByte += nDark * nDarkSize;
+	    iPart -= nDark;
+
+	    if (iPart<=nStar) {
+		iByte += iPart * nStarSize;
+		}
+	    else {
+		errno = ESPIPE;
+		return 0;
+		}
+	    }
+	}
+    return iByte;
+    }
+
+/*
 ** Compares the current iOrder with the file list and switches to a different
 ** file if necessary.
 */
-static int tipsySwitchFile(FIO fio) {
+static int tipsySwitchFile(FIO fio, int bSeek) {
     fioTipsy *tio = (fioTipsy *)fio;
 
     assert(fio->fileList.iFile>=0 && fio->fileList.iFile<fio->fileList.nFiles);
@@ -531,21 +599,49 @@ static int tipsySwitchFile(FIO fio) {
 	int bStandard = fioTipsyIsStandard(fio);
 	if (bStandard) xdr_destroy(&tio->xdr);
 	fclose(tio->fp);
-
 	if (tio->iOrder < fio->fileList.fileInfo[fio->fileList.iFile].iFirst) {
 	    while(fio->fileList.iFile!=0)
 		if (fio->fileList.fileInfo[--fio->fileList.iFile].iFirst<tio->iOrder) break;
 	    }
 	else if (tio->iOrder >= fio->fileList.fileInfo[fio->fileList.iFile+1].iFirst) {
 	    while(++fio->fileList.iFile<fio->fileList.nFiles)
-		if (fio->fileList.fileInfo[fio->fileList.iFile].iFirst<=tio->iOrder) break;
+		if (fio->fileList.fileInfo[fio->fileList.iFile+1].iFirst>tio->iOrder) break;
 	    }
+	assert(tio->iOrder >= fio->fileList.fileInfo[fio->fileList.iFile].iFirst
+	       && tio->iOrder < fio->fileList.fileInfo[fio->fileList.iFile+1].iFirst);
 	tio->fp = fopen(fio->fileList.fileInfo[fio->fileList.iFile].pszFilename,"rb");
 	if (tio->fp == NULL) printf("Fail: %d %s\n",fio->fileList.iFile,fio->fileList.fileInfo[fio->fileList.iFile].pszFilename);
 	if (tio->fp == NULL) return 1;
 	if (tio->fpBuffer != NULL) setvbuf(tio->fp,tio->fpBuffer,_IOFBF,TIO_BUFFER_SIZE);
 	if (bStandard) xdrstdio_create(&tio->xdr,tio->fp,XDR_DECODE);
+	bSeek = 1;
 	}
+    if (bSeek) {
+	uint64_t iByte;
+	off_t iOffset;
+	int rc;
+
+	/* For file fragments, the first particle is not 0.  Adjust accordingly. */
+	iByte = tipsyOffset(tio->iOrder,0,
+			    tio->fio.nSpecies[FIO_SPECIES_SPH],
+			    tio->fio.nSpecies[FIO_SPECIES_DARK],
+			    tio->fio.nSpecies[FIO_SPECIES_STAR],
+			    TIPSY_SPH_SIZE(1,3*tio->bDoublePos+3*tio->bDoubleVel),
+			    TIPSY_DARK_SIZE(1,3*tio->bDoublePos+3*tio->bDoubleVel),
+			    TIPSY_STAR_SIZE(1,3*tio->bDoublePos+3*tio->bDoubleVel))
+	    - tipsyOffset(fio->fileList.fileInfo[fio->fileList.iFile].iFirst,0,
+			  tio->fio.nSpecies[FIO_SPECIES_SPH],
+			  tio->fio.nSpecies[FIO_SPECIES_DARK],
+			  tio->fio.nSpecies[FIO_SPECIES_STAR],
+			  TIPSY_SPH_SIZE(1,3*tio->bDoublePos+3*tio->bDoubleVel),
+			  TIPSY_DARK_SIZE(1,3*tio->bDoublePos+3*tio->bDoubleVel),
+			  TIPSY_STAR_SIZE(1,3*tio->bDoublePos+3*tio->bDoubleVel))
+	    + (fio->fileList.iFile?0:tio->nHdrSize);
+	iOffset = iByte;
+	assert(iOffset==iByte);
+	rc = safe_fseek(tio->fp,iByte); assert(rc==0);
+	}
+
     return 0;
     }
 
@@ -559,7 +655,7 @@ static int tipsyReadNativeDark(FIO fio,
     float fTmp[3];
     assert(fio->eFormat == FIO_FORMAT_TIPSY && fio->eMode==FIO_MODE_READING);
 
-    if (tipsySwitchFile(fio)) return 0;
+    if (tipsySwitchFile(fio,0)) return 0;
     *piOrder = tio->iOrder++;
 
     rc = fread(pfMass,sizeof(float),1,tio->fp); if (rc!=1) return 0;
@@ -621,7 +717,7 @@ static int tipsyReadStandardDark(FIO fio,
     float fTmp;
 
     assert(fio->eFormat == FIO_FORMAT_TIPSY && fio->eMode==FIO_MODE_READING);
-    if (tipsySwitchFile(fio)) return 0;
+    if (tipsySwitchFile(fio,0)) return 0;
     *piOrder = tio->iOrder++;
     if (!xdr_float(&tio->xdr,pfMass)) return 0;
     for(d=0;d<3;d++) {
@@ -691,7 +787,7 @@ static int tipsyReadNativeSph(
     float fTmp[3];
 
     assert(fio->eFormat == FIO_FORMAT_TIPSY && fio->eMode==FIO_MODE_READING);
-    if (tipsySwitchFile(fio)) return 0;
+    if (tipsySwitchFile(fio,0)) return 0;
     *piOrder = tio->iOrder++;
     rc = fread(pfMass,sizeof(float),1,tio->fp); if (rc!=1) return 0;
     if (tio->bDoublePos) {
@@ -761,7 +857,7 @@ static int tipsyReadStandardSph(
     float fTmp;
 
     assert(fio->eFormat == FIO_FORMAT_TIPSY && fio->eMode==FIO_MODE_READING);
-    if (tipsySwitchFile(fio)) return 0;
+    if (tipsySwitchFile(fio,0)) return 0;
     *piOrder = tio->iOrder++;
     if (!xdr_float(&tio->xdr,pfMass)) return 0;
     for(d=0;d<3;d++) {
@@ -842,7 +938,7 @@ static int tipsyReadNativeStar(
     float fTmp[3];
 
     assert(fio->eFormat == FIO_FORMAT_TIPSY && fio->eMode==FIO_MODE_READING);
-    if (tipsySwitchFile(fio)) return 0;
+    if (tipsySwitchFile(fio,0)) return 0;
     *piOrder = tio->iOrder++;
     rc = fread(pfMass,sizeof(float),1,tio->fp); if (rc!=1) return 0;
     if (tio->bDoublePos) {
@@ -908,7 +1004,7 @@ static int tipsyReadStandardStar(
     float fTmp;
 
     assert(fio->eFormat == FIO_FORMAT_TIPSY && fio->eMode==FIO_MODE_READING);
-    if (tipsySwitchFile(fio)) return 0;
+    if (tipsySwitchFile(fio,0)) return 0;
     *piOrder = tio->iOrder++;
     if (!xdr_float(&tio->xdr,pfMass)) return 0;
     for(d=0;d<3;d++) {
@@ -1003,78 +1099,8 @@ int fioTipsyIsStandard(FIO fio) {
     return tio->fio.fcnReadDark == tipsyReadStandardDark;
     }
 
-/*
-** Given an offset, calculate the particle number
-*/
-static uint64_t tipsyParticle(uint64_t iByte,uint64_t nHdrSize,
-    uint64_t nSph, uint64_t nDark, uint64_t nStar,
-    int nSphSize, int nDarkSize, int nStarSize ) {
-    uint64_t iPart,n;
-
-    iPart = 0;
-    iByte -= nHdrSize;
-
-    n = iByte / nSphSize;
-    if ( n > nSph ) n = nSph;
-    iPart += n;
-    iByte -= nSphSize * n;
-
-    n = iByte / nDarkSize;
-    if ( n > nDark ) n = nDark;
-    iPart += n;
-    iByte -= nDarkSize * n;
-
-    n = iByte / nStarSize;
-    assert( n<=nStar );
-    iPart += n;
-    iByte -= nStarSize * n;
-
-    assert(iByte==0);
-
-    return iPart;
-    }
-
-
-/*
-** Calculate the absolute offset of a given particle in a Tipsy file.
-*/
-static uint64_t tipsyOffset(
-    uint64_t iPart,uint64_t nHdrSize,
-    uint64_t nSph, uint64_t nDark, uint64_t nStar,
-    int nSphSize, int nDarkSize, int nStarSize ) {
-    uint64_t iByte;
-
-    iByte = nHdrSize;
-    if (iPart<nSph) {
-	iByte += iPart * nSphSize;
-	}
-    else {
-	iByte += nSph * nSphSize;
-	iPart -= nSph;
-
-	if (iPart<nDark) {
-	    iByte += iPart * nDarkSize;
-	    }
-	else {
-	    iByte += nDark * nDarkSize;
-	    iPart -= nDark;
-
-	    if (iPart<=nStar) {
-		iByte += iPart * nStarSize;
-		}
-	    else {
-		errno = ESPIPE;
-		return 0;
-		}
-	    }
-	}
-    return iByte;
-    }
-
 static int tipsySeek(FIO fio,uint64_t iPart,FIO_SPECIES eSpecies) {
     fioTipsy *tio = (fioTipsy *)fio;
-    uint64_t iByte;
-    off_t iOffset;
     int rc;
 
     switch(eSpecies) {
@@ -1089,30 +1115,10 @@ static int tipsySeek(FIO fio,uint64_t iPart,FIO_SPECIES eSpecies) {
     tio->iOrder = iPart;
 
     /* Seek to a different file if necessary */
-    rc = tipsySwitchFile(fio); assert(rc==0);
+    rc = tipsySwitchFile(fio,1); assert(rc==0);
     if (rc) return rc;
 
-    /* For file fragments, the first particle is not 0.  Adjust accordingly. */
-    iByte = tipsyOffset(iPart,0,
-			tio->fio.nSpecies[FIO_SPECIES_SPH],
-			tio->fio.nSpecies[FIO_SPECIES_DARK],
-			tio->fio.nSpecies[FIO_SPECIES_STAR],
-			TIPSY_SPH_SIZE(1,3*tio->bDoublePos+3*tio->bDoubleVel),
-			TIPSY_DARK_SIZE(1,3*tio->bDoublePos+3*tio->bDoubleVel),
-			TIPSY_STAR_SIZE(1,3*tio->bDoublePos+3*tio->bDoubleVel))
-	- tipsyOffset(fio->fileList.fileInfo[fio->fileList.iFile].iFirst,0,
-		      tio->fio.nSpecies[FIO_SPECIES_SPH],
-		      tio->fio.nSpecies[FIO_SPECIES_DARK],
-		      tio->fio.nSpecies[FIO_SPECIES_STAR],
-		      TIPSY_SPH_SIZE(1,3*tio->bDoublePos+3*tio->bDoubleVel),
-		      TIPSY_DARK_SIZE(1,3*tio->bDoublePos+3*tio->bDoubleVel),
-		      TIPSY_STAR_SIZE(1,3*tio->bDoublePos+3*tio->bDoubleVel))
-	+ (fio->fileList.iFile?0:tio->nHdrSize);
-
-    iOffset = iByte;
-    assert(iOffset==iByte);
-    rc = safe_fseek(tio->fp,iByte); assert(rc==0);
-    return rc;
+    return 0;
     }
 
 static int tipsySeekStandard(FIO fio,uint64_t iPart,FIO_SPECIES eSpecies) {
@@ -2137,7 +2143,7 @@ static PINDEX ioorder_get(IOORDER *order, PINDEX iOffset, uint_fast32_t iIndex) 
 static void ioorder_add(IOORDER *order, PINDEX iOrder) {
     /* Make sure that we are still in order */
     if (order->iNext == iOrder) ++order->iNext;
-    else abort();
+    //else abort();
     }
 
 static void ioorder_write(IOORDER *order,PINDEX iOffset, uint_fast32_t nBuffered) {
@@ -2199,6 +2205,7 @@ static int hdf5OpenOne(fioHDF5 *hio, int iFile) {
     /* Open the HDF5 file. */
     hio->fileID = H5Fopen(hio->fio.fileList.fileInfo[iFile].pszFilename, H5F_ACC_RDONLY, H5P_DEFAULT);
     if ( hio->fileID < 0 ) {
+	perror(hio->fio.fileList.fileInfo[iFile].pszFilename);
 	abort();
 	return 0;
 	}
@@ -2206,6 +2213,7 @@ static int hdf5OpenOne(fioHDF5 *hio, int iFile) {
     /* Global parameters (dTime,etc.) are stored here */
     hio->parametersID = H5Gopen( hio->fileID, GROUP_PARAMETERS );
     if ( hio->parametersID == H5I_INVALID_HID ) {
+	perror(hio->fio.fileList.fileInfo[iFile].pszFilename);
 	abort();
 	return 0;
 	}
