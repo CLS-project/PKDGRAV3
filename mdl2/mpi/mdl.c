@@ -1144,7 +1144,7 @@ void mdlFree(MDL mdl,void *p) {
 */
 static void *getArrayElement(void *vData,int i,int iDataSize) {
     char *pData = vData;
-    return pData + i*iDataSize;
+    return pData + (size_t)i*(size_t)iDataSize;
     }
 
 void mdlSetCacheSize(MDL mdl,int cacheSize) {
