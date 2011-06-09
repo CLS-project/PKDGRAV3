@@ -1190,15 +1190,15 @@ static void tipsySussHeader(tipsyHdr *h,uint64_t *pN, uint64_t *pDark,uint64_t *
     *pN += h->nBodies;
 
     *pSph = h->nPad & 0x0000ff00;
-    *pSph <<= 32;
+    *pSph <<= 24;
     *pSph += h->nSph;
 
     *pDark = h->nPad & 0x00ff0000;
-    *pDark <<= 32;
+    *pDark <<= 16;
     *pDark += h->nDark;
 
     *pStar = h->nPad & 0xff000000;
-    *pStar <<= 32;
+    *pStar <<= 8;
     *pStar += h->nStar;
 
     /* There may be junk in the pad field, in which case we ignore it */
