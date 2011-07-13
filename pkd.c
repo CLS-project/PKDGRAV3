@@ -515,8 +515,9 @@ void pkdInitialize(
     ** Allocate Checklist.
     */
 #ifdef LOCAL_EXPANSION
-    clInitialize(&pkd->cl);
-    clInitialize(&pkd->clNew);
+    pkd->clFreeList = NULL;
+    clInitialize(&pkd->cl,&pkd->clFreeList);
+    clInitialize(&pkd->clNew,&pkd->clFreeList);
 #else
     pkd->nMaxCheck = 10000;
     pkd->Check = malloc(pkd->nMaxCheck*sizeof(CELT));
@@ -530,7 +531,7 @@ void pkdInitialize(
     assert(pkd->S != NULL);
     for (ism=0;ism<pkd->nMaxStack;++ism) {
 #ifdef LOCAL_EXPANSION
-	clInitialize(&pkd->S[ism].cl);
+	clInitialize(&pkd->S[ism].cl,&pkd->clFreeList);
 #else
 	pkd->S[ism].Check = malloc(pkd->nMaxCheck*sizeof(CELT));
 	assert(pkd->S[ism].Check != NULL);
@@ -642,7 +643,7 @@ size_t pkdClMemory(PKD pkd) {
     int i;
     for(i=0; i<pkd->nMaxStack; ++i)
 	nBytes += clMemory(pkd->S[i].cl);
-    nBytes += clMemory(NULL);
+    nBytes += clFreeListMemory(pkd->cl);
     return nBytes;
     }
 
@@ -917,7 +918,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
 	    assert(pSph); /* JW: Could convert to dark ... */
 	    assert(dTuFac>0.0);
 	    fioReadSph(fio,&iOrder,p->r,v,&fMass,&fSoft,pPot,
-		       &p->fDensity/*?*/,&pSph->u,&pSph->fMetals);
+			     &p->fDensity/*?*/,&pSph->u,&pSph->fMetals);
 /*	    if ((iOrder%1000)==0) printf("%d: %g %g %g\n",iOrder,pSph->u,dTuFac,pSph->u*dTuFac);*/
 	    pSph->u *= dTuFac; /* Can't do precise conversion until density known */
 	    pSph->uPred = pSph->u;
@@ -932,7 +933,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
 	case FIO_SPECIES_STAR:
 	    assert(pStar && pSph);
 	    fioReadStar(fio,&iOrder,p->r,v,&fMass,&fSoft,pPot,&p->fDensity,
-			&pSph->fMetals,&pStar->fTimer);
+			      &pSph->fMetals,&pStar->fTimer);
 	    pSph->vPred[0] = v[0]*dvFac;
 	    pSph->vPred[1] = v[1]*dvFac;
 	    pSph->vPred[2] = v[2]*dvFac;

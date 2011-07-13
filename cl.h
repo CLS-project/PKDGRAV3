@@ -69,6 +69,7 @@ typedef struct clTile {
 typedef struct clContext {
     CLTILE first;               /* first tile in the chain */
     CLTILE tile;                /* Current tile in the chain */
+    CLTILE *clFreeList;
     double cx, cy, cz;          /* Center coordinates */
     uint32_t nPrevious;         /* Particles in tiles prior to "tile" */
     } *CL;
@@ -76,9 +77,10 @@ typedef struct clContext {
 CLTILE clExtend(CL cl);         /* Add tile and return new tile */
 CLTILE clClear(CL cl);          /* Go back to, and return first tile (empty) */
 CLTILE clClone(CL cl, CL src);  /* Make "cl" the same as "src" */
-void clInitialize(CL *cl);
+void clInitialize(CL *cl,CLTILE *clFreeList);
 void clFinish(CL cl);
 size_t clMemory(CL cl);
+size_t clFreeListMemory(CL cl);
 
 static inline uint32_t clCount(CL cl) {
     return cl->nPrevious + cl->tile->nItems;

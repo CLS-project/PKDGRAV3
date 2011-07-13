@@ -665,6 +665,7 @@ typedef struct pkdContext {
 #ifdef LOCAL_EXPANSION
     ILP ilp;
     ILC ilc;
+    CLTILE clFreeList;
     CL cl;
     CL clNew;
 #else

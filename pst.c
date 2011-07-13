@@ -2306,6 +2306,7 @@ void pstWrite(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	pst0 = pst0->pstLower;
     plcl = pst0->plcl;
 
+#ifdef USE_HDF5
     if (in->bHDF5) {
 	makeName(achOutFile,in->achOutFile,in->iIndex);
 	fio = fioHDF5Create(achOutFile,in->mFlags);
@@ -2318,6 +2319,9 @@ void pstWrite(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	    }
 	}
     else {
+#else
+	{
+#endif
         if (strstr(in->achOutFile, "&I" )) {
 	    makeName(achOutFile,in->achOutFile,in->iIndex);
 	    fio = fioTipsyCreatePart(achOutFile,0,in->mFlags&FIO_FLAG_CHECKPOINT,

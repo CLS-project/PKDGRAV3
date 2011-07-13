@@ -9,34 +9,32 @@
 
 #include "cl.h"
 
-/* NOT THREAD SAFE -- FIX ME */
-static CLTILE clFreeList = NULL;
-
+size_t clFreeListMemory(CL cl) {
+    size_t nBytes;
+    CLTILE tile;
+    nBytes = 0;
+    for(tile=(*cl->clFreeList);tile!=NULL;tile=tile->next)
+	nBytes += sizeof(struct clTile);
+    return nBytes;
+    }
 size_t clMemory(CL cl) {
     size_t nBytes;
     CLTILE tile;
-    if (cl==NULL) {
-        nBytes = 0;
-        for(tile=clFreeList;tile!=NULL;tile=tile->next)
-	    nBytes += sizeof(struct clTile);
-    }
-    else {
-        nBytes = sizeof(struct clContext);
-        for(tile=cl->first;tile!=NULL;tile=tile->next)
-	    nBytes += sizeof(struct clTile);
-    }
+    nBytes = sizeof(struct clContext);
+    for(tile=cl->first;tile!=NULL;tile=tile->next)
+	nBytes += sizeof(struct clTile);
     return nBytes;
     }
 
 /*
 ** Private: Create a new tile
 */
-static CLTILE newTile(CLTILE prev) {
+static CLTILE newTile(CL cl,CLTILE prev) {
     CLTILE tile;
 
-    if (clFreeList) {
-        tile = clFreeList;
-	clFreeList = clFreeList->next;
+    if (*cl->clFreeList) {
+        tile = *cl->clFreeList;
+	*cl->clFreeList = (*cl->clFreeList)->next;
     }
     else {
         tile = SIMD_malloc(sizeof(struct clTile));
@@ -70,7 +68,7 @@ CLTILE clExtend(CL cl) {
 	cl->tile->nItems = 0;
 	}
     else {
-	cl->tile = cl->tile->next = newTile(cl->tile);
+	cl->tile = cl->tile->next = newTile(cl,cl->tile);
 	}
 
     return cl->tile;
@@ -82,8 +80,8 @@ CLTILE clExtend(CL cl) {
 CLTILE clClear(CL cl) {
     assert( cl != NULL );
     if (cl->tile!=cl->first) {
-        cl->tile->next = clFreeList;
-        clFreeList = cl->first->next;
+        cl->tile->next = *cl->clFreeList;
+        *cl->clFreeList = cl->first->next;
         cl->first->next = NULL;
     }
     cl->tile = cl->first;
@@ -93,10 +91,11 @@ CLTILE clClear(CL cl) {
     return cl->tile;
     }
 
-void clInitialize(CL *cl) {
+void clInitialize(CL *cl,CLTILE *freeList) {
     *cl = malloc(sizeof(struct clContext));
     assert( *cl != NULL );
-    (*cl)->first = (*cl)->tile = newTile(NULL);
+    (*cl)->clFreeList = freeList;
+    (*cl)->first = (*cl)->tile = newTile(*cl,NULL);
     (*cl)->nPrevious = 0;
     }
 
