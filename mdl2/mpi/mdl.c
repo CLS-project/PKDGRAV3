@@ -1260,10 +1260,8 @@ CACHE *CacheInitialize(MDL mdl,int cid,
     c->pTag[0].nLock = 1;     /* always locked */
     c->iLastVictim = 0;       /* This makes sure we have the first iVictim = 1 */
     c->nAccess = 0;
-    c->nAccHigh = 0;
     c->nMiss = 0;				/* !!!, not NB */
     c->nColl = 0;				/* !!!, not NB */
-    c->nMin = 0;				/* !!!, not NB */
     /*
      ** Allocate cache data lines.
      */
@@ -1778,13 +1776,13 @@ void mdlRelease(MDL mdl,int cid,void *p) {
 double mdlNumAccess(MDL mdl,int cid) {
     CACHE *c = &mdl->cache[cid];
 
-    return(c->nAccHigh*1e9 + c->nAccess);
+    return(c->nAccess);
     }
 
 
 double mdlMissRatio(MDL mdl,int cid) {
     CACHE *c = &mdl->cache[cid];
-    double dAccess = c->nAccHigh*1e9 + c->nAccess;
+    double dAccess = c->nAccess;
 
     if (dAccess > 0.0) return(c->nMiss/dAccess);
     else return(0.0);
@@ -1793,18 +1791,9 @@ double mdlMissRatio(MDL mdl,int cid) {
 
 double mdlCollRatio(MDL mdl,int cid) {
     CACHE *c = &mdl->cache[cid];
-    double dAccess = c->nAccHigh*1e9 + c->nAccess;
+    double dAccess = c->nAccess;
 
     if (dAccess > 0.0) return(c->nColl/dAccess);
-    else return(0.0);
-    }
-
-
-double mdlMinRatio(MDL mdl,int cid) {
-    CACHE *c = &mdl->cache[cid];
-    double dAccess = c->nAccHigh*1e9 + c->nAccess;
-
-    if (dAccess > 0.0) return(c->nMin/dAccess);
     else return(0.0);
     }
 

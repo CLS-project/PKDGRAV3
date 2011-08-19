@@ -95,11 +95,9 @@ typedef struct cacheSpace {
     /*
      ** Statistics stuff.
      */
-    int nAccess;
-    int nAccHigh;
-    long nMiss;
-    long nColl;
-    long nMin;
+    uint64_t nAccess;
+    uint64_t nMiss;
+    uint64_t nColl;
     int nKeyMax;
     } CACHE;
 
@@ -453,7 +451,6 @@ void mdlRelease(MDL,int,void *);
 double mdlNumAccess(MDL,int);
 double mdlMissRatio(MDL,int);
 double mdlCollRatio(MDL,int);
-double mdlMinRatio(MDL,int);
 
 #if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
 void mdlTimeReset(MDL);
