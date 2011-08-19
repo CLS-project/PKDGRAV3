@@ -1919,11 +1919,9 @@ pkdGravAll(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,int bP
     pcs->dcNumAccess = mdlNumAccess(pkd->mdl,CID_CELL);
     pcs->dcMissRatio = mdlMissRatio(pkd->mdl,CID_CELL);
     pcs->dcCollRatio = mdlCollRatio(pkd->mdl,CID_CELL);
-    pcs->dcMinRatio = mdlMinRatio(pkd->mdl,CID_CELL);
     pcs->dpNumAccess = mdlNumAccess(pkd->mdl,CID_PARTICLE);
     pcs->dpMissRatio = mdlMissRatio(pkd->mdl,CID_PARTICLE);
     pcs->dpCollRatio = mdlCollRatio(pkd->mdl,CID_PARTICLE);
-    pcs->dpMinRatio = mdlMinRatio(pkd->mdl,CID_PARTICLE);
     /*
     ** Stop particle caching space.
     */

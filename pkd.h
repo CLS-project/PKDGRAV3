@@ -1001,11 +1001,9 @@ typedef struct CacheStatistics {
     double dpNumAccess;
     double dpMissRatio;
     double dpCollRatio;
-    double dpMinRatio;
     double dcNumAccess;
     double dcMissRatio;
     double dcCollRatio;
-    double dcMinRatio;
     } CASTAT;
 
 /*
