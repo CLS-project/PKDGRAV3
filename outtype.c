@@ -24,6 +24,7 @@
 #define OUTTYPE_UNKNOWN 0
 #define OUTTYPE_INTEGER 1
 #define OUTTYPE_FLOAT 2
+#define OUTTYPE_RUNGDEST 3
 
 static int getType(int iType) {
     switch(iType) {
@@ -53,6 +54,9 @@ static int getType(int iType) {
     case OUT_MEANVEL_VECTOR:
     case OUT_ACCEL_VECTOR:
 	return OUTTYPE_FLOAT;
+
+    case OUT_RUNGDEST_ARRAY:
+	return OUTTYPE_RUNGDEST;
 
     default:
 	return OUTTYPE_UNKNOWN;
@@ -183,6 +187,20 @@ static void storeFloat(PKD pkd,PKDOUT ctx,PARTICLE *p,int iType,int iDim) {
     sprintf(ctx->inOffset,"%.8g\n",fetchFloat(pkd,p,iType,iDim));
     assert(strlen(ctx->inOffset) < 20 );
     while( *ctx->inOffset ) ++ctx->inOffset;
+    }
+static void storeRungDest(PKD pkd,PKDOUT ctx,PARTICLE *p,int iType,int iDim) {
+    int iRung;
+    uint16_t *pRungDest;
+    pRungDest = pkdRungDest(pkd,p);
+    if ( PKDOUT_BUFFER_SIZE - (ctx->inOffset-ctx->inBuffer) < 100 )
+	(*ctx->fnFlush)(pkd,ctx,0);
+    sprintf(ctx->inOffset,"%d",p->uRung);
+    ctx->inOffset += strlen(ctx->inOffset);
+    for(iRung=0; iRung<8; iRung++) {
+	sprintf(ctx->inOffset," %d", pRungDest[iRung]);
+	ctx->inOffset += strlen(ctx->inOffset);
+	}
+    *ctx->inOffset++ = '\n';
     }
 static void storeHdr(PKD pkd,PKDOUT ctx,uint64_t N) {
     if ( PKDOUT_BUFFER_SIZE - (ctx->inOffset-ctx->inBuffer) < 20 )
@@ -400,6 +418,10 @@ PKDOUT pkdStartOutASCII(PKD pkd,int iFile, int iType) {
     case OUTTYPE_FLOAT:
 	ctx->fnOut = storeFloat;
 	break;
+    case OUTTYPE_RUNGDEST:
+	ctx->fnOut = storeRungDest;
+	break;
+
     default:
 	assert(0);
 	}
@@ -486,6 +508,9 @@ PKDOUT pkdOpenOutASCII(PKD pkd,char *pszFileName,const char *mode,int iFile,int 
 	break;
     case OUTTYPE_FLOAT:
 	ctx->fnOut = storeFloat;
+	break;
+    case OUTTYPE_RUNGDEST:
+	ctx->fnOut = storeRungDest;
 	break;
     default:
 	assert(0);

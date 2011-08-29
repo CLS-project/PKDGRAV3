@@ -141,9 +141,6 @@
 **  MemStatus             -       Gather |
 */
 
-
-
-
 void pstAddServices(PST pst,MDL mdl) {
     int nThreads,nCell;
 
@@ -154,9 +151,14 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_READFILE,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstReadFile,
 		  sizeof(struct inReadFile),0);
-    mdlAddService(mdl,PST_PEANOHILBERTCOUNT,pst,
-		  (void (*)(void *,void *,int,void *,int *)) pstPeanoHilbertCount,
-		  sizeof(struct inPeanoHilbertCount),sizeof(struct outPeanoHilbertCount));
+#ifdef MPI_VERSION
+    mdlAddService(mdl,PST_PEANOHILBERTDECOMP,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstPeanoHilbertDecomp,
+		  sizeof(struct inPeanoHilbertDecomp),sizeof(struct outPeanoHilbertDecomp));
+    mdlAddService(mdl,PST_RUNGORDER,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstRungOrder,
+		  sizeof(struct inRungOrder),0);
+#endif
     mdlAddService(mdl,PST_DOMAINDECOMP,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstDomainDecomp,
 		  sizeof(struct inDomainDecomp),0);
@@ -1475,37 +1477,39 @@ void _pstRootSplit(PST pst,int iSplitDim,int bDoRootFind,int bDoSplitDimFind,
 
     }
 
-void pstNewDomainDecomp(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
-#if 0
-    struct outPeanoHilbertCount outph;
-
-    /*
-    ** First collect counts from each processor in the peano-hilbert curve.
-    */
-    pstPeanoHilbertCount(PST pst);
-
-
-#endif
-    }
-
-
-void pstPeanoHilbertCount(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
-#if 0
+#ifdef MPI_VERSION
+void pstPeanoHilbertDecomp(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
+    struct inPeanoHilbertDecomp *in = (struct inPeanoHilbertDecomp *)vin;
 
-    mdlassert(pst->mdl,nIn == 0);
+    mdlassert(pst->mdl,nIn == sizeof(struct inPeanoHilbertDecomp));
     if (pst->nLeaves > 1) {
-	mdlReqService(pst->mdl,pst->idUpper,PST_PEANOHILBERTCOUNT,vin,nIn);
-	pstPeanoHilbertCount(pst->pstLower,vin,nIn,vout,pnOut);
+	mdlReqService(pst->mdl,pst->idUpper,PST_PEANOHILBERTDECOMP,vin,nIn);
+	pstPeanoHilbertDecomp(pst->pstLower,vin,nIn,vout,pnOut);
 	mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
 	}
     else {
-	pkdPeanoHilbertCount(plcl->pkd);
+	pkdPeanoHilbertDecomp(plcl->pkd,in->nTotal, in->iFirstRung, in->nRungs);
 	}
     if (pnOut) *pnOut = 0;
-#endif
     }
 
+void pstRungOrder(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl = pst->plcl;
+    struct inRungOrder *in = (struct inRungOrder *)vin;
+
+    mdlassert(pst->mdl,nIn == sizeof(struct inRungOrder));
+    if (pst->nLeaves > 1) {
+	mdlReqService(pst->mdl,pst->idUpper,PST_RUNGORDER,vin,nIn);
+	pstRungOrder(pst->pstLower,vin,nIn,vout,pnOut);
+	mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
+	}
+    else {
+	pkdRungOrder(plcl->pkd,in->iRung);
+	}
+    if (pnOut) *pnOut = 0;
+    }
+#endif
 
 #define NEWSPLITDIMCUT 0.707
 #define NMINFORROOTFIND 16

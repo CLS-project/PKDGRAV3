@@ -228,6 +228,7 @@ struct parameters {
     int bMemRelaxation;
     int bMemVelSmooth;
     int bMemPsMetric;
+    int bMemNewDD ;
     int bMemNodeMoment;
     int bMemNodeAcceleration;
     int bMemNodeVelocity;

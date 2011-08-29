@@ -21,6 +21,10 @@
 extern "C" {
 #endif
 
+#ifndef MPI_VERSION
+#define MPI_VERSION 1
+#endif
+
 #define SRV_STOP		0
 
 #define MDL_CACHE_SIZE		150000000
@@ -278,6 +282,9 @@ void mdlHandler(MDL);
 #define MDL_REPLACE MPI_REPLACE
 #define MDL_SUM MPI_SUM
 
+#define MDL_BYTE MPI_BYTE
+#define MDL_INT MPI_INT
+#define MDL_LONG_LONG MPI_LONG_LONG
 #define MDL_FLOAT MPI_FLOAT
 #define MDL_DOUBLE MPI_DOUBLE
 
@@ -289,7 +296,16 @@ int mdlReduce ( MDL mdl, void *sendbuf, void *recvbuf, int count,
 int mdlAllreduce( MDL mdl, void *sendbuf, void *recvbuf, int count,
 		  MDL_Datatype datatype, MDL_Op op );
 int mdlAlltoall( MDL mdl, void *sendbuf, int scount, MDL_Datatype stype,
-		 void *recvbuf, int rcount, MDL_Datatype rtype);
+    void *recvbuf, int rcount, MDL_Datatype rtype);
+int mdlAlltoallv( MDL mdl, void *sendbuf, int *sendcnts, int *sdispls, MDL_Datatype sendtype,
+    void *recvbuf, int *recvcnts, int *rdispls, MDL_Datatype recvtype);
+int mdlAllGather( MDL mdl, void *sendbuf, int scount, MDL_Datatype stype,
+    void *recvbuf, int rcount, MDL_Datatype recvtype);
+int mdlReduceScatter( MDL mdl, void* sendbuf, void* recvbuf, int *recvcounts,
+    MDL_Datatype datatype, MDL_Op op);
+int mdlTypeContiguous(MDL mdl,int count, MDL_Datatype old_type, MDL_Datatype *newtype);
+int mdlTypeCommit(MDL mdl, MDL_Datatype *datatype );
+int mdlTypeFree (MDL mdl, MDL_Datatype *datatype );
 
 /*
 ** Grid Operations

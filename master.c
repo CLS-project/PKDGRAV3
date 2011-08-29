@@ -617,6 +617,9 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.bMemPsMetric = 0;
     prmAddParam(msr->prm,"bPsMetric",1,&msr->param.bMemPsMetric,
 		sizeof(int),"Mpsb","<Particles support phase-space metric> = 0");
+    msr->param.bMemNewDD = 0;
+    prmAddParam(msr->prm,"bMemNewDD",1,&msr->param.bMemNewDD,
+		sizeof(int),"MnewDD","<Use new Domain Decomposition (test only)> = 0");
     msr->param.bMemNodeMoment = 0;
     prmAddParam(msr->prm,"bMemNodeMoment",1,&msr->param.bMemNodeMoment,
 		sizeof(int),"MNm","<Tree nodes support multipole moments> = 0");
@@ -2180,6 +2183,44 @@ void msrDomainDecomp2(MSR msr,uint8_t uRungLo,uint8_t uRungHi) {
 	
     }
 }
+#endif
+
+#ifdef MPI_VERSION
+/*
+** This function calculates where all particles should go for each rung
+** and stores this information in the particle structure.
+*/
+void msrDomainDecompNew(MSR msr) {
+    double dDelta;
+    double sec, dsec;
+    struct inPeanoHilbertDecomp pk;
+
+    sec = msrTime();
+
+    /* Generate hilbert keys for each particle and sort them */
+    pk.nTotal = msr->N;
+    pk.iFirstRung = 0;
+    pk.nRungs = 8;
+    pstPeanoHilbertDecomp(msr->pst,&pk,sizeof(pk),NULL,NULL);
+
+    dsec = msrTime() - sec;
+    msrprintf(msr,"Domain Decomposition complete, Wallclock: %f secs\n\n",dsec);
+    }
+
+void msrRungOrder(MSR msr, int iRung) {
+    double dDelta;
+    double sec, dsec;
+    struct inRungOrder ro;
+
+    sec = msrTime();
+
+    /* Generate hilbert keys for each particle and sort them */
+    ro.iRung = iRung;
+    pstRungOrder(msr->pst,&ro,sizeof(ro),NULL,NULL);
+
+    dsec = msrTime() - sec;
+    msrprintf(msr,"Domain Reorder complete, Wallclock: %f secs\n\n",dsec);
+    }
 #endif
 
 void msrDomainDecomp(MSR msr,int iRung,int bGreater,int bSplitVA) {
@@ -5352,6 +5393,7 @@ double msrRead(MSR msr, const char *achInFile) {
     if (msr->param.bMemRelaxation)   mMemoryModel |= PKD_MODEL_RELAXATION;
     if (msr->param.bMemVelSmooth)    mMemoryModel |= PKD_MODEL_VELSMOOTH;
     if (msr->param.bMemPsMetric)     mMemoryModel |= PKD_MODEL_PSMETRIC;
+    if (msr->param.bMemNewDD)        mMemoryModel |= PKD_MODEL_RUNGDEST;
 
     if (msr->param.bMemNodeAcceleration) mMemoryModel |= PKD_MODEL_NODE_ACCEL;
     if (msr->param.bMemNodeVelocity)     mMemoryModel |= PKD_MODEL_NODE_VEL;

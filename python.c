@@ -413,6 +413,42 @@ ppy_msr_DomainDecomp(PyObject *self, PyObject *args, PyObject *kwobj) {
 }
 
 static PyObject *
+ppy_msr_UpdateRung(PyObject *self, PyObject *args, PyObject *kwobj) {
+    static char *kwlist[]={"Rung",NULL};
+    int iRung    = 0;
+    if ( !PyArg_ParseTupleAndKeywords(
+	     args, kwobj, "|i:UpdateRung", kwlist,
+	     &iRung ) )
+	return NULL;
+    msrUpdateRung(ppy_msr,iRung);
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+
+#ifdef MPI_VERSION
+
+static PyObject *
+ppy_msr_DomainDecompNew(PyObject *self, PyObject *args, PyObject *kwobj) {
+    msrDomainDecompNew(ppy_msr);
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+
+static PyObject *
+ppy_msr_RungOrder(PyObject *self, PyObject *args, PyObject *kwobj) {
+    static char *kwlist[]={"Rung",NULL};
+    int iRung    = 0;
+    if ( !PyArg_ParseTupleAndKeywords(
+	     args, kwobj, "|i:RungOrder", kwlist,
+	     &iRung ) )
+	return NULL;
+    msrRungOrder(ppy_msr,iRung);
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+#endif
+
+static PyObject *
 ppy_msr_BuildTree(PyObject *self, PyObject *args, PyObject *kwobj) {
     static char *kwlist[]={"Time","Ewald",NULL};
     double dTime = 0.0;
@@ -759,6 +795,7 @@ ppy_msr_Save(PyObject *self, PyObject *args, PyObject *kwobj) {
     case OUT_SOFT_ARRAY:
     case OUT_GROUP_ARRAY:
     case OUT_RELAX_ARRAY:
+    case OUT_RUNGDEST_ARRAY:
 	msrOutArray(ppy_msr,fname,iType);
 	break;
 
@@ -915,6 +952,14 @@ static PyMethodDef msr_methods[] = {
      "Reorders the particles by iOrder"},
     {"DomainDecomp", (PyCFunction)ppy_msr_DomainDecomp, METH_VARARGS|METH_KEYWORDS,
      "Reorder the particles by position"},
+#ifdef MPI_VERSION
+    {"DomainDecompNew", (PyCFunction)ppy_msr_DomainDecompNew, METH_VARARGS|METH_KEYWORDS,
+     "Reorder the particles by position"},
+    {"RungOrder", (PyCFunction)ppy_msr_RungOrder, METH_VARARGS|METH_KEYWORDS,
+     "Reorder particles to the domains for the given rung"},
+#endif
+    {"UpdateRung", (PyCFunction)ppy_msr_UpdateRung, METH_VARARGS|METH_KEYWORDS,
+     "Update particle rungs"},
     {"BuildTree", (PyCFunction)ppy_msr_BuildTree, METH_VARARGS|METH_KEYWORDS,
      "Build the spatial tree"},
     {"Gravity", (PyCFunction)ppy_msr_Gravity, METH_VARARGS|METH_KEYWORDS,
@@ -1085,6 +1130,7 @@ static void setConstants( PyObject *dict ) {
     PyDict_SetItemString(dict, "OUT_ACCEL_VECTOR", Py_BuildValue("i",OUT_ACCEL_VECTOR));
     PyDict_SetItemString(dict, "OUT_MEANVEL_VECTOR", Py_BuildValue("i",OUT_MEANVEL_VECTOR));
     PyDict_SetItemString(dict, "OUT_IORDER_ARRAY", Py_BuildValue("i",OUT_IORDER_ARRAY));
+    PyDict_SetItemString(dict, "OUT_RUNGDEST_ARRAY", Py_BuildValue("i",OUT_RUNGDEST_ARRAY));
     PyDict_SetItemString(dict, "OUT_COLOR_ARRAY", Py_BuildValue("i",OUT_COLOR_ARRAY));
     PyDict_SetItemString(dict, "OUT_DENSITY_ARRAY", Py_BuildValue("i",OUT_DENSITY_ARRAY));
     PyDict_SetItemString(dict, "OUT_BALL_ARRAY", Py_BuildValue("i",OUT_BALL_ARRAY));

@@ -96,6 +96,7 @@ static inline int64_t d2u64(double d) {
 #define PKD_MODEL_SPH          (1<<9)  /* Sph Fields */
 #define PKD_MODEL_STAR         (1<<10) /* Star Fields */
 #define PKD_MODEL_PSMETRIC     (1<<11) /* Phase-space metric*/
+#define PKD_MODEL_RUNGDEST     (1<<12) /* New Domain Decomposition */
 
 #define PKD_MODEL_NODE_MOMENT  (1<<24) /* Include moment in the tree */
 #define PKD_MODEL_NODE_ACCEL   (1<<25) /* mean accel on cell (for grav step) */
@@ -616,7 +617,7 @@ typedef struct pkdContext {
     BND bnd;
     size_t iTreeNodeSize;
     size_t iParticleSize;
-    PARTICLE *pStorePRIVATE;
+    PARTICLE *pStorePRIVATE, *pStorePRIVATE2;
     PARTICLE *pTempPRIVATE;
     PARTCLASS *pClass;
     float fSoftFix;
@@ -629,6 +630,10 @@ typedef struct pkdContext {
     PLITE *pLite;
 #ifdef COOLING
     COOL *Cool; /* Cooling Context */
+#endif
+
+#ifdef MPI_VERSION
+    MDL_Datatype typeParticle;
 #endif
 
     /*
@@ -646,6 +651,7 @@ typedef struct pkdContext {
     int oRelaxation;
     int oVelSmooth;
     int oPsMetric; /* Phase-space metric for density/group finding */
+    int oRungDest; /* Destination processor for each rung */
 
     /*
     ** Advanced memory models - Tree Nodes
@@ -874,6 +880,11 @@ static inline PARTICLE *pkdParticle( PKD pkd, int i ) {
     PARTICLE *p = (PARTICLE *)(v + ((uint64_t)i)*pkd->iParticleSize);
     return p;
     }
+static inline PARTICLE *pkdParticle2( PKD pkd, int i ) {
+    char *v = (char *)pkd->pStorePRIVATE2;
+    PARTICLE *p = (PARTICLE *)(v + ((uint64_t)i)*pkd->iParticleSize);
+    return p;
+    }
 static inline void pkdSaveParticle(PKD pkd, PARTICLE *a) {
     memcpy(pkd->pTempPRIVATE,a,pkdParticleSize(pkd));
     }
@@ -935,6 +946,9 @@ static inline float *pkdAccel( PKD pkd, PARTICLE *p ) {
     }
 static inline float *pkdPot( PKD pkd, PARTICLE *p ) {
     return pkdField(p,pkd->oPotential);
+    }
+static inline uint16_t *pkdRungDest( PKD pkd, PARTICLE *p ) {
+    return pkdField(p,pkd->oRungDest);
     }
 /* Sph variables */
 static inline SPHFIELDS *pkdSph( PKD pkd, PARTICLE *p ) {
@@ -1063,6 +1077,10 @@ int pkdLowerOrdPart(PKD,uint64_t,int,int);
 int pkdUpperOrdPart(PKD,uint64_t,int,int);
 int pkdActiveOrder(PKD);
 
+#define PEANO_HILBERT_KEY_MAX 0x3ffffffffffull /* 2d */
+//#define PEANO_HILBERT_KEY_MAX 0x7fffffffffffffffull /* 3d */
+void pkdPeanoHilbertDecomp(PKD pkd, uint64_t nTotal, int iFirstRung, int nRungs);
+void pkdRungOrder(PKD pkd, int iRung);
 int pkdColRejects(PKD,int);
 int pkdColRejects_Old(PKD,int,FLOAT,FLOAT,int);
 

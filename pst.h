@@ -66,7 +66,10 @@ enum pst_service {
     PST_SPLITIO,
     PST_SETADD,
     PST_READFILE,
-    PST_PEANOHILBERTCOUNT,
+#ifdef MPI_VERSION
+    PST_PEANOHILBERTDECOMP,
+    PST_RUNGORDER,
+#endif
     PST_DOMAINDECOMP,
     PST_CALCBOUND,
     PST_COMBINEBOUND,
@@ -261,13 +264,26 @@ struct inReadFile {
     };
 void pstReadFile(PST,void *,int,void *,int *);
 
-struct inPeanoHilbertCount {
+#ifdef MPI_VERSION
+
+/* PST_PEANOHILBERTDECOMP */
+struct inPeanoHilbertDecomp {
+    total_t nTotal;
+    int     iFirstRung;
+    int     nRungs;
+    };
+struct outPeanoHilbertDecomp {
     int x;
     };
-struct outPeanoHilbertCount {
-    int x;
+void pstPeanoHilbertDecomp(PST,void *,int,void *,int *);
+
+/* PST_RUNGORDER */
+struct inRungOrder {
+    int     iRung;
     };
-void pstPeanoHilbertCount(PST,void *,int,void *,int *);
+void pstRungOrder(PST,void *,int,void *,int *);
+
+#endif
 
 /* PST_DOMAINDECOMP */
 struct inDomainDecomp {

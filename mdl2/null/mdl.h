@@ -223,15 +223,25 @@ typedef int MDL_Op;
 typedef int MDL_Datatype;
 #define MDL_FLOAT ((MDL_Datatype)0x50000001)
 #define MDL_DOUBLE ((MDL_Datatype)0x50000002)
+#define MDL_BYTE ((MDL_Datatype)0x50000003)
+#define MDL_INT ((MDL_Datatype)0x50000004)
+#define MDL_LONG_LONG ((MDL_Datatype)0x50000005)
 
 int mdlReduce ( MDL mdl, void *sendbuf, void *recvbuf, int count,
 		MDL_Datatype datatype, MDL_Op op, int root );
 int mdlAllreduce( MDL mdl, void *sendbuf, void *recvbuf, int count,
 		  MDL_Datatype datatype, MDL_Op op );
 int mdlAlltoall( MDL mdl, void *sendbuf, int scount, MDL_Datatype stype,
-		 void *recvbuf, int rcount, MDL_Datatype rtype);
-
-
+    void *recvbuf, int rcount, MDL_Datatype rtype);
+int mdlAlltoallv( MDL mdl, void *sendbuf, int *sendcnts, int *sdispls, MDL_Datatype sendtype,
+    void *recvbuf, int *recvcnts, int *rdispls, MDL_Datatype recvtype);
+int mdlAllGather( MDL mdl, void *sendbuf, int scount, MDL_Datatype stype,
+    void *recvbuf, int rcount, MDL_Datatype recvtype);
+int mdlReduceScatter( MDL mdl, void* sendbuf, void* recvbuf, int *recvcounts,
+    MDL_Datatype datatype, MDL_Op op);
+int mdlTypeContiguous(MDL mdl,int count, MDL_Datatype old_type, MDL_Datatype *newtype);
+int mdlTypeCommit(MDL mdl, MDL_Datatype *datatype );
+int mdlTypeFree (MDL mdl, MDL_Datatype *datatype );
 
 /*
 ** Grid Operations

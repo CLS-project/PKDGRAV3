@@ -562,6 +562,36 @@ int mdlAlltoall( MDL mdl, void *sendbuf, int scount, MDL_Datatype stype,
     return MPI_Alltoall(sendbuf,scount,stype,
 			recvbuf,rcount,rtype,mdl->commMDL);
     }
+
+int mdlAlltoallv( MDL mdl, void *sendbuf, int *sendcnts, int *sdispls, MDL_Datatype sendtype,
+    void *recvbuf, int *recvcnts, int *rdispls, MDL_Datatype recvtype) {
+    return MPI_Alltoallv( sendbuf, sendcnts, sdispls, sendtype, 
+        recvbuf, recvcnts, rdispls, recvtype, mdl->commMDL );
+    }
+
+
+int mdlAllGather( MDL mdl, void *sendbuf, int scount, MDL_Datatype stype,
+    void *recvbuf, int rcount, MDL_Datatype recvtype) {
+    return MPI_Allgather(sendbuf, scount, stype, recvbuf, rcount, recvtype, mdl->commMDL);
+    } 
+
+int mdlReduceScatter( MDL mdl, void* sendbuf, void* recvbuf, int *recvcounts,
+    MDL_Datatype datatype, MDL_Op op) {
+    return MPI_Reduce_scatter(sendbuf, recvbuf, recvcounts, datatype, op, mdl->commMDL );
+    }
+
+int mdlTypeContiguous(MDL mdl,int count, MDL_Datatype old_type, MDL_Datatype *newtype) {
+    return MPI_Type_contiguous(count,old_type,newtype);
+    }
+
+int mdlTypeCommit(MDL mdl, MDL_Datatype *datatype) {
+    return MPI_Type_commit(datatype);
+    }
+
+int mdlTypeFree (MDL mdl, MDL_Datatype *datatype ) {
+    return MPI_Type_free(datatype);
+    }
+
 /*
 ** This function will transfer a block of data using a pack function.
 ** The corresponding node must call mdlRecv.

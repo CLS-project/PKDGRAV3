@@ -30,6 +30,8 @@
 #define OUT_C_ARRAY             28
 #define OUT_HSPH_ARRAY          29
 
+#define OUT_RUNGDEST_ARRAY      30
+
 #define OUT_GROUP_ARRAY	112
 #define OUT_GROUP_TIPSY_NAT	113
 #define OUT_GROUP_TIPSY_STD	114
