@@ -188,13 +188,35 @@ static void storeFloat(PKD pkd,PKDOUT ctx,PARTICLE *p,int iType,int iDim) {
     assert(strlen(ctx->inOffset) < 20 );
     while( *ctx->inOffset ) ++ctx->inOffset;
     }
+
+extern uint64_t hilbert2d(float x,float y);
+extern uint64_t hilbert3d(float x,float y,float z);
 static void storeRungDest(PKD pkd,PKDOUT ctx,PARTICLE *p,int iType,int iDim) {
     int iRung;
+    float x,y,z;
+    int64_t lKey;
     uint16_t *pRungDest;
     pRungDest = pkdRungDest(pkd,p);
+
+
+    x = p->r[0] + 1.5;
+    if (x < 1.0) x = 1.0;
+    else if (x >= 2.0) x = 2.0;
+    y = p->r[1] + 1.5;
+    if (y < 1.0) y = 1.0;
+    else if (y >= 2.0) y = 2.0;
+    z = p->r[2] + 1.5;
+    if (z < 1.0) z = 1.0;
+    else if (z >= 2.0) z = 2.0;
+
+#if PEANO_HILBERT_KEY_MAX > 0x3ffffffffffll
+    lKey = hilbert3d(x,y,z);
+#else
+    lKey = hilbert2d(x,y);
+#endif
     if ( PKDOUT_BUFFER_SIZE - (ctx->inOffset-ctx->inBuffer) < 100 )
 	(*ctx->fnFlush)(pkd,ctx,0);
-    sprintf(ctx->inOffset,"%d",p->uRung);
+    sprintf(ctx->inOffset,"%016llx %d",lKey,p->uRung);
     ctx->inOffset += strlen(ctx->inOffset);
     for(iRung=0; iRung<8; iRung++) {
 	sprintf(ctx->inOffset," %d", pRungDest[iRung]);

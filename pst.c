@@ -157,7 +157,7 @@ void pstAddServices(PST pst,MDL mdl) {
 		  sizeof(struct inPeanoHilbertDecomp),sizeof(struct outPeanoHilbertDecomp));
     mdlAddService(mdl,PST_RUNGORDER,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstRungOrder,
-		  sizeof(struct inRungOrder),0);
+	          sizeof(struct inRungOrder),sizeof(struct outRungOrder));
 #endif
     mdlAddService(mdl,PST_DOMAINDECOMP,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstDomainDecomp,
@@ -729,7 +729,7 @@ void pstOneNodeReadInit(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	    in->nSpecies[FIO_SPECIES_DARK],
 	    in->nSpecies[FIO_SPECIES_SPH],
 	    in->nSpecies[FIO_SPECIES_STAR],
-	    in->mMemoryModel);
+	    in->mMemoryModel, in->nDomainRungs);
 	pout[pst->idSelf] = nFileTotal; /* Truncated: okay */
 	}
     if (pnOut) *pnOut = nThreads*sizeof(*pout);
@@ -788,7 +788,7 @@ void pstReadFile(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	    in->nSpecies[FIO_SPECIES_DARK],
 	    in->nSpecies[FIO_SPECIES_SPH],
 	    in->nSpecies[FIO_SPECIES_STAR],
-	    in->mMemoryModel);
+	    in->mMemoryModel, in->nDomainRungs);
 
 	fio = fioOpen(in->achFilename,in->dOmega0,in->dOmegab);
 	assert(fio!=NULL);
@@ -1489,7 +1489,7 @@ void pstPeanoHilbertDecomp(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
 	}
     else {
-	pkdPeanoHilbertDecomp(plcl->pkd,in->nTotal, in->iFirstRung, in->nRungs);
+	pkdPeanoHilbertDecomp(plcl->pkd,in->nTotal, in->nRungs, in->iMethod);
 	}
     if (pnOut) *pnOut = 0;
     }
@@ -1497,17 +1497,23 @@ void pstPeanoHilbertDecomp(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 void pstRungOrder(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct inRungOrder *in = (struct inRungOrder *)vin;
-
+    struct outRungOrder *out = vout;
+    struct outRungOrder outRung;
     mdlassert(pst->mdl,nIn == sizeof(struct inRungOrder));
     if (pst->nLeaves > 1) {
 	mdlReqService(pst->mdl,pst->idUpper,PST_RUNGORDER,vin,nIn);
 	pstRungOrder(pst->pstLower,vin,nIn,vout,pnOut);
-	mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
+	mdlGetReply(pst->mdl,pst->idUpper,&outRung,pnOut);
+	BND_COMBINE(pst->bnd,out->bnd,outRung.bnd);
+	out->nMoved += outRung.nMoved;
+	out->bnd = pst->bnd;
 	}
     else {
-	pkdRungOrder(plcl->pkd,in->iRung);
+	pkdRungOrder(plcl->pkd,in->iRung,&outRung.nMoved);
+        out->bnd = pst->bnd = plcl->pkd->bnd;
+	out->nMoved = outRung.nMoved;
 	}
-    if (pnOut) *pnOut = 0;
+    if (pnOut) *pnOut = sizeof(struct outRungOrder);
     }
 #endif
 

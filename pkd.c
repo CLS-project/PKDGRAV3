@@ -267,7 +267,7 @@ void pkdAllocateTopTree(PKD pkd,int nCell) {
 void pkdInitialize(
     PKD *ppkd,MDL mdl,int nStore,int nBucket,int nTreeBitsLo, int nTreeBitsHi,
     int iCacheSize,FLOAT *fPeriod,uint64_t nDark,uint64_t nGas,uint64_t nStar,
-    uint64_t mMemoryModel) {
+    uint64_t mMemoryModel, int nDomainRungs) {
     PKD pkd;
     PARTICLE *p;
     uint32_t pi;
@@ -377,9 +377,11 @@ void pkdInitialize(
 	}
 
     if ( mMemoryModel & PKD_MODEL_RUNGDEST ) {
-	pkd->oRungDest = pkdParticleAddInt16(pkd,8);
+	pkd->nDomainRungs = nDomainRungs;
+	pkd->oRungDest = pkdParticleAddInt16(pkd,pkd->nDomainRungs);
 	}
     else {
+	pkd->nDomainRungs = 0;
 	pkd->oRungDest = 0;
 	}
 
@@ -1098,8 +1100,13 @@ uint64_t hilbert2d(float x,float y) {
     uint64_t s = 0;
     uint32_t m,ux,uy,ut;
 
-    ux = (*(uint32_t *)&x)>>2;
-    uy = (*(uint32_t *)&y)>>2;
+    union {
+	float    f;
+	uint32_t u;
+	} punner;
+
+    punner.f = x; ux = punner.u >> 2;
+    punner.f = y; uy = punner.u >> 2;
    
     m = 0x00100000;
 
@@ -1138,12 +1145,17 @@ uint64_t hilbert3d(float x,float y,float z) {
     uint64_t s = 0;
     uint32_t m,ux,uy,uz,ut;
 
-    ux = (*(uint32_t*)&x)>>2;
-    uy = (*(uint32_t*)&y)>>2;
-    uz = (*(uint32_t*)&z)>>2;
+    union {
+	float    f;
+	uint32_t u;
+	} punner;
+
+    punner.f = x; ux = punner.u >> 2;
+    punner.f = y; uy = punner.u >> 2;
+    punner.f = z; uz = punner.u >> 2;
+    /* Or: ux = (uint32_t)((x-1.0f) * 0x00200000)*/
 
     m = 0x00100000;
-
     while (m) {
 	s = s << 3;
 
@@ -1237,7 +1249,15 @@ static int cmpPeanoHilbert(const void *pva,const void *pvb) {
 #define AI(domain,rung) (RI(domain,rung)*2)
 #define II(domain,rung) (AI(domain,rung)+1)
 
-void pkdPeanoHilbertDecomp(PKD pkd, uint64_t nTotal, int iFirstRung, int nRungs) {
+/*
+** Methods:
+**  0 - Split particles by active, but use the same domains for inactive
+**  1 - Split particles by active and by inactive
+**  2 - Split particles by active, inactive on every rung
+**  3 - Split particles by active on every rung
+**  4 - Split on all rungs
+*/
+void pkdPeanoHilbertDecomp(PKD pkd, uint64_t nTotal, int nRungs, int iMethod) {
     PLITEDD *pl = (PLITEDD *)pkd->pLite;
     PARTICLE *p;
     float x,y,z;
@@ -1245,7 +1265,7 @@ void pkdPeanoHilbertDecomp(PKD pkd, uint64_t nTotal, int iFirstRung, int nRungs)
     int nThreads = mdlThreads(pkd->mdl);
     int nLocal   = pkd->nLocal;
     int nID      = mdlSelf(pkd->mdl);
-    int i, j, iRung, iKey;
+    int i, iRung, iActiveRung, iKey;
     int64_t lKey;
     int L, U, M;
     int32_t *nActiveBelow;
@@ -1269,7 +1289,7 @@ void pkdPeanoHilbertDecomp(PKD pkd, uint64_t nTotal, int iFirstRung, int nRungs)
 
 
     /* Number of particles active on the given rung for each particle */
-    nActiveBelow = malloc((nLocal+1) * nRungs * sizeof(*nActiveBelow));
+    nActiveBelow = malloc((nLocal+1) * nRungs*2 * sizeof(*nActiveBelow));
     assert(nActiveBelow != NULL);
 
     /* Number of split keys to send to each processor */
@@ -1328,8 +1348,7 @@ void pkdPeanoHilbertDecomp(PKD pkd, uint64_t nTotal, int iFirstRung, int nRungs)
 	assert(pl[i].lKey >= 0 && pl[i].lKey <= PEANO_HILBERT_KEY_MAX);
 	pl[i].i = i;
 	}
-    mdlAllreduce( pkd->mdl, &iRung, &iFirstRung, 1, MDL_INT, MDL_MIN);
-    assert(iFirstRung==0);
+    mdlAllreduce( pkd->mdl, &iRung, &pkd->iFirstDomainRung, 1, MDL_INT, MDL_MIN);
     qsort(pl,nLocal,sizeof(PLITEDD),cmpPeanoHilbert);
     pl[nLocal].lKey = PEANO_HILBERT_KEY_MAX;
     pl[nLocal].i = -1;
@@ -1340,11 +1359,31 @@ void pkdPeanoHilbertDecomp(PKD pkd, uint64_t nTotal, int iFirstRung, int nRungs)
     ** The numbers to the right can also easily be calculated.
     */
     p = pkdParticle(pkd,pl[0].i);
-    for( iRung=0; iRung<nRungs; iRung++) nActiveBelow[RI(0,iRung)] = 0;
+    for( iRung=0; iRung<nRungs; iRung++) nActiveBelow[AI(0,iRung)] = nActiveBelow[II(0,iRung)] = 0;
     for (i=1;i<=nLocal;++i) {
 	p = pkdParticle(pkd,pl[i-1].i);
+	iActiveRung = p->uRung - pkd->iFirstDomainRung + 1;
+	if (iActiveRung>nRungs) iActiveRung = nRungs;
 	for( iRung=0; iRung<nRungs; iRung++) {
-	    nActiveBelow[RI(i,iRung)] = nActiveBelow[RI(i-1,iRung)] + (p->uRung-iFirstRung >= iRung ? 1 : 0);
+	    nActiveBelow[AI(i,iRung)] = nActiveBelow[AI(i-1,iRung)];
+	    nActiveBelow[II(i,iRung)] = nActiveBelow[II(i-1,iRung)];
+	    }
+	if ( iMethod==3 || iMethod==4) {
+	    ++nActiveBelow[AI(i,iActiveRung-1)];
+	    }
+	else {
+	    for( iRung=0; iRung<iActiveRung; iRung++) {
+		++nActiveBelow[AI(i,iRung)];
+		}
+	    }
+	if (iMethod==2 || iMethod==4 ) {
+	    if (iActiveRung<nRungs)
+		++nActiveBelow[II(i,iActiveRung)];
+	    }
+	else {
+	    for( iRung=iActiveRung; iRung<nRungs; iRung++ ) {
+		++nActiveBelow[II(i,iRung)];
+		}
 	    }
 	}
 
@@ -1353,15 +1392,11 @@ void pkdPeanoHilbertDecomp(PKD pkd, uint64_t nTotal, int iFirstRung, int nRungs)
     ** and inactive particles. For that, we need to know the total number of active on each rung.
     ** This is the sum of the active counts for the last particle.
     */
-    for( iRung=0; iRung<nRungs; iRung++)
-	nTarget[iRung] = nActiveBelow[RI(nLocal,iRung)];
-    mdlAllreduce( pkd->mdl, nTarget, nRungTotal, nRungs, MDL_LONG_LONG, MDL_SUM);
-
-    /* Change the number of active array to active/inactive pairs. */
-    for( iRung=nRungs-1; iRung>=0; --iRung) {
-	nRungTotal[iRung*2] = nRungTotal[iRung];
-	nRungTotal[iRung*2+1] = nTotal - nRungTotal[iRung];
+    for( iRung=0; iRung<nRungs; iRung++) {
+	nTarget[AI(0,iRung)] = nActiveBelow[AI(nLocal,iRung)];
+	nTarget[II(0,iRung)] = nActiveBelow[II(nLocal,iRung)];
 	}
+    mdlAllreduce( pkd->mdl, nTarget, nRungTotal, nRungs*2, MDL_LONG_LONG, MDL_SUM);
 
     /* This is the number of particles we want to the left of our split
     ** We need P-1 roots, so the root processor doesn't need to root find,
@@ -1397,7 +1432,14 @@ void pkdPeanoHilbertDecomp(PKD pkd, uint64_t nTotal, int iFirstRung, int nRungs)
 	/* If we haven't converged, then we calculate the next guess. */
 	for( iRung=0; iRung<nRungs*2; iRung++) {
 	    if ( t[iRung]!=0 ) {
-		myBound[iRung] = t[iRung] = r[iRung] - (s[iRung] - r[iRung]) * (fr[iRung]/(fs[iRung] - fr[iRung]));
+#ifdef USE_ILLINOIS_ROOT_FINDER
+		int64_t lAdjust = (s[iRung] - r[iRung]) * (fr[iRung]/(fs[iRung] - fr[iRung]));
+		myBound[iRung] = t[iRung] = r[iRung] - lAdjust;
+#else
+		/* Simple bisection */
+		myBound[iRung] = t[iRung] = r[iRung]/2 + s[iRung]/2;
+		if ( (r[iRung]&1) && (s[iRung]&1) ) myBound[iRung] = ++t[iRung];
+#endif
 		assert(t[iRung] >= 0 && t[iRung] <= PEANO_HILBERT_KEY_MAX);
 		}
 	    }
@@ -1424,28 +1466,25 @@ void pkdPeanoHilbertDecomp(PKD pkd, uint64_t nTotal, int iFirstRung, int nRungs)
 			else L = M+1;
 			}
 		    if (pl[L].lKey <= lKey) L++;
-		    if (iRung&1)
-			nBelowLocal[iKey*nRungs*2 + iRung] = L - nActiveBelow[RI(L,iRung/2)];
-		    else
-			nBelowLocal[iKey*nRungs*2 + iRung] = nActiveBelow[RI(L,iRung/2)];
-		    //nBelowLocal[iKey*nRungs*2 + iRung] = L;
+		    nBelowLocal[iKey*nRungs*2 + iRung] = nActiveBelow[L*nRungs*2 + iRung];
 		    assert(pl[L-1].lKey <= lKey);
 		    assert(pl[L].lKey > lKey);
 		    }
 		}
 	    }
 
-	// Sum the results and scatter back
+	/* Sum the results and scatter back */
 	mdlReduceScatter(pkd->mdl, nBelowLocal, nBelowGlobal, counts, MDL_LONG_LONG, MDL_SUM);
 
 	/* Now do the root finding for each rung */
 	for( iRung=0; iRung<nRungs*2; iRung++) {
 	    if ( t[iRung]>0 ) {
 		ft = nBelowGlobal[iRung] - nTarget[iRung];
-		if (fabs(ft) <= 0.0 || iIter > 63) { /* Criterian for exit */
+		if (fabs(ft) <= 0.0 || labs(r[iRung]-s[iRung]) <= 1 || iIter > 80) { /* Criterian for exit */
 		    t[iRung] = 0;
 		    nIter = iIter;
 		    }
+#ifdef USE_ILLINOIS_ROOT_FINDER
 		else if (ft*fs[iRung] < 0) {
 		    /*
 		    ** Unmodified step.
@@ -1468,21 +1507,49 @@ void pkdPeanoHilbertDecomp(PKD pkd, uint64_t nTotal, int iFirstRung, int nRungs)
 		    s[iRung] = t[iRung];
 		    fs[iRung] = ft;
 		    }
+#else
+		else if (ft<0.0) {
+		    r[iRung] = t[iRung];
+		    fr[iRung] = ft;
+		    }
+		else {
+		    s[iRung] = t[iRung];
+		    fs[iRung] = ft;
+		    }
+#endif
 		}
 	    }
 	} while(1);
+
+    if (nID==0) printf("Converged in %d iterations\n", iIter );
 
     /* Send the bounds to each processor so we can assign particles to domains */
     mdlAllGather(pkd->mdl,myBound,nRungs*2,MDL_LONG_LONG, splitKeys, nRungs*2, MDL_LONG_LONG);
 
     for(iKey=1; iKey<nDomains; iKey++) {
 	for(iRung=0; iRung<nRungs*2; ++iRung) {
+	    if( splitKeys[(iKey-1)*nRungs*2 + iRung] > splitKeys[iKey*nRungs*2 + iRung]) {
+		printf( "%d: rung %d - domain %d - %llx <= %llx <= %llx !!<=!! %llx <= %llx\n", nID, iRung, iKey,
+		    splitKeys[(iKey-3)*nRungs*2 + iRung], 
+		    splitKeys[(iKey-2)*nRungs*2 + iRung], 
+		    splitKeys[(iKey-1)*nRungs*2 + iRung],
+		    splitKeys[iKey*nRungs*2 + iRung],
+		    splitKeys[(iKey+1)*nRungs*2 + iRung] );
+		}
 	    assert( splitKeys[(iKey-1)*nRungs*2 + iRung] <= splitKeys[iKey*nRungs*2 + iRung]);
 	    splitKeys[(iKey-1)*nRungs*2 + iRung] = splitKeys[iKey*nRungs*2 + iRung];
 	    }
 	}
     for(iRung=0; iRung<nRungs*2; ++iRung) {
 	splitKeys[(nDomains-1)*nRungs*2 + iRung] = PEANO_HILBERT_KEY_MAX;
+	}
+
+
+    /* Check that things are valid */
+    for(iKey=1; iKey<nDomains; iKey++) { /* O(P-1) */
+	for(iRung=0; iRung<nRungs*2; ++iRung) {
+	    assert(splitKeys[(iKey-1)*nRungs*2 + iRung] <= splitKeys[iKey*nRungs*2 + iRung]);
+	    }
 	}
 
     /*
@@ -1492,20 +1559,51 @@ void pkdPeanoHilbertDecomp(PKD pkd, uint64_t nTotal, int iFirstRung, int nRungs)
 	piIndex[iRung] = 0;
 	}
     for(i=0; i<nLocal; i++) {
-	int iActiveRung;
 	uint16_t *pRungDest;
 	p = pkdParticle(pkd,pl[i].i);
 	pRungDest = pkdRungDest(pkd,p);
-	iActiveRung = p->uRung-iFirstRung >= nRungs ? nRungs : p->uRung-iFirstRung+1;
-	for(iRung=0; iRung<iActiveRung; ++iRung) {
-	    while(pl[i].lKey > splitKeys[piIndex[iRung*2]*nRungs*2 + iRung*2])
-		piIndex[iRung*2]++;
-	    pRungDest[iRung] = piIndex[iRung*2];
+	if (iMethod==0) {
+	    for(iRung=0; iRung<nRungs; ++iRung) {
+		while(pl[i].lKey > splitKeys[piIndex[iRung*2]*nRungs*2 + iRung*2])
+		    piIndex[iRung*2]++;
+		pRungDest[iRung] = piIndex[iRung*2];
+		assert(pRungDest[iRung]<nDomains);
+		}
 	    }
-	for(iRung=iActiveRung; iRung<nRungs; ++iRung) {
-	    while(pl[i].lKey > splitKeys[piIndex[iRung*2+1]*nRungs*2 + iRung*2+1])
-		piIndex[iRung*2+1]++;
-	    pRungDest[iRung] = piIndex[iRung*2+1];
+	else {
+	    iActiveRung = p->uRung-pkd->iFirstDomainRung >= nRungs ? nRungs : p->uRung-pkd->iFirstDomainRung+1;
+	    if ( iMethod==3 || iMethod==4) {
+		while(pl[i].lKey > splitKeys[piIndex[(iActiveRung-1)*2]*nRungs*2 + (iActiveRung-1)*2])
+		    piIndex[(iActiveRung-1)*2]++;
+		for(iRung=0; iRung<iActiveRung; ++iRung) {
+		    pRungDest[iRung] = piIndex[(iActiveRung-1)*2];
+		    }
+		}
+	    else {
+		for(iRung=0; iRung<iActiveRung; ++iRung) {
+		    while(pl[i].lKey > splitKeys[piIndex[iRung*2]*nRungs*2 + iRung*2])
+			piIndex[iRung*2]++;
+		    pRungDest[iRung] = piIndex[iRung*2];
+		    assert(pRungDest[iRung]<nDomains);
+		    }
+		}
+	    if ( iMethod==2 || iMethod==4) {
+		if (iActiveRung<nRungs) {
+		    while(pl[i].lKey > splitKeys[piIndex[iActiveRung*2+1]*nRungs*2 + iActiveRung*2+1])
+			piIndex[iActiveRung*2+1]++;
+		    for(iRung=iActiveRung; iRung<nRungs; ++iRung) {
+			pRungDest[iRung] = piIndex[iActiveRung*2+1];
+			}
+		    }
+		}
+	    else {
+		for(iRung=iActiveRung; iRung<nRungs; ++iRung) {
+		    while(pl[i].lKey > splitKeys[piIndex[iRung*2+1]*nRungs*2 + iRung*2+1])
+			piIndex[iRung*2+1]++;
+		    pRungDest[iRung] = piIndex[iRung*2+1];
+		    assert(pRungDest[iRung]<nDomains);
+		    }
+		}
 	    }
 	}
 
@@ -1523,7 +1621,7 @@ void pkdPeanoHilbertDecomp(PKD pkd, uint64_t nTotal, int iFirstRung, int nRungs)
     free(nRungTotal);
     }
 
-void pkdRungOrder(PKD pkd, int iRung) {
+void pkdRungOrder(PKD pkd, int iRung, total_t *nMoved) {
     int nDomains = mdlThreads(pkd->mdl);
     int nLocal   = pkd->nLocal;
     int nID      = mdlSelf(pkd->mdl);
@@ -1532,6 +1630,10 @@ void pkdRungOrder(PKD pkd, int iRung) {
     int i;
     PARTICLE *p, *p2;
     uint16_t *pRungDest;
+
+    iRung -= pkd->iFirstDomainRung;
+    if (iRung<0) iRung = 0;
+    else if (iRung >= pkd->nDomainRungs) iRung = pkd->nDomainRungs - 1;
 
     scounts = malloc(sizeof(*scounts) * nDomains);
     assert(scounts != NULL);
@@ -1564,6 +1666,8 @@ void pkdRungOrder(PKD pkd, int iRung) {
 	rdispls[i] = rdispls[i-1] + rcounts[i-1];
 	}
     assert(sdispls[nDomains-1] + scounts[nDomains-1] == nLocal-nSelf);
+    assert(rdispls[nDomains-1] + rcounts[nDomains-1] + nSelf <= pkd->nStore);
+
 
     /* Put the particles into domain order */
     iSelf = 0;
@@ -1582,11 +1686,15 @@ void pkdRungOrder(PKD pkd, int iRung) {
 	    }
 	}
     assert(iSelf == nSelf);
+    if (*nMoved) *nMoved = nLocal - nSelf;
 
-    /* Finally send the particles to their correct processors and update our local count */
+    /* Send the particles to their correct processors and update our local count */
     mdlAlltoallv(pkd->mdl,pkdParticle2(pkd,0), scounts, sdispls, pkd->typeParticle,
 	pkdParticle(pkd,nSelf), rcounts, rdispls, pkd->typeParticle);
     pkd->nLocal = rdispls[nDomains-1] + rcounts[nDomains-1] + nSelf;
+
+    /* The bounds have likely changed */
+    pkdCalcBound(pkd,&pkd->bnd);
 
     free(scounts);
     free(rcounts);

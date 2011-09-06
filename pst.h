@@ -254,6 +254,7 @@ struct inReadFile {
     int nTreeBitsLo;
     int nTreeBitsHi;
     int nBucket;
+    int nDomainRungs;
     //int nFiles;
     int iCacheSize;
     int nProcessors;
@@ -269,8 +270,8 @@ void pstReadFile(PST,void *,int,void *,int *);
 /* PST_PEANOHILBERTDECOMP */
 struct inPeanoHilbertDecomp {
     total_t nTotal;
-    int     iFirstRung;
     int     nRungs;
+    int     iMethod;
     };
 struct outPeanoHilbertDecomp {
     int x;
@@ -280,6 +281,10 @@ void pstPeanoHilbertDecomp(PST,void *,int,void *,int *);
 /* PST_RUNGORDER */
 struct inRungOrder {
     int     iRung;
+    };
+struct outRungOrder {
+    int64_t nMoved;
+    BND     bnd;
     };
 void pstRungOrder(PST,void *,int,void *,int *);
 

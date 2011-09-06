@@ -401,13 +401,12 @@ ppy_msr_DomainDecomp(PyObject *self, PyObject *args, PyObject *kwobj) {
     static char *kwlist[]={"Rung","SplitVA",NULL};
     int iRung    = 0;
     int bSplitVA = 0;
-    int bGreater = 1;
 
     if ( !PyArg_ParseTupleAndKeywords(
 	     args, kwobj, "|ii:DomainDecomp", kwlist,
 	     &iRung, &bSplitVA ) )
 	return NULL;
-    msrDomainDecomp(ppy_msr,iRung,bGreater,bSplitVA);
+    msrDomainDecomp(ppy_msr,iRung,bSplitVA);
     Py_INCREF(Py_None);
     return Py_None;
 }
@@ -471,23 +470,24 @@ ppy_msr_BuildTree(PyObject *self, PyObject *args, PyObject *kwobj) {
 
 static PyObject *
 ppy_msr_Gravity(PyObject *self, PyObject *args, PyObject *kwobj) {
-    static char *kwlist[]={"Time","Ewald",NULL};
+    static char *kwlist[]={"Rung","Time","Ewald",NULL};
     double dTime = 0.0;
     int bEwald = ppy_msr->param.bEwald;
     PyObject *v, *dict;
     uint64_t nActive;
     int iSec = 0;
+    int iRung    = 0;
 
     dict = PyModule_GetDict(global_ppy->module);
     if ( (v = PyDict_GetItemString(dict, "dTime")) == NULL )
 	return NULL;
     dTime = PyFloat_AsDouble(v);
     if ( !PyArg_ParseTupleAndKeywords(
-	     args, kwobj, "|di:Gravity", kwlist,
-	     &dTime, &bEwald ) )
+	     args, kwobj, "|idi:Gravity", kwlist,
+	     &iRung, &dTime, &bEwald ) )
 	return NULL;
 
-    msrGravity(ppy_msr,0,MAX_RUNG,dTime,ppy_msr->param.iStartStep,bEwald,&iSec,&nActive);
+    msrGravity(ppy_msr,iRung,MAX_RUNG,dTime,ppy_msr->param.iStartStep,bEwald,&iSec,&nActive);
 
     Py_INCREF(Py_None);
     return Py_None;

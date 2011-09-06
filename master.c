@@ -617,6 +617,12 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.bMemPsMetric = 0;
     prmAddParam(msr->prm,"bPsMetric",1,&msr->param.bMemPsMetric,
 		sizeof(int),"Mpsb","<Particles support phase-space metric> = 0");
+    msr->param.nDomainRungs = 0;
+    prmAddParam(msr->prm,"nDomainRungs",1,&msr->param.nDomainRungs,
+		sizeof(int),"drungs","<Decompose domains on this many rungs> = 0");
+    msr->param.iDomainMethod = 1;
+    prmAddParam(msr->prm,"iDomainMethod",1,&msr->param.iDomainMethod,
+		sizeof(int),"dmeth","<New domain decomposition method (0-4)> = 1");
     msr->param.bMemNewDD = 0;
     prmAddParam(msr->prm,"bMemNewDD",1,&msr->param.bMemNewDD,
 		sizeof(int),"MnewDD","<Use new Domain Decomposition (test only)> = 0");
@@ -1062,6 +1068,10 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     if (msr->param.bDoGas) {
 	msr->param.bMemNodeSphBounds = 1;
     }
+
+
+    if (prmSpecified(msr->prm,"iDomainMethod") && !prmSpecified(msr->prm,"iDomainRungs"))
+	msr->param.nDomainRungs = 8;
 
     /*
     ** Check timestepping and gravity combinations.
@@ -1750,6 +1760,7 @@ double msrGenerateIC(MSR msr) {
     in.fPeriod[1] = msr->param.dyPeriod;
     in.fPeriod[2] = msr->param.dzPeriod;
     in.nBucket = msr->param.nBucket;
+    in.nDomainRungs = msr->param.nDomainRungs;
 
     msr->nDark = in.nGrid * in.nGrid * in.nGrid;
     msr->nGas  = 0;
@@ -2162,29 +2173,6 @@ void domaindepthlink(DC *node,DC **plast,int depth) {
 }
 #endif
 
-#if 0
-void msrDomainDecomp2(MSR msr,uint8_t uRungLo,uint8_t uRungHi) {
-    struct inTreeNumSrcActive inSActive;
-    
-    /*
-    ** Set the active counter for all cells of the already built tree.
-    */    
-    inSActive.uRungLo = uRungLo;
-    inSActive.uRungHi = uRungHi;
-    pstTreeNumSrcActive(msr->pst,inSActive,sizeof(inSActive),NULL,NULL);
-
-    /*
-    ** Now start the process of sorting out all the bounds.
-    ** Need to build a pst-like tree to control what bounds need to be 
-    ** calculated.
-    */
-    depth = 0;
-    while (msr->aDepthLink[depth+1]) {
-	
-    }
-}
-#endif
-
 #ifdef MPI_VERSION
 /*
 ** This function calculates where all particles should go for each rung
@@ -2193,14 +2181,53 @@ void msrDomainDecomp2(MSR msr,uint8_t uRungLo,uint8_t uRungHi) {
 void msrDomainDecompNew(MSR msr) {
     double dDelta;
     double sec, dsec;
+    BND bnd;
+    int j;
     struct inPeanoHilbertDecomp pk;
+
+    /*
+    ** If we are dealing with a nice periodic volume in all
+    ** three dimensions then we can set the initial bounds
+    ** instead of calculating them.
+    */
+    if (msr->param.bPeriodic &&
+	    msr->param.dxPeriod < FLOAT_MAXVAL &&
+	    msr->param.dyPeriod < FLOAT_MAXVAL &&
+	    msr->param.dzPeriod < FLOAT_MAXVAL) {
+#ifdef USE_PSD
+	for (j=0;j<6;++j) {
+	    bnd.fCenter[j] = msr->fCenter[j];
+	    }
+#else
+	for (j=0;j<3;++j) {
+	    bnd.fCenter[j] = msr->fCenter[j];
+	    }
+#endif
+	bnd.fMax[0] = 0.5*msr->param.dxPeriod;
+	bnd.fMax[1] = 0.5*msr->param.dyPeriod;
+	bnd.fMax[2] = 0.5*msr->param.dzPeriod;
+#ifdef USE_PSD
+	bnd.fMax[3] = HUGE_VAL;
+	bnd.fMax[4] = HUGE_VAL;
+	bnd.fMax[5] = HUGE_VAL;
+#endif
+
+	pstEnforcePeriodic(msr->pst,&bnd,sizeof(BND),NULL,NULL);
+	}
+    else {
+	pstCombineBound(msr->pst,NULL,0,&bnd,NULL);
+	}
+
+
 
     sec = msrTime();
 
+    msrprintf(msr,"Domain Decomposition: Method %d\n",msr->param.iDomainMethod);
+
     /* Generate hilbert keys for each particle and sort them */
     pk.nTotal = msr->N;
-    pk.iFirstRung = 0;
-    pk.nRungs = 8;
+    pk.nRungs = msr->param.nDomainRungs;
+    pk.iMethod = msr->param.iDomainMethod;
     pstPeanoHilbertDecomp(msr->pst,&pk,sizeof(pk),NULL,NULL);
 
     dsec = msrTime() - sec;
@@ -2211,19 +2238,36 @@ void msrRungOrder(MSR msr, int iRung) {
     double dDelta;
     double sec, dsec;
     struct inRungOrder ro;
+    struct outRungOrder outRung;
 
     sec = msrTime();
 
+    if ( iRung==0 )
+	msr->nActive = msr->N;
+    else {
+	int i;
+
+	assert( msr->nRung != NULL );
+
+	msr->nActive = 0;
+	for ( i=iRung; i <= msr->param.iMaxRung; i++ )
+	    msr->nActive += msr->nRung[i];
+	}
+
     /* Generate hilbert keys for each particle and sort them */
+    msrprintf(msr,"Reordering for rung %d (%llu active)\n",iRung, msr->nActive);
+
     ro.iRung = iRung;
-    pstRungOrder(msr->pst,&ro,sizeof(ro),NULL,NULL);
+    msr->iLastRungRT = iRung;
+    pstRungOrder(msr->pst,&ro,sizeof(ro),&outRung,NULL);
 
     dsec = msrTime() - sec;
-    msrprintf(msr,"Domain Reorder complete, Wallclock: %f secs\n\n",dsec);
+    msrprintf(msr,"Domain Reorder complete, Wallclock: %f secs, moved %llu particles\n\n",
+	dsec, outRung.nMoved);
     }
 #endif
 
-void msrDomainDecomp(MSR msr,int iRung,int bGreater,int bSplitVA) {
+void msrDomainDecompOld(MSR msr,int iRung,int bSplitVA) {
     struct inDomainDecomp in;
     uint64_t nActive;
     const uint64_t nDD = d2u64(msr->N*msr->param.dFracNoDomainDecomp);
@@ -2242,7 +2286,6 @@ void msrDomainDecomp(MSR msr,int iRung,int bGreater,int bSplitVA) {
     ** of particles don't change. Or calculated every time the number of
     ** particles does change.
     */
-    assert(bGreater != 0);
     nActive = 0;
     iRungDD = 0;
     iRungRT = 0;
@@ -2263,7 +2306,7 @@ void msrDomainDecomp(MSR msr,int iRung,int bGreater,int bSplitVA) {
 	** I had better do a split dim find as well.
 	*/
 	msr->iLastRungRT = iRungRT;
-	msrActiveRung(msr,iRungRT,bGreater);
+	msrActiveRung(msr,iRungRT,1);
 	bRestoreActive = 1;
 	in.bDoRootFind = 1;
 	in.bDoSplitDimFind = 1;
@@ -2271,7 +2314,7 @@ void msrDomainDecomp(MSR msr,int iRung,int bGreater,int bSplitVA) {
     else if (iRung > iRungDD && !bSplitVA) {
 	if (msr->iLastRungRT < iRungRT) {
 	    msr->iLastRungRT = iRungRT;
-	    msrActiveRung(msr,iRungRT,bGreater);
+	    msrActiveRung(msr,iRungRT,1);
 	    bRestoreActive = 1;
 	    in.bDoRootFind = 1;
 	    in.bDoSplitDimFind = 0;
@@ -2287,7 +2330,7 @@ void msrDomainDecomp(MSR msr,int iRung,int bGreater,int bSplitVA) {
     else if (iRung > iRungRT) {
 	if (msr->iLastRungRT < iRungRT) {
 	    msr->iLastRungRT = iRungRT;
-	    msrActiveRung(msr,iRungRT,bGreater);
+	    msrActiveRung(msr,iRungRT,1);
 	    bRestoreActive = 1;
 	    in.bDoRootFind = 1;
 	    in.bDoSplitDimFind = 0;
@@ -2385,7 +2428,21 @@ void msrDomainDecomp(MSR msr,int iRung,int bGreater,int bSplitVA) {
 
     if (bRestoreActive) {
 	/* Restore Active data */
-	msrActiveRung(msr,iRung,bGreater);
+	msrActiveRung(msr,iRung,1);
+	}
+    }
+
+void msrDomainDecomp(MSR msr,int iRung,int bSplitVA) {
+    BND bnd;
+
+    if (prmSpecified(msr->prm,"iDomainMethod")) {
+	if (iRung==0) {
+	    msrDomainDecompNew(msr);
+	    }
+	msrRungOrder(msr,iRung);
+	}
+    else {
+	msrDomainDecompOld(msr,iRung,bSplitVA);
 	}
     }
 
@@ -3593,7 +3650,7 @@ void msrTopStepKDK(MSR msr,
 	    }
 	if (msr->param.bDensityStep) {
 	    bSplitVA = 0;
-	    msrDomainDecomp(msr,iRung,1,bSplitVA);
+	    msrDomainDecomp(msr,iRung,bSplitVA);
 	    msrActiveRung(msr,iRung,1);
 	    msrBuildTree(msr,dTime,0);
 	    msrDensityStep(msr,iRung,MAX_RUNG,dTime);
@@ -3627,7 +3684,7 @@ void msrTopStepKDK(MSR msr,
 
 	msrActiveRung(msr,iKickRung,1);
 	bSplitVA = 0;
-	msrDomainDecomp(msr,iKickRung,1,bSplitVA);
+	msrDomainDecomp(msr,iKickRung,bSplitVA);
 
 	/* JW: Good place to zero uNewRung */
 	msrZeroNewRung(msr,iKickRung,MAX_RUNG,iKickRung); /* brute force */
@@ -3688,7 +3745,7 @@ void msrTopStepKDK(MSR msr,
 	    ** placed here shortly.
 	    */
 	    bSplitVA = 1;
-	    msrDomainDecomp(msr,iRung,1,bSplitVA);
+	    msrDomainDecomp(msr,iRung,bSplitVA);
 
 	    msrprintf(msr,"%*cBuilding exclude very active tree: iRung: %d\n",
 		      2*iRung+2,' ',iRung);
@@ -3720,7 +3777,7 @@ void msrTopStepKDK(MSR msr,
 	 */
 	msrActiveRung(msr,iKickRung,1);
 	bSplitVA = 0;
-	msrDomainDecomp(msr,iKickRung,1,bSplitVA);
+	msrDomainDecomp(msr,iKickRung,bSplitVA);
 
 	if (msrDoGravity(msr)) {
 	    msrActiveRung(msr,iKickRung,1);
@@ -3917,7 +3974,7 @@ void msrTopStepHermite(MSR msr,
 	    }
 	if (msr->param.bDensityStep) {
 	    bSplitVA = 0;
-	    msrDomainDecomp(msr,iRung,1,bSplitVA);
+	    msrDomainDecomp(msr,iRung,bSplitVA);
 	    msrActiveRung(msr,iRung,1);
 	    msrBuildTree(msr,dTime,bNeedEwald);
 	    msrDensityStep(msr,iRung,MAX_RUNG,dTime);
@@ -3954,7 +4011,7 @@ void msrTopStepHermite(MSR msr,
 
 	msrActiveRung(msr,iKickRung,1);
 	bSplitVA = 0;
-	msrDomainDecomp(msr,iKickRung,1,bSplitVA);
+	msrDomainDecomp(msr,iKickRung,bSplitVA);
 
 	if (msrDoGravity(msr)) {
 	    msrActiveRung(msr,iKickRung,1);
@@ -4040,7 +4097,7 @@ void msrTopStepHermite(MSR msr,
 	    ** placed here shortly.
 	    */
 	    bSplitVA = 1;
-	    msrDomainDecomp(msr,iRung,1,bSplitVA);
+	    msrDomainDecomp(msr,iRung,bSplitVA);
 
 	    msrprintf(msr,"%*cBuilding exclude very active tree: iRung: %d\n",
 		      2*iRung+2,' ',iRung);
@@ -4070,7 +4127,7 @@ void msrTopStepHermite(MSR msr,
 	 */
 	msrActiveRung(msr,iKickRung,1);
 	bSplitVA = 0;
-	msrDomainDecomp(msr,iKickRung,1,bSplitVA);
+	msrDomainDecomp(msr,iKickRung,bSplitVA);
 
 	if (msrDoGravity(msr)) {
 	    msrActiveRung(msr,iKickRung,1);
@@ -4769,6 +4826,7 @@ msrReadSS(MSR msr) {
     in.nFileStart = 0;
     in.nFileEnd = msr->N - 1;
     in.nBucket = msr->param.nBucket;
+    in.nDomainRungs = msr->param.nDomainRungs;
     in.nDark = msr->nDark;
     in.nGas = msr->nGas;	/* always zero */
     in.nStar = msr->nStar;	/* always zero */
@@ -5201,7 +5259,7 @@ void msrTopStepSymba(MSR msr,
 	    ** placed here shortly.
 	    */
 	    bSplitVA = 1;
-	    msrDomainDecomp(msr,iRung,1,bSplitVA);
+	    msrDomainDecomp(msr,iRung,bSplitVA);
 	    }
 	/*
 	 * Perform timestepping of particles in close encounters on
@@ -5218,7 +5276,7 @@ void msrTopStepSymba(MSR msr,
      */
     msrActiveRung(msr,iKickRung,1); /* iKickRung = 0 */
     bSplitVA = 0;
-    msrDomainDecomp(msr,iKickRung,1,bSplitVA);
+    msrDomainDecomp(msr,iKickRung,bSplitVA);
 
     if (msrDoGravity(msr)) {
 	msrActiveRung(msr,iKickRung,1);
@@ -5381,6 +5439,8 @@ double msrRead(MSR msr, const char *achInFile) {
     if (msr->param.bFindGroups) mMemoryModel |= PKD_MODEL_GROUPS|PKD_MODEL_VELOCITY|PKD_MODEL_POTENTIAL;
     if (msrDoGravity(msr)) mMemoryModel |= PKD_MODEL_VELOCITY|PKD_MODEL_ACCELERATION|PKD_MODEL_POTENTIAL|PKD_MODEL_NODE_MOMENT;
 
+    if (msr->param.nDomainRungs>0)   mMemoryModel |= PKD_MODEL_RUNGDEST;
+
     if (msr->param.bHermite)         mMemoryModel |= PKD_MODEL_HERMITE;
     if (msr->param.bTraceRelaxation) mMemoryModel |= PKD_MODEL_RELAXATION;
     if (msr->param.bMemAcceleration) mMemoryModel |= PKD_MODEL_ACCELERATION;
@@ -5438,6 +5498,7 @@ double msrRead(MSR msr, const char *achInFile) {
     read.nNodeStart = 0;
     read.nNodeEnd = msr->N - 1;
     read.nBucket = msr->param.nBucket;
+    read.nDomainRungs = msr->param.nDomainRungs;
     read.mMemoryModel = mMemoryModel;
     read.fExtraStore = msr->param.dExtraStore;
     read.nTreeBitsLo = msr->param.nTreeBitsLo;
@@ -5558,7 +5619,7 @@ void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint) {
     /* msrReorder above requires msrDomainDecomp and msrBuildTree for
        msrSmooth in topstepSymba*/
     msrActiveRung(msr,0,1);
-    msrDomainDecomp(msr,0,1,0);
+    msrDomainDecomp(msr,0,0);
     msrBuildTree(msr,dTime,0);
 #endif
 #else
@@ -5584,7 +5645,7 @@ void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint) {
     if (msrDoDensity(msr) || msr->param.bFindGroups) {
 #ifdef FASTGAS_TESTING
 	msrActiveRung(msr,3,1); /* Activate some particles */
-	msrDomainDecomp(msr,0,1,0);
+	msrDomainDecomp(msr,0,0);
 	msrBuildTree(msr,dTime,0);
 
 	msrSelSrcGas(msr);  /* FOR TESTING!! of gas active particles */
@@ -5593,7 +5654,7 @@ void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint) {
 	msrSelSrcAll(msr);  /* FOR TESTING!! of gas active particles */
 #else
 	msrActiveRung(msr,0,1); /* Activate all particles */
-	msrDomainDecomp(msr,0,1,0);
+	msrDomainDecomp(msr,0,0);
 	msrBuildTree(msr,dTime,0);
 	bSymmetric = 0;  /* should be set in param file! */
 	msrSmooth(msr,dTime,SMX_DENSITY,bSymmetric);
@@ -5606,7 +5667,7 @@ void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint) {
 	*/
 	nFOFsDone = 0;
 	msrActiveRung(msr,0,1); /* Activate all particles */
-	msrDomainDecomp(msr,0,1,0);
+	msrDomainDecomp(msr,0,0);
 	msrBuildTree(msr,dTime,0);
 	msrFof(msr,csmTime2Exp(msr->param.csm,dTime));
 	msrGroupMerge(msr,csmTime2Exp(msr->param.csm,dTime));

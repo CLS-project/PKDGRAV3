@@ -636,6 +636,9 @@ typedef struct pkdContext {
     MDL_Datatype typeParticle;
 #endif
 
+    int nDomainRungs;
+    int iFirstDomainRung;
+
     /*
     ** Advanced memory models
     */
@@ -1046,7 +1049,7 @@ void pkdStopTimer(PKD,int);
 void pkdInitialize(
     PKD *ppkd,MDL mdl,int nStore,int nBucket,int nTreeBitsLo, int nTreeBitsHi,
     int iCacheSize,FLOAT *fPeriod,uint64_t nDark,uint64_t nGas,uint64_t nStar,
-    uint64_t mMemoryModel);
+    uint64_t mMemoryModel, int nDomainRungs);
 void pkdFinish(PKD);
 size_t pkdClCount(PKD pkd);
 size_t pkdClMemory(PKD pkd);
@@ -1077,10 +1080,10 @@ int pkdLowerOrdPart(PKD,uint64_t,int,int);
 int pkdUpperOrdPart(PKD,uint64_t,int,int);
 int pkdActiveOrder(PKD);
 
-#define PEANO_HILBERT_KEY_MAX 0x3ffffffffffull /* 2d */
-//#define PEANO_HILBERT_KEY_MAX 0x7fffffffffffffffull /* 3d */
-void pkdPeanoHilbertDecomp(PKD pkd, uint64_t nTotal, int iFirstRung, int nRungs);
-void pkdRungOrder(PKD pkd, int iRung);
+/*#define PEANO_HILBERT_KEY_MAX 0x3ffffffffffull*/ /* 2d */
+#define PEANO_HILBERT_KEY_MAX 0x7fffffffffffffffull /* 3d */
+void pkdPeanoHilbertDecomp(PKD pkd, uint64_t nTotal, int nRungs, int iMethod);
+void pkdRungOrder(PKD pkd, int iRung, total_t *nMoved);
 int pkdColRejects(PKD,int);
 int pkdColRejects_Old(PKD,int,FLOAT,FLOAT,int);
 
