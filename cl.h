@@ -70,7 +70,6 @@ typedef struct clContext {
     CLTILE first;               /* first tile in the chain */
     CLTILE tile;                /* Current tile in the chain */
     CLTILE *clFreeList;
-    double cx, cy, cz;          /* Center coordinates */
     uint32_t nPrevious;         /* Particles in tiles prior to "tile" */
     } *CL;
 
