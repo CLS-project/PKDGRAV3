@@ -1019,6 +1019,7 @@ int mdlCacheReceive(MDL mdl,char *pLine) {
 	phRpl->mid = MDL_MID_CACHERPL;
 	phRpl->id = mdl->idSelf;
 
+	assert(ph->iLine>=0);
 	s = ph->iLine*MDL_CACHELINE_ELTS;
 	n = s + MDL_CACHELINE_ELTS;
 	if ( n > c->nData ) n = c->nData;

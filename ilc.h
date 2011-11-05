@@ -93,16 +93,18 @@ static inline uint32_t ilcCount(ILC ilc) {
 #define ilcAppend_2(ilc,VX,VY,VZ)
 #endif
 
-
-#define ilcAppend(ilc,X,Y,Z,M,U,VX,VY,VZ)				\
+/*
+** The X, Y and Z coordinates must already be relative to cx, cy and cz!
+*/
+#define ilcAppendFloat(ilc,X,Y,Z,M,U,VX,VY,VZ)				\
     {									\
     ILCTILE tile = (ilc)->tile;						\
     uint_fast32_t ILC_APPEND_i;						\
     if ( tile->nCell == tile->nMaxCell ) tile = ilcExtend((ilc));	\
     ILC_APPEND_i = tile->nCell;						\
-    tile->dx.f[ILC_APPEND_i] = (ilc)->cx - (X);			\
-    tile->dy.f[ILC_APPEND_i] = (ilc)->cy - (Y);			\
-    tile->dz.f[ILC_APPEND_i] = (ilc)->cz - (Z);			\
+    tile->dx.f[ILC_APPEND_i] = (X);			\
+    tile->dy.f[ILC_APPEND_i] = (Y);			\
+    tile->dz.f[ILC_APPEND_i] = (Z);			\
     assert( (M)->m > 0.0 );						\
     tile->m.f[ILC_APPEND_i] = (M)->m;					\
     tile->u.f[ILC_APPEND_i] = (U);					\
@@ -130,6 +132,9 @@ static inline uint32_t ilcCount(ILC ilc) {
     ilcAppend_2((ilc),VX,VY,VZ);					\
     ++tile->nCell;							\
     }
+
+#define ilcAppend(ilc,X,Y,Z,M,U,VX,VY,VZ)				\
+    ilcAppendFloat(ilc,(ilc)->cx-(X),(ilc)->cy-(Y),(ilc)->cz-(Z),M,U,VX,VY,VZ)
 
 #define ILC_LOOP(ilc,ctile) for( ctile=(ilc)->first; ctile!=(ilc)->tile->next; ctile=ctile->next )
 

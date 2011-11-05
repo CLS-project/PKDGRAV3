@@ -268,6 +268,14 @@ if test "x$USE_SIMD_MOMR" = "xyes" ; then
   USE_SIMD=yes
 fi
 
+USE_SIMD_OPEN="$USE_SIMD"
+AC_ARG_ENABLE(simd-open,
+  [  --disable-simd-open            disable Opening Criteria SIMD optimizations],
+  [USE_SIMD_OPEN="$enableval"])
+if test "x$USE_SIMD_OPEN" != "xno" ; then
+  USE_SIMD="$USE_SIMD_OPEN"
+fi
+
 USE_SIMD_PP="$USE_SIMD"
 AC_ARG_ENABLE(simd-pp,
   [  --disable-simd-pp              disable PP SIMD optimizations],
@@ -489,6 +497,7 @@ fi
       AC_MSG_ERROR([SIMD was requested, but the compiler doesn't seem to support it.])
     else
       USE_SIMD=no
+      USE_SIMD_OPEN=no
       USE_SIMD_PP=no
       USE_SIMD_PC=no
       USE_SIMD_MOMR=no
@@ -499,6 +508,10 @@ fi
 
 if test "x$USE_SIMD" != "xno" ; then
   AC_DEFINE([USE_SIMD], 1, [Define if SIMD optimizations should be used.])
+fi
+if test "x$USE_SIMD_OPEN" != "xno" ; then
+  AC_DEFINE([USE_SIMD_OPEN],1, 
+ 	[Define if SIMD optimizations should be used for the opening criteria.])
 fi
 if test "x$USE_SIMD_PP" != "xno" ; then
   AC_DEFINE([USE_SIMD_PP],1, 
@@ -513,7 +526,9 @@ if test "x$USE_SIMD_MOMR" = "xyes" ; then
  	[Define if SIMD optimizations should be used for MOMRs.])
 fi
 
+AC_DEFINE([NEW_OPENING_CRIT],1,[Use the new opening criteria])
 AM_CONDITIONAL(USE_SIMD, test "x$USE_SIMD" != "xno")
+AM_CONDITIONAL(USE_SIMD_OPEN,test "x$USE_SIMD_OPEN" != "xno")
 AM_CONDITIONAL(USE_SIMD_PP,test "x$USE_SIMD_PP" != "xno")
 AM_CONDITIONAL(USE_SIMD_PC,test "x$USE_SIMD_PC" != "xno")
 AM_CONDITIONAL(USE_SIMD_MOMR,test "x$USE_SIMD_MOMR" = "xyes")

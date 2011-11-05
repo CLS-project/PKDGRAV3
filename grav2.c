@@ -60,6 +60,159 @@ static const struct CONSTS {
     dir = 1/sqrt(d2);\
     }
 
+void pkdGravTilePP(PKD pkd,ILPTILE tile,
+    float fMass, float fSoft, float *a,
+    float *ax, float *ay, float *az,
+    float *fPot, float *dirsum, float *normsum) {
+    uint32_t n;
+    int j;
+#if defined(USE_SIMD_PP)
+    v4sf t1, t2, t3;
+    v4sf pax, pay, paz;
+    v4sf piax, piay, piaz;
+    v4sf ppot, pmass, p4soft2;
+    v4sf padotai,pimaga,psmooth2,pirsum,pnorms;
+#endif
+
+#ifdef USE_SIMD_PP
+    /*
+    ** The list sets mass to zero for unused entries which results
+    ** in zero forces. Be careful if that is changed.
+    */
+    pax = SIMD_LOADS(*ax);
+    pay = SIMD_LOADS(*ay);
+    paz = SIMD_LOADS(*az);
+    ppot= SIMD_LOADS(*fPot);
+    pirsum = SIMD_LOADS(*dirsum);
+    pnorms = SIMD_LOADS(*normsum);
+
+    piax    = SIMD_SPLAT(a[0]);
+    piay    = SIMD_SPLAT(a[1]);
+    piaz    = SIMD_SPLAT(a[2]);
+    pmass   = SIMD_SPLAT(fMass);
+    p4soft2 = SIMD_SPLAT(4.0*fSoft*fSoft);
+
+    n = (tile->nPart+ILP_ALIGN_MASK) >> ILP_ALIGN_BITS;
+
+    for ( j=0; j<n; j++ ) {
+	v4sf pfourh2, pd2, pir, pir2;
+	v4bool vcmp;
+	int msk;
+
+	vcmp = SIMD_CMP_GT(tile->fourh2.p[j],consts.zero.p);
+	msk = SIMD_ALL_ZERO(vcmp); /* softenings are not zero */
+	if(msk) {
+	    t1 = SIMD_MUL(SIMD_ADD(pmass,tile->m.p[j]),SIMD_MUL(p4soft2,tile->fourh2.p[j]));
+	    t2 = SIMD_ADD(SIMD_MUL(tile->fourh2.p[j],pmass),SIMD_MUL(p4soft2,tile->m.p[j]));
+#if defined(__SSE2__) || defined(__ALTIVEC__)
+	    pfourh2 = SIMD_RE_EXACT(t2);
+	    pfourh2 = SIMD_MUL(pfourh2,t1);
+#else
+	    pfourh2 = SIMD_DIV(t1,t2);
+#endif
+	    vcmp = SIMD_CMP_LT(tile->d2.p[j],pfourh2);
+	    pd2 = SIMD_MAX(tile->d2.p[j],pfourh2);
+	    msk = SIMD_ALL_ZERO(vcmp);  /* zero means nothing is softened - optimization */
+	    } else {
+	    pd2 = tile->d2.p[j];
+	    }
+
+	pir = SIMD_RSQRT_EXACT(pd2);
+	pir2 = SIMD_MUL(pir,pir);
+	pd2 = SIMD_MUL(pir2,tile->d2.p[j]); /* for SOFTENED */
+	pir2 = SIMD_MUL(pir2,pir);
+
+	/* pir and pir2 are valid now for both softened and unsoftened particles */
+	/* Now we apply the fix to softened particles only */
+	if (msk) {
+	    pd2 = SIMD_SUB(consts.one.p,pd2);
+	    pd2 = SIMD_AND(vcmp,pd2);
+	    t1 = SIMD_MADD(consts.R45_32.p, pd2, consts.R3_8.p);
+	    t1 = SIMD_MADD(t1, pd2, consts.half.p);
+	    t1 = SIMD_MADD(t1, pd2, consts.one.p);
+	    t2 = SIMD_MADD(consts.R135_16.p, pd2, consts.threehalves.p);
+	    t2 = SIMD_MADD(t2, pd2, consts.one.p);
+	    pir = SIMD_MUL(pir,t1);
+	    pir2 = SIMD_MUL(pir2,t2);
+	    }
+	pir2 = SIMD_MUL(pir2,tile->m.p[j]);
+
+	t1 = SIMD_NMSUB(tile->dx.p[j],pir2,consts.zero.p);
+	t2 = SIMD_NMSUB(tile->dy.p[j],pir2,consts.zero.p);
+	t3 = SIMD_NMSUB(tile->dz.p[j],pir2,consts.zero.p);
+	ppot = SIMD_NMSUB(tile->m.p[j],pir,ppot);
+
+	/* Time stepping criteria stuff */
+	padotai = SIMD_MADD(piaz,t3,SIMD_MADD(piay,t2,SIMD_MUL(piax,t1)));
+	vcmp = SIMD_AND(SIMD_CMP_GT(padotai,consts.zero.p),SIMD_CMP_GE(tile->d2.p[j],psmooth2));
+	padotai= SIMD_AND(padotai,vcmp);
+	padotai= SIMD_MUL(padotai,pimaga);
+	pd2 = SIMD_MUL(padotai,padotai);
+	pirsum = SIMD_MADD(pir,pd2,pirsum);
+	pnorms = SIMD_ADD(pnorms,pd2);
+
+	pax = SIMD_ADD(pax,t1);
+	pay = SIMD_ADD(pay,t2);
+	paz = SIMD_ADD(paz,t3);
+	}
+
+    *ax = SIMD_HADD(pax);
+    *ay = SIMD_HADD(pay);
+    *az = SIMD_HADD(paz);
+    *fPot = SIMD_HADD(ppot);
+    *dirsum = SIMD_HADD(pirsum);
+    *normsum = SIMD_HADD(pnorms);
+#else
+    /*
+    ** DO NOT MODIFY THE CODE BELOW UP TO THE #endif!
+    ** This code MUST match the SIMD code above.
+    */
+    for (j=0;j<tile->nPart;++j) {
+	d2 = tile->d2.f[j];
+	fourh2 = softmassweight(fMass,4*fSoft*fSoft,
+	    tile->m.f[j],tile->fourh2.f[j]);
+	if (d2 > fourh2) {
+	    SQRT1(d2,dir);
+	    dir2 = dir*dir*dir;
+	    }
+	else {
+	    /*
+	    ** This uses the Dehnen K1 kernel function now, it's fast!
+	    */
+	    SQRT1(fourh2,dir);
+	    dir2 = dir*dir;
+	    d2 *= dir2;
+	    dir2 *= dir;
+	    d2 = 1 - d2;
+	    dir *= 1.0 + d2*(0.5 + d2*(3.0/8.0 + d2*(45.0/32.0)));
+	    dir2 *= 1.0 + d2*(1.5 + d2*(135.0/16.0));
+	    ++nSoft;
+	    }
+	dir2 *= tile->m.f[j];
+	tax = -tile->dx.f[j]*dir2;
+	tay = -tile->dy.f[j]*dir2;
+	taz = -tile->dz.f[j]*dir2;
+	*fPot -= tile->m.f[j]*dir;
+	/*
+	** Calculations for determining the timestep.
+	*/
+	adotai = a[0]*tax + a[1]*tay + a[2]*taz;
+	if (adotai > 0 && tile->d2.f[j] >= fsmooth2) {
+	    adotai *= dimaga;
+	    *dirsum += dir*adotai*adotai;
+	    *normsum += adotai*adotai;
+	    }
+	*ax += tax;
+	*ay += tay;
+	*az += taz;
+	}
+#endif
+    }
+
+
+
+
+
 /*
 ** This version of grav.c does all the operations inline, including
 ** v_sqrt's and such.
@@ -80,9 +233,8 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,FLOCR *
     float fMassTmp,fSoftTmp;
     float fx, fy, fz;
     float dtGrav,dT;
-    float adotai,maga,dimaga,dirsum,normsum;
-    float tax,tay,taz;
-    float rholoc,rhopmax,rhopmaxlocal,fsmooth2,fSoftMedian,fEps,fEps2;
+    float maga,dimaga,dirsum,normsum;
+    float rhopmax,rhopmaxlocal,fsmooth2;
     float summ;
 #if defined(USE_SIMD_PC)
     v4sf u,g0,g2,g3,g4;
@@ -94,6 +246,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,FLOCR *
     const float onethird = 1.0f/3.0f;
     float u,g0,g2,g3,g4;
     float x,y,z;
+    float tax,tay,taz,adotai;
     float tx,ty,tz;
     float xx,xy,xz,yy,yz,zz;
     float xxx,xxz,yyy,yyz,xxy,xyy,xyz;
@@ -116,8 +269,6 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,FLOCR *
     assert(pkd->oAcceleration);
 
     pkdNodeBnd(pkd, pkdn, &bnd);
-
-
     normsum = dirsum = maga = 0.0;
 
     /*
@@ -371,6 +522,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,FLOCR *
 	ilp->cy = p->r[1];
 	ilp->cz = p->r[2];
 	ilpCompute(ilp,fx,fy,fz);
+
 	/*
 	** Calculate local density and kernel smoothing length for dynamical time-stepping
 	*/
@@ -385,153 +537,22 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,FLOCR *
 	    psmooth2 = SIMD_SPLAT(fsmooth2);
 #endif
 	    }
-	 else {
-	   /*
-	   ** We are not using GravStep!
-	   */
+	else {
+	    /*
+	    ** We are not using GravStep!
+	    */
 	    fsmooth2 = 0.0;
 #ifdef USE_SIMD_PP
 	    psmooth2 = consts.zero.p;
 #endif	    
 	    }
-	
-#ifdef USE_SIMD_PP
-	 /*
-	 ** The list sets mass to zero for unused entries which results
-	 ** in zero forces. Be careful if that is changed.
-	 */
-	pax = SIMD_LOADS(ax);
-	pay = SIMD_LOADS(ay);
-	paz = SIMD_LOADS(az);
-	ppot= SIMD_LOADS(fPot);
-	pirsum = SIMD_LOADS(dirsum);
-	pnorms = SIMD_LOADS(normsum);
 
-	piax    = SIMD_SPLAT(a[0]);
-	piay    = SIMD_SPLAT(a[1]);
-	piaz    = SIMD_SPLAT(a[2]);
-	pmass   = SIMD_SPLAT(fMass);
-	p4soft2 = SIMD_SPLAT(4.0*fSoft*fSoft);
-
-	ILP_LOOP(ilp,tile) {
-	    uint32_t n = (tile->nPart+ILP_ALIGN_MASK) >> ILP_ALIGN_BITS;
-
-	    for ( j=0; j<n; j++ ) {
-		v4sf pfourh2, pd2, pir, pir2;
-		v4bool vcmp;
-		int msk;
-
-		vcmp = SIMD_CMP_GT(tile->fourh2.p[j],consts.zero.p);
-		msk = SIMD_ALL_ZERO(vcmp); /* softenings are not zero */
-		if(msk) {
-		    t1 = SIMD_MUL(SIMD_ADD(pmass,tile->m.p[j]),SIMD_MUL(p4soft2,tile->fourh2.p[j]));
-		    t2 = SIMD_ADD(SIMD_MUL(tile->fourh2.p[j],pmass),SIMD_MUL(p4soft2,tile->m.p[j]));
-#if defined(__SSE2__) || defined(__ALTIVEC__)
-		    pfourh2 = SIMD_RE_EXACT(t2);
-		    pfourh2 = SIMD_MUL(pfourh2,t1);
-#else
-		    pfourh2 = SIMD_DIV(t1,t2);
-#endif
-		    vcmp = SIMD_CMP_LT(tile->d2.p[j],pfourh2);
-		    pd2 = SIMD_MAX(tile->d2.p[j],pfourh2);
-		    msk = SIMD_ALL_ZERO(vcmp);  /* zero means nothing is softened - optimization */
-		} else {
-		    pd2 = tile->d2.p[j];
-		}
-
-		pir = SIMD_RSQRT_EXACT(pd2);
-		pir2 = SIMD_MUL(pir,pir);
-		pd2 = SIMD_MUL(pir2,tile->d2.p[j]); /* for SOFTENED */
-		pir2 = SIMD_MUL(pir2,pir);
-
-		/* pir and pir2 are valid now for both softened and unsoftened particles */
-		/* Now we apply the fix to softened particles only */
-		if (msk) {
-		    pd2 = SIMD_SUB(consts.one.p,pd2);
-		    pd2 = SIMD_AND(vcmp,pd2);
-		    t1 = SIMD_MADD(consts.R45_32.p, pd2, consts.R3_8.p);
-		    t1 = SIMD_MADD(t1, pd2, consts.half.p);
-		    t1 = SIMD_MADD(t1, pd2, consts.one.p);
-		    t2 = SIMD_MADD(consts.R135_16.p, pd2, consts.threehalves.p);
-		    t2 = SIMD_MADD(t2, pd2, consts.one.p);
-		    pir = SIMD_MUL(pir,t1);
-		    pir2 = SIMD_MUL(pir2,t2);
-		    }
-		pir2 = SIMD_MUL(pir2,tile->m.p[j]);
-
-		t1 = SIMD_NMSUB(tile->dx.p[j],pir2,consts.zero.p);
-		t2 = SIMD_NMSUB(tile->dy.p[j],pir2,consts.zero.p);
-		t3 = SIMD_NMSUB(tile->dz.p[j],pir2,consts.zero.p);
-		ppot = SIMD_NMSUB(tile->m.p[j],pir,ppot);
-
-		/* Time stepping criteria stuff */
-		padotai = SIMD_MADD(piaz,t3,SIMD_MADD(piay,t2,SIMD_MUL(piax,t1)));
-		vcmp = SIMD_AND(SIMD_CMP_GT(padotai,consts.zero.p),SIMD_CMP_GE(tile->d2.p[j],psmooth2));
-		padotai= SIMD_AND(padotai,vcmp);
-		padotai= SIMD_MUL(padotai,pimaga);
-		pd2 = SIMD_MUL(padotai,padotai);
-		pirsum = SIMD_MADD(pir,pd2,pirsum);
-		pnorms = SIMD_ADD(pnorms,pd2);
-
-		pax = SIMD_ADD(pax,t1);
-		pay = SIMD_ADD(pay,t2);
-		paz = SIMD_ADD(paz,t3);
-		}
-	    }
-
-	ax = SIMD_HADD(pax);
-	ay = SIMD_HADD(pay);
-	az = SIMD_HADD(paz);
-	fPot = SIMD_HADD(ppot);
-	dirsum = SIMD_HADD(pirsum);
-	normsum = SIMD_HADD(pnorms);
-#else
 	/*
-	** DO NOT MODIFY THE CODE BELOW UP TO THE #endif!
-	** This code MUST match the SIMD code above.
+	** Calculate P-P Interactions for each tile.
 	*/
 	ILP_LOOP(ilp,tile) {
-	    for (j=0;j<tile->nPart;++j) {
-		d2 = tile->d2.f[j];
-		fourh2 = softmassweight(fMass,4*fSoft*fSoft,
-					tile->m.f[j],tile->fourh2.f[j]);
-		if (d2 > fourh2) {
-		    SQRT1(d2,dir);
-		    dir2 = dir*dir*dir;
-		    }
-		else {
-		    /*
-		    ** This uses the Dehnen K1 kernel function now, it's fast!
-		    */
-		    SQRT1(fourh2,dir);
-		    dir2 = dir*dir;
-		    d2 *= dir2;
-		    dir2 *= dir;
-		    d2 = 1 - d2;
-		    dir *= 1.0 + d2*(0.5 + d2*(3.0/8.0 + d2*(45.0/32.0)));
-		    dir2 *= 1.0 + d2*(1.5 + d2*(135.0/16.0));
-		    ++nSoft;
-		    }
-		dir2 *= tile->m.f[j];
-		tax = -tile->dx.f[j]*dir2;
-		tay = -tile->dy.f[j]*dir2;
-		taz = -tile->dz.f[j]*dir2;
-		fPot -= tile->m.f[j]*dir;
-		/*
-		** Calculations for determining the timestep.
-		*/
-		adotai = a[0]*tax + a[1]*tay + a[2]*taz;
-		if (adotai > 0 && tile->d2.f[j] >= fsmooth2) {
-		    adotai *= dimaga;
-		    dirsum += dir*adotai*adotai;
-		    normsum += adotai*adotai;
-		    }
-		ax += tax;
-		ay += tay;
-		az += taz;
-		}
-	    } /* end of particle list gravity loop */
-#endif
+	    pkdGravTilePP(pkd,tile,fMass,fSoft,a,&ax,&ay,&az,&fPot,&dirsum,&normsum);
+	    }
 	/*
 	** Finally set new acceleration and potential.
 	** Note that after this point we cannot use the new timestepping criterion since we

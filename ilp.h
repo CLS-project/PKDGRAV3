@@ -98,26 +98,30 @@ static inline uint32_t ilpCount(ILP ilp) {
 /* #endif */
 
 
-#define ilpAppend(ilp,X,Y,Z,M,S,I,VX,VY,VZ)				\
+/*
+** The X, Y and Z coordinates must already be relative to cx, cy and cz!
+*/
+#define ilpAppendFloat(ilp,X,Y,Z,M,S,I,VX,VY,VZ)			\
     {									\
     ILPTILE tile = (ilp)->tile;						\
     uint_fast32_t ILP_APPEND_i;						\
     if ( tile->nPart == tile->nMaxPart ) tile = ilpExtend((ilp));	\
     ILP_APPEND_i = tile->nPart;						\
-    tile->dx.f[ILP_APPEND_i] = (ilp)->cx - (X);			\
-    tile->dy.f[ILP_APPEND_i] = (ilp)->cy - (Y);			\
-    tile->dz.f[ILP_APPEND_i] = (ilp)->cz - (Z);			\
+    tile->dx.f[ILP_APPEND_i] = (X);					\
+    tile->dy.f[ILP_APPEND_i] = (Y);					\
+    tile->dz.f[ILP_APPEND_i] = (Z);					\
     assert( (M) > 0.0 );						\
     tile->m.f[ILP_APPEND_i] = (M);					\
-    tile->fourh2.f[ILP_APPEND_i] = (S);				\
+    tile->fourh2.f[ILP_APPEND_i] = (S);					\
     ilpAppend_1((ilp),I);						\
     ilpAppend_2((ilp),VX,VY,VZ);					\
     ++tile->nPart;							\
     }
 
+#define ilpAppend(ilp,X,Y,Z,M,S,I,VX,VY,VZ)				\
+    ilpAppendFloat(ilp,(ilp)->cx-(X),(ilp)->cy-(Y),(ilp)->cz-(Z),M,S,I,VX,VY,VZ)
+
 #define ILP_LOOP(ilp,ptile) for( ptile=(ilp)->first; ptile!=(ilp)->tile->next; ptile=ptile->next )
-
-
 
 static inline void ilpCompute(ILP ilp, float fx, float fy, float fz ) {
     ILPTILE tile;
