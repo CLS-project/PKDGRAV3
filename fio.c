@@ -11,6 +11,7 @@
 #include <errno.h>
 #include <sys/stat.h>
 #ifndef NO_XDR
+#include <rpc/types.h>
 #include <rpc/xdr.h>
 #else
 typedef struct {
