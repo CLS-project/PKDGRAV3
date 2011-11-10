@@ -166,7 +166,7 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.nThreads = 1;
     prmAddParam(msr->prm,"nThreads",1,&msr->param.nThreads,sizeof(int),"sz",
 		"<nThreads>");
-    msr->param.bDiag = 1;
+    msr->param.bDiag = 0;
     prmAddParam(msr->prm,"bDiag",0,&msr->param.bDiag,sizeof(int),"d",
 		"enable/disable per thread diagnostic output");
     msr->param.bOverwrite = 0;
@@ -207,7 +207,7 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
 		"den","enable/disable density outputs = +den");
 #ifdef USE_PNG
     msr->param.nPNGResolution = 0;
-    prmAddParam(msr->prm,"nPNGResolution",0,&msr->param.nPNGResolution,sizeof(int),
+    prmAddParam(msr->prm,"nPNGResolution",1,&msr->param.nPNGResolution,sizeof(int),
 		"png","PNG output resolution (zero disables) = 0");
 #endif
     msr->param.nBucket = 8;
@@ -227,16 +227,16 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
 		"oi","<number of timesteps between snapshots> = 0");
     strcpy(msr->param.achOutTypes,"rvmsp");
     prmAddParam(msr->prm,"achOutTypes",3,msr->param.achOutTypes,256,"ot",
-		"<output types for snapshort> = \"rvmso\"");
+		"<output types for snapshot> = \"rvmsp\"");
     msr->param.iCheckInterval = 0;
     prmAddParam(msr->prm,"iCheckInterval",1,&msr->param.iCheckInterval,sizeof(int),
 		"oc","<number of timesteps between checkpoints> = 0");
     strcpy(msr->param.achCheckTypes,"RVMSP");
     prmAddParam(msr->prm,"achCheckTypes",3,msr->param.achCheckTypes,256,"ct",
-		"<output types for checkpoints> = \"RVMSO\"");
-    msr->param.iLogInterval = 10;
+		"<output types for checkpoints> = \"RVMSP\"");
+    msr->param.iLogInterval = 1;
     prmAddParam(msr->prm,"iLogInterval",1,&msr->param.iLogInterval,sizeof(int),
-		"ol","<number of timesteps between logfile outputs> = 10");
+		"ol","<number of timesteps between logfile outputs> = 1");
     msr->param.bEwald = 1;
     prmAddParam(msr->prm,"bEwald",0,&msr->param.bEwald,sizeof(int),"ewald",
 		"enable/disable Ewald correction = +ewald");
@@ -420,7 +420,7 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     prmAddParam(msr->prm,"bStandard",0,&msr->param.bStandard,sizeof(int),"std",
 		"output in standard TIPSY binary format = -std");
     msr->param.iCompress = 0;
-    prmAddParam(msr->prm,"iCompress",0,&msr->param.iCompress,sizeof(int),NULL,
+    prmAddParam(msr->prm,"iCompress",1,&msr->param.iCompress,sizeof(int),NULL,
 		"compression format, 0=none, 1=gzip, 2=bzip2");
     msr->param.bHDF5 = 0;
     prmAddParam(msr->prm,"bHDF5",0,&msr->param.bHDF5,sizeof(int),"hdf5",
@@ -580,41 +580,45 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
 #ifdef USE_LUSTRE
     msr->param.nStripeSize = 0;
     prmAddParam(msr->prm,"nStripeSize",1,&msr->param.nStripeSize,
-		sizeof(int),"nStripeSize","<Lustre stripe size> = 0");
+		sizeof(int),"lss","<Lustre stripe size> = 0");
     msr->param.nStripeCount = 0;
     prmAddParam(msr->prm,"nStripeCount",1,&msr->param.nStripeCount,
-		sizeof(int),"nStripeCount","<Lustre stripe count> = 0");
+		sizeof(int),"lsc","<Lustre stripe count> = 0");
 #endif
 
     /* Memory models */
     msr->param.bMemAcceleration = 0;
-    prmAddParam(msr->prm,"bMemAcceleration",1,&msr->param.bMemAcceleration,
-		sizeof(int),"Ma","<Particles have acceleration> = 0");
+    prmAddParam(msr->prm,"bMemAcceleration",0,&msr->param.bMemAcceleration,
+		sizeof(int),"Ma","<Particles have acceleration> = -Ma");
     msr->param.bMemVelocity = 0;
-    prmAddParam(msr->prm,"bMemVelocity",1,&msr->param.bMemVelocity,
-		sizeof(int),"Mv","<Particles have velocity> = 0");
+    prmAddParam(msr->prm,"bMemVelocity",0,&msr->param.bMemVelocity,
+		sizeof(int),"Mv","<Particles have velocity> = -Mv");
     msr->param.bMemPotential = 0;
-    prmAddParam(msr->prm,"bMemPotential",1,&msr->param.bMemPotential,
-		sizeof(int),"Mp","<Particles have potential> = 0");
+    prmAddParam(msr->prm,"bMemPotential",0,&msr->param.bMemPotential,
+		sizeof(int),"Mp","<Particles have potential> = -Mp");
     msr->param.bMemGroups = 0;
-    prmAddParam(msr->prm,"bMemGroups",1,&msr->param.bMemGroups,
-		sizeof(int),"Mg","<Particles support group finding> = 0");
+    prmAddParam(msr->prm,"bMemGroups",0,&msr->param.bMemGroups,
+		sizeof(int),"Mg","<Particles support group finding> = -Mg");
     msr->param.bMemMass = 0;
-    prmAddParam(msr->prm,"bMemMass",1,&msr->param.bMemMass,
-		sizeof(int),"Mm","<Particles have mass> = 0");
+    prmAddParam(msr->prm,"bMemMass",0,&msr->param.bMemMass,
+		sizeof(int),"Mm","<Particles have individual masses> = -Mm");
     msr->param.bMemSoft = 0;
-    prmAddParam(msr->prm,"bMemSoft",1,&msr->param.bMemSoft,
-		sizeof(int),"Ms","<Particles have softening> = 0");
+    prmAddParam(msr->prm,"bMemSoft",0,&msr->param.bMemSoft,
+		sizeof(int),"Ms","<Particles have individual softening> = -Ms");
     msr->param.bMemHermite = 0;
-    prmAddParam(msr->prm,"bMemHermite",1,&msr->param.bMemHermite,
-		sizeof(int),"Mh","<Particles have fields for the hermite integrator> = 0");
+    prmAddParam(msr->prm,"bMemHermite",0,&msr->param.bMemHermite,
+		sizeof(int),"Mh","<Particles have fields for the hermite integrator> = -Mh");
     msr->param.bMemRelaxation = 0;
-    prmAddParam(msr->prm,"bMemRelaxation",1,&msr->param.bMemRelaxation,
-		sizeof(int),"Mr","<Particles have relaxation> = 0");
+    prmAddParam(msr->prm,"bMemRelaxation",0,&msr->param.bMemRelaxation,
+		sizeof(int),"Mr","<Particles have relaxation> = -Mr");
     msr->param.bMemVelSmooth = 0;
-    prmAddParam(msr->prm,"bMemVelSmooth",1,&msr->param.bMemVelSmooth,
-		sizeof(int),"Mvs","<Particles support velocity smoothing> = 0");
+    prmAddParam(msr->prm,"bMemVelSmooth",0,&msr->param.bMemVelSmooth,
+		sizeof(int),"Mvs","<Particles support velocity smoothing> = -Mvs");
     msr->param.bMemPsMetric = 0;
+<<<<<<< /home/stadel/code/pkdgrav2/master.c
+    prmAddParam(msr->prm,"bPsMetric",0,&msr->param.bMemPsMetric,
+		sizeof(int),"Mps","<Particles support phase-space metric> = -Mps");
+=======
     prmAddParam(msr->prm,"bPsMetric",1,&msr->param.bMemPsMetric,
 		sizeof(int),"Mpsb","<Particles support phase-space metric> = 0");
     msr->param.nDomainRungs = 0;
@@ -626,17 +630,18 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.bMemNewDD = 0;
     prmAddParam(msr->prm,"bMemNewDD",1,&msr->param.bMemNewDD,
 		sizeof(int),"MnewDD","<Use new Domain Decomposition (test only)> = 0");
+>>>>>>> /tmp/master.c~other.zZU2cX
     msr->param.bMemNodeMoment = 0;
-    prmAddParam(msr->prm,"bMemNodeMoment",1,&msr->param.bMemNodeMoment,
+    prmAddParam(msr->prm,"bMemNodeMoment",0,&msr->param.bMemNodeMoment,
 		sizeof(int),"MNm","<Tree nodes support multipole moments> = 0");
     msr->param.bMemNodeAcceleration = 0;
-    prmAddParam(msr->prm,"bMemNodeAcceleration",1,&msr->param.bMemNodeAcceleration,
+    prmAddParam(msr->prm,"bMemNodeAcceleration",0,&msr->param.bMemNodeAcceleration,
 		sizeof(int),"MNa","<Tree nodes support acceleration (for bGravStep)> = 0");
     msr->param.bMemNodeVelocity = 0;
-    prmAddParam(msr->prm,"bMemNodeVelocity",1,&msr->param.bMemNodeVelocity,
+    prmAddParam(msr->prm,"bMemNodeVelocity",0,&msr->param.bMemNodeVelocity,
 		sizeof(int),"MNv","<Tree nodes support velocity (for iTimeStepCrit = 1)> = 0");
     msr->param.bMemNodeSphBounds = 0;
-    prmAddParam(msr->prm,"bMemNodeSphBounds",1,&msr->param.bMemNodeSphBounds,
+    prmAddParam(msr->prm,"bMemNodeSphBounds",0,&msr->param.bMemNodeSphBounds,
 		sizeof(int),"MNsph","<Tree nodes support fast-gas bounds> = 0");
 
     msr->param.bMemNodeBnd = 1;
@@ -3616,6 +3621,95 @@ int msrUpdateRung(MSR msr, uint8_t uRung) {
      */
     msrSetRungVeryActive(msr, iRungVeryActive);
     return(iRungVeryActive);
+    }
+
+
+#define MAX_RUNG 255
+
+#define PUSH(i) {\
+    ucStack[sp++] = i;\
+    }
+
+#define POP(i) {\
+    i = ucStack[--sp];\
+    }
+
+/*
+** This is the main timestepping loop for the code. There is a call for very active timestepping
+** if this is needed. The timestepping scheme is KDK and here written in a non-recursive fashion
+** to simplify outputs and the like.
+*/
+double msrKDKStepping(MSR msr,double dTime) {
+    char achFile[PST_FILENAME_SIZE];
+    unsigned char ucStack[MAX_RUNG+1];
+    struct inStepVeryActive in;
+    double dt;
+    int sp=0;
+    int iStep;
+    int bExcludeVeryActive;
+    int bPeriodicDrift = msr->param.bPeriodic;
+    unsigned char uc,ucRung,ucMaxRung;
+
+    iStep = msr->param.iStartStep;
+    ucRung = 0;
+
+    bExcludeVeryActive = 0;
+    msrBuildTree(msr,dTime,bExcludeVeryActive,msr->param.ucRungVeryActive);
+    msrGravity(msr,dTime,iStep,ucRung);
+
+    while (iStep < msr->param.nSteps) {
+	ucMaxRung = msrCalcRung(msr,ucRung,msr->param.ucRungLimit,dTime);
+	msrKickByRung(msr,ucRung,ucMaxRung,dTime,0,msr->param.dBaseStep);
+	if (bTreeRepair) {
+	    msrCalcTreeDerivs(msr,ucRung,ucMaxRun);
+	    }
+	for (uc=ucRung+1;uc<msr->param.ucRungVeryActive;++uc) PUSH(uc);
+	if (ucMaxRung < msr->param.ucRungVeryActive) {
+	    dt = msr->param.dBaseStep/pow(2.0,ucMaxRung);
+	    msrDriftFixed(msr,0,ucMaxRung,dTime,dt,bPeriodicDrift);
+	    dTime += dt;
+	    }
+	else {
+	    dt = msr->param.dBaseStep/pow(2.0,msr->param.ucRungVeryActive);
+	    msrDriftFixed(msr,0,msr->param.ucRungVeryActive-1,dTime,dt,bPeriodicDrift);
+	    bExcludeVeryActive = 1;
+	    msrBuildTree(msr,dTime,bExcludeVeryActive,msr->param.ucRungVeryActive);
+
+	    in.dTime = dTime;
+	    in.dBaseStep = msr->param.dBaseStep;
+	    in.ucRungVeryActive = msr->param.ucRungVeryActive;
+	    in.ucMaxRung = ucMaxRung;
+	    pstStepVeryActive(msr->pst,&in,sizeof(in),NULL,NULL);
+
+	    dTime += dt;
+	    msrDriftFixed(msr,0,msr->param.ucRungVeryActive-1,dTime,dt,bPeriodicDrift);
+	    dTime += dt;
+	    }
+	if (!sp) {
+	    ++iStep;
+	    msrRungCount(msr);
+	    /*
+	    ** Synchronized at this point, this is the end of a base timestep.
+	    ** Output if 1) we're at the end of the simulation
+	    **           2) we're at an output interval
+	    */
+	    if (iStep == msr->param.nSteps ||
+		(msr->param.iOutInterval > 0 &&	iStep%msr->param.iOutInterval == 0)) {
+		msrReorder(msr);
+		sprintf(achFile,msr->param.achDigitMask,msr->param.achOutName,iStep);
+		msrWriteTipsy(msr,achFile,dTime);
+		}
+	    PUSH(0);
+	    }
+	POP(ucRung);
+	bExcludeVeryActive = 0;
+
+	msrBuildTree(msr,dTime,bExcludeVeryActive,msr->param.ucRungVeryActive);
+
+	msrGravity(msr,dTime,iStep,ucRung);
+	msrKickByRung(msr,ucRung,ucMaxRung,dTime,1,msr->param.dBaseStep);
+	}
+    return dTime;
     }
 
 
