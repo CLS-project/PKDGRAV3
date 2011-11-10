@@ -134,7 +134,7 @@ int FC_MAIN(int argc,char **argv) {
 #else
     mdlInitialize(&mdl,argv,main_ch,0);
 #endif
-    for (argc = 0; argv[argc]; argc++); /* some MDLs can trash argv */
+    for (argc = 0; argv[argc]; argc++); /* some MDLs can modify argv, so update argc */
 
     printf("%s\n", PACKAGE_STRING );
 
