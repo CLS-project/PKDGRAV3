@@ -390,6 +390,43 @@ typedef struct kdNode {
     uint8_t bDstActive;
     } KDN;
 
+
+#if 0
+/*
+** This structure should allow for both k-D trees as well as spatial binary 
+** binary trees and finally Peano-Hilbert SFC type binary trees. For SFC type
+** binary trees we don't really need the double precision split if we have the 
+** key of a cell (which is not included here).
+*/
+typedef struct kdNode {
+    union uCellFields {	
+	struct bucketFields { /* 32 bytes for M=8 */
+	    uint32_t iPart[M];  /* loop until iPart[i] == 0xffffffff */
+	    } bf;
+	struct cellFields {  /* 32 bytes */
+	    /*
+	    ** iDummy will always be == 0xffffffff for a cell.
+	    */
+	    uint32_t iDummy;
+	    /*
+	    ** Since cells will be allocated from high memory downward the 
+	    ** indecies here will all be negative. Cells will be allocated
+	    ** until they collide with the particles which are allocated in 
+	    ** a heap fashion from low to high memory.
+	    */
+	    int iLower;
+	    int iUpper;
+	    int iParent;
+	    double dSplit;
+	    uint16_t iDim;
+	    uint16_t pidLower;
+	    uint16_t pidUpper;
+	    uint16_t pidParent;
+	    } cf;
+	} u;
+    } KDN;
+#endif
+
 typedef struct sphBounds {
     struct minmaxBound {
 	double min[3];
@@ -659,11 +696,14 @@ typedef struct pkdContext {
     /*
     ** Advanced memory models - Tree Nodes
     */
-    int oNodeMom; /* an FMOMR */
+    int oNodePosition; /* Three doubles */
     int oNodeVelocity; /* Three doubles */
     int oNodeAcceleration; /* Three doubles */
-    int oNodeSphBounds; /* Three Bounds */
+    int oNodeBmax;
+    int oNodeSoft;
+    int oNodeMom; /* an FMOMR */
     int oNodeBnd;
+    int oNodeSphBounds; /* Three Bounds */
     int oNodeBnd6;
 
     /*
@@ -698,7 +738,6 @@ typedef struct pkdContext {
 #else
     float fiCritTheta;
 #endif
-
     /*
     ** New activation methods
     */
