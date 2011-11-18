@@ -19,4 +19,10 @@ static inline int pkdIsCellActive(KDN *c,uint8_t uRungLo,uint8_t uRungHi) {
 */
 int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,int bEwald,
 		int bVeryActive,double dThetaMin,double dThetaMax,double *pdFlop,double *pdPartSum,double *pdCellSum);
+
+/*
+** Returns total number of active particles on which doFunc operated.
+*/
+int pkdRungWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,void *pParams,void *doFunc(PKD pkd,PARTICLE *p,void *pParams));
+
 #endif

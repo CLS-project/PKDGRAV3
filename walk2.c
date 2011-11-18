@@ -866,14 +866,16 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 		fOffset[2] = iz*pkd->fPeriod[2];
 		bRep = ix || iy || iz;
 		if (bRep || bVeryActive) {
-		    /* If leaf of top tree, use root of
-		       local tree.
+		    /* 
+		    ** Use leaf of the top tree and NOT the root of the local tree here.
 		    */
 		    cOpen = -1.0f;
 		    id = -1;
+		    iLower = pkdTopNode(pkd,ROOT)->iLower;
+		    if (!iLower) iLower = ROOT;  /* something other than zero for openening crit - iLower usually can't be == ROOT */
 		    nc = getCell(pkd,ROOT,id,&cOpen,&c);
 		    pkdNodeBnd(pkd,c,&cbnd);
-		    clAppend(pkd->cl,ROOT,id,c->iLower,nc,cOpen,pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c->r,fOffset,cbnd.fCenter,cbnd.fMax);
+		    clAppend(pkd->cl,ROOT,id,iLower,nc,cOpen,pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c->r,fOffset,cbnd.fCenter,cbnd.fMax);
 		    }
 		if (bRep && bVeryActive) {
 		    /*
@@ -881,9 +883,11 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 		    */
 		    cOpen = -1.0f;
 		    id = mdlSelf(pkd->mdl);
+		    iLower = pkdTopNode(pkd,VAROOT)->iLower;
+		    if (!iLower) iLower = ROOT;  /* something other than zero for openening crit - iLower usually can't be == ROOT */
 		    nc = getCell(pkd,VAROOT,id,&cOpen,&c);
 		    pkdNodeBnd(pkd,c,&cbnd);
-		    clAppend(pkd->cl,VAROOT,id,c->iLower,nc,cOpen,pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c->r,fOffset,cbnd.fCenter,cbnd.fMax);
+		    clAppend(pkd->cl,VAROOT,id,iLower,nc,cOpen,pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c->r,fOffset,cbnd.fCenter,cbnd.fMax);
 		    }
 		}
 	    }
@@ -1621,3 +1625,37 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 	}
     }
 
+
+int pkdRungWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,void *pParams,void *doFunc(PKD pkd,PARTICLE *p,void *pParams)) {
+    KDN *k;
+    PARTICLE *p;
+    int iCell,pj;
+    int nTotActive = 0;
+
+    k = pkdTreeNode(pkd,iCell = ROOT);
+    while (1) {
+	if (k->uMaxRung >= uRungLo || k->uMinRung <= uRungHi ) {
+	    /*
+	    ** Descend.
+	    */
+	    if (!k->iLower) {
+		/*
+		** Process bucket!
+		*/
+		for (pj=k->pLower;pj<=k->pUpper;++pj) {
+		    p = pkdParticle(pkd,pj);
+		    if (pkdIsRungRange(p,uRungLo,uRungHi)) {
+			if (doFunc) doFunc(pkd,p,pParams);
+			++nTotActive;
+			}
+		    }
+		}
+	    else k = pkdTreeNode(pkd,iCell = k->iLower);
+	    }
+	while (iCell & 1) {
+	    k = pkdTreeNode(pkd,iCell = k->iParent);
+	    if (!iCell) return(nTotActive);
+	    }
+	k = pkdTreeNode(pkd,++iCell);
+	}
+    }
