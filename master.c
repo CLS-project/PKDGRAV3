@@ -2174,7 +2174,7 @@ void domaindepthlink(DC *node,DC **plast,int depth) {
 #endif
 
 #ifdef MPI_VERSION
-w/*
+/*
 ** This function calculates where all particles should go for each rung
 ** and stores this information in the particle structure.
 */
