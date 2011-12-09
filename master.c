@@ -171,7 +171,7 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
 		"enable/disable per thread diagnostic output");
     msr->param.bOverwrite = 0;
     prmAddParam(msr->prm,"bOverwrite",0,&msr->param.bOverwrite,sizeof(int),
-		"overwrite","enable/disable overwrite safety lock = +overwrite");
+		"overwrite","enable/disable overwrite safety lock = -overwrite");
     msr->param.bVWarnings = 1;
     prmAddParam(msr->prm,"bVWarnings",0,&msr->param.bVWarnings,sizeof(int),
 		"vwarnings","enable/disable warnings = +vwarnings");
@@ -615,12 +615,8 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     prmAddParam(msr->prm,"bMemVelSmooth",0,&msr->param.bMemVelSmooth,
 		sizeof(int),"Mvs","<Particles support velocity smoothing> = -Mvs");
     msr->param.bMemPsMetric = 0;
-<<<<<<< /home/stadel/code/pkdgrav2/master.c
     prmAddParam(msr->prm,"bPsMetric",0,&msr->param.bMemPsMetric,
 		sizeof(int),"Mps","<Particles support phase-space metric> = -Mps");
-=======
-    prmAddParam(msr->prm,"bPsMetric",1,&msr->param.bMemPsMetric,
-		sizeof(int),"Mpsb","<Particles support phase-space metric> = 0");
     msr->param.nDomainRungs = 0;
     prmAddParam(msr->prm,"nDomainRungs",1,&msr->param.nDomainRungs,
 		sizeof(int),"drungs","<Decompose domains on this many rungs> = 0");
@@ -630,7 +626,6 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.bMemNewDD = 0;
     prmAddParam(msr->prm,"bMemNewDD",1,&msr->param.bMemNewDD,
 		sizeof(int),"MnewDD","<Use new Domain Decomposition (test only)> = 0");
->>>>>>> /tmp/master.c~other.zZU2cX
     msr->param.bMemNodeMoment = 0;
     prmAddParam(msr->prm,"bMemNodeMoment",0,&msr->param.bMemNodeMoment,
 		sizeof(int),"MNm","<Tree nodes support multipole moments> = 0");
@@ -2179,7 +2174,7 @@ void domaindepthlink(DC *node,DC **plast,int depth) {
 #endif
 
 #ifdef MPI_VERSION
-/*
+w/*
 ** This function calculates where all particles should go for each rung
 ** and stores this information in the particle structure.
 */
@@ -2438,15 +2433,16 @@ void msrDomainDecompOld(MSR msr,int iRung,int bSplitVA) {
     }
 
 void msrDomainDecomp(MSR msr,int iRung,int bSplitVA) {
-    BND bnd;
-
+#ifdef MPI_VERSION
     if (prmSpecified(msr->prm,"iDomainMethod")) {
 	if (iRung==0) {
 	    msrDomainDecompNew(msr);
 	    }
 	msrRungOrder(msr,iRung);
 	}
-    else {
+    else
+#endif 
+	{
 	msrDomainDecompOld(msr,iRung,bSplitVA);
 	}
     }
@@ -3623,17 +3619,7 @@ int msrUpdateRung(MSR msr, uint8_t uRung) {
     return(iRungVeryActive);
     }
 
-
-#define MAX_RUNG 255
-
-#define PUSH(i) {\
-    ucStack[sp++] = i;\
-    }
-
-#define POP(i) {\
-    i = ucStack[--sp];\
-    }
-
+#if 0
 /*
 ** This is the main timestepping loop for the code. There is a call for very active timestepping
 ** if this is needed. The timestepping scheme is KDK and here written in a non-recursive fashion
@@ -3711,6 +3697,7 @@ double msrKDKStepping(MSR msr,double dTime) {
 	}
     return dTime;
     }
+#endif
 
 
 void msrTopStepKDK(MSR msr,
