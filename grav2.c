@@ -61,7 +61,7 @@ static const struct CONSTS {
     }
 
 void pkdGravTilePP(PKD pkd,ILPTILE tile,
-    float fMass, float fSoft, float *a,
+    float fMass, float fSoft, float fsmooth2, float *a,
     float *ax, float *ay, float *az,
     float *fPot, float *dirsum, float *normsum) {
     uint32_t n;
@@ -72,9 +72,16 @@ void pkdGravTilePP(PKD pkd,ILPTILE tile,
     v4sf piax, piay, piaz;
     v4sf ppot, pmass, p4soft2;
     v4sf padotai,pimaga,psmooth2,pirsum,pnorms;
+#else
+    float d2,fourh2,dir,dir2,tax,tay,taz,adotai,dimaga;
+    int nSoft;
 #endif
 
+
+
 #ifdef USE_SIMD_PP
+    psmooth2 = SIMD_SPLAT(fsmooth2);
+
     /*
     ** The list sets mass to zero for unused entries which results
     ** in zero forces. Be careful if that is changed.
@@ -260,7 +267,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,FLOCR *
     v4sf pax, pay, paz;
     v4sf piax, piay, piaz;
     v4sf ppot, pmass, p4soft2;
-    v4sf padotai,pimaga,psmooth2,pirsum,pnorms;
+    v4sf padotai,pimaga,pirsum,pnorms;
 #endif
     float fourh2;
     ILPCHECKPT checkPt;
@@ -533,25 +540,19 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,FLOCR *
 	    */
 	    smSmoothSingle(smx,smf,p);
 	    fsmooth2 = p->fBall * p->fBall;
-#ifdef USE_SIMD
-	    psmooth2 = SIMD_SPLAT(fsmooth2);
-#endif
 	    }
 	else {
 	    /*
 	    ** We are not using GravStep!
 	    */
 	    fsmooth2 = 0.0;
-#ifdef USE_SIMD_PP
-	    psmooth2 = consts.zero.p;
-#endif	    
 	    }
 
 	/*
 	** Calculate P-P Interactions for each tile.
 	*/
 	ILP_LOOP(ilp,tile) {
-	    pkdGravTilePP(pkd,tile,fMass,fSoft,a,&ax,&ay,&az,&fPot,&dirsum,&normsum);
+	    pkdGravTilePP(pkd,tile,fMass,fSoft,fsmooth2,a,&ax,&ay,&az,&fPot,&dirsum,&normsum);
 	    }
 	/*
 	** Finally set new acceleration and potential.
