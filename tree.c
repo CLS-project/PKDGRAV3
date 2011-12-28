@@ -141,7 +141,7 @@ void BuildTemp(PKD pkd,int iNode,int M) {
     */
     ns = TEMP_S_INCREASE;
     s = 0;
-    S = malloc(ns*sizeof(int));
+    S = CAST(int*,malloc(ns*sizeof(int)));
     assert(S != NULL);
     /*
     ** Make sure we don't have buckets which are larger than the
@@ -149,9 +149,9 @@ void BuildTemp(PKD pkd,int iNode,int M) {
     */
     if (M > pkd->nMaxBucketActive) {
 	pkd->nMaxBucketActive = M;
-	pkd->piActive = realloc(pkd->piActive,pkd->nMaxBucketActive*sizeof(PARTICLE *));
+	pkd->piActive = CAST(PARTICLE **,realloc(pkd->piActive,pkd->nMaxBucketActive*sizeof(PARTICLE *)));
 	mdlassert(pkd->mdl,pkd->piActive != NULL);
-	pkd->piInactive = realloc(pkd->piInactive,pkd->nMaxBucketActive*sizeof(PARTICLE *));
+	pkd->piInactive = CAST(PARTICLE **,realloc(pkd->piInactive,pkd->nMaxBucketActive*sizeof(PARTICLE *)));
 	mdlassert(pkd->mdl,pkd->piInactive != NULL);
 	}
 
@@ -256,7 +256,7 @@ void BuildTemp(PKD pkd,int iNode,int M) {
 		if ( s+1 >= ns ) {
 		    assert( s+1 == ns );
 		    ns += TEMP_S_INCREASE;
-		    S = realloc(S,ns*sizeof(int));
+		    S = CAST(int *,realloc(S,ns*sizeof(int)));
 		    }
 		if (nr > nl) {
 		    S[s++] = iRight;	/* push tr */
@@ -410,7 +410,7 @@ void Create(PKD pkd,int iNode) {
 	    ** stack entry available than what is needed to walk the tree.
 	    */
 	    if (nDepth > pkd->nMaxStack) {
-		pkd->S = realloc(pkd->S,(pkd->nMaxStack+nMaxStackIncrease)*sizeof(CSTACK));
+		pkd->S = CAST(CSTACK *,realloc(pkd->S,(pkd->nMaxStack+nMaxStackIncrease)*sizeof(CSTACK)));
 		assert(pkd->S != NULL);
 		for (ism=pkd->nMaxStack;ism<(pkd->nMaxStack+nMaxStackIncrease);++ism) {
 		    clInitialize(&pkd->S[ism].cl,&pkd->clFreeList);

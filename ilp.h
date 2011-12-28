@@ -2,43 +2,53 @@
 #define ILP_H
 #ifdef LOCAL_EXPANSION
 #include <stdint.h>
+#include <string.h>
 
 #ifndef ILP_PART_PER_TILE
-#define ILP_PART_PER_TILE 4096 /* 4096*24 ~ 100k */
+#define ILP_PART_PER_TILE 8192 /* 4096*24 ~ 100k */
 #endif
+#define ILP_PART_PER_BLK 512
+#define ILP_BLK_PER_TILE (ILP_PART_PER_TILE/ILP_PART_PER_BLK)
 
-#define ILP_ALIGN_BITS 2
-#define ILP_ALIGN_SIZE (1<<ILP_ALIGN_BITS)
-#define ILP_ALIGN_MASK (ILP_ALIGN_SIZE-1)
-
+#ifdef USE_SIMD_PP
 #include "simd.h"
+#endif
 
 /*
 ** We use a union here so that the compiler can properly align the values.
 */
 typedef union {
+    float f[ILP_PART_PER_BLK];
+#ifdef USE_SIMD_PP
+    v4sf p[ILP_PART_PER_BLK/SIMD_WIDTH];
+#endif
+    } ilpVein;
+
+typedef union {
     float f[ILP_PART_PER_TILE];
 #ifdef USE_SIMD_PP
-    v4sf p[ILP_PART_PER_TILE/4];
+    v4sf p[ILP_PART_PER_TILE/SIMD_WIDTH];
 #endif
     } ilpFloat;
-
 
 typedef union {
     int64_t i[ILP_PART_PER_TILE]; /* Signed because negative marks softened cells */
     } ilpInt64;
 
 
+typedef struct {
+    ilpVein dx, dy, dz;    /* Offset from ilp->cx, cy, cz */
+    ilpVein m;             /* Mass */
+    ilpVein fourh2;        /* Softening: calculated */
+    } ILP_BLK;
+
 typedef struct ilpTile {
     struct ilpTile *next;
     struct ilpTile *prev;
     uint32_t nMaxPart;          /* Maximum number of particles in this tile */
     uint32_t nPart;             /* Current number of particles */
+    ILP_BLK *blk;
 
-    ilpFloat dx, dy, dz;        /* Offset from ilp->cx, cy, cz */
-    ilpFloat d2;                /* Distance squared: calculated */
-    ilpFloat m;                 /* Mass */
-    ilpFloat fourh2;            /* Softening: calculated */
 /* #ifdef HERMITE */
     ilpFloat vx, vy, vz;
 /* #endif */
@@ -52,6 +62,10 @@ typedef struct ilpContext {
     ILPTILE tile;               /* Current tile in the chain */
     double cx, cy, cz;          /* Center coordinates */
     uint32_t nPrevious;         /* Particles in tiles prior to "tile" */
+#ifdef USE_CACHE
+    uint32_t nCache;
+    ILP_BLK cache;
+#endif
     } *ILP;
 
 typedef struct {
@@ -82,95 +96,66 @@ static inline uint32_t ilpCount(ILP ilp) {
     return ilp->nPrevious + ilp->tile->nPart;
     }
 
-/* #if defined(SYMBA) || defined(PLANETS) */
-#define ilpAppend_1(ilp,I) tile->iOrder.i[ILP_APPEND_i] = (I);
-/* #else */
-/* #define ilpAppend_1(ilp,I) */
-/* #endif */
-
-/* #if defined(HERMITE) */
-#define ilpAppend_2(ilp,VX,VY,VZ)					\
-    tile->vx.f[ILP_APPEND_i] = (VX);					\
-    tile->vy.f[ILP_APPEND_i] = (VY);					\
-    tile->vz.f[ILP_APPEND_i] = (VZ);
-/* #else */
-/* #define ilpAppend_2(ilp,VX,VY,VZ) */
-/* #endif */
-
+static inline void ilpFlush(ILP ilp) {
+#ifdef USE_CACHE
+    if (ilp->nCache) {
+	ILPTILE tile = (ilp)->tile;
+	uint_fast32_t blk = tile->nPart / ILP_PART_PER_BLK;
+	memcpy(tile->blk + blk, &ilp->cache, sizeof(ILP_BLK));
+	tile->nPart += ILP_PART_PER_BLK;
+	ilp->nCache = 0;
+	}
+#endif
+    }
 
 /*
 ** The X, Y and Z coordinates must already be relative to cx, cy and cz!
 */
-#define ilpAppendFloat(ilp,X,Y,Z,M,S,I,VX,VY,VZ)			\
-    {									\
-    ILPTILE tile = (ilp)->tile;						\
-    uint_fast32_t ILP_APPEND_i;						\
-    if ( tile->nPart == tile->nMaxPart ) tile = ilpExtend((ilp));	\
-    ILP_APPEND_i = tile->nPart;						\
-    tile->dx.f[ILP_APPEND_i] = (X);					\
-    tile->dy.f[ILP_APPEND_i] = (Y);					\
-    tile->dz.f[ILP_APPEND_i] = (Z);					\
-    assert( (M) > 0.0 );						\
-    tile->m.f[ILP_APPEND_i] = (M);					\
-    tile->fourh2.f[ILP_APPEND_i] = (S);					\
-    ilpAppend_1((ilp),I);						\
-    ilpAppend_2((ilp),VX,VY,VZ);					\
-    ++tile->nPart;							\
-    }
 
-#define ilpAppend(ilp,X,Y,Z,M,S,I,VX,VY,VZ)				\
-    ilpAppendFloat(ilp,(ilp)->cx-(X),(ilp)->cy-(Y),(ilp)->cz-(Z),M,S,I,VX,VY,VZ)
-
-#define ILP_LOOP(ilp,ptile) for( ptile=(ilp)->first; ptile!=(ilp)->tile->next; ptile=ptile->next )
-
-static inline void ilpCompute(ILP ilp, float fx, float fy, float fz ) {
-    ILPTILE tile;
-    uint32_t j;
-
-#if defined(USE_SIMD_PP)
-    v4sf px, py, pz, t1, t2, t3;
-    px = SIMD_SPLAT(fx);
-    py = SIMD_SPLAT(fy);
-    pz = SIMD_SPLAT(fz);
-
-    ILP_LOOP(ilp,tile) {
-	uint32_t n = tile->nPart >> ILP_ALIGN_BITS; /* # Packed floats */
-	uint32_t r = tile->nPart &  ILP_ALIGN_MASK; /* Remaining */
-
-	/*
-	** This is a little trick to speed up the calculation. By setting
-	** unused entries in the list to have a zero mass, the resulting
-	** forces are zero. Setting the distance to a large value avoids
-	** softening the non-existent forces which is slightly faster.
-	*/
-	if ( r != 0 ) {
-	    for ( j=r; j<ILP_ALIGN_SIZE; j++ ) {
-		int o = (n<<ILP_ALIGN_BITS) + j;
-		tile->dx.f[o] = tile->dy.f[o] = tile->dz.f[o] = 1e18f;
-		tile->m.f[o] = 0.0f;
-		tile->fourh2.f[o] = tile->fourh2.f[0];
-		}
-	    n++;
-	    }
-	for ( j=0; j<n; j++ ) {
-	    tile->dx.p[j] = t1 = SIMD_ADD(tile->dx.p[j],px);
-	    tile->dy.p[j] = t2 = SIMD_ADD(tile->dy.p[j],py);
-	    tile->dz.p[j] = t3 = SIMD_ADD(tile->dz.p[j],pz);
-	    tile->d2.p[j] = SIMD_MADD(t3,t3,SIMD_MADD(t2,t2,SIMD_MUL(t1,t1)));
-	    }
+static inline void ilpAppendFloat(ILP ilp, float X, float Y, float Z, float M, float S,
+    uint64_t I, float VX, float VY, float VZ ) {
+    ILPTILE tile = (ilp)->tile;
+    uint_fast32_t i = tile->nPart;
+    uint_fast32_t blk = i / ILP_PART_PER_BLK;
+    uint_fast32_t prt = i - blk * ILP_PART_PER_BLK;
+#ifdef USE_CACHE
+    uint_fast32_t ni = ilp->nCache;
+    ilp->cache.dx.f[ni] = (X);
+    ilp->cache.dy.f[ni] = (Y);
+    ilp->cache.dz.f[ni] = (Z);
+    ilp->cache.m.f[ni] = (M);
+    ilp->cache.fourh2.f[ni] = (S);
+#else
+    tile->blk[blk].dx.f[prt] = (X);
+    tile->blk[blk].dy.f[prt] = (Y);
+    tile->blk[blk].dz.f[prt] = (Z);
+    tile->blk[blk].m.f[prt] = (M);
+    tile->blk[blk].fourh2.f[prt] = (S);
+#endif
+    assert( (M) > 0.0 );
+    tile->iOrder.i[i] = (I);
+    tile->vx.f[i] = (VX);
+    tile->vy.f[i] = (VY);
+    tile->vz.f[i] = (VZ);
+#ifdef USE_CACHE
+    if ( ++ilp->nCache == ILP_PART_PER_BLK ) {
+	uint_fast32_t blk = i / ILP_PART_PER_BLK;
+	uint_fast32_t prt = i - blk * ILP_PART_PER_BLK;
+	memcpy(tile->blk + blk, &ilp->cache, sizeof(ILP_BLK));
+	tile->nPart += ILP_PART_PER_BLK;
+	ilp->nCache = 0;
+	if ( tile->nPart == tile->nMaxPart ) tile = ilpExtend((ilp));
 	}
 #else
-    ILP_LOOP(ilp,tile) {
-	for (j=0;j<tile->nPart;++j) {
-	    tile->dx.f[j] += fx;
-	    tile->dy.f[j] += fy;
-	    tile->dz.f[j] += fz;
-	    tile->d2.f[j] = tile->dx.f[j]*tile->dx.f[j]
-			      + tile->dy.f[j]*tile->dy.f[j] + tile->dz.f[j]*tile->dz.f[j];
-	    }
-	}
+    if ( ++tile->nPart == tile->nMaxPart ) tile = ilpExtend((ilp));
 #endif
     }
+
+static inline void ilpAppend(ILP ilp, double X, double Y, double Z, float M, float S,
+    uint64_t I, float VX, float VY, float VZ ) {
+    ilpAppendFloat(ilp,(ilp)->cx-(X),(ilp)->cy-(Y),(ilp)->cz-(Z),M,S,I,VX,VY,VZ);
+    }
+#define ILP_LOOP(ilp,ptile) for( ptile=(ilp)->first; ptile!=(ilp)->tile->next; ptile=ptile->next )
 
 #else /* LOCAL_EXPANSION */
 

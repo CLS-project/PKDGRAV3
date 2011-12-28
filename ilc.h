@@ -7,10 +7,6 @@
 #define ILC_PART_PER_TILE 1024 /* 1024*100 ~ 100k */
 #endif
 
-#define ILC_ALIGN_BITS 2
-#define ILC_ALIGN_SIZE (1<<ILC_ALIGN_BITS)
-#define ILC_ALIGN_MASK (ILC_ALIGN_SIZE-1)
-
 #include "simd.h"
 
 /*
@@ -19,7 +15,7 @@
 typedef union {
     float f[ILC_PART_PER_TILE];
 #ifdef USE_SIMD_PC
-    v4sf p[ILC_PART_PER_TILE/4];
+    v4sf p[ILC_PART_PER_TILE/SIMD_WIDTH];
 #endif
     } ilcFloat;
 
@@ -28,6 +24,14 @@ typedef union {
     } ilcInt64;
 
 
+typedef struct {
+    ilcFloat dx,dy,dz;
+    ilcFloat xxxx,xxxy,xxxz,xxyz,xxyy,yyyz,xyyz,xyyy,yyyy;
+    ilcFloat xxx,xyy,xxy,yyy,xxz,yyz,xyz;
+    ilcFloat xx,xy,xz,yy,yz;
+    ilcFloat m,u;
+    } ILC_BLK;
+
 typedef struct ilcTile {
     struct ilcTile *next;
     struct ilcTile *prev;
@@ -35,7 +39,7 @@ typedef struct ilcTile {
     uint32_t nCell;             /* Current number of cells */
 
   ilcFloat dx,dy,dz;
-  ilcFloat d2;
+//  ilcFloat d2;
 #ifdef HERMITE
   ilcFloat vx,vy,vz;
 #endif
@@ -54,6 +58,7 @@ typedef struct ilcContext {
     ILCTILE tile;               /* Current tile in the chain */
     double cx, cy, cz;          /* Center coordinates */
     uint32_t nPrevious;         /* Particles in tiles prior to "tile" */
+
     } *ILC;
 
 typedef struct {
@@ -137,49 +142,6 @@ static inline uint32_t ilcCount(ILC ilc) {
     ilcAppendFloat(ilc,(ilc)->cx-(X),(ilc)->cy-(Y),(ilc)->cz-(Z),M,U,VX,VY,VZ)
 
 #define ILC_LOOP(ilc,ctile) for( ctile=(ilc)->first; ctile!=(ilc)->tile->next; ctile=ctile->next )
-
-static inline void ilcCompute(ILC ilc, float fx, float fy, float fz ) {
-    ILCTILE tile;
-    uint32_t j;
-
-#if defined(USE_SIMD_PC)
-    v4sf px, py, pz, t1, t2, t3;
-    px = SIMD_SPLAT(fx);
-    py = SIMD_SPLAT(fy);
-    pz = SIMD_SPLAT(fz);
-
-    ILC_LOOP(ilc,tile) {
-	uint32_t n = tile->nCell >> ILC_ALIGN_BITS; /* # Packed floats */
-	uint32_t r = tile->nCell &  ILC_ALIGN_MASK; /* Remaining */
-
-	if ( r != 0 ) {
-	    for ( j=r; j<ILC_ALIGN_SIZE; j++ ) {
-		int o = (n<<ILC_ALIGN_BITS) + j;
-		tile->dx.f[o] = tile->dy.f[o] = tile->dz.f[o] = 1e18f;
-		tile->m.f[o] = 0.0f;
-		tile->u.f[o] = 0.0f;
-		}
-	    n++;
-	    }
-	for ( j=0; j<n; j++ ) {
-	    tile->dx.p[j] = t1 = SIMD_ADD(tile->dx.p[j],px);
-	    tile->dy.p[j] = t2 = SIMD_ADD(tile->dy.p[j],py);
-	    tile->dz.p[j] = t3 = SIMD_ADD(tile->dz.p[j],pz);
-	    tile->d2.p[j] = SIMD_MADD(t3,t3,SIMD_MADD(t2,t2,SIMD_MUL(t1,t1)));
-	    }
-	}
-#else
-    ILC_LOOP(ilc,tile) {
-	for (j=0;j<tile->nCell;++j) {
-	    tile->dx.f[j] += fx;
-	    tile->dy.f[j] += fy;
-	    tile->dz.f[j] += fz;
-	    tile->d2.f[j] = tile->dx.f[j]*tile->dx.f[j]
-			      + tile->dy.f[j]*tile->dy.f[j] + tile->dz.f[j]*tile->dz.f[j];
-	    }
-	}
-#endif
-    }
 
 #else /* LOCAL_EXPANSION */
 

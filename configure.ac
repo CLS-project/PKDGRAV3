@@ -255,6 +255,27 @@ if test "x$USE_BSC" = "xyes" ; then
 fi
 AM_CONDITIONAL(USE_BSC, test "x$USE_BSC" = "xyes")
 
+# Python
+AC_ARG_WITH(cuda,
+  [  --with-cuda=PATH               enable cude acceleration],
+  [CUDA_DIR="${withval}"],[CUDA_DIR=no])
+AM_CONDITIONAL(USE_CUDA, test "x$CUDA_DIR" != "xno")
+if test "x$CUDA_DIR" != "xno" ; then
+AC_DEFINE([USE_CUDA],1,
+  [Use CUDA to accelerate calculations])
+if test "x$CUDA_DIR" = "xyes" ; then
+  NVCC=nvcc
+  CUDA_LIBS="-lcudart"
+else
+  NVCC=$CUDA_DIR/bin/nvcc
+  CUDA_LIBS="-L$CUDA_DIR/lib64 -L$CUDA_DIR/lib -lcudart"
+fi
+NVCCFLAGS="-arch compute_20"
+AC_SUBST(NVCC)
+AC_SUBST(NVCCFLAGS)
+AC_SUBST(CUDA_LIBS)
+fi
+
 # Enable SIMD version (SSE,Altivec)
 AC_ARG_ENABLE(simd,
   [  --disable-simd                 disable SIMD optimizations],

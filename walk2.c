@@ -190,7 +190,7 @@ static inline int getCell(PKD pkd,int iCell,int id,float *pcOpen,KDN **pc) {
 	nc = 1000000000; /* we never allow pp with this cell */
 	}
     else {
-	*pc = c = mdlAquire(pkd->mdl,CID_CELL,iCell,id);
+	*pc = c = CAST(KDN *,mdlAquire(pkd->mdl,CID_CELL,iCell,id));
 	nc = c->pUpper - c->pLower + 1;
 	}
     if (*pcOpen < 0.0f) {
@@ -211,11 +211,11 @@ static const struct CONSTS {
     v4 two;
     v4 fMonopoleThetaFac2;
     } consts = {
-	{{0.0,      0.0,      0.0,      0.0}},
-	{{1.0,      1.0,      1.0,      1.0}},
-	{{1.5,      1.5,      1.5,      1.5}},
-	{{2.0,      2.0,      2.0,      2.0}},
-	{{1.6f*1.6f,1.6f*1.6f,1.6f*1.6f,1.6f*1.6f}},
+        {SIMD_CONST(0.0)},
+	{SIMD_CONST(1.0)},
+	{SIMD_CONST(1.5)},
+	{SIMD_CONST(2.0)},
+	{SIMD_CONST(1.6f*1.6f)},
 };
 static const struct ICONSTS {
     i4 zero;
@@ -232,26 +232,24 @@ static const struct ICONSTS {
     i4 sixtyfour;
     i4 walk_min_multipole;
     } iconsts = {
-	{{0, 0, 0, 0}},
-	{{1, 1, 1, 1}},
-	{{2, 2, 2, 2}},
-	{{3, 3, 3, 3}},
-	{{4, 4, 4, 4}},
-	{{5, 5, 5, 5}},
-	{{6, 6, 6, 6}},
-	{{7, 7, 7, 7}},
-	{{8, 8, 8, 8}},
-	{{10,10,10,10}},
-	{{64,64,64,64}},
-	{{3, 3, 3, 3}},
+        {SIMD_CONST(0)},
+	{SIMD_CONST(1)},
+	{SIMD_CONST(2)},
+	{SIMD_CONST(3)},
+	{SIMD_CONST(4)},
+	{SIMD_CONST(5)},
+	{SIMD_CONST(6)},
+	{SIMD_CONST(7)},
+	{SIMD_CONST(8)},
+	{SIMD_CONST(10)},
+	{SIMD_CONST(64)},
+	{SIMD_CONST(3)},
 };
 
 static union {
-    uint32_t u[4];
+    uint32_t u[SIMD_WIDTH];
     v4sf p;
-} const_fabs = {
-	{0x7fffffff,0x7fffffff,0x7fffffff,0x7fffffff}
-};
+    } const_fabs = {SIMD_CONST(0x7fffffff)};
 
 /*
 ** This implements the original pkdgrav2m opening criterion, which has been
@@ -261,10 +259,10 @@ static union {
 ** This version will also open buckets ("new" criteria)
 */
 static void iOpenOutcomeSIMD(PKD pkd,KDN *k,CLTILE tile,int iStart,float dThetaMin) {
-    v4i T0,T1,T2,T3,T4,T5,T6,T7,P1,P2,P3,P4;
+    v4sf T0,T1,T2,T3,T4,T5,T6,T7,P1,P2,P3,P4;
     v4sf T,xc,yc,zc,dx,dy,dz,d2,diCrit,cOpen,cOpen2,d2Open,mink2,minbnd2,fourh2;
     int i,iBeg,iEnd;
-    v4i iOpen,iOpenA,iOpenB;
+    v4sf iOpen,iOpenA,iOpenB;
     pBND kbnd;
 
     v4sf k_xCenter, k_yCenter, k_zCenter, k_xMax, k_yMax, k_zMax;
@@ -299,8 +297,8 @@ static void iOpenOutcomeSIMD(PKD pkd,KDN *k,CLTILE tile,int iStart,float dThetaM
     k_nk = SIMD_SPLATI32(k->pUpper-k->pLower+1);
     k_Open = SIMD_MUL(consts.threehalves.p,SIMD_MUL(k_bMax,diCrit));
 
-    iBeg = iStart >> CL_ALIGN_BITS;
-    iEnd = (tile->nItems+CL_ALIGN_MASK) >> CL_ALIGN_BITS;
+    iBeg = iStart >> SIMD_BITS;
+    iEnd = (tile->nItems+SIMD_MASK) >> SIMD_BITS;
 
     for(i=iBeg; i<iEnd; ++i) {
 	T = SIMD_OR(SIMD_CMP_GT(tile->m.p[i],consts.zero.p),SIMD_CMP_GT(k_4h2,consts.zero.p));
@@ -349,29 +347,29 @@ static void iOpenOutcomeSIMD(PKD pkd,KDN *k,CLTILE tile,int iStart,float dThetaM
 	dx = SIMD_AND(dx,SIMD_CMP_GT(dx,consts.zero.p));
 	minbnd2 = SIMD_MADD(dx,dx,minbnd2);
 
-	T0 = SIMD_F2I(SIMD_CMP_GT(tile->m.p[i],consts.zero.p));
-	T1 = SIMD_F2I(SIMD_AND(SIMD_CMP_GT(d2,d2Open),SIMD_CMP_GT(minbnd2,fourh2)));
-	T2 = SIMD_CMP_EQ_EPI32(tile->iLower.p[i],iconsts.zero.p);
-	T3 = SIMD_OR_EPI32(SIMD_CMP_GT_EPI32(iconsts.walk_min_multipole.p,tile->nc.p[i]),SIMD_F2I(SIMD_CMP_LE(mink2,cOpen2)));
-	T4 = SIMD_F2I(SIMD_CMP_GT(minbnd2,fourh2));
-	T5 = SIMD_F2I(SIMD_CMP_GT(mink2,SIMD_MUL(consts.fMonopoleThetaFac2.p,cOpen2)));
-	T6 = SIMD_F2I(SIMD_CMP_GT(cOpen,k_Open));
-	/*invert:T7 = SIMD_CMP_EQ_EPI32(k_iLower,iconsts.zero.p);*/
-	T7 = SIMD_CMP_GT_EPI32(k_nk,iconsts.sixtyfour.p);
-	iOpenA = SIMD_OR_EPI32(SIMD_AND_EPI32(T2,iconsts.one.p),SIMD_ANDNOT_EPI32(T2,iconsts.three.p));
-	iOpenB = SIMD_OR_EPI32(SIMD_AND_EPI32(T3,iOpenA),SIMD_ANDNOT_EPI32(T3,
-		    SIMD_OR_EPI32(SIMD_AND_EPI32(T4,iconsts.four.p),SIMD_ANDNOT_EPI32(T4,
-		    SIMD_OR_EPI32(SIMD_AND_EPI32(T5,iconsts.five.p),SIMD_ANDNOT_EPI32(T5,iOpenA))))));
+	T0 = SIMD_CMP_GT(tile->m.p[i],consts.zero.p);
+	T1 = SIMD_AND(SIMD_CMP_GT(d2,d2Open),SIMD_CMP_GT(minbnd2,fourh2));
+	T2 = SIMD_I2F(SIMD_CMP_EQ_EPI32(tile->iLower.p[i],iconsts.zero.p));
+	T3 = SIMD_OR(SIMD_I2F(SIMD_CMP_GT_EPI32(iconsts.walk_min_multipole.p,tile->nc.p[i])),SIMD_CMP_LE(mink2,cOpen2));
+	T4 = SIMD_CMP_GT(minbnd2,fourh2);
+	T5 = SIMD_CMP_GT(mink2,SIMD_MUL(consts.fMonopoleThetaFac2.p,cOpen2));
+	T6 = SIMD_CMP_GT(cOpen,k_Open);
+	/*invert:T7 = SIMD_I2F(SIMD_CMP_EQ_EPI32(k_iLower,iconsts.zero.p));*/
+	T7 = SIMD_I2F(SIMD_CMP_GT_EPI32(k_nk,iconsts.sixtyfour.p));
+	iOpenA = SIMD_OR(SIMD_AND(T2,iconsts.one.pf),SIMD_ANDNOT(T2,iconsts.three.pf));
+	iOpenB = SIMD_OR(SIMD_AND(T3,iOpenA),SIMD_ANDNOT(T3,
+		    SIMD_OR(SIMD_AND(T4,iconsts.four.pf),SIMD_ANDNOT(T4,
+		    SIMD_OR(SIMD_AND(T5,iconsts.five.pf),SIMD_ANDNOT(T5,iOpenA))))));
 #ifdef NEW_OPENING_CRIT
-	P1 = SIMD_OR_EPI32(SIMD_AND_EPI32(T2,iconsts.two.p),SIMD_ANDNOT_EPI32(T2,iconsts.three.p));
+	P1 = SIMD_OR(SIMD_AND(T2,iconsts.two.pf),SIMD_ANDNOT(T2,iconsts.three.pf));
 #else
-	P1 = SIMD_OR_EPI32(SIMD_AND_EPI32(T2,iOpenB),SIMD_ANDNOT_EPI32(T2,iconsts.three.p));
+	P1 = SIMD_OR(SIMD_AND(T2,iOpenB),SIMD_ANDNOT(T2,iconsts.three.pf));
 #endif
-	P2 = SIMD_OR_EPI32(SIMD_AND_EPI32(T7,iconsts.zero.p),SIMD_ANDNOT_EPI32(T7,iOpenB));
-	P3 = SIMD_OR_EPI32(SIMD_AND_EPI32(T6,P1),SIMD_ANDNOT_EPI32(T6,P2));
-	P4 = SIMD_OR_EPI32(SIMD_AND_EPI32(T1,iconsts.eight.p),SIMD_ANDNOT_EPI32(T1,P3));
-	iOpen = SIMD_OR_EPI32(SIMD_AND_EPI32(T0,P4),SIMD_ANDNOT_EPI32(T0,iconsts.ten.p));
-	tile->iOpen.p[i] = iOpen;
+	P2 = SIMD_OR(SIMD_AND(T7,iconsts.zero.pf),SIMD_ANDNOT(T7,iOpenB));
+	P3 = SIMD_OR(SIMD_AND(T6,P1),SIMD_ANDNOT(T6,P2));
+	P4 = SIMD_OR(SIMD_AND(T1,iconsts.eight.pf),SIMD_ANDNOT(T1,P3));
+	iOpen = SIMD_OR(SIMD_AND(T0,P4),SIMD_ANDNOT(T0,iconsts.ten.pf));
+	tile->iOpen.pf[i] = iOpen;
     }
 }
 
@@ -646,7 +644,7 @@ static inline int iOpenOutcomeBarnesHut(PKD pkd,KDN *k,CELT *check,KDN **pc,floa
 	nc = walk_min_multipole-1; /* we never allow pp with this cell */
 	}
     else {
-	c = mdlAquire(pkd->mdl,CID_CELL,iCell,check->id);
+	c = CAST(KDN *,mdlAquire(pkd->mdl,CID_CELL,iCell,check->id));
 	nc = c->pUpper - c->pLower + 1;
 	}
 
@@ -945,15 +943,17 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
     found_it:
 	d2c = (cx - pkd->ilp->cx)*(cx - pkd->ilp->cx) + (cy - pkd->ilp->cy)*(cy - pkd->ilp->cy) +
 	      (cz - pkd->ilp->cz)*(cz - pkd->ilp->cz);
-	if ( d2c > 1e-5) {
+	if ( d2c > 1e-5 ) {
 	    /*
 	    ** Correct all remaining PP interactions to this new center.
 	    */
 	    ILP_LOOP( pkd->ilp, tile ) {
 		for ( j=0; j<tile->nPart; ++j ) {
-		    tile->dx.f[j] += cx - pkd->ilp->cx;
-		    tile->dy.f[j] += cy - pkd->ilp->cy;
-		    tile->dz.f[j] += cz - pkd->ilp->cz;
+		    int blk = j / ILP_PART_PER_BLK;
+		    int prt = j - blk * ILP_PART_PER_BLK;
+		    tile->blk[blk].dx.f[prt] += cx - pkd->ilp->cx;
+		    tile->blk[blk].dy.f[prt] += cy - pkd->ilp->cy;
+		    tile->blk[blk].dz.f[prt] += cz - pkd->ilp->cz;
 		    }
 		}
 	    pkd->ilp->cx = cx;
@@ -1025,7 +1025,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 				pj = -1 - iCheckCell;
 				assert(id >= 0);
 				if (id == pkd->idSelf) p = pkdParticle(pkd,pj);
-				else p = mdlAquire(pkd->mdl,CID_PARTICLE,pj,id);
+				else p = CAST(PARTICLE *,mdlAquire(pkd->mdl,CID_PARTICLE,pj,id));
 				if (pkd->param.bGravStep && pkd->param.iTimeStepCrit == 1) v = pkdVel(pkd,p);
 				iOrder = p->iOrder;
 				ilpAppend(pkd->ilp,
@@ -1040,10 +1040,10 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 				id = cltile->id.i[jTile];
 				assert(id >= 0);
 				if (id == pkd->idSelf) c = pkdTreeNode(pkd,iCheckCell);
-				else c = mdlAquire(pkd->mdl,CID_CELL,iCheckCell,id);
+				else c = CAST(KDN *,mdlAquire(pkd->mdl,CID_CELL,iCheckCell,id));
 				for (pj=c->pLower;pj<=c->pUpper;++pj) {
 				    if (id == pkd->idSelf) p = pkdParticle(pkd,pj);
-				    else p = mdlAquire(pkd->mdl,CID_PARTICLE,pj,id);
+				    else p = CAST(PARTICLE *,mdlAquire(pkd->mdl,CID_PARTICLE,pj,id));
 				    fMass = pkdMass(pkd,p);
 				    fSoft = pkdSoft(pkd,p);
 				    if (pkd->param.bGravStep && pkd->param.iTimeStepCrit == 1) v = pkdVel(pkd,p);
@@ -1071,10 +1071,10 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 			    fOffset[2] = cltile->zOffset.f[jTile];
 			    assert(id >= 0);
 			    if (id == pkd->idSelf) c = pkdTreeNode(pkd,iCheckCell);
-			    else c = mdlAquire(pkd->mdl,CID_CELL,iCheckCell,id);
+			    else c = CAST(KDN *,mdlAquire(pkd->mdl,CID_CELL,iCheckCell,id));
 			    for (pj=c->pLower;pj<=c->pUpper;++pj) {
 				if (id == pkd->idSelf) p = pkdParticle(pkd,pj);
-				else p = mdlAquire(pkd->mdl,CID_PARTICLE,pj,id);
+				else p = CAST(PARTICLE *,mdlAquire(pkd->mdl,CID_PARTICLE,pj,id));
 				fMass = pkdMass(pkd,p);
 				fSoft = pkdSoft(pkd,p);
 				if (pkd->param.bGravStep && pkd->param.iTimeStepCrit == 1) v = pkdVel(pkd,p);
@@ -1112,7 +1112,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 				    iCheckLower = c->iLower;
 				    }
 				else {
-				    c = mdlAquire(pkd->mdl,CID_CELL,ROOT,id);
+				    c = CAST(KDN *,mdlAquire(pkd->mdl,CID_CELL,ROOT,id));
 				    iCheckLower = c->iLower;
 				    mdlRelease(pkd->mdl,CID_CELL,c);
 				    }
@@ -1165,7 +1165,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 				    assert(id >= 0);
 				    pj = -1 - iCheckCell;
 				    if (id == pkd->idSelf) p = pkdParticle(pkd,pj);
-				    else p = mdlAquire(pkd->mdl,CID_PARTICLE,pj,id);
+				    else p = CAST(PARTICLE *,mdlAquire(pkd->mdl,CID_PARTICLE,pj,id));
 				    v = pkdVel(pkd,p);
 				    }
 				monoPole.m = cltile->m.f[jTile];
@@ -1181,7 +1181,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 				id = cltile->id.i[jTile];
 				if (id == pkd->idSelf) c = pkdTreeNode(pkd,iCheckCell);
 				else if (id == -1) c = pkdTopNode(pkd,iCheckCell);
-				else c = mdlAquire(pkd->mdl,CID_CELL,iCheckCell,id);
+				else c = CAST(KDN *,mdlAquire(pkd->mdl,CID_CELL,iCheckCell,id));
 				/*
 				** Center of mass velocity is used by the planets code to get higher derivatives of the 
 				** acceleration and could be used to drift cell moments as an approximation.
@@ -1209,7 +1209,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 				    pj = -1 - iCheckCell;
 				    assert(id >= 0);
 				    if (id == pkd->idSelf) p = pkdParticle(pkd,pj);
-				    else p = mdlAquire(pkd->mdl,CID_PARTICLE,pj,id);
+				    else p = CAST(PARTICLE *,mdlAquire(pkd->mdl,CID_PARTICLE,pj,id));
 				    v = pkdVel(pkd,p);
 				    }
 				ilpAppend(pkd->ilp,
@@ -1225,7 +1225,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 				id = cltile->id.i[jTile];
 				if (id == pkd->idSelf) c = pkdTreeNode(pkd,iCheckCell);
 				else if (id == -1) c = pkdTopNode(pkd,iCheckCell);
-				else c = mdlAquire(pkd->mdl,CID_CELL,iCheckCell,id);
+				else c = CAST(KDN *,mdlAquire(pkd->mdl,CID_CELL,iCheckCell,id));
 				if (pkd->oNodeVelocity) v = pkdNodeVel(pkd,c);
 				ilpAppend(pkd->ilp,
 				    cltile->x.f[jTile] + cltile->xOffset.f[jTile],
@@ -1249,10 +1249,10 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 			    dOffset[1] = cltile->yOffset.f[jTile];
 			    dOffset[2] = cltile->zOffset.f[jTile];
 			    if (id == pkd->idSelf) c = pkdTreeNode(pkd,iCheckCell);
-			    else c = mdlAquire(pkd->mdl,CID_CELL,iCheckCell,id);
+			    else c = CAST(KDN *,mdlAquire(pkd->mdl,CID_CELL,iCheckCell,id));
 			    for (pj=c->pLower;pj<=c->pUpper;++pj) {
 				if (id == pkd->idSelf) p = pkdParticle(pkd,pj);
-				else p = mdlAquire(pkd->mdl,CID_PARTICLE,pj,id);
+				else p = CAST(PARTICLE *,mdlAquire(pkd->mdl,CID_PARTICLE,pj,id));
 				if (pkdMass(pkd,p) <= 0.0) continue;
 				/*
 				** Monopole Local expansion accepted!
@@ -1263,7 +1263,6 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 				    d2 += dx[j]*dx[j];
 				    }
 				dir = 1.0/sqrt(d2);
-
 				*pdFlop += momFlocrAddMono5(&L,k->bMax,pkdMass(pkd,p),dir,dx[0],dx[1],dx[2],&tax,&tay,&taz);
 
 				adotai = a[0]*tax + a[1]*tay + a[2]*taz;
@@ -1289,10 +1288,10 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 			    dOffset[1] = cltile->yOffset.f[jTile];
 			    dOffset[2] = cltile->zOffset.f[jTile];
 			    if (id == pkd->idSelf) c = pkdTreeNode(pkd,iCheckCell);
-			    else c = mdlAquire(pkd->mdl,CID_CELL,iCheckCell,id);
+			    else c = CAST(KDN *,mdlAquire(pkd->mdl,CID_CELL,iCheckCell,id));
 			    for (pj=c->pLower;pj<=c->pUpper;++pj) {
 				if (id == pkd->idSelf) p = pkdParticle(pkd,pj);
-				else p = mdlAquire(pkd->mdl,CID_PARTICLE,pj,id);
+				else p = CAST(PARTICLE *,mdlAquire(pkd->mdl,CID_PARTICLE,pj,id));
 				fMass = pkdMass(pkd,p);
 				if (fMass <= 0.0) continue;
 				fSoft = pkdSoft(pkd,p);
@@ -1373,7 +1372,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 				dOffset[2] = cltile->zOffset.f[jTile];
 				if (id == pkd->idSelf) c = pkdTreeNode(pkd,iCheckCell);
 				else if (id == -1) c = pkdTopNode(pkd,iCheckCell);
-				else c = mdlAquire(pkd->mdl,CID_CELL,iCheckCell,id);
+				else c = CAST(KDN *,mdlAquire(pkd->mdl,CID_CELL,iCheckCell,id));
 				d2 = 0;
 				for (j=0;j<3;++j) {
 				    dx[j] = k->r[j] - (c->r[j] + dOffset[j]);
@@ -1404,7 +1403,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 			    dOffset[2] = cltile->zOffset.f[jTile];
 			    if (id == pkd->idSelf) c = pkdTreeNode(pkd,iCheckCell);
 			    else if (id == -1) c = pkdTopNode(pkd,iCheckCell);
-			    else c = mdlAquire(pkd->mdl,CID_CELL,iCheckCell,id);
+			    else c = CAST(KDN *,mdlAquire(pkd->mdl,CID_CELL,iCheckCell,id));
 			    momk = pkdNodeMom(pkd,k);
 			    momc = pkdNodeMom(pkd,c);
 			    d2 = 0;
@@ -1518,6 +1517,10 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 		    */
 		    ++iStack;
 		    assert(iStack < pkd->nMaxStack);
+		    /*
+		    ** At this point, the ILP is normally empty if you never do P-P except when reaching a bucket.
+		    ** Softened multi-poles are also an exception.
+		    */
 		    ilpCheckPt(pkd->ilp,&pkd->S[iStack].PartChkPt);
 		    ilcCheckPt(pkd->ilc,&pkd->S[iStack].CellChkPt);
 		    /*
@@ -1561,6 +1564,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 	** Checklist should be empty! Calculate gravity on this
 	** Bucket!
 	*/
+	ilpFlush(pkd->ilp);
 	nActive = pkdGravInteract(pkd,uRungLo,uRungHi,k,&L,pkd->ilp,pkd->ilc,
 				  dirLsum,normLsum,bEwald,pdFlop,&dEwFlop,dRhoFac,
 				  smx, &smf);

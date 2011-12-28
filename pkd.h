@@ -28,6 +28,12 @@
 #include "ssio.h"
 #endif
 
+#ifdef __cplusplus
+#define CAST(T,V) reinterpret_cast<T>(V)
+#else
+#define CAST(T,V) (V)
+#endif
+
 typedef uint_fast32_t local_t; /* Count of particles locally (per processor) */
 typedef uint_fast64_t total_t; /* Count of particles globally (total number) */
 
@@ -623,6 +629,22 @@ typedef struct shapesBin {
     double ell_center[3];
     } SHAPESBIN;
 
+#define PKD_GROUP_SIZE 64
+
+typedef struct {
+    float r[3];
+    float v[3];
+    float a[3];
+    float fMass;
+    float fSoft;
+    float fSmooth2;
+    } PINFOIN;
+
+typedef struct {
+    float a[3];
+    float p;
+    } PINFOOUT;
+
 typedef struct pkdContext {
     MDL mdl;
     int idSelf;
@@ -785,6 +807,10 @@ typedef struct pkdContext {
     int    iCollisionflag; /*call pkddocollisionveryactive if iCollisionflag=1*/
 #endif
 
+#ifdef USE_CUDA
+    void *cudaCtx;
+#endif
+
     MDLGRID grid;
     float *gridData;
     } * PKD;
@@ -866,25 +892,26 @@ static inline void *pkdNodeField( KDN *n, int iOffset ) {
     /*assert(iOffset);*/ /* Remove this for better performance */
     return (void *)(v + iOffset);
     }
+
 static inline FMOMR *pkdNodeMom(PKD pkd,KDN *n) {
-    return pkdNodeField(n,pkd->oNodeMom);
+    return CAST(FMOMR *,pkdNodeField(n,pkd->oNodeMom));
     }
 static inline double *pkdNodeVel( PKD pkd, KDN *n ) {
-    return pkdNodeField(n,pkd->oNodeVelocity);
+    return CAST(double *,pkdNodeField(n,pkd->oNodeVelocity));
     }
 static inline double *pkdNodeAccel( PKD pkd, KDN *n ) {
-    return pkdNodeField(n,pkd->oNodeAcceleration);
+    return CAST(double *,pkdNodeField(n,pkd->oNodeAcceleration));
     }
 static inline SPHBNDS *pkdNodeSphBounds( PKD pkd, KDN *n ) {
-    return pkdNodeField(n,pkd->oNodeSphBounds);
+    return CAST(SPHBNDS *,pkdNodeField(n,pkd->oNodeSphBounds));
     }
 
 static inline void pkdNodeBnd( PKD pkd, KDN *n, pBND *bnd ) {
     const int o = pkd->oNodeBnd;
     const int e = 3*sizeof(double)*(1+(pkd->oNodeBnd6!=0));
-    bnd->fCenter = pkdNodeField(n,o);
-    bnd->fMax = pkdNodeField(n,o+e);
-    bnd->size = pkdNodeField(n,o+e+e);
+    bnd->fCenter = CAST(double *,pkdNodeField(n,o));
+    bnd->fMax = CAST(double *,pkdNodeField(n,o+e));
+    bnd->size = CAST(double *,pkdNodeField(n,o+e+e));
     }
 
 static inline KDN *pkdNode(PKD pkd,KDN *pBase,int iNode) {
@@ -956,14 +983,14 @@ static inline int32_t *pkdInt32( PARTICLE *p, int iOffset ) {
 /* Here is the new way of getting mass and softening */
 static inline float pkdMass( PKD pkd, PARTICLE *p ) {
     if ( pkd->oMass ) {
-	float *pMass = pkdField(p,pkd->oMass);
+	float *pMass = CAST(float *,pkdField(p,pkd->oMass));
 	return *pMass;
 	}
     return pkd->pClass[p->iClass].fMass;
     }
 static inline float pkdSoft0( PKD pkd, PARTICLE *p ) {
     if ( pkd->oSoft ) {
-	float *pSoft = pkdField(p,pkd->oSoft);
+	float *pSoft = CAST(float *,pkdField(p,pkd->oSoft));
 	return *pSoft;
 	}
     return pkd->pClass[p->iClass].fSoft;
@@ -981,16 +1008,16 @@ static inline FIO_SPECIES pkdSpecies( PKD pkd, PARTICLE *p ) {
     return pkd->pClass[p->iClass].eSpecies;
     }
 static inline double *pkdVel( PKD pkd, PARTICLE *p ) {
-    return pkdField(p,pkd->oVelocity);
+    return CAST(double *,pkdField(p,pkd->oVelocity));
     }
 static inline float *pkdAccel( PKD pkd, PARTICLE *p ) {
-    return pkdField(p,pkd->oAcceleration);
+    return CAST(float *,pkdField(p,pkd->oAcceleration));
     }
 static inline float *pkdPot( PKD pkd, PARTICLE *p ) {
-    return pkdField(p,pkd->oPotential);
+    return CAST(float *,pkdField(p,pkd->oPotential));
     }
 static inline uint16_t *pkdRungDest( PKD pkd, PARTICLE *p ) {
-    return pkdField(p,pkd->oRungDest);
+    return CAST(uint16_t *,pkdField(p,pkd->oRungDest));
     }
 /* Sph variables */
 static inline SPHFIELDS *pkdSph( PKD pkd, PARTICLE *p ) {
@@ -1306,6 +1333,20 @@ void pkdGridProject(PKD pkd);
 #ifdef MDL_FFTW
 void pkdMeasurePk(PKD pkd, double dCenter[3], double dRadius,
 		  int nGrid, float *fPower, int *nPower);
+#endif
+
+#ifdef USE_CUDA
+#ifdef __cplusplus
+extern "C" {
+#endif
+    void *pkdGravCudaPPAllocate(void);
+    void pkdGravCudaPPFree(void *cudaCtx);
+    ILP_BLK * pkdGravCudaPPAllocateBlk();
+    void pkdGravCudaPPFreeBlk(ILP_BLK *blk);
+    extern void pkdGravCudaPP(PKD pkd, void *cudaCtx, int nP, PARTICLE **pPart, PINFOIN *pInfoIn, ILP ilp );
+#ifdef __cplusplus
+}
+#endif
 #endif
 
 static inline void vec_sub(double *r,const double *a,const double *b ) {

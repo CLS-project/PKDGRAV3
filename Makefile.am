@@ -79,6 +79,11 @@ if USE_PYTHON
 SOURCES += python.c
 noinst_HEADERS += python.h
 endif
+if USE_CUDA
+.cu.o:
+	$(NVCC) -I. -DHAVE_CONFIG_H -o $@ -c $< $(NVCCFLAGS) -Imdl2/null
+SOURCES += cudapp.cu
+endif
 
 pkdgrav2_null_SOURCES = $(SOURCES) $(MDL)/null/mdl.c
 noinst_HEADERS += $(MDL)/null/mdl.h
@@ -89,6 +94,9 @@ if HAVE_EFENCE_PATH
 pkdgrav2_null_LDADD += -L @EFENCE_PATH@
 endif
 pkdgrav2_null_LDADD += -lefence
+endif
+if USE_CUDA
+pkdgrav2_null_LDADD += @CUDA_LIBS@
 endif
 if USE_PYTHON
 pkdgrav2_null_LDFLAGS = -Xlinker -export-dynamic 
@@ -119,6 +127,9 @@ pkdgrav2_mpi_LDADD += -L @EFENCE_PATH@
 endif
 pkdgrav2_mpi_LDADD += -lefence
 endif
+if USE_CUDA
+pkdgrav2_mpi_LDADD += @CUDA_LIBS@
+endif
 if USE_PYTHON
 pkdgrav2_mpi_LDFLAGS = -Xlinker -export-dynamic 
 pkdgrav2_mpi_LDADD += -L $(PYTHON_LIB) -lpython$(PYTHON_VER) -ldl -lutil
@@ -143,6 +154,9 @@ pkdgrav2_pthread_LDADD += -L @EFENCE_PATH@
 endif
 pkdgrav2_pthread_LDADD += -lefence
 endif
+if USE_CUDA
+pkdgrav2_pthread_LDADD += @CUDA_LIBS@
+endif
 if USE_PYTHON
 pkdgrav2_pthread_LDFLAGS = -Xlinker -export-dynamic 
 pkdgrav2_pthread_LDADD += -L $(PYTHON_LIB) -lpython$(PYTHON_VER) -ldl -lutil
@@ -163,6 +177,9 @@ if HAVE_EFENCE_PATH
 pkdgrav2_sisci_LDADD += -L @EFENCE_PATH@
 endif
 pkdgrav2_sisci_LDADD += -lefence
+endif
+if USE_CUDA
+pkdgrav2_sisci_LDADD += @CUDA_LIBS
 endif
 if USE_PYTHON
 pkdgrav2_sisci_LDFLAGS = -Xlinker -export-dynamic 

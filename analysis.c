@@ -346,7 +346,7 @@ static void CalculateInertia(PKD pkd,int nBins, const double *dRadii, SHAPESBIN 
 	while( pl[i].r[0]<dRadii[iBin]*dRadii[iBin] && iBin < nBins ) ++iBin;
 	while( pl[i].r[0]>dRadii[iBin]*dRadii[iBin] ) --iBin;
 
-	pShape = mdlAquire(pkd->mdl,CID_SHAPES,iBin,0);
+	pShape = CAST(SHAPESBIN *,mdlAquire(pkd->mdl,CID_SHAPES,iBin,0));
 	pShape->dMassEnclosed += m;
 	for (j=0; j<3; j++) {
 	    pShape->com[j] += m * p->r[j] ;
@@ -466,7 +466,7 @@ void pkdShapes(PKD pkd, int nBins, const double *dCenter, const double *dRadii) 
     int i, j, k;
 
     if (pkd->idSelf == 0) {
-	shapesBins = mdlMalloc(pkd->mdl,nBins*sizeof(SHAPESBIN));
+	shapesBins = CAST(SHAPESBIN *,mdlMalloc(pkd->mdl,nBins*sizeof(SHAPESBIN)));
 	assert( shapesBins != NULL );
 	/* Start with the given center for every bin */
 	for( i=0; i<nBins; i++ ) {
@@ -506,7 +506,7 @@ void pkdProfile(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
 
     if (pkd->idSelf == 0) {
 	if ( pkd->profileBins != NULL ) mdlFree(pkd->mdl,pkd->profileBins);
-	pkd->profileBins = mdlMalloc(pkd->mdl,nBins*sizeof(PROFILEBIN));
+	pkd->profileBins = CAST(PROFILEBIN *,mdlMalloc(pkd->mdl,nBins*sizeof(PROFILEBIN)));
 	assert( pkd->profileBins != NULL );
 	r0 = 0.0;
 	for(iBin=0;iBin<nBins;iBin++) {
@@ -533,7 +533,7 @@ void pkdProfile(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
     r0 = 0.0;
     i = 0;
     for(iBin=0;iBin<nBins;iBin++) {
-	pBin = mdlAquire(pkd->mdl,CID_BIN,iBin,0);
+	pBin = CAST(PROFILEBIN *,mdlAquire(pkd->mdl,CID_BIN,iBin,0));
 	r = pBin->dRadius;
 	r = dRadii[iBin];
 	r2 = r*r;

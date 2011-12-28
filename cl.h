@@ -6,10 +6,6 @@
 #define CL_PART_PER_TILE 1024 /* 1024*100 ~ 100k */
 #endif
 
-#define CL_ALIGN_BITS 2
-#define CL_ALIGN_SIZE (1<<CL_ALIGN_BITS)
-#define CL_ALIGN_MASK (CL_ALIGN_SIZE-1)
-
 #include "simd.h"
 
 /*
@@ -18,14 +14,15 @@
 typedef union {
     float f[CL_PART_PER_TILE];
 #ifdef USE_SIMD
-    v4sf p[CL_PART_PER_TILE/4];
+    v4sf p[CL_PART_PER_TILE/SIMD_WIDTH];
 #endif
     } clFloat;
 
 typedef union {
     int32_t i[CL_PART_PER_TILE];
 #ifdef USE_SIMD
-    v4i p[CL_PART_PER_TILE/4];
+    v4i     p[CL_PART_PER_TILE/SIMD_WIDTH];
+    v4sf    pf[CL_PART_PER_TILE/SIMD_WIDTH];
 #endif
     } clInt32;
 

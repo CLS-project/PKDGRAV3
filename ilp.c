@@ -27,7 +27,15 @@ static ILPTILE newTile(ILPTILE prev) {
     int i;
 
     assert( tile != NULL );
-    assert(ILP_PART_PER_TILE%4 == 0 );
+    assert(ILP_PART_PER_TILE%SIMD_WIDTH == 0 );
+    assert(ILP_BLK_PER_TILE*ILP_PART_PER_BLK == ILP_PART_PER_TILE);
+
+#ifdef USE_CUDA
+    tile->blk = pkdGravCudaPPAllocateBlk();
+#else
+    tile->blk = SIMD_malloc(sizeof(ILP_BLK) * ILP_BLK_PER_TILE);
+#endif
+    assert(tile->blk != NULL);
 
     tile->next = NULL;
     tile->prev = prev;
@@ -37,12 +45,17 @@ static ILPTILE newTile(ILPTILE prev) {
     /*
     ** We need valid data for the SIMD PP code. This is probably the best way.
     */
+#if 1
     for(i=0; i<tile->nMaxPart; ++i) {
-	tile->dx.f[i] = tile->dy.f[i] = tile->dz.f[i] = tile->d2.f[i] = 1.0f;
-	tile->vx.f[i] = tile->vy.f[i] = tile->vz.f[i] = tile->fourh2.f[i] = 1.0f;
-	tile->m.f[i] = 0.0;
+	int blk = i / ILP_PART_PER_BLK;
+	int prt = i - blk * ILP_PART_PER_BLK;
+	tile->blk[blk].dx.f[prt] = tile->blk[blk].dy.f[prt] = tile->blk[blk].dz.f[prt] = 1.0f;
+	tile->vx.f[i] = tile->vy.f[i] = tile->vz.f[i] = tile->blk[blk].fourh2.f[prt] = 1.0f;
+	tile->blk[blk].m.f[prt] = 0.0;
 	tile->iOrder.i[i] = 0;
         }
+#endif
+
     return tile;
     }
 
@@ -77,6 +90,9 @@ ILPTILE ilpClear(ILP ilp) {
     assert( ilp != NULL );
     ilp->tile = ilp->first;
     ilp->nPrevious = 0;
+#ifdef USE_CACHE
+    ilp->nCache = 0;
+#endif
     assert( ilp->tile != NULL );
     ilp->tile->nPart = 0;
     ilp->cx = ilp->cy = ilp->cz = 0.0;
@@ -88,6 +104,9 @@ void ilpInitialize(ILP *ilp) {
     assert( *ilp != NULL );
     (*ilp)->first = (*ilp)->tile = newTile(NULL);
     (*ilp)->nPrevious = 0;
+#ifdef USE_CACHE
+    (*ilp)->nCache = 0;
+#endif
     }
 
 void ilpFinish(ILP ilp) {
@@ -98,8 +117,14 @@ void ilpFinish(ILP ilp) {
     /* Free all allocated tiles first */
     for ( tile=ilp->first; tile!=NULL; tile=next ) {
 	next = tile->next;
+#ifdef USE_CUDA
+	pkdGravCudaPPFreeBlk(tile->blk);
+#else
+	free(tile->blk);
+#endif
 	SIMD_free(tile);
 	}
 
     free(ilp);
     }
+

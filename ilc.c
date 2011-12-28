@@ -24,7 +24,7 @@ static ILCTILE newTile(ILCTILE prev) {
     int i;
 
     assert( tile != NULL );
-    assert(ILC_PART_PER_TILE%4 == 0 );
+    assert(ILC_PART_PER_TILE%SIMD_WIDTH == 0 );
 
     tile->next = NULL;
     tile->prev = prev;
@@ -32,7 +32,7 @@ static ILCTILE newTile(ILCTILE prev) {
     tile->nCell = 0;
 
     for(i=0; i<tile->nMaxCell; ++i) {
-	tile->dx.f[i] = tile->dy.f[i] = tile->dz.f[i] = tile->d2.f[i] = 1.0;
+	tile->dx.f[i] = tile->dy.f[i] = tile->dz.f[i] = 1.0;
 #ifdef HERMITE
 	tile->vx.f[i] = tile->vy.f[i] = tile->vz.f[i] = 1.0;
 #endif

@@ -50,8 +50,8 @@ void prmFinish(PRM prm) {
     }
 
 
-void prmAddParam(PRM prm,char *pszName,int iType,void *pValue,
-		 int iSize,char *pszArg,char *pszArgUsage) {
+void prmAddParam(PRM prm,const char *pszName,int iType,void *pValue,
+		 int iSize,const char *pszArg,const char *pszArgUsage) {
     PRM_NODE *pn,*pnTail;
 
     pn = (PRM_NODE *)malloc(sizeof(PRM_NODE));
@@ -426,7 +426,7 @@ int prmArgProc(PRM prm,int argc,char **argv) {
     }
 
 
-int prmArgSpecified(PRM prm,char *pszName) {
+int prmArgSpecified(PRM prm,const char *pszName) {
     PRM_NODE *pn;
 
     pn = prm->pnHead;
@@ -440,7 +440,7 @@ int prmArgSpecified(PRM prm,char *pszName) {
     }
 
 
-int prmFileSpecified(PRM prm,char *pszName) {
+int prmFileSpecified(PRM prm,const char *pszName) {
     PRM_NODE *pn;
 
     pn = prm->pnHead;
@@ -453,6 +453,6 @@ int prmFileSpecified(PRM prm,char *pszName) {
     }
 
 
-int prmSpecified(PRM prm,char *pszName) {
+int prmSpecified(PRM prm,const char *pszName) {
     return(prmArgSpecified(prm,pszName) || prmFileSpecified(prm,pszName));
     }

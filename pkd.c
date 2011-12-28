@@ -592,6 +592,10 @@ void pkdInitialize(
     pkd->Cool = CoolInit();
 #endif
     assert(pkdNodeSize(pkd) > 0);
+
+#ifdef USE_CUDA
+    pkd->cudaCtx = pkdGravCudaPPAllocate();
+#endif
     }
 
 
@@ -601,6 +605,10 @@ void pkdFinish(PKD pkd) {
     uint32_t pi;
     int ism;
     int i;
+
+#ifdef USE_CUDA
+    pkdGravCudaPPFree(pkd->cudaCtx);
+#endif
 
     if (pkd->kdNodeListPRIVATE) {
 	/*
@@ -1090,7 +1098,6 @@ void pkdEnforcePeriodic(PKD pkd,BND *pbnd) {
 	}
     }
 
-#ifdef MPI_VERSION
 
 /*
 ** x and y must have range [1,2) !
@@ -1226,6 +1233,7 @@ uint64_t hilbert3d(float x,float y,float z) {
     return s;
     }
 
+#ifdef MPI_VERSION
 typedef struct {
     int64_t lKey;
     int32_t  i;
