@@ -27,8 +27,10 @@ static ILPTILE newTile(ILPTILE prev) {
     int i;
 
     assert( tile != NULL );
+#ifdef USE_SIMD_PP
     assert(ILP_PART_PER_TILE%SIMD_WIDTH == 0 );
     assert(ILP_BLK_PER_TILE*ILP_PART_PER_BLK == ILP_PART_PER_TILE);
+#endif
 
 #ifdef USE_CUDA
     tile->blk = pkdGravCudaPPAllocateBlk();

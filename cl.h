@@ -6,21 +6,23 @@
 #define CL_PART_PER_TILE 1024 /* 1024*100 ~ 100k */
 #endif
 
+#if !defined(__CUDACC__)
 #include "simd.h"
+#endif
 
 /*
 ** We use a union here so that the compiler can properly align the values.
 */
 typedef union {
     float f[CL_PART_PER_TILE];
-#ifdef USE_SIMD
+#if defined(USE_SIMD_OPEN) && !defined(__CUDACC__)
     v4sf p[CL_PART_PER_TILE/SIMD_WIDTH];
 #endif
     } clFloat;
 
 typedef union {
     int32_t i[CL_PART_PER_TILE];
-#ifdef USE_SIMD
+#if defined(USE_SIMD_OPEN) && !defined(__CUDACC__)
     v4i     p[CL_PART_PER_TILE/SIMD_WIDTH];
     v4sf    pf[CL_PART_PER_TILE/SIMD_WIDTH];
 #endif

@@ -7,14 +7,16 @@
 #define ILC_PART_PER_TILE 1024 /* 1024*100 ~ 100k */
 #endif
 
+#if !defined(__CUDACC__)
 #include "simd.h"
+#endif
 
 /*
 ** We use a union here so that the compiler can properly align the values.
 */
 typedef union {
     float f[ILC_PART_PER_TILE];
-#ifdef USE_SIMD_PC
+#if defined(USE_SIMD_PC) && !defined(__CUDACC__)
     v4sf p[ILC_PART_PER_TILE/SIMD_WIDTH];
 #endif
     } ilcFloat;

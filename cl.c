@@ -40,8 +40,9 @@ static CLTILE newTile(CL cl,CLTILE prev) {
         tile = SIMD_malloc(sizeof(struct clTile));
     }
     assert( tile != NULL );
+#ifdef USE_SIMD_OPEN
     assert(CL_PART_PER_TILE%SIMD_WIDTH == 0 );
-
+#endif
     tile->next = NULL;
     tile->prev = prev;
     tile->nMaxItems = CL_PART_PER_TILE;

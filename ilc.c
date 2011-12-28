@@ -24,8 +24,9 @@ static ILCTILE newTile(ILCTILE prev) {
     int i;
 
     assert( tile != NULL );
+#ifdef USE_SIMD_PC
     assert(ILC_PART_PER_TILE%SIMD_WIDTH == 0 );
-
+#endif
     tile->next = NULL;
     tile->prev = prev;
     tile->nMaxCell = ILC_PART_PER_TILE;

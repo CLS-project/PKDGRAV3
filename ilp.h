@@ -10,7 +10,7 @@
 #define ILP_PART_PER_BLK 512
 #define ILP_BLK_PER_TILE (ILP_PART_PER_TILE/ILP_PART_PER_BLK)
 
-#ifdef USE_SIMD_PP
+#if !defined(__CUDACC__)
 #include "simd.h"
 #endif
 
@@ -19,14 +19,14 @@
 */
 typedef union {
     float f[ILP_PART_PER_BLK];
-#ifdef USE_SIMD_PP
+#if defined(USE_SIMD_PP) && !defined(__CUDACC__)
     v4sf p[ILP_PART_PER_BLK/SIMD_WIDTH];
 #endif
     } ilpVein;
 
 typedef union {
     float f[ILP_PART_PER_TILE];
-#ifdef USE_SIMD_PP
+#if defined(USE_SIMD_PP) && !defined(__CUDACC__)
     v4sf p[ILP_PART_PER_TILE/SIMD_WIDTH];
 #endif
     } ilpFloat;
