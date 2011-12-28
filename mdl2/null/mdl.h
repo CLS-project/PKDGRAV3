@@ -288,7 +288,7 @@ static inline int mdlGridId(MDLGRID grid, uint32_t x, uint32_t y, uint32_t z) {
 ** This returns the index into the array on the appropriate processor.
 */
 static inline int mdlGridIdx(MDLGRID grid, uint32_t x, uint32_t y, uint32_t z) {
-    assert(x>=0&&x<grid->a1&&y>=0&&y<grid->n2&&z>=0&&z<grid->n3);
+    assert(x<grid->a1&&y<grid->n2&&z<grid->n3);
     return x + grid->a1*(y + grid->n2*z); /* Local index */
     }
 
