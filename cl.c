@@ -125,7 +125,7 @@ CLTILE clClone(CL cl,CL src) {
 	if (newtile->nItems) newtile=clExtend(cl);
 	newtile->nMaxItems = tile->nMaxItems;
 	n = newtile->nItems = tile->nItems;
-#ifdef USE_SIMD
+#ifdef USE_SIMD_OPEN
 	memcpy(&newtile->iCell.p,&tile->iCell.p,n*sizeof(tile->iCell.i[0]));
 	memcpy(&newtile->id.p,&tile->id.p,n*sizeof(tile->id.i[0]));
 	memcpy(&newtile->iLower.p,&tile->iLower.p,n*sizeof(tile->iLower.i[0]));
