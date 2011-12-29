@@ -418,6 +418,8 @@ double mdlTimeSynchronizing(MDL);
 double mdlTimeWaiting(MDL);
 #endif
 
+void mdlAddWork(MDL mdl, int (*doWork)(void *ctx), void *ctx);
+
 #ifdef __cplusplus
     }
 #endif

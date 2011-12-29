@@ -1695,3 +1695,8 @@ void mdlFFT( MDL mdl, MDLFFT fft, fftw_real *data, int bInverse ) {
     mdlBarrier(mdl);
     }
 #endif
+
+/* Just do the work immediately */
+void mdlAddWork(MDL mdl, int (*doWork)(void *ctx), void *ctx) {
+    while( doWork(ctx) != 0 ) {}
+    }

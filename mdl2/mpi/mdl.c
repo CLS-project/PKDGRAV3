@@ -1988,3 +1988,8 @@ void mdlFFT( MDL mdl, MDLFFT fft, fftw_real *data, int bInverse ) {
     rfftwnd_mpi(plan,1,data,0,FFTW_TRANSPOSED_ORDER);
     }
 #endif
+
+/* Just do the work immediately */
+void mdlAddWork(MDL mdl, int (*doWork)(void *ctx), void *ctx) {
+    while( doWork(ctx) != 0 ) {}
+    }
