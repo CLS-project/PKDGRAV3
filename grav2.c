@@ -60,11 +60,62 @@ static const struct CONSTS {
     dir = 1/sqrt(d2);\
     }
 
-void pkdGravTilePP(PKD pkd,ILP ilp,ILPTILE tile,
-    float fx, float fy, float fz,
-    float fMass, float fSoft, float fsmooth2, float *a,
-    float *ax, float *ay, float *az,
-    float *fPot, float *dirsum, float *normsum) {
+/*
+** This is called after work has been done for this particle group.
+** If everyone has finished, then the particle is updated.
+*/
+static void workDone(workParticle *work) {
+    int i;
+    PARTICLE *p;
+    float *pPot, *a;
+    if ( --work->nRefs == 0 ) {
+	for( i=0; i<work->nP; i++ ) {
+	    p = work->pPart[i];
+	    a = pkdAccel(work->pkd,p);
+	    pPot = pkdPot(work->pkd,p);
+	    a[0] = work->pInfoOut[i].a[0];
+	    a[1] = work->pInfoOut[i].a[1];
+	    a[2] = work->pInfoOut[i].a[2];
+	    *pPot = work->pInfoOut[i].fPot;
+
+	    if (work->pkd->param.bGravStep) {
+		float fx, fy, fz;
+		float maga, dT, dtGrav;
+		float dirsum = work->pInfoOut[i].dirsum;
+		float normsum = work->pInfoOut[i].normsum;
+
+		/*
+		** If this is the first time through, the accelerations will have 
+		** all been zero resulting in zero for normsum (and nan for dtGrav).
+		** We repeat this process again, so dtGrav will be correct.
+		*/
+		if (normsum > 0.0) {
+		    /*
+		    ** Use new acceleration here!
+		    */
+		    fx = work->pInfoOut[i].a[0];
+		    fy = work->pInfoOut[i].a[1];
+		    fz = work->pInfoOut[i].a[2];
+		    maga = sqrt(fx*fx + fy*fy + fz*fz);
+		    dtGrav = maga*dirsum/normsum;
+		    }
+		else dtGrav = 0.0;
+		dtGrav += work->pkd->param.dPreFacRhoLoc*p->fDensity;
+		dtGrav = (work->pInfoOut[i].rhopmax > dtGrav?work->pInfoOut[i].rhopmax:dtGrav);
+		if (dtGrav > 0.0) {
+		    dT = work->pkd->param.dEta/sqrt(dtGrav*work->dRhoFac);
+		    p->uNewRung = pkdDtToRung(dT,work->pkd->param.dDelta,work->pkd->param.iMaxRung-1);
+		    }
+		else p->uNewRung = 0; /* Assumes current uNewRung is outdated -- not ideal */
+		}
+	    }
+	free(work);
+	}
+    }
+
+
+int doWorkPP(void *vpp) {
+    workPP *pp = vpp;
     int nLeft, n;
     int j;
     ILP_BLK *blk;
@@ -79,6 +130,22 @@ void pkdGravTilePP(PKD pkd,ILP ilp,ILPTILE tile,
     int nSoft;
 #endif
     float dimaga;
+
+    int i = pp->i;
+    ILPTILE tile = pp->tile;
+    float fx = pp->work->pInfoIn[i].r[0];
+    float fy = pp->work->pInfoIn[i].r[1];
+    float fz = pp->work->pInfoIn[i].r[2];
+    float fMass = pp->work->pInfoIn[i].fMass;
+    float fSoft = pp->work->pInfoIn[i].fSoft;
+    float fsmooth2 = pp->work->pInfoIn[i].fSmooth2;
+    float *a =pp->work->pInfoIn[i].a;
+    float *ax = pp->work->pInfoOut[i].a+0;
+    float *ay = pp->work->pInfoOut[i].a+1;
+    float *az = pp->work->pInfoOut[i].a+2;
+    float *fPot = &pp->work->pInfoOut[i].fPot;
+    float *dirsum = &pp->work->pInfoOut[i].dirsum;
+    float *normsum = &pp->work->pInfoOut[i].normsum;
 
     dimaga = a[0]*a[0] + a[1]*a[1] + a[2]*a[2];
     if (dimaga > 0) {
@@ -125,7 +192,7 @@ void pkdGravTilePP(PKD pkd,ILP ilp,ILPTILE tile,
 
     blk = tile->blk;
     for( nLeft=tile->lstTile.nBlocks; nLeft >= 0; --nLeft,++blk ) {
-	n = ((nLeft ? ilp->lst.nPerBlock : tile->lstTile.nInLast) + SIMD_MASK) >> SIMD_BITS;
+	n = ((nLeft ? ILP_PART_PER_BLK : tile->lstTile.nInLast) + SIMD_MASK) >> SIMD_BITS;
 	for (j=0; j<n; ++j) {
 	    v4sf pfourh2, td2, pir, pir2;
 	    v4bool vcmp;
@@ -253,29 +320,35 @@ void pkdGravTilePP(PKD pkd,ILP ilp,ILPTILE tile,
 	    }
 	}
 #endif
+    if ( ++pp->i == pp->work->nP ) {
+	workDone(pp->work);
+	free(pp);
+	return 0;
+	}
+    else return 1;
     }
 
-static void evaluatePP( PKD pkd, int nP, PINFOIN *pInfoIn, PINFOOUT *pInfoOut, ILP ilp ) {
+static void queuePP( PKD pkd, workParticle *work, ILP ilp ) {
     int i;
     ILPTILE tile;
+    int nP = work->nP;
+    PINFOIN *pInfoIn = work->pInfoIn;
+    PINFOOUT *pInfoOut = work->pInfoOut;
+    workPP *pp;
 
-    for( i=0; i<nP; i++ ) {
-	ILP_LOOP(ilp,tile) {
-	    pkdGravTilePP(pkd,ilp,tile,
-		pInfoIn[i].r[0], pInfoIn[i].r[1], pInfoIn[i].r[2],
-		pInfoIn[i].fMass,pInfoIn[i].fSoft,pInfoIn[i].fSmooth2,
-		pInfoIn[i].a,
-		pInfoOut[i].a+0,pInfoOut[i].a+1,pInfoOut[i].a+2,
-		&pInfoOut[i].fPot,&pInfoOut[i].dirsum,&pInfoOut[i].normsum);
-	    }
+    ILP_LOOP(ilp,tile) {
+	pp = malloc(sizeof(workPP));
+	assert(pp!=NULL);
+	pp->work = work;
+	pp->tile = tile;
+	pp->i = 0;
+	work->nRefs++;
+	mdlAddWork(pkd->mdl,doWorkPP,pp);
 	}
     }
 
-void pkdGravTilePC(PKD pkd,ILC ilc,ILCTILE ctile,
-    float fx, float fy, float fz,
-    float fMass, float fSoft, float fsmooth2, float *a,
-    float *ax, float *ay, float *az,
-    float *fPot, float *dirsum, float *normsum) {
+int doWorkPC(void *vpc) {
+    workPC *pc = vpc;
 
 #if defined(USE_SIMD_PC)
     v4sf u,g0,g2,g3,g4;
@@ -302,7 +375,22 @@ void pkdGravTilePC(PKD pkd,ILC ilc,ILCTILE ctile,
     ILC_BLK *blk;
     int j, n, nLeft;
 
-#if 1
+    int i = pc->i;
+    ILCTILE ctile = pc->tile;
+    float fx = pc->work->pInfoIn[i].r[0];
+    float fy = pc->work->pInfoIn[i].r[1];
+    float fz = pc->work->pInfoIn[i].r[2];
+    float fMass = pc->work->pInfoIn[i].fMass;
+    float fSoft = pc->work->pInfoIn[i].fSoft;
+    float fsmooth2 = pc->work->pInfoIn[i].fSmooth2;
+    float *a =pc->work->pInfoIn[i].a;
+    float *ax = pc->work->pInfoOut[i].a+0;
+    float *ay = pc->work->pInfoOut[i].a+1;
+    float *az = pc->work->pInfoOut[i].a+2;
+    float *fPot = &pc->work->pInfoOut[i].fPot;
+    float *dirsum = &pc->work->pInfoOut[i].dirsum;
+    float *normsum = &pc->work->pInfoOut[i].normsum;
+
 #if defined(USE_SIMD_PC)
     pax = SIMD_LOADS(*ax);
     pay = SIMD_LOADS(*ay);
@@ -331,7 +419,7 @@ void pkdGravTilePC(PKD pkd,ILC ilc,ILCTILE ctile,
 
     blk = ctile->blk;
     for( nLeft=ctile->lstTile.nBlocks; nLeft >= 0; --nLeft,++blk ) {
-	n = ((nLeft ? ilc->lst.nPerBlock : ctile->lstTile.nInLast) + SIMD_MASK) >> SIMD_BITS;
+	n = ((nLeft ? ILC_PART_PER_BLK : ctile->lstTile.nInLast) + SIMD_MASK) >> SIMD_BITS;
 	for (j=0; j<n; ++j) {
 	    v4sf pir, pd2;
 	    v4bool vcmp;
@@ -494,24 +582,34 @@ void pkdGravTilePC(PKD pkd,ILC ilc,ILCTILE ctile,
 	    }
 	}
 #endif
-#endif
+
+    if ( ++pc->i == pc->work->nP ) {
+	workDone(pc->work);
+	free(pc);
+	return 0;
+	}
+    else return 1;
     }
 
-static void evaluatePC( PKD pkd, int nP, PINFOIN *pInfoIn, PINFOOUT *pInfoOut, ILC ilc ) {
+static void queuePC( PKD pkd,  workParticle *work, ILC ilc ) {
     int i;
     ILCTILE tile;
+    int nP = work->nP;
+    PINFOIN *pInfoIn = work->pInfoIn;
+    PINFOOUT *pInfoOut = work->pInfoOut;
+    workPC *pc;
 
-    for( i=0; i<nP; i++ ) {
-	ILC_LOOP(ilc,tile) {
-	    pkdGravTilePC(pkd,ilc,tile,
-		pInfoIn[i].r[0], pInfoIn[i].r[1], pInfoIn[i].r[2],
-		pInfoIn[i].fMass,pInfoIn[i].fSoft,pInfoIn[i].fSmooth2,
-		pInfoIn[i].a,
-		pInfoOut[i].a+0,pInfoOut[i].a+1,pInfoOut[i].a+2,
-		&pInfoOut[i].fPot,&pInfoOut[i].dirsum,&pInfoOut[i].normsum);
-	    }
+    ILC_LOOP(ilc,tile) {
+	pc = malloc(sizeof(workPC));
+	assert(pc!=NULL);
+	pc->work = work;
+	pc->tile = tile;
+	pc->i = 0;
+	work->nRefs++;
+	mdlAddWork(pkd->mdl,doWorkPC,pc);
 	}
     }
+
 
 /*
 ** This version of grav.c does all the operations inline, including
@@ -555,35 +653,38 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,FLOCR *
     ilpCheckPt(ilp,&checkPt);
 
     /* Collect the bucket particle information */
-    int nP;
-    PINFOIN pInfoIn[PKD_GROUP_SIZE];
-    PARTICLE *pPart[PKD_GROUP_SIZE];
-    PINFOOUT pInfoOut[PKD_GROUP_SIZE];
-    nP = 0;
+    workParticle *work = malloc(sizeof(workParticle));
+    assert(work!=NULL);
+    work->nRefs = 1; /* I am using it currently */
+    work->nP = 0;
+    work->dRhoFac = dRhoFac;
+    work->pkd = pkd;
     for (i=pkdn->pLower;i<=pkdn->pUpper;++i) {
+	int nP = work->nP++;
 	p = pkdParticle(pkd,i);
 	if ( !pkdIsDstActive(p,uRungLo,uRungHi) ) continue;
-	pPart[nP] = p;
+	work->pPart[nP] = p;
 
 	fMass = pkdMass(pkd,p);
 	fSoft = pkdSoft(pkd,p);
-	pPot = pkdPot(pkd,p);
 	v = pkdVel(pkd,p);
 	a = pkdAccel(pkd,p);
-	pInfoIn[nP].r[0]  = p->r[0] - ilp->cx;
-	pInfoIn[nP].r[1]  = p->r[1] - ilp->cy;
-	pInfoIn[nP].r[2]  = p->r[2] - ilp->cz;
-	pInfoIn[nP].a[0]  = a[0];
-	pInfoIn[nP].a[1]  = a[1];
-	pInfoIn[nP].a[2]  = a[2];
-	pInfoIn[nP].fMass = fMass;
-	pInfoIn[nP].fSoft = fSoft;
+	work->pInfoIn[nP].r[0]  = p->r[0] - ilp->cx;
+	work->pInfoIn[nP].r[1]  = p->r[1] - ilp->cy;
+	work->pInfoIn[nP].r[2]  = p->r[2] - ilp->cz;
+	work->pInfoIn[nP].a[0]  = a[0];
+	work->pInfoIn[nP].a[1]  = a[1];
+	work->pInfoIn[nP].a[2]  = a[2];
+	work->pInfoIn[nP].fMass = fMass;
+	work->pInfoIn[nP].fSoft = fSoft;
 
-	pInfoOut[nP].a[0] = pInfoOut[nP].a[1] = pInfoOut[nP].a[2] = 0.0f;
-	pInfoOut[nP].fPot = 0.0f;
-	pInfoOut[nP].dirsum = pInfoOut[nP].normsum = 0.0f;
-
-//	a[0] = a[1] = a[2] = *pPot = 0.0;
+	work->pInfoOut[nP].a[0] = 0.0f;
+	work->pInfoOut[nP].a[1] = 0.0f;
+	work->pInfoOut[nP].a[2] = 0.0f;
+	work->pInfoOut[nP].fPot = 0.0f;
+	work->pInfoOut[nP].dirsum = 0.0f;
+	work->pInfoOut[nP].normsum = 0.0f;
+	work->pInfoOut[nP].rhopmax = 0.0f;
 
 	/*
 	** Calculate local density and kernel smoothing length for dynamical time-stepping
@@ -594,36 +695,38 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,FLOCR *
 	    ** likely to be cached already because they will be on the P-P list.
 	    */
 	    smSmoothSingle(smx,smf,p);
-	    pInfoIn[nP].fSmooth2 = p->fBall * p->fBall;
+	    work->pInfoIn[nP].fSmooth2 = p->fBall * p->fBall;
 	    }
 	else {
 	    /*
 	    ** We are not using GravStep!
 	    */
-	    pInfoIn[nP].fSmooth2 = 0.0;
+	    work->pInfoIn[nP].fSmooth2 = 0.0;
 	    }
 
 	/* Beware of self-interaction - must result in zero acceleration */
 	ilpAppend(ilp,p->r[0],p->r[1],p->r[2],fMass,4*fSoft*fSoft,p->iOrder,v[0],v[1],v[2]);
-	++nP;
 	}
-    assert(nP<=PKD_GROUP_SIZE);
+    assert(work->nP<=PKD_GROUP_SIZE);
 
-    nActive += nP;
+    nActive += work->nP;
 
     /*
     ** Evaluate the local expansion.
     */
     if (pLoc) {
-	for( i=0; i<nP; i++ ) {
+	for( i=0; i<work->nP; i++ ) {
 	    /*
 	    ** Evaluate local expansion.
 	    */
-	    fx = pPart[i]->r[0] - pkdn->r[0];
-	    fy = pPart[i]->r[1] - pkdn->r[1];
-	    fz = pPart[i]->r[2] - pkdn->r[2];
-	    momEvalFlocr(pLoc,pkdn->bMax,fx,fy,fz,&pInfoOut[i].fPot,
-		pInfoOut[i].a+0,pInfoOut[i].a+1,pInfoOut[i].a+2);
+	    fx = work->pPart[i]->r[0] - pkdn->r[0];
+	    fy = work->pPart[i]->r[1] - pkdn->r[1];
+	    fz = work->pPart[i]->r[2] - pkdn->r[2];
+	    momEvalFlocr(pLoc,pkdn->bMax,fx,fy,fz,
+		&work->pInfoOut[i].fPot,
+		work->pInfoOut[i].a+0,
+		work->pInfoOut[i].a+1,
+		work->pInfoOut[i].a+2);
 	    }
 	}
 
@@ -631,7 +734,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,FLOCR *
     ** Evaluate the P-C interactions
     */
     assert(ilc->cx==ilp->cx && ilc->cy==ilp->cy && ilc->cz==ilp->cz );
-    evaluatePC( pkd, nP, pInfoIn, pInfoOut, ilc );
+    queuePC( pkd,  work, ilc );
 
     /*
     ** Evaluate the P-P interactions
@@ -639,121 +742,91 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,FLOCR *
 #ifdef USE_CUDA
     pkdGravCudaPP( pkd, pkd->cudaCtx, nP, pInfoIn, pInfoOut, ilp );
 #else
-    evaluatePP( pkd, nP, pInfoIn, pInfoOut, ilp );
+    queuePP( pkd, work, ilp );
 #endif
 
-
     /*
-    ** Update the particles
+    ** Calculate the Ewald correction for this particle, if it is required.
     */
-    for( i=0; i<nP; i++ ) {
-	p = pPart[i];
-	a = pkdAccel(pkd,pPart[i]);
-	pPot = pkdPot(pkd,pPart[i]);
-
-	a[0] = pInfoOut[i].a[0];
-	a[1] = pInfoOut[i].a[1];
-	a[2] = pInfoOut[i].a[2];
-	*pPot = pInfoOut[i].fPot;
+    if (bEwald) {
+	for( i=0; i<work->nP; i++ ) {
+	    /* A bit of cheese for now */
+	    a = pkdAccel(pkd,p);
+	    a[0] = a[1] = a[2] = 0.0;
+	    p = work->pPart[i];
+	    *pdEwFlop += pkdParticleEwald(pkd,uRungLo,uRungHi,p);
+	    work->pInfoOut[i].a[0] += a[0];
+	    work->pInfoOut[i].a[1] += a[1];
+	    work->pInfoOut[i].a[2] += a[2];
+	    }
 	}
 
-    for( i=0; i<nP; i++ ) {
-	p = pPart[i];
-	a = pkdAccel(pkd,pPart[i]);
-	pPot = pkdPot(pkd,pPart[i]);
+    for( i=0; i<work->nP; i++ ) {
+        p = work->pPart[i];
+        a = pkdAccel(pkd,p);
+        pPot = pkdPot(pkd,p);
 
-	/*
-	** Calculate the Ewald correction for this particle, if it is required.
-	*/
-	if (bEwald) {
-	    *pdEwFlop += pkdParticleEwald(pkd,uRungLo,uRungHi,p);
-	    }
-	/*
-	** Set value for time-step, note that we have the current ewald acceleration
-	** in this now as well!
-	*/
-	if (pkd->param.bGravStep) {
-	    dirsum = pInfoOut[i].dirsum;
-	    normsum = pInfoOut[i].normsum;
 
+        /*
+        ** Set value for time-step, note that we have the current ewald acceleration
+        ** in this now as well!
+        */
+        if (pkd->param.bGravStep && pkd->param.iTimeStepCrit == 1) {
 	    /*
-	    ** If this is the first time through, the accelerations will have 
-	    ** all been zero resulting in zero for normsum (and nan for dtGrav).
-	    ** We repeat this process again, so dtGrav will be correct.
+	    ** GravStep if iTimeStepCrit =
+	    ** 0: Mean field regime for dynamical time (normal/standard setting)
+	    ** 1: Gravitational scattering regime for dynamical time with eccentricity correction
 	    */
-	    if (normsum > 0.0) {
-		/*
-		** Use new acceleration here!
-		*/
-		fx = pInfoIn[i].a[0];
-		fy = pInfoIn[i].a[1];
-		fz = pInfoIn[i].a[2];
-		maga = sqrt(fx*fx + fy*fy + fz*fz);
-		dtGrav = maga*dirsum/normsum;
-		}
-	    else dtGrav = 0.0;
-	    dtGrav += pkd->param.dPreFacRhoLoc*p->fDensity;
-
-	    if (pkd->param.iTimeStepCrit == 1) {
-	      /*
-	      ** GravStep if iTimeStepCrit =
-	      ** 0: Mean field regime for dynamical time (normal/standard setting)
-	      ** 1: Gravitational scattering regime for dynamical time with eccentricity correction
-	      */
-		rhopmax = 0.0;
-		ILP_LOOP(ilp,tile) {
-		    int blk,prt;
-		    for( blk=0; blk<=tile->lstTile.nBlocks; ++blk ) {
-			n = (blk==tile->lstTile.nBlocks ? tile->lstTile.nInLast : ilp->lst.nPerBlock);
-			for (prt=0; prt<n; ++prt) {
-			    if (p->iOrder < pkd->param.nPartColl || tile->xtr[blk].iOrder.i[prt] < pkd->param.nPartColl) {
-				fx = p->r[0] - ilp->cx + tile->blk[blk].dx.f[prt];
-				fy = p->r[1] - ilp->cy + tile->blk[blk].dy.f[prt];
-				fz = p->r[2] - ilp->cz + tile->blk[blk].dz.f[prt];
-				d2 = fx*fx + fy*fy + fz*fz;
-				fourh2 = softmassweight(fMass,4*fSoft*fSoft,
-				    tile->blk[blk].m.f[prt],tile->blk[blk].fourh2.f[prt]);
-				if (d2 > fourh2) {
-				    SQRT1(d2,dir);
-				    dir2 = dir*dir*dir;
-				    }
-				else {
-				    /*
-				    ** This uses the Dehnen K1 kernel function now, it's fast!
-				    */
-				    SQRT1(fourh2,dir);
-				    dir2 = dir*dir;
-				    d2 *= dir2;
-				    dir2 *= dir;
-				    d2 = 1 - d2;
-				    dir *= 1.0 + d2*(0.5 + d2*(3.0/8.0 + d2*(45.0/32.0)));
-				    dir2 *= 1.0 + d2*(1.5 + d2*(135.0/16.0));
-				    }
-				summ = fMass+tile->blk[blk].m.f[prt];
-				rhopmaxlocal = summ*dir2;
-				vx = v[0] - tile->xtr[blk].vx.f[prt];
-				vy = v[1] - tile->xtr[blk].vy.f[prt];
-				vz = v[2] - tile->xtr[blk].vz.f[prt];
-				rhopmaxlocal = pkdRho1(rhopmaxlocal,summ,dir,
-				    tile->blk[blk].dx.f[prt],tile->blk[blk].dy.f[prt],tile->blk[blk].dz.f[prt],
-				    vx,vy,vz,pkd->param.dEccFacMax);
-				rhopmax = (rhopmaxlocal > rhopmax)?rhopmaxlocal:rhopmax;
+	    rhopmax = 0.0;
+	    ILP_LOOP(ilp,tile) {
+		int blk,prt;
+		for( blk=0; blk<=tile->lstTile.nBlocks; ++blk ) {
+		    n = (blk==tile->lstTile.nBlocks ? tile->lstTile.nInLast : ilp->lst.nPerBlock);
+		    for (prt=0; prt<n; ++prt) {
+			if (p->iOrder < pkd->param.nPartColl || tile->xtr[blk].iOrder.i[prt] < pkd->param.nPartColl) {
+			    fx = p->r[0] - ilp->cx + tile->blk[blk].dx.f[prt];
+			    fy = p->r[1] - ilp->cy + tile->blk[blk].dy.f[prt];
+			    fz = p->r[2] - ilp->cz + tile->blk[blk].dz.f[prt];
+			    d2 = fx*fx + fy*fy + fz*fz;
+			    fourh2 = softmassweight(fMass,4*fSoft*fSoft,
+				tile->blk[blk].m.f[prt],tile->blk[blk].fourh2.f[prt]);
+			    if (d2 > fourh2) {
+				SQRT1(d2,dir);
+				dir2 = dir*dir*dir;
 				}
+			    else {
+				/*
+				** This uses the Dehnen K1 kernel function now, it's fast!
+				*/
+				SQRT1(fourh2,dir);
+				dir2 = dir*dir;
+				d2 *= dir2;
+				dir2 *= dir;
+				d2 = 1 - d2;
+				dir *= 1.0 + d2*(0.5 + d2*(3.0/8.0 + d2*(45.0/32.0)));
+				dir2 *= 1.0 + d2*(1.5 + d2*(135.0/16.0));
+				}
+			    summ = fMass+tile->blk[blk].m.f[prt];
+			    rhopmaxlocal = summ*dir2;
+			    vx = v[0] - tile->xtr[blk].vx.f[prt];
+			    vy = v[1] - tile->xtr[blk].vy.f[prt];
+			    vz = v[2] - tile->xtr[blk].vz.f[prt];
+
+
+
+			    rhopmaxlocal = pkdRho1(rhopmaxlocal,summ,dir,
+				tile->blk[blk].dx.f[prt],tile->blk[blk].dy.f[prt],tile->blk[blk].dz.f[prt],
+				vx,vy,vz,pkd->param.dEccFacMax);
+			    rhopmax = (rhopmaxlocal > rhopmax)?rhopmaxlocal:rhopmax;
 			    }
 			}
 		    }
-		dtGrav = (rhopmax > dtGrav?rhopmax:dtGrav);
 		}
-	    if (dtGrav > 0.0) {
-		dT = pkd->param.dEta/sqrt(dtGrav*dRhoFac);
-		p->uNewRung = pkdDtToRung(dT,pkd->param.dDelta,pkd->param.iMaxRung-1);
-		}
-	    else p->uNewRung = 0; /* Assumes current uNewRung is outdated -- not ideal */
+	    work->pInfoOut[i].rhopmax = rhopmax;
 	    }
-	/*
-	** Restore the ilp to the same state that GravInteract was called.
-	*/
-	} /* end of i-loop cells & particles */
+        } /* end of i-loop cells & particles */
+
+    workDone(work);
 
     ilpRestore(ilp,&checkPt);
     *pdFlop += nActive*(ilpCount(pkd->ilp)*40 + ilcCount(pkd->ilc)*200) + nSoft*15;

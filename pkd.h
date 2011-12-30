@@ -644,6 +644,7 @@ typedef struct {
     float a[3];
     float fPot;
     float dirsum, normsum;
+    float rhopmax;
     } PINFOOUT;
 
 typedef struct pkdContext {
@@ -815,6 +816,31 @@ typedef struct pkdContext {
     MDLGRID grid;
     float *gridData;
     } * PKD;
+
+/*
+** Accumulates the work for a set of particles
+*/
+typedef struct {
+    PARTICLE *pPart[PKD_GROUP_SIZE];
+    PINFOIN pInfoIn[PKD_GROUP_SIZE];
+    PINFOOUT pInfoOut[PKD_GROUP_SIZE];
+    float dRhoFac;
+    int nP;
+    int nRefs;
+    PKD pkd;
+    } workParticle;
+
+typedef struct {
+    ILPTILE tile;
+    workParticle *work;
+    int i;
+    } workPP;
+
+typedef struct {
+    ILCTILE tile;
+    workParticle *work;
+    int i;
+    } workPC;
 
 static inline void pkdMinMax( double *dVal, double *dMin, double *dMax ) {
     dMin[0] = dVal[0] < dMin[0] ? dVal[0] : dMin[0];
