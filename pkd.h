@@ -642,7 +642,8 @@ typedef struct {
 
 typedef struct {
     float a[3];
-    float p;
+    float fPot;
+    float dirsum, normsum;
     } PINFOOUT;
 
 typedef struct pkdContext {
