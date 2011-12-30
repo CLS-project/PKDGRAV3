@@ -1,0 +1,229 @@
+#include "lst.h"
+#include "simd.h"
+
+#include <stdarg.h>
+#include <assert.h>
+#include <stdlib.h>
+#include <string.h>
+
+/*
+** The default allocate and free for areas is malloc and free
+*/
+static void *defaultAllocate(struct lstContext *lst,size_t nBytes) {
+    return malloc(nBytes);
+    }
+
+static void defaultFree(struct lstContext *lst,void *data) {
+    free(data);
+    }
+
+void *lstSIMDAllocate(struct lstContext *lst,size_t nBytes) {
+    return SIMD_malloc(nBytes);
+    }
+
+void lstSIMDFree(struct lstContext *lst,void *data) {
+    SIMD_free(data);
+    }
+
+
+#ifdef USE_CUDA
+void *lstCUDAAllocate(struct lstContext *lst,size_t nBytes) {
+    void *blk = NULL;
+    cudaHostAlloc( &blk, nBytes, 0 );
+    return blk;
+    }
+
+void lstCUDAFree(struct lstContext *lst,void *data) {
+    cudaFreeHost(data);
+    }
+#endif
+
+static void cloneTile(LST *lst, LSTTILE *dst, LSTTILE *src) {
+    void **sb, **db;
+    int i;
+    int nBlocks;
+
+    dst->nBlocks = src->nBlocks;
+    dst->nInLast = src->nInLast;
+
+    sb = (void **)(src+1);
+    db = (void **)(dst+1);
+    nBlocks = src->nBlocks + (src->nInLast ? 1 : 0);
+
+    for( i=0; i<lst->nAreas; ++i) {
+	memcpy(db[i],sb[i],lst->info[i].nAreaSize * nBlocks);
+	}
+    }
+
+LSTTILE *lstNewTile(LST *lst) {
+    LSTTILE *tile;
+    void **blks;
+    int i;
+
+    if ( lst->freeList->list != NULL ) {
+	tile = lst->freeList->list;
+	lst->freeList->list = tile->next;
+	}
+    else {
+	tile = malloc(sizeof(struct lstTile) + lst->nAreas*sizeof(void *));
+	assert(tile!=NULL);
+	blks = (void **)(tile+1);
+	for( i=0; i<lst->nAreas; ++i) {
+	    blks[i] = (*lst->info[i].fnAllocate)(lst,lst->info[i].nAreaSize * lst->nBlocksPerTile);
+	    assert(blks[i] != NULL);
+	    }
+	lst->freeList->nTiles++;
+	}
+
+    tile->next = NULL;
+    tile->nBlocks = tile->nInLast = 0;
+    tile->nRefs = 1;
+
+    return tile;
+    }
+
+void lstFreeTile(LST *lst,LSTTILE *tile) {
+    /* If this is also owned by someone else then they need to give it back */
+    if ( --tile->nRefs == 0 ) {
+	tile->next = lst->freeList->list;
+	lst->freeList->list = tile;
+	}
+    else assert(0);
+    }
+
+size_t lstMemory(LST *lst) {
+    return sizeof(struct lstContext) +
+	lst->nAreas * sizeof(LSTAREAINFO) +
+	lst->freeList->nTiles * lst->nTileSize;
+    }
+
+static void moveToFreeList(LST *lst,LSTTILE *tile) {
+    LSTTILE *next;
+    for(; tile!=NULL; tile=next) {
+	next = tile->next;
+	lstFreeTile(lst,tile);
+	}
+    }
+
+void lstClear(LST *lst) {
+    assert( lst != NULL );
+    moveToFreeList(lst,lst->list);
+    lst->tile = lst->list = lstNewTile(lst);
+    lst->nPrevious = 0;
+    }
+
+void lstCheckPt(LST *lst,LSTCHECKPT *cp) {
+    cp->tile = lst->tile;
+    cp->nBlocks = lst->tile->nBlocks;
+    cp->nInLast = lst->tile->nInLast;
+    cp->nPrevious = lst->nPrevious;
+    }
+
+void lstRestore(LST *lst,LSTCHECKPT *cp) {
+    /* Set the latest tile */
+    lst->tile = cp->tile;
+    lst->nPrevious = cp->nPrevious;
+    lst->tile->nBlocks = cp->nBlocks;
+    lst->tile->nInLast = cp->nInLast;
+
+    /* Dump any tiles that are not needed */
+    moveToFreeList(lst,lst->tile->next);
+    lst->tile->next = NULL;
+
+    /* If somebody else owns this tile, then we cannot reuse it */
+    if (lst->tile->nRefs > 1) {
+	LSTTILE *tile, *prev;
+	tile = lstNewTile(lst);
+	cloneTile(lst, tile, lst->tile);
+	if (lst->tile == lst->list) lst->list = tile;
+	else {
+	    for(prev=lst->list; prev->next != lst->tile; prev=prev->next) {}
+	    prev->next = tile;
+	    }
+	lstFreeTile(lst,lst->tile);
+	lst->tile = tile;
+	assert(0);
+	}
+    }
+
+void *lstExtend(LST * lst) {
+    assert( lst != NULL );
+    lst->nPrevious += lst->tile->nBlocks*lst->nPerBlock  + lst->tile->nInLast;
+    lst->tile = lst->tile->next = lstNewTile(lst);
+    return lst->tile;
+    }
+
+void lstClone(LST *dst,LST *src) {
+    LSTTILE *stile, *dtile;
+
+    moveToFreeList(dst,dst->list);
+    dst->tile = dst->list = lstNewTile(dst);
+
+    stile = src->list;
+    dtile = dst->tile;
+    while(stile != NULL) {
+	cloneTile(src, dtile, stile);
+	stile = stile->next;
+	if (stile) {
+	    dtile->next = lstNewTile(dst);
+	    dtile = dtile->next;
+	    }
+	}
+    dst->tile = dtile;
+    dst->nPrevious = src->nPrevious;
+    }
+
+void lstInitialize(LST *lst, LSTFREELIST *freeList, int nBlocksPerTile, int nPerBlock, int nAreas, ...) {
+    va_list args;
+    int i;
+    assert(lst!=NULL);
+
+    lst->nAreas = nAreas;
+    lst->nBlocksPerTile = nBlocksPerTile;
+    lst->nPerBlock = nPerBlock;
+    lst->nTileSize = sizeof(struct lstTile);
+    lst->defFreeList.list = NULL;
+    lst->defFreeList.nRefs = 0;
+    lst->defFreeList.nTiles = 0;
+    if (freeList) lst->freeList = freeList;
+    else lst->freeList = &lst->defFreeList;
+    lst->freeList->nRefs++;
+    lst->info = malloc( lst->nAreas * sizeof(LSTAREAINFO) );
+    va_start(args,nAreas);
+    for( i=0; i<lst->nAreas; ++i) {
+	lst->info[i].nAreaSize = va_arg(args,int);
+	lst->info[i].fnAllocate = va_arg(args,lstAreaAllocate);
+	lst->info[i].fnFree     = va_arg(args,lstAreaFree );
+	if (lst->info[i].fnAllocate==NULL && lst->info[i].fnFree==NULL) {
+	    lst->info[i].fnAllocate = defaultAllocate;
+	    lst->info[i].fnFree = defaultFree;
+	    }
+	assert(lst->info[i].fnAllocate!=NULL);
+	assert(lst->info[i].fnFree!=NULL);
+	lst->nTileSize += lst->info[i].nAreaSize * nBlocksPerTile;
+	}
+    va_end(args);
+    lst->list = lst->tile = lstNewTile(lst);
+    }
+
+void lstFree(LST *lst) {
+    LSTTILE *tile, *next;
+    int i;
+    void **blks;
+
+    moveToFreeList(lst,lst->list);
+    if (--lst->freeList->nRefs == 0) {
+	for( tile= lst->freeList->list; tile!=NULL; tile=next) {
+	    next = tile->next;
+	    blks = (void **)(tile+1);
+	    for( i=0; i<lst->nAreas; ++i) {
+		(*lst->info[i].fnFree)(lst,blks[i]);
+		}
+	    lst->freeList->nTiles--;
+	    }
+	assert(lst->freeList->nTiles == 0);
+	lst->freeList->list = NULL;
+	}
+    free(lst->info);
+    lst->info = NULL;
+    }

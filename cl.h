@@ -6,9 +6,14 @@
 #define CL_PART_PER_TILE 1024 /* 1024*100 ~ 100k */
 #endif
 
+#define CL_PART_PER_BLK 1024
+#define CL_BLK_PER_TILE (CL_PART_PER_TILE/CL_PART_PER_BLK)
+
 #if !defined(__CUDACC__)
 #include "simd.h"
 #endif
+
+#include "lst.h"
 
 /*
 ** We use a union here so that the compiler can properly align the values.
@@ -32,13 +37,7 @@ typedef union {
     uint64_t i[CL_PART_PER_TILE];
     } clInt64;
 
-
-typedef struct clTile {
-    struct clTile *next;
-    struct clTile *prev;
-    uint32_t nMaxItems;          /* Maximum number of items in this tile */
-    uint32_t nItems;             /* Current number of items */
-
+typedef struct {
     clInt32 iOpen;
     clInt32 iCell;
     clInt32 id;
@@ -59,60 +58,55 @@ typedef struct clTile {
     clFloat xMax;
     clFloat yMax;
     clFloat zMax;
-/*
-** ILP has some extra data here that gets partitioned to find the closest
-** particles. ILC doesn't need this (at least not yet).
-*/
+    } CL_BLK;
+
+
+typedef struct clTile {
+    LSTTILE lstTile;
+    CL_BLK *blk;
     } *CLTILE;
 
 typedef struct clContext {
-    CLTILE first;               /* first tile in the chain */
-    CLTILE tile;                /* Current tile in the chain */
-    CLTILE *clFreeList;
-    uint32_t nPrevious;         /* Particles in tiles prior to "tile" */
+    LST lst;
     } *CL;
 
-CLTILE clExtend(CL cl);         /* Add tile and return new tile */
-CLTILE clClear(CL cl);          /* Go back to, and return first tile (empty) */
-CLTILE clClone(CL cl, CL src);  /* Make "cl" the same as "src" */
-void clInitialize(CL *cl,CLTILE *clFreeList);
-void clFinish(CL cl);
-size_t clMemory(CL cl);
-size_t clFreeListMemory(CL cl);
+#define clClear(cl) lstClear(&(cl)->lst)
+#define clExtend(cl) lstExtend(&(cl)->lst)
+#define clMemory(cl) lstMemory(&(cl)->lst)
+#define clCount(cl) lstCount(&(cl)->lst)
+#define clClone(dst,src) lstClone(&(dst)->lst,&(src)->lst)
 
-static inline uint32_t clCount(CL cl) {
-    return cl->nPrevious + cl->tile->nItems;
-    }
+void clInitialize(CL *cl,LSTFREELIST *clFreeList);
+void clFinish(CL cl);
 
 static inline void clAppendAll(CL cl,int iCell, int id,int iLower,int nc,
     float cOpen,float m,float fourh2,float x, float y, float z,
     float xOffset,float yOffset,float zOffset,float xCenter,float yCenter,float zCenter,
     float xMax,float yMax,float zMax,int iOpen) {
-    CLTILE tile = (cl)->tile;
-    uint_fast32_t i;
-    if ( tile->nItems == tile->nMaxItems ) tile = clExtend((cl));
-    i = tile->nItems;
-    tile->iOpen.i[i] = iOpen;
-    tile->iCell.i[i] = (iCell);
-    tile->id.i[i] = (id);
-    tile->iLower.i[i] = (iLower);
-    tile->nc.i[i] = (nc);
-    tile->cOpen.f[i] = (cOpen);
-    tile->m.f[i] = (m);
-    tile->fourh2.f[i] = (fourh2);
-    tile->x.f[i] = x;
-    tile->y.f[i] = y;
-    tile->z.f[i] = z;
-    tile->xOffset.f[i] = xOffset;
-    tile->yOffset.f[i] = yOffset;
-    tile->zOffset.f[i] = zOffset;
-    tile->xCenter.f[i] = xCenter;
-    tile->yCenter.f[i] = yCenter;
-    tile->zCenter.f[i] = zCenter;
-    tile->xMax.f[i] = xMax;
-    tile->yMax.f[i] = yMax;
-    tile->zMax.f[i] = zMax;
-    ++tile->nItems;
+    CLTILE tile = lstReposition(&cl->lst);
+    uint_fast32_t blk = tile->lstTile.nBlocks;
+    uint_fast32_t prt = tile->lstTile.nInLast;
+    tile->blk[blk].iOpen.i[prt] = iOpen;
+    tile->blk[blk].iCell.i[prt] = (iCell);
+    tile->blk[blk].id.i[prt] = (id);
+    tile->blk[blk].iLower.i[prt] = (iLower);
+    tile->blk[blk].nc.i[prt] = (nc);
+    tile->blk[blk].cOpen.f[prt] = (cOpen);
+    tile->blk[blk].m.f[prt] = (m);
+    tile->blk[blk].fourh2.f[prt] = (fourh2);
+    tile->blk[blk].x.f[prt] = x;
+    tile->blk[blk].y.f[prt] = y;
+    tile->blk[blk].z.f[prt] = z;
+    tile->blk[blk].xOffset.f[prt] = xOffset;
+    tile->blk[blk].yOffset.f[prt] = yOffset;
+    tile->blk[blk].zOffset.f[prt] = zOffset;
+    tile->blk[blk].xCenter.f[prt] = xCenter;
+    tile->blk[blk].yCenter.f[prt] = yCenter;
+    tile->blk[blk].zCenter.f[prt] = zCenter;
+    tile->blk[blk].xMax.f[prt] = xMax;
+    tile->blk[blk].yMax.f[prt] = yMax;
+    tile->blk[blk].zMax.f[prt] = zMax;
+    ++tile->lstTile.nInLast;
     }
 
 #define clAppend(cl,iCell,id,iLower,nc,cOpen,m,fourh2,r,fOffset,fCenter,fMax)\
@@ -120,35 +114,12 @@ static inline void clAppendAll(CL cl,int iCell, int id,int iLower,int nc,
     fOffset[0],fOffset[1],fOffset[2],fCenter[0],fCenter[1],fCenter[2],\
     fMax[0],fMax[1],fMax[2],0)
 
-static inline void clCopyItem(CLTILE A, int Ai, CLTILE B, int Bi) {
-    A->iOpen.i[Ai]   = B->iOpen.i[Bi];
-    A->iCell.i[Ai]   = B->iCell.i[Bi];
-    A->id.i[Ai]      = B->id.i[Bi];
-    A->iLower.i[Ai]  = B->iLower.i[Bi];
-    A->nc.i[Ai]      = B->nc.i[Bi];
-    A->cOpen.f[Ai]   = B->cOpen.f[Bi];
-    A->m.f[Ai]       = B->m.f[Bi];
-    A->fourh2.f[Ai]  = B->fourh2.f[Bi];
-    A->x.f[Ai]       = B->x.f[Bi];
-    A->y.f[Ai]       = B->y.f[Bi];
-    A->z.f[Ai]       = B->z.f[Bi];
-    A->xOffset.f[Ai] = B->xOffset.f[Bi];
-    A->yOffset.f[Ai] = B->yOffset.f[Bi];
-    A->zOffset.f[Ai] = B->zOffset.f[Bi];
-    A->xCenter.f[Ai] = B->xCenter.f[Bi];
-    A->yCenter.f[Ai] = B->yCenter.f[Bi];
-    A->zCenter.f[Ai] = B->zCenter.f[Bi];
-    A->xMax.f[Ai]    = B->xMax.f[Bi];
-    A->yMax.f[Ai]    = B->yMax.f[Bi];
-    A->zMax.f[Ai]    = B->zMax.f[Bi];
-}
-
-static inline void clAppendItem(CL cl, CLTILE B, int Bi) {
+static inline void clAppendItem(CL cl, CL_BLK *B, int Bi) {
     clAppendAll(cl,B->iCell.i[Bi],B->id.i[Bi],B->iLower.i[Bi], B->nc.i[Bi], B->cOpen.f[Bi], B->m.f[Bi], B->fourh2.f[Bi],
 	B->x.f[Bi], B->y.f[Bi], B->z.f[Bi],B->xOffset.f[Bi],B->yOffset.f[Bi],B->zOffset.f[Bi],
 	B->xCenter.f[Bi],B->yCenter.f[Bi],B->zCenter.f[Bi],B->xMax.f[Bi],B->yMax.f[Bi],B->zMax.f[Bi],B->iOpen.i[Bi]);
     }
 
-#define CL_LOOP(CL,CL_TILE) for( CL_TILE=(CL)->first; CL_TILE!=(CL)->tile->next; CL_TILE=CL_TILE->next )
+#define CL_LOOP(CL,CL_TILE) for( CL_TILE=(CLTILE)((CL)->lst.list); CL_TILE!=NULL; CL_TILE=(CLTILE)(CL_TILE->lstTile.next))
 
 #endif

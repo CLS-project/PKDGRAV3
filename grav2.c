@@ -60,12 +60,12 @@ static const struct CONSTS {
     dir = 1/sqrt(d2);\
     }
 
-void pkdGravTilePP(PKD pkd,ILPTILE tile,
+void pkdGravTilePP(PKD pkd,ILP ilp,ILPTILE tile,
     float fx, float fy, float fz,
     float fMass, float fSoft, float fsmooth2, float *a,
     float *ax, float *ay, float *az,
     float *fPot, float *dirsum, float *normsum) {
-    int nLeft, nSIMD, n;
+    int nLeft, n;
     int j;
     ILP_BLK *blk;
 #if defined(USE_SIMD_PP)
@@ -94,14 +94,13 @@ void pkdGravTilePP(PKD pkd,ILPTILE tile,
     ** forces are zero. Setting the distance to a large value avoids
     ** softening the non-existent forces which is slightly faster.
     */
-    n = tile->nPart/ILP_PART_PER_BLK;
-    j = tile->nPart - n*ILP_PART_PER_BLK;
+    n = tile->lstTile.nBlocks;
+    j = tile->lstTile.nInLast;
     for( blk=tile->blk+n; j&SIMD_MASK; j++) {
 	blk->dx.f[j] = blk->dy.f[j] = blk->dz.f[j] = 1e18f;
 	blk->m.f[j] = 0.0f;
 	blk->fourh2.f[j] = 1e-18f;
 	}
-    nSIMD = (tile->nPart+SIMD_MASK) >> SIMD_BITS;
 
     /*
     ** The list sets mass to zero for unused entries which results
@@ -125,8 +124,8 @@ void pkdGravTilePP(PKD pkd,ILPTILE tile,
     psmooth2= SIMD_SPLAT(fsmooth2);
 
     blk = tile->blk;
-    for( nLeft=nSIMD; nLeft > 0; nLeft -= n ) {
-	n = nLeft > (ILP_PART_PER_BLK/SIMD_WIDTH) ? (ILP_PART_PER_BLK/SIMD_WIDTH) : nLeft;
+    for( nLeft=tile->lstTile.nBlocks; nLeft >= 0; --nLeft ) {
+	n = ((nLeft ? ilp->lst.nPerBlock : tile->lstTile.nInLast) + SIMD_MASK) >> SIMD_BITS;
 	for (j=0; j<n; ++j) {
 	    v4sf pfourh2, td2, pir, pir2;
 	    v4bool vcmp;
@@ -206,9 +205,10 @@ void pkdGravTilePP(PKD pkd,ILPTILE tile,
     ** DO NOT MODIFY THE CODE BELOW UP TO THE #endif!
     ** This code MUST match the SIMD code above.
     */
+
     blk = tile->blk;
-    for( nLeft=tile->nPart; nLeft > 0; nLeft -= n ) {
-	n = nLeft > ILP_PART_PER_BLK ? ILP_PART_PER_BLK : nLeft;
+    for( nLeft=tile->lstTile.nBlocks; nLeft >= 0; --nLeft ) {
+	n = (nLeft ? ilp->lst.nPerBlock : tile->lstTile.nInLast);
 	for (j=0; j<n; ++j) {
 	    dx = fx + blk->dx.f[j];
 	    dy = fy + blk->dy.f[j];
@@ -269,13 +269,37 @@ static void evaluatePP( PKD pkd, int nP, PARTICLE **pPart, PINFOIN *pInfoIn, ILP
 	a = pkdAccel(pkd,pPart[i]);
 	pPot = pkdPot(pkd,pPart[i]);
 	ILP_LOOP(ilp,tile) {
-	    pkdGravTilePP(pkd,tile,
+	    pkdGravTilePP(pkd,ilp,tile,
 		pInfoIn[i].r[0], pInfoIn[i].r[1], pInfoIn[i].r[2],
 		pInfoIn[i].fMass,pInfoIn[i].fSoft,pInfoIn[i].fSmooth2,
 		pInfoIn[i].a,a+0,a+1,a+2,pPot,&dirsum,&normsum);
 	    }
 	}
     }
+
+static void evaluatePC( PKD pkd, int nP, PARTICLE **pPart, PINFOIN *pInfoIn, ILC ilc ) {
+    int i;
+    float *a, *pPot;
+    float dirsum, normsum;
+    ILCTILE tile;
+
+    dirsum = normsum = 0.0;
+
+    for( i=0; i<nP; i++ ) {
+	a = pkdAccel(pkd,pPart[i]);
+	pPot = pkdPot(pkd,pPart[i]);
+	ILC_LOOP(ilc,tile) {
+//	    pkdGravTilePP(pkd,tile,
+//		pInfoIn[i].r[0], pInfoIn[i].r[1], pInfoIn[i].r[2],
+//		pInfoIn[i].fMass,pInfoIn[i].fSoft,pInfoIn[i].fSmooth2,
+//		pInfoIn[i].a,a+0,a+1,a+2,pPot,&dirsum,&normsum);
+	    }
+	}
+    }
+
+
+
+
 
 /*
 ** This version of grav.c does all the operations inline, including
@@ -316,7 +340,8 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,FLOCR *
 #endif
     ILPTILE tile;
     ILCTILE ctile;
-    int i,j,nSoft,nActive;
+    ILC_BLK *blk;
+    int i,j,n,nSoft,nActive,nLeft;
 #if defined(USE_SIMD)
     v4sf t1, t2, t3;
     v4sf pax, pay, paz;
@@ -340,7 +365,6 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,FLOCR *
     */
     nActive = 0;
     nSoft = 0;
-
 
     /* We need to add these particles to the P-P interaction. Note that self-interactions are ignored. */
     ilpCheckPt(ilp,&checkPt);
@@ -427,14 +451,15 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,FLOCR *
     /* Padd the ILC if required */
 #if defined(USE_SIMD_PC)
     ILC_LOOP(ilc,ctile) {
-	for( j=ctile->nCell; j&SIMD_MASK; ++j) { 
-	    ctile->dx.f[j] = ctile->dy.f[j] = ctile->dz.f[j] = 1e18f;
-	    ctile->m.f[j] = 0.0f;
-	    ctile->u.f[j] = 0.0f;
+	n = ctile->lstTile.nBlocks;
+	j = ctile->lstTile.nInLast;
+	for( blk=ctile->blk+n; j&SIMD_MASK; j++) {
+	    blk->dx.f[j] = blk->dy.f[j] = blk->dz.f[j] = 1e18f;
+	    blk->m.f[j] = 0.0f;
+	    blk->u.f[j] = 0.0f;
 	    }
 	}
 #endif
-
     for( i=0; i<nP; i++ ) {
 	p = pPart[i];
 	a = pkdAccel(pkd,pPart[i]);
@@ -463,10 +488,6 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,FLOCR *
 	fy = pInfoIn[i].r[1];
 	fz = pInfoIn[i].r[2];
 
-//	ilc->cx = p->r[0]; /* => cx += fx */
-//	ilc->cy = p->r[1];
-//	ilc->cz = p->r[2];
-//	ilcCompute(ilc,fx,fy,fz);
 #if defined(USE_SIMD_PC)
 	pax = SIMD_LOADS(ax);
 	pay = SIMD_LOADS(ay);
@@ -484,85 +505,89 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,FLOCR *
 	p4soft2 = SIMD_SPLAT(4.0*pInfoIn[i].fSoft*pInfoIn[i].fSoft);
 
 	ILC_LOOP(ilc,ctile) {
-	    uint32_t n = (ctile->nCell+SIMD_MASK) >> SIMD_BITS;
-	    for (j=0;j<n;++j) {
-		v4sf pir, pd2;
-		v4bool vcmp;
+	    blk = ctile->blk;
+	    for( nLeft=ctile->lstTile.nBlocks; nLeft >= 0; --nLeft ) {
+		n = ((nLeft ? ilc->lst.nPerBlock : ctile->lstTile.nInLast) + SIMD_MASK) >> SIMD_BITS;
+		for (j=0; j<n; ++j) {
+		    v4sf pir, pd2;
+		    v4bool vcmp;
 
-		pdx = SIMD_ADD(ctile->dx.p[j],pfx);
-		pdy = SIMD_ADD(ctile->dy.p[j],pfy);
-		pdz = SIMD_ADD(ctile->dz.p[j],pfz);
-		pir = SIMD_RSQRT_EXACT(SIMD_MADD(pdz,pdz,SIMD_MADD(pdy,pdy,SIMD_MUL(pdx,pdx))));
-		u = SIMD_MUL(ctile->u.p[j],pir);
-		g0 = pir;
-		g2 = SIMD_MUL(SIMD_MUL(consts.three.p,pir),SIMD_MUL(u,u));
-		g3 = SIMD_MUL(consts.five.p,SIMD_MUL(g2,u));
-		g4 = SIMD_MUL(consts.seven.p,SIMD_MUL(g3,u));
-		/*
-		** Calculate the funky distance terms.
-		*/
-		x = SIMD_MUL(pdx,pir);
-		y = SIMD_MUL(pdy,pir);
-		z = SIMD_MUL(pdz,pir);
-		xx = SIMD_MUL(consts.half.p,SIMD_MUL(x,x));
-		xy = SIMD_MUL(x,y);
-		xz = SIMD_MUL(x,z);
-		yy = SIMD_MUL(consts.half.p,SIMD_MUL(y,y));
-		yz = SIMD_MUL(y,z);
-		zz = SIMD_MUL(consts.half.p,SIMD_MUL(z,z));
-		xxx = SIMD_MUL(x,SIMD_SUB(SIMD_MUL(consts.onethird.p,xx),zz));
-		xxz = SIMD_MUL(z,SIMD_SUB(xx,SIMD_MUL(consts.onethird.p,zz)));
-		yyy = SIMD_MUL(y,SIMD_SUB(SIMD_MUL(consts.onethird.p,yy),zz));
-		yyz = SIMD_MUL(z,SIMD_SUB(yy,SIMD_MUL(consts.onethird.p,zz)));
-		xx = SIMD_SUB(xx,zz);
-		yy = SIMD_SUB(yy,zz);
-		xxy = SIMD_MUL(y,xx);
-		xyy = SIMD_MUL(x,yy);
-		xyz = SIMD_MUL(xy,z);
-		/*
-		** Now calculate the interaction up to Hexadecapole order.
-		*/
-		tx = SIMD_MUL(g4,SIMD_MADD(ctile->xxxx.p[j],xxx,SIMD_MADD(ctile->xyyy.p[j],yyy,
-		    SIMD_MADD(ctile->xxxy.p[j],xxy,SIMD_MADD(ctile->xxxz.p[j],xxz,
-		    SIMD_MADD(ctile->xxyy.p[j],xyy,SIMD_MADD(ctile->xxyz.p[j],xyz,SIMD_MUL(ctile->xyyz.p[j],yyz))))))));
-		ty = SIMD_MUL(g4,SIMD_MADD(ctile->xyyy.p[j],xyy,SIMD_MADD(ctile->xxxy.p[j],xxx,
-		    SIMD_MADD(ctile->yyyy.p[j],yyy,SIMD_MADD(ctile->yyyz.p[j],yyz,SIMD_MADD(ctile->xxyy.p[j],xxy,
-		    SIMD_MADD(ctile->xxyz.p[j],xxz,SIMD_MUL(ctile->xyyz.p[j],xyz))))))));
-		tz = SIMD_MUL(g4,SIMD_NMSUB(ctile->xxxx.p[j],xxz,SIMD_NMSUB(SIMD_ADD(ctile->xyyy.p[j],ctile->xxxy.p[j]),xyz,
-			SIMD_NMSUB(ctile->yyyy.p[j],yyz,SIMD_NMSUB(ctile->xxyy.p[j],SIMD_ADD(xxz,yyz),
-			SIMD_MADD(ctile->xxxz.p[j],xxx,SIMD_MADD(ctile->yyyz.p[j],yyy,SIMD_MADD(ctile->xxyz.p[j],xxy,SIMD_MUL(ctile->xyyz.p[j],xyy)))))))));
-		g4 = SIMD_MUL(consts.onequarter.p,SIMD_MADD(tx,x,SIMD_MADD(ty,y,SIMD_MUL(tz,z))));
-		xxx = SIMD_MUL(g3,SIMD_MADD(ctile->xxx.p[j],xx,SIMD_MADD(ctile->xyy.p[j],yy,
-		    SIMD_MADD(ctile->xxy.p[j],xy,SIMD_MADD(ctile->xxz.p[j],xz,SIMD_MUL(ctile->xyz.p[j],yz))))));
-		xxy = SIMD_MUL(g3,SIMD_MADD(ctile->xyy.p[j],xy,SIMD_MADD(ctile->xxy.p[j],xx,SIMD_MADD(ctile->yyy.p[j],yy,
-		    SIMD_MADD(ctile->yyz.p[j],yz,SIMD_MUL(ctile->xyz.p[j],xz))))));
-		xxz = SIMD_MUL(g3,SIMD_NMSUB(SIMD_ADD(ctile->xxx.p[j],ctile->xyy.p[j]),xz,
-			    SIMD_NMSUB(SIMD_ADD(ctile->xxy.p[j],ctile->yyy.p[j]),yz,
-			    SIMD_MADD(ctile->xxz.p[j],xx,SIMD_MADD(ctile->yyz.p[j],yy,SIMD_MUL(ctile->xyz.p[j],xy))))));
-		g3 = SIMD_MUL(consts.onethird.p,SIMD_MADD(xxx,x,SIMD_MADD(xxy,y,SIMD_MUL(xxz,z))));
-		xx = SIMD_MUL(g2,SIMD_MADD(ctile->xx.p[j],x,SIMD_MADD(ctile->xy.p[j],y,SIMD_MUL(ctile->xz.p[j],z))));
-		xy = SIMD_MUL(g2,SIMD_MADD(ctile->yy.p[j],y,SIMD_MADD(ctile->xy.p[j],x,SIMD_MUL(ctile->yz.p[j],z))));
-		xz = SIMD_MUL(g2,SIMD_NMSUB(SIMD_ADD(ctile->xx.p[j],ctile->yy.p[j]),z,SIMD_MADD(ctile->xz.p[j],x,SIMD_MUL(ctile->yz.p[j],y))));
-		g2 = SIMD_MUL(consts.half.p,SIMD_MADD(xx,x,SIMD_MADD(xy,y,SIMD_MUL(xz,z))));
-		g0 = SIMD_MUL(g0,ctile->m.p[j]);
-		ppot = SIMD_SUB(ppot,SIMD_ADD(SIMD_ADD(g0,g2),SIMD_ADD(g3,g4)));
-		g0 = SIMD_MADD(consts.five.p,g2,SIMD_MADD(consts.seven.p,g3,SIMD_MADD(consts.nine.p,g4,g0)));
-		t1 = SIMD_MUL(pir,SIMD_NMSUB(x,g0,SIMD_ADD(xx,SIMD_ADD(xxx,tx))));
-		t2 = SIMD_MUL(pir,SIMD_NMSUB(y,g0,SIMD_ADD(xy,SIMD_ADD(xxy,ty))));
-		t3 = SIMD_MUL(pir,SIMD_NMSUB(z,g0,SIMD_ADD(xz,SIMD_ADD(xxz,tz))));
+		    pdx = SIMD_ADD(blk->dx.p[j],pfx);
+		    pdy = SIMD_ADD(blk->dy.p[j],pfy);
+		    pdz = SIMD_ADD(blk->dz.p[j],pfz);
+		    pir = SIMD_RSQRT_EXACT(SIMD_MADD(pdz,pdz,SIMD_MADD(pdy,pdy,SIMD_MUL(pdx,pdx))));
+		    u = SIMD_MUL(blk->u.p[j],pir);
+		    g0 = pir;
+		    g2 = SIMD_MUL(SIMD_MUL(consts.three.p,pir),SIMD_MUL(u,u));
+		    g3 = SIMD_MUL(consts.five.p,SIMD_MUL(g2,u));
+		    g4 = SIMD_MUL(consts.seven.p,SIMD_MUL(g3,u));
+		    /*
+		    ** Calculate the funky distance terms.
+		    */
+		    x = SIMD_MUL(pdx,pir);
+		    y = SIMD_MUL(pdy,pir);
+		    z = SIMD_MUL(pdz,pir);
+		    xx = SIMD_MUL(consts.half.p,SIMD_MUL(x,x));
+		    xy = SIMD_MUL(x,y);
+		    xz = SIMD_MUL(x,z);
+		    yy = SIMD_MUL(consts.half.p,SIMD_MUL(y,y));
+		    yz = SIMD_MUL(y,z);
+		    zz = SIMD_MUL(consts.half.p,SIMD_MUL(z,z));
+		    xxx = SIMD_MUL(x,SIMD_SUB(SIMD_MUL(consts.onethird.p,xx),zz));
+		    xxz = SIMD_MUL(z,SIMD_SUB(xx,SIMD_MUL(consts.onethird.p,zz)));
+		    yyy = SIMD_MUL(y,SIMD_SUB(SIMD_MUL(consts.onethird.p,yy),zz));
+		    yyz = SIMD_MUL(z,SIMD_SUB(yy,SIMD_MUL(consts.onethird.p,zz)));
+		    xx = SIMD_SUB(xx,zz);
+		    yy = SIMD_SUB(yy,zz);
+		    xxy = SIMD_MUL(y,xx);
+		    xyy = SIMD_MUL(x,yy);
+		    xyz = SIMD_MUL(xy,z);
+		    /*
+		    ** Now calculate the interaction up to Hexadecapole order.
+		    */
+		    tx = SIMD_MUL(g4,SIMD_MADD(blk->xxxx.p[j],xxx,SIMD_MADD(blk->xyyy.p[j],yyy,
+				SIMD_MADD(blk->xxxy.p[j],xxy,SIMD_MADD(blk->xxxz.p[j],xxz,
+					SIMD_MADD(blk->xxyy.p[j],xyy,SIMD_MADD(blk->xxyz.p[j],xyz,SIMD_MUL(blk->xyyz.p[j],yyz))))))));
+		    ty = SIMD_MUL(g4,SIMD_MADD(blk->xyyy.p[j],xyy,SIMD_MADD(blk->xxxy.p[j],xxx,
+				SIMD_MADD(blk->yyyy.p[j],yyy,SIMD_MADD(blk->yyyz.p[j],yyz,SIMD_MADD(blk->xxyy.p[j],xxy,
+					    SIMD_MADD(blk->xxyz.p[j],xxz,SIMD_MUL(blk->xyyz.p[j],xyz))))))));
+		    tz = SIMD_MUL(g4,SIMD_NMSUB(blk->xxxx.p[j],xxz,SIMD_NMSUB(SIMD_ADD(blk->xyyy.p[j],blk->xxxy.p[j]),xyz,
+				SIMD_NMSUB(blk->yyyy.p[j],yyz,SIMD_NMSUB(blk->xxyy.p[j],SIMD_ADD(xxz,yyz),
+					SIMD_MADD(blk->xxxz.p[j],xxx,SIMD_MADD(blk->yyyz.p[j],yyy,SIMD_MADD(blk->xxyz.p[j],xxy,SIMD_MUL(blk->xyyz.p[j],xyy)))))))));
+		    g4 = SIMD_MUL(consts.onequarter.p,SIMD_MADD(tx,x,SIMD_MADD(ty,y,SIMD_MUL(tz,z))));
+		    xxx = SIMD_MUL(g3,SIMD_MADD(blk->xxx.p[j],xx,SIMD_MADD(blk->xyy.p[j],yy,
+				SIMD_MADD(blk->xxy.p[j],xy,SIMD_MADD(blk->xxz.p[j],xz,SIMD_MUL(blk->xyz.p[j],yz))))));
+		    xxy = SIMD_MUL(g3,SIMD_MADD(blk->xyy.p[j],xy,SIMD_MADD(blk->xxy.p[j],xx,SIMD_MADD(blk->yyy.p[j],yy,
+				    SIMD_MADD(blk->yyz.p[j],yz,SIMD_MUL(blk->xyz.p[j],xz))))));
+		    xxz = SIMD_MUL(g3,SIMD_NMSUB(SIMD_ADD(blk->xxx.p[j],blk->xyy.p[j]),xz,
+			    SIMD_NMSUB(SIMD_ADD(blk->xxy.p[j],blk->yyy.p[j]),yz,
+				SIMD_MADD(blk->xxz.p[j],xx,SIMD_MADD(blk->yyz.p[j],yy,SIMD_MUL(blk->xyz.p[j],xy))))));
+		    g3 = SIMD_MUL(consts.onethird.p,SIMD_MADD(xxx,x,SIMD_MADD(xxy,y,SIMD_MUL(xxz,z))));
+		    xx = SIMD_MUL(g2,SIMD_MADD(blk->xx.p[j],x,SIMD_MADD(blk->xy.p[j],y,SIMD_MUL(blk->xz.p[j],z))));
+		    xy = SIMD_MUL(g2,SIMD_MADD(blk->yy.p[j],y,SIMD_MADD(blk->xy.p[j],x,SIMD_MUL(blk->yz.p[j],z))));
+		    xz = SIMD_MUL(g2,SIMD_NMSUB(SIMD_ADD(blk->xx.p[j],blk->yy.p[j]),z,SIMD_MADD(blk->xz.p[j],x,SIMD_MUL(blk->yz.p[j],y))));
+		    g2 = SIMD_MUL(consts.half.p,SIMD_MADD(xx,x,SIMD_MADD(xy,y,SIMD_MUL(xz,z))));
+		    g0 = SIMD_MUL(g0,blk->m.p[j]);
+		    ppot = SIMD_SUB(ppot,SIMD_ADD(SIMD_ADD(g0,g2),SIMD_ADD(g3,g4)));
+		    g0 = SIMD_MADD(consts.five.p,g2,SIMD_MADD(consts.seven.p,g3,SIMD_MADD(consts.nine.p,g4,g0)));
+		    t1 = SIMD_MUL(pir,SIMD_NMSUB(x,g0,SIMD_ADD(xx,SIMD_ADD(xxx,tx))));
+		    t2 = SIMD_MUL(pir,SIMD_NMSUB(y,g0,SIMD_ADD(xy,SIMD_ADD(xxy,ty))));
+		    t3 = SIMD_MUL(pir,SIMD_NMSUB(z,g0,SIMD_ADD(xz,SIMD_ADD(xxz,tz))));
 
-		/* Time stepping criteria stuff */
-		padotai = SIMD_MADD(piaz,t3,SIMD_MADD(piay,t2,SIMD_MUL(piax,t1)));
-		vcmp = SIMD_CMP_GT(padotai,consts.zero.p);
-		padotai= SIMD_AND(padotai,vcmp);
-		padotai= SIMD_MUL(padotai,pimaga);
-		pd2 = SIMD_MUL(padotai,padotai);
-		pirsum = SIMD_MADD(pir,pd2,pirsum);
-		pnorms = SIMD_ADD(pnorms,pd2);
+		    /* Time stepping criteria stuff */
+		    padotai = SIMD_MADD(piaz,t3,SIMD_MADD(piay,t2,SIMD_MUL(piax,t1)));
+		    vcmp = SIMD_CMP_GT(padotai,consts.zero.p);
+		    padotai= SIMD_AND(padotai,vcmp);
+		    padotai= SIMD_MUL(padotai,pimaga);
+		    pd2 = SIMD_MUL(padotai,padotai);
+		    pirsum = SIMD_MADD(pir,pd2,pirsum);
+		    pnorms = SIMD_ADD(pnorms,pd2);
 
-		pax = SIMD_ADD(pax,t1);
-		pay = SIMD_ADD(pay,t2);
-		paz = SIMD_ADD(paz,t3);
+		    pax = SIMD_ADD(pax,t1);
+		    pay = SIMD_ADD(pay,t2);
+		    paz = SIMD_ADD(paz,t3);
+		    }
+		blk++;
 		}
 	    }
 
@@ -578,71 +603,76 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,FLOCR *
 	** This code MUST match the SIMD code above.
 	*/
 	ILC_LOOP(ilc,ctile) {
-	    for (j=0;j<ctile->nCell;++j) {
-		float dx = ctile->dx.f[j] + fx;
-		float dy = ctile->dy.f[j] + fy;
-		float dz = ctile->dz.f[j] + fz;
-		float d2 = dx*dx + dy*dy + dz*dz;
-		SQRT1(d2,dir);
-		u = ctile->u.f[j]*dir;
-		g0 = dir;
-		g2 = 3*dir*u*u;
-		g3 = 5*g2*u;
-		g4 = 7*g3*u;
-		/*
-		** Calculate the funky distance terms.
-		*/
-		x = dx*dir;
-		y = dy*dir;
-		z = dz*dir;
-		xx = 0.5*x*x;
-		xy = x*y;
-		xz = x*z;
-		yy = 0.5*y*y;
-		yz = y*z;
-		zz = 0.5*z*z;
-		xxx = x*(onethird*xx - zz);
-		xxz = z*(xx - onethird*zz);
-		yyy = y*(onethird*yy - zz);
-		yyz = z*(yy - onethird*zz);
-		xx -= zz;
-		yy -= zz;
-		xxy = y*xx;
-		xyy = x*yy;
-		xyz = xy*z;
-		/*
-		** Now calculate the interaction up to Hexadecapole order.
-		*/
-		tx = g4*(ctile->xxxx.f[j]*xxx + ctile->xyyy.f[j]*yyy + ctile->xxxy.f[j]*xxy + ctile->xxxz.f[j]*xxz + ctile->xxyy.f[j]*xyy + ctile->xxyz.f[j]*xyz + ctile->xyyz.f[j]*yyz);
-		ty = g4*(ctile->xyyy.f[j]*xyy + ctile->xxxy.f[j]*xxx + ctile->yyyy.f[j]*yyy + ctile->yyyz.f[j]*yyz + ctile->xxyy.f[j]*xxy + ctile->xxyz.f[j]*xxz + ctile->xyyz.f[j]*xyz);
-		tz = g4*(-ctile->xxxx.f[j]*xxz - (ctile->xyyy.f[j] + ctile->xxxy.f[j])*xyz - ctile->yyyy.f[j]*yyz + ctile->xxxz.f[j]*xxx + ctile->yyyz.f[j]*yyy - ctile->xxyy.f[j]*(xxz + yyz) + ctile->xxyz.f[j]*xxy + ctile->xyyz.f[j]*xyy);
-		g4 = 0.25*(tx*x + ty*y + tz*z);
-		xxx = g3*(ctile->xxx.f[j]*xx + ctile->xyy.f[j]*yy + ctile->xxy.f[j]*xy + ctile->xxz.f[j]*xz + ctile->xyz.f[j]*yz);
-		xxy = g3*(ctile->xyy.f[j]*xy + ctile->xxy.f[j]*xx + ctile->yyy.f[j]*yy + ctile->yyz.f[j]*yz + ctile->xyz.f[j]*xz);
-		xxz = g3*(-(ctile->xxx.f[j] + ctile->xyy.f[j])*xz - (ctile->xxy.f[j] + ctile->yyy.f[j])*yz + ctile->xxz.f[j]*xx + ctile->yyz.f[j]*yy + ctile->xyz.f[j]*xy);
-		g3 = onethird*(xxx*x + xxy*y + xxz*z);
-		xx = g2*(ctile->xx.f[j]*x + ctile->xy.f[j]*y + ctile->xz.f[j]*z);
-		xy = g2*(ctile->yy.f[j]*y + ctile->xy.f[j]*x + ctile->yz.f[j]*z);
-		xz = g2*(-(ctile->xx.f[j] + ctile->yy.f[j])*z + ctile->xz.f[j]*x + ctile->yz.f[j]*y);
-		g2 = 0.5*(xx*x + xy*y + xz*z);
-		g0 *= ctile->m.f[j];
-		fPot -= g0 + g2 + g3 + g4;
-		g0 += 5*g2 + 7*g3 + 9*g4;
-		tax = dir*(xx + xxx + tx - x*g0);
-		tay = dir*(xy + xxy + ty - y*g0);
-		taz = dir*(xz + xxz + tz - z*g0);
-		/*
-		** Calculations for determining the timestep.
-		*/
-		adotai = pInfoIn[i].a[0]*tax + pInfoIn[i].a[1]*tay + pInfoIn[i].a[2]*taz;
-		if (adotai > 0) {
-		    adotai *= dimaga;
-		    dirsum += dir*adotai*adotai;
-		    normsum += adotai*adotai;
+	    blk = ctile->blk;
+	    for( nLeft=ctile->lstTile.nBlocks; nLeft >= 0; --nLeft ) {
+		n = (nLeft ? ilc->lst.nPerBlock : ctile->lstTile.nInLast);
+		for (j=0; j<n; ++j) {
+		    float dx = blk->dx.f[j] + fx;
+		    float dy = blk->dy.f[j] + fy;
+		    float dz = blk->dz.f[j] + fz;
+		    float d2 = dx*dx + dy*dy + dz*dz;
+		    SQRT1(d2,dir);
+		    u = blk->u.f[j]*dir;
+		    g0 = dir;
+		    g2 = 3*dir*u*u;
+		    g3 = 5*g2*u;
+		    g4 = 7*g3*u;
+		    /*
+		    ** Calculate the funky distance terms.
+		    */
+		    x = dx*dir;
+		    y = dy*dir;
+		    z = dz*dir;
+		    xx = 0.5*x*x;
+		    xy = x*y;
+		    xz = x*z;
+		    yy = 0.5*y*y;
+		    yz = y*z;
+		    zz = 0.5*z*z;
+		    xxx = x*(onethird*xx - zz);
+		    xxz = z*(xx - onethird*zz);
+		    yyy = y*(onethird*yy - zz);
+		    yyz = z*(yy - onethird*zz);
+		    xx -= zz;
+		    yy -= zz;
+		    xxy = y*xx;
+		    xyy = x*yy;
+		    xyz = xy*z;
+		    /*
+		    ** Now calculate the interaction up to Hexadecapole order.
+		    */
+		    tx = g4*(blk->xxxx.f[j]*xxx + blk->xyyy.f[j]*yyy + blk->xxxy.f[j]*xxy + blk->xxxz.f[j]*xxz + blk->xxyy.f[j]*xyy + blk->xxyz.f[j]*xyz + blk->xyyz.f[j]*yyz);
+		    ty = g4*(blk->xyyy.f[j]*xyy + blk->xxxy.f[j]*xxx + blk->yyyy.f[j]*yyy + blk->yyyz.f[j]*yyz + blk->xxyy.f[j]*xxy + blk->xxyz.f[j]*xxz + blk->xyyz.f[j]*xyz);
+		    tz = g4*(-blk->xxxx.f[j]*xxz - (blk->xyyy.f[j] + blk->xxxy.f[j])*xyz - blk->yyyy.f[j]*yyz + blk->xxxz.f[j]*xxx + blk->yyyz.f[j]*yyy - blk->xxyy.f[j]*(xxz + yyz) + blk->xxyz.f[j]*xxy + blk->xyyz.f[j]*xyy);
+		    g4 = 0.25*(tx*x + ty*y + tz*z);
+		    xxx = g3*(blk->xxx.f[j]*xx + blk->xyy.f[j]*yy + blk->xxy.f[j]*xy + blk->xxz.f[j]*xz + blk->xyz.f[j]*yz);
+		    xxy = g3*(blk->xyy.f[j]*xy + blk->xxy.f[j]*xx + blk->yyy.f[j]*yy + blk->yyz.f[j]*yz + blk->xyz.f[j]*xz);
+		    xxz = g3*(-(blk->xxx.f[j] + blk->xyy.f[j])*xz - (blk->xxy.f[j] + blk->yyy.f[j])*yz + blk->xxz.f[j]*xx + blk->yyz.f[j]*yy + blk->xyz.f[j]*xy);
+		    g3 = onethird*(xxx*x + xxy*y + xxz*z);
+		    xx = g2*(blk->xx.f[j]*x + blk->xy.f[j]*y + blk->xz.f[j]*z);
+		    xy = g2*(blk->yy.f[j]*y + blk->xy.f[j]*x + blk->yz.f[j]*z);
+		    xz = g2*(-(blk->xx.f[j] + blk->yy.f[j])*z + blk->xz.f[j]*x + blk->yz.f[j]*y);
+		    g2 = 0.5*(xx*x + xy*y + xz*z);
+		    g0 *= blk->m.f[j];
+		    fPot -= g0 + g2 + g3 + g4;
+		    g0 += 5*g2 + 7*g3 + 9*g4;
+		    tax = dir*(xx + xxx + tx - x*g0);
+		    tay = dir*(xy + xxy + ty - y*g0);
+		    taz = dir*(xz + xxz + tz - z*g0);
+		    /*
+		    ** Calculations for determining the timestep.
+		    */
+		    adotai = pInfoIn[i].a[0]*tax + pInfoIn[i].a[1]*tay + pInfoIn[i].a[2]*taz;
+		    if (adotai > 0) {
+			adotai *= dimaga;
+			dirsum += dir*adotai*adotai;
+			normsum += adotai*adotai;
+			}
+		    ax += tax;
+		    ay += tay;
+		    az += taz;
 		    }
-		ax += tax;
-		ay += tay;
-		az += taz;
+		blk++;
 		}
 	    } /* end of cell list gravity loop */
 
@@ -708,48 +738,50 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,FLOCR *
 	      ** 0: Mean field regime for dynamical time (normal/standard setting)
 	      ** 1: Gravitational scattering regime for dynamical time with eccentricity correction
 	      */
-	      rhopmax = 0.0;
-	      ILP_LOOP(ilp,tile) {
-		for (j=0;j<tile->nPart;++j) {
-		  int blk = j / ILP_PART_PER_BLK;
-		  int prt = j - blk * ILP_PART_PER_BLK;
-		  if (p->iOrder < pkd->param.nPartColl || tile->iOrder.i[j] < pkd->param.nPartColl) {
-		    fx = p->r[0] - ilp->cx + tile->blk[blk].dx.f[prt];
-		    fy = p->r[1] - ilp->cy + tile->blk[blk].dy.f[prt];
-		    fz = p->r[2] - ilp->cz + tile->blk[blk].dz.f[prt];
-		    d2 = fx*fx + fy*fy + fz*fz;
-		    fourh2 = softmassweight(fMass,4*fSoft*fSoft,
-					tile->blk[blk].m.f[prt],tile->blk[blk].fourh2.f[prt]);
-		    if (d2 > fourh2) {
-		      SQRT1(d2,dir);
-		      dir2 = dir*dir*dir;
+		rhopmax = 0.0;
+		ILP_LOOP(ilp,tile) {
+		    int blk,prt;
+		    for( blk=0; blk<=tile->lstTile.nBlocks; ++blk ) {
+			n = (blk==tile->lstTile.nBlocks ? tile->lstTile.nInLast : ilp->lst.nPerBlock);
+			for (prt=0; prt<n; ++prt) {
+			    if (p->iOrder < pkd->param.nPartColl || tile->xtr[blk].iOrder.i[prt] < pkd->param.nPartColl) {
+				fx = p->r[0] - ilp->cx + tile->blk[blk].dx.f[prt];
+				fy = p->r[1] - ilp->cy + tile->blk[blk].dy.f[prt];
+				fz = p->r[2] - ilp->cz + tile->blk[blk].dz.f[prt];
+				d2 = fx*fx + fy*fy + fz*fz;
+				fourh2 = softmassweight(fMass,4*fSoft*fSoft,
+				    tile->blk[blk].m.f[prt],tile->blk[blk].fourh2.f[prt]);
+				if (d2 > fourh2) {
+				    SQRT1(d2,dir);
+				    dir2 = dir*dir*dir;
+				    }
+				else {
+				    /*
+				    ** This uses the Dehnen K1 kernel function now, it's fast!
+				    */
+				    SQRT1(fourh2,dir);
+				    dir2 = dir*dir;
+				    d2 *= dir2;
+				    dir2 *= dir;
+				    d2 = 1 - d2;
+				    dir *= 1.0 + d2*(0.5 + d2*(3.0/8.0 + d2*(45.0/32.0)));
+				    dir2 *= 1.0 + d2*(1.5 + d2*(135.0/16.0));
+				    }
+				summ = fMass+tile->blk[blk].m.f[prt];
+				rhopmaxlocal = summ*dir2;
+				vx = v[0] - tile->xtr[blk].vx.f[prt];
+				vy = v[1] - tile->xtr[blk].vy.f[prt];
+				vz = v[2] - tile->xtr[blk].vz.f[prt];
+				rhopmaxlocal = pkdRho1(rhopmaxlocal,summ,dir,
+				    tile->blk[blk].dx.f[prt],tile->blk[blk].dy.f[prt],tile->blk[blk].dz.f[prt],
+				    vx,vy,vz,pkd->param.dEccFacMax);
+				rhopmax = (rhopmaxlocal > rhopmax)?rhopmaxlocal:rhopmax;
+				}
+			    }
+			}
 		    }
-		    else {
-		      /*
-		      ** This uses the Dehnen K1 kernel function now, it's fast!
-		      */
-		      SQRT1(fourh2,dir);
-		      dir2 = dir*dir;
-		      d2 *= dir2;
-		      dir2 *= dir;
-		      d2 = 1 - d2;
-		      dir *= 1.0 + d2*(0.5 + d2*(3.0/8.0 + d2*(45.0/32.0)));
-		      dir2 *= 1.0 + d2*(1.5 + d2*(135.0/16.0));
-		    }
-		    summ = fMass+tile->blk[blk].m.f[prt];
-		    rhopmaxlocal = summ*dir2;
-		    vx = v[0] - tile->vx.f[j];
-		    vy = v[1] - tile->vy.f[j];
-		    vz = v[2] - tile->vz.f[j];
-		    rhopmaxlocal = pkdRho1(rhopmaxlocal,summ,dir,
-			tile->blk[blk].dx.f[prt],tile->blk[blk].dy.f[prt],tile->blk[blk].dz.f[prt],
-			vx,vy,vz,pkd->param.dEccFacMax);
-		    rhopmax = (rhopmaxlocal > rhopmax)?rhopmaxlocal:rhopmax;
-		  }
+		dtGrav = (rhopmax > dtGrav?rhopmax:dtGrav);
 		}
-	      }
-	      dtGrav = (rhopmax > dtGrav?rhopmax:dtGrav);
-	    }
 	    if (dtGrav > 0.0) {
 		dT = pkd->param.dEta/sqrt(dtGrav*dRhoFac);
 		p->uNewRung = pkdDtToRung(dT,pkd->param.dDelta,pkd->param.iMaxRung-1);

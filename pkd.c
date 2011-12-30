@@ -544,7 +544,9 @@ void pkdInitialize(
     ** Allocate Checklist.
     */
 #ifdef LOCAL_EXPANSION
-    pkd->clFreeList = NULL;
+    pkd->clFreeList.list = NULL;
+    pkd->clFreeList.nRefs = 0;
+    pkd->clFreeList.nTiles = 0;
     clInitialize(&pkd->cl,&pkd->clFreeList);
     clInitialize(&pkd->clNew,&pkd->clFreeList);
 #else
@@ -681,12 +683,7 @@ size_t pkdClCount(PKD pkd) {
     }
 
 size_t pkdClMemory(PKD pkd) {
-    size_t nBytes = clMemory(pkd->cl);
-    int i;
-    for(i=0; i<pkd->nMaxStack; ++i)
-	nBytes += clMemory(pkd->S[i].cl);
-    nBytes += clFreeListMemory(pkd->cl);
-    return nBytes;
+    return clMemory(pkd->cl);
     }
 
 size_t pkdIlpMemory(PKD pkd) {

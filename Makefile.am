@@ -53,8 +53,8 @@ noinst_HEADERS += ssio.h collision.h kepler.h
 endif
 if LOCAL_EXPANSION
 SOURCES += grav2.c walk2.c
-SOURCES += ilp.c ilc.c cl.c
-noinst_HEADERS += ilp.h ilc.h cl.h
+SOURCES += lst.c ilp.c ilc.c cl.c
+noinst_HEADERS += lst.h ilp.h ilc.h cl.h
 if USE_SIMD
 AM_CFLAGS = @SIMD_CFLAGS@
 noinst_HEADERS += simd.h

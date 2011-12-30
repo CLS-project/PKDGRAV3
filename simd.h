@@ -6,6 +6,7 @@
 #endif
 
 #ifdef USE_SIMD
+#include <stdint.h>
 
 #ifdef __AVX__
 #define SIMD_BITS 3
