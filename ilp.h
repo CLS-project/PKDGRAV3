@@ -70,7 +70,7 @@ void ilpFinish(ILP ilp);
 
 static inline void ilpAppendFloat(ILP ilp, float X, float Y, float Z, float M, float S,
     uint64_t I, float VX, float VY, float VZ ) {
-    ILPTILE tile = lstReposition(&ilp->lst);
+    ILPTILE tile = (ILPTILE)lstReposition(&ilp->lst);
     uint_fast32_t blk = tile->lstTile.nBlocks;
     uint_fast32_t prt = tile->lstTile.nInLast;
     tile->blk[blk].dx.f[prt] = (X);

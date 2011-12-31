@@ -114,7 +114,7 @@ static void workDone(workParticle *work) {
     }
 
 
-int doWorkPP(void *vpp) {
+int CPUdoWorkPP(void *vpp) {
     workPP *pp = vpp;
     int nLeft, n;
     int j;
@@ -126,9 +126,10 @@ int doWorkPP(void *vpp) {
     v4sf ppot, pmass, p4soft2;
     v4sf padotai,pimaga,psmooth2,pirsum,pnorms;
 #else
-    float d2,dx,dy,dz,fourh2,dir,dir2,tax,tay,taz,adotai;
+    float d2,dx,dy,dz,fourh2,dir,dir2,adotai;
     int nSoft;
 #endif
+    float tax,tay,taz;
     float dimaga;
 
     int i = pp->i;
@@ -161,8 +162,8 @@ int doWorkPP(void *vpp) {
     ** forces are zero. Setting the distance to a large value avoids
     ** softening the non-existent forces which is slightly faster.
     */
-    n = tile->lstTile.nBlocks;
-    j = tile->lstTile.nInLast;
+    n = pp->nBlocks;
+    j = pp->nInLast;
     for( blk=tile->blk+n; j&SIMD_MASK; j++) {
 	blk->dx.f[j] = blk->dy.f[j] = blk->dz.f[j] = 1e18f;
 	blk->m.f[j] = 0.0f;
@@ -173,9 +174,9 @@ int doWorkPP(void *vpp) {
     ** The list sets mass to zero for unused entries which results
     ** in zero forces. Be careful if that is changed.
     */
-    pax = SIMD_LOADS(*ax);
-    pay = SIMD_LOADS(*ay);
-    paz = SIMD_LOADS(*az);
+    pax = consts.zero.p;
+    pay = consts.zero.p;
+    paz = consts.zero.p;
     ppot= SIMD_LOADS(*fPot);
     pirsum = SIMD_LOADS(*dirsum);
     pnorms = SIMD_LOADS(*normsum);
@@ -191,8 +192,8 @@ int doWorkPP(void *vpp) {
     psmooth2= SIMD_SPLAT(fsmooth2);
 
     blk = tile->blk;
-    for( nLeft=tile->lstTile.nBlocks; nLeft >= 0; --nLeft,++blk ) {
-	n = ((nLeft ? ILP_PART_PER_BLK : tile->lstTile.nInLast) + SIMD_MASK) >> SIMD_BITS;
+    for( nLeft=pp->nBlocks; nLeft >= 0; --nLeft,++blk ) {
+	n = ((nLeft ? ILP_PART_PER_BLK : pp->nInLast) + SIMD_MASK) >> SIMD_BITS;
 	for (j=0; j<n; ++j) {
 	    v4sf pfourh2, td2, pir, pir2;
 	    v4bool vcmp;
@@ -260,9 +261,9 @@ int doWorkPP(void *vpp) {
 	    paz = SIMD_ADD(paz,t3);
 	    }
 	}
-    *ax = SIMD_HADD(pax);
-    *ay = SIMD_HADD(pay);
-    *az = SIMD_HADD(paz);
+    *ax += tax = SIMD_HADD(pax);
+    *ay += tay = SIMD_HADD(pay);
+    *az += taz = SIMD_HADD(paz);
     *fPot = SIMD_HADD(ppot);
     *dirsum = SIMD_HADD(pirsum);
     *normsum = SIMD_HADD(pnorms);
@@ -273,8 +274,8 @@ int doWorkPP(void *vpp) {
     */
 
     blk = tile->blk;
-    for( nLeft=tile->lstTile.nBlocks; nLeft >= 0; --nLeft,++blk ) {
-	n = (nLeft ? ilp->lst.nPerBlock : tile->lstTile.nInLast);
+    for( nLeft=pp->nBlocks; nLeft >= 0; --nLeft,++blk ) {
+	n = (nLeft ? ilp->lst.nPerBlock : pp->nInLast);
 	for (j=0; j<n; ++j) {
 	    dx = fx + blk->dx.f[j];
 	    dy = fy + blk->dy.f[j];
@@ -321,6 +322,7 @@ int doWorkPP(void *vpp) {
 	}
 #endif
     if ( ++pp->i == pp->work->nP ) {
+	lstFreeTile(&pp->ilp->lst,&pp->tile->lstTile);
 	workDone(pp->work);
 	free(pp);
 	return 0;
@@ -328,7 +330,7 @@ int doWorkPP(void *vpp) {
     else return 1;
     }
 
-static void queuePP( PKD pkd, workParticle *work, ILP ilp ) {
+static void queuePP( PKD pkd, workParticle *work, ILP ilp, int (*doPP)(void *) ) {
     int i;
     ILPTILE tile;
     int nP = work->nP;
@@ -340,10 +342,14 @@ static void queuePP( PKD pkd, workParticle *work, ILP ilp ) {
 	pp = malloc(sizeof(workPP));
 	assert(pp!=NULL);
 	pp->work = work;
+	pp->ilp = ilp;
 	pp->tile = tile;
+	pp->nBlocks = tile->lstTile.nBlocks;
+	pp->nInLast = tile->lstTile.nInLast;
 	pp->i = 0;
+	tile->lstTile.nRefs++;
 	work->nRefs++;
-	mdlAddWork(pkd->mdl,doWorkPP,pp);
+	mdlAddWork(pkd->mdl,doPP,pp);
 	}
     }
 
@@ -367,11 +373,12 @@ int doWorkPC(void *vpc) {
     const float onethird = 1.0f/3.0f;
     float u,g0,g2,g3,g4;
     float x,y,z;
-    float tax,tay,taz,adotai;
+    float adotai;
     float tx,ty,tz;
     float xx,xy,xz,yy,yz,zz;
     float xxx,xxz,yyy,yyz,xxy,xyy,xyz;
 #endif
+    float tax, tay, taz;
     ILC_BLK *blk;
     int j, n, nLeft;
 
@@ -392,9 +399,9 @@ int doWorkPC(void *vpc) {
     float *normsum = &pc->work->pInfoOut[i].normsum;
 
 #if defined(USE_SIMD_PC)
-    pax = SIMD_LOADS(*ax);
-    pay = SIMD_LOADS(*ay);
-    paz = SIMD_LOADS(*az);
+    pax = consts.zero.p;
+    pay = consts.zero.p;
+    paz = consts.zero.p;
     ppot= SIMD_LOADS(*fPot);
     pirsum = SIMD_LOADS(*dirsum);
     pnorms = SIMD_LOADS(*normsum);
@@ -409,8 +416,8 @@ int doWorkPC(void *vpc) {
 
 
     /* Pad the last value if necessary */
-    n = ctile->lstTile.nBlocks;
-    j = ctile->lstTile.nInLast;
+    n = pc->nBlocks;
+    j = pc->nInLast;
     for( blk=ctile->blk+n; j&SIMD_MASK; j++) {
 	blk->dx.f[j] = blk->dy.f[j] = blk->dz.f[j] = 1e18f;
 	blk->m.f[j] = 0.0f;
@@ -418,8 +425,8 @@ int doWorkPC(void *vpc) {
 	}
 
     blk = ctile->blk;
-    for( nLeft=ctile->lstTile.nBlocks; nLeft >= 0; --nLeft,++blk ) {
-	n = ((nLeft ? ILC_PART_PER_BLK : ctile->lstTile.nInLast) + SIMD_MASK) >> SIMD_BITS;
+    for( nLeft=pc->nBlocks; nLeft >= 0; --nLeft,++blk ) {
+	n = ((nLeft ? ILC_PART_PER_BLK : pc->nInLast) + SIMD_MASK) >> SIMD_BITS;
 	for (j=0; j<n; ++j) {
 	    v4sf pir, pd2;
 	    v4bool vcmp;
@@ -500,9 +507,9 @@ int doWorkPC(void *vpc) {
 	    paz = SIMD_ADD(paz,t3);
 	    }
 	}
-    *ax = SIMD_HADD(pax);
-    *ay = SIMD_HADD(pay);
-    *az = SIMD_HADD(paz);
+    *ax += tax = SIMD_HADD(pax);
+    *ay += tay = SIMD_HADD(pay);
+    *az += taz = SIMD_HADD(paz);
     *fPot = SIMD_HADD(ppot);
     *dirsum = SIMD_HADD(pirsum);
     *normsum = SIMD_HADD(pnorms);
@@ -512,8 +519,8 @@ int doWorkPC(void *vpc) {
 ** This code MUST match the SIMD code above.
 */
     blk = ctile->blk;
-    for( nLeft=ctile->lstTile.nBlocks; nLeft >= 0; --nLeft,++blk ) {
-	n = (nLeft ? ilc->lst.nPerBlock : ctile->lstTile.nInLast);
+    for( nLeft=pc->nBlocks; nLeft >= 0; --nLeft,++blk ) {
+	n = (nLeft ? ilc->lst.nPerBlock : pc->nInLast);
 	for (j=0; j<n; ++j) {
 	    float dx = blk->dx.f[j] + fx;
 	    float dy = blk->dy.f[j] + fy;
@@ -582,8 +589,8 @@ int doWorkPC(void *vpc) {
 	    }
 	}
 #endif
-
     if ( ++pc->i == pc->work->nP ) {
+	lstFreeTile(&pc->ilc->lst,&pc->tile->lstTile);
 	workDone(pc->work);
 	free(pc);
 	return 0;
@@ -603,8 +610,12 @@ static void queuePC( PKD pkd,  workParticle *work, ILC ilc ) {
 	pc = malloc(sizeof(workPC));
 	assert(pc!=NULL);
 	pc->work = work;
+	pc->ilc = ilc;
 	pc->tile = tile;
+	pc->nBlocks = tile->lstTile.nBlocks;
+	pc->nInLast = tile->lstTile.nInLast;
 	pc->i = 0;
+	tile->lstTile.nRefs++;
 	work->nRefs++;
 	mdlAddWork(pkd->mdl,doWorkPC,pc);
 	}
@@ -740,9 +751,9 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,FLOCR *
     ** Evaluate the P-P interactions
     */
 #ifdef USE_CUDA
-    pkdGravCudaPP( pkd, pkd->cudaCtx, nP, pInfoIn, pInfoOut, ilp );
+    queuePP( pkd, work, ilp, CUDAdoWorkPP );
 #else
-    queuePP( pkd, work, ilp );
+    queuePP( pkd, work, ilp, CPUdoWorkPP );
 #endif
 
     /*
@@ -811,9 +822,6 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,FLOCR *
 			    vx = v[0] - tile->xtr[blk].vx.f[prt];
 			    vy = v[1] - tile->xtr[blk].vy.f[prt];
 			    vz = v[2] - tile->xtr[blk].vz.f[prt];
-
-
-
 			    rhopmaxlocal = pkdRho1(rhopmaxlocal,summ,dir,
 				tile->blk[blk].dx.f[prt],tile->blk[blk].dy.f[prt],tile->blk[blk].dz.f[prt],
 				vx,vy,vz,pkd->param.dEccFacMax);

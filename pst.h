@@ -257,6 +257,7 @@ struct inReadFile {
     int nDomainRungs;
     //int nFiles;
     int iCacheSize;
+    int iWorkQueueSize;
     int nProcessors;
     //uint8_t bStandard;
     //uint8_t bDoublePos;

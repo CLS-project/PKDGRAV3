@@ -46,7 +46,6 @@ typedef struct lstContext {
     } LST;
 
 typedef struct {
-    LSTTILE *tile;
     uint16_t nBlocks;
     uint16_t nInLast;
     uint32_t nPrevious;
@@ -60,6 +59,7 @@ size_t lstMemory(LST *lst);
 void lstCheckPt(LST *lst,LSTCHECKPT *cp);
 void lstRestore(LST *lst,LSTCHECKPT *cp);
 void lstClone(LST *dst,LST *src);
+LSTTILE *lstSplit(LST *lst);
 
 void lstClear(LST *lst);
 void *lstExtend(LST * lst);
@@ -70,10 +70,11 @@ static inline uint32_t lstCount(LST *lst) {
 
 static inline void *lstReposition(LST *lst) {
     register LSTTILE *tile = lst->tile;
+    if (tile->nRefs > 1) tile=lstSplit(lst);
     if (tile->nInLast == lst->nPerBlock ) {
 	if ( ++tile->nBlocks == lst->nBlocksPerTile ) {
 	    --tile->nBlocks;
-	    tile = lstExtend(lst);
+	    tile = (LSTTILE *)lstExtend(lst);
 	    }
 	else tile->nInLast = 0;
 	}

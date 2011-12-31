@@ -831,15 +831,21 @@ typedef struct {
     } workParticle;
 
 typedef struct {
+    ILP ilp;
     ILPTILE tile;
     workParticle *work;
     int i;
+    uint16_t nBlocks;
+    uint16_t nInLast;
     } workPP;
 
 typedef struct {
+    ILC ilc;
     ILCTILE tile;
     workParticle *work;
     int i;
+    uint16_t nBlocks;
+    uint16_t nInLast;
     } workPC;
 
 static inline void pkdMinMax( double *dVal, double *dMin, double *dMax ) {
@@ -1141,7 +1147,7 @@ void pkdStartTimer(PKD,int);
 void pkdStopTimer(PKD,int);
 void pkdInitialize(
     PKD *ppkd,MDL mdl,int nStore,int nBucket,int nTreeBitsLo, int nTreeBitsHi,
-    int iCacheSize,FLOAT *fPeriod,uint64_t nDark,uint64_t nGas,uint64_t nStar,
+    int iCacheSize,int iWorkQueueSize,FLOAT *fPeriod,uint64_t nDark,uint64_t nGas,uint64_t nStar,
     uint64_t mMemoryModel, int nDomainRungs);
 void pkdFinish(PKD);
 size_t pkdClCount(PKD pkd);
@@ -1370,7 +1376,7 @@ extern "C" {
     void pkdGravCudaPPFree(void *cudaCtx);
     ILP_BLK * pkdGravCudaPPAllocateBlk();
     void pkdGravCudaPPFreeBlk(ILP_BLK *blk);
-    extern void pkdGravCudaPP(PKD pkd, void *cudaCtx, int nP, PARTICLE **pPart, PINFOIN *pInfoIn, ILP ilp );
+    extern int CUDAdoWorkPP( void *vpp );
 #ifdef __cplusplus
 }
 #endif

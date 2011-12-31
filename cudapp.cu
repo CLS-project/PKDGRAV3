@@ -128,7 +128,7 @@ __global__ void cudaPP( int nP, PINFOIN *in, int nPart, ILP_BLK *blk, PINFOOUT *
             out[blockIdx.y+nP*blockIdx.x].a[0] = ax[0];
             out[blockIdx.y+nP*blockIdx.x].a[1] = ay[0];
             out[blockIdx.y+nP*blockIdx.x].a[2] = az[0];
-            out[blockIdx.y+nP*blockIdx.x].p    = fPot[0];
+            out[blockIdx.y+nP*blockIdx.x].fPot = fPot[0];
             }
         }
     }
@@ -170,47 +170,49 @@ extern "C" void pkdGravCudaPPFree(void *cudaCtx) {
     }
 
 extern "C"
-    void pkdGravCudaPP( PKD pkd, void *cudaCtx, int nP, PARTICLE **pPart, PINFOIN *pInfoIn, ILP ilp ) {
-    PKDCUDA *ctx = reinterpret_cast<PKDCUDA *>(cudaCtx);
+int CUDAdoWorkPP( void *vpp ) {
+    workPP *pp = reinterpret_cast<workPP *>(vpp);
+    int nP = pp->work->nP;
+    PINFOIN *pInfoIn = pp->work->pInfoIn;
+    PINFOOUT *pInfoOut = pp->work->pInfoOut;
+    PKDCUDA *ctx = pp->work->pkd->cudaCtx;
     int i, j;
     ILPTILE tile;
 
-//    printf( "ilp->first=%p ilp->first->blk=%p\n", ilp->first, ilp->first->blk);
-
-
-    // Copy the particles
+    /*
+    ** The particles need only be copied once
+    */
     memcpy(ctx->pInfo,pInfoIn,sizeof(PINFOIN)*nP);
     cudaMemcpyAsync(ctx->g_in, ctx->pInfo, sizeof(PINFOIN)*nP, cudaMemcpyHostToDevice, ctx->stream);
-//    cudaMemcpyAsync(ctx->g_in, pInfoIn, sizeof(PINFOIN)*nP, cudaMemcpyHostToDevice, ctx->stream);
-
+    //cudaMemcpyAsync(ctx->g_in, pInfoIn, sizeof(PINFOIN)*nP, cudaMemcpyHostToDevice, ctx->stream);
     //cudaMemcpyToSymbol(in, pInfoIn, sizeof(PINFOIN)*nP);
 
-	ILP_LOOP(ilp,tile) {
-        // cuda global arrays
-        int threads = ILP_PART_PER_BLK;
-        dim3 numBlocks((tile->nPart + threads - 1) / threads, nP);
-        int bytes = sizeof(ILP_BLK) * (numBlocks.x);
 
-        // copy data directly to device memory
-        cudaMemcpyAsync(ctx->g_blk, tile->blk, bytes, cudaMemcpyHostToDevice, ctx->stream);
-        cudaPP<<<numBlocks, threads, 0, ctx->stream>>>( nP, ctx->g_in, tile->nPart, ctx->g_blk, ctx->g_out);
+    // cuda global arrays
+    int threads = ILP_PART_PER_BLK;
+    dim3 numBlocks((tile->nPart + threads - 1) / threads, nP);
+    int bytes = sizeof(ILP_BLK) * (numBlocks.x);
+
+    // copy data directly to device memory
+    cudaMemcpyAsync(ctx->g_blk, tile->blk, bytes, cudaMemcpyHostToDevice, ctx->stream);
+    cudaPP<<<numBlocks, threads, 0, ctx->stream>>>( nP, ctx->g_in, tile->nPart, ctx->g_blk, ctx->g_out);
 
 //        ILP_BLK *in;
 //        cudaHostGetDevicePointer(&in, tile->blk, 0);
 //        cudaPP<<<numBlocks, threads, 0, ctx->stream>>>( nP, ctx->g_in, tile->nPart, in, ctx->g_out);
 
-        cudaMemcpyAsync(ctx->aout, ctx->g_out, nP*numBlocks.x*sizeof(PINFOOUT), cudaMemcpyDeviceToHost, ctx->stream);
+    cudaMemcpyAsync(ctx->aout, ctx->g_out, nP*numBlocks.x*sizeof(PINFOOUT), cudaMemcpyDeviceToHost, ctx->stream);
 
-        cudaStreamSynchronize(ctx->stream);
-#if 1
-        for( j=0; j<nP; j++ ) {
-            float *a = pkdAccel(pkd,pPart[j]);
-            for( i=0; i<numBlocks.x; i++) {
-                a[0] += ctx->aout[j+nP*i].a[0];
-                a[1] += ctx->aout[j+nP*i].a[1];
-                a[2] += ctx->aout[j+nP*i].a[2];
-                }
+    cudaStreamSynchronize(ctx->stream);
+    for( j=0; j<nP; j++ ) {
+        float *a = pkdAccel(pkd,pPart[j]);
+        for( i=0; i<numBlocks.x; i++) {
+            pp->work->pInfoOut[i].a[0] += ctx->aout[j+nP*i].a[0];
+            pp->work->pInfoOut[i].a[1] += ctx->aout[j+nP*i].a[1];
+            pp->work->pInfoOut[i].a[2] += ctx->aout[j+nP*i].a[2];
+            pp->work->pInfoOut[i].fPot += ctx->aout[j+nP*i].fPot;
             }
-#endif
-	    }
+        }
+
+    return 0;
     }

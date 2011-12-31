@@ -266,7 +266,7 @@ void pkdAllocateTopTree(PKD pkd,int nCell) {
 
 void pkdInitialize(
     PKD *ppkd,MDL mdl,int nStore,int nBucket,int nTreeBitsLo, int nTreeBitsHi,
-    int iCacheSize,FLOAT *fPeriod,uint64_t nDark,uint64_t nGas,uint64_t nStar,
+    int iCacheSize,int iWorkQueueSize,FLOAT *fPeriod,uint64_t nDark,uint64_t nGas,uint64_t nStar,
     uint64_t mMemoryModel, int nDomainRungs) {
     PKD pkd;
     PARTICLE *p;
@@ -469,6 +469,7 @@ void pkdInitialize(
 #ifdef MDL_CACHE_SIZE
     if ( iCacheSize > 0 ) mdlSetCacheSize(pkd->mdl,iCacheSize);
 #endif
+    if ( iWorkQueueSize > 0 ) mdlSetWorkQueueSize(pkd->mdl,iWorkQueueSize);
     /*
     ** Initialize neighbor list pointer to NULL if present.
     */

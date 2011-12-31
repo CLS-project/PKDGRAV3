@@ -83,7 +83,7 @@ static inline void clAppendAll(CL cl,int iCell, int id,int iLower,int nc,
     float cOpen,float m,float fourh2,float x, float y, float z,
     float xOffset,float yOffset,float zOffset,float xCenter,float yCenter,float zCenter,
     float xMax,float yMax,float zMax,int iOpen) {
-    CLTILE tile = lstReposition(&cl->lst);
+    CLTILE tile = (CLTILE)lstReposition(&cl->lst);
     uint_fast32_t blk = tile->lstTile.nBlocks;
     uint_fast32_t prt = tile->lstTile.nInLast;
     tile->blk[blk].iOpen.i[prt] = iOpen;

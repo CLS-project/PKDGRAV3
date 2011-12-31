@@ -319,7 +319,9 @@ void mdlFFT( MDL mdl, MDLFFT fft, fftw_real *data, int bInverse );
 #define mdlFFTkIdx(fft,x,y,z) mdlGridIdx((fft)->kgrid,x,z,y)
 #endif
 
+void mdlSetWorkQueueSize(MDL,int);
 void mdlAddWork(MDL mdl, int (*doWork)(void *ctx), void *ctx);
+void mdlCompleteWork(MDL mdl);
 
 #ifdef __cplusplus
     }

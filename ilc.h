@@ -68,7 +68,7 @@ void ilcFinish(ILC ilc);
 ** The X, Y and Z coordinates must already be relative to cx, cy and cz!
 */
 static inline void ilcAppendFloat(ILC ilc,float X,float Y,float Z,FMOMR *M,float U,float VX,float VY,float VZ) {
-    ILCTILE tile = lstReposition(&ilc->lst);
+    ILCTILE tile = (ILCTILE)lstReposition(&ilc->lst);
     uint_fast32_t blk = tile->lstTile.nBlocks;
     uint_fast32_t prt = tile->lstTile.nInLast;
 

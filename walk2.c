@@ -1633,6 +1633,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 		    smSmoothFinish(smx);
 		    smFinish(smx,&smf);
 		    }
+		mdlCompleteWork(pkd->mdl);
 		return(nTotActive);
 		}
 	    }

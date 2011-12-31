@@ -412,7 +412,11 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
 #else
     msr->param.iCacheSize = 0;
 #endif
-    prmAddParam(msr->prm,"iCacheSize",1,&msr->param.iCacheSize,sizeof(int),NULL,NULL);
+    prmAddParam(msr->prm,"iCacheSize",1,&msr->param.iCacheSize,sizeof(int),"cs",
+		"<size of the MDL cache (0=default)> = 0");
+    msr->param.iWorkQueueSize = 0;
+    prmAddParam(msr->prm,"iWorkQueueSize",1,&msr->param.iWorkQueueSize,sizeof(int),"wqs",
+		"<size of the MDL work queue> = 0");
     msr->param.nSmooth = 64;
     prmAddParam(msr->prm,"nSmooth",1,&msr->param.nSmooth,sizeof(int),"s",
 		"<number of particles to smooth over> = 64");
@@ -1257,6 +1261,7 @@ void msrLogParams(MSR msr,FILE *fp) {
     fprintf(fp," nTreeBitsLo: %d",msr->param.nTreeBitsLo);
     fprintf(fp," nTreeBitsHi: %d",msr->param.nTreeBitsHi);
     fprintf(fp," iCacheSize: %d",msr->param.iCacheSize);
+    fprintf(fp," iWorkQueueSize: %d",msr->param.iWorkQueueSize);
     if (prmSpecified(msr->prm,"dSoft"))
 	fprintf(fp," dSoft: %g",msr->param.dSoft);
     else
@@ -1756,6 +1761,7 @@ double msrGenerateIC(MSR msr) {
     in.nTreeBitsLo = msr->param.nTreeBitsLo;
     in.nTreeBitsHi = msr->param.nTreeBitsHi;
     in.iCacheSize  = msr->parm.iCacheSize;
+    in.iWorkQueueSize  = msr->parm.iWorkQueueSize;
     in.fPeriod[0] = msr->param.dxPeriod;
     in.fPeriod[1] = msr->param.dyPeriod;
     in.fPeriod[2] = msr->param.dzPeriod;
@@ -4923,6 +4929,7 @@ msrReadSS(MSR msr) {
     in.nTreeBitsLo = msr->param.nTreeBitsLo;
     in.nTreeBitsHi = msr->param.nTreeBitsHi;
     in.iCacheSize  = msr->parm.iCacheSize;
+    in.iWorkQueueSize  = msr->parm.iWorkQueueSize;
 
     in.fPeriod[0] = msr->param.dxPeriod;
     in.fPeriod[1] = msr->param.dyPeriod;
@@ -5585,6 +5592,7 @@ double msrRead(MSR msr, const char *achInFile) {
     read.nTreeBitsLo = msr->param.nTreeBitsLo;
     read.nTreeBitsHi = msr->param.nTreeBitsHi;
     read.iCacheSize  = msr->param.iCacheSize;
+    read.iWorkQueueSize  = msr->param.iWorkQueueSize;
     read.dOmega0 = msr->param.csm->dOmega0;
     read.dOmegab = msr->param.csm->dOmegab;
     read.fPeriod[0] = msr->param.dxPeriod;

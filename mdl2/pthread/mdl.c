@@ -69,6 +69,17 @@ static inline int mdlkey_t_to_int( mdlkey_t v ) {
     return (int)v;
     }
 
+void mdlCompleteWork(MDL mdl) {
+    int iWork;
+    for(iWork=mdl->wqBusy; iWork>=0; iWork=mdl->wqBusy) {
+	mdl->wqBusy = mdl->wqLink[iWork];
+	while ( (*mdl->wqFcn[iWork])(mdl->wqCtx[iWork]) != 0 ) {
+	    }
+	mdl->wqLink[iWork] = mdl->wqFree;
+	mdl->wqFree = iWork;
+	}
+    }
+
 /*
  ** GLOBAL BARRIER VARIABLES! All threads must see these.
  */
@@ -79,7 +90,6 @@ pthread_cond_t MDLsigBar = PTHREAD_COND_INITIALIZER;
 
 void mdlBarrier(MDL mdl) {
     int iEpisode;
-
     pthread_mutex_lock(&MDLmuxBar);
     iEpisode = MDLnEpisode;
     ++MDLnInBar;
@@ -201,6 +211,28 @@ void mdlPrintTimer(MDL mdl,char *message, mdlTimer *t0) {
     }
 #endif
 
+
+void mdlSetWorkQueueSize(MDL mdl,int wqSize) {
+    mdl->wqSize = wqSize;
+    if (mdl->wqSize) {
+	int i;
+	assert(mdl->wqBusy == -1);
+	mdl->wqFcn  = (mdlWorkFunction *)realloc(mdl->wqFcn,sizeof(mdlWorkFunction) * mdl->wqSize);
+	mdl->wqCtx  = (void **)realloc(mdl->wqCtx,sizeof(void *) * mdl->wqSize);
+	mdl->wqLink = (int *)realloc(mdl->wqLink,sizeof(int) * mdl->wqSize);
+	mdl->wqBusy = -1;
+	mdl->wqFree = 0;
+	for( i=0; i<mdl->wqSize; i++) mdl->wqLink[i] = i+1;
+	mdl->wqLink[mdl->wqSize-1] = -1;
+	}
+    else {
+	free(mdl->wqFcn);
+	free(mdl->wqCtx);
+	free(mdl->wqLink);
+	mdl->wqBusy = mdl->wqFree = -1;
+	}
+    }
+
 /*
  ** This function performs basic initialization, common to all
  ** MDL contexts.
@@ -299,6 +331,14 @@ void BasicInit(MDL mdl) {
 	pthread_cond_init(&mdl->mbxCache[i].sigReq,NULL);
 	pthread_cond_init(&mdl->mbxCache[i].sigRel,NULL);
 	}
+    /*
+    ** Work Queues
+    */
+    mdl->wqFcn = NULL;
+    mdl->wqCtx = NULL;
+    mdl->wqLink = NULL;
+    mdl->wqBusy = mdl->wqFree = -1;
+    mdlSetWorkQueueSize(mdl,0);
     }
 
 
@@ -1698,5 +1738,16 @@ void mdlFFT( MDL mdl, MDLFFT fft, fftw_real *data, int bInverse ) {
 
 /* Just do the work immediately */
 void mdlAddWork(MDL mdl, int (*doWork)(void *ctx), void *ctx) {
-    while( doWork(ctx) != 0 ) {}
+    if (mdl->wqFree>=0) {
+	int iWork = mdl->wqFree;
+	mdl->wqFree = mdl->wqLink[iWork];
+	mdl->wqFcn[iWork] = doWork;
+	mdl->wqCtx[iWork] = ctx;
+	mdl->wqLink[iWork] = mdl->wqBusy;
+	mdl->wqBusy = iWork;
+	}
+    else {
+	while( doWork(ctx) != 0 ) {
+	    }
+	}
     }

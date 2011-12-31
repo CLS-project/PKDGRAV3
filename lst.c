@@ -88,7 +88,6 @@ void lstFreeTile(LST *lst,LSTTILE *tile) {
 	tile->next = lst->freeList->list;
 	lst->freeList->list = tile;
 	}
-    else assert(0);
     }
 
 size_t lstMemory(LST *lst) {
@@ -113,15 +112,43 @@ void lstClear(LST *lst) {
     }
 
 void lstCheckPt(LST *lst,LSTCHECKPT *cp) {
-    cp->tile = lst->tile;
     cp->nBlocks = lst->tile->nBlocks;
     cp->nInLast = lst->tile->nInLast;
     cp->nPrevious = lst->nPrevious;
     }
 
+/*
+** This is called if we need to split off the last block
+** because we want to add to it but it is in use.
+*/
+LSTTILE *lstSplit(LST *lst) {
+    LSTTILE *tile, *prev;
+    assert(lst->tile->nRefs > 1);
+    tile = lstNewTile(lst);
+    cloneTile(lst, tile, lst->tile);
+    if (lst->tile == lst->list) lst->list = tile;
+    else {
+	for(prev=lst->list; prev->next != lst->tile; prev=prev->next) {}
+	prev->next = tile;
+	}
+    lstFreeTile(lst,lst->tile);
+    lst->tile = tile;
+    return tile;
+    }
+
 void lstRestore(LST *lst,LSTCHECKPT *cp) {
+    LSTTILE *tile = lst->list;
+    uint32_t nPrevious = 0;
+
+    while( nPrevious < cp->nPrevious ) {
+	assert(tile!=NULL);
+	nPrevious += tile->nBlocks * lst->nPerBlock + tile->nInLast;
+	tile = tile->next;
+	}
+    assert(nPrevious == cp->nPrevious);
+
     /* Set the latest tile */
-    lst->tile = cp->tile;
+    lst->tile = tile;
     lst->nPrevious = cp->nPrevious;
     lst->tile->nBlocks = cp->nBlocks;
     lst->tile->nInLast = cp->nInLast;
@@ -129,21 +156,6 @@ void lstRestore(LST *lst,LSTCHECKPT *cp) {
     /* Dump any tiles that are not needed */
     moveToFreeList(lst,lst->tile->next);
     lst->tile->next = NULL;
-
-    /* If somebody else owns this tile, then we cannot reuse it */
-    if (lst->tile->nRefs > 1) {
-	LSTTILE *tile, *prev;
-	tile = lstNewTile(lst);
-	cloneTile(lst, tile, lst->tile);
-	if (lst->tile == lst->list) lst->list = tile;
-	else {
-	    for(prev=lst->list; prev->next != lst->tile; prev=prev->next) {}
-	    prev->next = tile;
-	    }
-	lstFreeTile(lst,lst->tile);
-	lst->tile = tile;
-	assert(0);
-	}
     }
 
 void *lstExtend(LST * lst) {

@@ -475,7 +475,9 @@ double mdlTimeSynchronizing(MDL);
 double mdlTimeWaiting(MDL);
 #endif
 
+void mdlSetWorkQueueSize(MDL,int);
 void mdlAddWork(MDL mdl, int (*doWork)(void *ctx), void *ctx);
+void mdlCompleteWork(MDL mdl);
 
 #ifdef __cplusplus
 }
