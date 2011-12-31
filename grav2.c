@@ -671,9 +671,10 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,FLOCR *
     work->dRhoFac = dRhoFac;
     work->pkd = pkd;
     for (i=pkdn->pLower;i<=pkdn->pUpper;++i) {
-	int nP = work->nP++;
+	int nP;
 	p = pkdParticle(pkd,i);
 	if ( !pkdIsDstActive(p,uRungLo,uRungHi) ) continue;
+	nP = work->nP++;
 	work->pPart[nP] = p;
 
 	fMass = pkdMass(pkd,p);
