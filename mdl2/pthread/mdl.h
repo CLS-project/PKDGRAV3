@@ -172,6 +172,7 @@ typedef struct mdlContext {
 #endif
 
     /* The work queue */
+    pthread_mutex_t  wqMux;
     int              wqSize;
     mdlWorkFunction *wqFcn;
     void **          wqCtx;
@@ -430,7 +431,6 @@ double mdlTimeWaiting(MDL);
 
 void mdlSetWorkQueueSize(MDL,int);
 void mdlAddWork(MDL mdl, mdlWorkFunction doWork, void *ctx);
-void mdlCompleteWork(MDL mdl);
 
 #ifdef __cplusplus
     }

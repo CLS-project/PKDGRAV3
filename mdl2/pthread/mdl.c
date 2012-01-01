@@ -68,18 +68,6 @@ static inline int size_t_to_int( size_t v ) {
 static inline int mdlkey_t_to_int( mdlkey_t v ) {
     return (int)v;
     }
-
-void mdlCompleteWork(MDL mdl) {
-    int iWork;
-    for(iWork=mdl->wqBusy; iWork>=0; iWork=mdl->wqBusy) {
-	mdl->wqBusy = mdl->wqLink[iWork];
-	while ( (*mdl->wqFcn[iWork])(mdl->wqCtx[iWork]) != 0 ) {
-	    }
-	mdl->wqLink[iWork] = mdl->wqFree;
-	mdl->wqFree = iWork;
-	}
-    }
-
 /*
  ** GLOBAL BARRIER VARIABLES! All threads must see these.
  */
@@ -88,8 +76,58 @@ int MDLnEpisode = 0;
 pthread_mutex_t MDLmuxBar = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t MDLsigBar = PTHREAD_COND_INITIALIZER;
 
+/*
+** Find some work in another MDL and do it
+*/
+static void doSomeWork(MDL mdl) {
+    int iMDL;
+    int iWork;
+    MDL other;
+
+    for(iMDL=0; iMDL<mdl->nThreads; ++iMDL) {
+	other = mdl->pmdl[iMDL];
+	pthread_mutex_lock(&other->wqMux);
+	if ( (iWork=other->wqBusy) >= 0 ) {
+	    other->wqBusy = other->wqLink[iWork];
+	    pthread_mutex_unlock(&other->wqMux);
+	    while ( (*other->wqFcn[iWork])(other->wqCtx[iWork]) != 0 ) {
+		mdlCacheCheck(mdl);
+		}
+	    pthread_mutex_lock(&other->wqMux);
+	    other->wqLink[iWork] = other->wqFree;
+	    other->wqFree = iWork;
+	    pthread_mutex_unlock(&other->wqMux);
+	    break;
+	    }
+	pthread_mutex_unlock(&other->wqMux);
+	}
+    }
+
+/*
+** Complete all of the work in our work queue
+*/
+static void flushWork(MDL mdl) {
+    int iWork;
+
+    pthread_mutex_lock(&mdl->wqMux);
+    for(;;) {
+	if ( (iWork=mdl->wqBusy) < 0 ) break;
+	mdl->wqBusy = mdl->wqLink[iWork];
+	pthread_mutex_unlock(&mdl->wqMux);
+	while ( (*mdl->wqFcn[iWork])(mdl->wqCtx[iWork]) != 0 ) {
+	    mdlCacheCheck(mdl);
+	    }
+	pthread_mutex_lock(&mdl->wqMux);
+	mdl->wqLink[iWork] = mdl->wqFree;
+	mdl->wqFree = iWork;
+	}
+    pthread_mutex_unlock(&mdl->wqMux);
+    }
+
 void mdlBarrier(MDL mdl) {
     int iEpisode;
+
+    flushWork(mdl);
     pthread_mutex_lock(&MDLmuxBar);
     iEpisode = MDLnEpisode;
     ++MDLnInBar;
@@ -226,9 +264,9 @@ void mdlSetWorkQueueSize(MDL mdl,int wqSize) {
 	mdl->wqLink[mdl->wqSize-1] = -1;
 	}
     else {
-	free(mdl->wqFcn);
-	free(mdl->wqCtx);
-	free(mdl->wqLink);
+	free(mdl->wqFcn); mdl->wqFcn = NULL;
+	free(mdl->wqCtx); mdl->wqCtx = NULL;
+	free(mdl->wqLink);mdl->wqLink=NULL;
 	mdl->wqBusy = mdl->wqFree = -1;
 	}
     }
@@ -334,6 +372,7 @@ void BasicInit(MDL mdl) {
     /*
     ** Work Queues
     */
+    pthread_mutex_init(&mdl->wqMux,NULL);
     mdl->wqFcn = NULL;
     mdl->wqCtx = NULL;
     mdl->wqLink = NULL;
@@ -354,6 +393,7 @@ void BasicDestroy(MDL mdl) {
     pthread_cond_destroy(&mdl->swxOwn.sigRec);
     pthread_cond_destroy(&mdl->swxOwn.sigSnd);
     pthread_mutex_destroy(&mdl->muxRing);
+    pthread_mutex_destroy(&mdl->wqMux);
     for (i = 0; i < MDL_MBX_RING_SZ; i++) {
 	pthread_mutex_destroy(&mdl->mbxCache[i].mux);
 	pthread_cond_destroy(&mdl->mbxCache[i].sigReq);
@@ -366,6 +406,9 @@ void BasicDestroy(MDL mdl) {
     free(mdl->mbxOwn.pszIn);
     free(mdl->mbxOwn.pszOut);
     free(mdl->cache);
+    free(mdl->wqFcn);
+    free(mdl->wqCtx);
+    free(mdl->wqLink);
     }
 
 
@@ -1166,6 +1209,7 @@ void mdlCacheRequest(MDL mdl, int id, int cid, int mid, char *pszData,
     MDL_ADVANCE_RING(iRingTl);
     while (iRingTl == mdl->pmdl[id]->iRingHd) {
 	pthread_mutex_unlock(pmux_ring);
+	doSomeWork(mdl);
 	mdlCacheCheck(mdl);
 	pthread_mutex_lock(pmux_ring);
 	iRingTl = mdl->pmdl[id]->iRingTl;
@@ -1215,6 +1259,7 @@ void mdlFinishCache(MDL mdl,int cid) {
      ** THIS IS A SYNCHRONIZE!!!
      */
     if (c->iType == MDL_COCACHE) {
+	flushWork(mdl);
 	/*
 	 ** Must flush all valid data elements.
 	 */
@@ -1238,6 +1283,7 @@ void mdlFinishCache(MDL mdl,int cid) {
 	if (mdl->idSelf == 0) {
 	    ++c->nCheckOut;
 	    while (c->nCheckOut < mdl->nThreads) {
+		doSomeWork(mdl);
 		mdlCacheCheck(mdl);
 		}
 	    }
@@ -1254,6 +1300,7 @@ void mdlFinishCache(MDL mdl,int cid) {
 	else {
 	    c->nCheckOut = 0;
 	    while (c->nCheckOut == 0) {
+		doSomeWork(mdl);
 		mdlCacheCheck(mdl);
 		}
 	    }
@@ -1512,9 +1559,11 @@ void mdlCacheBarrier(MDL mdl,int cid) {
     ** THIS IS A SYNCHRONIZE!!!
     */
     if (c->iType == MDL_COCACHE) {
+	flushWork(mdl);
 	if (mdl->idSelf == 0) {
 	    ++c->nCheckOut;
 	    while (c->nCheckOut < mdl->nThreads) {
+		doSomeWork(mdl);
 		mdlCacheCheck(mdl);
 		}
 	    }
@@ -1531,6 +1580,7 @@ void mdlCacheBarrier(MDL mdl,int cid) {
 	else {
 	    c->nCheckOut = 0;
 	    while (c->nCheckOut == 0) {
+		doSomeWork(mdl);
 		mdlCacheCheck(mdl);
 		}
 	    }
@@ -1738,16 +1788,22 @@ void mdlFFT( MDL mdl, MDLFFT fft, fftw_real *data, int bInverse ) {
 
 /* Just do the work immediately */
 void mdlAddWork(MDL mdl, int (*doWork)(void *ctx), void *ctx) {
+    int iWork = -1;
     if (mdl->wqFree>=0) {
-	int iWork = mdl->wqFree;
-	mdl->wqFree = mdl->wqLink[iWork];
-	mdl->wqFcn[iWork] = doWork;
-	mdl->wqCtx[iWork] = ctx;
-	mdl->wqLink[iWork] = mdl->wqBusy;
-	mdl->wqBusy = iWork;
+	pthread_mutex_lock(&mdl->wqMux);
+	if (mdl->wqFree>=0) {
+	    iWork = mdl->wqFree;
+	    mdl->wqFree = mdl->wqLink[iWork];
+	    mdl->wqFcn[iWork] = doWork;
+	    mdl->wqCtx[iWork] = ctx;
+	    mdl->wqLink[iWork] = mdl->wqBusy;
+	    mdl->wqBusy = iWork;
+	    }
+	pthread_mutex_unlock(&mdl->wqMux);
 	}
-    else {
+    if (iWork<0) {
 	while( doWork(ctx) != 0 ) {
+	    mdlCacheCheck(mdl);
 	    }
 	}
     }

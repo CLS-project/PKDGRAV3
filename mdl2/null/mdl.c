@@ -723,9 +723,6 @@ void mdlFFT( MDL mdl, MDLFFT fft, fftw_real *data, int bInverse ) {
 void mdlSetWorkQueueSize(MDL mdl,int wqSize) {
     }
 
-void mdlCompleteWork(MDL mdl) {
-    }
-
 /* Just do the work immediately */
 void mdlAddWork(MDL mdl, int (*doWork)(void *ctx), void *ctx) {
     while( doWork(ctx) != 0 ) {}
