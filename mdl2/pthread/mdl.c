@@ -18,6 +18,7 @@
 #include <sys/resource.h>
 #endif
 #include <pthread.h>
+#include <errno.h>
 #include "mdl.h"
 
 const char *pthread_mdl_module_id = "PTHREAD ($Id$)";
@@ -125,6 +126,7 @@ static void flushWork(MDL mdl) {
     }
 
 void mdlBarrier(MDL mdl) {
+    struct timespec to;
     int iEpisode;
 
     flushWork(mdl);
@@ -137,8 +139,12 @@ void mdlBarrier(MDL mdl) {
 	pthread_cond_broadcast(&MDLsigBar);
 	}
     else {
+	to.tv_sec = 0;
+	to.tv_nsec = 0;
 	while (MDLnEpisode == iEpisode) {
-	    pthread_cond_wait(&MDLsigBar,&MDLmuxBar);
+	    doSomeWork(mdl);
+	    /*pthread_cond_wait(&MDLsigBar,&MDLmuxBar);*/
+	    pthread_cond_timedwait(&MDLsigBar,&MDLmuxBar,&to);
 	    }
 	}
     pthread_mutex_unlock(&MDLmuxBar);
