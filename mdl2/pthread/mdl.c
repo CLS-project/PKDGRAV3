@@ -126,7 +126,6 @@ static void flushWork(MDL mdl) {
     }
 
 void mdlBarrier(MDL mdl) {
-    struct timespec to;
     int iEpisode;
 
     flushWork(mdl);
@@ -135,18 +134,28 @@ void mdlBarrier(MDL mdl) {
     ++MDLnInBar;
     if (MDLnInBar == mdl->nThreads) {
 	++MDLnEpisode;
-	MDLnInBar = 0;
-	pthread_cond_broadcast(&MDLsigBar);
+	/*pthread_cond_broadcast(&MDLsigBar);*/
 	}
     else {
-	to.tv_sec = 0;
-	to.tv_nsec = 0;
 	while (MDLnEpisode == iEpisode) {
+	    pthread_mutex_unlock(&MDLmuxBar);
 	    doSomeWork(mdl);
+	    pthread_mutex_lock(&MDLmuxBar);
 	    /*pthread_cond_wait(&MDLsigBar,&MDLmuxBar);*/
-	    pthread_cond_timedwait(&MDLsigBar,&MDLmuxBar,&to);
 	    }
 	}
+    iEpisode++;
+    --MDLnInBar;
+    if (MDLnInBar) {
+	while (MDLnEpisode == iEpisode) {
+	    pthread_cond_wait(&MDLsigBar,&MDLmuxBar);
+	    }
+	}
+    else {
+	++MDLnEpisode;
+	pthread_cond_broadcast(&MDLsigBar);
+	}
+
     pthread_mutex_unlock(&MDLmuxBar);
     }
 
