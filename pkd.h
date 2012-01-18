@@ -629,7 +629,7 @@ typedef struct shapesBin {
     double ell_center[3];
     } SHAPESBIN;
 
-#define PKD_GROUP_SIZE 64
+#define PKD_GROUP_SIZE 256
 
 typedef struct {
     float r[3];
@@ -821,31 +821,45 @@ typedef struct pkdContext {
 ** Accumulates the work for a set of particles
 */
 typedef struct {
-    PARTICLE *pPart[PKD_GROUP_SIZE];
-    PINFOIN pInfoIn[PKD_GROUP_SIZE];
-    PINFOOUT pInfoOut[PKD_GROUP_SIZE];
+    PARTICLE **pPart;
+    PINFOIN *pInfoIn;
+    PINFOOUT *pInfoOut;
     float dRhoFac;
     int nP;
     int nRefs;
     PKD pkd;
+#ifdef USE_CUDA
+    void *gpu_memory;
+#endif
     } workParticle;
 
+/*
+** One tile of PP interactions
+*/
 typedef struct {
+    PINFOOUT *pInfoOut;
     ILP ilp;
     ILPTILE tile;
     workParticle *work;
     int i;
     uint16_t nBlocks;
     uint16_t nInLast;
+#ifdef USE_CUDA
+    void *gpu_memory;
+#endif
     } workPP;
 
 typedef struct {
+    PINFOOUT *pInfoOut;
     ILC ilc;
     ILCTILE tile;
     workParticle *work;
     int i;
     uint16_t nBlocks;
     uint16_t nInLast;
+#ifdef USE_CUDA
+    void *gpu_memory;
+#endif
     } workPC;
 
 static inline void pkdMinMax( double *dVal, double *dMin, double *dMax ) {
@@ -1147,7 +1161,7 @@ void pkdStartTimer(PKD,int);
 void pkdStopTimer(PKD,int);
 void pkdInitialize(
     PKD *ppkd,MDL mdl,int nStore,int nBucket,int nTreeBitsLo, int nTreeBitsHi,
-    int iCacheSize,int iWorkQueueSize,FLOAT *fPeriod,uint64_t nDark,uint64_t nGas,uint64_t nStar,
+    int iCacheSize,int iWorkQueueSize,int iCUDAQueueSize,FLOAT *fPeriod,uint64_t nDark,uint64_t nGas,uint64_t nStar,
     uint64_t mMemoryModel, int nDomainRungs);
 void pkdFinish(PKD);
 size_t pkdClCount(PKD pkd);
@@ -1372,11 +1386,10 @@ void pkdMeasurePk(PKD pkd, double dCenter[3], double dRadius,
 #ifdef __cplusplus
 extern "C" {
 #endif
-    void *pkdGravCudaPPAllocate(void);
-    void pkdGravCudaPPFree(void *cudaCtx);
-    ILP_BLK * pkdGravCudaPPAllocateBlk();
-    void pkdGravCudaPPFreeBlk(ILP_BLK *blk);
-    extern int CUDAdoWorkPP( void *vpp );
+    extern int CUDAinitWorkPP( void *vpp );
+    extern int CUDAcheckWorkPP( void *vpp );
+    extern int CUDAinitWorkPC( void *vpp );
+    extern int CUDAcheckWorkPC( void *vpp );
 #ifdef __cplusplus
 }
 #endif

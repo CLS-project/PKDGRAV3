@@ -25,6 +25,8 @@ extern "C" {
 
 #define SRV_STOP		0
 
+typedef int (*mdlWorkFunction)(void *ctx);
+
 typedef struct cacheSpace {
     int iType;
     void *pData;
@@ -319,8 +321,8 @@ void mdlFFT( MDL mdl, MDLFFT fft, fftw_real *data, int bInverse );
 #define mdlFFTkIdx(fft,x,y,z) mdlGridIdx((fft)->kgrid,x,z,y)
 #endif
 
-void mdlSetWorkQueueSize(MDL,int);
-void mdlAddWork(MDL mdl, int (*doWork)(void *ctx), void *ctx);
+void mdlSetWorkQueueSize(MDL,int,int);
+void mdlAddWork(MDL mdl, void *ctx, mdlWorkFunction initWork, mdlWorkFunction checkWork, mdlWorkFunction doWork, mdlWorkFunction doneWork);
 
 #ifdef __cplusplus
     }

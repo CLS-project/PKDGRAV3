@@ -720,11 +720,11 @@ void mdlFFT( MDL mdl, MDLFFT fft, fftw_real *data, int bInverse ) {
     }
 #endif
 
-void mdlSetWorkQueueSize(MDL mdl,int wqSize) {
+void mdlSetWorkQueueSize(MDL mdl,int wqSize,int cudaSize) {
     }
 
 /* Just do the work immediately */
-void mdlAddWork(MDL mdl, int (*doWork)(void *ctx), void *ctx) {
+void mdlAddWork(MDL mdl, void *ctx, mdlWorkFunction initWork, mdlWorkFunction checkWork, mdlWorkFunction doWork, mdlWorkFunction doneWork) {
     while( doWork(ctx) != 0 ) {}
+    doneWork(ctx);
     }
-

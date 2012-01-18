@@ -258,6 +258,7 @@ struct inReadFile {
     //int nFiles;
     int iCacheSize;
     int iWorkQueueSize;
+    int iCUDAQueueSize;
     int nProcessors;
     //uint8_t bStandard;
     //uint8_t bDoublePos;

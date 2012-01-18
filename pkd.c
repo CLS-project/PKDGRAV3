@@ -22,6 +22,7 @@
 #ifdef __linux__
 #include <sys/resource.h>
 #endif
+#include "cudautil.h"
 #include "pkd.h"
 #include "ewald.h"
 #include "walk.h"
@@ -266,7 +267,7 @@ void pkdAllocateTopTree(PKD pkd,int nCell) {
 
 void pkdInitialize(
     PKD *ppkd,MDL mdl,int nStore,int nBucket,int nTreeBitsLo, int nTreeBitsHi,
-    int iCacheSize,int iWorkQueueSize,FLOAT *fPeriod,uint64_t nDark,uint64_t nGas,uint64_t nStar,
+    int iCacheSize,int iWorkQueueSize,int iCUDAQueueSize,FLOAT *fPeriod,uint64_t nDark,uint64_t nGas,uint64_t nStar,
     uint64_t mMemoryModel, int nDomainRungs) {
     PKD pkd;
     PARTICLE *p;
@@ -469,7 +470,7 @@ void pkdInitialize(
 #ifdef MDL_CACHE_SIZE
     if ( iCacheSize > 0 ) mdlSetCacheSize(pkd->mdl,iCacheSize);
 #endif
-    if ( iWorkQueueSize > 0 ) mdlSetWorkQueueSize(pkd->mdl,iWorkQueueSize);
+    mdlSetWorkQueueSize(pkd->mdl,iWorkQueueSize,iCUDAQueueSize);
     /*
     ** Initialize neighbor list pointer to NULL if present.
     */
@@ -597,7 +598,15 @@ void pkdInitialize(
     assert(pkdNodeSize(pkd) > 0);
 
 #ifdef USE_CUDA
-    pkd->cudaCtx = pkdGravCudaPPAllocate();
+	{
+	int sizeILP = sizeof(ILP_BLK)*ILP_BLK_PER_TILE;
+	int sizeILC = sizeof(ILC_BLK)*ILC_BLK_PER_TILE;
+	pkd->cudaCtx = CUDA_initialize(iCUDAQueueSize,
+	    sizeILP>sizeILC ? sizeILP : sizeILC,
+	    PKD_GROUP_SIZE*sizeof(PINFOIN),
+	    PKD_GROUP_SIZE*sizeof(PINFOOUT)
+	    * (ILP_BLK_PER_TILE>ILC_BLK_PER_TILE?ILP_BLK_PER_TILE:ILC_BLK_PER_TILE) );
+	}
 #endif
     }
 
@@ -610,7 +619,7 @@ void pkdFinish(PKD pkd) {
     int i;
 
 #ifdef USE_CUDA
-    pkdGravCudaPPFree(pkd->cudaCtx);
+    CUDA_finish(pkd->cudaCtx);
 #endif
 
     if (pkd->kdNodeListPRIVATE) {

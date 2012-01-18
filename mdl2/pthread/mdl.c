@@ -78,51 +78,125 @@ pthread_mutex_t MDLmuxBar = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t MDLsigBar = PTHREAD_COND_INITIALIZER;
 
 /*
+** Flush any finished work
+*/
+static void flushDone(MDL mdl) {
+    int *pLast, iWork;
+
+    /* Check for CUDA completion */
+    pLast = &mdl->busyCUDA;
+    while ( (iWork=(*pLast)) >= 0 ) {
+	if ( (*mdl->wqCUDA[iWork].checkFcn)(mdl->wqCUDA[iWork].ctx) == 0 ) {
+	    (*mdl->wqCUDA[iWork].doneFcn)(mdl->wqCUDA[iWork].ctx);
+	    *pLast = mdl->wqCUDA[iWork].next;
+	    mdl->wqCUDA[iWork].next = mdl->freeCUDA;
+	    mdl->freeCUDA = iWork;
+	    }
+	else pLast = &mdl->wqCUDA[iWork].next;
+	}
+
+    /* Quickly run through the done queue */
+    pthread_mutex_lock(&mdl->wqMux);
+    if ( (iWork=mdl->wqDone) >= 0 ) {
+	mdl->wqDone = mdl->wq[iWork].next;
+	pthread_mutex_unlock(&mdl->wqMux);
+	(*mdl->wq[iWork].doneFcn)(mdl->wq[iWork].ctx);
+	pthread_mutex_lock(&mdl->wqMux);
+	mdl->wq[iWork].next = mdl->wqFree;
+	mdl->wqFree = iWork;
+	}
+    pthread_mutex_unlock(&mdl->wqMux);
+    }
+
+
+
+
+/*
 ** Find some work in another MDL and do it
 */
-static void doSomeWork(MDL mdl) {
+static int doSomeWork(MDL mdl) {
     int iMDL;
     int iWork;
     MDL other;
 
+    flushDone(mdl);
+
+    pthread_mutex_lock(&mdl->wqMux);
+
+
+    /* Next try our own work */
+    if ( (iWork=mdl->wqWait) >= 0 ) {
+	mdl->wqWait = mdl->wq[iWork].next;
+	pthread_mutex_unlock(&mdl->wqMux);
+	while ( (*mdl->wq[iWork].doFcn)(mdl->wq[iWork].ctx) != 0 ) {
+	    mdlCacheCheck(mdl);
+	    }
+	(*mdl->wq[iWork].doneFcn)(mdl->wq[iWork].ctx);
+	pthread_mutex_lock(&mdl->wqMux);
+	mdl->wq[iWork].next = mdl->wqFree;
+	mdl->wqFree = iWork;
+	pthread_mutex_unlock(&mdl->wqMux);
+	return 1;
+	}
+
+    pthread_mutex_unlock(&mdl->wqMux);
+
+#if 0
+    /* Okay, try for a different thread */
     for(iMDL=0; iMDL<mdl->nThreads; ++iMDL) {
 	other = mdl->pmdl[iMDL];
 	pthread_mutex_lock(&other->wqMux);
-	if ( (iWork=other->wqBusy) >= 0 ) {
-	    other->wqBusy = other->wqLink[iWork];
+	if ( (iWork=other->wqWait) >= 0 ) {
+	    other->wqWait = other->wq[iWork].next;
 	    pthread_mutex_unlock(&other->wqMux);
-	    while ( (*other->wqFcn[iWork])(other->wqCtx[iWork]) != 0 ) {
+	    while ( (*other->wq[iWork].doFcn)(other->wq[iWork].ctx) != 0 ) {
 		mdlCacheCheck(mdl);
 		}
 	    pthread_mutex_lock(&other->wqMux);
-	    other->wqLink[iWork] = other->wqFree;
-	    other->wqFree = iWork;
+	    other->wq[iWork].next = other->wqDone;
+	    other->wqDone = iWork;
 	    pthread_mutex_unlock(&other->wqMux);
-	    break;
+	    return 1;
 	    }
 	pthread_mutex_unlock(&other->wqMux);
 	}
+#endif
+
+    return 0;
     }
 
 /*
-** Complete all of the work in our work queue
+** Complete all of the work in OUR work queue. Note than
+** the "done" queue can only be processed by the originating thread.
 */
 static void flushWork(MDL mdl) {
-    int iWork;
+    int *pLast, iWork;
 
-    pthread_mutex_lock(&mdl->wqMux);
     for(;;) {
-	if ( (iWork=mdl->wqBusy) < 0 ) break;
-	mdl->wqBusy = mdl->wqLink[iWork];
-	pthread_mutex_unlock(&mdl->wqMux);
-	while ( (*mdl->wqFcn[iWork])(mdl->wqCtx[iWork]) != 0 ) {
-	    mdlCacheCheck(mdl);
-	    }
+	/* Eliminate any pending completed work first */
+	flushDone(mdl);
+
+	/* If we have work in the queue, then do it */
 	pthread_mutex_lock(&mdl->wqMux);
-	mdl->wqLink[iWork] = mdl->wqFree;
-	mdl->wqFree = iWork;
+	if ( (iWork=mdl->wqWait) >= 0 ) {
+	    mdl->wqWait = mdl->wq[iWork].next;
+	    pthread_mutex_unlock(&mdl->wqMux);
+	    while ( (*mdl->wq[iWork].doFcn)(mdl->wq[iWork].ctx) != 0 ) {
+		mdlCacheCheck(mdl);
+		}
+	    (*mdl->wq[iWork].doneFcn)(mdl->wq[iWork].ctx);
+	    pthread_mutex_lock(&mdl->wqMux);
+	    mdl->wq[iWork].next = mdl->wqFree;
+	    mdl->wqFree = iWork;
+	    pthread_mutex_unlock(&mdl->wqMux);
+	    continue;
+	    }
+
+	pthread_mutex_unlock(&mdl->wqMux);
+	if (mdl->busyCUDA >= 0) continue;
+
+	break;
 	}
-    pthread_mutex_unlock(&mdl->wqMux);
     }
 
 void mdlBarrier(MDL mdl) {
@@ -145,6 +219,7 @@ void mdlBarrier(MDL mdl) {
 	    }
 	}
     iEpisode++;
+    flushWork(mdl);
     --MDLnInBar;
     if (MDLnInBar) {
 	while (MDLnEpisode == iEpisode) {
@@ -265,24 +340,36 @@ void mdlPrintTimer(MDL mdl,char *message, mdlTimer *t0) {
 #endif
 
 
-void mdlSetWorkQueueSize(MDL mdl,int wqSize) {
+void mdlSetWorkQueueSize(MDL mdl,int wqSize,int cudaSize) {
+    int i;
     mdl->wqSize = wqSize;
+    mdl->cudaSize = cudaSize;
+
     if (mdl->wqSize) {
-	int i;
-	assert(mdl->wqBusy == -1);
-	mdl->wqFcn  = (mdlWorkFunction *)realloc(mdl->wqFcn,sizeof(mdlWorkFunction) * mdl->wqSize);
-	mdl->wqCtx  = (void **)realloc(mdl->wqCtx,sizeof(void *) * mdl->wqSize);
-	mdl->wqLink = (int *)realloc(mdl->wqLink,sizeof(int) * mdl->wqSize);
-	mdl->wqBusy = -1;
+	assert(mdl->wqWait == -1);
+	assert(mdl->wqDone == -1);
+	mdl->wq = (wqNode *)realloc(mdl->wq,sizeof(wqNode) * mdl->wqSize);
+	mdl->wqWait = -1;
+	mdl->wqDone = -1;
 	mdl->wqFree = 0;
-	for( i=0; i<mdl->wqSize; i++) mdl->wqLink[i] = i+1;
-	mdl->wqLink[mdl->wqSize-1] = -1;
+	for( i=0; i<mdl->wqSize-1; i++) mdl->wq[i].next = i+1;
+	mdl->wq[mdl->wqSize-1].next = -1;
 	}
     else {
-	free(mdl->wqFcn); mdl->wqFcn = NULL;
-	free(mdl->wqCtx); mdl->wqCtx = NULL;
-	free(mdl->wqLink);mdl->wqLink=NULL;
-	mdl->wqBusy = mdl->wqFree = -1;
+	free(mdl->wq);        mdl->wq  = NULL;
+	mdl->wqWait = mdl->wqDone = mdl->wqFree = -1;
+	}
+
+    if (mdl->cudaSize) {
+	mdl->wqCUDA = (wqNode *)realloc(mdl->wqCUDA,sizeof(wqNode) * mdl->cudaSize);
+	for( i=0; i<mdl->cudaSize-1; i++) mdl->wqCUDA[i].next = i+1;
+	mdl->wqCUDA[mdl->cudaSize-1].next = -1;
+	mdl->freeCUDA = 0;
+	mdl->busyCUDA = -1;
+	}
+    else {
+	free(mdl->wqCUDA); mdl->wqCUDA  = NULL;
+	mdl->freeCUDA = mdl->busyCUDA = -1;
 	}
     }
 
@@ -388,11 +475,11 @@ void BasicInit(MDL mdl) {
     ** Work Queues
     */
     pthread_mutex_init(&mdl->wqMux,NULL);
-    mdl->wqFcn = NULL;
-    mdl->wqCtx = NULL;
-    mdl->wqLink = NULL;
-    mdl->wqBusy = mdl->wqFree = -1;
-    mdlSetWorkQueueSize(mdl,0);
+    mdl->wq = NULL;
+    mdl->wqCUDA = NULL;
+    mdl->wqWait = mdl->wqDone = mdl->wqFree = -1;
+    mdl->freeCUDA = mdl->busyCUDA = -1;
+    mdlSetWorkQueueSize(mdl,0,0);
     }
 
 
@@ -421,9 +508,8 @@ void BasicDestroy(MDL mdl) {
     free(mdl->mbxOwn.pszIn);
     free(mdl->mbxOwn.pszOut);
     free(mdl->cache);
-    free(mdl->wqFcn);
-    free(mdl->wqCtx);
-    free(mdl->wqLink);
+    free(mdl->wq);
+    free(mdl->wqCUDA);
     }
 
 
@@ -1801,24 +1887,55 @@ void mdlFFT( MDL mdl, MDLFFT fft, fftw_real *data, int bInverse ) {
     }
 #endif
 
-/* Just do the work immediately */
-void mdlAddWork(MDL mdl, int (*doWork)(void *ctx), void *ctx) {
+/*
+** The work functions are for the following.
+**   initWork   called once to initiate async work (e.g., CUDA). If it returns 1, then it has been queued
+**              and check work will be called to see when it has finished.
+**   checkWork  It returns 1 if still busy and 0 if finished. The doneWork function is then called.
+**   doWork     Called if initWork returns 0, or if the queue is full. This can be called by
+**              any executing thread.
+**   doneWork   Called once when work is finished. Guaranteed to be executed by the original thread.
+*/
+void mdlAddWork(MDL mdl, void *ctx, mdlWorkFunction initWork, mdlWorkFunction checkWork, mdlWorkFunction doWork, mdlWorkFunction doneWork) {
     int iWork = -1;
-    if (mdl->wqFree>=0) {
-	pthread_mutex_lock(&mdl->wqMux);
-	if (mdl->wqFree>=0) {
-	    iWork = mdl->wqFree;
-	    mdl->wqFree = mdl->wqLink[iWork];
-	    mdl->wqFcn[iWork] = doWork;
-	    mdl->wqCtx[iWork] = ctx;
-	    mdl->wqLink[iWork] = mdl->wqBusy;
-	    mdl->wqBusy = iWork;
+    int rc;
+
+    flushDone(mdl);
+
+    /* If we can do this with CUDA, then we should try */
+    if (mdl->freeCUDA >= 0 && initWork != NULL) {
+	if ( (*initWork)(ctx) ) {
+	    iWork = mdl->freeCUDA;
+	    mdl->freeCUDA = mdl->wqCUDA[iWork].next;
+	    mdl->wqCUDA[iWork].ctx = ctx;
+	    mdl->wqCUDA[iWork].checkFcn = checkWork;
+	    mdl->wqCUDA[iWork].doFcn = doWork;
+	    mdl->wqCUDA[iWork].doneFcn = doneWork;
+	    mdl->wqCUDA[iWork].next = mdl->busyCUDA;
+	    mdl->busyCUDA = iWork;
+	    return;
 	    }
-	pthread_mutex_unlock(&mdl->wqMux);
 	}
+
+    /* If there is room on the queue, then queue it */
+    pthread_mutex_lock(&mdl->wqMux);
+    if (mdl->wqFree>=0) {
+	iWork = mdl->wqFree;
+	mdl->wqFree = mdl->wq[iWork].next;
+	mdl->wq[iWork].ctx = ctx;
+	mdl->wq[iWork].checkFcn = checkWork;
+	mdl->wq[iWork].doFcn = doWork;
+	mdl->wq[iWork].doneFcn = doneWork;
+	mdl->wq[iWork].next = mdl->wqWait;
+	mdl->wqWait = iWork;
+	}
+    pthread_mutex_unlock(&mdl->wqMux);
+
+    /* If we could not queue the work, then execute it immediately */
     if (iWork<0) {
 	while( doWork(ctx) != 0 ) {
 	    mdlCacheCheck(mdl);
 	    }
+	doneWork(ctx);
 	}
     }

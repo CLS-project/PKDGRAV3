@@ -725,7 +725,7 @@ void pstOneNodeReadInit(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	pkdInitialize(
 	    &plcl->pkd,pst->mdl,nStore,in->nBucket,
 	    in->nTreeBitsLo,in->nTreeBitsHi,
-	    in->iCacheSize,in->iWorkQueueSize,in->fPeriod,
+	    in->iCacheSize,in->iWorkQueueSize,in->iCUDAQueueSize,in->fPeriod,
 	    in->nSpecies[FIO_SPECIES_DARK],
 	    in->nSpecies[FIO_SPECIES_SPH],
 	    in->nSpecies[FIO_SPECIES_STAR],
@@ -784,7 +784,7 @@ void pstReadFile(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	pkdInitialize(
 	    &plcl->pkd,pst->mdl,nStore,in->nBucket,
 	    in->nTreeBitsLo,in->nTreeBitsHi,
-	    in->iCacheSize,in->iWorkQueueSize,in->fPeriod,
+	    in->iCacheSize,in->iWorkQueueSize,in->iCUDAQueueSize,in->fPeriod,
 	    in->nSpecies[FIO_SPECIES_DARK],
 	    in->nSpecies[FIO_SPECIES_SPH],
 	    in->nSpecies[FIO_SPECIES_STAR],
@@ -3711,7 +3711,7 @@ pstReadSS(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	nStore = nFileTotal + (int)ceil(nFileTotal*in->fExtraStore);
 	if (plcl->pkd) pkdFinish(plcl->pkd);
 	pkdInitialize(&plcl->pkd,pst->mdl,nStore,in->nBucket,in->fExtraNodes,in->iCacheSize,
-	    in->iWorkQueueSize,in->fPeriod,in->nDark,in->nGas,in->nStar);
+	    in->iWorkQueueSize,in->iCUDAQueueSize,in->fPeriod,in->nDark,in->nGas,in->nStar);
 	pkdReadSS(plcl->pkd,achInFile,nFileStart,nFileTotal);
 	}
     if (pnOut) *pnOut = 0;
@@ -4063,7 +4063,7 @@ void pstGenerateIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 
 	if (plcl->pkd) pkdFinish(plcl->pkd);
 	pkdInitialize(&plcl->pkd,pst->mdl,nStore,in->nBucket,in->fExtraNodes,in->iCacheSize,
-	    in->iWorkQueueSize,in->fPeriod,nTotal,0,0);
+	    in->iWorkQueueSize,in->iCUDAQueueSize,in->fPeriod,nTotal,0,0);
 
 	/* Okay, here we set it to 1/50 of the interparticle seperation */
 	fSoft = 1.0 / (50.0 * in->nGrid);

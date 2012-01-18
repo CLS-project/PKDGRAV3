@@ -3,7 +3,7 @@
 #include "config.h"
 #endif
 #include "pkd.h"
-#include "ilp.h"
+#include "ilc.h"
 #include "cudautil.h"
 
 #ifdef __DEVICE_EMULATION__
@@ -12,28 +12,21 @@
 #define EMUSYNC
 #endif
 
-extern "C"
-bool isPow2(unsigned int x)
-{
-    return ((x&(x-1))==0);
-}
-
-__device__ float MWS(float m1, float h12, float m2, float h22) {
-    float tmp = h12*h22;
-    if (m1 == 0.0) return(h22);
-    if (m2 == 0.0) return(h12);
-    if (tmp > 0.0) return((m1+m2)*tmp/(h22*m1+h12*m2));
-    else return(0.0);
-    }
-
-//static __constant__ PINFOIN in[64];
-
-__global__ void cudaPP( int nP, PINFOIN *in, int nPart, ILP_BLK *blk, PINFOOUT *out ) {
+__global__ void cudaPC( int nP, PINFOIN *in, int nPart, ILC_BLK *blk, PINFOOUT *out ) {
     int pid = blockIdx.x * blockDim.x + threadIdx.x;
     int tid = threadIdx.x;
     int wid = tid & 31;
-    float d2, dir, dir2, fourh2, dx, dy, dz, p;
-    float fSoft, fMass;
+    const float onethird = 1.0f/3.0f;
+    float d2, dir, dx, dy, dz, p;
+    float u,g0,g2,g3,g4;
+    float tax, tay, taz;
+    float x,y,z;
+//    float adotai;
+    float tx,ty,tz;
+    float xx,xy,xz,yy,yz,zz;
+    float xxx,xxz,yyy,yyz,xxy,xyy,xyz;
+
+
     __shared__ float ax[32];
     __shared__ float ay[32];
     __shared__ float az[32];
@@ -49,45 +42,76 @@ __global__ void cudaPP( int nP, PINFOIN *in, int nPart, ILP_BLK *blk, PINFOOUT *
         dy = blk->dy.f[tid] + in[blockIdx.y].r[1];
         dz = blk->dz.f[tid] + in[blockIdx.y].r[2];
         d2 = dx*dx + dy*dy + dz*dz;
-        fSoft = in[blockIdx.y].fSoft;
-        fMass = in[blockIdx.y].fMass;
-        fourh2 = MWS(fMass,4.0f*fSoft*fSoft,blk->m.f[tid],blk->fourh2.f[tid]);
-        if (d2 == 0.0 ) dir2 = 0.0; /* Ignore self interactions */
-        else if (d2 <= fourh2) {
-            /*
-            ** This uses the Dehnen K1 kernel function now, it's fast!
-            */
-            dir = rsqrtf(fourh2);
-            dir2 = dir*dir;
-            d2 *= dir2;
-            dir2 *= dir;
-            d2 = 1.0f - d2;
-            dir *= 1.0f + d2*(0.5f + d2*(3.0f/8.0f + d2*(45.0f/32.0f)));
-            dir2 *= 1.0f + d2*(1.5f + d2*(135.0f/16.0f));
-            }
-        else {
-            dir = rsqrtf(d2);
-            dir2 = dir*dir*dir;
-            }
+        dir = rsqrtf(d2);
+	    u = blk->u.f[tid]*dir;
+	    g0 = dir;
+	    g2 = 3*dir*u*u;
+	    g3 = 5*g2*u;
+	    g4 = 7*g3*u;
+	    /*
+	    ** Calculate the funky distance terms.
+	    */
+	    x = dx*dir;
+	    y = dy*dir;
+	    z = dz*dir;
+	    xx = 0.5*x*x;
+	    xy = x*y;
+	    xz = x*z;
+	    yy = 0.5*y*y;
+	    yz = y*z;
+	    zz = 0.5*z*z;
+	    xxx = x*(onethird*xx - zz);
+	    xxz = z*(xx - onethird*zz);
+	    yyy = y*(onethird*yy - zz);
+	    yyz = z*(yy - onethird*zz);
+	    xx -= zz;
+	    yy -= zz;
+	    xxy = y*xx;
+	    xyy = x*yy;
+	    xyz = xy*z;
+	    /*
+	    ** Now calculate the interaction up to Hexadecapole order.
+	    */
+	    tx = g4*(blk->xxxx.f[tid]*xxx + blk->xyyy.f[tid]*yyy + blk->xxxy.f[tid]*xxy + blk->xxxz.f[tid]*xxz + blk->xxyy.f[tid]*xyy + blk->xxyz.f[tid]*xyz + blk->xyyz.f[tid]*yyz);
+	    ty = g4*(blk->xyyy.f[tid]*xyy + blk->xxxy.f[tid]*xxx + blk->yyyy.f[tid]*yyy + blk->yyyz.f[tid]*yyz + blk->xxyy.f[tid]*xxy + blk->xxyz.f[tid]*xxz + blk->xyyz.f[tid]*xyz);
+	    tz = g4*(-blk->xxxx.f[tid]*xxz - (blk->xyyy.f[tid] + blk->xxxy.f[tid])*xyz - blk->yyyy.f[tid]*yyz + blk->xxxz.f[tid]*xxx + blk->yyyz.f[tid]*yyy - blk->xxyy.f[tid]*(xxz + yyz) + blk->xxyz.f[tid]*xxy + blk->xyyz.f[tid]*xyy);
+	    g4 = 0.25*(tx*x + ty*y + tz*z);
+	    xxx = g3*(blk->xxx.f[tid]*xx + blk->xyy.f[tid]*yy + blk->xxy.f[tid]*xy + blk->xxz.f[tid]*xz + blk->xyz.f[tid]*yz);
+	    xxy = g3*(blk->xyy.f[tid]*xy + blk->xxy.f[tid]*xx + blk->yyy.f[tid]*yy + blk->yyz.f[tid]*yz + blk->xyz.f[tid]*xz);
+	    xxz = g3*(-(blk->xxx.f[tid] + blk->xyy.f[tid])*xz - (blk->xxy.f[tid] + blk->yyy.f[tid])*yz + blk->xxz.f[tid]*xx + blk->yyz.f[tid]*yy + blk->xyz.f[tid]*xy);
+	    g3 = onethird*(xxx*x + xxy*y + xxz*z);
+	    xx = g2*(blk->xx.f[tid]*x + blk->xy.f[tid]*y + blk->xz.f[tid]*z);
+	    xy = g2*(blk->yy.f[tid]*y + blk->xy.f[tid]*x + blk->yz.f[tid]*z);
+	    xz = g2*(-(blk->xx.f[tid] + blk->yy.f[tid])*z + blk->xz.f[tid]*x + blk->yz.f[tid]*y);
+	    g2 = 0.5*(xx*x + xy*y + xz*z);
+	    g0 *= blk->m.f[tid];
+        atomicAdd(&fPot[wid],-(g0 + g2 + g3 + g4));
+	    g0 += 5*g2 + 7*g3 + 9*g4;
+	    tax = dir*(xx + xxx + tx - x*g0);
+	    tay = dir*(xy + xxy + ty - y*g0);
+	    taz = dir*(xz + xxz + tz - z*g0);
+	    /*
+	    ** Calculations for determining the timestep.
+	    */
+//	    adotai = pInfoIn[i].a[0]*tax + pInfoIn[i].a[1]*tay + pInfoIn[i].a[2]*taz;
+//	    if (adotai > 0) {
+//		adotai *= dimaga;
+//		dirsum += dir*adotai*adotai;
+//		normsum += adotai*adotai;
 
-        dir2 *= -blk->m.f[tid];
-        dx *= dir2;
-        dy *= dir2;
-        dz *= dir2;
-        atomicAdd(&ax[wid],dx);
-        atomicAdd(&ay[wid],dy);
-        atomicAdd(&az[wid],dz);
-        atomicAdd(&fPot[wid],-blk->m.f[tid]*dir);
+        atomicAdd(&ax[wid],tax);
+        atomicAdd(&ay[wid],tay);
+        atomicAdd(&az[wid],taz);
 
         /*
         ** Calculations for determining the timestep.
         */
-        float adotai = in[blockIdx.y].a[0]*dx + in[blockIdx.y].a[1]*dy + in[blockIdx.y].a[2]*dz;
-        if (adotai > 0.0 && d2 >= in[blockIdx.y].fSmooth2) {
+//PP        float adotai = in[blockIdx.y].a[0]*dx + in[blockIdx.y].a[1]*dy + in[blockIdx.y].a[2]*dz;
+//        if (adotai > 0.0 && d2 >= in[blockIdx.y].fSmooth2) {
 //	    adotai *= dimaga;
 //	    *dirsum += dir*adotai*adotai;
 //	    *normsum += adotai*adotai;
-            }
+//	    }
 
         /*
         ** Now reduce the result
@@ -95,7 +119,7 @@ __global__ void cudaPP( int nP, PINFOIN *in, int nPart, ILP_BLK *blk, PINFOOUT *
 
 #define R(S,T,O) S[tid] = T = T + S[tid + O]
 
-        __syncthreads();
+    __syncthreads();
 
 #ifndef __DEVICE_EMULATION__
         if (tid < 16)
@@ -128,26 +152,26 @@ __global__ void cudaPP( int nP, PINFOIN *in, int nPart, ILP_BLK *blk, PINFOOUT *
 ** If we cannot, then we return 0.
 */
 extern "C"
-int CUDAinitWorkPP( void *vpp ) {
-    workPP *pp = reinterpret_cast<workPP *>(vpp);
-    int nP = pp->work->nP;
-    ILPTILE tile = pp->tile;
-    int nPart = pp->nBlocks*ILP_PART_PER_BLK + pp->nInLast;
-    CUDACTX ctx = reinterpret_cast<CUDACTX>(pp->work->pkd->cudaCtx);
+int CUDAinitWorkPC( void *vpp) {
+    workPC *pc = reinterpret_cast<workPC *>(vpp);
+    int nP = pc->work->nP;
+    ILCTILE tile = pc->tile;
+    int nPart = pc->nBlocks*ILC_PART_PER_BLK + pc->nInLast;
+    CUDACTX ctx = reinterpret_cast<CUDACTX>(pc->work->pkd->cudaCtx);
     gpuInput *in;
     gpuBlock *blk;
 
     if (ctx->in==NULL || ctx->block==NULL) return 0; /* good luck */
 
     int j;
-    PINFOOUT *pInfoOut = pp->pInfoOut;
+    PINFOOUT *pInfoOut = pc->pInfoOut;
     for( j=0; j<nP; j++ ) {
         pInfoOut[j].a[0] = 0;
         pInfoOut[j].a[1] = 0;
         pInfoOut[j].a[2] = 0;
         pInfoOut[j].fPot = 0;
 #if 0
-        pp->i = j;
+        pc->i = j;
         extern int CPUdoWorkPP(void *vpp);
         CPUdoWorkPP(pp);
         pInfoOut[j].a[0] = -pInfoOut[j].a[0];
@@ -157,56 +181,54 @@ int CUDAinitWorkPP( void *vpp ) {
 #endif
         }
 
-#if 1
     // Grab a block of memory
     blk = ctx->block;
     ctx->block = blk->next;
-    pp->gpu_memory = blk;
+    pc->gpu_memory = blk;
 
     // The particles need only be copied once. We can use the stream from the first block.
-    if ((in=reinterpret_cast<gpuInput *>(pp->work->gpu_memory)) == NULL) {
+    if ((in=reinterpret_cast<gpuInput *>(pc->work->gpu_memory)) == NULL) {
         in = ctx->in;
         ctx->in = in->next;
-        pp->work->gpu_memory = in;
+        pc->work->gpu_memory = in;
         in->nRefs = 0;
-        memcpy(in->cpuIn,pp->work->pInfoIn,sizeof(PINFOIN)*nP);
+        memcpy(in->cpuIn,pc->work->pInfoIn,sizeof(PINFOIN)*nP);
         CUDA_CHECK(cudaMemcpyAsync,(in->in, in->cpuIn, sizeof(PINFOIN)*nP, cudaMemcpyHostToDevice, blk->stream));;
         CUDA_CHECK(cudaEventRecord,(in->event,blk->stream));
         }
     in->nRefs++;
 
     // cuda global arrays
-    int threads = ILP_PART_PER_BLK;
-    dim3 numBlocks(pp->nBlocks + (pp->nInLast ? 1 : 0), nP);
-    int bytes = sizeof(ILP_BLK) * (numBlocks.x);
+    int threads = ILC_PART_PER_BLK;
+    dim3 numBlocks(pc->nBlocks + (pc->nInLast ? 1 : 0), nP);
+    int bytes = sizeof(ILC_BLK) * (numBlocks.x);
 
     // copy data directly to device memory
-    CUDA_CHECK(cudaMemcpyAsync,(blk->gpuBlk, tile->blk, bytes, cudaMemcpyHostToDevice, blk->stream));
+    CUDA_CHECK(cudaMemcpyAsync,(blk->gpuBlkILC, tile->blk, bytes, cudaMemcpyHostToDevice, blk->stream));
     // We need the particles, so we need to wait for that transfer to complete
     CUDA_CHECK(cudaStreamWaitEvent,(blk->stream, in->event, 0));
-    cudaPP<<<numBlocks, threads, 0, blk->stream>>>( nP, in->in, nPart, blk->gpuBlk, blk->gpuResults);
+    cudaPC<<<numBlocks, threads, 0, blk->stream>>>( nP, in->in, nPart, blk->gpuBlkILC, blk->gpuResults);
     CUDA_CHECK(cudaMemcpyAsync,(blk->cpuResults, blk->gpuResults, nP*numBlocks.x*sizeof(PINFOOUT),
             cudaMemcpyDeviceToHost, blk->stream));
     CUDA_CHECK(cudaEventRecord,(blk->event,blk->stream));
-#endif
 
     return 1;
     }
 
 extern "C"
-int CUDAcheckWorkPP( void *vpp ) {
-    workPP *pp = reinterpret_cast<workPP *>(vpp);
-    CUDACTX ctx = reinterpret_cast<CUDACTX>(pp->work->pkd->cudaCtx);
-    PINFOOUT *pInfoOut = pp->pInfoOut;
-    int nP = pp->work->nP;
-    int numBlocks = pp->nBlocks + (pp->nInLast ? 1 : 0);
+int CUDAcheckWorkPC( void *vpp ) {
+    workPP *pc = reinterpret_cast<workPP *>(vpp);
+    CUDACTX ctx = reinterpret_cast<CUDACTX>(pc->work->pkd->cudaCtx);
+    PINFOOUT *pInfoOut = pc->pInfoOut;
+    int nP = pc->work->nP;
+    int numBlocks = pc->nBlocks + (pc->nInLast ? 1 : 0);
     cudaError_t rc;
     gpuBlock *blk;
     gpuInput *in;
     int i,j;
 
-    blk = reinterpret_cast<gpuBlock *>(pp->gpu_memory);
-    in = reinterpret_cast<gpuInput *>(pp->work->gpu_memory);
+    blk = reinterpret_cast<gpuBlock *>(pc->gpu_memory);
+    in = reinterpret_cast<gpuInput *>(pc->work->gpu_memory);
     rc = cudaEventQuery(blk->event);
     if (rc==cudaErrorNotReady) return 1;
     else if (rc!=cudaSuccess) {
@@ -226,12 +248,12 @@ int CUDAcheckWorkPP( void *vpp ) {
     if ( --in->nRefs == 0 ) {
         in->next = ctx->in;
         ctx->in = in;
-        pp->work->gpu_memory = NULL;
+        pc->work->gpu_memory = NULL;
         }
 
     blk->next = ctx->block;
     ctx->block = blk;
-    pp->gpu_memory = NULL;
+    pc->gpu_memory = NULL;
 
     return 0;
     }

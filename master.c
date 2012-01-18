@@ -417,6 +417,9 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.iWorkQueueSize = 0;
     prmAddParam(msr->prm,"iWorkQueueSize",1,&msr->param.iWorkQueueSize,sizeof(int),"wqs",
 		"<size of the MDL work queue> = 0");
+    msr->param.iCUDAQueueSize = 0;
+    prmAddParam(msr->prm,"iCUDAQueueSize",1,&msr->param.iCUDAQueueSize,sizeof(int),"cqs",
+		"<size of the CUDA work queue> = 0");
     msr->param.nSmooth = 64;
     prmAddParam(msr->prm,"nSmooth",1,&msr->param.nSmooth,sizeof(int),"s",
 		"<number of particles to smooth over> = 64");
@@ -1262,6 +1265,7 @@ void msrLogParams(MSR msr,FILE *fp) {
     fprintf(fp," nTreeBitsHi: %d",msr->param.nTreeBitsHi);
     fprintf(fp," iCacheSize: %d",msr->param.iCacheSize);
     fprintf(fp," iWorkQueueSize: %d",msr->param.iWorkQueueSize);
+    fprintf(fp," iCUDAQueueSize: %d",msr->param.iCUDAQueueSize);
     if (prmSpecified(msr->prm,"dSoft"))
 	fprintf(fp," dSoft: %g",msr->param.dSoft);
     else
@@ -1762,6 +1766,7 @@ double msrGenerateIC(MSR msr) {
     in.nTreeBitsHi = msr->param.nTreeBitsHi;
     in.iCacheSize  = msr->parm.iCacheSize;
     in.iWorkQueueSize  = msr->parm.iWorkQueueSize;
+    in.iCUDAQueueSize  = msr->parm.iCUDAQueueSize;
     in.fPeriod[0] = msr->param.dxPeriod;
     in.fPeriod[1] = msr->param.dyPeriod;
     in.fPeriod[2] = msr->param.dzPeriod;
@@ -4930,6 +4935,7 @@ msrReadSS(MSR msr) {
     in.nTreeBitsHi = msr->param.nTreeBitsHi;
     in.iCacheSize  = msr->parm.iCacheSize;
     in.iWorkQueueSize  = msr->parm.iWorkQueueSize;
+    in.iCUDAQueueSize  = msr->parm.iCUDAQueueSize;
 
     in.fPeriod[0] = msr->param.dxPeriod;
     in.fPeriod[1] = msr->param.dyPeriod;
@@ -5593,6 +5599,7 @@ double msrRead(MSR msr, const char *achInFile) {
     read.nTreeBitsHi = msr->param.nTreeBitsHi;
     read.iCacheSize  = msr->param.iCacheSize;
     read.iWorkQueueSize  = msr->param.iWorkQueueSize;
+    read.iCUDAQueueSize  = msr->param.iCUDAQueueSize;
     read.dOmega0 = msr->param.csm->dOmega0;
     read.dOmegab = msr->param.csm->dOmegab;
     read.fPeriod[0] = msr->param.dxPeriod;

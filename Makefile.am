@@ -82,7 +82,8 @@ endif
 if USE_CUDA
 .cu.o:
 	$(NVCC) -I. -DHAVE_CONFIG_H -o $@ -c $< $(NVCCFLAGS) -Imdl2/null
-SOURCES += cudapp.cu
+SOURCES += cudautil.cu cudapp.cu cudapc.cu
+noinst_HEADERS += cudautil.h
 endif
 
 pkdgrav2_null_SOURCES = $(SOURCES) $(MDL)/null/mdl.c

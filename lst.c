@@ -9,34 +9,13 @@
 /*
 ** The default allocate and free for areas is malloc and free
 */
-static void *defaultAllocate(struct lstContext *lst,size_t nBytes) {
+static void *defaultAllocate(size_t nBytes) {
     return malloc(nBytes);
     }
 
-static void defaultFree(struct lstContext *lst,void *data) {
+static void defaultFree(void *data) {
     free(data);
     }
-
-void *lstSIMDAllocate(struct lstContext *lst,size_t nBytes) {
-    return SIMD_malloc(nBytes);
-    }
-
-void lstSIMDFree(struct lstContext *lst,void *data) {
-    SIMD_free(data);
-    }
-
-
-#ifdef USE_CUDA
-void *lstCUDAAllocate(struct lstContext *lst,size_t nBytes) {
-    void *blk = NULL;
-    cudaHostAlloc( &blk, nBytes, 0 );
-    return blk;
-    }
-
-void lstCUDAFree(struct lstContext *lst,void *data) {
-    cudaFreeHost(data);
-    }
-#endif
 
 static void cloneTile(LST *lst, LSTTILE *dst, LSTTILE *src) {
     void **sb, **db;
@@ -69,7 +48,7 @@ LSTTILE *lstNewTile(LST *lst) {
 	assert(tile!=NULL);
 	blks = (void **)(tile+1);
 	for( i=0; i<lst->nAreas; ++i) {
-	    blks[i] = (*lst->info[i].fnAllocate)(lst,lst->info[i].nAreaSize * lst->nBlocksPerTile);
+	    blks[i] = (*lst->info[i].fnAllocate)(lst->info[i].nAreaSize * lst->nBlocksPerTile);
 	    assert(blks[i] != NULL);
 	    }
 	lst->freeList->nTiles++;
@@ -229,7 +208,7 @@ void lstFree(LST *lst) {
 	    next = tile->next;
 	    blks = (void **)(tile+1);
 	    for( i=0; i<lst->nAreas; ++i) {
-		(*lst->info[i].fnFree)(lst,blks[i]);
+		(*lst->info[i].fnFree)(blks[i]);
 		}
 	    lst->freeList->nTiles--;
 	    }

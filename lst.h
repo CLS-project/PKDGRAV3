@@ -17,8 +17,8 @@ typedef struct lstTile {
 /* N.B. The Area pointers immediately follow */
 
 struct lstContext;
-typedef void *(*lstAreaAllocate)(struct lstContext *,size_t);
-typedef void  (*lstAreaFree)(struct lstContext *,void *);
+typedef void *(*lstAreaAllocate)(size_t);
+typedef void  (*lstAreaFree)(void *);
 
 typedef struct {
     lstAreaAllocate fnAllocate; /* Function to allocate memory */
@@ -51,8 +51,12 @@ typedef struct {
     uint32_t nPrevious;
     } LSTCHECKPT;
 
-void *lstSIMDAllocate(LST *lst,size_t nBytes);
-void lstSIMDFree(LST *lst,void *data);
+void *lstSIMDAllocate(size_t nBytes);
+void lstSIMDFree(void *data);
+#ifdef USE_CUDA
+void *lstCUDAAllocate(size_t nBytes);
+void lstCUDAFree(void *data);
+#endif
 void lstInitialize(LST *lst, LSTFREELIST *freeList, int nBlocksPerTile, int nPerBlock, int nAreas, ...);
 void lstFree(LST *lst);
 size_t lstMemory(LST *lst);

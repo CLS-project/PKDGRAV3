@@ -82,6 +82,7 @@ struct parameters {
     int bDoPotOutput;
     int iCacheSize;
     int iWorkQueueSize;
+    int iCUDAQueueSize;
     int bAddDelete;
     /* BEGIN Gas Parameters */
     int bDoGas;

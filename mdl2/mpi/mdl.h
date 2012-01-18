@@ -53,6 +53,8 @@ extern "C" {
 typedef MDLKEY mdlkey_t;
 static const mdlkey_t MDL_INVALID_KEY = (mdlkey_t)(-1);
 
+typedef int (*mdlWorkFunction)(void *ctx);
+
 typedef struct cacheTag {
     mdlkey_t iKey;
     int nLock;
@@ -475,8 +477,8 @@ double mdlTimeSynchronizing(MDL);
 double mdlTimeWaiting(MDL);
 #endif
 
-void mdlSetWorkQueueSize(MDL,int);
-void mdlAddWork(MDL mdl, int (*doWork)(void *ctx), void *ctx);
+void mdlSetWorkQueueSize(MDL,int,int);
+void mdlAddWork(MDL mdl, void *ctx, mdlWorkFunction initWork, mdlWorkFunction checkWork, mdlWorkFunction doWork, mdlWorkFunction doneWork);
 
 #ifdef __cplusplus
 }

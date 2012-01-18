@@ -242,7 +242,7 @@ static const struct ICONSTS {
 	{SIMD_CONST(7)},
 	{SIMD_CONST(8)},
 	{SIMD_CONST(10)},
-	{SIMD_CONST(64)},
+	{SIMD_CONST(PKD_GROUP_SIZE)},
 	{SIMD_CONST(3)},
 };
 
@@ -447,7 +447,7 @@ static void iOpenOutcomeOldCL(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin) 
 			}
 		    else {
 /*		    if (k->iLower) iOpen = 0;*/
-			if (nk>64) iOpen = 0;
+			if (nk>PKD_GROUP_SIZE) iOpen = 0;
 			else iOpen = iOpenB;
 			}
 		    }
@@ -526,7 +526,7 @@ static void iOpenOutcomeNewCL(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin) 
 		    else if (minbnd2 > fourh2) iOpenB = 4;
 		    else if (mink2 > fMonopoleThetaFac2*cOpen*cOpen) iOpenB = 5;
 		    else iOpenB = iOpenA;
-		    if (nk>64) iOpen = 0;
+		    if (nk>PKD_GROUP_SIZE) iOpen = 0;
 		    else iOpen = iOpenB;
 		    }
 		}
@@ -1496,7 +1496,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 	    ** level of the tree.
 	    */
 //	    if (!k->iLower) break;
-	    if ((k->pUpper-k->pLower+1)<=64) break;
+	    if ((k->pUpper-k->pLower+1)<=PKD_GROUP_SIZE) break;
 	    xParent = k->r[0];
 	    yParent = k->r[1];
 	    zParent = k->r[2];

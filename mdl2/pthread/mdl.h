@@ -128,6 +128,14 @@ typedef struct serviceRec {
     void (*fcnService)(void *,void *,int,void *,int *);
     } SERVICE;
 
+typedef struct {
+    int next;
+    int prev;
+    void *ctx;
+    mdlWorkFunction checkFcn;
+    mdlWorkFunction doFcn;
+    mdlWorkFunction doneFcn;
+    } wqNode;
 
 typedef struct mdlContext {
     int nThreads;
@@ -174,11 +182,14 @@ typedef struct mdlContext {
     /* The work queue */
     pthread_mutex_t  wqMux;
     int              wqSize;
-    mdlWorkFunction *wqFcn;
-    void **          wqCtx;
-    int *            wqLink;
-    int              wqFree;
-    int              wqBusy;
+    int              cudaSize;
+    wqNode           *wq;
+    wqNode           *wqCUDA;
+    int              wqFree; /* Unused queue entries */
+    int              wqWait; /* Waiting to be processed */
+    int              wqDone; /* Finished entries */
+    int              freeCUDA;
+    int              busyCUDA;
     } * MDL;
 
 
@@ -429,8 +440,8 @@ double mdlTimeSynchronizing(MDL);
 double mdlTimeWaiting(MDL);
 #endif
 
-void mdlSetWorkQueueSize(MDL,int);
-void mdlAddWork(MDL mdl, mdlWorkFunction doWork, void *ctx);
+void mdlSetWorkQueueSize(MDL,int,int);
+void mdlAddWork(MDL mdl, void *ctx, mdlWorkFunction initWork, mdlWorkFunction checkWork, mdlWorkFunction doWork, mdlWorkFunction doneWork);
 
 #ifdef __cplusplus
     }

@@ -19,6 +19,7 @@
 #include "qeval.h"
 #include "ewald.h"
 #include "grav.h"
+#include "cudautil.h"
 
 #ifdef USE_SIMD
 static const struct CONSTS {
@@ -77,7 +78,6 @@ static void workDone(workParticle *work) {
 	    a[1] = work->pInfoOut[i].a[1];
 	    a[2] = work->pInfoOut[i].a[2];
 	    *pPot = work->pInfoOut[i].fPot;
-
 	    if (work->pkd->param.bGravStep) {
 		float fx, fy, fz;
 		float maga, dT, dtGrav;
@@ -109,6 +109,10 @@ static void workDone(workParticle *work) {
 		else p->uNewRung = 0; /* Assumes current uNewRung is outdated -- not ideal */
 		}
 	    }
+	free(work->pPart);
+//	CUDA_free(work->pInfoIn);
+	free(work->pInfoIn);
+	free(work->pInfoOut);
 	free(work);
 	}
     }
@@ -129,6 +133,7 @@ int CPUdoWorkPP(void *vpp) {
     float d2,dx,dy,dz,fourh2,dir,dir2,adotai;
     int nSoft;
 #endif
+    float ax,ay,az,fPot,dirsum,normsum;
     float tax,tay,taz;
     float dimaga;
 
@@ -141,12 +146,6 @@ int CPUdoWorkPP(void *vpp) {
     float fSoft = pp->work->pInfoIn[i].fSoft;
     float fsmooth2 = pp->work->pInfoIn[i].fSmooth2;
     float *a =pp->work->pInfoIn[i].a;
-    float *ax = pp->work->pInfoOut[i].a+0;
-    float *ay = pp->work->pInfoOut[i].a+1;
-    float *az = pp->work->pInfoOut[i].a+2;
-    float *fPot = &pp->work->pInfoOut[i].fPot;
-    float *dirsum = &pp->work->pInfoOut[i].dirsum;
-    float *normsum = &pp->work->pInfoOut[i].normsum;
 
     dimaga = a[0]*a[0] + a[1]*a[1] + a[2]*a[2];
     if (dimaga > 0) {
@@ -177,9 +176,9 @@ int CPUdoWorkPP(void *vpp) {
     pax = consts.zero.p;
     pay = consts.zero.p;
     paz = consts.zero.p;
-    ppot= SIMD_LOADS(*fPot);
-    pirsum = SIMD_LOADS(*dirsum);
-    pnorms = SIMD_LOADS(*normsum);
+    ppot= consts.zero.p;
+    pirsum = consts.zero.p;
+    pnorms = consts.zero.p;
 
     piax    = SIMD_SPLAT(a[0]);
     piay    = SIMD_SPLAT(a[1]);
@@ -261,17 +260,23 @@ int CPUdoWorkPP(void *vpp) {
 	    paz = SIMD_ADD(paz,t3);
 	    }
 	}
-    *ax += tax = SIMD_HADD(pax);
-    *ay += tay = SIMD_HADD(pay);
-    *az += taz = SIMD_HADD(paz);
-    *fPot = SIMD_HADD(ppot);
-    *dirsum = SIMD_HADD(pirsum);
-    *normsum = SIMD_HADD(pnorms);
+    ax = SIMD_HADD(pax);
+    ay = SIMD_HADD(pay);
+    az = SIMD_HADD(paz);
+    fPot = SIMD_HADD(ppot);
+    dirsum = SIMD_HADD(pirsum);
+    normsum = SIMD_HADD(pnorms);
 #else
     /*
     ** DO NOT MODIFY THE CODE BELOW UP TO THE #endif!
     ** This code MUST match the SIMD code above.
     */
+    ax = 0.0;
+    ay = 0.0;
+    az = 0.0;
+    fPot= 0.0;
+    dirsum = 0.0;
+    normsum = 0.0;
 
     blk = tile->blk;
     for( nLeft=pp->nBlocks; nLeft >= 0; --nLeft,++blk ) {
@@ -305,42 +310,62 @@ int CPUdoWorkPP(void *vpp) {
 	    tax = -dx*dir2;
 	    tay = -dy*dir2;
 	    taz = -dz*dir2;
-	    *fPot -= blk->m.f[j]*dir;
+	    fPot -= blk->m.f[j]*dir;
 	    /*
 	    ** Calculations for determining the timestep.
 	    */
 	    adotai = a[0]*tax + a[1]*tay + a[2]*taz;
 	    if (adotai > 0 && d2 >= fsmooth2) {
 		adotai *= dimaga;
-		*dirsum += dir*adotai*adotai;
-		*normsum += adotai*adotai;
+		dirsum += dir*adotai*adotai;
+		normsum += adotai*adotai;
 		}
-	    *ax += tax;
-	    *ay += tay;
-	    *az += taz;
+	    ax += tax;
+	    ay += tay;
+	    az += taz;
 	    }
 	}
 #endif
-    if ( ++pp->i == pp->work->nP ) {
-	lstFreeTile(&pp->ilp->lst,&pp->tile->lstTile);
-	workDone(pp->work);
-	free(pp);
-	return 0;
-	}
+    pp->pInfoOut[i].a[0] = ax;
+    pp->pInfoOut[i].a[1] = ay;
+    pp->pInfoOut[i].a[2] = az;
+    pp->pInfoOut[i].fPot = fPot;
+    pp->pInfoOut[i].dirsum = dirsum;
+    pp->pInfoOut[i].normsum = normsum;
+
+    if ( ++pp->i == pp->work->nP ) return 0;
     else return 1;
     }
 
-static void queuePP( PKD pkd, workParticle *work, ILP ilp, int (*doPP)(void *) ) {
+int doneWorkPP(void *vpp) {
+    workPP *pp = vpp;
+    int i;
+
+    for(i=0; i<pp->work->nP; ++i) {
+	pp->work->pInfoOut[i].a[0] += pp->pInfoOut[i].a[0];
+	pp->work->pInfoOut[i].a[1] += pp->pInfoOut[i].a[1];
+	pp->work->pInfoOut[i].a[2] += pp->pInfoOut[i].a[2];
+	pp->work->pInfoOut[i].fPot += pp->pInfoOut[i].fPot;
+	pp->work->pInfoOut[i].dirsum += pp->pInfoOut[i].dirsum;
+	pp->work->pInfoOut[i].normsum += pp->pInfoOut[i].normsum;
+	}
+    lstFreeTile(&pp->ilp->lst,&pp->tile->lstTile);
+    workDone(pp->work);
+    free(pp->pInfoOut);
+    free(pp);
+    return 0;
+    }
+
+static void queuePP( PKD pkd, workParticle *work, ILP ilp ) {
     int i;
     ILPTILE tile;
-    int nP = work->nP;
-    PINFOIN *pInfoIn = work->pInfoIn;
-    PINFOOUT *pInfoOut = work->pInfoOut;
     workPP *pp;
 
     ILP_LOOP(ilp,tile) {
 	pp = malloc(sizeof(workPP));
 	assert(pp!=NULL);
+	pp->pInfoOut = malloc(sizeof(PINFOOUT) * work->nP);
+	assert(pp->pInfoOut!=NULL);
 	pp->work = work;
 	pp->ilp = ilp;
 	pp->tile = tile;
@@ -349,11 +374,18 @@ static void queuePP( PKD pkd, workParticle *work, ILP ilp, int (*doPP)(void *) )
 	pp->i = 0;
 	tile->lstTile.nRefs++;
 	work->nRefs++;
-	mdlAddWork(pkd->mdl,doPP,pp);
+#ifdef USE_CUDA
+	pp->gpu_memory = NULL;
+	mdlAddWork(pkd->mdl,pp,CUDAinitWorkPP,CUDAcheckWorkPP,CPUdoWorkPP,doneWorkPP);
+#else
+	mdlAddWork(pkd->mdl,pp,NULL,NULL,CPUdoWorkPP,doneWorkPP);
+#endif
+
+
 	}
     }
 
-int doWorkPC(void *vpc) {
+int CPUdoWorkPC(void *vpc) {
     workPC *pc = vpc;
 
 #if defined(USE_SIMD_PC)
@@ -391,20 +423,15 @@ int doWorkPC(void *vpc) {
     float fSoft = pc->work->pInfoIn[i].fSoft;
     float fsmooth2 = pc->work->pInfoIn[i].fSmooth2;
     float *a =pc->work->pInfoIn[i].a;
-    float *ax = pc->work->pInfoOut[i].a+0;
-    float *ay = pc->work->pInfoOut[i].a+1;
-    float *az = pc->work->pInfoOut[i].a+2;
-    float *fPot = &pc->work->pInfoOut[i].fPot;
-    float *dirsum = &pc->work->pInfoOut[i].dirsum;
-    float *normsum = &pc->work->pInfoOut[i].normsum;
+    float ax,ay,az,fPot,dirsum,normsum;
 
 #if defined(USE_SIMD_PC)
     pax = consts.zero.p;
     pay = consts.zero.p;
     paz = consts.zero.p;
-    ppot= SIMD_LOADS(*fPot);
-    pirsum = SIMD_LOADS(*dirsum);
-    pnorms = SIMD_LOADS(*normsum);
+    ppot= consts.zero.p;
+    pirsum = consts.zero.p;
+    pnorms = consts.zero.p;
     pfx     = SIMD_SPLAT(fx);
     pfy     = SIMD_SPLAT(fy);
     pfz     = SIMD_SPLAT(fz);
@@ -507,17 +534,25 @@ int doWorkPC(void *vpc) {
 	    paz = SIMD_ADD(paz,t3);
 	    }
 	}
-    *ax += tax = SIMD_HADD(pax);
-    *ay += tay = SIMD_HADD(pay);
-    *az += taz = SIMD_HADD(paz);
-    *fPot = SIMD_HADD(ppot);
-    *dirsum = SIMD_HADD(pirsum);
-    *normsum = SIMD_HADD(pnorms);
+    ax = SIMD_HADD(pax);
+    ay = SIMD_HADD(pay);
+    az = SIMD_HADD(paz);
+    fPot = SIMD_HADD(ppot);
+    dirsum = SIMD_HADD(pirsum);
+    normsum = SIMD_HADD(pnorms);
 #else
 /*
 ** DO NOT MODIFY THE CODE BELOW UP TO THE #endif!
 ** This code MUST match the SIMD code above.
 */
+
+    ax = 0.0;
+    ay = 0.0;
+    az = 0.0;
+    fPot= 0.0;
+    dirsum = 0.0;
+    normsum = 0.0;
+
     blk = ctile->blk;
     for( nLeft=pc->nBlocks; nLeft >= 0; --nLeft,++blk ) {
 	n = (nLeft ? ilc->lst.nPerBlock : pc->nInLast);
@@ -569,7 +604,7 @@ int doWorkPC(void *vpc) {
 	    xz = g2*(-(blk->xx.f[j] + blk->yy.f[j])*z + blk->xz.f[j]*x + blk->yz.f[j]*y);
 	    g2 = 0.5*(xx*x + xy*y + xz*z);
 	    g0 *= blk->m.f[j];
-	    *fPot -= g0 + g2 + g3 + g4;
+	    fPot -= g0 + g2 + g3 + g4;
 	    g0 += 5*g2 + 7*g3 + 9*g4;
 	    tax = dir*(xx + xxx + tx - x*g0);
 	    tay = dir*(xy + xxy + ty - y*g0);
@@ -580,35 +615,55 @@ int doWorkPC(void *vpc) {
 	    adotai = pInfoIn[i].a[0]*tax + pInfoIn[i].a[1]*tay + pInfoIn[i].a[2]*taz;
 	    if (adotai > 0) {
 		adotai *= dimaga;
-		*dirsum += dir*adotai*adotai;
-		*normsum += adotai*adotai;
+		dirsum += dir*adotai*adotai;
+		normsum += adotai*adotai;
 		}
-	    *ax += tax;
-	    *ay += tay;
-	    *az += taz;
+	    ax += tax;
+	    ay += tay;
+	    az += taz;
 	    }
 	}
 #endif
-    if ( ++pc->i == pc->work->nP ) {
-	lstFreeTile(&pc->ilc->lst,&pc->tile->lstTile);
-	workDone(pc->work);
-	free(pc);
-	return 0;
-	}
+    pc->pInfoOut[i].a[0] = ax;
+    pc->pInfoOut[i].a[1] = ay;
+    pc->pInfoOut[i].a[2] = az;
+    pc->pInfoOut[i].fPot = fPot;
+    pc->pInfoOut[i].dirsum = dirsum;
+    pc->pInfoOut[i].normsum = normsum;
+    if ( ++pc->i == pc->work->nP ) return 0;
     else return 1;
+    }
+
+int doneWorkPC(void *vpc) {
+    workPC *pc = vpc;
+    int i;
+
+    for(i=0; i<pc->work->nP; ++i) {
+	pc->work->pInfoOut[i].a[0] += pc->pInfoOut[i].a[0];
+	pc->work->pInfoOut[i].a[1] += pc->pInfoOut[i].a[1];
+	pc->work->pInfoOut[i].a[2] += pc->pInfoOut[i].a[2];
+	pc->work->pInfoOut[i].fPot += pc->pInfoOut[i].fPot;
+	pc->work->pInfoOut[i].dirsum += pc->pInfoOut[i].dirsum;
+	pc->work->pInfoOut[i].normsum += pc->pInfoOut[i].normsum;
+	}
+
+    lstFreeTile(&pc->ilc->lst,&pc->tile->lstTile);
+    workDone(pc->work);
+    free(pc->pInfoOut);
+    free(pc);
+    return 0;
     }
 
 static void queuePC( PKD pkd,  workParticle *work, ILC ilc ) {
     int i;
     ILCTILE tile;
-    int nP = work->nP;
-    PINFOIN *pInfoIn = work->pInfoIn;
-    PINFOOUT *pInfoOut = work->pInfoOut;
     workPC *pc;
 
     ILC_LOOP(ilc,tile) {
 	pc = malloc(sizeof(workPC));
 	assert(pc!=NULL);
+	pc->pInfoOut = malloc(sizeof(PINFOOUT) * work->nP);
+	assert(pc->pInfoOut!=NULL);
 	pc->work = work;
 	pc->ilc = ilc;
 	pc->tile = tile;
@@ -617,7 +672,13 @@ static void queuePC( PKD pkd,  workParticle *work, ILC ilc ) {
 	pc->i = 0;
 	tile->lstTile.nRefs++;
 	work->nRefs++;
-	mdlAddWork(pkd->mdl,doWorkPC,pc);
+
+#ifdef USE_CUDA
+	pc->gpu_memory = NULL;
+	mdlAddWork(pkd->mdl,pc,CUDAinitWorkPC,CUDAcheckWorkPC,CPUdoWorkPC,doneWorkPC);
+#else
+	mdlAddWork(pkd->mdl,pc,NULL,NULL,CPUdoWorkPC,doneWorkPC);
+#endif
 	}
     }
 
@@ -647,6 +708,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,FLOCR *
     int i,j,n,nSoft,nActive,nLeft;
     float fourh2;
     ILPCHECKPT checkPt;
+    int nP;
 
     assert(pkd->oPotential);
     assert(pkd->oAcceleration);
@@ -666,12 +728,20 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,FLOCR *
     /* Collect the bucket particle information */
     workParticle *work = malloc(sizeof(workParticle));
     assert(work!=NULL);
+    /* This is the maximum number of particles -- there may be fewer of course */
+    nP = pkdn->pUpper - pkdn->pLower + 1;
+    work->pPart = malloc(sizeof(PARTICLE *) * nP);
+//    work->pInfoIn = CUDA_malloc(sizeof(PINFOIN) * nP);
+    work->pInfoIn = malloc(sizeof(PINFOIN) * nP);
+    work->pInfoOut = malloc(sizeof(PINFOOUT) * nP);
     work->nRefs = 1; /* I am using it currently */
     work->nP = 0;
     work->dRhoFac = dRhoFac;
     work->pkd = pkd;
+#ifdef USE_CUDA
+    work->gpu_memory = NULL;
+#endif
     for (i=pkdn->pLower;i<=pkdn->pUpper;++i) {
-	int nP;
 	p = pkdParticle(pkd,i);
 	if ( !pkdIsDstActive(p,uRungLo,uRungHi) ) continue;
 	nP = work->nP++;
@@ -747,15 +817,10 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,FLOCR *
     */
     assert(ilc->cx==ilp->cx && ilc->cy==ilp->cy && ilc->cz==ilp->cz );
     queuePC( pkd,  work, ilc );
-
     /*
     ** Evaluate the P-P interactions
     */
-#ifdef USE_CUDA
-    queuePP( pkd, work, ilp, CUDAdoWorkPP );
-#else
-    queuePP( pkd, work, ilp, CPUdoWorkPP );
-#endif
+    queuePP( pkd, work, ilp );
 
     /*
     ** Calculate the Ewald correction for this particle, if it is required.
