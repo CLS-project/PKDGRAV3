@@ -5,12 +5,17 @@
 #include <assert.h>
 
 #include "ilc.h"
+#include "cudautil.h"
 
 void ilcInitialize(ILC *ilc) {
     *ilc = malloc(sizeof(struct ilcContext));
     assert( *ilc != NULL );
     lstInitialize(&(*ilc)->lst,NULL,ILC_BLK_PER_TILE, ILC_PART_PER_BLK, 2, /* two areas */
+#ifdef USE_CUDA
+	sizeof(ILC_BLK),CUDA_malloc,CUDA_free,
+#else
 	sizeof(ILC_BLK),SIMD_malloc,SIMD_free,
+#endif
 	sizeof(ILC_XTR),NULL,           NULL);
     (*ilc)->cx = (*ilc)->cy = (*ilc)->cz = 0.0;
     }
