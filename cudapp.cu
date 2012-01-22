@@ -13,6 +13,7 @@
 #endif
 
 #define PP_THREADS 1024
+//#define PP_THREADS ILP_PART_PER_BLK
 #define PP_BLKS_PER_THREAD (PP_THREADS/ILP_PART_PER_BLK)
 
 __device__ float MWS(float m1, float h12, float m2, float h22) {
@@ -35,11 +36,12 @@ __global__ void cudaPP( int nP, PINFOIN *in, int nPart, ILP_BLK *blk, PINFOOUT *
     __shared__ float az[32];
     __shared__ float fPot[32];
 
+    blk += bid;
+
     if (tid<32) ax[tid] = ay[tid] = az[tid] = fPot[tid] = 0.0;
     __syncthreads();
 
     if ( pid < nPart ) {
-        blk += bid;
 
         dx = blk->dx.f[threadIdx.x] + in[blockIdx.y].r[0];
         dy = blk->dy.f[threadIdx.x] + in[blockIdx.y].r[1];

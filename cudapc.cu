@@ -13,17 +13,13 @@
 #endif
 
 #define PC_THREADS 1024
-//#define PC_THREADS ILC_PART_PER_BLK
-#define PC_BLKS_PER_THREAD (PC_THREADS/ILP_PART_PER_BLK)
+#define PC_BLKS_PER_THREAD (PC_THREADS/ILC_PART_PER_BLK)
 
 __global__ void cudaPC( int nP, PINFOIN *in, int nPart, ILC_BLK *blk, PINFOOUT *out ) {
     int bid = blockIdx.x * PC_BLKS_PER_THREAD + threadIdx.y;
     int tid = threadIdx.x + threadIdx.y*ILC_PART_PER_BLK;
     int pid = tid + blockIdx.x * PC_THREADS;
     int wid = tid & 31;
-//    int pid = blockIdx.x * blockDim.x + threadIdx.x;
-//    int tid = threadIdx.x;
-//    int wid = tid & 31;
     const float onethird = 1.0f/3.0f;
     float d2, dir, dx, dy, dz, p;
     float u,g0,g2,g3,g4;
@@ -185,15 +181,6 @@ int CUDAinitWorkPC( void *vpp) {
         pInfoOut[j].a[1] = 0;
         pInfoOut[j].a[2] = 0;
         pInfoOut[j].fPot = 0;
-#if 0
-        pc->i = j;
-        extern int CPUdoWorkPP(void *vpp);
-        CPUdoWorkPP(pp);
-        pInfoOut[j].a[0] = -pInfoOut[j].a[0];
-        pInfoOut[j].a[1] = -pInfoOut[j].a[1];
-        pInfoOut[j].a[2] = -pInfoOut[j].a[2];
-        pInfoOut[j].fPot = -pInfoOut[j].fPot;
-#endif
         }
 
     // Grab a block of memory
@@ -233,8 +220,8 @@ int CUDAinitWorkPC( void *vpp) {
     }
 
 extern "C"
-int CUDAcheckWorkPC( void *vpp ) {
-    workPP *pc = reinterpret_cast<workPP *>(vpp);
+int CUDAcheckWorkPC( void *vpc ) {
+    workPC *pc = reinterpret_cast<workPC *>(vpc);
     CUDACTX ctx = reinterpret_cast<CUDACTX>(pc->work->pkd->cudaCtx);
     PINFOOUT *pInfoOut = pc->pInfoOut;
     int nP = pc->work->nP;

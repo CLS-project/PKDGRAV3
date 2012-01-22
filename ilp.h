@@ -9,7 +9,7 @@
 #ifndef ILP_PART_PER_TILE
 #define ILP_PART_PER_TILE 4096 /* 4096*24 ~ 100k */
 #endif
-#define ILP_PART_PER_BLK (256-32)
+#define ILP_PART_PER_BLK (256)
 #define ILP_BLK_PER_TILE (ILP_PART_PER_TILE/ILP_PART_PER_BLK)
 
 #if !defined(__CUDACC__)
