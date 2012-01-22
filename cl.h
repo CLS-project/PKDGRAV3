@@ -6,7 +6,7 @@
 #define CL_PART_PER_TILE 1024 /* 1024*100 ~ 100k */
 #endif
 
-#define CL_PART_PER_BLK 1024
+#define CL_PART_PER_BLK 16
 #define CL_BLK_PER_TILE (CL_PART_PER_TILE/CL_PART_PER_BLK)
 
 #if !defined(__CUDACC__)

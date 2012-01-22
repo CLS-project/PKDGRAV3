@@ -8,7 +8,7 @@
 #ifndef ILC_PART_PER_TILE
 #define ILC_PART_PER_TILE 1024 /* 1024*100 ~ 100k */
 #endif
-#define ILC_PART_PER_BLK (128)
+#define ILC_PART_PER_BLK (16)
 #define ILC_BLK_PER_TILE (ILC_PART_PER_TILE/ILC_PART_PER_BLK)
 
 #if !defined(__CUDACC__)
