@@ -601,7 +601,8 @@ void pkdInitialize(
 	{
 	int sizeILP = sizeof(ILP_BLK)*ILP_BLK_PER_TILE;
 	int sizeILC = sizeof(ILC_BLK)*ILC_BLK_PER_TILE;
-	pkd->cudaCtx = CUDA_initialize(iCUDAQueueSize,
+	pkd->cudaCtx = CUDA_initialize(mdlSelf(pkd->mdl),
+	    iCUDAQueueSize,
 	    sizeILP>sizeILC ? sizeILP : sizeILC,
 	    PKD_GROUP_SIZE*sizeof(PINFOIN),
 	    PKD_GROUP_SIZE*sizeof(PINFOOUT)

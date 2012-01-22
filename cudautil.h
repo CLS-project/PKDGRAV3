@@ -7,7 +7,7 @@ extern "C" {
 #ifdef USE_CUDA
     void *CUDA_malloc(size_t nBytes);
     void CUDA_free(void *data);
-    void *CUDA_initialize(int iWorkQueueSize, size_t tileSize, size_t ParticlesSize, size_t OutSize);
+    void *CUDA_initialize(int iProc,int iWorkQueueSize, size_t tileSize, size_t ParticlesSize, size_t OutSize);
     void CUDA_finish(void *vctx);
 #else
 #define CUDA_malloc(n) malloc(n)

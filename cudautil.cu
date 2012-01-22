@@ -26,12 +26,13 @@ void CUDA_Abort(cudaError_t rc, const char *fname, const char *file, int line) {
     }
 
 extern "C"
-void *CUDA_initialize(int iWorkQueueSize, size_t tileSize, size_t ParticlesSize, size_t OutSize) {
+void *CUDA_initialize(int iProc,int iWorkQueueSize, size_t tileSize, size_t ParticlesSize, size_t OutSize) {
     int nDevices, i;
 
     CUDA_CHECK(cudaGetDeviceCount,(&nDevices))
     if (nDevices == 0 ) return NULL;
-    CUDA_CHECK(cudaSetDevice,(nDevices-1));
+    CUDA_CHECK(cudaSetDevice,(iProc % nDevices));
+//    CUDA_CHECK(cudaSetDevice,(iProc%1));
 
     CUDACTX ctx = reinterpret_cast<CUDACTX>(malloc(sizeof(struct cuda_ctx)));
     assert(ctx!=NULL);
@@ -71,7 +72,6 @@ void CUDA_finish(void *vctx) {
     while(ctx->in != NULL) {
         gpuInput *in = ctx->in;
         ctx->in = in->next;
-
         cudaFree(in->in);
         cudaEventDestroy( in->event );
         free(in);
@@ -87,5 +87,6 @@ void CUDA_finish(void *vctx) {
         cudaStreamDestroy( blk->stream );
         free(blk);
         }
+
     free(ctx);
     }
