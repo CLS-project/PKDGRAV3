@@ -12,11 +12,8 @@
 #define EMUSYNC
 #endif
 
-extern "C"
-bool isPow2(unsigned int x)
-{
-    return ((x&(x-1))==0);
-}
+#define PP_THREADS 1024
+#define PP_BLKS_PER_THREAD (PP_THREADS/ILP_PART_PER_BLK)
 
 __device__ float MWS(float m1, float h12, float m2, float h22) {
     float tmp = h12*h22;
@@ -26,11 +23,10 @@ __device__ float MWS(float m1, float h12, float m2, float h22) {
     else return(0.0);
     }
 
-//static __constant__ PINFOIN in[64];
-
 __global__ void cudaPP( int nP, PINFOIN *in, int nPart, ILP_BLK *blk, PINFOOUT *out ) {
-    int pid = blockIdx.x * blockDim.x + threadIdx.x;
-    int tid = threadIdx.x;
+    int bid = blockIdx.x * PP_BLKS_PER_THREAD + threadIdx.y;
+    int tid = threadIdx.x + threadIdx.y*ILP_PART_PER_BLK;
+    int pid = tid + blockIdx.x * PP_THREADS;
     int wid = tid & 31;
     float d2, dir, dir2, fourh2, dx, dy, dz, p;
     float fSoft, fMass;
@@ -43,15 +39,15 @@ __global__ void cudaPP( int nP, PINFOIN *in, int nPart, ILP_BLK *blk, PINFOOUT *
     __syncthreads();
 
     if ( pid < nPart ) {
-        blk += blockIdx.x;
+        blk += bid;
 
-        dx = blk->dx.f[tid] + in[blockIdx.y].r[0];
-        dy = blk->dy.f[tid] + in[blockIdx.y].r[1];
-        dz = blk->dz.f[tid] + in[blockIdx.y].r[2];
+        dx = blk->dx.f[threadIdx.x] + in[blockIdx.y].r[0];
+        dy = blk->dy.f[threadIdx.x] + in[blockIdx.y].r[1];
+        dz = blk->dz.f[threadIdx.x] + in[blockIdx.y].r[2];
         d2 = dx*dx + dy*dy + dz*dz;
         fSoft = in[blockIdx.y].fSoft;
         fMass = in[blockIdx.y].fMass;
-        fourh2 = MWS(fMass,4.0f*fSoft*fSoft,blk->m.f[tid],blk->fourh2.f[tid]);
+        fourh2 = MWS(fMass,4.0f*fSoft*fSoft,blk->m.f[threadIdx.x],blk->fourh2.f[threadIdx.x]);
         if (d2 == 0.0 ) dir2 = 0.0; /* Ignore self interactions */
         else if (d2 <= fourh2) {
             /*
@@ -70,14 +66,14 @@ __global__ void cudaPP( int nP, PINFOIN *in, int nPart, ILP_BLK *blk, PINFOOUT *
             dir2 = dir*dir*dir;
             }
 
-        dir2 *= -blk->m.f[tid];
+        dir2 *= -blk->m.f[threadIdx.x];
         dx *= dir2;
         dy *= dir2;
         dz *= dir2;
         atomicAdd(&ax[wid],dx);
         atomicAdd(&ay[wid],dy);
         atomicAdd(&az[wid],dz);
-        atomicAdd(&fPot[wid],-blk->m.f[tid]*dir);
+        atomicAdd(&fPot[wid],-blk->m.f[threadIdx.x]*dir);
 
         /*
         ** Calculations for determining the timestep.
@@ -139,6 +135,9 @@ int CUDAinitWorkPP( void *vpp ) {
 
     if (ctx->in==NULL || ctx->block==NULL) return 0; /* good luck */
 
+    //cudaFuncSetCacheConfig(cudaPP,cudaFuncCachePreferL1);
+
+
     int j;
     PINFOOUT *pInfoOut = pp->pInfoOut;
     for( j=0; j<nP; j++ ) {
@@ -157,7 +156,6 @@ int CUDAinitWorkPP( void *vpp ) {
 #endif
         }
 
-#if 1
     // Grab a block of memory
     blk = ctx->block;
     ctx->block = blk->next;
@@ -176,9 +174,10 @@ int CUDAinitWorkPP( void *vpp ) {
     in->nRefs++;
 
     // cuda global arrays
-    int threads = ILP_PART_PER_BLK;
-    dim3 numBlocks(pp->nBlocks + (pp->nInLast ? 1 : 0), nP);
-    int bytes = sizeof(ILP_BLK) * (numBlocks.x);
+    int nBlocks = pp->nBlocks + (pp->nInLast ? 1 : 0);
+    dim3 threads(ILP_PART_PER_BLK,PP_BLKS_PER_THREAD);
+    dim3 numBlocks((nBlocks+PP_BLKS_PER_THREAD-1)/PP_BLKS_PER_THREAD, nP);
+    int bytes = sizeof(ILP_BLK) * (nBlocks);
 
     // copy data directly to device memory
     CUDA_CHECK(cudaMemcpyAsync,(blk->gpuBlk, tile->blk, bytes, cudaMemcpyHostToDevice, blk->stream));
@@ -188,7 +187,6 @@ int CUDAinitWorkPP( void *vpp ) {
     CUDA_CHECK(cudaMemcpyAsync,(blk->cpuResults, blk->gpuResults, nP*numBlocks.x*sizeof(PINFOOUT),
             cudaMemcpyDeviceToHost, blk->stream));
     CUDA_CHECK(cudaEventRecord,(blk->event,blk->stream));
-#endif
 
     return 1;
     }
@@ -199,7 +197,7 @@ int CUDAcheckWorkPP( void *vpp ) {
     CUDACTX ctx = reinterpret_cast<CUDACTX>(pp->work->pkd->cudaCtx);
     PINFOOUT *pInfoOut = pp->pInfoOut;
     int nP = pp->work->nP;
-    int numBlocks = pp->nBlocks + (pp->nInLast ? 1 : 0);
+    int numBlocks = (pp->nBlocks + (pp->nInLast ? 1 : 0) + PP_BLKS_PER_THREAD - 1)/PP_BLKS_PER_THREAD;
     cudaError_t rc;
     gpuBlock *blk;
     gpuInput *in;

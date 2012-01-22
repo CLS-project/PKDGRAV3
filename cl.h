@@ -19,22 +19,22 @@
 ** We use a union here so that the compiler can properly align the values.
 */
 typedef union {
-    float f[CL_PART_PER_TILE];
+    float f[CL_PART_PER_BLK];
 #if defined(USE_SIMD_OPEN) && !defined(__CUDACC__)
-    v4sf p[CL_PART_PER_TILE/SIMD_WIDTH];
+    v4sf p[CL_PART_PER_BLK/SIMD_WIDTH];
 #endif
     } clFloat;
 
 typedef union {
-    int32_t i[CL_PART_PER_TILE];
+    int32_t i[CL_PART_PER_BLK];
 #if defined(USE_SIMD_OPEN) && !defined(__CUDACC__)
-    v4i     p[CL_PART_PER_TILE/SIMD_WIDTH];
-    v4sf    pf[CL_PART_PER_TILE/SIMD_WIDTH];
+    v4i     p[CL_PART_PER_BLK/SIMD_WIDTH];
+    v4sf    pf[CL_PART_PER_BLK/SIMD_WIDTH];
 #endif
     } clInt32;
 
 typedef union {
-    uint64_t i[CL_PART_PER_TILE];
+    uint64_t i[CL_PART_PER_BLK];
     } clInt64;
 
 typedef struct {

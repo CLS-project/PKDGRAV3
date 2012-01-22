@@ -12,10 +12,18 @@
 #define EMUSYNC
 #endif
 
+#define PC_THREADS 1024
+//#define PC_THREADS ILC_PART_PER_BLK
+#define PC_BLKS_PER_THREAD (PC_THREADS/ILP_PART_PER_BLK)
+
 __global__ void cudaPC( int nP, PINFOIN *in, int nPart, ILC_BLK *blk, PINFOOUT *out ) {
-    int pid = blockIdx.x * blockDim.x + threadIdx.x;
-    int tid = threadIdx.x;
+    int bid = blockIdx.x * PC_BLKS_PER_THREAD + threadIdx.y;
+    int tid = threadIdx.x + threadIdx.y*ILC_PART_PER_BLK;
+    int pid = tid + blockIdx.x * PC_THREADS;
     int wid = tid & 31;
+//    int pid = blockIdx.x * blockDim.x + threadIdx.x;
+//    int tid = threadIdx.x;
+//    int wid = tid & 31;
     const float onethird = 1.0f/3.0f;
     float d2, dir, dx, dy, dz, p;
     float u,g0,g2,g3,g4;
@@ -25,25 +33,28 @@ __global__ void cudaPC( int nP, PINFOIN *in, int nPart, ILC_BLK *blk, PINFOOUT *
     float tx,ty,tz;
     float xx,xy,xz,yy,yz,zz;
     float xxx,xxz,yyy,yyz,xxy,xyy,xyz;
-
+    int i = blockIdx.y;
 
     __shared__ float ax[32];
     __shared__ float ay[32];
     __shared__ float az[32];
     __shared__ float fPot[32];
 
+    blk += bid;
+
+//    for( i=0; i<nP; ++i ) {
+
     if (tid<32) ax[tid] = ay[tid] = az[tid] = fPot[tid] = 0.0;
     __syncthreads();
 
     if ( pid < nPart ) {
-        blk += blockIdx.x;
 
-        dx = blk->dx.f[tid] + in[blockIdx.y].r[0];
-        dy = blk->dy.f[tid] + in[blockIdx.y].r[1];
-        dz = blk->dz.f[tid] + in[blockIdx.y].r[2];
+        dx = blk->dx.f[threadIdx.x] + in[i].r[0];
+        dy = blk->dy.f[threadIdx.x] + in[i].r[1];
+        dz = blk->dz.f[threadIdx.x] + in[i].r[2];
         d2 = dx*dx + dy*dy + dz*dz;
         dir = rsqrtf(d2);
-	    u = blk->u.f[tid]*dir;
+	    u = blk->u.f[threadIdx.x]*dir;
 	    g0 = dir;
 	    g2 = 3*dir*u*u;
 	    g3 = 5*g2*u;
@@ -72,19 +83,19 @@ __global__ void cudaPC( int nP, PINFOIN *in, int nPart, ILC_BLK *blk, PINFOOUT *
 	    /*
 	    ** Now calculate the interaction up to Hexadecapole order.
 	    */
-	    tx = g4*(blk->xxxx.f[tid]*xxx + blk->xyyy.f[tid]*yyy + blk->xxxy.f[tid]*xxy + blk->xxxz.f[tid]*xxz + blk->xxyy.f[tid]*xyy + blk->xxyz.f[tid]*xyz + blk->xyyz.f[tid]*yyz);
-	    ty = g4*(blk->xyyy.f[tid]*xyy + blk->xxxy.f[tid]*xxx + blk->yyyy.f[tid]*yyy + blk->yyyz.f[tid]*yyz + blk->xxyy.f[tid]*xxy + blk->xxyz.f[tid]*xxz + blk->xyyz.f[tid]*xyz);
-	    tz = g4*(-blk->xxxx.f[tid]*xxz - (blk->xyyy.f[tid] + blk->xxxy.f[tid])*xyz - blk->yyyy.f[tid]*yyz + blk->xxxz.f[tid]*xxx + blk->yyyz.f[tid]*yyy - blk->xxyy.f[tid]*(xxz + yyz) + blk->xxyz.f[tid]*xxy + blk->xyyz.f[tid]*xyy);
+	    tx = g4*(blk->xxxx.f[threadIdx.x]*xxx + blk->xyyy.f[threadIdx.x]*yyy + blk->xxxy.f[threadIdx.x]*xxy + blk->xxxz.f[threadIdx.x]*xxz + blk->xxyy.f[threadIdx.x]*xyy + blk->xxyz.f[threadIdx.x]*xyz + blk->xyyz.f[threadIdx.x]*yyz);
+	    ty = g4*(blk->xyyy.f[threadIdx.x]*xyy + blk->xxxy.f[threadIdx.x]*xxx + blk->yyyy.f[threadIdx.x]*yyy + blk->yyyz.f[threadIdx.x]*yyz + blk->xxyy.f[threadIdx.x]*xxy + blk->xxyz.f[threadIdx.x]*xxz + blk->xyyz.f[threadIdx.x]*xyz);
+	    tz = g4*(-blk->xxxx.f[threadIdx.x]*xxz - (blk->xyyy.f[threadIdx.x] + blk->xxxy.f[threadIdx.x])*xyz - blk->yyyy.f[threadIdx.x]*yyz + blk->xxxz.f[threadIdx.x]*xxx + blk->yyyz.f[threadIdx.x]*yyy - blk->xxyy.f[threadIdx.x]*(xxz + yyz) + blk->xxyz.f[threadIdx.x]*xxy + blk->xyyz.f[threadIdx.x]*xyy);
 	    g4 = 0.25*(tx*x + ty*y + tz*z);
-	    xxx = g3*(blk->xxx.f[tid]*xx + blk->xyy.f[tid]*yy + blk->xxy.f[tid]*xy + blk->xxz.f[tid]*xz + blk->xyz.f[tid]*yz);
-	    xxy = g3*(blk->xyy.f[tid]*xy + blk->xxy.f[tid]*xx + blk->yyy.f[tid]*yy + blk->yyz.f[tid]*yz + blk->xyz.f[tid]*xz);
-	    xxz = g3*(-(blk->xxx.f[tid] + blk->xyy.f[tid])*xz - (blk->xxy.f[tid] + blk->yyy.f[tid])*yz + blk->xxz.f[tid]*xx + blk->yyz.f[tid]*yy + blk->xyz.f[tid]*xy);
+	    xxx = g3*(blk->xxx.f[threadIdx.x]*xx + blk->xyy.f[threadIdx.x]*yy + blk->xxy.f[threadIdx.x]*xy + blk->xxz.f[threadIdx.x]*xz + blk->xyz.f[threadIdx.x]*yz);
+	    xxy = g3*(blk->xyy.f[threadIdx.x]*xy + blk->xxy.f[threadIdx.x]*xx + blk->yyy.f[threadIdx.x]*yy + blk->yyz.f[threadIdx.x]*yz + blk->xyz.f[threadIdx.x]*xz);
+	    xxz = g3*(-(blk->xxx.f[threadIdx.x] + blk->xyy.f[threadIdx.x])*xz - (blk->xxy.f[threadIdx.x] + blk->yyy.f[threadIdx.x])*yz + blk->xxz.f[threadIdx.x]*xx + blk->yyz.f[threadIdx.x]*yy + blk->xyz.f[threadIdx.x]*xy);
 	    g3 = onethird*(xxx*x + xxy*y + xxz*z);
-	    xx = g2*(blk->xx.f[tid]*x + blk->xy.f[tid]*y + blk->xz.f[tid]*z);
-	    xy = g2*(blk->yy.f[tid]*y + blk->xy.f[tid]*x + blk->yz.f[tid]*z);
-	    xz = g2*(-(blk->xx.f[tid] + blk->yy.f[tid])*z + blk->xz.f[tid]*x + blk->yz.f[tid]*y);
+	    xx = g2*(blk->xx.f[threadIdx.x]*x + blk->xy.f[threadIdx.x]*y + blk->xz.f[threadIdx.x]*z);
+	    xy = g2*(blk->yy.f[threadIdx.x]*y + blk->xy.f[threadIdx.x]*x + blk->yz.f[threadIdx.x]*z);
+	    xz = g2*(-(blk->xx.f[threadIdx.x] + blk->yy.f[threadIdx.x])*z + blk->xz.f[threadIdx.x]*x + blk->yz.f[threadIdx.x]*y);
 	    g2 = 0.5*(xx*x + xy*y + xz*z);
-	    g0 *= blk->m.f[tid];
+	    g0 *= blk->m.f[threadIdx.x];
         atomicAdd(&fPot[wid],-(g0 + g2 + g3 + g4));
 	    g0 += 5*g2 + 7*g3 + 9*g4;
 	    tax = dir*(xx + xxx + tx - x*g0);
@@ -116,35 +127,37 @@ __global__ void cudaPC( int nP, PINFOIN *in, int nPart, ILC_BLK *blk, PINFOOUT *
         /*
         ** Now reduce the result
         */
+        }
 
 #define R(S,T,O) S[tid] = T = T + S[tid + O]
 
     __syncthreads();
 
 #ifndef __DEVICE_EMULATION__
-        if (tid < 16)
+    if (tid < 16)
 #endif
-            {
-            // now that we are using warp-synchronous programming (below)
-            // we need to declare our shared memory volatile so that the compiler
-            // doesn't reorder stores to it and induce incorrect behavior.
-            volatile float * vax = ax;
-            volatile float * vay = ay;
-            volatile float * vaz = az;
-            dx = vax[tid];  dy = vay[tid]; dz = vaz[tid]; p = fPot[tid];
-            { R(vax,dx,16); R(vay,dy,16); R(vaz,dz,16); R(fPot,p,16); EMUSYNC; }
-            { R(vax,dx, 8); R(vay,dy, 8); R(vaz,dz, 8); R(fPot,p, 8); EMUSYNC; }
-            { R(vax,dx, 4); R(vay,dy, 4); R(vaz,dz, 4); R(fPot,p, 4); EMUSYNC; }
-            { R(vax,dx, 2); R(vay,dy, 2); R(vaz,dz, 2); R(fPot,p, 2); EMUSYNC; }
-            { R(vax,dx, 1); R(vay,dy, 1); R(vaz,dz, 1); R(fPot,p, 1); EMUSYNC; }
-            }
-        if (tid==0) {
-            out[blockIdx.y+nP*blockIdx.x].a[0] = ax[0];
-            out[blockIdx.y+nP*blockIdx.x].a[1] = ay[0];
-            out[blockIdx.y+nP*blockIdx.x].a[2] = az[0];
-            out[blockIdx.y+nP*blockIdx.x].fPot = fPot[0];
-            }
+        {
+        // now that we are using warp-synchronous programming (below)
+        // we need to declare our shared memory volatile so that the compiler
+        // doesn't reorder stores to it and induce incorrect behavior.
+        volatile float * vax = ax;
+        volatile float * vay = ay;
+        volatile float * vaz = az;
+        dx = vax[tid];  dy = vay[tid]; dz = vaz[tid]; p = fPot[tid];
+        { R(vax,dx,16); R(vay,dy,16); R(vaz,dz,16); R(fPot,p,16); EMUSYNC; }
+        { R(vax,dx, 8); R(vay,dy, 8); R(vaz,dz, 8); R(fPot,p, 8); EMUSYNC; }
+        { R(vax,dx, 4); R(vay,dy, 4); R(vaz,dz, 4); R(fPot,p, 4); EMUSYNC; }
+        { R(vax,dx, 2); R(vay,dy, 2); R(vaz,dz, 2); R(fPot,p, 2); EMUSYNC; }
+        { R(vax,dx, 1); R(vay,dy, 1); R(vaz,dz, 1); R(fPot,p, 1); EMUSYNC; }
         }
+    if (tid==0) {
+        out[i+nP*blockIdx.x].a[0] = ax[0];
+        out[i+nP*blockIdx.x].a[1] = ay[0];
+        out[i+nP*blockIdx.x].a[2] = az[0];
+        out[i+nP*blockIdx.x].fPot = fPot[0];
+        }
+//    }
+
     }
 
 /*
@@ -162,6 +175,8 @@ int CUDAinitWorkPC( void *vpp) {
     gpuBlock *blk;
 
     if (ctx->in==NULL || ctx->block==NULL) return 0; /* good luck */
+
+    //cudaFuncSetCacheConfig(cudaPC,cudaFuncCachePreferL1);
 
     int j;
     PINFOOUT *pInfoOut = pc->pInfoOut;
@@ -199,9 +214,11 @@ int CUDAinitWorkPC( void *vpp) {
     in->nRefs++;
 
     // cuda global arrays
-    int threads = ILC_PART_PER_BLK;
-    dim3 numBlocks(pc->nBlocks + (pc->nInLast ? 1 : 0), nP);
-    int bytes = sizeof(ILC_BLK) * (numBlocks.x);
+
+    int nBlocks = pc->nBlocks + (pc->nInLast ? 1 : 0);
+    dim3 threads(ILC_PART_PER_BLK,PC_BLKS_PER_THREAD);
+    dim3 numBlocks((nBlocks+PC_BLKS_PER_THREAD-1)/PC_BLKS_PER_THREAD, nP);
+    int bytes = sizeof(ILC_BLK) * (nBlocks);
 
     // copy data directly to device memory
     CUDA_CHECK(cudaMemcpyAsync,(blk->gpuBlkILC, tile->blk, bytes, cudaMemcpyHostToDevice, blk->stream));
@@ -221,7 +238,7 @@ int CUDAcheckWorkPC( void *vpp ) {
     CUDACTX ctx = reinterpret_cast<CUDACTX>(pc->work->pkd->cudaCtx);
     PINFOOUT *pInfoOut = pc->pInfoOut;
     int nP = pc->work->nP;
-    int numBlocks = pc->nBlocks + (pc->nInLast ? 1 : 0);
+    int numBlocks = (pc->nBlocks + (pc->nInLast ? 1 : 0) + PC_BLKS_PER_THREAD - 1)/PC_BLKS_PER_THREAD;
     cudaError_t rc;
     gpuBlock *blk;
     gpuInput *in;
