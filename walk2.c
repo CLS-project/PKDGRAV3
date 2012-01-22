@@ -1599,9 +1599,9 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 	** Checklist should be empty! Calculate gravity on this
 	** Bucket!
 	*/
-//	nActive = pkdGravInteract(pkd,uRungLo,uRungHi,k,&L,pkd->ilp,pkd->ilc,
-//				  dirLsum,normLsum,bEwald,pdFlop,&dEwFlop,dRhoFac,
-//				  smx, &smf);
+	nActive = pkdGravInteract(pkd,uRungLo,uRungHi,k,&L,pkd->ilp,pkd->ilc,
+				  dirLsum,normLsum,bEwald,pdFlop,&dEwFlop,dRhoFac,
+				  smx, &smf);
 	/*
 	** Update the limit for a shift of the center here based on the opening radius of this
 	** cell (the one we just evaluated).
