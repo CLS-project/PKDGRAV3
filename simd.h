@@ -39,6 +39,9 @@
 #ifdef __AVX__
 #include <immintrin.h>
 #endif
+#ifdef __FMA4__
+#include <x86intrin.h>
+#endif
 
 #elif defined(__ALTIVEC__)
 #include <altivec.h>
@@ -155,9 +158,9 @@ static inline v4sf SIMD_LOADS(float f) {
 #define SIMD_MUL(a,b) MM_FCN(mul_ps)(a,b)
 #define SIMD_ADD(a,b) MM_FCN(add_ps)(a,b)
 #define SIMD_SUB(a,b) MM_FCN(sub_ps)(a,b)
-#ifdef __AVX__
-#define SIMD_MADD(a,b,c) MM_FCN(fmadd_ps)(a,b,c)
-#define SIMD_NMSUB(a,b,c) MM_FCN(fnmadd_ps)(a,b,c)
+#ifdef __FMA4__
+#define SIMD_MADD(a,b,c) MM_FCN(macc_ps)(a,b,c)
+#define SIMD_NMSUB(a,b,c) MM_FCN(nmacc_ps)(a,b,c)
 #else
 #define SIMD_MADD(a,b,c) MM_FCN(add_ps)(MM_FCN(mul_ps)(a,b),c)
 #define SIMD_NMSUB(a,b,c) MM_FCN(sub_ps)(c,MM_FCN(mul_ps)(a,b))
