@@ -1,8 +1,6 @@
 #ifndef CUDAUTIL_H
 #define CUDAUTIL_H
 
-#include "simd.h"
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -12,6 +10,7 @@ extern "C" {
     void *CUDA_initialize(int iProc,int iWorkQueueSize, size_t tileSize, size_t ParticlesSize, size_t OutSize);
     void CUDA_finish(void *vctx);
 #else
+#include "simd.h"
 #define CUDA_malloc SIMD_malloc
 #define CUDA_free SIMD_free
 #endif
