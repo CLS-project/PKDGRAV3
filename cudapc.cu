@@ -12,7 +12,8 @@
 #define EMUSYNC
 #endif
 
-#define PC_THREADS 1024
+/* With 512 threads we can have better occupancy as 1536 can be active. */
+#define PC_THREADS 512
 #define PC_BLKS_PER_THREAD (PC_THREADS/ILC_PART_PER_BLK)
 
 __global__ void cudaPC( int nP, PINFOIN *in, int nPart, ILC_BLK *blk, PINFOOUT *out ) {
