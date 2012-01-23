@@ -107,8 +107,8 @@ static inline void SIMD_free(void *p) {
     free(p);
     }
 #else
-#define SIMD_malloc(a) malloc(a)
-#define SIMD_free(a) free(a)
+#define SIMD_malloc malloc
+#define SIMD_free free
 #endif
 
 static inline v4sf SIMD_SPLAT(float f) {
@@ -293,8 +293,8 @@ static inline float SIMD_HADD(v4sf p) {
 
 
 #else
-#define SIMD_malloc(a) malloc(a)
-#define SIMD_free(a) free(a)
+#define SIMD_malloc malloc
+#define SIMD_free free
 #endif
 
 #endif

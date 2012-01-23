@@ -280,7 +280,7 @@ int CPUdoWorkPP(void *vpp) {
 
     blk = tile->blk;
     for( nLeft=pp->nBlocks; nLeft >= 0; --nLeft,++blk ) {
-	n = (nLeft ? ilp->lst.nPerBlock : pp->nInLast);
+	n = (nLeft ? ILP_PART_PER_BLK : pp->nInLast);
 	for (j=0; j<n; ++j) {
 	    dx = fx + blk->dx.f[j];
 	    dy = fy + blk->dy.f[j];
@@ -409,6 +409,7 @@ int CPUdoWorkPC(void *vpc) {
     float tx,ty,tz;
     float xx,xy,xz,yy,yz,zz;
     float xxx,xxz,yyy,yyz,xxy,xyy,xyz;
+    float dir,dimaga;
 #endif
     float tax, tay, taz;
     ILC_BLK *blk;
@@ -555,7 +556,7 @@ int CPUdoWorkPC(void *vpc) {
 
     blk = ctile->blk;
     for( nLeft=pc->nBlocks; nLeft >= 0; --nLeft,++blk ) {
-	n = (nLeft ? ilc->lst.nPerBlock : pc->nInLast);
+	n = (nLeft ? ILC_PART_PER_BLK : pc->nInLast);
 	for (j=0; j<n; ++j) {
 	    float dx = blk->dx.f[j] + fx;
 	    float dy = blk->dy.f[j] + fy;
@@ -612,7 +613,7 @@ int CPUdoWorkPC(void *vpc) {
 	    /*
 	    ** Calculations for determining the timestep.
 	    */
-	    adotai = pInfoIn[i].a[0]*tax + pInfoIn[i].a[1]*tay + pInfoIn[i].a[2]*taz;
+	    adotai = pc->work->pInfoIn[i].a[0]*tax + pc->work->pInfoIn[i].a[1]*tay + pc->work->pInfoIn[i].a[2]*taz;
 	    if (adotai > 0) {
 		adotai *= dimaga;
 		dirsum += dir*adotai*adotai;
@@ -701,7 +702,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,FLOCR *
     float fMass,fSoft;
     float fx, fy, fz;
     float dtGrav,dT;
-    float maga,dimaga,dirsum,normsum;
+    float maga,dirsum,normsum;
     float rhopmax,rhopmaxlocal,fsmooth2;
     float summ;
     ILPTILE tile;
