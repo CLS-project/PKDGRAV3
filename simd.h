@@ -157,10 +157,11 @@ static inline v4sf SIMD_LOADS(float f) {
 #define SIMD_SUB(a,b) MM_FCN(sub_ps)(a,b)
 #ifdef __AVX__
 #define SIMD_MADD(a,b,c) MM_FCN(fmadd_ps)(a,b,c)
+#define SIMD_NMSUB(a,b,c) MM_FCN(fnmadd_ps)(a,b,c)
 #else
 #define SIMD_MADD(a,b,c) MM_FCN(add_ps)(MM_FCN(mul_ps)(a,b),c)
-#endif
 #define SIMD_NMSUB(a,b,c) MM_FCN(sub_ps)(c,MM_FCN(mul_ps)(a,b))
+#endif
 #define SIMD_DIV(a,b) MM_FCN(div_ps)(a,b)
 #define SIMD_RSQRT(a) MM_FCN(rsqrt_ps)(a)
 #define SIMD_RE(a) MM_FCN(rcp_ps)(a);
