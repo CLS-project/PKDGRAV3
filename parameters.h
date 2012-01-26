@@ -24,6 +24,7 @@ struct parameters {
     */
     int nThreads;
     int bDiag;
+    int bNoGrav;
     int bOverwrite;
     int bVWarnings;
     int bVStart;

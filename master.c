@@ -169,6 +169,9 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.bDiag = 0;
     prmAddParam(msr->prm,"bDiag",0,&msr->param.bDiag,sizeof(int),"d",
 		"enable/disable per thread diagnostic output");
+    msr->param.bNoGrav = 0;
+    prmAddParam(msr->prm,"bNoGrav",0,&msr->param.bNoGrav,sizeof(int),"nograv",
+		"enable/disable Gravity calulation for testing = -nograv");
     msr->param.bOverwrite = 0;
     prmAddParam(msr->prm,"bOverwrite",0,&msr->param.bOverwrite,sizeof(int),
 		"overwrite","enable/disable overwrite safety lock = -overwrite");
