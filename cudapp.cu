@@ -13,116 +13,117 @@
 #endif
 
 /* With 512 threads we can have better occupancy as 1536 can be active. */
-#define PP_THREADS 512
+#define PP_THREADS 256
 #define PP_BLKS_PER_THREAD (PP_THREADS/ILP_PART_PER_BLK)
 
 __device__ float MWS(float m1, float h12, float m2, float h22) {
     float tmp = h12*h22;
-    if (m1 == 0.0) return(h22);
-    if (m2 == 0.0) return(h12);
-    if (tmp > 0.0) return((m1+m2)*tmp/(h22*m1+h12*m2));
-    else return(0.0);
+    if ( (m1 == 0.0f && m2 == 0.0f) || tmp == 0.0f ) return 0.0f;
+    return __fdividef( (m1+m2)*tmp , (h22*m1+h12*m2));
     }
 
+#define NBLOCKS 1
+
 __global__ void cudaPP( int nP, PINFOIN *in, int nPart, ILP_BLK *blk, PINFOOUT *out ) {
-    int bid = blockIdx.x * PP_BLKS_PER_THREAD + threadIdx.y;
-    int tid = threadIdx.x + threadIdx.y*ILP_PART_PER_BLK;
-    int pid = tid + blockIdx.x * PP_THREADS;
-    int wid = tid & 31;
-    float d2, dir, dir2, fourh2, dx, dy, dz, p;
+    int bid, tid, pid, wid;
+    float d2, dir, dir2, dir3, fourh2, dx, dy, dz, p;
     float fSoft, fMass;
     __shared__ float ax[32];
     __shared__ float ay[32];
     __shared__ float az[32];
     __shared__ float fPot[32];
-    float fx, fy, fz, m, h2;
+    float m, h2;
     int i = blockIdx.y;
-//    int i;
 
-    blk += bid;
-    fx = blk->dx.f[threadIdx.x];
-    fy = blk->dy.f[threadIdx.x];
-    fz = blk->dz.f[threadIdx.x];
-    m = blk->m.f[threadIdx.x];
-    h2 = blk->fourh2.f[threadIdx.x];
-
-//    for( i=0; i<nP; ++i ) {
-
-
-    if (tid<32) ax[tid] = ay[tid] = az[tid] = fPot[tid] = 0.0;
+    bid = blockIdx.x * PP_BLKS_PER_THREAD + threadIdx.y;
+    tid = threadIdx.x + threadIdx.y*ILP_PART_PER_BLK;
+    pid = tid + blockIdx.x * PP_THREADS;
+    if (tid<32) ax[tid] = ay[tid] = az[tid] = fPot[tid] = 0.0f;
     __syncthreads();
 
-    if ( pid < nPart ) {
+    blk += bid;
+    wid = tid & 31;
 
-        dx = fx + in[i].r[0];
-        dy = fy + in[i].r[1];
-        dz = fz + in[i].r[2];
+    while(pid < nPart) {
+        dx = blk->dx.f[threadIdx.x] + in[i].r[0];
+        dy = blk->dy.f[threadIdx.x] + in[i].r[1];
+        dz = blk->dz.f[threadIdx.x] + in[i].r[2];
         d2 = dx*dx + dy*dy + dz*dz;
+
+        m = blk->m.f[threadIdx.x];
+        h2 = blk->fourh2.f[threadIdx.x];
+
         fSoft = in[i].fSoft;
         fMass = in[i].fMass;
         fourh2 = MWS(fMass,4.0f*fSoft*fSoft,m,h2);
-        if (d2 == 0.0 ) dir2 = 0.0; /* Ignore self interactions */
-        else if (d2 <= fourh2) {
-            /*
-            ** This uses the Dehnen K1 kernel function now, it's fast!
-            */
+        if (d2 != 0.0f ) { /* Ignore self interactions */
+            if (d2 > fourh2) fourh2 = d2;
             dir = rsqrtf(fourh2);
             dir2 = dir*dir;
-            d2 *= dir2;
-            dir2 *= dir;
-            d2 = 1.0f - d2;
-            dir *= 1.0f + d2*(0.5f + d2*(3.0f/8.0f + d2*(45.0f/32.0f)));
-            dir2 *= 1.0f + d2*(1.5f + d2*(135.0f/16.0f));
-            }
-        else {
-            dir = rsqrtf(d2);
-            dir2 = dir*dir*dir;
-            }
+            dir3 = dir2*dir;
+            if (d2 <= fourh2) {
+                /*
+                ** This uses the Dehnen K1 kernel function now, it's fast!
+                */
+                d2 *= dir2;
+                d2 = 1.0f - d2;
+                dir *= 1.0f + d2*(0.5f + d2*(3.0f/8.0f + d2*(45.0f/32.0f)));
+                dir3 *= 1.0f + d2*(1.5f + d2*(135.0f/16.0f));
+                }
 
-        dir2 *= -m;
-        dx *= dir2;
-        dy *= dir2;
-        dz *= dir2;
-        atomicAdd(&ax[wid],dx);
-        atomicAdd(&ay[wid],dy);
-        atomicAdd(&az[wid],dz);
-        atomicAdd(&fPot[wid],-m*dir);
+            dir3 *= -m;
+            dx *= dir3;
+            dy *= dir3;
+            dz *= dir3;
+            
 
-        /*
-        ** Calculations for determining the timestep.
-        */
-        float adotai = in[i].a[0]*dx + in[i].a[1]*dy + in[i].a[2]*dz;
-        if (adotai > 0.0 && d2 >= in[i].fSmooth2) {
+            atomicAdd(&ax[wid],dx);
+            atomicAdd(&ay[wid],dy);
+            atomicAdd(&az[wid],dz);
+            atomicAdd(&fPot[wid],-m*dir);
+
+            /*
+            ** Calculations for determining the timestep.
+            */
+            float adotai = in[i].a[0]*dx + in[i].a[1]*dy + in[i].a[2]*dz;
+            if (adotai > 0.0f && d2 >= in[i].fSmooth2) {
 //	    adotai *= dimaga;
 //	    *dirsum += dir*adotai*adotai;
 //	    *normsum += adotai*adotai;
+                }
+
+
             }
 
-        /*
-        ** Now reduce the result
-        */
+        blk += PP_BLKS_PER_THREAD * NBLOCKS;
+        pid += PP_THREADS * NBLOCKS;
+        }
+
+    /*
+    ** Now reduce the result
+    */
 
 #define R(S,T,O) S[tid] = T = T + S[tid + O]
 
-        __syncthreads();
+    __syncthreads();
 
 #ifndef __DEVICE_EMULATION__
-        if (tid < 16)
+    if (tid < 16)
 #endif
-            {
-            // now that we are using warp-synchronous programming (below)
-            // we need to declare our shared memory volatile so that the compiler
-            // doesn't reorder stores to it and induce incorrect behavior.
-            volatile float * vax = ax;
-            volatile float * vay = ay;
-            volatile float * vaz = az;
-            dx = vax[tid];  dy = vay[tid]; dz = vaz[tid]; p = fPot[tid];
-            { R(vax,dx,16); R(vay,dy,16); R(vaz,dz,16); R(fPot,p,16); EMUSYNC; }
-            { R(vax,dx, 8); R(vay,dy, 8); R(vaz,dz, 8); R(fPot,p, 8); EMUSYNC; }
-            { R(vax,dx, 4); R(vay,dy, 4); R(vaz,dz, 4); R(fPot,p, 4); EMUSYNC; }
-            { R(vax,dx, 2); R(vay,dy, 2); R(vaz,dz, 2); R(fPot,p, 2); EMUSYNC; }
-            { R(vax,dx, 1); R(vay,dy, 1); R(vaz,dz, 1); R(fPot,p, 1); EMUSYNC; }
-            }
+        {
+        // now that we are using warp-synchronous programming (below)
+        // we need to declare our shared memory volatile so that the compiler
+        // doesn't reorder stores to it and induce incorrect behavior.
+        volatile float * vax = ax;
+        volatile float * vay = ay;
+        volatile float * vaz = az;
+        dx = vax[tid];  dy = vay[tid]; dz = vaz[tid]; p = fPot[tid];
+        { R(vax,dx,16); R(vay,dy,16); R(vaz,dz,16); R(fPot,p,16); EMUSYNC; }
+        { R(vax,dx, 8); R(vay,dy, 8); R(vaz,dz, 8); R(fPot,p, 8); EMUSYNC; }
+        { R(vax,dx, 4); R(vay,dy, 4); R(vaz,dz, 4); R(fPot,p, 4); EMUSYNC; }
+        { R(vax,dx, 2); R(vay,dy, 2); R(vaz,dz, 2); R(fPot,p, 2); EMUSYNC; }
+        { R(vax,dx, 1); R(vay,dy, 1); R(vaz,dz, 1); R(fPot,p, 1); EMUSYNC; }
+
         if (tid==0) {
             out[i+nP*blockIdx.x].a[0] = ax[0];
             out[i+nP*blockIdx.x].a[1] = ay[0];
@@ -130,7 +131,6 @@ __global__ void cudaPP( int nP, PINFOIN *in, int nPart, ILP_BLK *blk, PINFOOUT *
             out[i+nP*blockIdx.x].fPot = fPot[0];
             }
         }
-//        }
     }
 
 /*
@@ -146,28 +146,16 @@ int CUDAinitWorkPP( void *vpp ) {
     CUDACTX ctx = reinterpret_cast<CUDACTX>(pp->work->pkd->cudaCtx);
     gpuInput *in;
     gpuBlock *blk;
+    int j;
 
     if (ctx->in==NULL || ctx->block==NULL) return 0; /* good luck */
 
-    //cudaFuncSetCacheConfig(cudaPP,cudaFuncCachePreferL1);
-
-
-    int j;
     PINFOOUT *pInfoOut = pp->pInfoOut;
     for( j=0; j<nP; j++ ) {
         pInfoOut[j].a[0] = 0;
         pInfoOut[j].a[1] = 0;
         pInfoOut[j].a[2] = 0;
         pInfoOut[j].fPot = 0;
-#if 0
-        pp->i = j;
-        extern int CPUdoWorkPP(void *vpp);
-        CPUdoWorkPP(pp);
-        pInfoOut[j].a[0] = -pInfoOut[j].a[0];
-        pInfoOut[j].a[1] = -pInfoOut[j].a[1];
-        pInfoOut[j].a[2] = -pInfoOut[j].a[2];
-        pInfoOut[j].fPot = -pInfoOut[j].fPot;
-#endif
         }
 
     // Grab a block of memory
@@ -187,11 +175,13 @@ int CUDAinitWorkPP( void *vpp ) {
         }
     in->nRefs++;
 
-    // cuda global arrays
     int nBlocks = pp->nBlocks + (pp->nInLast ? 1 : 0);
+    pp->nCudaBlks = (nBlocks+PP_BLKS_PER_THREAD-1)/(PP_BLKS_PER_THREAD);
+    if (pp->nCudaBlks > NBLOCKS ) pp->nCudaBlks = NBLOCKS;
+
+    // cuda global arrays
     dim3 threads(ILP_PART_PER_BLK,PP_BLKS_PER_THREAD);
-    dim3 numBlocks((nBlocks+PP_BLKS_PER_THREAD-1)/PP_BLKS_PER_THREAD, nP);
-//    dim3 numBlocks((nBlocks+PP_BLKS_PER_THREAD-1)/PP_BLKS_PER_THREAD, 1);
+    dim3 numBlocks(pp->nCudaBlks, nP );
     int bytes = sizeof(ILP_BLK) * (nBlocks);
 
     // copy data directly to device memory
@@ -212,7 +202,6 @@ int CUDAcheckWorkPP( void *vpp ) {
     CUDACTX ctx = reinterpret_cast<CUDACTX>(pp->work->pkd->cudaCtx);
     PINFOOUT *pInfoOut = pp->pInfoOut;
     int nP = pp->work->nP;
-    int numBlocks = (pp->nBlocks + (pp->nInLast ? 1 : 0) + PP_BLKS_PER_THREAD - 1)/PP_BLKS_PER_THREAD;
     cudaError_t rc;
     gpuBlock *blk;
     gpuInput *in;
@@ -227,7 +216,7 @@ int CUDAcheckWorkPP( void *vpp ) {
         exit(1);
         }
     for( j=0; j<nP; j++ ) {
-        for( i=0; i<numBlocks; i++) {
+        for( i=0; i<pp->nCudaBlks; i++) {
             pInfoOut[j].a[0] += blk->cpuResults[j+nP*i].a[0];
             pInfoOut[j].a[1] += blk->cpuResults[j+nP*i].a[1];
             pInfoOut[j].a[2] += blk->cpuResults[j+nP*i].a[2];
@@ -247,4 +236,10 @@ int CUDAcheckWorkPP( void *vpp ) {
     pp->gpu_memory = NULL;
 
     return 0;
+    }
+
+
+extern "C"
+void CUDAsetupPP(void) {
+    cudaFuncSetCacheConfig(cudaPP,cudaFuncCachePreferL1);
     }
