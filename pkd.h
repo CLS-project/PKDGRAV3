@@ -846,6 +846,7 @@ typedef struct {
     uint16_t nInLast;
 #ifdef USE_CUDA
     void *gpu_memory;
+    int nCudaBlks;
 #endif
     } workPP;
 
