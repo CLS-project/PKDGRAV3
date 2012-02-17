@@ -2796,16 +2796,29 @@ static void graficReadHdr(graficFile *gf) {
     gf->iIndex = gf->nPerSlab;
     gf->iPosition[0] = -1;
     gf->iPosition[1] = gf->iPosition[2] = 0;
-    if ( gf->bDouble ) {
+
+    // Find out if we have single or double precision
+    rc = fread(&w1,sizeof(w1),1,gf->fp);
+    assert(rc==1);
+
+    if (w1 == sizeof(double)*gf->nPerSlab) {
+	gf->bDouble = 1;
 	gf->nSlabSize = sizeof(double)*gf->nPerSlab;
 	gf->data.pDouble = malloc(gf->nSlabSize);
 	assert(gf->data.pDouble!=NULL);
 	}
-    else {
+    else if (w1 == sizeof(float)*gf->nPerSlab) {
+	gf->bDouble = 0;
 	gf->nSlabSize = sizeof(float)*gf->nPerSlab;
 	gf->data.pFloat = malloc(gf->nSlabSize);
 	assert(gf->data.pFloat!=NULL);
 	}
+    else {
+	fprintf(stderr,"Invalid GRAFIC slab size\n");
+	abort();
+	}
+    rc = fseek(gf->fp,-sizeof(w1),SEEK_CUR);
+    assert(rc==0);
     }
 
 /*
