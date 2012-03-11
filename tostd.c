@@ -78,6 +78,13 @@ int main( int argc, char *argv[] ) {
 	fprintf(stderr, "Specify only one of --hdf5 or --native\n" );
 	bError = 1;
 	}
+#ifndef USE_HDF5
+   if (bHDF5) {
+        fprintf(stderr, "HDF5 support was not compiled in.\n" );
+        bError = 1;
+        }
+#endif
+
 
     if ( optind < argc ) {
 	inNameIndex = optind++;
@@ -99,13 +106,15 @@ int main( int argc, char *argv[] ) {
 	fprintf(stderr, "Usage: %s [-p] <input...> <outtipsy>\n"
 		"  -d,--double    Output double precision positions\n"
 		"  -n,--native    Output a native tipsy binary\n"
+#ifdef USE_HDF5
 		"  -5,--hdf5      Output in HDF5 format\n"
-		"  -p,--potential Included potentials in HDF5 output\n",
-		argv[0] );
+		"  -p,--potential Included potentials in HDF5 output\n"
+#endif
+		,argv[0] );
 	exit(1);
 	}
 
-    fioIn = fioOpenMany(inNameCount,&argv[inNameIndex],0.0,0.0);
+    fioIn = fioOpenMany(inNameCount,(const char * const *)&argv[inNameIndex],0.0,0.0);
     if (fioIn==NULL) {
 	perror(argv[inNameIndex]);
 	exit(errno);
@@ -116,6 +125,7 @@ int main( int argc, char *argv[] ) {
     nStar = fioGetN(fioIn,FIO_SPECIES_STAR);
     if (!fioGetAttr(fioIn,"dTime",FIO_TYPE_DOUBLE,&dTime)) dTime = 0.0;
 
+#ifdef USE_HDF5
     if (bHDF5) {
 	int mFlag = FIO_FLAG_COMPRESS_MASS | FIO_FLAG_COMPRESS_SOFT;
 	if (bDouble) mFlag |= FIO_FLAG_DOUBLE_POS | FIO_FLAG_DOUBLE_VEL;
@@ -123,9 +133,13 @@ int main( int argc, char *argv[] ) {
 	if (bDensity) mFlag |= FIO_FLAG_DENSITY;
 	fioOut = fioHDF5Create(outName,mFlag);
 	}
+#else
+    if (0) {}
+#endif
     else {
 	fioOut = fioTipsyCreate(outName,bDouble,!bNative,dTime,nSph,nDark,nStar);
 	}
+
     if (fioOut==NULL) {
 	perror(outName);
 	exit(errno);

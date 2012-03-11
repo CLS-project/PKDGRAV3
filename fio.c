@@ -10,6 +10,11 @@
 #include <math.h>
 #include <errno.h>
 #include <sys/stat.h>
+#ifdef HAVE_GSL
+#include <gsl/gsl_integration.h>
+#include <gsl/gsl_interp.h>
+#endif
+
 #ifndef NO_XDR
 #include <rpc/types.h>
 #include <rpc/xdr.h>
@@ -1544,6 +1549,10 @@ FIO fioTipsyCreatePart(const char *fileName,int bAppend,int mFlags,int bStandard
 ** General HDF5 support routines.  Not "fio" specific.
 \******************************************************************************/
 #ifdef USE_HDF5
+#ifndef H5_USE_16_API
+#define H5_USE_16_API 1
+#endif
+
 #include <hdf5.h>
 
 /* Returns the number of records in a dataset */
@@ -3051,6 +3060,33 @@ typedef struct {
     double omegav;
     } ddplus_ctx;
 
+#ifdef HAVE_GSL
+static double ddplus(double a,void *ctx) {
+    ddplus_ctx *dc = ctx;
+    double eta;
+    if ( a == 0.0 ) return 0.0;
+    eta = sqrt(dc->omegam/a + dc->omegav*a*a + 1.0 - dc->omegam - dc->omegav);
+    return 2.5/(eta*eta*eta);
+    }
+static double dplus(double a,double omegam,double omegav) {
+    double eta;
+    ddplus_ctx ddctx;
+    gsl_function F;
+    double result, error;
+    gsl_integration_workspace *W;
+
+    ddctx.omegam = omegam;
+    ddctx.omegav = omegav;
+    eta = sqrt(omegam/a + omegav*a*a + 1.0 - omegam - omegav);
+    W = gsl_integration_workspace_alloc (1000);
+    F.function = &ddplus;
+    F.params = &ddctx;
+    gsl_integration_qag(&F, 0.0, a, 0.0, 1e-8, 1000,
+        GSL_INTEG_GAUSS61, W, &result, &error); 
+    gsl_integration_workspace_free(W);
+    return eta/a * result;
+    }
+#else
 static double ddplus(void *ctx,double a) {
     ddplus_ctx *dc = ctx;
     double eta;
@@ -3058,9 +3094,67 @@ static double ddplus(void *ctx,double a) {
     eta = sqrt(dc->omegam/a + dc->omegav*a*a + 1.0 - dc->omegam - dc->omegav);
     return 2.5/(eta*eta*eta);
     }
-
-double dRombergO(void *CTX, double (*func)(void *, double), double a,
+#ifdef HAVE_ROMBERG
+extern double dRombergO(void *CTX, double (*func)(void *,double), double a,
                  double b, double eps);
+#else
+#define MAXLEV 13
+
+/*
+ ** Romberg integrator for an open interval.
+ */
+
+static double dRombergO(void *CTX,double (*func)(void *, double),double a,double b,double eps) {
+    double tllnew;
+    double tll;
+    double tlk[MAXLEV+1];
+    int n = 1;
+    int nsamples = 1;
+
+    tlk[0] = tllnew = (b-a)*(*func)(CTX, 0.5*(b+a));
+    if (a == b) return tllnew;
+
+    eps*=0.5;
+
+    do {
+        /*
+ *          * midpoint rule.
+ *                   */
+        double deltax;
+        double tlktmp;
+        int i;
+
+        nsamples *= 3;
+        deltax = (b-a)/nsamples;
+        tlktmp = tlk[0];
+        tlk[0] = tlk[0]/3.0;
+
+        for (i=0;i<nsamples/3;i++) {
+            tlk[0] += deltax*(*func)(CTX,a + (3*i + 0.5)*deltax);
+            tlk[0] += deltax*(*func)(CTX,a + (3*i + 2.5)*deltax);
+            }
+
+        /*
+ *          * Romberg extrapolation.
+ *                   */
+
+        for (i=0;i<n;i++) {
+            double tlknew = (pow(9.0, i+1.)*tlk[i] - tlktmp)
+                            /(pow(9.0, i+1.) - 1.0);
+
+            tlktmp = tlk[i+1];
+            tlk[i+1] = tlknew;
+            }
+        tll = tllnew;
+        tllnew = tlk[n];
+        n++;
+        } while ((fabs((tllnew-tll)/(tllnew+tll)) > eps) && (n < MAXLEV));
+
+    assert((fabs((tllnew-tll)/(tllnew+tll)) < eps));
+
+    return tllnew;
+    }
+#endif
 
 static double dplus(double a,double omegam,double omegav) {
     double eta;
@@ -3071,6 +3165,7 @@ static double dplus(double a,double omegam,double omegav) {
     eta = sqrt(omegam/a + omegav*a*a + 1.0 - omegam - omegav);
     return eta/a * dRombergO(&ddctx,ddplus,0,a,1e-8);
 }
+#endif
 
 static double fomega(double a,double omegam,double omegav) {
     double eta, omegak;
