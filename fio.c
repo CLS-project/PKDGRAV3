@@ -2883,7 +2883,7 @@ static void graficSeekFile(graficFile *gf,uint64_t iPart) {
     int rc;
 
     gf->iPosition[2] = iPart / gf->nPerSlab;
-    gf->iPosition[1] = (iPart-gf->iPosition[2]*gf->nPerSlab) / gf->hdr.n[0];
+    gf->iPosition[1] = (iPart-gf->iPosition[2]*(uint64_t)gf->nPerSlab) / gf->hdr.n[0];
     gf->iPosition[0] = iPart % gf->hdr.n[0] - 1;
 
     /* Calculate the slab, particle in slab and byte offset */
