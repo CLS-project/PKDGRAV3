@@ -629,7 +629,7 @@ typedef struct shapesBin {
     double ell_center[3];
     } SHAPESBIN;
 
-#define PKD_GROUP_SIZE 256
+/*#define PKD_GROUP_SIZE 256*/
 
 typedef struct {
     float r[3];
@@ -1161,7 +1161,7 @@ void pkdClearTimer(PKD,int);
 void pkdStartTimer(PKD,int);
 void pkdStopTimer(PKD,int);
 void pkdInitialize(
-    PKD *ppkd,MDL mdl,int nStore,int nBucket,int nTreeBitsLo, int nTreeBitsHi,
+    PKD *ppkd,MDL mdl,int nStore,int nBucket,int nGroup,int nTreeBitsLo, int nTreeBitsHi,
     int iCacheSize,int iWorkQueueSize,int iCUDAQueueSize,FLOAT *fPeriod,uint64_t nDark,uint64_t nGas,uint64_t nStar,
     uint64_t mMemoryModel, int nDomainRungs);
 void pkdFinish(PKD);
@@ -1216,8 +1216,8 @@ uint32_t pkdWriteFIO(PKD pkd,FIO fio,double dvFac);
 uint32_t pkdWriteTipsy(PKD,char *,uint64_t,int,double,int);
 void
 pkdGravAll(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,int bPeriodic,
-	   int iOrder,int bEwald,double fEwCut,double fEwhCut,double dThetaMin,double dThetaMax,
-	   int *nActive,double *pdPartSum, double *pdCellSum,CASTAT *pcs, double *pdFlop);
+    int iOrder,int bEwald,int nGroup,double fEwCut,double fEwhCut,double dThetaMin,double dThetaMax,
+    int *nActive,double *pdPartSum, double *pdCellSum,CASTAT *pcs, double *pdFlop);
 void pkdCalcEandL(PKD pkd,double *T,double *U,double *Eth,double *L,double *F,double *W);
 void pkdDrift(PKD pkd,double dDelta,double,double,uint8_t uRungLo,uint8_t uRungHi);
 void pkdScaleVel(PKD pkd,double dvFac);

@@ -16,6 +16,8 @@ AC_ARG_WITH(mpicc,
   [MPICC="${withval}"],[AC_CHECK_PROG([MPICC],mpicc,mpicc,no)])
 AC_SUBST(MPICC)
 
+AC_DEFINE([HAVE_ROMBERG], 1, [Use the pkdgrav2 Romberg integrator.])
+
 # Cooling
 AC_ARG_ENABLE(cooling,
   [  --enable-cooling             enable cooling],
@@ -162,20 +164,16 @@ AC_ARG_WITH(mdl,
    fi])
 AC_SUBST([MDL_PATH],[$MDL_PATH])
 
-AC_ARG_WITH(grafic,
-  [  --with-grafic=PATH      base path of GRAFIC IC library],
-  [AC_SUBST([GRAFIC_PATH],[${withval}])
-   USE_GRAFIC="$enableval"
+AC_ARG_ENABLE(grafic,
+  [  --enable-grafic         enable GRAFIC IC support for MPI version],
+  [USE_GRAFIC="$enableval"],
+  [USE_GRAFIC="no"])
+if test "x$USE_GRAFIC" != "xno" ; then
    AC_DEFINE([USE_GRAFIC], 1,
- 	[Define GRAFICIC IC should be available.])],
-  [USE_GRAFIC=no])
-dnl if test "$USE_GRAFIC" != "yes" -a -d grafic ; then
-dnl   USE_GRAFIC=yes
-dnl   GRAFIC_PATH=grafic
-dnl   AC_CONFIG_SUBDIRS(grafic)
-dnl fi
-AM_CONDITIONAL(USE_GRAFIC,test "x$USE_GRAFIC" == "xyes")
-			       
+ 	[ICs can be generated with GRAFIC.])
+fi
+AM_CONDITIONAL(USE_GRAFIC,test "x$USE_GRAFIC" != "xno")
+
 # MDL dedicated I/O
 AC_ARG_ENABLE(mdl-io,
   [  --enable-mdl-io                enable dedicated I/O processors (MPI/pthread)],
@@ -605,4 +603,7 @@ AC_CHECK_FUNCS([wordexp wordfree glob globfree gethostname getpagesize mkdir])
 AC_CHECK_FUNCS([floor gettimeofday pow sqrt strchr strdup strrchr strstr],,[AC_MSG_ERROR([not found])])
 
 AC_CONFIG_FILES([Makefile])
+if test "x$USE_GRAFIC" != "xno" ; then
+  AC_CONFIG_SUBDIRS([grafic])
+fi
 AC_OUTPUT

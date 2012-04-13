@@ -216,6 +216,9 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.nBucket = 8;
     prmAddParam(msr->prm,"nBucket",1,&msr->param.nBucket,sizeof(int),"b",
 		"<max number of particles in a bucket> = 8");
+    msr->param.nGroup = 256;
+    prmAddParam(msr->prm,"nGroup",1,&msr->param.nGroup,sizeof(int),"grp",
+		"<max number of particles in a group> = 256");
     msr->param.n2min = 50;
     prmAddParam(msr->prm,"n2min",1,&msr->param.n2min,sizeof(int),"nn",
 		"<minimum number of p-p interactions for using c-c interactions> = 50");
@@ -2882,7 +2885,7 @@ void msrMemStatus(MSR msr) {
     }
 
 void msrGravity(MSR msr,uint8_t uRungLo, uint8_t uRungHi, double dTime,
-		double dStep,int bEwald,int *piSec,uint64_t *pnActive) {
+    double dStep,int bEwald,int nGroup,int *piSec,uint64_t *pnActive) {
     struct inGravity in;
     struct outGravity *out;
     int i,id,iDum;
@@ -2896,6 +2899,7 @@ void msrGravity(MSR msr,uint8_t uRungLo, uint8_t uRungHi, double dTime,
     in.nReps = msr->param.nReplicas;
     in.bPeriodic = msr->param.bPeriodic;
     in.bEwald = bEwald;
+    in.nGroup = nGroup;
     in.dEwCut = msr->param.dEwCut;
     in.dEwhCut = msr->param.dEwhCut;
     in.uRungLo = uRungLo;
@@ -3792,7 +3796,7 @@ void msrTopStepKDK(MSR msr,
 	    msrBuildTree(msr,dTime,msr->param.bEwald);
 	    }
 	if (msrDoGravity(msr)) {
-	    msrGravity(msr,iKickRung,MAX_RUNG,dTime,dStep,msr->param.bEwald,piSec,&nActive);
+	    msrGravity(msr,iKickRung,MAX_RUNG,dTime,dStep,msr->param.bEwald,msr->param.nGroup,piSec,&nActive);
 	    *pdActiveSum += (double)nActive/msr->N;
 	    }
 	
@@ -3880,7 +3884,7 @@ void msrTopStepKDK(MSR msr,
 	    msrprintf(msr,"%*cGravity, iRung: %d to %d\n",
 		      2*iRung+2,' ',iKickRung,msrCurrMaxRung(msr));
 	    msrBuildTree(msr,dTime,msr->param.bEwald);
-	    msrGravity(msr,iKickRung,MAX_RUNG,dTime,dStep,msr->param.bEwald,piSec,&nActive);
+	    msrGravity(msr,iKickRung,MAX_RUNG,dTime,dStep,msr->param.bEwald,msr->param.nGroup,piSec,&nActive);
 	    *pdActiveSum += (double)nActive/msr->N;
 	    }
 
@@ -5595,6 +5599,7 @@ double msrRead(MSR msr, const char *achInFile) {
     read.nNodeStart = 0;
     read.nNodeEnd = msr->N - 1;
     read.nBucket = msr->param.nBucket;
+    read.nGroup = msr->param.nGroup;
     read.nDomainRungs = msr->param.nDomainRungs;
     read.mMemoryModel = mMemoryModel;
     read.fExtraStore = msr->param.dExtraStore;

@@ -69,6 +69,7 @@ static void workDone(workParticle *work) {
     int i;
     PARTICLE *p;
     float *pPot, *a;
+
     if ( --work->nRefs == 0 ) {
 	for( i=0; i<work->nP; i++ ) {
 	    p = work->pPart[i];
@@ -690,8 +691,8 @@ static void queuePC( PKD pkd,  workParticle *work, ILC ilc ) {
 ** Returns nActive.
 */
 int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,FLOCR *pLoc,ILP ilp,ILC ilc,
-		    float dirLsum,float normLsum,int bEwald,double *pdFlop,double *pdEwFlop,double dRhoFac,
-		    SMX smx,SMF *smf) {
+    float dirLsum,float normLsum,int bEwald,int nGroup,double *pdFlop,double *pdEwFlop,double dRhoFac,
+    SMX smx,SMF *smf) {
     PARTICLE *p,*pj;
     KDN *pkdn = pBucket;
     double *v, *vTmp;
@@ -790,7 +791,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,FLOCR *
 	/* Beware of self-interaction - must result in zero acceleration */
 	ilpAppend(ilp,p->r[0],p->r[1],p->r[2],fMass,4*fSoft*fSoft,p->iOrder,v[0],v[1],v[2]);
 	}
-    assert(work->nP<=PKD_GROUP_SIZE);
+    assert(work->nP<=nGroup);
 
     nActive += work->nP;
 
@@ -818,6 +819,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,FLOCR *
     */
     assert(ilc->cx==ilp->cx && ilc->cy==ilp->cy && ilc->cz==ilp->cz );
     queuePC( pkd,  work, ilc );
+
     /*
     ** Evaluate the P-P interactions
     */
@@ -828,14 +830,11 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,FLOCR *
     */
     if (bEwald) {
 	for( i=0; i<work->nP; i++ ) {
-	    /* A bit of cheese for now */
-	    a = pkdAccel(pkd,p);
-	    a[0] = a[1] = a[2] = 0.0;
 	    p = work->pPart[i];
-	    *pdEwFlop += pkdParticleEwald(pkd,uRungLo,uRungHi,p);
-	    work->pInfoOut[i].a[0] += a[0];
-	    work->pInfoOut[i].a[1] += a[1];
-	    work->pInfoOut[i].a[2] += a[2];
+	    a = pkdAccel(pkd,p);
+	    pPot = pkdPot(pkd,p);
+	    *pdEwFlop += pkdParticleEwald(pkd,uRungLo,uRungHi,p,
+		work->pInfoOut[i].a, &work->pInfoOut[i].fPot );
 	    }
 	}
 

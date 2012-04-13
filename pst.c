@@ -723,7 +723,7 @@ void pstOneNodeReadInit(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 
 	if (plcl->pkd) pkdFinish(plcl->pkd);
 	pkdInitialize(
-	    &plcl->pkd,pst->mdl,nStore,in->nBucket,
+	    &plcl->pkd,pst->mdl,nStore,in->nBucket,in->nGroup,
 	    in->nTreeBitsLo,in->nTreeBitsHi,
 	    in->iCacheSize,in->iWorkQueueSize,in->iCUDAQueueSize,in->fPeriod,
 	    in->nSpecies[FIO_SPECIES_DARK],
@@ -782,7 +782,7 @@ void pstReadFile(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 
 	if (plcl->pkd) pkdFinish(plcl->pkd);
 	pkdInitialize(
-	    &plcl->pkd,pst->mdl,nStore,in->nBucket,
+	    &plcl->pkd,pst->mdl,nStore,in->nBucket,in->nGroup,
 	    in->nTreeBitsLo,in->nTreeBitsHi,
 	    in->iCacheSize,in->iWorkQueueSize,in->iCUDAQueueSize,in->fPeriod,
 	    in->nSpecies[FIO_SPECIES_DARK],
@@ -2830,8 +2830,8 @@ void pstGravity(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	for (id=0;id<nThreads;++id) out[id].dWalkTime = -1.0;  /* impossible, used as initialization */
 	id = pst->idSelf;
 	pkdGravAll(plcl->pkd,in->uRungLo,in->uRungHi,in->dTime,in->nReps,in->bPeriodic,
-		   4,in->bEwald,in->dEwCut,in->dEwhCut, in->dThetaMin, in->dThetaMax,&out[id].nActive,
-		   &out[id].dPartSum,&out[id].dCellSum,&out[id].cs,&out[id].dFlop);
+	    4,in->bEwald,in->nGroup,in->dEwCut,in->dEwhCut, in->dThetaMin, in->dThetaMax,&out[id].nActive,
+	    &out[id].dPartSum,&out[id].dCellSum,&out[id].cs,&out[id].dFlop);
 	out[id].nLocal = plcl->pkd->nLocal;
 	out[id].dWalkTime = pkdGetWallClockTimer(plcl->pkd,1);
 #if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)

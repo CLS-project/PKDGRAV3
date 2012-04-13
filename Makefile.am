@@ -1,5 +1,9 @@
 ACLOCAL_AMFLAGS  = -I m4
 
+if USE_GRAFIC
+SUBDIRS=grafic
+endif
+
 EXTRA_DIST = server.py
 EXTRA_PROGRAMS = pkdgrav2_null
 TARGETS = null
@@ -117,9 +121,13 @@ if USE_BSC
 pkdgrav2_mpi_LDADD += -L /gpfs/apps/CEPBATOOLS/mpitrace-devel/64/lib -ldl -lmpitrace_burst
 pkdgrav2_mpi_CFLAGS += -I/gpfs/apps/CEPBATOOLS/mpitrace-devel/64/include
 endif
+if FFTW
+pkdgrav2_mpi_LDADD += -lsrfftw_mpi -lsfftw_mpi -lsrfftw -lsfftw
+endif
 if USE_GRAFIC
-pkdgrav2_mpi_CFLAGS += -I@GRAFIC_PATH@
-pkdgrav2_mpi_LDADD += -L @GRAFIC_PATH@ -lgrafic -lsrfftw_mpi -lsfftw_mpi -lsrfftw -lsfftw -lgfortran
+pkdgrav2_mpi_CFLAGS += -Igrafic/
+pkdgrav2_mpi_LDADD += grafic/libgrafic.a
+#pkdgrav2_mpi_LDADD += -L @GRAFIC_PATH@ -lgrafic -lsrfftw_mpi -lsfftw_mpi -lsrfftw -lsfftw -lgfortran
 #CCLD=mpicxx
 endif
 if USE_EFENCE
@@ -138,9 +146,6 @@ pkdgrav2_mpi_CFLAGS += -I $(PYTHON_INC)
 endif
 if LUSTRE
 pkdgrav2_mpi_LDADD += -llustreapi
-endif
-if FFTW
-pkdgrav2_mpi_LDADD += -lsrfftw_mpi -lsfftw_mpi -lsrfftw -lsfftw
 endif
 endif
 

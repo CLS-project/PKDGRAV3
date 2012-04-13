@@ -107,7 +107,7 @@ void msrFastGasPhase2(MSR,double,int);
 void msrReSmooth(MSR,double,int,int);
 void msrUpdateSoft(MSR,double);
 void msrGravity(MSR msr,uint8_t uRungLo, uint8_t uRungHi, double dTime,
-		double dStep,int bEwald,int *piSec,uint64_t *pnActive);
+    double dStep,int bEwald,int nGroup,int *piSec,uint64_t *pnActive);
 void msrCalcEandL(MSR msr,int bFirst,double dTime,double *E,double *T,double *U,double *Eth,double *L,double *F,double *W);
 void msrDrift(MSR,double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi);
 void msrScaleVel(MSR msr,double dvFac);

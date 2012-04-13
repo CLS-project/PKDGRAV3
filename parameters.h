@@ -57,6 +57,7 @@ struct parameters {
     int bHermite;
     int bAarsethStep;
     int nBucket;
+    int nGroup;
     int n2min;
     int iOutInterval;
     int iCheckInterval;

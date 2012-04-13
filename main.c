@@ -236,11 +236,11 @@ int FC_MAIN(int argc,char **argv) {
 	msrUpdateSoft(msr,dTime);
 	msrBuildTree(msr,dTime,msr->param.bEwald);
 	if (msrDoGravity(msr)) {
-	    msrGravity(msr,0,MAX_RUNG,dTime,msr->param.iStartStep,msr->param.bEwald,&iSec,&nActive);
+	    msrGravity(msr,0,MAX_RUNG,dTime,msr->param.iStartStep,msr->param.bEwald,msr->param.nGroup,&iSec,&nActive);
 	    msrMemStatus(msr);
 	    if (msr->param.bGravStep) {
 		msrBuildTree(msr,dTime,msr->param.bEwald);
-		msrGravity(msr,0,MAX_RUNG,dTime,msr->param.iStartStep,msr->param.bEwald,&iSec,&nActive);
+		msrGravity(msr,0,MAX_RUNG,dTime,msr->param.iStartStep,msr->param.bEwald,msr->param.nGroup,&iSec,&nActive);
 		msrMemStatus(msr);
 		}
 	    if (prmSpecified(msr->prm,"iDomainMethod")) {
@@ -388,11 +388,11 @@ int FC_MAIN(int argc,char **argv) {
 		msrBuildTree(msr,dTime,msr->param.bEwald);
 		
 		if (msrDoGravity(msr)) {
-		    msrGravity(msr,0,MAX_RUNG,dTime,msr->param.iStartStep,msr->param.bEwald,&iSec,&nActive);
+		    msrGravity(msr,0,MAX_RUNG,dTime,msr->param.iStartStep,msr->param.bEwald,msr->param.nGroup,&iSec,&nActive);
 		    msrMemStatus(msr);
 		    if (msr->param.bGravStep) {
 			msrBuildTree(msr,dTime,msr->param.bEwald);
-			msrGravity(msr,0,MAX_RUNG,dTime,msr->param.iStartStep,msr->param.bEwald,&iSec,&nActive);
+			msrGravity(msr,0,MAX_RUNG,dTime,msr->param.iStartStep,msr->param.bEwald,msr->param.nGroup,&iSec,&nActive);
 			msrMemStatus(msr);
 		    }
 		}

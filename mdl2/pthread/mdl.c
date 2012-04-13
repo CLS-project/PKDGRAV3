@@ -1699,6 +1699,7 @@ void mdlCacheBarrier(MDL mdl,int cid) {
 
 
 void mdlCacheCheck(MDL mdl) {
+    flushDone(mdl);
     while (1) {
 	pthread_mutex_lock(&mdl->muxRing);
 	if (mdl->iRingHd == mdl->iRingTl) {
@@ -1899,6 +1900,7 @@ void mdlAddWork(MDL mdl, void *ctx, mdlWorkFunction initWork, mdlWorkFunction ch
     int iWork = -1;
     int rc;
 
+while(mdl->freeCUDA<0 && mdl->busyCUDA>=0)
     flushDone(mdl);
 
     /* If we can do this with CUDA, then we should try */

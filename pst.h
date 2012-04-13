@@ -254,6 +254,7 @@ struct inReadFile {
     int nTreeBitsLo;
     int nTreeBitsHi;
     int nBucket;
+    int nGroup;
     int nDomainRungs;
     //int nFiles;
     int iCacheSize;
@@ -544,6 +545,7 @@ struct inGravity {
     int nReps;
     int bPeriodic;
     int bEwald;
+    int nGroup;
     uint8_t uRungLo;
     uint8_t uRungHi;
     };

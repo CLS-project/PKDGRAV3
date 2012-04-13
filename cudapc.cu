@@ -13,7 +13,7 @@
 #endif
 
 /* With 512 threads we can have better occupancy as 1536 can be active. */
-#define PC_THREADS 512
+#define PC_THREADS 128
 #define PC_BLKS_PER_THREAD (PC_THREADS/ILC_PART_PER_BLK)
 
 __global__ void cudaPC( int nP, PINFOIN *in, int nPart, ILC_BLK *blk, PINFOOUT *out ) {
@@ -41,7 +41,7 @@ __global__ void cudaPC( int nP, PINFOIN *in, int nPart, ILC_BLK *blk, PINFOOUT *
 
 //    for( i=0; i<nP; ++i ) {
 
-    if (tid<32) ax[tid] = ay[tid] = az[tid] = fPot[tid] = 0.0;
+    if (tid<32) ax[tid] = ay[tid] = az[tid] = fPot[tid] = 0.0f;
     __syncthreads();
 
     if ( pid < nPart ) {
@@ -52,22 +52,21 @@ __global__ void cudaPC( int nP, PINFOIN *in, int nPart, ILC_BLK *blk, PINFOOUT *
         d2 = dx*dx + dy*dy + dz*dz;
         dir = rsqrtf(d2);
 	    u = blk->u.f[threadIdx.x]*dir;
-	    g0 = dir;
-	    g2 = 3*dir*u*u;
-	    g3 = 5*g2*u;
-	    g4 = 7*g3*u;
+	    g2 = 3.0f*dir*u*u;
+	    g3 = 5.0f*g2*u;
+	    g4 = 7.0f*g3*u;
 	    /*
 	    ** Calculate the funky distance terms.
 	    */
 	    x = dx*dir;
 	    y = dy*dir;
 	    z = dz*dir;
-	    xx = 0.5*x*x;
+	    xx = 0.5f*x*x;
 	    xy = x*y;
 	    xz = x*z;
-	    yy = 0.5*y*y;
+	    yy = 0.5f*y*y;
 	    yz = y*z;
-	    zz = 0.5*z*z;
+	    zz = 0.5f*z*z;
 	    xxx = x*(onethird*xx - zz);
 	    xxz = z*(xx - onethird*zz);
 	    yyy = y*(onethird*yy - zz);
@@ -83,7 +82,7 @@ __global__ void cudaPC( int nP, PINFOIN *in, int nPart, ILC_BLK *blk, PINFOOUT *
 	    tx = g4*(blk->xxxx.f[threadIdx.x]*xxx + blk->xyyy.f[threadIdx.x]*yyy + blk->xxxy.f[threadIdx.x]*xxy + blk->xxxz.f[threadIdx.x]*xxz + blk->xxyy.f[threadIdx.x]*xyy + blk->xxyz.f[threadIdx.x]*xyz + blk->xyyz.f[threadIdx.x]*yyz);
 	    ty = g4*(blk->xyyy.f[threadIdx.x]*xyy + blk->xxxy.f[threadIdx.x]*xxx + blk->yyyy.f[threadIdx.x]*yyy + blk->yyyz.f[threadIdx.x]*yyz + blk->xxyy.f[threadIdx.x]*xxy + blk->xxyz.f[threadIdx.x]*xxz + blk->xyyz.f[threadIdx.x]*xyz);
 	    tz = g4*(-blk->xxxx.f[threadIdx.x]*xxz - (blk->xyyy.f[threadIdx.x] + blk->xxxy.f[threadIdx.x])*xyz - blk->yyyy.f[threadIdx.x]*yyz + blk->xxxz.f[threadIdx.x]*xxx + blk->yyyz.f[threadIdx.x]*yyy - blk->xxyy.f[threadIdx.x]*(xxz + yyz) + blk->xxyz.f[threadIdx.x]*xxy + blk->xyyz.f[threadIdx.x]*xyy);
-	    g4 = 0.25*(tx*x + ty*y + tz*z);
+	    g4 = 0.25f*(tx*x + ty*y + tz*z);
 	    xxx = g3*(blk->xxx.f[threadIdx.x]*xx + blk->xyy.f[threadIdx.x]*yy + blk->xxy.f[threadIdx.x]*xy + blk->xxz.f[threadIdx.x]*xz + blk->xyz.f[threadIdx.x]*yz);
 	    xxy = g3*(blk->xyy.f[threadIdx.x]*xy + blk->xxy.f[threadIdx.x]*xx + blk->yyy.f[threadIdx.x]*yy + blk->yyz.f[threadIdx.x]*yz + blk->xyz.f[threadIdx.x]*xz);
 	    xxz = g3*(-(blk->xxx.f[threadIdx.x] + blk->xyy.f[threadIdx.x])*xz - (blk->xxy.f[threadIdx.x] + blk->yyy.f[threadIdx.x])*yz + blk->xxz.f[threadIdx.x]*xx + blk->yyz.f[threadIdx.x]*yy + blk->xyz.f[threadIdx.x]*xy);
@@ -91,10 +90,10 @@ __global__ void cudaPC( int nP, PINFOIN *in, int nPart, ILC_BLK *blk, PINFOOUT *
 	    xx = g2*(blk->xx.f[threadIdx.x]*x + blk->xy.f[threadIdx.x]*y + blk->xz.f[threadIdx.x]*z);
 	    xy = g2*(blk->yy.f[threadIdx.x]*y + blk->xy.f[threadIdx.x]*x + blk->yz.f[threadIdx.x]*z);
 	    xz = g2*(-(blk->xx.f[threadIdx.x] + blk->yy.f[threadIdx.x])*z + blk->xz.f[threadIdx.x]*x + blk->yz.f[threadIdx.x]*y);
-	    g2 = 0.5*(xx*x + xy*y + xz*z);
-	    g0 *= blk->m.f[threadIdx.x];
+	    g2 = 0.5f*(xx*x + xy*y + xz*z);
+	    g0 = dir * blk->m.f[threadIdx.x];
         atomicAdd(&fPot[wid],-(g0 + g2 + g3 + g4));
-	    g0 += 5*g2 + 7*g3 + 9*g4;
+	    g0 += 5.0f*g2 + 7.0f*g3 + 9.0f*g4;
 	    tax = dir*(xx + xxx + tx - x*g0);
 	    tay = dir*(xy + xxy + ty - y*g0);
 	    taz = dir*(xz + xxz + tz - z*g0);
@@ -115,7 +114,7 @@ __global__ void cudaPC( int nP, PINFOIN *in, int nPart, ILC_BLK *blk, PINFOOUT *
         ** Calculations for determining the timestep.
         */
 //PP        float adotai = in[blockIdx.y].a[0]*dx + in[blockIdx.y].a[1]*dy + in[blockIdx.y].a[2]*dz;
-//        if (adotai > 0.0 && d2 >= in[blockIdx.y].fSmooth2) {
+//        if (adotai > 0.0f && d2 >= in[blockIdx.y].fSmooth2) {
 //	    adotai *= dimaga;
 //	    *dirsum += dir*adotai*adotai;
 //	    *normsum += adotai*adotai;
@@ -152,6 +151,8 @@ __global__ void cudaPC( int nP, PINFOIN *in, int nPart, ILC_BLK *blk, PINFOOUT *
         out[i+nP*blockIdx.x].a[1] = ay[0];
         out[i+nP*blockIdx.x].a[2] = az[0];
         out[i+nP*blockIdx.x].fPot = fPot[0];
+        out[i+nP*blockIdx.x].dirsum = 0;
+        out[i+nP*blockIdx.x].normsum = 0;
         }
 //    }
 
@@ -182,6 +183,8 @@ int CUDAinitWorkPC( void *vpp) {
         pInfoOut[j].a[1] = 0;
         pInfoOut[j].a[2] = 0;
         pInfoOut[j].fPot = 0;
+        pInfoOut[j].dirsum = 0;
+        pInfoOut[j].normsum = 0;
         }
 
     // Grab a block of memory
@@ -246,6 +249,8 @@ int CUDAcheckWorkPC( void *vpc ) {
             pInfoOut[j].a[1] += blk->cpuResults[j+nP*i].a[1];
             pInfoOut[j].a[2] += blk->cpuResults[j+nP*i].a[2];
             pInfoOut[j].fPot += blk->cpuResults[j+nP*i].fPot;
+            pInfoOut[j].dirsum += blk->cpuResults[j+nP*i].dirsum;
+            pInfoOut[j].normsum+= blk->cpuResults[j+nP*i].normsum;
             }
         }
 
@@ -261,4 +266,9 @@ int CUDAcheckWorkPC( void *vpc ) {
     pc->gpu_memory = NULL;
 
     return 0;
+    }
+
+extern "C"
+void CUDAsetupPC(void) {
+    cudaFuncSetCacheConfig(cudaPC,cudaFuncCachePreferL1);
     }

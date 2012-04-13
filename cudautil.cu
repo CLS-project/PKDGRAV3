@@ -25,6 +25,10 @@ void CUDA_Abort(cudaError_t rc, const char *fname, const char *file, int line) {
     exit(1);
     }
 
+extern "C" void CUDAsetupPP(void);
+extern "C" void CUDAsetupPC(void);
+
+
 extern "C"
 void *CUDA_initialize(int iProc,int iWorkQueueSize, size_t tileSize, size_t ParticlesSize, size_t OutSize) {
     int nDevices, i;
@@ -32,7 +36,7 @@ void *CUDA_initialize(int iProc,int iWorkQueueSize, size_t tileSize, size_t Part
     CUDA_CHECK(cudaGetDeviceCount,(&nDevices))
     if (nDevices == 0 ) return NULL;
     CUDA_CHECK(cudaSetDevice,(iProc % nDevices));
-//    CUDA_CHECK(cudaSetDevice,(iProc%1));
+//    CUDA_CHECK(cudaSetDevice,(iProc%2));
 
     CUDACTX ctx = reinterpret_cast<CUDACTX>(malloc(sizeof(struct cuda_ctx)));
     assert(ctx!=NULL);
@@ -61,6 +65,10 @@ void *CUDA_initialize(int iProc,int iWorkQueueSize, size_t tileSize, size_t Part
         CUDA_CHECK(cudaEventCreate,( &blk->event ));
         CUDA_CHECK(cudaStreamCreate,( &blk->stream ));
         }
+
+
+    CUDAsetupPP();
+    CUDAsetupPC();
 
     return ctx;
     }

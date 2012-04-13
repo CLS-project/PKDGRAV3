@@ -229,7 +229,6 @@ static const struct ICONSTS {
     i4 eight;
     /* no nine */
     i4 ten;
-    i4 sixtyfour;
     i4 walk_min_multipole;
     } iconsts = {
         {SIMD_CONST(0)},
@@ -242,7 +241,6 @@ static const struct ICONSTS {
 	{SIMD_CONST(7)},
 	{SIMD_CONST(8)},
 	{SIMD_CONST(10)},
-	{SIMD_CONST(PKD_GROUP_SIZE)},
 	{SIMD_CONST(3)},
 };
 
@@ -258,7 +256,7 @@ static union {
 **
 ** This version will also open buckets ("new" criteria)
 */
-static void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin) {
+static void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin, int nGroup) {
     v4sf T0,T1,T2,T3,T4,T5,T6,T7,P1,P2,P3,P4;
     v4sf T,xc,yc,zc,dx,dy,dz,d2,diCrit,cOpen,cOpen2,d2Open,mink2,minbnd2,fourh2;
     int i,n,iEnd,nLeft;
@@ -269,6 +267,7 @@ static void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin) {
     v4sf k_xMinBnd, k_yMinBnd, k_zMinBnd, k_xMaxBnd, k_yMaxBnd, k_zMaxBnd;
     v4sf k_x, k_y, k_z, k_m, k_4h2, k_bMax, k_Open;
     v4i  k_iLower, k_nk;
+    i4 k_nGroup = {SIMD_CONST(nGroup)};
 
     assert ( pkdNodeMom(pkd,k)->m > 0.0f );
 
@@ -356,7 +355,7 @@ static void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin) {
 	    T5 = SIMD_CMP_GT(mink2,SIMD_MUL(consts.fMonopoleThetaFac2.p,cOpen2));
 	    T6 = SIMD_CMP_GT(cOpen,k_Open);
 	    /*invert:T7 = SIMD_I2F(SIMD_CMP_EQ_EPI32(k_iLower,iconsts.zero.p));*/
-	    T7 = SIMD_I2F(SIMD_CMP_GT_EPI32(k_nk,iconsts.sixtyfour.p));
+	    T7 = SIMD_I2F(SIMD_CMP_GT_EPI32(k_nk,k_nGroup.p));
 	    iOpenA = SIMD_OR(SIMD_AND(T2,iconsts.one.pf),SIMD_ANDNOT(T2,iconsts.three.pf));
 	    iOpenB = SIMD_OR(SIMD_AND(T3,iOpenA),SIMD_ANDNOT(T3,
 		    SIMD_OR(SIMD_AND(T4,iconsts.four.pf),SIMD_ANDNOT(T4,
@@ -383,7 +382,7 @@ static void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin) {
 ** well tested, gives good force accuracy, but may not be the most efficient
 ** and also doesn't explicitly conserve momentum.
 */
-static void iOpenOutcomeOldCL(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin) {
+static void iOpenOutcomeOldCL(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin, int nGroup) {
     const float fMonopoleThetaFac2 = 1.6f * 1.6f;
     const int walk_min_multipole = 3;
 
@@ -447,7 +446,7 @@ static void iOpenOutcomeOldCL(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin) 
 			}
 		    else {
 /*		    if (k->iLower) iOpen = 0;*/
-			if (nk>PKD_GROUP_SIZE) iOpen = 0;
+			if (nk>nGroup) iOpen = 0;
 			else iOpen = iOpenB;
 			}
 		    }
@@ -464,7 +463,7 @@ static void iOpenOutcomeOldCL(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin) 
 **
 ** This version has been changed by adding the ability to open buckets.
 */
-static void iOpenOutcomeNewCL(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin) {
+static void iOpenOutcomeNewCL(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin,int nGroup) {
     const float fMonopoleThetaFac2 = 1.6f * 1.6f;
     const int walk_min_multipole = 3;
 
@@ -526,7 +525,7 @@ static void iOpenOutcomeNewCL(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin) 
 		    else if (minbnd2 > fourh2) iOpenB = 4;
 		    else if (mink2 > fMonopoleThetaFac2*cOpen*cOpen) iOpenB = 5;
 		    else iOpenB = iOpenA;
-		    if (nk>PKD_GROUP_SIZE) iOpen = 0;
+		    if (nk>nGroup) iOpen = 0;
 		    else iOpen = iOpenB;
 		    }
 		}
@@ -547,7 +546,7 @@ static void iOpenOutcomeNewCL(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin) 
 /*
 ** This doesn't work.
 */
-static void iOpenOutcomeExperemental(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin) {
+static void iOpenOutcomeExperemental(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin,int nGroup) {
     const float fMonopoleThetaFac2 = 1.6f * 1.6f;
     const int walk_min_multipole = 3;
 
@@ -751,7 +750,7 @@ static inline int iOpenOutcomeBarnesHut(PKD pkd,KDN *k,CELT *check,KDN **pc,floa
 /*
 ** Returns total number of active particles for which gravity was calculated.
 */
-int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,int bEwald,
+int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,int bEwald,int nGroup,
 		int bVeryActive,double dThetaMin,double dThetaMax,double *pdFlop,double *pdPartSum,double *pdCellSum) {
     PARTICLE *p;
     KDN *k,*c,*kFind;
@@ -1019,7 +1018,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 		CL_LOOP(pkd->cl,cltile) {
 #ifdef LOCAL_EXPANSION
 #ifdef USE_SIMD_OPEN
-		    iOpenOutcomeSIMD(pkd,k,pkd->cl,cltile,dThetaMin);
+		    iOpenOutcomeSIMD(pkd,k,pkd->cl,cltile,dThetaMin,nGroup);
 		    /*Verify:iOpenOutcomeNewCL(pkd,k,pkd->cl,cltile,dThetaMin);*/
 #else
 #ifdef NEW_OPENING_CRIT
@@ -1498,7 +1497,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 	    ** level of the tree.
 	    */
 //	    if (!k->iLower) break;
-	    if ((k->pUpper-k->pLower+1)<=PKD_GROUP_SIZE) break;
+	    if ((k->pUpper-k->pLower+1)<=nGroup) break;
 	    xParent = k->r[0];
 	    yParent = k->r[1];
 	    zParent = k->r[2];
@@ -1601,7 +1600,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 	*/
 	if (!pkd->param.bNoGrav) {
 	    nActive = pkdGravInteract(pkd,uRungLo,uRungHi,k,&L,pkd->ilp,pkd->ilc,
-		dirLsum,normLsum,bEwald,pdFlop,&dEwFlop,dRhoFac,
+		dirLsum,normLsum,bEwald,nGroup,pdFlop,&dEwFlop,dRhoFac,
 		smx, &smf);
 	    }
 	/*

@@ -26,23 +26,32 @@ __device__ float MWS(float m1, float h12, float m2, float h22) {
 
 __global__ void cudaPP( int nP, PINFOIN *in, int nPart, ILP_BLK *blk, PINFOOUT *out ) {
     int bid, tid, pid, wid;
-    float d2, dir, dir2, dir3, fourh2, dx, dy, dz, p;
+    float d2, dir, dir2, dir3, fourh2, dx, dy, dz, p, ds, ns;
     float fSoft, fMass;
     __shared__ float ax[32];
     __shared__ float ay[32];
     __shared__ float az[32];
     __shared__ float fPot[32];
-    float m, h2;
+    __shared__ float dirsum[32];
+    __shared__ float normsum[32];
+    float m, h2, dimaga;
     int i = blockIdx.y;
+    float *a = in[i].a;
 
     bid = blockIdx.x * PP_BLKS_PER_THREAD + threadIdx.y;
     tid = threadIdx.x + threadIdx.y*ILP_PART_PER_BLK;
     pid = tid + blockIdx.x * PP_THREADS;
-    if (tid<32) ax[tid] = ay[tid] = az[tid] = fPot[tid] = 0.0f;
+    if (tid<32) ax[tid] = ay[tid] = az[tid] = fPot[tid] = dirsum[pid] = normsum[pid] = 0.0f;
     __syncthreads();
 
     blk += bid;
     wid = tid & 31;
+
+
+    dimaga = a[0]*a[0] + a[1]*a[1] + a[2]*a[2];
+    if (dimaga > 0.0) {
+        dimaga = rsqrtf(dimaga);
+        }
 
     while(pid < nPart) {
         dx = blk->dx.f[threadIdx.x] + in[i].r[0];
@@ -87,14 +96,11 @@ __global__ void cudaPP( int nP, PINFOIN *in, int nPart, ILP_BLK *blk, PINFOOUT *
             */
             float adotai = in[i].a[0]*dx + in[i].a[1]*dy + in[i].a[2]*dz;
             if (adotai > 0.0f && d2 >= in[i].fSmooth2) {
-//	    adotai *= dimaga;
-//	    *dirsum += dir*adotai*adotai;
-//	    *normsum += adotai*adotai;
+                adotai *= dimaga;
+                atomicAdd(&dirsum[wid],dir*adotai*adotai);
+                atomicAdd(&normsum[wid],adotai*adotai);
                 }
-
-
             }
-
         blk += PP_BLKS_PER_THREAD * NBLOCKS;
         pid += PP_THREADS * NBLOCKS;
         }
@@ -117,18 +123,24 @@ __global__ void cudaPP( int nP, PINFOIN *in, int nPart, ILP_BLK *blk, PINFOOUT *
         volatile float * vax = ax;
         volatile float * vay = ay;
         volatile float * vaz = az;
-        dx = vax[tid];  dy = vay[tid]; dz = vaz[tid]; p = fPot[tid];
-        { R(vax,dx,16); R(vay,dy,16); R(vaz,dz,16); R(fPot,p,16); EMUSYNC; }
-        { R(vax,dx, 8); R(vay,dy, 8); R(vaz,dz, 8); R(fPot,p, 8); EMUSYNC; }
-        { R(vax,dx, 4); R(vay,dy, 4); R(vaz,dz, 4); R(fPot,p, 4); EMUSYNC; }
-        { R(vax,dx, 2); R(vay,dy, 2); R(vaz,dz, 2); R(fPot,p, 2); EMUSYNC; }
-        { R(vax,dx, 1); R(vay,dy, 1); R(vaz,dz, 1); R(fPot,p, 1); EMUSYNC; }
+        volatile float * vPot = fPot;
+        volatile float * vdirsum = dirsum;
+        volatile float * vnormsum = normsum;
+        
+        dx = vax[tid];  dy = vay[tid]; dz = vaz[tid]; p = vPot[tid]; ds = vdirsum[tid]; ns = vnormsum[tid];
+        { R(vax,dx,16); R(vay,dy,16); R(vaz,dz,16); R(vPot,p,16); R(vdirsum,ds,16); R(vnormsum,ns,16); EMUSYNC; }
+        { R(vax,dx, 8); R(vay,dy, 8); R(vaz,dz, 8); R(vPot,p, 8); R(vdirsum,ds, 8); R(vnormsum,ns, 8); EMUSYNC; }
+        { R(vax,dx, 4); R(vay,dy, 4); R(vaz,dz, 4); R(vPot,p, 4); R(vdirsum,ds, 4); R(vnormsum,ns, 4); EMUSYNC; }
+        { R(vax,dx, 2); R(vay,dy, 2); R(vaz,dz, 2); R(vPot,p, 2); R(vdirsum,ds, 2); R(vnormsum,ns, 2); EMUSYNC; }
+        { R(vax,dx, 1); R(vay,dy, 1); R(vaz,dz, 1); R(vPot,p, 1); R(vdirsum,ds, 1); R(vnormsum,ns, 1); EMUSYNC; }
 
         if (tid==0) {
             out[i+nP*blockIdx.x].a[0] = ax[0];
             out[i+nP*blockIdx.x].a[1] = ay[0];
             out[i+nP*blockIdx.x].a[2] = az[0];
             out[i+nP*blockIdx.x].fPot = fPot[0];
+            out[i+nP*blockIdx.x].dirsum = dirsum[0];
+            out[i+nP*blockIdx.x].normsum= normsum[0];
             }
         }
     }
@@ -156,6 +168,8 @@ int CUDAinitWorkPP( void *vpp ) {
         pInfoOut[j].a[1] = 0;
         pInfoOut[j].a[2] = 0;
         pInfoOut[j].fPot = 0;
+        pInfoOut[j].dirsum = 0;
+        pInfoOut[j].normsum = 0;
         }
 
     // Grab a block of memory
@@ -221,6 +235,8 @@ int CUDAcheckWorkPP( void *vpp ) {
             pInfoOut[j].a[1] += blk->cpuResults[j+nP*i].a[1];
             pInfoOut[j].a[2] += blk->cpuResults[j+nP*i].a[2];
             pInfoOut[j].fPot += blk->cpuResults[j+nP*i].fPot;
+            pInfoOut[j].dirsum += blk->cpuResults[j+nP*i].dirsum;
+            pInfoOut[j].normsum += blk->cpuResults[j+nP*i].normsum;
             }
         }
 

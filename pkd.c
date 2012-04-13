@@ -266,7 +266,7 @@ void pkdAllocateTopTree(PKD pkd,int nCell) {
     }
 
 void pkdInitialize(
-    PKD *ppkd,MDL mdl,int nStore,int nBucket,int nTreeBitsLo, int nTreeBitsHi,
+    PKD *ppkd,MDL mdl,int nStore,int nBucket,int nGroup,int nTreeBitsLo, int nTreeBitsHi,
     int iCacheSize,int iWorkQueueSize,int iCUDAQueueSize,FLOAT *fPeriod,uint64_t nDark,uint64_t nGas,uint64_t nStar,
     uint64_t mMemoryModel, int nDomainRungs) {
     PKD pkd;
@@ -423,7 +423,6 @@ void pkdInitialize(
     ** Three extra bounds are required by the fast gas SPH code.
     */
     if ( mMemoryModel & PKD_MODEL_NODE_SPHBNDS ) {
-	printf("Added sph bounds\n");
 	pkd->oNodeSphBounds = pkdNodeAddStruct(pkd,sizeof(SPHBNDS));
     }
     else
@@ -604,8 +603,8 @@ void pkdInitialize(
 	pkd->cudaCtx = CUDA_initialize(mdlSelf(pkd->mdl),
 	    iCUDAQueueSize,
 	    sizeILP>sizeILC ? sizeILP : sizeILC,
-	    PKD_GROUP_SIZE*sizeof(PINFOIN),
-	    PKD_GROUP_SIZE*sizeof(PINFOOUT)
+	    nGroup*sizeof(PINFOIN),
+	    nGroup*sizeof(PINFOOUT)
 	    * (ILP_BLK_PER_TILE>ILC_BLK_PER_TILE?ILP_BLK_PER_TILE:ILC_BLK_PER_TILE) );
 	}
 #endif
@@ -969,7 +968,6 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
 	    assert(dTuFac>0.0);
 	    fioReadSph(fio,&iOrder,p->r,v,&fMass,&fSoft,pPot,
 			     &p->fDensity/*?*/,&pSph->u,&pSph->fMetals);
-/*	    if ((iOrder%1000)==0) printf("%d: %g %g %g\n",iOrder,pSph->u,dTuFac,pSph->u*dTuFac);*/
 	    pSph->u *= dTuFac; /* Can't do precise conversion until density known */
 	    pSph->uPred = pSph->u;
 	    pSph->fMetalsPred = pSph->fMetals;
@@ -1537,7 +1535,7 @@ void pkdPeanoHilbertDecomp(PKD pkd, uint64_t nTotal, int nRungs, int iMethod) {
 	    }
 	} while(1);
 
-    if (nID==0) printf("Converged in %d iterations\n", iIter );
+    //if (nID==0) printf("Converged in %d iterations\n", iIter );
 
     /* Send the bounds to each processor so we can assign particles to domains */
     mdlAllGather(pkd->mdl,myBound,nRungs*2,MDL_LONG_LONG, splitKeys, nRungs*2, MDL_LONG_LONG);
@@ -2394,8 +2392,8 @@ static int foo = 0;
 
 void
 pkdGravAll(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,int bPeriodic,
-	   int iOrder,int bEwald,double fEwCut,double fEwhCut,double dThetaMin,double dThetaMax,
-	   int *nActive,double *pdPartSum, double *pdCellSum,CASTAT *pcs, double *pdFlop) {
+    int iOrder,int bEwald,int nGroup,double fEwCut,double fEwhCut,double dThetaMin,double dThetaMax,
+    int *nActive,double *pdPartSum, double *pdCellSum,CASTAT *pcs, double *pdFlop) {
     int bVeryActive = 0;
 
     pkdClearTimer(pkd,1);
@@ -2430,7 +2428,7 @@ pkdGravAll(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,int bP
     *pdPartSum = 0.0;
     *pdCellSum = 0.0;
     pkdStartTimer(pkd,1);
-    *nActive = pkdGravWalk(pkd,uRungLo,uRungHi,dTime,nReps,bPeriodic && bEwald,bVeryActive,dThetaMin,dThetaMax,pdFlop,pdPartSum,pdCellSum);
+    *nActive = pkdGravWalk(pkd,uRungLo,uRungHi,dTime,nReps,bPeriodic && bEwald,nGroup,bVeryActive,dThetaMin,dThetaMax,pdFlop,pdPartSum,pdCellSum);
     pkdStopTimer(pkd,1);
 
 #ifdef USE_BSC
@@ -2589,7 +2587,7 @@ void pkdDrift(PKD pkd,double dDelta,double dDeltaVPred,double dDeltaUPred,uint8_
     }
 
 
-void pkdGravityVeryActive(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int bEwald,int nReps,
+void pkdGravityVeryActive(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int bEwald,int nGroup,int nReps,
 			  double dStep,double dTheta) {
     int nActive;
     int bVeryActive = 1;
@@ -2601,7 +2599,7 @@ void pkdGravityVeryActive(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,i
     dFlop = 0.0;
     dPartSum = 0.0;
     dCellSum = 0.0;
-    nActive = pkdGravWalk(pkd,uRungLo,uRungHi,dTime,nReps,bEwald,bVeryActive,dTheta,dTheta,&dFlop,&dPartSum,&dCellSum);
+    nActive = pkdGravWalk(pkd,uRungLo,uRungHi,dTime,nReps,bEwald,nGroup,bVeryActive,dTheta,dTheta,&dFlop,&dPartSum,&dCellSum);
     }
 
 
@@ -2701,7 +2699,7 @@ void pkdStepVeryActiveKDK(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dStep, 
 
 	    pkdActiveRung(pkd,iKickRung,1);
 	    pkdVATreeBuild(pkd,pkd->param.nBucket);
-	    pkdGravityVeryActive(pkd,uRungLo,uRungHi,dTime,pkd->param.bEwald && pkd->param.bPeriodic,
+	    pkdGravityVeryActive(pkd,uRungLo,uRungHi,dTime,pkd->param.bEwald && pkd->param.bPeriodic,pkd->param.nGroup,
 				 pkd->param.nReplicas,dStep,dThetaMin);
 
 #ifdef PLANETS
