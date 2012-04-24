@@ -703,7 +703,6 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,FLOCR *
     float fMass,fSoft;
     float fx, fy, fz;
     float dtGrav,dT;
-    float maga,dirsum,normsum;
     float rhopmax,rhopmaxlocal,fsmooth2;
     float summ;
     ILPTILE tile;
@@ -716,7 +715,6 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,FLOCR *
     assert(pkd->oAcceleration);
 
     pkdNodeBnd(pkd, pkdn, &bnd);
-    normsum = dirsum = maga = 0.0;
 
     /*
     ** Now process the two interaction lists for each active particle.
@@ -766,8 +764,8 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,FLOCR *
 	work->pInfoOut[nP].a[1] = 0.0f;
 	work->pInfoOut[nP].a[2] = 0.0f;
 	work->pInfoOut[nP].fPot = 0.0f;
-	work->pInfoOut[nP].dirsum = 0.0f;
-	work->pInfoOut[nP].normsum = 0.0f;
+	work->pInfoOut[nP].dirsum = dirLsum;
+	work->pInfoOut[nP].normsum = normLsum;
 	work->pInfoOut[nP].rhopmax = 0.0f;
 
 	/*
