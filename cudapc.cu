@@ -22,30 +22,37 @@ __global__ void cudaPC( int nP, PINFOIN *in, int nPart, ILC_BLK *blk, PINFOOUT *
     int pid = tid + blockIdx.x * PC_THREADS;
     int wid = tid & 31;
     const float onethird = 1.0f/3.0f;
-    float d2, dir, dx, dy, dz, p;
+    float d2, dir, dx, dy, dz, p, ds, ns;
     float u,g0,g2,g3,g4;
     float tax, tay, taz;
     float x,y,z;
-//    float adotai;
+    float dimaga;
     float tx,ty,tz;
     float xx,xy,xz,yy,yz,zz;
     float xxx,xxz,yyy,yyz,xxy,xyy,xyz;
     int i = blockIdx.y;
+    float *a = in[i].a;
 
     __shared__ float ax[32];
     __shared__ float ay[32];
     __shared__ float az[32];
     __shared__ float fPot[32];
+    __shared__ float dirsum[32];
+    __shared__ float normsum[32];
 
     blk += bid;
 
 //    for( i=0; i<nP; ++i ) {
 
-    if (tid<32) ax[tid] = ay[tid] = az[tid] = fPot[tid] = 0.0f;
+    if (tid<32) ax[tid] = ay[tid] = az[tid] = fPot[tid] = dirsum[tid] = normsum[tid] = 0.0f;
     __syncthreads();
 
-    if ( pid < nPart ) {
+    dimaga = a[0]*a[0] + a[1]*a[1] + a[2]*a[2];
+    if (dimaga > 0.0) {
+        dimaga = rsqrtf(dimaga);
+        }
 
+    if ( pid < nPart ) {
         dx = blk->dx.f[threadIdx.x] + in[i].r[0];
         dy = blk->dy.f[threadIdx.x] + in[i].r[1];
         dz = blk->dz.f[threadIdx.x] + in[i].r[2];
@@ -97,14 +104,6 @@ __global__ void cudaPC( int nP, PINFOIN *in, int nPart, ILC_BLK *blk, PINFOOUT *
 	    tax = dir*(xx + xxx + tx - x*g0);
 	    tay = dir*(xy + xxy + ty - y*g0);
 	    taz = dir*(xz + xxz + tz - z*g0);
-	    /*
-	    ** Calculations for determining the timestep.
-	    */
-//	    adotai = pInfoIn[i].a[0]*tax + pInfoIn[i].a[1]*tay + pInfoIn[i].a[2]*taz;
-//	    if (adotai > 0) {
-//		adotai *= dimaga;
-//		dirsum += dir*adotai*adotai;
-//		normsum += adotai*adotai;
 
         atomicAdd(&ax[wid],tax);
         atomicAdd(&ay[wid],tay);
@@ -113,12 +112,12 @@ __global__ void cudaPC( int nP, PINFOIN *in, int nPart, ILC_BLK *blk, PINFOOUT *
         /*
         ** Calculations for determining the timestep.
         */
-//PP        float adotai = in[blockIdx.y].a[0]*dx + in[blockIdx.y].a[1]*dy + in[blockIdx.y].a[2]*dz;
-//        if (adotai > 0.0f && d2 >= in[blockIdx.y].fSmooth2) {
-//	    adotai *= dimaga;
-//	    *dirsum += dir*adotai*adotai;
-//	    *normsum += adotai*adotai;
-//	    }
+        float adotai = a[0]*tax + a[1]*tay + a[2]*taz;
+        if (adotai > 0.0f /*&& d2 >= in[i].fSmooth2*/) {
+            adotai *= dimaga;
+            atomicAdd(&dirsum[wid],dir*adotai*adotai);
+            atomicAdd(&normsum[wid],adotai*adotai);
+            }
 
         /*
         ** Now reduce the result
@@ -139,23 +138,26 @@ __global__ void cudaPC( int nP, PINFOIN *in, int nPart, ILC_BLK *blk, PINFOOUT *
         volatile float * vax = ax;
         volatile float * vay = ay;
         volatile float * vaz = az;
-        dx = vax[tid];  dy = vay[tid]; dz = vaz[tid]; p = fPot[tid];
-        { R(vax,dx,16); R(vay,dy,16); R(vaz,dz,16); R(fPot,p,16); EMUSYNC; }
-        { R(vax,dx, 8); R(vay,dy, 8); R(vaz,dz, 8); R(fPot,p, 8); EMUSYNC; }
-        { R(vax,dx, 4); R(vay,dy, 4); R(vaz,dz, 4); R(fPot,p, 4); EMUSYNC; }
-        { R(vax,dx, 2); R(vay,dy, 2); R(vaz,dz, 2); R(fPot,p, 2); EMUSYNC; }
-        { R(vax,dx, 1); R(vay,dy, 1); R(vaz,dz, 1); R(fPot,p, 1); EMUSYNC; }
-        }
-    if (tid==0) {
-        out[i+nP*blockIdx.x].a[0] = ax[0];
-        out[i+nP*blockIdx.x].a[1] = ay[0];
-        out[i+nP*blockIdx.x].a[2] = az[0];
-        out[i+nP*blockIdx.x].fPot = fPot[0];
-        out[i+nP*blockIdx.x].dirsum = 0;
-        out[i+nP*blockIdx.x].normsum = 0;
-        }
-//    }
+        volatile float * vPot = fPot;
+        volatile float * vdirsum = dirsum;
+        volatile float * vnormsum = normsum;
 
+        dx = vax[tid];  dy = vay[tid]; dz = vaz[tid]; p = vPot[tid]; ds = vdirsum[tid]; ns = vnormsum[tid];
+        { R(vax,dx,16); R(vay,dy,16); R(vaz,dz,16); R(vPot,p,16); R(vdirsum,ds,16); R(vnormsum,ns,16); EMUSYNC; }
+        { R(vax,dx, 8); R(vay,dy, 8); R(vaz,dz, 8); R(vPot,p, 8); R(vdirsum,ds, 8); R(vnormsum,ns, 8); EMUSYNC; }
+        { R(vax,dx, 4); R(vay,dy, 4); R(vaz,dz, 4); R(vPot,p, 4); R(vdirsum,ds, 4); R(vnormsum,ns, 4); EMUSYNC; }
+        { R(vax,dx, 2); R(vay,dy, 2); R(vaz,dz, 2); R(vPot,p, 2); R(vdirsum,ds, 2); R(vnormsum,ns, 2); EMUSYNC; }
+        { R(vax,dx, 1); R(vay,dy, 1); R(vaz,dz, 1); R(vPot,p, 1); R(vdirsum,ds, 1); R(vnormsum,ns, 1); EMUSYNC; }
+
+        if (tid==0) {
+            out[i+nP*blockIdx.x].a[0] = ax[0];
+            out[i+nP*blockIdx.x].a[1] = ay[0];
+            out[i+nP*blockIdx.x].a[2] = az[0];
+            out[i+nP*blockIdx.x].fPot = fPot[0];
+            out[i+nP*blockIdx.x].dirsum = dirsum[0];
+            out[i+nP*blockIdx.x].normsum= normsum[0];
+            }
+        }
     }
 
 /*

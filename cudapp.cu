@@ -34,25 +34,23 @@ __global__ void cudaPP( int nP, PINFOIN *in, int nPart, ILP_BLK *blk, PINFOOUT *
     __shared__ float fPot[32];
     __shared__ float dirsum[32];
     __shared__ float normsum[32];
-    float m, h2, dimaga;
+    float m, h2, dimaga, adotai;
     int i = blockIdx.y;
     float *a = in[i].a;
 
     bid = blockIdx.x * PP_BLKS_PER_THREAD + threadIdx.y;
     tid = threadIdx.x + threadIdx.y*ILP_PART_PER_BLK;
     pid = tid + blockIdx.x * PP_THREADS;
-    if (tid<32) ax[tid] = ay[tid] = az[tid] = fPot[tid] = dirsum[pid] = normsum[pid] = 0.0f;
+    if (tid<32) ax[tid] = ay[tid] = az[tid] = fPot[tid] = dirsum[tid] = normsum[tid] = 0.0f;
     __syncthreads();
 
     blk += bid;
     wid = tid & 31;
 
-
     dimaga = a[0]*a[0] + a[1]*a[1] + a[2]*a[2];
-    if (dimaga > 0.0) {
+    if (dimaga > 0.0f) {
         dimaga = rsqrtf(dimaga);
         }
-
     while(pid < nPart) {
         dx = blk->dx.f[threadIdx.x] + in[i].r[0];
         dy = blk->dy.f[threadIdx.x] + in[i].r[1];
@@ -70,21 +68,20 @@ __global__ void cudaPP( int nP, PINFOIN *in, int nPart, ILP_BLK *blk, PINFOOUT *
             dir = rsqrtf(fourh2);
             dir2 = dir*dir;
             dir3 = dir2*dir;
-            if (d2 <= fourh2) {
+            if (d2 < fourh2) {
                 /*
                 ** This uses the Dehnen K1 kernel function now, it's fast!
                 */
-                d2 *= dir2;
-                d2 = 1.0f - d2;
-                dir *= 1.0f + d2*(0.5f + d2*(3.0f/8.0f + d2*(45.0f/32.0f)));
-                dir3 *= 1.0f + d2*(1.5f + d2*(135.0f/16.0f));
+                dir2 *= d2;
+                dir2 = 1.0f - dir2;
+                dir *= 1.0f + dir2*(0.5f + dir2*(3.0f/8.0f + dir2*(45.0f/32.0f)));
+                dir3 *= 1.0f + dir2*(1.5f + dir2*(135.0f/16.0f));
                 }
 
             dir3 *= -m;
             dx *= dir3;
             dy *= dir3;
             dz *= dir3;
-            
 
             atomicAdd(&ax[wid],dx);
             atomicAdd(&ay[wid],dy);
@@ -94,7 +91,7 @@ __global__ void cudaPP( int nP, PINFOIN *in, int nPart, ILP_BLK *blk, PINFOOUT *
             /*
             ** Calculations for determining the timestep.
             */
-            float adotai = in[i].a[0]*dx + in[i].a[1]*dy + in[i].a[2]*dz;
+            adotai = a[0]*dx + a[1]*dy + a[2]*dz;
             if (adotai > 0.0f && d2 >= in[i].fSmooth2) {
                 adotai *= dimaga;
                 atomicAdd(&dirsum[wid],dir*adotai*adotai);

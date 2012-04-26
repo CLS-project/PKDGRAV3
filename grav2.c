@@ -152,7 +152,6 @@ int CPUdoWorkPP(void *vpp) {
     if (dimaga > 0) {
 	dimaga = 1.0/sqrt(dimaga);
 	}
-
 #ifdef USE_SIMD_PP
     pimaga = SIMD_SPLAT(dimaga);
 
@@ -289,7 +288,7 @@ int CPUdoWorkPP(void *vpp) {
 	    fourh2 = softmassweight(fMass,4*fSoft*fSoft,
 		blk->m.f[j],blk->fourh2.f[j]);
 	    d2 = dx*dx + dy*dy + dz*dz;
-	    if (d2==0.0) dir2 = 0.0;
+	    if (d2==0.0) continue; //dir2 = 0.0;
 	    if (d2 > fourh2) {
 		SQRT1(d2,dir);
 		dir2 = dir*dir*dir;
@@ -307,10 +306,10 @@ int CPUdoWorkPP(void *vpp) {
 		dir2 *= 1.0 + tax*(1.5 + tax*(135.0/16.0));
 		++nSoft;
 		}
-	    dir2 *= blk->m.f[j];
-	    tax = -dx*dir2;
-	    tay = -dy*dir2;
-	    taz = -dz*dir2;
+	    dir2 *= -blk->m.f[j];
+	    tax = dx*dir2;
+	    tay = dy*dir2;
+	    taz = dz*dir2;
 	    fPot -= blk->m.f[j]*dir;
 	    /*
 	    ** Calculations for determining the timestep.
@@ -410,9 +409,9 @@ int CPUdoWorkPC(void *vpc) {
     float tx,ty,tz;
     float xx,xy,xz,yy,yz,zz;
     float xxx,xxz,yyy,yyz,xxy,xyy,xyz;
-    float dir,dimaga;
+    float dir;
 #endif
-    float tax, tay, taz;
+    float dimaga, tax, tay, taz;
     ILC_BLK *blk;
     int j, n, nLeft;
 
@@ -426,6 +425,11 @@ int CPUdoWorkPC(void *vpc) {
     float fsmooth2 = pc->work->pInfoIn[i].fSmooth2;
     float *a =pc->work->pInfoIn[i].a;
     float ax,ay,az,fPot,dirsum,normsum;
+
+    dimaga = a[0]*a[0] + a[1]*a[1] + a[2]*a[2];
+    if (dimaga > 0.0) {
+        dimaga = 1.0 / sqrtf(dimaga);
+        }
 
 #if defined(USE_SIMD_PC)
     pax = consts.zero.p;
@@ -442,7 +446,7 @@ int CPUdoWorkPC(void *vpc) {
     piaz    = SIMD_SPLAT(a[2]);
     pmass   = SIMD_SPLAT(fMass);
     p4soft2 = SIMD_SPLAT(4.0*fSoft*fSoft);
-
+    pimaga  = SIMD_SPLAT(dimaga);
 
     /* Pad the last value if necessary */
     n = pc->nBlocks;
