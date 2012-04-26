@@ -1022,9 +1022,9 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 		    /*Verify:iOpenOutcomeNewCL(pkd,k,pkd->cl,cltile,dThetaMin);*/
 #else
 #ifdef NEW_OPENING_CRIT
-		    iOpenOutcomeNewCL(pkd,k,pkd->cl,cltile,dThetaMin);
+		    iOpenOutcomeNewCL(pkd,k,pkd->cl,cltile,dThetaMin,nGroup);
 #else
-		    iOpenOutcomeOldCL(pkd,k,pkd->cl,cltile,dThetaMin);
+		    iOpenOutcomeOldCL(pkd,k,pkd->cl,cltile,dThetaMin,nGroup);
 #endif
 #endif
 #else
