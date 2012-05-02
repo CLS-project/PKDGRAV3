@@ -36,7 +36,7 @@ void *CUDA_initialize(int iProc,int iWorkQueueSize, size_t tileSize, size_t Part
     CUDA_CHECK(cudaGetDeviceCount,(&nDevices))
     if (nDevices == 0 ) return NULL;
     CUDA_CHECK(cudaSetDevice,(iProc % nDevices));
-//    CUDA_CHECK(cudaSetDevice,(iProc%2));
+    /*CUDA_CHECK(cudaSetDevice,(iProc%1));*/
 
     CUDACTX ctx = reinterpret_cast<CUDACTX>(malloc(sizeof(struct cuda_ctx)));
     assert(ctx!=NULL);
