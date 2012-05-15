@@ -75,7 +75,8 @@
 typedef enum {
     FIO_FORMAT_TIPSY,
     FIO_FORMAT_HDF5,
-    FIO_FORMAT_GRAFIC
+    FIO_FORMAT_GRAFIC,
+    FIO_FORMAT_GADGET2
     } FIO_FORMAT;
 
 /*
@@ -139,7 +140,6 @@ typedef struct fioInfo {
     FIO_MODE   eMode;
     int        mFlags;
     fioSpeciesList nSpecies;
-    //uint64_t nSpecies[FIO_SPECIES_LAST];
 
     /* This is for multi-file support */
     fioFileList fileList;
