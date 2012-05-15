@@ -1,6 +1,9 @@
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
+#ifndef _LARGEFILE64_SOURCE
+#define _LARGEFILE64_SOURCE
+#endif
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -11,6 +14,10 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <sys/stat.h>
+
+#include <sys/types.h>
+#include <unistd.h>
+
 #ifdef HAVE_GSL
 #include <gsl/gsl_integration.h>
 #include <gsl/gsl_interp.h>
@@ -1627,7 +1634,7 @@ static FIO_SPECIES gadgetSpecies(struct fioInfo *fio) {
 
 static int gadgetOpenOne(fioGADGET *gio, int iFile) {
     gadgetHdrBlk blk;
-    uint64_t n;
+    uint64_t n, nMass;
     int fd, fd2;
     int i;
     char tag[8];
@@ -1718,10 +1725,10 @@ static int gadgetOpenOne(fioGADGET *gio, int iFile) {
 	abort();
 	return 0;
 	}
-    lseek(fd2,lseek(fd,0,SEEK_CUR),SEEK_SET);
+    lseek64(fd2,lseek64(fd,0,SEEK_CUR),SEEK_SET);
     fd = fd2;
 
-    lseek(fd,w1.n+sizeof(w1),SEEK_CUR);
+    lseek64(fd,w1.n+sizeof(w1),SEEK_CUR);
 
     /* Particle Velocities */
     if (gio->bTagged) {
@@ -1749,10 +1756,10 @@ static int gadgetOpenOne(fioGADGET *gio, int iFile) {
 	abort();
 	return 0;
 	}
-    lseek(fd2,lseek(fd,0,SEEK_CUR),SEEK_SET);
+    lseek64(fd2,lseek64(fd,0,SEEK_CUR),SEEK_SET);
     fd = fd2;
 
-    lseek(fd,w1.n+sizeof(w1),SEEK_CUR);
+    lseek64(fd,w1.n+sizeof(w1),SEEK_CUR);
 
     /* Particle IDs */
     if (gio->bTagged) {
@@ -1776,22 +1783,23 @@ static int gadgetOpenOne(fioGADGET *gio, int iFile) {
     else abort();
 
     /* We might have particles masses, let us check */
+    nMass = 0;
     for(i=0; i<GADGET2_NTYPES; ++i) {
 	/*printf("%d %d %g\n", i, gio->hdr.Npart[i], gio->hdr.Massarr[i] );*/
 	if ( gio->hdr.Npart[i] && gio->hdr.Massarr[i] == 0.0 )
-	    break;
+	    nMass += gio->hdr.Npart[i];
 	}
-    if ( i < GADGET2_NTYPES ) {
+    if ( nMass ) {
 	fd2 = open( gio->fio.fileList.fileInfo[iFile].pszFilename, O_RDONLY);
 	if ( fd2 < 0 ) {
 	    perror(gio->fio.fileList.fileInfo[iFile].pszFilename);
 	    abort();
 	    return 0;
 	    }
-	lseek(fd2,lseek(fd,0,SEEK_CUR),SEEK_SET);
+	lseek64(fd2,lseek64(fd,0,SEEK_CUR),SEEK_SET);
 	fd = fd2;
 
-	lseek(fd,w1.n+sizeof(w1),SEEK_CUR);
+	lseek64(fd,w1.n+sizeof(w1),SEEK_CUR);
 
 	if (gio->bTagged) {
 	    if (read(fd,&w1,sizeof(w1)) != sizeof(w1)) return 0;
@@ -1805,10 +1813,10 @@ static int gadgetOpenOne(fioGADGET *gio, int iFile) {
 	gio->fp_mass.fp = fdopen(fd, "rb");
 	fseek(gio->fp_mass.fp,0,SEEK_CUR);
 	assert( gio->fp_mass.fp != NULL );
-	if ( w1.n == n*sizeof(uint32_t) ) {
+	if ( w1.n == nMass*sizeof(uint32_t) ) {
 	    gio->fp_mass.bDouble = 0;
 	    }
-	else if ( w1.n == n*sizeof(uint64_t) ) {
+	else if ( w1.n == nMass*sizeof(uint64_t) ) {
 	    gio->fp_mass.bDouble = 1;
 	    }
 	else abort();
@@ -1823,10 +1831,10 @@ static int gadgetOpenOne(fioGADGET *gio, int iFile) {
 	    abort();
 	    return 0;
 	    }
-	lseek(fd2,lseek(fd,0,SEEK_CUR),SEEK_SET);
+	lseek64(fd2,lseek64(fd,0,SEEK_CUR),SEEK_SET);
 	fd = fd2;
 
-	lseek(fd,w1.n+sizeof(w1),SEEK_CUR);
+	lseek64(fd,w1.n+sizeof(w1),SEEK_CUR);
 
 	if (gio->bTagged) {
 	    if (read(fd,&w1,sizeof(w1)) != sizeof(w1)) return 0;
