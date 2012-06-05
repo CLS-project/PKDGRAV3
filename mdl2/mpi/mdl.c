@@ -187,38 +187,6 @@ void mdlPrintTimer(MDL mdl,char *message, mdlTimer *t0) {
     }
 #endif
 
-#if 0
-static inline unsigned int swap( unsigned int v, int N ) {
-    unsigned int r = 0;
-    do {
-	r <<= 1;
-	r |= ( v&1 );
-	v >>= 1;
-	}
-    while ( N >>= 1 );
-    return r;
-    }
-
-static int order( int N, int T ) {
-    int K, V, R=N;
-    int rank = 0;
-
-    assert( T < N );
-
-    for ( K=0; R; K++ ) {
-
-	V = swap(K,N);
-	if ( V < N ) {
-	    if ( V == T ) return rank;
-	    rank++;
-	    R--;
-	    }
-
-	}
-    assert(0);
-    }
-#endif
-
 /*
 ** This will remove nProcs processors from communicator zero
 ** and reconfigure the remaining processors.  commList[] is:
@@ -641,7 +609,44 @@ void mdlRecv(MDL mdl,int id,mdlPack unpack, void *ctx) {
     free(vIn);
     }
 
+#ifdef NEW_SWAP
+/* This is the inplace version */
+int mdlSwap(MDL mdl,int id,size_t nBufBytes,void *vBuf,size_t nOutBytes,
+	    size_t *pnSndBytes,size_t *pnRcvBytes) {
+    MPI_Status status;
+    size_t nInBytes, nSend;
+    char *pszBuf = vBuf;
 
+    /* First exchange counts */
+    MPI_Sendrecv(&nOutBytes, sizeof(nOutBytes), MPI_BYTE, id, MDL_TAG_SWAPINIT,
+	&nInBytes, sizeof(nInBytes), MPI_BYTE, id, MDL_TAG_SWAPINIT,
+	mdl->commMDL, &status);
+    assert( nInBytes <= nBufBytes );
+
+    /* Swap the common portion */
+    if ( nOutBytes>0 && nInBytes>0 ) {
+	nSend = (nOutBytes < nInBytes ? nOutBytes : nInBytes);
+	MPI_Sendrecv_replace(pszBuf, nSend, MPI_BYTE, id, MDL_TAG_SWAP,
+	    id, MDL_TAG_SWAP, mdl->commMDL, &status);
+	}
+    else nSend = 0;
+    pszBuf += nSend;
+
+    /* Now Send the excess */
+    if ( nOutBytes > nInBytes ) {
+	nSend = nOutBytes - nInBytes;
+	MPI_Send(pszBuf, nSend, MPI_BYTE, id, MDL_TAG_SWAP, mdl->commMDL);
+	}
+    else if ( nInBytes > nOutBytes ) {
+	nSend = nInBytes - nOutBytes;
+	MPI_Recv(pszBuf, nSend, MPI_BYTE, id, MDL_TAG_SWAP, mdl->commMDL, &status);
+	}
+
+    *pnSndBytes = nOutBytes;
+    *pnRcvBytes = nInBytes;
+    return 1;
+    }
+#else
 /*
  ** This is a tricky function. It initiates a bilateral transfer between
  ** two threads. Both threads MUST be expecting this transfer. The transfer
@@ -767,7 +772,7 @@ int mdlSwap(MDL mdl,int id,size_t nBufBytes,void *vBuf,size_t nOutBytes,
     else if (nInBytes) return(0);
     else return(1);
     }
-
+#endif
 
 void mdlDiag(MDL mdl,char *psz) {
     if (mdl->bDiag) {
@@ -972,28 +977,9 @@ int mdlCacheReceive(MDL mdl,char *pLine) {
     MPI_Status status;
     int ret;
     int iLineSize;
-#if 0
-    char achDiag[256];
-#endif
 
     ret = MPI_Wait(&mdl->ReqRcv, &status);
     assert(ret == MPI_SUCCESS);
-
-#if 0
-    /* Doesn't work...  MPI_SOURCE is -2 */
-    if ( ph->id != status.MPI_SOURCE ) {
-	printf( "MDL ERROR: id=%d, nThreads=%d, MPI_SOURCE=%d\n",
-		ph->id, mdl->nThreads, status.MPI_SOURCE );
-	printf("%d: cache %d, message %d, from %d, rec top\n",
-	       mdl->idSelf, ph->cid, ph->mid, ph->id);
-	assert( ph->id == status.MPI_SOURCE );
-	}
-#endif
-#if 0
-    sprintf(achDiag, "%d: cache %d, message %d, from %d, rec top\n",
-	    mdl->idSelf, ph->cid, ph->mid, ph->id);
-    mdlDiag(mdl, achDiag);
-#endif
 
     c = &mdl->cache[ph->cid];
     assert(c->iType != MDL_NOCACHE);
@@ -1078,11 +1064,6 @@ int mdlCacheReceive(MDL mdl,char *pLine) {
 	assert(0);
 	}
 
-#if 0
-    sprintf(achDiag, "%d: cache %d, message %d rec bottom\n", mdl->idSelf,
-	    ph->cid, ph->mid);
-    mdlDiag(mdl, achDiag);
-#endif
     /*
      * Fire up next receive
      */
@@ -1795,12 +1776,6 @@ void mdlRelease(MDL mdl,int cid,void *p) {
 	--c->pTag[iLine].nLock;
 	assert(c->pTag[iLine].nLock >= 0);
 	}
-#ifdef OLD_CACHE
-    else {
-	iData = ((char *)p - c->pData) / c->iDataSize;
-	assert(iData < c->nData);
-	}
-#endif
     }
 
 
