@@ -2017,48 +2017,6 @@ int pkdActiveOrder(PKD pkd) {
     }
 
 
-int pkdColRejects_Active_Inactive(PKD pkd,int d,FLOAT fSplit,FLOAT fSplitInactive,
-				  int iSplitSide) {
-    int nSplit,nSplitInactive,iRejects,i,j;
-
-    mdlassert(pkd->mdl,pkd->nRejects == 0);
-    if (iSplitSide) {
-	nSplit = pkdLowerPart(pkd,d,fSplit,0,pkdActive(pkd)-1);
-	}
-    else {
-	nSplit = pkdUpperPart(pkd,d,fSplit,0,pkdActive(pkd)-1);
-	}
-    if (iSplitSide) {
-	nSplitInactive = pkdLowerPart(pkd,d,fSplitInactive,
-				      pkdActive(pkd),pkdLocal(pkd)-1);
-	}
-    else {
-	nSplitInactive = pkdUpperPart(pkd,d,fSplitInactive,
-				      pkdActive(pkd),pkdLocal(pkd)-1);
-	}
-    nSplitInactive -= pkdActive(pkd);
-    /*
-    ** Now do some fancy rearrangement.
-    */
-    i = nSplit;
-    j = nSplit+nSplitInactive;
-    while (j < pkdActive(pkd) + nSplitInactive) {
-	pkdSwapParticle(pkd,pkdParticle(pkd,i),pkdParticle(pkd,j));
-	++i; ++j;
-	}
-    pkd->nRejects = pkdLocal(pkd) - nSplit - nSplitInactive;
-    iRejects = pkdFreeStore(pkd) - pkd->nRejects;
-    pkd->nActive = nSplit;
-    pkd->nLocal = nSplit + nSplitInactive;
-    /*
-    ** Move rejects to High memory.
-    */
-    for (i=pkd->nRejects-1;i>=0;--i)
-	pkdCopyParticle(pkd,pkdParticle(pkd,iRejects+i),pkdParticle(pkd,pkd->nLocal+i));
-    return(pkd->nRejects);
-    }
-
-
 int pkdColRejects(PKD pkd,int nSplit) {
     int iRejects,i;
 
