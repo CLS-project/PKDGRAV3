@@ -541,7 +541,7 @@ PKDOUT pkdOpenOutASCII(PKD pkd,char *pszFileName,const char *mode,int iFile,int 
 
     ctx->fp = fopen (pszFileName,mode);
     assert(ctx->fp != NULL);
-    setvbuf(ctx->fp,NULL,_IOFBF,PKDOUT_BUFFER_SIZE);
+    /*WTF: corrupts!!! setvbuf(ctx->fp,NULL,_IOFBF,PKDOUT_BUFFER_SIZE);*/
 
     switch(iFile) {
 
