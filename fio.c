@@ -27,100 +27,77 @@
 #include <rpc/types.h>
 #include <rpc/xdr.h>
 #else
-typedef struct {
+typedef struct xdr_struct {
     FILE *fp;
-    int bEncoding;
+    int (*fn_double)(struct xdr_struct *xdr, double *d);
+    int (*fn_float)(struct xdr_struct *xdr, float *f);
+    int (*fn_u_int)(struct xdr_struct *xdr, uint32_t *u);
 } XDR;
 
 #define XDR_ENCODE 1
 #define XDR_DECODE 2
 
-void xdrstdio_create(XDR *xdr,FILE *fp,int op) {
-    assert(op==XDR_ENCODE || op==XDR_DECODE);
-    xdr->bEncoding = (op==XDR_ENCODE);
+#define xdr_double(xdr,d)(((xdr)->fn_double)((xdr),(d)))
+#define xdr_float(xdr,d)(((xdr)->fn_float)((xdr),(d)))
+#define xdr_u_int(xdr,d)(((xdr)->fn_u_int)((xdr),(d)))
+
+
+#define XDR_WRITE(N,T)				\
+    static int xdr_write_##N(XDR *xdr, T *v) {	\
+	int n = sizeof(T);			\
+	unsigned char c[n];			\
+	union {					\
+	    T v;				\
+	    unsigned char c[n];			\
+	    } u;				\
+	int i;					\
+	u.v = *v;				\
+	for(i=0;i<n;++i) c[i] = u.c[n-i];	\
+	return fwrite(c,n,1,xdr->fp);		\
+	}
+XDR_WRITE(double,double)
+XDR_WRITE(float,float)
+XDR_WRITE(u_int,uint32_t)
+
+#define XDR_READ(N,T)\
+    static int xdr_read_##N(XDR *xdr, T *d) {	\
+	int n = sizeof(T);			\
+	unsigned char c[n];			\
+	union {					\
+	    T d;				\
+	    char c[n];				\
+	    } u;				\
+	int i;					\
+	if (fread(c,n,1,xdr->fp)!=1) return 0;	\
+	for(i=0; i<n; ++i) u.c[i] = c[n-i];	\
+	*d = u.d;				\
+	return 1;				\
+	}
+XDR_READ(double,double)
+XDR_READ(float,float)
+XDR_READ(u_int,uint32_t)
+
+static void xdrstdio_create(XDR *xdr,FILE *fp,int op) {
     xdr->fp = fp;
+    switch(op) {
+    case XDR_ENCODE:
+	xdr->fn_double = xdr_write_double;
+	xdr->fn_float  = xdr_write_float;
+	xdr->fn_u_int  = xdr_write_u_int;
+	break;
+    case XDR_DECODE:
+	xdr->fn_double = xdr_read_double;
+	xdr->fn_float  = xdr_read_float;
+	xdr->fn_u_int  = xdr_read_u_int;
+	break;
+    default:
+	assert(op==XDR_ENCODE || op==XDR_DECODE);
+	}
 }
 
 void xdr_destroy(XDR *xdr) {
 }
 
-int xdr_double(XDR *xdr, double *d) {
-    uint64_t v;
-    unsigned char c[8];
-    union {
-	double   d;
-	uint64_t v;
-    } u;
-    if (xdr->bEncoding) {
-        u.d = *d;
-	v = u.v;
-	c[0] = (v>>56) & 255;
-	c[1] = (v>>48) & 255;
-	c[2] = (v>>40) & 255;
-	c[3] = (v>>32) & 255;
-	c[4] = (v>>24) & 255;
-	c[5] = (v>>16) & 255;
-	c[6] = (v>>8)  & 255;
-	c[7] = (v>>0)  & 255;
-	return fwrite(c,sizeof(c),1,xdr->fp);
-    }
-    else {
-	if (fread(c,sizeof(c),1,xdr->fp)!=1) return 0;
-	u.v = 0;   u.v |= c[0];
-	u.v <<= 8; u.v |= c[1];
-	u.v <<= 8; u.v |= c[2];
-	u.v <<= 8; u.v |= c[3];
-	u.v <<= 8; u.v |= c[4];
-	u.v <<= 8; u.v |= c[5];
-	u.v <<= 8; u.v |= c[6];
-	u.v <<= 8; u.v |= c[7];
-	*d = u.d;
-	return 1;
-    }
-}
-
-int xdr_float(XDR *xdr, float *f) {
-    uint32_t v;
-    unsigned char c[4];
-    union {
-	float    f;
-	uint32_t v;
-    } u;
-    if (xdr->bEncoding) {
-        u.f = *f;
-	v = u.v;
-	c[0] = (v>>24) & 255;
-	c[1] = (v>>16) & 255;
-	c[2] = (v>>8)  & 255;
-	c[3] = (v>>0)  & 255;
-	return fwrite(c,sizeof(c),1,xdr->fp);
-    }
-    else {
-	if (fread(c,sizeof(c),1,xdr->fp)!=1) return 0;
-	u.v = (c[0]<<24) | (c[1]<<16) | (c[2]<<8) | c[3];
-	*f = u.f;
-	return 1;
-    }
-}
-
-int xdr_u_int(XDR *xdr, uint32_t *u) {
-    uint32_t v;
-    unsigned char c[4];
-    if (xdr->bEncoding) {
-        v = *u;
-	c[0] = (v>>24) & 255;
-	c[1] = (v>>16) & 255;
-	c[2] = (v>>8)  & 255;
-	c[3] = (v>>0)  & 255;
-	return fwrite(c,sizeof(c),1,xdr->fp);
-    }
-    else {
-	if (fread(c,sizeof(c),1,xdr->fp)!=1) return 0;
-	v = (c[0]<<24) | (c[1]<<16) | (c[2]<<8) | c[3];
-	*u = v;
-	return 1;
-    }
-}
 #endif
 
 #if defined(HAVE_WORDEXP) && defined(HAVE_WORDFREE)
@@ -1198,7 +1175,9 @@ static void tipsySetFunctions(fioTipsy *tio, int mFlags, int bStandard) {
 ** the maximum number of particles from 4e9 to 1e12 (1 trillion).
 ** This checks if that is what has happened here.
 */
-static void tipsySussHeader(tipsyHdr *h,uint64_t *pN, uint64_t *pDark,uint64_t *pSph, uint64_t *pStar) {
+static void tipsySussHeader(
+    tipsyHdr *h,
+    uint64_t *pN, uint64_t *pDark,uint64_t *pSph, uint64_t *pStar, double *dTime) {
     *pN = h->nPad & 0x000000ff;
     *pN <<= 32;
     *pN += h->nBodies;
@@ -1222,6 +1201,7 @@ static void tipsySussHeader(tipsyHdr *h,uint64_t *pN, uint64_t *pDark,uint64_t *
 	*pSph  = h->nSph;
 	*pStar = h->nStar;
 	}
+    *dTime = h->dTime;
     }
 
 
@@ -1231,6 +1211,7 @@ static void tipsySussHeader(tipsyHdr *h,uint64_t *pN, uint64_t *pDark,uint64_t *
 static int tipsyDetectHeader(fioTipsy *tio, int mFlags) {
     tipsyHdr h;
     uint64_t N,nDark,nSph,nStar;
+    double dTime;
     int rc;
 
     assert(tio->fio.eFormat == FIO_FORMAT_TIPSY);
@@ -1242,7 +1223,7 @@ static int tipsyDetectHeader(fioTipsy *tio, int mFlags) {
 
     /* Check for native binary format */
     if (h.nDim>=1 && h.nDim<=3) {
-	tipsySussHeader(&h,&N,&nDark,&nSph,&nStar);
+	tipsySussHeader(&h,&N,&nDark,&nSph,&nStar,&dTime);
 	if ( nDark + nSph + nStar != N ) {
 /*	    fprintf(stderr,"Tipsy Header mismatch:"
 		    " nDim=%u nDark=%lu nSph=%lu nStar=%lu nBodies=%lu\n",
@@ -1261,7 +1242,7 @@ static int tipsyDetectHeader(fioTipsy *tio, int mFlags) {
 	    perror("Error reading tipsy header");
 	    return 0;
 	    }
-	tipsySussHeader(&h,&N,&nDark,&nSph,&nStar);
+	tipsySussHeader(&h,&N,&nDark,&nSph,&nStar,&dTime);
 
 	if (h.nDim<1 || h.nDim>3 || nDark + nSph + nStar != N ) {
 /*	    fprintf(stderr,"Tipsy Header mismatch:"
@@ -1273,7 +1254,7 @@ static int tipsyDetectHeader(fioTipsy *tio, int mFlags) {
 	tipsySetFunctions(tio,mFlags,1);
 	}
     tio->nHdrSize = sizeof(h);
-    tio->dTime = h.dTime;
+    tio->dTime = dTime;
     tio->fio.nSpecies[FIO_SPECIES_DARK] = nDark;
     tio->fio.nSpecies[FIO_SPECIES_SPH]  = nSph;
     tio->fio.nSpecies[FIO_SPECIES_STAR] = nStar;
@@ -1673,6 +1654,30 @@ static int gadgetOpenOne(fioGADGET *gio, int iFile) {
 
     gio->hdr = blk.hdr;
     if ( gio->hdr.BoxSize > 0.0 ) {
+       /*
+       ** Cosmological coordinates
+       ** G = 4.30172e-9 Mpc/M. (km/s)^2
+       ** pc = 3 H^2 / (8 pi G)
+       **
+       ** We set Lbox = Mbox = G = 1 and compute the velocity unit.
+       **
+       ** Rnew = Rold / Lbox
+       ** Mnew = Mold / (pc * Lbox^3)
+       **      = Mold / (3 H^2 * Lbox^3) * 8 pi G
+       **      = Mold / (3 H^2 * Lbox^3) * 8 pi * 4.30172e-9
+       **      = Mold / (3 h^2 * 10^4 * Lbox^3) * 8 pi * 4.30172e-9
+       **      = Mold / (3 h^2 * Lbox^3) * 8 pi * 4.30172e-13
+       ** Vnew = Vold * sqrt(Lbox / (G * pc * Lbox^3)
+       **      = Vold * sqrt(8 pi / (3 H^2 Lbox^2) )
+       **      = Vold * sqrt(8 pi / 3) / Lbox / H
+       **      = Vold * sqrt(8 pi / 3) / Lbox / h / 100
+       **
+       ** Input units (at the moment) are:
+       **   Lunit = Mpc/h
+       **   Vunit = km/s
+       **   Munit = 10^10 M./h
+       */
+
 	double dTotalMass = 0.0;
 	gio->pos_fac = 1.0 / gio->hdr.BoxSize;
 	gio->pos_off = -0.5;
@@ -2638,9 +2643,11 @@ void ioorder_open(IOORDER *order,hid_t group_id) {
     }
 
 void ioorder_create(IOORDER *order, hid_t group_id, PINDEX iOrder) {
+    hid_t dataType = sizeof(PINDEX)==4 ? H5T_NATIVE_UINT32 : H5T_NATIVE_UINT64;
     field_reset(&order->fldOrder);
     order->groupID = group_id;
     order->iStart = order->iNext = iOrder;
+    field_create(&order->fldOrder,group_id,FIELD_ORDER,dataType,dataType,1);
     }
 
 void ioorder_close(IOORDER *order) {
@@ -2662,19 +2669,50 @@ static PINDEX ioorder_get(IOORDER *order, PINDEX iOffset, uint_fast32_t iIndex) 
 	}
     }
 
-static void ioorder_add(IOORDER *order, PINDEX iOrder) {
+static void ioorder_add(IOBASE *base, PINDEX iOrder) {
+    IOORDER *order = &base->ioOrder;
+    if (field_isopen(&order->fldOrder)) {
+	field_add_uint64_t(&iOrder,&order->fldOrder,base->iIndex);
+	}
+    else if (base->iOffset==0 && base->iIndex==0)
+	order->iNext = (order->iStart = iOrder) + 1;
     /* Make sure that we are still in order */
-    if (order->iNext == iOrder) ++order->iNext;
-    //else abort();
+    else if (order->iNext == iOrder) ++order->iNext;
+    else {
+	PINDEX iStart = order->iStart;
+	PINDEX iNext = order->iNext;
+	uint64_t iOffset = 0;
+	int nBuffered=0;
+	ioorder_create(order,base->group_id,order->iStart);
+	while(iStart<iNext) {
+	    field_add_uint64_t(&iStart,&order->fldOrder,nBuffered);
+	    if (++nBuffered == order->fldOrder.nChunk) {
+		field_write(&order->fldOrder,iOffset,nBuffered);
+		iOffset += nBuffered;
+		nBuffered = 0;
+		}
+	    ++iStart;
+	    }
+	field_add_uint64_t(&iOrder,&order->fldOrder,nBuffered);
+	assert(iOffset==base->iOffset);
+	assert(nBuffered==base->iIndex);
+	}
     }
 
 static void ioorder_write(IOORDER *order,PINDEX iOffset, uint_fast32_t nBuffered) {
+    field_write(&order->fldOrder,iOffset,nBuffered);
     }
 
-static void ioorder_flush(IOORDER *order) {
-    hid_t dataType = sizeof(PINDEX)==4 ? H5T_NATIVE_UINT32 : H5T_NATIVE_UINT64;
-    writeAttribute( order->groupID, ATTR_IORDER,
-		    dataType, &order->iStart );
+static void ioorder_flush(IOBASE *base) {
+    IOORDER *order = &base->ioOrder;
+    if (field_isopen(&order->fldOrder)) {
+	ioorder_write(order,base->iOffset,base->iIndex);
+	}
+    else {
+	hid_t dataType = sizeof(PINDEX)==4 ? H5T_NATIVE_UINT32 : H5T_NATIVE_UINT64;
+	writeAttribute( base->group_id, ATTR_IORDER,
+	    dataType, &order->iStart );
+	}
     }
 
 /*
@@ -2793,7 +2831,7 @@ static void hdf5CloseOne(fioHDF5 *hio) {
 	IOBASE *base = &hio->base[i];
 	if (base->group_id!=H5I_INVALID_HID) {
 	    if (hio->fio.eMode==FIO_MODE_WRITING) {
-		ioorder_flush(&base->ioOrder);
+		ioorder_flush(base);
 		class_flush(&base->ioClass,base->group_id);
 		class_write(&base->ioClass,base->iOffset,base->iIndex);
 		for(j=0; j<base->nFields; j++) {
@@ -2904,7 +2942,7 @@ static void base_create(fioHDF5 *hio,IOBASE *base,int iSpecies,int nFields,uint6
     base->group_id = H5Gcreate(hio->fileID,fioSpeciesName(iSpecies),0);
     base->iOffset = 0;
     base->iIndex = base->nBuffered = 0;
-    ioorder_create(&base->ioOrder,base->group_id,iOrder);
+    field_reset(&base->ioOrder.fldOrder);
     class_create(&base->ioClass,base->group_id,
 		 !(hio->mFlags&FIO_FLAG_COMPRESS_MASS),
 		 !(hio->mFlags&FIO_FLAG_COMPRESS_SOFT));
@@ -3002,7 +3040,7 @@ static int  hdf5WriteDark(
 	base_create(hio,base,FIO_SPECIES_DARK,DARK_N,iOrder);
 	}
 
-    ioorder_add(&base->ioOrder,iOrder);
+    ioorder_add(base,iOrder);
     class_add(base,iOrder,fMass,fSoft);
     field_add_double(pdPos,&base->fldFields[DARK_POSITION],base->iIndex);
     field_add_double(pdVel,&base->fldFields[DARK_VELOCITY],base->iIndex);
@@ -3034,7 +3072,7 @@ static int hdf5WriteSph(
 		     FIELD_METALS, H5T_NATIVE_FLOAT, H5T_NATIVE_FLOAT, 1 );
 	}
 
-    ioorder_add(&base->ioOrder,iOrder);
+    ioorder_add(base,iOrder);
     class_add(base,iOrder,fMass,fSoft);
     field_add_double(pdPos,&base->fldFields[DARK_POSITION],base->iIndex);
     field_add_double(pdVel,&base->fldFields[DARK_VELOCITY],base->iIndex);
