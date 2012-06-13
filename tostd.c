@@ -9,25 +9,35 @@
 
 #define BUFFER_SIZE (8*1024*1024)
 
-#define OPT_DOUBLE 'd'
-#define OPT_NATIVE 'n'
-#define OPT_HDF5   '5'
+#define OPT_DOUBLE    'd'
+#define OPT_NATIVE    'n'
+#define OPT_HDF5      '5'
 #define OPT_POTENTIAL 'p'
 #define OPT_DENSITY   'r'
+#define OPT_GADGET2   'g'
+
+#define OPT_OMEGA0    'm'
+#define OPT_LAMBDA    'v'
+#define OPT_H0        'H'
+#define OPT_LBOX      'L'
 
 int main( int argc, char *argv[] ) {
     int bError = 0;
     int bDouble = 0;
     int bNative = 0;
     int bHDF5 = 0;
+    int bGADGET2 = 0;
     int bPotential = 0;
     int bDensity = 0;
+    double Omega0 = 0.0, OmegaLambda = 0.0, HubbleParam = 0.0, Lbox=0.0;
+    int bSetOmega0=0, bSetOmegaLambda=0, bSetHubbleParam=0;
     uint64_t N, nSph, nDark, nStar, i;
     double dTime;
-
     uint64_t iOrder;
     double r[3], v[3];
     float fMass, fSoft, fPot, fRho, u, fMetals, fTimer;
+    uint64_t nPart[6];
+    double dMass[6];
 
     FIO fioIn, fioOut;
     FIO_SPECIES eSpecies;
@@ -43,12 +53,19 @@ int main( int argc, char *argv[] ) {
 		{ "double",       0, 0, OPT_DOUBLE},
 		{ "native",       0, 0, OPT_NATIVE},
 		{ "hdf5",         0, 0, OPT_HDF5},
+		{ "gadget2",      0, 0, OPT_GADGET2},
 		{ "potential",    0, 0, OPT_POTENTIAL},
 		{ "density"  ,    0, 0, OPT_DENSITY},
+                { "omega-matter", 1, 0, OPT_OMEGA0 },
+                { "omega0",       1, 0, OPT_OMEGA0 },
+                { "omega-lambda", 1, 0, OPT_LAMBDA },
+                { "hubble0",      1, 0, OPT_H0 },
+                { "H0",           1, 0, OPT_H0 },
+                { "box-width",    1, 0, OPT_LBOX },
 		{ NULL,   0, 0, 0 },
 	    };
 
-	c = getopt_long( argc, argv, "dn5pr",
+	c = getopt_long( argc, argv, "dn5gprm:v:H:L:",
 			 long_options, &option_index );
 	if ( c == -1 ) break;
 
@@ -62,11 +79,33 @@ int main( int argc, char *argv[] ) {
 	case OPT_HDF5:
 	    bHDF5 = 1;
 	    break;
+	case OPT_GADGET2:
+	    bGADGET2 = 1;
+	    break;
 	case OPT_POTENTIAL:
 	    bPotential = 1;
 	    break;
 	case OPT_DENSITY:
 	    bDensity = 1;
+	    break;
+	case OPT_OMEGA0:
+	    assert( optarg != 0 );
+	    bSetOmega0 = 1;
+	    Omega0 = atof(optarg);
+	    break;
+	case OPT_LAMBDA:
+	    assert( optarg != 0 );
+	    bSetOmegaLambda=1;
+	    OmegaLambda = atof(optarg);
+	    break;
+	case OPT_H0:
+	    assert( optarg != 0 );
+	    bSetHubbleParam = 1;
+	    HubbleParam = atof(optarg);
+	    break;
+	case OPT_LBOX:
+	    assert( optarg != 0 );
+	    Lbox = atof(optarg);
 	    break;
 	default:
 	    bError = 1;
@@ -74,8 +113,12 @@ int main( int argc, char *argv[] ) {
 	    }
 	}
 
-    if (bNative && bHDF5) {
-	fprintf(stderr, "Specify only one of --hdf5 or --native\n" );
+    if (bNative + bHDF5 + bGADGET2 > 1) {
+	fprintf(stderr, "Specify only one of --hdf5, --gadget2 or --native\n" );
+	bError = 1;
+	}
+    else if (bGADGET2 && !(bSetOmega0 && bSetOmegaLambda && bSetHubbleParam) ) {
+	fprintf(stderr, "Specify Omega0, OmegaLambda and H0 with GADGET2 output format\n" );
 	bError = 1;
 	}
 #ifndef USE_HDF5
@@ -84,7 +127,6 @@ int main( int argc, char *argv[] ) {
         bError = 1;
         }
 #endif
-
 
     if ( optind < argc ) {
 	inNameIndex = optind++;
@@ -106,6 +148,10 @@ int main( int argc, char *argv[] ) {
 	fprintf(stderr, "Usage: %s [-p] <input...> <outtipsy>\n"
 		"  -d,--double    Output double precision positions\n"
 		"  -n,--native    Output a native tipsy binary\n"
+		"  -g,--gadget2   Output a GADGET2 binary\n"
+		"  -m,--omega0=<omega-matter>\n"
+		"  -v,--omega-lambda=<omega-lambda>\n"
+		"  -H,--H0=<hubble-parameter>\n"
 #ifdef USE_HDF5
 		"  -5,--hdf5      Output in HDF5 format\n"
 		"  -p,--potential Included potentials in HDF5 output\n"
@@ -136,6 +182,20 @@ int main( int argc, char *argv[] ) {
 #else
     if (0) {}
 #endif
+    else if (bGADGET2) {
+	int mFlag = 0;
+	if (bDouble) mFlag |= FIO_FLAG_DOUBLE_POS | FIO_FLAG_DOUBLE_VEL;
+	nPart[0] = nSph;
+	nPart[1] = nDark;
+	nPart[2] = 0;
+	nPart[3] = 0;
+	nPart[4] = nStar;
+	nPart[5] = 0;
+	dMass[0] = dMass[1] = dMass[2] = dMass[3] = dMass[4] = dMass[5] = 0.0;
+	fioOut = fioGadgetCreate(outName,mFlag,dTime,Lbox,
+	    Omega0, OmegaLambda, HubbleParam,
+	    6, nPart, 6, nPart, dMass );
+	}
     else {
 	fioOut = fioTipsyCreate(outName,bDouble,!bNative,dTime,nSph,nDark,nStar);
 	}

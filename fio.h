@@ -322,6 +322,17 @@ int fioTipsyIsStandard(FIO fio);
 FIO fioHDF5Create(const char *fileName,int mFlags);
 
 /******************************************************************************\
+** GADGET2 FORMAT
+\******************************************************************************/
+
+FIO fioGadgetCreate(
+    const char *fileName,int mFlags, double dTime, double Lbox,
+    double Omega0, double OmegaLambda, double HubbleParam,
+    int nTypes, const uint64_t *nPart,
+    int nFiles, const uint64_t *nAll,
+    const double *dMass );
+
+/******************************************************************************\
 ** GRAFIC FORMAT
 \******************************************************************************/
 
