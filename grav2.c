@@ -111,7 +111,6 @@ static void workDone(workParticle *work) {
 		}
 	    }
 	free(work->pPart);
-//	CUDA_free(work->pInfoIn);
 	free(work->pInfoIn);
 	free(work->pInfoOut);
 	free(work);
@@ -735,7 +734,6 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,FLOCR *
     /* This is the maximum number of particles -- there may be fewer of course */
     nP = pkdn->pUpper - pkdn->pLower + 1;
     work->pPart = malloc(sizeof(PARTICLE *) * nP);
-//    work->pInfoIn = CUDA_malloc(sizeof(PINFOIN) * nP);
     work->pInfoIn = malloc(sizeof(PINFOIN) * nP);
     work->pInfoOut = malloc(sizeof(PINFOOUT) * nP);
     work->nRefs = 1; /* I am using it currently */
