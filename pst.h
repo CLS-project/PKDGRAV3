@@ -272,7 +272,6 @@ void pstReadFile(PST,void *,int,void *,int *);
 
 /* PST_PEANOHILBERTDECOMP */
 struct inPeanoHilbertDecomp {
-    total_t nTotal;
     int     nRungs;
     int     iMethod;
     };

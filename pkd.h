@@ -1196,7 +1196,7 @@ int pkdActiveOrder(PKD);
 
 /*#define PEANO_HILBERT_KEY_MAX 0x3ffffffffffull*/ /* 2d */
 #define PEANO_HILBERT_KEY_MAX 0x7fffffffffffffffull /* 3d */
-void pkdPeanoHilbertDecomp(PKD pkd, uint64_t nTotal, int nRungs, int iMethod);
+void pkdPeanoHilbertDecomp(PKD pkd, int nRungs, int iMethod);
 void pkdRungOrder(PKD pkd, int iRung, total_t *nMoved);
 int pkdColRejects(PKD,int);
 int pkdColRejects_Old(PKD,int,FLOAT,FLOAT,int);

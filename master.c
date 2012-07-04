@@ -2242,7 +2242,6 @@ void msrDomainDecompNew(MSR msr) {
     msrprintf(msr,"Domain Decomposition: Method %d\n",msr->param.iDomainMethod);
 
     /* Generate hilbert keys for each particle and sort them */
-    pk.nTotal = msr->N;
     pk.nRungs = msr->param.nDomainRungs;
     pk.iMethod = msr->param.iDomainMethod;
     pstPeanoHilbertDecomp(msr->pst,&pk,sizeof(pk),NULL,NULL);

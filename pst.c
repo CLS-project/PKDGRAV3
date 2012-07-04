@@ -1489,7 +1489,7 @@ void pstPeanoHilbertDecomp(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
 	}
     else {
-	pkdPeanoHilbertDecomp(plcl->pkd,in->nTotal, in->nRungs, in->iMethod);
+	pkdPeanoHilbertDecomp(plcl->pkd, in->nRungs, in->iMethod);
 	}
     if (pnOut) *pnOut = 0;
     }

@@ -1271,7 +1271,7 @@ static int cmpPeanoHilbert(const void *pva,const void *pvb) {
 **  3 - Split particles by active on every rung
 **  4 - Split on all rungs
 */
-void pkdPeanoHilbertDecomp(PKD pkd, uint64_t nTotal, int nRungs, int iMethod) {
+void pkdPeanoHilbertDecomp(PKD pkd, int nRungs, int iMethod) {
     PLITEDD *pl = (PLITEDD *)pkd->pLite;
     PARTICLE *p;
     float x,y,z;
