@@ -6443,6 +6443,9 @@ void msrMeasurePk(MSR msr,double *dCenter,double dRadius,int nGrid,float *Pk) {
     }
 #endif
 
+/*
+** Build the tree used to compute a phase-space metric.
+*/
 void _BuildPsdTree(MSR msr,int bExcludeVeryActive,int bNeedEwald) {
     struct inPSD in;
     struct ioCalcRoot root;
@@ -6493,6 +6496,16 @@ void _BuildPsdTree(MSR msr,int bExcludeVeryActive,int bNeedEwald) {
 	}
     }
 
+/*
+** Find groups in phase-space (Code name: Aardvark)
+**
+** This proceeds in several steps:
+** 1. Build a tree that will be used to determine a 6D metric
+** 2. Use this metric to smooth over neighbors and calculate a phase-space density
+** 3. Build local groups by constructing chains that link to local density maxima
+** 4. Join groups that span multiple processors.
+** 5. Unbind excess particles.
+*/
 void msrPSGroupFinder(MSR msr) {
     int i;
     struct inPSD in;
@@ -6518,16 +6531,27 @@ void msrPSGroupFinder(MSR msr) {
 	}
 #endif
 
-
+    /*
+    ** Construct the tree used to compute phase-space densities
+    */
     const int bExcludeVeryActive = 0;
     int bNeedEwald = 0;
-    //fprintf(stderr, "%i\n", msr->param.nMinMembers);
     _BuildPsdTree(msr,bExcludeVeryActive,bNeedEwald);
 
+    /*
+    ** Compute densities
+    */
     pstPSDInit(msr->pst,&in,sizeof(in),NULL,NULL);
     pstPSD(msr->pst,&in,sizeof(in),NULL,NULL);
+
+    /*
+    ** Create local group chains.
+    */
     pstPSDLink(msr->pst,&in,sizeof(in),NULL,NULL);
 
+    /*
+    ** Count how many unique groups where made on each thread.
+    */
     struct inUpdateGroups *ug = malloc(msr->nThreads*sizeof(*ug));
     assert(ug != NULL);
 
@@ -6537,10 +6561,13 @@ void msrPSGroupFinder(MSR msr) {
     int nGroups = ug[0].count;
     for (i=1; i < msr->nThreads; i++)
         nGroups += ug[i].count;
-
     if (msr->param.bVStep)
 	msrprintf(msr, "Found %i groups before bridging.\n", nGroups);
 
+    /*
+    ** Join groups that span multiple domains. This may take several
+    ** iterations.
+    */
     int ndone;
     int done;
     do {
@@ -6549,27 +6576,33 @@ void msrPSGroupFinder(MSR msr) {
         assert(ndone == sizeof(done));
     } while (!done);
 
+    /*
+    ** Now count how many unique groups there are globally and
+    ** assign contiguous groups id ranges to each processor.
+    */
     inCLG=0;
     pstPSDCountLocalGroups(msr->pst, &inCLG, sizeof(inCLG), ug, NULL);
 
     nGroups = ug[0].count;
     ug[0].offs = 0;
-    for (i=1; i < msr->nThreads; i++)
-    {
+    for (i=1; i < msr->nThreads; i++) {
         ug[i].offs = ug[i-1].offs + ug[i-1].count;
         nGroups += ug[i].count;
 	}
-
     if (msr->param.bVStep)
 	msrprintf(msr, "Found %i unique groups after bridging.\n", nGroups);
 
-
     pstPSDUpdateGroups(msr->pst, ug, msr->nThreads*sizeof(*ug), NULL, NULL);
 
+    /*
+    ** Unbind the groups
+    */
     //msrUnbind(msr, nGroups);
 
+    /*
+    ** Clean up.
+    */
     pstPSDFinish(msr->pst,&in,sizeof(in),NULL,NULL);
-
     free(ug);
     }
 

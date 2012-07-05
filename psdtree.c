@@ -93,6 +93,9 @@ static int key_compar(const void *a0, const void *b0) {
     return a->key - b->key;
     }
 
+/*
+** Compute entropy. E = -\sum (p ln(p))
+*/
 static inline float E(KEY *keys, int N, float M) {
     int i;
     float s = 0;
@@ -118,11 +121,6 @@ static inline float E(KEY *keys, int N, float M) {
 
     return s;
 }
-
-/*
-** M is the bucket size.
-** This function assumes that the root node is correctly set up (particularly the bounds).
-*/
 
 void SAVE_BOUNDS(PKD pkd, PSX smx, KDN *pNode, pBND bnd[2])
 {
@@ -157,6 +155,13 @@ void SAVE_BOUNDS(PKD pkd, PSX smx, KDN *pNode, pBND bnd[2])
 	}
     }
 }
+
+/*
+** Build a tree that will be used to estimate the phase-space metric.
+**
+** M is the bucket size.
+** This function assumes that the root node is correctly set up (particularly the bounds).
+*/
 
 #define TEMP_S_INCREASE 100
 void BuildPsdTemp(PKD pkd, PSX smx, int iNode,int M, int maxNb) {

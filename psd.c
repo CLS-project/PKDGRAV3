@@ -22,6 +22,9 @@
 
 extern const int primes[];
 
+/*
+** The Epanechnikov kernel
+*/
 static double ekernel(double u2) {
     return (0 <= u2 && u2 <= 1) * (1-u2);
 }
@@ -30,6 +33,9 @@ static double grad_ekernel(double u) {
     return (fabs(u) <= 1) * (-2*u);
 }
 
+/* 
+** A spline kernel (unused)
+*/
 static inline float spline_kernel(float u) {
     if (0 < u && u <= 0.5)
 	return 1 - (6*u*u) * (1 + u);
@@ -46,6 +52,9 @@ static inline float grad_spline_kernel(float x, float u) {
     return 0;
 }
 
+/*
+** The smoothed phase-space density.
+*/
 float psdDensity(PKD pkd, PARTICLE *p,int nSmooth,NN6 *nnList, FLOAT *rscale, FLOAT *vscale) {
     double ih2,r2,fDensity,fMass;
     int i;
@@ -55,7 +64,6 @@ float psdDensity(PKD pkd, PARTICLE *p,int nSmooth,NN6 *nnList, FLOAT *rscale, FL
     fDensity = 0.0;
 
     fDensity = pkdMass(pkd, p) * ekernel(pow(1 * 6 / (1+6.), 2));
-    //fDensity = ekernel(pow(p->fBall * 6 / (1+6.), 2));
     for (i=0;i<nSmooth;++i) {
 	if (nnList[i].pPart == p) continue;
 	fMass = pkdMass(pkd,nnList[i].pPart);
@@ -88,6 +96,10 @@ float psdDensity(PKD pkd, PARTICLE *p,int nSmooth,NN6 *nnList, FLOAT *rscale, FL
 
 }
 
+/*
+** Compute the normalized density gradient. Also correct the E0 error
+** to reduce the noise.
+*/
 void psdDensityGrad(PKD pkd, PSX psx, int pid, FLOAT *fDensityGrad) {
     int i,j;
     FLOAT *rscale, *vscale;
@@ -373,7 +385,6 @@ PQ6 *pqSearchLocalPsd(PSX smx,PQ6 *pq,FLOAT *r,FLOAT *v, FLOAT *rscale, FLOAT *v
 	    }
 	}
 	pEnd = kdn->pUpper;
-	//fprintf(stdout, "pj = %i %i  %i\n", kdn->pLower, pEnd, pEnd-kdn->pLower+1);
 	for (pj=kdn->pLower;pj<=pEnd;++pj) {
 /**/	if (smx->ea[pj].bInactive) continue;
 /**/	p = pkdParticle(pkd,pj);
@@ -406,7 +417,6 @@ PQ6 *pqSearchLocalPsd(PSX smx,PQ6 *pq,FLOAT *r,FLOAT *v, FLOAT *rscale, FLOAT *v
 		pq->dr[5] = dr5;
 		pq->iIndex = pj;
 		smx->ea[pj].bInactive = 1; /* de-activate a particle that enters the queue */
-		//fprintf(stdout, "replace\n");
 		PQ6_REPLACE(pq);
 	    }
 	}
@@ -502,39 +512,37 @@ PQ6 *pqSearchRemotePsd(PSX smx,PQ6 *pq,int id,FLOAT *r,FLOAT *v, FLOAT *rscale, 
 	*/
 	while (pkdn->iLower) {
 	    kdn  = pkdTreeNode(pkd,iCell = pkdn->iLower);
-/**/	mdlRelease(mdl,CID_CELL,pkdn);
-/**/	pkdn = mdlAquire(mdl,CID_CELL,iCell,id);
+/**/	    mdlRelease(mdl,CID_CELL,pkdn);
+/**/	    pkdn = mdlAquire(mdl,CID_CELL,iCell,id);
 	    pkdNodeBnd(pkd,pkdn, &bnd[0]);
 	    pkdNodeVBnd(pkd,pkdn, &bnd[1]);
 	    PSMINDIST(bnd,r,v,rscale,vscale, min1);
 
 	    kdn  = pkdTreeNode(pkd,++iCell);
-/**/	pkdu = mdlAquire(mdl,CID_CELL,iCell,id);
+/**/	    pkdu = mdlAquire(mdl,CID_CELL,iCell,id);
 	    pkdNodeBnd(pkd,pkdu, &bnd[0]);
 	    pkdNodeVBnd(pkd,pkdu, &bnd[1]);
 	    PSMINDIST(bnd,r,v,rscale,vscale, min2);
 	    if (min1 < min2) {
 		Smin[sm++] = min2;
 		kdn = pkdTreeNode(pkd,--iCell);
-/**/	    mdlRelease(mdl,CID_CELL,pkdu);
+/**/		mdlRelease(mdl,CID_CELL,pkdu);
 		if (min1 >= pq->fDist2) goto NotContained;
 	    }
 	    else {
 		Smin[sm++] = min1;
-/**/	    mdlRelease(mdl,CID_CELL,pkdn);
-/**/	    pkdn = pkdu;
+/**/		mdlRelease(mdl,CID_CELL,pkdn);
+/**/		pkdn = pkdu;
 		if (min2 >= pq->fDist2) goto NotContained;
 	    }
 	}
 	pEnd = pkdn->pUpper;
 	for (pj=pkdn->pLower;pj<=pEnd;++pj) {
-/**/	p = mdlAquire(mdl,CID_PARTICLE,pj,id);
-/**/	//if (psHashPresent(smx,p)) continue;
-/**/	//if (!p->bSrcActive) {
+/**/	    p = mdlAquire(mdl,CID_PARTICLE,pj,id);
 	    if (!p->bSrcActive || psHashPresent(smx,p)) {
-/**/	    mdlRelease(mdl,CID_PARTICLE,p);
-/**/	    continue;
-/**/	}
+/**/		mdlRelease(mdl,CID_PARTICLE,p);
+/**/		continue;
+/**/	    }
 	    pv = pkdVel(pkd,p);
 	    dr0 = -(r[0] - p->r[0]) * rscale[0];
 	    dr1 = -(r[1] - p->r[1]) * rscale[1];
@@ -594,8 +602,8 @@ PQ6 *pqSearchRemotePsd(PSX smx,PQ6 *pq,int id,FLOAT *r,FLOAT *v, FLOAT *rscale, 
 	    }
 	if (min2 >= pq->fDist2) {
 	    kdn = pkdTreeNode(pkd,iCell = pkdn->iParent);
-/**/	mdlRelease(mdl,CID_CELL,pkdn);
-/**/	pkdn = mdlAquire(mdl,CID_CELL,iCell,id);
+/**/	    mdlRelease(mdl,CID_CELL,pkdn);
+/**/	    pkdn = mdlAquire(mdl,CID_CELL,iCell,id);
 	    goto NoIntersect;
 	    }
 	S[++sp] = iCell;
@@ -721,12 +729,20 @@ PQ6 *pqSearchPsd(PSX smx,PQ6 *pq,FLOAT *r,FLOAT *v, FLOAT *rscale,FLOAT *vscale,
     }
 }
 
+/*
+** Used to keep track of the state of things from a previous call to knn()
+*/
 struct knn_data
 {
     FLOAT rscale[3], vscale[3];
     FLOAT rLast[3], vLast[3];
 };
 
+/*
+** Find the k nearest neighbors. If first_time is true the priority-queue
+** and knn_data is initialized. Subsequent calls with first_time false
+** will update the priority-queue.
+*/
 PQ6 *knn(PSX psx, PQ6 *pq, int pid, struct knn_data *knn_data, int first_time)
 {
     int i,j;
@@ -867,7 +883,11 @@ void psdSmooth(PSX smx, PSF *smf) {
 }
 
 #else
-//void psdSmooth(PKD pkd, PSX smx, FLOAT rscale0[3], FLOAT vscale0[3]) {
+
+
+/*
+** Compute the smoothed phase-space densities for all particles.
+*/
 void psdSmooth(PSX psx,  PSF *smf) {
     PARTICLE *p;
     PKD pkd = psx->pkd;
@@ -877,31 +897,6 @@ void psdSmooth(PSX psx,  PSF *smf) {
 
     struct knn_data knn_data;
 
-    int iorder_compar(const void *a0, const void *b0)
-    {
-	int a = *(int *)a0;
-	int b = *(int *)b0;
-	if (psx->pq[a].pPart->iOrder < psx->pq[b].pPart->iOrder) return -1;
-	if (psx->pq[a].pPart->iOrder > psx->pq[b].pPart->iOrder) return +1;
-	return 0;
-    }
-#if 0
-    pBND bnd[2];
-    KDN *kdn = pkdTopNode(pkd,2);
-    pkdNodeBnd(pkd, kdn, &bnd[0]);
-    pkdNodeVBnd(pkd, kdn, &bnd[1]);
-    fprintf(stderr, "%i] %e %e %e\n", pkd->idSelf, bnd[1].fCenter[0], bnd[1].fCenter[1], bnd[1].fCenter[2]);
-
-    knn_data.rscale[0] = 0;
-    knn_data.rscale[1] = 0;
-    knn_data.rscale[2] = 0;
-    knn_data.vscale[0] = 0;
-    knn_data.vscale[1] = 0;
-    knn_data.vscale[2] = 0;
-#endif
-
-    int sorted_nbrs[psx->nSmooth];
-
     mdlROcache(pkd->mdl,CID_PARTICLE,NULL, pkdParticleBase(pkd),pkdParticleSize(pkd), pkd->nLocal);
 
     for (pi=0;pi<pkd->nLocal;++pi) 
@@ -909,32 +904,9 @@ void psdSmooth(PSX psx,  PSF *smf) {
 	if (pi % 10000 == 0)
 	    fprintf(stdout, "\033[%iC%3i\r", pkd->idSelf*4, (int)(100.*(((double)pi) / pkd->nLocal)));
 	p = pkdParticle(pkd,pi);
-	//if ( !pkdIsDstActive(p,0,MAX_RUNG) ) continue;
+	/* if ( !pkdIsDstActive(p,0,MAX_RUNG) ) continue; */
 
 	pq = knn(psx,pq, pi, &knn_data, pi==0);
-
-#if 0
-	if (0 && p->iOrder == 47509)
-	{
-	    for (i=0; i < psx->nSmooth; i++)
-		sorted_nbrs[i] = i;
-
-	    qsort(sorted_nbrs, psx->nSmooth, sizeof(*sorted_nbrs), iorder_compar);
-
-	    fprintf(stderr, "%i] NBR %ld", pkd->idSelf, p->iOrder);
-	    for (i=0; i < psx->nSmooth; i++)
-	    {
-		if (psx->pq[sorted_nbrs[i]].iPid != pkd->idSelf)
-		    fprintf(stderr, " %ld*", psx->pq[sorted_nbrs[i]].pPart->iOrder);
-		else
-		    fprintf(stderr, " %ld", psx->pq[sorted_nbrs[i]].pPart->iOrder);
-	    }
-	    fprintf(stderr, "\n");
-	    fprintf(stderr, "%i] iOrder %ld\n", pkd->idSelf, p->iOrder);
-	    assert(0);
-	}
-#endif
-
 
 	/*
 	** Search in replica boxes if it is required.
@@ -997,7 +969,11 @@ void psdSmooth(PSX psx,  PSF *smf) {
 }
 #endif
 
-void grad_arclen(PSX psx, double *a, double *arclen)
+/*
+** For each of the neighbors stored in psx->pq, compute the arc length
+** between the vector a and the position of the neighbor.
+*/
+void calc_arclen(PSX psx, double *a, double *arclen)
 {
     int i,pj;
     double L = 0;
@@ -1023,6 +999,19 @@ void grad_arclen(PSX psx, double *a, double *arclen)
     }
 }
 
+/*
+** Form local groups by forming chains of particles that end at local density maxima.
+**
+** Each particle links to its neighbor that lies best along the density gradient and
+** is denser. Best is defined as having the smallest arc length between the gradient
+** vector and the relative neighbor position vector.
+**
+** If a neighbor already belongs to a chain then the current chain attaches to it.
+** If no neighbor is denser then the chain terminates.
+** A chain may also terminate if a neighbor exists but is on another processor. In
+** this case, the terminal particle and its neighbor form a bridge which will be 
+** joined at a later stage after the local groups are built.
+*/
 void psdSmoothLink(PSX psx, PSF *smf) {
     PARTICLE *p;
     PKD pkd = psx->pkd;
@@ -1149,7 +1138,7 @@ void psdSmoothLink(PSX psx, PSF *smf) {
 #endif
 
 	    psdDensityGrad(pkd, psx, pi, fDensityGrad);
-	    grad_arclen(psx, fDensityGrad, arclen);
+	    calc_arclen(psx, fDensityGrad, arclen);
 	    qsort(sorted_nbrs, psx->nSmooth, sizeof(*sorted_nbrs), arclen_compar);
 
 	    int bridge = 0;
@@ -1199,11 +1188,14 @@ void psdSmoothLink(PSX psx, PSF *smf) {
 			pi = nbr->iIndex;
 		    }
 
-		    //fprintf(fp, "LINK %ld %ld\n", p->iOrder, nbr->pPart->iOrder);
+		    /* fprintf(fp, "LINK %ld %ld\n", p->iOrder, nbr->pPart->iOrder); */
 
-		    pkdAccel(pkd, p)[1] = nbr->pPart->r[0] - p->r[0];
-		    pkdAccel(pkd, p)[2] = nbr->pPart->r[1] - p->r[1];
-		    pkdAccel(pkd, p)[0] = nbr->pPart->r[2] - p->r[2];
+		    if (pkd->oAcceleration)
+		    {
+			pkdAccel(pkd, p)[1] = nbr->pPart->r[0] - p->r[0];
+			pkdAccel(pkd, p)[2] = nbr->pPart->r[1] - p->r[1];
+			pkdAccel(pkd, p)[0] = nbr->pPart->r[2] - p->r[2];
+		    }
 
 		    break;
 		}
@@ -1263,9 +1255,11 @@ void psdSmoothLink(PSX psx, PSF *smf) {
 
 		    //fprintf(stdout, "PEAK!\n");
 		    nPeaks++;
-//		  pkdAccel(pkd, p)[0] = 0;
-//		  pkdAccel(pkd, p)[1] = 0;
-//		  pkdAccel(pkd, p)[2] = 0;
+#if 0
+		    pkdAccel(pkd, p)[0] = 0;
+		    pkdAccel(pkd, p)[1] = 0;
+		    pkdAccel(pkd, p)[2] = 0;
+#endif
 		}
 
 
@@ -1333,6 +1327,9 @@ void psdSmoothLink(PSX psx, PSF *smf) {
 
     mdlFinishCache(pkd->mdl,CID_PARTICLE);
 
+    /*
+    ** Get rid of the stack of bridges and store them in the psx context.
+    */
     psx->bridges = malloc(psx->nBridges * sizeof(*(psx->bridges)));
     i=0;
     while (!STACK_EMPTY(B)) { psx->bridges[i++] = POP(B); }
@@ -1342,6 +1339,9 @@ void psdSmoothLink(PSX psx, PSF *smf) {
     pkd->nGroups = nGroups;
     pkd->psGroupData = mdlMalloc(pkd->mdl, pkd->nGroups * sizeof(PSGD));
 
+    /*
+    ** Create the local group table
+    */
     memset(pkd->psGroupData, 0, pkd->nGroups * sizeof(PSGD));
     PSGD *gd = pkd->psGroupData;
 
@@ -1370,81 +1370,27 @@ void psdSmoothLink(PSX psx, PSF *smf) {
     assert(STACK_EMPTY(G));
 
     for (i=0; i < psx->nBridges; i++)
-    {
 	gd[psx->bridges[i].local_gid].bridge = 1;
-    }
-
-
-#if 0
-    for (i=0; i < pkd->nLocal; i++)
-    {
-	p = pkdParticle(pkd, i);
-	int gid = *pkdGroup(pkd, p);
-	gd[gid].nTotal++;
-	gd[0].nTotal--;
-
-#if 0
-	float d = pow(gd[gid].r[0] - p->r[0],2) 
-		+ pow(gd[gid].r[1] - p->r[1],2)
-		+ pow(gd[gid].r[2] - p->r[2],2);
-
-	//d = sqrt(d);
-
-	if (d > gd[gid].fRMSRadius)
-	    gd[gid].fRMSRadius = d;
-
-	p->fDensity = d;
-    }
-
-    for (i=0; i < pkd->nLocal; i++)
-    {
-	p = pkdParticle(pkd, i);
-	int gid = *pkdGroup(pkd, p);
-
-	p->fDensity = 1 - p->fDensity / gd[gid].fRMSRadius;
-#endif
-
-#if 0
-    qsort(gd+1, nGroups-1, sizeof(*gd), group_size_compar);
-
-    for (i=0; i < pkd->nLocal; i++)
-    {
-	p = pkdParticle(pkd, i);
-	piGroup = pkdGroup(pkd,p);
-	for (j=0; j < nGroups; j++)
-	{
-	    if (gd[j].iLocalId == *piGroup)
-	    {
-		*piGroup = j;
-		gd[j].nTotal++;
-		break;
-	    }
-	}
-#endif
-
-#if 0
-	if (j==nGroups)
-	{
-	    fprintf(stdout, "Particle %i in group %i!\n", i, *piGroup);
-	    assert(0);
-	}
-#endif
-    }
-#endif
-
-
-#if 0
-    for (j=0; j < nGroups; j++)
-    {
-	fprintf(stdout, "%i] Group %i has %i particles  Density %f.\n", j, gd[j].iLocalId, gd[j].nTotal, gd[j].fDensity);
-    }
-#endif
 
     FREE_STACK(C);
     FREE_STACK(G);
     FREE_STACK(B);
 }
 
+/*
+** Join groups that span multiple processors. This will be called many times from master.
+**
+** Group information is propagated down the chains from the processor that owns the group.
+** Ownership is defined as the processor where the density peak is located. The group id
+** from the owner defines the group id on other processors.
+**
+** One edge case occurs when a group chain returns to the owners processor (possible many times).
+** This creates a duplicate entry in the group table. Such occurences are noted and later
+** the particles in duplicated groups will be reassigned to a single group.
+**
+** Group information within the particles is not considered here except to retrieve the group id
+** of the remote group in a bridge.
+*/
 int psdJoinBridges(PSX psx, PSF *smf) {
     PKD pkd = psx->pkd;
     int done = 1;
@@ -1482,6 +1428,9 @@ int psdJoinBridges(PSX psx, PSF *smf) {
 
     int nBridgesLeft = 0;
 
+    /*
+    ** Find once the group id of the remote particle in a bridge.
+    */
     for (i=0; i < psx->nBridges; i++)
     {
 	if (!bi[i].done && bi[i].remote_gid == -1)
@@ -1500,6 +1449,10 @@ int psdJoinBridges(PSX psx, PSF *smf) {
 	}
     }
 
+    /*
+    ** Copy the remote group information from higher up the chain. Store this on a stack rather
+    ** than overwrite our local data because another processor might be trying to read it.
+    */
     for (i=0; i < psx->nBridges; i++)
     {
 	if (bi[i].done) continue;
@@ -1520,6 +1473,9 @@ int psdJoinBridges(PSX psx, PSF *smf) {
     mdlFinishCache(mdl,CID_GROUP);
     mdlFinishCache(mdl,CID_PARTICLE);
 
+    /*
+    ** Now that the cache is closed, we can safely update our local group table.
+    */
     while (!STACK_EMPTY(S))
     {
 	store = POP(S);
@@ -1572,6 +1528,9 @@ int psdJoinBridges(PSX psx, PSF *smf) {
     return done;
 }
 
+/*
+** Count unique local groups. Do not count duplicates that will later be removed. 
+*/
 int psdCountLocalGroups(PSX psx) {
     PKD pkd = psx->pkd;
     int i;
@@ -1607,6 +1566,10 @@ static void combGroups(void *vpkd, void *a, void *b)
 	g1->fRMSRadius = g2->fRMSRadius;
 }
 
+/*
+** Update the local group table with global ids. The offset into the range of globally
+** unique ids comes from master.
+*/
 void psdUpdateGroups(PSX psx, int offs, int count)
 {
     PKD pkd = psx->pkd;
@@ -1638,6 +1601,10 @@ void psdUpdateGroups(PSX psx, int offs, int count)
     }
     assert(new_local_id == count+1);
 
+    /*
+    ** To avoid hassles later, we fix up particles that belong to 
+    ** duplicate group entries.
+    */
     for (i=0; i < pkd->nLocal; i++)
     {
 	PARTICLE *p = pkdParticle(pkd, i);
@@ -1687,6 +1654,9 @@ void psdUpdateGroups(PSX psx, int offs, int count)
 
 #if 1
 
+    /*
+    ** Compute some group quantities like total mass and radius.
+    */
     for (i=1; i < pkd->nGroups; i++)
     {
 	gd[i].nTotal = 0;
