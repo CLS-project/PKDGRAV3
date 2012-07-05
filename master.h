@@ -95,6 +95,7 @@ void msrRungOrder(MSR msr, int iRung);
 void msrBuildTree(MSR msr,double dTime,int bNeedEwald);
 void msrBuildTreeExcludeVeryActive(MSR msr,double dTime);
 void msrCalcBound(MSR msr,BND *pbnd);
+void msrCalcVBound(MSR msr,BND *pbnd);
 void msrDomainColor(MSR);
 void msrReorder(MSR);
 void msrOutArray(MSR,const char *,int);
@@ -290,7 +291,8 @@ void msrGridProject(MSR msr,double x,double y,double z);
 #ifdef MDL_FFTW
 void msrMeasurePk(MSR msr,double *dCenter,double dRadius,int nGrid,float *Pk);
 #endif
-void msrBuildPsdTree(MSR msr,double dTime,int bNeedEwald);
-void msrPSD(MSR msr);
+void msrPSGroupFinder(MSR msr);
+void msrOutPsGroups(MSR msr,const char *pszFile,int iOutType, double dTime);
+void msrUnbind(MSR msr, int nGroups);
 
 #endif

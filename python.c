@@ -728,8 +728,10 @@ ppy_msr_Load(PyObject *self, PyObject *args, PyObject *kwobj) {
 	ppy_msr->param.bMemRelaxation = PyInt_AsLong(v);
     if ( (v = PyDict_GetItemString(dict, "bMemVelSmooth")) != NULL )
 	ppy_msr->param.bMemVelSmooth = PyInt_AsLong(v);
-    if ( (v = PyDict_GetItemString(dict, "bMemPsMetric")) != NULL )
-	ppy_msr->param.bMemPsMetric = PyInt_AsLong(v);
+    if ( (v = PyDict_GetItemString(dict, "bMemNodeVBnd")) != NULL )
+	ppy_msr->param.bMemNodeVBnd = PyInt_AsLong(v);
+    if ( (v = PyDict_GetItemString(dict, "iDomainMethod")) != NULL )
+	ppy_msr->param.iDomainMethod = PyInt_AsLong(v);
 
     if ( !PyArg_ParseTupleAndKeywords(
 	     args, kwobj, "s|i:Load", kwlist,
@@ -794,6 +796,7 @@ ppy_msr_Save(PyObject *self, PyObject *args, PyObject *kwobj) {
     case OUT_PHASEDENS_ARRAY:
     case OUT_SOFT_ARRAY:
     case OUT_GROUP_ARRAY:
+    case OUT_PSGROUP_ARRAY:
     case OUT_RELAX_ARRAY:
     case OUT_RUNGDEST_ARRAY:
 	msrOutArray(ppy_msr,fname,iType);
@@ -812,6 +815,10 @@ ppy_msr_Save(PyObject *self, PyObject *args, PyObject *kwobj) {
     case OUT_GROUP_PROFILES:
 	msrOutGroups(ppy_msr,fname,iType,dTime);
 	break;
+
+    case OUT_PSGROUP_STATS:
+        msrOutPsGroups(ppy_msr,fname,iType,dTime);
+        break;
 
     default:
 	assert(0);
@@ -849,7 +856,7 @@ ppy_msr_SaveArray(PyObject *self, PyObject *args, PyObject *kwobj) {
     return Py_None;
 }
 
-#ifdef USE_PSD
+#if 0
 static PyObject *
 ppy_msr_BuildPsdTree(PyObject *self, PyObject *args, PyObject *kwobj) {
     static char *kwlist[]={"Time","Ewald",NULL};
@@ -869,18 +876,20 @@ ppy_msr_BuildPsdTree(PyObject *self, PyObject *args, PyObject *kwobj) {
     Py_INCREF(Py_None);
     return Py_None;
 }
+#endif
 
 static PyObject *
-ppy_msr_PSD(PyObject *self, PyObject *args, PyObject *kwobj) {
+ppy_msr_PSGroupFinder(PyObject *self, PyObject *args, PyObject *kwobj) {
     static char *kwlist[]={NULL};
     PyObject *v, *dict;
 
-    msrPSD(ppy_msr);
+    msrPSGroupFinder(ppy_msr);
 
     Py_INCREF(Py_None);
     return Py_None;
 }
 
+#if 0
 static PyObject *
 ppy_msr_PsFof(PyObject *self, PyObject *args, PyObject *kwobj) {
     static char *kwlist[]={"Time",NULL};
@@ -992,11 +1001,11 @@ static PyMethodDef msr_methods[] = {
      "Save a vector to a file"},
     {"SaveArray", (PyCFunction)ppy_msr_SaveArray, METH_VARARGS|METH_KEYWORDS,
      "Save an array to a file"},
-#ifdef USE_PSD
-    {"BuildPsdTree", (PyCFunction)ppy_msr_BuildPsdTree, METH_VARARGS|METH_KEYWORDS,
-     "Build the phase-space tree"},
-    {"PSD", (PyCFunction)ppy_msr_PSD, METH_NOARGS,
+    //{"BuildPsdTree", (PyCFunction)ppy_msr_BuildPsdTree, METH_VARARGS|METH_KEYWORDS,
+     //"Build the phase-space tree"},
+    {"PSGroupFinder", (PyCFunction)ppy_msr_PSGroupFinder, METH_NOARGS,
      "Calculate phase space density using EnBiD algorithm"},
+#if 0
     {"PsFof", (PyCFunction)ppy_msr_PsFof, METH_VARARGS|METH_KEYWORDS,
      "Phase-space Friends of Friends"},
 #endif
@@ -1145,11 +1154,13 @@ static void setConstants( PyObject *dict ) {
     PyDict_SetItemString(dict, "OUT_PHASEDENS_ARRAY", Py_BuildValue("i",OUT_PHASEDENS_ARRAY));
     PyDict_SetItemString(dict, "OUT_SOFT_ARRAY", Py_BuildValue("i",OUT_SOFT_ARRAY));
     PyDict_SetItemString(dict, "OUT_GROUP_ARRAY", Py_BuildValue("i",OUT_GROUP_ARRAY));
+    PyDict_SetItemString(dict, "OUT_PSGROUP_ARRAY", Py_BuildValue("i",OUT_PSGROUP_ARRAY));
     PyDict_SetItemString(dict, "OUT_RELAX_ARRAY", Py_BuildValue("i",OUT_RELAX_ARRAY));
     PyDict_SetItemString(dict, "OUT_GROUP_TIPSY_NAT", Py_BuildValue("i",OUT_GROUP_TIPSY_NAT));
     PyDict_SetItemString(dict, "OUT_GROUP_TIPSY_STD", Py_BuildValue("i",OUT_GROUP_TIPSY_STD));
     PyDict_SetItemString(dict, "OUT_GROUP_STATS", Py_BuildValue("i",OUT_GROUP_STATS));
     PyDict_SetItemString(dict, "OUT_GROUP_PROFILES", Py_BuildValue("i",OUT_GROUP_PROFILES));
+    PyDict_SetItemString(dict, "OUT_PSGROUP_STATS", Py_BuildValue("i",OUT_PSGROUP_STATS));
     }
 
 

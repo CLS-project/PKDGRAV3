@@ -30,6 +30,7 @@ static int getType(int iType) {
     switch(iType) {
     case OUT_IORDER_ARRAY:
     case OUT_GROUP_ARRAY:
+    case OUT_PSGROUP_ARRAY:
 	return OUTTYPE_INTEGER;
 
     case OUT_BALL_ARRAY:
@@ -72,8 +73,11 @@ static uint64_t fetchInteger(PKD pkd,PARTICLE *p,int iType,int iDim) {
 	v = p->iOrder;
 	break;
     case OUT_GROUP_ARRAY:
-	assert(pkd->oGroup);
-	v = *pkdInt32(p,pkd->oGroup);
+	v = *pkdGroup(pkd,p);
+	break;
+    case OUT_PSGROUP_ARRAY:
+	//v = pkd->psGroupData[*pkdGroup(pkd,p)].iGlobalId;
+	v = *pkdGroup(pkd,p);
 	break;
     default:
 	v = 0;

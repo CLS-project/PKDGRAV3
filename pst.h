@@ -3,6 +3,7 @@
 
 #include "pkd.h"
 #include "mdl.h"
+#include "psd.h"
 #include "smoothfcn.h"
 #ifndef HAVE_CONFIG_H
 #include "floattype.h"
@@ -72,6 +73,7 @@ enum pst_service {
 #endif
     PST_DOMAINDECOMP,
     PST_CALCBOUND,
+    PST_CALCVBOUND,
     PST_COMBINEBOUND,
     PST_WEIGHT,
     PST_COUNTVA,
@@ -202,6 +204,8 @@ enum pst_service {
     PST_SELDSTBYID,
     PST_SELSRCPHASEDENSITY,
     PST_SELDSTPHASEDENSITY,
+    PST_SELSRCGROUP,
+    PST_SELDSTGROUP,
 
     PST_SELSRCBOX,
     PST_SELDSTBOX,
@@ -224,7 +228,14 @@ enum pst_service {
     PST_TOTALMASS,
     PST_BUILDPSDTREE,
     PST_PSD,
-    PST_PSFOF,
+    PST_PSDLINK,
+    PST_PSD_INIT,
+    PST_PSD_JOINBRIDGES,
+    PST_PSD_CLG,
+    PST_PSD_UPDATEGROUPS,
+    PST_PSD_FINISH,
+    PST_WRITE_PSGROUPS,
+    PST_UNBIND,
     };
 
 void pstAddServices(PST,MDL);
@@ -306,6 +317,9 @@ void pstDomainDecomp(PST,void *,int,void *,int *);
 
 /* PST_CALCBOUND */
 void pstCalcBound(PST,void *,int,void *,int *);
+
+/* PST_CALCVBOUND */
+void pstCalcVBound(PST,void *,int,void *,int *);
 
 /* PST_COMBINEBOUND */
 void pstCombineBound(PST,void *,int,void *,int *);
@@ -1318,6 +1332,10 @@ struct outSelCylinder {
 void pstSelSrcCylinder(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 void pstSelDstCylinder(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 
+/* PST_SECSRCGROUP */
+void pstSelSrcGroup(PST pst,void *vin,int nIn,void *vout,int *pnOut);
+void pstSelDstGroup(PST pst,void *vin,int nIn,void *vout,int *pnOut);
+
 /* PST_DEEPESTPOT - Input inDeepestPot - Output outDeepestPot */
 struct inDeepestPot {
     uint8_t uRungLo;
@@ -1423,19 +1441,44 @@ void pstTotalMass(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 
 /* PST_PSD */
 struct inPSD {
+    int nBucket;
+    int iCell;
+    int nCell;
+    int bExcludeVeryActive;
+
     int nSmooth;
     int bPeriodic;
     int bSymmetric;
     int iSmoothType;
-    SMF smf;
+    PSF psf;
     };
 struct outPSD {
     int dummy;
     };
+
+struct inUpdateGroups
+{
+    int offs;
+    int count;
+};
+
+struct inWritePsGroups
+{
+    char achOutFile[PST_FILENAME_SIZE];
+    int iType;
+};
+
 void pstBuildPsdTree(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 void pstPSD(PST pst,void *vin,int nIn,void *vout,int *pnOut);
-
-/* PST_PSFOF */
-void pstPsFof(PST pst,void *vin,int nIn,void *vout,int *pnOut);
+void pstPSDLink(PST pst,void *vin,int nIn,void *vout,int *pnOut);
+void pstPSDInit(PST pst,void *vin,int nIn,void *vout,int *pnOut);
+void pstPSDFinish(PST pst,void *vin,int nIn,void *vout,int *pnOut);
+void pstPSDJoinBridges(PST pst,void *vin,int nIn,void *vout,int *pnOut);
+void pstPSDCountLocalGroups(PST pst,void *vin,int nIn,void *vout,int *pnOut);
+void pstPSDUpdateGroups(PST pst,void *vin,int nIn,void *vout,int *pnOut);
+void pstPSDUpdateRemoteGroups(PST pst,void *vin,int nIn,void *vout,int *pnOut);
+void pstPSDUpdateParticleGroups(PST pst,void *vin,int nIn,void *vout,int *pnOut);
+void pstWritePsGroups(PST pst,void *vin,int nIn,void *vout,int *pnOut);
+void pstUnbind(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 
 #endif

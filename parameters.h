@@ -241,7 +241,7 @@ struct parameters {
     int bMemNodeVelocity;
     int bMemNodeSphBounds;
     int bMemNodeBnd;
-    int bMemNodeBnd6;
+    int bMemNodeVBnd;
     };
 
 #endif

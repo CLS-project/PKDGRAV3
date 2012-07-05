@@ -30,6 +30,7 @@
 #include "mdl.h"
 #include "tipsydefs.h"
 #include "ssio.h"
+#include "outtype.h"
 
 #include "parameters.h"
 #include "cosmo.h"
@@ -319,17 +320,6 @@ void pkdInitialize(
     else
 	pkd->oRelaxation = 0;
 
-#if USE_PSD
-    if ( mMemoryModel & PKD_MODEL_PSMETRIC ) {
-	pkd->oPsMetric = pkdParticleAddStruct(pkd,sizeof(PSMETRIC));
-	}
-    else {
-	pkd->oPsMetric = 0;
-	}
-#else
-	pkd->oPsMetric = 0;
-#endif
-
     if ( mMemoryModel & PKD_MODEL_SPH )
 	pkd->oSph = pkdParticleAddStruct(pkd,sizeof(SPHFIELDS));
     else
@@ -390,18 +380,17 @@ void pkdInitialize(
     ** Tree node memory models
     */
     if ( mMemoryModel & PKD_MODEL_NODE_BND ) {
-        if ( mMemoryModel & PKD_MODEL_NODE_BND6 ) {
-            pkd->oNodeBnd6 =
-	    pkd->oNodeBnd  = pkdNodeAddDouble(pkd,6+6+1);
-        }
-        else {
-	    pkd->oNodeBnd6 = 0;
-	    pkd->oNodeBnd  = pkdNodeAddDouble(pkd,3+3+1);
-        }
+        pkd->oNodeBnd  = pkdNodeAddStruct(pkd,sizeof(BND));
     }
     else {
 	pkd->oNodeBnd  = 0;
-	pkd->oNodeBnd6 = 0;
+    }
+
+    if ( mMemoryModel & PKD_MODEL_NODE_VBND ) {
+	pkd->oNodeVBnd  = pkdNodeAddStruct(pkd,sizeof(BND));
+    }
+    else {
+	pkd->oNodeVBnd = 0;
     }
 
     if ( mMemoryModel & PKD_MODEL_NODE_MOMENT )
@@ -1031,34 +1020,6 @@ void pkdIOInitialize( PKD pkd, int nLocal) {
     }
 #endif
 
-#ifdef USE_PSD
-void pkdCalcBound(PKD pkd,BND *pbnd) {
-    double dMin[6],dMax[6];
-    PARTICLE *p;
-    int i = 0;
-    int j;
-
-    mdlassert(pkd->mdl,pkd->nLocal > 0);
-    p = pkdParticle(pkd,i);
-    for (j=0;j<3;++j) {
-	dMin[j] = p->r[j];
-	dMax[j] = p->r[j];
-	}
-    for (j=3;j<6;++j) {
-	dMin[j] = pkdVel(pkd,p)[j-3];
-	dMax[j] = pkdVel(pkd,p)[j-3];
-	}
-    for (++i;i<pkd->nLocal;++i) {
-	p = pkdParticle(pkd,i);
-        double *v = pkdVel(pkd,p);
-	pkdMinMax6(p->r,v,dMin,dMax);
-	}
-    for (j=0;j<6;++j) {
-	pbnd->fCenter[j] = pkd->bnd.fCenter[j] = 0.5*(dMin[j] + dMax[j]);
-	pbnd->fMax[j] = pkd->bnd.fMax[j] = 0.5*(dMax[j] - dMin[j]);
-	}
-    }
-#else
 void pkdCalcBound(PKD pkd,BND *pbnd) {
     double dMin[3],dMax[3];
     PARTICLE *p;
@@ -1080,7 +1041,31 @@ void pkdCalcBound(PKD pkd,BND *pbnd) {
 	pbnd->fMax[j] = pkd->bnd.fMax[j] = 0.5*(dMax[j] - dMin[j]);
 	}
     }
-#endif
+
+void pkdCalcVBound(PKD pkd,BND *pbnd) {
+    double dMin[3],dMax[3];
+    PARTICLE *p;
+    double *v;
+    int i = 0;
+    int j;
+
+    mdlassert(pkd->mdl,pkd->nLocal > 0);
+    p = pkdParticle(pkd,i);
+    v = pkdVel(pkd,p);
+    for (j=0;j<3;++j) {
+	dMin[j] = v[j];
+	dMax[j] = v[j];
+	}
+    for (++i;i<pkd->nLocal;++i) {
+	p = pkdParticle(pkd,i);
+	v = pkdVel(pkd,p);
+	pkdMinMax(v,dMin,dMax);
+	}
+    for (j=0;j<3;++j) {
+	pbnd->fCenter[j] = pkd->vbnd.fCenter[j] = 0.5*(dMin[j] + dMax[j]);
+	pbnd->fMax[j] = pkd->vbnd.fMax[j] = 0.5*(dMax[j] - dMin[j]);
+	}
+    }
 
 
 void pkdEnforcePeriodic(PKD pkd,BND *pbnd) {
@@ -4976,6 +4961,28 @@ int pkdSelDstCylinder(PKD pkd,double *dP1, double *dP2, double dRadius,
     return nSelected;
     }
 
+int pkdSelSrcGroup(PKD pkd, int iGroup) {
+    int i;
+    int n=pkdLocal(pkd);
+    PARTICLE *p;
+    for( i=0; i<n; i++ ) {
+	p=pkdParticle(pkd,i);
+	p->bSrcActive = *pkdGroup(pkd,p)==iGroup;
+	}
+    return n;
+    }
+
+int pkdSelDstGroup(PKD pkd, int iGroup) {
+    int i;
+    int n=pkdLocal(pkd);
+    PARTICLE *p;
+    for( i=0; i<n; i++ ) {
+	p=pkdParticle(pkd,i);
+	p->bDstActive = *pkdGroup(pkd,p)==iGroup;
+	}
+    return n;
+    }
+
 /*
 **  Find the source particle with the deepest potential
 */
@@ -5009,5 +5016,53 @@ int pkdDeepestPot(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
     return nChecked;
     }
 
-void pkdPSD(PKD pkd) {
+void pkdOutPsGroup(PKD pkd,char *pszFileName,int iType)
+{
+    FILE *fp;
+    int i,j,nout,lStart;
+
+    if (iType == OUT_PSGROUP_STATS) {
+	fp = fopen(pszFileName,"a+");
+	assert(fp != NULL);
+	PSGD *gd = pkd->psGroupData;
+
+	for (i=1;i<pkd->nGroups;++i)
+	{
+	    if (gd[i].iPid != pkd->idSelf) continue;
+	    if (gd[i].dup) continue;
+	    fprintf(fp,"%d",gd[i].iGlobalId);
+	    fprintf(fp," %10d",gd[i].nTotal);
+	    fprintf(fp," %12.8e",gd[i].fMass);
+	    fprintf(fp," %12.8e",gd[i].fRMSRadius);
+	    fprintf(fp," %12.8e",gd[i].r[0]);
+	    fprintf(fp," %12.8e",gd[i].r[1]);
+	    fprintf(fp," %12.8e",gd[i].r[2]);
+	    fprintf(fp," %12.8e",gd[i].v[0]);
+	    fprintf(fp," %12.8e",gd[i].v[1]);
+	    fprintf(fp," %12.8e",gd[i].v[2]);
+#if 0
+	    fprintf(fp,"%.11g ",pkd->groupData[i].rcom[0]);
+	    fprintf(fp,"%.11g ",pkd->groupData[i].rcom[1]);
+	    fprintf(fp,"%.11g ",pkd->groupData[i].rcom[2]);
+	    fprintf(fp,"%.11g ",pkd->groupData[i].r[0]);
+	    fprintf(fp,"%.11g ",pkd->groupData[i].r[1]);
+	    fprintf(fp,"%.11g ",pkd->groupData[i].r[2]);
+	    fprintf(fp,"%.8g ",dvFac*pkd->groupData[i].v[0]);
+	    fprintf(fp,"%.8g ",dvFac*pkd->groupData[i].v[1]);
+	    fprintf(fp,"%.8g ",dvFac*pkd->groupData[i].v[2]);
+#endif
+	    fprintf(fp,"\n");
+	}
+	if (fclose(fp) == EOF)
+	{
+	    perror("pkdOutGroup: could not close file");
+	    exit(1);
+	}
     }
+    else
+	assert(0);
+}
+
+void pkdUnbind(PKD pkd)
+{
+}

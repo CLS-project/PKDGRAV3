@@ -8,24 +8,26 @@
 
 #include "listcomp.h"
 
-#define NNLIST_INCREMENT	200		/* number of extra neighbor elements added to nnList */
+#define NNLIST_INCREMENT    200	/* number of extra neighbor elements added to nnList */
 
-typedef struct pqNode {
-    struct pqNode *pqLoser;
-    struct pqNode *pqFromInt;
-    struct pqNode *pqFromExt;
-    struct pqNode *pqWinner;	/* Only used when building initial tree */
+typedef struct pq6Node {
+    struct pq6Node *pqLoser;
+    struct pq6Node *pqFromInt;
+    struct pq6Node *pqFromExt;
+    struct pq6Node *pqWinner;    /* Only used when building initial tree */
     PARTICLE *pPart;
     FLOAT fDist2;
     FLOAT dr[6];
     int iIndex;
     int iPid;
-    } PQ;
+    } PQ6;
 
 
-typedef PQ NN;
+typedef PQ6 NN6;
 
-typedef struct smfParameters {
+struct pkdContext;
+
+typedef struct psfParameters {
     int bComove;
     double dTime;
     double H;
@@ -40,9 +42,10 @@ typedef struct smfParameters {
     int bLogBins;
     FLOAT binFactor;
     FLOAT fMinRadius;
-    PKD pkd; /* useful for diagnostics, etc. */
-    } SMF;
+    struct pkdContext * pkd; /* useful for diagnostics, etc. */
+    } PSF;
 
+#if 0
 struct hashElement {
     void *p;
     struct hashElement *coll;
@@ -53,17 +56,26 @@ struct smExtraArray {
     char bInactive;
     char bDone;
 };
+#endif
 
+struct bridge_info
+{
+    int32_t local_gid;
+    int32_t remote_gid;
+    int iPid;
+    int64_t iIndex;
+    int done;
+};
 
-typedef struct smContext {
-    PKD pkd;
+typedef struct psContext {
+    struct pkdContext * pkd;
     PARTICLE pSentinel;
-    void (*fcnSmooth)(PARTICLE *,int,NN *,SMF *);
-    void (*fcnPost)(void *,PARTICLE *,SMF *);
     int nSmooth;
-    int nQueue;
     int bPeriodic;
-    PQ *pq;
+    PQ6 *pq;
+    PSMETRIC *psm;
+    struct bridge_info *bridges;
+    int nBridges;
     /*
     ** Flags to mark local particles which are inactive either because they
     ** are source inactive or because they are already present in the prioq.
@@ -74,11 +86,6 @@ typedef struct smContext {
     */
     struct smExtraArray *ea;
     /*
-    ** Flags to mark local particles which are finished in the processing
-    ** of the smFastGas routine. They have updated their densities.
-    */
-    char *bDone;
-    /*
     ** Hash table to indicate whether a remote particle is already present in the 
     ** priority queue.
     */
@@ -87,7 +94,7 @@ typedef struct smContext {
     struct hashElement *pFreeHash;
     int nnListSize;
     int nnListMax;
-    NN *nnList;
+    NN6 *nnList;
     /*
      ** Two stacks for the search algorithm.
      */
@@ -99,96 +106,83 @@ typedef struct smContext {
      */
     int *ST;
     FLOAT *SminT;
-    /*
-    ** Context for nearest neighbor lists.
-    */
-    LCODE lcmp;
-    } * SMX;
 
-#define PQ_INIT(pq,n)\
+    } * PSX;
+
+#define PQ6_INIT(pq,n)\
 {\
-	int j;\
-	if ((n) == 1) {\
-		(pq)[0].pqFromInt = NULL;\
-		(pq)[0].pqFromExt = NULL;\
-		}\
-	else {\
-	    for (j=0;j<(n);++j) {\
-		    if (j < 2) (pq)[j].pqFromInt = NULL;\
-		    else (pq)[j].pqFromInt = &(pq)[j>>1];\
-		    (pq)[j].pqFromExt = &(pq)[(j+(n))>>1];\
-		    }\
+    int j;\
+    if ((n) == 1) {\
+	(pq)[0].pqFromInt = NULL;\
+	(pq)[0].pqFromExt = NULL;\
+	}\
+    else {\
+	for (j=0;j<(n);++j) {\
+	    if (j < 2) (pq)[j].pqFromInt = NULL;\
+	    else (pq)[j].pqFromInt = &(pq)[j>>1];\
+	    (pq)[j].pqFromExt = &(pq)[(j+(n))>>1];\
 	    }\
+	}\
     }
 
 
-#define PQ_BUILD(pq,n,q)\
+#define PQ6_BUILD(pq,n,q)\
 {\
     int i,j;\
-	PQ *t,*lt;\
-	for (j=(n)-1;j>0;--j) {\
-		i = (j<<1);\
-		if (i < (n)) t = (pq)[i].pqWinner;\
-		else t = &(pq)[i-(n)];\
-		++i;\
-		if (i < (n)) lt = (pq)[i].pqWinner;\
-		else lt = &(pq)[i-(n)];\
-		if (t->fDist2 < lt->fDist2) {\
-			(pq)[j].pqLoser = t;\
-			(pq)[j].pqWinner = lt;\
-			}\
-		else {\
-			(pq)[j].pqLoser = lt;\
-			(pq)[j].pqWinner = t;\
-			}\
-		}\
+    PQ6 *t,*lt;\
+    for (j=(n)-1;j>0;--j) {\
+	i = (j<<1);\
+	if (i < (n)) t = (pq)[i].pqWinner;\
+	else t = &(pq)[i-(n)];\
+	++i;\
+	if (i < (n)) lt = (pq)[i].pqWinner;\
+	else lt = &(pq)[i-(n)];\
+	if (t->fDist2 < lt->fDist2) {\
+	    (pq)[j].pqLoser = t;\
+	    (pq)[j].pqWinner = lt;\
+	    }\
+	else {\
+	    (pq)[j].pqLoser = lt;\
+	    (pq)[j].pqWinner = t;\
+	    }\
+	}\
     if ((n) == 1) (q) = (pq);\
-	else (q) = (pq)[1].pqWinner;\
-	}
+    else (q) = (pq)[1].pqWinner;\
+    }
 
 
-#define PQ_REPLACE(q)\
+#define PQ6_REPLACE(q)\
 {\
-	PQ *t,*lt;\
-	t = (q)->pqFromExt;\
-	while (t) {\
-		if (t->pqLoser->fDist2 > (q)->fDist2) {\
-			lt = t->pqLoser;\
-			t->pqLoser = (q);\
-			(q) = lt;\
-			}\
-		t = t->pqFromInt;\
-		}\
-	}
-
-
-#define PSD_DENSITY				1
-void initDensity(void *,void *);
-void combDensity(void *,void *,void *);
-void Density(PARTICLE *,int,NN *,SMF *);
-void DensitySym(PARTICLE *,int,NN *,SMF *);
-
-#define PSD_FOF				2
+    PQ6 *t,*lt;\
+    t = (q)->pqFromExt;\
+    while (t) {\
+	if (t->pqLoser->fDist2 > (q)->fDist2) {\
+	    lt = t->pqLoser;\
+	    t->pqLoser = (q);\
+	    (q) = lt;\
+	    }\
+	t = t->pqFromInt;\
+	}\
+    }
 
 /******************************************************************************/
 
 /* Standard M_4 Kernel */
 #define BALL2(a) ((a)->fBall*(a)->fBall)
 #define KERNEL(ak,ar2) { \
-		ak = 2.0 - sqrt(ar2); \
-		if (ar2 < 1.0) ak = (1.0 - 0.75*ak*ar2); \
-		else if (ar2 < 4.0) ak = 0.25*ak*ak*ak; \
-		else ak = 0.0;\
-		}
+	ak = 2.0 - sqrt(ar2); \
+	if (ar2 < 1.0) ak = (1.0 - 0.75*ak*ar2); \
+	else if (ar2 < 4.0) ak = 0.25*ak*ak*ak; \
+	else ak = 0.0;\
+	}
+
+
+int psdInitialize(PSX smx, struct pkdContext * pkd, PSF *smf,int nSmooth,int bPeriodic,int bSymmetric,int iSmoothType, int initCache);
+void psdFinish(PSX smx, PSF *smf);
+void psdSmooth(PSX smx, PSF *smf);
+void psdSmoothLink(PSX smx, PSF *smf);
+int psdJoinBridges(PSX psx, PSF *smf);
+int psdCountLocalGroups(PSX psx);
 
 #endif
-
-
-
-
-
-
-
-
-
 

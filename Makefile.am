@@ -48,10 +48,8 @@ if COOLING
 #noinst_HEADERS += cooling.h
 endif
 
-if PSD
 SOURCES += psdtree.c psd.c
 noinst_HEADERS += psdtree.h psd.h
-endif
 
 if PLANETS
 SOURCES += ssio.c collision.c kepler.c

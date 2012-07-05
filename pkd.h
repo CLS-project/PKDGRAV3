@@ -101,8 +101,7 @@ static inline int64_t d2u64(double d) {
 #define PKD_MODEL_VELSMOOTH    (1<<8)  /* Velocity Smoothing */
 #define PKD_MODEL_SPH          (1<<9)  /* Sph Fields */
 #define PKD_MODEL_STAR         (1<<10) /* Star Fields */
-#define PKD_MODEL_PSMETRIC     (1<<11) /* Phase-space metric*/
-#define PKD_MODEL_RUNGDEST     (1<<12) /* New Domain Decomposition */
+#define PKD_MODEL_RUNGDEST     (1<<11) /* New Domain Decomposition */
 
 #define PKD_MODEL_NODE_MOMENT  (1<<24) /* Include moment in the tree */
 #define PKD_MODEL_NODE_ACCEL   (1<<25) /* mean accel on cell (for grav step) */
@@ -110,24 +109,19 @@ static inline int64_t d2u64(double d) {
 #define PKD_MODEL_NODE_SPHBNDS (1<<27) /* Include 3 extra bounds in tree */
 
 #define PKD_MODEL_NODE_BND     (1<<28) /* Include normal bounds in tree */
-#define PKD_MODEL_NODE_BND6    (1<<29) /* Include phase-space bounds in tree */
+#define PKD_MODEL_NODE_VBND    (1<<29) /* Include velocity bounds in tree for phase-space density*/
 
 
-#ifdef USE_PSD
-typedef struct pLite {
-    FLOAT r[6];
-    float fMass;
-    int i;
-    uint8_t uRung;
-    } PLITE;
-#else
 typedef struct pLite {
     FLOAT r[3];
     int i;
     uint8_t uRung;
     } PLITE;
-#endif
 
+typedef struct {
+    FLOAT rscale[3];
+    FLOAT vscale[3];
+    } PSMETRIC;
 
 typedef struct pIO {
     total_t iOrder;
@@ -214,9 +208,6 @@ typedef struct particle {
     /*-----Used-for-Smooth-------*/
     float fBall;
     float fDensity;
-#if USE_PSD
-    float fDensityGrad[6];
-#endif
     /* a, fPot, v, pGroup, pBin moved to memory models */
 
 #ifdef PLANETS
@@ -243,33 +234,6 @@ typedef struct particle {
 #endif/* PLANETS */
     } PARTICLE;
 
-#ifdef USE_PSD
-typedef struct {
-    double fCenter[6];
-    double fMax[6];
-    double size;
-    } BND;
-
-typedef struct {
-    double scale[6];
-    } PSMETRIC;
-#define BND_COMBINE(b,b1,b2)\
-{\
-	int BND_COMBINE_j;\
-	for (BND_COMBINE_j=0;BND_COMBINE_j<6;++BND_COMBINE_j) {\
-		FLOAT BND_COMBINE_t1,BND_COMBINE_t2,BND_COMBINE_max,BND_COMBINE_min;\
-		BND_COMBINE_t1 = (b1).fCenter[BND_COMBINE_j] + (b1).fMax[BND_COMBINE_j];\
-		BND_COMBINE_t2 = (b2).fCenter[BND_COMBINE_j] + (b2).fMax[BND_COMBINE_j];\
-		BND_COMBINE_max = (BND_COMBINE_t1 > BND_COMBINE_t2)?BND_COMBINE_t1:BND_COMBINE_t2;\
-		BND_COMBINE_t1 = (b1).fCenter[BND_COMBINE_j] - (b1).fMax[BND_COMBINE_j];\
-		BND_COMBINE_t2 = (b2).fCenter[BND_COMBINE_j] - (b2).fMax[BND_COMBINE_j];\
-		BND_COMBINE_min = (BND_COMBINE_t1 < BND_COMBINE_t2)?BND_COMBINE_t1:BND_COMBINE_t2;\
-		(b).fCenter[BND_COMBINE_j] = 0.5*(BND_COMBINE_max + BND_COMBINE_min);\
-		(b).fMax[BND_COMBINE_j] = 0.5*(BND_COMBINE_max - BND_COMBINE_min);\
-		}\
-	}
-
-#else
 typedef struct bndBound {
     double fCenter[3];
     double fMax[3];
@@ -292,8 +256,6 @@ typedef struct bndBound {
 		}\
 	}
 
-#endif
-
 typedef struct {
     double *fCenter;
     double *fMax;
@@ -310,16 +272,31 @@ typedef struct {
 	}\
     }
 
-#if USE_PSD
-#define MINDIST6(bnd,pos,min2, scale) {\
+
+#if 0
+
+#define PSMINDIST(bnd,r,v,rscale,vscale, min_out) MINDIST(bnd[0],r,min_out)
+
+#else
+
+#define _PSMINDIST(bnd,pos,min2, scale) do {\
     double BND_dMin;\
     int BND_j;\
     (min2) = 0;					\
-    for (BND_j=0;BND_j<6;++BND_j) {\
-	BND_dMin = fabs((bnd).fCenter[BND_j] - (pos)[BND_j]) - (bnd).fMax[BND_j]; \
-	if (BND_dMin > 0) (min2) += BND_dMin*BND_dMin*scale[BND_j]*scale[BND_j];			\
+    for (BND_j=0;BND_j<3;++BND_j) {\
+	BND_dMin = (fabs((bnd).fCenter[BND_j] - (pos)[BND_j]) - (bnd).fMax[BND_j]) * scale[BND_j]; \
+	if (BND_dMin > 0) (min2) += BND_dMin*BND_dMin; \
 	}\
-    }
+    } while (0)
+
+#define PSMINDIST(bnd,r,v,rscale,vscale, min_out) do { \
+    FLOAT rmin, vmin; \
+    _PSMINDIST(bnd[0], r, rmin, rscale); \
+    _PSMINDIST(bnd[1], v, vmin, vscale); \
+    min_out = rmin + vmin; \
+    assert(!isnan((min_out))); \
+    assert(!isinf((min_out))); \
+} while(0)
 #endif
 
 static inline int IN_BND(const FLOAT *R,const pBND *b) {
@@ -587,6 +564,8 @@ typedef struct remoteMember {
 typedef struct groupData {
     int iLocalId;
     int iGlobalId;
+    int bridge;
+    int dup;
     FLOAT fMass;
     FLOAT fRMSRadius;
     FLOAT r[3];
@@ -603,6 +582,22 @@ typedef struct groupData {
     int nRemoteMembers;
     int iFirstRm;
 } FOFGD;
+
+typedef struct psGroupData {
+    int iLocalId;
+    int iGlobalId;
+    int iPid;
+    int bridge;
+    int dup;
+    FLOAT fMass;
+    FLOAT fRMSRadius;
+    FLOAT r[3];
+    FLOAT rcom[3];
+    FLOAT fDensity;
+    FLOAT v[3];
+    int nLocal;
+    int nTotal;
+} PSGD;
 
 typedef struct groupBin {
   FLOAT fRadius;
@@ -647,6 +642,8 @@ typedef struct {
     float rhopmax;
     } PINFOOUT;
 
+#include "psd.h"
+
 typedef struct pkdContext {
     MDL mdl;
     int idSelf;
@@ -676,6 +673,7 @@ typedef struct pkdContext {
     int nNodesFull;     /* number of nodes in the full tree (including very active particles) */
     int nNonVANodes;    /* number of nodes *not* in Very Active Tree, or index to the start of the VA nodes (except VAROOT) */
     BND bnd;
+    BND vbnd;
     size_t iTreeNodeSize;
     size_t iParticleSize;
     PARTICLE *pStorePRIVATE, *pStorePRIVATE2;
@@ -714,7 +712,6 @@ typedef struct pkdContext {
     int oHermite; /* Hermite structure */
     int oRelaxation;
     int oVelSmooth;
-    int oPsMetric; /* Phase-space metric for density/group finding */
     int oRungDest; /* Destination processor for each rung */
 
     /*
@@ -728,7 +725,7 @@ typedef struct pkdContext {
     int oNodeMom; /* an FMOMR */
     int oNodeBnd;
     int oNodeSphBounds; /* Three Bounds */
-    int oNodeBnd6;
+    int oNodeVBnd; /* Velocity bounds */
 
     /*
     ** Tree walk variables.
@@ -788,6 +785,7 @@ typedef struct pkdContext {
 	int iActive;
 	} ti[MAX_TIMERS];
     int nGroups;
+    PSGD *psGroupData;
     FOFGD *groupData;
     int nRm;
     int nMaxRm;
@@ -815,6 +813,9 @@ typedef struct pkdContext {
 
     MDLGRID grid;
     float *gridData;
+
+    PSX psx;
+
     } * PKD;
 
 /*
@@ -927,7 +928,7 @@ static inline size_t pkdNodeSize( PKD pkd ) {
     }
 static inline size_t pkdMaxNodeSize() {
 #ifdef USE_PSD
-    return sizeof(KDN) + 13*sizeof(double) + sizeof(FMOMR) + 6*sizeof(double) + sizeof(SPHBNDS);
+    return sizeof(KDN) + 2*sizeof(BND) + sizeof(FMOMR) + 6*sizeof(double) + sizeof(SPHBNDS);
 #else
     return sizeof(KDN) +  7*sizeof(double) + sizeof(FMOMR) + 6*sizeof(double) + sizeof(SPHBNDS);
 #endif
@@ -956,10 +957,18 @@ static inline SPHBNDS *pkdNodeSphBounds( PKD pkd, KDN *n ) {
 
 static inline void pkdNodeBnd( PKD pkd, KDN *n, pBND *bnd ) {
     const int o = pkd->oNodeBnd;
-    const int e = 3*sizeof(double)*(1+(pkd->oNodeBnd6!=0));
+    const int e = sizeof(*bnd);
     bnd->fCenter = CAST(double *,pkdNodeField(n,o));
     bnd->fMax = CAST(double *,pkdNodeField(n,o+e));
     bnd->size = CAST(double *,pkdNodeField(n,o+e+e));
+    }
+
+static inline void pkdNodeVBnd( PKD pkd, KDN *n, pBND *vbnd ) {
+    const int o = pkd->oNodeVBnd;
+    const int e = sizeof(*vbnd);
+    vbnd->fCenter = CAST(double *,pkdNodeField(n,o));
+    vbnd->fMax = CAST(double *,pkdNodeField(n,o+e));
+    vbnd->size = CAST(double *,pkdNodeField(n,o+e+e));
     }
 
 static inline KDN *pkdNode(PKD pkd,KDN *pBase,int iNode) {
@@ -1026,6 +1035,12 @@ static inline void *pkdField( PARTICLE *p, int iOffset ) {
 static inline int32_t *pkdInt32( PARTICLE *p, int iOffset ) {
     char *v = (char *)p;
     return (int32_t *)(v + iOffset);
+    }
+
+static inline int32_t *pkdGroup( PKD pkd, PARTICLE *p ) {
+    if ( pkd->oGroup )
+	return CAST(int32_t *, pkdField(p,pkd->oGroup));
+    assert(0);
     }
 
 /* Here is the new way of getting mass and softening */
@@ -1108,13 +1123,6 @@ static inline char **pkd_pNeighborList( PKD pkd, PARTICLE *p ) {
     return &(((SPHFIELDS *) pkdField(p,pkd->oSph))->pNeighborList);
     }
 
-#ifdef USE_PSD
-/* Phase-space variables */
-static inline PSMETRIC *pkdPsMetric( PKD pkd, PARTICLE *p ) {
-    return ((PSMETRIC *) pkdField(p,pkd->oPsMetric));
-    }
-#endif
-
 static inline float *pkd_Timer( PKD pkd, PARTICLE *p ) {
     return &(((STARFIELDS *) pkdField(p,pkd->oStar))->fTimer);
     }
@@ -1178,6 +1186,7 @@ void pkdIOInitialize( PKD pkd, int nLocal);
 void pkdSetSoft(PKD pkd,double dSoft);
 void pkdSetCrit(PKD pkd,double dCrit);
 void pkdCalcBound(PKD,BND *);
+void pkdCalcVBound(PKD,BND *);
 void pkdEnforcePeriodic(PKD,BND *);
 void pkdPhysicalSoft(PKD pkd,double dSoftMax,double dFac,int bSoftMaxMul);
 
@@ -1382,6 +1391,7 @@ void pkdGridProject(PKD pkd);
 void pkdMeasurePk(PKD pkd, double dCenter[3], double dRadius,
 		  int nGrid, float *fPower, int *nPower);
 #endif
+void pkdUnbind(PKD pkd);
 
 #ifdef USE_CUDA
 #ifdef __cplusplus
