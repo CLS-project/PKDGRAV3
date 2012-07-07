@@ -409,6 +409,175 @@ static void fioTabulateSpecies(FIO fio) {
 	}
     }
 
+/******************************************************************************\
+** LIST FORMAT - This has a list of other file types
+\******************************************************************************/
+
+typedef struct {
+    struct fioInfo fio; /* "base class" */
+    FIO fioCurrent;
+    FIO (*baseOpen)(const char *fname);
+    uint64_t iSpecies;
+    FIO_SPECIES eSpecies;
+    } fioList;
+
+static int listNextSpecies(FIO fio) {
+    fioList *vio = (fioList *)fio;
+    int iFile = fio->fileList.iFile;
+    if ( ++vio->iSpecies >= fio->fileList.fileInfo[iFile].nSpecies[vio->eSpecies]) {
+	while( ++iFile < fio->fileList.nFiles ) {
+	    if (fio->fileList.fileInfo[iFile].nSpecies[vio->eSpecies]>0) break;
+	    }
+	if (iFile != fio->fileList.nFiles) {
+	    fio->fileList.iFile = iFile;
+	    fioClose(vio->fioCurrent);
+	    vio->fioCurrent = (*vio->baseOpen)(fio->fileList.fileInfo[fio->fileList.iFile].pszFilename);
+	    assert(vio->fioCurrent!=NULL);
+	    if (vio->fioCurrent==NULL) return 1;
+	    vio->iSpecies = 0;
+	    return fioSeek(vio->fioCurrent,vio->iSpecies,vio->eSpecies);
+	    }
+	else return 1;
+	}
+    return 0;
+    }
+
+static int listReadDark(FIO fio,
+    uint64_t *piOrder,double *pdPos,double *pdVel,
+    float *pfMass,float *pfSoft,float *pfPot,float *pfDen) {
+    fioList *vio = (fioList *)fio;
+    int rc;
+    assert(fio->eFormat == FIO_FORMAT_MULTIPLE);
+
+    if (fioSpecies(vio->fioCurrent) != FIO_SPECIES_DARK) return 0;
+    rc = fioReadDark(vio->fioCurrent,piOrder,pdPos,pdVel,
+	pfMass,pfSoft,pfPot,pfDen);
+    listNextSpecies(fio);
+    return rc;
+    }
+
+static int listReadSph(
+    FIO fio,uint64_t *piOrder,double *pdPos,double *pdVel,
+    float *pfMass,float *pfSoft, float *pfPot,float *pfDen,
+    float *pfTemp, float *pfMetals) {
+    fioList *vio = (fioList *)fio;
+    int rc;
+    assert(fio->eFormat == FIO_FORMAT_MULTIPLE);
+    listNextSpecies(fio);
+    if (fioSpecies(vio->fioCurrent) != FIO_SPECIES_SPH) return 0;
+    rc = fioReadSph(
+	vio->fioCurrent,piOrder,pdPos,pdVel,
+	pfMass,pfSoft,pfPot,pfDen,
+	pfTemp,pfMetals);
+    listNextSpecies(fio);
+    return rc;
+    }
+
+static int listReadStar(
+    FIO fio,uint64_t *piOrder,double *pdPos,double *pdVel,
+    float *pfMass,float *pfSoft,float *pfPot,float *pfDen,
+    float *pfMetals, float *pfTform) {
+    fioList *vio = (fioList *)fio;
+    int rc;
+    assert(fio->eFormat == FIO_FORMAT_MULTIPLE);
+    if (fioSpecies(vio->fioCurrent) != FIO_SPECIES_STAR) return 0;
+    rc = fioReadStar(
+	vio->fioCurrent,piOrder,pdPos,pdVel,
+	pfMass,pfSoft,pfPot,pfDen,
+	pfMetals,pfTform);
+    listNextSpecies(fio);
+    return rc;
+    }
+
+static void listClose(FIO fio) {
+    fioList *vio = (fioList *)fio;
+    assert(fio->eFormat == FIO_FORMAT_MULTIPLE);
+    fioClose(vio->fioCurrent);
+    fileScanFree(&fio->fileList);
+    free(vio);
+    }
+
+static int listGetAttr(FIO fio,const char *attr, FIO_TYPE dataType, void *data) {
+    fioList *vio = (fioList *)fio;
+    assert(fio->eFormat == FIO_FORMAT_MULTIPLE);
+    return fioGetAttr(vio->fioCurrent,attr,dataType,data);
+    }
+
+static FIO_SPECIES listSpecies(FIO fio) {
+    fioList *vio = (fioList *)fio;
+    assert(fio->eFormat == FIO_FORMAT_MULTIPLE);
+    return fioSpecies(vio->fioCurrent);
+    }
+
+static int listSeek(FIO fio,uint64_t iPart,FIO_SPECIES eSpecies) {
+    fioList *vio = (fioList *)fio;
+    int iFile;
+    assert(fio->eFormat == FIO_FORMAT_MULTIPLE);
+
+    /* Find the correct file for this particle index */
+    for(iFile=0;iFile<fio->fileList.nFiles;++iFile) {
+	if (iPart<fio->fileList.fileInfo[iFile].nSpecies[eSpecies]) break;
+	else iPart -= fio->fileList.fileInfo[iFile].nSpecies[eSpecies];
+	}
+    assert(iFile<fio->fileList.nFiles);
+    if (iFile>=fio->fileList.nFiles) return 1;
+
+    /* If we are now in a different file, we have to open the new one. */
+    if (fio->fileList.iFile != iFile) {
+	fioClose(vio->fioCurrent);
+	vio->fioCurrent = (*vio->baseOpen)(fio->fileList.fileInfo[iFile].pszFilename);
+	assert(vio->fioCurrent!=NULL);
+	if (vio->fioCurrent==NULL) return 1;
+	fio->fileList.iFile = iFile;
+	}
+
+    vio->eSpecies = eSpecies;
+    vio->iSpecies = iPart;
+
+    return fioSeek(vio->fioCurrent,vio->iSpecies,vio->eSpecies);
+    }
+
+/* Scans each file for species counts - leave the first open */
+static FIO listOpen(fioFileList *fileList, FIO (*baseOpen)(const char *fname) ) {
+    fioList *vio = NULL;
+    FIO fio;
+    int iFile, i;
+
+    assert(fileList->nFiles>1); /* We aren't needed otherwise */
+
+    vio = malloc(sizeof(fioList));
+    assert(vio!=NULL);
+    if (vio==NULL) return NULL;
+    fioInitialize(&vio->fio,FIO_FORMAT_MULTIPLE,FIO_MODE_READING,0);
+
+    vio->fio.fileList = *fileList;
+    vio->baseOpen = baseOpen;
+
+    /* Scan all files; leave the first one open */
+    for(iFile=1;iFile<fileList->nFiles;++iFile) {
+	fio = (*baseOpen)(fileList->fileInfo[iFile].pszFilename);
+	for (i=0;i<FIO_SPECIES_LAST;++i) fileList->fileInfo[iFile].nSpecies[i] = fio->nSpecies[i];
+	fioClose(fio);
+	}
+    fio = vio->fioCurrent = (*baseOpen)(fileList->fileInfo[0].pszFilename);
+    for (i=0;i<FIO_SPECIES_LAST;++i) fileList->fileInfo[0].nSpecies[i] = fio->nSpecies[i];
+
+    fioTabulateSpecies(&vio->fio);
+
+    vio->fio.fileList.iFile = 0;
+    vio->iSpecies = 0;
+    vio->eSpecies = FIO_SPECIES_ALL;
+
+    vio->fio.fcnClose    = listClose;
+    vio->fio.fcnSeek     = listSeek;
+    vio->fio.fcnReadDark = listReadDark;
+    vio->fio.fcnReadSph  = listReadSph;
+    vio->fio.fcnReadStar = listReadStar;
+    vio->fio.fcnGetAttr  = listGetAttr;
+    vio->fio.fcnSpecies  = listSpecies;
+
+    return &vio->fio;
+    }
 
 /******************************************************************************\
 ** TIPSY FORMAT
@@ -1547,7 +1716,7 @@ FIO fioTipsyCreatePart(const char *fileName,int bAppend,int mFlags,int bStandard
 
 typedef struct {
     FILE *fp;
-    int bDouble;
+    int iDouble, nPer;
     uint64_t lOffset;
     char *pBuffer;
     } gadgetFP;
@@ -1641,73 +1810,423 @@ size_t freadSwap(void *ptr, size_t size, size_t nmemb, FILE *stream, int bSwap) 
     return n;
     }
 
-static int gadgetOpenOne(fioGADGET *gio, int iFile) {
+static void gadgetSeekFP(gadgetFP *fp,uint64_t iPart) {
+    if (fp->fp != NULL)
+	fseeko(fp->fp,fp->lOffset + fp->nPer*iPart*fp->iDouble,SEEK_SET);
+    }
+
+static int gadgetSeek(FIO fio,uint64_t iPart,FIO_SPECIES eSpecies) {
+    fioGADGET *gio = (fioGADGET *)fio;
+    gadgetSeekFP(&gio->fp_pos,iPart);
+    gadgetSeekFP(&gio->fp_vel,iPart);
+    gadgetSeekFP(&gio->fp_id,iPart);
+    gadgetSeekFP(&gio->fp_mass,iPart);
+    gadgetSeekFP(&gio->fp_u,iPart);
+    return 1;
+    }
+
+static int gadgetWriteNative(fioGADGET *gio,
+    uint64_t iOrder,const double *pdPos,const double *pdVel,
+    float fMass) {
+    float fTmp[3];
+    double dTmp[3];
+    uint32_t iTmp;
+    int i;
+
+    if (gio->fp_pos.iDouble == sizeof(double)) {
+	for(i=0; i<3; ++i) dTmp[i] = (pdPos[i] + gio->pos_off) * gio->pos_fac;
+	fwrite(dTmp, sizeof(double), 3, gio->fp_pos.fp);
+	}
+    else {
+	for(i=0; i<3; ++i) fTmp[i] = (pdPos[i] + gio->pos_off) * gio->pos_fac;
+	fwrite(fTmp, sizeof(float), 3, gio->fp_pos.fp);
+	}
+
+    if (gio->fp_vel.iDouble == sizeof(double)) {
+	for(i=0; i<3; ++i) dTmp[i] = pdVel[i] * gio->vel_fac;
+	fwrite(dTmp, sizeof(double), 3, gio->fp_vel.fp);
+	}
+    else {
+	for(i=0; i<3; ++i) fTmp[i] = pdVel[i] * gio->vel_fac;
+	fwrite(fTmp, sizeof(float), 3, gio->fp_vel.fp);
+	}
+
+    iOrder++;
+    if (gio->fp_id.iDouble == sizeof(uint64_t)) {
+	fwrite(&iOrder, sizeof(uint64_t), 3, gio->fp_id.fp);
+	}
+    else {
+	iTmp = iOrder;
+	fwrite(&iTmp, sizeof(uint32_t), 1, gio->fp_id.fp);
+	}
+
+    assert (gio->fp_mass.iDouble==sizeof(float));
+    fTmp[0] = fMass * gio->mass_fac;
+    fwrite(fTmp, sizeof(float), 1, gio->fp_mass.fp);
+    }
+
+static int gadgetWriteNativeDark(FIO fio,
+    uint64_t iOrder,const double *pdPos,const double *pdVel,
+    float fMass,float fSoft,float fPot,float fDen) {
+    float fTmp;
+    fioGADGET *gio = (fioGADGET *)fio;
+    return gadgetWriteNative(gio,iOrder,pdPos,pdVel,fMass);
+    }
+static int gadgetWriteNativeSph(
+    struct fioInfo *fio,uint64_t iOrder,const double *pdPos,const double *pdVel,
+    float fMass,float fSoft,float fPot,float fDen,
+    float fTemp,float fMetals) {
+    fioGADGET *gio = (fioGADGET *)fio;
+    return gadgetWriteNative(gio,iOrder,pdPos,pdVel,fMass);
+    }
+static int gadgetWriteNativeStar(
+    struct fioInfo *fio,uint64_t iOrder,const double *pdPos,const double *pdVel,
+    float fMass,float fSoft,float fPot,float fDen,float fMetals,float fTform) {
+    fioGADGET *gio = (fioGADGET *)fio;
+    return gadgetWriteNative(gio,iOrder,pdPos,pdVel,fMass);
+    }
+
+static void gadgetCloseFP(fioGADGET *gio,gadgetFP *fp) {
+    if ( fp->fp ) {
+	fclose(fp->fp);
+	fp->fp = NULL;
+	}
+    }
+static void gadgetClose(FIO fio) {
+    fioGADGET *gio = (fioGADGET *)fio;
+    assert(fio->eFormat == FIO_FORMAT_GADGET2);
+    gadgetCloseFP(gio,&gio->fp_pos);
+    gadgetCloseFP(gio,&gio->fp_vel);
+    gadgetCloseFP(gio,&gio->fp_id);
+    gadgetCloseFP(gio,&gio->fp_mass);
+    gadgetCloseFP(gio,&gio->fp_u);
+    free(gio);
+    }
+
+FIO fioGadgetCreate(
+    const char *fileName,int mFlags, double dTime, double Lbox,
+    double Omega0, double OmegaLambda, double HubbleParam,
+    int nTypes, const uint64_t *nPart,
+    int nFiles, const uint64_t *nAll,
+    const double *dMass ) {
+    gadgetHdrBlk hdr;
+    int iType;
+    uint32_t w;
+    fioGADGET *gio;
+
+    assert(nTypes <= GADGET2_NTYPES && nTypes >= 1 );
+
+    gio = malloc(sizeof(fioGADGET));
+    assert(gio!=NULL);
+    fioInitialize(&gio->fio,FIO_FORMAT_GADGET2,FIO_MODE_WRITING,mFlags);
+    
+    gio->fio.nSpecies[FIO_SPECIES_SPH]  = nPart[0];
+    for( iType=1; iType<nTypes; ++iType)
+	gio->fio.nSpecies[FIO_SPECIES_DARK] += nPart[iType];
+    for( iType=1; iType<FIO_SPECIES_LAST; ++iType)
+	gio->fio.nSpecies[FIO_SPECIES_ALL] += gio->fio.nSpecies[iType];
+
+    gio->fp_pos.iDouble = (mFlags&FIO_FLAG_DOUBLE_POS) ? sizeof(double) : sizeof(float);
+    gio->fp_vel.iDouble = (mFlags&FIO_FLAG_DOUBLE_VEL) ? sizeof(double) : sizeof(float);
+    gio->fp_id.iDouble = sizeof(uint32_t);
+    gio->fp_mass.iDouble = sizeof(uint32_t);
+    gio->fp_pos.nPer = 3;
+    gio->fp_vel.nPer = 3;
+    gio->fp_id.nPer = 1;
+    gio->fp_mass.nPer = 1;
+    gio->fp_u.nPer = 1;
+
+    gio->fp_pos.pBuffer = malloc(GIO_BUFFER_SIZE);
+    gio->fp_vel.pBuffer = malloc(GIO_BUFFER_SIZE);
+    gio->fp_id.pBuffer = malloc(GIO_BUFFER_SIZE);
+    gio->fp_mass.pBuffer = malloc(GIO_BUFFER_SIZE);
+    gio->fp_u.pBuffer = NULL;
+
+    gio->fp_pos.lOffset = sizeof(hdr) + 2*sizeof(w);
+    gio->fp_vel.lOffset = gio->fp_pos.lOffset + 2*sizeof(w)
+	+ 3 * gio->fio.nSpecies[FIO_SPECIES_ALL] * gio->fp_pos.iDouble;
+    gio->fp_id.lOffset = gio->fp_vel.lOffset + 2*sizeof(w)
+	+ 3 * gio->fio.nSpecies[FIO_SPECIES_ALL] * gio->fp_vel.iDouble;
+    gio->fp_mass.lOffset = gio->fp_id.lOffset + 2*sizeof(w)
+	+ gio->fio.nSpecies[FIO_SPECIES_ALL] * gio->fp_id.iDouble;
+
+    gio->fio.fcnClose     = gadgetClose;
+    /*gio->fio.fcnSeek     = tipsySeekStandard;*/
+    gio->fio.fcnWriteDark = gadgetWriteNativeDark;
+    gio->fio.fcnWriteSph  = gadgetWriteNativeSph;
+    gio->fio.fcnWriteStar = gadgetWriteNativeStar;
+
+    gio->fp_pos.fp = fopen(fileName,"wb");
+    if ( gio->fp_pos.fp == NULL ) {
+	perror(fileName);
+	abort();
+	}
+    if (gio->fp_pos.pBuffer != NULL) setvbuf(gio->fp_pos.fp,gio->fp_pos.pBuffer,_IOFBF,GIO_BUFFER_SIZE);
+
+    memset(&hdr,0,sizeof(hdr));
+    for( iType=0; iType<nTypes; ++iType) {
+	hdr.hdr.Npart[iType] = nPart[iType];
+	hdr.hdr.Nall[iType]  = nAll[iType] & 0xffffffff;
+	hdr.hdr.NallHW[iType]= nAll[iType] >> 32;
+	hdr.hdr.Massarr[iType] = dMass[iType];
+	}
+    hdr.hdr.Time = dTime;
+    hdr.hdr.Redshift = 1.0 / dTime - 1.0;  
+    hdr.hdr.NumFiles = nFiles;
+    hdr.hdr.BoxSize = Lbox;
+    hdr.hdr.Omega0 = Omega0;
+    hdr.hdr.OmegaLambda = OmegaLambda;
+    hdr.hdr.HubbleParam = HubbleParam / 100.0;
+
+    gio->hdr = hdr.hdr;
+    if ( gio->hdr.BoxSize > 0.0 ) {
+	double dTotalMass = 0.0;
+	gio->pos_fac = gio->hdr.BoxSize;
+	gio->pos_off = 0.5;
+	gio->vel_fac = (gio->hdr.BoxSize*100.0*gio->hdr.Time) / sqrt(8.0/3.0*M_PI);
+	gio->mass_fac = (pow(gio->hdr.BoxSize,3.0) * 3.0e3) / (8.0 * M_PI * 4.30172);
+	}
+    else {
+	gio->pos_fac = 1.0;
+	gio->pos_off = 0.0;
+	gio->vel_fac = 1.0;
+	gio->mass_fac = 1.0;
+	}
+
+    w = sizeof(hdr);
+    fwrite(&w, sizeof(w), 1, gio->fp_pos.fp);
+    fwrite(&hdr, w, 1, gio->fp_pos.fp);
+    fwrite(&w, sizeof(w), 1, gio->fp_pos.fp);
+
+    assert(ftello(gio->fp_pos.fp) == gio->fp_pos.lOffset);
+    w = 3 * gio->fio.nSpecies[FIO_SPECIES_ALL] * gio->fp_pos.iDouble;
+    fwrite(&w, sizeof(w), 1, gio->fp_pos.fp);
+    safe_fseek(gio->fp_pos.fp,gio->fp_pos.lOffset+sizeof(w)+w);
+    fwrite(&w, sizeof(w), 1, gio->fp_pos.fp);
+    safe_fseek(gio->fp_pos.fp,gio->fp_pos.lOffset+sizeof(w));
+
+    gio->fp_vel.fp  = fopen(fileName,"rb+");
+    if (gio->fp_vel.pBuffer != NULL) setvbuf(gio->fp_vel.fp,gio->fp_vel.pBuffer,_IOFBF,GIO_BUFFER_SIZE);
+    safe_fseek(gio->fp_vel.fp,gio->fp_vel.lOffset);
+    assert(ftello(gio->fp_vel.fp) == gio->fp_vel.lOffset);
+    w = 3 * gio->fio.nSpecies[FIO_SPECIES_ALL] * gio->fp_vel.iDouble;
+    fwrite(&w, sizeof(w), 1, gio->fp_vel.fp);
+    safe_fseek(gio->fp_vel.fp,gio->fp_vel.lOffset+sizeof(w)+w);
+    fwrite(&w, sizeof(w), 1, gio->fp_vel.fp);
+    safe_fseek(gio->fp_vel.fp,gio->fp_vel.lOffset+sizeof(w));
+
+    gio->fp_id.fp   = fopen(fileName,"rb+");
+    if (gio->fp_id.pBuffer != NULL) setvbuf(gio->fp_id.fp,gio->fp_id.pBuffer,_IOFBF,GIO_BUFFER_SIZE);
+    safe_fseek(gio->fp_id.fp,gio->fp_id.lOffset);
+    assert(ftello(gio->fp_id.fp) == gio->fp_id.lOffset);
+    w = gio->fio.nSpecies[FIO_SPECIES_ALL] * gio->fp_id.iDouble;
+    fwrite(&w, sizeof(w), 1, gio->fp_id.fp);
+    safe_fseek(gio->fp_id.fp,gio->fp_id.lOffset+sizeof(w)+w);
+    fwrite(&w, sizeof(w), 1, gio->fp_id.fp);
+    safe_fseek(gio->fp_id.fp,gio->fp_id.lOffset+sizeof(w));
+
+    gio->fp_mass.fp = fopen(fileName,"rb+");
+    if (gio->fp_mass.pBuffer != NULL) setvbuf(gio->fp_mass.fp,gio->fp_mass.pBuffer,_IOFBF,GIO_BUFFER_SIZE);
+    safe_fseek(gio->fp_mass.fp,gio->fp_mass.lOffset);
+    assert(ftello(gio->fp_mass.fp) == gio->fp_mass.lOffset);
+    w = gio->fio.nSpecies[FIO_SPECIES_ALL] * gio->fp_mass.iDouble;
+    fwrite(&w, sizeof(w), 1, gio->fp_mass.fp);
+    safe_fseek(gio->fp_mass.fp,gio->fp_mass.lOffset+sizeof(w)+w);
+    fwrite(&w, sizeof(w), 1, gio->fp_mass.fp);
+    safe_fseek(gio->fp_mass.fp,gio->fp_mass.lOffset+sizeof(w));
+
+    return &gio->fio;
+    }
+
+static int gadgetReadCommon(fioGADGET *gio,uint64_t *piOrder,double *pdPos,double *pdVel,float *pfMass) {
+    int d;
+    double dTmp;
+    float fTmp[3];
+    uint32_t iTmp;
+
+    if ( gio->fp_id.iDouble == sizeof(uint64_t)) {
+	if (freadSwap(piOrder, sizeof(uint64_t), 1, gio->fp_id.fp,gio->bSwap)!=1) abort();
+	}
+    else {
+	if (freadSwap(&iTmp, sizeof(uint32_t), 1, gio->fp_id.fp,gio->bSwap)!=1) abort();
+	*piOrder = iTmp;
+	}
+    *piOrder -= 1;
+    if ( gio->fp_pos.iDouble == sizeof(double)) {
+	if (freadSwap(pdPos, sizeof(double), 3, gio->fp_pos.fp,gio->bSwap) != 3) abort();
+	}
+    else {
+	if (freadSwap(fTmp, sizeof(float), 3, gio->fp_pos.fp,gio->bSwap) != 3) abort();
+	for(d=0; d<3; ++d) pdPos[d] = fTmp[d];
+	}
+    if ( gio->fp_vel.iDouble == sizeof(double)) {
+	if (freadSwap(pdVel, sizeof(double), 3, gio->fp_vel.fp,gio->bSwap) != 3) abort();
+	}
+    else {
+	if (freadSwap(fTmp, sizeof(float), 3, gio->fp_vel.fp,gio->bSwap) != 3) abort();
+	for(d=0; d<3; ++d) pdVel[d] = fTmp[d];
+	}
+    if ( gio->hdr.BoxSize > 0.0 ) {
+	for(d=0; d<3; ++d) {
+	    pdPos[d] = pdPos[d] * gio->pos_fac + gio->pos_off;
+	    pdVel[d] = pdVel[d] * gio->vel_fac;
+	    }
+	}
+    if ( gio->hdr.Massarr[gio->iType] != 0.0 ) *pfMass = gio->hdr.Massarr[gio->iType];
+    else {
+	if ( gio->fp_mass.iDouble == sizeof(double)) {
+	    if (freadSwap(&dTmp, sizeof(double), 1, gio->fp_mass.fp,gio->bSwap) != 1) abort();
+	    *pfMass = dTmp;
+	    }
+	else {
+	    if (freadSwap(pfMass, sizeof(float), 1, gio->fp_mass.fp,gio->bSwap) != 1) abort();
+	    }
+	}
+    *pfMass *= gio->mass_fac;
+    return 1;
+    }
+
+static int gadgetReadDark(FIO fio,
+    uint64_t *piOrder,double *pdPos,double *pdVel,
+    float *pfMass,float *pfSoft,float *pfPot,float *pfDen) {
+    fioGADGET *gio = (fioGADGET *)fio;
+
+    assert(fio->eFormat == FIO_FORMAT_GADGET2 && fio->eMode==FIO_MODE_READING);
+
+    if (!gadgetReadCommon(gio,piOrder,pdPos,pdVel,pfMass)) return 0;
+    *pfSoft = pow(gio->hdr.Omega0 / *pfMass,-1.0/3.0) / 50.0;
+    *pfPot = 0.0f;
+    *pfDen = 0.0f;
+
+    gio->uIndex++;
+
+    return 1;
+    }
+
+static int gadgetReadSph(
+    FIO fio,uint64_t *piOrder,double *pdPos,double *pdVel,
+    float *pfMass,float *pfSoft, float *pfPot,float *pfDen,
+    float *pfTemp, float *pfMetals) {
+    fioGADGET *gio = (fioGADGET *)fio;
+    double dTmp;
+
+    assert(fio->eFormat == FIO_FORMAT_GADGET2 && fio->eMode==FIO_MODE_READING);
+
+    if (!gadgetReadCommon(gio,piOrder,pdPos,pdVel,pfMass)) return 0;
+
+    if ( gio->fp_u.iDouble == sizeof(double)) {
+	if (freadSwap(&dTmp, sizeof(double), 1, gio->fp_u.fp,gio->bSwap) != 1) abort();
+	*pfTemp = dTmp;
+	}
+    else {
+	if (freadSwap(pfTemp, sizeof(float), 1, gio->fp_u.fp,gio->bSwap) != 1) abort();
+	}
+    *pfSoft = pow(gio->hdr.Omega0 / *pfMass,-1.0/3.0) / 50.0;
+    *pfPot = 0.0f;
+    *pfDen = 0.0f;
+    *pfMetals = 0.0f;
+
+    gio->uIndex++;
+
+    return 1;
+
+    }
+
+uint32_t gadgetOpenFP( fioGADGET *gio, gadgetFP *fp, const char *tagName,
+    uint64_t n, int nPer, const char *fname, off_t lOffset ) {
+    uint32_t w1, w2;
+    char tag[8];
+    assert(n>0);
+    fp->nPer = nPer;
+    if (fname!=NULL) {
+	fp->fp = fopen(fname, "rb");
+	assert(fp->fp!=NULL);
+	fseeko(fp->fp,lOffset,SEEK_SET);
+	}
+    if (gio->bTagged) {
+	if (freadSwap(&w1,sizeof(w1),1,fp->fp,gio->bSwap) != 1) return 0;
+	if (w1!=4 && w1!=8) return 0;
+	if (fread(tag,w1,1,fp->fp) != 1) return 0;
+	if (memcmp(tag,tagName,4)!=0) return 0;
+	if (freadSwap(&w2,sizeof(w2),1,fp->fp,gio->bSwap) != 1) return 0;
+	if (w2 != w1) return 0;
+	}
+    if (freadSwap(&w1,sizeof(w1),1,fp->fp,gio->bSwap) != 1) return 0;
+    assert(fp->nPer>0);
+    fp->iDouble = w1 / (fp->nPer*n);
+    assert(fp->iDouble * fp->nPer * n == w1);
+    assert(fp->iDouble == sizeof(double) || fp->iDouble == sizeof(float));
+    fp->lOffset = ftello(fp->fp);
+    return fp->lOffset + w1 + sizeof(w1);
+    }
+
+static FIO gadgetOpenOne(const char *fname) {
+    fioGADGET *gio;
     gadgetHdrBlk blk;
     uint64_t n, nMass;
+    off_t lOffset;
     FILE *fp;
     int i;
     char tag[8];
-    union {
-	uint32_t n;
-	char c[4];
-	} w1, w2;
-
+    uint32_t w1, w2;
     assert(sizeof(gadgetHdrBlk) == 256);
-    assert(iFile<gio->fio.fileList.nFiles);
-    gio->fio.fileList.iFile = iFile;
 
-    fp = fopen(gio->fio.fileList.fileInfo[iFile].pszFilename, "rb");
+    gio = malloc(sizeof(fioGADGET));
+    assert(gio!=NULL);
+    fioInitialize(&gio->fio,FIO_FORMAT_GADGET2,FIO_MODE_READING,0);
+
+    gio->fp_pos.fp = NULL;
+    gio->fp_vel.fp = NULL;
+    gio->fp_id.fp  = NULL;
+    gio->fp_mass.fp= NULL;
+    gio->fp_u.fp   = NULL;
+    gio->fio.mFlags |= FIO_FLAG_DENSITY | FIO_FLAG_POTENTIAL;
+
+    fp = fopen(fname, "rb");
     if ( fp == NULL ) {
-	perror(gio->fio.fileList.fileInfo[iFile].pszFilename);
+	perror(fname);
 	abort();
-	return 0;
+	free(gio);
+	return NULL;
 	}
 
     /* Check the header */
-    if (fread(&w1,sizeof(w1),1,fp) != 1) return 0;
+    if (fread(&w1,sizeof(w1),1,fp) != 1) return NULL;
 
     /* This must mean we have to byte swap */
-    if (w1.n==0x04000000 || w1.n==0x08000000) {
+    if (w1==0x04000000 || w1==0x08000000) {
 	gio->bTagged = 1;
 	gio->bSwap = 1;
 	}
-    else if (w1.n==4 || w1.n==8) {
+    else if (w1==4 || w1==8) {
 	gio->bTagged = 1;
 	gio->bSwap = 0;
 	}
     else {
 	gio->bTagged = 0;
-	if (w1.n == 0x00010000) gio->bSwap = 1;
-	else if (w1.n == 256) gio->bSwap = 0;
+	if (w1 == 0x00010000) gio->bSwap = 1;
+	else if (w1 == 256) gio->bSwap = 0;
 	else {
 	    fclose(fp);
-	    return 0;
+	    return NULL;
 	    }
 	}
-    gio->fp_pos.fp = fp;
     if (gio->bSwap) byteSwap(&w1,sizeof(w1),1);
 
-    printf("Tagged: %s\nSwap: %s\n",
-	gio->bTagged?"yes":"no",
-	gio->bSwap  ?"yes":"no");
-
-
-
     if (gio->bTagged) {
-	if (fread(tag,w1.n,1,fp) != 1) return 0;
-	if (memcmp(tag,"HEAD",4)!=0) return 0;
-	if (freadSwap(&w2,sizeof(w2),1,fp,gio->bSwap) != 1) return 0;
-	if (w2.n != w1.n) return 0;
-	if (freadSwap(&w1,sizeof(w1),1,fp,gio->bSwap) != 1) return 0;
+	if (fread(tag,w1,1,fp) != 1) return NULL;
+	if (memcmp(tag,"HEAD",4)!=0) return NULL;
+	if (freadSwap(&w2,sizeof(w2),1,fp,gio->bSwap) != 1) return NULL;
+	if (w2 != w1) return NULL;
+	if (freadSwap(&w1,sizeof(w1),1,fp,gio->bSwap) != 1) return NULL;
 	}
 
-    if (w1.n != 256) return 0;
-    if (fread(&blk,sizeof(blk),1,fp) != 1) return 0;
-    if (freadSwap(&w2,sizeof(w2),1,fp,gio->bSwap) != 1) return 0;
-    if (w2.n != w1.n) return 0;
+    if (w1 != 256) return NULL;
+    if (fread(&blk,sizeof(blk),1,fp) != 1) return NULL;
+    if (freadSwap(&w2,sizeof(w2),1,fp,gio->bSwap) != 1) return NULL;
+    if (w2 != w1) return NULL;
 
     gio->hdr = blk.hdr;
-
 
     if (gio->bSwap) {
 	byteSwap(&gio->hdr.Npart,sizeof(uint32_t),GADGET2_NTYPES);
@@ -1768,77 +2287,21 @@ static int gadgetOpenOne(fioGADGET *gio, int iFile) {
 	}
 
     for( i=0; i<FIO_SPECIES_LAST; ++i )
-	gio->fio.fileList.fileInfo[iFile].nSpecies[i] = 0;
+	gio->fio.nSpecies[i] = 0;
 
-    gio->fio.fileList.fileInfo[iFile].nSpecies[FIO_SPECIES_SPH]  = gio->hdr.Npart[0];
-    gio->fio.fileList.fileInfo[iFile].nSpecies[FIO_SPECIES_STAR] = 0;
-    gio->fio.fileList.fileInfo[iFile].nSpecies[FIO_SPECIES_DARK] =
+    gio->fio.nSpecies[FIO_SPECIES_SPH]  = gio->hdr.Npart[0];
+    gio->fio.nSpecies[FIO_SPECIES_STAR] = 0;
+    gio->fio.nSpecies[FIO_SPECIES_DARK] =
 	gio->hdr.Npart[1] + gio->hdr.Npart[2] + gio->hdr.Npart[3] + gio->hdr.Npart[4] + gio->hdr.Npart[5];
-
-    for( i=0,n=0; i<GADGET2_NTYPES; ++i ) n += gio->hdr.Npart[i];
+    for( i=1; i<FIO_SPECIES_LAST; ++i )
+	gio->fio.nSpecies[FIO_SPECIES_ALL] += gio->fio.nSpecies[i];
+    n = gio->fio.nSpecies[FIO_SPECIES_ALL];
 
     /* Particle Positions */
-    if (gio->bTagged) {
-	if (freadSwap(&w1,sizeof(w1),1,fp,gio->bSwap) != 1) return 0;
-	if (w1.n!=4 && w1.n!=8) return 0;
-	if (fread(tag,w1.n,1,fp) != 1) return 0;
-	if (memcmp(tag,"POS ",4)!=0) return 0;
-	if (freadSwap(&w2,sizeof(w2),1,fp,gio->bSwap) != 1) return 0;
-	if (w2.n != w1.n) return 0;
-	}
-    if (freadSwap(&w1,sizeof(w1),1,fp,gio->bSwap) != 1) return 0;
-    if ( w1.n == 3*n*sizeof(float) ) {
-	gio->fp_pos.bDouble = 0;
-	}
-    else if ( w1.n == 3*n*sizeof(double) ) {
-	gio->fp_pos.bDouble = 1;
-	}
-    else abort();
-
-    /* Particle Velocities */
-    gio->fp_vel.fp = fopen(gio->fio.fileList.fileInfo[iFile].pszFilename, "rb");
-    assert(gio->fp_vel.fp!=NULL);
-    fseeko(gio->fp_vel.fp,ftello(fp)+w1.n+sizeof(w1),SEEK_SET);
-    fp = gio->fp_vel.fp;
-    if (gio->bTagged) {
-	if (freadSwap(&w1,sizeof(w1),1,fp,gio->bSwap) != 1) return 0;
-	if (w1.n!=4 && w1.n!=8) return 0;
-	if (fread(tag,w1.n,1,fp) != 1) return 0;
-	if (memcmp(tag,"VEL ",4)!=0) return 0;
-	if (freadSwap(&w2,sizeof(w2),1,fp,gio->bSwap) != 1) return 0;
-	if (w2.n != w1.n) return 0;
-	}
-    if (freadSwap(&w1,sizeof(w1),1,fp,gio->bSwap) != 1) return 0;
-    if ( w1.n == 3*n*sizeof(float) ) {
-	gio->fp_vel.bDouble = 0;
-	}
-    else if ( w1.n == 3*n*sizeof(double) ) {
-	gio->fp_vel.bDouble = 1;
-	}
-    else abort();
-
-    /* Particle IDs */
-    gio->fp_id.fp = fopen(gio->fio.fileList.fileInfo[iFile].pszFilename, "rb");
-    assert(gio->fp_id.fp!=NULL);
-    fseeko(gio->fp_id.fp,ftello(fp)+w1.n+sizeof(w1),SEEK_SET);
-    fp = gio->fp_id.fp;
-    if (gio->bTagged) {
-	if (freadSwap(&w1,sizeof(w1),1,fp,gio->bSwap) != 1) return 0;
-	if (w1.n!=4 && w1.n!=8) return 0;
-	if (fread(tag,w1.n,1,fp) != 1) return 0;
-	if (memcmp(tag,"ID  ",4)!=0) return 0;
-	if (freadSwap(&w2,sizeof(w2),1,fp,gio->bSwap) != 1) return 0;
-	if (w2.n != w1.n) return 0;
-	}
-    if (freadSwap(&w1,sizeof(w1),1,fp,gio->bSwap) != 1) return 0;
-    if ( w1.n == n*sizeof(uint32_t) ) {
-	gio->fp_id.bDouble = 0;
-	}
-    else if ( w1.n == n*sizeof(uint64_t) ) {
-	gio->fp_id.bDouble = 1;
-	}
-    else abort();
-
+    gio->fp_pos.fp = fp;
+    lOffset = gadgetOpenFP(gio,&gio->fp_pos,"POS ",n,3,NULL,0);
+    lOffset = gadgetOpenFP(gio,&gio->fp_vel,"VEL ",n,3,fname,lOffset);
+    lOffset = gadgetOpenFP(gio,&gio->fp_id, "ID  ",n,1,fname,lOffset);
 
     /* We might have particles masses, let us check */
     nMass = 0;
@@ -1847,54 +2310,12 @@ static int gadgetOpenOne(fioGADGET *gio, int iFile) {
 	if ( gio->hdr.Npart[i] && gio->hdr.Massarr[i] == 0.0 )
 	    nMass += gio->hdr.Npart[i];
 	}
-    if ( nMass ) {
-	gio->fp_mass.fp = fopen(gio->fio.fileList.fileInfo[iFile].pszFilename, "rb");
-	assert(gio->fp_mass.fp!=NULL);
-	fseeko(gio->fp_mass.fp,ftello(fp)+w1.n+sizeof(w1),SEEK_SET);
-	fp = gio->fp_mass.fp;
-	if (gio->bTagged) {
-	    if (freadSwap(&w1,sizeof(w1),1,fp,gio->bSwap) != 1) return 0;
-	    if (w1.n!=4 && w1.n!=8) return;
-	    if (fread(tag,w1.n,1,fp) != 1) return 0;
-	    if (memcmp(tag,"MASS",4)!=0) return 0;
-	    if (freadSwap(&w2,sizeof(w2),1,fp,gio->bSwap) != 1) return 0;
-	    if (w2.n != w1.n) return 0;
-	    }
-	if (freadSwap(&w1,sizeof(w1),1,fp,gio->bSwap) != 1) return 0;
-	if ( w1.n == nMass*sizeof(uint32_t) ) {
-	    gio->fp_mass.bDouble = 0;
-	    }
-	else if ( w1.n == nMass*sizeof(uint64_t) ) {
-	    gio->fp_mass.bDouble = 1;
-	    }
-	else abort();
-	}
-    else gio->fp_mass.fp = NULL;
+    if ( nMass == 0 ) gio->fp_mass.fp = NULL;
+    else lOffset = gadgetOpenFP(gio,&gio->fp_mass, "MASS",nMass,1,fname,lOffset);
 
     /* SPH particles have internal energy */
-    if ( gio->hdr.Npart[GADGET2_TYPE_SPH] ) {
-	gio->fp_u.fp = fopen(gio->fio.fileList.fileInfo[iFile].pszFilename, "rb");
-	assert(gio->fp_u.fp!=NULL);
-	fseeko(gio->fp_u.fp,ftello(fp)+w1.n+sizeof(w1),SEEK_SET);
-	fp = gio->fp_u.fp;
-	if (gio->bTagged) {
-	    if (freadSwap(&w1,sizeof(w1),1,fp,gio->bSwap) != 1) return 0;
-	    if (w1.n!=4 && w1.n!=8) return 0;
-	    if (fread(tag,w1.n,1,fp) != 1) return 0;
-	    if (memcmp(tag,"U   ",4)!=0) return 0;
-	    if (freadSwap(&w2,sizeof(w2),1,fp,gio->bSwap) != 1) return 0;
-	    if (w2.n != w1.n) return 0;
-	    }
-	if (freadSwap(&w1,sizeof(w1),1,fp,gio->bSwap) != 1) return 0;
-	if ( w1.n == n*sizeof(uint32_t) ) {
-	    gio->fp_u.bDouble = 0;
-	    }
-	else if ( w1.n == n*sizeof(uint64_t) ) {
-	    gio->fp_u.bDouble = 1;
-	    }
-	else abort();
-	}
-    else gio->fp_u.fp = NULL;
+    if ( gio->hdr.Npart[GADGET2_TYPE_SPH] == 0 ) gio->fp_u.fp = NULL;
+    else lOffset = gadgetOpenFP(gio,&gio->fp_u, "U   ",gio->hdr.Npart[GADGET2_TYPE_SPH],1,fname,lOffset);
 
     /* Particle type and index */
     gio->uStart[0] = 0;
@@ -1905,398 +2326,26 @@ static int gadgetOpenOne(fioGADGET *gio, int iFile) {
     for( gio->iType=0; gio->iType<GADGET2_NTYPES; ++gio->iType )
 	if ( gio->hdr.Npart[gio->iType] ) break;
 
-    return 1;
-    }
-
-
-static int gadgetWriteNative(fioGADGET *gio,
-    uint64_t iOrder,const double *pdPos,const double *pdVel,
-    float fMass) {
-    float fTmp[3];
-    double dTmp[3];
-    uint32_t iTmp;
-    int i;
-
-    if (gio->fp_pos.bDouble) {
-	for(i=0; i<3; ++i) dTmp[i] = (pdPos[i] + gio->pos_off) * gio->pos_fac;
-	fwrite(dTmp, sizeof(double), 3, gio->fp_pos.fp);
-	}
-    else {
-	for(i=0; i<3; ++i) fTmp[i] = (pdPos[i] + gio->pos_off) * gio->pos_fac;
-	fwrite(fTmp, sizeof(float), 3, gio->fp_pos.fp);
-	}
-
-    if (gio->fp_vel.bDouble) {
-	for(i=0; i<3; ++i) dTmp[i] = pdVel[i] * gio->vel_fac;
-	fwrite(dTmp, sizeof(double), 3, gio->fp_vel.fp);
-	}
-    else {
-	for(i=0; i<3; ++i) fTmp[i] = pdVel[i] * gio->vel_fac;
-	fwrite(fTmp, sizeof(float), 3, gio->fp_vel.fp);
-	}
-
-    iOrder++;
-    if (gio->fp_id.bDouble) {
-	fwrite(&iOrder, sizeof(uint64_t), 3, gio->fp_id.fp);
-	}
-    else {
-	iTmp = iOrder;
-	fwrite(&iTmp, sizeof(uint32_t), 1, gio->fp_id.fp);
-	}
-
-    assert (!gio->fp_mass.bDouble);
-    fTmp[0] = fMass * gio->mass_fac;
-    fwrite(fTmp, sizeof(float), 1, gio->fp_mass.fp);
-    }
-
-static int gadgetWriteNativeDark(FIO fio,
-    uint64_t iOrder,const double *pdPos,const double *pdVel,
-    float fMass,float fSoft,float fPot,float fDen) {
-    float fTmp;
-    fioGADGET *gio = (fioGADGET *)fio;
-    return gadgetWriteNative(gio,iOrder,pdPos,pdVel,fMass);
-    }
-static int gadgetWriteNativeSph(
-    struct fioInfo *fio,uint64_t iOrder,const double *pdPos,const double *pdVel,
-    float fMass,float fSoft,float fPot,float fDen,
-    float fTemp,float fMetals) {
-    fioGADGET *gio = (fioGADGET *)fio;
-    return gadgetWriteNative(gio,iOrder,pdPos,pdVel,fMass);
-    }
-static int gadgetWriteNativeStar(
-    struct fioInfo *fio,uint64_t iOrder,const double *pdPos,const double *pdVel,
-    float fMass,float fSoft,float fPot,float fDen,float fMetals,float fTform) {
-    fioGADGET *gio = (fioGADGET *)fio;
-    return gadgetWriteNative(gio,iOrder,pdPos,pdVel,fMass);
-    }
-
-static void gadgetCloseFP(fioGADGET *gio,gadgetFP *fp) {
-    if ( fp->fp ) {
-	fclose(fp->fp);
-	fp->fp = NULL;
-	}
-    }
-
-static void gadgetCloseOne(fioGADGET *gio) {
-    gadgetCloseFP(gio,&gio->fp_pos);
-    gadgetCloseFP(gio,&gio->fp_vel);
-    gadgetCloseFP(gio,&gio->fp_id);
-    gadgetCloseFP(gio,&gio->fp_mass);
-    gadgetCloseFP(gio,&gio->fp_u);
-    }
-
-static void gadgetClose(FIO fio) {
-    fioGADGET *gio = (fioGADGET *)fio;
-    assert(fio->eFormat == FIO_FORMAT_GADGET2);
-    gadgetCloseOne(gio);
-    fileScanFree(&fio->fileList);
-    free(gio);
-    }
-
-
-static int gadgetSwitchFile(FIO fio, int bSeek) {
-    fioGADGET *gio = (fioGADGET *)fio;
-
-    if ( gio->uIndex < gio->uStart[gio->iType+1] )
-	return 0;
-
-    while( ++gio->iType < GADGET2_NTYPES && gio->uIndex >= gio->uStart[gio->iType+1] ) {}
-
-
-    if ( gio->iType == GADGET2_NTYPES ) {
-	gadgetCloseOne(gio);
-	gadgetOpenOne(gio,++gio->fio.fileList.iFile);
-	}
-
-
-    return 0;
-    }
-
-
-
-FIO fioGadgetCreate(
-    const char *fileName,int mFlags, double dTime, double Lbox,
-    double Omega0, double OmegaLambda, double HubbleParam,
-    int nTypes, const uint64_t *nPart,
-    int nFiles, const uint64_t *nAll,
-    const double *dMass ) {
-    gadgetHdrBlk hdr;
-    int iType;
-    uint32_t w;
-    fioGADGET *gio;
-
-    assert(nTypes <= GADGET2_NTYPES && nTypes >= 1 );
-
-    gio = malloc(sizeof(fioGADGET));
-    assert(gio!=NULL);
-    fioInitialize(&gio->fio,FIO_FORMAT_GADGET2,FIO_MODE_WRITING,mFlags);
-    gio->fio.fileList.fileInfo = NULL;
-    gio->fio.fileList.fileInfo = malloc(sizeof(fioFileInfo)*2);
-    assert(gio->fio.fileList.fileInfo);
-    gio->fio.fileList.fileInfo[0].pszFilename= strdup(fileName);
-    gio->fio.fileList.nFiles  = 1;
-
-    
-    gio->fio.nSpecies[FIO_SPECIES_SPH]  = nPart[0];
-    for( iType=1; iType<nTypes; ++iType)
-	gio->fio.nSpecies[FIO_SPECIES_DARK] += nPart[iType];
-    for( iType=1; iType<FIO_SPECIES_LAST; ++iType)
-	gio->fio.nSpecies[FIO_SPECIES_ALL] += gio->fio.nSpecies[iType];
-    gio->fio.fileList.fileInfo[0].iFirst = 0;
-    gio->fio.fileList.fileInfo[1].iFirst = gio->fio.nSpecies[FIO_SPECIES_ALL];
-
-    gio->fp_pos.bDouble = (mFlags&FIO_FLAG_DOUBLE_POS) != 0;
-    gio->fp_vel.bDouble = (mFlags&FIO_FLAG_DOUBLE_VEL) != 0;
-    gio->fp_id.bDouble = 0;
-    gio->fp_mass.bDouble = 0;
-
-    gio->fp_pos.pBuffer = malloc(GIO_BUFFER_SIZE);
-    gio->fp_vel.pBuffer = malloc(GIO_BUFFER_SIZE);
-    gio->fp_id.pBuffer = malloc(GIO_BUFFER_SIZE);
-    gio->fp_mass.pBuffer = malloc(GIO_BUFFER_SIZE);
-    gio->fp_pos.pBuffer = NULL;
-
-
-    gio->fp_pos.lOffset = sizeof(hdr) + 2*sizeof(w);
-    gio->fp_vel.lOffset = gio->fp_pos.lOffset + 2*sizeof(w)
-	+ 3 * gio->fio.nSpecies[FIO_SPECIES_ALL] * (gio->fp_pos.bDouble ? sizeof(double) : sizeof(float));
-    gio->fp_id.lOffset = gio->fp_vel.lOffset + 2*sizeof(w)
-	+ 3 * gio->fio.nSpecies[FIO_SPECIES_ALL] * (gio->fp_vel.bDouble ? sizeof(double) : sizeof(float));
-    gio->fp_mass.lOffset = gio->fp_id.lOffset + 2*sizeof(w)
-	+ gio->fio.nSpecies[FIO_SPECIES_ALL] * (gio->fp_id.bDouble ? sizeof(double) : sizeof(float));
-
-    gio->fio.fcnClose     = gadgetClose;
-    //gio->fio.fcnSeek     = tipsySeekStandard;
-    gio->fio.fcnWriteDark = gadgetWriteNativeDark;
-    gio->fio.fcnWriteSph  = gadgetWriteNativeSph;
-    gio->fio.fcnWriteStar = gadgetWriteNativeStar;
-
-    gio->fp_pos.fp = fopen(gio->fio.fileList.fileInfo[0].pszFilename,"wb");
-    if ( gio->fp_pos.fp == NULL ) {
-	perror(gio->fio.fileList.fileInfo[0].pszFilename);
-	abort();
-	}
-    if (gio->fp_pos.pBuffer != NULL) setvbuf(gio->fp_pos.fp,gio->fp_pos.pBuffer,_IOFBF,GIO_BUFFER_SIZE);
-
-    memset(&hdr,0,sizeof(hdr));
-    for( iType=0; iType<nTypes; ++iType) {
-	hdr.hdr.Npart[iType] = nPart[iType];
-	hdr.hdr.Nall[iType]  = nAll[iType] & 0xffffffff;
-	hdr.hdr.NallHW[iType]= nAll[iType] >> 32;
-	hdr.hdr.Massarr[iType] = dMass[iType];
-	}
-    hdr.hdr.Time = dTime;
-    hdr.hdr.Redshift = 1.0 / dTime - 1.0;  
-    hdr.hdr.NumFiles = nFiles;
-    hdr.hdr.BoxSize = Lbox;
-    hdr.hdr.Omega0 = Omega0;
-    hdr.hdr.OmegaLambda = OmegaLambda;
-    hdr.hdr.HubbleParam = HubbleParam / 100.0;
-
-    gio->hdr = hdr.hdr;
-    if ( gio->hdr.BoxSize > 0.0 ) {
-	double dTotalMass = 0.0;
-	gio->pos_fac = gio->hdr.BoxSize;
-	gio->pos_off = 0.5;
-	gio->vel_fac = (gio->hdr.BoxSize*100.0*gio->hdr.Time) / sqrt(8.0/3.0*M_PI);
-	gio->mass_fac = (pow(gio->hdr.BoxSize,3.0) * 3.0e3) / (8.0 * M_PI * 4.30172);
-	}
-    else {
-	gio->pos_fac = 1.0;
-	gio->pos_off = 0.0;
-	gio->vel_fac = 1.0;
-	gio->mass_fac = 1.0;
-	}
-
-    w = sizeof(hdr);
-    fwrite(&w, sizeof(w), 1, gio->fp_pos.fp);
-    fwrite(&hdr, w, 1, gio->fp_pos.fp);
-    fwrite(&w, sizeof(w), 1, gio->fp_pos.fp);
-
-    assert(ftello(gio->fp_pos.fp) == gio->fp_pos.lOffset);
-    w = 3 * gio->fio.nSpecies[FIO_SPECIES_ALL] * (gio->fp_pos.bDouble ? sizeof(double) : sizeof(float));
-    fwrite(&w, sizeof(w), 1, gio->fp_pos.fp);
-    safe_fseek(gio->fp_pos.fp,gio->fp_pos.lOffset+sizeof(w)+w);
-    fwrite(&w, sizeof(w), 1, gio->fp_pos.fp);
-    safe_fseek(gio->fp_pos.fp,gio->fp_pos.lOffset+sizeof(w));
-
-    gio->fp_vel.fp  = fopen(gio->fio.fileList.fileInfo[0].pszFilename,"rb+");
-    if (gio->fp_vel.pBuffer != NULL) setvbuf(gio->fp_vel.fp,gio->fp_vel.pBuffer,_IOFBF,GIO_BUFFER_SIZE);
-    safe_fseek(gio->fp_vel.fp,gio->fp_vel.lOffset);
-    assert(ftello(gio->fp_vel.fp) == gio->fp_vel.lOffset);
-    w = 3 * gio->fio.nSpecies[FIO_SPECIES_ALL] * (gio->fp_vel.bDouble ? sizeof(double) : sizeof(float));
-    fwrite(&w, sizeof(w), 1, gio->fp_vel.fp);
-    safe_fseek(gio->fp_vel.fp,gio->fp_vel.lOffset+sizeof(w)+w);
-    fwrite(&w, sizeof(w), 1, gio->fp_vel.fp);
-    safe_fseek(gio->fp_vel.fp,gio->fp_vel.lOffset+sizeof(w));
-
-    gio->fp_id.fp   = fopen(gio->fio.fileList.fileInfo[0].pszFilename,"rb+");
-    if (gio->fp_id.pBuffer != NULL) setvbuf(gio->fp_id.fp,gio->fp_id.pBuffer,_IOFBF,GIO_BUFFER_SIZE);
-    safe_fseek(gio->fp_id.fp,gio->fp_id.lOffset);
-    assert(ftello(gio->fp_id.fp) == gio->fp_id.lOffset);
-    w = gio->fio.nSpecies[FIO_SPECIES_ALL] * (gio->fp_id.bDouble ? sizeof(uint64_t) : sizeof(uint32_t));
-    fwrite(&w, sizeof(w), 1, gio->fp_id.fp);
-    safe_fseek(gio->fp_id.fp,gio->fp_id.lOffset+sizeof(w)+w);
-    fwrite(&w, sizeof(w), 1, gio->fp_id.fp);
-    safe_fseek(gio->fp_id.fp,gio->fp_id.lOffset+sizeof(w));
-
-    gio->fp_mass.fp = fopen(gio->fio.fileList.fileInfo[0].pszFilename,"rb+");
-    if (gio->fp_mass.pBuffer != NULL) setvbuf(gio->fp_mass.fp,gio->fp_mass.pBuffer,_IOFBF,GIO_BUFFER_SIZE);
-    safe_fseek(gio->fp_mass.fp,gio->fp_mass.lOffset);
-    assert(ftello(gio->fp_mass.fp) == gio->fp_mass.lOffset);
-    w = gio->fio.nSpecies[FIO_SPECIES_ALL] * (gio->fp_mass.bDouble ? sizeof(double) : sizeof(float));
-    fwrite(&w, sizeof(w), 1, gio->fp_mass.fp);
-    safe_fseek(gio->fp_mass.fp,gio->fp_mass.lOffset+sizeof(w)+w);
-    fwrite(&w, sizeof(w), 1, gio->fp_mass.fp);
-    safe_fseek(gio->fp_mass.fp,gio->fp_mass.lOffset+sizeof(w));
-
-    return &gio->fio;
-    }
-
-static int gadgetReadCommon(fioGADGET *gio,uint64_t *piOrder,double *pdPos,double *pdVel,float *pfMass) {
-    int d;
-    double dTmp;
-    float fTmp[3];
-    uint32_t iTmp;
-
-    if (gadgetSwitchFile(&gio->fio,0)) return 0;
-
-    if ( gio->fp_id.bDouble) {
-	if (freadSwap(piOrder, sizeof(uint64_t), 1, gio->fp_id.fp,gio->bSwap)!=1) abort();
-	}
-    else {
-	if (freadSwap(&iTmp, sizeof(uint32_t), 1, gio->fp_id.fp,gio->bSwap)!=1) abort();
-	*piOrder = iTmp;
-	}
-    *piOrder -= 1;
-    if ( gio->fp_pos.bDouble) {
-	if (freadSwap(pdPos, sizeof(double), 3, gio->fp_pos.fp,gio->bSwap) != 3) abort();
-	}
-    else {
-	if (freadSwap(fTmp, sizeof(float), 3, gio->fp_pos.fp,gio->bSwap) != 3) abort();
-	for(d=0; d<3; ++d) pdPos[d] = fTmp[d];
-	}
-    if ( gio->fp_vel.bDouble) {
-	if (freadSwap(pdVel, sizeof(double), 3, gio->fp_vel.fp,gio->bSwap) != 3) abort();
-	}
-    else {
-	if (freadSwap(fTmp, sizeof(float), 3, gio->fp_vel.fp,gio->bSwap) != 3) abort();
-	for(d=0; d<3; ++d) pdVel[d] = fTmp[d];
-	}
-    if ( gio->hdr.BoxSize > 0.0 ) {
-	for(d=0; d<3; ++d) {
-	    pdPos[d] = pdPos[d] * gio->pos_fac + gio->pos_off;
-	    pdVel[d] = pdVel[d] * gio->vel_fac;
-	    }
-	}
-    if ( gio->hdr.Massarr[gio->iType] != 0.0 ) *pfMass = gio->hdr.Massarr[gio->iType];
-    else {
-	if ( gio->fp_mass.bDouble) {
-	    if (freadSwap(&dTmp, sizeof(double), 1, gio->fp_mass.fp,gio->bSwap) != 1) abort();
-	    *pfMass = dTmp;
-	    }
-	else {
-	    if (freadSwap(pfMass, sizeof(float), 1, gio->fp_mass.fp,gio->bSwap) != 1) abort();
-	    }
-	}
-    *pfMass *= gio->mass_fac;
-    return 1;
-    }
-
-static int gadgetReadDark(FIO fio,
-    uint64_t *piOrder,double *pdPos,double *pdVel,
-    float *pfMass,float *pfSoft,float *pfPot,float *pfDen) {
-    fioGADGET *gio = (fioGADGET *)fio;
-
-    assert(fio->eFormat == FIO_FORMAT_GADGET2 && fio->eMode==FIO_MODE_READING);
-
-    if (!gadgetReadCommon(gio,piOrder,pdPos,pdVel,pfMass)) return 0;
-    *pfSoft = pow(gio->hdr.Omega0 / *pfMass,-1.0/3.0) / 50.0;
-    *pfPot = 0.0f;
-    *pfDen = 0.0f;
-
-    gio->uIndex++;
-
-    return 1;
-    }
-
-static int gadgetReadSph(
-    FIO fio,uint64_t *piOrder,double *pdPos,double *pdVel,
-    float *pfMass,float *pfSoft, float *pfPot,float *pfDen,
-    float *pfTemp, float *pfMetals) {
-    fioGADGET *gio = (fioGADGET *)fio;
-    double dTmp;
-
-    assert(fio->eFormat == FIO_FORMAT_GADGET2 && fio->eMode==FIO_MODE_READING);
-
-    if (!gadgetReadCommon(gio,piOrder,pdPos,pdVel,pfMass)) return 0;
-
-    if ( gio->fp_u.bDouble) {
-	if (freadSwap(&dTmp, sizeof(double), 1, gio->fp_u.fp,gio->bSwap) != 1) abort();
-	*pfTemp = dTmp;
-	}
-    else {
-	if (freadSwap(pfTemp, sizeof(float), 1, gio->fp_u.fp,gio->bSwap) != 1) abort();
-	}
-    *pfSoft = pow(gio->hdr.Omega0 / *pfMass,-1.0/3.0) / 50.0;
-    *pfPot = 0.0f;
-    *pfDen = 0.0f;
-    *pfMetals = 0.0f;
-
-    gio->uIndex++;
-
-    return 1;
-
-    }
-
-static FIO gadgetOpen(fioFileList *fileList) {
-    fioGADGET *gio;
-    int i;
-
-    gio = malloc(sizeof(fioGADGET));
-    assert(gio!=NULL);
-    fioInitialize(&gio->fio,FIO_FORMAT_GADGET2,FIO_MODE_READING,0);
-    gio->fp_pos.fp = NULL;
-    gio->fp_vel.fp = NULL;
-    gio->fp_id.fp  = NULL;
-    gio->fp_mass.fp= NULL;
-    gio->fp_u.fp   = NULL;
-    gio->fio.fileList = *fileList;
-    gio->fio.fileList.iFile = 0;
-
-    /* Scan the files - all but the first one */
-    gio->fio.mFlags |= FIO_FLAG_DENSITY | FIO_FLAG_POTENTIAL;
-    for( i=gio->fio.fileList.nFiles-1; i>0; --i) {
-	gadgetOpenOne(gio,i);
-	gadgetCloseOne(gio);
-	}
-    /* Open the first GADGET file. */
-    gadgetOpenOne(gio,0);
-
-    fioTabulateSpecies(&gio->fio);
-
-    gio->fio.fileList.fileInfo[0].iFirst = 0;
-    for(i=1; i<=gio->fio.fileList.nFiles; i++ ) {
-	gio->fio.fileList.fileInfo[i].iFirst = 
-	    gio->fio.fileList.fileInfo[i-1].iFirst + gio->fio.fileList.fileInfo[i-1].nSpecies[FIO_SPECIES_ALL];
-	}
-
+    gio->fio.fcnClose    = gadgetClose;
+    gio->fio.fcnSeek     = gadgetSeek;
+    gio->fio.fcnReadDark = gadgetReadDark;
+    gio->fio.fcnReadSph  = gadgetReadSph;
+    /*gio->fio.fcnReadStar = gadgetReadStar;*/
+    gio->fio.fcnGetAttr  = gadgetGetAttr;
+    gio->fio.fcnSpecies  = gadgetSpecies;
 
     /* Set the current species (the first one in the first file) */
     gio->eCurrent = 0;
     for( i=1; i<FIO_SPECIES_LAST; i++) {
-	if (gio->eCurrent==0 && gio->fio.fileList.fileInfo[0].nSpecies[i]) gio->eCurrent=i;
+	if (gio->eCurrent==0 && gio->fio.nSpecies[i]) gio->eCurrent=i;
 	}
 
-    gio->fio.fcnClose    = gadgetClose;
-//    gio->fio.fcnSeek     = gadgetSeek;
-    gio->fio.fcnReadDark = gadgetReadDark;
-//    gio->fio.fcnReadSph  = gadgetReadSph;
-//    gio->fio.fcnReadStar = gadgetReadStar;
-    gio->fio.fcnGetAttr  = gadgetGetAttr;
-    gio->fio.fcnSpecies  = gadgetSpecies;
-
     return &gio->fio;
+    }
+
+static FIO gadgetOpen(fioFileList *fileList) {
+    if (fileList->nFiles==1) return gadgetOpenOne(fileList->fileInfo[0].pszFilename);
+    else return listOpen(fileList,gadgetOpenOne);
     }
 #endif
 
