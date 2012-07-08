@@ -1759,12 +1759,11 @@ typedef struct {
     gadgetFP fp_mass;
     gadgetFP fp_u;
     double   pos_fac, pos_off, vel_fac, mass_fac;
-    uint64_t uStart[GADGET2_NTYPES+1];
-    uint64_t uIndex; /* Particle Index */
-    int bTagged, bSwap;
-    int iType;       /* GADGET type (0..5) */
-    int mFlags;
+    uint64_t iType;
+    int      eType;       /* GADGET type (0..5) */
     FIO_SPECIES eCurrent;
+    int bTagged, bSwap;
+    int mFlags;
     } fioGADGET;
 
 static int gadgetGetAttr(FIO fio,
@@ -1822,6 +1821,14 @@ static int gadgetSeek(FIO fio,uint64_t iPart,FIO_SPECIES eSpecies) {
     gadgetSeekFP(&gio->fp_id,iPart);
     gadgetSeekFP(&gio->fp_mass,iPart);
     gadgetSeekFP(&gio->fp_u,iPart);
+
+    for( gio->eType=0; gio->eType<GADGET2_NTYPES; ++gio->eType )
+	if ( iPart < gio->hdr.Npart[gio->eType] ) break;
+	else iPart -= gio->hdr.Npart[gio->eType];
+    gio->iType = iPart;
+    if (gio->eType == 0) gio->eCurrent = FIO_SPECIES_SPH;
+    else gio->eCurrent = FIO_SPECIES_DARK;
+
     return 1;
     }
 
@@ -2072,7 +2079,7 @@ static int gadgetReadCommon(fioGADGET *gio,uint64_t *piOrder,double *pdPos,doubl
 	    pdVel[d] = pdVel[d] * gio->vel_fac;
 	    }
 	}
-    if ( gio->hdr.Massarr[gio->iType] != 0.0 ) *pfMass = gio->hdr.Massarr[gio->iType];
+    if ( gio->hdr.Massarr[gio->eType] != 0.0 ) *pfMass = gio->hdr.Massarr[gio->eType];
     else {
 	if ( gio->fp_mass.iDouble == sizeof(double)) {
 	    if (freadSwap(&dTmp, sizeof(double), 1, gio->fp_mass.fp,gio->bSwap) != 1) abort();
@@ -2083,6 +2090,15 @@ static int gadgetReadCommon(fioGADGET *gio,uint64_t *piOrder,double *pdPos,doubl
 	    }
 	}
     *pfMass *= gio->mass_fac;
+
+    if ( ++gio->iType >= gio->hdr.Npart[gio->eType] ) {
+	while( ++gio->eType < GADGET2_NTYPES)
+	    if ( gio->hdr.Npart[gio->eType] ) break;
+	gio->iType = 0;
+	/* The SPH particles are at index 0, so this MUST be a dark particle */
+	gio->eCurrent = FIO_SPECIES_DARK;
+	}
+
     return 1;
     }
 
@@ -2097,9 +2113,6 @@ static int gadgetReadDark(FIO fio,
     *pfSoft = pow(gio->hdr.Omega0 / *pfMass,-1.0/3.0) / 50.0;
     *pfPot = 0.0f;
     *pfDen = 0.0f;
-
-    gio->uIndex++;
-
     return 1;
     }
 
@@ -2125,11 +2138,7 @@ static int gadgetReadSph(
     *pfPot = 0.0f;
     *pfDen = 0.0f;
     *pfMetals = 0.0f;
-
-    gio->uIndex++;
-
     return 1;
-
     }
 
 uint32_t gadgetOpenFP( fioGADGET *gio, gadgetFP *fp, const char *tagName,
@@ -2318,14 +2327,16 @@ static FIO gadgetOpenOne(const char *fname) {
     else lOffset = gadgetOpenFP(gio,&gio->fp_u, "U   ",gio->hdr.Npart[GADGET2_TYPE_SPH],1,fname,lOffset);
 
     /* Particle type and index */
-    gio->uStart[0] = 0;
-    for( i=1; i <= GADGET2_NTYPES; ++i )
-	gio->uStart[i] = gio->uStart[i-1] + gio->hdr.Npart[i-1];
+    for( gio->eType=0; gio->eType<GADGET2_NTYPES; ++gio->eType )
+	if ( gio->hdr.Npart[gio->eType] ) break;
+    gio->iType = 0;
 
-    gio->uIndex = 0;
-    for( gio->iType=0; gio->iType<GADGET2_NTYPES; ++gio->iType )
-	if ( gio->hdr.Npart[gio->iType] ) break;
+    /* Set the current species (the first one in the first file) */
+    if (gio->fio.nSpecies[FIO_SPECIES_SPH]) gio->eCurrent = FIO_SPECIES_SPH;
+    else if (gio->fio.nSpecies[FIO_SPECIES_DARK]) gio->eCurrent = FIO_SPECIES_DARK;
+    else gio->eCurrent = FIO_SPECIES_LAST;
 
+    /* These are the "member" functions */
     gio->fio.fcnClose    = gadgetClose;
     gio->fio.fcnSeek     = gadgetSeek;
     gio->fio.fcnReadDark = gadgetReadDark;
@@ -2334,11 +2345,6 @@ static FIO gadgetOpenOne(const char *fname) {
     gio->fio.fcnGetAttr  = gadgetGetAttr;
     gio->fio.fcnSpecies  = gadgetSpecies;
 
-    /* Set the current species (the first one in the first file) */
-    gio->eCurrent = 0;
-    for( i=1; i<FIO_SPECIES_LAST; i++) {
-	if (gio->eCurrent==0 && gio->fio.nSpecies[i]) gio->eCurrent=i;
-	}
 
     return &gio->fio;
     }
@@ -3040,78 +3046,9 @@ static FIO_SPECIES hdf5Species (struct fioInfo *fio) {
     return hio->eCurrent;
     }
 
-/* Open the i'th file */
-static int hdf5OpenOne(fioHDF5 *hio, int iFile) {
-    H5E_auto_t save_func;
-    void *     save_data;
-    int i;
-
-    assert(iFile<hio->fio.fileList.nFiles);
-    hio->fio.fileList.iFile = iFile;
-
-    /* Open the HDF5 file. */
-    hio->fileID = H5Fopen(hio->fio.fileList.fileInfo[iFile].pszFilename, H5F_ACC_RDONLY, H5P_DEFAULT);
-    if ( hio->fileID < 0 ) {
-	perror(hio->fio.fileList.fileInfo[iFile].pszFilename);
-	abort();
-	return 0;
-	}
-
-    /* Global parameters (dTime,etc.) are stored here */
-    hio->parametersID = H5Gopen( hio->fileID, GROUP_PARAMETERS );
-    if ( hio->parametersID == H5I_INVALID_HID ) {
-	perror(hio->fio.fileList.fileInfo[iFile].pszFilename);
-	abort();
-	return 0;
-	}
-
-    /* Now open all of the available groups.  It's okay if some aren't there. */
-    H5Eget_auto(&save_func,&save_data);
-    H5Eset_auto(0,0);
-    for( i=1; i<FIO_SPECIES_LAST; i++) {
-	IOBASE *base = hio->base+i;
-
-	switch(i) {
-	case FIO_SPECIES_DARK:
-	    base->group_id = H5Gopen(hio->fileID,fioSpeciesName(i));
-	    if (base->group_id!=H5I_INVALID_HID) {
-		base->iOffset = 0;
-		base->iIndex = base->nBuffered = 0;
-
-		alloc_fields(base,DARK_N);
-		field_open(&base->fldFields[DARK_POSITION],base->group_id,
-			   FIELD_POSITION, H5T_NATIVE_DOUBLE,3 );
-		field_open(&base->fldFields[DARK_VELOCITY],base->group_id,
-			   FIELD_VELOCITY, H5T_NATIVE_DOUBLE,3 );
-		field_open(&base->fldFields[DARK_POTENTIAL],base->group_id,
-			   FIELD_POTENTIAL, H5T_NATIVE_FLOAT,1 );
-		if (base->fldFields[DARK_POTENTIAL].setId == H5I_INVALID_HID)
-		    hio->fio.mFlags &= ~FIO_FLAG_POTENTIAL;
-		field_open(&base->fldFields[DARK_DENSITY],base->group_id,
-			   FIELD_DENSITY, H5T_NATIVE_FLOAT,1 );
-		if (base->fldFields[DARK_DENSITY].setId == H5I_INVALID_HID)
-		    hio->fio.mFlags &= ~FIO_FLAG_DENSITY;
-		base->nTotal = hio->fio.fileList.fileInfo[iFile].nSpecies[i] = field_size(&base->fldFields[DARK_POSITION]);
-		hio->fio.nSpecies[i] += hio->fio.fileList.fileInfo[iFile].nSpecies[i];
-		class_open(&base->ioClass,base->group_id);
-		/* iOrder can have a starting value if they are sequential, or a list */
-		ioorder_open(&base->ioOrder,base->group_id);
-		}
-	    else base->nTotal = 0;
-	    break;
-	default:
-	    hio->fio.fileList.fileInfo[iFile].nSpecies[i] = 0;
-	    base->group_id = H5I_INVALID_HID;
-	    base->nTotal = 0;
-	    break;
-	    }
-	}
-    H5Eset_auto(save_func,save_data);
-    return 1;
-    }
-
 /* Close the current open file; does not destroy the context */
-static void hdf5CloseOne(fioHDF5 *hio) {
+static void hdf5Close(FIO fio) {
+    fioHDF5 *hio = (fioHDF5 *)(fio);
     int i, j;
 
     for( i=1; i<FIO_SPECIES_LAST; i++) {
@@ -3137,28 +3074,17 @@ static void hdf5CloseOne(fioHDF5 *hio) {
     H5Fflush(hio->fileID,H5F_SCOPE_GLOBAL);
     assert(H5Fget_obj_count(hio->fileID,H5F_OBJ_ALL)==1);
     H5Fclose(hio->fileID);
+    H5Tclose(hio->stringType);
+    free(hio);
     }
+
 
 static int hdf5Seek(FIO fio,uint64_t iPart,FIO_SPECIES eSpecies) {
     fioHDF5 *hio = (fioHDF5 *)fio;
     IOBASE *base;
-    int i, iFile;
+    int i;
 
     assert(fio->eFormat == FIO_FORMAT_HDF5);
-
-    /* First identify the correct file */
-    for(iFile=0; iFile<fio->fileList.nFiles; ++iFile) {
-	if (iPart>=fio->fileList.fileInfo[iFile].nSpecies[eSpecies])
-	    iPart -= fio->fileList.fileInfo[iFile].nSpecies[eSpecies];
-	else
-	    break;
-	}
-
-    /* Open the proper file if necessary */
-    if (iFile!=fio->fileList.iFile) {
-	hdf5CloseOne(hio);
-	hdf5OpenOne(hio,iFile);
-	}
 
     if (eSpecies==FIO_SPECIES_ALL) {
 	for( i=1; i<FIO_SPECIES_LAST; i++) {
@@ -3184,10 +3110,7 @@ static int base_read(fioHDF5 *hio,IOBASE *base) {
 
     base->iOffset += base->nBuffered;
     base->iIndex = base->nBuffered = 0;
-    if ( base->iOffset >= base->nTotal ) {
-	hdf5CloseOne(hio);
-	hdf5OpenOne(hio,++hio->fio.fileList.iFile);
-	}
+    if ( base->iOffset >= base->nTotal ) return 0;
 
     N = base->nTotal - base->iOffset;
     base->nBuffered = N > CHUNK_SIZE ? CHUNK_SIZE : N;
@@ -3382,43 +3305,87 @@ static int hdf5WriteStar(
     abort();
     }
 
-static void hdf5Close(FIO fio) {
-    fioHDF5 *hio = (fioHDF5 *)(fio);
-    hdf5CloseOne(hio);
-    H5Tclose(hio->stringType);
-    fileScanFree(&fio->fileList);
-    free(hio);
-    }
-
-static FIO hdf5Open(fioFileList *fileList) {
-    fioHDF5 *hio;
+static FIO hdf5OpenOne(const char *fname) {
+    H5E_auto_t save_func;
+    void *     save_data;
     int i;
+    fioHDF5 *hio;
 
     hio = malloc(sizeof(fioHDF5));
     assert(hio!=NULL);
     fioInitialize(&hio->fio,FIO_FORMAT_HDF5,FIO_MODE_READING,0);
-
-    hio->fio.fileList = *fileList;
-    hio->fio.fileList.iFile = 0;
-
     hio->stringType = H5Tcopy(H5T_C_S1);
     H5Tset_size(hio->stringType, 256);
 
     /* Scan the files - all but the first one */
     hio->fio.mFlags |= FIO_FLAG_DENSITY | FIO_FLAG_POTENTIAL;
-    for( i=hio->fio.fileList.nFiles-1; i>0; --i) {
-	hdf5OpenOne(hio,i);
-	hdf5CloseOne(hio);
-	}
-    /* Open the first HDF5 file. */
-    hdf5OpenOne(hio,0);
 
-    fioTabulateSpecies(&hio->fio);
+    /* Open the HDF5 file. */
+    hio->fileID = H5Fopen(fname, H5F_ACC_RDONLY, H5P_DEFAULT);
+    if ( hio->fileID < 0 ) {
+	perror(fname);
+	abort();
+	return NULL;
+	}
+
+    /* Global parameters (dTime,etc.) are stored here */
+    hio->parametersID = H5Gopen( hio->fileID, GROUP_PARAMETERS );
+    if ( hio->parametersID == H5I_INVALID_HID ) {
+	perror(fname);
+	abort();
+	return NULL;
+	}
+
+    /* Now open all of the available groups.  It's okay if some aren't there. */
+    H5Eget_auto(&save_func,&save_data);
+    H5Eset_auto(0,0);
+    for( i=1; i<FIO_SPECIES_LAST; i++) {
+	IOBASE *base = hio->base+i;
+
+	switch(i) {
+	case FIO_SPECIES_DARK:
+	    base->group_id = H5Gopen(hio->fileID,fioSpeciesName(i));
+	    if (base->group_id!=H5I_INVALID_HID) {
+		base->iOffset = 0;
+		base->iIndex = base->nBuffered = 0;
+
+		alloc_fields(base,DARK_N);
+		field_open(&base->fldFields[DARK_POSITION],base->group_id,
+			   FIELD_POSITION, H5T_NATIVE_DOUBLE,3 );
+		field_open(&base->fldFields[DARK_VELOCITY],base->group_id,
+			   FIELD_VELOCITY, H5T_NATIVE_DOUBLE,3 );
+		field_open(&base->fldFields[DARK_POTENTIAL],base->group_id,
+			   FIELD_POTENTIAL, H5T_NATIVE_FLOAT,1 );
+		if (base->fldFields[DARK_POTENTIAL].setId == H5I_INVALID_HID)
+		    hio->fio.mFlags &= ~FIO_FLAG_POTENTIAL;
+		field_open(&base->fldFields[DARK_DENSITY],base->group_id,
+			   FIELD_DENSITY, H5T_NATIVE_FLOAT,1 );
+		if (base->fldFields[DARK_DENSITY].setId == H5I_INVALID_HID)
+		    hio->fio.mFlags &= ~FIO_FLAG_DENSITY;
+		base->nTotal = hio->fio.nSpecies[i] = field_size(&base->fldFields[DARK_POSITION]);
+		class_open(&base->ioClass,base->group_id);
+		/* iOrder can have a starting value if they are sequential, or a list */
+		ioorder_open(&base->ioOrder,base->group_id);
+		}
+	    else base->nTotal = 0;
+	    break;
+	default:
+	    hio->fio.nSpecies[i] = 0;
+	    base->group_id = H5I_INVALID_HID;
+	    base->nTotal = 0;
+	    break;
+	    }
+	}
+    H5Eset_auto(save_func,save_data);
+
+    hio->fio.nSpecies[FIO_SPECIES_ALL] = 0;
+    for(i=1;i<FIO_SPECIES_LAST;++i)
+	hio->fio.nSpecies[FIO_SPECIES_ALL] += hio->fio.nSpecies[i];
 
     /* Set the current species (the first one in the first file) */
     hio->eCurrent = 0;
     for( i=1; i<FIO_SPECIES_LAST; i++) {
-	if (hio->eCurrent==0 && hio->fio.fileList.fileInfo[0].nSpecies[i]) hio->eCurrent=i;
+	if (hio->eCurrent==0 && hio->fio.nSpecies[i]) hio->eCurrent=i;
 	}
 
     hio->fio.fcnClose    = hdf5Close;
@@ -3431,6 +3398,11 @@ static FIO hdf5Open(fioFileList *fileList) {
     hio->fio.fcnSpecies  = hdf5Species;
 
     return &hio->fio;
+    }
+
+static FIO hdf5Open(fioFileList *fileList) {
+    if (fileList->nFiles==1) return hdf5OpenOne(fileList->fileInfo[0].pszFilename);
+    else return listOpen(fileList,hdf5OpenOne);
     }
 
 FIO fioHDF5Create(const char *fileName, int mFlags) {
