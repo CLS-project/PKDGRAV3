@@ -851,7 +851,7 @@ static int tipsyWriteNativeDark(FIO fio,
     float fTmp[3];
 
     assert(fio->eFormat == FIO_FORMAT_TIPSY && fio->eMode==FIO_MODE_WRITING);
-    assert(iOrder == tio->iOrder++);
+    //assert(iOrder == tio->iOrder++);
     rc = fwrite(&fMass,sizeof(float),1,tio->fp); if (rc!=1) return 0;
     if (tio->bDoublePos) {
 	rc = fwrite(pdPos,sizeof(double),3,tio->fp); if (rc!=3) return 0;
@@ -986,7 +986,7 @@ static int tipsyWriteNativeSph(
     float fTmp[3];
 
     assert(fio->eFormat == FIO_FORMAT_TIPSY && fio->eMode==FIO_MODE_WRITING);
-    assert(iOrder == tio->iOrder++);
+    //assert(iOrder == tio->iOrder++);
 
     rc = fwrite(&fMass,sizeof(float),1,tio->fp); if (rc!=1) return 0;
     if (tio->bDoublePos) {
@@ -1135,7 +1135,7 @@ static int tipsyWriteNativeStar(
     float fTmp[3];
 
     assert(fio->eFormat == FIO_FORMAT_TIPSY && fio->eMode==FIO_MODE_WRITING);
-    assert(iOrder == tio->iOrder++);
+    //assert(iOrder == tio->iOrder++);
     rc = fwrite(&fMass,sizeof(float),1,tio->fp); if (rc!=1) return 0;
     if (tio->bDoublePos) {
 	rc = fwrite(pdPos,sizeof(double),3,tio->fp); if (rc!=3) return 0;
@@ -1816,18 +1816,31 @@ static void gadgetSeekFP(gadgetFP *fp,uint64_t iPart) {
 
 static int gadgetSeek(FIO fio,uint64_t iPart,FIO_SPECIES eSpecies) {
     fioGADGET *gio = (fioGADGET *)fio;
+    uint64_t iMass = iPart;
+
+    /* These are always present, so seek directly */
     gadgetSeekFP(&gio->fp_pos,iPart);
     gadgetSeekFP(&gio->fp_vel,iPart);
     gadgetSeekFP(&gio->fp_id,iPart);
-    gadgetSeekFP(&gio->fp_mass,iPart);
-    gadgetSeekFP(&gio->fp_u,iPart);
 
-    for( gio->eType=0; gio->eType<GADGET2_NTYPES; ++gio->eType )
+    /* If this is a gas particle, then week seek, otherwise it doesn't matter */
+    if (iPart < gio->hdr.Npart[0])
+	gadgetSeekFP(&gio->fp_u,iPart);
+
+    iMass = 0;
+    for( gio->eType=0; gio->eType<GADGET2_NTYPES; ++gio->eType ) {
 	if ( iPart < gio->hdr.Npart[gio->eType] ) break;
 	else iPart -= gio->hdr.Npart[gio->eType];
+	if ( gio->hdr.Massarr[gio->eType] == 0.0 )
+	    iMass += gio->hdr.Npart[gio->eType];
+	}
+    if ( gio->hdr.Massarr[gio->eType] == 0.0) iMass += iPart;
+
     gio->iType = iPart;
     if (gio->eType == 0) gio->eCurrent = FIO_SPECIES_SPH;
     else gio->eCurrent = FIO_SPECIES_DARK;
+
+    gadgetSeekFP(&gio->fp_mass,iMass);
 
     return 1;
     }
@@ -4067,11 +4080,6 @@ static FIO graficOpenDirectory(const char *dirName,double dOmega0,double dOmegab
     gio->fio.eFormat = FIO_FORMAT_GRAFIC;
     gio->fio.eMode   = FIO_MODE_READING;
 
-    gio->fio.fileList.fileInfo = malloc(sizeof(fioFileInfo)*2);
-    assert(gio->fio.fileList.fileInfo);
-    gio->fio.fileList.fileInfo[0].pszFilename= NULL;
-    gio->fio.fileList.nFiles  = 1;
-
     gio->fio.fcnClose    = graficClose;
     gio->fio.fcnSeek     = graficSeek;
     gio->fio.fcnReadDark = graficReadDark;
@@ -4194,36 +4202,6 @@ static FIO graficOpenDirectory(const char *dirName,double dOmega0,double dOmegab
     return &gio->fio;
     }
 
-
-FIO fioGraficOpenMany(int nFiles, const char * const *dirNames,double dOmega0,double dOmegab) {
-    fioGrafic *gio;
-    int i;
-
-    gio = malloc(sizeof(fioGrafic));
-    assert(gio!=NULL);
-    gio->fio.eFormat = FIO_FORMAT_GRAFIC;
-    gio->fio.eMode   = FIO_MODE_READING;
-
-    fileScan(&gio->fio.fileList,nFiles,dirNames);
-
-    /* Verify that all "files" are really directories */
-    for( i=0; i<gio->fio.fileList.nFiles; i++) {
-	struct stat s;
-	/* The file/directory needs to exist */
-	if ( stat(gio->fio.fileList.fileInfo[i].pszFilename,&s) != 0 ) return NULL;
-#ifdef _MSC_VER
-	if ( !(s.st_mode&_S_IFDIR) ) return NULL;
-#else
-	if ( !S_ISDIR(s.st_mode) ) return NULL;
-#endif
-	}
-    gio->nLevels = gio->fio.fileList.nFiles;
-    gio->level = malloc(gio->nLevels*sizeof(graficLevel));
-    assert(gio->level);
-    return &gio->fio;
-    }
-
-
 /******************************************************************************\
 ** Generic Routines
 \******************************************************************************/
@@ -4267,6 +4245,9 @@ FIO fioOpenMany(int nFiles, const char * const *fileNames,
     else if ( (fio=gadgetOpen(&fileList)) != NULL ) {
 	}
 #endif
+
+    else errno = EINVAL;
+
 
     if (fio == NULL)
 	fileScanFree(&fileList);
