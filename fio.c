@@ -1818,6 +1818,18 @@ static int gadgetSeek(FIO fio,uint64_t iPart,FIO_SPECIES eSpecies) {
     fioGADGET *gio = (fioGADGET *)fio;
     uint64_t iMass = iPart;
 
+    if (iPart >= fio->nSpecies[eSpecies] ) return 0;
+    switch(eSpecies) {
+    case FIO_SPECIES_SPH:
+    case FIO_SPECIES_ALL:
+	break;
+    case FIO_SPECIES_DARK:
+	iPart += gio->hdr.Npart[0];
+	break;
+    default:
+	return 0;
+	}
+
     /* These are always present, so seek directly */
     gadgetSeekFP(&gio->fp_pos,iPart);
     gadgetSeekFP(&gio->fp_vel,iPart);
