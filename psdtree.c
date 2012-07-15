@@ -643,7 +643,28 @@ void BuildPsdTemp(PKD pkd, PSX smx, int iNode,int M, int maxNb) {
 
 	    bnd[subspace].fMax[d] *= 0.5;
 	    if (bnd[subspace].fMax[d] <= 0)
+	    {
 		fprintf(stderr, "subspace %i  d %i\n", subspace, d);
+		fprintf(stderr, "nr %i  nl %i  fMax[%i] %f\n", nr, nl, d, bnd[subspace].fMax[d]);
+		fprintf(stderr, "Node %i\n", pkd->idSelf);
+		for (i=pNode->pLower; i <=pNode->pUpper; i++)
+		{
+		    PARTICLE *p = pkdParticle(pkd, i);
+		    double *v = pkdVel(pkd, p);
+		    fprintf(stderr, "%10ld] %e %e %e  %e %e %e\n", 
+			(uint64_t)p->iOrder,
+			p->r[0], p->r[1], p->r[2],
+			v[0], v[1], v[2]);
+
+		}
+		if (n == 1) {
+		    pNode->iLower = 0;
+		    if (backup == 0) ++nBucket;
+		}
+		assert(0);
+	    }
+	    else
+	    {
 	    assert(bnd[subspace].fMax[d] > 0);
 	    if (nl > 0) bnd[subspace].fCenter[d] -= bnd[subspace].fMax[d];
 	    else	bnd[subspace].fCenter[d] += bnd[subspace].fMax[d];
@@ -658,6 +679,7 @@ void BuildPsdTemp(PKD pkd, PSX smx, int iNode,int M, int maxNb) {
 		pNode->iLower = 0;
 		if (backup == 0) ++nBucket;
 		}
+	    }
 	    }
 	}
 DonePart:

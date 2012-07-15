@@ -17,6 +17,9 @@
 #include "rbtree.h"
 #include <sys/stat.h>
 
+#define PROP(pkd,p) (-*pkdPot((pkd), (p)))
+//#define PROP(pkd,p) (p->fDensity)
+
 #define PSM(i) (psx->psm[i])
 //#define PSM(i) (pkdParticle(pkd, i)->psm)
 
@@ -120,7 +123,7 @@ void psdDensityGrad(PKD pkd, PSX psx, int pid, FLOAT *fDensityGrad) {
 	    for (j=0; j < 6; j++)
 	    {
 		double dx = psx->pq[i].dr[j]/fBall;
-		double c = (p->fDensity - psx->pq[i].pPart->fDensity) / fDensity;
+		double c = (fDensity - psx->pq[i].pPart->fDensity) / fDensity;
 		fDensityGrad[j] += (pkdMass(pkd, psx->pq[i].pPart) * c) * grad_ekernel(dx);
 	    }
 	}
@@ -130,6 +133,43 @@ void psdDensityGrad(PKD pkd, PSX psx, int pid, FLOAT *fDensityGrad) {
     for (i=0; i < 6; i++) L += pow(fDensityGrad[i], 2);
     L = sqrt(L);
     for (i=0; i < 6; i++) fDensityGrad[i] /= L;
+}
+
+/*
+** Compute the normalized potential gradient. Also correct the E0 error
+** to reduce the noise.
+*/
+void psdPotentialGrad(PKD pkd, PSX psx, int pid, FLOAT *fPotentialGrad) {
+    int i,j;
+    FLOAT *rscale, *vscale;
+    PARTICLE *p = pkdParticle(pkd, pid);
+    const FLOAT fBall = p->fBall;
+    const FLOAT fPot = *pkdPot(pkd, p);
+    const FLOAT fDensity = p->fDensity;
+
+    rscale = PSM(pid).rscale;
+    vscale = PSM(pid).vscale;
+
+    for (j=0; j < 6; j++) fPotentialGrad[j] = 0;
+
+    for (i=0;i < psx->nSmooth;++i)
+    {
+	double r = sqrt(psx->pq[i].fDist2) / fBall;
+	if (r > 0)
+	{
+	    for (j=0; j < 6; j++)
+	    {
+		double dx = psx->pq[i].dr[j]/fBall;
+		double c = (fPot - *pkdPot(pkd, psx->pq[i].pPart)) / fDensity;
+		fPotentialGrad[j] += (pkdMass(pkd, psx->pq[i].pPart) * c) * grad_ekernel(dx);
+	    }
+	}
+    }
+
+    double L = 0;
+    for (i=0; i < 6; i++) L += pow(fPotentialGrad[i], 2);
+    L = sqrt(L);
+    for (i=0; i < 6; i++) fPotentialGrad[i] /= L;
 }
 
 /*
@@ -1137,14 +1177,15 @@ void psdSmoothLink(PSX psx, PSF *smf) {
 	    fprintf(fp, "\n");
 #endif
 
-	    psdDensityGrad(pkd, psx, pi, fDensityGrad);
+	    //psdDensityGrad(pkd, psx, pi, fDensityGrad);
+	    psdPotentialGrad(pkd, psx, pi, fDensityGrad);
 	    calc_arclen(psx, fDensityGrad, arclen);
 	    qsort(sorted_nbrs, psx->nSmooth, sizeof(*sorted_nbrs), arclen_compar);
 
 	    int bridge = 0;
 
 	    /* Find the first sorted particle with a density greater than ours */
-	    float max_den=pkdParticle(pkd, pi)->fDensity;
+	    float max_den=PROP(pkd, pkdParticle(pkd, pi));
 	    PARTICLE *next_p = NULL;
 	    int max_den_j=-1;
 	    PQ6 *nbr;
@@ -1152,7 +1193,7 @@ void psdSmoothLink(PSX psx, PSF *smf) {
 	    {
 		nbr = psx->pq + sorted_nbrs[pj];
 
-		if (nbr->pPart->fDensity > max_den)
+		if (PROP(pkd, nbr->pPart) > max_den)
 		{
 #if 0
 		    max_den = nbr->pPart->fDensity;
@@ -1359,7 +1400,7 @@ void psdSmoothLink(PSX psx, PSF *smf) {
 	gd[i].iGlobalId = i;
 	gd[i].iLocalId = i;
 	gd[i].iPid = pkd->idSelf;
-	gd[i].fDensity = p->fDensity;
+	gd[i].fDensity = PROP(pkd, p);
 	gd[i].r[0] = p->r[0];
 	gd[i].r[1] = p->r[1];
 	gd[i].r[2] = p->r[2];
@@ -1746,7 +1787,12 @@ void psdUpdateGroups(PSX psx, int offs, int count)
     for (i=0; i < pkd->nLocal; i++)
     {
 	PARTICLE *p = pkdParticle(pkd, i);
-	*pkdGroup(pkd, p) = gd[*pkdGroup(pkd, p)].iGlobalId;
+#if 0
+	if (gd[*pkdGroup(pkd, p)].fDensity / p->fDensity > 200)
+	    *pkdGroup(pkd, p) = 0;
+	else
+#endif
+	    *pkdGroup(pkd, p) = gd[*pkdGroup(pkd, p)].iGlobalId;
 	//*pkdGroup(pkd, p) = *pkdGroup(pkd, p) % 256;
     }
 

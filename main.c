@@ -28,10 +28,6 @@
 #include "python.h"
 #endif
 
-#ifdef USE_PSD
-extern int pst_idSelf;
-#endif
-
 #ifdef USE_MDL_IO
 static void main_io(MDL mdl) {
     IO io;
@@ -65,10 +61,6 @@ void main_ch(MDL mdl) {
     lcl.pszDataPath = (char *)getenv("PTOOLS_DATA_PATH");
     lcl.pkd = NULL;
     pstInitialize(&pst,mdl,&lcl);
-#ifdef USE_PSD
-    pst_idSelf = pst->idSelf;
-    fprintf(stderr, "pst_idSelf=%i\n", pst_idSelf);
-#endif
 
     pstAddServices(pst,mdl);
 

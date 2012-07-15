@@ -732,6 +732,14 @@ ppy_msr_Load(PyObject *self, PyObject *args, PyObject *kwobj) {
 	ppy_msr->param.bMemNodeVBnd = PyInt_AsLong(v);
     if ( (v = PyDict_GetItemString(dict, "iDomainMethod")) != NULL )
 	ppy_msr->param.iDomainMethod = PyInt_AsLong(v);
+    if ( (v = PyDict_GetItemString(dict, "bParaRead")) != NULL )
+	ppy_msr->param.bParaRead = PyInt_AsLong(v);
+    if ( (v = PyDict_GetItemString(dict, "bParaWrite")) != NULL )
+	ppy_msr->param.bParaWrite = PyInt_AsLong(v);
+    if ( (v = PyDict_GetItemString(dict, "bMemNodeSphBounds")) != NULL )
+	ppy_msr->param.bMemNodeSphBounds = PyInt_AsLong(v);
+    if ( (v = PyDict_GetItemString(dict, "bStandard")) != NULL )
+	ppy_msr->param.bStandard = PyInt_AsLong(v);
 
     if ( !PyArg_ParseTupleAndKeywords(
 	     args, kwobj, "s|i:Load", kwlist,

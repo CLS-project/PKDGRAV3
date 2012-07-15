@@ -2495,6 +2495,7 @@ void msrReorder(MSR msr) {
     double sec,dsec;
 
     in.iMaxOrder = msrMaxOrder(msr)-1;
+    //in.iMaxOrder = 0x3fffffff;
     msrprintf(msr,"Ordering...\n");
     sec = msrTime();
     pstDomainOrder(msr->pst,&in,sizeof(in),NULL,NULL);
@@ -5684,21 +5685,6 @@ double msrRead(MSR msr, const char *achInFile) {
 	BND vbnd;
 	msrCalcBound(msr,&bnd);
 	msrCalcVBound(msr,&vbnd);
-#if 0
-#ifdef USE_PSD
-        printf("%i] %g %g\n"
-               "    %g %g\n"
-               "    %g %g\n"
-               "    %g %g\n"
-               "    %g %g\n"
-               "    %g %g\n", 0, bnd.fCenter[0] - bnd.fMax[0],bnd.fCenter[0] + bnd.fMax[0], 
-                                 bnd.fCenter[1] - bnd.fMax[1],bnd.fCenter[1] + bnd.fMax[1], 
-                                 bnd.fCenter[2] - bnd.fMax[2],bnd.fCenter[2] + bnd.fMax[2], 
-                                 vbnd.fCenter[0] - vbnd.fMax[0],vbnd.fCenter[0] + vbnd.fMax[0], 
-                                 vbnd.fCenter[1] - vbnd.fMax[1],vbnd.fCenter[1] + vbnd.fMax[1], 
-                                 vbnd.fCenter[2] - vbnd.fMax[2],vbnd.fCenter[2] + vbnd.fMax[2]);
-#endif
-#endif
 	}
 
     /*
