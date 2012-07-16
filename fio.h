@@ -73,6 +73,7 @@
 ** These are the valid file formats
 */
 typedef enum {
+    FIO_FORMAT_MULTIPLE,
     FIO_FORMAT_TIPSY,
     FIO_FORMAT_HDF5,
     FIO_FORMAT_GRAFIC,
