@@ -53,7 +53,7 @@ double pkdGetWallClockTimer(PKD pkd,int iTimer) {
 
 
 void pkdClearTimer(PKD pkd,int iTimer) {
-    int i;
+   int i;
 
     if (iTimer >= 0) {
 	pkd->ti[iTimer].sec = 0.0;
@@ -1620,6 +1620,272 @@ void pkdPeanoHilbertDecomp(PKD pkd, int nRungs, int iMethod) {
     free(nRungTotal);
     }
 
+/*
+** This does an ORB decomposition without moving any particles
+*/
+typedef struct {
+    double r[3];
+    int32_t i;
+    int     uRung;
+    } PLITEORB;
+
+
+static inline void swapPLITEORB(PLITEORB *pl,int lb, int ub) {
+    PLITEORB tmp;
+    tmp = pl[lb];
+    pl[lb] = pl[ub];
+    pl[ub] = tmp;
+    }
+
+void pkdOrbSplit(PKD pkd, int iDomain) {
+    int nNodes = mdlThreads(pkd->mdl);
+    int i,j;
+
+    /* Gather which domains to split */
+    mdlAllGather(pkd->mdl,&iDomain,1,MDL_INT, pkd->counts,1,MDL_INT);
+
+    for(i=nNodes-1;i>=0;--i) {
+	if (pkd->counts[i]>=0) {
+	    j = pkd->counts[i];
+	    pkd->iFirstActive[j+1] = pkd->iFirstActive[i+1];
+	    pkd->iFirstActive[j]   = pkd->iSplitActive[i];
+	    pkd->iFirstActive[i+1] = pkd->iSplitActive[i];
+	    pkd->iFirstInActive[j+1] = pkd->iFirstInActive[i+1];
+	    pkd->iFirstInActive[j]   = pkd->iSplitInActive[i];
+	    pkd->iFirstInActive[i+1] = pkd->iSplitInActive[i];
+	    }
+	}
+    }
+
+void pkdOrbBegin(PKD pkd, int uRung) {
+    int nNodes = mdlThreads(pkd->mdl);
+    int nID    = mdlSelf(pkd->mdl);
+    PLITEORB *pl = (PLITEORB *)pkd->pLite;
+    int i, j, lb, ub;
+    PARTICLE *p;
+
+    pkd->uDomainRung = uRung;
+
+    pkd->iFirstActive  = malloc(sizeof(*pkd->iFirstActive)   * (nNodes+1));
+    pkd->iFirstInActive= malloc(sizeof(*pkd->iFirstInActive) * (nNodes+1));
+    pkd->iSplitActive  = malloc(sizeof(*pkd->iSplitActive)   * (nNodes+1));
+    pkd->iSplitInActive= malloc(sizeof(*pkd->iSplitInActive) * (nNodes+1));
+    pkd->counts        = malloc(sizeof(*pkd->counts)         * nNodes);
+    pkd->rdisps        = malloc(sizeof(*pkd->rdisps)         * nNodes);
+    pkd->cSplitDims    = malloc(sizeof(*pkd->cSplitDims)     * nNodes);
+    pkd->dSplits       = malloc(sizeof(*pkd->dSplits)        * nNodes);
+    pkd->pDomainCountsLocal = malloc(sizeof(*pkd->pDomainCountsLocal) * nNodes);
+
+
+    /* We start with all particles */
+    pkd->iFirstActive[0] = 0;
+    pkd->iFirstActive[1] = pkd->nLocal;
+    pkd->iFirstInActive[0] = pkd->iFirstInActive[1] = pkd->nLocal;
+    pkd->iSplitActive[1] = pkd->iSplitInActive[1] = pkd->nLocal;
+
+    /* These are the "particles" we partition */
+    for (i=0;i<pkd->nLocal;++i) {
+        p = pkdParticle(pkd,i);
+        for(j=0;j<3;++j) pl[i].r[j] = p->r[j];
+        pl[i].i = i;
+        pl[i].uRung = p->uRung;
+        }
+    for(j=0;j<3;++j) pl[i].r[j] = HUGE_VAL; /* sentinal node */
+
+
+    /* Separate them into active and inactive */
+    if ( uRung > 0 ) {
+        lb = pkd->iFirstActive[0];
+        ub = pkd->iFirstActive[1] - 1;
+        PARTITION(lb<ub,lb<=ub,++lb,--ub,swapPLITEORB(pl,lb,ub),
+            pl[lb].uRung >= uRung,pl[ub].uRung < uRung);
+        pkd->iFirstActive[1] = pkd->iFirstInActive[0] = lb;
+        }
+
+    //nDomains = 1;
+
+
+    }
+
+void pkdOrbFinish(PKD pkd) {
+    int nNodes = mdlThreads(pkd->mdl);
+    unsigned uRung = pkd->uDomainRung;
+    PLITEORB *pl = (PLITEORB *)pkd->pLite;
+    PARTICLE *p;
+    int i, iDomain;
+
+    for(iDomain=0; iDomain<nNodes; ++iDomain) {
+	for( i=pkd->iFirstActive[iDomain]; i<pkd->iFirstActive[iDomain+1]; ++i) {
+	    p = pkdParticle(pkd,pl[i].i);
+	    pkdRungDest(pkd,p)[uRung] = iDomain;
+	    }
+	}
+    for(iDomain=0; iDomain<nNodes; ++iDomain) {
+	for( i=pkd->iFirstInActive[iDomain]; i<pkd->iFirstInActive[iDomain+1]; ++i) {
+	    p = pkdParticle(pkd,pl[i].i);
+	    pkdRungDest(pkd,p)[uRung] = iDomain;
+	    }
+	}
+    free(pkd->iFirstActive);
+    free(pkd->iFirstInActive);
+    free(pkd->iSplitActive);
+    free(pkd->iSplitInActive);
+    free(pkd->counts);
+    free(pkd->rdisps);
+    free(pkd->cSplitDims);
+    free(pkd->dSplits);
+    }
+
+
+int pkdOrbRootFind(
+    PKD pkd, double dFraction, uint64_t nLowerMax, uint64_t nUpperMax,
+    BND *bnd, double *dSplitOut, int *iDim) {
+    /**/
+    double dFracAllow = 1e-4;
+    /**/
+
+    int nID    = mdlSelf(pkd->mdl);
+    int nNodes = mdlThreads(pkd->mdl);
+    unsigned uRung = pkd->uDomainRung;
+    PLITEORB *pl = (PLITEORB *)pkd->pLite;
+
+    uint8_t cSplitDim;
+    double dSplit, dSplitMin, dSplitMax;
+    double dFracActive, dFracTotal;
+
+    PARTICLE *p;
+    int i, j, lb, ub, d;
+    int iIter;
+    int nDomainsActive, iDomain, iActive, iWork;
+
+    ORBCOUNT DomainCountGlobal;
+
+    /* Now figure out which dimension to split along -- the longest */
+    if (dFraction>0.0) {
+        cSplitDim = 0;
+	for(j=1;j<3;++j) if (bnd->fMax[j]>bnd->fMax[cSplitDim]) cSplitDim=j;
+        dSplit    = bnd->fCenter[cSplitDim];
+        dSplitMin = dSplit - bnd->fMax[cSplitDim];
+        dSplitMax = dSplit + bnd->fMax[cSplitDim];
+        }
+    else cSplitDim = 255;
+    if (iDim) *iDim = cSplitDim;
+
+    /* Split dimension or 255 if we are not currently directing a split */
+    mdlAllGather(pkd->mdl,&cSplitDim,1,MDL_BYTE, pkd->cSplitDims,1,MDL_BYTE);
+
+    pkd->rdisps[0] = 0;
+    pkd->counts[0] = 1;
+    nDomainsActive = 0;
+    for(i=0;i<nNodes;++i) {
+	if (pkd->cSplitDims[i]<255) ++nDomainsActive;
+	}
+    if (nDomainsActive==0) return 0;
+
+    iIter = 0;
+    do {
+	iWork = 0;
+
+	pkd->rdisps[0] = 0;
+	pkd->counts[0] = 1;
+	for(i=0;i<nNodes;++i) {
+	    if (pkd->cSplitDims[i]<255) pkd->counts[i] = 1;
+	    else pkd->counts[i] = 0;
+	    pkd->rdisps[i] = pkd->rdisps[i-1] + pkd->counts[i-1];
+	    }
+
+        mdlAllGatherv(pkd->mdl,&dSplit,dFraction>0.0,MDL_DOUBLE,
+	    pkd->dSplits, pkd->counts, pkd->rdisps, MDL_DOUBLE);
+
+        // Now partition about this split and send back the counts
+	iActive = -1;
+        for(iDomain=0; iDomain<nNodes; ++iDomain) {
+            pkd->counts[iDomain] = 4;
+	    if ( (d=pkd->cSplitDims[iDomain]) == 255 ) {
+		pkd->pDomainCountsLocal[iDomain].nActiveBelow = 0;
+		pkd->pDomainCountsLocal[iDomain].nActiveAbove = 0;
+		pkd->pDomainCountsLocal[iDomain].nTotalBelow = 0;
+		pkd->pDomainCountsLocal[iDomain].nTotalAbove = 0;
+		continue;
+		}
+	    else ++iActive;
+
+            if ( pkd->dSplits[iActive] == HUGE_VAL ) {
+		//pkd->cSplitDims[iDomain] = 255;
+                continue;
+                }
+
+            iWork++;
+
+            /* Only active particles here */
+            lb = pkd->iFirstActive[iDomain];
+            ub = pkd->iFirstActive[iDomain+1] - 1;
+	    if (lb <= ub) {
+		PARTITION(lb<ub,lb<=ub,++lb,--ub,swapPLITEORB(pl,lb,ub),
+		    pl[lb].r[d] < pkd->dSplits[iActive],pl[ub].r[d] >= pkd->dSplits[iActive]);
+		}
+	    else lb = pkd->iFirstActive[iDomain+1];
+            pkd->iSplitActive[iDomain] = lb;
+            pkd->pDomainCountsLocal[iDomain].nActiveBelow = lb - pkd->iFirstActive[iDomain];
+            pkd->pDomainCountsLocal[iDomain].nActiveAbove = pkd->iFirstActive[iDomain+1] - lb;
+
+	    for(i=pkd->iFirstActive[iDomain]; i<pkd->iSplitActive[iDomain]; ++i)
+		assert(pl[i].r[d]<pkd->dSplits[iActive]);
+	    for(i=pkd->iSplitActive[iDomain]; i<pkd->iFirstActive[iDomain+1]; ++i)
+		assert(pl[i].r[d]>=pkd->dSplits[iActive]);
+
+            /* Now partition inactive and accumulate totals */
+            lb = pkd->iFirstInActive[iDomain];
+            ub = pkd->iFirstInActive[iDomain+1] - 1;
+	    if (lb <= ub) {
+		PARTITION(lb<ub,lb<=ub,++lb,--ub,swapPLITEORB(pl,lb,ub),
+		    pl[lb].r[d] < pkd->dSplits[iActive],pl[ub].r[d] >= pkd->dSplits[iActive]);
+		}
+	    else lb = pkd->iFirstInActive[iDomain+1];
+	    pkd->iSplitInActive[iDomain] = lb;
+	    pkd->pDomainCountsLocal[iDomain].nTotalBelow = lb - pkd->iFirstInActive[iDomain]
+		+ pkd->pDomainCountsLocal[iDomain].nActiveBelow;
+	    pkd->pDomainCountsLocal[iDomain].nTotalAbove = pkd->iFirstInActive[iDomain+1] - lb
+		+ pkd->pDomainCountsLocal[iDomain].nActiveAbove;
+            }
+
+        mdlReduceScatter(pkd->mdl, pkd->pDomainCountsLocal, &DomainCountGlobal,
+	    pkd->counts, MDL_LONG_LONG, MDL_SUM);
+
+        if (dFraction>0.0 && dSplit < HUGE_VAL) {
+            dFracActive=1.0*DomainCountGlobal.nActiveBelow/(DomainCountGlobal.nActiveBelow+DomainCountGlobal.nActiveAbove);
+            dFracTotal = 1.0*DomainCountGlobal.nTotalBelow/(DomainCountGlobal.nTotalBelow+DomainCountGlobal.nTotalAbove);
+#if 0
+            printf("%2d: %2d dSplit=%8.8g (%c) TOTAL: ActiveBelow=%llu ActiveAbove=%llu Ratio=%g\n",
+                nID, iIter, dSplit, "xyz"[cSplitDim],
+                DomainCountGlobal.nTotalBelow, DomainCountGlobal.nTotalAbove,
+                dFracTotal );
+#endif
+	    if (DomainCountGlobal.nTotalBelow > nLowerMax) {
+		dSplitMin = dSplit;
+                dSplit = (dSplitMin+dSplitMax) * 0.5;
+		}
+	    else if (DomainCountGlobal.nTotalAbove > nUpperMax) {
+		dSplitMax = dSplit;
+                dSplit = (dSplitMin+dSplitMax) * 0.5;
+		}
+	    else if ( fabs(dFracActive-dFraction) < dFracAllow ) {
+		if (dSplitOut) *dSplitOut = dSplit;
+		dSplit = HUGE_VAL;
+		}
+            else {
+                if ( dFracActive > dFraction ) dSplitMax = dSplit;
+                else dSplitMin = dSplit;
+                dSplit = (dSplitMin+dSplitMax) * 0.5;
+                }
+            }
+        ++iIter;
+        } while(iIter < 30 && iWork);
+    return nDomainsActive;
+    }
+
+
+
 void pkdRungOrder(PKD pkd, int iRung, total_t *nMoved) {
     int nDomains = mdlThreads(pkd->mdl);
     int nLocal   = pkd->nLocal;
@@ -1644,12 +1910,12 @@ void pkdRungOrder(PKD pkd, int iRung, total_t *nMoved) {
     assert(rdispls != NULL);
     ioffset = malloc(sizeof(*ioffset) * nDomains);
     assert(ioffset != NULL);
-    for(i=0; i<nDomains; ++i) scounts[i] = 0;
 
     /*
     ** Count the number of particles destined for each processor and tell
     ** the other processor this information.
     */
+    for(i=0; i<nDomains; ++i) scounts[i] = 0;
     for (i=0;i<nLocal;++i) {
 	p = pkdParticle(pkd,i);
 	pRungDest = pkdRungDest(pkd,p);
@@ -1690,7 +1956,15 @@ void pkdRungOrder(PKD pkd, int iRung, total_t *nMoved) {
     /* Send the particles to their correct processors and update our local count */
     mdlAlltoallv(pkd->mdl,pkdParticle2(pkd,0), scounts, sdispls, pkd->typeParticle,
 	pkdParticle(pkd,nSelf), rcounts, rdispls, pkd->typeParticle);
-    pkd->nLocal = rdispls[nDomains-1] + rcounts[nDomains-1] + nSelf;
+    nLocal = pkd->nLocal = rdispls[nDomains-1] + rcounts[nDomains-1] + nSelf;
+
+    /* Check that this worked */
+    for (i=0;i<nLocal;++i) {
+	p = pkdParticle(pkd,i);
+	pRungDest = pkdRungDest(pkd,p);
+	iTarget = pRungDest[iRung];
+	assert(iTarget==nID);
+	}
 
     /* The bounds have likely changed */
     pkdCalcBound(pkd,&pkd->bnd);

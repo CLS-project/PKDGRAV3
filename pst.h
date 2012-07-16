@@ -52,6 +52,8 @@ typedef struct pstContext {
     FLOAT fSplitInactive;
     uint64_t nTotal;
     int iVASplitSide;
+    uint64_t nLowerStore;
+    uint64_t nUpperStore;
     uint64_t nLowTot;    /* total number of particles in the lower subset of processors */
     uint64_t nHighTot;   /* total number of particles in the upper subset of processors */
     int ioIndex;
@@ -68,6 +70,11 @@ enum pst_service {
     PST_SETADD,
     PST_READFILE,
 #ifdef MPI_VERSION
+    PST_ORB_BEGIN,
+    PST_ORB_DECOMP,
+    PST_ORB_FINISH,
+    PST_ORB_ROOT_FIND,
+    PST_ORB_SPLIT,
     PST_PEANOHILBERTDECOMP,
     PST_RUNGORDER,
 #endif
@@ -290,6 +297,36 @@ struct outPeanoHilbertDecomp {
     int x;
     };
 void pstPeanoHilbertDecomp(PST,void *,int,void *,int *);
+
+/* PST_ORB_BEGIN,PST_ORB_FINISH */
+struct inOrbBegin {
+    int iRung;
+    };
+void pstOrbBegin(PST,void *,int,void *,int *);
+void pstOrbFinish(PST,void *,int,void *,int *);
+
+/* PST_ORB_DECOMP */
+struct inOrbDecomp {
+    BND bnd;
+    };
+void pstOrbDecomp(PST,void *,int,void *,int *);
+
+
+/* PST_ORB_ROOT_FIND */
+struct inOrbRootFind {
+    BND     bnd;
+    double  dFraction;
+    uint64_t nLower, nUpper;
+    };
+struct outOrbRootFind {
+    double dSplit;
+    int    iDim;
+    int    nDomains;
+    };
+void pstOrbRootFind(PST,void *,int,void *,int *);
+
+/* PST_ORB_SPLIT */
+void pstOrbSplit(PST,void *,int,void *,int *);
 
 /* PST_RUNGORDER */
 struct inRungOrder {

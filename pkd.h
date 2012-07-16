@@ -644,6 +644,14 @@ typedef struct {
 
 #include "psd.h"
 
+typedef struct {
+    uint64_t nActiveBelow;
+    uint64_t nActiveAbove;
+    uint64_t nTotalBelow;
+    uint64_t nTotalAbove;
+    } ORBCOUNT;
+
+
 typedef struct pkdContext {
     MDL mdl;
     int idSelf;
@@ -813,8 +821,16 @@ typedef struct pkdContext {
 
     MDLGRID grid;
     float *gridData;
-
     PSX psx;
+
+    /* ORB Domain Decomposition */
+    unsigned uDomainRung;
+    ORBCOUNT *pDomainCountsLocal; /* [nDomains] */
+    int *iFirstActive, *iFirstInActive;
+    int *iSplitActive, *iSplitInActive;
+    int *counts, *rdisps;
+    uint8_t *cSplitDims;
+    double *dSplits;
 
     } * PKD;
 
@@ -1203,6 +1219,12 @@ int pkdLowerOrdPart(PKD,uint64_t,int,int);
 int pkdUpperOrdPart(PKD,uint64_t,int,int);
 int pkdActiveOrder(PKD);
 
+void pkdOrbBegin(PKD pkd, int uRung);
+void pkdOrbFinish(PKD pkd);
+void pkdOrbSplit(PKD pkd,int iDomain);
+int pkdOrbRootFind(
+    PKD pkd,double dFraction,uint64_t nLowerMax, uint64_t nUpperMax,
+    BND *bnd, double *dSplitOut, int *iDim);
 /*#define PEANO_HILBERT_KEY_MAX 0x3ffffffffffull*/ /* 2d */
 #define PEANO_HILBERT_KEY_MAX 0x7fffffffffffffffull /* 3d */
 void pkdPeanoHilbertDecomp(PKD pkd, int nRungs, int iMethod);

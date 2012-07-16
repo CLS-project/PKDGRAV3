@@ -282,6 +282,9 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.bDoRungOutput = 0;
     prmAddParam(msr->prm,"bDoRungOutput",0,&msr->param.bDoRungOutput,sizeof(int),
 		"rungout","enable/disable rung outputs = -rungout");
+    msr->param.bDoRungDestOutput = 0;
+    prmAddParam(msr->prm,"bDoRungDestOutput",0,&msr->param.bDoRungDestOutput,sizeof(int),
+		"rungdestout","enable/disable rung destination outputs = -rungdestout");
     msr->param.dDelta = 0.0;
     prmAddParam(msr->prm,"dDelta",2,&msr->param.dDelta,sizeof(double),"dt",
 		"<time step>");
@@ -1278,6 +1281,7 @@ void msrLogParams(MSR msr,FILE *fp) {
     fprintf(fp," iMaxRung: %d",msr->param.iMaxRung);
     fprintf(fp," nRungVeryActive: %d",msr->param.nRungVeryActive);
     fprintf(fp," bDoRungOutput: %d",msr->param.bDoRungOutput);
+    fprintf(fp," bDoRungDestOutput: %d",msr->param.bDoRungDestOutput);
     fprintf(fp,"\n# bGravStep: %d",msr->param.bGravStep);
     fprintf(fp," bEpsAccStep: %d",msr->param.bEpsAccStep);
     fprintf(fp," bSqrtPhiStep: %d",msr->param.bSqrtPhiStep);
@@ -2261,6 +2265,42 @@ void msrRungOrder(MSR msr, int iRung) {
     }
 #endif
 
+
+void msrDomainDecompORB(MSR msr,int iRung,int bSplitVA) {
+    struct outFreeStore fs;
+    struct inOrbBegin inb;
+    struct inOrbDecomp in;
+    int j;
+
+    /*
+    ** If we are dealing with a nice periodic volume in all
+    ** three dimensions then we can set the initial bounds
+    ** instead of calculating them.
+    */
+    if (msr->param.bPeriodic &&
+	    msr->param.dxPeriod < FLOAT_MAXVAL &&
+	    msr->param.dyPeriod < FLOAT_MAXVAL &&
+	    msr->param.dzPeriod < FLOAT_MAXVAL) {
+	for (j=0;j<3;++j) {
+	    in.bnd.fCenter[j] = msr->fCenter[j];
+	    }
+	in.bnd.fMax[0] = 0.5*msr->param.dxPeriod;
+	in.bnd.fMax[1] = 0.5*msr->param.dyPeriod;
+	in.bnd.fMax[2] = 0.5*msr->param.dzPeriod;
+
+	pstEnforcePeriodic(msr->pst,&in.bnd,sizeof(BND),NULL,NULL);
+	}
+    else {
+	pstCombineBound(msr->pst,NULL,0,&in.bnd,NULL);
+	}
+
+    pstFreeStore(msr->pst,NULL,0,&fs,NULL);
+    inb.iRung = iRung;
+    pstOrbBegin(msr->pst,&inb,sizeof(inb),NULL,NULL);
+    pstOrbDecomp(msr->pst,&in,sizeof(in),NULL,NULL);
+    pstOrbFinish(msr->pst,NULL,0,NULL,NULL);
+    }
+
 void msrDomainDecompOld(MSR msr,int iRung,int bSplitVA) {
     struct inDomainDecomp in;
     uint64_t nActive;
@@ -2402,6 +2442,7 @@ void msrDomainDecompOld(MSR msr,int iRung,int bSplitVA) {
 
     pstDomainDecomp(msr->pst,&in,sizeof(in),NULL,NULL);
 
+
 #ifdef USE_BSC
     MPItrace_event(10000, 0 );
 #endif
@@ -2418,11 +2459,16 @@ void msrDomainDecompOld(MSR msr,int iRung,int bSplitVA) {
 void msrDomainDecomp(MSR msr,int iRung,int bSplitVA) {
 #ifdef MPI_VERSION
     if (prmSpecified(msr->prm,"iDomainMethod")) {
-	if (iRung==0) {
+	double sec,dsec;
+	sec = msrTime();
+	if (msr->param.iDomainMethod<0)
+	    msrDomainDecompORB(msr,iRung,bSplitVA);
+	else if (iRung==0)
 	    msrDomainDecompNew(msr);
-	    }
+	dsec = msrTime() - sec;
+	msrprintf(msr,"Domain Decomposition complete, Wallclock: %f secs\n\n",dsec);
 	msrRungOrder(msr,iRung);
-	}
+ 	}
     else
 #endif 
 	{
@@ -2494,7 +2540,8 @@ void msrReorder(MSR msr) {
     struct inDomainOrder in;
     double sec,dsec;
 
-    in.iMaxOrder = msrMaxOrder(msr)-1;
+//    in.iMaxOrder = msrMaxOrder(msr)-1;
+    in.iMaxOrder = 0x3fffffff;
     msrprintf(msr,"Ordering...\n");
     sec = msrTime();
     pstDomainOrder(msr->pst,&in,sizeof(in),NULL,NULL);
@@ -5859,6 +5906,12 @@ void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint) {
 	msrBuildName(msr,achFile,iStep);
 	strncat(achFile,".rung",256);
 	msrOutArray(msr,achFile,OUT_RUNG_ARRAY);
+	}
+    if (msr->param.bDoRungDestOutput) {
+	msrReorder(msr);
+	msrBuildName(msr,achFile,iStep);
+	strncat(achFile,".rd",256);
+	msrOutArray(msr,achFile,OUT_RUNGDEST_ARRAY);
 	}
     if (msr->param.bDoSoftOutput) {
 	msrReorder(msr);
