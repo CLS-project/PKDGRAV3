@@ -543,6 +543,11 @@ int mdlAllGather( MDL mdl, void *sendbuf, int scount, MDL_Datatype stype,
     return MPI_Allgather(sendbuf, scount, stype, recvbuf, rcount, recvtype, mdl->commMDL);
     } 
 
+int mdlAllGatherv( MDL mdl, void *sendbuf, int scount, MDL_Datatype stype,
+    void *recvbuf, int *recvcnts, int *rdisps, MDL_Datatype recvtype) {
+    return MPI_Allgatherv(sendbuf, scount, stype, recvbuf, recvcnts, rdisps, recvtype, mdl->commMDL);
+    } 
+
 int mdlReduceScatter( MDL mdl, void* sendbuf, void* recvbuf, int *recvcounts,
     MDL_Datatype datatype, MDL_Op op) {
     return MPI_Reduce_scatter(sendbuf, recvbuf, recvcounts, datatype, op, mdl->commMDL );

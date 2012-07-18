@@ -2263,8 +2263,6 @@ void msrRungOrder(MSR msr, int iRung) {
     msrprintf(msr,"Domain Reorder complete, Wallclock: %f secs, moved %llu particles\n\n",
 	dsec, outRung.nMoved);
     }
-#endif
-
 
 void msrDomainDecompORB(MSR msr,int iRung,int bSplitVA) {
     struct outFreeStore fs;
@@ -2300,6 +2298,7 @@ void msrDomainDecompORB(MSR msr,int iRung,int bSplitVA) {
     pstOrbDecomp(msr->pst,&in,sizeof(in),NULL,NULL);
     pstOrbFinish(msr->pst,NULL,0,NULL,NULL);
     }
+#endif
 
 void msrDomainDecompOld(MSR msr,int iRung,int bSplitVA) {
     struct inDomainDecomp in;
