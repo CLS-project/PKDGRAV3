@@ -17,8 +17,15 @@
 #include "rbtree.h"
 #include <sys/stat.h>
 
+#define USE_POTENTIAL_GRADIENT 1
+
+#if USE_POTENTIAL_GRADIENT
 #define PROP(pkd,p) (-*pkdPot((pkd), (p)))
-//#define PROP(pkd,p) (p->fDensity)
+#define PROPGRAD  psdPotentialGrad
+#else
+#define PROP(pkd,p) (p->fDensity)
+#define PROPGRAD  psdDensityGrad
+#endif
 
 #define PSM(i) (psx->psm[i])
 //#define PSM(i) (pkdParticle(pkd, i)->psm)
@@ -123,7 +130,7 @@ void psdDensityGrad(PKD pkd, PSX psx, int pid, FLOAT *fDensityGrad) {
 	    for (j=0; j < 6; j++)
 	    {
 		double dx = psx->pq[i].dr[j]/fBall;
-		double c = (fDensity - psx->pq[i].pPart->fDensity) / fDensity;
+		double c = (fDensity - psx->pq[i].pPart->fDensity) / psx->pq[i].pPart->fDensity;
 		fDensityGrad[j] += (pkdMass(pkd, psx->pq[i].pPart) * c) * grad_ekernel(dx);
 	    }
 	}
@@ -160,7 +167,7 @@ void psdPotentialGrad(PKD pkd, PSX psx, int pid, FLOAT *fPotentialGrad) {
 	    for (j=0; j < 6; j++)
 	    {
 		double dx = psx->pq[i].dr[j]/fBall;
-		double c = (fPot - *pkdPot(pkd, psx->pq[i].pPart)) / fDensity;
+		double c = (fPot - *pkdPot(pkd, psx->pq[i].pPart)) / psx->pq[i].pPart->fDensity;
 		fPotentialGrad[j] += (pkdMass(pkd, psx->pq[i].pPart) * c) * grad_ekernel(dx);
 	    }
 	}
@@ -1177,8 +1184,7 @@ void psdSmoothLink(PSX psx, PSF *smf) {
 	    fprintf(fp, "\n");
 #endif
 
-	    //psdDensityGrad(pkd, psx, pi, fDensityGrad);
-	    psdPotentialGrad(pkd, psx, pi, fDensityGrad);
+	    PROPGRAD(pkd, psx, pi, fDensityGrad);
 	    calc_arclen(psx, fDensityGrad, arclen);
 	    qsort(sorted_nbrs, psx->nSmooth, sizeof(*sorted_nbrs), arclen_compar);
 
