@@ -303,6 +303,8 @@ int mdlAlltoallv( MDL mdl, void *sendbuf, int *sendcnts, int *sdispls, MDL_Datat
     void *recvbuf, int *recvcnts, int *rdispls, MDL_Datatype recvtype);
 int mdlAllGather( MDL mdl, void *sendbuf, int scount, MDL_Datatype stype,
     void *recvbuf, int rcount, MDL_Datatype recvtype);
+int mdlAllGatherv( MDL mdl, void *sendbuf, int scount, MDL_Datatype stype,
+    void *recvbuf, int *recvcnts, int *rdispls, MDL_Datatype recvtype);
 int mdlReduceScatter( MDL mdl, void* sendbuf, void* recvbuf, int *recvcounts,
     MDL_Datatype datatype, MDL_Op op);
 int mdlTypeContiguous(MDL mdl,int count, MDL_Datatype old_type, MDL_Datatype *newtype);

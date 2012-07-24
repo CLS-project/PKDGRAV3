@@ -152,6 +152,20 @@ void pstAddServices(PST pst,MDL mdl) {
 		  (void (*)(void *,void *,int,void *,int *)) pstReadFile,
 		  sizeof(struct inReadFile),0);
 #ifdef MPI_VERSION
+    mdlAddService(mdl,PST_ORB_BEGIN,pst,
+	(void (*)(void *,void *,int,void *,int *)) pstOrbBegin,
+	sizeof(struct inOrbBegin),0);
+    mdlAddService(mdl,PST_ORB_FINISH,pst,
+	(void (*)(void *,void *,int,void *,int *)) pstOrbFinish,0,0);
+    mdlAddService(mdl,PST_ORB_DECOMP,pst,
+                  (void (*)(void *,void *,int,void *,int *)) pstOrbDecomp,
+                  sizeof(struct inOrbDecomp),0);
+    mdlAddService(mdl,PST_ORB_ROOT_FIND,pst,
+                  (void (*)(void *,void *,int,void *,int *)) pstOrbRootFind,
+                  sizeof(struct inOrbRootFind),sizeof(struct outOrbRootFind));
+    mdlAddService(mdl,PST_ORB_SPLIT,pst,
+                  (void (*)(void *,void *,int,void *,int *)) pstOrbSplit,
+                  sizeof(int),0);
     mdlAddService(mdl,PST_PEANOHILBERTDECOMP,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstPeanoHilbertDecomp,
 		  sizeof(struct inPeanoHilbertDecomp),sizeof(struct outPeanoHilbertDecomp));
@@ -1506,6 +1520,113 @@ void _pstRootSplit(PST pst,int iSplitDim,int bDoRootFind,int bDoSplitDimFind,
     }
 
 #ifdef MPI_VERSION
+void pstOrbBegin(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl = pst->plcl;
+    struct inOrbBegin *in = (struct inOrbBegin *)vin;
+    if (pst->nLeaves > 1) {
+        mdlReqService(pst->mdl,pst->idUpper,PST_ORB_BEGIN,vin,nIn);
+        pstOrbBegin(pst->pstLower,vin,nIn,vout,pnOut);
+        mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
+        }
+    else {
+        pkdOrbBegin(plcl->pkd,in->iRung);
+        }
+    }
+
+void pstOrbFinish(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl = pst->plcl;
+    if (pst->nLeaves > 1) {
+        mdlReqService(pst->mdl,pst->idUpper,PST_ORB_FINISH,vin,nIn);
+        pstOrbFinish(pst->pstLower,vin,nIn,vout,pnOut);
+        mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
+        }
+    else {
+        pkdOrbFinish(plcl->pkd);
+        }
+    }
+
+void pstOrbSplit(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl = pst->plcl;
+    int *in = (int*)vin;
+
+    if (pst->nLeaves > 1) {
+        mdlReqService(pst->mdl,pst->idUpper,PST_ORB_SPLIT,NULL,0);
+        pstOrbSplit(pst->pstLower,vin,nIn,vout,pnOut);
+        mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
+        }
+    else {
+        pkdOrbSplit(plcl->pkd,nIn==0?-1:*in);
+        }
+    }
+
+void pstOrbRootFind(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl = pst->plcl;
+    struct inOrbRootFind *in = (struct inOrbRootFind *)vin;
+    struct outOrbRootFind *out = (struct outOrbRootFind *)vout;
+
+    mdlassert(pst->mdl,nIn == sizeof(struct inOrbRootFind));
+    if (pst->nLeaves > 1) {
+	struct inOrbRootFind no;
+	struct outOrbRootFind outno;
+	no.bnd = in->bnd;
+	no.dFraction = 0.0; /* Do not split anyone but us (and maybe not even us) */
+        mdlReqService(pst->mdl,pst->idUpper,PST_ORB_ROOT_FIND,&no,sizeof(no));
+        pstOrbRootFind(pst->pstLower,vin,nIn,vout,pnOut);
+        mdlGetReply(pst->mdl,pst->idUpper,&outno,NULL);
+        }
+    else {
+        out->nDomains = pkdOrbRootFind(plcl->pkd,in->dFraction,in->nLower,in->nUpper,
+	    &in->bnd,&out->dSplit,&out->iDim);
+        }
+    }
+
+/* Our domain must be split -- bounds given as input */
+void pstOrbDecomp(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl = pst->plcl;
+    struct inOrbDecomp *in = (struct inOrbDecomp *)vin;
+    struct inOrbDecomp in2;
+    struct inOrbRootFind irf;
+    struct outOrbRootFind out;
+    int iDomain;
+
+    if (pst->nLeaves > 1) {
+	irf.nLower = pst->nLowerStore;
+	irf.nUpper = pst->nUpperStore;
+	irf.bnd = in->bnd;
+	irf.dFraction = 1.0 * pst->nLower / pst->nLeaves;
+	pstOrbRootFind(pst,&irf,sizeof(irf),&out,NULL);
+	pst->iSplitDim = out.iDim;
+
+	iDomain = pst->idUpper;
+        mdlReqService(pst->mdl,pst->idUpper,PST_ORB_SPLIT,NULL,0);
+        pstOrbSplit(pst->pstLower,&iDomain,sizeof(iDomain),NULL,NULL);
+        mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
+
+
+	in2.bnd = in->bnd;
+	in2.bnd.fMax[out.iDim] = 0.5*(in->bnd.fCenter[out.iDim]+in->bnd.fMax[out.iDim] - out.dSplit);
+	in2.bnd.fCenter[out.iDim] = out.dSplit + in2.bnd.fMax[out.iDim];
+
+	in->bnd.fMax[out.iDim] = 0.5*(out.dSplit - in->bnd.fCenter[out.iDim]+in->bnd.fMax[out.iDim]);
+	in->bnd.fCenter[out.iDim] = out.dSplit - in->bnd.fMax[out.iDim];
+
+        mdlReqService(pst->mdl,pst->idUpper,PST_ORB_DECOMP,&in2,sizeof(in2));
+        pstOrbDecomp(pst->pstLower,vin,nIn,vout,pnOut);
+        mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
+        }
+    else {
+	printf("%d: %g %g  %g %g  %g %g\n",
+	    mdlSelf(pst->mdl),
+	    in->bnd.fCenter[0]-in->bnd.fMax[0], in->bnd.fCenter[0]+in->bnd.fMax[0],
+	    in->bnd.fCenter[1]-in->bnd.fMax[1], in->bnd.fCenter[1]+in->bnd.fMax[1],
+	    in->bnd.fCenter[2]-in->bnd.fMax[2], in->bnd.fCenter[2]+in->bnd.fMax[2]);
+        while(pkdOrbRootFind(plcl->pkd,0,0,0,NULL,NULL,NULL)) {
+	    pstOrbSplit(pst,NULL,0.0,NULL,NULL);
+	    }
+        }
+    if (pnOut) *pnOut = 0;
+    }
+
 void pstPeanoHilbertDecomp(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct inPeanoHilbertDecomp *in = (struct inPeanoHilbertDecomp *)vin;
@@ -1979,27 +2100,19 @@ void pstOrdWeight(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 void pstFreeStore(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct outFreeStore *out = vout;
-    uint64_t nLowerStore,nUpperStore;
-
     mdlassert(pst->mdl,nIn == 0);
-    /*
-      pkdStartTimer(plcl->pkd,4);
-    */
     if (pst->nLeaves > 1) {
 	mdlReqService(pst->mdl,pst->idUpper,PST_FREESTORE,NULL,0);
 	pstFreeStore(pst->pstLower,NULL,0,out,NULL);
-	nLowerStore = out->nFreeStore;
+	pst->nLowerStore = out->nFreeStore;
 	mdlGetReply(pst->mdl,pst->idUpper,out,NULL);
-	nUpperStore = out->nFreeStore;
-	out->nFreeStore = nLowerStore + nUpperStore;
+	pst->nUpperStore = out->nFreeStore;
+	out->nFreeStore = pst->nLowerStore + pst->nUpperStore;
 	}
     else {
 	out->nFreeStore = pkdFreeStore(plcl->pkd);
 	}
     if (pnOut) *pnOut = sizeof(struct outFreeStore);
-    /*
-      pkdStopTimer(plcl->pkd,4);
-    */
     }
 
 

@@ -53,6 +53,7 @@ struct parameters {
     int nPNGResolution;
 #endif
     int bDoRungOutput;
+    int bDoRungDestOutput;
     int bDoGravity;
     int bHermite;
     int bAarsethStep;
