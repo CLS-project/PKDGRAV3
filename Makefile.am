@@ -80,8 +80,8 @@ SOURCES += png.c
 noinst_HEADERS += png.h
 endif
 if USE_PYTHON
-SOURCES += python.c
-noinst_HEADERS += python.h
+SOURCES += pkdpython.c
+noinst_HEADERS += pkdpython.h
 endif
 if USE_CUDA
 .cu.o:
@@ -104,9 +104,11 @@ if USE_CUDA
 pkdgrav2_null_LDADD += @CUDA_LIBS@
 endif
 if USE_PYTHON
-pkdgrav2_null_LDFLAGS = -Xlinker -export-dynamic 
-pkdgrav2_null_LDADD += -L $(PYTHON_LIB) -lpython$(PYTHON_VER) -ldl -lrt -lutil
-pkdgrav2_null_CFLAGS += -I $(PYTHON_INC)
+if HAVE_RDYNAMIC
+pkdgrav2_null_LDFLAGS = -Xlinker -rdynamic 
+endif
+pkdgrav2_null_LDADD += -L$(PYTHON_LIB) -lpython$(PYTHON_VER) -ldl -lrt -lutil
+pkdgrav2_null_CFLAGS += -I$(PYTHON_INC)
 endif
 if LUSTRE
 pkdgrav2_null_LDADD += -llustreapi
@@ -140,9 +142,11 @@ if USE_CUDA
 pkdgrav2_mpi_LDADD += @CUDA_LIBS@
 endif
 if USE_PYTHON
-pkdgrav2_mpi_LDFLAGS = -Xlinker -export-dynamic 
-pkdgrav2_mpi_LDADD += -L $(PYTHON_LIB) -lpython$(PYTHON_VER) -ldl -lutil
-pkdgrav2_mpi_CFLAGS += -I $(PYTHON_INC)
+if HAVE_RDYNAMIC
+pkdgrav2_mpi_LDFLAGS = -Xlinker -rdynamic 
+endif
+pkdgrav2_mpi_LDADD += -L$(PYTHON_LIB) -lpython$(PYTHON_VER) -ldl -lutil
+pkdgrav2_mpi_CFLAGS += -I$(PYTHON_INC)
 endif
 if LUSTRE
 pkdgrav2_mpi_LDADD += -llustreapi
@@ -177,9 +181,11 @@ if USE_CUDA
 pkdgrav2_mpipt_LDADD += @CUDA_LIBS@
 endif
 if USE_PYTHON
-pkdgrav2_mpipt_LDFLAGS = -Xlinker -export-dynamic 
-pkdgrav2_mpipt_LDADD += -L $(PYTHON_LIB) -lpython$(PYTHON_VER) -ldl -lutil
-pkdgrav2_mpipt_CFLAGS += -I $(PYTHON_INC)
+if HAVE_RDYNAMIC
+pkdgrav2_mpipt_LDFLAGS = -Xlinker -rdynamic 
+endif
+pkdgrav2_mpipt_LDADD += -L$(PYTHON_LIB) -lpython$(PYTHON_VER) -ldl -lutil
+pkdgrav2_mpipt_CFLAGS += -I$(PYTHON_INC)
 endif
 if LUSTRE
 pkdgrav2_mpipt_LDADD += -llustreapi
@@ -201,9 +207,11 @@ if USE_CUDA
 pkdgrav2_pthread_LDADD += @CUDA_LIBS@
 endif
 if USE_PYTHON
-pkdgrav2_pthread_LDFLAGS = -Xlinker -export-dynamic 
-pkdgrav2_pthread_LDADD += -L $(PYTHON_LIB) -lpython$(PYTHON_VER) -ldl -lutil
-pkdgrav2_pthread_CFLAGS += -I $(PYTHON_INC)
+if HAVE_RDYNAMIC
+pkdgrav2_pthread_LDFLAGS = -Xlinker -rdynamic 
+endif
+pkdgrav2_pthread_LDADD += -L$(PYTHON_LIB) -lpython$(PYTHON_VER) -ldl -lutil
+pkdgrav2_pthread_CFLAGS += -I$(PYTHON_INC)
 endif
 if LUSTRE
 pkdgrav2_pthread_LDADD += -llustreapi
@@ -225,9 +233,11 @@ if USE_CUDA
 pkdgrav2_sisci_LDADD += @CUDA_LIBS
 endif
 if USE_PYTHON
-pkdgrav2_sisci_LDFLAGS = -Xlinker -export-dynamic 
-pkdgrav2_sisci_LDADD += -L $(PYTHON_LIB) -lpython$(PYTHON_VER) -ldl -lutil
-pkdgrav2_sisci_CFLAGS += -I $(PYTHON_INC)
+if HAVE_RDYNAMIC
+pkdgrav2_sisci_LDFLAGS = -Xlinker -rdynamic 
+endif
+pkdgrav2_sisci_LDADD += -L$(PYTHON_LIB) -lpython$(PYTHON_VER) -ldl -lutil
+pkdgrav2_sisci_CFLAGS += -I$(PYTHON_INC)
 endif
 if LUSTRE
 pkdgrav2_sisci_LDADD += -llustreapi

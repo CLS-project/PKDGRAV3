@@ -25,7 +25,7 @@
 #endif
 
 #ifdef USE_PYTHON
-#include "python.h"
+#include "pkdpython.h"
 #endif
 
 #ifdef USE_MDL_IO

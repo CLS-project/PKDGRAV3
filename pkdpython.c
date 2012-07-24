@@ -9,7 +9,7 @@
 #include "master.h"
 #include "outtype.h"
 #include "intype.h"
-#include "python.h"
+#include "pkdpython.h"
 
 /**********************************************************************\
  ** GLOBAL variables...  Sadly Python is not reentrant
