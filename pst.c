@@ -616,6 +616,12 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_PSD_UPDATEGROUPS,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstPSDUpdateGroups,
 		  nThreads*sizeof(struct inUpdateGroups), 0);
+    mdlAddService(mdl,PST_PSD_MERGENOISYGROUPS,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstPSDMergeNoisyGroups,
+		  0, 0);
+    mdlAddService(mdl,PST_PSD_SETGLOBALID,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstPSDSetGlobalId,
+		  0, 0);
     mdlAddService(mdl,PST_PSD_FINISH,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstPSDFinish,
 		  sizeof(struct inPSD), 0);
@@ -5260,6 +5266,34 @@ void pstPSDUpdateGroups(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
         LCL *plcl = pst->plcl;
         struct inUpdateGroups *d = in+plcl->pkd->idSelf;
         psdUpdateGroups(plcl->pkd->psx, d->offs, d->count);
+        }
+    if (pnOut) *pnOut = 0;
+    }
+
+void pstPSDMergeNoisyGroups(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+
+    if (pst->nLeaves > 1) {
+        mdlReqService(pst->mdl,pst->idUpper,PST_PSD_MERGENOISYGROUPS,NULL,0);
+        pstPSDMergeNoisyGroups(pst->pstLower,NULL,0,NULL,NULL);
+        mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
+        }
+    else {
+        LCL *plcl = pst->plcl;
+        psdMergeNoisyGroups(plcl->pkd->psx);
+        }
+    if (pnOut) *pnOut = 0;
+    }
+
+void pstPSDSetGlobalId(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+
+    if (pst->nLeaves > 1) {
+        mdlReqService(pst->mdl,pst->idUpper,PST_PSD_SETGLOBALID,NULL,0);
+        pstPSDSetGlobalId(pst->pstLower,NULL,0,NULL,NULL);
+        mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
+        }
+    else {
+        LCL *plcl = pst->plcl;
+        psdSetGlobalId(plcl->pkd->psx);
         }
     if (pnOut) *pnOut = 0;
     }

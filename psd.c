@@ -17,7 +17,7 @@
 #include "rbtree.h"
 #include <sys/stat.h>
 
-#define USE_POTENTIAL_GRADIENT 1
+#define USE_POTENTIAL_GRADIENT 0
 
 #if USE_POTENTIAL_GRADIENT
 #define PROP(pkd,p) (-*pkdPot((pkd), (p)))
@@ -1239,9 +1239,9 @@ void psdSmoothLink(PSX psx, PSF *smf) {
 
 		    if (pkd->oAcceleration)
 		    {
-			pkdAccel(pkd, p)[1] = nbr->pPart->r[0] - p->r[0];
-			pkdAccel(pkd, p)[2] = nbr->pPart->r[1] - p->r[1];
-			pkdAccel(pkd, p)[0] = nbr->pPart->r[2] - p->r[2];
+			pkdAccel(pkd, p)[0] = nbr->pPart->r[0] - p->r[0];
+			pkdAccel(pkd, p)[1] = nbr->pPart->r[1] - p->r[1];
+			pkdAccel(pkd, p)[2] = nbr->pPart->r[2] - p->r[2];
 		    }
 
 		    break;
@@ -1669,6 +1669,10 @@ void psdUpdateGroups(PSX psx, int offs, int count)
     /*
     ** Now bring over the global ids from remote groups. We use a stack to save the data
     ** so that the cache doesn't see half updated data.
+    **
+    ** XXX: The stack may be unnecessary because local groups are not touched and here
+    ** we only access local groups on remote machines and update groups that no one else
+    ** would be requesting (because they will ask the machine the group is local to).
     */
 
     //fprintf(stderr, "%i] nGroups %i\n", pkd->idSelf, pkd->nGroups);
@@ -1786,6 +1790,14 @@ void psdUpdateGroups(PSX psx, int offs, int count)
     mdlFinishCache(pkd->mdl,CID_GROUP);
 
 #endif
+    FREE_STACK(G);
+}
+
+void psdSetGlobalId(PSX psx)
+{
+    int i;
+    PKD pkd = psx->pkd;
+    PSGD *gd = pkd->psGroupData;
 
     /*
     ** Update particles with their global group id.
@@ -1798,10 +1810,142 @@ void psdUpdateGroups(PSX psx, int offs, int count)
 	    *pkdGroup(pkd, p) = 0;
 	else
 #endif
-	    *pkdGroup(pkd, p) = gd[*pkdGroup(pkd, p)].iGlobalId;
+	*pkdGroup(pkd, p) = gd[*pkdGroup(pkd, p)].iGlobalId;
 	//*pkdGroup(pkd, p) = *pkdGroup(pkd, p) % 256;
     }
 
-    FREE_STACK(G);
 }
 
+static void initSaddle(void *vpkd, void *a)
+{
+    PSGD *g = (PSGD *)a;
+    g->fSaddleDensity = 0;
+    g->iSaddleParticle = 0;
+}
+
+static void combSaddle(void *vpkd, void *a, void *b)
+{
+    PSGD * g1 = (PSGD *)a;
+    PSGD * g2 = (PSGD *)b;
+    if (g2->fSaddleDensity > g1->fSaddleDensity)
+    {
+	g1->fSaddleDensity  = g2->fSaddleDensity;
+	g1->iSaddleParticle = g2->iSaddleParticle;
+    }
+}
+
+void psdMergeNoisyGroups(PSX psx)
+{
+#if  0
+    PKD pkd = psx->pkd;
+    PQ6 *pq = psx->pq;
+    int64_t i;
+    int pi, pj;
+    struct knn_data knn_data;
+    int c;
+    PSGD *gd = pkd->psGroupData;
+
+#define TEMP_S_INCREASE 100
+    int *G; NEW_STACK(G, TEMP_S_INCREASE);
+    int *S; NEW_STACK(S, TEMP_S_INCREASE);
+
+    mdlROcache(pkd->mdl,CID_PARTICLE,NULL, pkdParticleBase(pkd),pkdParticleSize(pkd), pkd->nLocal);
+    mdlROcache(pkd->mdl,CID_GROUP,NULL,pkd->psGroupData,sizeof(PSGD), pkd->nGroups); //,pkd,initSaddle,combSaddle);
+
+    for (pi=0;pi<pkd->nLocal;++pi) 
+    {
+	pq = knn(psx,pq, pi, &knn_data, pi==0);
+
+	PARTICLE *p = pkdParticle(pkd, pi);
+
+	int gid = gd[*pkdGroup(pkd, p)].iGlobalId;
+
+	c = 0;
+	for (pj=0; pj < psx->nSmooth; pj++)
+	{
+	    int nbr_gid = *pkdGroup(pkd, psx->pq[pj].pPart);
+	    int nbr_grp_iLocal,
+	        nbr_grp_iPid;
+
+	    int in_other_group = 0;
+
+	    /* Is a neighbor in another group? */
+	    if (psx->pq[pj].iPid != pkd->idSelf)
+	    {
+		PSGD *remote_gd = mdlAquire(pkd->mdl,CID_GROUP, nbr_gid, psx->pq[pj].iPid);
+		in_other_group = remote_gd->iGlobalId != gid;
+		nbr_grp_iLocal = remote_gd->iLocal;
+		nbr_grp_iPid   = remote_gd->iPid;
+		mdlRelease(pkd->mdl,CID_GROUP,remote_gd);
+	    }
+	    else
+	    {
+		in_other_group = gd[nbr_gid].iGlobalId != gid;
+		nbr_grp_iLocal = gd[nbr_gid].iLocal;
+		nbr_grp_iPid   = gd[nbr_gid].iPid;
+	    }
+
+	    /* If so, and it is close enough, we could be a saddle point. */
+	    if (in_other_group)
+	    {
+		if (sqrt(psx->pq[pj].fDist2) < 0.01)
+		{
+		    c = 1;
+		    if (p->fDensity > gd[*pkdGroup(pkd, p)].fSaddleDensity)
+		    {
+			gd[*pkdGroup(pkd, p)].fSaddleDensity = p->fDensity;
+			gd[*pkdGroup(pkd, p)].iSaddleParticle = pi;
+			EXTEND_STACK(S);
+			PUSH(S,pi);
+			break;
+		    }
+		}
+	    }
+
+	}
+
+	mdlCacheCheck(pkd->mdl);
+
+	//if (pj == psx->nSmooth)
+	if (c == 0) //< psx->nSmooth/2)
+	{
+	    EXTEND_STACK(G);
+	    PUSH(G,pi);
+	}
+
+	if (c != 0)
+	{
+	}
+    }
+
+    /*
+    ** Release acquired pointers and source-reactivate particles in prioq.
+    */
+    for (i=0;i<psx->nSmooth;++i) {
+	if (psx->pq[i].iPid == pkd->idSelf) {
+	    psx->ea[psx->pq[i].iIndex].bInactive = 0;
+	}
+	else {
+	    psHashDel(psx,psx->pq[i].pPart);
+	    mdlRelease(pkd->mdl,CID_PARTICLE,psx->pq[i].pPart);
+	}
+    }
+    mdlFinishCache(pkd->mdl,CID_GROUP);
+    mdlFinishCache(pkd->mdl,CID_PARTICLE);
+
+    psdSetGlobalId(psx);
+    while (!STACK_EMPTY(G))
+    {
+	*pkdGroup(pkd, pkdParticle(pkd,POP(G))) = 0;
+    }
+
+    while (!STACK_EMPTY(S))
+    {
+	*pkdGroup(pkd, pkdParticle(pkd,POP(S))) = 1000;
+    }
+
+    //mdlROcache(pkd->mdl,CID_PARTICLE,NULL, pkdParticleBase(pkd),pkdParticleSize(pkd), pkd->nLocal);
+
+    FREE_STACK(G);
+#endif
+}

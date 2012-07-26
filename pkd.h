@@ -589,6 +589,8 @@ typedef struct psGroupData {
     int iPid;
     int bridge;
     int dup;
+    FLOAT fSaddleDensity;
+    int iSaddleParticle;
     FLOAT fMass;
     FLOAT fRMSRadius;
     FLOAT r[3];

@@ -6631,6 +6631,10 @@ void msrPSGroupFinder(MSR msr) {
 
     pstPSDUpdateGroups(msr->pst, ug, msr->nThreads*sizeof(*ug), NULL, NULL);
 
+    //pstPSDMergeNoisyGroups(msr->pst, NULL, 0, NULL, NULL);
+    pstPSDSetGlobalId(msr->pst, NULL, 0, NULL, NULL);
+
+
     /*
     ** Unbind the groups
     */
