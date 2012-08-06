@@ -183,6 +183,8 @@ void psdSmooth(PSX smx, PSF *smf);
 void psdSmoothLink(PSX smx, PSF *smf);
 int psdJoinBridges(PSX psx, PSF *smf);
 int psdCountLocalGroups(PSX psx);
+void psdMergeNoisyGroups(PSX psx);
+void psdSetGlobalId(PSX psx);
 
 #endif
 

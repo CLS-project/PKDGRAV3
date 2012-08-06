@@ -1961,7 +1961,7 @@ FIO fioGadgetCreate(
     gio->fp_pos.iDouble = (mFlags&FIO_FLAG_DOUBLE_POS) ? sizeof(double) : sizeof(float);
     gio->fp_vel.iDouble = (mFlags&FIO_FLAG_DOUBLE_VEL) ? sizeof(double) : sizeof(float);
     gio->fp_id.iDouble = sizeof(uint32_t);
-    gio->fp_mass.iDouble = sizeof(uint32_t);
+    gio->fp_mass.iDouble = sizeof(float);
     gio->fp_pos.nPer = 3;
     gio->fp_vel.nPer = 3;
     gio->fp_id.nPer = 1;
@@ -2083,7 +2083,6 @@ static int gadgetReadCommon(fioGADGET *gio,uint64_t *piOrder,double *pdPos,doubl
 	if (freadSwap(&iTmp, sizeof(uint32_t), 1, gio->fp_id.fp,gio->bSwap)!=1) abort();
 	*piOrder = iTmp;
 	}
-    *piOrder -= 1;
     if ( gio->fp_pos.iDouble == sizeof(double)) {
 	if (freadSwap(pdPos, sizeof(double), 3, gio->fp_pos.fp,gio->bSwap) != 3) abort();
 	}
@@ -2098,6 +2097,17 @@ static int gadgetReadCommon(fioGADGET *gio,uint64_t *piOrder,double *pdPos,doubl
 	if (freadSwap(fTmp, sizeof(float), 3, gio->fp_vel.fp,gio->bSwap) != 3) abort();
 	for(d=0; d<3; ++d) pdVel[d] = fTmp[d];
 	}
+#ifdef CLUES_COMPILE
+    {
+	//srand(0);
+	double u = 2*drand48() - 1;
+	double t = drand48() * 2 * M_PI;
+	double r = drand48() * 0.15 * 1e-8;
+	pdPos[0] += r * sqrt(1-u*u)*cos(t); 
+	pdPos[1] += r * sqrt(1-u*u)*sin(t); 
+	pdPos[2] += r * u;
+    }
+#endif
     if ( gio->hdr.BoxSize > 0.0 ) {
 	for(d=0; d<3; ++d) {
 	    pdPos[d] = pdPos[d] * gio->pos_fac + gio->pos_off;
@@ -2116,6 +2126,9 @@ static int gadgetReadCommon(fioGADGET *gio,uint64_t *piOrder,double *pdPos,doubl
 	}
     *pfMass *= gio->mass_fac;
 
+#ifdef CLUES_COMPILE
+    assert(*pfMass > 0);
+#endif
     if ( ++gio->iType >= gio->hdr.Npart[gio->eType] ) {
 	while( ++gio->eType < GADGET2_NTYPES)
 	    if ( gio->hdr.Npart[gio->eType] ) break;
@@ -2310,8 +2323,18 @@ static FIO gadgetOpenOne(const char *fname) {
 	double dTotalMass = 0.0;
 	gio->pos_fac = 1.0 / gio->hdr.BoxSize;
 	gio->pos_off = -0.5;
+#ifndef CLUES_COMPILE
 	gio->vel_fac = sqrt(8.0/3.0*M_PI) / (gio->hdr.BoxSize*100.0 * sqrt(gio->hdr.Time));
 	gio->mass_fac = 8.0 * M_PI * 4.30172 / (pow(gio->hdr.BoxSize,3.0) * 3.0e3);
+#else
+	fprintf(stderr, "*** Compiled for CLUES simulation. Converts lengths to kpc/h. ***\n");
+	fprintf(stderr, "*** BoxSize is %e\n", gio->hdr.BoxSize);
+	fprintf(stderr, "*** Time is %e\n", gio->hdr.Time);
+	gio->vel_fac = sqrt(8.0/3.0*M_PI) / (gio->hdr.BoxSize/1000.0*100.0*sqrt(gio->hdr.Time));
+	gio->mass_fac = 8.0 * M_PI * 4.30172 / (pow(gio->hdr.BoxSize/1000.0,3.0) * 3.0e3);
+	fprintf(stderr, "*** vel_fac %e\n", gio->vel_fac);
+	fprintf(stderr, "*** mass_fac %e\n", gio->mass_fac);
+#endif
 	}
     else {
 	gio->pos_fac = 1.0;

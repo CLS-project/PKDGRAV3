@@ -7,7 +7,9 @@
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
+#if !defined(HAVE_CONFIG_H) || defined(HAVE_MALLOC_H)
 #include <malloc.h>
+#endif
 #include <assert.h>
 #include <limits.h>
 #include <stdarg.h>

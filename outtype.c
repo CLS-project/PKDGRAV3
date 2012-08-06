@@ -25,13 +25,15 @@
 #define OUTTYPE_INTEGER 1
 #define OUTTYPE_FLOAT 2
 #define OUTTYPE_RUNGDEST 3
+#define OUTTYPE_PSGROUP 4
 
 static int getType(int iType) {
     switch(iType) {
     case OUT_IORDER_ARRAY:
     case OUT_GROUP_ARRAY:
-    case OUT_PSGROUP_ARRAY:
 	return OUTTYPE_INTEGER;
+    case OUT_PSGROUP_ARRAY:
+	return OUTTYPE_PSGROUP;
 
     case OUT_BALL_ARRAY:
     case OUT_DENSITY_ARRAY:
@@ -76,6 +78,7 @@ static uint64_t fetchInteger(PKD pkd,PARTICLE *p,int iType,int iDim) {
 	v = *pkdGroup(pkd,p);
 	break;
     case OUT_PSGROUP_ARRAY:
+	assert(0);
 	//v = pkd->psGroupData[*pkdGroup(pkd,p)].iGlobalId;
 	v = *pkdGroup(pkd,p);
 	break;
@@ -237,6 +240,14 @@ static void storeHdr(PKD pkd,PKDOUT ctx,uint64_t N) {
 static void finish(PKD pkd,PKDOUT ctx) {
     (*ctx->fnFlush)(pkd,ctx,0); /* Flush input buffer */
     (*ctx->fnFlush)(pkd,ctx,1); /* Finish output stream */
+    }
+
+static void storePsGroup(PKD pkd,PKDOUT ctx,PARTICLE *p,int iType,int iDim) {
+    if ( PKDOUT_BUFFER_SIZE - (ctx->inOffset-ctx->inBuffer) < 40 )
+	(*ctx->fnFlush)(pkd,ctx,0);
+    sprintf(ctx->inOffset,"%"PRIu64" %i\n",(uint64_t)p->iOrder, *pkdGroup(pkd,p));
+    assert(strlen(ctx->inOffset) < 40 );
+    while( *ctx->inOffset ) ++ctx->inOffset;
     }
 
 /******************************************************************************\
@@ -447,6 +458,9 @@ PKDOUT pkdStartOutASCII(PKD pkd,int iFile, int iType) {
     case OUTTYPE_RUNGDEST:
 	ctx->fnOut = storeRungDest;
 	break;
+    case OUTTYPE_PSGROUP:
+	ctx->fnOut = storePsGroup;
+	break;
 
     default:
 	assert(0);
@@ -537,6 +551,9 @@ PKDOUT pkdOpenOutASCII(PKD pkd,char *pszFileName,const char *mode,int iFile,int 
 	break;
     case OUTTYPE_RUNGDEST:
 	ctx->fnOut = storeRungDest;
+	break;
+    case OUTTYPE_PSGROUP:
+	ctx->fnOut = storePsGroup;
 	break;
     default:
 	assert(0);

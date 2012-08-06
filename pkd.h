@@ -589,6 +589,8 @@ typedef struct psGroupData {
     int iPid;
     int bridge;
     int dup;
+    FLOAT fSaddleDensity;
+    int iSaddleParticle;
     FLOAT fMass;
     FLOAT fRMSRadius;
     FLOAT r[3];
@@ -669,11 +671,7 @@ typedef struct pkdContext {
     uint64_t nDark;
     uint64_t nGas;
     uint64_t nStar;
-#ifdef USE_PSD
     FLOAT fPeriod[6];
-#else
-    FLOAT fPeriod[3];
-#endif
     char *kdTopPRIVATE; /* Because this is a variable size, we use a char pointer, not a KDN pointer! */
     char **kdNodeListPRIVATE; /* BEWARE: also char instead of KDN */
     int iTopRoot;
@@ -943,11 +941,7 @@ static inline size_t pkdNodeSize( PKD pkd ) {
     return pkd->iTreeNodeSize;
     }
 static inline size_t pkdMaxNodeSize() {
-#ifdef USE_PSD
     return sizeof(KDN) + 2*sizeof(BND) + sizeof(FMOMR) + 6*sizeof(double) + sizeof(SPHBNDS);
-#else
-    return sizeof(KDN) +  7*sizeof(double) + sizeof(FMOMR) + 6*sizeof(double) + sizeof(SPHBNDS);
-#endif
     }
 static inline void pkdCopyNode(PKD pkd, KDN *a, KDN *b) {
     memcpy(a,b,pkdNodeSize(pkd));
@@ -1413,6 +1407,7 @@ void pkdGridProject(PKD pkd);
 void pkdMeasurePk(PKD pkd, double dCenter[3], double dRadius,
 		  int nGrid, float *fPower, int *nPower);
 #endif
+void pkdOutPsGroup(PKD pkd,char *pszFileName,int iType);
 void pkdUnbind(PKD pkd);
 
 #ifdef USE_CUDA

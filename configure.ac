@@ -402,14 +402,6 @@ AC_ARG_ENABLE(symba,
  	[Define if symba should be used.])])
 AM_CONDITIONAL(SYMBA, test "x$SYMBA" = "xyes")
 
-# PSD
-AC_ARG_ENABLE(psd,
-  [  --enable-psd                 enable phase-space options],
-  [PSD=yes
-   AC_DEFINE([USE_PSD], 1,
- 	[Define if phase-space coordinates/functions should be available.])])
-AM_CONDITIONAL(PSD, test "x$PSD" = "xyes")
-
 # Check if pthread is available
 AC_CHECK_LIB([pthread], [pthread_create],[HAVE_PTHREAD=yes],[HAVE_PTHREAD=no])
 if test "x$HAVE_PTHREAD" = "xyes" ; then
@@ -559,6 +551,14 @@ if test "x$HAVE_POSIX_MEMALIGN" == "xyes" ; then
 	[This is needed for posix_memalign to be defined in stdlib.h])
 fi
 
+AC_MSG_CHECKING([if the linker accepts -rdynamic])
+oldLDFLAGS="$LDFLAGS"; LDFLAGS="-Xlinker -rdynamic"
+AC_TRY_LINK([],[],
+AC_MSG_RESULT(yes); HAVE_RDYNAMIC="yes",
+AC_MSG_RESULT(no);)
+LDFLAGS="$oldLDFLAGS"
+AM_CONDITIONAL(HAVE_RDYNAMIC,test "x$HAVE_RDYNAMIC" = "xyes")
+
 AC_CHECK_LIB([bz2],[BZ2_bzWriteOpen])
 
 # Checks for header files.
@@ -602,8 +602,11 @@ fi
 AC_CHECK_FUNCS([wordexp wordfree glob globfree gethostname getpagesize mkdir])
 AC_CHECK_FUNCS([floor gettimeofday pow sqrt strchr strdup strrchr strstr],,[AC_MSG_ERROR([not found])])
 
+
+
 AC_CONFIG_FILES([Makefile])
 if test "x$USE_GRAFIC" != "xno" ; then
   AC_CONFIG_SUBDIRS([grafic])
 fi
+
 AC_OUTPUT
