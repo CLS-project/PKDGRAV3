@@ -195,7 +195,7 @@ typedef union {
     ATTRIBUTE_ALIGNED_ALIGNOF(__m256) __m128i p4[2];
     } avx_punner;
 static inline v4i SIMD_CMP_EQ_EPI32(v4i a,v4i b) {
-    register avx_punner x,y;
+    avx_punner x,y;
     x.p8 = a;
     y.p8 = b;
     x.p4[0] = _mm_cmpeq_epi32(x.p4[0],y.p4[0]);
@@ -207,7 +207,7 @@ static inline v4i SIMD_CMP_GT_EPI32(v4i a,v4i b) {
 	ATTRIBUTE_ALIGNED_ALIGNOF(__m256) __m256i p8;
 	ATTRIBUTE_ALIGNED_ALIGNOF(__m256) __m128i p4[2];
 	} punner;
-    register avx_punner x,y;
+    avx_punner x,y;
     x.p8 = a;
     y.p8 = b;
     x.p4[0] = _mm_cmpgt_epi32(x.p4[0],y.p4[0]);
@@ -270,7 +270,7 @@ static inline v4sf SIMD_RSQRT_EXACT(v4sf B) {
 
 #ifdef __SSE3__
 static inline float SIMD_HADD(v4sf p) {
-    register v4 r;
+    v4 r;
     r.p = p;
     r.p = MM_FCN(hadd_ps)(r.p,r.p);
     r.p = MM_FCN(hadd_ps)(r.p,r.p);
