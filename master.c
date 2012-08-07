@@ -2264,11 +2264,12 @@ void msrRungOrder(MSR msr, int iRung) {
 	dsec, outRung.nMoved);
     }
 
-void msrDomainDecompORB(MSR msr,int iRung,int bSplitVA) {
+void msrDomainDecompORB(MSR msr) {
     struct outFreeStore fs;
     struct inOrbBegin inb;
+    struct inOrbSelectRung inr;
     struct inOrbDecomp in;
-    int j;
+    int j, iRung;
 
     /*
     ** If we are dealing with a nice periodic volume in all
@@ -2293,9 +2294,16 @@ void msrDomainDecompORB(MSR msr,int iRung,int bSplitVA) {
 	}
 
     pstFreeStore(msr->pst,NULL,0,&fs,NULL);
-    inb.iRung = iRung;
+    inb.nRungs = msr->param.nDomainRungs;
     pstOrbBegin(msr->pst,&inb,sizeof(inb),NULL,NULL);
-    pstOrbDecomp(msr->pst,&in,sizeof(in),NULL,NULL);
+    for(iRung=0; iRung<msr->param.nDomainRungs; ++iRung) {
+	inr.iRung = iRung;
+	msrprintf(msr,"Domain Decomposition for rung %d\n",
+	    iRung);
+	pstOrbSelectRung(msr->pst,&inr,sizeof(inr),NULL,NULL);
+	pstOrbDecomp(msr->pst,&in,sizeof(in),NULL,NULL);
+	pstOrbUpdateRung(msr->pst,NULL,0,NULL,NULL);
+	}
     pstOrbFinish(msr->pst,NULL,0,NULL,NULL);
     }
 #endif
@@ -2460,10 +2468,12 @@ void msrDomainDecomp(MSR msr,int iRung,int bSplitVA) {
     if (prmSpecified(msr->prm,"iDomainMethod")) {
 	double sec,dsec;
 	sec = msrTime();
-	if (msr->param.iDomainMethod<0)
-	    msrDomainDecompORB(msr,iRung,bSplitVA);
-	else if (iRung==0)
-	    msrDomainDecompNew(msr);
+	if (iRung==0) {
+	    if (msr->param.iDomainMethod<0)
+		msrDomainDecompORB(msr);
+	    else 
+		msrDomainDecompNew(msr);
+	    }
 	dsec = msrTime() - sec;
 	msrprintf(msr,"Domain Decomposition complete, Wallclock: %f secs\n\n",dsec);
 	msrRungOrder(msr,iRung);
@@ -3767,6 +3777,7 @@ void msrTopStepKDK(MSR msr,
 	    msrDensityStep(msr,iRung,MAX_RUNG,dTime);
 	    }
 	iRungVeryActive = msrUpdateRung(msr,iRung);
+	if (iRung==0) msrDomainDecomp(msr,0,0);
         }
 
     msrprintf(msr,"%*cmsrKickOpen  at iRung: %d 0.5*dDelta: %g\n",
