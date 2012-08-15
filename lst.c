@@ -50,6 +50,11 @@ LSTTILE *lstNewTile(LST *lst) {
 	for( i=0; i<lst->nAreas; ++i) {
 	    blks[i] = (*lst->info[i].fnAllocate)(lst->info[i].nAreaSize * lst->nBlocksPerTile);
 	    assert(blks[i] != NULL);
+	    /*
+	    ** This memset is important. For SIMD versions, the lists must contain valid
+	    ** floating point data so we set everything to zero.
+	    */
+	    memset(blks[i],0,lst->info[i].nAreaSize * lst->nBlocksPerTile);
 	    }
 	lst->freeList->nTiles++;
 	}
