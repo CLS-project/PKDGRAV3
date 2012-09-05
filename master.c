@@ -216,9 +216,9 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.nBucket = 8;
     prmAddParam(msr->prm,"nBucket",1,&msr->param.nBucket,sizeof(int),"b",
 		"<max number of particles in a bucket> = 8");
-    msr->param.nGroup = 256;
+    msr->param.nGroup = 64;
     prmAddParam(msr->prm,"nGroup",1,&msr->param.nGroup,sizeof(int),"grp",
-		"<max number of particles in a group> = 256");
+		"<max number of particles in a group> = 64");
     msr->param.n2min = 50;
     prmAddParam(msr->prm,"n2min",1,&msr->param.n2min,sizeof(int),"nn",
 		"<minimum number of p-p interactions for using c-c interactions> = 50");
