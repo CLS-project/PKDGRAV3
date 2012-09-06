@@ -465,6 +465,7 @@ static inline void *mdlAquire(MDL mdl,int cid,int iIndex,int id) {
 
 
 void mdlRelease(MDL,int,void *);
+void mdlFlushCache(MDL,int);
 /*
  ** Cache statistics functions.
  */

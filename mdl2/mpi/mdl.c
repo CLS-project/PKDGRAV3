@@ -1420,6 +1420,87 @@ void mdlCOcache(MDL mdl,int cid,
     MPI_Barrier(mdl->commMDL);
     }
 
+void mdlFlushCache(MDL mdl,int cid) {
+    CACHE *c = &mdl->cache[cid];
+    CAHEAD caOut;
+    CAHEAD *caFlsh = (CAHEAD *)mdl->pszFlsh;
+    char *pszFlsh = &mdl->pszFlsh[sizeof(CAHEAD)];
+    mdlkey_t iKey;
+    int i,id;
+    char *t;
+    int j;
+    int last;
+    MPI_Status status;
+    MPI_Request reqFlsh;
+    MPI_Request reqBoth[2];
+    int index;
+
+#if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
+	{
+	ticks nTicks = getticks();
+	mdl->dComputing += elapsed( nTicks, mdl->nTicks );
+	mdl->nTicks = nTicks;
+	}
+#endif
+    if (c->iType == MDL_COCACHE) {
+	/*
+	 ** Must flush all valid data elements.
+	 */
+	caFlsh->cid = cid;
+	caFlsh->mid = MDL_MID_CACHEFLSH;
+	caFlsh->id = mdl->idSelf;
+	for (i=1;i<c->nLines;++i) {
+	    iKey = c->pTag[i].iKey;
+	    if (iKey != MDL_INVALID_KEY) {
+		/*
+		 ** Flush element since it is valid!
+		 */
+		id = mdlkey_t_to_int(iKey & c->iIdMask);
+		caFlsh->iLine = mdlkey_t_to_int(iKey >> c->iInvKeyShift);
+		t = &c->pLine[i*c->iLineSize];
+		for (j = 0; j < c->iLineSize; ++j)
+		    pszFlsh[j] = t[j];
+		/*
+		 * Use Synchronous send so as not to
+		 * overwhelm the receiver.
+		 */
+		MPI_Issend(caFlsh, (int)sizeof(CAHEAD)+c->iLineSize,
+			   MPI_BYTE, id, MDL_TAG_CACHECOM,
+			   mdl->commMDL, &reqFlsh);
+		/*
+		 * Wait for the Flush to complete, but
+		 * also service any incoming cache requests.
+		*/
+		reqBoth[0] = mdl->ReqRcv;
+		reqBoth[1] = reqFlsh;
+
+		while (1) {
+		    MPI_Waitany(2, reqBoth, &index, &status);
+		    assert(!(index != 0 && reqBoth[0] ==
+			     MPI_REQUEST_NULL));
+		    mdl->ReqRcv = reqBoth[0];
+		    if (index == 1) /* Flush has completed */
+			break;
+		    else if (index == 0) {
+			mdlCacheReceive(mdl, NULL);
+			reqBoth[0] = mdl->ReqRcv;
+			}
+		    else
+			assert(0);
+		    }
+		}
+		c->pTag[i].iKey = MDL_INVALID_KEY;
+	    }
+	}
+#if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
+	{
+	ticks nTicks = getticks();
+	mdl->dSynchronizing += elapsed( nTicks, mdl->nTicks );
+	mdl->nTicks = nTicks;
+	}
+#endif
+    }
+
 void mdlFinishCache(MDL mdl,int cid) {
     CACHE *c = &mdl->cache[cid];
     CAHEAD caOut;
