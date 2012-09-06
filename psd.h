@@ -58,7 +58,7 @@ struct smExtraArray {
 };
 #endif
 
-struct bridge_info
+struct bridge
 {
     int32_t local_gid;
     int32_t remote_gid;
@@ -74,7 +74,7 @@ typedef struct psContext {
     int bPeriodic;
     PQ6 *pq;
     PSMETRIC *psm;
-    struct bridge_info *bridges;
+    struct bridge *bridges;
     int nBridges;
     /*
     ** Flags to mark local particles which are inactive either because they

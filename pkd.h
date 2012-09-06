@@ -63,6 +63,7 @@ static inline int64_t d2u64(double d) {
 #define CID_SHAPES	5
 #define CID_PK          2
 #define CID_PNG         2
+#define CID_SADDLE_BUF  3
 
 /*
 ** These macros implement the index manipulation tricks we use for moving
@@ -583,14 +584,57 @@ typedef struct groupData {
     int iFirstRm;
 } FOFGD;
 
+struct saddle_point_group
+{
+    int iGlobalId;
+    int iLocalId;
+    int iPid;
+    FLOAT fDensity;
+};
+
+struct saddle_point
+{
+    /* Information about the particle that is the saddle point */
+    FLOAT fDensity;
+    int iLocalId;
+    int iPid;
+
+    /* The group that owns the saddle point */
+    struct saddle_point_group owner;
+    /* The other group joined by the saddle point */
+    struct saddle_point_group nbr;
+    struct saddle_point_group parent;
+};
+
+struct saddle_point_buffer
+{
+    /* Destination Group Id. I.e., who should get the following saddle points. */
+    int iLocalId;
+    int iGlobalId;
+
+    int nSaddlePoints;
+    struct saddle_point sp[32];
+};
+
+struct saddle_point_list
+{
+    /* Number of saddle points in the list */
+    int n;
+    /* Size of allocated array */
+    int size;
+
+    struct saddle_point *sp;
+    struct saddle_point_buffer *buf;
+};
+
 typedef struct psGroupData {
     int iLocalId;
     int iGlobalId;
     int iPid;
     int bridge;
     int dup;
-    FLOAT fSaddleDensity;
-    int iSaddleParticle;
+    int nSaddlePoints;
+    int *sp;
     FLOAT fMass;
     FLOAT fRMSRadius;
     FLOAT r[3];
@@ -794,6 +838,7 @@ typedef struct pkdContext {
     int nGroups;
     PSGD *psGroupData;
     FOFGD *groupData;
+    struct saddle_point_list saddle_points;
     int nRm;
     int nMaxRm;
     FOFRM *remoteMember;

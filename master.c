@@ -487,6 +487,9 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.bFindGroups = 0;
     prmAddParam(msr->prm,"bFindGroups",0,&msr->param.bFindGroups,sizeof(int),
 		"groupfinder","<enable/disable group finder> = -groupfinder");
+    msr->param.bFindPSGroups = 0;
+    prmAddParam(msr->prm,"bFindPSGroups",0,&msr->param.bFindPSGroups,sizeof(int),
+		"psgroupfinder","<enable/disable phase-space group finder> = -psgroupfinder");
     msr->param.nMinMembers = 16;
     prmAddParam(msr->prm,"nMinMembers",1,&msr->param.nMinMembers,sizeof(int),
 		"nMinMembers","<minimum number of group members> = 16");
@@ -1350,6 +1353,8 @@ void msrLogParams(MSR msr,FILE *fp) {
     fprintf(fp," SFdInitStarMass %g",msr->param.SFdInitStarMass);
     fprintf(fp," SFdMinGasMass %g",msr->param.SFdMinGasMass);
     fprintf(fp," SFbdivv %d",msr->param.SFbdivv);
+    /* -- */
+    fprintf(fp,"\n# Group Find: bFindPSGroups: %d",msr->param.bFindPSGroups);
     /* -- */
     fprintf(fp,"\n# Group Find: bFindGroups: %d",msr->param.bFindGroups);
     fprintf(fp," dTau: %g",msr->param.dTau);
@@ -4861,6 +4866,22 @@ void msrDeleteGroups(MSR msr) {
     plcl->pkd->nGroups = 0;
     }
 
+void msrDeletePSGroups(MSR msr) {
+
+    LCL *plcl;
+    PST pst0;
+
+    pst0 = msr->pst;
+    while (pst0->nLeaves > 1)
+	pst0 = pst0->pstLower;
+    plcl = pst0->plcl;
+
+    if (plcl->pkd->psGroupData) mdlFree(msr->mdl, plcl->pkd->psGroupData);
+    /*if (plcl->pkd->groupBin)free(plcl->pkd->groupBin); */
+    /*plcl->pkd->nBins = 0; */
+    plcl->pkd->nGroups = 0;
+    }
+
 void msrInitRelaxation(MSR msr) {
     pstInitRelaxation(msr->pst,NULL,0,NULL,NULL);
     }
@@ -5882,6 +5903,32 @@ void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint) {
 	if ( nFOFsDone )msrDeleteGroups(msr);
 	}
 
+    if ( msr->param.bFindPSGroups ) {
+	/*
+	** Build tree, activating all particles first (just in case).
+	*/
+	msrActiveRung(msr,0,1); /* Activate all particles */
+	msrDomainDecomp(msr,0,0);
+	msrPSGroupFinder(msr); /*,csmTime2Exp(msr->param.csm,dTime)); */
+	if (msr->param.nBins > 0) msrGroupProfiles(msr,csmTime2Exp(msr->param.csm,dTime));
+	msrReorder(msr);
+
+	msrBuildName(msr,achFile,iStep);
+	strncat(achFile,".psgrp",256);
+	msrOutArray(msr,achFile,OUT_PSGROUP_ARRAY);
+
+	msrBuildName(msr,achFile,iStep);
+	strncat(achFile,".psstats",256);
+	msrOutGroups(msr,achFile,OUT_PSGROUP_STATS,dTime);
+
+	if ( msr->nBins > 0) {
+	    msrBuildName(msr,achFile,iStep);
+	    strncat(achFile,".psprofiles",256);
+	    msrOutGroups(msr,achFile,OUT_GROUP_PROFILES,dTime);
+	    }
+	msrDeletePSGroups(msr);
+	}
+
     if (msr->param.bDoAccOutput) {
 	msrReorder(msr);
 	msrBuildName(msr,achFile,iStep);
@@ -6653,9 +6700,46 @@ void msrPSGroupFinder(MSR msr) {
 
     pstPSDUpdateGroups(msr->pst, ug, msr->nThreads*sizeof(*ug), NULL, NULL);
 
-    //pstPSDMergeNoisyGroups(msr->pst, NULL, 0, NULL, NULL);
+#if 1
+    if (msr->param.bVStep)
+	msrprintf(msr, "Updating global group IDs.\n");
     pstPSDSetGlobalId(msr->pst, NULL, 0, NULL, NULL);
+#else
+    if (msr->param.bVStep)
+	msrprintf(msr, "Finding noisy groups.\n");
+    pstPSDMergeNoisyGroups(msr->pst, NULL, 0, NULL, NULL);
 
+#if 0
+    if (msr->param.bVStep)
+	msrprintf(msr, "Joining noisy groups.\n");
+    /*
+    ** Join noisy groups. This may take several iterations.
+    */
+    i=0;
+    do {
+        done = 1;
+        pstPSDJoinGroupBridges(msr->pst, NULL, 0, &done, &ndone);
+        assert(ndone == sizeof(done));
+//	if (i++ > 10) break;
+    } while (!done);
+#endif
+
+#if 0
+    inCLG=0;
+    pstPSDCountLocalGroups(msr->pst, &inCLG, sizeof(inCLG), ug, NULL);
+
+    nGroups = ug[0].count;
+    ug[0].offs = 0;
+    for (i=1; i < msr->nThreads; i++) {
+        ug[i].offs = ug[i-1].offs + ug[i-1].count;
+        nGroups += ug[i].count;
+	}
+    if (msr->param.bVStep)
+	msrprintf(msr, "Found %i unique groups after bridging.\n", nGroups);
+
+    pstPSDUpdateGroups(msr->pst, ug, msr->nThreads*sizeof(*ug), NULL, NULL);
+#endif
+    
 
     /*
     ** Unbind the groups

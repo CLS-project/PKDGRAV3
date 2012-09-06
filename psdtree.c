@@ -146,12 +146,20 @@ void SAVE_BOUNDS(PKD pkd, PSX smx, KDN *pNode, pBND bnd[2])
 	if (bnd[X].fMax[j] != 0) 
 	{
 	    p->fDensity /= 2*bnd[X].fMax[j];
+#ifdef NO_PSMETRIC
+	    b->rscale[j] = 1.;
+#else
 	    b->rscale[j] = 1. / bnd[X].fMax[j]; 
+#endif
 	}
 	if (bnd[V].fMax[j] != 0) 
 	{
 	    p->fDensity /= 2*bnd[V].fMax[j];
+#ifdef NO_PSMETRIC
+	    b->vscale[j] = 1.;
+#else
 	    b->vscale[j] = 1. / bnd[V].fMax[j];
+#endif
 	}
     }
 }
