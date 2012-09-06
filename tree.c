@@ -211,15 +211,11 @@ void BuildTemp(PKD pkd,int iNode,int M) {
 	    ** Allocate 2 new tree nodes making sure that we have
 	    ** allocated enough storage.
 	    */
-	    if ( pkd->nNodes+2 > pkd->nMaxNodes ) {
-		pkdExtendTree(pkd);
-		}
-	    iLeft = pkd->nNodes++;
+	    pkdTreeAllocNodePair(pkd,&iLeft,&iRight);
 	    pLeft = pkdTreeNode(pkd,iLeft);
 	    pLeft->iParent = iNode;
 	    pLeft->pLower = pNode->pLower;
 	    pLeft->pUpper = i-1;
-	    iRight = pkd->nNodes++;
 	    pRight = pkdTreeNode(pkd,iRight);
 	    assert(iRight & 1);
 	    pRight->iParent = iNode;

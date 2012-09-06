@@ -72,7 +72,7 @@ static inline int64_t d2u64(double d) {
 #define UPPER(i)	((i<<1)+1)
 #define SIBLING(i) 	(i^1)
 #define PARENT(i)	(i>>1)
-#define SETNEXT(i)\
+#define SETNEXT(i)				\
 {\
 	while (i&1) i=i>>1;\
 	++i;\
@@ -701,8 +701,9 @@ typedef struct pkdContext {
     MDL_Datatype typeParticle;
 #endif
 
-    int nDomainRungs;
+    int nMaxDomainRungs;
     int iFirstDomainRung;
+    int nDomainRungs;
 
     /*
     ** Advanced memory models
@@ -822,7 +823,7 @@ typedef struct pkdContext {
     PSX psx;
 
     /* ORB Domain Decomposition */
-    unsigned uDomainRung;
+    int iDomainRung;
     ORBCOUNT *pDomainCountsLocal; /* [nDomains] */
     int *iFirstActive, *iFirstInActive;
     int *iSplitActive, *iSplitInActive;
@@ -989,6 +990,19 @@ void pkdExtendTree(PKD pkd);
 static inline KDN *pkdTreeNode(PKD pkd,int iNode) {
     return (KDN *)&pkd->kdNodeListPRIVATE[(iNode>>pkd->nTreeBitsLo)][pkd->iTreeNodeSize*(iNode&pkd->iTreeMask)];
     }
+static inline void pkdTreeAllocNodePair(PKD pkd,int *iLeft, int *iRight) {
+    if ( pkd->nNodes+2 > pkd->nMaxNodes ) {
+	pkdExtendTree(pkd);
+	}
+    if (iLeft) *iLeft = pkd->nNodes;
+    ++pkd->nNodes;
+    if (iRight) *iRight = pkd->nNodes;
+    ++pkd->nNodes;
+    }
+static inline void pkdTreeAllocRootNode(PKD pkd,int *iRoot) {
+    pkdTreeAllocNodePair(pkd,NULL,iRoot);
+    }
+
 void *pkdTreeNodeGetElement(void *vData,int i,int iDataSize);
 static inline KDN *pkdTopNode(PKD pkd,int iNode) {
     return (KDN *)&pkd->kdTopPRIVATE[pkd->iTreeNodeSize*iNode];
@@ -1181,7 +1195,7 @@ void pkdStopTimer(PKD,int);
 void pkdInitialize(
     PKD *ppkd,MDL mdl,int nStore,int nBucket,int nGroup,int nTreeBitsLo, int nTreeBitsHi,
     int iCacheSize,int iWorkQueueSize,int iCUDAQueueSize,FLOAT *fPeriod,uint64_t nDark,uint64_t nGas,uint64_t nStar,
-    uint64_t mMemoryModel, int nDomainRungs);
+    uint64_t mMemoryModel, int nMaxDomainRungs);
 void pkdFinish(PKD);
 size_t pkdClCount(PKD pkd);
 size_t pkdClMemory(PKD pkd);
@@ -1214,7 +1228,7 @@ int pkdUpperOrdPart(PKD,uint64_t,int,int);
 int pkdActiveOrder(PKD);
 
 void pkdOrbBegin(PKD pkd, int nRungs);
-void pkdOrbSelectRung(PKD pkd, int iRung);
+int pkdOrbSelectRung(PKD pkd, int iRung);
 void pkdOrbFinish(PKD pkd);
 void pkdOrbSplit(PKD pkd,int iDomain);
 int pkdOrbRootFind(

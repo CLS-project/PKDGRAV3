@@ -224,7 +224,7 @@ int FC_MAIN(int argc,char **argv) {
 	** Build tree, activating all particles first (just in case).
 	*/
 	msrActiveRung(msr,0,1); /* Activate all particles */
-	msrDomainDecomp(msr,0,0);
+	msrDomainDecomp(msr,0,0,0);
 	msrUpdateSoft(msr,dTime);
 	msrBuildTree(msr,dTime,msr->param.bEwald);
 	if (msrDoGravity(msr)) {
@@ -320,7 +320,7 @@ int FC_MAIN(int argc,char **argv) {
 		}
 	    if ( msr->param.bTraceRelaxation) {
 		msrActiveRung(msr,0,1); /* Activate all particles */
-		msrDomainDecomp(msr,0,0);
+		msrDomainDecomp(msr,0,0,0);
 		msrBuildTree(msr,dTime,0);
 		msrRelaxation(msr,dTime,msrDelta(msr),SMX_RELAXATION,0);
 		}
@@ -371,7 +371,7 @@ int FC_MAIN(int argc,char **argv) {
 #endif
 	    if (msrDoGravity(msr) ||msrDoGas(msr)) {
 		msrActiveRung(msr,0,1); /* Activate all particles */
-		msrDomainDecomp(msr,0,0);
+		msrDomainDecomp(msr,0,0,0);
 		msrUpdateSoft(msr,dTime);
 		msrBuildTree(msr,dTime,msr->param.bEwald);
 		

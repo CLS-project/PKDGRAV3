@@ -157,7 +157,7 @@ void pstAddServices(PST pst,MDL mdl) {
 	sizeof(struct inOrbBegin),0);
     mdlAddService(mdl,PST_ORB_SELECT_RUNG,pst,
 	(void (*)(void *,void *,int,void *,int *)) pstOrbSelectRung,
-	sizeof(struct inOrbSelectRung),0);
+	sizeof(struct inOrbSelectRung),sizeof(struct outOrbSelectRung));
     mdlAddService(mdl,PST_ORB_UPDATE_RUNG,pst,
 	(void (*)(void *,void *,int,void *,int *)) pstOrbUpdateRung,0,0);
     mdlAddService(mdl,PST_ORB_FINISH,pst,
@@ -1546,15 +1546,21 @@ void pstOrbBegin(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 
 void pstOrbSelectRung(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
+    uint64_t nActive;
     struct inOrbSelectRung *in = (struct inOrbSelectRung *)vin;
+    struct outOrbSelectRung *out = (struct outOrbSelectRung *)vout;
     if (pst->nLeaves > 1) {
+	struct outOrbSelectRung outLower, outUpper;
         mdlReqService(pst->mdl,pst->idUpper,PST_ORB_SELECT_RUNG,vin,nIn);
-        pstOrbSelectRung(pst->pstLower,vin,nIn,vout,pnOut);
-        mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
+        pstOrbSelectRung(pst->pstLower,vin,nIn,&outLower,NULL);
+        mdlGetReply(pst->mdl,pst->idUpper,&outUpper,NULL);
+	nActive = outLower.nActive + outUpper.nActive;
         }
     else {
-	pkdOrbSelectRung(plcl->pkd,in->iRung);
+	nActive = pkdOrbSelectRung(plcl->pkd,in->iRung);
         }
+    if (out) out->nActive = nActive;
+    if (pnOut) *pnOut = sizeof(struct outOrbSelectRung);
     }
 
 void pstOrbUpdateRung(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
@@ -1631,7 +1637,7 @@ void pstOrbDecomp(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	irf.nUpper = pst->nUpperStore;
 	irf.bnd = in->bnd;
 	irf.dFraction = 1.0 * pst->nLower / pst->nLeaves;
-	irf.dReserveFraction = 1.0 - 1.0 / log10(10+1.0*pst->nLeaves);
+	irf.dReserveFraction = 1.0 - 1.0 / log10(8.0+1.0*pst->nLeaves);
 
 	pstOrbRootFind(pst,&irf,sizeof(irf),&out,NULL);
 	pst->iSplitDim = out.iDim;
@@ -1655,13 +1661,6 @@ void pstOrbDecomp(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
         mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
         }
     else {
-#if 0
-	printf("%d: %g %g  %g %g  %g %g\n",
-	    mdlSelf(pst->mdl),
-	    in->bnd.fCenter[0]-in->bnd.fMax[0], in->bnd.fCenter[0]+in->bnd.fMax[0],
-	    in->bnd.fCenter[1]-in->bnd.fMax[1], in->bnd.fCenter[1]+in->bnd.fMax[1],
-	    in->bnd.fCenter[2]-in->bnd.fMax[2], in->bnd.fCenter[2]+in->bnd.fMax[2]);
-#endif
         while(pkdOrbRootFind(plcl->pkd,0,0,0,0,NULL,NULL,NULL)) {
 	    pstOrbSplit(pst,NULL,0.0,NULL,NULL);
 	    }
@@ -2300,7 +2299,8 @@ void _pstOrdSplit(PST pst,uint64_t iMaxOrder) {
 	nLow = outWtLow.nLow + outWtHigh.nLow;
 	nHigh = outWtLow.nHigh + outWtHigh.nHigh;
 	/*
-	  printf("ittr:%d l:%d u:%d\n",ittr,nLow,nHigh);
+	  printf("ittr:%d l:%d u:%d : %llu < %llu < %llu\n",
+	      ittr,nLow,nHigh, il, imm, iu);
 	*/
 	if (nLow == 1 && nHigh == 1) /* break on trivial case */
 	    break;

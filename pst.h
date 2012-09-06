@@ -313,6 +313,9 @@ void pstOrbFinish(PST,void *,int,void *,int *);
 struct inOrbSelectRung {
     int iRung;
     };
+struct outOrbSelectRung {
+    uint64_t nActive;
+    };
 void pstOrbSelectRung(PST,void *,int,void *,int *);
 
 /* PST_UPDATE_RUNG */

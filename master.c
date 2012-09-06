@@ -2264,12 +2264,14 @@ void msrRungOrder(MSR msr, int iRung) {
 	dsec, outRung.nMoved);
     }
 
-void msrDomainDecompORB(MSR msr) {
+void msrDomainDecompORB(MSR msr,int bOthers) {
     struct outFreeStore fs;
     struct inOrbBegin inb;
     struct inOrbSelectRung inr;
+    struct outOrbSelectRung outr;
     struct inOrbDecomp in;
-    int j, iRung;
+    int nout;
+    int j, iRung, iRungFirst, iRungLast;
 
     /*
     ** If we are dealing with a nice periodic volume in all
@@ -2296,11 +2298,21 @@ void msrDomainDecompORB(MSR msr) {
     pstFreeStore(msr->pst,NULL,0,&fs,NULL);
     inb.nRungs = msr->param.nDomainRungs;
     pstOrbBegin(msr->pst,&inb,sizeof(inb),NULL,NULL);
-    for(iRung=0; iRung<msr->param.nDomainRungs; ++iRung) {
+    if (bOthers) {
+	iRungFirst = 1;
+	iRungLast = msr->param.nDomainRungs;
+	}
+    else {
+	iRungFirst = 0;
+	iRungLast = 1;
+	}
+
+    for(iRung=iRungFirst; iRung<iRungLast; ++iRung) {
 	inr.iRung = iRung;
 	msrprintf(msr,"Domain Decomposition for rung %d\n",
 	    iRung);
-	pstOrbSelectRung(msr->pst,&inr,sizeof(inr),NULL,NULL);
+	pstOrbSelectRung(msr->pst,&inr,sizeof(inr),&outr,&nout);
+	if (outr.nActive==0) break;
 	pstOrbDecomp(msr->pst,&in,sizeof(in),NULL,NULL);
 	pstOrbUpdateRung(msr->pst,NULL,0,NULL,NULL);
 	}
@@ -2463,14 +2475,14 @@ void msrDomainDecompOld(MSR msr,int iRung,int bSplitVA) {
 	}
     }
 
-void msrDomainDecomp(MSR msr,int iRung,int bSplitVA) {
+void msrDomainDecomp(MSR msr,int iRung,int bOthers,int bSplitVA) {
 #ifdef MPI_VERSION
     if (prmSpecified(msr->prm,"iDomainMethod")) {
 	double sec,dsec;
 	sec = msrTime();
 	if (iRung==0) {
 	    if (msr->param.iDomainMethod<0)
-		msrDomainDecompORB(msr);
+		msrDomainDecompORB(msr,bOthers);
 	    else 
 		msrDomainDecompNew(msr);
 	    }
@@ -3771,13 +3783,13 @@ void msrTopStepKDK(MSR msr,
 	    }
 	if (msr->param.bDensityStep) {
 	    bSplitVA = 0;
-	    msrDomainDecomp(msr,iRung,bSplitVA);
+	    msrDomainDecomp(msr,iRung,0,bSplitVA);
 	    msrActiveRung(msr,iRung,1);
 	    msrBuildTree(msr,dTime,0);
 	    msrDensityStep(msr,iRung,MAX_RUNG,dTime);
 	    }
 	iRungVeryActive = msrUpdateRung(msr,iRung);
-	if (iRung==0) msrDomainDecomp(msr,0,0);
+	if (iRung==0) msrDomainDecomp(msr,0,1,0);
         }
 
     msrprintf(msr,"%*cmsrKickOpen  at iRung: %d 0.5*dDelta: %g\n",
@@ -3806,7 +3818,7 @@ void msrTopStepKDK(MSR msr,
 
 	msrActiveRung(msr,iKickRung,1);
 	bSplitVA = 0;
-	msrDomainDecomp(msr,iKickRung,bSplitVA);
+	msrDomainDecomp(msr,iKickRung,0,bSplitVA);
 
 	/* JW: Good place to zero uNewRung */
 	msrZeroNewRung(msr,iKickRung,MAX_RUNG,iKickRung); /* brute force */
@@ -3867,7 +3879,7 @@ void msrTopStepKDK(MSR msr,
 	    ** placed here shortly.
 	    */
 	    bSplitVA = 1;
-	    msrDomainDecomp(msr,iRung,bSplitVA);
+	    msrDomainDecomp(msr,iRung,0,bSplitVA);
 
 	    msrprintf(msr,"%*cBuilding exclude very active tree: iRung: %d\n",
 		      2*iRung+2,' ',iRung);
@@ -3899,7 +3911,7 @@ void msrTopStepKDK(MSR msr,
 	 */
 	msrActiveRung(msr,iKickRung,1);
 	bSplitVA = 0;
-	msrDomainDecomp(msr,iKickRung,bSplitVA);
+	msrDomainDecomp(msr,iKickRung,0,bSplitVA);
 
 	if (msrDoGravity(msr)) {
 	    msrActiveRung(msr,iKickRung,1);
@@ -3945,7 +3957,6 @@ void msrTopStepKDK(MSR msr,
     /* JW: Creating/Deleting/Merging is best done outside (before or after) KDK cycle 
        -- Tree should still be valid from last force eval (only Drifts + Deletes invalidate it) */
     if (iKickRung == iRung) { /* Do all co-incident kicked p's in one go */
-	printf("SFTEST Call msrStarFrom: %20.14g  %d %d\n",dTime,iRung,iKickRung);
 	msrStarForm(msr, dTime, iKickRung); /* re-eval timesteps as needed for next step 
 					    -- apply to all neighbours */
 	}
@@ -4096,7 +4107,7 @@ void msrTopStepHermite(MSR msr,
 	    }
 	if (msr->param.bDensityStep) {
 	    bSplitVA = 0;
-	    msrDomainDecomp(msr,iRung,bSplitVA);
+	    msrDomainDecomp(msr,iRung,0,bSplitVA);
 	    msrActiveRung(msr,iRung,1);
 	    msrBuildTree(msr,dTime,bNeedEwald);
 	    msrDensityStep(msr,iRung,MAX_RUNG,dTime);
@@ -4133,7 +4144,7 @@ void msrTopStepHermite(MSR msr,
 
 	msrActiveRung(msr,iKickRung,1);
 	bSplitVA = 0;
-	msrDomainDecomp(msr,iKickRung,bSplitVA);
+	msrDomainDecomp(msr,iKickRung,0,bSplitVA);
 
 	if (msrDoGravity(msr)) {
 	    msrActiveRung(msr,iKickRung,1);
@@ -4219,7 +4230,7 @@ void msrTopStepHermite(MSR msr,
 	    ** placed here shortly.
 	    */
 	    bSplitVA = 1;
-	    msrDomainDecomp(msr,iRung,bSplitVA);
+	    msrDomainDecomp(msr,iRung,0,bSplitVA);
 
 	    msrprintf(msr,"%*cBuilding exclude very active tree: iRung: %d\n",
 		      2*iRung+2,' ',iRung);
@@ -4249,7 +4260,7 @@ void msrTopStepHermite(MSR msr,
 	 */
 	msrActiveRung(msr,iKickRung,1);
 	bSplitVA = 0;
-	msrDomainDecomp(msr,iKickRung,bSplitVA);
+	msrDomainDecomp(msr,iKickRung,0,bSplitVA);
 
 	if (msrDoGravity(msr)) {
 	    msrActiveRung(msr,iKickRung,1);
@@ -5441,7 +5452,7 @@ void msrTopStepSymba(MSR msr,
 	    ** placed here shortly.
 	    */
 	    bSplitVA = 1;
-	    msrDomainDecomp(msr,iRung,bSplitVA);
+	    msrDomainDecomp(msr,iRung,0,bSplitVA);
 	    }
 	/*
 	 * Perform timestepping of particles in close encounters on
@@ -5458,7 +5469,7 @@ void msrTopStepSymba(MSR msr,
      */
     msrActiveRung(msr,iKickRung,1); /* iKickRung = 0 */
     bSplitVA = 0;
-    msrDomainDecomp(msr,iKickRung,bSplitVA);
+    msrDomainDecomp(msr,iKickRung,0,bSplitVA);
 
     if (msrDoGravity(msr)) {
 	msrActiveRung(msr,iKickRung,1);
@@ -5799,7 +5810,7 @@ void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint) {
     /* msrReorder above requires msrDomainDecomp and msrBuildTree for
        msrSmooth in topstepSymba*/
     msrActiveRung(msr,0,1);
-    msrDomainDecomp(msr,0,0);
+    msrDomainDecomp(msr,0,0,0);
     msrBuildTree(msr,dTime,0);
 #endif
 #else
@@ -5825,7 +5836,7 @@ void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint) {
     if (msrDoDensity(msr) || msr->param.bFindGroups) {
 #ifdef FASTGAS_TESTING
 	msrActiveRung(msr,3,1); /* Activate some particles */
-	msrDomainDecomp(msr,0,0);
+	msrDomainDecomp(msr,0,0,0);
 	msrBuildTree(msr,dTime,0);
 
 	msrSelSrcGas(msr);  /* FOR TESTING!! of gas active particles */
@@ -5834,7 +5845,7 @@ void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint) {
 	msrSelSrcAll(msr);  /* FOR TESTING!! of gas active particles */
 #else
 	msrActiveRung(msr,0,1); /* Activate all particles */
-	msrDomainDecomp(msr,0,0);
+	msrDomainDecomp(msr,0,0,0);
 	msrBuildTree(msr,dTime,0);
 	bSymmetric = 0;  /* should be set in param file! */
 	msrSmooth(msr,dTime,SMX_DENSITY,bSymmetric);
@@ -5847,7 +5858,7 @@ void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint) {
 	*/
 	nFOFsDone = 0;
 	msrActiveRung(msr,0,1); /* Activate all particles */
-	msrDomainDecomp(msr,0,0);
+	msrDomainDecomp(msr,0,0,0);
 	msrBuildTree(msr,dTime,0);
 	msrFof(msr,csmTime2Exp(msr->param.csm,dTime));
 	msrGroupMerge(msr,csmTime2Exp(msr->param.csm,dTime));

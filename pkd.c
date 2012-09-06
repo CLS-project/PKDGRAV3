@@ -269,7 +269,7 @@ void pkdAllocateTopTree(PKD pkd,int nCell) {
 void pkdInitialize(
     PKD *ppkd,MDL mdl,int nStore,int nBucket,int nGroup,int nTreeBitsLo, int nTreeBitsHi,
     int iCacheSize,int iWorkQueueSize,int iCUDAQueueSize,FLOAT *fPeriod,uint64_t nDark,uint64_t nGas,uint64_t nStar,
-    uint64_t mMemoryModel, int nDomainRungs) {
+    uint64_t mMemoryModel, int nMaxDomainRungs) {
     PKD pkd;
     PARTICLE *p;
     uint32_t pi;
@@ -368,13 +368,14 @@ void pkdInitialize(
 	}
 
     if ( mMemoryModel & PKD_MODEL_RUNGDEST ) {
-	pkd->nDomainRungs = nDomainRungs;
-	pkd->oRungDest = pkdParticleAddInt16(pkd,pkd->nDomainRungs);
+	pkd->nMaxDomainRungs = nMaxDomainRungs;
+	pkd->oRungDest = pkdParticleAddInt16(pkd,pkd->nMaxDomainRungs);
 	}
     else {
-	pkd->nDomainRungs = 0;
+	pkd->nMaxDomainRungs = 0;
 	pkd->oRungDest = 0;
 	}
+    pkd->nDomainRungs = 0;
 
     /*
     ** Tree node memory models
@@ -1612,6 +1613,8 @@ void pkdPeanoHilbertDecomp(PKD pkd, int nRungs, int iMethod) {
 	    }
 	}
 
+    pkd->nDomainRungs = pkd->nMaxDomainRungs;
+
     free(r); free(s); free(t);
     free(fr); free(fs);
 
@@ -1691,13 +1694,15 @@ void pkdOrbBegin(PKD pkd, int nRungs) {
         pl[i].uRung = p->uRung;
         }
     mdlAllreduce( pkd->mdl, &iRung, &pkd->iFirstDomainRung, 1, MDL_INT, MDL_MIN);
+    pkd->nDomainRungs = 0;
     }
 
-void pkdOrbSelectRung(PKD pkd,int uRung) {
+int pkdOrbSelectRung(PKD pkd,int uRung) {
     PLITEORB *pl = (PLITEORB *)pkd->pLite;
     int j, lb, ub;
 
-    pkd->uDomainRung = (uRung += pkd->iFirstDomainRung);
+    pkd->iDomainRung = uRung;
+    uRung += pkd->iFirstDomainRung;
 
     /* We start with all particles */
     pkd->iFirstActive[0] = 0;
@@ -1714,11 +1719,13 @@ void pkdOrbSelectRung(PKD pkd,int uRung) {
             pl[lb].uRung >= uRung,pl[ub].uRung < uRung);
         pkd->iFirstActive[1] = pkd->iFirstInActive[0] = lb;
         }
+    else lb = pkd->nLocal;
+    return lb;
     }
 
 void pkdOrbUpdateRung(PKD pkd) {
     int nNodes = mdlThreads(pkd->mdl);
-    unsigned uRung = pkd->uDomainRung;
+    int iRung = pkd->iDomainRung;
     PLITEORB *pl = (PLITEORB *)pkd->pLite;
     PARTICLE *p;
     int i, iDomain;
@@ -1726,15 +1733,16 @@ void pkdOrbUpdateRung(PKD pkd) {
     for(iDomain=0; iDomain<nNodes; ++iDomain) {
 	for( i=pkd->iFirstActive[iDomain]; i<pkd->iFirstActive[iDomain+1]; ++i) {
 	    p = pkdParticle(pkd,pl[i].i);
-	    pkdRungDest(pkd,p)[uRung] = iDomain;
+	    pkdRungDest(pkd,p)[iRung] = iDomain;
 	    }
 	}
     for(iDomain=0; iDomain<nNodes; ++iDomain) {
 	for( i=pkd->iFirstInActive[iDomain]; i<pkd->iFirstInActive[iDomain+1]; ++i) {
 	    p = pkdParticle(pkd,pl[i].i);
-	    pkdRungDest(pkd,p)[uRung] = iDomain;
+	    pkdRungDest(pkd,p)[iRung] = iDomain;
 	    }
 	}
+    pkd->nDomainRungs = pkd->iDomainRung;
     }
 
 void pkdOrbFinish(PKD pkd) {
@@ -1753,17 +1761,16 @@ int pkdOrbRootFind(
     PKD pkd, double dFraction, uint64_t nLowerMax, uint64_t nUpperMax,
     double dReserveFraction, BND *bnd, double *dSplitOut, int *iDim) {
     /**/
-    double dFracAllow = 1e-4;
+    static int nMaxIter = 60;
     /**/
 
     int nID    = mdlSelf(pkd->mdl);
     int nNodes = mdlThreads(pkd->mdl);
-    unsigned uRung = pkd->uDomainRung;
     PLITEORB *pl = (PLITEORB *)pkd->pLite;
 
     uint8_t cSplitDim;
     double dSplit, dSplitMin, dSplitMax;
-    double dFracActive, dFracTotal;
+    double dFracActive;
 
     PARTICLE *p;
     int i, j, lb, ub, d;
@@ -1866,12 +1873,12 @@ int pkdOrbRootFind(
         if (dFraction>0.0 && dSplit < HUGE_VAL) {
 	    uint64_t nTotal = DomainCountGlobal.nTotalBelow + DomainCountGlobal.nTotalAbove;
 	    uint64_t nActive= DomainCountGlobal.nActiveBelow + DomainCountGlobal.nActiveAbove;
+	    uint64_t nUnbalanced = llabs(DomainCountGlobal.nActiveBelow - dFraction*nActive)
+		+ llabs(DomainCountGlobal.nActiveAbove - (1.0-dFraction)*nActive);
 	    uint64_t nLowerLimit, nUpperLimit;
 
-	    assert(nTotal > 0);
-
 	    /* Here we calculate the real limits, based on how much we should reserve */
-	    if ( nLowerMax==0 || nUpperMax==0) {
+	    if ( nLowerMax==0 || nUpperMax==0 ) {
 		nLowerLimit = nLowerMax;
 		nUpperLimit = nUpperMax;
 		}
@@ -1883,40 +1890,30 @@ int pkdOrbRootFind(
 		nUpperLimit = nUpperMax - nReserve*(1.0*nUpperMax/nMax);
 		}
 
-	    if (nActive<2) dFracActive = dFraction;
+	    if (nActive<2) {
+		if (nTotal<2) dFracActive = dFraction;
+		else dFracActive=1.0*DomainCountGlobal.nTotalBelow/nTotal;
+		}
             else dFracActive=1.0*DomainCountGlobal.nActiveBelow/nActive;
-            dFracTotal = 1.0*DomainCountGlobal.nTotalBelow/nTotal;
-#if 0
-            printf("%2d: %2d dSplit=%8.8g (%c) TOTAL: ActiveBelow=%llu ActiveAbove=%llu Ratio=%g dFraction=%g\n",
-                nID, iIter, dSplit, "xyz"[cSplitDim],
-                DomainCountGlobal.nTotalBelow, DomainCountGlobal.nTotalAbove,
-                dFracTotal, dFraction );
-	    printf("%2d: %2d nTotalBelow=%llu nLowerMax=%llu nTotalAbove=%llu nUpperMax=%llu\n",
-		nID,iIter,DomainCountGlobal.nTotalBelow, nLowerMax, DomainCountGlobal.nTotalAbove, nUpperMax);
-	    printf("%2d: %2d nActiveBelow=%llu  nActiveAbove=%llu\n",
-		nID,iIter,DomainCountGlobal.nActiveBelow, DomainCountGlobal.nActiveAbove);
-#endif
-	    if (DomainCountGlobal.nTotalBelow >= nLowerLimit-2) {
-		if (DomainCountGlobal.nTotalBelow <= nLowerLimit && dFracActive <= dFraction) {
-		    if (dSplitOut) *dSplitOut = dSplit;
-		    dSplit = HUGE_VAL;
-		    }
-		else {
-		    dSplitMax = dSplit;
-		    dSplit = (dSplitMin+dSplitMax) * 0.5;
-		    }
+	    assert(DomainCountGlobal.nTotalBelow+DomainCountGlobal.nTotalAbove <= nLowerLimit+nUpperLimit);
+
+	    if (DomainCountGlobal.nTotalBelow > nLowerLimit) {
+		dSplitMax = dSplit;
+		dSplit = (dSplitMin+dSplitMax) * 0.5;
 		}
-	    else if (DomainCountGlobal.nTotalAbove >= nUpperLimit-2) {
-		if (DomainCountGlobal.nTotalAbove <= nUpperLimit && dFracActive >= dFraction) {
-		    if (dSplitOut) *dSplitOut = dSplit;
-		    dSplit = HUGE_VAL;
-		    }
-		else {
-		    dSplitMin = dSplit;
-		    dSplit = (dSplitMin+dSplitMax) * 0.5;
-		    }
+	    else if (DomainCountGlobal.nTotalAbove > nUpperLimit) {
+		dSplitMin = dSplit;
+		dSplit = (dSplitMin+dSplitMax) * 0.5;
 		}
-	    else if ( fabs(dFracActive-dFraction) < dFracAllow ) {
+	    else if (DomainCountGlobal.nTotalBelow == nLowerLimit && dFracActive <= dFraction) {
+		if (dSplitOut) *dSplitOut = dSplit;
+		dSplit = HUGE_VAL;
+		}
+	    else if (DomainCountGlobal.nTotalAbove == nUpperLimit && dFracActive >= dFraction ) {
+		if (dSplitOut) *dSplitOut = dSplit;
+		dSplit = HUGE_VAL;
+		}
+	    else if ( nUnbalanced <= 1 ) {
 		if (dSplitOut) *dSplitOut = dSplit;
 		dSplit = HUGE_VAL;
 		}
@@ -1927,7 +1924,8 @@ int pkdOrbRootFind(
                 }
             }
         ++iIter;
-        } while(iIter < 30 && iWork);
+        } while(iIter < nMaxIter && iWork);
+    assert(iIter<nMaxIter);
     return nDomainsActive;
     }
 
@@ -1945,7 +1943,7 @@ void pkdRungOrder(PKD pkd, int iRung, total_t *nMoved) {
 
     iRung -= pkd->iFirstDomainRung;
     if (iRung<0) iRung = 0;
-    else if (iRung >= pkd->nDomainRungs) iRung = pkd->nDomainRungs - 1;
+    else if (iRung >= pkd->nMaxDomainRungs) iRung = pkd->nMaxDomainRungs - 1;
 
     scounts = malloc(sizeof(*scounts) * nDomains);
     assert(scounts != NULL);
@@ -1978,8 +1976,7 @@ void pkdRungOrder(PKD pkd, int iRung, total_t *nMoved) {
 	rdispls[i] = rdispls[i-1] + rcounts[i-1];
 	}
     assert(sdispls[nDomains-1] + scounts[nDomains-1] == nLocal-nSelf);
-    if(rdispls[nDomains-1] + rcounts[nDomains-1] + nSelf <= pkd->nStore) {}
-    else {
+    if(rdispls[nDomains-1] + rcounts[nDomains-1] + nSelf > pkd->nStore) {
 	printf("%llu <= %llu\n",
 	    rdispls[nDomains-1] + rcounts[nDomains-1] + nSelf, pkd->nStore);
 	}
