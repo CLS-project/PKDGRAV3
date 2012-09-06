@@ -5908,7 +5908,7 @@ void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint) {
 	** Build tree, activating all particles first (just in case).
 	*/
 	msrActiveRung(msr,0,1); /* Activate all particles */
-	msrDomainDecomp(msr,0,0);
+	msrDomainDecomp(msr,0,0,0);
 	msrPSGroupFinder(msr); /*,csmTime2Exp(msr->param.csm,dTime)); */
 	if (msr->param.nBins > 0) msrGroupProfiles(msr,csmTime2Exp(msr->param.csm,dTime));
 	msrReorder(msr);
@@ -6739,7 +6739,7 @@ void msrPSGroupFinder(MSR msr) {
 
     pstPSDUpdateGroups(msr->pst, ug, msr->nThreads*sizeof(*ug), NULL, NULL);
 #endif
-    
+#endif
 
     /*
     ** Unbind the groups
