@@ -1528,8 +1528,6 @@ void pkdPeanoHilbertDecomp(PKD pkd, int nRungs, int iMethod) {
 	    }
 	} while(1);
 
-    //if (nID==0) printf("Converged in %d iterations\n", iIter );
-
     /* Send the bounds to each processor so we can assign particles to domains */
     mdlAllGather(pkd->mdl,myBound,nRungs*2,MDL_LONG_LONG, splitKeys, nRungs*2, MDL_LONG_LONG);
 
@@ -1665,14 +1663,13 @@ void pkdOrbSplit(PKD pkd, int iDomain) {
 	}
     }
 
-void pkdOrbBegin(PKD pkd, int uRung) {
+void pkdOrbBegin(PKD pkd, int nRungs) {
     int nNodes = mdlThreads(pkd->mdl);
     int nID    = mdlSelf(pkd->mdl);
     PLITEORB *pl = (PLITEORB *)pkd->pLite;
-    int i, j, lb, ub;
+    int i, j;
     PARTICLE *p;
-
-    pkd->uDomainRung = uRung;
+    int iRung;
 
     pkd->iFirstActive  = malloc(sizeof(*pkd->iFirstActive)   * (nNodes+1));
     pkd->iFirstInActive= malloc(sizeof(*pkd->iFirstInActive) * (nNodes+1));
@@ -1684,6 +1681,23 @@ void pkdOrbBegin(PKD pkd, int uRung) {
     pkd->dSplits       = malloc(sizeof(*pkd->dSplits)        * nNodes);
     pkd->pDomainCountsLocal = malloc(sizeof(*pkd->pDomainCountsLocal) * nNodes);
 
+    /* These are the "particles" we partition */
+    iRung = MAX_RUNG;
+    for (i=0;i<pkd->nLocal;++i) {
+        p = pkdParticle(pkd,i);
+	if (p->uRung < iRung) iRung = p->uRung;
+        for(j=0;j<3;++j) pl[i].r[j] = p->r[j];
+        pl[i].i = i;
+        pl[i].uRung = p->uRung;
+        }
+    mdlAllreduce( pkd->mdl, &iRung, &pkd->iFirstDomainRung, 1, MDL_INT, MDL_MIN);
+    }
+
+void pkdOrbSelectRung(PKD pkd,int uRung) {
+    PLITEORB *pl = (PLITEORB *)pkd->pLite;
+    int j, lb, ub;
+
+    pkd->uDomainRung = (uRung += pkd->iFirstDomainRung);
 
     /* We start with all particles */
     pkd->iFirstActive[0] = 0;
@@ -1691,17 +1705,8 @@ void pkdOrbBegin(PKD pkd, int uRung) {
     pkd->iFirstInActive[0] = pkd->iFirstInActive[1] = pkd->nLocal;
     pkd->iSplitActive[1] = pkd->iSplitInActive[1] = pkd->nLocal;
 
-    /* These are the "particles" we partition */
-    for (i=0;i<pkd->nLocal;++i) {
-        p = pkdParticle(pkd,i);
-        for(j=0;j<3;++j) pl[i].r[j] = p->r[j];
-        pl[i].i = i;
-        pl[i].uRung = p->uRung;
-        }
-    for(j=0;j<3;++j) pl[i].r[j] = HUGE_VAL; /* sentinal node */
-
-
     /* Separate them into active and inactive */
+    for(j=0;j<3;++j) pl[pkd->nLocal].r[j] = HUGE_VAL; /* sentinal node */
     if ( uRung > 0 ) {
         lb = pkd->iFirstActive[0];
         ub = pkd->iFirstActive[1] - 1;
@@ -1709,13 +1714,9 @@ void pkdOrbBegin(PKD pkd, int uRung) {
             pl[lb].uRung >= uRung,pl[ub].uRung < uRung);
         pkd->iFirstActive[1] = pkd->iFirstInActive[0] = lb;
         }
-
-    //nDomains = 1;
-
-
     }
 
-void pkdOrbFinish(PKD pkd) {
+void pkdOrbUpdateRung(PKD pkd) {
     int nNodes = mdlThreads(pkd->mdl);
     unsigned uRung = pkd->uDomainRung;
     PLITEORB *pl = (PLITEORB *)pkd->pLite;
@@ -1734,6 +1735,9 @@ void pkdOrbFinish(PKD pkd) {
 	    pkdRungDest(pkd,p)[uRung] = iDomain;
 	    }
 	}
+    }
+
+void pkdOrbFinish(PKD pkd) {
     free(pkd->iFirstActive);
     free(pkd->iFirstInActive);
     free(pkd->iSplitActive);
@@ -1747,7 +1751,7 @@ void pkdOrbFinish(PKD pkd) {
 
 int pkdOrbRootFind(
     PKD pkd, double dFraction, uint64_t nLowerMax, uint64_t nUpperMax,
-    BND *bnd, double *dSplitOut, int *iDim) {
+    double dReserveFraction, BND *bnd, double *dSplitOut, int *iDim) {
     /**/
     double dFracAllow = 1e-4;
     /**/
@@ -1805,7 +1809,7 @@ int pkdOrbRootFind(
         mdlAllGatherv(pkd->mdl,&dSplit,dFraction>0.0,MDL_DOUBLE,
 	    pkd->dSplits, pkd->counts, pkd->rdisps, MDL_DOUBLE);
 
-        // Now partition about this split and send back the counts
+        /* Now partition about this split and send back the counts */
 	iActive = -1;
         for(iDomain=0; iDomain<nNodes; ++iDomain) {
             pkd->counts[iDomain] = 4;
@@ -1819,7 +1823,6 @@ int pkdOrbRootFind(
 	    else ++iActive;
 
             if ( pkd->dSplits[iActive] == HUGE_VAL ) {
-		//pkd->cSplitDims[iDomain] = 255;
                 continue;
                 }
 
@@ -1861,21 +1864,57 @@ int pkdOrbRootFind(
 	    pkd->counts, MDL_LONG_LONG, MDL_SUM);
 
         if (dFraction>0.0 && dSplit < HUGE_VAL) {
-            dFracActive=1.0*DomainCountGlobal.nActiveBelow/(DomainCountGlobal.nActiveBelow+DomainCountGlobal.nActiveAbove);
-            dFracTotal = 1.0*DomainCountGlobal.nTotalBelow/(DomainCountGlobal.nTotalBelow+DomainCountGlobal.nTotalAbove);
+	    uint64_t nTotal = DomainCountGlobal.nTotalBelow + DomainCountGlobal.nTotalAbove;
+	    uint64_t nActive= DomainCountGlobal.nActiveBelow + DomainCountGlobal.nActiveAbove;
+	    uint64_t nLowerLimit, nUpperLimit;
+
+	    assert(nTotal > 0);
+
+	    /* Here we calculate the real limits, based on how much we should reserve */
+	    if ( nLowerMax==0 || nUpperMax==0) {
+		nLowerLimit = nLowerMax;
+		nUpperLimit = nUpperMax;
+		}
+	    else {
+		uint64_t nMax = nLowerMax + nUpperMax;
+		uint64_t nReserve = (nMax - nTotal) * dReserveFraction;
+		assert(nMax>nTotal);
+		nLowerLimit = nLowerMax - nReserve*(1.0*nLowerMax/nMax);
+		nUpperLimit = nUpperMax - nReserve*(1.0*nUpperMax/nMax);
+		}
+
+	    if (nActive<2) dFracActive = dFraction;
+            else dFracActive=1.0*DomainCountGlobal.nActiveBelow/nActive;
+            dFracTotal = 1.0*DomainCountGlobal.nTotalBelow/nTotal;
 #if 0
-            printf("%2d: %2d dSplit=%8.8g (%c) TOTAL: ActiveBelow=%llu ActiveAbove=%llu Ratio=%g\n",
+            printf("%2d: %2d dSplit=%8.8g (%c) TOTAL: ActiveBelow=%llu ActiveAbove=%llu Ratio=%g dFraction=%g\n",
                 nID, iIter, dSplit, "xyz"[cSplitDim],
                 DomainCountGlobal.nTotalBelow, DomainCountGlobal.nTotalAbove,
-                dFracTotal );
+                dFracTotal, dFraction );
+	    printf("%2d: %2d nTotalBelow=%llu nLowerMax=%llu nTotalAbove=%llu nUpperMax=%llu\n",
+		nID,iIter,DomainCountGlobal.nTotalBelow, nLowerMax, DomainCountGlobal.nTotalAbove, nUpperMax);
+	    printf("%2d: %2d nActiveBelow=%llu  nActiveAbove=%llu\n",
+		nID,iIter,DomainCountGlobal.nActiveBelow, DomainCountGlobal.nActiveAbove);
 #endif
-	    if (DomainCountGlobal.nTotalBelow > nLowerMax) {
-		dSplitMin = dSplit;
-                dSplit = (dSplitMin+dSplitMax) * 0.5;
+	    if (DomainCountGlobal.nTotalBelow >= nLowerLimit-2) {
+		if (DomainCountGlobal.nTotalBelow <= nLowerLimit && dFracActive <= dFraction) {
+		    if (dSplitOut) *dSplitOut = dSplit;
+		    dSplit = HUGE_VAL;
+		    }
+		else {
+		    dSplitMax = dSplit;
+		    dSplit = (dSplitMin+dSplitMax) * 0.5;
+		    }
 		}
-	    else if (DomainCountGlobal.nTotalAbove > nUpperMax) {
-		dSplitMax = dSplit;
-                dSplit = (dSplitMin+dSplitMax) * 0.5;
+	    else if (DomainCountGlobal.nTotalAbove >= nUpperLimit-2) {
+		if (DomainCountGlobal.nTotalAbove <= nUpperLimit && dFracActive >= dFraction) {
+		    if (dSplitOut) *dSplitOut = dSplit;
+		    dSplit = HUGE_VAL;
+		    }
+		else {
+		    dSplitMin = dSplit;
+		    dSplit = (dSplitMin+dSplitMax) * 0.5;
+		    }
 		}
 	    else if ( fabs(dFracActive-dFraction) < dFracAllow ) {
 		if (dSplitOut) *dSplitOut = dSplit;
@@ -1939,6 +1978,11 @@ void pkdRungOrder(PKD pkd, int iRung, total_t *nMoved) {
 	rdispls[i] = rdispls[i-1] + rcounts[i-1];
 	}
     assert(sdispls[nDomains-1] + scounts[nDomains-1] == nLocal-nSelf);
+    if(rdispls[nDomains-1] + rcounts[nDomains-1] + nSelf <= pkd->nStore) {}
+    else {
+	printf("%llu <= %llu\n",
+	    rdispls[nDomains-1] + rcounts[nDomains-1] + nSelf, pkd->nStore);
+	}
     assert(rdispls[nDomains-1] + rcounts[nDomains-1] + nSelf <= pkd->nStore);
 
 
@@ -3540,7 +3584,6 @@ void pkdSphStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,double dAccFac) {
 #else
 		    T = E/pkd->param.dTuFac;
 #endif
-//		    printf("RUNG %d: grav+sph %d acc %d udot %d final %d (prev %d)\nRUNG %d: dens %16.10g temp %g r %g\n",p->iOrder,u1,u2,u3,(int) p->uNewRung,p->uRung, p->iOrder, p->fDensity, T, sqrt(p->r[0]*p->r[0]+p->r[1]*p->r[1]));
 		    }
 		}
 	    }
@@ -3606,7 +3649,6 @@ void pkdStarForm(PKD pkd, double dRateCoeff, double dTMax, double dDenMin,
 
 	    dmstar = dRateCoeff*sqrt(p->fDensity)*pkdMass(pkd,p)*dt;
 	    prob = 1.0 - exp(-dmstar/dInitStarMass); 
-//	    if (!(p->iOrder%1000)) printf("SF %d: %g %g %g  %g\n",p->iOrder,dt,dmstar,dInitStarMass,prob);
 	    
 	    /* Star formation event? */
 	    if (rand()<RAND_MAX*prob) {
@@ -3621,9 +3663,7 @@ void pkdStarForm(PKD pkd, double dRateCoeff, double dTMax, double dDenMin,
 		    *pMass = 0;
 		    }
 	        if (*pMass < dMinGasMass) {
-//		    printf("Delete* particle %d %d %d %d, %g\n",(int) p->iOrder,(int) pkdIsGas(pkd,p),pkdSpecies( pkd, p ), FIO_SPECIES_SPH,*pMass);
 		    pkdDeleteParticle(pkd, p);
-//		    printf("Deleted particle %d %d %d %d, %g\n",(int) p->iOrder,(int) pkdIsGas(pkd,p),pkdSpecies( pkd, p ),FIO_SPECIES_LAST,*pMass);
 		    (*nDeleted)++;
 		    }
 
@@ -3712,7 +3752,6 @@ void pkdCooling(PKD pkd, double dTime, double z, int bUpdateState, int bUpdateTa
 		p = pkdParticle(pkd,i);
 		if (pkdIsActive(pkd,p) && pkdIsGas(pkd,p)) {
 		    if (pkdStar(pkd,p)->fTimer > dTime) {
-//		    printf("COOLING shut off %d: %g %g %g  %g %g\n",p->iOrder,pkdStar(pkd,p)->fTimer,dTime,(dTime-pkdStar(pkd,p)->fTimer)*1.7861e+18/(365.*60*60*24.)/1e6,pkdSph(pkd,p)->u,pkdSph(pkd,p)->uPred);
 			continue;
 			}
 		    sph = pkdSph(pkd,p);
@@ -3827,8 +3866,7 @@ int pkdUpdateRung(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     int i;
     int iTempRung;
     for (i=0;i<iMaxRung;++i) nRungCount[i] = 0;
-	
-//    printf("RUNG UPDATES %d %d %d\n",uRungLo,uRungHi,uRung);
+
     for (i=0;i<pkdLocal(pkd);++i) {
 	p = pkdParticle(pkd,i);
 	if ( pkdIsActive(pkd,p) ) {
@@ -3838,8 +3876,6 @@ int pkdUpdateRung(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
 		p->uRung = p->uNewRung;
 	    else if ( p->uRung > uRung)
 		p->uRung = uRung;
-
-//	    if (!(p->iOrder%10000) || (p->uRung > 5 && !(p->iOrder%1000))) printf("RUNG %d: UPDATED %d %d\n",p->iOrder,p->uNewRung,p->uRung);
 	    }
 	/*
 	** Now produce a count of particles in rungs.
@@ -3934,7 +3970,6 @@ void pkdColNParts(PKD pkd, int *pnNew, int *nDeltaGas, int *nDeltaDark,
 	    continue;
 	    }
 	else if (pkdIsDeleted(pkd,p)) {
-//	    printf("DELETE %d: %d %d  %g %g\n",p->iOrder,pkdIsGas(pkd,p),pkdIsStar(pkd,p),pkdMass(pkd,p),pkdStar(pkd,p)->fTimer);
 	    --newnLocal; /* no idea about type now -- type info lost */
 	    --ndGas; /* JW: Hack: assume only gas deleted fix this! */
 /*	    if (pkdIsGas(pkd, p))
@@ -3964,11 +3999,9 @@ void pkdNewOrder(PKD pkd,int nStart) {
     PARTICLE *p;
     int pi;
 
-//    printf("NEWORDER: New particles from iOrder=%d\n",nStart);
     for (pi=0;pi<pkdLocal(pkd);pi++) {
 	p = pkdParticle(pkd,pi);
 	if (p->iOrder == IORDERMAX) {
-//	    printf("NEWORDER: Assigning new particle %d\n",nStart);
 	    p->iOrder = nStart++;
 	    }
 	}

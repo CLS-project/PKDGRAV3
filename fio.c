@@ -2015,7 +2015,7 @@ FIO fioGadgetCreate(
 	double dTotalMass = 0.0;
 	gio->pos_fac = gio->hdr.BoxSize;
 	gio->pos_off = 0.5;
-	gio->vel_fac = (gio->hdr.BoxSize*100.0*gio->hdr.Time) / sqrt(8.0/3.0*M_PI);
+	gio->vel_fac =  (gio->hdr.BoxSize*100.0 * sqrt(gio->hdr.Time)) / sqrt(8.0/3.0*M_PI);
 	gio->mass_fac = (pow(gio->hdr.BoxSize,3.0) * 3.0e3) / (8.0 * M_PI * 4.30172);
 	}
     else {
@@ -2324,18 +2324,17 @@ static FIO gadgetOpenOne(const char *fname) {
 	gio->pos_fac = 1.0 / gio->hdr.BoxSize;
 	gio->pos_off = -0.5;
 #ifndef CLUES_COMPILE
-	gio->vel_fac = sqrt(8.0/3.0*M_PI) / (gio->hdr.BoxSize*100.0*gio->hdr.Time);
+	gio->vel_fac = sqrt(8.0/3.0*M_PI) / (gio->hdr.BoxSize*100.0 * sqrt(gio->hdr.Time));
 	gio->mass_fac = 8.0 * M_PI * 4.30172 / (pow(gio->hdr.BoxSize,3.0) * 3.0e3);
 #else
 	fprintf(stderr, "*** Compiled for CLUES simulation. Converts lengths to kpc/h. ***\n");
 	fprintf(stderr, "*** BoxSize is %e\n", gio->hdr.BoxSize);
 	fprintf(stderr, "*** Time is %e\n", gio->hdr.Time);
-	gio->vel_fac = sqrt(8.0/3.0*M_PI) / (gio->hdr.BoxSize/1000.0*100.0*gio->hdr.Time);
+	gio->vel_fac = sqrt(8.0/3.0*M_PI) / (gio->hdr.BoxSize/1000.0*100.0*sqrt(gio->hdr.Time));
 	gio->mass_fac = 8.0 * M_PI * 4.30172 / (pow(gio->hdr.BoxSize/1000.0,3.0) * 3.0e3);
 	fprintf(stderr, "*** vel_fac %e\n", gio->vel_fac);
 	fprintf(stderr, "*** mass_fac %e\n", gio->mass_fac);
 #endif
-
 	}
     else {
 	gio->pos_fac = 1.0;

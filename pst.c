@@ -155,6 +155,11 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_ORB_BEGIN,pst,
 	(void (*)(void *,void *,int,void *,int *)) pstOrbBegin,
 	sizeof(struct inOrbBegin),0);
+    mdlAddService(mdl,PST_ORB_SELECT_RUNG,pst,
+	(void (*)(void *,void *,int,void *,int *)) pstOrbSelectRung,
+	sizeof(struct inOrbSelectRung),0);
+    mdlAddService(mdl,PST_ORB_UPDATE_RUNG,pst,
+	(void (*)(void *,void *,int,void *,int *)) pstOrbUpdateRung,0,0);
     mdlAddService(mdl,PST_ORB_FINISH,pst,
 	(void (*)(void *,void *,int,void *,int *)) pstOrbFinish,0,0);
     mdlAddService(mdl,PST_ORB_DECOMP,pst,
@@ -1538,7 +1543,32 @@ void pstOrbBegin(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
         mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
         }
     else {
-        pkdOrbBegin(plcl->pkd,in->iRung);
+        pkdOrbBegin(plcl->pkd,in->nRungs);
+        }
+    }
+
+void pstOrbSelectRung(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl = pst->plcl;
+    struct inOrbSelectRung *in = (struct inOrbSelectRung *)vin;
+    if (pst->nLeaves > 1) {
+        mdlReqService(pst->mdl,pst->idUpper,PST_ORB_SELECT_RUNG,vin,nIn);
+        pstOrbSelectRung(pst->pstLower,vin,nIn,vout,pnOut);
+        mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
+        }
+    else {
+	pkdOrbSelectRung(plcl->pkd,in->iRung);
+        }
+    }
+
+void pstOrbUpdateRung(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl = pst->plcl;
+    if (pst->nLeaves > 1) {
+        mdlReqService(pst->mdl,pst->idUpper,PST_ORB_UPDATE_RUNG,vin,nIn);
+        pstOrbUpdateRung(pst->pstLower,vin,nIn,vout,pnOut);
+        mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
+        }
+    else {
+        pkdOrbUpdateRung(plcl->pkd);
         }
     }
 
@@ -1584,7 +1614,8 @@ void pstOrbRootFind(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
         mdlGetReply(pst->mdl,pst->idUpper,&outno,NULL);
         }
     else {
-        out->nDomains = pkdOrbRootFind(plcl->pkd,in->dFraction,in->nLower,in->nUpper,
+        out->nDomains = pkdOrbRootFind(plcl->pkd,in->dFraction,
+	    in->nLower,in->nUpper,in->dReserveFraction,
 	    &in->bnd,&out->dSplit,&out->iDim);
         }
     }
@@ -1593,7 +1624,7 @@ void pstOrbRootFind(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 void pstOrbDecomp(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct inOrbDecomp *in = (struct inOrbDecomp *)vin;
-    struct inOrbDecomp in2;
+    struct inOrbDecomp in1, in2;
     struct inOrbRootFind irf;
     struct outOrbRootFind out;
     int iDomain;
@@ -1603,6 +1634,8 @@ void pstOrbDecomp(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	irf.nUpper = pst->nUpperStore;
 	irf.bnd = in->bnd;
 	irf.dFraction = 1.0 * pst->nLower / pst->nLeaves;
+	irf.dReserveFraction = 1.0 - 1.0 / log10(10+1.0*pst->nLeaves);
+
 	pstOrbRootFind(pst,&irf,sizeof(irf),&out,NULL);
 	pst->iSplitDim = out.iDim;
 
@@ -1616,20 +1649,23 @@ void pstOrbDecomp(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	in2.bnd.fMax[out.iDim] = 0.5*(in->bnd.fCenter[out.iDim]+in->bnd.fMax[out.iDim] - out.dSplit);
 	in2.bnd.fCenter[out.iDim] = out.dSplit + in2.bnd.fMax[out.iDim];
 
-	in->bnd.fMax[out.iDim] = 0.5*(out.dSplit - in->bnd.fCenter[out.iDim]+in->bnd.fMax[out.iDim]);
-	in->bnd.fCenter[out.iDim] = out.dSplit - in->bnd.fMax[out.iDim];
+	in1.bnd = in->bnd;
+	in1.bnd.fMax[out.iDim] = 0.5*(out.dSplit - in->bnd.fCenter[out.iDim]+in->bnd.fMax[out.iDim]);
+	in1.bnd.fCenter[out.iDim] = out.dSplit - in1.bnd.fMax[out.iDim];
 
         mdlReqService(pst->mdl,pst->idUpper,PST_ORB_DECOMP,&in2,sizeof(in2));
-        pstOrbDecomp(pst->pstLower,vin,nIn,vout,pnOut);
+        pstOrbDecomp(pst->pstLower,&in1,sizeof(in1),vout,pnOut);
         mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
         }
     else {
+#if 0
 	printf("%d: %g %g  %g %g  %g %g\n",
 	    mdlSelf(pst->mdl),
 	    in->bnd.fCenter[0]-in->bnd.fMax[0], in->bnd.fCenter[0]+in->bnd.fMax[0],
 	    in->bnd.fCenter[1]-in->bnd.fMax[1], in->bnd.fCenter[1]+in->bnd.fMax[1],
 	    in->bnd.fCenter[2]-in->bnd.fMax[2], in->bnd.fCenter[2]+in->bnd.fMax[2]);
-        while(pkdOrbRootFind(plcl->pkd,0,0,0,NULL,NULL,NULL)) {
+#endif
+        while(pkdOrbRootFind(plcl->pkd,0,0,0,0,NULL,NULL,NULL)) {
 	    pstOrbSplit(pst,NULL,0.0,NULL,NULL);
 	    }
         }

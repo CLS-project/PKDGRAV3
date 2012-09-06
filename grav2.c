@@ -745,13 +745,18 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,FLOCR *
 #endif
     for (i=pkdn->pLower;i<=pkdn->pUpper;++i) {
 	p = pkdParticle(pkd,i);
-	if ( !pkdIsDstActive(p,uRungLo,uRungHi) ) continue;
-	nP = work->nP++;
-	work->pPart[nP] = p;
-
 	fMass = pkdMass(pkd,p);
 	fSoft = pkdSoft(pkd,p);
 	v = pkdVel(pkd,p);
+
+	/* Beware of self-interaction - must result in zero acceleration */
+	ilpAppend(ilp,p->r[0],p->r[1],p->r[2],fMass,4*fSoft*fSoft,p->iOrder,v[0],v[1],v[2]);
+
+	if ( !pkdIsDstActive(p,uRungLo,uRungHi) ) continue;
+
+	nP = work->nP++;
+	work->pPart[nP] = p;
+
 	a = pkdAccel(pkd,p);
 	work->pInfoIn[nP].r[0]  = p->r[0] - ilp->cx;
 	work->pInfoIn[nP].r[1]  = p->r[1] - ilp->cy;
@@ -787,9 +792,6 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,FLOCR *
 	    */
 	    work->pInfoIn[nP].fSmooth2 = 0.0;
 	    }
-
-	/* Beware of self-interaction - must result in zero acceleration */
-	ilpAppend(ilp,p->r[0],p->r[1],p->r[2],fMass,4*fSoft*fSoft,p->iOrder,v[0],v[1],v[2]);
 	}
     assert(work->nP<=nGroup);
 

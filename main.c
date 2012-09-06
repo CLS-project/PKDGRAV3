@@ -235,10 +235,6 @@ int FC_MAIN(int argc,char **argv) {
 		msrGravity(msr,0,MAX_RUNG,dTime,msr->param.iStartStep,msr->param.bEwald,msr->param.nGroup,&iSec,&nActive);
 		msrMemStatus(msr);
 		}
-	    if (prmSpecified(msr->prm,"iDomainMethod")) {
-		msrUpdateRung(msr,0);
-		msrDomainDecomp(msr,0,0);
-		}
 	    }
 	if (msrDoGas(msr)) {
 	    /* Initialize SPH, Cooling and SF/FB and gas time step */

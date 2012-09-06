@@ -86,7 +86,7 @@ double msrRead(MSR msr,const char *achInFile);
 void msrWrite(MSR,const char *,double, int bCheckpoint );
 void msrSetSoft(MSR msr,double);
 void msrDomainDecomp(MSR,int iRung,int bSplitVA);
-void msrDomainDecompORB(MSR,int iRung,int bSplitVA);
+void msrDomainDecompORB(MSR);
 void msrDomainDecompNew(MSR);
 void msrRungOrder(MSR msr, int iRung);
 void msrBuildTree(MSR msr,double dTime,int bNeedEwald);

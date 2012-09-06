@@ -71,6 +71,8 @@ enum pst_service {
     PST_READFILE,
 #ifdef MPI_VERSION
     PST_ORB_BEGIN,
+    PST_ORB_SELECT_RUNG,
+    PST_ORB_UPDATE_RUNG,
     PST_ORB_DECOMP,
     PST_ORB_FINISH,
     PST_ORB_ROOT_FIND,
@@ -303,10 +305,19 @@ void pstPeanoHilbertDecomp(PST,void *,int,void *,int *);
 
 /* PST_ORB_BEGIN,PST_ORB_FINISH */
 struct inOrbBegin {
-    int iRung;
+    int nRungs;
     };
 void pstOrbBegin(PST,void *,int,void *,int *);
 void pstOrbFinish(PST,void *,int,void *,int *);
+
+/* PST_SELECT_RUNG */
+struct inOrbSelectRung {
+    int iRung;
+    };
+void pstOrbSelectRung(PST,void *,int,void *,int *);
+
+/* PST_UPDATE_RUNG */
+void pstOrbUpdateRung(PST,void *,int,void *,int *);
 
 /* PST_ORB_DECOMP */
 struct inOrbDecomp {
@@ -319,6 +330,7 @@ void pstOrbDecomp(PST,void *,int,void *,int *);
 struct inOrbRootFind {
     BND     bnd;
     double  dFraction;
+    double  dReserveFraction; /* [0,1) */
     uint64_t nLower, nUpper;
     };
 struct outOrbRootFind {

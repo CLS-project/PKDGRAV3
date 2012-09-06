@@ -1258,12 +1258,13 @@ int pkdLowerOrdPart(PKD,uint64_t,int,int);
 int pkdUpperOrdPart(PKD,uint64_t,int,int);
 int pkdActiveOrder(PKD);
 
-void pkdOrbBegin(PKD pkd, int uRung);
+void pkdOrbBegin(PKD pkd, int nRungs);
+void pkdOrbSelectRung(PKD pkd, int iRung);
 void pkdOrbFinish(PKD pkd);
 void pkdOrbSplit(PKD pkd,int iDomain);
 int pkdOrbRootFind(
     PKD pkd,double dFraction,uint64_t nLowerMax, uint64_t nUpperMax,
-    BND *bnd, double *dSplitOut, int *iDim);
+    double dReserveFraction, BND *bnd, double *dSplitOut, int *iDim);
 /*#define PEANO_HILBERT_KEY_MAX 0x3ffffffffffull*/ /* 2d */
 #define PEANO_HILBERT_KEY_MAX 0x7fffffffffffffffull /* 3d */
 void pkdPeanoHilbertDecomp(PKD pkd, int nRungs, int iMethod);
