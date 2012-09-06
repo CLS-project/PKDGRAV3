@@ -241,6 +241,7 @@ enum pst_service {
     PST_PSD_CLG,
     PST_PSD_UPDATEGROUPS,
     PST_PSD_MERGENOISYGROUPS,
+    PST_PSD_JOINGROUPBRIDGES,
     PST_PSD_SETGLOBALID,
     PST_PSD_FINISH,
     PST_WRITE_PSGROUPS,
@@ -1518,6 +1519,7 @@ void pstPSDUpdateGroups(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 void pstPSDUpdateRemoteGroups(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 void pstPSDUpdateParticleGroups(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 void pstPSDMergeNoisyGroups(PST pst,void *vin,int nIn,void *vout,int *pnOut);
+void pstPSDJoinGroupBridges(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 void pstPSDSetGlobalId(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 void pstWritePsGroups(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 void pstUnbind(PST pst,void *vin,int nIn,void *vout,int *pnOut);

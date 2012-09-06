@@ -619,6 +619,9 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_PSD_MERGENOISYGROUPS,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstPSDMergeNoisyGroups,
 		  0, 0);
+    mdlAddService(mdl,PST_PSD_JOINGROUPBRIDGES,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstPSDJoinGroupBridges,
+		  0, sizeof(int));
     mdlAddService(mdl,PST_PSD_SETGLOBALID,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstPSDSetGlobalId,
 		  0, 0);
@@ -5282,6 +5285,27 @@ void pstPSDMergeNoisyGroups(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
         psdMergeNoisyGroups(plcl->pkd->psx);
         }
     if (pnOut) *pnOut = 0;
+    }
+
+void pstPSDJoinGroupBridges(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    struct inPSD *in = vin;
+    int *done = vout;
+    int doneUpper;
+    int nOut;
+
+    mdlassert(pst->mdl,nIn == 0);
+    if (pst->nLeaves > 1) {
+        mdlReqService(pst->mdl,pst->idUpper,PST_PSD_JOINGROUPBRIDGES,NULL,0);
+        pstPSDJoinGroupBridges(pst->pstLower,NULL,0,vout,pnOut);
+        mdlGetReply(pst->mdl,pst->idUpper,&doneUpper,&nOut);
+        assert(nOut==sizeof(doneUpper));
+        *done = *done && doneUpper;
+        }
+    else {
+        LCL *plcl = pst->plcl;
+        *done = psdJoinGroupBridges(plcl->pkd->psx,&in->psf);
+        }
+    if (pnOut) *pnOut = sizeof(*done);
     }
 
 void pstPSDSetGlobalId(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
