@@ -1885,7 +1885,7 @@ int pkdOrbRootFind(
 	    else {
 		uint64_t nMax = nLowerMax + nUpperMax;
 		uint64_t nReserve = (nMax - nTotal) * dReserveFraction;
-		assert(nMax>nTotal);
+		assert(nMax>=nTotal);
 		nLowerLimit = nLowerMax - nReserve*(1.0*nLowerMax/nMax);
 		nUpperLimit = nUpperMax - nReserve*(1.0*nUpperMax/nMax);
 		}
