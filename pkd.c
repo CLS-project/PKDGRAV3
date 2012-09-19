@@ -1774,10 +1774,12 @@ int pkdOrbRootFind(
 
     PARTICLE *p;
     int i, j, lb, ub, d;
-    int iIter;
+    int iIter, nUnbalancedTarget;
     int nDomainsActive, iDomain, iActive, iWork;
 
     ORBCOUNT DomainCountGlobal;
+
+    if (dSplitOut) *dSplitOut = HUGE_VAL;
 
     /* Now figure out which dimension to split along -- the longest */
     if (dFraction>0.0) {
@@ -1801,6 +1803,7 @@ int pkdOrbRootFind(
 	}
     if (nDomainsActive==0) return 0;
 
+    nUnbalancedTarget = 0;
     iIter = 0;
     do {
 	iWork = 0;
@@ -1896,7 +1899,6 @@ int pkdOrbRootFind(
 		}
             else dFracActive=1.0*DomainCountGlobal.nActiveBelow/nActive;
 	    assert(DomainCountGlobal.nTotalBelow+DomainCountGlobal.nTotalAbove <= nLowerLimit+nUpperLimit);
-
 	    if (DomainCountGlobal.nTotalBelow > nLowerLimit) {
 		dSplitMax = dSplit;
 		dSplit = (dSplitMin+dSplitMax) * 0.5;
@@ -1913,13 +1915,15 @@ int pkdOrbRootFind(
 		if (dSplitOut) *dSplitOut = dSplit;
 		dSplit = HUGE_VAL;
 		}
-	    else if ( nUnbalanced <= 1 ) {
+	    else if ( nUnbalanced <= nUnbalancedTarget ) {
 		if (dSplitOut) *dSplitOut = dSplit;
 		dSplit = HUGE_VAL;
 		}
             else {
+		++nUnbalancedTarget;
                 if ( dFracActive > dFraction ) dSplitMax = dSplit;
                 else dSplitMin = dSplit;
+		if (dSplitOut) *dSplitOut = dSplit;
                 dSplit = (dSplitMin+dSplitMax) * 0.5;
                 }
             }
