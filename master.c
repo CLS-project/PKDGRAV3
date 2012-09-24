@@ -2482,7 +2482,7 @@ void msrDomainDecompOld(MSR msr,int iRung,int bSplitVA) {
 
 void msrDomainDecomp(MSR msr,int iRung,int bOthers,int bSplitVA) {
 #ifdef MPI_VERSION
-    if (prmSpecified(msr->prm,"iDomainMethod") && msr->param.iDomainMethod>-2) {
+    if (prmSpecified(msr->prm,"iDomainMethod")) {
 	double sec,dsec;
 	sec = msrTime();
 	if (iRung==0) {

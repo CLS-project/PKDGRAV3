@@ -29,7 +29,13 @@ static ppyCtx *global_ppy = NULL;
  ** Interface to pkdgrav parameters
 \**********************************************************************/
 
-static void addToDict(PyObject *dict,PRM_NODE *pn) {
+static void addToDict(PyObject *dict,PRM prm,PRM_NODE *pn) {
+    if (!prmSpecified(prm,pn->pszName))
+    {
+	PyDict_SetItemString(dict, pn->pszName, Py_None);
+	return;
+    }
+
     switch (pn->iType) {
     case 0:
     case 1:
@@ -60,8 +66,8 @@ static void prm2ppy(void) {
 
     /* We really shouldn't know about this structure, but what can you do? */
     for( pn=ppy_msr->prm->pnHead; pn!=NULL; pn=pn->pnNext ) {
-	if (pn->bArg) addToDict(global,pn);
-	addToDict(local,pn);
+	if (pn->bArg) addToDict(global,ppy_msr->prm,pn);
+	addToDict(local,ppy_msr->prm,pn);
 	}
     }
 
@@ -77,6 +83,7 @@ static void ppy2prm(void) {
     for( pn=ppy_msr->prm->pnHead; pn!=NULL; pn=pn->pnNext ) {
 	v = PyDict_GetItemString(global, pn->pszName);
 	if (v!=NULL) {
+	    if (v == Py_None) continue;
 	    pn->bArg = 1;
 	    switch(pn->iType) {
 	    case 0:
