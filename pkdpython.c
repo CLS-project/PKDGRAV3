@@ -102,6 +102,16 @@ static void ppy2prm(void) {
 	}
     }
 
+static int ppy_get_dTime(double *dTime)
+{
+    PyObject *v, *dict;
+    dict = PyModule_GetDict(global_ppy->module);
+    if ( (v = PyDict_GetItemString(dict, "dTime")) == NULL )
+	return 0;
+    *dTime = PyFloat_AsDouble(v);
+    return 1;
+}
+
 
 /**********************************************************************\
  ** MASTER Interface (msr functions)
@@ -109,12 +119,14 @@ static void ppy2prm(void) {
 
 static PyObject *
 ppy_msr_SelSrcAll(PyObject *self, PyObject *args) {
+    ppy2prm();
     msrSelSrcAll(ppy_msr);
     return Py_BuildValue("L", ppy_msr->N);
 }
 
 static PyObject *
 ppy_msr_SelDstAll(PyObject *self, PyObject *args) {
+    ppy2prm();
     msrSelDstAll(ppy_msr);
     return Py_BuildValue("L", ppy_msr->N);
 }
@@ -126,6 +138,7 @@ ppy_msr_SelSrcMass(PyObject *self, PyObject *args, PyObject *kwobj) {
     int setIfTrue=1, clearIfFalse=1;
     uint64_t nSelected;
 
+    ppy2prm();
     if ( !PyArg_ParseTupleAndKeywords(
 	     args, kwobj, "dd|ii:SelSrcMass", kwlist,
 	     &dMinMass, &dMaxMass, &setIfTrue, &clearIfFalse) )
@@ -141,6 +154,7 @@ ppy_msr_SelDstMass(PyObject *self, PyObject *args, PyObject *kwobj) {
     int setIfTrue=1, clearIfFalse=1;
     uint64_t nSelected;
 
+    ppy2prm();
     if ( !PyArg_ParseTupleAndKeywords(
 	     args, kwobj, "dd|ii:SelDstMass", kwlist,
 	     &dMinMass, &dMaxMass, &setIfTrue, &clearIfFalse) )
@@ -156,6 +170,7 @@ ppy_msr_SelSrcPhaseDensity(PyObject *self, PyObject *args, PyObject *kwobj) {
     int setIfTrue=1, clearIfFalse=1;
     uint64_t nSelected;
 
+    ppy2prm();
     if ( !PyArg_ParseTupleAndKeywords(
 	     args, kwobj, "dd|ii:SelSrcPhaseDensity", kwlist,
 	     &dMinDensity, &dMaxDensity, &setIfTrue, &clearIfFalse) )
@@ -171,6 +186,7 @@ ppy_msr_SelDstPhaseDensity(PyObject *self, PyObject *args, PyObject *kwobj) {
     int setIfTrue=1, clearIfFalse=1;
     uint64_t nSelected;
 
+    ppy2prm();
     if ( !PyArg_ParseTupleAndKeywords(
 	     args, kwobj, "dd|ii:SelDstPhaseDensity", kwlist,
 	     &dMinDensity, &dMaxDensity, &setIfTrue, &clearIfFalse) )
@@ -185,6 +201,7 @@ ppy_msr_SelSrcBox(PyObject *self, PyObject *args) {
     int setIfTrue=1, clearIfFalse=1;
     uint64_t nSelected;
 
+    ppy2prm();
     if ( !PyArg_ParseTuple(
 	     args, "(ddd)(ddd)|ii:SelSrcBox",
 	     dCenter+0, dCenter+1, dCenter+2, dSize+0, dSize+1, dSize+2, &setIfTrue, &clearIfFalse) )
@@ -198,6 +215,7 @@ ppy_msr_SelDstBox(PyObject *self, PyObject *args) {
     int setIfTrue=1, clearIfFalse=1;
     uint64_t nSelected;
 
+    ppy2prm();
     if ( !PyArg_ParseTuple(
 	     args, "(ddd)(ddd)|ii:SelDstBox",
 	     dCenter+0, dCenter+1, dCenter+2, dSize+0, dSize+1, dSize+2, &setIfTrue, &clearIfFalse) )
@@ -212,6 +230,7 @@ ppy_msr_SelSrcSphere(PyObject *self, PyObject *args) {
     int setIfTrue=1, clearIfFalse=1;
     uint64_t nSelected;
 
+    ppy2prm();
     if ( !PyArg_ParseTuple(
 	     args, "(ddd)d|ii:SelSrcSphere",
 	     r+0, r+1, r+2, &dRadius, &setIfTrue, &clearIfFalse) )
@@ -226,6 +245,7 @@ ppy_msr_SelDstSphere(PyObject *self, PyObject *args) {
     int setIfTrue=1, clearIfFalse=1;
     uint64_t nSelected;
 
+    ppy2prm();
     if ( !PyArg_ParseTuple(
 	     args, "(ddd)d|ii:SelDstSphere",
 	     r+0, r+1, r+2, &dRadius, &setIfTrue, &clearIfFalse) )
@@ -240,6 +260,7 @@ ppy_msr_SelSrcCylinder(PyObject *self, PyObject *args) {
     int setIfTrue=1, clearIfFalse=1;
     uint64_t nSelected;
 
+    ppy2prm();
     if ( !PyArg_ParseTuple(
 	     args, "(ddd)(ddd)d|ii:SelSrcSphere",
 	     dP1+0, dP1+1, dP1+2, dP2+0, dP2+1, dP2+2, &dRadius,
@@ -255,6 +276,7 @@ ppy_msr_SelDstCylinder(PyObject *self, PyObject *args) {
     int setIfTrue=1, clearIfFalse=1;
     uint64_t nSelected;
 
+    ppy2prm();
     if ( !PyArg_ParseTuple(
 	     args, "(ddd)(ddd)d|ii:SelDstSphere",
 	     dP1+0, dP1+1, dP1+2, dP2+0, dP2+1, dP2+2, &dRadius,
@@ -270,6 +292,7 @@ ppy_msr_SelSrcById(PyObject *self, PyObject *args) {
     int setIfTrue=1, clearIfFalse=1;
     uint64_t nSelected;
 
+    ppy2prm();
     if ( !PyArg_ParseTuple(
 	     args, "LL|ii:SelSrcById",
 	     &idStart, &idEnd, &setIfTrue, &clearIfFalse) )
@@ -284,6 +307,7 @@ ppy_msr_SelDstById(PyObject *self, PyObject *args) {
     int setIfTrue=1, clearIfFalse=1;
     uint64_t nSelected;
 
+    ppy2prm();
     if ( !PyArg_ParseTuple(
 	     args, "ll|ii:SelDstById",
 	     &idStart, &idEnd, &setIfTrue, &clearIfFalse) )
@@ -327,6 +351,7 @@ static PyObject *
 ppy_msr_DeepestPotential(PyObject *self, PyObject *args) {
     double r[3];
     float fPot;
+    ppy2prm();
     msrDeepestPot(ppy_msr,r,&fPot);
     return Py_BuildValue("((ddd)f)", r[0], r[1], r[2], fPot);
 }
@@ -334,6 +359,7 @@ ppy_msr_DeepestPotential(PyObject *self, PyObject *args) {
 static PyObject *
 ppy_msr_TotalMass(PyObject *self, PyObject *args) {
     double dMass;
+    ppy2prm();
     dMass = msrTotalMass(ppy_msr);
     return Py_BuildValue("d", dMass );
 }
@@ -346,6 +372,7 @@ ppy_msr_Profile(PyObject *self, PyObject *args) {
     PyObject *List;
     double radius_old;
 
+    ppy2prm();
     nAccuracy = 2; /* +/- 2 particles per bin */
     nBins = 200;
     nPerBin = 0;
@@ -391,6 +418,7 @@ ppy_msr_Profile(PyObject *self, PyObject *args) {
 
 static PyObject *
 ppy_msr_Reorder(PyObject *self, PyObject *args) {
+    ppy2prm();
     msrReorder(ppy_msr);
     Py_INCREF(Py_None);
     return Py_None;
@@ -403,6 +431,7 @@ ppy_msr_DomainDecomp(PyObject *self, PyObject *args, PyObject *kwobj) {
     int bOthers  = 0;
     int bSplitVA = 0;
 
+    ppy2prm();
     if ( !PyArg_ParseTupleAndKeywords(
 	     args, kwobj, "|iii:DomainDecomp", kwlist,
 	     &iRung, &bOthers, &bSplitVA ) )
@@ -416,6 +445,7 @@ static PyObject *
 ppy_msr_UpdateRung(PyObject *self, PyObject *args, PyObject *kwobj) {
     static char *kwlist[]={"Rung",NULL};
     int iRung    = 0;
+    ppy2prm();
     if ( !PyArg_ParseTupleAndKeywords(
 	     args, kwobj, "|i:UpdateRung", kwlist,
 	     &iRung ) )
@@ -429,6 +459,7 @@ ppy_msr_UpdateRung(PyObject *self, PyObject *args, PyObject *kwobj) {
 
 static PyObject *
 ppy_msr_DomainDecompNew(PyObject *self, PyObject *args, PyObject *kwobj) {
+    ppy2prm();
     msrDomainDecompNew(ppy_msr);
     Py_INCREF(Py_None);
     return Py_None;
@@ -438,6 +469,7 @@ static PyObject *
 ppy_msr_RungOrder(PyObject *self, PyObject *args, PyObject *kwobj) {
     static char *kwlist[]={"Rung",NULL};
     int iRung    = 0;
+    ppy2prm();
     if ( !PyArg_ParseTupleAndKeywords(
 	     args, kwobj, "|i:RungOrder", kwlist,
 	     &iRung ) )
@@ -453,12 +485,11 @@ ppy_msr_BuildTree(PyObject *self, PyObject *args, PyObject *kwobj) {
     static char *kwlist[]={"Time","Ewald",NULL};
     double dTime = 0.0;
     int bEwald = ppy_msr->param.bEwald;
-    PyObject *v, *dict;
 
-    dict = PyModule_GetDict(global_ppy->module);
-    if ( (v = PyDict_GetItemString(dict, "dTime")) == NULL )
+    ppy2prm();
+    if (!ppy_get_dTime(&dTime))
 	return NULL;
-    dTime = PyFloat_AsDouble(v);
+
     if ( !PyArg_ParseTupleAndKeywords(
 	     args, kwobj, "|di:BuildTree", kwlist,
 	     &dTime, &bEwald ) )
@@ -474,15 +505,13 @@ ppy_msr_Gravity(PyObject *self, PyObject *args, PyObject *kwobj) {
     static char *kwlist[]={"Rung","Time","Ewald",NULL};
     double dTime = 0.0;
     int bEwald = ppy_msr->param.bEwald;
-    PyObject *v, *dict;
     uint64_t nActive;
     int iSec = 0;
     int iRung    = 0;
 
-    dict = PyModule_GetDict(global_ppy->module);
-    if ( (v = PyDict_GetItemString(dict, "dTime")) == NULL )
+    ppy2prm();
+    if (!ppy_get_dTime(&dTime))
 	return NULL;
-    dTime = PyFloat_AsDouble(v);
     if ( !PyArg_ParseTupleAndKeywords(
 	     args, kwobj, "|idi:Gravity", kwlist,
 	     &iRung, &dTime, &bEwald ) )
@@ -499,12 +528,10 @@ ppy_msr_Fof(PyObject *self, PyObject *args, PyObject *kwobj) {
     static char *kwlist[]={"Time",NULL};
     double dExp;
     double dTime = 0.0;
-    PyObject *v, *dict;
 
-    dict = PyModule_GetDict(global_ppy->module);
-    if ( (v = PyDict_GetItemString(dict, "dTime")) == NULL )
+    ppy2prm();
+    if (!ppy_get_dTime(&dTime))
 	return NULL;
-    dTime = PyFloat_AsDouble(v);
     if ( !PyArg_ParseTupleAndKeywords(
 	     args, kwobj, "|d:Fof", kwlist,
 	     &dTime ) )
@@ -519,15 +546,13 @@ ppy_msr_Fof(PyObject *self, PyObject *args, PyObject *kwobj) {
 static PyObject *
 ppy_msr_Smooth(PyObject *self, PyObject *args, PyObject *kwobj) {
     static char *kwlist[]={"iSmoothType","bSymmetric","dTime",NULL};
-    PyObject *v, *dict;
     int iSmoothType;
     int bSymmetric = 0;
     double dTime;
 
-    dict = PyModule_GetDict(global_ppy->module);
-    if ( (v = PyDict_GetItemString(dict, "dTime")) == NULL )
+    ppy2prm();
+    if (!ppy_get_dTime(&dTime))
 	return NULL;
-    dTime = PyFloat_AsDouble(v);
     if ( !PyArg_ParseTupleAndKeywords(
 	     args, kwobj, "i|id:Smooth", kwlist,
 	     &iSmoothType,&bSymmetric, &dTime ) )
@@ -542,15 +567,13 @@ ppy_msr_Smooth(PyObject *self, PyObject *args, PyObject *kwobj) {
 static PyObject *
 ppy_msr_ReSmooth(PyObject *self, PyObject *args, PyObject *kwobj) {
     static char *kwlist[]={"iSmoothType","bSymmetric","dTime",NULL};
-    PyObject *v, *dict;
     int iSmoothType;
     int bSymmetric = 0;
     double dTime;
 
-    dict = PyModule_GetDict(global_ppy->module);
-    if ( (v = PyDict_GetItemString(dict, "dTime")) == NULL )
+    ppy2prm();
+    if (!ppy_get_dTime(&dTime))
 	return NULL;
-    dTime = PyFloat_AsDouble(v);
     if ( !PyArg_ParseTupleAndKeywords(
 	     args, kwobj, "i|id:ReSmooth", kwlist,
 	     &iSmoothType,&bSymmetric, &dTime ) )
@@ -569,6 +592,7 @@ ppy_msr_PeakVc(PyObject *self, PyObject *args, PyObject *kwobj) {
     int N, i;
     struct inPeakVc *in;
 
+    ppy2prm();
     if ( !PyArg_ParseTupleAndKeywords(
 	     args, kwobj, "O:PeakVc", kwlist,
 	     &list ) )
@@ -599,12 +623,11 @@ ppy_msr_AdjustTime(PyObject *self, PyObject *args, PyObject *kwobj) {
     int N, i;
     double aOld, aNew;
     double dTime;
-    PyObject *v, *dict;
+    PyObject *dict;
 
-    dict = PyModule_GetDict(global_ppy->module);
-    if ( (v = PyDict_GetItemString(dict, "dTime")) == NULL )
+    ppy2prm();
+    if (!ppy_get_dTime(&dTime))
 	return NULL;
-    dTime = PyFloat_AsDouble(v);
     aOld = csmTime2Exp(ppy_msr->param.csm,dTime);
 
     if ( !PyArg_ParseTupleAndKeywords(
@@ -613,6 +636,7 @@ ppy_msr_AdjustTime(PyObject *self, PyObject *args, PyObject *kwobj) {
 	return NULL;
 
     dTime = msrAdjustTime(ppy_msr,aOld,aNew);
+    dict = PyModule_GetDict(global_ppy->module);
     PyDict_SetItemString(dict, "dTime", Py_BuildValue("d",dTime));
 
     Py_INCREF(Py_None);
@@ -625,6 +649,7 @@ ppy_msr_InitGrid(PyObject *self, PyObject *args, PyObject *kwobj) {
     int x, y, z;
 
 
+    ppy2prm();
     if ( !PyArg_ParseTupleAndKeywords(
 	     args, kwobj, "iii:InitGrid", kwlist,
 	     &x, &y, &z ) )
@@ -639,6 +664,7 @@ static PyObject *
 ppy_msr_Project(PyObject *self, PyObject *args, PyObject *kwobj) {
     static char *kwlist[]={"x","y","z",NULL};
     double x=0.0, y=0.0, z=0.0;
+    ppy2prm();
     if ( !PyArg_ParseTupleAndKeywords(
 	     args, kwobj, "|ddd:GridProject", kwlist,
 	     &x, &y, &z ) )
@@ -658,6 +684,8 @@ ppy_msr_MeasurePk(PyObject *self, PyObject *args, PyObject *kwobj) {
     int nGrid, iNyquist, i;
     float *fPk;
     PyObject *List, *value;
+
+    ppy2prm();
 
     if ( !PyArg_ParseTupleAndKeywords(
 	     args, kwobj, "i|dddd:MeasurePk", kwlist,
@@ -685,12 +713,10 @@ ppy_msr_GroupProfiles(PyObject *self, PyObject *args, PyObject *kwobj) {
     static char *kwlist[]={"Time",NULL};
     double dExp;
     double dTime = 0.0;
-    PyObject *v, *dict;
 
-    dict = PyModule_GetDict(global_ppy->module);
-    if ( (v = PyDict_GetItemString(dict, "dTime")) == NULL )
+    ppy2prm();
+    if (!ppy_get_dTime(&dTime))
 	return NULL;
-    dTime = PyFloat_AsDouble(v);
     if ( !PyArg_ParseTupleAndKeywords(
 	     args, kwobj, "|d:GroupProfiles", kwlist,
 	     &dTime ) )
@@ -707,8 +733,10 @@ ppy_msr_Load(PyObject *self, PyObject *args, PyObject *kwobj) {
     const char *fname;
     double dTime;
     int iType = IN_TIPSY_STD;
-    PyObject *dict, *v;
+    PyObject *dict;
 
+    ppy2prm();
+#if 0
     dict = PyModule_GetDict(global_ppy->module);
 
     if ( (v = PyDict_GetItemString(dict, "bMemAcceleration")) != NULL )
@@ -741,6 +769,7 @@ ppy_msr_Load(PyObject *self, PyObject *args, PyObject *kwobj) {
 	ppy_msr->param.bMemNodeSphBounds = PyInt_AsLong(v);
     if ( (v = PyDict_GetItemString(dict, "bStandard")) != NULL )
 	ppy_msr->param.bStandard = PyInt_AsLong(v);
+#endif
 
     if ( !PyArg_ParseTupleAndKeywords(
 	     args, kwobj, "s|i:Load", kwlist,
@@ -752,6 +781,7 @@ ppy_msr_Load(PyObject *self, PyObject *args, PyObject *kwobj) {
     case IN_TIPSY_NAT:
 	dTime = msrRead(ppy_msr,fname);
 	msrInitStep(ppy_msr);
+	dict = PyModule_GetDict(global_ppy->module);
 	PyDict_SetItemString(dict, "dTime", Py_BuildValue("d",dTime));
 	break;
 
@@ -775,12 +805,10 @@ ppy_msr_Save(PyObject *self, PyObject *args, PyObject *kwobj) {
     const char *fname;
     int iType = 0;
     double dTime = 0.0;
-    PyObject *v, *dict;
 
-    dict = PyModule_GetDict(global_ppy->module);
-    if ( (v = PyDict_GetItemString(dict, "dTime")) == NULL )
+    ppy2prm();
+    if (!ppy_get_dTime(&dTime))
 	return NULL;
-    dTime = PyFloat_AsDouble(v);
     if ( !PyArg_ParseTupleAndKeywords(
 	     args, kwobj, "s|id:Save", kwlist,
 	     &fname,&iType, &dTime ) )
@@ -842,6 +870,7 @@ ppy_msr_SaveVector(PyObject *self, PyObject *args, PyObject *kwobj) {
     static char *kwlist[]={"Name","Type",NULL};
     const char *fname;
     int iType;
+    ppy2prm();
     if ( !PyArg_ParseTupleAndKeywords(
 	     args, kwobj, "si:SaveVector", kwlist,
 	     &fname,&iType ) )
@@ -856,6 +885,7 @@ ppy_msr_SaveArray(PyObject *self, PyObject *args, PyObject *kwobj) {
     static char *kwlist[]={"Name","Type",NULL};
     const char *fname;
     int iType;
+    ppy2prm();
     if ( !PyArg_ParseTupleAndKeywords(
 	     args, kwobj, "si:SaveArray", kwlist,
 	     &fname,&iType ) )
@@ -890,9 +920,31 @@ ppy_msr_BuildPsdTree(PyObject *self, PyObject *args, PyObject *kwobj) {
 static PyObject *
 ppy_msr_PSGroupFinder(PyObject *self, PyObject *args, PyObject *kwobj) {
     static char *kwlist[]={NULL};
-    PyObject *v, *dict;
 
+    ppy2prm();
     msrPSGroupFinder(ppy_msr);
+
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+
+static PyObject *
+ppy_msr_Unbind(PyObject *self, PyObject *args, PyObject *kwobj) {
+    static char *kwlist[]={NULL};
+
+    ppy2prm();
+    msrUnbind(ppy_msr);
+
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+
+static PyObject *
+ppy_msr_SetPSGroupIds(PyObject *self, PyObject *args, PyObject *kwobj) {
+    static char *kwlist[]={NULL};
+
+    ppy2prm();
+    msrSetPSGroupIds(ppy_msr);
 
     Py_INCREF(Py_None);
     return Py_None;
@@ -1014,6 +1066,10 @@ static PyMethodDef msr_methods[] = {
      //"Build the phase-space tree"},
     {"PSGroupFinder", (PyCFunction)ppy_msr_PSGroupFinder, METH_NOARGS,
      "Calculate phase space density using EnBiD algorithm"},
+    {"Unbind", (PyCFunction)ppy_msr_Unbind, METH_NOARGS,
+     "Unbind phase-space groups."},
+    {"SetPSGroupIds", (PyCFunction)ppy_msr_SetPSGroupIds, METH_NOARGS,
+     "Assign global group IDs to particles. Must be done before a reorder."},
 #if 0
     {"PsFof", (PyCFunction)ppy_msr_PsFof, METH_VARARGS|METH_KEYWORDS,
      "Phase-space Friends of Friends"},
@@ -1226,6 +1282,7 @@ void ppyInitialize(PPY *pvppy, MSR msr, double dTime) {
 	PyObject *pymsr = PyObject_CallObject((PyObject *) &msrType, NULL);
 	PyModule_AddObject(ppy->mainModule, "msr", pymsr);
 	setConstants(PyModule_GetDict(global_ppy->mainModule));
+	prm2ppy();
 	}
     }
 

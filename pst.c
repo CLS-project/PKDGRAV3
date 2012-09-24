@@ -617,10 +617,10 @@ void pstAddServices(PST pst,MDL mdl) {
 
     mdlAddService(mdl,PST_PSD_CLG,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstPSDCountLocalGroups,
-		  sizeof(int), nThreads*sizeof(struct inUpdateGroups));
-    mdlAddService(mdl,PST_PSD_UPDATEGROUPS,pst,
-		  (void (*)(void *,void *,int,void *,int *)) pstPSDUpdateGroups,
-		  nThreads*sizeof(struct inUpdateGroups), 0);
+		  sizeof(int), nThreads*sizeof(struct inAssignGlobalIds));
+    mdlAddService(mdl,PST_PSD_ASSIGN_GLOBAL_IDS,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstPSDAssignGlobalIds,
+		  nThreads*sizeof(struct inAssignGlobalIds), 0);
     mdlAddService(mdl,PST_PSD_MERGENOISYGROUPS,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstPSDMergeNoisyGroups,
 		  0, 0);
@@ -5166,14 +5166,7 @@ void pstBuildPsdTree(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
         //printf("[%i] nLocal: %i\n", pst->idSelf, plcl->pkd->nLocal);
         //printf("[%i] iTopRoot: %i\n", pst->idSelf, plcl->pkd->iTopRoot);
 
-        plcl->pkd->psx = calloc(1, sizeof(*plcl->pkd->psx));
-        assert(plcl->pkd->psx != NULL);
-        plcl->pkd->psx->pkd = plcl->pkd;
-
-        plcl->pkd->psx->psm = malloc(plcl->pkd->nLocal * sizeof(*plcl->pkd->psx->psm));
-        assert(plcl->pkd->psx->psm != NULL);
-
-        psdBuildTree(plcl->pkd,plcl->pkd->psx,in,pCell);
+        psdBuildTree(pkd,pkd->psx,in,pCell);
 
         pCell->iLower = 0;
         pCell->pLower = pst->idSelf;
@@ -5197,8 +5190,8 @@ void pstPSD(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
         mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
         }
     else {
-        LCL *plcl = pst->plcl;
-        psdSmooth(plcl->pkd->psx,&in->psf);
+        PKD pkd = pst->plcl->pkd;
+        psdSmooth(pkd,pkd->psx);
         }
     if (pnOut) *pnOut = 0;
     }
@@ -5213,8 +5206,8 @@ void pstPSDLink(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
         mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
         }
     else {
-        LCL *plcl = pst->plcl;
-        psdSmoothLink(plcl->pkd->psx,&in->psf);
+        PKD pkd = pst->plcl->pkd;
+        psdSmoothLink(pkd,pkd->psx);
         }
     if (pnOut) *pnOut = 0;
     }
@@ -5229,9 +5222,10 @@ void pstPSDInit(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
         mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
         }
     else {
-        LCL *plcl = pst->plcl;
-        psdInitialize(plcl->pkd->psx,plcl->pkd,&in->psf,in->nSmooth,
-        in->bPeriodic,in->bSymmetric,in->iSmoothType, 1);
+        PKD pkd = pst->plcl->pkd;
+        pkd->psx = calloc(1, sizeof(*pkd->psx));
+        assert(pkd->psx != NULL);
+        psdInitialize(pkd, pkd->psx,in->nSmooth, in->bPeriodic);
         }
     if (pnOut) *pnOut = 0;
     }
@@ -5251,16 +5245,16 @@ void pstPSDJoinBridges(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
         *done = *done && doneUpper;
         }
     else {
-        LCL *plcl = pst->plcl;
-        *done = psdJoinBridges(plcl->pkd->psx,&in->psf);
+        PKD pkd = pst->plcl->pkd;
+        *done = psdJoinBridges(pkd, pkd->psx);
         }
     if (pnOut) *pnOut = sizeof(*done);
     }
 
 void pstPSDCountLocalGroups(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     int *in = vin;
-    struct inUpdateGroups *out = vout;
-    struct inUpdateGroups *tmp;
+    struct inAssignGlobalIds *out = vout;
+    struct inAssignGlobalIds *tmp;
     int i;
 
     mdlassert(pst->mdl,nIn == sizeof(*in));
@@ -5284,27 +5278,27 @@ void pstPSDCountLocalGroups(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 #endif
         }
     else {
-        LCL *plcl = pst->plcl;
+        PKD pkd = pst->plcl->pkd;
         assert(*in == pst->idSelf);
         out[*in].offs = 0;
-        out[*in].count = psdCountLocalGroups(plcl->pkd->psx);
+        out[*in].count = psdCountLocalGroups(pkd);
         }
-    if (pnOut) *pnOut = mdlThreads(pst->mdl)*sizeof(struct inUpdateGroups);
+    if (pnOut) *pnOut = mdlThreads(pst->mdl)*sizeof(struct inAssignGlobalIds);
     }
 
-void pstPSDUpdateGroups(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
-    struct inUpdateGroups *in = vin;
+void pstPSDAssignGlobalIds(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    struct inAssignGlobalIds *in = vin;
 
-    mdlassert(pst->mdl,nIn == mdlThreads(pst->mdl)*sizeof(struct inUpdateGroups));
+    mdlassert(pst->mdl,nIn == mdlThreads(pst->mdl)*sizeof(struct inAssignGlobalIds));
     if (pst->nLeaves > 1) {
-        mdlReqService(pst->mdl,pst->idUpper,PST_PSD_UPDATEGROUPS,in,nIn);
-        pstPSDUpdateGroups(pst->pstLower,in,nIn,NULL,NULL);
+        mdlReqService(pst->mdl,pst->idUpper,PST_PSD_ASSIGN_GLOBAL_IDS,in,nIn);
+        pstPSDAssignGlobalIds(pst->pstLower,in,nIn,NULL,NULL);
         mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
         }
     else {
-        LCL *plcl = pst->plcl;
-        struct inUpdateGroups *d = in+plcl->pkd->idSelf;
-        psdUpdateGroups(plcl->pkd->psx, d->offs, d->count);
+        PKD pkd = pst->plcl->pkd;
+        struct inAssignGlobalIds *d = in+pkd->idSelf;
+        psdAssignGlobalIds(pkd, d->offs, d->count);
         }
     if (pnOut) *pnOut = 0;
     }
@@ -5317,8 +5311,8 @@ void pstPSDMergeNoisyGroups(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
         mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
         }
     else {
-        LCL *plcl = pst->plcl;
-        psdMergeNoisyGroups(plcl->pkd->psx);
+        PKD pkd = pst->plcl->pkd;
+        psdMergeNoisyGroups(pkd, pkd->psx);
         }
     if (pnOut) *pnOut = 0;
     }
@@ -5338,8 +5332,8 @@ void pstPSDJoinGroupBridges(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
         *done = *done && doneUpper;
         }
     else {
-        LCL *plcl = pst->plcl;
-        *done = psdJoinGroupBridges(plcl->pkd->psx,&in->psf);
+        PKD pkd = pst->plcl->pkd;
+        *done = psdJoinGroupBridges(pkd);
         }
     if (pnOut) *pnOut = sizeof(*done);
     }
@@ -5353,7 +5347,7 @@ void pstPSDSetGlobalId(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
         }
     else {
         LCL *plcl = pst->plcl;
-        psdSetGlobalId(plcl->pkd->psx);
+        psdSetGlobalId(plcl->pkd);
         }
     if (pnOut) *pnOut = 0;
     }
@@ -5368,8 +5362,8 @@ void pstPSDFinish(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
         mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
         }
     else {
-        LCL *plcl = pst->plcl;
-        psdFinish(plcl->pkd->psx,&in->psf);
+        PKD pkd = pst->plcl->pkd;
+        psdFinish(pkd,pkd->psx);
         }
     if (pnOut) *pnOut = 0;
     }
@@ -5395,7 +5389,7 @@ void pstUnbind(PST pst,void *vin,int nIn,void *vout,int *pnOut)
         }
     else {
         LCL *plcl = pst->plcl;
-        pkdUnbind(plcl->pkd);
+        ubUnbind(plcl->pkd, 32);
         }
     if (pnOut) *pnOut = 0;
 }

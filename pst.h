@@ -241,7 +241,7 @@ enum pst_service {
     PST_PSD_INIT,
     PST_PSD_JOINBRIDGES,
     PST_PSD_CLG,
-    PST_PSD_UPDATEGROUPS,
+    PST_PSD_ASSIGN_GLOBAL_IDS,
     PST_PSD_MERGENOISYGROUPS,
     PST_PSD_JOINGROUPBRIDGES,
     PST_PSD_SETGLOBALID,
@@ -1499,19 +1499,18 @@ struct inPSD {
     int nBucket;
     int iCell;
     int nCell;
-    int bExcludeVeryActive;
+    //int bExcludeVeryActive;
 
     int nSmooth;
     int bPeriodic;
-    int bSymmetric;
-    int iSmoothType;
-    PSF psf;
+    //int bSymmetric;
+    //int iSmoothType;
     };
 struct outPSD {
     int dummy;
     };
 
-struct inUpdateGroups
+struct inAssignGlobalIds
 {
     int offs;
     int count;
@@ -1530,7 +1529,7 @@ void pstPSDInit(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 void pstPSDFinish(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 void pstPSDJoinBridges(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 void pstPSDCountLocalGroups(PST pst,void *vin,int nIn,void *vout,int *pnOut);
-void pstPSDUpdateGroups(PST pst,void *vin,int nIn,void *vout,int *pnOut);
+void pstPSDAssignGlobalIds(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 void pstPSDUpdateRemoteGroups(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 void pstPSDUpdateParticleGroups(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 void pstPSDMergeNoisyGroups(PST pst,void *vin,int nIn,void *vout,int *pnOut);

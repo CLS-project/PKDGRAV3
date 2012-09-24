@@ -300,6 +300,9 @@ void pkdInitialize(
     pkd->uMaxRungActive  = 255;
     pkd->uRungVeryActive = 255;
 
+    pkd->psGroupTable.nGroups = 0;
+    pkd->psGroupTable.pGroup = NULL;
+
 
     /*
     ** Calculate the amount of memory (size) of each particle.  This is the
@@ -2663,7 +2666,6 @@ void
 pkdGravAll(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,int bPeriodic,
     int iOrder,int bEwald,int nGroup,double fEwCut,double fEwhCut,double dThetaMin,double dThetaMax,
     int *nActive,double *pdPartSum, double *pdCellSum,CASTAT *pcs, double *pdFlop) {
-    int bVeryActive = 0;
 
     pkdClearTimer(pkd,1);
 #if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
@@ -2697,7 +2699,7 @@ pkdGravAll(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,int bP
     *pdPartSum = 0.0;
     *pdCellSum = 0.0;
     pkdStartTimer(pkd,1);
-    *nActive = pkdGravWalk(pkd,uRungLo,uRungHi,dTime,nReps,bPeriodic && bEwald,nGroup,bVeryActive,dThetaMin,dThetaMax,pdFlop,pdPartSum,pdCellSum);
+    *nActive = pkdGravWalk(pkd,uRungLo,uRungHi,dTime,nReps,bPeriodic && bEwald,nGroup,ROOT,0,dThetaMin,dThetaMax,pdFlop,pdPartSum,pdCellSum);
     pkdStopTimer(pkd,1);
 
 #ifdef USE_BSC
@@ -2724,7 +2726,6 @@ pkdGravAll(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,int bP
     */
     mdlFinishCache(pkd->mdl,CID_PARTICLE);
     }
-
 
 void pkdCalcEandL(PKD pkd,double *T,double *U,double *Eth,double *L,double *F,double *W) {
     /* L is calculated with respect to the origin (0,0,0) */
@@ -2859,7 +2860,6 @@ void pkdDrift(PKD pkd,double dDelta,double dDeltaVPred,double dDeltaUPred,uint8_
 void pkdGravityVeryActive(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int bEwald,int nGroup,int nReps,
 			  double dStep,double dTheta) {
     int nActive;
-    int bVeryActive = 1;
     double dFlop,dPartSum,dCellSum;
 
     /*
@@ -2868,7 +2868,7 @@ void pkdGravityVeryActive(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,i
     dFlop = 0.0;
     dPartSum = 0.0;
     dCellSum = 0.0;
-    nActive = pkdGravWalk(pkd,uRungLo,uRungHi,dTime,nReps,bEwald,nGroup,bVeryActive,dTheta,dTheta,&dFlop,&dPartSum,&dCellSum);
+    nActive = pkdGravWalk(pkd,uRungLo,uRungHi,dTime,nReps,bEwald,nGroup,ROOT,VAROOT,dTheta,dTheta,&dFlop,&dPartSum,&dCellSum);
     }
 
 
@@ -5339,12 +5339,11 @@ void pkdOutPsGroup(PKD pkd,char *pszFileName,int iType)
     if (iType == OUT_PSGROUP_STATS) {
 	fp = fopen(pszFileName,"a+");
 	assert(fp != NULL);
-	PSGD *gd = pkd->psGroupData;
+	struct psGroup *gd = pkd->psGroupTable.pGroup;
 
-	for (i=1;i<pkd->nGroups;++i)
+	for (i=1;i<pkd->psGroupTable.nGroups;++i)
 	{
 	    if (gd[i].iPid != pkd->idSelf) continue;
-	    if (gd[i].dup) continue;
 	    fprintf(fp,"%d",gd[i].iGlobalId);
 	    fprintf(fp," %10d",gd[i].nTotal);
 	    fprintf(fp," %12.8e",gd[i].fMass);
@@ -5378,6 +5377,3 @@ void pkdOutPsGroup(PKD pkd,char *pszFileName,int iType)
 	assert(0);
 }
 
-void pkdUnbind(PKD pkd)
-{
-}
