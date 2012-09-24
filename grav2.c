@@ -733,9 +733,9 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,FLOCR *
     assert(work!=NULL);
     /* This is the maximum number of particles -- there may be fewer of course */
     nP = pkdn->pUpper - pkdn->pLower + 1;
-    work->pPart = malloc(sizeof(PARTICLE *) * nP);
-    work->pInfoIn = malloc(sizeof(PINFOIN) * nP);
-    work->pInfoOut = malloc(sizeof(PINFOOUT) * nP);
+    work->pPart = malloc(sizeof(PARTICLE *) * nP); assert(work->pPart != NULL);
+    work->pInfoIn = malloc(sizeof(PINFOIN) * nP); assert(work->pInfoIn != NULL);
+    work->pInfoOut = malloc(sizeof(PINFOOUT) * nP); assert(work->pInfoOut != NULL);
     work->nRefs = 1; /* I am using it currently */
     work->nP = 0;
     work->dRhoFac = dRhoFac;
