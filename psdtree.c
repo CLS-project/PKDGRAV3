@@ -17,12 +17,12 @@
 #endif
 #include "smooth.h"
 #include "pst.h"
+#include "qsort.h"
 
 #ifdef USE_BSC
 #include "mpitrace_user_events.h"
 #endif
 #include <sys/time.h>
-
 
 #define X 0
 #define V 1
@@ -49,10 +49,12 @@ void psdInitializeParticles(PKD pkd, BND *prbnd, BND *pvbnd) {
     pNode->pUpper = pkd->nLocal - 1;
 
     pkdNodeBnd(pkd,pNode, &rbnd);
-    pkdNodeVBnd(pkd,pNode, &vbnd);
     for (j=0;j<3;++j) {
 	rbnd.fCenter[j] = prbnd->fCenter[j];
 	rbnd.fMax[j]    = prbnd->fMax[j];
+    }
+    pkdNodeVBnd(pkd,pNode, &vbnd);
+    for (j=0;j<3;++j) {
 	vbnd.fCenter[j] = pvbnd->fCenter[j];
 	vbnd.fMax[j]    = pvbnd->fMax[j];
 	}
@@ -68,6 +70,7 @@ int psdTreeDepth(PKD pkd) {
 	    ++nDepth;
 	    if (nDepth > maxDepth) maxDepth = nDepth;
 	    }
+	//fprintf(stderr, "depth %i\n", nDepth);
 	while (iNode & 1) {
 	    iNode = pkdTreeNode(pkd,iNode)->iParent;
 	    --nDepth;
@@ -82,32 +85,47 @@ int psdTreeDepth(PKD pkd) {
     return -1;
     }
 
-typedef struct {
-    int64_t key;
-    float fMass;
-} KEY;
+struct KEY {
+    int64_t keyx;
+    int64_t keyv;
+    float   fMass;
+};
 
-static int key_compar(const void *a0, const void *b0) {
-    KEY *a = (KEY *)a0;
-    KEY *b = (KEY *)b0;
-    return a->key - b->key;
+int keyx_compar(const void *a0, const void *b0) {
+    struct KEY *a = (struct KEY *)a0;
+    struct KEY *b = (struct KEY *)b0;
+    int64_t ax = a->keyx;
+    int64_t bx = b->keyx;
+    if (ax > bx) return +1;
+    if (ax < bx) return -1;
+    return 0;
+    }
+
+int keyv_compar(const void *a0, const void *b0) {
+    struct KEY *a = (struct KEY *)a0;
+    struct KEY *b = (struct KEY *)b0;
+    int64_t av = a->keyv;
+    int64_t bv = b->keyv;
+    if (av > bv) return +1;
+    if (av < bv) return -1;
+    return 0;
     }
 
 /*
 ** Compute entropy. E = -\sum (p ln(p))
 */
-static inline float E(KEY *keys, int N, float M) {
+static float Ex(struct KEY *keys, int N, float M) {
     int i;
     float s = 0;
-    int64_t key = keys[0].key;
+    int64_t key = keys[0].keyx;
     float   p   = keys[0].fMass;
-    assert(M > 0);
+    //assert(M > 0);
     for (i=1; i < N; i++) {
-	if (keys[i].key != key) {
+	if (keys[i].keyx != key) {
 	    p /= M;
-	    s -= p * log(p);
+	    s -= p * logf(p);
 	    p = 0;
-	    key = keys[i].key;
+	    key = keys[i].keyx;
 	    }
 
 	p += keys[i].fMass;
@@ -116,18 +134,44 @@ static inline float E(KEY *keys, int N, float M) {
     if (p != 0)
     {
 	p /= M;
-	s -= p * log(p);
+	s -= p * logf(p);
     }
 
     return s;
 }
 
-void SAVE_BOUNDS(PKD pkd, PSX smx, KDN *pNode, pBND bnd[2])
+static float Ev(struct KEY *keys, int N, float M) {
+    int i;
+    float s = 0;
+    int64_t key = keys[0].keyv;
+    float   p   = keys[0].fMass;
+    assert(M > 0);
+    for (i=1; i < N; i++) {
+	if (keys[i].keyv != key) {
+	    p /= M;
+	    s -= p * logf(p);
+	    p = 0;
+	    key = keys[i].keyv;
+	    }
+
+	p += keys[i].fMass;
+	}
+
+    if (p != 0)
+    {
+	p /= M;
+	s -= p * logf(p);
+    }
+
+    return s;
+}
+
+void inline SAVE_BOUNDS(PKD pkd, PSX smx, KDN *pNode, pBND *bnd)
 {
     int j;
-    PARTICLE *p = pkdParticle(pkd,pNode->pLower);
     PSMETRIC *b = smx->psm + pNode->pLower;
 
+#if 0
     for (j=0;j<3;++j) assert(!isinf(bnd[0].fMax[j]));
     for (j=0;j<3;++j) assert(!isinf(bnd[1].fMax[j]));
     for (j=0;j<3;++j) assert(!isinf(bnd[0].fCenter[j]));
@@ -137,30 +181,133 @@ void SAVE_BOUNDS(PKD pkd, PSX smx, KDN *pNode, pBND bnd[2])
     for (j=0;j<3;++j) assert(fabs(bnd[1].fMax[j]) < 1e10);
     for (j=0;j<3;++j) assert(fabs(bnd[0].fCenter[j]) < 1e10);
     for (j=0;j<3;++j) assert(fabs(bnd[1].fCenter[j]) < 1e10);
+#endif
 
-    p->fDensity = pkdMass(pkd, p);
+    //p->fDensity = pkdMass(pkd, p);
     for (j=0;j<3;++j)
     {
 	b->rscale[j] = 0;
-	b->vscale[j] = 0;
 	if (bnd[X].fMax[j] != 0) 
 	{
-	    p->fDensity /= 2*bnd[X].fMax[j];
+	    //p->fDensity /= 2*bnd[X].fMax[j];
 #ifdef NO_PSMETRIC
 	    b->rscale[j] = 1.;
 #else
 	    b->rscale[j] = 1. / bnd[X].fMax[j]; 
 #endif
 	}
+    }
+
+    for (j=0;j<3;++j)
+    {
+	b->vscale[j] = 0;
 	if (bnd[V].fMax[j] != 0) 
 	{
-	    p->fDensity /= 2*bnd[V].fMax[j];
+	    //p->fDensity /= 2*bnd[V].fMax[j];
 #ifdef NO_PSMETRIC
-	    b->vscale[j] = 1.;
+	    b->vscale[j] = 0.;
 #else
 	    b->vscale[j] = 1. / bnd[V].fMax[j];
 #endif
 	}
+    }
+}
+
+void entropy(PKD pkd, float *e, KDN *pNode, pBND *bnd, struct KEY *keys) {
+    int s, i,j;
+    int64_t bx, by, bz;
+    float Mtotal = 0;
+    int Npart = pNode->pUpper - pNode->pLower + 1;
+    int64_t Nb;
+    Nb = 1+cbrt(Npart/10.);
+    int maxNb = 1 << ((sizeof(Nb)*8) / 3);
+    double *v;
+
+    if (Nb > maxNb) Nb = maxNb;
+    assert(Nb >= 1);
+
+    const FLOAT dXx = bnd[X].fMax[0] > 0 ? (FLOAT)Nb / (2*bnd[X].fMax[0]) : 0;
+    const FLOAT dXy = bnd[X].fMax[1] > 0 ? (FLOAT)Nb / (2*bnd[X].fMax[1]) : 0;
+    const FLOAT dXz = bnd[X].fMax[2] > 0 ? (FLOAT)Nb / (2*bnd[X].fMax[2]) : 0;
+    const FLOAT dVx = bnd[V].fMax[0] > 0 ? (FLOAT)Nb / (2*bnd[V].fMax[0]) : 0;
+    const FLOAT dVy = bnd[V].fMax[1] > 0 ? (FLOAT)Nb / (2*bnd[V].fMax[1]) : 0;
+    const FLOAT dVz = bnd[V].fMax[2] > 0 ? (FLOAT)Nb / (2*bnd[V].fMax[2]) : 0;
+
+    const FLOAT edgeXx = bnd[X].fCenter[0] - bnd[X].fMax[0];
+    const FLOAT edgeXy = bnd[X].fCenter[1] - bnd[X].fMax[1];
+    const FLOAT edgeXz = bnd[X].fCenter[2] - bnd[X].fMax[2];
+    const FLOAT edgeVx = bnd[V].fCenter[0] - bnd[V].fMax[0];
+    const FLOAT edgeVy = bnd[V].fCenter[1] - bnd[V].fMax[1];
+    const FLOAT edgeVz = bnd[V].fCenter[2] - bnd[V].fMax[2];
+
+    Mtotal = 0;
+    for (j=pNode->pLower; j <= pNode->pUpper; j++) 
+    {
+	PARTICLE *p = pkdParticle(pkd,j);
+	v = pkdVel(pkd, p);
+	float mass = pkdMass(pkd,p);
+	Mtotal += mass;
+
+	bx  = (int64_t)((p->r[0]-edgeXx) * dXx); bx -= (bx == Nb);
+	by  = (int64_t)((p->r[1]-edgeXy) * dXy); by -= (by == Nb);
+	bz  = (int64_t)((p->r[2]-edgeXz) * dXz); bz -= (bz == Nb);
+	keys[j].keyx = bx + Nb * (by + Nb*bz);
+
+	bx  = (int64_t)((v[0]-edgeVx) * dVx); bx -= (bx == Nb);
+	by  = (int64_t)((v[1]-edgeVy) * dVy); by -= (by == Nb);
+	bz  = (int64_t)((v[2]-edgeVz) * dVz); bz -= (bz == Nb);
+
+	keys[j].keyv = bx + Nb * (by + Nb*bz);
+	keys[j].fMass = mass;
+    }
+
+    struct KEY * const pkey = keys + pNode->pLower;
+#define cmpx(a,b) ((a)->keyx < (b)->keyx)
+    QSORT(struct KEY, pkey, Npart, cmpx)
+    //qsort(keys + pNode->pLower, Npart, sizeof(*keys), keyx_compar);
+    e[X] = Ex(pkey, Npart, Mtotal);
+
+#define cmpv(a,b) ((a)->keyv < (b)->keyv)
+    QSORT(struct KEY, pkey, Npart, cmpv);
+    //qsort(keys + pNode->pLower, Npart, sizeof(*keys), keyv_compar);
+    e[V] = Ev(pkey, Npart, Mtotal);
+}
+
+void shrink_wrap(PKD pkd, pBND *bnd, int iLower, int iUpper)
+{
+    int pj;
+    int d;
+    double ft;
+    PARTICLE *p;
+    double *v;
+    int subspace;
+
+    for (subspace = X; subspace <= V; subspace++)
+    {
+	pj = iLower;
+	p = pkdParticle(pkd,pj);
+	v = pkdVel(pkd, p);
+	for (d=0;d<3;++d) {
+	    ft = (subspace == X) ? p->r[d] : v[d];
+	    bnd[subspace].fCenter[d] = ft;
+	    bnd[subspace].fMax[d] = ft;
+	    }
+	for (++pj;pj<=iUpper;++pj) {
+	    p = pkdParticle(pkd,pj);
+	    v = pkdVel(pkd, p);
+	    for (d=0;d<3;++d) {
+		ft = (subspace == X) ? p->r[d] : v[d];
+		if (ft < bnd[subspace].fCenter[d])
+		    bnd[subspace].fCenter[d] = ft;
+		else if (ft > bnd[subspace].fMax[d])
+		    bnd[subspace].fMax[d] = ft;
+		}
+	    }
+	for (d=0;d<3;++d) {
+	    ft = bnd[subspace].fCenter[d];
+	    bnd[subspace].fCenter[d] = 0.5*(bnd[subspace].fMax[d] + ft);
+	    bnd[subspace].fMax[d] = 0.5*(bnd[subspace].fMax[d] - ft);
+	    }
     }
 }
 
@@ -189,7 +336,6 @@ void BuildPsdTemp(PKD pkd, PSX smx, int iNode,int M, int maxNb) {
     int nr,nl;
     int lc,rc;
     int nBucket = 0;
-    int Nb;
     int backup = 0;
     int Ntotal;
 
@@ -199,8 +345,7 @@ void BuildPsdTemp(PKD pkd, PSX smx, int iNode,int M, int maxNb) {
 
     Ntotal = pNode->pUpper - pNode->pLower + 1;
 
-    KEY *xkeys = malloc((Ntotal+1) * sizeof(*xkeys)); assert(xkeys != NULL);
-    KEY *vkeys = malloc((Ntotal+1) * sizeof(*vkeys)); assert(vkeys != NULL);
+    struct KEY *keys = malloc((Ntotal+1) * sizeof(*keys)); assert(keys != NULL);
 
     assert(maxNb > 0);
     //assert(maxNb <= (1<<10));
@@ -239,17 +384,24 @@ void BuildPsdTemp(PKD pkd, PSX smx, int iNode,int M, int maxNb) {
 	 || bnd[1].fMax[1] > 0.0
 	 || bnd[1].fMax[2] > 0.0);
 
+    subspace = X;
+
     assert(STACK_EMPTY(S));
-    PUSH(S, iNode); PUSH(D, 0);
+    PUSH(S, iNode); PUSH(D, (subspace<<2) | 0);
 
     while (!STACK_EMPTY(S)) {
 
 	//fprintf(stderr, "Iter %i\n", iter++);
 
+	assert(!STACK_EMPTY(D));
 	iNode = POP(S);
+	int q = POP(D);
+	lastd = q & 0x03;
+	last_subspace = (q & ~0x03) >> 2;
 
 	if (iNode == 0) {
 	    //assert(0);
+	    assert(q == -1);
 	    assert(backup != 0);
 	    pkd->nNodes = backup;
 	    backup = 0;
@@ -263,15 +415,9 @@ void BuildPsdTemp(PKD pkd, PSX smx, int iNode,int M, int maxNb) {
 	    pLeft->iLower  = 0; 
 	    pRight->iLower = 0; 
 
-	    if (STACK_EMPTY(S)) break; /* Can happen at the end of the tree */
-	    iNode = POP(S);
-	    assert(iNode != 0);
+	    continue;
 	    }
 
-	assert(!STACK_EMPTY(D));
-	int q = POP(D);
-	lastd = q & 0x03;
-	last_subspace = (q & 0x04) >> 2;
 
 	pNode = pkdTreeNode(pkd,iNode);
 	pkdNodeBnd(pkd, pNode, &bnd[0]);
@@ -281,15 +427,19 @@ void BuildPsdTemp(PKD pkd, PSX smx, int iNode,int M, int maxNb) {
 
 	//fprintf(stderr, "(ROOT %i) %i %i\n", ROOT, iNode,Npart);
 
-#if 0
+#if 1
 	if (!( bnd[0].fMax[0] > 0.0 &&
 	       bnd[0].fMax[1] > 0.0 &&
-	       bnd[0].fMax[2] > 0.0 &&
+	       bnd[0].fMax[2] > 0.0 
+#ifndef NO_PSMETRIC
+	       &&
 	       bnd[1].fMax[0] > 0.0 &&
 	       bnd[1].fMax[1] > 0.0 &&
 	       bnd[1].fMax[2] > 0.0 
+#endif
 	       ))
-	    fprintf(stderr, "%g %g %g %g %g %g\n",
+	    fprintf(stderr, "%i %i, %g %g %g %g %g %g\n",
+	        iNode, Npart,
 		bnd[0].fMax[0],
 		bnd[0].fMax[1],
 		bnd[0].fMax[2],
@@ -322,31 +472,26 @@ void BuildPsdTemp(PKD pkd, PSX smx, int iNode,int M, int maxNb) {
 	** Calculate the appropriate fSplit.
 	** Pick longest dimension and split it in half.
 	*/
-	FLOAT dx_inv[2][3];
-	FLOAT edge[2][3];
+
+#ifdef NO_PSMETRIC
+	d = max_bnd_range(bnd[subspace].fMax, 0, 3);
+	assert(d != -1);
+#else
 	float e[2];
-	float Mtotal = 0;
-	int b[2][3];
 
-	Nb = 1+cbrt(Npart);
-	if (Nb > maxNb) Nb = maxNb;
-	assert(Nb > 1);
 
-	float fb = 0.5 * pow(Ntotal, 1./6);
-	float mean_sep;
+	double fb = 0.5 * pow(Ntotal, 1./6);
 
-	int n_node = pNode->pUpper - pNode->pLower + 1;
-
-	if (n_node > 7)
+	if (Npart > 7)
 	{
-	    s = 0;
+	    s = X;
 	    for (i=0; i < 3; i++)
 	    {
-		float l_min = bnd[s].fCenter[i] - bnd[s].fMax[i];
-		float l_max = bnd[s].fCenter[i] + bnd[s].fMax[i];
+		double l_min = bnd[s].fCenter[i] - bnd[s].fMax[i];
+		double l_max = bnd[s].fCenter[i] + bnd[s].fMax[i];
 
-		float x_max = -HUGE_VAL;
-		float x_min = HUGE_VAL;
+		double x_max = -HUGE_VAL;
+		double x_min = HUGE_VAL;
 		for (j=pNode->pLower; j <= pNode->pUpper; j++) 
 		{
 		    PARTICLE *p = pkdParticle(pkd,j);
@@ -354,7 +499,7 @@ void BuildPsdTemp(PKD pkd, PSX smx, int iNode,int M, int maxNb) {
 		    if (p->r[i] < x_min) x_min = p->r[i];
 		}
 
-		mean_sep = (x_max - x_min) / (n_node - 1);
+		double mean_sep = (x_max - x_min) / (Npart - 1);
 
 		if ((l_max - x_max) > fb * mean_sep
 		&&  (x_min - l_min) > fb * mean_sep)
@@ -364,14 +509,14 @@ void BuildPsdTemp(PKD pkd, PSX smx, int iNode,int M, int maxNb) {
 		}
 	    }
 
-	    s = 1;
+	    s = V;
 	    for (i=0; i < 3; i++)
 	    {
-		float l_min = bnd[s].fCenter[i] - bnd[s].fMax[i];
-		float l_max = bnd[s].fCenter[i] + bnd[s].fMax[i];
+		double l_min = bnd[s].fCenter[i] - bnd[s].fMax[i];
+		double l_max = bnd[s].fCenter[i] + bnd[s].fMax[i];
 
-		float x_max = -HUGE_VAL;
-		float x_min = HUGE_VAL;
+		double x_max = -HUGE_VAL;
+		double x_min = HUGE_VAL;
 		for (j=pNode->pLower; j <= pNode->pUpper; j++) 
 		{
 		    PARTICLE *p = pkdParticle(pkd,j);
@@ -380,7 +525,7 @@ void BuildPsdTemp(PKD pkd, PSX smx, int iNode,int M, int maxNb) {
 		    if (v[i] < x_min) x_min = v[i];
 		}
 
-		float mean_sep = (x_max - x_min) / (n_node - 1);
+		double mean_sep = (x_max - x_min) / (Npart - 1);
 
 		if ((l_max - x_max) > fb * mean_sep
 		&&  (x_min - l_min) > fb * mean_sep)
@@ -391,62 +536,27 @@ void BuildPsdTemp(PKD pkd, PSX smx, int iNode,int M, int maxNb) {
 	    }
 	}
 
-
-	for (s=0; s < 2; s++)
-	{
-	    for (i=0; i < 3; i++)
-	    {
-		if (bnd[s].fMax[i] > 0)
-		    dx_inv[s][i] = (FLOAT)Nb / (2*bnd[s].fMax[i]);
-		else
-		    dx_inv[s][i] = 0;
-
-		edge[s][i]   = bnd[s].fCenter[i]-bnd[s].fMax[i]; 
-	    }
-	}
-
-	for (j=pNode->pLower; j <= pNode->pUpper; j++) 
-	{
-	    PARTICLE *p = pkdParticle(pkd,j);
-	    v = pkdVel(pkd, p);
-	    float mass = pkdMass(pkd,p);
-	    Mtotal += mass;
-
-	    s = 0;
-	    for (i=0; i < 3; i++)
-	    {
-		b[s][i] = (int)((p->r[i]-edge[s][i]) * dx_inv[s][i]); 
-		b[s][i] -= (b[s][i] == Nb);
-	    }
-
-	    s = 1;
-	    for (i=0; i < 3; i++)
-	    {
-		b[s][i] = (int)((v[i]-edge[s][i]) * dx_inv[s][i]); 
-		b[s][i] -= (b[s][i] == Nb);
-	    }
-
-	    xkeys[j].key = b[0][0] + Nb * (b[0][1] + Nb*b[0][2]);  xkeys[j].fMass = mass;
-	    vkeys[j].key = b[1][0] + Nb * (b[1][1] + Nb*b[1][2]);  vkeys[j].fMass = mass;
-	}
-
-	qsort(xkeys + pNode->pLower, Npart, sizeof(*xkeys), key_compar);
-	qsort(vkeys + pNode->pLower, Npart, sizeof(*vkeys), key_compar);
-
-	e[X] = E(xkeys + pNode->pLower, Npart, Mtotal);
-	e[V] = E(vkeys + pNode->pLower, Npart, Mtotal);
+	e[V] = e[X] = 0;
+	if (Npart > 1)
+	    entropy(pkd, e, pNode, bnd, keys);
 
 
 	//fprintf(stderr, "Entropy %e %e\n", e[0], e[1]);
 
-	if (e[V] != 0 
-	&& (e[V] < e[X]  ||  (e[V] == e[X] && last_subspace == X)))
+	if (e[V] == e[X])
 	{
-	    subspace = V;
+	    subspace = !subspace;
 	}
 	else
 	{
-	    subspace = X;
+	    if (e[V] != 0 && e[V] < e[X])
+	    {
+		subspace = V;
+	    }
+	    else
+	    {
+		subspace = X;
+	    }
 	}
 
 	d = max_bnd_range(bnd[subspace].fMax, 0, 3);
@@ -457,14 +567,8 @@ void BuildPsdTemp(PKD pkd, PSX smx, int iNode,int M, int maxNb) {
 	    d = max_bnd_range(bnd[subspace].fMax, 0, 3);
 	    assert(d != -1);
 	}
-
-#if 0
-	// simulate normal tree build
-	//subspace = V;
-	subspace = !last_subspace;
-	d = max_bnd_range(bnd[subspace].fMax, 0, 3);
-	assert(d != -1);
 #endif
+
 	fSplit = bnd[subspace].fCenter[d];
 
 	//fprintf(stderr, "subspace %i  d %i\n", subspace, d);
@@ -490,14 +594,14 @@ void BuildPsdTemp(PKD pkd, PSX smx, int iNode,int M, int maxNb) {
 	pj = pkdParticle(pkd,j);
 	if (subspace == X)
 	{
-	    PARTITION(pi<pj,pi<=pj,
+	    PARTITION(i<j,i<=j,
 		   pi=pkdParticle(pkd,++i),pj=pkdParticle(pkd,--j),
 		   pkdSwapParticle(pkd, pi,pj),
 		   pi->r[d] < fSplit, pj->r[d] >= fSplit);
 	}
 	else
 	{
-	    PARTITION(pi<pj,pi<=pj,
+	    PARTITION(i<j,i<=j,
 		   pi=pkdParticle(pkd,++i),pj=pkdParticle(pkd,--j),
 		   pkdSwapParticle(pkd, pi,pj),
 		   pkdVel(pkd, pi)[d] < fSplit, pkdVel(pkd,pj)[d] >= fSplit);
@@ -506,7 +610,7 @@ void BuildPsdTemp(PKD pkd, PSX smx, int iNode,int M, int maxNb) {
 	nl = i - pNode->pLower;
 	nr = pNode->pUpper - i + 1;
 
-	//printf("%i %.15f  [%g %g] (%i %i) %i %i %s\n", d, fSplit, rbnd.fCenter[d]-rbnd.fMax[d], rbnd.fCenter[d]+rbnd.fMax[d], nl, nr, iNode, pNode->iParent, backup == 0 ? "" : "*");
+	//printf("(%i %i)  %.15f  [%g %g] (%i %i) %i %i %s\n", subspace, d, fSplit, bnd[subspace].fCenter[d]-bnd[subspace].fMax[d], bnd[subspace].fCenter[d]+bnd[subspace].fMax[d], nl, nr, iNode, pNode->iParent, backup == 0 ? "" : "*");
 
     /*************************************************************************/
 
@@ -550,19 +654,18 @@ void BuildPsdTemp(PKD pkd, PSX smx, int iNode,int M, int maxNb) {
 	    for (s=0; s < 2; s++)
 	    {
 		for (j=0;j<3;++j) {
-		    if (s == subspace && j == d) {
-			rbnd[s].fMax[j] = lbnd[s].fMax[j] = 0.5*bnd[s].fMax[j];
-			lbnd[s].fCenter[j] = bnd[s].fCenter[j] - lbnd[s].fMax[j];
-			rbnd[s].fCenter[j] = bnd[s].fCenter[j] + rbnd[s].fMax[j];
-			}
-		    else {
-			lbnd[s].fCenter[j] = bnd[s].fCenter[j]; lbnd[s].fMax[j] = bnd[s].fMax[j];
-			rbnd[s].fCenter[j] = bnd[s].fCenter[j]; rbnd[s].fMax[j] = bnd[s].fMax[j];
-			}
-		    //assert(lbnd[0].fMax[j] > 0.0);
-		    //assert(rbnd[0].fMax[j] > 0.0);
+		    lbnd[s].fCenter[j] = rbnd[s].fCenter[j] = bnd[s].fCenter[j]; 
+		    lbnd[s].fMax[j]    = rbnd[s].fMax[j]    = bnd[s].fMax[j];
 		    }
 	    }
+	    s = subspace;
+	    j = d;
+	    rbnd[s].fMax[j]    = lbnd[s].fMax[j]   = 0.5*bnd[s].fMax[j];
+	    lbnd[s].fCenter[j] = bnd[s].fCenter[j] - lbnd[s].fMax[j];
+	    rbnd[s].fCenter[j] = bnd[s].fCenter[j] + rbnd[s].fMax[j];
+
+	    //if (nl > 1) shrink_wrap(pkd, lbnd, pLeft->pLower, pLeft->pUpper);
+	    //if (nr > 1) shrink_wrap(pkd, rbnd, pRight->pLower, pRight->pUpper);
 
 	    //ls = max_side(lbnd[0].fMax);     // MAXSIDE(pLeft.bnd.fMax,ls);
 	    //rs = max_side(rbnd[0].fMax);     // MAXSIDE(pRight.rbnd.fMax,rs);
@@ -591,12 +694,12 @@ void BuildPsdTemp(PKD pkd, PSX smx, int iNode,int M, int maxNb) {
 		*/
 		assert(backup == 0);
 		PUSH(S, iLeft); PUSH(D, (subspace << 2) | d);
+		++nBucket;
 
 		if (nr > 1) {
 		    backup = pkd->nNodes; //fprintf(stderr, "backup [%i]\n", backup); 
-		    PUSH(S, 0);
+		    PUSH(S, 0); PUSH(D, -1);
 		    PUSH(S, iRight); PUSH(D, (subspace << 2) | d);
-		    ++nBucket;
 		    }
 		else {
 		    pRight->iLower = 0;
@@ -609,12 +712,12 @@ void BuildPsdTemp(PKD pkd, PSX smx, int iNode,int M, int maxNb) {
 		*/
 		assert(backup == 0);
 		PUSH(S, iRight); PUSH(D, (subspace << 2) | d);
+		++nBucket;
 
 		if (nl > 1) {
 		    backup = pkd->nNodes; //fprintf(stderr, "backup [%i]\n", backup); 
-		    PUSH(S, 0);
+		    PUSH(S, 0); PUSH(D, -1);
 		    PUSH(S, iLeft); PUSH(D, (subspace << 2) | d);
-		    ++nBucket;
 		    }
 		else {
 		    pLeft->iLower = 0;
@@ -623,12 +726,16 @@ void BuildPsdTemp(PKD pkd, PSX smx, int iNode,int M, int maxNb) {
 		}
 	    else {
 		/*
-		** Both are buckets (we need to pop from the stack to get the next subfile.)
+		** Both are buckets.
 		*/
 
+		/* 
+		** This should only happen once when we want to begin decending into
+		** the two buckets. backup==0 ensures this
+		*/
 		if (!(nr==1 && nl==1) && backup == 0) { 
 		    backup = pkd->nNodes; //fprintf(stderr, "backup [%i]\n", backup); 
-		    PUSH(S, 0);
+		    PUSH(S, 0); PUSH(D, -1);
 		    ++nBucket;
 		    ++nBucket;
 		    }
@@ -673,28 +780,28 @@ void BuildPsdTemp(PKD pkd, PSX smx, int iNode,int M, int maxNb) {
 	    }
 	    else
 	    {
-	    assert(bnd[subspace].fMax[d] > 0);
-	    if (nl > 0) bnd[subspace].fCenter[d] -= bnd[subspace].fMax[d];
-	    else	bnd[subspace].fCenter[d] += bnd[subspace].fMax[d];
+		assert(bnd[subspace].fMax[d] > 0);
+		if (nl > 0) bnd[subspace].fCenter[d] -= bnd[subspace].fMax[d];
+		else	bnd[subspace].fCenter[d] += bnd[subspace].fMax[d];
 
-	    //ls = max_side(pNode->rbnd.fMax); // MAXSIDE(pNode->rbnd.fMax,ls);
-	    //lc = ((n > M)||((n > 1)&&(ls>PKD_MAX_CELL_SIZE))); /* this condition means the node is not a bucket */
+	        //if (n > 1) shrink_wrap(pkd, bnd, pNode->pLower, pNode->pUpper);
 
-	    if (n > 1) { PUSH(S, iNode); PUSH(D, (subspace << 2) | d); }
-
-	    if (n == 1) {
-		SAVE_BOUNDS(pkd,smx,pNode,bnd);
-		pNode->iLower = 0;
-		if (backup == 0) ++nBucket;
+		if (n > 1) { PUSH(S, iNode); PUSH(D, (subspace << 2) | d); }
+		//fprintf(stderr, "*\n");
+		if (n == 1) {
+		    SAVE_BOUNDS(pkd,smx,pNode,bnd);
+		    pNode->iLower = 0;
+		    if (backup == 0) ++nBucket;
+		    }
 		}
 	    }
-	    }
+
 	}
 DonePart:
+    //printf("nBucket=%d\n", nBucket);
     FREE_STACK(S);
     FREE_STACK(D);
-    free(xkeys);
-    free(vkeys);
+    free(keys);
     }
 
 void psdBuildTree(PKD pkd, PSX psx, struct inPSD *in, KDN *pkdn) {
@@ -718,9 +825,12 @@ void psdBuildTree(PKD pkd, PSX psx, struct inPSD *in, KDN *pkdn) {
     pkdClearTimer(pkd,0);
     pkdStartTimer(pkd,0);
 
+    //fprintf(stderr, "nNodes is %i\n", pkd->nNodes);
     psdInitializeParticles(pkd,&pkd->bnd, &pkd->vbnd);
 
     BuildPsdTemp(pkd,psx, ROOT,in->nBucket, 102400);
+    //psdTreeDepth(pkd);
+    //fprintf(stderr, "nNodes is %i\n", pkd->nNodes);
 
     pkd->nNodesFull = pkd->nNodes;
     iStart = 0;
@@ -738,5 +848,6 @@ void psdBuildTree(PKD pkd, PSX psx, struct inPSD *in, KDN *pkdn) {
     ** Copy the root node for the top-tree construction.
     */
     pkdCopyNode(pkd,pkdn,pkdTreeNode(pkd,ROOT));
+    mdlFinishCache(pkd->mdl,CID_CELL);
     }
 
