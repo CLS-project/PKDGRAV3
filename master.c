@@ -2332,89 +2332,90 @@ void msrDomainDecompOld(MSR msr,int iRung,int bSplitVA) {
     const uint64_t nRT = d2u64(msr->N*msr->param.dFracNoDomainRootFind);
     const uint64_t nSD = d2u64(msr->N*msr->param.dFracNoDomainDimChoice);
     double sec,dsec;
-    int iRungDD,iRungRT,iRungSD;
+    int iRungDD=0,iRungRT,iRungSD;
     int i,j;
     int bRestoreActive = 0;
 
     in.bDoRootFind = 1;
     in.bDoSplitDimFind = 1;
-
-    /*
-    ** All of this could be calculated once for the case that the number
-    ** of particles don't change. Or calculated every time the number of
-    ** particles does change.
-    */
-    nActive = 0;
-    iRungDD = 0;
-    iRungRT = 0;
-    iRungSD = 0;
-    for (i=msr->iCurrMaxRung;i>=0;--i) {
-	nActive += msr->nRung[i];
-	if (nActive > nDD && !iRungDD) iRungDD = i;
-	if (nActive > nRT && !iRungRT) iRungRT = i;
-	if (nActive > nSD && !iRungSD) iRungSD = i;
-	}
-    assert(iRungDD >= iRungRT);
-    assert(iRungRT >= iRungSD);
-
-    if (msr->iLastRungRT < 0) {
+    if (iRung >= 0) {
 	/*
-	** We need to do a full domain decompotition with iRungRT particles being active.
-	** However, since I am not sure what the exact state of the domains can be at this point
-	** I had better do a split dim find as well.
+	** All of this could be calculated once for the case that the number
+	** of particles don't change. Or calculated every time the number of
+	** particles does change.
 	*/
-	msr->iLastRungRT = iRungRT;
-	msrActiveRung(msr,iRungRT,1);
-	bRestoreActive = 1;
-	in.bDoRootFind = 1;
-	in.bDoSplitDimFind = 1;
-	}
-    else if (iRung > iRungDD && !bSplitVA) {
-	if (msr->iLastRungRT < iRungRT) {
+	nActive = 0;
+	iRungDD = 0;
+	iRungRT = 0;
+	iRungSD = 0;
+	for (i=msr->iCurrMaxRung;i>=0;--i) {
+	    nActive += msr->nRung[i];
+	    if (nActive > nDD && !iRungDD) iRungDD = i;
+	    if (nActive > nRT && !iRungRT) iRungRT = i;
+	    if (nActive > nSD && !iRungSD) iRungSD = i;
+	    }
+	assert(iRungDD >= iRungRT);
+	assert(iRungRT >= iRungSD);
+
+	if (msr->iLastRungRT < 0) {
+	    /*
+	    ** We need to do a full domain decompotition with iRungRT particles being active.
+	    ** However, since I am not sure what the exact state of the domains can be at this point
+	    ** I had better do a split dim find as well.
+	    */
 	    msr->iLastRungRT = iRungRT;
 	    msrActiveRung(msr,iRungRT,1);
 	    bRestoreActive = 1;
 	    in.bDoRootFind = 1;
-	    in.bDoSplitDimFind = 0;
+	    in.bDoSplitDimFind = 1;
 	    }
-	else {
-	    if (msr->param.bVRungStat) {
-		printf("Skipping Domain Decomposition (nActive = %"PRIu64"/%"PRIu64", iRung:%d iRungDD:%d iLastRungRT:%d)\n",
-		       msr->nActive,msr->N,iRung,iRungDD,msr->iLastRungRT);
+	else if (iRung > iRungDD && !bSplitVA) {
+	    if (msr->iLastRungRT < iRungRT) {
+		msr->iLastRungRT = iRungRT;
+		msrActiveRung(msr,iRungRT,1);
+		bRestoreActive = 1;
+		in.bDoRootFind = 1;
+		in.bDoSplitDimFind = 0;
 		}
-	    return;  /* do absolutely nothing! */
+	    else {
+		if (msr->param.bVRungStat) {
+		    printf("Skipping Domain Decomposition (nActive = %"PRIu64"/%"PRIu64", iRung:%d iRungDD:%d iLastRungRT:%d)\n",
+			msr->nActive,msr->N,iRung,iRungDD,msr->iLastRungRT);
+		    }
+		return;  /* do absolutely nothing! */
+		}
 	    }
-	}
-    else if (iRung > iRungRT) {
-	if (msr->iLastRungRT < iRungRT) {
-	    msr->iLastRungRT = iRungRT;
-	    msrActiveRung(msr,iRungRT,1);
-	    bRestoreActive = 1;
+	else if (iRung > iRungRT) {
+	    if (msr->iLastRungRT < iRungRT) {
+		msr->iLastRungRT = iRungRT;
+		msrActiveRung(msr,iRungRT,1);
+		bRestoreActive = 1;
+		in.bDoRootFind = 1;
+		in.bDoSplitDimFind = 0;
+		}
+	    else {
+		if (msr->param.bVRungStat) {
+		    printf("Skipping Root Finder (nActive = %"PRIu64"/%"PRIu64", iRung:%d iRungRT:%d iLastRungRT:%d)\n",
+			msr->nActive,msr->N,iRung,iRungRT,msr->iLastRungRT);
+		    }
+		in.bDoRootFind = 0;
+		in.bDoSplitDimFind = 0;
+		}
+	    }
+	else if (iRung > iRungSD) {
+	    if (msr->param.bVRungStat) {
+		printf("Skipping Domain Dim Choice (nActive = %"PRIu64"/%"PRIu64", iRung:%d iRungSD:%d iLastRungRT:%d)\n",
+		    msr->nActive,msr->N,iRung,iRungSD,msr->iLastRungRT);
+		}
+	    msr->iLastRungRT = iRung;
 	    in.bDoRootFind = 1;
 	    in.bDoSplitDimFind = 0;
 	    }
 	else {
-	    if (msr->param.bVRungStat) {
-		printf("Skipping Root Finder (nActive = %"PRIu64"/%"PRIu64", iRung:%d iRungRT:%d iLastRungRT:%d)\n",
-		       msr->nActive,msr->N,iRung,iRungRT,msr->iLastRungRT);
-		}
-	    in.bDoRootFind = 0;
-	    in.bDoSplitDimFind = 0;
+	    msr->iLastRungRT = iRung;
+	    in.bDoRootFind = 1;
+	    in.bDoSplitDimFind = 1;
 	    }
-	}
-    else if (iRung > iRungSD) {
-	if (msr->param.bVRungStat) {
-	    printf("Skipping Domain Dim Choice (nActive = %"PRIu64"/%"PRIu64", iRung:%d iRungSD:%d iLastRungRT:%d)\n",
-		   msr->nActive,msr->N,iRung,iRungSD,msr->iLastRungRT);
-	    }
-	msr->iLastRungRT = iRung;
-	in.bDoRootFind = 1;
-	in.bDoSplitDimFind = 0;
-	}
-    else {
-	msr->iLastRungRT = iRung;
-	in.bDoRootFind = 1;
-	in.bDoSplitDimFind = 1;
 	}
 
     in.nActive = msr->nActive;
@@ -5831,7 +5832,7 @@ void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint) {
     /* msrReorder above requires msrDomainDecomp and msrBuildTree for
        msrSmooth in topstepSymba*/
     msrActiveRung(msr,0,1);
-    msrDomainDecomp(msr,0,0,0);
+    msrDomainDecomp(msr,-1,0,0);
     msrBuildTree(msr,dTime,0);
 #endif
 #else
@@ -5866,7 +5867,7 @@ void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint) {
 	msrSelSrcAll(msr);  /* FOR TESTING!! of gas active particles */
 #else
 	msrActiveRung(msr,0,1); /* Activate all particles */
-	msrDomainDecomp(msr,0,0,0);
+	msrDomainDecomp(msr,-1,0,0);
 	msrBuildTree(msr,dTime,0);
 	bSymmetric = 0;  /* should be set in param file! */
 	msrSmooth(msr,dTime,SMX_DENSITY,bSymmetric);
@@ -5879,7 +5880,7 @@ void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint) {
 	*/
 	nFOFsDone = 0;
 	msrActiveRung(msr,0,1); /* Activate all particles */
-	msrDomainDecomp(msr,0,0,0);
+	msrDomainDecomp(msr,-1,0,0);
 	msrBuildTree(msr,dTime,0);
 	msrFof(msr,csmTime2Exp(msr->param.csm,dTime));
 	msrGroupMerge(msr,csmTime2Exp(msr->param.csm,dTime));
@@ -5908,7 +5909,7 @@ void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint) {
 	** Build tree, activating all particles first (just in case).
 	*/
 	msrActiveRung(msr,0,1); /* Activate all particles */
-	msrDomainDecomp(msr,0,0,0);
+	msrDomainDecomp(msr,-1,0,0);
 	msrPSGroupFinder(msr); /*,csmTime2Exp(msr->param.csm,dTime)); */
 	if (msr->param.nBins > 0) msrGroupProfiles(msr,csmTime2Exp(msr->param.csm,dTime));
 	msrReorder(msr);

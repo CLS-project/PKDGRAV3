@@ -521,7 +521,7 @@ PQ *pqSearchLocal(SMX smx,PQ *pq,FLOAT r[3],int *pbDone) {
     int idSelf = pkd->idSelf;
     pBND bnd;
 
-    *pbDone = 1;	/* assume that we will complete the search */
+    *pbDone = 0;
     /*
     ** We don't perform containment tests except at the
     ** root, so that the pbDone flag can be correctly
@@ -596,8 +596,7 @@ PQ *pqSearchLocal(SMX smx,PQ *pq,FLOAT r[3],int *pbDone) {
 		    if (dMin*dMin < pq->fDist2 || dMin < 0) {
 			iParent = kdn->iParent;
 			if (!iParent) {
-			    *pbDone = 0;		/* EXIT, not contained! */
-			    break;
+			    break;		/* EXIT, not contained! */
 			}
 			S[sp] = iParent;
 			goto NotContained;
@@ -629,7 +628,6 @@ PQ *pqSearchLocal(SMX smx,PQ *pq,FLOAT r[3],int *pbDone) {
 PQ *pqSearchRemote(SMX smx,PQ *pq,int id,FLOAT r[3]) {
     PKD pkd = smx->pkd;
     MDL mdl = smx->pkd->mdl;
-    KDN *kdn;
     PARTICLE *p;
     KDN *pkdn,*pkdu;
     FLOAT dx,dy,dz,min1,min2,fDist2;
@@ -642,7 +640,7 @@ PQ *pqSearchRemote(SMX smx,PQ *pq,int id,FLOAT r[3]) {
     pBND bnd;
 
     assert(id != idSelf);
-    kdn = pkdTreeNode(pkd,iCell = ROOT);
+    iCell = ROOT;
     S[sp] = iCell;
     pkdn = mdlAquire(mdl,CID_CELL,iCell,id);
     /*
@@ -653,18 +651,18 @@ PQ *pqSearchRemote(SMX smx,PQ *pq,int id,FLOAT r[3]) {
 	** Descend to bucket via the closest cell at each level.
 	*/
 	while (pkdn->iLower) {
-	    kdn = pkdTreeNode(pkd,iCell = pkdn->iLower);
+	    iCell = pkdn->iLower;
 	    mdlRelease(mdl,CID_CELL,pkdn);
 	    pkdn = mdlAquire(mdl,CID_CELL,iCell,id);
             pkdNodeBnd(pkd, pkdn, &bnd);
 	    MINDIST(bnd,r,min1);
-	    kdn = pkdTreeNode(pkd,++iCell);
+	    ++iCell;
 	    pkdu = mdlAquire(mdl,CID_CELL,iCell,id);
             pkdNodeBnd(pkd, pkdu, &bnd);
 	    MINDIST(bnd,r,min2);
 	    if (min1 < min2) {
 		Smin[sm++] = min2;
-		kdn = pkdTreeNode(pkd,--iCell);
+		--iCell;
 		mdlRelease(mdl,CID_CELL,pkdu);
 		if (min1 >= pq->fDist2) goto NotContained;
 	    }
@@ -712,13 +710,13 @@ PQ *pqSearchRemote(SMX smx,PQ *pq,int id,FLOAT r[3]) {
 		mdlRelease(mdl,CID_CELL,pkdn);
 		return pq;
 	    }
-	    --sp;
-	    kdn = pkdTreeNode(pkd,iCell = pkdn->iParent);
+	    --sp;	    
+	    iCell = pkdn->iParent;
 	    mdlRelease(mdl,CID_CELL,pkdn);
 	    pkdn = mdlAquire(mdl,CID_CELL,iCell,id);
 	}
     NotContained:
-	kdn = pkdTreeNode(pkd,iCell ^= 1);
+	iCell ^= 1;
 	mdlRelease(mdl,CID_CELL,pkdn);
 	pkdn = mdlAquire(mdl,CID_CELL,iCell,id);
 	/*
@@ -730,7 +728,7 @@ PQ *pqSearchRemote(SMX smx,PQ *pq,int id,FLOAT r[3]) {
 	    MINDIST(bnd,r,min2);
 	}
 	if (min2 >= pq->fDist2) {
-	    kdn = pkdTreeNode(pkd,iCell = pkdn->iParent);
+	    iCell = pkdn->iParent;
 	    mdlRelease(mdl,CID_CELL,pkdn);
 	    pkdn = mdlAquire(mdl,CID_CELL,iCell,id);
 	    goto NoIntersect;
@@ -806,14 +804,12 @@ PQ *pqSearch(SMX smx,PQ *pq,FLOAT r[3],int bReplica,int *pbDone) {
 		    if (dMin*dMin < pq->fDist2 || dMin < 0) {
 			iParent = kdn->iParent;
 			if (!iParent) {
-			    *pbDone = 0;
 			    return pq;
 			}
 			S[sp] = iParent;
 			goto NotContained;
 		    }
 		}
-		*pbDone = 1;
 		return pq;
 	    }
 	    else return pq;
