@@ -750,20 +750,19 @@ static inline int iOpenOutcomeBarnesHut(PKD pkd,KDN *k,CELT *check,KDN **pc,floa
 /*
 ** Returns total number of active particles for which gravity was calculated.
 */
-int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,int bEwald,int nGroup,
-		int bVeryActive,double dThetaMin,double dThetaMax,double *pdFlop,double *pdPartSum,double *pdCellSum) {
-    PARTICLE *p;
+static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot, uint8_t uRungLo,uint8_t uRungHi, double dRhoFac, int bEwald,int nGroup, double dThetaMin, double *pdFlop, double *pdPartSum,double *pdCellSum) {
     KDN *k,*c,*kFind;
+    int id,iCell,iSib,iLower,iCheckCell,iCheckLower,iCellDescend;
+    PARTICLE *p;
     FMOMR *momc,*momk;
     FMOMR monoPole;
     FLOCR L;
+    double cx,cy,cz,d2c;
     double fWeight = 0.0;
     double dShiftFlop;
-    double dRhoFac;
     const double *v, *a;
     double dOffset[3];
     double xParent,yParent,zParent;
-    double cx,cy,cz,d2c;
     double d2,fourh2;
     double dx[3],dir,dir2;
     float fOffset[3];
@@ -772,11 +771,8 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
     float tax,tay,taz;
     float fMass,fSoft;
     uint64_t iOrder;
-    int iStack,ism;
-    int ix,iy,iz,bRep;
-    int nMaxInitCheck;
-    int id,iCell,iSib,iLower,iCheckCell,iCheckLower,iCellDescend;
-    int i,j,jTile,pi,pj,nActive,nTotActive;
+    int iStack;
+    int j,jTile,pi,pj,nActive,nTotActive;
     float cOpen,kOpen;
     pBND cbnd,kbnd;
     static const float  fZero3[] = {0.0f,0.0f,0.0f};
@@ -789,14 +785,10 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 #ifdef USE_SIMD_MOMR
     int ig,iv;
 #endif
-    SMX smx;
-    SMF smf;
     double tempI;
     double dEwFlop = 0.0;
 
-#ifdef PROFILE_GRAVWALK
-    VTResume();
-#endif
+    iStack = -1;
 
     monoPole.m = 0.0f;
     monoPole.xx = monoPole.yy = monoPole.xy = monoPole.xz = monoPole.yz = 0.0f;
@@ -805,135 +797,24 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 	monoPole.yyyz = monoPole.xxyy = monoPole.xxyz = monoPole.xyyz = 0.0f;
 
     /*
-    ** If necessary, calculate the theta interpolation tables.
-    */
-#ifdef USE_DEHNEN_THETA
-    pkdSetThetaTable(pkd,dThetaMin,dThetaMax);
-#else
-    pkd->fiCritTheta = 1.0f / dThetaMin;
-#endif
-
-    a = dZero3;
-    v = dZero3;
-    assert(pkd->oNodeMom);
-    if (pkd->param.bGravStep) {
-	assert(pkd->oNodeAcceleration);
-	if (pkd->param.iTimeStepCrit == 1) {
-	    assert(pkd->oNodeVelocity);
-	    assert(pkd->oVelocity);
-	}
-    }
-
-    /*
-    ** If we are doing the very active gravity then check that there is a very active tree!
-    ** Otherwise we check that the ROOT has active particles!
-    */
-    if (bVeryActive) {
-	assert(pkd->nVeryActive != 0);
-	assert(pkd->nVeryActive == pkdTreeNode(pkd,VAROOT)->pUpper - pkdTreeNode(pkd,VAROOT)->pLower + 1);
-	}
-    else if (!pkdIsCellActive(pkdTreeNode(pkd,ROOT),uRungLo,uRungHi)) return 0;
-    /*
-    ** Initially we set our cell pointer to
-    ** point to the top tree.
-    */
-    nTotActive = 0;
-    ilpClear(pkd->ilp);
-    ilcClear(pkd->ilc);
-    clClear(pkd->cl);
-    /*
-    ** Setup smooth for calculating local densities when a particle has too few P-P interactions.
-    */
-    if (pkd->param.bGravStep) {
-	smInitializeRO(&smx,pkd,&smf,pkd->param.nPartRhoLoc,nReps?1:0,SMX_DENSITY_F1);
-	smSmoothInitialize(smx);
-	/* No particles are inactive for density calculation */
-	for (pi=0;pi<pkd->nLocal;++pi) {
-	    p = pkdParticle(pkd,pi);
-	    smx->ea[pi].bInactive = 0;
-	    }
-	}
-    else smx = NULL;
-
-    iStack = -1;
-    /*
     ** Clear local expansion and the timestepping sums.
     */
     momClearFlocr(&L);
     dirLsum = 0;
     normLsum = 0;
-    /*
-    ** Precalculate RhoFac if required.
-    */
-    if (pkd->param.bGravStep) {
-	double a = csmTime2Exp(pkd->param.csm,dTime);
-	dRhoFac = 1.0/(a*a*a);
-	}
-    else dRhoFac = 0.0;
-    /*
-    ** First we add any replicas of the entire box
-    ** to the Checklist.
-    */
-    for (ix=-nReps;ix<=nReps;++ix) {
-	fOffset[0] = ix*pkd->fPeriod[0];
-	for (iy=-nReps;iy<=nReps;++iy) {
-	    fOffset[1] = iy*pkd->fPeriod[1];
-	    for (iz=-nReps;iz<=nReps;++iz) {
-		fOffset[2] = iz*pkd->fPeriod[2];
-		bRep = ix || iy || iz;
-		if (bRep || bVeryActive) {
-		    /* 
-		    ** Use leaf of the top tree and NOT the root of the local tree here.
-		    */
-		    cOpen = -1.0f;
-		    id = -1;
-		    iLower = pkdTopNode(pkd,ROOT)->iLower;
-		    if (!iLower) iLower = ROOT;  /* something other than zero for openening crit - iLower usually can't be == ROOT */
-		    nc = getCell(pkd,ROOT,id,&cOpen,&c);
-		    pkdNodeBnd(pkd,c,&cbnd);
-		    clAppend(pkd->cl,ROOT,id,iLower,nc,cOpen,pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c->r,fOffset,cbnd.fCenter,cbnd.fMax);
-		    }
-		if (bRep && bVeryActive) {
-		    /*
-		    ** Add the images of the very active tree to the checklist.
-		    */
-		    cOpen = -1.0f;
-		    id = mdlSelf(pkd->mdl);
-		    iLower = pkdTopNode(pkd,VAROOT)->iLower;
-		    if (!iLower) iLower = ROOT;  /* something other than zero for openening crit - iLower usually can't be == ROOT */
-		    nc = getCell(pkd,VAROOT,id,&cOpen,&c);
-		    pkdNodeBnd(pkd,c,&cbnd);
-		    clAppend(pkd->cl,VAROOT,id,iLower,nc,cOpen,pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c->r,fOffset,cbnd.fCenter,cbnd.fMax);
-		    }
-		}
-	    }
-	}
-    if (!bVeryActive) {
-	/*
-	** This adds all siblings of a chain leading from the local tree leaf in the top
-	** tree up to the ROOT of the top tree.
-	*/
-	for (j=0;j<3;++j) fOffset[j] = 0.0f;
-	iCell = pkd->iTopRoot;
-	iSib = SIBLING(iCell);
-	while (iSib) {
-	    cOpen = -1.0f;
-	    id = -1;
-	    iLower = pkdTopNode(pkd,iSib)->iLower;
-	    if (!iLower) iLower = ROOT;  /* something other than zero for openening crit - iLower usually can't be == ROOT */
-	    nc = getCell(pkd,iSib,id,&cOpen,&c);
-	    pkdNodeBnd(pkd,c,&cbnd);
-	    clAppend(pkd->cl,iSib,id,iLower,nc,cOpen,pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c->r,fOffset,cbnd.fCenter,cbnd.fMax);
-	    iCell = pkdTopNode(pkd,iCell)->iParent;
-	    iSib = SIBLING(iCell);
-	    }
-	}
+    nTotActive = 0;
+
+    a = dZero3;
+    v = dZero3;
+
+
     /*
     ** We are now going to work on the local tree.
     ** Make iCell point to the root of the tree again.
     */
-    if (bVeryActive) k = pkdTreeNode(pkd,iCell = VAROOT);
-    else k = pkdTreeNode(pkd,iCell = ROOT);
+    if (iVARoot) k = pkdTreeNode(pkd,iCell = iVARoot);
+    else k = pkdTreeNode(pkd,iCell = iRoot);
+
     while (1) {
 	/*
 	** Find the next active particle that will be encountered in the walk algorithm below
@@ -1133,31 +1014,31 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 				iCheckLower = blk->iLower.i[jTile];
 				assert(iCheckLower > 0);
 				id = blk->id.i[jTile];
-				if (iCheckLower == ROOT) {
+				if (iCheckLower == iRoot) {
 				    /* We must progress to the children of this local tree root cell. */
 				    assert(id < 0);
 				    id = pkdTopNode(pkd,iCheckCell)->pLower;
 				    assert(id >= 0);
 				    if (id == pkd->idSelf) {
-					c = pkdTreeNode(pkd,ROOT);
+					c = pkdTreeNode(pkd,iRoot);
 					iCheckLower = c->iLower;
 					}
 				    else {
-					c = CAST(KDN *,mdlAquire(pkd->mdl,CID_CELL,ROOT,id));
+					c = CAST(KDN *,mdlAquire(pkd->mdl,CID_CELL,iRoot,id));
 					iCheckLower = c->iLower;
 					mdlRelease(pkd->mdl,CID_CELL,c);
 					}
 				    if (!iCheckLower) {
 					/*
-					** The ROOT of a local tree is actually a bucket! An irritating case...
-					** This is a rare case though, and as such we simply check the local ROOT bucket once more.
+					** The iRoot of a local tree is actually a bucket! An irritating case...
+					** This is a rare case though, and as such we simply check the local iRoot bucket once more.
 					*/
 					nc = c->pUpper - c->pLower + 1;
 					pkdNodeBnd(pkd,c,&cbnd);
 					fOffset[0] = blk->xOffset.f[jTile];
 					fOffset[1] = blk->yOffset.f[jTile];
 					fOffset[2] = blk->zOffset.f[jTile];
-					clAppend(pkd->clNew,ROOT,id,0,nc,cOpen,pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c->r,fOffset,cbnd.fCenter,cbnd.fMax);
+					clAppend(pkd->clNew,iRoot,id,0,nc,cOpen,pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c->r,fOffset,cbnd.fCenter,cbnd.fMax);
 					break; /* finished, don't add children */
 					}
 				    }			    
@@ -1168,7 +1049,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 				fOffset[1] = blk->yOffset.f[jTile];
 				fOffset[2] = blk->zOffset.f[jTile];
 				iLower = c->iLower;
-				if (id == -1 && !iLower) iLower = ROOT;  /* something other than zero for openening crit - iLower usually can't be == ROOT */
+				if (id == -1 && !iLower) iLower = iRoot;  /* something other than zero for openening crit - iLower usually can't be == iRoot */
 				clAppend(pkd->clNew,iCheckLower,id,iLower,nc,cOpen,pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c->r,fOffset,cbnd.fCenter,cbnd.fMax);
 				if (id >= 0 && id != pkd->idSelf) mdlRelease(pkd->mdl,CID_CELL,c);
 				/*
@@ -1179,7 +1060,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 				nc = getCell(pkd,iCheckLower,id,&cOpen,&c);
 				pkdNodeBnd(pkd,c,&cbnd);
 				iLower = c->iLower;
-				if (id == -1 && !iLower) iLower = ROOT;  /* something other than zero for openening crit - iLower usually can't be == ROOT */
+				if (id == -1 && !iLower) iLower = iRoot;  /* something other than zero for openening crit - iLower usually can't be == iRoot */
 				clAppend(pkd->clNew,iCheckLower,id,iLower,nc,cOpen,pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c->r,fOffset,cbnd.fCenter,cbnd.fMax);
 				if (id >= 0 && id != pkd->idSelf) mdlRelease(pkd->mdl,CID_CELL,c);
 				break;
@@ -1664,6 +1545,253 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 	}
     }
 
+/*
+** Returns total number of active particles for which gravity was calculated.
+*/
+int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,int bEwald,int nGroup, int iRoot, int iVARoot,
+		double dThetaMin,double dThetaMax,double *pdFlop,double *pdPartSum,double *pdCellSum) {
+    PARTICLE *p;
+    KDN *c;
+    int id,iCell,iSib,iLower;
+    float fOffset[3];
+    int ix,iy,iz,bRep;
+    int pi;
+    int j;
+    float cOpen;
+    pBND cbnd;
+    int nc;
+    double dRhoFac;
+    SMX smx;
+    SMF smf;
+#ifdef USE_SIMD_MOMR
+    int ig,iv;
+#endif
+
+#ifdef PROFILE_GRAVWALK
+    VTResume();
+#endif
+
+    /*
+    ** If necessary, calculate the theta interpolation tables.
+    */
+#ifdef USE_DEHNEN_THETA
+    pkdSetThetaTable(pkd,dThetaMin,dThetaMax);
+#else
+    pkd->fiCritTheta = 1.0f / dThetaMin;
+#endif
+
+    assert(pkd->oNodeMom);
+    if (pkd->param.bGravStep) {
+	assert(pkd->oNodeAcceleration);
+	if (pkd->param.iTimeStepCrit == 1) {
+	    assert(pkd->oNodeVelocity);
+	    assert(pkd->oVelocity);
+	}
+    }
+
+    /*
+    ** Setup smooth for calculating local densities when a particle has too few P-P interactions.
+    */
+    if (pkd->param.bGravStep) {
+	smInitializeRO(&smx,pkd,&smf,pkd->param.nPartRhoLoc,nReps?1:0,SMX_DENSITY_F1);
+	smSmoothInitialize(smx);
+	/* No particles are inactive for density calculation */
+	for (pi=0;pi<pkd->nLocal;++pi) {
+	    p = pkdParticle(pkd,pi);
+	    smx->ea[pi].bInactive = 0;
+	    }
+	}
+    else smx = NULL;
+
+    /*
+    ** Precalculate RhoFac if required.
+    */
+    if (pkd->param.bGravStep) {
+	double a = csmTime2Exp(pkd->param.csm,dTime);
+	dRhoFac = 1.0/(a*a*a);
+	}
+    else dRhoFac = 0.0;
+
+    /*
+    ** If we are doing the very active gravity then check that there is a very active tree!
+    ** Otherwise we check that the iRoot has active particles!
+    */
+    if (iVARoot) {
+	assert(pkd->nVeryActive != 0);
+	assert(pkd->nVeryActive == pkdTreeNode(pkd,iVARoot)->pUpper - pkdTreeNode(pkd,iVARoot)->pLower + 1);
+	}
+    else if (!pkdIsCellActive(pkdTreeNode(pkd,iRoot),uRungLo,uRungHi)) return 0;
+    /*
+    ** Initially we set our cell pointer to
+    ** point to the top tree.
+    */
+    ilpClear(pkd->ilp);
+    ilcClear(pkd->ilc);
+    clClear(pkd->cl);
+
+    /*
+    ** First we add any replicas of the entire box
+    ** to the Checklist.
+    */
+    for (ix=-nReps;ix<=nReps;++ix) {
+	fOffset[0] = ix*pkd->fPeriod[0];
+	for (iy=-nReps;iy<=nReps;++iy) {
+	    fOffset[1] = iy*pkd->fPeriod[1];
+	    for (iz=-nReps;iz<=nReps;++iz) {
+		fOffset[2] = iz*pkd->fPeriod[2];
+		bRep = ix || iy || iz;
+		if (bRep || iVARoot) {
+		    /* 
+		    ** Use leaf of the top tree and NOT the root of the local tree here.
+		    */
+		    cOpen = -1.0f;
+		    id = -1;
+		    iLower = pkdTopNode(pkd,iRoot)->iLower;
+		    if (!iLower) iLower = iRoot;  /* something other than zero for openening crit - iLower usually can't be == iRoot */
+		    nc = getCell(pkd,iRoot,id,&cOpen,&c);
+		    pkdNodeBnd(pkd,c,&cbnd);
+		    clAppend(pkd->cl,iRoot,id,iLower,nc,cOpen,pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c->r,fOffset,cbnd.fCenter,cbnd.fMax);
+		    }
+		if (bRep && iVARoot) {
+		    /*
+		    ** Add the images of the very active tree to the checklist.
+		    */
+		    cOpen = -1.0f;
+		    id = mdlSelf(pkd->mdl);
+		    iLower = pkdTopNode(pkd,iVARoot)->iLower;
+		    if (!iLower) iLower = iRoot;  /* something other than zero for openening crit - iLower usually can't be == iRoot */
+		    nc = getCell(pkd,iVARoot,id,&cOpen,&c);
+		    pkdNodeBnd(pkd,c,&cbnd);
+		    clAppend(pkd->cl,iVARoot,id,iLower,nc,cOpen,pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c->r,fOffset,cbnd.fCenter,cbnd.fMax);
+		    }
+		}
+	    }
+	}
+    if (!iVARoot) {
+	/*
+	** This adds all siblings of a chain leading from the local tree leaf in the top
+	** tree up to the iRoot of the top tree.
+	*/
+	for (j=0;j<3;++j) fOffset[j] = 0.0f;
+	iCell = pkd->iTopRoot;
+	iSib = SIBLING(iCell);
+	while (iSib) {
+	    cOpen = -1.0f;
+	    id = -1;
+	    iLower = pkdTopNode(pkd,iSib)->iLower;
+	    if (!iLower) iLower = iRoot;  /* something other than zero for openening crit - iLower usually can't be == iRoot */
+	    nc = getCell(pkd,iSib,id,&cOpen,&c);
+	    pkdNodeBnd(pkd,c,&cbnd);
+	    clAppend(pkd->cl,iSib,id,iLower,nc,cOpen,pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c->r,fOffset,cbnd.fCenter,cbnd.fMax);
+	    iCell = pkdTopNode(pkd,iCell)->iParent;
+	    iSib = SIBLING(iCell);
+	    }
+	}
+
+    return processCheckList(pkd, smx, smf, iRoot, iVARoot, uRungLo, uRungHi, dRhoFac, bEwald, nGroup, dThetaMin, pdFlop, pdPartSum, pdCellSum);
+    }
+
+/*
+** Returns total number of active particles for which gravity was calculated.
+*/
+int pkdGravWalkGroups(PKD pkd,double dTime,int nGroup, double dThetaMin,double dThetaMax,double *pdFlop,double *pdPartSum,double *pdCellSum) {
+    PARTICLE *p;
+    KDN *c;
+    int id,iRoot;
+    float fOffset[3];
+    int ix,iy,iz,bRep;
+    int pi;
+    int i,j,k;
+    float cOpen;
+    pBND cbnd;
+    int nc;
+    double dRhoFac;
+    SMX smx;
+    SMF smf;
+#ifdef USE_SIMD_MOMR
+    int ig,iv;
+#endif
+
+#ifdef PROFILE_GRAVWALK
+    VTResume();
+#endif
+
+    /*
+    ** If necessary, calculate the theta interpolation tables.
+    */
+#ifdef USE_DEHNEN_THETA
+    pkdSetThetaTable(pkd,dThetaMin,dThetaMax);
+#else
+    pkd->fiCritTheta = 1.0f / dThetaMin;
+#endif
+
+    assert(pkd->oNodeMom);
+    if (pkd->param.bGravStep) {
+	assert(pkd->oNodeAcceleration);
+	if (pkd->param.iTimeStepCrit == 1) {
+	    assert(pkd->oNodeVelocity);
+	    assert(pkd->oVelocity);
+	}
+    }
+
+    /*
+    ** Setup smooth for calculating local densities when a particle has too few P-P interactions.
+    */
+    if (pkd->param.bGravStep) {
+	smInitializeRO(&smx,pkd,&smf,pkd->param.nPartRhoLoc,0,SMX_DENSITY_F1);
+	smSmoothInitialize(smx);
+	/* No particles are inactive for density calculation */
+	for (pi=0;pi<pkd->nLocal;++pi) {
+	    p = pkdParticle(pkd,pi);
+	    smx->ea[pi].bInactive = 0;
+	    }
+	}
+    else smx = NULL;
+
+    /*
+    ** Precalculate RhoFac if required.
+    */
+    if (pkd->param.bGravStep) {
+	double a = csmTime2Exp(pkd->param.csm,dTime);
+	dRhoFac = 1.0/(a*a*a);
+	}
+    else dRhoFac = 0.0;
+
+    /*
+    ** Check that the iRoot has active particles!
+    */
+    //if (!pkdIsCellActive(pkdTreeNode(pkd,iRoot),uRungLo,uRungHi)) return 0;
+
+    /*
+    ** Initially we set our cell pointer to
+    ** point to the top tree.
+    */
+
+    struct psGroup *gd = pkd->psGroupTable.pGroup;
+    int nActive=0;
+    for (i=1; i < pkd->psGroupTable.nGroups; i++)
+    {
+	if (gd[i].nLocal == 0) continue;
+	ilpClear(pkd->ilp);
+	ilcClear(pkd->ilc);
+	clClear(pkd->cl);
+#if 1
+	for (k=1; k < gd[i].nTreeRoots; k++)
+	{
+	    for (j=0;j<3;++j) fOffset[j] = 0.0f;
+	    cOpen = -1.0f;
+	    id = gd[i].treeRoots[k].iPid;
+	    iRoot = gd[i].treeRoots[k].iLocalRootId;
+	    nc = getCell(pkd,iRoot,id,&cOpen,&c);
+	    pkdNodeBnd(pkd,c,&cbnd);
+	    //fprintf(stderr, "Adding roots to checklist %e  %i\n", pkdNodeMom(pkd,c)->m, gd[i].treeRoots[k].iLocalRootId);
+	    clAppend(pkd->cl,iRoot,id,c->iLower,nc,cOpen,pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c->r,fOffset,cbnd.fCenter,cbnd.fMax);
+        }
+#endif
+	nActive += processCheckList(pkd, smx, smf, gd[i].treeRoots[0].iLocalRootId, 0, 0, MAX_RUNG, dRhoFac, 0, nGroup, dThetaMin, pdFlop, pdPartSum, pdCellSum);
+    }
+    return nActive;
+}
 
 int pkdRungWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,void *pParams,void *doFunc(PKD pkd,PARTICLE *p,void *pParams)) {
     KDN *k;

@@ -2534,7 +2534,6 @@ void _BuildTree(MSR msr,int bExcludeVeryActive,int bNeedEwald) {
     in.bExcludeVeryActive = bExcludeVeryActive;
     sec = msrTime();
     pstBuildTree(msr->pst,&in,sizeof(in),pkdn,&iDum);
-    msrprintf(msr,"Done pstBuildTree\n");
     dsec = msrTime() - sec;
     msrprintf(msr,"Tree built, Wallclock: %f secs\n\n",dsec);
 
@@ -4877,10 +4876,11 @@ void msrDeletePSGroups(MSR msr) {
 	pst0 = pst0->pstLower;
     plcl = pst0->plcl;
 
-    if (plcl->pkd->psGroupData) mdlFree(msr->mdl, plcl->pkd->psGroupData);
+    if (plcl->pkd->psGroupTable.pGroup) mdlFree(msr->mdl, plcl->pkd->psGroupTable.pGroup);
+    plcl->pkd->psGroupTable.nGroups = 0;
+
     /*if (plcl->pkd->groupBin)free(plcl->pkd->groupBin); */
     /*plcl->pkd->nBins = 0; */
-    plcl->pkd->nGroups = 0;
     }
 
 void msrInitRelaxation(MSR msr) {
@@ -5771,9 +5771,7 @@ double msrRead(MSR msr, const char *achInFile) {
 	    msr->param.dyPeriod >= FLOAT_MAXVAL ||
 	    msr->param.dzPeriod >= FLOAT_MAXVAL) {
 	BND bnd;
-	BND vbnd;
 	msrCalcBound(msr,&bnd);
-	msrCalcVBound(msr,&vbnd);
 	}
 
     /*
@@ -5911,6 +5909,8 @@ void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint) {
 	msrActiveRung(msr,0,1); /* Activate all particles */
 	msrDomainDecomp(msr,-1,0,0);
 	msrPSGroupFinder(msr); /*,csmTime2Exp(msr->param.csm,dTime)); */
+	msrUnbind(msr);
+	msrSetPSGroupIds(msr);
 	if (msr->param.nBins > 0) msrGroupProfiles(msr,csmTime2Exp(msr->param.csm,dTime));
 	msrReorder(msr);
 
@@ -6553,7 +6553,7 @@ void msrMeasurePk(MSR msr,double *dCenter,double dRadius,int nGrid,float *Pk) {
 /*
 ** Build the tree used to compute a phase-space metric.
 */
-void _BuildPsdTree(MSR msr,int bExcludeVeryActive,int bNeedEwald) {
+void _BuildPsdTree(MSR msr) {
     struct inPSD in;
     struct ioCalcRoot root;
     PST pst0;
@@ -6569,38 +6569,27 @@ void _BuildPsdTree(MSR msr,int bExcludeVeryActive,int bNeedEwald) {
     plcl = pst0->plcl;
     pkd = plcl->pkd;
 
-    msrprintf(msr,"Building local trees...\n\n");
+    msrprintf(msr,"Building local trees...\n");
 
     in.nBucket = msr->param.nBucket;
     in.nSmooth = msr->param.nSmooth;
-    in.bPeriodic = 0; //msr->param.bPeriodic;
-    in.bSymmetric = 0;
-    in.iSmoothType = 1;
+    in.bPeriodic = msr->param.bPeriodic;
+    //in.bSymmetric = 0;
+    //in.iSmoothType = 1;
 
     nCell = 1<<(1+(int)ceil(log((double)msr->nThreads)/log(2.0)));
     pkdn = malloc(nCell*pkdNodeSize(pkd));
     assert(pkdn != NULL);
     in.iCell = ROOT;
     in.nCell = nCell;
-    in.bExcludeVeryActive = bExcludeVeryActive;
+    //in.bExcludeVeryActive = 0;
     sec = msrTime();
     pstBuildPsdTree(msr->pst,&in,sizeof(in),pkdn,&iDum);
-    msrprintf(msr,"Done pstBuildPsdTree\n");
     dsec = msrTime() - sec;
-    msrprintf(msr,"Tree built, Wallclock: %f secs\n\n",dsec);
+    msrprintf(msr,"Tree built, Wallclock: %f secs\n",dsec);
 
     pstDistribCells(msr->pst,pkdn,nCell*pkdNodeSize(pkd),NULL,NULL);
     free(pkdn);
-    if (!bExcludeVeryActive && bNeedEwald) {
-	/*
-	** For simplicity we will skip calculating the Root for all particles
-	** with exclude very active since there are missing particles which
-	** could add to the mass and because it probably is not important to
-	** update the root so frequently.
-	*/
-	pstCalcRoot(msr->pst,NULL,0,&root,&iDum);
-	pstDistribRoot(msr->pst,&root,sizeof(struct ioCalcRoot),NULL,NULL);
-	}
     }
 
 /*
@@ -6616,12 +6605,16 @@ void _BuildPsdTree(MSR msr,int bExcludeVeryActive,int bNeedEwald) {
 void msrPSGroupFinder(MSR msr) {
     int i;
     struct inPSD in;
-    in.nSmooth = msr->param.nSmooth;
-    in.bPeriodic = 0; //msr->param.bPeriodic;
-    in.bSymmetric = 0;
-    in.iSmoothType = 1;
+    double sec,dsec;
+    double Totalsec,Totaldsec;
 
-    printf("Phase-Space Group Finder (Aardvark)  nSmooth=%i\n", in.nSmooth);
+    in.nSmooth = msr->param.nSmooth;
+    in.bPeriodic = msr->param.bPeriodic;
+    //in.bSymmetric = 0;
+    //in.iSmoothType = 1;
+
+    msrprintf(msr, "Phase-Space Group Finder (Aardvark)  nSmooth=%i\n", in.nSmooth);
+    Totalsec = msrTime();
 
     //msr->pst.iSplitDim = 0;
 
@@ -6638,29 +6631,37 @@ void msrPSGroupFinder(MSR msr) {
 	}
 #endif
 
+    BND vbnd;
+    msrCalcVBound(msr,&vbnd);
+    pstPSDInit(msr->pst,&in,sizeof(in),NULL,NULL);
+
     /*
     ** Construct the tree used to compute phase-space densities
     */
-    const int bExcludeVeryActive = 0;
-    int bNeedEwald = 0;
-    _BuildPsdTree(msr,bExcludeVeryActive,bNeedEwald);
+    _BuildPsdTree(msr);
 
     /*
     ** Compute densities
     */
-    pstPSDInit(msr->pst,&in,sizeof(in),NULL,NULL);
+    msrprintf(msr, "Computing phase-space densities...\n");
+    sec = msrTime();
     pstPSD(msr->pst,&in,sizeof(in),NULL,NULL);
+    dsec = msrTime() - sec;
+    msrprintf(msr,"Phase-space densities found, Wallclock: %f secs\n",dsec);
 
     /*
     ** Create local group chains.
     */
+    msrprintf(msr, "Finding groups...\n");
+    sec = msrTime();
     pstPSDLink(msr->pst,&in,sizeof(in),NULL,NULL);
+    dsec = msrTime() - sec;
+    msrprintf(msr,"Groups found, Wallclock: %f secs\n",dsec);
 
     /*
     ** Count how many unique groups where made on each thread.
     */
-    struct inUpdateGroups *ug = malloc(msr->nThreads*sizeof(*ug));
-    assert(ug != NULL);
+    struct inAssignGlobalIds *ug = malloc(msr->nThreads*sizeof(*ug)); assert(ug != NULL);
 
     int inCLG=0;
     pstPSDCountLocalGroups(msr->pst, &inCLG, sizeof(inCLG), ug, NULL);
@@ -6699,12 +6700,14 @@ void msrPSGroupFinder(MSR msr) {
     if (msr->param.bVStep)
 	msrprintf(msr, "Found %i unique groups after bridging.\n", nGroups);
 
-    pstPSDUpdateGroups(msr->pst, ug, msr->nThreads*sizeof(*ug), NULL, NULL);
+    pstPSDAssignGlobalIds(msr->pst, ug, msr->nThreads*sizeof(*ug), NULL, NULL);
 
 #if 1
+#if 0
     if (msr->param.bVStep)
 	msrprintf(msr, "Updating global group IDs.\n");
     pstPSDSetGlobalId(msr->pst, NULL, 0, NULL, NULL);
+#endif
 #else
     if (msr->param.bVStep)
 	msrprintf(msr, "Finding noisy groups.\n");
@@ -6743,52 +6746,32 @@ void msrPSGroupFinder(MSR msr) {
 #endif
 
     /*
-    ** Unbind the groups
-    */
-    //msrUnbind(msr, nGroups);
-
-    /*
     ** Clean up.
     */
     pstPSDFinish(msr->pst,&in,sizeof(in),NULL,NULL);
     free(ug);
+    Totaldsec = msrTime() - Totalsec;
+    msrprintf(msr,"Aardvark finished, Wallclock: %f secs\n",Totaldsec);
     }
 
 
-void msrUnbind(MSR msr, int nGroups) {
-    struct inGravity in;
-    struct outGravity *out;
-    int i,id,iDum;
-    //pstUnbind(msr->pst, NULL, 0, NULL, NULL);
-
-    pstROParticleCache(msr->pst, NULL, 0, NULL, NULL);
-
+void msrUnbind(MSR msr) {
+    double sec,dsec;
+    msrprintf(msr, "Unbinding groups...\n");
+    sec = msrTime();
     msrActiveRung(msr,0,1); /* Activate all particles */
-    msrBuildTree(msr,0,0);
+    pstUnbind(msr->pst, NULL, 0, NULL, NULL);
+    dsec = msrTime() - sec;
+    msrprintf(msr, "Unbinding finished, Wallclock: %f secs\n",dsec);
+}
 
-    out = malloc(msr->nThreads*sizeof(struct outGravity));
-    assert(out != NULL);
-
-    for (i=1; i < nGroups; i++)
-    {
-	pstSelSrcGroup(msr->pst, &i,sizeof(i),NULL,NULL);
-	pstSelDstGroup(msr->pst, &i,sizeof(i),NULL,NULL);
-
-	in.dTime = 0; //dTime;
-	in.nReps = msr->param.nReplicas;
-	in.bPeriodic = 0; //msr->param.bPeriodic;
-	in.bEwald = 0; //bEwald;
-	in.dEwCut = msr->param.dEwCut;
-	in.dEwhCut = msr->param.dEwhCut;
-	in.uRungLo = 0; //uRungLo;
-	in.uRungHi = 1; //uRungHi;
-	in.dThetaMin = msr->dThetaMin;
-	in.dThetaMax = msr->dThetaMax;
-
-	pstGravity(msr->pst,&in,sizeof(in),out,&iDum);
-    }
-
-    pstParticleCacheFinish(msr->pst, NULL, 0, NULL, NULL);
-    free(out);
+void msrSetPSGroupIds(MSR msr) {
+    double sec,dsec;
+    msrprintf(msr, "Setting group IDs...\n");
+    sec = msrTime();
+    msrActiveRung(msr,0,1); /* Activate all particles */
+    pstPSDSetGlobalId(msr->pst, NULL, 0, NULL, NULL);
+    dsec = msrTime() - sec;
+    msrprintf(msr, "IDs set, Wallclock: %f secs\n",dsec);
 }
 

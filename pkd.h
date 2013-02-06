@@ -64,6 +64,7 @@ static inline int64_t d2u64(double d) {
 #define CID_PK          2
 #define CID_PNG         2
 #define CID_SADDLE_BUF  3
+#define CID_TREE_ROOT   3
 
 /*
 ** These macros implement the index manipulation tricks we use for moving
@@ -274,31 +275,6 @@ typedef struct {
     }
 
 
-#if 0
-
-#define PSMINDIST(bnd,r,v,rscale,vscale, min_out) MINDIST(bnd[0],r,min_out)
-
-#else
-
-#define _PSMINDIST(bnd,pos,min2, scale) do {\
-    double BND_dMin;\
-    int BND_j;\
-    (min2) = 0;					\
-    for (BND_j=0;BND_j<3;++BND_j) {\
-	BND_dMin = (fabs((bnd).fCenter[BND_j] - (pos)[BND_j]) - (bnd).fMax[BND_j]) * scale[BND_j]; \
-	if (BND_dMin > 0) (min2) += BND_dMin*BND_dMin; \
-	}\
-    } while (0)
-
-#define PSMINDIST(bnd,r,v,rscale,vscale, min_out) do { \
-    FLOAT rmin, vmin; \
-    _PSMINDIST(bnd[0], r, rmin, rscale); \
-    _PSMINDIST(bnd[1], v, vmin, vscale); \
-    min_out = rmin + vmin; \
-    assert(!isnan((min_out))); \
-    assert(!isinf((min_out))); \
-} while(0)
-#endif
 
 static inline int IN_BND(const FLOAT *R,const pBND *b) {
     int i;
@@ -357,6 +333,7 @@ static inline int IN_BND(const FLOAT *R,const pBND *b) {
         } \
 } while (0)
 #define CLEAR_STACK(S) do { S ## __s=0; } while (0)
+#define STACK_SIZE(S) (S ## __s)
 
 
 typedef struct kdNode {
@@ -584,6 +561,13 @@ typedef struct groupData {
     int iFirstRm;
 } FOFGD;
 
+struct remote_root_id
+{
+    int iPid;
+    int iLocalGroupId;
+    int iLocalRootId;
+};
+
 struct saddle_point_group
 {
     int iGlobalId;
@@ -627,23 +611,40 @@ struct saddle_point_list
     struct saddle_point_buffer *buf;
 };
 
-typedef struct psGroupData {
+struct tree_root_cache_msg
+{
+    struct remote_root_id tr;
+    int iPid;
+    int iLocalId;
+};
+
+struct psGroup {
+    int iPid;
     int iLocalId;
     int iGlobalId;
-    int iPid;
+    /*-----Unique-Local-Data-----*/
     int bridge;
     int dup;
+    int nLocal;
+    int nTreeRoots;
+    struct remote_root_id *treeRoots;
     int nSaddlePoints;
     int *sp;
+    /*-----Shared-Data-----------*/
+    uint64_t nTotal;
+    FLOAT fDensity;
     FLOAT fMass;
     FLOAT fRMSRadius;
-    FLOAT r[3];
-    FLOAT rcom[3];
-    FLOAT fDensity;
-    FLOAT v[3];
-    int nLocal;
-    int nTotal;
-} PSGD;
+    FLOAT r[3], rcom[3];
+    FLOAT v[3], vcom[3];
+    FLOAT fMass_com;
+};
+
+struct psGroupTable
+{
+    int nGroups;
+    struct psGroup *pGroup;
+};
 
 typedef struct groupBin {
   FLOAT fRadius;
@@ -688,8 +689,6 @@ typedef struct {
     float rhopmax;
     } PINFOOUT;
 
-#include "psd.h"
-
 typedef struct {
     uint64_t nActiveBelow;
     uint64_t nActiveAbove;
@@ -697,6 +696,7 @@ typedef struct {
     uint64_t nTotalAbove;
     } ORBCOUNT;
 
+struct psContext;
 
 typedef struct pkdContext {
     MDL mdl;
@@ -715,7 +715,7 @@ typedef struct pkdContext {
     uint64_t nDark;
     uint64_t nGas;
     uint64_t nStar;
-    FLOAT fPeriod[6];
+    FLOAT fPeriod[3];
     char *kdTopPRIVATE; /* Because this is a variable size, we use a char pointer, not a KDN pointer! */
     char **kdNodeListPRIVATE; /* BEWARE: also char instead of KDN */
     int iTopRoot;
@@ -835,8 +835,9 @@ typedef struct pkdContext {
 	double wallclock_stamp;
 	int iActive;
 	} ti[MAX_TIMERS];
+    struct psGroupTable psGroupTable;
+
     int nGroups;
-    PSGD *psGroupData;
     FOFGD *groupData;
     struct saddle_point_list saddle_points;
     int nRm;
@@ -865,7 +866,7 @@ typedef struct pkdContext {
 
     MDLGRID grid;
     float *gridData;
-    PSX psx;
+    struct psContext *psx;
 
     /* ORB Domain Decomposition */
     int iDomainRung;
@@ -1468,7 +1469,6 @@ void pkdMeasurePk(PKD pkd, double dCenter[3], double dRadius,
 		  int nGrid, float *fPower, int *nPower);
 #endif
 void pkdOutPsGroup(PKD pkd,char *pszFileName,int iType);
-void pkdUnbind(PKD pkd);
 
 #ifdef USE_CUDA
 #ifdef __cplusplus

@@ -290,6 +290,7 @@ void msrMeasurePk(MSR msr,double *dCenter,double dRadius,int nGrid,float *Pk);
 #endif
 void msrPSGroupFinder(MSR msr);
 void msrOutPsGroups(MSR msr,const char *pszFile,int iOutType, double dTime);
-void msrUnbind(MSR msr, int nGroups);
+void msrUnbind(MSR msr);
+void msrSetPSGroupIds(MSR msr);
 
 #endif
