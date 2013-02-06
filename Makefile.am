@@ -1,8 +1,8 @@
 ACLOCAL_AMFLAGS  = -I m4
 
-if USE_GRAFIC
-SUBDIRS=grafic
-endif
+#if USE_GRAFIC
+#SUBDIRS=grafic
+#endif
 
 EXTRA_DIST = server.py
 EXTRA_PROGRAMS = pkdgrav2_null
@@ -126,12 +126,12 @@ endif
 if FFTW
 pkdgrav2_mpi_LDADD += -lsrfftw_mpi -lsfftw_mpi -lsrfftw -lsfftw
 endif
-if USE_GRAFIC
-pkdgrav2_mpi_CFLAGS += -Igrafic/
-pkdgrav2_mpi_LDADD += grafic/libgrafic.a
-#pkdgrav2_mpi_LDADD += -L @GRAFIC_PATH@ -lgrafic -lsrfftw_mpi -lsfftw_mpi -lsrfftw -lsfftw -lgfortran
-#CCLD=mpicxx
-endif
+#if USE_GRAFIC
+#pkdgrav2_mpi_CFLAGS += -Igrafic/
+#pkdgrav2_mpi_LDADD += grafic/libgrafic.a
+##pkdgrav2_mpi_LDADD += -L @GRAFIC_PATH@ -lgrafic -lsrfftw_mpi -lsfftw_mpi -lsrf#ftw -lsfftw -lgfortran
+##CCLD=mpicxx
+#endif
 if USE_EFENCE
 if HAVE_EFENCE_PATH
 pkdgrav2_mpi_LDADD += -L @EFENCE_PATH@
@@ -165,12 +165,12 @@ endif
 if FFTW
 pkdgrav2_mpipt_LDADD += -lsrfftw_mpi -lsfftw_mpi -lsrfftw -lsfftw
 endif
-if USE_GRAFIC
-pkdgrav2_mpipt_CFLAGS += -Igrafic/
-pkdgrav2_mpipt_LDADD += grafic/libgrafic.a
-#pkdgrav2_mpipt_LDADD += -L @GRAFIC_PATH@ -lgrafic -lsrfftw_mpi -lsfftw_mpi -lsrfftw -lsfftw -lgfortran
-#CCLD=mpicxx
-endif
+#if USE_GRAFIC
+#pkdgrav2_mpipt_CFLAGS += -Igrafic/
+#pkdgrav2_mpipt_LDADD += grafic/libgrafic.a
+##pkdgrav2_mpipt_LDADD += -L @GRAFIC_PATH@ -lgrafic -lsrfftw_mpi -lsfftw_mpi -ls#rfftw -lsfftw -lgfortran
+##CCLD=mpicxx
+#endif
 if USE_EFENCE
 if HAVE_EFENCE_PATH
 pkdgrav2_mpipt_LDADD += -L @EFENCE_PATH@

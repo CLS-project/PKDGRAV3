@@ -2,8 +2,8 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.59)
-AC_INIT(pkdgrav2, 2.2.13, bugs@pkdgrav2.org)
-AM_INIT_AUTOMAKE(pkdgrav2,2.2.13)
+AC_INIT(pkdgrav2, 2.2.14rc1, bugs@pkdgrav2.org)
+AM_INIT_AUTOMAKE(pkdgrav2,2.2.14rc1)
 AC_CONFIG_SRCDIR([main.c])
 AC_CONFIG_HEADER([config.h])
 
@@ -164,15 +164,15 @@ AC_ARG_WITH(mdl,
    fi])
 AC_SUBST([MDL_PATH],[$MDL_PATH])
 
-AC_ARG_ENABLE(grafic,
-  [  --enable-grafic         enable GRAFIC IC support for MPI version],
-  [USE_GRAFIC="$enableval"],
-  [USE_GRAFIC="no"])
-if test "x$USE_GRAFIC" != "xno" ; then
-   AC_DEFINE([USE_GRAFIC], 1,
- 	[ICs can be generated with GRAFIC.])
-fi
-AM_CONDITIONAL(USE_GRAFIC,test "x$USE_GRAFIC" != "xno")
+#AC_ARG_ENABLE(grafic,
+#  [  --enable-grafic         enable GRAFIC IC support for MPI version],
+#  [USE_GRAFIC="$enableval"],
+#  [USE_GRAFIC="no"])
+#if test "x$USE_GRAFIC" != "xno" ; then
+#   AC_DEFINE([USE_GRAFIC], 1,
+# 	[ICs can be generated with GRAFIC.])
+#fi
+#AM_CONDITIONAL(USE_GRAFIC,test "x$USE_GRAFIC" != "xno")
 
 # MDL dedicated I/O
 AC_ARG_ENABLE(mdl-io,
@@ -605,8 +605,8 @@ AC_CHECK_FUNCS([floor gettimeofday pow sqrt strchr strdup strrchr strstr],,[AC_M
 
 
 AC_CONFIG_FILES([Makefile])
-if test "x$USE_GRAFIC" != "xno" ; then
-  AC_CONFIG_SUBDIRS([grafic])
-fi
+#if test "x$USE_GRAFIC" != "xno" ; then
+#  AC_CONFIG_SUBDIRS([grafic])
+#fi
 
 AC_OUTPUT
