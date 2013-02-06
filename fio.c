@@ -1745,10 +1745,35 @@ typedef struct {
     int32_t  flag_entr_ics;
     } gadgetHdr;
 
+typedef struct {
+    long long Npart[6];
+    long long Nall[6];
+    long long NumFiles;
+    double Massarr[6];
+    double Time;
+    double Redshift;
+    double BoxSize;
+    double Omega0;
+    double OmegaLambda;
+    double HubbleParam;
+    double w0; /**/
+    double w1;/**/
+    int FlagSfr;
+    int FlagFeedBack;
+    int FlagCooling;
+    int FlagAge;
+    int FlagMetals;
+    int flag_entr_ics;
+    long long  NallHW[6];
+    int fill[8];                /*!< fills to 320 Bytes */
+    } gadgetHdr320;
+
 typedef union {
     gadgetHdr hdr;
+    gadgetHdr320 hdr320;
     char padding[256];
     } gadgetHdrBlk;
+
 
 typedef struct {
     struct fioInfo fio;
@@ -1942,6 +1967,7 @@ FIO fioGadgetCreate(
     int nFiles, const uint64_t *nAll,
     const double *dMass ) {
     gadgetHdrBlk hdr;
+    
     int iType;
     uint32_t w;
     fioGADGET *gio;
@@ -2216,7 +2242,6 @@ static FIO gadgetOpenOne(const char *fname) {
     int i;
     char tag[8];
     uint32_t w1, w2;
-    assert(sizeof(gadgetHdrBlk) == 256);
 
     gio = malloc(sizeof(fioGADGET));
     assert(gio!=NULL);
@@ -2252,7 +2277,9 @@ static FIO gadgetOpenOne(const char *fname) {
     else {
 	gio->bTagged = 0;
 	if (w1 == 0x00010000) gio->bSwap = 1;
-	else if (w1 == 256) gio->bSwap = 0;
+	else if (w1 == 256)   gio->bSwap = 0;
+	if (w1 == 0x40010000) gio->bSwap = 1;
+	else if (w1 == 320)   gio->bSwap = 0;
 	else {
 	    fclose(fp);
 	    return NULL;
@@ -2268,12 +2295,34 @@ static FIO gadgetOpenOne(const char *fname) {
 	if (freadSwap(&w1,sizeof(w1),1,fp,gio->bSwap) != 1) return NULL;
 	}
 
-    if (w1 != 256) return NULL;
-    if (fread(&blk,sizeof(blk),1,fp) != 1) return NULL;
+    if (w1 != 256 && w1 != 320) return NULL;
+    if (fread(&blk,w1,1,fp) != 1) return NULL;
     if (freadSwap(&w2,sizeof(w2),1,fp,gio->bSwap) != 1) return NULL;
     if (w2 != w1) return NULL;
 
-    gio->hdr = blk.hdr;
+
+    if (w1==256) gio->hdr = blk.hdr;
+    else {
+	for(i=0; i<GADGET2_NTYPES; ++i) {
+	    gio->hdr.Npart[i] = blk.hdr320.Npart[i];
+	    gio->hdr.Massarr[i] = blk.hdr320.Massarr[i];
+	    gio->hdr.Nall[i] = blk.hdr320.Nall[i];
+	    gio->hdr.NallHW[i] = blk.hdr320.NallHW[i];
+	    }
+	gio->hdr.Time = blk.hdr320.Time;
+	gio->hdr.Redshift = blk.hdr320.Redshift;
+	gio->hdr.FlagSfr = blk.hdr320.FlagSfr;
+	gio->hdr.FlagFeedBack = blk.hdr320.FlagFeedBack;
+	gio->hdr.FlagCooling = blk.hdr320.FlagCooling;
+	gio->hdr.NumFiles = blk.hdr320.NumFiles;
+	gio->hdr.BoxSize = blk.hdr320.BoxSize;
+	gio->hdr.Omega0 = blk.hdr320.Omega0;
+	gio->hdr.OmegaLambda = blk.hdr320.OmegaLambda;
+	gio->hdr.HubbleParam = blk.hdr320.HubbleParam;
+	gio->hdr.FlagAge = blk.hdr320.FlagAge;
+	gio->hdr.FlagMetals = blk.hdr320.FlagMetals;
+	gio->hdr.flag_entr_ics = blk.hdr320.flag_entr_ics;
+	}
 
     if (gio->bSwap) {
 	byteSwap(&gio->hdr.Npart,sizeof(uint32_t),GADGET2_NTYPES);
