@@ -2261,7 +2261,11 @@ void psdMergeNoisyGroups(PSX psx)
 		    for (j=0; j < sp_buffer->nSaddlePoints; j++, offs++)
 			sp_buffer->sp[j] = pkd->saddle_points.sp[gd[i].sp[offs]];
 		    mdlRelease(pkd->mdl,CID_SADDLE_BUF,sp_buffer);
+#ifdef MPI_VERSION
 		    mdlFlushCache(pkd->mdl, CID_SADDLE_BUF);
+#else
+		    assert(0);
+#endif
 		}
 	    }
 	}
@@ -2298,7 +2302,11 @@ void psdMergeNoisyGroups(PSX psx)
 		    for (j=0; j < sp_buffer->nSaddlePoints; j++, offs++)
 			sp_buffer->sp[j] = pkd->saddle_points.sp[gd[i].sp[offs]];
 		    mdlRelease(pkd->mdl,CID_SADDLE_BUF,sp_buffer);
+#ifdef MPI_VERSION
 		    mdlFlushCache(pkd->mdl, CID_SADDLE_BUF);
+#else
+		    assert(0);
+#endif
 		}
 	    }
 	}
