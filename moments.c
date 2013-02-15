@@ -1085,7 +1085,7 @@ void momEvalFmomrcm(FMOMR *m,float u,float dir,float x,float y,float z,
 /*
 ** Op Count = (*,+) = (302,207) = 509
 */
-double momLocrAddMomr5cm(LOCR *l,MOMR *m,momFloat dir,momFloat x,momFloat y,momFloat z,double *tax,double *tay,double *taz) {
+double momLocAddMomr5cm(LOCR *l,MOMR *m,momFloat dir,momFloat x,momFloat y,momFloat z,double *tax,double *tay,double *taz) {
     const momFloat onethird = 1.0/3.0;
     momFloat xx,xy,xz,yy,yz,zz;
     momFloat xxx,xxy,xyy,yyy,xxz,xyz,yyz;
@@ -1668,7 +1668,7 @@ double momFlocrAddMono5(FLOCR *l,float v,float m,float dir,float x,float y,float
 /*
 ** Op Count = (*,+,-) = (265,150,49) = 464
 */
-double momLocrAddFmomr5cm(LOCR *l,FMOMR *m,float u,float dir,float x,float y,float z,float *tax,float *tay,float *taz) {
+double momLocrAddFmomr5cm(LOCR *l,FMOMR *m,double u,double dir,double x,double y,double z,double *tax,double *tay,double *taz) {
     const double onethird = 1.0/3.0;
     momFloat u2,u3,u4;
     momFloat xx,xy,xz,yy,yz,zz;

@@ -765,10 +765,10 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot, u
     double xParent,yParent,zParent;
     double d2,fourh2;
     double dx[3],dir,dir2;
+    double tax,tay,taz;
     float fOffset[3];
     float bMaxParent;
     float dirLsum,normLsum,adotai,maga;
-    float tax,tay,taz;
     float fMass,fSoft;
     uint64_t iOrder;
     int iStack;
@@ -1443,7 +1443,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot, u
 		    pkd->S[iStack].L = L;
 		    pkd->S[iStack].dirLsum = dirLsum;
 		    pkd->S[iStack].normLsum = normLsum;
-		    dShiftFlop = momShiftLocr(&pkd->S[iStack].L,bMaxParent,
+		    dShiftFlop = momShiftLocr(&pkd->S[iStack].L,
 					      c->r[0] - xParent,
 					      c->r[1] - yParent,
 					      c->r[2] - zParent);
@@ -1467,7 +1467,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot, u
 		*/
 		k = pkdTreeNode(pkd,++iCell);
 		}
-	    *pdFlop += momShiftLocr(&L,bMaxParent,k->r[0] - xParent,
+	    *pdFlop += momShiftLocr(&L,k->r[0] - xParent,
 				    k->r[1] - yParent,
 				    k->r[2] - zParent);
 //	    momRescaleFlocr(&L,k->bMax,bMaxParent);

@@ -704,6 +704,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
     float *a, *pPot;
     float d2,dir,dir2;
     float fMass,fSoft;
+    float fx,fy,fz;
     double dx,dy,dz,dPot,ax,ay,az;
     float dtGrav,dT;
     float rhopmax,rhopmaxlocal,fsmooth2;
