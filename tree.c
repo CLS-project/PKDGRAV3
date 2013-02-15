@@ -553,13 +553,13 @@ void Create(PKD pkd,int iNode) {
 	    */
 	    d2Max = (d2 > d2Max)?d2:d2Max;
 	    }
-#if (1)
+#ifdef USE_MAXSIDE
         MAXSIDE(bnd.fMax,b);
+#else
+	b = sqrt(d2Max);
+#endif
         if (b < bmin) b = bmin;
 	pkdn->bMax = b;
-#else
-	pkdn->bMax = sqrt(d2Max);
-#endif
 	/*
 	** Now calculate the reduced multipole moment.
 	** Note that we use the cell's openening radius as the scaling factor!
@@ -662,13 +662,14 @@ void Create(PKD pkd,int iNode) {
 		/*
 		** Now determine the opening radius for gravity.
 		*/
-#if (1)
+#ifdef USE_MAXSIDE
 		MAXSIDE(bnd.fMax,b);
 		if (b < bmin) b = bmin;
 		if (d2Max>b) b = d2Max;
 		pkdn->bMax = b;
 #else
 		pkdn->bMax = sqrt(d2Max);
+		if (pkdn->bMax < bmin) pkdn->bMax = bmin;
 #endif
 		}
 	    else {

@@ -180,8 +180,9 @@ static int AllBroadcastCount(PKD pkd, struct AllBroadcastData *d)
     rdispls = d->rdispls;
     ioffset = d->ioffset;
 
+#ifdef MPI_VERSION
     mdlAlltoall( pkd->mdl, scounts, 1, MDL_INT, rcounts, 1, MDL_INT );
-
+#endif
     ioffset[0] = sdispls[0] = rdispls[0] = 0;
     for(i=1; i<nDomains; i++) {
 	ioffset[i] = sdispls[i] = sdispls[i-1] + scounts[i-1];
@@ -194,7 +195,9 @@ static int AllBroadcastCount(PKD pkd, struct AllBroadcastData *d)
 static void AllBroadcast(PKD pkd, struct AllBroadcastData *d, void *src, void *dst)
 {
     /* Send the particles to their correct processors and update our local count */
+#ifdef MPI_VERSION
     mdlAlltoallv(pkd->mdl,src, d->scounts, d->sdispls, d->dataType, dst, d->rcounts, d->rdispls, d->dataType);
+#endif
 }
 
 static void ubBroadcastTreeRoots(PKD pkd)
@@ -212,9 +215,10 @@ static void ubBroadcastTreeRoots(PKD pkd)
 	int iLocalDestId;
     };
 
+#ifdef MPI_VERSION
     mdlTypeContiguous(pkd->mdl, sizeof(struct btr), MDL_BYTE, &dataType);
     mdlTypeCommit(pkd->mdl,&dataType);
-
+#endif
     struct tree_root_cache_msg tree_root_msg;
     struct tree_root_cache_msg *remote_msg;
 
@@ -229,7 +233,9 @@ static void ubBroadcastTreeRoots(PKD pkd)
 	    remote_msg->iLocalId = gd[i].iLocalId;
 	    remote_msg->tr       = gd[i].treeRoots[0];
 	    mdlRelease(pkd->mdl,CID_TREE_ROOT,remote_msg);
+#ifdef MPI_VERSION
 	    mdlFlushCache(pkd->mdl, CID_TREE_ROOT);
+#endif
 	}
     }
     mdlFinishCache(pkd->mdl,CID_TREE_ROOT);

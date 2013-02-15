@@ -314,7 +314,8 @@ static void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin, i
 	    d2 = SIMD_MADD(dx,dx,SIMD_MADD(dy,dy,SIMD_MUL(dz,dz)));
 	    cOpen = blk->cOpen.p[i];
 	    cOpen2 = SIMD_MUL(cOpen,cOpen);
-	    d2Open = SIMD_MUL(consts.two.p,SIMD_MAX(cOpen,k_Open));
+	    /*d2Open = SIMD_MUL(consts.two.p,SIMD_MAX(cOpen,k_Open));*/
+	    d2Open = SIMD_ADD(cOpen,k_Open);
 	    d2Open = SIMD_MUL(d2Open,d2Open);
 	    dx = SIMD_SUB(SIMD_AND(const_fabs.p,SIMD_SUB(xc,k_xCenter)),k_xMax);
 	    dy = SIMD_SUB(SIMD_AND(const_fabs.p,SIMD_SUB(yc,k_yCenter)),k_yMax);
@@ -410,7 +411,8 @@ static void iOpenOutcomeOldCL(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin, 
 		diCrit = 1.0 / dThetaMin;
 		kOpen = 1.5*k->bMax*diCrit;
 		cOpen = blk->cOpen.f[i];
-		d2Open = pow(2.0*fmax(cOpen,kOpen),2);
+		/*d2Open = pow(2.0*fmax(cOpen,kOpen),2);*/
+		d2Open = pow(cOpen+kOpen,2);
 		dx = fabs(xc - kbnd.fCenter[0]) - kbnd.fMax[0];
 		dy = fabs(yc - kbnd.fCenter[1]) - kbnd.fMax[1];
 		dz = fabs(zc - kbnd.fCenter[2]) - kbnd.fMax[2];
@@ -1033,7 +1035,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot, u
 					** The iRoot of a local tree is actually a bucket! An irritating case...
 					** This is a rare case though, and as such we simply check the local iRoot bucket once more.
 					*/
-					nc = c->pUpper - c->pLower + 1;
+					nc = getCell(pkd,iRoot,id,&cOpen,&c);
 					pkdNodeBnd(pkd,c,&cbnd);
 					fOffset[0] = blk->xOffset.f[jTile];
 					fOffset[1] = blk->yOffset.f[jTile];
