@@ -756,7 +756,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot, u
     PARTICLE *p;
     FMOMR *momc,*momk;
     FMOMR monoPole;
-    FLOCR L;
+    LOCR L;
     double cx,cy,cz,d2c;
     double fWeight = 0.0;
     double dShiftFlop;
@@ -799,7 +799,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot, u
     /*
     ** Clear local expansion and the timestepping sums.
     */
-    momClearFlocr(&L);
+    momClearLocr(&L);
     dirLsum = 0;
     normLsum = 0;
     nTotActive = 0;
@@ -1175,7 +1175,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot, u
 					d2 += dx[j]*dx[j];
 					}
 				    dir = 1.0/sqrt(d2);
-				    *pdFlop += momFlocrAddMono5(&L,k->bMax,pkdMass(pkd,p),dir,dx[0],dx[1],dx[2],&tax,&tay,&taz);
+				    *pdFlop += momLocrAddMono5(&L,pkdMass(pkd,p),dir,dx[0],dx[1],dx[2],&tax,&tay,&taz);
 
 				    adotai = a[0]*tax + a[1]*tay + a[2]*taz;
 				    if (adotai > 0) {
@@ -1256,7 +1256,6 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot, u
 				/*
 				** Local expansion accepted!
 				*/
-#if 1
 				iCheckCell = blk->iCell.i[jTile];
 				if (iCheckCell<0) {
 				    fOffset[0] = blk->xOffset.f[jTile];
@@ -1269,7 +1268,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot, u
 				    dir = 1.0/sqrt(d2);
 				    monoPole.m = blk->m.f[jTile];
 
-				    *pdFlop += momFlocrAddFmomr5cm(&L,k->bMax,&monoPole,0.0,dir,dx[0],dx[1],dx[2],&tax,&tay,&taz);
+				    *pdFlop += momLocrAddFmomr5cm(&L,&monoPole,0.0,dir,dx[0],dx[1],dx[2],&tax,&tay,&taz);
 
 				    adotai = a[0]*tax + a[1]*tay + a[2]*taz;
 				    if (adotai > 0) {
@@ -1293,7 +1292,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot, u
 					}
 				    dir = 1.0/sqrt(d2);
 
-				    *pdFlop += momFlocrAddFmomr5cm(&L,k->bMax,pkdNodeMom(pkd,c),c->bMax,dir,dx[0],dx[1],dx[2],&tax,&tay,&taz);
+				    *pdFlop += momLocrAddFmomr5cm(&L,pkdNodeMom(pkd,c),c->bMax,dir,dx[0],dx[1],dx[2],&tax,&tay,&taz);
 
 				    adotai = a[0]*tax + a[1]*tay + a[2]*taz;
 				    if (adotai > 0) {
@@ -1303,7 +1302,6 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot, u
 					}
 				    if (id != -1 && id != pkd->idSelf) mdlRelease(pkd->mdl,CID_CELL,c);
 				    }
-#endif
 				break;
 			    case 9:
 				/*
@@ -1445,11 +1443,11 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot, u
 		    pkd->S[iStack].L = L;
 		    pkd->S[iStack].dirLsum = dirLsum;
 		    pkd->S[iStack].normLsum = normLsum;
-		    dShiftFlop = momShiftFlocr(&pkd->S[iStack].L,bMaxParent,
+		    dShiftFlop = momShiftLocr(&pkd->S[iStack].L,bMaxParent,
 					      c->r[0] - xParent,
 					      c->r[1] - yParent,
 					      c->r[2] - zParent);
-		    momRescaleFlocr(&pkd->S[iStack].L,c->bMax,bMaxParent);
+//		    momRescaleFlocr(&pkd->S[iStack].L,c->bMax,bMaxParent);
 		    pkd->S[iStack].fWeight = (*pdFlop-tempI) + dShiftFlop;
 		    pkd->S[iStack].fWeight += dEwFlop;
 		    }
@@ -1469,10 +1467,10 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot, u
 		*/
 		k = pkdTreeNode(pkd,++iCell);
 		}
-	    *pdFlop += momShiftFlocr(&L,bMaxParent,k->r[0] - xParent,
+	    *pdFlop += momShiftLocr(&L,bMaxParent,k->r[0] - xParent,
 				    k->r[1] - yParent,
 				    k->r[2] - zParent);
-	    momRescaleFlocr(&L,k->bMax,bMaxParent);
+//	    momRescaleFlocr(&L,k->bMax,bMaxParent);
 	    }
 	/*
 	** Now the interaction list should be complete and the

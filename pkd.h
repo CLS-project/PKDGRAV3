@@ -502,7 +502,7 @@ typedef struct CheckStack {
     int nCheck;
     CELT *Check;
 #endif
-    FLOCR L;
+    LOCR L;
     float dirLsum;
     float normLsum;
     float fWeight;

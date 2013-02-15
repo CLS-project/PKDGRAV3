@@ -14,7 +14,7 @@ static inline double softmassweight(double m1,double h12,double m2,double h22) {
     }
 
 #ifdef LOCAL_EXPANSION
-int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,FLOCR *pLoc,ILP ilp,ILC ilc,
+int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *pLoc,ILP ilp,ILC ilc,
     float dirLsum,float normLsum,int bEwald,int nGroup,double *pdFlop,double *pdEwFlop,double dRhoFac,
     SMX smx,SMF *smf);
 #else

@@ -693,7 +693,7 @@ static void queuePC( PKD pkd,  workParticle *work, ILC ilc ) {
 ** v_sqrt's and such.
 ** Returns nActive.
 */
-int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,FLOCR *pLoc,ILP ilp,ILC ilc,
+int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *pLoc,ILP ilp,ILC ilc,
     float dirLsum,float normLsum,int bEwald,int nGroup,double *pdFlop,double *pdEwFlop,double dRhoFac,
     SMX smx,SMF *smf) {
     PARTICLE *p,*pj;
@@ -704,7 +704,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,FLOCR *
     float *a, *pPot;
     float d2,dir,dir2;
     float fMass,fSoft;
-    float fx, fy, fz;
+    double dx,dy,dz,dPot,ax,ay,az;
     float dtGrav,dT;
     float rhopmax,rhopmaxlocal,fsmooth2;
     float summ;
@@ -805,14 +805,20 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,FLOCR *
 	    /*
 	    ** Evaluate local expansion.
 	    */
-	    fx = work->pPart[i]->r[0] - pkdn->r[0];
-	    fy = work->pPart[i]->r[1] - pkdn->r[1];
-	    fz = work->pPart[i]->r[2] - pkdn->r[2];
-	    momEvalFlocr(pLoc,pkdn->bMax,fx,fy,fz,
-		&work->pInfoOut[i].fPot,
-		work->pInfoOut[i].a+0,
-		work->pInfoOut[i].a+1,
-		work->pInfoOut[i].a+2);
+	    dx = work->pPart[i]->r[0] - pkdn->r[0];
+	    dy = work->pPart[i]->r[1] - pkdn->r[1];
+	    dz = work->pPart[i]->r[2] - pkdn->r[2];
+	    dPot = 0;
+	    ax = 0;
+	    ay = 0;
+	    az = 0;
+
+	    momEvalLocr(pLoc,dx,dy,dz,&dPot,&ax,&ay,&az);
+
+	    work->pInfoOut[i].fPot += dPot;
+	    work->pInfoOut[i].a[0] += ax;
+	    work->pInfoOut[i].a[1] += ay;
+	    work->pInfoOut[i].a[2] += az;
 	    }
 	}
 
