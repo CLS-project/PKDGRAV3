@@ -213,12 +213,12 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     prmAddParam(msr->prm,"nPNGResolution",1,&msr->param.nPNGResolution,sizeof(int),
 		"png","PNG output resolution (zero disables) = 0");
 #endif
-    msr->param.nBucket = 8;
+    msr->param.nBucket = 32;
     prmAddParam(msr->prm,"nBucket",1,&msr->param.nBucket,sizeof(int),"b",
-		"<max number of particles in a bucket> = 8");
-    msr->param.nGroup = 64;
+		"<max number of particles in a bucket> = 32");
+    msr->param.nGroup = 128;
     prmAddParam(msr->prm,"nGroup",1,&msr->param.nGroup,sizeof(int),"grp",
-		"<max number of particles in a group> = 64");
+		"<max number of particles in a group> = 128");
     msr->param.n2min = 50;
     prmAddParam(msr->prm,"n2min",1,&msr->param.n2min,sizeof(int),"nn",
 		"<minimum number of p-p interactions for using c-c interactions> = 50");
@@ -306,7 +306,7 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.iTimeStepCrit = 0;
     prmAddParam(msr->prm,"iTimeStepCrit",1,&msr->param.iTimeStepCrit,sizeof(int),
 		"tsc", "<Criteria for dynamical time-stepping>");
-    msr->param.nPartRhoLoc = 24;
+    msr->param.nPartRhoLoc = 32;
     prmAddParam(msr->prm,"nPartRhoLoc",1,&msr->param.nPartRhoLoc,sizeof(int),
 		"nprholoc", "<Number of particles for local density in dynamical time-stepping>");
     msr->param.dPreFacRhoLoc = 4.0*M_PI/3.0;
