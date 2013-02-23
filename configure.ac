@@ -2,8 +2,8 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.59)
-AC_INIT(pkdgrav2, 2.2.14rc2, bugs@pkdgrav2.org)
-AM_INIT_AUTOMAKE(pkdgrav2,2.2.14rc2)
+AC_INIT(pkdgrav2, 2.2.14rc3, bugs@pkdgrav2.org)
+AM_INIT_AUTOMAKE(pkdgrav2,2.2.14rc3)
 AC_CONFIG_SRCDIR([main.c])
 AC_CONFIG_HEADER([config.h])
 
@@ -538,6 +538,7 @@ if test "x$USE_SIMD_MOMR" = "xyes" ; then
 fi
 
 AC_DEFINE([NEW_OPENING_CRIT],1,[Use the new opening criteria])
+AC_DEFINE([TEST_SOFTENING],1,[Use the experimental softening in opening criteria])
 AM_CONDITIONAL(USE_SIMD, test "x$USE_SIMD" != "xno")
 AM_CONDITIONAL(USE_SIMD_OPEN,test "x$USE_SIMD_OPEN" != "xno")
 AM_CONDITIONAL(USE_SIMD_PP,test "x$USE_SIMD_PP" != "xno")
