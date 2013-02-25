@@ -1217,6 +1217,16 @@ void msrLogParams(MSR msr,FILE *fp) {
     fprintf(fp,"# Compiled: %s %s\n",__DATE__,__TIME__);
 #endif
 #endif
+#if defined(__AVX__)
+    fprintf(fp,"# with AVX support\n");
+#elif defined(__SSE3__)
+    fprintf(fp,"# with SSE3 support\n");
+#elif defined(__SSE2__)
+    fprintf(fp,"# with SSE2 support\n");
+#elif defined(__SSE__)
+    fprintf(fp,"# with SSE support\n");
+#endif
+
 #ifdef USE_BT
 #endif
     fprintf(fp,"# Preprocessor macros:");
@@ -1250,6 +1260,7 @@ void msrLogParams(MSR msr,FILE *fp) {
     fprintf(fp," iCompress: %d",msr->param.iCompress);
     fprintf(fp," bHDF5: %d",msr->param.bHDF5);
     fprintf(fp," nBucket: %d",msr->param.nBucket);
+    fprintf(fp," nGroup: %d",msr->param.nGroup);
     fprintf(fp," n2min: %d",msr->param.n2min);
     fprintf(fp,"\n# iOutInterval: %d",msr->param.iOutInterval);
     fprintf(fp," iCheckInterval: %d",msr->param.iCheckInterval);
