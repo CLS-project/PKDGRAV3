@@ -27,11 +27,14 @@
 #include "moments.h"
 #include "cl.h"
 
+/*
 #ifdef TEST_SOFTENING
 #define HACK_FACTOR 1e10f
 #else
-#define HACK_FACTOR 1f
+#define HACK_FACTOR 1.0f
 #endif
+*/
+#define HACK_FACTOR 1.0f
 
 #ifdef USE_DEHNEN_THETA
 double brent(double x1, double x2, double (*my_f)(double v, void *params),void *params) {
@@ -215,13 +218,18 @@ static const struct CONSTS {
     v4 one;
     v4 threehalves;
     v4 two;
-    v4 fMonopoleThetaFac2;
+#ifdef FIXME
+    v4 foobar;
+#endif
     } consts = {
         {SIMD_CONST(0.0)},
 	{SIMD_CONST(1.0)},
 	{SIMD_CONST(1.5)},
 	{SIMD_CONST(2.0)},
-	{SIMD_CONST(HACK_FACTOR*1.6f*1.6f)},
+#ifdef FIXME
+//	{SIMD_CONST(1.4e-05*1.4e-05*4.0)},
+	{SIMD_CONST(4.6e-06*4.6e-06*4.0)},
+#endif
 };
 static const struct ICONSTS {
     i4 zero;
@@ -264,7 +272,7 @@ static union {
 */
 static void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin, int nGroup) {
     v4sf T0,T1,T2,T3,T4,T5,T6,T7,P1,P2,P3,P4;
-    v4sf T,xc,yc,zc,dx,dy,dz,d2,diCrit,cOpen,cOpen2,d2Open,mink2,minbnd2,fourh2;
+    v4sf T,xc,yc,zc,dx,dy,dz,d2,diCrit,fMonopoleThetaFac2,cOpen,cOpen2,d2Open,mink2,minbnd2,fourh2;
     int i,n,iEnd,nLeft;
     CL_BLK *blk;
     v4sf iOpen,iOpenA,iOpenB;
@@ -272,12 +280,13 @@ static void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin, i
     v4sf k_xCenter, k_yCenter, k_zCenter, k_xMax, k_yMax, k_zMax;
     v4sf k_xMinBnd, k_yMinBnd, k_zMinBnd, k_xMaxBnd, k_yMaxBnd, k_zMaxBnd;
     v4sf k_x, k_y, k_z, k_m, k_4h2, k_bMax, k_Open;
-    v4i  k_iLower, k_nk;
+    v4i  k_nk;
     i4 k_nGroup = {SIMD_CONST(nGroup)};
 
     assert ( pkdNodeMom(pkd,k)->m > 0.0f );
 
     diCrit = SIMD_SPLAT(1.0f/dThetaMin);
+    fMonopoleThetaFac2 = SIMD_MUL(diCrit,diCrit);
 
     pkdNodeBnd(pkd,k,&kbnd);
     k_xMinBnd = SIMD_SPLAT(kbnd.fCenter[0]-kbnd.fMax[0]);
@@ -298,7 +307,6 @@ static void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin, i
     k_m = SIMD_SPLAT(pkdNodeMom(pkd,k)->m);
     k_4h2 = SIMD_SPLAT(4.0f*k->fSoft2);
     k_bMax = SIMD_SPLAT(k->bMax);
-    k_iLower = SIMD_SPLATI32(k->iLower);
     k_nk = SIMD_SPLATI32(k->pUpper-k->pLower+1);
     k_Open = SIMD_MUL(consts.threehalves.p,SIMD_MUL(k_bMax,diCrit));
 
@@ -363,9 +371,12 @@ static void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin, i
 	    T2 = SIMD_I2F(SIMD_CMP_EQ_EPI32(blk->iLower.p[i],iconsts.zero.p));
 	    T3 = SIMD_OR(SIMD_I2F(SIMD_CMP_GT_EPI32(iconsts.walk_min_multipole.p,blk->nc.p[i])),SIMD_CMP_LE(mink2,cOpen2));
 	    T4 = SIMD_CMP_GT(minbnd2,fourh2);
-	    T5 = SIMD_CMP_GT(mink2,SIMD_MUL(consts.fMonopoleThetaFac2.p,cOpen2));
+#ifdef FIXME
+	    T5 = SIMD_AND(SIMD_CMP_GT(mink2,SIMD_MUL(fMonopoleThetaFac2,cOpen2)),SIMD_CMP_GT(consts.foobar.p,fourh2));
+#else
+	    T5 = SIMD_CMP_GT(mink2,SIMD_MUL(fMonopoleThetaFac2,cOpen2));
+#endif
 	    T6 = SIMD_CMP_GT(cOpen,k_Open);
-	    /*invert:T7 = SIMD_I2F(SIMD_CMP_EQ_EPI32(k_iLower,iconsts.zero.p));*/
 	    T7 = SIMD_I2F(SIMD_CMP_GT_EPI32(k_nk,k_nGroup.p));
 	    iOpenA = SIMD_OR(SIMD_AND(T2,iconsts.one.pf),SIMD_ANDNOT(T2,iconsts.three.pf));
 	    iOpenB = SIMD_OR(SIMD_AND(T3,iOpenA),SIMD_ANDNOT(T3,
@@ -397,7 +408,7 @@ static void iOpenOutcomeOldCL(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin, 
     const float fMonopoleThetaFac2 = HACK_FACTOR * 1.6f * 1.6f;
     const int walk_min_multipole = 3;
 
-    float dx,dy,dz,mink2,d2,d2Open,xc,yc,zc,fourh2,minbnd2,kOpen,cOpen,diCrit;
+    float dx,dy,dz,mink2,d2,d2Open,xc,yc,zc,k_fourh2,fourh2,minbnd2,kOpen,cOpen,diCrit;
     int j,i,nk;
     int iOpen,iOpenA,iOpenB;
     CL_BLK *blk;
@@ -406,6 +417,7 @@ static void iOpenOutcomeOldCL(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin, 
 
     pkdNodeBnd(pkd,k,&kbnd);
     nk = k->pUpper - k->pLower + 1;
+    k_fourh2 = 4.0f * k->fSoft2;
 
     blk = tile->blk;
     for(nLeft=tile->lstTile.nBlocks; nLeft>=0; --nLeft,blk++) {
@@ -414,9 +426,9 @@ static void iOpenOutcomeOldCL(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin, 
 	    if (blk->m.f[i] <= 0) iOpen = 10;  /* ignore this cell */
 	    else {
 #ifdef TEST_SOFTENING
-		fourh2 = fmax(4*k->fSoft2,blk->fourh2.f[i]);
+		fourh2 = fmax(k_fourh2,blk->fourh2.f[i]);
 #else
-		fourh2 = softmassweight(pkdNodeMom(pkd,k)->m,4*k->fSoft2,blk->m.f[i],blk->fourh2.f[i]);
+		fourh2 = softmassweight(pkdNodeMom(pkd,k)->m,k_fourh2,blk->m.f[i],blk->fourh2.f[i]);
 #endif
 		xc = blk->x.f[i] + blk->xOffset.f[i];
 		yc = blk->y.f[i] + blk->yOffset.f[i];
@@ -480,10 +492,10 @@ static void iOpenOutcomeOldCL(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin, 
 ** This version has been changed by adding the ability to open buckets.
 */
 static void iOpenOutcomeNewCL(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin,int nGroup) {
-    const float fMonopoleThetaFac2 = HACK_FACTOR * 1.6f * 1.6f;
     const int walk_min_multipole = 3;
 
-    float dx,dy,dz,mink2,d2,d2Open,xc,yc,zc,fourh2,minbnd2,kOpen,cOpen,diCrit;
+    float fMonopoleThetaFac2;
+    float dx,dy,dz,mink2,d2,d2Open,xc,yc,zc,k_fourh2,fourh2,minbnd2,kOpen,cOpen,diCrit;
     int j,i,nk;
     int iOpen,iOpenA,iOpenB;
     CL_BLK *blk;
@@ -492,6 +504,10 @@ static void iOpenOutcomeNewCL(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin,i
 
     pkdNodeBnd(pkd,k,&kbnd);
     nk = k->pUpper - k->pLower + 1;
+    k_fourh2 = 4.0f * k->fSoft2;
+
+    diCrit = 1.0f / dThetaMin;
+    fMonopoleThetaFac2 = diCrit * diCrit;
 
     blk = tile->blk;
     for(nLeft=tile->lstTile.nBlocks; nLeft>=0; --nLeft,blk++) {
@@ -500,15 +516,14 @@ static void iOpenOutcomeNewCL(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin,i
 	    if (blk->m.f[i] <= 0) iOpen = 10;  /* ignore this cell */
 	    else {
 #ifdef TEST_SOFTENING
-		fourh2 = fmax(4*k->fSoft2,blk->fourh2.f[i]);
+		fourh2 = fmax(k_fourh2,blk->fourh2.f[i]);
 #else
-		fourh2 = softmassweight(pkdNodeMom(pkd,k)->m,4*k->fSoft2,blk->m.f[i],blk->fourh2.f[i]);
+		fourh2 = softmassweight(pkdNodeMom(pkd,k)->m,k_fourh2,blk->m.f[i],blk->fourh2.f[i]);
 #endif
 		xc = blk->x.f[i] + blk->xOffset.f[i];
 		yc = blk->y.f[i] + blk->yOffset.f[i];
 		zc = blk->z.f[i] + blk->zOffset.f[i];
 		d2 = pow(k->r[0]-xc,2) + pow(k->r[1]-yc,2) + pow(k->r[2]-zc,2);
-		diCrit = 1.0f / dThetaMin;
 		kOpen = 1.5f * k->bMax * diCrit;
 		cOpen = blk->cOpen.f[i];
 		/*d2Open = pow(2.0*fmax(cOpen,kOpen),2);*/
@@ -544,7 +559,11 @@ static void iOpenOutcomeNewCL(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin,i
 		    else iOpenA = 3;
 		    if (blk->nc.i[i] < walk_min_multipole || mink2 <= cOpen*cOpen) iOpenB = iOpenA;
 		    else if (minbnd2 > fourh2) iOpenB = 4;
+#ifdef FIXME
+		    else if (mink2 > fMonopoleThetaFac2*cOpen*cOpen && fourh2 < 1.4e-05 /*globalMinFourh2plus1percent*/) iOpenB = 5;
+#else
 		    else if (mink2 > fMonopoleThetaFac2*cOpen*cOpen) iOpenB = 5;
+#endif
 		    else iOpenB = iOpenA;
 		    if (nk>nGroup) iOpen = 0;
 		    else iOpen = iOpenB;
