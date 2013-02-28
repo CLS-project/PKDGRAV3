@@ -32,6 +32,7 @@ typedef struct {
     ilcFloat xxxx,xxxy,xxxz,xxyz,xxyy,yyyz,xyyz,xyyy,yyyy;
     ilcFloat xxx,xyy,xxy,yyy,xxz,yyz,xyz;
     ilcFloat xx,xy,xz,yy,yz;
+    ilcFloat x,y,z;
     ilcFloat m,u;
     } ILC_BLK;
 
@@ -78,6 +79,9 @@ static inline void ilcAppendFloat(ILC ilc,float X,float Y,float Z,FMOMR *M,float
     assert( (M)->m > 0.0 );
     tile->blk[blk].m.f[prt] = (M)->m;
     tile->blk[blk].u.f[prt] = (U);
+    tile->blk[blk].x.f[prt] = (M)->x;
+    tile->blk[blk].y.f[prt] = (M)->y;
+    tile->blk[blk].z.f[prt] = (M)->z;
     tile->blk[blk].xx.f[prt] = (M)->xx;
     tile->blk[blk].xy.f[prt] = (M)->xy;
     tile->blk[blk].xz.f[prt] = (M)->xz;

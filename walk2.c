@@ -1307,7 +1307,6 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot, u
 				    d2 = dx[0]*dx[0] + dx[1]*dx[1] + dx[2]*dx[2];
 				    dir = 1.0/sqrt(d2);
 				    monoPole.m = blk->m.f[jTile];
-
 				    *pdFlop += momLocrAddFmomr5cm(&L,&monoPole,0.0,dir,dx[0],dx[1],dx[2],&tax,&tay,&taz);
 
 				    adotai = a[0]*tax + a[1]*tay + a[2]*taz;
@@ -1332,8 +1331,12 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot, u
 					}
 				    dir = 1.0/sqrt(d2);
 
-				    *pdFlop += momLocrAddFmomr5cm(&L,pkdNodeMom(pkd,c),c->bMax,dir,dx[0],dx[1],dx[2],&tax,&tay,&taz);
-
+				    if (pkd->param.bCenterOfMassExpand) { 
+					*pdFlop += momLocrAddFmomr5cm(&L,pkdNodeMom(pkd,c),c->bMax,dir,dx[0],dx[1],dx[2],&tax,&tay,&taz);
+					}
+				    else {
+					*pdFlop += momLocrAddFmomr5(&L,pkdNodeMom(pkd,c),c->bMax,dir,dx[0],dx[1],dx[2],&tax,&tay,&taz);
+					}
 				    adotai = a[0]*tax + a[1]*tay + a[2]*taz;
 				    if (adotai > 0) {
 					adotai /= maga;

@@ -39,6 +39,7 @@ struct parameters {
     int iCompress;
     int bHDF5;
     int bDoublePos;
+    int bCenterOfMassExpand;
     int bGravStep;
     int bEpsAccStep;
     int bSqrtPhiStep;

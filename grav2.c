@@ -388,7 +388,7 @@ int CPUdoWorkPC(void *vpc) {
     workPC *pc = vpc;
 
 #if defined(USE_SIMD_PC)
-    v4sf u,g0,g2,g3,g4;
+    v4sf u,g0,g1,g2,g3,g4;
     v4sf x,y,z;
     v4sf tx,ty,tz;
     v4sf xx,xy,xz,yy,yz,zz;
@@ -402,7 +402,7 @@ int CPUdoWorkPC(void *vpc) {
     v4sf padotai,pimaga,pirsum,pnorms;
 #else
     const float onethird = 1.0f/3.0f;
-    float u,g0,g2,g3,g4;
+    float u,g0,g1,g2,g3,g4;
     float x,y,z;
     float adotai;
     float tx,ty,tz;
@@ -469,7 +469,8 @@ int CPUdoWorkPC(void *vpc) {
 	    pir = SIMD_RSQRT_EXACT(SIMD_MADD(pdz,pdz,SIMD_MADD(pdy,pdy,SIMD_MUL(pdx,pdx))));
 	    u = SIMD_MUL(blk->u.p[j],pir);
 	    g0 = pir;
-	    g2 = SIMD_MUL(SIMD_MUL(consts.three.p,pir),SIMD_MUL(u,u));
+	    g1 = SIMD_MUL(g0,u);
+	    g2 = SIMD_MUL(consts.three.p,SIMD_MUL(g1,u));
 	    g3 = SIMD_MUL(consts.five.p,SIMD_MUL(g2,u));
 	    g4 = SIMD_MUL(consts.seven.p,SIMD_MUL(g3,u));
 	    /*
@@ -518,9 +519,10 @@ int CPUdoWorkPC(void *vpc) {
 	    xy = SIMD_MUL(g2,SIMD_MADD(blk->yy.p[j],y,SIMD_MADD(blk->xy.p[j],x,SIMD_MUL(blk->yz.p[j],z))));
 	    xz = SIMD_MUL(g2,SIMD_NMSUB(SIMD_ADD(blk->xx.p[j],blk->yy.p[j]),z,SIMD_MADD(blk->xz.p[j],x,SIMD_MUL(blk->yz.p[j],y))));
 	    g2 = SIMD_MUL(consts.half.p,SIMD_MADD(xx,x,SIMD_MADD(xy,y,SIMD_MUL(xz,z))));
+	    g1 = SIMD_MUL(g1,SIMD_MADD(blk->x.p[j],x,SIMD_MADD(blk->y.p[j],y,SIMD_MUL(blk->z.p[j],z))));
 	    g0 = SIMD_MUL(g0,blk->m.p[j]);
-	    ppot = SIMD_SUB(ppot,SIMD_ADD(SIMD_ADD(g0,g2),SIMD_ADD(g3,g4)));
-	    g0 = SIMD_MADD(consts.five.p,g2,SIMD_MADD(consts.seven.p,g3,SIMD_MADD(consts.nine.p,g4,g0)));
+	    ppot = SIMD_SUB(ppot,SIMD_ADD(SIMD_ADD(g0,g1),SIMD_ADD(g2,SIMD_ADD(g3,g4))));
+	    g0 = SIMD_MADD(consts.three.p,g1,SIMD_MADD(consts.five.p,g2,SIMD_MADD(consts.seven.p,g3,SIMD_MADD(consts.nine.p,g4,g0))));
 	    t1 = SIMD_MUL(pir,SIMD_NMSUB(x,g0,SIMD_ADD(xx,SIMD_ADD(xxx,tx))));
 	    t2 = SIMD_MUL(pir,SIMD_NMSUB(y,g0,SIMD_ADD(xy,SIMD_ADD(xxy,ty))));
 	    t3 = SIMD_MUL(pir,SIMD_NMSUB(z,g0,SIMD_ADD(xz,SIMD_ADD(xxz,tz))));
@@ -569,7 +571,8 @@ int CPUdoWorkPC(void *vpc) {
 	    SQRT1(d2,dir);
 	    u = blk->u.f[j]*dir;
 	    g0 = dir;
-	    g2 = 3*dir*u*u;
+	    g1 = g0*u;
+	    g2 = 3*g1*u;
 	    g3 = 5*g2*u;
 	    g4 = 7*g3*u;
 	    /*
@@ -608,9 +611,10 @@ int CPUdoWorkPC(void *vpc) {
 	    xy = g2*(blk->yy.f[j]*y + blk->xy.f[j]*x + blk->yz.f[j]*z);
 	    xz = g2*(-(blk->xx.f[j] + blk->yy.f[j])*z + blk->xz.f[j]*x + blk->yz.f[j]*y);
 	    g2 = 0.5*(xx*x + xy*y + xz*z);
+	    g1 *= (ctile->x.f[j]*x + ctile->y.f[j]*y + ctile->z.f[j]*z);
 	    g0 *= blk->m.f[j];
-	    fPot -= g0 + g2 + g3 + g4;
-	    g0 += 5*g2 + 7*g3 + 9*g4;
+	    fPot -= g0 + g1 + g2 + g3 + g4;
+	    g0 += 3*g1 + 5*g2 + 7*g3 + 9*g4;
 	    tax = dir*(xx + xxx + tx - x*g0);
 	    tay = dir*(xy + xxy + ty - y*g0);
 	    taz = dir*(xz + xxz + tz - z*g0);

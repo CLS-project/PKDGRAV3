@@ -23,7 +23,7 @@ __global__ void cudaPC( int nP, PINFOIN *in, int nPart, ILC_BLK *blk, PINFOOUT *
     int wid = tid & 31;
     const float onethird = 1.0f/3.0f;
     float d2, dir, dx, dy, dz, p, ds, ns;
-    float u,g0,g2,g3,g4;
+    float u,g0,g1,g2,g3,g4;
     float tax, tay, taz;
     float x,y,z;
     float dimaga;
@@ -59,7 +59,9 @@ __global__ void cudaPC( int nP, PINFOIN *in, int nPart, ILC_BLK *blk, PINFOOUT *
         d2 = dx*dx + dy*dy + dz*dz;
         dir = rsqrtf(d2);
 	    u = blk->u.f[threadIdx.x]*dir;
-	    g2 = 3.0f*dir*u*u;
+
+        g1 = dir*u;
+	    g2 = 3.0f*g1*u;
 	    g3 = 5.0f*g2*u;
 	    g4 = 7.0f*g3*u;
 	    /*
@@ -98,9 +100,10 @@ __global__ void cudaPC( int nP, PINFOIN *in, int nPart, ILC_BLK *blk, PINFOOUT *
 	    xy = g2*(blk->yy.f[threadIdx.x]*y + blk->xy.f[threadIdx.x]*x + blk->yz.f[threadIdx.x]*z);
 	    xz = g2*(-(blk->xx.f[threadIdx.x] + blk->yy.f[threadIdx.x])*z + blk->xz.f[threadIdx.x]*x + blk->yz.f[threadIdx.x]*y);
 	    g2 = 0.5f*(xx*x + xy*y + xz*z);
+		g1 *= (blk->x.f[threadIdx.x]*x + blk->y.f[threadIdx.x]*y + blk->z.f[threadIdx.x]*z);
 	    g0 = dir * blk->m.f[threadIdx.x];
-        atomicAdd(&fPot[wid],-(g0 + g2 + g3 + g4));
-	    g0 += 5.0f*g2 + 7.0f*g3 + 9.0f*g4;
+        atomicAdd(&fPot[wid],-(g0 + g1 + g2 + g3 + g4));
+	    g0 += 3.0f*g1 + 5.0f*g2 + 7.0f*g3 + 9.0f*g4;
 	    tax = dir*(xx + xxx + tx - x*g0);
 	    tay = dir*(xy + xxy + ty - y*g0);
 	    taz = dir*(xz + xxz + tz - z*g0);

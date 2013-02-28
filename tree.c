@@ -515,9 +515,18 @@ void Create(PKD pkd,int iNode) {
 	    if (pkdIsActive(pkd,p)) ++pkdn->nActive;
 	    }
 	m = 1/fMass;
-	pkdn->r[0] = m*x;
-	pkdn->r[1] = m*y;
-	pkdn->r[2] = m*z;
+	if (pkd->param.bCenterOfMassExpand) {
+	    pkdn->r[0] = m*x;
+	    pkdn->r[1] = m*y;
+	    pkdn->r[2] = m*z;
+	    }
+	else {
+	    /*
+	    ** For now set it to the center of the bounding box, but later
+	    ** we want the tightest bounding sphere here.
+	    */
+	    for (d=0;d<3;++d) pkdn->r[d] = bnd.fCenter[d];
+	    }
 	if (pkd->oNodeVelocity) {
 	    double *pVel = pkdNodeVel(pkd,pkdn);
 	    pVel[0] = m*vx;
@@ -690,7 +699,7 @@ void pkdCombineCells1(PKD pkd,KDN *pkdn,KDN *p1,KDN *p2) {
     pkdNodeBnd(pkd, pkdn, &bnd);
     pkdNodeBnd(pkd, p1, &p1bnd);
     pkdNodeBnd(pkd, p2, &p2bnd);
-
+    BND_COMBINE(bnd,p1bnd,p2bnd);
     if (pkd->oNodeMom) {
 	m1 = pkdNodeMom(pkd,p1)->m;
 	m2 = pkdNodeMom(pkd,p2)->m;
@@ -708,12 +717,19 @@ void pkdCombineCells1(PKD pkd,KDN *pkdn,KDN *p1,KDN *p2) {
 	ifMass = 1.0;
 	m1 = m2 = 0.5;
 	}
-    for (j=0;j<3;++j) {
-	pkdn->r[j] = ifMass*(m1*p1->r[j] + m2*p2->r[j]);
-	if (pkd->oNodeVelocity)
+    if (pkd->param.bCenterOfMassExpand) {
+	for (j=0;j<3;++j) pkdn->r[j] = ifMass*(m1*p1->r[j] + m2*p2->r[j]);
+	}
+    else {
+	for (j=0;j<3;++j) pkdn->r[j] = bnd.fCenter[j];
+	}
+    if (pkd->oNodeVelocity) {
+	for (j=0;j<3;++j)	
 	    pkdNodeVel(pkd,pkdn)[j]
 		= ifMass*(m1*pkdNodeVel(pkd,p1)[j] + m2*pkdNodeVel(pkd,p2)[j]);
-	if (pkd->oNodeAcceleration)
+	}
+    if (pkd->oNodeAcceleration) {
+	for (j=0;j<3;++j)	
 	    pkdNodeAccel(pkd,pkdn)[j]
 		= ifMass*(m1*pkdNodeAccel(pkd,p1)[j] + m2*pkdNodeAccel(pkd,p2)[j]);
 	}
@@ -730,7 +746,7 @@ void pkdCombineCells1(PKD pkd,KDN *pkdn,KDN *p1,KDN *p2) {
     pkdn->bDstActive = p1->bDstActive || p2->bDstActive;
     if (0xffffffffu - p1->nActive < p2->nActive) pkdn->nActive = 0xffffffffu; 
     else pkdn->nActive = p1->nActive + p2->nActive;
-    BND_COMBINE(bnd,p1bnd,p2bnd);
+
     }
 
 

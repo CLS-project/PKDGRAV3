@@ -59,6 +59,7 @@ typedef struct locReduced {
 */
 typedef struct fmomReduced {
     float m;
+    float x,y,z;
     float xx,yy,xy,xz,yz;
     float xxx,xyy,xxy,yyy,xxz,yyz,xyz;
     float xxxx,xyyy,xxxy,yyyy,xxxz,yyyz,xxyy,xxyz,xyyz;
@@ -92,11 +93,10 @@ double momShiftLocr(LOCR *l,momFloat x,momFloat y,momFloat z);
 double momShiftFlocr(FLOCR *l,float v,float x,float y,float z);
 
 /*
-** All the variants of EvalMomr...
+** Some variants of EvalMomr...
 */
 void momEvalMomr(MOMR *m,momFloat dir,momFloat x,momFloat y,momFloat z,momFloat *fPot,momFloat *ax,momFloat *ay,momFloat *az,momFloat *magai);
 void momGenEvalMomr(MOMR *m,momFloat g0,momFloat g1,momFloat g2,momFloat g3,momFloat g4,momFloat g5,momFloat x,momFloat y,momFloat z,momFloat *fPot,momFloat *ax,momFloat *ay,momFloat *az,momFloat *magai);
-void momEvalFmomrcm(FMOMR *m,float u,float dir,float x,float y,float z,float *fPot,float *ax,float *ay,float *az,float *magai);
 /*
 ** These are the prefered versions that should be used in pkdgrav2.
 */
@@ -105,6 +105,7 @@ double momLocrAddMono5(LOCR *l,momFloat m,momFloat dir,momFloat x,momFloat y,mom
 double momFlocrAddFmomr5cm(FLOCR *l,float v,FMOMR *m,float u,float dir,float x,float y,float z,float *tax,float *tay,float *taz);
 double momFlocrAddMono5(FLOCR *l,float v,float m,float dir,float x,float y,float z,float *tax,float *tay,float *taz);
 double momLocrAddFmomr5cm(LOCR *l,FMOMR *m,double u,double dir,double x,double y,double z,double *tax,double *tay,double *taz);
+double momLocrAddFmomr5(LOCR *l,FMOMR *m,double u,double dir,double x,double y,double z,double *tax,double *tay,double *taz);
 /*
 ** All the functions for evaluating local expansions.
 */
