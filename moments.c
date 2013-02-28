@@ -160,7 +160,7 @@ float momMakeFmomr(FMOMR *mr,float m,float u,float x,float y,float z) {
     float y2;
     float d2,iu;
 
-    assert(u > 0.0);
+    assert(u > 0.0f);
     iu = 1.0f/u;
     x *= iu;
     y *= iu;
@@ -521,8 +521,8 @@ void momShiftFmomr(FMOMR *m,float u,float x,float y,float z) {
     /*
      ** Now deal with the monopole terms.
      */
-    f.m = 0;
-    momMulAddFmomr(m,1.0,m->m,&f,1.0);
+    f.m = 0.0f;
+    momMulAddFmomr(m,1.0f,m->m,&f,1.0f);
     }
 
 
@@ -1709,16 +1709,16 @@ double momLocrAddFmomr5(LOCR *l,FMOMR *m,double u,double dir,double x,double y,d
     z *= dir;
     dir = -dir;
     v = dir;
-    u2 = 15.0f*u*u;  /* becomes 15.0f*u2! */
+    u2 = 15.0*u*u;
     /*
     ** Calculate the funky distance terms.
     */
-    xx = 0.5f*x*x;
+    xx = 0.5*x*x;
     xy = x*y;
-    yy = 0.5f*y*y;
+    yy = 0.5*y*y;
     xz = x*z;
     yz = y*z;
-    zz = 0.5f*z*z;
+    zz = 0.5*z*z;
     xxx = x*(onethird*xx - zz);
     xxz = z*(xx - onethird*zz);
     yyy = y*(onethird*yy - zz);
@@ -1737,7 +1737,7 @@ double momLocrAddFmomr5(LOCR *l,FMOMR *m,double u,double dir,double x,double y,d
     R2yy = u2*m->yy;
     R2yz = u2*m->yz;
 
-    u4 = 7.0f*u3*u;  /* becomes 7.0f*5.0f*u4! */
+    u4 = 7.0*u3*u;  /* becomes 7.0f*5.0f*u4! */
 
     R1x = u*m->x;
     R1y = u*m->y;
@@ -1760,13 +1760,13 @@ double momLocrAddFmomr5(LOCR *l,FMOMR *m,double u,double dir,double x,double y,d
     R4z = u4*(-m->xxxx*xxz - (m->xyyy + m->xxxy)*xyz - m->yyyy*yyz + m->xxxz*xxx + m->yyyz*yyy - m->xxyy*(xxz + yyz) + m->xxyz*xxy + m->xyyz*xyy);
 
 
-    R3x = 0.5f*(x*R3xx + y*R3xy + z*R3xz);
-    R3y = 0.5f*(x*R3xy + y*R3yy + z*R3yz);
-    R3z = 0.5f*(x*R3xz + y*R3yz - z*(R3xx + R3yy));
+    R3x = 0.5*(x*R3xx + y*R3xy + z*R3xz);
+    R3y = 0.5*(x*R3xy + y*R3yy + z*R3yz);
+    R3z = 0.5*(x*R3xz + y*R3yz - z*(R3xx + R3yy));
 
-    R4 = 0.25f*(x*R4x + y*R4y + z*R4z);
+    R4 = 0.25*(x*R4x + y*R4y + z*R4z);
 
-    R2 = 0.5f*(x*R2x + y*R2y + z*R2z);
+    R2 = 0.5*(x*R2x + y*R2y + z*R2z);
 
     R3 = onethird*(x*R3x + y*R3y + z*R3z);
 
@@ -1776,100 +1776,100 @@ double momLocrAddFmomr5(LOCR *l,FMOMR *m,double u,double dir,double x,double y,d
     /*
     ** Now we use the 'R's.
     */
-    l->m += dir*(m->m + R1 + 0.2f*R2 + R3 + R4);
+    l->m += dir*(m->m + R1 + 0.2*R2 + R3 + R4);
 
     dir *= v;
-    T0 = m->m + 3.0f*R1 + R2 + 7.0f*R3 + 9.0f*R4;
+    T0 = m->m + 3.0*R1 + R2 + 7.0*R3 + 9.0*R4;
 
-    l->x += dir*(T0*x - (R1x + 0.2f*R2x + R3x + R4x));
-    l->y += dir*(T0*y - (R1y + 0.2f*R2y + R3y + R4y));
-    l->z += dir*(T0*z - (R1z + 0.2f*R2z + R3z + R4z));
-
-    dir *= v;
-    T0 = 3.0f*(m->m + 5.0f*R1) + 7.0f*(R2 + 9.0f*R3);
-
-    t1 = m->m + 3.0f*R1 + R2 + 7.0f*R3;
-    t1x = 3.0f*R1x + R2x + 7.0f*R3x;
-    t1y = 3.0f*R1y + R2y + 7.0f*R3y;
-    t1z = 3.0f*R1z + R2z + 7.0f*R3z;
-    l->xx += dir*(T0*xx - t1 - 2.0f*x*t1x + 0.2f*R2xx + R3xx);
-    l->yy += dir*(T0*yy - t1 - 2.0f*y*t1y + 0.2f*R2yy + R3yy);
-    l->xy += dir*(T0*xy - y*t1x - x*t1y + 0.2f*R2xy + R3xy);
-    l->xz += dir*(T0*xz - z*t1x - x*t1z + 0.2f*R2xz + R3xz);
-    l->yz += dir*(T0*yz - z*t1y - y*t1z + 0.2f*R2yz + R3yz);
+    l->x += dir*(T0*x - (R1x + 0.2*R2x + R3x + R4x));
+    l->y += dir*(T0*y - (R1y + 0.2*R2y + R3y + R4y));
+    l->z += dir*(T0*z - (R1z + 0.2*R2z + R3z + R4z));
 
     dir *= v;
-    T0 = 15.0f*(m->m - 7.0f*(R1 - (3.0f*0.2f)*R2));
+    T0 = 3.0*(m->m + 5.0*R1) + 7.0*(R2 + 9.0*R3);
+
+    t1 = m->m + 3.0*R1 + R2 + 7.0*R3;
+    t1x = 3.0*R1x + R2x + 7.0*R3x;
+    t1y = 3.0*R1y + R2y + 7.0*R3y;
+    t1z = 3.0*R1z + R2z + 7.0*R3z;
+    l->xx += dir*(T0*xx - t1 - 2.0*x*t1x + 0.2*R2xx + R3xx);
+    l->yy += dir*(T0*yy - t1 - 2.0*y*t1y + 0.2*R2yy + R3yy);
+    l->xy += dir*(T0*xy - y*t1x - x*t1y + 0.2*R2xy + R3xy);
+    l->xz += dir*(T0*xz - z*t1x - x*t1z + 0.2*R2xz + R3xz);
+    l->yz += dir*(T0*yz - z*t1y - y*t1z + 0.2*R2yz + R3yz);
+
+    dir *= v;
+    T0 = 15.0*(m->m - 7.0*(R1 - (3.0*0.2)*R2));
     txx = T0*xx;
     tyy = T0*yy;
 
-    t1 = 3.0f*(m->m - 5.0f*R1) + 7.0f*R2;
-    t2x = 15.0f*R1x - 7.0f*R2x;
-    t2y = 15.0f*R1y - 7.0f*R2y;
-    t2z = 15.0f*R1z - 7.0f*R2z;
-    t3x = 3.0f*R1x - R2x;
-    t3y = 3.0f*R1y - R2y;
-    t3z = 3.0f*R1z - R2z;
-    t1xx = txx - t1 + 2.0f*x*t2x;
-    t1yy = tyy - t1 + 2.0f*y*t2y;
+    t1 = 3.0*(m->m - 5.0*R1) + 7.0*R2;
+    t2x = 15.0*R1x - 7.0*R2x;
+    t2y = 15.0*R1y - 7.0*R2y;
+    t2z = 15.0*R1z - 7.0*R2z;
+    t3x = 3.0*R1x - R2x;
+    t3y = 3.0*R1y - R2y;
+    t3z = 3.0*R1z - R2z;
+    t1xx = txx - t1 + 2.0*x*t2x;
+    t1yy = tyy - t1 + 2.0*y*t2y;
 
-    l->xxx += dir*(x*(txx - 3.0f*(t1 - t2x*x - R2xx)) - 3.0f*t3x);
-    l->yyy += dir*(y*(tyy - 3.0f*(t1 - t2y*y - R2yy)) - 3.0f*t3y);
-    l->xxy += dir*(y*(t1xx + R2xx) + xx*t2y - t3y + 2.0f*R2xy*x);
-    l->xxz += dir*(z*(t1xx + R2xx) + xx*t2z - t3z + 2.0f*R2xz*x);
-    l->xyy += dir*(x*(t1yy + R2yy) + yy*t2x - t3x + 2.0f*R2xy*y);
-    l->yyz += dir*(z*(t1yy + R2yy) + yy*t2z - t3z + 2.0f*R2yz*y);
+    l->xxx += dir*(x*(txx - 3.0*(t1 - t2x*x - R2xx)) - 3.0*t3x);
+    l->yyy += dir*(y*(tyy - 3.0*(t1 - t2y*y - R2yy)) - 3.0*t3y);
+    l->xxy += dir*(y*(t1xx + R2xx) + xx*t2y - t3y + 2.0*R2xy*x);
+    l->xxz += dir*(z*(t1xx + R2xx) + xx*t2z - t3z + 2.0*R2xz*x);
+    l->xyy += dir*(x*(t1yy + R2yy) + yy*t2x - t3x + 2.0*R2xy*y);
+    l->yyz += dir*(z*(t1yy + R2yy) + yy*t2z - t3z + 2.0*R2yz*y);
     l->xyz += dir*(T0*xyz + (yz*t2x + xz*t2y + xy*t2z) + R2xy*z + R2yz*x + R2xz*y);
 
     dir *= v;
-    T0 = 105.0f*(m->m - 9.0f*R1);
+    T0 = 105.0*(m->m - 9.0*R1);
     txx = T0*xx;
     tyy = T0*yy;
-    t1 = 15.0f*(m->m - 7.0f*R1);
-    t2 = 3.0f*(m->m - 5.0f*R1);
-    t2xx = 105.0f*xx - 15.0f*3;
-    t2yy = 105.0f*yy - 15.0f*3;
-    l->xxxx += dir*(xx*(txx - 6.0f*t1) + 4.0f*R1x*x*t2xx + 3.0f*t2);
-    l->yyyy += dir*(yy*(tyy - 6.0f*t1) + 4.0f*R1y*y*t2yy + 3.0f*t2);
-    t1xx = txx - 3.0f*(t1 + 105.0f*R1x*x);
-    t1yy = tyy - 3.0f*(t1 + 105.0f*R1y*y);
-    l->xxxy += dir*(xy*t1xx + R1y*x*t2xx - 45.0f*R1x*y);
-    l->xxxz += dir*(xz*t1xx + R1z*x*t2xx - 45.0f*R1x*z);
-    l->xyyy += dir*(xy*t1yy + R1y*x*t2yy - 45.0f*R1x*y);
-    l->yyyz += dir*(yz*t1yy + R1z*y*t2yy - 45.0f*R1y*z);
-    t2xx += 30.0f;
-    t2yy += 30.0f;
-    l->xxyy += dir*(yy*txx + 2.0f*(R1x*x*t2yy + R1y*y*t2xx) - (xx + yy)*t1 + t2);
-    l->xxyz += dir*(yz*(txx - t1 + 210.0f*R1x*x) + (R1z*y + R1y*z)*t2xx);
-    l->xyyz += dir*(xz*(tyy - t1 + 210.0f*R1y*y) + (R1z*x + R1x*z)*t2yy);
+    t1 = 15.0*(m->m - 7.0*R1);
+    t2 = 3.0*(m->m - 5.0*R1);
+    t2xx = 105.0*xx - 15.0*3;
+    t2yy = 105.0*yy - 15.0*3;
+    l->xxxx += dir*(xx*(txx - 6.0*t1) + 4.0*R1x*x*t2xx + 3.0*t2);
+    l->yyyy += dir*(yy*(tyy - 6.0*t1) + 4.0*R1y*y*t2yy + 3.0*t2);
+    t1xx = txx - 3.0*(t1 + 105.0*R1x*x);
+    t1yy = tyy - 3.0*(t1 + 105.0*R1y*y);
+    l->xxxy += dir*(xy*t1xx + R1y*x*t2xx - 45.0*R1x*y);
+    l->xxxz += dir*(xz*t1xx + R1z*x*t2xx - 45.0*R1x*z);
+    l->xyyy += dir*(xy*t1yy + R1y*x*t2yy - 45.0*R1x*y);
+    l->yyyz += dir*(yz*t1yy + R1z*y*t2yy - 45.0*R1y*z);
+    t2xx += 30.0;
+    t2yy += 30.0;
+    l->xxyy += dir*(yy*txx + 2.0*(R1x*x*t2yy + R1y*y*t2xx) - (xx + yy)*t1 + t2);
+    l->xxyz += dir*(yz*(txx - t1 + 210.0*R1x*x) + (R1z*y + R1y*z)*t2xx);
+    l->xyyz += dir*(xz*(tyy - t1 + 210.0*R1y*y) + (R1z*x + R1x*z)*t2yy);
 
     dir *= v*m->m;
     x *= dir;
     y *= dir;
     z *= dir;
-    txx = 9.0f*xx - 10.0f;
-    tyy = 9.0f*yy - 10.0f;
-    xx *= 105.0f;
-    yy *= 105.0f;
-    xy *= z*105.0f;
-    l->xxxxx += x*(xx*txx + 225.0f);
-    l->yyyyy += y*(yy*tyy + 225.0f);
-    txx += 4.0f;
-    tyy += 4.0f;
-    txxxx = xx*txx + 45.0f;
-    tyyyy = yy*tyy + 45.0f;
+    txx = 9.0*xx - 10.0;
+    tyy = 9.0*yy - 10.0;
+    xx *= 105.0;
+    yy *= 105.0;
+    xy *= z*105.0;
+    l->xxxxx += x*(xx*txx + 225.0);
+    l->yyyyy += y*(yy*tyy + 225.0);
+    txx += 4.0;
+    tyy += 4.0;
+    txxxx = xx*txx + 45.0;
+    tyyyy = yy*tyy + 45.0;
     l->xxxxy += y*txxxx;
     l->xxxxz += z*txxxx;
     l->xyyyy += x*tyyyy;
     l->yyyyz += z*tyyyy;
-    txx += 3.0f;
-    tyy += 3.0f;
+    txx += 3.0;
+    tyy += 3.0;
     l->xxxyz += xy*txx;
     l->xyyyz += xy*tyy;
-    l->xxxyy += x*(yy*txx - xx + 45.0f);
-    l->xxyyy += y*(xx*tyy - yy + 45.0f);
-    tyy += 2.0f;
-    l->xxyyz += z*(xx*tyy - yy + 15.0f);
+    l->xxxyy += x*(yy*txx - xx + 45.0);
+    l->xxyyy += y*(xx*tyy - yy + 45.0);
+    tyy += 2.0;
+    l->xxyyz += z*(xx*tyy - yy + 15.0);
     return(594.0);
     }
 
@@ -2062,31 +2062,31 @@ void momClearMomr(MOMR *l) {
     }
 
 void momClearFmomr(FMOMR *l) {
-    l->m = 0;
-    l->x = 0;
-    l->y = 0;
-    l->z = 0;
-    l->xx = 0;
-    l->yy = 0;
-    l->xy = 0;
-    l->xz = 0;
-    l->yz = 0;
-    l->xxx = 0;
-    l->xyy = 0;
-    l->xxy = 0;
-    l->yyy = 0;
-    l->xxz = 0;
-    l->yyz = 0;
-    l->xyz = 0;
-    l->xxxx = 0;
-    l->xyyy = 0;
-    l->xxxy = 0;
-    l->yyyy = 0;
-    l->xxxz = 0;
-    l->yyyz = 0;
-    l->xxyy = 0;
-    l->xxyz = 0;
-    l->xyyz = 0;
+    l->m = 0.0f;
+    l->x = 0.0f;
+    l->y = 0.0f;
+    l->z = 0.0f;
+    l->xx = 0.0f;
+    l->yy = 0.0f;
+    l->xy = 0.0f;
+    l->xz = 0.0f;
+    l->yz = 0.0f;
+    l->xxx = 0.0f;
+    l->xyy = 0.0f;
+    l->xxy = 0.0f;
+    l->yyy = 0.0f;
+    l->xxz = 0.0f;
+    l->yyz = 0.0f;
+    l->xyz = 0.0f;
+    l->xxxx = 0.0f;
+    l->xyyy = 0.0f;
+    l->xxxy = 0.0f;
+    l->yyyy = 0.0f;
+    l->xxxz = 0.0f;
+    l->yyyz = 0.0f;
+    l->xxyy = 0.0f;
+    l->xxyz = 0.0f;
+    l->xyyz = 0.0f;
     }
 
 void momClearLocr(LOCR *l) {
@@ -2129,42 +2129,42 @@ void momClearLocr(LOCR *l) {
     }
 
 void momClearFlocr(FLOCR *l) {
-    l->m = 0;
-    l->x = 0;
-    l->y = 0;
-    l->z = 0;
-    l->xx = 0;
-    l->yy = 0;
-    l->xy = 0;
-    l->xz = 0;
-    l->yz = 0;
-    l->xxx = 0;
-    l->xyy = 0;
-    l->xxy = 0;
-    l->yyy = 0;
-    l->xxz = 0;
-    l->yyz = 0;
-    l->xyz = 0;
-    l->xxxx = 0;
-    l->xyyy = 0;
-    l->xxxy = 0;
-    l->yyyy = 0;
-    l->xxxz = 0;
-    l->yyyz = 0;
-    l->xxyy = 0;
-    l->xxyz = 0;
-    l->xyyz = 0;
-    l->xxxxx = 0;
-    l->xyyyy = 0;
-    l->xxxxy = 0;
-    l->yyyyy = 0;
-    l->xxxxz = 0;
-    l->yyyyz = 0;
-    l->xxxyy = 0;
-    l->xxyyy = 0;
-    l->xxxyz = 0;
-    l->xyyyz = 0;
-    l->xxyyz = 0;
+    l->m = 0.0f;
+    l->x = 0.0f;
+    l->y = 0.0f;
+    l->z = 0.0f;
+    l->xx = 0.0f;
+    l->yy = 0.0f;
+    l->xy = 0.0f;
+    l->xz = 0.0f;
+    l->yz = 0.0f;
+    l->xxx = 0.0f;
+    l->xyy = 0.0f;
+    l->xxy = 0.0f;
+    l->yyy = 0.0f;
+    l->xxz = 0.0f;
+    l->yyz = 0.0f;
+    l->xyz = 0.0f;
+    l->xxxx = 0.0f;
+    l->xyyy = 0.0f;
+    l->xxxy = 0.0f;
+    l->yyyy = 0.0f;
+    l->xxxz = 0.0f;
+    l->yyyz = 0.0f;
+    l->xxyy = 0.0f;
+    l->xxyz = 0.0f;
+    l->xyyz = 0.0f;
+    l->xxxxx = 0.0f;
+    l->xyyyy = 0.0f;
+    l->xxxxy = 0.0f;
+    l->yyyyy = 0.0f;
+    l->xxxxz = 0.0f;
+    l->yyyyz = 0.0f;
+    l->xxxyy = 0.0f;
+    l->xxyyy = 0.0f;
+    l->xxxyz = 0.0f;
+    l->xyyyz = 0.0f;
+    l->xxyyz = 0.0f;
     }
 
 
@@ -2274,7 +2274,7 @@ void momAddFmomr(FMOMR *mr,FMOMR *ma) {
  */
 void momScaledAddFmomr(FMOMR *mr,float ur,FMOMR *ma,float ua) {
     float f,s;
-    assert(ur > 0.0 && ua > 0);
+    assert(ur > 0.0f && ua > 0.0f);
     f = ua/ur;
     mr->m += ma->m;
     s = f;

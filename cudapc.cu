@@ -100,13 +100,16 @@ __global__ void cudaPC( int nP, PINFOIN *in, int nPart, ILC_BLK *blk, PINFOOUT *
 	    xy = g2*(blk->yy.f[threadIdx.x]*y + blk->xy.f[threadIdx.x]*x + blk->yz.f[threadIdx.x]*z);
 	    xz = g2*(-(blk->xx.f[threadIdx.x] + blk->yy.f[threadIdx.x])*z + blk->xz.f[threadIdx.x]*x + blk->yz.f[threadIdx.x]*y);
 	    g2 = 0.5f*(xx*x + xy*y + xz*z);
-		g1 *= (blk->x.f[threadIdx.x]*x + blk->y.f[threadIdx.x]*y + blk->z.f[threadIdx.x]*z);
+		yy = g1*blk->x.f[threadIdx.x];
+		yz = g1*blk->y.f[threadIdx.x];
+		zz = g1*blk->z.f[threadIdx.x];
+        g1 = yy*x + yz*y + zz*z;
 	    g0 = dir * blk->m.f[threadIdx.x];
         atomicAdd(&fPot[wid],-(g0 + g1 + g2 + g3 + g4));
 	    g0 += 3.0f*g1 + 5.0f*g2 + 7.0f*g3 + 9.0f*g4;
-	    tax = dir*(xx + xxx + tx - x*g0);
-	    tay = dir*(xy + xxy + ty - y*g0);
-	    taz = dir*(xz + xxz + tz - z*g0);
+	    tax = dir*(yy + xx + xxx + tx - x*g0);
+	    tay = dir*(yz + xy + xxy + ty - y*g0);
+	    taz = dir*(zz + xz + xxz + tz - z*g0);
 
         atomicAdd(&ax[wid],tax);
         atomicAdd(&ay[wid],tay);

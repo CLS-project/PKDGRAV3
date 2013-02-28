@@ -446,38 +446,18 @@ typedef struct sphBounds {
 }
 
 
-#define CALCOPEN(pkdn,minside) {					\
+#define CALCOPEN(pkdn) {						\
         FLOAT CALCOPEN_d2 = 0;						\
-	FLOAT CALCOPEN_b;						\
         int CALCOPEN_j;							\
 	pBND CALCOPEN_bnd;						\
+	FLOAT CALCOPEN_d;						\
         pkdNodeBnd(pkd, pkdn, &CALCOPEN_bnd);				\
         for (CALCOPEN_j=0;CALCOPEN_j<3;++CALCOPEN_j) {                  \
-            FLOAT CALCOPEN_d = fabs(CALCOPEN_bnd.fCenter[CALCOPEN_j] - (pkdn)->r[CALCOPEN_j]) + \
-                CALCOPEN_bnd.fMax[CALCOPEN_j];                          \
+            CALCOPEN_d = fabs(CALCOPEN_bnd.fCenter[CALCOPEN_j] - (pkdn)->r[CALCOPEN_j]) + CALCOPEN_bnd.fMax[CALCOPEN_j]; \
             CALCOPEN_d2 += CALCOPEN_d*CALCOPEN_d;                       \
             }								\
-	MAXSIDE(CALCOPEN_bnd.fMax,CALCOPEN_b);				\
-	if (CALCOPEN_b < minside) CALCOPEN_b = minside;			\
-	if (CALCOPEN_b*CALCOPEN_b < CALCOPEN_d2) CALCOPEN_b = sqrt(CALCOPEN_d2); \
-	(pkdn)->bMax = CALCOPEN_b;					\
+	(pkdn)->bMax = sqrt(CALCOPEN_d2);				\
 	}
-
-#if (0)
-#define CALCOPEN(pkdn) {					\
-        FLOAT CALCOPEN_d2 = 0;						\
-        int CALCOPEN_j;							\
-	pBND CALCOPEN_bnd; \
-	pkdNodeBnd(pkd, pkdn, &CALCOPEN_bnd);			\
-        for (CALCOPEN_j=0;CALCOPEN_j<3;++CALCOPEN_j) {                  \
-            FLOAT CALCOPEN_d = fabs(CALCOPEN_bnd.fCenter[CALCOPEN_j] - (pkdn)->r[CALCOPEN_j]) + \
-                CALCOPEN_bnd.fMax[CALCOPEN_j];                          \
-            CALCOPEN_d2 += CALCOPEN_d*CALCOPEN_d;                       \
-            }\
-        CALCOPEN_d2 = sqrt(CALCOPEN_d2);	  \
-        if (CALCOPEN_d2 < (pkdn)->bMax) (pkdn)->bMax = CALCOPEN_d2;	  \
-	}
-#endif
 
 /*
 ** Components required for tree walking.

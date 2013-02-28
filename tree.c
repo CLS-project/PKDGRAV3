@@ -298,7 +298,6 @@ void BuildTemp(PKD pkd,int iNode,int M) {
 	    if (d >= 0 && d < 3) bnd.fMax[d] *= 0.5;
 	    if (nl > 0) {
 		if (d >= 0 && d < 3) bnd.fCenter[d] -= bnd.fMax[d];
-		MAXSIDE(bnd.fMax,ls);
 		lc = (nl > M); /* this condition means the node is not a bucket */
 		if (!lc) {
 		    pNode->iLower = 0;
@@ -381,10 +380,10 @@ static float  zeroF[3] = {0.0,0.0,0.0};
 void Create(PKD pkd,int iNode) {
     PARTICLE *p;
     KDN *pkdn,*pkdl,*pkdu;
-    FMOMR mom;
+    FMOMR mom,*pmom;
     SPHBNDS *bn;
     pBND bnd;
-    FLOAT m,fMass,fSoft,x,y,z,vx,vy,vz,ax,ay,az,ft,d2,d2Max,dih2,bmin,b;
+    FLOAT m,fMass,fSoft,x,y,z,vx,vy,vz,ax,ay,az,ft,d2,d2Max,dih2;
     float *a;
     double *v;
     int pj,d,nDepth,ism;
@@ -395,7 +394,7 @@ void Create(PKD pkd,int iNode) {
     while (1) {
 	while (pkdTreeNode(pkd,iNode)->iLower) {
 /*
-	    printf("%2d:%d\n",nDepth,iNode);
+  printf("%2d:%d\n",nDepth,iNode);
 */
 	    iNode = pkdTreeNode(pkd,iNode)->iLower;
 	    ++nDepth;
@@ -415,7 +414,7 @@ void Create(PKD pkd,int iNode) {
 		}
 	    }
 /*
-	printf("%2d:%d\n",nDepth,iNode);
+  printf("%2d:%d\n",nDepth,iNode);
 */
 	/*
 	** Now calculate all bucket quantities!
@@ -425,12 +424,6 @@ void Create(PKD pkd,int iNode) {
 	pkdn = pkdTreeNode(pkd,iNode);
         pkdNodeBnd(pkd, pkdn, &bnd);
 	pkdn->nActive = 0;
-	/*
-	** Before squeezing the bounds, calculate a minimum b value based on the splitting bounds alone.
-	** This gives us a better feel for the "size" of a bucket with only a single particle.
-	*/
-	MINSIDE(bnd.fMax,bmin);
-	*bnd.size = 2.0*(bnd.fMax[0]+bnd.fMax[1]+bnd.fMax[2])/3.0;
 	/*
 	** Now shrink wrap the bucket bounds.
 	*/
@@ -471,7 +464,7 @@ void Create(PKD pkd,int iNode) {
 #if defined(TEST_SOFTENING)
 	    dih2 = fSoft;
 #else
-	    dih2 = m/(fSoft*fSoft);
+	dih2 = m/(fSoft*fSoft);
 #endif
 	x = m*p->r[0];
 	y = m*p->r[1];
@@ -496,9 +489,9 @@ void Create(PKD pkd,int iNode) {
 		bSoftZero = 1;
 	    else
 #if defined(TEST_SOFTENING)
-	    if (fSoft>dih2) dih2=fSoft;
+		if (fSoft>dih2) dih2=fSoft;
 #else
-		dih2 += m/(fSoft*fSoft);
+	    dih2 += m/(fSoft*fSoft);
 #endif
 	    x += m*p->r[0];
 	    y += m*p->r[1];
@@ -548,8 +541,6 @@ void Create(PKD pkd,int iNode) {
 	    pkdn->fSoft2 = 1/(dih2*m);
 #endif
 	    }
-
-	//	d2Max = bmin*bmin;
 	d2Max = 0.0;
 	for (pj=pkdn->pLower;pj<=pkdn->pUpper;++pj) {
 	    p = pkdParticle(pkd,pj);
@@ -562,132 +553,122 @@ void Create(PKD pkd,int iNode) {
 	    */
 	    d2Max = (d2 > d2Max)?d2:d2Max;
 	    }
-#ifdef USE_MAXSIDE
-        MAXSIDE(bnd.fMax,b);
-#else
-	b = sqrt(d2Max);
-#endif
-        if (b < bmin) b = bmin;
-	pkdn->bMax = b;
+	pkdn->bMax = sqrt(d2Max);
 	/*
 	** Now calculate the reduced multipole moment.
 	** Note that we use the cell's openening radius as the scaling factor!
 	*/
 	if (pkd->oNodeMom) {
 	    momClearFmomr(pkdNodeMom(pkd,pkdn));
-	    for (pj=pkdn->pLower;pj<=pkdn->pUpper;++pj) {
-		p = pkdParticle(pkd,pj);
-		x = p->r[0] - pkdn->r[0];
-		y = p->r[1] - pkdn->r[1];
-		z = p->r[2] - pkdn->r[2];
-		m = pkdMass(pkd,p);
-		momMakeFmomr(&mom,m,pkdn->bMax,x,y,z);
-		momAddFmomr(pkdNodeMom(pkd,pkdn),&mom);
-	    }
-	}
-	/*
-	** Calculate bucket fast gas bounds.
-	*/
-	if (pkd->oNodeSphBounds) {
-	    bn = pkdNodeSphBounds(pkd,pkdn);
-	    /*
-	    ** Default bounds always makes the cell look infinitely far away, regardless from where.
-	    */
-	    for (d=0;d<3;++d) bn->A.min[d] = HUGE_VAL;
-	    for (d=0;d<3;++d) bn->A.max[d] = -HUGE_VAL;
-	    for (d=0;d<3;++d) bn->B.min[d] = HUGE_VAL;
-	    for (d=0;d<3;++d) bn->B.max[d] = -HUGE_VAL;
-	    for (d=0;d<3;++d) bn->BI.min[d] = HUGE_VAL;
-	    for (d=0;d<3;++d) bn->BI.max[d] = -HUGE_VAL;
-	    for (pj=pkdn->pLower;pj<=pkdn->pUpper;++pj) {
-		p = pkdParticle(pkd,pj);
-		if (pkdIsGas(pkd,p)) {
-		    /*
-		    ** This first ball bound over all gas particles is only used for remote searching.
-		    */
-		    for (d=0;d<3;++d) bn->B.min[d] = fmin(bn->B.min[d],p->r[d] - (1+pkd->param.ddHonHLimit)*p->fBall);
-		    for (d=0;d<3;++d) bn->B.max[d] = fmax(bn->B.max[d],p->r[d] + (1+pkd->param.ddHonHLimit)*p->fBall);
-		    if (pkdIsActive(pkd,p)) {
-			for (d=0;d<3;++d) bn->A.min[d] = fmin(bn->A.min[d],p->r[d]);
-			for (d=0;d<3;++d) bn->A.max[d] = fmax(bn->A.max[d],p->r[d]);
-		    }
-		    else {
-			for (d=0;d<3;++d) bn->BI.min[d] = fmin(bn->BI.min[d],p->r[d] - (1+pkd->param.ddHonHLimit)*p->fBall);
-			for (d=0;d<3;++d) bn->BI.max[d] = fmax(bn->BI.max[d],p->r[d] + (1+pkd->param.ddHonHLimit)*p->fBall);
+	    if (pkdn->pLower == pkdn->pUpper || pkdn->bMax == 0) {
+		pmom = pkdNodeMom(pkd,pkdn);
+		pmom->m = pkdMass(pkd,pkdParticle(pkd,pkdn->pLower));
+		pkdn->bMax = 0.0;
+		for (pj=pkdn->pLower+1;pj<=pkdn->pUpper;++pj) {
+		    pmom->m += pkdMass(pkd,pkdParticle(pkd,pj));
 		    }
 		}
-	    }
-	    /*
-	    ** Note that minimums can always safely be increased and maximums safely decreased in parallel, even on 
-	    ** a shared memory machine, without needing locking since these bounds should always simply be seen as being
-	    ** a conservative bound on the particles in the algorithms. This is true AS LONG AS a double precision store
-	    ** operation is atomic (i.e., that the individual bytes are not written one-by-one). We take advantage of 
-	    ** this fact in the fast gas algorithm where we locally reduce the bounds to exclude particles which have 
-	    ** already been completed in the direct neighbor search phase.
-	    */
-	}
-	/*
-	** Finished with the bucket, move onto the next one,
-	** or to the parent.
-	*/
-	while (iNode & 1) {
-	    iNode = pkdTreeNode(pkd,iNode)->iParent;
-	    --nDepth;
-	    if (!iNode) {
-		assert(nDepth == 0);
-		return;	/* exit point!!! */
-		}
-	    /*
-	    ** Now combine quantities from each of the children (2) of
-	    ** this cell to form the quantities for this cell.
-	    ** First find the CoM, just like for the bucket.
-	    */
-	    pkdn = pkdTreeNode(pkd,iNode);
-            pkdNodeBnd(pkd, pkdn, &bnd);
-	    /*
-	    ** Before squeezing the bounds, calculate a minimum b value based on the splitting bounds alone.
-	    ** This gives us a better feel for the "size" of a bucket with only a single particle.
-	    */
-	    MINSIDE(bnd.fMax,bmin);
-	    *bnd.size = 2.0*(bnd.fMax[0]+bnd.fMax[1]+bnd.fMax[2])/3.0;
-	    pj = pkdn->pLower;
-	    pkdl = pkdTreeNode(pkd,pkdn->iLower);
-	    pkdu = pkdTreeNode(pkd,pkdn->iLower + 1);
-	    pkdCombineCells1(pkd,pkdn,pkdl,pkdu);
-	    if (pkdn->pUpper - pj < NMAX_OPENCALC) {
-		p = pkdParticle(pkd,pj);
-		x = p->r[0] - pkdn->r[0];
-		y = p->r[1] - pkdn->r[1];
-		z = p->r[2] - pkdn->r[2];
-		d2Max = x*x + y*y + z*z;
-		for (++pj;pj<=pkdn->pUpper;++pj) {
+	    else {
+		for (pj=pkdn->pLower;pj<=pkdn->pUpper;++pj) {
 		    p = pkdParticle(pkd,pj);
 		    x = p->r[0] - pkdn->r[0];
 		    y = p->r[1] - pkdn->r[1];
 		    z = p->r[2] - pkdn->r[2];
-		    d2 = x*x + y*y + z*z;
-		    d2Max = (d2 > d2Max)?d2:d2Max;
+		    m = pkdMass(pkd,p);
+		    momMakeFmomr(&mom,m,pkdn->bMax,x,y,z);
+		    momAddFmomr(pkdNodeMom(pkd,pkdn),&mom);
 		    }
-		/*
-		** Now determine the opening radius for gravity.
-		*/
-#ifdef USE_MAXSIDE
-		MAXSIDE(bnd.fMax,b);
-		if (b < bmin) b = bmin;
-		if (d2Max>b) b = d2Max;
-		pkdn->bMax = b;
-#else
-		pkdn->bMax = sqrt(d2Max);
-		if (pkdn->bMax < bmin) pkdn->bMax = bmin;
-#endif
 		}
-	    else {
-	      CALCOPEN(pkdn,bmin);  /* set bMax */
 	    }
-	    pkdCombineCells2(pkd,pkdn,pkdl,pkdu);
-	    }
-	++iNode;
 	}
+    /*
+    ** Calculate bucket fast gas bounds.
+    */
+    if (pkd->oNodeSphBounds) {
+	bn = pkdNodeSphBounds(pkd,pkdn);
+	/*
+	** Default bounds always makes the cell look infinitely far away, regardless from where.
+	*/
+	for (d=0;d<3;++d) bn->A.min[d] = HUGE_VAL;
+	for (d=0;d<3;++d) bn->A.max[d] = -HUGE_VAL;
+	for (d=0;d<3;++d) bn->B.min[d] = HUGE_VAL;
+	for (d=0;d<3;++d) bn->B.max[d] = -HUGE_VAL;
+	for (d=0;d<3;++d) bn->BI.min[d] = HUGE_VAL;
+	for (d=0;d<3;++d) bn->BI.max[d] = -HUGE_VAL;
+	for (pj=pkdn->pLower;pj<=pkdn->pUpper;++pj) {
+	    p = pkdParticle(pkd,pj);
+	    if (pkdIsGas(pkd,p)) {
+		/*
+		** This first ball bound over all gas particles is only used for remote searching.
+		*/
+		for (d=0;d<3;++d) bn->B.min[d] = fmin(bn->B.min[d],p->r[d] - (1+pkd->param.ddHonHLimit)*p->fBall);
+		for (d=0;d<3;++d) bn->B.max[d] = fmax(bn->B.max[d],p->r[d] + (1+pkd->param.ddHonHLimit)*p->fBall);
+		if (pkdIsActive(pkd,p)) {
+		    for (d=0;d<3;++d) bn->A.min[d] = fmin(bn->A.min[d],p->r[d]);
+		    for (d=0;d<3;++d) bn->A.max[d] = fmax(bn->A.max[d],p->r[d]);
+		    }
+		else {
+		    for (d=0;d<3;++d) bn->BI.min[d] = fmin(bn->BI.min[d],p->r[d] - (1+pkd->param.ddHonHLimit)*p->fBall);
+		    for (d=0;d<3;++d) bn->BI.max[d] = fmax(bn->BI.max[d],p->r[d] + (1+pkd->param.ddHonHLimit)*p->fBall);
+		    }
+		}
+	    }
+	/*
+	** Note that minimums can always safely be increased and maximums safely decreased in parallel, even on 
+	** a shared memory machine, without needing locking since these bounds should always simply be seen as being
+	** a conservative bound on the particles in the algorithms. This is true AS LONG AS a double precision store
+	** operation is atomic (i.e., that the individual bytes are not written one-by-one). We take advantage of 
+	** this fact in the fast gas algorithm where we locally reduce the bounds to exclude particles which have 
+	** already been completed in the direct neighbor search phase.
+	*/
+	}
+    /*
+    ** Finished with the bucket, move onto the next one,
+    ** or to the parent.
+    */
+    while (iNode & 1) {
+	iNode = pkdTreeNode(pkd,iNode)->iParent;
+	--nDepth;
+	if (!iNode) {
+	    assert(nDepth == 0);
+	    return;	/* exit point!!! */
+	    }
+	/*
+	** Now combine quantities from each of the children (2) of
+	** this cell to form the quantities for this cell.
+	** First find the CoM, just like for the bucket.
+	*/
+	pkdn = pkdTreeNode(pkd,iNode);
+	pkdNodeBnd(pkd, pkdn, &bnd);
+	pj = pkdn->pLower;
+	pkdl = pkdTreeNode(pkd,pkdn->iLower);
+	pkdu = pkdTreeNode(pkd,pkdn->iLower + 1);
+	pkdCombineCells1(pkd,pkdn,pkdl,pkdu);
+	if (pkdn->pUpper - pj < NMAX_OPENCALC) {
+	    p = pkdParticle(pkd,pj);
+	    x = p->r[0] - pkdn->r[0];
+	    y = p->r[1] - pkdn->r[1];
+	    z = p->r[2] - pkdn->r[2];
+	    d2Max = x*x + y*y + z*z;
+	    for (++pj;pj<=pkdn->pUpper;++pj) {
+		p = pkdParticle(pkd,pj);
+		x = p->r[0] - pkdn->r[0];
+		y = p->r[1] - pkdn->r[1];
+		z = p->r[2] - pkdn->r[2];
+		d2 = x*x + y*y + z*z;
+		d2Max = (d2 > d2Max)?d2:d2Max;
+		}
+	    /*
+	    ** Now determine the opening radius for gravity.
+	    */
+	    pkdn->bMax = sqrt(d2Max);
+	    }
+	else {
+	    CALCOPEN(pkdn);  /* set bMax */
+	    }
+	pkdCombineCells2(pkd,pkdn,pkdl,pkdu);
+	}
+    ++iNode;
     }
 
 
@@ -762,22 +743,32 @@ void pkdCombineCells2(PKD pkd,KDN *pkdn,KDN *p1,KDN *p2) {
     ** to the CoM of this cell and add them up.
     */
     if (pkd->oNodeMom) {
-	*pkdNodeMom(pkd,pkdn) = *pkdNodeMom(pkd,p1);
+	assert(pkdn->bMax > 0); /* if not we are in trouble */
 	x = p1->r[0] - pkdn->r[0];
 	y = p1->r[1] - pkdn->r[1];
 	z = p1->r[2] - pkdn->r[2];
-	momShiftFmomr(pkdNodeMom(pkd,pkdn),p1->bMax,x,y,z);
-
-	momRescaleFmomr(pkdNodeMom(pkd,pkdn),pkdn->bMax,p1->bMax);
-
-	mom = *pkdNodeMom(pkd,p2);
+	if (p1->bMax == 0) {
+	    momMakeFmomr(pkdNodeMom(pkd,pkdn),pkdNodeMom(pkd,p1)->m,
+		pkdn->bMax,x,y,z);
+	    }
+	else {
+	    *pkdNodeMom(pkd,pkdn) = *pkdNodeMom(pkd,p1);
+	    momShiftFmomr(pkdNodeMom(pkd,pkdn),p1->bMax,x,y,z);
+	    momRescaleFmomr(pkdNodeMom(pkd,pkdn),pkdn->bMax,p1->bMax);
+	    }
 	x = p2->r[0] - pkdn->r[0];
 	y = p2->r[1] - pkdn->r[1];
 	z = p2->r[2] - pkdn->r[2];
-	momShiftFmomr(&mom,p2->bMax,x,y,z);
-
-	momScaledAddFmomr(pkdNodeMom(pkd,pkdn),pkdn->bMax,&mom,p2->bMax);
-
+	if (p2->bMax == 0) {
+	    momMakeFmomr(&mom,pkdNodeMom(pkd,p2)->m,
+		pkdn->bMax,x,y,z);
+	    momAddFmomr(pkdNodeMom(pkd,pkdn),&mom);
+	    }
+	else {
+	    mom = *pkdNodeMom(pkd,p2);
+	    momShiftFmomr(&mom,p2->bMax,x,y,z);
+	    momScaledAddFmomr(pkdNodeMom(pkd,pkdn),pkdn->bMax,&mom,p2->bMax);
+	    }
 	}
     /*
     ** Combine the special fast gas ball bounds for SPH.

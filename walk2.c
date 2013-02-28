@@ -830,15 +830,10 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot, u
 
     iStack = -1;
 
-    monoPole.m = 0.0f;
-    monoPole.xx = monoPole.yy = monoPole.xy = monoPole.xz = monoPole.yz = 0.0f;
-    monoPole.xxx = monoPole.xyy = monoPole.xxy = monoPole.yyy = monoPole.xxz = monoPole.yyz = monoPole.xyz = 0.0f;
-    monoPole.xxxx = monoPole.xyyy = monoPole.xxxy = monoPole.yyyy = monoPole.xxxz =
-	monoPole.yyyz = monoPole.xxyy = monoPole.xxyz = monoPole.xyyz = 0.0f;
-
     /*
-    ** Clear local expansion and the timestepping sums.
+    ** Clear monopole sentinel and local expansion and the timestepping sums.
     */
+    momClearFmomr(&monoPole);
     momClearLocr(&L);
     dirLsum = 0;
     normLsum = 0;
