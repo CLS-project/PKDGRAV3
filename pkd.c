@@ -981,17 +981,12 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
 	    pSph->vPred[0] = v[0]*dvFac;
 	    pSph->vPred[1] = v[1]*dvFac;
 	    pSph->vPred[2] = v[2]*dvFac;
-#ifdef CLUES_COMPILE
-	    //p->iOrder = pkd->nGas + pkd->nDark + 
-#endif
 	    break;
 	default:
 	    fprintf(stderr,"Unsupported particle type: %d\n",eSpecies);
 	    assert(0);
 	    }
 	p->iOrder = iOrder;
-#ifndef CLUES_COMPILE
-#endif
 	for(j=0;j<3;++j) v[j] *= dvFac;
 	getClass(pkd,fMass,fSoft,eSpecies,p);
 	}
@@ -2590,9 +2585,6 @@ uint32_t pkdWriteFIO(PKD pkd,FIO fio,double dvFac) {
 	if (pkd->oStar) pStar = pkdField(p,pkd->oStar);
 	else pStar = NULL;
 	fMass = pkdMass(pkd,p);
-#ifdef CLUES_COMPILE
-	assert(fMass > 0);
-#endif
 	fSoft = pkdSoft0(pkd,p);
 	iOrder = p->iOrder;
 	nCount++;

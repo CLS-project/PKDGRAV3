@@ -1828,22 +1828,6 @@ void pstDomainDecomp(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	for (j=0; j < 3; j++) {
 	    pst->bnd.fMax[j] += offs;
 	    }
-#if 0
-#ifdef CLUES_COMPILE
-	for (j=0; j < plcl->pkd->nLocal; j++) {
-	    PARTICLE *p = pkdParticle(plcl->pkd, j);
-	    double *v = pkdVel(plcl->pkd, p);
-	    int d;
-	    if (p->iOrder == 39883126 || p->iOrder == 2187366774LL)
-	    {
-		fprintf(stderr, "%i] Particle %10ld:", plcl->pkd->idSelf, (uint64_t)p->iOrder);
-		for(d=0; d<3; ++d) fprintf(stderr, " %e", p->r[d]);
-		for(d=0; d<3; ++d) fprintf(stderr, " %e", v[d]);
-		fprintf(stderr, "\n");
-	    }
-	}
-#endif
-#endif
 	}
     if (pnOut) *pnOut = 0;
     }
