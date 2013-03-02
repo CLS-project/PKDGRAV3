@@ -184,26 +184,6 @@ AC_ARG_ENABLE(mdl-io,
 AM_CONDITIONAL(USE_MDL_IO, test "x$USE_MDL_IO" = "xyes")
 AM_CONDITIONAL(USE_HDF5, test "x$USE_HDF5" = "xyes")
 
-# SISCI MDL
-AC_ARG_WITH(sisci,
-  [  --with-sisci[=/opt/DIS]   path to SISCI installation],
-  [if test "x$enableval" = "xyes" ; then
-    AC_SUBST([SISCI_PATH],/opt/DIS)
-    USE_SISCI=yes
-   elif test "x$enableval" = "xno" ; then
-    USE_SISCI=no
-   else
-    AC_SUBST([SISCI_PATH],$withval)
-    USE_SISCI=yes
-   fi
-   CFLAGS="$CFLAGS -I${withval}/include"
-   LDFLAGS="$LDFLAGS -L${withval}/lib64"
-   if test -n "${need_dash_r}"; then
-	LDFLAGS="$LDFLAGS -R${withval}/lib64"
-   fi
-   ])
-AM_CONDITIONAL(HAVE_SISCI, test "x$USE_SISCI" = "xyes")
-
 # PNG Output
 AC_ARG_ENABLE(png,
   [  --enable-png                   enable PNG outputs for MDL IO)],

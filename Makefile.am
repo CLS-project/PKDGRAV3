@@ -23,11 +23,6 @@ mpipt:
 	$(MAKE) CC=@MPICC@ FC=@MPIFC@ $(AM_MAKEFLAGS) pkdgrav2_mpipt
 endif
 
-if HAVE_SISCI
-EXTRA_PROGRAMS += pkdgrav2_sisci
-sisci		: pkdgrav2_sisci
-endif
-
 EXTRA_PROGRAMS += tostd tdiff
 
 null	: pkdgrav2_null
@@ -215,32 +210,6 @@ pkdgrav2_pthread_CFLAGS += -I$(PYTHON_INC)
 endif
 if LUSTRE
 pkdgrav2_pthread_LDADD += -llustreapi
-endif
-endif
-
-if HAVE_SISCI
-pkdgrav2_sisci_SOURCES = $(SOURCES) $(MDL)/sisci/mdl.c
-noinst_HEADERS += $(MDL)/sisci/mdl.h
-pkdgrav2_sisci_CFLAGS = -I$(MDL)/sisci/ $(AM_CFLAGS) -I$(SISCI_PATH)/include
-pkdgrav2_sisci_LDADD = -lpthread -L $(SISCI_PATH)/lib64 -lsisci
-if USE_EFENCE
-if HAVE_EFENCE_PATH
-pkdgrav2_sisci_LDADD += -L @EFENCE_PATH@
-endif
-pkdgrav2_sisci_LDADD += -lefence
-endif
-if USE_CUDA
-pkdgrav2_sisci_LDADD += @CUDA_LIBS
-endif
-if USE_PYTHON
-if HAVE_RDYNAMIC
-pkdgrav2_sisci_LDFLAGS = -Xlinker -rdynamic 
-endif
-pkdgrav2_sisci_LDADD += -L$(PYTHON_LIB) -lpython$(PYTHON_VER) -ldl -lutil
-pkdgrav2_sisci_CFLAGS += -I$(PYTHON_INC)
-endif
-if LUSTRE
-pkdgrav2_sisci_LDADD += -llustreapi
 endif
 endif
 
