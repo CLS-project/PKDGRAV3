@@ -2705,6 +2705,7 @@ void pstBuildTree(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     struct inBuildTree *in = vin;
     KDN *pkdn = vout;
     KDN *ptmp, *pCell;
+    FLOAT minside;
     int i,iCell,iLower,iNext;
 
     mdlassert(pst->mdl,nIn == sizeof(struct inBuildTree));
@@ -2732,8 +2733,10 @@ void pstBuildTree(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	*/
 	iLower = LOWER(iCell);
 	iNext = UPPER(iCell);
+	pCell->bMax = HUGE_VAL;  /* initialize bMax for CombineCells */
+	MINSIDE(pst->bnd.fMax,minside);
 	pkdCombineCells1(pkd,pCell,pkdNode(pkd,pkdn,iLower),pkdNode(pkd,pkdn,iNext));
-	CALCOPEN(pCell);
+	CALCOPEN(pCell,minside);
 	pkdCombineCells2(pkd,pCell,pkdNode(pkd,pkdn,iLower),pkdNode(pkd,pkdn,iNext));
 	/*
 	** Set all the pointers and flags.
