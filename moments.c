@@ -478,6 +478,7 @@ void momShiftFmomr(FMOMR *m,float u,float x,float y,float z) {
     FMOMR f;
     float t,tx,ty,tz,txx,tyy,txy,tyz,txz,iu;
     const float twosevenths = 2.0f/7.0f;
+    const float twothirds = 2.0f/3.0f;
 
     momMakeFmomr(&f,1.0f,u,x,y,z);
     iu = 1.0f/u;
@@ -491,33 +492,48 @@ void momShiftFmomr(FMOMR *m,float u,float x,float y,float z) {
     ty = 0.4f*(m->xy*x + m->yy*y + m->yz*z);
     tz = 0.4f*(m->xz*x + m->yz*y - (m->xx + m->yy)*z);
     t = tx*x + ty*y + tz*z;
-    txx = twosevenths*(m->xxx*x + m->xxy*y + m->xxz*z + 2.0f*(m->xx*f.xx + m->xy*f.xy + m->xz*f.xz) - 0.5f*t);
-    tyy = twosevenths*(m->xyy*x + m->yyy*y + m->yyz*z + 2.0f*(m->xy*f.xy + m->yy*f.yy + m->yz*f.yz) - 0.5f*t);
-    txy = twosevenths*(m->xxy*x + m->xyy*y + m->xyz*z + m->xy*(f.xx + f.yy) + (m->xx + m->yy)*f.xy + m->yz*f.xz + m->xz*f.yz);
-    tyz = twosevenths*(m->xyz*x + m->yyz*y - (m->xxy + m->yyy)*z - m->yz*f.xx - m->xx*f.yz + m->xz*f.xy + m->xy*f.xz);
-    txz = twosevenths*(m->xxz*x + m->xyz*y - (m->xxx + m->xyy)*z - m->xz*f.yy - m->yy*f.xz + m->yz*f.xy + m->xy*f.yz);
+    txx = twosevenths*(m->xxx*x + f.xxx*m->x + m->xxy*y + f.xxy*m->y + m->xxz*z + f.xxz*m->z + 2.0f*(m->xx*f.xx + m->xy*f.xy + m->xz*f.xz) - 0.5f*t);
+    tyy = twosevenths*(m->xyy*x + f.xyy*m->x + m->yyy*y + f.yyy*m->y + m->yyz*z + f.yyz*m->z + 2.0f*(m->xy*f.xy + m->yy*f.yy + m->yz*f.yz) - 0.5f*t);
+    txy = twosevenths*(m->xxy*x + f.xxy*m->x + m->xyy*y + f.xyy*m->y + m->xyz*z + f.xyz*m->z + m->xy*(f.xx + f.yy) + (m->xx + m->yy)*f.xy + m->yz*f.xz + m->xz*f.yz);
+    tyz = twosevenths*(m->xyz*x + f.xyz*m->x + m->yyz*y + f.yyz*m->y - (m->xxy + m->yyy)*z - (f.xxy + f.yyy)*m->z - m->yz*f.xx - m->xx*f.yz + m->xz*f.xy + m->xy*f.xz);
+    txz = twosevenths*(m->xxz*x + f.xxz*m->x + m->xyz*y + f.xyz*m->y - (m->xxx + m->xyy)*z - (f.xxx + f.xyy)*m->z - m->xz*f.yy - m->yy*f.xz + m->yz*f.xy + m->xy*f.yz);
     /*
      ** Shift the Hexadecapole.
      */
-    m->xxxx += 4.0f*m->xxx*x + 6.0f*(m->xx*f.xx - txx);
-    m->yyyy += 4.0f*m->yyy*y + 6.0f*(m->yy*f.yy - tyy);
-    m->xyyy += m->yyy*x + 3.0f*(m->xyy*y + m->yy*f.xy + m->xy*f.yy - txy);
-    m->xxxy += m->xxx*y + 3.0f*(m->xxy*x + m->xx*f.xy + m->xy*f.xx - txy);
-    m->xxxz += m->xxx*z + 3.0f*(m->xxz*x + m->xx*f.xz + m->xz*f.xx - txz);
-    m->yyyz += m->yyy*z + 3.0f*(m->yyz*y + m->yy*f.yz + m->yz*f.yy - tyz);
-    m->xxyy += 2.0f*(m->xxy*y + m->xyy*x) + m->xx*f.yy + m->yy*f.xx + 4.0f*m->xy*f.xy - txx - tyy;
-    m->xxyz += m->xxy*z + m->xxz*y + m->xx*f.yz + m->yz*f.xx + 2.0f*(m->xyz*x + m->xy*f.xz + m->xz*f.xy) - tyz;
-    m->xyyz += m->xyy*z + m->yyz*x + m->yy*f.xz + m->xz*f.yy + 2.0f*(m->xyz*y + m->xy*f.yz + m->yz*f.xy) - txz;
+    m->xxxx += 4.0f*(m->xxx*x + f.xxx*m->x) + 6.0f*(m->xx*f.xx - txx);
+    m->yyyy += 4.0f*(m->yyy*y + f.yyy*m->y) + 6.0f*(m->yy*f.yy - tyy);
+    m->xyyy += m->yyy*x + f.yyy*m->x + 3.0f*(m->xyy*y + f.xyy*m->y + m->yy*f.xy + m->xy*f.yy - txy);
+    m->xxxy += m->xxx*y + f.xxx*m->y + 3.0f*(m->xxy*x + f.xxy*m->x + m->xx*f.xy + m->xy*f.xx - txy);
+    m->xxxz += m->xxx*z + f.xxx*m->z + 3.0f*(m->xxz*x + f.xxz*m->x + m->xx*f.xz + m->xz*f.xx - txz);
+    m->yyyz += m->yyy*z + f.yyy*m->z + 3.0f*(m->yyz*y + f.yyz*m->y + m->yy*f.yz + m->yz*f.yy - tyz);
+    m->xxyy += 2.0f*(m->xxy*y + f.xxy*m->y + m->xyy*x + f.xyy*m->x) + m->xx*f.yy + m->yy*f.xx + 4.0f*m->xy*f.xy - txx - tyy;
+    m->xxyz += m->xxy*z + f.xxy*m->z + m->xxz*y + f.xxz*m->y + m->xx*f.yz + m->yz*f.xx + 2.0f*(m->xyz*x + m->xy*f.xz + m->xz*f.xy) - tyz;
+    m->xyyz += m->xyy*z + f.xyy*m->z + m->yyz*x + f.yyz*m->x + m->yy*f.xz + m->xz*f.yy + 2.0f*(m->xyz*y + m->xy*f.yz + m->yz*f.xy) - txz;
     /*
      ** Now shift the Octopole.
      */
-    m->xxx += 3.0f*(m->xx*x - tx);
-    m->xyy += 2.0f*m->xy*y + m->yy*x - tx;
-    m->yyy += 3.0f*(m->yy*y - ty);
-    m->xxy += 2.0f*m->xy*x + m->xx*y - ty;
-    m->xxz += 2.0f*m->xz*x + m->xx*z - tz;
-    m->yyz += 2.0f*m->yz*y + m->yy*z - tz;
-    m->xyz += m->xy*z + m->xz*y + m->yz*x;
+    tx += 0.4f*(f.xx*m->x + f.xy*m->y + f.xz*m->z);
+    ty += 0.4f*(f.xy*m->x + f.yy*m->y + f.yz*m->z);
+    tz += 0.4f*(f.xz*m->x + f.yz*m->y - (f.xx + f.yy)*m->z);
+
+    m->xxx += 3.0f*(m->xx*x + f.xx*m->x - tx);
+    m->xyy += 2.0f*(m->xy*y + f.xy*m->y) + m->yy*x + f.yy*m->x - tx;
+    m->yyy += 3.0f*(m->yy*y + f.yy*m->y - ty);
+    m->xxy += 2.0f*(m->xy*x + f.xy*m->x) + m->xx*y + f.xx*m->y - ty;
+    m->xxz += 2.0f*(m->xz*x + f.xz*m->x) + m->xx*z + f.xx*m->z - tz;
+    m->yyz += 2.0f*(m->yz*y + f.yz*m->y) + m->yy*z + f.yy*m->z - tz;
+    m->xyz += m->xy*z + f.xy*m->z + m->xz*y + f.xz*m->y + m->yz*x + f.yz*m->x;
+    /*
+    ** Now shift the Quadrupole.
+    */
+    tx = m->x*x;
+    ty = m->y*y;
+    t = twothirds*(tx + ty + m->z*z);
+    m->xx += 2.0f*tx - t;
+    m->xy += m->x*y + m->y*x;
+    m->xz += m->x*z + m->z*x;
+    m->yy += 2.0f*ty - t;
+    m->yz += m->y*z + m->z*y;
     /*
      ** Now deal with the monopole terms.
      */
