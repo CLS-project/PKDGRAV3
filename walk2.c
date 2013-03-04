@@ -27,15 +27,6 @@
 #include "moments.h"
 #include "cl.h"
 
-/*
-#ifdef TEST_SOFTENING
-#define HACK_FACTOR 1e10f
-#else
-#define HACK_FACTOR 1.0f
-#endif
-*/
-#define HACK_FACTOR 1.0f
-
 #ifdef USE_DEHNEN_THETA
 double brent(double x1, double x2, double (*my_f)(double v, void *params),void *params) {
     static double EPS = 1e-12;
@@ -218,18 +209,11 @@ static const struct CONSTS {
     v4 one;
     v4 threehalves;
     v4 two;
-#ifdef FIXME
-    v4 foobar;
-#endif
     } consts = {
         {SIMD_CONST(0.0)},
 	{SIMD_CONST(1.0)},
 	{SIMD_CONST(1.5)},
 	{SIMD_CONST(2.0)},
-#ifdef FIXME
-//	{SIMD_CONST(1.4e-05*1.4e-05*4.0)},
-	{SIMD_CONST(4.6e-06*4.6e-06*4.0)},
-#endif
 };
 static const struct ICONSTS {
     i4 zero;
@@ -271,8 +255,11 @@ static union {
 ** This version will also open buckets ("new" criteria)
 */
 static void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin, int nGroup) {
-    v4sf T0,T1,T2,T3,T4,T5,T6,T7,P1,P2,P3,P4;
-    v4sf T,xc,yc,zc,dx,dy,dz,d2,diCrit,fMonopoleThetaFac2,cOpen,cOpen2,d2Open,mink2,minbnd2,fourh2;
+    v4sf T0,T1,T2,T3,T4,T6,T7,P1,P2,P3,P4;
+#ifdef USE_SOFTENED_MONOPOLE
+    v4sf T5,fMonopoleThetaFac2;
+#endif
+    v4sf T,xc,yc,zc,dx,dy,dz,d2,diCrit,cOpen,cOpen2,d2Open,mink2,minbnd2,fourh2;
     int i,n,iEnd,nLeft;
     CL_BLK *blk;
     v4sf iOpen,iOpenA,iOpenB;
@@ -286,7 +273,10 @@ static void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin, i
     assert ( pkdNodeMom(pkd,k)->m > 0.0f );
 
     diCrit = SIMD_SPLAT(1.0f/dThetaMin);
+
+#ifdef USE_SOFTENED_MONOPOLE
     fMonopoleThetaFac2 = SIMD_MUL(diCrit,diCrit);
+#endif
 
     pkdNodeBnd(pkd,k,&kbnd);
     k_xMinBnd = SIMD_SPLAT(kbnd.fCenter[0]-kbnd.fMax[0]);
@@ -315,14 +305,7 @@ static void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin, i
 	iEnd = nLeft ? cl->lst.nPerBlock : tile->lstTile.nInLast;
 	iEnd = (iEnd+SIMD_MASK) >> SIMD_BITS;
 	for(i=0; i<iEnd; ++i) {
-#ifdef TEST_SOFTENING
 	    fourh2 = SIMD_MAX(k_4h2,blk->fourh2.p[i]);
-#else
-	    T = SIMD_OR(SIMD_CMP_GT(blk->m.p[i],consts.zero.p),SIMD_CMP_GT(k_4h2,consts.zero.p));
-	    fourh2 = SIMD_OR(SIMD_AND(T,blk->fourh2.p[i]),SIMD_ANDNOT(T,consts.one.p));
-	    fourh2 = SIMD_DIV(SIMD_MUL(SIMD_MUL(SIMD_ADD(k_m,blk->m.p[i]),k_4h2),fourh2),
-		SIMD_ADD(SIMD_MUL(fourh2,k_m),SIMD_MUL(k_4h2,blk->m.p[i])));
-#endif
 	    xc = SIMD_ADD(blk->x.p[i],blk->xOffset.p[i]);
 	    yc = SIMD_ADD(blk->y.p[i],blk->yOffset.p[i]);
 	    zc = SIMD_ADD(blk->z.p[i],blk->zOffset.p[i]);
@@ -332,7 +315,6 @@ static void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin, i
 	    d2 = SIMD_MADD(dx,dx,SIMD_MADD(dy,dy,SIMD_MUL(dz,dz)));
 	    cOpen = blk->cOpen.p[i];
 	    cOpen2 = SIMD_MUL(cOpen,cOpen);
-	    /*d2Open = SIMD_MUL(consts.two.p,SIMD_MAX(cOpen,k_Open));*/
 	    d2Open = SIMD_ADD(cOpen,k_Open);
 	    d2Open = SIMD_MUL(d2Open,d2Open);
 	    dx = SIMD_SUB(SIMD_AND(const_fabs.p,SIMD_SUB(xc,k_xCenter)),k_xMax);
@@ -371,9 +353,9 @@ static void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin, i
 	    T2 = SIMD_I2F(SIMD_CMP_EQ_EPI32(blk->iLower.p[i],iconsts.zero.p));
 	    T3 = SIMD_OR(SIMD_I2F(SIMD_CMP_GT_EPI32(iconsts.walk_min_multipole.p,blk->nc.p[i])),SIMD_CMP_LE(mink2,cOpen2));
 	    T4 = SIMD_CMP_GT(minbnd2,fourh2);
-#ifdef FIXME
-	    T5 = SIMD_AND(SIMD_CMP_GT(mink2,SIMD_MUL(fMonopoleThetaFac2,cOpen2)),SIMD_CMP_GT(consts.foobar.p,fourh2));
-#else
+
+
+#ifdef USE_SOFTENED_MONOPOLE
 	    T5 = SIMD_CMP_GT(mink2,SIMD_MUL(fMonopoleThetaFac2,cOpen2));
 #endif
 	    T6 = SIMD_CMP_GT(cOpen,k_Open);
@@ -381,12 +363,13 @@ static void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin, i
 	    iOpenA = SIMD_OR(SIMD_AND(T2,iconsts.one.pf),SIMD_ANDNOT(T2,iconsts.three.pf));
 	    iOpenB = SIMD_OR(SIMD_AND(T3,iOpenA),SIMD_ANDNOT(T3,
 		    SIMD_OR(SIMD_AND(T4,iconsts.four.pf),SIMD_ANDNOT(T4,
-			    SIMD_OR(SIMD_AND(T5,iconsts.five.pf),SIMD_ANDNOT(T5,iOpenA))))));
-#ifdef NEW_OPENING_CRIT
-	    P1 = SIMD_OR(SIMD_AND(T2,iconsts.two.pf),SIMD_ANDNOT(T2,iconsts.three.pf));
+#ifdef USE_SOFTENED_MONOPOLE
+			    SIMD_OR(SIMD_AND(T5,iconsts.five.pf),SIMD_ANDNOT(T5,iOpenA))
 #else
-	    P1 = SIMD_OR(SIMD_AND(T2,iOpenB),SIMD_ANDNOT(T2,iconsts.three.pf));
+			    iOpenA
 #endif
+	    ))));
+	    P1 = SIMD_OR(SIMD_AND(T2,iconsts.two.pf),SIMD_ANDNOT(T2,iconsts.three.pf));
 	    P2 = SIMD_OR(SIMD_AND(T7,iconsts.zero.pf),SIMD_ANDNOT(T7,iOpenB));
 	    P3 = SIMD_OR(SIMD_AND(T6,P1),SIMD_ANDNOT(T6,P2));
 	    P4 = SIMD_OR(SIMD_AND(T1,iconsts.eight.pf),SIMD_ANDNOT(T1,P3));
@@ -397,93 +380,6 @@ static void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin, i
     }
 
 #endif
-//#else
-
-/*
-** This implements the original pkdgrav2m opening criterion, which has been
-** well tested, gives good force accuracy, but may not be the most efficient
-** and also doesn't explicitly conserve momentum.
-*/
-static void iOpenOutcomeOldCL(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin, int nGroup) {
-    const float fMonopoleThetaFac2 = HACK_FACTOR * 1.6f * 1.6f;
-    const int walk_min_multipole = 3;
-
-    float dx,dy,dz,mink2,d2,d2Open,xc,yc,zc,k_fourh2,fourh2,minbnd2,kOpen,cOpen,diCrit;
-    int j,i,nk;
-    int iOpen,iOpenA,iOpenB;
-    CL_BLK *blk;
-    int n, nLeft;
-    pBND kbnd;
-
-    pkdNodeBnd(pkd,k,&kbnd);
-    nk = k->pUpper - k->pLower + 1;
-    k_fourh2 = 4.0f * k->fSoft2;
-
-    blk = tile->blk;
-    for(nLeft=tile->lstTile.nBlocks; nLeft>=0; --nLeft,blk++) {
-	n = nLeft ? cl->lst.nPerBlock : tile->lstTile.nInLast;
-	for(i=0; i<n; ++i) {
-	    if (blk->m.f[i] <= 0) iOpen = 10;  /* ignore this cell */
-	    else {
-#ifdef TEST_SOFTENING
-		fourh2 = fmax(k_fourh2,blk->fourh2.f[i]);
-#else
-		fourh2 = softmassweight(pkdNodeMom(pkd,k)->m,k_fourh2,blk->m.f[i],blk->fourh2.f[i]);
-#endif
-		xc = blk->x.f[i] + blk->xOffset.f[i];
-		yc = blk->y.f[i] + blk->yOffset.f[i];
-		zc = blk->z.f[i] + blk->zOffset.f[i];
-		d2 = pow(k->r[0]-xc,2) + pow(k->r[1]-yc,2) + pow(k->r[2]-zc,2);
-		diCrit = 1.0 / dThetaMin;
-		kOpen = 1.5*k->bMax*diCrit;
-		cOpen = blk->cOpen.f[i];
-		/*d2Open = pow(2.0*fmax(cOpen,kOpen),2);*/
-		d2Open = pow(cOpen+kOpen,2);
-		dx = fabs(xc - kbnd.fCenter[0]) - kbnd.fMax[0];
-		dy = fabs(yc - kbnd.fCenter[1]) - kbnd.fMax[1];
-		dz = fabs(zc - kbnd.fCenter[2]) - kbnd.fMax[2];
-		mink2 = ((dx>0)?dx*dx:0) + ((dy>0)?dy*dy:0) + ((dz>0)?dz*dz:0);
-		minbnd2 = 0;
-
-		dx = kbnd.fCenter[0] - kbnd.fMax[0] -  blk->xCenter.f[i] - blk->xOffset.f[i] - blk->xMax.f[i];
-		if (dx > 0) minbnd2 += dx*dx;
-		dx = blk->xCenter.f[i] + blk->xOffset.f[i] - blk->xMax.f[i] - kbnd.fCenter[0] - kbnd.fMax[0];
-		if (dx > 0) minbnd2 += dx*dx;
-
-		dx = kbnd.fCenter[1] - kbnd.fMax[1] - blk->yCenter.f[i] - blk->yOffset.f[i] - blk->yMax.f[i];
-		if (dx > 0) minbnd2 += dx*dx;
-		dx = blk->yCenter.f[i] + blk->yOffset.f[i] - blk->yMax.f[i] - kbnd.fCenter[1] - kbnd.fMax[1];
-		if (dx > 0) minbnd2 += dx*dx;
-
-		dx = kbnd.fCenter[2] - kbnd.fMax[2] - blk->zCenter.f[i] - blk->zOffset.f[i] - blk->zMax.f[i];
-		if (dx > 0) minbnd2 += dx*dx;
-		dx = blk->zCenter.f[i] + blk->zOffset.f[i] - blk->zMax.f[i] - kbnd.fCenter[2] - kbnd.fMax[2];
-		if (dx > 0) minbnd2 += dx*dx;
-
-		if (d2 > d2Open && minbnd2 > fourh2) iOpen = 8;
-		else {
-		    if (blk->iLower.i[i] == 0) iOpenA = 1;
-		    else iOpenA = 3;
-		    if (blk->nc.i[i] < walk_min_multipole || mink2 <= cOpen*cOpen) iOpenB = iOpenA;
-		    else if (minbnd2 > fourh2) iOpenB = 4;
-		    else if (mink2 > fMonopoleThetaFac2*cOpen*cOpen) iOpenB = 5;
-		    else iOpenB = iOpenA;
-		    if (cOpen > kOpen) {
-			if (blk->iLower.i[i]) iOpen = 3;
-			else iOpen = iOpenB;
-			}
-		    else {
-/*		    if (k->iLower) iOpen = 0;*/
-			if (nk>nGroup) iOpen = 0;
-			else iOpen = iOpenB;
-			}
-		    }
-		}
-	    blk->iOpen.i[i] = iOpen;
-	    }
-	}
-    }
-
 /*
 ** This implements the original pkdgrav2m opening criterion, which has been
 ** well tested, gives good force accuracy, but may not be the most efficient
@@ -491,10 +387,12 @@ static void iOpenOutcomeOldCL(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin, 
 **
 ** This version has been changed by adding the ability to open buckets.
 */
-static void iOpenOutcomeNewCL(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin,int nGroup) {
+static void iOpenOutcomeCL(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin,int nGroup) {
     const int walk_min_multipole = 3;
 
+#ifdef USE_SOFTENED_MONOPOLE
     float fMonopoleThetaFac2;
+#endif
     float dx,dy,dz,mink2,d2,d2Open,xc,yc,zc,k_fourh2,fourh2,minbnd2,kOpen,cOpen,diCrit;
     int j,i,nk;
     int iOpen,iOpenA,iOpenB;
@@ -507,26 +405,22 @@ static void iOpenOutcomeNewCL(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin,i
     k_fourh2 = 4.0f * k->fSoft2;
 
     diCrit = 1.0f / dThetaMin;
+#ifdef USE_SOFTENED_MONOPOLE
     fMonopoleThetaFac2 = diCrit * diCrit;
-
+#endif
     blk = tile->blk;
     for(nLeft=tile->lstTile.nBlocks; nLeft>=0; --nLeft,blk++) {
 	n = nLeft ? cl->lst.nPerBlock : tile->lstTile.nInLast;
 	for(i=0; i<n; ++i) {
 	    if (blk->m.f[i] <= 0) iOpen = 10;  /* ignore this cell */
 	    else {
-#ifdef TEST_SOFTENING
 		fourh2 = fmax(k_fourh2,blk->fourh2.f[i]);
-#else
-		fourh2 = softmassweight(pkdNodeMom(pkd,k)->m,k_fourh2,blk->m.f[i],blk->fourh2.f[i]);
-#endif
 		xc = blk->x.f[i] + blk->xOffset.f[i];
 		yc = blk->y.f[i] + blk->yOffset.f[i];
 		zc = blk->z.f[i] + blk->zOffset.f[i];
 		d2 = pow(k->r[0]-xc,2) + pow(k->r[1]-yc,2) + pow(k->r[2]-zc,2);
 		kOpen = 1.5f * k->bMax * diCrit;
 		cOpen = blk->cOpen.f[i];
-		/*d2Open = pow(2.0*fmax(cOpen,kOpen),2);*/
 		d2Open = pow(cOpen+kOpen,2);
 		dx = fabs(xc - kbnd.fCenter[0]) - kbnd.fMax[0];
 		dy = fabs(yc - kbnd.fCenter[1]) - kbnd.fMax[1];
@@ -559,9 +453,7 @@ static void iOpenOutcomeNewCL(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin,i
 		    else iOpenA = 3;
 		    if (blk->nc.i[i] < walk_min_multipole || mink2 <= cOpen*cOpen) iOpenB = iOpenA;
 		    else if (minbnd2 > fourh2) iOpenB = 4;
-#ifdef FIXME
-		    else if (mink2 > fMonopoleThetaFac2*cOpen*cOpen && fourh2 < 1.4e-05 /*globalMinFourh2plus1percent*/) iOpenB = 5;
-#else
+#ifdef USE_SOFTENED_MONOPOLE
 		    else if (mink2 > fMonopoleThetaFac2*cOpen*cOpen) iOpenB = 5;
 #endif
 		    else iOpenB = iOpenA;
@@ -582,210 +474,6 @@ static void iOpenOutcomeNewCL(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin,i
 	    }
 	}
     }
-
-/*
-** This doesn't work.
-*/
-static void iOpenOutcomeExperemental(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin,int nGroup) {
-    const float fMonopoleThetaFac2 = 1.6f * 1.6f;
-    const int walk_min_multipole = 3;
-
-    float dx,dy,dz,mink2,minc2,d2,d2Open,xc,yc,zc,fourh2,minbnd2,kOpen,cOpen,diCrit;
-    int j,i,nk;
-    int iOpen,iOpenA,iOpenB, T1;
-    CL_BLK *blk;
-    int n, nLeft;
-    pBND kbnd;
-
-    pkdNodeBnd(pkd,k,&kbnd);
-    nk = k->pUpper - k->pLower + 1;
-
-    blk = tile->blk;
-    for(nLeft=tile->lstTile.nBlocks; nLeft>=0; --nLeft,blk++) {
-	n = nLeft ? cl->lst.nPerBlock : tile->lstTile.nInLast;
-	for(i=0; i<n; ++i) {
-	    T1 = (blk->iCell.i[i] < 0);
-	    if (blk->m.f[i] <= 0) iOpen = 10;  /* ignore this cell */
-	    else {
-		fourh2 = softmassweight(pkdNodeMom(pkd,k)->m,4*k->fSoft2,blk->m.f[i],blk->fourh2.f[i]);
-		diCrit = 1.0 / dThetaMin;
-		kOpen = 1.5*k->bMax*diCrit;
-		if (T1) {
-		    dx = fabs(k->r[0] - blk->xCenter.f[i] - blk->xOffset.f[i]) - blk->xMax.f[i];
-		    dy = fabs(k->r[1] - blk->yCenter.f[i] - blk->yOffset.f[i]) - blk->yMax.f[i];
-		    dz = fabs(k->r[2] - blk->zCenter.f[i] - blk->zOffset.f[i]) - blk->zMax.f[i];
-		    minc2 = ((dx>0)?dx*dx:0) + ((dy>0)?dy*dy:0) + ((dz>0)?dz*dz:0);	
-		    if (k->iLower == 0) iOpenA = 1;
-		    else iOpenA = 0;
-		    if (minc2 <= kOpen*kOpen) iOpen = iOpenA;  /* this cell simply stays on the checklist */
-		    else if (minc2 > fourh2) iOpen = 6;  /* Add particles of C to local expansion */
-		    else if (minc2 > fMonopoleThetaFac2*kOpen*kOpen) iOpen = 7;
-		    else iOpen = iOpenA;
-		    }
-		else {
-		    xc = blk->x.f[i] + blk->xOffset.f[i];
-		    yc = blk->y.f[i] + blk->yOffset.f[i];
-		    zc = blk->z.f[i] + blk->zOffset.f[i];
-		    d2 = pow(k->r[0]-xc,2) + pow(k->r[1]-yc,2) + pow(k->r[2]-zc,2);
-		    cOpen = blk->cOpen.f[i];
-		    d2Open = pow(2.0*fmax(cOpen,kOpen),2);
-		    dx = fabs(xc - kbnd.fCenter[0]) - kbnd.fMax[0];
-		    dy = fabs(yc - kbnd.fCenter[1]) - kbnd.fMax[1];
-		    dz = fabs(zc - kbnd.fCenter[2]) - kbnd.fMax[2];
-		    mink2 = ((dx>0)?dx*dx:0) + ((dy>0)?dy*dy:0) + ((dz>0)?dz*dz:0);
-		    minbnd2 = 0;
-
-		    dx = kbnd.fCenter[0] - kbnd.fMax[0] -  blk->xCenter.f[i] - blk->xOffset.f[i] - blk->xMax.f[i];
-		    if (dx > 0) minbnd2 += dx*dx;
-		    dx = blk->xCenter.f[i] + blk->xOffset.f[i] - blk->xMax.f[i] - kbnd.fCenter[0] - kbnd.fMax[0];
-		    if (dx > 0) minbnd2 += dx*dx;
-
-		    dx = kbnd.fCenter[1] - kbnd.fMax[1] - blk->yCenter.f[i] - blk->yOffset.f[i] - blk->yMax.f[i];
-		    if (dx > 0) minbnd2 += dx*dx;
-		    dx = blk->yCenter.f[i] + blk->yOffset.f[i] - blk->yMax.f[i] - kbnd.fCenter[1] - kbnd.fMax[1];
-		    if (dx > 0) minbnd2 += dx*dx;
-
-		    dx = kbnd.fCenter[2] - kbnd.fMax[2] - blk->zCenter.f[i] - blk->zOffset.f[i] - blk->zMax.f[i];
-		    if (dx > 0) minbnd2 += dx*dx;
-		    dx = blk->zCenter.f[i] + blk->zOffset.f[i] - blk->zMax.f[i] - kbnd.fCenter[2] - kbnd.fMax[2];
-		    if (dx > 0) minbnd2 += dx*dx;
-
-		    if (blk->iLower.i[i] == 0) iOpenA = 2; /* add this cell as an "opened" bucket */
-		    else iOpenA = 3; /* open this cell and add its children to the checklist */
-		    /*
-		    ** iOpenB handles all cases where a C-C interaction is NOT acceptable.
-		    */
-		    if (cOpen > kOpen) iOpenB = iOpenA;
-		    else if (k->iLower != 0) iOpenB = 0; /* keep this cell on the checklist */
-		    else if (mink2 <= cOpen*cOpen) iOpenB = iOpenA;
-		    else if (minbnd2 > fourh2) iOpenB = 4; /* add this cell to the P-C list */
-		    else if (mink2 > fMonopoleThetaFac2*cOpen*cOpen) iOpenB = 5; /* use this cell as a softened monopole */
-		    else iOpenB = iOpenA;
-		    //else if (blk->iLower.i[i] == 0) iOpenB = 1; /* open the bucket P-P */
-		    //else iOpenB = 3; /* open this cell and add its children to the checklist */
-
-		    if (d2 <= d2Open) iOpen = iOpenB;
-		    else if (minbnd2 > fourh2) iOpen = 8;
-		    else if (d2 > fMonopoleThetaFac2*d2Open) iOpen = 9; /* it is absolutely critical to include this case for large softening */
-		    else iOpen = iOpenB;
-		    }
-		}
-	    blk->iOpen.i[i] = iOpen;
-	    }
-	}
-    }
-//#endif
-
-
-#if 0
-/*
-** This implements the original pkdgrav Barnes Hut opening criterion.
-*/
-static inline int iOpenOutcomeBarnesHut(PKD pkd,KDN *k,CELT *check,KDN **pc,float dThetaMin) {
-    const int walk_min_multipole = 3;
-    double dMin,dMax,min2,max2,d2,fourh2,cOpen2;
-    KDN *c;
-    int iCell,nc;
-    int iOpenA;
-    int j;
-    pBND kbnd;
-
-    assert(check->iCell > 0);
-    iCell = check->iCell;
-    if (check->id == pkd->idSelf) {
-	c = pkdTreeNode(pkd,iCell);
-	nc = c->pUpper - c->pLower + 1;
-	}
-    else if (check->id < 0) {
-        c = pkdTopNode(pkd,iCell);
-	assert(c->iLower != 0);
-	nc = walk_min_multipole-1; /* we never allow pp with this cell */
-	}
-    else {
-	c = CAST(KDN *,mdlAquire(pkd->mdl,CID_CELL,iCell,check->id));
-	nc = c->pUpper - c->pLower + 1;
-	}
-
-    pkdNodeBnd(pkd, k, &kbnd);
-    *pc = c;
-
-    cOpen2 = c->bMax * c->bMax / (dThetaMin*dThetaMin);
-
-    if (c->iLower == 0) iOpenA = 1;
-    else iOpenA = 3;
-
-    if (pkdNodeMom(pkd,c)->m <= 0) return(10);  /* ignore this cell */
-    else if (k->iLower) {
-	/*
-	** If this cell is not a bucket calculate the min distance
-	** from the center of mass of the check cell to the bounding
-	** box of the cell we are calculating gravity on. We also
-	** calculate the size of the ball (from checkcell CM) which
-	** just contains the this cell (radius^2 given by max2).
-	*/
-	min2 = 0;
-	max2 = 0;
-	for (j=0;j<3;++j) {
-	    dMin = fabs(c->r[j] + check->rOffset[j] - kbnd.fCenter[j]);
-	    dMax = dMin + kbnd.fMax[j];
-	    dMin -= kbnd.fMax[j];
-	    if (dMin > 0) min2 += dMin*dMin;
-	    max2 += dMax*dMax;
-	    }
-	if (max2 <= cOpen2) return(iOpenA); /* open it for all particles of c */
-	else if (min2 > cOpen2) {
-	    /*
-	    ** For symmetrized softening we need to calculate the distance between
-	    ** center of mass between the two cells.
-	    */
-	    d2 = 0;
-	    for (j=0;j<3;++j) {
-		d2 += pow(c->r[j] + check->rOffset[j] - k->r[j],2);
-		}
-	    fourh2 = softmassweight(pkdNodeMom(pkd,k)->m,4*k->fSoft2,pkdNodeMom(pkd,c)->m,4*c->fSoft2);
-	    if (d2 > fourh2) {
-		if (nc >= walk_min_multipole) return(4);  /* accept multipole */
-		else return(iOpenA);  /* open the cell for performance reasons */
-		}
-	    else return(0);   /* in all other cases we can't decide until we get down to a bucket */
-	    }
-	else return(0);
-	}
-    else {
-	/*
-	** If this cell is a bucket we have to either open the checkcell
-	** and get the particles, or accept the multipole. For this
-	** reason we only need to calculate min2.
-	*/
-	min2 = 0;
-	for (j=0;j<3;++j) {
-	    dMin = fabs(c->r[j] + check->rOffset[j] - kbnd.fCenter[j]);
-	    dMin -= kbnd.fMax[j];
-	    if (dMin > 0) min2 += dMin*dMin;
-	    }
-	/*
-	** By default we open the cell!
-	*/
-	if (min2 > cOpen2) {
-	    /*
-	    ** For symmetrized softening we need to calculate the distance between
-	    ** center of mass between the two cells.
-	    */
-	    d2 = 0;
-	    for (j=0;j<3;++j) {
-		d2 += pow(c->r[j] + check->rOffset[j] - k->r[j],2);
-		}
-	    fourh2 = softmassweight(pkdNodeMom(pkd,k)->m,4*k->fSoft2,pkdNodeMom(pkd,c)->m,4*c->fSoft2);
-	    if (d2 > fourh2) {
-		if (nc >= walk_min_multipole) return(4);  /* accept multipole */
-		else return(iOpenA);  /* open the cell for performance reasons */
-		}
-	    else return(5); /* means we treat this cell as a softened monopole */
-	    }
-	else return(iOpenA);  /* open the cell */
-	}
-    }
-#endif
 
 /*
 ** Returns total number of active particles for which gravity was calculated.
@@ -937,11 +625,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot, u
 		    iOpenOutcomeSIMD(pkd,k,pkd->cl,cltile,dThetaMin,nGroup);
 		    /*Verify:iOpenOutcomeNewCL(pkd,k,pkd->cl,cltile,dThetaMin);*/
 #else
-#ifdef NEW_OPENING_CRIT
-		    iOpenOutcomeNewCL(pkd,k,pkd->cl,cltile,dThetaMin,nGroup);
-#else
-		    iOpenOutcomeOldCL(pkd,k,pkd->cl,cltile,dThetaMin,nGroup);
-#endif
+		    iOpenOutcomeCL(pkd,k,pkd->cl,cltile,dThetaMin,nGroup);
 #endif
 #else
 		    assert(NULL);
@@ -1143,6 +827,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot, u
 				    if (id != -1 && id != pkd->idSelf) mdlRelease(pkd->mdl,CID_CELL,c);
 				    }
 				break;
+#ifdef USE_SOFTENED_MONOPOLE
 			    case 5:
 				/*
 				** We accept this multipole from the opening criterion, but it is a softened
@@ -1184,6 +869,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot, u
 				    if (id != -1 && id != pkd->idSelf) mdlRelease(pkd->mdl,CID_CELL,c);
 				    }
 				break;
+#endif
 			    case 6:
 				/*
 				** This is accepting an "opened" bucket's particles as monopoles for the
@@ -1400,6 +1086,8 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot, u
 				** This checkcell is removed from the checklist since it has zero/negative mass.
 				*/
 				break;		
+			    default:
+				assert(0);
 				}
 			    }
 			}

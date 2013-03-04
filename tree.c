@@ -125,7 +125,6 @@ void BuildTemp(PKD pkd,int iNode,int M) {
     KDN *pLeft, *pRight;
     PLITE t;
     FLOAT fSplit;
-    FLOAT ls;
     int *S;		/* this is the stack */
     int s,ns;
     int iLeft,iRight;
@@ -298,7 +297,6 @@ void BuildTemp(PKD pkd,int iNode,int M) {
 	    if (d >= 0 && d < 3) bnd.fMax[d] *= 0.5;
 	    if (nl > 0) {
 		if (d >= 0 && d < 3) bnd.fCenter[d] -= bnd.fMax[d];
-		MAXSIDE(bnd.fMax,ls);
 		lc = (nl > M); /* this condition means the node is not a bucket */
 		if (!lc) {
 		    pNode->iLower = 0;
@@ -389,14 +387,10 @@ void Create(PKD pkd,int iNode) {
     double *v;
     int pj,d,nDepth,ism;
     const int nMaxStackIncrease = 1;
-    int bSoftZero = 0;
 
     nDepth = 1;
     while (1) {
 	while (pkdTreeNode(pkd,iNode)->iLower) {
-/*
-	    printf("%2d:%d\n",nDepth,iNode);
-*/
 	    iNode = pkdTreeNode(pkd,iNode)->iLower;
 	    ++nDepth;
 	    /*
@@ -414,9 +408,6 @@ void Create(PKD pkd,int iNode) {
 		pkd->nMaxStack += nMaxStackIncrease;
 		}
 	    }
-/*
-	printf("%2d:%d\n",nDepth,iNode);
-*/
 	/*
 	** Now calculate all bucket quantities!
 	** This includes M,CoM,Moments and special
@@ -463,16 +454,7 @@ void Create(PKD pkd,int iNode) {
 	fSoft = pkdSoft(pkd,p);
 	v = pkd->oVelocity ? pkdVel(pkd,p) : zeroV;
 	fMass = m;
-	if(fSoft == 0.0) {
-	    dih2 = 0.0;
-	    bSoftZero = 1;
-	    }
-	else
-#if defined(TEST_SOFTENING)
-	    dih2 = fSoft;
-#else
-	    dih2 = m/(fSoft*fSoft);
-#endif
+	dih2 = fSoft;
 	x = m*p->r[0];
 	y = m*p->r[1];
 	z = m*p->r[2];
@@ -492,14 +474,7 @@ void Create(PKD pkd,int iNode) {
 	    fSoft = pkdSoft(pkd,p);
 	    v = pkd->oVelocity ? pkdVel(pkd,p) : zeroV;
 	    fMass += m;
-	    if(fSoft == 0.0)
-		bSoftZero = 1;
-	    else
-#if defined(TEST_SOFTENING)
 	    if (fSoft>dih2) dih2=fSoft;
-#else
-		dih2 += m/(fSoft*fSoft);
-#endif
 	    x += m*p->r[0];
 	    y += m*p->r[1];
 	    z += m*p->r[2];
@@ -539,17 +514,7 @@ void Create(PKD pkd,int iNode) {
 	    pAcc[1] = m*ay;
 	    pAcc[2] = m*az;
 	    }
-	if(bSoftZero)
-	    pkdn->fSoft2 = 0.0;
-	else {
-#if defined(TEST_SOFTENING)
-	    pkdn->fSoft2 = dih2*dih2;
-#else
-	    pkdn->fSoft2 = 1/(dih2*m);
-#endif
-	    }
-
-	//	d2Max = bmin*bmin;
+	pkdn->fSoft2 = dih2*dih2;
 	d2Max = 0.0;
 	for (pj=pkdn->pLower;pj<=pkdn->pUpper;++pj) {
 	    p = pkdParticle(pkd,pj);
@@ -733,14 +698,7 @@ void pkdCombineCells1(PKD pkd,KDN *pkdn,KDN *p1,KDN *p2) {
 	    pkdNodeAccel(pkd,pkdn)[j]
 		= ifMass*(m1*pkdNodeAccel(pkd,p1)[j] + m2*pkdNodeAccel(pkd,p2)[j]);
 	}
-    if(p1->fSoft2 == 0.0 || p2->fSoft2 == 0.0)
-	pkdn->fSoft2 = 0.0;
-    else
-#if defined(TEST_SOFTENING)
-	pkdn->fSoft2 = p1->fSoft2 > p2->fSoft2 ? p1->fSoft2 : p2->fSoft2;
-#else
-    	pkdn->fSoft2 = 1.0/(ifMass*(m1/p1->fSoft2 + m2/p2->fSoft2));
-#endif
+    pkdn->fSoft2 = p1->fSoft2 > p2->fSoft2 ? p1->fSoft2 : p2->fSoft2;
     pkdn->uMinRung = p1->uMinRung < p2->uMinRung ? p1->uMinRung : p2->uMinRung;
     pkdn->uMaxRung = p1->uMaxRung > p2->uMaxRung ? p1->uMaxRung : p2->uMaxRung;
     pkdn->bDstActive = p1->bDstActive || p2->bDstActive;

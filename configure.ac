@@ -517,8 +517,6 @@ if test "x$USE_SIMD_MOMR" = "xyes" ; then
  	[Define if SIMD optimizations should be used for MOMRs.])
 fi
 
-AC_DEFINE([NEW_OPENING_CRIT],1,[Use the new opening criteria])
-AC_DEFINE([TEST_SOFTENING],1,[Use the experimental softening in opening criteria])
 AM_CONDITIONAL(USE_SIMD, test "x$USE_SIMD" != "xno")
 AM_CONDITIONAL(USE_SIMD_OPEN,test "x$USE_SIMD_OPEN" != "xno")
 AM_CONDITIONAL(USE_SIMD_PP,test "x$USE_SIMD_PP" != "xno")
