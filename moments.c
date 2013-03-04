@@ -507,8 +507,8 @@ void momShiftFmomr(FMOMR *m,float u,float x,float y,float z) {
     m->xxxz += m->xxx*z + f.xxx*m->z + 3.0f*(m->xxz*x + f.xxz*m->x + m->xx*f.xz + m->xz*f.xx - txz);
     m->yyyz += m->yyy*z + f.yyy*m->z + 3.0f*(m->yyz*y + f.yyz*m->y + m->yy*f.yz + m->yz*f.yy - tyz);
     m->xxyy += 2.0f*(m->xxy*y + f.xxy*m->y + m->xyy*x + f.xyy*m->x) + m->xx*f.yy + m->yy*f.xx + 4.0f*m->xy*f.xy - txx - tyy;
-    m->xxyz += m->xxy*z + f.xxy*m->z + m->xxz*y + f.xxz*m->y + m->xx*f.yz + m->yz*f.xx + 2.0f*(m->xyz*x + m->xy*f.xz + m->xz*f.xy) - tyz;
-    m->xyyz += m->xyy*z + f.xyy*m->z + m->yyz*x + f.yyz*m->x + m->yy*f.xz + m->xz*f.yy + 2.0f*(m->xyz*y + m->xy*f.yz + m->yz*f.xy) - txz;
+    m->xxyz += m->xxy*z + f.xxy*m->z + m->xxz*y + f.xxz*m->y + m->xx*f.yz + m->yz*f.xx + 2.0f*(m->xyz*x + f.xyz*m->x + m->xy*f.xz + m->xz*f.xy) - tyz;
+    m->xyyz += m->xyy*z + f.xyy*m->z + m->yyz*x + f.yyz*m->x + m->yy*f.xz + m->xz*f.yy + 2.0f*(m->xyz*y + f.xyz*m->y + m->xy*f.yz + m->yz*f.xy) - txz;
     /*
      ** Now shift the Octopole.
      */
