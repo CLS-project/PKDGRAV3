@@ -58,11 +58,7 @@ __global__ void cudaPP( int nP, PINFOIN *in, int nPart, ILP_BLK *blk, PINFOOUT *
         d2 = dx*dx + dy*dy + dz*dz;
 
         m = blk->m.f[threadIdx.x];
-        h2 = blk->fourh2.f[threadIdx.x];
-
-        fSoft = in[i].fSoft;
-        fMass = in[i].fMass;
-        fourh2 = MWS(fMass,4.0f*fSoft*fSoft,m,h2);
+        fourh2 = blk->fourh2.f[threadIdx.x];
         if (d2 != 0.0f ) { /* Ignore self interactions */
             if (d2 > fourh2) fourh2 = d2;
             dir = rsqrtf(fourh2);

@@ -266,7 +266,7 @@ static void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin, i
     pBND kbnd;
     v4sf k_xCenter, k_yCenter, k_zCenter, k_xMax, k_yMax, k_zMax;
     v4sf k_xMinBnd, k_yMinBnd, k_zMinBnd, k_xMaxBnd, k_yMaxBnd, k_zMaxBnd;
-    v4sf k_x, k_y, k_z, k_m, k_4h2, k_bMax, k_Open;
+    v4sf k_x, k_y, k_z, k_m, k_bMax, k_Open;
     v4i  k_nk;
     i4 k_nGroup = {SIMD_CONST(nGroup)};
 
@@ -295,7 +295,6 @@ static void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin, i
     k_y = SIMD_SPLAT(k->r[1]);
     k_z = SIMD_SPLAT(k->r[2]);
     k_m = SIMD_SPLAT(pkdNodeMom(pkd,k)->m);
-    k_4h2 = SIMD_SPLAT(4.0f*k->fSoft2);
     k_bMax = SIMD_SPLAT(k->bMax);
     k_nk = SIMD_SPLATI32(k->pUpper-k->pLower+1);
     k_Open = SIMD_MUL(consts.threehalves.p,SIMD_MUL(k_bMax,diCrit));
@@ -305,7 +304,7 @@ static void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin, i
 	iEnd = nLeft ? cl->lst.nPerBlock : tile->lstTile.nInLast;
 	iEnd = (iEnd+SIMD_MASK) >> SIMD_BITS;
 	for(i=0; i<iEnd; ++i) {
-	    fourh2 = SIMD_MAX(k_4h2,blk->fourh2.p[i]);
+	    fourh2 = blk->fourh2.p[i];
 	    xc = SIMD_ADD(blk->x.p[i],blk->xOffset.p[i]);
 	    yc = SIMD_ADD(blk->y.p[i],blk->yOffset.p[i]);
 	    zc = SIMD_ADD(blk->z.p[i],blk->zOffset.p[i]);
@@ -393,7 +392,7 @@ static void iOpenOutcomeCL(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin,int 
 #ifdef USE_SOFTENED_MONOPOLE
     float fMonopoleThetaFac2;
 #endif
-    float dx,dy,dz,mink2,d2,d2Open,xc,yc,zc,k_fourh2,fourh2,minbnd2,kOpen,cOpen,diCrit;
+    float dx,dy,dz,mink2,d2,d2Open,xc,yc,zc,fourh2,minbnd2,kOpen,cOpen,diCrit;
     int j,i,nk;
     int iOpen,iOpenA,iOpenB;
     CL_BLK *blk;
@@ -402,7 +401,6 @@ static void iOpenOutcomeCL(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin,int 
 
     pkdNodeBnd(pkd,k,&kbnd);
     nk = k->pUpper - k->pLower + 1;
-    k_fourh2 = 4.0f * k->fSoft2;
 
     diCrit = 1.0f / dThetaMin;
 #ifdef USE_SOFTENED_MONOPOLE
@@ -414,7 +412,7 @@ static void iOpenOutcomeCL(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin,int 
 	for(i=0; i<n; ++i) {
 	    if (blk->m.f[i] <= 0) iOpen = 10;  /* ignore this cell */
 	    else {
-		fourh2 = fmax(k_fourh2,blk->fourh2.f[i]);
+		fourh2 = blk->fourh2.f[i];
 		xc = blk->x.f[i] + blk->xOffset.f[i];
 		yc = blk->y.f[i] + blk->yOffset.f[i];
 		zc = blk->z.f[i] + blk->zOffset.f[i];

@@ -201,24 +201,11 @@ int CPUdoWorkPP(void *vpp) {
 	    pdy = SIMD_ADD(blk->dy.p[j],pfy);
 	    pdz = SIMD_ADD(blk->dz.p[j],pfz);
 	    pd2 = SIMD_MADD(pdz,pdz,SIMD_MADD(pdy,pdy,SIMD_MUL(pdx,pdx)));
-	    vcmp = SIMD_CMP_GT(blk->fourh2.p[j],consts.zero.p);
-	    msk = SIMD_ALL_ZERO(vcmp); /* softenings are not zero */
-	    if(msk) {
-		t1 = SIMD_MUL(SIMD_ADD(pmass,blk->m.p[j]),SIMD_MUL(p4soft2,blk->fourh2.p[j]));
-		t2 = SIMD_ADD(SIMD_MUL(blk->fourh2.p[j],pmass),SIMD_MUL(p4soft2,blk->m.p[j]));
-#if defined(__SSE2__) || defined(__ALTIVEC__)
-		pfourh2 = SIMD_RE_EXACT(t2);
-		pfourh2 = SIMD_MUL(pfourh2,t1);
-#else
-		pfourh2 = SIMD_DIV(t1,t2);
-#endif
-		vcmp = SIMD_CMP_LT(pd2,pfourh2);
-		td2 = SIMD_MAX(pd2,pfourh2);
-		msk = SIMD_ALL_ZERO(vcmp);  /* zero means nothing is softened - optimization */
-		}
-	    else {
-		td2 = pd2;
-		}
+
+	    pfourh2 = blk->fourh2.p[j];
+	    vcmp = SIMD_CMP_LT(pd2,pfourh2);
+	    td2 = SIMD_MAX(pd2,pfourh2);
+	    msk = SIMD_ALL_ZERO(vcmp);  /* zero means nothing is softened - optimization */
 
 	    pir = SIMD_RSQRT_EXACT(td2);
 	    pir2 = SIMD_MUL(pir,pir);
@@ -284,8 +271,7 @@ int CPUdoWorkPP(void *vpp) {
 	    dx = fx + blk->dx.f[j];
 	    dy = fy + blk->dy.f[j];
 	    dz = fz + blk->dz.f[j];
-	    fourh2 = softmassweight(fMass,4*fSoft*fSoft,
-		blk->m.f[j],blk->fourh2.f[j]);
+	    fourh2 = blk->fourh2.f[j]);
 	    d2 = dx*dx + dy*dy + dz*dz;
 	    if (d2==0.0) continue; //dir2 = 0.0;
 	    if (d2 > fourh2) {
