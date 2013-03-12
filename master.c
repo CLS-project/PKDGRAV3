@@ -831,6 +831,10 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
 
     msr->param.bAccelStep = 0;
 
+#ifndef USE_DIAPOLE
+    msr->param.bCenterOfMassExpand = 1;
+#endif
+
     /*
     ** Set the box center to (0,0,0) for now!
     */

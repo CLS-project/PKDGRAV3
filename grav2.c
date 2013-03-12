@@ -519,13 +519,21 @@ int CPUdoWorkPC(void *vpc) {
 	    xy = SIMD_MUL(g2,SIMD_MADD(blk->yy.p[j],y,SIMD_MADD(blk->xy.p[j],x,SIMD_MUL(blk->yz.p[j],z))));
 	    xz = SIMD_MUL(g2,SIMD_NMSUB(SIMD_ADD(blk->xx.p[j],blk->yy.p[j]),z,SIMD_MADD(blk->xz.p[j],x,SIMD_MUL(blk->yz.p[j],y))));
 	    g2 = SIMD_MUL(consts.half.p,SIMD_MADD(xx,x,SIMD_MADD(xy,y,SIMD_MUL(xz,z))));
+	    g0 = SIMD_MUL(g0,blk->m.p[j]);
+	    ppot = SIMD_SUB(ppot,SIMD_ADD(SIMD_ADD(g0,g2),SIMD_ADD(g3,g4)));
+	    g0 = SIMD_MADD(consts.five.p,g2,SIMD_MADD(consts.seven.p,g3,SIMD_MADD(consts.nine.p,g4,g0)));
+#ifdef USE_DIAPOLE
 	    yy = SIMD_MUL(g1,blk->x.p[j]);
 	    yz = SIMD_MUL(g1,blk->y.p[j]);
 	    zz = SIMD_MUL(g1,blk->z.p[j]);
 	    g1 = SIMD_MADD(yy,x,SIMD_MADD(yz,y,SIMD_MUL(zz,z)));
-	    g0 = SIMD_MUL(g0,blk->m.p[j]);
-	    ppot = SIMD_SUB(ppot,SIMD_ADD(SIMD_ADD(g0,g1),SIMD_ADD(g2,SIMD_ADD(g3,g4))));
-	    g0 = SIMD_MADD(consts.three.p,g1,SIMD_MADD(consts.five.p,g2,SIMD_MADD(consts.seven.p,g3,SIMD_MADD(consts.nine.p,g4,g0))));
+	    ppot = SIMD_SUB(ppot,g1);
+	    g0 = SIMD_MADD(consts.three.p,g1,g0);
+#else
+	    yy = consts.zero.p;
+	    yz = consts.zero.p;
+	    zz = consts.zero.p;
+#endif
 	    t1 = SIMD_MUL(pir,SIMD_NMSUB(x,g0,SIMD_ADD(SIMD_ADD(yy,xx),SIMD_ADD(xxx,tx))));
 	    t2 = SIMD_MUL(pir,SIMD_NMSUB(y,g0,SIMD_ADD(SIMD_ADD(yz,xy),SIMD_ADD(xxy,ty))));
 	    t3 = SIMD_MUL(pir,SIMD_NMSUB(z,g0,SIMD_ADD(SIMD_ADD(zz,xz),SIMD_ADD(xxz,tz))));
@@ -614,13 +622,21 @@ int CPUdoWorkPC(void *vpc) {
 	    xy = g2*(blk->yy.f[j]*y + blk->xy.f[j]*x + blk->yz.f[j]*z);
 	    xz = g2*(-(blk->xx.f[j] + blk->yy.f[j])*z + blk->xz.f[j]*x + blk->yz.f[j]*y);
 	    g2 = 0.5*(xx*x + xy*y + xz*z);
+	    g0 *= blk->m.f[j];
+	    fPot -= g0 + g2 + g3 + g4;
+	    g0 += 5*g2 + 7*g3 + 9*g4;
+#ifdef USE_DIAPOLE
 	    yy = g1*blk->x.f[j];
 	    yz = g1*blk->y.f[j];
 	    zz = g1*blk->z.f[j];
 	    g1 = (yy*x + yz*y + zz*z);
-	    g0 *= blk->m.f[j];
-	    fPot -= g0 + g1 + g2 + g3 + g4;
-	    g0 += 3*g1 + 5*g2 + 7*g3 + 9*g4;
+	    fPot -= g1;
+	    g0 += 3*g1;
+#else
+	    yy = 0.0f;
+	    yz = 0.0f;
+	    zz = 0.0f;
+#endif
 	    tax = dir*(yy + xx + xxx + tx - x*g0);
 	    tay = dir*(yz + xy + xxy + ty - y*g0);
 	    taz = dir*(zz + xz + xxz + tz - z*g0);
