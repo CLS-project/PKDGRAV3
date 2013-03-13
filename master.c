@@ -2584,8 +2584,7 @@ void msrReorder(MSR msr) {
     struct inDomainOrder in;
     double sec,dsec;
 
-//    in.iMaxOrder = msrMaxOrder(msr)-1;
-    in.iMaxOrder = 0x3fffffff;
+    in.iMaxOrder = msrMaxOrder(msr)-1;
     msrprintf(msr,"Ordering...\n");
     sec = msrTime();
     pstDomainOrder(msr->pst,&in,sizeof(in),NULL,NULL);

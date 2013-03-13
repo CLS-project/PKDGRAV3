@@ -16,12 +16,10 @@
 ^config\.h\.in$
 ^config\.log$
 ^config\.status$
+^autoscan\.log$
+^configure\.scan$
 ^configure$
 ^depcomp$
 ^install-sh$
 ^missing$
-^pkdgrav2_mpi$
-^pkdgrav2_null$
-^pkdgrav2_pthread$
 ^stamp-h1$
-

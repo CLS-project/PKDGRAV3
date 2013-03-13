@@ -2,8 +2,8 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.59)
-AC_INIT(pkdgrav2, 2.2.14rc3, bugs@pkdgrav2.org)
-AM_INIT_AUTOMAKE(pkdgrav2,2.2.14rc3)
+AC_INIT(pkdgrav2, 2.2.14rc4, bugs@pkdgrav2.org)
+AM_INIT_AUTOMAKE(pkdgrav2,2.2.14rc4)
 AC_CONFIG_SRCDIR([main.c])
 AC_CONFIG_HEADER([config.h])
 
@@ -553,9 +553,16 @@ AC_CHECK_HEADERS([fcntl.h limits.h malloc.h stddef.h stdlib.h string.h sys/param
 # Checks for typedefs, structures, and compiler characteristics.
 AC_C_CONST
 AC_C_INLINE
+AC_C_RESTRICT
 AC_TYPE_OFF_T
 AC_TYPE_SIZE_T
-AC_TYPE_SIGNAL
+AC_TYPE_INT16_T
+AC_TYPE_INT32_T
+AC_TYPE_INT64_T
+AC_TYPE_UINT16_T
+AC_TYPE_UINT32_T
+AC_TYPE_UINT64_T
+AC_TYPE_UINT8_T
 AC_HEADER_STDBOOL
 AC_HEADER_TIME
 AC_SYS_LARGEFILE
@@ -567,7 +574,7 @@ AC_CHECK_TYPE([hrtime_t],[AC_DEFINE(HAVE_HRTIME_T, 1, [Define to 1 if hrtime_t i
 #include <sys/time.h>
 #endif])
 
-AC_CHECK_FUNCS([gethrtime read_real_time time_base_to_time clock_gettime mach_absolute_time])
+AC_CHECK_FUNCS([gethrtime read_real_time time_base_to_time clock_gettime mach_absolute_time atexit memmove memset])
 dnl Cray UNICOS _rtc() (real-time clock) intrinsic
 AC_MSG_CHECKING([for _rtc intrinsic])
 rtc_ok=yes

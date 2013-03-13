@@ -313,6 +313,11 @@ void pkdInitialize(
     pkd->iParticleSize = sizeof(PARTICLE);
     pkd->iTreeNodeSize = sizeof(KDN);
 
+    if ( mMemoryModel & PKD_MODEL_PARTICLE_ID )
+	pkd->oParticleID = pkdParticleAddInt64(pkd,1);
+    else
+	pkd->oParticleID = 0;
+
     if ( mMemoryModel & PKD_MODEL_VELOCITY )
 	pkd->oVelocity = pkdParticleAddDouble(pkd,3);
     else
@@ -908,7 +913,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
     double *v, dummyv[3];
     float fMass, fSoft;
     FIO_SPECIES eSpecies;
-    uint64_t iOrder;
+    uint64_t iParticleID;
 
     mdlassert(pkd->mdl,fio != NULL);
 
@@ -962,7 +967,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
 	case FIO_SPECIES_SPH:
 	    assert(pSph); /* JW: Could convert to dark ... */
 	    assert(dTuFac>0.0);
-	    fioReadSph(fio,&iOrder,p->r,v,&fMass,&fSoft,pPot,
+	    fioReadSph(fio,&iParticleID,p->r,v,&fMass,&fSoft,pPot,
 			     &p->fDensity/*?*/,&pSph->u,&pSph->fMetals);
 	    pSph->u *= dTuFac; /* Can't do precise conversion until density known */
 	    pSph->uPred = pSph->u;
@@ -972,11 +977,11 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
 	    pSph->vPred[2] = v[2]*dvFac; /* density, divv, BalsaraSwitch, c set in smooth */
 	    break;
 	case FIO_SPECIES_DARK:
-	    fioReadDark(fio,&iOrder,p->r,v,&fMass,&fSoft,pPot,&p->fDensity);
+	    fioReadDark(fio,&iParticleID,p->r,v,&fMass,&fSoft,pPot,&p->fDensity);
 	    break;
 	case FIO_SPECIES_STAR:
 	    assert(pStar && pSph);
-	    fioReadStar(fio,&iOrder,p->r,v,&fMass,&fSoft,pPot,&p->fDensity,
+	    fioReadStar(fio,&iParticleID,p->r,v,&fMass,&fSoft,pPot,&p->fDensity,
 			      &pSph->fMetals,&pStar->fTimer);
 	    pSph->vPred[0] = v[0]*dvFac;
 	    pSph->vPred[1] = v[1]*dvFac;
@@ -986,7 +991,8 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
 	    fprintf(stderr,"Unsupported particle type: %d\n",eSpecies);
 	    assert(0);
 	    }
-	p->iOrder = iOrder;
+	p->iOrder = iFirst++;
+	if (pkd->oParticleID) *pkdParticleID(pkd,p) = iParticleID;
 	for(j=0;j<3;++j) v[j] *= dvFac;
 	getClass(pkd,fMass,fSoft,eSpecies,p);
 	}
@@ -2561,7 +2567,7 @@ uint32_t pkdWriteFIO(PKD pkd,FIO fio,double dvFac) {
     double v[3];
     float fMass, fSoft;
     uint32_t nCount;
-    uint64_t iOrder;
+    uint64_t iParticleID;
     int i;
 
 
@@ -2586,7 +2592,8 @@ uint32_t pkdWriteFIO(PKD pkd,FIO fio,double dvFac) {
 	else pStar = NULL;
 	fMass = pkdMass(pkd,p);
 	fSoft = pkdSoft0(pkd,p);
-	iOrder = p->iOrder;
+	if (pkd->oParticleID) iParticleID = *pkdParticleID(pkd,p);
+	else iParticleID = p->iOrder;
 	nCount++;
 	switch(pkdSpecies(pkd,p)) {
 	case FIO_SPECIES_SPH:
@@ -2605,16 +2612,16 @@ uint32_t pkdWriteFIO(PKD pkd,FIO fio,double dvFac) {
 #else
 		T = pSph->u/pkd->param.dTuFac;
 #endif
-		fioWriteSph(fio,iOrder,p->r,v,fMass,fSoft,*pPot,
+		fioWriteSph(fio,iParticleID,p->r,v,fMass,fSoft,*pPot,
 			    p->fDensity,T,pSph->fMetals);
 		}
 	    break;
 	case FIO_SPECIES_DARK:
-	    fioWriteDark(fio,iOrder,p->r,v,fMass,fSoft,*pPot,p->fDensity);
+	    fioWriteDark(fio,iParticleID,p->r,v,fMass,fSoft,*pPot,p->fDensity);
 	    break;
 	case FIO_SPECIES_STAR:
 	    assert(pStar && pSph);
-	    fioWriteStar(fio,iOrder,p->r,v,fMass,fSoft,*pPot,p->fDensity,
+	    fioWriteStar(fio,iParticleID,p->r,v,fMass,fSoft,*pPot,p->fDensity,
 		       pSph->fMetals,pStar->fTimer);
 	    break;
 	default:
@@ -3560,8 +3567,6 @@ void pkdSphStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,double dAccFac) {
 		    if (dtemp < dtNew) dtNew = dtemp;
 		    u3 = pkdDtToRung(dtemp,pkd->param.dDelta,pkd->param.iMaxRung-1);
 		    }
-/*	    if (p->uRung > 5) printf("%d %d: %g %g %g *%g* %g %g,\n",i,p->iOrder,*pkd_u(pkd,p),*pkd_uDot(pkd,p),*pkd_divv(pkd,p),1/(*pkd_divv(pkd,p)),pkd->param.dDelta,dtNew); */
-
 		uNewRung = pkdDtToRung(dtNew,pkd->param.dDelta,pkd->param.iMaxRung-1);
 		if (uNewRung > p->uNewRung) p->uNewRung = uNewRung;
 		if (!(p->iOrder%10000) || (p->uNewRung > 5 && !(p->iOrder%1000))) {
@@ -3736,7 +3741,6 @@ void pkdCooling(PKD pkd, double dTime, double z, int bUpdateState, int bUpdateTa
 			sph->uDot = uDot;
 			break;
 			}
-/*	    printf("%d %d: %g %g %g *%g* %g %g,\n",i,p->iOrder,*pkd_u(pkd,p),*pkd_uDot(pkd,p),*pkd_divv(pkd,p),*pkd_divv(pkd,p)*pkd->param.dDelta,pkd->param.dDelta,dT); */
 		    }
 		}
 	    }

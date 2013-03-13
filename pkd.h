@@ -104,6 +104,7 @@ static inline int64_t d2u64(double d) {
 #define PKD_MODEL_SPH          (1<<9)  /* Sph Fields */
 #define PKD_MODEL_STAR         (1<<10) /* Star Fields */
 #define PKD_MODEL_RUNGDEST     (1<<11) /* New Domain Decomposition */
+#define PKD_MODEL_PARTICLE_ID  (1<<12) /* Particles have a unique ID */
 
 #define PKD_MODEL_NODE_MOMENT  (1<<24) /* Include moment in the tree */
 #define PKD_MODEL_NODE_ACCEL   (1<<25) /* mean accel on cell (for grav step) */
@@ -764,6 +765,7 @@ typedef struct pkdContext {
     int oRelaxation;
     int oVelSmooth;
     int oRungDest; /* Destination processor for each rung */
+    int oParticleID;
 
     /*
     ** Advanced memory models - Tree Nodes
@@ -1151,6 +1153,9 @@ static inline float *pkdPot( PKD pkd, PARTICLE *p ) {
     }
 static inline uint16_t *pkdRungDest( PKD pkd, PARTICLE *p ) {
     return CAST(uint16_t *,pkdField(p,pkd->oRungDest));
+    }
+static inline uint64_t *pkdParticleID( PKD pkd, PARTICLE *p ) {
+    return CAST(uint64_t *,pkdField(p,pkd->oParticleID));
     }
 /* Sph variables */
 static inline SPHFIELDS *pkdSph( PKD pkd, PARTICLE *p ) {

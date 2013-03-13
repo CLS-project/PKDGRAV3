@@ -150,26 +150,26 @@ typedef struct fioInfo {
     FIO_SPECIES (*fcnSpecies) (struct fioInfo *fio);
 
     int  (*fcnReadDark) (struct fioInfo *fio,
-	uint64_t *piOrder,double *pdPos,double *pdVel,
+	uint64_t *piParticleID,double *pdPos,double *pdVel,
 			 float *pfMass,float *pfSoft,float *pfPot,float *pfDen);
     int  (*fcnReadSph) (
-	struct fioInfo *fio,uint64_t *piOrder,double *pdPos,double *pdVel,
+	struct fioInfo *fio,uint64_t *piParticleID,double *pdPos,double *pdVel,
 	float *pfMass,float *pfSoft,float *pfPot,float *pfDen,
 	float *pfTemp, float *pfMetals);
     int  (*fcnReadStar) (struct fioInfo *fio,
-	uint64_t *piOrder,double *pdPos,double *pdVel,
+	uint64_t *piParticleID,double *pdPos,double *pdVel,
 	 float *pfMass,float *pfSoft,float *pfPot,float *pfDen,
 	float *pfMetals, float *pfTform);
 
     int  (*fcnWriteDark) (struct fioInfo *fio,
-	uint64_t iOrder,const double *pdPos,const double *pdVel,
+	uint64_t iParticleID,const double *pdPos,const double *pdVel,
 	float fMass,float fSoft,float fPot,float fDen);
     int  (*fcnWriteSph) (
-	struct fioInfo *fio,uint64_t iOrder,const double *pdPos,const double *pdVel,
+	struct fioInfo *fio,uint64_t iParticleID,const double *pdPos,const double *pdVel,
 	float fMass,float fSoft,float fPot,float fDen,
 	float fTemp,float fMetals);
     int  (*fcnWriteStar) (struct fioInfo *fio,
-	uint64_t iOrder,const double *pdPos,const double *pdVel,
+	uint64_t iParticleID,const double *pdPos,const double *pdVel,
 	float fMass,float fSoft,float fPot,float fDen,
 	float fMetals,float fTform);
 
@@ -238,44 +238,44 @@ static inline FIO_SPECIES fioSpecies(struct fioInfo *fio) {
 ** specific seek is performed to start reading a particular type.
 */
 static inline int fioReadDark(
-    FIO fio,uint64_t *piOrder,double *pdPos,double *pdVel,
+    FIO fio,uint64_t *piParticleID,double *pdPos,double *pdVel,
     float *pfMass,float *pfSoft,float *pfPot,float *pfDen) {
-    return (*fio->fcnReadDark)(fio,piOrder,pdPos,pdVel,pfMass,pfSoft,pfPot,pfDen);
+    return (*fio->fcnReadDark)(fio,piParticleID,pdPos,pdVel,pfMass,pfSoft,pfPot,pfDen);
     }
 static inline int  fioReadSph(
-    FIO fio,uint64_t *piOrder,double *pdPos,double *pdVel,
+    FIO fio,uint64_t *piParticleID,double *pdPos,double *pdVel,
     float *pfMass,float *pfSoft,float *pfPot,float *pfDen,
     float *pfTemp,float *pfMetals) {
-    return (*fio->fcnReadSph)(fio,piOrder,pdPos,pdVel,pfMass,pfSoft,pfPot,pfDen,
+    return (*fio->fcnReadSph)(fio,piParticleID,pdPos,pdVel,pfMass,pfSoft,pfPot,pfDen,
 			      pfTemp,pfMetals);
     }
 static inline int fioReadStar(
-    FIO fio,uint64_t *piOrder,double *pdPos,double *pdVel,
+    FIO fio,uint64_t *piParticleID,double *pdPos,double *pdVel,
     float *pfMass,float *pfSoft,float *pfPot,float *pfDen,
     float *pfMetals,float *pfTform) {
-    return (*fio->fcnReadStar)(fio,piOrder,pdPos,pdVel,pfMass,pfSoft,pfPot,pfDen,
+    return (*fio->fcnReadStar)(fio,piParticleID,pdPos,pdVel,pfMass,pfSoft,pfPot,pfDen,
 			       pfMetals,pfTform);
     }
 /*
 ** Write a particle.  Must already be positioned at the appropriate particle.
 */
 static inline int fioWriteDark(
-    FIO fio,uint64_t iOrder,const double *pdPos,const double *pdVel,
+    FIO fio,uint64_t iParticleID,const double *pdPos,const double *pdVel,
     float fMass,float fSoft,float fPot,float fDen) {
-    return (*fio->fcnWriteDark)(fio,iOrder,pdPos,pdVel,fMass,fSoft,fPot,fDen);
+    return (*fio->fcnWriteDark)(fio,iParticleID,pdPos,pdVel,fMass,fSoft,fPot,fDen);
     }
 static inline int  fioWriteSph(
-    FIO fio,uint64_t iOrder,const double *pdPos,const double *pdVel,
+    FIO fio,uint64_t iParticleID,const double *pdPos,const double *pdVel,
     float fMass,float fSoft,float fPot,float fDen,
     float fTemp,float fMetals) {
-    return (*fio->fcnWriteSph)(fio,iOrder,pdPos,pdVel,fMass,fSoft,fPot,fDen,
+    return (*fio->fcnWriteSph)(fio,iParticleID,pdPos,pdVel,fMass,fSoft,fPot,fDen,
 			      fTemp,fMetals);
     }
 static inline int fioWriteStar(
-    FIO fio,uint64_t iOrder,const double *pdPos,const double *pdVel,
+    FIO fio,uint64_t iParticleID,const double *pdPos,const double *pdVel,
     float fMass,float fSoft,float fPot,float fDen,
     float fMetals,float fTform) {
-    return (*fio->fcnWriteStar)(fio,iOrder,pdPos,pdVel,fMass,fSoft,fPot,fDen,
+    return (*fio->fcnWriteStar)(fio,iParticleID,pdPos,pdVel,fMass,fSoft,fPot,fDen,
 			       fMetals,fTform);
     }
 /*

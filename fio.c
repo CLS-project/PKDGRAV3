@@ -26,6 +26,8 @@
 #include <gsl/gsl_interp.h>
 #endif
 
+#define NO_XDR
+
 #ifndef NO_XDR
 #include <rpc/types.h>
 #include <rpc/xdr.h>
@@ -280,7 +282,7 @@ static int fileScan( fioFileList *list, int nFiles, const char * const *szFilena
 \******************************************************************************/
 
 static int  fioNoReadDark(
-    struct fioInfo *fio,uint64_t *piOrder,double *pdPos,double *pdVel,
+    struct fioInfo *fio,uint64_t *piParticleID,double *pdPos,double *pdVel,
     float *pfMass,float *pfSoft,float *pfPot,float *pfDen) {
     fprintf(stderr,"Reading dark particles is not supported\n");
     abort();
@@ -288,7 +290,7 @@ static int  fioNoReadDark(
     }
 
 static int fioNoReadSph(
-    struct fioInfo *fio,uint64_t *piOrder,double *pdPos,double *pdVel,
+    struct fioInfo *fio,uint64_t *piParticleID,double *pdPos,double *pdVel,
     float *pfMass,float *pfSoft, float *pfPot,float *pfDen,
     float *pfTemp, float *pfMetals) {
     fprintf(stderr,"Reading SPH particles is not supported\n");
@@ -297,7 +299,7 @@ static int fioNoReadSph(
     }
 
 static int fioNoReadStar(
-    struct fioInfo *fio,uint64_t *piOrder,double *pdPos,double *pdVel,
+    struct fioInfo *fio,uint64_t *piParticleID,double *pdPos,double *pdVel,
     float *pfMass,float *pfSoft,float *pfPot,float *pfDen,float *pfMetals, float *pfTform) {
     fprintf(stderr,"Reading star particles is not supported\n");
     abort();
@@ -305,7 +307,7 @@ static int fioNoReadStar(
     }
 
 static int  fioNoWriteDark(
-    struct fioInfo *fio,uint64_t iOrder,const double *pdPos,const double *pdVel,
+    struct fioInfo *fio,uint64_t iParticleID,const double *pdPos,const double *pdVel,
     float fMass,float fSoft,float fPot,float fDen) {
     fprintf(stderr,"Writing dark particles is not supported\n");
     abort();
@@ -313,7 +315,7 @@ static int  fioNoWriteDark(
     }
 
 static int fioNoWriteSph(
-    struct fioInfo *fio,uint64_t iOrder,const double *pdPos,const double *pdVel,
+    struct fioInfo *fio,uint64_t iParticleID,const double *pdPos,const double *pdVel,
     float fMass,float fSoft,float fPot,float fDen,
     float fTemp,float fMetals) {
     fprintf(stderr,"Writing SPH particles is not supported\n");
@@ -322,7 +324,7 @@ static int fioNoWriteSph(
     }
 
 static int fioNoWriteStar(
-    struct fioInfo *fio,uint64_t iOrder,const double *pdPos,const double *pdVel,
+    struct fioInfo *fio,uint64_t iParticleID,const double *pdPos,const double *pdVel,
     float fMass,float fSoft,float fPot,float fDen,float fMetals,float fTform) {
     fprintf(stderr,"Writing star particles is not supported\n");
     abort();
@@ -443,21 +445,21 @@ static int listNextSpecies(FIO fio) {
     }
 
 static int listReadDark(FIO fio,
-    uint64_t *piOrder,double *pdPos,double *pdVel,
+    uint64_t *piParticleID,double *pdPos,double *pdVel,
     float *pfMass,float *pfSoft,float *pfPot,float *pfDen) {
     fioList *vio = (fioList *)fio;
     int rc;
     assert(fio->eFormat == FIO_FORMAT_MULTIPLE);
 
     if (fioSpecies(vio->fioCurrent) != FIO_SPECIES_DARK) return 0;
-    rc = fioReadDark(vio->fioCurrent,piOrder,pdPos,pdVel,
+    rc = fioReadDark(vio->fioCurrent,piParticleID,pdPos,pdVel,
 	pfMass,pfSoft,pfPot,pfDen);
     listNextSpecies(fio);
     return rc;
     }
 
 static int listReadSph(
-    FIO fio,uint64_t *piOrder,double *pdPos,double *pdVel,
+    FIO fio,uint64_t *piParticleID,double *pdPos,double *pdVel,
     float *pfMass,float *pfSoft, float *pfPot,float *pfDen,
     float *pfTemp, float *pfMetals) {
     fioList *vio = (fioList *)fio;
@@ -466,7 +468,7 @@ static int listReadSph(
     listNextSpecies(fio);
     if (fioSpecies(vio->fioCurrent) != FIO_SPECIES_SPH) return 0;
     rc = fioReadSph(
-	vio->fioCurrent,piOrder,pdPos,pdVel,
+	vio->fioCurrent,piParticleID,pdPos,pdVel,
 	pfMass,pfSoft,pfPot,pfDen,
 	pfTemp,pfMetals);
     listNextSpecies(fio);
@@ -474,7 +476,7 @@ static int listReadSph(
     }
 
 static int listReadStar(
-    FIO fio,uint64_t *piOrder,double *pdPos,double *pdVel,
+    FIO fio,uint64_t *piParticleID,double *pdPos,double *pdVel,
     float *pfMass,float *pfSoft,float *pfPot,float *pfDen,
     float *pfMetals, float *pfTform) {
     fioList *vio = (fioList *)fio;
@@ -482,7 +484,7 @@ static int listReadStar(
     assert(fio->eFormat == FIO_FORMAT_MULTIPLE);
     if (fioSpecies(vio->fioCurrent) != FIO_SPECIES_STAR) return 0;
     rc = fioReadStar(
-	vio->fioCurrent,piOrder,pdPos,pdVel,
+	vio->fioCurrent,piParticleID,pdPos,pdVel,
 	pfMass,pfSoft,pfPot,pfDen,
 	pfMetals,pfTform);
     listNextSpecies(fio);
@@ -810,7 +812,7 @@ static int tipsySwitchFile(FIO fio, int bSeek) {
 
 /* DARK PARTICLES */
 static int tipsyReadNativeDark(FIO fio,
-    uint64_t *piOrder,double *pdPos,double *pdVel,
+    uint64_t *piParticleID,double *pdPos,double *pdVel,
     float *pfMass,float *pfSoft,float *pfPot,float *pfDen) {
     fioTipsy *tio = (fioTipsy *)fio;
     int rc;
@@ -819,7 +821,7 @@ static int tipsyReadNativeDark(FIO fio,
     assert(fio->eFormat == FIO_FORMAT_TIPSY && fio->eMode==FIO_MODE_READING);
 
     if (tipsySwitchFile(fio,0)) return 0;
-    *piOrder = tio->iOrder++;
+    *piParticleID = tio->iOrder++;
 
     rc = fread(pfMass,sizeof(float),1,tio->fp); if (rc!=1) return 0;
     if (tio->bDoublePos) {
@@ -843,7 +845,7 @@ static int tipsyReadNativeDark(FIO fio,
     }
 
 static int tipsyWriteNativeDark(FIO fio,
-    uint64_t iOrder,const double *pdPos,const double *pdVel,
+    uint64_t iParticleID,const double *pdPos,const double *pdVel,
     float fMass,float fSoft,float fPot,float fDen) {
     fioTipsy *tio = (fioTipsy *)fio;
     int rc;
@@ -851,7 +853,6 @@ static int tipsyWriteNativeDark(FIO fio,
     float fTmp[3];
 
     assert(fio->eFormat == FIO_FORMAT_TIPSY && fio->eMode==FIO_MODE_WRITING);
-    //assert(iOrder == tio->iOrder++);
     rc = fwrite(&fMass,sizeof(float),1,tio->fp); if (rc!=1) return 0;
     if (tio->bDoublePos) {
 	rc = fwrite(pdPos,sizeof(double),3,tio->fp); if (rc!=3) return 0;
@@ -873,7 +874,7 @@ static int tipsyWriteNativeDark(FIO fio,
     }
 
 static int tipsyReadStandardDark(FIO fio,
-    uint64_t *piOrder,double *pdPos,double *pdVel,
+    uint64_t *piParticleID,double *pdPos,double *pdVel,
     float *pfMass,float *pfSoft,float *pfPot,float *pfDen) {
     fioTipsy *tio = (fioTipsy *)fio;
     int d;
@@ -881,7 +882,7 @@ static int tipsyReadStandardDark(FIO fio,
 
     assert(fio->eFormat == FIO_FORMAT_TIPSY && fio->eMode==FIO_MODE_READING);
     if (tipsySwitchFile(fio,0)) return 0;
-    *piOrder = tio->iOrder++;
+    *piParticleID = tio->iOrder++;
     if (!xdr_float(&tio->xdr,pfMass)) return 0;
     for(d=0;d<3;d++) {
 	if (tio->bDoublePos) {
@@ -908,7 +909,7 @@ static int tipsyReadStandardDark(FIO fio,
     }
 
 static int tipsyWriteStandardDark(FIO fio,
-    uint64_t iOrder,const double *pdPos,const double *pdVel,
+    uint64_t iParticleID,const double *pdPos,const double *pdVel,
     float fMass,float fSoft,float fPot,float fDen) {
     fioTipsy *tio = (fioTipsy *)fio;
     int d;
@@ -916,7 +917,6 @@ static int tipsyWriteStandardDark(FIO fio,
     double dTmp;
 
     assert(fio->eFormat == FIO_FORMAT_TIPSY && fio->eMode==FIO_MODE_WRITING);
-//    assert(iOrder == tio->iOrder++ + tio->iStart);  // JW: needs to handle non-contiguous iOrders
     if (!xdr_float(&tio->xdr,&fMass)) return 0;
     for(d=0;d<3;d++) {
 	if (tio->bDoublePos) {
@@ -941,7 +941,7 @@ static int tipsyWriteStandardDark(FIO fio,
 
 /* SPH PARTICLES */
 static int tipsyReadNativeSph(
-    FIO fio,uint64_t *piOrder,double *pdPos,double *pdVel,
+    FIO fio,uint64_t *piParticleID,double *pdPos,double *pdVel,
     float *pfMass,float *pfSoft, float *pfPot,float *pfDen,
     float *pfTemp, float *pfMetals) {
     fioTipsy *tio = (fioTipsy *)fio;
@@ -951,7 +951,7 @@ static int tipsyReadNativeSph(
 
     assert(fio->eFormat == FIO_FORMAT_TIPSY && fio->eMode==FIO_MODE_READING);
     if (tipsySwitchFile(fio,0)) return 0;
-    *piOrder = tio->iOrder++;
+    *piParticleID = tio->iOrder++;
     rc = fread(pfMass,sizeof(float),1,tio->fp); if (rc!=1) return 0;
     if (tio->bDoublePos) {
 	rc = fread(pdPos,sizeof(double),3,tio->fp); if (rc!=3) return 0;
@@ -977,7 +977,7 @@ static int tipsyReadNativeSph(
 
 
 static int tipsyWriteNativeSph(
-    struct fioInfo *fio,uint64_t iOrder,const double *pdPos,const double *pdVel,
+    struct fioInfo *fio,uint64_t iParticleID,const double *pdPos,const double *pdVel,
     float fMass,float fSoft,float fPot,float fDen,
     float fTemp,float fMetals) {
     fioTipsy *tio = (fioTipsy *)fio;
@@ -986,8 +986,6 @@ static int tipsyWriteNativeSph(
     float fTmp[3];
 
     assert(fio->eFormat == FIO_FORMAT_TIPSY && fio->eMode==FIO_MODE_WRITING);
-    //assert(iOrder == tio->iOrder++);
-
     rc = fwrite(&fMass,sizeof(float),1,tio->fp); if (rc!=1) return 0;
     if (tio->bDoublePos) {
 	rc = fwrite(pdPos,sizeof(double),3,tio->fp); if (rc!=3) return 0;
@@ -1012,7 +1010,7 @@ static int tipsyWriteNativeSph(
     }
 
 static int tipsyReadStandardSph(
-    FIO fio,uint64_t *piOrder,double *pdPos,double *pdVel,
+    FIO fio,uint64_t *piParticleID,double *pdPos,double *pdVel,
     float *pfMass,float *pfSoft, float *pfPot,float *pfDen,
     float *pfTemp, float *pfMetals) {
     fioTipsy *tio = (fioTipsy *)fio;
@@ -1021,7 +1019,7 @@ static int tipsyReadStandardSph(
 
     assert(fio->eFormat == FIO_FORMAT_TIPSY && fio->eMode==FIO_MODE_READING);
     if (tipsySwitchFile(fio,0)) return 0;
-    *piOrder = tio->iOrder++;
+    *piParticleID = tio->iOrder++;
     if (!xdr_float(&tio->xdr,pfMass)) return 0;
     for(d=0;d<3;d++) {
 	if (tio->bDoublePos) {
@@ -1050,7 +1048,7 @@ static int tipsyReadStandardSph(
     }
 
 static int tipsyWriteStandardSph(
-    struct fioInfo *fio,uint64_t iOrder,const double *pdPos,const double *pdVel,
+    struct fioInfo *fio,uint64_t iParticleID,const double *pdPos,const double *pdVel,
     float fMass,float fSoft,float fPot,float fDen,
     float fTemp,float fMetals) {
     fioTipsy *tio = (fioTipsy *)fio;
@@ -1059,8 +1057,6 @@ static int tipsyWriteStandardSph(
     double dTmp;
 
     assert(fio->eFormat == FIO_FORMAT_TIPSY && fio->eMode==FIO_MODE_WRITING);
-//    assert(iOrder == tio->iOrder++ + tio->iStart); //JW -- non-contiguous iOrder fix needed
-
     if (!xdr_float(&tio->xdr,&fMass)) return 0;
     for(d=0;d<3;d++) {
 	if (tio->bDoublePos) {
@@ -1092,7 +1088,7 @@ static int tipsyWriteStandardSph(
 
 /* STAR PARTICLES */
 static int tipsyReadNativeStar(
-    FIO fio,uint64_t *piOrder,double *pdPos,double *pdVel,
+    FIO fio,uint64_t *piParticleID,double *pdPos,double *pdVel,
     float *pfMass,float *pfSoft,float *pfPot,float *pfDen,
     float *pfMetals, float *pfTform) {
     fioTipsy *tio = (fioTipsy *)fio;
@@ -1102,7 +1098,7 @@ static int tipsyReadNativeStar(
 
     assert(fio->eFormat == FIO_FORMAT_TIPSY && fio->eMode==FIO_MODE_READING);
     if (tipsySwitchFile(fio,0)) return 0;
-    *piOrder = tio->iOrder++;
+    *piParticleID = tio->iOrder++;
     rc = fread(pfMass,sizeof(float),1,tio->fp); if (rc!=1) return 0;
     if (tio->bDoublePos) {
 	rc = fread(pdPos,sizeof(double),3,tio->fp); if (rc!=3) return 0;
@@ -1127,7 +1123,7 @@ static int tipsyReadNativeStar(
     }
 
 static int tipsyWriteNativeStar(
-    struct fioInfo *fio,uint64_t iOrder,const double *pdPos,const double *pdVel,
+    struct fioInfo *fio,uint64_t iParticleID,const double *pdPos,const double *pdVel,
     float fMass,float fSoft,float fPot,float fDen,float fMetals,float fTform) {
     fioTipsy *tio = (fioTipsy *)fio;
     int rc;
@@ -1135,7 +1131,6 @@ static int tipsyWriteNativeStar(
     float fTmp[3];
 
     assert(fio->eFormat == FIO_FORMAT_TIPSY && fio->eMode==FIO_MODE_WRITING);
-    //assert(iOrder == tio->iOrder++);
     rc = fwrite(&fMass,sizeof(float),1,tio->fp); if (rc!=1) return 0;
     if (tio->bDoublePos) {
 	rc = fwrite(pdPos,sizeof(double),3,tio->fp); if (rc!=3) return 0;
@@ -1159,7 +1154,7 @@ static int tipsyWriteNativeStar(
     }
 
 static int tipsyReadStandardStar(
-    FIO fio,uint64_t *piOrder,double *pdPos,double *pdVel,
+    FIO fio,uint64_t *piParticleID,double *pdPos,double *pdVel,
     float *pfMass,float *pfSoft,float *pfPot,float *pfDen,
     float *pfMetals, float *pfTform) {
     fioTipsy *tio = (fioTipsy *)fio;
@@ -1168,7 +1163,7 @@ static int tipsyReadStandardStar(
 
     assert(fio->eFormat == FIO_FORMAT_TIPSY && fio->eMode==FIO_MODE_READING);
     if (tipsySwitchFile(fio,0)) return 0;
-    *piOrder = tio->iOrder++;
+    *piParticleID = tio->iOrder++;
     if (!xdr_float(&tio->xdr,pfMass)) return 0;
     for(d=0;d<3;d++) {
 	if (tio->bDoublePos) {
@@ -1197,7 +1192,7 @@ static int tipsyReadStandardStar(
     }
 
 static int tipsyWriteStandardStar(
-    struct fioInfo *fio,uint64_t iOrder,const double *pdPos,const double *pdVel,
+    struct fioInfo *fio,uint64_t iParticleID,const double *pdPos,const double *pdVel,
     float fMass,float fSoft,float fPot,float fDen,float fMetals,float fTform) {
     fioTipsy *tio = (fioTipsy *)fio;
     int d;
@@ -1205,7 +1200,6 @@ static int tipsyWriteStandardStar(
     double dTmp;
 
     assert(fio->eFormat == FIO_FORMAT_TIPSY && fio->eMode==FIO_MODE_WRITING);
-//    assert(iOrder == tio->iOrder++ + tio->iStart); // JW non-contiguous iOrder fix needed
     if (!xdr_float(&tio->xdr,&fMass)) return 0;
     for(d=0;d<3;d++) {
 	if (tio->bDoublePos) {
@@ -1883,7 +1877,7 @@ static int gadgetSeek(FIO fio,uint64_t iPart,FIO_SPECIES eSpecies) {
     }
 
 static int gadgetWriteNative(fioGADGET *gio,
-    uint64_t iOrder,const double *pdPos,const double *pdVel,
+    uint64_t iParticleID,const double *pdPos,const double *pdVel,
     float fMass) {
     float fTmp[3];
     double dTmp[3];
@@ -1908,12 +1902,12 @@ static int gadgetWriteNative(fioGADGET *gio,
 	fwrite(fTmp, sizeof(float), 3, gio->fp_vel.fp);
 	}
 
-    iOrder++;
+    iParticleID++;
     if (gio->fp_id.iDouble == sizeof(uint64_t)) {
-	fwrite(&iOrder, sizeof(uint64_t), 3, gio->fp_id.fp);
+	fwrite(&iParticleID, sizeof(uint64_t), 3, gio->fp_id.fp);
 	}
     else {
-	iTmp = iOrder;
+	iTmp = iParticleID;
 	fwrite(&iTmp, sizeof(uint32_t), 1, gio->fp_id.fp);
 	}
 
@@ -1923,24 +1917,24 @@ static int gadgetWriteNative(fioGADGET *gio,
     }
 
 static int gadgetWriteNativeDark(FIO fio,
-    uint64_t iOrder,const double *pdPos,const double *pdVel,
+    uint64_t iParticleID,const double *pdPos,const double *pdVel,
     float fMass,float fSoft,float fPot,float fDen) {
     float fTmp;
     fioGADGET *gio = (fioGADGET *)fio;
-    return gadgetWriteNative(gio,iOrder,pdPos,pdVel,fMass);
+    return gadgetWriteNative(gio,iParticleID,pdPos,pdVel,fMass);
     }
 static int gadgetWriteNativeSph(
-    struct fioInfo *fio,uint64_t iOrder,const double *pdPos,const double *pdVel,
+    struct fioInfo *fio,uint64_t iParticleID,const double *pdPos,const double *pdVel,
     float fMass,float fSoft,float fPot,float fDen,
     float fTemp,float fMetals) {
     fioGADGET *gio = (fioGADGET *)fio;
-    return gadgetWriteNative(gio,iOrder,pdPos,pdVel,fMass);
+    return gadgetWriteNative(gio,iParticleID,pdPos,pdVel,fMass);
     }
 static int gadgetWriteNativeStar(
-    struct fioInfo *fio,uint64_t iOrder,const double *pdPos,const double *pdVel,
+    struct fioInfo *fio,uint64_t iParticleID,const double *pdPos,const double *pdVel,
     float fMass,float fSoft,float fPot,float fDen,float fMetals,float fTform) {
     fioGADGET *gio = (fioGADGET *)fio;
-    return gadgetWriteNative(gio,iOrder,pdPos,pdVel,fMass);
+    return gadgetWriteNative(gio,iParticleID,pdPos,pdVel,fMass);
     }
 
 static void gadgetCloseFP(fioGADGET *gio,gadgetFP *fp) {
@@ -2096,18 +2090,18 @@ FIO fioGadgetCreate(
     return &gio->fio;
     }
 
-static int gadgetReadCommon(fioGADGET *gio,uint64_t *piOrder,double *pdPos,double *pdVel,float *pfMass) {
+static int gadgetReadCommon(fioGADGET *gio,uint64_t *piParticleID,double *pdPos,double *pdVel,float *pfMass) {
     int d;
     double dTmp;
     float fTmp[3];
     uint32_t iTmp;
 
     if ( gio->fp_id.iDouble == sizeof(uint64_t)) {
-	if (freadSwap(piOrder, sizeof(uint64_t), 1, gio->fp_id.fp,gio->bSwap)!=1) abort();
+	if (freadSwap(piParticleID, sizeof(uint64_t), 1, gio->fp_id.fp,gio->bSwap)!=1) abort();
 	}
     else {
 	if (freadSwap(&iTmp, sizeof(uint32_t), 1, gio->fp_id.fp,gio->bSwap)!=1) abort();
-	*piOrder = iTmp;
+	*piParticleID = iTmp;
 	}
     if ( gio->fp_pos.iDouble == sizeof(double)) {
 	if (freadSwap(pdPos, sizeof(double), 3, gio->fp_pos.fp,gio->bSwap) != 3) abort();
@@ -2152,13 +2146,13 @@ static int gadgetReadCommon(fioGADGET *gio,uint64_t *piOrder,double *pdPos,doubl
     }
 
 static int gadgetReadDark(FIO fio,
-    uint64_t *piOrder,double *pdPos,double *pdVel,
+    uint64_t *piParticleID,double *pdPos,double *pdVel,
     float *pfMass,float *pfSoft,float *pfPot,float *pfDen) {
     fioGADGET *gio = (fioGADGET *)fio;
 
     assert(fio->eFormat == FIO_FORMAT_GADGET2 && fio->eMode==FIO_MODE_READING);
 
-    if (!gadgetReadCommon(gio,piOrder,pdPos,pdVel,pfMass)) return 0;
+    if (!gadgetReadCommon(gio,piParticleID,pdPos,pdVel,pfMass)) return 0;
     *pfSoft = pow(gio->hdr.Omega0 / *pfMass,-1.0/3.0) / 50.0;
     *pfPot = 0.0f;
     *pfDen = 0.0f;
@@ -2166,7 +2160,7 @@ static int gadgetReadDark(FIO fio,
     }
 
 static int gadgetReadSph(
-    FIO fio,uint64_t *piOrder,double *pdPos,double *pdVel,
+    FIO fio,uint64_t *piParticleID,double *pdPos,double *pdVel,
     float *pfMass,float *pfSoft, float *pfPot,float *pfDen,
     float *pfTemp, float *pfMetals) {
     fioGADGET *gio = (fioGADGET *)fio;
@@ -2174,7 +2168,7 @@ static int gadgetReadSph(
 
     assert(fio->eFormat == FIO_FORMAT_GADGET2 && fio->eMode==FIO_MODE_READING);
 
-    if (!gadgetReadCommon(gio,piOrder,pdPos,pdVel,pfMass)) return 0;
+    if (!gadgetReadCommon(gio,piParticleID,pdPos,pdVel,pfMass)) return 0;
 
     if ( gio->fp_u.iDouble == sizeof(double)) {
 	if (freadSwap(&dTmp, sizeof(double), 1, gio->fp_u.fp,gio->bSwap) != 1) abort();
@@ -3244,7 +3238,7 @@ static void base_create(fioHDF5 *hio,IOBASE *base,int iSpecies,int nFields,uint6
     }
 
 static int hdf5ReadDark(
-    FIO fio,uint64_t *piOrder,double *pdPos,double *pdVel,
+    FIO fio,uint64_t *piParticleID,double *pdPos,double *pdVel,
     float *pfMass,float *pfSoft,float *pfPot,float *pfDen) {
     fioHDF5 *hio = (fioHDF5 *)(fio);
     IOBASE *base = &hio->base[hio->eCurrent];
@@ -3271,10 +3265,10 @@ static int hdf5ReadDark(
 	*pfDen = 0.0f;
 
     /* iOrder is either sequential, or is listed for each particle */
-    *piOrder = ioorder_get(&base->ioOrder,base->iOffset,base->iIndex);
+    *piParticleID = ioorder_get(&base->ioOrder,base->iOffset,base->iIndex);
 
     /* If each particles has a unique class, use that */
-    class_get(pfMass,pfSoft,&base->ioClass,*piOrder,base->iIndex);
+    class_get(pfMass,pfSoft,&base->ioClass,*piParticleID,base->iIndex);
 
     /*
     ** Next particle.  If we are at the end of this species,
@@ -3295,21 +3289,21 @@ static int hdf5ReadDark(
     }
 
 static int hdf5ReadSph(
-    FIO fio,uint64_t *piOrder,double *pdPos,double *pdVel,
+    FIO fio,uint64_t *piParticleID,double *pdPos,double *pdVel,
     float *pfMass,float *pfSoft, float *pfPot,float *pfDen,
     float *pfTemp, float *pfMetals) {
     return 0;
     }
 
 static int hdf5ReadStar(
-    FIO fio,uint64_t *piOrder,double *pdPos,double *pdVel,
+    FIO fio,uint64_t *piParticleID,double *pdPos,double *pdVel,
     float *pfMass,float *pfSoft,float *pfPot,float *pfDen,
     float *pfMetals, float *pfTform) {
     return 0;
     }
 
 static int  hdf5WriteDark(
-    struct fioInfo *fio,uint64_t iOrder,const double *pdPos,const double *pdVel,
+    struct fioInfo *fio,uint64_t iParticleID,const double *pdPos,const double *pdVel,
     float fMass,float fSoft,float fPot,float fDen) {
     fioHDF5 *hio = (fioHDF5 *)(fio);
     IOBASE *base = &hio->base[FIO_SPECIES_DARK];
@@ -3319,11 +3313,11 @@ static int  hdf5WriteDark(
 
     /* First time for this particle type? */
     if (base->group_id == H5I_INVALID_HID) {
-	base_create(hio,base,FIO_SPECIES_DARK,DARK_N,iOrder);
+	base_create(hio,base,FIO_SPECIES_DARK,DARK_N,iParticleID);
 	}
 
-    ioorder_add(base,iOrder);
-    class_add(base,iOrder,fMass,fSoft);
+    ioorder_add(base,iParticleID);
+    class_add(base,iParticleID,fMass,fSoft);
     field_add_double(pdPos,&base->fldFields[DARK_POSITION],base->iIndex);
     field_add_double(pdVel,&base->fldFields[DARK_VELOCITY],base->iIndex);
     field_add_float(&fPot,&base->fldFields[DARK_POTENTIAL],base->iIndex);
@@ -3337,7 +3331,7 @@ static int  hdf5WriteDark(
     }
 
 static int hdf5WriteSph(
-    struct fioInfo *fio,uint64_t iOrder,const double *pdPos,const double *pdVel,
+    struct fioInfo *fio,uint64_t iParticleID,const double *pdPos,const double *pdVel,
     float fMass,float fSoft,float fPot,float fDen,
     float fTemp,float fMetals) {
     fioHDF5 *hio = (fioHDF5 *)(fio);
@@ -3347,15 +3341,15 @@ static int hdf5WriteSph(
 
     /* First time for this particle type? */
     if (base->group_id == H5I_INVALID_HID) {
-	base_create(hio,base,FIO_SPECIES_SPH,SPH_N,iOrder);
+	base_create(hio,base,FIO_SPECIES_SPH,SPH_N,iParticleID);
 	field_create(&base->fldFields[SPH_TEMPERATURE],base->group_id,
 		     FIELD_TEMPERATURE, H5T_NATIVE_FLOAT, H5T_NATIVE_FLOAT, 1 );
 	field_create(&base->fldFields[SPH_METALS],base->group_id,
 		     FIELD_METALS, H5T_NATIVE_FLOAT, H5T_NATIVE_FLOAT, 1 );
 	}
 
-    ioorder_add(base,iOrder);
-    class_add(base,iOrder,fMass,fSoft);
+    ioorder_add(base,iParticleID);
+    class_add(base,iParticleID,fMass,fSoft);
     field_add_double(pdPos,&base->fldFields[DARK_POSITION],base->iIndex);
     field_add_double(pdVel,&base->fldFields[DARK_VELOCITY],base->iIndex);
     field_add_float(&fPot,&base->fldFields[DARK_POTENTIAL],base->iIndex);
@@ -3371,7 +3365,7 @@ static int hdf5WriteSph(
     }
 
 static int hdf5WriteStar(
-    struct fioInfo *fio,uint64_t iOrder,const double *pdPos,const double *pdVel,
+    struct fioInfo *fio,uint64_t iParticleID,const double *pdPos,const double *pdVel,
     float fMass,float fSoft,float fPot,float fDen,float fMetals,float fTform) {
     fprintf(stderr,"Writing star particles is not supported\n");
     abort();
@@ -3898,12 +3892,12 @@ static void graficSetPV(FIO fio,double *r,double *v,double x,double y,double z,d
     }
 
 static int graficReadDark(FIO fio,
-			  uint64_t *piOrder,double *pdPos,double *pdVel,
+			  uint64_t *piParticleID,double *pdPos,double *pdVel,
 			  float *pfMass,float *pfSoft,float *pfPot,float *pfDen) {
     fioGrafic *gio = (fioGrafic *)fio;
     assert(fio->eFormat == FIO_FORMAT_GRAFIC);
     assert(gio->iOrder >= gio->fio.nSpecies[FIO_SPECIES_SPH]);
-    *piOrder = gio->iOrder++;
+    *piParticleID = gio->iOrder++;
     graficSetPV(fio,pdPos,pdVel,
 	graficRead(&gio->level[0].fp_velcx),
 	graficRead(&gio->level[0].fp_velcy),
@@ -3919,13 +3913,13 @@ static int graficReadDark(FIO fio,
     }
 
 static int graficReadSph(
-    FIO fio,uint64_t *piOrder,double *pdPos,double *pdVel,
+    FIO fio,uint64_t *piParticleID,double *pdPos,double *pdVel,
     float *pfMass,float *pfSoft,float *pfPot,float *pfDen,
     float *pfTemp, float *pfMetals) {
     fioGrafic *gio = (fioGrafic *)fio;
     assert(fio->eFormat == FIO_FORMAT_GRAFIC);
     assert(gio->iOrder < gio->fio.nSpecies[FIO_SPECIES_SPH]);
-    *piOrder = gio->iOrder++;
+    *piParticleID = gio->iOrder++;
     graficSetPV(fio,pdPos,pdVel,
 	graficRead(&gio->level[0].fp_velbx),
 	graficRead(&gio->level[0].fp_velby),
