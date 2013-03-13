@@ -26,8 +26,6 @@
 #include <gsl/gsl_interp.h>
 #endif
 
-#define NO_XDR
-
 #ifndef NO_XDR
 #include <rpc/types.h>
 #include <rpc/xdr.h>
