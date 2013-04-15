@@ -44,7 +44,7 @@ if COOLING
 endif
 
 SOURCES += psdtree.c psd.c unbind.c knn6d.c
-noinst_HEADERS += psdtree.h psd.h unbind.h knn6d.h
+noinst_HEADERS += psdtree.h psd.h unbind.h knn6d.h qsort.h
 
 if PLANETS
 SOURCES += ssio.c collision.c kepler.c

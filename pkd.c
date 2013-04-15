@@ -402,11 +402,6 @@ void pkdInitialize(
 	pkd->oNodeVBnd = 0;
     }
 
-    if ( mMemoryModel & PKD_MODEL_NODE_MOMENT )
-	pkd->oNodeMom = pkdNodeAddStruct(pkd,sizeof(FMOMR));
-    else
-	pkd->oNodeMom = 0;
-
     if ( mMemoryModel & PKD_MODEL_NODE_VEL )
 	pkd->oNodeVelocity = pkdNodeAddDouble(pkd,3);
     else
@@ -425,6 +420,11 @@ void pkdInitialize(
     }
     else
 	pkd->oNodeSphBounds = 0;
+
+    if ( mMemoryModel & PKD_MODEL_NODE_MOMENT )
+	pkd->oNodeMom = pkdNodeAddStruct(pkd,sizeof(FMOMR));
+    else
+	pkd->oNodeMom = 0;
 
     /*
     ** N.B.: Update pkdMaxNodeSize in pkd.h if you add fields.  We need to
