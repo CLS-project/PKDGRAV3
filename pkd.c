@@ -3511,22 +3511,23 @@ void pkdAccelStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,
 	    vel = sqrt(vel)*dVelFac;
 	    mdlassert(pkd->mdl,acc >= 0);
 	    acc = sqrt(acc)*dAccFac;
-	    mdlassert(pkd->mdl,acc > 0);
 	    dT = FLOAT_MAXVAL;
-	    if (bEpsAcc && acc>0) {
-		dT = dEta*sqrt(fSoft/acc);
-		}
-	    if (bSqrtPhi) {
-		double dtemp;
-		/*
-		** NOTE: The factor of 3.5 keeps this criterion in sync
-		** with DensityStep. The nominal value of dEta for both
-		** cases is then 0.02-0.03.
-		*/
-		pPot = pkdPot(pkd,p);
-		dtemp = dEta*3.5*sqrt(dAccFac*fabs(*pPot))/acc;
-		if (dtemp < dT)
-		    dT = dtemp;
+	    if (acc>0) {
+		if (bEpsAcc) {
+		    dT = dEta*sqrt(fSoft/acc);
+		    }
+		if (bSqrtPhi) {
+		    double dtemp;
+		    /*
+		    ** NOTE: The factor of 3.5 keeps this criterion in sync
+		    ** with DensityStep. The nominal value of dEta for both
+		    ** cases is then 0.02-0.03.
+		    */
+		    pPot = pkdPot(pkd,p);
+		    dtemp = dEta*3.5*sqrt(dAccFac*fabs(*pPot))/acc;
+		    if (dtemp < dT)
+			dT = dtemp;
+		    }
 		}
 	    uNewRung = pkdDtToRung(dT,pkd->param.dDelta,pkd->param.iMaxRung-1);
 	    if (uNewRung > p->uNewRung) p->uNewRung = uNewRung;
