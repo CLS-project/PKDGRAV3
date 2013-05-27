@@ -1309,8 +1309,8 @@ static void tipsySetFunctions(fioTipsy *tio, int mFlags, int bStandard) {
     tio->fio.fcnGetAttr = tipsyGetAttr;
     tio->fio.fcnSpecies = tipsySpecies;
 
-    tio->bDoubleVel = (mFlags&FIO_FLAG_DOUBLE_VEL) != 0;
-    tio->bDoublePos = (mFlags&FIO_FLAG_DOUBLE_POS) != 0 || tio->bDoubleVel;
+    tio->bDoubleVel = (mFlags&(FIO_FLAG_DOUBLE_VEL|FIO_FLAG_CHECKPOINT)) != 0;
+    tio->bDoublePos = (mFlags&(FIO_FLAG_DOUBLE_POS|FIO_FLAG_CHECKPOINT)) != 0 || tio->bDoubleVel;
 
     if ( bStandard ) {
 	tio->fio.fcnClose    = tipsyCloseStandard;
@@ -1976,8 +1976,8 @@ FIO fioGadgetCreate(
     for( iType=1; iType<FIO_SPECIES_LAST; ++iType)
 	gio->fio.nSpecies[FIO_SPECIES_ALL] += gio->fio.nSpecies[iType];
 
-    gio->fp_pos.iDouble = (mFlags&FIO_FLAG_DOUBLE_POS) ? sizeof(double) : sizeof(float);
-    gio->fp_vel.iDouble = (mFlags&FIO_FLAG_DOUBLE_VEL) ? sizeof(double) : sizeof(float);
+    gio->fp_pos.iDouble = (mFlags&(FIO_FLAG_DOUBLE_POS|FIO_FLAG_CHECKPOINT)) ? sizeof(double) : sizeof(float);
+    gio->fp_vel.iDouble = (mFlags&(FIO_FLAG_DOUBLE_VEL|FIO_FLAG_CHECKPOINT)) ? sizeof(double) : sizeof(float);
     gio->fp_id.iDouble = sizeof(uint32_t);
     gio->fp_mass.iDouble = sizeof(float);
     gio->fp_pos.nPer = 3;
@@ -3208,9 +3208,9 @@ static int base_write(IOBASE *base) {
 static void base_create(fioHDF5 *hio,IOBASE *base,int iSpecies,int nFields,uint64_t iOrder) {
     hid_t posType, velType;
 
-    posType = (hio->mFlags&FIO_FLAG_CHECKPOINT) || (hio->mFlags&FIO_FLAG_DOUBLE_POS)
+    posType = (hio->mFlags&(FIO_FLAG_DOUBLE_POS|FIO_FLAG_CHECKPOINT))
 	? H5T_NATIVE_DOUBLE : H5T_NATIVE_FLOAT;
-    velType = (hio->mFlags&FIO_FLAG_CHECKPOINT) || (hio->mFlags&FIO_FLAG_DOUBLE_VEL)
+    velType = (hio->mFlags&(FIO_FLAG_DOUBLE_VEL|FIO_FLAG_CHECKPOINT))
 	? H5T_NATIVE_DOUBLE : H5T_NATIVE_FLOAT;
 
     base->group_id = H5Gcreate(hio->fileID,fioSpeciesName(iSpecies),0);

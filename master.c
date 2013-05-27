@@ -444,6 +444,9 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.bDoublePos = 0;
     prmAddParam(msr->prm,"bDoublePos",0,&msr->param.bDoublePos,sizeof(int),"dp",
 		"input/output double precision positions (standard format only) = -dp");
+    msr->param.bDoubleVel = 0;
+    prmAddParam(msr->prm,"bDoubleVel",0,&msr->param.bDoubleVel,sizeof(int),"dv",
+		"input/output double precision velocities (standard format only) = -dv");
     msr->param.bCenterOfMassExpand = 1;
     prmAddParam(msr->prm,"bCenterOfMassExpand",0,&msr->param.bCenterOfMassExpand,sizeof(int),"CoM",
 		"use multipole expansions about the center of mass = +CoM");
@@ -1974,7 +1977,9 @@ void msrAllNodeWrite(MSR msr, const char *pszFileName, double dTime, double dvFa
 
     in.bHDF5 = msr->param.bHDF5;
     in.mFlags = FIO_FLAG_POTENTIAL | FIO_FLAG_DENSITY
-	| ((bDouble||msr->param.bDoublePos)?FIO_FLAG_CHECKPOINT:0)
+	| (bDouble?FIO_FLAG_CHECKPOINT:0)
+	| (msr->param.bDoublePos?FIO_FLAG_DOUBLE_POS:0)
+	| (msr->param.bDoubleVel?FIO_FLAG_DOUBLE_VEL:0)
 	| (msr->param.bMemMass?0:FIO_FLAG_COMPRESS_MASS)
 	| (msr->param.bMemSoft?0:FIO_FLAG_COMPRESS_SOFT);
 
