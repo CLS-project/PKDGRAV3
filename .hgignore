@@ -7,6 +7,10 @@
 ^pkdgrav2_null$
 ^pkdgrav2_pthread$
 ^pkdgrav2_mpi$
+^tostd$
+^tostd.o$
+^fio.o$
+^romberg.o$
 ^COPYING$
 ^INSTALL$
 ^Makefile$
@@ -23,3 +27,4 @@
 ^install-sh$
 ^missing$
 ^stamp-h1$
+^pkdgrav2-.*.tar.gz$
