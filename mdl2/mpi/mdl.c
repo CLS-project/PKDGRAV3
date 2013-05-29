@@ -115,20 +115,6 @@ void mdlprintf( MDL mdl, const char *format, ... ) {
 	}
     }
 
-#ifdef MDLDEBUG
-void mdldebug( MDL mdl, const char *format, ... ) {
-    static char ach[MDLPRINTF_STRING_MAXLEN];
-    va_list args;
-
-    if (mdl->bDiag) {
-	va_start( args, format);
-	vsnprintf( ach, MDLPRINTF_STRING_MAXLEN, format, args);
-	mdlDiag( mdl, ach);
-	va_end( args);
-	}
-    }
-#endif
-
 #ifdef MDLTIMER
 void mdlZeroTimer(MDL mdl, mdlTimer *t) {
 #ifdef _MSC_VER
