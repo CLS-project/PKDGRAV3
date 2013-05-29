@@ -4,6 +4,7 @@
 ^pkdgrav2_null-.*\.o$
 ^pkdgrav2_pthread-.*\.o$
 ^pkdgrav2_mpi-.*\.o$
+^pkdgrav2_mpipt-.*\.o$
 ^pkdgrav2_null$
 ^pkdgrav2_pthread$
 ^pkdgrav2_mpi$

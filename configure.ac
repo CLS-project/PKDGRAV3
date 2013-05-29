@@ -588,6 +588,7 @@ fi
 AC_CHECK_FUNCS([wordexp wordfree glob globfree gethostname getpagesize mkdir])
 AC_CHECK_FUNCS([floor gettimeofday pow sqrt strchr strdup strrchr strstr],,[AC_MSG_ERROR([not found])])
 
+AX_PTHREAD
 
 
 AC_CONFIG_FILES([Makefile])
