@@ -2,6 +2,7 @@
 #include "config.h"
 #endif
 
+#include <stdio.h>
 #include <stdlib.h>
 #ifdef HAVE_INTTYPES_H
 #include <inttypes.h>

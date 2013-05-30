@@ -5,7 +5,6 @@
 #include <math.h>
 #include <stdlib.h>
 #include <stddef.h>
-#include <string.h>
 #ifdef HAVE_MALLOC_H
 #include <malloc.h>
 #endif
@@ -14,6 +13,7 @@
 #endif
 #include <assert.h>
 #include <stdint.h>
+#include <string.h>
 #ifdef HAVE_INTTYPES_H
 #include <inttypes.h>
 #else

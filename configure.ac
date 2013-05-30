@@ -382,13 +382,6 @@ AC_ARG_ENABLE(symba,
  	[Define if symba should be used.])])
 AM_CONDITIONAL(SYMBA, test "x$SYMBA" = "xyes")
 
-# Check if pthread is available
-AC_CHECK_LIB([pthread], [pthread_create],[HAVE_PTHREAD=yes],[HAVE_PTHREAD=no])
-if test "x$HAVE_PTHREAD" = "xyes" ; then
-  AC_CHECK_HEADER([pthread.h],[HAVE_PTHREAD=yes],[HAVE_PTHREAD=no])
-fi
-AM_CONDITIONAL(HAVE_PTHREAD,test "x$HAVE_PTHREAD" = "xyes")
-
 # Check if mpi is available
 if test "x$MPICC" != "xno" ; then
   HAVE_MPI=yes
@@ -398,7 +391,9 @@ if test "x$MPICC" != "xno" ; then
 #  fi
 fi
 AM_CONDITIONAL(HAVE_MPI,test "x$HAVE_MPI" = "xyes")
-
+if test "x$HAVE_MPI" = "xyes" ; then
+  AC_DEFINE([HAVE_MPI], 1, [Set to 1 if MPI is available.])
+fi
 AC_CHECK_LIB([m], [fabs])
 # FIXME: Replace `main' with a function in `-lrt':
 #AC_CHECK_LIB([rt], [main])
@@ -589,7 +584,7 @@ AC_CHECK_FUNCS([wordexp wordfree glob globfree gethostname getpagesize mkdir])
 AC_CHECK_FUNCS([floor gettimeofday pow sqrt strchr strdup strrchr strstr],,[AC_MSG_ERROR([not found])])
 
 AX_PTHREAD
-
+AM_CONDITIONAL(HAVE_PTHREAD,test "x$ax_pthread_ok" = "xyes")
 
 AC_CONFIG_FILES([Makefile])
 #if test "x$USE_GRAFIC" != "xno" ; then
