@@ -26,6 +26,16 @@
 #include <gsl/gsl_interp.h>
 #endif
 
+#if defined(__cplusplus)
+#define UNUSED(x)
+#elif defined(__GNUC__)
+#define UNUSED(x) x##_UNUSED __attribute__((unused))
+#elif defined(__LCLINT__) 
+# define UNUSED(x) /*@unused@*/ x
+#else
+#define UNUSED(x) x##_UNUSED
+#endif
+
 #ifndef NO_XDR
 #include <rpc/types.h>
 #include <rpc/xdr.h>
@@ -134,7 +144,7 @@ static int safe_fseek(FILE *fp,uint64_t lStart) {
     return 0;
 #else
     /* fseek fails for offsets >= 2**31; this is an ugly workaround */
-    static const off_t MAX_OFFSET = 2147483640;
+    static const uint64_t MAX_OFFSET = 2147483640;
     int iErr;
 
     if (lStart > MAX_OFFSET) {
@@ -177,13 +187,6 @@ const char *fioSpeciesName(FIO_SPECIES eSpecies) {
 	break;
 	}
     return NULL;
-    }
-
-static void fioFree(FIO fio) {
-    if (fio->fileList.fileInfo) {
-	if (fio->fileList.fileInfo[0].pszFilename) free(fio->fileList.fileInfo[0].pszFilename);
-	free(fio->fileList.fileInfo);
-	}
     }
 
 static void fileScanFree(fioFileList *list) {
@@ -280,77 +283,94 @@ static int fileScan( fioFileList *list, int nFiles, const char * const *szFilena
 \******************************************************************************/
 
 static int  fioNoReadDark(
-    struct fioInfo *fio,uint64_t *piParticleID,double *pdPos,double *pdVel,
-    float *pfMass,float *pfSoft,float *pfPot,float *pfDen) {
+    struct fioInfo *UNUSED(fio),uint64_t *UNUSED(piParticleID),
+    double *UNUSED(pdPos),double *UNUSED(pdVel),
+    float *UNUSED(pfMass),float *UNUSED(pfSoft),
+    float *UNUSED(pfPot),float *UNUSED(pfDen)) {
     fprintf(stderr,"Reading dark particles is not supported\n");
     abort();
     return 0;
     }
 
 static int fioNoReadSph(
-    struct fioInfo *fio,uint64_t *piParticleID,double *pdPos,double *pdVel,
-    float *pfMass,float *pfSoft, float *pfPot,float *pfDen,
-    float *pfTemp, float *pfMetals) {
+    struct fioInfo *UNUSED(fio),uint64_t *UNUSED(piParticleID),
+    double *UNUSED(pdPos),double *UNUSED(pdVel),
+    float *UNUSED(pfMass),float *UNUSED(pfSoft),
+    float *UNUSED(pfPot),float *UNUSED(pfDen),
+    float *UNUSED(pfTemp), float *UNUSED(pfMetals)) {
     fprintf(stderr,"Reading SPH particles is not supported\n");
     abort();
     return 0;
     }
 
 static int fioNoReadStar(
-    struct fioInfo *fio,uint64_t *piParticleID,double *pdPos,double *pdVel,
-    float *pfMass,float *pfSoft,float *pfPot,float *pfDen,float *pfMetals, float *pfTform) {
+    struct fioInfo *UNUSED(fio),uint64_t *UNUSED(piParticleID),
+    double *UNUSED(pdPos),double *UNUSED(pdVel),
+    float *UNUSED(pfMass),float *UNUSED(pfSoft),
+    float *UNUSED(pfPot),float *UNUSED(pfDen),
+    float *UNUSED(pfMetals), float *UNUSED(pfTform)) {
     fprintf(stderr,"Reading star particles is not supported\n");
     abort();
     return 0;
     }
 
 static int  fioNoWriteDark(
-    struct fioInfo *fio,uint64_t iParticleID,const double *pdPos,const double *pdVel,
-    float fMass,float fSoft,float fPot,float fDen) {
+    struct fioInfo *UNUSED(fio),uint64_t UNUSED(iParticleID),
+    const double *UNUSED(pdPos),const double *UNUSED(pdVel),
+    float UNUSED(fMass),float UNUSED(fSoft),
+    float UNUSED(fPot),float UNUSED(fDen)) {
     fprintf(stderr,"Writing dark particles is not supported\n");
     abort();
     return 0;
     }
 
 static int fioNoWriteSph(
-    struct fioInfo *fio,uint64_t iParticleID,const double *pdPos,const double *pdVel,
-    float fMass,float fSoft,float fPot,float fDen,
-    float fTemp,float fMetals) {
+    struct fioInfo *UNUSED(fio),uint64_t UNUSED(iParticleID),
+    const double *UNUSED(pdPos),const double *UNUSED(pdVel),
+    float UNUSED(fMass),float UNUSED(fSoft),
+    float UNUSED(fPot),float UNUSED(fDen),
+    float UNUSED(fTemp),float UNUSED(fMetals)) {
     fprintf(stderr,"Writing SPH particles is not supported\n");
     abort();
     return 0;
     }
 
 static int fioNoWriteStar(
-    struct fioInfo *fio,uint64_t iParticleID,const double *pdPos,const double *pdVel,
-    float fMass,float fSoft,float fPot,float fDen,float fMetals,float fTform) {
+    struct fioInfo *UNUSED(fio),uint64_t UNUSED(iParticleID),
+    const double *UNUSED(pdPos),const double *UNUSED(pdVel),
+    float UNUSED(fMass),float UNUSED(fSoft),
+    float UNUSED(fPot),float UNUSED(fDen),
+    float UNUSED(fMetals),float UNUSED(fTform)) {
     fprintf(stderr,"Writing star particles is not supported\n");
     abort();
     return 0;
     }
 
 static int fioNoGetAttr(
-    FIO fio,const char *attr, FIO_TYPE dataType, void *data) {
+    FIO UNUSED(fio),const char *UNUSED(attr),
+    FIO_TYPE UNUSED(dataType), void *UNUSED(data)) {
     return 0;
     }
 
 static int fioNoSetAttr(
-    FIO fio,const char *attr, FIO_TYPE dataType, void *data) {
+    FIO UNUSED(fio),const char *UNUSED(attr),
+    FIO_TYPE UNUSED(dataType), void *UNUSED(data)) {
     return 0;
     }
 
-static int fioNoSeek(FIO fio,uint64_t iPart,FIO_SPECIES eSpecies) {
+static int fioNoSeek(FIO UNUSED(fio),uint64_t UNUSED(iPart),
+    FIO_SPECIES UNUSED(eSpecies)) {
     fprintf(stderr,"Seeking is not supported\n");
     abort();
     return 0;
     }
 
-static void fioNoClose(FIO fio) {
+static void fioNoClose(FIO UNUSED(fio)) {
     fprintf(stderr,"Closing the file is not supported -- seriously?\n");
     abort();
     }
 
-static FIO_SPECIES fioNoSpecies(FIO fio) {
+static FIO_SPECIES fioNoSpecies(FIO UNUSED(fio)) {
     return FIO_SPECIES_LAST;
     }
 
@@ -781,7 +801,6 @@ static int tipsySwitchFile(FIO fio, int bSeek) {
 	}
     if (bSeek) {
 	uint64_t iByte;
-	off_t iOffset;
 	int rc;
 
 	/* For file fragments, the first particle is not 0.  Adjust accordingly. */
@@ -800,8 +819,6 @@ static int tipsySwitchFile(FIO fio, int bSeek) {
 			  TIPSY_DARK_SIZE(1,3*tio->bDoublePos+3*tio->bDoubleVel),
 			  TIPSY_STAR_SIZE(1,3*tio->bDoublePos+3*tio->bDoubleVel))
 	    + (fio->fileList.iFile?0:tio->nHdrSize);
-	iOffset = iByte;
-	assert(iOffset==iByte);
 	rc = safe_fseek(tio->fp,iByte); assert(rc==0);
 	}
 
@@ -843,8 +860,8 @@ static int tipsyReadNativeDark(FIO fio,
     }
 
 static int tipsyWriteNativeDark(FIO fio,
-    uint64_t iParticleID,const double *pdPos,const double *pdVel,
-    float fMass,float fSoft,float fPot,float fDen) {
+    uint64_t UNUSED(iParticleID),const double *pdPos,const double *pdVel,
+    float fMass,float fSoft,float fPot,float UNUSED(fDen)) {
     fioTipsy *tio = (fioTipsy *)fio;
     int rc;
     int d;
@@ -907,8 +924,8 @@ static int tipsyReadStandardDark(FIO fio,
     }
 
 static int tipsyWriteStandardDark(FIO fio,
-    uint64_t iParticleID,const double *pdPos,const double *pdVel,
-    float fMass,float fSoft,float fPot,float fDen) {
+    uint64_t UNUSED(iParticleID),const double *pdPos,const double *pdVel,
+    float fMass,float fSoft,float fPot,float UNUSED(fDen)) {
     fioTipsy *tio = (fioTipsy *)fio;
     int d;
     float fTmp;
@@ -975,7 +992,7 @@ static int tipsyReadNativeSph(
 
 
 static int tipsyWriteNativeSph(
-    struct fioInfo *fio,uint64_t iParticleID,const double *pdPos,const double *pdVel,
+    struct fioInfo *fio,uint64_t UNUSED(iParticleID),const double *pdPos,const double *pdVel,
     float fMass,float fSoft,float fPot,float fDen,
     float fTemp,float fMetals) {
     fioTipsy *tio = (fioTipsy *)fio;
@@ -1046,7 +1063,7 @@ static int tipsyReadStandardSph(
     }
 
 static int tipsyWriteStandardSph(
-    struct fioInfo *fio,uint64_t iParticleID,const double *pdPos,const double *pdVel,
+    struct fioInfo *fio,uint64_t UNUSED(iParticleID),const double *pdPos,const double *pdVel,
     float fMass,float fSoft,float fPot,float fDen,
     float fTemp,float fMetals) {
     fioTipsy *tio = (fioTipsy *)fio;
@@ -1121,8 +1138,8 @@ static int tipsyReadNativeStar(
     }
 
 static int tipsyWriteNativeStar(
-    struct fioInfo *fio,uint64_t iParticleID,const double *pdPos,const double *pdVel,
-    float fMass,float fSoft,float fPot,float fDen,float fMetals,float fTform) {
+    struct fioInfo *fio,uint64_t UNUSED(iParticleID),const double *pdPos,const double *pdVel,
+    float fMass,float fSoft,float fPot,float UNUSED(fDen),float fMetals,float fTform) {
     fioTipsy *tio = (fioTipsy *)fio;
     int rc;
     int d;
@@ -1190,8 +1207,8 @@ static int tipsyReadStandardStar(
     }
 
 static int tipsyWriteStandardStar(
-    struct fioInfo *fio,uint64_t iParticleID,const double *pdPos,const double *pdVel,
-    float fMass,float fSoft,float fPot,float fDen,float fMetals,float fTform) {
+    struct fioInfo *fio,uint64_t UNUSED(iParticleID),const double *pdPos,const double *pdVel,
+    float fMass,float fSoft,float fPot,float UNUSED(fDen),float fMetals,float fTform) {
     fioTipsy *tio = (fioTipsy *)fio;
     int d;
     float fTmp;
@@ -1284,25 +1301,6 @@ static int tipsySeekStandard(FIO fio,uint64_t iPart,FIO_SPECIES eSpecies) {
     rc = tipsySeek(fio,iPart,eSpecies);
     /*xdrstdio_create(&tio->xdr,tio->fp,fio->eMode==FIO_MODE_READING?XDR_DECODE:XDR_ENCODE);*/
     return rc;
-    }
-
-static uint64_t tipsyCountSpecies(uint64_t N, uint64_t *iStart, uint64_t *iLast) {
-    uint64_t n;
-
-    if ( *iStart >= N ) {
-	n = 0;
-	*iStart -= N; *iLast -= N;
-	}
-    else if ( *iLast > N) {
-	n = N - *iStart;
-	*iStart = 0; *iLast -= N;
-	}
-    else {
-	n = *iLast - *iStart;
-	*iStart = *iLast = 0;
-	}
-
-    return n;
     }
 
 static void tipsySetFunctions(fioTipsy *tio, int mFlags, int bStandard) {
@@ -1653,7 +1651,6 @@ FIO fioTipsyCreatePart(const char *fileName,int bAppend,int mFlags,int bStandard
 		       double dTime, uint64_t nSph, uint64_t nDark, uint64_t nStar,
 		       uint64_t iStart) {
     fioTipsy *tio;
-    uint64_t iLast;
     int i;
 
     tio = malloc(sizeof(fioTipsy));
@@ -1672,7 +1669,6 @@ FIO fioTipsyCreatePart(const char *fileName,int bAppend,int mFlags,int bStandard
 	tio->fio.nSpecies[i] = 0;
 
     /* Adjust the local number of particles in this fragment */
-    iLast = nSph + nDark + nStar;
     tio->fio.nSpecies[FIO_SPECIES_SPH]  = nSph;
     tio->fio.nSpecies[FIO_SPECIES_DARK] = nDark;
     tio->fio.nSpecies[FIO_SPECIES_STAR] = nStar;
@@ -1912,30 +1908,33 @@ static int gadgetWriteNative(fioGADGET *gio,
     assert (gio->fp_mass.iDouble==sizeof(float));
     fTmp[0] = fMass * gio->mass_fac;
     fwrite(fTmp, sizeof(float), 1, gio->fp_mass.fp);
+    return 1;
     }
 
 static int gadgetWriteNativeDark(FIO fio,
-    uint64_t iParticleID,const double *pdPos,const double *pdVel,
-    float fMass,float fSoft,float fPot,float fDen) {
-    float fTmp;
+    uint64_t iParticleID,const double *pdPos,const double *pdVel,float fMass,
+    float UNUSED(fSoft),float UNUSED(fPot),float UNUSED(fDen)) {
     fioGADGET *gio = (fioGADGET *)fio;
     return gadgetWriteNative(gio,iParticleID,pdPos,pdVel,fMass);
     }
 static int gadgetWriteNativeSph(
-    struct fioInfo *fio,uint64_t iParticleID,const double *pdPos,const double *pdVel,
-    float fMass,float fSoft,float fPot,float fDen,
-    float fTemp,float fMetals) {
+    struct fioInfo *fio,
+    uint64_t iParticleID,const double *pdPos,const double *pdVel,float fMass,
+    float UNUSED(fSoft),float UNUSED(fPot),float UNUSED(fDen),
+    float UNUSED(fTemp),float UNUSED(fMetals)) {
     fioGADGET *gio = (fioGADGET *)fio;
     return gadgetWriteNative(gio,iParticleID,pdPos,pdVel,fMass);
     }
 static int gadgetWriteNativeStar(
-    struct fioInfo *fio,uint64_t iParticleID,const double *pdPos,const double *pdVel,
-    float fMass,float fSoft,float fPot,float fDen,float fMetals,float fTform) {
+    struct fioInfo *fio,
+    uint64_t iParticleID,const double *pdPos,const double *pdVel,float fMass,
+    float UNUSED(fSoft),float UNUSED(fPot),float UNUSED(fDen),
+    float UNUSED(fMetals),float UNUSED(fTform)) {
     fioGADGET *gio = (fioGADGET *)fio;
     return gadgetWriteNative(gio,iParticleID,pdPos,pdVel,fMass);
     }
 
-static void gadgetCloseFP(fioGADGET *gio,gadgetFP *fp) {
+static void gadgetCloseFP(gadgetFP *fp) {
     if ( fp->fp ) {
 	fclose(fp->fp);
 	fp->fp = NULL;
@@ -1944,11 +1943,11 @@ static void gadgetCloseFP(fioGADGET *gio,gadgetFP *fp) {
 static void gadgetClose(FIO fio) {
     fioGADGET *gio = (fioGADGET *)fio;
     assert(fio->eFormat == FIO_FORMAT_GADGET2);
-    gadgetCloseFP(gio,&gio->fp_pos);
-    gadgetCloseFP(gio,&gio->fp_vel);
-    gadgetCloseFP(gio,&gio->fp_id);
-    gadgetCloseFP(gio,&gio->fp_mass);
-    gadgetCloseFP(gio,&gio->fp_u);
+    gadgetCloseFP(&gio->fp_pos);
+    gadgetCloseFP(&gio->fp_vel);
+    gadgetCloseFP(&gio->fp_id);
+    gadgetCloseFP(&gio->fp_mass);
+    gadgetCloseFP(&gio->fp_u);
     free(gio);
     }
 
@@ -2030,11 +2029,11 @@ FIO fioGadgetCreate(
 
     gio->hdr = hdr.hdr;
     if ( gio->hdr.BoxSize > 0.0 ) {
-	double dTotalMass = 0.0;
+	double pi = 4.0 * atan(1.0);
 	gio->pos_fac = gio->hdr.BoxSize;
 	gio->pos_off = 0.5;
-	gio->vel_fac =  (gio->hdr.BoxSize*100.0 * sqrt(gio->hdr.Time)) / sqrt(8.0/3.0*M_PI);
-	gio->mass_fac = (pow(gio->hdr.BoxSize,3.0) * 3.0e3) / (8.0 * M_PI * 4.30172);
+	gio->vel_fac =  (gio->hdr.BoxSize*100.0 * sqrt(gio->hdr.Time)) / sqrt(8.0/3.0*pi);
+	gio->mass_fac = (pow(gio->hdr.BoxSize,3.0) * 3.0e3) / (8.0 * pi * 4.30172);
 	}
     else {
 	gio->pos_fac = 1.0;
@@ -2322,6 +2321,7 @@ static FIO gadgetOpenOne(const char *fname) {
 	}
 
     if ( gio->hdr.BoxSize > 0.0 ) {
+	double pi = 4.0 * atan(1.0);
        /*
        ** Cosmological coordinates
        ** G = 4.30172e-9 Mpc/M. (km/s)^2
@@ -2346,11 +2346,10 @@ static FIO gadgetOpenOne(const char *fname) {
        **   Munit = 10^10 M./h
        */
 
-	double dTotalMass = 0.0;
 	gio->pos_fac = 1.0 / gio->hdr.BoxSize;
 	gio->pos_off = -0.5;
-	gio->vel_fac = sqrt(8.0/3.0*M_PI) / (gio->hdr.BoxSize*100.0 * sqrt(gio->hdr.Time));
-	gio->mass_fac = 8.0 * M_PI * 4.30172 / (pow(gio->hdr.BoxSize,3.0) * 3.0e3);
+	gio->vel_fac = sqrt(8.0/3.0*pi) / (gio->hdr.BoxSize*100.0 * sqrt(gio->hdr.Time));
+	gio->mass_fac = 8.0 * pi * 4.30172 / (pow(gio->hdr.BoxSize,3.0) * 3.0e3);
 	}
     else {
 	gio->pos_fac = 1.0;
@@ -4103,13 +4102,14 @@ static FIO_SPECIES graficSpecies(FIO fio) {
     else return FIO_SPECIES_LAST;
     }
 
-static FIO graficOpenDirectory(const char *dirName,double dOmega0,double dOmegab) {
+static FIO graficOpenDirectory(const char *dirName,double UNUSED(dOmega0),double dOmegab) {
     fioGrafic *gio;
     struct stat s;
     size_t n;
     int i;
     char *fileName;
     double omega, f1, f2;
+    double pi = 4.0 * atan(1.0);
 
     /*
     ** GRAFIC files are found in a specific directory, so verify
@@ -4244,7 +4244,7 @@ static FIO graficOpenDirectory(const char *dirName,double dOmega0,double dOmegab
     gio->pFactor1 /= f1;
     gio->pFactor2 /= f2;
 
-    gio->vFactor  = sqrt(8*M_PI/3) * gio->iLbox / (gio->level[0].fp_velcx.hdr.H0*gio->level[0].fp_velcx.hdr.astart);
+    gio->vFactor  = sqrt(8.0*pi/3.0) * gio->iLbox / (gio->level[0].fp_velcx.hdr.H0*gio->level[0].fp_velcx.hdr.astart);
     gio->mValueCDM  = (gio->level[0].fp_velcx.hdr.omegam-dOmegab) / gio->fio.nSpecies[FIO_SPECIES_DARK];
     gio->mValueBar  = dOmegab / gio->fio.nSpecies[FIO_SPECIES_DARK];
     gio->sValue  = 1.0 / (50.0 * gio->level[0].fp_velcx.hdr.n[0]);

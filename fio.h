@@ -214,7 +214,7 @@ static inline FIO_MODE fioMode(FIO fio) {
 ** Returns the number of particles of a given species (or ALL).
 */
 static inline uint64_t fioGetN(FIO fio,FIO_SPECIES eSpecies) {
-    assert(eSpecies>=FIO_SPECIES_ALL && eSpecies<FIO_SPECIES_LAST);
+    assert(/*eSpecies>=FIO_SPECIES_ALL &&*/ eSpecies<FIO_SPECIES_LAST);
     return fio->nSpecies[eSpecies];
     }
 
