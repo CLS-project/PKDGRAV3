@@ -533,6 +533,17 @@ struct EwaldVariables {
     };
 
 /*
+** 
+*/
+typedef struct {
+    int32_t  iPid;      /* Master Processor for this Group */
+    int32_t  iIndex;    /* Group Index on that processor */
+    uint64_t iGlobalId; /* Global unique group id */
+    uint64_t nMembers;  /* Total members in this group */
+    float    fMass;
+    } groupTable;
+
+/*
 ** components required for groupfinder:  --J.D.--
 */
 typedef struct remoteMember {
@@ -543,21 +554,15 @@ typedef struct remoteMember {
 typedef struct groupData {
     int iLocalId;
     int iGlobalId;
-    int bridge;
-    int dup;
-    FLOAT fMass;
-    FLOAT fRMSRadius;
-    FLOAT r[3];
-    FLOAT rcom[3];
-    FLOAT potordenmax;
-    FLOAT v[3];
+    float fMass;
+    float fRMSRadius;
+    double r[3];
+    double rcom[3];
+    float potordenmax;
+    float v[3];
     int nLocal;
     int nTotal;
     int bMyGroup;
-    int nLSubGroups;
-    void *lSubGroups;
-    int nSubGroups;
-    void *subGroups;
     int nRemoteMembers;
     int iFirstRm;
 } FOFGD;
@@ -841,6 +846,8 @@ typedef struct pkdContext {
 
     int nGroups;
     FOFGD *groupData;
+    groupTable *groups;
+
     struct saddle_point_list saddle_points;
     int nRm;
     int nMaxRm;

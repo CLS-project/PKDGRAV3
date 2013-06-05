@@ -98,7 +98,7 @@ void msrReorder(MSR);
 void msrOutArray(MSR,const char *,int);
 void msrOutVector(MSR,const char *,int);
 void msrSmoothSetSMF(MSR msr, SMF *smf, double dTime);
-void msrSmooth(MSR,double,int,int);
+void msrSmooth(MSR,double,int,int,int);
 int msrDoGas(MSR msr);
 void msrFastGasPhase1(MSR,double,int);
 void msrFastGasPhase2(MSR,double,int);
@@ -203,6 +203,7 @@ void msrSwitchTheta(MSR msr,double);
 uint64_t msrMaxOrder(MSR msr);
 
 void msrFof(MSR msr, double exp);
+void msrHop(MSR msr, double exp);
 void msrGroupMerge(MSR msr, double exp);
 void msrGroupProfiles(MSR msr, double exp);
 void msrOutGroups(MSR msr,const char *,int,double dTime);

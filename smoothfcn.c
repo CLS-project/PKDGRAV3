@@ -99,6 +99,83 @@ void DensityF1(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
     p->fDensity = 1.875*M_1_PI*sqrt(ih2)*ih2*fDensity; /* F1 Kernel (15/8) */
     }
 
+void DensityM3(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
+    PKD pkd = smf->pkd;
+    float ih2,r2,rs,fDensity,fMass;
+    int i;
+    ih2 = 1.0/BALL2(p);
+    fDensity = 0.0;
+    for (i=0;i<nSmooth;++i) {
+	fMass = pkdMass(pkd,nnList[i].pPart);
+	r2 = nnList[i].fDist2*ih2;
+	if (r2 < 1.0) {
+	    double r = sqrt(r2);
+	    rs = 1.0 - r;
+	    rs *= rs*rs; /* rs^3 */
+	    if (r < 0.5f) {
+		double rs2 = 0.5f - r;
+		rs2 *= rs2*rs2; /* rs2^3 */
+		rs -= 4.0*rs2;
+		}
+	    }
+	else rs = 0.0;
+	fDensity += rs*fMass;
+	}
+    p->fDensity = 16.0*M_1_PI*sqrt(ih2)*ih2*fDensity; /* F1 Kernel (15/8) */
+    }
+
+void LinkGradientM3(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
+    PKD pkd = smf->pkd;
+    float ih2,r2,rs,fMass,fNorm,fDensity,frho[3], idrho, r2min, dr;
+    int i, j;
+    ih2 = 1.0/BALL2(p);
+    fNorm = 16.0*M_1_PI*ih2*ih2*sqrt(ih2);
+    frho[0] = frho[1] = frho[2] = 0.0;
+    for (i=0;i<nSmooth;++i) {
+	fMass = pkdMass(pkd,nnList[i].pPart);
+	float *a = pkdAccel(pkd,nnList[i].pPart);
+	r2 = nnList[i].fDist2*ih2;
+
+	if (r2 < 1.0) {
+	    double r = sqrt(r2);
+	    if (r < 0.5f) {
+		rs = -6.0 + 9.0*r;
+		}
+	    else {
+		rs = 1.0 - r;
+		rs *= rs; /* rs^2 */
+		rs *= -3.0;
+		rs /= r;
+		}
+	    }
+	else rs = 0.0;
+	rs *= fNorm*fMass;
+	rs *= (nnList[i].pPart->fDensity - p->fDensity)/nnList[i].pPart->fDensity;
+	frho[0] -= nnList[i].dx*rs;
+	frho[1] -= nnList[i].dy*rs;
+	frho[2] -= nnList[i].dz*rs;
+	}
+    idrho = 1.0/sqrt(frho[0]*frho[0] + frho[1]*frho[1] + frho[2]*frho[2]);
+    for (j=0;j<3;++j) frho[j] *= 0.5*idrho*p->fBall;
+    r2min = HUGE;
+    if (nSmooth==0) *pkdGroup(pkd, p) = -1;
+    for (i=0;i<nSmooth;++i) {
+	dr = nnList[i].dx - frho[0];
+	r2 = dr*dr;
+	dr = nnList[i].dy - frho[1];
+	r2 += dr*dr;
+	dr = nnList[i].dz - frho[2];
+	r2 += dr*dr;
+	if (r2 < r2min) {
+	    r2min = r2;
+	    smf->groupLink->iPid = nnList[i].iPid;
+	    smf->groupLink->iIndex = nnList[i].iIndex;
+	    }
+	}
+    }
+
+
+
 void Density(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
     float ih2,r2,rs,fDensity,fMass;

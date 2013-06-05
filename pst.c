@@ -255,6 +255,12 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_BOUNDSWALK,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstBoundsWalk,
 		  3*nThreads*sizeof(struct inBoundsWalk),3*nThreads*sizeof(struct outBoundsWalk));
+    mdlAddService(mdl,PST_HOPLINK,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstHopLink,
+		  sizeof(struct inHopLink),0);
+    mdlAddService(mdl,PST_HOPJOIN,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstHopJoin,
+		  0,sizeof(struct outHopJoin));
     mdlAddService(mdl,PST_SMOOTH,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstSmooth,
 		  sizeof(struct inSmooth),0);
@@ -2884,6 +2890,49 @@ void pstPhysicalSoft(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	}
     if (pnOut) *pnOut = 0;
     }
+
+void pstHopLink(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    struct inHopLink *in = vin;
+
+    mdlassert(pst->mdl,nIn == sizeof(struct inHopLink));
+    if (pst->nLeaves > 1) {
+	mdlReqService(pst->mdl,pst->idUpper,PST_HOPLINK,in,nIn);
+	pstHopLink(pst->pstLower,in,nIn,NULL,NULL);
+	mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
+	}
+    else {
+	LCL *plcl = pst->plcl;
+	SMX smx;
+
+	smInitialize(&smx,plcl->pkd,&in->smf,in->nSmooth,
+		     in->bPeriodic,in->bSymmetric,in->iSmoothType);
+	smHopLink(smx,&in->smf);
+	smFinish(smx,&in->smf);
+	}
+    if (pnOut) *pnOut = 0;
+    }
+
+void pstHopJoin(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    struct outHopJoin *out = vout;
+    struct outHopJoin outUpper;
+    int nOut;
+
+    mdlassert(pst->mdl,nIn == 0);
+    if (pst->nLeaves > 1) {
+        mdlReqService(pst->mdl,pst->idUpper,PST_HOPJOIN,NULL,0);
+        pstHopJoin(pst->pstLower,NULL,0,vout,pnOut);
+        mdlGetReply(pst->mdl,pst->idUpper,&outUpper,&nOut);
+        assert(nOut==sizeof(struct outHopJoin));
+	out->bDone = out->bDone && outUpper.bDone;
+        }
+    else {
+        PKD pkd = pst->plcl->pkd;
+        out->bDone = smHopJoin(pkd);
+        }
+    if (pnOut) *pnOut = sizeof(struct outHopJoin);
+    }
+
+
 
 void pstSmooth(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     struct inSmooth *in = vin;

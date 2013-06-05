@@ -6,6 +6,13 @@
 #include "floattype.h"
 #endif
 
+struct smGroupArray {
+    int32_t iGid;      /* local group ID */
+    int32_t iPid;      /* Processor of linked group */
+    int32_t iIndex;    /* Index of linked group (or particle if remote) */
+    int32_t iNewGid;   /* new local group ID */
+    };
+
 typedef struct smfParameters {
     int bComove;
     double dTime;
@@ -44,6 +51,7 @@ typedef struct smfParameters {
     double SFdFBFac;
     /* end starform */   
     PKD pkd; /* useful for diagnostics, etc. */
+    struct smGroupArray *groupLink;
     } SMF;
 
 
@@ -189,6 +197,11 @@ void DrmininDrift(PARTICLE *,int,NN *,SMF *);
 
 #define SMX_DENSITY_F1          28
 void DensityF1(PARTICLE *,int,NN *,SMF *);
+
+#define SMX_DENSITY_M3          29
+void DensityM3(PARTICLE *,int,NN *,SMF *);
+#define SMX_GRADIENT_M3          30
+void LinkGradientM3(PARTICLE *,int,NN *,SMF *);
 
 #endif
 

@@ -22,7 +22,6 @@ struct smExtraArray {
     char bDone;
 };
 
-
 typedef struct smContext {
     PKD pkd;
     PARTICLE pSentinel;
@@ -43,6 +42,10 @@ typedef struct smContext {
     ** build or domain decomposition.
     */
     struct smExtraArray *ea;
+    /*
+    ** Similarly, this will also use a portion of the pLite.
+    */
+    struct smGroupArray *ga;
     /*
     ** Flags to mark local particles which are finished in the processing
     ** of the smFastGas routine. They have updated their densities.
@@ -95,4 +98,6 @@ void smFof(SMX smx, SMF *smf);
 int smGroupMerge(SMF *smf, int bPeriodic);
 int smGroupProfiles(SMX smx, SMF *smf,int nTotalGroups);
 
+void smHopLink(SMX smx,SMF *smf);
+int smHopJoin(PKD pkd);
 #endif

@@ -531,6 +531,26 @@ ppy_msr_Gravity(PyObject *self, PyObject *args, PyObject *kwobj) {
 }
 
 static PyObject *
+ppy_msr_Hop(PyObject *self, PyObject *args, PyObject *kwobj) {
+    static char *kwlist[]={"Time",NULL};
+    double dExp;
+    double dTime = 0.0;
+
+    ppy2prm();
+    if (!ppy_get_dTime(&dTime))
+	return NULL;
+    if ( !PyArg_ParseTupleAndKeywords(
+	     args, kwobj, "|d:Hop", kwlist,
+	     &dTime ) )
+	return NULL;
+    dExp = csmTime2Exp(ppy_msr->param.csm,dTime);
+    msrHop(ppy_msr,dExp);
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+
+
+static PyObject *
 ppy_msr_Fof(PyObject *self, PyObject *args, PyObject *kwobj) {
     static char *kwlist[]={"Time",NULL};
     double dExp;
@@ -550,22 +570,25 @@ ppy_msr_Fof(PyObject *self, PyObject *args, PyObject *kwobj) {
     return Py_None;
 }
 
+
+
 static PyObject *
 ppy_msr_Smooth(PyObject *self, PyObject *args, PyObject *kwobj) {
-    static char *kwlist[]={"iSmoothType","bSymmetric","dTime",NULL};
+    static char *kwlist[]={"iSmoothType","bSymmetric","dTime","nSmooth",NULL};
     int iSmoothType;
     int bSymmetric = 0;
     double dTime;
+    int nSmooth = 64;
 
     ppy2prm();
     if (!ppy_get_dTime(&dTime))
 	return NULL;
     if ( !PyArg_ParseTupleAndKeywords(
-	     args, kwobj, "i|id:Smooth", kwlist,
-	     &iSmoothType,&bSymmetric, &dTime ) )
+	     args, kwobj, "i|idi:Smooth", kwlist,
+	     &iSmoothType,&bSymmetric, &dTime, &nSmooth ) )
 	return NULL;
 
-    msrSmooth(ppy_msr,dTime,iSmoothType,bSymmetric);
+    msrSmooth(ppy_msr,dTime,iSmoothType,bSymmetric,nSmooth);
 
     Py_INCREF(Py_None);
     return Py_None;
@@ -1047,6 +1070,8 @@ static PyMethodDef msr_methods[] = {
      "ReSmooth"},
     {"Fof", (PyCFunction)ppy_msr_Fof, METH_VARARGS|METH_KEYWORDS,
      "Friends of Friends"},
+    {"Hop", (PyCFunction)ppy_msr_Hop, METH_VARARGS|METH_KEYWORDS,
+     "Grasshopper"},
     {"GroupProfiles", (PyCFunction)ppy_msr_GroupProfiles, METH_VARARGS|METH_KEYWORDS,
      "Group Profiles"},
     {"PeakVc", (PyCFunction)ppy_msr_PeakVc, METH_VARARGS|METH_KEYWORDS,
@@ -1198,6 +1223,8 @@ static void setConstants( PyObject *dict ) {
     PyDict_SetItemString(dict, "dTime", Py_BuildValue("d",global_ppy->dTime));
 
     PyDict_SetItemString(dict, "SMX_DENSITY", Py_BuildValue("i",SMX_DENSITY));
+    PyDict_SetItemString(dict, "SMX_DENSITY_M3", Py_BuildValue("i",SMX_DENSITY_M3));
+    PyDict_SetItemString(dict, "SMX_GRADIENT_M3", Py_BuildValue("i",SMX_GRADIENT_M3));
     PyDict_SetItemString(dict, "SMX_MEANVEL", Py_BuildValue("i",SMX_MEANVEL));
     PyDict_SetItemString(dict, "SMX_DIVV", Py_BuildValue("i",SMX_DIVV));
     PyDict_SetItemString(dict, "SMX_VELDISP2", Py_BuildValue("i",SMX_VELDISP2));

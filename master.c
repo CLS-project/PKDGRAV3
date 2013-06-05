@@ -2770,10 +2770,10 @@ void msrSmoothSetSMF(MSR msr, SMF *smf, double dTime) {
 	/(msr->param.SFdvFB/msr->param.dKmPerSecUnit);
     }
 
-void msrSmooth(MSR msr,double dTime,int iSmoothType,int bSymmetric) {
+void msrSmooth(MSR msr,double dTime,int iSmoothType,int bSymmetric,int nSmooth) {
     struct inSmooth in;
 
-    in.nSmooth = msr->param.nSmooth;
+    in.nSmooth = nSmooth;
     in.bPeriodic = msr->param.bPeriodic;
     in.bSymmetric = bSymmetric;
     in.iSmoothType = iSmoothType;
@@ -3616,7 +3616,7 @@ void msrDensityStep(MSR msr,uint8_t uRungLo,uint8_t uRungHi,double dTime) {
 
     msrprintf(msr,"Calculating Rung Densities...\n");
     bSymmetric = 0;
-    msrSmooth(msr,dTime,SMX_DENSITY,bSymmetric);
+    msrSmooth(msr,dTime,SMX_DENSITY,bSymmetric,msr->param.nSmooth);
     in.dEta = msrEta(msr);
     expand = csmTime2Exp(msr->param.csm,dTime);
     in.dRhoFac = 1.0/(expand*expand*expand);
@@ -4033,7 +4033,7 @@ void msrStarForm(MSR msr, double dTime, int iRung)
 	msrSelDstDeleted(msr); /* Select only deleted particles */
 	msrActiveRung(msr,0,1); /* costs nothing -- may be redundant */
 //	msrBuildTree(msr,dTime,msr->param.bEwald);
-	msrSmooth(msr, dTime, SMX_DIST_DELETED_GAS, 1); /* use full smooth to account for deleted */
+	msrSmooth(msr, dTime, SMX_DIST_DELETED_GAS, 1,msr->param.nSmooth); /* use full smooth to account for deleted */
 	}
 
     /* Strictly speaking adding/deleting particles invalidates the tree 
@@ -4051,7 +4051,7 @@ void msrStarForm(MSR msr, double dTime, int iRung)
  	msrSelSrcGas(msr); /* Not really sure what the setting here needs to be */
 	msrSelDstStar(msr,1,dTime); /* Select only stars that have FB to do */ 
 //	msrBuildTree(msr,dTime,msr->param.bEwald);
-	msrSmooth(msr, dTime, SMX_DIST_SN_ENERGY, 1); /* full smooth for stars */
+	msrSmooth(msr, dTime, SMX_DIST_SN_ENERGY, 1, msr->param.nSmooth); /* full smooth for stars */
 
 	dsec = msrTime() - sec1;
 	printf("Feedback Calculated, Wallclock: %f secs\n\n",dsec);
@@ -4549,7 +4549,7 @@ void msrInitSph(MSR msr,double dTime)
 
  	msrSelSrcGas(msr); /* Not really sure what the setting here needs to be */
 	msrSelDstGas(msr);  
-	msrSmooth(msr,dTime,SMX_DENDVDX,0);  
+	msrSmooth(msr,dTime,SMX_DENDVDX,0,msr->param.nSmooth);  
 
 	in.dTuFac = msr->param.dTuFac;
 	a = csmTime2Exp(msr->param.csm,dTime);
@@ -4588,9 +4588,9 @@ void msrSph(MSR msr,double dTime, double dStep) {
     msrSelSrcGas(msr); /* Not really sure what the setting here needs to be */
     msrSelDstGas(msr);  
 
-    msrSmooth(msr,dTime,SMX_DENDVDX,0);  
+    msrSmooth(msr,dTime,SMX_DENDVDX,0,msr->param.nSmooth);  
 
-    msrSmooth(msr,dTime,SMX_SPHFORCES,1); /* Should be a resmooth */
+    msrSmooth(msr,dTime,SMX_SPHFORCES,1,msr->param.nSmooth); /* Should be a resmooth */
 
     dsec = msrTime() - sec;
     if (msr->param.bVStep) {
@@ -4662,6 +4662,45 @@ void msrCooling(MSR msr,double dTime,double dStep,int bUpdateState, int bUpdateT
 #endif
 
 /* END Gas routines */
+
+void msrHop(MSR msr, double dTime) {
+    struct inSmooth in;
+    struct inHopLink h;
+    struct outHopJoin j;
+    double sec,dsec;
+    h.nSmooth    = in.nSmooth = 80;
+    h.bPeriodic  = in.bPeriodic = msr->param.bPeriodic;
+    h.bSymmetric = in.bSymmetric = 0;
+    h.smf.a      = in.smf.a = dTime;
+    h.smf.dTau2  = in.smf.dTau2 = pow(msr->param.dTau,2.0);
+    h.smf.nMinMembers = in.smf.nMinMembers = msr->param.nMinMembers;
+    msrSmoothSetSMF(msr, &(in.smf), dTime);
+    msrSmoothSetSMF(msr, &(h.smf), dTime);
+
+    if (msr->param.bVStep)
+	printf("Running Grasshopper with linking length %e\n", sqrt(in.smf.dTau2) );
+
+    in.iSmoothType = SMX_DENSITY_M3;
+    sec = msrTime();
+    pstSmooth(msr->pst,&in,sizeof(in),NULL,NULL);
+    dsec = msrTime() - sec;
+    if (msr->param.bVStep)
+	printf("Density calculation complete, Wallclock: %f secs, calculating gradients...\n",dsec);
+
+    h.iSmoothType = SMX_GRADIENT_M3;
+    sec = msrTime();
+    pstHopLink(msr->pst,&h,sizeof(h),NULL,NULL);
+    dsec = msrTime() - sec;
+//    if (msr->param.bVStep)
+//	printf("Gradient calculation complete, Wallclock: %f secs, merging groups...\n",dsec);
+//    sec = msrTime();
+//    do {
+//	pstHopJoin(msr->pst,NULL,0,&j,NULL);
+//	} while( !j.bDone );
+//    dsec = msrTime() - sec;
+    if (msr->param.bVStep)
+	printf("Group merge complete, Wallclock: %f secs\n\n",dsec);
+    }
 
 void msrFof(MSR msr, double exp) {
     struct inFof in;
@@ -5890,7 +5929,7 @@ void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint) {
 	msrDomainDecomp(msr,-1,0,0);
 	msrBuildTree(msr,dTime,0);
 	bSymmetric = 0;  /* should be set in param file! */
-	msrSmooth(msr,dTime,SMX_DENSITY,bSymmetric);
+	msrSmooth(msr,dTime,SMX_DENSITY,bSymmetric,msr->param.nSmooth);
 #endif
 	}
 
