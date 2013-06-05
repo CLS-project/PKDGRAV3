@@ -8,9 +8,9 @@
 
 struct smGroupArray {
     int32_t iGid;      /* local group ID */
+    int32_t iNewGid;   /* new local group ID */
     int32_t iPid;      /* Processor of linked group */
     int32_t iIndex;    /* Index of linked group (or particle if remote) */
-    int32_t iNewGid;   /* new local group ID */
     };
 
 typedef struct smfParameters {
