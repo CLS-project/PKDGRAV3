@@ -10,7 +10,12 @@ struct smGroupArray {
     int32_t iGid;      /* local group ID */
     int32_t iNewGid;   /* new local group ID */
     int32_t iPid;      /* Processor of linked group */
-    int32_t iIndex;    /* Index of linked group (or particle if remote) */
+    int32_t iIndex;    /* Index of linked group (or particle) */
+    };
+
+struct smParticleLink {
+    int32_t iPid;      /* Processor of linked group */
+    int32_t iIndex;    /* Index of linked group (or particle) */
     };
 
 typedef struct smfParameters {
@@ -52,6 +57,7 @@ typedef struct smfParameters {
     /* end starform */   
     PKD pkd; /* useful for diagnostics, etc. */
     struct smGroupArray *groupLink;
+    struct smParticleLink *pParticleLink;
     } SMF;
 
 

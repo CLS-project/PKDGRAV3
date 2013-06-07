@@ -4668,7 +4668,7 @@ void msrHop(MSR msr, double dTime) {
     struct inHopLink h;
     struct outHopJoin j;
     double sec,dsec;
-    h.nSmooth    = in.nSmooth = 80;
+    h.nSmooth    = in.nSmooth = 160;
     h.bPeriodic  = in.bPeriodic = msr->param.bPeriodic;
     h.bSymmetric = in.bSymmetric = 0;
     h.smf.a      = in.smf.a = dTime;

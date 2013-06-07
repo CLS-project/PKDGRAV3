@@ -172,6 +172,9 @@ void LinkGradientM3(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
 	    smf->groupLink->iIndex = nnList[i].iIndex;
 	    }
 	}
+    assert(smf->pParticleLink->iPid==-1 && smf->pParticleLink->iIndex==-1);
+    smf->pParticleLink->iPid = smf->groupLink->iPid;
+    smf->pParticleLink->iIndex = smf->groupLink->iIndex;
     }
 
 

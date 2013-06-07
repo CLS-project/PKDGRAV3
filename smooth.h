@@ -46,6 +46,7 @@ typedef struct smContext {
     ** Similarly, this will also use a portion of the pLite.
     */
     struct smGroupArray *ga;
+    struct smParticleLink *pl;
     /*
     ** Flags to mark local particles which are finished in the processing
     ** of the smFastGas routine. They have updated their densities.
