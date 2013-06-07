@@ -3006,7 +3006,7 @@ static groupTable *createGroupTable(PKD pkd, int nGroups, struct smGroupArray *g
 /*
 **  Link particles based on density gradients
 */
-void smHopLink(SMX smx,SMF *smf) {
+int smHopLink(SMX smx,SMF *smf) {
     PKD pkd = smx->pkd;
     MDL mdl = pkd->mdl;
     PARTICLE *p;
@@ -3038,20 +3038,23 @@ void smHopLink(SMX smx,SMF *smf) {
     pkd->groups = NULL;
 
     /*
-    ** Group zero is always "no group", so start with group number 1.
+    ** Run through all of the particles, and find a particle to link to
+    ** by calculating the gradient and looking in that direction. We make
+    ** a link to this particle, then follow the link. Once we have reached
+    ** the end of the chain, we consider the next particle (which may have
+    ** been already done in which case we skip it).
     */
     nGroups = 1;
     nSpur = nLoop = nRemote = 0;
     for (pi=0;pi<pkd->nLocal;++pi) {
 	p = pkdParticle(pkd,iParticle=pi);
-	if ( *pkdGroup(pkd,p) > 0 ) continue;
+	if ( *pkdGroup(pkd,p) > 0 ) continue; /* Already done (below) */
 	if ( !pkdIsDstActive(p,0,MAX_RUNG) ) continue;
 	smf->groupLink = &ga[nGroups];
 	smf->groupLink->iGid = nGroups;
 	smf->groupLink->iPid = pkd->idSelf;
 	smf->groupLink->iIndex = pi;
 	for(;;) {
-	    if ( !pkdIsDstActive(p,0,MAX_RUNG) ) continue;
 	    *pkdGroup(pkd,p) = nGroups;
 	    smf->pParticleLink = &pl[iParticle];
 	    smSmoothSingle(smx,smf,p);
@@ -3079,10 +3082,11 @@ void smHopLink(SMX smx,SMF *smf) {
 		    break;
 		    }
 		}
+	    /* None of the above? Just keep following the links. */
 	    }
 	}
     smSmoothFinish(smx);
-#if 1
+#if 0
     printf("a. %d: %d chains, %d loops, %d remote, %d spurs merged\n",
 	pkd->idSelf, nGroups-1, nLoop, nRemote, nSpur);
 #endif
@@ -3110,7 +3114,7 @@ void smHopLink(SMX smx,SMF *smf) {
     ** fewer remote searches to perform. This results in substantially fewer chains.
     */
     nGroups = combineDuplicateGroupIds(pkd,nGroups,ga,0,0);
-#if 1
+#if 0
     nRemote = 0;
     for(pi=1; pi<nGroups; ++pi) {
 	if (ga[pi].iPid!=pkd->idSelf) ++nRemote;
@@ -3139,11 +3143,12 @@ void smHopLink(SMX smx,SMF *smf) {
 	    iPid1 = iPid2 = iMinPid = ga[pi].iPid;
 	    iIndex1 = iIndex2 = iMinIndex = ga[pi].iIndex;
 	    for(;;) {
+		/* We use Floyd's cycle-finding algorithm here */
 		if (traverseLink(pkd,pl,ga,pi,&iPid2,&iIndex2,&iMinPid,&iMinIndex)) break;
 		if (traverseLink(pkd,pl,ga,pi,&iPid2,&iIndex2,&iMinPid,&iMinIndex)) break;
 		traverseLink(pkd,pl,ga,pi,&iPid1,&iIndex1,NULL,NULL);
 		/*
-		** If we see a loop, then we are not a part of it. We defer it.
+		** If we see a loop here, then we are not a part of it. We defer it.
 		** We point ourselves at one of the loop members so we can later
 		** retrieve the proper terminating particle. We can be pointing
 		** to our node of course, but to a different group.
@@ -3158,8 +3163,9 @@ void smHopLink(SMX smx,SMF *smf) {
 	}
     mdlFinishCache(mdl,CID_GROUP);
     nGroups = combineDuplicateGroupIds(pkd,nGroups,ga,0,0);
+#if 0
     printf("c. %d: %d chains\n", pkd->idSelf, nGroups-1);
-
+#endif
     /*
     ** Now handle deferred groups (ones pointing to, but not part of, loops).
     */
@@ -3187,10 +3193,10 @@ void smHopLink(SMX smx,SMF *smf) {
     mdlFinishCache(mdl,CID_GROUP);
 
     nGroups = combineDuplicateGroupIds(pkd,nGroups,ga,0,0);
+#if 0
     printf("d. %d: %d chains\n", pkd->idSelf, nGroups-1);
-
+#endif
     mdlFree(mdl,pkd->groups);
-
 
 #if 0
     /* TEST: replace velocities with vector to linked BASE particle */
@@ -3230,8 +3236,9 @@ void smHopLink(SMX smx,SMF *smf) {
 	assert(ga[pi].iPid!=pkd->idSelf || gid==pi || ga[gid].iIndex==gid);
 	}
     nGroups = combineDuplicateGroupIds(pkd,nGroups,ga,1,0);
+#if 0
     printf("e. %d: %d groups\n", pkd->idSelf, nGroups-1);
-
+#endif
     /*
     ** We now fetch the correct remote group from each remote particle.
     */
@@ -3248,7 +3255,10 @@ void smHopLink(SMX smx,SMF *smf) {
 	if (ga[pi].iPid==mdl->idSelf) nLocal++;
 	else nRemote++;
 	}
+#if 0
     printf("f. %d: %d groups, nLocal=%d, nRemote=%d\n", pkd->idSelf, nGroups-1, nLocal, nRemote);
+#endif
+    return nLocal;
     }
 
 int smHopJoin(PKD pkd) {

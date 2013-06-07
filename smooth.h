@@ -99,6 +99,6 @@ void smFof(SMX smx, SMF *smf);
 int smGroupMerge(SMF *smf, int bPeriodic);
 int smGroupProfiles(SMX smx, SMF *smf,int nTotalGroups);
 
-void smHopLink(SMX smx,SMF *smf);
+int smHopLink(SMX smx,SMF *smf);
 int smHopJoin(PKD pkd);
 #endif

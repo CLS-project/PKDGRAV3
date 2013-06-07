@@ -4667,6 +4667,7 @@ void msrHop(MSR msr, double dTime) {
     struct inSmooth in;
     struct inHopLink h;
     struct outHopJoin j;
+    uint64_t nGroups;
     double sec,dsec;
     h.nSmooth    = in.nSmooth = 160;
     h.bPeriodic  = in.bPeriodic = msr->param.bPeriodic;
@@ -4685,11 +4686,12 @@ void msrHop(MSR msr, double dTime) {
     pstSmooth(msr->pst,&in,sizeof(in),NULL,NULL);
     dsec = msrTime() - sec;
     if (msr->param.bVStep)
-	printf("Density calculation complete, Wallclock: %f secs, calculating gradients...\n",dsec);
+	printf("Density calculation complete, Wallclock: %f secs, group finding...\n",dsec);
 
     h.iSmoothType = SMX_GRADIENT_M3;
     sec = msrTime();
-    pstHopLink(msr->pst,&h,sizeof(h),NULL,NULL);
+    nGroups = 0;
+    pstHopLink(msr->pst,&h,sizeof(h),&nGroups,NULL);
     dsec = msrTime() - sec;
 //    if (msr->param.bVStep)
 //	printf("Gradient calculation complete, Wallclock: %f secs, merging groups...\n",dsec);
@@ -4699,7 +4701,7 @@ void msrHop(MSR msr, double dTime) {
 //	} while( !j.bDone );
 //    dsec = msrTime() - sec;
     if (msr->param.bVStep)
-	printf("Group merge complete, Wallclock: %f secs\n\n",dsec);
+	printf("Group finding complete, Wallclock: %f secs, %"PRIu64" groups\n\n",dsec,nGroups);
     }
 
 void msrFof(MSR msr, double exp) {
