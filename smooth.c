@@ -3004,7 +3004,9 @@ static groupTable *createGroupTable(PKD pkd, int nGroups, struct smGroupArray *g
     }
 
 /*
-**  Link particles based on density gradients
+** Link particles based on density gradients
+** After we finish, all "chains" will be complete globally across all domains.
+** Chains still need to be joined if their terminating loops are close together.
 */
 int smHopLink(SMX smx,SMF *smf) {
     PKD pkd = smx->pkd;
@@ -3019,9 +3021,6 @@ int smHopLink(SMX smx,SMF *smf) {
     char outName[100];
     FILE *fp;
 
-    /*
-    ** Initialize the bInactive flags for all local particles.
-    */
     for (pi=0;pi<pkd->nLocal;++pi) {
 	p = pkdParticle(pkd,pi);
 	*pkdGroup(pkd,p) = 0; /* Ungrouped */
@@ -3091,20 +3090,20 @@ int smHopLink(SMX smx,SMF *smf) {
 	pkd->idSelf, nGroups-1, nLoop, nRemote, nSpur);
 #endif
 
-#if 0
-    /* TEST: replace velocities with vector to linked particle */
-    for (pi=0;pi<pkd->nLocal;++pi) {
-	PARTICLE *p2;
-	double *v;
-	p = pkdParticle(pkd,pi);
-	v = pkdVel(pkd,p);
-	p2 = mdlAquire(mdl,CID_PARTICLE,pl[pi].iIndex,pl[pi].iPid);
-	v[0] = p2->r[0] - p->r[0];
-	v[1] = p2->r[1] - p->r[1];
-	v[2] = p2->r[2] - p->r[2];
-	mdlRelease(mdl,CID_PARTICLE,p2);
+    /* Save particle links (if requested) */
+    if (pkd->oDebugLinks) {
+	for (pi=0;pi<pkd->nLocal;++pi) {
+	    PARTICLE *p2;
+	    float *v;
+	    p = pkdParticle(pkd,pi);
+	    v = (float *)pkdField(p,pkd->oDebugLinks);
+	    p2 = mdlAquire(mdl,CID_PARTICLE,pl[pi].iIndex,pl[pi].iPid);
+	    v[0] = p2->r[0] - p->r[0];
+	    v[1] = p2->r[1] - p->r[1];
+	    v[2] = p2->r[2] - p->r[2];
+	    mdlRelease(mdl,CID_PARTICLE,p2);
+	    }
 	}
-#endif
 
     /*
     ** All chains now terminate at a specific *particle*, either local or remote.
@@ -3198,21 +3197,21 @@ int smHopLink(SMX smx,SMF *smf) {
 #endif
     mdlFree(mdl,pkd->groups);
 
-#if 0
-    /* TEST: replace velocities with vector to linked BASE particle */
-    for (pi=0;pi<pkd->nLocal;++pi) {
-	PARTICLE *p2;
-	double *v;
-	p = pkdParticle(pkd,pi);
-	gid = *pkdGroup(pkd,p);
-	v = pkdVel(pkd,p);
-	p2 = mdlAquire(mdl,CID_PARTICLE,ga[gid].iIndex,ga[gid].iPid);
-	v[0] = p2->r[0] - p->r[0];
-	v[1] = p2->r[1] - p->r[1];
-	v[2] = p2->r[2] - p->r[2];
-	mdlRelease(mdl,CID_PARTICLE,p2);
+    /* Save rays (if requested) */
+    if (pkd->oDebugBases) {
+	for (pi=0;pi<pkd->nLocal;++pi) {
+	    PARTICLE *p2;
+	    float *v;
+	    p = pkdParticle(pkd,pi);
+	    gid = *pkdGroup(pkd,p);
+	    v = (float *)pkdField(p,pkd->oDebugBases);
+	    p2 = mdlAquire(mdl,CID_PARTICLE,ga[gid].iIndex,ga[gid].iPid);
+	    v[0] = p2->r[0] - p->r[0];
+	    v[1] = p2->r[1] - p->r[1];
+	    v[2] = p2->r[2] - p->r[2];
+	    mdlRelease(mdl,CID_PARTICLE,p2);
+	    }
 	}
-#endif
 
     /*
     ** Now we need to combine chains that terminate near each other.
@@ -3226,29 +3225,22 @@ int smHopLink(SMX smx,SMF *smf) {
 
 
 
-    /* Turn local particle IDs into group IDs */
+    /* Turn particle IDs into group IDs */
     for(pi=1; pi<nGroups; ++pi) {
 	if (ga[pi].iPid == pkd->idSelf) {
 	    gid = *pkdGroup(pkd,pkdParticle(pkd,ga[pi].iIndex));
-	    ga[pi].iIndex = gid;
 	    }
-	gid = ga[pi].iIndex;
-	assert(ga[pi].iPid!=pkd->idSelf || gid==pi || ga[gid].iIndex==gid);
+	else {
+	    p = mdlAquire(mdl,CID_PARTICLE,ga[pi].iIndex,ga[pi].iPid);
+	    gid = *pkdGroup(pkd,p);
+	    mdlRelease(mdl,CID_PARTICLE,p);
+	    }
+	ga[pi].iIndex = gid;
 	}
     nGroups = combineDuplicateGroupIds(pkd,nGroups,ga,1,0);
 #if 0
     printf("e. %d: %d groups\n", pkd->idSelf, nGroups-1);
 #endif
-    /*
-    ** We now fetch the correct remote group from each remote particle.
-    */
-    for(pi=1; pi<nGroups; ++pi) {
-	if (ga[pi].iPid!=pkd->idSelf) {
-	    p = mdlAquire(mdl,CID_PARTICLE,ga[pi].iIndex,ga[pi].iPid);
-	    ga[pi].iIndex = *pkdGroup(pkd,p);
-	    mdlRelease(mdl,CID_PARTICLE,p);
-	    }
-	}
 
     nLocal = nRemote = 0;
     for(pi=1; pi<nGroups; ++pi) {
