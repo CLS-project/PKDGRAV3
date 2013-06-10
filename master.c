@@ -4708,7 +4708,7 @@ void msrHop(MSR msr, double dTime) {
 	assert(i<100);
 	pstHopJoin(msr->pst,&h,sizeof(h),&j,NULL);
 	if (msr->param.bVStep)
-	    printf("... %d iteration%s, %"PRIu64" groups\n",i,i==1?"":"s",j.nGroups);
+	    printf("... %d iteration%s, %"PRIu64" chains remain\n",i,i==1?"":"s",j.nGroups);
 	} while( !j.bDone );
     nGroups = j.nGroups;
     dsec = msrTime() - sec;

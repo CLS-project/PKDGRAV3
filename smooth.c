@@ -2810,10 +2810,6 @@ static void combJoinLoops(void *vctx, void *v1, void *v2) {
     GHtmpGroupTable * g1 = (GHtmpGroupTable *)v1;
     GHtmpGroupTable * g2 = (GHtmpGroupTable *)v2;
     if ( g1->iPid>g2->iPid || (g1->iPid==g2->iPid && g1->iIndex>g2->iIndex) ) {
-//	printf("%d.%d set to %d.%d (was %d.%d)\n",
-//	    ctx->pkd->idSelf, g1 - ctx->pkd->groups,
-//	    g2->iPid, g2->iIndex,
-//	    g1->iPid, g1->iIndex );
 	g1->iPid = g2->iPid;
 	g1->iIndex = g2->iIndex;
 	smf->bDone = 0;
@@ -3360,14 +3356,14 @@ void pkdHopAssignGID(PKD pkd) {
     GHtmpGroupTable *g;
     struct smGroupArray *ga = (struct smGroupArray *)(pkd->pLite);
 
-#if 0
+    /* Follow the chains to the end */
     mdlROcache(mdl,CID_GROUP,NULL,pkd->groups,sizeof(GHtmpGroupTable), pkd->nGroups);
     for(i=1; i<pkd->nGroups; ++i) {
 	iPid = pkd->idSelf;
 	iIndex = i;
 	iNextPid   = pkd->groups[iIndex].iPid;
 	iNextIndex = pkd->groups[iIndex].iIndex;
-	while(iPid!=iNextPid || iIndex!=iNextPid) {
+	while(iPid!=iNextPid || iIndex!=iNextIndex) {
 	    g = mdlAquire(mdl,CID_GROUP,iNextIndex,iNextPid);
 	    iPid = iNextPid;
 	    iIndex = iNextIndex;
@@ -3379,7 +3375,7 @@ void pkdHopAssignGID(PKD pkd) {
 	pkd->groups[i].iIndex = iIndex;
 	}
     mdlFinishCache(mdl,CID_GROUP);
-#endif
+
 
 #if 1
 //    mdlROcache(mdl,CID_GROUP,NULL,pkd->groups,sizeof(GHtmpGroupTable), pkd->nGroups);
