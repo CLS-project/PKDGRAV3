@@ -105,8 +105,6 @@ static inline int64_t d2u64(double d) {
 #define PKD_MODEL_STAR         (1<<10) /* Star Fields */
 #define PKD_MODEL_RUNGDEST     (1<<11) /* New Domain Decomposition */
 #define PKD_MODEL_PARTICLE_ID  (1<<12) /* Particles have a unique ID */
-#define PKD_MODEL_DEBUG_LINKS  (1<<13) /* Link during group finding */
-#define PKD_MODEL_DEBUG_BASES  (1<<14) /* Base particle during group finding */
 
 #define PKD_MODEL_NODE_MOMENT  (1<<24) /* Include moment in the tree */
 #define PKD_MODEL_NODE_ACCEL   (1<<25) /* mean accel on cell (for grav step) */
@@ -198,12 +196,13 @@ typedef struct starfields {
     double totaltime; /* diagnostic -- get rid of it */
     } STARFIELDS;   
 
-#define IORDERBITS 42    
+#define IORDERBITS 41
 #define IORDERMAX ((((uint64_t) 1)<<IORDERBITS)-1)
 
 typedef struct particle {
     /*-----Base-Particle-Data----*/
     uint64_t iOrder     :  IORDERBITS;
+    uint8_t  bMarked    :  1;
     uint8_t  uNewRung   :  6;
     uint8_t  uRung      :  6;
     uint8_t  bSrcActive :  1;
@@ -535,15 +534,16 @@ struct EwaldVariables {
     };
 
 /*
-** 
+** This is the temporary group table used when Grasshopping.
+** We eventually contruct a proper table.
 */
 typedef struct {
     int32_t  iPid;      /* Master Processor for this Group */
     int32_t  iIndex;    /* Group Index on that processor */
-    uint64_t iGlobalId; /* Global unique group id */
-    uint64_t nMembers;  /* Total members in this group */
-    float    fMass;
-    } groupTable;
+    uint32_t iGlobalId; /* Global unique group id */
+//    float    fMass;
+//    uint64_t nMembers;  /* Total members in this group */
+    } GHtmpGroupTable;
 
 /*
 ** components required for groupfinder:  --J.D.--
@@ -773,8 +773,6 @@ typedef struct pkdContext {
     int oVelSmooth;
     int oRungDest; /* Destination processor for each rung */
     int oParticleID;
-    int oDebugLinks;
-    int oDebugBases;
 
     /*
     ** Advanced memory models - Tree Nodes
@@ -850,7 +848,7 @@ typedef struct pkdContext {
 
     int nGroups;
     FOFGD *groupData;
-    groupTable *groups;
+    GHtmpGroupTable *groups;
 
     struct saddle_point_list saddle_points;
     int nRm;

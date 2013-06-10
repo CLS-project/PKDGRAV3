@@ -58,6 +58,7 @@ typedef struct smfParameters {
     PKD pkd; /* useful for diagnostics, etc. */
     struct smGroupArray *groupLink;
     struct smParticleLink *pParticleLink;
+    int bDone;
     } SMF;
 
 
@@ -206,9 +207,10 @@ void DensityF1(PARTICLE *,int,NN *,SMF *);
 
 #define SMX_DENSITY_M3          29
 void DensityM3(PARTICLE *,int,NN *,SMF *);
-#define SMX_GRADIENT_M3          30
+#define SMX_GRADIENT_M3         30
 void LinkGradientM3(PARTICLE *,int,NN *,SMF *);
-
+#define SMX_HOP_LINK            31
+void LinkHopChains(PARTICLE *,int,NN *,SMF *);
 #endif
 
 

@@ -20,6 +20,7 @@ struct smExtraArray {
     uint32_t iIndex;
     char bInactive;
     char bDone;
+    char bArc;
 };
 
 typedef struct smContext {
@@ -100,5 +101,6 @@ int smGroupMerge(SMF *smf, int bPeriodic);
 int smGroupProfiles(SMX smx, SMF *smf,int nTotalGroups);
 
 int smHopLink(SMX smx,SMF *smf);
-int smHopJoin(PKD pkd);
+int smHopJoin(SMX smx,SMF *smf,int *nLocal);
+void pkdHopAssignGID(PKD pkd);
 #endif

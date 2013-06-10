@@ -4667,9 +4667,13 @@ void msrHop(MSR msr, double dTime) {
     struct inSmooth in;
     struct inHopLink h;
     struct outHopJoin j;
+    int i;
     uint64_t nGroups;
-    double sec,dsec;
-    h.nSmooth    = in.nSmooth = 160;
+    double sec,dsec,ssec;;
+
+    ssec = msrTime();
+
+    h.nSmooth    = in.nSmooth = 80;
     h.bPeriodic  = in.bPeriodic = msr->param.bPeriodic;
     h.bSymmetric = in.bSymmetric = 0;
     h.smf.a      = in.smf.a = dTime;
@@ -4686,22 +4690,36 @@ void msrHop(MSR msr, double dTime) {
     pstSmooth(msr->pst,&in,sizeof(in),NULL,NULL);
     dsec = msrTime() - sec;
     if (msr->param.bVStep)
-	printf("Density calculation complete, Wallclock: %f secs, group finding...\n",dsec);
+	printf("Density calculation complete in %f secs, finding chains...\n",dsec);
 
     h.iSmoothType = SMX_GRADIENT_M3;
     sec = msrTime();
     nGroups = 0;
     pstHopLink(msr->pst,&h,sizeof(h),&nGroups,NULL);
     dsec = msrTime() - sec;
-//    if (msr->param.bVStep)
-//	printf("Gradient calculation complete, Wallclock: %f secs, merging groups...\n",dsec);
-//    sec = msrTime();
-//    do {
-//	pstHopJoin(msr->pst,NULL,0,&j,NULL);
-//	} while( !j.bDone );
-//    dsec = msrTime() - sec;
     if (msr->param.bVStep)
-	printf("Group finding complete, Wallclock: %f secs, %"PRIu64" groups\n\n",dsec,nGroups);
+	printf("Chain search complete in %f secs, merging %"PRIu64" chains...\n",dsec,nGroups);
+#if 1
+    h.iSmoothType = SMX_HOP_LINK;
+    sec = msrTime();
+    i = 0;
+    do {
+	++i;
+	assert(i<100);
+	pstHopJoin(msr->pst,&h,sizeof(h),&j,NULL);
+	if (msr->param.bVStep)
+	    printf("... %d iteration%s, %"PRIu64" groups\n",i,i==1?"":"s",j.nGroups);
+	} while( !j.bDone );
+    nGroups = j.nGroups;
+    dsec = msrTime() - sec;
+    if (msr->param.bVStep)
+	printf("Chain merge complete in %f secs, %"PRIu64" groups\n",dsec,nGroups);
+#endif
+    pstHopAssignGID(msr->pst,NULL,0,NULL,NULL);
+
+    dsec = msrTime() - ssec;
+    if (msr->param.bVStep)
+	printf("Grasshopper complete, Wallclock: %f secs\n\n",dsec);
     }
 
 void msrFof(MSR msr, double exp) {

@@ -161,8 +161,9 @@ enum pst_service {
     PST_SETNPARTS,
     PST_DENSCHECK,
     PST_FOF,
-    PST_HOPLINK,
-    PST_HOPJOIN,
+    PST_HOP_LINK,
+    PST_HOP_JOIN,
+    PST_HOP_ASSIGN_GID,
     PST_GROUPMERGE,
     PST_GROUPPROFILES,
     PST_INITRELAXATION,
@@ -582,7 +583,7 @@ struct outBoundsWalk {
 };
 void pstBoundsWalk(PST,void *,int,void *,int *);
 
-/* PST_HOPLINK */
+/* PST_HOP_LINK */
 struct inHopLink {
     int nSmooth;
     int bPeriodic;
@@ -592,11 +593,15 @@ struct inHopLink {
     };
 void pstHopLink(PST,void *,int,void *,int *);
 
-/* PST_HOPJOIN */
+/* PST_HOP_JOIN */
 struct outHopJoin {
+    uint64_t nGroups;
     int bDone;
     };
 void pstHopJoin(PST,void *,int,void *,int *);
+
+/* PST_HOP_ASSIGN_GID */
+void pstHopAssignGID(PST,void *,int,void *,int *);
 
 /* PST_SMOOTH */
 struct inSmooth {

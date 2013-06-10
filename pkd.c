@@ -375,13 +375,6 @@ void pkdInitialize(
 	pkd->oGroup = 0;
 	}
 
-    if ( mMemoryModel & PKD_MODEL_DEBUG_LINKS )
-	pkd->oDebugLinks = pkdParticleAddFloat(pkd,3);
-    else pkd->oDebugLinks = 0;
-    if ( mMemoryModel & PKD_MODEL_DEBUG_BASES )
-	pkd->oDebugBases = pkdParticleAddFloat(pkd,3);
-    else pkd->oDebugBases = 0;
-
     if ( mMemoryModel & PKD_MODEL_RUNGDEST ) {
 	pkd->nMaxDomainRungs = nMaxDomainRungs;
 	pkd->oRungDest = pkdParticleAddInt16(pkd,pkd->nMaxDomainRungs);

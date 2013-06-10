@@ -255,12 +255,15 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_BOUNDSWALK,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstBoundsWalk,
 		  3*nThreads*sizeof(struct inBoundsWalk),3*nThreads*sizeof(struct outBoundsWalk));
-    mdlAddService(mdl,PST_HOPLINK,pst,
+    mdlAddService(mdl,PST_HOP_LINK,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstHopLink,
-	sizeof(struct inHopLink),sizeof(uint64_t));
-    mdlAddService(mdl,PST_HOPJOIN,pst,
+	          sizeof(struct inHopLink),sizeof(uint64_t));
+    mdlAddService(mdl,PST_HOP_JOIN,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstHopJoin,
-		  0,sizeof(struct outHopJoin));
+		  sizeof(struct inHopLink),sizeof(struct outHopJoin));
+    mdlAddService(mdl,PST_HOP_ASSIGN_GID,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstHopAssignGID,
+		  0,0);
     mdlAddService(mdl,PST_SMOOTH,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstSmooth,
 		  sizeof(struct inSmooth),0);
@@ -2898,7 +2901,7 @@ void pstHopLink(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 
     mdlassert(pst->mdl,nIn == sizeof(struct inHopLink));
     if (pst->nLeaves > 1) {
-	mdlReqService(pst->mdl,pst->idUpper,PST_HOPLINK,in,nIn);
+	mdlReqService(pst->mdl,pst->idUpper,PST_HOP_LINK,in,nIn);
 	pstHopLink(pst->pstLower,in,nIn,vout,pnOut);
 	mdlGetReply(pst->mdl,pst->idUpper,&nOutUpper,NULL);
 	*nOutGroups += nOutUpper;
@@ -2916,25 +2919,47 @@ void pstHopLink(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     }
 
 void pstHopJoin(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    struct inHopLink *in = vin;
     struct outHopJoin *out = vout;
-    struct outHopJoin outUpper;
-    int nOut;
+    struct outHopJoin outUpper, outLower;
+    int nOut, nLocal;
 
-    mdlassert(pst->mdl,nIn == 0);
+    mdlassert(pst->mdl,nIn == sizeof(struct inHopLink));
     if (pst->nLeaves > 1) {
-        mdlReqService(pst->mdl,pst->idUpper,PST_HOPJOIN,NULL,0);
-        pstHopJoin(pst->pstLower,NULL,0,vout,pnOut);
+        mdlReqService(pst->mdl,pst->idUpper,PST_HOP_JOIN,in,nIn);
+        pstHopJoin(pst->pstLower,in,nIn,&outLower,pnOut);
         mdlGetReply(pst->mdl,pst->idUpper,&outUpper,&nOut);
         assert(nOut==sizeof(struct outHopJoin));
-	out->bDone = out->bDone && outUpper.bDone;
+	out->bDone = outLower.bDone && outUpper.bDone;
+	out->nGroups = outLower.nGroups + outUpper.nGroups;
         }
     else {
-        PKD pkd = pst->plcl->pkd;
-        out->bDone = smHopJoin(pkd);
+	LCL *plcl = pst->plcl;
+	SMX smx;
+	smInitialize(&smx,plcl->pkd,&in->smf,in->nSmooth,
+		     in->bPeriodic,in->bSymmetric,in->iSmoothType);
+        out->bDone = smHopJoin(smx,&in->smf,&nLocal);
+	smFinish(smx,&in->smf);
+	out->nGroups = nLocal;
         }
     if (pnOut) *pnOut = sizeof(struct outHopJoin);
     }
 
+void pstHopAssignGID(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    int nOut;
+
+    mdlassert(pst->mdl,nIn == 0);
+    if (pst->nLeaves > 1) {
+        mdlReqService(pst->mdl,pst->idUpper,PST_HOP_ASSIGN_GID,vin,nIn);
+        pstHopAssignGID(pst->pstLower,vin,nIn,NULL,pnOut);
+        mdlGetReply(pst->mdl,pst->idUpper,NULL,pnOut);
+        }
+    else {
+	LCL *plcl = pst->plcl;
+        pkdHopAssignGID(plcl->pkd);
+        }
+    if (pnOut) *pnOut = 0;
+    }
 
 
 void pstSmooth(PST pst,void *vin,int nIn,void *vout,int *pnOut) {

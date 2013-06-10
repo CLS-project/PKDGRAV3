@@ -503,6 +503,21 @@ const char *mdlName(MDL mdl) {
 /*
 ** This needs to be improved by abstracting away more of the MPI functionality
 */
+
+int mdlBcast ( MDL mdl, void *buf, int count, MDL_Datatype datatype, int root ) {
+    return MPI_Bcast( buf, count, datatype, root, mdl->commMDL );
+    }
+
+int mdlScan ( MDL mdl, void *sendbuf, void *recvbuf, int count,
+		MDL_Datatype datatype, MDL_Op op ) {
+    return MPI_Scan( sendbuf, recvbuf, count, datatype, op, mdl->commMDL );
+    }
+
+int mdlExscan ( MDL mdl, void *sendbuf, void *recvbuf, int count,
+		MDL_Datatype datatype, MDL_Op op ) {
+    return MPI_Exscan( sendbuf, recvbuf, count, datatype, op, mdl->commMDL );
+    }
+
 int mdlReduce ( MDL mdl, void *sendbuf, void *recvbuf, int count,
 		MDL_Datatype datatype, MDL_Op op, int root ) {
     return MPI_Reduce( sendbuf, recvbuf, count, datatype, op, root, mdl->commMDL );
