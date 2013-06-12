@@ -535,7 +535,8 @@ void Create(PKD pkd,int iNode) {
 #else
 	b = sqrt(d2Max);
 #endif
-        if (b < bmin) b = bmin;
+	if (b==0.0) b = 1.0f; /* FIXME: Single particle. Perhaps momMakeFmomr should be more robust. */
+        else if (b < bmin) b = bmin;
 	pkdn->bMax = b;
 	/*
 	** Now calculate the reduced multipole moment.
@@ -887,12 +888,13 @@ void pkdTreeBuildByGroup(PKD pkd, int nBucket, int *iFirst, int *iLast) {
 	    bnd.fCenter[j] = 0.5*(dMin[j] + dMax[j]);
 	    bnd.fMax[j] = 0.5*(dMax[j] - dMin[j]);
 	    }
-	pNode->pUpper = i - 1;
+	pNode->pUpper = i-1;
 	}
+
     *iLast = iRoot;
-    for(i = *iFirst; i < *iLast; i += 2 ) BuildTemp(pkd,i,nBucket);
+    for(i = *iFirst; i <= *iLast; i += 2 ) BuildTemp(pkd,i,nBucket);
     ShuffleParticles(pkd,0);
-    for(i = *iFirst; i < *iLast; i += 2 ) Create(pkd,i);
+    for(i = *iFirst; i <= *iLast; i += 2 ) Create(pkd,i);
     }
 
 void pkdDistribCells(PKD pkd,int nCell,KDN *pkdn) {

@@ -3294,6 +3294,9 @@ int smHopLink(SMX smx,SMF *smf) {
 
 /*
 ** Join together chains if their terminating loops are withing a linking length.
+**
+** OPTIMIZATION: we should mark individual groups as done/not done so we can skip
+**               subsequent iterations for those groups.
 */
 int smHopJoin(SMX smx,SMF *smf, int *nLocal) {
     PKD pkd = smx->pkd;
@@ -3312,13 +3315,16 @@ int smHopJoin(SMX smx,SMF *smf, int *nLocal) {
     ** Check all particles that are part of a loop or an arc (they are marked)
     */
     for (pi=0;pi<pkd->nLocal;++pi) {
+	float fBall, fSoft;
 	p = pkdParticle(pkd,pi);
 	if (!p->bMarked) continue;
-	p = pkdParticle(pkd,pi);
-	smReSmoothSingle(smx,smf,p,p->r,p->fBall*0.50);
+	fSoft = pkdSoft(pkd,p);
+	fBall = p->fBall*0.5f;                  /* Search within a smaller sphere for other chains */
+	if (fBall<fSoft)                        /* but consider at least a softening length */
+	    fBall = fminf(fSoft,2.0f*p->fBall); /* unless that would be crazy big! */
+	smReSmoothSingle(smx,smf,p,p->r,fBall);
 	}
     mdlFinishCache(mdl,CID_GROUP);
-
 
     /* Follow the chains to the end */
     mdlROcache(mdl,CID_GROUP,NULL,pkd->tmpHopGroups,sizeof(GHtmpGroupTable), pkd->nGroups);
@@ -3358,7 +3364,6 @@ int smHopJoin(SMX smx,SMF *smf, int *nLocal) {
     return smf->bDone;
     }
 
-
 static void initHopGroupProperties(void *vpkd, void *v) {
     PKD pkd = (PKD)vpkd;
     HopGroupTable * g = (HopGroupTable *)v;
@@ -3366,6 +3371,7 @@ static void initHopGroupProperties(void *vpkd, void *v) {
 
     g->nLocal = 0;
     g->nTotal = 0;
+    g->nRemote = 0;
     for (j=0;j<3;j++) {
 	g->r[j] = 0.0;
 	g->rcm[j] = 0.0;
@@ -3374,6 +3380,7 @@ static void initHopGroupProperties(void *vpkd, void *v) {
     g->fRMSRadius =  0.0;
     g->fMass = 0.0;
     }
+
 static void combHopGroupProperties(void *vctx, void *v1, void *v2) {
     PKD pkd = (PKD)vctx;
     HopGroupTable * g1 = (HopGroupTable *)v1;
@@ -3381,6 +3388,7 @@ static void combHopGroupProperties(void *vctx, void *v1, void *v2) {
     int j;
 
     g1->nTotal += g2->nTotal;
+    g1->nRemote += g2->nRemote;
     for (j=0;j<3;j++) {
 	g1->r[j] += g2->r[j];
 	g1->rcm[j] += g2->rcm[j];
@@ -3393,6 +3401,7 @@ static void combHopGroupProperties(void *vctx, void *v1, void *v2) {
 int pkdHopFinishUp(PKD pkd,int nMinGroupSize) {
     MDL mdl = pkd->mdl;
     struct smGroupArray *ga = (struct smGroupArray *)(pkd->pLite);
+    HopGroupTable * g;
     int i, j, gid;
     PARTICLE *p;
     float fMass;
@@ -3414,6 +3423,7 @@ int pkdHopFinishUp(PKD pkd,int nMinGroupSize) {
 	pkd->hopGroups[i].iGlobalId = 0;
 	pkd->hopGroups[i].nLocal = 0;
 	pkd->hopGroups[i].nTotal = 0;
+	pkd->hopGroups[i].nRemote = 0;
 	pkd->hopGroups[i].fMass = 0.0;
 	for (j=0;j<3;j++) {
 	    pkd->hopGroups[i].rcm[j] = 0.0;
@@ -3445,11 +3455,12 @@ int pkdHopFinishUp(PKD pkd,int nMinGroupSize) {
     mdlCOcache(mdl,CID_GROUP,NULL,pkd->hopGroups,sizeof(HopGroupTable), pkd->nGroups,
 	pkd, initHopGroupProperties, combHopGroupProperties );
 
-    for(i=1; i<pkd->nGroups; ++i) {
+    for(i=1+pkd->nLocalGroups; i<pkd->nGroups; ++i) {
 	HopGroupTable *g;
 	if (pkd->hopGroups[i].id.iPid == pkd->idSelf) continue;
 	g = mdlAquire(mdl,CID_GROUP,pkd->hopGroups[i].id.iIndex,pkd->hopGroups[i].id.iPid);
 	g->nTotal += pkd->hopGroups[i].nLocal;
+	g->nRemote = 1;
 	for (j=0;j<3;j++) {
 	    g->r[j] += pkd->hopGroups[i].r[j];
 	    g->rcm[j] += pkd->hopGroups[i].rcm[j];
@@ -3457,10 +3468,11 @@ int pkdHopFinishUp(PKD pkd,int nMinGroupSize) {
 	    }
 	g->fRMSRadius += pkd->hopGroups[i].fRMSRadius;
 	g->fMass += pkd->hopGroups[i].fMass;
+	mdlRelease(mdl,CID_GROUP,g);
 	}
     mdlFinishCache(mdl,CID_GROUP);
 
-    for(i=1; i<pkd->nGroups; ++i) {
+    for(i=1; i<=pkd->nLocalGroups; ++i) {
 	for (j=0;j<3;j++) {
 	    pkd->hopGroups[i].r[j] /= pkd->hopGroups[i].nTotal;
 	    pkd->hopGroups[i].rcm[j] /= pkd->hopGroups[i].fMass;
@@ -3476,15 +3488,30 @@ int pkdHopFinishUp(PKD pkd,int nMinGroupSize) {
 	pkd->hopGroups[i].fRMSRadius = sqrt(pkd->hopGroups[i].fRMSRadius);
 	}
 
+    /* Fetch remote group properties */
+    mdlROcache(mdl,CID_GROUP,NULL,pkd->hopGroups,sizeof(HopGroupTable), pkd->nGroups);
+    for(i=1+pkd->nLocalGroups; i<pkd->nGroups; ++i) {
+	assert(pkd->hopGroups[i].id.iPid != pkd->idSelf);
+	g = mdlAquire(mdl,CID_GROUP,pkd->hopGroups[i].id.iIndex,pkd->hopGroups[i].id.iPid);
+	pkd->hopGroups[i].nRemote = g->nRemote;
+	pkd->hopGroups[i].nTotal = g->nTotal;
+	pkd->hopGroups[i].fMass = g->fMass;
+	pkd->hopGroups[i].fRMSRadius = g->fRMSRadius;
+	for(j=0;j<3;++j) {
+	    pkd->hopGroups[i].r[j] = g->r[j];
+	    pkd->hopGroups[i].rcm[j] = g->rcm[j];
+	    pkd->hopGroups[i].vcm[j] = g->vcm[j];
+	    }
+	mdlRelease(mdl,CID_GROUP,g);
+	}
+    mdlFinishCache(mdl,CID_GROUP);
+
     /* Purge groups with too few particles */
-#if 1
-    for(i=j=1; i<pkd->nGroups /*&& pkd->hopGroups[i].id.iPid==pkd->idSelf*/; ++i) {
+    for(i=j=1; i<pkd->nGroups; ++i) {
 	if (pkd->hopGroups[i].nTotal<nMinGroupSize) gid=0;
 	else gid = j++;
 	ga[i].iNewGid = gid;
 	}
-/*    j += pkd->nGroups - i;*/
-
     updateGroupIds(pkd,pkd->nGroups,ga,1,1);
     for(i=gid=j=1; i<pkd->nGroups; ++i) {
 	if (ga[i].iNewGid && ga[i].id.iIndex) {
@@ -3496,8 +3523,139 @@ int pkdHopFinishUp(PKD pkd,int nMinGroupSize) {
 	}
     pkd->nGroups = gid;
     pkd->nLocalGroups = j-1;
-#endif
+
     return pkd->nLocalGroups;
+    }
+
+static void initHopGetRoots(void *vpkd, void *v) {
+    PKD pkd = (PKD)vpkd;
+    HopGroupTable * g = (HopGroupTable *)v;
+    g->iRmtPid = -1;
+    g->iRmtIndex = 0;
+    g->iGlobalId = 0;
+
+    }
+
+static void combHopGetRoots(void *vctx, void *v1, void *v2) {
+    PKD pkd = (PKD)vctx;
+    HopGroupTable * g1 = (HopGroupTable *)v1;
+    HopGroupTable * g2 = (HopGroupTable *)v2;
+
+    if (g2->iGlobalId) {
+	int gid = g1 - pkd->hopGroups;
+	int iRoot = pkd->hopRootIndex[gid] + pkd->hopNumRoots[gid];
+	assert(pkd->hopNumRoots[gid]>0);
+	assert(iRoot < pkd->hopRootIndex[gid+1]);
+	++pkd->hopNumRoots[gid];
+	pkd->hopRoots[iRoot].iPid = g2->iRmtPid;
+	pkd->hopRoots[iRoot].iIndex = g2->iRmtIndex;
+	pkd->hopRootGroups[iRoot] = g2->iGlobalId;
+	}
+    }
+
+void pkdHopUnbind(PKD pkd) {
+    MDL mdl = pkd->mdl;
+    HopGroupTable * g;
+    KDN *pNode;
+    PARTICLE *p;
+    int i, gid, iRoot, iFirst, iLast, nRemoteRoots;
+
+    /* We build a tree of each group of particles */
+    pkdTreeBuildByGroup(pkd,32,&iFirst,&iLast);
+
+    /* Setup the buffer for tree roots */
+    pkd->hopNumRoots = malloc((pkd->nGroups+1) * sizeof(*pkd->hopNumRoots) );
+    assert(pkd->hopNumRoots!=NULL);
+    pkd->hopRootIndex= malloc((pkd->nGroups+1) * sizeof(*pkd->hopRootIndex) );
+    assert(pkd->hopRootIndex!=NULL);
+
+    nRemoteRoots = 1;
+    pkd->hopNumRoots[0] = 0;
+    pkd->hopRootIndex[0] = 0;
+    pkd->hopGroups[0].nRemote = 0; /* This should be true, but it has to be */
+    for(i=1; i<pkd->nGroups; ++i) {
+	nRemoteRoots += pkd->hopGroups[i].nRemote+1;
+	pkd->hopNumRoots[i] = 0;
+	pkd->hopRootIndex[i] = pkd->hopRootIndex[i-1] + pkd->hopGroups[i-1].nRemote + 1;
+	assert(pkd->hopRootIndex[i]>pkd->hopRootIndex[i-1]);
+	}
+    pkd->hopNumRoots[i] = 0;
+    pkd->hopRootIndex[i] = pkd->hopRootIndex[i-1] + pkd->hopGroups[i-1].nRemote + 1;
+
+    pkd->hopRoots= malloc(nRemoteRoots * sizeof(*pkd->hopRoots) );
+    assert(pkd->hopRoots!=NULL);
+    pkd->hopRootGroups= malloc(nRemoteRoots * sizeof(*pkd->hopRootGroups) );
+    assert(pkd->hopRootGroups!=NULL);
+
+
+    /* Add the roots that we have built on this node first */
+    if (iFirst) {
+	for( i=iFirst; i<=iLast; i+=2) {
+	    pNode = pkdTreeNode(pkd,i);
+	    p = pkdParticle(pkd,pNode->pLower);
+	    gid = *pkdGroup(pkd,p);
+	    iRoot = pkd->hopRootIndex[gid] + pkd->hopNumRoots[gid];
+	    assert(pkd->hopNumRoots[gid]==0);
+	    assert(iRoot < pkd->hopRootIndex[gid+1]);
+	    ++pkd->hopNumRoots[gid];
+	    pkd->hopRoots[iRoot].iPid = pkd->idSelf;
+	    pkd->hopRoots[iRoot].iIndex = i;
+	    pkd->hopRootGroups[iRoot] = gid;
+	    }
+	}
+    for(i=1; i<pkd->nGroups; ++i) assert(pkd->hopNumRoots[i] == 1);
+
+    /*
+    ** Let the group master know about the remote tree roots. We can use the
+    ** combiner cache because there is at most 1 root per group per node.
+    */
+    mdlCOcache(mdl,CID_GROUP,NULL,pkd->hopGroups,sizeof(HopGroupTable), pkd->nGroups,
+	pkd, initHopGetRoots, combHopGetRoots );
+    for(i=1+pkd->nLocalGroups; i<pkd->nGroups; ++i) {
+	assert(pkd->hopGroups[i].id.iPid != pkd->idSelf);
+	iRoot = pkd->hopRootIndex[i];
+	g = mdlAquire(mdl,CID_GROUP,pkd->hopGroups[i].id.iIndex,pkd->hopGroups[i].id.iPid);
+	g->iRmtPid = pkd->idSelf;
+	g->iRmtIndex = pkd->hopRoots[iRoot].iIndex; /* This is not actually set remotely */
+	g->iGlobalId = i;
+	assert(pkd->hopRoots[iRoot].iPid==g->iRmtPid);
+	mdlRelease(mdl,CID_GROUP,g);
+	}
+    mdlFinishCache(mdl,CID_GROUP);
+
+/*
+** This is more complicated. We need to send (or fetch) all the tree roots
+** from the master nodes (where groups are local) to the remote nodes.
+*/
+#if 0
+    /* Now we return the favour by sending our local groups to all remote groups */
+    mdlCOcache(mdl,CID_GROUP,NULL,pkd->hopGroups,sizeof(HopGroupTable), pkd->nGroups,
+	pkd, initHopGetRoots, combHopGetRoots );
+    for(i=1; i<=pkd->nLocalGroups; ++i) {
+	assert(pkd->hopGroups[i].id.iPid == pkd->idSelf);
+	assert(pkd->hopRootIndex[i] + pkd->hopNumRoots[i] == pkd->hopRootIndex[i+1]);
+	for(iRoot=pkd->hopRootIndex[i]+1; iRoot<pkd->hopRootIndex[i] + pkd->hopNumRoots[i]; ++iRoot) {
+	    assert(iRoot>0 && iRoot<=nRemoteRoots);
+	    assert(pkd->hopRoots[iRoot].iPid != pkd->idSelf);
+	    g = mdlAquire(mdl,CID_GROUP,pkd->hopRootGroups[iRoot],pkd->hopRoots[iRoot].iPid);
+	    g->iRmtPid = pkd->idSelf;
+	    g->iRmtIndex = pkd->hopRootIndex[i];
+	    g->iGlobalId = i;
+	    mdlRelease(mdl,CID_GROUP,g);
+	    }
+	}
+    mdlFinishCache(mdl,CID_GROUP);
+    for(i=1+pkd->nLocalGroups; i<pkd->nGroups; ++i) {
+	assert(pkd->hopGroups[i].id.iPid != pkd->idSelf);
+	assert(pkd->hopRootIndex[i] + pkd->hopNumRoots[i] == pkd->hopRootIndex[i+1]);
+	}
+#endif
+
+
+    free(pkd->hopNumRoots);
+    free(pkd->hopRootIndex);
+    free(pkd->hopRoots);
+    free(pkd->hopRootGroups);
     }
 
 void pkdHopAssignGID(PKD pkd) {

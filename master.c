@@ -4775,7 +4775,16 @@ void msrHop(MSR msr, double dTime) {
     pstHopFinishUp(msr->pst,&inFinish,sizeof(inFinish),&nGroups,NULL);
     if (msr->param.bVStep)
 	printf("Removed groups with fewer than %d particles, %"PRIu64" remain\n",10, nGroups);
+
+    if (msr->param.bVStep)
+	printf("Unbinding\n");
+    pstHopUnbind(msr->pst,NULL,0,NULL,NULL);
+
+
     pstHopAssignGID(msr->pst,NULL,0,NULL,NULL);
+
+
+
 
     dsec = msrTime() - ssec;
     if (msr->param.bVStep)

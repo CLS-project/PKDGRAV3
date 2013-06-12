@@ -163,8 +163,9 @@ enum pst_service {
     PST_FOF,
     PST_HOP_LINK,
     PST_HOP_JOIN,
-    PST_HOP_ASSIGN_GID,
     PST_HOP_FINISH_UP,
+    PST_HOP_UNBIND,
+    PST_HOP_ASSIGN_GID,
     PST_HOP_SEND_STATS,
     PST_GROUPMERGE,
     PST_GROUPPROFILES,
@@ -602,14 +603,17 @@ struct outHopJoin {
     };
 void pstHopJoin(PST,void *,int,void *,int *);
 
-/* PST_HOP_ASSIGN_GID */
-void pstHopAssignGID(PST,void *,int,void *,int *);
-
 /* PST_HOP_FINISH_UP */
 struct inHopFinishUp{
     int nMinGroupSize;
     };
 void pstHopFinishUp(PST,void *,int,void *,int *);
+
+/* PST_HOP_ASSIGN_GID */
+void pstHopUnbind(PST,void *,int,void *,int *);
+
+/* PST_HOP_ASSIGN_GID */
+void pstHopAssignGID(PST,void *,int,void *,int *);
 
 /* PST_HOP_SEND_STATS */
 void pstHopSendStats(PST,void *,int,void *,int *);

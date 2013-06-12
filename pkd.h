@@ -553,6 +553,9 @@ typedef struct {
     remoteID id;
     uint32_t iGlobalId; /* Global unique group id */
     uint32_t nLocal;    /* Local to this processor */
+    uint16_t nRemote;   /* Number of remote partners */
+    uint16_t iRmtPid;
+    uint32_t iRmtIndex; 
     uint64_t nTotal;    /* Total particles in this group */
     float fMass;
     float fRMSRadius;
@@ -864,8 +867,13 @@ typedef struct pkdContext {
 
     int nGroups, nLocalGroups;
     FOFGD *groupData;
+
     GHtmpGroupTable *tmpHopGroups;
     HopGroupTable *hopGroups;
+    uint16_t *hopNumRoots;
+    int *hopRootIndex;
+    remoteID *hopRoots;
+    int *hopRootGroups;
 
     struct saddle_point_list saddle_points;
     int nRm;
@@ -1423,6 +1431,7 @@ int pkdUnpackIO(PKD pkd,
 
 
 /* Group finding */
+void pkdHopUnbind(PKD pkd);
 void pkdHopSendStats(PKD pkd);
 
 

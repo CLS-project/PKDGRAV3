@@ -261,12 +261,15 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_HOP_JOIN,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstHopJoin,
 		  sizeof(struct inHopLink),sizeof(struct outHopJoin));
-    mdlAddService(mdl,PST_HOP_ASSIGN_GID,pst,
-		  (void (*)(void *,void *,int,void *,int *)) pstHopAssignGID,
-		  0,0);
     mdlAddService(mdl,PST_HOP_FINISH_UP,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstHopFinishUp,
 	          sizeof(struct inHopFinishUp),sizeof(uint64_t));
+    mdlAddService(mdl,PST_HOP_UNBIND,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstHopUnbind,
+		  0,0);
+    mdlAddService(mdl,PST_HOP_ASSIGN_GID,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstHopAssignGID,
+		  0,0);
     mdlAddService(mdl,PST_HOP_SEND_STATS,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstHopSendStats,
 		  0,0);
@@ -2951,22 +2954,6 @@ void pstHopJoin(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     if (pnOut) *pnOut = sizeof(struct outHopJoin);
     }
 
-void pstHopAssignGID(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
-    int nOut;
-
-    mdlassert(pst->mdl,nIn == 0);
-    if (pst->nLeaves > 1) {
-        mdlReqService(pst->mdl,pst->idUpper,PST_HOP_ASSIGN_GID,vin,nIn);
-        pstHopAssignGID(pst->pstLower,vin,nIn,NULL,pnOut);
-        mdlGetReply(pst->mdl,pst->idUpper,NULL,pnOut);
-        }
-    else {
-	LCL *plcl = pst->plcl;
-        pkdHopAssignGID(plcl->pkd);
-        }
-    if (pnOut) *pnOut = 0;
-    }
-
 void pstHopFinishUp(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     struct inHopFinishUp *in = (struct inHopFinishUp *)vin;
     uint64_t *nOutGroups = (uint64_t *)vout;
@@ -2985,6 +2972,34 @@ void pstHopFinishUp(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
         *nOutGroups = pkdHopFinishUp(plcl->pkd,in->nMinGroupSize);
         }
     if (pnOut) *pnOut = sizeof(uint64_t);
+    }
+
+void pstHopUnbind(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    mdlassert(pst->mdl,nIn == 0);
+    if (pst->nLeaves > 1) {
+        mdlReqService(pst->mdl,pst->idUpper,PST_HOP_UNBIND,vin,nIn);
+        pstHopUnbind(pst->pstLower,vin,nIn,NULL,pnOut);
+        mdlGetReply(pst->mdl,pst->idUpper,NULL,pnOut);
+        }
+    else {
+	LCL *plcl = pst->plcl;
+        pkdHopUnbind(plcl->pkd);
+        }
+    if (pnOut) *pnOut = 0;
+    }
+
+void pstHopAssignGID(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    mdlassert(pst->mdl,nIn == 0);
+    if (pst->nLeaves > 1) {
+        mdlReqService(pst->mdl,pst->idUpper,PST_HOP_ASSIGN_GID,vin,nIn);
+        pstHopAssignGID(pst->pstLower,vin,nIn,NULL,pnOut);
+        mdlGetReply(pst->mdl,pst->idUpper,NULL,pnOut);
+        }
+    else {
+	LCL *plcl = pst->plcl;
+        pkdHopAssignGID(plcl->pkd);
+        }
+    if (pnOut) *pnOut = 0;
     }
 
 void pstHopSendStats(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
