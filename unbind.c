@@ -14,6 +14,15 @@ static void ubGravity(PKD pkd);
 static void ubFindGroupCenters(PKD pkd);
 static void ubDoUnbind(PKD pkd);
 
+
+static int grp_compar(const void *a0, const void *b0) {
+    PLITE *a = (PLITE *)a0;
+    PLITE *b = (PLITE *)b0;
+    if (a->uGroup < b->uGroup)       return -1;
+    if (a->uGroup > b->uGroup)       return +1;
+    return 0;
+    }
+
 void ubInitializePLiteParticles(PKD pkd) {
     PLITE *pLite = pkd->pLite;
     PLITE t;
@@ -23,18 +32,7 @@ void ubInitializePLiteParticles(PKD pkd) {
     int i,j;
     int iRoot;
 
-    int grp_compar(const void *a0, const void *b0)
-    {
-	PLITE *a = (PLITE *)a0;
-	PLITE *b = (PLITE *)b0;
-	int ga = *pkdGroup(pkd, pkdParticle(pkd, a->i));
-	int gb = *pkdGroup(pkd, pkdParticle(pkd, b->i));
-	if (ga < gb) return -1;
-	if (ga > gb) return +1;
-	return 0;
-    }
-
-    //if (pkd->nNodes > 0) mdlFinishCache(pkd->mdl,CID_CELL);
+    //Use this: pkdTreeInitByGroup(pkd);
 
     /*
     ** Initialize the temporary particles.
@@ -43,6 +41,8 @@ void ubInitializePLiteParticles(PKD pkd) {
 	p = pkdParticle(pkd,i);
 	for (j=0;j<3;++j) pLite[i].r[j] = p->r[j];
 	pLite[i].i = i;
+	pLite[i].uRung = p->uRung;
+	pLite[i].uGroup = *pkdGroup(pkd,p);
 	}
 
     qsort(pLite, pkd->nLocal, sizeof(*pLite), grp_compar);

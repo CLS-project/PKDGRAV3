@@ -23,7 +23,10 @@
 #endif
 
 
-void InitializeParticles(PKD pkd,int bExcludeVeryActive,BND *pbnd) {
+
+
+
+static void InitializeParticles(PKD pkd,int bExcludeVeryActive,BND *pbnd) {
     PLITE *pLite = pkd->pLite;
     PLITE t;
     PARTICLE *p;
@@ -826,6 +829,71 @@ void pkdTreeBuild(PKD pkd,int nBucket,KDN *pkdn,int bExcludeVeryActive) {
     pkdCopyNode(pkd,pkdn,pkdTreeNode(pkd,ROOT));
     }
 
+
+static int grp_compar(const void *a0, const void *b0) {
+    PLITE *a = (PLITE *)a0;
+    PLITE *b = (PLITE *)b0;
+    if (a->uGroup == 0 && b->uGroup) return +1;
+    if (a->uGroup && b->uGroup == 0) return -1;
+    if (a->uGroup < b->uGroup)       return -1;
+    if (a->uGroup > b->uGroup)       return +1;
+    return 0;
+    }
+
+void pkdTreeBuildByGroup(PKD pkd, int nBucket, int *iFirst, int *iLast) {
+    PLITE *pLite = pkd->pLite;
+    PARTICLE *p;
+    KDN *pNode;
+    pBND bnd;
+    double dMin[3], dMax[3];
+    int i,j,gid,iRoot;
+
+    /*
+    ** It is only forseen that there are 4 reserved nodes at present 0-NULL, 1-ROOT, 2-UNUSED, 3-VAROOT.
+    */
+    pkd->nNodes = NRESERVED_NODES;
+    pkd->nVeryActive = 0;
+
+    /*
+    ** Initialize the temporary particles, and order by group ID (but with group 0 last)
+    */
+    for (i=0;i<pkd->nLocal;++i) {
+	p = pkdParticle(pkd,i);
+	for (j=0;j<3;++j) pLite[i].r[j] = p->r[j];
+	pLite[i].i = i;
+	pLite[i].uRung = p->uRung;
+	pLite[i].uGroup = *pkdGroup(pkd,p);
+	}
+    qsort(pLite, pkd->nLocal, sizeof(*pLite), grp_compar);
+
+    *iFirst = *iLast = 0;
+    for (i=0;i<pkd->nLocal && pLite[i].uGroup;) {
+	gid = pLite[i].uGroup;
+	pkdTreeAllocRootNode(pkd,&iRoot);
+	if (i==0) *iFirst = iRoot;
+	pNode = pkdTreeNode(pkd,iRoot);
+	pkdNodeBnd(pkd, pNode, &bnd);
+
+	pNode->iLower = 0;
+	pNode->iParent = 0;
+	pNode->pLower = i;
+
+	for (j=0;j<3;++j) dMin[j] = dMax[j] = pLite[i].r[j];
+	// TODO: should handle periodic better here.
+	for(++i; i<pkd->nLocal && pLite[i].uGroup==gid; ++i) {
+	    pkdMinMax(pLite[i].r,dMin,dMax);
+	    }
+	for (j=0;j<3;++j) {
+	    bnd.fCenter[j] = 0.5*(dMin[j] + dMax[j]);
+	    bnd.fMax[j] = 0.5*(dMax[j] - dMin[j]);
+	    }
+	pNode->pUpper = i - 1;
+	}
+    *iLast = iRoot;
+    for(i = *iFirst; i < *iLast; i += 2 ) BuildTemp(pkd,i,nBucket);
+    ShuffleParticles(pkd,0);
+    for(i = *iFirst; i < *iLast; i += 2 ) Create(pkd,i);
+    }
 
 void pkdDistribCells(PKD pkd,int nCell,KDN *pkdn) {
     KDN *pSrc, *pDst;

@@ -2,9 +2,6 @@
 #include "config.h"
 #endif
 
-#ifdef PROFILE_GRAVWALK
-#include "VtuneApi.h"
-#endif
 #ifdef __SSE__
 #include <xmmintrin.h>
 #endif
@@ -1231,9 +1228,6 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot, u
 		** Make sure stack is empty.
 		*/
 		assert(iStack == -1);
-#ifdef PROFILE_GRAVWALK
-		VTPause();
-#endif
 		*pdFlop += dEwFlop;   /* Finally add the ewald score to get a proper float count */
 		if (smx) {
 		    smSmoothFinish(smx);
@@ -1267,6 +1261,56 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot, u
 	}
     }
 
+static void initGravWalk(PKD pkd,double dTime,double dThetaMin,double dThetaMax,int bPeriodic,
+    SMX *smx, SMF *smf, double *dRhoFac) {
+    int pi;
+    PARTICLE *p;
+
+    /*
+    ** If necessary, calculate the theta interpolation tables.
+    */
+#ifdef USE_DEHNEN_THETA
+    pkdSetThetaTable(pkd,dThetaMin,dThetaMax);
+#else
+    pkd->fiCritTheta = 1.0f / dThetaMin;
+#endif
+
+    assert(pkd->oNodeMom);
+    if (pkd->param.bGravStep) {
+	assert(pkd->oNodeAcceleration);
+	if (pkd->param.iTimeStepCrit == 1) {
+	    assert(pkd->oNodeVelocity);
+	    assert(pkd->oVelocity);
+	    }
+	}
+
+    /*
+    ** Setup smooth for calculating local densities when a particle has too few P-P interactions.
+    */
+    if (pkd->param.bGravStep) {
+	smInitializeRO(smx,pkd,smf,pkd->param.nPartRhoLoc,bPeriodic,SMX_DENSITY_F1);
+	smSmoothInitialize(*smx);
+	/* No particles are inactive for density calculation */
+	for (pi=0;pi<pkd->nLocal;++pi) {
+	    p = pkdParticle(pkd,pi);
+	    (*smx)->ea[pi].bInactive = 0;
+	    }
+	}
+    else (*smx) = NULL;
+
+    /*
+    ** Precalculate RhoFac if required.
+    */
+    if (pkd->param.bGravStep) {
+	double a = csmTime2Exp(pkd->param.csm,dTime);
+	*dRhoFac = 1.0/(a*a*a);
+	}
+    else *dRhoFac = 0.0;
+
+
+    }
+
+
 /*
 ** Returns total number of active particles for which gravity was calculated.
 */
@@ -1285,54 +1329,8 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
     double dRhoFac;
     SMX smx;
     SMF smf;
-#ifdef USE_SIMD_MOMR
-    int ig,iv;
-#endif
 
-#ifdef PROFILE_GRAVWALK
-    VTResume();
-#endif
-
-    /*
-    ** If necessary, calculate the theta interpolation tables.
-    */
-#ifdef USE_DEHNEN_THETA
-    pkdSetThetaTable(pkd,dThetaMin,dThetaMax);
-#else
-    pkd->fiCritTheta = 1.0f / dThetaMin;
-#endif
-
-    assert(pkd->oNodeMom);
-    if (pkd->param.bGravStep) {
-	assert(pkd->oNodeAcceleration);
-	if (pkd->param.iTimeStepCrit == 1) {
-	    assert(pkd->oNodeVelocity);
-	    assert(pkd->oVelocity);
-	}
-    }
-
-    /*
-    ** Setup smooth for calculating local densities when a particle has too few P-P interactions.
-    */
-    if (pkd->param.bGravStep) {
-	smInitializeRO(&smx,pkd,&smf,pkd->param.nPartRhoLoc,nReps?1:0,SMX_DENSITY_F1);
-	smSmoothInitialize(smx);
-	/* No particles are inactive for density calculation */
-	for (pi=0;pi<pkd->nLocal;++pi) {
-	    p = pkdParticle(pkd,pi);
-	    smx->ea[pi].bInactive = 0;
-	    }
-	}
-    else smx = NULL;
-
-    /*
-    ** Precalculate RhoFac if required.
-    */
-    if (pkd->param.bGravStep) {
-	double a = csmTime2Exp(pkd->param.csm,dTime);
-	dRhoFac = 1.0/(a*a*a);
-	}
-    else dRhoFac = 0.0;
+    initGravWalk(pkd,dTime,dThetaMin,dThetaMax,nReps?1:0,&smx,&smf,&dRhoFac);
 
     /*
     ** If we are doing the very active gravity then check that there is a very active tree!
@@ -1430,54 +1428,9 @@ int pkdGravWalkGroups(PKD pkd,double dTime,int nGroup, double dThetaMin,double d
     double dRhoFac;
     SMX smx;
     SMF smf;
-#ifdef USE_SIMD_MOMR
-    int ig,iv;
-#endif
 
-#ifdef PROFILE_GRAVWALK
-    VTResume();
-#endif
+    initGravWalk(pkd,dTime,dThetaMin,dThetaMax,0,&smx,&smf,&dRhoFac);
 
-    /*
-    ** If necessary, calculate the theta interpolation tables.
-    */
-#ifdef USE_DEHNEN_THETA
-    pkdSetThetaTable(pkd,dThetaMin,dThetaMax);
-#else
-    pkd->fiCritTheta = 1.0f / dThetaMin;
-#endif
-
-    assert(pkd->oNodeMom);
-    if (pkd->param.bGravStep) {
-	assert(pkd->oNodeAcceleration);
-	if (pkd->param.iTimeStepCrit == 1) {
-	    assert(pkd->oNodeVelocity);
-	    assert(pkd->oVelocity);
-	}
-    }
-
-    /*
-    ** Setup smooth for calculating local densities when a particle has too few P-P interactions.
-    */
-    if (pkd->param.bGravStep) {
-	smInitializeRO(&smx,pkd,&smf,pkd->param.nPartRhoLoc,0,SMX_DENSITY_F1);
-	smSmoothInitialize(smx);
-	/* No particles are inactive for density calculation */
-	for (pi=0;pi<pkd->nLocal;++pi) {
-	    p = pkdParticle(pkd,pi);
-	    smx->ea[pi].bInactive = 0;
-	    }
-	}
-    else smx = NULL;
-
-    /*
-    ** Precalculate RhoFac if required.
-    */
-    if (pkd->param.bGravStep) {
-	double a = csmTime2Exp(pkd->param.csm,dTime);
-	dRhoFac = 1.0/(a*a*a);
-	}
-    else dRhoFac = 0.0;
 
     /*
     ** Check that the iRoot has active particles!

@@ -464,10 +464,10 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
     /*
     ** Need to cast the pLite to an array of extra stuff.
     */
-    STATIC_ASSERT(sizeof(PLITE) >= sizeof(struct smExtraArray)+sizeof(struct smGroupArray)+sizeof(struct smParticleLink),
+    STATIC_ASSERT(sizeof(PLITE) >= sizeof(struct smExtraArray)+sizeof(struct smGroupArray)+sizeof(remoteID),
 	"The pLite structure is not large enough");
     smx->ea = (struct smExtraArray *)(pkd->pLite);
-    smx->pl = (struct smParticleLink *)(smx->ea + pkd->nLocal + 1);
+    smx->pl = (remoteID *)(smx->ea + pkd->nLocal + 1);
     smx->ga = (struct smGroupArray *)(smx->pl + pkd->nLocal + 1);
     *psmx = smx;
     return(1);
@@ -2823,20 +2823,16 @@ static void combSetArc(void *vpkd, void *v1, void *v2) {
     PARTICLE * p1 = (PARTICLE *)v1;
     PARTICLE * p2 = (PARTICLE *)v2;
     if (p2->bMarked) p1->bMarked = 1;
-    if ( *pkdGroup(pkd,p1) == *pkdGroup(pkd,p2) ) {}
-    else {
-	printf("%llu vs. %llu\n", p1->iOrder, p2->iOrder);
-	}
     assert( *pkdGroup(pkd,p1) == *pkdGroup(pkd,p2) );
     }
 
 static int smga_cmp(const void *a0, const void *b0) {
     struct smGroupArray *a = (struct smGroupArray *)a0;
     struct smGroupArray *b = (struct smGroupArray *)b0;
-    if (a->iPid < b->iPid) return -1;
-    if (a->iPid > b->iPid) return +1;
-    if (a->iIndex < b->iIndex) return -1;
-    if (a->iIndex > b->iIndex) return +1;
+    if (a->id.iPid < b->id.iPid) return -1;
+    if (a->id.iPid > b->id.iPid) return +1;
+    if (a->id.iIndex < b->id.iIndex) return -1;
+    if (a->id.iIndex > b->id.iIndex) return +1;
     return 0;
     }
 
@@ -2877,7 +2873,6 @@ static int reorderGroups(PKD pkd, int nGroups, struct smGroupArray *ga) {
 	assert(ga[pi].iGid == pi);
 	assert(ga[pi].iNewGid > 0);
 	}
-    //printf("%d: %d groups reduced to %d\n", pkd->idSelf, nGroups, nNew);
     return nNew;
     }
 
@@ -2908,13 +2903,13 @@ static void updateGroupIds(PKD pkd, int nGroups, struct smGroupArray *ga, int bL
 	}
     /* Now gid has the new position -- a reorder is necessary */
     for(gid=1; gid<nGroups; ++gid) {
-	if (ga[gid].iPid==pkd->idSelf) {
+	if (ga[gid].id.iPid==pkd->idSelf) {
 	    if (bLocal)
-		ga[gid].iIndex = ga[ga[gid].iIndex].iNewGid;
+		ga[gid].id.iIndex = ga[ga[gid].id.iIndex].iNewGid;
 	    }
 	else if (bRemote) {
-	    g = mdlAquire(pkd->mdl,CID_GROUP,ga[gid].iIndex,ga[gid].iPid);
-	    ga[gid].iIndex = *g;
+	    g = mdlAquire(pkd->mdl,CID_GROUP,ga[gid].id.iIndex,ga[gid].id.iPid);
+	    ga[gid].id.iIndex = *g;
 	    mdlRelease(pkd->mdl,CID_GROUP,g);
 	    }
 	}
@@ -2925,7 +2920,7 @@ static void updateGroupIds(PKD pkd, int nGroups, struct smGroupArray *ga, int bL
 
     for(gid=1; gid<nGroups; ++gid) {
 	ga[gid].iGid = ga[gid].iNewGid;
-	assert(ga[gid].iGid>0 && ga[gid].iGid<nGroups);
+	assert(ga[gid].iGid>=0 && ga[gid].iGid<nGroups);
 	}
     }
 
@@ -2939,15 +2934,15 @@ static int combineDuplicateGroupIds(PKD pkd, int nGroups, struct smGroupArray *g
     /* We want local groups first */
     for(pi=1; pi<nGroups; ++pi) {
 	assert(ga[pi].iGid == pi);
-	assert(ga[pi].iPid>=0);
-	if (ga[pi].iPid == pkd->idSelf) ga[pi].iPid = -1;
+	assert(ga[pi].id.iPid>=0);
+	if (ga[pi].id.iPid == pkd->idSelf) ga[pi].id.iPid = -1;
 	}
     qsort(ga+1,nGroups-1,sizeof(struct smGroupArray),smga_cmp);
-    for(pi=1; pi<nGroups; ++pi) if (ga[pi].iPid == -1) ga[pi].iPid = pkd->idSelf;
+    for(pi=1; pi<nGroups; ++pi) if (ga[pi].id.iPid == -1) ga[pi].id.iPid = pkd->idSelf;
     gid = 0; /* Sentinal node always as iPid=idSelf, iIndex == -1 */
     /* Count and note *unique* groups */
     for(pi=nNew=1; pi<nGroups; ++pi) {
-	if (ga[pi].iPid!=ga[gid].iPid || ga[pi].iIndex!=ga[gid].iIndex) {
+	if (ga[pi].id.iPid!=ga[gid].id.iPid || ga[pi].id.iIndex!=ga[gid].id.iIndex) {
 	    ++nNew;
 	    gid = pi;
 	    }
@@ -2976,7 +2971,7 @@ static int combineDuplicateGroupIds(PKD pkd, int nGroups, struct smGroupArray *g
 /*
 ** Follow the link for the given particle
 */
-static int traverseLink(PKD pkd,struct smParticleLink *pl, struct smGroupArray *ga,int pi,
+static int traverseLink(PKD pkd,remoteID *pl, struct smGroupArray *ga,int pi,
     int *iPid2,int *iIndex2,int *iMinGidPid,int *iMinGidIndex) {
     MDL mdl = pkd->mdl;
     PARTICLE *p;
@@ -3002,8 +2997,8 @@ static int traverseLink(PKD pkd,struct smParticleLink *pl, struct smGroupArray *
     ** a particle that points back to this group.
     */
     if (g2->iPid == *iPid2) {
-	ga[pi].iPid   = g2->iPid;
-	ga[pi].iIndex = g2->iIndex;
+	ga[pi].id.iPid   = g2->iPid;
+	ga[pi].id.iIndex = g2->iIndex;
 	bDone = 1;
 	}
     /*
@@ -3012,18 +3007,18 @@ static int traverseLink(PKD pkd,struct smParticleLink *pl, struct smGroupArray *
     ** the remote particle that started this, because it starts an arc!
     */
     else if (*iPid2 == mdl->idSelf && gid2==pi) { /*LOOP*/
-	PARTICLE *p2 = mdlAquire(pkd->mdl,CID_PARTICLE,ga[pi].iIndex,ga[pi].iPid);
+	PARTICLE *p2 = mdlAquire(pkd->mdl,CID_PARTICLE,ga[pi].id.iIndex,ga[pi].id.iPid);
 	p2->bMarked = 1;
 	mdlRelease(pkd->mdl,CID_PARTICLE,p2);
-	assert(ga[pi].iPid != pkd->idSelf);
+	assert(ga[pi].id.iPid != pkd->idSelf);
 	if (*iMinGidPid == pkd->idSelf) {
-	    ga[pi].iPid = pkd->groups[*iMinGidIndex].iPid;
-	    ga[pi].iIndex = pkd->groups[*iMinGidIndex].iIndex;
+	    ga[pi].id.iPid = pkd->tmpHopGroups[*iMinGidIndex].iPid;
+	    ga[pi].id.iIndex = pkd->tmpHopGroups[*iMinGidIndex].iIndex;
 	    }
 	else {
 	    GHtmpGroupTable *g = mdlAquire(pkd->mdl,CID_GROUP,*iMinGidIndex,*iMinGidPid);
-	    ga[pi].iPid = g->iPid;
-	    ga[pi].iIndex = g->iIndex;
+	    ga[pi].id.iPid = g->iPid;
+	    ga[pi].id.iIndex = g->iIndex;
 	    mdlRelease(pkd->mdl,CID_GROUP,g);
 	    }
 	bDone = 1;
@@ -3052,7 +3047,7 @@ int smHopLink(SMX smx,SMF *smf) {
     int nGroups, nLocal, nRemote;
     int iIndex1, iIndex2, iMinGidIndex, iPid1, iPid2, iMinGidPid, iParticle;
     struct smGroupArray *ga = smx->ga;
-    struct smParticleLink *pl = smx->pl;
+    remoteID *pl = smx->pl;
     /* FOR DEBUG */
     char outName[100];
     FILE *fp;
@@ -3064,15 +3059,16 @@ int smHopLink(SMX smx,SMF *smf) {
 	smx->ea[pi].bInactive = (p->bSrcActive?0:1);
 	smx->ea[pi].iIndex = -1;
 	ga[pi].iGid = pi;
-	ga[pi].iPid = mdl->idSelf;
-	ga[pi].iIndex = -1; /* Sentinel */
+	ga[pi].id.iPid = mdl->idSelf;
+	ga[pi].id.iIndex = -1; /* Sentinel */
 	pl[pi].iPid = pl[pi].iIndex = -1;
 	}
     smx->ea[pkd->nLocal].bInactive = 0;  /* initialize for Sentinel, but this is not really needed */
     smSmoothInitialize(smx);
 
     pkd->nGroups = 0;
-    pkd->groups = NULL;
+    pkd->nLocalGroups = 0;
+    pkd->tmpHopGroups = NULL;
 
     /*
     ** Run through all of the particles, and find a particle to link to
@@ -3089,8 +3085,8 @@ int smHopLink(SMX smx,SMF *smf) {
 	if ( !pkdIsDstActive(p,0,MAX_RUNG) ) continue;
 	smf->groupLink = &ga[nGroups];
 	smf->groupLink->iGid = nGroups;
-	smf->groupLink->iPid = pkd->idSelf;
-	smf->groupLink->iIndex = pi;
+	smf->groupLink->id.iPid = pkd->idSelf;
+	smf->groupLink->id.iIndex = pi;
 	for(;;) {
 	    *pkdGroup(pkd,p) = nGroups;
 	    smf->pParticleLink = &pl[iParticle];
@@ -3103,13 +3099,13 @@ int smHopLink(SMX smx,SMF *smf) {
 	    ** If we link to a remote node, then this group chain is done for now.
 	    ** Later we will merge remote groups.
 	    **/
-	    if (smf->groupLink->iPid != pkd->idSelf ) {	++nGroups; ++nRemote; break; } /*LOOP*/
+	    if (smf->groupLink->id.iPid != pkd->idSelf ) { ++nGroups; ++nRemote; break; }
 	    else {
-		p = pkdParticle(pkd,iParticle=smf->groupLink->iIndex);
+		p = pkdParticle(pkd,iParticle=smf->groupLink->id.iIndex);
 		gid = *pkdGroup(pkd,p);
 		/* We link to ourselves: this forms a new "loop" */
 		if ( gid == nGroups ) { ++nGroups; ++nLoop; break; }
-		/* Ok, some other group: merge this "spur" into it */
+		/* Ok, some other group: merge this "spur" on to it */
 		else if ( gid > 0 ) {
 		    for(j=pi; j!=iParticle; j=pl[j].iIndex) {
 			p = pkdParticle(pkd,j);
@@ -3148,24 +3144,23 @@ int smHopLink(SMX smx,SMF *smf) {
     mdlCOcache(pkd->mdl,CID_PARTICLE,NULL,
 	pkdParticleBase(pkd),pkdParticleSize(pkd),
 	pkdLocal(pkd),pkd,initSetArc,combSetArc);
-    pkd->groups = mdlMalloc(mdl, nGroups * sizeof(GHtmpGroupTable));
+    pkd->tmpHopGroups = mdlMalloc(mdl, nGroups * sizeof(GHtmpGroupTable));
+    assert(pkd->tmpHopGroups!=NULL);
     for(pi=1; pi<nGroups; ++pi) {
-	pkd->groups[pi].iPid   = ga[pi].iPid;
-	pkd->groups[pi].iIndex = ga[pi].iIndex;
+	pkd->tmpHopGroups[pi].iPid   = ga[pi].id.iPid;
+	pkd->tmpHopGroups[pi].iIndex = ga[pi].id.iIndex;
 	}
-    mdlROcache(mdl,CID_GROUP,NULL,pkd->groups,sizeof(GHtmpGroupTable), nGroups);
+    mdlROcache(mdl,CID_GROUP,NULL,pkd->tmpHopGroups,sizeof(GHtmpGroupTable), nGroups);
     for(pi=1; pi<nGroups; ++pi) {
 	/* Completely local loop: any particle can start the "arc" */
-	if (ga[pi].iPid == pkd->idSelf) {
-	    p = pkdParticle(pkd,ga[pi].iIndex);
+	if (ga[pi].id.iPid == pkd->idSelf) {
+	    p = pkdParticle(pkd,ga[pi].id.iIndex);
 	    p->bMarked = 1;
 	    }
 	/* Remote: may form a loop, or we may simply be a spur */
 	else {
-	    iPid1 = iPid2 = ga[pi].iPid;
-	    iIndex1 = iIndex2 = ga[pi].iIndex;
-	    //iMinPid = ga[pi].iPid;
-	    //iMinIndex = ga[pi].iIndex;
+	    iPid1 = iPid2 = ga[pi].id.iPid;
+	    iIndex1 = iIndex2 = ga[pi].id.iIndex;
 	    iMinGidPid = pkd->idSelf;
 	    iMinGidIndex = pi;
 	    for(;;) {
@@ -3180,8 +3175,8 @@ int smHopLink(SMX smx,SMF *smf) {
 		** to our node of course, but to a different group.
 		*/
 		if (iPid1==iPid2 && iIndex1 == iIndex2) {
-		    ga[pi].iPid   = iPid1;
-		    ga[pi].iIndex = iIndex1;
+		    ga[pi].id.iPid   = iPid1;
+		    ga[pi].id.iIndex = iIndex1;
 		    break;
 		    }
 		}
@@ -3191,7 +3186,7 @@ int smHopLink(SMX smx,SMF *smf) {
 
     /*
     ** By now, we have marked the particle that starts each arc on the node,
-    ** and exactly one particle if the group end in a local loop.
+    ** and exactly one particle if the group is a local loop.
     ** We now want to mark the rest of the particles in the arcs and loops.
     */
     mdlFinishCache(mdl,CID_PARTICLE);
@@ -3213,21 +3208,21 @@ int smHopLink(SMX smx,SMF *smf) {
     ** Now handle deferred groups (ones pointing to, but not part of, loops).
     */
     for(pi=1; pi<nGroups; ++pi) {
-	pkd->groups[pi].iPid   = ga[pi].iPid;
-	pkd->groups[pi].iIndex = ga[pi].iIndex;
+	pkd->tmpHopGroups[pi].iPid   = ga[pi].id.iPid;
+	pkd->tmpHopGroups[pi].iIndex = ga[pi].id.iIndex;
 	}
-    mdlROcache(mdl,CID_GROUP,NULL,pkd->groups,sizeof(GHtmpGroupTable), nGroups);
+    mdlROcache(mdl,CID_GROUP,NULL,pkd->tmpHopGroups,sizeof(GHtmpGroupTable), nGroups);
     nSpur = 0;
     for(pi=1; pi<nGroups; ++pi) {
-	PARTICLE *p1 = mdlAquire(mdl,CID_PARTICLE,ga[pi].iIndex,ga[pi].iPid);
+	PARTICLE *p1 = mdlAquire(mdl,CID_PARTICLE,ga[pi].id.iIndex,ga[pi].id.iPid);
 	int gid1 = *pkdGroup(pkd,p1);
-	GHtmpGroupTable *g1 = mdlAquire(mdl,CID_GROUP,gid1,ga[pi].iPid);
+	GHtmpGroupTable *g1 = mdlAquire(mdl,CID_GROUP,gid1,ga[pi].id.iPid);
 	PARTICLE *p2 = mdlAquire(mdl,CID_PARTICLE,g1->iIndex,g1->iPid);
 	int gid2 = *pkdGroup(pkd,p2);
 	GHtmpGroupTable *g2 = mdlAquire(mdl,CID_GROUP,gid2,g1->iPid);
 	assert (g2->iPid == g1->iPid);
-	ga[pi].iPid   = g2->iPid;
-	ga[pi].iIndex = g2->iIndex;
+	ga[pi].id.iPid   = g2->iPid;
+	ga[pi].id.iIndex = g2->iIndex;
 	mdlRelease(mdl,CID_GROUP,g2);
 	mdlRelease(mdl,CID_PARTICLE,p2);
 	mdlRelease(mdl,CID_GROUP,g1);
@@ -3237,12 +3232,12 @@ int smHopLink(SMX smx,SMF *smf) {
 
     /* If we end up point on-node, then we might have to combine the groups */
     for(pi=1; pi<nGroups; ++pi) {
-	if (ga[pi].iPid==pkd->idSelf) {
-	    gid = *pkdGroup(pkd,pkdParticle(pkd,ga[pi].iIndex));
+	if (ga[pi].id.iPid==pkd->idSelf) {
+	    gid = *pkdGroup(pkd,pkdParticle(pkd,ga[pi].id.iIndex));
 	    if (gid!=pi) {
-		assert(ga[gid].iPid==pkd->idSelf);
-		ga[pi].iPid = ga[gid].iPid;
-		ga[pi].iIndex = ga[gid].iIndex;
+		assert(ga[gid].id.iPid==pkd->idSelf);
+		ga[pi].id.iPid = ga[gid].id.iPid;
+		ga[pi].id.iIndex = ga[gid].id.iIndex;
 		}
 	    }
 	}
@@ -3254,47 +3249,45 @@ int smHopLink(SMX smx,SMF *smf) {
     **     so it must point to itself.
     **  2. Groups that point to a remote group must point to a remote
     **     group that points to itself.
+    ** All particles that form a loop (either local or remote) have
+    ** been marked (bMarked=1).
     */
 
     /* Turn particle IDs into group IDs */
     for(pi=1; pi<nGroups; ++pi) {
-	pkd->groups[pi].iPid   = ga[pi].iPid;
-	pkd->groups[pi].iIndex = ga[pi].iIndex;
+	pkd->tmpHopGroups[pi].iPid   = ga[pi].id.iPid;
+	pkd->tmpHopGroups[pi].iIndex = ga[pi].id.iIndex;
 	}
-    mdlROcache(mdl,CID_GROUP,NULL,pkd->groups,sizeof(GHtmpGroupTable), nGroups);
+    mdlROcache(mdl,CID_GROUP,NULL,pkd->tmpHopGroups,sizeof(GHtmpGroupTable), nGroups);
     for(pi=1; pi<nGroups; ++pi) {
-	if (ga[pi].iPid == pkd->idSelf) {
-	    p = pkdParticle(pkd,ga[pi].iIndex);
+	if (ga[pi].id.iPid == pkd->idSelf) {
+	    p = pkdParticle(pkd,ga[pi].id.iIndex);
 	    gid = *pkdGroup(pkd,p);
 	    assert(gid==pi); /* I point to myself! */
 	    }
 	else {
-	    p = mdlAquire(mdl,CID_PARTICLE,ga[pi].iIndex,ga[pi].iPid);
+	    p = mdlAquire(mdl,CID_PARTICLE,ga[pi].id.iIndex,ga[pi].id.iPid);
 	    gid = *pkdGroup(pkd,p);
 	    mdlRelease(mdl,CID_PARTICLE,p);
-	    GHtmpGroupTable *g = mdlAquire(mdl,CID_GROUP,gid,ga[pi].iPid);
+	    GHtmpGroupTable *g = mdlAquire(mdl,CID_GROUP,gid,ga[pi].id.iPid);
 	    /* The remote particle must point to itself */
-	    assert(g->iPid==ga[pi].iPid && g->iIndex==ga[pi].iIndex);
+	    assert(g->iPid==ga[pi].id.iPid && g->iIndex==ga[pi].id.iIndex);
 	    mdlRelease(mdl,CID_GROUP,g);
 	    }
-	ga[pi].iIndex = gid;
-	assert(ga[pi].iPid!=pkd->idSelf || ga[pi].iIndex ==pi);
+	ga[pi].id.iIndex = gid;
+	assert(ga[pi].id.iPid!=pkd->idSelf || ga[pi].id.iIndex ==pi);
 	}
     mdlFinishCache(mdl,CID_GROUP);
 
-    nLocal = nRemote = 0;
-    for(pi=1; pi<nGroups; ++pi) {
-	if (ga[pi].iPid==mdl->idSelf) nLocal++;
-	else nRemote++;
-	}
-
     pkd->nGroups = nGroups;
-//    mdlFree(mdl,pkd->groups);
-//    pkd->groups = mdlMalloc(mdl, pkd->nGroups * sizeof(GHtmpGroupTable));
+    nLocal = nRemote = 0;
     for(pi=1; pi<pkd->nGroups; ++pi) {
-	pkd->groups[pi].iPid   = ga[pi].iPid;
-	pkd->groups[pi].iIndex = ga[pi].iIndex;
+	if (ga[pi].id.iPid==mdl->idSelf) nLocal++;
+	else nRemote++;
+	pkd->tmpHopGroups[pi].iPid   = ga[pi].id.iPid;
+	pkd->tmpHopGroups[pi].iIndex = ga[pi].id.iIndex;
 	}
+    pkd->nLocalGroups = nLocal;
 
     return nLocal;
     }
@@ -3306,14 +3299,14 @@ int smHopJoin(SMX smx,SMF *smf, int *nLocal) {
     PKD pkd = smx->pkd;
     MDL mdl = pkd->mdl;
     struct smGroupArray *ga = smx->ga;
-    struct smParticleLink *pl = smx->pl;
+    remoteID *pl = smx->pl;
     PARTICLE *p;
     GHtmpGroupTable *g;
     int iPid, iIndex;
     int pi;
 
     smf->bDone = 1;
-    mdlCOcache(mdl,CID_GROUP,NULL,pkd->groups,sizeof(GHtmpGroupTable), pkd->nGroups,
+    mdlCOcache(mdl,CID_GROUP,NULL,pkd->tmpHopGroups,sizeof(GHtmpGroupTable), pkd->nGroups,
 	smf, initJoinLoops, combJoinLoops );
     /*
     ** Check all particles that are part of a loop or an arc (they are marked)
@@ -3322,106 +3315,214 @@ int smHopJoin(SMX smx,SMF *smf, int *nLocal) {
 	p = pkdParticle(pkd,pi);
 	if (!p->bMarked) continue;
 	p = pkdParticle(pkd,pi);
-	smReSmoothSingle(smx,smf,p,p->r,p->fBall);
+	smReSmoothSingle(smx,smf,p,p->r,p->fBall*0.50);
 	}
     mdlFinishCache(mdl,CID_GROUP);
-#if 1
-    for(pi=1; pi<pkd->nGroups; ++pi) {
-	ga[pi].iPid   = pkd->groups[pi].iPid;
-	ga[pi].iIndex = pkd->groups[pi].iIndex;
-	}
-    pkd->nGroups = combineDuplicateGroupIds(pkd,pkd->nGroups,ga,1,1);
-    for(pi=1; pi<pkd->nGroups; ++pi) {
-	pkd->groups[pi].iPid   = ga[pi].iPid;
-	pkd->groups[pi].iIndex = ga[pi].iIndex;
-	}
-#endif 
-    int nRemote = 0;
-    *nLocal = 0;
-    for(pi=1; pi<pkd->nGroups; ++pi) {
-	if (ga[pi].iPid==mdl->idSelf) (*nLocal)++;
-	else nRemote++;
-	}
-#if 0
-    printf("g. %d: %d groups, nLocal=%d, nRemote=%d\n", pkd->idSelf, pkd->nGroups-1, (*nLocal), nRemote);
-#endif
-    return smf->bDone;
-    }
 
-void pkdHopAssignGID(PKD pkd) {
-    MDL mdl = pkd->mdl;
-    int iPid, iIndex, iNextPid, iNextIndex;
-    int i, nLocal,iStart;
-    PARTICLE *p;
-    GHtmpGroupTable *g;
-    struct smGroupArray *ga = (struct smGroupArray *)(pkd->pLite);
 
     /* Follow the chains to the end */
-    mdlROcache(mdl,CID_GROUP,NULL,pkd->groups,sizeof(GHtmpGroupTable), pkd->nGroups);
-    for(i=1; i<pkd->nGroups; ++i) {
-	iPid = pkd->idSelf;
-	iIndex = i;
-	iNextPid   = pkd->groups[iIndex].iPid;
-	iNextIndex = pkd->groups[iIndex].iIndex;
+    mdlROcache(mdl,CID_GROUP,NULL,pkd->tmpHopGroups,sizeof(GHtmpGroupTable), pkd->nGroups);
+    for(pi=1; pi<pkd->nGroups; ++pi) {
+	int iPid = pkd->idSelf;
+	int iIndex = pi;
+	int iNextPid = pkd->tmpHopGroups[iIndex].iPid;
+	int iNextIndex = pkd->tmpHopGroups[iIndex].iIndex;
 	while(iPid!=iNextPid || iIndex!=iNextIndex) {
-	    g = mdlAquire(mdl,CID_GROUP,iNextIndex,iNextPid);
+	    GHtmpGroupTable *g = mdlAquire(mdl,CID_GROUP,iNextIndex,iNextPid);
 	    iPid = iNextPid;
 	    iIndex = iNextIndex;
 	    iNextPid = g->iPid;
 	    iNextIndex = g->iIndex;
 	    mdlRelease(mdl,CID_GROUP,g);
 	    }
-	pkd->groups[i].iPid = iPid;
-	pkd->groups[i].iIndex = iIndex;
+	pkd->tmpHopGroups[pi].iPid = iPid;
+	pkd->tmpHopGroups[pi].iIndex = iIndex;
 	}
     mdlFinishCache(mdl,CID_GROUP);
 
+    /* Merge duplicates for the next round */
+    for(pi=1; pi<pkd->nGroups; ++pi) {
+	ga[pi].id.iPid   = pkd->tmpHopGroups[pi].iPid;
+	ga[pi].id.iIndex = pkd->tmpHopGroups[pi].iIndex;
+	}
+    pkd->nGroups = combineDuplicateGroupIds(pkd,pkd->nGroups,ga,1,1);
+    int nRemote = 0;
+    *nLocal = 0;
+    for(pi=1; pi<pkd->nGroups; ++pi) {
+	if (ga[pi].id.iPid==mdl->idSelf) (*nLocal)++;
+	else nRemote++;
+	pkd->tmpHopGroups[pi].iPid   = ga[pi].id.iPid;
+	pkd->tmpHopGroups[pi].iIndex = ga[pi].id.iIndex;
+	}
+    pkd->nLocalGroups = *nLocal;
+    return smf->bDone;
+    }
 
-#if 1
-//    mdlROcache(mdl,CID_GROUP,NULL,pkd->groups,sizeof(GHtmpGroupTable), pkd->nGroups);
+
+static void initHopGroupProperties(void *vpkd, void *v) {
+    PKD pkd = (PKD)vpkd;
+    HopGroupTable * g = (HopGroupTable *)v;
+    int j;
+
+    g->nLocal = 0;
+    g->nTotal = 0;
+    for (j=0;j<3;j++) {
+	g->r[j] = 0.0;
+	g->rcm[j] = 0.0;
+	g->vcm[j] = 0.0;
+	}
+    g->fRMSRadius =  0.0;
+    g->fMass = 0.0;
+    }
+static void combHopGroupProperties(void *vctx, void *v1, void *v2) {
+    PKD pkd = (PKD)vctx;
+    HopGroupTable * g1 = (HopGroupTable *)v1;
+    HopGroupTable * g2 = (HopGroupTable *)v2;
+    int j;
+
+    g1->nTotal += g2->nTotal;
+    for (j=0;j<3;j++) {
+	g1->r[j] += g2->r[j];
+	g1->rcm[j] += g2->rcm[j];
+	g1->vcm[j] += g2->vcm[j];
+	}
+    g1->fRMSRadius += g2->fRMSRadius;
+    g1->fMass += g2->fMass;
+    }
+
+int pkdHopFinishUp(PKD pkd,int nMinGroupSize) {
+    MDL mdl = pkd->mdl;
+    struct smGroupArray *ga = (struct smGroupArray *)(pkd->pLite);
+    int i, j, gid;
+    PARTICLE *p;
+    float fMass;
+    double *r, *v;
+
     for(i=1; i<pkd->nGroups; ++i) {
 	ga[i].iGid   = i;
-	ga[i].iPid   = pkd->groups[i].iPid;
-	ga[i].iIndex = pkd->groups[i].iIndex;
+	ga[i].id.iPid   = pkd->tmpHopGroups[i].iPid;
+	ga[i].id.iIndex = pkd->tmpHopGroups[i].iIndex;
 	}
-    mdlROcache(mdl,CID_PARTICLE,NULL,pkdParticleBase(pkd),pkdParticleSize(pkd),pkdLocal(pkd));
-    pkd->nGroups = combineDuplicateGroupIds(pkd,pkd->nGroups,ga,1,1);
-    mdlFinishCache(mdl,CID_PARTICLE);
+
+    /* Create the final group table, and clear out the properties */
+    mdlFree(mdl,pkd->tmpHopGroups);
+    pkd->hopGroups = mdlMalloc(mdl, pkd->nGroups * sizeof(HopGroupTable));
+    assert(pkd->hopGroups!=NULL);
+    for(i=0; i<pkd->nGroups; ++i) {
+	pkd->hopGroups[i].id.iPid      = ga[i].id.iPid;
+	pkd->hopGroups[i].id.iIndex    = ga[i].id.iIndex;
+	pkd->hopGroups[i].iGlobalId = 0;
+	pkd->hopGroups[i].nLocal = 0;
+	pkd->hopGroups[i].nTotal = 0;
+	pkd->hopGroups[i].fMass = 0.0;
+	for (j=0;j<3;j++) {
+	    pkd->hopGroups[i].rcm[j] = 0.0;
+	    pkd->hopGroups[i].r[j] = 0.0;
+	    pkd->hopGroups[i].vcm[j] = 0.0;
+	    }
+	pkd->hopGroups[i].fRMSRadius = 0.0;
+	}
+
+    for (i=0;i<pkd->nLocal;++i) {
+	p = pkdParticle(pkd,i);
+	gid = *pkdGroup(pkd,p);
+	r = p->r;
+	v = pkdVel(pkd,p);
+	fMass = pkdMass(pkd,p);
+
+	++pkd->hopGroups[gid].nLocal;
+	++pkd->hopGroups[gid].nTotal;
+	for (j=0;j<3;j++) {
+	    pkd->hopGroups[gid].r[j] += r[j]; // FIXME: Correct for periodic
+	    pkd->hopGroups[gid].rcm[j] += r[j]*fMass;
+	    pkd->hopGroups[gid].fRMSRadius +=  r[j]*r[j]*fMass;
+	    pkd->hopGroups[gid].vcm[j] += v[j]*fMass;
+	    }
+	pkd->hopGroups[gid].fMass += fMass;
+	}
+
+    /* Now accumulate totals globally */
+    mdlCOcache(mdl,CID_GROUP,NULL,pkd->hopGroups,sizeof(HopGroupTable), pkd->nGroups,
+	pkd, initHopGroupProperties, combHopGroupProperties );
+
     for(i=1; i<pkd->nGroups; ++i) {
-	pkd->groups[i].iPid   = ga[i].iPid;
-	pkd->groups[i].iIndex = ga[i].iIndex;
+	HopGroupTable *g;
+	if (pkd->hopGroups[i].id.iPid == pkd->idSelf) continue;
+	g = mdlAquire(mdl,CID_GROUP,pkd->hopGroups[i].id.iIndex,pkd->hopGroups[i].id.iPid);
+	g->nTotal += pkd->hopGroups[i].nLocal;
+	for (j=0;j<3;j++) {
+	    g->r[j] += pkd->hopGroups[i].r[j];
+	    g->rcm[j] += pkd->hopGroups[i].rcm[j];
+	    g->vcm[j] += pkd->hopGroups[i].vcm[j];
+	    }
+	g->fRMSRadius += pkd->hopGroups[i].fRMSRadius;
+	g->fMass += pkd->hopGroups[i].fMass;
 	}
-//    mdlFinishCache(mdl,CID_GROUP);
-#endif 
+    mdlFinishCache(mdl,CID_GROUP);
 
+    for(i=1; i<pkd->nGroups; ++i) {
+	for (j=0;j<3;j++) {
+	    pkd->hopGroups[i].r[j] /= pkd->hopGroups[i].nTotal;
+	    pkd->hopGroups[i].rcm[j] /= pkd->hopGroups[i].fMass;
+	    pkd->hopGroups[i].vcm[j] /= pkd->hopGroups[i].fMass;
+	    }
+	/* 
+	** Do not calculate fDeltaR2 with the corrected positions!
+	*/
+	pkd->hopGroups[i].fRMSRadius /= pkd->hopGroups[i].fMass;
+	pkd->hopGroups[i].fRMSRadius -= pkd->hopGroups[i].rcm[0]*pkd->hopGroups[i].rcm[0]
+	    + pkd->hopGroups[i].rcm[1]*pkd->hopGroups[i].rcm[1]
+	    + pkd->hopGroups[i].rcm[2]*pkd->hopGroups[i].rcm[2];
+	pkd->hopGroups[i].fRMSRadius = sqrt(pkd->hopGroups[i].fRMSRadius);
+	}
 
+    /* Purge groups with too few particles */
+#if 1
+    for(i=j=1; i<pkd->nGroups /*&& pkd->hopGroups[i].id.iPid==pkd->idSelf*/; ++i) {
+	if (pkd->hopGroups[i].nTotal<nMinGroupSize) gid=0;
+	else gid = j++;
+	ga[i].iNewGid = gid;
+	}
+/*    j += pkd->nGroups - i;*/
 
+    updateGroupIds(pkd,pkd->nGroups,ga,1,1);
+    for(i=gid=j=1; i<pkd->nGroups; ++i) {
+	if (ga[i].iNewGid && ga[i].id.iIndex) {
+	    if (ga[i].id.iPid==pkd->idSelf) ++j;
+	    if (i != gid) pkd->hopGroups[gid] = pkd->hopGroups[i];
+	    pkd->hopGroups[gid].id.iIndex = ga[i].id.iIndex;
+	    ++gid;
+	    }
+	}
+    pkd->nGroups = gid;
+    pkd->nLocalGroups = j-1;
+#endif
+    return pkd->nLocalGroups;
+    }
 
-
-
+void pkdHopAssignGID(PKD pkd) {
+    MDL mdl = pkd->mdl;
+    int i, nLocal,iStart;
+    PARTICLE *p;
+    HopGroupTable *g;
+    struct smGroupArray *ga = (struct smGroupArray *)(pkd->pLite);
 
     for(i=1,nLocal=0; i<pkd->nGroups; ++i) {
-	if (pkd->groups[i].iPid==mdl->idSelf) ++nLocal;
+	if (pkd->hopGroups[i].id.iPid==mdl->idSelf) ++nLocal;
 	}
     mdlExscan(mdl,&nLocal,&iStart,1,MPI_INT,MPI_SUM);
     if (pkd->idSelf==0) iStart=0;
 
     for(i=1; i<=nLocal; ++i) {
-	assert(pkd->groups[i].iPid==mdl->idSelf);
-	pkd->groups[i].iGlobalId = iStart + i;
+	assert(pkd->hopGroups[i].id.iPid==mdl->idSelf);
+	pkd->hopGroups[i].iGlobalId = iStart + i;
 	}
-    mdlROcache(mdl,CID_GROUP,NULL,pkd->groups,sizeof(GHtmpGroupTable), pkd->nGroups);
+    mdlROcache(mdl,CID_GROUP,NULL,pkd->hopGroups,sizeof(HopGroupTable), pkd->nGroups);
     for(; i<pkd->nGroups ; ++i) {
-	assert(pkd->groups[i].iPid!=mdl->idSelf);
-	g = mdlAquire(mdl,CID_GROUP,pkd->groups[i].iIndex,pkd->groups[i].iPid);
-	if(g->iPid==pkd->groups[i].iPid) {}
-	else {
-	    printf("%d: %d.%d -> %d.%d -> %d.%d\n", pkd->idSelf,
-		pkd->idSelf, i, pkd->groups[i].iPid, pkd->groups[i].iIndex,
-		g->iPid, g->iIndex);
-	    }
-	assert(g->iPid==pkd->groups[i].iPid);
-	pkd->groups[i].iGlobalId = g->iGlobalId;
+	assert(pkd->hopGroups[i].id.iPid!=mdl->idSelf);
+	g = mdlAquire(mdl,CID_GROUP,pkd->hopGroups[i].id.iIndex,pkd->hopGroups[i].id.iPid);
+	assert(g->id.iPid==pkd->hopGroups[i].id.iPid);
+	pkd->hopGroups[i].iGlobalId = g->iGlobalId;
 	mdlRelease(mdl,CID_GROUP,g);
 	}
     mdlFinishCache(mdl,CID_GROUP);
@@ -3429,13 +3530,8 @@ void pkdHopAssignGID(PKD pkd) {
     for (i=0;i<pkd->nLocal;++i) {
 	p = pkdParticle(pkd,i);
 	assert( *pkdGroup(pkd,p) < pkd->nGroups );
-	*pkdGroup(pkd,p) = pkd->groups[*pkdGroup(pkd,p)].iGlobalId;
+	*pkdGroup(pkd,p) = pkd->hopGroups[*pkdGroup(pkd,p)].iGlobalId;
 	}
-
-
-
-
-
     }
 
 

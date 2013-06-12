@@ -204,6 +204,7 @@ uint64_t msrMaxOrder(MSR msr);
 
 void msrFof(MSR msr, double exp);
 void msrHop(MSR msr, double exp);
+void msrHopWrite(MSR msr, const char *fname);
 void msrGroupMerge(MSR msr, double exp);
 void msrGroupProfiles(MSR msr, double exp);
 void msrOutGroups(MSR msr,const char *,int,double dTime);

@@ -114,11 +114,11 @@ static inline int64_t d2u64(double d) {
 #define PKD_MODEL_NODE_BND     (1<<28) /* Include normal bounds in tree */
 #define PKD_MODEL_NODE_VBND    (1<<29) /* Include velocity bounds in tree for phase-space density*/
 
-
 typedef struct pLite {
     FLOAT r[3];
     int i;
-    uint8_t uRung;
+    uint8_t uRung : 6;
+    uint32_t uGroup : 26;
     } PLITE;
 
 typedef struct {
@@ -533,17 +533,33 @@ struct EwaldVariables {
     int nReps,nEwReps;
     };
 
+
+/*
+** This is an important base type. Alter with care, or even better, leave it alone.
+*/
+typedef struct {
+    int32_t  iPid;      /* A processor */
+    int32_t  iIndex;    /* Index of item on the processor */
+    } remoteID;
+
 /*
 ** This is the temporary group table used when Grasshopping.
 ** We eventually contruct a proper table.
 */
+typedef remoteID GHtmpGroupTable;
+
+
 typedef struct {
-    int32_t  iPid;      /* Master Processor for this Group */
-    int32_t  iIndex;    /* Group Index on that processor */
+    remoteID id;
     uint32_t iGlobalId; /* Global unique group id */
-//    float    fMass;
-//    uint64_t nMembers;  /* Total members in this group */
-    } GHtmpGroupTable;
+    uint32_t nLocal;    /* Local to this processor */
+    uint64_t nTotal;    /* Total particles in this group */
+    float fMass;
+    float fRMSRadius;
+    double r[3];
+    double rcm[3];
+    double vcm[3];
+    } HopGroupTable;
 
 /*
 ** components required for groupfinder:  --J.D.--
@@ -846,9 +862,10 @@ typedef struct pkdContext {
 	} ti[MAX_TIMERS];
     struct psGroupTable psGroupTable;
 
-    int nGroups;
+    int nGroups, nLocalGroups;
     FOFGD *groupData;
-    GHtmpGroupTable *groups;
+    GHtmpGroupTable *tmpHopGroups;
+    HopGroupTable *hopGroups;
 
     struct saddle_point_list saddle_points;
     int nRm;
@@ -1241,6 +1258,7 @@ void pkdCalcRoot(PKD,MOMC *);
 void pkdDistribRoot(PKD,MOMC *);
 void pkdTreeNumSrcActive(PKD pkd,uint8_t uRungLo,uint8_t uRungHi);
 void pkdBoundWalk(PKD pkd,BND *pbnd,uint8_t uRungLo,uint8_t uRungHi,uint32_t *pnActive,uint32_t *pnContained);
+void pkdTreeBuildByGroup(PKD pkd, int nBucket, int *iFirst, int *iLast);
 
 #include "parameters.h"
 /*
@@ -1402,6 +1420,11 @@ int pkdUnpackIO(PKD pkd,
 		local_t *iIndex,
 		total_t iMinOrder, total_t iMaxOrder,
 		double dvFac);
+
+
+/* Group finding */
+void pkdHopSendStats(PKD pkd);
+
 
 #ifdef PLANETS
 void pkdSunIndirect(PKD pkd,double aSun[],double adSun[],int iFlag);

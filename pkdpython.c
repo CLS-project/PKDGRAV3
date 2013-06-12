@@ -849,6 +849,10 @@ ppy_msr_Save(PyObject *self, PyObject *args, PyObject *kwobj) {
 	msrWrite(ppy_msr,fname,dTime,iType==OUT_TIPSY_DBL);
 	break;
 
+    case OUT_HOP_STATS:
+	msrHopWrite(ppy_msr,fname);
+	break;
+
     case OUT_IORDER_ARRAY:
     case OUT_COLOR_ARRAY:
     case OUT_DENSITY_ARRAY:
@@ -1233,6 +1237,7 @@ static void setConstants( PyObject *dict ) {
 
     PyDict_SetItemString(dict, "OUT_TIPSY_STD", Py_BuildValue("i",OUT_TIPSY_STD));
     PyDict_SetItemString(dict, "OUT_TIPSY_DBL", Py_BuildValue("i",OUT_TIPSY_DBL));
+    PyDict_SetItemString(dict, "OUT_HOP_STATS", Py_BuildValue("i",OUT_HOP_STATS));
     PyDict_SetItemString(dict, "OUT_POS_VECTOR", Py_BuildValue("i",OUT_POS_VECTOR));
     PyDict_SetItemString(dict, "OUT_VEL_VECTOR", Py_BuildValue("i",OUT_VEL_VECTOR));
     PyDict_SetItemString(dict, "OUT_ACCEL_VECTOR", Py_BuildValue("i",OUT_ACCEL_VECTOR));

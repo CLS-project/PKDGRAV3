@@ -47,7 +47,7 @@ typedef struct smContext {
     ** Similarly, this will also use a portion of the pLite.
     */
     struct smGroupArray *ga;
-    struct smParticleLink *pl;
+    remoteID *pl;
     /*
     ** Flags to mark local particles which are finished in the processing
     ** of the smFastGas routine. They have updated their densities.
@@ -102,5 +102,6 @@ int smGroupProfiles(SMX smx, SMF *smf,int nTotalGroups);
 
 int smHopLink(SMX smx,SMF *smf);
 int smHopJoin(SMX smx,SMF *smf,int *nLocal);
+int pkdHopFinishUp(PKD pkd, int nMinGroupSize);
 void pkdHopAssignGID(PKD pkd);
 #endif

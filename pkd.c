@@ -5332,6 +5332,29 @@ int pkdDeepestPot(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
     return nChecked;
     }
 
+struct packHopCtx {
+    PKD pkd;
+    int iIndex;
+    };
+
+static int packHop(void *vctx, int *id, size_t nSize, void *vBuff) {
+    struct packHopCtx *ctx = (struct packHopCtx *)vctx;
+    int nLeft = ctx->pkd->nLocalGroups - ctx->iIndex;
+    int n = nSize / sizeof(HopGroupTable);
+    if ( n > nLeft ) n = nLeft;
+    memcpy(vBuff,ctx->pkd->hopGroups + 1 + ctx->iIndex, n*sizeof(HopGroupTable) );
+    ctx->iIndex += n;
+    return n*sizeof(HopGroupTable);
+    }
+
+/* Send the group information to processor 0 */
+void pkdHopSendStats(PKD pkd) {
+    struct packHopCtx ctx;
+    ctx.pkd = pkd;
+    ctx.iIndex = 0;
+    mdlSend(pkd->mdl,0,packHop, &ctx);
+    }
+
 void pkdOutPsGroup(PKD pkd,char *pszFileName,int iType)
 {
     FILE *fp;

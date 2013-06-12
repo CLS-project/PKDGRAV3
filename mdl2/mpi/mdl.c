@@ -584,9 +584,9 @@ void mdlSend(MDL mdl,int id,mdlPack pack, void *ctx) {
 
     do {
 	nBuff = (*pack)(ctx,&id,SEND_BUFFER_SIZE,vOut);
-	if ( nBuff != 0 ) {
+//	if ( nBuff != 0 ) {
 	    MPI_Ssend(vOut,nBuff,MPI_BYTE,id,MDL_TAG_SEND,mdl->commMDL);
-	    }
+//	    }
 	}
     while ( nBuff != 0 );
 
@@ -612,7 +612,7 @@ void mdlRecv(MDL mdl,int id,mdlPack unpack, void *ctx) {
 	inid = status.MPI_SOURCE;
 	nUnpack = (*unpack)(ctx,&inid,nBytes,vIn);
 	}
-    while (nUnpack>0);
+    while (nUnpack>0 && nBytes>0);
 
     free(vIn);
     }

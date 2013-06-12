@@ -496,9 +496,9 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.bFindPSGroups = 0;
     prmAddParam(msr->prm,"bFindPSGroups",0,&msr->param.bFindPSGroups,sizeof(int),
 		"psgroupfinder","<enable/disable phase-space group finder> = -psgroupfinder");
-    msr->param.nMinMembers = 16;
+    msr->param.nMinMembers = 10;
     prmAddParam(msr->prm,"nMinMembers",1,&msr->param.nMinMembers,sizeof(int),
-		"nMinMembers","<minimum number of group members> = 16");
+		"nMinMembers","<minimum number of group members> = 10");
     msr->param.dTau = 0.164;
     prmAddParam(msr->prm,"dTau",2,&msr->param.dTau,sizeof(double),"dTau",
 		"<linking length for FOF in units of mean particle separation> = 0.164");
@@ -4663,13 +4663,71 @@ void msrCooling(MSR msr,double dTime,double dStep,int bUpdateState, int bUpdateT
 
 /* END Gas routines */
 
+static void writeHopStats(FILE *fp, int nGroups, HopGroupTable *g) {
+    int i;
+    for( i=0; i<nGroups; ++i ) {
+	fprintf(fp, "%d %llu %g %g %g %g %g %g %g %g %g %g\n",
+	    g[i].iGlobalId, g[i].nTotal,
+	    g[i].fMass,
+	    g[i].r[0], g[i].r[1], g[i].r[2],
+	    g[i].rcm[0], g[i].rcm[1],g[i].rcm[2],
+	    g[i].vcm[0],g[i].vcm[1],g[i].vcm[2]);
+	}
+    }
+
+static int unpackHop(void *vctx, int *id, size_t nSize, void *vBuff) {
+    FILE *fp = (FILE *)vctx;
+    HopGroupTable *g = (HopGroupTable *)vBuff;
+    int n = nSize / sizeof(HopGroupTable);
+    assert( n*sizeof(HopGroupTable) == nSize);
+    writeHopStats(fp,n,g);
+    }
+
+void msrHopWrite(MSR msr, const char *fname) {
+    FILE *fp;
+    LCL *plcl;
+    PST pst0;
+    int i;
+    double sec,dsec,ssec;
+
+    pst0 = msr->pst;
+    while (pst0->nLeaves > 1)
+	pst0 = pst0->pstLower;
+    plcl = pst0->plcl;
+
+    if (msr->param.bVStep)
+	printf("Writing Grasshopper statistics to %s\n", fname );
+    sec = msrTime();
+
+    fp = fopen(fname,"w");
+    if (!fp) {
+	printf("Could not open Group Output File:%s\n",fname);
+	_msrExit(msr,1);
+	}
+    writeHopStats(fp,plcl->pkd->nLocalGroups,plcl->pkd->hopGroups+1);
+
+    for (i=1;i<msr->nThreads;++i) {
+        int id = msr->pMap[i];
+        mdlReqService(pst0->mdl,id,PST_HOP_SEND_STATS,NULL,0);
+	mdlRecv(pst0->mdl,-1,unpackHop,fp);
+        mdlGetReply(pst0->mdl,id,NULL,NULL);
+        }
+    fclose(fp);
+
+    dsec = msrTime() - sec;
+    if (msr->param.bVStep)
+	printf("Written statistics, Wallclock: %f secs\n",dsec);
+
+    }
+
 void msrHop(MSR msr, double dTime) {
     struct inSmooth in;
     struct inHopLink h;
     struct outHopJoin j;
+    struct inHopFinishUp inFinish;
     int i;
     uint64_t nGroups;
-    double sec,dsec,ssec;;
+    double sec,dsec,ssec;
 
     ssec = msrTime();
 
@@ -4683,7 +4741,7 @@ void msrHop(MSR msr, double dTime) {
     msrSmoothSetSMF(msr, &(h.smf), dTime);
 
     if (msr->param.bVStep)
-	printf("Running Grasshopper with linking length %e\n", sqrt(in.smf.dTau2) );
+	printf("Running Grasshopper with adaptive linking length\n", sqrt(in.smf.dTau2) );
 
     in.iSmoothType = SMX_DENSITY_M3;
     sec = msrTime();
@@ -4699,7 +4757,6 @@ void msrHop(MSR msr, double dTime) {
     dsec = msrTime() - sec;
     if (msr->param.bVStep)
 	printf("Chain search complete in %f secs, merging %"PRIu64" chains...\n",dsec,nGroups);
-#if 1
     h.iSmoothType = SMX_HOP_LINK;
     sec = msrTime();
     i = 0;
@@ -4714,7 +4771,10 @@ void msrHop(MSR msr, double dTime) {
     dsec = msrTime() - sec;
     if (msr->param.bVStep)
 	printf("Chain merge complete in %f secs, %"PRIu64" groups\n",dsec,nGroups);
-#endif
+    inFinish.nMinGroupSize = msr->param.nMinMembers;
+    pstHopFinishUp(msr->pst,&inFinish,sizeof(inFinish),&nGroups,NULL);
+    if (msr->param.bVStep)
+	printf("Removed groups with fewer than %d particles, %"PRIu64" remain\n",10, nGroups);
     pstHopAssignGID(msr->pst,NULL,0,NULL,NULL);
 
     dsec = msrTime() - ssec;

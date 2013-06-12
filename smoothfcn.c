@@ -168,13 +168,13 @@ void LinkGradientM3(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
 	r2 += dr*dr;
 	if (r2 < r2min) {
 	    r2min = r2;
-	    smf->groupLink->iPid = nnList[i].iPid;
-	    smf->groupLink->iIndex = nnList[i].iIndex;
+	    smf->groupLink->id.iPid = nnList[i].iPid;
+	    smf->groupLink->id.iIndex = nnList[i].iIndex;
 	    }
 	}
     assert(smf->pParticleLink->iPid==-1 && smf->pParticleLink->iIndex==-1);
-    smf->pParticleLink->iPid = smf->groupLink->iPid;
-    smf->pParticleLink->iIndex = smf->groupLink->iIndex;
+    smf->pParticleLink->iPid = smf->groupLink->id.iPid;
+    smf->pParticleLink->iIndex = smf->groupLink->id.iIndex;
     }
 
 void LinkHopChains(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
@@ -183,7 +183,7 @@ void LinkHopChains(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
     int i, gid1, gid2;
     GHtmpGroupTable *g1, *g2;
     gid1 = *pkdGroup(pkd,p);
-    g1 = &pkd->groups[gid1];
+    g1 = &pkd->tmpHopGroups[gid1];
     for (i=0;i<nSmooth;++i) {
 	if (nnList[i].pPart->bMarked) {
 	    gid2 = *pkdGroup(pkd,nnList[i].pPart);

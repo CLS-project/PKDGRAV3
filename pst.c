@@ -264,6 +264,12 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_HOP_ASSIGN_GID,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstHopAssignGID,
 		  0,0);
+    mdlAddService(mdl,PST_HOP_FINISH_UP,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstHopFinishUp,
+	          sizeof(struct inHopFinishUp),sizeof(uint64_t));
+    mdlAddService(mdl,PST_HOP_SEND_STATS,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstHopSendStats,
+		  0,0);
     mdlAddService(mdl,PST_SMOOTH,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstSmooth,
 		  sizeof(struct inSmooth),0);
@@ -2961,6 +2967,30 @@ void pstHopAssignGID(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     if (pnOut) *pnOut = 0;
     }
 
+void pstHopFinishUp(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    struct inHopFinishUp *in = (struct inHopFinishUp *)vin;
+    uint64_t *nOutGroups = (uint64_t *)vout;
+    uint64_t nOutUpper;
+    int nOut;
+
+    mdlassert(pst->mdl,nIn == sizeof(struct inHopFinishUp));
+    if (pst->nLeaves > 1) {
+        mdlReqService(pst->mdl,pst->idUpper,PST_HOP_FINISH_UP,vin,nIn);
+        pstHopFinishUp(pst->pstLower,vin,nIn,vout,pnOut);
+        mdlGetReply(pst->mdl,pst->idUpper,&nOutUpper,pnOut);
+	*nOutGroups += nOutUpper;
+        }
+    else {
+	LCL *plcl = pst->plcl;
+        *nOutGroups = pkdHopFinishUp(plcl->pkd,in->nMinGroupSize);
+        }
+    if (pnOut) *pnOut = sizeof(uint64_t);
+    }
+
+void pstHopSendStats(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    pkdHopSendStats(pst->plcl->pkd);
+    if (pnOut) *pnOut = 0;
+    }
 
 void pstSmooth(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     struct inSmooth *in = vin;
