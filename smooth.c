@@ -2826,16 +2826,6 @@ static void combSetArc(void *vpkd, void *v1, void *v2) {
     assert( *pkdGroup(pkd,p1) == *pkdGroup(pkd,p2) );
     }
 
-static int smga_cmp(const void *a0, const void *b0) {
-    struct smGroupArray *a = (struct smGroupArray *)a0;
-    struct smGroupArray *b = (struct smGroupArray *)b0;
-    if (a->id.iPid < b->id.iPid) return -1;
-    if (a->id.iPid > b->id.iPid) return +1;
-    if (a->id.iIndex < b->id.iIndex) return -1;
-    if (a->id.iIndex > b->id.iIndex) return +1;
-    return 0;
-    }
-
 /* Put the groups back in "group" order  */
 static int reorderGroups(PKD pkd, int nGroups, struct smGroupArray *ga) {
     struct smGroupArray tmp;
@@ -2875,6 +2865,11 @@ static int reorderGroups(PKD pkd, int nGroups, struct smGroupArray *ga) {
 	}
     return nNew;
     }
+
+
+static void updateRemoteGroupIds(PKD pkd, int nGroups, struct smGroupArray *ga, int bLocal, int bRemote) {
+    }
+
 
 /*
 ** We are about to renumber the groups locally. Each group has the new ID in iNewGid.
@@ -2924,6 +2919,42 @@ static void updateGroupIds(PKD pkd, int nGroups, struct smGroupArray *ga, int bL
 	}
     }
 
+static int smga_cmp(const void *a0, const void *b0) {
+    struct smGroupArray *a = (struct smGroupArray *)a0;
+    struct smGroupArray *b = (struct smGroupArray *)b0;
+    if (a->id.iPid < b->id.iPid)     return -1;
+    if (a->id.iPid > b->id.iPid)     return +1;
+    if (a->id.iIndex < b->id.iIndex) return -1;
+    if (a->id.iIndex > b->id.iIndex) return +1;
+    return 0;
+    }
+
+static int renumberGroups(PKD pkd, int nGroups,struct smGroupArray *ga) {
+    int i, gid, nNew;
+
+    /* We want local groups first */
+    for(i=1; i<nGroups; ++i) {
+	assert(ga[i].iGid == i);
+	assert(ga[i].id.iPid>=0);
+	if (ga[i].id.iPid == pkd->idSelf) ga[i].id.iPid = -1;
+	}
+    qsort(ga+1,nGroups-1,sizeof(struct smGroupArray),smga_cmp);
+    for(i=1; i<nGroups; ++i) if (ga[i].id.iPid == -1) ga[i].id.iPid = pkd->idSelf;
+    gid = 0; /* Sentinal node always as iPid=idSelf, iIndex == -1 */
+    /* Count and note *unique* groups */
+    for(i=nNew=1; i<nGroups; ++i) {
+	if (ga[i].id.iPid!=ga[gid].id.iPid || ga[i].id.iIndex!=ga[gid].id.iIndex) {
+	    ++nNew;
+	    gid = i;
+	    }
+	assert (nNew>1);
+	ga[i].iNewGid = nNew-1;
+	}
+    reorderGroups(pkd,nGroups,ga);
+    return nNew;
+    }
+
+
 /*
 ** Merge duplicate groups (iPid/iIndex is the same), and update particle pointers.
 */
@@ -2931,25 +2962,7 @@ static int combineDuplicateGroupIds(PKD pkd, int nGroups, struct smGroupArray *g
     MDL mdl = pkd->mdl;
     int pi, gid, nNew;
 
-    /* We want local groups first */
-    for(pi=1; pi<nGroups; ++pi) {
-	assert(ga[pi].iGid == pi);
-	assert(ga[pi].id.iPid>=0);
-	if (ga[pi].id.iPid == pkd->idSelf) ga[pi].id.iPid = -1;
-	}
-    qsort(ga+1,nGroups-1,sizeof(struct smGroupArray),smga_cmp);
-    for(pi=1; pi<nGroups; ++pi) if (ga[pi].id.iPid == -1) ga[pi].id.iPid = pkd->idSelf;
-    gid = 0; /* Sentinal node always as iPid=idSelf, iIndex == -1 */
-    /* Count and note *unique* groups */
-    for(pi=nNew=1; pi<nGroups; ++pi) {
-	if (ga[pi].id.iPid!=ga[gid].id.iPid || ga[pi].id.iIndex!=ga[gid].id.iIndex) {
-	    ++nNew;
-	    gid = pi;
-	    }
-	assert (nNew>1);
-	ga[pi].iNewGid = nNew-1;
-	}
-    reorderGroups(pkd,nGroups,ga);
+    nNew = renumberGroups(pkd,nGroups,ga);
     updateGroupIds(pkd,nGroups,ga,bLocal,bRemote);
     nGroups = reorderGroups(pkd,nGroups,ga);
     assert(nGroups == nNew);
@@ -3297,6 +3310,7 @@ int smHopLink(SMX smx,SMF *smf) {
 **
 ** OPTIMIZATION: we should mark individual groups as done/not done so we can skip
 **               subsequent iterations for those groups.
+** OPTIMIZATION: We should really build the tree with just marked particles.
 */
 int smHopJoin(SMX smx,SMF *smf, int *nLocal) {
     PKD pkd = smx->pkd;
@@ -3555,10 +3569,25 @@ static void combHopGetRoots(void *vctx, void *v1, void *v2) {
 
 void pkdHopUnbind(PKD pkd) {
     MDL mdl = pkd->mdl;
+    int nDomains = mdlThreads(mdl);
     HopGroupTable * g;
     KDN *pNode;
     PARTICLE *p;
-    int i, gid, iRoot, iFirst, iLast, nRemoteRoots;
+    MDL_Datatype typeRemoteID, *stypes, *rtypes;
+    int *scounts, *rcounts, *sdispls, *rdispls;
+    int i, gid, iRoot, iFirst, iLast;
+    int iPid, iLastPid;
+    int nRootsTotal, nRootsToSend, nRootsToRecv;
+
+    /*
+    ** The remote groups should be sorted by processor and remote group id,
+    ** but we will rely on this behaviour later so we verify it now.
+    */
+    for(i=2+pkd->nLocalGroups; i<pkd->nGroups; ++i) {
+	assert( pkd->hopGroups[i-1].id.iPid<pkd->hopGroups[i].id.iPid
+	    || ( pkd->hopGroups[i-1].id.iPid==pkd->hopGroups[i].id.iPid
+		&& pkd->hopGroups[i-1].id.iIndex<pkd->hopGroups[i].id.iIndex) );
+	}
 
     /* We build a tree of each group of particles */
     pkdTreeBuildByGroup(pkd,32,&iFirst,&iLast);
@@ -3569,12 +3598,14 @@ void pkdHopUnbind(PKD pkd) {
     pkd->hopRootIndex= malloc((pkd->nGroups+1) * sizeof(*pkd->hopRootIndex) );
     assert(pkd->hopRootIndex!=NULL);
 
-    nRemoteRoots = 1;
+    nRootsToSend = nRootsToRecv = 0;
     pkd->hopNumRoots[0] = 0;
     pkd->hopRootIndex[0] = 0;
     pkd->hopGroups[0].nRemote = 0; /* This should be true, but it has to be */
     for(i=1; i<pkd->nGroups; ++i) {
-	nRemoteRoots += pkd->hopGroups[i].nRemote+1;
+	nRootsTotal += pkd->hopGroups[i].nRemote+1;
+	if (i>pkd->nLocalGroups)  nRootsToRecv += pkd->hopGroups[i].nRemote+1;
+	else  nRootsToSend += pkd->hopGroups[i].nRemote+1;
 	pkd->hopNumRoots[i] = 0;
 	pkd->hopRootIndex[i] = pkd->hopRootIndex[i-1] + pkd->hopGroups[i-1].nRemote + 1;
 	assert(pkd->hopRootIndex[i]>pkd->hopRootIndex[i-1]);
@@ -3582,9 +3613,9 @@ void pkdHopUnbind(PKD pkd) {
     pkd->hopNumRoots[i] = 0;
     pkd->hopRootIndex[i] = pkd->hopRootIndex[i-1] + pkd->hopGroups[i-1].nRemote + 1;
 
-    pkd->hopRoots= malloc(nRemoteRoots * sizeof(*pkd->hopRoots) );
+    pkd->hopRoots= malloc( (nRootsTotal+1) * sizeof(*pkd->hopRoots) );
     assert(pkd->hopRoots!=NULL);
-    pkd->hopRootGroups= malloc(nRemoteRoots * sizeof(*pkd->hopRootGroups) );
+    pkd->hopRootGroups= malloc( (nRootsTotal+1) * sizeof(*pkd->hopRootGroups) );
     assert(pkd->hopRootGroups!=NULL);
 
 
@@ -3622,33 +3653,88 @@ void pkdHopUnbind(PKD pkd) {
 	mdlRelease(mdl,CID_GROUP,g);
 	}
     mdlFinishCache(mdl,CID_GROUP);
-
-/*
-** This is more complicated. We need to send (or fetch) all the tree roots
-** from the master nodes (where groups are local) to the remote nodes.
-*/
 #if 0
-    /* Now we return the favour by sending our local groups to all remote groups */
-    mdlCOcache(mdl,CID_GROUP,NULL,pkd->hopGroups,sizeof(HopGroupTable), pkd->nGroups,
-	pkd, initHopGetRoots, combHopGetRoots );
-    for(i=1; i<=pkd->nLocalGroups; ++i) {
-	assert(pkd->hopGroups[i].id.iPid == pkd->idSelf);
-	assert(pkd->hopRootIndex[i] + pkd->hopNumRoots[i] == pkd->hopRootIndex[i+1]);
-	for(iRoot=pkd->hopRootIndex[i]+1; iRoot<pkd->hopRootIndex[i] + pkd->hopNumRoots[i]; ++iRoot) {
-	    assert(iRoot>0 && iRoot<=nRemoteRoots);
-	    assert(pkd->hopRoots[iRoot].iPid != pkd->idSelf);
-	    g = mdlAquire(mdl,CID_GROUP,pkd->hopRootGroups[iRoot],pkd->hopRoots[iRoot].iPid);
-	    g->iRmtPid = pkd->idSelf;
-	    g->iRmtIndex = pkd->hopRootIndex[i];
-	    g->iGlobalId = i;
-	    mdlRelease(mdl,CID_GROUP,g);
+
+    /*
+    ** At this point, each group master has the complete list of tree roots. We now need to
+    ** send these tree roots to every remote group. We use an alltoall for this. We can just
+    ** fill in the slots as if by magic!
+    */
+
+    assert(sizeof(remoteID) == 2*sizeof(int));
+    mdlTypeContiguous(mdl, 2, MDL_INT, &typeRemoteID );
+    mdlTypeCommit(mdl,&typeRemoteID);
+
+    scounts = malloc(sizeof(*scounts) * nDomains);
+    assert(scounts != NULL);
+    rcounts = malloc(sizeof(*rcounts) * nDomains);
+    assert(rcounts != NULL);
+    sdispls = malloc(sizeof(*sdispls) * nDomains);
+    assert(sdispls != NULL);
+    rdispls = malloc(sizeof(*rdispls) * nDomains);
+    assert(rdispls != NULL);
+    stypes = malloc(sizeof(*stypes) * nDomains);
+    assert(stypes != NULL);
+    rtypes = malloc(sizeof(*rtypes) * nDomains);
+    assert(rtypes != NULL);
+
+    for(i=0; i<=nDomains; ++i) {
+	scounts[i] = rcounts[i] = sdispls[i] = rdispls[i] = 0;
+	stypes[i] = rtypes[i] = MDL_DATATYPE_NULL;
+	}
+
+#if 0
+    /* Setup the send list */
+    nBlocks=0;
+    iLastPid = pkd->hopGroups[1].id.iPid;
+    for(gid=1; gid<=pkd->nLocalGroups; ++gid) {
+	assert(pkd->hopGroups[gid].id.iPid == pkd->idSelf);
+	assert(pkd->hopRootIndex[gid] + pkd->hopNumRoots[gid] == pkd->hopRootIndex[gid+1]);
+	if (pkd->hopGroups[gid].id.iPid == iLastPid) {
+	    }
+	else {
 	    }
 	}
-    mdlFinishCache(mdl,CID_GROUP);
+#endif
+
+#if 0
+    /*
+    ** Constructing the receive list is much easier; we simply go through the
+    ** sorted list and increment the counts of roots we will receive. They will
+    ** arrive from each processor in the correct order. Sweet!
+    */
+    iLastPid = iPid = -1;
+    for(gid=pkd->nLocalGroups+1; gid<pkd->nGroups; ++gid) {
+	iPid = pkd->hopGroups[gid].id.iPid;
+	assert(iPid != pkd->idSelf);
+	if (iPid != iLastPid) {
+	    rdispls[iPid] = pkd->hopRootIndex[gid];
+	    iLastPid = iPid;
+	    }
+	rcounts[iPid] += pkd->hopGroups[gid].nRemote + 1;
+	}
+#endif
+
+    mdlAlltoallw(mdl,pkd->hopRoots,scounts,sdispls,stypes,
+	pkd->hopRoots,rcounts,rdispls,rtypes);
+
+    mdlTypeFree(mdl,&typeRemoteID);
+
+
+#if 0
     for(i=1+pkd->nLocalGroups; i<pkd->nGroups; ++i) {
 	assert(pkd->hopGroups[i].id.iPid != pkd->idSelf);
 	assert(pkd->hopRootIndex[i] + pkd->hopNumRoots[i] == pkd->hopRootIndex[i+1]);
 	}
+#endif
+
+
+    free(scounts);
+    free(rcounts);
+    free(sdispls);
+    free(rdispls);
+    free(stypes);
+    free(rtypes);
 #endif
 
 

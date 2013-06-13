@@ -540,6 +540,11 @@ int mdlAlltoallv( MDL mdl, void *sendbuf, int *sendcnts, int *sdispls, MDL_Datat
         recvbuf, recvcnts, rdispls, recvtype, mdl->commMDL );
     }
 
+int mdlAlltoallw( MDL mdl, void *sendbuf, int *sendcnts, int *sdispls, MDL_Datatype *stypes,
+    void *recvbuf, int *recvcnts, int *rdispls, MDL_Datatype *rtypes) {
+    return MPI_Alltoallw( sendbuf, sendcnts, sdispls, stypes,
+        recvbuf, recvcnts, rdispls, rtypes, mdl->commMDL );
+    }
 
 int mdlAllGather( MDL mdl, void *sendbuf, int scount, MDL_Datatype stype,
     void *recvbuf, int rcount, MDL_Datatype recvtype) {
@@ -558,6 +563,14 @@ int mdlReduceScatter( MDL mdl, void* sendbuf, void* recvbuf, int *recvcounts,
 
 int mdlTypeContiguous(MDL mdl,int count, MDL_Datatype old_type, MDL_Datatype *newtype) {
     return MPI_Type_contiguous(count,old_type,newtype);
+    }
+
+int mdlTypeCreateHindexed(MDL mdl, int count,
+    const int array_of_blocklengths[], const MDL_Aint array_of_displacements[],
+    MDL_Datatype oldtype, MDL_Datatype *newtype) {
+    return MPI_Type_create_hindexed(count,
+	array_of_blocklengths,array_of_displacements,
+	oldtype,newtype);
     }
 
 int mdlTypeCommit(MDL mdl, MDL_Datatype *datatype) {
