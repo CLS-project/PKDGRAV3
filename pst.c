@@ -272,7 +272,7 @@ void pstAddServices(PST pst,MDL mdl) {
 	          sizeof(struct inHopGravity),0);
     mdlAddService(mdl,PST_HOP_UNBIND,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstHopUnbind,
-	          0,0);
+	          sizeof(struct inHopUnbind),0);
     mdlAddService(mdl,PST_HOP_ASSIGN_GID,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstHopAssignGID,
 		  0,0);
@@ -3011,7 +3011,8 @@ void pstHopGravity(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     }
 
 void pstHopUnbind(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
-    mdlassert(pst->mdl,nIn == 0);
+    struct inHopUnbind *in = (struct inHopUnbind *)vin;
+    mdlassert(pst->mdl,nIn == sizeof(struct inHopUnbind));
     if (pst->nLeaves > 1) {
         mdlReqService(pst->mdl,pst->idUpper,PST_HOP_UNBIND,vin,nIn);
         pstHopUnbind(pst->pstLower,vin,nIn,NULL,pnOut);
@@ -3019,7 +3020,7 @@ void pstHopUnbind(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
         }
     else {
 	LCL *plcl = pst->plcl;
-        pkdHopUnbind(plcl->pkd);
+        pkdHopUnbind(plcl->pkd,in->dTime);
         }
     if (pnOut) *pnOut = 0;
     }

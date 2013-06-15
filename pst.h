@@ -632,6 +632,9 @@ struct inHopGravity {
 void pstHopGravity(PST,void *,int,void *,int *);
 
 /* PST_HOP_UNBIND */
+struct inHopUnbind {
+    double dTime;
+    };
 void pstHopUnbind(PST,void *,int,void *,int *);
 
 /* PST_HOP_ASSIGN_GID */

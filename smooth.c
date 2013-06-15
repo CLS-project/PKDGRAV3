@@ -3888,9 +3888,18 @@ void pkdHopTreeBuild(PKD pkd) {
 	assert(pkd->hopRoots[iRoot].iPid>=0 && pkd->hopRoots[iRoot].iIndex>0);
 
     for(gid=1; gid<pkd->nGroups; ++gid) {
+	int iRootUs = pkd->hopRootIndex[gid];
 	for (iRoot=pkd->hopRootIndex[gid]; iRoot<pkd->hopRootIndex[gid+1]; ++iRoot) {
 	    assert(iRoot<nRootsTotal);
 	    assert(pkd->hopRoots[iRoot].iPid>=0 && pkd->hopRoots[iRoot].iIndex>0);
+	    /* Move our local root to the start */
+	    if (pkd->hopRoots[iRoot].iPid==pkd->idSelf && iRoot>iRootUs) {
+		remoteID t;
+		assert(pkd->hopRoots[iRootUs].iPid!=pkd->idSelf);
+		t = pkd->hopRoots[iRootUs];
+		pkd->hopRoots[iRootUs] = pkd->hopRoots[iRoot];
+		pkd->hopRoots[iRoot] = t;
+		}
 	    }
 	}
 
@@ -3898,11 +3907,58 @@ void pkdHopTreeBuild(PKD pkd) {
     /* free: We have allocated pkd->hopRootIndex, pkd->hopRoots -- needed for gravity */
     }
 
-void pkdHopUnbind(PKD pkd) {
+typedef struct EnergyElement {
+    double dPot;
+    double dSqrtKin;
+    double dTot;
+    int i;
+    } EE;
+
+
+static int cmpEE(const void *p1,const void *p2) {
+    EE *a = (EE *)p1;
+    EE *b = (EE *)p2;
+    if (a->dTot > b->dTot) return 1;
+    if (a->dTot < b->dTot) return -1;
+    return 0;
     }
 
+void pkdHopUnbind(PKD pkd, double dTime) {
+    EE *ee = (EE *)(pkd->pLite);
+    int gid, iRoot, i, j, iee, n;
+    PARTICLE *p;
+    KDN *pNode;
+    double a = csmTime2Exp(pkd->param.csm,dTime);
+    double ia = 1.0 / a;
+    double a2 = a * a;
+    double dv, dv2, *v;
 
+    for(gid=1; gid<pkd->nGroups; ++gid) {
+	assert(pkd->hopRoots[gid].iPid==pkd->idSelf);
+	iRoot = pkd->hopRoots[gid].iIndex;
+	pNode = pkdTreeNode(pkd,iRoot);
+	n = pNode->pUpper - pNode->pLower + 1;
+	for(i=pNode->pLower; i<=pNode->pUpper; ++i) {
+	    iee = i - pNode->pLower;
+	    p = pkdParticle(pkd,i);
+	    v = pkdVel(pkd,p);
+	    dv2 = 0.0;
+	    for (j=0;j<3;++j) {
+		dv = v[j] - pkd->hopGroups[gid].vcm[j];
+		dv2 += dv*dv;
+		}
+	    ee[iee].i = i;
+	    ee[iee].dPot = *pkdPot(pkd,p) * ia;
+	    if (pkdIsGas(pkd,p) && pkd->oSph) {  // TODO: is this correct?
+		SPHFIELDS *pSph = pkdSph(pkd,p);
+		ee[iee].dPot += pSph->u;
+		}
 
+	    ee[iee].dTot = 0.5*a2*dv2 + ee[i].dPot;
+	    }
+	qsort(ee,n,sizeof(EE),cmpEE);
+	}
+    }
 
 void pkdHopAssignGID(PKD pkd) {
     MDL mdl = pkd->mdl;

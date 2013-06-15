@@ -1432,7 +1432,7 @@ int pkdUnpackIO(PKD pkd,
 
 /* Group finding */
 void pkdHopTreeBuild(PKD pkd);
-void pkdHopUnbind(PKD pkd);
+void pkdHopUnbind(PKD pkd,double dTime);
 void pkdHopSendStats(PKD pkd);
 
 
