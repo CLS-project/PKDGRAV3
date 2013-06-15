@@ -91,6 +91,7 @@ void msrDomainDecompNew(MSR);
 void msrRungOrder(MSR msr, int iRung);
 void msrBuildTree(MSR msr,double dTime,int bNeedEwald);
 void msrBuildTreeExcludeVeryActive(MSR msr,double dTime);
+void msrBuildTreeMarked(MSR msr,double dTime);
 void msrCalcBound(MSR msr,BND *pbnd);
 void msrCalcVBound(MSR msr,BND *pbnd);
 void msrDomainColor(MSR);

@@ -873,7 +873,6 @@ typedef struct pkdContext {
     uint16_t *hopNumRoots;
     int *hopRootIndex;
     remoteID *hopRoots;
-    int *hopRootGroups;
 
     struct saddle_point_list saddle_points;
     int nRm;
@@ -926,6 +925,7 @@ typedef struct {
     int nP;
     int nRefs;
     PKD pkd;
+    int bGravStep;
 #ifdef USE_CUDA
     void *gpu_memory;
 #endif
@@ -1431,6 +1431,7 @@ int pkdUnpackIO(PKD pkd,
 
 
 /* Group finding */
+void pkdHopTreeBuild(PKD pkd);
 void pkdHopUnbind(PKD pkd);
 void pkdHopSendStats(PKD pkd);
 

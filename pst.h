@@ -164,6 +164,8 @@ enum pst_service {
     PST_HOP_LINK,
     PST_HOP_JOIN,
     PST_HOP_FINISH_UP,
+    PST_HOP_TREE_BUILD,
+    PST_HOP_GRAVITY,
     PST_HOP_UNBIND,
     PST_HOP_ASSIGN_GID,
     PST_HOP_SEND_STATS,
@@ -588,6 +590,7 @@ void pstBoundsWalk(PST,void *,int,void *,int *);
 
 /* PST_HOP_LINK */
 struct inHopLink {
+    double dHopTau;
     int nSmooth;
     int bPeriodic;
     int bSymmetric;
@@ -605,11 +608,30 @@ void pstHopJoin(PST,void *,int,void *,int *);
 
 /* PST_HOP_FINISH_UP */
 struct inHopFinishUp{
+    double fPeriod[3];
+    int bPeriodic;
     int nMinGroupSize;
     };
 void pstHopFinishUp(PST,void *,int,void *,int *);
 
-/* PST_HOP_ASSIGN_GID */
+/* PST_HOP_TREE_BUILD */
+void pstHopTreeBuild(PST,void *,int,void *,int *);
+
+/* PST_HOP_GRAVITY */
+struct inHopGravity {
+    double dTime;
+    double dEwCut;
+    double dEwhCut;
+    double dThetaMin;
+    double dThetaMax;
+    int bPeriodic;
+    int nGroup;
+    uint8_t uRungLo;
+    uint8_t uRungHi;
+    };
+void pstHopGravity(PST,void *,int,void *,int *);
+
+/* PST_HOP_UNBIND */
 void pstHopUnbind(PST,void *,int,void *,int *);
 
 /* PST_HOP_ASSIGN_GID */

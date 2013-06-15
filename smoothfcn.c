@@ -185,34 +185,32 @@ void LinkHopChains(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
     gid1 = *pkdGroup(pkd,p);
     g1 = &pkd->tmpHopGroups[gid1];
     for (i=0;i<nSmooth;++i) {
-	if (nnList[i].pPart->bMarked) {
-	    gid2 = *pkdGroup(pkd,nnList[i].pPart);
-	    if (nnList[i].iPid==pkd->idSelf && gid1==gid2) continue;
-	    g2 = mdlAquire(mdl,CID_GROUP,gid2,nnList[i].iPid);
-	    if (g1->iPid == g2->iPid) {
-		if (g1->iIndex<g2->iIndex) {
-		    g2->iPid = g1->iPid;
-		    g2->iIndex = g1->iIndex;
-		    smf->bDone = 0;
-		    }
-		else if (g1->iIndex>g2->iIndex) {
-		    g1->iPid = g2->iPid;
-		    g1->iIndex = g2->iIndex;
-		    smf->bDone = 0;
-		    }
-		}
-	    else if (g1->iPid < g2->iPid) {
+	gid2 = *pkdGroup(pkd,nnList[i].pPart);
+	if (nnList[i].iPid==pkd->idSelf && gid1==gid2) continue;
+	g2 = mdlAquire(mdl,CID_GROUP,gid2,nnList[i].iPid);
+	if (g1->iPid == g2->iPid) {
+	    if (g1->iIndex<g2->iIndex) {
 		g2->iPid = g1->iPid;
 		g2->iIndex = g1->iIndex;
 		smf->bDone = 0;
 		}
-	    else if (g1->iPid > g2->iPid) {
+	    else if (g1->iIndex>g2->iIndex) {
 		g1->iPid = g2->iPid;
 		g1->iIndex = g2->iIndex;
 		smf->bDone = 0;
 		}
-	    mdlRelease(mdl,CID_GROUP,g2);
 	    }
+	else if (g1->iPid < g2->iPid) {
+	    g2->iPid = g1->iPid;
+	    g2->iIndex = g1->iIndex;
+	    smf->bDone = 0;
+	    }
+	else if (g1->iPid > g2->iPid) {
+	    g1->iPid = g2->iPid;
+	    g1->iIndex = g2->iIndex;
+	    smf->bDone = 0;
+	    }
+	mdlRelease(mdl,CID_GROUP,g2);
 	}
     }
 

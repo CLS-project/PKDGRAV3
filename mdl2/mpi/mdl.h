@@ -293,7 +293,6 @@ void mdlHandler(MDL);
 
 typedef MPI_Op MDL_Op;
 typedef MPI_Datatype MDL_Datatype;
-typedef MPI_Aint MDL_Aint;
 #define MDL_Op_create(f,c,o) MPI_Op_create(f,c,o) 
 int mdlBcast ( MDL mdl, void *buf, int count, MDL_Datatype datatype, int root );
 int mdlReduce ( MDL mdl, void *sendbuf, void *recvbuf, int count,
@@ -317,8 +316,8 @@ int mdlAllGatherv( MDL mdl, void *sendbuf, int scount, MDL_Datatype stype,
 int mdlReduceScatter( MDL mdl, void* sendbuf, void* recvbuf, int *recvcounts,
     MDL_Datatype datatype, MDL_Op op);
 int mdlTypeContiguous(MDL mdl,int count, MDL_Datatype old_type, MDL_Datatype *newtype);
-int mdlTypeCreateHindexed(MDL mdl, int count,
-    const int array_of_blocklengths[], const MDL_Aint array_of_displacements[],
+int mdlTypeIndexed(MDL mdl, int count,
+    const int array_of_blocklengths[], const int array_of_displacements[],
     MDL_Datatype oldtype, MDL_Datatype *newtype);
 int mdlTypeCommit(MDL mdl, MDL_Datatype *datatype );
 int mdlTypeFree (MDL mdl, MDL_Datatype *datatype );

@@ -2866,21 +2866,16 @@ static int reorderGroups(PKD pkd, int nGroups, struct smGroupArray *ga) {
     return nNew;
     }
 
-
-static void updateRemoteGroupIds(PKD pkd, int nGroups, struct smGroupArray *ga, int bLocal, int bRemote) {
-    }
-
-
 /*
 ** We are about to renumber the groups locally. Each group has the new ID in iNewGid.
 */
-static void updateGroupIds(PKD pkd, int nGroups, struct smGroupArray *ga, int bLocal, int bRemote) {
+static void updateGroupIds(PKD pkd, int nGroups, struct smGroupArray *ga, int bIndexIsGID) {
     MDL mdl = pkd->mdl;
     PARTICLE *p;
     int pi, gid;
     int *g, *newGid = NULL;
 
-    if (bRemote) {
+    if (bIndexIsGID) {
 	newGid = mdlMalloc(mdl, nGroups * sizeof(int));
 	assert(newGid!=NULL);
 	for(gid=1; gid<nGroups; ++gid) {
@@ -2897,18 +2892,17 @@ static void updateGroupIds(PKD pkd, int nGroups, struct smGroupArray *ga, int bL
 	*pkdGroup(pkd,p) = gid = ga[gid].iNewGid;
 	}
     /* Now gid has the new position -- a reorder is necessary */
-    for(gid=1; gid<nGroups; ++gid) {
-	if (ga[gid].id.iPid==pkd->idSelf) {
-	    if (bLocal)
+    if (bIndexIsGID) {
+	for(gid=1; gid<nGroups; ++gid) {
+	    if (ga[gid].id.iPid==pkd->idSelf) {
 		ga[gid].id.iIndex = ga[ga[gid].id.iIndex].iNewGid;
+		}
+	    else {
+		g = mdlAquire(pkd->mdl,CID_GROUP,ga[gid].id.iIndex,ga[gid].id.iPid);
+		ga[gid].id.iIndex = *g;
+		mdlRelease(pkd->mdl,CID_GROUP,g);
+		}
 	    }
-	else if (bRemote) {
-	    g = mdlAquire(pkd->mdl,CID_GROUP,ga[gid].id.iIndex,ga[gid].id.iPid);
-	    ga[gid].id.iIndex = *g;
-	    mdlRelease(pkd->mdl,CID_GROUP,g);
-	    }
-	}
-    if (bRemote) {
 	mdlFinishCache(mdl,CID_GROUP);
 	mdlFree(mdl,newGid);
 	}
@@ -2958,12 +2952,12 @@ static int renumberGroups(PKD pkd, int nGroups,struct smGroupArray *ga) {
 /*
 ** Merge duplicate groups (iPid/iIndex is the same), and update particle pointers.
 */
-static int combineDuplicateGroupIds(PKD pkd, int nGroups, struct smGroupArray *ga,int bLocal,int bRemote) {
+static int combineDuplicateGroupIds(PKD pkd, int nGroups, struct smGroupArray *ga,int bIndexIsGID) {
     MDL mdl = pkd->mdl;
     int pi, gid, nNew;
 
     nNew = renumberGroups(pkd,nGroups,ga);
-    updateGroupIds(pkd,nGroups,ga,bLocal,bRemote);
+    updateGroupIds(pkd,nGroups,ga,bIndexIsGID);
     nGroups = reorderGroups(pkd,nGroups,ga);
     assert(nGroups == nNew);
     for (pi=0;pi<pkd->nLocal;++pi) {
@@ -2975,7 +2969,7 @@ static int combineDuplicateGroupIds(PKD pkd, int nGroups, struct smGroupArray *g
 	assert(ga[pi].iGid==pi);
 	}
 
-    /* The group ID in the particle has been update, so we need to restart the cache */
+    /* The group ID in the particle has been updated, so we need to restart the cache */
     mdlFinishCache(mdl,CID_PARTICLE);
     mdlROcache(mdl,CID_PARTICLE,NULL,pkdParticleBase(pkd),pkdParticleSize(pkd),pkdLocal(pkd));
     return nGroups;
@@ -3140,7 +3134,7 @@ int smHopLink(SMX smx,SMF *smf) {
     ** Remote particles are still pending, so we combine duplicates so there are
     ** fewer remote searches to perform. This results in substantially fewer chains.
     */
-    nGroups = combineDuplicateGroupIds(pkd,nGroups,ga,0,0);
+    nGroups = combineDuplicateGroupIds(pkd,nGroups,ga,0);
     /*
     ** Now lets go looking for remote loops and see if we are part of them.
     ** The group table still contains PARTICLE links, so we use it to
@@ -3215,7 +3209,7 @@ int smHopLink(SMX smx,SMF *smf) {
 	    }
 	}
     mdlROcache(mdl,CID_PARTICLE,NULL,pkdParticleBase(pkd),pkdParticleSize(pkd),pkdLocal(pkd));
-    nGroups = combineDuplicateGroupIds(pkd,nGroups,ga,0,0);
+    nGroups = combineDuplicateGroupIds(pkd,nGroups,ga,0);
 
     /*
     ** Now handle deferred groups (ones pointing to, but not part of, loops).
@@ -3249,12 +3243,13 @@ int smHopLink(SMX smx,SMF *smf) {
 	    gid = *pkdGroup(pkd,pkdParticle(pkd,ga[pi].id.iIndex));
 	    if (gid!=pi) {
 		assert(ga[gid].id.iPid==pkd->idSelf);
+		ga[pi].iGid = pi;
 		ga[pi].id.iPid = ga[gid].id.iPid;
 		ga[pi].id.iIndex = ga[gid].id.iIndex;
 		}
 	    }
 	}
-    nGroups = combineDuplicateGroupIds(pkd,nGroups,ga,0,0);
+    nGroups = combineDuplicateGroupIds(pkd,nGroups,ga,0);
 
     /*
     ** Whew. The situation for groups is now one of the following.
@@ -3310,9 +3305,8 @@ int smHopLink(SMX smx,SMF *smf) {
 **
 ** OPTIMIZATION: we should mark individual groups as done/not done so we can skip
 **               subsequent iterations for those groups.
-** OPTIMIZATION: We should really build the tree with just marked particles.
 */
-int smHopJoin(SMX smx,SMF *smf, int *nLocal) {
+int smHopJoin(SMX smx,SMF *smf, double dHopTau, int *nLocal) {
     PKD pkd = smx->pkd;
     MDL mdl = pkd->mdl;
     struct smGroupArray *ga = smx->ga;
@@ -3332,10 +3326,9 @@ int smHopJoin(SMX smx,SMF *smf, int *nLocal) {
 	float fBall, fSoft;
 	p = pkdParticle(pkd,pi);
 	if (!p->bMarked) continue;
-	fSoft = pkdSoft(pkd,p);
-	fBall = p->fBall*0.5f;                  /* Search within a smaller sphere for other chains */
-	if (fBall<fSoft)                        /* but consider at least a softening length */
-	    fBall = fminf(fSoft,2.0f*p->fBall); /* unless that would be crazy big! */
+	if (dHopTau<0.0) fBall = -dHopTau * pkdSoft(pkd,p);
+	else fBall = dHopTau;
+	fBall = fmaxf(fBall,p->fBall*0.5f);
 	smReSmoothSingle(smx,smf,p,p->r,fBall);
 	}
     mdlFinishCache(mdl,CID_GROUP);
@@ -3362,10 +3355,11 @@ int smHopJoin(SMX smx,SMF *smf, int *nLocal) {
 
     /* Merge duplicates for the next round */
     for(pi=1; pi<pkd->nGroups; ++pi) {
+	ga[pi].iGid   = pi;
 	ga[pi].id.iPid   = pkd->tmpHopGroups[pi].iPid;
 	ga[pi].id.iIndex = pkd->tmpHopGroups[pi].iIndex;
 	}
-    pkd->nGroups = combineDuplicateGroupIds(pkd,pkd->nGroups,ga,1,1);
+    pkd->nGroups = combineDuplicateGroupIds(pkd,pkd->nGroups,ga,1);
     int nRemote = 0;
     *nLocal = 0;
     for(pi=1; pi<pkd->nGroups; ++pi) {
@@ -3376,6 +3370,61 @@ int smHopJoin(SMX smx,SMF *smf, int *nLocal) {
 	}
     pkd->nLocalGroups = *nLocal;
     return smf->bDone;
+    }
+
+
+static void initMaxHopGroup(void *vpkd, void *v) {
+    PKD pkd = (PKD)vpkd;
+    HopGroupTable * g = (HopGroupTable *)v;
+    g->iRmtPid = 0;
+    g->iRmtIndex = 0;
+    g->nRemote = 0;
+    }
+
+static void combMaxHopGroup(void *vctx, void *v1, void *v2) {
+    PKD pkd = (PKD)vctx;
+    HopGroupTable * g1 = (HopGroupTable *)v1;
+    HopGroupTable * g2 = (HopGroupTable *)v2;
+    int j;
+
+    if (g2->nRemote > g1->nRemote) {
+	g1->nRemote = g2->nRemote;
+	g1->iRmtPid = g2->iRmtPid;
+	g1->iRmtIndex = g2->iRmtIndex;
+	}
+    }
+
+
+/*
+** Move groups to the processor with the most particles.
+*/
+static void hopRelocateGroups(PKD pkd) {
+    MDL mdl = pkd->mdl;
+    HopGroupTable *g;
+    int i;
+
+    /* Start by assuming that we have the most particles */
+    for(i=1; i<=pkd->nLocalGroups; ++i) {
+	assert(pkd->hopGroups[i].id.iPid == pkd->idSelf);
+	g = &pkd->hopGroups[i];
+	g->iRmtPid = pkd->idSelf;
+	g->iRmtIndex = i;
+	g->nRemote = g->nLocal; /* Use nRemote to mean nMax for now */
+	}
+
+    /* Now find the real processor with the most particles for each group */
+    mdlCOcache(mdl,CID_GROUP,NULL,pkd->hopGroups,sizeof(HopGroupTable), pkd->nGroups,
+	pkd, initMaxHopGroup, combMaxHopGroup );
+    for(i=1+pkd->nLocalGroups; i<pkd->nGroups; ++i) {
+	assert(pkd->hopGroups[i].id.iPid != pkd->idSelf);
+	g = mdlAquire(mdl,CID_GROUP,pkd->hopGroups[i].id.iIndex,pkd->hopGroups[i].id.iPid);
+	g->iRmtPid = pkd->idSelf;
+	g->iRmtIndex = i;
+	g->nRemote = pkd->hopGroups[i].nLocal;
+	mdlRelease(mdl,CID_GROUP,g);
+	}
+    mdlFinishCache(mdl,CID_GROUP);
+
     }
 
 static void initHopGroupProperties(void *vpkd, void *v) {
@@ -3412,12 +3461,13 @@ static void combHopGroupProperties(void *vctx, void *v1, void *v2) {
     g1->fMass += g2->fMass;
     }
 
-int pkdHopFinishUp(PKD pkd,int nMinGroupSize) {
+int pkdHopFinishUp(PKD pkd,int nMinGroupSize, int bPeriodic, double *dPeriod) {
     MDL mdl = pkd->mdl;
     struct smGroupArray *ga = (struct smGroupArray *)(pkd->pLite);
     HopGroupTable * g;
     int i, j, gid;
     PARTICLE *p;
+    double dQtr[3];
     float fMass;
     double *r, *v;
 
@@ -3428,7 +3478,7 @@ int pkdHopFinishUp(PKD pkd,int nMinGroupSize) {
 	}
 
     /* Create the final group table, and clear out the properties */
-    mdlFree(mdl,pkd->tmpHopGroups);
+    mdlFree(mdl,pkd->tmpHopGroups); pkd->tmpHopGroups = NULL;
     pkd->hopGroups = mdlMalloc(mdl, pkd->nGroups * sizeof(HopGroupTable));
     assert(pkd->hopGroups!=NULL);
     for(i=0; i<pkd->nGroups; ++i) {
@@ -3447,6 +3497,7 @@ int pkdHopFinishUp(PKD pkd,int nMinGroupSize) {
 	pkd->hopGroups[i].fRMSRadius = 0.0;
 	}
 
+    for(j=0; j<3; ++j) dQtr[j] = bPeriodic ? 0.25 * dPeriod[j] : FLOAT_MAXVAL;
     for (i=0;i<pkd->nLocal;++i) {
 	p = pkdParticle(pkd,i);
 	gid = *pkdGroup(pkd,p);
@@ -3454,15 +3505,36 @@ int pkdHopFinishUp(PKD pkd,int nMinGroupSize) {
 	v = pkdVel(pkd,p);
 	fMass = pkdMass(pkd,p);
 
-	++pkd->hopGroups[gid].nLocal;
-	++pkd->hopGroups[gid].nTotal;
+	/*
+	** Correct the particle positions if we have periodic boundaries by
+	** constraining them to be within a quarter box away from the group centre.
+	** This will only work if groups are smaller then about a quarter of the
+	** width of the box (the initial centre "guess" can be quite bad). If we
+	** had a perfect centre, then it would be half the box, but finding the
+	** center is sort of the point of this exercise.
+	**
+	** We need the particle position to be "non-periodic" so that later when
+	** we calculate potentials for unbinding it will work properly.
+	*/
+	if (pkd->hopGroups[gid].nTotal && bPeriodic) {
+	    double iN = 1.0 / pkd->hopGroups[gid].nTotal;
+	    for (j=0;j<3;j++) {
+		double gR = pkd->hopGroups[gid].r[j]*iN;
+		if      (r[j] < gR - dQtr[j]) r[j] += dPeriod[j];
+		else if (r[j] > gR + dQtr[j]) r[j] -= dPeriod[j];
+		assert(r[j] > gR - dQtr[j] && r[j] < gR + dQtr[j] );
+		}
+	    }
+
 	for (j=0;j<3;j++) {
-	    pkd->hopGroups[gid].r[j] += r[j]; // FIXME: Correct for periodic
+	    pkd->hopGroups[gid].r[j] += r[j];
 	    pkd->hopGroups[gid].rcm[j] += r[j]*fMass;
 	    pkd->hopGroups[gid].fRMSRadius +=  r[j]*r[j]*fMass;
 	    pkd->hopGroups[gid].vcm[j] += v[j]*fMass;
 	    }
 	pkd->hopGroups[gid].fMass += fMass;
+	++pkd->hopGroups[gid].nLocal;
+	++pkd->hopGroups[gid].nTotal;
 	}
 
     /* Now accumulate totals globally */
@@ -3526,7 +3598,7 @@ int pkdHopFinishUp(PKD pkd,int nMinGroupSize) {
 	else gid = j++;
 	ga[i].iNewGid = gid;
 	}
-    updateGroupIds(pkd,pkd->nGroups,ga,1,1);
+    updateGroupIds(pkd,pkd->nGroups,ga,1);
     for(i=gid=j=1; i<pkd->nGroups; ++i) {
 	if (ga[i].iNewGid && ga[i].id.iIndex) {
 	    if (ga[i].id.iPid==pkd->idSelf) ++j;
@@ -3537,6 +3609,8 @@ int pkdHopFinishUp(PKD pkd,int nMinGroupSize) {
 	}
     pkd->nGroups = gid;
     pkd->nLocalGroups = j-1;
+
+    /* free: We have allocated pkd->hopGroups */
 
     return pkd->nLocalGroups;
     }
@@ -3563,11 +3637,12 @@ static void combHopGetRoots(void *vctx, void *v1, void *v2) {
 	++pkd->hopNumRoots[gid];
 	pkd->hopRoots[iRoot].iPid = g2->iRmtPid;
 	pkd->hopRoots[iRoot].iIndex = g2->iRmtIndex;
-	pkd->hopRootGroups[iRoot] = g2->iGlobalId;
 	}
     }
 
 void pkdHopUnbind(PKD pkd) {
+    }
+void pkdHopTreeBuild(PKD pkd) {
     MDL mdl = pkd->mdl;
     int nDomains = mdlThreads(mdl);
     HopGroupTable * g;
@@ -3577,7 +3652,7 @@ void pkdHopUnbind(PKD pkd) {
     int *scounts, *rcounts, *sdispls, *rdispls;
     int i, gid, iRoot, iFirst, iLast;
     int iPid, iLastPid;
-    int nRootsTotal, nRootsToSend, nRootsToRecv;
+    int nRootsTotal;
 
     /*
     ** The remote groups should be sorted by processor and remote group id,
@@ -3592,31 +3667,32 @@ void pkdHopUnbind(PKD pkd) {
     /* We build a tree of each group of particles */
     pkdTreeBuildByGroup(pkd,32,&iFirst,&iLast);
 
+    /* TODO: Correct pariticle positions to take into account periodic boundaries */
+
     /* Setup the buffer for tree roots */
     pkd->hopNumRoots = malloc((pkd->nGroups+1) * sizeof(*pkd->hopNumRoots) );
     assert(pkd->hopNumRoots!=NULL);
     pkd->hopRootIndex= malloc((pkd->nGroups+1) * sizeof(*pkd->hopRootIndex) );
     assert(pkd->hopRootIndex!=NULL);
 
-    nRootsToSend = nRootsToRecv = 0;
+    nRootsTotal = 1;
     pkd->hopNumRoots[0] = 0;
     pkd->hopRootIndex[0] = 0;
     pkd->hopGroups[0].nRemote = 0; /* This should be true, but it has to be */
     for(i=1; i<pkd->nGroups; ++i) {
 	nRootsTotal += pkd->hopGroups[i].nRemote+1;
-	if (i>pkd->nLocalGroups)  nRootsToRecv += pkd->hopGroups[i].nRemote+1;
-	else  nRootsToSend += pkd->hopGroups[i].nRemote+1;
 	pkd->hopNumRoots[i] = 0;
 	pkd->hopRootIndex[i] = pkd->hopRootIndex[i-1] + pkd->hopGroups[i-1].nRemote + 1;
-	assert(pkd->hopRootIndex[i]>pkd->hopRootIndex[i-1]);
 	}
     pkd->hopNumRoots[i] = 0;
     pkd->hopRootIndex[i] = pkd->hopRootIndex[i-1] + pkd->hopGroups[i-1].nRemote + 1;
+    assert(nRootsTotal == pkd->hopRootIndex[i]);
 
     pkd->hopRoots= malloc( (nRootsTotal+1) * sizeof(*pkd->hopRoots) );
     assert(pkd->hopRoots!=NULL);
-    pkd->hopRootGroups= malloc( (nRootsTotal+1) * sizeof(*pkd->hopRootGroups) );
-    assert(pkd->hopRootGroups!=NULL);
+
+    for(iRoot=0; iRoot<=nRootsTotal; ++iRoot)
+	pkd->hopRoots[iRoot].iPid = pkd->hopRoots[iRoot].iIndex = -1;
 
 
     /* Add the roots that we have built on this node first */
@@ -3631,7 +3707,6 @@ void pkdHopUnbind(PKD pkd) {
 	    ++pkd->hopNumRoots[gid];
 	    pkd->hopRoots[iRoot].iPid = pkd->idSelf;
 	    pkd->hopRoots[iRoot].iIndex = i;
-	    pkd->hopRootGroups[iRoot] = gid;
 	    }
 	}
     for(i=1; i<pkd->nGroups; ++i) assert(pkd->hopNumRoots[i] == 1);
@@ -3653,14 +3728,12 @@ void pkdHopUnbind(PKD pkd) {
 	mdlRelease(mdl,CID_GROUP,g);
 	}
     mdlFinishCache(mdl,CID_GROUP);
-#if 0
 
     /*
     ** At this point, each group master has the complete list of tree roots. We now need to
     ** send these tree roots to every remote group. We use an alltoall for this. We can just
     ** fill in the slots as if by magic!
     */
-
     assert(sizeof(remoteID) == 2*sizeof(int));
     mdlTypeContiguous(mdl, 2, MDL_INT, &typeRemoteID );
     mdlTypeCommit(mdl,&typeRemoteID);
@@ -3683,21 +3756,49 @@ void pkdHopUnbind(PKD pkd) {
 	stypes[i] = rtypes[i] = MDL_DATATYPE_NULL;
 	}
 
-#if 0
+    int      *lens;
+    int  *disps;
+
+
     /* Setup the send list */
-    nBlocks=0;
     iLastPid = pkd->hopGroups[1].id.iPid;
+    for (i=0; i<nDomains; ++i) scounts[i] = 0;
     for(gid=1; gid<=pkd->nLocalGroups; ++gid) {
 	assert(pkd->hopGroups[gid].id.iPid == pkd->idSelf);
 	assert(pkd->hopRootIndex[gid] + pkd->hopNumRoots[gid] == pkd->hopRootIndex[gid+1]);
-	if (pkd->hopGroups[gid].id.iPid == iLastPid) {
-	    }
-	else {
+	/* Count the number of *blocks* we are sending to each remote node */
+	for (iRoot=pkd->hopRootIndex[gid]+1; iRoot<pkd->hopRootIndex[gid+1]; ++iRoot)
+	    scounts[pkd->hopRoots[iRoot].iPid]++;
+	}
+    assert(scounts[pkd->idSelf]==0);
+    sdispls[0] = 0;
+    for (i=1; i<nDomains; ++i) sdispls[i] = sdispls[i-1] + scounts[i-1];
+
+    lens = malloc( sizeof(*lens) * (sdispls[nDomains-1] + scounts[nDomains-1]) );
+    assert(lens!=NULL);
+    disps = malloc( sizeof(*disps) * (sdispls[nDomains-1] + scounts[nDomains-1]) );
+    assert(disps!=NULL);
+
+    for (i=0; i<nDomains; ++i) scounts[i] = 0;
+    for(gid=1; gid<=pkd->nLocalGroups; ++gid) {
+	assert(pkd->hopGroups[gid].id.iPid == pkd->idSelf);
+	assert(pkd->hopRootIndex[gid] + pkd->hopNumRoots[gid] == pkd->hopRootIndex[gid+1]);
+	for (iRoot=pkd->hopRootIndex[gid]+1; iRoot<pkd->hopRootIndex[gid+1]; ++iRoot) {
+	    iPid = pkd->hopRoots[iRoot].iPid;
+	    i = sdispls[iPid] + scounts[iPid]++;
+	    disps[i] = pkd->hopRootIndex[gid];
+	    lens[i]  = pkd->hopNumRoots[gid];
 	    }
 	}
-#endif
-
-#if 0
+    for (i=0; i<nDomains; ++i) {
+	if (scounts[i]==0) stypes[i] = MDL_DATATYPE_NULL;
+	else {
+	    mdlTypeIndexed(mdl,scounts[i],lens+sdispls[i],disps+sdispls[i],typeRemoteID,&stypes[i]);
+	    mdlTypeCommit(mdl,&stypes[i]);
+	    scounts[i] = 1;
+	    }
+	sdispls[i] = 0;
+	}
     /*
     ** Constructing the receive list is much easier; we simply go through the
     ** sorted list and increment the counts of roots we will receive. They will
@@ -3708,40 +3809,41 @@ void pkdHopUnbind(PKD pkd) {
 	iPid = pkd->hopGroups[gid].id.iPid;
 	assert(iPid != pkd->idSelf);
 	if (iPid != iLastPid) {
-	    rdispls[iPid] = pkd->hopRootIndex[gid];
+	    rdispls[iPid] = pkd->hopRootIndex[gid] * sizeof(remoteID);
 	    iLastPid = iPid;
 	    }
 	rcounts[iPid] += pkd->hopGroups[gid].nRemote + 1;
+	rtypes[iPid] = typeRemoteID;
 	}
-#endif
-
     mdlAlltoallw(mdl,pkd->hopRoots,scounts,sdispls,stypes,
 	pkd->hopRoots,rcounts,rdispls,rtypes);
 
+    for (i=0; i<nDomains; ++i)
+	if (scounts[i] >0)
+	    mdlTypeFree(mdl,&stypes[i]);
     mdlTypeFree(mdl,&typeRemoteID);
 
-
-#if 0
-    for(i=1+pkd->nLocalGroups; i<pkd->nGroups; ++i) {
-	assert(pkd->hopGroups[i].id.iPid != pkd->idSelf);
-	assert(pkd->hopRootIndex[i] + pkd->hopNumRoots[i] == pkd->hopRootIndex[i+1]);
-	}
-#endif
-
-
+    free(lens);
+    free(disps);
     free(scounts);
     free(rcounts);
     free(sdispls);
     free(rdispls);
     free(stypes);
     free(rtypes);
-#endif
 
+    for(iRoot=1; iRoot<nRootsTotal; ++iRoot)
+	assert(pkd->hopRoots[iRoot].iPid>=0 && pkd->hopRoots[iRoot].iIndex>0);
 
-    free(pkd->hopNumRoots);
-    free(pkd->hopRootIndex);
-    free(pkd->hopRoots);
-    free(pkd->hopRootGroups);
+    for(gid=1; gid<pkd->nGroups; ++gid) {
+	for (iRoot=pkd->hopRootIndex[gid]; iRoot<pkd->hopRootIndex[gid+1]; ++iRoot) {
+	    assert(iRoot<nRootsTotal);
+	    assert(pkd->hopRoots[iRoot].iPid>=0 && pkd->hopRoots[iRoot].iIndex>0);
+	    }
+	}
+
+    free(pkd->hopNumRoots);   pkd->hopNumRoots = NULL;
+    /* free: We have allocated pkd->hopRootIndex, pkd->hopRoots -- needed for gravity */
     }
 
 void pkdHopAssignGID(PKD pkd) {

@@ -565,10 +565,10 @@ int mdlTypeContiguous(MDL mdl,int count, MDL_Datatype old_type, MDL_Datatype *ne
     return MPI_Type_contiguous(count,old_type,newtype);
     }
 
-int mdlTypeCreateHindexed(MDL mdl, int count,
-    const int array_of_blocklengths[], const MDL_Aint array_of_displacements[],
+int mdlTypeIndexed(MDL mdl, int count,
+    const int array_of_blocklengths[], const int array_of_displacements[],
     MDL_Datatype oldtype, MDL_Datatype *newtype) {
-    return MPI_Type_create_hindexed(count,
+    return MPI_Type_indexed(count,
 	array_of_blocklengths,array_of_displacements,
 	oldtype,newtype);
     }

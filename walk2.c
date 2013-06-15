@@ -473,7 +473,9 @@ static void iOpenOutcomeCL(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin,int 
 /*
 ** Returns total number of active particles for which gravity was calculated.
 */
-static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot, uint8_t uRungLo,uint8_t uRungHi, double dRhoFac, int bEwald,int nGroup, double dThetaMin, double *pdFlop, double *pdPartSum,double *pdCellSum) {
+static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
+    uint8_t uRungLo,uint8_t uRungHi, double dRhoFac, int bEwald, int nGroup, double dThetaMin,
+    int bGravStep, double *pdFlop, double *pdPartSum,double *pdCellSum) {
     KDN *k,*c,*kFind;
     int id,iCell,iSib,iLower,iCheckCell,iCheckLower,iCellDescend;
     PARTICLE *p;
@@ -604,7 +606,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot, u
 	    */
 	    tempI = *pdFlop;
 	    tempI += dEwFlop;
-	    if (pkd->param.bGravStep) {
+	    if (bGravStep) {
 		a = pkdNodeAccel(pkd,k);
 		maga = sqrt(a[0]*a[0] + a[1]*a[1] + a[2]*a[2]);
 	    }
@@ -652,7 +654,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot, u
 				    assert(id >= 0);
 				    if (id == pkd->idSelf) p = pkdParticle(pkd,pj);
 				    else p = CAST(PARTICLE *,mdlAquire(pkd->mdl,CID_PARTICLE,pj,id));
-				    if (pkd->param.bGravStep && pkd->param.iTimeStepCrit == 1) v = pkdVel(pkd,p);
+				    if (bGravStep && pkd->param.iTimeStepCrit == 1) v = pkdVel(pkd,p);
 				    iOrder = p->iOrder;
 				    ilpAppend(pkd->ilp,
 					p->r[0] + blk->xOffset.f[jTile],
@@ -672,7 +674,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot, u
 					else p = CAST(PARTICLE *,mdlAquire(pkd->mdl,CID_PARTICLE,pj,id));
 					fMass = pkdMass(pkd,p);
 					fSoft = pkdSoft(pkd,p);
-					if (pkd->param.bGravStep && pkd->param.iTimeStepCrit == 1) v = pkdVel(pkd,p);
+					if (bGravStep && pkd->param.iTimeStepCrit == 1) v = pkdVel(pkd,p);
 					ilpAppend(pkd->ilp,
 					    p->r[0] + blk->xOffset.f[jTile],
 					    p->r[1] + blk->yOffset.f[jTile],
@@ -703,7 +705,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot, u
 				    else p = CAST(PARTICLE *,mdlAquire(pkd->mdl,CID_PARTICLE,pj,id));
 				    fMass = pkdMass(pkd,p);
 				    fSoft = pkdSoft(pkd,p);
-				    if (pkd->param.bGravStep && pkd->param.iTimeStepCrit == 1) v = pkdVel(pkd,p);
+				    if (bGravStep && pkd->param.iTimeStepCrit == 1) v = pkdVel(pkd,p);
 				    clAppend(pkd->clNew,-1 - pj,id,0,1,0.0,fMass,4.0f*fSoft*fSoft,
 					p->r,    /* center of mass */
 					fOffset, /* fOffset */
@@ -786,7 +788,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot, u
 				iCheckCell = blk->iCell.i[jTile];
 				/* Add a particle as a monopole */
 				if (iCheckCell < 0) {
-				    if (pkd->param.bGravStep && pkd->param.iTimeStepCrit == 1) {
+				    if (bGravStep && pkd->param.iTimeStepCrit == 1) {
 					id = blk->id.i[jTile];
 					assert(id >= 0);
 					pj = -1 - iCheckCell;
@@ -800,7 +802,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot, u
 					blk->y.f[jTile] + blk->yOffset.f[jTile],
 					blk->z.f[jTile] + blk->zOffset.f[jTile],
 					&monoPole,0.0,v[0],v[1],v[2]);
-				    if (pkd->param.bGravStep && pkd->param.iTimeStepCrit == 1 && id != pkd->idSelf)
+				    if (bGravStep && pkd->param.iTimeStepCrit == 1 && id != pkd->idSelf)
 					mdlRelease(pkd->mdl,CID_PARTICLE,p);
 				    }
 				else {
@@ -831,7 +833,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot, u
 				*/
 				iCheckCell = blk->iCell.i[jTile];
 				if (iCheckCell<0) {
-				    if (pkd->param.bGravStep && pkd->param.iTimeStepCrit == 1) {
+				    if (bGravStep && pkd->param.iTimeStepCrit == 1) {
 					id = blk->id.i[jTile];
 					pj = -1 - iCheckCell;
 					assert(id >= 0);
@@ -845,7 +847,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot, u
 					blk->z.f[jTile] + blk->zOffset.f[jTile],
 					blk->m.f[jTile], blk->fourh2.f[jTile],
 					-1,v[0], v[1], v[2]);
-				    if (pkd->param.bGravStep && pkd->param.iTimeStepCrit == 1 && id != pkd->idSelf)
+				    if (bGravStep && pkd->param.iTimeStepCrit == 1 && id != pkd->idSelf)
 					mdlRelease(pkd->mdl,CID_PARTICLE,p);
 				    }
 				else {
@@ -1200,7 +1202,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot, u
 	*/
 	if (!pkd->param.bNoGrav) {
 	    nActive = pkdGravInteract(pkd,uRungLo,uRungHi,k,&L,pkd->ilp,pkd->ilc,
-		dirLsum,normLsum,bEwald,nGroup,pdFlop,&dEwFlop,dRhoFac,
+		dirLsum,normLsum,bEwald,bGravStep,nGroup,pdFlop,&dEwFlop,dRhoFac,
 		smx, &smf);
 	    }
 	/*
@@ -1261,7 +1263,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot, u
 	}
     }
 
-static void initGravWalk(PKD pkd,double dTime,double dThetaMin,double dThetaMax,int bPeriodic,
+static void initGravWalk(PKD pkd,double dTime,double dThetaMin,double dThetaMax,int bPeriodic,int bGravStep,
     SMX *smx, SMF *smf, double *dRhoFac) {
     int pi;
     PARTICLE *p;
@@ -1276,7 +1278,7 @@ static void initGravWalk(PKD pkd,double dTime,double dThetaMin,double dThetaMax,
 #endif
 
     assert(pkd->oNodeMom);
-    if (pkd->param.bGravStep) {
+    if (bGravStep) {
 	assert(pkd->oNodeAcceleration);
 	if (pkd->param.iTimeStepCrit == 1) {
 	    assert(pkd->oNodeVelocity);
@@ -1287,7 +1289,7 @@ static void initGravWalk(PKD pkd,double dTime,double dThetaMin,double dThetaMax,
     /*
     ** Setup smooth for calculating local densities when a particle has too few P-P interactions.
     */
-    if (pkd->param.bGravStep) {
+    if (bGravStep) {
 	smInitializeRO(smx,pkd,smf,pkd->param.nPartRhoLoc,bPeriodic,SMX_DENSITY_F1);
 	smSmoothInitialize(*smx);
 	/* No particles are inactive for density calculation */
@@ -1301,7 +1303,7 @@ static void initGravWalk(PKD pkd,double dTime,double dThetaMin,double dThetaMax,
     /*
     ** Precalculate RhoFac if required.
     */
-    if (pkd->param.bGravStep) {
+    if (bGravStep) {
 	double a = csmTime2Exp(pkd->param.csm,dTime);
 	*dRhoFac = 1.0/(a*a*a);
 	}
@@ -1309,6 +1311,49 @@ static void initGravWalk(PKD pkd,double dTime,double dThetaMin,double dThetaMax,
 
 
     }
+
+/*
+** Returns total number of active particles for which gravity was calculated.
+*/
+int pkdGravWalkHop(PKD pkd,double dTime,int nGroup, double dThetaMin,double dThetaMax,double *pdFlop,double *pdPartSum,double *pdCellSum) {
+    PARTICLE *p;
+    KDN *c;
+    int id,iRoot,iRootSelf;
+    float fOffset[3];
+    int nActive;
+    int i,j,gid;
+    float cOpen;
+    pBND cbnd;
+    int nc;
+    double dRhoFac;
+    SMX smx;
+    SMF smf;
+
+    mdlROcache(pkd->mdl,CID_PARTICLE,NULL,pkdParticleBase(pkd),pkdParticleSize(pkd), pkdLocal(pkd));
+    initGravWalk(pkd,dTime,dThetaMin,dThetaMax,0,0,&smx,&smf,&dRhoFac);
+    nActive = 0;
+    for(gid=1; gid<=pkd->nLocalGroups; ++gid) {
+	ilpClear(pkd->ilp);
+	ilcClear(pkd->ilc);
+	clClear(pkd->cl);
+	iRootSelf = pkd->hopRootIndex[gid];
+	for (i=pkd->hopRootIndex[gid]; i<pkd->hopRootIndex[gid+1]; ++i) {
+	    for (j=0;j<3;++j) fOffset[j] = 0.0f;
+	    cOpen = -1.0f;
+	    id = pkd->hopRoots[i].iPid;
+	    iRoot = pkd->hopRoots[i].iIndex;
+	    assert(iRoot>0);
+	    nc = getCell(pkd,iRoot,id,&cOpen,&c);
+	    pkdNodeBnd(pkd,c,&cbnd);
+	    clAppend(pkd->cl,iRoot,id,c->iLower,nc,cOpen,pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c->r,fOffset,cbnd.fCenter,cbnd.fMax);
+	    }
+
+	nActive += processCheckList(pkd, smx, smf, pkd->hopRoots[iRootSelf].iIndex, 0, 0, MAX_RUNG, dRhoFac, 0, nGroup, dThetaMin, 0, pdFlop, pdPartSum, pdCellSum);
+	}
+
+    mdlFinishCache(pkd->mdl,CID_PARTICLE);
+    return nActive;
+}
 
 
 /*
@@ -1330,7 +1375,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
     SMX smx;
     SMF smf;
 
-    initGravWalk(pkd,dTime,dThetaMin,dThetaMax,nReps?1:0,&smx,&smf,&dRhoFac);
+    initGravWalk(pkd,dTime,dThetaMin,dThetaMax,nReps?1:0,pkd->param.bGravStep,&smx,&smf,&dRhoFac);
 
     /*
     ** If we are doing the very active gravity then check that there is a very active tree!
@@ -1408,7 +1453,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 	    }
 	}
 
-    return processCheckList(pkd, smx, smf, iRoot, iVARoot, uRungLo, uRungHi, dRhoFac, bEwald, nGroup, dThetaMin, pdFlop, pdPartSum, pdCellSum);
+    return processCheckList(pkd, smx, smf, iRoot, iVARoot, uRungLo, uRungHi, dRhoFac, bEwald, nGroup, dThetaMin, pkd->param.bGravStep, pdFlop, pdPartSum, pdCellSum);
     }
 
 /*
@@ -1429,7 +1474,7 @@ int pkdGravWalkGroups(PKD pkd,double dTime,int nGroup, double dThetaMin,double d
     SMX smx;
     SMF smf;
 
-    initGravWalk(pkd,dTime,dThetaMin,dThetaMax,0,&smx,&smf,&dRhoFac);
+    initGravWalk(pkd,dTime,dThetaMin,dThetaMax,0,0,&smx,&smf,&dRhoFac);
 
 
     /*
@@ -1463,7 +1508,7 @@ int pkdGravWalkGroups(PKD pkd,double dTime,int nGroup, double dThetaMin,double d
 	    clAppend(pkd->cl,iRoot,id,c->iLower,nc,cOpen,pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c->r,fOffset,cbnd.fCenter,cbnd.fMax);
         }
 #endif
-	nActive += processCheckList(pkd, smx, smf, gd[i].treeRoots[0].iLocalRootId, 0, 0, MAX_RUNG, dRhoFac, 0, nGroup, dThetaMin, pdFlop, pdPartSum, pdCellSum);
+	nActive += processCheckList(pkd, smx, smf, gd[i].treeRoots[0].iLocalRootId, 0, 0, MAX_RUNG, dRhoFac, 0, nGroup, dThetaMin, 0, pdFlop, pdPartSum, pdCellSum);
     }
     return nActive;
 }

@@ -264,9 +264,15 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_HOP_FINISH_UP,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstHopFinishUp,
 	          sizeof(struct inHopFinishUp),sizeof(uint64_t));
+    mdlAddService(mdl,PST_HOP_TREE_BUILD,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstHopTreeBuild,
+	          0,0);
+    mdlAddService(mdl,PST_HOP_GRAVITY,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstHopGravity,
+	          sizeof(struct inHopGravity),0);
     mdlAddService(mdl,PST_HOP_UNBIND,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstHopUnbind,
-		  0,0);
+	          0,0);
     mdlAddService(mdl,PST_HOP_ASSIGN_GID,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstHopAssignGID,
 		  0,0);
@@ -2947,7 +2953,7 @@ void pstHopJoin(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	SMX smx;
 	smInitialize(&smx,plcl->pkd,&in->smf,in->nSmooth,
 		     in->bPeriodic,in->bSymmetric,in->iSmoothType);
-        out->bDone = smHopJoin(smx,&in->smf,&nLocal);
+        out->bDone = smHopJoin(smx,&in->smf,in->dHopTau,&nLocal);
 	smFinish(smx,&in->smf);
 	out->nGroups = nLocal;
         }
@@ -2969,9 +2975,39 @@ void pstHopFinishUp(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
         }
     else {
 	LCL *plcl = pst->plcl;
-        *nOutGroups = pkdHopFinishUp(plcl->pkd,in->nMinGroupSize);
+        *nOutGroups = pkdHopFinishUp(plcl->pkd,in->nMinGroupSize,in->bPeriodic,in->fPeriod);
         }
     if (pnOut) *pnOut = sizeof(uint64_t);
+    }
+
+void pstHopTreeBuild(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    mdlassert(pst->mdl,nIn == 0);
+    if (pst->nLeaves > 1) {
+        mdlReqService(pst->mdl,pst->idUpper,PST_HOP_TREE_BUILD,vin,nIn);
+        pstHopTreeBuild(pst->pstLower,vin,nIn,NULL,pnOut);
+        mdlGetReply(pst->mdl,pst->idUpper,NULL,pnOut);
+        }
+    else {
+	LCL *plcl = pst->plcl;
+        pkdHopTreeBuild(plcl->pkd);
+        }
+    if (pnOut) *pnOut = 0;
+    }
+
+void pstHopGravity(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    struct inHopGravity *in = (struct inHopGravity *)vin;
+    mdlassert(pst->mdl,nIn == sizeof(struct inHopGravity));
+    if (pst->nLeaves > 1) {
+        mdlReqService(pst->mdl,pst->idUpper,PST_HOP_GRAVITY,vin,nIn);
+        pstHopGravity(pst->pstLower,vin,nIn,NULL,pnOut);
+        mdlGetReply(pst->mdl,pst->idUpper,NULL,pnOut);
+        }
+    else {
+	LCL *plcl = pst->plcl;
+	double dFlop=0, dPartSum=0, dCellSum=0;
+	pkdGravWalkHop(plcl->pkd,in->dTime,in->nGroup,in->dThetaMin,in->dThetaMax,&dFlop,&dPartSum,&dCellSum);
+        }
+    if (pnOut) *pnOut = 0;
     }
 
 void pstHopUnbind(PST pst,void *vin,int nIn,void *vout,int *pnOut) {

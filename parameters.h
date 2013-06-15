@@ -184,7 +184,9 @@ struct parameters {
     */
     int	bFindPSGroups;
     int	bFindGroups;
+    int bFindHopGroups;
     int	nMinMembers;
+    double dHopTau;
     double dTau;
     double dVTau;
     int bTauAbs;

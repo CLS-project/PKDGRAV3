@@ -79,7 +79,7 @@ static void workDone(workParticle *work) {
 	    a[1] = work->pInfoOut[i].a[1];
 	    a[2] = work->pInfoOut[i].a[2];
 	    *pPot = work->pInfoOut[i].fPot;
-	    if (work->pkd->param.bGravStep) {
+	    if (work->bGravStep) {
 		float fx, fy, fz;
 		float maga, dT, dtGrav;
 		float dirsum = work->pInfoOut[i].dirsum;
@@ -706,14 +706,14 @@ static void queuePC( PKD pkd,  workParticle *work, ILC ilc ) {
 ** Returns nActive.
 */
 int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *pLoc,ILP ilp,ILC ilc,
-    float dirLsum,float normLsum,int bEwald,int nGroup,double *pdFlop,double *pdEwFlop,double dRhoFac,
+    float dirLsum,float normLsum,int bEwald,int bGravStep,int nGroup,double *pdFlop,double *pdEwFlop,double dRhoFac,
     SMX smx,SMF *smf) {
     PARTICLE *p,*pj;
     KDN *pkdn = pBucket;
     double *v, *vTmp;
     double vx,vy,vz;
     pBND bnd;
-    float *a, *pPot;
+    float *a;
     float d2,dir,dir2;
     float fMass,fSoft;
     float fx,fy,fz;
@@ -753,6 +753,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
     work->nP = 0;
     work->dRhoFac = dRhoFac;
     work->pkd = pkd;
+    work->bGravStep = bGravStep;
 #ifdef USE_CUDA
     work->gpu_memory = NULL;
 #endif
@@ -791,7 +792,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 	/*
 	** Calculate local density and kernel smoothing length for dynamical time-stepping
 	*/
-	if (pkd->param.bGravStep) {
+	if (bGravStep) {
 	    /*
 	    ** Calculate local density using smooth; this is fast because the particles are
 	    ** likely to be cached already because they will be on the P-P list.
@@ -853,7 +854,6 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 	for( i=0; i<work->nP; i++ ) {
 	    p = work->pPart[i];
 	    a = pkdAccel(pkd,p);
-	    pPot = pkdPot(pkd,p);
 	    *pdEwFlop += pkdParticleEwald(pkd,uRungLo,uRungHi,p,
 		work->pInfoOut[i].a, &work->pInfoOut[i].fPot );
 	    }
@@ -862,14 +862,11 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
     for( i=0; i<work->nP; i++ ) {
         p = work->pPart[i];
         a = pkdAccel(pkd,p);
-        pPot = pkdPot(pkd,p);
-
-
         /*
         ** Set value for time-step, note that we have the current ewald acceleration
         ** in this now as well!
         */
-        if (pkd->param.bGravStep && pkd->param.iTimeStepCrit == 1) {
+        if (bGravStep && pkd->param.iTimeStepCrit == 1) {
 	    /*
 	    ** GravStep if iTimeStepCrit =
 	    ** 0: Mean field regime for dynamical time (normal/standard setting)

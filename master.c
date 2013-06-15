@@ -496,6 +496,12 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.bFindPSGroups = 0;
     prmAddParam(msr->prm,"bFindPSGroups",0,&msr->param.bFindPSGroups,sizeof(int),
 		"psgroupfinder","<enable/disable phase-space group finder> = -psgroupfinder");
+    msr->param.bFindHopGroups = 0;
+    prmAddParam(msr->prm,"bFindHopGroups",0,&msr->param.bFindHopGroups,sizeof(int),
+		"hopgroupfinder","<enable/disable phase-space group finder> = -hopgroupfinder");
+    msr->param.dHopTau = -4.0;
+    prmAddParam(msr->prm,"dHopTau",2,&msr->param.dHopTau,sizeof(double),"dHopTau",
+		"<linking length for Gasshopper (negative for multiples of softening)> = -4.0");
     msr->param.nMinMembers = 10;
     prmAddParam(msr->prm,"nMinMembers",1,&msr->param.nMinMembers,sizeof(int),
 		"nMinMembers","<minimum number of group members> = 10");
@@ -1376,6 +1382,8 @@ void msrLogParams(MSR msr,FILE *fp) {
     fprintf(fp," SFbdivv %d",msr->param.SFbdivv);
     /* -- */
     fprintf(fp,"\n# Group Find: bFindPSGroups: %d",msr->param.bFindPSGroups);
+    fprintf(fp,"\n# Group Find: bFindHopGroups: %d",msr->param.bFindHopGroups);
+    fprintf(fp," dHopTau: %g",msr->param.dHopTau);
     /* -- */
     fprintf(fp,"\n# Group Find: bFindGroups: %d",msr->param.bFindGroups);
     fprintf(fp," dTau: %g",msr->param.dTau);
@@ -2582,6 +2590,12 @@ void msrBuildTree(MSR msr,double dTime,int bNeedEwald) {
 void msrBuildTreeExcludeVeryActive(MSR msr,double dTime) {
     const int bNeedEwald = 0;
     const int bExcludeVeryActive = 1;
+    _BuildTree(msr,bExcludeVeryActive,bNeedEwald);
+    }
+
+void msrBuildTreeMarked(MSR msr,double dTime) {
+    const int bNeedEwald = 0;
+    const int bExcludeVeryActive = 2;
     _BuildTree(msr,bExcludeVeryActive,bNeedEwald);
     }
 
@@ -4725,6 +4739,7 @@ void msrHop(MSR msr, double dTime) {
     struct inHopLink h;
     struct outHopJoin j;
     struct inHopFinishUp inFinish;
+    struct inHopGravity inGravity;
     int i;
     uint64_t nGroups;
     double sec,dsec,ssec;
@@ -4734,14 +4749,19 @@ void msrHop(MSR msr, double dTime) {
     h.nSmooth    = in.nSmooth = 80;
     h.bPeriodic  = in.bPeriodic = msr->param.bPeriodic;
     h.bSymmetric = in.bSymmetric = 0;
+    h.dHopTau    = msr->param.dHopTau<0 ? msr->param.dHopTau : pow(msr->param.dHopTau,2.0);
     h.smf.a      = in.smf.a = dTime;
-    h.smf.dTau2  = in.smf.dTau2 = pow(msr->param.dTau,2.0);
+    h.smf.dTau2  = in.smf.dTau2 = 0.0;
     h.smf.nMinMembers = in.smf.nMinMembers = msr->param.nMinMembers;
     msrSmoothSetSMF(msr, &(in.smf), dTime);
     msrSmoothSetSMF(msr, &(h.smf), dTime);
 
-    if (msr->param.bVStep)
-	printf("Running Grasshopper with adaptive linking length\n", sqrt(in.smf.dTau2) );
+    if (msr->param.bVStep) {
+	if (h.dHopTau<0.0)
+	    printf("Running Grasshopper with adaptive linking length (%g times softening)\n", -h.dHopTau );
+	else
+	    printf("Running Grasshopper with fixed linking length %g\n", h.dHopTau );
+	}
 
     in.iSmoothType = SMX_DENSITY_M3;
     sec = msrTime();
@@ -4756,7 +4776,15 @@ void msrHop(MSR msr, double dTime) {
     pstHopLink(msr->pst,&h,sizeof(h),&nGroups,NULL);
     dsec = msrTime() - sec;
     if (msr->param.bVStep)
-	printf("Chain search complete in %f secs, merging %"PRIu64" chains...\n",dsec,nGroups);
+	printf("Chain search complete in %f secs, building minimal tree...\n",dsec,nGroups);
+
+    /* Build a new tree with only marked particles */
+    sec = msrTime();
+    _BuildTree(msr,2,0);
+    dsec = msrTime() - sec;
+    if (msr->param.bVStep)
+	printf("Tree build complete in %f secs, merging %"PRIu64" chains...\n",dsec,nGroups);
+
     h.iSmoothType = SMX_HOP_LINK;
     sec = msrTime();
     i = 0;
@@ -4772,20 +4800,43 @@ void msrHop(MSR msr, double dTime) {
     if (msr->param.bVStep)
 	printf("Chain merge complete in %f secs, %"PRIu64" groups\n",dsec,nGroups);
     inFinish.nMinGroupSize = msr->param.nMinMembers;
+    inFinish.bPeriodic = msr->param.bPeriodic;
+    inFinish.fPeriod[0] = msr->param.dxPeriod;
+    inFinish.fPeriod[1] = msr->param.dyPeriod;
+    inFinish.fPeriod[2] = msr->param.dzPeriod;
     pstHopFinishUp(msr->pst,&inFinish,sizeof(inFinish),&nGroups,NULL);
     if (msr->param.bVStep)
-	printf("Removed groups with fewer than %d particles, %"PRIu64" remain\n",10, nGroups);
-
+	printf("Removed groups with fewer than %d particles, %"PRIu64" remain\n",
+	    inFinish.nMinGroupSize, nGroups);
     if (msr->param.bVStep)
 	printf("Unbinding\n");
-    pstHopUnbind(msr->pst,NULL,0,NULL,NULL);
 
+    sec = msrTime();
+    pstHopTreeBuild(msr->pst,NULL,0,NULL,NULL);
+    dsec = msrTime() - sec;
+    if (msr->param.bVStep)
+	printf("... group trees built, Wallclock: %f secs\n",dsec);
+
+    sec = msrTime();
+    inGravity.dTime = dTime;
+    inGravity.bPeriodic = msr->param.bPeriodic;
+    inGravity.nGroup = msr->param.nGroup;
+    inGravity.dEwCut = msr->param.dEwCut;
+    inGravity.dEwhCut = msr->param.dEwhCut;
+    inGravity.uRungLo = 0;
+    inGravity.uRungHi = MAX_RUNG;
+    inGravity.dThetaMin = msr->dThetaMin;
+    inGravity.dThetaMax = msr->dThetaMax;
+    pstHopGravity(msr->pst,&inGravity,sizeof(inGravity),NULL,NULL);
+    dsec = msrTime() - sec;
+    if (msr->param.bVStep)
+	printf("... gravity complete, Wallclock: %f secs\n",dsec);
+
+//    dsec = msrTime() - sec;
+//    if (msr->param.bVStep)
+//	printf("Unbinding completed in %f secs, %"PRIu64" groups remain\n",dsec,nGroups);
 
     pstHopAssignGID(msr->pst,NULL,0,NULL,NULL);
-
-
-
-
     dsec = msrTime() - ssec;
     if (msr->param.bVStep)
 	printf("Grasshopper complete, Wallclock: %f secs\n\n",dsec);
@@ -6050,6 +6101,32 @@ void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint) {
 	else msrOutGroups(msr,achFile,OUT_GROUP_TIPSY_NAT,dTime);
 	nFOFsDone++;
 	if ( nFOFsDone )msrDeleteGroups(msr);
+	}
+
+    if ( msr->param.bFindPSGroups ) {
+	msrActiveRung(msr,0,1); /* Activate all particles */
+	msrDomainDecomp(msr,-1,0,0);
+	msrHop(msr,dTime);
+//	msrPSGroupFinder(msr); /*,csmTime2Exp(msr->param.csm,dTime)); */
+//	msrUnbind(msr);
+//	msrSetPSGroupIds(msr);
+//	if (msr->param.nBins > 0) msrGroupProfiles(msr,csmTime2Exp(msr->param.csm,dTime));
+	msrReorder(msr);
+
+	msrBuildName(msr,achFile,iStep);
+	strncat(achFile,".hopgrp",256);
+	msrOutArray(msr,achFile,OUT_GROUP_ARRAY);
+
+	msrBuildName(msr,achFile,iStep);
+	strncat(achFile,".hopstats",256);
+	msrHopWrite(msr,achFile);
+
+//	if ( msr->nBins > 0) {
+//	    msrBuildName(msr,achFile,iStep);
+//	    strncat(achFile,".psprofiles",256);
+//	    msrOutGroups(msr,achFile,OUT_GROUP_PROFILES,dTime);
+//	    }
+//	msrDeletePSGroups(msr);
 	}
 
     if ( msr->param.bFindPSGroups ) {

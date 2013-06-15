@@ -41,7 +41,7 @@ static void InitializeParticles(PKD pkd,int bExcludeVeryActive,BND *pbnd) {
 	p = pkdParticle(pkd,i);
 	for (j=0;j<3;++j) pLite[i].r[j] = p->r[j];
 	pLite[i].i = i;
-	pLite[i].uRung = p->uRung;
+	pLite[i].uRung = (bExcludeVeryActive==2?p->bMarked:p->uRung);
 	}
     /*
     **It is only forseen that there are 4 reserved nodes at present 0-NULL, 1-ROOT, 2-UNUSED, 3-VAROOT.
@@ -53,7 +53,36 @@ static void InitializeParticles(PKD pkd,int bExcludeVeryActive,BND *pbnd) {
     ** with possibly many particles.
     */
     pkd->nVeryActive = 0;
-    if (bExcludeVeryActive) {
+    /* We want only marked particles */
+    if (bExcludeVeryActive == 2) {
+	i = 0;
+	j = pkd->nLocal - 1;
+	while (i <= j) {
+	    if ( pLite[i].uRung ) ++i;
+	    else break;
+	    }
+	while (i <= j) {
+	    if ( !pLite[j].uRung ) --j;
+	    else break;
+	    }
+	if (i < j) {
+	    t = pLite[i];
+	    pLite[i] = pLite[j];
+	    pLite[j] = t;
+	    while (1) {
+		while (pLite[++i].uRung);
+		while (!pLite[--j].uRung);
+		if (i < j) {
+		    t = pLite[i];
+		    pLite[i] = pLite[j];
+		    pLite[j] = t;
+		    }
+		else break;
+		}
+	    }
+	pkd->nVeryActive = pkd->nLocal - i;
+	}
+    else if (bExcludeVeryActive) {
 	/*
 	** Now start the partitioning of the particles.
 	*/
@@ -849,6 +878,13 @@ void pkdTreeBuildByGroup(PKD pkd, int nBucket, int *iFirst, int *iLast) {
     double dMin[3], dMax[3];
     int i,j,gid,iRoot;
 
+    if (pkd->nNodes > 0) {
+	/*
+	** Close cell caching space and free up nodes.
+	*/
+	mdlFinishCache(pkd->mdl,CID_CELL);
+	}
+
     /*
     ** It is only forseen that there are 4 reserved nodes at present 0-NULL, 1-ROOT, 2-UNUSED, 3-VAROOT.
     */
@@ -895,6 +931,14 @@ void pkdTreeBuildByGroup(PKD pkd, int nBucket, int *iFirst, int *iLast) {
     for(i = *iFirst; i <= *iLast; i += 2 ) BuildTemp(pkd,i,nBucket);
     ShuffleParticles(pkd,0);
     for(i = *iFirst; i <= *iLast; i += 2 ) Create(pkd,i);
+
+    /*
+    ** Finally activate a read only cache for remote access.
+    */
+    mdlROcache(pkd->mdl,CID_CELL,pkdTreeNodeGetElement,pkd,
+	pkd->iTreeNodeSize,pkd->nNodes);
+
+
     }
 
 void pkdDistribCells(PKD pkd,int nCell,KDN *pkdn) {
