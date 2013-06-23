@@ -50,7 +50,6 @@ typedef struct smfParameters {
     double SFdFBFac;
     /* end starform */   
     PKD pkd; /* useful for diagnostics, etc. */
-    struct smGroupArray *groupLink;
     remoteID *pParticleLink;
     int bDone;
     } SMF;

@@ -30,6 +30,7 @@
 #define OUT_HSPH_ARRAY          29
 
 #define OUT_RUNGDEST_ARRAY      30
+#define OUT_MARKED_ARRAY        31
 
 #define OUT_HOP_STATS          100
 

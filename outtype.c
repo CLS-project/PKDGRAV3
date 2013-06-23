@@ -31,6 +31,7 @@ static int getType(int iType) {
     switch(iType) {
     case OUT_IORDER_ARRAY:
     case OUT_GROUP_ARRAY:
+    case OUT_MARKED_ARRAY:
 	return OUTTYPE_INTEGER;
     case OUT_PSGROUP_ARRAY:
 	return OUTTYPE_PSGROUP;
@@ -76,6 +77,9 @@ static uint64_t fetchInteger(PKD pkd,PARTICLE *p,int iType,int iDim) {
 	break;
     case OUT_GROUP_ARRAY:
 	v = *pkdGroup(pkd,p);
+	break;
+    case OUT_MARKED_ARRAY:
+	v = p->bMarked;
 	break;
     case OUT_PSGROUP_ARRAY:
 	assert(0);

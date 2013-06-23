@@ -867,6 +867,7 @@ ppy_msr_Save(PyObject *self, PyObject *args, PyObject *kwobj) {
     case OUT_PHASEDENS_ARRAY:
     case OUT_SOFT_ARRAY:
     case OUT_GROUP_ARRAY:
+    case OUT_MARKED_ARRAY:
     case OUT_PSGROUP_ARRAY:
     case OUT_RELAX_ARRAY:
     case OUT_RUNGDEST_ARRAY:
@@ -1258,6 +1259,7 @@ static void setConstants( PyObject *dict ) {
     PyDict_SetItemString(dict, "OUT_PHASEDENS_ARRAY", Py_BuildValue("i",OUT_PHASEDENS_ARRAY));
     PyDict_SetItemString(dict, "OUT_SOFT_ARRAY", Py_BuildValue("i",OUT_SOFT_ARRAY));
     PyDict_SetItemString(dict, "OUT_GROUP_ARRAY", Py_BuildValue("i",OUT_GROUP_ARRAY));
+    PyDict_SetItemString(dict, "OUT_MARKED_ARRAY", Py_BuildValue("i",OUT_MARKED_ARRAY));
     PyDict_SetItemString(dict, "OUT_PSGROUP_ARRAY", Py_BuildValue("i",OUT_PSGROUP_ARRAY));
     PyDict_SetItemString(dict, "OUT_RELAX_ARRAY", Py_BuildValue("i",OUT_RELAX_ARRAY));
     PyDict_SetItemString(dict, "OUT_GROUP_TIPSY_NAT", Py_BuildValue("i",OUT_GROUP_TIPSY_NAT));

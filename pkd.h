@@ -559,9 +559,12 @@ typedef struct {
     uint64_t nTotal;    /* Total particles in this group */
     float fMass;
     float fRMSRadius;
-    double r[3];
-    double rcm[3];
-    double vcm[3];
+    double rref[3];
+    double ravg[3];
+    double rmin[3];
+    double rmax[3];
+    double rcom[3];
+    double vcom[3];
     } HopGroupTable;
 
 /*
@@ -911,7 +914,6 @@ typedef struct pkdContext {
     int *counts, *rdisps;
     uint8_t *cSplitDims;
     double *dSplits;
-
     } * PKD;
 
 /*

@@ -3087,14 +3087,13 @@ int smHopLink(SMX smx,SMF *smf) {
 	p = pkdParticle(pkd,iParticle=pi);
 	if ( *pkdGroup(pkd,p) > 0 ) continue; /* Already done (below) */
 	if ( !pkdIsDstActive(p,0,MAX_RUNG) ) continue;
-	smf->groupLink = &ga[nGroups];
-	smf->groupLink->iGid = nGroups;
-	smf->groupLink->id.iPid = pkd->idSelf;
-	smf->groupLink->id.iIndex = pi;
+	ga[nGroups].iGid = nGroups;
 	for(;;) {
 	    *pkdGroup(pkd,p) = nGroups;
 	    smf->pParticleLink = &pl[iParticle];
 	    smSmoothSingle(smx,smf,p);
+	    ga[nGroups].id.iPid = pl[iParticle].iPid;
+	    ga[nGroups].id.iIndex = pl[iParticle].iIndex;
 	    /*
 	    ** Call mdlCacheCheck to make sure we are making progress!
 	    */
@@ -3103,9 +3102,10 @@ int smHopLink(SMX smx,SMF *smf) {
 	    ** If we link to a remote node, then this group chain is done for now.
 	    ** Later we will merge remote groups.
 	    **/
-	    if (smf->groupLink->id.iPid != pkd->idSelf ) { ++nGroups; ++nRemote; break; }
+	    if (pl[iParticle].iPid != pkd->idSelf ) { ++nGroups; ++nRemote; break; }
 	    else {
-		p = pkdParticle(pkd,iParticle=smf->groupLink->id.iIndex);
+		iParticle=pl[iParticle].iIndex;
+		p = pkdParticle(pkd,iParticle);
 		gid = *pkdGroup(pkd,p);
 		/* We link to ourselves: this forms a new "loop" */
 		if ( gid == nGroups ) { ++nGroups; ++nLoop; break; }
@@ -3123,7 +3123,6 @@ int smHopLink(SMX smx,SMF *smf) {
 	    }
 	}
     smSmoothFinish(smx);
-
     /*
     ** All chains now terminate at a specific *particle*, either local or remote.
     ** Spurs were automatically joined, and point to their corresponding "loop".
@@ -3201,8 +3200,8 @@ int smHopLink(SMX smx,SMF *smf) {
 	if (!p->bMarked) continue;
 	iPid1 = pl[pi].iPid;
 	iIndex1 = pl[pi].iIndex;
-	while(iPid1==pkd->idSelf && !pkdParticle(pkd,iIndex1)->bMarked) {
-	    pkdParticle(pkd,iIndex1)->bMarked = 1;
+	while(iPid1==pkd->idSelf && !(p=pkdParticle(pkd,iIndex1))->bMarked) {
+	    p->bMarked = 1;
 	    iPid1 = pl[iIndex1].iPid;
 	    iIndex1 = pl[iIndex1].iIndex;
 	    }
@@ -3479,9 +3478,9 @@ static void initHopGroupProperties(void *vpkd, void *v) {
     g->nTotal = 0;
     g->nRemote = 0;
     for (j=0;j<3;j++) {
-	g->r[j] = 0.0;
-	g->rcm[j] = 0.0;
-	g->vcm[j] = 0.0;
+	g->ravg[j] = 0.0;
+	g->rcom[j] = 0.0;
+	g->vcom[j] = 0.0;
 	}
     g->fRMSRadius =  0.0;
     g->fMass = 0.0;
@@ -3496,9 +3495,11 @@ static void combHopGroupProperties(void *vctx, void *v1, void *v2) {
     g1->nTotal += g2->nTotal;
     g1->nRemote += g2->nRemote;
     for (j=0;j<3;j++) {
-	g1->r[j] += g2->r[j];
-	g1->rcm[j] += g2->rcm[j];
-	g1->vcm[j] += g2->vcm[j];
+	if (g2->rmin[j] < g1->rmin[j]) g1->rmin[j] = g2->rmin[j];
+	if (g2->rmax[j] > g1->rmax[j]) g1->rmax[j] = g2->rmax[j];
+	g1->ravg[j] += g2->ravg[j];
+	g1->rcom[j] += g2->rcom[j];
+	g1->vcom[j] += g2->vcom[j];
 	}
     g1->fRMSRadius += g2->fRMSRadius;
     g1->fMass += g2->fMass;
@@ -3509,7 +3510,7 @@ static void hopCalculateGroupStats(PKD pkd, int bPeriodic, double *dPeriod) {
     HopGroupTable * g;
     int i,j,gid;
     PARTICLE *p;
-    double dQtr[3];
+    double dHalf[3];
     float fMass;
     double *r, *v;
 
@@ -3520,14 +3521,34 @@ static void hopCalculateGroupStats(PKD pkd, int bPeriodic, double *dPeriod) {
 	pkd->hopGroups[i].nRemote = 0;
 	pkd->hopGroups[i].fMass = 0.0;
 	for (j=0;j<3;j++) {
-	    pkd->hopGroups[i].rcm[j] = 0.0;
-	    pkd->hopGroups[i].r[j] = 0.0;
-	    pkd->hopGroups[i].vcm[j] = 0.0;
+	    pkd->hopGroups[i].ravg[j] = 0.0;
+	    pkd->hopGroups[i].rcom[j] = 0.0;
+	    pkd->hopGroups[i].vcom[j] = 0.0;
 	    }
 	pkd->hopGroups[i].fRMSRadius = 0.0;
 	}
 
-    for(j=0; j<3; ++j) dQtr[j] = bPeriodic ? 0.25 * dPeriod[j] : FLOAT_MAXVAL;
+    /* Get a reference point for each group; any particle will do */
+    for (i=0;i<pkd->nLocal;++i) {
+	p = pkdParticle(pkd,i);
+	gid = *pkdGroup(pkd,p);
+	for (j=0;j<3;j++) pkd->hopGroups[gid].rref[j] = p->r[j];
+	}
+    for(gid=1; gid<=pkd->nLocalGroups; ++gid) {
+	for (j=0;j<3;j++) {
+	    pkd->hopGroups[gid].rmin[j] = pkd->hopGroups[gid].rmax[j] = pkd->hopGroups[gid].rref[j];
+	    }
+	}
+    mdlROcache(mdl,CID_GROUP,NULL,pkd->hopGroups,sizeof(HopGroupTable), pkd->nGroups);
+    for(i=1+pkd->nLocalGroups; i<pkd->nGroups; ++i) {
+	assert(pkd->hopGroups[i].id.iPid != pkd->idSelf);
+	g = mdlAquire(mdl,CID_GROUP,pkd->hopGroups[i].id.iIndex,pkd->hopGroups[i].id.iPid);
+	for(j=0;j<3;++j) pkd->hopGroups[i].rref[j] = g->rref[j];
+	mdlRelease(mdl,CID_GROUP,g);
+	}
+    mdlFinishCache(mdl,CID_GROUP);
+
+    for(j=0; j<3; ++j) dHalf[j] = bPeriodic ? 0.5 * dPeriod[j] : FLOAT_MAXVAL;
     for (i=0;i<pkd->nLocal;++i) {
 	p = pkdParticle(pkd,i);
 	gid = *pkdGroup(pkd,p);
@@ -3536,31 +3557,24 @@ static void hopCalculateGroupStats(PKD pkd, int bPeriodic, double *dPeriod) {
 	fMass = pkdMass(pkd,p);
 
 	/*
-	** Correct the particle positions if we have periodic boundaries by
-	** constraining them to be within a quarter box away from the group centre.
-	** This will only work if groups are smaller then about a quarter of the
-	** width of the box (the initial centre "guess" can be quite bad). If we
-	** had a perfect centre, then it would be half the box, but finding the
-	** center is sort of the point of this exercise.
-	**
-	** We need the particle position to be "non-periodic" so that later when
-	** we calculate potentials for unbinding it will work properly.
+	** Groups cannot be larger than half a box width -- this is a requirement.
+	** We correct the particle position by wrapping if this constraint is
+	** violated. This cannot happen with non-periodic boxes of course.
 	*/
-	if (pkd->hopGroups[gid].nTotal && bPeriodic) {
-	    double iN = 1.0 / pkd->hopGroups[gid].nTotal;
-	    for (j=0;j<3;j++) {
-		double gR = pkd->hopGroups[gid].r[j]*iN;
-		if      (r[j] < gR - dQtr[j]) r[j] += dPeriod[j];
-		else if (r[j] > gR + dQtr[j]) r[j] -= dPeriod[j];
-		assert(r[j] > gR - dQtr[j] && r[j] < gR + dQtr[j] );
-		}
+	for (j=0;j<3;j++) {
+	    double Gr = pkd->hopGroups[gid].rref[j];
+	    if      (r[j] < Gr - dHalf[j]) r[j] += dPeriod[j];
+	    else if (r[j] > Gr + dHalf[j]) r[j] -= dPeriod[j];
+	    assert(r[j] > Gr - dHalf[j] && r[j] < Gr + dHalf[j] );
 	    }
 
 	for (j=0;j<3;j++) {
-	    pkd->hopGroups[gid].r[j] += r[j];
-	    pkd->hopGroups[gid].rcm[j] += r[j]*fMass;
+	    if (r[j]<pkd->hopGroups[gid].rmin[j]) pkd->hopGroups[gid].rmin[j] = r[j];
+	    else if (r[j]>pkd->hopGroups[gid].rmax[j]) pkd->hopGroups[gid].rmax[j] = r[j];
+	    pkd->hopGroups[gid].ravg[j] += r[j];
+	    pkd->hopGroups[gid].rcom[j] += r[j]*fMass;
 	    pkd->hopGroups[gid].fRMSRadius +=  r[j]*r[j]*fMass;
-	    pkd->hopGroups[gid].vcm[j] += v[j]*fMass;
+	    pkd->hopGroups[gid].vcom[j] += v[j]*fMass;
 	    }
 	pkd->hopGroups[gid].fMass += fMass;
 	++pkd->hopGroups[gid].nLocal;
@@ -3578,9 +3592,11 @@ static void hopCalculateGroupStats(PKD pkd, int bPeriodic, double *dPeriod) {
 	g->nTotal += pkd->hopGroups[i].nLocal;
 	g->nRemote = 1;
 	for (j=0;j<3;j++) {
-	    g->r[j] += pkd->hopGroups[i].r[j];
-	    g->rcm[j] += pkd->hopGroups[i].rcm[j];
-	    g->vcm[j] += pkd->hopGroups[i].vcm[j];
+	    g->rmin[j] = pkd->hopGroups[i].rmin[j];
+	    g->rmax[j] = pkd->hopGroups[i].rmax[j];
+	    g->ravg[j] += pkd->hopGroups[i].ravg[j];
+	    g->rcom[j] += pkd->hopGroups[i].rcom[j];
+	    g->vcom[j] += pkd->hopGroups[i].vcom[j];
 	    }
 	g->fRMSRadius += pkd->hopGroups[i].fRMSRadius;
 	g->fMass += pkd->hopGroups[i].fMass;
@@ -3590,17 +3606,17 @@ static void hopCalculateGroupStats(PKD pkd, int bPeriodic, double *dPeriod) {
 
     for(i=1; i<=pkd->nLocalGroups; ++i) {
 	for (j=0;j<3;j++) {
-	    pkd->hopGroups[i].r[j] /= pkd->hopGroups[i].nTotal;
-	    pkd->hopGroups[i].rcm[j] /= pkd->hopGroups[i].fMass;
-	    pkd->hopGroups[i].vcm[j] /= pkd->hopGroups[i].fMass;
+	    pkd->hopGroups[i].ravg[j] /= pkd->hopGroups[i].nTotal;
+	    pkd->hopGroups[i].rcom[j] /= pkd->hopGroups[i].fMass;
+	    pkd->hopGroups[i].vcom[j] /= pkd->hopGroups[i].fMass;
 	    }
 	/* 
 	** Do not calculate fDeltaR2 with the corrected positions!
 	*/
 	pkd->hopGroups[i].fRMSRadius /= pkd->hopGroups[i].fMass;
-	pkd->hopGroups[i].fRMSRadius -= pkd->hopGroups[i].rcm[0]*pkd->hopGroups[i].rcm[0]
-	    + pkd->hopGroups[i].rcm[1]*pkd->hopGroups[i].rcm[1]
-	    + pkd->hopGroups[i].rcm[2]*pkd->hopGroups[i].rcm[2];
+	pkd->hopGroups[i].fRMSRadius -= pkd->hopGroups[i].rcom[0]*pkd->hopGroups[i].rcom[0]
+	    + pkd->hopGroups[i].rcom[1]*pkd->hopGroups[i].rcom[1]
+	    + pkd->hopGroups[i].rcom[2]*pkd->hopGroups[i].rcom[2];
 	pkd->hopGroups[i].fRMSRadius = sqrt(pkd->hopGroups[i].fRMSRadius);
 	}
 
@@ -3614,9 +3630,11 @@ static void hopCalculateGroupStats(PKD pkd, int bPeriodic, double *dPeriod) {
 	pkd->hopGroups[i].fMass = g->fMass;
 	pkd->hopGroups[i].fRMSRadius = g->fRMSRadius;
 	for(j=0;j<3;++j) {
-	    pkd->hopGroups[i].r[j] = g->r[j];
-	    pkd->hopGroups[i].rcm[j] = g->rcm[j];
-	    pkd->hopGroups[i].vcm[j] = g->vcm[j];
+	    pkd->hopGroups[i].rmin[j] = g->rmin[j];
+	    pkd->hopGroups[i].rmax[j] = g->rmax[j];
+	    pkd->hopGroups[i].ravg[j] = g->ravg[j];
+	    pkd->hopGroups[i].rcom[j] = g->rcom[j];
+	    pkd->hopGroups[i].vcom[j] = g->vcom[j];
 	    }
 	mdlRelease(mdl,CID_GROUP,g);
 	}
@@ -3803,7 +3821,7 @@ void pkdHopTreeBuild(PKD pkd) {
     rtypes = malloc(sizeof(*rtypes) * nDomains);
     assert(rtypes != NULL);
 
-    for(i=0; i<=nDomains; ++i) {
+    for(i=0; i<nDomains; ++i) {
 	scounts[i] = rcounts[i] = sdispls[i] = rdispls[i] = 0;
 	stypes[i] = rtypes[i] = MDL_DATATYPE_NULL;
 	}
@@ -3944,7 +3962,7 @@ void pkdHopUnbind(PKD pkd, double dTime) {
 	    v = pkdVel(pkd,p);
 	    dv2 = 0.0;
 	    for (j=0;j<3;++j) {
-		dv = v[j] - pkd->hopGroups[gid].vcm[j];
+		dv = v[j] - pkd->hopGroups[gid].vcom[j];
 		dv2 += dv*dv;
 		}
 	    ee[iee].i = i;

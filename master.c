@@ -4683,9 +4683,9 @@ static void writeHopStats(FILE *fp, int nGroups, HopGroupTable *g) {
 	fprintf(fp, "%d %llu %g %g %g %g %g %g %g %g %g %g\n",
 	    g[i].iGlobalId, g[i].nTotal,
 	    g[i].fMass,
-	    g[i].r[0], g[i].r[1], g[i].r[2],
-	    g[i].rcm[0], g[i].rcm[1],g[i].rcm[2],
-	    g[i].vcm[0],g[i].vcm[1],g[i].vcm[2]);
+	    g[i].ravg[0], g[i].ravg[1], g[i].ravg[2],
+	    g[i].rcom[0], g[i].rcom[1], g[i].rcom[2],
+	    g[i].vcom[0], g[i].vcom[1], g[i].vcom[2]);
 	}
     }
 

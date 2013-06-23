@@ -2924,7 +2924,6 @@ void pstHopLink(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     else {
 	LCL *plcl = pst->plcl;
 	SMX smx;
-
 	smInitialize(&smx,plcl->pkd,&in->smf,in->nSmooth,
 		     in->bPeriodic,in->bSymmetric,in->iSmoothType);
 	*nOutGroups = smHopLink(smx,&in->smf);

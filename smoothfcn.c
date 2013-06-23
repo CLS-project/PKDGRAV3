@@ -135,7 +135,6 @@ void LinkGradientM3(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
 	fMass = pkdMass(pkd,nnList[i].pPart);
 	float *a = pkdAccel(pkd,nnList[i].pPart);
 	r2 = nnList[i].fDist2*ih2;
-
 	if (r2 < 1.0) {
 	    double r = sqrt(r2);
 	    if (r < 0.5f) {
@@ -168,13 +167,10 @@ void LinkGradientM3(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
 	r2 += dr*dr;
 	if (r2 < r2min) {
 	    r2min = r2;
-	    smf->groupLink->id.iPid = nnList[i].iPid;
-	    smf->groupLink->id.iIndex = nnList[i].iIndex;
+	    smf->pParticleLink->iPid = nnList[i].iPid;
+	    smf->pParticleLink->iIndex = nnList[i].iIndex;
 	    }
 	}
-    assert(smf->pParticleLink->iPid==-1 && smf->pParticleLink->iIndex==-1);
-    smf->pParticleLink->iPid = smf->groupLink->id.iPid;
-    smf->pParticleLink->iIndex = smf->groupLink->id.iIndex;
     }
 
 void LinkHopChains(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
