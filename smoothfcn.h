@@ -6,12 +6,6 @@
 #include "floattype.h"
 #endif
 
-struct smGroupArray {
-    remoteID id;       /* iPid, iIndex */
-    int32_t iGid;      /* local group ID */
-    int32_t iNewGid;   /* new local group ID */
-    };
-
 typedef struct smfParameters {
     int bComove;
     double dTime;
@@ -50,7 +44,7 @@ typedef struct smfParameters {
     double SFdFBFac;
     /* end starform */   
     PKD pkd; /* useful for diagnostics, etc. */
-    remoteID *pParticleLink;
+    remoteID hopParticleLink;
     int bDone;
     } SMF;
 

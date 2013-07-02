@@ -4723,7 +4723,9 @@ void msrHopWrite(MSR msr, const char *fname) {
     for (i=1;i<msr->nThreads;++i) {
         int id = msr->pMap[i];
         mdlReqService(pst0->mdl,id,PST_HOP_SEND_STATS,NULL,0);
+#ifdef MPI_VERSION
 	mdlRecv(pst0->mdl,-1,unpackHop,fp);
+#endif
         mdlGetReply(pst0->mdl,id,NULL,NULL);
         }
     fclose(fp);
@@ -4739,7 +4741,10 @@ void msrHop(MSR msr, double dTime) {
     struct inHopLink h;
     struct outHopJoin j;
     struct inHopFinishUp inFinish;
+    struct inHopTreeBuild inTreeBuild;
     struct inHopGravity inGravity;
+    struct inHopUnbind inUnbind;
+    struct outHopUnbind outUnbind;
     int i;
     uint64_t nGroups;
     double sec,dsec,ssec;
@@ -4811,13 +4816,13 @@ void msrHop(MSR msr, double dTime) {
     if (msr->param.bVStep)
 	printf("Unbinding\n");
 
-    sec = msrTime();
-    pstHopTreeBuild(msr->pst,NULL,0,NULL,NULL);
-    dsec = msrTime() - sec;
-    if (msr->param.bVStep)
-	printf("... group trees built, Wallclock: %f secs\n",dsec);
-
-    sec = msrTime();
+    inUnbind.dTime = dTime;
+    inUnbind.bPeriodic = msr->param.bPeriodic;
+    inUnbind.fPeriod[0] = msr->param.dxPeriod;
+    inUnbind.fPeriod[1] = msr->param.dyPeriod;
+    inUnbind.fPeriod[2] = msr->param.dzPeriod;
+    inUnbind.nMinGroupSize = msr->param.nMinMembers;
+    inUnbind.iIteration = 0;
     inGravity.dTime = dTime;
     inGravity.bPeriodic = msr->param.bPeriodic;
     inGravity.nGroup = msr->param.nGroup;
@@ -4827,14 +4832,30 @@ void msrHop(MSR msr, double dTime) {
     inGravity.uRungHi = MAX_RUNG;
     inGravity.dThetaMin = msr->dThetaMin;
     inGravity.dThetaMax = msr->dThetaMax;
-    pstHopGravity(msr->pst,&inGravity,sizeof(inGravity),NULL,NULL);
-    dsec = msrTime() - sec;
-    if (msr->param.bVStep)
-	printf("... gravity complete, Wallclock: %f secs\n",dsec);
 
-//    dsec = msrTime() - sec;
-//    if (msr->param.bVStep)
-//	printf("Unbinding completed in %f secs, %"PRIu64" groups remain\n",dsec,nGroups);
+    inUnbind.iIteration=0;
+    do {
+	sec = msrTime();
+	inTreeBuild.nBucket = msr->param.nBucket;
+	pstHopTreeBuild(msr->pst,&inTreeBuild,sizeof(inTreeBuild),NULL,NULL);
+	dsec = msrTime() - sec;
+	if (msr->param.bVStep)
+	    printf("... group trees built, Wallclock: %f secs\n",dsec);
+
+	sec = msrTime();
+	pstHopGravity(msr->pst,&inGravity,sizeof(inGravity),NULL,NULL);
+	dsec = msrTime() - sec;
+	if (msr->param.bVStep)
+	    printf("... gravity complete, Wallclock: %f secs\n",dsec);
+	
+	sec = msrTime();
+	pstHopUnbind(msr->pst,&inUnbind,sizeof(inUnbind),&outUnbind,NULL);
+	nGroups = outUnbind.nGroups;
+	dsec = msrTime() - sec;
+	if (msr->param.bVStep)
+	    printf("Unbinding completed in %f secs, %"PRIu64" particles evaporated, %"PRIu64" groups remain\n",
+		dsec,outUnbind.nEvaporated, nGroups);
+	} while(++inUnbind.iIteration < 100 && outUnbind.nEvaporated);
 
     pstHopAssignGID(msr->pst,NULL,0,NULL,NULL);
     dsec = msrTime() - ssec;

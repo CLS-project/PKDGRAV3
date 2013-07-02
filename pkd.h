@@ -550,15 +550,18 @@ typedef remoteID GHtmpGroupTable;
 
 
 typedef struct {
-    remoteID id;
-    uint32_t iGlobalId; /* Global unique group id */
-    uint32_t nLocal;    /* Local to this processor */
-    uint16_t nRemote;   /* Number of remote partners */
-    uint16_t iRmtPid;
-    uint32_t iRmtIndex; 
-    uint64_t nTotal;    /* Total particles in this group */
+    uint64_t nTotal;      /* Total particles in this group */
+    remoteID id;          /* Owner (or myself) */
+    remoteID rmt;
+    uint32_t iGlobalId;   /* Global unique group id */
+    uint32_t nLocal;      /* Local to this processor */
+    uint32_t iTreeRoot;
+    uint16_t nRemote;     /* Number of remote partners */
+    uint8_t  bNeedGrav : 1;
+    uint8_t  bComplete : 1;
     float fMass;
     float fRMSRadius;
+    double dEnergy;
     double rref[3];
     double ravg[3];
     double rmin[3];
@@ -875,6 +878,7 @@ typedef struct pkdContext {
     HopGroupTable *hopGroups;
     uint16_t *hopNumRoots;
     int *hopRootIndex;
+    int hopSavedRoots;
     remoteID *hopRoots;
 
     struct saddle_point_list saddle_points;
@@ -1268,7 +1272,7 @@ void pkdCalcRoot(PKD,MOMC *);
 void pkdDistribRoot(PKD,MOMC *);
 void pkdTreeNumSrcActive(PKD pkd,uint8_t uRungLo,uint8_t uRungHi);
 void pkdBoundWalk(PKD pkd,BND *pbnd,uint8_t uRungLo,uint8_t uRungHi,uint32_t *pnActive,uint32_t *pnContained);
-void pkdTreeBuildByGroup(PKD pkd, int nBucket, int *iFirst, int *iLast);
+void pkdTreeBuildByGroup(PKD pkd, int nBucket);
 
 #include "parameters.h"
 /*
@@ -1317,6 +1321,7 @@ int pkdActiveOrder(PKD);
 
 void pkdOrbBegin(PKD pkd, int nRungs);
 int pkdOrbSelectRung(PKD pkd, int iRung);
+void pkdOrbUpdateRung(PKD pkd);
 void pkdOrbFinish(PKD pkd);
 void pkdOrbSplit(PKD pkd,int iDomain);
 int pkdOrbRootFind(
@@ -1431,13 +1436,6 @@ int pkdUnpackIO(PKD pkd,
 		total_t iMinOrder, total_t iMaxOrder,
 		double dvFac);
 
-
-/* Group finding */
-void pkdHopTreeBuild(PKD pkd);
-void pkdHopUnbind(PKD pkd,double dTime);
-void pkdHopSendStats(PKD pkd);
-
-
 #ifdef PLANETS
 void pkdSunIndirect(PKD pkd,double aSun[],double adSun[],int iFlag);
 void pkdGravSun(PKD pkd,double aSun[],double adSun[],double dSunMass);
@@ -1485,6 +1483,8 @@ int pkdSelSrcStar(PKD pkd);
 int pkdSelDstStar(PKD pkd, int, double);
 int pkdSelSrcDeleted(PKD pkd);
 int pkdSelDstDeleted(PKD pkd);
+int pkdSelSrcGroup(PKD pkd, int iGroup);
+int pkdSelDstGroup(PKD pkd, int iGroup);
 
 int pkdSelSrcMass(PKD pkd,double dMinMass, double dMaxMass, int setIfTrue, int clearIfFalse );
 int pkdSelDstMass(PKD pkd,double dMinMass, double dMaxMass, int setIfTrue, int clearIfFalse );

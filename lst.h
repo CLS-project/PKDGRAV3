@@ -59,6 +59,7 @@ void lstCUDAFree(void *data);
 #endif
 void lstInitialize(LST *lst, LSTFREELIST *freeList, int nBlocksPerTile, int nPerBlock, int nAreas, ...);
 void lstFree(LST *lst);
+void lstFreeTile(LST *lst,LSTTILE *tile);
 size_t lstMemory(LST *lst);
 void lstCheckPt(LST *lst,LSTCHECKPT *cp);
 void lstRestore(LST *lst,LSTCHECKPT *cp);

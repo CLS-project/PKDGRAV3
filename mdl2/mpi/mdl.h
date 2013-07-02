@@ -75,8 +75,8 @@ typedef struct cacheHeader {
 
 
 typedef struct cacheSpace {
-    int iType;
     void *pData;
+    int iType;
     int iDataSize;
     int nData;
     int iLineSize;

@@ -615,6 +615,10 @@ struct inHopFinishUp{
 void pstHopFinishUp(PST,void *,int,void *,int *);
 
 /* PST_HOP_TREE_BUILD */
+/* PST_BUILDTREE */
+struct inHopTreeBuild {
+    int nBucket;
+    };
 void pstHopTreeBuild(PST,void *,int,void *,int *);
 
 /* PST_HOP_GRAVITY */
@@ -634,6 +638,14 @@ void pstHopGravity(PST,void *,int,void *,int *);
 /* PST_HOP_UNBIND */
 struct inHopUnbind {
     double dTime;
+    double fPeriod[3];
+    int bPeriodic;
+    int nMinGroupSize;
+    int iIteration;
+    };
+struct outHopUnbind {
+    uint64_t nEvaporated;
+    uint64_t nGroups;
     };
 void pstHopUnbind(PST,void *,int,void *,int *);
 

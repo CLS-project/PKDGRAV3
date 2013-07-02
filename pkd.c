@@ -5352,7 +5352,9 @@ void pkdHopSendStats(PKD pkd) {
     struct packHopCtx ctx;
     ctx.pkd = pkd;
     ctx.iIndex = 0;
+#ifdef MPI_VERSION
     mdlSend(pkd->mdl,0,packHop, &ctx);
+#endif
     }
 
 void pkdOutPsGroup(PKD pkd,char *pszFileName,int iType)

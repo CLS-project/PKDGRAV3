@@ -26,6 +26,7 @@
 #include "pst.h"
 #include "pkd.h"
 #include "smooth.h"
+#include "hop.h"
 #ifdef USE_GRAFIC
 #include "grafic.h"
 #endif
@@ -266,13 +267,13 @@ void pstAddServices(PST pst,MDL mdl) {
 	          sizeof(struct inHopFinishUp),sizeof(uint64_t));
     mdlAddService(mdl,PST_HOP_TREE_BUILD,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstHopTreeBuild,
-	          0,0);
+	          sizeof(struct inHopTreeBuild),0);
     mdlAddService(mdl,PST_HOP_GRAVITY,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstHopGravity,
 	          sizeof(struct inHopGravity),0);
     mdlAddService(mdl,PST_HOP_UNBIND,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstHopUnbind,
-	          sizeof(struct inHopUnbind),0);
+	          sizeof(struct inHopUnbind),sizeof(struct outHopUnbind));
     mdlAddService(mdl,PST_HOP_ASSIGN_GID,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstHopAssignGID,
 		  0,0);
@@ -2980,7 +2981,8 @@ void pstHopFinishUp(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     }
 
 void pstHopTreeBuild(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
-    mdlassert(pst->mdl,nIn == 0);
+    struct inHopTreeBuild *in = (struct inHopTreeBuild *)vin;
+    mdlassert(pst->mdl,nIn == sizeof(struct inHopTreeBuild));
     if (pst->nLeaves > 1) {
         mdlReqService(pst->mdl,pst->idUpper,PST_HOP_TREE_BUILD,vin,nIn);
         pstHopTreeBuild(pst->pstLower,vin,nIn,NULL,pnOut);
@@ -2988,7 +2990,7 @@ void pstHopTreeBuild(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
         }
     else {
 	LCL *plcl = pst->plcl;
-        pkdHopTreeBuild(plcl->pkd);
+        pkdHopTreeBuild(plcl->pkd,in->nBucket);
         }
     if (pnOut) *pnOut = 0;
     }
@@ -3011,17 +3013,22 @@ void pstHopGravity(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 
 void pstHopUnbind(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     struct inHopUnbind *in = (struct inHopUnbind *)vin;
+    struct outHopUnbind *out = (struct outHopUnbind *)vout;
+    struct outHopUnbind outUpper, outLower;
     mdlassert(pst->mdl,nIn == sizeof(struct inHopUnbind));
     if (pst->nLeaves > 1) {
         mdlReqService(pst->mdl,pst->idUpper,PST_HOP_UNBIND,vin,nIn);
-        pstHopUnbind(pst->pstLower,vin,nIn,NULL,pnOut);
-        mdlGetReply(pst->mdl,pst->idUpper,NULL,pnOut);
+        pstHopUnbind(pst->pstLower,vin,nIn,&outLower,pnOut);
+        mdlGetReply(pst->mdl,pst->idUpper,&outUpper,pnOut);
+	out->nEvaporated = outLower.nEvaporated + outUpper.nEvaporated;
+	out->nGroups = outLower.nGroups + outUpper.nGroups;
         }
     else {
 	LCL *plcl = pst->plcl;
-        pkdHopUnbind(plcl->pkd,in->dTime);
+        out->nEvaporated = pkdHopUnbind(plcl->pkd,in->dTime,in->nMinGroupSize,in->bPeriodic,in->fPeriod);
+	out->nGroups = plcl->pkd->nLocalGroups;
         }
-    if (pnOut) *pnOut = 0;
+    if (pnOut) *pnOut = sizeof(struct outHopUnbind);
     }
 
 void pstHopAssignGID(PST pst,void *vin,int nIn,void *vout,int *pnOut) {

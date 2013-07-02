@@ -23,6 +23,12 @@ struct smExtraArray {
     char bArc;
 };
 
+struct smGroupArray {
+    remoteID id;       /* iPid, iIndex */
+    int32_t iGid;      /* local group ID */
+    int32_t iNewGid;   /* new local group ID */
+    };
+
 typedef struct smContext {
     PKD pkd;
     PARTICLE pSentinel;
@@ -90,6 +96,7 @@ void smSmoothInitialize(SMX smx);
 void smSmoothFinish(SMX smx);
 void smSmoothSingle(SMX smx,SMF *smf,PARTICLE *p);
 void smSmooth(SMX,SMF *);
+void smReSmoothSingle(SMX smx,SMF *smf,void *p,FLOAT *R,FLOAT fBall);
 void smReSmooth(SMX,SMF *);
 
 void smFastGasPhase1(SMX smx,SMF *smf);
@@ -100,8 +107,4 @@ void smFof(SMX smx, SMF *smf);
 int smGroupMerge(SMF *smf, int bPeriodic);
 int smGroupProfiles(SMX smx, SMF *smf,int nTotalGroups);
 
-int smHopLink(SMX smx,SMF *smf);
-int smHopJoin(SMX smx,SMF *smf,double dHopTau,int *nLocal);
-int pkdHopFinishUp(PKD pkd, int nMinGroupSize, int bPeriodic, double *dPeriod);
-void pkdHopAssignGID(PKD pkd);
 #endif

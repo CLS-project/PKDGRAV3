@@ -121,7 +121,7 @@ void DensityM3(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
 	else rs = 0.0;
 	fDensity += rs*fMass;
 	}
-    p->fDensity = 16.0*M_1_PI*sqrt(ih2)*ih2*fDensity; /* F1 Kernel (15/8) */
+    p->fDensity = 16.0*M_1_PI*sqrt(ih2)*ih2*fDensity;
     }
 
 void LinkGradientM3(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
@@ -167,8 +167,8 @@ void LinkGradientM3(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
 	r2 += dr*dr;
 	if (r2 < r2min) {
 	    r2min = r2;
-	    smf->pParticleLink->iPid = nnList[i].iPid;
-	    smf->pParticleLink->iIndex = nnList[i].iIndex;
+	    smf->hopParticleLink.iPid = nnList[i].iPid;
+	    smf->hopParticleLink.iIndex = nnList[i].iIndex;
 	    }
 	}
     }
