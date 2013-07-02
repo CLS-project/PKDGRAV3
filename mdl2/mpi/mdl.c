@@ -597,9 +597,7 @@ void mdlSend(MDL mdl,int id,mdlPack pack, void *ctx) {
 
     do {
 	nBuff = (*pack)(ctx,&id,SEND_BUFFER_SIZE,vOut);
-//	if ( nBuff != 0 ) {
-	    MPI_Ssend(vOut,nBuff,MPI_BYTE,id,MDL_TAG_SEND,mdl->commMDL);
-//	    }
+	MPI_Ssend(vOut,nBuff,MPI_BYTE,id,MDL_TAG_SEND,mdl->commMDL);
 	}
     while ( nBuff != 0 );
 

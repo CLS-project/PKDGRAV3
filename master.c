@@ -4695,6 +4695,7 @@ static int unpackHop(void *vctx, int *id, size_t nSize, void *vBuff) {
     int n = nSize / sizeof(HopGroupTable);
     assert( n*sizeof(HopGroupTable) == nSize);
     writeHopStats(fp,n,g);
+    return 1;
     }
 
 void msrHopWrite(MSR msr, const char *fname) {
@@ -4723,9 +4724,7 @@ void msrHopWrite(MSR msr, const char *fname) {
     for (i=1;i<msr->nThreads;++i) {
         int id = msr->pMap[i];
         mdlReqService(pst0->mdl,id,PST_HOP_SEND_STATS,NULL,0);
-#ifdef MPI_VERSION
 	mdlRecv(pst0->mdl,-1,unpackHop,fp);
-#endif
         mdlGetReply(pst0->mdl,id,NULL,NULL);
         }
     fclose(fp);
