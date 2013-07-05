@@ -24,8 +24,7 @@ void pkdHopSendStats(PKD pkd) {
     mdlSend(pkd->mdl,0,packHop, &ctx);
     }
 
-static void initJoinLoops(void *vpkd, void *v) {
-    }
+static void initJoinLoops(void *vpkd, void *v) {}
 static void combJoinLoops(void *vctx, void *v1, void *v2) {
     SMF *smf = (SMF *)vctx;
     GHtmpGroupTable * g1 = (GHtmpGroupTable *)v1;
@@ -37,8 +36,7 @@ static void combJoinLoops(void *vctx, void *v1, void *v2) {
 	}
     }
 
-static void initSetArc(void *vpkd, void *v) {
-    }
+static void initSetArc(void *vpkd, void *v) {}
 static void combSetArc(void *vpkd, void *v1, void *v2) {
     PKD pkd = (PKD) vpkd;
     PARTICLE * p1 = (PARTICLE *)v1;
@@ -583,9 +581,7 @@ int smHopJoin(SMX smx,SMF *smf, double dHopTau, int *nLocal) {
     }
 
 
-static void initMaxHopGroup(void *vpkd, void *v) {
-    }
-
+static void initMaxHopGroup(void *vpkd, void *v) {}
 static void combMaxHopGroup(void *vctx, void *v1, void *v2) {
     HopGroupTable * g1 = (HopGroupTable *)v1;
     HopGroupTable * g2 = (HopGroupTable *)v2;
@@ -1187,11 +1183,7 @@ static int cmpEE(const void *p1,const void *p2) {
     return 0;
     }
 
-static void initMaxHopEnergy(void *vpkd, void *v) {
-    HopGroupTable * g = (HopGroupTable *)v;
-    g->dEnergy = 0.0;
-    }
-
+static void initMaxHopEnergy(void *vpkd, void *v) {}
 static void combMaxHopEnergy(void *vctx, void *v1, void *v2) {
     HopGroupTable * g1 = (HopGroupTable *)v1;
     HopGroupTable * g2 = (HopGroupTable *)v2;
