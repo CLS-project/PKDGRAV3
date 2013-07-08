@@ -432,7 +432,7 @@ void pkdInitialize(
     */
     assert(pkdNodeSize(pkd) > 0);
     if (pkdNodeSize(pkd) > pkdMaxNodeSize()) {
-	fprintf(stderr, "Node size is too large. Node size=%i, max node size=%i\n", pkdNodeSize(pkd), pkdMaxNodeSize());
+	fprintf(stderr, "Node size is too large. Node size=%llu, max node size=%llu\n", pkdNodeSize(pkd), pkdMaxNodeSize());
 	}
     assert(pkdNodeSize(pkd)<=pkdMaxNodeSize());
 
@@ -1985,7 +1985,7 @@ void pkdRungOrder(PKD pkd, int iRung, total_t *nMoved) {
 	}
     assert(sdispls[nDomains-1] + scounts[nDomains-1] == nLocal-nSelf);
     if(rdispls[nDomains-1] + rcounts[nDomains-1] + nSelf > pkd->nStore) {
-	printf("%llu <= %llu\n",
+	printf("%d <= %d\n",
 	    rdispls[nDomains-1] + rcounts[nDomains-1] + nSelf, pkd->nStore);
 	}
     assert(rdispls[nDomains-1] + rcounts[nDomains-1] + nSelf <= pkd->nStore);
@@ -5346,7 +5346,7 @@ void pkdOutPsGroup(PKD pkd,char *pszFileName,int iType)
 	{
 	    if (gd[i].iPid != pkd->idSelf) continue;
 	    fprintf(fp,"%d",gd[i].iGlobalId);
-	    fprintf(fp," %10d",gd[i].nTotal);
+	    fprintf(fp," %10llu",gd[i].nTotal);
 	    fprintf(fp," %12.8e",gd[i].fMass);
 	    fprintf(fp," %12.8e",gd[i].fRMSRadius);
 	    fprintf(fp," %12.8e",gd[i].r[0]);

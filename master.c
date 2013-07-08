@@ -4780,7 +4780,7 @@ void msrHop(MSR msr, double dTime) {
     pstHopLink(msr->pst,&h,sizeof(h),&nGroups,NULL);
     dsec = msrTime() - sec;
     if (msr->param.bVStep)
-	printf("Chain search complete in %f secs, building minimal tree...\n",dsec,nGroups);
+	printf("Chain search complete in %f secs, building minimal tree...\n",dsec);
 
     /* Build a new tree with only marked particles */
     sec = msrTime();

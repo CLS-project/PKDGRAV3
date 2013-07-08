@@ -157,6 +157,7 @@ int psdInitialize(PKD pkd, PSX psx, int nSmooth,int bPeriodic)
 
     knn6dInitialize(pkd, psx->knn, nSmooth, bPeriodic);
     psx->knn->psm = psx->psm;
+    return 0;
 }
 
 void psdFinish(PKD pkd, PSX psx)
@@ -691,7 +692,7 @@ int psdJoinBridges(PKD pkd, PSX psx) {
 	PARTICLE *p = pkdParticle(pkd,i);
 	if (*pkdGroup(pkd, p) == 0)
 	{
-	    fprintf(stderr, "%i] Particle %ld has group 0\n", pkd->idSelf, i);
+	    fprintf(stderr, "%d] Particle %d has group 0\n", pkd->idSelf, i);
 	    assert(0);
 	}
     }
@@ -810,8 +811,8 @@ int psdJoinBridges(PKD pkd, PSX psx) {
 }
 
 int psdJoinGroupBridges(PKD pkd, PSX psx) {
-#if 0
     int done = 1;
+#if 0
     int i,j;
     MDL mdl = pkd->mdl;
     PSGD *gd = pkd->psGroupTable.pGroup;
@@ -886,8 +887,8 @@ int psdJoinGroupBridges(PKD pkd, PSX psx) {
 
     FREE_STACK(S);
 
-    return done;
 #endif
+    return done;
 }
 
 /*
