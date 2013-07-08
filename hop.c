@@ -21,7 +21,9 @@ void pkdHopSendStats(PKD pkd) {
     struct packHopCtx ctx;
     ctx.pkd = pkd;
     ctx.iIndex = 0;
+#ifdef MPI_VERSION
     mdlSend(pkd->mdl,0,packHop, &ctx);
+#endif
     }
 
 static void initJoinLoops(void *vpkd, void *v) {}
@@ -297,7 +299,7 @@ int smHopLink(SMX smx,SMF *smf) {
 	ga[nGroups].iGid = nGroups;
 	for(;;) {
 	    *pkdGroup(pkd,p) = nGroups;
-	    smSmoothSingle(smx,smf,p);
+	    smReSmoothSingle(smx,smf,p,p->r,p->fBall);
 	    ga[nGroups].id = pl[iParticle] = smf->hopParticleLink;
 	    /*
 	    ** Call mdlCacheCheck to make sure we are making progress!
