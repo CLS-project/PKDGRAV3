@@ -586,11 +586,11 @@ PQ *pqSearchLocal(SMX smx,PQ *pq,FLOAT r[3],int *pbDone) {
 	    if (min1 < min2) {
 		Smin[sm++] = min2;
 		kdn = pkdTreeNode(pkd,--iCell);
-		if (min1 >= pq->fDist2) goto NotContained;
+		if (min1 > pq->fDist2) goto NotContained;
 	    }
 	    else {
 		Smin[sm++] = min1;
-		if (min2 >= pq->fDist2) goto NotContained;
+		if (min2 > pq->fDist2) goto NotContained;
 	    }
 	}
 	pEnd = kdn->pUpper;
@@ -601,7 +601,7 @@ PQ *pqSearchLocal(SMX smx,PQ *pq,FLOAT r[3],int *pbDone) {
 	    dy = r[1] - p->r[1];
 	    dz = r[2] - p->r[2];
 	    fDist2 = dx*dx + dy*dy + dz*dz;
-	    if (fDist2 < pq->fDist2) {
+	    if (fDist2 <= pq->fDist2) {
 		if (pq->iPid == idSelf) {
 		    smx->ea[pq->iIndex].bInactive = 0;
 		} 
@@ -655,7 +655,7 @@ PQ *pqSearchLocal(SMX smx,PQ *pq,FLOAT r[3],int *pbDone) {
             pkdNodeBnd(pkd, kdn, &bnd);
 	    MINDIST(bnd,r,min2);
 	}
-	if (min2 >= pq->fDist2) {
+	if (min2 > pq->fDist2) {
 	    kdn = pkdTreeNode(pkd,iCell = kdn->iParent);
 	    goto NoIntersect;
 	}
@@ -704,13 +704,13 @@ PQ *pqSearchRemote(SMX smx,PQ *pq,int id,FLOAT r[3]) {
 		Smin[sm++] = min2;
 		--iCell;
 		mdlRelease(mdl,CID_CELL,pkdu);
-		if (min1 >= pq->fDist2) goto NotContained;
+		if (min1 > pq->fDist2) goto NotContained;
 	    }
 	    else {
 		Smin[sm++] = min1;
 		mdlRelease(mdl,CID_CELL,pkdn);
 		pkdn = pkdu;
-		if (min2 >= pq->fDist2) goto NotContained;
+		if (min2 > pq->fDist2) goto NotContained;
 	    }
 	}
 	pEnd = pkdn->pUpper;
@@ -724,7 +724,7 @@ PQ *pqSearchRemote(SMX smx,PQ *pq,int id,FLOAT r[3]) {
 	    dy = r[1] - p->r[1];
 	    dz = r[2] - p->r[2];
 	    fDist2 = dx*dx + dy*dy + dz*dz;
-	    if (fDist2 < pq->fDist2) {
+	    if (fDist2 <= pq->fDist2) {
 		if (pq->iPid == idSelf) {
 		    smx->ea[pq->iIndex].bInactive = 0;
 		}
@@ -767,7 +767,7 @@ PQ *pqSearchRemote(SMX smx,PQ *pq,int id,FLOAT r[3]) {
             pkdNodeBnd(pkd, pkdn, &bnd);
 	    MINDIST(bnd,r,min2);
 	}
-	if (min2 >= pq->fDist2) {
+	if (min2 > pq->fDist2) {
 	    iCell = pkdn->iParent;
 	    mdlRelease(mdl,CID_CELL,pkdn);
 	    pkdn = mdlAquire(mdl,CID_CELL,iCell,id);
@@ -813,11 +813,11 @@ PQ *pqSearch(SMX smx,PQ *pq,FLOAT r[3],int bReplica,int *pbDone) {
 	    if (min1 < min2) {
 		Smin[sm++] = min2;
 		kdn = pkdTopNode(pkd,--iCell);
-		if (min1 >= pq->fDist2) goto NotContained;
+		if (min1 > pq->fDist2) goto NotContained;
 	    }
 	    else {
 		Smin[sm++] = min1;
-		if (min2 >= pq->fDist2) goto NotContained;
+		if (min2 > pq->fDist2) goto NotContained;
 	    }
 	}
 	id = kdn->pLower;	/* this is the thread id in LTT */
@@ -864,7 +864,7 @@ PQ *pqSearch(SMX smx,PQ *pq,FLOAT r[3],int bReplica,int *pbDone) {
             pkdNodeBnd(pkd, kdn, &bnd);
 	    MINDIST(bnd,r,min2);
 	}
-	if (min2 >= pq->fDist2) {
+	if (min2 > pq->fDist2) {
 	    kdn = pkdTopNode(pkd,iCell = kdn->iParent);
 	    goto NoIntersect;
 	}
@@ -918,6 +918,15 @@ void smSmoothSingle(SMX smx,SMF *smf,PARTICLE *p) {
     /*
     ** Correct distances and rebuild priority queue.
     */
+    if (smx->bPeriodic) {
+	for (j=0;j<3;++j) {
+	    if (p->r[j] > smx->rLast[j] + 0.5 * pkd->fPeriod[j])
+		smx->rLast[j] += pkd->fPeriod[j];
+	    else if (p->r[j] < smx->rLast[j] - 0.5 * pkd->fPeriod[j])
+		smx->rLast[j] -= pkd->fPeriod[j];
+	    }
+	}
+
     for (j=0;j<smx->nSmooth;++j) {
 	smx->pq[j].dx += p->r[0]-smx->rLast[0];
 	smx->pq[j].dy += p->r[1]-smx->rLast[1];
