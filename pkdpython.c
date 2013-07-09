@@ -69,6 +69,8 @@ static void prm2ppy(void) {
 	if (pn->bArg) addToDict(global,ppy_msr->prm,pn);
 	addToDict(local,ppy_msr->prm,pn);
 	}
+
+    PyDict_SetItemString(local, "nThreads", Py_BuildValue("i",ppy_msr->nThreads));
     }
 
 /* Copy parameters from python dictionary back into parameters. */
