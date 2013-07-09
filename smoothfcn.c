@@ -177,34 +177,28 @@ void LinkHopChains(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
     MDL mdl = pkd->mdl;
     int i, gid1, gid2;
-    GHtmpGroupTable *g1, *g2;
+    GHtmpGroupTable *g1, *g2, g;
     gid1 = *pkdGroup(pkd,p);
     g1 = &pkd->tmpHopGroups[gid1];
     for (i=0;i<nSmooth;++i) {
 	gid2 = *pkdGroup(pkd,nnList[i].pPart);
 	if (nnList[i].iPid==pkd->idSelf && gid1==gid2) continue;
 	g2 = mdlAquire(mdl,CID_GROUP,gid2,nnList[i].iPid);
-	if (g1->iPid == g2->iPid) {
-	    if (g1->iIndex<g2->iIndex) {
-		g2->iPid = g1->iPid;
-		g2->iIndex = g1->iIndex;
-		smf->bDone = 0;
-		}
-	    else if (g1->iIndex>g2->iIndex) {
-		g1->iPid = g2->iPid;
-		g1->iIndex = g2->iIndex;
-		smf->bDone = 0;
-		}
-	    }
-	else if (g1->iPid < g2->iPid) {
-	    g2->iPid = g1->iPid;
-	    g2->iIndex = g1->iIndex;
+	/* Remote is authoratative. Update myself, but also what I currently link to. */
+	if (g1->iPid > g2->iPid || g1->iPid == g2->iPid && g1->iIndex > g2->iIndex) {
 	    smf->bDone = 0;
-	    }
-	else if (g1->iPid > g2->iPid) {
+	    g = *g1;
 	    g1->iPid = g2->iPid;
 	    g1->iIndex = g2->iIndex;
+	    mdlRelease(mdl,CID_GROUP,g2);
+	    g2 = mdlAquire(mdl,CID_GROUP,g.iIndex,g.iPid);
+	    }
+
+	/* Update remote (or what we were pointing to) */
+	if (g1->iPid < g2->iPid || g1->iPid == g2->iPid && g1->iIndex < g2->iIndex) {
 	    smf->bDone = 0;
+	    g2->iPid = g1->iPid;
+	    g2->iIndex = g1->iIndex;
 	    }
 	mdlRelease(mdl,CID_GROUP,g2);
 	}
