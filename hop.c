@@ -26,7 +26,7 @@ void pkdHopSendStats(PKD pkd) {
 #endif
     }
 
-static void initJoinLoops(void *vpkd, void *v) {}
+static void initJoinLoops(void *vctx, void *v) {}
 static void combJoinLoops(void *vctx, void *v1, void *v2) {
     SMF *smf = (SMF *)vctx;
     GHtmpGroupTable * g1 = (GHtmpGroupTable *)v1;
@@ -185,7 +185,7 @@ static int combineDuplicateGroupIds(PKD pkd, int nGroups, struct smGroupArray *g
 ** Follow the link for the given particle
 */
 static int traverseLink(PKD pkd,remoteID *pl, struct smGroupArray *ga,int pi,
-    int *iPid2,int *iIndex2,int *iMinGidPid,int *iMinGidIndex) {
+    int *iPid2,int *iIndex2,int *iMinPartPid,int *iMinPartIndex) {
     MDL mdl = pkd->mdl;
     PARTICLE *p;
     int gid2;
@@ -199,9 +199,9 @@ static int traverseLink(PKD pkd,remoteID *pl, struct smGroupArray *ga,int pi,
     g2 = mdlAquire(pkd->mdl,CID_GROUP,gid2,*iPid2);
 
     /* Update the minimum group id in case we need it below */
-    if (iMinGidPid && (*iPid2 < *iMinGidPid || (*iPid2 == *iMinGidPid && gid2 < *iMinGidIndex))) {
-	*iMinGidPid = *iPid2;
-	*iMinGidIndex = gid2;
+    if (iMinPartPid && (*iPid2 < *iMinPartPid || (*iPid2 == *iMinPartPid && *iIndex2 < *iMinPartIndex))) {
+	*iMinPartPid = *iPid2;
+	*iMinPartIndex = *iIndex2;
 	}
 
     /*
@@ -224,16 +224,8 @@ static int traverseLink(PKD pkd,remoteID *pl, struct smGroupArray *ga,int pi,
 	p2->bMarked = 1;
 	mdlRelease(pkd->mdl,CID_PARTICLE,p2);
 	assert(ga[pi].id.iPid != pkd->idSelf);
-	if (*iMinGidPid == pkd->idSelf) {
-	    ga[pi].id.iPid = pkd->tmpHopGroups[*iMinGidIndex].iPid;
-	    ga[pi].id.iIndex = pkd->tmpHopGroups[*iMinGidIndex].iIndex;
-	    }
-	else {
-	    GHtmpGroupTable *g = mdlAquire(pkd->mdl,CID_GROUP,*iMinGidIndex,*iMinGidPid);
-	    ga[pi].id.iPid = g->iPid;
-	    ga[pi].id.iIndex = g->iIndex;
-	    mdlRelease(pkd->mdl,CID_GROUP,g);
-	    }
+	ga[pi].id.iPid = *iMinPartPid;
+	ga[pi].id.iIndex = *iMinPartIndex;
 	bDone = 1;
 	}
 
@@ -258,7 +250,7 @@ int smHopLink(SMX smx,SMF *smf) {
     PARTICLE *p;
     int pi, j, gid, nNew, nLoop, nSpur;
     int nGroups, nLocal, nRemote;
-    int iIndex1, iIndex2, iMinGidIndex, iPid1, iPid2, iMinGidPid, iParticle;
+    int iIndex1, iIndex2, iMinPartIndex, iPid1, iPid2, iMinPartPid, iParticle;
     struct smGroupArray *ga = smx->ga;
     remoteID *pl = smx->pl;
     /* FOR DEBUG */
@@ -301,6 +293,7 @@ int smHopLink(SMX smx,SMF *smf) {
 	    *pkdGroup(pkd,p) = nGroups;
 	    smReSmoothSingle(smx,smf,p,p->r,p->fBall);
 	    ga[nGroups].id = pl[iParticle] = smf->hopParticleLink;
+
 	    /*
 	    ** Call mdlCacheCheck to make sure we are making progress!
 	    */
@@ -371,14 +364,12 @@ int smHopLink(SMX smx,SMF *smf) {
 	    }
 	/* Remote: may form a loop, or we may simply be a spur */
 	else {
-	    iPid1 = iPid2 = ga[pi].id.iPid;
-	    iIndex1 = iIndex2 = ga[pi].id.iIndex;
-	    iMinGidPid = pkd->idSelf;
-	    iMinGidIndex = pi;
+	    iMinPartPid = iPid1 = iPid2 = ga[pi].id.iPid;
+	    iMinPartIndex = iIndex1 = iIndex2 = ga[pi].id.iIndex;
 	    for(;;) {
 		/* We use Floyd's cycle-finding algorithm here */
-		if (traverseLink(pkd,pl,ga,pi,&iPid2,&iIndex2,&iMinGidPid,&iMinGidIndex)) break;
-		if (traverseLink(pkd,pl,ga,pi,&iPid2,&iIndex2,&iMinGidPid,&iMinGidIndex)) break;
+		if (traverseLink(pkd,pl,ga,pi,&iPid2,&iIndex2,&iMinPartPid,&iMinPartIndex)) break;
+		if (traverseLink(pkd,pl,ga,pi,&iPid2,&iIndex2,&iMinPartPid,&iMinPartIndex)) break;
 		traverseLink(pkd,pl,ga,pi,&iPid1,&iIndex1,NULL,NULL);
 		/*
 		** If we see a loop here, then we are not a part of it (we are a spur).
@@ -387,6 +378,7 @@ int smHopLink(SMX smx,SMF *smf) {
 		** to our node of course, but to a different group.
 		*/
 		if (iPid1==iPid2 && iIndex1 == iIndex2) {
+		    if (pi==1145) printf("updated\n");
 		    ga[pi].id.iPid   = iPid1;
 		    ga[pi].id.iIndex = iIndex1;
 		    break;
@@ -395,7 +387,6 @@ int smHopLink(SMX smx,SMF *smf) {
 	    }
 	}
     mdlFinishCache(mdl,CID_GROUP);
-
     /*
     ** By now, we have marked the particle that starts each arc on the node,
     ** and exactly one particle if the group is a local loop.
@@ -414,7 +405,6 @@ int smHopLink(SMX smx,SMF *smf) {
 	    }
 	}
     nGroups = combineDuplicateGroupIds(pkd,nGroups,ga,0);
-
     /*
     ** Now handle deferred groups (ones pointing to, but not part of, loops).
     */
@@ -517,6 +507,7 @@ int smHopLink(SMX smx,SMF *smf) {
 int smHopJoin(SMX smx,SMF *smf, double dHopTau, int *nLocal) {
     PKD pkd = smx->pkd;
     MDL mdl = pkd->mdl;
+    KDN *pRoot = pkdTreeNode(pkd,ROOT);
     struct smGroupArray *ga = smx->ga;
     remoteID *pl = smx->pl;
     PARTICLE *p;
@@ -528,12 +519,13 @@ int smHopJoin(SMX smx,SMF *smf, double dHopTau, int *nLocal) {
     mdlCOcache(mdl,CID_GROUP,NULL,pkd->tmpHopGroups,sizeof(GHtmpGroupTable), pkd->nGroups,
 	smf, initJoinLoops, combJoinLoops );
     /*
-    ** Check all particles that are part of a loop or an arc (they are marked)
+    ** Check all particles that are part of a loop or an arc (they are marked).
+    ** We have contructed a tree with only marked particles, so just check those.
     */
-    for (pi=0;pi<pkd->nLocal;++pi) {
+    for (pi=pRoot->pLower;pi<=pRoot->pUpper;++pi) {
 	float fBall, fSoft;
 	p = pkdParticle(pkd,pi);
-	if (!p->bMarked) continue;
+	assert(p->bMarked);
 	if (dHopTau<0.0) fBall = -dHopTau * pkdSoft(pkd,p);
 	else fBall = dHopTau;
 	fBall = fmaxf(fBall,p->fBall*0.5f);
@@ -1281,8 +1273,8 @@ void pkdHopAssignGID(PKD pkd) {
     HopGroupTable *g;
     struct smGroupArray *ga = (struct smGroupArray *)(pkd->pLite);
 
-    free(pkd->hopRootIndex); pkd->hopRootIndex = NULL;
-    free(pkd->hopRoots);     pkd->hopRoots = NULL;
+    if (pkd->hopRootIndex) { free(pkd->hopRootIndex); pkd->hopRootIndex = NULL; }
+    if (pkd->hopRoots)     { free(pkd->hopRoots);     pkd->hopRoots = NULL;     }
 
     for(i=1,nLocal=0; i<pkd->nGroups; ++i) {
 	if (pkd->hopGroups[i].id.iPid==mdl->idSelf) ++nLocal;
