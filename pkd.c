@@ -585,6 +585,12 @@ void pkdInitialize(
     pkd->grid = NULL;
     pkd->gridData = NULL;
 
+    pkd->tmpHopGroups = NULL;
+    pkd->hopGroups = NULL;
+    pkd->hopNumRoots = NULL;
+    pkd->hopRootIndex = NULL;
+    pkd->hopRoots = NULL;
+
 #ifdef USE_DEHNEN_THETA
     pkd->fCritTheta = NULL;
     pkd->fCritMass = NULL;
