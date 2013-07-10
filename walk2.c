@@ -1334,6 +1334,7 @@ int pkdGravWalkHop(PKD pkd,double dTime,int nGroup, double dThetaMin,double dThe
     nActive = 0;
     for(gid=1; gid<pkd->nGroups; ++gid) {
 	if (!pkd->hopGroups[gid].bNeedGrav) continue;
+	pkd->hopGroups[gid].bNeedGrav = 0;
 	ilpClear(pkd->ilp);
 	ilcClear(pkd->ilc);
 	clClear(pkd->cl);

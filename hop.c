@@ -843,8 +843,6 @@ static void hopCalculateGroupStats(PKD pkd, int bPeriodic, double *dPeriod) {
 	if (pkd->hopGroups[i].bComplete) pkd->hopGroups[i].bNeedGrav = 0;
 	if (!pkd->hopGroups[i].bComplete) nActive++;
 	}
-//    printf("%d: nActive=%d\n", pkd->idSelf,nActive);
-
 
     /* Fetch remote group properties */
     mdlROcache(mdl,CID_GROUP,NULL,pkd->hopGroups,sizeof(HopGroupTable), pkd->nGroups);
@@ -1207,6 +1205,7 @@ int pkdHopUnbind(PKD pkd, double dTime, int nMinGroupSize, int bPeriodic, double
 	n = pNode->pUpper - pNode->pLower + 1;
 	for(i=pNode->pLower; i<=pNode->pUpper; ++i) {
 	    p = pkdParticle(pkd,i);
+	    assert(*pkdGroup(pkd,p)==gid);
 	    v = pkdVel(pkd,p);
 	    dv2 = 0.0;
 	    for (j=0;j<3;++j) {
@@ -1260,6 +1259,12 @@ int pkdHopUnbind(PKD pkd, double dTime, int nMinGroupSize, int bPeriodic, double
 	    ++nEvaporated;
 	    }
 	if (i==pNode->pUpper) pkd->hopGroups[gid].bComplete = 1;
+	/* Move evaporated particles to the end */
+	else for(i=pNode->pLower; i<=pNode->pUpper; ) {
+	    p = pkdParticle(pkd,i);
+	    if (*pkdGroup(pkd,p)) ++i;
+	    else pkdSwapParticle(pkd,p,pkdParticle(pkd,pNode->pUpper--));
+	    }
 	}
     purgeSmallGroups(pkd,nMinGroupSize,bPeriodic,dPeriod);
 
