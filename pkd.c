@@ -964,7 +964,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
 	if (pkd->oStar) {
 	    pStar = pkdField(p,pkd->oStar);
 	    pStar->fTimer = 0;
-//	    pStar->iGasOrder = IORDERMAX;
+/*	    pStar->iGasOrder = IORDERMAX;*/
 	    }
 	else pStar = NULL;
 
@@ -3662,7 +3662,7 @@ void pkdStarForm(PKD pkd, double dRateCoeff, double dTMax, double dDenMin,
 		pkdCopyParticle(pkd, starp, p);	/* grab copy */
 		*pMass -= dInitStarMass;
 		*starpMass = dInitStarMass;
-//		pkdStar(pkd,starp)->iGasOrder = p->iOrder;
+/*		pkdStar(pkd,starp)->iGasOrder = p->iOrder;*/
 		if (*pMass < 0) {
 		    *starpMass += *pMass;
 		    *pMass = 0;

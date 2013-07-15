@@ -31,7 +31,6 @@
 #endif
 
 #define PSM(i) (psx->psm[i])
-//#define PSM(i) (pkdParticle(pkd, i)->psm)
 
 
 /*
@@ -99,9 +98,6 @@ static inline float psdDensity(PKD pkd, PARTICLE *p,int nSmooth, PQ6 *nnList, FL
 	    V1 *= vscale[i];
 	}
     }
-
-    //assert(!isnan(fDensity));
-    //assert(!isinf(fDensity));
 
     return 0.77403670 * fDensity * V1 / V0;
 
@@ -354,34 +350,6 @@ void psdSmoothLink(PKD pkd, PSX psx) {
 
     struct bridge *B; NEW_STACK(B, TEMP_S_INCREASE);
     struct bridge bi;
-
-    int arclen_compar(const void *a0, const void *b0)
-    {
-	int a = *(int *)a0;
-	int b = *(int *)b0;
-	if (arclen[a] < arclen[b]) return -1;
-	if (arclen[a] > arclen[b]) return +1;
-	return 0;
-    }
-
-    int iorder_compar(const void *a0, const void *b0)
-    {
-	int a = *(int *)a0;
-	int b = *(int *)b0;
-	if (psx->knn->pq[a].pPart->iOrder < psx->knn->pq[b].pPart->iOrder) return -1;
-	if (psx->knn->pq[a].pPart->iOrder > psx->knn->pq[b].pPart->iOrder) return +1;
-	return 0;
-    }
-
-    int group_size_compar(const void *a0, const void *b0)
-    {
-	struct psGroup *a = (struct psGroup *)a0;
-	struct psGroup *b = (struct psGroup *)b0;
-	if (a->nTotal > b->nTotal) return -1;
-	if (a->nTotal < b->nTotal) return +1;
-	return 0;
-    }
-
 #if 0
     float den_max = 0;
     for (pi=0;pi<pkd->nLocal;pi++) 
@@ -395,7 +363,6 @@ void psdSmoothLink(PKD pkd, PSX psx) {
     {
 	p = pkdParticle(pkd,pi);
 	*pkdGroup(pkd,p) = 0;
-	//p->fDensity /= den_max;
     }
 
     pkd->psGroupTable.nGroups = 0;
@@ -454,7 +421,6 @@ void psdSmoothLink(PKD pkd, PSX psx) {
 
 	    /* Find our neighbors */
 	    knn6d(pkd, psx->knn, pi, NULL, first_time);
-	    //knn6dGather(pkd, psx->knn, p->fBall, pi, first_time);
 	    first_time = 0;
 
 	    for (pj=0; pj < psx->nSmooth; pj++)
@@ -464,7 +430,6 @@ void psdSmoothLink(PKD pkd, PSX psx) {
 	    calc_arclen(psx->nSmooth, pq, fDensityGrad, arclen);
 #define cmp_arclen(a,b) (arclen[*a] < arclen[*b])
 	    QSORT(int, sorted_nbrs, psx->nSmooth, cmp_arclen);
-	    //qsort(sorted_nbrs, psx->nSmooth, sizeof(*sorted_nbrs), arclen_compar);
 
 	    int bridge = 0;
 
@@ -543,7 +508,6 @@ void psdSmoothLink(PKD pkd, PSX psx) {
 			PUSH(G,pi);
 		    }
 
-		    //fprintf(stdout, "PEAK!\n");
 		    nPeaks++;
 		}
 
@@ -1046,6 +1010,7 @@ void psdUpdateGroupProperties(PKD pkd)
 
 static void _CompactGroupTable(PKD pkd)
 {
+#if 0
     int i;
     struct psGroup *gd = pkd->psGroupTable.pGroup;
 
@@ -1058,6 +1023,8 @@ static void _CompactGroupTable(PKD pkd)
     ** compacted and all the particles must update their group pointer to the new
     ** location in the table.
     */
+    nested function are not portable! Fix me!
+
     int groupid_cmp(const void *a0, const void *b0)
     {
 	struct psGroup *a = (struct psGroup *)a0;
@@ -1115,7 +1082,9 @@ static void _CompactGroupTable(PKD pkd)
     pkd->psGroupTable.nGroups = nGroups;
     pkd->psGroupTable.pGroup = mdlMalloc(pkd->mdl, pkd->psGroupTable.nGroups * sizeof(struct psGroup));
     memcpy(pkd->psGroupTable.pGroup, psGroupData, pkd->psGroupTable.nGroups * sizeof(struct psGroup));
-
+#else
+    assert(0);
+#endif
 }
 
 
@@ -1176,7 +1145,6 @@ void psdAssignGlobalIds(PKD pkd, int offs, int count)
     ** Now bring over the global ids from remote groups. 
     */
 
-    //fprintf(stderr, "%i] nGroups %i\n", pkd->idSelf, pkd->psGroupTable.nGroups);
     mdlROcache(pkd->mdl,CID_GROUP,NULL,pkd->psGroupTable.pGroup,sizeof(struct psGroup), pkd->psGroupTable.nGroups);
     for (i=1; i < pkd->psGroupTable.nGroups; i++)
     {

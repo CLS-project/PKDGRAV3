@@ -1032,9 +1032,6 @@ void _pstRootSplit(PST pst,int iSplitDim,int bDoRootFind,int bDoSplitDimFind,
 	}
 
     d = dBnd = pst->iSplitDim;
-
-    // mdlassert(pst->mdl,d < 3);
-
     fl = pst->bnd.fCenter[dBnd] - pst->bnd.fMax[dBnd];
     fu = pst->bnd.fCenter[dBnd] + pst->bnd.fMax[dBnd];
     fm = pst->fSplit;
@@ -1753,9 +1750,6 @@ void pstDomainDecomp(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     mdlprintf(pst->mdl,"Starting pstDomainDecomp\n");
 
     pst->bnd = in->bnd;
-
-    //pst->bnd.lastd = 6;
-
     if (pst->nLeaves > 1) {
 	if (pst->iSplitDim != -1 && in->nActive < NMINFORROOTFIND) {
 	    mdlprintf(pst->mdl,"Aborting RootFind -- too few actives.\n");
@@ -2572,7 +2566,7 @@ void pstWrite(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     nCount = pkdWriteFIO(plcl->pkd,fio,in->dvFac);
     for (i=pst->idSelf+1;i<pst->idSelf+in->nProcessors; ++i) {
 
-	int id = i; //msr->pMap[i];
+	int id = i;
 	int inswap;
 	/*
 	 * Swap particles with the remote processor.
@@ -5170,10 +5164,6 @@ void pstInitGrid(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 
 	in->s = s + pst->nLower*n/pst->nLeaves;
 	in->n = s + n - in->s;
-
-
-	//in->n = n/2;
-	//in->s = in->n ? s + n - in->n : 0;
 	mdlReqService(pst->mdl,pst->idUpper,PST_INITGRID,vin,nIn);
 	in->n = n - in->n;
 	in->s = in->n ? s : 0;
@@ -5297,8 +5287,6 @@ void pstBuildPsdTree(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
         BND_COMBINE(bnd,p1bnd,p2bnd);
 
 
-
-        //CALCOPEN(pCell,in->diCrit2,minside);
         /*
         ** Set all the pointers and flags.
         */
@@ -5312,16 +5300,11 @@ void pstBuildPsdTree(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     else {
         for (i=1;i<in->nCell;++i) pkdNode(pkd,pkdn,i)->pUpper = 0; /* used flag = unused */
 
-        //printf("[%i] nLocal: %i\n", pst->idSelf, plcl->pkd->nLocal);
-        //printf("[%i] iTopRoot: %i\n", pst->idSelf, plcl->pkd->iTopRoot);
-
         psdBuildTree(pkd,pkd->psx,in,pCell);
 
         pCell->iLower = 0;
         pCell->pLower = pst->idSelf;
         pCell->pUpper = 1;
-        //printf("[%i] Tree Depth: %i\n", pst->idSelf, psdTreeDepth(plcl->pkd));
-
         }
     /*
     ** Calculated all cell properties, now pass up this cell info.

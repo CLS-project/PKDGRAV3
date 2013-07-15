@@ -32,7 +32,7 @@ void ubInitializePLiteParticles(PKD pkd) {
     int i,j;
     int iRoot;
 
-    //Use this: pkdTreeInitByGroup(pkd);
+    /*Use this: pkdTreeInitByGroup(pkd);*/
 
     /*
     ** Initialize the temporary particles.
@@ -59,7 +59,6 @@ void ubInitializePLiteParticles(PKD pkd) {
     int pLower = gd[0].nLocal;
     for (i=1; i < pkd->psGroupTable.nGroups; i++)
     {
-	//assert(gd[i].nLocal>0);
 	if (gd[i].nLocal == 0) continue;
 
 	gd[i].nTreeRoots = 1;
@@ -86,8 +85,6 @@ void ubInitializePLiteParticles(PKD pkd) {
     }
 
     pkd->nNodesFull = pkd->nNodes;
-    //mdlROcache(pkd->mdl,CID_CELL,pkdTreeNodeGetElement,pkd, pkd->iTreeNodeSize,pkd->nNodes);
-    //pkdCopyNode(pkd,pkdn,pkdTreeNode(pkd,ROOT));
 }
 
 static void ubBuildLocalGroupTrees(PKD pkd, int nBucket)
@@ -170,7 +167,6 @@ static void AllBroadcastFree(struct AllBroadcastData *d)
 static int AllBroadcastCount(PKD pkd, struct AllBroadcastData *d)
 {
     int nDomains = d->nDomains;
-    //int nLocal   = pkd->nLocal;
     int *scounts, *rcounts, *sdispls, *rdispls, *ioffset;
     int nSelf, iSelf, iTarget;
     int i;
@@ -190,7 +186,7 @@ static int AllBroadcastCount(PKD pkd, struct AllBroadcastData *d)
 	rdispls[i] = rdispls[i-1] + rcounts[i-1];
 	}
 
-    return rdispls[nDomains-1] + rcounts[nDomains-1]; // + nSelf;
+    return rdispls[nDomains-1] + rcounts[nDomains-1];
 }
 
 static void AllBroadcast(PKD pkd, struct AllBroadcastData *d, void *src, void *dst)
@@ -297,7 +293,6 @@ static void ubBroadcastTreeRoots(PKD pkd)
     for (i=1; i < pkd->psGroupTable.nGroups; i++) nTreeRoots[i] = gd[i].nLocal==0 ? 0 : 1;
     for (i=0; i < rTotal; i++)
     {
-	//fprintf(stderr, "%i\n", dst[i].iLocalDestId);
 	assert(dst[i].iLocalDestId != 0);
 	assert(dst[i].iLocalDestId < pkd->psGroupTable.nGroups);
 	assert(dst[i].treeRootId.iPid != pkd->idSelf);
@@ -332,9 +327,6 @@ static void ubBroadcastTreeRoots(PKD pkd)
 	    assert(gd[i].nTreeRoots == nTreeRoots[i]);
 	}
     }
-
-    //for (i=1; i < pkd->psGroupTable.nGroups; i++)
-	//fprintf(stderr, "iPid %i  Group %i  nRoots %i  nLocal %i %s\n", pkd->idSelf, gd[i].iGlobalId, gd[i].nTreeRoots, gd[i].nLocal, gd[i].iPid==pkd->idSelf?"(Owner)":"");
 
     free(nTreeRoots);
     free(src);

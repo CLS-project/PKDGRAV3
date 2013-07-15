@@ -668,8 +668,8 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
 		sizeof(int),"MNsph","<Tree nodes support fast-gas bounds> = 0");
 
     msr->param.bMemNodeBnd = 1;
-    //prmAddParam(msr->prm,"bMemNodeBnd",1,&msr->param.bMemNodeBnd,
-	//	sizeof(int),"MNbnd","<Tree nodes support 3D bounds> = 1");
+    /*prmAddParam(msr->prm,"bMemNodeBnd",1,&msr->param.bMemNodeBnd,
+      sizeof(int),"MNbnd","<Tree nodes support 3D bounds> = 1");*/
 
     msr->param.bMemNodeVBnd = 0;
     prmAddParam(msr->prm,"bMemNodeVBnd",0,&msr->param.bMemNodeVBnd,
@@ -4046,7 +4046,7 @@ void msrStarForm(MSR msr, double dTime, int iRung)
 	msrSelSrcGas(msr); /* Not really sure what the setting here needs to be */
 	msrSelDstDeleted(msr); /* Select only deleted particles */
 	msrActiveRung(msr,0,1); /* costs nothing -- may be redundant */
-//	msrBuildTree(msr,dTime,msr->param.bEwald);
+/*	msrBuildTree(msr,dTime,msr->param.bEwald);*/
 	msrSmooth(msr, dTime, SMX_DIST_DELETED_GAS, 1,msr->param.nSmooth); /* use full smooth to account for deleted */
 	}
 
@@ -4064,7 +4064,7 @@ void msrStarForm(MSR msr, double dTime, int iRung)
 	msrActiveRung(msr,iRung,1); /* costs nothing -- important to limit to active stars only */
  	msrSelSrcGas(msr); /* Not really sure what the setting here needs to be */
 	msrSelDstStar(msr,1,dTime); /* Select only stars that have FB to do */ 
-//	msrBuildTree(msr,dTime,msr->param.bEwald);
+/*	msrBuildTree(msr,dTime,msr->param.bEwald);*/
 	msrSmooth(msr, dTime, SMX_DIST_SN_ENERGY, 1, msr->param.nSmooth); /* full smooth for stars */
 
 	dsec = msrTime() - sec1;
@@ -6129,10 +6129,12 @@ void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint) {
 	msrActiveRung(msr,0,1); /* Activate all particles */
 	msrDomainDecomp(msr,-1,0,0);
 	msrHop(msr,dTime);
-//	msrPSGroupFinder(msr); /*,csmTime2Exp(msr->param.csm,dTime)); */
-//	msrUnbind(msr);
-//	msrSetPSGroupIds(msr);
-//	if (msr->param.nBins > 0) msrGroupProfiles(msr,csmTime2Exp(msr->param.csm,dTime));
+#if 0
+	msrPSGroupFinder(msr); /*,csmTime2Exp(msr->param.csm,dTime)); */
+	msrUnbind(msr);
+	msrSetPSGroupIds(msr);
+	if (msr->param.nBins > 0) msrGroupProfiles(msr,csmTime2Exp(msr->param.csm,dTime));
+#endif
 	msrReorder(msr);
 
 	msrBuildName(msr,achFile,iStep);
@@ -6143,12 +6145,14 @@ void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint) {
 	strncat(achFile,".hopstats",256);
 	msrHopWrite(msr,achFile);
 
-//	if ( msr->nBins > 0) {
-//	    msrBuildName(msr,achFile,iStep);
-//	    strncat(achFile,".psprofiles",256);
-//	    msrOutGroups(msr,achFile,OUT_GROUP_PROFILES,dTime);
-//	    }
-//	msrDeletePSGroups(msr);
+#if 0
+	if ( msr->nBins > 0) {
+	    msrBuildName(msr,achFile,iStep);
+	    strncat(achFile,".psprofiles",256);
+	    msrOutGroups(msr,achFile,OUT_GROUP_PROFILES,dTime);
+	    }
+	msrDeletePSGroups(msr);
+#endif
 	}
 
     if ( msr->param.bFindPSGroups ) {
@@ -6823,15 +6827,15 @@ void _BuildPsdTree(MSR msr) {
     in.nBucket = msr->param.nBucket;
     in.nSmooth = msr->param.nSmooth;
     in.bPeriodic = msr->param.bPeriodic;
-    //in.bSymmetric = 0;
-    //in.iSmoothType = 1;
+    /*in.bSymmetric = 0;*/
+    /*in.iSmoothType = 1;*/
 
     nCell = 1<<(1+(int)ceil(log((double)msr->nThreads)/log(2.0)));
     pkdn = malloc(nCell*pkdNodeSize(pkd));
     assert(pkdn != NULL);
     in.iCell = ROOT;
     in.nCell = nCell;
-    //in.bExcludeVeryActive = 0;
+    /*in.bExcludeVeryActive = 0;*/
     sec = msrTime();
     pstBuildPsdTree(msr->pst,&in,sizeof(in),pkdn,&iDum);
     dsec = msrTime() - sec;
@@ -6859,13 +6863,13 @@ void msrPSGroupFinder(MSR msr) {
 
     in.nSmooth = msr->param.nSmooth;
     in.bPeriodic = msr->param.bPeriodic;
-    //in.bSymmetric = 0;
-    //in.iSmoothType = 1;
+    /*in.bSymmetric = 0;*/
+    /*in.iSmoothType = 1;*/
 
     msrprintf(msr, "Phase-Space Group Finder (Aardvark)  nSmooth=%i\n", in.nSmooth);
     Totalsec = msrTime();
 
-    //msr->pst.iSplitDim = 0;
+    /*msr->pst.iSplitDim = 0;*/
 
 #if 0
     if (msr->param.bVStep) {

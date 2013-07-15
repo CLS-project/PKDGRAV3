@@ -83,7 +83,7 @@ static uint64_t fetchInteger(PKD pkd,PARTICLE *p,int iType,int iDim) {
 	break;
     case OUT_PSGROUP_ARRAY:
 	assert(0);
-	//v = pkd->psGroupData[*pkdGroup(pkd,p)].iGlobalId;
+	/*v = pkd->psGroupData[*pkdGroup(pkd,p)].iGlobalId;*/
 	v = *pkdGroup(pkd,p);
 	break;
     default:

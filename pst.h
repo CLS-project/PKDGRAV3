@@ -287,14 +287,10 @@ struct inReadFile {
     int nBucket;
     int nGroup;
     int nDomainRungs;
-    //int nFiles;
     int iCacheSize;
     int iWorkQueueSize;
     int iCUDAQueueSize;
     int nProcessors;
-    //uint8_t bStandard;
-    //uint8_t bDoublePos;
-    //short   eFileType;
     char achFilename[PST_FILENAME_SIZE];
     };
 void pstReadFile(PST,void *,int,void *,int *);
@@ -1574,12 +1570,8 @@ struct inPSD {
     int nBucket;
     int iCell;
     int nCell;
-    //int bExcludeVeryActive;
-
     int nSmooth;
     int bPeriodic;
-    //int bSymmetric;
-    //int iSmoothType;
     };
 struct outPSD {
     int dummy;

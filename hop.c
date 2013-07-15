@@ -648,8 +648,6 @@ static void hopRelocateGroups(PKD pkd) {
 
     renumberGroups(pkd,pkd->nGroups,ga);
     updateGroupIds(pkd,pkd->nGroups,ga,1);
-//    for(gid=1; gid<pkd->nGroups; ++gid) ga[gid].iGid = ga[gid].iNewGid;
-//    pkd->nGroups = reorderGroups(pkd,pkd->nGroups,ga);
 
     n = pkd->nGroups;
     for(gid=1; gid<n; ) {
@@ -1214,7 +1212,7 @@ int pkdHopUnbind(PKD pkd, double dTime, int nMinGroupSize, int bPeriodic, double
 		}
 	    ee[i].i = i;
 	    ee[i].dPot = *pkdPot(pkd,p) * ia;
-	    if (pkdIsGas(pkd,p) && pkd->oSph) {  // TODO: is this correct?
+	    if (pkdIsGas(pkd,p) && pkd->oSph) {  /* TODO: is this correct? */
 		SPHFIELDS *pSph = pkdSph(pkd,p);
 		ee[i].dPot += pSph->u;
 		}
