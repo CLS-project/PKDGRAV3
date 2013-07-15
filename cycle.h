@@ -208,6 +208,9 @@ static __inline double elapsed(ticks t1, ticks t0) {
 #define HAVE_TICK_COUNTER
 #define TIME_MIN 5000.0   /* unreliable pentium IV cycle counter */
 #endif
+#ifdef __STRICT_ANSI__
+#define asm __asm__
+#endif
 
 /*----------------------------------------------------------------*/
 /*

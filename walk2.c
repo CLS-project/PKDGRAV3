@@ -1099,7 +1099,6 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot, u
 	    ** Now prepare to proceed to the next deeper
 	    ** level of the tree.
 	    */
-//	    if (!k->iLower) break;
 	    if ((k->pUpper-k->pLower+1)<=nGroup) break;
 	    xParent = k->r[0];
 	    yParent = k->r[1];
@@ -1171,7 +1170,6 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot, u
 					      c->r[0] - xParent,
 					      c->r[1] - yParent,
 					      c->r[2] - zParent);
-//		    momRescaleFlocr(&pkd->S[iStack].L,c->bMax,bMaxParent);
 		    pkd->S[iStack].fWeight = (*pdFlop-tempI) + dShiftFlop;
 		    pkd->S[iStack].fWeight += dEwFlop;
 		    }
@@ -1194,7 +1192,6 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot, u
 	    *pdFlop += momShiftLocr(&L,k->r[0] - xParent,
 				    k->r[1] - yParent,
 				    k->r[2] - zParent);
-//	    momRescaleFlocr(&L,k->bMax,bMaxParent);
 	    }
 	/*
 	** Now the interaction list should be complete and the
@@ -1480,11 +1477,6 @@ int pkdGravWalkGroups(PKD pkd,double dTime,int nGroup, double dThetaMin,double d
     else dRhoFac = 0.0;
 
     /*
-    ** Check that the iRoot has active particles!
-    */
-    //if (!pkdIsCellActive(pkdTreeNode(pkd,iRoot),uRungLo,uRungHi)) return 0;
-
-    /*
     ** Initially we set our cell pointer to
     ** point to the top tree.
     */
@@ -1506,7 +1498,6 @@ int pkdGravWalkGroups(PKD pkd,double dTime,int nGroup, double dThetaMin,double d
 	    iRoot = gd[i].treeRoots[k].iLocalRootId;
 	    nc = getCell(pkd,iRoot,id,&cOpen,&c);
 	    pkdNodeBnd(pkd,c,&cbnd);
-	    //fprintf(stderr, "Adding roots to checklist %e  %i\n", pkdNodeMom(pkd,c)->m, gd[i].treeRoots[k].iLocalRootId);
 	    clAppend(pkd->cl,iRoot,id,c->iLower,nc,cOpen,pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c->r,fOffset,cbnd.fCenter,cbnd.fMax);
         }
 #endif

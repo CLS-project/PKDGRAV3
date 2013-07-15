@@ -151,8 +151,6 @@ int knn6dInitialize(PKD pkd, KNN6D knn, int pqSize,int bPeriodic) {
     /*
     ** Need to cast the pLite to an array of extra stuff.
     */
-    //assert(sizeof(PLITE) >= sizeof(struct smExtraArray));
-    //knn->ea = UNION_CAST(pkd->pLite,PLITE *,struct smExtraArray *);
     knn->ea = malloc((pkd->nLocal+1) * sizeof(struct smExtraArray));
     assert(knn->ea != NULL);
     return(1);
@@ -221,13 +219,12 @@ static PQ6 *updateParticleQueue(PKD pkd, KNN6D  smx, KDN *kdn, PQ6 *pq, FLOAT *r
 	dr4 = (pv[1] - v[1]) * vscale[1];
 	dr5 = (pv[2] - v[2]) * vscale[2];
 	fDist2 = dr0*dr0 + dr1*dr1 + dr2*dr2 + dr3*dr3 + dr4*dr4 + dr5*dr5;
-	//assert(!isnan(fDist2));
 	if (fDist2 < pq->fDist2) {
 	    if (pq->iPid == idSelf) {
 		smx->ea[pq->iIndex].bInactive = 0;
 	    } 
 	    else {
-		psHashDel(smx,pq->pPart);  //?
+		psHashDel(smx,pq->pPart);
 		mdlRelease(pkd->mdl,CID_PARTICLE,pq->pPart);
 		pq->iPid = idSelf;
 	    }
@@ -366,7 +363,6 @@ static PQ6 *_SearchLocal(PKD pkd, KNN6D smx, PQ6 *pq, FLOAT *r,FLOAT *v, FLOAT *
 		    }
 		}
 
-		//fprintf(stderr, "cnt is %i\n", cnt);
 		return pq;
 	    }
 	}
@@ -588,7 +584,6 @@ PQ6 *_Search(PKD pkd, KNN6D knn, PQ6 *pq, FLOAT *r,FLOAT *v, FLOAT *rscale,FLOAT
 		pkdNodeBnd(pkd, kdn, &bnd[0]);
 		for (j=0;j<3;++j) {
 		    dMin = (bnd[0].fMax[j] - fabs(bnd[0].fCenter[j] - r[j])) * rscale[j];
-		    //dMin = (bnd[0].fMax[j] - fabs(bnd[0].fCenter[j] - r[j]));
 		    if (dMin*dMin < pq->fDist2 || dMin < 0) {
 			iParent = kdn->iParent;
 			if (!iParent) {
@@ -732,17 +727,15 @@ void knn6d(PKD pkd, KNN6D knn, int pid, float *fBall, int first_time)
     if (!bDone && knn->bPeriodic) {
 	double fBall = sqrt(knn->pqTEMP->fDist2);
 	for (j=0;j<3;++j) {
-	    iStart[j] = -1; //d2i(floor((p->r[j] - fBall)/pkd->fPeriod[j] + 0.5));
-	    iEnd[j] = +1; //d2i(floor((p->r[j] + fBall)/pkd->fPeriod[j] + 0.5));
-	    //fprintf(stderr, "%i %i %i  %i %i %i\n", iStart[0], iStart[1], iStart[2],
-	//					    iEnd[0], iEnd[1], iEnd[2]);
+	    iStart[j] = -1;
+	    iEnd[j] = +1;
 	    }
 	for (ix=iStart[0];ix<=iEnd[0];++ix) {
-	    R[0] = r[0] - ix*pkd->fPeriod[0]; //) * rscale[0];
+	    R[0] = r[0] - ix*pkd->fPeriod[0];
 	    for (iy=iStart[1];iy<=iEnd[1];++iy) {
-		R[1] = r[1] - iy*pkd->fPeriod[1]; //) * rscale[1];
+		R[1] = r[1] - iy*pkd->fPeriod[1];
 		for (iz=iStart[2];iz<=iEnd[2];++iz) {
-		    R[2] = r[2] - iz*pkd->fPeriod[2]; //) * rscale[2];
+		    R[2] = r[2] - iz*pkd->fPeriod[2];
 		    if (ix || iy || iz) {
 			knn->pqTEMP = _Search(pkd,knn,knn->pqTEMP, R,v,rscale,vscale,1,&bDone);
 			}
@@ -813,13 +806,12 @@ static PQ6 *_GatherLocal(PKD pkd, KNN6D smx, PQ6 *pq, float fBall2, FLOAT *r,FLO
 		dr4 = (pv[1] - v[1]) * vscale[1];
 		dr5 = (pv[2] - v[2]) * vscale[2];
 		fDist2 = dr0*dr0 + dr1*dr1 + dr2*dr2 + dr3*dr3 + dr4*dr4 + dr5*dr5;
-		//assert(!isnan(fDist2));
 		if (fDist2 <= fBall2 && fDist2 < pq->fDist2) {
 		    if (pq->iPid == idSelf) {
 			smx->ea[pq->iIndex].bInactive = 0;
 		    } 
 		    else {
-			psHashDel(smx,pq->pPart);  //?
+			psHashDel(smx,pq->pPart);
 			mdlRelease(pkd->mdl,CID_PARTICLE,pq->pPart);
 			pq->iPid = idSelf;
 		    }
@@ -1057,10 +1049,8 @@ void knn6dGather(PKD pkd, KNN6D knn, float fBall, int pid, int first_time) {
     if (knn->bPeriodic)
     {
 	for (j=0;j<3;++j) {
-	    iStart[j] = -1; //d2i(floor((p->r[j] - fBall)/pkd->fPeriod[j] + 0.5));
-	    iEnd[j] = +1; //d2i(floor((p->r[j] + fBall)/pkd->fPeriod[j] + 0.5));
-	    //fprintf(stderr, "%i %i %i  %i %i %i\n", iStart[0], iStart[1], iStart[2],
-	//					    iEnd[0], iEnd[1], iEnd[2]);
+	    iStart[j] = -1;
+	    iEnd[j] = +1;
 	    }
 	for (ix=iStart[0];ix<=iEnd[0];++ix) {
 	    R[0] = r[0] - ix*pkd->fPeriod[0];

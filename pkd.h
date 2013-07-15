@@ -1285,6 +1285,7 @@ void pkdOrbSplit(PKD pkd,int iDomain);
 int pkdOrbRootFind(
     PKD pkd,double dFraction,uint64_t nLowerMax, uint64_t nUpperMax,
     double dReserveFraction, BND *bnd, double *dSplitOut, int *iDim);
+void pkdOrbUpdateRung(PKD pkd);
 /*#define PEANO_HILBERT_KEY_MAX 0x3ffffffffffull*/ /* 2d */
 #define PEANO_HILBERT_KEY_MAX 0x7fffffffffffffffull /* 3d */
 void pkdPeanoHilbertDecomp(PKD pkd, int nRungs, int iMethod);
@@ -1441,6 +1442,8 @@ int pkdSelSrcStar(PKD pkd);
 int pkdSelDstStar(PKD pkd, int, double);
 int pkdSelSrcDeleted(PKD pkd);
 int pkdSelDstDeleted(PKD pkd);
+int pkdSelSrcGroup(PKD pkd, int iGroup);
+int pkdSelDstGroup(PKD pkd, int iGroup);
 
 int pkdSelSrcMass(PKD pkd,double dMinMass, double dMaxMass, int setIfTrue, int clearIfFalse );
 int pkdSelDstMass(PKD pkd,double dMinMass, double dMaxMass, int setIfTrue, int clearIfFalse );

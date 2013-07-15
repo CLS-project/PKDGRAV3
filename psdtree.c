@@ -70,7 +70,6 @@ int psdTreeDepth(PKD pkd) {
 	    ++nDepth;
 	    if (nDepth > maxDepth) maxDepth = nDepth;
 	    }
-	//fprintf(stderr, "depth %i\n", nDepth);
 	while (iNode & 1) {
 	    iNode = pkdTreeNode(pkd,iNode)->iParent;
 	    --nDepth;
@@ -119,7 +118,6 @@ static float Ex(struct KEY *keys, int N, float M) {
     float s = 0;
     int64_t key = keys[0].keyx;
     float   p   = keys[0].fMass;
-    //assert(M > 0);
     for (i=1; i < N; i++) {
 	if (keys[i].keyx != key) {
 	    p /= M;
@@ -183,13 +181,11 @@ void inline SAVE_BOUNDS(PKD pkd, PSX smx, KDN *pNode, pBND *bnd)
     for (j=0;j<3;++j) assert(fabs(bnd[1].fCenter[j]) < 1e10);
 #endif
 
-    //p->fDensity = pkdMass(pkd, p);
     for (j=0;j<3;++j)
     {
 	b->rscale[j] = 0;
 	if (bnd[X].fMax[j] != 0) 
 	{
-	    //p->fDensity /= 2*bnd[X].fMax[j];
 #ifdef NO_PSMETRIC
 	    b->rscale[j] = 1.;
 #else
@@ -203,7 +199,6 @@ void inline SAVE_BOUNDS(PKD pkd, PSX smx, KDN *pNode, pBND *bnd)
 	b->vscale[j] = 0;
 	if (bnd[V].fMax[j] != 0) 
 	{
-	    //p->fDensity /= 2*bnd[V].fMax[j];
 #ifdef NO_PSMETRIC
 	    b->vscale[j] = 0.;
 #else
@@ -264,12 +259,10 @@ void entropy(PKD pkd, float *e, KDN *pNode, pBND *bnd, struct KEY *keys) {
     struct KEY * const pkey = keys + pNode->pLower;
 #define cmpx(a,b) ((a)->keyx < (b)->keyx)
     QSORT(struct KEY, pkey, Npart, cmpx)
-    //qsort(keys + pNode->pLower, Npart, sizeof(*keys), keyx_compar);
     e[X] = Ex(pkey, Npart, Mtotal);
 
 #define cmpv(a,b) ((a)->keyv < (b)->keyv)
     QSORT(struct KEY, pkey, Npart, cmpv);
-    //qsort(keys + pNode->pLower, Npart, sizeof(*keys), keyv_compar);
     e[V] = Ev(pkey, Npart, Mtotal);
 }
 
@@ -348,7 +341,6 @@ void BuildPsdTemp(PKD pkd, PSX smx, int iNode,int M, int maxNb) {
     struct KEY *keys = malloc((Ntotal+1) * sizeof(*keys)); assert(keys != NULL);
 
     assert(maxNb > 0);
-    //assert(maxNb <= (1<<10));
 
     /*************************************************************************/
     NEW_STACK(S, TEMP_S_INCREASE);
@@ -390,9 +382,6 @@ void BuildPsdTemp(PKD pkd, PSX smx, int iNode,int M, int maxNb) {
     PUSH(S, iNode); PUSH(D, (subspace<<2) | 0);
 
     while (!STACK_EMPTY(S)) {
-
-	//fprintf(stderr, "Iter %i\n", iter++);
-
 	assert(!STACK_EMPTY(D));
 	iNode = POP(S);
 	int q = POP(D);
@@ -400,7 +389,6 @@ void BuildPsdTemp(PKD pkd, PSX smx, int iNode,int M, int maxNb) {
 	last_subspace = (q & ~0x03) >> 2;
 
 	if (iNode == 0) {
-	    //assert(0);
 	    assert(q == -1);
 	    assert(backup != 0);
 	    pkd->nNodes = backup;
@@ -424,8 +412,6 @@ void BuildPsdTemp(PKD pkd, PSX smx, int iNode,int M, int maxNb) {
 	pkdNodeVBnd(pkd, pNode, &bnd[1]);
 
 	int Npart = pNode->pUpper - pNode->pLower + 1;
-
-	//fprintf(stderr, "(ROOT %i) %i %i\n", ROOT, iNode,Npart);
 
 #if 1
 	if (!( bnd[0].fMax[0] > 0.0 &&
@@ -539,10 +525,6 @@ void BuildPsdTemp(PKD pkd, PSX smx, int iNode,int M, int maxNb) {
 	e[V] = e[X] = 0;
 	if (Npart > 1)
 	    entropy(pkd, e, pNode, bnd, keys);
-
-
-	//fprintf(stderr, "Entropy %e %e\n", e[0], e[1]);
-
 	if (e[V] == e[X])
 	{
 	    subspace = !subspace;
@@ -571,19 +553,12 @@ void BuildPsdTemp(PKD pkd, PSX smx, int iNode,int M, int maxNb) {
 
 	fSplit = bnd[subspace].fCenter[d];
 
-	//fprintf(stderr, "subspace %i  d %i\n", subspace, d);
-
 	assert(subspace == X || subspace == V);
 	assert(0 <= d && d < 3);
 
     /*************************************************************************/
 
 
-	//pNode->rbnd.lastd = d;
-
-	//printf("%g %g %g %g\n", fSplit, pNode->rbnd.fCenter[d]-pNode->rbnd.fMax[d], pNode->rbnd.fCenter[d], pNode->rbnd.fCenter[d]+pNode->rbnd.fMax[d]);
-	//printf("      %g %g\n", fSplit, pNode->rbnd.fMax[d]);
-	//assert((pNode->rbnd.fCenter[d]-pNode->rbnd.fMax[d]) <= fSplit && fSplit <= (pNode->rbnd.fCenter[d]+pNode->rbnd.fMax[d]));
 	/*
 	** Now start the partitioning of the particles about
 	** fSplit on dimension given by d.
@@ -609,8 +584,6 @@ void BuildPsdTemp(PKD pkd, PSX smx, int iNode,int M, int maxNb) {
 
 	nl = i - pNode->pLower;
 	nr = pNode->pUpper - i + 1;
-
-	//printf("(%i %i)  %.15f  [%g %g] (%i %i) %i %i %s\n", subspace, d, fSplit, bnd[subspace].fCenter[d]-bnd[subspace].fMax[d], bnd[subspace].fCenter[d]+bnd[subspace].fMax[d], nl, nr, iNode, pNode->iParent, backup == 0 ? "" : "*");
 
     /*************************************************************************/
 
@@ -640,10 +613,6 @@ void BuildPsdTemp(PKD pkd, PSX smx, int iNode,int M, int maxNb) {
 	    pkdNodeBnd(pkd, pRight, &rbnd[0]); pkdNodeVBnd(pkd, pRight, &rbnd[1]);
 	    pkdNodeBnd(pkd, pLeft,  &lbnd[0]); pkdNodeVBnd(pkd, pLeft,  &lbnd[1]);
 
-	    //pRight->bnd.lastd = d;
-	    //pLeft->rbnd.lastd = d;
-
-	    //fprintf(stderr, "%i %i %i\n", iNode, iLeft, iRight);
 
 	    /*
 	    ** Now deal with the bounds.
@@ -664,16 +633,11 @@ void BuildPsdTemp(PKD pkd, PSX smx, int iNode,int M, int maxNb) {
 	    lbnd[s].fCenter[j] = bnd[s].fCenter[j] - lbnd[s].fMax[j];
 	    rbnd[s].fCenter[j] = bnd[s].fCenter[j] + rbnd[s].fMax[j];
 
-	    //if (nl > 1) shrink_wrap(pkd, lbnd, pLeft->pLower, pLeft->pUpper);
-	    //if (nr > 1) shrink_wrap(pkd, rbnd, pRight->pLower, pRight->pUpper);
-
-	    //ls = max_side(lbnd[0].fMax);     // MAXSIDE(pLeft.bnd.fMax,ls);
-	    //rs = max_side(rbnd[0].fMax);     // MAXSIDE(pRight.rbnd.fMax,rs);
 	    /*
 	    ** Now figure out which subfile to process next.
 	    */
-	    lc = ((nl > M)); // ||((nl > 1)&&(ls>PKD_MAX_CELL_SIZE))); /* this condition means the left child is not a bucket */
-	    rc = ((nr > M)); // ||((nr > 1)&&(rs>PKD_MAX_CELL_SIZE)));
+	    lc = ((nl > M)); /* this condition means the left child is not a bucket */
+	    rc = ((nr > M));
 	    if (rc && lc) {
 		assert(backup == 0);
 		EXTEND_STACK(S); /* Allocate more stack if required */
@@ -697,7 +661,7 @@ void BuildPsdTemp(PKD pkd, PSX smx, int iNode,int M, int maxNb) {
 		++nBucket;
 
 		if (nr > 1) {
-		    backup = pkd->nNodes; //fprintf(stderr, "backup [%i]\n", backup); 
+		    backup = pkd->nNodes;
 		    PUSH(S, 0); PUSH(D, -1);
 		    PUSH(S, iRight); PUSH(D, (subspace << 2) | d);
 		    }
@@ -715,7 +679,7 @@ void BuildPsdTemp(PKD pkd, PSX smx, int iNode,int M, int maxNb) {
 		++nBucket;
 
 		if (nl > 1) {
-		    backup = pkd->nNodes; //fprintf(stderr, "backup [%i]\n", backup); 
+		    backup = pkd->nNodes;
 		    PUSH(S, 0); PUSH(D, -1);
 		    PUSH(S, iLeft); PUSH(D, (subspace << 2) | d);
 		    }
@@ -734,7 +698,7 @@ void BuildPsdTemp(PKD pkd, PSX smx, int iNode,int M, int maxNb) {
 		** the two buckets. backup==0 ensures this
 		*/
 		if (!(nr==1 && nl==1) && backup == 0) { 
-		    backup = pkd->nNodes; //fprintf(stderr, "backup [%i]\n", backup); 
+		    backup = pkd->nNodes;
 		    PUSH(S, 0); PUSH(D, -1);
 		    ++nBucket;
 		    ++nBucket;
@@ -783,11 +747,7 @@ void BuildPsdTemp(PKD pkd, PSX smx, int iNode,int M, int maxNb) {
 		assert(bnd[subspace].fMax[d] > 0);
 		if (nl > 0) bnd[subspace].fCenter[d] -= bnd[subspace].fMax[d];
 		else	bnd[subspace].fCenter[d] += bnd[subspace].fMax[d];
-
-	        //if (n > 1) shrink_wrap(pkd, bnd, pNode->pLower, pNode->pUpper);
-
 		if (n > 1) { PUSH(S, iNode); PUSH(D, (subspace << 2) | d); }
-		//fprintf(stderr, "*\n");
 		if (n == 1) {
 		    SAVE_BOUNDS(pkd,smx,pNode,bnd);
 		    pNode->iLower = 0;
@@ -798,7 +758,6 @@ void BuildPsdTemp(PKD pkd, PSX smx, int iNode,int M, int maxNb) {
 
 	}
 DonePart:
-    //printf("nBucket=%d\n", nBucket);
     FREE_STACK(S);
     FREE_STACK(D);
     free(keys);
@@ -825,12 +784,9 @@ void psdBuildTree(PKD pkd, PSX psx, struct inPSD *in, KDN *pkdn) {
     pkdClearTimer(pkd,0);
     pkdStartTimer(pkd,0);
 
-    //fprintf(stderr, "nNodes is %i\n", pkd->nNodes);
     psdInitializeParticles(pkd,&pkd->bnd, &pkd->vbnd);
 
     BuildPsdTemp(pkd,psx, ROOT,in->nBucket, 102400);
-    //psdTreeDepth(pkd);
-    //fprintf(stderr, "nNodes is %i\n", pkd->nNodes);
 
     pkd->nNodesFull = pkd->nNodes;
     iStart = 0;

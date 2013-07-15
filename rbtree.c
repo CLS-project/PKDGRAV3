@@ -93,7 +93,6 @@ static RB_NODE *make_node(const RB_TYPE *rbt, void *data) {
 	memcpy(n+1,data,rbt->iSize-sizeof(RB_NODE));
 	}
     else n = (*rbt->newnode)(rbt->ctx,data);
-    //tree->nNodes++;
     n->red = 1; /* 1 is red, 0 is black */
     n->link[0] = NULL;
     n->link[1] = NULL;

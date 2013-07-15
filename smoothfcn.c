@@ -255,7 +255,6 @@ void initSphForcesParticle(void *vpkd, void *vp) {
 	SPHFIELDS *psph = pkdSph(pkd,p);
 	psph->uDot = 0;
 	psph->fMetalsDot = 0;
-//	if (!(p->iOrder%10000) || (p->uRung > 5 && !(p->iOrder%1000))) printf("RUNG %d: Grav %d\n",p->iOrder,p->uNewRung);
 	if (!pkd->param.bDoGravity) { /* Normally these are zeroed in Gravity */
 	    p->uNewRung = 0;
 	    pkdAccel(pkd,p)[0] = 0;
@@ -526,7 +525,6 @@ void DistDeletedGas(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf)
     if (!pkdIsDeleted( pkd, p )) return; /* not deleted */
 
     pmass = pkdField(p,pkd->oMass);
-//    printf("smoothing deleted gas from %d %d : %g\n",(int) p->iOrder,(int) pkdIsGas(pkd,p),pmass);
     if (*pmass <= 0) return;
 
     ih2 = 4.0/(p->fBall*p->fBall);
@@ -545,8 +543,6 @@ void DistDeletedGas(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf)
     for (i=0;i<nSmooth;++i) {
 	q = nnList[i].pPart;
 	if (pkdIsDeleted(pkd,q)) continue; /* deleted */
-//	printf("smoothing deleted gas to %d %d : %g %g\n",(int) q->iOrder,(int) pkdIsGas(pkd,q),pkdMass(pkd,q),pmass);
-	
 	r2 = nnList[i].fDist2*ih2;            
 	KERNEL(rs,r2);
 
@@ -659,7 +655,6 @@ void DistSNEnergy(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf)
     double dtp,dt,c,dtC,dtNew,Timer;
     int i,uNewRung;
 
-//    printf("STAR DIST %d\n",p->iOrder);
     if (!pkdIsStar( pkd, p )) return; /* not a star */
 
     Timer = *pkd_Timer(pkd,p);
@@ -670,7 +665,7 @@ void DistSNEnergy(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf)
 	return;
 	}
 
-    // OLD: sign of Timer approach    if (Timer > 0) return;
+    /* OLD: sign of Timer approach    if (Timer > 0) return; */
     assert(pkdSph(pkd,p)->u == 1); /* Star must not have fedback */
 
     /* Keep star timestep of order Courant time in FB region */
@@ -692,7 +687,6 @@ void DistSNEnergy(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf)
 	return; /* Now exit */
 	}
 
-//    printf("STAR DIST A %d\n",p->iOrder);
     dtC = (1+0.6*smf->alpha)/(smf->a*smf->dEtaCourant);
     pmass = pkdField(p,pkd->oMass);
 
@@ -712,7 +706,6 @@ void DistSNEnergy(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf)
     assert(qmin!=NULL); /* What if all neighbours invalid -- does that happen? */
     q=qmin;
 
-//    printf("STAR DIST B %d\n",p->iOrder);
 	{
 	qmass = pkdField(q,pkd->oMass);
 	delta_m = *pmass*smf->SFdMassLossPerStarMass;
@@ -738,7 +731,6 @@ void DistSNEnergy(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf)
 	pkdAccel(pkd,q)[1] = fq*pkdAccel(pkd,q)[1]+fp*pkdAccel(pkd,p)[1];
 	pkdAccel(pkd,q)[2] = fq*pkdAccel(pkd,q)[2]+fp*pkdAccel(pkd,p)[2];
 	pkdSph(pkd,q)->u = fq*pkdSph(pkd,q)->u+delta_u;
-//	printf("I'm HIT %d by %d: %g %g\n",q->iOrder,p->iOrder,pkdSph(pkd,q)->uPred,pkdSph(pkd,q)->u);
 	pkdSph(pkd,q)->uPred = fq*pkdSph(pkd,q)->uPred+delta_u;
 	pkdSph(pkd,q)->fMetals = fq*pkdSph(pkd,q)->fMetals+delta_Z;
 	pkdSph(pkd,q)->fMetalsPred = fq*pkdSph(pkd,q)->fMetalsPred+delta_Z;
