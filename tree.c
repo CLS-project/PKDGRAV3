@@ -368,40 +368,23 @@ void ShuffleParticles(PKD pkd,int iStart) {
     ** Now we move the particles in one go using the temporary
     ** particles which have been shuffled.
     */
-    iTemp = iStart;
-    while (1) {
-	p = pkdParticle(pkd,iTemp);
-	pkdSaveParticle(pkd,p);
+    for(iTemp=iStart; iTemp<pkd->nLocal; ++iTemp) {
+	if (pkd->pLite[iTemp].i==iTemp) continue;
 	i = iTemp;
+	p = pkdParticle(pkd,i);
+	pkdSaveParticle(pkd,p);
 	iNew = pkd->pLite[i].i;
-	while (iNew != iTemp) {
-	    pNew = pkdParticle(pkd,iNew);
-	    iNewer = pkd->pLite[iNew].i;
-	    pNewer = pkdParticle(pkd,iNewer);
-	    /* Particles are being shuffled here in a non-linear order.
-	    ** Being smart humans, we can tell the CPU where the next chunk
-	    ** of data can be found.  The limit is 8 outstanding prefetches
-	    ** (according to the Opteron Guide).
-	    */
-#if defined(__GNUC__) || defined(__INTEL_COMPILER)
-	    __builtin_prefetch((char *)(pkd->pLite+iNewer)
-			       + offsetof(struct pLite,i), 1, 3 );
-	    __builtin_prefetch((char *)(pNewer)+0,1,0);
-#ifndef __ALTIVEC__
-	    __builtin_prefetch((char *)(pNewer)+64,1,0);
-#endif
-#endif
+	pNew = pkdParticle(pkd,iNew);
+	while(iNew!=iTemp) {
 	    pkdCopyParticle(pkd,p,pNew);
-	    pkd->pLite[i].i = 0;
+	    pkd->pLite[i].i = i;
 	    i = iNew;
-	    p = pkdParticle(pkd,i);
+	    p = pNew;
 	    iNew = pkd->pLite[i].i;
+	    pNew = pkdParticle(pkd,iNew);
 	    }
+	pkd->pLite[i].i = i;
 	pkdLoadParticle(pkd,p);
-	pkd->pLite[i].i = 0;
-	while (!pkd->pLite[iTemp].i) {
-	    if (++iTemp == pkd->nLocal) return;
-	    }
 	}
     }
 
