@@ -15,6 +15,7 @@ static void ubFindGroupCenters(PKD pkd);
 static void ubDoUnbind(PKD pkd);
 
 void ubInitializePLiteParticles(PKD pkd) {
+#if 0
     PLITE *pLite = pkd->pLite;
     PLITE t;
     PARTICLE *p;
@@ -23,6 +24,7 @@ void ubInitializePLiteParticles(PKD pkd) {
     int i,j;
     int iRoot;
 
+    this is not fricking portable - fix it
     int grp_compar(const void *a0, const void *b0)
     {
 	PLITE *a = (PLITE *)a0;
@@ -83,6 +85,7 @@ void ubInitializePLiteParticles(PKD pkd) {
     }
 
     pkd->nNodesFull = pkd->nNodes;
+#endif
 }
 
 static void ubBuildLocalGroupTrees(PKD pkd, int nBucket)
