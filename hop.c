@@ -378,7 +378,6 @@ int smHopLink(SMX smx,SMF *smf) {
 		** to our node of course, but to a different group.
 		*/
 		if (iPid1==iPid2 && iIndex1 == iIndex2) {
-		    if (pi==1145) printf("updated\n");
 		    ga[pi].id.iPid   = iPid1;
 		    ga[pi].id.iIndex = iIndex1;
 		    break;
