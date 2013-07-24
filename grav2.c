@@ -712,7 +712,6 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
     KDN *pkdn = pBucket;
     double *v, *vTmp;
     double vx,vy,vz;
-    pBND bnd;
     float *a;
     float d2,dir,dir2;
     float fMass,fSoft;
@@ -729,8 +728,6 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 
     assert(pkd->oPotential);
     assert(pkd->oAcceleration);
-
-    pkdNodeBnd(pkd, pkdn, &bnd);
 
     /*
     ** Now process the two interaction lists for each active particle.

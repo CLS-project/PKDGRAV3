@@ -607,16 +607,16 @@ void pkdProfile(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
 */
 int pkdFindProcessor(const PKD pkd, const FLOAT *R) {
     int iCell, iLower;
-    pBND bnd;
+    BND *bnd;
 
     iCell = ROOT;
-    pkdNodeBnd(pkd, pkdTopNode(pkd,iCell), &bnd);
-    assert ( IN_BND(R,&bnd) );
+    bnd = pkdNodeBnd(pkd, pkdTopNode(pkd,iCell));
+    assert ( IN_BND(R,bnd) );
 
     /* Descend the tree until we find the processor for point R */
     while( (iLower=pkdTopNode(pkd,iCell)->iLower) ) {
-        pkdNodeBnd(pkd, pkdTopNode(pkd,++iCell), &bnd);
-	if ( !IN_BND(R,&bnd) ) iCell = iLower;
+        bnd = pkdNodeBnd(pkd, pkdTopNode(pkd,++iCell));
+	if ( !IN_BND(R,bnd) ) iCell = iLower;
 	}
 
     return pkdTopNode(pkd,iCell)->pLower;

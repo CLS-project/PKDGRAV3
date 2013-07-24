@@ -249,7 +249,7 @@ static PQ6 *updateParticleQueue(PKD pkd, KNN6D  smx, KDN *kdn, PQ6 *pq, FLOAT *r
 static int descendTree(PKD pkd, KDN **kdn0, PQ6 *pq, FLOAT *r,FLOAT *v, FLOAT *rscale, FLOAT *vscale, int *iCell0, int *S, int *sp0, FLOAT *Smin, int *sm0)
 {
     FLOAT min1, min2;
-    pBND bnd[2];
+    BND *bnd[2];
     int iCell = *iCell0;
     int sp = *sp0;
     int sm = *sm0;
@@ -258,13 +258,13 @@ static int descendTree(PKD pkd, KDN **kdn0, PQ6 *pq, FLOAT *r,FLOAT *v, FLOAT *r
 
     while (kdn->iLower) {
 	kdn = pkdTreeNode(pkd,iCell = kdn->iLower); 
-	pkdNodeBnd(pkd, kdn, &bnd[0]);
-	pkdNodeVBnd(pkd, kdn, &bnd[1]);
+	bnd[0] = pkdNodeBnd(pkd, kdn);
+	bnd[1] = pkdNodeVBnd(pkd, kdn);
 	PSMINDIST(bnd,r,v,rscale,vscale, min1);
 
 	kdn = pkdTreeNode(pkd,++iCell);
-	pkdNodeBnd(pkd, kdn, &bnd[0]);
-	pkdNodeVBnd(pkd, kdn, &bnd[1]);
+	bnd[0] = pkdNodeBnd(pkd, kdn);
+	bnd[1] = pkdNodeVBnd(pkd, kdn);
 	PSMINDIST(bnd,r,v,rscale,vscale, min2);
 
 	if (min1 < min2) {
@@ -303,7 +303,7 @@ static PQ6 *_SearchLocal(PKD pkd, KNN6D smx, PQ6 *pq, FLOAT *r,FLOAT *v, FLOAT *
     int sp = 0;
     int sm = 0;
     int idSelf = pkd->idSelf;
-    pBND bnd[2];
+    const BND *bnd[2];
 
     *pbDone = 1;	/* assume that we will complete the search */
     /*
@@ -335,9 +335,9 @@ static PQ6 *_SearchLocal(PKD pkd, KNN6D smx, PQ6 *pq, FLOAT *r,FLOAT *v, FLOAT *
 		/*
 		** Containment Test!
 		*/
-		pkdNodeBnd(pkd, kdn, &bnd[0]);
+		bnd[0] = pkdNodeBnd(pkd, kdn);
 		for (j=0;j<3;++j) {
-		    dMin = (bnd[0].fMax[j] - fabs(bnd[0].fCenter[j] - r[j])) * rscale[j];
+		    dMin = (bnd[0]->fMax[j] - fabs(bnd[0]->fCenter[j] - r[j])) * rscale[j];
 		    if (dMin*dMin < pq->fDist2 || dMin < 0) {
 			iParent = kdn->iParent;
 			if (!iParent) {
@@ -349,9 +349,9 @@ static PQ6 *_SearchLocal(PKD pkd, KNN6D smx, PQ6 *pq, FLOAT *r,FLOAT *v, FLOAT *
 		    }
 		}
 
-		pkdNodeVBnd(pkd, kdn, &bnd[1]);
+		bnd[1] = pkdNodeVBnd(pkd, kdn);
 		for (j=0;j<3;++j) {
-		    dMin = (bnd[1].fMax[j] - fabs(bnd[1].fCenter[j] - v[j])) * vscale[j];
+		    dMin = (bnd[1]->fMax[j] - fabs(bnd[1]->fCenter[j] - v[j])) * vscale[j];
 		    if (dMin*dMin < pq->fDist2 || dMin < 0) {
 			iParent = kdn->iParent;
 			if (!iParent) {
@@ -373,8 +373,8 @@ static PQ6 *_SearchLocal(PKD pkd, KNN6D smx, PQ6 *pq, FLOAT *r,FLOAT *v, FLOAT *
 	*/
 	if (sm) min2 = Smin[--sm];
 	else {
-	    pkdNodeBnd(pkd, kdn, &bnd[0]);
-	    pkdNodeVBnd(pkd, kdn, &bnd[1]);
+	    bnd[0] = pkdNodeBnd(pkd, kdn);
+	    bnd[1] = pkdNodeVBnd(pkd, kdn);
 	    PSMINDIST(bnd,r,v,rscale,vscale, min2);
 	}
 	if (min2 >= pq->fDist2) {
@@ -400,7 +400,7 @@ static PQ6 *_SearchRemote(PKD pkd, KNN6D smx, PQ6 *pq, int id,FLOAT *r,FLOAT *v,
     int sp = 0;
     int sm = 0;
     int idSelf = pkd->idSelf;
-    pBND bnd[2];
+    const BND *bnd[2];
     MDL mdl = pkd->mdl;
     KDN *pkdn,*pkdu;
 
@@ -419,14 +419,14 @@ static PQ6 *_SearchRemote(PKD pkd, KNN6D smx, PQ6 *pq, int id,FLOAT *r,FLOAT *v,
 	    kdn  = pkdTreeNode(pkd,iCell = pkdn->iLower);
 /**/	    mdlRelease(mdl,CID_CELL,pkdn);
 /**/	    pkdn = mdlAquire(mdl,CID_CELL,iCell,id);
-	    pkdNodeBnd(pkd,pkdn, &bnd[0]);
-	    pkdNodeVBnd(pkd,pkdn, &bnd[1]);
+	    bnd[0] = pkdNodeBnd(pkd,pkdn);
+	    bnd[1] = pkdNodeVBnd(pkd,pkdn);
 	    PSMINDIST(bnd,r,v,rscale,vscale, min1);
 
 	    kdn  = pkdTreeNode(pkd,++iCell);
 /**/	    pkdu = mdlAquire(mdl,CID_CELL,iCell,id);
-	    pkdNodeBnd(pkd,pkdu, &bnd[0]);
-	    pkdNodeVBnd(pkd,pkdu, &bnd[1]);
+	    bnd[0] = pkdNodeBnd(pkd,pkdu);
+	    bnd[1] = pkdNodeVBnd(pkd,pkdu);
 	    PSMINDIST(bnd,r,v,rscale,vscale, min2);
 	    if (min1 < min2) {
 		Smin[sm++] = min2;
@@ -501,8 +501,8 @@ static PQ6 *_SearchRemote(PKD pkd, KNN6D smx, PQ6 *pq, int id,FLOAT *r,FLOAT *v,
 	    min2 = Smin[--sm];
 	    }
 	else {
-	    pkdNodeBnd(pkd, pkdn, &bnd[0]);
-	    pkdNodeVBnd(pkd, pkdn, &bnd[1]);
+	    bnd[0] = pkdNodeBnd(pkd, pkdn);
+	    bnd[1] = pkdNodeVBnd(pkd, pkdn);
 	    PSMINDIST(bnd,r,v,rscale,vscale, min2);
 	    }
 	if (min2 >= pq->fDist2) {
@@ -525,7 +525,7 @@ PQ6 *_Search(PKD pkd, KNN6D knn, PQ6 *pq, FLOAT *r,FLOAT *v, FLOAT *rscale,FLOAT
     int j,iCell,id,iParent;
     int sp = 0;
     int sm = 0;
-    pBND bnd[2];
+    const BND *bnd[2];
 
     *pbDone = 0;
     if (bReplica) kdn = pkdTopNode(pkd,iCell = ROOT);
@@ -545,13 +545,13 @@ PQ6 *_Search(PKD pkd, KNN6D knn, PQ6 *pq, FLOAT *r,FLOAT *v, FLOAT *rscale,FLOAT
 	*/
 	while (kdn->iLower) {
 	    kdn = pkdTopNode(pkd,iCell = kdn->iLower); 
-	    pkdNodeBnd(pkd, kdn, &bnd[0]);
-	    pkdNodeVBnd(pkd, kdn, &bnd[1]);
+	    bnd[0] = pkdNodeBnd(pkd, kdn);
+	    bnd[1] = pkdNodeVBnd(pkd, kdn);
 	    PSMINDIST(bnd,r,v,rscale,vscale, min1);
 
 	    kdn = pkdTopNode(pkd,++iCell);	     
-	    pkdNodeBnd(pkd, kdn, &bnd[0]);
-	    pkdNodeVBnd(pkd, kdn, &bnd[1]);
+	    bnd[0] = pkdNodeBnd(pkd, kdn);
+	    bnd[1] = pkdNodeVBnd(pkd, kdn);
 	    PSMINDIST(bnd,r,v,rscale,vscale, min2);
 	    if (min1 < min2) {
 		Smin[sm++] = min2;
@@ -581,9 +581,9 @@ PQ6 *_Search(PKD pkd, KNN6D knn, PQ6 *pq, FLOAT *r,FLOAT *v, FLOAT *rscale,FLOAT
 		/*
 		** Containment Test!
 		*/
-		pkdNodeBnd(pkd, kdn, &bnd[0]);
+		bnd[0] = pkdNodeBnd(pkd, kdn);
 		for (j=0;j<3;++j) {
-		    dMin = (bnd[0].fMax[j] - fabs(bnd[0].fCenter[j] - r[j])) * rscale[j];
+		    dMin = (bnd[0]->fMax[j] - fabs(bnd[0]->fCenter[j] - r[j])) * rscale[j];
 		    if (dMin*dMin < pq->fDist2 || dMin < 0) {
 			iParent = kdn->iParent;
 			if (!iParent) {
@@ -596,9 +596,9 @@ PQ6 *_Search(PKD pkd, KNN6D knn, PQ6 *pq, FLOAT *r,FLOAT *v, FLOAT *rscale,FLOAT
 		}
 
 #if 1
-		pkdNodeVBnd(pkd, kdn, &bnd[1]);
+		bnd[1] = pkdNodeVBnd(pkd, kdn);
 		for (j=0;j<3;++j) {
-		    dMin = (bnd[1].fMax[j] - fabs(bnd[1].fCenter[j] - v[j])) * vscale[j];
+		    dMin = (bnd[1]->fMax[j] - fabs(bnd[1]->fCenter[j] - v[j])) * vscale[j];
 		    if (dMin*dMin < pq->fDist2 || dMin < 0) {
 			iParent = kdn->iParent;
 			if (!iParent) {
@@ -623,8 +623,8 @@ PQ6 *_Search(PKD pkd, KNN6D knn, PQ6 *pq, FLOAT *r,FLOAT *v, FLOAT *rscale,FLOAT
 	*/
 	if (sm) min2 = Smin[--sm];
 	else {
-	    pkdNodeBnd(pkd, kdn, &bnd[0]);
-	    pkdNodeVBnd(pkd, kdn, &bnd[1]);
+	    bnd[0] = pkdNodeBnd(pkd, kdn);
+	    bnd[1] = pkdNodeVBnd(pkd, kdn);
 	    PSMINDIST(bnd,r,v,rscale,vscale, min2);
 	}
 	if (min2 >= pq->fDist2) {
@@ -775,12 +775,12 @@ static PQ6 *_GatherLocal(PKD pkd, KNN6D smx, PQ6 *pq, float fBall2, FLOAT *r,FLO
     int sp = 0;
     int iCell,pj,nCnt,pEnd;
     int idSelf = pkd->idSelf;
-    pBND bnd[2];
+    const BND *bnd[2];
 
     kdn = pkdTreeNode(pkd,iCell = ROOT);
     while (1) {
-        pkdNodeBnd(pkd, kdn, &bnd[0]);
-        pkdNodeVBnd(pkd, kdn, &bnd[1]);
+        bnd[0] = pkdNodeBnd(pkd, kdn);
+        bnd[1] = pkdNodeVBnd(pkd, kdn);
 	PSMINDIST(bnd,r,v,rscale,vscale,min2);
 	if (min2 > fBall2) {
 	    goto NoIntersect;
@@ -848,15 +848,15 @@ static PQ6 *_GatherRemote(PKD pkd, KNN6D smx, PQ6 *pq, int id, float fBall2, FLO
     int sp = 0;
     int pj,pEnd;
     int iCell;
-    pBND bnd[2];
+    const BND *bnd[2];
     int idSelf = pkd->idSelf;
 
     assert(id != pkd->idSelf);
     iCell = ROOT;
     pkdn = mdlAquire(mdl,CID_CELL,iCell,id);
     while (1) {
-        pkdNodeBnd(pkd, pkdn, &bnd[0]);
-        pkdNodeVBnd(pkd, pkdn, &bnd[1]);
+        bnd[0] = pkdNodeBnd(pkd, pkdn);
+        bnd[1] = pkdNodeVBnd(pkd, pkdn);
 	PSMINDIST(bnd,r,v,rscale,vscale,min2);
 	if (min2 > fBall2) {
 	    goto NoIntersect;
@@ -930,12 +930,12 @@ static PQ6 *_Gather(PKD pkd, KNN6D  knn, PQ6 *pq, float fBall2, FLOAT *r,FLOAT *
     FLOAT min2;
     int iCell,id;
     int sp = 0;
-    pBND bnd[2];
+    const BND *bnd[2];
 
     kdn = pkdTopNode(pkd,iCell = ROOT);
     while (1) {
-        pkdNodeBnd(pkd, kdn, &bnd[0]);
-        pkdNodeVBnd(pkd, kdn, &bnd[1]);
+        bnd[0] = pkdNodeBnd(pkd, kdn);
+        bnd[1] = pkdNodeVBnd(pkd, kdn);
 	PSMINDIST(bnd,r,v,rscale,vscale,min2);
 	if (min2 > fBall2) {
 	    goto NoIntersect;

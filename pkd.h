@@ -248,35 +248,30 @@ typedef struct bndBound {
 	int BND_COMBINE_j;\
 	for (BND_COMBINE_j=0;BND_COMBINE_j<3;++BND_COMBINE_j) {\
 		FLOAT BND_COMBINE_t1,BND_COMBINE_t2,BND_COMBINE_max,BND_COMBINE_min;\
-		BND_COMBINE_t1 = (b1).fCenter[BND_COMBINE_j] + (b1).fMax[BND_COMBINE_j];\
-		BND_COMBINE_t2 = (b2).fCenter[BND_COMBINE_j] + (b2).fMax[BND_COMBINE_j];\
+		BND_COMBINE_t1 = (b1)->fCenter[BND_COMBINE_j] + (b1)->fMax[BND_COMBINE_j];\
+		BND_COMBINE_t2 = (b2)->fCenter[BND_COMBINE_j] + (b2)->fMax[BND_COMBINE_j];\
 		BND_COMBINE_max = (BND_COMBINE_t1 > BND_COMBINE_t2)?BND_COMBINE_t1:BND_COMBINE_t2;\
-		BND_COMBINE_t1 = (b1).fCenter[BND_COMBINE_j] - (b1).fMax[BND_COMBINE_j];\
-		BND_COMBINE_t2 = (b2).fCenter[BND_COMBINE_j] - (b2).fMax[BND_COMBINE_j];\
+		BND_COMBINE_t1 = (b1)->fCenter[BND_COMBINE_j] - (b1)->fMax[BND_COMBINE_j];\
+		BND_COMBINE_t2 = (b2)->fCenter[BND_COMBINE_j] - (b2)->fMax[BND_COMBINE_j];\
 		BND_COMBINE_min = (BND_COMBINE_t1 < BND_COMBINE_t2)?BND_COMBINE_t1:BND_COMBINE_t2;\
-		(b).fCenter[BND_COMBINE_j] = 0.5*(BND_COMBINE_max + BND_COMBINE_min);\
-		(b).fMax[BND_COMBINE_j] = 0.5*(BND_COMBINE_max - BND_COMBINE_min);\
+		(b)->fCenter[BND_COMBINE_j] = 0.5*(BND_COMBINE_max + BND_COMBINE_min);\
+		(b)->fMax[BND_COMBINE_j] = 0.5*(BND_COMBINE_max - BND_COMBINE_min);\
 		}\
 	}
-
-typedef struct {
-    double *fCenter;
-    double *fMax;
-    } pBND;
 
 #define MINDIST(bnd,pos,min2) {\
     double BND_dMin;\
     int BND_j;\
     (min2) = 0;					\
     for (BND_j=0;BND_j<3;++BND_j) {\
-	BND_dMin = fabs((bnd).fCenter[BND_j] - (pos)[BND_j]) - (bnd).fMax[BND_j]; \
+	BND_dMin = fabs((bnd)->fCenter[BND_j] - (pos)[BND_j]) - (bnd)->fMax[BND_j]; \
 	if (BND_dMin > 0) (min2) += BND_dMin*BND_dMin;			\
 	}\
     }
 
 
 
-static inline int IN_BND(const FLOAT *R,const pBND *b) {
+static inline int IN_BND(const FLOAT *R,const BND *b) {
     int i;
     for( i=0; i<3; i++ )
 	if ( R[i]<b->fCenter[i]-b->fMax[i] || R[i]>=b->fCenter[i]+b->fMax[i] )
@@ -450,28 +445,26 @@ typedef struct sphBounds {
         FLOAT CALCOPEN_d2 = 0;						\
 	FLOAT CALCOPEN_b;						\
         int CALCOPEN_j;							\
-	pBND CALCOPEN_bnd;						\
-        pkdNodeBnd(pkd, pkdn, &CALCOPEN_bnd);				\
+	BND *CALCOPEN_bnd = pkdNodeBnd(pkd, pkdn);			\
         for (CALCOPEN_j=0;CALCOPEN_j<3;++CALCOPEN_j) {                  \
-            FLOAT CALCOPEN_d = fabs(CALCOPEN_bnd.fCenter[CALCOPEN_j] - (pkdn)->r[CALCOPEN_j]) + \
-                CALCOPEN_bnd.fMax[CALCOPEN_j];                          \
+            FLOAT CALCOPEN_d = fabs(CALCOPEN_bnd->fCenter[CALCOPEN_j] - (pkdn)->r[CALCOPEN_j]) + \
+                CALCOPEN_bnd->fMax[CALCOPEN_j];                          \
             CALCOPEN_d2 += CALCOPEN_d*CALCOPEN_d;                       \
             }								\
-	MAXSIDE(CALCOPEN_bnd.fMax,CALCOPEN_b);				\
+	MAXSIDE(CALCOPEN_bnd->fMax,CALCOPEN_b);				\
 	if (CALCOPEN_b < minside) CALCOPEN_b = minside;			\
 	if (CALCOPEN_b*CALCOPEN_b < CALCOPEN_d2) CALCOPEN_b = sqrt(CALCOPEN_d2); \
 	(pkdn)->bMax = CALCOPEN_b;					\
 	}
 
 #if (0)
-#define CALCOPEN(pkdn) {					\
+#define CALCOPEN(pkdn) {						\
         FLOAT CALCOPEN_d2 = 0;						\
         int CALCOPEN_j;							\
-	pBND CALCOPEN_bnd; \
-	pkdNodeBnd(pkd, pkdn, &CALCOPEN_bnd);			\
+	BND *CALCOPEN_bnd = pkdNodeBnd(pkd, pkdn);			\
         for (CALCOPEN_j=0;CALCOPEN_j<3;++CALCOPEN_j) {                  \
-            FLOAT CALCOPEN_d = fabs(CALCOPEN_bnd.fCenter[CALCOPEN_j] - (pkdn)->r[CALCOPEN_j]) + \
-                CALCOPEN_bnd.fMax[CALCOPEN_j];                          \
+            FLOAT CALCOPEN_d = fabs(CALCOPEN_bnd->fCenter[CALCOPEN_j] - (pkdn)->r[CALCOPEN_j]) + \
+                CALCOPEN_bnd->fMax[CALCOPEN_j];                          \
             CALCOPEN_d2 += CALCOPEN_d*CALCOPEN_d;                       \
             }\
         CALCOPEN_d2 = sqrt(CALCOPEN_d2);	  \
@@ -1052,18 +1045,12 @@ static inline SPHBNDS *pkdNodeSphBounds( PKD pkd, KDN *n ) {
     return CAST(SPHBNDS *,pkdNodeField(n,pkd->oNodeSphBounds));
     }
 
-static inline void pkdNodeBnd( PKD pkd, KDN *n, pBND *bnd ) {
-    const int o = pkd->oNodeBnd;
-    const int e = 3*sizeof(double);
-    bnd->fCenter = CAST(double *,pkdNodeField(n,o));
-    bnd->fMax = CAST(double *,pkdNodeField(n,o+e));
+static inline BND *pkdNodeBnd( PKD pkd, KDN *n ) {
+    return CAST(BND *,pkdNodeField(n,pkd->oNodeBnd));
     }
 
-static inline void pkdNodeVBnd( PKD pkd, KDN *n, pBND *vbnd ) {
-    const int o = pkd->oNodeVBnd;
-    const int e = 3*sizeof(double);
-    vbnd->fCenter = CAST(double *,pkdNodeField(n,o));
-    vbnd->fMax = CAST(double *,pkdNodeField(n,o+e));
+static inline BND *pkdNodeVBnd( PKD pkd, KDN *n ) {
+    return CAST(BND *,pkdNodeField(n,pkd->oNodeVBnd));
     }
 
 static inline KDN *pkdNode(PKD pkd,KDN *pBase,int iNode) {

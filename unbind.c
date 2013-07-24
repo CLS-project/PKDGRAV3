@@ -28,7 +28,7 @@ void ubInitializePLiteParticles(PKD pkd) {
     PLITE t;
     PARTICLE *p;
     KDN *pNode;
-    pBND bnd;
+    BND *bnd;
     int i,j;
     int iRoot;
 
@@ -74,13 +74,13 @@ void ubInitializePLiteParticles(PKD pkd) {
 	pNode->pLower = pLower;
 	pNode->pUpper = pNode->pLower + gd[i].nLocal - 1;
 	pLower += gd[i].nLocal;
-	pkdNodeBnd(pkd, pNode, &bnd);
+	bnd = pkdNodeBnd(pkd, pNode);
 	/*
 	** TODO: Make tight bounds. I think this might happen in Create()...
 	*/
 	for (j=0;j<3;++j) {
-	    bnd.fCenter[j] = pkd->bnd.fCenter[j];
-	    bnd.fMax[j] = pkd->bnd.fMax[j];
+	    bnd->fCenter[j] = pkd->bnd.fCenter[j];
+	    bnd->fMax[j] = pkd->bnd.fMax[j];
 	}
     }
 

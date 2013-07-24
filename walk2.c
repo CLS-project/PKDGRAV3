@@ -260,7 +260,7 @@ static void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin, i
     int i,n,iEnd,nLeft;
     CL_BLK *blk;
     v4sf iOpen,iOpenA,iOpenB;
-    pBND kbnd;
+    const BND *kbnd;
     v4sf k_xCenter, k_yCenter, k_zCenter, k_xMax, k_yMax, k_zMax;
     v4sf k_xMinBnd, k_yMinBnd, k_zMinBnd, k_xMaxBnd, k_yMaxBnd, k_zMaxBnd;
     v4sf k_x, k_y, k_z, k_m, k_bMax, k_Open;
@@ -275,19 +275,19 @@ static void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin, i
     fMonopoleThetaFac2 = SIMD_MUL(diCrit,diCrit);
 #endif
 
-    pkdNodeBnd(pkd,k,&kbnd);
-    k_xMinBnd = SIMD_SPLAT(kbnd.fCenter[0]-kbnd.fMax[0]);
-    k_yMinBnd = SIMD_SPLAT(kbnd.fCenter[1]-kbnd.fMax[1]);
-    k_zMinBnd = SIMD_SPLAT(kbnd.fCenter[2]-kbnd.fMax[2]);
-    k_xMaxBnd = SIMD_SPLAT(kbnd.fCenter[0]+kbnd.fMax[0]);
-    k_yMaxBnd = SIMD_SPLAT(kbnd.fCenter[1]+kbnd.fMax[1]);
-    k_zMaxBnd = SIMD_SPLAT(kbnd.fCenter[2]+kbnd.fMax[2]);
-    k_xCenter = SIMD_SPLAT(kbnd.fCenter[0]);
-    k_yCenter = SIMD_SPLAT(kbnd.fCenter[1]);
-    k_zCenter = SIMD_SPLAT(kbnd.fCenter[2]);
-    k_xMax = SIMD_SPLAT(kbnd.fMax[0]);
-    k_yMax = SIMD_SPLAT(kbnd.fMax[1]);
-    k_zMax = SIMD_SPLAT(kbnd.fMax[2]);
+    kbnd = pkdNodeBnd(pkd,k);
+    k_xMinBnd = SIMD_SPLAT(kbnd->fCenter[0]-kbnd->fMax[0]);
+    k_yMinBnd = SIMD_SPLAT(kbnd->fCenter[1]-kbnd->fMax[1]);
+    k_zMinBnd = SIMD_SPLAT(kbnd->fCenter[2]-kbnd->fMax[2]);
+    k_xMaxBnd = SIMD_SPLAT(kbnd->fCenter[0]+kbnd->fMax[0]);
+    k_yMaxBnd = SIMD_SPLAT(kbnd->fCenter[1]+kbnd->fMax[1]);
+    k_zMaxBnd = SIMD_SPLAT(kbnd->fCenter[2]+kbnd->fMax[2]);
+    k_xCenter = SIMD_SPLAT(kbnd->fCenter[0]);
+    k_yCenter = SIMD_SPLAT(kbnd->fCenter[1]);
+    k_zCenter = SIMD_SPLAT(kbnd->fCenter[2]);
+    k_xMax = SIMD_SPLAT(kbnd->fMax[0]);
+    k_yMax = SIMD_SPLAT(kbnd->fMax[1]);
+    k_zMax = SIMD_SPLAT(kbnd->fMax[2]);
     k_x = SIMD_SPLAT(k->r[0]);
     k_y = SIMD_SPLAT(k->r[1]);
     k_z = SIMD_SPLAT(k->r[2]);
@@ -394,9 +394,9 @@ static void iOpenOutcomeCL(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin,int 
     int iOpen,iOpenA,iOpenB;
     CL_BLK *blk;
     int n, nLeft;
-    pBND kbnd;
+    const BND *kbnd;
 
-    pkdNodeBnd(pkd,k,&kbnd);
+    kbnd = pkdNodeBnd(pkd,k);
     nk = k->pUpper - k->pLower + 1;
 
     diCrit = 1.0f / dThetaMin;
@@ -417,25 +417,25 @@ static void iOpenOutcomeCL(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin,int 
 		kOpen = 1.5f * k->bMax * diCrit;
 		cOpen = blk->cOpen.f[i];
 		d2Open = pow(cOpen+kOpen,2);
-		dx = fabs(xc - kbnd.fCenter[0]) - kbnd.fMax[0];
-		dy = fabs(yc - kbnd.fCenter[1]) - kbnd.fMax[1];
-		dz = fabs(zc - kbnd.fCenter[2]) - kbnd.fMax[2];
+		dx = fabs(xc - kbnd->fCenter[0]) - kbnd->fMax[0];
+		dy = fabs(yc - kbnd->fCenter[1]) - kbnd->fMax[1];
+		dz = fabs(zc - kbnd->fCenter[2]) - kbnd->fMax[2];
 		mink2 = ((dx>0)?dx*dx:0) + ((dy>0)?dy*dy:0) + ((dz>0)?dz*dz:0);
 		minbnd2 = 0;
 
-		dx = kbnd.fCenter[0] - kbnd.fMax[0] -  blk->xCenter.f[i] - blk->xOffset.f[i] - blk->xMax.f[i];
+		dx = kbnd->fCenter[0] - kbnd->fMax[0] -  blk->xCenter.f[i] - blk->xOffset.f[i] - blk->xMax.f[i];
 		if (dx > 0) minbnd2 += dx*dx;
-		dx = blk->xCenter.f[i] + blk->xOffset.f[i] - blk->xMax.f[i] - kbnd.fCenter[0] - kbnd.fMax[0];
-		if (dx > 0) minbnd2 += dx*dx;
-
-		dx = kbnd.fCenter[1] - kbnd.fMax[1] - blk->yCenter.f[i] - blk->yOffset.f[i] - blk->yMax.f[i];
-		if (dx > 0) minbnd2 += dx*dx;
-		dx = blk->yCenter.f[i] + blk->yOffset.f[i] - blk->yMax.f[i] - kbnd.fCenter[1] - kbnd.fMax[1];
+		dx = blk->xCenter.f[i] + blk->xOffset.f[i] - blk->xMax.f[i] - kbnd->fCenter[0] - kbnd->fMax[0];
 		if (dx > 0) minbnd2 += dx*dx;
 
-		dx = kbnd.fCenter[2] - kbnd.fMax[2] - blk->zCenter.f[i] - blk->zOffset.f[i] - blk->zMax.f[i];
+		dx = kbnd->fCenter[1] - kbnd->fMax[1] - blk->yCenter.f[i] - blk->yOffset.f[i] - blk->yMax.f[i];
 		if (dx > 0) minbnd2 += dx*dx;
-		dx = blk->zCenter.f[i] + blk->zOffset.f[i] - blk->zMax.f[i] - kbnd.fCenter[2] - kbnd.fMax[2];
+		dx = blk->yCenter.f[i] + blk->yOffset.f[i] - blk->yMax.f[i] - kbnd->fCenter[1] - kbnd->fMax[1];
+		if (dx > 0) minbnd2 += dx*dx;
+
+		dx = kbnd->fCenter[2] - kbnd->fMax[2] - blk->zCenter.f[i] - blk->zOffset.f[i] - blk->zMax.f[i];
+		if (dx > 0) minbnd2 += dx*dx;
+		dx = blk->zCenter.f[i] + blk->zOffset.f[i] - blk->zMax.f[i] - kbnd->fCenter[2] - kbnd->fMax[2];
 		if (dx > 0) minbnd2 += dx*dx;
 
 		if (d2 > d2Open && minbnd2 > fourh2) iOpen = 8;
@@ -499,7 +499,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
     int iStack;
     int j,jTile,pi,pj,nActive,nTotActive;
     float cOpen,kOpen;
-    pBND cbnd,kbnd;
+    const BND *cbnd,*kbnd;
     static const float  fZero3[] = {0.0f,0.0f,0.0f};
     static const double dZero3[] = {0.0,0.0,0.0};
     int nc,nk;
@@ -750,23 +750,23 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
 					** This is a rare case though, and as such we simply check the local iRoot bucket once more.
 					*/
 					nc = getCell(pkd,iRoot,id,&cOpen,&c);
-					pkdNodeBnd(pkd,c,&cbnd);
+					cbnd = pkdNodeBnd(pkd,c);
 					fOffset[0] = blk->xOffset.f[jTile];
 					fOffset[1] = blk->yOffset.f[jTile];
 					fOffset[2] = blk->zOffset.f[jTile];
-					clAppend(pkd->clNew,iRoot,id,0,nc,cOpen,pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c->r,fOffset,cbnd.fCenter,cbnd.fMax);
+					clAppend(pkd->clNew,iRoot,id,0,nc,cOpen,pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c->r,fOffset,cbnd->fCenter,cbnd->fMax);
 					break; /* finished, don't add children */
 					}
 				    }			    
 				cOpen = -1.0f;
 				nc = getCell(pkd,iCheckLower,id,&cOpen,&c);
-				pkdNodeBnd(pkd,c,&cbnd);
+				cbnd = pkdNodeBnd(pkd,c);
 				fOffset[0] = blk->xOffset.f[jTile];
 				fOffset[1] = blk->yOffset.f[jTile];
 				fOffset[2] = blk->zOffset.f[jTile];
 				iLower = c->iLower;
 				if (id == -1 && !iLower) iLower = iRoot;  /* something other than zero for openening crit - iLower usually can't be == iRoot */
-				clAppend(pkd->clNew,iCheckLower,id,iLower,nc,cOpen,pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c->r,fOffset,cbnd.fCenter,cbnd.fMax);
+				clAppend(pkd->clNew,iCheckLower,id,iLower,nc,cOpen,pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c->r,fOffset,cbnd->fCenter,cbnd->fMax);
 				if (id >= 0 && id != pkd->idSelf) mdlRelease(pkd->mdl,CID_CELL,c);
 				/*
 				** Also add the sibling of check->iLower.
@@ -774,10 +774,10 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
 				++iCheckLower;
 				cOpen = -1.0f;
 				nc = getCell(pkd,iCheckLower,id,&cOpen,&c);
-				pkdNodeBnd(pkd,c,&cbnd);
+				cbnd = pkdNodeBnd(pkd,c);
 				iLower = c->iLower;
 				if (id == -1 && !iLower) iLower = iRoot;  /* something other than zero for openening crit - iLower usually can't be == iRoot */
-				clAppend(pkd->clNew,iCheckLower,id,iLower,nc,cOpen,pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c->r,fOffset,cbnd.fCenter,cbnd.fMax);
+				clAppend(pkd->clNew,iCheckLower,id,iLower,nc,cOpen,pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c->r,fOffset,cbnd->fCenter,cbnd->fMax);
 				if (id >= 0 && id != pkd->idSelf) mdlRelease(pkd->mdl,CID_CELL,c);
 				break;
 			    case 4:
@@ -1107,7 +1107,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
 	    kOpen = -1.0f;
 	    iCell = k->iLower;
 	    nk = getCell(pkd,iCell,pkd->idSelf,&kOpen,&k);
-	    pkdNodeBnd(pkd,k,&kbnd);
+	    kbnd = pkdNodeBnd(pkd,k);
 	    /*
 	    ** Check iCell is active. We eventually want to just to a
 	    ** rung check here when we start using tree repair, but
@@ -1135,8 +1135,8 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
 		    pkd->cl = pkd->S[iStack+1].cl;
 		    pkd->S[iStack+1].cl = clTemp;
 		    }
-		pkdNodeBnd(pkd,c,&cbnd);
-		clAppend(pkd->cl,iSib,pkd->idSelf,c->iLower,nc,cOpen,pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c->r,fOffset,cbnd.fCenter,cbnd.fMax);
+		cbnd = pkdNodeBnd(pkd,c);
+		clAppend(pkd->cl,iSib,pkd->idSelf,c->iLower,nc,cOpen,pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c->r,fOffset,cbnd->fCenter,cbnd->fMax);
 		/*
 		** Test whether the sibling is active as well.
 		** If not we don't push it onto the stack, but we
@@ -1161,7 +1161,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
 		    /*
 		    ** Note here we already have the correct elements in S[iStack] (iStack+1 was used previously), just need to add one.
 		    */
-		    clAppend(pkd->S[iStack].cl,iCell,pkd->idSelf,k->iLower,nk,kOpen,pkdNodeMom(pkd,k)->m,4.0f*k->fSoft2,k->r,fOffset,kbnd.fCenter,kbnd.fMax);
+		    clAppend(pkd->S[iStack].cl,iCell,pkd->idSelf,k->iLower,nk,kOpen,pkdNodeMom(pkd,k)->m,4.0f*k->fSoft2,k->r,fOffset,kbnd->fCenter,kbnd->fMax);
 		    pkd->S[iStack].L = L;
 		    pkd->S[iStack].dirLsum = dirLsum;
 		    pkd->S[iStack].normLsum = normLsum;
@@ -1182,7 +1182,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
 		clTemp = pkd->cl;
 		pkd->cl = pkd->S[iStack+1].cl;
 		pkd->S[iStack+1].cl = clTemp;
-		clAppend(pkd->cl,iCell,pkd->idSelf,k->iLower,nk,kOpen,pkdNodeMom(pkd,k)->m,4.0f*k->fSoft2,k->r,fOffset,kbnd.fCenter,kbnd.fMax);
+		clAppend(pkd->cl,iCell,pkd->idSelf,k->iLower,nk,kOpen,pkdNodeMom(pkd,k)->m,4.0f*k->fSoft2,k->r,fOffset,kbnd->fCenter,kbnd->fMax);
 		/*
 		** Move onto processing the sibling.
 		*/
@@ -1320,7 +1320,7 @@ int pkdGravWalkHop(PKD pkd,double dTime,int nGroup, double dThetaMin,double dThe
     int nActive;
     int i,j,gid;
     float cOpen;
-    pBND cbnd;
+    const BND *cbnd;
     int nc;
     double dRhoFac;
     SMX smx;
@@ -1343,8 +1343,8 @@ int pkdGravWalkHop(PKD pkd,double dTime,int nGroup, double dThetaMin,double dThe
 	    iRoot = pkd->hopRoots[i].iIndex;
 	    assert(iRoot>0);
 	    nc = getCell(pkd,iRoot,id,&cOpen,&c);
-	    pkdNodeBnd(pkd,c,&cbnd);
-	    clAppend(pkd->cl,iRoot,id,c->iLower,nc,cOpen,pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c->r,fOffset,cbnd.fCenter,cbnd.fMax);
+	    cbnd = pkdNodeBnd(pkd,c);
+	    clAppend(pkd->cl,iRoot,id,c->iLower,nc,cOpen,pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c->r,fOffset,cbnd->fCenter,cbnd->fMax);
 	    }
 	assert(pkd->hopRoots[iRootSelf].iPid==pkd->idSelf);
 	nActive += processCheckList(pkd, smx, smf, pkd->hopRoots[iRootSelf].iIndex, 0, 0, MAX_RUNG, dRhoFac, 0, nGroup, dThetaMin, 0, pdFlop, pdPartSum, pdCellSum);
@@ -1368,7 +1368,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
     int pi;
     int j;
     float cOpen;
-    pBND cbnd;
+    const BND *cbnd;
     int nc;
     double dRhoFac;
     SMX smx;
@@ -1413,8 +1413,8 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 		    iLower = pkdTopNode(pkd,iRoot)->iLower;
 		    if (!iLower) iLower = iRoot;  /* something other than zero for openening crit - iLower usually can't be == iRoot */
 		    nc = getCell(pkd,iRoot,id,&cOpen,&c);
-		    pkdNodeBnd(pkd,c,&cbnd);
-		    clAppend(pkd->cl,iRoot,id,iLower,nc,cOpen,pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c->r,fOffset,cbnd.fCenter,cbnd.fMax);
+		    cbnd = pkdNodeBnd(pkd,c);
+		    clAppend(pkd->cl,iRoot,id,iLower,nc,cOpen,pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c->r,fOffset,cbnd->fCenter,cbnd->fMax);
 		    }
 		if (bRep && iVARoot) {
 		    /*
@@ -1425,8 +1425,8 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 		    iLower = pkdTopNode(pkd,iVARoot)->iLower;
 		    if (!iLower) iLower = iRoot;  /* something other than zero for openening crit - iLower usually can't be == iRoot */
 		    nc = getCell(pkd,iVARoot,id,&cOpen,&c);
-		    pkdNodeBnd(pkd,c,&cbnd);
-		    clAppend(pkd->cl,iVARoot,id,iLower,nc,cOpen,pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c->r,fOffset,cbnd.fCenter,cbnd.fMax);
+		    cbnd = pkdNodeBnd(pkd,c);
+		    clAppend(pkd->cl,iVARoot,id,iLower,nc,cOpen,pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c->r,fOffset,cbnd->fCenter,cbnd->fMax);
 		    }
 		}
 	    }
@@ -1445,8 +1445,8 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 	    iLower = pkdTopNode(pkd,iSib)->iLower;
 	    if (!iLower) iLower = iRoot;  /* something other than zero for openening crit - iLower usually can't be == iRoot */
 	    nc = getCell(pkd,iSib,id,&cOpen,&c);
-	    pkdNodeBnd(pkd,c,&cbnd);
-	    clAppend(pkd->cl,iSib,id,iLower,nc,cOpen,pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c->r,fOffset,cbnd.fCenter,cbnd.fMax);
+	    cbnd = pkdNodeBnd(pkd,c);
+	    clAppend(pkd->cl,iSib,id,iLower,nc,cOpen,pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c->r,fOffset,cbnd->fCenter,cbnd->fMax);
 	    iCell = pkdTopNode(pkd,iCell)->iParent;
 	    iSib = SIBLING(iCell);
 	    }
@@ -1467,7 +1467,7 @@ int pkdGravWalkGroups(PKD pkd,double dTime,int nGroup, double dThetaMin,double d
     int pi;
     int i,j,k;
     float cOpen;
-    pBND cbnd;
+    const BND *cbnd;
     int nc;
     double dRhoFac;
     SMX smx;
@@ -1497,8 +1497,8 @@ int pkdGravWalkGroups(PKD pkd,double dTime,int nGroup, double dThetaMin,double d
 	    id = gd[i].treeRoots[k].iPid;
 	    iRoot = gd[i].treeRoots[k].iLocalRootId;
 	    nc = getCell(pkd,iRoot,id,&cOpen,&c);
-	    pkdNodeBnd(pkd,c,&cbnd);
-	    clAppend(pkd->cl,iRoot,id,c->iLower,nc,cOpen,pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c->r,fOffset,cbnd.fCenter,cbnd.fMax);
+	    cbnd = pkdNodeBnd(pkd,c);
+	    clAppend(pkd->cl,iRoot,id,c->iLower,nc,cOpen,pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c->r,fOffset,cbnd->fCenter,cbnd->fMax);
         }
 #endif
 	nActive += processCheckList(pkd, smx, smf, gd[i].treeRoots[0].iLocalRootId, 0, 0, MAX_RUNG, dRhoFac, 0, nGroup, dThetaMin, 0, pdFlop, pdPartSum, pdCellSum);

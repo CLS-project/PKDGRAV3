@@ -1719,7 +1719,7 @@ void pstRungOrder(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	mdlReqService(pst->mdl,pst->idUpper,PST_RUNGORDER,vin,nIn);
 	pstRungOrder(pst->pstLower,vin,nIn,vout,pnOut);
 	mdlGetReply(pst->mdl,pst->idUpper,&outRung,pnOut);
-	BND_COMBINE(pst->bnd,out->bnd,outRung.bnd);
+	BND_COMBINE(&pst->bnd,&out->bnd,&outRung.bnd);
 	out->nMoved += outRung.nMoved;
 	out->bnd = pst->bnd;
 	}
@@ -1862,7 +1862,7 @@ void pstCalcBound(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	mdlReqService(pst->mdl,pst->idUpper,PST_CALCBOUND,NULL,0);
 	pstCalcBound(pst->pstLower,NULL,0,out,NULL);
 	mdlGetReply(pst->mdl,pst->idUpper,&outBnd,NULL);
-	BND_COMBINE(*out,*out,outBnd);
+	BND_COMBINE(out,out,&outBnd);
 	}
     else {
 	pkdCalcBound(plcl->pkd,out);
@@ -1880,7 +1880,7 @@ void pstCalcVBound(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	mdlReqService(pst->mdl,pst->idUpper,PST_CALCVBOUND,NULL,0);
 	pstCalcVBound(pst->pstLower,NULL,0,out,NULL);
 	mdlGetReply(pst->mdl,pst->idUpper,&outBnd,NULL);
-	BND_COMBINE(*out,*out,outBnd);
+	BND_COMBINE(out,out,&outBnd);
 	}
     else {
 	pkdCalcVBound(plcl->pkd,out);
@@ -1898,7 +1898,7 @@ void pstCombineBound(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	mdlReqService(pst->mdl,pst->idUpper,PST_COMBINEBOUND,NULL,0);
 	pstCombineBound(pst->pstLower,NULL,0,out,NULL);
 	mdlGetReply(pst->mdl,pst->idUpper,&outBnd,NULL);
-	BND_COMBINE(*out,*out,outBnd);
+	BND_COMBINE(out,out,&outBnd);
 	}
     else {
         *out = plcl->pkd->bnd;
@@ -5247,6 +5247,7 @@ void pstBuildPsdTree(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     KDN *ptmp, *pCell;
     FLOAT minside;
     int i,iCell,iLower,iNext;
+    BND *bnd, *p1bnd, *p2bnd;
 
     mdlassert(pst->mdl,nIn == sizeof(struct inPSD));
     iCell = in->iCell;
@@ -5274,16 +5275,15 @@ void pstBuildPsdTree(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
         iNext = UPPER(iCell);
         minside = min_side(pst->bnd.fMax);
 
-        pBND bnd, p1bnd, p2bnd;
 
-        pkdNodeBnd(pkd, pCell, &bnd);
-        pkdNodeBnd(pkd, pkdNode(pkd,pkdn,iLower), &p1bnd);
-        pkdNodeBnd(pkd, pkdNode(pkd,pkdn,iNext),  &p2bnd);
+        bnd = pkdNodeBnd(pkd, pCell);
+        p1bnd = pkdNodeBnd(pkd, pkdNode(pkd,pkdn,iLower));
+        p2bnd = pkdNodeBnd(pkd, pkdNode(pkd,pkdn,iNext));
         BND_COMBINE(bnd,p1bnd,p2bnd);
 
-        pkdNodeVBnd(pkd, pCell, &bnd);
-        pkdNodeVBnd(pkd, pkdNode(pkd,pkdn,iLower), &p1bnd);
-        pkdNodeVBnd(pkd, pkdNode(pkd,pkdn,iNext),  &p2bnd);
+        bnd = pkdNodeVBnd(pkd, pCell);
+        p1bnd = pkdNodeVBnd(pkd, pkdNode(pkd,pkdn,iLower));
+        p2bnd = pkdNodeVBnd(pkd, pkdNode(pkd,pkdn,iNext));
         BND_COMBINE(bnd,p1bnd,p2bnd);
 
 

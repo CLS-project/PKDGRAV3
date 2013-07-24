@@ -135,7 +135,7 @@ typedef struct knn6dContext
     int BND_j;\
     (min2) = 0;					\
     for (BND_j=0;BND_j<3;++BND_j) {\
-	BND_dMin = (fabs((bnd).fCenter[BND_j] - (pos)[BND_j]) - (bnd).fMax[BND_j]) * scale[BND_j]; \
+	BND_dMin = (fabs((bnd)->fCenter[BND_j] - (pos)[BND_j]) - (bnd)->fMax[BND_j]) * scale[BND_j]; \
 	BND_dMin *= (BND_dMin > 0); \
 	(min2) += BND_dMin*BND_dMin; \
 	}\
