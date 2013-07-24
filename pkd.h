@@ -241,7 +241,6 @@ typedef struct particle {
 typedef struct bndBound {
     double fCenter[3];
     double fMax[3];
-    double size;
     } BND;
 
 #define BND_COMBINE(b,b1,b2)\
@@ -263,7 +262,6 @@ typedef struct bndBound {
 typedef struct {
     double *fCenter;
     double *fMax;
-    double *size;
     } pBND;
 
 #define MINDIST(bnd,pos,min2) {\
@@ -1056,18 +1054,16 @@ static inline SPHBNDS *pkdNodeSphBounds( PKD pkd, KDN *n ) {
 
 static inline void pkdNodeBnd( PKD pkd, KDN *n, pBND *bnd ) {
     const int o = pkd->oNodeBnd;
-    const int e = sizeof(*bnd);
+    const int e = 3*sizeof(double);
     bnd->fCenter = CAST(double *,pkdNodeField(n,o));
     bnd->fMax = CAST(double *,pkdNodeField(n,o+e));
-    bnd->size = CAST(double *,pkdNodeField(n,o+e+e));
     }
 
 static inline void pkdNodeVBnd( PKD pkd, KDN *n, pBND *vbnd ) {
     const int o = pkd->oNodeVBnd;
-    const int e = sizeof(*vbnd);
+    const int e = 3*sizeof(double);
     vbnd->fCenter = CAST(double *,pkdNodeField(n,o));
     vbnd->fMax = CAST(double *,pkdNodeField(n,o+e));
-    vbnd->size = CAST(double *,pkdNodeField(n,o+e+e));
     }
 
 static inline KDN *pkdNode(PKD pkd,KDN *pBase,int iNode) {

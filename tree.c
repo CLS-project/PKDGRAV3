@@ -436,7 +436,6 @@ void Create(PKD pkd,int iNode) {
 	** This gives us a better feel for the "size" of a bucket with only a single particle.
 	*/
 	MINSIDE(bnd.fMax,bmin);
-	*bnd.size = 2.0*(bnd.fMax[0]+bnd.fMax[1]+bnd.fMax[2])/3.0;
 	/*
 	** Now shrink wrap the bucket bounds.
 	*/
@@ -630,7 +629,6 @@ void Create(PKD pkd,int iNode) {
 	    ** This gives us a better feel for the "size" of a bucket with only a single particle.
 	    */
 	    MINSIDE(bnd.fMax,bmin);
-	    *bnd.size = 2.0*(bnd.fMax[0]+bnd.fMax[1]+bnd.fMax[2])/3.0;
 	    pj = pkdn->pLower;
 	    pkdl = pkdTreeNode(pkd,pkdn->iLower);
 	    pkdu = pkdTreeNode(pkd,pkdn->iLower + 1);
