@@ -253,9 +253,6 @@ int smHopLink(SMX smx,SMF *smf) {
     int iIndex1, iIndex2, iMinPartIndex, iPid1, iPid2, iMinPartPid, iParticle;
     struct smGroupArray *ga = smx->ga;
     remoteID *pl = smx->pl;
-    /* FOR DEBUG */
-    char outName[100];
-    FILE *fp;
 
     for (pi=0;pi<pkd->nLocal;++pi) {
 	p = pkdParticle(pkd,pi);
