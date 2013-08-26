@@ -17,7 +17,7 @@
 #define OPT_GADGET2   'g'
 
 #define OPT_OMEGA0    'm'
-#define OPT_LAMBDA    'v'
+#define OPT_LAMBDA    '^'
 #define OPT_H0        'H'
 #define OPT_LBOX      'L'
 
@@ -65,7 +65,7 @@ int main( int argc, char *argv[] ) {
 		{ NULL,   0, 0, 0 },
 	    };
 
-	c = getopt_long( argc, argv, "dn5gprm:v:H:L:",
+	c = getopt_long( argc, argv, "dn5gprm:^:H:L:",
 			 long_options, &option_index );
 	if ( c == -1 ) break;
 
@@ -171,6 +171,8 @@ int main( int argc, char *argv[] ) {
     nStar = fioGetN(fioIn,FIO_SPECIES_STAR);
     if (!fioGetAttr(fioIn,"dTime",FIO_TYPE_DOUBLE,&dTime)) dTime = 0.0;
 
+    printf("dTime=%g\n",dTime);
+
 #ifdef USE_HDF5
     if (bHDF5) {
 	int mFlag = FIO_FLAG_COMPRESS_MASS | FIO_FLAG_COMPRESS_SOFT;
@@ -194,7 +196,7 @@ int main( int argc, char *argv[] ) {
 	dMass[0] = dMass[1] = dMass[2] = dMass[3] = dMass[4] = dMass[5] = 0.0;
 	fioOut = fioGadgetCreate(outName,mFlag,dTime,Lbox,
 	    Omega0, OmegaLambda, HubbleParam,
-	    6, nPart, 6, nPart, dMass );
+	    6, nPart, 1, nPart, dMass );
 	}
     else {
 	fioOut = fioTipsyCreate(outName,bDouble,!bNative,dTime,nSph,nDark,nStar);

@@ -1731,6 +1731,7 @@ typedef struct {
     int32_t  FlagMetals;
     uint32_t NallHW[GADGET2_NTYPES];
     int32_t  flag_entr_ics;
+    char     padding[56];
     } gadgetHdr;
 
 typedef struct {
@@ -1782,17 +1783,22 @@ typedef struct {
 static int gadgetGetAttr(FIO fio,
     const char *attr, FIO_TYPE dataType, void *data) {
     fioGADGET *gio = (fioGADGET *)fio;
+    double v;
+
     assert(fio->eFormat == FIO_FORMAT_GADGET2 && fio->eMode==FIO_MODE_READING);
-    if ( strcmp(attr,"dTime")==0 ) {
-	switch(dataType) {
-	case FIO_TYPE_FLOAT: *(float *)(data) = gio->hdr.Time; break;
-	case FIO_TYPE_DOUBLE:*(double *)(data) = gio->hdr.Time; break;
-	default: return 0;
-	    }
-	return 1;
+
+    if ( strcmp(attr,"dTime")==0 ) v = gio->hdr.Time;
+    else if ( strcmp(attr,"dOmega0")==0 ) v = gio->hdr.Omega0;
+    else if ( strcmp(attr,"dLambda")==0 ) v = gio->hdr.OmegaLambda;
+    else return 0;
+
+    switch(dataType) {
+    case FIO_TYPE_FLOAT: *(float *)(data) = v; break;
+    case FIO_TYPE_DOUBLE:*(double *)(data) = v; break;
+    default: return 0;
 	}
 
-    return 0;
+    return 1;
     }
 
 static FIO_SPECIES gadgetSpecies(struct fioInfo *fio) {
@@ -1904,10 +1910,11 @@ static int gadgetWriteNative(fioGADGET *gio,
 	iTmp = iParticleID;
 	fwrite(&iTmp, sizeof(uint32_t), 1, gio->fp_id.fp);
 	}
-
-    assert (gio->fp_mass.iDouble==sizeof(float));
-    fTmp[0] = fMass * gio->mass_fac;
-    fwrite(fTmp, sizeof(float), 1, gio->fp_mass.fp);
+    if (gio->fp_mass.fp) {
+	assert (gio->fp_mass.iDouble==sizeof(float));
+	fTmp[0] = fMass * gio->mass_fac;
+	fwrite(fTmp, sizeof(float), 1, gio->fp_mass.fp);
+	}
     return 1;
     }
 
@@ -1957,10 +1964,11 @@ FIO fioGadgetCreate(
     int nTypes, const uint64_t *nPart,
     int nFiles, const uint64_t *nAll,
     const double *dMass ) {
-    gadgetHdrBlk hdr;
+    gadgetHdr hdr;
     
-    int iType;
+    int i, iType;
     uint32_t w;
+    uint64_t nMass;
     fioGADGET *gio;
 
     assert(nTypes <= GADGET2_NTYPES && nTypes >= 1 );
@@ -2014,20 +2022,20 @@ FIO fioGadgetCreate(
 
     memset(&hdr,0,sizeof(hdr));
     for( iType=0; iType<nTypes; ++iType) {
-	hdr.hdr.Npart[iType] = nPart[iType];
-	hdr.hdr.Nall[iType]  = nAll[iType] & 0xffffffff;
-	hdr.hdr.NallHW[iType]= nAll[iType] >> 32;
-	hdr.hdr.Massarr[iType] = dMass[iType];
+	hdr.Npart[iType] = nPart[iType];
+	hdr.Nall[iType]  = nAll[iType] & 0xffffffff;
+	hdr.NallHW[iType]= nAll[iType] >> 32;
+	hdr.Massarr[iType] = dMass[iType];
 	}
-    hdr.hdr.Time = dTime;
-    hdr.hdr.Redshift = 1.0 / dTime - 1.0;  
-    hdr.hdr.NumFiles = nFiles;
-    hdr.hdr.BoxSize = Lbox;
-    hdr.hdr.Omega0 = Omega0;
-    hdr.hdr.OmegaLambda = OmegaLambda;
-    hdr.hdr.HubbleParam = HubbleParam / 100.0;
+    hdr.Time = dTime;
+    hdr.Redshift = 1.0 / dTime - 1.0;  
+    hdr.NumFiles = nFiles;
+    hdr.BoxSize = Lbox;
+    hdr.Omega0 = Omega0;
+    hdr.OmegaLambda = OmegaLambda;
+    hdr.HubbleParam = HubbleParam / 100.0;
 
-    gio->hdr = hdr.hdr;
+    gio->hdr = hdr;
     if ( gio->hdr.BoxSize > 0.0 ) {
 	double pi = 4.0 * atan(1.0);
 	gio->pos_fac = gio->hdr.BoxSize;
@@ -2074,15 +2082,25 @@ FIO fioGadgetCreate(
     fwrite(&w, sizeof(w), 1, gio->fp_id.fp);
     safe_fseek(gio->fp_id.fp,gio->fp_id.lOffset+sizeof(w));
 
-    gio->fp_mass.fp = fopen(fileName,"rb+");
-    if (gio->fp_mass.pBuffer != NULL) setvbuf(gio->fp_mass.fp,gio->fp_mass.pBuffer,_IOFBF,GIO_BUFFER_SIZE);
-    safe_fseek(gio->fp_mass.fp,gio->fp_mass.lOffset);
-    assert(ftello(gio->fp_mass.fp) == gio->fp_mass.lOffset);
-    w = gio->fio.nSpecies[FIO_SPECIES_ALL] * gio->fp_mass.iDouble;
-    fwrite(&w, sizeof(w), 1, gio->fp_mass.fp);
-    safe_fseek(gio->fp_mass.fp,gio->fp_mass.lOffset+sizeof(w)+w);
-    fwrite(&w, sizeof(w), 1, gio->fp_mass.fp);
-    safe_fseek(gio->fp_mass.fp,gio->fp_mass.lOffset+sizeof(w));
+
+    /* We might have particles masses, let us check */
+    nMass = 0;
+    for(i=0; i<GADGET2_NTYPES; ++i) {
+	if ( gio->hdr.Massarr[i] == 0.0 )
+	    nMass += gio->hdr.Npart[i];
+	}
+    if ( nMass == 0 ) gio->fp_mass.fp = NULL;
+    else {
+	gio->fp_mass.fp = fopen(fileName,"rb+");
+	if (gio->fp_mass.pBuffer != NULL) setvbuf(gio->fp_mass.fp,gio->fp_mass.pBuffer,_IOFBF,GIO_BUFFER_SIZE);
+	safe_fseek(gio->fp_mass.fp,gio->fp_mass.lOffset);
+	assert(ftello(gio->fp_mass.fp) == gio->fp_mass.lOffset);
+	w = nMass * gio->fp_mass.iDouble;
+	fwrite(&w, sizeof(w), 1, gio->fp_mass.fp);
+	safe_fseek(gio->fp_mass.fp,gio->fp_mass.lOffset+sizeof(w)+w);
+	fwrite(&w, sizeof(w), 1, gio->fp_mass.fp);
+	safe_fseek(gio->fp_mass.fp,gio->fp_mass.lOffset+sizeof(w));
+	}
 
     return &gio->fio;
     }
@@ -2254,7 +2272,7 @@ static FIO gadgetOpenOne(const char *fname) {
 	gio->bTagged = 0;
 	if (w1 == 0x00010000) gio->bSwap = 1;
 	else if (w1 == 256)   gio->bSwap = 0;
-	if (w1 == 0x40010000) gio->bSwap = 1;
+	else if (w1 == 0x40010000) gio->bSwap = 1;
 	else if (w1 == 320)   gio->bSwap = 0;
 	else {
 	    fclose(fp);
@@ -2378,8 +2396,7 @@ static FIO gadgetOpenOne(const char *fname) {
     /* We might have particles masses, let us check */
     nMass = 0;
     for(i=0; i<GADGET2_NTYPES; ++i) {
-	/*printf("%d %d %g\n", i, gio->hdr.Npart[i], gio->hdr.Massarr[i] );*/
-	if ( gio->hdr.Npart[i] && gio->hdr.Massarr[i] == 0.0 )
+	if ( gio->hdr.Massarr[i] == 0.0 )
 	    nMass += gio->hdr.Npart[i];
 	}
     if ( nMass == 0 ) gio->fp_mass.fp = NULL;

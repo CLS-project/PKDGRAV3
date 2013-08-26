@@ -5918,6 +5918,10 @@ double msrRead(MSR msr, const char *achInFile) {
     if (!fioGetAttr(fio,"dEcosmo",FIO_TYPE_DOUBLE,&msr->dEcosmo)) msr->dEcosmo = 0.0;
     if (!fioGetAttr(fio,"dTimeOld",FIO_TYPE_DOUBLE,&msr->dTimeOld)) msr->dTimeOld = 0.0;
     if (!fioGetAttr(fio,"dUOld",FIO_TYPE_DOUBLE,&msr->dUOld)) msr->dUOld = 0.0;
+
+    if(!prmSpecified(msr->prm, "dOmega0")) fioGetAttr(fio,"dOmega0",FIO_TYPE_DOUBLE,&msr->param.csm->dOmega0);
+    if(!prmSpecified(msr->prm, "dLambda")) fioGetAttr(fio,"dLambda",FIO_TYPE_DOUBLE,&msr->param.csm->dLambda);
+
     msr->N     = fioGetN(fio,FIO_SPECIES_ALL);
     msr->nGas  = fioGetN(fio,FIO_SPECIES_SPH);
     msr->nDark = fioGetN(fio,FIO_SPECIES_DARK);
