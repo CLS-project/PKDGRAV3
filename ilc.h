@@ -5,11 +5,10 @@
 
 #include "lst.h"
 
-#ifndef ILC_PART_PER_TILE
-#define ILC_PART_PER_TILE 1024 /* 1024*100 ~ 100k */
-#endif
+#define ILC_TILE_SIZE (100*1024) /* 100k */
+#ifndef ILC_PART_PER_BLK
 #define ILC_PART_PER_BLK (16)
-#define ILC_BLK_PER_TILE (ILC_PART_PER_TILE/ILC_PART_PER_BLK)
+#endif
 
 #if !defined(__CUDACC__)
 #include "simd.h"

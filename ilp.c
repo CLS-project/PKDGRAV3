@@ -9,7 +9,9 @@
 void ilpInitialize(ILP *ilp) {
     *ilp = malloc(sizeof(struct ilpContext));
     assert( *ilp != NULL );
-    lstInitialize(&(*ilp)->lst,NULL,ILP_BLK_PER_TILE, ILP_PART_PER_BLK, 2, /* two areas */
+    lstInitialize(&(*ilp)->lst,NULL,
+	ILP_TILE_SIZE / sizeof(ILP_BLK), ILP_PART_PER_BLK,
+	2, /* two areas */
 #ifdef USE_CUDA
 	sizeof(ILP_BLK),CUDA_malloc,CUDA_free,
 #else

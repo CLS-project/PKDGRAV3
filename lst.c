@@ -174,6 +174,7 @@ void lstInitialize(LST *lst, LSTFREELIST *freeList, int nBlocksPerTile, int nPer
     int i;
     assert(lst!=NULL);
 
+    if (nBlocksPerTile==0) nBlocksPerTile=1;
     lst->nAreas = nAreas;
     lst->nBlocksPerTile = nBlocksPerTile;
     lst->nPerBlock = nPerBlock;
