@@ -220,6 +220,10 @@ struct parameters {
     int iSeed;
 #endif
 
+#ifdef MDL_FFTW
+    int nGridPk;
+#endif
+
 #ifdef USE_LUSTRE
     int nStripeSize;
     int nStripeCount;

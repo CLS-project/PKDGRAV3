@@ -50,7 +50,7 @@
 #include "fio.h"
 
 #ifdef USE_LUSTRE
-#include <lustre/liblustreapi.h>
+#include <lustre/lustreapi.h>
 #include <lustre/lustre_user.h>
 #endif
 
@@ -582,6 +582,13 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.nIO = 0;
     prmAddParam(msr->prm,"nIO",1,&msr->param.nIO,
 		sizeof(int),"io","<Number of I/O processors> = 0");
+#endif
+
+
+#ifdef MDL_FFTW
+    msr->param.nGridPk = 0;
+    prmAddParam(msr->prm,"nGridPk",1,&msr->param.nGridPk,
+		sizeof(int),"pk","<Grid size for measure P(k) 0=disabled> = 0");
 #endif
 
     /* IC Generation */
@@ -6098,6 +6105,35 @@ void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint) {
 	msrSmooth(msr,dTime,SMX_DENSITY,bSymmetric,msr->param.nSmooth);
 #endif
 	}
+
+#ifdef MDL_FFTW
+    if (msr->param.nGridPk>0) {
+	double dCenter[3] = {0.0,0.0,0.0};
+	float *fPk;
+	FILE *fp;
+
+	fPk = malloc(sizeof(float)*(msr->param.nGridPk/2+1));
+	assert(fPk != NULL);
+
+	msrMeasurePk(msr,dCenter,0.5,msr->param.nGridPk,fPk);
+
+	msrBuildName(msr,achFile,iStep);
+	strncat(achFile,".pk",256);
+
+	fp = fopen(achFile,"w");
+	if ( fp==NULL) {
+	    printf("Could not create P(k) File:%s\n",achFile);
+	    _msrExit(msr,1);
+	    }
+	for(i=1; i<=msr->param.nGridPk/2; ++i) {
+	    fprintf(fp,"%d %g\n",i,fPk[i]);
+	    }
+	fclose(fp);
+	free(fPk);
+	}
+#endif
+
+
 
     if ( msr->param.bFindGroups ) {
 	/*
