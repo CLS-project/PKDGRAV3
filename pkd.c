@@ -661,11 +661,11 @@ void pkdFinish(PKD pkd) {
     free(pkd->S);
     if (pkd->kdTopPRIVATE) free(pkd->kdTopPRIVATE);
     if (pkd->ew.nMaxEwhLoop) {
-	free(pkd->ew.ewt.hx);
-	free(pkd->ew.ewt.hy);
-	free(pkd->ew.ewt.hz);
-	free(pkd->ew.ewt.hCfac);
-	free(pkd->ew.ewt.hSfac);
+	free(pkd->ew.ewt.hx.f);
+	free(pkd->ew.ewt.hy.f);
+	free(pkd->ew.ewt.hz.f);
+	free(pkd->ew.ewt.hCfac.f);
+	free(pkd->ew.ewt.hSfac.f);
 	free(pkd->pClass);
 	}
     /*

@@ -124,11 +124,11 @@ int CPUdoWorkPP(void *vpp) {
     int j;
     ILP_BLK *blk;
 #if defined(USE_SIMD_PP)
-    v4sf t1, t2, t3, pd2;
-    v4sf pax, pay, paz, pfx, pfy, pfz, pdx, pdy, pdz;
-    v4sf piax, piay, piaz;
-    v4sf ppot, pmass, p4soft2;
-    v4sf padotai,pimaga,psmooth2,pirsum,pnorms;
+    v_sf t1, t2, t3, pd2;
+    v_sf pax, pay, paz, pfx, pfy, pfz, pdx, pdy, pdz;
+    v_sf piax, piay, piaz;
+    v_sf ppot, pmass, p4soft2;
+    v_sf padotai,pimaga,psmooth2,pirsum,pnorms;
 #else
     float d2,dx,dy,dz,fourh2,dir,dir2,adotai;
     int nSoft;
@@ -193,8 +193,8 @@ int CPUdoWorkPP(void *vpp) {
     for( nLeft=pp->nBlocks; nLeft >= 0; --nLeft,++blk ) {
 	n = ((nLeft ? ILP_PART_PER_BLK : pp->nInLast) + SIMD_MASK) >> SIMD_BITS;
 	for (j=0; j<n; ++j) {
-	    v4sf pfourh2, td2, pir, pir2;
-	    v4bool vcmp;
+	    v_sf pfourh2, td2, pir, pir2;
+	    v_bool vcmp;
 	    int msk;
 
 	    pdx = SIMD_ADD(blk->dx.p[j],pfx);
@@ -374,18 +374,18 @@ int CPUdoWorkPC(void *vpc) {
     workPC *pc = vpc;
 
 #if defined(USE_SIMD_PC)
-    v4sf u,g0,g1,g2,g3,g4;
-    v4sf x,y,z;
-    v4sf tx,ty,tz;
-    v4sf xx,xy,xz,yy,yz,zz;
-    v4sf xxx,xxz,yyy,yyz,xxy,xyy,xyz;
-    v4sf t1, t2, t3;
-    v4sf pax, pay, paz;
-    v4sf pdx, pdy, pdz;
-    v4sf pfx, pfy, pfz;
-    v4sf piax, piay, piaz;
-    v4sf ppot, pmass, p4soft2;
-    v4sf padotai,pimaga,pirsum,pnorms;
+    v_sf u,g0,g1,g2,g3,g4;
+    v_sf x,y,z;
+    v_sf tx,ty,tz;
+    v_sf xx,xy,xz,yy,yz,zz;
+    v_sf xxx,xxz,yyy,yyz,xxy,xyy,xyz;
+    v_sf t1, t2, t3;
+    v_sf pax, pay, paz;
+    v_sf pdx, pdy, pdz;
+    v_sf pfx, pfy, pfz;
+    v_sf piax, piay, piaz;
+    v_sf ppot, pmass, p4soft2;
+    v_sf padotai,pimaga,pirsum,pnorms;
 #else
     const float onethird = 1.0f/3.0f;
     float u,g0,g1,g2,g3,g4;
@@ -446,8 +446,8 @@ int CPUdoWorkPC(void *vpc) {
     for( nLeft=pc->nBlocks; nLeft >= 0; --nLeft,++blk ) {
 	n = ((nLeft ? ILC_PART_PER_BLK : pc->nInLast) + SIMD_MASK) >> SIMD_BITS;
 	for (j=0; j<n; ++j) {
-	    v4sf pir, pd2;
-	    v4bool vcmp;
+	    v_sf pir, pd2;
+	    v_bool vcmp;
 
 	    pdx = SIMD_ADD(blk->dx.p[j],pfx);
 	    pdy = SIMD_ADD(blk->dy.p[j],pfy);

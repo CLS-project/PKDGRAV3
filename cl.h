@@ -21,15 +21,15 @@
 typedef union {
     float f[CL_PART_PER_BLK];
 #if defined(USE_SIMD_OPEN) && !defined(__CUDACC__)
-    v4sf p[CL_PART_PER_BLK/SIMD_WIDTH];
+    v_sf p[CL_PART_PER_BLK/SIMD_WIDTH];
 #endif
     } clFloat;
 
 typedef union {
     int32_t i[CL_PART_PER_BLK];
 #if defined(USE_SIMD_OPEN) && !defined(__CUDACC__)
-    v4i     p[CL_PART_PER_BLK/SIMD_WIDTH];
-    v4sf    pf[CL_PART_PER_BLK/SIMD_WIDTH];
+    v_i     p[CL_PART_PER_BLK/SIMD_WIDTH];
+    v_sf    pf[CL_PART_PER_BLK/SIMD_WIDTH];
 #endif
     } clInt32;
 

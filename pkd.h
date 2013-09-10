@@ -510,14 +510,18 @@ typedef struct RhoLocalArray {
     double m;
     } RHOLOCAL;
 
+typedef union {
+    float *f;
+    v_sf *p;
+    } ewaldFloat;
+
 struct EwaldVariables {
     double fEwCut2,fInner2,alpha,alpha2,k1,ka;
     double Q4xx,Q4xy,Q4xz,Q4yy,Q4yz,Q4zz,Q4,Q3x,Q3y,Q3z,Q2;
     struct {
-	float *hx,*hy,*hz;
-	float *hCfac,*hSfac;
+	ewaldFloat hx,hy,hz;
+	ewaldFloat hCfac,hSfac;
 	} ewt;
-
     int nMaxEwhLoop;
     int nEwhLoop;
     int nReps,nEwReps;

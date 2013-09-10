@@ -241,7 +241,7 @@ static const struct ICONSTS {
 
 static union {
     uint32_t u[SIMD_WIDTH];
-    v4sf p;
+    v_sf p;
     } const_fabs = {SIMD_CONST(0x7fffffff)};
 
 /*
@@ -252,19 +252,19 @@ static union {
 ** This version will also open buckets ("new" criteria)
 */
 static void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin, int nGroup) {
-    v4sf T0,T1,T2,T3,T4,T6,T7,P1,P2,P3,P4;
+    v_sf T0,T1,T2,T3,T4,T6,T7,P1,P2,P3,P4;
 #ifdef USE_SOFTENED_MONOPOLE
-    v4sf T5,fMonopoleThetaFac2;
+    v_sf T5,fMonopoleThetaFac2;
 #endif
-    v4sf T,xc,yc,zc,dx,dy,dz,d2,diCrit,cOpen,cOpen2,d2Open,mink2,minbnd2,fourh2;
+    v_sf T,xc,yc,zc,dx,dy,dz,d2,diCrit,cOpen,cOpen2,d2Open,mink2,minbnd2,fourh2;
     int i,n,iEnd,nLeft;
     CL_BLK *blk;
-    v4sf iOpen,iOpenA,iOpenB;
+    v_sf iOpen,iOpenA,iOpenB;
     const BND *kbnd;
-    v4sf k_xCenter, k_yCenter, k_zCenter, k_xMax, k_yMax, k_zMax;
-    v4sf k_xMinBnd, k_yMinBnd, k_zMinBnd, k_xMaxBnd, k_yMaxBnd, k_zMaxBnd;
-    v4sf k_x, k_y, k_z, k_m, k_bMax, k_Open;
-    v4i  k_nk;
+    v_sf k_xCenter, k_yCenter, k_zCenter, k_xMax, k_yMax, k_zMax;
+    v_sf k_xMinBnd, k_yMinBnd, k_zMinBnd, k_xMaxBnd, k_yMaxBnd, k_zMaxBnd;
+    v_sf k_x, k_y, k_z, k_m, k_bMax, k_Open;
+    v_i  k_nk;
     i4 k_nGroup = {SIMD_CONST(nGroup)};
 
     assert ( pkdNodeMom(pkd,k)->m > 0.0f );
