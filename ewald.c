@@ -24,10 +24,10 @@ int pkdParticleEwald(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     double Q3mirx,Q3miry,Q3mirz,Q3mir,Q2mirx,Q2miry,Q2mirz,Q2mir;
     double g0,g1,g2,g3,g4,g5;
     double onethird = 1.0/3.0;
-    float hdotx,s,c;
     int i,ix,iy,iz,bInHole,bInHolex,bInHolexy;
     int nFlop;
     int nLoop = 0;
+    float hdotx,s,c,t;
 
     assert(pkd->oAcceleration); /* Validate memory model */
     assert(pkd->oPotential); /* Validate memory model */
@@ -155,21 +155,15 @@ int pkdParticleEwald(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     **		Total        = (22,36)
     **					 = 58
     */
-#if 0
-    __assume_aligned(pkd->ew.ewt.hx, 32);
-    __assume_aligned(pkd->ew.ewt.hy, 32);
-    __assume_aligned(pkd->ew.ewt.hz, 32);
-    __assume_aligned(pkd->ew.ewt.hCfac, 32);
-    __assume_aligned(pkd->ew.ewt.hSfac, 32);
-#endif
     for (i=0;i<pkd->ew.nEwhLoop;++i) {
-	hdotx = pkd->ew.ewt.hx[i]*dx + pkd->ew.ewt.hy[i]*dy + pkd->ew.ewt.hz[i]*dz;
-	c = cos(hdotx);
-	s = sin(hdotx);
-	fPot += pkd->ew.ewt.hCfac[i]*c + pkd->ew.ewt.hSfac[i]*s;
-	ax += pkd->ew.ewt.hx[i]*(pkd->ew.ewt.hCfac[i]*s - pkd->ew.ewt.hSfac[i]*c);
-	ay += pkd->ew.ewt.hy[i]*(pkd->ew.ewt.hCfac[i]*s - pkd->ew.ewt.hSfac[i]*c);
-	az += pkd->ew.ewt.hz[i]*(pkd->ew.ewt.hCfac[i]*s - pkd->ew.ewt.hSfac[i]*c);
+	hdotx = pkd->ew.ewt.hx.f[i]*dx + pkd->ew.ewt.hy.f[i]*dy + pkd->ew.ewt.hz.f[i]*dz;
+	c = cosf(hdotx);
+	s = sinf(hdotx);
+	fPot += pkd->ew.ewt.hCfac.f[i]*c + pkd->ew.ewt.hSfac.f[i]*s;
+	t = pkd->ew.ewt.hCfac.f[i]*s - pkd->ew.ewt.hSfac.f[i]*c;
+	ax += pkd->ew.ewt.hx.f[i]*t;
+	ay += pkd->ew.ewt.hy.f[i]*t;
+	az += pkd->ew.ewt.hz.f[i]*t;
 	}
     *pPot += fPot;
     pa[0] += ax;
@@ -217,19 +211,19 @@ void pkdEwaldInit(PKD pkd,int nReps,double fEwCut,double fhCut) {
     hReps = d2i(ceil(fhCut));
     k4 = M_PI*M_PI/(pkd->ew.alpha*pkd->ew.alpha*L*L);
 
-    i = pow(1+2*hReps,3);
+    i = ((int)pow(1+2*hReps,3) + SIMD_MASK) & ~SIMD_MASK;
     if ( i>pkd->ew.nMaxEwhLoop ) {
 	pkd->ew.nMaxEwhLoop = i;
-	pkd->ew.ewt.hx = malloc(pkd->ew.nMaxEwhLoop*sizeof(pkd->ew.ewt.hx));
-	assert(pkd->ew.ewt.hx != NULL);
-	pkd->ew.ewt.hy = malloc(pkd->ew.nMaxEwhLoop*sizeof(pkd->ew.ewt.hy));
-	assert(pkd->ew.ewt.hy != NULL);
-	pkd->ew.ewt.hz = malloc(pkd->ew.nMaxEwhLoop*sizeof(pkd->ew.ewt.hz));
-	assert(pkd->ew.ewt.hz != NULL);
-	pkd->ew.ewt.hCfac = malloc(pkd->ew.nMaxEwhLoop*sizeof(pkd->ew.ewt.hCfac));
-	assert(pkd->ew.ewt.hCfac != NULL);
-	pkd->ew.ewt.hSfac = malloc(pkd->ew.nMaxEwhLoop*sizeof(pkd->ew.ewt.hSfac));
-	assert(pkd->ew.ewt.hSfac != NULL);
+	pkd->ew.ewt.hx.f = malloc(pkd->ew.nMaxEwhLoop*sizeof(pkd->ew.ewt.hx.f));
+	assert(pkd->ew.ewt.hx.f != NULL);
+	pkd->ew.ewt.hy.f = malloc(pkd->ew.nMaxEwhLoop*sizeof(pkd->ew.ewt.hy.f));
+	assert(pkd->ew.ewt.hy.f != NULL);
+	pkd->ew.ewt.hz.f = malloc(pkd->ew.nMaxEwhLoop*sizeof(pkd->ew.ewt.hz.f));
+	assert(pkd->ew.ewt.hz.f != NULL);
+	pkd->ew.ewt.hCfac.f = malloc(pkd->ew.nMaxEwhLoop*sizeof(pkd->ew.ewt.hCfac.f));
+	assert(pkd->ew.ewt.hCfac.f != NULL);
+	pkd->ew.ewt.hSfac.f = malloc(pkd->ew.nMaxEwhLoop*sizeof(pkd->ew.ewt.hSfac.f));
+	assert(pkd->ew.ewt.hSfac.f != NULL);
 	}
     i = 0;
     for (hx=-hReps;hx<=hReps;++hx) {
@@ -267,14 +261,25 @@ void pkdEwaldInit(PKD pkd,int nReps,double fEwCut,double fhCut) {
 		az = 0.0;
 		mfacs = 0.0;
 		QEVAL(iOrder,pkd->momRoot,gam,hx,hy,hz,ax,ay,az,mfacs);
-		pkd->ew.ewt.hx[i] = 2*M_PI/L*hx;
-		pkd->ew.ewt.hy[i] = 2*M_PI/L*hy;
-		pkd->ew.ewt.hz[i] = 2*M_PI/L*hz;
-		pkd->ew.ewt.hCfac[i] = mfacc;
-		pkd->ew.ewt.hSfac[i] = mfacs;
+		pkd->ew.ewt.hx.f[i] = 2*M_PI/L*hx;
+		pkd->ew.ewt.hy.f[i] = 2*M_PI/L*hy;
+		pkd->ew.ewt.hz.f[i] = 2*M_PI/L*hz;
+		pkd->ew.ewt.hCfac.f[i] = mfacc;
+		pkd->ew.ewt.hSfac.f[i] = mfacs;
 		++i;
 		}
 	    }
 	}
+#ifdef USE_SIMD
+    while(i&SIMD_MASK) {
+	pkd->ew.ewt.hx.f[i] = 0;
+	pkd->ew.ewt.hy.f[i] = 0;
+	pkd->ew.ewt.hz.f[i] = 0;
+	pkd->ew.ewt.hCfac.f[i] = 0;
+	pkd->ew.ewt.hSfac.f[i] = 0;
+	++i;
+	}
+#endif
     pkd->ew.nEwhLoop = i;
+
     }
