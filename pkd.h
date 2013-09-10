@@ -510,15 +510,14 @@ typedef struct RhoLocalArray {
     double m;
     } RHOLOCAL;
 
-typedef struct ewaldTable {
-    double hx,hy,hz;
-    double hCfac,hSfac;
-    } EWT;
-
 struct EwaldVariables {
     double fEwCut2,fInner2,alpha,alpha2,k1,ka;
     double Q4xx,Q4xy,Q4xz,Q4yy,Q4yz,Q4zz,Q4,Q3x,Q3y,Q3z,Q2;
-    EWT *ewt;
+    struct {
+	float *hx,*hy,*hz;
+	float *hCfac,*hSfac;
+	} ewt;
+
     int nMaxEwhLoop;
     int nEwhLoop;
     int nReps,nEwReps;

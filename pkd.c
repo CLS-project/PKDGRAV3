@@ -524,9 +524,7 @@ void pkdInitialize(
     /*
     ** Ewald stuff!
     */
-    pkd->ew.nMaxEwhLoop = 100;
-    pkd->ew.ewt = malloc(pkd->ew.nMaxEwhLoop*sizeof(EWT));
-    mdlassert(mdl,pkd->ew.ewt != NULL);
+    pkd->ew.nMaxEwhLoop = 0;
     *ppkd = pkd;
     /*
     ** Tree walk stuff.
@@ -662,8 +660,14 @@ void pkdFinish(PKD pkd) {
 	}
     free(pkd->S);
     if (pkd->kdTopPRIVATE) free(pkd->kdTopPRIVATE);
-    free(pkd->ew.ewt);
-    free(pkd->pClass);
+    if (pkd->ew.nMaxEwhLoop) {
+	free(pkd->ew.ewt.hx);
+	free(pkd->ew.ewt.hy);
+	free(pkd->ew.ewt.hz);
+	free(pkd->ew.ewt.hCfac);
+	free(pkd->ew.ewt.hSfac);
+	free(pkd->pClass);
+	}
     /*
     ** Free any neighbor lists that were left hanging around.
     */

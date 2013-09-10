@@ -24,7 +24,7 @@ int pkdParticleEwald(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     double Q3mirx,Q3miry,Q3mirz,Q3mir,Q2mirx,Q2miry,Q2mirz,Q2mir;
     double g0,g1,g2,g3,g4,g5;
     double onethird = 1.0/3.0;
-    double hdotx,s,c;
+    float hdotx,s,c;
     int i,ix,iy,iz,bInHole,bInHolex,bInHolexy;
     int nFlop;
     int nLoop = 0;
@@ -155,14 +155,21 @@ int pkdParticleEwald(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     **		Total        = (22,36)
     **					 = 58
     */
+#if 0
+    __assume_aligned(pkd->ew.ewt.hx, 32);
+    __assume_aligned(pkd->ew.ewt.hy, 32);
+    __assume_aligned(pkd->ew.ewt.hz, 32);
+    __assume_aligned(pkd->ew.ewt.hCfac, 32);
+    __assume_aligned(pkd->ew.ewt.hSfac, 32);
+#endif
     for (i=0;i<pkd->ew.nEwhLoop;++i) {
-	hdotx = pkd->ew.ewt[i].hx*dx + pkd->ew.ewt[i].hy*dy + pkd->ew.ewt[i].hz*dz;
+	hdotx = pkd->ew.ewt.hx[i]*dx + pkd->ew.ewt.hy[i]*dy + pkd->ew.ewt.hz[i]*dz;
 	c = cos(hdotx);
 	s = sin(hdotx);
-	fPot += pkd->ew.ewt[i].hCfac*c + pkd->ew.ewt[i].hSfac*s;
-	ax += pkd->ew.ewt[i].hx*(pkd->ew.ewt[i].hCfac*s - pkd->ew.ewt[i].hSfac*c);
-	ay += pkd->ew.ewt[i].hy*(pkd->ew.ewt[i].hCfac*s - pkd->ew.ewt[i].hSfac*c);
-	az += pkd->ew.ewt[i].hz*(pkd->ew.ewt[i].hCfac*s - pkd->ew.ewt[i].hSfac*c);
+	fPot += pkd->ew.ewt.hCfac[i]*c + pkd->ew.ewt.hSfac[i]*s;
+	ax += pkd->ew.ewt.hx[i]*(pkd->ew.ewt.hCfac[i]*s - pkd->ew.ewt.hSfac[i]*c);
+	ay += pkd->ew.ewt.hy[i]*(pkd->ew.ewt.hCfac[i]*s - pkd->ew.ewt.hSfac[i]*c);
+	az += pkd->ew.ewt.hz[i]*(pkd->ew.ewt.hCfac[i]*s - pkd->ew.ewt.hSfac[i]*c);
 	}
     *pPot += fPot;
     pa[0] += ax;
@@ -209,6 +216,21 @@ void pkdEwaldInit(PKD pkd,int nReps,double fEwCut,double fhCut) {
     */
     hReps = d2i(ceil(fhCut));
     k4 = M_PI*M_PI/(pkd->ew.alpha*pkd->ew.alpha*L*L);
+
+    i = pow(1+2*hReps,3);
+    if ( i>pkd->ew.nMaxEwhLoop ) {
+	pkd->ew.nMaxEwhLoop = i;
+	pkd->ew.ewt.hx = malloc(pkd->ew.nMaxEwhLoop*sizeof(pkd->ew.ewt.hx));
+	assert(pkd->ew.ewt.hx != NULL);
+	pkd->ew.ewt.hy = malloc(pkd->ew.nMaxEwhLoop*sizeof(pkd->ew.ewt.hy));
+	assert(pkd->ew.ewt.hy != NULL);
+	pkd->ew.ewt.hz = malloc(pkd->ew.nMaxEwhLoop*sizeof(pkd->ew.ewt.hz));
+	assert(pkd->ew.ewt.hz != NULL);
+	pkd->ew.ewt.hCfac = malloc(pkd->ew.nMaxEwhLoop*sizeof(pkd->ew.ewt.hCfac));
+	assert(pkd->ew.ewt.hCfac != NULL);
+	pkd->ew.ewt.hSfac = malloc(pkd->ew.nMaxEwhLoop*sizeof(pkd->ew.ewt.hSfac));
+	assert(pkd->ew.ewt.hSfac != NULL);
+	}
     i = 0;
     for (hx=-hReps;hx<=hReps;++hx) {
 	for (hy=-hReps;hy<=hReps;++hy) {
@@ -216,11 +238,7 @@ void pkdEwaldInit(PKD pkd,int nReps,double fEwCut,double fhCut) {
 		h2 = hx*hx + hy*hy + hz*hz;
 		if (h2 == 0) continue;
 		if (h2 > fhCut*fhCut) continue;
-		if (i == pkd->ew.nMaxEwhLoop) {
-		    pkd->ew.nMaxEwhLoop *= 2;
-		    pkd->ew.ewt = realloc(pkd->ew.ewt,pkd->ew.nMaxEwhLoop*sizeof(EWT));
-		    assert(pkd->ew.ewt != NULL);
-		    }
+		assert (i < pkd->ew.nMaxEwhLoop);
 		gam[0] = exp(-k4*h2)/(M_PI*h2*L);
 		gam[1] = 2*M_PI/L*gam[0];
 		gam[2] = -2*M_PI/L*gam[1];
@@ -249,16 +267,14 @@ void pkdEwaldInit(PKD pkd,int nReps,double fEwCut,double fhCut) {
 		az = 0.0;
 		mfacs = 0.0;
 		QEVAL(iOrder,pkd->momRoot,gam,hx,hy,hz,ax,ay,az,mfacs);
-		pkd->ew.ewt[i].hx = 2*M_PI/L*hx;
-		pkd->ew.ewt[i].hy = 2*M_PI/L*hy;
-		pkd->ew.ewt[i].hz = 2*M_PI/L*hz;
-		pkd->ew.ewt[i].hCfac = mfacc;
-		pkd->ew.ewt[i].hSfac = mfacs;
+		pkd->ew.ewt.hx[i] = 2*M_PI/L*hx;
+		pkd->ew.ewt.hy[i] = 2*M_PI/L*hy;
+		pkd->ew.ewt.hz[i] = 2*M_PI/L*hz;
+		pkd->ew.ewt.hCfac[i] = mfacc;
+		pkd->ew.ewt.hSfac[i] = mfacs;
 		++i;
 		}
 	    }
 	}
     pkd->ew.nEwhLoop = i;
     }
-
-
