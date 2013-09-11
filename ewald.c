@@ -13,6 +13,13 @@
 #include "meval.h"
 #include "qeval.h"
 #include "moments.h"
+#if defined(USE_SIMD) && defined(__SSE__)
+#ifdef __AVX__
+#include "avx_mathfun.h"
+#else
+#include "sse_mathfun.h"
+#endif
+#endif
 
 int pkdParticleEwald(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     PARTICLE *p, float *pa, float *pPot) {
@@ -27,7 +34,13 @@ int pkdParticleEwald(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     int i,ix,iy,iz,bInHole,bInHolex,bInHolexy;
     int nFlop;
     int nLoop = 0;
+#if defined(USE_SIMD) && defined(__SSE__)
+    v_sf pdx, pdy, pdz, pax, pay, paz, ppot, t;
+    static const v4 zero =         {SIMD_CONST(0.0)};
+    v4 s,c,hdotx;
+#else
     float hdotx,s,c,t;
+#endif
 
     assert(pkd->oAcceleration); /* Validate memory model */
     assert(pkd->oPotential); /* Validate memory model */
@@ -155,6 +168,44 @@ int pkdParticleEwald(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     **		Total        = (22,36)
     **					 = 58
     */
+#if 0
+    __assume_aligned(pkd->ew.ewt.hx.f, 32);
+    __assume_aligned(pkd->ew.ewt.hy.f, 32);
+    __assume_aligned(pkd->ew.ewt.hz.f, 32);
+    __assume_aligned(pkd->ew.ewt.hCfac.f, 32);
+    __assume_aligned(pkd->ew.ewt.hSfac.f, 32);
+#endif
+
+#if defined(USE_SIMD) && defined(__SSE__)
+    nLoop = pkd->ew.nEwhLoop >> SIMD_BITS;
+    pax = zero.p;
+    pay = zero.p;
+    paz = zero.p;
+    ppot = zero.p;
+    pdx = SIMD_SPLAT(dx);
+    pdy = SIMD_SPLAT(dy);
+    pdz = SIMD_SPLAT(dz);
+    for (i=0;i<nLoop;++i) {
+	hdotx.p = SIMD_MADD(pkd->ew.ewt.hz.p[i],pdz,SIMD_MADD(pkd->ew.ewt.hy.p[i],pdy,SIMD_MUL(pkd->ew.ewt.hx.p[i],pdx)));
+#ifdef __AVX__
+	sincos256_ps(hdotx.p,&s.p,&c.p);
+#else
+	sincos_ps(hdotx.p,&s.p,&c.p);
+#endif
+	//s.p = _mm256_sincos_ps(&c.p,hdotx.p);
+	ppot = SIMD_ADD(ppot,SIMD_ADD(SIMD_MUL(pkd->ew.ewt.hSfac.p[i],s.p),SIMD_MUL(pkd->ew.ewt.hCfac.p[i],c.p)));
+	s.p = SIMD_MUL(pkd->ew.ewt.hCfac.p[i],s.p);
+	c.p = SIMD_MUL(pkd->ew.ewt.hSfac.p[i],c.p);
+	t = SIMD_SUB(s.p,c.p);
+	pax = SIMD_ADD(pax,SIMD_MUL(pkd->ew.ewt.hx.p[i],t));
+	pay = SIMD_ADD(pay,SIMD_MUL(pkd->ew.ewt.hy.p[i],t));
+	paz = SIMD_ADD(paz,SIMD_MUL(pkd->ew.ewt.hz.p[i],t));
+	}
+    ax += SIMD_HADD(pax);
+    ay += SIMD_HADD(pay);
+    az += SIMD_HADD(paz);
+    fPot += SIMD_HADD(ppot);
+#else
     for (i=0;i<pkd->ew.nEwhLoop;++i) {
 	hdotx = pkd->ew.ewt.hx.f[i]*dx + pkd->ew.ewt.hy.f[i]*dy + pkd->ew.ewt.hz.f[i]*dz;
 	c = cosf(hdotx);
@@ -165,6 +216,7 @@ int pkdParticleEwald(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
 	ay += pkd->ew.ewt.hy.f[i]*t;
 	az += pkd->ew.ewt.hz.f[i]*t;
 	}
+#endif
     *pPot += fPot;
     pa[0] += ax;
     pa[1] += ay;
@@ -214,15 +266,15 @@ void pkdEwaldInit(PKD pkd,int nReps,double fEwCut,double fhCut) {
     i = ((int)pow(1+2*hReps,3) + SIMD_MASK) & ~SIMD_MASK;
     if ( i>pkd->ew.nMaxEwhLoop ) {
 	pkd->ew.nMaxEwhLoop = i;
-	pkd->ew.ewt.hx.f = malloc(pkd->ew.nMaxEwhLoop*sizeof(pkd->ew.ewt.hx.f));
+	pkd->ew.ewt.hx.f = SIMD_malloc(pkd->ew.nMaxEwhLoop*sizeof(pkd->ew.ewt.hx.f));
 	assert(pkd->ew.ewt.hx.f != NULL);
-	pkd->ew.ewt.hy.f = malloc(pkd->ew.nMaxEwhLoop*sizeof(pkd->ew.ewt.hy.f));
+	pkd->ew.ewt.hy.f = SIMD_malloc(pkd->ew.nMaxEwhLoop*sizeof(pkd->ew.ewt.hy.f));
 	assert(pkd->ew.ewt.hy.f != NULL);
-	pkd->ew.ewt.hz.f = malloc(pkd->ew.nMaxEwhLoop*sizeof(pkd->ew.ewt.hz.f));
+	pkd->ew.ewt.hz.f = SIMD_malloc(pkd->ew.nMaxEwhLoop*sizeof(pkd->ew.ewt.hz.f));
 	assert(pkd->ew.ewt.hz.f != NULL);
-	pkd->ew.ewt.hCfac.f = malloc(pkd->ew.nMaxEwhLoop*sizeof(pkd->ew.ewt.hCfac.f));
+	pkd->ew.ewt.hCfac.f = SIMD_malloc(pkd->ew.nMaxEwhLoop*sizeof(pkd->ew.ewt.hCfac.f));
 	assert(pkd->ew.ewt.hCfac.f != NULL);
-	pkd->ew.ewt.hSfac.f = malloc(pkd->ew.nMaxEwhLoop*sizeof(pkd->ew.ewt.hSfac.f));
+	pkd->ew.ewt.hSfac.f = SIMD_malloc(pkd->ew.nMaxEwhLoop*sizeof(pkd->ew.ewt.hSfac.f));
 	assert(pkd->ew.ewt.hSfac.f != NULL);
 	}
     i = 0;
