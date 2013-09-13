@@ -56,13 +56,13 @@ int pkdParticleEwald(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     dy = p->r[1] - pkdTopNode(pkd,ROOT)->r[1];
     dz = p->r[2] - pkdTopNode(pkd,ROOT)->r[2];
     for (ix=-pkd->ew.nEwReps;ix<=pkd->ew.nEwReps;++ix) {
-	bInHolex = (ix >= -pkd->ew.nReps && ix <= pkd->ew.nReps);
+	bInHolex = (abs(ix) <= pkd->ew.nReps);
 	x = dx + ix*L;
 	for (iy=-pkd->ew.nEwReps;iy<=pkd->ew.nEwReps;++iy) {
-	    bInHolexy = (bInHolex && iy >= -pkd->ew.nReps && iy <= pkd->ew.nReps);
+	    bInHolexy = (bInHolex && abs(iy) <= pkd->ew.nReps);
 	    y = dy + iy*L;
 	    for (iz=-pkd->ew.nEwReps;iz<=pkd->ew.nEwReps;++iz) {
-		bInHole = (bInHolexy && iz >= -pkd->ew.nReps && iz <= pkd->ew.nReps);
+		bInHole = (bInHolexy && abs(iz) <= pkd->ew.nReps);
 		/*
 		** Scoring for Ewald inner stuff = (+,*)
 		**		Visible ops 		= (104,161)
@@ -192,7 +192,6 @@ int pkdParticleEwald(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
 #else
 	sincos_ps(hdotx.p,&s.p,&c.p);
 #endif
-	//s.p = _mm256_sincos_ps(&c.p,hdotx.p);
 	ppot = SIMD_ADD(ppot,SIMD_ADD(SIMD_MUL(pkd->ew.ewt.hSfac.p[i],s.p),SIMD_MUL(pkd->ew.ewt.hCfac.p[i],c.p)));
 	s.p = SIMD_MUL(pkd->ew.ewt.hCfac.p[i],s.p);
 	c.p = SIMD_MUL(pkd->ew.ewt.hSfac.p[i],c.p);
