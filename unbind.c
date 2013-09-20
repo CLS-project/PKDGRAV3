@@ -199,6 +199,7 @@ static void AllBroadcast(PKD pkd, struct AllBroadcastData *d, void *src, void *d
 
 static void ubBroadcastTreeRoots(PKD pkd)
 {
+#ifdef MPI_VERSION
     int i,j,k,sTotal;
 
     int nID      = mdlSelf(pkd->mdl);
@@ -212,10 +213,9 @@ static void ubBroadcastTreeRoots(PKD pkd)
 	int iLocalDestId;
     };
 
-#ifdef MPI_VERSION
     mdlTypeContiguous(pkd->mdl, sizeof(struct btr), MDL_BYTE, &dataType);
     mdlTypeCommit(pkd->mdl,&dataType);
-#endif
+
     struct tree_root_cache_msg tree_root_msg;
     struct tree_root_cache_msg *remote_msg;
 
@@ -230,14 +230,10 @@ static void ubBroadcastTreeRoots(PKD pkd)
 	    remote_msg->iLocalId = gd[i].iLocalId;
 	    remote_msg->tr       = gd[i].treeRoots[0];
 	    mdlRelease(pkd->mdl,CID_TREE_ROOT,remote_msg);
-#ifdef MPI_VERSION
 	    mdlFlushCache(pkd->mdl, CID_TREE_ROOT);
-#endif
 	}
     }
     mdlFinishCache(pkd->mdl,CID_TREE_ROOT);
-
-
     AllBroadcastAlloc(&bd, mdlThreads(pkd->mdl), dataType);
 
     for (i=0; i < bd.nDomains; i++) bd.scounts[i] = 0;
@@ -331,6 +327,7 @@ static void ubBroadcastTreeRoots(PKD pkd)
     free(nTreeRoots);
     free(src);
     free(dst);
+#endif
 }
 
 static void ubGravity(PKD pkd)
