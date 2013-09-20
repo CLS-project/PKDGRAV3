@@ -1198,6 +1198,10 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
 
     msr->nThreads = mdlThreads(mdl);
 
+    /* Make sure that parallel read and write are sane */
+    if (msr->param.bParaRead>msr->nThreads) msr->param.bParaRead = msr->nThreads;
+    if (msr->param.bParaWrite>msr->nThreads) msr->param.bParaWrite = msr->nThreads;
+
     /*
     ** Create the processor subset tree.
     */
