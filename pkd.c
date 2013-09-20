@@ -524,6 +524,7 @@ void pkdInitialize(
     /*
     ** Ewald stuff!
     */
+    pkd->ew.nMaxEwLoopInner = 0;
     pkd->ew.nMaxEwhLoop = 0;
     *ppkd = pkd;
     /*
@@ -661,13 +662,19 @@ void pkdFinish(PKD pkd) {
     free(pkd->S);
     if (pkd->kdTopPRIVATE) free(pkd->kdTopPRIVATE);
     if (pkd->ew.nMaxEwhLoop) {
-	free(pkd->ew.ewt.hx.f);
-	free(pkd->ew.ewt.hy.f);
-	free(pkd->ew.ewt.hz.f);
-	free(pkd->ew.ewt.hCfac.f);
-	free(pkd->ew.ewt.hSfac.f);
-	free(pkd->pClass);
+	SIMD_free(pkd->ew.ewt.hx.f);
+	SIMD_free(pkd->ew.ewt.hy.f);
+	SIMD_free(pkd->ew.ewt.hz.f);
+	SIMD_free(pkd->ew.ewt.hCfac.f);
+	SIMD_free(pkd->ew.ewt.hSfac.f);
 	}
+    if (pkd->ew.nMaxEwLoopInner) {
+	SIMD_free(pkd->ew.ewt.Lx.d);
+	SIMD_free(pkd->ew.ewt.Ly.d);
+	SIMD_free(pkd->ew.ewt.Lz.d);
+	}
+
+    free(pkd->pClass);
     /*
     ** Free any neighbor lists that were left hanging around.
     */

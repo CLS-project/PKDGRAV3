@@ -515,15 +515,21 @@ typedef union {
     v_sf *p;
     } ewaldFloat;
 
+typedef union {
+    double *d;
+    v_df *p;
+    } ewaldDouble;
+
 struct EwaldVariables {
     double fEwCut2,fInner2,alpha,alpha2,k1,ka;
     double Q4xx,Q4xy,Q4xz,Q4yy,Q4yz,Q4zz,Q4,Q3x,Q3y,Q3z,Q2;
     struct {
 	ewaldFloat hx,hy,hz;
 	ewaldFloat hCfac,hSfac;
+	ewaldDouble Lx,Ly,Lz;
 	} ewt;
-    int nMaxEwhLoop;
-    int nEwhLoop;
+    int nMaxEwLoopInner, nMaxEwhLoop;
+    int nEwLoopInner, nEwhLoop;
     int nReps,nEwReps;
     };
 

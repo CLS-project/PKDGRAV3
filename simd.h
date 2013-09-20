@@ -15,9 +15,13 @@
 #else
 #define SIMD_BITS 0
 #endif
+#define SIMD_DBITS (SIMD_BITS-1)
+
 
 #define SIMD_WIDTH (1<<SIMD_BITS)
+#define SIMD_DWIDTH (1<<SIMD_DBITS)
 #define SIMD_MASK (SIMD_WIDTH-1)
+#define SIMD_DMASK (SIMD_DWIDTH-1)
 
 #ifdef HAVE_ANSIDECL_H
 #include <ansidecl.h>
@@ -58,17 +62,19 @@
 
 #if defined(__SSE__)
 #ifdef __AVX__
-typedef ATTRIBUTE_ALIGNED_ALIGNOF(__m256) __m256 v_sf;
-typedef ATTRIBUTE_ALIGNED_ALIGNOF(__m256) __m256 v_bool;
+typedef ATTRIBUTE_ALIGNED_ALIGNOF(__m256) __m256  v_sf;
+typedef ATTRIBUTE_ALIGNED_ALIGNOF(__m256) __m256d v_df;
+typedef ATTRIBUTE_ALIGNED_ALIGNOF(__m256) __m256  v_bool;
 typedef ATTRIBUTE_ALIGNED_ALIGNOF(__m256) __m256i v_i;
-#define MM_FCN(f) _mm256_##f
-#define MM_CMP(f,F,a,b) _mm256_cmp_ps(a,b,_CMP_##F##_OQ)
+#define MM_FCN(f,p) _mm256_##f##_##p
+#define MM_CMP(F,f,a,b) _mm256_cmp_ps(a,b,_CMP_##F##_OQ)
 #else
-typedef ATTRIBUTE_ALIGNED_ALIGNOF(__m128) __m128 v_sf;
-typedef ATTRIBUTE_ALIGNED_ALIGNOF(__m128) __m128 v_bool;
+typedef ATTRIBUTE_ALIGNED_ALIGNOF(__m128) __m128  v_sf;
+typedef ATTRIBUTE_ALIGNED_ALIGNOF(__m128) __m128d v_df;
+typedef ATTRIBUTE_ALIGNED_ALIGNOF(__m128) __m128  v_bool;
 typedef ATTRIBUTE_ALIGNED_ALIGNOF(__m128) __m128i v_i;
-#define MM_FCN(f) _mm_##f
-#define MM_CMP(f,F,a,b) _mm_cmp##f##_ps(a,b)
+#define MM_FCN(f,p) _mm_##f##_##p
+#define MM_CMP(F,f,a,b) _mm_cmp##f##_ps(a,b)
 #endif
 #else
 typedef vector float v_sf;
@@ -88,6 +94,12 @@ typedef union {
     float f[SIMD_WIDTH];
     v_sf p;
     } v4;
+
+typedef union {
+    double f[SIMD_DWIDTH];
+    v_df p;
+    } vdouble;
+
 typedef union {
     int32_t  i[SIMD_WIDTH];
     uint32_t u[SIMD_WIDTH];
@@ -115,7 +127,7 @@ static inline void SIMD_free(void *p) {
 
 static inline v_sf SIMD_SPLAT(float f) {
 #ifdef __SSE__
-    return MM_FCN(set1_ps)(f);
+    return MM_FCN(set1,ps)(f);
 #else
     int i;
     v4 r;
@@ -127,7 +139,7 @@ static inline v_sf SIMD_SPLAT(float f) {
 
 static inline v_i SIMD_SPLATI32(int i) {
 #ifdef __SSE__
-    return MM_FCN(set1_epi32)(i);
+    return MM_FCN(set1,epi32)(i);
 #else
     typedef union {
 	int i[SIMD_WIDTH];
@@ -145,7 +157,7 @@ static inline v_sf SIMD_LOADS(float f) {
 #ifdef __AVX__
     return _mm256_set_ps (0.0,0.0,0.0,0.0,0.0,0.0,0.0,f);
 #elif defined(__SSE__)
-    return MM_FCN(set_ss)(f);
+    return MM_FCN(set,ss)(f);
 #else
     int i;
     v4 r;
@@ -157,40 +169,40 @@ static inline v_sf SIMD_LOADS(float f) {
     }
 
 #if defined(__SSE__)
-#define SIMD_MUL(a,b) MM_FCN(mul_ps)(a,b)
-#define SIMD_ADD(a,b) MM_FCN(add_ps)(a,b)
-#define SIMD_SUB(a,b) MM_FCN(sub_ps)(a,b)
+#define SIMD_MUL(a,b) MM_FCN(mul,ps)(a,b)
+#define SIMD_ADD(a,b) MM_FCN(add,ps)(a,b)
+#define SIMD_SUB(a,b) MM_FCN(sub,ps)(a,b)
 #ifdef __FMA4__
-#define SIMD_MADD(a,b,c) MM_FCN(macc_ps)(a,b,c)
-#define SIMD_NMSUB(a,b,c) MM_FCN(nmacc_ps)(a,b,c)
+#define SIMD_MADD(a,b,c) MM_FCN(macc,ps)(a,b,c)
+#define SIMD_NMSUB(a,b,c) MM_FCN(nmacc,ps)(a,b,c)
 #else
-#define SIMD_MADD(a,b,c) MM_FCN(add_ps)(MM_FCN(mul_ps)(a,b),c)
-#define SIMD_NMSUB(a,b,c) MM_FCN(sub_ps)(c,MM_FCN(mul_ps)(a,b))
+#define SIMD_MADD(a,b,c) MM_FCN(add,ps)(MM_FCN(mul,ps)(a,b),c)
+#define SIMD_NMSUB(a,b,c) MM_FCN(sub,ps)(c,MM_FCN(mul,ps)(a,b))
 #endif
-#define SIMD_DIV(a,b) MM_FCN(div_ps)(a,b)
-#define SIMD_RSQRT(a) MM_FCN(rsqrt_ps)(a)
-#define SIMD_RE(a) MM_FCN(rcp_ps)(a);
+#define SIMD_DIV(a,b) MM_FCN(div,ps)(a,b)
+#define SIMD_RSQRT(a) MM_FCN(rsqrt,ps)(a)
+#define SIMD_RE(a) MM_FCN(rcp,ps)(a);
 static inline v_sf SIMD_RE_EXACT(v_sf a) {
     static const v4 one = {SIMD_CONST(1.0)};
     v_sf r = SIMD_RE(a);
-    return MM_FCN(add_ps)(MM_FCN(mul_ps)(r,MM_FCN(sub_ps)(one.p,MM_FCN(mul_ps)(r,a))),r);
+    return MM_FCN(add,ps)(MM_FCN(mul,ps)(r,MM_FCN(sub,ps)(one.p,MM_FCN(mul,ps)(r,a))),r);
     }
-#define SIMD_MAX(a,b) MM_FCN(max_ps)(a,b)
-#define SIMD_MIN(a,b) MM_FCN(min_ps)(a,b)
-#define SIMD_CMP_EQ(a,b) MM_CMP(eq,EQ,a,b)
-#define SIMD_CMP_NE(a,b) MM_CMP(ne,NE,a,b)
-#define SIMD_CMP_LE(a,b) MM_CMP(le,LE,a,b)
-#define SIMD_CMP_LT(a,b) MM_CMP(lt,LT,a,b)
-#define SIMD_CMP_GE(a,b) MM_CMP(ge,GE,a,b)
-#define SIMD_CMP_GT(a,b) MM_CMP(gt,GT,a,b)
-#define SIMD_AND(a,b) MM_FCN(and_ps)(a,b)
-#define SIMD_ANDNOT(a,b) MM_FCN(andnot_ps)(a,b)
-#define SIMD_OR(a,b) MM_FCN(or_ps)(a,b)
-#define SIMD_XOR(a,b) MM_FCN(xor_ps)(a,b)
-#define SIMD_ALL_ZERO(a) MM_FCN(movemask_ps)(a)
+#define SIMD_MAX(a,b) MM_FCN(max,ps)(a,b)
+#define SIMD_MIN(a,b) MM_FCN(min,ps)(a,b)
+#define SIMD_CMP_EQ(a,b) MM_CMP(EQ,eq,a,b)
+#define SIMD_CMP_NE(a,b) MM_CMP(NE,ne,a,b)
+#define SIMD_CMP_LE(a,b) MM_CMP(LE,le,a,b)
+#define SIMD_CMP_LT(a,b) MM_CMP(LT,lt,a,b)
+#define SIMD_CMP_GE(a,b) MM_CMP(GE,ge,a,b)
+#define SIMD_CMP_GT(a,b) MM_CMP(GT,gt,a,b)
+#define SIMD_AND(a,b) MM_FCN(and,ps)(a,b)
+#define SIMD_ANDNOT(a,b) MM_FCN(andnot,ps)(a,b)
+#define SIMD_OR(a,b) MM_FCN(or,ps)(a,b)
+#define SIMD_XOR(a,b) MM_FCN(xor,ps)(a,b)
+#define SIMD_ALL_ZERO(a) MM_FCN(movemask,ps)(a)
 #ifdef __AVX__
-#define SIMD_I2F(a) MM_FCN(castsi256_ps)(a)
-#define SIMD_F2I(a) MM_FCN(castps_si256)(a)
+#define SIMD_I2F(a) MM_FCN(castsi256,ps)(a)
+#define SIMD_F2I(a) MM_FCN(castps,si256)(a)
 
 typedef union {
     ATTRIBUTE_ALIGNED_ALIGNOF(__m256) __m256i p8;
@@ -217,13 +229,13 @@ static inline v_i SIMD_CMP_GT_EPI32(v_i a,v_i b) {
     return x.p8;
     }
 #else
-#define SIMD_I2F(a) MM_FCN(castsi128_ps)(a)
-#define SIMD_F2I(a) MM_FCN(castps_si128)(a)
-#define SIMD_CMP_EQ_EPI32(a,b) MM_FCN(cmpeq_epi32)(a,b)
-#define SIMD_CMP_GT_EPI32(a,b) MM_FCN(cmpgt_epi32)(a,b)
-#define SIMD_AND_EPI32(a,b) MM_FCN(and_si128)(a,b)
-#define SIMD_ANDNOT_EPI32(a,b) MM_FCN(andnot_si128)(a,b)
-#define SIMD_OR_EPI32(a,b) MM_FCN(or_si128)(a,b)
+#define SIMD_I2F(a) MM_FCN(castsi128,ps)(a)
+#define SIMD_F2I(a) MM_FCN(castps,si128)(a)
+#define SIMD_CMP_EQ_EPI32(a,b) MM_FCN(cmpeq,epi32)(a,b)
+#define SIMD_CMP_GT_EPI32(a,b) MM_FCN(cmpgt,epi32)(a,b)
+#define SIMD_AND_EPI32(a,b) MM_FCN(and,si128)(a,b)
+#define SIMD_ANDNOT_EPI32(a,b) MM_FCN(andnot,si128)(a,b)
+#define SIMD_OR_EPI32(a,b) MM_FCN(or,si128)(a,b)
 #endif
 #else
 static v_sf   simd_zero  = {SIMD_CONST(0)};
@@ -274,8 +286,8 @@ static inline v_sf SIMD_RSQRT_EXACT(v_sf B) {
 static inline float SIMD_HADD(v_sf p) {
     v4 r;
     r.p = p;
-    r.p = MM_FCN(hadd_ps)(r.p,r.p);
-    r.p = MM_FCN(hadd_ps)(r.p,r.p);
+    r.p = MM_FCN(hadd,ps)(r.p,r.p);
+    r.p = MM_FCN(hadd,ps)(r.p,r.p);
 #ifdef __AVX__
     r.f[0] += r.f[4];
 #endif
