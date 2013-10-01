@@ -1075,9 +1075,6 @@ int pkdNodes(PKD pkd);
 void pkdExtendTree(PKD pkd);
 static inline KDN *pkdTreeNode(PKD pkd,int iNode) {
     char *kdn = &pkd->kdNodeListPRIVATE[(iNode>>pkd->nTreeBitsLo)][pkd->iTreeNodeSize*(iNode&pkd->iTreeMask)];
-#ifdef __SSE__
-    _mm_prefetch(kdn,_MM_HINT_T0);
-#endif
     return (KDN *)kdn;
     }
 static inline void pkdTreeAllocNodePair(PKD pkd,int *iLeft, int *iRight) {
