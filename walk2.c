@@ -202,10 +202,10 @@ static inline int getCell(PKD pkd,int iCell,int id,float *pcOpen,KDN **pc) {
 
 #ifdef USE_SIMD_OPEN
 static const struct CONSTS {
-    v4 zero;
-    v4 one;
-    v4 threehalves;
-    v4 two;
+    vfloat zero;
+    vfloat one;
+    vfloat threehalves;
+    vfloat two;
     } consts = {
         {SIMD_CONST(0.0)},
 	{SIMD_CONST(1.0)},
@@ -213,18 +213,18 @@ static const struct CONSTS {
 	{SIMD_CONST(2.0)},
 };
 static const struct ICONSTS {
-    i4 zero;
-    i4 one;
-    i4 two;
-    i4 three;
-    i4 four;
-    i4 five;
-    i4 six;
-    i4 seven;
-    i4 eight;
+    vint zero;
+    vint one;
+    vint two;
+    vint three;
+    vint four;
+    vint five;
+    vint six;
+    vint seven;
+    vint eight;
     /* no nine */
-    i4 ten;
-    i4 walk_min_multipole;
+    vint ten;
+    vint walk_min_multipole;
     } iconsts = {
         {SIMD_CONST(0)},
 	{SIMD_CONST(1)},
@@ -265,7 +265,7 @@ static void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin, i
     v_sf k_xMinBnd, k_yMinBnd, k_zMinBnd, k_xMaxBnd, k_yMaxBnd, k_zMaxBnd;
     v_sf k_x, k_y, k_z, k_m, k_bMax, k_Open;
     v_i  k_nk;
-    i4 k_nGroup = {SIMD_CONST(nGroup)};
+    vint k_nGroup = {SIMD_CONST(nGroup)};
 
     assert ( pkdNodeMom(pkd,k)->m > 0.0f );
 
@@ -984,9 +984,9 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
 				    dx[2] = k->r[2] - (blk->z.f[jTile] + blk->zOffset.f[jTile]);
 				    d2 = dx[0]*dx[0] + dx[1]*dx[1] + dx[2]*dx[2];
 				    dir = 1.0/sqrt(d2);
-				    monoPole.m = blk->m.f[jTile];
-				    *pdFlop += momLocrAddFmomr5cm(&L,&monoPole,0.0,dir,dx[0],dx[1],dx[2],&tax,&tay,&taz);
-
+				    /* monoPole.m = blk->m.f[jTile];*/
+				    /* *pdFlop += momLocrAddFmomr5cm(&L,&monoPole,0.0,dir,dx[0],dx[1],dx[2],&tax,&tay,&taz);*/
+				    *pdFlop += momLocrAddMono5(&L,blk->m.f[jTile],dir,dx[0],dx[1],dx[2],&tax,&tay,&taz);
 				    adotai = a[0]*tax + a[1]*tay + a[2]*taz;
 				    if (adotai > 0) {
 					adotai /= maga;

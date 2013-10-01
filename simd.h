@@ -67,15 +67,16 @@ typedef ATTRIBUTE_ALIGNED_ALIGNOF(__m256) __m256d v_df;
 typedef ATTRIBUTE_ALIGNED_ALIGNOF(__m256) __m256  v_bool;
 typedef ATTRIBUTE_ALIGNED_ALIGNOF(__m256) __m256i v_i;
 #define MM_FCN(f,p) _mm256_##f##_##p
-#define MM_CMP(F,f,a,b) _mm256_cmp_ps(a,b,_CMP_##F##_OQ)
+#define MM_CMP(F,f,p,a,b) _mm256_cmp_##p(a,b,_CMP_##F##_OQ)
 #else
 typedef ATTRIBUTE_ALIGNED_ALIGNOF(__m128) __m128  v_sf;
 typedef ATTRIBUTE_ALIGNED_ALIGNOF(__m128) __m128d v_df;
 typedef ATTRIBUTE_ALIGNED_ALIGNOF(__m128) __m128  v_bool;
 typedef ATTRIBUTE_ALIGNED_ALIGNOF(__m128) __m128i v_i;
 #define MM_FCN(f,p) _mm_##f##_##p
-#define MM_CMP(F,f,a,b) _mm_cmp##f##_ps(a,b)
+#define MM_CMP(F,f,p,a,b) _mm_cmp##f##_##p(a,b)
 #endif
+typedef ATTRIBUTE_ALIGNED_ALIGNOF(__m128) __m128i v_i4;
 #else
 typedef vector float v_sf;
 typedef vector bool int v_bool;
@@ -84,8 +85,10 @@ typedef vector bool int v_i;
 
 #if SIMD_WIDTH==4
 #define SIMD_CONST(c) {c,c,c,c}
+#define SIMD_DCONST(c) {c,c}
 #elif SIMD_WIDTH==8
 #define SIMD_CONST(c) {c,c,c,c,c,c,c,c}
+#define SIMD_DCONST(c) {c,c,c,c}
 #else
 #error Invalid SIMD_WIDTH
 #endif
@@ -93,10 +96,10 @@ typedef vector bool int v_i;
 typedef union {
     float f[SIMD_WIDTH];
     v_sf p;
-    } v4;
+    } vfloat;
 
 typedef union {
-    double f[SIMD_DWIDTH];
+    double d[SIMD_DWIDTH];
     v_df p;
     } vdouble;
 
@@ -104,8 +107,16 @@ typedef union {
     int32_t  i[SIMD_WIDTH];
     uint32_t u[SIMD_WIDTH];
     v_i      p;
+    v_i4     ph;
     v_sf     pf;
-    } i4;
+    v_df     pd;
+    } vint;
+
+typedef union {
+    uint64_t u[SIMD_WIDTH];
+    v_i      pi;
+    v_df     pd;
+    } vint64;
 
 #if defined(HAVE_POSIX_MEMALIGN)
 static inline void * SIMD_malloc( size_t newSize ) {
@@ -130,7 +141,7 @@ static inline v_sf SIMD_SPLAT(float f) {
     return MM_FCN(set1,ps)(f);
 #else
     int i;
-    v4 r;
+    vfloat r;
     for(i=0; i<SIMD_WIDTH; i++) r.f[i] = f;
     return r.p;
     /*return (v_sf)(f,f,f,f);*/
@@ -141,12 +152,8 @@ static inline v_i SIMD_SPLATI32(int i) {
 #ifdef __SSE__
     return MM_FCN(set1,epi32)(i);
 #else
-    typedef union {
-	int i[SIMD_WIDTH];
-	v_i p;
-	} i4;
     int j;
-    i4 r;
+    vint r;
     for(j=0; j<SIMD_WIDTH; j++) r.i[j] = i;
     return r.p;
     /*return (v_sf)(f,f,f,f);*/
@@ -160,7 +167,7 @@ static inline v_sf SIMD_LOADS(float f) {
     return MM_FCN(set,ss)(f);
 #else
     int i;
-    v4 r;
+    vfloat r;
     r.f[0] = f;
     for(i=1; i<SIMD_WIDTH; i++) r.f[i] = 0;
     return r.p;
@@ -180,21 +187,27 @@ static inline v_sf SIMD_LOADS(float f) {
 #define SIMD_NMSUB(a,b,c) MM_FCN(sub,ps)(c,MM_FCN(mul,ps)(a,b))
 #endif
 #define SIMD_DIV(a,b) MM_FCN(div,ps)(a,b)
+#define SIMD_SQRT(a) MM_FCN(sqrt,ps)(a)
 #define SIMD_RSQRT(a) MM_FCN(rsqrt,ps)(a)
 #define SIMD_RE(a) MM_FCN(rcp,ps)(a);
 static inline v_sf SIMD_RE_EXACT(v_sf a) {
-    static const v4 one = {SIMD_CONST(1.0)};
+    static const vfloat one = {SIMD_CONST(1.0)};
     v_sf r = SIMD_RE(a);
     return MM_FCN(add,ps)(MM_FCN(mul,ps)(r,MM_FCN(sub,ps)(one.p,MM_FCN(mul,ps)(r,a))),r);
     }
 #define SIMD_MAX(a,b) MM_FCN(max,ps)(a,b)
 #define SIMD_MIN(a,b) MM_FCN(min,ps)(a,b)
-#define SIMD_CMP_EQ(a,b) MM_CMP(EQ,eq,a,b)
-#define SIMD_CMP_NE(a,b) MM_CMP(NE,ne,a,b)
-#define SIMD_CMP_LE(a,b) MM_CMP(LE,le,a,b)
-#define SIMD_CMP_LT(a,b) MM_CMP(LT,lt,a,b)
-#define SIMD_CMP_GE(a,b) MM_CMP(GE,ge,a,b)
-#define SIMD_CMP_GT(a,b) MM_CMP(GT,gt,a,b)
+#ifdef __AVX__
+#define SIMD_FLOOR(a) MM_FCN(floor,ps)(a)
+#else
+#define SIMD_FLOOR(a) _mm_cvtepi32_ps(_mm_cvtps_epi32(a))
+#endif
+#define SIMD_CMP_EQ(a,b) MM_CMP(EQ,eq,ps,a,b)
+#define SIMD_CMP_NE(a,b) MM_CMP(NE,ne,ps,a,b)
+#define SIMD_CMP_LE(a,b) MM_CMP(LE,le,ps,a,b)
+#define SIMD_CMP_LT(a,b) MM_CMP(LT,lt,ps,a,b)
+#define SIMD_CMP_GE(a,b) MM_CMP(GE,ge,ps,a,b)
+#define SIMD_CMP_GT(a,b) MM_CMP(GT,gt,ps,a,b)
 #define SIMD_AND(a,b) MM_FCN(and,ps)(a,b)
 #define SIMD_ANDNOT(a,b) MM_FCN(andnot,ps)(a,b)
 #define SIMD_OR(a,b) MM_FCN(or,ps)(a,b)
@@ -271,8 +284,8 @@ static inline v_sf SIMD_RE_EXACT( v_sf a) {
 #endif
 
 static inline v_sf SIMD_RSQRT_EXACT(v_sf B) {
-    static const v4 threehalves = {SIMD_CONST(1.5)};
-    static const v4 half= {SIMD_CONST(0.5)};
+    static const vfloat threehalves = {SIMD_CONST(1.5)};
+    static const vfloat half= {SIMD_CONST(0.5)};
     v_sf r, t1, t2;
     r = SIMD_RSQRT(B);          /* dir = 1/sqrt(d2) */
     t2 = SIMD_MUL(B,half.p);      /* 0.5*d2 */
@@ -284,7 +297,7 @@ static inline v_sf SIMD_RSQRT_EXACT(v_sf B) {
 
 #ifdef __SSE3__
 static inline float SIMD_HADD(v_sf p) {
-    v4 r;
+    vfloat r;
     r.p = p;
     r.p = MM_FCN(hadd,ps)(r.p,r.p);
     r.p = MM_FCN(hadd,ps)(r.p,r.p);
@@ -295,13 +308,103 @@ static inline float SIMD_HADD(v_sf p) {
     }
 #else
 static inline float SIMD_HADD(v_sf p) {
-    v4 r;
+    vfloat r;
     float f;
     int i;
     r.p = p;
     f = r.f[0];
     for(i=1; i<SIMD_WIDTH; i++) f += r.f[i];
     return f;
+    }
+#endif
+
+/* With SSE2 and beyond we have double support */
+#ifdef __SSE2__
+static inline v_df SIMD_DSPLAT(double f) {
+    return MM_FCN(set1,pd)(f);
+    }
+static inline v_df SIMD_DLOADS(double f) {
+#ifdef __AVX__
+    return _mm256_set_pd (0.0,0.0,0.0,f);
+#else
+    return MM_FCN(set,sd)(f);
+#endif
+    }
+
+#define SIMD_DMUL(a,b) MM_FCN(mul,pd)(a,b)
+#define SIMD_DADD(a,b) MM_FCN(add,pd)(a,b)
+#define SIMD_DSUB(a,b) MM_FCN(sub,pd)(a,b)
+#ifdef __FMA4__
+#define SIMD_DMADD(a,b,c) MM_FCN(macc,pd)(a,b,c)
+#define SIMD_DNMSUB(a,b,c) MM_FCN(nmacc,pd)(a,b,c)
+#else
+#define SIMD_DMADD(a,b,c) MM_FCN(add,pd)(MM_FCN(mul,pd)(a,b),c)
+#define SIMD_DNMSUB(a,b,c) MM_FCN(sub,pd)(c,MM_FCN(mul,pd)(a,b))
+#endif
+#define SIMD_DDIV(a,b) MM_FCN(div,pd)(a,b)
+#define SIMD_DSQRT(a) MM_FCN(sqrt,pd)(a)
+#define SIMD_DMAX(a,b) MM_FCN(max,pd)(a,b)
+#define SIMD_DMIN(a,b) MM_FCN(min,pd)(a,b)
+#ifdef __AVX__
+#define SIMD_DFLOOR(a) MM_FCN(floor,pd)(a)
+#else
+#define SIMD_DFLOOR(a)  _mm_cvtepi32_pd(_mm_cvtpd_epi32(a))
+#endif
+#define SIMD_DCMP_EQ(a,b) MM_CMP(EQ,eq,pd,a,b)
+#define SIMD_DCMP_NE(a,b) MM_CMP(NE,ne,pd,a,b)
+#define SIMD_DCMP_LE(a,b) MM_CMP(LE,le,pd,a,b)
+#define SIMD_DCMP_LT(a,b) MM_CMP(LT,lt,pd,a,b)
+#define SIMD_DCMP_GE(a,b) MM_CMP(GE,ge,pd,a,b)
+#define SIMD_DCMP_GT(a,b) MM_CMP(GT,gt,pd,a,b)
+#define SIMD_DAND(a,b) MM_FCN(and,pd)(a,b)
+#define SIMD_DANDNOT(a,b) MM_FCN(andnot,pd)(a,b)
+#define SIMD_DOR(a,b) MM_FCN(or,pd)(a,b)
+#define SIMD_DXOR(a,b) MM_FCN(xor,pd)(a,b)
+#define SIMD_DALL_ZERO(a) MM_FCN(movemask,pd)(a)
+
+#ifdef __AVX__
+#define SIMD_I2D(a) MM_FCN(castsi256,pd)(a)
+#define SIMD_D2I(a) MM_FCN(castpd,si256)(a)
+#define SIMD_D2F(a) MM_FCN(castps128,ps256)(MM_FCN(cvtpd,ps)(a))
+#else
+#define SIMD_I2D(a) MM_FCN(castsi128,pd)(a)
+#define SIMD_D2I(a) MM_FCN(castpd,si128)(a)
+#define SIMD_D2F(a) MM_FCN(cvtpd,ps)(a)
+#endif
+static inline v_df SIMD_DRSQRT(v_df B) {
+    static const vdouble one = {SIMD_DCONST(1.0)};
+    static const vdouble half = {SIMD_DCONST(0.5)};
+    static const vdouble three = {SIMD_DCONST(3.0)};
+    v_df r;
+    r = MM_FCN(cvtps,pd)(_mm_rsqrt_ps(MM_FCN(cvtpd,ps)(B))); 
+    /* vvv ** Up to two more interations for full precision are needed ** vvv*/
+    r = SIMD_DMUL(SIMD_DMUL(half.p,r),SIMD_DSUB(three.p,SIMD_DMUL(SIMD_DMUL(B,r),r)));
+    return r;
+    }
+static inline v_df SIMD_DRSQRT_EXACT(v_df B) {
+    static const vdouble one = {SIMD_DCONST(1.0)};
+    static const vdouble half = {SIMD_DCONST(0.5)};
+    static const vdouble three = {SIMD_DCONST(3.0)};
+    v_df r = SIMD_DRSQRT(B);
+    r = SIMD_DMUL(SIMD_DMUL(half.p,r),SIMD_DSUB(three.p,SIMD_DMUL(SIMD_DMUL(B,r),r)));
+    /*r = SIMD_DMUL(SIMD_DMUL(half.p,r),SIMD_DSUB(three.p,SIMD_DMUL(SIMD_DMUL(B,r),r)));*/
+    return r;
+    }
+static inline v_df SIMD_DRE(v_df a) {
+    v_df r = MM_FCN(cvtps,pd)(_mm_rcp_ps(MM_FCN(cvtpd,ps)(a))); 
+    /* vvv ** Up to two more interations for full precision are needed ** vvv*/
+    r = SIMD_DSUB(SIMD_DADD(r,r),SIMD_DMUL(SIMD_DMUL(a,r),r));
+    return r;
+    }
+static inline v_df SIMD_DRE_GOOD(v_df a) {
+    v_df r = SIMD_DRE(a);
+    r = SIMD_DSUB(SIMD_DADD(r,r),SIMD_DMUL(SIMD_DMUL(a,r),r));
+    return r;
+    }
+static inline v_df SIMD_DRE_EXACT(v_df a) {
+    v_df r = SIMD_DRE_GOOD(a);
+    r = SIMD_DSUB(SIMD_DADD(r,r),SIMD_DMUL(SIMD_DMUL(a,r),r));
+    return r;
     }
 #endif
 

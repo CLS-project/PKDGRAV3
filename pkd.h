@@ -259,18 +259,6 @@ typedef struct bndBound {
 		}\
 	}
 
-#define MINDIST(bnd,pos,min2) {\
-    double BND_dMin;\
-    int BND_j;\
-    (min2) = 0;					\
-    for (BND_j=0;BND_j<3;++BND_j) {\
-	BND_dMin = fabs((bnd)->fCenter[BND_j] - (pos)[BND_j]) - (bnd)->fMax[BND_j]; \
-	if (BND_dMin > 0) (min2) += BND_dMin*BND_dMin;			\
-	}\
-    }
-
-
-
 static inline int IN_BND(const FLOAT *R,const BND *b) {
     int i;
     for( i=0; i<3; i++ )
@@ -512,12 +500,16 @@ typedef struct RhoLocalArray {
 
 typedef union {
     float *f;
+#ifdef USE_SIMD
     v_sf *p;
+#endif
     } ewaldFloat;
 
 typedef union {
     double *d;
+#ifdef USE_SIMD
     v_df *p;
+#endif
     } ewaldDouble;
 
 struct EwaldVariables {
@@ -528,11 +520,25 @@ struct EwaldVariables {
 	ewaldFloat hCfac,hSfac;
 	ewaldDouble Lx,Ly,Lz;
 	} ewt;
+#ifdef USE_SIMD
+    struct {
+	vdouble m;
+	vdouble xx,yy,xy,xz,yz;
+	vdouble xxx,xyy,xxy,yyy,xxz,yyz,xyz;
+	vdouble xxxx,xyyy,xxxy,yyyy,xxxz,yyyz,xxyy,xxyz,xyyz;
+	vdouble zz;
+	vdouble xzz,yzz,zzz;
+	vdouble xxzz,xyzz,xzzz,yyzz,yzzz,zzzz;
+	} ewm;
+    struct {
+	vdouble fEwCut2,fInner2,alpha,alpha2,k1,ka;
+	vdouble Q4xx,Q4xy,Q4xz,Q4yy,Q4yz,Q4zz,Q4,Q3x,Q3y,Q3z,Q2;
+	} ewp;
+#endif
     int nMaxEwLoopInner, nMaxEwhLoop;
     int nEwLoopInner, nEwhLoop;
     int nReps,nEwReps;
     };
-
 
 /*
 ** This is an important base type. Alter with care, or even better, leave it alone.
@@ -1068,7 +1074,11 @@ static inline KDN *pkdNode(PKD pkd,KDN *pBase,int iNode) {
 int pkdNodes(PKD pkd);
 void pkdExtendTree(PKD pkd);
 static inline KDN *pkdTreeNode(PKD pkd,int iNode) {
-    return (KDN *)&pkd->kdNodeListPRIVATE[(iNode>>pkd->nTreeBitsLo)][pkd->iTreeNodeSize*(iNode&pkd->iTreeMask)];
+    char *kdn = &pkd->kdNodeListPRIVATE[(iNode>>pkd->nTreeBitsLo)][pkd->iTreeNodeSize*(iNode&pkd->iTreeMask)];
+#ifdef __SSE__
+    _mm_prefetch(kdn,_MM_HINT_T0);
+#endif
+    return (KDN *)kdn;
     }
 static inline void pkdTreeAllocNodePair(PKD pkd,int *iLeft, int *iRight) {
     if ( pkd->nNodes+2 > pkd->nMaxNodes ) {

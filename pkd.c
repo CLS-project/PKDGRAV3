@@ -278,7 +278,7 @@ void pkdInitialize(
 #define RANDOM_SEED 1
     srand(RANDOM_SEED);
 
-    pkd = (PKD)malloc(sizeof(struct pkdContext));
+    pkd = (PKD)SIMD_malloc(sizeof(struct pkdContext));
     mdlassert(mdl,pkd != NULL);
     pkd->mdl = mdl;
     pkd->idSelf = mdlSelf(mdl);

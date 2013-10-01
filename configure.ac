@@ -2,8 +2,8 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.59)
-AC_INIT(pkdgrav2, 2.2.14rc9, bugs@pkdgrav2.org)
-AM_INIT_AUTOMAKE(pkdgrav2,2.2.14rc9)
+AC_INIT(pkdgrav2, 2.2.15, bugs@pkdgrav2.org)
+AM_INIT_AUTOMAKE(pkdgrav2,2.2.15)
 AC_CONFIG_SRCDIR([main.c])
 AC_CONFIG_HEADER([config.h])
 
@@ -267,6 +267,14 @@ if test "x$USE_SIMD_MOMR" = "xyes" ; then
   USE_SIMD=yes
 fi
 
+USE_SIMD_EWALD="$USE_SIMD"
+AC_ARG_ENABLE(simd-ewald,
+  [  --disable-simd-ewald           disable Ewald SIMD optimizations],
+  [USE_SIMD_EWALD="$enableval"])
+if test "x$USE_SIMD_EWALD" != "xno" ; then
+  USE_SIMD="$USE_SIMD_EWALD"
+fi
+
 USE_SIMD_OPEN="$USE_SIMD"
 AC_ARG_ENABLE(simd-open,
   [  --disable-simd-open            disable Opening Criteria SIMD optimizations],
@@ -484,6 +492,7 @@ fi
     else
       USE_SIMD=no
       USE_SIMD_OPEN=no
+      USE_SIMD_EWALD=no
       USE_SIMD_PP=no
       USE_SIMD_PC=no
       USE_SIMD_MOMR=no
@@ -506,6 +515,10 @@ fi
 if test "x$USE_SIMD_PC" != "xno" ; then
   AC_DEFINE([USE_SIMD_PC],1, 
  	[Define if SIMD optimizations should be used for PC interactions.])
+fi
+if test "x$USE_SIMD_EWALD" != "xno" ; then
+  AC_DEFINE([USE_SIMD_EWALD],1,
+        [Define if SIMD optimizations should be used for Ewald.])
 fi
 if test "x$USE_SIMD_MOMR" = "xyes" ; then
   AC_DEFINE([USE_SIMD_MOMR],1, 
@@ -585,6 +598,7 @@ AC_CHECK_FUNCS([floor gettimeofday pow sqrt strchr strdup strrchr strstr],,[AC_M
 
 AX_PTHREAD
 AM_CONDITIONAL(HAVE_PTHREAD,test "x$ax_pthread_ok" = "xyes")
+AM_CONDITIONAL(HAVE_MPIPT,false)
 
 AC_CONFIG_FILES([Makefile])
 #if test "x$USE_GRAFIC" != "xno" ; then

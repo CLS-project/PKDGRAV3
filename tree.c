@@ -405,23 +405,23 @@ void Create(PKD pkd,int iNode) {
 
     nDepth = 1;
     while (1) {
-	while (pkdTreeNode(pkd,iNode)->iLower) {
-	    iNode = pkdTreeNode(pkd,iNode)->iLower;
+	while ((pkdn=pkdTreeNode(pkd,iNode))->iLower) {
 	    ++nDepth;
-	    /*
-	    ** Is this the deepest in the tree so far? We might need to have more stack
-	    ** elements for the tree walk!
-	    ** nMaxStack == nDepth guarantees that there is at least one deeper
-	    ** stack entry available than what is needed to walk the tree.
-	    */
-	    if (nDepth > pkd->nMaxStack) {
-		pkd->S = CAST(CSTACK *,realloc(pkd->S,(pkd->nMaxStack+nMaxStackIncrease)*sizeof(CSTACK)));
-		assert(pkd->S != NULL);
-		for (ism=pkd->nMaxStack;ism<(pkd->nMaxStack+nMaxStackIncrease);++ism) {
-		    clInitialize(&pkd->S[ism].cl,&pkd->clFreeList);
-		    }
-		pkd->nMaxStack += nMaxStackIncrease;
+	    iNode = pkdn->iLower;
+	    }
+	/*
+	** Is this the deepest in the tree so far? We might need to have more stack
+	** elements for the tree walk!
+	** nMaxStack == nDepth guarantees that there is at least one deeper
+	** stack entry available than what is needed to walk the tree.
+	*/
+	if (nDepth > pkd->nMaxStack) {
+	    pkd->S = CAST(CSTACK *,realloc(pkd->S,(pkd->nMaxStack+nMaxStackIncrease)*sizeof(CSTACK)));
+	    assert(pkd->S != NULL);
+	    for (ism=pkd->nMaxStack;ism<(pkd->nMaxStack+nMaxStackIncrease);++ism) {
+		clInitialize(&pkd->S[ism].cl,&pkd->clFreeList);
 		}
+	    pkd->nMaxStack += nMaxStackIncrease;
 	    }
 	/*
 	** Now calculate all bucket quantities!

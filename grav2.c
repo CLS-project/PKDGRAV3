@@ -23,20 +23,20 @@
 
 #ifdef USE_SIMD
 static const struct CONSTS {
-    v4 zero;
-    v4 onequarter;
-    v4 onethird;
-    v4 half;
-    v4 one;
-    v4 threehalves;
-    v4 three;
-    v4 four;
-    v4 five;
-    v4 seven;
-    v4 nine;
-    v4 R3_8;
-    v4 R45_32;
-    v4 R135_16;
+    vfloat zero;
+    vfloat onequarter;
+    vfloat onethird;
+    vfloat half;
+    vfloat one;
+    vfloat threehalves;
+    vfloat three;
+    vfloat four;
+    vfloat five;
+    vfloat seven;
+    vfloat nine;
+    vfloat R3_8;
+    vfloat R45_32;
+    vfloat R135_16;
     } consts = {
         {SIMD_CONST(0.0)},
 	{SIMD_CONST(0.25)},
@@ -271,7 +271,7 @@ int CPUdoWorkPP(void *vpp) {
 	    dx = fx + blk->dx.f[j];
 	    dy = fy + blk->dy.f[j];
 	    dz = fz + blk->dz.f[j];
-	    fourh2 = blk->fourh2.f[j]);
+	    fourh2 = blk->fourh2.f[j];
 	    d2 = dx*dx + dy*dy + dz*dz;
 	    if (d2==0.0) continue; //dir2 = 0.0;
 	    if (d2 > fourh2) {
@@ -483,15 +483,44 @@ int CPUdoWorkPC(void *vpc) {
 	    /*
 	    ** Now calculate the interaction up to Hexadecapole order.
 	    */
-	    tx = SIMD_MUL(g4,SIMD_MADD(blk->xxxx.p[j],xxx,SIMD_MADD(blk->xyyy.p[j],yyy,
-			SIMD_MADD(blk->xxxy.p[j],xxy,SIMD_MADD(blk->xxxz.p[j],xxz,
-				SIMD_MADD(blk->xxyy.p[j],xyy,SIMD_MADD(blk->xxyz.p[j],xyz,SIMD_MUL(blk->xyyz.p[j],yyz))))))));
-	    ty = SIMD_MUL(g4,SIMD_MADD(blk->xyyy.p[j],xyy,SIMD_MADD(blk->xxxy.p[j],xxx,
-			SIMD_MADD(blk->yyyy.p[j],yyy,SIMD_MADD(blk->yyyz.p[j],yyz,SIMD_MADD(blk->xxyy.p[j],xxy,
-				    SIMD_MADD(blk->xxyz.p[j],xxz,SIMD_MUL(blk->xyyz.p[j],xyz))))))));
-	    tz = SIMD_MUL(g4,SIMD_NMSUB(blk->xxxx.p[j],xxz,SIMD_NMSUB(SIMD_ADD(blk->xyyy.p[j],blk->xxxy.p[j]),xyz,
-			SIMD_NMSUB(blk->yyyy.p[j],yyz,SIMD_NMSUB(blk->xxyy.p[j],SIMD_ADD(xxz,yyz),
-				SIMD_MADD(blk->xxxz.p[j],xxx,SIMD_MADD(blk->yyyz.p[j],yyy,SIMD_MADD(blk->xxyz.p[j],xxy,SIMD_MUL(blk->xyyz.p[j],xyy)))))))));
+
+	    tx = SIMD_MUL(blk->xxxx.p[j],xxx);
+
+
+	    tx = SIMD_ADD(tx,SIMD_MUL(blk->xyyy.p[j],yyy));
+	    tx = SIMD_MUL(blk->xxxy.p[j],xxy);
+	    tx = SIMD_ADD(tx,SIMD_MUL(blk->xxxz.p[j],xxz));
+	    tx = SIMD_ADD(tx,SIMD_MUL(blk->xxyy.p[j],xyy));
+	    tx = SIMD_ADD(tx,SIMD_MUL(blk->xxyz.p[j],xyz));
+	    tx = SIMD_ADD(tx,SIMD_MUL(blk->xyyz.p[j],yyz));
+	    tx = SIMD_MUL(tx,g4);
+
+	    ty = SIMD_MUL(blk->xyyy.p[j],xyy);
+	    ty = SIMD_ADD(ty,SIMD_MUL(blk->xxxy.p[j],xxx));
+	    ty = SIMD_ADD(ty,SIMD_MUL(blk->yyyy.p[j],yyy));
+	    ty = SIMD_ADD(ty,SIMD_MUL(blk->yyyz.p[j],yyz));
+	    ty = SIMD_ADD(ty,SIMD_MUL(blk->xxyy.p[j],xxy));
+	    ty = SIMD_ADD(ty,SIMD_MUL(blk->xxyz.p[j],xxz));
+	    ty = SIMD_ADD(ty,SIMD_MUL(blk->xyyz.p[j],xyz));
+	    ty = SIMD_MUL(ty,g4);
+	    tz = SIMD_MUL(blk->xxxz.p[j],xxx);
+	    tz = SIMD_SUB(tz,SIMD_MUL(blk->xxxx.p[j],xxz));
+	    tz = SIMD_SUB(tz,SIMD_MUL(SIMD_ADD(blk->xyyy.p[j],blk->xxxy.p[j]),xyz));
+	    tz = SIMD_SUB(tz,SIMD_MUL(blk->yyyy.p[j],yyz));
+	    tz = SIMD_ADD(tz,SIMD_MUL(blk->yyyz.p[j],yyy));
+	    tz = SIMD_SUB(tz,SIMD_MUL(blk->xxyy.p[j],SIMD_ADD(xxz,yyz)));
+	    tz = SIMD_ADD(tz,SIMD_MUL(blk->xxyz.p[j],xxy));
+	    tz = SIMD_ADD(tz,SIMD_MUL(blk->xyyz.p[j],xyy));
+	    tz = SIMD_MUL(tz,g4);
+//	    tx = SIMD_MUL(g4,SIMD_MADD(blk->xxxx.p[j],xxx,SIMD_MADD(blk->xyyy.p[j],yyy,
+//			SIMD_MADD(blk->xxxy.p[j],xxy,SIMD_MADD(blk->xxxz.p[j],xxz,
+//				SIMD_MADD(blk->xxyy.p[j],xyy,SIMD_MADD(blk->xxyz.p[j],xyz,SIMD_MUL(blk->xyyz.p[j],yyz))))))));
+//	    ty = SIMD_MUL(g4,SIMD_MADD(blk->xyyy.p[j],xyy,SIMD_MADD(blk->xxxy.p[j],xxx,
+//			SIMD_MADD(blk->yyyy.p[j],yyy,SIMD_MADD(blk->yyyz.p[j],yyz,SIMD_MADD(blk->xxyy.p[j],xxy,
+//				    SIMD_MADD(blk->xxyz.p[j],xxz,SIMD_MUL(blk->xyyz.p[j],xyz))))))));
+//	    tz = SIMD_MUL(g4,SIMD_NMSUB(blk->xxxx.p[j],xxz,SIMD_NMSUB(SIMD_ADD(blk->xyyy.p[j],blk->xxxy.p[j]),xyz,
+//			SIMD_NMSUB(blk->yyyy.p[j],yyz,SIMD_NMSUB(blk->xxyy.p[j],SIMD_ADD(xxz,yyz),
+//				SIMD_MADD(blk->xxxz.p[j],xxx,SIMD_MADD(blk->yyyz.p[j],yyy,SIMD_MADD(blk->xxyz.p[j],xxy,SIMD_MUL(blk->xyyz.p[j],xyy)))))))));
 	    g4 = SIMD_MUL(consts.onequarter.p,SIMD_MADD(tx,x,SIMD_MADD(ty,y,SIMD_MUL(tz,z))));
 	    xxx = SIMD_MUL(g3,SIMD_MADD(blk->xxx.p[j],xx,SIMD_MADD(blk->xyy.p[j],yy,
 			SIMD_MADD(blk->xxy.p[j],xy,SIMD_MADD(blk->xxz.p[j],xz,SIMD_MUL(blk->xyz.p[j],yz))))));
@@ -851,8 +880,13 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 	for( i=0; i<work->nP; i++ ) {
 	    p = work->pPart[i];
 	    a = pkdAccel(pkd,p);
+#ifdef USE_SIMD_EWALD
+	    *pdEwFlop += pkdParticleEwaldSIMD(pkd,uRungLo,uRungHi,p,
+		work->pInfoOut[i].a, &work->pInfoOut[i].fPot );
+#else
 	    *pdEwFlop += pkdParticleEwald(pkd,uRungLo,uRungHi,p,
 		work->pInfoOut[i].a, &work->pInfoOut[i].fPot );
+#endif
 	    }
 	}
 

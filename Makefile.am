@@ -15,12 +15,20 @@ pthread		: pkdgrav2_pthread
 endif
 
 if HAVE_MPI
-EXTRA_PROGRAMS	+= pkdgrav2_mpi pkdgrav2_mpipt
-TARGETS	+= mpi mpipt
+EXTRA_PROGRAMS	+= pkdgrav2_mpi
+TARGETS	+= mpi
+if HAVE_MPIPT
+EXTRA_PROGRAMS  += pkdgrav2_mpipt
+TARGETS += mpipt
+endif
+
 mpi:
 	$(MAKE) CC=@MPICC@ FC=@MPIFC@ $(AM_MAKEFLAGS) pkdgrav2_mpi
+
+if HAVE_MPI
 mpipt:
 	$(MAKE) CC=@MPICC@ FC=@MPIFC@ $(AM_MAKEFLAGS) pkdgrav2_mpipt
+endif
 endif
 
 EXTRA_PROGRAMS += tostd tdiff
@@ -59,7 +67,7 @@ SOURCES += lst.c ilp.c ilc.c cl.c
 noinst_HEADERS += lst.h ilp.h ilc.h cl.h
 if USE_SIMD
 AM_CFLAGS = @SIMD_CFLAGS@
-noinst_HEADERS += simd.h
+noinst_HEADERS += simd.h sse_mathfun.h avx_mathfun.h
 endif
 else
 SOURCES += grav.c walk.c
@@ -151,7 +159,7 @@ pkdgrav2_mpi_LDADD += -llustreapi
 endif
 endif
 
-if HAVE_MPI
+if HAVE_MPIPT
 pkdgrav2_mpipt_LDADD =
 pkdgrav2_mpipt_SOURCES = $(SOURCES) $(MDL)/mpipt/mdl.c
 noinst_HEADERS += $(MDL)/mpipt/mdl.h
@@ -163,12 +171,6 @@ endif
 if FFTW
 pkdgrav2_mpipt_LDADD += -lsrfftw_mpi -lsfftw_mpi -lsrfftw -lsfftw
 endif
-#if USE_GRAFIC
-#pkdgrav2_mpipt_CFLAGS += -Igrafic/
-#pkdgrav2_mpipt_LDADD += grafic/libgrafic.a
-##pkdgrav2_mpipt_LDADD += -L @GRAFIC_PATH@ -lgrafic -lsrfftw_mpi -lsfftw_mpi -ls#rfftw -lsfftw -lgfortran
-##CCLD=mpicxx
-#endif
 if USE_EFENCE
 if HAVE_EFENCE_PATH
 pkdgrav2_mpipt_LDADD += -L @EFENCE_PATH@

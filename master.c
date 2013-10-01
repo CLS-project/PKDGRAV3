@@ -411,11 +411,11 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.nTreeBitsLo = 14;
     prmAddParam(msr->prm,"nTreeBitsLo",1,&msr->param.nTreeBitsLo,
 	sizeof(int),"treelo",
-	"<number of low bits for treer> = 14");
+	"<number of low bits for tree> = 14");
     msr->param.nTreeBitsHi = 18;
     prmAddParam(msr->prm,"nTreeBitsHi",1,&msr->param.nTreeBitsHi,
 	sizeof(int),"treehi",
-	"<number of high bits for treer> = 18");
+	"<number of high bits for tree> = 18");
 #ifdef MDL_CACHE_SIZE
     msr->param.iCacheSize = MDL_CACHE_SIZE;
 #else
@@ -3824,8 +3824,8 @@ void msrTopStepKDK(MSR msr,
     if (iAdjust && (iRung < msrMaxRung(msr)-1)) {
 	msrprintf(msr,"%*cAdjust, iRung: %d\n",2*iRung+2,' ',iRung);
 	/* JW: Note -- can't trash uRungNew here! Force calcs set values for it! */
-	msrSelSrcAll(msr); /* Not really sure what the setting here needs to be */
-	msrSelDstAll(msr); /* */
+	/*msrSelSrcAll(msr);THIS IS EXPENSIVE!*/ /* Not really sure what the setting here needs to be */
+	/*msrSelDstAll(msr);*/ /* */
 	msrActiveRung(msr, iRung, 1);
 	if (msr->param.bAccelStep) {
 	    msrAccelStep(msr,iRung,MAX_RUNG,dTime);
@@ -3876,8 +3876,8 @@ void msrTopStepKDK(MSR msr,
 	msrZeroNewRung(msr,iKickRung,MAX_RUNG,iKickRung); /* brute force */
 	if (msrDoGravity(msr) || msrDoGas(msr)) {
 	    msrActiveRung(msr,iKickRung,1);
-	    msrSelSrcAll(msr); /* Not really sure what the setting here needs to be */
-	    msrSelDstAll(msr); /* */
+	    /*msrSelSrcAll(msr);*/ /* Not really sure what the setting here needs to be */
+	    /*msrSelDstAll(msr);*/ /* */
 	    if (msrDoGravity(msr)) msrUpdateSoft(msr,dTime);
 	    msrprintf(msr,"%*cForces, iRung: %d to %d\n",2*iRung+2,' ',iKickRung,iRung);
 	    msrBuildTree(msr,dTime,msr->param.bEwald);
@@ -4059,6 +4059,8 @@ void msrStarForm(MSR msr, double dTime, int iRung)
 	msrActiveRung(msr,0,1); /* costs nothing -- may be redundant */
 /*	msrBuildTree(msr,dTime,msr->param.bEwald);*/
 	msrSmooth(msr, dTime, SMX_DIST_DELETED_GAS, 1,msr->param.nSmooth); /* use full smooth to account for deleted */
+	msrSelSrcAll(msr);
+	msrSelDstAll(msr);
 	}
 
     /* Strictly speaking adding/deleting particles invalidates the tree 
@@ -4077,6 +4079,8 @@ void msrStarForm(MSR msr, double dTime, int iRung)
 	msrSelDstStar(msr,1,dTime); /* Select only stars that have FB to do */ 
 /*	msrBuildTree(msr,dTime,msr->param.bEwald);*/
 	msrSmooth(msr, dTime, SMX_DIST_SN_ENERGY, 1, msr->param.nSmooth); /* full smooth for stars */
+	msrSelSrcAll(msr);
+	msrSelDstAll(msr);
 
 	dsec = msrTime() - sec1;
 	printf("Feedback Calculated, Wallclock: %f secs\n\n",dsec);
@@ -4575,6 +4579,8 @@ void msrInitSph(MSR msr,double dTime)
  	msrSelSrcGas(msr); /* Not really sure what the setting here needs to be */
 	msrSelDstGas(msr);  
 	msrSmooth(msr,dTime,SMX_DENDVDX,0,msr->param.nSmooth);  
+	msrSelSrcAll(msr);
+	msrSelDstAll(msr);
 
 	in.dTuFac = msr->param.dTuFac;
 	a = csmTime2Exp(msr->param.csm,dTime);
@@ -4612,10 +4618,10 @@ void msrSph(MSR msr,double dTime, double dStep) {
 
     msrSelSrcGas(msr); /* Not really sure what the setting here needs to be */
     msrSelDstGas(msr);  
-
     msrSmooth(msr,dTime,SMX_DENDVDX,0,msr->param.nSmooth);  
-
     msrSmooth(msr,dTime,SMX_SPHFORCES,1,msr->param.nSmooth); /* Should be a resmooth */
+    msrSelSrcAll(msr);
+    msrSelDstAll(msr);
 
     dsec = msrTime() - sec;
     if (msr->param.bVStep) {

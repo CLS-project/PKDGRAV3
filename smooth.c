@@ -31,6 +31,52 @@
     { enum { ASSERT_CONCAT(assert_line_, __LINE__) = 1/(!!(e)) }; }
 #endif
 
+#if defined(USE_SIMD) && defined(__SSE2__)
+static inline FLOAT mindist(const BND *bnd,const FLOAT *pos) {
+#ifdef __AVX__
+    static const union {
+	uint64_t i[4];
+	__m256d p;
+	} isignmask = {0x8000000000000000,0x8000000000000000,0x8000000000000000,0x8000000000000000};
+    static const __m256d zero = {0,0,0,0};
+    __m256i justthree = {-1,-1,-1,0};
+    __m256d fCenter = _mm256_maskload_pd(bnd->fCenter,justthree);
+    __m256d fMax = _mm256_maskload_pd(bnd->fMax,justthree);
+    __m256d ppos = _mm256_maskload_pd(pos,justthree);
+    __m128d d;
+    __m256d m = _mm256_max_pd(zero,_mm256_sub_pd(_mm256_andnot_pd(isignmask.p,_mm256_sub_pd(fCenter,ppos)),fMax));
+    m = _mm256_mul_pd(m,m);
+    d = _mm_hadd_pd(_mm256_extractf128_pd(m,1),_mm256_castpd256_pd128(m));
+    return _mm_cvtsd_f64(_mm_hadd_pd(d,d));
+#else
+    static const union {
+	uint64_t i[2];
+	__m128d p;
+	} isignmask = {0x8000000000000000,0x8000000000000000};
+    static const __m128d zero = {0,0};
+    __m128d m2,m1;
+    m1 = _mm_max_sd(zero,_mm_sub_sd(_mm_andnot_pd(isignmask.p,_mm_sub_sd(_mm_load_sd(bnd->fCenter+0),_mm_load_sd(pos+0))),_mm_load_sd(bnd->fMax+0)));
+    m2 = _mm_mul_sd(m1,m1);
+    m1 = _mm_max_sd(zero,_mm_sub_sd(_mm_andnot_pd(isignmask.p,_mm_sub_sd(_mm_load_sd(bnd->fCenter+1),_mm_load_sd(pos+1))),_mm_load_sd(bnd->fMax+1)));
+    m2 = _mm_add_sd(m2,_mm_mul_sd(m1,m1));
+    m1 = _mm_max_sd(zero,_mm_sub_sd(_mm_andnot_pd(isignmask.p,_mm_sub_sd(_mm_load_sd(bnd->fCenter+2),_mm_load_sd(pos+2))),_mm_load_sd(bnd->fMax+2)));
+    m2 = _mm_add_sd(m2,_mm_mul_sd(m1,m1));
+    return _mm_cvtsd_f64(m2);
+#endif
+    }
+#define MINDIST(bnd,pos,min2) ((min2) = mindist(bnd,pos))
+#else
+#define MINDIST(bnd,pos,min2) {\
+    double BND_dMin;\
+    int BND_j;\
+    (min2) = 0;					\
+    for (BND_j=0;BND_j<3;++BND_j) {\
+	BND_dMin = fabs((bnd)->fCenter[BND_j] - (pos)[BND_j]) - (bnd)->fMax[BND_j]; \
+	if (BND_dMin > 0) (min2) += BND_dMin*BND_dMin;			\
+	}\
+    }
+#endif
+
 const int primes[1000] = {
     2,     3,     5,     7,    11,    13,    17,    19,    23,    29,
     31,    37,    41,    43,    47,    53,    59,    61,    67,    71,
