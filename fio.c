@@ -21,6 +21,10 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#ifdef USE_PTHREAD
+#include <pthread.h>
+#endif
+
 #ifdef HAVE_GSL
 #include <gsl/gsl_integration.h>
 #include <gsl/gsl_interp.h>
@@ -3481,8 +3485,19 @@ static FIO hdf5OpenOne(const char *fname) {
     }
 
 static FIO hdf5Open(fioFileList *fileList) {
-    if (fileList->nFiles==1) return hdf5OpenOne(fileList->fileInfo[0].pszFilename);
-    else return listOpen(fileList,hdf5OpenOne);
+    const char *fileName = fileList->fileInfo[0].pszFilename;
+    FIO fio;
+#if defined(USE_PTHREAD) && !defined(H5_HAVE_THREADSAFE)
+    static pthread_mutex_t mux = PTHREAD_MUTEX_INITIALIZER;
+    pthread_mutex_lock(&mux);
+#endif
+    if ( !H5Fis_hdf5(fileName) ) fio = NULL;
+    else if (fileList->nFiles==1) fio = hdf5OpenOne(fileList->fileInfo[0].pszFilename);
+    else fio = listOpen(fileList,hdf5OpenOne);
+#if defined(USE_PTHREAD) && !defined(H5_HAVE_THREADSAFE)
+    pthread_mutex_unlock(&mux);
+#endif
+    return fio;
     }
 
 FIO fioHDF5Create(const char *fileName, int mFlags) {
@@ -4301,8 +4316,8 @@ FIO fioOpenMany(int nFiles, const char * const *fileNames,
 	}
 
 #ifdef USE_HDF5
-    else if ( H5Fis_hdf5(fileName) ) {
-	fio = hdf5Open(&fileList);
+    else if ( (fio = hdf5Open(&fileList)) != NULL ) {
+	;
 	}
 #endif
 

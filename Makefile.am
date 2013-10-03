@@ -195,7 +195,7 @@ endif
 if HAVE_PTHREAD
 pkdgrav2_pthread_SOURCES = $(SOURCES) $(MDL)/pthread/mdl.c
 noinst_HEADERS += $(MDL)/pthread/mdl.h
-pkdgrav2_pthread_CFLAGS = -I$(MDL)/pthread/ $(AM_CFLAGS)
+pkdgrav2_pthread_CFLAGS = -DUSE_PTHREAD -I$(MDL)/pthread/ $(AM_CFLAGS)
 pkdgrav2_pthread_LDADD = -lpthread
 if USE_EFENCE
 if HAVE_EFENCE_PATH
