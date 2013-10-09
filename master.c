@@ -213,12 +213,12 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     prmAddParam(msr->prm,"nPNGResolution",1,&msr->param.nPNGResolution,sizeof(int),
 		"png","PNG output resolution (zero disables) = 0");
 #endif
-    msr->param.nBucket = 8;
+    msr->param.nBucket = 16;
     prmAddParam(msr->prm,"nBucket",1,&msr->param.nBucket,sizeof(int),"b",
-		"<max number of particles in a bucket> = 32");
+		"<max number of particles in a bucket> = 16");
     msr->param.nGroup = 64;
     prmAddParam(msr->prm,"nGroup",1,&msr->param.nGroup,sizeof(int),"grp",
-		"<max number of particles in a group> = 128");
+		"<max number of particles in a group> = 64");
     msr->param.n2min = 50;
     prmAddParam(msr->prm,"n2min",1,&msr->param.n2min,sizeof(int),"nn",
 		"<minimum number of p-p interactions for using c-c interactions> = 50");

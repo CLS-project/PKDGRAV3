@@ -226,11 +226,16 @@ static const struct ICONSTS {
 extern __m256d __svml_erf4(__m256d a);
 extern __m256d __svml_exp4(__m256d a);
 extern __m256d __svml_invsqrt4(__m256d a);
-extern __m256 __svml_sincosf8(__m256,__m256 *);
+/*extern __m256 __svml_sincosf8(__m256,__m256 *);*/
 #define verf __svml_erf4
 #define vexp __svml_exp4
 #define vrsqrt __svml_invsqrt4
-#define vsincos(v,s,c) s = __svml_sincosf8(v,&c)
+/*#define vsincos(v,s,c) s = __svml_sincosf8(v,&c)*/
+#ifdef __AVX__
+#define vsincos(v,s,c) sincos256_ps(v,&s,&c)
+#else
+#define vsincos(v,s,c) sincos_ps(v,&s,&c);
+#endif
 #else
 #ifdef __AVX__
 #define vsincos(v,s,c) sincos256_ps(v,&s,&c)
@@ -593,13 +598,8 @@ int pkdParticleEwald(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
 #endif
     int nFlop;
     int nLoop = 0;
-#if defined(USE_SIMD_EWALD) && defined(__SSE__)
-    v_sf pdx, pdy, pdz, pax, pay, paz, ppot, t;
-    static const vfloat zero =         {SIMD_CONST(0.0)};
-    vfloat s,c,hdotx;
-#else
     float hdotx,s,c,t;
-#endif
+
     assert(pkd->oAcceleration); /* Validate memory model */
     assert(pkd->oPotential); /* Validate memory model */
 
@@ -614,7 +614,7 @@ int pkdParticleEwald(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     dy = p->r[1] - pkdTopNode(pkd,ROOT)->r[1];
     dz = p->r[2] - pkdTopNode(pkd,ROOT)->r[2];
 
-#if 1
+#ifndef USE_FORMALLY_CORRECT_EWALD
     nLoop = pkd->ew.nEwLoopInner;
     r2 = dx*dx + dy*dy + dz*dz;
     /* We will handle this at the end if necessary */
@@ -800,39 +800,6 @@ int pkdParticleEwald(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     **		Total        = (22,36)
     **					 = 58
     */
-#if defined(USE_SIMD_EWALD) && defined(__SSE__)
-    nLoop = (pkd->ew.nEwhLoop+SIMD_MASK) >> SIMD_BITS;
-    pax = zero.p;
-    pay = zero.p;
-    paz = zero.p;
-    ppot = zero.p;
-    pdx = SIMD_SPLAT(dx);
-    pdy = SIMD_SPLAT(dy);
-    pdz = SIMD_SPLAT(dz);
-    for (i=0;i<nLoop;++i) {
-	hdotx.p = SIMD_MADD(pkd->ew.ewt.hz.p[i],pdz,SIMD_MADD(pkd->ew.ewt.hy.p[i],pdy,SIMD_MUL(pkd->ew.ewt.hx.p[i],pdx)));
-#ifdef __AVX__
-	sincos256_ps(hdotx.p,&s.p,&c.p);
-#else
-	sincos_ps(hdotx.p,&s.p,&c.p);
-#endif
-	ppot = SIMD_ADD(ppot,SIMD_ADD(SIMD_MUL(pkd->ew.ewt.hSfac.p[i],s.p),SIMD_MUL(pkd->ew.ewt.hCfac.p[i],c.p)));
-	s.p = SIMD_MUL(pkd->ew.ewt.hCfac.p[i],s.p);
-	c.p = SIMD_MUL(pkd->ew.ewt.hSfac.p[i],c.p);
-	t = SIMD_SUB(s.p,c.p);
-	pax = SIMD_ADD(pax,SIMD_MUL(pkd->ew.ewt.hx.p[i],t));
-	pay = SIMD_ADD(pay,SIMD_MUL(pkd->ew.ewt.hy.p[i],t));
-	paz = SIMD_ADD(paz,SIMD_MUL(pkd->ew.ewt.hz.p[i],t));
-	}
-    ax += SIMD_HADD(pax);
-    ay += SIMD_HADD(pay);
-    az += SIMD_HADD(paz);
-    fPot += SIMD_HADD(ppot);
-//    printf("N %g %g %g\n",ax,ay,az);
-//    exit(0);
-
-
-#else
     for (i=0;i<pkd->ew.nEwhLoop;++i) {
 	hdotx = pkd->ew.ewt.hx.f[i]*dx + pkd->ew.ewt.hy.f[i]*dy + pkd->ew.ewt.hz.f[i]*dz;
 	c = cosf(hdotx);
@@ -843,8 +810,6 @@ int pkdParticleEwald(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
 	ay += pkd->ew.ewt.hy.f[i]*t;
 	az += pkd->ew.ewt.hz.f[i]*t;
 	}
-#endif
-
     *pPot += fPot;
     pa[0] += ax;
     pa[1] += ay;
