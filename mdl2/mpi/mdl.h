@@ -317,7 +317,7 @@ int mdlReduceScatter( MDL mdl, void* sendbuf, void* recvbuf, int *recvcounts,
     MDL_Datatype datatype, MDL_Op op);
 int mdlTypeContiguous(MDL mdl,int count, MDL_Datatype old_type, MDL_Datatype *newtype);
 int mdlTypeIndexed(MDL mdl, int count,
-    const int array_of_blocklengths[], const int array_of_displacements[],
+    int array_of_blocklengths[], int array_of_displacements[],
     MDL_Datatype oldtype, MDL_Datatype *newtype);
 int mdlTypeCommit(MDL mdl, MDL_Datatype *datatype );
 int mdlTypeFree (MDL mdl, MDL_Datatype *datatype );

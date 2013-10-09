@@ -569,7 +569,7 @@ int mdlTypeContiguous(MDL mdl,int count, MDL_Datatype old_type, MDL_Datatype *ne
     }
 
 int mdlTypeIndexed(MDL mdl, int count,
-    const int array_of_blocklengths[], const int array_of_displacements[],
+    int array_of_blocklengths[], int array_of_displacements[],
     MDL_Datatype oldtype, MDL_Datatype *newtype) {
     return MPI_Type_indexed(count,
 	array_of_blocklengths,array_of_displacements,
