@@ -829,22 +829,6 @@ void pkdEwaldInit(PKD pkd,int nReps,double fEwCut,double fhCut) {
     L = pkd->fPeriod[0];
 
     /*
-    ** We have made certain assumptions about the COM in order to optimize
-    ** the erf/erfc parts. In particular, the erf function is accurate only
-    ** in the range [0.65,6.0]. The range for the replicas are:
-    **   1 replica:  [1.0,3.0] - COM
-    **   2 replicas: [3.0,5.0] - COM
-    **   3 replicas: [5.0,7.0] - COM
-    **   4 replicas: [7.0,9.0] - COM
-    */
-    if (nReps>0) {
-	assert(pkdTopNode(pkd,ROOT)->r[0]/L * pkd->ew.alpha < 0.35);
-	assert(pkdTopNode(pkd,ROOT)->r[1]/L * pkd->ew.alpha < 0.35);
-	assert(pkdTopNode(pkd,ROOT)->r[1]/L * pkd->ew.alpha < 0.35);
-	assert(nReps<=4);
-	}
-
-    /*
     ** Create SIMD versions of the moments.
     */
 #if defined(USE_SIMD_EWALD) && defined(__SSE2__)
@@ -909,6 +893,23 @@ void pkdEwaldInit(PKD pkd,int nReps,double fEwCut,double fhCut) {
     pkd->ew.alpha2 = pkd->ew.alpha*pkd->ew.alpha;
     pkd->ew.k1 = M_PI/(pkd->ew.alpha2*L*L*L);
     pkd->ew.ka = 2.0*pkd->ew.alpha/sqrt(M_PI);
+
+    /*
+    ** We have made certain assumptions about the COM in order to optimize
+    ** the erf/erfc parts. In particular, the erf function is accurate only
+    ** in the range [0.65,6.0]. The range for the replicas are:
+    **   1 replica:  [1.0,3.0] - COM
+    **   2 replicas: [3.0,5.0] - COM
+    **   3 replicas: [5.0,7.0] - COM
+    **   4 replicas: [7.0,9.0] - COM
+    ** an erfc(2.75) gives about 1e-4 which is the target RMS for 1 replica.
+    */
+    if (nReps==1) {
+	assert((1.5 - fabs(pkdTopNode(pkd,ROOT)->r[0]/L)) * pkd->ew.alpha*L > 2.75);
+	assert((1.5 - fabs(pkdTopNode(pkd,ROOT)->r[1]/L)) * pkd->ew.alpha*L > 2.75);
+	assert((1.5 - fabs(pkdTopNode(pkd,ROOT)->r[2]/L)) * pkd->ew.alpha*L > 2.75);
+	}
+    assert(nReps<=4);
 
 #if defined(USE_SIMD_EWALD) && defined(__SSE2__)
     pkd->ew.ewp.Q4xx.p = SIMD_DSPLAT(pkd->ew.Q4xx);
