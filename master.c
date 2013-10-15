@@ -3895,10 +3895,8 @@ void msrTopStepKDK(MSR msr,
 #endif
 	if (msrDoGas(msr)) {
 	    msrSph(msr,dTime,dStep);  /* dTime = Time at end of kick */
-#ifdef COOLING
 	    msrCooling(msr,dTime,dStep,0,
 		       (iKickRung<=msr->param.iRungCoolTableUpdate ? 1:0),0);
-#endif
 	}
 	/*
 	 * move time back to 1/2 step so that KickClose can integrate
@@ -4602,9 +4600,7 @@ void msrInitSph(MSR msr,double dTime)
     msrActiveRung(msr,0,1);
     msrSph(msr,dTime,0);
     msrSphStep(msr,0,MAX_RUNG,dTime); /* Requires SPH */
-#ifdef COOLING
     msrCooling(msr,dTime,0,0,1,1); /* Interate cooling for consistent dt */
-#endif
 }
 
 void msrSph(MSR msr,double dTime, double dStep) {
@@ -4630,9 +4626,8 @@ void msrSph(MSR msr,double dTime, double dStep) {
     }
 
 
+void msrCoolSetup(MSR msr, double dTime) {
 #ifdef COOLING
-void msrCoolSetup(MSR msr, double dTime)
-    {
     struct inCoolSetup in;
     
     if (!msr->param.bGasCooling) return;
@@ -4655,10 +4650,11 @@ void msrCoolSetup(MSR msr, double dTime)
     in.CoolParam = msr->param.CoolParam;
     
     pstCoolSetup(msr->pst,&in,sizeof(struct inCoolSetup),NULL,NULL);
+#endif
     }
 
-void msrCooling(MSR msr,double dTime,double dStep,int bUpdateState, int bUpdateTable, int bIterateDt)
-    {
+void msrCooling(MSR msr,double dTime,double dStep,int bUpdateState, int bUpdateTable, int bIterateDt) {
+#ifdef COOLING
     struct inCooling in;
     struct outCooling out;
     double a,sec,dsec;
@@ -4689,8 +4685,8 @@ void msrCooling(MSR msr,double dTime,double dStep,int bUpdateState, int bUpdateT
     if (msr->param.bVStep) {
 	printf("Cooling Calculated, Wallclock: %f secs\n",  dsec);
 	}
-    }
 #endif
+    }
 
 /* END Gas routines */
 
