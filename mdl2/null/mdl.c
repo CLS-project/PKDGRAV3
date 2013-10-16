@@ -124,14 +124,17 @@ void mdlPrintTimer(MDL mdl,char *message, mdlTimer *t0) {
     }
 #endif
 
-int mdlInitialize(MDL *pmdl,char **argv,void (*fcnChild)(MDL),void (*fcnIOChild)(MDL)) {
+int mdlLaunch(
+    int argc,char **argv,
+    int (*fcnMaster)(MDL,int,char **),
+    void (*fcnChild)(MDL),
+    void (*fcnIO)(MDL)) {
     MDL mdl;
     int i,nThreads,bDiag,bThreads;
     char *p,ach[256],achDiag[256];
 
-    assert(fcnIOChild==NULL);
+    assert(fcnIO==NULL);
 
-    *pmdl = NULL;
     mdl = malloc(sizeof(struct mdlContext));
     assert(mdl != NULL);
     /*
@@ -210,7 +213,6 @@ int mdlInitialize(MDL *pmdl,char **argv,void (*fcnChild)(MDL),void (*fcnIOChild)
     nThreads = 1;
     mdl->bDiag = bDiag;
     mdl->nThreads = nThreads;
-    *pmdl = mdl;
 
     gethostname(mdl->nodeName,sizeof(mdl->nodeName));
     mdl->nodeName[sizeof(mdl->nodeName)-1] = 0;
@@ -232,6 +234,11 @@ int mdlInitialize(MDL *pmdl,char **argv,void (*fcnChild)(MDL),void (*fcnIOChild)
 	mdl->fpDiag = fopen(achDiag,"w");
 	assert(mdl->fpDiag != NULL);
 	}
+
+    fcnMaster(mdl,argc,argv);
+
+    mdlFinish(mdl);
+
     return(nThreads);
     }
 

@@ -500,7 +500,11 @@ void BasicDestroy(MDL mdl) {
     }
 
 
-int mdlInitialize(MDL *pmdl,char **argv,void (*fcnChild)(MDL),void (*fcnIOChild)(MDL)) {
+int mdlLaunch(
+    int argc,char **argv,
+    int (*fcnMaster)(MDL,int,char **),
+    void (*fcnChild)(MDL),
+    void (*fcnIO)(MDL)) {
     MDL mdl,tmdl;
     int i,nThreads=1,bThreads,bDiag;
     char *p,ach[256],achDiag[256];
@@ -510,19 +514,17 @@ int mdlInitialize(MDL *pmdl,char **argv,void (*fcnChild)(MDL),void (*fcnIOChild)
     static MDL *save_mdl;
     extern void *(main)(void *);
 
-    /*
-    ** We assert here, since the pthread version of mdl does not support IO threads yet.
-    */
-    assert(fcnIOChild == NULL);
     if (!first) {
 	*pmdl = *save_mdl;
 	return (*pmdl)->nThreads;
 	}
     first = 0;
 #endif
-    assert(fcnIOChild==NULL);
+    /*
+    ** We assert here, since the pthread version of mdl does not support IO threads yet.
+    */
+    assert(fcnIO==NULL);
 
-    *pmdl = NULL;
     /*
      ** Do some low level argument parsing for number of threads, and
      ** diagnostic flag!
@@ -563,7 +565,6 @@ int mdlInitialize(MDL *pmdl,char **argv,void (*fcnChild)(MDL),void (*fcnIOChild)
     mdl->pmdl[0] = mdl;			/* that's me! */
     mdl->pt = (pthread_t *)malloc(nThreads*sizeof(pthread_t));
     assert(mdl->pt != NULL);
-    *pmdl = mdl;
     gethostname(mdl->nodeName,sizeof(mdl->nodeName));
     mdl->nodeName[sizeof(mdl->nodeName)-1] = 0;
     pthread_attr_init(&attr);
@@ -645,6 +646,9 @@ int mdlInitialize(MDL *pmdl,char **argv,void (*fcnChild)(MDL),void (*fcnIOChild)
     mdl->dWaiting = mdl->dComputing = mdl->dSynchronizing = 0.0;
     mdl->nTicks = getticks();
 #endif
+
+    fcnMaster(mdl,argc,argv);
+    mdlFinish(mdl);
 
     return(nThreads);
     }

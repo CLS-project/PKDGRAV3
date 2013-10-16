@@ -221,16 +221,16 @@ int  mdlSplitComm(MDL mdl, int nProcs) {
     return iComm;
     }
 
-int mdlInitialize(MDL *pmdl,char **argv,
-		  void (*fcnChild)(MDL),
-		  void (*fcnIO)(MDL)) {
+int mdlLaunch(
+    int argc,char **argv,
+    int (*fcnMaster)(MDL,int,char **),
+    void (*fcnChild)(MDL),
+    void (*fcnIO)(MDL)) {
     MDL mdl;
     int iComm;
     int i,j,bDiag,bThreads;
     char *p,ach[256],achDiag[256];
-    int argc;
 
-    *pmdl = NULL;
     mdl = malloc(sizeof(struct mdlContext));
     assert(mdl != NULL);
     /*
@@ -338,6 +338,7 @@ int mdlInitialize(MDL *pmdl,char **argv,
 	    }
 	++i;
 	}
+    argc = i;
     if (bThreads) {
 	fprintf(stderr,"Warning: -sz parameter ignored, using as many\n");
 	fprintf(stderr,"         processors as specified in environment.\n");
@@ -381,7 +382,6 @@ int mdlInitialize(MDL *pmdl,char **argv,
     mdl->pszFlsh = malloc(mdl->iCaBufSize);
     assert(mdl->pszFlsh != NULL);
     mdl->bDiag = bDiag;
-    *pmdl = mdl;
     if (mdl->bDiag) {
 	char *tmp = strrchr(argv[0],'/');
 	if (!tmp) tmp = argv[0];
@@ -401,20 +401,19 @@ int mdlInitialize(MDL *pmdl,char **argv,
 	 */
 	mdlassert( mdl, mdl->nIO > 0 );
 	(*fcnIO)(mdl);
-	mdlFinish(mdl);
-	exit(0);
 	}
     else if (mdl->nThreads > 1 && mdlOldSelf(mdl)) {
 	/*
 	 ** Child thread.
 	 */
 	(*fcnChild)(mdl);
-	mdlFinish(mdl);
-	exit(0);
 	}
+    else {
+	fcnMaster(mdl,argc,argv);
+	}
+    mdlFinish(mdl);
     return(mdl->nThreads);
     }
-
 
 void mdlFinish(MDL mdl) {
     int i;

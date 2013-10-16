@@ -156,7 +156,7 @@ void mdlPrintTimer(MDL mdl,char *message,mdlTimer *);
  ** General Functions
  */
 double mdlCpuTimer(MDL);
-int mdlInitialize(MDL *pmdl,char **argv,void (*fcnChild)(MDL),void (*fcnIOChild)(MDL));
+int mdlLaunch(int,char **,int (*)(MDL,int,char **),void (*)(MDL),void (*)(MDL));
 void mdlFinish(MDL);
 int mdlThreads(MDL);
 int mdlSelf(MDL);

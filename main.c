@@ -39,14 +39,10 @@ void main_ch(MDL mdl) {
     pstFinish(pst);
     }
 
-/*DEBUG Should opaque nature of "msr" be enforced in main()? -- DCR*/
-
-#ifdef FC_DUMMY_MAIN
-int FC_DUMMY_MAIN() { return 1; }
-#endif
-
-int FC_MAIN(int argc,char **argv) {
-    MDL mdl;
+/*
+** This is invoked instead of main_ch for the "master" process.
+*/
+int master_ch(MDL mdl, int argc, char **argv) {
     MSR msr;
     FILE *fpLog = NULL;
     char achFile[256];			/*DEBUG use MAXPATHLEN here (& elsewhere)? -- DCR*/
@@ -56,43 +52,8 @@ int FC_MAIN(int argc,char **argv) {
     long lSec=0,lStart;
     int i,iStep,iSec=0,iStop=0;
     uint64_t nActive;
-#ifdef TINY_PTHREAD_STACK
-    static int first = 1;
-    static char **save_argv;
-
-    /*
-     * Hackery to get around SGI's tiny pthread stack.
-     * Main will be called twice.  The second time, argc and argv
-     * will be garbage, so we have to save them from the first.
-     * Another way to do this would involve changing the interface
-     * to mdlInitialize(), so that this hackery could be hidden
-     * down there.
-     */
-    if (first) {
-	save_argv = malloc((argc+1)*sizeof(*save_argv));
-	for (i = 0; i < argc; i++)
-	    save_argv[i] = strdup(argv[i]);
-	save_argv[argc] = NULL;
-	}
-    else {
-	argv = save_argv;
-	}
-    first = 0;
-#endif /* TINY_PTHREAD_STACK */
-#ifdef USE_BT
-    bt_initialize();
-#endif
-#ifdef ENABLE_FE
-    feenableexcept(FE_INVALID|FE_DIVBYZERO|FE_OVERFLOW);
-#endif
-#ifndef CCC
-    /* no stdout buffering */
-    setbuf(stdout,(char *) NULL);
-#endif
 
     lStart=time(0);
-    mdlInitialize(&mdl,argv,main_ch,0);
-    for (argc = 0; argv[argc]; argc++); /* some MDLs can modify argv, so update argc */
 
     printf("%s\n", PACKAGE_STRING );
 
@@ -383,6 +344,26 @@ int FC_MAIN(int argc,char **argv) {
 #endif
 
     msrFinish(msr);
-    mdlFinish(mdl);
+
+    }
+
+#ifdef FC_DUMMY_MAIN
+int FC_DUMMY_MAIN() { return 1; }
+#endif
+
+int FC_MAIN(int argc,char **argv) {
+#ifdef USE_BT
+    bt_initialize();
+#endif
+#ifdef ENABLE_FE
+    feenableexcept(FE_INVALID|FE_DIVBYZERO|FE_OVERFLOW);
+#endif
+#ifndef CCC
+    /* no stdout buffering */
+    setbuf(stdout,(char *) NULL);
+#endif
+
+    mdlLaunch(argc,argv,master_ch,main_ch,0);
+
     return 0;
     }

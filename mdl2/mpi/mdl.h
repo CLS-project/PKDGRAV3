@@ -246,7 +246,7 @@ void mdlPrintTimer(MDL mdl,char *message,mdlTimer *);
  ** General Functions
  */
 double mdlCpuTimer(MDL);
-int mdlInitialize(MDL *,char **,void (*)(MDL),void (*)(MDL));
+int mdlLaunch(int,char **,int (*)(MDL,int,char **),void (*)(MDL),void (*)(MDL));
 void mdlFinish(MDL);
 int  mdlSplitComm(MDL mdl, int nProcs);
 void mdlSetComm(MDL mdl, int iComm);
