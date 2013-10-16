@@ -18,9 +18,6 @@
 #include "moments.h"
 #include "cosmo.h"
 #include "fio.h"
-#ifdef USE_HDF5
-#include "iohdf5.h"
-#endif
 #ifdef USE_GRAFIC
 #include "grafic.h"
 #endif
@@ -1293,10 +1290,6 @@ size_t pkdIlcMemory(PKD pkd);
 size_t pkdIlpMemory(PKD pkd);
 size_t pkdTreeMemory(PKD pkd);
 void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double dTuFac);
-#ifdef USE_MDL_IO
-void pkdIOInitialize( PKD pkd, int nLocal);
-#endif
-
 void pkdSetSoft(PKD pkd,double dSoft);
 void pkdSetCrit(PKD pkd,double dCrit);
 void pkdCalcBound(PKD,BND *);

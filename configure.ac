@@ -174,14 +174,6 @@ AC_SUBST([MDL_PATH],[$MDL_PATH])
 #fi
 #AM_CONDITIONAL(USE_GRAFIC,test "x$USE_GRAFIC" != "xno")
 
-# MDL dedicated I/O
-AC_ARG_ENABLE(mdl-io,
-  [  --enable-mdl-io                enable dedicated I/O processors (MPI/pthread)],
-  [USE_MDL_IO=yes
-   AC_DEFINE([USE_MDL_IO], 1,
- 	[Define if MDL style I/O should be used.])
-   AC_DEFINE([MDL_MAX_IO_PROCS],128,[The maximum number of IO processors])])
-AM_CONDITIONAL(USE_MDL_IO, test "x$USE_MDL_IO" = "xyes")
 AM_CONDITIONAL(USE_HDF5, test "x$USE_HDF5" = "xyes")
 
 # PNG Output

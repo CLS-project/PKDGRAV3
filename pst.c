@@ -446,15 +446,6 @@ void pstAddServices(PST pst,MDL mdl) {
 		  sizeof(struct inGroupProfiles),sizeof(int));
     mdlAddService(mdl,PST_INITRELAXATION,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstInitRelaxation,0,0);
-#ifdef USE_MDL_IO
-    mdlAddService(mdl,PST_FINDIOS,pst,
-		  (void (*)(void *,void *,int,void *,int *)) pstFindIOS,
-		  sizeof(struct inFindIOS),sizeof(struct outFindIOS));
-    mdlAddService(mdl,PST_STARTIO,pst,
-		  (void (*)(void *,void *,int,void *,int *)) pstStartIO,
-		  sizeof(struct inStartIO),0);
-#endif
-
 #ifdef PLANETS
     mdlAddService(mdl,PST_READSS,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstReadSS,
@@ -2591,100 +2582,6 @@ void pstWrite(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 
     if (pnOut) *pnOut = 0;
     }
-
-
-
-
-#ifdef USE_MDL_IO
-void pstFindIOS(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
-    LCL *plcl = pst->plcl;
-    struct inFindIOS *in = vin;
-    struct outFindIOS *out = vout;
-    int i;
-
-    mdlassert(pst->mdl,nIn == sizeof(struct inFindIOS));
-    mdlassert(pst->mdl,mdlIO(pst->mdl)<=MDL_MAX_IO_PROCS);
-    if (pst->nLeaves > 1) {
-	struct outFindIOS right;
-	mdlassert(pst->mdl,pst->nLowTot != 0 && pst->nHighTot != 0);
-	in->nLower += pst->nLowTot;
-	mdlReqService(pst->mdl,pst->idUpper,PST_FINDIOS,in,nIn);
-	in->nLower -= pst->nLowTot;
-	pstFindIOS(pst->pstLower,in,nIn,vout,pnOut);
-	mdlGetReply(pst->mdl,pst->idUpper,&right,pnOut);
-	for ( i=0; i<MDL_MAX_IO_PROCS; i++ )
-	    out->nCount[i] += right.nCount[i];
-	}
-    else {
-	mdlassert(pst->mdl,in->N>mdlIO(pst->mdl));
-	pst->ioIndex = in->nLower / (in->N / mdlIO(pst->mdl) );
-	mdlassert(pst->mdl,pst->ioIndex >= 0 && pst->ioIndex < mdlIO(pst->mdl));
-	for ( i=0; i<MDL_MAX_IO_PROCS; i++ )
-	    out->nCount[i] = 0;
-	out->nCount[pst->ioIndex] = pkdLocal(plcl->pkd);
-	}
-    if (pnOut) *pnOut = sizeof(struct outFindIOS);
-    }
-
-typedef struct ctxIO {
-    double dvFac;
-    PKD pkd;
-    local_t iIndex;    /* Index into local array */
-    total_t iMinOrder; /* Minimum iOrder */
-    total_t iMaxOrder; /* Maximum iOrder */
-    } * CTXIO;
-
-static int pstPackIO(void *vctx, int *id, size_t nSize, void *vBuff) {
-    CTXIO ctx = vctx;
-    PIO *io = (PIO *)vBuff;
-    size_t nPack;
-
-    nPack = pkdPackIO(ctx->pkd,
-		      io, nSize/sizeof(PIO),
-		      &ctx->iIndex,
-		      ctx->iMinOrder, ctx->iMaxOrder,
-		      ctx->dvFac);
-    return nPack * sizeof(PIO);
-    }
-
-
-void pstStartIO(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
-    LCL *plcl = pst->plcl;
-    struct inStartIO *in = vin;
-    struct ctxIO ctx;
-    int i;
-
-    mdlassert(pst->mdl,nIn == sizeof(struct inStartIO));
-    if (pst->nLeaves > 1) {
-	mdlReqService(pst->mdl,pst->idUpper,PST_STARTIO,in,nIn);
-	pstStartIO(pst->pstLower,in,nIn,NULL,NULL);
-	mdlGetReply(pst->mdl,pst->idUpper,NULL,NULL);
-	}
-    else {
-	total_t iCount = in->N/mdlIO(pst->mdl); /* per I/O node */
-
-	/* Send to (optionally) each I/O processor */
-	mdlSetComm(pst->mdl,1);
-	for ( i=0; i<mdlIO(pst->mdl); i++ ) {
-	    /*
-	    ** Calculate iOrder range.  The last I/O node gets the remainder.
-	    */
-	    ctx.iIndex = 0;
-	    ctx.iMinOrder = i * iCount;
-	    ctx.iMaxOrder = (i+1) * iCount;
-	    if ( i+1 == mdlIO(pst->mdl) )
-		ctx.iMaxOrder = in->N;
-	    ctx.dvFac = in->dvFac;
-
-	    ctx.pkd = plcl->pkd;
-	    mdlSend(pst->mdl,i,pstPackIO,&ctx);
-	    }
-	mdlSetComm(pst->mdl,0);
-
-	}
-    if (pnOut) *pnOut = 0;
-    }
-#endif
 
 void pstSetSoft(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;

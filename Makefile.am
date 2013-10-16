@@ -72,14 +72,6 @@ endif
 else
 SOURCES += grav.c walk.c
 endif
-if USE_HDF5
-SOURCES += iohdf5.c
-noinst_HEADERS += iohdf5.h
-endif
-if USE_MDL_IO
-SOURCES += io.c
-noinst_HEADERS += io.h
-endif
 MDL=@MDL_PATH@
 if USE_PNG
 SOURCES += png.c

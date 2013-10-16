@@ -43,9 +43,6 @@
 #include "tipsydefs.h"
 #include "outtype.h"
 #include "smoothfcn.h"
-#ifdef USE_MDL_IO
-#include "io.h"
-#endif
 #include "ssio.h"
 #include "fio.h"
 
@@ -576,14 +573,6 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     prmAddParam(msr->prm,"bFixCollapse",0,&msr->param.CP.bFixCollapse,
 		sizeof(int),"overlap","enable/disable overlap fix = -overlap");
 #endif /* PLANETS */
-
-
-#ifdef USE_MDL_IO
-    msr->param.nIO = 0;
-    prmAddParam(msr->prm,"nIO",1,&msr->param.nIO,
-		sizeof(int),"io","<Number of I/O processors> = 0");
-#endif
-
 
 #ifdef MDL_FFTW
     msr->param.nGridPk = 0;
@@ -1186,16 +1175,6 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     pstInitialize(&msr->pst,msr->mdl,&msr->lcl);
     pstAddServices(msr->pst,msr->mdl);
 
-#ifdef USE_MDL_IOxxx
-    /* If MDL I/O was requested, then split off "n" processors */
-    if ( msr->param.nIO ) {
-	if ( msr->param.nIO >= mdlThreads(mdl) ) {
-	    puts("ERROR: Number of I/O threads is greater than the total number of threads");
-	    _msrExit(msr,1);
-	    }
-	}
-#endif
-
     msr->nThreads = mdlThreads(mdl);
 
     /* Make sure that parallel read and write are sane */
@@ -1532,31 +1511,12 @@ msrCheckForStop(MSR msr) {
     }
 
 void msrFinish(MSR msr) {
-#ifndef USE_MDL_IO
     int id;
-#endif
-
-    /*
-    ** It is possible that a previous save is still pending on the I/O processor.  Wait for it.
-    */
-#ifdef USE_MDL_IO
-    if ( msr->bSavePending ) {
-	mdlSetComm(msr->mdl,1);
-	mdlGetReply(msr->mdl,0,NULL,NULL);
-	mdlSetComm(msr->mdl,0);
-	msr->bSavePending = 0;
-	}
-#endif
-
-#ifdef USE_MDL_IO
-    mdlStop(msr->mdl);
-#else
     for (id=1;id<msr->nThreads;++id) {
 	msrprintf(msr,"Stopping thread %d\n",id);
 	mdlReqService(msr->mdl,id,SRV_STOP,NULL,0);
 	mdlGetReply(msr->mdl,id,NULL,NULL);
 	}
-#endif
     pstFinish(msr->pst);
     csmFinish(msr->param.csm);
     /*
@@ -1834,61 +1794,6 @@ double msrGenerateIC(MSR msr) {
     msrprintf(msr,"IC Generation Complete, Wallclock: %f secs\n\n",dsec);
 
     return getTime(msr,out.dExpansion,&dvFac);
-    }
-#endif
-
-#ifdef USE_MDL_IO
-void msrIOWrite(MSR msr, const char *achOutName, double dTime, int bCheckpoint) {
-    double dExp, dvFac;
-
-    struct inStartIO inStart;
-    struct inStartSave save;
-
-    if (msr->param.csm->bComove) {
-	dExp = csmTime2Exp(msr->param.csm,dTime);
-	dvFac = 1.0/(dExp*dExp);
-	}
-    else {
-	dExp = dTime;
-	dvFac = 1.0;
-	}
-
-    /* Ask the I/O processors to start a save operation */
-    save.dTime       = dExp;
-    save.N           = msr->N;                                         /* Total */
-    save.bCheckpoint = bCheckpoint;
-    save.dEcosmo     = msr->dEcosmo;
-    save.dTimeOld    = msr->dTimeOld;
-    save.dUOld       = msr->dUOld;
-    save.iStandard   = prmSpecified(msr->prm,"bStandard") ? msr->param.bStandard : -1;
-    save.bHDF5       = msr->param.bHDF5;
-
-    strcpy(save.achOutName,achOutName);
-    mdlSetComm(msr->mdl,1);
-    if ( msr->bSavePending )
-	mdlGetReply(msr->mdl,0,NULL,NULL);
-    mdlReqService(msr->mdl,0,IO_START_SAVE,&save,sizeof(save));
-    msr->bSavePending = 1;
-    mdlSetComm(msr->mdl,0);
-
-    /* Execute a save operation on the worker processors */
-    inStart.dTime = dExp;
-    inStart.dvFac = dvFac;
-    inStart.bDoublePos = msr->param.bDoublePos;
-    inStart.N = msr->N;                                                /* Total */
-    strcpy(inStart.achOutName,achOutName);
-    inStart.dEcosmo  = msr->dEcosmo;
-    inStart.dTimeOld = msr->dTimeOld;
-    inStart.dUOld    = msr->dUOld;
-    pstStartIO( msr->pst, &inStart, sizeof(inStart), NULL, NULL );
-
-#if 0
-    /* Get the reply from the I/O processor */
-    mdlSetComm(msr->mdl,1);
-    mdlGetReply(msr->mdl,0,NULL,NULL);
-    mdlSetComm(msr->mdl,0);
-    msr->bSavePending = 0;
-#endif
     }
 #endif
 
@@ -5851,19 +5756,9 @@ void msrWrite(MSR msr,const char *pszFileName,double dTime,int bCheckpoint) {
 #ifdef PLANETS
     msrWriteSS(msr,pszFileName,dTime);
 #else
-#ifdef USE_MDL_IO
-    /* If we are using I/O processors, then we do it totally differently */
-    if ( mdlIO(msr->mdl) ) {
-	msrIOWrite(msr,pszFileName,dTime,bCheckpoint);
-	}
-    else
-#endif
-	/* This is always executed if not using MDL I/O */
-	{
-	if ( msr->iLastRungRT >= 0 ) msrReorder(msr);
-	assert( msr->iLastRungRT < 0 );
-	_msrWriteTipsy(msr,pszFileName,dTime,bCheckpoint);
-	}
+    if ( msr->iLastRungRT >= 0 ) msrReorder(msr);
+    assert( msr->iLastRungRT < 0 );
+    _msrWriteTipsy(msr,pszFileName,dTime,bCheckpoint);
 #endif
     }
 
@@ -5989,18 +5884,6 @@ double msrRead(MSR msr, const char *achInFile) {
     msrprintf(msr,"Input file has been successfully read, Wallclock: %f secs.\n", dsec);
     msrprintf(msr,"Allocated %lu MB for particle store on each processor.\n",
 	      pkdParticleMemory(plcl->pkd)/(1024*1024));
-
-#ifdef USE_MDL_IO
-    /* If we are using I/O processors, then preallocate space to save */
-    if ( mdlIO(msr->mdl) ) {
-	struct inIOSetup setup;
-	setup.N = msr->N;
-	mdlSetComm(msr->mdl,1);
-	mdlReqService(msr->mdl,0,IO_SETUP,&setup,sizeof(setup));
-	mdlGetReply(msr->mdl,0,NULL,NULL);
-	mdlSetComm(msr->mdl,0);
-	}
-#endif
 
     /*
     ** If this is a non-periodic box, then we must precalculate the bounds.

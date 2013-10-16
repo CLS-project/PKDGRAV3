@@ -1019,38 +1019,6 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
     pkd->nActive += nLocal;
     }
 
-#ifdef USE_MDL_IO
-void pkdIOInitialize( PKD pkd, int nLocal) {
-    int i, j;
-    PARTICLE *p;
-
-    pkd->nLocal = pkd->nActive = nLocal;
-
-    /*
-    ** General initialization.
-    */
-    for (i=0;i<nLocal;++i) {
-	p = pkdParticle(pkd,i);
-	p->uRung = p->uNewRung = 0;
-	p->bSrcActive = p->bDstActive = 1;
-	p->iClass = 0;
-	p->fDensity = 0.0;
-	p->fBall = 0.0;
-	/*
-	** Clear the accelerations so that the timestepping calculations do not
-	** get funny uninitialized values!
-	*/
-	if ( pkd->oAcceleration ) {
-	    float *a = pkdAccel(pkd,p);
-	    for (j=0;j<3;++j) {
-		a[j] = 0.0;
-		}
-	    }
-	}
-
-    }
-#endif
-
 void pkdCalcBound(PKD pkd,BND *pbnd) {
     double dMin[3],dMax[3];
     PARTICLE *p;

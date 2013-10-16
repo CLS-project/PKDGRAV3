@@ -207,10 +207,6 @@ struct parameters {
 #endif
 #endif /* PLANETS */
 
-#ifdef USE_MDL_IO
-    int nIO;
-#endif
-
     /* IC Generation */
     int bWriteIC;
 #ifdef USE_GRAFIC

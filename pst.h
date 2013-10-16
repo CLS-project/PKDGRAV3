@@ -173,8 +173,6 @@ enum pst_service {
     PST_GROUPPROFILES,
     PST_INITRELAXATION,
     PST_CLEARTIMER,
-    PST_FINDIOS,
-    PST_STARTIO,
 #ifdef PLANETS
     PST_READSS,
     PST_WRITESS,
@@ -500,46 +498,6 @@ struct inWrite {
     char achOutFile[PST_FILENAME_SIZE];
     };
 void pstWrite(PST,void *,int,void *,int *);
-
-#ifdef USE_MDL_IO
-/* PST_FINDIOS */
-struct inFindIOS {
-    int nLower; /* Number of particles to the left */
-    int N;
-    };
-struct outFindIOS {
-    int nCount[MDL_MAX_IO_PROCS];
-    };
-void pstFindIOS(PST,void *,int,void *,int *);
-
-/* PST_STARTIO */
-struct inStartIO {
-    uint64_t N;
-    double dvFac;
-    double dTime;
-    double dEcosmo;
-    double dTimeOld;
-    double dUOld;
-    int bDoublePos;
-    char achOutName[PST_FILENAME_SIZE];
-    };
-void pstStartIO(PST,void *,int,void *,int *);
-
-/* PST_IO_LOAD */
-struct inIOLoad {
-    uint64_t nDark;
-    uint64_t nGas;
-    uint64_t nStar;
-    double dvFac;
-    double dTuFac;
-    int nBucket;
-    float fExtraStore;
-    FLOAT fPeriod[3];
-    };
-
-void pstIOLoad(PST,void *,int,void *,int *);
-
-#endif
 
 /* PST_BUILDTREE */
 struct inBuildTree {
