@@ -27,14 +27,13 @@ __device__ float MWS(float m1, float h12, float m2, float h22) {
 __global__ void cudaPP( int nP, PINFOIN *in, int nPart, ILP_BLK *blk, PINFOOUT *out ) {
     int bid, tid, pid, wid;
     float d2, dir, dir2, dir3, fourh2, dx, dy, dz, p, ds, ns;
-    float fSoft, fMass;
     __shared__ float ax[32];
     __shared__ float ay[32];
     __shared__ float az[32];
     __shared__ float fPot[32];
     __shared__ float dirsum[32];
     __shared__ float normsum[32];
-    float m, h2, dimaga, adotai;
+    float m, dimaga, adotai;
     int i = blockIdx.y;
     float *a = in[i].a;
 

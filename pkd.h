@@ -500,14 +500,14 @@ typedef struct RhoLocalArray {
 
 typedef union {
     float *f;
-#ifdef USE_SIMD
+#if defined(USE_SIMD) && !defined(__CUDACC__)
     v_sf *p;
 #endif
     } ewaldFloat;
 
 typedef union {
     double *d;
-#ifdef USE_SIMD
+#if defined(USE_SIMD) && !defined(__CUDACC__)
     v_df *p;
 #endif
     } ewaldDouble;
@@ -520,7 +520,7 @@ struct EwaldVariables {
 	ewaldFloat hCfac,hSfac;
 	ewaldDouble Lx,Ly,Lz;
 	} ewt;
-#ifdef USE_SIMD
+#if defined(USE_SIMD) && !defined(__CUDACC__)
     struct {
 	vdouble m;
 	vdouble xx,yy,xy,xz,yz;
@@ -1149,9 +1149,8 @@ static inline int32_t *pkdInt32( PARTICLE *p, int iOffset ) {
     }
 
 static inline int32_t *pkdGroup( PKD pkd, PARTICLE *p ) {
-    if ( pkd->oGroup )
-	return CAST(int32_t *, pkdField(p,pkd->oGroup));
-    assert(0);
+    assert(pkd->oGroup);
+    return CAST(int32_t *, pkdField(p,pkd->oGroup));
     }
 
 /* Here is the new way of getting mass and softening */

@@ -604,14 +604,15 @@ void pkdInitialize(
 
 #ifdef USE_CUDA
 	{
-	int sizeILP = sizeof(ILP_BLK)*pkd->ilp.nBlocksPerTile;
-	int sizeILC = sizeof(ILC_BLK)*pkd->ilc.nBlocksPerTile;
+	int sizeILP = sizeof(ILP_BLK)*pkd->ilp->lst.nBlocksPerTile;
+	int sizeILC = sizeof(ILC_BLK)*pkd->ilc->lst.nBlocksPerTile;
 	pkd->cudaCtx = CUDA_initialize(mdlSelf(pkd->mdl),
 	    iCUDAQueueSize,
 	    sizeILP>sizeILC ? sizeILP : sizeILC,
 	    nGroup*sizeof(PINFOIN),
 	    nGroup*sizeof(PINFOOUT)
-	    * (pkd->ilp.nBlocksPerTile>pkd->il.nBlocksPerTile?pkd->ilp.nBlocksPerTile:pkd->ilc.nBlocksPerTile) );
+	    * (pkd->ilp->lst.nBlocksPerTile>pkd->ilc->lst.nBlocksPerTile
+		? pkd->ilp->lst.nBlocksPerTile : pkd->ilc->lst.nBlocksPerTile) );
 	}
 #endif
     }
