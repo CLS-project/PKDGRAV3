@@ -34,10 +34,6 @@ extern "C" {
 #define MDL_INDEX_MASK		(~MDL_CACHE_MASK)
 #define MDL_CHECK_MASK  	0x7f
 
-#ifndef MDL_MAX_IO_PROCS
-#define MDL_MAX_IO_PROCS        128
-#endif
-
 /* Maximum number of communicators */
 #define MDL_MAX_COMM 10
 
@@ -120,7 +116,6 @@ typedef struct freeCacheLines {
 
 typedef struct mdlContext {
     int nThreads;
-    int nIO;
     int commCount;
     int cacheSize;
     MPI_Comm commMDL;  /* Current active communicator */
@@ -246,15 +241,13 @@ void mdlPrintTimer(MDL mdl,char *message,mdlTimer *);
  ** General Functions
  */
 double mdlCpuTimer(MDL);
-int mdlLaunch(int,char **,int (*)(MDL,int,char **),void (*)(MDL),void (*)(MDL));
+int mdlLaunch(int,char **,int (*)(MDL,int,char **),void (*)(MDL));
 void mdlFinish(MDL);
 int  mdlSplitComm(MDL mdl, int nProcs);
 void mdlSetComm(MDL mdl, int iComm);
 void mdlStop(MDL);
 int mdlThreads(MDL);
-int mdlIO(MDL);
 int mdlSelf(MDL);
-int mdlOldSelf(MDL);
 const char *mdlName(MDL);
 int mdlSwap(MDL,int,size_t,void *,size_t,size_t *,size_t *);
 typedef int (*mdlPack)(void *,int *,size_t,void*);

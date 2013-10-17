@@ -4360,7 +4360,7 @@ void pstHostname(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	char *p;
 	for (id=0;id<nThreads;++id) out[id].szHostname[0] = 0;
 	id = pst->idSelf;
-	out[id].iMpiID = mdlOldSelf(pst->mdl);
+	out[id].iMpiID = mdlSelf(pst->mdl);
 	strncpy(out[id].szHostname,mdlName(pst->mdl),sizeof(out[id].szHostname));
 	out[id].szHostname[sizeof(out[id].szHostname)-1] = 0;
 	p = strchr(out[id].szHostname,'.');

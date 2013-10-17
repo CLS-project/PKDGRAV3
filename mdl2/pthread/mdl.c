@@ -500,11 +500,7 @@ void BasicDestroy(MDL mdl) {
     }
 
 
-int mdlLaunch(
-    int argc,char **argv,
-    int (*fcnMaster)(MDL,int,char **),
-    void (*fcnChild)(MDL),
-    void (*fcnIO)(MDL)) {
+int mdlLaunch(int argc,char **argv,int (*fcnMaster)(MDL,int,char **),void (*fcnChild)(MDL)) {
     MDL mdl,tmdl;
     int i,nThreads=1,bThreads,bDiag;
     char *p,ach[256],achDiag[256];
@@ -520,11 +516,6 @@ int mdlLaunch(
 	}
     first = 0;
 #endif
-    /*
-    ** We assert here, since the pthread version of mdl does not support IO threads yet.
-    */
-    assert(fcnIO==NULL);
-
     /*
      ** Do some low level argument parsing for number of threads, and
      ** diagnostic flag!
@@ -697,16 +688,6 @@ int mdlThreads(MDL mdl) {
 int mdlSelf(MDL mdl) {
     return(mdl->idSelf);
     }
-
-/*
-** This function returns the absolute ID, when using IO threads. This is 
-** only really useful for debugging. For now it is equivalent to mdlSelf
-** since IO threads are not supported yet.
-*/
-int mdlOldSelf(MDL mdl) {
-    return(mdl->idSelf);
-    }
-
 
 const char *mdlName(MDL mdl) {
     return mdl->nodeName;

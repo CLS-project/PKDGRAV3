@@ -124,16 +124,10 @@ void mdlPrintTimer(MDL mdl,char *message, mdlTimer *t0) {
     }
 #endif
 
-int mdlLaunch(
-    int argc,char **argv,
-    int (*fcnMaster)(MDL,int,char **),
-    void (*fcnChild)(MDL),
-    void (*fcnIO)(MDL)) {
+int mdlLaunch(int argc,char **argv,int (*fcnMaster)(MDL,int,char **),void (*fcnChild)(MDL)) {
     MDL mdl;
     int i,nThreads,bDiag,bThreads;
     char *p,ach[256],achDiag[256];
-
-    assert(fcnIO==NULL);
 
     mdl = malloc(sizeof(struct mdlContext));
     assert(mdl != NULL);
@@ -276,15 +270,6 @@ int mdlThreads(MDL mdl) {
  ** have 'id's ranging from 1..(nThreads - 1).
  */
 int mdlSelf(MDL mdl) {
-    return(mdl->idSelf);
-    }
-
-/*
-** This function returns the absolute ID, when using IO threads. This is 
-** only really useful for debugging. For now it is equivalent to mdlSelf
-** since IO threads are not supported yet.
-*/
-int mdlOldSelf(MDL mdl) {
     return(mdl->idSelf);
     }
 

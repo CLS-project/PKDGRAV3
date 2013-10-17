@@ -263,11 +263,10 @@ void mdlPrintTimer(MDL mdl,char *message,mdlTimer *);
  ** General Functions
  */
 double mdlCpuTimer(MDL);
-int mdlInitialize(int,char **,int (*)(MDL,int,char **),void (*)(MDL),void (*)(MDL));
+int mdlLaunch(int,char **,int (*)(MDL,int,char **),void (*)(MDL));
 void mdlFinish(MDL);
 int mdlThreads(MDL);
 int mdlSelf(MDL);
-int mdlOldSelf(MDL);
 const char *mdlName(MDL);
 int mdlSwap(MDL,int,size_t,void *,size_t,size_t *,size_t *);
 void mdlDiag(MDL,char *);

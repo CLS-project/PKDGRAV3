@@ -363,7 +363,7 @@ int FC_MAIN(int argc,char **argv) {
     setbuf(stdout,(char *) NULL);
 #endif
 
-    mdlLaunch(argc,argv,master_ch,main_ch,0);
+    mdlLaunch(argc,argv,master_ch,main_ch);
 
     return 0;
     }

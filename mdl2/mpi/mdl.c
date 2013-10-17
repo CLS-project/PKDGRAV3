@@ -178,56 +178,8 @@ void mdlPrintTimer(MDL mdl,char *message, mdlTimer *t0) {
     }
 #endif
 
-/*
-** This will remove nProcs processors from communicator zero
-** and reconfigure the remaining processors.  commList[] is:
-**   [0] - Our private communicator
-**   [1]
-*/
-int  mdlSplitComm(MDL mdl, int nProcs) {
-    int stride, offset, oldRank, isIO, peerID, iComm;
-    MPI_Comm newComm;
-
-    if ( nProcs == 0 ) return 0;
-
-    assert( nProcs < mdl->nThreads );
-    assert( mdl->commCount < MDL_MAX_COMM );
-
-    oldRank = mdl->idSelf;
-
-    isIO = 0;
-    stride = mdl->nThreads / nProcs;
-    offset = mdl->nThreads - nProcs * stride;
-    mdl->idSelf = (oldRank - offset) / stride;  /* I/O processor rank */
-    if ( mdl->idSelf < 0 )
-	mdl->idSelf = oldRank;
-    else if ( (oldRank - offset) % stride != stride-1 )
-	mdl->idSelf = oldRank - mdl->idSelf;
-    else
-	isIO = 1;
-    mdl->nThreads -= nProcs;
-    peerID = isIO ? 0 : stride+offset-1;
-
-    MPI_Comm_split(mdl->commList[0], isIO, mdl->idSelf, &newComm );
-    MPI_Intercomm_create( newComm, 0, mdl->commList[0],
-			  peerID, 10, &mdl->commList[mdl->commCount++]);
-    if ( mdl->commList[0] != MPI_COMM_WORLD )
-	MPI_Comm_free(&mdl->commList[0]);
-    mdl->commMDL = mdl->commList[0] = newComm;
-    MPI_Comm_rank(mdl->commMDL, &mdl->idSelf);
-
-    iComm = isIO ? mdl->commCount-1 : 0;
-    mdl->commMDL = mdl->commList[iComm];
-    return iComm;
-    }
-
-int mdlLaunch(
-    int argc,char **argv,
-    int (*fcnMaster)(MDL,int,char **),
-    void (*fcnChild)(MDL),
-    void (*fcnIO)(MDL)) {
+int mdlLaunch(int argc,char **argv,int (*fcnMaster)(MDL,int,char **),void (*fcnChild)(MDL)) {
     MDL mdl;
-    int iComm;
     int i,j,bDiag,bThreads;
     char *p,ach[256],achDiag[256];
 
@@ -309,22 +261,8 @@ int mdlLaunch(
      */
     bDiag = 0;
     bThreads = 0;
-    mdl->nIO = 0;
     i = 1;
     while (argv[i]) {
-	if (!strcmp(argv[i],"-io") && fcnIO!=0) {
-	    if (!argv[i+1]) {
-		fprintf(stderr, "-io requires an argument\n");
-		exit(0);
-		}
-	    mdl->nIO = atoi(argv[i+1]);
-	    j = i;
-	    do {
-		argv[j] = argv[j+2];
-		}
-	    while ( argv[j++] );
-	    continue;
-	    }
 	if (!strcmp(argv[i],"-sz") && !bThreads) {
 	    ++i;
 	    if (argv[i]) bThreads = 1;
@@ -348,16 +286,7 @@ int mdlLaunch(
     MPI_Comm_size(mdl->commList[0], &mdl->nThreads);
     MPI_Comm_rank(mdl->commList[0], &mdl->idSelf);
 
-    mdlassert( mdl, mdl->nIO >= 0 && mdl->nIO <= MDL_MAX_IO_PROCS );
-
-    /*
-    ** It is important that every processor know the IO processor count.
-    ** MPI only passes parameters to rank 0, so we sent it on.
-    */
-    MPI_Bcast( &(mdl->nIO), 1, MPI_INT, 0, mdl->commList[0]);
-
-    iComm = mdlSplitComm(mdl,mdl->nIO);
-    mdl->commMDL = mdl->commList[iComm];
+    mdl->commMDL = mdl->commList[0];
 
     /*
      ** Allocate caching buffers, with initial data size of 0.
@@ -386,7 +315,7 @@ int mdlLaunch(
 	char *tmp = strrchr(argv[0],'/');
 	if (!tmp) tmp = argv[0];
 	else ++tmp;
-	sprintf(achDiag,"%s/%s.%d",ach,tmp,mdlOldSelf(mdl));
+	sprintf(achDiag,"%s/%s.%d",ach,tmp,mdlSelf(mdl));
 	mdl->fpDiag = fopen(achDiag,"w");
 	assert(mdl->fpDiag != NULL);
 	}
@@ -394,15 +323,7 @@ int mdlLaunch(
     MPI_Get_processor_name( mdl->nodeName, &i );
     mdl->nodeName[i] = 0;
 
-    /*if ( oldRank >= mdl->nThreads ) {*/
-    if ( iComm ) {
-	/*
-	 ** I/O thread.
-	 */
-	mdlassert( mdl, mdl->nIO > 0 );
-	(*fcnIO)(mdl);
-	}
-    else if (mdl->nThreads > 1 && mdlOldSelf(mdl)) {
+    if (mdl->nThreads > 1 && mdlSelf(mdl)) {
 	/*
 	 ** Child thread.
 	 */
@@ -454,26 +375,12 @@ void mdlFinish(MDL mdl) {
     }
 
 
-void mdlSetComm(MDL mdl, int iComm) {
-    assert( iComm >=0 && iComm < mdl->commCount );
-    mdl->commMDL = mdl->commList[iComm];
-    }
-
-
 /*
  ** This function returns the number of threads in the set of
  ** threads.
  */
 int mdlThreads(MDL mdl) {
     return(mdl->nThreads);
-    }
-
-
-/*
- ** This function returns the number of threads dedicated to IO.
- */
-int mdlIO(MDL mdl) {
-    return(mdl->nIO);
     }
 
 
@@ -485,17 +392,6 @@ int mdlIO(MDL mdl) {
 int mdlSelf(MDL mdl) {
     return(mdl->idSelf);
     }
-
-/*
-** This function returns the absolute ID (the MPI rank), useful for
-** debugging any problems that might occur.
-*/
-int mdlOldSelf(MDL mdl) {
-    int oldSelf;
-    MPI_Comm_rank(MPI_COMM_WORLD, &oldSelf);
-    return oldSelf;
-    }
-
 
 const char *mdlName(MDL mdl) {
     return mdl->nodeName;
@@ -896,14 +792,6 @@ void mdlStop(MDL mdl) {
 	mdlReqService(mdl,id,SRV_STOP,NULL,0);
 	mdlGetReply(mdl,id,NULL,NULL);
 	}
-    if ( mdl->nIO ) {
-	printf("Stopping I/O threads\n");
-	mdlSetComm(mdl,1);
-	mdlReqService(mdl,0,SRV_STOP,NULL,0);
-	mdlGetReply(mdl,0,NULL,NULL);
-	mdlSetComm(mdl,0);
-	}
-
     printf( "MDL terminated\n" );
     }
 
@@ -956,19 +844,7 @@ static int mdlHandleOne(MDL mdl) {
 void mdlHandler(MDL mdl) {
     int sid;
 
-    /*
-    ** We must choose the correct communicator.  All nodes initially
-    ** communicate only to their peers, except for the split masters;
-    ** those wait for instructions from the main process group.
-    */
-    if ( mdlSelf(mdl) == 0 && mdlOldSelf(mdl) != 0 ) {
-	assert( mdl->commCount == 2 );
-	mdl->commMDL = mdl->commList[mdl->commCount-1];
-	}
-    else {
-	mdl->commMDL = mdl->commList[0];
-	}
-
+    mdl->commMDL = mdl->commList[0];
     do {
 	sid = mdlHandleOne(mdl);
 	}
