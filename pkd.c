@@ -383,7 +383,6 @@ void pkdInitialize(
 	pkd->nMaxDomainRungs = 0;
 	pkd->oRungDest = 0;
 	}
-    pkd->nDomainRungs = 0;
 
     /*
     ** Tree node memory models
@@ -1263,7 +1262,7 @@ void pkdPeanoHilbertDecomp(PKD pkd, int nRungs, int iMethod) {
     int nThreads = mdlThreads(pkd->mdl);
     int nLocal   = pkd->nLocal;
     int nID      = mdlSelf(pkd->mdl);
-    int i, iRung, iActiveRung, iKey;
+    int i, iRung, iRungMin, iRungMax, iActiveRung, iKey;
     int64_t lKey;
     int L, U, M;
     int32_t *nActiveBelow;
@@ -1324,10 +1323,11 @@ void pkdPeanoHilbertDecomp(PKD pkd, int nRungs, int iMethod) {
 
     /* Create a Peano-Hilbert key for each particle, then sort them into key order */
     /* Let's take this opportunity to calculate the first active rung */
-    iRung = MAX_RUNG;
+    iRungMin = MAX_RUNG;
     for (i=0;i<nLocal;++i) {
 	p = pkdParticle(pkd,i);
-	if (p->uRung < iRung) iRung = p->uRung;
+	if (p->uRung < iRungMin) iRungMin = p->uRung;
+	if (p->uRung > iRungMax) iRungMax = p->uRung;
 	x = p->r[0] + 1.5;
 	if (x < 1.0) x = 1.0;
 	else if (x >= 2.0) x = 2.0;
@@ -1346,7 +1346,8 @@ void pkdPeanoHilbertDecomp(PKD pkd, int nRungs, int iMethod) {
 	assert(pl[i].lKey >= 0 && pl[i].lKey <= PEANO_HILBERT_KEY_MAX);
 	pl[i].i = i;
 	}
-    mdlAllreduce( pkd->mdl, &iRung, &pkd->iFirstDomainRung, 1, MDL_INT, MDL_MIN);
+    mdlAllreduce( pkd->mdl, &iRungMin, &pkd->iFirstDomainRung, 1, MDL_INT, MDL_MIN);
+    mdlAllreduce( pkd->mdl, &iRungMax, &pkd->iLastDomainRung, 1, MDL_INT, MDL_MAX);
     qsort(pl,nLocal,sizeof(PLITEDD),cmpPeanoHilbert);
     pl[nLocal].lKey = PEANO_HILBERT_KEY_MAX;
     pl[nLocal].i = -1;
@@ -1603,8 +1604,6 @@ void pkdPeanoHilbertDecomp(PKD pkd, int nRungs, int iMethod) {
 	    }
 	}
 
-    pkd->nDomainRungs = pkd->nMaxDomainRungs;
-
     free(r); free(s); free(t);
     free(fr); free(fs);
 
@@ -1662,7 +1661,7 @@ void pkdOrbBegin(PKD pkd, int nRungs) {
     PLITEORB *pl = (PLITEORB *)pkd->pLite;
     int i, j;
     PARTICLE *p;
-    int iRung;
+    int iRungMin, iRungMax;
 
     pkd->iFirstActive  = malloc(sizeof(*pkd->iFirstActive)   * (nNodes+1));
     pkd->iFirstInActive= malloc(sizeof(*pkd->iFirstInActive) * (nNodes+1));
@@ -1675,16 +1674,18 @@ void pkdOrbBegin(PKD pkd, int nRungs) {
     pkd->pDomainCountsLocal = malloc(sizeof(*pkd->pDomainCountsLocal) * nNodes);
 
     /* These are the "particles" we partition */
-    iRung = MAX_RUNG;
+    iRungMin = MAX_RUNG;
+    iRungMax = 0;
     for (i=0;i<pkd->nLocal;++i) {
         p = pkdParticle(pkd,i);
-	if (p->uRung < iRung) iRung = p->uRung;
+	if (p->uRung < iRungMin) iRungMin = p->uRung;
+	if (p->uRung > iRungMax) iRungMax = p->uRung;
         for(j=0;j<3;++j) pl[i].r[j] = p->r[j];
         pl[i].i = i;
         pl[i].uRung = p->uRung;
         }
-    mdlAllreduce( pkd->mdl, &iRung, &pkd->iFirstDomainRung, 1, MDL_INT, MDL_MIN);
-    pkd->nDomainRungs = 0;
+    mdlAllreduce( pkd->mdl, &iRungMin, &pkd->iFirstDomainRung, 1, MDL_INT, MDL_MIN);
+    mdlAllreduce( pkd->mdl, &iRungMax, &pkd->iLastDomainRung,  1, MDL_INT, MDL_MAX);
     }
 
 int pkdOrbSelectRung(PKD pkd,int uRung) {
@@ -1732,7 +1733,6 @@ void pkdOrbUpdateRung(PKD pkd) {
 	    pkdRungDest(pkd,p)[iRung] = iDomain;
 	    }
 	}
-    pkd->nDomainRungs = pkd->iDomainRung;
     }
 
 void pkdOrbFinish(PKD pkd) {
@@ -1935,6 +1935,7 @@ void pkdRungOrder(PKD pkd, int iRung, total_t *nMoved) {
     PARTICLE *p, *p2;
     uint16_t *pRungDest;
 
+    if (iRung>pkd->iLastDomainRung) iRung = pkd->iLastDomainRung;
     iRung -= pkd->iFirstDomainRung;
     if (iRung<0) iRung = 0;
     else if (iRung >= pkd->nMaxDomainRungs) iRung = pkd->nMaxDomainRungs - 1;

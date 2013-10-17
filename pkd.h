@@ -782,8 +782,7 @@ typedef struct pkdContext {
 #endif
 
     int nMaxDomainRungs;
-    int iFirstDomainRung;
-    int nDomainRungs;
+    int iFirstDomainRung, iLastDomainRung;
 
     /*
     ** Advanced memory models
