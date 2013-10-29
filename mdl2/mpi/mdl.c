@@ -534,20 +534,38 @@ int mdlSwap(MDL mdl,int id,size_t nBufBytes,void *vBuf,size_t nOutBytes,
     size_t nInBytes, nSend;
     char *pszBuf = vBuf;
 
+    struct swapInit {
+	size_t nOutBytes;
+	size_t nBufBytes;
+	} swi,swo;
+
+    swo.nOutBytes = nOutBytes;
+    swo.nBufBytes = nBufBytes;
+
     /* First exchange counts */
-    MPI_Sendrecv(&nOutBytes, sizeof(nOutBytes), MPI_BYTE, id, MDL_TAG_SWAPINIT,
-	&nInBytes, sizeof(nInBytes), MPI_BYTE, id, MDL_TAG_SWAPINIT,
+    MPI_Sendrecv(&swo, sizeof(swo), MPI_BYTE, id, MDL_TAG_SWAPINIT,
+	&swi, sizeof(swi), MPI_BYTE, id, MDL_TAG_SWAPINIT,
 	mdl->commMDL, &status);
-    assert( nInBytes <= nBufBytes );
+    if (swi.nBufBytes < nOutBytes || swi.nOutBytes > nBufBytes) {
+	if (swi.nBufBytes < nOutBytes) nOutBytes = swi.nBufBytes;
+	nInBytes = (swi.nOutBytes < nBufBytes) ? swi.nOutBytes : nBufBytes;
+	printf("= ******************** %lu %lu %lu %lu : %lu %lu\n",
+	    swo.nBufBytes, swo.nOutBytes, swi.nBufBytes, swi.nOutBytes,
+	    nInBytes, nOutBytes);
+	}
+    else {
+	if (swi.nBufBytes < nOutBytes) nOutBytes = swi.nBufBytes;
+	nInBytes = (swi.nOutBytes < nBufBytes) ? swi.nOutBytes : nBufBytes;
+	}
 
     /* Swap the common portion */
     if ( nOutBytes>0 && nInBytes>0 ) {
 	nSend = (nOutBytes < nInBytes ? nOutBytes : nInBytes);
 	MPI_Sendrecv_replace(pszBuf, nSend, MPI_BYTE, id, MDL_TAG_SWAP,
 	    id, MDL_TAG_SWAP, mdl->commMDL, &status);
+	pszBuf += nSend;
 	}
     else nSend = 0;
-    pszBuf += nSend;
 
     /* Now Send the excess */
     if ( nOutBytes > nInBytes ) {
