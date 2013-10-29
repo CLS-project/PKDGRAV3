@@ -253,9 +253,6 @@ static union {
 */
 static void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin, int nGroup) {
     v_sf T0,T1,T2,T3,T4,T6,T7,P1,P2,P3,P4;
-#ifdef USE_SOFTENED_MONOPOLE
-    v_sf T5,fMonopoleThetaFac2;
-#endif
     v_sf T,xc,yc,zc,dx,dy,dz,d2,diCrit,cOpen,cOpen2,d2Open,mink2,minbnd2,fourh2;
     int i,n,iEnd,nLeft;
     CL_BLK *blk;
@@ -270,10 +267,6 @@ static void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin, i
     assert ( pkdNodeMom(pkd,k)->m > 0.0f );
 
     diCrit = SIMD_SPLAT(1.0f/dThetaMin);
-
-#ifdef USE_SOFTENED_MONOPOLE
-    fMonopoleThetaFac2 = SIMD_MUL(diCrit,diCrit);
-#endif
 
     kbnd = pkdNodeBnd(pkd,k);
     k_xMinBnd = SIMD_SPLAT(kbnd->fCenter[0]-kbnd->fMax[0]);
@@ -351,20 +344,11 @@ static void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin, i
 	    T4 = SIMD_CMP_GT(minbnd2,fourh2);
 
 
-#ifdef USE_SOFTENED_MONOPOLE
-	    T5 = SIMD_CMP_GT(mink2,SIMD_MUL(fMonopoleThetaFac2,cOpen2));
-#endif
 	    T6 = SIMD_CMP_GT(cOpen,k_Open);
 	    T7 = SIMD_I2F(SIMD_CMP_GT_EPI32(k_nk,k_nGroup.p));
 	    iOpenA = SIMD_OR(SIMD_AND(T2,iconsts.one.pf),SIMD_ANDNOT(T2,iconsts.three.pf));
 	    iOpenB = SIMD_OR(SIMD_AND(T3,iOpenA),SIMD_ANDNOT(T3,
-		    SIMD_OR(SIMD_AND(T4,iconsts.four.pf),SIMD_ANDNOT(T4,
-#ifdef USE_SOFTENED_MONOPOLE
-			    SIMD_OR(SIMD_AND(T5,iconsts.five.pf),SIMD_ANDNOT(T5,iOpenA))
-#else
-			    iOpenA
-#endif
-	    ))));
+		    SIMD_OR(SIMD_AND(T4,iconsts.four.pf),SIMD_ANDNOT(T4,iOpenA))));
 	    P1 = SIMD_OR(SIMD_AND(T2,iconsts.two.pf),SIMD_ANDNOT(T2,iconsts.three.pf));
 	    P2 = SIMD_OR(SIMD_AND(T7,iconsts.zero.pf),SIMD_ANDNOT(T7,iOpenB));
 	    P3 = SIMD_OR(SIMD_AND(T6,P1),SIMD_ANDNOT(T6,P2));
@@ -385,10 +369,6 @@ static void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin, i
 */
 static void iOpenOutcomeCL(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin,int nGroup) {
     const int walk_min_multipole = 3;
-
-#ifdef USE_SOFTENED_MONOPOLE
-    float fMonopoleThetaFac2;
-#endif
     float dx,dy,dz,mink2,d2,d2Open,xc,yc,zc,fourh2,minbnd2,kOpen,cOpen,diCrit;
     int j,i,nk;
     int iOpen,iOpenA,iOpenB;
@@ -400,9 +380,6 @@ static void iOpenOutcomeCL(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin,int 
     nk = k->pUpper - k->pLower + 1;
 
     diCrit = 1.0f / dThetaMin;
-#ifdef USE_SOFTENED_MONOPOLE
-    fMonopoleThetaFac2 = diCrit * diCrit;
-#endif
     blk = tile->blk;
     for(nLeft=tile->lstTile.nBlocks; nLeft>=0; --nLeft,blk++) {
 	n = nLeft ? cl->lst.nPerBlock : tile->lstTile.nInLast;
@@ -448,9 +425,6 @@ static void iOpenOutcomeCL(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin,int 
 		    else iOpenA = 3;
 		    if (blk->nc.i[i] < walk_min_multipole || mink2 <= cOpen*cOpen) iOpenB = iOpenA;
 		    else if (minbnd2 > fourh2) iOpenB = 4;
-#ifdef USE_SOFTENED_MONOPOLE
-		    else if (mink2 > fMonopoleThetaFac2*cOpen*cOpen) iOpenB = 5;
-#endif
 		    else iOpenB = iOpenA;
 		    if (nk>nGroup) iOpen = 0;
 		    else iOpen = iOpenB;
@@ -786,189 +760,23 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
 				** Interact += Moment(c);
 				*/
 				iCheckCell = blk->iCell.i[jTile];
-				/* Add a particle as a monopole */
-				if (iCheckCell < 0) {
-				    if (bGravStep && pkd->param.iTimeStepCrit == 1) {
-					id = blk->id.i[jTile];
-					assert(id >= 0);
-					pj = -1 - iCheckCell;
-					if (id == pkd->idSelf) p = pkdParticle(pkd,pj);
-					else p = CAST(PARTICLE *,mdlAquire(pkd->mdl,CID_PARTICLE,pj,id));
-					v = pkdVel(pkd,p);
-					}
-				    monoPole.m = blk->m.f[jTile];
-				    ilcAppend(pkd->ilc,
-					blk->x.f[jTile] + blk->xOffset.f[jTile],
-					blk->y.f[jTile] + blk->yOffset.f[jTile],
-					blk->z.f[jTile] + blk->zOffset.f[jTile],
-					&monoPole,0.0,v[0],v[1],v[2]);
-				    if (bGravStep && pkd->param.iTimeStepCrit == 1 && id != pkd->idSelf)
-					mdlRelease(pkd->mdl,CID_PARTICLE,p);
-				    }
-				else {
-				    id = blk->id.i[jTile];
-				    if (id == pkd->idSelf) c = pkdTreeNode(pkd,iCheckCell);
-				    else if (id == -1) c = pkdTopNode(pkd,iCheckCell);
-				    else c = CAST(KDN *,mdlAquire(pkd->mdl,CID_CELL,iCheckCell,id));
-				    /*
-				    ** Center of mass velocity is used by the planets code to get higher derivatives of the 
-				    ** acceleration and could be used to drift cell moments as an approximation.
-				    */
-				    if (pkd->oNodeVelocity) v = pkdNodeVel(pkd,c);
-				    ilcAppend(pkd->ilc,
-					blk->x.f[jTile] + blk->xOffset.f[jTile],
-					blk->y.f[jTile] + blk->yOffset.f[jTile],
-					blk->z.f[jTile] + blk->zOffset.f[jTile],
-					pkdNodeMom(pkd,c),c->bMax,
-					v[0],v[1],v[2]);
-				    if (id != -1 && id != pkd->idSelf) mdlRelease(pkd->mdl,CID_CELL,c);
-				    }
-				break;
-#ifdef USE_SOFTENED_MONOPOLE
-			    case 5:
-				/*
-				** We accept this multipole from the opening criterion, but it is a softened
-				** interaction, so we need to treat is as a softened monopole by putting it
-				** on the particle interaction list.
-				*/
-				iCheckCell = blk->iCell.i[jTile];
-				if (iCheckCell<0) {
-				    if (bGravStep && pkd->param.iTimeStepCrit == 1) {
-					id = blk->id.i[jTile];
-					pj = -1 - iCheckCell;
-					assert(id >= 0);
-					if (id == pkd->idSelf) p = pkdParticle(pkd,pj);
-					else p = CAST(PARTICLE *,mdlAquire(pkd->mdl,CID_PARTICLE,pj,id));
-					v = pkdVel(pkd,p);
-					}
-				    ilpAppend(pkd->ilp,
-					blk->x.f[jTile] + blk->xOffset.f[jTile],
-					blk->y.f[jTile] + blk->yOffset.f[jTile],
-					blk->z.f[jTile] + blk->zOffset.f[jTile],
-					blk->m.f[jTile], blk->fourh2.f[jTile],
-					-1,v[0], v[1], v[2]);
-				    if (bGravStep && pkd->param.iTimeStepCrit == 1 && id != pkd->idSelf)
-					mdlRelease(pkd->mdl,CID_PARTICLE,p);
-				    }
-				else {
-				    id = blk->id.i[jTile];
-				    if (id == pkd->idSelf) c = pkdTreeNode(pkd,iCheckCell);
-				    else if (id == -1) c = pkdTopNode(pkd,iCheckCell);
-				    else c = CAST(KDN *,mdlAquire(pkd->mdl,CID_CELL,iCheckCell,id));
-				    if (pkd->oNodeVelocity) v = pkdNodeVel(pkd,c);
-				    ilpAppend(pkd->ilp,
-					blk->x.f[jTile] + blk->xOffset.f[jTile],
-					blk->y.f[jTile] + blk->yOffset.f[jTile],
-					blk->z.f[jTile] + blk->zOffset.f[jTile],
-					blk->m.f[jTile], blk->fourh2.f[jTile],
-					-1, /* set iOrder to negative value for time step criterion */
-					v[0], v[1], v[2]);
-				    if (id != -1 && id != pkd->idSelf) mdlRelease(pkd->mdl,CID_CELL,c);
-				    }
-				break;
-#endif
-			    case 6:
-				/*
-				** This is accepting an "opened" bucket's particles as monopoles for the
-				** local expansion.
-				*/
-				assert(0);
-				iCheckCell = -blk->iCell.i[jTile];
+				assert(iCheckCell>=0);
 				id = blk->id.i[jTile];
-				dOffset[0] = blk->xOffset.f[jTile];
-				dOffset[1] = blk->yOffset.f[jTile];
-				dOffset[2] = blk->zOffset.f[jTile];
 				if (id == pkd->idSelf) c = pkdTreeNode(pkd,iCheckCell);
+				else if (id == -1) c = pkdTopNode(pkd,iCheckCell);
 				else c = CAST(KDN *,mdlAquire(pkd->mdl,CID_CELL,iCheckCell,id));
-				for (pj=c->pLower;pj<=c->pUpper;++pj) {
-				    if (id == pkd->idSelf) p = pkdParticle(pkd,pj);
-				    else p = CAST(PARTICLE *,mdlAquire(pkd->mdl,CID_PARTICLE,pj,id));
-				    if (pkdMass(pkd,p) <= 0.0) continue;
-				    /*
-				    ** Monopole Local expansion accepted!
-				    */
-				    d2 = 0;
-				    for (j=0;j<3;++j) {
-					dx[j] = k->r[j] - (p->r[j] + dOffset[j]);
-					d2 += dx[j]*dx[j];
-					}
-				    dir = 1.0/sqrt(d2);
-				    *pdFlop += momLocrAddMono5(&L,pkdMass(pkd,p),dir,dx[0],dx[1],dx[2],&tax,&tay,&taz);
-
-				    adotai = a[0]*tax + a[1]*tay + a[2]*taz;
-				    if (adotai > 0) {
-					adotai /= maga;
-					dirLsum += dir*adotai*adotai;
-					normLsum += adotai*adotai;
-					}
-				    if (id != pkd->idSelf) mdlRelease(pkd->mdl,CID_PARTICLE,p);
-				    }
-				if (id != pkd->idSelf) mdlRelease(pkd->mdl,CID_CELL,c);
-				break;
-			    case 7:
 				/*
-				** This is accepting an "opened" bucket's particles with this (k) cell as a softened monopole.
-				** This is the inverse of accepting a cell as a softened monopole, here we calculate the first 
-				** order local expansion of each softened particle of the checkcell.
+				** Center of mass velocity is used by the planets code to get higher derivatives of the 
+				** acceleration and could be used to drift cell moments as an approximation.
 				*/
-				assert(0);
-				iCheckCell = -blk->iCell.i[jTile];
-				id = blk->id.i[jTile];
-				dOffset[0] = blk->xOffset.f[jTile];
-				dOffset[1] = blk->yOffset.f[jTile];
-				dOffset[2] = blk->zOffset.f[jTile];
-				if (id == pkd->idSelf) c = pkdTreeNode(pkd,iCheckCell);
-				else c = CAST(KDN *,mdlAquire(pkd->mdl,CID_CELL,iCheckCell,id));
-				for (pj=c->pLower;pj<=c->pUpper;++pj) {
-				    if (id == pkd->idSelf) p = pkdParticle(pkd,pj);
-				    else p = CAST(PARTICLE *,mdlAquire(pkd->mdl,CID_PARTICLE,pj,id));
-				    fMass = pkdMass(pkd,p);
-				    if (fMass <= 0.0) continue;
-				    fSoft = pkdSoft(pkd,p);
-				    momk = pkdNodeMom(pkd,k);
-				    /*
-				    ** Monopole Local expansion accepted!
-				    */
-				    d2 = 0;
-				    for (j=0;j<3;++j) {
-					dx[j] = k->r[j] - (p->r[j] + dOffset[j]);
-					d2 += dx[j]*dx[j];
-					}
-				    dir = 1.0/sqrt(d2);
-				    fourh2 = softmassweight(fMass,4*fSoft*fSoft,momk->m,4*k->fSoft2);
-				    if (d2 > fourh2) {
-					dir = 1.0/sqrt(d2);
-					dir2 = dir*dir*dir;
-					}
-				    else {
-					/*
-					** This uses the Dehnen K1 kernel function now, it's fast!
-					*/
-					dir = 1.0/sqrt(fourh2);
-					dir2 = dir*dir;
-					d2 *= dir2;
-					dir2 *= dir;
-					d2 = 1 - d2;
-					dir *= 1.0 + d2*(0.5 + d2*(3.0/8.0 + d2*(45.0/32.0)));
-					dir2 *= 1.0 + d2*(1.5 + d2*(135.0/16.0));
-					}
-				    dir2 *= fMass;
-				    tax = -dx[0]*dir2;
-				    tay = -dx[1]*dir2;
-				    taz = -dx[2]*dir2;
-				    L.m -= fMass*dir;
-				    L.x -= tax;
-				    L.y -= tay;
-				    L.z -= taz;
-				    adotai = a[0]*tax + a[1]*tay + a[2]*taz;
-				    if (adotai > 0) {
-					adotai /= maga;
-					dirLsum += dir*adotai*adotai;
-					normLsum += adotai*adotai;
-					}
-				    if (id != pkd->idSelf) mdlRelease(pkd->mdl,CID_PARTICLE,p);
-				    }
-				if (id != pkd->idSelf) mdlRelease(pkd->mdl,CID_CELL,c);
+				if (pkd->oNodeVelocity) v = pkdNodeVel(pkd,c);
+				ilcAppend(pkd->ilc,
+				    blk->x.f[jTile] + blk->xOffset.f[jTile],
+				    blk->y.f[jTile] + blk->yOffset.f[jTile],
+				    blk->z.f[jTile] + blk->zOffset.f[jTile],
+				    pkdNodeMom(pkd,c),c->bMax,
+				    v[0],v[1],v[2]);
+				if (id != -1 && id != pkd->idSelf) mdlRelease(pkd->mdl,CID_CELL,c);
 				break;
 			    case 8:
 				/*
@@ -1023,60 +831,6 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
 					}
 				    if (id != -1 && id != pkd->idSelf) mdlRelease(pkd->mdl,CID_CELL,c);
 				    }
-				break;
-			    case 9:
-				/*
-				** Here we compute the local expansion due to a single monopole term which could be softened.
-				*/
-				assert(0);
-				iCheckCell = blk->iCell.i[jTile];
-				id = blk->id.i[jTile];
-				dOffset[0] = blk->xOffset.f[jTile];
-				dOffset[1] = blk->yOffset.f[jTile];
-				dOffset[2] = blk->zOffset.f[jTile];
-				if (id == pkd->idSelf) c = pkdTreeNode(pkd,iCheckCell);
-				else if (id == -1) c = pkdTopNode(pkd,iCheckCell);
-				else c = CAST(KDN *,mdlAquire(pkd->mdl,CID_CELL,iCheckCell,id));
-				momk = pkdNodeMom(pkd,k);
-				momc = pkdNodeMom(pkd,c);
-				d2 = 0;
-				for (j=0;j<3;++j) {
-				    dx[j] = k->r[j] - (c->r[j] + dOffset[j]);
-				    d2 += dx[j]*dx[j];
-				    }
-				dir = 1.0/sqrt(d2);
-				fourh2 = softmassweight(momc->m,4*c->fSoft2,momk->m,4*k->fSoft2);
-				if (d2 > fourh2) {
-				    dir = 1.0/sqrt(d2);
-				    dir2 = dir*dir*dir;
-				    }
-				else {
-				    /*
-				    ** This uses the Dehnen K1 kernel function now, it's fast!
-				    */
-				    dir = 1.0/sqrt(fourh2);
-				    dir2 = dir*dir;
-				    d2 *= dir2;
-				    dir2 *= dir;
-				    d2 = 1 - d2;
-				    dir *= 1.0 + d2*(0.5 + d2*(3.0/8.0 + d2*(45.0/32.0)));
-				    dir2 *= 1.0 + d2*(1.5 + d2*(135.0/16.0));
-				    }
-				dir2 *= momc->m;
-				tax = -dx[0]*dir2;
-				tay = -dx[1]*dir2;
-				taz = -dx[2]*dir2;
-				L.m -= momc->m*dir;
-				L.x -= tax;
-				L.y -= tay;
-				L.z -= taz;
-				adotai = a[0]*tax + a[1]*tay + a[2]*taz;
-				if (adotai > 0) {
-				    adotai /= maga;
-				    dirLsum += dir*adotai*adotai;
-				    normLsum += adotai*adotai;
-				    }
-				if (id != -1 && id != pkd->idSelf) mdlRelease(pkd->mdl,CID_CELL,c);
 				break;
 			    case 10:
 				/*
