@@ -147,7 +147,7 @@ int CUDAinitWorkPP( void *vpp ) {
     int nP = pp->work->nP;
     ILPTILE tile = pp->tile;
     int nPart = pp->nBlocks*ILP_PART_PER_BLK + pp->nInLast;
-    CUDACTX ctx = reinterpret_cast<CUDACTX>(pp->work->pkd->cudaCtx);
+    CUDACTX ctx = reinterpret_cast<CUDACTX>(pp->work->cudaCtx);
     gpuInput *in;
     gpuBlock *blk;
     int j;
@@ -205,7 +205,7 @@ int CUDAinitWorkPP( void *vpp ) {
 extern "C"
 int CUDAcheckWorkPP( void *vpp ) {
     workPP *pp = reinterpret_cast<workPP *>(vpp);
-    CUDACTX ctx = reinterpret_cast<CUDACTX>(pp->work->pkd->cudaCtx);
+    CUDACTX ctx = reinterpret_cast<CUDACTX>(pp->work->cudaCtx);
     PINFOOUT *pInfoOut = pp->pInfoOut;
     int nP = pp->work->nP;
     cudaError_t rc;

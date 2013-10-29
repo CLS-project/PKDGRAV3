@@ -781,6 +781,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
     work->pkd = pkd;
     work->bGravStep = bGravStep;
 #ifdef USE_CUDA
+    work->cudaCtx = pkd->cudaCtx;
     work->gpu_memory = NULL;
 #endif
     for (i=pkdn->pLower;i<=pkdn->pUpper;++i) {

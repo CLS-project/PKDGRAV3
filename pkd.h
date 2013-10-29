@@ -935,6 +935,7 @@ typedef struct {
     PKD pkd;
     int bGravStep;
 #ifdef USE_CUDA
+    void *cudaCtx;
     void *gpu_memory;
 #endif
     } workParticle;

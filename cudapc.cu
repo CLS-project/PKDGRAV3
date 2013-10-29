@@ -185,12 +185,11 @@ int CUDAinitWorkPC( void *vpp) {
     int nP = pc->work->nP;
     ILCTILE tile = pc->tile;
     int nPart = pc->nBlocks*ILC_PART_PER_BLK + pc->nInLast;
-    CUDACTX ctx = reinterpret_cast<CUDACTX>(pc->work->pkd->cudaCtx);
+    CUDACTX ctx = reinterpret_cast<CUDACTX>(pc->work->cudaCtx);
     gpuInput *in;
     gpuBlock *blk;
 
     if (ctx->in==NULL || ctx->block==NULL) return 0; /* good luck */
-
     //cudaFuncSetCacheConfig(cudaPC,cudaFuncCachePreferL1);
 
     int j;
@@ -203,6 +202,8 @@ int CUDAinitWorkPC( void *vpp) {
         pInfoOut[j].dirsum = 0;
         pInfoOut[j].normsum = 0;
         }
+
+
 
     // Grab a block of memory
     blk = ctx->block;
@@ -243,7 +244,7 @@ int CUDAinitWorkPC( void *vpp) {
 extern "C"
 int CUDAcheckWorkPC( void *vpc ) {
     workPC *pc = reinterpret_cast<workPC *>(vpc);
-    CUDACTX ctx = reinterpret_cast<CUDACTX>(pc->work->pkd->cudaCtx);
+    CUDACTX ctx = reinterpret_cast<CUDACTX>(pc->work->cudaCtx);
     PINFOOUT *pInfoOut = pc->pInfoOut;
     int nP = pc->work->nP;
     int numBlocks = (pc->nBlocks + (pc->nInLast ? 1 : 0) + PC_BLKS_PER_THREAD - 1)/PC_BLKS_PER_THREAD;
