@@ -16,12 +16,6 @@
 #define PP_THREADS 256
 #define PP_BLKS_PER_THREAD (PP_THREADS/ILP_PART_PER_BLK)
 
-__device__ float MWS(float m1, float h12, float m2, float h22) {
-    float tmp = h12*h22;
-    if ( (m1 == 0.0f && m2 == 0.0f) || tmp == 0.0f ) return 0.0f;
-    return __fdividef( (m1+m2)*tmp , (h22*m1+h12*m2));
-    }
-
 #define NBLOCKS 1
 
 __global__ void cudaPP( int nP, PINFOIN *in, int nPart, ILP_BLK *blk, PINFOOUT *out ) {
