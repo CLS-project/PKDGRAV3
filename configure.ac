@@ -13,7 +13,22 @@ AC_PROG_MAKE_SET
 
 AC_ARG_WITH(mpicc,
   [  --with-mpicc=mpicc      specify the name of the MPI C compiler],
-  [MPICC="${withval}"],[AC_CHECK_PROG([MPICC],mpicc,mpicc,no)])
+  [MPICC="${withval}"],[MPICC=""])
+if test "$MPICC" == "no" ; then
+  MPICC=""
+else
+  AC_LANG_PUSH(C)
+  if test "$MPICC" = "yes" ; then
+    MPICC=""
+  fi
+  oldCC="$CC"
+  for CC in cc mpicc $oldCC ; do
+    test -n "$MPICC" && break
+    AC_TRY_COMPILE([#include "mpi.h"],[MPI_Init(0,0)],[MPICC="$CC"],[])
+  done
+  CC="$oldCC"
+  AC_LANG_POP(C)
+fi
 AC_SUBST(MPICC)
 
 AC_DEFINE([HAVE_ROMBERG], 1, [Use the pkdgrav2 Romberg integrator.])
@@ -385,12 +400,8 @@ AC_ARG_ENABLE(symba,
 AM_CONDITIONAL(SYMBA, test "x$SYMBA" = "xyes")
 
 # Check if mpi is available
-if test "x$MPICC" != "xno" ; then
+if test -n "$MPICC" ; then
   HAVE_MPI=yes
-#  AC_CHECK_LIB([mpi], [MPI_Init],[HAVE_MPI=yes],[HAVE_MPI=no])
-#  if test "x$HAVE_MPI" = "xyes" ; then
-#    AC_CHECK_HEADER([mpi.h],[HAVE_MPI=yes],[HAVE_MPI=no])
-#  fi
 fi
 AM_CONDITIONAL(HAVE_MPI,test "x$HAVE_MPI" = "xyes")
 if test "x$HAVE_MPI" = "xyes" ; then
