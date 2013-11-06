@@ -205,7 +205,9 @@ if test "x$LUSTRE" != "xno" ; then
   lustre_ok=yes
   saved_LIBS="$LIBS"
   LIBS="$LIBS -llustreapi"
-  AC_TRY_LINK([], [llapi_file_create()], [AC_DEFINE(USE_LUSTRE,1,[Define if lustre support should be included.])], [lustre_ok=no])
+  AC_TRY_LINK([#include <lustre/lustreapi.h>
+#include <lustre/lustre_user.h>],[llapi_file_create("",0,0,0,0)],
+ [AC_DEFINE(USE_LUSTRE,1,[Define if lustre support should be included.])], [lustre_ok=no])
   LIBS="$saved_LIBS"
   AC_MSG_RESULT($lustre_ok)
   if test "x$LUSTRE" = "xyes" -a "x$lustre_ok" != "xyes" ; then
