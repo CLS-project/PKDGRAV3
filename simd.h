@@ -186,7 +186,7 @@ static inline v_sf SIMD_LOADS(float f) {
 #elif defined(__FMA__)
 #define SIMD_MADD(a,b,c) MM_FCN(fmadd,ps)(a,b,c)  /*  (a*b) + c */
 #define SIMD_MSUB(a,b,c) MM_FCN(fmsub,ps)(a,b,c)  /*  (a*b) - c */
-#define SIMD_NMADD(a,b,c) MM_FCN(nmadd,ps)(a,b,c) /* -(a*b) + c*/
+#define SIMD_NMADD(a,b,c) MM_FCN(fnmadd,ps)(a,b,c) /* -(a*b) + c*/
 #else
 #define SIMD_MADD(a,b,c) MM_FCN(add,ps)(MM_FCN(mul,ps)(a,b),c)
 #define SIMD_MSUB(a,b,c) MM_FCN(sub,ps)(MM_FCN(mul,ps)(a,b),c)
