@@ -179,12 +179,18 @@ static inline v_sf SIMD_LOADS(float f) {
 #define SIMD_MUL(a,b) MM_FCN(mul,ps)(a,b)
 #define SIMD_ADD(a,b) MM_FCN(add,ps)(a,b)
 #define SIMD_SUB(a,b) MM_FCN(sub,ps)(a,b)
-#ifdef __FMA4__
+#if defined(__FMA4__)
 #define SIMD_MADD(a,b,c) MM_FCN(macc,ps)(a,b,c)
-#define SIMD_NMSUB(a,b,c) MM_FCN(nmacc,ps)(a,b,c)
+#define SIMD_MSUB(a,b,c) MM_FCN(msub,ps)(a,b,c)
+#define SIMD_NMADD(a,b,c) MM_FCN(nmacc,ps)(a,b,c)
+#elif defined(__FMA__)
+#define SIMD_MADD(a,b,c) MM_FCN(fmadd,ps)(a,b,c)  /*  (a*b) + c */
+#define SIMD_MSUB(a,b,c) MM_FCN(fmsub,ps)(a,b,c)  /*  (a*b) - c */
+#define SIMD_NMADD(a,b,c) MM_FCN(nmadd,ps)(a,b,c) /* -(a*b) + c*/
 #else
 #define SIMD_MADD(a,b,c) MM_FCN(add,ps)(MM_FCN(mul,ps)(a,b),c)
-#define SIMD_NMSUB(a,b,c) MM_FCN(sub,ps)(c,MM_FCN(mul,ps)(a,b))
+#define SIMD_MSUB(a,b,c) MM_FCN(sub,ps)(MM_FCN(mul,ps)(a,b),c)
+#define SIMD_NMADD(a,b,c) MM_FCN(sub,ps)(c,MM_FCN(mul,ps)(a,b))
 #endif
 #define SIMD_DIV(a,b) MM_FCN(div,ps)(a,b)
 #define SIMD_SQRT(a) MM_FCN(sqrt,ps)(a)
@@ -216,7 +222,10 @@ static inline v_sf SIMD_RE_EXACT(v_sf a) {
 #ifdef __AVX__
 #define SIMD_I2F(a) MM_FCN(castsi256,ps)(a)
 #define SIMD_F2I(a) MM_FCN(castps,si256)(a)
-
+#ifdef __AVX2__
+#define SIMD_CMP_EQ_EPI32(a,b) MM_FCN(cmpeq,epi32)(a,b)
+#define SIMD_CMP_GT_EPI32(a,b) MM_FCN(cmpgt,epi32)(a,b)
+#else
 typedef union {
     ATTRIBUTE_ALIGNED_ALIGNOF(__m256) __m256i p8;
     ATTRIBUTE_ALIGNED_ALIGNOF(__m256) __m128i p4[2];
@@ -241,6 +250,7 @@ static inline v_i SIMD_CMP_GT_EPI32(v_i a,v_i b) {
     x.p4[1] = _mm_cmpgt_epi32(x.p4[1],y.p4[1]);
     return x.p8;
     }
+#endif
 #else
 #define SIMD_I2F(a) MM_FCN(castsi128,ps)(a)
 #define SIMD_F2I(a) MM_FCN(castps,si128)(a)
@@ -257,7 +267,7 @@ static v_bool simd_false = {SIMD_CONST(0)};
 #define SIMD_ADD(a,b) vec_add(a,b)
 #define SIMD_SUB(a,b) vec_sub(a,b)
 #define SIMD_MADD(a,b,c) vec_madd(a,b,c)
-#define SIMD_NMSUB(a,b,c) vec_nmsub(a,b,c)
+#define SIMD_NMADD(a,b,c) vec_nmsub(a,b,c)
 #define SIMD_RSQRT(a) vec_rsqrte(a)
 #define SIMD_RE(a) vec_re(a)
 static inline v_sf SIMD_RE_EXACT( v_sf a) {
@@ -290,7 +300,7 @@ static inline v_sf SIMD_RSQRT_EXACT(v_sf B) {
     r = SIMD_RSQRT(B);          /* dir = 1/sqrt(d2) */
     t2 = SIMD_MUL(B,half.p);      /* 0.5*d2 */
     t1 = SIMD_MUL(r,r);         /* dir*dir */
-    t1 = SIMD_NMSUB(t1,t2,threehalves.p);  /* 1.5 - 0.5*d2*dir*dir */
+    t1 = SIMD_NMADD(t1,t2,threehalves.p);  /* 1.5 - 0.5*d2*dir*dir */
     r = SIMD_MUL(r,t1);     /* dir*(1.5 - 0.5*d2*dir*dir) */
     return r;
     }
@@ -336,10 +346,10 @@ static inline v_df SIMD_DLOADS(double f) {
 #define SIMD_DSUB(a,b) MM_FCN(sub,pd)(a,b)
 #ifdef __FMA4__
 #define SIMD_DMADD(a,b,c) MM_FCN(macc,pd)(a,b,c)
-#define SIMD_DNMSUB(a,b,c) MM_FCN(nmacc,pd)(a,b,c)
+#define SIMD_DNMADD(a,b,c) MM_FCN(nmacc,pd)(a,b,c)
 #else
 #define SIMD_DMADD(a,b,c) MM_FCN(add,pd)(MM_FCN(mul,pd)(a,b),c)
-#define SIMD_DNMSUB(a,b,c) MM_FCN(sub,pd)(c,MM_FCN(mul,pd)(a,b))
+#define SIMD_DNMADD(a,b,c) MM_FCN(sub,pd)(c,MM_FCN(mul,pd)(a,b))
 #endif
 #define SIMD_DDIV(a,b) MM_FCN(div,pd)(a,b)
 #define SIMD_DSQRT(a) MM_FCN(sqrt,pd)(a)

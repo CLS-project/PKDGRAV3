@@ -227,10 +227,10 @@ int CPUdoWorkPP(void *vpp) {
 		}
 	    pir2 = SIMD_MUL(pir2,blk->m.p[j]);
 
-	    t1 = SIMD_NMSUB(pdx,pir2,consts.zero.p);
-	    t2 = SIMD_NMSUB(pdy,pir2,consts.zero.p);
-	    t3 = SIMD_NMSUB(pdz,pir2,consts.zero.p);
-	    ppot = SIMD_NMSUB(blk->m.p[j],pir,ppot);
+	    t1 = SIMD_NMADD(pdx,pir2,consts.zero.p);
+	    t2 = SIMD_NMADD(pdy,pir2,consts.zero.p);
+	    t3 = SIMD_NMADD(pdz,pir2,consts.zero.p);
+	    ppot = SIMD_NMADD(blk->m.p[j],pir,ppot);
 
 	    /* Time stepping criteria stuff */
 	    padotai = SIMD_MADD(piaz,t3,SIMD_MADD(piay,t2,SIMD_MUL(piax,t1)));
@@ -518,21 +518,21 @@ int CPUdoWorkPC(void *vpc) {
 //	    ty = SIMD_MUL(g4,SIMD_MADD(blk->xyyy.p[j],xyy,SIMD_MADD(blk->xxxy.p[j],xxx,
 //			SIMD_MADD(blk->yyyy.p[j],yyy,SIMD_MADD(blk->yyyz.p[j],yyz,SIMD_MADD(blk->xxyy.p[j],xxy,
 //				    SIMD_MADD(blk->xxyz.p[j],xxz,SIMD_MUL(blk->xyyz.p[j],xyz))))))));
-//	    tz = SIMD_MUL(g4,SIMD_NMSUB(blk->xxxx.p[j],xxz,SIMD_NMSUB(SIMD_ADD(blk->xyyy.p[j],blk->xxxy.p[j]),xyz,
-//			SIMD_NMSUB(blk->yyyy.p[j],yyz,SIMD_NMSUB(blk->xxyy.p[j],SIMD_ADD(xxz,yyz),
+//	    tz = SIMD_MUL(g4,SIMD_NMADD(blk->xxxx.p[j],xxz,SIMD_NMADD(SIMD_ADD(blk->xyyy.p[j],blk->xxxy.p[j]),xyz,
+//			SIMD_NMADD(blk->yyyy.p[j],yyz,SIMD_NMADD(blk->xxyy.p[j],SIMD_ADD(xxz,yyz),
 //				SIMD_MADD(blk->xxxz.p[j],xxx,SIMD_MADD(blk->yyyz.p[j],yyy,SIMD_MADD(blk->xxyz.p[j],xxy,SIMD_MUL(blk->xyyz.p[j],xyy)))))))));
 	    g4 = SIMD_MUL(consts.onequarter.p,SIMD_MADD(tx,x,SIMD_MADD(ty,y,SIMD_MUL(tz,z))));
 	    xxx = SIMD_MUL(g3,SIMD_MADD(blk->xxx.p[j],xx,SIMD_MADD(blk->xyy.p[j],yy,
 			SIMD_MADD(blk->xxy.p[j],xy,SIMD_MADD(blk->xxz.p[j],xz,SIMD_MUL(blk->xyz.p[j],yz))))));
 	    xxy = SIMD_MUL(g3,SIMD_MADD(blk->xyy.p[j],xy,SIMD_MADD(blk->xxy.p[j],xx,SIMD_MADD(blk->yyy.p[j],yy,
 			    SIMD_MADD(blk->yyz.p[j],yz,SIMD_MUL(blk->xyz.p[j],xz))))));
-	    xxz = SIMD_MUL(g3,SIMD_NMSUB(SIMD_ADD(blk->xxx.p[j],blk->xyy.p[j]),xz,
-		    SIMD_NMSUB(SIMD_ADD(blk->xxy.p[j],blk->yyy.p[j]),yz,
+	    xxz = SIMD_MUL(g3,SIMD_NMADD(SIMD_ADD(blk->xxx.p[j],blk->xyy.p[j]),xz,
+		    SIMD_NMADD(SIMD_ADD(blk->xxy.p[j],blk->yyy.p[j]),yz,
 			SIMD_MADD(blk->xxz.p[j],xx,SIMD_MADD(blk->yyz.p[j],yy,SIMD_MUL(blk->xyz.p[j],xy))))));
 	    g3 = SIMD_MUL(consts.onethird.p,SIMD_MADD(xxx,x,SIMD_MADD(xxy,y,SIMD_MUL(xxz,z))));
 	    xx = SIMD_MUL(g2,SIMD_MADD(blk->xx.p[j],x,SIMD_MADD(blk->xy.p[j],y,SIMD_MUL(blk->xz.p[j],z))));
 	    xy = SIMD_MUL(g2,SIMD_MADD(blk->yy.p[j],y,SIMD_MADD(blk->xy.p[j],x,SIMD_MUL(blk->yz.p[j],z))));
-	    xz = SIMD_MUL(g2,SIMD_NMSUB(SIMD_ADD(blk->xx.p[j],blk->yy.p[j]),z,SIMD_MADD(blk->xz.p[j],x,SIMD_MUL(blk->yz.p[j],y))));
+	    xz = SIMD_MUL(g2,SIMD_NMADD(SIMD_ADD(blk->xx.p[j],blk->yy.p[j]),z,SIMD_MADD(blk->xz.p[j],x,SIMD_MUL(blk->yz.p[j],y))));
 	    g2 = SIMD_MUL(consts.half.p,SIMD_MADD(xx,x,SIMD_MADD(xy,y,SIMD_MUL(xz,z))));
 	    g0 = SIMD_MUL(g0,blk->m.p[j]);
 	    ppot = SIMD_SUB(ppot,SIMD_ADD(SIMD_ADD(g0,g2),SIMD_ADD(g3,g4)));
@@ -549,9 +549,9 @@ int CPUdoWorkPC(void *vpc) {
 	    yz = consts.zero.p;
 	    zz = consts.zero.p;
 #endif
-	    t1 = SIMD_MUL(pir,SIMD_NMSUB(x,g0,SIMD_ADD(SIMD_ADD(yy,xx),SIMD_ADD(xxx,tx))));
-	    t2 = SIMD_MUL(pir,SIMD_NMSUB(y,g0,SIMD_ADD(SIMD_ADD(yz,xy),SIMD_ADD(xxy,ty))));
-	    t3 = SIMD_MUL(pir,SIMD_NMSUB(z,g0,SIMD_ADD(SIMD_ADD(zz,xz),SIMD_ADD(xxz,tz))));
+	    t1 = SIMD_MUL(pir,SIMD_NMADD(x,g0,SIMD_ADD(SIMD_ADD(yy,xx),SIMD_ADD(xxx,tx))));
+	    t2 = SIMD_MUL(pir,SIMD_NMADD(y,g0,SIMD_ADD(SIMD_ADD(yz,xy),SIMD_ADD(xxy,ty))));
+	    t3 = SIMD_MUL(pir,SIMD_NMADD(z,g0,SIMD_ADD(SIMD_ADD(zz,xz),SIMD_ADD(xxz,tz))));
 
 	    /* Time stepping criteria stuff */
 	    padotai = SIMD_MADD(piaz,t3,SIMD_MADD(piay,t2,SIMD_MUL(piax,t1)));

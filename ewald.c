@@ -335,7 +335,7 @@ v_df verf(v_df v) {
 
 //    t = SIMD_DMUL(Perf,SIMD_DRE_EXACT(SIMD_DMUL(Qerf,Qexp)));
     t = SIMD_DDIV(Perf,SIMD_DMUL(Qerf,Qexp));
-    v2 = SIMD_DNMSUB(SIMD_DMADD(consts.two.p,Pexp,Qexp),SIMD_DMUL(pow2n,t),consts.one.p);
+    v2 = SIMD_DNMADD(SIMD_DMADD(consts.two.p,Pexp,Qexp),SIMD_DMUL(pow2n,t),consts.one.p);
 
 #ifdef ERF_FULL_RANGE
     t2 = SIMD_DMUL(v,SIMD_DMUL(t,Qexp));
