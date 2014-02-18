@@ -1058,11 +1058,16 @@ void AdjustDataSize(MDL mdl) {
  ** T3D and perhaps some future machines these functions are required.
  */
 void *mdlMalloc(MDL mdl,size_t iSize) {
-    return(malloc(iSize));
+    void *ptr;
+    int rc = MPI_Alloc_mem(iSize,MPI_INFO_NULL,&ptr);
+    if (rc) return NULL;
+    return ptr;
+    /*return(malloc(iSize));*/
     }
 
 void mdlFree(MDL mdl,void *p) {
-    free(p);
+    MPI_Free_mem(p);
+    /*free(p);*/
     }
 
 /*
