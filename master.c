@@ -2853,26 +2853,28 @@ void msrHostname(MSR msr) {
 void msrMemStatus(MSR msr) {
     struct outMemStatus *out;
     int i,iDum;
-    out = malloc(msr->nThreads*sizeof(struct outMemStatus));
-    assert(out != NULL);
-    pstMemStatus(msr->pst,0,0,out,&iDum);
+    if (msr->param.bVDetails) {
+	out = malloc(msr->nThreads*sizeof(struct outMemStatus));
+	assert(out != NULL);
+	pstMemStatus(msr->pst,0,0,out,&iDum);
 #ifdef __linux__
-    printf("Virtual Size (MB):\n");
-    PRINTGRID(8,"%8"PRIu64,vsize);
-    printf("Resident (MB):\n");
-    PRINTGRID(8,"%8"PRIu64,rss);
-    printf("Major faults:\n");
-    PRINTGRID(8,"%8"PRIu64,majflt);
+	printf("Virtual Size (MB):\n");
+	PRINTGRID(8,"%8"PRIu64,vsize);
+	printf("Resident (MB):\n");
+	PRINTGRID(8,"%8"PRIu64,rss);
+	printf("Major faults:\n");
+	PRINTGRID(8,"%8"PRIu64,majflt);
 #endif
-    printf("Tree size (MB):\n");
-    PRINTGRID(8,"%8"PRIu64,nBytesTree/1024/1024);
-    printf("Checklist size (KB):\n");
-    PRINTGRID(8,"%8"PRIu64,nBytesCl/1024);
-    printf("Particle List size (KB):\n");
-    PRINTGRID(8,"%8"PRIu64,nBytesIlp/1024);
-    printf("Cell List size (KB):\n");
-    PRINTGRID(8,"%8"PRIu64,nBytesIlc/1024);
-    free(out);
+	printf("Tree size (MB):\n");
+	PRINTGRID(8,"%8"PRIu64,nBytesTree/1024/1024);
+	printf("Checklist size (KB):\n");
+	PRINTGRID(8,"%8"PRIu64,nBytesCl/1024);
+	printf("Particle List size (KB):\n");
+	PRINTGRID(8,"%8"PRIu64,nBytesIlp/1024);
+	printf("Cell List size (KB):\n");
+	PRINTGRID(8,"%8"PRIu64,nBytesIlc/1024);
+	free(out);
+	}
     }
 
 void msrGravity(MSR msr,uint8_t uRungLo, uint8_t uRungHi, double dTime,
@@ -2936,33 +2938,35 @@ void msrGravity(MSR msr,uint8_t uRungLo, uint8_t uRungHi, double dTime,
 	/*
 	** Now comes the really verbose output for each processor.
 	*/
-	printf("Walk Timings:\n");
-	PRINTGRID(8,"% 8.2f",dWalkTime);
-	printf("Particle Cache Accesses:\n");
-	PRINTGRID(8,"% 8.2f",cs.dpNumAccess);
-	printf("Particle Cache Miss Ratio:\n");
-	PRINTGRID(8,"% 8.2f",cs.dpMissRatio);
-	printf("Cell Cache Accesses:\n");
-	PRINTGRID(8,"% 8.2f",cs.dcNumAccess);
-	printf("Cell Cache Miss Ratio:\n");
-	PRINTGRID(8,"% 8.2f",cs.dcMissRatio);
+	if (msr->param.bVDetails) {
+	    printf("Walk Timings:\n");
+	    PRINTGRID(8,"% 8.2f",dWalkTime);
+	    printf("Particle Cache Accesses:\n");
+	    PRINTGRID(8,"% 8.2f",cs.dpNumAccess);
+	    printf("Particle Cache Miss Ratio:\n");
+	    PRINTGRID(8,"% 8.2f",cs.dpMissRatio);
+	    printf("Cell Cache Accesses:\n");
+	    PRINTGRID(8,"% 8.2f",cs.dcNumAccess);
+	    printf("Cell Cache Miss Ratio:\n");
+	    PRINTGRID(8,"% 8.2f",cs.dcMissRatio);
 #if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
-	/* Okay: Compute + Wait + Imbalance = 100.0 by definition
-		printf("Compute Percentage:\n");
-		PRINTGRID(8,"% 8.2f",dComputing);*/
-	printf("Cache Wait Percentage:\n");
-	PRINTGRID(8,"% 8.2f",dWaiting);
-	printf("Load Imbalance Percentage:\n");
-	PRINTGRID(8,"% 8.2f",dSynchronizing);
+	    /* Okay: Compute + Wait + Imbalance = 100.0 by definition
+	       printf("Compute Percentage:\n");
+	       PRINTGRID(8,"% 8.2f",dComputing);*/
+	    printf("Cache Wait Percentage:\n");
+	    PRINTGRID(8,"% 8.2f",dWaiting);
+	    printf("Load Imbalance Percentage:\n");
+	    PRINTGRID(8,"% 8.2f",dSynchronizing);
 #endif
-	printf("Number of Active:\n");
-	PRINTGRID(8,"% 8d",nActive);
-	printf("Number of Local Particles:\n");
-	PRINTGRID(8,"% 8d",nLocal);
-	printf("Average Number of P-P per Active Particle:\n");
-	PRINTGRID(8,"% 8.1f",dPartSum);
-	printf("Average Number of P-C per Active Particle:\n");
-	PRINTGRID(8,"% 8.1f",dCellSum);
+	    printf("Number of Active:\n");
+	    PRINTGRID(8,"% 8d",nActive);
+	    printf("Number of Local Particles:\n");
+	    PRINTGRID(8,"% 8d",nLocal);
+	    printf("Average Number of P-P per Active Particle:\n");
+	    PRINTGRID(8,"% 8.1f",dPartSum);
+	    printf("Average Number of P-C per Active Particle:\n");
+	    PRINTGRID(8,"% 8.1f",dCellSum);
+	    }
 	}
     free(out);
     }
