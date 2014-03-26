@@ -898,6 +898,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 
     for( i=0; i<work->nP; i++ ) {
         p = work->pPart[i];
+        v = pkdVel(pkd,p);
         a = pkdAccel(pkd,p);
         /*
         ** Set value for time-step, note that we have the current ewald acceleration
@@ -920,6 +921,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 			    fy = p->r[1] - ilp->cy + tile->blk[blk].dy.f[prt];
 			    fz = p->r[2] - ilp->cz + tile->blk[blk].dz.f[prt];
 			    d2 = fx*fx + fy*fy + fz*fz;
+			    if (p->iOrder == tile->xtr[blk].iOrder.i[prt]) continue;
 			    fourh2 = softmassweight(fMass,4*fSoft*fSoft,
 				tile->blk[blk].m.f[prt],tile->blk[blk].fourh2.f[prt]);
 			    if (d2 > fourh2) {
@@ -944,8 +946,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 			    vy = v[1] - tile->xtr[blk].vy.f[prt];
 			    vz = v[2] - tile->xtr[blk].vz.f[prt];
 			    rhopmaxlocal = pkdRho1(rhopmaxlocal,summ,dir,
-				tile->blk[blk].dx.f[prt],tile->blk[blk].dy.f[prt],tile->blk[blk].dz.f[prt],
-				vx,vy,vz,pkd->param.dEccFacMax);
+				fx,fy,fz,vx,vy,vz,pkd->param.dEccFacMax);
 			    rhopmax = (rhopmaxlocal > rhopmax)?rhopmaxlocal:rhopmax;
 			    }
 			}
