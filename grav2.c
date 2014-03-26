@@ -4,6 +4,7 @@
 
 #include <math.h>
 #include <stdlib.h>
+#include <float.h>
 #ifdef HAVE_MALLOC_H
 #include <malloc.h>
 #endif
@@ -23,6 +24,7 @@
 
 #ifdef USE_SIMD
 static const struct CONSTS {
+    vfloat minSoftening;
     vfloat zero;
     vfloat onequarter;
     vfloat onethird;
@@ -38,6 +40,7 @@ static const struct CONSTS {
     vfloat R45_32;
     vfloat R135_16;
     } consts = {
+        {SIMD_CONST(1e-18)},
         {SIMD_CONST(0.0)},
 	{SIMD_CONST(0.25)},
 	{SIMD_CONST(1.0f/3.0f)},
@@ -203,10 +206,12 @@ int CPUdoWorkPP(void *vpp) {
 	    pd2 = SIMD_MADD(pdz,pdz,SIMD_MADD(pdy,pdy,SIMD_MUL(pdx,pdx)));
 
 	    pfourh2 = blk->fourh2.p[j];
+	    pfourh2 = SIMD_MAX(pfourh2,consts.minSoftening.p); /* There is always a self interaction */
 	    vcmp = SIMD_CMP_LT(pd2,pfourh2);
 	    td2 = SIMD_MAX(pd2,pfourh2);
 	    msk = SIMD_ALL_ZERO(vcmp);  /* zero means nothing is softened - optimization */
 
+	    td2 = SIMD_MAX(consts.minSoftening.p,td2);
 	    pir = SIMD_RSQRT_EXACT(td2);
 	    pir2 = SIMD_MUL(pir,pir);
 	    td2 = SIMD_MUL(pir2,pd2); /* for SOFTENED */
