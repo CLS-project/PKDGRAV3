@@ -942,9 +942,9 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 				}
 			    summ = fMass+tile->blk[blk].m.f[prt];
 			    rhopmaxlocal = summ*dir2;
-			    vx = v[0] - tile->xtr[blk].vx.f[prt];
-			    vy = v[1] - tile->xtr[blk].vy.f[prt];
-			    vz = v[2] - tile->xtr[blk].vz.f[prt];
+			    vx = v[0] - tile->xtr[blk].vx.d[prt];
+			    vy = v[1] - tile->xtr[blk].vy.d[prt];
+			    vz = v[2] - tile->xtr[blk].vz.d[prt];
 			    rhopmaxlocal = pkdRho1(rhopmaxlocal,summ,dir,
 				fx,fy,fz,vx,vy,vz,pkd->param.dEccFacMax);
 			    rhopmax = (rhopmaxlocal > rhopmax)?rhopmaxlocal:rhopmax;

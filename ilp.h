@@ -26,6 +26,10 @@ typedef union {
     } ilpFloat;
 
 typedef union {
+    double d[ILP_PART_PER_BLK];
+    } ilpDouble;
+
+typedef union {
     int64_t i[ILP_PART_PER_BLK]; /* Signed because negative marks softened cells */
     } ilpInt64;
 
@@ -36,7 +40,7 @@ typedef struct {
     } ILP_BLK;
 
 typedef struct {
-    ilpFloat vx, vy, vz;
+    ilpDouble vx, vy, vz;
     ilpInt64 iOrder;
     } ILP_EXTRA;
 
@@ -79,9 +83,9 @@ static inline void ilpAppendFloat(ILP ilp, float X, float Y, float Z, float M, f
     tile->blk[blk].fourh2.f[prt] = (S);
     assert( (M) > 0.0 );
     tile->xtr[blk].iOrder.i[prt] = (I);
-    tile->xtr[blk].vx.f[prt] = (VX);
-    tile->xtr[blk].vy.f[prt] = (VY);
-    tile->xtr[blk].vz.f[prt] = (VZ);
+    tile->xtr[blk].vx.d[prt] = (VX);
+    tile->xtr[blk].vy.d[prt] = (VY);
+    tile->xtr[blk].vz.d[prt] = (VZ);
     ++tile->lstTile.nInLast;
     }
 
