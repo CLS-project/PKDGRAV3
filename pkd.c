@@ -2650,7 +2650,7 @@ void pkdSetSoft(PKD pkd,double dSoft) {
 
 void pkdPhysicalSoft(PKD pkd,double dSoftMax,double dFac,int bSoftMaxMul) {
     pkd->fSoftFac = dFac;
-    pkd->fSoftMax = bSoftMaxMul ? dSoftMax : HUGE;
+    pkd->fSoftMax = bSoftMaxMul ? HUGE : dSoftMax;
     }
 
 #ifdef USE_BSC_trace
