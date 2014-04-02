@@ -2,7 +2,9 @@
 #include "config.h"
 #endif
 
+#ifdef HAVE_UNISTD_H
 #include <unistd.h>
+#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include <stddef.h>
@@ -261,9 +263,6 @@ void psdSmooth(PKD pkd, PSX psx) {
 
     for (pi=0;pi<pkd->nLocal;++pi) 
     {
-	if (isatty(STDOUT_FILENO))
-	    if (pi % 10000 == 0)
-		fprintf(stdout, "\033[%iC%3i\r", pkd->idSelf*4, (int)(100.*(((double)pi) / pkd->nLocal)));
 	p = pkdParticle(pkd,pi);
 	/* if ( !pkdIsDstActive(p,0,MAX_RUNG) ) continue; */
 
@@ -278,8 +277,6 @@ void psdSmooth(PKD pkd, PSX psx) {
 	*/
 	mdlCacheCheck(pkd->mdl);
     }
-    if (isatty(STDOUT_FILENO))
-	fprintf(stdout, "\033[%iC    \r", pkd->idSelf*4);
 
     knn6dFinish(pkd, psx->knn);
 
@@ -344,9 +341,14 @@ void psdSmoothLink(PKD pkd, PSX psx) {
     int *C; NEW_STACK(C, TEMP_S_INCREASE);
     int *G; NEW_STACK(G, TEMP_S_INCREASE);
 
-    int sorted_nbrs[psx->nSmooth];
-    double arclen[psx->nSmooth];
-    double fDensityGrad[6];
+#ifdef _MSC_VER
+    int sorted_nbrs[256];
+    double arclen[256];
+#else
+	int sorted_nbrs[psx->nSmooth];
+	double arclen[psx->nSmooth];
+#endif
+	double fDensityGrad[6];
 
     struct bridge *B; NEW_STACK(B, TEMP_S_INCREASE);
     struct bridge bi;
@@ -390,10 +392,6 @@ void psdSmoothLink(PKD pkd, PSX psx) {
     for (idx=0;idx<pkd->nLocal;++idx) 
     {
 	pi = idx;
-
-	if (isatty(STDOUT_FILENO))
-	    if (idx % 10000 == 0)
-		fprintf(stdout, "\033[%iC%3i\r", pkd->idSelf*4, (int)(100.*(((double)idx) / pkd->nLocal)));
 
 	PARTICLE *p0 = pkdParticle(pkd,pi);
 	if (*pkdGroup(pkd,p0) != 0) continue;
@@ -549,7 +547,6 @@ void psdSmoothLink(PKD pkd, PSX psx) {
 	    *pkdGroup(pkd, pkdParticle(pkd,pid)) = trial_group;
 	}
     }
-    if (isatty(STDOUT_FILENO)) fprintf(stdout, "\033[%iC    \r", pkd->idSelf*4);
 
 #if 0
     fclose(fp);

@@ -38,6 +38,8 @@ typedef struct {
 typedef struct {
 #ifdef HERMITE
     ilcFloat vx,vy,vz;
+#else
+	char dummy[0];
 #endif
     } ILC_XTR;
 

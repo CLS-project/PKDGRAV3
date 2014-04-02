@@ -132,8 +132,13 @@ static inline void SIMD_free(void *p) {
     free(p);
     }
 #else
-#define SIMD_malloc malloc
-#define SIMD_free free
+static inline void * SIMD_malloc(size_t newSize) {
+	return _mm_malloc(newSize, sizeof(vfloat));
+}
+
+static inline void SIMD_free(void *p) {
+	_mm_free(p);
+}
 #endif
 
 static inline v_sf SIMD_SPLAT(float f) {

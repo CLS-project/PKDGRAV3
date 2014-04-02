@@ -19,7 +19,9 @@
 #include <sys/stat.h>
 
 #include <sys/types.h>
+#ifdef HAVE_UNISTD_H
 #include <unistd.h>
+#endif
 
 #ifdef USE_PTHREAD
 #include <pthread.h>
@@ -62,14 +64,14 @@ typedef struct xdr_struct {
 #define XDR_WRITE(N,T)				\
     static int xdr_write_##N(XDR *xdr, T *v) {	\
 	int n = sizeof(T);			\
-	unsigned char c[n];			\
+	unsigned char c[sizeof(T)];			\
 	union {					\
 	    T v;				\
-	    unsigned char c[n];			\
+	    unsigned char c[sizeof(T)];			\
 	    } u;				\
 	int i;					\
 	u.v = *v;				\
-	for(i=0;i<n;++i) c[i] = u.c[n-i];	\
+	for(i=0;i<n;++i) c[i] = u.c[n-i-1];	\
 	return fwrite(c,n,1,xdr->fp);		\
 	}
 XDR_WRITE(double,double)
@@ -79,14 +81,14 @@ XDR_WRITE(u_int,uint32_t)
 #define XDR_READ(N,T)\
     static int xdr_read_##N(XDR *xdr, T *d) {	\
 	int n = sizeof(T);			\
-	unsigned char c[n];			\
+	unsigned char c[sizeof(T)];			\
 	union {					\
 	    T d;				\
-	    char c[n];				\
+	    char c[sizeof(T)];				\
 	    } u;				\
 	int i;					\
 	if (fread(c,n,1,xdr->fp)!=1) return 0;	\
-	for(i=0; i<n; ++i) u.c[i] = c[n-i];	\
+	for(i=0; i<n; ++i) u.c[i] = c[n-i-1];	\
 	*d = u.d;				\
 	return 1;				\
 	}
@@ -1833,8 +1835,13 @@ size_t freadSwap(void *ptr, size_t size, size_t nmemb, FILE *stream, int bSwap) 
     }
 
 static void gadgetSeekFP(gadgetFP *fp,uint64_t iPart) {
-    if (fp->fp != NULL)
-	fseeko(fp->fp,fp->lOffset + fp->nPer*iPart*fp->iDouble,SEEK_SET);
+	if (fp->fp != NULL) {
+#ifdef _MSC_VER
+		_fseeki64(fp->fp,fp->lOffset + fp->nPer*iPart*fp->iDouble,SEEK_SET);
+#else
+		fseeko(fp->fp,fp->lOffset + fp->nPer*iPart*fp->iDouble,SEEK_SET);
+#endif
+	    }
     }
 
 static int gadgetSeek(FIO fio,uint64_t iPart,FIO_SPECIES eSpecies) {
@@ -2059,8 +2066,10 @@ FIO fioGadgetCreate(
     fwrite(&hdr, w, 1, gio->fp_pos.fp);
     fwrite(&w, sizeof(w), 1, gio->fp_pos.fp);
 
-    assert(ftello(gio->fp_pos.fp) == gio->fp_pos.lOffset);
-    w = 3 * gio->fio.nSpecies[FIO_SPECIES_ALL] * gio->fp_pos.iDouble;
+#ifdef HAVE_FSEEKO
+	assert(ftello(gio->fp_pos.fp) == gio->fp_pos.lOffset);
+#endif
+	w = 3 * gio->fio.nSpecies[FIO_SPECIES_ALL] * gio->fp_pos.iDouble;
     fwrite(&w, sizeof(w), 1, gio->fp_pos.fp);
     safe_fseek(gio->fp_pos.fp,gio->fp_pos.lOffset+sizeof(w)+w);
     fwrite(&w, sizeof(w), 1, gio->fp_pos.fp);
@@ -2069,8 +2078,10 @@ FIO fioGadgetCreate(
     gio->fp_vel.fp  = fopen(fileName,"rb+");
     if (gio->fp_vel.pBuffer != NULL) setvbuf(gio->fp_vel.fp,gio->fp_vel.pBuffer,_IOFBF,GIO_BUFFER_SIZE);
     safe_fseek(gio->fp_vel.fp,gio->fp_vel.lOffset);
-    assert(ftello(gio->fp_vel.fp) == gio->fp_vel.lOffset);
-    w = 3 * gio->fio.nSpecies[FIO_SPECIES_ALL] * gio->fp_vel.iDouble;
+#ifdef HAVE_FSEEKO
+	assert(ftello(gio->fp_vel.fp) == gio->fp_vel.lOffset);
+#endif
+	w = 3 * gio->fio.nSpecies[FIO_SPECIES_ALL] * gio->fp_vel.iDouble;
     fwrite(&w, sizeof(w), 1, gio->fp_vel.fp);
     safe_fseek(gio->fp_vel.fp,gio->fp_vel.lOffset+sizeof(w)+w);
     fwrite(&w, sizeof(w), 1, gio->fp_vel.fp);
@@ -2079,8 +2090,10 @@ FIO fioGadgetCreate(
     gio->fp_id.fp   = fopen(fileName,"rb+");
     if (gio->fp_id.pBuffer != NULL) setvbuf(gio->fp_id.fp,gio->fp_id.pBuffer,_IOFBF,GIO_BUFFER_SIZE);
     safe_fseek(gio->fp_id.fp,gio->fp_id.lOffset);
-    assert(ftello(gio->fp_id.fp) == gio->fp_id.lOffset);
-    w = gio->fio.nSpecies[FIO_SPECIES_ALL] * gio->fp_id.iDouble;
+#ifdef HAVE_FSEEKO
+	assert(ftello(gio->fp_id.fp) == gio->fp_id.lOffset);
+#endif
+	w = gio->fio.nSpecies[FIO_SPECIES_ALL] * gio->fp_id.iDouble;
     fwrite(&w, sizeof(w), 1, gio->fp_id.fp);
     safe_fseek(gio->fp_id.fp,gio->fp_id.lOffset+sizeof(w)+w);
     fwrite(&w, sizeof(w), 1, gio->fp_id.fp);
@@ -2098,7 +2111,9 @@ FIO fioGadgetCreate(
 	gio->fp_mass.fp = fopen(fileName,"rb+");
 	if (gio->fp_mass.pBuffer != NULL) setvbuf(gio->fp_mass.fp,gio->fp_mass.pBuffer,_IOFBF,GIO_BUFFER_SIZE);
 	safe_fseek(gio->fp_mass.fp,gio->fp_mass.lOffset);
+#ifdef HAVE_FSEEKO
 	assert(ftello(gio->fp_mass.fp) == gio->fp_mass.lOffset);
+#endif
 	w = nMass * gio->fp_mass.iDouble;
 	fwrite(&w, sizeof(w), 1, gio->fp_mass.fp);
 	safe_fseek(gio->fp_mass.fp,gio->fp_mass.lOffset+sizeof(w)+w);
@@ -2212,7 +2227,11 @@ uint32_t gadgetOpenFP( fioGADGET *gio, gadgetFP *fp, const char *tagName,
     if (fname!=NULL) {
 	fp->fp = fopen(fname, "rb");
 	assert(fp->fp!=NULL);
+#ifdef _MSC_VER
+	_fseeki64(fp->fp,lOffset,SEEK_SET);
+#else
 	fseeko(fp->fp,lOffset,SEEK_SET);
+#endif
 	}
     if (gio->bTagged) {
 	if (freadSwap(&w1,sizeof(w1),1,fp->fp,gio->bSwap) != 1) return 0;
@@ -2227,7 +2246,7 @@ uint32_t gadgetOpenFP( fioGADGET *gio, gadgetFP *fp, const char *tagName,
     fp->iDouble = w1 / (fp->nPer*n);
     assert(fp->iDouble * fp->nPer * n == w1);
     assert(fp->iDouble == sizeof(double) || fp->iDouble == sizeof(float));
-    fp->lOffset = ftello(fp->fp);
+    fp->lOffset = ftell(fp->fp);
     return fp->lOffset + w1 + sizeof(w1);
     }
 
@@ -3731,8 +3750,12 @@ static void graficReadHdr(graficFile *gf) {
 	fprintf(stderr,"Invalid GRAFIC slab size\n");
 	abort();
 	}
-    rc = fseek(gf->fp,-sizeof(w1),SEEK_CUR);
-    assert(rc==0);
+#ifdef _MSC_VER
+	rc = _fseeki64(gf->fp,-(int)sizeof(w1),SEEK_CUR);
+#else
+	rc = fseeko(gf->fp,-(int)sizeof(w1),SEEK_CUR);
+#endif
+	assert(rc==0);
     }
 
 /*

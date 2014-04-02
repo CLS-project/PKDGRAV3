@@ -699,7 +699,7 @@ void pkdFinish(PKD pkd) {
     free(pkd->piActive);
     free(pkd->piInactive);
     csmFinish(pkd->param.csm);
-    free(pkd);
+    SIMD_free(pkd);
     }
 
 size_t pkdClCount(PKD pkd) {

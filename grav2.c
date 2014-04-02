@@ -134,7 +134,6 @@ int CPUdoWorkPP(void *vpp) {
     v_sf padotai,pimaga,psmooth2,pirsum,pnorms;
 #else
     float d2,dx,dy,dz,fourh2,dir,dir2,adotai;
-    int nSoft;
 #endif
     float ax,ay,az,fPot,dirsum,normsum;
     float tax,tay,taz;
@@ -294,7 +293,6 @@ int CPUdoWorkPP(void *vpp) {
 		tax = 1 - tax;
 		dir *= 1.0 + tax*(0.5 + tax*(3.0/8.0 + tax*(45.0/32.0)));
 		dir2 *= 1.0 + tax*(1.5 + tax*(135.0/16.0));
-		++nSoft;
 		}
 	    dir2 *= -blk->m.f[j];
 	    tax = dx*dir2;

@@ -10,9 +10,9 @@
 /* Define if softening can be changed. */
 #define CHANGESOFT 1
 
-double erf(double x);
-double erfc(double x);
-double acosh(double x);
+//double erf(double x);
+//double erfc(double x);
+//double acosh(double x);
 
 /* Define to one of `_getb67', `GETB67', `getb67' for Cray-2 and Cray-YMP
    systems. This function is required for `alloca.c' support on those systems.
@@ -339,16 +339,36 @@ double acosh(double x);
 /* #undef USE_PYTHON */
 
 /* Define if SIMD optimizations should be used. */
+/* Visual Studio definition */
+#if defined(_M_X64)
+#define __SSE__
+#define __SSE2__
+#ifdef __AVX__
+#define __AVX2__
+#define __FMA__
+#endif
 #define USE_SIMD 1
+#elif _M_IX86_FP >= 1
+#define USE_SIMD 1
+#define __SSE__
+#if _M_IX86_FP >= 2
+#define __SSE2__
+#endif
+#endif
 
+#ifdef USE_SIMD
 /* Define if SIMD optimizations should be used for MOMRs. */
 /* #undef USE_SIMD_MOMR */
+
+/* Define if SIMD optimizations should be used for the opening criteria. */
+#define USE_SIMD_OPEN 1
 
 /* Define if SIMD optimizations should be used for PP interactions. */
 #define USE_SIMD_PP 1
 
 /* Define if SIMD optimizations should be used for PC interactions. */
 #define USE_SIMD_PC 1
+#endif
 
 /* Version number of package */
 #define VERSION "2.2.11"
@@ -373,6 +393,7 @@ double acosh(double x);
 #ifndef __cplusplus
 #define inline __inline
 #endif
+#define restrict
 
 /* Define to rpl_malloc if the replacement function should be used. */
 /* #undef malloc */
@@ -389,10 +410,10 @@ double acosh(double x);
 /* Define to empty if the keyword `volatile' does not work. Warning: valid
    code using `volatile' can become incorrect without. Disable with care. */
 /* #undef volatile */
-static inline float fmin(float a, float b) {
-    return a<b ? a : b;
-}
-static inline float fmax(float a, float b) {
-    return a>b ? a : b;
-}
+//static inline float fmin(float a, float b) {
+//    return a<b ? a : b;
+//}
+//static inline float fmax(float a, float b) {
+//    return a>b ? a : b;
+//}
 #endif

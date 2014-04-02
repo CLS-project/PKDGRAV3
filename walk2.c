@@ -1260,7 +1260,7 @@ int pkdGravWalkGroups(PKD pkd,double dTime,int nGroup, double dThetaMin,double d
     return nActive;
 }
 
-int pkdRungWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,void *pParams,void *doFunc(PKD pkd,PARTICLE *p,void *pParams)) {
+int pkdRungWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,void *pParams,void (*doFunc)(PKD pkd,PARTICLE *p,void *pParams)) {
     KDN *k;
     PARTICLE *p;
     int iCell,pj;
@@ -1279,7 +1279,7 @@ int pkdRungWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,void *pParams,void *doFu
 		for (pj=k->pLower;pj<=k->pUpper;++pj) {
 		    p = pkdParticle(pkd,pj);
 		    if (pkdIsRungRange(p,uRungLo,uRungHi)) {
-			if (doFunc) doFunc(pkd,p,pParams);
+			if (doFunc) (*doFunc)(pkd,p,pParams);
 			++nTotActive;
 			}
 		    }

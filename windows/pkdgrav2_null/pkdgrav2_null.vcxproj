@@ -1,5 +1,5 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
-<Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+<Project DefaultTargets="Build" ToolsVersion="12.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|x64">
       <Configuration>Debug</Configuration>
@@ -19,12 +19,14 @@
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
     <CharacterSet>MultiByte</CharacterSet>
+    <PlatformToolset>v120</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>MultiByte</CharacterSet>
+    <PlatformToolset>v120</PlatformToolset>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ImportGroup Label="ExtensionSettings">
@@ -62,7 +64,7 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>HAVE_CONFIG_H;_IEEE_LIBM;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
-      <EnableEnhancedInstructionSet>StreamingSIMDExtensions2</EnableEnhancedInstructionSet>
+      <EnableEnhancedInstructionSet>NotSet</EnableEnhancedInstructionSet>
       <FloatingPointModel>Fast</FloatingPointModel>
     </ClCompile>
     <Link>
@@ -80,10 +82,14 @@
     <ClCompile Include="..\..\ewald.c" />
     <ClCompile Include="..\..\fio.c" />
     <ClCompile Include="..\..\grav2.c" />
+    <ClCompile Include="..\..\hop.c" />
     <ClCompile Include="..\..\ilc.c" />
+    <ClCompile Include="..\..\illinois.c" />
     <ClCompile Include="..\..\ilp.c" />
     <ClCompile Include="..\..\intype.c" />
+    <ClCompile Include="..\..\knn6d.c" />
     <ClCompile Include="..\..\listcomp.c" />
+    <ClCompile Include="..\..\lst.c" />
     <ClCompile Include="..\..\main.c" />
     <ClCompile Include="..\..\master.c" />
     <ClCompile Include="..\..\mdl2\null\mdl.c" />
@@ -91,17 +97,16 @@
     <ClCompile Include="..\..\outtype.c" />
     <ClCompile Include="..\..\param.c" />
     <ClCompile Include="..\..\pkd.c" />
+    <ClCompile Include="..\..\psd.c" />
+    <ClCompile Include="..\..\psdtree.c" />
     <ClCompile Include="..\..\pst.c" />
     <ClCompile Include="..\..\rbtree.c" />
     <ClCompile Include="..\..\romberg.c" />
     <ClCompile Include="..\..\smooth.c" />
     <ClCompile Include="..\..\smoothfcn.c" />
     <ClCompile Include="..\..\tree.c" />
+    <ClCompile Include="..\..\unbind.c" />
     <ClCompile Include="..\..\walk2.c" />
-    <ClCompile Include="..\glibc\e_acosh.c" />
-    <ClCompile Include="..\glibc\s_erf.c" />
-    <ClCompile Include="..\glibc\s_log1p.c" />
-    <ClCompile Include="..\glibc\w_acosh.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\bt.h" />
@@ -114,12 +119,16 @@
     <ClInclude Include="..\..\fio.h" />
     <ClInclude Include="..\..\floattype.h" />
     <ClInclude Include="..\..\grav.h" />
+    <ClInclude Include="..\..\hop.h" />
     <ClInclude Include="..\..\ilc.h" />
+    <ClInclude Include="..\..\illinois.h" />
     <ClInclude Include="..\..\ilp.h" />
     <ClInclude Include="..\..\intype.h" />
     <ClInclude Include="..\..\io.h" />
     <ClInclude Include="..\..\iohdf5.h" />
+    <ClInclude Include="..\..\knn6d.h" />
     <ClInclude Include="..\..\listcomp.h" />
+    <ClInclude Include="..\..\lst.h" />
     <ClInclude Include="..\..\master.h" />
     <ClInclude Include="..\..\mdl2\null\mdl.h" />
     <ClInclude Include="..\..\meval.h" />
@@ -128,6 +137,7 @@
     <ClInclude Include="..\..\param.h" />
     <ClInclude Include="..\..\parameters.h" />
     <ClInclude Include="..\..\pkd.h" />
+    <ClInclude Include="..\..\psd.h" />
     <ClInclude Include="..\..\psdtree.h" />
     <ClInclude Include="..\..\pst.h" />
     <ClInclude Include="..\..\python.h" />
@@ -138,6 +148,7 @@
     <ClInclude Include="..\..\smoothfcn.h" />
     <ClInclude Include="..\..\ssio.h" />
     <ClInclude Include="..\..\tipsydefs.h" />
+    <ClInclude Include="..\..\unbind.h" />
     <ClInclude Include="..\..\walk.h" />
     <ClInclude Include="..\config.h" />
     <ClInclude Include="..\glibc\math_private.h" />
