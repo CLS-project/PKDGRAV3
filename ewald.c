@@ -272,7 +272,6 @@ v_df vexp(v_df x) {
 
     Pexp = SIMD_DMUL(SIMD_DMADD(SIMD_DMADD(consts.p0.p,xx,consts.p1.p),xx,consts.p2.p),x);
     Qexp = SIMD_DSUB(SIMD_DMADD(SIMD_DMADD(SIMD_DMADD(consts.q0.p,xx,consts.q1.p),xx,consts.q2.p),xx,consts.q3.p),Pexp);
-//    x = SIMD_DMUL(Pexp,SIMD_DRE_GOOD(Qexp));
     x = SIMD_DDIV(Pexp,Qexp);
     x = SIMD_DMUL(SIMD_DMADD(x,consts.two.p,consts.one.p),pow2n);
     return x;
@@ -333,7 +332,6 @@ v_df verf(v_df v) {
     Pexp = SIMD_DMUL(SIMD_DMADD(SIMD_DMADD(consts.p0.p,t2,consts.p1.p),t2,consts.p2.p),t);
     Qexp = SIMD_DSUB(SIMD_DMADD(SIMD_DMADD(SIMD_DMADD(consts.q0.p,t2,consts.q1.p),t2,consts.q2.p),t2,consts.q3.p),Pexp);
 
-//    t = SIMD_DMUL(Perf,SIMD_DRE_EXACT(SIMD_DMUL(Qerf,Qexp)));
     t = SIMD_DDIV(Perf,SIMD_DMUL(Qerf,Qexp));
     v2 = SIMD_DNMADD(SIMD_DMADD(consts.two.p,Pexp,Qexp),SIMD_DMUL(pow2n,t),consts.one.p);
 
