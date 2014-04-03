@@ -39,18 +39,19 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <IncludePath>$(ProjectDir)\..;$(ProjectDir)\..\..;$(ProjectDir)\..\..\mdl2\mpi;$(ProjectDir)\..\glibc;$(ProgramW6432)\Microsoft HPC Pack 2008 SDK\Include;$(IncludePath)</IncludePath>
-    <LibraryPath>$(ProgramW6432)\Microsoft HPC Pack 2008 SDK\Lib\amd64;$(LibraryPath)</LibraryPath>
+    <IncludePath>$(ProjectDir)\..;$(ProjectDir)\..\..;$(ProjectDir)\..\..\mdl2\mpi;$(ProjectDir)\..\glibc;$(ProgramW6432)\Microsoft MPI\Inc;$(IncludePath)</IncludePath>
+    <LibraryPath>$(ProgramW6432)\Microsoft MPI\Lib\amd64;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <IncludePath>$(ProjectDir)\..;$(ProjectDir)\..\..;$(ProjectDir)\..\..\mdl2\mpi;$(ProjectDir)\..\glibc;$(ProgramW6432)\Microsoft HPC Pack 2008 SDK\Include;$(IncludePath)</IncludePath>
-    <LibraryPath>$(ProgramW6432)\Microsoft HPC Pack 2008 SDK\Lib\amd64;$(LibraryPath)</LibraryPath>
+    <IncludePath>$(ProjectDir)\..;$(ProjectDir)\..\..;$(ProjectDir)\..\..\mdl2\mpi;$(ProjectDir)\..\glibc;$(ProgramW6432)\Microsoft MPI\Inc;$(IncludePath)</IncludePath>
+    <LibraryPath>$(ProgramW6432)\Microsoft MPI\Lib\amd64;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
       <WarningLevel>Level2</WarningLevel>
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>HAVE_CONFIG_H;_IEEE_LIBM;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <EnableEnhancedInstructionSet>AdvancedVectorExtensions</EnableEnhancedInstructionSet>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -66,7 +67,7 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>HAVE_CONFIG_H;_IEEE_LIBM;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
-      <EnableEnhancedInstructionSet>StreamingSIMDExtensions2</EnableEnhancedInstructionSet>
+      <EnableEnhancedInstructionSet>AdvancedVectorExtensions</EnableEnhancedInstructionSet>
       <FloatingPointModel>Fast</FloatingPointModel>
     </ClCompile>
     <Link>
@@ -153,7 +154,6 @@
     <ClInclude Include="..\..\unbind.h" />
     <ClInclude Include="..\..\walk.h" />
     <ClInclude Include="..\config.h" />
-    <ClInclude Include="..\glibc\math_private.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="ClassDiagram1.cd" />
