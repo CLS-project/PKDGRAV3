@@ -9,6 +9,13 @@
 #include <time.h>
 #endif
 #include <assert.h>
+#if !defined(HAVE_CONFIG_H) || defined(HAVE_MALLOC_H)
+#include <malloc.h>
+#endif
+#ifdef HAVE_SYS_TIME_H
+#include <sys/time.h>
+#endif
+#include <stdarg.h>
 
 #define MDL_DEFAULT_SERVICES	120
 

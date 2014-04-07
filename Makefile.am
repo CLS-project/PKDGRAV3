@@ -93,7 +93,7 @@ endif
 
 pkdgrav2_null_SOURCES = $(SOURCES) $(MDL)/null/mdl.c
 noinst_HEADERS += $(MDL)/null/mdl.h
-pkdgrav2_null_CFLAGS = -I$(MDL)/null/ $(AM_CFLAGS)
+pkdgrav2_null_CFLAGS =  -I$(MDL)/null/ -I$(MDL) $(AM_CFLAGS)
 pkdgrav2_null_LDADD = $(FLIBS)
 if USE_EFENCE
 if HAVE_EFENCE_PATH
@@ -119,7 +119,7 @@ if HAVE_MPI
 pkdgrav2_mpi_LDADD =
 pkdgrav2_mpi_SOURCES = $(SOURCES) $(MDL)/mpi/mdl.c
 noinst_HEADERS += $(MDL)/mpi/mdl.h
-pkdgrav2_mpi_CFLAGS = -I$(MDL)/mpi/ $(AM_CFLAGS)
+pkdgrav2_mpi_CFLAGS = -I$(MDL)/mpi/ -I$(MDL) $(AM_CFLAGS)
 if USE_BSC
 pkdgrav2_mpi_LDADD += -L /gpfs/apps/CEPBATOOLS/mpitrace-devel/64/lib -ldl -lmpitrace_burst
 pkdgrav2_mpi_CFLAGS += -I/gpfs/apps/CEPBATOOLS/mpitrace-devel/64/include
@@ -158,7 +158,7 @@ if HAVE_MPIPT
 pkdgrav2_mpipt_LDADD =
 pkdgrav2_mpipt_SOURCES = $(SOURCES) $(MDL)/mpipt/mdl.c
 noinst_HEADERS += $(MDL)/mpipt/mdl.h
-pkdgrav2_mpipt_CFLAGS = -I$(MDL)/mpipt/ $(AM_CFLAGS)
+pkdgrav2_mpipt_CFLAGS = -I$(MDL)/mpipt/ -I$(MDL) $(AM_CFLAGS)
 if USE_BSC
 pkdgrav2_mpipt_LDADD += -L /gpfs/apps/CEPBATOOLS/mpitrace-devel/64/lib -ldl -lmpitrace_burst
 pkdgrav2_mpipt_CFLAGS += -I/gpfs/apps/CEPBATOOLS/mpitrace-devel/64/include
@@ -190,7 +190,7 @@ endif
 if HAVE_PTHREAD
 pkdgrav2_pthread_SOURCES = $(SOURCES) $(MDL)/pthread/mdl.c
 noinst_HEADERS += $(MDL)/pthread/mdl.h
-pkdgrav2_pthread_CFLAGS = -DUSE_PTHREAD -I$(MDL)/pthread/ $(AM_CFLAGS)
+pkdgrav2_pthread_CFLAGS = -DUSE_PTHREAD -I$(MDL)/pthread/ -I$(MDL) $(AM_CFLAGS)
 pkdgrav2_pthread_LDADD = -lpthread
 if USE_EFENCE
 if HAVE_EFENCE_PATH
