@@ -40,21 +40,21 @@ static const struct CONSTS {
     vfloat R45_32;
     vfloat R135_16;
     } consts = {
-        {SIMD_CONST(1e-18)},
-        {SIMD_CONST(0.0)},
-	{SIMD_CONST(0.25)},
+        {SIMD_CONST(1e-18f)},
+        {SIMD_CONST(0.0f)},
+	{SIMD_CONST(0.25f)},
 	{SIMD_CONST(1.0f/3.0f)},
-	{SIMD_CONST(0.5)},
-	{SIMD_CONST(1.0)},
-	{SIMD_CONST(1.5)},
-	{SIMD_CONST(3.0)},
-	{SIMD_CONST(4.0)},
-	{SIMD_CONST(5.0)},
-	{SIMD_CONST(7.0)},
-	{SIMD_CONST(9.0)},
-	{SIMD_CONST(3.0/8.0)},
-	{SIMD_CONST(45.0/32.0)},
-	{SIMD_CONST(135.0/16.0)},
+	{SIMD_CONST(0.5f)},
+	{SIMD_CONST(1.0f)},
+	{SIMD_CONST(1.5f)},
+	{SIMD_CONST(3.0f)},
+	{SIMD_CONST(4.0f)},
+	{SIMD_CONST(5.0f)},
+	{SIMD_CONST(7.0f)},
+	{SIMD_CONST(9.0f)},
+	{SIMD_CONST(3.0f/8.0f)},
+	{SIMD_CONST(45.0f/32.0f)},
+	{SIMD_CONST(135.0f/16.0f)},
     };
 #endif
 

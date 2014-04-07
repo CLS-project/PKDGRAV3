@@ -344,7 +344,7 @@ int master_ch(MDL mdl, int argc, char **argv) {
 #endif
 
     msrFinish(msr);
-
+    return 0;
     }
 
 #ifdef FC_DUMMY_MAIN

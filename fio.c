@@ -1507,6 +1507,7 @@ static FIO tipsyOpen(fioFileList *fileList) {
     ** many particles are in each file.  We have to stat the files to find this.
     */
     nSizes = malloc(sizeof(off_t)*tio->fio.fileList.nFiles);
+    assert(nSizes);
     nSize = 0;
     for( i=0; i<tio->fio.fileList.nFiles; i++) {
 	struct stat s;
@@ -4196,6 +4197,7 @@ static FIO graficOpenDirectory(const char *dirName,double UNUSED(dOmega0),double
 
     gio->nLevels = 1;
     gio->level = malloc(sizeof(graficLevel));
+    assert(gio->level);
     gio->level[0].fp_velcx.fp = gio->level[0].fp_velcy.fp = gio->level[0].fp_velcz.fp = NULL;
     gio->level[0].fp_velcx2.fp = gio->level[0].fp_velcy2.fp = gio->level[0].fp_velcz2.fp = NULL;
     gio->level[0].fp_velbx.fp = gio->level[0].fp_velby.fp = gio->level[0].fp_velbz.fp = NULL;

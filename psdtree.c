@@ -216,7 +216,7 @@ void entropy(PKD pkd, float *e, KDN *pNode, BND **bnd, struct KEY *keys) {
     float Mtotal = 0;
     int Npart = pNode->pUpper - pNode->pLower + 1;
     int64_t Nb;
-    Nb = 1+cbrt(Npart/10.);
+    Nb = (int64_t)(1+cbrt(Npart/10.));
     int maxNb = 1 << ((sizeof(Nb)*8) / 3);
     double *v;
 

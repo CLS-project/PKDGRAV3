@@ -37,40 +37,10 @@ int smp_num_cpus = 1;
 
 
 #define MDL_DEFAULT_BYTES		4096
-#define MDL_DEFAULT_SERVICES	50
 #define MDL_DEFAULT_CACHEIDS	5
 
 #define MDL_TRANS_SIZE			50000
 
-
-/*
-** The purpose of this routine is to safely cast a size_t to an int.
-** If this were done inline, the type of "v" would not be checked.
-**
-** We cast for the following reasons:
-** - We have masked a mdlkey_t (to an local id or processor), so we
-**   know it will fit in an integer.
-** - We are taking a part of a memory block to send or receive
-**   through MPI.  MPI takes an "int" parameter.
-** - We have calculated a memory size with pointer subtraction and
-**   know that it must be smaller than 4GB.
-**
-** The compiler will cast automatically, but warnings can be generated unless
-** the cast is done explicitly.  Putting it inline is NOT type safe as in:
-**   char *p;
-**   int i;
-**   i = (int)p;
-** "works", while:
-**   i = size_t_to_int(p);
-** would fail.
-*/
-static inline int size_t_to_int( size_t v ) {
-    return (int)v;
-    }
-
-static inline int mdlkey_t_to_int( mdlkey_t v ) {
-    return (int)v;
-    }
 /*
  ** GLOBAL BARRIER VARIABLES! All threads must see these.
  */
@@ -144,7 +114,7 @@ static int doSomeWork(MDL mdl) {
 
 #if 0
     /* Okay, try for a different thread */
-    for(iMDL=0; iMDL<mdl->nThreads; ++iMDL) {
+    for(iMDL=0; iMDL<mdl->base.nThreads; ++iMDL) {
 	other = mdl->pmdl[iMDL];
 	pthread_mutex_lock(&other->wqMux);
 	if ( (iWork=other->wqWait) >= 0 ) {
@@ -207,7 +177,7 @@ void mdlBarrier(MDL mdl) {
     pthread_mutex_lock(&MDLmuxBar);
     iEpisode = MDLnEpisode;
     ++MDLnInBar;
-    if (MDLnInBar == mdl->nThreads) {
+    if (MDLnInBar == mdl->base.nThreads) {
 	++MDLnEpisode;
 	/*pthread_cond_broadcast(&MDLsigBar);*/
 	}
@@ -234,98 +204,6 @@ void mdlBarrier(MDL mdl) {
 
     pthread_mutex_unlock(&MDLmuxBar);
     }
-
-void srvNull(void *p1,void *vin,int nIn,void *vout,int *pnOut) {
-    return;
-    }
-
-
-double mdlCpuTimer(MDL mdl) {
-#ifdef __linux__
-    struct rusage ru;
-
-    getrusage(0,&ru);
-    return((double)ru.ru_utime.tv_sec + 1e-6*(double)ru.ru_utime.tv_usec);
-#else
-    return 0.0;
-#endif
-    }
-
-/*
- * MDL debug and Timer functions
- */
-#define MDLPRINTF_STRING_MAXLEN 256
-void mdlprintf( MDL mdl, const char *format, ... ) {
-    static char ach[MDLPRINTF_STRING_MAXLEN];
-    va_list args;
-
-    if (mdl->bDiag) {
-	va_start( args, format);
-	vsnprintf( ach, MDLPRINTF_STRING_MAXLEN, format, args);
-	mdlDiag( mdl, ach);
-	va_end( args);
-	}
-    }
-
-#ifdef MDLTIMER
-void mdlZeroTimer(MDL mdl, mdlTimer *t) {
-#ifdef _MSC_VER
-    FILETIME ft;
-    uint64_t clock;
-    GetSystemTimeAsFileTime(&ft);
-    clock = ft.dwHighDateTime;
-    clock <<= 32;
-    clock |= ft.dwLowDateTime;
-    /* clock is in 100 nano-second units */
-    t->wallclock = clock / 10000000UL;
-#else
-    struct timezone tz;
-    struct timeval tv;
-    struct rusage ru;
-    tz.tz_minuteswest = 0;
-    tz.tz_dsttime = 0;
-    gettimeofday(&tv,&tz);
-    t->wallclock = tv.tv_sec + 1e-6*(double) tv.tv_usec;
-    getrusage(0,&ru);
-    t->cpu = (double)ru.ru_utime.tv_sec + 1e-6*(double)ru.ru_utime.tv_usec;
-    t->system = (double)ru.ru_stime.tv_sec + 1e-6*(double)ru.ru_stime.tv_usec;
-#endif
-    }
-
-void mdlGetTimer(MDL mdl, mdlTimer *t0, mdlTimer *t) {
-#ifdef _MSC_VER
-    FILETIME ft;
-    uint64_t clock;
-    GetSystemTimeAsFileTime(&ft);
-    clock = ft.dwHighDateTime;
-    clock <<= 32;
-    clock |= ft.dwLowDateTime;
-    /* clock is in 100 nano-second units */
-    t->wallclock = clock / 10000000UL - t0->wallclock;
-#else
-    struct timezone tz;
-    struct timeval tv;
-    struct rusage ru;
-
-    getrusage(0,&ru);
-    t->cpu = (double)ru.ru_utime.tv_sec + 1e-6*(double)ru.ru_utime.tv_usec - t0->cpu;
-    t->system = (double)ru.ru_stime.tv_sec + 1e-6*(double)ru.ru_stime.tv_usec - t0->system;
-    tz.tz_minuteswest = 0;
-    tz.tz_dsttime = 0;
-    gettimeofday(&tv,&tz);
-    t->wallclock = tv.tv_sec + 1e-6*(double) tv.tv_usec - t0->wallclock;
-#endif
-}
-void mdlPrintTimer(MDL mdl,char *message, mdlTimer *t0) {
-    mdlTimer lt;
-
-    if (mdl->bDiag) {
-	mdlGetTimer(mdl,t0,&lt);
-	mdlprintf(mdl,"%s %f %f %f\n",message,lt.wallclock,lt.cpu,lt.system);
-	}
-    }
-#endif
-
 
 void mdlSetWorkQueueSize(MDL mdl,int wqSize,int cudaSize) {
     int i;
@@ -367,37 +245,13 @@ void mdlSetWorkQueueSize(MDL mdl,int wqSize,int cudaSize) {
 void BasicInit(MDL mdl) {
     int i;
 
+    mdlBaseInitialize(&mdl->base);
     /*
      ** Set default "maximums" for structures. These are NOT hard
      ** maximums, as the structures will be realloc'd when these
      ** values are exceeded.
      */
-    mdl->nMaxServices = MDL_DEFAULT_SERVICES;
-    mdl->nMaxInBytes = MDL_DEFAULT_BYTES;
-    mdl->nMaxOutBytes = MDL_DEFAULT_BYTES;
     mdl->nMaxCacheIds = MDL_DEFAULT_CACHEIDS;
-    /*
-     ** Now allocate the initial service slots.
-     */
-    mdl->psrv = malloc(mdl->nMaxServices*sizeof(SERVICE));
-    assert(mdl->psrv != NULL);
-    /*
-     ** Initialize the new service slots.
-     */
-    for (i=0;i<mdl->nMaxServices;++i) {
-	mdl->psrv[i].p1 = NULL;
-	mdl->psrv[i].nInBytes = 0;
-	mdl->psrv[i].nOutBytes = 0;
-	mdl->psrv[i].fcnService = NULL;
-	}
-    /*
-     ** Provide a 'null' service for sid = 0, so that stopping the
-     ** service handler is well defined!
-     */
-    mdl->psrv[0].p1 = NULL;
-    mdl->psrv[0].nInBytes = 0;
-    mdl->psrv[0].nOutBytes = 0;
-    mdl->psrv[0].fcnService = srvNull;
     /*
      ** Allocate initial cache spaces.
      */
@@ -412,10 +266,8 @@ void BasicInit(MDL mdl) {
     /*
      ** Initialize the mailboxes.
      */
-    mdl->mbxOwn.pszIn = malloc(mdl->nMaxInBytes);
-    assert(mdl->mbxOwn.pszIn != NULL);
-    mdl->mbxOwn.pszOut = malloc(mdl->nMaxOutBytes);
-    assert(mdl->mbxOwn.pszOut != NULL);
+    mdl->mbxOwn.pszIn = NULL;
+    mdl->mbxOwn.pszOut = NULL;
     mdl->mbxOwn.bReq = 0;
     mdl->mbxOwn.bRpl = 0;
     /*
@@ -491,11 +343,11 @@ void BasicDestroy(MDL mdl) {
 	}
 
     free(mdl->swxOwn.pszBuf);
-    free(mdl->psrv);
     free(mdl->mbxOwn.pszIn);
     free(mdl->mbxOwn.pszOut);
     free(mdl->cache);
     free(mdl->wq);
+    mdlBaseFinish(&mdl->base);
     free(mdl->wqCUDA);
     }
 
@@ -556,8 +408,6 @@ int mdlLaunch(int argc,char **argv,int (*fcnMaster)(MDL,int,char **),void (*fcnC
     mdl->pmdl[0] = mdl;			/* that's me! */
     mdl->pt = (pthread_t *)malloc(nThreads*sizeof(pthread_t));
     assert(mdl->pt != NULL);
-    gethostname(mdl->nodeName,sizeof(mdl->nodeName));
-    mdl->nodeName[sizeof(mdl->nodeName)-1] = 0;
     pthread_attr_init(&attr);
 #ifdef TINY_PTHREAD_STACK
     /*
@@ -582,17 +432,17 @@ int mdlLaunch(int argc,char **argv,int (*fcnMaster)(MDL,int,char **),void (*fcnC
 	    tmdl = mdl->pmdl[i];
 	    BasicInit(tmdl);
 	    tmdl->pmdl = mdl->pmdl;
-	    tmdl->idSelf = i;
-	    tmdl->bDiag = bDiag;
-	    tmdl->nThreads = nThreads;
+	    tmdl->base.idSelf = i;
+	    tmdl->base.bDiag = bDiag;
+	    tmdl->base.nThreads = nThreads;
 	    tmdl->cacheSize = MDL_CACHE_SIZE;
-	    if (tmdl->bDiag) {
+	    if (tmdl->base.bDiag) {
 		char *tmp = strrchr(argv[0],'/');
 		if (!tmp) tmp = argv[0];
 		else ++tmp;
-		sprintf(achDiag,"%s/%s.%d",ach,tmp,tmdl->idSelf);
-		tmdl->fpDiag = fopen(achDiag,"w");
-		assert(tmdl->fpDiag != NULL);
+		sprintf(achDiag,"%s/%s.%d",ach,tmp,tmdl->base.idSelf);
+		tmdl->base.fpDiag = fopen(achDiag,"w");
+		assert(tmdl->base.fpDiag != NULL);
 		}
 	    }
 	for (i=1;i<nThreads;++i) {
@@ -609,16 +459,16 @@ int mdlLaunch(int argc,char **argv,int (*fcnMaster)(MDL,int,char **),void (*fcnC
 	 ** A unik!
 	 */
 	BasicInit(mdl);
-	mdl->bDiag = bDiag;
-	mdl->nThreads = 1;
-	mdl->idSelf = 0;
-	if (mdl->bDiag) {
+	mdl->base.bDiag = bDiag;
+	mdl->base.nThreads = 1;
+	mdl->base.idSelf = 0;
+	if (mdl->base.bDiag) {
 	    char *tmp = strrchr(argv[0],'/');
 	    if (!tmp) tmp = argv[0];
 	    else ++tmp;
-	    sprintf(achDiag,"%s/%s.%d",ach,tmp,mdl->idSelf);
-	    mdl->fpDiag = fopen(achDiag,"w");
-	    assert(mdl->fpDiag != NULL);
+	    sprintf(achDiag,"%s/%s.%d",ach,tmp,mdl->base.idSelf);
+	    mdl->base.fpDiag = fopen(achDiag,"w");
+	    assert(mdl->base.fpDiag != NULL);
 	    }
 	}
 #ifdef TINY_PTHREAD_STACK
@@ -629,9 +479,6 @@ int mdlLaunch(int argc,char **argv,int (*fcnMaster)(MDL,int,char **),void (*fcnC
     pthread_create(mdl->pt,&attr,main,mdl->pmdl[0]);
     pthread_exit(0);
 #endif
-    gethostname(mdl->nodeName,MAX_PROCESSOR_NAME);
-    /* make sure it is null terminated, stupid UNIX */
-    mdl->nodeName[MAX_PROCESSOR_NAME-1] = 0;
 
 #if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
     mdl->dWaiting = mdl->dComputing = mdl->dSynchronizing = 0.0;
@@ -649,20 +496,20 @@ void mdlFinish(MDL mdl) {
     MDL tmdl;
     int i;
 
-    for (i=1;i<mdl->nThreads;++i) {
+    for (i=1;i<mdl->base.nThreads;++i) {
 	pthread_join(mdl->pt[i],0);
 	}
-    for (i=0;i<mdl->nThreads;++i) {
+    for (i=0;i<mdl->base.nThreads;++i) {
 	tmdl = mdl->pmdl[i];
 	BasicDestroy(tmdl);
 	/*
 	 ** Close Diagnostic file.
 	 */
-	if (tmdl->bDiag) {
-	    fclose(tmdl->fpDiag);
+	if (tmdl->base.bDiag) {
+	    fclose(tmdl->base.fpDiag);
 	    }
 	}
-    for (i=1;i<mdl->nThreads;++i) {
+    for (i=1;i<mdl->base.nThreads;++i) {
 	free(mdl->pmdl[i]);
 	}
     free(mdl->pmdl);
@@ -670,87 +517,28 @@ void mdlFinish(MDL mdl) {
     free(mdl);
     }
 
-
-/*
- ** This function returns the number of threads in the set of
- ** threads.
- */
-int mdlThreads(MDL mdl) {
-    return(mdl->nThreads);
+void mdlCommitServices(MDL mdl) {
+    MBX *pmbx;
+    /*
+    ** Make sure the service buffers are big enough!
+    */
+    pmbx = &mdl->mbxOwn;
+    /*
+    ** Don't need to aquire lock here, because only 2 cases can
+    ** occur. 1) We are adding service outside of the handler,
+    ** and this okay (usual). 2) We are trying to allow a service
+    ** to add a new service, this is also okay since while the
+    ** service is running it already has the lock on the mailbox.
+    */
+    pmbx->pszIn = realloc(pmbx->pszIn, mdl->base.nMaxInBytes);
+    pmbx->pszOut = realloc(pmbx->pszOut, mdl->base.nMaxOutBytes);
     }
-
-
-/*
- ** This function returns this threads 'id' number within the specified
- ** MDL Context. Parent thread always has 'id' of 0, where as children
- ** have 'id's ranging from 1..(nThreads - 1).
- */
-int mdlSelf(MDL mdl) {
-    return(mdl->idSelf);
-    }
-
-const char *mdlName(MDL mdl) {
-    return mdl->nodeName;
-    }
-
-
-void mdlDiag(MDL mdl,char *psz) {
-    if (mdl->bDiag) {
-	fputs(psz,mdl->fpDiag);
-	fflush(mdl->fpDiag);
-	}
-    }
-
 
 void mdlAddService(MDL mdl,int sid,void *p1,
 		   void (*fcnService)(void *,void *,int,void *,int *),
 		   int nInBytes,int nOutBytes) {
-    MBX *pmbx;
-    int i,nMaxServices;
+    mdlBaseAddService(&mdl->base, sid, p1, fcnService, nInBytes, nOutBytes);
 
-    assert(sid > 0);
-    if (sid >= mdl->nMaxServices) {
-	/*
-	 ** reallocate service buffer, adding space for 8 new services
-	 ** including the one just defined.
-	 */
-	nMaxServices = sid + 9;
-	mdl->psrv = realloc(mdl->psrv,nMaxServices*sizeof(SERVICE));
-	assert(mdl->psrv != NULL);
-	/*
-	 ** Initialize the new service slots.
-	 */
-	for (i=mdl->nMaxServices;i<nMaxServices;++i) {
-	    mdl->psrv[i].p1 = NULL;
-	    mdl->psrv[i].nInBytes = 0;
-	    mdl->psrv[i].nOutBytes = 0;
-	    mdl->psrv[i].fcnService = NULL;
-	    }
-	mdl->nMaxServices = nMaxServices;
-	}
-    /*
-     ** Make sure the service buffers are big enough!
-     */
-    pmbx = &mdl->mbxOwn;
-    if (nInBytes > mdl->nMaxInBytes) {
-	/*
-	 ** Don't need to aquire lock here, because only 2 cases can
-	 ** occur. 1) We are adding service outside of the handler,
-	 ** and this okay (usual). 2) We are trying to allow a service
-	 ** to add a new service, this is also okay since while the
-	 ** service is running it already has the lock on the mailbox.
-	 */
-	pmbx->pszIn = realloc(pmbx->pszIn,nInBytes);
-	mdl->nMaxInBytes = nInBytes;
-	}
-    if (nOutBytes > mdl->nMaxOutBytes) {
-	pmbx->pszOut = realloc(pmbx->pszOut,nOutBytes);
-	mdl->nMaxOutBytes = nOutBytes;
-	}
-    mdl->psrv[sid].p1 = p1;
-    mdl->psrv[sid].nInBytes = nInBytes;
-    mdl->psrv[sid].nOutBytes = nOutBytes;
-    mdl->psrv[sid].fcnService = fcnService;
     }
 
 
@@ -824,15 +612,15 @@ void mdlHandler(MDL mdl) {
 	    }
 	pmbx->bReq = 0;
 	sid = pmbx->sid;
-	assert(sid < mdl->nMaxServices);
+	assert(sid < mdl->base.nMaxServices);
 	nInBytes = pmbx->nBytes;
-	assert(nInBytes <= mdl->psrv[sid].nInBytes);
+	assert(nInBytes <= mdl->base.psrv[sid].nInBytes);
 	pmbx->nBytes = 0;
-	assert(mdl->psrv[sid].fcnService != NULL);
-	(*mdl->psrv[sid].fcnService)(mdl->psrv[sid].p1,
+	assert(mdl->base.psrv[sid].fcnService != NULL);
+	(*mdl->base.psrv[sid].fcnService)(mdl->base.psrv[sid].p1,
 				     pmbx->pszIn,nInBytes,
 				     pmbx->pszOut,&pmbx->nBytes);
-	assert(pmbx->nBytes <= mdl->psrv[sid].nOutBytes);
+	assert(pmbx->nBytes <= mdl->base.psrv[sid].nOutBytes);
 	pmbx->bRpl = 1;
 	pthread_cond_signal(&pmbx->sigRpl);
 	pthread_mutex_unlock(&pmbx->mux);
@@ -987,7 +775,6 @@ int mdlSwap(MDL mdl,int id,size_t nBufBytes,void *vBuf,size_t nOutBytes,
 #define MDL_RANDMOD		1771875
 #define MDL_RAND(mdl) (mdl->uRand = (mdl->uRand*2416+374441)%MDL_RANDMOD)
 #define MDL_CHECK_MASK  	0x7f
-#define BILLION				1000000000
 
 #define MDL_ADVANCE_RING(X) (X)++; if((X) >= MDL_MBX_RING_SZ) (X) = 0
 
@@ -1047,6 +834,7 @@ int mdlCacheReceive(MDL mdl) {
     default:
 	assert(0);
 	}
+    return(0);
     }
 
 void AdjustDataSize(MDL mdl) {
@@ -1148,7 +936,6 @@ CACHE *CacheInitialize(MDL mdl,int cid,
     c->pData = pData;
     c->iDataSize = iDataSize;
     c->nData = nData;
-    c->pDataMax = nData*((size_t)iDataSize);
 
     c->pTrans = NULL;
     c->pTag = NULL;
@@ -1197,7 +984,7 @@ void mdlCOcache(MDL mdl,int cid,
     c->ctx = ctx;
     c->iLineSize = MDL_CACHELINE_ELTS*c->iDataSize;
     c->iKeyShift = 0;
-    while ((1 << c->iKeyShift) < mdl->nThreads) ++c->iKeyShift;
+    while ((1 << c->iKeyShift) < mdl->base.nThreads) ++c->iKeyShift;
     c->iIdMask = (1 << c->iKeyShift) - 1;
 
     if (c->iKeyShift < MDL_CACHELINE_BITS) {
@@ -1253,7 +1040,7 @@ void mdlCOcache(MDL mdl,int cid,
     c->pLine = malloc(c->nLines*c->iLineSize);
     assert(c->pLine != NULL);
     c->nCheckOut = 0;
-    for (i = 0; i < mdl->nThreads; i++) {
+    for (i = 0; i < mdl->base.nThreads; i++) {
 	mdl->iRecSeq[i] = 0;
 	mdl->iSndSeq[i] = 0;
 	}
@@ -1273,7 +1060,7 @@ void mdlCacheRequest(MDL mdl, int id, int cid, int mid, char *pszData,
     int iRingTl;
     int iOldRingTl;
 
-    assert(id != mdl->idSelf);
+    assert(id != mdl->base.idSelf);
     /*
      * Grab my place in the ring.
      */
@@ -1302,7 +1089,7 @@ void mdlCacheRequest(MDL mdl, int id, int cid, int mid, char *pszData,
 
     caFlsh->cid = cid;
     caFlsh->mid = mid;
-    caFlsh->id = mdl->idSelf;
+    caFlsh->id = mdl->base.idSelf;
     caFlsh->iSeq = mdl->iSndSeq[id];
     mdl->iSndSeq[id]++;
     if (mid == MDL_MID_CACHEFLSH) {
@@ -1353,9 +1140,9 @@ void mdlFinishCache(MDL mdl,int cid) {
 		mdlCacheCheck(mdl); /* service incoming */
 		}
 	    }
-	if (mdl->idSelf == 0) {
+	if (mdl->base.idSelf == 0) {
 	    ++c->nCheckOut;
-	    while (c->nCheckOut < mdl->nThreads) {
+	    while (c->nCheckOut < mdl->base.nThreads) {
 		doSomeWork(mdl);
 		mdlCacheCheck(mdl);
 		}
@@ -1364,8 +1151,8 @@ void mdlFinishCache(MDL mdl,int cid) {
 	    mdlCacheRequest(mdl, 0, cid, MDL_MID_CACHEOUT,
 			    NULL, 0, 0);
 	    }
-	if (mdl->idSelf == 0) {
-	    for (id = 1; id < mdl->nThreads; id++) {
+	if (mdl->base.idSelf == 0) {
+	    for (id = 1; id < mdl->base.nThreads; id++) {
 		mdlCacheRequest(mdl, id, cid, MDL_MID_CACHEOUT,
 				NULL, 0, 0);
 		}
@@ -1414,7 +1201,7 @@ void *mdlAquire(MDL mdl,int cid,int iIndex,int id) {
     char *pLine;		/* matched cache line */
     int iElt;		/* Element in line */
 
-    if (c->iType == MDL_ROCACHE || id == mdl->idSelf) {
+    if (c->iType == MDL_ROCACHE || id == mdl->base.idSelf) {
 	CACHE *cc = &mdl->pmdl[id]->cache[cid];
 	return c->getElt(cc->pData,iIndex,c->iDataSize);
 	//return(&cc->pData[iIndex*((size_t)c->iDataSize)]);
@@ -1513,7 +1300,7 @@ void *doMiss(MDL mdl, int cid, int iIndex, int id, mdlkey_t iKey, int lock) {
 
 #if 0
 		    fprintf(stderr, "%d %d %d\n",
-			    mdl->idSelf, idVic, iLine);
+			    mdl->base.idSelf, idVic, iLine);
 #endif
 
 		    mdlCacheRequest(mdl, idVic, cid,
@@ -1560,16 +1347,6 @@ Await:
     iLineSize = (n-s) * cc->iDataSize;
     t = (*cc->getElt)(cc->pData,i,cc->iDataSize);
     memcpy(pLine,t,iLineSize);
-
-//    if ((iLine+1)*c->iLineSize > cc->pDataMax) {
-//	iLineSize = size_t_to_int(cc->pDataMax - iLine*c->iLineSize);
-//	}
-//    else {
-//	iLineSize = c->iLineSize;
-//	}
-//
-//    for (i = 0; i < iLineSize; i++)
-//	pLine[i] = cc->pData[iLine*c->iLineSize + i];
 
     if (c->iType == MDL_COCACHE) {
 	/*
@@ -1633,9 +1410,9 @@ void mdlCacheBarrier(MDL mdl,int cid) {
     */
     if (c->iType == MDL_COCACHE) {
 	flushWork(mdl);
-	if (mdl->idSelf == 0) {
+	if (mdl->base.idSelf == 0) {
 	    ++c->nCheckOut;
-	    while (c->nCheckOut < mdl->nThreads) {
+	    while (c->nCheckOut < mdl->base.nThreads) {
 		doSomeWork(mdl);
 		mdlCacheCheck(mdl);
 		}
@@ -1644,8 +1421,8 @@ void mdlCacheBarrier(MDL mdl,int cid) {
 	    mdlCacheRequest(mdl, 0, cid, MDL_MID_CACHEOUT,
 			    NULL, 0, 0);
 	    }
-	if (mdl->idSelf == 0) {
-	    for (id = 1; id < mdl->nThreads; id++) {
+	if (mdl->base.idSelf == 0) {
+	    for (id = 1; id < mdl->base.nThreads; id++) {
 		mdlCacheRequest(mdl, id, cid, MDL_MID_CACHEOUT,
 				NULL, 0, 0);
 		}
@@ -1763,8 +1540,8 @@ void mdlGridInitialize(MDL mdl,MDLGRID *pgrid,int n1,int n2,int n3,int a1) {
 
     /* This will be shared later (see mdlGridShare) */
     grid->id = malloc(sizeof(*grid->id)*(grid->n3));    assert(grid->id!=NULL);
-    grid->rs = mdlMalloc(mdl,sizeof(*grid->rs)*mdl->nThreads); assert(grid->rs!=NULL);
-    grid->rn = mdlMalloc(mdl,sizeof(*grid->rn)*mdl->nThreads); assert(grid->rn!=NULL);
+    grid->rs = mdlMalloc(mdl,sizeof(*grid->rs)*mdl->base.nThreads); assert(grid->rs!=NULL);
+    grid->rn = mdlMalloc(mdl,sizeof(*grid->rn)*mdl->base.nThreads); assert(grid->rn!=NULL);
 
     /* The following need to be set to appropriate values still. */
     grid->s = grid->n = grid->nlocal = 0;

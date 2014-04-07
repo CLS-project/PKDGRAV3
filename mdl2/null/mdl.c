@@ -29,100 +29,7 @@ const char *null_mdl_module_id = "NULL ($Id$)";
 
 
 #define MDL_DEFAULT_BYTES		4096
-#define MDL_DEFAULT_SERVICES	50
 #define MDL_DEFAULT_CACHEIDS	5
-
-void _srvNull(void *p1,void *vin,int nIn,void *vout,int *pnOut) {
-    return;
-    }
-
-
-double mdlCpuTimer(MDL mdl) {
-#ifdef __linux__
-    struct rusage ru;
-
-    getrusage(0,&ru);
-    return((double)ru.ru_utime.tv_sec + 1e-6*(double)ru.ru_utime.tv_usec);
-#else
-    return 0.0;
-#endif
-    }
-
-/*
- * MDL debug and Timer functions
- */
-#define MDLPRINTF_STRING_MAXLEN 256
-void mdlprintf( MDL mdl, const char *format, ... ) {
-    static char ach[MDLPRINTF_STRING_MAXLEN];
-    va_list args;
-
-    if (mdl->bDiag) {
-	va_start( args, format);
-	vsnprintf( ach, MDLPRINTF_STRING_MAXLEN, format, args);
-	mdlDiag( mdl, ach);
-	va_end( args);
-	}
-    }
-
-#ifdef MDLTIMER
-void mdlZeroTimer(MDL mdl, mdlTimer *t) {
-#ifdef _MSC_VER
-    FILETIME ft;
-    uint64_t clock;
-    GetSystemTimeAsFileTime(&ft);
-    clock = ft.dwHighDateTime;
-    clock <<= 32;
-    clock |= ft.dwLowDateTime;
-    /* clock is in 100 nano-second units */
-    t->wallclock = clock / 10000000.0;
-#else
-    struct timezone tz;
-    struct timeval tv;
-    struct rusage ru;
-    tz.tz_minuteswest = 0;
-    tz.tz_dsttime = 0;
-    gettimeofday(&tv,&tz);
-    t->wallclock = tv.tv_sec + 1e-6*(double) tv.tv_usec;
-    getrusage(0,&ru);
-    t->cpu = (double)ru.ru_utime.tv_sec + 1e-6*(double)ru.ru_utime.tv_usec;
-    t->system = (double)ru.ru_stime.tv_sec + 1e-6*(double)ru.ru_stime.tv_usec;
-#endif
-    }
-
-void mdlGetTimer(MDL mdl, mdlTimer *t0, mdlTimer *t) {
-#ifdef _MSC_VER
-    FILETIME ft;
-    uint64_t clock;
-    GetSystemTimeAsFileTime(&ft);
-    clock = ft.dwHighDateTime;
-    clock <<= 32;
-    clock |= ft.dwLowDateTime;
-    /* clock is in 100 nano-second units */
-    t->wallclock = clock / 10000000UL - t0->wallclock;
-#else
-    struct timezone tz;
-    struct timeval tv;
-    struct rusage ru;
-
-    getrusage(0,&ru);
-    t->cpu = (double)ru.ru_utime.tv_sec + 1e-6*(double)ru.ru_utime.tv_usec - t0->cpu;
-    t->system = (double)ru.ru_stime.tv_sec + 1e-6*(double)ru.ru_stime.tv_usec - t0->system;
-    tz.tz_minuteswest = 0;
-    tz.tz_dsttime = 0;
-    gettimeofday(&tv,&tz);
-    t->wallclock = tv.tv_sec + 1e-6*(double) tv.tv_usec - t0->wallclock;
-#endif
-}
-
-void mdlPrintTimer(MDL mdl,char *message, mdlTimer *t0) {
-    mdlTimer lt;
-
-    if (mdl->bDiag) {
-	mdlGetTimer(mdl,t0,&lt);
-	mdlprintf(mdl,"%s %f %f %f\n",message,lt.wallclock,lt.cpu,lt.system);
-	}
-    }
-#endif
 
 int mdlLaunch(int argc,char **argv,int (*fcnMaster)(MDL,int,char **),void (*fcnChild)(MDL)) {
     MDL mdl;
@@ -131,44 +38,15 @@ int mdlLaunch(int argc,char **argv,int (*fcnMaster)(MDL,int,char **),void (*fcnC
 
     mdl = malloc(sizeof(struct mdlContext));
     assert(mdl != NULL);
+
+    mdlBaseInitialize(&mdl->base);
+
     /*
      ** Set default "maximums" for structures. These are NOT hard
      ** maximums, as the structures will be realloc'd when these
      ** values are exceeded.
      */
-    mdl->nMaxServices = MDL_DEFAULT_SERVICES;
-    mdl->nMaxInBytes = MDL_DEFAULT_BYTES;
-    mdl->nMaxOutBytes = MDL_DEFAULT_BYTES;
     mdl->nMaxCacheIds = MDL_DEFAULT_CACHEIDS;
-    /*
-     ** Now allocate the initial service slots.
-     */
-    mdl->psrv = malloc(mdl->nMaxServices*sizeof(SERVICE));
-    assert(mdl->psrv != NULL);
-    /*
-     ** Initialize the new service slots.
-     */
-    for (i=0;i<mdl->nMaxServices;++i) {
-	mdl->psrv[i].p1 = NULL;
-	mdl->psrv[i].nInBytes = 0;
-	mdl->psrv[i].nOutBytes = 0;
-	mdl->psrv[i].fcnService = NULL;
-	}
-    /*
-     ** Provide a 'null' service for sid = 0, so that stopping the
-     ** service handler is well defined!
-     */
-    mdl->psrv[0].p1 = NULL;
-    mdl->psrv[0].nInBytes = 0;
-    mdl->psrv[0].nOutBytes = 0;
-    mdl->psrv[0].fcnService = _srvNull;
-    /*
-     ** Allocate service buffers.
-     */
-    mdl->pszIn = malloc(mdl->nMaxInBytes);
-    assert(mdl->pszIn != NULL);
-    mdl->pszOut = malloc(mdl->nMaxOutBytes);
-    assert(mdl->pszOut != NULL);
     /*
      ** Allocate initial cache spaces.
      */
@@ -205,11 +83,8 @@ int mdlLaunch(int argc,char **argv,int (*fcnMaster)(MDL,int,char **),void (*fcnC
 	++i;
 	}
     nThreads = 1;
-    mdl->bDiag = bDiag;
-    mdl->nThreads = nThreads;
-
-    gethostname(mdl->nodeName,sizeof(mdl->nodeName));
-    mdl->nodeName[sizeof(mdl->nodeName)-1] = 0;
+    mdl->base.bDiag = bDiag;
+    mdl->base.nThreads = nThreads;
 
 #if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
     mdl->dComputing = 0.0;
@@ -219,14 +94,14 @@ int mdlLaunch(int argc,char **argv,int (*fcnMaster)(MDL,int,char **),void (*fcnC
     /*
      ** A unik!
      */
-    mdl->idSelf = 0;
-    if (mdl->bDiag) {
+    mdl->base.idSelf = 0;
+    if (mdl->base.bDiag) {
 	char *tmp = strrchr(argv[0],'/');
 	if (!tmp) tmp = argv[0];
 	else ++tmp;
-	sprintf(achDiag,"%s/%s.%d",ach,tmp,mdl->idSelf);
-	mdl->fpDiag = fopen(achDiag,"w");
-	assert(mdl->fpDiag != NULL);
+	sprintf(achDiag,"%s/%s.%d",ach,tmp,mdl->base.idSelf);
+	mdl->base.fpDiag = fopen(achDiag,"w");
+	assert(mdl->base.fpDiag != NULL);
 	}
 
     fcnMaster(mdl,argc,argv);
@@ -241,36 +116,15 @@ void mdlFinish(MDL mdl) {
     /*
      ** Close Diagnostic file.
      */
-    if (mdl->bDiag) {
-	fclose(mdl->fpDiag);
+    if (mdl->base.bDiag) {
+	fclose(mdl->base.fpDiag);
 	}
     /*
      ** Deregister from PVM and deallocate storage.
      */
-    free(mdl->psrv);
-    free(mdl->pszIn);
-    free(mdl->pszOut);
     free(mdl->cache);
+    mdlBaseFinish(&mdl->base);
     free(mdl);
-    }
-
-
-/*
- ** This function returns the number of threads in the set of
- ** threads.
- */
-int mdlThreads(MDL mdl) {
-    return(mdl->nThreads);
-    }
-
-
-/*
- ** This function returns this threads 'id' number within the specified
- ** MDL Context. Parent thread always has 'id' of 0, where as children
- ** have 'id's ranging from 1..(nThreads - 1).
- */
-int mdlSelf(MDL mdl) {
-    return(mdl->idSelf);
     }
 
 size_t typeSize(MDL_Datatype type) {
@@ -330,60 +184,13 @@ int mdlSwap(MDL mdl,int id,size_t nBufBytes,void *vBuf,size_t nOutBytes,
     return 0;
     }
 
-const char *mdlName(MDL mdl) {
-    return mdl->nodeName;
+void mdlCommitServices(MDL mdl) {
     }
-
-void mdlDiag(MDL mdl,char *psz) {
-    if (mdl->bDiag) {
-	fputs(psz,mdl->fpDiag);
-	fflush(mdl->fpDiag);
-	}
-    }
-
 
 void mdlAddService(MDL mdl,int sid,void *p1,
 		   void (*fcnService)(void *,void *,int,void *,int *),
 		   int nInBytes,int nOutBytes) {
-    int i,nMaxServices;
-
-    assert(sid > 0);
-    if (sid >= mdl->nMaxServices) {
-	/*
-	 ** reallocate service buffer, adding space for 8 new services
-	 ** including the one just defined.
-	 */
-	nMaxServices = sid + 9;
-	mdl->psrv = realloc(mdl->psrv,nMaxServices*sizeof(SERVICE));
-	assert(mdl->psrv != NULL);
-	/*
-	 ** Initialize the new service slots.
-	 */
-	for (i=mdl->nMaxServices;i<nMaxServices;++i) {
-	    mdl->psrv[i].p1 = NULL;
-	    mdl->psrv[i].nInBytes = 0;
-	    mdl->psrv[i].nOutBytes = 0;
-	    mdl->psrv[i].fcnService = NULL;
-	    }
-	mdl->nMaxServices = nMaxServices;
-	}
-    /*
-     ** Make sure the service buffers are big enough!
-     */
-    if (nInBytes > mdl->nMaxInBytes) {
-	mdl->pszIn = realloc(mdl->pszIn,nInBytes);
-	assert(mdl->pszIn != NULL);
-	mdl->nMaxInBytes = nInBytes;
-	}
-    if (nOutBytes > mdl->nMaxOutBytes) {
-	mdl->pszOut = realloc(mdl->pszOut,nOutBytes);
-	assert(mdl->pszOut != NULL);
-	mdl->nMaxOutBytes = nOutBytes;
-	}
-    mdl->psrv[sid].p1 = p1;
-    mdl->psrv[sid].nInBytes = nInBytes;
-    mdl->psrv[sid].nOutBytes = nOutBytes;
-    mdl->psrv[sid].fcnService = fcnService;
+    mdlBaseAddService(&mdl->base, sid, p1, fcnService, nInBytes, nOutBytes);
     }
 
 
@@ -401,8 +208,6 @@ void mdlHandler(MDL mdl) {
     assert(0);
     }
 
-
-#define BILLION				1000000000
 
 /*
  ** Special MDL memory allocation functions for allocating memory
@@ -543,7 +348,7 @@ void *mdlAquire(MDL mdl,int cid,int iIndex,int id) {
     CACHE *c = &mdl->cache[cid];
 
     ++c->nAccess;
-    assert(id == mdl->idSelf);
+    assert(id == mdl->base.idSelf);
     return (*c->getElt)(c->pData,iIndex,c->iDataSize);
     }
 

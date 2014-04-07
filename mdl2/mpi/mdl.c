@@ -34,7 +34,6 @@ const char *mpi_mdl_module_id = "MPI ($Id$)";
 #define MDL_COCACHE			2
 
 #define MDL_DEFAULT_BYTES		80000
-#define MDL_DEFAULT_SERVICES	120
 #define MDL_DEFAULT_CACHEIDS	5
 
 #define MDL_TRANS_SIZE		5000000
@@ -45,34 +44,6 @@ const char *mpi_mdl_module_id = "MPI ($Id$)";
 #define MDL_TAG_RPL		5
 #define MDL_TAG_SEND            6
 
-/*
-** The purpose of this routine is to safely cast a size_t to an int.
-** If this were done inline, the type of "v" would not be checked.
-**
-** We cast for the following reasons:
-** - We have masked a mdlkey_t (to an local id or processor), so we
-**   know it will fit in an integer.
-** - We are taking a part of a memory block to send or receive
-**   through MPI.  MPI takes an "int" parameter.
-** - We have calculated a memory size with pointer subtraction and
-**   know that it must be smaller than 4GB.
-**
-** The compiler will cast automatically, but warnings can be generated unless
-** the cast is done explicitly.  Putting it inline is NOT type safe as in:
-**   char *p;
-**   int i;
-**   i = (int)p;
-** "works", while:
-**   i = size_t_to_int(p);
-** would fail.
-*/
-static inline int size_t_to_int( size_t v ) {
-    return (int)v;
-    }
-
-static inline int mdlkey_t_to_int( mdlkey_t v ) {
-    return (int)v;
-    }
 
 
 /*
@@ -86,98 +57,6 @@ typedef struct srvHeader {
     int nOutBytes;
     } SRVHEAD;
 
-void _srvNull(void *p1,void *vin,int nIn,void *vout,int *pnOut) {
-    return;
-    }
-
-
-double mdlCpuTimer(MDL mdl) {
-#ifdef __linux__
-    struct rusage ru;
-
-    getrusage(0,&ru);
-    return((double)ru.ru_utime.tv_sec + 1e-6*(double)ru.ru_utime.tv_usec);
-#else
-    return( ((double) clock())/CLOCKS_PER_SEC);
-#endif
-    }
-
-/*
- * MDL debug and Timer functions
- */
-#define MDLPRINTF_STRING_MAXLEN 256
-void mdlprintf( MDL mdl, const char *format, ... ) {
-    static char ach[MDLPRINTF_STRING_MAXLEN];
-    va_list args;
-
-    if (mdl->bDiag) {
-	va_start( args, format);
-	vsnprintf( ach, MDLPRINTF_STRING_MAXLEN, format, args);
-	mdlDiag( mdl, ach);
-	va_end( args);
-	}
-    }
-
-#ifdef MDLTIMER
-void mdlZeroTimer(MDL mdl, mdlTimer *t) {
-#ifdef _MSC_VER
-    FILETIME ft;
-    uint64_t clock;
-    GetSystemTimeAsFileTime(&ft);
-    clock = ft.dwHighDateTime;
-    clock <<= 32;
-    clock |= ft.dwLowDateTime;
-    /* clock is in 100 nano-second units */
-    t->wallclock = clock / 10000000UL;
-#else
-    struct timezone tz;
-    struct timeval tv;
-    struct rusage ru;
-    tz.tz_minuteswest = 0;
-    tz.tz_dsttime = 0;
-    gettimeofday(&tv,&tz);
-    t->wallclock = tv.tv_sec + 1e-6*(double) tv.tv_usec;
-    getrusage(0,&ru);
-    t->cpu = (double)ru.ru_utime.tv_sec + 1e-6*(double)ru.ru_utime.tv_usec;
-    t->system = (double)ru.ru_stime.tv_sec + 1e-6*(double)ru.ru_stime.tv_usec;
-#endif
-    }
-
-void mdlGetTimer(MDL mdl, mdlTimer *t0, mdlTimer *t) {
-#ifdef _MSC_VER
-    FILETIME ft;
-    uint64_t clock;
-    GetSystemTimeAsFileTime(&ft);
-    clock = ft.dwHighDateTime;
-    clock <<= 32;
-    clock |= ft.dwLowDateTime;
-    /* clock is in 100 nano-second units */
-    t->wallclock = clock / 10000000UL - t0->wallclock;
-#else
-    struct timezone tz;
-    struct timeval tv;
-    struct rusage ru;
-
-    getrusage(0,&ru);
-    t->cpu = (double)ru.ru_utime.tv_sec + 1e-6*(double)ru.ru_utime.tv_usec - t0->cpu;
-    t->system = (double)ru.ru_stime.tv_sec + 1e-6*(double)ru.ru_stime.tv_usec - t0->system;
-    tz.tz_minuteswest = 0;
-    tz.tz_dsttime = 0;
-    gettimeofday(&tv,&tz);
-    t->wallclock = tv.tv_sec + 1e-6*(double) tv.tv_usec - t0->wallclock;
-#endif
-}
-
-void mdlPrintTimer(MDL mdl,char *message, mdlTimer *t0) {
-    mdlTimer lt;
-
-    if (mdl->bDiag) {
-	mdlGetTimer(mdl,t0,&lt);
-	mdlprintf(mdl,"%s %f %f %f\n",message,lt.wallclock,lt.cpu,lt.system);
-	}
-    }
-#endif
-
 int mdlLaunch(int argc,char **argv,int (*fcnMaster)(MDL,int,char **),void (*fcnChild)(MDL)) {
     MDL mdl;
     int i,j,bDiag,bThreads;
@@ -185,45 +64,21 @@ int mdlLaunch(int argc,char **argv,int (*fcnMaster)(MDL,int,char **),void (*fcnC
 
     mdl = malloc(sizeof(struct mdlContext));
     assert(mdl != NULL);
+
+    mdlBaseInitialize(&mdl->base);
     /*
      ** Set default "maximums" for structures. These are NOT hard
      ** maximums, as the structures will be realloc'd when these
      ** values are exceeded.
      */
-    mdl->nMaxServices = MDL_DEFAULT_SERVICES;
-    mdl->nMaxSrvBytes = MDL_DEFAULT_BYTES;
+    mdl->nMaxSrvBytes = 0;
     mdl->nMaxCacheIds = MDL_DEFAULT_CACHEIDS;
-    /*
-     ** Now allocate the initial service slots.
-     */
-    mdl->psrv = malloc(mdl->nMaxServices*sizeof(SERVICE));
-    assert(mdl->psrv != NULL);
-    /*
-     ** Initialize the new service slots.
-     */
-    for (i=0;i<mdl->nMaxServices;++i) {
-	mdl->psrv[i].p1 = NULL;
-	mdl->psrv[i].nInBytes = 0;
-	mdl->psrv[i].nOutBytes = 0;
-	mdl->psrv[i].fcnService = NULL;
-	}
-    /*
-     ** Provide a 'null' service for sid = 0, so that stopping the
-     ** service handler is well defined!
-     */
-    mdl->psrv[0].p1 = NULL;
-    mdl->psrv[0].nInBytes = 0;
-    mdl->psrv[0].nOutBytes = 0;
-    mdl->psrv[0].fcnService = _srvNull;
     /*
      ** Allocate service buffers.
      */
-    mdl->pszIn = malloc(mdl->nMaxSrvBytes+sizeof(SRVHEAD));
-    assert(mdl->pszIn != NULL);
-    mdl->pszOut = malloc(mdl->nMaxSrvBytes+sizeof(SRVHEAD));
-    assert(mdl->pszOut != NULL);
-    mdl->pszBuf = malloc(mdl->nMaxSrvBytes+sizeof(SRVHEAD));
-    assert(mdl->pszBuf != NULL);
+    mdl->pszIn = NULL;
+    mdl->pszOut = NULL;
+    mdl->pszBuf = NULL;
     /*
      ** Allocate swapping transfer buffer. This buffer remains fixed.
      */
@@ -234,7 +89,6 @@ int mdlLaunch(int argc,char **argv,int (*fcnMaster)(MDL,int,char **),void (*fcnC
      */
     mdl->cache = malloc(mdl->nMaxCacheIds*sizeof(CACHE));
     assert(mdl->cache != NULL);
-    mdl->freeCacheLines = NULL;
     /*
      ** Initialize caching spaces.
      */
@@ -283,8 +137,8 @@ int mdlLaunch(int argc,char **argv,int (*fcnMaster)(MDL,int,char **),void (*fcnC
 	fflush(stderr);
 	}
 
-    MPI_Comm_size(mdl->commList[0], &mdl->nThreads);
-    MPI_Comm_rank(mdl->commList[0], &mdl->idSelf);
+    MPI_Comm_size(mdl->commList[0], &mdl->base.nThreads);
+    MPI_Comm_rank(mdl->commList[0], &mdl->base.idSelf);
 
     mdl->commMDL = mdl->commList[0];
 
@@ -296,34 +150,34 @@ int mdlLaunch(int argc,char **argv,int (*fcnMaster)(MDL,int,char **),void (*fcnC
     mdl->iCaBufSize = sizeof(CAHEAD);
     mdl->pszRcv = malloc(mdl->iCaBufSize);
     assert(mdl->pszRcv != NULL);
-    mdl->ppszRpl = malloc(mdl->nThreads*sizeof(char *));
+    mdl->ppszRpl = malloc(mdl->base.nThreads*sizeof(char *));
     assert(mdl->ppszRpl != NULL);
-    mdl->pmidRpl = malloc(mdl->nThreads*sizeof(int));
+    mdl->pmidRpl = malloc(mdl->base.nThreads*sizeof(int));
     assert(mdl->pmidRpl != NULL);
-    for (i=0;i<mdl->nThreads;++i)
+    for (i=0;i<mdl->base.nThreads;++i)
 	mdl->pmidRpl[i] = -1;
-    mdl->pReqRpl = malloc(mdl->nThreads*sizeof(MPI_Request));
+    mdl->pReqRpl = malloc(mdl->base.nThreads*sizeof(MPI_Request));
     assert(mdl->pReqRpl != NULL);
-    for (i=0;i<mdl->nThreads;++i) {
+    for (i=0;i<mdl->base.nThreads;++i) {
 	mdl->ppszRpl[i] = malloc(mdl->iCaBufSize);
 	assert(mdl->ppszRpl[i] != NULL);
 	}
     mdl->pszFlsh = malloc(mdl->iCaBufSize);
     assert(mdl->pszFlsh != NULL);
-    mdl->bDiag = bDiag;
-    if (mdl->bDiag) {
+    mdl->base.bDiag = bDiag;
+    if (mdl->base.bDiag) {
 	char *tmp = strrchr(argv[0],'/');
 	if (!tmp) tmp = argv[0];
 	else ++tmp;
 	sprintf(achDiag,"%s/%s.%d",ach,tmp,mdlSelf(mdl));
-	mdl->fpDiag = fopen(achDiag,"w");
-	assert(mdl->fpDiag != NULL);
+	mdl->base.fpDiag = fopen(achDiag,"w");
+	assert(mdl->base.fpDiag != NULL);
 	}
 
-    MPI_Get_processor_name( mdl->nodeName, &i );
-    mdl->nodeName[i] = 0;
+//    MPI_Get_processor_name( mdl->base.nodeName, &i );
+//    mdl->base.nodeName[i] = 0;
 
-    if (mdl->nThreads > 1 && mdlSelf(mdl)) {
+    if (mdl->base.nThreads > 1 && mdlSelf(mdl)) {
 	/*
 	 ** Child thread.
 	 */
@@ -333,12 +187,11 @@ int mdlLaunch(int argc,char **argv,int (*fcnMaster)(MDL,int,char **),void (*fcnC
 	fcnMaster(mdl,argc,argv);
 	}
     mdlFinish(mdl);
-    return(mdl->nThreads);
+    return(mdl->base.nThreads);
     }
 
 void mdlFinish(MDL mdl) {
     int i;
-    FREECACHELINES *fcl, *fcn;
 
     MPI_Barrier(mdl->commMDL);
     for ( i=0; i<mdl->commCount; i++ )
@@ -349,17 +202,12 @@ void mdlFinish(MDL mdl) {
     /*
      ** Close Diagnostic file.
      */
-    if (mdl->bDiag) {
-	fclose(mdl->fpDiag);
+    if (mdl->base.bDiag) {
+	fclose(mdl->base.fpDiag);
 	}
     /*
      ** Deallocate storage.
      */
-    for(fcl=mdl->freeCacheLines;fcl!=NULL;fcl=fcn) {
-	fcn = fcl->next;
-	free(fcl);
-	}
-    free(mdl->psrv);
     free(mdl->pszIn);
     free(mdl->pszOut);
     free(mdl->pszBuf);
@@ -367,35 +215,14 @@ void mdlFinish(MDL mdl) {
     free(mdl->cache);
     free(mdl->pszRcv);
     free(mdl->pszFlsh);
-    for (i=0;i<mdl->nThreads;++i) free(mdl->ppszRpl[i]);
+    for (i=0;i<mdl->base.nThreads;++i) free(mdl->ppszRpl[i]);
     free(mdl->ppszRpl);
     free(mdl->pmidRpl);
     free(mdl->pReqRpl);
+    mdlBaseFinish(&mdl->base);
     free(mdl);
     }
 
-
-/*
- ** This function returns the number of threads in the set of
- ** threads.
- */
-int mdlThreads(MDL mdl) {
-    return(mdl->nThreads);
-    }
-
-
-/*
- ** This function returns this threads 'id' number within the specified
- ** MDL Context. Parent thread always has 'id' of 0, where as children
- ** have 'id's ranging from 1..(nThreads - 1).
- */
-int mdlSelf(MDL mdl) {
-    return(mdl->idSelf);
-    }
-
-const char *mdlName(MDL mdl) {
-    return mdl->nodeName;
-    }
 
 
 /*
@@ -709,55 +536,24 @@ int mdlSwap(MDL mdl,int id,size_t nBufBytes,void *vBuf,size_t nOutBytes,
     }
 #endif
 
-void mdlDiag(MDL mdl,char *psz) {
-    if (mdl->bDiag) {
-	fputs(psz,mdl->fpDiag);
-	fflush(mdl->fpDiag);
-	}
+void mdlCommitServices(MDL mdl) {
+    int nMaxBytes;
+    nMaxBytes = (mdl->base.nMaxInBytes > mdl->base.nMaxOutBytes) ? mdl->base.nMaxInBytes : mdl->base.nMaxOutBytes;
+    if (nMaxBytes > mdl->nMaxSrvBytes) {
+        mdl->pszIn = realloc(mdl->pszIn, nMaxBytes + sizeof(SRVHEAD));
+        assert(mdl->pszIn != NULL);
+        mdl->pszOut = realloc(mdl->pszOut, nMaxBytes + sizeof(SRVHEAD));
+        assert(mdl->pszOut != NULL);
+        mdl->pszBuf = realloc(mdl->pszBuf, nMaxBytes + sizeof(SRVHEAD));
+        assert(mdl->pszBuf != NULL);
+        mdl->nMaxSrvBytes = nMaxBytes;
+        }
     }
 
 void mdlAddService(MDL mdl,int sid,void *p1,
 		   void (*fcnService)(void *,void *,int,void *,int *),
 		   int nInBytes,int nOutBytes) {
-    int i,nMaxServices,nMaxBytes;
-
-    assert(sid > 0);
-    if (sid >= mdl->nMaxServices) {
-	/*
-	 ** reallocate service buffer, adding space for 8 new services
-	 ** including the one just defined.
-	 */
-	nMaxServices = sid + 9;
-	mdl->psrv = realloc(mdl->psrv,nMaxServices*sizeof(SERVICE));
-	assert(mdl->psrv != NULL);
-	/*
-	 ** Initialize the new service slots.
-	 */
-	for (i=mdl->nMaxServices;i<nMaxServices;++i) {
-	    mdl->psrv[i].p1 = NULL;
-	    mdl->psrv[i].nInBytes = 0;
-	    mdl->psrv[i].nOutBytes = 0;
-	    mdl->psrv[i].fcnService = NULL;
-	    }
-	mdl->nMaxServices = nMaxServices;
-	}
-    /*
-     ** Make sure the service buffers are big enough!
-     */
-    nMaxBytes = (nInBytes > nOutBytes)?nInBytes:nOutBytes;
-    if (nMaxBytes > mdl->nMaxSrvBytes) {
-	mdl->pszIn = realloc(mdl->pszIn,nMaxBytes+sizeof(SRVHEAD));
-	assert(mdl->pszIn != NULL);
-	mdl->pszOut = realloc(mdl->pszOut,nMaxBytes+sizeof(SRVHEAD));
-	assert(mdl->pszOut != NULL);
-	mdl->pszBuf = realloc(mdl->pszBuf,nMaxBytes+sizeof(SRVHEAD));
-	assert(mdl->pszBuf != NULL);
-	mdl->nMaxSrvBytes = nMaxBytes;
-	}
-    mdl->psrv[sid].p1 = p1;
-    mdl->psrv[sid].nInBytes = nInBytes;
-    mdl->psrv[sid].nOutBytes = nOutBytes;
-    mdl->psrv[sid].fcnService = fcnService;
+    mdlBaseAddService(&mdl->base, sid, p1, fcnService, nInBytes, nOutBytes);
     }
 
 
@@ -770,7 +566,7 @@ void mdlReqService(MDL mdl,int id,int sid,void *vin,int nInBytes) {
     char *pszOut = &mdl->pszBuf[sizeof(SRVHEAD)];
     int i;
 
-    ph->idFrom = mdl->idSelf;
+    ph->idFrom = mdl->base.idSelf;
     ph->sid = sid;
     if (!pszIn) ph->nInBytes = 0;
     else ph->nInBytes = nInBytes;
@@ -804,7 +600,7 @@ void mdlStop(MDL mdl) {
     int id;
 
     /* Stop the worker processes */
-    for ( id=1; id<mdl->nThreads; ++id ) {
+    for ( id=1; id<mdl->base.nThreads; ++id ) {
 	/*if (msr->param.bVDetails)*/
 	printf("Stopping worker thread %d\n",id);
 	mdlReqService(mdl,id,SRV_STOP,NULL,0);
@@ -836,18 +632,18 @@ static int mdlHandleOne(MDL mdl) {
     assert(nBytes == phi->nInBytes + sizeof(SRVHEAD));
     assert(id == phi->idFrom);
     sid = phi->sid;
-    assert(sid < mdl->nMaxServices);
-    if (phi->nInBytes > mdl->psrv[sid].nInBytes) {
+    assert(sid < mdl->base.nMaxServices);
+    if (phi->nInBytes > mdl->base.psrv[sid].nInBytes) {
 	printf( "ERROR: pid=%d, sid=%d, nInBytes=%d, sid.nInBytes=%d\n",
-		mdlSelf(mdl), sid, phi->nInBytes, mdl->psrv[sid].nInBytes );
+		mdlSelf(mdl), sid, phi->nInBytes, mdl->base.psrv[sid].nInBytes );
 	}
-    assert(phi->nInBytes <= mdl->psrv[sid].nInBytes);
+    assert(phi->nInBytes <= mdl->base.psrv[sid].nInBytes);
     nOutBytes = 0;
-    assert(mdl->psrv[sid].fcnService != NULL);
-    (*mdl->psrv[sid].fcnService)(mdl->psrv[sid].p1,pszIn,phi->nInBytes,
+    assert(mdl->base.psrv[sid].fcnService != NULL);
+    (*mdl->base.psrv[sid].fcnService)(mdl->base.psrv[sid].p1,pszIn,phi->nInBytes,
 				 pszOut,&nOutBytes);
-    assert(nOutBytes <= mdl->psrv[sid].nOutBytes);
-    pho->idFrom = mdl->idSelf;
+    assert(nOutBytes <= mdl->base.psrv[sid].nOutBytes);
+    pho->idFrom = mdl->base.idSelf;
     pho->sid = sid;
     pho->nInBytes = phi->nInBytes;
     pho->nOutBytes = nOutBytes;
@@ -877,8 +673,6 @@ void mdlHandler(MDL mdl) {
 #define MDL_MID_CACHEOUT	4
 #define MDL_MID_CACHEFLSH	5
 #define MDL_MID_CACHEDONE	6
-
-#define BILLION				1000000000
 
 int mdlCacheReceive(MDL mdl,char *pLine) {
     CACHE *c;
@@ -918,7 +712,7 @@ int mdlCacheReceive(MDL mdl,char *pLine) {
 	phRpl = (CAHEAD *)mdl->ppszRpl[ph->id];
 	phRpl->cid = ph->cid;
 	phRpl->mid = MDL_MID_CACHERPL;
-	phRpl->id = mdl->idSelf;
+	phRpl->id = mdl->base.idSelf;
 
 	assert(ph->iLine>=0);
 	s = ph->iLine*MDL_CACHELINE_ELTS;
@@ -1021,8 +815,8 @@ void AdjustDataSize(MDL mdl) {
 
 	caOut.cid = 0;
 	caOut.mid = MDL_MID_CACHEDONE;
-	caOut.id = mdl->idSelf;
-	MPI_Send(&caOut,sizeof(CAHEAD),MPI_BYTE, mdl->idSelf,
+	caOut.id = mdl->base.idSelf;
+	MPI_Send(&caOut,sizeof(CAHEAD),MPI_BYTE, mdl->base.idSelf,
 		 MDL_TAG_CACHECOM, mdl->commMDL);
 	MPI_Wait(&mdl->ReqRcv, &status);
 
@@ -1031,7 +825,7 @@ void AdjustDataSize(MDL mdl) {
 			  iMaxDataSize*(1 << MDL_CACHELINE_BITS);
 	mdl->pszRcv = realloc(mdl->pszRcv,mdl->iCaBufSize);
 	assert(mdl->pszRcv != NULL);
-	for (i=0;i<mdl->nThreads;++i) {
+	for (i=0;i<mdl->base.nThreads;++i) {
 	    mdl->ppszRpl[i] = realloc(mdl->ppszRpl[i],mdl->iCaBufSize);
 	    assert(mdl->ppszRpl[i] != NULL);
 	    }
@@ -1145,7 +939,7 @@ CACHE *CacheInitialize(MDL mdl,int cid,
     c->iLineSize = MDL_CACHELINE_ELTS*c->iDataSize;
 
     c->iKeyShift = 0;
-    while ((1 << c->iKeyShift) < mdl->nThreads) ++c->iKeyShift;
+    while ((1 << c->iKeyShift) < mdl->base.nThreads) ++c->iKeyShift;
     c->iIdMask = (1 << c->iKeyShift) - 1;
 
     if (c->iKeyShift < MDL_CACHELINE_BITS) {
@@ -1168,7 +962,6 @@ CACHE *CacheInitialize(MDL mdl,int cid,
      */
     assert( mdl->cacheSize >= (1<<MDL_CACHELINE_BITS)*10*c->iDataSize);
     c->nLines = (mdl->cacheSize/c->iDataSize) >> MDL_CACHELINE_BITS;
-    c->iLine = 1;
     c->nTrans = 1;
     while (c->nTrans < c->nLines) c->nTrans *= 2;
     c->nTrans *= 2;
@@ -1197,14 +990,7 @@ CACHE *CacheInitialize(MDL mdl,int cid,
     /*
      ** Allocate cache data lines.
      */
-    if (mdl->freeCacheLines) {
-	c->pLine = (char *)mdl->freeCacheLines;
-	mdl->freeCacheLines = mdl->freeCacheLines->next;
-	}
-    else {
-	c->pLine = malloc(mdl->cacheSize);
-	}
-    /*c->pLine = malloc(c->nLines*c->iLineSize);*/
+    c->pLine = malloc(mdl->cacheSize);
     assert(c->pLine != NULL);
     c->nCheckOut = 0;
 
@@ -1213,7 +999,7 @@ CACHE *CacheInitialize(MDL mdl,int cid,
      */
     c->caReq.cid = cid;
     c->caReq.mid = MDL_MID_CACHEREQ;
-    c->caReq.id = mdl->idSelf;
+    c->caReq.id = mdl->base.idSelf;
     return(c);
     }
 
@@ -1235,17 +1021,17 @@ void mdlROcache(MDL mdl,int cid,
      */
     c->init = NULL;
     c->combine = NULL;
-    sprintf(achDiag, "%d: before CI, cache %d\n", mdl->idSelf, cid);
+    sprintf(achDiag, "%d: before CI, cache %d\n", mdl->base.idSelf, cid);
     mdlDiag(mdl, achDiag);
     /*
      ** THIS IS A SYNCHRONIZE!!!
      */
     caIn.cid = cid;
     caIn.mid = MDL_MID_CACHEIN;
-    caIn.id = mdl->idSelf;
-    if (mdl->idSelf == 0) {
+    caIn.id = mdl->base.idSelf;
+    if (mdl->base.idSelf == 0) {
 	c->nCheckIn = 1;
-	while (c->nCheckIn < mdl->nThreads) {
+	while (c->nCheckIn < mdl->base.nThreads) {
 	    mdlCacheReceive(mdl, NULL);
 	    }
 	}
@@ -1258,10 +1044,10 @@ void mdlROcache(MDL mdl,int cid,
 	MPI_Send(&caIn,sizeof(CAHEAD),MPI_BYTE, 0,
 		 MDL_TAG_CACHECOM, mdl->commMDL);
 	}
-    sprintf(achDiag, "%d: In CI, cache %d\n", mdl->idSelf, cid);
+    sprintf(achDiag, "%d: In CI, cache %d\n", mdl->base.idSelf, cid);
     mdlDiag(mdl, achDiag);
-    if (mdl->idSelf == 0) {
-	for (id = 1; id < mdl->nThreads; id++) {
+    if (mdl->base.idSelf == 0) {
+	for (id = 1; id < mdl->base.nThreads; id++) {
 	    MPI_Send(&caIn,sizeof(CAHEAD),MPI_BYTE, id,
 		     MDL_TAG_CACHECOM, mdl->commMDL);
 	    }
@@ -1272,7 +1058,7 @@ void mdlROcache(MDL mdl,int cid,
 	    mdlCacheReceive(mdl,NULL);
 	    }
 	}
-    sprintf(achDiag, "%d: After CI, cache %d\n", mdl->idSelf, cid);
+    sprintf(achDiag, "%d: After CI, cache %d\n", mdl->base.idSelf, cid);
     mdlDiag(mdl, achDiag);
     AdjustDataSize(mdl);
     MPI_Barrier(mdl->commMDL);
@@ -1301,10 +1087,10 @@ void mdlCOcache(MDL mdl,int cid,
      */
     caIn.cid = cid;
     caIn.mid = MDL_MID_CACHEIN;
-    caIn.id = mdl->idSelf;
-    if (mdl->idSelf == 0) {
+    caIn.id = mdl->base.idSelf;
+    if (mdl->base.idSelf == 0) {
 	c->nCheckIn = 1;
-	while (c->nCheckIn < mdl->nThreads) {
+	while (c->nCheckIn < mdl->base.nThreads) {
 	    mdlCacheReceive(mdl, NULL);
 	    }
 	}
@@ -1317,8 +1103,8 @@ void mdlCOcache(MDL mdl,int cid,
 	MPI_Send(&caIn,sizeof(CAHEAD),MPI_BYTE, 0,
 		 MDL_TAG_CACHECOM, mdl->commMDL);
 	}
-    if (mdl->idSelf == 0) {
-	for (id = 1; id < mdl->nThreads; id++) {
+    if (mdl->base.idSelf == 0) {
+	for (id = 1; id < mdl->base.nThreads; id++) {
 	    MPI_Send(&caIn,sizeof(CAHEAD),MPI_BYTE, id,
 		     MDL_TAG_CACHECOM, mdl->commMDL);
 	    }
@@ -1361,7 +1147,7 @@ void mdlFlushCache(MDL mdl,int cid) {
 	 */
 	caFlsh->cid = cid;
 	caFlsh->mid = MDL_MID_CACHEFLSH;
-	caFlsh->id = mdl->idSelf;
+	caFlsh->id = mdl->base.idSelf;
 	for (i=1;i<c->nLines;++i) {
 	    iKey = c->pTag[i].iKey;
 	    if (iKey != MDL_INVALID_KEY) {
@@ -1443,15 +1229,15 @@ void mdlFinishCache(MDL mdl,int cid) {
 	* I think this makes for bad synchronizes --trq
 	caOut.cid = cid;
 	caOut.mid = MDL_MID_CACHEOUT;
-	caOut.id = mdl->idSelf;
-	for(id = 0; id < mdl->nThreads; id++) {
-	    if(id == mdl->idSelf)
+	caOut.id = mdl->base.idSelf;
+	for(id = 0; id < mdl->base.nThreads; id++) {
+	    if(id == mdl->base.idSelf)
 		continue;
 	    MPI_Send(&caOut,sizeof(CAHEAD),MPI_BYTE, id,
 		     MDL_TAG_CACHECOM, mdl->commMDL);
 	    }
 	++c->nCheckOut;
-	while(c->nCheckOut < mdl->nThreads) {
+	while(c->nCheckOut < mdl->base.nThreads) {
 	  mdlCacheReceive(mdl, NULL);
 	    }
 	c->nCheckOut = 0;
@@ -1461,7 +1247,7 @@ void mdlFinishCache(MDL mdl,int cid) {
 	 */
 	caFlsh->cid = cid;
 	caFlsh->mid = MDL_MID_CACHEFLSH;
-	caFlsh->id = mdl->idSelf;
+	caFlsh->id = mdl->base.idSelf;
 	for (i=1;i<c->nLines;++i) {
 	    iKey = c->pTag[i].iKey;
 	    if (iKey != MDL_INVALID_KEY) {
@@ -1509,10 +1295,10 @@ void mdlFinishCache(MDL mdl,int cid) {
      */
     caOut.cid = cid;
     caOut.mid = MDL_MID_CACHEOUT;
-    caOut.id = mdl->idSelf;
-    if (mdl->idSelf == 0) {
+    caOut.id = mdl->base.idSelf;
+    if (mdl->base.idSelf == 0) {
 	++c->nCheckOut;
-	while (c->nCheckOut < mdl->nThreads) {
+	while (c->nCheckOut < mdl->base.nThreads) {
 	    mdlCacheReceive(mdl, NULL);
 	    }
 	}
@@ -1520,8 +1306,8 @@ void mdlFinishCache(MDL mdl,int cid) {
 	MPI_Send(&caOut,sizeof(CAHEAD),MPI_BYTE, 0,
 		 MDL_TAG_CACHECOM, mdl->commMDL);
 	}
-    if (mdl->idSelf == 0) {
-	for (id = 1; id < mdl->nThreads; id++) {
+    if (mdl->base.idSelf == 0) {
+	for (id = 1; id < mdl->base.nThreads; id++) {
 	    MPI_Send(&caOut,sizeof(CAHEAD),MPI_BYTE, id,
 		     MDL_TAG_CACHECOM, mdl->commMDL);
 	    }
@@ -1537,12 +1323,7 @@ void mdlFinishCache(MDL mdl,int cid) {
      */
     free(c->pTrans);
     free(c->pTag);
-    {
-        FREECACHELINES *fcl = (FREECACHELINES *)c->pLine;
-	fcl->next = mdl->freeCacheLines;
-	mdl->freeCacheLines = fcl;
-    }
-    /*free(c->pLine);*/
+    free(c->pLine);
     c->iType = MDL_NOCACHE;
 
     AdjustDataSize(mdl);
@@ -1565,8 +1346,8 @@ void mdlFinishCache(MDL mdl,int cid) {
 
 	caOut.cid = cid;
 	caOut.mid = MDL_MID_CACHEDONE;
-	caOut.id = mdl->idSelf;
-	MPI_Send(&caOut,sizeof(CAHEAD),MPI_BYTE, mdl->idSelf,
+	caOut.id = mdl->base.idSelf;
+	MPI_Send(&caOut,sizeof(CAHEAD),MPI_BYTE, mdl->base.idSelf,
 		 MDL_TAG_CACHECOM, mdl->commMDL);
 	MPI_Wait(&mdl->ReqRcv, &status);
 	}
@@ -1599,10 +1380,10 @@ void mdlCacheBarrier(MDL mdl,int cid) {
     */
     caOut.cid = cid;
     caOut.mid = MDL_MID_CACHEOUT;
-    caOut.id = mdl->idSelf;
-    if (mdl->idSelf == 0) {
+    caOut.id = mdl->base.idSelf;
+    if (mdl->base.idSelf == 0) {
 	++c->nCheckOut;
-	while (c->nCheckOut < mdl->nThreads) {
+	while (c->nCheckOut < mdl->base.nThreads) {
 	    mdlCacheReceive(mdl, NULL);
 	    }
 	}
@@ -1610,8 +1391,8 @@ void mdlCacheBarrier(MDL mdl,int cid) {
 	MPI_Send(&caOut,sizeof(CAHEAD),MPI_BYTE, 0,
 		 MDL_TAG_CACHECOM, mdl->commMDL);
 	}
-    if (mdl->idSelf == 0) {
-	for (id = 1; id < mdl->nThreads; id++) {
+    if (mdl->base.idSelf == 0) {
+	for (id = 1; id < mdl->base.nThreads; id++) {
 	    MPI_Send(&caOut,sizeof(CAHEAD),MPI_BYTE, id,
 		     MDL_TAG_CACHECOM, mdl->commMDL);
 	    }
@@ -1676,7 +1457,7 @@ void *mdlDoMiss(MDL mdl, int cid, int iIndex, int id, mdlkey_t iKey, int lock) {
     iLine = iIndex >> MDL_CACHELINE_BITS;
     c->caReq.cid = cid;
     c->caReq.mid = MDL_MID_CACHEREQ;
-    c->caReq.id = mdl->idSelf;
+    c->caReq.id = mdl->base.idSelf;
     c->caReq.iLine = iLine;
     MPI_Send(&c->caReq,sizeof(CAHEAD),MPI_BYTE,
 	     id,MDL_TAG_CACHECOM, mdl->commMDL);
@@ -1707,7 +1488,7 @@ void *mdlDoMiss(MDL mdl, int cid, int iIndex, int id, mdlkey_t iKey, int lock) {
 		    pszFlsh = &mdl->pszFlsh[sizeof(CAHEAD)];
 		    caFlsh->cid = cid;
 		    caFlsh->mid = MDL_MID_CACHEFLSH;
-		    caFlsh->id = mdl->idSelf;
+		    caFlsh->id = mdl->base.idSelf;
 		    caFlsh->iLine = mdlkey_t_to_int(iKeyVic >> c->iInvKeyShift);
 		    for (i = 0; i < c->iLineSize; ++i)
 			pszFlsh[i] = pLine[i];
@@ -1850,8 +1631,8 @@ void mdlGridInitialize(MDL mdl,MDLGRID *pgrid,int n1,int n2,int n3,int a1) {
 
     /* This will be shared later (see mdlGridShare) */
     grid->id = malloc(sizeof(*grid->id)*(grid->n3));    assert(grid->id!=NULL);
-    grid->rs = mdlMalloc(mdl,sizeof(*grid->rs)*mdl->nThreads); assert(grid->rs!=NULL);
-    grid->rn = mdlMalloc(mdl,sizeof(*grid->rn)*mdl->nThreads); assert(grid->rn!=NULL);
+    grid->rs = mdlMalloc(mdl,sizeof(*grid->rs)*mdl->base.nThreads); assert(grid->rs!=NULL);
+    grid->rn = mdlMalloc(mdl,sizeof(*grid->rn)*mdl->base.nThreads); assert(grid->rn!=NULL);
 
     /* The following need to be set to appropriate values still. */
     grid->s = grid->n = grid->nlocal = 0;
@@ -1887,7 +1668,7 @@ void mdlGridShare(MDL mdl,MDLGRID grid) {
 		  grid->rn,sizeof(*grid->rn),MPI_BYTE,
 		  mdl->commMDL);
     /* Calculate on which processor each slab can be found. */
-    for(id=0; id<mdl->nThreads; id++ ) {
+    for(id=0; id<mdl->base.nThreads; id++ ) {
 	for( i=grid->rs[id]; i<grid->rs[id]+grid->rn[id]; i++ ) grid->id[i] = id;
 	}
     }

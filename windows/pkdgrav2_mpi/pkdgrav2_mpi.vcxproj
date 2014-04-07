@@ -39,11 +39,11 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <IncludePath>$(ProjectDir)\..;$(ProjectDir)\..\..;$(ProjectDir)\..\..\mdl2\mpi;$(ProjectDir)\..\glibc;$(ProgramW6432)\Microsoft MPI\Inc;$(IncludePath)</IncludePath>
+    <IncludePath>$(ProjectDir)\..;$(ProjectDir)\..\..;$(ProjectDir)\..\..\mdl2;$(ProjectDir)\..\..\mdl2\mpi;$(ProjectDir)\..\glibc;$(ProgramW6432)\Microsoft MPI\Inc;$(IncludePath)</IncludePath>
     <LibraryPath>$(ProgramW6432)\Microsoft MPI\Lib\amd64;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <IncludePath>$(ProjectDir)\..;$(ProjectDir)\..\..;$(ProjectDir)\..\..\mdl2\mpi;$(ProjectDir)\..\glibc;$(ProgramW6432)\Microsoft MPI\Inc;$(IncludePath)</IncludePath>
+    <IncludePath>$(ProjectDir)\..;$(ProjectDir)\..\..;$(ProjectDir)\..\..\mdl2;$(ProjectDir)\..\..\mdl2\mpi;$(ProjectDir)\..\glibc;$(ProgramW6432)\Microsoft MPI\Inc;$(IncludePath)</IncludePath>
     <LibraryPath>$(ProgramW6432)\Microsoft MPI\Lib\amd64;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -52,12 +52,16 @@
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>HAVE_CONFIG_H;_IEEE_LIBM;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions</EnableEnhancedInstructionSet>
+      <BrowseInformation>true</BrowseInformation>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalDependencies>ws2_32.lib;msmpi.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <SubSystem>Console</SubSystem>
     </Link>
+    <Bscmake>
+      <PreserveSbr>true</PreserveSbr>
+    </Bscmake>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
@@ -95,6 +99,8 @@
     <ClCompile Include="..\..\lst.c" />
     <ClCompile Include="..\..\main.c" />
     <ClCompile Include="..\..\master.c" />
+    <ClCompile Include="..\..\mdl2\mdlbase.c" />
+    <ClCompile Include="..\..\mdl2\mdlhash.c" />
     <ClCompile Include="..\..\mdl2\mpi\mdl.c" />
     <ClCompile Include="..\..\moments.c" />
     <ClCompile Include="..\..\outtype.c" />
@@ -133,6 +139,8 @@
     <ClInclude Include="..\..\listcomp.h" />
     <ClInclude Include="..\..\lst.h" />
     <ClInclude Include="..\..\master.h" />
+    <ClInclude Include="..\..\mdl2\mdlbase.h" />
+    <ClInclude Include="..\..\mdl2\mdlhash.h" />
     <ClInclude Include="..\..\mdl2\mpi\mdl.h" />
     <ClInclude Include="..\..\meval.h" />
     <ClInclude Include="..\..\moments.h" />

@@ -3,6 +3,7 @@
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
+#include "mdlbase.h"
 #include <stdio.h>
 #include <assert.h>
 #ifdef HAVE_INTTYPES_H
@@ -37,17 +38,6 @@ extern "C" {
 /* Maximum number of communicators */
 #define MDL_MAX_COMM 10
 
-/*
-** A MDL Key must be large enough to hold the largest unique particle key.
-** It must be (several times) larger than the total number of particles.
-** An "unsigned long" is normally 32 bits on a 32 bit machine and
-** 64 bits on a 64 bit machine.  We use uint64_t to be sure.
-*/
-#ifndef MDLKEY
-#define MDLKEY uint64_t
-#endif
-typedef MDLKEY mdlkey_t;
-static const mdlkey_t MDL_INVALID_KEY = (mdlkey_t)(-1);
 
 typedef int (*mdlWorkFunction)(void *ctx);
 
@@ -77,7 +67,6 @@ typedef struct cacheSpace {
     int nData;
     int iLineSize;
     int nLines;
-    int iLine;
     int nTrans;
     int iKeyShift;
     int iInvKeyShift;
@@ -103,36 +92,20 @@ typedef struct cacheSpace {
     int nKeyMax;
     } CACHE;
 
-typedef struct serviceRec {
-    int nInBytes;
-    int nOutBytes;
-    void *p1;
-    void (*fcnService)(void *,void *,int,void *,int *);
-    } SERVICE;
-
-typedef struct freeCacheLines {
-    struct freeCacheLines *next;
-    } FREECACHELINES;
-
 typedef struct mdlContext {
-    int nThreads;
+    mdlBASE base;
     int commCount;
     int cacheSize;
     MPI_Comm commMDL;  /* Current active communicator */
     MPI_Comm commList[MDL_MAX_COMM];
     /*MPI_Comm commWork;*/
     /*MPI_Comm commPeer;*/
-    int idSelf;
-    int bDiag;
-    FILE *fpDiag;
     int dontcare;
     int allgrp;
     /*
      ** Services stuff!
      */
-    int nMaxServices;
     int nMaxSrvBytes;
-    SERVICE *psrv;
     char *pszIn;
     char *pszOut;
     char *pszBuf;
@@ -153,8 +126,6 @@ typedef struct mdlContext {
     char *pszFlsh;
     int nMaxCacheIds;
     CACHE *cache;
-    FREECACHELINES *freeCacheLines;
-    char nodeName[MPI_MAX_PROCESSOR_NAME];
 #if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
     ticks nTicks;
     double dWaiting;
@@ -165,98 +136,21 @@ typedef struct mdlContext {
 
 
 /*
- * MDL debug and Timer macros and prototypes
- */
-/*
- * Compile time mdl debugging options
- *
- * mdl asserts: define MDLASSERT
- * Probably should always be on unless you want no mdlDiag output at all
- *
- * NB: defining NDEBUG turns off all asserts so MDLASSERT will not assert
- * however it will output using mdlDiag and the code continues.
- */
-#define MDLASSERT
-/*
- * Debug functions active: define MDLDEBUG
- * Adds debugging mdldebug prints and mdldebugassert asserts
- */
-#define MDLDEBUG
-/*
- * Timer functions active: define MDLTIMER
- * Makes mdl timer functions active
- */
-#define MDLTIMER
-
-
-void mdlprintf( MDL mdl, const char *format, ... );
-
-#ifdef MDLASSERT
-#ifdef __ANSI_CPP__
-#define mdlassert(mdl,expr) \
-    { \
-      if (!(expr)) { \
-	     mdlprintf( mdl, "%s:%d Assertion `%s' failed.\n", __FILE__, __LINE__, # expr ); \
-	     assert( expr ); \
-	     } \
-    }
-#else
-#define mdlassert(mdl,expr) \
-    { \
-      if (!(expr)) { \
-	     mdlprintf( mdl, "%s:%d Assertion `%s' failed.\n", __FILE__, __LINE__, "expr" ); \
-	     assert( expr ); \
-	     } \
-    }
-#endif
-#else
-#define mdlassert(mdl,expr)  assert(expr)
-#endif
-
-#ifdef MDLDEBUG
-#define mdldebugassert(mdl,expr)   mdlassert(mdl,expr)
-void mdldebug( MDL mdl, const char *format, ... );
-#else
-#define mdldebug
-#define mdldebugassert
-#endif
-
-typedef struct {
-    double wallclock;
-    double cpu;
-    double system;
-    } mdlTimer;
-
-#ifdef MDLTIMER
-void mdlZeroTimer(MDL mdl,mdlTimer *);
-void mdlGetTimer(MDL mdl,mdlTimer *,mdlTimer *);
-void mdlPrintTimer(MDL mdl,char *message,mdlTimer *);
-#else
-#define mdlZeroTimer
-#define mdlGetTimer
-#define mdlPrintTimer
-#endif
-
-/*
  ** General Functions
  */
-double mdlCpuTimer(MDL);
 int mdlLaunch(int,char **,int (*)(MDL,int,char **),void (*)(MDL));
 void mdlFinish(MDL);
 int  mdlSplitComm(MDL mdl, int nProcs);
 void mdlSetComm(MDL mdl, int iComm);
 void mdlStop(MDL);
-int mdlThreads(MDL);
-int mdlSelf(MDL);
-const char *mdlName(MDL);
 int mdlSwap(MDL,int,size_t,void *,size_t,size_t *,size_t *);
 typedef int (*mdlPack)(void *,int *,size_t,void*);
 void mdlSend(MDL mdl,int id,mdlPack pack, void *ctx);
 void mdlRecv(MDL mdl,int id,mdlPack unpack, void *ctx);
-void mdlDiag(MDL,char *);
 void mdlAddService(MDL,int,void *,void (*)(void *,void *,int,void *,int *),
 		   int,int);
-void mdlReqService(MDL,int,int,void *,int);
+void mdlCommitServices(MDL mdl);
+void mdlReqService(MDL, int, int, void *, int);
 void mdlGetReply(MDL,int,void *,int *);
 void mdlHandler(MDL);
 
@@ -461,7 +355,7 @@ static inline void *mdlAquire(MDL mdl,int cid,int iIndex,int id) {
     /*
      ** Is it a local request? This should not happen in pkdgrav2.
      */
-    if (id == mdl->idSelf) {
+    if (id == mdl->base.idSelf) {
 	return (*c->getElt)(c->pData,iIndex,c->iDataSize);
 	}
     return(mdlDoMiss(mdl, cid, iIndex, id, iKey, lock));

@@ -57,6 +57,9 @@ noinst_HEADERS += psdtree.h psd.h unbind.h knn6d.h qsort.h
 SOURCES += hop.c
 noinst_HEADERS += hop.h
 
+SOURCES += $(MDL)/mdlbase.c
+noinst_HEADERS += $(MDL)/mdlbase.h
+
 if PLANETS
 SOURCES += ssio.c collision.c kepler.c
 noinst_HEADERS += ssio.h collision.h kepler.h

@@ -219,7 +219,7 @@ static int traverseLink(PKD pkd,remoteID *pl, struct smGroupArray *ga,int pi,
     ** We choice the lowest gid we have seen so far. We also have to mark
     ** the remote particle that started this, because it starts an arc!
     */
-    else if (*iPid2 == mdl->idSelf && gid2==pi) { /*LOOP*/
+    else if (*iPid2 == mdlSelf(mdl) && gid2==pi) { /*LOOP*/
 	PARTICLE *p2 = mdlAquire(pkd->mdl,CID_PARTICLE,ga[pi].id.iIndex,ga[pi].id.iPid);
 	p2->bMarked = 1;
 	mdlRelease(pkd->mdl,CID_PARTICLE,p2);
@@ -261,7 +261,7 @@ int smHopLink(SMX smx,SMF *smf) {
 	smx->ea[pi].bInactive = (p->bSrcActive?0:1);
 	smx->ea[pi].iIndex = -1;
 	ga[pi].iGid = pi;
-	ga[pi].id.iPid = mdl->idSelf;
+	ga[pi].id.iPid = mdlSelf(mdl);
 	ga[pi].id.iIndex = -1; /* Sentinel */
 	pl[pi].iPid = pl[pi].iIndex = -1;
 	}
@@ -483,7 +483,7 @@ int smHopLink(SMX smx,SMF *smf) {
     pkd->nGroups = nGroups;
     nLocal = nRemote = 0;
     for(pi=1; pi<pkd->nGroups; ++pi) {
-	if (ga[pi].id.iPid==mdl->idSelf) nLocal++;
+	if (ga[pi].id.iPid==mdlSelf(mdl)) nLocal++;
 	else nRemote++;
 	pkd->tmpHopGroups[pi].iPid   = ga[pi].id.iPid;
 	pkd->tmpHopGroups[pi].iIndex = ga[pi].id.iIndex;
@@ -561,7 +561,7 @@ int smHopJoin(SMX smx,SMF *smf, double dHopTau, int *nLocal) {
     int nRemote = 0;
     *nLocal = 0;
     for(pi=1; pi<pkd->nGroups; ++pi) {
-	if (ga[pi].id.iPid==mdl->idSelf) (*nLocal)++;
+	if (ga[pi].id.iPid==mdlSelf(mdl)) (*nLocal)++;
 	else nRemote++;
 	pkd->tmpHopGroups[pi].iPid   = ga[pi].id.iPid;
 	pkd->tmpHopGroups[pi].iIndex = ga[pi].id.iIndex;
@@ -1276,7 +1276,7 @@ void pkdHopAssignGID(PKD pkd) {
     if (pkd->hopRoots)     { free(pkd->hopRoots);     pkd->hopRoots = NULL;     }
 
     for(i=1,nLocal=0; i<pkd->nGroups; ++i) {
-	if (pkd->hopGroups[i].id.iPid==mdl->idSelf) ++nLocal;
+	if (pkd->hopGroups[i].id.iPid==mdlSelf(mdl)) ++nLocal;
 	}
 #ifdef MPI_VERSION
     mdlExscan(mdl,&nLocal,&iStart,1,MDL_INT,MDL_SUM);
@@ -1284,12 +1284,12 @@ void pkdHopAssignGID(PKD pkd) {
     if (pkd->idSelf==0) iStart=0;
 
     for(i=1; i<=nLocal; ++i) {
-	assert(pkd->hopGroups[i].id.iPid==mdl->idSelf);
+	assert(pkd->hopGroups[i].id.iPid==mdlSelf(mdl));
 	pkd->hopGroups[i].iGlobalId = iStart + i;
 	}
     mdlROcache(mdl,CID_GROUP,NULL,pkd->hopGroups,sizeof(HopGroupTable), pkd->nGroups);
     for(; i<pkd->nGroups ; ++i) {
-	assert(pkd->hopGroups[i].id.iPid!=mdl->idSelf);
+	assert(pkd->hopGroups[i].id.iPid!=mdlSelf(mdl));
 	g = mdlAquire(mdl,CID_GROUP,pkd->hopGroups[i].id.iIndex,pkd->hopGroups[i].id.iPid);
 	assert(g->id.iPid==pkd->hopGroups[i].id.iPid);
 	pkd->hopGroups[i].iGlobalId = g->iGlobalId;

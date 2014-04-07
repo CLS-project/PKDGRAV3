@@ -3,6 +3,7 @@
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
+#include "mdlbase.h"
 #include <stdio.h>
 #include <stdint.h>
 #include <pthread.h>
@@ -34,15 +35,7 @@ extern "C" {
 
 #define MDL_MBX_RING_SZ	8
 
-#define MAX_PROCESSOR_NAME      256
-
 #define SRV_STOP		0
-
-#ifndef MDLKEY
-#define MDLKEY unsigned long
-#endif
-typedef MDLKEY mdlkey_t;
-static const mdlkey_t MDL_INVALID_KEY = (mdlkey_t)(-1);
 
 typedef int (*mdlWorkFunction)(void *ctx);
 
@@ -88,21 +81,22 @@ typedef struct swxStruct {
     } SWX;
 
 typedef struct cacheSpace {
-    int iType;
     void *pData;
+    int iType;
     int iDataSize;
     int nData;
-    size_t pDataMax;
     int iLineSize;
     int nLines;
     int nTrans;
-    mdlkey_t iTransMask;
-    mdlkey_t iIdMask;
     int iKeyShift;
     int iInvKeyShift;
+
+    mdlkey_t iTransMask;
+    mdlkey_t iIdMask;
     int *pTrans;
     CTAG *pTag;
     char *pLine;
+
     int nCheckOut;
 
     void *ctx;
@@ -121,12 +115,6 @@ typedef struct cacheSpace {
     } CACHE;
 
 
-typedef struct serviceRec {
-    int nInBytes;
-    int nOutBytes;
-    void *p1;
-    void (*fcnService)(void *,void *,int,void *,int *);
-    } SERVICE;
 
 typedef struct {
     int next;
@@ -138,20 +126,13 @@ typedef struct {
     } wqNode;
 
 typedef struct mdlContext {
-    int nThreads;
-    int idSelf;
-    int bDiag;
+    mdlBASE base;
     int cacheSize;
-    FILE *fpDiag;
     pthread_t *pt;
     struct mdlContext **pmdl;
     /*
      ** Services stuff!
      */
-    int nMaxServices;
-    int nMaxInBytes;
-    int nMaxOutBytes;
-    SERVICE *psrv;
     MBX mbxOwn;
     /*
      ** Swapping Box.
@@ -171,7 +152,6 @@ typedef struct mdlContext {
     int nMaxCacheIds;
     int iMaxDataSize;
     CACHE *cache;
-    char nodeName[MAX_PROCESSOR_NAME];
 #if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
     ticks nTicks;
     double dWaiting;
@@ -192,86 +172,15 @@ typedef struct mdlContext {
     int              busyCUDA;
     } * MDL;
 
-
-/*
- * MDL debug and Timer macros and prototypes
- */
-/*
- * Compile time mdl debugging options
- *
- * mdl asserts: define MDLASSERT
- * Probably should always be on unless you want no mdlDiag output at all
- *
- * NB: defining NDEBUG turns off all asserts so MDLASSERT will not assert
- * however it will output using mdlDiag and the code continues.
- */
-#define MDLASSERT
-/*
- * Debug functions active: define MDLDEBUG
- * Adds debugging mdldebug prints and mdldebugassert asserts
- */
-#define MDLDEBUG
-/*
- * Timer functions active: define MDLTIMER
- * Makes mdl timer functions active
- */
-#define MDLTIMER
-
-
-void mdlprintf( MDL mdl, const char *format, ... );
-
-#ifdef MDLASSERT
-#ifndef __STRING
-#define __STRING( arg )   (("arg"))
-#endif
-#define mdlassert(mdl,expr) \
-    { \
-      if (!(expr)) { \
-	     mdlprintf( mdl, "%s:%d Assertion `%s' failed.\n", __FILE__, __LINE__, __STRING(expr) ); \
-	     assert( expr ); \
-	     } \
-    }
-#else
-#define mdlassert(mdl,expr)  assert(expr)
-#endif
-
-#ifdef MDLDEBUG
-#define mdldebugassert(mdl,expr)   mdlassert(mdl,expr)
-void mdldebug( MDL mdl, const char *format, ... );
-#else
-#define mdldebug
-#define mdldebugassert
-#endif
-
-typedef struct {
-    double wallclock;
-    double cpu;
-    double system;
-    } mdlTimer;
-
-#ifdef MDLTIMER
-void mdlZeroTimer(MDL mdl,mdlTimer *);
-void mdlGetTimer(MDL mdl,mdlTimer *,mdlTimer *);
-void mdlPrintTimer(MDL mdl,char *message,mdlTimer *);
-#else
-#define mdlZeroTimer
-#define mdlGetTimer
-#define mdlPrintTimer
-#endif
-
 /*
  ** General Functions
  */
-double mdlCpuTimer(MDL);
 int mdlLaunch(int,char **,int (*)(MDL,int,char **),void (*)(MDL));
 void mdlFinish(MDL);
-int mdlThreads(MDL);
-int mdlSelf(MDL);
-const char *mdlName(MDL);
 int mdlSwap(MDL,int,size_t,void *,size_t,size_t *,size_t *);
-void mdlDiag(MDL,char *);
 void mdlAddService(MDL,int,void *,void (*)(void *,void *,int,void *,int *),
 		   int,int);
+void mdlCommitServices(MDL mdl);
 void mdlReqService(MDL,int,int,void *,int);
 void mdlGetReply(MDL,int,void *,int *);
 void mdlHandler(MDL);

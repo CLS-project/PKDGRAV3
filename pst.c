@@ -655,6 +655,7 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_UNBIND,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstUnbind,
 		  sizeof(int), 0);
+    mdlCommitServices(mdl);
    }
 
 void pstInitialize(PST *ppst,MDL mdl,LCL *plcl) {
