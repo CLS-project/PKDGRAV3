@@ -1012,7 +1012,7 @@ void smSmoothSingle(SMX smx,SMF *smf,PARTICLE *p) {
     /*
     ** Apply smooth funtion to the neighbor list.
     */
-    smx->fcnSmooth(p,smx->nnListSize,smx->pq,smf);
+    smx->fcnSmooth(p,smx->nSmooth,smx->pq,smf);
     }
 
 void smSmooth(SMX smx,SMF *smf) {
