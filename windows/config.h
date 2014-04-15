@@ -357,6 +357,10 @@
 #endif
 
 #ifdef USE_SIMD
+
+/* Define if SIMD optimizations should be used for Ewald. */
+#define USE_SIMD_EWALD 1
+
 /* Define if SIMD optimizations should be used for MOMRs. */
 /* #undef USE_SIMD_MOMR */
 
