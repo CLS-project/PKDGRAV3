@@ -2350,18 +2350,34 @@ void msrDomainDecompOld(MSR msr,int iRung,int bSplitVA) {
 		}
 	    }
 	else if (iRung > iRungSD) {
-	    if (msr->param.bVRungStat) {
-		printf("Skipping Domain Dim Choice (nActive = %"PRIu64"/%"PRIu64", iRung:%d iRungSD:%d iLastRungRT:%d)\n",
-		    msr->nActive,msr->N,iRung,iRungSD,msr->iLastRungRT);
+	    if (msr->iLastRungRT == iRung) {
+		if (msr->param.bVRungStat) {
+		    printf("Skipping Root Finder (nActive = %"PRIu64"/%"PRIu64", iRung:%d iRungRT:%d iLastRungRT:%d)\n",
+			msr->nActive,msr->N,iRung,iRungRT,msr->iLastRungRT);
+		    }
+		in.bDoRootFind = 0;
+		in.bDoSplitDimFind = 0;
 		}
-	    msr->iLastRungRT = iRung;
-	    in.bDoRootFind = 1;
-	    in.bDoSplitDimFind = 0;
+	    else {
+		if (msr->param.bVRungStat) {
+		    printf("Skipping Domain Dim Choice (nActive = %"PRIu64"/%"PRIu64", iRung:%d iRungSD:%d iLastRungRT:%d)\n",
+			msr->nActive,msr->N,iRung,iRungSD,msr->iLastRungRT);
+		    }
+		msr->iLastRungRT = iRung;
+		in.bDoRootFind = 1;
+		in.bDoSplitDimFind = 0;
+		}
 	    }
 	else {
-	    msr->iLastRungRT = iRung;
-	    in.bDoRootFind = 1;
-	    in.bDoSplitDimFind = 1;
+	    if (msr->iLastRungRT == iRung) {
+		in.bDoRootFind = 0;
+		in.bDoSplitDimFind = 0;
+		}
+	    else {
+		msr->iLastRungRT = iRung;
+		in.bDoRootFind = 1;
+		in.bDoSplitDimFind = 1;
+		}
 	    }
 	}
 
@@ -2408,7 +2424,7 @@ void msrDomainDecompOld(MSR msr,int iRung,int bSplitVA) {
 #endif
     in.bSplitVA = bSplitVA;
     msrprintf(msr,"Domain Decomposition: nActive (Rung %d) %"PRIu64" SplitVA:%d\n",
-	      iRungDD,msr->nActive,bSplitVA);
+	      msr->iLastRungRT,msr->nActive,bSplitVA);
     msrprintf(msr,"Domain Decomposition... \n");
     sec = msrTime();
 
@@ -3750,7 +3766,6 @@ void msrTopStepKDK(MSR msr,
 	    msrDensityStep(msr,iRung,MAX_RUNG,dTime);
 	    }
 	iRungVeryActive = msrUpdateRung(msr,iRung);
-	if (iRung==0) msrDomainDecomp(msr,0,1,0);
         }
 
     msrprintf(msr,"%*cmsrKickOpen  at iRung: %d 0.5*dDelta: %g\n",
