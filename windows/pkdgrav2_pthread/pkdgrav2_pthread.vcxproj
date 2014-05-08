@@ -120,6 +120,7 @@
     <ClCompile Include="..\..\walk2.c" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\avx_mathfun.h" />
     <ClInclude Include="..\..\bt.h" />
     <ClInclude Include="..\..\cl.h" />
     <ClInclude Include="..\..\collision.h" />
