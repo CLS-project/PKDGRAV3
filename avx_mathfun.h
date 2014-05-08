@@ -32,8 +32,16 @@
 #include <immintrin.h>
 
 /* yes I know, the top of this file is quite ugly */
-# define ALIGN32_BEG
-# define ALIGN32_END __attribute__((aligned(32)))
+#ifdef HAVE_ANSIDECL_H
+#include <ansidecl.h>
+#else
+#define ATTRIBUTE_ALIGNED_ALIGNOF(m)
+#endif
+# define ALIGN32_BEG ATTRIBUTE_ALIGNED_ALIGNOF(__m256)
+# define ALIGN32_END
+
+/*# define ALIGN32_BEG
+# define ALIGN32_END __attribute__((aligned(32)))*/
 
 /* __m128 is ugly to write */
 typedef __m256  v8sf; // vector of 8 float (avx)
@@ -564,6 +572,17 @@ v8sf cos256_ps(v8sf x) { // any x
   return y;
 }
 #endif
+
+#ifdef _MSC_VER
+static inline __m256i _mm256_and_si128(__m256i a, __m256i b) {
+    return _mm256_castps_si256(_mm256_and_ps(_mm256_castsi256_ps(a), _mm256_castsi256_ps(b)));
+    }
+
+static inline __m256i _mm256_andnot_si128(__m256i a, __m256i b) {
+    return _mm256_castps_si256(_mm256_andnot_ps(_mm256_castsi256_ps(a), _mm256_castsi256_ps(b)));
+    }
+#endif
+
 /* since sin256_ps and cos256_ps are almost identical, sincos256_ps could replace both of them..
    it is almost as fast, and gives you a free cosine with your sine */
 void sincos256_ps(v8sf x, v8sf *s, v8sf *c) {

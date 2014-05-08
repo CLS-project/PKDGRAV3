@@ -9,6 +9,10 @@
       <Configuration>Release</Configuration>
       <Platform>x64</Platform>
     </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{03B1C284-CBAC-49F1-B360-C16ACCF7307C}</ProjectGuid>
@@ -73,6 +77,7 @@
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions</EnableEnhancedInstructionSet>
       <FloatingPointModel>Fast</FloatingPointModel>
+      <BrowseInformation>true</BrowseInformation>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -118,6 +123,7 @@
     <ClCompile Include="..\..\walk2.c" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\avx_mathfun.h" />
     <ClInclude Include="..\..\bt.h" />
     <ClInclude Include="..\..\cl.h" />
     <ClInclude Include="..\..\collision.h" />
