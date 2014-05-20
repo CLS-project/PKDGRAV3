@@ -2033,12 +2033,6 @@ FIO fioGadgetCreate(
     if (gio->fp_pos.pBuffer != NULL) setvbuf(gio->fp_pos.fp,gio->fp_pos.pBuffer,_IOFBF,GIO_BUFFER_SIZE);
 
     memset(&hdr,0,sizeof(hdr));
-    for( iType=0; iType<nTypes; ++iType) {
-	hdr.Npart[iType] = nPart[iType];
-	hdr.Nall[iType]  = nAll[iType] & 0xffffffff;
-	hdr.NallHW[iType]= nAll[iType] >> 32;
-	hdr.Massarr[iType] = dMass[iType];
-	}
     hdr.Time = dTime;
     hdr.Redshift = 1.0 / dTime - 1.0;  
     hdr.NumFiles = nFiles;
@@ -2060,6 +2054,12 @@ FIO fioGadgetCreate(
 	gio->pos_off = 0.0;
 	gio->vel_fac = 1.0;
 	gio->mass_fac = 1.0;
+	}
+    for( iType=0; iType<nTypes; ++iType) {
+	hdr.Npart[iType] = nPart[iType];
+	hdr.Nall[iType]  = nAll[iType] & 0xffffffff;
+	hdr.NallHW[iType]= nAll[iType] >> 32;
+	hdr.Massarr[iType] = dMass[iType] * gio->mass_fac;
 	}
 
     w = sizeof(hdr);
