@@ -2625,25 +2625,6 @@ uint32_t pkdWriteFIO(PKD pkd,FIO fio,double dvFac) {
     return nCount;
     }
 
-uint32_t pkdWriteTipsy(PKD pkd,char *pszFileName,uint64_t iFirst,
-		       int bStandard,double dvFac,int bDoublePos) {
-    FIO fio;
-    uint32_t nCount;
-
-    fio = fioTipsyAppend(pszFileName,bDoublePos,bStandard);
-    if (fio==NULL) {
-	fprintf(stderr,"ERROR: unable to reopen tipsy file for output\n");
-	perror(pszFileName);
-	mdlassert(pkd->mdl,fio!=NULL);
-	}
-
-    fioSeek(fio,iFirst,FIO_SPECIES_ALL);
-    nCount = pkdWriteFIO(pkd,fio,dvFac);
-    fioClose(fio);
-    return nCount;
-    }
-
-
 void pkdSetSoft(PKD pkd,double dSoft) {
     pkd->fSoftFix = dSoft;
     }
