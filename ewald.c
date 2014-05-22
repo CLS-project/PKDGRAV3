@@ -138,23 +138,18 @@ static int evalMainBox(struct EwaldVariables *ew,double *ax, double *ay, double 
 #if defined(USE_SIMD_EWALD) && defined(__SSE2__)
 static const struct CONSTS {
     vdouble onequarter,onethird,half,one,two,three,five,seven,nine;
-#ifndef USE_SVML
     vdouble log2e,C1,C2;
     vdouble threshold0,threshold1,threshold2;
-#ifdef __AVX__
-#ifdef ERF_FULL_RANGE
-    vdouble p0bc,p0a,p1bc,p1a,p2bc,p2a,p3bc,p3a,p4bc,p4a,p5bc,p5a;
-    vdouble q0bc,q0a,q1bc,q1a,q2bc,q2a,q3bc,q3a,q4bc,q4a,q5bc,q5a;
+#if defined(__AVX__)
+    vdouble p0ab,p0cd,p1ab,p1cd,p2ab,p2cd,p3ab,p3cd,p4ab,p4cd,p5ab,p5cd;
+    vdouble q0ab,q0cd,q1ab,q1cd,q2ab,q2cd,q3ab,q3cd,q4ab,q4cd,q5ab,q5cd;
 #else
-    vdouble p0bc,p1bc,p2bc,p3bc,p4bc,p5bc;
-    vdouble q0bc,q1bc,q2bc,q3bc,q4bc,q5bc;
-#endif
-#else
-    vdouble p0b,p0c,p1b,p1c,p2b,p2c,p3b,p3c,p4b,p4c,p5b,p5c;
-    vdouble q0b,q0c,q1b,q1c,q2b,q2c,q3b,q3c,q4b,q4c,q5b,q5c;
+    vdouble p0a,p0b,p0c,p0d, p1a,p1b,p1c,p1d, p2a,p2b,p2c,p2d;
+    vdouble p3a,p3b,p3c,p3d, p4a,p4b,p4c,p4d, p5a,p5b,p5c,p5d;
+    vdouble q0a,q0b,q0c,q0d, q1a,q1b,q1c,q1d, q2a,q2b,q2c,q2d;
+    vdouble q3a,q3b,q3c,q3d, q4a,q4b,q4c,q4d, q5a,q5b,q5c,q5d;
 #endif
     vdouble p0,p1,p2,q0,q1,q2,q3;
-#endif
     } consts = {
         {SIMD_DCONST(0.25)},
         {SIMD_DCONST(1.0/3.0)},
@@ -176,32 +171,29 @@ static const struct CONSTS {
         {SIMD_DCONST(6.0)},
 
 #ifdef __AVX__
-#ifdef ERF_FULL_RANGE
-#define ERF_CONSTS(c,b,a) {{c,b,c,b}},{a,a,a,a}}
+#define ERF_CONSTS(d,c,b,a) {{a,b,a,b}},{{c,d,c,d}}
+#elif defined(slower__SSE4_1__)
+#define ERF_CONSTS(d,c,b,a) {a,a},{b,b},{c,c},{d,d}
 #else
-#define ERF_CONSTS(c,b,a) {{c,b,c,b}}
+#define ERF_CONSTS(d,c,b,a) {a,a},{b-a,b-a},{c-b,c-b},{d-c,d-c}
 #endif
-#else
-#ifdef ERF_FULL_RANGE
-#define ERF_CONSTS(c,b,a) {{c,c}},{{b-c,b-c}},{{b-c-a,b-c-a}}
-#else
-#define ERF_CONSTS(c,b,a) {{c,c}},{{b-c,b-c}}
-#endif
-#endif
-	ERF_CONSTS(2.25716982919217555e-2,7.06940843763253131e-3,0),
-	ERF_CONSTS(1.57289620742838702e-1,7.14193832506776067e-2,6.49254556481904354e-5),
-	ERF_CONSTS(5.81528574177741135e-1,3.31899559578213215e-1,1.20339380863079457e-3),
-	ERF_CONSTS(1.26739901455873222e+0,8.78115804155881782e-1,4.03259488531795274e-2),
-	ERF_CONSTS(1.62356584489366647e+0,1.33154163936765307,1.35894887627277916e-1),
-	ERF_CONSTS(9.99921140009714409e-1,9.99999992049799098e-1,1.12837916709551256e+0),
+	/* erf/erfc polynomial tables */
+	/*         [6.0,)                  [2.2,6.0)               [0.65,2.2)              [0,0.64)   */
+	ERF_CONSTS(0.00000000000000000e+0, 2.25716982919217555e-2, 7.06940843763253131e-3, 0.00000000000000000e+0),
+	ERF_CONSTS(8.08040729052301677e+0, 1.57289620742838702e-1, 7.14193832506776067e-2, 6.49254556481904354e-5),
+	ERF_CONSTS(4.77209965874436377e+1, 5.81528574177741135e-1, 3.31899559578213215e-1, 1.20339380863079457e-3),
+	ERF_CONSTS(3.84683103716117320e+1, 1.26739901455873222e+0, 8.78115804155881782e-1, 4.03259488531795274e-2),
+	ERF_CONSTS(8.80253746105525775e+0, 1.62356584489366647e+0, 1.33154163936765307e+0, 1.35894887627277916e-1),
+	ERF_CONSTS(5.64189583547756078e-1, 9.99921140009714409e-1, 9.99999992049799098e-1, 1.12837916709551256e+0),
 
-	ERF_CONSTS(4.00072964526861362e-2,1.25304936549413393e-2,0),
-	ERF_CONSTS(2.78788439273628983e-1,1.26579413030177940e-1,0),
-	ERF_CONSTS(1.05074004614827206,5.94651311286481502e-1,3.64915280629351082e-4),
-	ERF_CONSTS(2.38574194785344389,1.61876655543871376,8.49717371168693357e-3),
-	ERF_CONSTS(3.37367334657284535,2.65383972869775752,8.69936222615385890e-2),
-	ERF_CONSTS(2.75143870676376208,2.45992070144245533,4.53767041780002545e-1),
+	ERF_CONSTS(0.00000000000000000e+0, 4.00072964526861362e-2, 1.25304936549413393e-2, 0.00000000000000000e+0),
+	ERF_CONSTS(0.00000000000000000e+0, 2.78788439273628983e-1, 1.26579413030177940e-1, 0.00000000000000000e+0),
+	ERF_CONSTS(3.73997570145040850e+1, 1.05074004614827206e+0, 5.94651311286481502e-1, 3.64915280629351082e-4),
+	ERF_CONSTS(1.12123870801026015e+2, 2.38574194785344389e+0, 1.61876655543871376e+0, 8.49717371168693357e-3),
+	ERF_CONSTS(7.54843505665954743e+1, 3.37367334657284535e+0, 2.65383972869775752e+0, 8.69936222615385890e-2),
+	ERF_CONSTS(1.61020914205869003e+1, 2.75143870676376208e+0, 2.45992070144245533e+0, 4.53767041780002545e-1),
 
+	/* exp polynomial table */
 	SIMD_DCONST(1.26177193074810590878E-4),
 	SIMD_DCONST(3.02994407707441961300E-2),
 	SIMD_DCONST(9.99999999999999999910E-1),
@@ -243,19 +235,14 @@ extern __m256d __svml_invsqrt4(__m256d a);
 #define vsincos(v,s,c) sincos_ps(v,&s,&c);
 #endif
 #define vrsqrt SIMD_DRSQRT_EXACT
-#ifdef ERF_FULL_RANGE
-#ifdef __AVX__
-#define SET_PREFACTOR(q) q = _mm256_blendv_pd(_mm256_permutevar_pd(consts.q##bc.p,pred1i),consts.q##a.p,pred0)
-#else
-#endif
-#else
-#ifdef __AVX__
-#define SET_PREFACTOR(q) q = _mm256_permutevar_pd(consts.q##bc.p,pred1i)
-#else
-#define SET_PREFACTOR(q) q = SIMD_DADD(consts.q##b.p,SIMD_DANDNOT(pred1,consts.q##c.p))
-#endif
-#endif
 
+#ifdef __AVX__
+#define SET_PREFACTOR(q) q = _mm256_blendv_pd(_mm256_permutevar_pd(consts.q##ab.p,pred0i),_mm256_permutevar_pd(consts.q##cd.p,pred2i),pred1)
+#elif defined(slower__SSE4_1__)
+#define SET_PREFACTOR(q) q = _mm_blendv_pd(_mm_blendv_pd(consts.q##a.p,consts.q##b.p,pred0),_mm_blendv_pd(consts.q##c.p,consts.q##d.p,pred2),pred1);
+#else
+#define SET_PREFACTOR(q) q = SIMD_DADD(SIMD_DADD(consts.q##a.p,SIMD_DAND(pred0,consts.q##b.p)),SIMD_DADD(SIMD_DAND(pred1,consts.q##c.p),SIMD_DAND(pred2,consts.q##d.p)))
+#endif
 
 v_df vexp(v_df x) {
     v_df d,xx,pow2n,Pexp,Qexp;
@@ -282,20 +269,17 @@ v_df vexp(v_df x) {
 ** This is an optimized version of erf that is accurate (without ERF_FULL_RANGE)
 ** in the range [0.65,9.0]. This is ideal for ewald replicas.
 */
-v_df verf(v_df v) {
-    v_df p0,p1,p2,p3,p4,p5,q0,q1,q2,q3,q4,q5,Perf,Qerf,Pexp,Qexp,v2;
-    v_i pred1i;
-    v_i4 n;
-    v_df pred1,t,t2,pow2n;
-#ifdef ERF_FULL_RANGE
-    v_df pred0;
-#endif
+v_df verf(v_df v,v_df iv,v_df ex2,v_df *r_erf,v_df *r_erfc) {
+    v_df p0,p1,p2,p3,p4,p5,q0,q1,q2,q3,q4,q5,Perf,Qerf,v2;
+    v_df pred0,  pred1,  pred2;
+    v_i  pred0i, pred2i;
+    v_df t,nt;
 
-#ifdef ERF_FULL_RANGE
-    pred0 = SIMD_DCMP_LT(v,consts.threshold0.p);
-#endif
-    pred1 = SIMD_DCMP_LT(v,consts.threshold1.p);
-    pred1i = SIMD_D2I(pred1);
+    pred0 = SIMD_DCMP_GE(v,consts.threshold0.p);
+    pred0i = SIMD_D2I(pred0);
+    pred1 = SIMD_DCMP_GE(v,consts.threshold1.p);
+    pred2 = SIMD_DCMP_GE(v,consts.threshold2.p);
+    pred2i = SIMD_D2I(pred2);
 
     SET_PREFACTOR(p0);
     SET_PREFACTOR(p1);
@@ -303,12 +287,11 @@ v_df verf(v_df v) {
     SET_PREFACTOR(p3);
     SET_PREFACTOR(p4);
     SET_PREFACTOR(p5);
-#ifdef ERF_FULL_RANGE
-    v = SIMD_DMIN(v,consts.threshold2.p);
-    v2 = SIMD_DMUL(v,SIMD_DOR(SIMD_DAND(pred0,v),SIMD_DANDNOT(pred0,consts.one.p)));
-#else
-    v2 = v;
-#endif
+
+    /* Gives x^2, x, x, 1/x^2 */
+    v2 = SIMD_DSELECT(v,iv,pred2); /* x unless x>6.0, then 1/x */
+    v2 = SIMD_DSELECT(SIMD_DMUL(v2,v2),v2,SIMD_DXOR(pred0,pred2));
+
     SET_PREFACTOR(q0);
     SET_PREFACTOR(q1);
     SET_PREFACTOR(q2);
@@ -319,36 +302,23 @@ v_df verf(v_df v) {
     Perf = SIMD_DMADD(SIMD_DMADD(SIMD_DMADD(SIMD_DMADD(SIMD_DMADD(p0,v2,p1),v2,p2),v2,p3),v2,p4),v2,p5);
     Qerf = SIMD_DMADD(SIMD_DMADD(SIMD_DMADD(SIMD_DMADD(SIMD_DMADD(SIMD_DMADD(q0,v2,q1),v2,q2),v2,q3),v2,q4),v2,q5),v2,consts.one.p);
 
-    t = SIMD_DMUL(SIMD_DXOR(v,iconsts.isignmask.pd),v);
-    Pexp = SIMD_DFLOOR(SIMD_DMADD(consts.log2e.p,t,consts.half.p));
-    t = SIMD_DSUB(t,SIMD_DMUL(Pexp,consts.C1.p));
-    t = SIMD_DSUB(t,SIMD_DMUL(Pexp,consts.C2.p));
-    n = MM_FCN(cvttpd,epi32)(Pexp);
-    n = _mm_add_epi32(n, iconsts.i0x7f.ph );
-    n = _mm_slli_epi32(n, 23);
-    pow2n = MM_FCN(cvtps,pd)(_mm_castsi128_ps(n));
-    t2 = SIMD_DMUL(t,t);
+    t = SIMD_DMUL(SIMD_DMUL(SIMD_DSELECT(consts.one.p,iv,pred2),SIMD_DSELECT(v,ex2,pred0)),SIMD_DDIV(Perf,Qerf));
+    nt = SIMD_DSUB(consts.one.p,t);
+    *r_erf = SIMD_DSELECT(t,nt,pred0);
+    *r_erfc = SIMD_DSELECT(nt,t,pred0);
 
-    Pexp = SIMD_DMUL(SIMD_DMADD(SIMD_DMADD(consts.p0.p,t2,consts.p1.p),t2,consts.p2.p),t);
-    Qexp = SIMD_DSUB(SIMD_DMADD(SIMD_DMADD(SIMD_DMADD(consts.q0.p,t2,consts.q1.p),t2,consts.q2.p),t2,consts.q3.p),Pexp);
-
-    t = SIMD_DDIV(Perf,SIMD_DMUL(Qerf,Qexp));
-    v2 = SIMD_DNMADD(SIMD_DMADD(consts.two.p,Pexp,Qexp),SIMD_DMUL(pow2n,t),consts.one.p);
-
-#ifdef ERF_FULL_RANGE
-    t2 = SIMD_DMUL(v,SIMD_DMUL(t,Qexp));
-    t = SIMD_DOR(SIMD_DAND(pred0,t2),SIMD_DANDNOT(pred0,v2));
     return t;
-#else
-    return v2;
-#endif
     }
 #endif
+
+
+
+
 
 int pkdParticleEwaldSIMD(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     PARTICLE *p, float *pa, float *pPot) {
     struct EwaldVariables *ew = &pkd->ew;
-    v_df ax,ay,az,L,dPot,dx,dy,dz,alpha2x2;
+    v_df ax,ay,az,L,dPot,dx,dy,dz,alpha2x2,rerf,rerfc,ex2;
     v_df tx,ty,tz,tpot,t;
     v_sf fPot,fax,fay,faz,fx,fy,fz;
     double px,py,pz,a1,a2,a3,p1;
@@ -392,8 +362,10 @@ int pkdParticleEwaldSIMD(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
 	r2 = SIMD_DMADD(z,z,SIMD_DMADD(y,y,SIMD_DMUL(x,x)));
 	dir = vrsqrt(r2);
 	dir2 = SIMD_DMUL(dir,dir);
-	a = SIMD_DMUL(vexp(SIMD_DMUL(SIMD_DXOR(r2,iconsts.isignmask.pd),ew->ewp.alpha2.p)),SIMD_DMUL(ew->ewp.ka.p,dir2));
-	g0 = SIMD_DMUL(dir,SIMD_DXOR(verf(SIMD_DMUL(ew->ewp.alpha.p,SIMD_DMUL(r2,dir))),iconsts.isignmask.pd));
+	ex2 = vexp(SIMD_DMUL(SIMD_DXOR(r2,iconsts.isignmask.pd),ew->ewp.alpha2.p));
+	a = SIMD_DMUL(ex2,SIMD_DMUL(ew->ewp.ka.p,dir2));
+	verf(SIMD_DMUL(ew->ewp.alpha.p,SIMD_DMUL(r2,dir)),SIMD_DMUL(ew->ewp.ialpha.p,dir),ex2,&rerf,&rerfc);
+	g0 = SIMD_DMUL(dir,SIMD_DXOR(rerf,iconsts.isignmask.pd));
 	g1 = SIMD_DMADD(g0,dir2,a);
 	alphan = alpha2x2;
 	g2 = SIMD_DMADD(SIMD_DMUL(consts.three.p,dir2),g1,SIMD_DMUL(alphan,a));
@@ -888,6 +860,7 @@ void pkdEwaldInit(PKD pkd,int nReps,double fEwCut,double fhCut) {
     pkd->ew.fEwCut2 = fEwCut*fEwCut*L*L;
     pkd->ew.fInner2 = 1.2e-3*L*L;
     pkd->ew.alpha = 2.0/L;
+    pkd->ew.ialpha = 0.5 * L;
     pkd->ew.alpha2 = pkd->ew.alpha*pkd->ew.alpha;
     pkd->ew.k1 = M_PI/(pkd->ew.alpha2*L*L*L);
     pkd->ew.ka = 2.0*pkd->ew.alpha/sqrt(M_PI);
@@ -924,6 +897,7 @@ void pkdEwaldInit(PKD pkd,int nReps,double fEwCut,double fhCut) {
     pkd->ew.ewp.fEwCut2.p = SIMD_DSPLAT(pkd->ew.fEwCut2);
     pkd->ew.ewp.fInner2.p = SIMD_DSPLAT(pkd->ew.fInner2);
     pkd->ew.ewp.alpha.p = SIMD_DSPLAT(pkd->ew.alpha);
+    pkd->ew.ewp.ialpha.p = SIMD_DSPLAT(pkd->ew.ialpha);
     pkd->ew.ewp.alpha2.p = SIMD_DSPLAT(pkd->ew.alpha2);
     pkd->ew.ewp.k1.p = SIMD_DSPLAT(pkd->ew.k1);
     pkd->ew.ewp.ka.p = SIMD_DSPLAT(pkd->ew.ka);

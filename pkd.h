@@ -510,7 +510,7 @@ typedef union {
     } ewaldDouble;
 
 struct EwaldVariables {
-    double fEwCut2,fInner2,alpha,alpha2,k1,ka;
+    double fEwCut2,fInner2,alpha,ialpha,alpha2,k1,ka;
     double Q4xx,Q4xy,Q4xz,Q4yy,Q4yz,Q4zz,Q4,Q3x,Q3y,Q3z,Q2;
     struct {
 	ewaldFloat hx,hy,hz;
@@ -528,7 +528,7 @@ struct EwaldVariables {
 	vdouble xxzz,xyzz,xzzz,yyzz,yzzz,zzzz;
 	} ewm;
     struct {
-	vdouble fEwCut2,fInner2,alpha,alpha2,k1,ka;
+	vdouble fEwCut2,fInner2,alpha,alpha2,ialpha,k1,ka;
 	vdouble Q4xx,Q4xy,Q4xz,Q4yy,Q4yz,Q4zz,Q4,Q3x,Q3y,Q3z,Q2;
 	} ewp;
 #endif

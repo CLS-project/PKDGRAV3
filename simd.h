@@ -42,6 +42,9 @@
 #ifdef __SSE3__
 #include <pmmintrin.h>
 #endif
+#if defined(__SSE4_1__)
+#include <smmintrin.h>
+#endif
 #ifdef __AVX__
 #include <immintrin.h>
 #endif
@@ -383,6 +386,15 @@ static inline v_df SIMD_DLOADS(double f) {
 #define SIMD_DOR(a,b) MM_FCN(or,pd)(a,b)
 #define SIMD_DXOR(a,b) MM_FCN(xor,pd)(a,b)
 #define SIMD_DALL_ZERO(a) MM_FCN(movemask,pd)(a)
+
+/* p==false then select a -- p==true, select b */
+#ifdef __AVX__
+#define SIMD_SELECT(a,b,p) MM_FCN(blendv,ps)(a,b,p)
+#define SIMD_DSELECT(a,b,p) MM_FCN(blendv,pd)(a,b,p)
+#else
+#define SIMD_SELECT(a,b,p) SIMD_OR(SIMD_AND(p,b),SIMD_ANDNOT(p,a))
+#define SIMD_DSELECT(a,b,p) SIMD_DOR(SIMD_DAND(p,b),SIMD_DANDNOT(p,a))
+#endif
 
 #ifdef __AVX__
 #define SIMD_I2D(a) MM_FCN(castsi256,pd)(a)
