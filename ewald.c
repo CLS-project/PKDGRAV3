@@ -208,10 +208,12 @@ static const struct ICONSTS {
     vint64 isignmask;
     vint64 fixmasks[4];
     vint i0x7f;
+    vint i1023;
     } iconsts = {
         {SIMD_CONST(0x8000000000000000)},
 	{{0,0,0,0},{0,-1,-1,-1},{0,0,-1,-1},{0,0,0,-1}},
         {SIMD_CONST(0x7f)},
+        {SIMD_CONST(1023)},
     };
 
 #ifdef USE_SVML
@@ -246,13 +248,26 @@ extern __m256d __svml_invsqrt4(__m256d a);
 
 v_df vexp(v_df x) {
     v_df d,xx,pow2n,Pexp,Qexp;
-    __m128i n;
+    v_i4 n1,n2;
+    v_i n;
 
-    d = SIMD_DFLOOR(SIMD_DMADD(consts.log2e.p,x,consts.half.p));
-    n = MM_FCN(cvttpd,epi32)(d);
-    n = _mm_add_epi32(n, iconsts.i0x7f.ph );
-    n = _mm_slli_epi32(n, 23);
-    pow2n = MM_FCN(cvtps,pd)(_mm_castsi128_ps(n));
+    d = SIMD_DMUL(consts.log2e.p,x);
+    n1 = MM_FCN(cvttpd,epi32)(d);
+    d = MM_FCN(cvtepi32,pd)(n1);
+    n1  = _mm_add_epi32(n1, iconsts.i1023.ph);
+#ifdef __AVX__
+    n2 = _mm_shuffle_epi32(n1,_MM_SHUFFLE(3, 3, 2, 2));
+    n1 = _mm_shuffle_epi32(n1,_MM_SHUFFLE(1, 1, 0, 0));
+    n2 = _mm_slli_epi64(n2, 52);
+    n1 = _mm_slli_epi64(n1, 52);
+    n = _mm256_castsi128_si256(n1);
+    n = _mm256_insertf128_si256(n, n2, 0x1);
+    pow2n = _mm256_castsi256_pd(n);
+#else
+    n1  = _mm_shuffle_epi32(n1, _MM_SHUFFLE(2, 1, 2, 0));
+    n1  = _mm_slli_epi64(n1, 52);
+    pow2n = MM_FCN(castsi128,pd)(n1);
+#endif
     x = SIMD_DSUB(x,SIMD_DMUL(d,consts.C1.p));
     x = SIMD_DSUB(x,SIMD_DMUL(d,consts.C2.p));
     xx = SIMD_DMUL(x,x);
@@ -263,7 +278,6 @@ v_df vexp(v_df x) {
     x = SIMD_DMUL(SIMD_DMADD(x,consts.two.p,consts.one.p),pow2n);
     return x;
     }
-
 
 /*
 ** This is an optimized version of erf that is accurate (without ERF_FULL_RANGE)
@@ -326,6 +340,7 @@ int pkdParticleEwaldSIMD(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     const v_df *Lx = ew->ewt.Lx.p;
     const v_df *Ly = ew->ewt.Ly.p;
     const v_df *Lz = ew->ewt.Lz.p;
+    const v_df *doerfc = ew->ewt.doerfc.p;
 
     assert(pkd->oAcceleration); /* Validate memory model */
     assert(pkd->oPotential); /* Validate memory model */
@@ -365,7 +380,7 @@ int pkdParticleEwaldSIMD(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
 	ex2 = vexp(SIMD_DMUL(SIMD_DXOR(r2,iconsts.isignmask.pd),ew->ewp.alpha2.p));
 	a = SIMD_DMUL(ex2,SIMD_DMUL(ew->ewp.ka.p,dir2));
 	verf(SIMD_DMUL(ew->ewp.alpha.p,SIMD_DMUL(r2,dir)),SIMD_DMUL(ew->ewp.ialpha.p,dir),ex2,&rerf,&rerfc);
-	g0 = SIMD_DMUL(dir,SIMD_DXOR(rerf,iconsts.isignmask.pd));
+	g0 = SIMD_DMUL(dir,SIMD_DSELECT(SIMD_DXOR(rerf,iconsts.isignmask.pd),rerfc,doerfc[i]));
 	g1 = SIMD_DMADD(g0,dir2,a);
 	alphan = alpha2x2;
 	g2 = SIMD_DMADD(SIMD_DMUL(consts.three.p,dir2),g1,SIMD_DMUL(alphan,a));
@@ -563,9 +578,7 @@ int pkdParticleEwald(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     double g0,g1,g2,g3,g4,g5;
     double onethird = 1.0/3.0;
     int i,ix,iy,iz;
-#ifdef USE_FORMALLY_CORRECT_EWALD
     int bInHole,bInHolex,bInHolexy;
-#endif
     int nFlop;
     int nLoop = 0;
     float hdotx,s,c,t;
@@ -584,105 +597,14 @@ int pkdParticleEwald(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     dy = p->r[1] - pkdTopNode(pkd,ROOT)->r[1];
     dz = p->r[2] - pkdTopNode(pkd,ROOT)->r[2];
 
-#ifndef USE_FORMALLY_CORRECT_EWALD
-    nLoop = pkd->ew.nEwLoopInner;
-    r2 = dx*dx + dy*dy + dz*dz;
-    /* We will handle this at the end if necessary */
-    if (r2 >= pkd->ew.fInner2) ++nLoop;
-    for( i=0; i<nLoop; ++i) {
-	x = dx + pkd->ew.ewt.Lx.d[i];
-	y = dy + pkd->ew.ewt.Ly.d[i];
-	z = dz + pkd->ew.ewt.Lz.d[i];
-	r2 = x*x + y*y + z*z;
-	dir = 1/sqrt(r2);
-	dir2 = dir*dir;
-	a = exp(-r2*pkd->ew.alpha2);
-	a *= pkd->ew.ka*dir2;
-	g0 = -erf(pkd->ew.alpha*r2*dir);
-	g0 *= dir;
-	g1 = g0*dir2 + a;
-	alphan = 2*pkd->ew.alpha2;
-	g2 = 3*g1*dir2 + alphan*a;
-	alphan *= 2*pkd->ew.alpha2;
-	g3 = 5*g2*dir2 + alphan*a;
-	alphan *= 2*pkd->ew.alpha2;
-	g4 = 7*g3*dir2 + alphan*a;
-	alphan *= 2*pkd->ew.alpha2;
-	g5 = 9*g4*dir2 + alphan*a;
-
-	xx = 0.5*x*x;
-	xxx = onethird*xx*x;
-	xxy = xx*y;
-	xxz = xx*z;
-	yy = 0.5*y*y;
-	yyy = onethird*yy*y;
-	xyy = yy*x;
-	yyz = yy*z;
-	zz = 0.5*z*z;
-	zzz = onethird*zz*z;
-	xzz = zz*x;
-	yzz = zz*y;
-	xy = x*y;
-	xyz = xy*z;
-	xz = x*z;
-	yz = y*z;
-	Q2mirx = mom.xx*x + mom.xy*y + mom.xz*z;
-	Q2miry = mom.xy*x + mom.yy*y + mom.yz*z;
-	Q2mirz = mom.xz*x + mom.yz*y + mom.zz*z;
-	Q3mirx = mom.xxx*xx + mom.xxy*xy + mom.xxz*xz + mom.xyy*yy + mom.xyz*yz + mom.xzz*zz;
-	Q3miry = mom.xxy*xx + mom.xyy*xy + mom.xyz*xz + mom.yyy*yy + mom.yyz*yz + mom.yzz*zz;
-	Q3mirz = mom.xxz*xx + mom.xyz*xy + mom.xzz*xz + mom.yyz*yy + mom.yzz*yz + mom.zzz*zz;
-	Q4mirx = mom.xxxx*xxx + mom.xxxy*xxy + mom.xxxz*xxz + mom.xxyy*xyy + mom.xxyz*xyz +
-	    mom.xxzz*xzz + mom.xyyy*yyy + mom.xyyz*yyz + mom.xyzz*yzz + mom.xzzz*zzz;
-	Q4miry = mom.xxxy*xxx + mom.xxyy*xxy + mom.xxyz*xxz + mom.xyyy*xyy + mom.xyyz*xyz +
-	    mom.xyzz*xzz + mom.yyyy*yyy + mom.yyyz*yyz + mom.yyzz*yzz + mom.yzzz*zzz;
-	Q4mirz = mom.xxxz*xxx + mom.xxyz*xxy + mom.xxzz*xxz + mom.xyyz*xyy + mom.xyzz*xyz +
-	    mom.xzzz*xzz + mom.yyyz*yyy + mom.yyzz*yyz + mom.yzzz*yzz + mom.zzzz*zzz;
-	Q4x = pkd->ew.Q4xx*x + pkd->ew.Q4xy*y + pkd->ew.Q4xz*z;
-	Q4y = pkd->ew.Q4xy*x + pkd->ew.Q4yy*y + pkd->ew.Q4yz*z;
-	Q4z = pkd->ew.Q4xz*x + pkd->ew.Q4yz*y + pkd->ew.Q4zz*z;
-	Q2mir = 0.5*(Q2mirx*x + Q2miry*y + Q2mirz*z) - (pkd->ew.Q3x*x + pkd->ew.Q3y*y + pkd->ew.Q3z*z) + pkd->ew.Q4;
-	Q3mir = onethird*(Q3mirx*x + Q3miry*y + Q3mirz*z) - 0.5*(Q4x*x + Q4y*y + Q4z*z);
-	Q4mir = 0.25*(Q4mirx*x + Q4miry*y + Q4mirz*z);
-	Qta = g1*mom.m - g2*pkd->ew.Q2 + g3*Q2mir + g4*Q3mir + g5*Q4mir;
-	fPot -= g0*mom.m - g1*pkd->ew.Q2 + g2*Q2mir + g3*Q3mir + g4*Q4mir;
-	ax += (g2*(Q2mirx - pkd->ew.Q3x) + g3*(Q3mirx - Q4x) + g4*Q4mirx - x*Qta);
-	ay += (g2*(Q2miry - pkd->ew.Q3y) + g3*(Q3miry - Q4y) + g4*Q4miry - y*Qta);
-	az += (g2*(Q2mirz - pkd->ew.Q3z) + g3*(Q3mirz - Q4z) + g4*Q4mirz - z*Qta);
-	}
-    if ( nLoop == pkd->ew.nEwLoopInner) {
-	alphan = pkd->ew.ka;
-	r2 = dx*dx + dy*dy + dz*dz;
-	r2 *= pkd->ew.alpha2;
-	g0 = alphan*((1.0/3.0)*r2 - 1.0);
-	alphan *= 2*pkd->ew.alpha2;
-	g1 = alphan*((1.0/5.0)*r2 - (1.0/3.0));
-	alphan *= 2*pkd->ew.alpha2;
-	g2 = alphan*((1.0/7.0)*r2 - (1.0/5.0));
-	alphan *= 2*pkd->ew.alpha2;
-	g3 = alphan*((1.0/9.0)*r2 - (1.0/7.0));
-	alphan *= 2*pkd->ew.alpha2;
-	g4 = alphan*((1.0/11.0)*r2 - (1.0/9.0));
-	alphan *= 2*pkd->ew.alpha2;
-	g5 = alphan*((1.0/13.0)*r2 - (1.0/11.0));
-	evalEwald(&pkd->ew,&ax,&ay,&az,&fPot,dx,dy,dz,&mom,g0,g1,g2,g3,g4,g5);
-	}
-#else
-
     for (ix=-pkd->ew.nEwReps;ix<=pkd->ew.nEwReps;++ix) {
-#ifdef USE_FORMALLY_CORRECT_EWALD
 	bInHolex = (abs(ix) <= pkd->ew.nReps);
-#endif
 	x = dx + ix*L;
 	for (iy=-pkd->ew.nEwReps;iy<=pkd->ew.nEwReps;++iy) {
-#ifdef USE_FORMALLY_CORRECT_EWALD
 	    bInHolexy = (bInHolex && abs(iy) <= pkd->ew.nReps);
-#endif
 	    y = dy + iy*L;
 	    for (iz=-pkd->ew.nEwReps;iz<=pkd->ew.nEwReps;++iz) {
-#ifdef USE_FORMALLY_CORRECT_EWALD
 		bInHole = (bInHolexy && abs(iz) <= pkd->ew.nReps);
-#endif
 		/*
 		** Scoring for Ewald inner stuff = (+,*)
 		**		Visible ops 		= (104,161)
@@ -695,9 +617,7 @@ int pkdParticleEwald(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
 		*/
 		z = dz + iz*L;
 		r2 = x*x + y*y + z*z;
-#ifdef USE_FORMALLY_CORRECT_EWALD
 		if (r2 > pkd->ew.fEwCut2 && !bInHole) continue;
-#endif
 		if (r2 < pkd->ew.fInner2) {
 		    /*
 		     * For small r, series expand about
@@ -735,16 +655,12 @@ int pkdParticleEwald(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
 		    ** We currently switch from 1 replica to 2 replicates at at
 		    ** theta of 0.5 which corresponds to an RMS error of ~1e-4.
 		    */
-#ifdef USE_FORMALLY_CORRECT_EWALD
 		    if (bInHole) {
 			g0 = -erf(pkd->ew.alpha*r2*dir);
 			}
 		    else {
 			g0 = erfc(pkd->ew.alpha*r2*dir);
 			}
-#else
-		    g0 = -erf(pkd->ew.alpha*r2*dir);
-#endif
 		    g0 *= dir;
 		    g1 = g0*dir2 + a;
 		    alphan = 2*pkd->ew.alpha2;
@@ -761,8 +677,6 @@ int pkdParticleEwald(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
 		}
 	    }
 	}
-#endif
-
     /*
     ** Scoring for the h-loop (+,*)
     ** 	Without trig = (10,14)
@@ -794,6 +708,7 @@ void pkdEwaldInit(PKD pkd,int nReps,double fEwCut,double fhCut) {
     double k4,L;
     double gam[6],mfacc,mfacs;
     double ax,ay,az,dx,dy,dz;
+    int bInHole,bInHolex,bInHolexy;
     const int iOrder = 4;
 
     L = pkd->fPeriod[0];
@@ -851,12 +766,8 @@ void pkdEwaldInit(PKD pkd,int nReps,double fEwCut,double fhCut) {
     pkd->ew.Q3z = 0.5*(mom.xxz + mom.yyz + mom.zzz);
     pkd->ew.Q2 = 0.5*(mom.xx + mom.yy + mom.zz);
     pkd->ew.nReps = nReps;
-#ifdef USE_FORMALLY_CORRECT_EWALD
     pkd->ew.nEwReps = d2i(ceil(fEwCut));
     pkd->ew.nEwReps = pkd->ew.nEwReps > nReps ? pkd->ew.nEwReps : nReps;
-#else
-    pkd->ew.nEwReps = nReps;
-#endif
     pkd->ew.fEwCut2 = fEwCut*fEwCut*L*L;
     pkd->ew.fInner2 = 1.2e-3*L*L;
     pkd->ew.alpha = 2.0/L;
@@ -940,17 +851,23 @@ void pkdEwaldInit(PKD pkd,int nReps,double fEwCut,double fhCut) {
 	assert(pkd->ew.ewt.Ly.d!=NULL);
 	pkd->ew.ewt.Lz.d = SIMD_malloc(pkd->ew.nMaxEwLoopInner*sizeof(pkd->ew.ewt.Lz.d));
 	assert(pkd->ew.ewt.Lz.d!=NULL);
+	pkd->ew.ewt.doerfc.d = SIMD_malloc(pkd->ew.nMaxEwLoopInner*sizeof(pkd->ew.ewt.doerfc.d));
+	assert(pkd->ew.ewt.doerfc.d!=NULL);
 	i = 0;
 	for (ix=-pkd->ew.nEwReps;ix<=pkd->ew.nEwReps;++ix) {
+	    bInHolex = (abs(ix) <= pkd->ew.nReps);
 	    dx = ix*L;
 	    for (iy=-pkd->ew.nEwReps;iy<=pkd->ew.nEwReps;++iy) {
+		bInHolexy = (bInHolex && abs(iy) <= pkd->ew.nReps);
 		dy = iy*L;
 		for (iz=-pkd->ew.nEwReps;iz<=pkd->ew.nEwReps;++iz) {
+		    bInHole = (bInHolexy && abs(iz) <= pkd->ew.nReps);
 		    if (ix||iy||iz) { /* We treat 0,0,0 specially */
 			dz = iz*L;
 			pkd->ew.ewt.Lx.d[i] = dx;
 			pkd->ew.ewt.Ly.d[i] = dy;
 			pkd->ew.ewt.Lz.d[i] = dz;
+			pkd->ew.ewt.doerfc.i[i] = bInHole ? 0 : UINT64_MAX;
 			++i;
 			}
 		    }
@@ -962,6 +879,7 @@ void pkdEwaldInit(PKD pkd,int nReps,double fEwCut,double fhCut) {
 	pkd->ew.ewt.Lx.d[i] = 0;
 	pkd->ew.ewt.Ly.d[i] = 0;
 	pkd->ew.ewt.Lz.d[i] = 0;
+	pkd->ew.ewt.doerfc.i[i] = 0;
 	++i;
 	}
     i = 0;

@@ -507,6 +507,7 @@ typedef union {
 #if defined(USE_SIMD) && !defined(__CUDACC__)
     v_df *p;
 #endif
+    uint64_t *i;
     } ewaldDouble;
 
 struct EwaldVariables {
@@ -515,7 +516,7 @@ struct EwaldVariables {
     struct {
 	ewaldFloat hx,hy,hz;
 	ewaldFloat hCfac,hSfac;
-	ewaldDouble Lx,Ly,Lz;
+	ewaldDouble Lx,Ly,Lz,doerfc;
 	} ewt;
 #if defined(USE_SIMD) && !defined(__CUDACC__)
     struct {
