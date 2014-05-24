@@ -538,19 +538,15 @@ int pkdParticleEwaldSIMD(PKD pkd,uint8_t uRungLo,uint8_t uRungHi, PARTICLE *p, f
 	printf("TOTAL %g\n", ((double*)&dax)[0] + ((double*)&dax)[1] + ((double*)&dax)[2] + ((double*)&dax)[3] );
 	}
 
-
-
     /* h-loop is done in float precision */
     fax = SIMD_D2F(dax);
     fay = SIMD_D2F(day);
     faz = SIMD_D2F(daz);
     fPot = SIMD_D2F(dPot);
 
-
     fx = SIMD_SPLAT(x);
     fy = SIMD_SPLAT(y);
     fz = SIMD_SPLAT(z);
-
 
     nLoop = (pkd->ew.nEwhLoop+SIMD_MASK) >> SIMD_BITS;
     i = 0;
@@ -591,7 +587,6 @@ int pkdParticleEwald(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     int bInHole,bInHolex,bInHolexy;
     int nFlop;
     int nLoop = 0;
-    float hdotx,s,c,t;
 
     assert(pkd->oAcceleration); /* Validate memory model */
     assert(pkd->oPotential); /* Validate memory model */
@@ -683,9 +678,10 @@ int pkdParticleEwald(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     **					 = 58
     */
     for (i=0;i<pkd->ew.nEwhLoop;++i) {
+	double hdotx,s,c,t;
 	hdotx = pkd->ew.ewt.hx.f[i]*dx + pkd->ew.ewt.hy.f[i]*dy + pkd->ew.ewt.hz.f[i]*dz;
-	c = cosf(hdotx);
-	s = sinf(hdotx);
+	c = cos(hdotx);
+	s = sin(hdotx);
 	fPot += pkd->ew.ewt.hCfac.f[i]*c + pkd->ew.ewt.hSfac.f[i]*s;
 	t = pkd->ew.ewt.hCfac.f[i]*s - pkd->ew.ewt.hSfac.f[i]*c;
 	ax += pkd->ew.ewt.hx.f[i]*t;
@@ -773,24 +769,6 @@ void pkdEwaldInit(PKD pkd,int nReps,double fEwCut,double fhCut) {
     pkd->ew.alpha2 = pkd->ew.alpha*pkd->ew.alpha;
     pkd->ew.k1 = M_PI/(pkd->ew.alpha2*L*L*L);
     pkd->ew.ka = 2.0*pkd->ew.alpha/sqrt(M_PI);
-
-    /*
-    ** We have made certain assumptions about the COM in order to optimize
-    ** the erf/erfc parts. In particular, the erf function is accurate only
-    ** in the range [0.65,6.0]. The range for the replicas are:
-    **   1 replica:  [1.0,3.0] - COM
-    **   2 replicas: [3.0,5.0] - COM
-    **   3 replicas: [5.0,7.0] - COM
-    **   4 replicas: [7.0,9.0] - COM
-    ** an erfc(2.75) gives about 1e-4 which is the target RMS for 1 replica.
-    */
-    if (nReps==1) {
-	assert((1.5 - fabs(pkdTopNode(pkd,ROOT)->r[0]/L)) * pkd->ew.alpha*L > 2.75);
-	assert((1.5 - fabs(pkdTopNode(pkd,ROOT)->r[1]/L)) * pkd->ew.alpha*L > 2.75);
-	assert((1.5 - fabs(pkdTopNode(pkd,ROOT)->r[2]/L)) * pkd->ew.alpha*L > 2.75);
-	}
-    assert(nReps<=4);
-
 #if defined(USE_SIMD_EWALD) && defined(__SSE2__)
     pkd->ew.ewp.Q4xx.p = SIMD_DSPLAT(pkd->ew.Q4xx);
     pkd->ew.ewp.Q4xy.p = SIMD_DSPLAT(pkd->ew.Q4xy);

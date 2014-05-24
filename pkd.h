@@ -496,9 +496,11 @@ typedef struct RhoLocalArray {
     } RHOLOCAL;
 
 typedef union {
-    float *f;
 #if defined(USE_SIMD) && !defined(__CUDACC__)
+    float *f;
     v_sf *p;
+#else
+    double *f;
 #endif
     } ewaldFloat;
 
