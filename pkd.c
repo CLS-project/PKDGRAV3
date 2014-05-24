@@ -523,7 +523,6 @@ void pkdInitialize(
     /*
     ** Ewald stuff!
     */
-    pkd->ew.nMaxEwLoopInner = 0;
     pkd->ew.nMaxEwhLoop = 0;
     *ppkd = pkd;
     /*
@@ -667,11 +666,6 @@ void pkdFinish(PKD pkd) {
 	SIMD_free(pkd->ew.ewt.hz.f);
 	SIMD_free(pkd->ew.ewt.hCfac.f);
 	SIMD_free(pkd->ew.ewt.hSfac.f);
-	}
-    if (pkd->ew.nMaxEwLoopInner) {
-	SIMD_free(pkd->ew.ewt.Lx.d);
-	SIMD_free(pkd->ew.ewt.Ly.d);
-	SIMD_free(pkd->ew.ewt.Lz.d);
 	}
 
     free(pkd->pClass);

@@ -99,11 +99,13 @@ typedef vector bool int v_i;
 typedef union {
     float f[SIMD_WIDTH];
     v_sf p;
+    float i[SIMD_WIDTH];
     } vfloat;
 
 typedef union {
     double d[SIMD_DWIDTH];
     v_df p;
+    uint64_t i[SIMD_DWIDTH];
     } vdouble;
 
 typedef union {
@@ -359,9 +361,16 @@ static inline v_df SIMD_DLOADS(double f) {
 #define SIMD_DMUL(a,b) MM_FCN(mul,pd)(a,b)
 #define SIMD_DADD(a,b) MM_FCN(add,pd)(a,b)
 #define SIMD_DSUB(a,b) MM_FCN(sub,pd)(a,b)
-#ifdef __FMA4__
-#define SIMD_DMADD(a,b,c) MM_FCN(macc,pd)(a,b,c)
-#define SIMD_DNMADD(a,b,c) MM_FCN(nmacc,pd)(a,b,c)
+#if defined(__FMA4__)
+#define SIMD_DMADD(a,b,c) MM_FCN(macc,pd)(a,b,c)    /*  (a*b) + c */
+#define SIMD_DMSUB(a,b,c) MM_FCN(msub,pd)(a,b,c)    /*  (a*b) - c */
+#define SIMD_DNMADD(a,b,c) MM_FCN(nmacc,pd)(a,b,c)  /* -(a*b) + c */
+#define SIMD_DNMSUB(a,b,c) MM_FCN(nmsub,pd)(a,b,c)  /* -(a*b) - c */
+#elif defined(__FMA__)
+#define SIMD_DMADD(a,b,c) MM_FCN(fmadd,pd)(a,b,c)   /*  (a*b) + c */
+#define SIMD_DMSUB(a,b,c) MM_FCN(fmsub,pd)(a,b,c)   /*  (a*b) - c */
+#define SIMD_DNMADD(a,b,c) MM_FCN(fnmadd,pd)(a,b,c) /* -(a*b) + c */
+#define SIMD_DNMSUB(a,b,c) MM_FCN(fnmsub,pd)(a,b,c) /* -(a*b) - c */
 #else
 #define SIMD_DMADD(a,b,c) MM_FCN(add,pd)(MM_FCN(mul,pd)(a,b),c)
 #define SIMD_DNMADD(a,b,c) MM_FCN(sub,pd)(c,MM_FCN(mul,pd)(a,b))

@@ -516,7 +516,6 @@ struct EwaldVariables {
     struct {
 	ewaldFloat hx,hy,hz;
 	ewaldFloat hCfac,hSfac;
-	ewaldDouble Lx,Ly,Lz,doerfc;
 	} ewt;
 #if defined(USE_SIMD) && !defined(__CUDACC__)
     struct {
@@ -533,7 +532,7 @@ struct EwaldVariables {
 	vdouble Q4xx,Q4xy,Q4xz,Q4yy,Q4yz,Q4zz,Q4,Q3x,Q3y,Q3z,Q2;
 	} ewp;
 #endif
-    int nMaxEwLoopInner, nMaxEwhLoop;
+    int nMaxEwhLoop;
     int nEwLoopInner, nEwhLoop;
     int nReps,nEwReps;
     };

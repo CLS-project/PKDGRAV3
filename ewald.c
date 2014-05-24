@@ -77,64 +77,6 @@ static int evalEwald(struct EwaldVariables *ew,double *ax, double *ay, double *a
     return 447;
     }
 
-static int evalMainBox(struct EwaldVariables *ew,double *ax, double *ay, double *az, double *fPot,
-    double x, double y, double z, const MOMC * restrict mom) {
-    double r2,dir,dir2,a,alphan,L;
-    double g0,g1,g2,g3,g4,g5;
-
-    r2 = x*x + y*y + z*z;
-    if (r2 < ew->fInner2) {
-	/*
-	 * For small r, series expand about
-	 * the origin to avoid errors caused
-	 * by cancellation of large terms.
-	 */
-	alphan = ew->ka;
-	r2 *= ew->alpha2;
-	g0 = alphan*((1.0/3.0)*r2 - 1.0);
-	alphan *= 2*ew->alpha2;
-	g1 = alphan*((1.0/5.0)*r2 - (1.0/3.0));
-	alphan *= 2*ew->alpha2;
-	g2 = alphan*((1.0/7.0)*r2 - (1.0/5.0));
-	alphan *= 2*ew->alpha2;
-	g3 = alphan*((1.0/9.0)*r2 - (1.0/7.0));
-	alphan *= 2*ew->alpha2;
-	g4 = alphan*((1.0/11.0)*r2 - (1.0/9.0));
-	alphan *= 2*ew->alpha2;
-	g5 = alphan*((1.0/13.0)*r2 - (1.0/11.0));
-	}
-    else {
-	dir = 1/sqrt(r2);
-	dir2 = dir*dir;
-	a = exp(-r2*ew->alpha2);
-	a *= ew->ka*dir2;
-	/*
-	** We can get away with not using erfc because it is vanishing
-	** if the following are true:
-	** 1. The center of mass is near/at the centre of the box,
-	** 2. We use 1 replica for RMS error < ~1e-4 (erfc 3 = 2.2e-5)
-	** 3. We use 2 replicas for smaller RMS  (erfc 5 = 1.5e-12)
-	** Worst case with COM near the edge:
-	** 1 replica:  erfc 2 = 4.6e-3 (this would be wrong)
-	** 2 replicas: erfc 4 = 1.5e-8
-	** We currently switch from 1 replica to 2 replicates at at
-	** theta of 0.5 which corresponds to an RMS error of ~1e-4.
-	*/
-	g0 = -erf(ew->alpha*r2*dir);
-	g0 *= dir;
-	g1 = g0*dir2 + a;
-	alphan = 2*ew->alpha2;
-	g2 = 3*g1*dir2 + alphan*a;
-	alphan *= 2*ew->alpha2;
-	g3 = 5*g2*dir2 + alphan*a;
-	alphan *= 2*ew->alpha2;
-	g4 = 7*g3*dir2 + alphan*a;
-	alphan *= 2*ew->alpha2;
-	g5 = 9*g4*dir2 + alphan*a;
-	}
-    return 58 + evalEwald(ew,ax,ay,az,fPot,x,y,z,mom,g0,g1,g2,g3,g4,g5);
-    }
-
 #if defined(USE_SIMD_EWALD) && defined(__SSE2__)
 static const struct CONSTS {
     vdouble onequarter,onethird,half,one,two,three,five,seven,nine;
@@ -207,11 +149,13 @@ static const struct CONSTS {
 static const struct ICONSTS {
     vint64 isignmask;
     vint64 fixmasks[4];
+    vint64 keepmask[4];
     vint i0x7f;
     vint i1023;
     } iconsts = {
         {SIMD_CONST(0x8000000000000000)},
 	{{0,0,0,0},{0,-1,-1,-1},{0,0,-1,-1},{0,0,0,-1}},
+	{{0,0,0,0},{-1,0,0,0},{-1,-1,0,0},{-1,-1,-1,0}},
         {SIMD_CONST(0x7f)},
         {SIMD_CONST(1023)},
     };
@@ -246,6 +190,7 @@ extern __m256d __svml_invsqrt4(__m256d a);
 #define SET_PREFACTOR(q) q = SIMD_DADD(SIMD_DADD(consts.q##a.p,SIMD_DAND(pred0,consts.q##b.p)),SIMD_DADD(SIMD_DAND(pred1,consts.q##c.p),SIMD_DAND(pred2,consts.q##d.p)))
 #endif
 
+/* Cost: AVX: 30 ops, SSE: 33 */
 v_df vexp(v_df x) {
     v_df d,xx,pow2n,Pexp,Qexp;
     v_i4 n1,n2;
@@ -280,8 +225,9 @@ v_df vexp(v_df x) {
     }
 
 /*
-** This is an optimized version of erf that is accurate (without ERF_FULL_RANGE)
-** in the range [0.65,9.0]. This is ideal for ewald replicas.
+** This is an optimized version of erf that is accurate for all ranges.
+** The exp() value is passed in because it it needed outside as well.
+** Cost: AVX: 105, SSE: 172
 */
 v_df verf(v_df v,v_df iv,v_df ex2,v_df *r_erf,v_df *r_erfc) {
     v_df p0,p1,p2,p3,p4,p5,q0,q1,q2,q3,q4,q5,Perf,Qerf,v2;
@@ -325,225 +271,287 @@ v_df verf(v_df v,v_df iv,v_df ex2,v_df *r_erf,v_df *r_erfc) {
     }
 #endif
 
+int evalEwaldSIMD( struct EwaldVariables *ew, v_df *ax, v_df *ay, v_df *az, v_df *dPot, v_df x, v_df y, v_df z, v_df r2, v_df doerfc ) {
+    v_df dir,dir2,a,g0,g1,g2,g3,g4,g5,alphan;
+    v_df xx,xxx,xxy,xxz,yy,yyy,yyz,xyy,zz,zzz,xzz,yzz,xy,xyz,xz,yz;
+    v_df Qta,Q4mirx,Q4miry,Q4mirz,Q4mir,Q4x,Q4y,Q4z;
+    v_df Q3mirx,Q3miry,Q3mirz,Q3mir,Q2mirx,Q2miry,Q2mirz,Q2mir;
+    v_df rerf,rerfc,ex2,t,tx,ty,tz,tpot;
+    v_df alpha2x2 = SIMD_DMUL(consts.two.p,ew->ewp.alpha2.p);
+
+    dir = vrsqrt(r2);
+    dir2 = SIMD_DMUL(dir,dir);
+    ex2 = vexp(SIMD_DMUL(SIMD_DXOR(r2,iconsts.isignmask.pd),ew->ewp.alpha2.p));
+    a = SIMD_DMUL(ex2,SIMD_DMUL(ew->ewp.ka.p,dir2));
+    verf(SIMD_DMUL(ew->ewp.alpha.p,SIMD_DMUL(r2,dir)),SIMD_DMUL(ew->ewp.ialpha.p,dir),ex2,&rerf,&rerfc);
+    g0 = SIMD_DMUL(dir,SIMD_DSELECT(SIMD_DXOR(rerf,iconsts.isignmask.pd),rerfc,doerfc));
+    g1 = SIMD_DMADD(g0,dir2,a);
+    alphan = alpha2x2;
+    g2 = SIMD_DMADD(SIMD_DMUL(consts.three.p,dir2),g1,SIMD_DMUL(alphan,a));
+    alphan = SIMD_DMUL(alphan,alpha2x2);
+    g3 = SIMD_DMADD(SIMD_DMUL(consts.five.p,dir2),g2,SIMD_DMUL(alphan,a));
+    alphan = SIMD_DMUL(alphan,alpha2x2);
+    g4 = SIMD_DMADD(SIMD_DMUL(consts.seven.p,dir2),g3,SIMD_DMUL(alphan,a));
+    alphan = SIMD_DMUL(alphan,alpha2x2);
+    g5 = SIMD_DMADD(SIMD_DMUL(consts.nine.p,dir2),g4,SIMD_DMUL(alphan,a));
+    xx = SIMD_DMUL(x,SIMD_DMUL(x,consts.half.p));
+    xxx = SIMD_DMUL(xx,SIMD_DMUL(x,consts.onethird.p));
+    xxy = SIMD_DMUL(xx,y);
+    xxz = SIMD_DMUL(xx,z);
+    yy = SIMD_DMUL(y,SIMD_DMUL(y,consts.half.p));
+    yyy = SIMD_DMUL(yy,SIMD_DMUL(y,consts.onethird.p));
+    xyy = SIMD_DMUL(yy,x);
+    yyz = SIMD_DMUL(yy,z);
+    zz = SIMD_DMUL(z,SIMD_DMUL(z,consts.half.p));
+    zzz = SIMD_DMUL(zz,SIMD_DMUL(z,consts.onethird.p));
+    xzz = SIMD_DMUL(zz,x);
+    yzz = SIMD_DMUL(zz,y);
+    xy = SIMD_DMUL(x,y);
+    xyz = SIMD_DMUL(xy,z);
+    xz = SIMD_DMUL(x,z);
+    yz = SIMD_DMUL(y,z);
+    Q2mirx = SIMD_DMUL(ew->ewm.xx.p,x);
+    Q2mirx = SIMD_DMADD(ew->ewm.xy.p,y,Q2mirx);
+    Q2mirx = SIMD_DMADD(ew->ewm.xz.p,z,Q2mirx);
+    Q2miry = SIMD_DMUL(ew->ewm.xy.p,x);
+    Q2miry = SIMD_DMADD(ew->ewm.yy.p,y,Q2miry);
+    Q2miry = SIMD_DMADD(ew->ewm.yz.p,z,Q2miry);
+    Q2mirz = SIMD_DMUL(ew->ewm.xz.p,x);
+    Q2mirz = SIMD_DMADD(ew->ewm.yz.p,y,Q2mirz);
+    Q2mirz = SIMD_DMADD(ew->ewm.zz.p,z,Q2mirz);
+    Q3mirx = SIMD_DMUL(ew->ewm.xxx.p,xx);
+    Q3mirx = SIMD_DMADD(ew->ewm.xxy.p,xy,Q3mirx);
+    Q3mirx = SIMD_DMADD(ew->ewm.xxz.p,xz,Q3mirx);
+    Q3mirx = SIMD_DMADD(ew->ewm.xyy.p,yy,Q3mirx);
+    Q3mirx = SIMD_DMADD(ew->ewm.xyz.p,yz,Q3mirx);
+    Q3mirx = SIMD_DMADD(ew->ewm.xzz.p,zz,Q3mirx);
+    Q3miry = SIMD_DMUL(ew->ewm.xxy.p,xx);
+    Q3miry = SIMD_DMADD(ew->ewm.xyy.p,xy,Q3miry);
+    Q3miry = SIMD_DMADD(ew->ewm.xyz.p,xz,Q3miry);
+    Q3miry = SIMD_DMADD(ew->ewm.yyy.p,yy,Q3miry);
+    Q3miry = SIMD_DMADD(ew->ewm.yyz.p,yz,Q3miry);
+    Q3miry = SIMD_DMADD(ew->ewm.yzz.p,zz,Q3miry);
+    Q3mirz = SIMD_DMUL(ew->ewm.xxz.p,xx);
+    Q3mirz = SIMD_DMADD(ew->ewm.xyz.p,xy,Q3mirz);
+    Q3mirz = SIMD_DMADD(ew->ewm.xzz.p,xz,Q3mirz);
+    Q3mirz = SIMD_DMADD(ew->ewm.yyz.p,yy,Q3mirz);
+    Q3mirz = SIMD_DMADD(ew->ewm.yzz.p,yz,Q3mirz);
+    Q3mirz = SIMD_DMADD(ew->ewm.zzz.p,zz,Q3mirz);
+    Q4mirx = SIMD_DMUL(ew->ewm.xxxx.p,xxx);
+    Q4mirx = SIMD_DMADD(ew->ewm.xxxy.p,xxy,Q4mirx);
+    Q4mirx = SIMD_DMADD(ew->ewm.xxxz.p,xxz,Q4mirx);
+    Q4mirx = SIMD_DMADD(ew->ewm.xxyy.p,xyy,Q4mirx);
+    Q4mirx = SIMD_DMADD(ew->ewm.xxyz.p,xyz,Q4mirx);
+    Q4mirx = SIMD_DMADD(ew->ewm.xxzz.p,xzz,Q4mirx);
+    Q4mirx = SIMD_DMADD(ew->ewm.xyyy.p,yyy,Q4mirx);
+    Q4mirx = SIMD_DMADD(ew->ewm.xyyz.p,yyz,Q4mirx);
+    Q4mirx = SIMD_DMADD(ew->ewm.xyzz.p,yzz,Q4mirx);
+    Q4mirx = SIMD_DMADD(ew->ewm.xzzz.p,zzz,Q4mirx);
+    Q4miry = SIMD_DMUL(ew->ewm.xxxy.p,xxx);
+    Q4miry = SIMD_DMADD(ew->ewm.xxyy.p,xxy,Q4miry);
+    Q4miry = SIMD_DMADD(ew->ewm.xxyz.p,xxz,Q4miry);
+    Q4miry = SIMD_DMADD(ew->ewm.xyyy.p,xyy,Q4miry);
+    Q4miry = SIMD_DMADD(ew->ewm.xyyz.p,xyz,Q4miry);
+    Q4miry = SIMD_DMADD(ew->ewm.xyzz.p,xzz,Q4miry);
+    Q4miry = SIMD_DMADD(ew->ewm.yyyy.p,yyy,Q4miry);
+    Q4miry = SIMD_DMADD(ew->ewm.yyyz.p,yyz,Q4miry);
+    Q4miry = SIMD_DMADD(ew->ewm.yyzz.p,yzz,Q4miry);
+    Q4miry = SIMD_DMADD(ew->ewm.yzzz.p,zzz,Q4miry);
+    Q4mirz = SIMD_DMUL(ew->ewm.xxxz.p,xxx);
+    Q4mirz = SIMD_DMADD(ew->ewm.xxyz.p,xxy,Q4mirz);
+    Q4mirz = SIMD_DMADD(ew->ewm.xxzz.p,xxz,Q4mirz);
+    Q4mirz = SIMD_DMADD(ew->ewm.xyyz.p,xyy,Q4mirz);
+    Q4mirz = SIMD_DMADD(ew->ewm.xyzz.p,xyz,Q4mirz);
+    Q4mirz = SIMD_DMADD(ew->ewm.xzzz.p,xzz,Q4mirz);
+    Q4mirz = SIMD_DMADD(ew->ewm.yyyz.p,yyy,Q4mirz);
+    Q4mirz = SIMD_DMADD(ew->ewm.yyzz.p,yyz,Q4mirz);
+    Q4mirz = SIMD_DMADD(ew->ewm.yzzz.p,yzz,Q4mirz);
+    Q4mirz = SIMD_DMADD(ew->ewm.zzzz.p,zzz,Q4mirz);
+    Q4x = SIMD_DMUL(ew->ewp.Q4xx.p,x);
+    Q4x = SIMD_DMADD(ew->ewp.Q4xy.p,y,Q4x);
+    Q4x = SIMD_DMADD(ew->ewp.Q4xz.p,z,Q4x);
+    Q4y = SIMD_DMUL(ew->ewp.Q4xy.p,x);
+    Q4y = SIMD_DMADD(ew->ewp.Q4yy.p,y,Q4y);
+    Q4y = SIMD_DMADD(ew->ewp.Q4yz.p,z,Q4y);
+    Q4z = SIMD_DMUL(ew->ewp.Q4xz.p,x);
+    Q4z = SIMD_DMADD(ew->ewp.Q4yz.p,y,Q4z);
+    Q4z = SIMD_DMADD(ew->ewp.Q4zz.p,z,Q4z);
+    Q2mir = SIMD_DMUL(Q2mirx,x);
+    Q2mir = SIMD_DMADD(Q2miry,y,Q2mir);
+    Q2mir = SIMD_DMADD(Q2mirz,z,Q2mir);
+    Q2mir = SIMD_DMUL(Q2mir,consts.half.p);
+    Q2mir = SIMD_DSUB(Q2mir,SIMD_DMUL(ew->ewp.Q3x.p,x));
+    Q2mir = SIMD_DSUB(Q2mir,SIMD_DMUL(ew->ewp.Q3y.p,y));
+    Q2mir = SIMD_DSUB(Q2mir,SIMD_DMUL(ew->ewp.Q3z.p,z));
+    Q2mir = SIMD_DADD(Q2mir,ew->ewp.Q4.p);
+    Q3mir = SIMD_DMUL(Q3mirx,x);
+    Q3mir = SIMD_DMADD(Q3miry,y,Q3mir);
+    Q3mir = SIMD_DMADD(Q3mirz,z,Q3mir);
+    Q3mir = SIMD_DMUL(Q3mir,consts.onethird.p);
+    t =             SIMD_DMUL(Q4x,x);
+    t = SIMD_DMADD(Q4y,y,t);
+    t = SIMD_DMADD(Q4z,z,t);
+    t = SIMD_DMUL(t,consts.half.p);
+    Q3mir = SIMD_DSUB(Q3mir,t);
+    Q4mir =                 SIMD_DMUL(Q4mirx,x);
+    Q4mir = SIMD_DMADD(Q4miry,y,Q4mir);
+    Q4mir = SIMD_DMADD(Q4mirz,z,Q4mir);
+    Q4mir = SIMD_DMUL(Q4mir,consts.onequarter.p);
+    Qta = SIMD_DMUL(g1,ew->ewm.m.p);
+    Qta = SIMD_DSUB(Qta,SIMD_DMUL(g2,ew->ewp.Q2.p));
+    Qta = SIMD_DMADD(g3,Q2mir,Qta);
+    Qta = SIMD_DMADD(g4,Q3mir,Qta);
+    Qta = SIMD_DMADD(g5,Q4mir,Qta);
+    tpot = SIMD_DMUL(g0,ew->ewm.m.p);
+    tpot = SIMD_DSUB(tpot,SIMD_DMUL(g1,ew->ewp.Q2.p));
+    tpot = SIMD_DMADD(g2,Q2mir,tpot);
+    tpot = SIMD_DMADD(g3,Q3mir,tpot);
+    tpot = SIMD_DMADD(g4,Q4mir,tpot);
+    tx = SIMD_DMUL(g2,SIMD_DSUB(Q2mirx,ew->ewp.Q3x.p));
+    tx = SIMD_DADD(tx,SIMD_DMUL(g3,SIMD_DSUB(Q3mirx,Q4x)));
+    tx = SIMD_DADD(tx,SIMD_DMUL(g4,Q4mirx));
+    tx = SIMD_DSUB(tx,SIMD_DMUL(x,Qta));
+    ty = SIMD_DMUL(g2,SIMD_DSUB(Q2miry,ew->ewp.Q3y.p));
+    ty = SIMD_DADD(ty,SIMD_DMUL(g3,SIMD_DSUB(Q3miry,Q4y)));
+    ty = SIMD_DADD(ty,SIMD_DMUL(g4,Q4miry));
+    ty = SIMD_DSUB(ty,SIMD_DMUL(y,Qta));
+    tz = SIMD_DMUL(g2,SIMD_DSUB(Q2mirz,ew->ewp.Q3z.p));
+    tz = SIMD_DADD(tz,SIMD_DMUL(g3,SIMD_DSUB(Q3mirz,Q4z)));
+    tz = SIMD_DADD(tz,SIMD_DMUL(g4,Q4mirz));
+    tz = SIMD_DSUB(tz,SIMD_DMUL(z,Qta));
+
+    *dPot = tpot;
+    *ax = tx;
+    *ay = ty;
+    *az = tz;
+    return 447 * SIMD_WIDTH;
+    }
 
 
-
-
-int pkdParticleEwaldSIMD(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
-    PARTICLE *p, float *pa, float *pPot) {
+int pkdParticleEwaldSIMD(PKD pkd,uint8_t uRungLo,uint8_t uRungHi, PARTICLE *p, float *pa, float *pPot) {
+    MOMC mom = pkd->momRoot;
     struct EwaldVariables *ew = &pkd->ew;
-    v_df ax,ay,az,L,dPot,dx,dy,dz,alpha2x2,rerf,rerfc,ex2;
-    v_df tx,ty,tz,tpot,t;
+    double L,Pot,ax,ay,az,dx,dy,dz,x,y,z,r2;
+    v_df dPot,dax,day,daz;
     v_sf fPot,fax,fay,faz,fx,fy,fz;
-    double px,py,pz,a1,a2,a3,p1;
-    int i, nLoop;
-    const v_df *Lx = ew->ewt.Lx.p;
-    const v_df *Ly = ew->ewt.Ly.p;
-    const v_df *Lz = ew->ewt.Lz.p;
-    const v_df *doerfc = ew->ewt.doerfc.p;
+    vdouble px, py, pz, pr2, doerfc;
+    int i,ix,iy,iz;
+    int bInHole,bInHolex,bInHolexy;
+    int nFlop = 0;
+    int nLoop = 0;
+    int nSIMD = 0;
+    float hdotx,s,c,t;
 
     assert(pkd->oAcceleration); /* Validate memory model */
     assert(pkd->oPotential); /* Validate memory model */
-
     if (!pkdIsDstActive(p,uRungLo,uRungHi)) return 0;
 
-    alpha2x2 = SIMD_DMUL(consts.two.p,ew->ewp.alpha2.p);
-    L = SIMD_DSPLAT(pkd->fPeriod[0]);
+    L = pkd->fPeriod[0];
+    dx = p->r[0] - pkdTopNode(pkd,ROOT)->r[0];
+    dy = p->r[1] - pkdTopNode(pkd,ROOT)->r[1];
+    dz = p->r[2] - pkdTopNode(pkd,ROOT)->r[2];
+
     dPot = SIMD_DSPLAT(ew->ewm.m.d[0]*pkd->ew.k1);
-    ax = SIMD_DSPLAT(0.0);
-    ay = SIMD_DSPLAT(0.0);
-    az = SIMD_DSPLAT(0.0);
-    px = p->r[0] - pkdTopNode(pkd,ROOT)->r[0];
-    py = p->r[1] - pkdTopNode(pkd,ROOT)->r[1];
-    pz = p->r[2] - pkdTopNode(pkd,ROOT)->r[2];
-    dx = SIMD_DSPLAT(px);
-    dy = SIMD_DSPLAT(py);
-    dz = SIMD_DSPLAT(pz);
-    fx = SIMD_SPLAT(px);
-    fy = SIMD_SPLAT(py);
-    fz = SIMD_SPLAT(pz);
+    dax = SIMD_DSPLAT(0.0);
+    day = SIMD_DSPLAT(0.0);
+    daz = SIMD_DSPLAT(0.0);
+    ax = 0.0;
+    ay = 0.0;
+    az = 0.0;
 
-    nLoop = (pkd->ew.nEwLoopInner+SIMD_DMASK) >> SIMD_DBITS;
-    i = 0;
-    do {
-	v_df x,y,z,r2,dir,dir2,a,g0,g1,g2,g3,g4,g5,alphan;
-	v_df xx,xxx,xxy,xxz,yy,yyy,yyz,xyy,zz,zzz,xzz,yzz,xy,xyz,xz,yz;
-	v_df Qta,Q4mirx,Q4miry,Q4mirz,Q4mir,Q4x,Q4y,Q4z;
-	v_df Q3mirx,Q3miry,Q3mirz,Q3mir,Q2mirx,Q2miry,Q2mirz,Q2mir;
 
-	x = SIMD_DADD(dx,Lx[i]);
-	y = SIMD_DADD(dy,Ly[i]);
-	z = SIMD_DADD(dz,Lz[i]);
-	r2 = SIMD_DMADD(z,z,SIMD_DMADD(y,y,SIMD_DMUL(x,x)));
-	dir = vrsqrt(r2);
-	dir2 = SIMD_DMUL(dir,dir);
-	ex2 = vexp(SIMD_DMUL(SIMD_DXOR(r2,iconsts.isignmask.pd),ew->ewp.alpha2.p));
-	a = SIMD_DMUL(ex2,SIMD_DMUL(ew->ewp.ka.p,dir2));
-	verf(SIMD_DMUL(ew->ewp.alpha.p,SIMD_DMUL(r2,dir)),SIMD_DMUL(ew->ewp.ialpha.p,dir),ex2,&rerf,&rerfc);
-	g0 = SIMD_DMUL(dir,SIMD_DSELECT(SIMD_DXOR(rerf,iconsts.isignmask.pd),rerfc,doerfc[i]));
-	g1 = SIMD_DMADD(g0,dir2,a);
-	alphan = alpha2x2;
-	g2 = SIMD_DMADD(SIMD_DMUL(consts.three.p,dir2),g1,SIMD_DMUL(alphan,a));
-	alphan = SIMD_DMUL(alphan,alpha2x2);
-	g3 = SIMD_DMADD(SIMD_DMUL(consts.five.p,dir2),g2,SIMD_DMUL(alphan,a));
-	alphan = SIMD_DMUL(alphan,alpha2x2);
-	g4 = SIMD_DMADD(SIMD_DMUL(consts.seven.p,dir2),g3,SIMD_DMUL(alphan,a));
-	alphan = SIMD_DMUL(alphan,alpha2x2);
-	g5 = SIMD_DMADD(SIMD_DMUL(consts.nine.p,dir2),g4,SIMD_DMUL(alphan,a));
-	xx = SIMD_DMUL(x,SIMD_DMUL(x,consts.half.p));
-	xxx = SIMD_DMUL(xx,SIMD_DMUL(x,consts.onethird.p));
-	xxy = SIMD_DMUL(xx,y);
-	xxz = SIMD_DMUL(xx,z);
-	yy = SIMD_DMUL(y,SIMD_DMUL(y,consts.half.p));
-	yyy = SIMD_DMUL(yy,SIMD_DMUL(y,consts.onethird.p));
-	xyy = SIMD_DMUL(yy,x);
-	yyz = SIMD_DMUL(yy,z);
-	zz = SIMD_DMUL(z,SIMD_DMUL(z,consts.half.p));
-	zzz = SIMD_DMUL(zz,SIMD_DMUL(z,consts.onethird.p));
-	xzz = SIMD_DMUL(zz,x);
-	yzz = SIMD_DMUL(zz,y);
-	xy = SIMD_DMUL(x,y);
-	xyz = SIMD_DMUL(xy,z);
-	xz = SIMD_DMUL(x,z);
-	yz = SIMD_DMUL(y,z);
-	Q2mirx = SIMD_DMUL(ew->ewm.xx.p,x);
-	Q2mirx = SIMD_DADD(Q2mirx,SIMD_DMUL(ew->ewm.xy.p,y));
-	Q2mirx = SIMD_DADD(Q2mirx,SIMD_DMUL(ew->ewm.xz.p,z));
-	Q2miry = SIMD_DMUL(ew->ewm.xy.p,x);
-	Q2miry = SIMD_DADD(Q2miry,SIMD_DMUL(ew->ewm.yy.p,y));
-	Q2miry = SIMD_DADD(Q2miry,SIMD_DMUL(ew->ewm.yz.p,z));
-	Q2mirz = SIMD_DMUL(ew->ewm.xz.p,x);
-	Q2mirz = SIMD_DADD(Q2mirz,SIMD_DMUL(ew->ewm.yz.p,y));
-	Q2mirz = SIMD_DADD(Q2mirz,SIMD_DMUL(ew->ewm.zz.p,z));
-	Q3mirx = SIMD_DMUL(ew->ewm.xxx.p,xx);
-	Q3mirx = SIMD_DADD(Q3mirx,SIMD_DMUL(ew->ewm.xxy.p,xy));
-	Q3mirx = SIMD_DADD(Q3mirx,SIMD_DMUL(ew->ewm.xxz.p,xz));
-	Q3mirx = SIMD_DADD(Q3mirx,SIMD_DMUL(ew->ewm.xyy.p,yy));
-	Q3mirx = SIMD_DADD(Q3mirx,SIMD_DMUL(ew->ewm.xyz.p,yz));
-	Q3mirx = SIMD_DADD(Q3mirx,SIMD_DMUL(ew->ewm.xzz.p,zz));
-	Q3miry = SIMD_DMUL(ew->ewm.xxy.p,xx);
-	Q3miry = SIMD_DADD(Q3miry,SIMD_DMUL(ew->ewm.xyy.p,xy));
-	Q3miry = SIMD_DADD(Q3miry,SIMD_DMUL(ew->ewm.xyz.p,xz));
-	Q3miry = SIMD_DADD(Q3miry,SIMD_DMUL(ew->ewm.yyy.p,yy));
-	Q3miry = SIMD_DADD(Q3miry,SIMD_DMUL(ew->ewm.yyz.p,yz));
-	Q3miry = SIMD_DADD(Q3miry,SIMD_DMUL(ew->ewm.yzz.p,zz));
-	Q3mirz = SIMD_DMUL(ew->ewm.xxz.p,xx);
-	Q3mirz = SIMD_DADD(Q3mirz,SIMD_DMUL(ew->ewm.xyz.p,xy));
-	Q3mirz = SIMD_DADD(Q3mirz,SIMD_DMUL(ew->ewm.xzz.p,xz));
-	Q3mirz = SIMD_DADD(Q3mirz,SIMD_DMUL(ew->ewm.yyz.p,yy));
-	Q3mirz = SIMD_DADD(Q3mirz,SIMD_DMUL(ew->ewm.yzz.p,yz));
-	Q3mirz = SIMD_DADD(Q3mirz,SIMD_DMUL(ew->ewm.zzz.p,zz));
-	Q4mirx = SIMD_DMUL(ew->ewm.xxxx.p,xxx);
-	Q4mirx = SIMD_DADD(Q4mirx,SIMD_DMUL(ew->ewm.xxxy.p,xxy));
-	Q4mirx = SIMD_DADD(Q4mirx,SIMD_DMUL(ew->ewm.xxxz.p,xxz));
-	Q4mirx = SIMD_DADD(Q4mirx,SIMD_DMUL(ew->ewm.xxyy.p,xyy));
-	Q4mirx = SIMD_DADD(Q4mirx,SIMD_DMUL(ew->ewm.xxyz.p,xyz));
-	Q4mirx = SIMD_DADD(Q4mirx,SIMD_DMUL(ew->ewm.xxzz.p,xzz));
-	Q4mirx = SIMD_DADD(Q4mirx,SIMD_DMUL(ew->ewm.xyyy.p,yyy));
-	Q4mirx = SIMD_DADD(Q4mirx,SIMD_DMUL(ew->ewm.xyyz.p,yyz));
-	Q4mirx = SIMD_DADD(Q4mirx,SIMD_DMUL(ew->ewm.xyzz.p,yzz));
-	Q4mirx = SIMD_DADD(Q4mirx,SIMD_DMUL(ew->ewm.xzzz.p,zzz));
-	Q4miry = SIMD_DMUL(ew->ewm.xxxy.p,xxx);
-	Q4miry = SIMD_DADD(Q4miry,SIMD_DMUL(ew->ewm.xxyy.p,xxy));
-	Q4miry = SIMD_DADD(Q4miry,SIMD_DMUL(ew->ewm.xxyz.p,xxz));
-	Q4miry = SIMD_DADD(Q4miry,SIMD_DMUL(ew->ewm.xyyy.p,xyy));
-	Q4miry = SIMD_DADD(Q4miry,SIMD_DMUL(ew->ewm.xyyz.p,xyz));
-	Q4miry = SIMD_DADD(Q4miry,SIMD_DMUL(ew->ewm.xyzz.p,xzz));
-	Q4miry = SIMD_DADD(Q4miry,SIMD_DMUL(ew->ewm.yyyy.p,yyy));
-	Q4miry = SIMD_DADD(Q4miry,SIMD_DMUL(ew->ewm.yyyz.p,yyz));
-	Q4miry = SIMD_DADD(Q4miry,SIMD_DMUL(ew->ewm.yyzz.p,yzz));
-	Q4miry = SIMD_DADD(Q4miry,SIMD_DMUL(ew->ewm.yzzz.p,zzz));
-	Q4mirz = SIMD_DMUL(ew->ewm.xxxz.p,xxx);
-	Q4mirz = SIMD_DADD(Q4mirz,SIMD_DMUL(ew->ewm.xxyz.p,xxy));
-	Q4mirz = SIMD_DADD(Q4mirz,SIMD_DMUL(ew->ewm.xxzz.p,xxz));
-	Q4mirz = SIMD_DADD(Q4mirz,SIMD_DMUL(ew->ewm.xyyz.p,xyy));
-	Q4mirz = SIMD_DADD(Q4mirz,SIMD_DMUL(ew->ewm.xyzz.p,xyz));
-	Q4mirz = SIMD_DADD(Q4mirz,SIMD_DMUL(ew->ewm.xzzz.p,xzz));
-	Q4mirz = SIMD_DADD(Q4mirz,SIMD_DMUL(ew->ewm.yyyz.p,yyy));
-	Q4mirz = SIMD_DADD(Q4mirz,SIMD_DMUL(ew->ewm.yyzz.p,yyz));
-	Q4mirz = SIMD_DADD(Q4mirz,SIMD_DMUL(ew->ewm.yzzz.p,yzz));
-	Q4mirz = SIMD_DADD(Q4mirz,SIMD_DMUL(ew->ewm.zzzz.p,zzz));
-	Q4x = SIMD_DMUL(ew->ewp.Q4xx.p,x);
-	Q4x = SIMD_DADD(Q4x,SIMD_DMUL(ew->ewp.Q4xy.p,y));
-	Q4x = SIMD_DADD(Q4x,SIMD_DMUL(ew->ewp.Q4xz.p,z));
-	Q4y = SIMD_DMUL(ew->ewp.Q4xy.p,x);
-	Q4y = SIMD_DADD(Q4y,SIMD_DMUL(ew->ewp.Q4yy.p,y));
-	Q4y = SIMD_DADD(Q4y,SIMD_DMUL(ew->ewp.Q4yz.p,z));
-	Q4z = SIMD_DMUL(ew->ewp.Q4xz.p,x);
-	Q4z = SIMD_DADD(Q4z,SIMD_DMUL(ew->ewp.Q4yz.p,y));
-	Q4z = SIMD_DADD(Q4z,SIMD_DMUL(ew->ewp.Q4zz.p,z));
-	Q2mir =                  SIMD_DMUL(Q2mirx,x);
-	Q2mir = SIMD_DADD(Q2mir,SIMD_DMUL(Q2miry,y));
-	Q2mir = SIMD_DADD(Q2mir,SIMD_DMUL(Q2mirz,z));
-	Q2mir = SIMD_DMUL(Q2mir,consts.half.p);
-	Q2mir = SIMD_DSUB(Q2mir,SIMD_DMUL(ew->ewp.Q3x.p,x));
-	Q2mir = SIMD_DSUB(Q2mir,SIMD_DMUL(ew->ewp.Q3y.p,y));
-	Q2mir = SIMD_DSUB(Q2mir,SIMD_DMUL(ew->ewp.Q3z.p,z));
-	Q2mir = SIMD_DADD(Q2mir,ew->ewp.Q4.p);
-	Q3mir =                 SIMD_DMUL(Q3mirx,x);
-	Q3mir = SIMD_DADD(Q3mir,SIMD_DMUL(Q3miry,y));
-	Q3mir = SIMD_DADD(Q3mir,SIMD_DMUL(Q3mirz,z));
-	Q3mir = SIMD_DMUL(Q3mir,consts.onethird.p);
-	t =             SIMD_DMUL(Q4x,x);
-	t = SIMD_DADD(t,SIMD_DMUL(Q4y,y));
-	t = SIMD_DADD(t,SIMD_DMUL(Q4z,z));
-	t = SIMD_DMUL(t,consts.half.p);
-	Q3mir = SIMD_DSUB(Q3mir,t);
-	Q4mir =                 SIMD_DMUL(Q4mirx,x);
-	Q4mir = SIMD_DADD(Q4mir,SIMD_DMUL(Q4miry,y));
-	Q4mir = SIMD_DADD(Q4mir,SIMD_DMUL(Q4mirz,z));
-	Q4mir = SIMD_DMUL(Q4mir,consts.onequarter.p);
-	Qta = SIMD_DMUL(g1,ew->ewm.m.p);
-	Qta = SIMD_DSUB(Qta,SIMD_DMUL(g2,ew->ewp.Q2.p));
-	Qta = SIMD_DADD(Qta,SIMD_DMUL(g3,Q2mir));
-	Qta = SIMD_DADD(Qta,SIMD_DMUL(g4,Q3mir));
-	Qta = SIMD_DADD(Qta,SIMD_DMUL(g5,Q4mir));
-	tpot = SIMD_DMUL(g0,ew->ewm.m.p);
-	tpot = SIMD_DSUB(tpot,SIMD_DMUL(g1,ew->ewp.Q2.p));
-	tpot = SIMD_DADD(tpot,SIMD_DMUL(g2,Q2mir));
-	tpot = SIMD_DADD(tpot,SIMD_DMUL(g3,Q3mir));
-	tpot = SIMD_DADD(tpot,SIMD_DMUL(g4,Q4mir));
-	tx = SIMD_DMUL(g2,SIMD_DSUB(Q2mirx,ew->ewp.Q3x.p));
-	tx = SIMD_DADD(tx,SIMD_DMUL(g3,SIMD_DSUB(Q3mirx,Q4x)));
-	tx = SIMD_DADD(tx,SIMD_DMUL(g4,Q4mirx));
-	tx = SIMD_DSUB(tx,SIMD_DMUL(x,Qta));
-	ty = SIMD_DMUL(g2,SIMD_DSUB(Q2miry,ew->ewp.Q3y.p));
-	ty = SIMD_DADD(ty,SIMD_DMUL(g3,SIMD_DSUB(Q3miry,Q4y)));
-	ty = SIMD_DADD(ty,SIMD_DMUL(g4,Q4miry));
-	ty = SIMD_DSUB(ty,SIMD_DMUL(y,Qta));
-	tz = SIMD_DMUL(g2,SIMD_DSUB(Q2mirz,ew->ewp.Q3z.p));
-	tz = SIMD_DADD(tz,SIMD_DMUL(g3,SIMD_DSUB(Q3mirz,Q4z)));
-	tz = SIMD_DADD(tz,SIMD_DMUL(g4,Q4mirz));
-	tz = SIMD_DSUB(tz,SIMD_DMUL(z,Qta));
-	dPot = SIMD_DSUB(dPot,tpot);
-	ax = SIMD_DADD(ax,tx);
-	ay = SIMD_DADD(ay,ty);
-	az = SIMD_DADD(az,tz);
-	} while(++i < nLoop);
+    for (ix=-ew->nEwReps;ix<=ew->nEwReps;++ix) {
+	bInHolex = (abs(ix) <= ew->nReps);
+	x = dx + ix*L;
+	for (iy=-ew->nEwReps;iy<=ew->nEwReps;++iy) {
+	    bInHolexy = (bInHolex && abs(iy) <= ew->nReps);
+	    y = dy + iy*L;
+	    for (iz=-ew->nEwReps;iz<=ew->nEwReps;++iz) {
+		bInHole = (bInHolexy && abs(iz) <= ew->nReps);
+		z = dz + iz*L;
+		r2 = x*x + y*y + z*z;
+		if (r2 > ew->fEwCut2 && !bInHole) continue;
+		if (r2 < ew->fInner2) {
+		    double g0,g1,g2,g3,g4,g5,alphan;
+		    /*
+		     * For small r, series expand about
+		     * the origin to avoid errors caused
+		     * by cancellation of large terms.
+		     */
+		    alphan = ew->ka;
+		    r2 *= ew->alpha2;
+		    g0 = alphan*((1.0/3.0)*r2 - 1.0);
+		    alphan *= 2*ew->alpha2;
+		    g1 = alphan*((1.0/5.0)*r2 - (1.0/3.0));
+		    alphan *= 2*ew->alpha2;
+		    g2 = alphan*((1.0/7.0)*r2 - (1.0/5.0));
+		    alphan *= 2*ew->alpha2;
+		    g3 = alphan*((1.0/9.0)*r2 - (1.0/7.0));
+		    alphan *= 2*ew->alpha2;
+		    g4 = alphan*((1.0/11.0)*r2 - (1.0/9.0));
+		    alphan *= 2*ew->alpha2;
+		    g5 = alphan*((1.0/13.0)*r2 - (1.0/11.0));
+		    ax = ay = az = Pot = 0.0;
+		    nFlop += evalEwald(ew,&ax,&ay,&az,&Pot,x,y,z,&mom,g0,g1,g2,g3,g4,g5);
+		    pa[0] += ax;
+		    pa[1] += ay;
+		    pa[2] += az;
+		    *pPot += Pot;
+		    }
+		else {
+		    px.d[nSIMD] = x;
+		    py.d[nSIMD] = y;
+		    pz.d[nSIMD] = z;
+		    pr2.d[nSIMD] = r2;
+		    doerfc.i[nSIMD] = bInHole ? 0 : UINT64_MAX;
+		    if (++nSIMD == SIMD_DWIDTH) {
+			v_df tax, tay, taz, tpot;
+			nFlop += evalEwaldSIMD(&pkd->ew,&tax,&tay,&taz,&tpot,px.p,py.p,pz.p,pr2.p,doerfc.p);
+ 			dax = SIMD_DADD(dax,tax);
+			day = SIMD_DADD(day,tay);
+			daz = SIMD_DADD(daz,taz);
+			dPot= SIMD_DSUB(dPot,tpot);
+			nSIMD = 0;
+			}
+		    }
+		++nLoop;
+		}
+	    }
+	}
+    /* Finish remaining SIMD operations if necessary */
+    if (nSIMD) { /* nSIMD can be 0, 1, 2 or 3 */
+	v_df t, tax, tay, taz, tpot;
+	evalEwaldSIMD(&pkd->ew,&tax,&tay,&taz,&tpot,px.p,py.p,pz.p,pr2.p,doerfc.p);
+	t = iconsts.keepmask[nSIMD].pd;
+	tax = SIMD_DAND(tax,t);
+	tay = SIMD_DAND(tay,t);
+	taz = SIMD_DAND(taz,t);
+	tpot = SIMD_DAND(tpot,t);
+	dax = SIMD_DADD(dax,tax);
+	day = SIMD_DADD(day,tay);
+	daz = SIMD_DADD(daz,taz);
+	dPot= SIMD_DSUB(dPot,tpot);
+	nSIMD = 0;
+	}
 
-    /* Correct the unused terms */
-    nLoop = pkd->ew.nEwLoopInner;
-    t = iconsts.fixmasks[nLoop&SIMD_DMASK].pd;
-    tx = SIMD_DAND(tx,t);
-    ty = SIMD_DAND(ty,t);
-    tz = SIMD_DAND(tz,t);
-    tpot = SIMD_DAND(tpot,t);
-    ax = SIMD_DSUB(ax,tx);
-    ay = SIMD_DSUB(ay,ty);
-    az = SIMD_DSUB(az,tz);
-    dPot = SIMD_DADD(dPot,tpot);
-    fax = SIMD_D2F(ax);
-    fay = SIMD_D2F(ay);
-    faz = SIMD_D2F(az);
+    if (p->iOrder==0) {
+	printf("TOTAL %g\n", ((double*)&dax)[0] + ((double*)&dax)[1] + ((double*)&dax)[2] + ((double*)&dax)[3] );
+	}
+
+
+
+    /* h-loop is done in float precision */
+    fax = SIMD_D2F(dax);
+    fay = SIMD_D2F(day);
+    faz = SIMD_D2F(daz);
     fPot = SIMD_D2F(dPot);
 
-    /* Add the contribution from the main box */
-    a1 = a2 = a3 = p1 = 0;
-    evalMainBox(&pkd->ew,&a1,&a2,&a3,&p1,px,py,pz,&pkd->momRoot);
-    fax = SIMD_ADD(fax,SIMD_LOADS(a1));
-    fay = SIMD_ADD(fay,SIMD_LOADS(a2));
-    faz = SIMD_ADD(faz,SIMD_LOADS(a3));
-    fPot= SIMD_ADD(fPot,SIMD_LOADS(p1));
+
+    fx = SIMD_SPLAT(x);
+    fy = SIMD_SPLAT(y);
+    fz = SIMD_SPLAT(z);
+
+
     nLoop = (pkd->ew.nEwhLoop+SIMD_MASK) >> SIMD_BITS;
     i = 0;
     do {
@@ -558,12 +566,14 @@ int pkdParticleEwaldSIMD(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
 	fay = SIMD_ADD(fay,SIMD_MUL(pkd->ew.ewt.hy.p[i],t));
 	faz = SIMD_ADD(faz,SIMD_MUL(pkd->ew.ewt.hz.p[i],t));
 	} while(++i < nLoop);
+    nFlop += nLoop*58;
 
     pa[0] += SIMD_HADD(fax);
     pa[1] += SIMD_HADD(fay);
     pa[2] += SIMD_HADD(faz);
     *pPot += SIMD_HADD(fPot);
-    return pkd->ew.nEwLoopInner*447 + pkd->ew.nEwhLoop*58;
+
+    return(nFlop);
     }
 #endif
 
@@ -643,18 +653,6 @@ int pkdParticleEwald(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
 		    dir2 = dir*dir;
 		    a = exp(-r2*pkd->ew.alpha2);
 		    a *= pkd->ew.ka*dir2;
-		    /*
-		    ** We can get away with not using erfc because it is vanishing
-		    ** if the following are true:
-		    ** 1. The center of mass is near/at the centre of the box,
-		    ** 2. We use 1 replica for RMS error < ~1e-4 (erfc 3 = 2.2e-5)
-		    ** 3. We use 2 replicas for smaller RMS  (erfc 5 = 1.5e-12)
-		    ** Worst case with COM near the edge:
-		    ** 1 replica:  erfc 2 = 4.6e-3 (this would be wrong)
-		    ** 2 replicas: erfc 4 = 1.5e-8
-		    ** We currently switch from 1 replica to 2 replicates at at
-		    ** theta of 0.5 which corresponds to an RMS error of ~1e-4.
-		    */
 		    if (bInHole) {
 			g0 = -erf(pkd->ew.alpha*r2*dir);
 			}
@@ -843,45 +841,6 @@ void pkdEwaldInit(PKD pkd,int nReps,double fEwCut,double fhCut) {
 #if defined(USE_SIMD_EWALD) && defined(__SSE2__)
     i = (i + SIMD_MASK) & ~SIMD_MASK;
 #endif
-    if ( i>pkd->ew.nMaxEwLoopInner ) {
-	pkd->ew.nMaxEwLoopInner = i;
-	pkd->ew.ewt.Lx.d = SIMD_malloc(pkd->ew.nMaxEwLoopInner*sizeof(pkd->ew.ewt.Lx.d));
-	assert(pkd->ew.ewt.Lx.d!=NULL);
-	pkd->ew.ewt.Ly.d = SIMD_malloc(pkd->ew.nMaxEwLoopInner*sizeof(pkd->ew.ewt.Ly.d));
-	assert(pkd->ew.ewt.Ly.d!=NULL);
-	pkd->ew.ewt.Lz.d = SIMD_malloc(pkd->ew.nMaxEwLoopInner*sizeof(pkd->ew.ewt.Lz.d));
-	assert(pkd->ew.ewt.Lz.d!=NULL);
-	pkd->ew.ewt.doerfc.d = SIMD_malloc(pkd->ew.nMaxEwLoopInner*sizeof(pkd->ew.ewt.doerfc.d));
-	assert(pkd->ew.ewt.doerfc.d!=NULL);
-	i = 0;
-	for (ix=-pkd->ew.nEwReps;ix<=pkd->ew.nEwReps;++ix) {
-	    bInHolex = (abs(ix) <= pkd->ew.nReps);
-	    dx = ix*L;
-	    for (iy=-pkd->ew.nEwReps;iy<=pkd->ew.nEwReps;++iy) {
-		bInHolexy = (bInHolex && abs(iy) <= pkd->ew.nReps);
-		dy = iy*L;
-		for (iz=-pkd->ew.nEwReps;iz<=pkd->ew.nEwReps;++iz) {
-		    bInHole = (bInHolexy && abs(iz) <= pkd->ew.nReps);
-		    if (ix||iy||iz) { /* We treat 0,0,0 specially */
-			dz = iz*L;
-			pkd->ew.ewt.Lx.d[i] = dx;
-			pkd->ew.ewt.Ly.d[i] = dy;
-			pkd->ew.ewt.Lz.d[i] = dz;
-			pkd->ew.ewt.doerfc.i[i] = bInHole ? 0 : UINT64_MAX;
-			++i;
-			}
-		    }
-		}
-	    }
-	pkd->ew.nEwLoopInner = i;
-	}
-    while ( i<pkd->ew.nMaxEwLoopInner ) {
-	pkd->ew.ewt.Lx.d[i] = 0;
-	pkd->ew.ewt.Ly.d[i] = 0;
-	pkd->ew.ewt.Lz.d[i] = 0;
-	pkd->ew.ewt.doerfc.i[i] = 0;
-	++i;
-	}
     i = 0;
     for (hx=-hReps;hx<=hReps;++hx) {
 	for (hy=-hReps;hy<=hReps;++hy) {
