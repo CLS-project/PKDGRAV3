@@ -426,21 +426,22 @@ int evalEwaldSIMD( struct EwaldVariables *ew, v_df *ax, v_df *ay, v_df *az, v_df
     *az = tz;
     return 447 * SIMD_WIDTH;
     }
+#endif
 
-
-int pkdParticleEwaldSIMD(PKD pkd,uint8_t uRungLo,uint8_t uRungHi, PARTICLE *p, float *pa, float *pPot) {
+int pkdParticleEwald(PKD pkd,uint8_t uRungLo,uint8_t uRungHi, PARTICLE *p, float *pa, float *pPot) {
     MOMC mom = pkd->momRoot;
     struct EwaldVariables *ew = &pkd->ew;
     double L,Pot,ax,ay,az,dx,dy,dz,x,y,z,r2;
+#ifdef USE_SIMD_EWALD
     v_df dPot,dax,day,daz;
     v_sf fPot,fax,fay,faz,fx,fy,fz;
     vdouble px, py, pz, pr2, doerfc;
+    int nSIMD = 0;
+#endif
     int i,ix,iy,iz;
     int bInHole,bInHolex,bInHolexy;
     int nFlop = 0;
     int nLoop = 0;
-    int nSIMD = 0;
-    float hdotx,s,c,t;
 
     assert(pkd->oAcceleration); /* Validate memory model */
     assert(pkd->oPotential); /* Validate memory model */
@@ -451,15 +452,14 @@ int pkdParticleEwaldSIMD(PKD pkd,uint8_t uRungLo,uint8_t uRungHi, PARTICLE *p, f
     dy = p->r[1] - pkdTopNode(pkd,ROOT)->r[1];
     dz = p->r[2] - pkdTopNode(pkd,ROOT)->r[2];
 
-    dPot = SIMD_DSPLAT(ew->ewm.m.d[0]*pkd->ew.k1);
+    ax = ay = az = 0.0;
+    Pot = ew->ewm.m.d[0]*pkd->ew.k1;
+#ifdef USE_SIMD_EWALD
+    dPot = SIMD_DSPLAT(0.0);
     dax = SIMD_DSPLAT(0.0);
     day = SIMD_DSPLAT(0.0);
     daz = SIMD_DSPLAT(0.0);
-    ax = 0.0;
-    ay = 0.0;
-    az = 0.0;
-
-
+#endif
     for (ix=-ew->nEwReps;ix<=ew->nEwReps;++ix) {
 	bInHolex = (abs(ix) <= ew->nReps);
 	x = dx + ix*L;
@@ -491,14 +491,10 @@ int pkdParticleEwaldSIMD(PKD pkd,uint8_t uRungLo,uint8_t uRungHi, PARTICLE *p, f
 		    g4 = alphan*((1.0/11.0)*r2 - (1.0/9.0));
 		    alphan *= 2*ew->alpha2;
 		    g5 = alphan*((1.0/13.0)*r2 - (1.0/11.0));
-		    ax = ay = az = Pot = 0.0;
 		    nFlop += evalEwald(ew,&ax,&ay,&az,&Pot,x,y,z,&mom,g0,g1,g2,g3,g4,g5);
-		    pa[0] += ax;
-		    pa[1] += ay;
-		    pa[2] += az;
-		    *pPot += Pot;
 		    }
 		else {
+#if defined(USE_SIMD_EWALD)
 		    px.d[nSIMD] = x;
 		    py.d[nSIMD] = y;
 		    pz.d[nSIMD] = z;
@@ -513,11 +509,37 @@ int pkdParticleEwaldSIMD(PKD pkd,uint8_t uRungLo,uint8_t uRungHi, PARTICLE *p, f
 			dPot= SIMD_DSUB(dPot,tpot);
 			nSIMD = 0;
 			}
+#else
+		    double dir,dir2,a;
+		    double g0,g1,g2,g3,g4,g5,alphan;
+		    dir = 1/sqrt(r2);
+		    dir2 = dir*dir;
+		    a = exp(-r2*pkd->ew.alpha2);
+		    a *= pkd->ew.ka*dir2;
+		    if (bInHole) {
+			g0 = -erf(pkd->ew.alpha*r2*dir);
+			}
+		    else {
+			g0 = erfc(pkd->ew.alpha*r2*dir);
+			}
+		    g0 *= dir;
+		    g1 = g0*dir2 + a;
+		    alphan = 2*pkd->ew.alpha2;
+		    g2 = 3*g1*dir2 + alphan*a;
+		    alphan *= 2*pkd->ew.alpha2;
+		    g3 = 5*g2*dir2 + alphan*a;
+		    alphan *= 2*pkd->ew.alpha2;
+		    g4 = 7*g3*dir2 + alphan*a;
+		    alphan *= 2*pkd->ew.alpha2;
+		    g5 = 9*g4*dir2 + alphan*a;
+		    nFlop += evalEwald(ew,&ax,&ay,&az,&Pot,x,y,z,&mom,g0,g1,g2,g3,g4,g5);
+#endif
 		    }
 		++nLoop;
 		}
 	    }
 	}
+#if defined(USE_SIMD_EWALD)
     /* Finish remaining SIMD operations if necessary */
     if (nSIMD) { /* nSIMD can be 0, 1, 2 or 3 */
 	v_df t, tax, tay, taz, tpot;
@@ -533,11 +555,9 @@ int pkdParticleEwaldSIMD(PKD pkd,uint8_t uRungLo,uint8_t uRungHi, PARTICLE *p, f
 	dPot= SIMD_DSUB(dPot,tpot);
 	nSIMD = 0;
 	}
+#endif
 
-    if (p->iOrder==0) {
-	printf("TOTAL %g\n", ((double*)&dax)[0] + ((double*)&dax)[1] + ((double*)&dax)[2] + ((double*)&dax)[3] );
-	}
-
+#ifdef USE_SIMD_EWALD
     /* h-loop is done in float precision */
     fax = SIMD_D2F(dax);
     fay = SIMD_D2F(day);
@@ -562,114 +582,13 @@ int pkdParticleEwaldSIMD(PKD pkd,uint8_t uRungLo,uint8_t uRungHi, PARTICLE *p, f
 	fay = SIMD_ADD(fay,SIMD_MUL(pkd->ew.ewt.hy.p[i],t));
 	faz = SIMD_ADD(faz,SIMD_MUL(pkd->ew.ewt.hz.p[i],t));
 	} while(++i < nLoop);
-    nFlop += nLoop*58;
+    nFlop += nLoop*58*SIMD_WIDTH;
 
-    pa[0] += SIMD_HADD(fax);
-    pa[1] += SIMD_HADD(fay);
-    pa[2] += SIMD_HADD(faz);
-    *pPot += SIMD_HADD(fPot);
-
-    return(nFlop);
-    }
-#endif
-
-int pkdParticleEwald(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
-    PARTICLE *p, float *pa, float *pPot) {
-    MOMC mom = pkd->momRoot;
-    double fPot,ax,ay,az;
-    double dx,dy,dz,x,y,z,r2,dir,dir2,a,alphan,L;
-    double xx,xxx,xxy,xxz,yy,yyy,yyz,xyy,zz,zzz,xzz,yzz,xy,xyz,xz,yz;
-    double Qta,Q4mirx,Q4miry,Q4mirz,Q4mir,Q4x,Q4y,Q4z;
-    double Q3mirx,Q3miry,Q3mirz,Q3mir,Q2mirx,Q2miry,Q2mirz,Q2mir;
-    double g0,g1,g2,g3,g4,g5;
-    double onethird = 1.0/3.0;
-    int i,ix,iy,iz;
-    int bInHole,bInHolex,bInHolexy;
-    int nFlop;
-    int nLoop = 0;
-
-    assert(pkd->oAcceleration); /* Validate memory model */
-    assert(pkd->oPotential); /* Validate memory model */
-
-    if (!pkdIsDstActive(p,uRungLo,uRungHi)) return 0;
-
-    L = pkd->fPeriod[0];
-    fPot = mom.m*pkd->ew.k1;
-    ax = 0.0;
-    ay = 0.0;
-    az = 0.0;
-    dx = p->r[0] - pkdTopNode(pkd,ROOT)->r[0];
-    dy = p->r[1] - pkdTopNode(pkd,ROOT)->r[1];
-    dz = p->r[2] - pkdTopNode(pkd,ROOT)->r[2];
-
-    for (ix=-pkd->ew.nEwReps;ix<=pkd->ew.nEwReps;++ix) {
-	bInHolex = (abs(ix) <= pkd->ew.nReps);
-	x = dx + ix*L;
-	for (iy=-pkd->ew.nEwReps;iy<=pkd->ew.nEwReps;++iy) {
-	    bInHolexy = (bInHolex && abs(iy) <= pkd->ew.nReps);
-	    y = dy + iy*L;
-	    for (iz=-pkd->ew.nEwReps;iz<=pkd->ew.nEwReps;++iz) {
-		bInHole = (bInHolexy && abs(iz) <= pkd->ew.nReps);
-		/*
-		** Scoring for Ewald inner stuff = (+,*)
-		**		Visible ops 		= (104,161)
-		**		sqrt, 1/sqrt est. 	= (6,11)
-		**     division            = (6,11)  same as sqrt.
-		**		exp est.			= (6,11)  same as sqrt.
-		**		erf/erfc est.		= (12,22) twice a sqrt.
-		**		Total			= (128,205) = 333
-		**     Old scoring				    = 447
-		*/
-		z = dz + iz*L;
-		r2 = x*x + y*y + z*z;
-		if (r2 > pkd->ew.fEwCut2 && !bInHole) continue;
-		if (r2 < pkd->ew.fInner2) {
-		    /*
-		     * For small r, series expand about
-		     * the origin to avoid errors caused
-		     * by cancellation of large terms.
-		     */
-		    alphan = pkd->ew.ka;
-		    r2 *= pkd->ew.alpha2;
-		    g0 = alphan*((1.0/3.0)*r2 - 1.0);
-		    alphan *= 2*pkd->ew.alpha2;
-		    g1 = alphan*((1.0/5.0)*r2 - (1.0/3.0));
-		    alphan *= 2*pkd->ew.alpha2;
-		    g2 = alphan*((1.0/7.0)*r2 - (1.0/5.0));
-		    alphan *= 2*pkd->ew.alpha2;
-		    g3 = alphan*((1.0/9.0)*r2 - (1.0/7.0));
-		    alphan *= 2*pkd->ew.alpha2;
-		    g4 = alphan*((1.0/11.0)*r2 - (1.0/9.0));
-		    alphan *= 2*pkd->ew.alpha2;
-		    g5 = alphan*((1.0/13.0)*r2 - (1.0/11.0));
-		    }
-		else {
-		    dir = 1/sqrt(r2);
-		    dir2 = dir*dir;
-		    a = exp(-r2*pkd->ew.alpha2);
-		    a *= pkd->ew.ka*dir2;
-		    if (bInHole) {
-			g0 = -erf(pkd->ew.alpha*r2*dir);
-			}
-		    else {
-			g0 = erfc(pkd->ew.alpha*r2*dir);
-			}
-		    g0 *= dir;
-		    g1 = g0*dir2 + a;
-		    alphan = 2*pkd->ew.alpha2;
-		    g2 = 3*g1*dir2 + alphan*a;
-		    alphan *= 2*pkd->ew.alpha2;
-		    g3 = 5*g2*dir2 + alphan*a;
-		    alphan *= 2*pkd->ew.alpha2;
-		    g4 = 7*g3*dir2 + alphan*a;
-		    alphan *= 2*pkd->ew.alpha2;
-		    g5 = 9*g4*dir2 + alphan*a;
-		    }
-		evalEwald(&pkd->ew,&ax,&ay,&az,&fPot,x,y,z,&mom,g0,g1,g2,g3,g4,g5);
-		++nLoop;
-		}
-	    }
-	}
+    ax += SIMD_HADD(fax);
+    ay += SIMD_HADD(fay);
+    az += SIMD_HADD(faz);
+    Pot += SIMD_HADD(fPot);
+#else
     /*
     ** Scoring for the h-loop (+,*)
     ** 	Without trig = (10,14)
@@ -682,17 +601,18 @@ int pkdParticleEwald(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
 	hdotx = pkd->ew.ewt.hx.f[i]*dx + pkd->ew.ewt.hy.f[i]*dy + pkd->ew.ewt.hz.f[i]*dz;
 	c = cos(hdotx);
 	s = sin(hdotx);
-	fPot += pkd->ew.ewt.hCfac.f[i]*c + pkd->ew.ewt.hSfac.f[i]*s;
+	Pot += pkd->ew.ewt.hCfac.f[i]*c + pkd->ew.ewt.hSfac.f[i]*s;
 	t = pkd->ew.ewt.hCfac.f[i]*s - pkd->ew.ewt.hSfac.f[i]*c;
 	ax += pkd->ew.ewt.hx.f[i]*t;
 	ay += pkd->ew.ewt.hy.f[i]*t;
 	az += pkd->ew.ewt.hz.f[i]*t;
 	}
-    *pPot += fPot;
+    nFlop += pkd->ew.nEwhLoop*58;
+#endif
     pa[0] += ax;
     pa[1] += ay;
     pa[2] += az;
-    nFlop = nLoop*447 + pkd->ew.nEwhLoop*58;
+    *pPot += Pot;
     return(nFlop);
     }
 

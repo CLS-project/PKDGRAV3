@@ -884,13 +884,8 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 	for( i=0; i<work->nP; i++ ) {
 	    p = work->pPart[i];
 	    a = pkdAccel(pkd,p);
-#ifdef USE_SIMD_EWALD
-	    *pdEwFlop += pkdParticleEwaldSIMD(pkd,uRungLo,uRungHi,p,
-		work->pInfoOut[i].a, &work->pInfoOut[i].fPot );
-#else
 	    *pdEwFlop += pkdParticleEwald(pkd,uRungLo,uRungHi,p,
 		work->pInfoOut[i].a, &work->pInfoOut[i].fPot );
-#endif
 	    }
 	}
 
