@@ -474,10 +474,14 @@ int CPUdoWorkPC(void *vpc) {
 	    yy = SIMD_MUL(consts.half.p,SIMD_MUL(y,y));
 	    yz = SIMD_MUL(y,z);
 	    zz = SIMD_MUL(consts.half.p,SIMD_MUL(z,z));
-	    xxx = SIMD_MUL(x,SIMD_SUB(SIMD_MUL(consts.onethird.p,xx),zz));
-	    xxz = SIMD_MUL(z,SIMD_SUB(xx,SIMD_MUL(consts.onethird.p,zz)));
-	    yyy = SIMD_MUL(y,SIMD_SUB(SIMD_MUL(consts.onethird.p,yy),zz));
-	    yyz = SIMD_MUL(z,SIMD_SUB(yy,SIMD_MUL(consts.onethird.p,zz)));
+	    xxx = SIMD_MSUB(consts.onethird.p,xx,zz);
+	    xxx = SIMD_MUL(x,xxx);
+	    xxz = SIMD_NMADD(consts.onethird.p,zz,xx);
+	    xxz = SIMD_MUL(z,xxz);
+	    yyy = SIMD_MSUB(consts.onethird.p,yy,zz);
+	    yyy = SIMD_MUL(y,yyy);
+	    yyz = SIMD_NMADD(consts.onethird.p,zz,yy);
+	    yyz = SIMD_MUL(z,yyz);
 	    xx = SIMD_SUB(xx,zz);
 	    yy = SIMD_SUB(yy,zz);
 	    xxy = SIMD_MUL(y,xx);
@@ -486,44 +490,31 @@ int CPUdoWorkPC(void *vpc) {
 	    /*
 	    ** Now calculate the interaction up to Hexadecapole order.
 	    */
-
 	    tx = SIMD_MUL(blk->xxxx.p[j],xxx);
-
-
-	    tx = SIMD_ADD(tx,SIMD_MUL(blk->xyyy.p[j],yyy));
-	    tx = SIMD_MUL(blk->xxxy.p[j],xxy);
-	    tx = SIMD_ADD(tx,SIMD_MUL(blk->xxxz.p[j],xxz));
-	    tx = SIMD_ADD(tx,SIMD_MUL(blk->xxyy.p[j],xyy));
-	    tx = SIMD_ADD(tx,SIMD_MUL(blk->xxyz.p[j],xyz));
-	    tx = SIMD_ADD(tx,SIMD_MUL(blk->xyyz.p[j],yyz));
+	    tx = SIMD_MADD(blk->xyyy.p[j],yyy,tx);
+	    tx = SIMD_MADD(blk->xxxy.p[j],xxy,tx);
+	    tx = SIMD_MADD(blk->xxxz.p[j],xxz,tx);
+	    tx = SIMD_MADD(blk->xxyy.p[j],xyy,tx);
+	    tx = SIMD_MADD(blk->xxyz.p[j],xyz,tx);
+	    tx = SIMD_MADD(blk->xyyz.p[j],yyz,tx);
 	    tx = SIMD_MUL(tx,g4);
-
 	    ty = SIMD_MUL(blk->xyyy.p[j],xyy);
-	    ty = SIMD_ADD(ty,SIMD_MUL(blk->xxxy.p[j],xxx));
-	    ty = SIMD_ADD(ty,SIMD_MUL(blk->yyyy.p[j],yyy));
-	    ty = SIMD_ADD(ty,SIMD_MUL(blk->yyyz.p[j],yyz));
-	    ty = SIMD_ADD(ty,SIMD_MUL(blk->xxyy.p[j],xxy));
-	    ty = SIMD_ADD(ty,SIMD_MUL(blk->xxyz.p[j],xxz));
-	    ty = SIMD_ADD(ty,SIMD_MUL(blk->xyyz.p[j],xyz));
+	    ty = SIMD_MADD(blk->xxxy.p[j],xxx,ty);
+	    ty = SIMD_MADD(blk->yyyy.p[j],yyy,ty);
+	    ty = SIMD_MADD(blk->yyyz.p[j],yyz,ty);
+	    ty = SIMD_MADD(blk->xxyy.p[j],xxy,ty);
+	    ty = SIMD_MADD(blk->xxyz.p[j],xxz,ty);
+	    ty = SIMD_MADD(blk->xyyz.p[j],xyz,ty);
 	    ty = SIMD_MUL(ty,g4);
 	    tz = SIMD_MUL(blk->xxxz.p[j],xxx);
-	    tz = SIMD_SUB(tz,SIMD_MUL(blk->xxxx.p[j],xxz));
-	    tz = SIMD_SUB(tz,SIMD_MUL(SIMD_ADD(blk->xyyy.p[j],blk->xxxy.p[j]),xyz));
-	    tz = SIMD_SUB(tz,SIMD_MUL(blk->yyyy.p[j],yyz));
-	    tz = SIMD_ADD(tz,SIMD_MUL(blk->yyyz.p[j],yyy));
-	    tz = SIMD_SUB(tz,SIMD_MUL(blk->xxyy.p[j],SIMD_ADD(xxz,yyz)));
-	    tz = SIMD_ADD(tz,SIMD_MUL(blk->xxyz.p[j],xxy));
-	    tz = SIMD_ADD(tz,SIMD_MUL(blk->xyyz.p[j],xyy));
+	    tz = SIMD_NMADD(blk->xxxx.p[j],xxz,tz);
+	    tz = SIMD_NMADD(SIMD_ADD(blk->xyyy.p[j],blk->xxxy.p[j]),xyz,tz);
+	    tz = SIMD_NMADD(blk->yyyy.p[j],yyz,tz);
+	    tz = SIMD_MADD(blk->yyyz.p[j],yyy,tz);
+	    tz = SIMD_NMADD(blk->xxyy.p[j],SIMD_ADD(xxz,yyz),tz);
+	    tz = SIMD_MADD(blk->xxyz.p[j],xxy,tz);
+	    tz = SIMD_MADD(blk->xyyz.p[j],xyy,tz);
 	    tz = SIMD_MUL(tz,g4);
-//	    tx = SIMD_MUL(g4,SIMD_MADD(blk->xxxx.p[j],xxx,SIMD_MADD(blk->xyyy.p[j],yyy,
-//			SIMD_MADD(blk->xxxy.p[j],xxy,SIMD_MADD(blk->xxxz.p[j],xxz,
-//				SIMD_MADD(blk->xxyy.p[j],xyy,SIMD_MADD(blk->xxyz.p[j],xyz,SIMD_MUL(blk->xyyz.p[j],yyz))))))));
-//	    ty = SIMD_MUL(g4,SIMD_MADD(blk->xyyy.p[j],xyy,SIMD_MADD(blk->xxxy.p[j],xxx,
-//			SIMD_MADD(blk->yyyy.p[j],yyy,SIMD_MADD(blk->yyyz.p[j],yyz,SIMD_MADD(blk->xxyy.p[j],xxy,
-//				    SIMD_MADD(blk->xxyz.p[j],xxz,SIMD_MUL(blk->xyyz.p[j],xyz))))))));
-//	    tz = SIMD_MUL(g4,SIMD_NMADD(blk->xxxx.p[j],xxz,SIMD_NMADD(SIMD_ADD(blk->xyyy.p[j],blk->xxxy.p[j]),xyz,
-//			SIMD_NMADD(blk->yyyy.p[j],yyz,SIMD_NMADD(blk->xxyy.p[j],SIMD_ADD(xxz,yyz),
-//				SIMD_MADD(blk->xxxz.p[j],xxx,SIMD_MADD(blk->yyyz.p[j],yyy,SIMD_MADD(blk->xxyz.p[j],xxy,SIMD_MUL(blk->xyyz.p[j],xyy)))))))));
 	    g4 = SIMD_MUL(consts.onequarter.p,SIMD_MADD(tx,x,SIMD_MADD(ty,y,SIMD_MUL(tz,z))));
 	    xxx = SIMD_MUL(g3,SIMD_MADD(blk->xxx.p[j],xx,SIMD_MADD(blk->xyy.p[j],yy,
 			SIMD_MADD(blk->xxy.p[j],xy,SIMD_MADD(blk->xxz.p[j],xz,SIMD_MUL(blk->xyz.p[j],yz))))));
