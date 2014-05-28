@@ -614,6 +614,9 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
 #endif
 
     /* Memory models */
+    msr->param.bMemParticleID = 0;
+    prmAddParam(msr->prm,"bMemParticleID",0,&msr->param.bMemParticleID,
+		sizeof(int),"pid","<Particles have a unique identifier> = -pid");
     msr->param.bMemAcceleration = 0;
     prmAddParam(msr->prm,"bMemAcceleration",0,&msr->param.bMemAcceleration,
 		sizeof(int),"Ma","<Particles have acceleration> = -Ma");
@@ -5806,6 +5809,7 @@ double msrRead(MSR msr, const char *achInFile) {
 
     if (msr->param.nDomainRungs>0)   mMemoryModel |= PKD_MODEL_RUNGDEST;
 
+    if (msr->param.bMemParticleID)   mMemoryModel |= PKD_MODEL_PARTICLE_ID;
     if (msr->param.bHermite)         mMemoryModel |= PKD_MODEL_HERMITE;
     if (msr->param.bTraceRelaxation) mMemoryModel |= PKD_MODEL_RELAXATION;
     if (msr->param.bMemAcceleration) mMemoryModel |= PKD_MODEL_ACCELERATION;
