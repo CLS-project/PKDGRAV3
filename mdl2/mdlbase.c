@@ -36,6 +36,16 @@ void mdlBaseInitialize(mdlBASE *base) {
         base->nodeName[sizeof(base->nodeName) - 1] = 0;
 
     base->bDiag = 0;
+    base->fpDiag = NULL;
+
+    /* Some sensible defaults */
+    base->nThreads = 1;
+    base->idSelf = 0;
+    base->nProcs = 1;
+    base->iProc = 0;
+    base->nCores = 1;
+    base->iCore = 0;
+    base->iProcToThread = NULL;
 
     /*
     ** Set default "maximums" for structures. These are NOT hard
@@ -68,6 +78,27 @@ void mdlBaseInitialize(mdlBASE *base) {
         base->psrv[i].fcnService = NULL;
         }
     }
+
+/* O(1): Given a process id, return the first global thread id */
+int mdlBaseProcToThread(mdlBASE *base, int iProc) {
+    assert(iProc >= 0 && iProc <= base->nProcs);
+    return base->iProcToThread[iProc];
+    }
+
+/* O(l2(nProc)): Given a global thread id, return the process to which it belongs */
+int mdlBaseThreadToProc(mdlBASE *base, int iThread) {
+    int l=0, u=base->nProcs;
+    assert(iThread >= 0 && iThread < base->nThreads);
+    assert(base->nThreads == base->iProcToThread[base->nProcs]);
+    while (l <= u) {
+	int m = (u + l) / 2;
+	if (iThread < base->iProcToThread[m]) u = m - 1;
+	else l = m+1;
+	}
+    return l-1;
+    }
+
+
 
 void mdlBaseFinish(mdlBASE *base) {
     free(base->psrv);
@@ -224,5 +255,62 @@ void mdlPrintTimer(void *mdl, char *message, mdlTimer *t0) {
         mdlprintf(mdl, "%s %f %f %f\n", message, lt.wallclock, lt.cpu, lt.system);
         }
     }
+
+
+#if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
+void mdlTimeReset(void *mdl) {
+    mdlBASE *base = mdl;
+    base->dWaiting = base->dComputing = base->dSynchronizing = 0.0;
+    base->nTicks = getticks();
+    }
+
+void mdlTimeAddComputing(void *mdl) {
+    mdlBASE *base = mdl;
+    ticks nTicks = getticks();
+    base->dComputing += elapsed(nTicks, base->nTicks);
+    base->nTicks = nTicks;
+    }
+
+void mdlTimeAddSynchronizing(void *mdl) {
+    mdlBASE *base = mdl;
+    ticks nTicks = getticks();
+    base->dSynchronizing += elapsed(nTicks, base->nTicks);
+    base->nTicks = nTicks;
+    }
+
+void mdlTimeAddWaiting(void *mdl) {
+    mdlBASE *base = mdl;
+    ticks nTicks = getticks();
+    base->dWaiting += elapsed(nTicks, base->nTicks);
+    base->nTicks = nTicks;
+    }
+
+static double TimeFraction(void * mdl) {
+    mdlBASE *base = mdl;
+    double dTotal = base->dComputing + base->dWaiting + base->dSynchronizing;
+    if (dTotal <= 0.0) return 0.0;
+    return 100.0 / dTotal;
+    }
+
+double mdlTimeComputing(void * mdl) {
+    mdlBASE *base = mdl;
+    return base->dComputing * TimeFraction(mdl);
+    }
+
+double mdlTimeSynchronizing(void * mdl) {
+    mdlBASE *base = mdl;
+    return base->dSynchronizing * TimeFraction(mdl);
+    }
+
+double mdlTimeWaiting(void * mdl) {
+    mdlBASE *base = mdl;
+    return base->dWaiting * TimeFraction(mdl);
+    }
+#endif
+
+
+
+
+
 #endif
 

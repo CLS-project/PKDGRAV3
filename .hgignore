@@ -31,3 +31,7 @@
 ^missing$
 ^stamp-h1$
 ^pkdgrav2-.*.tar.gz$
+^windows.*/x64/.*$
+^windows.*/.*\.filters$
+^windows.*/.*\.user$
+^windows.*/.*\.filters$

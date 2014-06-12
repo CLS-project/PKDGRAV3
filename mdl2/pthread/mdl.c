@@ -479,11 +479,7 @@ int mdlLaunch(int argc,char **argv,int (*fcnMaster)(MDL,int,char **),void (*fcnC
     pthread_create(mdl->pt,&attr,main,mdl->pmdl[0]);
     pthread_exit(0);
 #endif
-
-#if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
-    mdl->dWaiting = mdl->dComputing = mdl->dSynchronizing = 0.0;
-    mdl->nTicks = getticks();
-#endif
+    mdlTimeReset(mdl);
 
     fcnMaster(mdl,argc,argv);
     mdlFinish(mdl);
@@ -1106,14 +1102,7 @@ void mdlFinishCache(MDL mdl,int cid) {
     CACHE *c = &mdl->cache[cid];
     int i,id;
     mdlkey_t iKey;
-
-#if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
-	{
-	ticks nTicks = getticks();
-	mdl->dComputing += elapsed( nTicks, mdl->nTicks );
-	mdl->nTicks = nTicks;
-	}
-#endif
+    mdlTimeAddComputing(mdl);
 
     /*
      ** THIS IS A SYNCHRONIZE!!!
@@ -1179,14 +1168,7 @@ void mdlFinishCache(MDL mdl,int cid) {
 	}
     c->iType = MDL_NOCACHE;
     AdjustDataSize(mdl);
-
-#if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
-	{
-	ticks nTicks = getticks();
-	mdl->dSynchronizing += elapsed( nTicks, mdl->nTicks );
-	mdl->nTicks = nTicks;
-	}
-#endif
+    mdlTimeAddSynchronizing(mdl);
     }
 
 void *doMiss(MDL mdl, int cid, int iIndex, int id, mdlkey_t iKey, int lock);
@@ -1256,14 +1238,7 @@ void *doMiss(MDL mdl, int cid, int iIndex, int id, mdlkey_t iKey, int lock) {
     int iLineSize;
     char *t;
     int s,n;
-
-#if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
-	{
-	ticks nTicks = getticks();
-	mdl->dComputing += elapsed( nTicks, mdl->nTicks );
-	mdl->nTicks = nTicks;
-	}
-#endif
+    mdlTimeAddComputing(mdl);
 
     /*
      ** Cache Miss.
@@ -1357,14 +1332,7 @@ Await:
 	    (*c->init)(c->ctx,&pLine[i]);
 	    }
 	}
-
-#if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
-	{
-	ticks nTicks = getticks();
-	mdl->dWaiting += elapsed( nTicks, mdl->nTicks );
-	mdl->nTicks = nTicks;
-	}
-#endif
+    mdlTimeAddWaiting(mdl);
     return(&pLine[iElt*c->iDataSize]);
     }
 
@@ -1396,14 +1364,7 @@ void mdlRelease(MDL mdl,int cid,void *p) {
 void mdlCacheBarrier(MDL mdl,int cid) {
     CACHE *c = &mdl->cache[cid];
     int id;
-
-#if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
-	{
-	ticks nTicks = getticks();
-	mdl->dComputing += elapsed( nTicks, mdl->nTicks );
-	mdl->nTicks = nTicks;
-	}
-#endif
+    mdlTimeAddComputing(mdl);
 
     /*
     ** THIS IS A SYNCHRONIZE!!!
@@ -1438,13 +1399,7 @@ void mdlCacheBarrier(MDL mdl,int cid) {
     else {
 	mdlBarrier(mdl);
 	}
-#if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
-	{
-	ticks nTicks = getticks();
-	mdl->dSynchronizing += elapsed( nTicks, mdl->nTicks );
-	mdl->nTicks = nTicks;
-	}
-#endif
+    mdlTimeAddSynchronizing(mdl);
     }
 
 
@@ -1493,31 +1448,6 @@ double mdlMinRatio(MDL mdl,int cid) {
     if (dAccess > 0.0) return(c->nMin/dAccess);
     else return(0.0);
     }
-
-#if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
-void mdlTimeReset(MDL mdl) {
-    mdl->dWaiting = mdl->dComputing = mdl->dSynchronizing = 0.0;
-    mdl->nTicks = getticks();
-    }
-
-static double TimeFraction(MDL mdl) {
-    double dTotal = mdl->dComputing + mdl->dWaiting + mdl->dSynchronizing;
-    if ( dTotal <= 0.0 ) return 0.0;
-    return 100.0 / dTotal;
-    }
-
-double mdlTimeComputing(MDL mdl) {
-    return mdl->dComputing * TimeFraction(mdl);
-    }
-
-double mdlTimeSynchronizing(MDL mdl) {
-    return mdl->dSynchronizing * TimeFraction(mdl);
-    }
-
-double mdlTimeWaiting(MDL mdl) {
-    return mdl->dWaiting * TimeFraction(mdl);
-    }
-#endif
 
 /*
 ** GRID Geometry information.  The basic process is as follows:

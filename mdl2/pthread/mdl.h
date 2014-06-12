@@ -3,6 +3,9 @@
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
+#ifdef INSTRUMENT
+#include "cycle.h"
+#endif
 #include "mdlbase.h"
 #include <stdio.h>
 #include <stdint.h>
@@ -14,9 +17,6 @@
 
 #ifdef MDL_FFTW
 #include <srfftw_threads.h>
-#endif
-#ifdef INSTRUMENT
-#include "cycle.h"
 #endif
 
 #ifdef __cplusplus
@@ -152,12 +152,6 @@ typedef struct mdlContext {
     int nMaxCacheIds;
     int iMaxDataSize;
     CACHE *cache;
-#if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
-    ticks nTicks;
-    double dWaiting;
-    double dComputing;
-    double dSynchronizing;
-#endif
 
     /* The work queue */
     pthread_mutex_t  wqMux;
@@ -340,13 +334,6 @@ double mdlNumAccess(MDL,int);
 double mdlMissRatio(MDL,int);
 double mdlCollRatio(MDL,int);
 double mdlMinRatio(MDL,int);
-
-#if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
-void mdlTimeReset(MDL);
-double mdlTimeComputing(MDL);
-double mdlTimeSynchronizing(MDL);
-double mdlTimeWaiting(MDL);
-#endif
 
 void mdlSetWorkQueueSize(MDL,int,int);
 void mdlAddWork(MDL mdl, void *ctx, mdlWorkFunction initWork, mdlWorkFunction checkWork, mdlWorkFunction doWork, mdlWorkFunction doneWork);

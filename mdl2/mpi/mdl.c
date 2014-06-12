@@ -23,11 +23,6 @@
 #endif
 #include "mpi.h"
 #include "mdl.h"
-#ifdef USE_BSC
-#include "mpitrace_user_events.h"
-#endif
-
-const char *mpi_mdl_module_id = "MPI ($Id$)";
 
 #define MDL_NOCACHE			0
 #define MDL_ROCACHE			1
@@ -44,108 +39,67 @@ const char *mpi_mdl_module_id = "MPI ($Id$)";
 #define MDL_TAG_RPL		5
 #define MDL_TAG_SEND            6
 
-
+typedef struct {
+    OPA_Queue_element_hdr_t hdr;
+    } serviceElement;
 
 /*
  ** This structure should be "maximally" aligned, with 4 ints it
  ** should align up to at least QUAD word, which should be enough.
  */
 typedef struct srvHeader {
-    int idFrom;
-    int sid;
-    int nInBytes;
-    int nOutBytes;
+    int32_t idFrom;
+    int16_t coreTo;
+    int16_t sid;
+    int32_t nInBytes;
+    int32_t nOutBytes;
     } SRVHEAD;
 
-int mdlLaunch(int argc,char **argv,int (*fcnMaster)(MDL,int,char **),void (*fcnChild)(MDL)) {
-    MDL mdl;
-    int i,j,bDiag,bThreads;
-    char *p,ach[256],achDiag[256];
+void mdlInitCommon(MDL mdl0, int iMDL,int bDiag,const char * argv0) {
+    MDL mdl = mdl0->pmdl[iMDL];
+    int i;
 
-    mdl = malloc(sizeof(struct mdlContext));
-    assert(mdl != NULL);
+    if (iMDL) {
+	mdlBaseInitialize(&mdl->base);
+//	mdl->base = mdl0->base;
+	mdl->base.iCore = iMDL;
+	mdl->base.idSelf = mdl0->base.idSelf + iMDL;
+	mdl->pmdl = mdl0->pmdl;
+	}
+    OPA_Queue_init(&mdl->inQueue);
 
-    mdlBaseInitialize(&mdl->base);
     /*
-     ** Set default "maximums" for structures. These are NOT hard
-     ** maximums, as the structures will be realloc'd when these
-     ** values are exceeded.
-     */
+    ** Set default "maximums" for structures. These are NOT hard
+    ** maximums, as the structures will be realloc'd when these
+    ** values are exceeded.
+    */
     mdl->nMaxSrvBytes = 0;
-    mdl->nMaxCacheIds = MDL_DEFAULT_CACHEIDS;
     /*
-     ** Allocate service buffers.
-     */
+    ** Allocate service buffers.
+    */
     mdl->pszIn = NULL;
     mdl->pszOut = NULL;
     mdl->pszBuf = NULL;
+
+
     /*
-     ** Allocate swapping transfer buffer. This buffer remains fixed.
-     */
-    mdl->pszTrans = malloc(MDL_TRANS_SIZE);
-    assert(mdl->pszTrans != NULL);
-    /*
-     ** Allocate initial cache spaces.
-     */
+    ** Allocate initial cache spaces.
+    */
+    mdl->nMaxCacheIds = MDL_DEFAULT_CACHEIDS;
     mdl->cache = malloc(mdl->nMaxCacheIds*sizeof(CACHE));
     assert(mdl->cache != NULL);
     /*
-     ** Initialize caching spaces.
-     */
+    ** Initialize caching spaces.
+    */
     mdl->cacheSize = MDL_CACHE_SIZE;
-    for (i=0;i<mdl->nMaxCacheIds;++i) {
+    for (i = 0; i<mdl->nMaxCacheIds; ++i) {
 	mdl->cache[i].iType = MDL_NOCACHE;
 	}
 
-    for (argc = 0; argv[argc]; argc++);
-
-    MPI_Init(&argc, &argv);
-
-#ifdef USE_BSC_trace
-    MPItrace_shutdown();
-#endif
-
-    /* We start with a single communicator */
-    mdl->commCount = 1;
-    mdl->commList[0] = MPI_COMM_WORLD;
-
     /*
-     ** Do some low level argument parsing for number of threads, and
-     ** diagnostic flag!
-     */
-    bDiag = 0;
-    bThreads = 0;
-    i = 1;
-    while (argv[i]) {
-	if (!strcmp(argv[i],"-sz") && !bThreads) {
-	    ++i;
-	    if (argv[i]) bThreads = 1;
-	    }
-	if (!strcmp(argv[i],"+d") && !bDiag) {
-	    p = getenv("MDL_DIAGNOSTIC");
-	    if (!p) p = getenv("HOME");
-	    if (!p) sprintf(ach,"/tmp");
-	    else sprintf(ach,"%s",p);
-	    bDiag = 1;
-	    }
-	++i;
-	}
-    argc = i;
-    if (bThreads) {
-	fprintf(stderr,"Warning: -sz parameter ignored, using as many\n");
-	fprintf(stderr,"         processors as specified in environment.\n");
-	fflush(stderr);
-	}
-
-    MPI_Comm_size(mdl->commList[0], &mdl->base.nThreads);
-    MPI_Comm_rank(mdl->commList[0], &mdl->base.idSelf);
-
-    mdl->commMDL = mdl->commList[0];
-
-    /*
-     ** Allocate caching buffers, with initial data size of 0.
-     ** We need one reply buffer for each thread, to deadlock situations.
-     */
+    ** Allocate caching buffers, with initial data size of 0.
+    ** We need one reply buffer for each thread, to deadlock situations.
+    */
     mdl->iMaxDataSize = 0;
     mdl->iCaBufSize = sizeof(CAHEAD);
     mdl->pszRcv = malloc(mdl->iCaBufSize);
@@ -154,33 +108,122 @@ int mdlLaunch(int argc,char **argv,int (*fcnMaster)(MDL,int,char **),void (*fcnC
     assert(mdl->ppszRpl != NULL);
     mdl->pmidRpl = malloc(mdl->base.nThreads*sizeof(int));
     assert(mdl->pmidRpl != NULL);
-    for (i=0;i<mdl->base.nThreads;++i)
+    for (i = 0; i<mdl->base.nThreads; ++i)
 	mdl->pmidRpl[i] = -1;
     mdl->pReqRpl = malloc(mdl->base.nThreads*sizeof(MPI_Request));
     assert(mdl->pReqRpl != NULL);
-    for (i=0;i<mdl->base.nThreads;++i) {
+    for (i = 0; i<mdl->base.nThreads; ++i) {
 	mdl->ppszRpl[i] = malloc(mdl->iCaBufSize);
 	assert(mdl->ppszRpl[i] != NULL);
 	}
     mdl->pszFlsh = malloc(mdl->iCaBufSize);
     assert(mdl->pszFlsh != NULL);
+
     mdl->base.bDiag = bDiag;
     if (mdl->base.bDiag) {
-	char *tmp = strrchr(argv[0],'/');
-	if (!tmp) tmp = argv[0];
+	char achDiag[256], ach[256];
+	const char *tmp = strrchr(argv0, '/');
+	if (!tmp) tmp = argv0;
 	else ++tmp;
-	sprintf(achDiag,"%s/%s.%d",ach,tmp,mdlSelf(mdl));
-	mdl->base.fpDiag = fopen(achDiag,"w");
+	sprintf(achDiag, "%s/%s.%d", ach, tmp, mdlSelf(mdl));
+	mdl->base.fpDiag = fopen(achDiag, "w");
 	assert(mdl->base.fpDiag != NULL);
 	}
 
-//    MPI_Get_processor_name( mdl->base.nodeName, &i );
-//    mdl->base.nodeName[i] = 0;
 
-    if (mdl->base.nThreads > 1 && mdlSelf(mdl)) {
-	/*
-	 ** Child thread.
-	 */
+    }
+
+
+int mdlLaunch(int argc,char **argv,int (*fcnMaster)(MDL,int,char **),void (*fcnChild)(MDL)) {
+    MDL mdl;
+    int i,j,bDiag,bThreads;
+    char *p, ach[256];
+
+    mdl = malloc(sizeof(struct mdlContext));
+    assert(mdl != NULL);
+    mdlBaseInitialize(&mdl->base);
+
+    /*
+    ** Do some low level argument parsing for number of threads, and
+    ** diagnostic flag!
+    */
+    for (argc = 0; argv[argc]; argc++);
+    bDiag = 0;
+    bThreads = 0;
+    i = 1;
+    while (argv[i]) {
+	if (!strcmp(argv[i], "-sz") && !bThreads) {
+	    ++i;
+	    mdl->base.nCores = atoi(argv[i]);
+	    if (argv[i]) bThreads = 1;
+	    }
+	if (!strcmp(argv[i], "+d") && !bDiag) {
+	    p = getenv("MDL_DIAGNOSTIC");
+	    if (!p) p = getenv("HOME");
+	    if (!p) sprintf(ach, "/tmp");
+	    else sprintf(ach, "%s", p);
+	    bDiag = 1;
+	    }
+	++i;
+	}
+    argc = i;
+
+    /* MPI Initialization */
+    MPI_Init(&argc, &argv);
+    mdl->commMDL = MPI_COMM_WORLD;
+    MPI_Comm_size(mdl->commMDL, &mdl->base.nProcs);
+    MPI_Comm_rank(mdl->commMDL, &mdl->base.iProc);
+
+    /* Construct the thread/processor map */
+    mdl->base.iProcToThread = malloc((mdl->base.nProcs + 1) * sizeof(int));
+    assert(mdl->base.iProcToThread != NULL);
+    mdl->base.iProcToThread[0] = 0;
+    MPI_Allgather(&mdl->base.nCores, 1, MPI_INT, mdl->base.iProcToThread + 1, 1, MPI_INT, mdl->commMDL);
+    for (i = 1; i < mdl->base.nProcs; ++i) mdl->base.iProcToThread[i + 1] += mdl->base.iProcToThread[i];
+    mdl->base.nThreads = mdl->base.iProcToThread[mdl->base.nProcs];
+    mdl->base.idSelf = mdl->base.iProcToThread[mdl->base.iProc];
+
+
+
+    /*
+     ** Allocate swapping transfer buffer. This buffer remains fixed.
+     */
+    mdl->pszTrans = malloc(MDL_TRANS_SIZE);
+    assert(mdl->pszTrans != NULL);
+
+    mdl->pmdl = malloc(mdl->base.nCores * sizeof(struct mdlContext *));
+    mdl->pmdl[0] = mdl;
+    mdl->threadid = malloc(mdl->base.nCores * sizeof(pthread_t));
+    mdl->threadid[0] = 0;
+
+    /* Allocate the other MDL structures for any threads. */
+    for (i = 1; i < mdl->base.nCores; ++i) {
+	mdl->pmdl[i] = malloc(sizeof(struct mdlContext));
+	assert(mdl->pmdl[i] != NULL);
+	}
+    for (i = 0; i < mdl->base.nCores; ++i)
+	mdlInitCommon(mdl, i, bDiag, argv[0]);
+
+    /* This is true when there is a single thread per process. */
+//    assert(mdl->base.nThreads == mdl->base.nProcs);
+//    assert(mdl->base.idSelf == mdl->base.iProc);
+
+
+
+    /* Launch child threads */
+    if (mdl->base.nCores > 1) {
+	pthread_attr_t attr;
+	pthread_attr_init(&attr);
+	for (i = 1; i < mdl->base.nCores; ++i) {
+	    pthread_create(&mdl->threadid[i], &attr,
+		(void *(*)(void *))fcnChild,
+		mdl->pmdl[i]);
+	    }
+	pthread_attr_destroy(&attr);
+	}
+
+    /* Child thread */
+    if (mdl->base.idSelf) {
 	(*fcnChild)(mdl);
 	}
     else {
@@ -194,10 +237,6 @@ void mdlFinish(MDL mdl) {
     int i;
 
     MPI_Barrier(mdl->commMDL);
-    for ( i=0; i<mdl->commCount; i++ )
-	if ( mdl->commList[i] != MPI_COMM_WORLD )
-	    MPI_Comm_free(&mdl->commList[i]);
-
     MPI_Finalize();
     /*
      ** Close Diagnostic file.
@@ -219,6 +258,7 @@ void mdlFinish(MDL mdl) {
     free(mdl->ppszRpl);
     free(mdl->pmidRpl);
     free(mdl->pReqRpl);
+    free(mdl->base.iProcToThread);
     mdlBaseFinish(&mdl->base);
     free(mdl);
     }
@@ -540,11 +580,11 @@ void mdlCommitServices(MDL mdl) {
     int nMaxBytes;
     nMaxBytes = (mdl->base.nMaxInBytes > mdl->base.nMaxOutBytes) ? mdl->base.nMaxInBytes : mdl->base.nMaxOutBytes;
     if (nMaxBytes > mdl->nMaxSrvBytes) {
-        mdl->pszIn = realloc(mdl->pszIn, nMaxBytes + sizeof(SRVHEAD));
+        mdl->pszIn = realloc(mdl->pszIn, nMaxBytes + sizeof(SRVHEAD) + sizeof(serviceElement));
         assert(mdl->pszIn != NULL);
-        mdl->pszOut = realloc(mdl->pszOut, nMaxBytes + sizeof(SRVHEAD));
+	mdl->pszOut = realloc(mdl->pszOut, nMaxBytes + sizeof(SRVHEAD) + sizeof(serviceElement));
         assert(mdl->pszOut != NULL);
-        mdl->pszBuf = realloc(mdl->pszBuf, nMaxBytes + sizeof(SRVHEAD));
+	mdl->pszBuf = realloc(mdl->pszBuf, nMaxBytes + sizeof(SRVHEAD) + sizeof(serviceElement));
         assert(mdl->pszBuf != NULL);
         mdl->nMaxSrvBytes = nMaxBytes;
         }
@@ -559,22 +599,53 @@ void mdlAddService(MDL mdl,int sid,void *p1,
 
 void mdlReqService(MDL mdl,int id,int sid,void *vin,int nInBytes) {
     char *pszIn = vin;
-    /*
-     ** If this looks like dangerous magic, it's because it is!
-     */
-    SRVHEAD *ph = (SRVHEAD *)mdl->pszBuf;
-    char *pszOut = &mdl->pszBuf[sizeof(SRVHEAD)];
-    int i;
+    int iFirstThread = mdlProcToThread(mdl, mdl->base.iProc);
+    int iCore = id - iFirstThread;
 
-    ph->idFrom = mdl->base.idSelf;
-    ph->sid = sid;
-    if (!pszIn) ph->nInBytes = 0;
-    else ph->nInBytes = nInBytes;
-    if (nInBytes > 0 && pszIn != NULL) {
-	for (i=0;i<nInBytes;++i) pszOut[i] = pszIn[i];
+    /* Local request: add to the thread queue */
+    if (iCore >= 0 && iCore < mdl->base.nCores) {
+	assert(iCore != mdl->base.iCore); /* Cannot request to ourself */
+	serviceElement *qhdr = (serviceElement*)mdl->pmdl[iCore]->pszIn;
+	SRVHEAD *ph = (SRVHEAD *)(qhdr + 1);
+	char *pszOut = (char *)(ph + 1);
+	ph->idFrom = mdl->base.idSelf;
+	ph->coreTo = iCore;
+	ph->sid = sid;
+	if (!pszIn) ph->nInBytes = 0;
+	else ph->nInBytes = nInBytes;
+	ph->nOutBytes = 0;
+	if (nInBytes > 0) {
+	    assert(pszIn != NULL);
+	    memcpy(pszOut, pszIn, nInBytes);
+	    }
+
+	OPA_Queue_header_init(&qhdr->hdr);
+	OPA_Queue_enqueue(&mdl->pmdl[iCore]->inQueue, qhdr, serviceElement, hdr);
 	}
-    MPI_Send(mdl->pszBuf,nInBytes+(int)sizeof(SRVHEAD),MPI_BYTE,id,MDL_TAG_REQ,
-	     mdl->commMDL);
+
+    /* Remote request -- queue to MPI thread*/
+    else if (mdl->base.iCore > 0) {
+	assert(mdl->base.iCore == 0); /* Forbidden for now */
+	}
+
+    /* Remote request -- we are the MPI thread */
+    else {
+	serviceElement *qhdr = (serviceElement*)mdl->pszBuf;
+	SRVHEAD *ph = (SRVHEAD *)(qhdr + 1);
+	char *pszOut = (char *)(ph + 1);
+	int iProc = mdlThreadToProc(mdl, id);
+	ph->idFrom = mdl->base.idSelf;
+	ph->coreTo = id - mdlProcToThread(mdl,iProc);
+	ph->sid = sid;
+	if (!pszIn) ph->nInBytes = 0;
+	else ph->nInBytes = nInBytes;
+	ph->nOutBytes = 0;
+	if (nInBytes > 0) {
+	    assert(pszIn != NULL);
+	    memcpy(pszOut, pszIn, nInBytes);
+	    }
+	MPI_Send(ph, nInBytes + (int)sizeof(SRVHEAD), MPI_BYTE, iProc, MDL_TAG_REQ, mdl->commMDL);
+	}
     }
 
 
@@ -584,15 +655,34 @@ void mdlGetReply(MDL mdl,int id,void *vout,int *pnOutBytes) {
     char *pszIn = &mdl->pszBuf[sizeof(SRVHEAD)];
     int i,iTag,nBytes;
     MPI_Status status;
-
-    iTag = MDL_TAG_RPL;
-    MPI_Recv(mdl->pszBuf,mdl->nMaxSrvBytes+(int)sizeof(SRVHEAD),MPI_BYTE,
-	     id,iTag,mdl->commMDL, &status);
-    MPI_Get_count(&status, MPI_BYTE, &nBytes);
-    assert(nBytes == ph->nOutBytes + sizeof(SRVHEAD));
-    if (ph->nOutBytes > 0 && pszOut != NULL) {
-	for (i=0;i<ph->nOutBytes;++i) pszOut[i] = pszIn[i];
+    int iFirstThread = mdlProcToThread(mdl, mdl->base.iProc);
+    int iCore = id - iFirstThread;
+    /* Local request: add to the thread queue */
+    if (iCore >= 0 && iCore < mdl->base.nCores) {
+	assert(iCore != mdl->base.iCore); /* Cannot request to ourself */
+	while (OPA_Queue_is_empty(&mdl->inQueue)) {
+#ifdef _MSC_VER
+	    SwitchToThread();
+#else
+	    sched_yield();
+#endif
+	    }
+	serviceElement *qhdr;
+	OPA_Queue_dequeue(&mdl->inQueue, qhdr, serviceElement, hdr);
+	ph = (SRVHEAD *)(qhdr + 1);
+	pszIn = (char *)(ph + 1);
 	}
+    else {
+	int iProc = mdlThreadToProc(mdl, id);
+	iTag = MDL_TAG_RPL;
+	MPI_Recv(mdl->pszBuf, mdl->nMaxSrvBytes + (int)sizeof(SRVHEAD), MPI_BYTE,
+	    iProc, iTag, mdl->commMDL, &status);
+	MPI_Get_count(&status, MPI_BYTE, &nBytes);
+	assert(nBytes == ph->nOutBytes + sizeof(SRVHEAD));
+	assert(ph->coreTo == 0);
+	}
+    if (ph->nOutBytes > 0 && pszOut != NULL)
+	memcpy(pszOut, pszIn, ph->nOutBytes);
     if (pnOutBytes) *pnOutBytes = ph->nOutBytes;
     }
 
@@ -609,61 +699,81 @@ void mdlStop(MDL mdl) {
     printf( "MDL terminated\n" );
     }
 
-static int mdlHandleOne(MDL mdl) {
-    SRVHEAD *phi = (SRVHEAD *)mdl->pszIn;
-    SRVHEAD *pho = (SRVHEAD *)mdl->pszOut;
-    char *pszIn = &mdl->pszIn[sizeof(SRVHEAD)];
-    char *pszOut = &mdl->pszOut[sizeof(SRVHEAD)];
+void mdlHandler(MDL mdl) {
+    serviceElement *qhi = (serviceElement *)(mdl->pszIn);
+    serviceElement *qho = (serviceElement *)(mdl->pszOut);
+    SRVHEAD *phi = (SRVHEAD *)(qhi + 1);
+    SRVHEAD *pho = (SRVHEAD *)(qho + 1);
+    char *pszIn = (char *)(phi + 1);
+    char *pszOut = (char *)(pho + 1);
     int sid,iTag,id,nOutBytes,nBytes;
     MPI_Status status;
     MPI_Comm   comm;
 
-    /* Save this communicator... reply ALWAYS goes here */
-    comm = mdl->commMDL;
-    iTag = MDL_TAG_REQ;
-    id = MPI_ANY_SOURCE;
-    MPI_Recv(mdl->pszIn,mdl->nMaxSrvBytes+sizeof(SRVHEAD),
-	     MPI_BYTE, id,iTag,comm,&status);
-    /*
-    ** Quite a few sanity checks follow.
-    */
-    id = status.MPI_SOURCE;
-    MPI_Get_count(&status, MPI_BYTE, &nBytes);
-    assert(nBytes == phi->nInBytes + sizeof(SRVHEAD));
-    assert(id == phi->idFrom);
-    sid = phi->sid;
-    assert(sid < mdl->base.nMaxServices);
-    if (phi->nInBytes > mdl->base.psrv[sid].nInBytes) {
-	printf( "ERROR: pid=%d, sid=%d, nInBytes=%d, sid.nInBytes=%d\n",
-		mdlSelf(mdl), sid, phi->nInBytes, mdl->base.psrv[sid].nInBytes );
-	}
-    assert(phi->nInBytes <= mdl->base.psrv[sid].nInBytes);
-    nOutBytes = 0;
-    assert(mdl->base.psrv[sid].fcnService != NULL);
-    (*mdl->base.psrv[sid].fcnService)(mdl->base.psrv[sid].p1,pszIn,phi->nInBytes,
-				 pszOut,&nOutBytes);
-    assert(nOutBytes <= mdl->base.psrv[sid].nOutBytes);
-    pho->idFrom = mdl->base.idSelf;
-    pho->sid = sid;
-    pho->nInBytes = phi->nInBytes;
-    pho->nOutBytes = nOutBytes;
-    MPI_Send(mdl->pszOut,nOutBytes+sizeof(SRVHEAD),
-	     MPI_BYTE, id,MDL_TAG_RPL, comm);
-
-    return sid;
-    }
-
-
-
-void mdlHandler(MDL mdl) {
-    int sid;
-
-    mdl->commMDL = mdl->commList[0];
     do {
-	sid = mdlHandleOne(mdl);
-	}
-    while (sid != SRV_STOP);
+	/* We need to check our queue */
+	if (mdl->base.iCore > 0) {
+	    while (OPA_Queue_is_empty(&mdl->inQueue)) {
+#ifdef _MSC_VER
+		SwitchToThread();
+#else
+		sched_yield();
+#endif
+		}
+	    serviceElement *qhdr;
+	    OPA_Queue_dequeue(&mdl->inQueue, qhdr, serviceElement, hdr);
+	    phi = (SRVHEAD *)(qhdr + 1);
+	    char *pszIn = (char *)(phi + 1);
+	    id = phi->idFrom;
+	    }
+	else {
+	    /* Save this communicator... reply ALWAYS goes here */
+	    comm = mdl->commMDL;
+	    iTag = MDL_TAG_REQ;
+	    id = MPI_ANY_SOURCE;
+	    MPI_Recv(phi, mdl->nMaxSrvBytes + sizeof(SRVHEAD),
+		MPI_BYTE, id, iTag, comm, &status);
+	    /*
+	    ** Quite a few sanity checks follow.
+	    */
+	    id = status.MPI_SOURCE;
+	    MPI_Get_count(&status, MPI_BYTE, &nBytes);
+	    assert(nBytes == phi->nInBytes + sizeof(SRVHEAD));
+	    assert(id == mdlThreadToProc(mdl, phi->idFrom));
+	    assert(phi->coreTo == 0);
+	    }
+	sid = phi->sid;
+	assert(sid < mdl->base.nMaxServices);
+	if (phi->nInBytes > mdl->base.psrv[sid].nInBytes) {
+	    printf("ERROR: pid=%d, sid=%d, nInBytes=%d, sid.nInBytes=%d\n",
+		mdlSelf(mdl), sid, phi->nInBytes, mdl->base.psrv[sid].nInBytes);
+	    }
+	assert(phi->nInBytes <= mdl->base.psrv[sid].nInBytes);
+	nOutBytes = 0;
+	assert(mdl->base.psrv[sid].fcnService != NULL);
+	(*mdl->base.psrv[sid].fcnService)(mdl->base.psrv[sid].p1, pszIn, phi->nInBytes,
+	    pszOut, &nOutBytes);
+	assert(nOutBytes <= mdl->base.psrv[sid].nOutBytes);
+	pho->idFrom = mdl->base.idSelf;
+	pho->sid = sid;
+	pho->coreTo = 0;
+	pho->nInBytes = phi->nInBytes;
+	pho->nOutBytes = nOutBytes;
+	if (mdl->base.iCore > 0) {
+	    int iFirstThread = mdl->pmdl[0]->base.idSelf;
+	    int iCore = id - iFirstThread;
 
+	    /* Remote reply: to MPI thread */
+	    if (iCore < 0 || iCore >= mdl->base.nCores) iCore = 0;
+
+	    OPA_Queue_header_init(&qho->hdr);
+	    OPA_Queue_enqueue(&mdl->pmdl[iCore]->inQueue, qho, serviceElement, hdr);
+	    }
+	else {
+	    MPI_Send(pho, nOutBytes + sizeof(SRVHEAD),
+		MPI_BYTE, id, MDL_TAG_RPL, comm);
+	    }
+	} while (sid != SRV_STOP);
     }
 
 #define MDL_TAG_CACHECOM	10
@@ -907,11 +1017,7 @@ CACHE *CacheInitialize(MDL mdl,int cid,
 	 */
 	MPI_Irecv(mdl->pszRcv,mdl->iCaBufSize, MPI_BYTE, MPI_ANY_SOURCE,
 		  MDL_TAG_CACHECOM, mdl->commMDL, &mdl->ReqRcv);
-
-#if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
-	mdl->dWaiting = mdl->dComputing = mdl->dSynchronizing = 0.0;
-	mdl->nTicks = getticks();
-#endif
+	mdlTimeReset(mdl);
 	}
 
     if (cid >= mdl->nMaxCacheIds) {
@@ -1134,13 +1240,7 @@ void mdlFlushCache(MDL mdl,int cid) {
     MPI_Request reqBoth[2];
     int index;
 
-#if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
-	{
-	ticks nTicks = getticks();
-	mdl->dComputing += elapsed( nTicks, mdl->nTicks );
-	mdl->nTicks = nTicks;
-	}
-#endif
+    mdlTimeAddComputing(mdl);
     if (c->iType == MDL_COCACHE) {
 	/*
 	 ** Must flush all valid data elements.
@@ -1191,13 +1291,7 @@ void mdlFlushCache(MDL mdl,int cid) {
 		c->pTag[i].iKey = MDL_INVALID_KEY;
 	    }
 	}
-#if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
-	{
-	ticks nTicks = getticks();
-	mdl->dSynchronizing += elapsed( nTicks, mdl->nTicks );
-	mdl->nTicks = nTicks;
-	}
-#endif
+    mdlTimeAddSynchronizing(mdl);
     }
 
 void mdlFinishCache(MDL mdl,int cid) {
@@ -1215,13 +1309,7 @@ void mdlFinishCache(MDL mdl,int cid) {
     MPI_Request reqBoth[2];
     int index;
 
-#if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
-	{
-	ticks nTicks = getticks();
-	mdl->dComputing += elapsed( nTicks, mdl->nTicks );
-	mdl->nTicks = nTicks;
-	}
-#endif
+    mdlTimeAddComputing(mdl);
     if (c->iType == MDL_COCACHE) {
 	/*
 	 * Extra checkout to let everybody finish before
@@ -1352,13 +1440,7 @@ void mdlFinishCache(MDL mdl,int cid) {
 	MPI_Wait(&mdl->ReqRcv, &status);
 	}
     MPI_Barrier(mdl->commMDL);
-#if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
-	{
-	ticks nTicks = getticks();
-	mdl->dSynchronizing += elapsed( nTicks, mdl->nTicks );
-	mdl->nTicks = nTicks;
-	}
-#endif
+    mdlTimeAddSynchronizing(mdl);
     }
 
 
@@ -1366,14 +1448,7 @@ void mdlCacheBarrier(MDL mdl,int cid) {
     CACHE *c = &mdl->cache[cid];
     CAHEAD caOut;
     int id;
-
-#if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
-	{
-	ticks nTicks = getticks();
-	mdl->dComputing += elapsed( nTicks, mdl->nTicks );
-	mdl->nTicks = nTicks;
-	}
-#endif
+    mdlTimeAddComputing(mdl);
 
     /*
     ** THIS IS A SYNCHRONIZE!!!
@@ -1405,13 +1480,7 @@ void mdlCacheBarrier(MDL mdl,int cid) {
 	}
     c->nCheckOut = 0;
     MPI_Barrier(mdl->commMDL);
-#if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
-	{
-	ticks nTicks = getticks();
-	mdl->dSynchronizing += elapsed( nTicks, mdl->nTicks );
-	mdl->nTicks = nTicks;
-	}
-#endif
+    mdlTimeAddSynchronizing(mdl);
     }
 
 
@@ -1442,14 +1511,7 @@ void *mdlDoMiss(MDL mdl, int cid, int iIndex, int id, mdlkey_t iKey, int lock) {
     MPI_Status status;
     MPI_Request reqFlsh;
 
-
-#if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
-	{
-	ticks nTicks = getticks();
-	mdl->dComputing += elapsed( nTicks, mdl->nTicks );
-	mdl->nTicks = nTicks;
-	}
-#endif
+    mdlTimeAddComputing(mdl);
 
     /*
     ** Cache Miss.
@@ -1532,13 +1594,7 @@ Await:
 	if (mdlCacheReceive(mdl,pLine)) {
 	    if (caFlsh)
 		MPI_Wait(&reqFlsh, &status);
-#if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
-		{
-		ticks nTicks = getticks();
-		mdl->dWaiting += elapsed( nTicks, mdl->nTicks );
-		mdl->nTicks = nTicks;
-		}
-#endif
+	    mdlTimeAddWaiting(mdl);
 	    return(&pLine[iElt*c->iDataSize]);
 	    }
 	}
@@ -1584,31 +1640,6 @@ double mdlCollRatio(MDL mdl,int cid) {
     if (dAccess > 0.0) return(c->nColl/dAccess);
     else return(0.0);
     }
-
-#if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
-void mdlTimeReset(MDL mdl) {
-    mdl->dWaiting = mdl->dComputing = mdl->dSynchronizing = 0.0;
-    mdl->nTicks = getticks();
-    }
-
-static double TimeFraction(MDL mdl) {
-    double dTotal = mdl->dComputing + mdl->dWaiting + mdl->dSynchronizing;
-    if ( dTotal <= 0.0 ) return 0.0;
-    return 100.0 / dTotal;
-    }
-
-double mdlTimeComputing(MDL mdl) {
-    return mdl->dComputing * TimeFraction(mdl);
-    }
-
-double mdlTimeSynchronizing(MDL mdl) {
-    return mdl->dSynchronizing * TimeFraction(mdl);
-    }
-
-double mdlTimeWaiting(MDL mdl) {
-    return mdl->dWaiting * TimeFraction(mdl);
-    }
-#endif
 
 /*
 ** GRID Geometry information.  The basic process is as follows:

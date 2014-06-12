@@ -85,11 +85,7 @@ int mdlLaunch(int argc,char **argv,int (*fcnMaster)(MDL,int,char **),void (*fcnC
     nThreads = 1;
     mdl->base.bDiag = bDiag;
     mdl->base.nThreads = nThreads;
-
-#if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
-    mdl->dComputing = 0.0;
-    mdl->nTicks = getticks();
-#endif
+    mdlTimeReset(mdl);
 
     /*
      ** A unik!
@@ -323,8 +319,8 @@ void mdlFinishCache(MDL mdl,int cid) {
 #if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
 	{
 	ticks nTicks = getticks();
-	mdl->dComputing += elapsed( nTicks, mdl->nTicks );
-	mdl->nTicks = nTicks;
+	mdl->base.dComputing += elapsed(nTicks, mdl->base.nTicks);
+	mdl->base.nTicks = nTicks;
 	}
 #endif
 
@@ -389,31 +385,6 @@ double mdlMinRatio(MDL mdl,int cid) {
     if (dAccess > 0.0) return(c->nMin/dAccess);
     else return(0.0);
     }
-
-#if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
-void mdlTimeReset(MDL mdl) {
-    mdl->dComputing = 0.0;
-    mdl->nTicks = getticks();
-    }
-
-static double TimeFraction(MDL mdl) {
-    double dTotal = mdl->dComputing;
-    if ( dTotal <= 0.0 ) return 0.0;
-    return 100.0 / dTotal;
-    }
-
-double mdlTimeComputing(MDL mdl) {
-    return mdl->dComputing * TimeFraction(mdl);
-    }
-
-double mdlTimeSynchronizing(MDL mdl) {
-    return 0.0;
-    }
-
-double mdlTimeWaiting(MDL mdl) {
-    return 0.0;
-    }
-#endif
 
 /*
 ** GRID Geometry information.  The basic process is as follows:
