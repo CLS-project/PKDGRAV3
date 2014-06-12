@@ -343,8 +343,7 @@
 #if defined(_M_X64)
 #define __SSE__
 #define __SSE2__
-#ifdef __AVX__
-#define __AVX2__
+#ifdef __AVX2__
 #define __FMA__
 #endif
 #define USE_SIMD 1

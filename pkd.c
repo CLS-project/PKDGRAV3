@@ -2322,13 +2322,11 @@ int pkdColRejects(PKD pkd,int nSplit) {
     pkd->nRejects = pkdLocal(pkd) - nSplit;
     iRejects = pkdFreeStore(pkd) - pkd->nRejects;
     pkd->nLocal = nSplit;
-#ifndef NEW_SWAP
     /*
     ** Move rejects to High memory.
     */
     for (i=pkd->nRejects-1;i>=0;--i)
 	pkdCopyParticle(pkd,pkdParticle(pkd,iRejects+i),pkdParticle(pkd,pkd->nLocal+i));
-#endif
     return(pkd->nRejects);
     }
 
@@ -2358,11 +2356,9 @@ void pkdSwapAll(PKD pkd, int idSwap) {
     /*
     ** Move particles to High memory.
     */
-#ifndef NEW_SWAP
     iBuf = pkdSwapSpace(pkd);
     for (i=pkdLocal(pkd)-1;i>=0;--i)
 	pkdCopyParticle(pkd,pkdParticle(pkd,iBuf+i),pkdParticle(pkd,i));
-#endif
     nBuf = pkdFreeStore(pkd)*pkdParticleSize(pkd);
     nOutBytes = pkdLocal(pkd)*pkdParticleSize(pkd);
     mdlSwap(pkd->mdl,idSwap,nBuf,pkdParticleBase(pkd), nOutBytes,
@@ -2427,13 +2423,11 @@ int pkdColOrdRejects(PKD pkd,uint64_t nOrdSplit,int iSplitSide) {
     pkd->nRejects = pkdLocal(pkd) - nSplit;
     iRejects = pkdFreeStore(pkd) - pkd->nRejects;
     pkd->nLocal = nSplit;
-#ifndef NEW_SWAP
     /*
     ** Move rejects to High memory.
     */
     for (i=pkd->nRejects-1;i>=0;--i)
 	pkdCopyParticle(pkd,pkdParticle(pkd,iRejects+i),pkdParticle(pkd,pkd->nLocal+i));
-#endif
     return(pkd->nRejects);
     }
 

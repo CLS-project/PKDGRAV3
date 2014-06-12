@@ -3,6 +3,10 @@
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
+#ifdef INSTRUMENT
+#include "cycle.h"
+#endif
+#include <pthread.h>
 #include "mdlbase.h"
 #include <stdio.h>
 #include <assert.h>
@@ -14,9 +18,7 @@
 #ifdef MDL_FFTW
 #include <srfftw_mpi.h>
 #endif
-#ifdef INSTRUMENT
-#include "cycle.h"
-#endif
+#include "opa_queue.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -94,14 +96,14 @@ typedef struct cacheSpace {
 
 typedef struct mdlContext {
     mdlBASE base;
-    int commCount;
-    int cacheSize;
+    struct mdlContext **pmdl;
+    pthread_t *threadid;
+
     MPI_Comm commMDL;  /* Current active communicator */
-    MPI_Comm commList[MDL_MAX_COMM];
-    /*MPI_Comm commWork;*/
-    /*MPI_Comm commPeer;*/
-    int dontcare;
-    int allgrp;
+    OPA_Queue_info_t inQueue;
+
+    int cacheSize;
+
     /*
      ** Services stuff!
      */
@@ -126,12 +128,6 @@ typedef struct mdlContext {
     char *pszFlsh;
     int nMaxCacheIds;
     CACHE *cache;
-#if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
-    ticks nTicks;
-    double dWaiting;
-    double dComputing;
-    double dSynchronizing;
-#endif
     } * MDL;
 
 
@@ -370,13 +366,6 @@ void mdlFlushCache(MDL,int);
 double mdlNumAccess(MDL,int);
 double mdlMissRatio(MDL,int);
 double mdlCollRatio(MDL,int);
-
-#if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
-void mdlTimeReset(MDL);
-double mdlTimeComputing(MDL);
-double mdlTimeSynchronizing(MDL);
-double mdlTimeWaiting(MDL);
-#endif
 
 void mdlSetWorkQueueSize(MDL,int,int);
 void mdlAddWork(MDL mdl, void *ctx, mdlWorkFunction initWork, mdlWorkFunction checkWork, mdlWorkFunction doWork, mdlWorkFunction doneWork);

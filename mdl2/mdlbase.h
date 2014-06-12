@@ -1,5 +1,8 @@
 #ifndef MDLBASE_H
 #define MDLBASE_H
+#ifdef INSTRUMENT
+#include "cycle.h"
+#endif
 #include <stdio.h>
 #include <stdint.h>
 
@@ -64,10 +67,13 @@ typedef struct serviceRec {
 
 #define MAX_PROCESSOR_NAME      256
 typedef struct {
-    int nThreads; /* Global number of threads (total) */
-    int idSelf;   /* Global index of this thread */
-    int nProcs;   /* Number of global processes (e.g., MPI ranks) */
-    int nCores;   /* Number of threads in this process */
+    int32_t nThreads; /* Global number of threads (total) */
+    int32_t idSelf;   /* Global index of this thread */
+    int32_t nProcs;   /* Number of global processes (e.g., MPI ranks) */
+    int32_t iProc;    /* Index of this process (MPI rank) */
+    int16_t nCores;   /* Number of threads in this process */
+    int16_t iCore;    /* Local core id */
+
 
     FILE *fpDiag;
     int bDiag;    /* When true, debug output is enabled */
@@ -77,7 +83,20 @@ typedef struct {
     int nMaxInBytes;
     int nMaxOutBytes;
     SERVICE *psrv;
+
+    /* Maps a give process (Proc) to the first global thread ID */
+    int *iProcToThread; /* [0,nProcs] (note inclusive extra element) */
+
     char nodeName[MAX_PROCESSOR_NAME];
+
+#if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
+    ticks nTicks;
+    double dWaiting;
+    double dComputing;
+    double dSynchronizing;
+#endif
+
+
     } mdlBASE;
 
 void mdlBaseInitialize(mdlBASE *base);
@@ -89,6 +108,9 @@ void mdlBaseAddService(mdlBASE *base, int sid, void *p1,
 #define mdlThreads(mdl) ((mdl)->base.nThreads)
 #define mdlSelf(mdl) ((mdl)->base.idSelf)
 const char *mdlName(void *mdl);
+
+#define mdlProcToThread(mdl,iProc) mdlBaseProcToThread(&(mdl)->base,iProc)
+#define mdlThreadToProc(mdl,iThread) mdlBaseThreadToProc(&(mdl)->base,iThread)
 
 void mdlprintf(void *mdl, const char *format, ...);
 #ifdef MDLASSERT
@@ -107,6 +129,27 @@ void mdlprintf(void *mdl, const char *format, ...);
 #endif
 
 double mdlCpuTimer(void * mdl);
+
+
+#if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
+void mdlTimeReset(void *mdl);
+void mdlTimeAddComputing(void *mdl);
+void mdlTimeAddSynchronizing(void *mdl);
+void mdlTimeAddWaiting(void *mdl);
+double mdlTimeComputing(void *mdl);
+double mdlTimeSynchronizing(void *mdl);
+double mdlTimeWaiting(void *mdl);
+#else
+#define mdlTimeReset(mdl)
+#define mdlTimeAddComputing(mdl)
+#define mdlTimeAddSynchronizing(mdl)
+#define mdlTimeAddWaiting(mdl)
+double mdlTimeComputing(mdl) 0.0
+double mdlTimeSynchronizing(mdl) 0.0
+double mdlTimeWaiting(mdl) 0.0
+#endif
+
+
 
 /*
 * Timer functions active: define MDLTIMER

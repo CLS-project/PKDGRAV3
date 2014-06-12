@@ -43,11 +43,11 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <IncludePath>$(ProjectDir)\..;$(ProjectDir)\..\..;$(ProjectDir)\..\..\mdl2;$(ProjectDir)\..\..\mdl2\mpi;$(ProjectDir)\..\glibc;$(ProgramW6432)\Microsoft MPI\Inc;$(IncludePath)</IncludePath>
+    <IncludePath>$(ProjectDir)\..;$(ProjectDir)\..\..;$(ProjectDir)\..\..\mdl2;$(ProjectDir)\..\..\mdl2\mpi;$(ProjectDir)\..\..\openpa/src;$(ProjectDir)\..\glibc;$(ProgramW6432)\Microsoft MPI\Inc;$(IncludePath)</IncludePath>
     <LibraryPath>$(ProgramW6432)\Microsoft MPI\Lib\amd64;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <IncludePath>$(ProjectDir)\..;$(ProjectDir)\..\..;$(ProjectDir)\..\..\mdl2;$(ProjectDir)\..\..\mdl2\mpi;$(ProjectDir)\..\glibc;$(ProgramW6432)\Microsoft MPI\Inc;$(IncludePath)</IncludePath>
+    <IncludePath>$(ProjectDir)\..;$(ProjectDir)\..\..;$(ProjectDir)\..\..\mdl2;$(ProjectDir)\..\..\mdl2\mpi;$(ProjectDir)\..\..\openpa/src;$(ProjectDir)\..\glibc;$(ProgramW6432)\Microsoft MPI\Inc;$(IncludePath)</IncludePath>
     <LibraryPath>$(ProgramW6432)\Microsoft MPI\Lib\amd64;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -55,7 +55,7 @@
       <WarningLevel>Level2</WarningLevel>
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>HAVE_CONFIG_H;_IEEE_LIBM;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <EnableEnhancedInstructionSet>AdvancedVectorExtensions</EnableEnhancedInstructionSet>
+      <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
       <BrowseInformation>true</BrowseInformation>
     </ClCompile>
     <Link>
@@ -75,7 +75,7 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>HAVE_CONFIG_H;_IEEE_LIBM;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
-      <EnableEnhancedInstructionSet>AdvancedVectorExtensions</EnableEnhancedInstructionSet>
+      <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
       <FloatingPointModel>Fast</FloatingPointModel>
       <AssemblerOutput>NoListing</AssemblerOutput>
     </ClCompile>
@@ -108,6 +108,8 @@
     <ClCompile Include="..\..\mdl2\mdlhash.c" />
     <ClCompile Include="..\..\mdl2\mpi\mdl.c" />
     <ClCompile Include="..\..\moments.c" />
+    <ClCompile Include="..\..\openpa\src\opa_primitives.c" />
+    <ClCompile Include="..\..\openpa\src\opa_queue.c" />
     <ClCompile Include="..\..\outtype.c" />
     <ClCompile Include="..\..\param.c" />
     <ClCompile Include="..\..\pkd.c" />
@@ -150,6 +152,9 @@
     <ClInclude Include="..\..\mdl2\mpi\mdl.h" />
     <ClInclude Include="..\..\meval.h" />
     <ClInclude Include="..\..\moments.h" />
+    <ClInclude Include="..\..\openpa\src\opa_primitives.h" />
+    <ClInclude Include="..\..\openpa\src\opa_queue.h" />
+    <ClInclude Include="..\..\openpa\src\opa_util.h" />
     <ClInclude Include="..\..\outtype.h" />
     <ClInclude Include="..\..\param.h" />
     <ClInclude Include="..\..\parameters.h" />

@@ -3,15 +3,15 @@
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
+#ifdef INSTRUMENT
+#include "cycle.h"
+#endif
 #include "mdlbase.h"
 #include <stdio.h>
 #include <stdint.h>
 #include <assert.h>
 #ifdef MDL_FFTW
 #include <srfftw.h>
-#endif
-#ifdef INSTRUMENT
-#include "cycle.h"
 #endif
 
 #if defined(__osf__) || defined(__sgi)
@@ -55,10 +55,6 @@ typedef struct mdlContext {
     int iMaxDataSize;
     int nMaxCacheIds;
     CACHE *cache;
-#if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
-    ticks nTicks;
-    double dComputing;
-#endif
     } * MDL;
 
 /*
@@ -99,13 +95,6 @@ double mdlNumAccess(MDL,int);
 double mdlMissRatio(MDL,int);
 double mdlCollRatio(MDL,int);
 double mdlMinRatio(MDL,int);
-
-#if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
-void mdlTimeReset(MDL);
-double mdlTimeComputing(MDL);
-double mdlTimeSynchronizing(MDL);
-double mdlTimeWaiting(MDL);
-#endif
 
 /*
 ** Collective operations
