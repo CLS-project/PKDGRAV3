@@ -119,20 +119,26 @@ typedef struct cacheSpace {
     int nKeyMax;
     } CACHE;
 
+typedef struct {
+    MPI_Comm commMDL;             /* Current active communicator */
+    OPA_Queue_info_t queueMPI;
+    int *pRequestTargets;
+    int nRequestTargets;
+    int iRequestTarget;
+    int nSendRecvReq;
+    MPI_Request *pSendRecvReq;
+    MDLserviceSend **pSendRecvBuf;
+    } mdlContextMPI;
+
+
 typedef struct mdlContext {
     mdlBASE base;
     struct mdlContext **pmdl;
     pthread_t *threadid;
 
-    MPI_Comm commMDL;             /* Current active communicator */
-    OPA_Queue_info_t queueMPI;
-    int nSendRecvReq;
-    MPI_Request *pSendRecvReq;
-    MDLserviceSend **pSendRecvBuf;
+    mdlContextMPI mpi;
+
     MDLserviceCacheReq **pThreadCacheReq;
-    int *pRequestTargets;
-    int nRequestTargets;
-    int iRequestTarget;
 
     MDLserviceSend sendRequest;
     MDLserviceSend recvRequest;

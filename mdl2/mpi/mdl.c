@@ -97,14 +97,14 @@ void mdlInitCommon(MDL mdl0, int iMDL,int bDiag,int argc, char **argv) {
     mdl->iCoreMPI = 0;
 
     /* Only used by the MPI thread */
-    OPA_Queue_init(&mdl->queueMPI);
-    mdl->nSendRecvReq = 0;
-    mdl->pSendRecvReq = NULL;
-    mdl->pSendRecvBuf = NULL;
+    OPA_Queue_init(&mdl->mpi.queueMPI);
+    mdl->mpi.nSendRecvReq = 0;
+    mdl->mpi.pSendRecvReq = NULL;
+    mdl->mpi.pSendRecvBuf = NULL;
     mdl->pThreadCacheReq = NULL;
-    mdl->pRequestTargets = NULL;
-    mdl->nRequestTargets = 0;
-    mdl->iRequestTarget = 0;
+    mdl->mpi.pRequestTargets = NULL;
+    mdl->mpi.nRequestTargets = 0;
+    mdl->mpi.iRequestTarget = 0;
 
     /*
     ** Set default "maximums" for structures. These are NOT hard
@@ -223,21 +223,23 @@ int mdlLaunch(int argc,char **argv,void * (*fcnMaster)(MDL),void * (*fcnChild)(M
 	perror(ach);
 	abort();
 	}
-    mdl->commMDL = MPI_COMM_WORLD;
+    mdl->mpi.commMDL = MPI_COMM_WORLD;
     mdl->ReqRcv = MPI_REQUEST_NULL;
-    MPI_Comm_size(mdl->commMDL, &mdl->base.nProcs);
-    MPI_Comm_rank(mdl->commMDL, &mdl->base.iProc);
+    MPI_Comm_size(mdl->mpi.commMDL, &mdl->base.nProcs);
+    MPI_Comm_rank(mdl->mpi.commMDL, &mdl->base.iProc);
 
     /* Construct the thread/processor map */
     mdl->base.iProcToThread = malloc((mdl->base.nProcs + 1) * sizeof(int));
     assert(mdl->base.iProcToThread != NULL);
     mdl->base.iProcToThread[0] = 0;
-    MPI_Allgather(&mdl->base.nCores, 1, MPI_INT, mdl->base.iProcToThread + 1, 1, MPI_INT, mdl->commMDL);
+    MPI_Allgather(&mdl->base.nCores, 1, MPI_INT, mdl->base.iProcToThread + 1, 1, MPI_INT, mdl->mpi.commMDL);
     for (i = 1; i < mdl->base.nProcs; ++i) mdl->base.iProcToThread[i + 1] += mdl->base.iProcToThread[i];
     mdl->base.nThreads = mdl->base.iProcToThread[mdl->base.nProcs];
     mdl->base.idSelf = mdl->base.iProcToThread[mdl->base.iProc];
 
-    mdl->pmdl = malloc(mdl->base.nCores * sizeof(struct mdlContext *));
+    mdl->pmdl = malloc((mdl->base.nCores+1) * sizeof(struct mdlContext *));
+    assert(mdl->pmdl!=NULL);
+    mdl->pmdl++;
     mdl->pmdl[0] = mdl;
     mdl->threadid = malloc(mdl->base.nCores * sizeof(pthread_t));
     mdl->threadid[0] = 0;
@@ -251,20 +253,20 @@ int mdlLaunch(int argc,char **argv,void * (*fcnMaster)(MDL),void * (*fcnChild)(M
 	mdlInitCommon(mdl, i, bDiag, argc, argv);
 
     /* Some bookeeping for the send/recv - 1 of each per thread */
-    mdl->nSendRecvReq = 0;
-    mdl->pSendRecvReq = malloc(mdl->base.nCores*2*sizeof(MPI_Request));
-    mdl->pSendRecvBuf = malloc(mdl->base.nCores*2*sizeof(MDLserviceSend *));
-    assert(mdl->pSendRecvReq!=NULL);
-    assert(mdl->pSendRecvBuf!=NULL);
+    mdl->mpi.nSendRecvReq = 0;
+    mdl->mpi.pSendRecvReq = malloc(mdl->base.nCores*2*sizeof(MPI_Request));
+    mdl->mpi.pSendRecvBuf = malloc(mdl->base.nCores*2*sizeof(MDLserviceSend *));
+    assert(mdl->mpi.pSendRecvReq!=NULL);
+    assert(mdl->mpi.pSendRecvBuf!=NULL);
     mdl->pThreadCacheReq = malloc(mdl->base.nCores*sizeof(MDLserviceCacheReq *));
     for (i = 0; i < mdl->base.nCores; ++i) mdl->pThreadCacheReq[i] = NULL;
 
     /* Ring buffer of requests */
-    mdl->iRequestTarget = 0;
-    mdl->nRequestTargets = 2 * log2(1.0 * mdl->base.nThreads);
-    mdl->pRequestTargets = malloc(mdl->nRequestTargets * sizeof(*mdl->pRequestTargets));
-    assert(mdl->pRequestTargets!=NULL);
-    for(i=0; i<mdl->nRequestTargets; ++i) mdl->pRequestTargets[i] = -1;
+    mdl->mpi.iRequestTarget = 0;
+    mdl->mpi.nRequestTargets = 2 * log2(1.0 * mdl->base.nThreads) + mdl->base.nCores;
+    mdl->mpi.pRequestTargets = malloc(mdl->mpi.nRequestTargets * sizeof(*mdl->mpi.pRequestTargets));
+    assert(mdl->mpi.pRequestTargets!=NULL);
+    for(i=0; i<mdl->mpi.nRequestTargets; ++i) mdl->mpi.pRequestTargets[i] = -1;
 
     mdl->iCoreMPI = bDedicated ? -1 : 0;
 
@@ -299,7 +301,7 @@ void mdlFinish(MDL mdl) {
 	pthread_join(mdl->threadid[i],0);
 	}
 
-    MPI_Barrier(mdl->commMDL);
+    MPI_Barrier(mdl->mpi.commMDL);
     MPI_Finalize();
     /*
      ** Close Diagnostic file.
@@ -345,9 +347,10 @@ static void checkMPI(MDL mdl) {
 	MDLserviceElement *qhdr;
 	SRVHEAD *head;
 	int iProc, iCore, tag, i;
+	MPI_Request request;
 
-	if (!OPA_Queue_is_empty(&mdl->queueMPI)) {
-	    OPA_Queue_dequeue(&mdl->queueMPI, qhdr, MDLserviceElement, hdr);
+	if (!OPA_Queue_is_empty(&mdl->mpi.queueMPI)) {
+	    OPA_Queue_dequeue(&mdl->mpi.queueMPI, qhdr, MDLserviceElement, hdr);
 	    switch(qhdr->iServiceID) {
 
 	    case MDL_SE_SEND_REQUEST:
@@ -359,16 +362,16 @@ static void checkMPI(MDL mdl) {
 
 		/* Grab a free tag for the reply */
 		head = send->buf;
-		i = mdl->iRequestTarget;
+		i = mdl->mpi.iRequestTarget;
 		do {
-		    if (++mdl->iRequestTarget == mdl->nRequestTargets) mdl->iRequestTarget = 0;
-		    } while(i != mdl->iRequestTarget && mdl->pRequestTargets[mdl->iRequestTarget] >= 0);
-		assert(mdl->pRequestTargets[mdl->iRequestTarget] < 0);
-		head->replyTag = mdl->iRequestTarget;
-		mdl->pRequestTargets[mdl->iRequestTarget] = iProc;
-		MPI_Isend(send->buf,send->count,send->datatype,iProc,tag,mdl->commMDL,mdl->pSendRecvReq+mdl->nSendRecvReq);
-		mdl->pSendRecvBuf[mdl->nSendRecvReq] = send;
-		++mdl->nSendRecvReq;
+		    if (++mdl->mpi.iRequestTarget == mdl->mpi.nRequestTargets) mdl->mpi.iRequestTarget = 0;
+		    } while(i != mdl->mpi.iRequestTarget && mdl->mpi.pRequestTargets[mdl->mpi.iRequestTarget] >= 0);
+		assert(mdl->mpi.pRequestTargets[mdl->mpi.iRequestTarget] < 0);
+		head->replyTag = mdl->mpi.iRequestTarget;
+		mdl->mpi.pRequestTargets[mdl->mpi.iRequestTarget] = iProc;
+		MPI_Isend(send->buf,send->count,send->datatype,iProc,tag,mdl->mpi.commMDL,mdl->mpi.pSendRecvReq+mdl->mpi.nSendRecvReq);
+		mdl->mpi.pSendRecvBuf[mdl->mpi.nSendRecvReq] = send;
+		++mdl->mpi.nSendRecvReq;
 		break;
 	    case MDL_SE_SEND_REPLY:
 		send = (MDLserviceSend *)qhdr;
@@ -376,24 +379,20 @@ static void checkMPI(MDL mdl) {
 		/* tag is really the request ID */
 		head = send->buf;
 		tag = MDL_TAG_RPL + MDL_TAG_THREAD_OFFSET * head->replyTag;
-		MPI_Isend(send->buf,send->count,send->datatype,iProc,tag,mdl->commMDL,mdl->pSendRecvReq+mdl->nSendRecvReq);
-		mdl->pSendRecvBuf[mdl->nSendRecvReq] = send;
-		++mdl->nSendRecvReq;
+		MPI_Isend(send->buf,send->count,send->datatype,iProc,tag,mdl->mpi.commMDL,mdl->mpi.pSendRecvReq+mdl->mpi.nSendRecvReq);
+		mdl->mpi.pSendRecvBuf[mdl->mpi.nSendRecvReq] = send;
+		++mdl->mpi.nSendRecvReq;
 		break;
 	    case MDL_SE_RECV_REPLY:
 		send = (MDLserviceSend *)qhdr;
-		if (send->target==MPI_ANY_SOURCE) iProc = MPI_ANY_SOURCE;
-		else iProc = mdlThreadToProc(mdl,send->target);
-		iCore = send->iCoreFrom;
-		assert(iCore>=0);
 		/* Target is really the request ID */
-		assert(send->target < mdl->nRequestTargets);
-		iProc = mdl->pRequestTargets[send->target];
+		assert(send->target < mdl->mpi.nRequestTargets);
+		iProc = mdl->mpi.pRequestTargets[send->target];
 		tag = MDL_TAG_RPL + MDL_TAG_THREAD_OFFSET * send->target;
 		head = send->buf;
-		MPI_Irecv(send->buf,send->count,send->datatype,iProc,tag,mdl->commMDL,mdl->pSendRecvReq+mdl->nSendRecvReq);
-		mdl->pSendRecvBuf[mdl->nSendRecvReq] = send;
-		++mdl->nSendRecvReq;
+		MPI_Irecv(send->buf,send->count,send->datatype,iProc,tag,mdl->mpi.commMDL,mdl->mpi.pSendRecvReq+mdl->mpi.nSendRecvReq);
+		mdl->mpi.pSendRecvBuf[mdl->mpi.nSendRecvReq] = send;
+		++mdl->mpi.nSendRecvReq;
 		break;
 
 	    case MDL_SE_MPI_SEND:
@@ -404,11 +403,11 @@ static void checkMPI(MDL mdl) {
 		assert(iCore>=0);
 		tag = send->tag + MDL_TAG_THREAD_OFFSET * iCore;
 		if (qhdr->iServiceID==MDL_SE_MPI_SSEND)
-		    MPI_Issend(send->buf,send->count,send->datatype,iProc,tag,mdl->commMDL,mdl->pSendRecvReq+mdl->nSendRecvReq);
+		    MPI_Issend(send->buf,send->count,send->datatype,iProc,tag,mdl->mpi.commMDL,mdl->mpi.pSendRecvReq+mdl->mpi.nSendRecvReq);
 		else
-		    MPI_Isend(send->buf,send->count,send->datatype,iProc,tag,mdl->commMDL,mdl->pSendRecvReq+mdl->nSendRecvReq);
-		mdl->pSendRecvBuf[mdl->nSendRecvReq] = send;
-		++mdl->nSendRecvReq;
+		    MPI_Isend(send->buf,send->count,send->datatype,iProc,tag,mdl->mpi.commMDL,mdl->mpi.pSendRecvReq+mdl->mpi.nSendRecvReq);
+		mdl->mpi.pSendRecvBuf[mdl->mpi.nSendRecvReq] = send;
+		++mdl->mpi.nSendRecvReq;
 		break;
 	    case MDL_SE_MPI_RECV:
 	    case MDL_SE_RECV_REQUEST:
@@ -418,19 +417,19 @@ static void checkMPI(MDL mdl) {
 		iCore = send->iCoreFrom;
 		assert(iCore>=0);
 		tag = send->tag + MDL_TAG_THREAD_OFFSET * iCore;
-		MPI_Irecv(send->buf,send->count,send->datatype,iProc,tag,mdl->commMDL,mdl->pSendRecvReq+mdl->nSendRecvReq);
-		mdl->pSendRecvBuf[mdl->nSendRecvReq] = send;
-		++mdl->nSendRecvReq;
+		MPI_Irecv(send->buf,send->count,send->datatype,iProc,tag,mdl->mpi.commMDL,mdl->mpi.pSendRecvReq+mdl->mpi.nSendRecvReq);
+		mdl->mpi.pSendRecvBuf[mdl->mpi.nSendRecvReq] = send;
+		++mdl->mpi.nSendRecvReq;
 		break;
 	    case MDL_SE_CACHE_REQUEST:
 		caReq = (MDLserviceCacheReq *)qhdr;
 		assert(mdl->pThreadCacheReq[caReq->iCoreFrom]==NULL);
 		iProc = mdlThreadToProc(mdl,caReq->caReq.idTo);
 		mdl->pThreadCacheReq[caReq->iCoreFrom] = caReq;
-		MPI_Send(&caReq->caReq,sizeof(CAHEAD),MPI_BYTE,iProc,MDL_TAG_CACHECOM, mdl->commMDL);
+		MPI_Isend(&caReq->caReq,sizeof(CAHEAD),MPI_BYTE,iProc,MDL_TAG_CACHECOM, mdl->mpi.commMDL,&request);
 		break;
 	    case MDL_SE_BARRIER_REQUEST:
-		MPI_Barrier(mdl->commMDL);
+		MPI_Barrier(mdl->mpi.commMDL);
 		mdlSendThreadMessage(mdl,MDL_TAG_BARRIER,0,qhdr,MDL_SE_BARRIER_REPLY);
 		break;
 	    default:
@@ -438,40 +437,43 @@ static void checkMPI(MDL mdl) {
 		}
 	    continue;
 	    }
-	if (mdl->nSendRecvReq) {
+	if (mdl->mpi.nSendRecvReq) {
+	    int flag,indx;
 	    MPI_Status status;
-	    int flag,indx, i;
-	    i = MPI_Testany(mdl->nSendRecvReq,mdl->pSendRecvReq, &indx, &flag, &status);
+	    MPI_Testany(mdl->mpi.nSendRecvReq,mdl->mpi.pSendRecvReq, &indx, &flag, &status);
 	    if (flag) {
-		assert(indx>=0 && indx<mdl->nSendRecvReq);
-		send = mdl->pSendRecvBuf[indx];
-		for(i=indx+1;i<mdl->nSendRecvReq;++i) {
-		    mdl->pSendRecvReq[i-1] = mdl->pSendRecvReq[i];
-		    mdl->pSendRecvBuf[i-1] = mdl->pSendRecvBuf[i];
+		if (indx==mdl->mpi.nSendRecvReq) mdlCacheReceive(mdl,NULL);
+		else {
+		    assert(indx>=0 && indx<mdl->mpi.nSendRecvReq);
+		    send = mdl->mpi.pSendRecvBuf[indx];
+		    for(i=indx+1;i<mdl->mpi.nSendRecvReq;++i) {
+			mdl->mpi.pSendRecvReq[i-1] = mdl->mpi.pSendRecvReq[i];
+			mdl->mpi.pSendRecvBuf[i-1] = mdl->mpi.pSendRecvBuf[i];
+			}
+		    --mdl->mpi.nSendRecvReq;
+		    switch(send->iServiceID) {
+		    case MDL_SE_MPI_SEND:
+		    case MDL_SE_MPI_SSEND:
+		    case MDL_SE_SEND_REQUEST:
+		    case MDL_SE_SEND_REPLY:
+			assert(send == &mdl->pmdl[send->iCoreFrom]->sendRequest);
+			tag = 0;
+			break;
+		    case MDL_SE_RECV_REPLY:
+			head = send->buf;
+			assert(mdl->mpi.pRequestTargets[send->target]>=0);
+			mdl->mpi.pRequestTargets[send->target] = -1;
+		    case MDL_SE_MPI_RECV:
+		    case MDL_SE_RECV_REQUEST:
+			assert(send == &mdl->pmdl[send->iCoreFrom]->recvRequest);
+			tag = send->tag % MDL_TAG_THREAD_OFFSET;
+			MPI_Get_count(&status, MPI_BYTE, &send->count);
+			break;
+		    default:
+			assert(0);
+			}
+		    mdlSendThreadMessage(mdl,tag,send->iCoreFrom,send,MDL_SE_MPI_SSEND);
 		    }
-		--mdl->nSendRecvReq;
-		switch(send->iServiceID) {
-		case MDL_SE_MPI_SEND:
-		case MDL_SE_MPI_SSEND:
-		case MDL_SE_SEND_REQUEST:
-		case MDL_SE_SEND_REPLY:
-		    assert(send == &mdl->pmdl[send->iCoreFrom]->sendRequest);
-		    tag = 0;
-		    break;
-		case MDL_SE_RECV_REPLY:
-		    head = send->buf;
-		    assert(mdl->pRequestTargets[send->target]>=0);
-		    mdl->pRequestTargets[send->target] = -1;
-		case MDL_SE_MPI_RECV:
-		case MDL_SE_RECV_REQUEST:
-		    assert(send == &mdl->pmdl[send->iCoreFrom]->recvRequest);
-		    tag = send->tag % MDL_TAG_THREAD_OFFSET;
-		    MPI_Get_count(&status, MPI_BYTE, &send->count);
-		    break;
-		default:
-		    assert(0);
-		    }
-		mdlSendThreadMessage(mdl,tag,send->iCoreFrom,send,MDL_SE_MPI_SSEND);
 		continue;
 		}
 	    }
@@ -521,60 +523,60 @@ static void mdlThreadBarrier(MDL mdl, void (*handler)(MDL mdl, MDLserviceElement
 */
 
 int mdlBcast ( MDL mdl, void *buf, int count, MDL_Datatype datatype, int root ) {
-    return MPI_Bcast( buf, count, datatype, root, mdl->commMDL );
+    return MPI_Bcast( buf, count, datatype, root, mdl->mpi.commMDL );
     }
 
 int mdlScan ( MDL mdl, void *sendbuf, void *recvbuf, int count,
 		MDL_Datatype datatype, MDL_Op op ) {
-    return MPI_Scan( sendbuf, recvbuf, count, datatype, op, mdl->commMDL );
+    return MPI_Scan( sendbuf, recvbuf, count, datatype, op, mdl->mpi.commMDL );
     }
 
 int mdlExscan ( MDL mdl, void *sendbuf, void *recvbuf, int count,
 		MDL_Datatype datatype, MDL_Op op ) {
-    return MPI_Exscan( sendbuf, recvbuf, count, datatype, op, mdl->commMDL );
+    return MPI_Exscan( sendbuf, recvbuf, count, datatype, op, mdl->mpi.commMDL );
     }
 
 int mdlReduce ( MDL mdl, void *sendbuf, void *recvbuf, int count,
 		MDL_Datatype datatype, MDL_Op op, int root ) {
-    return MPI_Reduce( sendbuf, recvbuf, count, datatype, op, root, mdl->commMDL );
+    return MPI_Reduce( sendbuf, recvbuf, count, datatype, op, root, mdl->mpi.commMDL );
     }
 
 int mdlAllreduce ( MDL mdl, void *sendbuf, void *recvbuf, int count,
 		MDL_Datatype datatype, MDL_Op op ) {
-    return MPI_Allreduce( sendbuf, recvbuf, count, datatype, op, mdl->commMDL );
+    return MPI_Allreduce( sendbuf, recvbuf, count, datatype, op, mdl->mpi.commMDL );
     }
 
 int mdlAlltoall( MDL mdl, void *sendbuf, int scount, MDL_Datatype stype,
 		 void *recvbuf, int rcount, MDL_Datatype rtype) {
     return MPI_Alltoall(sendbuf,scount,stype,
-			recvbuf,rcount,rtype,mdl->commMDL);
+			recvbuf,rcount,rtype,mdl->mpi.commMDL);
     }
 
 int mdlAlltoallv( MDL mdl, void *sendbuf, int *sendcnts, int *sdispls, MDL_Datatype sendtype,
     void *recvbuf, int *recvcnts, int *rdispls, MDL_Datatype recvtype) {
     return MPI_Alltoallv( sendbuf, sendcnts, sdispls, sendtype, 
-        recvbuf, recvcnts, rdispls, recvtype, mdl->commMDL );
+        recvbuf, recvcnts, rdispls, recvtype, mdl->mpi.commMDL );
     }
 
 int mdlAlltoallw( MDL mdl, void *sendbuf, int *sendcnts, int *sdispls, MDL_Datatype *stypes,
     void *recvbuf, int *recvcnts, int *rdispls, MDL_Datatype *rtypes) {
     return MPI_Alltoallw( sendbuf, sendcnts, sdispls, stypes,
-        recvbuf, recvcnts, rdispls, rtypes, mdl->commMDL );
+        recvbuf, recvcnts, rdispls, rtypes, mdl->mpi.commMDL );
     }
 
 int mdlAllGather( MDL mdl, void *sendbuf, int scount, MDL_Datatype stype,
     void *recvbuf, int rcount, MDL_Datatype recvtype) {
-    return MPI_Allgather(sendbuf, scount, stype, recvbuf, rcount, recvtype, mdl->commMDL);
+    return MPI_Allgather(sendbuf, scount, stype, recvbuf, rcount, recvtype, mdl->mpi.commMDL);
     } 
 
 int mdlAllGatherv( MDL mdl, void *sendbuf, int scount, MDL_Datatype stype,
     void *recvbuf, int *recvcnts, int *rdisps, MDL_Datatype recvtype) {
-    return MPI_Allgatherv(sendbuf, scount, stype, recvbuf, recvcnts, rdisps, recvtype, mdl->commMDL);
+    return MPI_Allgatherv(sendbuf, scount, stype, recvbuf, recvcnts, rdisps, recvtype, mdl->mpi.commMDL);
     } 
 
 int mdlReduceScatter( MDL mdl, void* sendbuf, void* recvbuf, int *recvcounts,
     MDL_Datatype datatype, MDL_Op op) {
-    return MPI_Reduce_scatter(sendbuf, recvbuf, recvcounts, datatype, op, mdl->commMDL );
+    return MPI_Reduce_scatter(sendbuf, recvbuf, recvcounts, datatype, op, mdl->mpi.commMDL );
     }
 
 int mdlTypeContiguous(MDL mdl,int count, MDL_Datatype old_type, MDL_Datatype *newtype) {
@@ -618,7 +620,7 @@ static int mdl_start_MPI_Ssend(void *buf, int count, MPI_Datatype datatype, int 
 	OPA_Queue_header_init(&send->hdr);
 	send->iServiceID = stype;
 	send->iCoreFrom = mdl->base.iCore;
-	OPA_Queue_enqueue(&mdl->pmdl[mdl->iCoreMPI]->queueMPI, send, MDLserviceElement, hdr);
+	OPA_Queue_enqueue(&mdl->pmdl[mdl->iCoreMPI]->mpi.queueMPI, send, MDLserviceElement, hdr);
 	}
     return MPI_SUCCESS;
     }
@@ -647,7 +649,7 @@ static int mdl_remote_MPI_Recv(void *buf, int count, MPI_Datatype datatype, int 
     OPA_Queue_header_init(&send->hdr);
     send->iServiceID = iServiceID;
     send->iCoreFrom = mdl->base.iCore;
-    OPA_Queue_enqueue(&mdl->pmdl[mdl->iCoreMPI]->queueMPI, send, MDLserviceElement, hdr);
+    OPA_Queue_enqueue(&mdl->pmdl[mdl->iCoreMPI]->mpi.queueMPI, send, MDLserviceElement, hdr);
     send = mdlWaitThreadQueue(mdl,tag); /* Wait for the "send" to come back to us. */
     *nBytes = send->count;
     }
@@ -736,7 +738,7 @@ static int mdl_MPI_Barrier(MDL mdl) {
 	OPA_Queue_header_init(&qhdr->hdr);
 	qhdr->iServiceID = MDL_SE_BARRIER_REQUEST;
 	qhdr->iCoreFrom = mdl->base.iCore;
-	OPA_Queue_enqueue(&mdl->pmdl[mdl->iCoreMPI]->queueMPI, qhdr, MDLserviceElement, hdr);
+	OPA_Queue_enqueue(&mdl->pmdl[mdl->iCoreMPI]->mpi.queueMPI, qhdr, MDLserviceElement, hdr);
 	qhdr = mdlWaitThreadQueue(mdl,MDL_TAG_BARRIER);
 	assert(qhdr->iServiceID == MDL_SE_BARRIER_REPLY);
 #endif
@@ -1076,7 +1078,7 @@ int mdlCacheReceive(MDL mdl,char *pLine) {
 	/*iCore = ph->idFrom - mdlProcToThread(mdl,iProc)*/;
 	tag = MDL_TAG_CACHECOM /*+ MDL_TAG_THREAD_OFFSET * iCore*/;
 	MPI_Isend(phRpl,(int)sizeof(CAHEAD)+iLineSize,MPI_BYTE,
-		  iProc, tag, mdl->commMDL,
+		  iProc, tag, mdl->mpi.commMDL,
 		  &mdl->pReqRpl[ph->idFrom]);
 	ret = 0;
 	break;
@@ -1134,7 +1136,7 @@ int mdlCacheReceive(MDL mdl,char *pLine) {
      */
     id = MPI_ANY_SOURCE;
     MPI_Irecv(mdl->pszRcv,mdl->iCaBufSize, MPI_BYTE, id,
-	      MDL_TAG_CACHECOM, mdl->commMDL, &mdl->ReqRcv);
+	      MDL_TAG_CACHECOM, mdl->mpi.commMDL, &mdl->ReqRcv);
 
     return ret;
     }
@@ -1183,7 +1185,7 @@ void AdjustDataSize(MDL mdl) {
 	if (mdl->base.iCore == mdl->iCoreMPI)
 	    MPI_Irecv(mdl->pszRcv,mdl->iCaBufSize, MPI_BYTE,
 		MPI_ANY_SOURCE, MDL_TAG_CACHECOM,
-		mdl->commMDL, &mdl->ReqRcv);
+		mdl->mpi.commMDL, &mdl->ReqRcv);
 	}
     }
 
@@ -1235,73 +1237,6 @@ void mdlCacheCheck(MDL mdl) {
 	}
     }
 
-void mdlNewCacheBarrier(MDL mdl,int cid) {
-    CACHE *c = &mdl->cache[cid];
-    CAHEAD caOut;
-    int id;
-    MDLserviceElement *qhdr;
-    int i;
-
-    mdlTimeAddComputing(mdl);
-
-    /* Start by waiting for the thread barrier to get going */
-    if (mdl->base.iCore) {
-	mdlSendThreadMessage(mdl,MDL_TAG_BARRIER,0,&mdl->inMessage,MDL_SE_BARRIER_REQUEST);
-	qhdr = mdlWaitThreadQueue(mdl,MDL_TAG_BARRIER);
-	assert(qhdr->iServiceID == MDL_SE_BARRIER_REPLY);
-	}
-    else {
-	int nExpected = mdl->base.nCores-1;
-	for(i=1; i<mdl->base.nCores; ++i) {
-	    qhdr = mdlWaitThreadQueue(mdl,MDL_TAG_BARRIER);
-	    assert(qhdr->iServiceID == MDL_SE_BARRIER_REQUEST);
-	    }
-	}
-    /* Threads are still expecting the second part of the barrier */
-
-    if (mdl->base.iCore == mdl->iCoreMPI) {
-	/*
-	** THIS IS A SYNCHRONIZE!!!
-	*/
-	caOut.cid = cid;
-	caOut.mid = MDL_MID_CACHEIN;
-	caOut.idFrom = mdl->base.idSelf;
-	if (mdl->base.idSelf == 0) {
-	    ++c->nCheckIn;
-	    while (c->nCheckIn < mdl->base.nProcs) {
-		mdlCacheReceive(mdl, NULL);
-		}
-	    }
-	else {
-	    caOut.idTo = 0;
-	    MPI_Send(&caOut,sizeof(CAHEAD),MPI_BYTE, 0,
-		MDL_TAG_CACHECOM, mdl->commMDL);
-	    }
-	if (mdl->base.idSelf == 0) {
-	    for (id = 1; id < mdl->base.nProcs; id++) {
-		caOut.idTo = id;
-		MPI_Send(&caOut,sizeof(CAHEAD),MPI_BYTE, id,
-		    MDL_TAG_CACHECOM, mdl->commMDL);
-		}
-	    }
-	else {
-	    while (c->nCheckIn == 0) {
-		mdlCacheReceive(mdl,NULL);
-		}
-	    }
-	c->nCheckIn = 0;
-	MPI_Barrier(mdl->commMDL);
-	}
-
-    /* Finish the thread barrier */
-    if (mdl->base.iCore==0) {
-	for(i=1; i<mdl->base.nCores; ++i) {
-	    mdlSendThreadMessage(mdl,MDL_TAG_BARRIER,i,&mdl->pmdl[i]->inMessage,MDL_SE_BARRIER_REPLY);
-	    }
-	}
-    mdlTimeAddSynchronizing(mdl);
-    }
-
 /*
  ** Common initialization for all types of caches.
  */
@@ -1337,7 +1272,7 @@ CACHE *CacheInitialize(
 	 */
 	if (mdl->base.iCore == mdl->iCoreMPI) {
 	    MPI_Irecv(mdl->pszRcv,mdl->iCaBufSize, MPI_BYTE, MPI_ANY_SOURCE,
-		MDL_TAG_CACHECOM, mdl->commMDL, &mdl->ReqRcv);
+		MDL_TAG_CACHECOM, mdl->mpi.commMDL, &mdl->ReqRcv);
 	    }
 	mdlTimeReset(mdl);
 	}
@@ -1469,46 +1404,7 @@ void mdlCOcache(MDL mdl,int cid,
     }
 
 void mdlCacheBarrier(MDL mdl,int cid) {
-#if 1
     mdl_MPI_Barrier(mdl);
-#else
-    CACHE *c = &mdl->cache[cid];
-    CAHEAD caOut;
-    int id;
-    mdlTimeAddComputing(mdl);
-
-    /*
-    ** THIS IS A SYNCHRONIZE!!!
-    */
-    caOut.cid = cid;
-    caOut.mid = MDL_MID_CACHEOUT;
-    caOut.idFrom = mdl->base.idSelf;
-    if (mdl->base.idSelf == 0) {
-	++c->nCheckOut;
-	while (c->nCheckOut < mdl->base.nThreads) {
-	    mdlCacheReceive(mdl, NULL);
-	    }
-	}
-    else {
-	MPI_Send(&caOut,sizeof(CAHEAD),MPI_BYTE, 0,
-		 MDL_TAG_CACHECOM, mdl->commMDL);
-	}
-    if (mdl->base.idSelf == 0) {
-	for (id = 1; id < mdl->base.nThreads; id++) {
-	    MPI_Send(&caOut,sizeof(CAHEAD),MPI_BYTE, id,
-		     MDL_TAG_CACHECOM, mdl->commMDL);
-	    }
-	}
-    else {
-	c->nCheckOut = 0;
-	while (c->nCheckOut == 0) {
-	    mdlCacheReceive(mdl,NULL);
-	    }
-	}
-    c->nCheckOut = 0;
-    MPI_Barrier(mdl->commMDL);
-    mdlTimeAddSynchronizing(mdl);
-#endif
     }
 
 void mdlFlushCache(MDL mdl,int cid) {
@@ -1551,7 +1447,7 @@ void mdlFlushCache(MDL mdl,int cid) {
 		 */
 		MPI_Issend(caFlsh, (int)sizeof(CAHEAD)+c->iLineSize,
 			   MPI_BYTE, id, MDL_TAG_CACHECOM,
-			   mdl->commMDL, &reqFlsh);
+			   mdl->mpi.commMDL, &reqFlsh);
 		/*
 		 * Wait for the Flush to complete, but
 		 * also service any incoming cache requests.
@@ -1600,7 +1496,6 @@ void mdlFinishCache(MDL mdl,int cid) {
 
     /* We must wait for all threads to finish with this cache */
     mdl_MPI_Barrier(mdl);
-//    mdlNewCacheBarrier(mdl,cid);
     /*
      ** Free up storage and finish.
      */
@@ -1632,8 +1527,6 @@ void mdlFinishCache(MDL mdl,int cid) {
 //	MPI_Barrier(mdl->commMDL);
     mdlTimeAddSynchronizing(mdl);
     }
-
-
 
 void *mdlDoMiss(MDL mdl, int cid, int iIndex, int id, mdlkey_t iKey, int lock) {
     CACHE *c = &mdl->cache[cid];
@@ -1704,7 +1597,7 @@ void *mdlDoMiss(MDL mdl, int cid, int iIndex, int id, mdlkey_t iKey, int lock) {
 			pszFlsh[i] = pLine[i];
 		    MPI_Isend(caFlsh, (int)sizeof(CAHEAD)+c->iLineSize,
 			      MPI_BYTE, idVic,
-			      MDL_TAG_CACHECOM, mdl->commMDL, &reqFlsh);
+			      MDL_TAG_CACHECOM, mdl->mpi.commMDL, &reqFlsh);
 		    }
 		/*
 		 ** If valid iLine then "unlink" it from the cache.
@@ -1740,7 +1633,7 @@ Await:
      */
     c->cacheRequest.pLine = pLine;
     c->cacheRequest.iCoreFrom = mdl->base.iCore;
-    OPA_Queue_enqueue(&mdl->pmdl[mdl->iCoreMPI]->queueMPI, &c->cacheRequest, MDLserviceCacheReq, hdr);
+    OPA_Queue_enqueue(&mdl->pmdl[mdl->iCoreMPI]->mpi.queueMPI, &c->cacheRequest, MDLserviceCacheReq, hdr);
     mdlWaitThreadQueue(mdl,MDL_TAG_CACHECOM);
     mdlTimeAddWaiting(mdl);
     return(&pLine[iElt*c->iDataSize]);
@@ -1837,13 +1730,16 @@ void mdlGridSetLocal(MDL mdl,MDLGRID grid,int s, int n, int nlocal) {
 */
 void mdlGridShare(MDL mdl,MDLGRID grid) {
     int i, id;
-
+#if 0
     MPI_Allgather(&grid->s,sizeof(*grid->rs),MPI_BYTE,
 		  grid->rs,sizeof(*grid->rs),MPI_BYTE,
 		  mdl->commMDL);
     MPI_Allgather(&grid->n,sizeof(*grid->rn),MPI_BYTE,
 		  grid->rn,sizeof(*grid->rn),MPI_BYTE,
 		  mdl->commMDL);
+#else
+    assert(0);
+#endif
     /* Calculate on which processor each slab can be found. */
     for(id=0; id<mdl->base.nThreads; id++ ) {
 	for( i=grid->rs[id]; i<grid->rs[id]+grid->rn[id]; i++ ) grid->id[i] = id;
