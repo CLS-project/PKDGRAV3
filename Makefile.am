@@ -18,18 +18,9 @@ endif
 if HAVE_MPI
 EXTRA_PROGRAMS	+= pkdgrav2_mpi
 TARGETS	+= mpi
-if HAVE_MPIPT
-EXTRA_PROGRAMS  += pkdgrav2_mpipt
-TARGETS += mpipt
-endif
 
 mpi:
 	$(MAKE) CC=@MPICC@ FC=@MPIFC@ $(AM_MAKEFLAGS) pkdgrav2_mpi
-
-if HAVE_MPI
-mpipt:
-	$(MAKE) CC=@MPICC@ FC=@MPIFC@ $(AM_MAKEFLAGS) pkdgrav2_mpipt
-endif
 endif
 
 EXTRA_PROGRAMS += tostd tdiff
@@ -152,39 +143,6 @@ pkdgrav2_mpi_CFLAGS += -I$(PYTHON_INC)
 endif
 if LUSTRE
 pkdgrav2_mpi_LDADD += -llustreapi
-endif
-endif
-
-if HAVE_MPIPT
-pkdgrav2_mpipt_LDADD =
-pkdgrav2_mpipt_SOURCES = $(SOURCES) $(MDL)/mpipt/mdl.c
-noinst_HEADERS += $(MDL)/mpipt/mdl.h
-pkdgrav2_mpipt_CFLAGS = -I$(MDL)/mpipt/ -I$(MDL) $(AM_CFLAGS)
-if USE_BSC
-pkdgrav2_mpipt_LDADD += -L /gpfs/apps/CEPBATOOLS/mpitrace-devel/64/lib -ldl -lmpitrace_burst
-pkdgrav2_mpipt_CFLAGS += -I/gpfs/apps/CEPBATOOLS/mpitrace-devel/64/include
-endif
-if FFTW
-pkdgrav2_mpipt_LDADD += -lsrfftw_mpi -lsfftw_mpi -lsrfftw -lsfftw
-endif
-if USE_EFENCE
-if HAVE_EFENCE_PATH
-pkdgrav2_mpipt_LDADD += -L @EFENCE_PATH@
-endif
-pkdgrav2_mpipt_LDADD += -lefence
-endif
-if USE_CUDA
-pkdgrav2_mpipt_LDADD += @CUDA_LIBS@
-endif
-if USE_PYTHON
-if HAVE_RDYNAMIC
-pkdgrav2_mpipt_LDFLAGS = -Xlinker -rdynamic 
-endif
-pkdgrav2_mpipt_LDADD += -L$(PYTHON_LIB) -lpython$(PYTHON_VER) -ldl -lutil
-pkdgrav2_mpipt_CFLAGS += -I$(PYTHON_INC)
-endif
-if LUSTRE
-pkdgrav2_mpipt_LDADD += -llustreapi
 endif
 endif
 
