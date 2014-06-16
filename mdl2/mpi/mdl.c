@@ -33,7 +33,7 @@
 
 #define MDL_TRANS_SIZE		5000000
 
-#define MDL_TAG_BARRIER        	0
+#define MDL_TAG_BARRIER        	1
 #define MDL_TAG_SWAPINIT 	2
 #define MDL_TAG_SWAP		3
 #define MDL_TAG_REQ	   	4
@@ -210,6 +210,11 @@ int mdlLaunch(int argc,char **argv,void * (*fcnMaster)(MDL),void * (*fcnChild)(M
 	++i;
 	}
     argc = i;
+
+    if (!bThreads) {
+	if ( (p=getenv("SLURM_CPUS_PER_TASK")) != NULL ) mdl->base.nCores = atoi(p);
+	else if ( (p=getenv("OMP_NUM_THREADS")) != NULL ) mdl->base.nCores = atoi(p);
+	}
 
     /* MPI Initialization */
     rc = MPI_Init_thread(&argc, &argv, MPI_THREAD_FUNNELED,&thread_support);
