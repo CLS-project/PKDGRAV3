@@ -1742,17 +1742,8 @@ Await:
     c->cacheRequest.iCoreFrom = mdl->base.iCore;
     OPA_Queue_enqueue(&mdl->pmdl[mdl->iCoreMPI]->queueMPI, &c->cacheRequest, MDLserviceCacheReq, hdr);
     mdlWaitThreadQueue(mdl,MDL_TAG_CACHECOM);
+    mdlTimeAddWaiting(mdl);
     return(&pLine[iElt*c->iDataSize]);
-#if 0
-    while (1) {
-	if (mdlCacheReceive(mdl,pLine)) {
-	    if (caFlsh)
-		MPI_Wait(&reqFlsh, &status);
-	    mdlTimeAddWaiting(mdl);
-	    return(&pLine[iElt*c->iDataSize]);
-	    }
-	}
-#endif
     }
 
 
