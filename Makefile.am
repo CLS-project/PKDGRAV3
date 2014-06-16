@@ -1,3 +1,4 @@
+SUBDIRS=openpa
 ACLOCAL_AMFLAGS  = -I m4
 
 #if USE_GRAFIC
@@ -116,10 +117,10 @@ pkdgrav2_null_LDADD += -llustreapi
 endif
 
 if HAVE_MPI
-pkdgrav2_mpi_LDADD =
-pkdgrav2_mpi_SOURCES = $(SOURCES) $(MDL)/mpi/mdl.c
+pkdgrav2_mpi_LDADD = -lpthread
+pkdgrav2_mpi_SOURCES = $(SOURCES) $(MDL)/mpi/mdl.c openpa/src/opa_primitives.c openpa/src/opa_queue.c
 noinst_HEADERS += $(MDL)/mpi/mdl.h
-pkdgrav2_mpi_CFLAGS = -I$(MDL)/mpi/ -I$(MDL) $(AM_CFLAGS)
+pkdgrav2_mpi_CFLAGS = -I$(MDL)/mpi/ -I$(MDL) -Iopenpa/src $(AM_CFLAGS)
 if USE_BSC
 pkdgrav2_mpi_LDADD += -L /gpfs/apps/CEPBATOOLS/mpitrace-devel/64/lib -ldl -lmpitrace_burst
 pkdgrav2_mpi_CFLAGS += -I/gpfs/apps/CEPBATOOLS/mpitrace-devel/64/include

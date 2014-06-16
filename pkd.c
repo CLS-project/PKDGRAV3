@@ -461,7 +461,7 @@ void pkdInitialize(
     mdlassert(mdl,pkd->pTempPRIVATE != NULL);
 
     /* Create a type for our particle -- we use an opaque type */
-#ifdef MPI_VERSION
+#ifdef xMPI_VERSION
     mdlTypeContiguous(pkd->mdl, pkd->iParticleSize, MDL_BYTE, &pkd->typeParticle );
     mdlTypeCommit(pkd->mdl,&pkd->typeParticle);
 #endif
@@ -682,7 +682,7 @@ void pkdFinish(PKD pkd) {
 	    }
 	}
     }
-#ifdef MPI_VERSION
+#ifdef xMPI_VERSION
     mdlTypeFree(pkd->mdl,&pkd->typeParticle);
 #endif
     mdlFree(pkd->mdl,pkd->pStorePRIVATE);

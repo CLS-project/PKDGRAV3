@@ -73,10 +73,11 @@ typedef struct {
     int32_t iProc;    /* Index of this process (MPI rank) */
     int16_t nCores;   /* Number of threads in this process */
     int16_t iCore;    /* Local core id */
-
+    int bDiag;        /* When true, debug output is enabled */
+    int argc;
 
     FILE *fpDiag;
-    int bDiag;    /* When true, debug output is enabled */
+    char **argv;
 
     /* Services information */
     int nMaxServices;
@@ -99,7 +100,7 @@ typedef struct {
 
     } mdlBASE;
 
-void mdlBaseInitialize(mdlBASE *base);
+void mdlBaseInitialize(mdlBASE *base,int argc,char **argv);
 void mdlBaseFinish(mdlBASE *base);
 void mdlBaseAddService(mdlBASE *base, int sid, void *p1,
     void(*fcnService)(void *, void *, int, void *, int *),

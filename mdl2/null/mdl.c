@@ -31,7 +31,7 @@ const char *null_mdl_module_id = "NULL ($Id$)";
 #define MDL_DEFAULT_BYTES		4096
 #define MDL_DEFAULT_CACHEIDS	5
 
-int mdlLaunch(int argc,char **argv,int (*fcnMaster)(MDL,int,char **),void (*fcnChild)(MDL)) {
+int mdlLaunch(int argc,char **argv,void * (*fcnMaster)(MDL),void *(*fcnChild)(MDL)) {
     MDL mdl;
     int i,nThreads,bDiag,bThreads;
     char *p,ach[256],achDiag[256];
@@ -39,7 +39,7 @@ int mdlLaunch(int argc,char **argv,int (*fcnMaster)(MDL,int,char **),void (*fcnC
     mdl = malloc(sizeof(struct mdlContext));
     assert(mdl != NULL);
 
-    mdlBaseInitialize(&mdl->base);
+    mdlBaseInitialize(&mdl->base,argc,argv);
 
     /*
      ** Set default "maximums" for structures. These are NOT hard
@@ -100,7 +100,7 @@ int mdlLaunch(int argc,char **argv,int (*fcnMaster)(MDL,int,char **),void (*fcnC
 	assert(mdl->base.fpDiag != NULL);
 	}
 
-    fcnMaster(mdl,argc,argv);
+    fcnMaster(mdl);
 
     mdlFinish(mdl);
 
@@ -190,7 +190,7 @@ void mdlAddService(MDL mdl,int sid,void *p1,
     }
 
 
-void mdlReqService(MDL mdl,int id,int sid,void *vin,int nInBytes) {
+int mdlReqService(MDL mdl,int id,int sid,void *vin,int nInBytes) {
     assert(0);
     }
 

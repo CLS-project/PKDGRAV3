@@ -49,10 +49,6 @@ typedef struct msrContext {
     int nOuts;
     double *pdOutTime;
     int iOut;
-    /*
-    ** Processor mapping for one-node-output functions.
-    */
-    int *pMap;
 
     uint8_t iRungVeryActive;    /* NOTE: The first very active particle is at iRungVeryActive + 1 */
 

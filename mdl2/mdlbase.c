@@ -23,7 +23,7 @@ static void _srvNull(void *p1, void *vin, int nIn, void *vout, int *pnOut) {
     return;
     }
 
-void mdlBaseInitialize(mdlBASE *base) {
+void mdlBaseInitialize(mdlBASE *base,int argc,char **argv) {
     int i;
 
 #ifdef _MSC_VER
@@ -37,6 +37,9 @@ void mdlBaseInitialize(mdlBASE *base) {
 
     base->bDiag = 0;
     base->fpDiag = NULL;
+
+    base->argc = argc;
+    base->argv = argv;
 
     /* Some sensible defaults */
     base->nThreads = 1;
@@ -88,7 +91,7 @@ int mdlBaseProcToThread(mdlBASE *base, int iProc) {
 /* O(l2(nProc)): Given a global thread id, return the process to which it belongs */
 int mdlBaseThreadToProc(mdlBASE *base, int iThread) {
     int l=0, u=base->nProcs;
-    assert(iThread >= 0 && iThread < base->nThreads);
+    assert(iThread >= 0 && iThread <= base->nThreads);
     assert(base->nThreads == base->iProcToThread[base->nProcs]);
     while (l <= u) {
 	int m = (u + l) / 2;
@@ -97,8 +100,6 @@ int mdlBaseThreadToProc(mdlBASE *base, int iThread) {
 	}
     return l-1;
     }
-
-
 
 void mdlBaseFinish(mdlBASE *base) {
     free(base->psrv);
@@ -113,7 +114,7 @@ void mdlBaseAddService(mdlBASE *base, int sid, void *p1,
     int nInBytes, int nOutBytes) {
     int i, nMaxServices;
 
-    assert(sid > 0);
+    assert(sid >= 0);
     if (sid >= base->nMaxServices) {
         /*
         ** reallocate service buffer, adding space for 8 new services

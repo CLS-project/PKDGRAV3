@@ -169,13 +169,13 @@ typedef struct mdlContext {
 /*
  ** General Functions
  */
-int mdlLaunch(int,char **,int (*)(MDL,int,char **),void (*)(MDL));
+int mdlLaunch(int,char **,void * (*)(MDL),void * (*)(MDL));
 void mdlFinish(MDL);
 int mdlSwap(MDL,int,size_t,void *,size_t,size_t *,size_t *);
 void mdlAddService(MDL,int,void *,void (*)(void *,void *,int,void *,int *),
 		   int,int);
 void mdlCommitServices(MDL mdl);
-void mdlReqService(MDL,int,int,void *,int);
+int  mdlReqService(MDL,int,int,void *,int);
 void mdlGetReply(MDL,int,void *,int *);
 void mdlHandler(MDL);
 

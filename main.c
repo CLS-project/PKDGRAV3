@@ -24,7 +24,7 @@
 #include "pkdpython.h"
 #endif
 
-void main_ch(MDL mdl) {
+void * main_ch(MDL mdl) {
     PST pst;
     LCL lcl;
 
@@ -42,7 +42,9 @@ void main_ch(MDL mdl) {
 /*
 ** This is invoked instead of main_ch for the "master" process.
 */
-int master_ch(MDL mdl, int argc, char **argv) {
+void * master_ch(MDL mdl) {
+    int argc = mdl->base.argc;
+    char **argv = mdl->base.argv;
     MSR msr;
     FILE *fpLog = NULL;
     char achFile[256];			/*DEBUG use MAXPATHLEN here (& elsewhere)? -- DCR*/
@@ -65,7 +67,7 @@ int master_ch(MDL mdl, int argc, char **argv) {
     if (!msrGetLock(msr)) {
 	msrFinish(msr);
 	mdlFinish(mdl);
-	return 1;
+	return NULL;
 	}
 
     /*
@@ -104,7 +106,7 @@ int master_ch(MDL mdl, int argc, char **argv) {
 	    if ( !msr->param.achScriptFile[0] ) {
 #endif
 		printf("No input file specified\n");
-		return 1;
+		return NULL;
 		}
 #ifdef USE_PYTHON
 	    }
@@ -344,7 +346,7 @@ int master_ch(MDL mdl, int argc, char **argv) {
 #endif
 
     msrFinish(msr);
-    return 0;
+    return NULL;
     }
 
 #ifdef FC_DUMMY_MAIN

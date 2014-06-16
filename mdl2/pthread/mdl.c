@@ -242,10 +242,15 @@ void mdlSetWorkQueueSize(MDL mdl,int wqSize,int cudaSize) {
  ** This function performs basic initialization, common to all
  ** MDL contexts.
  */
-void BasicInit(MDL mdl) {
+void BasicInit(MDL mdl,int argc,char **argv, int nThreads) {
     int i;
 
-    mdlBaseInitialize(&mdl->base);
+    mdlBaseInitialize(&mdl->base,argc,argv);
+    mdl->base.nThreads = nThreads;
+    mdl->base.iProcToThread = malloc(2 * sizeof(int));
+    assert(mdl->base.iProcToThread != NULL);
+    mdl->base.iProcToThread[0] = 0;
+    mdl->base.iProcToThread[1] = nThreads;
     /*
      ** Set default "maximums" for structures. These are NOT hard
      ** maximums, as the structures will be realloc'd when these
@@ -347,12 +352,13 @@ void BasicDestroy(MDL mdl) {
     free(mdl->mbxOwn.pszOut);
     free(mdl->cache);
     free(mdl->wq);
+    free(mdl->base.iProcToThread);
     mdlBaseFinish(&mdl->base);
     free(mdl->wqCUDA);
     }
 
 
-int mdlLaunch(int argc,char **argv,int (*fcnMaster)(MDL,int,char **),void (*fcnChild)(MDL)) {
+int mdlLaunch(int argc,char **argv,void * (*fcnMaster)(MDL),void *(*fcnChild)(MDL)) {
     MDL mdl,tmdl;
     int i,nThreads=1,bThreads,bDiag;
     char *p,ach[256],achDiag[256];
@@ -430,11 +436,10 @@ int mdlLaunch(int argc,char **argv,int (*fcnMaster)(MDL,int,char **),void (*fcnC
 	     ** Set up all the mdl data structures.
 	     */
 	    tmdl = mdl->pmdl[i];
-	    BasicInit(tmdl);
+	    BasicInit(tmdl,argc,argv,nThreads);
 	    tmdl->pmdl = mdl->pmdl;
 	    tmdl->base.idSelf = i;
 	    tmdl->base.bDiag = bDiag;
-	    tmdl->base.nThreads = nThreads;
 	    tmdl->cacheSize = MDL_CACHE_SIZE;
 	    if (tmdl->base.bDiag) {
 		char *tmp = strrchr(argv[0],'/');
@@ -458,9 +463,8 @@ int mdlLaunch(int argc,char **argv,int (*fcnMaster)(MDL,int,char **),void (*fcnC
 	/*
 	 ** A unik!
 	 */
-	BasicInit(mdl);
+	BasicInit(mdl,argc,argv,1);
 	mdl->base.bDiag = bDiag;
-	mdl->base.nThreads = 1;
 	mdl->base.idSelf = 0;
 	if (mdl->base.bDiag) {
 	    char *tmp = strrchr(argv[0],'/');
@@ -480,8 +484,7 @@ int mdlLaunch(int argc,char **argv,int (*fcnMaster)(MDL,int,char **),void (*fcnC
     pthread_exit(0);
 #endif
     mdlTimeReset(mdl);
-
-    fcnMaster(mdl,argc,argv);
+    fcnMaster(mdl);
     mdlFinish(mdl);
 
     return(nThreads);
@@ -538,7 +541,7 @@ void mdlAddService(MDL mdl,int sid,void *p1,
     }
 
 
-void mdlReqService(MDL mdl,int id,int sid,void *vIn,int nInBytes) {
+int mdlReqService(MDL mdl,int id,int sid,void *vIn,int nInBytes) {
     MBX *pmbx;
     char *pszIn = vIn;
     int i;
@@ -555,6 +558,7 @@ void mdlReqService(MDL mdl,int id,int sid,void *vIn,int nInBytes) {
     pmbx->bReq = 1;
     pthread_cond_signal(&pmbx->sigReq);
     pthread_mutex_unlock(&pmbx->mux);
+    return id;
     }
 
 

@@ -145,7 +145,6 @@ enum pst_service {
     PST_COOLSETUP,
     PST_COOLING,
     PST_CORRECTENERGY,
-    PST_GETMAP,
     PST_SETRUNGVERYACTIVE,
     PST_MARKSMOOTH,
     PST_RESMOOTH,
@@ -493,6 +492,7 @@ struct inWrite {
     int bStandard;
     int iIndex;
     int nProcessors;
+    int iLower, iUpper;
     int bHDF5;
     int mFlags;
     char achOutFile[PST_FILENAME_SIZE];
@@ -996,11 +996,6 @@ struct inCorrectEnergy {
     };
 void pstCorrectEnergy(PST, void *,int,void *,int *);
 
-/* PST_GETMAP */
-struct inGetMap {
-    int nStart;
-    };
-void pstGetMap(PST,void *,int,void *,int *);
 
 void pstSetRungVeryActive(PST,void *,int,void *,int *);
 

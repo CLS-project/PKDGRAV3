@@ -1406,10 +1406,10 @@ void pkdColNParts(PKD pkd, int *pnNew, int *nDeltaGas, int *nDeltaDark,
 void pkdNewOrder(PKD pkd, int nStart);
 
 struct outGetNParts { 
-    local_t n;
-    local_t nGas;
-    local_t nDark;
-    local_t nStar;
+    total_t n;
+    total_t nGas;
+    total_t nDark;
+    total_t nStar;
     total_t nMaxOrder;
     };
 

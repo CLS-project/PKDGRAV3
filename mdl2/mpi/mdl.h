@@ -41,6 +41,23 @@ extern "C" {
 #define MDL_MAX_COMM 10
 
 
+typedef struct {
+    OPA_Queue_element_hdr_t hdr;
+    uint32_t iServiceID;
+    uint32_t iCoreFrom;
+    } MDLserviceElement;
+
+typedef struct {
+    OPA_Queue_element_hdr_t hdr;
+    uint32_t iServiceID;
+    uint32_t iCoreFrom;
+    void *buf;
+    int count;
+    int target;
+    int tag;
+    MPI_Datatype datatype;
+    } MDLserviceSend;
+
 typedef int (*mdlWorkFunction)(void *ctx);
 
 typedef struct cacheTag {
@@ -55,12 +72,20 @@ typedef struct cacheTag {
  ** should align up to at least QUAD word, which should be enough.
  */
 typedef struct cacheHeader {
-    int cid;
-    int mid;
-    int id;
-    int iLine;
+    int16_t cid;
+    int16_t mid;
+    int32_t idFrom;
+    int32_t idTo;
+    int32_t iLine;
     } CAHEAD;
 
+typedef struct {
+    OPA_Queue_element_hdr_t hdr;
+    uint32_t iServiceID;
+    uint32_t iCoreFrom;
+    void *pLine;
+    CAHEAD caReq;
+    } MDLserviceCacheReq;
 
 typedef struct cacheSpace {
     void *pData;
@@ -80,7 +105,7 @@ typedef struct cacheSpace {
     char *pLine;
     int nCheckIn;
     int nCheckOut;
-    CAHEAD caReq;
+    MDLserviceCacheReq cacheRequest;
     void *ctx;
     void (*init)(void *,void *);
     void (*combine)(void *,void *,void *);
@@ -99,8 +124,22 @@ typedef struct mdlContext {
     struct mdlContext **pmdl;
     pthread_t *threadid;
 
-    MPI_Comm commMDL;  /* Current active communicator */
-    OPA_Queue_info_t inQueue;
+    MPI_Comm commMDL;             /* Current active communicator */
+    OPA_Queue_info_t queueMPI;
+    int nSendRecvReq;
+    MPI_Request *pSendRecvReq;
+    MDLserviceSend **pSendRecvBuf;
+    MDLserviceCacheReq **pThreadCacheReq;
+    int *pRequestTargets;
+    int nRequestTargets;
+    int iRequestTarget;
+
+    MDLserviceSend sendRequest;
+    MDLserviceSend recvRequest;
+
+    OPA_Queue_info_t *inQueue;
+    MDLserviceElement inMessage;
+    int iCoreMPI;             /* Core that handles MPI requests */
 
     int cacheSize;
 
@@ -134,11 +173,10 @@ typedef struct mdlContext {
 /*
  ** General Functions
  */
-int mdlLaunch(int,char **,int (*)(MDL,int,char **),void (*)(MDL));
+int mdlLaunch(int,char **,void * (*)(MDL),void * (*)(MDL));
 void mdlFinish(MDL);
 int  mdlSplitComm(MDL mdl, int nProcs);
 void mdlSetComm(MDL mdl, int iComm);
-void mdlStop(MDL);
 int mdlSwap(MDL,int,size_t,void *,size_t,size_t *,size_t *);
 typedef int (*mdlPack)(void *,int *,size_t,void*);
 void mdlSend(MDL mdl,int id,mdlPack pack, void *ctx);
@@ -146,7 +184,7 @@ void mdlRecv(MDL mdl,int id,mdlPack unpack, void *ctx);
 void mdlAddService(MDL,int,void *,void (*)(void *,void *,int,void *,int *),
 		   int,int);
 void mdlCommitServices(MDL mdl);
-void mdlReqService(MDL, int, int, void *, int);
+int  mdlReqService(MDL, int, int, void *, int);
 void mdlGetReply(MDL,int,void *,int *);
 void mdlHandler(MDL);
 

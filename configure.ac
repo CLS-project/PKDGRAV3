@@ -2,8 +2,8 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.59)
-AC_INIT(pkdgrav2, 2.2.15.3, bugs@pkdgrav2.org)
-AM_INIT_AUTOMAKE(pkdgrav2,2.2.15.3)
+AC_INIT(pkdgrav2, 2.3, bugs@pkdgrav2.org)
+AM_INIT_AUTOMAKE(pkdgrav2,2.3)
 AC_CONFIG_SRCDIR([main.c])
 AC_CONFIG_HEADER([config.h])
 
@@ -606,6 +606,7 @@ AM_CONDITIONAL(HAVE_PTHREAD,test "x$ax_pthread_ok" = "xyes")
 AM_CONDITIONAL(HAVE_MPIPT,false)
 
 AC_CONFIG_FILES([Makefile])
+AC_CONFIG_SUBDIRS([openpa])
 #if test "x$USE_GRAFIC" != "xno" ; then
 #  AC_CONFIG_SUBDIRS([grafic])
 #fi
