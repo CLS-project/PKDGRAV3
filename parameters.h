@@ -24,6 +24,8 @@ struct parameters {
     */
     int nThreads;
     int bDiag;
+    int bDedicatedMPI;
+    int bSharedMPI;
     int bNoGrav;
     int bOverwrite;
     int bVWarnings;

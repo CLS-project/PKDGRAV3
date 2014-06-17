@@ -103,8 +103,6 @@ typedef struct cacheSpace {
     int *pTrans;
     CTAG *pTag;
     char *pLine;
-    int nCheckIn;
-    int nCheckOut;
     MDLserviceCacheReq cacheRequest;
     void *ctx;
     void (*init)(void *,void *);
@@ -126,8 +124,21 @@ typedef struct {
     int nRequestTargets;
     int iRequestTarget;
     int nSendRecvReq;
+
+    int nActiveCores;
+    int nOpenCaches;
+    int iMaxDataSize; /* Largest cache element */
+    int iCaBufSize;  /* Cache buffer size */
+    char *pszRcv; /* Cache receive buffer */
+
+    int *pmidRpl;
+    MPI_Request *pReqRpl;
+
     MPI_Request *pSendRecvReq;
+    MPI_Request ReqRcv;
     MDLserviceSend **pSendRecvBuf;
+    MDLserviceCacheReq **pThreadCacheReq;
+    char **ppszRpl;
     } mdlContextMPI;
 
 
@@ -135,10 +146,10 @@ typedef struct mdlContext {
     mdlBASE base;
     struct mdlContext **pmdl;
     pthread_t *threadid;
+    void * (*fcnWorker)(struct mdlContext *mdl);
 
     mdlContextMPI mpi;
 
-    MDLserviceCacheReq **pThreadCacheReq;
 
     MDLserviceSend sendRequest;
     MDLserviceSend recvRequest;
@@ -163,13 +174,6 @@ typedef struct mdlContext {
     /*
      ** Caching stuff!
      */
-    int iMaxDataSize;
-    int iCaBufSize;
-    char *pszRcv;
-    int *pmidRpl;
-    MPI_Request *pReqRpl;
-    MPI_Request ReqRcv;
-    char **ppszRpl;
     char *pszFlsh;
     int nMaxCacheIds;
     CACHE *cache;

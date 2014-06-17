@@ -162,6 +162,12 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.nThreads = 1;
     prmAddParam(msr->prm,"nThreads",1,&msr->param.nThreads,sizeof(int),"sz",
 		"<nThreads>");
+    msr->param.bDedicatedMPI = 0;
+    prmAddParam(msr->prm,"bDedicatedMPI",0,&msr->param.bDedicatedMPI,sizeof(int),"dedicated",
+		"enable/disable dedicated MPI thread");
+    msr->param.bSharedMPI = 0;
+    prmAddParam(msr->prm,"bSharedMPI",0,&msr->param.bSharedMPI,sizeof(int),"sharedmpi",
+		"enable/disable extra dedicated MPI thread");
     msr->param.bDiag = 0;
     prmAddParam(msr->prm,"bDiag",0,&msr->param.bDiag,sizeof(int),"d",
 		"enable/disable per thread diagnostic output");
@@ -1507,13 +1513,12 @@ msrCheckForStop(MSR msr) {
 
 void msrFinish(MSR msr) {
     int id;
-    pstStop(msr->pst,NULL,0,NULL,NULL);
-//    for (id=1;id<msr->nThreads;++id) {
-//	int rID;
-//	msrprintf(msr,"Stopping thread %d\n",id);
-//	rID = mdlReqService(msr->mdl,id,SRV_STOP,NULL,0);
-//	mdlGetReply(msr->mdl,id,NULL,NULL);
-//	}
+    for (id=1;id<msr->nThreads;++id) {
+	int rID;
+	msrprintf(msr,"Stopping thread %d\n",id);
+	rID = mdlReqService(msr->mdl,id,SRV_STOP,NULL,0);
+	mdlGetReply(msr->mdl,rID,NULL,NULL);
+	}
     pstFinish(msr->pst);
     csmFinish(msr->param.csm);
     /*

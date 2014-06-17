@@ -114,7 +114,7 @@ void mdlBaseAddService(mdlBASE *base, int sid, void *p1,
     int nInBytes, int nOutBytes) {
     int i, nMaxServices;
 
-    assert(sid >= 0);
+    assert(sid > 0);
     if (sid >= base->nMaxServices) {
         /*
         ** reallocate service buffer, adding space for 8 new services

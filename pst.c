@@ -141,25 +141,10 @@
 **  MemStatus             -       Gather |
 */
 
-void pstStop(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
-    if (pst->nLeaves > 1) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,SRV_STOP,NULL,0);
-        pstStop(pst->pstLower,vin,nIn,vout,pnOut);
-        mdlGetReply(pst->mdl,rID,NULL,NULL);
-        }
-    else {
-        }
-    }
-
-
-
 void pstAddServices(PST pst,MDL mdl) {
     int nThreads,nCell;
 
     nThreads = mdlThreads(mdl);
-
-    mdlAddService(mdl,SRV_STOP,pst,
-	(void (*)(void *,void *,int,void *,int *))pstStop,0,0);
 
     mdlAddService(mdl,PST_SETADD,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstSetAdd,

@@ -66,7 +66,6 @@ void * master_ch(MDL mdl) {
     */
     if (!msrGetLock(msr)) {
 	msrFinish(msr);
-	mdlFinish(mdl);
 	return NULL;
 	}
 
