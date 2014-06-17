@@ -60,6 +60,15 @@ typedef struct {
 
 typedef int (*mdlWorkFunction)(void *ctx);
 
+typedef struct {
+    OPA_Queue_element_hdr_t hdr;
+    int iCoreOwner;
+    void *ctx;
+    mdlWorkFunction checkFcn;
+    mdlWorkFunction doFcn;
+    mdlWorkFunction doneFcn;
+    } MDLwqNode;
+
 typedef struct cacheTag {
     mdlkey_t iKey;
     int nLock;
@@ -141,24 +150,21 @@ typedef struct {
     char **ppszRpl;
     } mdlContextMPI;
 
-
 typedef struct mdlContext {
     mdlBASE base;
     struct mdlContext **pmdl;
     pthread_t *threadid;
     void * (*fcnWorker)(struct mdlContext *mdl);
 
-    mdlContextMPI mpi;
-
-
-    MDLserviceSend sendRequest;
-    MDLserviceSend recvRequest;
-
     OPA_Queue_info_t *inQueue;
     MDLserviceElement inMessage;
     int iCoreMPI;             /* Core that handles MPI requests */
-
     int cacheSize;
+
+    /* Work Queues */
+    OPA_Queue_info_t wq;     /* Work for us to do */
+    OPA_Queue_info_t wqDone; /* Completed work from other threads */
+    MDLwqNode *wqNodes;
 
     /*
      ** Services stuff!
@@ -177,6 +183,10 @@ typedef struct mdlContext {
     char *pszFlsh;
     int nMaxCacheIds;
     CACHE *cache;
+
+    mdlContextMPI mpi;
+    MDLserviceSend sendRequest;
+    MDLserviceSend recvRequest;
     } * MDL;
 
 

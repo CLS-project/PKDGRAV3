@@ -102,6 +102,126 @@ static void mdlSendToMPI(MDL mdl,void *vhdr, uint16_t iServiceID ) {
     OPA_Queue_enqueue(&mdl->pmdl[mdl->iCoreMPI]->mpi.queueMPI, qhdr, MDLserviceElement, hdr);
     }
 
+#define MDL_MID_CACHEREQ	2
+#define MDL_MID_CACHERPL	3
+#define MDL_MID_CACHEFLSH	5
+
+int mdlCacheReceive(MDL mdl) {
+    mdlContextMPI *mpi = &mdl->mpi;
+    CACHE *c;
+    CAHEAD *ph = (CAHEAD *)mpi->pszRcv;
+    MDLserviceCacheReq *creq;
+    char *pszRcv = &mpi->pszRcv[sizeof(CAHEAD)];
+    CAHEAD *phRpl;
+    char *pszRpl;
+    char *t;
+    int id,tag;
+    int s,n,i;
+    MPI_Status status;
+    int ret;
+    int iLineSize, iProc, iCore;
+    char *pLine;
+
+    ret = MPI_Wait(&mpi->ReqRcv, &status); /* This will never block by design */
+    assert(ret == MPI_SUCCESS);
+    mpi->ReqRcv = MPI_REQUEST_NULL;
+
+    /* Well, could be any threads cache */
+    iCore = ph->idTo - mdl->pmdl[0]->base.idSelf;
+    assert(iCore>=0 && iCore<mdl->base.nCores);
+    c = &mdl->pmdl[iCore]->cache[ph->cid];
+    assert(c->iType != MDL_NOCACHE);
+
+    switch (ph->mid) {
+	/* A different process wants local cache data - we can grab it directly */
+    case MDL_MID_CACHEREQ:
+	iProc = mdlThreadToProc(mdl,ph->idFrom);
+	/*
+	 ** This is the tricky part! Here is where the real deadlock
+	 ** difficulties surface. Making sure to have one buffer per
+	 ** thread solves those problems here.
+	 */
+	pszRpl = &mpi->ppszRpl[ph->idFrom][sizeof(CAHEAD)];
+	phRpl = (CAHEAD *)mpi->ppszRpl[ph->idFrom];
+	phRpl->cid = ph->cid;
+	phRpl->mid = MDL_MID_CACHERPL;
+	phRpl->idFrom = mdl->base.idSelf;
+	phRpl->idTo = ph->idFrom;
+
+	assert(ph->iLine>=0);
+	s = ph->iLine*MDL_CACHELINE_ELTS;
+	n = s + MDL_CACHELINE_ELTS;
+	if ( n > c->nData ) n = c->nData;
+	iLineSize = (n-s) * c->iDataSize;
+	for(i=s; i<n; i++ ) {
+	    t = (*c->getElt)(c->pData,i,c->iDataSize);
+	    memcpy(pszRpl+(i-s)*c->iDataSize,t,c->iDataSize);
+	    }
+	if (mpi->pmidRpl[ph->idFrom] != -1) {
+	    MPI_Wait(&mpi->pReqRpl[ph->idFrom], &status);
+	    }
+	mpi->pmidRpl[ph->idFrom] = 0;
+	/*iCore = ph->idFrom - mdlProcToThread(mdl,iProc)*/;
+	tag = MDL_TAG_CACHECOM /*+ MDL_TAG_THREAD_OFFSET * iCore*/;
+	MPI_Isend(phRpl,(int)sizeof(CAHEAD)+iLineSize,MPI_BYTE,
+		  iProc, tag, mpi->commMDL,
+		  &mpi->pReqRpl[ph->idFrom]);
+	ret = 0;
+	break;
+    case MDL_MID_CACHEFLSH:
+	assert(c->iType == MDL_COCACHE);
+	s = ph->iLine*MDL_CACHELINE_ELTS;
+	n = s + MDL_CACHELINE_ELTS;
+	if (n > c->nData) n = c->nData;
+	for(i=s;i<n;i++) {
+		(*c->combine)(c->ctx,(*c->getElt)(c->pData,i,c->iDataSize),
+			      &pszRcv[(i-s)*c->iDataSize]);
+	    }
+	ret = 0;
+	break;
+	/* A remote process has sent us cache data - we need to let that thread know */
+    case MDL_MID_CACHERPL:
+	creq = mpi->pThreadCacheReq[iCore];
+	assert(creq!=NULL);
+	mpi->pThreadCacheReq[iCore] = NULL;
+	pLine = creq->pLine;
+
+	/*
+	 ** For now assume no prefetching!
+	 ** This means that this WILL be the reply to this Aquire
+	 ** request.
+	 */
+	assert(pLine != NULL);
+	iLineSize = c->iLineSize;
+	for (i=0;i<iLineSize;++i) pLine[i] = pszRcv[i];
+	if (c->iType == MDL_COCACHE && c->init) {
+	    /*
+	     ** Call the initializer function for all elements in
+	     ** the cache line.
+	     */
+	    for (i=0;i<c->iLineSize;i+=c->iDataSize) {
+		    (*c->init)(c->ctx,&pLine[i]);
+		}
+	    }
+	mdlSendThreadMessage(mdl,MDL_TAG_CACHECOM,iCore,creq,MDL_SE_CACHE_REQUEST);
+	ret = 1;
+	break;
+    default:
+	assert(0);
+	}
+
+    /*
+     * Fire up next receive
+     */
+    id = MPI_ANY_SOURCE;
+    MPI_Irecv(mpi->pszRcv,mpi->iCaBufSize, MPI_BYTE, id,
+	      MDL_TAG_CACHECOM, mpi->commMDL, &mpi->ReqRcv);
+
+    return ret;
+    }
+
+
+
 /*
 ** This routine must be called often by the MPI thread. It will drain
 ** any requests from the thread queue, and track MPI completions.
@@ -114,15 +234,18 @@ static int checkMPI(MDL mdl) {
 	MDLserviceElement *qhdr;
 	cacheOpenClose *coc;
 	SRVHEAD *head;
-	int iProc, iCore, tag, i;
+	int iProc, iCore, tag, i, n;
 
+	/* These are messages from other threads */
 	if (!OPA_Queue_is_empty(&mpi->queueMPI)) {
 	    OPA_Queue_dequeue(&mpi->queueMPI, qhdr, MDLserviceElement, hdr);
 	    switch(qhdr->iServiceID) {
+		/* A thread has finished */
 	    case MDL_SE_STOP:
 		--mpi->nActiveCores;
 		mdlSendThreadMessage(mdl,0,qhdr->iCoreFrom,qhdr,MDL_SE_STOP);
 		break;
+		/* mdlReqService() on behalf of a thread */
 	    case MDL_SE_SEND_REQUEST:
 		send = (MDLserviceSend *)qhdr;
 		iProc = mdlThreadToProc(mdl,send->target);
@@ -143,6 +266,7 @@ static int checkMPI(MDL mdl) {
 		mpi->pSendRecvBuf[mpi->nSendRecvReq] = send;
 		++mpi->nSendRecvReq;
 		break;
+		/* A service has finished and wants to send back the reply */
 	    case MDL_SE_SEND_REPLY:
 		send = (MDLserviceSend *)qhdr;
 		iProc = mdlThreadToProc(mdl,send->target);
@@ -153,6 +277,7 @@ static int checkMPI(MDL mdl) {
 		mpi->pSendRecvBuf[mpi->nSendRecvReq] = send;
 		++mpi->nSendRecvReq;
 		break;
+		/* mdlGetReply() on behalf of a thread */
 	    case MDL_SE_RECV_REPLY:
 		send = (MDLserviceSend *)qhdr;
 		/* Target is really the request ID */
@@ -191,6 +316,7 @@ static int checkMPI(MDL mdl) {
 		mpi->pSendRecvBuf[mpi->nSendRecvReq] = send;
 		++mpi->nSendRecvReq;
 		break;
+		/* A thread has opened a cache -- we may need to resize our buffers */
 	    case MDL_SE_CACHE_OPEN:
 		coc = (cacheOpenClose *)qhdr;
 		/* If this cache is larger than the largest, we have to reallocate buffers */
@@ -217,6 +343,7 @@ static int checkMPI(MDL mdl) {
 		++mpi->nOpenCaches;
 		mdlSendThreadMessage(mdl,0,qhdr->iCoreFrom,qhdr,MDL_SE_CACHE_OPEN);
 		break;
+		/* A thread has closed a cache -- we can cancel the receive if no threads have a cache open */
 	    case MDL_SE_CACHE_CLOSE:
 		assert(mpi->nOpenCaches > 0);
 		--mpi->nOpenCaches;
@@ -227,6 +354,7 @@ static int checkMPI(MDL mdl) {
 		    }
 		mdlSendThreadMessage(mdl,0,qhdr->iCoreFrom,qhdr,MDL_SE_CACHE_CLOSE);
 		break;
+		/* A thread needs to request a missing element */
 	    case MDL_SE_CACHE_REQUEST:
 		caReq = (MDLserviceCacheReq *)qhdr;
 		assert(mpi->pThreadCacheReq[caReq->iCoreFrom]==NULL);
@@ -243,11 +371,20 @@ static int checkMPI(MDL mdl) {
 		}
 	    continue;
 	    }
-	if (mpi->nSendRecvReq) {
+
+	/* These are messages/completions from/to other MPI processes. */
+	n = mpi->nSendRecvReq;
+	if (mpi->ReqRcv != MPI_REQUEST_NULL) mpi->pSendRecvReq[n++] = mpi->ReqRcv;
+	if (n) {
 	    int flag,indx;
 	    MPI_Status status;
-	    MPI_Testany(mpi->nSendRecvReq,mpi->pSendRecvReq, &indx, &flag, &status);
+	    MPI_Testany(n,mpi->pSendRecvReq, &indx, &flag, &status);
 	    if (flag) {
+		if (indx == mpi->nSendRecvReq) {
+		    mpi->ReqRcv = mpi->pSendRecvReq[indx];
+		    mdlCacheReceive(mdl);
+		    continue;
+		    }
 		assert(indx>=0 && indx<mpi->nSendRecvReq);
 		send = mpi->pSendRecvBuf[indx];
 		for(i=indx+1;i<mpi->nSendRecvReq;++i) {
@@ -280,20 +417,40 @@ static int checkMPI(MDL mdl) {
 		continue;
 		}
 	    }
-	if (mpi->ReqRcv != MPI_REQUEST_NULL) mdlCacheCheck(mdl);
 	break;
 	}
     return mpi->nActiveCores;
     }
+
+/* Do one piece of work. Return 0 if there was no work. */
+static int mdlDoSomeWork(MDL mdl) {
+    if (!OPA_Queue_is_empty(&mdl->wq)) {
+	MDLwqNode *work;
+	OPA_Queue_dequeue(&mdl->wq, work, MDLwqNode, hdr);
+	while ( (*work->doFcn)(work->ctx) != 0 ) {
+	    mdlCacheCheck(mdl);
+	    }
+	(*work->doneFcn)(work->ctx);
+	return 1;
+	}
+    return 0;
+    }
+
+static void mdlCompleteAllWork(MDL mdl) {
+    while(mdlDoSomeWork(mdl)) {}
+    }
+
 static void /*MDLserviceElement*/ *mdlWaitThreadQueue(MDL mdl,int iQueue) {
     MDLserviceElement *qhdr;
     while (OPA_Queue_is_empty(mdl->inQueue+iQueue)) {
 	if (mdl->base.iCore == mdl->iCoreMPI) checkMPI(mdl);
+	if (mdlDoSomeWork(mdl) == 0) {
 #ifdef _MSC_VER
-	SwitchToThread();
+	    SwitchToThread();
 #else
-	sched_yield();
+	    sched_yield();
 #endif
+	    }
 	}
     OPA_Queue_dequeue(mdl->inQueue+iQueue, qhdr, MDLserviceElement, hdr);
     return qhdr;
@@ -483,6 +640,14 @@ void mdlInitCommon(MDL mdl0, int iMDL,int bDiag,int argc, char **argv,
     /* We need a queue for each TAG, and a receive queue from each thread. */
     mdl->inQueue = malloc((MDL_TAG_MAX+mdl->base.nCores) * sizeof(*mdl->inQueue));
     for(i=0; i<(MDL_TAG_MAX+mdl->base.nCores); ++i) OPA_Queue_init(mdl->inQueue+i);
+
+    /*
+    ** Our work queue. We can defer work for when we are waiting, or get work
+    ** from other threads if we are idle.
+    */
+    OPA_Queue_init(&mdl->wq);
+    OPA_Queue_init(&mdl->wqDone);
+    mdl->wqNodes = NULL;
 
     /* Only used by the MPI thread */
     OPA_Queue_init(&mdl->mpi.queueMPI);
@@ -691,10 +856,6 @@ int mdlLaunch(int argc,char **argv,void * (*fcnMaster)(MDL),void * (*fcnChild)(M
     mdl->mpi.pRequestTargets = malloc(mdl->mpi.nRequestTargets * sizeof(*mdl->mpi.pRequestTargets));
     assert(mdl->mpi.pRequestTargets!=NULL);
     for(i=0; i<mdl->mpi.nRequestTargets; ++i) mdl->mpi.pRequestTargets[i] = -1;
-
-    /* MPI thread (us) looks after all cache requests */
-//    MPI_Irecv(mdl->mpi.pszRcv,mdl->iCaBufSize, MPI_BYTE, MPI_ANY_SOURCE,
-//	MDL_TAG_CACHECOM, mdl->mpi.commMDL, &mdl->ReqRcv);
 
     /* Launch threads: if dedicated MPI thread then launch all worker threads. */
     mdl->mpi.nActiveCores = 0;
@@ -1091,127 +1252,6 @@ void mdlHandler(MDL mdl) {
 	} while (sid != SRV_STOP);
     }
 
-#define MDL_MID_CACHEREQ	2
-#define MDL_MID_CACHERPL	3
-#define MDL_MID_CACHEFLSH	5
-#define MDL_MID_CACHEDONE	6
-
-int mdlCacheReceive(MDL mdl,char *pLine) {
-    CACHE *c;
-    CAHEAD *ph = (CAHEAD *)mdl->mpi.pszRcv;
-    MDLserviceCacheReq *creq;
-    char *pszRcv = &mdl->mpi.pszRcv[sizeof(CAHEAD)];
-    CAHEAD *phRpl;
-    char *pszRpl;
-    char *t;
-    int id,tag;
-    int s,n,i;
-    MPI_Status status;
-    int ret;
-    int iLineSize, iProc, iCore;
-
-    ret = MPI_Wait(&mdl->mpi.ReqRcv, &status);
-    assert(ret == MPI_SUCCESS);
-
-    /* Well, could be any threads cache */
-    iCore = ph->idTo - mdl->pmdl[0]->base.idSelf;
-    assert(iCore>=0 && iCore<mdl->base.nCores);
-    c = &mdl->pmdl[iCore]->cache[ph->cid];
-    assert(c->iType != MDL_NOCACHE);
-
-    switch (ph->mid) {
-    case MDL_MID_CACHEREQ:
-	iProc = mdlThreadToProc(mdl,ph->idFrom);
-	/*
-	 ** This is the tricky part! Here is where the real deadlock
-	 ** difficulties surface. Making sure to have one buffer per
-	 ** thread solves those problems here.
-	 */
-	pszRpl = &mdl->mpi.ppszRpl[ph->idFrom][sizeof(CAHEAD)];
-	phRpl = (CAHEAD *)mdl->mpi.ppszRpl[ph->idFrom];
-	phRpl->cid = ph->cid;
-	phRpl->mid = MDL_MID_CACHERPL;
-	phRpl->idFrom = mdl->base.idSelf;
-	phRpl->idTo = ph->idFrom;
-
-	assert(ph->iLine>=0);
-	s = ph->iLine*MDL_CACHELINE_ELTS;
-	n = s + MDL_CACHELINE_ELTS;
-	if ( n > c->nData ) n = c->nData;
-	iLineSize = (n-s) * c->iDataSize;
-	for(i=s; i<n; i++ ) {
-	    t = (*c->getElt)(c->pData,i,c->iDataSize);
-	    memcpy(pszRpl+(i-s)*c->iDataSize,t,c->iDataSize);
-	    }
-	if (mdl->mpi.pmidRpl[ph->idFrom] != -1) {
-	    MPI_Wait(&mdl->mpi.pReqRpl[ph->idFrom], &status);
-	    }
-	mdl->mpi.pmidRpl[ph->idFrom] = 0;
-	/*iCore = ph->idFrom - mdlProcToThread(mdl,iProc)*/;
-	tag = MDL_TAG_CACHECOM /*+ MDL_TAG_THREAD_OFFSET * iCore*/;
-	MPI_Isend(phRpl,(int)sizeof(CAHEAD)+iLineSize,MPI_BYTE,
-		  iProc, tag, mdl->mpi.commMDL,
-		  &mdl->mpi.pReqRpl[ph->idFrom]);
-	ret = 0;
-	break;
-    case MDL_MID_CACHEFLSH:
-	assert(c->iType == MDL_COCACHE);
-	s = ph->iLine*MDL_CACHELINE_ELTS;
-	n = s + MDL_CACHELINE_ELTS;
-	if (n > c->nData) n = c->nData;
-	for(i=s;i<n;i++) {
-		(*c->combine)(c->ctx,(*c->getElt)(c->pData,i,c->iDataSize),
-			      &pszRcv[(i-s)*c->iDataSize]);
-	    }
-	ret = 0;
-	break;
-    case MDL_MID_CACHERPL:
-	creq = mdl->mpi.pThreadCacheReq[iCore];
-	assert(creq!=NULL);
-	mdl->mpi.pThreadCacheReq[iCore] = NULL;
-	pLine = creq->pLine;
-
-	/*
-	 ** For now assume no prefetching!
-	 ** This means that this WILL be the reply to this Aquire
-	 ** request.
-	 */
-	assert(pLine != NULL);
-	iLineSize = c->iLineSize;
-	for (i=0;i<iLineSize;++i) pLine[i] = pszRcv[i];
-	if (c->iType == MDL_COCACHE && c->init) {
-	    /*
-	     ** Call the initializer function for all elements in
-	     ** the cache line.
-	     */
-	    for (i=0;i<c->iLineSize;i+=c->iDataSize) {
-		    (*c->init)(c->ctx,&pLine[i]);
-		}
-	    }
-	mdlSendThreadMessage(mdl,MDL_TAG_CACHECOM,iCore,creq,MDL_SE_CACHE_REQUEST);
-	ret = 1;
-	break;
-    case MDL_MID_CACHEDONE:
-	/*
-	 * No more caches, shouldn't get here.
-	 */
-	assert(0);
-	break;
-    default:
-	assert(0);
-	}
-
-    /*
-     * Fire up next receive
-     */
-    id = MPI_ANY_SOURCE;
-    MPI_Irecv(mdl->mpi.pszRcv,mdl->mpi.iCaBufSize, MPI_BYTE, id,
-	      MDL_TAG_CACHECOM, mdl->mpi.commMDL, &mdl->mpi.ReqRcv);
-
-    return ret;
-    }
-
-
 void AdjustDataSize(MDL mdl) {
     int i,iMaxDataSize;
 
@@ -1295,16 +1335,8 @@ void mdlSetCacheSize(MDL mdl,int cacheSize) {
     mdl->cacheSize = cacheSize;
     }
 
-
 void mdlCacheCheck(MDL mdl) {
-    int flag;
-    MPI_Status status;
-
-    if (mdl->base.iCore == mdl->iCoreMPI) while (1) {
-	MPI_Test(&mdl->mpi.ReqRcv, &flag, &status);
-	if (flag) mdlCacheReceive(mdl,NULL);
-	else break;
-	}
+    if (mdl->base.iCore == mdl->iCoreMPI) checkMPI(mdl);
     }
 
 /*
@@ -1515,7 +1547,7 @@ void mdlFlushCache(MDL mdl,int cid) {
 		    if (index == 1) /* Flush has completed */
 			break;
 		    else if (index == 0) {
-			mdlCacheReceive(mdl, NULL);
+			mdlCacheReceive(mdl);
 			reqBoth[0] = mdl->mpi.ReqRcv;
 			}
 		    else
@@ -1594,10 +1626,8 @@ void *mdlDoMiss(MDL mdl, int cid, int iIndex, int id, mdlkey_t iKey, int lock) {
     c->cacheRequest.caReq.idFrom = mdl->base.idSelf;
     c->cacheRequest.caReq.idTo = id;
     c->cacheRequest.caReq.iLine = iLine;
+    /* We could send the request now, but we don't know the target cache line yet. */
 
-    /* We used to send the request right away, but we actually need the line first now */
-//    MPI_Send(&c->cacheRequest.caReq,sizeof(CAHEAD),MPI_BYTE,
-//	     id,MDL_TAG_CACHECOM, mdl->commMDL);
     ++c->nMiss;
 
     if (++c->iLastVictim == c->nLines) c->iLastVictim = 1;
