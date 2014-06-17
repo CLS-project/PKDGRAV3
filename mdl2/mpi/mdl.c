@@ -115,7 +115,6 @@ static int checkMPI(MDL mdl) {
 	cacheOpenClose *coc;
 	SRVHEAD *head;
 	int iProc, iCore, tag, i;
-	MPI_Request request;
 
 	if (!OPA_Queue_is_empty(&mpi->queueMPI)) {
 	    OPA_Queue_dequeue(&mpi->queueMPI, qhdr, MDLserviceElement, hdr);
@@ -233,7 +232,7 @@ static int checkMPI(MDL mdl) {
 		assert(mpi->pThreadCacheReq[caReq->iCoreFrom]==NULL);
 		iProc = mdlThreadToProc(mdl,caReq->caReq.idTo);
 		mpi->pThreadCacheReq[caReq->iCoreFrom] = caReq;
-		MPI_Isend(&caReq->caReq,sizeof(CAHEAD),MPI_BYTE,iProc,MDL_TAG_CACHECOM, mpi->commMDL,&request);
+		MPI_Send(&caReq->caReq,sizeof(CAHEAD),MPI_BYTE,iProc,MDL_TAG_CACHECOM, mpi->commMDL);
 		break;
 	    case MDL_SE_BARRIER_REQUEST:
 		MPI_Barrier(mpi->commMDL);
