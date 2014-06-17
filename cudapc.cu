@@ -2,7 +2,8 @@
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
-#include "pkd.h"
+#include <stdio.h>
+//#include "pkd.h"
 #include "ilc.h"
 #include "cudautil.h"
 

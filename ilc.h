@@ -2,6 +2,7 @@
 #define ILC_H
 #ifdef LOCAL_EXPANSION
 #include <stdint.h>
+#include <assert.h>
 
 #include "lst.h"
 

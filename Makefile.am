@@ -1,6 +1,12 @@
 SUBDIRS=openpa
 ACLOCAL_AMFLAGS  = -I m4
 
+SUFFIXES = .cu
+
+.cu.o:
+	$(NVCC) $(CFLAGS) -I. -DHAVE_CONFIG_H -o $@ -c $< $(NVCCFLAGS) -Imdl2/mpi -Imdl2 -Iopenpa/src
+
+
 #if USE_GRAFIC
 #SUBDIRS=grafic
 #endif
@@ -77,8 +83,6 @@ SOURCES += pkdpython.c
 noinst_HEADERS += pkdpython.h
 endif
 if USE_CUDA
-.cu.o:
-	$(NVCC) -I. -DHAVE_CONFIG_H -o $@ -c $< $(NVCCFLAGS) -Imdl2/null
 SOURCES += cudautil.cu cudapp.cu cudapc.cu
 noinst_HEADERS += cudautil.h
 endif

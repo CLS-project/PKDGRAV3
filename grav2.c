@@ -69,6 +69,7 @@ static const struct CONSTS {
 ** If everyone has finished, then the particle is updated.
 */
 static void workDone(workParticle *work) {
+    PKD pkd = work->ctx;
     int i;
     PARTICLE *p;
     float *pPot, *a;
@@ -76,8 +77,8 @@ static void workDone(workParticle *work) {
     if ( --work->nRefs == 0 ) {
 	for( i=0; i<work->nP; i++ ) {
 	    p = work->pPart[i];
-	    a = pkdAccel(work->pkd,p);
-	    pPot = pkdPot(work->pkd,p);
+	    a = pkdAccel(pkd,p);
+	    pPot = pkdPot(pkd,p);
 	    a[0] = work->pInfoOut[i].a[0];
 	    a[1] = work->pInfoOut[i].a[1];
 	    a[2] = work->pInfoOut[i].a[2];
@@ -104,11 +105,11 @@ static void workDone(workParticle *work) {
 		    dtGrav = maga*dirsum/normsum;
 		    }
 		else dtGrav = 0.0;
-		dtGrav += work->pkd->param.dPreFacRhoLoc*p->fDensity;
+		dtGrav += pkd->param.dPreFacRhoLoc*p->fDensity;
 		dtGrav = (work->pInfoOut[i].rhopmax > dtGrav?work->pInfoOut[i].rhopmax:dtGrav);
 		if (dtGrav > 0.0) {
-		    dT = work->pkd->param.dEta/sqrt(dtGrav*work->dRhoFac);
-		    p->uNewRung = pkdDtToRung(dT,work->pkd->param.dDelta,work->pkd->param.iMaxRung-1);
+		    dT = pkd->param.dEta/sqrt(dtGrav*work->dRhoFac);
+		    p->uNewRung = pkdDtToRung(dT,pkd->param.dDelta,pkd->param.iMaxRung-1);
 		    }
 		else p->uNewRung = 0; /* Assumes current uNewRung is outdated -- not ideal */
 		}
@@ -772,7 +773,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
     work->nRefs = 1; /* I am using it currently */
     work->nP = 0;
     work->dRhoFac = dRhoFac;
-    work->pkd = pkd;
+    work->ctx = pkd;
     work->bGravStep = bGravStep;
 #ifdef USE_CUDA
     work->cudaCtx = pkd->cudaCtx;

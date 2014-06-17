@@ -3,6 +3,7 @@
 #ifdef LOCAL_EXPANSION
 #include <stdint.h>
 #include <string.h>
+#include <assert.h>
 
 #include "lst.h"
 

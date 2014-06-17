@@ -257,7 +257,7 @@ else
   NVCC=$CUDA_DIR/bin/nvcc
   CUDA_LIBS="-L$CUDA_DIR/lib64 -L$CUDA_DIR/lib -lcudart"
 fi
-NVCCFLAGS="-arch compute_20"
+NVCCFLAGS="-arch compute_35"
 AC_SUBST(NVCC)
 AC_SUBST(NVCCFLAGS)
 AC_SUBST(CUDA_LIBS)

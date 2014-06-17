@@ -20,7 +20,10 @@ extern "C" {
 
 #ifdef __CUDACC__
 
-#include "pkd.h"
+//#include "pkd.h"
+#include "ilp.h"
+#include "ilc.h"
+#include "basetype.h"
 
 void CUDA_Abort(cudaError_t rc, const char *fname, const char *file, int line);
 
