@@ -94,6 +94,14 @@ static void mdlSendThreadMessage(MDL mdl,int iQueue,int iCore, void *vhdr, uint1
     OPA_Queue_enqueue(mdl->pmdl[iCore]->inQueue+iQueue, qhdr, MDLserviceElement, hdr);
     }
 
+static void mdlSendToMPI(MDL mdl,void *vhdr, uint16_t iServiceID ) {
+    MDLserviceElement *qhdr = (MDLserviceElement *)vhdr;
+    OPA_Queue_header_init(&qhdr->hdr);
+    qhdr->iServiceID = iServiceID;
+    qhdr->iCoreFrom = mdl->base.iCore;
+    OPA_Queue_enqueue(&mdl->pmdl[mdl->iCoreMPI]->mpi.queueMPI, qhdr, MDLserviceElement, hdr);
+    }
+
 /*
 ** This routine must be called often by the MPI thread. It will drain
 ** any requests from the thread queue, and track MPI completions.
@@ -332,10 +340,7 @@ static int mdl_start_MPI_Ssend(void *buf, int count, MPI_Datatype datatype, int 
 	}
     /* Pass this off to the MPI thread (which could be ourselves) */
     else {
-	OPA_Queue_header_init(&send->hdr);
-	send->iServiceID = stype;
-	send->iCoreFrom = mdl->base.iCore;
-	OPA_Queue_enqueue(&mdl->pmdl[mdl->iCoreMPI]->mpi.queueMPI, send, MDLserviceElement, hdr);
+	mdlSendToMPI(mdl,send,stype);
 	}
     return MPI_SUCCESS;
     }
@@ -361,10 +366,7 @@ static int mdl_remote_MPI_Recv(void *buf, int count, MPI_Datatype datatype, int 
     send->datatype = datatype;
     send->target = source;
     send->tag = tag;
-    OPA_Queue_header_init(&send->hdr);
-    send->iServiceID = iServiceID;
-    send->iCoreFrom = mdl->base.iCore;
-    OPA_Queue_enqueue(&mdl->pmdl[mdl->iCoreMPI]->mpi.queueMPI, send, MDLserviceElement, hdr);
+    mdlSendToMPI(mdl,send,iServiceID);
     send = mdlWaitThreadQueue(mdl,tag); /* Wait for the "send" to come back to us. */
     *nBytes = send->count;
     }
@@ -449,11 +451,7 @@ static int mdl_MPI_Barrier(MDL mdl) {
 		MPI_BYTE, 0, MDL_TAG_BARRIER, mdl, &nBytes);
 	    }
 #if 0 /* Hard barrier is not required here */
-	qhdr = &mdl->inMessage;
-	OPA_Queue_header_init(&qhdr->hdr);
-	qhdr->iServiceID = MDL_SE_BARRIER_REQUEST;
-	qhdr->iCoreFrom = mdl->base.iCore;
-	OPA_Queue_enqueue(&mdl->pmdl[mdl->iCoreMPI]->mpi.queueMPI, qhdr, MDLserviceElement, hdr);
+	mdlSendToMPI(mdl,&mdl->inMessage,MDL_SE_BARRIER_REQUEST);
 	qhdr = mdlWaitThreadQueue(mdl,MDL_TAG_BARRIER);
 	assert(qhdr->iServiceID == MDL_SE_BARRIER_REPLY);
 #endif
@@ -579,10 +577,7 @@ static void *mdlWorkerThread(void *vmdl) {
     void *result = (*mdl->fcnWorker)(mdl);
     MDLserviceElement stop;
     if (mdl->base.iCore != mdl->iCoreMPI) {
-	OPA_Queue_header_init(&stop.hdr);
-	stop.iServiceID = MDL_SE_STOP;
-	stop.iCoreFrom = mdl->base.iCore;
-	OPA_Queue_enqueue(&mdl->pmdl[mdl->iCoreMPI]->mpi.queueMPI, &stop, MDLserviceElement, hdr);
+	mdlSendToMPI(mdl,&stop,MDL_SE_STOP);
 	mdlWaitThreadQueue(mdl,0); /* Wait for Send to complete */
 	}
     else {
@@ -1119,18 +1114,15 @@ int mdlCacheReceive(MDL mdl,char *pLine) {
     ret = MPI_Wait(&mdl->mpi.ReqRcv, &status);
     assert(ret == MPI_SUCCESS);
 
-    c = &mdl->cache[ph->cid];
-// WE MAY NOT HAVE A CACHE    assert(c->iType != MDL_NOCACHE);
+    /* Well, could be any threads cache */
+    iCore = ph->idTo - mdl->pmdl[0]->base.idSelf;
+    assert(iCore>=0 && iCore<mdl->base.nCores);
+    c = &mdl->pmdl[iCore]->cache[ph->cid];
+    assert(c->iType != MDL_NOCACHE);
 
     switch (ph->mid) {
     case MDL_MID_CACHEREQ:
 	iProc = mdlThreadToProc(mdl,ph->idFrom);
-	/* Well, could be any threads cache */
-	iCore = ph->idTo - mdl->pmdl[0]->base.idSelf;
-	assert(iCore>=0 && iCore<mdl->base.nCores);
-	c = &mdl->pmdl[iCore]->cache[ph->cid];
-
-	assert(c->iType != MDL_NOCACHE);
 	/*
 	 ** This is the tricky part! Here is where the real deadlock
 	 ** difficulties surface. Making sure to have one buffer per
@@ -1175,8 +1167,6 @@ int mdlCacheReceive(MDL mdl,char *pLine) {
 	ret = 0;
 	break;
     case MDL_MID_CACHERPL:
-	iCore = ph->idTo - mdl->pmdl[0]->base.idSelf;
-	assert(iCore>=0 && iCore<mdl->base.nCores);
 	creq = mdl->mpi.pThreadCacheReq[iCore];
 	assert(creq!=NULL);
 	mdl->mpi.pThreadCacheReq[iCore] = NULL;
@@ -1436,11 +1426,8 @@ CACHE *CacheInitialize(
     mdl_MPI_Barrier(mdl);
 
     /* We might need to resize the cache buffer */
-    OPA_Queue_header_init(&coc.hdr);
-    coc.iServiceID = MDL_SE_CACHE_OPEN;
-    coc.iCoreFrom = mdl->base.iCore;
     coc.iDataSize = c->iDataSize;
-    OPA_Queue_enqueue(&mdl->pmdl[mdl->iCoreMPI]->mpi.queueMPI, &coc, MDLserviceElement, hdr);
+    mdlSendToMPI(mdl,&coc,MDL_SE_CACHE_OPEN);
     mdlWaitThreadQueue(mdl,0);
 
     AdjustDataSize(mdl);
@@ -1561,11 +1548,8 @@ void mdlFinishCache(MDL mdl,int cid) {
     mdlFlushCache(mdl,cid);
 
     /* We must wait for all threads to finish with this cache */
-    OPA_Queue_header_init(&coc.hdr);
-    coc.iServiceID = MDL_SE_CACHE_CLOSE;
-    coc.iCoreFrom = mdl->base.iCore;
     coc.iDataSize = c->iDataSize;
-    OPA_Queue_enqueue(&mdl->pmdl[mdl->iCoreMPI]->mpi.queueMPI, &coc, MDLserviceElement, hdr);
+    mdlSendToMPI(mdl,&coc,MDL_SE_CACHE_CLOSE);
     mdlWaitThreadQueue(mdl,0);
     mdl_MPI_Barrier(mdl);
 
@@ -1683,8 +1667,7 @@ Await:
      ** data requested from processor 'id'.
      */
     c->cacheRequest.pLine = pLine;
-    c->cacheRequest.iCoreFrom = mdl->base.iCore;
-    OPA_Queue_enqueue(&mdl->pmdl[mdl->iCoreMPI]->mpi.queueMPI, &c->cacheRequest, MDLserviceCacheReq, hdr);
+    mdlSendToMPI(mdl,&c->cacheRequest,MDL_SE_CACHE_REQUEST);
     mdlWaitThreadQueue(mdl,MDL_TAG_CACHECOM);
     mdlTimeAddWaiting(mdl);
     return(&pLine[iElt*c->iDataSize]);
