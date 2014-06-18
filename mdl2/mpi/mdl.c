@@ -196,7 +196,7 @@ ARC arcInitialize(uint32_t nCache,uint32_t uDataSize) {
     arc->uDataSize = (uDataSize+7)>>3;
     arc->dataBase = malloc(nCache*sizeof(uint64_t)*(arc->uDataSize+1));
     assert(arc->dataBase != NULL);
-    arc->dataLast = arc->dataBase + nCache*(arc->uDataSize+1)
+    arc->dataLast = arc->dataBase + nCache*(arc->uDataSize+1);
     /*
     ** Determine nHash.
     */
