@@ -19,6 +19,38 @@
 #include <srfftw_mpi.h>
 #endif
 #include "opa_queue.h"
+//#define USE_ARC
+//#ifdef USE_ARC
+typedef struct CacheDataBucket {
+    uint32_t uId;       /* upper 4 bits encode ARC_where and dirty bit */
+    uint32_t uIndex;    /* page's ID number */
+    struct CacheDataBucket *coll; /* collision chain for hash table */
+    struct CacheDataBucket *next;      /* for doubly linked list */
+    struct CacheDataBucket *prev;      /* for doubly linked list */
+    uint64_t *data;      /* page's location in cache */
+} CDB;
+
+
+typedef struct ArcContext {
+    CDB **Hash;
+    CDB *cdbBase;
+    uint64_t *dataBase;
+    CDB *T1;
+    CDB *B1;
+    CDB *T2;
+    CDB *B2;
+    CDB *Free;
+    uint32_t nHash;
+    uint32_t uHashMask;
+    uint32_t nCache;
+    uint32_t uDataSize;
+    uint32_t T1Length;
+    uint32_t B1Length;
+    uint32_t T2Length;
+    uint32_t B2Length;
+    uint32_t target_T1;
+} * ARC;
+#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -109,6 +141,10 @@ typedef struct cacheSpace {
     int iLastVictim;
     mdlkey_t iTransMask;
     mdlkey_t iIdMask;
+#ifdef USE_ARC
+    ARC arc;
+    void *pOneLine;
+#endif
     int *pTrans;
     CTAG *pTag;
     char *pLine;
@@ -362,60 +398,8 @@ void mdlCOcache(MDL mdl,int cid,
 void mdlFinishCache(MDL,int);
 void mdlCacheCheck(MDL);
 void mdlCacheBarrier(MDL,int);
-
-void *mdlDoMiss(MDL mdl, int cid, int iIndex, int id, mdlkey_t iKey, int lock);
-
-static inline void *mdlAquire(MDL mdl,int cid,int iIndex,int id) {
-    const int lock = 1;  /* we always lock in aquire */
-    CACHE *c = &mdl->cache[cid];
-    char *pLine;
-    mdlkey_t iKey;
-    int iElt;
-    int i;
-
-    ++c->nAccess;
-    if (!(c->nAccess & MDL_CHECK_MASK))
-	mdlCacheCheck(mdl);
-    /*
-     ** Determine memory block key value and cache line.
-     */
-    iKey = iIndex & MDL_INDEX_MASK;
-    iKey <<= c->iKeyShift;
-    iKey |= id;
-    i = c->pTrans[iKey & c->iTransMask];
-    /*
-     ** Check for a match!
-     */
-    if (c->pTag[i].iKey == iKey) {
-	++c->pTag[i].nLock;
-	pLine = &c->pLine[i*c->iLineSize];
-	iElt = iIndex & MDL_CACHE_MASK;
-	return(&pLine[iElt*c->iDataSize]);
-	}
-    i = c->pTag[i].iLink;
-    /*
-     ** Collision chain search.
-     */
-    while (i) {
-	++c->nColl;
-	if (c->pTag[i].iKey == iKey) {
-	    ++c->pTag[i].nLock;
-	    pLine = &c->pLine[i*c->iLineSize];
-	    iElt = iIndex & MDL_CACHE_MASK;
-	    return(&pLine[iElt*c->iDataSize]);
-	    }
-	i = c->pTag[i].iLink;
-	}
-    /*
-     ** Is it a local request? This should not happen in pkdgrav2.
-     */
-    if (id == mdl->base.idSelf) {
-	return (*c->getElt)(c->pData,iIndex,c->iDataSize);
-	}
-    return(mdlDoMiss(mdl, cid, iIndex, id, iKey, lock));
-    }
-
-
+void mdlPrefetch(MDL mdl,int cid,int iIndex, int id);
+void *mdlAquire(MDL mdl,int cid,int iIndex,int id);
 void mdlRelease(MDL,int,void *);
 void mdlFlushCache(MDL,int);
 /*

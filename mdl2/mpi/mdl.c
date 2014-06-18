@@ -45,7 +45,8 @@
 
 /*
 ** The MPI specification allows tags to at least 32767 (but most implementations go higher).
-** We multiply this offset by the destination core, so 32768/8 = 4096 cores max per process for now.
+** We multiply this offset by the destination core, so 32768/8 = 4096 cores max per process,
+** or more if the MPI implementation allows it.
 */
 #define MDL_TAG_THREAD_OFFSET   MDL_TAG_MAX
 
@@ -65,6 +66,232 @@
 #define MDL_SE_MPI_SEND        11
 #define MDL_SE_MPI_SSEND       12
 #define MDL_SE_MPI_RECV        13
+
+
+#ifdef USE_ARC
+/*
+** The bit values of these flags are NOT arbitrary!
+** The implementation depends on their values being set this way.
+*/
+#define _P1_     0x10000000
+#define _T1_     0x00000000
+#define _B1_     0x20000000
+#define _T2_     0x40000000
+#define _B2_     0x60000000
+#define _WHERE_  0x70000000
+#define _IDMASK_ 0x0fffffff
+#define _DIRTY_  0x80000000
+#define _ARC_MAGIC_ 0xa6c3a91c00000000
+#define _ARC_MASK_  0xa6c3a91cffffffff
+
+static uint32_t swar32(register uint32_t x)
+{
+    x |= (x >> 1);
+    x |= (x >> 2);
+    x |= (x >> 4);
+    x |= (x >> 8);
+    x |= (x >> 16);
+    return(x);
+}
+
+/*
+** MurmurHash2, by Austin Appleby
+** adapted for hashing 2 uint32_t variables for mdl2
+*/
+static inline uint32_t MurmurHash2(uint32_t a,uint32_t b)
+{
+    /* 
+    ** 'm' and 'r' are mixing constants generated offline.
+    ** They're not really 'magic', they just happen to work well.
+    */
+    const uint32_t m = 0x5bd1e995;
+    const int r = 24;
+    uint32_t h = 0xdeadbeef;
+
+    /* Mix the 2 32-bit words into the hash */
+    a *= m; 
+    b *= m; 
+    a ^= a >> r; 
+    b ^= b >> r; 
+    a *= m; 	
+    b *= m; 	
+    /* now work on the hash */
+    h ^= a;
+    h *= m; 
+    h ^= b;	
+    /* Do a few final mixes of the hash to ensure the last few
+    ** bytes are well-incorporated. */
+    h ^= h >> 13;
+    h *= m;
+    h ^= h >> 15;
+    return h;
+} 
+
+
+static inline CDB *lru_remove(CDB *list) {
+    CDB *p = list->prev;
+    p->prev->next = list;
+    list->prev = p->prev;
+    return(p);
+}
+
+static inline void remove_from_list(CDB *t) {
+    t->prev->next = t->next;
+    t->next->prev = t->prev;
+}
+
+static inline void mru_insert(CDB *p,CDB *list) {
+    p->prev = list;
+    p->next = list->next;
+    list->next->prev = p;
+    list->next = p;
+}
+
+static inline void lru_insert(CDB *p,CDB *list) {
+    p->prev = list->prev;
+    p->next = list;
+    list->prev->next = p;
+    list->prev = p;
+}
+
+static inline void remove_from_hash(ARC arc,CDB *p) {
+    uint32_t uIndex = p->uIndex;
+    uint32_t uId = p->uId&_IDMASK_;
+    uint32_t uHash = (MurmurHash2(uIndex,uId)&arc->uHashMask);
+    CDB **pt = &arc->Hash[uHash];
+    while (*pt) {
+	if ((*pt)->uIndex == uIndex) {
+	    if (((*pt)->uId&_IDMASK_) == uId) {
+		/*
+		** Unlink.
+		*/
+		*pt = (*pt)->coll;
+		return;
+		}
+	    }
+	pt = &((*pt)->coll);
+	}
+    printf("Tried to remove uIndex %d uId %x\n", uIndex, uId);
+
+    assert(0);  /* should never get here, the element should always be found in the hash */
+    }
+
+ARC arcInitialize(uint32_t nCache,uint32_t uDataSize) {
+    ARC arc;
+    uint32_t i;
+    
+    /*
+    ** Allocate stuff.
+    */
+    arc = malloc(sizeof(struct ArcContext));
+    assert(arc != NULL);
+    arc->nCache = nCache;
+    arc->cdbBase = malloc(2*nCache*sizeof(CDB));
+    assert(arc->cdbBase != NULL);
+    /*
+    ** Make sure we have sufficient alignment of data.
+    ** In this case to nearest long word (8 bytes).
+    ** We add one long word at the start to store the 
+    ** magic number and lock count.
+    */
+    arc->uDataSize = (uDataSize+7)>>3;
+    arc->dataBase = malloc(nCache*sizeof(uint64_t)*(arc->uDataSize+1));
+    assert(arc->dataBase != NULL);
+    /*
+    ** Determine nHash.
+    */
+    arc->uHashMask = swar32(3*nCache-1);
+    arc->nHash = arc->uHashMask+1; 
+    arc->Hash = malloc(arc->nHash*sizeof(CDB *));
+    assert(arc->Hash != NULL);
+    for (i=0;i<arc->nHash;++i) {
+	arc->Hash[i] = NULL;
+    }
+    /*
+    ** Create all lists as circular lists, with a sentinel
+    ** CDB at the head/tail of the list.
+    ** Initialize the lengths of the various lists.
+    */
+    arc->T1 = malloc(sizeof(CDB));
+    assert(arc->T1 != NULL);
+    arc->T1->next = arc->T1;
+    arc->T1->prev = arc->T1;
+    arc->T1->uId = 0xdeadbeef;
+    arc->T1Length = 0;
+    arc->B1 = malloc(sizeof(CDB));
+    assert(arc->B1 != NULL);
+    arc->B1->next = arc->B1;
+    arc->B1->prev = arc->B1;
+    arc->B1->uId = 0xdeadbeef;
+    arc->B1Length = 0;
+    arc->T2 = malloc(sizeof(CDB));
+    assert(arc->T2 != NULL);
+    arc->T2->next = arc->T2;
+    arc->T2->prev = arc->T2;
+    arc->T2->uId = 0xdeadbeef;
+    arc->T2Length = 0;
+    arc->B2 = malloc(sizeof(CDB));
+    assert(arc->B2 != NULL);
+    arc->B2->next = arc->B2;
+    arc->B2->prev = arc->B2;
+    arc->B2->uId = 0xdeadbeef;
+    arc->B2Length = 0;
+    arc->Free = malloc(sizeof(CDB));
+    assert(arc->Free != NULL);
+    arc->Free->next = arc->Free;
+    arc->Free->prev = arc->Free;
+    /*
+    ** Initialize target T1 length.
+    */
+    arc->target_T1 = nCache/2;   /* is this ok? */
+    /*
+    ** Insert CDBs with data into the Free list first.
+    */
+    for (i=0;i<nCache;++i) {
+	/*arc->dataBase[i*(arc->uDataSize+1)] = _ARC_MAGIC_;*/ /* Defer this until we use it. */
+	arc->cdbBase[i].data = &arc->dataBase[i*(arc->uDataSize+1)+1];
+	arc->cdbBase[i].coll = NULL;
+	lru_insert(&arc->cdbBase[i],arc->Free);
+    }
+    /*
+    ** Finally insert CDBs without data pages into the Free list last.
+    */
+    for (i=nCache;i<2*nCache;++i) {
+	arc->cdbBase[i].data = 0;
+	arc->cdbBase[i].coll = NULL;
+	mru_insert(&arc->cdbBase[i],arc->Free);
+    }
+    return(arc);
+}
+
+
+void arcFinish(ARC arc) {
+    /*
+    ** Free the sentinels.
+    */
+    free(arc->Free);
+    free(arc->B2);
+    free(arc->T2);
+    free(arc->B1);
+    free(arc->T1);
+    /*
+    ** Free the hash table.
+    */
+    free(arc->Hash);
+    /*
+    ** Free the data pages.
+    */
+    free(arc->dataBase);
+    /*
+    ** Free the CDBs.
+    */
+    free(arc->cdbBase);
+    /*
+    ** Free context.
+    */
+    free(arc);
+}
+#endif
 
 
 /*
@@ -147,8 +374,8 @@ int mdlCacheReceive(MDL mdl) {
 	phRpl->mid = MDL_MID_CACHERPL;
 	phRpl->idFrom = mdl->base.idSelf;
 	phRpl->idTo = ph->idFrom;
-
 	assert(ph->iLine>=0);
+
 	s = ph->iLine*MDL_CACHELINE_ELTS;
 	n = s + MDL_CACHELINE_ELTS;
 	if ( n > c->nData ) n = c->nData;
@@ -688,6 +915,9 @@ void mdlInitCommon(MDL mdl0, int iMDL,int bDiag,int argc, char **argv,
     mdl->cacheSize = MDL_CACHE_SIZE;
     for (i = 0; i<mdl->nMaxCacheIds; ++i) {
 	mdl->cache[i].iType = MDL_NOCACHE;
+#ifdef USE_ARC
+	mdl->cache[i].arc = NULL;
+#endif
 	}
 
     /*
@@ -752,7 +982,7 @@ static void *mdlWorkerThread(void *vmdl) {
 
 int mdlLaunch(int argc,char **argv,void * (*fcnMaster)(MDL),void * (*fcnChild)(MDL)) {
     MDL mdl;
-    int i,j,bDiag,bThreads,bDedicated,thread_support,rc;
+    int i,j,bDiag,bThreads,bDedicated,thread_support,rc,flag,*piTagUB;
     char *p, ach[256];
 
     mdl = malloc(sizeof(struct mdlContext));
@@ -857,6 +1087,13 @@ int mdlLaunch(int argc,char **argv,void * (*fcnMaster)(MDL),void * (*fcnChild)(M
     assert(mdl->mpi.pRequestTargets!=NULL);
     for(i=0; i<mdl->mpi.nRequestTargets; ++i) mdl->mpi.pRequestTargets[i] = -1;
 
+    /* Make sure that MPI supports enough tags */
+    rc = MPI_Comm_get_attr(mdl->mpi.commMDL,MPI_TAG_UB,&piTagUB,&flag);
+    if (rc==MPI_SUCCESS && flag) {
+	assert(mdl->base.nCores*MDL_TAG_THREAD_OFFSET < *piTagUB);
+	assert(mdl->mpi.nRequestTargets*MDL_TAG_THREAD_OFFSET < *piTagUB);
+	}
+
     /* Launch threads: if dedicated MPI thread then launch all worker threads. */
     mdl->mpi.nActiveCores = 0;
     if (mdl->base.nCores > 1 || bDedicated) {
@@ -887,6 +1124,15 @@ void mdlFinish(MDL mdl) {
 	}
     MPI_Barrier(mdl->mpi.commMDL);
     MPI_Finalize();
+
+
+    for (i = 0; i<mdl->nMaxCacheIds; ++i) {
+#ifdef USE_ARC
+	if (mdl->cache[i].arc) arcFinish(mdl->cache[i].arc);
+#endif
+	}
+
+
     /*
      ** Close Diagnostic file.
      */
@@ -1371,6 +1617,9 @@ CACHE *CacheInitialize(
 	 */
 	for (i=mdl->nMaxCacheIds;i<nMaxCacheIds;++i) {
 	    mdl->cache[i].iType = MDL_NOCACHE;
+#ifdef USE_ARC
+	    mdl->cache[i].arc = NULL;
+#endif
 	    }
 	mdl->nMaxCacheIds = nMaxCacheIds;
 	}
@@ -1436,6 +1685,10 @@ CACHE *CacheInitialize(
      */
     c->pLine = malloc(mdl->cacheSize);
     assert(c->pLine != NULL);
+#ifdef USE_ARC
+    if (c->arc==NULL) c->arc = arcInitialize(mdl->cacheSize/iDataSize,iDataSize);
+    c->pOneLine = malloc(c->iLineSize);
+#endif
 
     /*
      ** Set up the request message as much as possible!
@@ -1560,6 +1813,47 @@ void mdlFlushCache(MDL mdl,int cid) {
     mdlTimeAddSynchronizing(mdl);
     }
 
+#ifdef USE_ARC
+static void arcFlushAll(ARC arc) {
+    int i;
+    CDB *temp;
+    for(;arc->T1Length;--arc->T1Length) {
+	temp = lru_remove(arc->T1);
+	assert(temp->data != NULL);
+	assert(temp->data[-1] == _ARC_MAGIC_);
+	remove_from_hash(arc,temp);
+	lru_insert(temp,arc->Free);
+	}
+    for(;arc->T2Length;--arc->T2Length) {
+	temp = lru_remove(arc->T2);
+	assert(temp->data != NULL);
+	assert(temp->data[-1] == _ARC_MAGIC_);
+	remove_from_hash(arc,temp);
+	lru_insert(temp,arc->Free);
+	}
+    for(;arc->B1Length;--arc->B1Length) {
+	temp = lru_remove(arc->B1);
+	assert(temp->data == NULL);
+	remove_from_hash(arc,temp);
+	mru_insert(temp,arc->Free);
+	}
+    for(;arc->B2Length;--arc->B2Length) {
+	temp = lru_remove(arc->B2);
+	assert(temp->data == NULL);
+	remove_from_hash(arc,temp);
+	mru_insert(temp,arc->Free);
+	}
+    assert(arc->T1->next == arc->T1);
+    assert(arc->T1->prev == arc->T1);
+    assert(arc->B1->next == arc->B1);
+    assert(arc->B1->prev == arc->B1);
+    assert(arc->T2->next == arc->T2);
+    assert(arc->T2->prev == arc->T2);
+    assert(arc->B2->next == arc->B2);
+    assert(arc->B2->prev == arc->B2);
+    }
+#endif
+
 void mdlFinishCache(MDL mdl,int cid) {
     CACHE *c = &mdl->cache[cid];
     CAHEAD caOut;
@@ -1590,10 +1884,380 @@ void mdlFinishCache(MDL mdl,int cid) {
     free(c->pTrans);
     free(c->pTag);
     free(c->pLine);
+#ifdef USE_ARC
+    free(c->pOneLine);
+    arcFlushAll(c->arc);
+#ifdef FINISH_ARC
+    arcFinish(c->arc);
+    c->arc = NULL;
+#endif
+#endif
     c->iType = MDL_NOCACHE;
     mdlTimeAddSynchronizing(mdl);
     }
 
+void mdlPrefetch(MDL mdl,int cid,int iIndex, int id) {
+    }
+
+#ifdef USE_ARC
+static inline uint64_t *replace(ARC arc) {
+    CDB *temp;
+    uint64_t *data;
+    uint32_t max = (arc->target_T1 > 1)?arc->target_T1:1;
+    if (arc->T1Length >= max) { /* T1’s size exceeds target? */
+                                        /* yes: T1 is too big */
+	temp = arc->T1->prev;                /* get LRU */
+	while (temp->data[-1] != _ARC_MAGIC_) {           /* is it a locked page? */
+	    temp = temp->prev;
+	    if (temp == arc->T1) {           /* all pages in T1 are currently locked, try T2 in this case */
+		temp = arc->T2->prev;                /* get LRU */
+		while (temp->data[-1] != _ARC_MAGIC_) {           /* is it a locked page? */
+		    temp = temp->prev;
+		    if (temp == arc->T2) return(NULL); /* all pages are currently locked, give up! */
+		}
+		goto replace_T2;
+	    }
+	}
+	goto replace_T1;
+    } else {
+	/* no: T1 is not too big */
+	temp = arc->T2->prev;                /* get LRU */
+	while (temp->data[-1] != _ARC_MAGIC_) {           /* is it a locked page? */
+	    temp = temp->prev;
+	    if (temp == arc->T2) {           /* all pages in T2 are currently locked, try T1 in this case */
+		temp = arc->T1->prev;                /* get LRU */
+		while (temp->data[-1] != _ARC_MAGIC_) {           /* is it a locked page? */
+		    temp = temp->prev;
+		    if (temp == arc->T1) return(NULL); /* all pages are currently locked, give up! */
+		}
+		goto replace_T1;
+	    }
+	}
+	goto replace_T2;
+    }
+    assert(0);
+    if (0) {  /* using a Duff's device to handle the replacement */
+    replace_T1: 
+#if (0)
+    if (temp->uId & _DIRTY_) destage(temp);     /* if dirty, evict before overwrite */
+#endif
+        remove_from_list(temp);          /* grab LRU unlocked page from T1 */
+	data = temp->data;
+	temp->data = NULL; /*GHOST*/
+	mru_insert(temp,arc->B1);           /* put it on B1 */
+	temp->uId = (temp->uId&_IDMASK_)|_B1_;  /* need to be careful here because it could have been _P1_ */
+        arc->T1Length--; arc->B1Length++;          /* bookkeep */
+    }
+    if (0) {
+    replace_T2:
+#if (0)
+    if (temp->uId & _DIRTY_) destage(temp);     /* if dirty, evict before overwrite */
+#endif
+        remove_from_list(temp);          /* grab LRU unlocked page from T2 */
+	data = temp->data;
+	temp->data = NULL; /*GHOST*/
+        mru_insert(temp,arc->B2);           /* put it on B2 */
+        temp->uId |= _B2_;          /* note that fact */
+        arc->T2Length--; arc->B2Length++;          /* bookkeep */
+    }
+    assert(data!=NULL);
+    return data;
+}
+
+/*
+** The highest order bit (1<<31) of uId encodes the dirty bit.
+** The next 3 highest order bits of uId ((1<<30), (1<<29) and (1<<28)) are reserved 
+** for list location and should be zero! The maximum legal uId is then (1<<28)-1.
+*/
+static inline void arcSetPrefetchData(ARC arc,uint32_t uIndex,uint32_t uId,void *data) {
+    CDB *temp;
+    uint32_t uHash,rat;
+    uint32_t tuId = uId&_IDMASK_;
+
+    uHash = (MurmurHash2(uIndex,tuId)&arc->uHashMask);
+    temp = arc->Hash[uHash];
+    while (temp) {
+	if (temp->uIndex == uIndex) {
+	    if ((temp->uId&_IDMASK_) == tuId) break;
+	}
+	temp = temp->coll;
+    }
+    if (temp != NULL) {                       /* found in cache directory? */
+	switch (temp->uId & _WHERE_) {                   /* yes, which list? */
+	case _P1_:
+	case _T1_:
+	case _T2_:
+	    return;              /* do nothing */
+	case _B1_:                            /* B1 "hit": don't favour anything */
+	    arc->B1Length--;                                           /* bookkeep */
+	    goto doBcase;
+	case _B2_:                            /* B2 "hit": don't favour anything */
+	    arc->B2Length--;                                           /* bookkeep*/
+	doBcase:
+	    remove_from_list(temp);                                   /* take off whichever list */
+	    temp->data = replace(arc);                                /* find a place to put new page */
+	    temp->uId = _P1_|(uId&_IDMASK_);     /* temp->ARC_where = _P1_; and clear the dirty bit for this page */
+	    temp->uIndex = uIndex;                          /* bookkeep */
+	    mru_insert(temp,arc->T1);                                     /* not seen yet, put on T1 */
+	    arc->T1Length++;
+	    break;
+	}
+    } else {                                                              /* page is not in cache directory */
+	if (arc->T1Length + arc->B1Length == arc->nCache) {                                   /* B1 + T1 full? */
+	    if (arc->T1Length < arc->nCache) {                                           /* Still room in T1? */
+		temp = lru_remove(arc->B1);                                    /* yes: take page off B1 */
+		remove_from_hash(arc,temp);            /* remove from hash table */
+		arc->B1Length--;                                               /* bookkeep that */
+		temp->data = replace(arc);                                /* find new place to put page */
+	    } else {                                                      /* no: B1 must be empty */
+		temp = lru_remove(arc->T1);                                    /* take page off T1 */
+#if (0)
+		if (temp->dirty) destage(temp);                           /* if dirty, evict before overwrite */
+#endif
+		remove_from_hash(arc,temp);            /* remove from hash table */
+		arc->T1Length--;                                               /* bookkeep that */
+	    }
+	} else {                                                          /* B1 + T1 have less than c pages */
+	    uint32_t nCache = arc->T1Length + arc->T2Length + arc->B1Length + arc->B2Length;
+	    assert(nCache >= arc->nCache);
+	    assert(arc->T1Length + arc->B1Length < arc->nCache);
+	    if (nCache >= arc->nCache) {         /* cache full? */
+		/* Yes, cache full: */
+		if (arc->T1Length + arc->T2Length + arc->B1Length + arc->B2Length == 2*arc->nCache) {
+		    /* directory is full: */
+		    assert(arc->B2Length>0);
+		    temp = lru_remove(arc->B2);            /* here we lose memory of what was in lru B2 */
+		    remove_from_hash(arc,temp);            /* remove from hash table */
+		    arc->B2Length--;                                           /* find and reuse B2’s LRU */
+		} else {                                                   /* cache directory not full, easy case */
+		    temp = lru_remove(arc->Free);
+		    assert(temp->data == NULL);            /* This CDB should not be associated with data */
+		}
+		temp->data = replace(arc);                                /* new place for page */
+	    } else {                                                      /* cache not full, easy case */
+		temp = lru_remove(arc->Free);
+		assert(temp->data != NULL);               /* This CDB should have an unused page associated with it */
+		temp->data[-1] = _ARC_MAGIC_; /* this also sets nLock to zero */
+	    }
+	}
+	mru_insert(temp,arc->T1);                                             /* not been seen yet, but put on T1 */
+	arc->T1Length++;                                                       /* bookkeep: */
+	temp->uId = _P1_|(uId&_IDMASK_);     /* temp->ARC_where = _P1_; and clear the dirty bit for this page */
+	temp->uIndex = uIndex;
+	temp->coll = arc->Hash[uHash];                  /* add to collision chain */
+	arc->Hash[uHash] = temp;                               /* insert into hash table */
+    }
+    memcpy(temp->data,data,arc->uDataSize*sizeof(uint64_t));
+}
+
+
+/*
+** This releases a lock on a page by decrementing the lock counter for that page. It also checks
+** that the magic number matches, and that the lock count is greater than 0. This is to prevent
+** strange errors if the user tries to release the wrong pointer (could silently modify memory 
+** that it should not if this check was not there).
+*/
+static inline void arcRelease(ARC arc,uint64_t *p) {
+    uint64_t t = p[-1]-1;
+    assert((t^_ARC_MAGIC_) < 0x00000000ffffffff);
+    p[-1] = t;
+}
+
+static void queueCacheRequest(MDL mdl, int cid, int iIndex, int id) {
+    CACHE *c = &mdl->cache[cid];
+    int iLine = iIndex >> MDL_CACHELINE_BITS;
+    int iElt = iIndex & MDL_CACHE_MASK;
+    int s = iIndex & MDL_INDEX_MASK;
+    c->cacheRequest.caReq.cid = cid;
+    c->cacheRequest.caReq.mid = MDL_MID_CACHEREQ;
+    c->cacheRequest.caReq.idFrom = mdl->base.idSelf;
+    c->cacheRequest.caReq.idTo = id;
+    c->cacheRequest.caReq.iLine = iLine;
+    c->cacheRequest.pLine = c->pOneLine;
+    mdlSendToMPI(mdl,&c->cacheRequest,MDL_SE_CACHE_REQUEST);
+    }
+
+static void finishCacheRequest(MDL mdl, int cid, CDB *temp) {
+    CACHE *c = &mdl->cache[cid];
+    ARC arc = c->arc;
+    uint32_t uIndex = temp->uIndex;
+    uint32_t uId = temp->uId & _IDMASK_;
+    int iLine = uIndex >> MDL_CACHELINE_BITS;
+    int iElt = uIndex & MDL_CACHE_MASK;
+    int s = uIndex & MDL_INDEX_MASK;
+
+    assert(temp->data!=NULL);
+    mdlWaitThreadQueue(mdl,MDL_TAG_CACHECOM);
+    memcpy(temp->data,c->pOneLine + iElt*c->iDataSize, c->iDataSize);
+
+#if 1
+    ++temp->data[-1];       /* prefetch must never evict our data */
+    int i;
+    for(i=0; i<MDL_CACHELINE_ELTS; ++i) {
+	int nid = s + i;
+	if (nid != uIndex)
+	    arcSetPrefetchData(arc,nid,uId,c->pOneLine + i*c->iDataSize);
+	}
+    --temp->data[-1];       /* may lock below */
+#endif
+    }
+
+/*
+** The highest order bit (1<<31) of uId encodes the dirty bit.
+** The next 3 highest order bits of uId ((1<<30), (1<<29) and (1<<28)) are reserved 
+** for list location and should be zero! The maximum legal uId is then (1<<28)-1.
+*/
+void *mdlDoMiss(MDL mdl, int cid, int iIndex, int id, mdlkey_t iKey, int bLock) {
+    CACHE *c = &mdl->cache[cid];
+    ARC arc = c->arc;
+    uint32_t uIndex = iIndex;
+    uint32_t uId = id;
+    CDB *temp;
+    uint32_t uHash,rat;
+    uint32_t tuId = uId&_IDMASK_;
+
+    uHash = (MurmurHash2(uIndex,tuId)&arc->uHashMask);
+    temp = arc->Hash[uHash];
+    while (temp) {
+	if (temp->uIndex == uIndex) {
+	    if ((temp->uId&_IDMASK_) == tuId) break;
+	}
+	temp = temp->coll;
+    }
+    if (temp != NULL) {                       /* found in cache directory? */
+	switch (temp->uId & _WHERE_) {                   /* yes, which list? */
+	case _P1_:
+	    temp->uId = uId;     /* clears prefetch flag and sets WHERE = _T1_ and dirty bit */
+	    remove_from_list(temp);                           /* take off T1 list */
+	    mru_insert(temp,arc->T1);                         /* first access but recently prefetched, put on T1 */
+	    goto cachehit;
+	case _T1_:
+	    arc->T1Length--; arc->T2Length++;
+	    temp->uId |= _T2_;
+	    /* fall through */
+	case _T2_:
+	    remove_from_list(temp);                                   /* take off whichever list */
+	    mru_insert(temp,arc->T2);                                     /* seen twice recently, put on T2 */
+	    temp->uId |= uId;          /* if the dirty bit is now set we need to record this */
+	cachehit:
+	    if (bLock) {
+		/*
+		** We don't have to check if the lock counter rolls over, since it will increment the  
+		** magic number first. This in turn will cause this page to be locked in a way that it 
+		** cannot be unlocked without an error condition.
+		*/
+		++temp->data[-1];       /* increase lock count */
+	    }
+	    /*
+	    ** Get me outa here.
+	    */
+	    return((void *)temp->data);
+	case _B1_:                            /* B1 hit: favor recency */
+	    /*
+	    ** Can initiate the data request right here, and do the rest while waiting...
+	    */
+	    queueCacheRequest(mdl,cid,iIndex,id);
+
+	    rat = arc->B2Length/arc->B1Length;
+	    if (rat < 1) rat = 1;
+	    arc->target_T1 += rat;
+	    if (arc->target_T1 > arc->nCache) arc->target_T1 = arc->nCache;
+	    /* adapt the target size */
+	    arc->B1Length--;                                           /* bookkeep */
+	    goto doBcase;
+	case _B2_:                            /* B2 hit: favor frequency */
+	    /*
+	    ** Can initiate the data request right here, and do the rest while waiting...
+	    */
+	    queueCacheRequest(mdl,cid,iIndex,id);
+
+	    rat = arc->B1Length/arc->B2Length;
+	    if (rat < 1) rat = 1;
+	    if (rat > arc->target_T1) arc->target_T1 = 0;
+	    else arc->target_T1 = arc->target_T1 - rat;
+	    /* adapt the target size */
+	    arc->B2Length--;                                           /* bookkeep */
+	doBcase:
+	    remove_from_list(temp);                                   /* take off whichever list */
+	    temp->data = replace(arc);                                /* find a place to put new page */
+	    temp->uId = _T2_|uId;     /* temp->ARC_where = _T2_; and set the dirty bit for this page */
+	    temp->uIndex = uIndex;                          /* bookkeep */
+	    mru_insert(temp,arc->T2);                                     /* seen twice recently, put on T2 */
+	    arc->T2Length++;                 /* JS: this was not in the original code. Should it be? bookkeep */
+	    assert(temp->data!=NULL);
+	    finishCacheRequest(mdl,cid,temp);
+	    break;
+	}
+    } else {                                                              /* page is not in cache directory */
+	++c->nMiss;
+	mdlTimeAddComputing(mdl);
+	/*
+	** Can initiate the data request right here, and do the rest while waiting...
+	*/
+	queueCacheRequest(mdl,cid,iIndex,id);
+
+	if (arc->T1Length + arc->B1Length == arc->nCache) {                                   /* B1 + T1 full? */
+	    if (arc->T1Length < arc->nCache) {                                           /* Still room in T1? */
+		temp = lru_remove(arc->B1);                                    /* yes: take page off B1 */
+		remove_from_hash(arc,temp);            /* remove from hash table */
+		arc->B1Length--;                                               /* bookkeep that */
+		temp->data = replace(arc);                                /* find new place to put page */
+		assert(temp->data!=NULL);
+	    } else {                                                      /* no: B1 must be empty */
+		temp = lru_remove(arc->T1);                                    /* take page off T1 */
+#if (0)
+		if (temp->dirty) destage(temp);                           /* if dirty, evict before overwrite */
+#endif
+		remove_from_hash(arc,temp);            /* remove from hash table */
+		arc->T1Length--;                                               /* bookkeep that */
+		assert(temp->data!=NULL);
+	    }
+	} else {                                                          /* B1 + T1 have less than c pages */
+	    uint32_t nCache = arc->T1Length + arc->T2Length + arc->B1Length + arc->B2Length;
+	    assert(nCache >= arc->nCache);
+	    assert(arc->T1Length + arc->B1Length < arc->nCache);
+	    if (nCache >= arc->nCache) {         /* cache full? */
+		/* Yes, cache full: */
+		if (nCache == 2*arc->nCache) {
+		    /* directory is full: */
+		    temp = lru_remove(arc->B2);
+		    remove_from_hash(arc,temp);            /* remove from hash table */
+		    arc->B2Length--;                                           /* find and reuse B2’s LRU */
+		} else {                                                   /* cache directory not full, easy case */
+		    temp = lru_remove(arc->Free);
+		    assert(temp->data == NULL);            /* This CDB should not be associated with data */
+		}
+		temp->data = replace(arc);                                /* new place for page */
+		assert(temp->data!=NULL);
+	    } else {                                                      /* cache not full, easy case */
+		temp = lru_remove(arc->Free);
+		assert(temp->data != NULL);               /* This CDB should have an unused page associated with it */
+		temp->data[-1] = _ARC_MAGIC_; /* this also sets nLock to zero */
+	    }
+	}
+	mru_insert(temp,arc->T1);                                             /* seen once recently, put on T1 */
+	arc->T1Length++;                                                       /* bookkeep: */
+	temp->uId = uId;                  /* temp->dirty = dirty;  p->ARC_where = _T1_; as well! */
+	temp->uIndex = uIndex;
+	temp->coll = arc->Hash[uHash];                  /* add to collision chain */
+	arc->Hash[uHash] = temp;                               /* insert into hash table */
+
+	finishCacheRequest(mdl,cid,temp);
+
+	mdlTimeAddWaiting(mdl);
+    }
+    assert(temp!=NULL);
+    if (bLock) {
+	/*
+	** We don't have to check if the lock counter rolls over, since it will increment the  
+	** magic number first. This in turn will cause this page to be locked in a way that it 
+	** cannot be unlocked without an error condition.
+	*/
+	++temp->data[-1];       /* increase lock count */
+    }
+    return((void *)temp->data);
+}
+#else
 void *mdlDoMiss(MDL mdl, int cid, int iIndex, int id, mdlkey_t iKey, int lock) {
     CACHE *c = &mdl->cache[cid];
     char *pLine;
@@ -1698,13 +2362,76 @@ Await:
     c->cacheRequest.pLine = pLine;
     mdlSendToMPI(mdl,&c->cacheRequest,MDL_SE_CACHE_REQUEST);
     mdlWaitThreadQueue(mdl,MDL_TAG_CACHECOM);
+
     mdlTimeAddWaiting(mdl);
     return(&pLine[iElt*c->iDataSize]);
+    }
+#endif
+
+void *mdlAquire(MDL mdl,int cid,int iIndex,int id) {
+    const int lock = 1;  /* we always lock in aquire */
+    CACHE *c = &mdl->cache[cid];
+    char *pLine;
+    mdlkey_t iKey;
+    int iElt;
+    int i;
+
+    ++c->nAccess;
+
+    if (!(c->nAccess & MDL_CHECK_MASK))
+	mdlCacheCheck(mdl);
+
+    /* Short circuit the cache if this belongs to another thread (or ourselves) */
+    int iCore = id - mdl->pmdl[0]->base.idSelf;
+    if (iCore >= 0 && iCore < mdl->base.nCores && c->iType == MDL_ROCACHE ) {
+	MDL omdl = mdl->pmdl[iCore];
+	c = &omdl->cache[cid];
+	return (*c->getElt)(c->pData,iIndex,c->iDataSize);
+	}
+
+#ifdef USE_ARC
+#else
+    /*
+     ** Determine memory block key value and cache line.
+     */
+    iKey = iIndex & MDL_INDEX_MASK;
+    iKey <<= c->iKeyShift;
+    iKey |= id;
+    i = c->pTrans[iKey & c->iTransMask];
+    /*
+     ** Check for a match!
+     */
+    if (c->pTag[i].iKey == iKey) {
+	++c->pTag[i].nLock;
+	pLine = &c->pLine[i*c->iLineSize];
+	iElt = iIndex & MDL_CACHE_MASK;
+	return(&pLine[iElt*c->iDataSize]);
+	}
+    i = c->pTag[i].iLink;
+    /*
+     ** Collision chain search.
+     */
+    while (i) {
+	++c->nColl;
+	if (c->pTag[i].iKey == iKey) {
+	    ++c->pTag[i].nLock;
+	    pLine = &c->pLine[i*c->iLineSize];
+	    iElt = iIndex & MDL_CACHE_MASK;
+	    return(&pLine[iElt*c->iDataSize]);
+	    }
+	i = c->pTag[i].iLink;
+	}
+#endif
+    return(mdlDoMiss(mdl, cid, iIndex, id, iKey, lock));
     }
 
 
 void mdlRelease(MDL mdl,int cid,void *p) {
     CACHE *c = &mdl->cache[cid];
+    arcRelease(c->arc,p);
+#ifdef USE_ARC
+
+#else
     int iLine;
 
     iLine = ((char *)p - c->pLine) / c->iLineSize;
@@ -1716,6 +2443,7 @@ void mdlRelease(MDL mdl,int cid,void *p) {
 	--c->pTag[iLine].nLock;
 	assert(c->pTag[iLine].nLock >= 0);
 	}
+#endif
     }
 
 
