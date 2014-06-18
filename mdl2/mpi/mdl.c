@@ -172,7 +172,6 @@ static inline void remove_from_hash(ARC arc,CDB *p) {
 	pt = &((*pt)->coll);
 	}
     printf("Tried to remove uIndex %d uId %x\n", uIndex, uId);
-
     assert(0);  /* should never get here, the element should always be found in the hash */
     }
 
@@ -1900,10 +1899,10 @@ void mdlPrefetch(MDL mdl,int cid,int iIndex, int id) {
     }
 
 #ifdef USE_ARC
-static inline uint64_t *replace(ARC arc) {
+static inline uint64_t *replace(ARC arc, int iInB2) {
     CDB *temp;
     uint64_t *data;
-    uint32_t max = (arc->target_T1 > 1)?arc->target_T1:1;
+    uint32_t max = (arc->target_T1 > 1)?(arc->target_T1+1-iInB2):1;
     if (arc->T1Length >= max) { /* T1’s size exceeds target? */
                                         /* yes: T1 is too big */
 	temp = arc->T1->prev;                /* get LRU */
@@ -1947,6 +1946,7 @@ static inline uint64_t *replace(ARC arc) {
 	mru_insert(temp,arc->B1);           /* put it on B1 */
 	temp->uId = (temp->uId&_IDMASK_)|_B1_;  /* need to be careful here because it could have been _P1_ */
         arc->T1Length--; arc->B1Length++;          /* bookkeep */
+	/*assert(arc->B1Length<=arc->nCache);*/
     }
     if (0) {
     replace_T2:
@@ -1960,7 +1960,7 @@ static inline uint64_t *replace(ARC arc) {
         temp->uId |= _B2_;          /* note that fact */
         arc->T2Length--; arc->B2Length++;          /* bookkeep */
     }
-    assert(data!=NULL);
+    /*assert(data!=NULL);*/
     return data;
 }
 
@@ -1973,6 +1973,8 @@ static inline void arcSetPrefetchData(ARC arc,uint32_t uIndex,uint32_t uId,void 
     CDB *temp;
     uint32_t uHash,rat;
     uint32_t tuId = uId&_IDMASK_;
+    uint32_t L1Length, L2Length;
+    int inB2=0;
 
     uHash = (MurmurHash2(uIndex,tuId)&arc->uHashMask);
     temp = arc->Hash[uHash];
@@ -1993,22 +1995,34 @@ static inline void arcSetPrefetchData(ARC arc,uint32_t uIndex,uint32_t uId,void 
 	    goto doBcase;
 	case _B2_:                            /* B2 "hit": don't favour anything */
 	    arc->B2Length--;                                           /* bookkeep*/
+	    inB2=1;
 	doBcase:
+	    /* Better would be to put this back on P1, but L1 may be full. */
 	    remove_from_list(temp);                                   /* take off whichever list */
-	    temp->data = replace(arc);                                /* find a place to put new page */
-	    temp->uId = _P1_|(uId&_IDMASK_);     /* temp->ARC_where = _P1_; and clear the dirty bit for this page */
+	    temp->data = replace(arc,inB2);                                /* find a place to put new page */
 	    temp->uIndex = uIndex;                          /* bookkeep */
-	    mru_insert(temp,arc->T1);                                     /* not seen yet, put on T1 */
-	    arc->T1Length++;
+	    if (inB2) {
+		temp->uId = _T2_|(uId&_IDMASK_);     /* temp->ARC_where = _P1_; and clear the dirty bit for this page */
+		mru_insert(temp,arc->T2);                                     /* not seen yet, put on T1 */
+		arc->T2Length++;
+		}
+	    else {
+		temp->uId = _P1_|(uId&_IDMASK_);     /* temp->ARC_where = _P1_; and clear the dirty bit for this page */
+		mru_insert(temp,arc->T1);                                     /* not seen yet, put on T1 */
+		arc->T1Length++;
+		/*assert(arc->T1Length+arc->B1Length<=arc->nCache);*/
+		}
 	    break;
 	}
     } else {                                                              /* page is not in cache directory */
-	if (arc->T1Length + arc->B1Length == arc->nCache) {                                   /* B1 + T1 full? */
+	L1Length = arc->T1Length + arc->B1Length;
+	/*assert(L1Length<=arc->nCache);*/
+	if (L1Length == arc->nCache) {                                   /* B1 + T1 full? */
 	    if (arc->T1Length < arc->nCache) {                                           /* Still room in T1? */
 		temp = lru_remove(arc->B1);                                    /* yes: take page off B1 */
 		remove_from_hash(arc,temp);            /* remove from hash table */
 		arc->B1Length--;                                               /* bookkeep that */
-		temp->data = replace(arc);                                /* find new place to put page */
+		temp->data = replace(arc,0);                                /* find new place to put page */
 	    } else {                                                      /* no: B1 must be empty */
 		temp = lru_remove(arc->T1);                                    /* take page off T1 */
 #if (0)
@@ -2019,21 +2033,20 @@ static inline void arcSetPrefetchData(ARC arc,uint32_t uIndex,uint32_t uId,void 
 	    }
 	} else {                                                          /* B1 + T1 have less than c pages */
 	    uint32_t nCache = arc->T1Length + arc->T2Length + arc->B1Length + arc->B2Length;
-	    assert(nCache >= arc->nCache);
-	    assert(arc->T1Length + arc->B1Length < arc->nCache);
+	    /*assert(L1Length < arc->nCache);*/
 	    if (nCache >= arc->nCache) {         /* cache full? */
 		/* Yes, cache full: */
 		if (arc->T1Length + arc->T2Length + arc->B1Length + arc->B2Length == 2*arc->nCache) {
 		    /* directory is full: */
-		    assert(arc->B2Length>0);
+		    /*assert(arc->B2Length>0);*/
 		    temp = lru_remove(arc->B2);            /* here we lose memory of what was in lru B2 */
 		    remove_from_hash(arc,temp);            /* remove from hash table */
 		    arc->B2Length--;                                           /* find and reuse B2’s LRU */
+		    inB2=1;
 		} else {                                                   /* cache directory not full, easy case */
 		    temp = lru_remove(arc->Free);
-		    assert(temp->data == NULL);            /* This CDB should not be associated with data */
 		}
-		temp->data = replace(arc);                                /* new place for page */
+		temp->data = replace(arc,inB2);                                /* new place for page */
 	    } else {                                                      /* cache not full, easy case */
 		temp = lru_remove(arc->Free);
 		assert(temp->data != NULL);               /* This CDB should have an unused page associated with it */
@@ -2042,6 +2055,7 @@ static inline void arcSetPrefetchData(ARC arc,uint32_t uIndex,uint32_t uId,void 
 	}
 	mru_insert(temp,arc->T1);                                             /* not been seen yet, but put on T1 */
 	arc->T1Length++;                                                       /* bookkeep: */
+	/*assert(arc->T1Length+arc->B1Length<=arc->nCache);*/
 	temp->uId = _P1_|(uId&_IDMASK_);     /* temp->ARC_where = _P1_; and clear the dirty bit for this page */
 	temp->uIndex = uIndex;
 	temp->coll = arc->Hash[uHash];                  /* add to collision chain */
@@ -2113,17 +2127,19 @@ void *mdlDoMiss(MDL mdl, int cid, int iIndex, int id, mdlkey_t iKey, int bLock) 
     uint32_t uIndex = iIndex;
     uint32_t uId = id;
     CDB *temp;
+    uint32_t L1Length, L2Length;
     uint32_t uHash,rat;
     uint32_t tuId = uId&_IDMASK_;
+    int inB2=0;
 
     uHash = (MurmurHash2(uIndex,tuId)&arc->uHashMask);
     temp = arc->Hash[uHash];
     while (temp) {
 	if (temp->uIndex == uIndex) {
 	    if ((temp->uId&_IDMASK_) == tuId) break;
-	}
+	    }
 	temp = temp->coll;
-    }
+	}
     if (temp != NULL) {                       /* found in cache directory? */
 	switch (temp->uId & _WHERE_) {                   /* yes, which list? */
 	case _P1_:
@@ -2147,7 +2163,7 @@ void *mdlDoMiss(MDL mdl, int cid, int iIndex, int id, mdlkey_t iKey, int bLock) 
 		** cannot be unlocked without an error condition.
 		*/
 		++temp->data[-1];       /* increase lock count */
-	    }
+		}
 	    /*
 	    ** Get me outa here.
 	    */
@@ -2177,45 +2193,49 @@ void *mdlDoMiss(MDL mdl, int cid, int iIndex, int id, mdlkey_t iKey, int bLock) 
 	    else arc->target_T1 = arc->target_T1 - rat;
 	    /* adapt the target size */
 	    arc->B2Length--;                                           /* bookkeep */
+	    inB2=1;
 	doBcase:
 	    remove_from_list(temp);                                   /* take off whichever list */
-	    temp->data = replace(arc);                                /* find a place to put new page */
+	    temp->data = replace(arc,inB2);                                /* find a place to put new page */
 	    temp->uId = _T2_|uId;     /* temp->ARC_where = _T2_; and set the dirty bit for this page */
 	    temp->uIndex = uIndex;                          /* bookkeep */
 	    mru_insert(temp,arc->T2);                                     /* seen twice recently, put on T2 */
 	    arc->T2Length++;                 /* JS: this was not in the original code. Should it be? bookkeep */
-	    assert(temp->data!=NULL);
+	    /*assert(temp->data!=NULL);*/
 	    finishCacheRequest(mdl,cid,temp);
 	    break;
+	    }
 	}
-    } else {                                                              /* page is not in cache directory */
+
+    else {                                                              /* page is not in cache directory */
 	++c->nMiss;
 	mdlTimeAddComputing(mdl);
 	/*
 	** Can initiate the data request right here, and do the rest while waiting...
 	*/
 	queueCacheRequest(mdl,cid,iIndex,id);
-
-	if (arc->T1Length + arc->B1Length == arc->nCache) {                                   /* B1 + T1 full? */
+	L1Length = arc->T1Length + arc->B1Length;
+	/*assert(L1Length<=arc->nCache);*/
+	if (L1Length == arc->nCache) {                                   /* B1 + T1 full? */
 	    if (arc->T1Length < arc->nCache) {                                           /* Still room in T1? */
 		temp = lru_remove(arc->B1);                                    /* yes: take page off B1 */
 		remove_from_hash(arc,temp);            /* remove from hash table */
 		arc->B1Length--;                                               /* bookkeep that */
-		temp->data = replace(arc);                                /* find new place to put page */
-		assert(temp->data!=NULL);
-	    } else {                                                      /* no: B1 must be empty */
+		temp->data = replace(arc,0);                                /* find new place to put page */
+		}
+	    else {                                                      /* no: B1 must be empty */
 		temp = lru_remove(arc->T1);                                    /* take page off T1 */
 #if (0)
 		if (temp->dirty) destage(temp);                           /* if dirty, evict before overwrite */
 #endif
 		remove_from_hash(arc,temp);            /* remove from hash table */
 		arc->T1Length--;                                               /* bookkeep that */
-		assert(temp->data!=NULL);
+		}
+	    /*assert(temp->data!=NULL);*/
 	    }
-	} else {                                                          /* B1 + T1 have less than c pages */
+	else {                                                          /* B1 + T1 have less than c pages */
 	    uint32_t nCache = arc->T1Length + arc->T2Length + arc->B1Length + arc->B2Length;
-	    assert(nCache >= arc->nCache);
-	    assert(arc->T1Length + arc->B1Length < arc->nCache);
+	    /*assert(L1Length < arc->nCache);*/
 	    if (nCache >= arc->nCache) {         /* cache full? */
 		/* Yes, cache full: */
 		if (nCache == 2*arc->nCache) {
@@ -2223,12 +2243,13 @@ void *mdlDoMiss(MDL mdl, int cid, int iIndex, int id, mdlkey_t iKey, int bLock) 
 		    temp = lru_remove(arc->B2);
 		    remove_from_hash(arc,temp);            /* remove from hash table */
 		    arc->B2Length--;                                           /* find and reuse B2’s LRU */
+		    inB2=1;
 		} else {                                                   /* cache directory not full, easy case */
 		    temp = lru_remove(arc->Free);
 		    assert(temp->data == NULL);            /* This CDB should not be associated with data */
 		}
-		temp->data = replace(arc);                                /* new place for page */
-		assert(temp->data!=NULL);
+		temp->data = replace(arc,inB2);                                /* new place for page */
+		/*assert(temp->data!=NULL);*/
 	    } else {                                                      /* cache not full, easy case */
 		temp = lru_remove(arc->Free);
 		assert(temp->data != NULL);               /* This CDB should have an unused page associated with it */
@@ -2237,6 +2258,7 @@ void *mdlDoMiss(MDL mdl, int cid, int iIndex, int id, mdlkey_t iKey, int bLock) 
 	}
 	mru_insert(temp,arc->T1);                                             /* seen once recently, put on T1 */
 	arc->T1Length++;                                                       /* bookkeep: */
+	/*assert(arc->T1Length+arc->B1Length<=arc->nCache);*/
 	temp->uId = uId;                  /* temp->dirty = dirty;  p->ARC_where = _T1_; as well! */
 	temp->uIndex = uIndex;
 	temp->coll = arc->Hash[uHash];                  /* add to collision chain */
@@ -2246,7 +2268,7 @@ void *mdlDoMiss(MDL mdl, int cid, int iIndex, int id, mdlkey_t iKey, int bLock) 
 
 	mdlTimeAddWaiting(mdl);
     }
-    assert(temp!=NULL);
+    /*assert(temp!=NULL);*/
     if (bLock) {
 	/*
 	** We don't have to check if the lock counter rolls over, since it will increment the  
@@ -2428,9 +2450,8 @@ void *mdlAquire(MDL mdl,int cid,int iIndex,int id) {
 
 void mdlRelease(MDL mdl,int cid,void *p) {
     CACHE *c = &mdl->cache[cid];
-    arcRelease(c->arc,p);
 #ifdef USE_ARC
-
+    arcRelease(c->arc,p);
 #else
     int iLine;
 

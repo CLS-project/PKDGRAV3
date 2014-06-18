@@ -19,8 +19,8 @@
 #include <srfftw_mpi.h>
 #endif
 #include "opa_queue.h"
-//#define USE_ARC
-//#ifdef USE_ARC
+/*#define USE_ARC*/
+#ifdef USE_ARC
 typedef struct CacheDataBucket {
     uint32_t uId;       /* upper 4 bits encode ARC_where and dirty bit */
     uint32_t uIndex;    /* page's ID number */
