@@ -35,6 +35,7 @@ typedef struct ArcContext {
     CDB **Hash;
     CDB *cdbBase;
     uint64_t *dataBase;
+    uint64_t *dataLast;
     CDB *T1;
     CDB *B1;
     CDB *T2;

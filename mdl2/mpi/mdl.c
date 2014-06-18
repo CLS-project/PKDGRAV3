@@ -196,6 +196,7 @@ ARC arcInitialize(uint32_t nCache,uint32_t uDataSize) {
     arc->uDataSize = (uDataSize+7)>>3;
     arc->dataBase = malloc(nCache*sizeof(uint64_t)*(arc->uDataSize+1));
     assert(arc->dataBase != NULL);
+    arc->dataLast = arc->dataBase + nCache*(arc->uDataSize+1)
     /*
     ** Determine nHash.
     */
@@ -2072,9 +2073,11 @@ static inline void arcSetPrefetchData(ARC arc,uint32_t uIndex,uint32_t uId,void 
 ** that it should not if this check was not there).
 */
 static inline void arcRelease(ARC arc,uint64_t *p) {
-    uint64_t t = p[-1]-1;
-    assert((t^_ARC_MAGIC_) < 0x00000000ffffffff);
-    p[-1] = t;
+    if (p>arc->dataBase && p<arc->dataLast) {
+	uint64_t t = p[-1]-1;
+	assert((t^_ARC_MAGIC_) < 0x00000000ffffffff);
+	p[-1] = t;
+	}
 }
 
 static void queueCacheRequest(MDL mdl, int cid, int iIndex, int id) {
