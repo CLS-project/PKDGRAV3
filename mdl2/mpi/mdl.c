@@ -787,6 +787,7 @@ static int mdl_MPI_Recv(void *buf, int count, MPI_Datatype datatype, int source,
 	send = (MDLserviceSend *)qhdr;
 	assert(send->tag == tag);
 	memcpy(buf,send->buf,send->count);
+	*nBytes = send->count;
 	mdlSendThreadMessage(mdl,0,qhdr->iCoreFrom,qhdr,MDL_SE_MPI_SSEND);
 	}
 
@@ -794,7 +795,6 @@ static int mdl_MPI_Recv(void *buf, int count, MPI_Datatype datatype, int source,
     else {
 	return mdl_remote_MPI_Recv(buf,count,datatype,source,tag,mdl,nBytes,MDL_SE_MPI_RECV);
 	}
-    *nBytes = send->count;
     return MPI_SUCCESS;
     }
 
