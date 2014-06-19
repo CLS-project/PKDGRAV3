@@ -70,10 +70,6 @@ extern "C" {
 #define MDL_INDEX_MASK		(~MDL_CACHE_MASK)
 #define MDL_CHECK_MASK  	0x7f
 
-/* Maximum number of communicators */
-#define MDL_MAX_COMM 10
-
-
 typedef struct {
     OPA_Queue_element_hdr_t hdr;
     uint32_t iServiceID;
