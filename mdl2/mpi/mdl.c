@@ -659,13 +659,19 @@ static int mdlDoSomeWork(MDL mdl) {
 	while ( (*work->doFcn)(work->ctx) != 0 ) {
 	    mdlCacheCheck(mdl);
 	    }
-	/* Send it back to the original thread for completion (could be us) */
-	OPA_Queue_enqueue(&mdl->pmdl[work->iCoreOwner]->wqDone, work, MDLwqNode, hdr);
 	rc = 1;
+	/* Send it back to the original thread for completion (could be us) */
+	if (work->iCoreOwner == mdl->base.iCore) goto reQueue;
+	OPA_Queue_enqueue(&mdl->pmdl[work->iCoreOwner]->wqDone, work, MDLwqNode, hdr);
 	}
     while (!OPA_Queue_is_empty(&mdl->wqDone)) {
 	OPA_Queue_dequeue(&mdl->wqDone, work, MDLwqNode, hdr);
+    reQueue:
 	(*work->doneFcn)(work->ctx);
+	work->ctx = NULL;
+	work->checkFcn = NULL;
+	work->doFcn = NULL;
+	work->doneFcn = NULL;
 	OPA_Queue_enqueue(&mdl->wqFree, work, MDLwqNode, hdr);
 	}
     return rc;
@@ -986,7 +992,6 @@ static void drainMPI(MDL mdl) {
 static void *mdlWorkerThread(void *vmdl) {
     MDL mdl = vmdl;
     void *result = (*mdl->fcnWorker)(mdl);
-//    MDLserviceElement stop;
     if (mdl->base.iCore != mdl->iCoreMPI) {
 	mdlSendToMPI(mdl,&mdl->inMessage,MDL_SE_STOP);
 	mdlWaitThreadQueue(mdl,0); /* Wait for Send to complete */
@@ -2659,26 +2664,29 @@ void mdlFFT( MDL mdl, MDLFFT fft, fftw_real *data, int bInverse ) {
 
 void mdlSetWorkQueueSize(MDL mdl,int wqMaxSize,int cudaSize) {
     MDLwqNode *work;
+    int i;
     while (wqMaxSize > mdl->wqMaxSize) {
-	work = malloc(sizeof(MDLwqNode));
-	OPA_Queue_header_init(&work->hdr);
-	work->iCoreOwner = mdl->base.iCore;
-	OPA_Queue_enqueue(&mdl->wqFree, work, MDLwqNode, hdr);
-	work = malloc(sizeof(MDLwqNode));
-	OPA_Queue_header_init(&work->hdr);
-	work->iCoreOwner = mdl->base.iCore;
-	OPA_Queue_enqueue(&mdl->wqFree, work, MDLwqNode, hdr);
+	for(i=0; i<mdl->base.nCores; ++i) {
+	    work = malloc(sizeof(MDLwqNode));
+	    OPA_Queue_header_init(&work->hdr);
+	    work->iCoreOwner = mdl->base.iCore;
+	    work->ctx = NULL;
+	    work->checkFcn = NULL;
+	    work->doFcn = NULL;
+	    work->doneFcn = NULL;
+	    OPA_Queue_enqueue(&mdl->wqFree, work, MDLwqNode, hdr);
+	    }
 	++mdl->wqMaxSize;
 	}
-    while (wqMaxSize < mdl->wqMaxSize && !OPA_Queue_is_empty(&mdl->wqFree)) {
-	OPA_Queue_dequeue(&mdl->wqFree, work, MDLwqNode, hdr);
-	free(work);
-	OPA_Queue_dequeue(&mdl->wqFree, work, MDLwqNode, hdr);
-	free(work);
+    while (wqMaxSize < mdl->wqMaxSize) {
+	for(i=0; i<mdl->base.nCores; ++i) {
+	    if (!OPA_Queue_is_empty(&mdl->wqFree)) 
+		OPA_Queue_dequeue(&mdl->wqFree, work, MDLwqNode, hdr);
+	    else assert(0);
+	    free(work);
+	    }
 	--mdl->wqMaxSize;
-	}
-    /* This needs to be called when there is no active work so see if we removed enough */
-    assert(mdl->wqMaxSize == wqMaxSize);
+	} 
     }
 
 void mdlAddWork(MDL mdl, void *ctx, mdlWorkFunction initWork, mdlWorkFunction checkWork, mdlWorkFunction doWork, mdlWorkFunction doneWork) {
@@ -2694,7 +2702,7 @@ void mdlAddWork(MDL mdl, void *ctx, mdlWorkFunction initWork, mdlWorkFunction ch
 	    i = mdl->wqLastHelper;
 	    do {
 		MDL rMDL = mdl->pmdl[i];
-		if (rMDL->wqAccepting && OPA_load_int(&rMDL->wqCurSize)<=1) {
+		if (rMDL->wqAccepting && OPA_load_int(&rMDL->wqCurSize)<rMDL->wqMaxSize) {
 		    Qmdl = rMDL;
 		    mdl->wqLastHelper = i;
 		    break;
@@ -2713,7 +2721,6 @@ void mdlAddWork(MDL mdl, void *ctx, mdlWorkFunction initWork, mdlWorkFunction ch
 	    OPA_Queue_enqueue(&Qmdl->wq, work, MDLwqNode, hdr);
 	    return;
 	    }
-
 	}
 
     /* Just handle it ourselves */
