@@ -461,7 +461,9 @@ static int checkMPI(MDL mdl) {
 	MDLserviceElement *qhdr;
 	cacheOpenClose *coc;
 	SRVHEAD *head;
-	int iProc, iCore, tag, i, n;
+	int iProc, iCore, tag, i;
+	int flag,indx;
+	MPI_Status status;
 
 	/* These are messages from other threads */
 	if (!OPA_Queue_is_empty(&mpi->queueMPI)) {
@@ -598,20 +600,10 @@ static int checkMPI(MDL mdl) {
 		}
 	    continue;
 	    }
-
 	/* These are messages/completions from/to other MPI processes. */
-	n = mpi->nSendRecvReq;
-	if (mpi->ReqRcv != MPI_REQUEST_NULL) mpi->pSendRecvReq[n++] = mpi->ReqRcv;
-	if (n) {
-	    int flag,indx;
-	    MPI_Status status;
-	    MPI_Testany(n,mpi->pSendRecvReq, &indx, &flag, &status);
+	if (mpi->nSendRecvReq) {
+	    MPI_Testany(mpi->nSendRecvReq,mpi->pSendRecvReq, &indx, &flag, &status);
 	    if (flag) {
-		if (indx == mpi->nSendRecvReq) {
-		    mpi->ReqRcv = mpi->pSendRecvReq[indx];
-		    mdlCacheReceive(mdl);
-		    continue;
-		    }
 		assert(indx>=0 && indx<mpi->nSendRecvReq);
 		send = mpi->pSendRecvBuf[indx];
 		for(i=indx+1;i<mpi->nSendRecvReq;++i) {
@@ -642,6 +634,13 @@ static int checkMPI(MDL mdl) {
 		    }
 		mdlSendThreadMessage(mdl,tag,send->iCoreFrom,send,MDL_SE_MPI_SSEND);
 		continue;
+		}
+	    }
+	if (mpi->ReqRcv != MPI_REQUEST_NULL) {
+	    while(1) {
+		MPI_Test(&mdl->mpi.ReqRcv, &flag, &status);
+		if (flag) mdlCacheReceive(mdl);                    
+		else break;
 		}
 	    }
 	break;
