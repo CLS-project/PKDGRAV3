@@ -201,7 +201,9 @@ typedef struct mdlContext {
     /* Work Queues */
     OPA_Queue_info_t wq;     /* Work for us to do */
     OPA_Queue_info_t wqDone; /* Completed work from other threads */
-    MDLwqNode *wqNodes;
+    OPA_Queue_info_t wqFree; /* Free work queue nodes */
+    int wqMaxSize;
+    OPA_int_t wqCurSize;
 
     /*
      ** Services stuff!

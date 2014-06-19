@@ -315,7 +315,7 @@ typedef struct {
 
 static void mdlSendThreadMessage(MDL mdl,int iQueue,int iCore, void *vhdr, uint16_t iServiceID ) {
     MDLserviceElement *qhdr = (MDLserviceElement *)vhdr;
-    OPA_Queue_header_init(&qhdr->hdr);
+    /*OPA_Queue_header_init(&qhdr->hdr); DONE ONCE AT START */
     qhdr->iServiceID = iServiceID;
     qhdr->iCoreFrom = mdl->base.iCore;
     OPA_Queue_enqueue(mdl->pmdl[iCore]->inQueue+iQueue, qhdr, MDLserviceElement, hdr);
@@ -323,7 +323,7 @@ static void mdlSendThreadMessage(MDL mdl,int iQueue,int iCore, void *vhdr, uint1
 
 static void mdlSendToMPI(MDL mdl,void *vhdr, uint16_t iServiceID ) {
     MDLserviceElement *qhdr = (MDLserviceElement *)vhdr;
-    OPA_Queue_header_init(&qhdr->hdr);
+    /*OPA_Queue_header_init(&qhdr->hdr); DONE ONCE AT START */
     qhdr->iServiceID = iServiceID;
     qhdr->iCoreFrom = mdl->base.iCore;
     OPA_Queue_enqueue(&mdl->pmdl[mdl->iCoreMPI]->mpi.queueMPI, qhdr, MDLserviceElement, hdr);
@@ -650,16 +650,25 @@ static int checkMPI(MDL mdl) {
 
 /* Do one piece of work. Return 0 if there was no work. */
 static int mdlDoSomeWork(MDL mdl) {
+    MDLwqNode *work;
+    int rc = 0;
     if (!OPA_Queue_is_empty(&mdl->wq)) {
-	MDLwqNode *work;
+	/* Grab a work package, and perform it */
 	OPA_Queue_dequeue(&mdl->wq, work, MDLwqNode, hdr);
+	OPA_decr_int(&mdl->wqCurSize);
 	while ( (*work->doFcn)(work->ctx) != 0 ) {
 	    mdlCacheCheck(mdl);
 	    }
-	(*work->doneFcn)(work->ctx);
-	return 1;
+	/* Send it back to the original thread for completion (could be us) */
+	OPA_Queue_enqueue(&mdl->pmdl[work->iCoreOwner]->wqDone, work, MDLwqNode, hdr);
+	rc = 1;
 	}
-    return 0;
+    while (!OPA_Queue_is_empty(&mdl->wqDone)) {
+	OPA_Queue_dequeue(&mdl->wqDone, work, MDLwqNode, hdr);
+	(*work->doneFcn)(work->ctx);
+	OPA_Queue_enqueue(&mdl->wqFree, work, MDLwqNode, hdr);
+	}
+    return rc;
     }
 
 static void mdlCompleteAllWork(MDL mdl) {
@@ -873,10 +882,15 @@ void mdlInitCommon(MDL mdl0, int iMDL,int bDiag,int argc, char **argv,
     */
     OPA_Queue_init(&mdl->wq);
     OPA_Queue_init(&mdl->wqDone);
-    mdl->wqNodes = NULL;
+    OPA_Queue_init(&mdl->wqFree);
+    mdl->wqMaxSize = 0;
+    OPA_store_int(&mdl->wqCurSize,0);
 
     /* Only used by the MPI thread */
     OPA_Queue_init(&mdl->mpi.queueMPI);
+    OPA_Queue_header_init(&mdl->inMessage.hdr);
+    OPA_Queue_header_init(&mdl->sendRequest.hdr);
+    OPA_Queue_header_init(&mdl->recvRequest.hdr);
     mdl->mpi.nSendRecvReq = 0;
     mdl->mpi.pSendRecvReq = NULL;
     mdl->mpi.pSendRecvBuf = NULL;
@@ -968,9 +982,9 @@ static void drainMPI(MDL mdl) {
 static void *mdlWorkerThread(void *vmdl) {
     MDL mdl = vmdl;
     void *result = (*mdl->fcnWorker)(mdl);
-    MDLserviceElement stop;
+//    MDLserviceElement stop;
     if (mdl->base.iCore != mdl->iCoreMPI) {
-	mdlSendToMPI(mdl,&stop,MDL_SE_STOP);
+	mdlSendToMPI(mdl,&mdl->inMessage,MDL_SE_STOP);
 	mdlWaitThreadQueue(mdl,0); /* Wait for Send to complete */
 	}
     else {
@@ -1073,10 +1087,11 @@ int mdlLaunch(int argc,char **argv,void * (*fcnMaster)(MDL),void * (*fcnChild)(M
     /* Some bookeeping for the send/recv - 1 of each per thread */
     mdl->mpi.nSendRecvReq = 0;
     mdl->mpi.pSendRecvReq = malloc(mdl->base.nCores*2*sizeof(MPI_Request));
-    mdl->mpi.pSendRecvBuf = malloc(mdl->base.nCores*2*sizeof(MDLserviceSend *));
     assert(mdl->mpi.pSendRecvReq!=NULL);
+    mdl->mpi.pSendRecvBuf = malloc(mdl->base.nCores*2*sizeof(MDLserviceSend *));
     assert(mdl->mpi.pSendRecvBuf!=NULL);
     mdl->mpi.pThreadCacheReq = malloc(mdl->base.nCores*sizeof(MDLserviceCacheReq *));
+    assert(mdl->mpi.pThreadCacheReq!=NULL);
     for (i = 0; i < mdl->base.nCores; ++i) mdl->mpi.pThreadCacheReq[i] = NULL;
 
     /* Ring buffer of requests */
@@ -1692,6 +1707,7 @@ CACHE *CacheInitialize(
     /*
      ** Set up the request message as much as possible!
      */
+    OPA_Queue_header_init(&c->cacheRequest.hdr);
     c->cacheRequest.iServiceID = MDL_SE_CACHE_REQUEST;
     c->cacheRequest.iCoreFrom = mdl->base.iCore;
     c->cacheRequest.caReq.cid = cid;
@@ -2633,11 +2649,43 @@ void mdlFFT( MDL mdl, MDLFFT fft, fftw_real *data, int bInverse ) {
     }
 #endif
 
-void mdlSetWorkQueueSize(MDL mdl,int wqSize,int cudaSize) {
+void mdlSetWorkQueueSize(MDL mdl,int wqMaxSize,int cudaSize) {
+    MDLwqNode *work;
+    while (wqMaxSize > mdl->wqMaxSize) {
+	work = malloc(sizeof(MDLwqNode));
+	OPA_Queue_header_init(&work->hdr);
+	work->iCoreOwner = mdl->base.iCore;
+	OPA_Queue_enqueue(&mdl->wqFree, work, MDLwqNode, hdr);
+	++mdl->wqMaxSize;
+	}
+    while (wqMaxSize < mdl->wqMaxSize && !OPA_Queue_is_empty(&mdl->wqFree)) {
+	OPA_Queue_dequeue(&mdl->wqFree, work, MDLwqNode, hdr);
+	free(work);
+	--mdl->wqMaxSize;
+	}
+    /* This needs to be called when there is no active work so see if we removed enough */
+    assert(mdl->wqMaxSize == wqMaxSize);
     }
 
-/* Just do the work immediately */
 void mdlAddWork(MDL mdl, void *ctx, mdlWorkFunction initWork, mdlWorkFunction checkWork, mdlWorkFunction doWork, mdlWorkFunction doneWork) {
-    while( doWork(ctx) != 0 ) {}
-    doneWork(ctx);
+    OPA_Queue_info_t *wq = NULL;
+
+    /*
+    ** We only add work to our queue if we are below a threshold. It is possible for the threshold to
+    ** be exeeded if more than one thread tries to add work, but this is fine.
+    */
+    if (OPA_load_int(&mdl->wqCurSize) < mdl->wqMaxSize && !OPA_Queue_is_empty(&mdl->wqFree)) {
+	MDLwqNode *work;
+	OPA_Queue_dequeue(&mdl->wqFree, work, MDLwqNode, hdr);
+	work->ctx = ctx;
+	work->checkFcn = checkWork;
+	work->doFcn = doWork;
+	work->doneFcn = doneWork;
+	OPA_Queue_enqueue(&mdl->wq, work, MDLwqNode, hdr);
+	OPA_incr_int(&mdl->wqCurSize);
+	}
+    else {
+	while( doWork(ctx) != 0 ) {}
+	doneWork(ctx);
+	}
     }
