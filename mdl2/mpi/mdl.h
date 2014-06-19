@@ -203,6 +203,8 @@ typedef struct mdlContext {
     OPA_Queue_info_t wqDone; /* Completed work from other threads */
     OPA_Queue_info_t wqFree; /* Free work queue nodes */
     int wqMaxSize;
+    uint16_t wqAccepting;
+    uint16_t wqLastHelper;
     OPA_int_t wqCurSize;
 
     /*

@@ -812,6 +812,7 @@ static int mdl_MPI_Barrier(MDL mdl) {
     int nBytes;
 
     mdlTimeAddComputing(mdl);
+    mdl->wqAccepting = 1;
     if (mdl->base.iCore) {
 	mdlSendThreadMessage(mdl,MDL_TAG_BARRIER,0,&mdl->inMessage,MDL_SE_BARRIER_REQUEST);
 	qhdr = mdlWaitThreadQueue(mdl,MDL_TAG_BARRIER);
@@ -850,6 +851,7 @@ static int mdl_MPI_Barrier(MDL mdl) {
 	    mdlSendThreadMessage(mdl,MDL_TAG_BARRIER,i,&mdl->pmdl[i]->inMessage,MDL_SE_BARRIER_REPLY);
 	    }
 	}
+    mdl->wqAccepting = 0;
     mdlTimeAddSynchronizing(mdl);
     }
 
@@ -884,6 +886,8 @@ void mdlInitCommon(MDL mdl0, int iMDL,int bDiag,int argc, char **argv,
     OPA_Queue_init(&mdl->wqDone);
     OPA_Queue_init(&mdl->wqFree);
     mdl->wqMaxSize = 0;
+    mdl->wqAccepting = 0;
+    mdl->wqLastHelper = 0;
     OPA_store_int(&mdl->wqCurSize,0);
 
     /* Only used by the MPI thread */
@@ -1775,6 +1779,7 @@ void mdlFlushCache(MDL mdl,int cid) {
     int index;
 
     mdlTimeAddComputing(mdl);
+    mdl->wqAccepting = 1;
     if (c->iType == MDL_COCACHE) {
 	/*
 	 ** Must flush all valid data elements.
@@ -1825,6 +1830,7 @@ void mdlFlushCache(MDL mdl,int cid) {
 		c->pTag[i].iKey = MDL_INVALID_KEY;
 	    }
 	}
+    mdl->wqAccepting = 0;
     mdlTimeAddSynchronizing(mdl);
     }
 
@@ -1885,6 +1891,7 @@ void mdlFinishCache(MDL mdl,int cid) {
     int index;
 
     mdlTimeAddComputing(mdl);
+    mdl->wqAccepting = 1;
     mdlFlushCache(mdl,cid);
 
     /* We must wait for all threads to finish with this cache */
@@ -1908,6 +1915,7 @@ void mdlFinishCache(MDL mdl,int cid) {
 #endif
 #endif
     c->iType = MDL_NOCACHE;
+    mdl->wqAccepting = 0;
     mdlTimeAddSynchronizing(mdl);
     }
 
@@ -2656,9 +2664,15 @@ void mdlSetWorkQueueSize(MDL mdl,int wqMaxSize,int cudaSize) {
 	OPA_Queue_header_init(&work->hdr);
 	work->iCoreOwner = mdl->base.iCore;
 	OPA_Queue_enqueue(&mdl->wqFree, work, MDLwqNode, hdr);
+	work = malloc(sizeof(MDLwqNode));
+	OPA_Queue_header_init(&work->hdr);
+	work->iCoreOwner = mdl->base.iCore;
+	OPA_Queue_enqueue(&mdl->wqFree, work, MDLwqNode, hdr);
 	++mdl->wqMaxSize;
 	}
     while (wqMaxSize < mdl->wqMaxSize && !OPA_Queue_is_empty(&mdl->wqFree)) {
+	OPA_Queue_dequeue(&mdl->wqFree, work, MDLwqNode, hdr);
+	free(work);
 	OPA_Queue_dequeue(&mdl->wqFree, work, MDLwqNode, hdr);
 	free(work);
 	--mdl->wqMaxSize;
@@ -2668,24 +2682,42 @@ void mdlSetWorkQueueSize(MDL mdl,int wqMaxSize,int cudaSize) {
     }
 
 void mdlAddWork(MDL mdl, void *ctx, mdlWorkFunction initWork, mdlWorkFunction checkWork, mdlWorkFunction doWork, mdlWorkFunction doneWork) {
-    OPA_Queue_info_t *wq = NULL;
+    MDL Qmdl = NULL;
+    int i;
 
-    /*
-    ** We only add work to our queue if we are below a threshold. It is possible for the threshold to
-    ** be exeeded if more than one thread tries to add work, but this is fine.
-    */
-    if (OPA_load_int(&mdl->wqCurSize) < mdl->wqMaxSize && !OPA_Queue_is_empty(&mdl->wqFree)) {
-	MDLwqNode *work;
-	OPA_Queue_dequeue(&mdl->wqFree, work, MDLwqNode, hdr);
-	work->ctx = ctx;
-	work->checkFcn = checkWork;
-	work->doFcn = doWork;
-	work->doneFcn = doneWork;
-	OPA_Queue_enqueue(&mdl->wq, work, MDLwqNode, hdr);
-	OPA_incr_int(&mdl->wqCurSize);
+    /* Obviously, we can only queue work if we have a free queue element */
+    if (!OPA_Queue_is_empty(&mdl->wqFree)) {
+	/* We have some room, so save work for later */
+	if (OPA_load_int(&mdl->wqCurSize) < mdl->wqMaxSize) Qmdl = mdl;
+	/* See if anyone else is accepting work */
+	else {
+	    i = mdl->wqLastHelper;
+	    do {
+		MDL rMDL = mdl->pmdl[i];
+		if (rMDL->wqAccepting && OPA_load_int(&rMDL->wqCurSize)<=1) {
+		    Qmdl = rMDL;
+		    mdl->wqLastHelper = i;
+		    break;
+		    }
+		if (++i == mdl->base.nCores) i = 0;
+		} while(i!=mdl->wqLastHelper);
+	    }
+	if (Qmdl) {
+	    MDLwqNode *work;
+	    OPA_Queue_dequeue(&mdl->wqFree, work, MDLwqNode, hdr);
+	    work->ctx = ctx;
+	    work->checkFcn = checkWork;
+	    work->doFcn = doWork;
+	    work->doneFcn = doneWork;
+	    OPA_incr_int(&Qmdl->wqCurSize);
+	    OPA_Queue_enqueue(&Qmdl->wq, work, MDLwqNode, hdr);
+	    return;
+	    }
+
 	}
-    else {
-	while( doWork(ctx) != 0 ) {}
-	doneWork(ctx);
-	}
+
+    /* Just handle it ourselves */
+    while( doWork(ctx) != 0 ) {}
+    doneWork(ctx);
+
     }
