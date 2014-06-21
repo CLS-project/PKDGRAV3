@@ -7,8 +7,18 @@ extern "C" {
 #ifdef USE_CUDA
     void *CUDA_malloc(size_t nBytes);
     void CUDA_free(void *data);
-    void *CUDA_initialize(int iProc,int iWorkQueueSize, size_t tileSize, size_t ParticlesSize, size_t OutSize);
+    void *CUDA_gpu_malloc(size_t nBytes);
+    void CUDA_gpu_free(void *data);
+    void *CUDA_initialize(int iCore);
     void CUDA_finish(void *vctx);
+    void CUDA_SetQueueSize(void *vcuda,int cudaSize, int inCudaBufSize);
+
+    int CUDA_queue(void *vcuda, void *ctx,
+	int (*initWork)(void *ctx,void *work),
+	int (*checkWork)(void *ctx,void *work),
+	int (*doneWork)(void *ctx));
+    int CUDA_flushDone(void *vcuda);
+
 #else
 #include "simd.h"
 #define CUDA_malloc SIMD_malloc
@@ -20,7 +30,9 @@ extern "C" {
 
 #ifdef __CUDACC__
 
-//#include "pkd.h"
+#define CUDA_NUM_BANKS 16
+#define CUDA_LOG_NUM_BANKS 4
+
 #include "ilp.h"
 #include "ilc.h"
 #include "basetype.h"
@@ -49,10 +61,26 @@ typedef struct gpu_block {
     cudaStream_t stream;   // execution stream
     } gpuBlock;
 
+typedef struct cuda_wq_node {
+    /* We can put this on different types of queues */
+    struct cuda_wq_node *next;
+    void *ctx;
+    int (*checkFcn)(void *,void *);
+    int (*doneFcn)(void *);
+    void *pHostBuf;
+    void *pCudaBuf;
+    cudaEvent_t event;     // Results have been copied back
+    cudaStream_t stream;   // execution stream
+    } CUDAwqNode;
+
 typedef struct cuda_ctx {
     int iWorkQueueSize;
     gpuInput   *in;
     gpuBlock   *block;
+    struct cudaDeviceProp prop;
+    int wqSize;
+    CUDAwqNode *wqCuda;
+    CUDAwqNode *wqFree;
     } *CUDACTX;
 
 #endif

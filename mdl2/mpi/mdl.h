@@ -89,13 +89,19 @@ typedef struct {
 
 typedef int (*mdlWorkFunction)(void *ctx);
 
-typedef struct {
-    OPA_Queue_element_hdr_t hdr;
+typedef struct mdl_wq_node {
+    /* We can put this on different types of queues */
+    union {
+	OPA_Queue_element_hdr_t hdr;
+	} q;
     int iCoreOwner;
     void *ctx;
-    mdlWorkFunction checkFcn;
     mdlWorkFunction doFcn;
     mdlWorkFunction doneFcn;
+#ifdef USE_CUDA
+    double *pHostBuf;
+    double *pCudaBuf;
+#endif
     } MDLwqNode;
 
 typedef struct cacheTag {
@@ -202,7 +208,6 @@ typedef struct mdlContext {
     uint16_t wqAccepting;
     uint16_t wqLastHelper;
     OPA_int_t wqCurSize;
-
     /*
      ** Services stuff!
      */
@@ -224,6 +229,11 @@ typedef struct mdlContext {
     mdlContextMPI mpi;
     MDLserviceSend sendRequest;
     MDLserviceSend recvRequest;
+
+#ifdef USE_CUDA
+    void *cudaCtx;
+    int inCudaBufSize, outCudaBufSize;
+#endif
     } * MDL;
 
 
@@ -411,7 +421,12 @@ double mdlMissRatio(MDL,int);
 double mdlCollRatio(MDL,int);
 
 void mdlSetWorkQueueSize(MDL,int,int);
-void mdlAddWork(MDL mdl, void *ctx, mdlWorkFunction initWork, mdlWorkFunction checkWork, mdlWorkFunction doWork, mdlWorkFunction doneWork);
+void mdlSetCudaBufferSize(MDL,int,int);
+void mdlAddWork(MDL mdl, void *ctx,
+    int (*initWork)(void *ctx,void *vwork),
+    int (*checkWork)(void *ctx,void *vwork),
+    mdlWorkFunction doWork,
+    mdlWorkFunction doneWork);
 
 #ifdef __cplusplus
 }

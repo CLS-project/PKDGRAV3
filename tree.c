@@ -1029,7 +1029,7 @@ void pkdCalcRoot(PKD pkd,MOMC *pmom) {
 
 
 void pkdDistribRoot(PKD pkd,MOMC *pmom) {
-    pkd->momRoot = *pmom;
+    pkd->ew.mom = *pmom;
     }
 
 

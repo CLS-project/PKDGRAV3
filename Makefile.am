@@ -83,7 +83,7 @@ SOURCES += pkdpython.c
 noinst_HEADERS += pkdpython.h
 endif
 if USE_CUDA
-SOURCES += cudautil.cu cudapp.cu cudapc.cu
+SOURCES += cudautil.cu cudapp.cu cudapc.cu cudaewald.cu
 noinst_HEADERS += cudautil.h
 endif
 

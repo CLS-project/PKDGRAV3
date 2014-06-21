@@ -487,6 +487,15 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
     double tempI;
     double dEwFlop = 0.0;
 
+    pkd->ewWork = malloc(sizeof(workEwald));
+    assert(pkd->ewWork!=NULL);
+    pkd->ewWork->pkd = pkd;
+    pkd->ewWork->nP = 0;
+    pkd->ewWork->uRungLo = uRungLo;
+    pkd->ewWork->uRungHi = uRungHi;
+    pkd->ewWork->pPart = malloc(MAX_EWALD_PARTICLES * sizeof(PARTICLE *));
+    assert(pkd->ewWork->pPart!=NULL);
+
     iStack = -1;
 
     /*
@@ -981,12 +990,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
 		** Make sure stack is empty.
 		*/
 		assert(iStack == -1);
-		*pdFlop += dEwFlop;   /* Finally add the ewald score to get a proper float count */
-		if (smx) {
-		    smSmoothFinish(smx);
-		    smFinish(smx,&smf);
-		    }
-		return(nTotActive);
+		goto doneCheckList;
 		}
 	    }
 	k = pkdTreeNode(pkd,++iCell);
@@ -1012,6 +1016,21 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
 	tempI += dEwFlop;
 	--iStack;
 	}
+doneCheckList:
+    /* Finish any Ewald work */
+    while(pkd->ewWork->nP--) {
+	p = pkd->ewWork->pPart[pkd->ewWork->nP];
+	dEwFlop += pkdParticleEwald(pkd,uRungLo,uRungHi,p,pkdAccel(pkd,p),pkdPot(pkd,p));
+	}
+    free(pkd->ewWork->pPart);
+    free(pkd->ewWork);
+    pkd->ewWork = NULL;
+    *pdFlop += dEwFlop;   /* Finally add the ewald score to get a proper float count */
+    if (smx) {
+	smSmoothFinish(smx);
+	smFinish(smx,&smf);
+	}
+    return(nTotActive);
     }
 
 static void initGravWalk(PKD pkd,double dTime,double dThetaMin,double dThetaMax,int bPeriodic,int bGravStep,

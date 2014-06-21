@@ -1,5 +1,8 @@
 #ifndef WORK_HINCLUDED
 #define WORK_HINCLUDED
+#include <stdint.h>
+#include "ilp.h"
+#include "ilc.h"
 
 #define IORDERBITS 41
 #define IORDERMAX ((((uint64_t) 1)<<IORDERBITS)-1)
@@ -59,7 +62,30 @@ typedef struct {
     float rhopmax;
     } PINFOOUT;
 
+typedef union {
+#if defined(USE_SIMD)
+    float *f;
+#ifndef __CUDACC__
+    v_sf *p;
+#endif
+#else
+    double *f;
+#endif
+    } ewaldFloat;
 
+typedef struct {
+    ewaldFloat hx,hy,hz;
+    ewaldFloat hCfac,hSfac;
+    } EwaldTable;
+struct EwaldVariables {
+    double r[3]; /* Center of mass of the box */
+    MOMC mom; /* moment of the box */
+    double fEwCut2,fInner2,alpha,ialpha,alpha2,k1,ka,Lbox;
+    double Q4xx,Q4xy,Q4xz,Q4yy,Q4yz,Q4zz,Q4,Q3x,Q3y,Q3z,Q2;
+    int nMaxEwhLoop;
+    int nEwLoopInner, nEwhLoop;
+    int nReps,nEwReps;
+    };
 /*
 ** Accumulates the work for a set of particles
 */
@@ -108,6 +134,13 @@ typedef struct {
 #endif
     } workPC;
 
+#define MAX_EWALD_PARTICLES 4096
+typedef struct {
+    PARTICLE **pPart;
+    void * pkd;
+    int nP;
+    uint8_t uRungLo, uRungHi;
+    } workEwald;
 
 
 #endif

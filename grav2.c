@@ -79,10 +79,13 @@ static void workDone(workParticle *work) {
 	    p = work->pPart[i];
 	    a = pkdAccel(pkd,p);
 	    pPot = pkdPot(pkd,p);
-	    a[0] = work->pInfoOut[i].a[0];
-	    a[1] = work->pInfoOut[i].a[1];
-	    a[2] = work->pInfoOut[i].a[2];
+	    a[0] += work->pInfoOut[i].a[0];
+	    a[1] += work->pInfoOut[i].a[1];
+	    a[2] += work->pInfoOut[i].a[2];
 	    *pPot = work->pInfoOut[i].fPot;
+
+	    // FIXME: what about the Ewald contribution?
+	    // we need to save dirsum/normsum for later if ewald is not done.
 	    if (work->bGravStep) {
 		float fx, fy, fz;
 		float maga, dT, dtGrav;
@@ -98,9 +101,9 @@ static void workDone(workParticle *work) {
 		    /*
 		    ** Use new acceleration here!
 		    */
-		    fx = work->pInfoOut[i].a[0];
-		    fy = work->pInfoOut[i].a[1];
-		    fz = work->pInfoOut[i].a[2];
+		    fx = a[0];
+		    fy = a[1];
+		    fz = a[2];
 		    maga = sqrt(fx*fx + fy*fy + fz*fz);
 		    dtGrav = maga*dirsum/normsum;
 		    }
@@ -363,7 +366,7 @@ static void queuePP( PKD pkd, workParticle *work, ILP ilp ) {
 	pp->i = 0;
 	tile->lstTile.nRefs++;
 	work->nRefs++;
-#ifdef USE_CUDA
+#ifdef xUSE_CUDA
 	pp->gpu_memory = NULL;
 	mdlAddWork(pkd->mdl,pp,CUDAinitWorkPP,CUDAcheckWorkPP,CPUdoWorkPP,doneWorkPP);
 #else
@@ -714,7 +717,7 @@ static void queuePC( PKD pkd,  workParticle *work, ILC ilc ) {
 	tile->lstTile.nRefs++;
 	work->nRefs++;
 
-#ifdef USE_CUDA
+#ifdef xUSE_CUDA
 	pc->gpu_memory = NULL;
 	mdlAddWork(pkd->mdl,pc,CUDAinitWorkPC,CUDAcheckWorkPC,CPUdoWorkPC,doneWorkPC);
 #else
@@ -723,6 +726,30 @@ static void queuePC( PKD pkd,  workParticle *work, ILC ilc ) {
 	}
     }
 
+int CPUdoWorkEwald(void *ve) {
+    workEwald *e = ve;
+    PKD pkd = (PKD)e->pkd;
+    while(pkd->ewWork->nP--) {
+	PARTICLE *p = pkd->ewWork->pPart[pkd->ewWork->nP];
+	/*dEwFlop +=*/ pkdParticleEwald(pkd,e->uRungLo,e->uRungHi,p,pkdAccel(pkd,p),pkdPot(pkd,p));
+	}
+    return 0;
+    }
+
+int doneWorkEwald(void *ve) {
+    workEwald *e = ve;
+    free(e->pPart);
+    free(e);
+    return 0;
+    }
+
+static void queueEwald( PKD pkd ) {
+#ifdef USE_CUDA
+    mdlAddWork(pkd->mdl,pkd->ewWork,CUDAinitWorkEwald,CUDAcheckWorkEwald,CPUdoWorkEwald,doneWorkEwald);
+#else
+    mdlAddWork(pkd->mdl,pkd->ewWork,NULL,NULL,CPUdoWorkEwald,doneWorkEwald);
+#endif
+    }
 
 /*
 ** This version of grav.c does all the operations inline, including
@@ -802,6 +829,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 	work->pInfoIn[nP].a[2]  = a[2];
 	work->pInfoIn[nP].fMass = fMass;
 	work->pInfoIn[nP].fSoft = fSoft;
+	a[0] = a[1] = a[2] = 0.0;
 
 	work->pInfoOut[nP].a[0] = 0.0f;
 	work->pInfoOut[nP].a[1] = 0.0f;
@@ -875,9 +903,19 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
     if (bEwald) {
 	for( i=0; i<work->nP; i++ ) {
 	    p = work->pPart[i];
-	    a = pkdAccel(pkd,p);
-	    *pdEwFlop += pkdParticleEwald(pkd,uRungLo,uRungHi,p,
-		work->pInfoOut[i].a, &work->pInfoOut[i].fPot );
+
+	    if (pkd->ewWork->nP == MAX_EWALD_PARTICLES) {
+		queueEwald(pkd);
+		pkd->ewWork = malloc(sizeof(workEwald));
+		assert(pkd->ewWork!=NULL);
+		pkd->ewWork->pkd = pkd;
+		pkd->ewWork->nP = 0;
+		pkd->ewWork->uRungLo = uRungLo;
+		pkd->ewWork->uRungHi = uRungHi;
+		pkd->ewWork->pPart = malloc(MAX_EWALD_PARTICLES * sizeof(PARTICLE *));
+		assert(pkd->ewWork->pPart!=NULL);
+		}
+	    pkd->ewWork->pPart[pkd->ewWork->nP++] = p;
 	    }
 	}
 

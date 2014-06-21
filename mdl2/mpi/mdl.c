@@ -23,6 +23,9 @@
 #endif
 #include "mpi.h"
 #include "mdl.h"
+#ifdef USE_CUDA
+#include "cudautil.h"
+#endif
 
 #define MDL_NOCACHE			0
 #define MDL_ROCACHE			1
@@ -652,9 +655,12 @@ static int checkMPI(MDL mdl) {
 static int mdlDoSomeWork(MDL mdl) {
     MDLwqNode *work;
     int rc = 0;
+#ifdef USE_CUDA
+    rc = CUDA_flushDone(mdl->cudaCtx);
+#endif
     if (!OPA_Queue_is_empty(&mdl->wq)) {
 	/* Grab a work package, and perform it */
-	OPA_Queue_dequeue(&mdl->wq, work, MDLwqNode, hdr);
+	OPA_Queue_dequeue(&mdl->wq, work, MDLwqNode, q.hdr);
 	OPA_decr_int(&mdl->wqCurSize);
 	while ( (*work->doFcn)(work->ctx) != 0 ) {
 	    mdlCacheCheck(mdl);
@@ -662,17 +668,16 @@ static int mdlDoSomeWork(MDL mdl) {
 	rc = 1;
 	/* Send it back to the original thread for completion (could be us) */
 	if (work->iCoreOwner == mdl->base.iCore) goto reQueue;
-	OPA_Queue_enqueue(&mdl->pmdl[work->iCoreOwner]->wqDone, work, MDLwqNode, hdr);
+	OPA_Queue_enqueue(&mdl->pmdl[work->iCoreOwner]->wqDone, work, MDLwqNode, q.hdr);
 	}
     while (!OPA_Queue_is_empty(&mdl->wqDone)) {
-	OPA_Queue_dequeue(&mdl->wqDone, work, MDLwqNode, hdr);
+	OPA_Queue_dequeue(&mdl->wqDone, work, MDLwqNode, q.hdr);
     reQueue:
 	(*work->doneFcn)(work->ctx);
 	work->ctx = NULL;
-	work->checkFcn = NULL;
 	work->doFcn = NULL;
 	work->doneFcn = NULL;
-	OPA_Queue_enqueue(&mdl->wqFree, work, MDLwqNode, hdr);
+	OPA_Queue_enqueue(&mdl->wqFree, work, MDLwqNode, q.hdr);
 	}
     return rc;
     }
@@ -895,6 +900,11 @@ void mdlInitCommon(MDL mdl0, int iMDL,int bDiag,int argc, char **argv,
     mdl->wqAccepting = 0;
     mdl->wqLastHelper = 0;
     OPA_store_int(&mdl->wqCurSize,0);
+
+#ifdef USE_CUDA
+    mdl->inCudaBufSize = mdl->outCudaBufSize = 0;
+    mdl->cudaCtx = CUDA_initialize(mdl->base.iCore);
+#endif
 
     /* Only used by the MPI thread */
     OPA_Queue_init(&mdl->mpi.queueMPI);
@@ -2662,26 +2672,36 @@ void mdlFFT( MDL mdl, MDLFFT fft, fftw_real *data, int bInverse ) {
     }
 #endif
 
+#ifdef USE_CUDA
+void mdlSetCudaBufferSize(MDL mdl,int inBufSize, int outBufSize) {
+    if (mdl->inCudaBufSize < inBufSize) mdl->inCudaBufSize = inBufSize;
+    if (mdl->outCudaBufSize < outBufSize) mdl->outCudaBufSize = outBufSize;
+    }
+#endif
+
 void mdlSetWorkQueueSize(MDL mdl,int wqMaxSize,int cudaSize) {
     MDLwqNode *work;
     int i;
+
+#ifdef USE_CUDA
+    CUDA_SetQueueSize(mdl->cudaCtx,cudaSize,mdl->inCudaBufSize);
+#endif
     while (wqMaxSize > mdl->wqMaxSize) {
 	for(i=0; i<mdl->base.nCores; ++i) {
 	    work = malloc(sizeof(MDLwqNode));
-	    OPA_Queue_header_init(&work->hdr);
+	    OPA_Queue_header_init(&work->q.hdr);
 	    work->iCoreOwner = mdl->base.iCore;
 	    work->ctx = NULL;
-	    work->checkFcn = NULL;
 	    work->doFcn = NULL;
 	    work->doneFcn = NULL;
-	    OPA_Queue_enqueue(&mdl->wqFree, work, MDLwqNode, hdr);
+	    OPA_Queue_enqueue(&mdl->wqFree, work, MDLwqNode, q.hdr);
 	    }
 	++mdl->wqMaxSize;
 	}
     while (wqMaxSize < mdl->wqMaxSize) {
 	for(i=0; i<mdl->base.nCores; ++i) {
 	    if (!OPA_Queue_is_empty(&mdl->wqFree)) 
-		OPA_Queue_dequeue(&mdl->wqFree, work, MDLwqNode, hdr);
+		OPA_Queue_dequeue(&mdl->wqFree, work, MDLwqNode, q.hdr);
 	    else assert(0);
 	    free(work);
 	    }
@@ -2689,10 +2709,19 @@ void mdlSetWorkQueueSize(MDL mdl,int wqMaxSize,int cudaSize) {
 	} 
     }
 
-void mdlAddWork(MDL mdl, void *ctx, mdlWorkFunction initWork, mdlWorkFunction checkWork, mdlWorkFunction doWork, mdlWorkFunction doneWork) {
+void mdlAddWork(MDL mdl, void *ctx,
+    int (*initWork)(void *ctx,void *vwork),
+    int (*checkWork)(void *ctx,void *vwork),
+    mdlWorkFunction doWork,
+    mdlWorkFunction doneWork) {
     MDL Qmdl = NULL;
+    MDLwqNode *work;
     int i;
 
+    /* We prefer to let CUDA do the work */
+#ifdef USE_CUDA
+    if (CUDA_queue(mdl->cudaCtx,ctx,initWork,checkWork,doneWork)) return;
+#endif
     /* Obviously, we can only queue work if we have a free queue element */
     if (!OPA_Queue_is_empty(&mdl->wqFree)) {
 	/* We have some room, so save work for later */
@@ -2711,14 +2740,12 @@ void mdlAddWork(MDL mdl, void *ctx, mdlWorkFunction initWork, mdlWorkFunction ch
 		} while(i!=mdl->wqLastHelper);
 	    }
 	if (Qmdl) {
-	    MDLwqNode *work;
-	    OPA_Queue_dequeue(&mdl->wqFree, work, MDLwqNode, hdr);
+	    OPA_Queue_dequeue(&mdl->wqFree, work, MDLwqNode, q.hdr);
 	    work->ctx = ctx;
-	    work->checkFcn = checkWork;
 	    work->doFcn = doWork;
 	    work->doneFcn = doneWork;
 	    OPA_incr_int(&Qmdl->wqCurSize);
-	    OPA_Queue_enqueue(&Qmdl->wq, work, MDLwqNode, hdr);
+	    OPA_Queue_enqueue(&Qmdl->wq, work, MDLwqNode, q.hdr);
 	    return;
 	    }
 	}

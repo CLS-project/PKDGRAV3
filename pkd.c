@@ -469,6 +469,8 @@ void pkdInitialize(
 #ifdef MDL_CACHE_SIZE
     if ( iCacheSize > 0 ) mdlSetCacheSize(pkd->mdl,iCacheSize);
 #endif
+    // This is cheeserific
+    mdlSetCudaBufferSize(pkd->mdl,MAX_EWALD_PARTICLES*sizeof(double)*4,0);
     mdlSetWorkQueueSize(pkd->mdl,iWorkQueueSize,iCUDAQueueSize);
     /*
     ** Initialize neighbor list pointer to NULL if present.
@@ -600,11 +602,11 @@ void pkdInitialize(
 #endif
     assert(pkdNodeSize(pkd) > 0);
 
-#ifdef USE_CUDA
+#ifdef xNOxUSE_CUDA
 	{
 	int sizeILP = sizeof(ILP_BLK)*pkd->ilp->lst.nBlocksPerTile;
 	int sizeILC = sizeof(ILC_BLK)*pkd->ilc->lst.nBlocksPerTile;
-	pkd->cudaCtx = CUDA_initialize(mdlSelf(pkd->mdl),
+	pkd->cudaCtx = CUDA_initialize(mdlCore(pkd->mdl),
 	    iCUDAQueueSize,
 	    sizeILP>sizeILC ? sizeILP : sizeILC,
 	    nGroup*sizeof(PINFOIN),
@@ -623,7 +625,7 @@ void pkdFinish(PKD pkd) {
     int ism;
     int i;
 
-#ifdef USE_CUDA
+#ifdef xNOxUSE_CUDA
     CUDA_finish(pkd->cudaCtx);
 #endif
 
@@ -661,11 +663,11 @@ void pkdFinish(PKD pkd) {
     free(pkd->S);
     if (pkd->kdTopPRIVATE) free(pkd->kdTopPRIVATE);
     if (pkd->ew.nMaxEwhLoop) {
-	SIMD_free(pkd->ew.ewt.hx.f);
-	SIMD_free(pkd->ew.ewt.hy.f);
-	SIMD_free(pkd->ew.ewt.hz.f);
-	SIMD_free(pkd->ew.ewt.hCfac.f);
-	SIMD_free(pkd->ew.ewt.hSfac.f);
+	SIMD_free(pkd->ewt.hx.f);
+	SIMD_free(pkd->ewt.hy.f);
+	SIMD_free(pkd->ewt.hz.f);
+	SIMD_free(pkd->ewt.hCfac.f);
+	SIMD_free(pkd->ewt.hSfac.f);
 	}
 
     free(pkd->pClass);

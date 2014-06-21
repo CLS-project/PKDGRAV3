@@ -456,15 +456,6 @@ typedef struct RhoLocalArray {
     } RHOLOCAL;
 
 typedef union {
-#if defined(USE_SIMD) && !defined(__CUDACC__)
-    float *f;
-    v_sf *p;
-#else
-    double *f;
-#endif
-    } ewaldFloat;
-
-typedef union {
     double *d;
 #if defined(USE_SIMD) && !defined(__CUDACC__)
     v_df *p;
@@ -472,14 +463,8 @@ typedef union {
     uint64_t *i;
     } ewaldDouble;
 
-struct EwaldVariables {
-    double fEwCut2,fInner2,alpha,ialpha,alpha2,k1,ka;
-    double Q4xx,Q4xy,Q4xz,Q4yy,Q4yz,Q4zz,Q4,Q3x,Q3y,Q3z,Q2;
-    struct {
-	ewaldFloat hx,hy,hz;
-	ewaldFloat hCfac,hSfac;
-	} ewt;
 #if defined(USE_SIMD) && !defined(__CUDACC__)
+typedef struct {
     struct {
 	vdouble m;
 	vdouble xx,yy,xy,xz,yz;
@@ -493,11 +478,8 @@ struct EwaldVariables {
 	vdouble fEwCut2,fInner2,alpha,alpha2,ialpha,k1,ka;
 	vdouble Q4xx,Q4xy,Q4xz,Q4yy,Q4yz,Q4zz,Q4,Q3x,Q3y,Q3z,Q2;
 	} ewp;
+    } ewaldSIMD;
 #endif
-    int nMaxEwhLoop;
-    int nEwLoopInner, nEwhLoop;
-    int nReps,nEwReps;
-    };
 
 /*
 ** This is an important base type. Alter with care, or even better, leave it alone.
@@ -802,8 +784,10 @@ typedef struct pkdContext {
     /*
     ** Ewald summation setup.
     */
-    MOMC momRoot;
     struct EwaldVariables ew;
+    EwaldTable ewt;
+    ewaldSIMD es;
+    workEwald *ewWork;
 
     /*
     ** Timers stuff.
@@ -1412,10 +1396,13 @@ void pkdOutPsGroup(PKD pkd,char *pszFileName,int iType);
 #ifdef __cplusplus
 extern "C" {
 #endif
-    extern int CUDAinitWorkPP( void *vpp );
-    extern int CUDAcheckWorkPP( void *vpp );
-    extern int CUDAinitWorkPC( void *vpp );
-    extern int CUDAcheckWorkPC( void *vpp );
+    extern int CUDAinitWorkPP( void *vpp, void *vwork );
+    extern int CUDAcheckWorkPP( void *vpp, void *vwork );
+    extern int CUDAinitWorkPC( void *vpp, void *vwork );
+    extern int CUDAcheckWorkPC( void *vpp, void *vwork );
+    extern int CUDAinitWorkEwald( void *vpp, void *vwork );
+    extern int CUDAcheckWorkEwald( void *vpp, void *vwork );
+    extern void cudaEwaldInit(struct EwaldVariables *ewIn, EwaldTable *ewt );
 #ifdef __cplusplus
 }
 #endif
