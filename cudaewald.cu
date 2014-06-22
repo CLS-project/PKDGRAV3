@@ -248,9 +248,6 @@ int CUDAinitWorkEwald( void *ve, void *vwork ) {
     cudaZ   = pCudaBuf + 2*align;
     cudaPot = pCudaBuf + 3*align;
 
-
-    printf("processing %d particles aligned to %d\n", e->nP, align);
-
     // cuda global arrays
     nx = e->nP < 65536 ? e->nP : 65536;
     ny = e->nP / nx;
@@ -299,7 +296,6 @@ int CUDAcheckWorkEwald( void *ve, void *vwork ) {
     int align;
 
     align = (e->nP+31)&~31; /* As above! Warp align the memory buffers */
-    printf("      done %d particles aligned to %d\n", e->nP, align);
     X       = pHostBuf + 0*align;
     Y       = pHostBuf + 1*align;
     Z       = pHostBuf + 2*align;
