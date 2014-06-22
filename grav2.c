@@ -754,7 +754,6 @@ void pkdGravStartEwald(PKD pkd) {
 
 void pkdGravFinishEwald(PKD pkd) {
     /* Finish any Ewald work */
-    printf("odd -- we should finish now\n");
 #ifdef USE_CUDA
     mdlAddWork(pkd->mdl,pkd->ewWork,CUDAinitWorkEwald,CUDAcheckWorkEwald,CPUdoWorkEwald,doneWorkEwald);
 #else
