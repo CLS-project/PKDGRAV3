@@ -491,8 +491,6 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
     assert(pkd->ewWork!=NULL);
     pkd->ewWork->pkd = pkd;
     pkd->ewWork->nP = 0;
-    pkd->ewWork->uRungLo = uRungLo;
-    pkd->ewWork->uRungHi = uRungHi;
     pkd->ewWork->pPart = malloc(MAX_EWALD_PARTICLES * sizeof(PARTICLE *));
     assert(pkd->ewWork->pPart!=NULL);
 
@@ -1020,7 +1018,7 @@ doneCheckList:
     /* Finish any Ewald work */
     while(pkd->ewWork->nP--) {
 	p = pkd->ewWork->pPart[pkd->ewWork->nP];
-	dEwFlop += pkdParticleEwald(pkd,uRungLo,uRungHi,p,pkdAccel(pkd,p),pkdPot(pkd,p));
+	dEwFlop += pkdParticleEwald(pkd,p,pkdAccel(pkd,p),pkdPot(pkd,p));
 	}
     free(pkd->ewWork->pPart);
     free(pkd->ewWork);

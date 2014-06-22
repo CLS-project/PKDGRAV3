@@ -500,7 +500,7 @@ int evalEwaldSIMD( ewaldSIMD *ew, v_df *ax, v_df *ay, v_df *az, v_df *dPot, v_df
     }
 #endif
 
-int pkdParticleEwald(PKD pkd,uint8_t uRungLo,uint8_t uRungHi, PARTICLE *p, float *pa, float *pPot) {
+int pkdParticleEwald(PKD pkd,PARTICLE *p, float *pa, float *pPot) {
     struct EwaldVariables *ew = &pkd->ew;
     EwaldTable *ewt = &pkd->ewt;
     const MOMC * restrict mom = &ew->mom;
@@ -518,8 +518,6 @@ int pkdParticleEwald(PKD pkd,uint8_t uRungLo,uint8_t uRungHi, PARTICLE *p, float
 
     assert(pkd->oAcceleration); /* Validate memory model */
     assert(pkd->oPotential); /* Validate memory model */
-    if (!pkdIsDstActive(p,uRungLo,uRungHi)) return 0;
-
 
     L = pkd->fPeriod[0];
 

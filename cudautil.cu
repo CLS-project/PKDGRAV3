@@ -163,12 +163,20 @@ int CUDA_flushDone(void *vcuda) {
     CUDACTX cuda = reinterpret_cast<CUDACTX>(vcuda);
     CUDAwqNode *work, **last = &cuda->wqCuda;
     while( (work=*last) !=NULL ) {
-        if ( (*work->checkFcn)(work->ctx,work) == 0) {
-            *last = work->next;
-            work->next = cuda->wqFree;
-            cuda->wqFree = work;
+        cudaError_t rc = cudaEventQuery(work->event);
+        if (rc==cudaSuccess) {
+            if ( (*work->checkFcn)(work->ctx,work) == 0) {
+                *last = work->next;
+                work->next = cuda->wqFree;
+                cuda->wqFree = work;
+                continue;
+                }
             }
-        else last = &work->next;
+        else if (rc!=cudaErrorNotReady) {
+            fprintf(stderr,"cudaEventQuery error %d: %s\n", rc, cudaGetErrorString(rc));
+            exit(1);
+            }
+        last = &work->next;
         }
     return cuda->wqFree != NULL;
     }

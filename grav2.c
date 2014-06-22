@@ -731,7 +731,7 @@ int CPUdoWorkEwald(void *ve) {
     PKD pkd = (PKD)e->pkd;
     while(pkd->ewWork->nP--) {
 	PARTICLE *p = pkd->ewWork->pPart[pkd->ewWork->nP];
-	/*dEwFlop +=*/ pkdParticleEwald(pkd,e->uRungLo,e->uRungHi,p,pkdAccel(pkd,p),pkdPot(pkd,p));
+	/*dEwFlop +=*/ pkdParticleEwald(pkd,p,pkdAccel(pkd,p),pkdPot(pkd,p));
 	}
     return 0;
     }
@@ -744,11 +744,19 @@ int doneWorkEwald(void *ve) {
     }
 
 static void queueEwald( PKD pkd ) {
+    --pkd->ewWork->nRefs;
 #ifdef USE_CUDA
     mdlAddWork(pkd->mdl,pkd->ewWork,CUDAinitWorkEwald,CUDAcheckWorkEwald,CPUdoWorkEwald,doneWorkEwald);
 #else
     mdlAddWork(pkd->mdl,pkd->ewWork,NULL,NULL,CPUdoWorkEwald,doneWorkEwald);
 #endif
+    pkd->ewWork = malloc(sizeof(workEwald));
+    assert(pkd->ewWork!=NULL);
+    pkd->ewWork->pkd = pkd;
+    pkd->ewWork->nP = 0;
+    pkd->ewWork->nRefs = 1;
+    pkd->ewWork->pPart = malloc(MAX_EWALD_PARTICLES * sizeof(PARTICLE *));
+    assert(pkd->ewWork->pPart!=NULL);
     }
 
 /*
@@ -906,14 +914,6 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 
 	    if (pkd->ewWork->nP == MAX_EWALD_PARTICLES) {
 		queueEwald(pkd);
-		pkd->ewWork = malloc(sizeof(workEwald));
-		assert(pkd->ewWork!=NULL);
-		pkd->ewWork->pkd = pkd;
-		pkd->ewWork->nP = 0;
-		pkd->ewWork->uRungLo = uRungLo;
-		pkd->ewWork->uRungHi = uRungHi;
-		pkd->ewWork->pPart = malloc(MAX_EWALD_PARTICLES * sizeof(PARTICLE *));
-		assert(pkd->ewWork->pPart!=NULL);
 		}
 	    pkd->ewWork->pPart[pkd->ewWork->nP++] = p;
 	    }

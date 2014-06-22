@@ -139,7 +139,7 @@ typedef struct {
     PARTICLE **pPart;
     void * pkd;
     int nP;
-    uint8_t uRungLo, uRungHi;
+    int nRefs;
     } workEwald;
 
 

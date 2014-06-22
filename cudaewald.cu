@@ -286,14 +286,7 @@ int CUDAcheckWorkEwald( void *ve, void *vwork ) {
     workEwald *e = reinterpret_cast<workEwald *>(ve);
     CUDAwqNode *work = reinterpret_cast<CUDAwqNode *>(vwork);
     double *pHostBuf = reinterpret_cast<double *>(work->pHostBuf);
-    cudaError_t rc;
 
-    rc = cudaEventQuery(work->event);
-    if (rc==cudaErrorNotReady) return 1;
-    else if (rc!=cudaSuccess) {
-        fprintf(stderr,"cudaEventQuery error %d: %s\n", rc, cudaGetErrorString(rc));
-        exit(1);
-        }
     pkdAccumulateCUDA(e->pkd,e->nP,e->pPart,
 	pHostBuf + 0*e->nP, pHostBuf + 1*e->nP,
 	pHostBuf + 2*e->nP, pHostBuf + 3*e->nP);
