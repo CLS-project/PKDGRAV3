@@ -296,7 +296,7 @@ int CUDAcheckWorkEwald( void *ve, void *vwork ) {
         }
     pkdAccumulateCUDA(e->pkd,e->nP,e->pPart,
 	pHostBuf + 0*e->nP, pHostBuf + 1*e->nP,
-	pHostBuf + 2*e->nP, pHostBuf + 4*e->nP);
+	pHostBuf + 2*e->nP, pHostBuf + 3*e->nP);
     free(e->pPart);
     free(e);
     return 0;
