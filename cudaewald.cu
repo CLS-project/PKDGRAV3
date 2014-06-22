@@ -126,7 +126,8 @@ __global__ void cudaEwald(double *inout) {
 	z = rz + ew.Lbox * iz;
 	r2 = x*x + y*y + z*z;
 
-	dir = 1/sqrt(r2);
+	//dir = 1/sqrt(r2);
+	dir = rsqrt(r2);
 	dir2 = dir*dir;
 	a = exp(-r2*ew.alpha2);
 	a *= ew.ka*dir2;
@@ -296,6 +297,8 @@ int CUDAcheckWorkEwald( void *ve, void *vwork ) {
     pkdAccumulateCUDA(e->pkd,e->nP,e->pPart,
 	pHostBuf + 0*e->nP, pHostBuf + 1*e->nP,
 	pHostBuf + 2*e->nP, pHostBuf + 4*e->nP);
+    free(e->pPart);
+    free(e);
     return 0;
 
     }
