@@ -487,12 +487,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
     double tempI;
     double dEwFlop = 0.0;
 
-    pkd->ewWork = malloc(sizeof(workEwald));
-    assert(pkd->ewWork!=NULL);
-    pkd->ewWork->pkd = pkd;
-    pkd->ewWork->nP = 0;
-    pkd->ewWork->pPart = malloc(MAX_EWALD_PARTICLES * sizeof(PARTICLE *));
-    assert(pkd->ewWork->pPart!=NULL);
+    pkdGravStartEwald(pkd);
 
     iStack = -1;
 
@@ -1015,14 +1010,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
 	--iStack;
 	}
 doneCheckList:
-    /* Finish any Ewald work */
-    while(pkd->ewWork->nP--) {
-	p = pkd->ewWork->pPart[pkd->ewWork->nP];
-	dEwFlop += pkdParticleEwald(pkd,p,pkdAccel(pkd,p),pkdPot(pkd,p));
-	}
-    free(pkd->ewWork->pPart);
-    free(pkd->ewWork);
-    pkd->ewWork = NULL;
+    pkdGravFinishEwald(pkd);
     *pdFlop += dEwFlop;   /* Finally add the ewald score to get a proper float count */
     if (smx) {
 	smSmoothFinish(smx);

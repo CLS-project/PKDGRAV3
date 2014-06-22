@@ -134,12 +134,12 @@ typedef struct {
 #endif
     } workPC;
 
-#define MAX_EWALD_PARTICLES 4096
+/* Careful! For compute <3.0, 65535 is the limit */
+#define MAX_EWALD_PARTICLES 16384
 typedef struct {
     PARTICLE **pPart;
     void * pkd;
     int nP;
-    int nRefs;
     } workEwald;
 
 

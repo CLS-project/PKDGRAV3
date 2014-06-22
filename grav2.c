@@ -743,8 +743,35 @@ int doneWorkEwald(void *ve) {
     return 0;
     }
 
+void pkdGravStartEwald(PKD pkd) {
+    pkd->ewWork = malloc(sizeof(workEwald));
+    assert(pkd->ewWork!=NULL);
+    pkd->ewWork->pkd = pkd;
+    pkd->ewWork->nP = 0;
+    pkd->ewWork->pPart = malloc(MAX_EWALD_PARTICLES * sizeof(PARTICLE *));
+    assert(pkd->ewWork->pPart!=NULL);
+    }
+
+void pkdGravFinishEwald(PKD pkd) {
+    /* Finish any Ewald work */
+    printf("odd -- we should finish now\n");
+#ifdef USE_CUDA
+    mdlAddWork(pkd->mdl,pkd->ewWork,CUDAinitWorkEwald,CUDAcheckWorkEwald,CPUdoWorkEwald,doneWorkEwald);
+#else
+    mdlAddWork(pkd->mdl,pkd->ewWork,NULL,NULL,CPUdoWorkEwald,doneWorkEwald);
+#endif
+#if 0
+    while(pkd->ewWork->nP--) {
+	PARTICLE *p = pkd->ewWork->pPart[pkd->ewWork->nP];
+	/*dEwFlop +=*/ pkdParticleEwald(pkd,p,pkdAccel(pkd,p),pkdPot(pkd,p));
+	}
+    free(pkd->ewWork->pPart);
+    free(pkd->ewWork);
+#endif
+    pkd->ewWork = NULL;
+    }
+
 static void queueEwald( PKD pkd ) {
-    --pkd->ewWork->nRefs;
 #ifdef USE_CUDA
     mdlAddWork(pkd->mdl,pkd->ewWork,CUDAinitWorkEwald,CUDAcheckWorkEwald,CPUdoWorkEwald,doneWorkEwald);
 #else
@@ -754,7 +781,6 @@ static void queueEwald( PKD pkd ) {
     assert(pkd->ewWork!=NULL);
     pkd->ewWork->pkd = pkd;
     pkd->ewWork->nP = 0;
-    pkd->ewWork->nRefs = 1;
     pkd->ewWork->pPart = malloc(MAX_EWALD_PARTICLES * sizeof(PARTICLE *));
     assert(pkd->ewWork->pPart!=NULL);
     }

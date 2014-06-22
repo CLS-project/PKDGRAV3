@@ -21,7 +21,8 @@ __constant__ float hSfac[MAX_TOTAL_REPLICAS];
 
 /*
 ** threadIdx.x: all work on the same particle -- this is the warp size, i.e., 32
-** blockIdx.x:  different particles
+** blockIdx.x:  different particles. If y=z=1, then x can be anything, otherwise
+**              the total number of particles is a block of x*y*z
 **
 ** We are allowed 16 resident blocks so this corresponds to 512 threads per SM.
 ** This is fine because we are actually close to shared memory limited:
@@ -30,7 +31,7 @@ __constant__ float hSfac[MAX_TOTAL_REPLICAS];
 **   compute 5.0: 32 thread blocks, but 64K shared gives us ~ 31 resident.
 */
 
-__global__ void cudaEwald(double *inout) {
+__global__ void cudaEwald(double *X,double *Y,double *Z,double *pPot) {
     __shared__ int bValid[cfOffset(SCAN_SIZE)]; // must be more than replicas
     double x, y, z;
     double r2,dir,dir2,a;
@@ -41,12 +42,6 @@ __global__ void cudaEwald(double *inout) {
     int i, j, w, ix, iy, iz, bInHole;
     int pidx = blockIdx.x + gridDim.x*(blockIdx.y + gridDim.y*blockIdx.z);
     double tax = 0.0, tay = 0.0, taz = 0.0, tpot=0.0;
-    int nP =  gridDim.x * gridDim.y * gridDim.z;
-
-    double *X = inout;
-    double *Y = inout + 1*nP;
-    double *Z = inout + 2*nP;
-    double *pPot = inout + 3*nP;
 
     rx = X[pidx] - ew.r[0];
     ry = Y[pidx] - ew.r[1];
@@ -239,8 +234,22 @@ int CUDAinitWorkEwald( void *ve, void *vwork ) {
     //CUDACTX ctx = reinterpret_cast<CUDACTX>(e->cudaCtx);
     double *pHostBuf = reinterpret_cast<double *>(work->pHostBuf);
     double *pCudaBuf = reinterpret_cast<double *>(work->pCudaBuf);
+    double *X, *Y, *Z;
+    double *cudaX, *cudaY, *cudaZ, *cudaPot;
     PARTICLE *p;
-    int nx, ny, nz, i;
+    int nx, ny, nz, align, i;
+
+    align = (e->nP+31)&~31; /* Warp align the memory buffers */
+    X       = pHostBuf + 0*align;
+    Y       = pHostBuf + 1*align;
+    Z       = pHostBuf + 2*align;
+    cudaX   = pCudaBuf + 0*align;
+    cudaY   = pCudaBuf + 1*align;
+    cudaZ   = pCudaBuf + 2*align;
+    cudaPot = pCudaBuf + 3*align;
+
+
+    printf("processing %d particles aligned to %d\n", e->nP, align);
 
     // cuda global arrays
     nx = e->nP < 65536 ? e->nP : 65536;
@@ -249,28 +258,28 @@ int CUDAinitWorkEwald( void *ve, void *vwork ) {
     else if (ny>=65536) ny=65536;
     nz = e->nP / (nx*ny);
     if (nz==0) nz = 1;
-    assert(nx*ny*nz == e->nP); /* We do powers of two only */
+    assert(nx*ny*nz == e->nP); /* We need to match the grid */
 
     dim3 dimBlock( 32, 1 );
     dim3 dimGrid( nx, ny,nz );
 
     for(i=0; i<e->nP; ++i) {
 	p = e->pPart[i];
-	pHostBuf[i + 0*e->nP] = p->r[0];
-	pHostBuf[i + 1*e->nP] = p->r[1];
-	pHostBuf[i + 2*e->nP] = p->r[2];
+	X[i] = p->r[0];
+	Y[i] = p->r[1];
+	Z[i] = p->r[2];
 	}
 
     // copy data directly to device memory
-    CUDA_CHECK(cudaMemcpyAsync,(pCudaBuf, pHostBuf, e->nP*3*sizeof(double),
+    CUDA_CHECK(cudaMemcpyAsync,(pCudaBuf, pHostBuf, align*3*sizeof(double),
 	    cudaMemcpyHostToDevice, work->stream));
-//    CUDA_CHECK(cudaMemcpy,(pCudaBuf, pHostBuf, e->nP*3*sizeof(double),
+//    CUDA_CHECK(cudaMemcpy,(pCudaBuf, pHostBuf, align*3*sizeof(double),
 //	    cudaMemcpyHostToDevice));
-    cudaEwald<<<dimGrid, dimBlock, 0, work->stream>>>(pCudaBuf);
+    cudaEwald<<<dimGrid, dimBlock, 0, work->stream>>>(cudaX,cudaY,cudaZ,cudaPot);
 //    cudaEwald<<<dimGrid, dimBlock>>>(pCudaBuf);
-    CUDA_CHECK(cudaMemcpyAsync,(pHostBuf, pCudaBuf, e->nP*4*sizeof(double),
+    CUDA_CHECK(cudaMemcpyAsync,(pHostBuf, pCudaBuf, align*4*sizeof(double),
             cudaMemcpyDeviceToHost, work->stream));
-//    CUDA_CHECK(cudaMemcpy,(pHostBuf, pCudaBuf, e->nP*4*sizeof(double),
+//    CUDA_CHECK(cudaMemcpy,(pHostBuf, pCudaBuf, align*4*sizeof(double),
 //            cudaMemcpyDeviceToHost));
     CUDA_CHECK(cudaEventRecord,(work->event,work->stream));
 
@@ -286,10 +295,16 @@ int CUDAcheckWorkEwald( void *ve, void *vwork ) {
     workEwald *e = reinterpret_cast<workEwald *>(ve);
     CUDAwqNode *work = reinterpret_cast<CUDAwqNode *>(vwork);
     double *pHostBuf = reinterpret_cast<double *>(work->pHostBuf);
+    double *X, *Y, *Z, *pPot;
+    int align;
 
-    pkdAccumulateCUDA(e->pkd,e->nP,e->pPart,
-	pHostBuf + 0*e->nP, pHostBuf + 1*e->nP,
-	pHostBuf + 2*e->nP, pHostBuf + 3*e->nP);
+    align = (e->nP+31)&~31; /* As above! Warp align the memory buffers */
+    printf("      done %d particles aligned to %d\n", e->nP, align);
+    X       = pHostBuf + 0*align;
+    Y       = pHostBuf + 1*align;
+    Z       = pHostBuf + 2*align;
+    pPot    = pHostBuf + 3*align;
+    pkdAccumulateCUDA(e->pkd,e->nP,e->pPart,X,Y,Z,pPot);
     free(e->pPart);
     free(e);
     return 0;
