@@ -178,7 +178,7 @@ int CUDA_flushDone(void *vcuda) {
             }
         last = &work->next;
         }
-    return cuda->wqFree != NULL;
+    return cuda->wqCuda != NULL;
     }
 
 extern "C"

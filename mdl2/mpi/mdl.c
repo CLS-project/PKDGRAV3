@@ -822,6 +822,7 @@ static int mdl_MPI_Barrier(MDL mdl) {
     int i, id;
     int nBytes;
 
+    mdlCompleteAllWork(mdl);
     mdlTimeAddComputing(mdl);
     mdl->wqAccepting = 1;
     if (mdl->base.iCore) {
