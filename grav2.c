@@ -68,7 +68,7 @@ static const struct CONSTS {
 ** This is called after work has been done for this particle group.
 ** If everyone has finished, then the particle is updated.
 */
-static void workDone(workParticle *work) {
+void pkdParticleWorkDone(workParticle *work) {
     PKD pkd = work->ctx;
     int i;
     PARTICLE *p;
@@ -134,7 +134,7 @@ int CPUdoWorkPP(void *vpp) {
     v_sf t1, t2, t3, pd2;
     v_sf pax, pay, paz, pfx, pfy, pfz, pdx, pdy, pdz;
     v_sf piax, piay, piaz;
-    v_sf ppot, pmass, p4soft2;
+    v_sf ppot /*,pmass,p4soft2*/;
     v_sf padotai,pimaga,psmooth2,pirsum,pnorms;
 #else
     float d2,dx,dy,dz,fourh2,dir,dir2,adotai;
@@ -148,8 +148,8 @@ int CPUdoWorkPP(void *vpp) {
     float fx = pp->work->pInfoIn[i].r[0];
     float fy = pp->work->pInfoIn[i].r[1];
     float fz = pp->work->pInfoIn[i].r[2];
-    float fMass = pp->work->pInfoIn[i].fMass;
-    float fSoft = pp->work->pInfoIn[i].fSoft;
+    /*float fMass = pp->work->pInfoIn[i].fMass;*/
+    /*float fSoft = pp->work->pInfoIn[i].fSoft;*/
     float fsmooth2 = pp->work->pInfoIn[i].fSmooth2;
     float *a =pp->work->pInfoIn[i].a;
 
@@ -191,8 +191,8 @@ int CPUdoWorkPP(void *vpp) {
     pfx     = SIMD_SPLAT(fx);
     pfy     = SIMD_SPLAT(fy);
     pfz     = SIMD_SPLAT(fz);
-    pmass   = SIMD_SPLAT(fMass);
-    p4soft2 = SIMD_SPLAT(4.0*fSoft*fSoft);
+    /*pmass   = SIMD_SPLAT(fMass);*/
+    /*p4soft2 = SIMD_SPLAT(4.0*fSoft*fSoft);*/
     psmooth2= SIMD_SPLAT(fsmooth2);
 
     blk = tile->blk;
@@ -342,7 +342,7 @@ int doneWorkPP(void *vpp) {
 	pp->work->pInfoOut[i].normsum += pp->pInfoOut[i].normsum;
 	}
     lstFreeTile(&pp->ilp->lst,&pp->tile->lstTile);
-    workDone(pp->work);
+    pkdParticleWorkDone(pp->work);
     free(pp->pInfoOut);
     free(pp);
     return 0;
@@ -354,6 +354,9 @@ static void queuePP( PKD pkd, workParticle *work, ILP ilp ) {
     workPP *pp;
 
     ILP_LOOP(ilp,tile) {
+#ifdef xUSE_CUDA
+	if (CUDA_queuePP(pkd->mdl->cudaCtx,work,tile)) continue;
+#endif
 	pp = malloc(sizeof(workPP));
 	assert(pp!=NULL);
 	pp->pInfoOut = malloc(sizeof(PINFOOUT) * work->nP);
@@ -366,14 +369,7 @@ static void queuePP( PKD pkd, workParticle *work, ILP ilp ) {
 	pp->i = 0;
 	tile->lstTile.nRefs++;
 	work->nRefs++;
-#ifdef xUSE_CUDA
-	pp->gpu_memory = NULL;
-	mdlAddWork(pkd->mdl,pp,CUDAinitWorkPP,CUDAcheckWorkPP,CPUdoWorkPP,doneWorkPP);
-#else
 	mdlAddWork(pkd->mdl,pp,NULL,NULL,CPUdoWorkPP,doneWorkPP);
-#endif
-
-
 	}
     }
 
@@ -391,7 +387,7 @@ int CPUdoWorkPC(void *vpc) {
     v_sf pdx, pdy, pdz;
     v_sf pfx, pfy, pfz;
     v_sf piax, piay, piaz;
-    v_sf ppot, pmass, p4soft2;
+    v_sf ppot /*,pmass,p4soft2*/;
     v_sf padotai,pimaga,pirsum,pnorms;
 #else
     const float onethird = 1.0f/3.0f;
@@ -412,8 +408,8 @@ int CPUdoWorkPC(void *vpc) {
     float fx = pc->work->pInfoIn[i].r[0];
     float fy = pc->work->pInfoIn[i].r[1];
     float fz = pc->work->pInfoIn[i].r[2];
-    float fMass = pc->work->pInfoIn[i].fMass;
-    float fSoft = pc->work->pInfoIn[i].fSoft;
+    /*float fMass = pc->work->pInfoIn[i].fMass;*/
+    /*float fSoft = pc->work->pInfoIn[i].fSoft;*/
     float fsmooth2 = pc->work->pInfoIn[i].fSmooth2;
     float *a =pc->work->pInfoIn[i].a;
     float ax,ay,az,fPot,dirsum,normsum;
@@ -436,8 +432,8 @@ int CPUdoWorkPC(void *vpc) {
     piax    = SIMD_SPLAT(a[0]);
     piay    = SIMD_SPLAT(a[1]);
     piaz    = SIMD_SPLAT(a[2]);
-    pmass   = SIMD_SPLAT(fMass);
-    p4soft2 = SIMD_SPLAT(4.0*fSoft*fSoft);
+    /*pmass   = SIMD_SPLAT(fMass);*/
+    /*p4soft2 = SIMD_SPLAT(4.0*fSoft*fSoft);*/
     pimaga  = SIMD_SPLAT(dimaga);
 
     /* Pad the last value if necessary */
@@ -692,7 +688,7 @@ int doneWorkPC(void *vpc) {
 	}
 
     lstFreeTile(&pc->ilc->lst,&pc->tile->lstTile);
-    workDone(pc->work);
+    pkdParticleWorkDone(pc->work);
     free(pc->pInfoOut);
     free(pc);
     return 0;
@@ -754,11 +750,13 @@ void pkdGravStartEwald(PKD pkd) {
 
 void pkdGravFinishEwald(PKD pkd) {
     /* Finish any Ewald work */
+    if (pkd->ewWork->nP) {
 #ifdef USE_CUDA
-    mdlAddWork(pkd->mdl,pkd->ewWork,CUDAinitWorkEwald,CUDAcheckWorkEwald,CPUdoWorkEwald,doneWorkEwald);
+	mdlAddWork(pkd->mdl,pkd->ewWork,CUDAinitWorkEwald,CUDAcheckWorkEwald,CPUdoWorkEwald,doneWorkEwald);
 #else
-    mdlAddWork(pkd->mdl,pkd->ewWork,NULL,NULL,CPUdoWorkEwald,doneWorkEwald);
+	mdlAddWork(pkd->mdl,pkd->ewWork,NULL,NULL,CPUdoWorkEwald,doneWorkEwald);
 #endif
+	}
 #if 0
     while(pkd->ewWork->nP--) {
 	PARTICLE *p = pkd->ewWork->pPart[pkd->ewWork->nP];
@@ -860,8 +858,8 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 	work->pInfoIn[nP].a[0]  = a[0];
 	work->pInfoIn[nP].a[1]  = a[1];
 	work->pInfoIn[nP].a[2]  = a[2];
-	work->pInfoIn[nP].fMass = fMass;
-	work->pInfoIn[nP].fSoft = fSoft;
+	/*work->pInfoIn[nP].fMass = fMass;*/
+	/*work->pInfoIn[nP].fSoft = fSoft;*/
 	a[0] = a[1] = a[2] = 0.0;
 
 	work->pInfoOut[nP].a[0] = 0.0f;
@@ -1004,7 +1002,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 	    }
         } /* end of i-loop cells & particles */
 
-    workDone(work);
+    pkdParticleWorkDone(work);
 
     ilpRestore(ilp,&checkPt);
     *pdFlop += nActive*(ilpCount(pkd->ilp)*40 + ilcCount(pkd->ilc)*200) + nSoft*15;

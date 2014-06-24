@@ -142,8 +142,10 @@ void lstRestore(LST *lst,LSTCHECKPT *cp) {
     lst->tile->next = NULL;
     }
 
+/* Add a tile to the list */
 void *lstExtend(LST * lst) {
     assert( lst != NULL );
+    assert( lst->tile->nInLast==lst->nPerBlock ); /* It would be silly to extend a perfectly good list */
     lst->nPrevious += lst->tile->nBlocks*lst->nPerBlock  + lst->tile->nInLast;
     lst->tile = lst->tile->next = lstNewTile(lst);
     return lst->tile;

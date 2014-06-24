@@ -54,24 +54,29 @@ typedef struct {
     uint32_t nPrevious;
     } LSTCHECKPT;
 
-void *lstSIMDAllocate(size_t nBytes);
-void lstSIMDFree(void *data);
-#ifdef USE_CUDA
-void *lstCUDAAllocate(size_t nBytes);
-void lstCUDAFree(void *data);
+#ifdef __cplusplus
+extern "C" {
 #endif
-void lstInitialize(LST *lst, LSTFREELIST *freeList, int nBlocksPerTile, int nPerBlock, int nAreas, ...);
-void lstFree(LST *lst);
-void lstFreeTile(LST *lst,LSTTILE *tile);
-size_t lstMemory(LST *lst);
-void lstCheckPt(LST *lst,LSTCHECKPT *cp);
-void lstRestore(LST *lst,LSTCHECKPT *cp);
-void lstClone(LST *dst,LST *src);
-LSTTILE *lstSplit(LST *lst);
+    void *lstSIMDAllocate(size_t nBytes);
+    void lstSIMDFree(void *data);
+#ifdef USE_CUDA
+    void *lstCUDAAllocate(size_t nBytes);
+    void lstCUDAFree(void *data);
+#endif
+    void lstInitialize(LST *lst, LSTFREELIST *freeList, int nBlocksPerTile, int nPerBlock, int nAreas, ...);
+    void lstFree(LST *lst);
+    void lstFreeTile(LST *lst,LSTTILE *tile);
+    size_t lstMemory(LST *lst);
+    void lstCheckPt(LST *lst,LSTCHECKPT *cp);
+    void lstRestore(LST *lst,LSTCHECKPT *cp);
+    void lstClone(LST *dst,LST *src);
+    LSTTILE *lstSplit(LST *lst);
 
-void lstClear(LST *lst);
-void *lstExtend(LST * lst);
-
+    void lstClear(LST *lst);
+    void *lstExtend(LST * lst);
+#ifdef __cplusplus
+    }
+#endif
 static inline uint32_t lstCount(LST *lst) {
     return lst->nPrevious + lst->tile->nBlocks*lst->nPerBlock  + lst->tile->nInLast;
     }

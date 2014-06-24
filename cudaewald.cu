@@ -6,7 +6,6 @@
 #include "moments.h"
 #include "cudautil.h"
 
-#define cfOffset(i) ((i) + ((i)>>CUDA_LOG_NUM_BANKS))
 
 #define MAX_TOTAL_REPLICAS (7*7*7)
 #define SCAN_SIZE 512 // Must be larger than MAX_TOTAL_REPLICAS and a power of two.
@@ -17,6 +16,8 @@ __constant__ float hy[MAX_TOTAL_REPLICAS];
 __constant__ float hz[MAX_TOTAL_REPLICAS];
 __constant__ float hCfac[MAX_TOTAL_REPLICAS];
 __constant__ float hSfac[MAX_TOTAL_REPLICAS];
+
+
 
 
 /*
@@ -186,35 +187,22 @@ __global__ void cudaEwald(double *X,double *Y,double *Z,double *pPot) {
 	}
 
     // the H-Loop
-    float fx=rx, fy=ry, fz=rz;
+    double fx=rx, fy=ry, fz=rz;
     for( i=threadIdx.x; i<ew.nEwhLoop; i+= blockDim.x) {
-	float hdotx,s,c,t;
+	double hdotx,s,c,t;
 	hdotx = hx[i]*fx + hy[i]*fy + hz[i]*fz;
-	sincosf(hdotx,&s,&c);
+	sincos(hdotx,&s,&c);
 	tpot += hCfac[i]*c + hSfac[i]*s;
 	t = hCfac[i]*s - hSfac[i]*c;
 	tax += hx[i]*t;
 	tay += hy[i]*t;
 	taz += hz[i]*t;
 	}
-
-#define R1(S,T,O) (S)[threadIdx.x] = T = T + (S)[threadIdx.x + O]
-#define R(S,T) R1(S,T,16); R1(S,T,8); R1(S,T,4); R1(S,T,2); R1(S,T,1);
-
-    volatile float * v = (float *)bValid; // We can use this buffer now
-    v[threadIdx.x] = tax;
-    v[threadIdx.x+32] = tay;
-    v[threadIdx.x+64] = taz;
-    v[threadIdx.x+96] = tpot;
-    if (threadIdx.x < 16) {
-	R(v,tax); R(v+32,tay); R(v+64,taz); R(v+96,tpot);
-	if (threadIdx.x==0) {
-	    pPot[pidx] = tpot;
-	    X[pidx] = tax;
-	    Y[pidx] = tay;
-	    Z[pidx] = taz;
-	    }
-	}
+    volatile double * v = (double *)bValid; // We can use this buffer now
+    v[threadIdx.x] = tax;  warpReduceAndStore<double,32>(v,threadIdx.x,&X[pidx]);
+    v[threadIdx.x] = tay;  warpReduceAndStore<double,32>(v,threadIdx.x,&Y[pidx]);
+    v[threadIdx.x] = taz;  warpReduceAndStore<double,32>(v,threadIdx.x,&Z[pidx]);
+    v[threadIdx.x] = tpot; warpReduceAndStore<double,32>(v,threadIdx.x,&pPot[pidx]);
     }
 
 extern "C"
@@ -233,7 +221,7 @@ int CUDAinitWorkEwald( void *ve, void *vwork ) {
     CUDAwqNode *work = reinterpret_cast<CUDAwqNode *>(vwork);
     //CUDACTX ctx = reinterpret_cast<CUDACTX>(e->cudaCtx);
     double *pHostBuf = reinterpret_cast<double *>(work->pHostBuf);
-    double *pCudaBuf = reinterpret_cast<double *>(work->pCudaBuf);
+    double *pCudaBufIn = reinterpret_cast<double *>(work->pCudaBufIn);
     double *X, *Y, *Z;
     double *cudaX, *cudaY, *cudaZ, *cudaPot;
     PARTICLE *p;
@@ -243,10 +231,10 @@ int CUDAinitWorkEwald( void *ve, void *vwork ) {
     X       = pHostBuf + 0*align;
     Y       = pHostBuf + 1*align;
     Z       = pHostBuf + 2*align;
-    cudaX   = pCudaBuf + 0*align;
-    cudaY   = pCudaBuf + 1*align;
-    cudaZ   = pCudaBuf + 2*align;
-    cudaPot = pCudaBuf + 3*align;
+    cudaX   = pCudaBufIn + 0*align;
+    cudaY   = pCudaBufIn + 1*align;
+    cudaZ   = pCudaBufIn + 2*align;
+    cudaPot = pCudaBufIn + 3*align;
 
     // cuda global arrays
     nx = e->nP < 65536 ? e->nP : 65536;
@@ -268,15 +256,15 @@ int CUDAinitWorkEwald( void *ve, void *vwork ) {
 	}
 
     // copy data directly to device memory
-    CUDA_CHECK(cudaMemcpyAsync,(pCudaBuf, pHostBuf, align*3*sizeof(double),
+    CUDA_CHECK(cudaMemcpyAsync,(pCudaBufIn, pHostBuf, align*3*sizeof(double),
 	    cudaMemcpyHostToDevice, work->stream));
-//    CUDA_CHECK(cudaMemcpy,(pCudaBuf, pHostBuf, align*3*sizeof(double),
+//    CUDA_CHECK(cudaMemcpy,(pCudaBufIn, pHostBuf, align*3*sizeof(double),
 //	    cudaMemcpyHostToDevice));
     cudaEwald<<<dimGrid, dimBlock, 0, work->stream>>>(cudaX,cudaY,cudaZ,cudaPot);
-//    cudaEwald<<<dimGrid, dimBlock>>>(pCudaBuf);
-    CUDA_CHECK(cudaMemcpyAsync,(pHostBuf, pCudaBuf, align*4*sizeof(double),
+//    cudaEwald<<<dimGrid, dimBlock>>>(pCudaBufIn);
+    CUDA_CHECK(cudaMemcpyAsync,(pHostBuf, pCudaBufIn, align*4*sizeof(double),
             cudaMemcpyDeviceToHost, work->stream));
-//    CUDA_CHECK(cudaMemcpy,(pHostBuf, pCudaBuf, align*4*sizeof(double),
+//    CUDA_CHECK(cudaMemcpy,(pHostBuf, pCudaBufIn, align*4*sizeof(double),
 //            cudaMemcpyDeviceToHost));
     CUDA_CHECK(cudaEventRecord,(work->event,work->stream));
 

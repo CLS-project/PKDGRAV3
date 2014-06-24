@@ -11,7 +11,7 @@
 extern "C"
 void *CUDA_malloc(size_t nBytes) {
     void *blk = NULL;
-    cudaHostAlloc( &blk, nBytes, 0 );
+    cudaMallocHost( &blk, nBytes);
     return blk;
     }
 
@@ -125,36 +125,12 @@ void *CUDA_initialize(int iCore) {
     CUDA_CHECK(cudaSetDevice,(iCore % nDevices));
     CUDACTX ctx = reinterpret_cast<CUDACTX>(malloc(sizeof(struct cuda_ctx)));
     assert(ctx!=NULL);
-    ctx->wqSize = 0;
+//    ctx->wqSize = 0;
     ctx->wqCuda = ctx->wqFree = NULL;
+    ctx->nodePP = NULL;
 
     CUDA_CHECK(cudaGetDeviceProperties,(&ctx->prop,iCore % nDevices));
 
-
-
-#if 0
-    for(i=0; i<iWorkQueueSize; ++i) {
-
-        gpuInput *in = reinterpret_cast<gpuInput *>(malloc(sizeof(gpuInput)));
-        assert(in!=NULL);
-        in->next = ctx->in;
-        ctx->in = in;
-        CUDA_CHECK(cudaMalloc,(&in->in, ParticlesSize));
-        CUDA_CHECK(cudaHostAlloc,(reinterpret_cast<void **>(&in->cpuIn), ParticlesSize, 0));
-        CUDA_CHECK(cudaEventCreate,( &in->event ));
-
-        gpuBlock *blk = reinterpret_cast<gpuBlock *>(malloc(sizeof(gpuBlock)));
-        assert(blk!=NULL);
-        blk->next = ctx->block;
-        ctx->block = blk;
-
-        CUDA_CHECK(cudaMalloc,(&blk->gpuBlk, tileSize));
-        CUDA_CHECK(cudaMalloc,(reinterpret_cast<void **>(&blk->gpuResults), OutSize));
-        CUDA_CHECK(cudaHostAlloc,(reinterpret_cast<void **>(&blk->cpuResults), OutSize, 0));
-        CUDA_CHECK(cudaEventCreate,( &blk->event ));
-        CUDA_CHECK(cudaStreamCreate,( &blk->stream ));
-        }
-#endif
     return ctx;
     }
 
@@ -195,7 +171,6 @@ int CUDA_queue(void *vcuda, void *ctx,
     if ( (*initWork)(ctx,work) ) {
 	    work->ctx = ctx;
 	    work->checkFcn = checkWork;
-	    work->doneFcn = doneWork;
 	    work->next = cuda->wqCuda;
 	    cuda->wqCuda = work;
 	    }
@@ -205,20 +180,25 @@ int CUDA_queue(void *vcuda, void *ctx,
     return 1;
     }
 extern "C"
-void CUDA_SetQueueSize(void *vcuda,int cudaSize, int inCudaBufSize) {
+void CUDA_SetQueueSize(void *vcuda,int cudaSize, int inCudaBufSize, int outCudaBufSize) {
     CUDACTX cuda = reinterpret_cast<CUDACTX>(vcuda);
     CUDAwqNode *work;
+    int hostBufSize = inCudaBufSize > outCudaBufSize ? inCudaBufSize : outCudaBufSize;
+    cuda->inCudaBufSize = inCudaBufSize;
+    cuda->outCudaBufSize = outCudaBufSize;
     while(cudaSize--) {
         work = reinterpret_cast<CUDAwqNode *>(malloc(sizeof(CUDAwqNode)));
-        work->pHostBuf = CUDA_malloc(inCudaBufSize);
-        work->pCudaBuf = CUDA_gpu_malloc(inCudaBufSize);
+        work->pHostBuf = CUDA_malloc(hostBufSize);
+        assert(work->pHostBuf!=NULL);
+        work->pCudaBufIn = CUDA_gpu_malloc(inCudaBufSize);
+        assert(work->pCudaBufIn!=NULL);
+        work->pCudaBufOut = CUDA_gpu_malloc(outCudaBufSize);
+        assert(work->pCudaBufOut!=NULL);
         CUDA_CHECK(cudaEventCreate,( &work->event ));
         CUDA_CHECK(cudaStreamCreate,( &work->stream ));
         work->ctx = NULL;
         work->checkFcn = NULL;
-        work->doneFcn = NULL;
         work->next = cuda->wqFree;
         cuda->wqFree = work;
-//        ++mdl->wqCudaMaxSize;
         }
     }

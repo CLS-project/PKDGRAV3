@@ -46,13 +46,15 @@ typedef struct particle {
 #endif/* PLANETS */
     } PARTICLE;
 
+#define PP_CUDA_MEMORY_LIMIT (1024*1024)
+
 typedef struct {
     float r[3];
-    float v[3];
     float a[3];
-    float fMass;
-    float fSoft;
     float fSmooth2;
+/*    float v[3];*/
+/*    float fMass;*/
+/*    float fSoft;*/
     } PINFOIN;
 
 typedef struct {

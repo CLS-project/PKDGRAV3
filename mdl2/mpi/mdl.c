@@ -683,6 +683,9 @@ static int mdlDoSomeWork(MDL mdl) {
     }
 
 static void mdlCompleteAllWork(MDL mdl) {
+#ifdef USE_CUDA
+    CUDA_sendWorkPP(mdl->cudaCtx);
+#endif
     while(mdlDoSomeWork(mdl)) {}
     }
 
@@ -2685,7 +2688,7 @@ void mdlSetWorkQueueSize(MDL mdl,int wqMaxSize,int cudaSize) {
     int i;
 
 #ifdef USE_CUDA
-    CUDA_SetQueueSize(mdl->cudaCtx,cudaSize,mdl->inCudaBufSize);
+    CUDA_SetQueueSize(mdl->cudaCtx,cudaSize,mdl->inCudaBufSize,mdl->outCudaBufSize);
 #endif
     while (wqMaxSize > mdl->wqMaxSize) {
 	for(i=0; i<mdl->base.nCores; ++i) {

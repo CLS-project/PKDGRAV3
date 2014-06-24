@@ -3,246 +3,403 @@
 #include "config.h"
 #endif
 #include <stdio.h>
-//#include "pkd.h"
-#include "ilp.h"
 #include "cudautil.h"
 
-#ifdef __DEVICE_EMULATION__
-#define EMUSYNC __syncthreads()
-#else
-#define EMUSYNC
-#endif
-
-/* With 512 threads we can have better occupancy as 1536 can be active. */
-#define PP_THREADS 256
-#define PP_BLKS_PER_THREAD (PP_THREADS/ILP_PART_PER_BLK)
-
-#define NBLOCKS 1
-
-__global__ void cudaPP( int nP, PINFOIN *in, int nPart, ILP_BLK *blk, PINFOOUT *out ) {
-    int bid, tid, pid, wid;
-    float d2, dir, dir2, dir3, fourh2, dx, dy, dz, p, ds, ns;
-    __shared__ float ax[32];
-    __shared__ float ay[32];
-    __shared__ float az[32];
-    __shared__ float fPot[32];
-    __shared__ float dirsum[32];
-    __shared__ float normsum[32];
-    float m, dimaga, adotai;
-    int i = blockIdx.y;
-    float *a = in[i].a;
-
-    bid = blockIdx.x * PP_BLKS_PER_THREAD + threadIdx.y;
-    tid = threadIdx.x + threadIdx.y*ILP_PART_PER_BLK;
-    pid = tid + blockIdx.x * PP_THREADS;
-    if (tid<32) ax[tid] = ay[tid] = az[tid] = fPot[tid] = dirsum[tid] = normsum[tid] = 0.0f;
-    __syncthreads();
-
-    blk += bid;
-    wid = tid & 31;
-
-    dimaga = a[0]*a[0] + a[1]*a[1] + a[2]*a[2];
-    if (dimaga > 0.0f) {
-        dimaga = rsqrtf(dimaga);
-        }
-    while(pid < nPart) {
-        dx = blk->dx.f[threadIdx.x] + in[i].r[0];
-        dy = blk->dy.f[threadIdx.x] + in[i].r[1];
-        dz = blk->dz.f[threadIdx.x] + in[i].r[2];
-        d2 = dx*dx + dy*dy + dz*dz;
-
-        m = blk->m.f[threadIdx.x];
-        fourh2 = blk->fourh2.f[threadIdx.x];
-        if (d2 != 0.0f ) { /* Ignore self interactions */
-            if (d2 > fourh2) fourh2 = d2;
-            dir = rsqrtf(fourh2);
-            dir2 = dir*dir;
-            dir3 = dir2*dir;
-            if (d2 < fourh2) {
-                /*
-                ** This uses the Dehnen K1 kernel function now, it's fast!
-                */
-                dir2 *= d2;
-                dir2 = 1.0f - dir2;
-                dir *= 1.0f + dir2*(0.5f + dir2*(3.0f/8.0f + dir2*(45.0f/32.0f)));
-                dir3 *= 1.0f + dir2*(1.5f + dir2*(135.0f/16.0f));
-                }
-
-            dir3 *= -m;
-            dx *= dir3;
-            dy *= dir3;
-            dz *= dir3;
-
-            atomicAdd(&ax[wid],dx);
-            atomicAdd(&ay[wid],dy);
-            atomicAdd(&az[wid],dz);
-            atomicAdd(&fPot[wid],-m*dir);
-
-            /*
-            ** Calculations for determining the timestep.
-            */
-            adotai = a[0]*dx + a[1]*dy + a[2]*dz;
-            if (adotai > 0.0f && d2 >= in[i].fSmooth2) {
-                adotai *= dimaga;
-                atomicAdd(&dirsum[wid],dir*adotai*adotai);
-                atomicAdd(&normsum[wid],adotai*adotai);
-                }
-            }
-        blk += PP_BLKS_PER_THREAD * NBLOCKS;
-        pid += PP_THREADS * NBLOCKS;
-        }
-
-    /*
-    ** Now reduce the result
-    */
-
-#define R(S,T,O) S[tid] = T = T + S[tid + O]
-
-    __syncthreads();
-
-#ifndef __DEVICE_EMULATION__
-    if (tid < 16)
-#endif
-        {
-        // now that we are using warp-synchronous programming (below)
-        // we need to declare our shared memory volatile so that the compiler
-        // doesn't reorder stores to it and induce incorrect behavior.
-        volatile float * vax = ax;
-        volatile float * vay = ay;
-        volatile float * vaz = az;
-        volatile float * vPot = fPot;
-        volatile float * vdirsum = dirsum;
-        volatile float * vnormsum = normsum;
-        
-        dx = vax[tid];  dy = vay[tid]; dz = vaz[tid]; p = vPot[tid]; ds = vdirsum[tid]; ns = vnormsum[tid];
-        { R(vax,dx,16); R(vay,dy,16); R(vaz,dz,16); R(vPot,p,16); R(vdirsum,ds,16); R(vnormsum,ns,16); EMUSYNC; }
-        { R(vax,dx, 8); R(vay,dy, 8); R(vaz,dz, 8); R(vPot,p, 8); R(vdirsum,ds, 8); R(vnormsum,ns, 8); EMUSYNC; }
-        { R(vax,dx, 4); R(vay,dy, 4); R(vaz,dz, 4); R(vPot,p, 4); R(vdirsum,ds, 4); R(vnormsum,ns, 4); EMUSYNC; }
-        { R(vax,dx, 2); R(vay,dy, 2); R(vaz,dz, 2); R(vPot,p, 2); R(vdirsum,ds, 2); R(vnormsum,ns, 2); EMUSYNC; }
-        { R(vax,dx, 1); R(vay,dy, 1); R(vaz,dz, 1); R(vPot,p, 1); R(vdirsum,ds, 1); R(vnormsum,ns, 1); EMUSYNC; }
-
-        if (tid==0) {
-            out[i+nP*blockIdx.x].a[0] = ax[0];
-            out[i+nP*blockIdx.x].a[1] = ay[0];
-            out[i+nP*blockIdx.x].a[2] = az[0];
-            out[i+nP*blockIdx.x].fPot = fPot[0];
-            out[i+nP*blockIdx.x].dirsum = dirsum[0];
-            out[i+nP*blockIdx.x].normsum= normsum[0];
-            }
-        }
-    }
+#define MAX_BUCKET 32 // Larger buckets just become a different kernel
+#define SYNC_RATE 8  // Must be power of 2 <= warp size or trouble
+#define SYNC_MASK (SYNC_RATE-1)
+#define WARPS 4
 
 /*
-** Queue the given work element for execution on the GPU and return 1.
-** If we cannot, then we return 0.
+** Occupancy (theoretical):
+**   Compute 2.x:  8 (blocks) * PP_THREADS (128) = 1024 (2/3 MAX)
+**   Compute 3.x: 16 (blocks) * PP_THREADS (128) = 2048 (MAX!)
+**
+** To reduce memory, we syncthreads() and flush the particles
+** results every SYNC_RATE particles => 8 seems a good choice.
+**
+** Shared memory requirements
+**  - Particles         32 * nSyncRate (8)                 =  256
+**  - warp reduction     4 * nWarps (4) * 32 (threads)     =  512
+**  - warp results      24 * nSyncRate (8)  * nWarps (4)   =  768
+** TOTAL 1536 * 16 blocks = 24 KB
+** Same nSyncRate=16: 2560 * 16 blocks = 40 KB
+
+**
+** Interaction lists limits.
+**   Compute 2.x: 65535 * PP_THREADS (128) = 8 million
+**   Compute 3.x: effectively unlimited
+**
 */
-extern "C"
-int CUDAinitWorkPP( void *vpp ) {
-    workPP *pp = reinterpret_cast<workPP *>(vpp);
-    int nP = pp->work->nP;
-    ILPTILE tile = pp->tile;
-    int nPart = pp->nBlocks*ILP_PART_PER_BLK + pp->nInLast;
-    CUDACTX ctx = reinterpret_cast<CUDACTX>(pp->work->cudaCtx);
-    gpuInput *in;
-    gpuBlock *blk;
-    int j;
 
-    if (ctx->in==NULL || ctx->block==NULL) return 0; /* good luck */
+/* Each thread block outputs this for each nSyncRate particles */
+template <int nSyncRate>
+struct __align__(128) ppResults {
+    float ax[nSyncRate];
+    float ay[nSyncRate];
+    float az[nSyncRate];
+    float fPot[nSyncRate];
+    float dirsum[nSyncRate];
+    float normsum[nSyncRate];
+    };
 
-    PINFOOUT *pInfoOut = pp->pInfoOut;
-    for( j=0; j<nP; j++ ) {
-        pInfoOut[j].a[0] = 0;
-        pInfoOut[j].a[1] = 0;
-        pInfoOut[j].a[2] = 0;
-        pInfoOut[j].fPot = 0;
-        pInfoOut[j].dirsum = 0;
-        pInfoOut[j].normsum = 0;
+// A good number for nWarps is 4 giving 128 threads per thread block
+// nMaxBucket=32 and nSyncRate=8
+// Each thread block outputs ay,ay,az,fPot,dirsum,normsum for each particle
+template <int nWarps,int nMaxBucket,int nSyncRate>
+__global__ void cudaPP(
+    int nPart,
+    const float * __restrict__ pX, const float * __restrict__ pY, const float * __restrict__ pZ, // Particles
+    const float * __restrict__ pAX, const float * __restrict__ pAY, const float * __restrict__ pAZ, // Particles
+    const float * __restrict__ pSoft2,
+    int nInteract, const ILP_BLK * __restrict__ blk,ppResults<nSyncRate> *out) { // interactions
+    int iWarp = threadIdx.x / 32;
+    int iTinW = threadIdx.x % 32;
+    int nParticleBlocks = (nPart + nSyncRate - 1) / nSyncRate;
+    int iOutBlock = nParticleBlocks * blockIdx.x;
+    int i, iSync;
+
+    __shared__ float X[nSyncRate];
+    __shared__ float Y[nSyncRate];
+    __shared__ float Z[nSyncRate];
+    __shared__ float AX[nSyncRate];
+    __shared__ float AY[nSyncRate];
+    __shared__ float AZ[nSyncRate];
+    __shared__ float Soft2[nSyncRate];
+    __shared__ float ImagA[nSyncRate];
+
+    __shared__ float reduce[nWarps][32];
+
+    __shared__ float wX[nSyncRate][nWarps];
+    __shared__ float wY[nSyncRate][nWarps];
+    __shared__ float wZ[nSyncRate][nWarps];
+
+    __shared__ float wPot[nSyncRate][nWarps];
+    __shared__ float wDirsum[nSyncRate][nWarps];
+    __shared__ float wNormsum[nSyncRate][nWarps];
+
+
+    // Load the interaction. It is blocked for performance.
+    // nWarps and ILP_PART_PER_BLK are constant, so only one code path here.
+    int ii = threadIdx.x + blockIdx.x * gridDim.x; // Our interaction
+    int iix, iiy;
+    if (nWarps*32 == ILP_PART_PER_BLK) {
+        iiy = blockIdx.x;
+        iix = threadIdx.x;
         }
-
-    // Grab a block of memory
-    blk = ctx->block;
-    ctx->block = blk->next;
-    pp->gpu_memory = blk;
-
-    // The particles need only be copied once. We can use the stream from the first block.
-    if ((in=reinterpret_cast<gpuInput *>(pp->work->gpu_memory)) == NULL) {
-        in = ctx->in;
-        ctx->in = in->next;
-        pp->work->gpu_memory = in;
-        in->nRefs = 0;
-        memcpy(in->cpuIn,pp->work->pInfoIn,sizeof(PINFOIN)*nP);
-        CUDA_CHECK(cudaMemcpyAsync,(in->in, in->cpuIn, sizeof(PINFOIN)*nP, cudaMemcpyHostToDevice, blk->stream));;
-        CUDA_CHECK(cudaEventRecord,(in->event,blk->stream));
+    else {
+        iiy = ii / ILP_PART_PER_BLK;
+        iix = ii % ILP_PART_PER_BLK;
         }
-    in->nRefs++;
+    float iX = blk[iiy].dx.f[iix];
+    float iY = blk[iiy].dy.f[iix];
+    float iZ = blk[iiy].dz.f[iix];
+    float iM = blk[iiy].m.f[iix];
+    float ifourh2 = blk[iiy].fourh2.f[iix];
 
-    int nBlocks = pp->nBlocks + (pp->nInLast ? 1 : 0);
-    pp->nCudaBlks = (nBlocks+PP_BLKS_PER_THREAD-1)/(PP_BLKS_PER_THREAD);
-    if (pp->nCudaBlks > NBLOCKS ) pp->nCudaBlks = NBLOCKS;
+    for(iSync=0; iSync<nPart; iSync += nSyncRate) {
+        int iEnd = nPart - iSync;
+        if (iEnd > nSyncRate) iEnd=nSyncRate;
 
-    // cuda global arrays
-    dim3 threads(ILP_PART_PER_BLK,PP_BLKS_PER_THREAD);
-    dim3 numBlocks(pp->nCudaBlks, nP );
-    int bytes = sizeof(ILP_BLK) * (nBlocks);
+        // Preload the bucket of particles
+        if (threadIdx.x<iEnd) {
+            i = threadIdx.x;
+            X[i] = pX[iSync + i];
+            Y[i] = pY[iSync + i];
+            Z[i] = pZ[iSync + i];
+            AX[i] = pAX[iSync + i];
+            AY[i] = pAY[iSync + i];
+            AZ[i] = pAZ[iSync + i];
+            Soft2[i] = pSoft2[iSync + i];
+            ImagA[i] = AX[i]*AX[i] + AY[i]*AY[i] + AZ[i]*AZ[i];
+            if (ImagA[i] > 0.0f) ImagA[i] = rsqrtf(ImagA[i]);
+            }
+        __syncthreads();
 
-    // copy data directly to device memory
-    CUDA_CHECK(cudaMemcpyAsync,(blk->gpuBlk, tile->blk, bytes, cudaMemcpyHostToDevice, blk->stream));
-    // We need the particles, so we need to wait for that transfer to complete
-    CUDA_CHECK(cudaStreamWaitEvent,(blk->stream, in->event, 0));
-    cudaPP<<<numBlocks, threads, 0, blk->stream>>>( nP, in->in, nPart, blk->gpuBlk, blk->gpuResults);
-    CUDA_CHECK(cudaMemcpyAsync,(blk->cpuResults, blk->gpuResults, nP*numBlocks.x*sizeof(PINFOOUT),
-            cudaMemcpyDeviceToHost, blk->stream));
-    CUDA_CHECK(cudaEventRecord,(blk->event,blk->stream));
+        for( i=0; i<iEnd; ++i) {
+            float ax=0.0f, ay=0.0f, az=0.0f, fPot=0.0f, dirsum=0.0f, normsum=0.0f;
+            float dx, dy, dz, d2, fourh2,dir,dir2,dir3;
+            if (ii<nInteract) {
+                dx = iX + X[i];
+                dy = iY + Y[i];
+                dz = iZ + Z[i];
+                d2 = dx*dx + dy*dy + dz*dz;
+                if (d2 != 0.0f ) { /* Ignore self interactions */
+                    fourh2 = ifourh2;
+                    if (d2 > fourh2) fourh2 = d2;
+                    dir = rsqrtf(fourh2);
+                    dir2 = dir*dir;
+                    dir3 = dir2*dir;
+                    if (d2 < fourh2) {
+                        /*
+                        ** This uses the Dehnen K1 kernel function now, it's fast!
+                        */
+                        dir2 *= d2;
+                        dir2 = 1.0f - dir2;
+                        dir *= 1.0f + dir2*(0.5f + dir2*(3.0f/8.0f + dir2*(45.0f/32.0f)));
+                        dir3 *= 1.0f + dir2*(1.5f + dir2*(135.0f/16.0f));
+                        }
+                    dir3 *= -iM;
+                    ax = dx * dir3;
+                    ay = dy * dir3;
+                    az = dz * dir3;
+                    fPot = -iM*dir;
 
-    return 1;
+                    /*
+                    ** Calculations for determining the timestep.
+                    */
+                    float adotai;
+                    adotai = AX[i]*ax + AY[i]*ay + AZ[i]*az;
+                    if (adotai > 0.0f && d2 >= Soft2[i] ) {
+                        adotai *= ImagA[i];
+                        dirsum = dir*adotai*adotai;
+                        normsum = adotai*adotai;
+                        }
+                    }
+                }
+            // Horizontal add within each warp -- no sychronization required
+            warpReduceAndStore<float,32>(reduce[iWarp],iTinW,ax,     &wX[i][iWarp]);
+            warpReduceAndStore<float,32>(reduce[iWarp],iTinW,ay,     &wY[i][iWarp]);
+            warpReduceAndStore<float,32>(reduce[iWarp],iTinW,az,     &wZ[i][iWarp]);
+            warpReduceAndStore<float,32>(reduce[iWarp],iTinW,fPot,   &wPot[i][iWarp]);
+            warpReduceAndStore<float,32>(reduce[iWarp],iTinW,dirsum, &wDirsum[i][iWarp]);
+            warpReduceAndStore<float,32>(reduce[iWarp],iTinW,normsum,&wNormsum[i][iWarp]);
+            }
+
+        __syncthreads();
+        // Assuming four warps & SYNC of 8, the cache looks like this:
+        // Cache: P0 P0 P0 P0 P1 P1 P1 P1 P2 ... P6 P7 P7 P7 P7
+        // every set of 4 threads does another reduce. As long as the
+        // number of warps is a power of 2 <= the warp size (32), we
+        // can do this step without any further synchronization.
+        // __shared__ float wX[nSyncRate][nWarps];
+
+        int nOut = iEnd * nWarps; // Normally 32
+        if (threadIdx.x<nOut) {
+            int iP    = threadIdx.x & ~(nWarps-1); // 0,4,8,...
+            int iWarp = threadIdx.x &  (nWarps-1); // 0 .. 3
+            int iOut  = threadIdx.x / nWarps;
+            warpReduceAndStore<float,nWarps>(&wX[0][0]+iP,iWarp,&out[iOutBlock].ax[iOut]);
+            warpReduceAndStore<float,nWarps>(&wY[0][0]+iP,iWarp,&out[iOutBlock].ay[iOut]);
+            warpReduceAndStore<float,nWarps>(&wZ[0][0]+iP,iWarp,&out[iOutBlock].az[iOut]);
+            warpReduceAndStore<float,nWarps>(&wPot[0][0]+iP,iWarp,&out[iOutBlock].fPot[iOut]);
+            warpReduceAndStore<float,nWarps>(&wDirsum[0][0]+iP,iWarp,&out[iOutBlock].dirsum[iOut]);
+            warpReduceAndStore<float,nWarps>(&wNormsum[0][0]+iP,iWarp,&out[iOutBlock].normsum[iOut]);
+            }
+	++out;
+        }
     }
 
 extern "C"
-int CUDAcheckWorkPP( void *vpp ) {
-    workPP *pp = reinterpret_cast<workPP *>(vpp);
-    CUDACTX ctx = reinterpret_cast<CUDACTX>(pp->work->cudaCtx);
+void pkdParticleWorkDone(workParticle *wp);
+
+extern "C"
+int CUDAcheckWorkPP( void *vpp, void *vwork ) {
+//    CUDACTX cuda = reinterpret_cast<CUDACTX>(vpp);
+    CUDAwqNode *work = reinterpret_cast<CUDAwqNode *>(vwork);
+    char *pHostBuf = reinterpret_cast<char *>(work->pHostBuf);
+    int ib, ig, ip;
+
+    ppResults<SYNC_RATE> *pR       = reinterpret_cast<ppResults<SYNC_RATE> *>(pHostBuf);
+
+
+    for( ib=0; ib<work->ppnBuffered; ++ib) {
+        workParticle *wp = work->ppWP[ib];
+	PINFOOUT *pInfoOut = wp->pInfoOut;
+	int nGridBlocks = (work->ppNI[ib] + 32*WARPS - 1) / (32*WARPS);
+	int nPartBlocks = (wp->nP + SYNC_RATE - 1) / SYNC_RATE;
+
+    static int bDo  =1;
+    if (bDo) {
+	printf("got %g %g %g\n", pR[0].ax[0], pR[0].ay[0], pR[0].az[0] );
+	bDo =0;
+	}
+
+
+
+	for(ig=0; ig<nGridBlocks; ++ig) {
+	    for(ip=0; ip<wp->nP; ++ip) {
+		
+
+		pInfoOut[ip].a[0]    += pR[ip/SYNC_RATE].ax[ip%SYNC_RATE];
+		pInfoOut[ip].a[1]    += pR[ip/SYNC_RATE].ay[ip%SYNC_RATE];
+		pInfoOut[ip].a[2]    += pR[ip/SYNC_RATE].az[ip%SYNC_RATE];
+		pInfoOut[ip].fPot    += pR[ip/SYNC_RATE].fPot[ip%SYNC_RATE];
+		pInfoOut[ip].dirsum  += pR[ip/SYNC_RATE].dirsum[ip%SYNC_RATE];
+		pInfoOut[ip].normsum += pR[ip/SYNC_RATE].normsum[ip%SYNC_RATE];
+
+
+		}
+	    pR += nPartBlocks;
+	    }
+        pkdParticleWorkDone(wp);
+
+        }
+
+
+
+#if 0
     PINFOOUT *pInfoOut = pp->pInfoOut;
-    int nP = pp->work->nP;
-    cudaError_t rc;
-    gpuBlock *blk;
-    gpuInput *in;
+    float *pHostBuf = reinterpret_cast<float *>(work->pHostBuf);
+
     int i,j;
 
-    blk = reinterpret_cast<gpuBlock *>(pp->gpu_memory);
-    in = reinterpret_cast<gpuInput *>(pp->work->gpu_memory);
-    rc = cudaEventQuery(blk->event);
-    if (rc==cudaErrorNotReady) return 1;
-    else if (rc!=cudaSuccess) {
-        fprintf(stderr,"cudaEventQuery error %d: %s\n", rc, cudaGetErrorString(rc));
-        exit(1);
-        }
+
+    const int nP = pp->work->nP;
+    const int nInteract = pp->nBlocks*ILP_PART_PER_BLK + pp->nInLast;
+    const int nGridBlocks = (nInteract + 32*4 - 1) / (32*4);
+
+    printf("done work CUDA PP, %d particles, %d interactions a[0]=%g\n", nP, nInteract, pHostBuf[0]);
+
+
+
     for( j=0; j<nP; j++ ) {
-        for( i=0; i<pp->nCudaBlks; i++) {
-            pInfoOut[j].a[0] += blk->cpuResults[j+nP*i].a[0];
-            pInfoOut[j].a[1] += blk->cpuResults[j+nP*i].a[1];
-            pInfoOut[j].a[2] += blk->cpuResults[j+nP*i].a[2];
-            pInfoOut[j].fPot += blk->cpuResults[j+nP*i].fPot;
-            pInfoOut[j].dirsum += blk->cpuResults[j+nP*i].dirsum;
-            pInfoOut[j].normsum += blk->cpuResults[j+nP*i].normsum;
+        for( i=0; i<nGridBlocks; i++) {
+            pInfoOut[j].a[0]    += pHostBuf[0];
+            pInfoOut[j].a[1]    += pHostBuf[1*nP*nGridBlocks];
+            pInfoOut[j].a[2]    += pHostBuf[2*nP*nGridBlocks];
+            pInfoOut[j].fPot    += pHostBuf[3*nP*nGridBlocks];
+            pInfoOut[j].dirsum  += pHostBuf[4*nP*nGridBlocks];
+            pInfoOut[j].normsum += pHostBuf[5*nP*nGridBlocks];
+            ++pHostBuf;
             }
         }
-
-    // Return the memory
-    if ( --in->nRefs == 0 ) {
-        in->next = ctx->in;
-        ctx->in = in;
-        pp->work->gpu_memory = NULL;
-        }
-
-    blk->next = ctx->block;
-    ctx->block = blk;
-    pp->gpu_memory = NULL;
-
+#endif
     return 0;
     }
 
 
 extern "C"
 void CUDAsetupPP(void) {
-    cudaFuncSetCacheConfig(cudaPP,cudaFuncCachePreferL1);
+    //cudaFuncSetCacheConfig(cudaPP,cudaFuncCachePreferL1);
+    }
+
+static CUDAwqNode *getNode(CUDACTX cuda) {
+    CUDAwqNode *work;
+    if (cuda->wqFree == NULL) return NULL;
+    work = cuda->wqFree;
+    cuda->wqFree = work->next;
+    work->ctx = cuda;
+    work->checkFcn = CUDAcheckWorkPP;
+    work->next = cuda->wqCuda;
+    work->ppSize = 0;
+    work->ppnBuffered = 0;
+    return work;
+    }
+
+
+extern "C"
+void CUDA_sendWorkPP(void *cudaCtx) {
+    CUDACTX cuda = reinterpret_cast<CUDACTX>(cudaCtx);
+    CUDAwqNode *work = cuda->nodePP;
+    if (work != NULL) {
+        char *pHostBuf = reinterpret_cast<char *>(work->pHostBuf);
+        char *pCudaBufIn = reinterpret_cast<char *>(work->pCudaBufIn);
+        ppResults<SYNC_RATE> *pCudaBufOut = reinterpret_cast<ppResults<SYNC_RATE> *>(work->pCudaBufOut);
+        int nBufferIn = cuda->inCudaBufSize - work->ppSize;
+        int nBufferOut = 0;
+        int i;
+
+        CUDA_CHECK(cudaMemcpyAsync,(pCudaBufIn, pHostBuf, nBufferIn, cudaMemcpyHostToDevice, work->stream));
+        // Launch a kernel for each buffered work package. Could be separate streams, but problematic.
+        // Why problematic? When do I do the return transfer without chaining events?
+        for( i=0; i<work->ppnBuffered; ++i) {
+            int nP = work->ppWP[i]->nP;
+            int nPaligned = (nP+31) & ~31;
+            int nInteract = work->ppNI[i];
+            int nBlocks = (nInteract+ILP_PART_PER_BLK-1) / ILP_PART_PER_BLK;
+            float *pX       = reinterpret_cast<float *>(pCudaBufIn);
+            float *pY       = pX  + nPaligned;
+            float *pZ       = pY  + nPaligned;
+            float *pAX      = pZ  + nPaligned;
+            float *pAY      = pAX + nPaligned;
+            float *pAZ      = pAY + nPaligned;
+            float *pSmooth2 = pAZ + nPaligned;
+            ILP_BLK * __restrict__ blk = reinterpret_cast<ILP_BLK*>(pSmooth2 + nPaligned);
+            pCudaBufIn = reinterpret_cast<char *>(blk + nBlocks );
+            int nGridBlocks = (nInteract + 32*WARPS - 1) / (32*WARPS);
+            dim3 dimBlock( 32*WARPS, 1 );
+            dim3 dimGrid( nGridBlocks, 1,1);
+            cudaPP<WARPS,MAX_BUCKET,SYNC_RATE><<<dimGrid, dimBlock, 0, work->stream>>>(
+                nP, pX, pY, pZ, pAX, pAY, pAZ, pSmooth2,
+                nInteract, blk,pCudaBufOut );
+	    int nOutBlocks = nGridBlocks * (nP+SYNC_RATE-1)/SYNC_RATE;
+	    pCudaBufOut += nOutBlocks;
+            nBufferOut += sizeof(ppResults<SYNC_RATE>) * nOutBlocks;
+            }
+        assert(nBufferIn == reinterpret_cast<char *>(pCudaBufIn) - reinterpret_cast<char *>(work->pCudaBufIn));
+        assert(nBufferOut <= cuda->inCudaBufSize);
+        CUDA_CHECK(cudaMemcpyAsync,(pHostBuf, work->pCudaBufOut, nBufferOut, cudaMemcpyDeviceToHost, work->stream));
+        CUDA_CHECK(cudaEventRecord,(work->event,work->stream));
+
+        work->next = cuda->wqCuda;
+        cuda->wqCuda = work;
+
+        cuda->nodePP = NULL;
+        }
+    }
+
+extern "C"
+int CUDA_queuePP(void *cudaCtx,workParticle *wp, ILPTILE tile) {
+    CUDACTX cuda = reinterpret_cast<CUDACTX>(cudaCtx);
+    CUDAwqNode *work = cuda->nodePP;
+    PINFOIN *pInfoIn = wp->pInfoIn;
+    int nP = wp->nP;
+    int nPaligned = (nP+31) & ~31;
+    int nBlocks = tile->lstTile.nBlocks + (tile->lstTile.nInLast?1:0);
+    int nInteract = tile->lstTile.nBlocks*ILP_PART_PER_BLK + tile->lstTile.nInLast;
+    int nBytesIn = nPaligned * sizeof(float) * 7 + nBlocks*sizeof(ILP_BLK);
+    int i;
+
+
+    // Figure out the total amount of space we need, and see if there is enough
+    // in the current block. If not, send it to the GPU and get another.
+    // Space: nPaligned * 4 (float) * 7 (coordinates)
+    //        nBlocks * sizeof(ILP_BLK)
+    //
+    if (work!=NULL && nBytesIn > work->ppSize) {
+        CUDA_sendWorkPP(cuda);
+        work = NULL;
+        assert(cuda->nodePP==NULL);
+        }
+
+    // If we don't have a PP work element, try to grab one
+    if (work==NULL) {
+        cuda->nodePP = work = getNode(cuda);
+        if (work==NULL) return 0;
+        work->ppSize = cuda->inCudaBufSize;
+        work->ppnBuffered = 0;
+        }
+    if (work==NULL) return 0;
+
+    char *pHostBuf = reinterpret_cast<char *>(work->pHostBuf) + cuda->inCudaBufSize - work->ppSize;
+
+    float *pX       = reinterpret_cast<float *>(pHostBuf);
+    float *pY       = pX  + nPaligned;
+    float *pZ       = pY  + nPaligned;
+    float *pAX      = pZ  + nPaligned;
+    float *pAY      = pAX + nPaligned;
+    float *pAZ      = pAY + nPaligned;
+    float *pSmooth2 = pAZ + nPaligned;
+    ILP_BLK * __restrict__ blk = reinterpret_cast<ILP_BLK*>(pSmooth2 + nPaligned);
+    for(i=0; i<nP; ++i) {
+        pX[i] =  pInfoIn[i].r[0];
+        pY[i] =  pInfoIn[i].r[1];
+        pZ[i] =  pInfoIn[i].r[2];
+        pAX[i] =  pInfoIn[i].a[0];
+        pAY[i] =  pInfoIn[i].a[1];
+        pAZ[i] =  pInfoIn[i].a[2];
+        pSmooth2[i] = pInfoIn[i].fSmooth2;
+        }
+    for(i=0; i<nBlocks; ++i) blk[i] = tile->blk[i];
+
+//    printf("CUDA: buffering %d bytes\n", nBytesIn);
+    work->ppSize -= nBytesIn;
+    work->ppNI[work->ppnBuffered] = nInteract;
+    work->ppWP[work->ppnBuffered] = wp;
+    ++wp->nRefs;
+
+    if ( ++work->ppnBuffered == CUDA_PP_MAX_BUFFERED) CUDA_sendWorkPP(cuda);
+
+    return 1;
     }

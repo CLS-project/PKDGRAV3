@@ -10,7 +10,10 @@
 
 #define ILP_TILE_SIZE (100*1024) /* 100k */
 #ifndef ILP_PART_PER_BLK
-#define ILP_PART_PER_BLK (64)
+/* 128 matches the CUDA width, but this is not required */
+/* Must be a power of two and be larger than the warp size (32) */
+/* This is the minimum transfer size, so keep it small */
+#define ILP_PART_PER_BLK (128)
 #endif
 
 #if !defined(__CUDACC__)
