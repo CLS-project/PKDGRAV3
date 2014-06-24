@@ -32,15 +32,14 @@
 **
 */
 
-/* Each thread block outputs this for each nSyncRate particles */
-template <int nSyncRate>
-struct __align__(128) ppResults {
-    float ax[nSyncRate];
-    float ay[nSyncRate];
-    float az[nSyncRate];
-    float fPot[nSyncRate];
-    float dirsum[nSyncRate];
-    float normsum[nSyncRate];
+/* Each thread block outputs this for each particle */
+struct __align__(32) ppResult {
+    float ax;
+    float ay;
+    float az;
+    float fPot;
+    float dirsum;
+    float normsum;
     };
 
 // A good number for nWarps is 4 giving 128 threads per thread block
@@ -52,11 +51,11 @@ __global__ void cudaPP(
     const float * __restrict__ pX, const float * __restrict__ pY, const float * __restrict__ pZ, // Particles
     const float * __restrict__ pAX, const float * __restrict__ pAY, const float * __restrict__ pAZ, // Particles
     const float * __restrict__ pSoft2,
-    int nInteract, const ILP_BLK * __restrict__ blk,ppResults<nSyncRate> *out) { // interactions
+    int nInteract, const ILP_BLK * __restrict__ blk,ppResult *out) { // interactions
     int iWarp = threadIdx.x / 32;
     int iTinW = threadIdx.x % 32;
-    int nParticleBlocks = (nPart + nSyncRate - 1) / nSyncRate;
-    int iOutBlock = nParticleBlocks * blockIdx.x;
+    int nPaligned = (nPart+31) & ~31;
+    int iOutBlock = nPaligned * blockIdx.x;
     int i, iSync;
 
     __shared__ float X[nSyncRate];
@@ -178,15 +177,14 @@ __global__ void cudaPP(
         if (threadIdx.x<nOut) {
             int iP    = threadIdx.x & ~(nWarps-1); // 0,4,8,...
             int iWarp = threadIdx.x &  (nWarps-1); // 0 .. 3
-            int iOut  = threadIdx.x / nWarps;
-            warpReduceAndStore<float,nWarps>(&wX[0][0]+iP,iWarp,&out[iOutBlock].ax[iOut]);
-            warpReduceAndStore<float,nWarps>(&wY[0][0]+iP,iWarp,&out[iOutBlock].ay[iOut]);
-            warpReduceAndStore<float,nWarps>(&wZ[0][0]+iP,iWarp,&out[iOutBlock].az[iOut]);
-            warpReduceAndStore<float,nWarps>(&wPot[0][0]+iP,iWarp,&out[iOutBlock].fPot[iOut]);
-            warpReduceAndStore<float,nWarps>(&wDirsum[0][0]+iP,iWarp,&out[iOutBlock].dirsum[iOut]);
-            warpReduceAndStore<float,nWarps>(&wNormsum[0][0]+iP,iWarp,&out[iOutBlock].normsum[iOut]);
+            int iOut  = threadIdx.x / nWarps + iSync + iOutBlock;
+            warpReduceAndStore<float,nWarps>(&wX[0][0]+iP,iWarp,&out[iOut].ax);
+            warpReduceAndStore<float,nWarps>(&wY[0][0]+iP,iWarp,&out[iOut].ay);
+            warpReduceAndStore<float,nWarps>(&wZ[0][0]+iP,iWarp,&out[iOut].az);
+            warpReduceAndStore<float,nWarps>(&wPot[0][0]+iP,iWarp,&out[iOut].fPot);
+            warpReduceAndStore<float,nWarps>(&wDirsum[0][0]+iP,iWarp,&out[iOut].dirsum);
+            warpReduceAndStore<float,nWarps>(&wNormsum[0][0]+iP,iWarp,&out[iOut].normsum);
             }
-	++out;
         }
     }
 
@@ -195,76 +193,31 @@ void pkdParticleWorkDone(workParticle *wp);
 
 extern "C"
 int CUDAcheckWorkPP( void *vpp, void *vwork ) {
-//    CUDACTX cuda = reinterpret_cast<CUDACTX>(vpp);
     CUDAwqNode *work = reinterpret_cast<CUDAwqNode *>(vwork);
-    char *pHostBuf = reinterpret_cast<char *>(work->pHostBuf);
+    ppResult *pR       = reinterpret_cast<ppResult *>(work->pHostBuf);
     int ib, ig, ip;
-
-    ppResults<SYNC_RATE> *pR       = reinterpret_cast<ppResults<SYNC_RATE> *>(pHostBuf);
 
 
     for( ib=0; ib<work->ppnBuffered; ++ib) {
         workParticle *wp = work->ppWP[ib];
+	int nPaligned = (wp->nP+31) & ~31;
 	PINFOOUT *pInfoOut = wp->pInfoOut;
 	int nGridBlocks = (work->ppNI[ib] + 32*WARPS - 1) / (32*WARPS);
-	int nPartBlocks = (wp->nP + SYNC_RATE - 1) / SYNC_RATE;
-
-    static int bDo  =1;
-    if (bDo) {
-	printf("got %g %g %g\n", pR[0].ax[0], pR[0].ay[0], pR[0].az[0] );
-	bDo =0;
-	}
-
-
 
 	for(ig=0; ig<nGridBlocks; ++ig) {
 	    for(ip=0; ip<wp->nP; ++ip) {
-		
-
-		pInfoOut[ip].a[0]    += pR[ip/SYNC_RATE].ax[ip%SYNC_RATE];
-		pInfoOut[ip].a[1]    += pR[ip/SYNC_RATE].ay[ip%SYNC_RATE];
-		pInfoOut[ip].a[2]    += pR[ip/SYNC_RATE].az[ip%SYNC_RATE];
-		pInfoOut[ip].fPot    += pR[ip/SYNC_RATE].fPot[ip%SYNC_RATE];
-		pInfoOut[ip].dirsum  += pR[ip/SYNC_RATE].dirsum[ip%SYNC_RATE];
-		pInfoOut[ip].normsum += pR[ip/SYNC_RATE].normsum[ip%SYNC_RATE];
-
-
+		pInfoOut[ip].a[0]    += pR[ip].ax;
+		pInfoOut[ip].a[1]    += pR[ip].ay;
+		pInfoOut[ip].a[2]    += pR[ip].az;
+		pInfoOut[ip].fPot    += pR[ip].fPot;
+		pInfoOut[ip].dirsum  += pR[ip].dirsum;
+		pInfoOut[ip].normsum += pR[ip].normsum;
 		}
-	    pR += nPartBlocks;
+	    pR += nPaligned;
 	    }
         pkdParticleWorkDone(wp);
 
         }
-
-
-
-#if 0
-    PINFOOUT *pInfoOut = pp->pInfoOut;
-    float *pHostBuf = reinterpret_cast<float *>(work->pHostBuf);
-
-    int i,j;
-
-
-    const int nP = pp->work->nP;
-    const int nInteract = pp->nBlocks*ILP_PART_PER_BLK + pp->nInLast;
-    const int nGridBlocks = (nInteract + 32*4 - 1) / (32*4);
-
-    printf("done work CUDA PP, %d particles, %d interactions a[0]=%g\n", nP, nInteract, pHostBuf[0]);
-
-
-
-    for( j=0; j<nP; j++ ) {
-        for( i=0; i<nGridBlocks; i++) {
-            pInfoOut[j].a[0]    += pHostBuf[0];
-            pInfoOut[j].a[1]    += pHostBuf[1*nP*nGridBlocks];
-            pInfoOut[j].a[2]    += pHostBuf[2*nP*nGridBlocks];
-            pInfoOut[j].fPot    += pHostBuf[3*nP*nGridBlocks];
-            pInfoOut[j].dirsum  += pHostBuf[4*nP*nGridBlocks];
-            pInfoOut[j].normsum += pHostBuf[5*nP*nGridBlocks];
-            ++pHostBuf;
-            }
-        }
-#endif
     return 0;
     }
 
@@ -295,7 +248,7 @@ void CUDA_sendWorkPP(void *cudaCtx) {
     if (work != NULL) {
         char *pHostBuf = reinterpret_cast<char *>(work->pHostBuf);
         char *pCudaBufIn = reinterpret_cast<char *>(work->pCudaBufIn);
-        ppResults<SYNC_RATE> *pCudaBufOut = reinterpret_cast<ppResults<SYNC_RATE> *>(work->pCudaBufOut);
+        ppResult *pCudaBufOut = reinterpret_cast<ppResult *>(work->pCudaBufOut);
         int nBufferIn = cuda->inCudaBufSize - work->ppSize;
         int nBufferOut = 0;
         int i;
@@ -323,10 +276,12 @@ void CUDA_sendWorkPP(void *cudaCtx) {
             cudaPP<WARPS,MAX_BUCKET,SYNC_RATE><<<dimGrid, dimBlock, 0, work->stream>>>(
                 nP, pX, pY, pZ, pAX, pAY, pAZ, pSmooth2,
                 nInteract, blk,pCudaBufOut );
-	    int nOutBlocks = nGridBlocks * (nP+SYNC_RATE-1)/SYNC_RATE;
+	    //int nOutBlocks = nGridBlocks * (nP+SYNC_RATE-1)/SYNC_RATE;
+	    int nOutBlocks = nGridBlocks * nPaligned;
 	    pCudaBufOut += nOutBlocks;
-            nBufferOut += sizeof(ppResults<SYNC_RATE>) * nOutBlocks;
+            nBufferOut += sizeof(ppResult) * nOutBlocks;
             }
+
         assert(nBufferIn == reinterpret_cast<char *>(pCudaBufIn) - reinterpret_cast<char *>(work->pCudaBufIn));
         assert(nBufferOut <= cuda->inCudaBufSize);
         CUDA_CHECK(cudaMemcpyAsync,(pHostBuf, work->pCudaBufOut, nBufferOut, cudaMemcpyDeviceToHost, work->stream));
@@ -383,6 +338,7 @@ int CUDA_queuePP(void *cudaCtx,workParticle *wp, ILPTILE tile) {
     float *pSmooth2 = pAZ + nPaligned;
     ILP_BLK * __restrict__ blk = reinterpret_cast<ILP_BLK*>(pSmooth2 + nPaligned);
     for(i=0; i<nP; ++i) {
+//	printf("%d: %llu\n", i, wp->pPart[i]->iOrder);
         pX[i] =  pInfoIn[i].r[0];
         pY[i] =  pInfoIn[i].r[1];
         pZ[i] =  pInfoIn[i].r[2];
