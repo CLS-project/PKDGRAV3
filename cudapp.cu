@@ -200,21 +200,21 @@ int CUDAcheckWorkPP( void *vpp, void *vwork ) {
 
     for( ib=0; ib<work->ppnBuffered; ++ib) {
         workParticle *wp = work->ppWP[ib];
-	int nPaligned = (wp->nP+31) & ~31;
-	PINFOOUT *pInfoOut = wp->pInfoOut;
-	int nGridBlocks = (work->ppNI[ib] + 32*WARPS - 1) / (32*WARPS);
+        int nPaligned = (wp->nP+31) & ~31;
+        PINFOOUT *pInfoOut = wp->pInfoOut;
+        int nGridBlocks = (work->ppNI[ib] + 32*WARPS - 1) / (32*WARPS);
 
-	for(ig=0; ig<nGridBlocks; ++ig) {
-	    for(ip=0; ip<wp->nP; ++ip) {
-		pInfoOut[ip].a[0]    += pR[ip].ax;
-		pInfoOut[ip].a[1]    += pR[ip].ay;
-		pInfoOut[ip].a[2]    += pR[ip].az;
-		pInfoOut[ip].fPot    += pR[ip].fPot;
-		pInfoOut[ip].dirsum  += pR[ip].dirsum;
-		pInfoOut[ip].normsum += pR[ip].normsum;
-		}
-	    pR += nPaligned;
-	    }
+        for(ig=0; ig<nGridBlocks; ++ig) {
+            for(ip=0; ip<wp->nP; ++ip) {
+                pInfoOut[ip].a[0]    += pR[ip].ax;
+                pInfoOut[ip].a[1]    += pR[ip].ay;
+                pInfoOut[ip].a[2]    += pR[ip].az;
+                pInfoOut[ip].fPot    += pR[ip].fPot;
+                pInfoOut[ip].dirsum  += pR[ip].dirsum;
+                pInfoOut[ip].normsum += pR[ip].normsum;
+                }
+            pR += nPaligned;
+            }
         pkdParticleWorkDone(wp);
 
         }
@@ -235,7 +235,8 @@ static CUDAwqNode *getNode(CUDACTX cuda) {
     work->ctx = cuda;
     work->checkFcn = CUDAcheckWorkPP;
     work->next = cuda->wqCuda;
-    work->ppSize = 0;
+    work->ppSizeIn = 0;
+    work->ppSizeOut = 0;
     work->ppnBuffered = 0;
     return work;
     }
@@ -249,7 +250,7 @@ void CUDA_sendWorkPP(void *cudaCtx) {
         char *pHostBuf = reinterpret_cast<char *>(work->pHostBuf);
         char *pCudaBufIn = reinterpret_cast<char *>(work->pCudaBufIn);
         ppResult *pCudaBufOut = reinterpret_cast<ppResult *>(work->pCudaBufOut);
-        int nBufferIn = cuda->inCudaBufSize - work->ppSize;
+        int nBufferIn = work->ppSizeIn;
         int nBufferOut = 0;
         int i;
 
@@ -261,6 +262,10 @@ void CUDA_sendWorkPP(void *cudaCtx) {
             int nPaligned = (nP+31) & ~31;
             int nInteract = work->ppNI[i];
             int nBlocks = (nInteract+ILP_PART_PER_BLK-1) / ILP_PART_PER_BLK;
+
+
+//            printf("XMIT: nP = %d nBlocks = %d\n", nPaligned, nBlocks );
+
             float *pX       = reinterpret_cast<float *>(pCudaBufIn);
             float *pY       = pX  + nPaligned;
             float *pZ       = pY  + nPaligned;
@@ -273,14 +278,16 @@ void CUDA_sendWorkPP(void *cudaCtx) {
             int nGridBlocks = (nInteract + 32*WARPS - 1) / (32*WARPS);
             dim3 dimBlock( 32*WARPS, 1 );
             dim3 dimGrid( nGridBlocks, 1,1);
+#if 0
             cudaPP<WARPS,MAX_BUCKET,SYNC_RATE><<<dimGrid, dimBlock, 0, work->stream>>>(
                 nP, pX, pY, pZ, pAX, pAY, pAZ, pSmooth2,
                 nInteract, blk,pCudaBufOut );
-	    //int nOutBlocks = nGridBlocks * (nP+SYNC_RATE-1)/SYNC_RATE;
-	    int nOutBlocks = nGridBlocks * nPaligned;
-	    pCudaBufOut += nOutBlocks;
+#endif
+            int nOutBlocks = nGridBlocks * nPaligned;
+            pCudaBufOut += nOutBlocks;
             nBufferOut += sizeof(ppResult) * nOutBlocks;
             }
+//        printf("  => SEND %d bytes\n", nBufferIn);
 
         assert(nBufferIn == reinterpret_cast<char *>(pCudaBufIn) - reinterpret_cast<char *>(work->pCudaBufIn));
         assert(nBufferOut <= cuda->inCudaBufSize);
@@ -304,6 +311,7 @@ int CUDA_queuePP(void *cudaCtx,workParticle *wp, ILPTILE tile) {
     int nBlocks = tile->lstTile.nBlocks + (tile->lstTile.nInLast?1:0);
     int nInteract = tile->lstTile.nBlocks*ILP_PART_PER_BLK + tile->lstTile.nInLast;
     int nBytesIn = nPaligned * sizeof(float) * 7 + nBlocks*sizeof(ILP_BLK);
+//    int nBytesOut = ;
     int i;
 
 
@@ -312,7 +320,7 @@ int CUDA_queuePP(void *cudaCtx,workParticle *wp, ILPTILE tile) {
     // Space: nPaligned * 4 (float) * 7 (coordinates)
     //        nBlocks * sizeof(ILP_BLK)
     //
-    if (work!=NULL && nBytesIn > work->ppSize) {
+    if (work!=NULL && work->ppSizeIn + nBytesIn > cuda->inCudaBufSize) {
         CUDA_sendWorkPP(cuda);
         work = NULL;
         assert(cuda->nodePP==NULL);
@@ -322,12 +330,13 @@ int CUDA_queuePP(void *cudaCtx,workParticle *wp, ILPTILE tile) {
     if (work==NULL) {
         cuda->nodePP = work = getNode(cuda);
         if (work==NULL) return 0;
-        work->ppSize = cuda->inCudaBufSize;
+        work->ppSizeIn = 0;
+        work->ppSizeOut = 0;
         work->ppnBuffered = 0;
         }
     if (work==NULL) return 0;
 
-    char *pHostBuf = reinterpret_cast<char *>(work->pHostBuf) + cuda->inCudaBufSize - work->ppSize;
+    char *pHostBuf = reinterpret_cast<char *>(work->pHostBuf) + work->ppSizeIn;
 
     float *pX       = reinterpret_cast<float *>(pHostBuf);
     float *pY       = pX  + nPaligned;
@@ -349,8 +358,10 @@ int CUDA_queuePP(void *cudaCtx,workParticle *wp, ILPTILE tile) {
         }
     for(i=0; i<nBlocks; ++i) blk[i] = tile->blk[i];
 
+//    printf("BUFFER: nP = %d nBlocks = %d\n", nPaligned, nBlocks );
+
 //    printf("CUDA: buffering %d bytes\n", nBytesIn);
-    work->ppSize -= nBytesIn;
+    work->ppSizeIn += nBytesIn;
     work->ppNI[work->ppnBuffered] = nInteract;
     work->ppWP[work->ppnBuffered] = wp;
     ++wp->nRefs;

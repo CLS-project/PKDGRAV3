@@ -121,7 +121,8 @@ typedef struct cuda_wq_node {
     cudaStream_t stream;     // execution stream
     workParticle *ppWP[CUDA_PP_MAX_BUFFERED];
     int ppNI[CUDA_PP_MAX_BUFFERED];
-    int ppSize; // Number of bytes consumed in the buffer
+    int ppSizeIn; // Number of bytes consumed in the buffer
+    int ppSizeOut; // Number of bytes consumed in the buffer
     int ppnBuffered;
     } CUDAwqNode;
 
