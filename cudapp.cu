@@ -42,10 +42,25 @@ struct __align__(32) ppResult {
     float normsum;
     };
 
+template<int n>
+struct ppBLK {
+    float dx[n],dy[n],dz[n];/* Offset from ilp->cx, cy, cz */
+    float m[n],fourh2[n];   /* Mass & Softening */
+    };
+
+struct ppInput {
+    int nP[CUDA_PP_MAX_BUFFERED];   // Number of particles
+    int iP[CUDA_PP_MAX_BUFFERED];   // Index of particle
+    int iBLK[CUDA_PP_MAX_BUFFERED]; // Index of the interaction block
+    };
+
+#define NP_ALIGN (128/sizeof(ppResult))
+#define NP_ALIGN_MASK (NP_ALIGN-1)
+
 // A good number for nWarps is 4 giving 128 threads per thread block
 // nMaxBucket=32 and nSyncRate=8
 // Each thread block outputs ay,ay,az,fPot,dirsum,normsum for each particle
-template <int nWarps,int nMaxBucket,int nSyncRate>
+template <int nWarps,int nSyncRate>
 __global__ void cudaPP(
     int nPart,
     const float * __restrict__ pX, const float * __restrict__ pY, const float * __restrict__ pZ, // Particles
@@ -54,7 +69,7 @@ __global__ void cudaPP(
     int nInteract, const ILP_BLK * __restrict__ blk,ppResult *out) { // interactions
     int iWarp = threadIdx.x / 32;
     int iTinW = threadIdx.x % 32;
-    int nPaligned = (nPart+31) & ~31;
+    int nPaligned = (nPart+NP_ALIGN_MASK) & ~NP_ALIGN_MASK;
     int iOutBlock = nPaligned * blockIdx.x;
     int i, iSync;
 
@@ -171,7 +186,6 @@ __global__ void cudaPP(
         // every set of 4 threads does another reduce. As long as the
         // number of warps is a power of 2 <= the warp size (32), we
         // can do this step without any further synchronization.
-        // __shared__ float wX[nSyncRate][nWarps];
 
         int nOut = iEnd * nWarps; // Normally 32
         if (threadIdx.x<nOut) {
@@ -200,7 +214,7 @@ int CUDAcheckWorkPP( void *vpp, void *vwork ) {
 
     for( ib=0; ib<work->ppnBuffered; ++ib) {
         workParticle *wp = work->ppWP[ib];
-        int nPaligned = (wp->nP+31) & ~31;
+        int nPaligned = (wp->nP+NP_ALIGN_MASK) & ~NP_ALIGN_MASK;
         PINFOOUT *pInfoOut = wp->pInfoOut;
         int nGridBlocks = (work->ppNI[ib] + 32*WARPS - 1) / (32*WARPS);
 
@@ -259,7 +273,7 @@ void CUDA_sendWorkPP(void *cudaCtx) {
         // Why problematic? When do I do the return transfer without chaining events?
         for( i=0; i<work->ppnBuffered; ++i) {
             int nP = work->ppWP[i]->nP;
-            int nPaligned = (nP+31) & ~31;
+            int nPaligned = (nP+NP_ALIGN_MASK) & ~NP_ALIGN_MASK;
             int nInteract = work->ppNI[i];
             int nBlocks = (nInteract+ILP_PART_PER_BLK-1) / ILP_PART_PER_BLK;
 
@@ -278,8 +292,8 @@ void CUDA_sendWorkPP(void *cudaCtx) {
             int nGridBlocks = (nInteract + 32*WARPS - 1) / (32*WARPS);
             dim3 dimBlock( 32*WARPS, 1 );
             dim3 dimGrid( nGridBlocks, 1,1);
-#if 0
-            cudaPP<WARPS,MAX_BUCKET,SYNC_RATE><<<dimGrid, dimBlock, 0, work->stream>>>(
+#if 1
+            cudaPP<WARPS,SYNC_RATE><<<dimGrid, dimBlock, 0, work->stream>>>(
                 nP, pX, pY, pZ, pAX, pAY, pAZ, pSmooth2,
                 nInteract, blk,pCudaBufOut );
 #endif
@@ -307,7 +321,7 @@ int CUDA_queuePP(void *cudaCtx,workParticle *wp, ILPTILE tile) {
     CUDAwqNode *work = cuda->nodePP;
     PINFOIN *pInfoIn = wp->pInfoIn;
     int nP = wp->nP;
-    int nPaligned = (nP+31) & ~31;
+    int nPaligned = (nP+NP_ALIGN_MASK) & ~NP_ALIGN_MASK;
     int nBlocks = tile->lstTile.nBlocks + (tile->lstTile.nInLast?1:0);
     int nInteract = tile->lstTile.nBlocks*ILP_PART_PER_BLK + tile->lstTile.nInLast;
     int nBytesIn = nPaligned * sizeof(float) * 7 + nBlocks*sizeof(ILP_BLK);
