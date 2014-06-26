@@ -123,6 +123,7 @@ typedef struct cuda_wq_node {
     int ppNI[CUDA_PP_MAX_BUFFERED];
     int ppSizeIn; // Number of bytes consumed in the buffer
     int ppSizeOut; // Number of bytes consumed in the buffer
+    int ppnBlocks;
     int ppnBuffered;
     } CUDAwqNode;
 

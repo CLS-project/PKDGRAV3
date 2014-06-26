@@ -354,7 +354,7 @@ static void queuePP( PKD pkd, workParticle *work, ILP ilp ) {
     workPP *pp;
 
     ILP_LOOP(ilp,tile) {
-#ifdef xUSE_CUDA
+#ifdef USE_CUDA
 	if (CUDA_queuePP(pkd->mdl->cudaCtx,work,tile)) continue;
 #endif
 	pp = malloc(sizeof(workPP));
