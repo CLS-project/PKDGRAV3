@@ -57,8 +57,7 @@ struct ppInput {
 #define NP_ALIGN (128/sizeof(ppResult))
 #define NP_ALIGN_MASK (NP_ALIGN-1)
 
-// A good number for nWarps is 4 giving 128 threads per thread block
-// nMaxBucket=32 and nSyncRate=8
+// A good number for nWarps is 4 giving 128 threads per thread block, nSyncRate=8
 // Each thread block outputs ay,ay,az,fPot,dirsum,normsum for each particle
 template <int nWarps,int nSyncRate>
 __global__ void cudaPP(
@@ -95,7 +94,7 @@ __global__ void cudaPP(
 
     // Load the interaction. It is blocked for performance.
     // nWarps and ILP_PART_PER_BLK are constant, so only one code path here.
-    int ii = threadIdx.x + blockIdx.x * gridDim.x; // Our interaction
+    int ii = threadIdx.x + blockIdx.x * blockDim.x; // Our interaction
     int iix, iiy;
     if (nWarps*32 == ILP_PART_PER_BLK) {
         iiy = blockIdx.x;
@@ -105,12 +104,14 @@ __global__ void cudaPP(
         iiy = ii / ILP_PART_PER_BLK;
         iix = ii % ILP_PART_PER_BLK;
         }
-    float iX = blk[iiy].dx.f[iix];
-    float iY = blk[iiy].dy.f[iix];
-    float iZ = blk[iiy].dz.f[iix];
-    float iM = blk[iiy].m.f[iix];
-    float ifourh2 = blk[iiy].fourh2.f[iix];
-
+    float iX,iY,iZ,iM,ifourh2;
+    if (ii<nInteract) {
+        iX = blk[iiy].dx.f[iix];
+        iY = blk[iiy].dy.f[iix];
+        iZ = blk[iiy].dz.f[iix];
+        iM = blk[iiy].m.f[iix];
+        ifourh2 = blk[iiy].fourh2.f[iix];
+        }
     for(iSync=0; iSync<nPart; iSync += nSyncRate) {
         int iEnd = nPart - iSync;
         if (iEnd > nSyncRate) iEnd=nSyncRate;
@@ -132,12 +133,12 @@ __global__ void cudaPP(
 
         for( i=0; i<iEnd; ++i) {
             float ax=0.0f, ay=0.0f, az=0.0f, fPot=0.0f, dirsum=0.0f, normsum=0.0f;
-            float dx, dy, dz, d2, fourh2,dir,dir2,dir3;
             if (ii<nInteract) {
-                dx = iX + X[i];
-                dy = iY + Y[i];
-                dz = iZ + Z[i];
-                d2 = dx*dx + dy*dy + dz*dz;
+                float fourh2,dir,dir2,dir3;
+                float dx = iX + X[i];
+                float dy = iY + Y[i];
+                float dz = iZ + Z[i];
+                float d2 = dx*dx + dy*dy + dz*dz;
                 if (d2 != 0.0f ) { /* Ignore self interactions */
                     fourh2 = ifourh2;
                     if (d2 > fourh2) fourh2 = d2;
@@ -158,7 +159,6 @@ __global__ void cudaPP(
                     ay = dy * dir3;
                     az = dz * dir3;
                     fPot = -iM*dir;
-
                     /*
                     ** Calculations for determining the timestep.
                     */
@@ -276,10 +276,6 @@ void CUDA_sendWorkPP(void *cudaCtx) {
             int nPaligned = (nP+NP_ALIGN_MASK) & ~NP_ALIGN_MASK;
             int nInteract = work->ppNI[i];
             int nBlocks = (nInteract+ILP_PART_PER_BLK-1) / ILP_PART_PER_BLK;
-
-
-//            printf("XMIT: nP = %d nBlocks = %d\n", nPaligned, nBlocks );
-
             float *pX       = reinterpret_cast<float *>(pCudaBufIn);
             float *pY       = pX  + nPaligned;
             float *pZ       = pY  + nPaligned;
@@ -292,17 +288,14 @@ void CUDA_sendWorkPP(void *cudaCtx) {
             int nGridBlocks = (nInteract + 32*WARPS - 1) / (32*WARPS);
             dim3 dimBlock( 32*WARPS, 1 );
             dim3 dimGrid( nGridBlocks, 1,1);
-#if 1
             cudaPP<WARPS,SYNC_RATE><<<dimGrid, dimBlock, 0, work->stream>>>(
                 nP, pX, pY, pZ, pAX, pAY, pAZ, pSmooth2,
                 nInteract, blk,pCudaBufOut );
-#endif
+
             int nOutBlocks = nGridBlocks * nPaligned;
             pCudaBufOut += nOutBlocks;
             nBufferOut += sizeof(ppResult) * nOutBlocks;
             }
-//        printf("  => SEND %d bytes\n", nBufferIn);
-
         assert(nBufferIn == reinterpret_cast<char *>(pCudaBufIn) - reinterpret_cast<char *>(work->pCudaBufIn));
         assert(nBufferOut <= cuda->inCudaBufSize);
         CUDA_CHECK(cudaMemcpyAsync,(pHostBuf, work->pCudaBufOut, nBufferOut, cudaMemcpyDeviceToHost, work->stream));
@@ -361,7 +354,6 @@ int CUDA_queuePP(void *cudaCtx,workParticle *wp, ILPTILE tile) {
     float *pSmooth2 = pAZ + nPaligned;
     ILP_BLK * __restrict__ blk = reinterpret_cast<ILP_BLK*>(pSmooth2 + nPaligned);
     for(i=0; i<nP; ++i) {
-//	printf("%d: %llu\n", i, wp->pPart[i]->iOrder);
         pX[i] =  pInfoIn[i].r[0];
         pY[i] =  pInfoIn[i].r[1];
         pZ[i] =  pInfoIn[i].r[2];
@@ -372,9 +364,6 @@ int CUDA_queuePP(void *cudaCtx,workParticle *wp, ILPTILE tile) {
         }
     for(i=0; i<nBlocks; ++i) blk[i] = tile->blk[i];
 
-//    printf("BUFFER: nP = %d nBlocks = %d\n", nPaligned, nBlocks );
-
-//    printf("CUDA: buffering %d bytes\n", nBytesIn);
     work->ppSizeIn += nBytesIn;
     work->ppNI[work->ppnBuffered] = nInteract;
     work->ppWP[work->ppnBuffered] = wp;
