@@ -7,9 +7,9 @@
 
 #include "lst.h"
 
-#define ILC_TILE_SIZE (100*1024) /* 100k */
+#define ILC_TILE_SIZE (200*1024) /* 200k */
 #ifndef ILC_PART_PER_BLK
-#define ILC_PART_PER_BLK (16)
+#define ILC_PART_PER_BLK (128)
 #endif
 
 #if !defined(__CUDACC__)

@@ -684,7 +684,7 @@ static int mdlDoSomeWork(MDL mdl) {
 
 static void mdlCompleteAllWork(MDL mdl) {
 #ifdef USE_CUDA
-    CUDA_sendWorkPP(mdl->cudaCtx);
+    CUDA_sendWork(mdl->cudaCtx);
 #endif
     while(mdlDoSomeWork(mdl)) {}
     }

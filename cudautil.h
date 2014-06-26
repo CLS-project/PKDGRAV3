@@ -20,8 +20,9 @@ extern "C" {
 	int (*checkWork)(void *ctx,void *work),
 	int (*doneWork)(void *ctx));
     int CUDA_flushDone(void *vcuda);
-    int CUDA_queuePP(void *cudaCtx,workParticle *wp, ILPTILE ilp);
-    void CUDA_sendWorkPP(void *cudaCtx);
+    int CUDA_queuePP(void *cudaCtx,workParticle *wp, ILPTILE tile);
+    int CUDA_queuePC(void *cudaCtx,workParticle *wp, ILCTILE tile);
+    void CUDA_sendWork(void *cudaCtx);
 
 #else
 #include "simd.h"
@@ -79,34 +80,9 @@ __device__ void warpReduceAndStore(volatile T * data, int tid,T t,T *result) {
     if (tid==0) *result = t;
     }
 
-#include "ilp.h"
-#include "ilc.h"
-#include "basetype.h"
-
 void CUDA_Abort(cudaError_t rc, const char *fname, const char *file, int line);
 
 #define CUDA_CHECK(f,a) {cudaError_t rc = (f)a; if (rc!=cudaSuccess) CUDA_Abort(rc,#f,__FILE__,__LINE__);}
-
-typedef struct gpu_input {
-    struct gpu_input *next;
-    PINFOIN *cpuIn;
-    PINFOIN *in;       // Input particles
-    cudaEvent_t event; // Input particles have been copied
-    int nRefs;
-    } gpuInput;
-
-typedef struct gpu_block {
-    struct gpu_block *next;
-    union {
-	ILP_BLK *gpuBlk;       // Input block
-	ILC_BLK *gpuBlkILC;    // Input block
-	};
-    PINFOOUT *gpuResults;  // Results in GPU memory
-    PINFOOUT *cpuResults;  // Results in CPU memory
-    cudaEvent_t event;     // Results have been copied back
-    cudaStream_t stream;   // execution stream
-    } gpuBlock;
-
 #define CUDA_PP_MAX_BUFFERED 128
 
 typedef struct cuda_wq_node {
@@ -128,15 +104,16 @@ typedef struct cuda_wq_node {
     } CUDAwqNode;
 
 typedef struct cuda_ctx {
-    gpuInput   *in;
-    gpuBlock   *block;
     struct cudaDeviceProp prop;
     CUDAwqNode *wqCuda;
     CUDAwqNode *wqFree;
     CUDAwqNode *nodePP; // We are building a PP request
+    CUDAwqNode *nodePC; // We are building a PC request
     int iWorkQueueSize;
     int inCudaBufSize, outCudaBufSize;
     } *CUDACTX;
+
+
 
 #endif
 

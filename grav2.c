@@ -700,6 +700,9 @@ static void queuePC( PKD pkd,  workParticle *work, ILC ilc ) {
     workPC *pc;
 
     ILC_LOOP(ilc,tile) {
+#ifdef USE_CUDA
+	if (CUDA_queuePC(pkd->mdl->cudaCtx,work,tile)) continue;
+#endif
 	pc = malloc(sizeof(workPC));
 	assert(pc!=NULL);
 	pc->pInfoOut = malloc(sizeof(PINFOOUT) * work->nP);

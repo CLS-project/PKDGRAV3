@@ -17,7 +17,16 @@ __constant__ float hz[MAX_TOTAL_REPLICAS];
 __constant__ float hCfac[MAX_TOTAL_REPLICAS];
 __constant__ float hSfac[MAX_TOTAL_REPLICAS];
 
-
+/*
+** nvcc -DHAVE_CONFIG_H --ptxas-options=-v -c  -I. -arch=sm_35 cudaewald.cu
+** ptxas info    : 0 bytes gmem, 7464 bytes cmem[3]
+** ptxas info    : Compiling entry function '_Z9cudaEwaldPdS_S_S_' for 'sm_35'
+** ptxas info    : Function properties for _Z9cudaEwaldPdS_S_S_
+**     8 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+** ptxas info    : Used 82 registers, 2176 bytes smem, 352 bytes cmem[0], 716 bytes cmem[2]
+** ptxas info    : Function properties for __internal_trig_reduction_slowpathd
+**     40 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+*/
 
 
 /*
