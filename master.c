@@ -1204,6 +1204,7 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     ** Mark the Domain Decompositon as not done
     */
     msr->iLastRungRT = -1;
+    msr->iLastRungDD = -1;
     msr->nRung = malloc((msr->param.iMaxRung+1)*sizeof(uint64_t));
     assert(msr->nRung != NULL);
     for (i=0;i<=msr->param.iMaxRung;++i) msr->nRung[i] = 0;
@@ -2171,6 +2172,7 @@ void msrRungOrder(MSR msr, int iRung) {
 
     ro.iRung = iRung;
     msr->iLastRungRT = iRung;
+    msr->iLastRungDD = iRung;
     pstRungOrder(msr->pst,&ro,sizeof(ro),&outRung,NULL);
 
     dsec = msrTime() - sec;
@@ -2278,7 +2280,14 @@ void msrDomainDecompOld(MSR msr,int iRung,int bSplitVA) {
 	    in.bDoRootFind = 1;
 	    in.bDoSplitDimFind = 1;
 	    }
-	else if (iRung > iRungDD && !bSplitVA) {
+	else if (iRung == msr->iLastRungDD) {
+	    if (msr->param.bVRungStat) {
+		printf("Skipping Domain Decomposition (nActive = %"PRIu64"/%"PRIu64", iRung:%d iRungDD:%d iLastRungRT:%d)\n",
+		    msr->nActive,msr->N,iRung,iRungDD,msr->iLastRungRT);
+		}
+	    return;  /* do absolutely nothing! */
+	    }
+	else if (iRung >= iRungDD && !bSplitVA) {
 	    if (msr->iLastRungRT < iRungRT) {
 		msr->iLastRungRT = iRungRT;
 		msrActiveRung(msr,iRungRT,1);
@@ -2304,8 +2313,8 @@ void msrDomainDecompOld(MSR msr,int iRung,int bSplitVA) {
 		}
 	    else {
 		if (msr->param.bVRungStat) {
-		    printf("Skipping Root Finder (nActive = %"PRIu64"/%"PRIu64", iRung:%d iRungRT:%d iLastRungRT:%d)\n",
-			msr->nActive,msr->N,iRung,iRungRT,msr->iLastRungRT);
+		    printf("Skipping Root Finder (nActive = %"PRIu64"/%"PRIu64", iRung:%d iRungRT:%d iRungDD:%d iLastRungRT:%d)\n",
+			msr->nActive,msr->N,iRung,iRungRT,iRungDD,msr->iLastRungRT);
 		    }
 		in.bDoRootFind = 0;
 		in.bDoSplitDimFind = 0;
@@ -2314,8 +2323,8 @@ void msrDomainDecompOld(MSR msr,int iRung,int bSplitVA) {
 	else if (iRung > iRungSD) {
 	    if (msr->iLastRungRT == iRung) {
 		if (msr->param.bVRungStat) {
-		    printf("Skipping Root Finder (nActive = %"PRIu64"/%"PRIu64", iRung:%d iRungRT:%d iLastRungRT:%d)\n",
-			msr->nActive,msr->N,iRung,iRungRT,msr->iLastRungRT);
+		    printf("Skipping Root Finder (nActive = %"PRIu64"/%"PRIu64", iRung:%d iRungRT:%d iRungDD:%d iLastRungRT:%d)\n",
+			msr->nActive,msr->N,iRung,iRungRT,iRungDD,msr->iLastRungRT);
 		    }
 		in.bDoRootFind = 0;
 		in.bDoSplitDimFind = 0;
@@ -2342,6 +2351,7 @@ void msrDomainDecompOld(MSR msr,int iRung,int bSplitVA) {
 		}
 	    }
 	}
+    msr->iLastRungDD = msr->iLastRungRT;
 
     in.nActive = msr->nActive;
     in.nTotal = msr->N;
@@ -2509,6 +2519,7 @@ void msrReorder(MSR msr) {
     ** Mark domain decomp as not done.
     */
     msr->iLastRungRT = -1;
+    msr->iLastRungDD = -1;
     }
 
 void msrOutASCII(MSR msr,const char *pszFile,int iType,int nDims) {
