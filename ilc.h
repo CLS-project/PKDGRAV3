@@ -9,7 +9,7 @@
 
 #define ILC_TILE_SIZE (200*1024) /* 200k */
 #ifndef ILC_PART_PER_BLK
-#define ILC_PART_PER_BLK (128)
+#define ILC_PART_PER_BLK (32)
 #endif
 
 #if !defined(__CUDACC__)
