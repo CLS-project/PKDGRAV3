@@ -409,18 +409,17 @@ __global__ void cudaInteract(
 		ax = dir*(yy + xx + xxx + tx - x*g0);
 		ay = dir*(yz + xy + xxy + ty - y*g0);
 		az = dir*(zz + xz + xxz + tz - z*g0);
-#if 0
-        /*
-        ** Calculations for determining the timestep.
-        */
-        float adotai = a[0]*tax + a[1]*tay + a[2]*taz;
-        if (adotai > 0.0f /*&& d2 >= in[i].fSmooth2*/) {
-            adotai *= dimaga;
-            atomicAdd(&dirsum[wid],dir*adotai*adotai);
-            atomicAdd(&normsum[wid],adotai*adotai);
-            }
 
-#endif
+                /*
+                ** Calculations for determining the timestep.
+                */
+                float adotai;
+                adotai = Particles.P[i].ax*ax + Particles.P[i].ay*ay + Particles.P[i].az*az;
+                if (adotai > 0.0f && d2 >= Particles.P[i].fSoft2 ) {
+                    adotai *= Particles.P[i].dImaga;
+                    dirsum = dir*adotai*adotai;
+                    normsum = adotai*adotai;
+                    }
                 }
             // Horizontal add within each warp -- no sychronization required
             warpReduceAndStore<float,32>(reduce[iWarp],iTinW,ax,     &wX[i][iWarp]);
