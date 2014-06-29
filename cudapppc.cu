@@ -135,12 +135,11 @@ __global__ void cudaInteract(
         iI =   threadIdx.y*blockDim.x + threadIdx.x; // Index of interaction
         iWarp = threadIdx.y;
         }
-    else {
+    else {                          // blockDim.z == 2, blockDim.y == 2, blockDim.x == 32
         // Calculate our interaction and particle group
         iWork = blockIdx.x*blockDim.z + threadIdx.z; // Work and corresponding blk
         iI =   threadIdx.y*blockDim.x + threadIdx.x; // Thread working on blk
-        int iAll = iI + threadIdx.z*blockDim.y*blockDim.x;
-        iWarp = iAll / 32;
+        iWarp = threadIdx.y + blockDim.y*threadIdx.z;
         }
     int iTinW = iI % 32;
 
@@ -254,7 +253,7 @@ __global__ void cudaInteract(
         // can do this step without any further synchronization.
         int nOut = iEnd * nWarpsPerWU; // Normally 64
         if (iI<nOut) {
-            int iP    = (iI & ~(nWarpsPerWU-1)) * nWarps/nWarpsPerWU + threadIdx.z; // 0,4,8,...
+            int iP    = (iI & ~(nWarpsPerWU-1)) * nWarps/nWarpsPerWU + threadIdx.z*nWarpsPerWU; // 0,4,8,...
             int iWarp = iI &  (nWarpsPerWU-1); // 0 .. 3
             int iOut  = iI / nWarpsPerWU + iSync;
          
