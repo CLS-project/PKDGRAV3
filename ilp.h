@@ -10,7 +10,7 @@
 
 #define ILP_TILE_SIZE (100*1024) /* 100k */
 #ifndef ILP_PART_PER_BLK
-#define ILP_PART_PER_BLK (32)
+#define ILP_PART_PER_BLK (32) /* Don't mess with this: see CUDA */
 #endif
 
 #if !defined(__CUDACC__)
