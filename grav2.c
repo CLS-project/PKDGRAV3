@@ -124,12 +124,9 @@ void pkdParticleWorkDone(workParticle *work) {
 	}
     }
 
-
-int CPUdoWorkPP(void *vpp) {
-    workPP *pp = vpp;
-    int nLeft, n;
+inline void pkdGravEvalPP(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  PINFOOUT *pOut ) {
+    int nLeft;
     int j;
-    ILP_BLK *blk;
 #if defined(USE_SIMD_PP)
     v_sf t1, t2, t3, pd2;
     v_sf pax, pay, paz, pfx, pfy, pfz, pdx, pdy, pdz;
@@ -143,20 +140,19 @@ int CPUdoWorkPP(void *vpp) {
     float tax,tay,taz;
     float dimaga;
 
-    int i = pp->i;
-    ILPTILE tile = pp->tile;
-    float fx = pp->work->pInfoIn[i].r[0];
-    float fy = pp->work->pInfoIn[i].r[1];
-    float fz = pp->work->pInfoIn[i].r[2];
-    /*float fMass = pp->work->pInfoIn[i].fMass;*/
-    /*float fSoft = pp->work->pInfoIn[i].fSoft;*/
-    float fsmooth2 = pp->work->pInfoIn[i].fSmooth2;
-    float *a =pp->work->pInfoIn[i].a;
+    float fx = pPart->r[0];
+    float fy = pPart->r[1];
+    float fz = pPart->r[2];
+    /*float fMass = pPart->.fMass;*/
+    /*float fSoft = pPart->.fSoft;*/
+    float fsmooth2 = pPart->fSmooth2;
+    float *a =pPart->a;
 
     dimaga = a[0]*a[0] + a[1]*a[1] + a[2]*a[2];
     if (dimaga > 0) {
 	dimaga = 1.0/sqrt(dimaga);
 	}
+
 #ifdef USE_SIMD_PP
     pimaga = SIMD_SPLAT(dimaga);
 
@@ -166,12 +162,10 @@ int CPUdoWorkPP(void *vpp) {
     ** forces are zero. Setting the distance to a large value avoids
     ** softening the non-existent forces which is slightly faster.
     */
-    n = pp->nBlocks;
-    j = pp->nInLast;
-    for( blk=tile->blk+n; j&SIMD_MASK; j++) {
-	blk->dx.f[j] = blk->dy.f[j] = blk->dz.f[j] = 1e18f;
-	blk->m.f[j] = 0.0f;
-	blk->fourh2.f[j] = 1e-18f;
+    for( j = nInLast; j&SIMD_MASK; j++) {
+	blk[nBlocks].dx.f[j] = blk[nBlocks].dy.f[j] = blk[nBlocks].dz.f[j] = 1e18f;
+	blk[nBlocks].m.f[j] = 0.0f;
+	blk[nBlocks].fourh2.f[j] = 1e-18f;
 	}
 
     /*
@@ -195,9 +189,8 @@ int CPUdoWorkPP(void *vpp) {
     /*p4soft2 = SIMD_SPLAT(4.0*fSoft*fSoft);*/
     psmooth2= SIMD_SPLAT(fsmooth2);
 
-    blk = tile->blk;
-    for( nLeft=pp->nBlocks; nLeft >= 0; --nLeft,++blk ) {
-	n = ((nLeft ? ILP_PART_PER_BLK : pp->nInLast) + SIMD_MASK) >> SIMD_BITS;
+    for( nLeft=nBlocks; nLeft >= 0; --nLeft,++blk ) {
+	int n = ((nLeft ? ILP_PART_PER_BLK : nInLast) + SIMD_MASK) >> SIMD_BITS;
 	for (j=0; j<n; ++j) {
 	    v_sf pfourh2, td2, pir, pir2;
 	    v_bool vcmp;
@@ -272,9 +265,8 @@ int CPUdoWorkPP(void *vpp) {
     dirsum = 0.0;
     normsum = 0.0;
 
-    blk = tile->blk;
-    for( nLeft=pp->nBlocks; nLeft >= 0; --nLeft,++blk ) {
-	n = (nLeft ? ILP_PART_PER_BLK : pp->nInLast);
+    for( nLeft=nBlocks; nLeft >= 0; --nLeft,++blk ) {
+	n = (nLeft ? ILP_PART_PER_BLK : nInLast);
 	for (j=0; j<n; ++j) {
 	    dx = fx + blk->dx.f[j];
 	    dy = fy + blk->dy.f[j];
@@ -318,12 +310,31 @@ int CPUdoWorkPP(void *vpp) {
 	    }
 	}
 #endif
-    pp->pInfoOut[i].a[0] = ax;
-    pp->pInfoOut[i].a[1] = ay;
-    pp->pInfoOut[i].a[2] = az;
-    pp->pInfoOut[i].fPot = fPot;
-    pp->pInfoOut[i].dirsum = dirsum;
-    pp->pInfoOut[i].normsum = normsum;
+    pOut->a[0] += ax;
+    pOut->a[1] += ay;
+    pOut->a[2] += az;
+    pOut->fPot += fPot;
+    pOut->dirsum += dirsum;
+    pOut->normsum += normsum;
+    }
+
+
+int CPUdoWorkPP(void *vpp) {
+    workPP *pp = vpp;
+    ILPTILE tile = pp->tile;
+    ILP_BLK *blk = tile->blk;
+    PINFOIN *pPart = &pp->work->pInfoIn[pp->i];
+    PINFOOUT *pOut = &pp->pInfoOut[pp->i];
+    int nBlocks = tile->lstTile.nBlocks;
+    int nInLast = tile->lstTile.nInLast;
+
+    pOut->a[0] = 0.0;
+    pOut->a[1] = 0.0;
+    pOut->a[2] = 0.0;
+    pOut->fPot = 0.0;
+    pOut->dirsum = 0.0;
+    pOut->normsum = 0.0;
+    pkdGravEvalPP(pPart,nBlocks,nInLast,blk,pOut);
 
     if ( ++pp->i == pp->work->nP ) return 0;
     else return 1;
@@ -364,8 +375,6 @@ static void queuePP( PKD pkd, workParticle *work, ILP ilp ) {
 	pp->work = work;
 	pp->ilp = ilp;
 	pp->tile = tile;
-	pp->nBlocks = tile->lstTile.nBlocks;
-	pp->nInLast = tile->lstTile.nInLast;
 	pp->i = 0;
 	tile->lstTile.nRefs++;
 	work->nRefs++;
@@ -373,8 +382,7 @@ static void queuePP( PKD pkd, workParticle *work, ILP ilp ) {
 	}
     }
 
-int CPUdoWorkPC(void *vpc) {
-    workPC *pc = vpc;
+inline void pkdGravEvalPC(PINFOIN *pPart, int nBlocks, int nInLast, ILC_BLK *blk,  PINFOOUT *pOut ) {
 
 #if defined(USE_SIMD_PC)
     v_sf u,g0,g1,g2,g3,g4;
@@ -400,18 +408,15 @@ int CPUdoWorkPC(void *vpc) {
     float dir;
 #endif
     float dimaga, tax, tay, taz;
-    ILC_BLK *blk;
     int j, n, nLeft;
 
-    int i = pc->i;
-    ILCTILE ctile = pc->tile;
-    float fx = pc->work->pInfoIn[i].r[0];
-    float fy = pc->work->pInfoIn[i].r[1];
-    float fz = pc->work->pInfoIn[i].r[2];
-    /*float fMass = pc->work->pInfoIn[i].fMass;*/
-    /*float fSoft = pc->work->pInfoIn[i].fSoft;*/
-    float fsmooth2 = pc->work->pInfoIn[i].fSmooth2;
-    float *a =pc->work->pInfoIn[i].a;
+    float fx = pPart->r[0];
+    float fy = pPart->r[1];
+    float fz = pPart->r[2];
+    /*float fMass = pPart->fMass;*/
+    /*float fSoft = pPart->fSoft;*/
+    float fsmooth2 = pPart->fSmooth2;
+    float *a =pPart->a;
     float ax,ay,az,fPot,dirsum,normsum;
 
     dimaga = a[0]*a[0] + a[1]*a[1] + a[2]*a[2];
@@ -437,17 +442,14 @@ int CPUdoWorkPC(void *vpc) {
     pimaga  = SIMD_SPLAT(dimaga);
 
     /* Pad the last value if necessary */
-    n = pc->nBlocks;
-    j = pc->nInLast;
-    for( blk=ctile->blk+n; j&SIMD_MASK; j++) {
-	blk->dx.f[j] = blk->dy.f[j] = blk->dz.f[j] = 1e18f;
-	blk->m.f[j] = 0.0f;
-	blk->u.f[j] = 0.0f;
+    for( j = nInLast; j&SIMD_MASK; j++) {
+	blk[nBlocks].dx.f[j] = blk[nBlocks].dy.f[j] = blk[nBlocks].dz.f[j] = 1e18f;
+	blk[nBlocks].m.f[j] = 0.0f;
+	blk[nBlocks].u.f[j] = 0.0f;
 	}
 
-    blk = ctile->blk;
-    for( nLeft=pc->nBlocks; nLeft >= 0; --nLeft,++blk ) {
-	n = ((nLeft ? ILC_PART_PER_BLK : pc->nInLast) + SIMD_MASK) >> SIMD_BITS;
+    for( nLeft=nBlocks; nLeft >= 0; --nLeft,++blk ) {
+	n = ((nLeft ? ILC_PART_PER_BLK : nInLast) + SIMD_MASK) >> SIMD_BITS;
 	for (j=0; j<n; ++j) {
 	    v_sf pir, pd2;
 	    v_bool vcmp;
@@ -580,9 +582,8 @@ int CPUdoWorkPC(void *vpc) {
     dirsum = 0.0;
     normsum = 0.0;
 
-    blk = ctile->blk;
-    for( nLeft=pc->nBlocks; nLeft >= 0; --nLeft,++blk ) {
-	n = (nLeft ? ILC_PART_PER_BLK : pc->nInLast);
+    for( nLeft=nBlocks; nLeft >= 0; --nLeft,++blk ) {
+	n = (nLeft ? ILC_PART_PER_BLK : nInLast);
 	for (j=0; j<n; ++j) {
 	    float dx = blk->dx.f[j] + fx;
 	    float dy = blk->dy.f[j] + fy;
@@ -652,7 +653,7 @@ int CPUdoWorkPC(void *vpc) {
 	    /*
 	    ** Calculations for determining the timestep.
 	    */
-	    adotai = pc->work->pInfoIn[i].a[0]*tax + pc->work->pInfoIn[i].a[1]*tay + pc->work->pInfoIn[i].a[2]*taz;
+	    adotai = pPart->a[0]*tax + pPart->a[1]*tay + pPart->a[2]*taz;
 	    if (adotai > 0) {
 		adotai *= dimaga;
 		dirsum += dir*adotai*adotai;
@@ -664,12 +665,30 @@ int CPUdoWorkPC(void *vpc) {
 	    }
 	}
 #endif
-    pc->pInfoOut[i].a[0] = ax;
-    pc->pInfoOut[i].a[1] = ay;
-    pc->pInfoOut[i].a[2] = az;
-    pc->pInfoOut[i].fPot = fPot;
-    pc->pInfoOut[i].dirsum = dirsum;
-    pc->pInfoOut[i].normsum = normsum;
+    pOut->a[0] += ax;
+    pOut->a[1] += ay;
+    pOut->a[2] += az;
+    pOut->fPot += fPot;
+    pOut->dirsum += dirsum;
+    pOut->normsum += normsum;
+    }
+
+int CPUdoWorkPC(void *vpc) {
+    workPC *pc = vpc;
+    ILCTILE tile = pc->tile;
+    ILC_BLK *blk = tile->blk;
+    PINFOIN *pPart = &pc->work->pInfoIn[pc->i];
+    PINFOOUT *pOut = &pc->pInfoOut[pc->i];
+    int nBlocks = tile->lstTile.nBlocks;
+    int nInLast = tile->lstTile.nInLast;
+
+    pOut->a[0] = 0.0;
+    pOut->a[1] = 0.0;
+    pOut->a[2] = 0.0;
+    pOut->fPot = 0.0;
+    pOut->dirsum = 0.0;
+    pOut->normsum = 0.0;
+    pkdGravEvalPC(pPart,nBlocks,nInLast,blk,pOut);
     if ( ++pc->i == pc->work->nP ) return 0;
     else return 1;
     }
@@ -710,8 +729,6 @@ static void queuePC( PKD pkd,  workParticle *work, ILC ilc ) {
 	pc->work = work;
 	pc->ilc = ilc;
 	pc->tile = tile;
-	pc->nBlocks = tile->lstTile.nBlocks;
-	pc->nInLast = tile->lstTile.nInLast;
 	pc->i = 0;
 	tile->lstTile.nRefs++;
 	work->nRefs++;
@@ -838,7 +855,6 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
     work->bGravStep = bGravStep;
 #ifdef USE_CUDA
     work->cudaCtx = pkd->cudaCtx;
-    work->gpu_memory = NULL;
 #endif
     for (i=pkdn->pLower;i<=pkdn->pUpper;++i) {
 	p = pkdParticle(pkd,i);

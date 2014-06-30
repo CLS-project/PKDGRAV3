@@ -102,7 +102,6 @@ typedef struct {
     int bGravStep;
 #ifdef USE_CUDA
     void *cudaCtx;
-    void *gpu_memory;
 #endif
     } workParticle;
 
@@ -115,12 +114,6 @@ typedef struct {
     ILPTILE tile;
     workParticle *work;
     int i;
-    uint16_t nBlocks;
-    uint16_t nInLast;
-#ifdef USE_CUDA
-    void *gpu_memory;
-    int nCudaBlks;
-#endif
     } workPP;
 
 typedef struct {
@@ -129,11 +122,6 @@ typedef struct {
     ILCTILE tile;
     workParticle *work;
     int i;
-    uint16_t nBlocks;
-    uint16_t nInLast;
-#ifdef USE_CUDA
-    void *gpu_memory;
-#endif
     } workPC;
 
 /* Careful! For compute <3.0, 65535 is the limit */
