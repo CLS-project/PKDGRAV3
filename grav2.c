@@ -743,19 +743,25 @@ static void queuePC( PKD pkd,  workParticle *work, ILC ilc ) {
     }
 
 int CPUdoWorkEwald(void *ve) {
-    workEwald *e = ve;
-    PKD pkd = (PKD)e->pkd;
-    while(pkd->ewWork->nP--) {
-	PARTICLE *p = pkd->ewWork->pPart[pkd->ewWork->nP];
-	/*dEwFlop +=*/ pkdParticleEwald(pkd,p,pkdAccel(pkd,p),pkdPot(pkd,p));
+    workEwald *ew = ve;
+    PKD pkd = (PKD)ew->pkd;
+    while(ew->nP--) {
+	workParticle *wp = ew->ppWorkPart[ew->nP];
+	int wi = ew->piWorkPart[ew->nP];
+	PARTICLE *p = wp->pPart[wi];
+	/*PINFOIN *in = &wp->pInfoIn[wi];*/
+	PINFOOUT *out = &wp->pInfoOut[wi];
+	/*dEwFlop +=*/ pkdParticleEwald(pkd,p,out->a,&out->fPot);
+	pkdParticleWorkDone(wp);
 	}
     return 0;
     }
 
 int doneWorkEwald(void *ve) {
-    workEwald *e = ve;
-    free(e->pPart);
-    free(e);
+    workEwald *ew = ve;
+    free(ew->ppWorkPart);
+    free(ew->piWorkPart);
+    free(ew);
     return 0;
     }
 
@@ -764,8 +770,10 @@ void pkdGravStartEwald(PKD pkd) {
     assert(pkd->ewWork!=NULL);
     pkd->ewWork->pkd = pkd;
     pkd->ewWork->nP = 0;
-    pkd->ewWork->pPart = malloc(MAX_EWALD_PARTICLES * sizeof(PARTICLE *));
-    assert(pkd->ewWork->pPart!=NULL);
+    pkd->ewWork->ppWorkPart = malloc(MAX_EWALD_PARTICLES * sizeof(workParticle *));
+    pkd->ewWork->piWorkPart = malloc(MAX_EWALD_PARTICLES * sizeof(int));
+    assert(pkd->ewWork->ppWorkPart!=NULL);
+    assert(pkd->ewWork->piWorkPart!=NULL);
     }
 
 void pkdGravFinishEwald(PKD pkd) {
@@ -777,29 +785,22 @@ void pkdGravFinishEwald(PKD pkd) {
 	mdlAddWork(pkd->mdl,pkd->ewWork,NULL,NULL,CPUdoWorkEwald,doneWorkEwald);
 #endif
 	}
-#if 0
-    while(pkd->ewWork->nP--) {
-	PARTICLE *p = pkd->ewWork->pPart[pkd->ewWork->nP];
-	/*dEwFlop +=*/ pkdParticleEwald(pkd,p,pkdAccel(pkd,p),pkdPot(pkd,p));
-	}
-    free(pkd->ewWork->pPart);
-    free(pkd->ewWork);
-#endif
     pkd->ewWork = NULL;
     }
 
-static void queueEwald( PKD pkd ) {
-#ifdef USE_CUDA
-    mdlAddWork(pkd->mdl,pkd->ewWork,CUDAinitWorkEwald,CUDAcheckWorkEwald,CPUdoWorkEwald,doneWorkEwald);
-#else
-    mdlAddWork(pkd->mdl,pkd->ewWork,NULL,NULL,CPUdoWorkEwald,doneWorkEwald);
-#endif
-    pkd->ewWork = malloc(sizeof(workEwald));
-    assert(pkd->ewWork!=NULL);
-    pkd->ewWork->pkd = pkd;
-    pkd->ewWork->nP = 0;
-    pkd->ewWork->pPart = malloc(MAX_EWALD_PARTICLES * sizeof(PARTICLE *));
-    assert(pkd->ewWork->pPart!=NULL);
+static void queueEwald( PKD pkd, workParticle *work ) {
+    int i;
+    for( i=0; i<work->nP; i++ ) {
+	PARTICLE *p = work->pPart[i];
+	if (pkd->ewWork->nP == MAX_EWALD_PARTICLES) {
+	    pkdGravFinishEwald(pkd);
+	    pkdGravStartEwald(pkd);
+	    }
+	pkd->ewWork->ppWorkPart[pkd->ewWork->nP] = work;
+	pkd->ewWork->piWorkPart[pkd->ewWork->nP] = i;
+	++pkd->ewWork->nP;
+	++work->nRefs;
+	}
     }
 
 /*
@@ -951,14 +952,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
     ** Calculate the Ewald correction for this particle, if it is required.
     */
     if (bEwald) {
-	for( i=0; i<work->nP; i++ ) {
-	    p = work->pPart[i];
-
-	    if (pkd->ewWork->nP == MAX_EWALD_PARTICLES) {
-		queueEwald(pkd);
-		}
-	    pkd->ewWork->pPart[pkd->ewWork->nP++] = p;
-	    }
+	queueEwald( pkd,  work );
 	}
 
     for( i=0; i<work->nP; i++ ) {

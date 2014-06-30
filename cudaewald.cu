@@ -234,7 +234,6 @@ int CUDAinitWorkEwald( void *ve, void *vwork ) {
     double *pCudaBufIn = reinterpret_cast<double *>(work->pCudaBufIn);
     double *X, *Y, *Z;
     double *cudaX, *cudaY, *cudaZ, *cudaPot;
-    PARTICLE *p;
     int nx, ny, nz, align, i;
 
     align = (e->nP+31)&~31; /* Warp align the memory buffers */
@@ -259,7 +258,9 @@ int CUDAinitWorkEwald( void *ve, void *vwork ) {
     dim3 dimGrid( nx, ny,nz );
 
     for(i=0; i<e->nP; ++i) {
-	p = e->pPart[i];
+        workParticle *wp = e->ppWorkPart[i];
+        PARTICLE *p = wp->pPart[e->piWorkPart[i]];
+//	p = e->pPart[i];
 	X[i] = p->r[0];
 	Y[i] = p->r[1];
 	Z[i] = p->r[2];
@@ -282,7 +283,7 @@ int CUDAinitWorkEwald( void *ve, void *vwork ) {
     }
 
 extern "C"
-void pkdAccumulateCUDA(void * pkd,int nP,PARTICLE **pPart,double *pax,double *pay,double *paz,double *pot);
+void pkdAccumulateCUDA(void * pkd,workEwald *we,double *pax,double *pay,double *paz,double *pot);
 
 
 extern "C"
@@ -298,8 +299,9 @@ int CUDAcheckWorkEwald( void *ve, void *vwork ) {
     Y       = pHostBuf + 1*align;
     Z       = pHostBuf + 2*align;
     pPot    = pHostBuf + 3*align;
-    pkdAccumulateCUDA(e->pkd,e->nP,e->pPart,X,Y,Z,pPot);
-    free(e->pPart);
+    pkdAccumulateCUDA(e->pkd,e,X,Y,Z,pPot);
+    free(e->ppWorkPart);
+    free(e->piWorkPart);
     free(e);
     return 0;
 

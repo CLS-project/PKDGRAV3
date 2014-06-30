@@ -123,3 +123,19 @@ void CUDA_SetQueueSize(void *vcuda,int cudaSize, int inCudaBufSize, int outCudaB
         cuda->wqFree = work;
         }
     }
+
+extern "C"
+void CUDA_finish(void *vcuda) {
+    CUDACTX cuda = reinterpret_cast<CUDACTX>(vcuda);
+    CUDAwqNode *work;
+
+    while( (work=cuda->wqFree) != NULL ) {
+        cuda->wqFree = work->next;
+        CUDA_free(work->pHostBuf);
+        CUDA_gpu_free(work->pCudaBufIn);
+        CUDA_gpu_free(work->pCudaBufOut);
+        free(work);
+        }
+    cudaDeviceReset();
+    free(cuda);
+    }

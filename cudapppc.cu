@@ -73,7 +73,10 @@ int isWqEmpty(CUDACTX cuda) {
 
 CUDAwqNode *getNode(CUDACTX cuda) {
     CUDAwqNode *work;
-    if (cuda->wqFree == NULL) return NULL;
+    if (cuda->wqFree == NULL) {
+        CUDA_flushDone(cuda);
+        if (cuda->wqFree == NULL) return NULL;
+        }
     work = cuda->wqFree;
     cuda->wqFree = work->next;
     work->ctx = cuda;

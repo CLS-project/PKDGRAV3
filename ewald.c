@@ -80,14 +80,15 @@ static int evalEwald(struct EwaldVariables *ew,double *ax, double *ay, double *a
     }
 
 /* Once CUDA has completed, we need to acumulate */
-void pkdAccumulateCUDA(PKD pkd,int nP,PARTICLE **pPart,double *pax,double *pay,double *paz,double *pot) {
+void pkdAccumulateCUDA(PKD pkd,workEwald *we,double *pax,double *pay,double *paz,double *pot) {
     struct EwaldVariables *ew = &pkd->ew;
     int i;
 
-    for(i=0; i<nP; ++i) {
-	PARTICLE *p = pPart[i];
-	float *a = pkdAccel(pkd,p);
-	float *pPot = pkdPot(pkd,p);
+    for(i=0; i<we->nP; ++i) {
+	workParticle *wp = we->ppWorkPart[i];
+	int pi = we->piWorkPart[i];
+	PINFOOUT *out = &wp->pInfoOut[pi];
+	PARTICLE *p = wp->pPart[pi];
 	double x,y,z,r2;
 	double ax=0,ay=0,az=0,dPot=0;
 	double g0,g1,g2,g3,g4,g5;
@@ -142,10 +143,11 @@ void pkdAccumulateCUDA(PKD pkd,int nP,PARTICLE **pPart,double *pax,double *pay,d
 	    g5 = 9*g4*dir2 + alphan*a;
 	    }
 	/*nFlop +=*/ evalEwald(ew,&ax,&ay,&az,&dPot,x,y,z,g0,g1,g2,g3,g4,g5);
-	a[0] += ax;
-	a[1] += ay;
-	a[2] += az;
-	*pPot += dPot;
+	out->a[0] += ax;
+	out->a[1] += ay;
+	out->a[2] += az;
+	out->fPot += dPot;
+	pkdParticleWorkDone(wp);
 	}
    }
 
@@ -880,7 +882,10 @@ void pkdEwaldInit(PKD pkd,int nReps,double fEwCut,double fhCut) {
 	++i;
 	}
 #ifdef USE_CUDA
-    cudaEwaldInit(ew,ewt);
+    if (mdlCore(pkd->mdl)==0) {
+	cudaEwaldInit(ew,ewt);
+	}
+    mdlThreadBarrier(pkd->mdl);
 #endif
 
 

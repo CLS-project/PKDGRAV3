@@ -655,7 +655,7 @@ static int checkMPI(MDL mdl) {
 static int mdlDoSomeWork(MDL mdl) {
     MDLwqNode *work;
     int rc = 0;
-#ifdef USE_CUDA
+#ifdef NO_TOO_OFTEN_USE_CUDA
     rc = CUDA_flushDone(mdl->cudaCtx);
 #endif
     if (!OPA_Queue_is_empty(&mdl->wq)) {
@@ -687,6 +687,10 @@ static void mdlCompleteAllWork(MDL mdl) {
     CUDA_sendWork(mdl->cudaCtx);
 #endif
     while(mdlDoSomeWork(mdl)) {}
+#ifdef USE_CUDA
+    while(CUDA_flushDone(mdl->cudaCtx)) {}
+#endif
+
     }
 
 static void /*MDLserviceElement*/ *mdlWaitThreadQueue(MDL mdl,int iQueue) {
@@ -706,7 +710,7 @@ static void /*MDLserviceElement*/ *mdlWaitThreadQueue(MDL mdl,int iQueue) {
     }
 
 /* Synchronize threads */
-static void mdlThreadBarrier(MDL mdl, void (*handler)(MDL mdl, MDLserviceElement *qhdr) ) {
+void mdlThreadBarrier(MDL mdl) {
     MDLserviceElement *qhdr;
     int i;
 
@@ -1162,6 +1166,9 @@ void mdlFinish(MDL mdl) {
     MPI_Barrier(mdl->mpi.commMDL);
     MPI_Finalize();
 
+#ifdef USE_CUDA
+    CUDA_finish(mdl->cudaCtx);
+#endif
 
     for (i = 0; i<mdl->nMaxCacheIds; ++i) {
 #ifdef USE_ARC
@@ -1446,7 +1453,7 @@ void mdlCommitServices(MDL mdl) {
         mdl->nMaxSrvBytes = nMaxBytes;
         }
     /* We need a thread barrier here because we share these buffers */
-    mdlThreadBarrier(mdl,NULL);
+    mdlThreadBarrier(mdl);
     }
 
 void mdlAddService(MDL mdl,int sid,void *p1,
