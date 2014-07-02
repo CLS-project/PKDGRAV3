@@ -20,8 +20,8 @@ extern "C" {
 	int (*checkWork)(void *ctx,void *work),
 	int (*doneWork)(void *ctx));
     int CUDA_flushDone(void *vcuda);
-    int CUDA_queuePP(void *cudaCtx,workParticle *wp, ILPTILE tile);
-    int CUDA_queuePC(void *cudaCtx,workParticle *wp, ILCTILE tile);
+    int CUDA_queuePP(void *cudaCtx,workParticle *wp, ILPTILE tile, int bGravStep);
+    int CUDA_queuePC(void *cudaCtx,workParticle *wp, ILCTILE tile, int bGravStep);
     void CUDA_sendWork(void *cudaCtx);
 
 #else
@@ -34,6 +34,7 @@ extern "C" {
 #endif
 
 #ifdef __CUDACC__
+#include "sm_30_intrinsics.h"
 
 #define CUDA_NUM_BANKS 16
 #define CUDA_LOG_NUM_BANKS 4
@@ -76,7 +77,16 @@ __device__ void warpReduceAndStore(volatile T * data, int tid,T *result) {
 
 template <typename T,unsigned int blockSize>
 __device__ void warpReduceAndStore(volatile T * data, int tid,T t,T *result) {
-    t = warpReduce<T,blockSize>(data,tid,t);
+    //if (__CUDA_ARCH__ >= 300) {
+	t += __shfl_xor(t,16);
+	t += __shfl_xor(t,8);
+	t += __shfl_xor(t,4);
+	t += __shfl_xor(t,2);
+	t += __shfl_xor(t,1);
+//	}
+//    else {
+//	t = warpReduce<T,blockSize>(data,tid,t);
+//	}
     if (tid==0) *result = t;
     }
 
@@ -101,6 +111,7 @@ typedef struct cuda_wq_node {
     int ppSizeOut; // Number of bytes consumed in the buffer
     int ppnBlocks;
     int ppnBuffered;
+    int bGravStep;
     } CUDAwqNode;
 
 typedef struct cuda_ctx {
