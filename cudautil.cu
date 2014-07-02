@@ -115,7 +115,7 @@ void CUDA_SetQueueSize(void *vcuda,int cudaSize, int inCudaBufSize, int outCudaB
         assert(work->pCudaBufIn!=NULL);
         work->pCudaBufOut = CUDA_gpu_malloc(outCudaBufSize);
         assert(work->pCudaBufOut!=NULL);
-        CUDA_CHECK(cudaEventCreate,( &work->event ));
+        CUDA_CHECK(cudaEventCreateWithFlags,( &work->event, cudaEventDisableTiming ));
         CUDA_CHECK(cudaStreamCreate,( &work->stream ));
         work->ctx = NULL;
         work->checkFcn = NULL;
