@@ -133,19 +133,21 @@ __global__ void cudaEwald(double *X,double *Y,double *Z,double *pPot) {
 	}
 
     // the H-Loop
+    float fx=rx, fy=ry, fz=rz;
+    float fax=0, fay=0, faz=0;
     for( i=0; i<ew.nEwhLoop; ++i) {
-	double hdotx,s,c,t;
-	hdotx = hx[i]*rx + hy[i]*ry + hz[i]*rz;
+	float hdotx,s,c,t;
+	hdotx = hx[i]*fx + hy[i]*fy + hz[i]*fz;
 	sincos(hdotx,&s,&c);
 	tpot += hCfac[i]*c + hSfac[i]*s;
 	t = hCfac[i]*s - hSfac[i]*c;
-	tax += hx[i]*t;
-	tay += hy[i]*t;
-	taz += hz[i]*t;
+	fax += hx[i]*t;
+	fay += hy[i]*t;
+	faz += hz[i]*t;
 	}
-    X[pidx] = tax;
-    Y[pidx] = tay;
-    Z[pidx] = taz;
+    X[pidx] = tax + fax;
+    Y[pidx] = tay + fay;
+    Z[pidx] = taz + faz;
     pPot[pidx] = tpot;
     }
 
