@@ -122,7 +122,7 @@ CUDAwqNode *getNode(CUDACTX cuda) {
 
 // A good number for nWarps is 4 giving 128 threads per thread block, nSyncRate=8
 // Each thread block outputs ay,ay,az,fPot,dirsum,normsum for each particle
-template <int nWarps,int nWarpsPerWU,int nSyncRate>
+template <int nWarps,int nWarpsPerWU,int nSyncRate,int bGravStep>
 __global__ void cudaInteract(
     const ppWorkUnit * __restrict__ work,
     const ppInput * __restrict__ pPart,
@@ -149,9 +149,9 @@ __global__ void cudaInteract(
         }
     int iTinW = iI % 32;
 
-    int nP = work[iWork].nP; // Number of particles
+    uint32_t nP = work[iWork].nP; // Number of particles
     pPart += work[iWork].iP; // First particle
-    int nI = work[iWork].nI; // Number of interactions
+    uint32_t nI = work[iWork].nI; // Number of interactions
     blk += work[iWork].iB*blockDim.y + threadIdx.y; // blk[threadIdx.x] is our interaction
     out += work[iWork].iO;   // Result for each particle
 
@@ -186,13 +186,21 @@ __global__ void cudaInteract(
         int iEnd = nP - iSync;
         if (iEnd > nSyncRate) iEnd=nSyncRate;
         // Preload the bucket of particles - this is a memcpy
+#if 1
         if (iI < iEnd*sizeof(ppInput) / sizeof(float)) {
             Particles.W[threadIdx.z][iI] = (reinterpret_cast<const float *>(pPart+iSync))[iI];
             }
-        if (iI < iEnd ) { 
+#endif
+        if (iI < iEnd && bGravStep) { 
+#if 1
             float ax = Particles.P[threadIdx.z][iI].ax;
             float ay = Particles.P[threadIdx.z][iI].ay;
             float az = Particles.P[threadIdx.z][iI].az;
+#else
+            float ax = pPart[iSync+iI].ax;
+            float ay = pPart[iSync+iI].ay;
+            float az = pPart[iSync+iI].az;
+#endif
             Particles.P[threadIdx.z][iI].dImaga = ax*ax + ay*ay + az*az;
             if (Particles.P[threadIdx.z][iI].dImaga > 0.0f)
                 Particles.P[threadIdx.z][iI].dImaga = rsqrtf(Particles.P[threadIdx.z][iI].dImaga);
@@ -203,9 +211,15 @@ __global__ void cudaInteract(
             float ax=0.0f, ay=0.0f, az=0.0f, fPot=0.0f, dirsum=0.0f, normsum=0.0f;
             if (iI < nI) {
                 float fourh2,dir,dir2,dir3;
+#if 1
                 float dx = iX + Particles.P[threadIdx.z][i].dx;
                 float dy = iY + Particles.P[threadIdx.z][i].dy;
                 float dz = iZ + Particles.P[threadIdx.z][i].dz;
+#else
+                float dx = iX + pPart[iSync+i].dx;
+                float dy = iY + pPart[iSync+i].dy;
+                float dz = iZ + pPart[iSync+i].dz;
+#endif
                 float d2 = dx*dx + dy*dy + dz*dz;
                 if (d2 != 0.0f ) { /* Ignore self interactions */
                     fourh2 = ifourh2;
@@ -230,12 +244,16 @@ __global__ void cudaInteract(
                     /*
                     ** Calculations for determining the timestep.
                     */
-                    float adotai;
-                    adotai = Particles.P[threadIdx.z][i].ax*ax + Particles.P[threadIdx.z][i].ay*ay + Particles.P[threadIdx.z][i].az*az;
-                    if (adotai > 0.0f && d2 >= Particles.P[threadIdx.z][i].fSoft2 ) {
-                        adotai *= Particles.P[threadIdx.z][i].dImaga;
-                        dirsum = dir*adotai*adotai;
-                        normsum = adotai*adotai;
+                    if (bGravStep) {
+                        float adotai;
+//                    adotai = Particles.P[threadIdx.z][i].ax*ax + Particles.P[threadIdx.z][i].ay*ay + Particles.P[threadIdx.z][i].az*az;
+                        adotai = pPart[iSync+i].ax*ax + pPart[iSync+i].ay*ay + pPart[iSync+i].az*az;
+//                    if (adotai > 0.0f && d2 >= Particles.P[threadIdx.z][i].fSoft2 ) {
+                        if (adotai > 0.0f && d2 >= pPart[iSync+i].fSoft2 ) {
+                            adotai *= Particles.P[threadIdx.z][i].dImaga;
+                            dirsum = dir*adotai*adotai;
+                            normsum = adotai*adotai;
+                            }
                         }
                     }
                 }
@@ -244,8 +262,10 @@ __global__ void cudaInteract(
             warpReduceAndStore<float,32>(reduce[iWarp],iTinW,ay,           &wY[i][iWarp]);
             warpReduceAndStore<float,32>(reduce[iWarp],iTinW,az,           &wZ[i][iWarp]);
             warpReduceAndStore<float,32>(reduce[iWarp],iTinW,fPot,       &wPot[i][iWarp]);
-            warpReduceAndStore<float,32>(reduce[iWarp],iTinW,dirsum,  &wDirsum[i][iWarp]);
-            warpReduceAndStore<float,32>(reduce[iWarp],iTinW,normsum,&wNormsum[i][iWarp]);
+            if (bGravStep) {
+                warpReduceAndStore<float,32>(reduce[iWarp],iTinW,dirsum,  &wDirsum[i][iWarp]);
+                warpReduceAndStore<float,32>(reduce[iWarp],iTinW,normsum,&wNormsum[i][iWarp]);
+                }
             }
 
         if (nWarpsPerWU>1) __syncthreads();
@@ -267,8 +287,10 @@ __global__ void cudaInteract(
             warpReduceAndStore<float,nWarpsPerWU>(      &wY[0][0]+iP,iWarp,&out[iOut].ay);
             warpReduceAndStore<float,nWarpsPerWU>(      &wZ[0][0]+iP,iWarp,&out[iOut].az);
             warpReduceAndStore<float,nWarpsPerWU>(    &wPot[0][0]+iP,iWarp,&out[iOut].fPot);
-            warpReduceAndStore<float,nWarpsPerWU>( &wDirsum[0][0]+iP,iWarp,&out[iOut].dirsum);
-            warpReduceAndStore<float,nWarpsPerWU>(&wNormsum[0][0]+iP,iWarp,&out[iOut].normsum);
+            if (bGravStep) {
+                warpReduceAndStore<float,nWarpsPerWU>( &wDirsum[0][0]+iP,iWarp,&out[iOut].dirsum);
+                warpReduceAndStore<float,nWarpsPerWU>(&wNormsum[0][0]+iP,iWarp,&out[iOut].normsum);
+                }
             }
         }
     }
@@ -277,7 +299,7 @@ __global__ void cudaInteract(
 
 
 
-template <int nWarps,int nWarpsPerWU,int nSyncRate>
+template <int nWarps,int nWarpsPerWU,int nSyncRate,int bGravStep>
 __global__ void cudaInteract(
     const ppWorkUnit * __restrict__ work,
     const ppInput * __restrict__ pPart,
@@ -376,7 +398,7 @@ __global__ void cudaInteract(
         if (iI < iEnd*sizeof(ppInput) / sizeof(float)) {
             Particles.W[threadIdx.z][iI] = (reinterpret_cast<const float *>(pPart+iSync))[iI];
             }
-        if (iI < iEnd ) { 
+        if (iI < iEnd && bGravStep) { 
             float ax = Particles.P[threadIdx.z][iI].ax;
             float ay = Particles.P[threadIdx.z][iI].ay;
             float az = Particles.P[threadIdx.z][iI].az;
@@ -459,12 +481,14 @@ __global__ void cudaInteract(
                 /*
                 ** Calculations for determining the timestep.
                 */
-                float adotai;
-                adotai = Particles.P[threadIdx.z][i].ax*ax + Particles.P[threadIdx.z][i].ay*ay + Particles.P[threadIdx.z][i].az*az;
-                if (adotai > 0.0f && d2 >= Particles.P[threadIdx.z][i].fSoft2 ) {
-                    adotai *= Particles.P[threadIdx.z][i].dImaga;
-                    dirsum = dir*adotai*adotai;
-                    normsum = adotai*adotai;
+                if (bGravStep) {
+                    float adotai;
+                    adotai = Particles.P[threadIdx.z][i].ax*ax + Particles.P[threadIdx.z][i].ay*ay + Particles.P[threadIdx.z][i].az*az;
+                    if (adotai > 0.0f && d2 >= Particles.P[threadIdx.z][i].fSoft2 ) {
+                        adotai *= Particles.P[threadIdx.z][i].dImaga;
+                        dirsum = dir*adotai*adotai;
+                        normsum = adotai*adotai;
+                        }
                     }
                 }
             // Horizontal add within each warp -- no sychronization required
@@ -472,8 +496,10 @@ __global__ void cudaInteract(
             warpReduceAndStore<float,32>(reduce[iWarp],iTinW,ay,     &wY[i][iWarp]);
             warpReduceAndStore<float,32>(reduce[iWarp],iTinW,az,     &wZ[i][iWarp]);
             warpReduceAndStore<float,32>(reduce[iWarp],iTinW,fPot,   &wPot[i][iWarp]);
-            warpReduceAndStore<float,32>(reduce[iWarp],iTinW,dirsum, &wDirsum[i][iWarp]);
-            warpReduceAndStore<float,32>(reduce[iWarp],iTinW,normsum,&wNormsum[i][iWarp]);
+            if (bGravStep) {
+                warpReduceAndStore<float,32>(reduce[iWarp],iTinW,dirsum, &wDirsum[i][iWarp]);
+                warpReduceAndStore<float,32>(reduce[iWarp],iTinW,normsum,&wNormsum[i][iWarp]);
+                }
 	}
 
         if (nWarpsPerWU>1) __syncthreads();
@@ -495,8 +521,10 @@ __global__ void cudaInteract(
             warpReduceAndStore<float,nWarpsPerWU>(      &wY[0][0]+iP,iWarp,&out[iOut].ay);
             warpReduceAndStore<float,nWarpsPerWU>(      &wZ[0][0]+iP,iWarp,&out[iOut].az);
             warpReduceAndStore<float,nWarpsPerWU>(    &wPot[0][0]+iP,iWarp,&out[iOut].fPot);
-            warpReduceAndStore<float,nWarpsPerWU>( &wDirsum[0][0]+iP,iWarp,&out[iOut].dirsum);
-            warpReduceAndStore<float,nWarpsPerWU>(&wNormsum[0][0]+iP,iWarp,&out[iOut].normsum);
+            if (bGravStep) {
+                warpReduceAndStore<float,nWarpsPerWU>( &wDirsum[0][0]+iP,iWarp,&out[iOut].dirsum);
+                warpReduceAndStore<float,nWarpsPerWU>(&wNormsum[0][0]+iP,iWarp,&out[iOut].normsum);
+                }
             }
         }
     }
@@ -633,10 +661,16 @@ void CUDA_sendWork(CUDACTX cuda,CUDAwqNode **head) {
 //        printf("%d x %d x %d X %d x %d x %d\n",
 //            dimBlock.x, dimBlock.y, dimBlock.z,
 //            dimGrid.x, dimGrid.y, dimGrid.z);
-        cudaInteract<WARPS,nIntPerWU/32,SYNC_RATE*nIntPerWU/nIntPerTB>
-            <<<dimGrid, dimBlock, 0, work->stream>>>
-            (wuCuda,partCuda,blkCuda,pCudaBufOut );
-
+        if (work->bGravStep) {
+            cudaInteract<WARPS,nIntPerWU/32,SYNC_RATE*nIntPerWU/nIntPerTB,1>
+                <<<dimGrid, dimBlock, 0, work->stream>>>
+                (wuCuda,partCuda,blkCuda,pCudaBufOut );
+            }
+        else {
+            cudaInteract<WARPS,nIntPerWU/32,SYNC_RATE*nIntPerWU/nIntPerTB,0>
+                <<<dimGrid, dimBlock, 0, work->stream>>>
+                (wuCuda,partCuda,blkCuda,pCudaBufOut );
+            }
         CUDA_CHECK(cudaMemcpyAsync,(blkHost, work->pCudaBufOut, nBufferOut, cudaMemcpyDeviceToHost, work->stream)
 );
         CUDA_CHECK(cudaEventRecord,(work->event,work->stream));
@@ -705,7 +739,7 @@ int copyBLKs(ilcBlk<n> *out, ILC_BLK *in,int nIlp) {
 
 // nIntPer: number of interactions handled per work unit: e.g., 128
 template<int nIntPerTB, int nIntPerWU, typename TILE,typename BLK>
-int CUDA_queue(CUDACTX cuda,CUDAwqNode **head,workParticle *wp, TILE tile) {
+int CUDA_queue(CUDACTX cuda,CUDAwqNode **head,workParticle *wp, TILE tile, int bGravStep) {
     CUDAwqNode *work = *head;
     /*const int nBlkPerTB = nIntPerTB / WIDTH;*/
     const int nBlkPerWU = nIntPerWU / WIDTH;
@@ -747,6 +781,7 @@ int CUDA_queue(CUDACTX cuda,CUDAwqNode **head,workParticle *wp, TILE tile) {
         work->ppSizeOut = 0;
         work->ppnBuffered = 0;
         work->ppnBlocks = 0;
+        work->bGravStep = bGravStep;
         }
     if (work==NULL) return 0;
 
@@ -772,18 +807,18 @@ int CUDA_queue(CUDACTX cuda,CUDAwqNode **head,workParticle *wp, TILE tile) {
     }
 
 extern "C"
-int CUDA_queuePP(void *cudaCtx,workParticle *wp, ILPTILE tile) {
+int CUDA_queuePP(void *cudaCtx,workParticle *wp, ILPTILE tile, int bGravStep) {
     CUDACTX cuda = reinterpret_cast<CUDACTX>(cudaCtx);
 #if 0 // SAMPLE: this actually does work. We can use it for the hair.
     finishGravity(wp,tile->lstTile.nBlocks,tile->lstTile.nInLast,tile->blk);
     return 1;
 #endif
-    return CUDA_queue< TB_THREADS, PP_WU, ILPTILE,ilpBlk<WIDTH> >(cuda,&cuda->nodePP,wp,tile);
+    return CUDA_queue< TB_THREADS, PP_WU, ILPTILE,ilpBlk<WIDTH> >(cuda,&cuda->nodePP,wp,tile,bGravStep);
     }
 
 extern "C"
-int CUDA_queuePC(void *cudaCtx,workParticle *wp, ILCTILE tile) {
+int CUDA_queuePC(void *cudaCtx,workParticle *wp, ILCTILE tile, int bGravStep) {
     CUDACTX cuda = reinterpret_cast<CUDACTX>(cudaCtx);
-    return CUDA_queue< TB_THREADS, PC_WU, ILCTILE,ilcBlk<WIDTH> >(cuda,&cuda->nodePC,wp,tile);
+    return CUDA_queue< TB_THREADS, PC_WU, ILCTILE,ilcBlk<WIDTH> >(cuda,&cuda->nodePC,wp,tile,bGravStep);
     }
 
