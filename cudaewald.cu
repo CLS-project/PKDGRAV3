@@ -138,7 +138,7 @@ __global__ void cudaEwald(double *X,double *Y,double *Z,double *pPot) {
     for( i=0; i<ew.nEwhLoop; ++i) {
 	float hdotx,s,c,t;
 	hdotx = hx[i]*fx + hy[i]*fy + hz[i]*fz;
-	sincos(hdotx,&s,&c);
+	sincosf(hdotx,&s,&c);
 	tpot += hCfac[i]*c + hSfac[i]*s;
 	t = hCfac[i]*s - hSfac[i]*c;
 	fax += hx[i]*t;
