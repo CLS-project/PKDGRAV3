@@ -1066,11 +1066,6 @@ int mdlLaunch(int argc,char **argv,void * (*fcnMaster)(MDL),void * (*fcnChild)(M
 	else if ( (p=getenv("OMP_NUM_THREADS")) != NULL ) mdl->base.nCores = atoi(p);
 	}
     assert(mdl->base.nCores>0);
-    /* Dedicate one of the threads for MPI */
-    if (bDedicated == 1) {
-	if (mdl->base.nCores==1) bDedicated=0;
-	else --mdl->base.nCores;
-	}
 
     /* MPI Initialization */
     rc = MPI_Init_thread(&argc, &argv, MPI_THREAD_FUNNELED,&thread_support);
@@ -1083,6 +1078,12 @@ int mdlLaunch(int argc,char **argv,void * (*fcnMaster)(MDL),void * (*fcnChild)(M
     mdl->mpi.ReqRcv = MPI_REQUEST_NULL;
     MPI_Comm_size(mdl->mpi.commMDL, &mdl->base.nProcs);
     MPI_Comm_rank(mdl->mpi.commMDL, &mdl->base.iProc);
+
+    /* Dedicate one of the threads for MPI, unless it would be senseless to do so */
+    if (bDedicated == 1) {
+	if (mdl->base.nCores==1 || mdl->base.nProcs==1) bDedicated=0;
+	else --mdl->base.nCores;
+	}
 
     /* Construct the thread/processor map */
     mdl->base.iProcToThread = malloc((mdl->base.nProcs + 1) * sizeof(int));
