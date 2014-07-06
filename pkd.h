@@ -1141,7 +1141,7 @@ typedef struct CacheStatistics {
 ** From tree.c:
 */
 void pkdVATreeBuild(PKD pkd,int nBucket);
-void pkdTreeBuild(PKD pkd,int nBucket,KDN *pkdn,int bExcludeVeryActive);
+void pkdTreeBuild(PKD pkd,int nBucket,KDN *pkdn1,KDN *pkdn2,int bExcludeVeryActive,int iRung);
 void pkdCombineCells1(PKD,KDN *pkdn,KDN *p1,KDN *p2);
 void pkdCombineCells2(PKD,KDN *pkdn,KDN *p1,KDN *p2);
 void pkdDistribCells(PKD,int,KDN *);

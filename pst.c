@@ -237,7 +237,7 @@ void pstAddServices(PST pst,MDL mdl) {
     nCell = 1<<(1+(int)ceil(log((double)nThreads)/log(2.0)));
     mdlAddService(mdl,PST_BUILDTREE,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstBuildTree,
-		  sizeof(struct inBuildTree),nCell*pkdMaxNodeSize());
+		  sizeof(struct inBuildTree),nCell*2*pkdMaxNodeSize());
     mdlAddService(mdl,PST_DISTRIBCELLS,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstDistribCells,
 		  nCell*pkdMaxNodeSize(),0);
@@ -2683,23 +2683,26 @@ void pstBuildTree(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     PKD pkd = plcl->pkd;
     struct inBuildTree *in = vin;
     KDN *pkdn = vout;
-    KDN *ptmp, *pCell;
+    KDN *ptmp, *pCell1, *pCell2;
     FLOAT minside;
-    int i,iCell,iLower,iNext;
+    int i,iCell,iLower,iNext,nCell;
 
     mdlassert(pst->mdl,nIn == sizeof(struct inBuildTree));
+    nCell = in->iRung>=0 ? in->nCell*2 : in->nCell;
     iCell = in->iCell;
-    pCell = pkdNode(pkd,pkdn,iCell);
+    pCell1 = pkdNode(pkd,pkdn,iCell);
+    pCell2 = in->iRung<0 ? NULL : pkdNode(pkd,pkdn,in->nCell+iCell);
     if (pst->nLeaves > 1) {
 	in->iCell = UPPER(iCell);
 	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_BUILDTREE,in,nIn);
 	in->iCell = LOWER(iCell);
 	pstBuildTree(pst->pstLower,in,nIn,vout,pnOut);
 	in->iCell = iCell;
-	ptmp = malloc(in->nCell*pkdNodeSize(pkd));
+
+	ptmp = malloc(nCell*pkdNodeSize(pkd));
 	mdlassert(pst->mdl,ptmp != NULL);
 	mdlGetReply(pst->mdl,rID,ptmp,pnOut);
-	for (i=1;i<in->nCell;++i) {
+	for (i=0;i<nCell;++i) {
 	    KDN *pSrc = pkdNode(pkd,ptmp,i);
 	    if (pSrc->pUpper) {
 		pkdCopyNode(pkd,pkdNode(pkd,pkdn,i),pSrc);
@@ -2712,34 +2715,38 @@ void pstBuildTree(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	*/
 	iLower = LOWER(iCell);
 	iNext = UPPER(iCell);
-	pCell->bMax = HUGE_VAL;  /* initialize bMax for CombineCells */
+	pCell1->bMax = HUGE_VAL;  /* initialize bMax for CombineCells */
 	MINSIDE(pst->bnd.fMax,minside);
-	pkdCombineCells1(pkd,pCell,pkdNode(pkd,pkdn,iLower),pkdNode(pkd,pkdn,iNext));
-	CALCOPEN(pCell,minside);
-	pkdCombineCells2(pkd,pCell,pkdNode(pkd,pkdn,iLower),pkdNode(pkd,pkdn,iNext));
+	pkdCombineCells1(pkd,pCell1,pkdNode(pkd,pkdn,iLower),pkdNode(pkd,pkdn,iNext));
+	CALCOPEN(pCell1,minside);
+	pkdCombineCells2(pkd,pCell1,pkdNode(pkd,pkdn,iLower),pkdNode(pkd,pkdn,iNext));
 	/*
 	** Set all the pointers and flags.
 	*/
-	pCell->iLower = iLower;
-	pCell->iParent = 0;
-	pCell->pLower = -1;
-	pCell->pUpper = 1;
+	pCell1->iLower = iLower;
+	pCell1->iParent = 0;
+	pCell1->pLower = -1;
+	pCell1->pUpper = 1;
 	pkdNode(pkd,pkdn,iLower)->iParent = iCell;
 	pkdNode(pkd,pkdn,iNext)->iParent = iCell;
 	}
     else {
-	for (i=1;i<in->nCell;++i) pkdNode(pkd,pkdn,i)->pUpper = 0; /* used flag = unused */
+	for (i=0;i<nCell;++i) pkdNode(pkd,pkdn,i)->pUpper = 0; /* used flag = unused */
 
-	pkdTreeBuild(plcl->pkd,in->nBucket,pCell,in->bExcludeVeryActive);
-
-	pCell->iLower = 0;
-	pCell->pLower = pst->idSelf;
-	pCell->pUpper = 1;
+	pkdTreeBuild(plcl->pkd,in->nBucket,pCell1,pCell2,in->bExcludeVeryActive,in->iRung);
+	pCell1->iLower = 0;
+	pCell1->pLower = pst->idSelf;
+	pCell1->pUpper = 1;
+	if (pCell2) {
+	    pCell2->iLower = 0;
+	    pCell2->pLower = pst->idSelf;
+	    pCell2->pUpper = 1;
+	    }
 	}
     /*
     ** Calculated all cell properties, now pass up this cell info.
     */
-    if (pnOut) *pnOut = in->nCell*pkdNodeSize(plcl->pkd);
+    if (pnOut) *pnOut = nCell*pkdNodeSize(plcl->pkd);
     }
 
 
@@ -5241,11 +5248,11 @@ void pstBuildPsdTree(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
         mdlassert(pst->mdl,ptmp != NULL);
         mdlGetReply(pst->mdl,rID,ptmp,pnOut);
         for (i=1;i<in->nCell;++i) {
-        KDN *pSrc = pkdNode(pkd,ptmp,i);
-        if (pSrc->pUpper) {
-        pkdCopyNode(pkd,pkdNode(pkd,pkdn,i),pSrc);
-        }
-        }
+	    KDN *pSrc = pkdNode(pkd,ptmp,i);
+	    if (pSrc->pUpper) {
+		pkdCopyNode(pkd,pkdNode(pkd,pkdn,i),pSrc);
+		}
+	    }
         free(ptmp);
         /*
         ** Combine to find cell bounds.

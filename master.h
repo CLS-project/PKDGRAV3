@@ -86,6 +86,7 @@ void msrDomainDecompORB(MSR, int bOthers);
 void msrDomainDecompNew(MSR);
 void msrRungOrder(MSR msr, int iRung);
 void msrBuildTree(MSR msr,double dTime,int bNeedEwald);
+void msrBuildTreeByRung(MSR msr,double dTime,int bNeedEwald,int iRung);
 void msrBuildTreeExcludeVeryActive(MSR msr,double dTime);
 void msrBuildTreeMarked(MSR msr,double dTime);
 void msrCalcBound(MSR msr,BND *pbnd);
@@ -113,6 +114,17 @@ void msrWriteCheck(MSR,double,int);
 int msrOutTime(MSR,double);
 void msrReadOuts(MSR,double);
 void msrTopStepKDK(MSR msr,
+		   double dStep,	/* Current step */
+		   double dTime,	/* Current time */
+		   double dDelta,	/* Time step */
+		   int iRung,		/* Rung level */
+		   int iKickRung,	/* Gravity on all rungs from iRung
+					   to iKickRung */
+		   int iRungVeryActive, /* rung *below which* very active particles are */
+		   int iAdjust,		/* Do an adjust? */
+		   double *pdActiveSum,
+		   int *piSec);
+void msrTopStepHSDKD(MSR msr,
 		   double dStep,	/* Current step */
 		   double dTime,	/* Current time */
 		   double dDelta,	/* Time step */

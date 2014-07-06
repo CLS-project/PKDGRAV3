@@ -505,6 +505,7 @@ struct inBuildTree {
     int iCell;
     int nCell;
     int bExcludeVeryActive;
+    int iRung;
     };
 void pstBuildTree(PST,void *,int,void *,int *);
 

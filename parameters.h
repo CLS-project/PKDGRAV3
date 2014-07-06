@@ -102,6 +102,7 @@ struct parameters {
     int iViscosityLimiter;
     int iDiffusion;
     int iRungCoolTableUpdate;
+    int bHSDKD;
     double dEtaCourant;
     double dEtaUDot;
     double dConstAlpha;

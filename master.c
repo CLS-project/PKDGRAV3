@@ -335,6 +335,9 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.nPartVeryActive = 0;
     prmAddParam(msr->prm,"nPartVeryActive",1,&msr->param.nPartVeryActive,
 		sizeof(int), "nvactpart", "<number of particles to use very active timestepping>");
+    msr->param.bHSDKD = 0;
+    prmAddParam(msr->prm,"bHSDKD",0,&msr->param.bHSDKD,
+		sizeof(int), "HSDKD", "<Use Hold/Select drift-kick-drift time stepping=no>");
     msr->param.dEwCut = 2.6;
     prmAddParam(msr->prm,"dEwCut",2,&msr->param.dEwCut,sizeof(double),"ew",
 		"<dEwCut> = 2.6");
@@ -2442,7 +2445,7 @@ void msrDomainDecomp(MSR msr,int iRung,int bOthers,int bSplitVA) {
 ** This the meat of the tree build, but will be called by differently named
 ** functions in order to implement special features without recoding...
 */
-void _BuildTree(MSR msr,int bExcludeVeryActive,int bNeedEwald) {
+void _BuildTree(MSR msr,int bExcludeVeryActive,int bNeedEwald,int iRung) {
     struct inBuildTree in;
     struct ioCalcRoot root;
     PST pst0;
@@ -2465,8 +2468,11 @@ void _BuildTree(MSR msr,int bExcludeVeryActive,int bNeedEwald) {
     pkdn = malloc(nCell*pkdNodeSize(pkd));
     assert(pkdn != NULL);
     in.iCell = ROOT;
+//    in.iCell[1] = nCell + ROOT; /* Used only for HSKDK */
+    if (iRung>=0) nCell *= 2;   /* Two trees for HSDKD */
     in.nCell = nCell;
     in.bExcludeVeryActive = bExcludeVeryActive;
+    in.iRung = iRung;
     sec = msrTime();
     pstBuildTree(msr->pst,&in,sizeof(in),pkdn,&iDum);
     dsec = msrTime() - sec;
@@ -2488,19 +2494,24 @@ void _BuildTree(MSR msr,int bExcludeVeryActive,int bNeedEwald) {
 
 void msrBuildTree(MSR msr,double dTime,int bNeedEwald) {
     const int bExcludeVeryActive = 0;
-    _BuildTree(msr,bExcludeVeryActive,bNeedEwald);
+    _BuildTree(msr,bExcludeVeryActive,bNeedEwald,-1);
+    }
+
+void msrBuildTreeByRung(MSR msr,double dTime,int bNeedEwald,int iRung) {
+    const int bExcludeVeryActive = 0;
+    _BuildTree(msr,bExcludeVeryActive,bNeedEwald,iRung);
     }
 
 void msrBuildTreeExcludeVeryActive(MSR msr,double dTime) {
     const int bNeedEwald = 0;
     const int bExcludeVeryActive = 1;
-    _BuildTree(msr,bExcludeVeryActive,bNeedEwald);
+    _BuildTree(msr,bExcludeVeryActive,bNeedEwald,-1);
     }
 
 void msrBuildTreeMarked(MSR msr,double dTime) {
     const int bNeedEwald = 0;
     const int bExcludeVeryActive = 2;
-    _BuildTree(msr,bExcludeVeryActive,bNeedEwald);
+    _BuildTree(msr,bExcludeVeryActive,bNeedEwald,-1);
     }
 
 void msrReorder(MSR msr) {
@@ -3185,6 +3196,7 @@ void msrKickKDKClose(MSR msr,double dTime,double dDelta,uint8_t uRungLo,uint8_t 
     }
 
 
+
 int msrOutTime(MSR msr,double dTime) {
     if (msr->iOut < msr->nOuts) {
 	if (dTime >= msr->pdOutTime[msr->iOut]) {
@@ -3698,6 +3710,127 @@ double msrKDKStepping(MSR msr,double dTime) {
     return dTime;
     }
 #endif
+
+void msrKickHSDKD(MSR msr,double dStep, double dTime,double dDelta, int iRung,
+    int iAdjust, double *pdActiveSum,
+		   int *piSec) {
+    struct inKick in;
+    struct outKick out;
+    uint64_t nActive;
+
+    msrActiveRung(msr,iRung,1);
+    msrDomainDecomp(msr,iRung,0,0);
+
+    /* JW: Good place to zero uNewRung */
+    msrZeroNewRung(msr,iRung,MAX_RUNG,iRung); /* brute force */
+    if (msrDoGravity(msr)) {
+	msrActiveRung(msr,iRung,1);
+	msrUpdateSoft(msr,dTime);
+	msrprintf(msr,"%*cForces, iRung: %d to %d\n",2*iRung+2,' ',iRung,iRung);
+	msrBuildTreeByRung(msr,dTime,msr->param.bEwald,iRung);
+//	msrGravityHSDKD(msr,iRung,MAX_RUNG,dTime,dStep,msr->param.bEwald,msr->param.nGroup,piSec,&nActive);
+	*pdActiveSum += (double)nActive/msr->N;
+
+	in.dTime = dTime;
+	if (msr->param.csm->bComove) {
+	    in.dDelta = csmComoveKickFac(msr->param.csm,dTime,dDelta);
+	    in.dDeltaVPred = 0;
+	    }
+	else {
+	    in.dDelta = dDelta;
+	    in.dDeltaVPred = 0;
+	    }
+	in.dDeltaU = dDelta;
+	in.dDeltaUPred = 0;
+	in.uRungLo = iRung;
+	in.uRungHi = msrCurrMaxRung(msr);
+	pstKick(msr->pst,&in,sizeof(in),&out,NULL);
+	}
+    msrprintf(msr,"Kick: Avg Wallclock %f, Max Wallclock %f\n",
+	      out.SumTime/out.nSum,out.MaxTime);
+
+
+    // Select for Rungs > iRung
+    // Rung+1 down only
+    // >Rung+1 up or down
+    if (iAdjust && (iRung < msrMaxRung(msr)-1)) {
+	msrprintf(msr,"%*cAdjust, iRung: %d\n",2*iRung+2,' ',iRung);
+	msrActiveRung(msr, iRung, 1);
+	if (msr->param.bAccelStep) {
+	    msrAccelStep(msr,iRung,MAX_RUNG,dTime);
+	    }
+	if (msrDoGas(msr)) {
+	    msrSphStep(msr,iRung,MAX_RUNG,dTime);
+	    }
+	if (msr->param.bDensityStep) {
+	    int bSplitVA = 0;
+	    msrDomainDecomp(msr,iRung,0,bSplitVA);
+	    msrActiveRung(msr,iRung,1);
+	    msrBuildTree(msr,dTime,0);
+	    msrDensityStep(msr,iRung,MAX_RUNG,dTime);
+	    }
+	msrUpdateRung(msr,iRung);
+        }
+
+    }
+
+
+void msrTopStepHSDKD(MSR msr,
+		   double dStep,	/* Current step */
+		   double dTime,	/* Current time */
+		   double dDelta,	/* Time step */
+		   int iRung,		/* Rung level */
+		   int iKickRung,	/* Gravity on all rungs from iRung
+					   to iKickRung */
+		   int iRungVeryActive,  /* current setting for iRungVeryActive */
+		   /*
+		   ** Note that iRungVeryActive is one less than the first rung with VA particles!
+		   */
+		   int iAdjust,		/* Do an adjust? */
+		   double *pdActiveSum,
+		   int *piSec) {
+
+    int bSplitVA;
+
+    msrprintf(msr,"%*cHSDKD open  at iRung: %d 0.5*dDelta: %g\n",
+	      2*iRung+2,' ',iRung,0.5*dDelta);
+
+    if ( iRung < msrCurrMaxRung(msr) ) {
+	/*
+	** Recurse.
+	*/
+	msrTopStepHSDKD(msr,dStep,dTime,0.5*dDelta,iRung+1,iRung+1,iRungVeryActive,0,pdActiveSum,piSec);
+
+	msrDrift(msr,dTime,dDelta*0.5,iRung,iRung);
+	dTime += 0.5*dDelta;
+	dStep += 1.0/(2 << iRung);
+	msrKickHSDKD(msr,dStep,dTime,dDelta,iRung,iAdjust,pdActiveSum,piSec);
+	msrDrift(msr,dTime,dDelta*0.5,iRung,iRung);
+
+	msrTopStepHSDKD(msr,dStep,dTime,0.5*dDelta,iRung+1,iKickRung,iRungVeryActive,1,pdActiveSum,piSec);
+	}
+    else /*msrCurrMaxRung(msr) == iRung*/ {
+	msrDrift(msr,dTime,dDelta*0.5,iRung,iRung);
+
+	dTime += 0.5*dDelta;
+	dStep += 1.0/(2 << iRung);
+
+	msrKickHSDKD(msr,dStep,dTime,dDelta,iRung,iAdjust,pdActiveSum,piSec);
+	msrDrift(msr,dTime,dDelta*0.5,iRung,iRung);
+
+
+	/*
+	 * move time back to 1/2 step so that KickClose can integrate
+	 * from 1/2 through the timestep to the end.
+	 */
+	dTime -= 0.5*dDelta;
+	}
+
+    msrprintf(msr,"%*cHSDKD close  at iRung: %d 0.5*dDelta: %g\n",
+	      2*iRung+2,' ',iRung,0.5*dDelta);
+
+    }
+
 
 
 void msrTopStepKDK(MSR msr,
@@ -4693,7 +4826,7 @@ void msrHop(MSR msr, double dTime) {
 
     /* Build a new tree with only marked particles */
     sec = msrTime();
-    _BuildTree(msr,2,0);
+    msrBuildTreeMarked(msr,dTime);
     dsec = msrTime() - sec;
     if (msr->param.bVStep)
 	printf("Tree build complete in %f secs, merging %"PRIu64" chains...\n",dsec,nGroups);
