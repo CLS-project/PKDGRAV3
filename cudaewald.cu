@@ -58,7 +58,6 @@ __global__ void cudaEwald(double *X,double *Y,double *Z,double *pPot) {
     for(ix=-3; ix<=3; ++ix) {
         for(iy=-3; iy<=3; ++iy) {
             for(iz=-3; iz<=3; ++iz) {
-                if (ix==0 && iy==0 & iz==0) continue;
                 bInHole = (abs(ix) <= ew.nReps && abs(iy) <= ew.nReps && abs(iz) <= ew.nReps);
  
                 x = rx + ew.Lbox * ix;
@@ -66,24 +65,45 @@ __global__ void cudaEwald(double *X,double *Y,double *Z,double *pPot) {
                 z = rz + ew.Lbox * iz;
                 r2 = x*x + y*y + z*z;
                 if (r2 >= ew.fEwCut2 && !bInHole) continue;
-
-                dir = rsqrt(r2);
-                dir2 = dir*dir;
-                a = exp(-r2*ew.alpha2);
-                a *= ew.ka*dir2;
-                if (bInHole) g0 = -erf(ew.alpha*r2*dir);
-                else         g0 = erfc(ew.alpha*r2*dir);
-                g0 *= dir;
-                g1 = g0*dir2 + a;
-                alphan = 2*ew.alpha2;
-                g2 = 3*g1*dir2 + alphan*a;
-                alphan *= 2*ew.alpha2;
-                g3 = 5*g2*dir2 + alphan*a;
-                alphan *= 2*ew.alpha2;
-                g4 = 7*g3*dir2 + alphan*a;
-                alphan *= 2*ew.alpha2;
-                g5 = 9*g4*dir2 + alphan*a;
-
+                if (r2 < ew.fInner2) { /* Once, at most per particle */
+                    double alphan;
+                    /*
+                     * For small r, series expand about
+                     * the origin to avoid errors caused
+                     * by cancellation of large terms.
+                     */
+                    alphan = ew.ka;
+                    r2 *= ew.alpha2;
+                    g0 = alphan*((1.0/3.0)*r2 - 1.0);
+                    alphan *= 2*ew.alpha2;
+                    g1 = alphan*((1.0/5.0)*r2 - (1.0/3.0));
+                    alphan *= 2*ew.alpha2;
+                    g2 = alphan*((1.0/7.0)*r2 - (1.0/5.0));
+                    alphan *= 2*ew.alpha2;
+                    g3 = alphan*((1.0/9.0)*r2 - (1.0/7.0));
+                    alphan *= 2*ew.alpha2;
+                    g4 = alphan*((1.0/11.0)*r2 - (1.0/9.0));
+                    alphan *= 2*ew.alpha2;
+                    g5 = alphan*((1.0/13.0)*r2 - (1.0/11.0));
+                    }
+                else {
+                    dir = rsqrt(r2);
+                    dir2 = dir*dir;
+                    a = exp(-r2*ew.alpha2);
+                    a *= ew.ka*dir2;
+                    if (bInHole) g0 = -erf(ew.alpha*r2*dir);
+                    else         g0 = erfc(ew.alpha*r2*dir);
+                    g0 *= dir;
+                    g1 = g0*dir2 + a;
+                    alphan = 2*ew.alpha2;
+                    g2 = 3*g1*dir2 + alphan*a;
+                    alphan *= 2*ew.alpha2;
+                    g3 = 5*g2*dir2 + alphan*a;
+                    alphan *= 2*ew.alpha2;
+                    g4 = 7*g3*dir2 + alphan*a;
+                    alphan *= 2*ew.alpha2;
+                    g5 = 9*g4*dir2 + alphan*a;
+                    }
                 double onethird = 1.0/3.0;
                 double xx,xxx,xxy,xxz,yy,yyy,yyz,xyy,zz,zzz,xzz,yzz,xy,xyz,xz,yz;
                 double Qta,Q4mirx,Q4miry,Q4mirz,Q4mir,Q4x,Q4y,Q4z;

@@ -88,65 +88,10 @@ void pkdAccumulateCUDA(PKD pkd,workEwald *we,double *pax,double *pay,double *paz
 	workParticle *wp = we->ppWorkPart[i];
 	int pi = we->piWorkPart[i];
 	PINFOOUT *out = &wp->pInfoOut[pi];
-	PARTICLE *p = wp->pPart[pi];
-	double x,y,z,r2;
-	double ax=0,ay=0,az=0,dPot=0;
-	double g0,g1,g2,g3,g4,g5;
-
-	ax = pax[i];
-	ay = pay[i];
-	az += paz[i];
-	dPot += pot[i];
-	/* We also still need to explicitly handle 0,0,0 */
-	x = p->r[0] - ew->r[0];
-	y = p->r[1] - ew->r[1];
-	z = p->r[2] - ew->r[2];
-	r2 = x*x + y*y + z*z;
-	if (r2 < ew->fInner2) {
-	    double alphan;
-	    /*
-	     * For small r, series expand about
-	     * the origin to avoid errors caused
-	     * by cancellation of large terms.
-	     */
-	    alphan = ew->ka;
-	    r2 *= ew->alpha2;
-	    g0 = alphan*((1.0/3.0)*r2 - 1.0);
-	    alphan *= 2*ew->alpha2;
-	    g1 = alphan*((1.0/5.0)*r2 - (1.0/3.0));
-	    alphan *= 2*ew->alpha2;
-	    g2 = alphan*((1.0/7.0)*r2 - (1.0/5.0));
-	    alphan *= 2*ew->alpha2;
-	    g3 = alphan*((1.0/9.0)*r2 - (1.0/7.0));
-	    alphan *= 2*ew->alpha2;
-	    g4 = alphan*((1.0/11.0)*r2 - (1.0/9.0));
-	    alphan *= 2*ew->alpha2;
-	    g5 = alphan*((1.0/13.0)*r2 - (1.0/11.0));
-	    }
-	else {
-	    double dir,dir2,a;
-	    double alphan;
-	    dir = 1/sqrt(r2);
-	    dir2 = dir*dir;
-	    a = exp(-r2*ew->alpha2);
-	    a *= ew->ka*dir2;
-	    g0 = -erf(ew->alpha*r2*dir);
-	    g0 *= dir;
-	    g1 = g0*dir2 + a;
-	    alphan = 2*ew->alpha2;
-	    g2 = 3*g1*dir2 + alphan*a;
-	    alphan *= 2*ew->alpha2;
-	    g3 = 5*g2*dir2 + alphan*a;
-	    alphan *= 2*ew->alpha2;
-	    g4 = 7*g3*dir2 + alphan*a;
-	    alphan *= 2*ew->alpha2;
-	    g5 = 9*g4*dir2 + alphan*a;
-	    }
-	/*nFlop +=*/ evalEwald(ew,&ax,&ay,&az,&dPot,x,y,z,g0,g1,g2,g3,g4,g5);
-	out->a[0] += ax;
-	out->a[1] += ay;
-	out->a[2] += az;
-	out->fPot += dPot;
+	out->a[0] += pax[i];
+	out->a[1] += pay[i];
+	out->a[2] += paz[i];
+	out->fPot += pot[i];
 	pkdParticleWorkDone(wp);
 	}
    }
