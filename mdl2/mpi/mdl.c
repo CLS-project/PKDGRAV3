@@ -1036,13 +1036,16 @@ int mdlLaunch(int argc,char **argv,void * (*fcnMaster)(MDL),void * (*fcnChild)(M
     for (argc = 0; argv[argc]; argc++);
     bDiag = 0;
     bThreads = 0;
-    bDedicated = 0;
+    bDedicated = -1;
     i = 1;
     while (argv[i]) {
 	if (!strcmp(argv[i], "-sz") && !bThreads) {
 	    ++i;
 	    mdl->base.nCores = atoi(argv[i]);
 	    if (argv[i]) bThreads = 1;
+	    }
+	if (!strcmp(argv[i], "-dedicated")) {
+	    if (bDedicated<1) bDedicated = 0;
 	    }
 	if (!strcmp(argv[i], "+dedicated")) {
 	    if (bDedicated<1) bDedicated = 1;
@@ -1080,6 +1083,10 @@ int mdlLaunch(int argc,char **argv,void * (*fcnMaster)(MDL),void * (*fcnChild)(M
     MPI_Comm_rank(mdl->mpi.commMDL, &mdl->base.iProc);
 
     /* Dedicate one of the threads for MPI, unless it would be senseless to do so */
+    if (bDedicated == -1) {
+	if (mdl->base.nProcs>1 && mdl->base.nCores>3) bDedicated = 1;
+	else bDedicated = 0;
+	}
     if (bDedicated == 1) {
 	if (mdl->base.nCores==1 || mdl->base.nProcs==1) bDedicated=0;
 	else --mdl->base.nCores;
