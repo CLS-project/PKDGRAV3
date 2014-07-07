@@ -732,13 +732,7 @@ static void queuePC( PKD pkd,  workParticle *work, ILC ilc, int bGravStep ) {
 	pc->i = 0;
 	tile->lstTile.nRefs++;
 	work->nRefs++;
-
-#ifdef xUSE_CUDA
-	pc->gpu_memory = NULL;
-	mdlAddWork(pkd->mdl,pc,CUDAinitWorkPC,CUDAcheckWorkPC,CPUdoWorkPC,doneWorkPC);
-#else
 	mdlAddWork(pkd->mdl,pc,NULL,NULL,CPUdoWorkPC,doneWorkPC);
-#endif
 	}
     }
 
