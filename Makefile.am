@@ -12,26 +12,26 @@ SUFFIXES = .cu
 #endif
 
 EXTRA_DIST = server.py
-EXTRA_PROGRAMS = pkdgrav2_null
+EXTRA_PROGRAMS = pkdgrav3_null
 TARGETS = null
 
 if HAVE_PTHREAD
-EXTRA_PROGRAMS	+= pkdgrav2_pthread
+EXTRA_PROGRAMS	+= pkdgrav3_pthread
 TARGETS	+= pthread
-pthread		: pkdgrav2_pthread
+pthread		: pkdgrav3_pthread
 endif
 
 if HAVE_MPI
-EXTRA_PROGRAMS	+= pkdgrav2_mpi
+EXTRA_PROGRAMS	+= pkdgrav3_mpi
 TARGETS	+= mpi
 
 mpi:
-	$(MAKE) CC=@MPICC@ FC=@MPIFC@ $(AM_MAKEFLAGS) pkdgrav2_mpi
+	$(MAKE) CC=@MPICC@ FC=@MPIFC@ $(AM_MAKEFLAGS) pkdgrav3_mpi
 endif
 
 EXTRA_PROGRAMS += tostd tdiff
 
-null	: pkdgrav2_null
+null	: pkdgrav3_null
 
 all-local: $(TARGETS)
 
@@ -39,7 +39,7 @@ clean-local:
 	rm -f $(EXTRA_PROGRAMS)
 
 SOURCES = main.c tree.c analysis.c romberg.c bt.c
-noinst_HEADERS = bt.h parameters.h grav.h walk.h cycle.h tipsydefs.h
+noinst_HEADERS = bt.h parameters.h grav.h walk.h cycle.h tipsydefs.h basetype.h
 SOURCES        += cosmo.c master.c param.c pst.c smooth.c ewald.c
 noinst_HEADERS += cosmo.h master.h param.h pst.h smooth.h ewald.h meval.h qeval.h
 SOURCES        += moments.c intype.c outtype.c pkd.c smoothfcn.c rbtree.c fio.c listcomp.c illinois.c
@@ -87,92 +87,92 @@ SOURCES += cudautil.cu cudapppc.cu cudaewald.cu
 noinst_HEADERS += cudautil.h
 endif
 
-pkdgrav2_null_SOURCES = $(SOURCES) $(MDL)/null/mdl.c
+pkdgrav3_null_SOURCES = $(SOURCES) $(MDL)/null/mdl.c
 noinst_HEADERS += $(MDL)/null/mdl.h
-pkdgrav2_null_CFLAGS =  -I$(MDL)/null/ -I$(MDL) $(AM_CFLAGS)
-pkdgrav2_null_LDADD = $(FLIBS)
+pkdgrav3_null_CFLAGS =  -I$(MDL)/null/ -I$(MDL) $(AM_CFLAGS)
+pkdgrav3_null_LDADD = $(FLIBS)
 if USE_EFENCE
 if HAVE_EFENCE_PATH
-pkdgrav2_null_LDADD += -L @EFENCE_PATH@
+pkdgrav3_null_LDADD += -L @EFENCE_PATH@
 endif
-pkdgrav2_null_LDADD += -lefence
+pkdgrav3_null_LDADD += -lefence
 endif
 if USE_CUDA
-pkdgrav2_null_LDADD += @CUDA_LIBS@
+pkdgrav3_null_LDADD += @CUDA_LIBS@
 endif
 if USE_PYTHON
 if HAVE_RDYNAMIC
-pkdgrav2_null_LDFLAGS = -Xlinker -rdynamic 
+pkdgrav3_null_LDFLAGS = -Xlinker -rdynamic 
 endif
-pkdgrav2_null_LDADD += -L$(PYTHON_LIB) -lpython$(PYTHON_VER) -ldl -lrt -lutil
-pkdgrav2_null_CFLAGS += -I$(PYTHON_INC)
+pkdgrav3_null_LDADD += -L$(PYTHON_LIB) -lpython$(PYTHON_VER) -ldl -lrt -lutil
+pkdgrav3_null_CFLAGS += -I$(PYTHON_INC)
 endif
 if LUSTRE
-pkdgrav2_null_LDADD += -llustreapi
+pkdgrav3_null_LDADD += -llustreapi
 endif
 
 if HAVE_MPI
-pkdgrav2_mpi_LDADD = -lpthread
-pkdgrav2_mpi_SOURCES = $(SOURCES) $(MDL)/mpi/mdl.c openpa/src/opa_primitives.c openpa/src/opa_queue.c
+pkdgrav3_mpi_LDADD = -lpthread
+pkdgrav3_mpi_SOURCES = $(SOURCES) $(MDL)/mpi/mdl.c openpa/src/opa_primitives.c openpa/src/opa_queue.c
 noinst_HEADERS += $(MDL)/mpi/mdl.h
-pkdgrav2_mpi_CFLAGS = -I$(MDL)/mpi/ -I$(MDL) -Iopenpa/src $(AM_CFLAGS)
+pkdgrav3_mpi_CFLAGS = -I$(MDL)/mpi/ -I$(MDL) -Iopenpa/src $(AM_CFLAGS)
 if USE_BSC
-pkdgrav2_mpi_LDADD += -L /gpfs/apps/CEPBATOOLS/mpitrace-devel/64/lib -ldl -lmpitrace_burst
-pkdgrav2_mpi_CFLAGS += -I/gpfs/apps/CEPBATOOLS/mpitrace-devel/64/include
+pkdgrav3_mpi_LDADD += -L /gpfs/apps/CEPBATOOLS/mpitrace-devel/64/lib -ldl -lmpitrace_burst
+pkdgrav3_mpi_CFLAGS += -I/gpfs/apps/CEPBATOOLS/mpitrace-devel/64/include
 endif
 if FFTW
-pkdgrav2_mpi_LDADD += -lsrfftw_mpi -lsfftw_mpi -lsrfftw -lsfftw
+pkdgrav3_mpi_LDADD += -lsrfftw_mpi -lsfftw_mpi -lsrfftw -lsfftw
 endif
 #if USE_GRAFIC
-#pkdgrav2_mpi_CFLAGS += -Igrafic/
-#pkdgrav2_mpi_LDADD += grafic/libgrafic.a
-##pkdgrav2_mpi_LDADD += -L @GRAFIC_PATH@ -lgrafic -lsrfftw_mpi -lsfftw_mpi -lsrf#ftw -lsfftw -lgfortran
+#pkdgrav3_mpi_CFLAGS += -Igrafic/
+#pkdgrav3_mpi_LDADD += grafic/libgrafic.a
+##pkdgrav3_mpi_LDADD += -L @GRAFIC_PATH@ -lgrafic -lsrfftw_mpi -lsfftw_mpi -lsrf#ftw -lsfftw -lgfortran
 ##CCLD=mpicxx
 #endif
 if USE_EFENCE
 if HAVE_EFENCE_PATH
-pkdgrav2_mpi_LDADD += -L @EFENCE_PATH@
+pkdgrav3_mpi_LDADD += -L @EFENCE_PATH@
 endif
-pkdgrav2_mpi_LDADD += -lefence
+pkdgrav3_mpi_LDADD += -lefence
 endif
 if USE_CUDA
-pkdgrav2_mpi_LDADD += @CUDA_LIBS@
+pkdgrav3_mpi_LDADD += @CUDA_LIBS@
 endif
 if USE_PYTHON
 if HAVE_RDYNAMIC
-pkdgrav2_mpi_LDFLAGS = -Xlinker -rdynamic 
+pkdgrav3_mpi_LDFLAGS = -Xlinker -rdynamic 
 endif
-pkdgrav2_mpi_LDADD += -L$(PYTHON_LIB) -lpython$(PYTHON_VER) -ldl -lutil
-pkdgrav2_mpi_CFLAGS += -I$(PYTHON_INC)
+pkdgrav3_mpi_LDADD += -L$(PYTHON_LIB) -lpython$(PYTHON_VER) -ldl -lutil
+pkdgrav3_mpi_CFLAGS += -I$(PYTHON_INC)
 endif
 if LUSTRE
-pkdgrav2_mpi_LDADD += -llustreapi
+pkdgrav3_mpi_LDADD += -llustreapi
 endif
 endif
 
 if HAVE_PTHREAD
-pkdgrav2_pthread_SOURCES = $(SOURCES) $(MDL)/pthread/mdl.c
+pkdgrav3_pthread_SOURCES = $(SOURCES) $(MDL)/pthread/mdl.c
 noinst_HEADERS += $(MDL)/pthread/mdl.h
-pkdgrav2_pthread_CFLAGS = -DUSE_PTHREAD -I$(MDL)/pthread/ -I$(MDL) $(AM_CFLAGS)
-pkdgrav2_pthread_LDADD = -lpthread
+pkdgrav3_pthread_CFLAGS = -DUSE_PTHREAD -I$(MDL)/pthread/ -I$(MDL) $(AM_CFLAGS)
+pkdgrav3_pthread_LDADD = -lpthread
 if USE_EFENCE
 if HAVE_EFENCE_PATH
-pkdgrav2_pthread_LDADD += -L @EFENCE_PATH@
+pkdgrav3_pthread_LDADD += -L @EFENCE_PATH@
 endif
-pkdgrav2_pthread_LDADD += -lefence
+pkdgrav3_pthread_LDADD += -lefence
 endif
 if USE_CUDA
-pkdgrav2_pthread_LDADD += @CUDA_LIBS@
+pkdgrav3_pthread_LDADD += @CUDA_LIBS@
 endif
 if USE_PYTHON
 if HAVE_RDYNAMIC
-pkdgrav2_pthread_LDFLAGS = -Xlinker -rdynamic 
+pkdgrav3_pthread_LDFLAGS = -Xlinker -rdynamic 
 endif
-pkdgrav2_pthread_LDADD += -L$(PYTHON_LIB) -lpython$(PYTHON_VER) -ldl -lutil
-pkdgrav2_pthread_CFLAGS += -I$(PYTHON_INC)
+pkdgrav3_pthread_LDADD += -L$(PYTHON_LIB) -lpython$(PYTHON_VER) -ldl -lutil
+pkdgrav3_pthread_CFLAGS += -I$(PYTHON_INC)
 endif
 if LUSTRE
-pkdgrav2_pthread_LDADD += -llustreapi
+pkdgrav3_pthread_LDADD += -llustreapi
 endif
 endif
 

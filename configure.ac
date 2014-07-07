@@ -2,8 +2,8 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.59)
-AC_INIT(pkdgrav2, 2.3, bugs@pkdgrav2.org)
-AM_INIT_AUTOMAKE(pkdgrav2,2.3)
+AC_INIT(pkdgrav3, 0.9, bugs@pkdgrav2.org)
+AM_INIT_AUTOMAKE(pkdgrav3,0.9)
 AC_CONFIG_SRCDIR([main.c])
 AC_CONFIG_HEADER([config.h])
 
@@ -31,7 +31,7 @@ else
 fi
 AC_SUBST(MPICC)
 
-AC_DEFINE([HAVE_ROMBERG], 1, [Use the pkdgrav2 Romberg integrator.])
+AC_DEFINE([HAVE_ROMBERG], 1, [Use the pkdgrav3 Romberg integrator.])
 
 # Cooling
 AC_ARG_ENABLE(cooling,
@@ -120,7 +120,7 @@ AC_ARG_WITH(python,
 AM_CONDITIONAL(USE_PYTHON, test "x$PYTHON_EXE" != "xno")
 if test "x$PYTHON_EXE" != "xno" ; then
 AC_DEFINE([USE_PYTHON],1,
-  [Defined if python support should be compiled into pkdgrav2])
+  [Defined if python support should be compiled into pkdgrav3])
 if test "x$PYTHON_EXE" = "xyes" ; then
   PYTHON_EXE=python
 fi
