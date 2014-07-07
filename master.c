@@ -967,6 +967,13 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
 	printf("WARNING: nReplicas set to non-zero value for non-periodic!\n");
 	}
 
+    /*
+    ** CUDA likes a larger group size
+    */
+    if (msr->param.iCUDAQueueSize>0 && !prmSpecified(msr->prm,"nGroup") && msr->param.nGroup<256)
+	msr->param.nGroup = 256;
+
+
 #ifndef USE_HDF5
     if (msr->param.bHDF5) {
 	printf("WARNING: HDF5 output was requested by is not supported: using Tipsy format\n");
