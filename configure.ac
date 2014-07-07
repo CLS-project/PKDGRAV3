@@ -147,9 +147,9 @@ AC_ARG_WITH(hdf5,
    ])
 if test "x$USE_HDF5" = "xyes" ; then
   AC_CHECK_LIB([hdf5],[H5Fopen],,[AC_MSG_ERROR([The HDF5 library cannot be located])])
-elif test "x$USE_HDF5" != "xno" ; then
-  USE_HDF5="yes"
-  AC_CHECK_LIB([hdf5],[H5Fopen],,[USE_HDF5="no"])
+#elif test "x$USE_HDF5" != "xno" ; then
+#  USE_HDF5="yes"
+#  AC_CHECK_LIB([hdf5],[H5Fopen],,[USE_HDF5="no"])
 fi
 if test "x$USE_HDF5" = "xyes" ; then
    AC_CHECK_LIB([z], [inflate],,[AC_MSG_ERROR([The HDF5 library needs libz])])
@@ -215,7 +215,7 @@ fi
 AC_ARG_ENABLE(lustre,
   [  --enable-lustre                enable support for lustre],
   [LUSTRE="${enableval}"])
-if test "x$LUSTRE" != "xno" ; then
+if test "x$LUSTRE" == "xyes" ; then
   AC_MSG_CHECKING([for lustre])
   lustre_ok=yes
   saved_LIBS="$LIBS"
