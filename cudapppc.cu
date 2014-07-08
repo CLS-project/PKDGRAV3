@@ -565,16 +565,6 @@ void CUDAsetupPP(void) {
     //cudaFuncSetCacheConfig(cudaPP,cudaFuncCachePreferL1);
     }
 
-#if 0
-static int compareWU(const void *va, const void *vb) {
-    const ppWorkUnit *a = reinterpret_cast<const ppWorkUnit *>(va);
-    const ppWorkUnit *b = reinterpret_cast<const ppWorkUnit *>(vb);
-    if (a->nP > b->nP) return -1;
-    if (a->nP < b->nP) return +1;
-    else return 0;
-    }
-#endif
-
 template<int nIntPerTB, int nIntPerWU, typename BLK>
 void CUDA_sendWork(CUDACTX cuda,CUDAwqNode **head) {
     CUDAwqNode *work = *head;
@@ -644,13 +634,6 @@ void CUDA_sendWork(CUDACTX cuda,CUDAwqNode **head) {
             ++wuHost;
             ++iI;
             }
-
-#if 0
-        // By sorting, we keep the number of particles similar between work units
-        // in the same thread block. Should result in better occupany.
-        wuHost = reinterpret_cast<ppWorkUnit *>(blkHost + work->ppnBlocks);
-        qsort(wuHost,iI,sizeof(ppWorkUnit),compareWU);
-#endif
 
         ppResult *pCudaBufOut = reinterpret_cast<ppResult *>(work->pCudaBufOut);
         int nBufferIn = reinterpret_cast<char *>(partHost) - reinterpret_cast<char *>(work->pHostBuf);
