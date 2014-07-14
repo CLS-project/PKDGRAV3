@@ -2278,7 +2278,7 @@ void msrDomainDecompOld(MSR msr,int iRung,int bSplitVA) {
 	assert(iRungDD >= iRungRT);
 	assert(iRungRT >= iRungSD);
 
-	if (msr->iLastRungRT < 0) {
+	if (msr->iLastRungRT < 0 || iRung==0) {
 	    /*
 	    ** We need to do a full domain decompotition with iRungRT particles being active.
 	    ** However, since I am not sure what the exact state of the domains can be at this point
