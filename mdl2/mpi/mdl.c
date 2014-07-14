@@ -31,7 +31,6 @@
 #define MDL_ROCACHE			1
 #define MDL_COCACHE			2
 
-#define MDL_DEFAULT_BYTES		80000
 #define MDL_DEFAULT_CACHEIDS	5
 
 #define MDL_TRANS_SIZE		5000000
@@ -404,8 +403,8 @@ int mdlCacheReceive(MDL mdl) {
 	n = s + MDL_CACHELINE_ELTS;
 	if (n > c->nData) n = c->nData;
 	for(i=s;i<n;i++) {
-		(*c->combine)(c->ctx,(*c->getElt)(c->pData,i,c->iDataSize),
-			      &pszRcv[(i-s)*c->iDataSize]);
+	    (*c->combine)(c->ctx,(*c->getElt)(c->pData,i,c->iDataSize),
+		&pszRcv[(i-s)*c->iDataSize]);
 	    }
 	ret = 0;
 	break;
@@ -2084,7 +2083,7 @@ static inline void arcSetPrefetchData(ARC arc,uint32_t uIndex,uint32_t uId,void 
 	    } else {                                                      /* no: B1 must be empty */
 		temp = lru_remove(arc->T1);                                    /* take page off T1 */
 #if (0)
-		if (temp->dirty) destage(temp);                           /* if dirty, evict before overwrite */
+		if (temp->uId & _DIRTY_) destage(temp);     /* if dirty, evict before overwrite */
 #endif
 		remove_from_hash(arc,temp);            /* remove from hash table */
 		arc->T1Length--;                                               /* bookkeep that */
@@ -2130,7 +2129,7 @@ static inline void arcSetPrefetchData(ARC arc,uint32_t uIndex,uint32_t uId,void 
 ** that it should not if this check was not there).
 */
 static inline void arcRelease(ARC arc,uint64_t *p) {
-    if (p>arc->dataBase && p<arc->dataLast) {
+    if (p>arc->dataBase && p<arc->dataLast) { /* Might have been a fast, read-only grab */
 	uint64_t t = p[-1]-1;
 	assert((t^_ARC_MAGIC_) < 0x00000000ffffffff);
 	p[-1] = t;
@@ -2181,7 +2180,7 @@ static void finishCacheRequest(MDL mdl, int cid, CDB *temp) {
 ** The next 3 highest order bits of uId ((1<<30), (1<<29) and (1<<28)) are reserved 
 ** for list location and should be zero! The maximum legal uId is then (1<<28)-1.
 */
-void *mdlDoMiss(MDL mdl, int cid, int iIndex, int id, mdlkey_t iKey, int bLock) {
+void *mdlDoMiss(MDL mdl, int cid, int iIndex, int id, int bLock) {
     CACHE *c = &mdl->cache[cid];
     ARC arc = c->arc;
     uint32_t uIndex = iIndex;
@@ -2191,6 +2190,16 @@ void *mdlDoMiss(MDL mdl, int cid, int iIndex, int id, mdlkey_t iKey, int bLock) 
     uint32_t uHash,rat;
     uint32_t tuId = uId&_IDMASK_;
     int inB2=0;
+
+    if (!(++c->nAccess & MDL_CHECK_MASK)) mdlCacheCheck(mdl);
+
+    /* Short circuit the cache if this belongs to another thread (or ourselves) */
+    int iCore = id - mdl->pmdl[0]->base.idSelf;
+    if (iCore >= 0 && iCore < mdl->base.nCores && c->iType == MDL_ROCACHE ) {
+	MDL omdl = mdl->pmdl[iCore];
+	c = &omdl->cache[cid];
+	return (*c->getElt)(c->pData,iIndex,c->iDataSize);
+	}
 
     uHash = (MurmurHash2(uIndex,tuId)&arc->uHashMask);
     temp = arc->Hash[uHash];
@@ -2286,7 +2295,7 @@ void *mdlDoMiss(MDL mdl, int cid, int iIndex, int id, mdlkey_t iKey, int bLock) 
 	    else {                                                      /* no: B1 must be empty */
 		temp = lru_remove(arc->T1);                                    /* take page off T1 */
 #if (0)
-		if (temp->dirty) destage(temp);                           /* if dirty, evict before overwrite */
+		if (temp->uId & _DIRTY_) destage(temp);     /* if dirty, evict before overwrite */
 #endif
 		remove_from_hash(arc,temp);            /* remove from hash table */
 		arc->T1Length--;                                               /* bookkeep that */
@@ -2340,7 +2349,7 @@ void *mdlDoMiss(MDL mdl, int cid, int iIndex, int id, mdlkey_t iKey, int bLock) 
     return((void *)temp->data);
 }
 #else
-void *mdlDoMiss(MDL mdl, int cid, int iIndex, int id, mdlkey_t iKey, int lock) {
+void *mdlDoMiss(MDL mdl, int cid, int iIndex, int id, int lock) {
     CACHE *c = &mdl->cache[cid];
     char *pLine;
     int iElt,i,iLine;
@@ -2352,6 +2361,9 @@ void *mdlDoMiss(MDL mdl, int cid, int iIndex, int id, mdlkey_t iKey, int lock) {
     char *pszFlsh;
     MPI_Status status;
     MPI_Request reqFlsh;
+    mdlkey_t iKey;
+
+    if (!(++c->nAccess & MDL_CHECK_MASK)) mdlCacheCheck(mdl);
 
     /* Short circuit the cache if this belongs to another thread */
     int iCore = id - mdl->pmdl[0]->base.idSelf;
@@ -2359,6 +2371,37 @@ void *mdlDoMiss(MDL mdl, int cid, int iIndex, int id, mdlkey_t iKey, int lock) {
 	MDL omdl = mdl->pmdl[iCore];
 	c = &omdl->cache[cid];
 	return (*c->getElt)(c->pData,iIndex,c->iDataSize);
+	}
+
+    /*
+     ** Determine memory block key value and cache line.
+     */
+    iKey = iIndex & MDL_INDEX_MASK;
+    iKey <<= c->iKeyShift;
+    iKey |= id;
+    i = c->pTrans[iKey & c->iTransMask];
+    /*
+     ** Check for a match!
+     */
+    if (c->pTag[i].iKey == iKey) {
+	if (lock) ++c->pTag[i].nLock;
+	pLine = &c->pLine[i*c->iLineSize];
+	iElt = iIndex & MDL_CACHE_MASK;
+	return(&pLine[iElt*c->iDataSize]);
+	}
+    i = c->pTag[i].iLink;
+    /*
+     ** Collision chain search.
+     */
+    while (i) {
+	++c->nColl;
+	if (c->pTag[i].iKey == iKey) {
+	    if (lock) ++c->pTag[i].nLock;
+	    pLine = &c->pLine[i*c->iLineSize];
+	    iElt = iIndex & MDL_CACHE_MASK;
+	    return(&pLine[iElt*c->iDataSize]);
+	    }
+	i = c->pTag[i].iLink;
 	}
 
     mdlTimeAddComputing(mdl);
@@ -2450,63 +2493,15 @@ Await:
     }
 #endif
 
-void *mdlAquire(MDL mdl,int cid,int iIndex,int id) {
-    const int lock = 1;  /* we always lock in aquire */
-    CACHE *c = &mdl->cache[cid];
-    char *pLine;
-    mdlkey_t iKey;
-    int iElt;
-    int i;
-
-    ++c->nAccess;
-
-    if (!(c->nAccess & MDL_CHECK_MASK))
-	mdlCacheCheck(mdl);
-
-    /* Short circuit the cache if this belongs to another thread (or ourselves) */
-    int iCore = id - mdl->pmdl[0]->base.idSelf;
-    if (iCore >= 0 && iCore < mdl->base.nCores && c->iType == MDL_ROCACHE ) {
-	MDL omdl = mdl->pmdl[iCore];
-	c = &omdl->cache[cid];
-	return (*c->getElt)(c->pData,iIndex,c->iDataSize);
-	}
-
-#ifdef USE_ARC
-#else
-    /*
-     ** Determine memory block key value and cache line.
-     */
-    iKey = iIndex & MDL_INDEX_MASK;
-    iKey <<= c->iKeyShift;
-    iKey |= id;
-    i = c->pTrans[iKey & c->iTransMask];
-    /*
-     ** Check for a match!
-     */
-    if (c->pTag[i].iKey == iKey) {
-	++c->pTag[i].nLock;
-	pLine = &c->pLine[i*c->iLineSize];
-	iElt = iIndex & MDL_CACHE_MASK;
-	return(&pLine[iElt*c->iDataSize]);
-	}
-    i = c->pTag[i].iLink;
-    /*
-     ** Collision chain search.
-     */
-    while (i) {
-	++c->nColl;
-	if (c->pTag[i].iKey == iKey) {
-	    ++c->pTag[i].nLock;
-	    pLine = &c->pLine[i*c->iLineSize];
-	    iElt = iIndex & MDL_CACHE_MASK;
-	    return(&pLine[iElt*c->iDataSize]);
-	    }
-	i = c->pTag[i].iLink;
-	}
-#endif
-    return(mdlDoMiss(mdl, cid, iIndex, id, iKey, lock));
+void *mdlFetch(MDL mdl,int cid,int iIndex,int id) {
+    const int lock = 0;  /* we never lock in fetch */
+    return(mdlDoMiss(mdl, cid, iIndex, id, lock));
     }
 
+void *mdlAquire(MDL mdl,int cid,int iIndex,int id) {
+    const int lock = 1;  /* we always lock in aquire */
+    return(mdlDoMiss(mdl, cid, iIndex, id, lock));
+    }
 
 void mdlRelease(MDL mdl,int cid,void *p) {
     CACHE *c = &mdl->cache[cid];

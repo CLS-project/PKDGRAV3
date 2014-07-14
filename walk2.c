@@ -187,7 +187,7 @@ static inline int getCell(PKD pkd,int iCell,int id,float *pcOpen,KDN **pc) {
 	nc = 1000000000; /* we never allow pp with this cell */
 	}
     else {
-	*pc = c = CAST(KDN *,mdlAquire(pkd->mdl,CID_CELL,iCell,id));
+	*pc = c = CAST(KDN *,mdlFetch(pkd->mdl,CID_CELL,iCell,id));
 	nc = c->pUpper - c->pLower + 1;
 	}
     if (*pcOpen < 0.0f) {
@@ -629,7 +629,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
 				    pj = -1 - iCheckCell;
 				    assert(id >= 0);
 				    if (id == pkd->idSelf) p = pkdParticle(pkd,pj);
-				    else p = CAST(PARTICLE *,mdlAquire(pkd->mdl,CID_PARTICLE,pj,id));
+				    else p = CAST(PARTICLE *,mdlFetch(pkd->mdl,CID_PARTICLE,pj,id));
 				    if (bGravStep && pkd->param.iTimeStepCrit == 1) v = pkdVel(pkd,p);
 				    iOrder = p->iOrder;
 				    ilpAppend(pkd->ilp,
@@ -638,16 +638,15 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
 					p->r[2] + blk->zOffset.f[jTile],
 					blk->m.f[jTile], blk->fourh2.f[jTile],
 					p->iOrder, v[0], v[1], v[2]);
-				    if (id != pkd->idSelf) mdlRelease(pkd->mdl,CID_PARTICLE,p);
 				    }
 				else {
 				    id = blk->id.i[jTile];
 				    assert(id >= 0);
 				    if (id == pkd->idSelf) c = pkdTreeNode(pkd,iCheckCell);
-				    else c = CAST(KDN *,mdlAquire(pkd->mdl,CID_CELL,iCheckCell,id));
+				    else c = CAST(KDN *,mdlFetch(pkd->mdl,CID_CELL,iCheckCell,id));
 				    for (pj=c->pLower;pj<=c->pUpper;++pj) {
 					if (id == pkd->idSelf) p = pkdParticle(pkd,pj);
-					else p = CAST(PARTICLE *,mdlAquire(pkd->mdl,CID_PARTICLE,pj,id));
+					else p = CAST(PARTICLE *,mdlFetch(pkd->mdl,CID_PARTICLE,pj,id));
 					fMass = pkdMass(pkd,p);
 					fSoft = pkdSoft(pkd,p);
 					if (bGravStep && pkd->param.iTimeStepCrit == 1) v = pkdVel(pkd,p);
@@ -657,9 +656,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
 					    p->r[2] + blk->zOffset.f[jTile],
 					    fMass, 4*fSoft*fSoft,
 					    p->iOrder, v[0], v[1], v[2]);
-					if (id != pkd->idSelf) mdlRelease(pkd->mdl,CID_PARTICLE,p);
 					}
-				    if (id != pkd->idSelf) mdlRelease(pkd->mdl,CID_CELL,c);
 				    }
 				break;
 			    case 2:
@@ -675,10 +672,10 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
 				fOffset[2] = blk->zOffset.f[jTile];
 				assert(id >= 0);
 				if (id == pkd->idSelf) c = pkdTreeNode(pkd,iCheckCell);
-				else c = CAST(KDN *,mdlAquire(pkd->mdl,CID_CELL,iCheckCell,id));
+				else c = CAST(KDN *,mdlFetch(pkd->mdl,CID_CELL,iCheckCell,id));
 				for (pj=c->pLower;pj<=c->pUpper;++pj) {
 				    if (id == pkd->idSelf) p = pkdParticle(pkd,pj);
-				    else p = CAST(PARTICLE *,mdlAquire(pkd->mdl,CID_PARTICLE,pj,id));
+				    else p = CAST(PARTICLE *,mdlFetch(pkd->mdl,CID_PARTICLE,pj,id));
 				    fMass = pkdMass(pkd,p);
 				    fSoft = pkdSoft(pkd,p);
 				    if (bGravStep && pkd->param.iTimeStepCrit == 1) v = pkdVel(pkd,p);
@@ -687,9 +684,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
 					fOffset, /* fOffset */
 					p->r,    /* center of box */
 					fZero3); /* size of box */
-				    if (id != pkd->idSelf) mdlRelease(pkd->mdl,CID_PARTICLE,p);
 				    }
-				if (id != pkd->idSelf) mdlRelease(pkd->mdl,CID_CELL,c);
 				break;
 			    case 3:
 				/*
@@ -716,9 +711,8 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
 					iCheckLower = c->iLower;
 					}
 				    else {
-					c = CAST(KDN *,mdlAquire(pkd->mdl,CID_CELL,iRoot,id));
+					c = CAST(KDN *,mdlFetch(pkd->mdl,CID_CELL,iRoot,id));
 					iCheckLower = c->iLower;
-					mdlRelease(pkd->mdl,CID_CELL,c);
 					}
 				    if (!iCheckLower) {
 					/*
@@ -731,7 +725,6 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
 					fOffset[1] = blk->yOffset.f[jTile];
 					fOffset[2] = blk->zOffset.f[jTile];
 					clAppend(pkd->clNew,iRoot,id,0,nc,cOpen,pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c->r,fOffset,cbnd->fCenter,cbnd->fMax);
-					if (id != pkd->idSelf) mdlRelease(pkd->mdl,CID_CELL,c);
 					break; /* finished, don't add children */
 					}
 				    }			    
@@ -744,7 +737,6 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
 				iLower = c->iLower;
 				if (id == -1 && !iLower) iLower = iRoot;  /* something other than zero for openening crit - iLower usually can't be == iRoot */
 				clAppend(pkd->clNew,iCheckLower,id,iLower,nc,cOpen,pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c->r,fOffset,cbnd->fCenter,cbnd->fMax);
-				if (id >= 0 && id != pkd->idSelf) mdlRelease(pkd->mdl,CID_CELL,c);
 				/*
 				** Also add the sibling of check->iLower.
 				*/
@@ -755,7 +747,6 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
 				iLower = c->iLower;
 				if (id == -1 && !iLower) iLower = iRoot;  /* something other than zero for openening crit - iLower usually can't be == iRoot */
 				clAppend(pkd->clNew,iCheckLower,id,iLower,nc,cOpen,pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c->r,fOffset,cbnd->fCenter,cbnd->fMax);
-				if (id >= 0 && id != pkd->idSelf) mdlRelease(pkd->mdl,CID_CELL,c);
 				break;
 			    case 4:
 				/*
@@ -767,7 +758,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
 				id = blk->id.i[jTile];
 				if (id == pkd->idSelf) c = pkdTreeNode(pkd,iCheckCell);
 				else if (id == -1) c = pkdTopNode(pkd,iCheckCell);
-				else c = CAST(KDN *,mdlAquire(pkd->mdl,CID_CELL,iCheckCell,id));
+				else c = CAST(KDN *,mdlFetch(pkd->mdl,CID_CELL,iCheckCell,id));
 				/*
 				** Center of mass velocity is used by the planets code to get higher derivatives of the 
 				** acceleration and could be used to drift cell moments as an approximation.
@@ -779,7 +770,6 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
 				    blk->z.f[jTile] + blk->zOffset.f[jTile],
 				    pkdNodeMom(pkd,c),c->bMax,
 				    v[0],v[1],v[2]);
-				if (id != -1 && id != pkd->idSelf) mdlRelease(pkd->mdl,CID_CELL,c);
 				break;
 			    case 8:
 				/*
@@ -812,7 +802,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
 				    dOffset[2] = blk->zOffset.f[jTile];
 				    if (id == pkd->idSelf) c = pkdTreeNode(pkd,iCheckCell);
 				    else if (id == -1) c = pkdTopNode(pkd,iCheckCell);
-				    else c = CAST(KDN *,mdlAquire(pkd->mdl,CID_CELL,iCheckCell,id));
+				    else c = CAST(KDN *,mdlFetch(pkd->mdl,CID_CELL,iCheckCell,id));
 				    d2 = 0;
 				    for (j=0;j<3;++j) {
 					dx[j] = k->r[j] - (c->r[j] + dOffset[j]);
@@ -832,7 +822,6 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
 					dirLsum += dir*adotai*adotai;
 					normLsum += adotai*adotai;
 					}
-				    if (id != -1 && id != pkd->idSelf) mdlRelease(pkd->mdl,CID_CELL,c);
 				    }
 				break;
 			    case 10:
