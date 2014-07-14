@@ -1230,6 +1230,54 @@ void *mdlAquire(MDL mdl,int cid,int iIndex,int id) {
     return(doMiss(mdl, cid, iIndex, id, iKey, 1));
     }
 
+void *mdlFetch(MDL mdl,int cid,int iIndex,int id) {
+    CACHE *c = &mdl->cache[cid];
+    mdlkey_t iKey;
+    int i;
+    char *pLine;		/* matched cache line */
+    int iElt;		/* Element in line */
+
+    if (c->iType == MDL_ROCACHE || id == mdl->base.idSelf) {
+	CACHE *cc = &mdl->pmdl[id]->cache[cid];
+	return c->getElt(cc->pData,iIndex,c->iDataSize);
+	//return(&cc->pData[iIndex*((size_t)c->iDataSize)]);
+	}
+
+    ++c->nAccess;
+    if (!(c->nAccess & MDL_CHECK_MASK)) {
+	mdlCacheCheck(mdl);
+	}
+
+    /*
+     ** Determine memory block key value and cache line.
+     */
+    iKey = ((iIndex&MDL_INDEX_MASK) << c->iKeyShift)| id;
+
+    i = c->pTrans[iKey & c->iTransMask];
+    /*
+     ** Check for a match!
+     */
+    if (c->pTag[i].iKey == iKey) {
+	pLine = &c->pLine[i*c->iLineSize];
+	iElt = iIndex & MDL_CACHE_MASK;
+	return(&pLine[iElt*c->iDataSize]);
+	}
+    i = c->pTag[i].iLink;
+    /*
+     ** Collision chain search.
+     */
+    while (i) {
+	++c->nColl;
+	if (c->pTag[i].iKey == iKey) {
+	    pLine = &c->pLine[i*c->iLineSize];
+	    iElt = iIndex & MDL_CACHE_MASK;
+	    return(&pLine[iElt*c->iDataSize]);
+	    }
+	i = c->pTag[i].iLink;
+	}
+    return(doMiss(mdl, cid, iIndex, id, iKey, 0));
+    }
+
 void *doMiss(MDL mdl, int cid, int iIndex, int id, mdlkey_t iKey, int lock) {
     CACHE *c = &mdl->cache[cid];
     CACHE *cc;
