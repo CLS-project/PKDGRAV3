@@ -731,6 +731,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
 					fOffset[1] = blk->yOffset.f[jTile];
 					fOffset[2] = blk->zOffset.f[jTile];
 					clAppend(pkd->clNew,iRoot,id,0,nc,cOpen,pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c->r,fOffset,cbnd->fCenter,cbnd->fMax);
+					if (id != pkd->idSelf) mdlRelease(pkd->mdl,CID_CELL,c);
 					break; /* finished, don't add children */
 					}
 				    }			    
