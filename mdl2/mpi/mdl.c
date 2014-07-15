@@ -1875,6 +1875,9 @@ static void arcFlushAll(ARC arc) {
 	temp = lru_remove(arc->T1);
 	assert(temp->data != NULL);
 	assert(temp->data[-1] == _ARC_MAGIC_);
+#if (0)
+	if (temp->uId & _DIRTY_) destage(temp);     /* if dirty, evict before free */
+#endif
 	remove_from_hash(arc,temp);
 	lru_insert(temp,arc->Free);
 	}
@@ -1882,6 +1885,9 @@ static void arcFlushAll(ARC arc) {
 	temp = lru_remove(arc->T2);
 	assert(temp->data != NULL);
 	assert(temp->data[-1] == _ARC_MAGIC_);
+#if (0)
+	if (temp->uId & _DIRTY_) destage(temp);     /* if dirty, evict before free */
+#endif
 	remove_from_hash(arc,temp);
 	lru_insert(temp,arc->Free);
 	}
