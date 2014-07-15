@@ -45,15 +45,6 @@
 #include "smoothfcn.h"
 #include "fio.h"
 
-#ifdef USE_LUSTRE
-#include <lustre/lustreapi.h>
-#include <lustre/lustre_user.h>
-#endif
-
-#ifdef USE_BSC
-#include "mpitrace_user_events.h"
-#endif
-
 #define LOCKFILE ".lockfile"	/* for safety lock */
 #define STOPFILE "STOP"			/* for user interrupt */
 
@@ -563,15 +554,6 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.bWriteIC = 0;
     prmAddParam(msr->prm,"bWriteIC",1,&msr->param.bWriteIC,
 		sizeof(int),"wic","<Write IC after generating> = 0");
-
-#ifdef USE_LUSTRE
-    msr->param.nStripeSize = 0;
-    prmAddParam(msr->prm,"nStripeSize",1,&msr->param.nStripeSize,
-		sizeof(int),"lss","<Lustre stripe size> = 0");
-    msr->param.nStripeCount = 0;
-    prmAddParam(msr->prm,"nStripeCount",1,&msr->param.nStripeCount,
-		sizeof(int),"lsc","<Lustre stripe count> = 0");
-#endif
 
     /* Memory models */
     msr->param.bMemParticleID = 0;
@@ -1822,7 +1804,7 @@ uint64_t msrCalcWriteStart(MSR msr) {
     return out.nTotal;
     }
 
-void _msrWriteTipsy(MSR msr,const char *pszFileName,double dTime,int bCheckpoint) {
+void msrWrite(MSR msr,const char *pszFileName,double dTime,int bCheckpoint) {
     FIO fio;
     char achOutFile1[PST_FILENAME_SIZE];
     char achOutFile[PST_FILENAME_SIZE];
@@ -1831,6 +1813,9 @@ void _msrWriteTipsy(MSR msr,const char *pszFileName,double dTime,int bCheckpoint
     double dvFac, dExp;
     double sec,dsec;
     uint64_t N;
+
+    if ( msr->iLastRungRT >= 0 ) msrReorder(msr);
+    assert( msr->iLastRungRT < 0 );
 
     /*
     ** Calculate where to start writing.
@@ -1880,15 +1865,6 @@ void _msrWriteTipsy(MSR msr,const char *pszFileName,double dTime,int bCheckpoint
 	msrprintf(msr,"Time:%g Redshift:%g\n",dTime,(1.0/dExp - 1.0));
     else
 	msrprintf(msr,"Time:%g\n",dTime);
-
-    /* Best effort lustre striping request */
-#ifdef USE_LUSTRE
-    if ( prmSpecified(msr->prm,"nStripeCount") || prmSpecified(msr->prm,"nStripeSize") ) {
-	unlink(achOutFile);
-	llapi_file_create(achOutFile,msr->param.nStripeSize,
-			  -1,msr->param.nStripeCount,0);
-	}
-#endif
 
     sec = msrTime();
     msrAllNodeWrite(msr, achOutFile, dTime, dvFac, bCheckpoint);
@@ -2291,9 +2267,6 @@ void msrDomainDecompOld(MSR msr,int iRung,int bSplitVA) {
 	pstFastGasCleanup(msr->pst,NULL,0,NULL,NULL);
     }
 
-#ifdef USE_BSC
-    MPItrace_event(10000, 2 );
-#endif
     in.bSplitVA = bSplitVA;
     msrprintf(msr,"Domain Decomposition: nActive (Rung %d) %"PRIu64" SplitVA:%d\n",
 	      msr->iLastRungRT,msr->nActive,bSplitVA);
@@ -2302,10 +2275,6 @@ void msrDomainDecompOld(MSR msr,int iRung,int bSplitVA) {
 
     pstDomainDecomp(msr->pst,&in,sizeof(in),NULL,NULL);
 
-
-#ifdef USE_BSC
-    MPItrace_event(10000, 0 );
-#endif
     dsec = msrTime() - sec;
     msrprintf(msr,"Domain Decomposition complete, Wallclock: %f secs\n\n",dsec);
 
@@ -3528,86 +3497,6 @@ int msrUpdateRung(MSR msr, uint8_t uRung) {
     return(iRungVeryActive);
     }
 
-#if 0
-/*
-** This is the main timestepping loop for the code. There is a call for very active timestepping
-** if this is needed. The timestepping scheme is KDK and here written in a non-recursive fashion
-** to simplify outputs and the like.
-*/
-double msrKDKStepping(MSR msr,double dTime) {
-    char achFile[PST_FILENAME_SIZE];
-    unsigned char ucStack[MAX_RUNG+1];
-    struct inStepVeryActive in;
-    double dt;
-    int sp=0;
-    int iStep;
-    int bExcludeVeryActive;
-    int bPeriodicDrift = msr->param.bPeriodic;
-    unsigned char uc,ucRung,ucMaxRung;
-
-    iStep = msr->param.iStartStep;
-    ucRung = 0;
-
-    bExcludeVeryActive = 0;
-    msrBuildTree(msr,dTime,bExcludeVeryActive,msr->param.ucRungVeryActive);
-    msrGravity(msr,dTime,iStep,ucRung);
-
-    while (iStep < msr->param.nSteps) {
-	ucMaxRung = msrCalcRung(msr,ucRung,msr->param.ucRungLimit,dTime);
-	msrKickByRung(msr,ucRung,ucMaxRung,dTime,0,msr->param.dBaseStep);
-	if (bTreeRepair) {
-	    msrCalcTreeDerivs(msr,ucRung,ucMaxRun);
-	    }
-	for (uc=ucRung+1;uc<msr->param.ucRungVeryActive;++uc) PUSH(uc);
-	if (ucMaxRung < msr->param.ucRungVeryActive) {
-	    dt = msr->param.dBaseStep/pow(2.0,ucMaxRung);
-	    msrDriftFixed(msr,0,ucMaxRung,dTime,dt,bPeriodicDrift);
-	    dTime += dt;
-	    }
-	else {
-	    dt = msr->param.dBaseStep/pow(2.0,msr->param.ucRungVeryActive);
-	    msrDriftFixed(msr,0,msr->param.ucRungVeryActive-1,dTime,dt,bPeriodicDrift);
-	    bExcludeVeryActive = 1;
-	    msrBuildTree(msr,dTime,bExcludeVeryActive,msr->param.ucRungVeryActive);
-
-	    in.dTime = dTime;
-	    in.dBaseStep = msr->param.dBaseStep;
-	    in.ucRungVeryActive = msr->param.ucRungVeryActive;
-	    in.ucMaxRung = ucMaxRung;
-	    pstStepVeryActive(msr->pst,&in,sizeof(in),NULL,NULL);
-
-	    dTime += dt;
-	    msrDriftFixed(msr,0,msr->param.ucRungVeryActive-1,dTime,dt,bPeriodicDrift);
-	    dTime += dt;
-	    }
-	if (!sp) {
-	    ++iStep;
-	    msrRungCount(msr);
-	    /*
-	    ** Synchronized at this point, this is the end of a base timestep.
-	    ** Output if 1) we're at the end of the simulation
-	    **           2) we're at an output interval
-	    */
-	    if (iStep == msr->param.nSteps ||
-		(msr->param.iOutInterval > 0 &&	iStep%msr->param.iOutInterval == 0)) {
-		msrReorder(msr);
-		sprintf(achFile,msr->param.achDigitMask,msr->param.achOutName,iStep);
-		msrWriteTipsy(msr,achFile,dTime);
-		}
-	    PUSH(0);
-	    }
-	POP(ucRung);
-	bExcludeVeryActive = 0;
-
-	msrBuildTree(msr,dTime,bExcludeVeryActive,msr->param.ucRungVeryActive);
-
-	msrGravity(msr,dTime,iStep,ucRung);
-	msrKickByRung(msr,ucRung,ucMaxRung,dTime,1,msr->param.dBaseStep);
-	}
-    return dTime;
-    }
-#endif
-
 void msrKickHSDKD(MSR msr,double dStep, double dTime,double dDelta, int iRung,
     int iAdjust, double *pdActiveSum,
 		   int *piSec) {
@@ -4707,12 +4596,6 @@ void msrRelaxation(MSR msr,double dTime,double deltaT,int iSmoothType,int bSymme
 	}
     }
 
-
-void msrWrite(MSR msr,const char *pszFileName,double dTime,int bCheckpoint) {
-    if ( msr->iLastRungRT >= 0 ) msrReorder(msr);
-    assert( msr->iLastRungRT < 0 );
-    _msrWriteTipsy(msr,pszFileName,dTime,bCheckpoint);
-    }
 
 double msrRead(MSR msr, const char *achInFile) {
     double dTime,dExpansion;

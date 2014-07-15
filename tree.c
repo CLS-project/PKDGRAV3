@@ -15,16 +15,9 @@
 #include "floattype.h"
 #endif
 
-#ifdef USE_BSC
-#include "mpitrace_user_events.h"
-#endif
 #ifdef HAVE_SYS_TIME_H
 #include <sys/time.h>
 #endif
-
-
-
-
 
 static void InitializeParticles(PKD pkd,int bExcludeVeryActive,int iRung,BND *pbnd) {
     PLITE *pLite = pkd->pLite;
@@ -904,10 +897,6 @@ void pkdTreeBuild(PKD pkd,int nBucket,KDN *pkdn1,KDN *pkdn2,int bExcludeVeryActi
 	mdlFinishCache(pkd->mdl,CID_CELL);
 	}
 
-#ifdef USE_BSC
-    MPItrace_event(10000, 1 );
-#endif
-
     pkdClearTimer(pkd,0);
     pkdStartTimer(pkd,0);
 
@@ -927,9 +916,6 @@ void pkdTreeBuild(PKD pkd,int nBucket,KDN *pkdn1,KDN *pkdn2,int bExcludeVeryActi
     if (iRung>=0) Create(pkd,VAROOT);
 
     pkdStopTimer(pkd,0);
-#ifdef USE_BSC
-    MPItrace_event(10000, 0 );
-#endif
     /*
     ** Finally activate a read only cache for remote access.
     */

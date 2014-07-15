@@ -34,10 +34,6 @@
 #include "parameters.h"
 #include "cosmo.h"
 
-#ifdef USE_BSC
-#include "mpitrace_user_events.h"
-#endif
-
 double pkdGetTimer(PKD pkd,int iTimer) {
     return(pkd->ti[iTimer].sec);
     }
@@ -2597,10 +2593,6 @@ void pkdPhysicalSoft(PKD pkd,double dSoftMax,double dFac,int bSoftMaxMul) {
     pkd->fSoftMax = bSoftMaxMul ? HUGE : dSoftMax;
     }
 
-#ifdef USE_BSC_trace
-static int foo = 0;
-#endif
-
 void
 pkdGravAll(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,int bPeriodic,
     int iOrder,int bEwald,int nGroup,double fEwCut,double fEwhCut,double dThetaMin,double dThetaMax,
@@ -2611,15 +2603,6 @@ pkdGravAll(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,int bP
     mdlTimeReset(pkd->mdl);
 #endif
 
-#ifdef USE_BSC_trace
-    foo++;
-    if ( foo == 1 ) {
-	MPItrace_restart();
-	}
-#endif
-#ifdef USE_BSC
-    MPItrace_event(10000,3);
-#endif
     /*
     ** Set up Ewald tables and stuff.
     */
@@ -2640,16 +2623,6 @@ pkdGravAll(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,int bP
     pkdStartTimer(pkd,1);
     *nActive = pkdGravWalk(pkd,uRungLo,uRungHi,dTime,nReps,bPeriodic && bEwald,nGroup,ROOT,0,dThetaMin,dThetaMax,pdFlop,pdPartSum,pdCellSum);
     pkdStopTimer(pkd,1);
-
-#ifdef USE_BSC
-    MPItrace_event(10001, *nActive);
-    MPItrace_event(10000, 0 );
-#endif
-#ifdef USE_BSC_trace
-    if ( foo == 1 ) {
-	MPItrace_shutdown();
-	}
-#endif
 
     /*
     ** Get caching statistics.
@@ -2738,9 +2711,6 @@ void pkdDrift(PKD pkd,double dDelta,double dDeltaVPred,double dDeltaUPred,uint8_
     mdlDiag(pkd->mdl, "Into pkdDrift\n");
     assert(pkd->oVelocity);
 
-#ifdef USE_BSC
-    MPItrace_event(10000,4);
-#endif
     for (j=0;j<3;++j) {
 	dMin[j] = pkd->bnd.fCenter[j] - pkd->bnd.fMax[j];
 	dMax[j] = pkd->bnd.fCenter[j] + pkd->bnd.fMax[j];
@@ -2789,9 +2759,6 @@ void pkdDrift(PKD pkd,double dDelta,double dDeltaVPred,double dDeltaUPred,uint8_
 	pkd->bnd.fCenter[j] = 0.5*(dMin[j] + dMax[j]);
 	pkd->bnd.fMax[j] = 0.5*(dMax[j] - dMin[j]);
 	}
-#ifdef USE_BSC
-    MPItrace_event(10000,0);
-#endif
     mdlDiag(pkd->mdl, "Out of pkdDrift\n");
     }
 

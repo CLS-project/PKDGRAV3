@@ -197,37 +197,6 @@ if test "x$USE_PNG" = "xyes" ; then
   AC_CHECK_LIB([gd],[gdImageCreateTrueColor],,[AC_MSG_ERROR([The gd library cannot be located])])
 fi
 
-# Lustre support
-AC_ARG_ENABLE(lustre,
-  [  --enable-lustre                enable support for lustre],
-  [LUSTRE="${enableval}"])
-if test "x$LUSTRE" == "xyes" ; then
-  AC_MSG_CHECKING([for lustre])
-  lustre_ok=yes
-  saved_LIBS="$LIBS"
-  LIBS="$LIBS -llustreapi"
-  AC_TRY_LINK([#include <lustre/lustreapi.h>
-#include <lustre/lustre_user.h>],[llapi_file_create("",0,0,0,0)],
- [AC_DEFINE(USE_LUSTRE,1,[Define if lustre support should be included.])], [lustre_ok=no])
-  LIBS="$saved_LIBS"
-  AC_MSG_RESULT($lustre_ok)
-  if test "x$LUSTRE" = "xyes" -a "x$lustre_ok" != "xyes" ; then
-      AC_MSG_ERROR([Lustre support was requested, but it doesn't seem to be available.])
-  fi
-fi
-
-AM_CONDITIONAL(LUSTRE, test "x$lustre_ok" = "xyes")
-
-# Enable BSC Tracing
-AC_ARG_ENABLE(bsc-trace,
-  [  --enable-bsc-trace             enable tracing at BSC],
-  [USE_BSC="$enableval"])
-if test "x$USE_BSC" = "xyes" ; then
-  AC_DEFINE([USE_BSC], 1,
-    [Define if BSC tracing should be used.])
-fi
-AM_CONDITIONAL(USE_BSC, test "x$USE_BSC" = "xyes")
-
 # Python
 AC_ARG_WITH(cuda,
   [  --with-cuda=PATH               enable cude acceleration],

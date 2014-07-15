@@ -19,9 +19,6 @@
 #include "pst.h"
 #include "qsort.h"
 
-#ifdef USE_BSC
-#include "mpitrace_user_events.h"
-#endif
 #ifdef HAVE_SYS_TIME_H
 #include <sys/time.h>
 #endif
@@ -779,10 +776,6 @@ void psdBuildTree(PKD pkd, PSX psx, struct inPSD *in, KDN *pkdn) {
 	mdlFinishCache(pkd->mdl,CID_CELL);
 	}
 
-#ifdef USE_BSC
-    MPItrace_event(10000, 1 );
-#endif
-
     pkdClearTimer(pkd,0);
     pkdStartTimer(pkd,0);
 
@@ -794,9 +787,6 @@ void psdBuildTree(PKD pkd, PSX psx, struct inPSD *in, KDN *pkdn) {
     iStart = 0;
 
     pkdStopTimer(pkd,0);
-#ifdef USE_BSC
-    MPItrace_event(10000, 0 );
-#endif
     /*
     ** Finally activate a read only cache for remote access.
     */

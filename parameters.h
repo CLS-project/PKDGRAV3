@@ -200,11 +200,6 @@ struct parameters {
     int nGridPk;
 #endif
 
-#ifdef USE_LUSTRE
-    int nStripeSize;
-    int nStripeCount;
-#endif
-
     int nDomainRungs;
     int iDomainMethod;
 

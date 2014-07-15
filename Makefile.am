@@ -99,19 +99,12 @@ endif
 pkdgrav3_null_LDADD += -L$(PYTHON_LIB) -lpython$(PYTHON_VER) -ldl -lrt -lutil
 pkdgrav3_null_CFLAGS += -I$(PYTHON_INC)
 endif
-if LUSTRE
-pkdgrav3_null_LDADD += -llustreapi
-endif
 
 if HAVE_MPI
 pkdgrav3_mpi_LDADD = -lpthread
 pkdgrav3_mpi_SOURCES = $(SOURCES) $(MDL)/mpi/mdl.c openpa/src/opa_primitives.c openpa/src/opa_queue.c
 noinst_HEADERS += $(MDL)/mpi/mdl.h
 pkdgrav3_mpi_CFLAGS = -I$(MDL)/mpi/ -I$(MDL) -Iopenpa/src $(AM_CFLAGS)
-if USE_BSC
-pkdgrav3_mpi_LDADD += -L /gpfs/apps/CEPBATOOLS/mpitrace-devel/64/lib -ldl -lmpitrace_burst
-pkdgrav3_mpi_CFLAGS += -I/gpfs/apps/CEPBATOOLS/mpitrace-devel/64/include
-endif
 if FFTW
 pkdgrav3_mpi_LDADD += -lsrfftw_mpi -lsfftw_mpi -lsrfftw -lsfftw
 endif
@@ -137,9 +130,6 @@ endif
 pkdgrav3_mpi_LDADD += -L$(PYTHON_LIB) -lpython$(PYTHON_VER) -ldl -lutil
 pkdgrav3_mpi_CFLAGS += -I$(PYTHON_INC)
 endif
-if LUSTRE
-pkdgrav3_mpi_LDADD += -llustreapi
-endif
 endif
 
 if HAVE_PTHREAD
@@ -162,9 +152,6 @@ pkdgrav3_pthread_LDFLAGS = -Xlinker -rdynamic
 endif
 pkdgrav3_pthread_LDADD += -L$(PYTHON_LIB) -lpython$(PYTHON_VER) -ldl -lutil
 pkdgrav3_pthread_CFLAGS += -I$(PYTHON_INC)
-endif
-if LUSTRE
-pkdgrav3_pthread_LDADD += -llustreapi
 endif
 endif
 
