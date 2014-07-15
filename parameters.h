@@ -3,18 +3,6 @@
 
 #include "cosmo.h"
 
-#ifdef PLANETS
-typedef struct {
-    int iOutcomes;
-    double dDensity;
-    double dBounceLimit;
-    int iBounceOption;
-    double dEpsN;
-    double dEpsT;
-    int bFixCollapse;
-    } COLLISION_PARAMS;
-#endif
-
 /*
 ** Don't even think about putting a pointer in here!!
 */
@@ -59,7 +47,6 @@ struct parameters {
     int bDoRungOutput;
     int bDoRungDestOutput;
     int bDoGravity;
-    int bHermite;
     int bAarsethStep;
     int nBucket;
     int nGroup;
@@ -199,16 +186,6 @@ struct parameters {
     double fMinRadius;
     int bLogBins;
     int	bTraceRelaxation;
-#ifdef PLANETS
-    int bHeliocentric;
-    int bCollision;
-    int iCollLogOption;
-    char achCollLog[256];
-    COLLISION_PARAMS CP;
-#ifdef SYMBA
-    int bSymba;
-#endif
-#endif /* PLANETS */
 
     /* IC Generation */
     int bWriteIC;
@@ -241,7 +218,6 @@ struct parameters {
     int bMemGroups;
     int bMemMass;
     int bMemSoft;
-    int bMemHermite;
     int bMemRelaxation;
     int bMemVelSmooth;
     int bMemPsMetric;

@@ -43,7 +43,6 @@
 #include "tipsydefs.h"
 #include "outtype.h"
 #include "smoothfcn.h"
-#include "ssio.h"
 #include "fio.h"
 
 #ifdef USE_LUSTRE
@@ -485,9 +484,6 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.bDoGravity = 1;
     prmAddParam(msr->prm,"bDoGravity",0,&msr->param.bDoGravity,sizeof(int),"g",
 		"enable/disable interparticle gravity = +g");
-    msr->param.bHermite = 0;
-    prmAddParam(msr->prm,"bHermite",0,&msr->param.bHermite,
-		sizeof(int),"hrm","<Hermite integratot>");
     msr->param.bAarsethStep = 0;
     prmAddParam(msr->prm,"bAarsethStep",0,&msr->param.bAarsethStep,sizeof(int),
 		"aas","<Aarseth timestepping>");
@@ -537,50 +533,6 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.bTraceRelaxation = 0;
     prmAddParam(msr->prm,"bTraceRelaxation",0,&msr->param.bTraceRelaxation,sizeof(int),
 		"rtrace","<enable/disable relaxation tracing> = -rtrace");
-
-#ifdef PLANETS
-    msr->param.bCollision = 0;
-    prmAddParam(msr->prm,"bCollision",0,&msr->param.bCollision,
-		sizeof(int),"hc","<Collisions>");
-    msr->param.bHeliocentric = 0;
-    prmAddParam(msr->prm,"bHeliocentric",0,&msr->param.bHeliocentric,
-		sizeof(int),"hc","use/don't use Heliocentric coordinates = -hc");
-    msr->param.dCentMass = 1.0;
-    prmAddParam(msr->prm,"dCentMass",2,&msr->param.dCentMass,sizeof(double),
-		"fgm","specifies the central mass for Keplerian orbits");
-
-#ifdef SYMBA
-    msr->param.bSymba = 1;
-    prmAddParam(msr->prm,"bSymba",0,&msr->param.bSymba,sizeof(int),
-		"sym","use Symba integrator");
-#endif
-
-    /* collision stuff */
-    msr->param.iCollLogOption = 0;
-    prmAddParam(msr->prm,"iCollLogOption",1,&msr->param.iCollLogOption,
-		sizeof(int),"clog","<Collision log option> = 0");
-    msr->param.CP.iOutcomes = BOUNCE;
-    prmAddParam(msr->prm,"iOutcomes",1,&msr->param.CP.iOutcomes,
-		sizeof(int),"outcomes","<Allowed collision outcomes> = 0");
-    msr->param.CP.dBounceLimit = 1.0;
-    prmAddParam(msr->prm,"dBounceLimit",2,&msr->param.CP.dBounceLimit,
-		sizeof(double),"blim","<Bounce limit> = 1.0");
-    msr->param.CP.iBounceOption = ConstEps;
-    prmAddParam(msr->prm,"iBounceOption",1,&msr->param.CP.iBounceOption,
-		sizeof(int),"bopt","<Bounce option> = 0");
-    msr->param.CP.dEpsN = 1.0;
-    prmAddParam(msr->prm,"dEpsN",2,&msr->param.CP.dEpsN,
-		sizeof(double),"epsn","<Coefficient of restitution> = 1");
-    msr->param.CP.dEpsT = 1.0;
-    prmAddParam(msr->prm,"dEpsT",2,&msr->param.CP.dEpsT,
-		sizeof(double),"epst","<Coefficient of surface friction> = 1");
-    msr->param.CP.dDensity = 0.0;
-    prmAddParam(msr->prm,"dDensity",2,&msr->param.CP.dDensity,
-		sizeof(double),"density","<Merged particle density> = 0");
-    msr->param.CP.bFixCollapse = 0;
-    prmAddParam(msr->prm,"bFixCollapse",0,&msr->param.CP.bFixCollapse,
-		sizeof(int),"overlap","enable/disable overlap fix = -overlap");
-#endif /* PLANETS */
 
 #ifdef MDL_FFTW
     msr->param.nGridPk = 0;
@@ -643,9 +595,6 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.bMemSoft = 0;
     prmAddParam(msr->prm,"bMemSoft",0,&msr->param.bMemSoft,
 		sizeof(int),"Ms","<Particles have individual softening> = -Ms");
-    msr->param.bMemHermite = 0;
-    prmAddParam(msr->prm,"bMemHermite",0,&msr->param.bMemHermite,
-		sizeof(int),"Mh","<Particles have fields for the hermite integrator> = -Mh");
     msr->param.bMemRelaxation = 0;
     prmAddParam(msr->prm,"bMemRelaxation",0,&msr->param.bMemRelaxation,
 		sizeof(int),"Mr","<Particles have relaxation> = -Mr");
@@ -1161,35 +1110,6 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
 
     msr->nOuts = msr->iOut = 0;
 
-#ifdef PLANETS
-    switch (msr->param.iCollLogOption) {
-    case COLL_LOG_NONE:
-	break;
-    case COLL_LOG_VERBOSE:
-	(void) strcpy(msr->param.achCollLog,COLL_LOG_TXT);
-	break;
-    case COLL_LOG_TERSE:
-	(void) strcpy(msr->param.achCollLog,COLL_LOG_BIN);
-	break;
-    default:
-	puts("ERROR: Invalid collision log option");
-	_msrExit(msr,1);
-	}
-    if (msr->param.iCollLogOption && msr->param.bVStart)
-	printf("Collision log: \"%s\"\n",msr->param.achCollLog);
-
-    COLLISION_PARAMS *CP = &msr->param.CP;
-    if (!(CP->iOutcomes & (MERGE | BOUNCE | FRAG))) {
-	puts("ERROR: must specify one of MERGE/BOUNCE/FRAG");
-	_msrExit(msr,1);
-	}
-
-    msr->dEcoll = 0.0;
-#ifdef SYMBA
-    msr->param.bHeliocentric = 0;
-#endif
-#endif /* PLANETS */
-
     pstInitialize(&msr->pst,msr->mdl,&msr->lcl);
     pstAddServices(msr->pst,msr->mdl);
 
@@ -1326,7 +1246,6 @@ void msrLogParams(MSR msr,FILE *fp) {
     fprintf(fp," dEccFacMax: %g", msr->param.dEccFacMax);
     fprintf(fp," nPartColl: %d", msr->param.nPartColl);
     fprintf(fp,"\n# bDoGravity: %d",msr->param.bDoGravity);
-    fprintf(fp," bHermite: %d",msr->param.bHermite);
     fprintf(fp," bAarsethStep: %d",msr->param.bAarsethStep);
     fprintf(fp,"\n# dFracNoDomainDecomp: %g",msr->param.dFracNoDomainDecomp);
     fprintf(fp," dFracNoDomainRootFind: %g",msr->param.dFracNoDomainRootFind);
@@ -1398,23 +1317,6 @@ void msrLogParams(MSR msr,FILE *fp) {
     fprintf(fp," fMinRadius: %g",msr->param.fMinRadius);
     fprintf(fp," bLogBins: %d",msr->param.bLogBins);
     fprintf(fp,"\n# Relaxation estimate: bTraceRelaxation: %d",msr->param.bTraceRelaxation);
-#ifdef PLANETS
-#ifdef SYMBA
-    fprintf(fp," bSymba: %d",msr->param.bSymba);
-#endif
-    fprintf(fp," bCollision: %d",msr->param.bCollision);
-    fprintf(fp," bHeliocentric: %d",msr->param.bHeliocentric);
-    fprintf(fp," dCentMass: %g",msr->param.dCentMass);
-    fprintf(fp,"\n# Collisions...");
-    fprintf(fp," iCollLogOption: %d",msr->param.iCollLogOption);
-    fprintf(fp,"\n# iOutcomes: %d",msr->param.CP.iOutcomes);
-    fprintf(fp," dBounceLimit: %g",msr->param.CP.dBounceLimit);
-    fprintf(fp," dEpsN: %g",msr->param.CP.dEpsN);
-    fprintf(fp," dEpsT: %g",msr->param.CP.dEpsT);
-    fprintf(fp," dDensity: %g",msr->param.CP.dDensity);
-    fprintf(fp,"\n# bFixCollapse: %d",msr->param.CP.bFixCollapse);
-#endif /* PLANETS */
-
     fprintf(fp," dTheta: %f  dThetaMax: %f",msr->param.dTheta, msr->dThetaMax);
     fprintf(fp,"\n# dPeriod: %g",msr->param.dPeriod);
     fprintf(fp," dxPeriod: %g",
@@ -3910,12 +3812,6 @@ void msrTopStepKDK(MSR msr,
 	    *pdActiveSum += (double)nActive/msr->N;
 	    }
 	
-#ifdef PLANETS
-	/* Sun's direct and indirect gravity */
-	if (msr->param.bHeliocentric) {
-	    msrGravSun(msr);
-	    }
-#endif
 	if (msrDoGas(msr)) {
 	    msrSph(msr,dTime,dStep);  /* dTime = Time at end of kick */
 	    msrCooling(msr,dTime,dStep,0,
@@ -3995,13 +3891,6 @@ void msrTopStepKDK(MSR msr,
 	    msrGravity(msr,iKickRung,MAX_RUNG,dTime,dStep,msr->param.bEwald,msr->param.nGroup,piSec,&nActive);
 	    *pdActiveSum += (double)nActive/msr->N;
 	    }
-
-#ifdef PLANETS
-	/* Sun's direct and indirect gravity */
-	if (msr->param.bHeliocentric) {
-	    msrGravSun(msr);
-	    }
-#endif
 
 	dDeltaTmp = dDelta;
 	for (i = msrCurrMaxRung(msr); i > iRung; i--)
@@ -4113,22 +4002,6 @@ void msrStepVeryActiveKDK(MSR msr, double dStep, double dTime, double dDelta,
     struct inStepVeryActive in;
     struct outStepVeryActive out;
 
-#ifdef PLANETS
-    struct inSunIndirect ins;
-    struct outSunIndirect outs;
-
-    if (msr->param.bHeliocentric) {
-	int k;
-
-	ins.iFlag = 2; /* for inactive particles */
-	pstSunIndirect(msr->pst,&ins,sizeof(ins),&outs,NULL);
-	for (k=0;k<3;k++) {
-	    in.aSunInact[k] = outs.aSun[k];
-	    in.adSunInact[k] = outs.adSun[k];
-	    }
-	}
-#endif
-
     in.dStep = dStep;
     in.dTime = dTime;
     in.dDelta = dDelta;
@@ -4137,9 +4010,6 @@ void msrStepVeryActiveKDK(MSR msr, double dStep, double dTime, double dDelta,
     /*TODO: Are the next two lines okay?  nMaxRung and iRung needed? */
     in.uRungLo = iRung;
     in.uRungHi = msrCurrMaxRung(msr);
-#ifdef PLANETS
-    in.dSunMass = msr->dSunMass;
-#endif
     /*
      * Start Particle Cache on all nodes (could be done as part of
      * tree build)
@@ -4153,336 +4023,6 @@ void msrStepVeryActiveKDK(MSR msr, double dStep, double dTime, double dDelta,
     pstParticleCacheFinish(msr->pst, NULL, 0, NULL, NULL);
     msr->iCurrMaxRung = out.nMaxRung;
     }
-
-#ifdef HERMITE
-void msrTopStepHermite(MSR msr,
-		       double dStep,	/* Current step */
-		       double dTime,	/* Current time */
-		       double dDelta,	/* Time step */
-		       int iRung,		/* Rung level */
-		       int iKickRung,	/* Gravity on all rungs from iRung
-									   to iKickRung */
-		       int iRungVeryActive,  /* current setting for iRungVeryActive */
-		       int iAdjust,		/* Do an adjust? */
-		       double *pdActiveSum,
-		       int *piSec) {
-    uint64_t nActive;
-    int bSplitVA;
-    const int bNeedEwald = 0;
-
-    if (iAdjust && (iRung < msrMaxRung(msr)-1)) {
-	msrprintf(msr,"%*cAdjust, iRung: %d\n",2*iRung+2,' ',iRung);
-	msrActiveRung(msr, iRung, 1);
-
-	... initdt
-
-	if (msr->param.bAarsethStep) {
-	    msrAarsethStep(msr);
-	    }
-	if (msr->param.bAccelStep) {
-	    msrAccelStep(msr,iRung,MAX_RUNG,dTime);
-	    }
-	if (msr->param.bDensityStep) {
-	    bSplitVA = 0;
-	    msrDomainDecomp(msr,iRung,0,bSplitVA);
-	    msrActiveRung(msr,iRung,1);
-	    msrBuildTree(msr,dTime,bNeedEwald);
-	    msrDensityStep(msr,iRung,MAX_RUNG,dTime);
-	    }
-	iRungVeryActive = msrUpdateRung(msr,iRung,dDelta);
-	}
-
-    if ((msrCurrMaxRung(msr) > iRung) && (iRungVeryActive > iRung)) {
-	/*
-	 ** Recurse.
-	 */
-	msrTopStepHermite(msr,dStep,dTime,0.5*dDelta,iRung+1,iRung+1,iRungVeryActive,0,
-			  pdActiveSum,piSec);
-	dTime += 0.5*dDelta;
-	dStep += 1.0/(2 << iRung);
-	/*msrActiveRung(msr,iRung,0);*/
-	msrTopStepHermite(msr,dStep,dTime,0.5*dDelta,iRung+1,iKickRung,iRungVeryActive,1,
-			  pdActiveSum,piSec);
-	}
-    else if (msrCurrMaxRung(msr) == iRung) {
-
-	dTime += dDelta;
-	dStep += 1.0/(1 << iRung);
-
-	/*
-	  This Predicts everybody
-	  dt = dTime - dTime0(pkd)
-	  x = x0 + v0*dt + 0.5*a0*dt*dt+ ad0*dt*dt*dt/6.0
-	  v = v0 + a0*dt + 0.5*ad0*dt*dt
-	 */
-	msrprintf(msr,"%*cPredict, iRung: %d\n",2*iRung+2,' ',iRung);
-	msrActiveRung(msr,0,1);/* activate everybody*/
-	msrPredictor(msr,dTime);
-
-	msrActiveRung(msr,iKickRung,1);
-	bSplitVA = 0;
-	msrDomainDecomp(msr,iKickRung,0,bSplitVA);
-
-	if (msrDoGravity(msr)) {
-	    msrActiveRung(msr,iKickRung,1);
-	    msrUpdateSoft(msr,dTime);
-	    msrprintf(msr,"%*cGravity, iRung: %d to %d\n",2*iRung+2,' ',iKickRung,iRung);
-	    msrBuildTree(msr,dTime,bNeedEwald);
-	    msrGravity(msr,dTime,dStep,0,0,piSec,&nActive);
-	    *pdActiveSum += (double)nActive/msr->N;
-	    }
-#ifdef PLANETS
-	/* Sun's direct and indirect gravity */
-	if (msr->param.bHeliocentric) {
-	    msrGravSun(msr);
-	    }
-#endif
-	msrActiveRung(msr,iKickRung,1); /*just in case*/
-	/*
-	  Corrector step
-	    (see Kokubo and Makino 2004 for the optimal coefficients)
-	     add = -6.D0*(a0-a)/(dt*dt)-2.0*(2.0*ad0+ad)/dt
-		    addd = 12.0*(a0-a)/(dt*dt*dt)+6.0*(ad0+ad)/(dt*dt)
-	     x = x + add*dt**4/24.0+addd*dt**5*alpha/120.0
-	     v = v + add*dt**3/6.0+addd*dt**4/24.0
-	    */
-	msrCorrector(msr,dTime);
-
-	msrprintf(msr,"%*cCorrect, iRung: %d\n",2*iRung+2,' ',iRung);
-#ifdef PLANETS
-	if (msr->param.bHeliocentric) {
-	    /*
-	    Here is a step for correcting the Sun's direct gravity.
-	    a is recalculated using the correctors' position and
-	    velocity.
-	    */
-	    int nite = 0;
-	    int nitemax = 3;
-	    /* number of interation for correcting the Sun's gravity
-	       P(EC)'^(nitemax) scheme (see Kokubo et al 1998)*/
-	    do {
-		nite += 1;
-		msrSunCorrector(msr,dTime);
-		}
-	    while (nite < nitemax);
-	    }
-	if (msr->param.bCollision) {
-	    msrDoCollision(msr,dTime,dDelta);
-	    }
-#endif
-	/*
-	Copy the present values of activated particles as the initial values
-	x_0 = x, v_0 = v, a_0 = a, dTime0 = dTime
-	*/
-	msrCopy0(msr,dTime);
-	}
-
-    else {
-	double dDeltaTmp;
-	int i;
-
-	/*printf("iRungVeryActive: %d CurrMaxrung: %d  iRung: %d, 0.5*dDelta: %g n/",iRungVeryActive, msrCurrMaxRung(msr),iRung,0.5*dDelta);*/
-
-	/*
-	 * We have more rungs to go, but we've hit the very active limit.
-	 */
-	/*
-	 * Activate VeryActives
-	 */
-	msrActiveRung(msr,msr->iRungVeryActive+1,1);
-	/*
-	 * Predict the non-VeryActive particles forward 1/2 timestep
-	 */
-	msrprintf(msr,"%*cInActivePredict at iRung: %d, 0.5*dDelta: %g\n",
-		  2*iRung+2,' ',iRung,0.5*dDelta);
-
-	msrPredictorInactive(msr, dTime + 0.5*dDelta);
-	/*
-	 * Build a tree out of them for use by the VeryActives
-	 */
-	if (msrDoGravity(msr)) {
-	    msrUpdateSoft(msr,dTime + 0.5*dDelta);
-	    /*
-	    ** Domain decomposition for parallel exclude very active is going to be
-	    ** placed here shortly.
-	    */
-	    bSplitVA = 1;
-	    msrDomainDecomp(msr,iRung,0,bSplitVA);
-
-	    msrprintf(msr,"%*cBuilding exclude very active tree: iRung: %d\n",
-		      2*iRung+2,' ',iRung);
-	    msrBuildTreeExcludeVeryActive(msr,dTime + 0.5*dDelta);
-	    }
-	/*
-	 * Perform timestepping on individual processors.
-	 */
-	msrprintf(msr,"VeryActive at iRung: %d\n", iRung);
-	msrStepVeryActiveHermite(msr, dStep, dTime, dDelta, iRung);
-	dTime += dDelta;
-	dStep += 1.0/(1 << iRung);
-	/*
-	 * Move Inactives to the end of the step.
-	 */
-	msrprintf(msr,"%*cInActivePredictor at iRung: %d, 0.5*dDelta: %g\n",
-		  2*iRung+2,' ',iRung,0.5*dDelta);
-	msrActiveRung(msr,msr->iRungVeryActive+1,1);
-	/*
-	** The inactives are half time step behind the actives.
-	** Move them a half time step ahead to synchronize everything again.
-	*/
-	msrPredictorInactive(msr, dTime);
-
-	/*
-	 * Regular Tree gravity
-	 */
-	msrActiveRung(msr,iKickRung,1);
-	bSplitVA = 0;
-	msrDomainDecomp(msr,iKickRung,0,bSplitVA);
-
-	if (msrDoGravity(msr)) {
-	    msrActiveRung(msr,iKickRung,1);
-	    msrUpdateSoft(msr,dTime);
-	    msrprintf(msr,"%*cGravity, iRung: %d to %d\n",
-		      2*iRung+2,' ',iKickRung,msrCurrMaxRung(msr));
-	    msrBuildTree(msr,dTime,bNeedEwald);
-	    msrGravity(msr,dTime,dStep,0,0,piSec,&nActive);
-	    *pdActiveSum += (double)nActive/msr->N;
-	    }
-#ifdef PLANETS
-	/* Sun's direct and indirect gravity */
-	if (msr->param.bHeliocentric) {
-	    msrGravSun(msr);
-	    }
-#endif
-	msrprintf(msr,"%*cVeryActive msrCorrector at iRung: %d, 0.5*dDelta: %g\n",
-		  2*iRung+2,' ',i, 0.5*dDeltaTmp);
-	msrCorrector(msr,dTime);
-
-#ifdef PLANETS
-	if (msr->param.bHeliocentric) {
-	    int nite = 0;
-	    int nitemax = 3;
-	    do {
-		nite += 1;
-		msrSunCorrector(msr,dTime);
-		}
-	    while (nite < nitemax);
-	    }
-	if (msr->param.bCollision) {
-	    msrDoCollision(msr,dTime,dDelta);
-	    }
-#endif
-	msrCopy0(msr,dTime);
-	}
-    }
-
-void
-msrStepVeryActiveHermite(MSR msr, double dStep, double dTime, double dDelta,
-			 int iRung) {
-    struct inStepVeryActiveH in;
-    struct outStepVeryActiveH out;
-
-#ifdef PLANETS
-    if (msr->param.bHeliocentric) {
-	int k;
-	struct inSunIndirect ins;
-	struct outSunIndirect outs;
-
-	ins.iFlag = 2; /* for inactive particles */
-	pstSunIndirect(msr->pst,&ins,sizeof(ins),&outs,NULL);
-	for (k=0;k<3;k++) {
-	    in.aSunInact[k] = outs.aSun[k];
-	    in.adSunInact[k] = outs.adSun[k];
-	    }
-	}
-#endif
-
-    in.dStep = dStep;
-    in.dTime = dTime;
-    in.dDelta = dDelta;
-    in.iRung = iRung;
-    in.diCrit2 = 1/(msr->dCrit*msr->dCrit);   /* could set a stricter opening criterion here */
-    in.nMaxRung = msrCurrMaxRung(msr);
-#ifdef PLANETS
-    in.dSunMass = msr->dSunMass;
-#endif
-    /*
-     * Start Particle Cache on all nodes (could be done as part of
-     * tree build)
-     */
-    pstROParticleCache(msr->pst, NULL, 0, NULL, NULL);
-
-    pstStepVeryActiveHermite(msr->pst, &in, sizeof(in), &out, NULL);
-
-#ifdef PLANETS
-    /* maybe we should use collision flag to determine if we call
-       the following function.  */
-    if (msr->param.bCollision) {
-	struct outGetVariableVeryActive outGet;
-	pstGetVariableVeryActive(msr->pst, NULL, 0, &outGet, NULL);
-	msr->dEcoll += outGet.dDeltaEcoll;
-	outGet.dDeltaEcoll = 0.0;/*just in case */
-	}
-#endif
-    /*
-     * Finish Particle Cache on all nodes
-     */
-    pstParticleCacheFinish(msr->pst, NULL, 0, NULL, NULL);
-    msr->iCurrMaxRung = out.nMaxRung;
-    }
-
-void msrCopy0(MSR msr,double dTime) {
-    struct inCopy0 in;
-
-    in.dTime = dTime;
-    pstCopy0(msr->pst,&in,sizeof(in),NULL,NULL);
-    }
-
-void msrPredictor(MSR msr,double dTime) {
-    struct inPredictor in;
-
-    in.dTime = dTime;
-    pstPredictor(msr->pst,&in,sizeof(in),NULL,NULL);
-    }
-
-void msrCorrector(MSR msr,double dTime) {
-    struct inCorrector in;
-
-    in.dTime = dTime;
-    pstCorrector(msr->pst,&in,sizeof(in),NULL,NULL);
-    }
-
-#ifdef PLANETS
-void msrSunCorrector(MSR msr,double dTime) {
-    struct inSunCorrector in;
-
-    in.dTime = dTime;
-    in.dSunMass = msr->dSunMass;
-    pstSunCorrector(msr->pst,&in,sizeof(in),NULL,NULL);
-    }
-#endif
-
-void msrPredictorInactive(MSR msr,double dTime) {
-    struct inPredictorInactive in;
-
-    in.dTime = dTime;
-    pstPredictorInactive(msr->pst,&in,sizeof(in),NULL,NULL);
-    }
-
-void
-msrAarsethStep(MSR msr) {
-    struct inAarsethStep in;
-
-    in.dEta = msrEta(msr);
-    pstAarsethStep(msr->pst,&in,sizeof(in),NULL,NULL);
-    }
-
-void
-msrFirstDt(MSR msr) {
-    pstFirstDt(msr->pst,NULL,0,NULL,NULL);
-    }
-
-#endif /* Hermite*/
 
 uint64_t msrMaxOrder(MSR msr) {
     return msr->nMaxOrder;
@@ -4513,9 +4053,6 @@ msrAddDelParticles(MSR msr) {
     struct outColNParts *pColNParts;
     uint64_t *pNewOrder;
     struct inSetNParts in;
-#ifdef PLANETS
-    struct inHandSunMass inh;
-#endif
     int iOut;
     int i;
 
@@ -4560,10 +4097,6 @@ msrAddDelParticles(MSR msr) {
     in.nStar = msr->nStar;
     pstSetNParts(msr->pst,&in,sizeof(in),NULL,NULL);
 
-#ifdef PLANETS
-    inh.dSunMass = msr->dSunMass;
-    pstHandSunMass(msr->pst,&inh,sizeof(inh),NULL,NULL);
-#endif
     free(pNewOrder);
     free(pColNParts);
     }
@@ -5174,704 +4707,11 @@ void msrRelaxation(MSR msr,double dTime,double deltaT,int iSmoothType,int bSymme
 	}
     }
 
-#ifdef PLANETS
-void
-msrOneNodeReadSS(MSR msr,struct inReadSS *in) {
-    int id;
-    int *nParts;
-    int nStart;
-    PST pst0;
-    LCL *plcl;
-    char achInFile[PST_FILENAME_SIZE];
-    int nid;
-    int inswap;
-    int rID;
-
-    nParts = malloc(msr->nThreads*sizeof(*nParts));
-    for (id=0;id<msr->nThreads;++id) {
-	nParts[id] = -1;
-	}
-
-    pstOneNodeReadInit(msr->pst,in,sizeof(*in),nParts,&nid);
-    assert(nid == msr->nThreads*sizeof(*nParts));
-    for (id=0;id<msr->nThreads;++id) {
-	assert(nParts[id] > 0);
-	}
-
-    pst0 = msr->pst;
-    while (pst0->nLeaves > 1)
-	pst0 = pst0->pstLower;
-    plcl = pst0->plcl;
-    /*
-     ** Add the local Data Path to the provided filename.
-     */
-    _msrMakePath(plcl->pszDataPath,in->achInFile,achInFile);
-
-    nStart = nParts[0];
-    for (id=1;id<msr->nThreads;++id) {
-	/*
-	 * Read particles into the local storage.
-	 */
-	assert(plcl->pkd->nStore >= nParts[id]);
-	pkdReadSS(plcl->pkd,achInFile,nStart,nParts[id]);
-	nStart += nParts[id];
-	/*
-	 * Now shove them over to the remote processor.
-	 */
-	_SwapClasses(msr,id);
-	inswap = 0;
-	rID = mdlReqService(pst0->mdl,id,PST_SWAPALL,&inswap,sizeof(inswap));
-	pkdSwapAll(plcl->pkd, id);
-	mdlGetReply(pst0->mdl,rID,NULL,NULL);
-	}
-    assert(nStart == msr->N);
-    /*
-     * Now read our own particles.
-     */
-    pkdReadSS(plcl->pkd,achInFile,0,nParts[0]);
-    free(nParts);
-    }
-
-double
-msrReadSS(MSR msr) {
-    SSIO ssio;
-    SSHEAD head;
-    struct inReadSS in;
-    struct inHandSunMass inh;
-
-    char achInFile[PST_FILENAME_SIZE];
-    LCL *plcl = msr->pst->plcl;
-    double dTime;
-
-    if (msr->param.achInFile[0]) {
-	/*
-	 ** Add Data Subpath for local and non-local names.
-	 */
-	_msrMakePath(msr->param.achDataSubPath,msr->param.achInFile,in.achInFile);
-	/*
-	 ** Add local Data Path.
-	 */
-	_msrMakePath(plcl->pszDataPath,in.achInFile,achInFile);
-
-	if (ssioOpen(achInFile,&ssio,SSIO_READ)) {
-	    printf("Could not open InFile:%s\n",achInFile);
-	    _msrExit(msr,1);
-	    }
-	}
-    else {
-	printf("No input file specified\n");
-	_msrExit(msr,1);
-	}
-
-    /* Read header */
-
-    if (ssioHead(&ssio,&head)) {
-	printf("Could not read header of InFile:%s\n",achInFile);
-	_msrExit(msr,1);
-	}
-    if (ssioClose(&ssio)) {
-	printf("Could not close InFile:%s\n",achInFile);
-	_msrExit(msr,1);
-	}
-
-    msr->N = msr->nDark = head.n_data;
-    msr->nGas = msr->nStar = 0;
-    msr->nMaxOrder = msr->N;
-    msr->nPlanets = head.n_planets;
-    msr->dEcoll = head.dEcoll;
-    msr->dSunMass = head.dSunMass;
-
-
-    dTime = head.time;
-    if (msr->param.bVStart) {
-	double tTo;
-	printf("Input file...N=%i,Time=%g\n",msr->N,dTime);
-	tTo = dTime + msr->param.nSteps*msr->param.dDelta;
-	printf("Simulation to Time:%g\n",tTo);
-	}
-
-    in.nFileStart = 0;
-    in.nFileEnd = msr->N - 1;
-    in.nBucket = msr->param.nBucket;
-    in.nDomainRungs = msr->param.nDomainRungs;
-    in.nDark = msr->nDark;
-    in.nGas = msr->nGas;	/* always zero */
-    in.nStar = msr->nStar;	/* always zero */
-    in.iOrder = msr->param.iOrder;
-
-    /*
-     ** Since pstReadSS causes the allocation of the local particle
-     ** store, we need to tell it the percentage of extra storage it
-     ** should allocate for load balancing differences in the number of
-     ** particles.
-     */
-    in.fExtraStore = msr->param.dExtraStore;
-    in.nTreeBitsLo = msr->param.nTreeBitsLo;
-    in.nTreeBitsHi = msr->param.nTreeBitsHi;
-    in.iCacheSize  = msr->parm.iCacheSize;
-    in.iWorkQueueSize  = msr->parm.iWorkQueueSize;
-    in.iCUDAQueueSize  = msr->parm.iCUDAQueueSize;
-
-    in.fPeriod[0] = msr->param.dxPeriod;
-    in.fPeriod[1] = msr->param.dyPeriod;
-    in.fPeriod[2] = msr->param.dzPeriod;
-
-    if (msr->param.bParaRead)
-	pstReadSS(msr->pst,&in,sizeof(in),NULL,NULL);
-    else
-	msrOneNodeReadSS(msr,&in);
-    msrSetClasses(msr);
-    msrprintf(msr,"Input file successfully read.\n");
-
-    inh.dSunMass = msr->dSunMass;
-    pstHandSunMass(msr->pst,&inh,sizeof(inh),NULL,NULL);
-
-
-    /*
-     ** Now read in the output points, passing the initial time.
-     ** We do this only if nSteps is not equal to zero.
-     */
-    if (msrSteps(msr) > 0) msrReadOuts(msr,dTime);
-    /*
-     ** Set up the output counter.
-     */
-    for (msr->iOut=0;msr->iOut<msr->nOuts;++msr->iOut) {
-	if (dTime < msr->pdOutTime[msr->iOut]) break;
-	}
-    return(dTime);
-    }
-
-void
-msrOneNodeWriteSS(MSR msr,struct inWriteSS *in) {
-    int id;
-    int nStart;
-    PST pst0;
-    LCL *plcl;
-    char achOutFile[PST_FILENAME_SIZE];
-    int inswap;
-    int rID;
-
-    pst0 = msr->pst;
-    while (pst0->nLeaves > 1)
-	pst0 = pst0->pstLower;
-    plcl = pst0->plcl;
-    /*
-     ** Add the local Data Path to the provided filename.
-     */
-    _msrMakePath(plcl->pszDataPath,in->achOutFile,achOutFile);
-
-    /*
-     * First write our own particles.
-     */
-    pkdWriteSS(plcl->pkd,achOutFile,plcl->nWriteStart);
-    nStart = plcl->pkd->nLocal;
-    for (id=1;id<msr->nThreads;++id) {
-	/*
-	 * Swap particles with the remote processor.
-	 */
-	inswap = 0;
-	rID = mdlReqService(pst0->mdl,id,PST_SWAPALL,&inswap,sizeof(inswap));
-	pkdSwapAll(plcl->pkd,id);
-	mdlGetReply(pst0->mdl,rID,NULL,NULL);
-	/*
-	 * Write the swapped particles.
-	 */
-	pkdWriteSS(plcl->pkd,achOutFile,nStart);
-	nStart += plcl->pkd->nLocal;
-	/*
-	 * Swap them back again.
-	 */
-	inswap = 0;
-	rID = mdlReqService(pst0->mdl,id,PST_SWAPALL,&inswap,sizeof(inswap));
-	pkdSwapAll(plcl->pkd, id);
-	mdlGetReply(pst0->mdl,rID,NULL,NULL);
-	}
-    assert(nStart == msr->N);
-    }
-
-void
-msrWriteSS(MSR msr,char *pszFileName,double dTime) {
-    SSIO ssio;
-    SSHEAD head;
-    struct inWriteSS in;
-    char achOutFile[PST_FILENAME_SIZE];
-    LCL *plcl = msr->pst->plcl;
-
-    /*
-     ** Calculate where each processor should start writing.
-     ** This sets plcl->nWriteStart.
-     */
-    msrCalcWriteStart(msr);
-    /*
-     ** Add Data Subpath for local and non-local names.
-     */
-    _msrMakePath(msr->param.achDataSubPath,pszFileName,in.achOutFile);
-    /*
-     ** Add local Data Path.
-     */
-    _msrMakePath(plcl->pszDataPath,in.achOutFile,achOutFile);
-
-    if (ssioOpen(achOutFile,&ssio,SSIO_WRITE)) {
-	printf("Could not open OutFile:%s\n",achOutFile);
-	_msrExit(msr,1);
-	}
-
-    /* Write header */
-
-    head.time = dTime;
-    head.n_data = msr->N;
-    head.n_planets = msr->nPlanets;
-    head.dEcoll = msr->dEcoll;
-    head.dSunMass = msr->dSunMass;
-
-    if (ssioHead(&ssio,&head)) {
-	printf("Could not write header of OutFile:%s\n",achOutFile);
-	_msrExit(msr,1);
-	}
-    if (ssioClose(&ssio)) {
-	printf("Could not close OutFile:%s\n",achOutFile);
-	_msrExit(msr,1);
-	}
-
-    if (msr->param.bParaWrite)
-	pstWriteSS(msr->pst,&in,sizeof(in),NULL,NULL);
-    else
-	msrOneNodeWriteSS(msr,&in);
-
-    msrprintf(msr,"Output file successfully written.\n");
-    }
-
-void msrGravSun(MSR msr) {
-    struct inGravSun in;
-
-    struct inSunIndirect ins;
-    struct outSunIndirect outs;
-
-    int j;
-
-    /* Calculate Sun's indirect gravity */
-    ins.iFlag = 0;	/* for all particles */
-    pstSunIndirect(msr->pst,&ins,sizeof(ins),&outs,NULL);
-    for (j=0;j<3;++j) {
-	in.aSun[j] = outs.aSun[j];
-	in.adSun[j] = outs.adSun[j];
-	}
-    /* printf("asun = %e %e %e adsun = %e %e %e \n",in.aSun[0],in.aSun[1],in.aSun[2],in.adSun[0],in.adSun[1],in.adSun[2]); */
-
-    in.dSunMass = msr->dSunMass;
-
-    pstGravSun(msr->pst,&in,sizeof(in),NULL,NULL);
-    }
-
-static char *
-_msrParticleLabel(MSR msr,int iColor) {
-    switch (iColor) {
-    case SUN:
-	return "SUN";
-    case JUPITER:
-	return "JUPITER";
-    case SATURN:
-	return "SATURN";
-    case URANUS:
-	return "URANUS";
-    case NEPTUNE:
-	return "NEPTUNE";
-    case PLANETESIMAL:
-	return "PLANETESIMAL";
-    default:
-	return "UNKNOWN";
-	}
-    }
-
-void
-msrDoCollision(MSR msr,double dTime,double dDelta) {
-
-    struct outNextCollision next;
-    struct inGetColliderInfo inGet;
-    struct outGetColliderInfo outGet;
-    struct inDoCollision inDo;
-    struct outDoCollision outDo;
-    struct outCheckHelioDist outCh;
-
-    COLLIDER *c1 = &inDo.Collider1,*c2 = &inDo.Collider2,*c;
-    double sec;
-    unsigned int nCol=0,nMis=0,nMrg=0,nBnc=0,nFrg=0;
-
-    inDo.bPeriodic = msr->param.bPeriodic;
-
-    /* we first check heliocentric distance */
-    pstCheckHelioDist(msr->pst,NULL,0,&outCh,NULL);
-    msr->dEcoll += outCh.dT;
-    msr->dSunMass += outCh.dSM;
-
-    do {
-	pstNextCollision(msr->pst,NULL,0,&next,NULL);
-	/*printf("%i,%i\n",next.iOrder1,next.iOrder2);*/
-
-	/* process the collision */
-	if (COLLISION(next.dt)) {
-
-	    assert(next.iOrder1 >= 0);
-	    assert(next.iOrder2 >= 0);
-
-	    inDo.dt = next.dt;
-	    inGet.iOrder = next.iOrder1;
-	    pstGetColliderInfo(msr->pst,&inGet,sizeof(inGet),&outGet,NULL);
-	    *c1 = outGet.Collider; /* struct copy */
-
-	    /*printf("%i,%i\n",c1->id.iOrder,inGet.iOrder);*/
-
-	    assert(c1->id.iOrder == inGet.iOrder);
-
-	    inGet.iOrder = next.iOrder2;
-	    pstGetColliderInfo(msr->pst,&inGet,sizeof(inGet),&outGet,NULL);
-	    *c2 = outGet.Collider;
-	    /*printf("%i,%i\n",c2->id.iOrder,inGet.iOrder);*/
-	    assert(c2->id.iOrder == inGet.iOrder);
-	    inDo.CP = msr->param.CP; /* copy collisional parmas */
-
-	    pstDoCollision(msr->pst,&inDo,sizeof(inDo),&outDo,NULL);
-
-	    msr->dEcoll += outDo.dT; /* account for kinetic energy loss + (potential)*/
-
-	    ++nCol;
-	    switch (outDo.iOutcome) {
-	    case MISS:
-		++nMis;
-		--nCol;
-		break;
-	    case MERGE:
-		++nMrg;
-		break;
-	    case BOUNCE:
-		++nBnc;
-		break;
-	    case FRAG:
-		++nFrg;
-		break;
-	    default:
-		assert(0); /* unknown outcome */
-		}
-
-#ifdef IGNORE_FOR_NOW/*DEBUG*/
-	    if (outDo.iOutcome & FRAG) {
-		/* see Zoe's version */
-		}
-#endif
-	    switch (msr->param.iCollLogOption) { /* log collision if requested */
-	    case COLL_LOG_NONE:
-		break;
-	    case COLL_LOG_VERBOSE: {
-		FILE *fp;
-		int i;
-
-		fp = fopen(msr->param.achCollLog,"a");
-		assert(fp != NULL);
-
-		/* for (i=0;i<3;i++) {
-		   c1->r[i] += c1->v[i]*next.dt;
-		   c2->r[i] += c2->v[i]*next.dt;
-		   } */
-
-		fprintf(fp,"%s-%s COLLISION:T=%e\n",
-			_msrParticleLabel(msr,c1->iColor),
-			_msrParticleLabel(msr,c2->iColor),dTime);
-
-		fprintf(fp,"***1:p=%i,o=%i,i=%i,oi=%i,M=%e,R=%e,dt=%e,rung=%i,"
-			"r=(%e,%e,%e),v=(%e,%e,%e),w=(%e,%e,%e)\n",
-			c1->id.iPid,c1->id.iOrder,c1->id.iIndex,c1->id.iOrgIdx,
-			c1->fMass,c1->fRadius,c1->dt,c1->iRung,
-			c1->r[0],c1->r[1],c1->r[2],
-			c1->v[0],c1->v[1],c1->v[2],
-			c1->w[0],c1->w[1],c1->w[2]);
-
-		fprintf(fp,"***2:p=%i,o=%i,i=%i,oi=%i,M=%e,R=%e,dt=%e,rung=%i,"
-			"r=(%e,%e,%e),v=(%e,%e,%e),w=(%e,%e,%e)\n",
-			c2->id.iPid,c2->id.iOrder,c2->id.iIndex,c2->id.iOrgIdx,
-			c2->fMass,c2->fRadius,c2->dt,c2->iRung,
-			c2->r[0],c2->r[1],c2->r[2],
-			c2->v[0],c2->v[1],c2->v[2],
-			c2->w[0],c2->w[1],c2->w[2]);
-		fprintf(fp,"***OUTCOME=%s dT=%e\n",
-			outDo.iOutcome == MISS ? "MISS" :
-			outDo.iOutcome == MERGE ? "MERGE" :
-			outDo.iOutcome == BOUNCE ? "BOUNCE" :
-			outDo.iOutcome == FRAG ? "FRAG" : "UNKNOWN",outDo.dT);
-		for (i=0;i<(outDo.nOut < MAX_NUM_FRAG ? outDo.nOut : MAX_NUM_FRAG);i++) {
-		    c = &outDo.Out[i];
-
-		    fprintf(fp,"***out%i:p=%i,o=%i,i=%i,oi=%i,M=%e,R=%e,rung=%i,"
-			    "r=(%e,%e,%e),v=(%e,%e,%e),w=(%e,%e,%e)\n",i,
-			    c->id.iPid,c->id.iOrder,c->id.iIndex,c->id.iOrgIdx,
-			    c->fMass,c->fRadius,c->iRung,
-			    c->r[0],c->r[1],c->r[2],
-			    c->v[0],c->v[1],c->v[2],
-			    c->w[0],c->w[1],c->w[2]);
-		    }
-		fclose(fp);
-		break;
-		}
-	    case COLL_LOG_TERSE: {
-		/*
-		** FORMAT: For each event, time (double), collider 1 iOrgIdx
-		** (int), collider 2 iOrgIdx (int), number of post-collision
-		** particles (int), iOrgIdx for each of these (n * int).
-		*/
-
-		FILE *fp;
-		XDR xdrs;
-		int i;
-
-		if (outDo.iOutcome != MERGE && outDo.iOutcome != FRAG)
-		    break; /* only care when particle indices change */
-		fp = fopen(msr->param.achCollLog,"a");
-		assert(fp != NULL);
-		xdrstdio_create(&xdrs,fp,XDR_ENCODE);
-
-		(void) xdr_double(&xdrs,&dTime);
-		/* MERGE =1, BOUNCE =2*/
-		(void) xdr_int(&xdrs,&outDo.iOutcome);
-
-		/* info for c1*/
-		(void) xdr_int(&xdrs,&c1->iColor);
-		(void) xdr_int(&xdrs,&c1->id.iOrgIdx);
-		(void) xdr_double(&xdrs,&c1->fMass);
-		(void) xdr_double(&xdrs,&c1->fRadius);
-		for (i=0;i<N_DIM;i++)
-		    (void)xdr_double(&xdrs,&c1->r[i]);
-		for (i=0;i<N_DIM;i++)
-		    (void)xdr_double(&xdrs,&c1->v[i]);
-		for (i=0;i<N_DIM;i++)
-		    (void)xdr_double(&xdrs,&c1->w[i]);
-
-		/* info for c2*/
-		(void) xdr_int(&xdrs,&c2->iColor);
-		(void) xdr_int(&xdrs,&c2->id.iOrgIdx);
-		(void) xdr_double(&xdrs,&c2->fMass);
-		(void) xdr_double(&xdrs,&c2->fRadius);
-		for (i=0;i<N_DIM;i++)
-		    (void)xdr_double(&xdrs,&c2->r[i]);
-		for (i=0;i<N_DIM;i++)
-		    (void)xdr_double(&xdrs,&c2->v[i]);
-		for (i=0;i<N_DIM;i++)
-		    (void)xdr_double(&xdrs,&c2->w[i]);
-
-		xdr_destroy(&xdrs);
-		(void) fclose(fp);
-		break;
-		}
-	    default:
-		assert(0); /* invalid collision log option */
-		} /* logging */
-	    } /* if collision */
-	}
-    while (COLLISION(next.dt));
-
-    msrAddDelParticles(msr); /* clean up any deletions */
-
-    if (msr->param.bVStep) {
-	double dsec = msrTime() - sec;
-	printf("%i collision%s: %i miss%s, %i merger%s, %i bounce%s, %i frag%s\n",
-	       nCol,nCol==1?"":"s",nMis,nMis==1?"":"es",nMrg,nMrg==1?"":"s",
-	       nBnc,nBnc==1?"":"s",nFrg,nFrg==1?"":"s");
-	printf("Collision search completed, time = %g sec\n",dsec);
-	}
-    }
-
-#ifdef SYMBA
-void msrTopStepSymba(MSR msr,
-		     double dStep,	/* Current step */
-		     double dTime,	/* Current time */
-		     double dDelta,	/* Time step */
-		     int iRung,		/* Rung level */
-		     int iKickRung,	/* Gravity on all rungs from iRung
-					   to iKickRung */
-		     int iRungVeryActive,  /* current setting for iRungVeryActive */
-		     int iAdjust,		/* Do an adjust? */
-		     double *pdActiveSum,
-		     int *piSec) {
-    uint64_t nActive;
-    int bSplitVA;
-    double dDeltaTmp;
-    int i;
-    const int bNeedEwald = 0;
-
-    msrActiveRung(msr,0,1); /* activate all particles */
-    /* F_0 for particles at iRung = 0 and 1 */
-    msrKickKDKOpen(msr,dTime,0.5*dDelta);
-    /*
-    ** drift all particles to the end of time step
-    */
-    msrKeplerDrift(msr, dDelta);
-    /*
-     * check min.distance (drmin2) during drift
-     */
-    msrSmooth(msr,dTime,SMX_SYMBA,0);
-    /*
-     * Determine p->iRung from p->drmin
-     ** If drmin2 < 3Hill, (but drmin > 3Hill), this interacting pair
-     ** is sent to iRung = 1. Positions and velocities before the drift
-     ** are retrived (x = xb, v = vb) for particles with p_iRung >=1
-     */
-    msrDrminToRung(msr,iRung);
-    /*
-     * Activate VeryActives
-     */
-    msrActiveRung(msr,1,1); /* msr->iRungVeryActive+1 = 1 */
-
-    /*assert(msr->nActive == 0); temporaryly */
-    if (msr->nActive) { /* if any particles in close encounters */
-	if (msrDoGravity(msr)) {
-	    /*
-	    ** Domain decomposition for parallel exclude very active is going to be
-	    ** placed here shortly.
-	    */
-	    bSplitVA = 1;
-	    msrDomainDecomp(msr,iRung,0,bSplitVA);
-	    }
-	/*
-	 * Perform timestepping of particles in close encounters on
-	 * individual processors.
-	 */
-	msrStepVeryActiveSymba(msr,dStep,dTime, dDelta, iRung);
-	}
-
-    dTime += dDelta;
-    dStep += 1.0;
-
-    /*
-     * Regular Tree gravity
-     */
-    msrActiveRung(msr,iKickRung,1); /* iKickRung = 0 */
-    bSplitVA = 0;
-    msrDomainDecomp(msr,iKickRung,0,bSplitVA);
-
-    if (msrDoGravity(msr)) {
-	msrActiveRung(msr,iKickRung,1);
-	msrprintf(msr,"%*cGravity, iRung: %d to %d\n",
-		  2*iRung+2,' ',iKickRung,msrCurrMaxRung(msr));
-	msrBuildTree(msr,dTime,bNeedEwald);
-	msrGravity(msr,dTime,dStep,0,0,piSec,&nActive);
-	*pdActiveSum += (double)nActive/msr->N;
-	}
-
-    msrActiveRung(msr,iRung,1);
-    msrKickKDKClose(msr,dTime-0.5*dDelta,0.5*dDelta);
-
-    /* linear shifts due to Sun's velocity.
-       The next half-step shifts are included */
-    msrDriftSun(msr,dTime-0.5*dDelta,dDelta);
-
-    if (msr->param.bCollision) {
-	msrDoCollision(msr,dTime,dDelta);
-	}
-
-    }
-
-void
-msrStepVeryActiveSymba(MSR msr, double dStep, double dTime, double dDelta,
-		       int iRung) {
-    struct inStepVeryActiveS in;
-    struct outStepVeryActiveS out;
-
-    in.dStep = dStep;
-    in.dTime = dTime;
-    in.dDelta = dDelta;
-    in.iRung = iRung;
-    /* could set a stricter opening criterion here */
-    in.diCrit2 = 1/(msr->dCrit*msr->dCrit);
-    in.nMaxRung = msrCurrMaxRung(msr);
-    in.dSunMass = msr->dSunMass;
-
-    pstStepVeryActiveSymba(msr->pst, &in, sizeof(in), &out, NULL);
-
-    if (msr->param.bCollision) {
-	struct outGetVariableVeryActive outGet;
-	pstGetVariableVeryActive(msr->pst, NULL, 0, &outGet, NULL);
-	msr->dEcoll += outGet.dDeltaEcoll;
-	outGet.dDeltaEcoll = 0.0;/*just in case */
-	}
-    msr->iCurrMaxRung = out.nMaxRung;
-    }
-
-void msrDrminToRung(MSR msr,int iRung) {
-    struct inDrminToRung in;
-    struct outDrminToRung out;
-    int iTempRung,iOutMaxRung;
-    char c;
-
-    in.iRung = iRung;
-    in.iMaxRung = msrMaxRung(msr);
-
-    pstDrminToRung(msr->pst, &in, sizeof(in), &out, NULL);
-    iTempRung =msrMaxRung(msr)-1;
-    while (out.nRungCount[iTempRung] == 0 && iTempRung > 0) --iTempRung;
-    iOutMaxRung = iTempRung;
-
-    /*
-      ** Now copy the rung distribution to the msr structure!
-      */
-    for (iTempRung=0;iTempRung < msrMaxRung(msr);++iTempRung) {
-	msr->nRung[iTempRung] = out.nRungCount[iTempRung];
-	}
-    msr->nRung[msrMaxRung(msr)] = 0; /* just for sure */
-    msr->iCurrMaxRung = iOutMaxRung;
-
-    if (msr->param.bVRungStat) {
-	printf("Rung distribution:\n");
-	for (iTempRung=0;iTempRung <= msr->iCurrMaxRung;++iTempRung) {
-	    if (out.nRungCount[iTempRung] == 0) continue;
-	    if (iTempRung > 0 ) c = 'v'; /* iRungVeryActive = 0*/
-	    else c = ' ';
-	    printf(" %c rung:%d %d\n",c,iTempRung,out.nRungCount[iTempRung]);
-	    }
-	printf("\n");
-	}
-
-    /*
-     * Set VeryActive particles
-     * Remember, the first very active particle is at iRungVeryActive + 1
-     */
-    msrSetRungVeryActive(msr, 0); /* iRungVeryActive = 0*/
-    }
-
-void msrDriftSun(MSR msr,double dTime,double dDelta) {
-    struct inDriftSun in;
-    struct outMomSun outm;
-
-    int j;
-    /* Calculate Sun's momentum */
-    pstMomSun(msr->pst,NULL,0,&outm,NULL);
-
-    for (j=0;j<3;++j) {
-	in.vSun[j] = outm.momSun[j]/msr->dSunMass;
-	}
-    in.dDelta = dDelta;
-    pstDriftSun(msr->pst,&in,sizeof(in),NULL,NULL);
-
-    }
-
-void msrKeplerDrift(MSR msr,double dDelta) {
-    struct inKeplerDrift in;
-
-    in.dDelta = dDelta;
-    in.dSunMass = msr->dSunMass;
-    pstKeplerDrift(msr->pst,&in,sizeof(in),NULL,NULL);
-
-    }
-
-
-#endif /* SYMBA */
-#endif /* PLANETS*/
 
 void msrWrite(MSR msr,const char *pszFileName,double dTime,int bCheckpoint) {
-#ifdef PLANETS
-    msrWriteSS(msr,pszFileName,dTime);
-#else
     if ( msr->iLastRungRT >= 0 ) msrReorder(msr);
     assert( msr->iLastRungRT < 0 );
     _msrWriteTipsy(msr,pszFileName,dTime,bCheckpoint);
-#endif
     }
 
 double msrRead(MSR msr, const char *achInFile) {
@@ -5902,7 +4742,6 @@ double msrRead(MSR msr, const char *achInFile) {
     if (msr->param.nDomainRungs>0)   mMemoryModel |= PKD_MODEL_RUNGDEST;
 
     if (msr->param.bMemParticleID)   mMemoryModel |= PKD_MODEL_PARTICLE_ID;
-    if (msr->param.bHermite)         mMemoryModel |= PKD_MODEL_HERMITE;
     if (msr->param.bTraceRelaxation) mMemoryModel |= PKD_MODEL_RELAXATION;
     if (msr->param.bMemAcceleration) mMemoryModel |= PKD_MODEL_ACCELERATION;
     if (msr->param.bMemVelocity)     mMemoryModel |= PKD_MODEL_VELOCITY;
@@ -5910,7 +4749,6 @@ double msrRead(MSR msr, const char *achInFile) {
     if (msr->param.bMemGroups)       mMemoryModel |= PKD_MODEL_GROUPS;
     if (msr->param.bMemMass)         mMemoryModel |= PKD_MODEL_MASS;
     if (msr->param.bMemSoft)         mMemoryModel |= PKD_MODEL_SOFTENING;
-    if (msr->param.bMemHermite)      mMemoryModel |= PKD_MODEL_HERMITE;
     if (msr->param.bMemRelaxation)   mMemoryModel |= PKD_MODEL_RELAXATION;
     if (msr->param.bMemVelSmooth)    mMemoryModel |= PKD_MODEL_VELSMOOTH;
     if (msr->param.bMemNewDD)         mMemoryModel |= PKD_MODEL_RUNGDEST;
@@ -5924,9 +4762,6 @@ double msrRead(MSR msr, const char *achInFile) {
     if (msr->param.bMemNodeVBnd)         mMemoryModel |= PKD_MODEL_NODE_VBND;
 
     sec = msrTime();
-#ifdef PLANETS
-    dTime = msrReadSS(msr); /* must use "Solar System" (SS) I/O format... */
-#else
 
     nBytes = PST_MAX_FILES*(sizeof(fioSpeciesList)+PST_FILENAME_SIZE);
     read = malloc(sizeof(struct inReadFile) + nBytes);
@@ -6002,7 +4837,7 @@ double msrRead(MSR msr, const char *achInFile) {
 	msrOneNodeRead(msr,read,fio);
 	fioClose(fio);
 	}
-#endif
+
     dsec = msrTime() - sec;
     msrSetClasses(msr);
     msrprintf(msr,"Input file has been successfully read, Wallclock: %f secs.\n", dsec);
@@ -6066,23 +4901,7 @@ void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint) {
     printf( "Writing output for step %d\n", iStep );
     msrBuildIoName(msr,achFile,iStep);
 
-#ifdef PLANETS
-    msrReorder(msr);
-#ifdef SYMBA
-    msrDriftSun(msr,dTime+0.5*msrDelta(msr),-0.5*msrDelta(msr));
-#endif
-    msrWriteSS(msr,achFile,dTime);
-#ifdef SYMBA
-    msrDriftSun(msr,dTime,0.5*msrDelta(msr));
-    /* msrReorder above requires msrDomainDecomp and msrBuildTree for
-       msrSmooth in topstepSymba*/
-    msrActiveRung(msr,0,1);
-    msrDomainDecomp(msr,-1,0,0);
-    msrBuildTree(msr,dTime,0);
-#endif
-#else
     if ( iStep ) msrWrite(msr,achFile,dTime,bCheckpoint );
-#endif
 
     if (msrDoGas(msr) && !msr->param.nSteps) {  /* Diagnostic Gas */ 
 	msrReorder(msr);

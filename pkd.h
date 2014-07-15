@@ -21,9 +21,6 @@
 #ifdef USE_GRAFIC
 #include "grafic.h"
 #endif
-#ifdef PLANETS
-#include "ssio.h"
-#endif
 #include "basetype.h"
 
 #ifdef __cplusplus
@@ -94,7 +91,6 @@ static inline int64_t d2u64(double d) {
 #define PKD_MODEL_ACCELERATION (1<<1)  /* Acceleration Required */
 #define PKD_MODEL_POTENTIAL    (1<<2)  /* Potential Required */
 #define PKD_MODEL_GROUPS       (1<<3)  /* Group profiling */
-#define PKD_MODEL_HERMITE      (1<<4)  /* Hermite integrator */
 #define PKD_MODEL_RELAXATION   (1<<5)  /* Trace relaxation */
 #define PKD_MODEL_MASS         (1<<6)  /* Mass for each particle */
 #define PKD_MODEL_SOFTENING    (1<<7)  /* Softening for each particle */
@@ -151,19 +147,6 @@ typedef struct partclass {
     float       fSoft;    /* Current softening */
     FIO_SPECIES eSpecies; /* Species: dark, star, etc. */
     } PARTCLASS;
-
-typedef struct hermitefields {
-    double ad[3];
-    double r0[3];
-    double v0[3];
-    double a0[3];
-    double ad0[3];
-    double rp[3];
-    double vp[3];
-    double app[3];
-    double adpp[3];
-    double dTime0;
-    } HERMITEFIELDS;
 
 typedef struct velsmooth {
     float vmean[3];
@@ -420,26 +403,10 @@ typedef struct sphBounds {
 /*
 ** Components required for tree walking.
 */
-#ifndef LOCAL_EXPANSION
-typedef struct CheckElt {
-    int iCell;
-    int id;
-    double cOpen;
-    FLOAT rOffset[3];
-    } CELT;
-#endif
-
 typedef struct CheckStack {
-#ifdef LOCAL_EXPANSION
     ILPCHECKPT PartChkPt;
     ILCCHECKPT CellChkPt;
     CL cl;
-#else
-    int nPart;
-    int nCell;
-    int nCheck;
-    CELT *Check;
-#endif
     LOCR L;
     float dirLsum;
     float normLsum;
@@ -723,7 +690,6 @@ typedef struct pkdContext {
     int oSoft; /* One float */
     int oSph; /* Sph structure */
     int oStar; /* Star structure */
-    int oHermite; /* Hermite structure */
     int oRelaxation;
     int oVelSmooth;
     int oRungDest; /* Destination processor for each rung */
@@ -747,19 +713,11 @@ typedef struct pkdContext {
     */
     int nMaxStack;
     CSTACK *S;
-#ifdef LOCAL_EXPANSION
     ILP ilp;
     ILC ilc;
     LSTFREELIST clFreeList;
     CL cl;
     CL clNew;
-#else
-    ILP *ilp;
-    ILC *ilc;
-    CELT *Check;
-    int nMaxPart, nMaxCell;
-    int nMaxCheck;
-#endif
 
     /*
     ** Opening angle table for mass weighting.
@@ -828,11 +786,6 @@ typedef struct pkdContext {
     ** This is set in pkdInitStep.
     */
     struct parameters param;
-#ifdef PLANETS
-    double dDeltaEcoll;
-    double dSunMass;
-    int    iCollisionflag; /*call pkddocollisionveryactive if iCollisionflag=1*/
-#endif
 
 #ifdef USE_CUDA
     void *cudaCtx;
@@ -1230,19 +1183,6 @@ void pkdScaleVel(PKD pkd,double dvFac);
 void pkdStepVeryActiveKDK(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dStep, double dTime, double dDelta,
 			  int iRung, int iKickRung, int iRungVeryActive,int iAdjust, double diCrit2,
 			  int *pnMaxRung, double aSunInact[], double adSunInact[], double dSunMass);
-#ifdef HERMITE
-void
-pkdStepVeryActiveHermite(PKD pkd, double dStep, double dTime, double dDelta,
-			 int iRung, int iKickRung, int iRungVeryActive,int iAdjust, double diCrit2,
-			 int *pnMaxRung, double aSunInact[], double adSunInact[], double dSunMass);
-void pkdCopy0(PKD pkd,double dTime);
-void pkdPredictor(PKD pkd,double dTime);
-void pkdCorrector(PKD pkd,double dTime);
-void pkdSunCorrector(PKD pkd,double dTime,double dSunMass);
-void pkdPredictorInactive(PKD pkd,double dTime);
-void pkdAarsethStep(PKD pkd, double dEta);
-void pkdFirstDt(PKD pkd);
-#endif /* Hermite */
 void pkdKickKDKOpen(PKD pkd,double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi);
 void pkdKickKDKClose(PKD pkd,double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi);
 void pkdKick(PKD pkd,double dTime,double dDelta,double,double,double,uint8_t uRungLo,uint8_t uRungHi);
@@ -1308,38 +1248,6 @@ int pkdUnpackIO(PKD pkd,
 		local_t *iIndex,
 		total_t iMinOrder, total_t iMaxOrder,
 		double dvFac);
-
-#ifdef PLANETS
-void pkdSunIndirect(PKD pkd,double aSun[],double adSun[],int iFlag);
-void pkdGravSun(PKD pkd,double aSun[],double adSun[],double dSunMass);
-void pkdHandSunMass(PKD pkd,double dSunMass);
-void pkdReadSS(PKD pkd,char *pszFileName,int nStart,int nLocal);
-void pkdWriteSS(PKD pkd,char *pszFileName,int nStart);
-
-#ifdef SYMBA
-#define symfac 1.925925925925926 /* 2.08/1.08 */
-#define rsym2  1.442307692307692 /* 3.0/2.08 */
-
-void
-pkdStepVeryActiveSymba(PKD pkd, double dStep, double dTime, double dDelta,
-		       int iRung, int iKickRung, int iRungVeryActive,
-		       int iAdjust, double diCrit2,
-		       int *pnMaxRung, double dSunMass, int);
-int pkdSortVA(PKD pkd, int iRung);
-void pkdGravVA(PKD pkd, int iRung);
-int pkdCheckDrminVA(PKD pkd, int iRung, int multiflag, int nMaxRung);
-void pkdKickVA(PKD pkd, double dt);
-int pkdDrminToRung(PKD pkd, int iRung, int iMaxRung, int *nRungCount);
-int pkdGetPointa(PKD pkd);
-int pkdDrminToRungVA(PKD pkd, int iRung, int iMaxRung, int multiflag);
-void pkdMomSun(PKD pkd,double momSun[]);
-void pkdDriftSun(PKD pkd,double vSun[],double dt);
-void pkdKeplerDrift(PKD pkd,double dt,double mu,int tag_VA);
-
-
-
-#endif /* SYMBA */
-#endif /* PLANETS*/
 
 #ifdef USE_GRAFIC
 void pkdGenerateIC(PKD pkd, GRAFICCTX gctx, int iDim,

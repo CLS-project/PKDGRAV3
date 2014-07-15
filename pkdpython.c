@@ -783,8 +783,6 @@ ppy_msr_Load(PyObject *self, PyObject *args, PyObject *kwobj) {
 	ppy_msr->param.bMemMass = PyInt_AsLong(v);
     if ( (v = PyDict_GetItemString(dict, "bMemSoft")) != NULL )
 	ppy_msr->param.bMemSoft = PyInt_AsLong(v);
-    if ( (v = PyDict_GetItemString(dict, "bMemHermite")) != NULL )
-	ppy_msr->param.bMemHermite = PyInt_AsLong(v);
     if ( (v = PyDict_GetItemString(dict, "bMemRelaxation")) != NULL )
 	ppy_msr->param.bMemRelaxation = PyInt_AsLong(v);
     if ( (v = PyDict_GetItemString(dict, "bMemVelSmooth")) != NULL )

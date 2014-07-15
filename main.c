@@ -183,48 +183,15 @@ void * master_ch(MDL mdl) {
 			       1.0/csmTime2Exp(msr->param.csm,dTime)-1.0,
 			       E,T,U,Eth,L[0],L[1],L[2],F[0],F[1],F[2],W,iSec,dMultiEff);
 	    }
-#ifdef PLANETS
-	if (msr->param.bHeliocentric) {
-	    msrGravSun(msr);
-	    }
-#ifdef SYMBA
-	msrDriftSun(msr,dTime,0.5*msrDelta(msr));
-#endif
-#endif
 	if ( msr->param.bTraceRelaxation) {
 	    msrInitRelaxation(msr);
 	    }
-#ifdef HERMITE
-	if (msr->param.bHermite) {
-	    msrActiveRung(msr,0,1); /* Activate all particles */
-	    msrCopy0(msr, dTime);
-	    if (msr->param.bAarsethStep) {
-		msrFirstDt(msr);
-		}
-	    }
-#endif
 	for (iStep=msr->param.iStartStep+1;iStep<=msrSteps(msr)&&!iStop;++iStep) {
 	    if (msrComove(msr)) {
 		msrSwitchTheta(msr,dTime);
 		}
 	    dMultiEff = 0.0;
 	    lSec = time(0);
-#ifdef HERMITE
-	    if (msr->param.bHermite) {
-		msrTopStepHermite(msr,iStep-1,dTime,
-				  msrDelta(msr),0,0,msrMaxRung(msr),1,
-				  &dMultiEff,&iSec);
-		}
-	    else
-#endif
-#ifdef SYMBA
-		if (msr->param.bSymba) {
-		    msrTopStepSymba(msr,iStep-1,dTime,
-				    msrDelta(msr),0,0,msrMaxRung(msr),1,
-				    &dMultiEff,&iSec);
-		    }
-		else
-#endif
 		    if (msr->param.bHSDKD) {
 			msrTopStepHSDKD(msr,iStep-1,dTime,
 			    msrDelta(msr),0,0,msrMaxRung(msr),1,

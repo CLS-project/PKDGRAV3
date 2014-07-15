@@ -64,11 +64,6 @@ typedef struct msrContext {
 
     int bSavePending;
 
-#ifdef PLANETS
-    int nPlanets; /* currently not used */
-    double dEcoll;
-    double dSunMass;
-#endif
     } * MSR;
 
 void msrInitialize(MSR *,MDL,int,char **);
@@ -137,28 +132,6 @@ void msrTopStepHSDKD(MSR msr,
 		   int *piSec);
 void msrStepVeryActiveKDK(MSR msr, double dStep, double dTime, double dDelta,
 			  int iRung);
-#ifdef HERMITE
-void msrTopStepHermite(MSR msr,
-		       double dStep,	/* Current step */
-		       double dTime,	/* Current time */
-		       double dDelta,	/* Time step */
-		       int iRung,		/* Rung level */
-		       int iKickRung,	/* Gravity on all rungs from iRung
-					   to iKickRung */
-		       int iRungVeryActive,  /* current setting for iRungVeryActive */
-		       int iAdjust,		/* Do an adjust? */
-		       double *pdActiveSum,
-		       int *piSec);
-void msrStepVeryActiveHermite(MSR msr,double dStep,double dTime,double dDelta,
-			      int iRung);
-void msrCopy0(MSR msr,double dTime);
-void msrPredictor(MSR msr,double dTime);
-void msrCorrector(MSR msr,double dTime);
-void msrSunCorrector(MSR msr,double dTime);
-void msrPredictorInactive(MSR msr,double dTime);
-void msrAarsethStep(MSR msr);
-void msrFirstDt(MSR msr);
-#endif /* HERMITE */
 
 void msrBallMax(MSR msr, int iRung, int bGreater);
 /*------------------*/
@@ -228,32 +201,6 @@ void msrCoolSetup(MSR msr, double);
 void msrCooling(MSR msr,double dTime,double dStep,int bUpdateState, int bUpdateTable,int bInterateDt);
 void msrStarForm( MSR, double, int);
 /* END Gas routines */
-
-#ifdef PLANETS
-double msrReadSS(MSR msr);
-void msrWriteSS(MSR msr, char *pszFileName, double dTime);
-void msrGravSun(MSR msr);
-static char * _msrParticleLabel(MSR msr,int iColor);
-void msrDoCollision(MSR msr,double dTime,double dDelta);
-#ifdef SYMBA
-void msrTopStepSymba(MSR msr,
-		     double dStep,	/* Current step */
-		     double dTime,	/* Current time */
-		     double dDelta,	/* Time step */
-		     int iRung,		/* Rung level */
-		     int iKickRung,	/* Gravity on all rungs from iRung
-					   to iKickRung */
-		     int iRungVeryActive,
-		     int iAdjust,		/* Do an adjust? */
-		     double *pdActiveSum,
-		     int *piSec);
-void msrStepVeryActiveSymba(MSR msr, double dStep, double dTime, double dDelta,
-			    int iRung);
-void msrDrminToRung(MSR msr,int iRung);
-void msrDriftSun(MSR msr,double dTime,double dDelta);
-void msrKeplerDrift(MSR msr,double dDelta);
-#endif  /* SYMBA */
-#endif /* PLANETS */
 
 void msrHostname(MSR msr);
 void msrMemStatus(MSR msr);

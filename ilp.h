@@ -1,6 +1,5 @@
 #ifndef ILP_H
 #define ILP_H
-#ifdef LOCAL_EXPANSION
 #include <stdint.h>
 #include <string.h>
 #include <assert.h>
@@ -96,25 +95,5 @@ static inline void ilpAppend(ILP ilp, double X, double Y, double Z, float M, flo
     ilpAppendFloat(ilp,(ilp)->cx-(X),(ilp)->cy-(Y),(ilp)->cz-(Z),M,S,I,VX,VY,VZ);
     }
 #define ILP_LOOP(ilp,ptile) for( ptile=(ILPTILE)((ilp)->lst.list); ptile!=NULL; ptile=(ILPTILE)(ptile->lstTile.next) )
-
-#else /* LOCAL_EXPANSION */
-
-typedef struct ilPart {
-    double m,x,y,z;
-#if defined(SOFTLINEAR)
-    double h;
-#elif defined(SOFTSQUARE)
-    double twoh2;
-#else
-    double fourh2;
-#endif  
-#if defined(SYMBA) || defined(PLANETS) || !defined(LOCAL_EXPANSION)
-    uint64_t iOrder;
-#endif
-#if defined(HERMITE) || !defined(LOCAL_EXPANSION)
-    double vx,vy,vz;
-#endif
-    } ILP;
-#endif /* LOCAL_EXPANSION */
 
 #endif

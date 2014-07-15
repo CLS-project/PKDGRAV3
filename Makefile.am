@@ -58,20 +58,12 @@ noinst_HEADERS += hop.h
 SOURCES += $(MDL)/mdlbase.c
 noinst_HEADERS += $(MDL)/mdlbase.h
 
-if PLANETS
-SOURCES += ssio.c collision.c kepler.c
-noinst_HEADERS += ssio.h collision.h kepler.h
-endif
-if LOCAL_EXPANSION
 SOURCES += grav2.c walk2.c
 SOURCES += lst.c ilp.c ilc.c cl.c
 noinst_HEADERS += lst.h ilp.h ilc.h cl.h
 if USE_SIMD
 AM_CFLAGS = @SIMD_CFLAGS@
 noinst_HEADERS += simd.h sse_mathfun.h avx_mathfun.h
-endif
-else
-SOURCES += grav.c walk.c
 endif
 MDL=@MDL_PATH@
 if USE_PNG

@@ -1,6 +1,5 @@
 #ifndef ILC_H
 #define ILC_H
-#ifdef LOCAL_EXPANSION
 #include <stdint.h>
 #include <assert.h>
 #include <stdint.h>
@@ -38,11 +37,7 @@ typedef struct {
     } ILC_BLK;
 
 typedef struct {
-#ifdef HERMITE
-    ilcFloat vx,vy,vz;
-#else
-	char dummy[0];
-#endif
+    char dummy[0];
     } ILC_XTR;
 
 typedef struct ilcTile {
@@ -107,11 +102,6 @@ static inline void ilcAppendFloat(ILC ilc,float X,float Y,float Z,FMOMR *M,float
     tile->blk[blk].yyyy.f[prt] = (M)->yyyy;
     tile->blk[blk].yyyz.f[prt] = (M)->yyyz;
 
-#if defined(HERMITE)
-    tile->xtr[blk].vx.f[prt] = (VX);					\
-    tile->xtr[blk].vy.f[prt] = (VY);					\
-    tile->xtr[blk].vz.f[prt] = (VZ);
-#endif
     ++tile->lstTile.nInLast;
     }
 
@@ -121,16 +111,4 @@ static inline void ilcAppend(ILC ilc,double X,double Y,double Z,FMOMR *M,float U
 
 #define ILC_LOOP(ilc,ctile) for( ctile=(ILCTILE)((ilc)->lst.list); ctile!=NULL; ctile=(ILCTILE)(ctile->lstTile.next) )
 
-#else /* LOCAL_EXPANSION */
-
-#include "moments.h"
-/*
-** components required for evaluating a multipole interaction.
-*/
-
-typedef struct ilCell {
-    double x,y,z;
-    MOMR mom;
-    } ILC;
-#endif /* LOCAL_EXPANSION */
 #endif

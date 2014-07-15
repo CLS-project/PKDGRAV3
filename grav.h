@@ -16,22 +16,12 @@ static inline double softmassweight(double m1,double h12,double m2,double h22) {
 void pkdGravStartEwald(PKD pkd);
 void pkdGravFinishEwald(PKD pkd);
 
-#ifdef LOCAL_EXPANSION
 int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *pLoc,ILP ilp,ILC ilc,
     float dirLsum,float normLsum,int bEwald,int bGravStep,int nGroup,double *pdFlop,double *pdEwFlop,double dRhoFac,
     SMX smx,SMF *smf);
-#else
-int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *pLoc,ILP *ilp,int nPart,ILC *ilc,int nCell,
-		    double dirLsum,double normLsum,int bEwald,double *pdFlop,double *pdEwFlop,double dRhoFac);
-#endif
 
 double pkdRho1(double rhopmaxlocal, double summ, double dir, double x, double y, double z, double vx, double vy, double vz, double EccFacMax);
 
-#ifdef HERMITE
-double pkdRho3(PKD pkd, double rhopmaxlocal,double summ, double sumr, double *dir2,
-	      double *dir, double x, double y, double z, double vx, double vy, double vz,
-	      double rv, double v2, double a3, int iOrder,int jOrder);
-#endif
 #endif
 
 

@@ -593,15 +593,11 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
 	    clClear(pkd->S[iStack+1].cl);
 	    do {
 		CL_LOOP(pkd->cl,cltile) {
-#ifdef LOCAL_EXPANSION
 #ifdef USE_SIMD_OPEN
 		    iOpenOutcomeSIMD(pkd,k,pkd->cl,cltile,dThetaMin,nGroup);
 		    /*Verify:iOpenOutcomeNewCL(pkd,k,pkd->cl,cltile,dThetaMin);*/
 #else
 		    iOpenOutcomeCL(pkd,k,pkd->cl,cltile,dThetaMin,nGroup);
-#endif
-#else
-		    assert(NULL);
 #endif
 		    }
 

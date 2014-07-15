@@ -2,8 +2,8 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.59)
-AC_INIT(pkdgrav3, 0.9, bugs@pkdgrav2.org)
-AM_INIT_AUTOMAKE(pkdgrav3,0.9)
+AC_INIT(pkdgrav3, 0.9.1, bugs@pkdgrav2.org)
+AM_INIT_AUTOMAKE(pkdgrav3,0.9.1)
 AC_CONFIG_SRCDIR([main.c])
 AC_CONFIG_HEADER([config.h])
 
@@ -90,20 +90,6 @@ if test "x$FFTW" = "xyes" ; then
  	[Include support for FFTW.])
 fi
 AM_CONDITIONAL(FFTW, test "x$FFTW" = "xyes")
-
-# Local expansions - default is enabled
-AC_ARG_ENABLE(local-expansion,
-  [  --disable-local-expansion      disable local expansion code],
-  [LOCAL_EXPANSION="$enableval"],[LOCAL_EXPANSION="yes"])
-# Local expansions... this is the preferred flag
-AC_ARG_ENABLE(fmm,
-  [  --disable-fmm                  disable local expansion code],
-  [LOCAL_EXPANSION="$enableval"],[LOCAL_EXPANSION="yes"])
-if test "x$LOCAL_EXPANSION" != "xno" ; then
-   AC_DEFINE([LOCAL_EXPANSION], 1,
- 	[Define if local expansions should be used.])
-fi
-AM_CONDITIONAL(LOCAL_EXPANSION, test "x$LOCAL_EXPANSION" != "xno")
 
 # Electric fence
 AC_ARG_WITH(efence,
@@ -374,30 +360,6 @@ AC_ARG_ENABLE(soft-square,
    AC_DEFINE([SOFTSQUARE], 1,
  	[Define if SOFTSQUARE should be used.])])
 AM_CONDITIONAL(SOFTSQUARE, test "x$SOFTSQUARE" = "xyes")
-
-# PLANETS 
-AC_ARG_ENABLE(planets,
-  [  --enable-planets               enable planets],
-  [PLANETS=yes
-   AC_DEFINE([PLANETS], 1,
- 	[Define if planets should be used.])])
-AM_CONDITIONAL(PLANETS, test "x$PLANETS" = "xyes")
-
-# HERMITE
-AC_ARG_ENABLE(hermite,
-  [  --enable-hermite               enable hermite],
-  [HERMITE=yes
-   AC_DEFINE([HERMITE], 1,
- 	[Define if hermite should be used.])])
-AM_CONDITIONAL(HERMITE, test "x$HERMITE" = "xyes")
-
-# SYMBA
-AC_ARG_ENABLE(symba,
-  [  --enable-symba               enable symba],
-  [SYMBA=yes
-   AC_DEFINE([SYMBA], 1,
- 	[Define if symba should be used.])])
-AM_CONDITIONAL(SYMBA, test "x$SYMBA" = "xyes")
 
 # Check if mpi is available
 if test -n "$MPICC" ; then

@@ -22,28 +22,6 @@ typedef struct particle {
     float fDensity;
     /* a, fPot, v, pGroup, pBin moved to memory models */
 
-#ifdef PLANETS
-    /* (collision stuff) */
-    int iOrgIdx;		/* for tracking of mergers, aggregates etc. */
-    FLOAT w[3];			/* spin vector */
-    int iColor;			/* handy color tag */
-    int iColflag;	        /* handy collision tag 1 for c1, 2 for c2*/
-    uint64_t iOrderCol;              /* iOrder of colliding oponent.*/
-    FLOAT dtCol;
-    /* end (collision stuff) */
-#ifdef SYMBA
-    FLOAT rb[3]; /* position before drift */
-    FLOAT vb[3]; /* velocity before drift */
-    FLOAT drmin; /* minimum distance from neighbors normalized by Hill*/
-    FLOAT drmin2; /* min. dis. during drift */
-    uint64_t iOrder_VA[5]; /* iOrder's of particles within 3 hill radius*/
-    int   i_VA[5];    /* pointers of particles */
-    int   n_VA;       /* number of particles */
-    double  hill_VA[5]; /* mutual hill radius calculated in grav.c */
-    double a_VA[3];          /* accralation due to close encounters */
-    /* int   iKickRung; */
-#endif
-#endif/* PLANETS */
     } PARTICLE;
 
 #define PP_CUDA_MEMORY_LIMIT (1024*1024)
