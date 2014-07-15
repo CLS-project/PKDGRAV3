@@ -90,6 +90,7 @@ typedef enum {
 #define FIO_FLAG_CHECKPOINT    16 /* Restart - normally double */
 #define FIO_FLAG_POTENTIAL     32 /* Include the potential */
 #define FIO_FLAG_DENSITY       64 /* Include the density */
+#define FIO_FLAG_ID           128
 
 typedef enum {
     FIO_MODE_READING,
@@ -188,6 +189,8 @@ typedef struct fioInfo {
 */
 FIO fioOpen(const char *fileName,double dOmega0,double dOmegab);
 FIO fioOpenMany(int nFiles, const char * const *fileNames,double dOmega0,double dOmegab);
+size_t fioDump(FIO fio, size_t nBytes, void *pBuffer);
+FIO fioLoad(void *pBuffer,double dOmega0,double dOmegab);
 
 /*
 ** Close an open file of any format.

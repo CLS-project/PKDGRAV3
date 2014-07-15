@@ -62,7 +62,7 @@ typedef struct pstContext {
 
 #define PST_SERVICES		100
 #define PST_FILENAME_SIZE	512
-#define PST_MAX_FILES           800
+#define PST_MAX_FILES           16384
 
 enum pst_service {
     PST_SRV_STOP,
@@ -288,8 +288,9 @@ struct inReadFile {
     int iWorkQueueSize;
     int iCUDAQueueSize;
     int nProcessors;
-    char achFilename[PST_FILENAME_SIZE];
+    /*char achFilename[PST_FILENAME_SIZE];*/
     };
+typedef char inReadFileFilename[PST_FILENAME_SIZE];
 void pstReadFile(PST,void *,int,void *,int *);
 
 #ifdef MPI_VERSION

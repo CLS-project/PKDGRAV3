@@ -151,7 +151,7 @@ void pstAddServices(PST pst,MDL mdl) {
 		  sizeof(struct inSetAdd),0);
     mdlAddService(mdl,PST_READFILE,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstReadFile,
-		  sizeof(struct inReadFile),0);
+	          sizeof(struct inReadFile) + PST_MAX_FILES*(sizeof(fioSpeciesList)+PST_FILENAME_SIZE),0);
 #ifdef MPI_VERSION
     mdlAddService(mdl,PST_ORB_BEGIN,pst,
 	(void (*)(void *,void *,int,void *,int *)) pstOrbBegin,
@@ -363,7 +363,8 @@ void pstAddServices(PST pst,MDL mdl) {
 		  sizeof(struct inAddWriteStart),0);
     mdlAddService(mdl,PST_ONENODEREADINIT,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstOneNodeReadInit,
-		  sizeof(struct inReadFile), nThreads*sizeof(int));
+	          sizeof(struct inReadFile) + PST_MAX_FILES*(sizeof(fioSpeciesList)+PST_FILENAME_SIZE),
+	          nThreads*sizeof(int));
     mdlAddService(mdl,PST_SWAPALL,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstSwapAll,
 		  sizeof(int),0);
@@ -784,7 +785,7 @@ void pstReadFile(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     uint64_t nNodeStart,nNodeEnd,nNodeTotal,nNodeSplit,nStore;
     int rID;
 
-    mdlassert(pst->mdl,nIn == sizeof(struct inReadFile));
+    mdlassert(pst->mdl,nIn >= sizeof(struct inReadFile));
 
     nNodeStart = in->nNodeStart;
     nNodeEnd = in->nNodeEnd;
@@ -832,7 +833,7 @@ void pstReadFile(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	    in->nSpecies[FIO_SPECIES_STAR],
 	    in->mMemoryModel, in->nDomainRungs);
 
-	fio = fioOpen(in->achFilename,in->dOmega0,in->dOmegab);
+	fio = fioLoad(in+1,in->dOmega0,in->dOmegab);
 	assert(fio!=NULL);
 	pkdReadFIO(plcl->pkd,fio,nNodeStart,nNodeEnd-nNodeStart+1,in->dvFac,in->dTuFac);
 	fioClose(fio);

@@ -526,7 +526,16 @@ static void listClose(FIO fio) {
 static int listGetAttr(FIO fio,const char *attr, FIO_TYPE dataType, void *data) {
     fioList *vio = (fioList *)fio;
     assert(fio->eFormat == FIO_FORMAT_MULTIPLE);
-    return fioGetAttr(vio->fioCurrent,attr,dataType,data);
+    uint64_t v;
+
+    if ( strcmp(attr,"nFiles")==0 ) v = vio->fio.fileList.nFiles;
+    else return fioGetAttr(vio->fioCurrent,attr,dataType,data);
+
+    switch(dataType) {
+    case FIO_TYPE_UINT32: *(uint32_t *)(data) = v; break;
+    case FIO_TYPE_UINT64:*(uint64_t *)(data) = v; break;
+    default: return 0;
+	}
     }
 
 static FIO_SPECIES listSpecies(FIO fio) {
@@ -564,12 +573,12 @@ static int listSeek(FIO fio,uint64_t iPart,FIO_SPECIES eSpecies) {
     }
 
 /* Scans each file for species counts - leave the first open */
-static FIO listOpen(fioFileList *fileList, FIO (*baseOpen)(const char *fname) ) {
+static FIO listOpen(fioFileList *fileList, FIO (*baseOpen)(const char *fname), int bReopen ) {
     fioList *vio = NULL;
     FIO fio;
     int iFile, i;
 
-    assert(fileList->nFiles>1); /* We aren't needed otherwise */
+    /*assert(fileList->nFiles>1);*/ /* We aren't needed otherwise */
 
     vio = malloc(sizeof(fioList));
     assert(vio!=NULL);
@@ -580,11 +589,14 @@ static FIO listOpen(fioFileList *fileList, FIO (*baseOpen)(const char *fname) ) 
     vio->baseOpen = baseOpen;
 
     /* Scan all files; leave the first one open */
-    for(iFile=1;iFile<fileList->nFiles;++iFile) {
-	fio = (*baseOpen)(fileList->fileInfo[iFile].pszFilename);
-	for (i=0;i<FIO_SPECIES_LAST;++i) fileList->fileInfo[iFile].nSpecies[i] = fio->nSpecies[i];
-	fioClose(fio);
+    if (!bReopen) {
+	for(iFile=1;iFile<fileList->nFiles;++iFile) {
+	    fio = (*baseOpen)(fileList->fileInfo[iFile].pszFilename);
+	    for (i=0;i<FIO_SPECIES_LAST;++i) fileList->fileInfo[iFile].nSpecies[i] = fio->nSpecies[i];
+	    fioClose(fio);
+	    }
 	}
+
     fio = vio->fioCurrent = (*baseOpen)(fileList->fileInfo[0].pszFilename);
     for (i=0;i<FIO_SPECIES_LAST;++i) fileList->fileInfo[0].nSpecies[i] = fio->nSpecies[i];
 
@@ -1918,10 +1930,11 @@ static int gadgetWriteNative(fioGADGET *gio,
     if (gio->fp_id.iDouble == sizeof(uint64_t)) {
 	fwrite(&iParticleID, sizeof(uint64_t), 3, gio->fp_id.fp);
 	}
-    else {
+    else if (gio->fp_id.iDouble == sizeof(uint32_t)) {
 	iTmp = iParticleID;
 	fwrite(&iTmp, sizeof(uint32_t), 1, gio->fp_id.fp);
 	}
+    else assert(0);
     if (gio->fp_mass.fp) {
 	assert (gio->fp_mass.iDouble==sizeof(float));
 	fTmp[0] = fMass * gio->mass_fac;
@@ -2088,18 +2101,24 @@ FIO fioGadgetCreate(
     fwrite(&w, sizeof(w), 1, gio->fp_vel.fp);
     safe_fseek(gio->fp_vel.fp,gio->fp_vel.lOffset+sizeof(w));
 
-    gio->fp_id.fp   = fopen(fileName,"rb+");
-    if (gio->fp_id.pBuffer != NULL) setvbuf(gio->fp_id.fp,gio->fp_id.pBuffer,_IOFBF,GIO_BUFFER_SIZE);
-    safe_fseek(gio->fp_id.fp,gio->fp_id.lOffset);
+//    if ( mFlags & FIO_FLAG_ID ) {
+    if ( 1 ) {
+	gio->fp_id.fp   = fopen(fileName,"rb+");
+	if (gio->fp_id.pBuffer != NULL) setvbuf(gio->fp_id.fp,gio->fp_id.pBuffer,_IOFBF,GIO_BUFFER_SIZE);
+	safe_fseek(gio->fp_id.fp,gio->fp_id.lOffset);
 #ifdef HAVE_FSEEKO
 	assert(ftello(gio->fp_id.fp) == gio->fp_id.lOffset);
 #endif
 	w = gio->fio.nSpecies[FIO_SPECIES_ALL] * gio->fp_id.iDouble;
-    fwrite(&w, sizeof(w), 1, gio->fp_id.fp);
-    safe_fseek(gio->fp_id.fp,gio->fp_id.lOffset+sizeof(w)+w);
-    fwrite(&w, sizeof(w), 1, gio->fp_id.fp);
-    safe_fseek(gio->fp_id.fp,gio->fp_id.lOffset+sizeof(w));
-
+	fwrite(&w, sizeof(w), 1, gio->fp_id.fp);
+	safe_fseek(gio->fp_id.fp,gio->fp_id.lOffset+sizeof(w)+w);
+	fwrite(&w, sizeof(w), 1, gio->fp_id.fp);
+	safe_fseek(gio->fp_id.fp,gio->fp_id.lOffset+sizeof(w));
+	}
+    else {
+	gio->fp_id.fp = NULL;
+	gio->fp_id.iDouble = 0;
+	}
 
     /* We might have particles masses, let us check */
     nMass = 0;
@@ -2134,7 +2153,7 @@ static int gadgetReadCommon(fioGADGET *gio,uint64_t *piParticleID,double *pdPos,
     if ( gio->fp_id.iDouble == sizeof(uint64_t)) {
 	if (freadSwap(piParticleID, sizeof(uint64_t), 1, gio->fp_id.fp,gio->bSwap)!=1) abort();
 	}
-    else {
+    else if ( gio->fp_id.iDouble == sizeof(uint32_t)) {
 	if (freadSwap(&iTmp, sizeof(uint32_t), 1, gio->fp_id.fp,gio->bSwap)!=1) abort();
 	*piParticleID = iTmp;
 	}
@@ -2453,9 +2472,8 @@ static FIO gadgetOpenOne(const char *fname) {
     return &gio->fio;
     }
 
-static FIO gadgetOpen(fioFileList *fileList) {
-    if (fileList->nFiles==1) return gadgetOpenOne(fileList->fileInfo[0].pszFilename);
-    else return listOpen(fileList,gadgetOpenOne);
+static FIO gadgetOpen(fioFileList *fileList, int bReopen) {
+    return listOpen(fileList,gadgetOpenOne,bReopen);
     }
 #endif
 
@@ -3504,7 +3522,7 @@ static FIO hdf5OpenOne(const char *fname) {
     return &hio->fio;
     }
 
-static FIO hdf5Open(fioFileList *fileList) {
+static FIO hdf5Open(fioFileList *fileList,int bReopen) {
     const char *fileName = fileList->fileInfo[0].pszFilename;
     FIO fio;
 #if defined(USE_PTHREAD) && !defined(H5_HAVE_THREADSAFE)
@@ -3512,8 +3530,7 @@ static FIO hdf5Open(fioFileList *fileList) {
     pthread_mutex_lock(&mux);
 #endif
     if ( !H5Fis_hdf5(fileName) ) fio = NULL;
-    else if (fileList->nFiles==1) fio = hdf5OpenOne(fileList->fileInfo[0].pszFilename);
-    else fio = listOpen(fileList,hdf5OpenOne);
+    else fio = listOpen(fileList,hdf5OpenOne,bReopen);
 #if defined(USE_PTHREAD) && !defined(H5_HAVE_THREADSAFE)
     pthread_mutex_unlock(&mux);
 #endif
@@ -4314,19 +4331,13 @@ static FIO graficOpenDirectory(const char *dirName,double UNUSED(dOmega0),double
 ** Generic Routines
 \******************************************************************************/
 
-/* Attempt to determinate the file type by examining it */
-FIO fioOpenMany(int nFiles, const char * const *fileNames,
-		double dOmega0,double dOmegab) {
+static FIO openMany(fioFileList *fileList, double dOmega0,double dOmegab, int bReopen) {
     struct stat s;
     const char *fileName;
-    fioFileList fileList;
     FIO fio = NULL;
 
-    /* Turn any wildcard file names into real files before we do anything */
-    fileScan(&fileList,nFiles,fileNames);
-
     /* Test only the first file; they need to be the same type anyway */
-    fileName = fileList.fileInfo[0].pszFilename;
+    fileName = fileList->fileInfo[0].pszFilename;
 
     /* The file/directory needs to exist */
     if ( stat(fileName,&s) != 0 ) fio = NULL;
@@ -4341,24 +4352,38 @@ FIO fioOpenMany(int nFiles, const char * const *fileNames,
 	}
 
 #ifdef USE_HDF5
-    else if ( (fio = hdf5Open(&fileList)) != NULL ) {
+    else if ( (fio = hdf5Open(fileList,bReopen)) != NULL ) {
 	;
 	}
 #endif
 
-    else if ( (fio = tipsyOpen(&fileList)) != NULL ) {
+    else if ( (fio = tipsyOpen(fileList)) != NULL ) {
 	}
 
 #ifdef USE_GADGET2
-    else if ( (fio=gadgetOpen(&fileList)) != NULL ) {
+    else if ( (fio=gadgetOpen(fileList,bReopen)) != NULL ) {
 	}
 #endif
 
     else errno = EINVAL;
 
 
-    if (fio == NULL)
-	fileScanFree(&fileList);
+    return fio;
+    }
+
+
+
+
+/* Attempt to determinate the file type by examining it */
+FIO fioOpenMany(int nFiles, const char * const *fileNames,
+		double dOmega0,double dOmegab) {
+    fioFileList fileList;
+    FIO fio;
+
+    /* Turn any wildcard file names into real files before we do anything */
+    fileScan(&fileList,nFiles,fileNames);
+    fio = openMany(&fileList,dOmega0,dOmegab,0);
+    if (fio == NULL) fileScanFree(&fileList);
 
     return fio;
     }
@@ -4366,3 +4391,61 @@ FIO fioOpenMany(int nFiles, const char * const *fileNames,
 FIO fioOpen(const char *fileName,double dOmega0,double dOmegab) {
     return fioOpenMany(1,&fileName,dOmega0,dOmegab);
     }
+
+/* Dump the list of files and species for a later reopen with Load
+** Format:
+**   0.4: number of files
+**   4.4: number of bytes of filenames
+**   8[]: array of fioSpeciesList for each file
+**   end: all of the filenames, individually null terminated
+*/
+size_t fioDump(FIO fio, size_t nBytes, void *pBuffer) {
+    char *pBase = pBuffer;
+    uint32_t *nFiles = pBuffer;
+    fioSpeciesList *sl = (fioSpeciesList *)(nFiles+2);
+    char *szFilename = (char *)(sl + fio->fileList.nFiles);
+    int i,j;
+
+    *nFiles++ = fio->fileList.nFiles;
+    for( i=0; i< fio->fileList.nFiles; ++i ) {
+	size_t nLen = strlen(fio->fileList.fileInfo[i].pszFilename) + 1;
+	if ( szFilename - pBase + nLen > nBytes) return 0;
+	for(j=0; j<FIO_SPECIES_LAST; ++j)
+	    sl[i][j] = fio->fileList.fileInfo[i].nSpecies[j];
+	memcpy(szFilename,fio->fileList.fileInfo[i].pszFilename,nLen);
+	szFilename += nLen;
+	}
+    return (*nFiles = szFilename - pBase);
+    }
+
+FIO fioLoad(void *pBuffer,double dOmega0,double dOmegab) {
+    fioFileList fileList;
+    char *pBase = pBuffer;
+    uint32_t *nInfo = pBuffer;
+    uint32_t nFiles = *nInfo++;
+    uint32_t nBytes = *nInfo++;
+    fioSpeciesList *sl = (fioSpeciesList *)(nInfo);
+    char *szFilenames = (char *)(sl + nFiles);
+    char *outName = malloc(nBytes);
+    int i,j;
+
+    fileList.iFile = 0;
+    fileList.nFiles = nFiles;
+    fileList.fileInfo = malloc(sizeof(fioFileInfo)*(nFiles+1));
+    assert(fileList.fileInfo!=NULL);
+
+    assert(outName != NULL);
+    memcpy(outName,szFilenames,nBytes);
+
+    for( i=0; i< fileList.nFiles; ++i ) {
+	fileList.fileInfo[i].iFirst = 0;
+	fileList.fileInfo[i].pszFilename = outName;
+	outName += strlen(outName) + 1;
+	for(j=0; j<FIO_SPECIES_LAST; ++j)
+	    fileList.fileInfo[i].nSpecies[j] = sl[i][j];
+	}
+
+    return openMany(&fileList,dOmega0,dOmegab,1);
+    }
+
+

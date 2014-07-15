@@ -1583,7 +1583,7 @@ static void _SwapClasses(MSR msr, int id) {
     free(pClass);
     }
 
-void msrOneNodeRead(MSR msr, struct inReadFile *in) {
+void msrOneNodeRead(MSR msr, struct inReadFile *in, FIO fio) {
     int id;
     int *nParts;		/* number of particles for each processor */
     uint64_t nStart;
@@ -1592,7 +1592,6 @@ void msrOneNodeRead(MSR msr, struct inReadFile *in) {
     char achInFile[PST_FILENAME_SIZE];
     int nid;
     int inswap;
-    FIO fio;
     int rID;
 
     nParts = malloc(msr->nThreads*sizeof(*nParts));
@@ -1610,17 +1609,6 @@ void msrOneNodeRead(MSR msr, struct inReadFile *in) {
     while (pst0->nLeaves > 1)
 	pst0 = pst0->pstLower;
     plcl = pst0->plcl;
-    /*
-    ** Add the local Data Path to the provided filename.
-    */
-    _msrMakePath(plcl->pszDataPath,in->achFilename,achInFile);
-
-    fio = fioOpen(achInFile,msr->param.csm->dOmega0,msr->param.csm->dOmegab);
-    if (fio==NULL) {
-	fprintf(stderr,"ERROR: unable to open input file\n");
-	perror(achInFile);
-	_msrExit(msr,1);
-	}
 
     nStart = nParts[0];
     for (id=1;id<msr->nThreads;++id) {
@@ -1644,7 +1632,7 @@ void msrOneNodeRead(MSR msr, struct inReadFile *in) {
      * Now read our own particles.
      */
     pkdReadFIO(plcl->pkd, fio, 0, nParts[0], in->dvFac, in->dTuFac);
-    fioClose(fio);
+
     free(nParts);
     }
 
@@ -5891,7 +5879,9 @@ double msrRead(MSR msr, const char *achInFile) {
     FIO fio;
     int j;
     double sec,dsec;
-    struct inReadFile read;
+    struct inReadFile *read;
+    size_t nBytes;
+    inReadFileFilename achFilename;
     uint64_t mMemoryModel = 0;
     LCL *plcl;
     PST pst0;
@@ -5937,15 +5927,21 @@ double msrRead(MSR msr, const char *achInFile) {
 #ifdef PLANETS
     dTime = msrReadSS(msr); /* must use "Solar System" (SS) I/O format... */
 #else
-    /* Add Data Subpath for local and non-local names. */
-    _msrMakePath(msr->param.achDataSubPath,achInFile,read.achFilename);
 
-    fio = fioOpen(read.achFilename,msr->param.csm->dOmega0,msr->param.csm->dOmegab);
+    nBytes = PST_MAX_FILES*(sizeof(fioSpeciesList)+PST_FILENAME_SIZE);
+    read = malloc(sizeof(struct inReadFile) + nBytes);
+    assert(read != NULL);
+
+    /* Add Data Subpath for local and non-local names. */
+    _msrMakePath(msr->param.achDataSubPath,achInFile,achFilename);
+//    strcpy(read.achFilename,achFilename);
+    fio = fioOpen(achFilename,msr->param.csm->dOmega0,msr->param.csm->dOmegab);
     if (fio==NULL) {
 	fprintf(stderr,"ERROR: unable to open input file\n");
-	perror(read.achFilename);
+	perror(achFilename);
 	_msrExit(msr,1);
 	}
+    nBytes = fioDump(fio,nBytes,read+1);
 
     if (!fioGetAttr(fio,"dTime",FIO_TYPE_DOUBLE,&dExpansion)) dExpansion = 0.0;
     if (!fioGetAttr(fio,"dEcosmo",FIO_TYPE_DOUBLE,&msr->dEcosmo)) msr->dEcosmo = 0.0;
@@ -5959,36 +5955,36 @@ double msrRead(MSR msr, const char *achInFile) {
     msr->nGas  = fioGetN(fio,FIO_SPECIES_SPH);
     msr->nDark = fioGetN(fio,FIO_SPECIES_DARK);
     msr->nStar = fioGetN(fio,FIO_SPECIES_STAR);
-
     msr->nMaxOrder = msr->N;
 
-    dTime = getTime(msr,dExpansion,&read.dvFac);
-    read.dTuFac = msr->param.dTuFac;
+    if (!fioGetAttr(fio,"nFiles",FIO_TYPE_UINT32,&j)) j = 1;
+    printf("Reading %llu particles from %d file%s\n", msr->N, j, (j==1?"":"s") );
+
+    dTime = getTime(msr,dExpansion,&read->dvFac);
+    read->dTuFac = msr->param.dTuFac;
     
     if (msr->nGas && !prmSpecified(msr->prm,"bDoGas")) msr->param.bDoGas = 1;
     if (msrDoGas(msr) || msr->nGas) mMemoryModel |= (PKD_MODEL_SPH|PKD_MODEL_ACCELERATION|PKD_MODEL_VELOCITY|PKD_MODEL_NODE_SPHBNDS);		
     if (msr->param.bStarForm || msr->nStar) mMemoryModel |= (PKD_MODEL_SPH|PKD_MODEL_ACCELERATION|PKD_MODEL_VELOCITY|PKD_MODEL_MASS|PKD_MODEL_SOFTENING|PKD_MODEL_STAR);
     
-    read.nNodeStart = 0;
-    read.nNodeEnd = msr->N - 1;
-    read.nBucket = msr->param.nBucket;
-    read.nGroup = msr->param.nGroup;
-    read.nDomainRungs = msr->param.nDomainRungs;
-    read.mMemoryModel = mMemoryModel;
-    read.fExtraStore = msr->param.dExtraStore;
-    read.nTreeBitsLo = msr->param.nTreeBitsLo;
-    read.nTreeBitsHi = msr->param.nTreeBitsHi;
-    read.iCacheSize  = msr->param.iCacheSize;
-    read.iWorkQueueSize  = msr->param.iWorkQueueSize;
-    read.iCUDAQueueSize  = msr->param.iCUDAQueueSize;
-    read.dOmega0 = msr->param.csm->dOmega0;
-    read.dOmegab = msr->param.csm->dOmegab;
-    read.fPeriod[0] = msr->param.dxPeriod;
-    read.fPeriod[1] = msr->param.dyPeriod;
-    read.fPeriod[2] = msr->param.dzPeriod;
-    for( j=0; j<FIO_SPECIES_LAST; j++) read.nSpecies[j] = fioGetN(fio,j);
-
-    fioClose(fio);
+    read->nNodeStart = 0;
+    read->nNodeEnd = msr->N - 1;
+    read->nBucket = msr->param.nBucket;
+    read->nGroup = msr->param.nGroup;
+    read->nDomainRungs = msr->param.nDomainRungs;
+    read->mMemoryModel = mMemoryModel;
+    read->fExtraStore = msr->param.dExtraStore;
+    read->nTreeBitsLo = msr->param.nTreeBitsLo;
+    read->nTreeBitsHi = msr->param.nTreeBitsHi;
+    read->iCacheSize  = msr->param.iCacheSize;
+    read->iWorkQueueSize  = msr->param.iWorkQueueSize;
+    read->iCUDAQueueSize  = msr->param.iCUDAQueueSize;
+    read->dOmega0 = msr->param.csm->dOmega0;
+    read->dOmegab = msr->param.csm->dOmegab;
+    read->fPeriod[0] = msr->param.dxPeriod;
+    read->fPeriod[1] = msr->param.dyPeriod;
+    read->fPeriod[2] = msr->param.dzPeriod;
+    for( j=0; j<FIO_SPECIES_LAST; j++) read->nSpecies[j] = fioGetN(fio,j);
 
     /*
     ** If bParaRead is 0, then we read serially; if it is 1, then we read
@@ -5997,11 +5993,14 @@ double msrRead(MSR msr, const char *achInFile) {
     ** the total amount of simultaneous I/O for file systems that cannot
     ** handle it.
     */
-    read.nProcessors = msr->param.bParaRead==1 ? msr->nThreads:msr->param.bParaRead;
-    if (msr->param.bParaRead)
-	pstReadFile(msr->pst,&read,sizeof(struct inReadFile),NULL,NULL);
+    read->nProcessors = msr->param.bParaRead==1 ? msr->nThreads:msr->param.bParaRead;
+    if (msr->param.bParaRead) {
+	fioClose(fio);
+	pstReadFile(msr->pst,read,sizeof(struct inReadFile)+nBytes,NULL,NULL);
+	}
     else {
-	msrOneNodeRead(msr,&read);
+	msrOneNodeRead(msr,read,fio);
+	fioClose(fio);
 	}
 #endif
     dsec = msrTime() - sec;
