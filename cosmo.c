@@ -137,34 +137,6 @@ double csmExp2Time(CSM csm,double dExp) {
 	}
     }
 
-#if 0
-double csmTime2Exp(CSM csm,double dTime) {
-    double dHubble0 = csm->dHubble0;
-
-    if (!csm->bComove) return(1.0);
-    else {
-	double dExpOld = 0.0;
-	double dExpNew = dTime*dHubble0;
-	int it = 0;
-
-	/*
-	 * Root find with Newton's method.
-	 */
-	do {
-	    double f = dTime - csmExp2Time(csm, dExpNew);
-	    double fprime = 1.0/(dExpNew*csmExp2Hub(csm, dExpNew));
-	    dExpOld = dExpNew;
-	    dExpNew += f/fprime;
-	    it++;
-	    assert(it < 20);
-	    }
-	while (fabs(dExpNew - dExpOld)/dExpNew > EPSCOSMO);
-	return dExpNew;
-	}
-    }
-
-#endif
-
 #define MAX_ITER 100
 
 double csmTime2Exp(CSM csm,double dTime) {
