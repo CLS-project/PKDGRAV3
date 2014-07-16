@@ -35,3 +35,4 @@
 ^windows.*/.*\.filters$
 ^windows.*/.*\.user$
 ^windows.*/.*\.filters$
+^openpa/
