@@ -2039,7 +2039,7 @@ void BoundWalkActive(SMX smx,LIST **ppList,int *pnMaxpList) {
 void DoLocalSearch(SMX smx,SMF *smf,PARTICLE *p,double *rLast) {
     PKD pkd = smx->pkd;
     PQ *pq;
-    FLOAT fBall,r[3];
+    FLOAT r[3];
     int i,j,bDone,ix,iy,iz;
 
     /*
@@ -2060,7 +2060,6 @@ void DoLocalSearch(SMX smx,SMF *smf,PARTICLE *p,double *rLast) {
     ** Search in replica boxes if it is required.
     */
     if (!bDone && smx->bPeriodic) {
-	fBall = sqrt(pq->fDist2);
 	for (ix=-1;ix<=1;++ix) {
 	    r[0] = p->r[0] - ix*pkd->fPeriod[0];
 	    for (iy=-1;iy<=1;++iy) {
@@ -2762,10 +2761,9 @@ void smDoGatherLocal(SMX smx,FLOAT fBall2,FLOAT r[3],void (*Do)(SMX,PARTICLE *,F
     FLOAT min2,dx,dy,dz,fDist2;
     int *S = smx->S;
     int sp = 0;
-    int iCell,pj,nCnt,pEnd;
+    int iCell,pj,pEnd;
     const BND *bnd;
 
-    nCnt = smx->nnListSize;
     kdn = pkdTreeNode(pkd,iCell = ROOT);
     while (1) {
         bnd = pkdNodeBnd(pkd, kdn);
@@ -3250,9 +3248,8 @@ int CmpGroups(const void *v1,const void *v2) {
  *                                           head
  */
 static void expandFIFO( int *iHead, int *iTail, int *nFifo, FOFRM **rmFifo ) {
-    int nOld, nMove;
+    int nMove;
     assert(*iHead == *iTail);
-    nOld = *nFifo;
     nMove = *nFifo - *iHead;
     *nFifo *= 2;
     *rmFifo = (FOFRM *)realloc(*rmFifo,*nFifo*sizeof(FOFRM));

@@ -253,14 +253,14 @@ static union {
 */
 static void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin, int nGroup) {
     v_sf T0,T1,T2,T3,T4,T6,T7,P1,P2,P3,P4;
-    v_sf T,xc,yc,zc,dx,dy,dz,d2,diCrit,cOpen,cOpen2,d2Open,mink2,minbnd2,fourh2;
-    int i,n,iEnd,nLeft;
+    v_sf xc,yc,zc,dx,dy,dz,d2,diCrit,cOpen,cOpen2,d2Open,mink2,minbnd2,fourh2;
+    int i,iEnd,nLeft;
     CL_BLK *blk;
     v_sf iOpen,iOpenA,iOpenB;
     const BND *kbnd;
     v_sf k_xCenter, k_yCenter, k_zCenter, k_xMax, k_yMax, k_zMax;
     v_sf k_xMinBnd, k_yMinBnd, k_zMinBnd, k_xMaxBnd, k_yMaxBnd, k_zMaxBnd;
-    v_sf k_x, k_y, k_z, k_m, k_bMax, k_Open;
+    v_sf k_x, k_y, k_z, k_bMax, k_Open;
     v_i  k_nk;
     vint k_nGroup = {SIMD_CONST(nGroup)};
 
@@ -284,7 +284,6 @@ static void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin, i
     k_x = SIMD_SPLAT(k->r[0]);
     k_y = SIMD_SPLAT(k->r[1]);
     k_z = SIMD_SPLAT(k->r[2]);
-    k_m = SIMD_SPLAT(pkdNodeMom(pkd,k)->m);
     k_bMax = SIMD_SPLAT(k->bMax);
     k_nk = SIMD_SPLATI32(k->pUpper-k->pLower+1);
     k_Open = SIMD_MUL(consts.threehalves.p,SIMD_MUL(k_bMax,diCrit));
@@ -358,8 +357,7 @@ static void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin, i
 	    }
 	}
     }
-
-#endif
+#else
 /*
 ** This implements the original pkdgrav2m opening criterion, which has been
 ** well tested, gives good force accuracy, but may not be the most efficient
@@ -370,7 +368,7 @@ static void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin, i
 static void iOpenOutcomeCL(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin,int nGroup) {
     const int walk_min_multipole = 3;
     float dx,dy,dz,mink2,d2,d2Open,xc,yc,zc,fourh2,minbnd2,kOpen,cOpen,diCrit;
-    int j,i,nk;
+    int i,nk;
     int iOpen,iOpenA,iOpenB;
     CL_BLK *blk;
     int n, nLeft;
@@ -443,6 +441,7 @@ static void iOpenOutcomeCL(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin,int 
 	    }
 	}
     }
+#endif
 
 /*
 ** Returns total number of active particles for which gravity was calculated.
@@ -453,7 +452,6 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
     KDN *k,*c,*kFind;
     int id,iCell,iSib,iLower,iCheckCell,iCheckLower,iCellDescend;
     PARTICLE *p;
-    FMOMR *momc,*momk;
     FMOMR monoPole;
     LOCR L;
     double cx,cy,cz,d2c;
@@ -462,16 +460,14 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
     const double *v, *a;
     double dOffset[3];
     double xParent,yParent,zParent;
-    double d2,fourh2;
-    double dx[3],dir,dir2;
+    double d2;
+    double dx[3],dir;
     double tax,tay,taz;
     float fOffset[3];
-    float bMaxParent;
     float dirLsum,normLsum,adotai,maga;
     float fMass,fSoft;
-    uint64_t iOrder;
     int iStack;
-    int j,jTile,pi,pj,nActive,nTotActive;
+    int j,jTile,pj,nActive,nTotActive;
     float cOpen,kOpen;
     const BND *cbnd,*kbnd;
     static const float  fZero3[] = {0.0f,0.0f,0.0f};
@@ -627,7 +623,6 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
 				    if (id == pkd->idSelf) p = pkdParticle(pkd,pj);
 				    else p = CAST(PARTICLE *,mdlFetch(pkd->mdl,CID_PARTICLE,pj,id));
 				    if (bGravStep && pkd->param.iTimeStepCrit == 1) v = pkdVel(pkd,p);
-				    iOrder = p->iOrder;
 				    ilpAppend(pkd->ilp,
 					p->r[0] + blk->xOffset.f[jTile],
 					p->r[1] + blk->yOffset.f[jTile],
@@ -784,11 +779,13 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
 				    /* monoPole.m = blk->m.f[jTile];*/
 				    /* *pdFlop += momLocrAddFmomr5cm(&L,&monoPole,0.0,dir,dx[0],dx[1],dx[2],&tax,&tay,&taz);*/
 				    *pdFlop += momLocrAddMono5(&L,blk->m.f[jTile],dir,dx[0],dx[1],dx[2],&tax,&tay,&taz);
-				    adotai = a[0]*tax + a[1]*tay + a[2]*taz;
-				    if (adotai > 0) {
-					adotai /= maga;
-					dirLsum += dir*adotai*adotai;
-					normLsum += adotai*adotai;
+				    if (bGravStep) {
+					adotai = a[0]*tax + a[1]*tay + a[2]*taz;
+					if (adotai > 0) {
+					    adotai /= maga;
+					    dirLsum += dir*adotai*adotai;
+					    normLsum += adotai*adotai;
+					    }
 					}
 				    }
 				else {
@@ -812,11 +809,13 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
 				    else {
 					*pdFlop += momLocrAddFmomr5(&L,pkdNodeMom(pkd,c),c->bMax,dir,dx[0],dx[1],dx[2],&tax,&tay,&taz);
 					}
-				    adotai = a[0]*tax + a[1]*tay + a[2]*taz;
-				    if (adotai > 0) {
-					adotai /= maga;
-					dirLsum += dir*adotai*adotai;
-					normLsum += adotai*adotai;
+				    if (bGravStep) {
+					adotai = a[0]*tax + a[1]*tay + a[2]*taz;
+					if (adotai > 0) {
+					    adotai /= maga;
+					    dirLsum += dir*adotai*adotai;
+					    normLsum += adotai*adotai;
+					    }
 					}
 				    }
 				break;
@@ -844,7 +843,6 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
 	    xParent = k->r[0];
 	    yParent = k->r[1];
 	    zParent = k->r[2];
-	    bMaxParent = k->bMax;
 	    for (j=0;j<3;++j) fOffset[j] = 0.0f;
 	    kOpen = -1.0f;
 	    iCell = k->iLower;
@@ -940,6 +938,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
 		dirLsum,normLsum,bEwald,bGravStep,nGroup,pdFlop,&dEwFlop,dRhoFac,
 		smx, &smf);
 	    }
+	else nActive = 0;
 	/*
 	** Update the limit for a shift of the center here based on the opening radius of this
 	** cell (the one we just evaluated).
@@ -1004,7 +1003,6 @@ doneCheckList:
 static void initGravWalk(PKD pkd,double dTime,double dThetaMin,double dThetaMax,int bPeriodic,int bGravStep,
     SMX *smx, SMF *smf, double *dRhoFac) {
     int pi;
-    PARTICLE *p;
 
     /*
     ** If necessary, calculate the theta interpolation tables.
@@ -1032,7 +1030,6 @@ static void initGravWalk(PKD pkd,double dTime,double dThetaMin,double dThetaMax,
 	smSmoothInitialize(*smx);
 	/* No particles are inactive for density calculation */
 	for (pi=0;pi<pkd->nLocal;++pi) {
-	    p = pkdParticle(pkd,pi);
 	    (*smx)->ea[pi].bInactive = 0;
 	    }
 	}
@@ -1054,7 +1051,6 @@ static void initGravWalk(PKD pkd,double dTime,double dThetaMin,double dThetaMax,
 ** Returns total number of active particles for which gravity was calculated.
 */
 int pkdGravWalkHop(PKD pkd,double dTime,int nGroup, double dThetaMin,double dThetaMax,double *pdFlop,double *pdPartSum,double *pdCellSum) {
-    PARTICLE *p;
     KDN *c;
     int id,iRoot,iRootSelf;
     float fOffset[3];
@@ -1101,13 +1097,10 @@ int pkdGravWalkHop(PKD pkd,double dTime,int nGroup, double dThetaMin,double dThe
 */
 int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,int bEwald,int nGroup, int iRoot, int iVARoot,
 		double dThetaMin,double dThetaMax,double *pdFlop,double *pdPartSum,double *pdCellSum) {
-    PARTICLE *p;
     KDN *c;
-    int id,iCell,iSib,iLower;
+    int id,iLower;
     float fOffset[3];
     int ix,iy,iz,bRep;
-    int pi;
-    int j;
     float cOpen;
     const BND *cbnd;
     int nc;
@@ -1177,12 +1170,9 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 ** Returns total number of active particles for which gravity was calculated.
 */
 int pkdGravWalkGroups(PKD pkd,double dTime,int nGroup, double dThetaMin,double dThetaMax,double *pdFlop,double *pdPartSum,double *pdCellSum) {
-    PARTICLE *p;
     KDN *c;
     int id,iRoot;
     float fOffset[3];
-    int ix,iy,iz,bRep;
-    int pi;
     int i,j,k;
     float cOpen;
     const BND *cbnd;

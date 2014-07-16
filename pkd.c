@@ -1622,7 +1622,6 @@ void pkdOrbSplit(PKD pkd, int iDomain) {
 
 void pkdOrbBegin(PKD pkd, int nRungs) {
     int nNodes = mdlThreads(pkd->mdl);
-    int nID    = mdlSelf(pkd->mdl);
     PLITEORB *pl = (PLITEORB *)pkd->pLite;
     int i, j;
     PARTICLE *p;
@@ -1719,7 +1718,6 @@ int pkdOrbRootFind(
     static int nMaxIter = 60;
     /**/
 
-    int nID    = mdlSelf(pkd->mdl);
     int nNodes = mdlThreads(pkd->mdl);
     PLITEORB *pl = (PLITEORB *)pkd->pLite;
 
@@ -1727,7 +1725,6 @@ int pkdOrbRootFind(
     double dSplit, dSplitMin, dSplitMax;
     double dFracActive;
 
-    PARTICLE *p;
     int i, j, lb, ub, d;
     int iIter, nUnbalancedTarget;
     int nDomainsActive, iDomain, iActive, iWork;
@@ -2551,11 +2548,11 @@ uint32_t pkdWriteFIO(PKD pkd,FIO fio,double dvFac) {
 	    assert(pSph);
 	    assert(pkd->param.dTuFac>0.0);
 		{
-		double T, E;
+		double T;
 #ifdef COOLING
 		COOLPARTICLE cp;
 		if (pkd->param.bGasCooling) {
-		    E = pSph->u;
+		    double E = pSph->u;
 		    CoolTempFromEnergyCode( pkd->Cool, 
 					    &cp, &E, &T, p->fDensity, pSph->fMetals );
 		    }
@@ -3117,8 +3114,8 @@ void pkdSphStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,double dAccFac) {
 		if (uNewRung > p->uNewRung) p->uNewRung = uNewRung;
 		if (!(p->iOrder%10000) || (p->uNewRung > 5 && !(p->iOrder%1000))) {
 		    SPHFIELDS *sph = pkdSph(pkd,p);
-		    double T, E = sph->u;
 #ifdef COOLING
+		    double T, E = sph->u;
 		    if (pkd->param.bGasIsothermal) T = E/pkd->param.dTuFac;
 		    else {
 			COOLPARTICLE cp;
@@ -3126,7 +3123,7 @@ void pkdSphStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,double dAccFac) {
 		    }
 
 #else
-		    T = E/pkd->param.dTuFac;
+		    /*T = E/pkd->param.dTuFac;*/
 #endif
 		    }
 		}

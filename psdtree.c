@@ -208,7 +208,7 @@ void inline SAVE_BOUNDS(PKD pkd, PSX smx, KDN *pNode, BND **bnd)
 }
 
 void entropy(PKD pkd, float *e, KDN *pNode, BND **bnd, struct KEY *keys) {
-    int s, i,j;
+    int j;
     int64_t bx, by, bz;
     float Mtotal = 0;
     int Npart = pNode->pUpper - pNode->pLower + 1;
@@ -318,8 +318,6 @@ void BuildPsdTemp(PKD pkd, PSX smx, int iNode,int M, int maxNb) {
     FLOAT fSplit;
     int *S;		/* this is the stack */
     char *D;	     /* stack for the last cut dimension */
-    uint8_t lastd;
-    uint8_t last_subspace;
 
     int iLeft,iRight;
     int s,d,i,j;
@@ -384,8 +382,8 @@ void BuildPsdTemp(PKD pkd, PSX smx, int iNode,int M, int maxNb) {
 	assert(!STACK_EMPTY(D));
 	iNode = POP(S);
 	int q = POP(D);
-	lastd = q & 0x03;
-	last_subspace = (q & ~0x03) >> 2;
+	/*lastd = q & 0x03;*/
+	/*last_subspace = (q & ~0x03) >> 2;*/
 
 	if (iNode == 0) {
 	    assert(q == -1);
@@ -763,8 +761,6 @@ DonePart:
     }
 
 void psdBuildTree(PKD pkd, PSX psx, struct inPSD *in, KDN *pkdn) {
-    int iStart;
-
     assert(pkd->oNodeVBnd);
     assert(pkd->oVelocity);
     assert(pkd->oMass);
@@ -784,7 +780,6 @@ void psdBuildTree(PKD pkd, PSX psx, struct inPSD *in, KDN *pkdn) {
     BuildPsdTemp(pkd,psx, ROOT,in->nBucket, 102400);
 
     pkd->nNodesFull = pkd->nNodes;
-    iStart = 0;
 
     pkdStopTimer(pkd,0);
     /*

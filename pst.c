@@ -2409,103 +2409,6 @@ static void makeName( char *achOutName, const char *inName, int iIndex ) {
 	}
     }
 
-static int okToGo(void *ctx,int *id,size_t size,void*buf) {
-    return 0;
-    }
-
-#ifdef A_NICE_TRY
-void pstWrite(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
-    LCL *plcl = pst->plcl;
-    struct inWrite *in = vin;
-    char achOutFile[PST_FILENAME_SIZE];
-    FIO fio;
-    uint32_t nCount;
-    int id;
-    int rID;
-
-    mdlassert(pst->mdl,nIn == sizeof(struct inWrite));
-
-    if (pst->nLeaves > 1) {
-	/* Keep splitting */
-	if (in->nProcessors > 1) {
-	    int nUpper = in->nProcessors - in->nProcessors * pst->nUpper / pst->nLeaves;
-	    int nLower = in->nProcessors - nUpper;
-	    assert(nUpper>0 && nLower>0);
-	    assert(in->iLower == mdlSelf(pst->mdl));
-	    in->nProcessors = nUpper;
-	    in->iLower = pst->idUpper;
-	    in->iIndex += nLower;
-	    rID = mdlReqService(pst->mdl,pst->idUpper,PST_WRITE,in,nIn);
-	    in->nProcessors = nLower;
-	    in->iLower = mdlSelf(pst->mdl);
-	    in->iUpper = pst->idUpper;
-	    in->iIndex -= nLower;
-	    pstWrite(pst->pstLower,in,nIn,vout,pnOut);
-	    mdlGetReply(pst->mdl,rID,NULL,NULL);
-	    }
-	else {
-	    if (in->nProcessors==1) {
-		struct outGetNParts outN;
-		pstGetNParts(pst,NULL,0,&outN,NULL);
-		in->nSph = outN.nGas;
-		in->nDark = outN.nDark;
-		in->nStar = outN.nStar;
-		}
-	    in->nProcessors = 0;
-	    rID = mdlReqService(pst->mdl,pst->idUpper,PST_WRITE,in,nIn);
-	    pstWrite(pst->pstLower,in,nIn,vout,pnOut);
-	    mdlGetReply(pst->mdl,rID,NULL,NULL);
-	    }
-	}
-    else {
-	if (in->iLower == mdlSelf(pst->mdl)) {
-	    if (in->nProcessors) {
-		struct outGetNParts outN;
-		pkdGetNParts(plcl->pkd, &outN);
-		in->nSph = outN.nGas;
-		in->nDark = outN.nDark;
-		in->nStar = outN.nStar;
-		}
-	    makeName(achOutFile,in->achOutFile,in->iIndex);
-	    if (in->bHDF5) {
-#ifdef USE_HDF5
-		fio = fioHDF5Create(achOutFile,in->mFlags);
-#else
-		assert(!in->bHDF5);
-#endif
-		}
-	    else {
-		fio = fioTipsyCreate(achOutFile,in->mFlags,in->bStandard,
-		   in->dTime,in->nSph,in->nDark,in->nStar);
-		}
-	    if (fio==NULL) {
-		fprintf(stderr,"ERROR: unable to create file for output\n");
-		perror(in->achOutFile);
-		mdlassert(pst->mdl,fio!=NULL);
-		}
-	    fioSetAttr(fio, "dTime",    FIO_TYPE_DOUBLE, &in->dTime);
-	    /* Restart information */
-	    fioSetAttr(fio, "dEcosmo",  FIO_TYPE_DOUBLE, &in->dEcosmo );
-	    fioSetAttr(fio, "dTimeOld", FIO_TYPE_DOUBLE, &in->dTimeOld );
-	    fioSetAttr(fio, "dUOld",    FIO_TYPE_DOUBLE, &in->dUOld );
-
-	    nCount = pkdWriteFIO(plcl->pkd,fio,in->dvFac);
-	    for (id=in->iLower+1;id<in->iUpper; ++id) {
-		mdlSend(pst->mdl,id,okToGo,NULL);
-		pkdSwapAll(plcl->pkd, id);
-		nCount += pkdWriteFIO(plcl->pkd,fio,in->dvFac);
-		pkdSwapAll(plcl->pkd, id);
-		}
-	    }
-	else {
-	    mdlRecv(pst->mdl,in->iLower,okToGo,NULL);
-	    pkdSwapAll(plcl->pkd, in->iLower); /* Swap with output node */
-	    pkdSwapAll(plcl->pkd, in->iLower); /* ... and back when done */
-	    }
-	}
-    if (pnOut) *pnOut = 0;
-    }
-#endif
 void pstWrite(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     char achOutFile[PST_FILENAME_SIZE];
     LCL *plcl;
@@ -2866,7 +2769,6 @@ void pstHopFinishUp(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     struct inHopFinishUp *in = (struct inHopFinishUp *)vin;
     uint64_t *nOutGroups = (uint64_t *)vout;
     uint64_t nOutUpper;
-    int nOut;
 
     mdlassert(pst->mdl,nIn == sizeof(struct inHopFinishUp));
     if (pst->nLeaves > 1) {
@@ -4640,7 +4542,6 @@ void pstBuildPsdTree(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     struct inPSD *in = vin;
     KDN *pkdn = vout;
     KDN *ptmp, *pCell;
-    FLOAT minside;
     int i,iCell,iLower,iNext;
     BND *bnd, *p1bnd, *p2bnd;
 
@@ -4668,8 +4569,6 @@ void pstBuildPsdTree(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
         */
         iLower = LOWER(iCell);
         iNext = UPPER(iCell);
-        minside = min_side(pst->bnd.fMax);
-
 
         bnd = pkdNodeBnd(pkd, pCell);
         p1bnd = pkdNodeBnd(pkd, pkdNode(pkd,pkdn,iLower));
@@ -4758,7 +4657,7 @@ void pstPSDInit(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     }
 
 void pstPSDJoinBridges(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
-    struct inPSD *in = vin;
+    /*struct inPSD *in = vin;*/
     int *done = vout;
     int doneUpper;
     int nOut;
@@ -4845,7 +4744,7 @@ void pstPSDMergeNoisyGroups(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     }
 
 void pstPSDJoinGroupBridges(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
-    struct inPSD *in = vin;
+    /*struct inPSD *in = vin;*/
     int *done = vout;
     int doneUpper;
     int nOut;

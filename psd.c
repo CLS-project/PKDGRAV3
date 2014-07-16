@@ -111,13 +111,9 @@ static inline float psdDensity(PKD pkd, PARTICLE *p,int nSmooth, PQ6 *nnList, FL
 */
 static inline void psdDensityGrad(PKD pkd, PSX psx, KNN6D knn, int pid, FLOAT *fDensityGrad, int normalize) {
     int i,j;
-    FLOAT *rscale, *vscale;
     PARTICLE *p = pkdParticle(pkd, pid);
     const FLOAT fBall = p->fBall;
     const FLOAT fDensity = p->fDensity;
-
-    rscale = PSM(pid).rscale;
-    vscale = PSM(pid).vscale;
 
     for (j=0; j < 6; j++) fDensityGrad[j] = 0;
 
@@ -125,7 +121,6 @@ static inline void psdDensityGrad(PKD pkd, PSX psx, KNN6D knn, int pid, FLOAT *f
     {
 	if (knn->pq[i].fDist2 > 0)
 	{
-	    const double r = sqrt(knn->pq[i].fDist2) / fBall;
 	    const double fMass = pkdMass(pkd, knn->pq[i].pPart);
 	    const double c = fMass * (fDensity - knn->pq[i].pPart->fDensity) / knn->pq[i].pPart->fDensity;
 	    for (j=0; j < 6; j++)
@@ -253,8 +248,7 @@ void psdSmooth(PSX smx) {
 */
 void psdSmooth(PKD pkd, PSX psx) {
     PARTICLE *p;
-    FLOAT fBall;
-    int pi,i,bDone=0;
+    int pi;
 
     int pqSize = psx->knn->pqSize;
 

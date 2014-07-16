@@ -37,6 +37,7 @@ void * main_ch(MDL mdl) {
     mdlHandler(mdl);
 
     pstFinish(pst);
+    return NULL;
     }
 
 /*

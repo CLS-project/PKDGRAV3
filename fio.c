@@ -553,6 +553,7 @@ static int listGetAttr(FIO fio,const char *attr, FIO_TYPE dataType, void *data) 
     case FIO_TYPE_UINT64:*(uint64_t *)(data) = v; break;
     default: return 0;
 	}
+    return 1;
     }
 
 static FIO_SPECIES listSpecies(FIO fio) {

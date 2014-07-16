@@ -11,7 +11,6 @@
 static void ubBuildLocalGroupTrees(PKD pkd, int nBucket);
 static void ubBroadcastTreeRoots(PKD pkd);
 static void ubGravity(PKD pkd);
-static void ubFindGroupCenters(PKD pkd);
 static void ubDoUnbind(PKD pkd);
 
 
@@ -25,7 +24,6 @@ static int grp_compar(const void *a0, const void *b0) {
 
 void ubInitializePLiteParticles(PKD pkd) {
     PLITE *pLite = pkd->pLite;
-    PLITE t;
     PARTICLE *p;
     KDN *pNode;
     BND *bnd;
@@ -168,7 +166,6 @@ static int AllBroadcastCount(PKD pkd, struct AllBroadcastData *d)
 {
     int nDomains = d->nDomains;
     int *scounts, *rcounts, *sdispls, *rdispls, *ioffset;
-    int nSelf, iSelf, iTarget;
     int i;
 
     scounts = d->scounts;
@@ -338,7 +335,6 @@ static void ubGravity(PKD pkd)
     double dTime = 1;
     double dThetaMin = 0.8;
     double dThetaMax = 1.0;
-    int nActive;
     int nGroup = 64;
 
     int i;
@@ -420,7 +416,6 @@ static void ubDoUnbind(PKD pkd)
 
 void ubUnbind(PKD pkd, int nBucket)
 {
-    int i;
     if (pkd->psGroupTable.nGroups > 0)
     {
 	int i;

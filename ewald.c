@@ -81,7 +81,6 @@ static int evalEwald(struct EwaldVariables *ew,double *ax, double *ay, double *a
 
 /* Once CUDA has completed, we need to acumulate */
 void pkdAccumulateCUDA(PKD pkd,workEwald *we,double *pax,double *pay,double *paz,double *pot) {
-    struct EwaldVariables *ew = &pkd->ew;
     int i;
 
     for(i=0; i<we->nP; ++i) {
@@ -156,13 +155,13 @@ static const struct CONSTS {
 	ERF_CONSTS(1.61020914205869003e+1, 2.75143870676376208e+0, 2.45992070144245533e+0, 4.53767041780002545e-1),
 
 	/* exp polynomial table */
-	SIMD_DCONST(1.26177193074810590878E-4),
-	SIMD_DCONST(3.02994407707441961300E-2),
-	SIMD_DCONST(9.99999999999999999910E-1),
-	SIMD_DCONST(3.00198505138664455042E-6),
-	SIMD_DCONST(2.52448340349684104192E-3),
-	SIMD_DCONST(2.27265548208155028766E-1),
-	SIMD_DCONST(2.00000000000000000009E0),
+	{SIMD_DCONST(1.26177193074810590878E-4)},
+	{SIMD_DCONST(3.02994407707441961300E-2)},
+	{SIMD_DCONST(9.99999999999999999910E-1)},
+	{SIMD_DCONST(3.00198505138664455042E-6)},
+	{SIMD_DCONST(2.52448340349684104192E-3)},
+	{SIMD_DCONST(2.27265548208155028766E-1)},
+	{SIMD_DCONST(2.00000000000000000009E0)},
 #endif
     };
 
@@ -648,11 +647,10 @@ void pkdEwaldInit(PKD pkd,int nReps,double fEwCut,double fhCut) {
     struct EwaldVariables *ew = &pkd->ew;
     EwaldTable *ewt = &pkd->ewt;
     const MOMC * restrict mom = &ew->mom;
-    int i,ix,iy,iz,hReps,hx,hy,hz,h2;
+    int i,hReps,hx,hy,hz,h2;
     double k4,L;
     double gam[6],mfacc,mfacs;
-    double ax,ay,az,dx,dy,dz;
-    int bInHole,bInHolex,bInHolexy;
+    double ax,ay,az;
     const int iOrder = 4;
 
     L = pkd->fPeriod[0];

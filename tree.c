@@ -453,8 +453,8 @@ DonePart:
 ** do for now.
 */
 void ShuffleParticles(PKD pkd,int iStart) {
-    PARTICLE *p, *pNew, *pNewer;
-    int i,iNew,iNewer,iTemp;
+    PARTICLE *p, *pNew;
+    int i,iNew,iTemp;
 
     /*
     ** Now we move the particles in one go using the temporary

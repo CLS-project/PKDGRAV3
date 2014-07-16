@@ -126,14 +126,13 @@ void DensityM3(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
 
 void LinkGradientM3(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
-    float ih2,r2,rs,fMass,fNorm,fDensity,frho[3], idrho, r2min, dr;
+    float ih2,r2,rs,fMass,fNorm,frho[3], idrho, r2min, dr;
     int i, j;
     ih2 = 1.0/BALL2(p);
     fNorm = 16.0*M_1_PI*ih2*ih2*sqrt(ih2);
     frho[0] = frho[1] = frho[2] = 0.0;
     for (i=0;i<nSmooth;++i) {
 	fMass = pkdMass(pkd,nnList[i].pPart);
-	float *a = pkdAccel(pkd,nnList[i].pPart);
 	r2 = nnList[i].fDist2*ih2;
 	if (r2 < 1.0) {
 	    double r = sqrt(r2);
@@ -188,7 +187,7 @@ void LinkHopChains(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
 	g2 = mdlAquire(mdl,CID_GROUP,g.iIndex,g.iPid);
 
 	/* Remote is authoratative. Update myself, but also what I currently link to. */
-	if (g1->iPid > g2->iPid || g1->iPid == g2->iPid && g1->iIndex > g2->iIndex) {
+	if (g1->iPid > g2->iPid || (g1->iPid == g2->iPid && g1->iIndex > g2->iIndex)) {
 	    smf->bDone = 0;
 	    g = *g1;
 	    g1->iPid = g2->iPid;
@@ -198,7 +197,7 @@ void LinkHopChains(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
 	    }
 
 	/* Update remote (or what we were pointing to) and what it points to if necessary. */
-	while (g1->iPid < g2->iPid || g1->iPid == g2->iPid && g1->iIndex < g2->iIndex) {
+	while (g1->iPid < g2->iPid || (g1->iPid == g2->iPid && g1->iIndex < g2->iIndex) ) {
 	    smf->bDone = 0;
 	    g = *g2;
 	    g2->iPid = g1->iPid;
@@ -249,12 +248,12 @@ void PrintNN(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
     int i;
 
-    printf("%lu:",p->iOrder);
+    printf("%llu:",p->iOrder);
     for (i=0;i<nSmooth;++i) {
 	if (pkdIsActive(pkd,nnList[i].pPart))
-	    printf("%lu ",nnList[i].pPart->iOrder);
+	    printf("%llu ",nnList[i].pPart->iOrder);
 	else 
-	    printf("\033[7m%lu\033[0m ",nnList[i].pPart->iOrder);
+	    printf("\033[7m%llu\033[0m ",nnList[i].pPart->iOrder);
 	}
     printf("\n");
     }
@@ -1040,13 +1039,11 @@ void VelDisp2(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
     PARTICLE *q;
     double *qv;
-    double *pv;
     VELSMOOTH *pvel;
     float fNorm,ih2,r2,rs,fMass,tv,tv2;
     int i;
 
     pvel = pkdField(p,pkd->oVelSmooth);
-    pv = pkdVel(pkd,p);
     ih2 = 4.0/BALL2(p);
     fNorm = M_1_PI*sqrt(ih2)*ih2;
     for (i=0;i<nSmooth;++i) {
@@ -1072,12 +1069,11 @@ void VelDisp2Sym(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
     PARTICLE *q;
     VELSMOOTH *pvel, *qvel;
-    double *pv, *qv;
+    double *qv;
     float fNorm,ih2,r2,rs,fMassQ,fMassP,tv,tv2;
     int i;
 
     pvel = pkdField(p,pkd->oVelSmooth);
-    pv = pkdVel(pkd,p);
     fMassP = pkdMass(pkd,p);
     ih2 = 4.0/(BALL2(p));
     fNorm = 0.5*M_1_PI*sqrt(ih2)*ih2;
@@ -1135,7 +1131,7 @@ void combGroupBins(void *vpkd, void *b1, void *b2) {
 
 void AddRelaxation(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
-    FLOAT  fNorm,ih2,vSigma2,L,fRel,e,pmax,pmin,vMean[3],feps;
+    FLOAT  vSigma2,L,fRel,e,pmax,pmin,vMean[3],feps;
     FLOAT beta,gamma,rho;
     int i,j;
     PARTICLE *q;
@@ -1151,10 +1147,8 @@ void AddRelaxation(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
     for (j=0;j<3;++j) {
 	vMean[j] = 0.0;
 	}
-    ih2 = 4.0/BALL2(p);
     vSigma2 = 0.0;
     rho = 0.0;
-    fNorm = M_1_PI*sqrt(ih2)*ih2;
     for (i=0;i<nSmooth;++i) {
 	q = nnList[i].pPart;
 	v = pkdVel(pkd,q);

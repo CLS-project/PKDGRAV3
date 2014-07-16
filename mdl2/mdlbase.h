@@ -112,9 +112,12 @@ void mdlBaseAddService(mdlBASE *base, int sid, void *p1,
 #define mdlProc(mdl) ((mdl)->base.iProc)
 const char *mdlName(void *mdl);
 
+int mdlBaseProcToThread(mdlBASE *base, int iProc);
+int mdlBaseThreadToProc(mdlBASE *base, int iThread);
 #define mdlProcToThread(mdl,iProc) mdlBaseProcToThread(&(mdl)->base,iProc)
 #define mdlThreadToProc(mdl,iThread) mdlBaseThreadToProc(&(mdl)->base,iThread)
 
+void mdlDiag(void *mdl, char *psz);
 void mdlprintf(void *mdl, const char *format, ...);
 #ifdef MDLASSERT
 #ifndef __STRING

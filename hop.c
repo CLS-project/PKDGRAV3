@@ -170,8 +170,7 @@ static int renumberGroups(PKD pkd, int nGroups,struct smGroupArray *ga) {
 ** Merge duplicate groups (iPid/iIndex is the same), and update particle pointers.
 */
 static int combineDuplicateGroupIds(PKD pkd, int nGroups, struct smGroupArray *ga,int bIndexIsGID) {
-    MDL mdl = pkd->mdl;
-    int pi, gid, nNew;
+    int gid, nNew;
 
     nNew = renumberGroups(pkd,nGroups,ga);
     updateGroupIds(pkd,nGroups,ga,bIndexIsGID);
@@ -248,7 +247,7 @@ int smHopLink(SMX smx,SMF *smf) {
     PKD pkd = smx->pkd;
     MDL mdl = pkd->mdl;
     PARTICLE *p;
-    int pi, j, gid, nNew, nLoop, nSpur;
+    int pi, j, gid, nLoop, nSpur;
     int nGroups, nLocal, nRemote;
     int iIndex1, iIndex2, iMinPartIndex, iPid1, iPid2, iMinPartPid, iParticle;
     struct smGroupArray *ga = smx->ga;
@@ -505,10 +504,7 @@ int smHopJoin(SMX smx,SMF *smf, double dHopTau, int *nLocal) {
     MDL mdl = pkd->mdl;
     KDN *pRoot = pkdTreeNode(pkd,ROOT);
     struct smGroupArray *ga = smx->ga;
-    remoteID *pl = smx->pl;
     PARTICLE *p;
-    GHtmpGroupTable *g;
-    int iPid, iIndex;
     int pi;
 
     smf->bDone = 1;
@@ -519,7 +515,7 @@ int smHopJoin(SMX smx,SMF *smf, double dHopTau, int *nLocal) {
     ** We have contructed a tree with only marked particles, so just check those.
     */
     for (pi=pRoot->pLower;pi<=pRoot->pUpper;++pi) {
-	float fBall, fSoft;
+	float fBall;
 	p = pkdParticle(pkd,pi);
 	assert(p->bMarked);
 	if (dHopTau<0.0) fBall = -dHopTau * pkdSoft(pkd,p);
@@ -663,7 +659,7 @@ static void hopRelocateGroups(PKD pkd) {
 	    ga[tmp1.iNewGid] = tmp1;
 	    pkd->hopGroups[tmp1.iNewGid] = tmp2;
 	    }
-	else ga[gid].iGid = gid++;
+	else ga[gid].iGid = gid++; /*FIXME: correct? */
 	}
     pkd->nGroups = n;
 
@@ -677,7 +673,6 @@ static void hopRelocateGroups(PKD pkd) {
     }
 
 static void initHopGroupProperties(void *vpkd, void *v) {
-    PKD pkd = (PKD)vpkd;
     HopGroupTable * g = (HopGroupTable *)v;
     int j;
 
@@ -693,8 +688,7 @@ static void initHopGroupProperties(void *vpkd, void *v) {
     g->fMass = 0.0;
     }
 
-static void combHopGroupProperties(void *vctx, void *v1, void *v2) {
-    PKD pkd = (PKD)vctx;
+static void combHopGroupProperties(void *vpkd, void *v1, void *v2) {
     HopGroupTable * g1 = (HopGroupTable *)v1;
     HopGroupTable * g2 = (HopGroupTable *)v2;
     int j;
@@ -896,7 +890,7 @@ void purgeSmallGroups(PKD pkd,int nMinGroupSize, int bPeriodic, double *dPeriod)
 int pkdHopFinishUp(PKD pkd,int nMinGroupSize, int bPeriodic, double *dPeriod) {
     MDL mdl = pkd->mdl;
     struct smGroupArray *ga = (struct smGroupArray *)(pkd->pLite);
-    int i, j, gid;
+    int i;
 
     for(i=1; i<pkd->nGroups; ++i) {
 	ga[i].iGid = i;
@@ -922,7 +916,6 @@ int pkdHopFinishUp(PKD pkd,int nMinGroupSize, int bPeriodic, double *dPeriod) {
     }
 
 static void initHopGetRoots(void *vpkd, void *v) {
-    PKD pkd = (PKD)vpkd;
     HopGroupTable * g = (HopGroupTable *)v;
     g->rmt.iPid = -1;
     g->rmt.iIndex = 0;
@@ -950,8 +943,6 @@ void pkdHopTreeBuild(PKD pkd, int nBucket) {
     MDL mdl = pkd->mdl;
     int nDomains = mdlThreads(mdl);
     HopGroupTable * g;
-    KDN *pNode;
-    PARTICLE *p;
     MDL_Datatype typeRemoteID, *stypes, *rtypes;
     int *scounts, *rcounts, *sdispls, *rdispls, *lens, *disps;
     int i, gid, iRoot;
@@ -1270,7 +1261,6 @@ void pkdHopAssignGID(PKD pkd) {
     int i, nLocal,iStart;
     PARTICLE *p;
     HopGroupTable *g;
-    struct smGroupArray *ga = (struct smGroupArray *)(pkd->pLite);
 
     if (pkd->hopRootIndex) { free(pkd->hopRootIndex); pkd->hopRootIndex = NULL; }
     if (pkd->hopRoots)     { free(pkd->hopRoots);     pkd->hopRoots = NULL;     }

@@ -72,10 +72,6 @@ double msrTime() {
 #else
 double msrTime() {
     struct timeval tv;
-    struct timezone tz;
-
-    tz.tz_minuteswest=0;
-    tz.tz_dsttime=0;
     gettimeofday(&tv,NULL);
     return (tv.tv_sec+(tv.tv_usec*1e-6));
     }
@@ -1687,8 +1683,7 @@ double msrGenerateIC(MSR msr) {
 ** pst level. It uses plcl pointer which is not desirable.
 */
 void msrAllNodeWrite(MSR msr, const char *pszFileName, double dTime, double dvFac, int bDouble) {
-    int i, nProcessors;
-    int L, U;
+    int nProcessors;
     PST pst0;
     LCL *plcl;
     char achOutFile[PST_FILENAME_SIZE];
@@ -1805,11 +1800,10 @@ uint64_t msrCalcWriteStart(MSR msr) {
     }
 
 void msrWrite(MSR msr,const char *pszFileName,double dTime,int bCheckpoint) {
-    FIO fio;
     char achOutFile1[PST_FILENAME_SIZE];
     char achOutFile[PST_FILENAME_SIZE];
     LCL *plcl = msr->pst->plcl;
-    int nProcessors, i;
+    int nProcessors;
     double dvFac, dExp;
     double sec,dsec;
     uint64_t N;
@@ -1889,7 +1883,6 @@ void msrSetSoft(MSR msr,double dSoft) {
 ** and stores this information in the particle structure.
 */
 void msrDomainDecompNew(MSR msr) {
-    double dDelta;
     double sec, dsec;
     BND bnd;
     int j;
@@ -1933,7 +1926,6 @@ void msrDomainDecompNew(MSR msr) {
     }
 
 void msrRungOrder(MSR msr, int iRung) {
-    double dDelta;
     double sec, dsec;
     struct inRungOrder ro;
     struct outRungOrder outRung;
@@ -3485,8 +3477,6 @@ void msrTopStepHSDKD(MSR msr,
 		   double *pdActiveSum,
 		   int *piSec) {
 
-    int bSplitVA;
-
     msrprintf(msr,"%*cHSDKD open  at iRung: %d 0.5*dDelta: %g\n",
 	      2*iRung+2,' ',iRung,0.5*dDelta);
 
@@ -4070,7 +4060,7 @@ void msrHopWrite(MSR msr, const char *fname) {
     LCL *plcl;
     PST pst0;
     int id;
-    double sec,dsec,ssec;
+    double sec,dsec;
 
     pst0 = msr->pst;
     while (pst0->nLeaves > 1)
@@ -4385,7 +4375,6 @@ void msrOutPsGroups(MSR msr,const char *pszFile,int iOutType, double dTime) {
     LCL *plcl;
     PST pst0;
     FILE *fp;
-    double dvFac,time;
 
     pst0 = msr->pst;
     while (pst0->nLeaves > 1)
@@ -4401,19 +4390,6 @@ void msrOutPsGroups(MSR msr,const char *pszFile,int iOutType, double dTime) {
         printf("No Group Output File specified\n");
         _msrExit(msr,1);
         return;
-        }
-    if (msrComove(msr)) {
-        time = csmTime2Exp(msr->param.csm,dTime);
-        if (msr->param.csm->bComove) {
-            dvFac = 1.0/(time*time);
-            }
-        else {
-            dvFac = 1.0;
-            }
-        }
-    else {
-        time = dTime;
-        dvFac = 1.0;
         }
 
     fp = fopen(achOutFile,"w");
@@ -5472,7 +5448,6 @@ void msrMeasurePk(MSR msr,double *dCenter,double dRadius,int nGrid,float *Pk) {
 */
 void _BuildPsdTree(MSR msr) {
     struct inPSD in;
-    struct ioCalcRoot root;
     PST pst0;
     LCL *plcl;
     PKD pkd;

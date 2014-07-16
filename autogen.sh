@@ -6,7 +6,7 @@
 # a "make distclean" if already configured before running this script.
 autoheader
 aclocal
+automake -ac
 autoconf -i
-automake -a
 # ./configure
 # make

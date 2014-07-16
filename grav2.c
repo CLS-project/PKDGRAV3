@@ -360,7 +360,6 @@ int doneWorkPP(void *vpp) {
     }
 
 static void queuePP( PKD pkd, workParticle *work, ILP ilp, int bGravStep ) {
-    int i;
     ILPTILE tile;
     workPP *pp;
 
@@ -413,9 +412,6 @@ inline void pkdGravEvalPC(PINFOIN *pPart, int nBlocks, int nInLast, ILC_BLK *blk
     float fx = pPart->r[0];
     float fy = pPart->r[1];
     float fz = pPart->r[2];
-    /*float fMass = pPart->fMass;*/
-    /*float fSoft = pPart->fSoft;*/
-    float fsmooth2 = pPart->fSmooth2;
     float *a =pPart->a;
     float ax,ay,az,fPot,dirsum,normsum;
 
@@ -714,7 +710,6 @@ int doneWorkPC(void *vpc) {
     }
 
 static void queuePC( PKD pkd,  workParticle *work, ILC ilc, int bGravStep ) {
-    int i;
     ILCTILE tile;
     workPC *pc;
 
@@ -785,7 +780,6 @@ void pkdGravFinishEwald(PKD pkd) {
 static void queueEwald( PKD pkd, workParticle *work ) {
     int i;
     for( i=0; i<work->nP; i++ ) {
-	PARTICLE *p = work->pPart[i];
 	if (pkd->ewWork->nP == MAX_EWALD_PARTICLES) {
 	    pkdGravFinishEwald(pkd);
 	    pkdGravStartEwald(pkd);
@@ -805,22 +799,20 @@ static void queueEwald( PKD pkd, workParticle *work ) {
 int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *pLoc,ILP ilp,ILC ilc,
     float dirLsum,float normLsum,int bEwald,int bGravStep,int nGroup,double *pdFlop,double *pdEwFlop,double dRhoFac,
     SMX smx,SMF *smf) {
-    PARTICLE *p,*pj;
+    PARTICLE *p;
     KDN *pkdn = pBucket;
-    double *v, *vTmp;
+    double *v;
     double vx,vy,vz;
     float *a;
     float d2,dir,dir2;
     float fMass,fSoft;
     float fx,fy,fz;
     double dx,dy,dz,dPot,ax,ay,az;
-    float dtGrav,dT;
-    float rhopmax,rhopmaxlocal,fsmooth2;
+    float rhopmax,rhopmaxlocal;
     float summ;
     ILPTILE tile;
-    int i,j,n,nSoft,nActive,nLeft;
+    int i,n,nSoft,nActive;
     float fourh2;
-    ILPCHECKPT checkPt;
     int nP;
 
     assert(pkd->oPotential);

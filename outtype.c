@@ -621,7 +621,7 @@ void pkdOutHDF5(PKD pkd,char *pszFileName,int iType,int iDim) {
 
 void pkdOutGroup(PKD pkd,char *pszFileName,int iType, int nStart,double dvFac) {
     FILE *fp;
-    int i,j,nout,lStart;
+    int i,j;
 
     /*
      ** Write Group Data!

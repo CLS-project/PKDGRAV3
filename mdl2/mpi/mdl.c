@@ -722,7 +722,6 @@ void mdlThreadBarrier(MDL mdl) {
 	assert(qhdr->iServiceID == MDL_SE_BARRIER_REPLY);
 	}
     else {
-	int nExpected = mdl->base.nCores-1;
 	for(i=1; i<mdl->base.nCores; ++i) {
 	    qhdr = mdlWaitThreadQueue(mdl,MDL_TAG_BARRIER);
 	    assert(qhdr->iServiceID == MDL_SE_BARRIER_REQUEST);
@@ -780,6 +779,7 @@ static int mdl_remote_MPI_Recv(void *buf, int count, MPI_Datatype datatype, int 
     mdlSendToMPI(mdl,send,iServiceID);
     send = mdlWaitThreadQueue(mdl,tag); /* Wait for the "send" to come back to us. */
     *nBytes = send->count;
+    return MPI_SUCCESS;
     }
 
 /*
@@ -840,7 +840,6 @@ static int mdl_MPI_Barrier(MDL mdl) {
 	assert(qhdr->iServiceID == MDL_SE_BARRIER_REPLY);
 	}
     else {
-	int nExpected = mdl->base.nCores-1;
 	for(i=1; i<mdl->base.nCores; ++i) {
 	    qhdr = mdlWaitThreadQueue(mdl,MDL_TAG_BARRIER);
 	    assert(qhdr->iServiceID == MDL_SE_BARRIER_REQUEST);
@@ -874,6 +873,7 @@ static int mdl_MPI_Barrier(MDL mdl) {
 	}
     mdl->wqAccepting = 0;
     mdlTimeAddSynchronizing(mdl);
+    return MPI_SUCCESS;
     }
 
 void mdlInitCommon(MDL mdl0, int iMDL,int bDiag,int argc, char **argv,
@@ -1024,7 +1024,7 @@ static void *mdlWorkerThread(void *vmdl) {
 
 int mdlLaunch(int argc,char **argv,void * (*fcnMaster)(MDL),void * (*fcnChild)(MDL)) {
     MDL mdl;
-    int i,j,bDiag,bThreads,bDedicated,thread_support,rc,flag,*piTagUB;
+    int i,bDiag,bThreads,bDedicated,thread_support,rc,flag,*piTagUB;
     char *p, ach[256];
 
     mdl = malloc(sizeof(struct mdlContext));
@@ -1326,7 +1326,6 @@ void mdlRecv(MDL mdl,int id,mdlPack unpack, void *ctx) {
     void *vIn;
     size_t nUnpack;
     int nBytes;
-    MPI_Status status;
     int inid;
 
     if ( id < 0 ) id = MPI_ANY_SOURCE;
@@ -1363,16 +1362,13 @@ void mdlRecv(MDL mdl,int id,mdlPack unpack, void *ctx) {
 int mdlSwap(MDL mdl,int id,size_t nBufBytes,void *vBuf,size_t nOutBytes,
 	    size_t *pnSndBytes,size_t *pnRcvBytes) {
     size_t nInBytes,nOutBufBytes;
-    size_t i;
     int nInMax,nOutMax,nBytes;
-    int pid;
     char *pszBuf = vBuf;
     char *pszIn,*pszOut;
     struct swapInit {
 	size_t nOutBytes;
 	size_t nBufBytes;
 	} swi,swo;
-    MPI_Status status;
 
     *pnRcvBytes = 0;
     *pnSndBytes = 0;
@@ -1481,7 +1477,6 @@ int mdlReqService(MDL mdl,int id,int sid,void *vin,int nInBytes) {
     char *pszIn = vin;
     SRVHEAD *ph = (SRVHEAD *)(mdl->pszBuf);
     char *pszOut = (char *)(ph + 1);
-    int iProc = mdlThreadToProc(mdl, id);
     ph->idFrom = mdl->base.idSelf;
     ph->sid = sid;
     if (!pszIn) ph->nInBytes = 0;
@@ -1500,10 +1495,8 @@ int mdlReqService(MDL mdl,int id,int sid,void *vin,int nInBytes) {
 void mdlGetReply(MDL mdl,int rID,void *vout,int *pnOutBytes) {
     char *pszOut = vout;
     SRVHEAD *ph = (SRVHEAD *)mdl->pszBuf;
-    MDLserviceElement *qhdr;
     char *pszIn = &mdl->pszBuf[sizeof(SRVHEAD)];
-    int i,nBytes,id;
-    MPI_Status status;
+    int nBytes,id;
     id = rID;
     mdl_remote_MPI_Recv(mdl->pszBuf, mdl->nMaxSrvBytes + (int)sizeof(SRVHEAD), MPI_BYTE,
 	id, MDL_TAG_RPL, mdl, &nBytes, MDL_SE_RECV_REPLY);
@@ -1518,13 +1511,9 @@ void mdlHandler(MDL mdl) {
     MDLserviceElement *qho = (MDLserviceElement *)(mdl->pszOut);
     SRVHEAD *phi = (SRVHEAD *)(qhi + 1);
     SRVHEAD *pho = (SRVHEAD *)(qho + 1);
-    MDLserviceElement *qhdr;
     char *pszIn = (char *)(phi + 1);
     char *pszOut = (char *)(pho + 1);
     int sid,id,tag,nOutBytes,nBytes;
-    MPI_Status status;
-    MPI_Comm   comm;
-    int iProc;
 
     do {
 	/* We ALWAYS use MPI to send requests. */
@@ -1547,7 +1536,6 @@ void mdlHandler(MDL mdl) {
 	pho->idFrom = mdl->base.idSelf;
 	pho->replyTag = phi->replyTag;
 	pho->sid = sid;
-	iProc = mdlThreadToProc(mdl,id);
 	pho->nInBytes = phi->nInBytes;
 	pho->nOutBytes = nOutBytes;
 	tag = phi->replyTag;
@@ -1653,8 +1641,6 @@ CACHE *CacheInitialize(
     void *ctx,void (*init)(void *,void *),void (*combine)(void *,void *,void *)) {
 
     CACHE *c;
-    int id;
-    CAHEAD caIn;
     int i,nMaxCacheIds;
     cacheOpenClose coc;
 
@@ -1805,14 +1791,12 @@ void mdlCacheBarrier(MDL mdl,int cid) {
 
 void mdlFlushCache(MDL mdl,int cid) {
     CACHE *c = &mdl->cache[cid];
-    CAHEAD caOut;
     CAHEAD *caFlsh = (CAHEAD *)mdl->pszFlsh;
     char *pszFlsh = &mdl->pszFlsh[sizeof(CAHEAD)];
     mdlkey_t iKey;
     int i,id;
     char *t;
     int j;
-    int last;
     MPI_Status status;
     MPI_Request reqFlsh;
     MPI_Request reqBoth[2];
@@ -1876,7 +1860,6 @@ void mdlFlushCache(MDL mdl,int cid) {
 
 #ifdef USE_ARC
 static void arcFlushAll(ARC arc) {
-    int i;
     CDB *temp;
     for(;arc->T1Length;--arc->T1Length) {
 	temp = lru_remove(arc->T1);
@@ -1923,18 +1906,7 @@ static void arcFlushAll(ARC arc) {
 
 void mdlFinishCache(MDL mdl,int cid) {
     CACHE *c = &mdl->cache[cid];
-    CAHEAD caOut;
-    CAHEAD *caFlsh = (CAHEAD *)mdl->pszFlsh;
-    char *pszFlsh = &mdl->pszFlsh[sizeof(CAHEAD)];
     cacheOpenClose coc;
-    mdlkey_t iKey;
-    int i,id;
-    char *t;
-    int j;
-    MPI_Status status;
-    MPI_Request reqFlsh;
-    MPI_Request reqBoth[2];
-    int index;
 
     mdlTimeAddComputing(mdl);
     mdl->wqAccepting = 1;
@@ -2041,9 +2013,9 @@ static inline uint64_t *replace(ARC arc, int iInB2) {
 */
 static inline void arcSetPrefetchData(ARC arc,uint32_t uIndex,uint32_t uId,void *data) {
     CDB *temp;
-    uint32_t uHash,rat;
+    uint32_t uHash;
     uint32_t tuId = uId&_IDMASK_;
-    uint32_t L1Length, L2Length;
+    uint32_t L1Length;
     int inB2=0;
 
     uHash = (MurmurHash2(uIndex,tuId)&arc->uHashMask);
@@ -2152,8 +2124,6 @@ static inline void arcRelease(ARC arc,uint64_t *p) {
 static void queueCacheRequest(MDL mdl, int cid, int iIndex, int id) {
     CACHE *c = &mdl->cache[cid];
     int iLine = iIndex >> MDL_CACHELINE_BITS;
-    int iElt = iIndex & MDL_CACHE_MASK;
-    int s = iIndex & MDL_INDEX_MASK;
     c->cacheRequest.caReq.cid = cid;
     c->cacheRequest.caReq.mid = MDL_MID_CACHEREQ;
     c->cacheRequest.caReq.idFrom = mdl->base.idSelf;
@@ -2168,7 +2138,6 @@ static void finishCacheRequest(MDL mdl, int cid, CDB *temp) {
     ARC arc = c->arc;
     uint32_t uIndex = temp->uIndex;
     uint32_t uId = temp->uId & _IDMASK_;
-    int iLine = uIndex >> MDL_CACHELINE_BITS;
     int iElt = uIndex & MDL_CACHE_MASK;
     int s = uIndex & MDL_INDEX_MASK;
 
@@ -2199,7 +2168,7 @@ void *mdlDoMiss(MDL mdl, int cid, int iIndex, int id, int bLock) {
     uint32_t uIndex = iIndex;
     uint32_t uId = id;
     CDB *temp;
-    uint32_t L1Length, L2Length;
+    uint32_t L1Length;
     uint32_t uHash,rat;
     uint32_t tuId = uId&_IDMASK_;
     int inB2=0;

@@ -415,7 +415,6 @@ static inline v_df SIMD_DLOADS(double f) {
 #define SIMD_D2F(a) MM_FCN(cvtpd,ps)(a)
 #endif
 static inline v_df SIMD_DRSQRT(v_df B) {
-    static const vdouble one = {SIMD_DCONST(1.0)};
     static const vdouble half = {SIMD_DCONST(0.5)};
     static const vdouble three = {SIMD_DCONST(3.0)};
     v_df r;
@@ -425,7 +424,6 @@ static inline v_df SIMD_DRSQRT(v_df B) {
     return r;
     }
 static inline v_df SIMD_DRSQRT_EXACT(v_df B) {
-    static const vdouble one = {SIMD_DCONST(1.0)};
     static const vdouble half = {SIMD_DCONST(0.5)};
     static const vdouble three = {SIMD_DCONST(3.0)};
     v_df r = SIMD_DRSQRT(B);
