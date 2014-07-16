@@ -1123,9 +1123,7 @@ double momLocrAddMomr5cm(LOCR *l,MOMR *m,momFloat dir,momFloat x,momFloat y,momF
 ** Op Count = (*,+) = (129,77) = 206 
 */
 double momLocrAddMono5(LOCR *l,momFloat m,momFloat dir,momFloat x,momFloat y,momFloat z,double *tax,double *tay,double *taz) {
-    const momFloat onethird = 1.0/3.0;
-    momFloat xx,xy,xz,yy,yz,zz;
-    momFloat xxx,xxy,xyy,yyy,xxz,xyz,yyz;
+    momFloat xx,xy,xz,yy,yz;
     momFloat R1,R2,R3,T2,T3;
     momFloat g0,g1,g2,g3,g4,g5;
     momFloat g4xx,g4yy,g5xx,g5yy,fxx,fyy;
@@ -1142,24 +1140,11 @@ double momLocrAddMono5(LOCR *l,momFloat m,momFloat dir,momFloat x,momFloat y,mom
     /*
     ** Calculate the funky distance terms.
     */
-    xx = 0.5*x*x;
-    xy = x*y;
-    yy = 0.5*y*y;
-    xz = x*z;
-    yz = y*z;
-    zz = 0.5*z*z;
-    xxx = x*(onethird*xx - zz);
-    xxz = z*(xx - onethird*zz);
-    yyy = y*(onethird*yy - zz);
-    yyz = z*(yy - onethird*zz);
-    xx -= zz;
-    yy -= zz;
-    xxy = y*xx;
-    xyy = x*yy;
-    xyz = xy*z;
-
     xx = x*x;
     yy = y*y;
+    xy = x*y;
+    xz = x*z;
+    yz = y*z;
 
     l->m += g0*m;
     R1 = g1*m;
