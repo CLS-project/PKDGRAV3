@@ -832,11 +832,6 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
     nActive = 0;
     nSoft = 0;
 
-#ifndef NEW_WALK
-    /* We need to add these particles to the P-P interaction. Note that self-interactions are ignored. */
-    ilpCheckPt(ilp,&checkPt);
-#endif
-
     /* Collect the bucket particle information */
     workParticle *work = malloc(sizeof(workParticle));
     assert(work!=NULL);
@@ -858,11 +853,6 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 	fMass = pkdMass(pkd,p);
 	fSoft = pkdSoft(pkd,p);
 	v = pkdVel(pkd,p);
-
-#ifndef NEW_WALK
-	/* Beware of self-interaction - must result in zero acceleration */
-	ilpAppend(ilp,p->r[0],p->r[1],p->r[2],fMass,4*fSoft*fSoft,p->iOrder,v[0],v[1],v[2]);
-#endif
 
 	if ( !pkdIsDstActive(p,uRungLo,uRungHi) ) continue;
 
@@ -1015,9 +1005,6 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 
     pkdParticleWorkDone(work);
 
-#ifndef NEW_WALK
-    ilpRestore(ilp,&checkPt);
-#endif
     *pdFlop += nActive*(ilpCount(pkd->ilp)*40 + ilcCount(pkd->ilc)*200) + nSoft*15;
     return(nActive);
     }

@@ -877,10 +877,6 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
 		    pkd->cl = pkd->S[iStack+1].cl;
 		    pkd->S[iStack+1].cl = clTemp;
 		    }
-#ifndef NEW_WALK
-		cbnd = pkdNodeBnd(pkd,c);
-		clAppend(pkd->cl,iSib,pkd->idSelf,c->iLower,nc,cOpen,pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c->r,fOffset,cbnd->fCenter,cbnd->fMax);
-#endif
 		/*
 		** Test whether the sibling is active as well.
 		** If not we don't push it onto the stack, but we
@@ -905,9 +901,6 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
 		    /*
 		    ** Note here we already have the correct elements in S[iStack] (iStack+1 was used previously), just need to add one.
 		    */
-#ifndef NEW_WALK
-		    clAppend(pkd->S[iStack].cl,iCell,pkd->idSelf,k->iLower,nk,kOpen,pkdNodeMom(pkd,k)->m,4.0f*k->fSoft2,k->r,fOffset,kbnd->fCenter,kbnd->fMax);
-#endif
 		    pkd->S[iStack].L = L;
 		    pkd->S[iStack].dirLsum = dirLsum;
 		    pkd->S[iStack].normLsum = normLsum;
@@ -928,9 +921,6 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
 		clTemp = pkd->cl;
 		pkd->cl = pkd->S[iStack+1].cl;
 		pkd->S[iStack+1].cl = clTemp;
-#ifndef NEW_WALK
-		clAppend(pkd->cl,iCell,pkd->idSelf,k->iLower,nk,kOpen,pkdNodeMom(pkd,k)->m,4.0f*k->fSoft2,k->r,fOffset,kbnd->fCenter,kbnd->fMax);
-#endif
 		/*
 		** Move onto processing the sibling.
 		*/
@@ -1155,22 +1145,16 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 	    for (iz=-nReps;iz<=nReps;++iz) {
 		fOffset[2] = iz*pkd->fPeriod[2];
 		bRep = ix || iy || iz;
-#ifndef NEW_WALK
-		if (bRep || iVARoot) {
-#endif
-		    /* 
-		    ** Use leaf of the top tree and NOT the root of the local tree here.
-		    */
-		    cOpen = -1.0f;
-		    id = -1;
-		    iLower = pkdTopNode(pkd,iRoot)->iLower;
-		    if (!iLower) iLower = iRoot;  /* something other than zero for openening crit - iLower usually can't be == iRoot */
-		    nc = getCell(pkd,iRoot,id,&cOpen,&c);
-		    cbnd = pkdNodeBnd(pkd,c);
-		    clAppend(pkd->cl,iRoot,id,iLower,nc,cOpen,pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c->r,fOffset,cbnd->fCenter,cbnd->fMax);
-#ifndef NEW_WALK
-		    }
-#endif
+		/* 
+		** Use leaf of the top tree and NOT the root of the local tree here.
+		*/
+		cOpen = -1.0f;
+		id = -1;
+		iLower = pkdTopNode(pkd,iRoot)->iLower;
+		if (!iLower) iLower = iRoot;  /* something other than zero for openening crit - iLower usually can't be == iRoot */
+		nc = getCell(pkd,iRoot,id,&cOpen,&c);
+		cbnd = pkdNodeBnd(pkd,c);
+		clAppend(pkd->cl,iRoot,id,iLower,nc,cOpen,pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c->r,fOffset,cbnd->fCenter,cbnd->fMax);
 		if (bRep && iVARoot) {
 		    /*
 		    ** Add the images of the very active tree to the checklist.
@@ -1186,29 +1170,6 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 		}
 	    }
 	}
-#ifndef NEW_WALK
-    if (!iVARoot) {
-	/*
-	** This adds all siblings of a chain leading from the local tree leaf in the top
-	** tree up to the iRoot of the top tree.
-	*/
-	for (j=0;j<3;++j) fOffset[j] = 0.0f;
-	iCell = pkd->iTopRoot;
-	iSib = SIBLING(iCell);
-	while (iSib) {
-	    cOpen = -1.0f;
-	    id = -1;
-	    iLower = pkdTopNode(pkd,iSib)->iLower;
-	    if (!iLower) iLower = iRoot;  /* something other than zero for openening crit - iLower usually can't be == iRoot */
-	    nc = getCell(pkd,iSib,id,&cOpen,&c);
-	    cbnd = pkdNodeBnd(pkd,c);
-	    clAppend(pkd->cl,iSib,id,iLower,nc,cOpen,pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c->r,fOffset,cbnd->fCenter,cbnd->fMax);
-	    iCell = pkdTopNode(pkd,iCell)->iParent;
-	    iSib = SIBLING(iCell);
-	    }
-	}
-#endif
-
     return processCheckList(pkd, smx, smf, iRoot, iVARoot, uRungLo, uRungHi, dRhoFac, bEwald, nGroup, dThetaMin, pkd->param.bGravStep, pdFlop, pdPartSum, pdCellSum);
     }
 
