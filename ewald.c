@@ -592,9 +592,9 @@ int pkdParticleEwald(PKD pkd,PARTICLE *p, float *pa, float *pPot) {
     faz = SIMD_D2F(daz);
     fPot = SIMD_D2F(dPot);
 
-    fx = SIMD_SPLAT(x);
-    fy = SIMD_SPLAT(y);
-    fz = SIMD_SPLAT(z);
+    fx = SIMD_SPLAT(dx);
+    fy = SIMD_SPLAT(dy);
+    fz = SIMD_SPLAT(dz);
 
     nLoop = (ew->nEwhLoop+SIMD_MASK) >> SIMD_BITS;
     i = 0;
