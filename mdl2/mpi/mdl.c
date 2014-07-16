@@ -18,6 +18,9 @@
 #ifdef HAVE_SYS_TIME_H
 #include <sys/time.h>
 #endif
+#ifdef HAVE_UNISTD_H
+#include <unistd.h>
+#endif
 #ifdef __linux__
 #include <sys/resource.h>
 #endif
@@ -1027,6 +1030,10 @@ int mdlLaunch(int argc,char **argv,void * (*fcnMaster)(MDL),void * (*fcnChild)(M
     mdl = malloc(sizeof(struct mdlContext));
     assert(mdl != NULL);
     mdlBaseInitialize(&mdl->base,argc,argv);
+
+#ifdef _SC_NPROCESSORS_CONF /* from unistd.h */
+    mdl->base.nCores = sysconf(_SC_NPROCESSORS_CONF);
+#endif
 
     /*
     ** Do some low level argument parsing for number of threads, and
