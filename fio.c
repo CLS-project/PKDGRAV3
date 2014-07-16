@@ -202,11 +202,13 @@ static void fileScanFree(fioFileList *list) {
 	}
     }
 
+#ifdef HAVE_STRVERSCMP
 static int versionCompare(const void *va, const void *vb) {
     const char *a = *(char **)va;
     const char *b = *(char **)vb;
     return strverscmp(a,b);
     }
+#endif
 
 /*
 ** Given a list of one or more files, this function will expand any wildcards
@@ -239,7 +241,9 @@ static int fileScan( fioFileList *list, int nFiles, const char * const *szFilena
     nScan = files.we_wordc;
     for(i=0; i<nScan; i++)
 	nSize += strlen(files.we_wordv[i])+1;
+#ifdef HAVE_STRVERSCMP
     qsort(files.we_wordv,nScan,sizeof(files.we_wordv[0]),versionCompare);
+#endif
 #elif defined(HAVE_GLOB) && defined(HAVE_GLOBFREE)
     for( iIdx = 0; iIdx<nFiles; iIdx++ ) {
 	if (glob(szFilenames[iIdx],flag,NULL,&files) || files.gl_pathc==0) {
@@ -250,12 +254,16 @@ static int fileScan( fioFileList *list, int nFiles, const char * const *szFilena
     nScan = files.gl_pathc;
     for(i=0; i<nScan; i++)
 	nSize += strlen(files.gl_pathv[i])+1;
+#ifdef HAVE_STRVERSCMP
     qsort(files.gl_pathv,nScan,sizeof(files.gl_pathv[0]),versionCompare);
+#endif
 #else
     nScan = nFiles;
     for( iIdx = 0; iIdx<nFiles; iIdx++ )
 	nSize += strlen(szFilenames[iIdx]) + 1;
+#ifdef HAVE_STRVERSCMP
     qsort(szFilenames,nScan,sizeof(szFilenames[0]),versionCompare);
+#endif
 #endif
 
     /*

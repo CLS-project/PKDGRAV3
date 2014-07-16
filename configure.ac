@@ -529,9 +529,8 @@ AC_MSG_RESULT($rtc_ok)
 fi
 
 # Checks for library functions.
-AC_CHECK_FUNCS([wordexp wordfree glob globfree gethostname getpagesize mkdir])
+AC_CHECK_FUNCS([wordexp wordfree glob globfree gethostname getpagesize mkdir strverscmp])
 AC_CHECK_FUNCS([floor gettimeofday pow sqrt strchr strdup strrchr strstr],,[AC_MSG_ERROR([not found])])
-
 AX_PTHREAD
 AM_CONDITIONAL(HAVE_PTHREAD,test "x$ax_pthread_ok" = "xyes")
 AM_CONDITIONAL(HAVE_MPIPT,false)
