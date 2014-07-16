@@ -3,13 +3,14 @@
 
 AC_PREREQ(2.59)
 AC_INIT(pkdgrav3, 0.9.1, bugs@pkdgrav2.org)
-AM_INIT_AUTOMAKE(pkdgrav3,0.9.1)
+AM_INIT_AUTOMAKE
 AC_CONFIG_SRCDIR([main.c])
 AC_CONFIG_HEADER([config.h])
 
 # Checks for programs.
 AC_PROG_CC
 AC_PROG_MAKE_SET
+AM_PROG_CC_C_O
 
 AC_ARG_WITH(mpicc,
   [  --with-mpicc=mpicc      specify the name of the MPI C compiler],
