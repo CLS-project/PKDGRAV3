@@ -24,179 +24,17 @@
 #include "moments.h"
 #include "cl.h"
 
-#ifdef USE_DEHNEN_THETA
-double brent(double x1, double x2, double (*my_f)(double v, void *params),void *params) {
-    static double EPS = 1e-12;
-    int iter;
-    double a=x1, b=x2, c, d, e, min1, min2;
-    double fa, fb, fc, p, q, r, s, tol1, xm;
-
-    fa = my_f(x1,params);
-    fb = my_f(x2,params);
-
-    if ( fb*fa > 0.0) abort();
-    fc = fb;
-    c = d = e = 0.0;
-    for(iter=1;iter<=100;iter++) {
-	if (fb*fc > 0.0) {
-	    c = a;
-	    fc = fa;
-	    e = d = b-a;
-	    }
-	if (fabs(fc) < fabs(fb)) {
-	    a = b;
-	    b = c;
-	    c = a;
-	    fa = fb;
-	    fb = fc;
-	    fc = fa;
-	    }
-	tol1 = 2.0*EPS*fabs(b)+0.5*1e-9;
-	xm = 0.5*(c-b);
-	if (fabs(xm) <= tol1 || fb == 0.0) return b;
-	if (fabs(e) >= tol1 && fabs(fa) > fabs(fb)) {
-	    s = fb/fa;
-	    if (a==c) {
-		p = 2.0*xm*s;
-		q = 1.0-s;
-		}
-	    else {
-		q = fa/fc;
-		r = fb/fc;
-		p = s*(2.0*xm*q*(q-r)-(b-a)*(r-1.0));
-		q = (q-1.0)*(r-1.0)*(s-1.0);
-		}
-	    if (p>0.0) q = -q;
-	    p = fabs(p);
-	    min1 = 3.0*xm*q - fabs(tol1*q);
-	    min2 = fabs(e*q);
-	    if (2.0*p < (min1 < min2 ? min1 : min2)) {
-		e = d;
-		d = p / q;
-		}
-	    else {
-		d = xm;
-		e = d;
-		}
-	    }
-	else {
-	    d = xm;
-	    e = d;
-	    }
-	a = b;
-	fa = fb;
-	if (fabs(d) > tol1)
-	    b += d;
-	else
-	    b += (xm > 0.0 ? fabs(tol1) : - fabs(tol1));
-	fb = my_f(b,params);
-	}
-    abort();
-    return 0.0;
-    }
-
-struct theta_params { double alpha; };
-static double theta_function(double x, void * params) {
-    struct theta_params *p = params;
-    double x2,x4,ixm,ixm2;
-    x2 = x*x;
-    x4 = x2*x2;
-    ixm = 1.0 / (1-x);
-    ixm2 = ixm*ixm;
-    return p->alpha - x4*x2*x * ixm2;
-    }
-
-void pkdSetThetaTable(PKD pkd,double dThetaMin,double dThetaMax) {
-    struct theta_params params;
-    double dCritRatio;
-    double dMass;
-    int i;
-
-    if (dThetaMax!=pkd->dCritThetaMax) {
-	pkd->dCritThetaMax = dThetaMax;
-	pkd->dCritThetaMin = dThetaMin;
-	if (pkd->fCritMass==NULL) {
-	    pkd->nCritBins = 128;
-	    pkd->fCritMass = malloc(sizeof(float) * pkd->nCritBins);
-	    assert(pkd->fCritMass!=NULL);
-	    pkd->fCritTheta = malloc(sizeof(float) * pkd->nCritBins);
-	    assert(pkd->fCritTheta!=NULL);
-	    }
-
-	dCritRatio = pow(pkd->dCritThetaMin,7.0) / pow(1-pkd->dCritThetaMin,2.0);
-	for( i=0; i< pkd->nCritBins; i++ ) {
-	    pkd->fCritMass[i] = dMass = exp( -0.5*(pkd->nCritBins-i-1) );
-	    params.alpha = dCritRatio * pow(dMass,-1.0/3.0);
-	    pkd->fCritTheta[i] = brent(0.0,0.9999999, theta_function, &params);
-	    pkd->fCritTheta[i] = (pkd->fCritTheta[i]-pkd->dCritThetaMin)
-		/ (1-pkd->dCritThetaMin)
-		* (pkd->dCritThetaMax-pkd->dCritThetaMin) + pkd->dCritThetaMin;
-	    }
-	}
-    }
-
-/*
-** Estimate for log(1+x)
-*/
-static inline float lge(float x) {
-    float x2, x4;
-    x2 = x*x;
-    x4 = x2*x2;
-    return x - x2/2.0 + x2*x/3.0 - x4/4.0 + x4*x/5.0 - x4*x2/6.0;
-    }
-
-static inline float getTheta(PKD pkd,float fMass) {
-    int i,j,m;
-    float fInterval;
-
-    if (fMass<=pkd->fCritMass[0]) return pkd->dCritThetaMax;
-    if (fMass>=1.0) return pkd->dCritThetaMin;
-    assert(fMass>0.0 && fMass <= 1.0);
-    assert(fMass>=pkd->fCritMass[0]);
-
-    /* Locate the correct mass bin - binary search is better than ln? */
-    i=0;
-    j=pkd->nCritBins-1;
-    while(i<j) {
-	m = (j-i)/2 + i;
-	if (pkd->fCritMass[m] > fMass) j = m;
-	else i = m+1;
-	}
-    --i;
-
-    assert(i>=0 && i<pkd->nCritBins);
-    assert(pkd->fCritMass[i] <= fMass );
-    assert(pkd->fCritMass[i+1] >= fMass );
-
-    fInterval = lge((fMass-pkd->fCritMass[i])/pkd->fCritMass[i])*2.0;
-    assert(fInterval>=0.0 && fInterval <= 1.0);
-    return fInterval * (pkd->fCritTheta[i+1]-pkd->fCritTheta[i]) + pkd->fCritTheta[i];
-    }
-#endif
-
 static inline int getCell(PKD pkd,int iCell,int id,float *pcOpen,KDN **pc) {
     KDN *c;
     int nc;
     assert(iCell > 0);
-    if (id == pkd->idSelf) {
-	*pc = c = pkdTreeNode(pkd,iCell);
-	nc = c->pUpper - c->pLower + 1;
-	}
-    else if (id < 0) {
-        *pc = c = pkdTopNode(pkd,iCell);
-	nc = 1000000000; /* we never allow pp with this cell */
-	}
-    else {
-	*pc = c = CAST(KDN *,mdlFetch(pkd->mdl,CID_CELL,iCell,id));
-	nc = c->pUpper - c->pLower + 1;
-	}
-    if (*pcOpen < 0.0f) {
-#ifdef USE_DEHNEN_THETA
-	*pcOpen = c->bMax/getTheta(pkd,pkdNodeMom(pkd,c)->m/pkdNodeMom(pkd,pkdTreeNode(pkd,ROOT))->m);
-#else
-	*pcOpen = c->bMax * pkd->fiCritTheta;
-#endif
-	}
+    assert(id >= 0);
+    if (id == pkd->idSelf) c = pkdTreeNode(pkd,iCell);
+    else c = CAST(KDN *,mdlFetch(pkd->mdl,CID_CELL,iCell,id));
+    *pc = c;
+    if (c->bRemote) nc = 1000000000; /* we never allow pp with this cell */
+    else nc = c->pUpper - c->pLower + 1;
+    *pcOpen = c->bMax * pkd->fiCritTheta;
     return nc;
     }
 
@@ -443,6 +281,25 @@ static void iOpenOutcomeCL(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin,int 
     }
 #endif
 
+static void addChild(PKD pkd, CL cl, int iChild, int id, float *fOffset) {
+    int idLower, iLower, idUpper, iUpper;
+    float cOpen;
+    KDN *c;
+    int nc = getCell(pkd,iChild,id,&cOpen,&c);
+    const BND *cbnd = pkdNodeBnd(pkd,c);
+
+    iLower = c->iLower;
+    idLower = id;
+    if (c->bRemote) { idUpper = c->pUpper; iUpper = c->pLower; }
+    else            { idUpper = id;        iUpper = iLower+1;  }
+    clAppend(cl,iChild,idLower,iLower,idUpper,iUpper,nc,cOpen,
+	pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c->r,fOffset,cbnd->fCenter,cbnd->fMax);
+    }
+
+
+
+
+
 /*
 ** Returns total number of active particles for which gravity was calculated.
 */
@@ -450,7 +307,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
     uint8_t uRungLo,uint8_t uRungHi, double dRhoFac, int bEwald, int nGroup, double dThetaMin,
     int bGravStep, double *pdFlop, double *pdPartSum,double *pdCellSum) {
     KDN *k,*c,*kFind;
-    int id,iCell,iSib,iLower,iCheckCell,iCheckLower,iCellDescend;
+    int id,idUpper,iCell,iSib,iLower,iUpper,iCheckCell,iCheckLower,iCellDescend;
     PARTICLE *p;
     FMOMR monoPole;
     LOCR L;
@@ -617,7 +474,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
 				*/
 				iCheckCell = blk->iCell.i[jTile];
 				if (iCheckCell < 0) {
-				    id = blk->id.i[jTile];
+				    id = blk->idLower.i[jTile];
 				    pj = -1 - iCheckCell;
 				    assert(id >= 0);
 				    if (id == pkd->idSelf) p = pkdParticle(pkd,pj);
@@ -631,7 +488,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
 					p->iOrder, v[0], v[1], v[2]);
 				    }
 				else {
-				    id = blk->id.i[jTile];
+				    id = blk->idLower.i[jTile];
 				    assert(id >= 0);
 				    if (id == pkd->idSelf) c = pkdTreeNode(pkd,iCheckCell);
 				    else c = CAST(KDN *,mdlFetch(pkd->mdl,CID_CELL,iCheckCell,id));
@@ -657,7 +514,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
 				*/
 				iCheckCell = blk->iCell.i[jTile];
 				assert(iCheckCell>=0);
-				id = blk->id.i[jTile];
+				id = blk->idLower.i[jTile];
 				fOffset[0] = blk->xOffset.f[jTile];
 				fOffset[1] = blk->yOffset.f[jTile];
 				fOffset[2] = blk->zOffset.f[jTile];
@@ -670,7 +527,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
 				    fMass = pkdMass(pkd,p);
 				    fSoft = pkdSoft(pkd,p);
 				    if (bGravStep && pkd->param.iTimeStepCrit == 1) v = pkdVel(pkd,p);
-				    clAppend(pkd->clNew,-1 - pj,id,0,1,0.0,fMass,4.0f*fSoft*fSoft,
+				    clAppend(pkd->clNew,-1 - pj,id,0,0,0,1,0.0,fMass,4.0f*fSoft*fSoft,
 					p->r,    /* center of mass */
 					fOffset, /* fOffset */
 					p->r,    /* center of box */
@@ -680,64 +537,19 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
 			    case 3:
 				/*
 				** Open the cell.
-				** Here we ASSUME that the children of
-				** c are all in sequential memory order!
-				** (the new tree build assures this)
-				** (also true for the top tree)
 				** We could do a prefetch here for non-local
 				** cells.
 				*/
-				iCheckCell = blk->iCell.i[jTile];
-				assert(iCheckCell>=0);
-				iCheckLower = blk->iLower.i[jTile];
-				assert(iCheckLower > 0);
-				id = blk->id.i[jTile];
-				if (iCheckLower == iRoot) {
-				    /* We must progress to the children of this local tree root cell. */
-				    assert(id < 0);
-				    id = pkdTopNode(pkd,iCheckCell)->pLower;
-				    assert(id >= 0);
-				    if (id == pkd->idSelf) {
-					c = pkdTreeNode(pkd,iRoot);
-					iCheckLower = c->iLower;
-					}
-				    else {
-					c = CAST(KDN *,mdlFetch(pkd->mdl,CID_CELL,iRoot,id));
-					iCheckLower = c->iLower;
-					}
-				    if (!iCheckLower) {
-					/*
-					** The iRoot of a local tree is actually a bucket! An irritating case...
-					** This is a rare case though, and as such we simply check the local iRoot bucket once more.
-					*/
-					nc = getCell(pkd,iRoot,id,&cOpen,&c);
-					cbnd = pkdNodeBnd(pkd,c);
-					fOffset[0] = blk->xOffset.f[jTile];
-					fOffset[1] = blk->yOffset.f[jTile];
-					fOffset[2] = blk->zOffset.f[jTile];
-					clAppend(pkd->clNew,iRoot,id,0,nc,cOpen,pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c->r,fOffset,cbnd->fCenter,cbnd->fMax);
-					break; /* finished, don't add children */
-					}
-				    }			    
-				cOpen = -1.0f;
-				nc = getCell(pkd,iCheckLower,id,&cOpen,&c);
-				cbnd = pkdNodeBnd(pkd,c);
+				iCheckCell = blk->iCell.i[jTile];                 assert(iCheckCell >= 0);
+				iCheckLower = blk->iLower.i[jTile];               assert(iCheckLower > 0);
+
 				fOffset[0] = blk->xOffset.f[jTile];
 				fOffset[1] = blk->yOffset.f[jTile];
 				fOffset[2] = blk->zOffset.f[jTile];
-				iLower = c->iLower;
-				if (id == -1 && !iLower) iLower = iRoot;  /* something other than zero for openening crit - iLower usually can't be == iRoot */
-				clAppend(pkd->clNew,iCheckLower,id,iLower,nc,cOpen,pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c->r,fOffset,cbnd->fCenter,cbnd->fMax);
-				/*
-				** Also add the sibling of check->iLower.
-				*/
-				++iCheckLower;
-				cOpen = -1.0f;
-				nc = getCell(pkd,iCheckLower,id,&cOpen,&c);
-				cbnd = pkdNodeBnd(pkd,c);
-				iLower = c->iLower;
-				if (id == -1 && !iLower) iLower = iRoot;  /* something other than zero for openening crit - iLower usually can't be == iRoot */
-				clAppend(pkd->clNew,iCheckLower,id,iLower,nc,cOpen,pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c->r,fOffset,cbnd->fCenter,cbnd->fMax);
+
+				addChild(pkd,pkd->clNew,blk->iLower.i[jTile],blk->idLower.i[jTile],fOffset);
+				addChild(pkd,pkd->clNew,blk->iUpper.i[jTile],blk->idUpper.i[jTile],fOffset);
+
 				break;
 			    case 4:
 				/*
@@ -746,9 +558,8 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
 				*/
 				iCheckCell = blk->iCell.i[jTile];
 				assert(iCheckCell>=0);
-				id = blk->id.i[jTile];
+				id = blk->idLower.i[jTile];
 				if (id == pkd->idSelf) c = pkdTreeNode(pkd,iCheckCell);
-				else if (id == -1) c = pkdTopNode(pkd,iCheckCell);
 				else c = CAST(KDN *,mdlFetch(pkd->mdl,CID_CELL,iCheckCell,id));
 				/*
 				** Center of mass velocity is used by the planets code to get higher derivatives of the 
@@ -789,12 +600,11 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
 					}
 				    }
 				else {
-				    id = blk->id.i[jTile];
+				    id = blk->idLower.i[jTile];
 				    dOffset[0] = blk->xOffset.f[jTile];
 				    dOffset[1] = blk->yOffset.f[jTile];
 				    dOffset[2] = blk->zOffset.f[jTile];
 				    if (id == pkd->idSelf) c = pkdTreeNode(pkd,iCheckCell);
-				    else if (id == -1) c = pkdTopNode(pkd,iCheckCell);
 				    else c = CAST(KDN *,mdlFetch(pkd->mdl,CID_CELL,iCheckCell,id));
 				    d2 = 0;
 				    for (j=0;j<3;++j) {
@@ -832,6 +642,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
 		    } /* end of CL_LOOP */
 		clTemp = pkd->cl;
 		pkd->cl = pkd->clNew;
+		assert(pkd->cl!=NULL);
 		pkd->clNew = clTemp;
 		} while (clCount(pkd->cl));
 	    /*
@@ -844,7 +655,6 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
 	    yParent = k->r[1];
 	    zParent = k->r[2];
 	    for (j=0;j<3;++j) fOffset[j] = 0.0f;
-	    kOpen = -1.0f;
 	    iCell = k->iLower;
 	    nk = getCell(pkd,iCell,pkd->idSelf,&kOpen,&k);
 	    kbnd = pkdNodeBnd(pkd,k);
@@ -858,7 +668,6 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
 		** iCell is active, continue processing it.
 		** Put the sibling onto the checklist.
 		*/
-		cOpen = -1.0f;
 		iSib = iCell+1;
 		nc = getCell(pkd,iSib,pkd->idSelf,&cOpen,&c);
 		if (c->nActive) {
@@ -873,6 +682,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
 		    */
 		    clTemp = pkd->cl;
 		    pkd->cl = pkd->S[iStack+1].cl;
+		    assert(pkd->cl!=NULL);
 		    pkd->S[iStack+1].cl = clTemp;
 		    }
 		/*
@@ -918,6 +728,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
 		*/
 		clTemp = pkd->cl;
 		pkd->cl = pkd->S[iStack+1].cl;
+		assert(pkd->cl!=NULL);
 		pkd->S[iStack+1].cl = clTemp;
 		/*
 		** Move onto processing the sibling.
@@ -959,7 +770,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
 	while (iCell & 1) {
 	InactiveAscend:
 	    k = pkdTreeNode(pkd,iCell = k->iParent);
-	    if (!iCell) {
+	    if (iCell == iRoot) {
 		/*
 		** Make sure stack is empty.
 		*/
@@ -981,6 +792,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
 	clTemp = pkd->cl;
 	assert(clCount(pkd->cl) == 0);
 	pkd->cl = pkd->S[iStack].cl;
+	assert(pkd->cl!=NULL);
 	pkd->S[iStack].cl = clTemp;
 	L = pkd->S[iStack].L;
 	dirLsum = pkd->S[iStack].dirLsum;
@@ -1004,14 +816,7 @@ static void initGravWalk(PKD pkd,double dTime,double dThetaMin,double dThetaMax,
     SMX *smx, SMF *smf, double *dRhoFac) {
     int pi;
 
-    /*
-    ** If necessary, calculate the theta interpolation tables.
-    */
-#ifdef USE_DEHNEN_THETA
-    pkdSetThetaTable(pkd,dThetaMin,dThetaMax);
-#else
     pkd->fiCritTheta = 1.0f / dThetaMin;
-#endif
 
     assert(pkd->oNodeMom);
     if (bGravStep) {
@@ -1075,13 +880,10 @@ int pkdGravWalkHop(PKD pkd,double dTime,int nGroup, double dThetaMin,double dThe
 	iRootSelf = pkd->hopRootIndex[gid];
 	for (i=pkd->hopRootIndex[gid]; i<pkd->hopRootIndex[gid+1]; ++i) {
 	    for (j=0;j<3;++j) fOffset[j] = 0.0f;
-	    cOpen = -1.0f;
 	    id = pkd->hopRoots[i].iPid;
 	    iRoot = pkd->hopRoots[i].iIndex;
 	    assert(iRoot>0);
-	    nc = getCell(pkd,iRoot,id,&cOpen,&c);
-	    cbnd = pkdNodeBnd(pkd,c);
-	    clAppend(pkd->cl,iRoot,id,c->iLower,nc,cOpen,pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c->r,fOffset,cbnd->fCenter,cbnd->fMax);
+	    addChild(pkd,pkd->cl,iRoot,id,fOffset);
 	    }
 	assert(pkd->hopRoots[iRootSelf].iPid==pkd->idSelf);
 	nActive += processCheckList(pkd, smx, smf, pkd->hopRoots[iRootSelf].iIndex, 0, 0, MAX_RUNG, dRhoFac, 0, nGroup, dThetaMin, 0, pdFlop, pdPartSum, pdCellSum);
@@ -1099,6 +901,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 		double dThetaMin,double dThetaMax,double *pdFlop,double *pdPartSum,double *pdCellSum) {
     KDN *c;
     int id,iLower;
+    int iLocalRoot;
     float fOffset[3];
     int ix,iy,iz,bRep;
     float cOpen;
@@ -1110,6 +913,11 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 
     initGravWalk(pkd,dTime,dThetaMin,dThetaMax,nReps?1:0,pkd->param.bGravStep,&smx,&smf,&dRhoFac);
 
+    /* Skip to our local tree */
+    c = pkdTreeNode(pkd,iLocalRoot=iRoot);
+    while(c->bRemote) {
+	c = pkdTreeNode(pkd,iLocalRoot = c->iLower);
+	}
     /*
     ** If we are doing the very active gravity then check that there is a very active tree!
     ** Otherwise we check that the iRoot has active particles!
@@ -1118,7 +926,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 	assert(pkd->nVeryActive != 0);
 	assert(pkd->nVeryActive == pkdTreeNode(pkd,iVARoot)->pUpper - pkdTreeNode(pkd,iVARoot)->pLower + 1);
 	}
-    else if (!pkdIsCellActive(pkdTreeNode(pkd,iRoot),uRungLo,uRungHi)) return 0;
+    else if (!pkdIsCellActive(pkdTreeNode(pkd,iLocalRoot),uRungLo,uRungHi)) return 0;
     /*
     ** Initially we set our cell pointer to
     ** point to the top tree.
@@ -1128,8 +936,8 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
     clClear(pkd->cl);
 
     /*
-    ** First we add any replicas of the entire box
-    ** to the Checklist.
+    ** Add all replicas of the entire box to the Checklist.
+    ** We add at least one box (0,0,0). The root cell is alway on processor 0.
     */
     for (ix=-nReps;ix<=nReps;++ix) {
 	fOffset[0] = ix*pkd->fPeriod[0];
@@ -1141,29 +949,22 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 		/* 
 		** Use leaf of the top tree and NOT the root of the local tree here.
 		*/
-		cOpen = -1.0f;
-		id = -1;
-		iLower = pkdTopNode(pkd,iRoot)->iLower;
-		if (!iLower) iLower = iRoot;  /* something other than zero for openening crit - iLower usually can't be == iRoot */
-		nc = getCell(pkd,iRoot,id,&cOpen,&c);
-		cbnd = pkdNodeBnd(pkd,c);
-		clAppend(pkd->cl,iRoot,id,iLower,nc,cOpen,pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c->r,fOffset,cbnd->fCenter,cbnd->fMax);
+		id = 0;
+//???		if (!iLower) iLower = iRoot;  /* something other than zero for openening crit - iLower usually can't be == iRoot */
+		addChild(pkd,pkd->cl,iRoot,id,fOffset);
 		if (bRep && iVARoot) {
+		    assert(0);
 		    /*
 		    ** Add the images of the very active tree to the checklist.
 		    */
-		    cOpen = -1.0f;
-		    id = mdlSelf(pkd->mdl);
-		    iLower = pkdTopNode(pkd,iVARoot)->iLower;
-		    if (!iLower) iLower = iRoot;  /* something other than zero for openening crit - iLower usually can't be == iRoot */
-		    nc = getCell(pkd,iVARoot,id,&cOpen,&c);
-		    cbnd = pkdNodeBnd(pkd,c);
-		    clAppend(pkd->cl,iVARoot,id,iLower,nc,cOpen,pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c->r,fOffset,cbnd->fCenter,cbnd->fMax);
+//		    id = mdlSelf(pkd->mdl);
+//		    iLower = pkdTopXXXNode(pkd,iVARoot)->iLower;
+//		    addChild(pkd,pkd->cl,iVARoot,id,fOffset);
 		    }
 		}
 	    }
 	}
-    return processCheckList(pkd, smx, smf, iRoot, iVARoot, uRungLo, uRungHi, dRhoFac, bEwald, nGroup, dThetaMin, pkd->param.bGravStep, pdFlop, pdPartSum, pdCellSum);
+    return processCheckList(pkd, smx, smf, iLocalRoot, iVARoot, uRungLo, uRungHi, dRhoFac, bEwald, nGroup, dThetaMin, pkd->param.bGravStep, pdFlop, pdPartSum, pdCellSum);
     }
 
 /*
@@ -1182,8 +983,6 @@ int pkdGravWalkGroups(PKD pkd,double dTime,int nGroup, double dThetaMin,double d
     SMF smf;
 
     initGravWalk(pkd,dTime,dThetaMin,dThetaMax,0,0,&smx,&smf,&dRhoFac);
-
-
     /*
     ** Initially we set our cell pointer to
     ** point to the top tree.
@@ -1201,12 +1000,9 @@ int pkdGravWalkGroups(PKD pkd,double dTime,int nGroup, double dThetaMin,double d
 	for (k=1; k < gd[i].nTreeRoots; k++)
 	{
 	    for (j=0;j<3;++j) fOffset[j] = 0.0f;
-	    cOpen = -1.0f;
 	    id = gd[i].treeRoots[k].iPid;
 	    iRoot = gd[i].treeRoots[k].iLocalRootId;
-	    nc = getCell(pkd,iRoot,id,&cOpen,&c);
-	    cbnd = pkdNodeBnd(pkd,c);
-	    clAppend(pkd->cl,iRoot,id,c->iLower,nc,cOpen,pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c->r,fOffset,cbnd->fCenter,cbnd->fMax);
+	    addChild(pkd,pkd->cl,iRoot,id,fOffset);
         }
 #endif
 	nActive += processCheckList(pkd, smx, smf, gd[i].treeRoots[0].iLocalRootId, 0, 0, MAX_RUNG, dRhoFac, 0, nGroup, dThetaMin, 0, pdFlop, pdPartSum, pdCellSum);

@@ -465,17 +465,10 @@ int pkdParticleEwald(PKD pkd,PARTICLE *p, float *pa, float *pPot) {
     assert(pkd->oAcceleration); /* Validate memory model */
     assert(pkd->oPotential); /* Validate memory model */
 
-    L = pkd->fPeriod[0];
-
-    /*JDP remove these asserts */
-    assert(L==ew->Lbox);
-    assert(ew->r[0] == pkdTopNode(pkd,ROOT)->r[0]);
-    assert(ew->r[1] == pkdTopNode(pkd,ROOT)->r[1]);
-    assert(ew->r[2] == pkdTopNode(pkd,ROOT)->r[2]);
-
-    dx = p->r[0] - pkdTopNode(pkd,ROOT)->r[0];
-    dy = p->r[1] - pkdTopNode(pkd,ROOT)->r[1];
-    dz = p->r[2] - pkdTopNode(pkd,ROOT)->r[2];
+    L = ew->Lbox;
+    dx = p->r[0] - ew->r[0];
+    dy = p->r[1] - ew->r[1];
+    dz = p->r[2] - ew->r[2];
 
     ax = ay = az = 0.0;
     Pot = mom->m*ew->k1;
@@ -655,9 +648,6 @@ void pkdEwaldInit(PKD pkd,int nReps,double fEwCut,double fhCut) {
 
     L = pkd->fPeriod[0];
     ew->Lbox = L;
-    ew->r[0] = pkdTopNode(pkd,ROOT)->r[0];
-    ew->r[1] = pkdTopNode(pkd,ROOT)->r[1];
-    ew->r[2] = pkdTopNode(pkd,ROOT)->r[2];
     /*
     ** Create SIMD versions of the moments.
     */

@@ -603,26 +603,6 @@ void pkdProfile(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
     }
 
 /*
-** Given a position, find the processor on which it would be found.
-*/
-int pkdFindProcessor(const PKD pkd, const FLOAT *R) {
-    int iCell, iLower;
-    BND *bnd;
-
-    iCell = ROOT;
-    bnd = pkdNodeBnd(pkd, pkdTopNode(pkd,iCell));
-    assert ( IN_BND(R,bnd) );
-
-    /* Descend the tree until we find the processor for point R */
-    while( (iLower=pkdTopNode(pkd,iCell)->iLower) ) {
-        bnd = pkdNodeBnd(pkd, pkdTopNode(pkd,++iCell));
-	if ( !IN_BND(R,bnd) ) iCell = iLower;
-	}
-
-    return pkdTopNode(pkd,iCell)->pLower;
-    }
-
-/*
 ** Perform a transformation on all particles.  The source position is taken
 ** from the oSource field (normally r[]) and the result is put into the
 ** oResult field (which can also be r[]).

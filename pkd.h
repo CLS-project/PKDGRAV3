@@ -261,7 +261,8 @@ static inline int IN_BND(const FLOAT *R,const BND *b) {
 
 typedef struct kdNode {
     double r[3];
-    int iLower;
+    uint32_t iLower : 31; /* Local lower node */
+    uint32_t bRemote : 1; /* sibling is remote */
     int iParent;
     int pLower;		/* also serves as thread id for the LTT */
     int pUpper;		/* pUpper < 0 indicates no particles in tree! */
@@ -610,7 +611,6 @@ typedef struct pkdContext {
     uint64_t nGas;
     uint64_t nStar;
     FLOAT fPeriod[3];
-    char *kdTopPRIVATE; /* Because this is a variable size, we use a char pointer, not a KDN pointer! */
     char **kdNodeListPRIVATE; /* BEWARE: also char instead of KDN */
     int iTopRoot;
     int nNodes;
@@ -685,16 +685,7 @@ typedef struct pkdContext {
     /*
     ** Opening angle table for mass weighting.
     */
-#ifdef USE_DEHNEN_THETA
-    float *fCritTheta;
-    float *fCritMass;
-    int nCritBins;
-    float dCritLogDelta;
-    float dCritThetaMin;
-    float dCritThetaMax;
-#else
     float fiCritTheta;
-#endif
     /*
     ** New activation methods
     */
@@ -872,14 +863,19 @@ static inline KDN *pkdTreeNode(PKD pkd,int iNode) {
     char *kdn = &pkd->kdNodeListPRIVATE[(iNode>>pkd->nTreeBitsLo)][pkd->iTreeNodeSize*(iNode&pkd->iTreeMask)];
     return (KDN *)kdn;
     }
-static inline void pkdTreeAllocNodePair(PKD pkd,int *iLeft, int *iRight) {
-    if ( pkd->nNodes+2 > pkd->nMaxNodes ) {
+static inline void pkdTreeAlignNode(PKD pkd) {
+    if (pkd->nNodes&1) ++pkd->nNodes;
+    }
+
+static inline int pkdTreeAllocNode(PKD pkd) {
+    if ( pkd->nNodes+1 > pkd->nMaxNodes ) {
 	pkdExtendTree(pkd);
 	}
-    if (iLeft) *iLeft = pkd->nNodes;
-    ++pkd->nNodes;
-    if (iRight) *iRight = pkd->nNodes;
-    ++pkd->nNodes;
+    return pkd->nNodes++;
+    }
+static inline void pkdTreeAllocNodePair(PKD pkd,int *iLeft, int *iRight) {
+    *iLeft = pkdTreeAllocNode(pkd);
+    *iRight = pkdTreeAllocNode(pkd);
     }
 static inline void pkdTreeAllocRootNode(PKD pkd,int *iRoot) {
     pkdTreeAllocNodePair(pkd,NULL,iRoot);
@@ -887,10 +883,8 @@ static inline void pkdTreeAllocRootNode(PKD pkd,int *iRoot) {
 
 void *pkdTreeNodeGetElement(void *vData,int i,int iDataSize);
 static inline KDN *pkdTopNode(PKD pkd,int iNode) {
-    return (KDN *)&pkd->kdTopPRIVATE[pkd->iTreeNodeSize*iNode];
+    assert(0); // no top tree now
     }
-void pkdAllocateTopTree(PKD pkd,int nCell);
-
 /*
 ** The size of a particle is variable based on the memory model.
 ** The following three routines must be used instead of accessing pStore
@@ -1057,12 +1051,12 @@ typedef struct CacheStatistics {
 ** From tree.c:
 */
 void pkdVATreeBuild(PKD pkd,int nBucket);
-void pkdTreeBuild(PKD pkd,int nBucket,KDN *pkdn1,KDN *pkdn2,int bExcludeVeryActive,int iRung);
+void pkdTreeBuild(PKD pkd,int nBucket,int iRoot,int bExcludeVeryActive,int iRung);
+void pkdDumpTrees(PKD pkd);
 void pkdCombineCells1(PKD,KDN *pkdn,KDN *p1,KDN *p2);
 void pkdCombineCells2(PKD,KDN *pkdn,KDN *p1,KDN *p2);
-void pkdDistribCells(PKD,int,KDN *);
-void pkdCalcRoot(PKD,MOMC *);
-void pkdDistribRoot(PKD,MOMC *);
+void pkdCalcRoot(PKD,double *,MOMC *);
+void pkdDistribRoot(PKD,double *,MOMC *);
 void pkdTreeNumSrcActive(PKD pkd,uint8_t uRungLo,uint8_t uRungHi);
 void pkdBoundWalk(PKD pkd,BND *pbnd,uint8_t uRungLo,uint8_t uRungHi,uint32_t *pnActive,uint32_t *pnContained);
 void pkdTreeBuildByGroup(PKD pkd, int nBucket);
@@ -1249,7 +1243,6 @@ int pkdDeepestPot(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
 void pkdProfile(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
 		const double *dCenter, const double *dRadii, int nBins,
 		const double *com, const double *vcm, const double *L);
-int pkdFindProcessor(const PKD pkd, const FLOAT *R);
 void pkdCalcDistance(PKD pkd, double *dCenter);
 uint_fast32_t pkdCountDistance(PKD pkd, double r2i, double r2o );
 void pkdCalcCOM(PKD pkd, double *dCenter, double dRadius,

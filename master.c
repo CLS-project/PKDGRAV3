@@ -2215,11 +2215,12 @@ void msrDomainDecomp(MSR msr,int iRung,int bOthers,int bSplitVA) {
 void _BuildTree(MSR msr,int bExcludeVeryActive,int bNeedEwald,int iRung) {
     struct inBuildTree in;
     struct ioCalcRoot root;
+    struct ioDistribRoot droot;
     PST pst0;
     LCL *plcl;
     PKD pkd;
     KDN *pkdn;
-    int iDum,nCell;
+    int iDum;
     double sec,dsec;
 
     pst0 = msr->pst;
@@ -2230,14 +2231,13 @@ void _BuildTree(MSR msr,int bExcludeVeryActive,int bNeedEwald,int iRung) {
 
     msrprintf(msr,"Building local trees...\n\n");
 
+    /* First we need to dump existing trees and set the number of used nodes to the default */
+    pstDumpTrees(msr->pst,NULL,0,NULL,NULL);
+
+    pkdn = stack_alloc(pkdNodeSize(pkd));
     in.nBucket = msr->param.nBucket;
-    nCell = 1<<(1+(int)ceil(log((double)msr->nThreads)/log(2.0)));
-    pkdn = malloc(nCell*pkdNodeSize(pkd));
-    assert(pkdn != NULL);
     in.iCell = ROOT;
-//    in.iCell[1] = nCell + ROOT; /* Used only for HSKDK */
-    if (iRung>=0) nCell *= 2;   /* Two trees for HSDKD */
-    in.nCell = nCell;
+    in.iRoot = ROOT;
     in.bExcludeVeryActive = bExcludeVeryActive;
     in.iRung = iRung;
     sec = msrTime();
@@ -2245,8 +2245,6 @@ void _BuildTree(MSR msr,int bExcludeVeryActive,int bNeedEwald,int iRung) {
     dsec = msrTime() - sec;
     msrprintf(msr,"Tree built, Wallclock: %f secs\n\n",dsec);
 
-    pstDistribCells(msr->pst,pkdn,nCell*pkdNodeSize(pkd),NULL,NULL);
-    free(pkdn);
     if (!bExcludeVeryActive && bNeedEwald) {
 	/*
 	** For simplicity we will skip calculating the Root for all particles
@@ -2254,9 +2252,14 @@ void _BuildTree(MSR msr,int bExcludeVeryActive,int bNeedEwald,int iRung) {
 	** could add to the mass and because it probably is not important to
 	** update the root so frequently.
 	*/
-	pstCalcRoot(msr->pst,NULL,0,&root,&iDum);
-	pstDistribRoot(msr->pst,&root,sizeof(struct ioCalcRoot),NULL,NULL);
+	pstCalcRoot(msr->pst,pkdn->r,3*sizeof(double),&root,&iDum);
+	droot.momc = root.momc;
+	droot.r[0] = pkdn->r[0];
+	droot.r[1] = pkdn->r[1];
+	droot.r[2] = pkdn->r[2];
+	pstDistribRoot(msr->pst,&droot,sizeof(struct ioDistribRoot),NULL,NULL);
 	}
+    stack_free(pkdn);
     }
 
 void msrBuildTree(MSR msr,double dTime,int bNeedEwald) {
@@ -5377,21 +5380,6 @@ void msrProfile( MSR msr, const PROFILEBIN **ppBins, int *pnBins,
     if ( pnBins ) *pnBins = nBins+1;
     }
 
-void msrPeakVc(MSR msr,int N,struct inPeakVc *in) {
-    LCL *plcl;
-    PST pst0;
-    int i;
-
-    pst0 = msr->pst;
-    while (pst0->nLeaves > 1)
-	pst0 = pst0->pstLower;
-    plcl = pst0->plcl;
-
-    for(i=0; i<N; i++) {
-	in[i].iProcessor = pkdFindProcessor(plcl->pkd, in[i].dCenter);
-	}
-    }
-
 void msrInitGrid(MSR msr,int x,int y,int z) {
     struct inInitGrid in;
     in.n1 = x;
@@ -5480,7 +5468,6 @@ void _BuildPsdTree(MSR msr) {
     dsec = msrTime() - sec;
     msrprintf(msr,"Tree built, Wallclock: %f secs\n",dsec);
 
-    pstDistribCells(msr->pst,pkdn,nCell*pkdNodeSize(pkd),NULL,NULL);
     free(pkdn);
     }
 

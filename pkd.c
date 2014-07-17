@@ -255,12 +255,6 @@ void pkdExtendTree(PKD pkd) {
     pkd->nMaxNodes = (1<<pkd->nTreeBitsLo) * pkd->nTreeTiles;
     }
 
-void pkdAllocateTopTree(PKD pkd,int nCell) {
-    if (pkd->kdTopPRIVATE != NULL) free(pkd->kdTopPRIVATE);
-    pkd->kdTopPRIVATE = malloc(nCell*pkd->iTreeNodeSize);
-    assert(pkd->kdTopPRIVATE != NULL);
-    }
-
 void pkdInitialize(
     PKD *ppkd,MDL mdl,int nStore,int nBucket,int nGroup,int nTreeBitsLo, int nTreeBitsHi,
     int iCacheSize,int iWorkQueueSize,int iCUDAQueueSize,FLOAT *fPeriod,uint64_t nDark,uint64_t nGas,uint64_t nStar,
@@ -515,7 +509,6 @@ void pkdInitialize(
     pkd->pLite = malloc((nStore+1)*sizeof(PLITE));
     mdlassert(mdl,pkd->pLite != NULL);
     pkd->nNodes = 0;
-    pkd->kdTopPRIVATE = NULL;
     /*
     ** Ewald stuff!
     */
@@ -563,13 +556,6 @@ void pkdInitialize(
     pkd->hopNumRoots = NULL;
     pkd->hopRootIndex = NULL;
     pkd->hopRoots = NULL;
-
-#ifdef USE_DEHNEN_THETA
-    pkd->fCritTheta = NULL;
-    pkd->fCritMass = NULL;
-    pkd->nCritBins = 0;
-    pkd->dCritThetaMin = 0.0;
-#endif
 
 #ifdef COOLING
     pkd->Cool = CoolInit();
@@ -630,7 +616,6 @@ void pkdFinish(PKD pkd) {
 	clFinish(pkd->S[ism].cl);
 	}
     free(pkd->S);
-    if (pkd->kdTopPRIVATE) free(pkd->kdTopPRIVATE);
     if (pkd->ew.nMaxEwhLoop) {
 	SIMD_free(pkd->ewt.hx.f);
 	SIMD_free(pkd->ewt.hy.f);

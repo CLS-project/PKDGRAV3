@@ -93,7 +93,7 @@ enum pst_service {
     PST_WRITEASCII,
     PST_WRITE,
     PST_BUILDTREE,
-    PST_DISTRIBCELLS,
+    PST_DUMPTREES,
     PST_CALCROOT,
     PST_DISTRIBROOT,
     PST_ENFORCEPERIODIC,
@@ -206,7 +206,6 @@ enum pst_service {
     PST_CALCDISTANCE,
     PST_CALCCOM,
     PST_COUNTDISTANCE,
-    PST_PEAKVC,
     PST_INITGRID,
     PST_GRIDPROJECT,
 #ifdef MDL_FFTW
@@ -326,7 +325,7 @@ struct inRungOrder {
     int     iRung;
     };
 struct outRungOrder {
-    int64_t nMoved;
+    total_t nMoved;
     BND     bnd;
     };
 void pstRungOrder(PST,void *,int,void *,int *);
@@ -477,14 +476,14 @@ void pstWrite(PST,void *,int,void *,int *);
 struct inBuildTree {
     int nBucket;
     int iCell;
-    int nCell;
+    int iRoot;
     int bExcludeVeryActive;
     int iRung;
     };
 void pstBuildTree(PST,void *,int,void *,int *);
 
-/* PST_DISTRIBCELLS */
-void pstDistribCells(PST,void *,int,void *,int *);
+/* PST_DUMPTREES */
+void pstDumpTrees(PST,void *,int,void *,int *);
 
 /* PST_CALCROOT */
 struct ioCalcRoot {
@@ -493,6 +492,10 @@ struct ioCalcRoot {
 void pstCalcRoot(PST,void *,int,void *,int *);
 
 /* PST_DISTRIBROOT */
+struct ioDistribRoot {
+    double r[3];
+    MOMC momc;
+    };
 void pstDistribRoot(PST,void *,int,void *,int *);
 
 /* PST_ENFORCEPERIODIC */
@@ -1240,18 +1243,6 @@ struct outCountDistance {
     uint64_t nCount;
     };
 void pstCountDistance(PST pst,void *vin,int nIn,void *vout,int *pnOut);
-
-/* PST_PEAKVC */
-#define PST_MAX_PEAKVC 1000000
-struct inPeakVc {
-    double dCenter[3];
-    int iGroup;
-    short iProcessor;
-    };
-struct outPeakVc {
-    double dPeakVc;
-    };
-void pstPeakVc(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 
 /* PST_INITGRID */
 struct inInitGrid {

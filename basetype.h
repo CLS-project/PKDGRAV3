@@ -1,8 +1,16 @@
-#ifndef WORK_HINCLUDED
-#define WORK_HINCLUDED
+#ifndef BASETYPE_H
+#define BASETYPE_H
 #include <stdint.h>
 #include "ilp.h"
 #include "ilc.h"
+
+#ifdef HAVE_ALLOCA
+#define stack_alloc(s) alloca(s)
+#define stack_free(p) do {} while(0)
+#else
+#define stack_alloc(s) malloc(s)
+#define stack_free(p) free(p)
+#endif
 
 #define IORDERBITS 41
 #define IORDERMAX ((((uint64_t) 1)<<IORDERBITS)-1)

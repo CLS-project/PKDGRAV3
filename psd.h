@@ -65,6 +65,6 @@ void psdMergeNoisyGroups(PKD pkd, PSX psx);
 void psdAssignGlobalIds(PKD pkd, int offs, int count);
 void psdUpdateGroupProperties(PKD pkd);
 void psdSetGlobalId(PKD pkd);
-
+int psdJoinGroupBridges(PKD pkd, PSX psx);
 #endif
 

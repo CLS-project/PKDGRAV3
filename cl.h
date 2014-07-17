@@ -40,8 +40,10 @@ typedef union {
 typedef struct {
     clInt32 iOpen;
     clInt32 iCell;
-    clInt32 id;
+    clInt32 idLower;
     clInt32 iLower;
+    clInt32 idUpper;
+    clInt32 iUpper;
     clInt32 nc;
     clFloat cOpen;
     clFloat m;
@@ -79,7 +81,8 @@ typedef struct clContext {
 void clInitialize(CL *cl,LSTFREELIST *clFreeList);
 void clFinish(CL cl);
 
-static inline void clAppendAll(CL cl,int iCell, int id,int iLower,int nc,
+static inline void clAppendAll(
+    CL cl,int iCell, int idLower,int iLower,int idUpper,int iUpper,int nc,
     float cOpen,float m,float fourh2,float x, float y, float z,
     float xOffset,float yOffset,float zOffset,float xCenter,float yCenter,float zCenter,
     float xMax,float yMax,float zMax,int iOpen) {
@@ -88,8 +91,10 @@ static inline void clAppendAll(CL cl,int iCell, int id,int iLower,int nc,
     uint_fast32_t prt = tile->lstTile.nInLast;
     tile->blk[blk].iOpen.i[prt] = iOpen;
     tile->blk[blk].iCell.i[prt] = (iCell);
-    tile->blk[blk].id.i[prt] = (id);
+    tile->blk[blk].idLower.i[prt] = (idLower);
     tile->blk[blk].iLower.i[prt] = (iLower);
+    tile->blk[blk].idUpper.i[prt] = (idUpper);
+    tile->blk[blk].iUpper.i[prt] = (iUpper);
     tile->blk[blk].nc.i[prt] = (nc);
     tile->blk[blk].cOpen.f[prt] = (cOpen);
     tile->blk[blk].m.f[prt] = (m);
@@ -109,13 +114,14 @@ static inline void clAppendAll(CL cl,int iCell, int id,int iLower,int nc,
     ++tile->lstTile.nInLast;
     }
 
-#define clAppend(cl,iCell,id,iLower,nc,cOpen,m,fourh2,r,fOffset,fCenter,fMax)\
-    clAppendAll(cl,iCell,id,iLower,nc,cOpen,m,fourh2,r[0],r[1],r[2],\
+#define clAppend(cl,iCell,idLower,iLower,idUpper,iUpper,nc,cOpen,m,fourh2,r,fOffset,fCenter,fMax) \
+    clAppendAll(cl,iCell,idLower,iLower,idUpper,iUpper,nc,cOpen,m,fourh2,r[0],r[1],r[2], \
     fOffset[0],fOffset[1],fOffset[2],fCenter[0],fCenter[1],fCenter[2],\
     fMax[0],fMax[1],fMax[2],0)
 
 static inline void clAppendItem(CL cl, CL_BLK *B, int Bi) {
-    clAppendAll(cl,B->iCell.i[Bi],B->id.i[Bi],B->iLower.i[Bi], B->nc.i[Bi], B->cOpen.f[Bi], B->m.f[Bi], B->fourh2.f[Bi],
+    clAppendAll(cl,B->iCell.i[Bi],B->idLower.i[Bi],B->iLower.i[Bi],B->idUpper.i[Bi],B->iUpper.i[Bi],
+        B->nc.i[Bi], B->cOpen.f[Bi], B->m.f[Bi], B->fourh2.f[Bi],
 	B->x.f[Bi], B->y.f[Bi], B->z.f[Bi],B->xOffset.f[Bi],B->yOffset.f[Bi],B->zOffset.f[Bi],
 	B->xCenter.f[Bi],B->yCenter.f[Bi],B->zCenter.f[Bi],B->xMax.f[Bi],B->yMax.f[Bi],B->zMax.f[Bi],B->iOpen.i[Bi]);
     }

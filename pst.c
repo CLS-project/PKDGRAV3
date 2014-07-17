@@ -31,8 +31,14 @@
 #include "grafic.h"
 #endif
 #include "psdtree.h"
+#include "unbind.h"
 
 /*
+** Order:
+**  nLocal  - depends on all local particles, regardless of rung
+**  nActive - depends only on active particles
+**  1       - constant time
+**
 ** Input:
 **  Bcast   - The same data is sent to all processors
 **  Scatter - A unique value is sent to each processor
@@ -43,105 +49,104 @@
 **  Gather  - A unique value is received from all processors
 **
 **
-**  Service               Input   Output |
-**  -------               -----   ------ |
-**  SetAdd                yes     -      | fan out
-**  ReadTipsy             yes     -      |
-**  ReadHDF5              yes     -      |
-**  DomainDecomp          yes     -      |
-**  CalcBound             -       Reduce | Custom reduce: BND_COMBINE
-**  CombineBound          -       Reduce | Custom reduce: BND_COMBINE
-**  Weight                Bcast   Reduce | Sum several fields
-**  CountVA               Bcast   Reduce | Sum two fields
-**  WeightWrap            Bcast   Reduce | Sum two fields
-**  OrdWeight             Bcast   Reduce | Sum two fields
-**  FreeStore             -       Reduce | Sum a field
-**  ColRejects            -       Gather |
-**  SwapRejects           Scatter Gather |
-**  ColOrdRejects         Yes     Gather |
-**  DomainOrder           Yes     -      |
-**  LocalOrder            -       -      | Bcast
-**  WriteTipsy            Yes     -      |
-**  BuildTree             Yes     Many   | Multiple cells
-**  DistribCells          Many    -      | Multiple cells
-**  CalcRoot              -       Yes    |
-**  DistribRoot           Bcast   -      |
-**  EnforcePeriodic       Bcast   -      |
-**  TreeNumSrcActive      Bcast   -      |
-**  BoundsWalk            Many    Many   | Bcast Many, Reduce Many
-**  Smooth                Yes     -      |
-**  FastGasPhase1         Yes     -      |
-**  FastGasPhase2         Yes     -      |
-**  FastGasCleanup        Yes     -      |
-**  Gravity               Yes     Gather |
-**  CalcEandL             -       Reduce |
-**  Drift                 Bcast   -      |
-**  CacheBarrier          -       -      |
-**  StepVeryActiveKDK     Yes     Yes    |
-**  Copy0                 Yes     -      |
-**  Predictor             Yes     -      |
-**  Corrector             Yes     -      |
-**  SunCorrector          Yes     -      |
-**  PredictorInactive     Yes     -      |
-**  AarsethStep           Yes     -      |
-**  FirstDt               -       -      |
-**  ROParticleCache       -       -      |
-**  ParticleCacheFinish   -       -      |
-**  Kick                  Yes     Yes    |
-**  SetSoft               Yes     -      |
-**  PhysicalSoft          Yes     -      |
-**  SetTotal              -       Yes    |
-**  SetWriteStart         Yes     -      |
-**  OneNodeReadInit       Yes     Gather |
-**  SwapAll               Yes     -      |
-**  ActiveOrder           -       Yes    |
-**  InitStep              Yes     -      |
-**  SetRung               Yes     -      |
-**  ZeroNewRung           Yes     -      |
-**  ActiveRung            Yes     -      |
-**  CurrRung              Yes     Yes    |
-**  DensityStep           Yes     -      |
-**  CoolSetup             Yes     -      |
-**  Cooling               Yes     Yes    |
-**  CorrectEnergy         Yes     -      |
-**  AccelStep             Yes     -      |
-**  SphStep               Yes     -      |
-**  SetRungVeryActive     Yes     -      |
-**  ReSmooth              Yes     -      |
-**  UpdateRung            Yes     Yes    |
-**  ColNParts             -       Gather |
-**  NewOrder              Scatter -      |
-**  GetNParts             -       Gather |
-**  SetNParts             Yes     -      |
-**  ClearTimer            Yes     -      |
-**  Fof                   Yes     -      |
-**  GroupMerge            Yes     Yes    |
-**  GroupProfiles         Yes     Yes    |
-**  InitRelaxation        -       -      |
-**  FindIOS               Yes     Yes    |
-**  StartIO               Yes     -      |
-**  ReadSS                Yes     -      |
-**  WriteSS               Yes     -      |
-**  SunIndirect           Yes     Yes    |
-**  GravSun               Yes     -      |
-**  HandSunMass           Yes     -      |
-**  NextCollision         -       Yes    |
-**  GetColliderInfo       Yes     Yes    |
-**  DoCollision           Yes     Yes    |
-**  GetVariableVeryActive -       Yes    |
-**  CheckHelioDist        -       Yes    |
-**  StepVeryActiveSymba   Yes     Yes    |
-**  DrminToRung           Yes     Yes    |
-**  MomSun                -       Yes    |
-**  DriftSun              Yes     -      |
-**  KeplerDrift           Yes     -      |
-**  GenerateIC            Yes     Yes    |
-**  Hostname              -       Gather |
-**  MemStatus             -       Gather |
+**  Service               Order   Input   Output |
+**  -------               -----   -----   ------ |
+**  SetAdd                        yes     -      | fan out
+**  ReadTipsy                     yes     -      |
+**  ReadHDF5                      yes     -      |
+**  DomainDecomp                  yes     -      |
+**  CalcBound                     -       Reduce | Custom reduce: BND_COMBINE
+**  CombineBound                  -       Reduce | Custom reduce: BND_COMBINE
+**  Weight                        Bcast   Reduce | Sum several fields
+**  CountVA                       Bcast   Reduce | Sum two fields
+**  WeightWrap                    Bcast   Reduce | Sum two fields
+**  OrdWeight                     Bcast   Reduce | Sum two fields
+**  FreeStore                     -       Reduce | Sum a field
+**  ColRejects                    -       Gather |
+**  SwapRejects                   Scatter Gather |
+**  ColOrdRejects                 Yes     Gather |
+**  DomainOrder                   Yes     -      |
+**  LocalOrder                    -       -      | Bcast
+**  WriteTipsy                    Yes     -      |
+**  BuildTree                     Yes     Many   | Multiple cells
+**  CalcRoot              nLocal  -       Yes    |
+**  DistribRoot           1       Bcast   -      |
+**  EnforcePeriodic               Bcast   -      |
+**  TreeNumSrcActive              Bcast   -      |
+**  BoundsWalk                    Many    Many   | Bcast Many, Reduce Many
+**  Smooth                        Yes     -      |
+**  FastGasPhase1                 Yes     -      |
+**  FastGasPhase2                 Yes     -      |
+**  FastGasCleanup                Yes     -      |
+**  Gravity                       Yes     Gather |
+**  CalcEandL                     -       Reduce |
+**  Drift                         Bcast   -      |
+**  CacheBarrier                  -       -      |
+**  StepVeryActiveKDK             Yes     Yes    |
+**  Copy0                         Yes     -      |
+**  Predictor                     Yes     -      |
+**  Corrector                     Yes     -      |
+**  SunCorrector                  Yes     -      |
+**  PredictorInactive             Yes     -      |
+**  AarsethStep                   Yes     -      |
+**  FirstDt                       -       -      |
+**  ROParticleCache               -       -      |
+**  ParticleCacheFinish           -       -      |
+**  Kick                          Yes     Yes    |
+**  SetSoft                       Yes     -      |
+**  PhysicalSoft                  Yes     -      |
+**  SetTotal                      -       Yes    |
+**  SetWriteStart                 Yes     -      |
+**  OneNodeReadInit               Yes     Gather |
+**  SwapAll                       Yes     -      |
+**  ActiveOrder                   -       Yes    |
+**  InitStep                      Yes     -      |
+**  SetRung                       Yes     -      |
+**  ZeroNewRung                   Yes     -      |
+**  ActiveRung                    Yes     -      |
+**  CurrRung                      Yes     Yes    |
+**  DensityStep                   Yes     -      |
+**  CoolSetup                     Yes     -      |
+**  Cooling                       Yes     Yes    |
+**  CorrectEnergy                 Yes     -      |
+**  AccelStep                     Yes     -      |
+**  SphStep                       Yes     -      |
+**  SetRungVeryActive             Yes     -      |
+**  ReSmooth                      Yes     -      |
+**  UpdateRung                    Yes     Yes    |
+**  ColNParts                     -       Gather |
+**  NewOrder                      Scatter -      |
+**  GetNParts                     -       Gather |
+**  SetNParts                     Yes     -      |
+**  ClearTimer                    Yes     -      |
+**  Fof                           Yes     -      |
+**  GroupMerge                    Yes     Yes    |
+**  GroupProfiles                 Yes     Yes    |
+**  InitRelaxation                -       -      |
+**  FindIOS                       Yes     Yes    |
+**  StartIO                       Yes     -      |
+**  ReadSS                        Yes     -      |
+**  WriteSS                       Yes     -      |
+**  SunIndirect                   Yes     Yes    |
+**  GravSun                       Yes     -      |
+**  HandSunMass                   Yes     -      |
+**  NextCollision                 -       Yes    |
+**  GetColliderInfo               Yes     Yes    |
+**  DoCollision                   Yes     Yes    |
+**  GetVariableVeryActive         -       Yes    |
+**  CheckHelioDist                -       Yes    |
+**  StepVeryActiveSymba           Yes     Yes    |
+**  DrminToRung                   Yes     Yes    |
+**  MomSun                        -       Yes    |
+**  DriftSun                      Yes     -      |
+**  KeplerDrift                   Yes     -      |
+**  GenerateIC                    Yes     Yes    |
+**  Hostname                      -       Gather |
+**  MemStatus                     -       Gather |
 */
 
 void pstAddServices(PST pst,MDL mdl) {
-    int nThreads,nCell;
+    int nThreads;
 
     nThreads = mdlThreads(mdl);
 
@@ -233,19 +238,18 @@ void pstAddServices(PST pst,MDL mdl) {
     ** Calculate the number of levels in the top tree and use it to
     ** define the size of the messages.
     */
-    nCell = 1<<(1+(int)ceil(log((double)nThreads)/log(2.0)));
     mdlAddService(mdl,PST_BUILDTREE,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstBuildTree,
-		  sizeof(struct inBuildTree),nCell*2*pkdMaxNodeSize());
-    mdlAddService(mdl,PST_DISTRIBCELLS,pst,
-		  (void (*)(void *,void *,int,void *,int *)) pstDistribCells,
-		  nCell*pkdMaxNodeSize(),0);
+		  sizeof(struct inBuildTree),2*pkdMaxNodeSize());
+    mdlAddService(mdl,PST_DUMPTREES,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstDumpTrees,
+		  0,0);
     mdlAddService(mdl,PST_CALCROOT,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstCalcRoot,
-		  0,sizeof(struct ioCalcRoot));
+	          3*sizeof(double),sizeof(struct ioCalcRoot));
     mdlAddService(mdl,PST_DISTRIBROOT,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstDistribRoot,
-		  sizeof(struct ioCalcRoot),0);
+		  sizeof(struct ioDistribRoot),0);
     mdlAddService(mdl,PST_ENFORCEPERIODIC,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstEnforcePeriodic,
 		  sizeof(BND),0);
@@ -519,9 +523,6 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_COUNTDISTANCE,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstCountDistance,
 		  sizeof(struct inCountDistance), sizeof(struct outCountDistance));
-    mdlAddService(mdl,PST_PEAKVC,pst,
-		  (void (*)(void *,void *,int,void *,int *)) pstPeakVc,
-		  PST_MAX_PEAKVC*sizeof(struct inPeakVc), PST_MAX_PEAKVC*sizeof(struct outPeakVc));
     mdlAddService(mdl,PST_INITGRID,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstInitGrid,
 		  sizeof(struct inInitGrid), 0);
@@ -539,7 +540,7 @@ void pstAddServices(PST pst,MDL mdl) {
 
     mdlAddService(mdl,PST_BUILDPSDTREE,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstBuildPsdTree,
-		  sizeof(struct inPSD),nCell*pkdMaxNodeSize());
+		  sizeof(struct inPSD),pkdMaxNodeSize());
     mdlAddService(mdl,PST_PSD,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstPSD,
 		  sizeof(struct inPSD), 0);
@@ -1426,10 +1427,6 @@ void _pstRootSplit(PST pst,int iSplitDim,int bDoRootFind,int bDoSplitDimFind,
 		      mdlThreads(pst->mdl)*sizeof(int));
 	pstSwapRejects(pst->pstLower,pidSwap,
 		       mdlThreads(pst->mdl)*sizeof(int),pLowerRej,&nOut);
-	if (nOut/sizeof(OREJ) != pst->nLower) {
-	    printf("%d: nOut=%d ==> %d vs nLower=%d nUpper=%d (idUpper=%d)\n", mdlSelf(pst->mdl),
-		nOut, nOut/sizeof(OREJ), pst->nLower, pst->nUpper, pst->idUpper);
-	    }
 	mdlassert(pst->mdl,nOut/sizeof(OREJ) == pst->nLower);
 	mdlGetReply(pst->mdl,rID,pUpperRej,&nOut);
 	mdlassert(pst->mdl,nOut/sizeof(OREJ) == pst->nUpper);
@@ -2256,7 +2253,7 @@ void _pstOrdSplit(PST pst,uint64_t iMaxOrder) {
 
 void pstDomainOrder(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     struct inDomainOrder *in = vin;
-    int rID;
+    int rID=0;
 
     mdlassert(pst->mdl,nIn == sizeof(struct inDomainOrder));
     if (pst->nLeaves > 1) {
@@ -2264,12 +2261,9 @@ void pstDomainOrder(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	/*
 	** Now go on to Domain Order of next levels.
 	*/
-	if (pst->nUpper > 1)
-	    rID = mdlReqService(pst->mdl,pst->idUpper,PST_DOMAINORDER,in,nIn);
-	if (pst->nLower > 1)
-	    pstDomainOrder(pst->pstLower,in,nIn,NULL,NULL);
-	if (pst->nUpper > 1)
-	    mdlGetReply(pst->mdl,rID,NULL,NULL);
+	if (pst->nUpper > 1) rID = mdlReqService(pst->mdl,pst->idUpper,PST_DOMAINORDER,in,nIn);
+	if (pst->nLower > 1) pstDomainOrder(pst->pstLower,in,nIn,NULL,NULL);
+	if (pst->nUpper > 1) mdlGetReply(pst->mdl,rID,NULL,NULL);
 	}
     if (pnOut) *pnOut = 0;
     }
@@ -2506,102 +2500,97 @@ void pstSetSoft(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     if (pnOut) *pnOut = 0;
     }
 
+void pstDumpTrees(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl = pst->plcl;
+    PKD pkd = plcl->pkd;
+    mdlassert(pst->mdl,nIn == 0);
+
+    if (pst->nLeaves > 1) {
+	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_DUMPTREES,vin,nIn);
+	pstDumpTrees(pst->pstLower,vin,nIn,vout,pnOut);
+	mdlGetReply(pst->mdl,rID,vout,pnOut);
+	}
+    else {
+	pkdDumpTrees(pkd);
+	}
+    if (pnOut) *pnOut = 0;
+    }
+
 void pstBuildTree(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     PKD pkd = plcl->pkd;
     struct inBuildTree *in = vin;
     KDN *pkdn = vout;
-    KDN *ptmp, *pCell1, *pCell2;
+    KDN *pCell1, *pCell2, *pCell;
     FLOAT minside;
-    int i,iCell,iLower,iNext,nCell;
+    int iCell,iLower;
 
     mdlassert(pst->mdl,nIn == sizeof(struct inBuildTree));
-    nCell = in->iRung>=0 ? in->nCell*2 : in->nCell;
-    iCell = in->iCell;
-    pCell1 = pkdNode(pkd,pkdn,iCell);
-    pCell2 = in->iRung<0 ? NULL : pkdNode(pkd,pkdn,in->nCell+iCell);
-    if (pst->nLeaves > 1) {
-	in->iCell = UPPER(iCell);
-	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_BUILDTREE,in,nIn);
-	in->iCell = LOWER(iCell);
-	pstBuildTree(pst->pstLower,in,nIn,vout,pnOut);
-	in->iCell = iCell;
 
-	ptmp = malloc(nCell*pkdNodeSize(pkd));
-	mdlassert(pst->mdl,ptmp != NULL);
-	mdlGetReply(pst->mdl,rID,ptmp,pnOut);
-	for (i=0;i<nCell;++i) {
-	    KDN *pSrc = pkdNode(pkd,ptmp,i);
-	    if (pSrc->pUpper) {
-		pkdCopyNode(pkd,pkdNode(pkd,pkdn,i),pSrc);
-		}
-	    }
-	free(ptmp);
+    /* We kick this off with in->iCell == ROOT (or whatever root).
+    ** pkd->nCells has already been properly set via pstDumpTrees()
+    ** If we have two trees, then they are at in->iCell and in->iCell+1
+    */
+    iCell = in->iCell;
+    pCell = pkdTreeNode(pkd,iCell);
+
+    if (pst->nLeaves > 1) {
+	pCell1 = stack_alloc(2*pkdNodeSize(plcl->pkd));
+	pCell2 = stack_alloc(2*pkdNodeSize(plcl->pkd));
+	/* The right of the tree starts in a new domain */
+	in->iCell = in->iRoot; /* For example, ROOT */
+	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_BUILDTREE,in,nIn);
+
+	/* We descend down the left -- we will get back its combined cell */
+	in->iCell = iLower = pkdTreeAllocNode(pkd);
+	pstBuildTree(pst->pstLower,in,nIn,pCell1,pnOut);
+	mdlGetReply(pst->mdl,rID,pCell2,pnOut);
+
 	/*
-	** Combine to find cell CoM, bounds and multipoles.
+	** Combine Cell1 and Cell2 into pCell
+	** to find cell CoM, bounds and multipoles.
 	** This also computes the opening radius for gravity.
 	*/
-	iLower = LOWER(iCell);
-	iNext = UPPER(iCell);
-	pCell1->bMax = HUGE_VAL;  /* initialize bMax for CombineCells */
+	pCell->bMax = HUGE_VAL;  /* initialize bMax for CombineCells */
 	MINSIDE(pst->bnd.fMax,minside);
-	pkdCombineCells1(pkd,pCell1,pkdNode(pkd,pkdn,iLower),pkdNode(pkd,pkdn,iNext));
-	CALCOPEN(pCell1,minside);
-	pkdCombineCells2(pkd,pCell1,pkdNode(pkd,pkdn,iLower),pkdNode(pkd,pkdn,iNext));
+	pkdCombineCells1(pkd,pCell,pCell1,pCell2);
+	CALCOPEN(pCell,minside);
+	pkdCombineCells2(pkd,pCell,pCell1,pCell2);
+	stack_free(pCell1);
+	stack_free(pCell2);
+
 	/*
 	** Set all the pointers and flags.
 	*/
-	pCell1->iLower = iLower;
-	pCell1->iParent = 0;
-	pCell1->pLower = -1;
-	pCell1->pUpper = 1;
-	pkdNode(pkd,pkdn,iLower)->iParent = iCell;
-	pkdNode(pkd,pkdn,iNext)->iParent = iCell;
+	pCell->bRemote = 1;                          /* Lower sibling is remote */
+	pCell->iLower = iLower;                      /* Lower cell */
+	pCell->iParent = 0;                          /* We have no parent (yet) */
+	pCell->pLower = in->iRoot;                   /* Remote root node */
+	pCell->pUpper = pst->idUpper;                /* Remote processor */
+	pkdTreeNode(pkd,iLower)->iParent = iCell;    /* Update lower node points to us */
 	}
     else {
-	for (i=0;i<nCell;++i) pkdNode(pkd,pkdn,i)->pUpper = 0; /* used flag = unused */
-
-	pkdTreeBuild(plcl->pkd,in->nBucket,pCell1,pCell2,in->bExcludeVeryActive,in->iRung);
-	pCell1->iLower = 0;
-	pCell1->pLower = pst->idSelf;
-	pCell1->pUpper = 1;
-	if (pCell2) {
-	    pCell2->iLower = 0;
-	    pCell2->pLower = pst->idSelf;
-	    pCell2->pUpper = 1;
-	    }
+	pkdTreeAlignNode(pkd);
+	pkdTreeBuild(plcl->pkd,in->nBucket,iCell,in->bExcludeVeryActive,in->iRung);
+	/* This cell will now have bRemote=0. pLower and pUpper are now particle indexes. */
 	}
     /*
     ** Calculated all cell properties, now pass up this cell info.
     */
-    if (pnOut) *pnOut = nCell*pkdNodeSize(plcl->pkd);
+    if (pkdn != NULL) {
+	pkdCopyNode(pkd,pkdn,pCell);
+	if (pnOut) *pnOut = pkdNodeSize(plcl->pkd);
+	}
+    else if (pnOut) *pnOut = 0;
     }
 
-
-void pstDistribCells(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
-    LCL *plcl = pst->plcl;
-    PKD pkd = plcl->pkd;
-    KDN *pkdn = vin;
-    int nCell;
-
-    if (pst->nLeaves > 1) {
-	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_DISTRIBCELLS,vin,nIn);
-	pstDistribCells(pst->pstLower,vin,nIn,NULL,NULL);
-	mdlGetReply(pst->mdl,rID,NULL,NULL);
-	}
-    else {
-	nCell = nIn/pkdNodeSize(pkd);
-	pkdDistribCells(pkd,nCell,pkdn);
-	}
-    if (pnOut) *pnOut = 0;
-    }
 
 void pstCalcRoot(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct ioCalcRoot *out = vout;
     struct ioCalcRoot temp;
 
-    mdlassert(pst->mdl,nIn == 0);
+    mdlassert(pst->mdl,nIn == 3*sizeof(double) );
     if (pst->nLeaves > 1) {
 	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_CALCROOT,vin,nIn);
 	pstCalcRoot(pst->pstLower,vin,nIn,out,NULL);
@@ -2609,23 +2598,24 @@ void pstCalcRoot(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	momAddMomc(&out->momc,&temp.momc);
 	}
     else {
-	pkdCalcRoot(plcl->pkd,&out->momc);
+	double *com = vin;
+	pkdCalcRoot(plcl->pkd,com,&out->momc);
 	}
     if (pnOut) *pnOut = sizeof(struct ioCalcRoot);
     }
 
 void pstDistribRoot(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
-    struct ioCalcRoot *in = vin;
+    struct ioDistribRoot *in = vin;
 
-    mdlassert(pst->mdl,nIn == sizeof(struct ioCalcRoot));
+    mdlassert(pst->mdl,nIn == sizeof(struct ioDistribRoot));
     if (pst->nLeaves > 1) {
 	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_DISTRIBROOT,vin,nIn);
 	pstDistribRoot(pst->pstLower,vin,nIn,NULL,NULL);
 	mdlGetReply(pst->mdl,rID,NULL,NULL);
 	}
     else {
-	pkdDistribRoot(plcl->pkd,&in->momc);
+	pkdDistribRoot(plcl->pkd,in->r,&in->momc);
 	}
     if (pnOut) *pnOut = 0;
     }
@@ -4421,35 +4411,6 @@ void pstCountDistance(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     if (pnOut) *pnOut = sizeof(struct outCountDistance);
     }
 
-void pstPeakVc(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
-    LCL *plcl = pst->plcl;
-    struct inPeakVc *in = vin;
-    struct outPeakVc *out = vin;
-    int N, i, j;
-    int rID;
-
-    N = nIn/sizeof(struct inPeakVc);
-    assert( N*sizeof(struct inPeakVc) == nIn );
-    if (pst->nLeaves > 1) {
-	i = 0;
-	j = N-1;
-	PARTITION(i<j,i<=j,++i,--j,{int t=i; i=j; j=t;},in[i].iProcessor<pst->idUpper,in[j].iProcessor>=pst->idUpper);
-	rID = mdlReqService(pst->mdl,pst->idUpper,PST_PEAKVC,&in[i],(N-i)*sizeof(struct inPeakVc));
-	pstPeakVc(pst->pstLower,vin,i*sizeof(struct inPeakVc),vout,pnOut);
-	mdlGetReply(pst->mdl,rID,&out[i],pnOut);
-	}
-/*
-    else {
-	SMX smx;
-	smInitialize(&smx,plcl->pkd,&in->smf,in->nSmooth,
-		     in->bPeriodic,in->bSymmetric,in->iSmoothType);
-	smReSmooth(smx,&in->smf);
-	smFinish(smx,&in->smf);
-	}
-*/
-    if (pnOut) *pnOut = N*sizeof(struct outPeakVc);
-    }
-
 void pstInitGrid(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct inInitGrid *in = vin;
@@ -4475,7 +4436,7 @@ void pstInitGrid(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 
 void pstGridProject(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
-    struct inGridProject *in = vin;
+    /*struct inGridProject *in = vin;*/
     assert( sizeof(struct inGridProject) == nIn );
     if (pst->nLeaves > 1) {
 	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_GRIDPROJECT,vin,nIn);
@@ -4759,7 +4720,7 @@ void pstPSDJoinGroupBridges(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
         }
     else {
         PKD pkd = pst->plcl->pkd;
-        *done = psdJoinGroupBridges(pkd);
+        *done = psdJoinGroupBridges(pkd,pkd->psx);
         }
     if (pnOut) *pnOut = sizeof(*done);
     }

@@ -19,7 +19,23 @@
 #include <sys/time.h>
 #endif
 
-static void InitializeParticles(PKD pkd,int bExcludeVeryActive,int iRung,BND *pbnd) {
+
+void pkdDumpTrees(PKD pkd) {
+    if (pkd->nNodes > 0) {
+	/*
+	** Close cell caching space and free up nodes.
+	*/
+	mdlFinishCache(pkd->mdl,CID_CELL);
+	}
+
+    /*
+    ** It is only forseen that there are 4 reserved nodes at present 0-NULL, 1-ROOT, 2-UNUSED, 3-VAROOT.
+    ** This routine may eventually selectively remove trees as needed.
+    */
+    pkd->nNodes = NRESERVED_NODES;
+    }
+
+static void InitializeParticles(PKD pkd,int iRoot,int bExcludeVeryActive,int iRung,BND *pbnd) {
     PLITE *pLite = pkd->pLite;
     PLITE t;
     PARTICLE *p;
@@ -36,10 +52,6 @@ static void InitializeParticles(PKD pkd,int bExcludeVeryActive,int iRung,BND *pb
 	pLite[i].i = i;
 	pLite[i].uRung = (bExcludeVeryActive==2?p->bMarked:p->uRung);
 	}
-    /*
-    **It is only forseen that there are 4 reserved nodes at present 0-NULL, 1-ROOT, 2-UNUSED, 3-VAROOT.
-    */
-    pkd->nNodes = NRESERVED_NODES;
     /*
     ** If we want to split out very active particles from the tree
     ** we do it here, collecting them in Node index 0 as a bucket
@@ -117,7 +129,7 @@ static void InitializeParticles(PKD pkd,int bExcludeVeryActive,int iRung,BND *pb
 	/*
 	** Set up the root node: rung > iRung
 	*/
-	pNode = pkdTreeNode(pkd,ROOT);
+	pNode = pkdTreeNode(pkd,iRoot);
 	pNode->iLower = 0;
 	pNode->iParent = 0;
 	pNode->pLower = i;
@@ -222,7 +234,7 @@ static void InitializeParticles(PKD pkd,int bExcludeVeryActive,int iRung,BND *pb
 	/*
 	** Set up the root node.
 	*/
-	pNode = pkdTreeNode(pkd,ROOT);
+	pNode = pkdTreeNode(pkd,iRoot);
 	pNode->iLower = 0;
 	pNode->iParent = 0;
 	pNode->pLower = 0;
@@ -512,6 +524,7 @@ void Create(PKD pkd,int iNode) {
 	    assert(pkd->S != NULL);
 	    for (ism=pkd->nMaxStack;ism<(pkd->nMaxStack+nMaxStackIncrease);++ism) {
 		clInitialize(&pkd->S[ism].cl,&pkd->clFreeList);
+		assert(pkd->S[ism].cl != NULL);
 		}
 	    pkd->nMaxStack += nMaxStackIncrease;
 	    }
@@ -887,22 +900,15 @@ void pkdVATreeBuild(PKD pkd,int nBucket) {
     }
 
 
-void pkdTreeBuild(PKD pkd,int nBucket,KDN *pkdn1,KDN *pkdn2,int bExcludeVeryActive,int iRung) {
+void pkdTreeBuild(PKD pkd,int nBucket,int iRoot,int bExcludeVeryActive,int iRung) {
     int iStart;
-
-    if (pkd->nNodes > 0) {
-	/*
-	** Close cell caching space and free up nodes.
-	*/
-	mdlFinishCache(pkd->mdl,CID_CELL);
-	}
 
     pkdClearTimer(pkd,0);
     pkdStartTimer(pkd,0);
 
-    InitializeParticles(pkd,bExcludeVeryActive,iRung,&pkd->bnd);
+    InitializeParticles(pkd,iRoot,bExcludeVeryActive,iRung,&pkd->bnd);
 
-    BuildTemp(pkd,ROOT,nBucket);
+    BuildTemp(pkd,iRoot,nBucket);
     if (iRung>=0) BuildTemp(pkd,VAROOT,nBucket);
     if (bExcludeVeryActive) {
 	pkd->nNonVANodes = pkd->nNodes;
@@ -912,7 +918,7 @@ void pkdTreeBuild(PKD pkd,int nBucket,KDN *pkdn1,KDN *pkdn2,int bExcludeVeryActi
 	}
     iStart = 0;
     ShuffleParticles(pkd,iStart);
-    Create(pkd,ROOT);
+    Create(pkd,iRoot);
     if (iRung>=0) Create(pkd,VAROOT);
 
     pkdStopTimer(pkd,0);
@@ -924,8 +930,8 @@ void pkdTreeBuild(PKD pkd,int nBucket,KDN *pkdn1,KDN *pkdn2,int bExcludeVeryActi
     /*
     ** Copy the root node for the top-tree construction.
     */
-    pkdCopyNode(pkd,pkdn1,pkdTreeNode(pkd,ROOT));
-    if (pkdn2!=NULL) pkdCopyNode(pkd,pkdn2,pkdTreeNode(pkd,VAROOT));
+//    pkdCopyNode(pkd,pkdn,pkdTreeNode(pkd,ROOT));
+//    if (pkdn2!=NULL) pkdCopyNode(pkd,pkdn2,pkdTreeNode(pkd,VAROOT));
     }
 
 void pkdTreeBuildByGroup(PKD pkd, int nBucket) {
@@ -1068,31 +1074,15 @@ void pkdTreeBuildByGroup(PKD pkd, int nBucket) {
 
     }
 
-void pkdDistribCells(PKD pkd,int nCell,KDN *pkdn) {
-    KDN *pSrc, *pDst;
-    int i;
-
-    pkdAllocateTopTree(pkd,nCell);
-    for (i=1;i<nCell;++i) {
-	pSrc = pkdNode(pkd,pkdn,i);
-	if (pSrc->pUpper) {
-	    pDst = pkdTopNode(pkd,i);
-	    pkdCopyNode(pkd,pDst,pSrc);
-	    if (pDst->pLower == pkd->idSelf) pkd->iTopRoot = i;
-	    }
-	}
-    }
-
-
 /*
 ** Hopefully we can bypass this step once we figure out how to do the
 ** Multipole Ewald with reduced multipoles.
 */
-void pkdCalcRoot(PKD pkd,MOMC *pmom) {
+void pkdCalcRoot(PKD pkd,double *com,MOMC *pmom) {
     PARTICLE *p;
-    FLOAT xr = pkdTopNode(pkd,ROOT)->r[0];
-    FLOAT yr = pkdTopNode(pkd,ROOT)->r[1];
-    FLOAT zr = pkdTopNode(pkd,ROOT)->r[2];
+    FLOAT xr = com[0];
+    FLOAT yr = com[1];
+    FLOAT zr = com[2];
     FLOAT x,y,z;
     FLOAT fMass;
     MOMC mc;
@@ -1116,7 +1106,10 @@ void pkdCalcRoot(PKD pkd,MOMC *pmom) {
     }
 
 
-void pkdDistribRoot(PKD pkd,MOMC *pmom) {
+void pkdDistribRoot(PKD pkd,double *r,MOMC *pmom) {
+    pkd->ew.r[0] = r[0];
+    pkd->ew.r[1] = r[1];
+    pkd->ew.r[2] = r[2];
     pkd->ew.mom = *pmom;
     }
 

@@ -618,38 +618,6 @@ ppy_msr_ReSmooth(PyObject *self, PyObject *args, PyObject *kwobj) {
 
 
 static PyObject *
-ppy_msr_PeakVc(PyObject *self, PyObject *args, PyObject *kwobj) {
-    static char *kwlist[]={"Centers",NULL};
-    PyObject *list, *item;
-    int N, i;
-    struct inPeakVc *in;
-
-    ppy2prm();
-    if ( !PyArg_ParseTupleAndKeywords(
-	     args, kwobj, "O:PeakVc", kwlist,
-	     &list ) )
-	return NULL;
-
-    N = PyList_Size(list);
-    in = malloc(sizeof(struct inPeakVc)*N);
-    assert(in!=NULL);
-
-    for( i=0; i<N; i++ ) {
-	item = PyList_GetItem(list,i);
-	if ( !PyArg_ParseTuple(
-		 item, "ddd:PeakVc",
-		 &in[i].dCenter[0], &in[i].dCenter[1], &in[i].dCenter[2] ) )
-	    return NULL;
-	}
-    msrPeakVc(ppy_msr,N,in);
-
-    free(in);
-
-    Py_INCREF(Py_None);
-    return Py_None;
-}
-
-static PyObject *
 ppy_msr_AdjustTime(PyObject *self, PyObject *args, PyObject *kwobj) {
     static char *kwlist[]={"aNew",NULL};
     int N, i;
@@ -1079,8 +1047,6 @@ static PyMethodDef msr_methods[] = {
      "Grasshopper"},
     {"GroupProfiles", (PyCFunction)ppy_msr_GroupProfiles, METH_VARARGS|METH_KEYWORDS,
      "Group Profiles"},
-    {"PeakVc", (PyCFunction)ppy_msr_PeakVc, METH_VARARGS|METH_KEYWORDS,
-     "Calculate peak circular velocities"},
     {"AdjustTime", (PyCFunction)ppy_msr_AdjustTime, METH_VARARGS|METH_KEYWORDS,
      "Changing starting time for Zel'dovich ICs"},
     {"InitGrid", (PyCFunction)ppy_msr_InitGrid, METH_VARARGS|METH_KEYWORDS,
