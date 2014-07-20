@@ -36,8 +36,6 @@ void psdInitializeParticles(PKD pkd, BND *prbnd, BND *pvbnd) {
     */
     pkd->nNodes = NRESERVED_NODES;
 
-    pkd->nVeryActive = 0;
-
     /*
     ** Set up the root node.
     */

@@ -157,11 +157,11 @@ void * master_ch(MDL mdl) {
 	msrUpdateSoft(msr,dTime);
 	msrBuildTree(msr,dTime,msr->param.bEwald);
 	if (msrDoGravity(msr)) {
-	    msrGravity(msr,0,MAX_RUNG,dTime,msr->param.iStartStep,msr->param.bEwald,msr->param.nGroup,&iSec,&nActive);
+	    msrGravity(msr,0,MAX_RUNG,ROOT,0,dTime,msr->param.iStartStep,msr->param.bEwald,msr->param.nGroup,&iSec,&nActive);
 	    msrMemStatus(msr);
 	    if (msr->param.bGravStep || msr->param.bHSDKD) {
 		msrBuildTree(msr,dTime,msr->param.bEwald);
-		msrGravity(msr,0,MAX_RUNG,dTime,msr->param.iStartStep,msr->param.bEwald,msr->param.nGroup,&iSec,&nActive);
+		msrGravity(msr,0,MAX_RUNG,ROOT,0,dTime,msr->param.iStartStep,msr->param.bEwald,msr->param.nGroup,&iSec,&nActive);
 		msrMemStatus(msr);
 		if (msr->param.bHSDKD) {
 		    msrAccelStep(msr,0,MAX_RUNG,dTime);
@@ -278,11 +278,11 @@ void * master_ch(MDL mdl) {
 		msrBuildTree(msr,dTime,msr->param.bEwald);
 		
 		if (msrDoGravity(msr)) {
-		    msrGravity(msr,0,MAX_RUNG,dTime,msr->param.iStartStep,msr->param.bEwald,msr->param.nGroup,&iSec,&nActive);
+		    msrGravity(msr,0,MAX_RUNG,ROOT,0,dTime,msr->param.iStartStep,msr->param.bEwald,msr->param.nGroup,&iSec,&nActive);
 		    msrMemStatus(msr);
 		    if (msr->param.bGravStep) {
 			msrBuildTree(msr,dTime,msr->param.bEwald);
-			msrGravity(msr,0,MAX_RUNG,dTime,msr->param.iStartStep,msr->param.bEwald,msr->param.nGroup,&iSec,&nActive);
+			msrGravity(msr,0,MAX_RUNG,ROOT,0,dTime,msr->param.iStartStep,msr->param.bEwald,msr->param.nGroup,&iSec,&nActive);
 			msrMemStatus(msr);
 		    }
 		}

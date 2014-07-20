@@ -35,14 +35,20 @@ void pkdDumpTrees(PKD pkd) {
     pkd->nNodes = NRESERVED_NODES;
     }
 
-static void InitializeParticles(PKD pkd,int iRoot,int bExcludeVeryActive,int iRung,BND *pbnd) {
+static void InitializeParticles(PKD pkd,int nTrees,TREESPEC *pSpec,BND *pbnd) {
     PLITE *pLite = pkd->pLite;
+    int iTreeRoot[MAX_RUNG];
+    int iTreeOffset[MAX_RUNG+1];
     PLITE t;
     PARTICLE *p;
     KDN *pNode;
     BND *bnd;
-    int i,j;
+    int i,j,k;
+    int bOnlyMarked;
 
+    /* Special mode: build a tree with only marked particles */
+    bOnlyMarked == (nTrees==1 && pSpec[0].uRungFirst > pSpec[0].uRungLast);
+    int bExcludeVeryActive = 0;
     /*
     ** Initialize the temporary particles.
     */
@@ -50,104 +56,32 @@ static void InitializeParticles(PKD pkd,int iRoot,int bExcludeVeryActive,int iRu
 	p = pkdParticle(pkd,i);
 	for (j=0;j<3;++j) pLite[i].r[j] = p->r[j];
 	pLite[i].i = i;
-	pLite[i].uRung = (bExcludeVeryActive==2?p->bMarked:p->uRung);
+	pLite[i].uRung = (bOnlyMarked ? p->bMarked : p->uRung);
 	}
-    /*
-    ** If we want to split out very active particles from the tree
-    ** we do it here, collecting them in Node index 0 as a bucket
-    ** with possibly many particles.
-    */
-    pkd->nVeryActive = 0;
 
-    /* We want two trees: one for rung == iRung and one for rung > iRung */
-    if (iRung >= 0) {
-	int nActive;
-	/* First get rid of rung < iRung */
-	if (iRung>0) {
-	    i = 0;
-	    j = pkd->nLocal - 1;
-	    while (i <= j) {
-		if ( pLite[i].uRung >= iRung ) ++i;
-		else break;
-		}
-	    while (i <= j) {
-		if ( pLite[j].uRung < iRung ) --j;
-		else break;
-		}
-	    if (i < j) {
-		t = pLite[i];
-		pLite[i] = pLite[j];
-		pLite[j] = t;
-		while (1) {
-		    while ((pLite[++i].uRung >= iRung));
-		    while (pLite[--j].uRung < iRung);
-		    if (i < j) {
-			t = pLite[i];
-			pLite[i] = pLite[j];
-			pLite[j] = t;
-			}
-		    else break;
-		    }
-		}
-	    nActive = i;
-	    }
-	else nActive = pkd->nLocal;
-	/* Useful particles (rung >=iRung) are now [0:j] */
+    /* Figure out which tree each rung belongs to */
+    for (i=0; i<=MAX_RUNG;++i) iTreeRoot[i] = nTrees;
+    if (bOnlyMarked) iTreeRoot[1] = 0; /* Single tree for marked particles only */
+    else for (i=0; i<nTrees;++i) {
+	for( j=pSpec[i].uRungFirst; j<=pSpec[i].uRungLast; ++j)
+	    iTreeRoot[j] = i;
+	}
 
-	/* Partition into: rung==iRung and rung > iRung */
-	i = 0;
-	j = nActive-1;
-	while (i <= j) {
-	    if ( pLite[i].uRung > iRung ) ++i;
-	    else break;
-	    }
-	while (i <= j) {
-	    if ( pLite[j].uRung <= iRung ) --j;
-	    else break;
-	    }
-	if (i < j) {
-	    t = pLite[i];
-	    pLite[i] = pLite[j];
-	    pLite[j] = t;
-	    while (1) {
-		while ((pLite[++i].uRung > iRung));
-		while (pLite[--j].uRung <= iRung);
-		if (i < j) {
-		    t = pLite[i];
-		    pLite[i] = pLite[j];
-		    pLite[j] = t;
-		    }
-		else break;
-		}
-	    }
-	/* [0:i) rung > iRung, [i:nActive) rung == iRung, [nActive,nLocal) rung < iRung */
-//	printf("rung>%d: [0:%d), rung==%d: [%d:%d), rung<%d: [%d:%d)\n",
-//	    iRung,i,iRung,i,nActive,iRung,nActive,pkd->nLocal);
+    /* Count the number of particles in each tree, and find offsets */
+    for (i=0; i<=nTrees;++i) iTreeOffset[i] = 0;
+    for (i=0;i<pkd->nLocal;++i) ++iTreeOffset[iTreeRoot[pLite[i].uRung]];
+    for(i=nTrees;i>0;--i) iTreeOffset[i] = iTreeOffset[i-1];
+    iTreeOffset[0] = 0;
+    for (i=1; i<=nTrees;++i) iTreeOffset[i] += iTreeOffset[i-1];
 
-
-
-	/*
-	** Set up the root node: rung > iRung
-	*/
-	pNode = pkdTreeNode(pkd,iRoot);
+    /* Construct the tree nodes */
+    for (i=0; i<nTrees;++i) {
+	pNode = pkdTreeNode(pkd,pSpec[i].uCell);
+	pNode->bRemote = 0;
 	pNode->iLower = 0;
 	pNode->iParent = 0;
-	pNode->pLower = i;
-	pNode->pUpper = nActive - 1;
-	bnd = pkdNodeBnd(pkd, pNode);
-	for (j=0;j<3;++j) {
-	    bnd->fCenter[j] = pbnd->fCenter[j];
-	    bnd->fMax[j] = pbnd->fMax[j];
-	    }
-
-	/*
-	** Set up the root node: rung == iRung
-	*/
-	pNode = pkdTreeNode(pkd,VAROOT);
-	pNode->iLower = 0;
-	pNode->iParent = 0;
-	pNode->pLower = 0;
-	pNode->pUpper = i-1;
+	pNode->pLower = iTreeOffset[i];
+	pNode->pUpper = iTreeOffset[i+1] - 1;
 	bnd = pkdNodeBnd(pkd, pNode);
 	for (j=0;j<3;++j) {
 	    bnd->fCenter[j] = pbnd->fCenter[j];
@@ -155,95 +89,14 @@ static void InitializeParticles(PKD pkd,int iRoot,int bExcludeVeryActive,int iRu
 	    }
 	}
 
-    /* We want only marked particles */
-    else {
-	if (bExcludeVeryActive == 2) {
-	    i = 0;
-	    j = pkd->nLocal - 1;
-	    while (i <= j) {
-		if ( pLite[i].uRung ) ++i;
-		else break;
-		}
-	    while (i <= j) {
-		if ( !pLite[j].uRung ) --j;
-		else break;
-		}
-	    if (i < j) {
-		t = pLite[i];
-		pLite[i] = pLite[j];
-		pLite[j] = t;
-		while (1) {
-		    while (pLite[++i].uRung);
-		    while (!pLite[--j].uRung);
-		    if (i < j) {
-			t = pLite[i];
-			pLite[i] = pLite[j];
-			pLite[j] = t;
-			}
-		    else break;
-		    }
-		}
-	    pkd->nVeryActive = pkd->nLocal - i;
-	    }
-	else if (bExcludeVeryActive) {
-	    /*
-	    ** Now start the partitioning of the particles.
-	    */
-	    i = 0;
-	    j = pkd->nLocal - 1;
-	    while (i <= j) {
-		if ( pLite[i].uRung <= pkdRungVeryActive(pkd) ) ++i;
-		else break;
-		}
-	    while (i <= j) {
-		if ( pLite[j].uRung > pkdRungVeryActive(pkd) ) --j;
-		else break;
-		}
-	    if (i < j) {
-		t = pLite[i];
-		pLite[i] = pLite[j];
-		pLite[j] = t;
-		while (1) {
-		    while ((pLite[++i].uRung <= pkdRungVeryActive(pkd)));
-		    while (pLite[--j].uRung > pkdRungVeryActive(pkd));
-		    if (i < j) {
-			t = pLite[i];
-			pLite[i] = pLite[j];
-			pLite[j] = t;
-			}
-		    else break;
-		    }
-		}
-	    pkd->nVeryActive = pkd->nLocal - i;
-
-	    pNode = pkdTreeNode(pkd,VAROOT);
-	    bnd = pkdNodeBnd(pkd, pNode);
-	    if (pkd->nVeryActive > 0)
-		/*
-		** Set up the very active root node.
-		*/
-		pNode->iLower = 0;
-	    pNode->iParent = 0;
-	    pNode->pLower = pkd->nLocal - pkd->nVeryActive;
-	    pNode->pUpper = pkd->nLocal - 1;
-	    for (j=0;j<3;++j) {
-		bnd->fCenter[j] = pbnd->fCenter[j];
-		bnd->fMax[j] = pbnd->fMax[j];
-		}
-	    }
-	/*
-	** Set up the root node.
-	*/
-	pNode = pkdTreeNode(pkd,iRoot);
-	pNode->iLower = 0;
-	pNode->iParent = 0;
-	pNode->pLower = 0;
-	pNode->pUpper = pkd->nLocal - pkd->nVeryActive - 1;
-	bnd = pkdNodeBnd(pkd, pNode);
-	for (j=0;j<3;++j) {
-	    bnd->fCenter[j] = pbnd->fCenter[j];
-	    bnd->fMax[j] = pbnd->fMax[j];
-	    }
+    /* Put the particles in the right place */
+    for (i=0;i<pkd->nLocal;++i) {
+	p = pkdParticle(pkd,i);
+	k = (bOnlyMarked ? p->bMarked : p->uRung);
+	k = iTreeOffset[iTreeRoot[k]]++;
+	for (j=0;j<3;++j) pLite[k].r[j] = p->r[j];
+	pLite[k].i = i;
+	pLite[k].uRung = p->uRung;
 	}
     }
 
@@ -348,11 +201,13 @@ void BuildTemp(PKD pkd,int iNode,int M) {
 	    */
 	    pkdTreeAllocNodePair(pkd,&iLeft,&iRight);
 	    pLeft = pkdTreeNode(pkd,iLeft);
+	    pLeft->bRemote = 0;
 	    pLeft->iParent = iNode;
 	    pLeft->pLower = pNode->pLower;
 	    pLeft->pUpper = i-1;
 	    pRight = pkdTreeNode(pkd,iRight);
 	    assert(iRight & 1);
+	    pRight->bRemote = 0;
 	    pRight->iParent = iNode;
 	    pRight->pLower = i;
 	    pRight->pUpper = pNode->pUpper;
@@ -495,7 +350,8 @@ void ShuffleParticles(PKD pkd,int iStart) {
 static double zeroV[3] = {0.0,0.0,0.0};
 static float  zeroF[3] = {0.0,0.0,0.0};
 
-void Create(PKD pkd,int iNode) {
+void Create(PKD pkd,int iRoot) {
+    int iNode = iRoot;
     PARTICLE *p;
     KDN *pkdn,*pkdl,*pkdu;
     FMOMR mom;
@@ -506,6 +362,18 @@ void Create(PKD pkd,int iNode) {
     double *v;
     int pj,d,nDepth,ism;
     const int nMaxStackIncrease = 1;
+
+    /* If the tree is empty, we just create a sensible moment and we are done. */
+    pkdn = pkdTreeNode(pkd,iNode);
+    if (pkdn->pLower > pkdn->pUpper) {
+	pkdn->bMax = 1.0;
+	pkdn->nActive = 0;
+	pkdn->uMinRung = MAX_RUNG;
+	pkdn->uMaxRung = 0;
+	pkdn->bSrcActive = pkdn->bDstActive = 0;
+	if (pkd->oNodeMom) momClearFmomr(pkdNodeMom(pkd,pkdn));
+	return;
+	}
 
     nDepth = 1;
     while (1) {
@@ -654,6 +522,7 @@ void Create(PKD pkd,int iNode) {
 	if (b==0.0) b = 1.0f; /* FIXME: Single particle. Perhaps momMakeFmomr should be more robust. */
         else if (b < bmin) b = bmin;
 	pkdn->bMax = b;
+	assert(pkdn->bMax>=0);
 	/*
 	** Now calculate the reduced multipole moment.
 	** Note that we use the cell's openening radius as the scaling factor!
@@ -715,7 +584,7 @@ void Create(PKD pkd,int iNode) {
 	** Finished with the bucket, move onto the next one,
 	** or to the parent.
 	*/
-	while (iNode & 1) {
+	while ((iNode & 1) || iNode==iRoot ) {
 	    iNode = pkdTreeNode(pkd,iNode)->iParent;
 	    --nDepth;
 	    if (!iNode) {
@@ -739,6 +608,7 @@ void Create(PKD pkd,int iNode) {
 	    pkdu = pkdTreeNode(pkd,pkdn->iLower + 1);
 	    pkdCombineCells1(pkd,pkdn,pkdl,pkdu);
 	    if (pkdn->pUpper - pj < NMAX_OPENCALC) {
+		assert(pj<=pkdn->pUpper);
 		p = pkdParticle(pkd,pj);
 		x = p->r[0] - pkdn->r[0];
 		y = p->r[1] - pkdn->r[1];
@@ -752,6 +622,7 @@ void Create(PKD pkd,int iNode) {
 		    d2 = x*x + y*y + z*z;
 		    d2Max = (d2 > d2Max)?d2:d2Max;
 		    }
+		assert(d2Max>0);
 		/*
 		** Now determine the opening radius for gravity.
 		*/
@@ -764,6 +635,7 @@ void Create(PKD pkd,int iNode) {
 		pkdn->bMax = sqrt(d2Max);
 		if (pkdn->bMax < bmin) pkdn->bMax = bmin;
 #endif
+		assert(pkdn->bMax >= 0);
 		}
 	    else {
 	      CALCOPEN(pkdn,bmin);  /* set bMax */
@@ -852,7 +724,6 @@ void pkdCombineCells2(PKD pkd,KDN *pkdn,KDN *p1,KDN *p2) {
 	y = p2->r[1] - pkdn->r[1];
 	z = p2->r[2] - pkdn->r[2];
 	momShiftFmomr(&mom,p2->bMax,x,y,z);
-
 	momScaledAddFmomr(pkdNodeMom(pkd,pkdn),pkdn->bMax,&mom,p2->bMax);
 
 	}
@@ -872,54 +743,17 @@ void pkdCombineCells2(PKD pkd,KDN *pkdn,KDN *p1,KDN *p2) {
     }
 }
 
-
-void pkdVATreeBuild(PKD pkd,int nBucket) {
-    PARTICLE *p;
-    int i,j,iStart;
-
-    iStart = pkd->nLocal - pkd->nVeryActive;
-    /*
-    ** First initialize the very active temporary particles.
-    */
-    for (i=iStart;i<pkd->nLocal;++i) {
-	p = pkdParticle(pkd,i);
-	for (j=0;j<3;++j) pkd->pLite[i].r[j] = p->r[j];
-	pkd->pLite[i].i = i;
-	pkd->pLite[i].uRung = p->uRung;
-	}
-    /*
-    ** Then clear the VA tree by setting the node index back to one node past the end
-    ** of the non VA tree.
-    */
-    pkd->nNodes = pkd->nNonVANodes;
-    BuildTemp(pkd,VAROOT,nBucket);
-
-    ShuffleParticles(pkd,iStart);
-
-    Create(pkd,VAROOT);
-    }
-
-
-void pkdTreeBuild(PKD pkd,int nBucket,int iRoot,int bExcludeVeryActive,int iRung) {
+void pkdTreeBuild(PKD pkd,int nBucket,int nTrees, TREESPEC *pSpec) {
     int iStart;
+    int i;
 
     pkdClearTimer(pkd,0);
     pkdStartTimer(pkd,0);
-
-    InitializeParticles(pkd,iRoot,bExcludeVeryActive,iRung,&pkd->bnd);
-
-    BuildTemp(pkd,iRoot,nBucket);
-    if (iRung>=0) BuildTemp(pkd,VAROOT,nBucket);
-    if (bExcludeVeryActive) {
-	pkd->nNonVANodes = pkd->nNodes;
-	}
-    else {
-	pkd->nNodesFull = pkd->nNodes;
-	}
+    InitializeParticles(pkd,nTrees,pSpec,&pkd->bnd);
+    for(i=0; i<nTrees; ++i) BuildTemp(pkd,pSpec[i].uCell,nBucket);
     iStart = 0;
     ShuffleParticles(pkd,iStart);
-    Create(pkd,iRoot);
-    if (iRung>=0) Create(pkd,VAROOT);
+    for(i=0; i<nTrees; ++i) Create(pkd,pSpec[i].uCell);
 
     pkdStopTimer(pkd,0);
     /*
@@ -927,11 +761,6 @@ void pkdTreeBuild(PKD pkd,int nBucket,int iRoot,int bExcludeVeryActive,int iRung
     */
     mdlROcache(pkd->mdl,CID_CELL,pkdTreeNodeGetElement,pkd,
 	pkd->iTreeNodeSize,pkd->nNodes);
-    /*
-    ** Copy the root node for the top-tree construction.
-    */
-//    pkdCopyNode(pkd,pkdn,pkdTreeNode(pkd,ROOT));
-//    if (pkdn2!=NULL) pkdCopyNode(pkd,pkdn2,pkdTreeNode(pkd,VAROOT));
     }
 
 void pkdTreeBuildByGroup(PKD pkd, int nBucket) {
@@ -953,7 +782,6 @@ void pkdTreeBuildByGroup(PKD pkd, int nBucket) {
     ** It is only forseen that there are 4 reserved nodes at present 0-NULL, 1-ROOT, 2-UNUSED, 3-VAROOT.
     */
     pkd->nNodes = NRESERVED_NODES;
-    pkd->nVeryActive = 0;
 
     if (pkd->hopSavedRoots == 0) {
 	/* Sort particle by group, but with group 0 at the end */

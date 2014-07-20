@@ -49,7 +49,6 @@ void ubInitializePLiteParticles(PKD pkd) {
     **It is only forseen that there are 4 reserved nodes at present 0-NULL, 1-ROOT, 2-UNUSED, 3-VAROOT.
     */
     pkd->nNodes = NRESERVED_NODES;
-    pkd->nVeryActive = 0;
     /*
     ** Set up the root node for each group.
     */
@@ -334,7 +333,6 @@ static void ubGravity(PKD pkd)
     double dCellSum = 0.0;
     double dTime = 1;
     double dThetaMin = 0.8;
-    double dThetaMax = 1.0;
     int nGroup = 64;
 
     int i;
@@ -346,7 +344,7 @@ static void ubGravity(PKD pkd)
 
     mdlROcache(pkd->mdl,CID_PARTICLE,NULL,pkdParticleBase(pkd),pkdParticleSize(pkd), pkdLocal(pkd));
     mdlROcache(pkd->mdl,CID_CELL,pkdTreeNodeGetElement,pkd, pkd->iTreeNodeSize,pkd->nNodes);
-    pkdGravWalkGroups(pkd,dTime,nGroup,dThetaMin,dThetaMax,&dFlop,&dPartSum,&dCellSum);
+    pkdGravWalkGroups(pkd,dTime,nGroup,dThetaMin,&dFlop,&dPartSum,&dCellSum);
     mdlFinishCache(pkd->mdl,CID_PARTICLE);
     mdlFinishCache(pkd->mdl,CID_CELL);
 }

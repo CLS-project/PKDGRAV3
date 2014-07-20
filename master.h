@@ -35,7 +35,6 @@ typedef struct msrContext {
     uint64_t nMaxOrder;		/* Order number of last particle */
     int iCurrMaxRung;
     double dThetaMin;
-    double dThetaMax;
     /*
     ** Comoving coordinate variables.
     */
@@ -97,8 +96,8 @@ void msrFastGasPhase1(MSR,double,int);
 void msrFastGasPhase2(MSR,double,int);
 void msrReSmooth(MSR,double,int,int);
 void msrUpdateSoft(MSR,double);
-void msrGravity(MSR msr,uint8_t uRungLo, uint8_t uRungHi, double dTime,
-    double dStep,int bEwald,int nGroup,int *piSec,uint64_t *pnActive);
+void msrGravity(MSR msr,uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
+    double dTime,double dStep,int bEwald,int nGroup,int *piSec,uint64_t *pnActive);
 void msrCalcEandL(MSR msr,int bFirst,double dTime,double *E,double *T,double *U,double *Eth,double *L,double *F,double *W);
 void msrDrift(MSR,double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi);
 void msrScaleVel(MSR msr,double dvFac);

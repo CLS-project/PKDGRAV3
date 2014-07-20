@@ -139,7 +139,6 @@ struct parameters {
     double dEwhCut;
     double dTheta;
     double dTheta2;
-    double dThetaMax;
     double daSwitchTheta;
     double dPeriod;
     double dxPeriod;

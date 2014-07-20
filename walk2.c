@@ -295,11 +295,6 @@ static void addChild(PKD pkd, CL cl, int iChild, int id, float *fOffset) {
     clAppend(cl,iChild,idLower,iLower,idUpper,iUpper,nc,cOpen,
 	pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c->r,fOffset,cbnd->fCenter,cbnd->fMax);
     }
-
-
-
-
-
 /*
 ** Returns total number of active particles for which gravity was calculated.
 */
@@ -453,7 +448,6 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
 		    iOpenOutcomeCL(pkd,k,pkd->cl,cltile,dThetaMin,nGroup);
 #endif
 		    }
-
 		clClear(pkd->clNew);
 		CL_LOOP(pkd->cl,cltile) {
 		    CL_BLK *blk = cltile->blk;
@@ -689,8 +683,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
 		** Test whether the sibling is active as well.
 		** If not we don't push it onto the stack, but we
 		** have to be careful to not pop the stack when we
-		** hit the sibling. See the goto InactiveAscend below
-		** for how this is done.
+		** hit the sibling.
 		*/
 		if (c->nActive) {
 		    /*
@@ -766,20 +759,21 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
 	    *pdCellSum += nActive*ilcCount(pkd->ilc);
 	    nTotActive += nActive;
 	    }
-
-	while (iCell & 1) {
-	InactiveAscend:
-	    k = pkdTreeNode(pkd,iCell = k->iParent);
-	    if (iCell == iRoot) {
-		/*
-		** Make sure stack is empty.
-		*/
+	/* Find the next cell to process */
+	while(1) {
+	    if (iCell == iRoot) { /* Done if we reach the local root */
+		/* Make sure stack is empty. */
 		assert(iStack == -1);
 		goto doneCheckList;
 		}
+	    else if (iCell & 1) { /* If we are on the sibling, then ascend */
+		k = pkdTreeNode(pkd,iCell = k->iParent);
+		}
+	    else { /* Otherwise go to the sibling of this cell */
+		k = pkdTreeNode(pkd,++iCell);
+		if (k->nActive) break; /* but only if active particles */
+		}
 	    }
-	k = pkdTreeNode(pkd,++iCell);
-	if (!k->nActive) goto InactiveAscend;
 	/*
 	** Pop the Checklist from the top of the stack,
 	** also getting the state of the interaction list.
@@ -812,7 +806,7 @@ doneCheckList:
     return(nTotActive);
     }
 
-static void initGravWalk(PKD pkd,double dTime,double dThetaMin,double dThetaMax,int bPeriodic,int bGravStep,
+static void initGravWalk(PKD pkd,double dTime,double dThetaMin,int bPeriodic,int bGravStep,
     SMX *smx, SMF *smf, double *dRhoFac) {
     int pi;
 
@@ -855,7 +849,7 @@ static void initGravWalk(PKD pkd,double dTime,double dThetaMin,double dThetaMax,
 /*
 ** Returns total number of active particles for which gravity was calculated.
 */
-int pkdGravWalkHop(PKD pkd,double dTime,int nGroup, double dThetaMin,double dThetaMax,double *pdFlop,double *pdPartSum,double *pdCellSum) {
+int pkdGravWalkHop(PKD pkd,double dTime,int nGroup, double dThetaMin,double *pdFlop,double *pdPartSum,double *pdCellSum) {
     KDN *c;
     int id,iRoot,iRootSelf;
     float fOffset[3];
@@ -869,7 +863,7 @@ int pkdGravWalkHop(PKD pkd,double dTime,int nGroup, double dThetaMin,double dThe
     SMF smf;
 
     mdlROcache(pkd->mdl,CID_PARTICLE,NULL,pkdParticleBase(pkd),pkdParticleSize(pkd), pkdLocal(pkd));
-    initGravWalk(pkd,dTime,dThetaMin,dThetaMax,0,0,&smx,&smf,&dRhoFac);
+    initGravWalk(pkd,dTime,dThetaMin,0,0,&smx,&smf,&dRhoFac);
     nActive = 0;
     for(gid=1; gid<pkd->nGroups; ++gid) {
 	if (!pkd->hopGroups[gid].bNeedGrav) continue;
@@ -897,8 +891,9 @@ int pkdGravWalkHop(PKD pkd,double dTime,int nGroup, double dThetaMin,double dThe
 /*
 ** Returns total number of active particles for which gravity was calculated.
 */
-int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,int bEwald,int nGroup, int iRoot, int iVARoot,
-		double dThetaMin,double dThetaMax,double *pdFlop,double *pdPartSum,double *pdCellSum) {
+int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,int bEwald,int nGroup,
+    int iRoot1, int iRoot2,int iVARoot,
+    double dThetaMin,double *pdFlop,double *pdPartSum,double *pdCellSum) {
     KDN *c;
     int id,iLower;
     int iLocalRoot;
@@ -907,70 +902,91 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
     float cOpen;
     const BND *cbnd;
     int nc;
+    int nActive = 0;
     double dRhoFac;
     SMX smx;
     SMF smf;
 
-    initGravWalk(pkd,dTime,dThetaMin,dThetaMax,nReps?1:0,pkd->param.bGravStep,&smx,&smf,&dRhoFac);
-
-    /* Skip to our local tree */
-    c = pkdTreeNode(pkd,iLocalRoot=iRoot);
-    while(c->bRemote) {
-	c = pkdTreeNode(pkd,iLocalRoot = c->iLower);
-	}
-    /*
-    ** If we are doing the very active gravity then check that there is a very active tree!
-    ** Otherwise we check that the iRoot has active particles!
-    */
-    if (iVARoot) {
-	assert(pkd->nVeryActive != 0);
-	assert(pkd->nVeryActive == pkdTreeNode(pkd,iVARoot)->pUpper - pkdTreeNode(pkd,iVARoot)->pLower + 1);
-	}
-    else if (!pkdIsCellActive(pkdTreeNode(pkd,iLocalRoot),uRungLo,uRungHi)) return 0;
-    /*
-    ** Initially we set our cell pointer to
-    ** point to the top tree.
-    */
-    ilpClear(pkd->ilp);
-    ilcClear(pkd->ilc);
-    clClear(pkd->cl);
+    initGravWalk(pkd,dTime,dThetaMin,nReps?1:0,pkd->param.bGravStep,&smx,&smf,&dRhoFac);
 
     /*
-    ** Add all replicas of the entire box to the Checklist.
-    ** We add at least one box (0,0,0). The root cell is alway on processor 0.
+    ** Walk tree 1 against trees 1 (and optionally 2).
+    ** Go to the local tree of iRoot1. This is the tree we will walk. We walk against
+    ** the tree at iRoot1, and optionally the tree at iRoot2.
     */
-    for (ix=-nReps;ix<=nReps;++ix) {
-	fOffset[0] = ix*pkd->fPeriod[0];
-	for (iy=-nReps;iy<=nReps;++iy) {
-	    fOffset[1] = iy*pkd->fPeriod[1];
-	    for (iz=-nReps;iz<=nReps;++iz) {
-		fOffset[2] = iz*pkd->fPeriod[2];
-		bRep = ix || iy || iz;
-		/* 
-		** Use leaf of the top tree and NOT the root of the local tree here.
-		*/
-		id = 0;
-//???		if (!iLower) iLower = iRoot;  /* something other than zero for openening crit - iLower usually can't be == iRoot */
-		addChild(pkd,pkd->cl,iRoot,id,fOffset);
-		if (bRep && iVARoot) {
-		    assert(0);
-		    /*
-		    ** Add the images of the very active tree to the checklist.
+    c = pkdTreeNode(pkd,iLocalRoot=iRoot1);
+    while(c->bRemote) c = pkdTreeNode(pkd,iLocalRoot = c->iLower);
+    /* Check that the iRoot has active particles! */
+    if (pkdIsCellActive(c,uRungLo,uRungHi)) {
+	/*
+	** Initially we set our cell pointer to
+	** point to the top tree.
+	*/
+	ilpClear(pkd->ilp);
+	ilcClear(pkd->ilc);
+	clClear(pkd->cl);
+
+	/*
+	** Add all replicas of the entire box to the Checklist.
+	** We add at least one box (0,0,0). The root cell is alway on processor 0.
+	*/
+	for (ix=-nReps;ix<=nReps;++ix) {
+	    fOffset[0] = ix*pkd->fPeriod[0];
+	    for (iy=-nReps;iy<=nReps;++iy) {
+		fOffset[1] = iy*pkd->fPeriod[1];
+		for (iz=-nReps;iz<=nReps;++iz) {
+		    fOffset[2] = iz*pkd->fPeriod[2];
+		    bRep = ix || iy || iz;
+		    /* 
+		    ** Use leaf of the top tree and NOT the root of the local tree here.
 		    */
-//		    id = mdlSelf(pkd->mdl);
-//		    iLower = pkdTopXXXNode(pkd,iVARoot)->iLower;
-//		    addChild(pkd,pkd->cl,iVARoot,id,fOffset);
+		    id = 0;
+		    addChild(pkd,pkd->cl,iRoot1,id,fOffset);
+		    if (iRoot2>0) addChild(pkd,pkd->cl,iRoot2,id,fOffset);
 		    }
 		}
 	    }
+	nActive += processCheckList(pkd, smx, smf, iLocalRoot, iVARoot, uRungLo, uRungHi, dRhoFac, bEwald, nGroup, dThetaMin, pkd->param.bGravStep, pdFlop, pdPartSum, pdCellSum);
 	}
-    return processCheckList(pkd, smx, smf, iLocalRoot, iVARoot, uRungLo, uRungHi, dRhoFac, bEwald, nGroup, dThetaMin, pkd->param.bGravStep, pdFlop, pdPartSum, pdCellSum);
+    /*
+    ** Walk tree 2 against tree 1.
+    */
+    if (iRoot2>0) {
+	c = pkdTreeNode(pkd,iLocalRoot=iRoot2);
+	while(c->bRemote) c = pkdTreeNode(pkd,iLocalRoot = c->iLower);
+	/* Check that the iRoot has active particles! */
+	if (!pkdIsCellActive(pkdTreeNode(pkd,iLocalRoot),uRungLo,uRungHi)) return 0;
+	ilpClear(pkd->ilp);
+	ilcClear(pkd->ilc);
+	clClear(pkd->cl);
+	/*
+	** Add all replicas of the entire box to the Checklist.
+	** We add at least one box (0,0,0). The root cell is alway on processor 0.
+	*/
+	for (ix=-nReps;ix<=nReps;++ix) {
+	    fOffset[0] = ix*pkd->fPeriod[0];
+	    for (iy=-nReps;iy<=nReps;++iy) {
+		fOffset[1] = iy*pkd->fPeriod[1];
+		for (iz=-nReps;iz<=nReps;++iz) {
+		    fOffset[2] = iz*pkd->fPeriod[2];
+		    bRep = ix || iy || iz;
+		    /* 
+		    ** Use leaf of the top tree and NOT the root of the local tree here.
+		    */
+		    id = 0;
+		    addChild(pkd,pkd->cl,iRoot1,id,fOffset);
+		    }
+		}
+	    }
+	nActive += processCheckList(pkd, smx, smf, iLocalRoot, iVARoot, uRungLo, uRungHi, dRhoFac, bEwald, nGroup, dThetaMin, pkd->param.bGravStep, pdFlop, pdPartSum, pdCellSum);
+	}
+    return nActive;
     }
 
 /*
 ** Returns total number of active particles for which gravity was calculated.
 */
-int pkdGravWalkGroups(PKD pkd,double dTime,int nGroup, double dThetaMin,double dThetaMax,double *pdFlop,double *pdPartSum,double *pdCellSum) {
+int pkdGravWalkGroups(PKD pkd,double dTime,int nGroup, double dThetaMin,double *pdFlop,double *pdPartSum,double *pdCellSum) {
     KDN *c;
     int id,iRoot;
     float fOffset[3];
@@ -982,7 +998,7 @@ int pkdGravWalkGroups(PKD pkd,double dTime,int nGroup, double dThetaMin,double d
     SMX smx;
     SMF smf;
 
-    initGravWalk(pkd,dTime,dThetaMin,dThetaMax,0,0,&smx,&smf,&dRhoFac);
+    initGravWalk(pkd,dTime,dThetaMin,0,0,&smx,&smf,&dRhoFac);
     /*
     ** Initially we set our cell pointer to
     ** point to the top tree.

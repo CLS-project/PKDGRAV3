@@ -336,9 +336,6 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
 		"<Barnes opening criterion> = 0.8");
     prmAddParam(msr->prm,"dTheta2",2,&msr->param.dTheta2,sizeof(double),
 		"theta2","<Barnes opening criterion for a >= daSwitchTheta> = 0.8");
-    msr->param.dThetaMax = 1.0;
-    prmAddParam(msr->prm,"dThetaMax",2,&msr->param.dThetaMax,sizeof(double),"thetamax",
-		"<Barnes opening criterion> = 1.0");
     msr->param.daSwitchTheta = 1./3.;
     prmAddParam(msr->prm,"daSwitchTheta",2,&msr->param.daSwitchTheta,sizeof(double),"aSwitchTheta",
 		"<a to switch theta at> = 1./3.");
@@ -1005,14 +1002,9 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     if (!prmSpecified(msr->prm,"dTheta2"))
 	msr->param.dTheta2 = msr->param.dTheta;
     msr->dThetaMin = msr->param.dTheta;
-    msr->dThetaMax = msr->param.dThetaMax;
-    if ( !prmSpecified(msr->prm,"dThetaMax") )
-	msr->dThetaMax = msr->dThetaMin;
     if ( !prmSpecified(msr->prm,"nReplicas") && msr->param.nReplicas==1 ) {
 	if ( msr->dThetaMin < 0.52 ) msr->param.nReplicas = 2;
 	}
-
-    /*msr->dThetaMax = prmSpecified(msr->prm,"dThetaMax") ? msr->param.dThetaMax : msr->dThetaMin;*/
 
     /*
     ** Make sure n2min is greater than nBucket^2!
@@ -1295,7 +1287,7 @@ void msrLogParams(MSR msr,FILE *fp) {
     fprintf(fp," fMinRadius: %g",msr->param.fMinRadius);
     fprintf(fp," bLogBins: %d",msr->param.bLogBins);
     fprintf(fp,"\n# Relaxation estimate: bTraceRelaxation: %d",msr->param.bTraceRelaxation);
-    fprintf(fp," dTheta: %f  dThetaMax: %f",msr->param.dTheta, msr->dThetaMax);
+    fprintf(fp," dTheta: %f",msr->param.dTheta);
     fprintf(fp,"\n# dPeriod: %g",msr->param.dPeriod);
     fprintf(fp," dxPeriod: %g",
 	    msr->param.dxPeriod >= FLOAT_MAXVAL ? 0 : msr->param.dxPeriod);
@@ -2212,10 +2204,13 @@ void msrDomainDecomp(MSR msr,int iRung,int bOthers,int bSplitVA) {
 ** This the meat of the tree build, but will be called by differently named
 ** functions in order to implement special features without recoding...
 */
-void _BuildTree(MSR msr,int bExcludeVeryActive,int bNeedEwald,int iRung) {
-    struct inBuildTree in;
+static void BuildTree(MSR msr,int bNeedEwald,int nTrees,TREESPEC *pSpecIn) {
+    struct inBuildTree *in;
+    TREESPEC *pSpec;
     struct ioCalcRoot root;
     struct ioDistribRoot droot;
+    int inSize;
+    int i;
     PST pst0;
     LCL *plcl;
     PKD pkd;
@@ -2234,18 +2229,22 @@ void _BuildTree(MSR msr,int bExcludeVeryActive,int bNeedEwald,int iRung) {
     /* First we need to dump existing trees and set the number of used nodes to the default */
     pstDumpTrees(msr->pst,NULL,0,NULL,NULL);
 
-    pkdn = stack_alloc(pkdNodeSize(pkd));
-    in.nBucket = msr->param.nBucket;
-    in.iCell = ROOT;
-    in.iRoot = ROOT;
-    in.bExcludeVeryActive = bExcludeVeryActive;
-    in.iRung = iRung;
+    pkdn = stack_alloc(nTrees*pkdNodeSize(pkd));
+    inSize = sizeof(struct inBuildTree) + nTrees * sizeof(TREESPEC);
+    in = stack_alloc(inSize);
+    pSpec = (TREESPEC *)(in + 1);
+    for(i=0; i<nTrees; ++i) {
+	pSpec[i] = pSpecIn[i];
+	pSpec[i].uCell = pSpec[i].uRoot;
+	}
+    in->nBucket = msr->param.nBucket;
+    in->nTrees = nTrees;
     sec = msrTime();
-    pstBuildTree(msr->pst,&in,sizeof(in),pkdn,&iDum);
+    pstBuildTree(msr->pst,in,inSize,pkdn,&iDum);
     dsec = msrTime() - sec;
     msrprintf(msr,"Tree built, Wallclock: %f secs\n\n",dsec);
 
-    if (!bExcludeVeryActive && bNeedEwald) {
+    if (bNeedEwald) {
 	/*
 	** For simplicity we will skip calculating the Root for all particles
 	** with exclude very active since there are missing particles which
@@ -2260,28 +2259,49 @@ void _BuildTree(MSR msr,int bExcludeVeryActive,int bNeedEwald,int iRung) {
 	pstDistribRoot(msr->pst,&droot,sizeof(struct ioDistribRoot),NULL,NULL);
 	}
     stack_free(pkdn);
+    stack_free(in);
     }
 
 void msrBuildTree(MSR msr,double dTime,int bNeedEwald) {
-    const int bExcludeVeryActive = 0;
-    _BuildTree(msr,bExcludeVeryActive,bNeedEwald,-1);
+    TREESPEC spec[1];
+    spec[0].uRoot = ROOT;
+    spec[0].uRungFirst = 0;
+    spec[0].uRungLast = MAX_RUNG;
+    BuildTree(msr,bNeedEwald,1,spec);
     }
 
 void msrBuildTreeByRung(MSR msr,double dTime,int bNeedEwald,int iRung) {
-    const int bExcludeVeryActive = 0;
-    _BuildTree(msr,bExcludeVeryActive,bNeedEwald,iRung);
+    TREESPEC spec[2];
+    int nTrees = 1;
+    spec[0].uRoot = ROOT;
+    spec[0].uRungFirst = iRung;
+    spec[0].uRungLast = iRung;
+    if (msrCurrMaxRung(msr) > iRung) {
+	spec[1].uRoot = ROOT+1;
+	spec[1].uRungFirst = iRung+1;
+	spec[1].uRungLast = MAX_RUNG;
+	++nTrees;
+	}
+    BuildTree(msr,bNeedEwald,nTrees,spec);
     }
 
 void msrBuildTreeExcludeVeryActive(MSR msr,double dTime) {
-    const int bNeedEwald = 0;
-    const int bExcludeVeryActive = 1;
-    _BuildTree(msr,bExcludeVeryActive,bNeedEwald,-1);
+    TREESPEC spec[2];
+    spec[0].uRoot = ROOT;
+    spec[0].uRungFirst = 0;
+    spec[0].uRungLast = msr->iRungVeryActive;
+    spec[1].uRoot = ROOT+1;
+    spec[1].uRungFirst = spec[0].uRungLast+1;
+    spec[1].uRungLast = MAX_RUNG;
+    BuildTree(msr,0,2,spec);
     }
 
 void msrBuildTreeMarked(MSR msr,double dTime) {
-    const int bNeedEwald = 0;
-    const int bExcludeVeryActive = 2;
-    _BuildTree(msr,bExcludeVeryActive,bNeedEwald,-1);
+    TREESPEC spec[1];
+    spec[0].uRoot = ROOT;
+    spec[0].uRungFirst = MAX_RUNG;
+    spec[0].uRungLast = 0;
+    BuildTree(msr,0,1,spec);
     }
 
 void msrReorder(MSR msr) {
@@ -2645,8 +2665,8 @@ void msrMemStatus(MSR msr) {
 	}
     }
 
-void msrGravity(MSR msr,uint8_t uRungLo, uint8_t uRungHi, double dTime,
-    double dStep,int bEwald,int nGroup,int *piSec,uint64_t *pnActive) {
+void msrGravity(MSR msr,uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
+    double dTime, double dStep,int bEwald,int nGroup,int *piSec,uint64_t *pnActive) {
     struct inGravity in;
     struct outGravity *out;
     int i,id,iDum;
@@ -2666,7 +2686,8 @@ void msrGravity(MSR msr,uint8_t uRungLo, uint8_t uRungHi, double dTime,
     in.uRungLo = uRungLo;
     in.uRungHi = uRungHi;
     in.dThetaMin = msr->dThetaMin;
-    in.dThetaMax = msr->dThetaMax;
+    in.iRoot1 = iRoot1;
+    in.iRoot2 = iRoot2;
 
     out = malloc(msr->nThreads*sizeof(struct outGravity));
     assert(out != NULL);
@@ -3164,8 +3185,6 @@ void msrSwitchTheta(MSR msr,double dTime) {
     double a = csmTime2Exp(msr->param.csm,dTime);
     if (a >= msr->param.daSwitchTheta) {
 	msr->dThetaMin = msr->param.dTheta2;
-	if ( !prmSpecified(msr->prm,"dThetaMax") )
-	    msr->dThetaMax = msr->dThetaMin;
 	if ( !prmSpecified(msr->prm,"nReplicas") && msr->param.nReplicas==1 ) {
 	    if ( msr->dThetaMin < 0.52 ) msr->param.nReplicas = 2;
 	    }
@@ -3414,11 +3433,11 @@ void msrKickHSDKD(MSR msr,double dStep, double dTime,double dDelta, int iRung,
     /* JW: Good place to zero uNewRung */
     msrZeroNewRung(msr,iRung,MAX_RUNG,iRung); /* brute force */
     if (msrDoGravity(msr)) {
-	msrActiveRung(msr,iRung,1);
 	msrUpdateSoft(msr,dTime);
 	msrprintf(msr,"%*cForces, iRung: %d to %d\n",2*iRung+2,' ',iRung,iRung);
 	msrBuildTreeByRung(msr,dTime,msr->param.bEwald,iRung);
-//	msrGravityHSDKD(msr,iRung,MAX_RUNG,dTime,dStep,msr->param.bEwald,msr->param.nGroup,piSec,&nActive);
+	msrGravity(msr,iRung,MAX_RUNG,ROOT,msrCurrMaxRung(msr) == iRung ? 0 : ROOT+1,
+	    dTime,dStep,msr->param.bEwald,msr->param.nGroup,piSec,&nActive);
 	*pdActiveSum += (double)nActive/msr->N;
 
 	in.dTime = dTime;
@@ -3444,6 +3463,7 @@ void msrKickHSDKD(MSR msr,double dStep, double dTime,double dDelta, int iRung,
     // Rung+1 down only
     // >Rung+1 up or down
     if (iAdjust && (iRung < msrMaxRung(msr)-1)) {
+//    if (iAdjust) {
 	msrprintf(msr,"%*cAdjust, iRung: %d\n",2*iRung+2,' ',iRung);
 	msrActiveRung(msr, iRung, 1);
 	if (msr->param.bAccelStep) {
@@ -3459,7 +3479,7 @@ void msrKickHSDKD(MSR msr,double dStep, double dTime,double dDelta, int iRung,
 	    msrBuildTree(msr,dTime,0);
 	    msrDensityStep(msr,iRung,MAX_RUNG,dTime);
 	    }
-	msrUpdateRung(msr,iRung);
+//	msrUpdateRung(msr,iRung);
         }
 
     }
@@ -3483,36 +3503,23 @@ void msrTopStepHSDKD(MSR msr,
     msrprintf(msr,"%*cHSDKD open  at iRung: %d 0.5*dDelta: %g\n",
 	      2*iRung+2,' ',iRung,0.5*dDelta);
 
+    msrDrift(msr,dTime,dDelta*0.5,iRung,iRung);
     if ( iRung < msrCurrMaxRung(msr) ) {
-	/*
-	** Recurse.
-	*/
-	msrTopStepHSDKD(msr,dStep,dTime,0.5*dDelta,iRung+1,iRung+1,iRungVeryActive,0,pdActiveSum,piSec);
+	msrTopStepHSDKD(msr,dStep,dTime,0.5*dDelta,iRung+1,iRung+1,iRungVeryActive,1,pdActiveSum,piSec);
 
-	msrDrift(msr,dTime,dDelta*0.5,iRung,iRung);
 	dTime += 0.5*dDelta;
 	dStep += 1.0/(2 << iRung);
 	msrKickHSDKD(msr,dStep,dTime,dDelta,iRung,iAdjust,pdActiveSum,piSec);
-	msrDrift(msr,dTime,dDelta*0.5,iRung,iRung);
 
 	msrTopStepHSDKD(msr,dStep,dTime,0.5*dDelta,iRung+1,iKickRung,iRungVeryActive,1,pdActiveSum,piSec);
 	}
     else /*msrCurrMaxRung(msr) == iRung*/ {
-	msrDrift(msr,dTime,dDelta*0.5,iRung,iRung);
-
+	assert(msrCurrMaxRung(msr) == iRung);
 	dTime += 0.5*dDelta;
 	dStep += 1.0/(2 << iRung);
-
 	msrKickHSDKD(msr,dStep,dTime,dDelta,iRung,iAdjust,pdActiveSum,piSec);
-	msrDrift(msr,dTime,dDelta*0.5,iRung,iRung);
-
-
-	/*
-	 * move time back to 1/2 step so that KickClose can integrate
-	 * from 1/2 through the timestep to the end.
-	 */
-	dTime -= 0.5*dDelta;
 	}
+    msrDrift(msr,dTime,dDelta*0.5,iRung,iRung);
 
     msrprintf(msr,"%*cHSDKD close  at iRung: %d 0.5*dDelta: %g\n",
 	      2*iRung+2,' ',iRung,0.5*dDelta);
@@ -3599,7 +3606,7 @@ void msrTopStepKDK(MSR msr,
 	    msrBuildTree(msr,dTime,msr->param.bEwald);
 	    }
 	if (msrDoGravity(msr)) {
-	    msrGravity(msr,iKickRung,MAX_RUNG,dTime,dStep,msr->param.bEwald,msr->param.nGroup,piSec,&nActive);
+	    msrGravity(msr,iKickRung,MAX_RUNG,ROOT,0,dTime,dStep,msr->param.bEwald,msr->param.nGroup,piSec,&nActive);
 	    *pdActiveSum += (double)nActive/msr->N;
 	    }
 	
@@ -3679,7 +3686,7 @@ void msrTopStepKDK(MSR msr,
 	    msrprintf(msr,"%*cGravity, iRung: %d to %d\n",
 		      2*iRung+2,' ',iKickRung,msrCurrMaxRung(msr));
 	    msrBuildTree(msr,dTime,msr->param.bEwald);
-	    msrGravity(msr,iKickRung,MAX_RUNG,dTime,dStep,msr->param.bEwald,msr->param.nGroup,piSec,&nActive);
+	    msrGravity(msr,iKickRung,MAX_RUNG,ROOT,0,dTime,dStep,msr->param.bEwald,msr->param.nGroup,piSec,&nActive);
 	    *pdActiveSum += (double)nActive/msr->N;
 	    }
 
@@ -4191,7 +4198,6 @@ void msrHop(MSR msr, double dTime) {
     inGravity.uRungLo = 0;
     inGravity.uRungHi = MAX_RUNG;
     inGravity.dThetaMin = msr->dThetaMin;
-    inGravity.dThetaMax = msr->dThetaMax;
 
     inUnbind.iIteration=0;
     do {

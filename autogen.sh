@@ -5,7 +5,7 @@
 # This should be done when Makefile.am or configure.ac change.  Best to do
 # a "make distclean" if already configured before running this script.
 autoheader
-aclocal
+aclocal -Im4
 automake -ac
 autoconf -i
 # ./configure

@@ -108,6 +108,13 @@ static inline int64_t d2u64(double d) {
 #define PKD_MODEL_NODE_BND     (1<<28) /* Include normal bounds in tree */
 #define PKD_MODEL_NODE_VBND    (1<<29) /* Include velocity bounds in tree for phase-space density*/
 
+typedef struct {
+    uint8_t  uRungFirst;
+    uint8_t  uRungLast;
+    uint16_t uRoot;
+    uint32_t uCell;
+    } TREESPEC;
+
 typedef struct pLite {
     FLOAT r[3];
     int i;
@@ -1051,7 +1058,7 @@ typedef struct CacheStatistics {
 ** From tree.c:
 */
 void pkdVATreeBuild(PKD pkd,int nBucket);
-void pkdTreeBuild(PKD pkd,int nBucket,int iRoot,int bExcludeVeryActive,int iRung);
+void pkdTreeBuild(PKD pkd,int nBucket,int nTrees, TREESPEC *pSpec);
 void pkdDumpTrees(PKD pkd);
 void pkdCombineCells1(PKD,KDN *pkdn,KDN *p1,KDN *p2);
 void pkdCombineCells2(PKD,KDN *pkdn,KDN *p1,KDN *p2);
@@ -1132,7 +1139,7 @@ void pkdLocalOrder(PKD);
 uint32_t pkdWriteFIO(PKD pkd,FIO fio,double dvFac);
 void
 pkdGravAll(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,int bPeriodic,
-    int iOrder,int bEwald,int nGroup,double fEwCut,double fEwhCut,double dThetaMin,double dThetaMax,
+    int iOrder,int bEwald,int nGroup,int iRoot1,int iRoot2,double fEwCut,double fEwhCut,double dThetaMin,
     int *nActive,double *pdPartSum, double *pdCellSum,CASTAT *pcs, double *pdFlop);
 void pkdCalcEandL(PKD pkd,double *T,double *U,double *Eth,double *L,double *F,double *W);
 void pkdDrift(PKD pkd,double dDelta,double,double,uint8_t uRungLo,uint8_t uRungHi);

@@ -240,7 +240,7 @@ void pstAddServices(PST pst,MDL mdl) {
     */
     mdlAddService(mdl,PST_BUILDTREE,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstBuildTree,
-		  sizeof(struct inBuildTree),2*pkdMaxNodeSize());
+	sizeof(struct inBuildTree)+MAX_RUNG*sizeof(TREESPEC),2*pkdMaxNodeSize());
     mdlAddService(mdl,PST_DUMPTREES,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstDumpTrees,
 		  0,0);
@@ -1727,12 +1727,6 @@ void pstDomainDecomp(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	/*
 	** We always set plcl->pkd->bnd from pst->bnd.
 	*/
-/*	printf( "%d: Bounds: %.8f,%.8f,%.8f @ %.8f,%.8f,%.8f \n",
-		mdlSelf(pst->mdl),
-		pst->bnd.fMax[0], pst->bnd.fMax[1], pst->bnd.fMax[2],
-		pst->bnd.fCenter[0], pst->bnd.fCenter[1], pst->bnd.fCenter[2]
-		);*/
-
 	plcl->pkd->bnd = pst->bnd;   /* This resets the local bounding box, but doesn't squeeze! */
         offs= 0.5 / (plcl->pkd->nLocal*1.0 - 1.0);
 	for (j=0; j < 3; j++) {
@@ -2520,29 +2514,38 @@ void pstBuildTree(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     PKD pkd = plcl->pkd;
     struct inBuildTree *in = vin;
+    TREESPEC *pSpec = (TREESPEC *)(in+1);
     KDN *pkdn = vout;
     KDN *pCell1, *pCell2, *pCell;
     FLOAT minside;
+    uint32_t *puCells;
     int iCell,iLower;
+    int i;
 
-    mdlassert(pst->mdl,nIn == sizeof(struct inBuildTree));
-
-    /* We kick this off with in->iCell == ROOT (or whatever root).
-    ** pkd->nCells has already been properly set via pstDumpTrees()
-    ** If we have two trees, then they are at in->iCell and in->iCell+1
-    */
-    iCell = in->iCell;
-    pCell = pkdTreeNode(pkd,iCell);
+    /* We need to save our cells so we can update them later */
+    puCells = stack_alloc( in->nTrees * sizeof(uint32_t));
+    for(i=0; i<in->nTrees; ++i) puCells[i] = pSpec[i].uCell;
 
     if (pst->nLeaves > 1) {
-	pCell1 = stack_alloc(2*pkdNodeSize(plcl->pkd));
-	pCell2 = stack_alloc(2*pkdNodeSize(plcl->pkd));
-	/* The right of the tree starts in a new domain */
-	in->iCell = in->iRoot; /* For example, ROOT */
+	/* Get our cell ready */
+	for(i=0; i<in->nTrees; ++i) {
+	    iCell = pSpec[i].uCell;
+	    pCell = pkdTreeNode(pkd,iCell);
+	    pCell->bRemote = 1;                          /* Lower sibling is remote */
+	    pCell->iLower = pkdTreeAllocNode(pkd);       /* Lower cell */
+	    pCell->iParent = 0;                          /* We have no parent (yet) */
+	    pCell->pLower = pSpec[i].uRoot;              /* Remote root node */
+	    pCell->pUpper = pst->idUpper;                /* Remote processor */
+	    }
+	pCell1 = stack_alloc(in->nTrees*pkdNodeSize(plcl->pkd));
+	pCell2 = stack_alloc(in->nTrees*pkdNodeSize(plcl->pkd));
+
+	/* The right of the trees starts in a new domain */
+	for(i=0; i<in->nTrees; ++i) pSpec[i].uCell = pSpec[i].uRoot;
 	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_BUILDTREE,in,nIn);
 
-	/* We descend down the left -- we will get back its combined cell */
-	in->iCell = iLower = pkdTreeAllocNode(pkd);
+	/* We descend down the left -- we will get back the combined cell */
+	for(i=0; i<in->nTrees; ++i) pSpec[i].uCell = pkdTreeNode(pkd,puCells[i])->iLower;
 	pstBuildTree(pst->pstLower,in,nIn,pCell1,pnOut);
 	mdlGetReply(pst->mdl,rID,pCell2,pnOut);
 
@@ -2551,39 +2554,36 @@ void pstBuildTree(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	** to find cell CoM, bounds and multipoles.
 	** This also computes the opening radius for gravity.
 	*/
-	pCell->bMax = HUGE_VAL;  /* initialize bMax for CombineCells */
-	MINSIDE(pst->bnd.fMax,minside);
-	pkdCombineCells1(pkd,pCell,pCell1,pCell2);
-	CALCOPEN(pCell,minside);
-	pkdCombineCells2(pkd,pCell,pCell1,pCell2);
+	for(i=0; i<in->nTrees; ++i) {
+	    pCell = pkdTreeNode(pkd,puCells[i]);
+	    pCell->bMax = HUGE_VAL;  /* initialize bMax for CombineCells */
+	    MINSIDE(pst->bnd.fMax,minside);
+	    pkdCombineCells1(pkd,pCell,pkdNode(pkd,pCell1,i),pkdNode(pkd,pCell2,i));
+	    CALCOPEN(pCell,minside);
+	    pkdCombineCells2(pkd,pCell,pkdNode(pkd,pCell1,i),pkdNode(pkd,pCell2,i));
+	    pkdTreeNode(pkd,pCell->iLower)->iParent = puCells[i];
+//	    printf("%d: %d -> %d\n",mdlSelf(pst->mdl),pCell->iLower, puCells[i]);
+	    }
 	stack_free(pCell1);
 	stack_free(pCell2);
-
-	/*
-	** Set all the pointers and flags.
-	*/
-	pCell->bRemote = 1;                          /* Lower sibling is remote */
-	pCell->iLower = iLower;                      /* Lower cell */
-	pCell->iParent = 0;                          /* We have no parent (yet) */
-	pCell->pLower = in->iRoot;                   /* Remote root node */
-	pCell->pUpper = pst->idUpper;                /* Remote processor */
-	pkdTreeNode(pkd,iLower)->iParent = iCell;    /* Update lower node points to us */
 	}
     else {
 	pkdTreeAlignNode(pkd);
-	pkdTreeBuild(plcl->pkd,in->nBucket,iCell,in->bExcludeVeryActive,in->iRung);
+	pkdTreeBuild(plcl->pkd,in->nBucket,in->nTrees,pSpec);
 	/* This cell will now have bRemote=0. pLower and pUpper are now particle indexes. */
 	}
     /*
     ** Calculated all cell properties, now pass up this cell info.
     */
     if (pkdn != NULL) {
-	pkdCopyNode(pkd,pkdn,pCell);
-	if (pnOut) *pnOut = pkdNodeSize(plcl->pkd);
+	for(i=0; i<in->nTrees; ++i) {
+	    pkdCopyNode(pkd,pkdNode(pkd,pkdn,i),pkdTreeNode(pkd,puCells[i]));
+	    }
+	if (pnOut) *pnOut = in->nTrees * pkdNodeSize(plcl->pkd);
 	}
     else if (pnOut) *pnOut = 0;
+    stack_free(puCells);
     }
-
 
 void pstCalcRoot(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
@@ -2800,7 +2800,7 @@ void pstHopGravity(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     else {
 	LCL *plcl = pst->plcl;
 	double dFlop=0, dPartSum=0, dCellSum=0;
-	pkdGravWalkHop(plcl->pkd,in->dTime,in->nGroup,in->dThetaMin,in->dThetaMax,&dFlop,&dPartSum,&dCellSum);
+	pkdGravWalkHop(plcl->pkd,in->dTime,in->nGroup,in->dThetaMin,&dFlop,&dPartSum,&dCellSum);
         }
     if (pnOut) *pnOut = 0;
     }
@@ -2978,7 +2978,7 @@ void pstGravity(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	for (id=0;id<nThreads;++id) out[id].dWalkTime = -1.0;  /* impossible, used as initialization */
 	id = pst->idSelf;
 	pkdGravAll(plcl->pkd,in->uRungLo,in->uRungHi,in->dTime,in->nReps,in->bPeriodic,
-	    4,in->bEwald,in->nGroup,in->dEwCut,in->dEwhCut, in->dThetaMin, in->dThetaMax,&out[id].nActive,
+	    4,in->bEwald,in->nGroup,in->iRoot1,in->iRoot2,in->dEwCut,in->dEwhCut, in->dThetaMin,&out[id].nActive,
 	    &out[id].dPartSum,&out[id].dCellSum,&out[id].cs,&out[id].dFlop);
 	out[id].nLocal = plcl->pkd->nLocal;
 	out[id].dWalkTime = pkdGetWallClockTimer(plcl->pkd,1);
@@ -3084,7 +3084,7 @@ void pstStepVeryActiveKDK(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	    }
 	}
     else {
-	assert(plcl->pkd->nVeryActive > 0);
+//	assert(plcl->pkd->nVeryActive > 0);
 
 	out->nMaxRung = in->nMaxRung;
 	pkdStepVeryActiveKDK(plcl->pkd,in->uRungLo,in->uRungHi,in->dStep,in->dTime,in->dDelta,

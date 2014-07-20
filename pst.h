@@ -475,11 +475,8 @@ void pstWrite(PST,void *,int,void *,int *);
 /* PST_BUILDTREE */
 struct inBuildTree {
     int nBucket;
-    int iCell;
-    int iRoot;
-    int bExcludeVeryActive;
-    int iRung;
-    };
+    int nTrees;
+    }; /* followed by an array of TREESPEC */
 void pstBuildTree(PST,void *,int,void *,int *);
 
 /* PST_DUMPTREES */
@@ -559,7 +556,6 @@ struct inHopGravity {
     double dEwCut;
     double dEwhCut;
     double dThetaMin;
-    double dThetaMax;
     int bPeriodic;
     int nGroup;
     uint8_t uRungLo;
@@ -616,11 +612,12 @@ struct inGravity {
     double dEwCut;
     double dEwhCut;
     double dThetaMin;
-    double dThetaMax;
     int nReps;
     int bPeriodic;
     int bEwald;
     int nGroup;
+    int iRoot1;
+    int iRoot2;
     uint8_t uRungLo;
     uint8_t uRungHi;
     };

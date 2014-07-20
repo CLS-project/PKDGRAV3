@@ -769,7 +769,6 @@ static void cell_accumulate(PKD pkd, MDLFFT fft,int nGrid, int x,int y,int z, fl
     id = mdlFFTrId(fft,x,y,z);
     idx = mdlFFTrIdx(fft,x,y,z);
 
-    //if (id == pkd->idSelf) {
     p = mdlAquire(pkd->mdl,CID_PK,idx,id);
     *p += m;
     mdlRelease(pkd->mdl,CID_PK,p);
@@ -953,7 +952,7 @@ void pkdMeasurePk(PKD pkd, double dCenter[3], double dRadius,
 
 
     mdlFFT(pkd->mdl,fft,fftData,0);
-    // Remember, the grid is now transposed to x,z,y (from x,y,z)
+    /* Remember, the grid is now transposed to x,z,y (from x,y,z) */
 
     /*rms = grid_rms(pkd->mdl,fft->grid->nlocal, fftData);
       if (pkd->idSelf==0)	printf( "RMS after FFT: %g\n",rms);*/

@@ -2577,7 +2577,8 @@ void pkdPhysicalSoft(PKD pkd,double dSoftMax,double dFac,int bSoftMaxMul) {
 
 void
 pkdGravAll(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,int bPeriodic,
-    int iOrder,int bEwald,int nGroup,double fEwCut,double fEwhCut,double dThetaMin,double dThetaMax,
+    int iOrder,int bEwald,int nGroup,int iRoot1, int iRoot2,
+    double fEwCut,double fEwhCut,double dThetaMin,
     int *nActive,double *pdPartSum, double *pdCellSum,CASTAT *pcs, double *pdFlop) {
 
     pkdClearTimer(pkd,1);
@@ -2603,7 +2604,7 @@ pkdGravAll(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,int bP
     *pdPartSum = 0.0;
     *pdCellSum = 0.0;
     pkdStartTimer(pkd,1);
-    *nActive = pkdGravWalk(pkd,uRungLo,uRungHi,dTime,nReps,bPeriodic && bEwald,nGroup,ROOT,0,dThetaMin,dThetaMax,pdFlop,pdPartSum,pdCellSum);
+    *nActive = pkdGravWalk(pkd,uRungLo,uRungHi,dTime,nReps,bPeriodic && bEwald,nGroup,iRoot1,iRoot2,0,dThetaMin,pdFlop,pdPartSum,pdCellSum);
     pkdStopTimer(pkd,1);
 
     /*
@@ -2756,7 +2757,7 @@ void pkdGravityVeryActive(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,i
     dFlop = 0.0;
     dPartSum = 0.0;
     dCellSum = 0.0;
-    nActive = pkdGravWalk(pkd,uRungLo,uRungHi,dTime,nReps,bEwald,nGroup,ROOT,VAROOT,dTheta,dTheta,&dFlop,&dPartSum,&dCellSum);
+    nActive = pkdGravWalk(pkd,uRungLo,uRungHi,dTime,nReps,bEwald,nGroup,ROOT,0,VAROOT,dTheta,&dFlop,&dPartSum,&dCellSum);
     }
 
 
@@ -2851,7 +2852,7 @@ void pkdStepVeryActiveKDK(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dStep, 
 		}
 
 	    pkdActiveRung(pkd,iKickRung,1);
-	    pkdVATreeBuild(pkd,pkd->param.nBucket);
+//	    pkdVATreeBuild(pkd,pkd->param.nBucket);
 	    pkdGravityVeryActive(pkd,uRungLo,uRungHi,dTime,pkd->param.bEwald && pkd->param.bPeriodic,pkd->param.nGroup,
 				 pkd->param.nReplicas,dStep,dThetaMin);
 
@@ -3395,12 +3396,9 @@ int pkdUpdateRung(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     for (i=0;i<pkdLocal(pkd);++i) {
 	p = pkdParticle(pkd,i);
 	if ( pkdIsActive(pkd,p) ) {
-	    if ( p->uNewRung >= iMaxRung )
-		p->uRung = iMaxRung-1;
-	    else if ( p->uNewRung >= uRung )
-		p->uRung = p->uNewRung;
-	    else if ( p->uRung > uRung)
-		p->uRung = uRung;
+	    if ( p->uNewRung >= iMaxRung ) p->uNewRung = iMaxRung-1;
+	    if ( p->uNewRung >= uRung ) p->uRung = p->uNewRung;
+	    else if ( p->uRung > uRung) p->uRung = uRung;
 	    }
 	/*
 	** Now produce a count of particles in rungs.
