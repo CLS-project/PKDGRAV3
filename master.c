@@ -2672,9 +2672,6 @@ void msrGravity(MSR msr,uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
     int i,id,iDum;
     double sec,dsec,dTotFlop;
 
-    msrSelSrcAll(msr); /* Not really sure what the setting here needs to be */
-    msrSelDstAll(msr);  
-
     if (msr->param.bVStep) printf("Calculating Gravity, Step:%f\n",dStep);
     in.dTime = dTime;
     in.nReps = msr->param.nReplicas;
@@ -3548,8 +3545,6 @@ void msrTopStepKDK(MSR msr,
     if (iAdjust && (iRung < msrMaxRung(msr)-1)) {
 	msrprintf(msr,"%*cAdjust, iRung: %d\n",2*iRung+2,' ',iRung);
 	/* JW: Note -- can't trash uRungNew here! Force calcs set values for it! */
-	/*msrSelSrcAll(msr);THIS IS EXPENSIVE!*/ /* Not really sure what the setting here needs to be */
-	/*msrSelDstAll(msr);*/ /* */
 	msrActiveRung(msr, iRung, 1);
 	if (msr->param.bAccelStep) {
 	    msrAccelStep(msr,iRung,MAX_RUNG,dTime);
@@ -3599,8 +3594,6 @@ void msrTopStepKDK(MSR msr,
 	msrZeroNewRung(msr,iKickRung,MAX_RUNG,iKickRung); /* brute force */
 	if (msrDoGravity(msr) || msrDoGas(msr)) {
 	    msrActiveRung(msr,iKickRung,1);
-	    /*msrSelSrcAll(msr);*/ /* Not really sure what the setting here needs to be */
-	    /*msrSelDstAll(msr);*/ /* */
 	    if (msrDoGravity(msr)) msrUpdateSoft(msr,dTime);
 	    msrprintf(msr,"%*cForces, iRung: %d to %d\n",2*iRung+2,' ',iKickRung,iRung);
 	    msrBuildTree(msr,dTime,msr->param.bEwald);
@@ -4671,9 +4664,6 @@ void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint) {
     int bSymmetric;
     int nFOFsDone;
     int i;
-
-    msrSelSrcAll(msr); /* Not really sure what the setting here needs to be */
-    msrSelDstAll(msr);  
 
     printf( "Writing output for step %d\n", iStep );
     msrBuildIoName(msr,achFile,iStep);
