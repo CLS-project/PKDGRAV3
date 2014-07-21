@@ -2395,12 +2395,12 @@ static void makeName( char *achOutName, const char *inName, int iIndex ) {
     p = strstr( achOutName, "&I" );
     if ( p ) {
 	int n = p - achOutName;
-	sprintf( p, "%03d", iIndex );
+	sprintf( p, "%d", iIndex );
 	strcat( p, inName + n + 2 );
 	}
     else {
 	p = achOutName + strlen(achOutName);
-	sprintf(p,".%03d", iIndex);
+	sprintf(p,".%d", iIndex);
 	}
     }
 
