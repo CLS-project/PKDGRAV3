@@ -59,29 +59,14 @@ static void InitializeParticles(PKD pkd,int nTrees,TREESPEC *pSpec,BND *pbnd) {
 	pLite[i].uRung = (bOnlyMarked ? p->bMarked : p->uRung);
 	}
 
-    /* Figure out which tree each rung belongs to */
-    for (i=0; i<=MAX_RUNG;++i) iTreeRoot[i] = nTrees;
-    if (bOnlyMarked) iTreeRoot[1] = 0; /* Single tree for marked particles only */
-    else for (i=0; i<nTrees;++i) {
-	for( j=pSpec[i].uRungFirst; j<=pSpec[i].uRungLast; ++j)
-	    iTreeRoot[j] = i;
-	}
-
-    /* Count the number of particles in each tree, and find offsets */
-    for (i=0; i<=nTrees;++i) iTreeOffset[i] = 0;
-    for (i=0;i<pkd->nLocal;++i) ++iTreeOffset[iTreeRoot[pLite[i].uRung]];
-    for(i=nTrees;i>0;--i) iTreeOffset[i] = iTreeOffset[i-1];
-    iTreeOffset[0] = 0;
-    for (i=1; i<=nTrees;++i) iTreeOffset[i] += iTreeOffset[i-1];
-
-    /* Construct the tree nodes */
-    for (i=0; i<nTrees;++i) {
-	pNode = pkdTreeNode(pkd,pSpec[i].uCell);
+    /* Sometimes the simple trees are the best trees */
+    if (nTrees==1 && pSpec[0].uRungFirst==0 && pSpec[0].uRungLast == MAX_RUNG) {
+	pNode = pkdTreeNode(pkd,pSpec[0].uCell);
 	pNode->bRemote = 0;
 	pNode->iLower = 0;
 	pNode->iParent = 0;
-	pNode->pLower = iTreeOffset[i];
-	pNode->pUpper = iTreeOffset[i+1] - 1;
+	pNode->pLower = 0;
+	pNode->pUpper = pkd->nLocal - 1;
 	bnd = pkdNodeBnd(pkd, pNode);
 	for (j=0;j<3;++j) {
 	    bnd->fCenter[j] = pbnd->fCenter[j];
@@ -89,14 +74,47 @@ static void InitializeParticles(PKD pkd,int nTrees,TREESPEC *pSpec,BND *pbnd) {
 	    }
 	}
 
-    /* Put the particles in the right place */
-    for (i=0;i<pkd->nLocal;++i) {
-	p = pkdParticle(pkd,i);
-	k = (bOnlyMarked ? p->bMarked : p->uRung);
-	k = iTreeOffset[iTreeRoot[k]]++;
-	for (j=0;j<3;++j) pLite[k].r[j] = p->r[j];
-	pLite[k].i = i;
-	pLite[k].uRung = p->uRung;
+    /* Sometimes, not so much */
+    else {
+	/* Figure out which tree each rung belongs to */
+	for (i=0; i<=MAX_RUNG;++i) iTreeRoot[i] = nTrees;
+	if (bOnlyMarked) iTreeRoot[1] = 0; /* Single tree for marked particles only */
+	else for (i=0; i<nTrees;++i) {
+		for( j=pSpec[i].uRungFirst; j<=pSpec[i].uRungLast; ++j)
+		    iTreeRoot[j] = i;
+		}
+
+	/* Count the number of particles in each tree, and find offsets */
+	for (i=0; i<=nTrees;++i) iTreeOffset[i] = 0;
+	for (i=0;i<pkd->nLocal;++i) ++iTreeOffset[iTreeRoot[pLite[i].uRung]];
+	for(i=nTrees;i>0;--i) iTreeOffset[i] = iTreeOffset[i-1];
+	iTreeOffset[0] = 0;
+	for (i=1; i<=nTrees;++i) iTreeOffset[i] += iTreeOffset[i-1];
+
+	/* Construct the tree nodes */
+	for (i=0; i<nTrees;++i) {
+	    pNode = pkdTreeNode(pkd,pSpec[i].uCell);
+	    pNode->bRemote = 0;
+	    pNode->iLower = 0;
+	    pNode->iParent = 0;
+	    pNode->pLower = iTreeOffset[i];
+	    pNode->pUpper = iTreeOffset[i+1] - 1;
+	    bnd = pkdNodeBnd(pkd, pNode);
+	    for (j=0;j<3;++j) {
+		bnd->fCenter[j] = pbnd->fCenter[j];
+		bnd->fMax[j] = pbnd->fMax[j];
+		}
+	    }
+
+	/* Put the particles in the right place */
+	for (i=0;i<pkd->nLocal;++i) {
+	    p = pkdParticle(pkd,i);
+	    k = (bOnlyMarked ? p->bMarked : p->uRung);
+	    k = iTreeOffset[iTreeRoot[k]]++;
+	    for (j=0;j<3;++j) pLite[k].r[j] = p->r[j];
+	    pLite[k].i = i;
+	    pLite[k].uRung = p->uRung;
+	    }
 	}
     }
 
