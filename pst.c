@@ -2445,50 +2445,45 @@ void pstWrite(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     else {
 	LCL *plcl = pst->plcl;
 	if (in->nProcessors==0) {
-	    pkdSwapAll(plcl->pkd, in->iLower);
-	    pkdSwapAll(plcl->pkd, in->iLower);
+	    pkdWriteViaNode(plcl->pkd, in->iLower);
 	    }
 	else {
-#ifdef USE_HDF5
 	    if (in->bHDF5) {
+#ifdef USE_HDF5
 		makeName(achOutFile,in->achOutFile,in->iIndex);
 		fio = fioHDF5Create(achOutFile,in->mFlags);
-		if (fio) {
-		    fioSetAttr(fio, "dTime",    FIO_TYPE_DOUBLE, &in->dTime);
-		    /* Restart information */
-		    fioSetAttr(fio, "dEcosmo",  FIO_TYPE_DOUBLE, &in->dEcosmo );
-		    fioSetAttr(fio, "dTimeOld", FIO_TYPE_DOUBLE, &in->dTimeOld );
-		    fioSetAttr(fio, "dUOld",    FIO_TYPE_DOUBLE, &in->dUOld );
-		    }
+#else
+		fio = NULL; /* Should never happen */
+#endif
 		}
 	    else {
-#else
-		{
-#endif
 		if (strstr(in->achOutFile, "&I" )) {
 		    makeName(achOutFile,in->achOutFile,in->iIndex);
 		    fio = fioTipsyCreatePart(achOutFile,0,in->mFlags&FIO_FLAG_CHECKPOINT,
 			in->bStandard, in->dTime, 
 			in->nSph, in->nDark, in->nStar, plcl->nWriteStart);
-		}
+		    }
 		else {
 		    fio = fioTipsyAppend(in->achOutFile,in->mFlags&FIO_FLAG_CHECKPOINT,in->bStandard);
 		    if (fio) {
 			fioSeek(fio,plcl->nWriteStart,FIO_SPECIES_ALL);
 			}
-		}
-		if (fio==NULL) {
-		    fprintf(stderr,"ERROR: unable to create file for output\n");
-		    perror(in->achOutFile);
-		    mdlassert(pst->mdl,fio!=NULL);
 		    }
 		}
-	    
+	    if (fio==NULL) {
+		fprintf(stderr,"ERROR: unable to create file for output\n");
+		perror(in->achOutFile);
+		mdlassert(pst->mdl,fio!=NULL);
+		}
+	    fioSetAttr(fio, "dTime",    FIO_TYPE_DOUBLE, &in->dTime);
+	    /* Restart information */
+	    fioSetAttr(fio, "dEcosmo",  FIO_TYPE_DOUBLE, &in->dEcosmo );
+	    fioSetAttr(fio, "dTimeOld", FIO_TYPE_DOUBLE, &in->dTimeOld );
+	    fioSetAttr(fio, "dUOld",    FIO_TYPE_DOUBLE, &in->dUOld );
+
 	    pkdWriteFIO(plcl->pkd,fio,in->dvFac);
 	    for(i=in->iLower+1; i<in->iUpper; ++i ) {
-		pkdSwapAll(plcl->pkd, in->iLower);
-		pkdWriteFIO(plcl->pkd,fio,in->dvFac);
-		pkdSwapAll(plcl->pkd, in->iLower);
+		pkdWriteFromNode(plcl->pkd,i,fio,in->dvFac);
 		}
 	    }
 	}

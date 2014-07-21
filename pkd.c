@@ -2397,171 +2397,135 @@ void pkdLocalOrder(PKD pkd) {
     qsort(pkdParticleBase(pkd),pkdLocal(pkd),pkdParticleSize(pkd),cmpParticles);
     }
 
-int pkdUnpackIO(PKD pkd,
-		PIO *io,
-		int nMax,
-		local_t *iIndex,
-		total_t iMinOrder,
-		total_t iMaxOrder,
-		double dvFac ) {
-    int i,d;
-
-    assert( pkd != NULL );
-
-    for ( i=0; i<nMax; i++ ) {
-	local_t I = *iIndex + i;
-	PARTICLE *p = pkdParticle(pkd,I);
-	float *a, dummya[3];
-	float *pPot, dummypot;
-	double *v, dummyv[3];
-
-	if ( pkd->oPotential) pPot = pkdPot(pkd,p);
-	else pPot = &dummypot;
-	if (pkd->oVelocity) v = pkdVel(pkd,p);
-	else v = dummyv;
-	if ( pkd->oAcceleration ) a = pkdAccel(pkd,p);
-	else a = dummya;
-
-	for ( d=0; d<3; d++ ) {
-	    p->r[d]  = io[i].r[d];
-	    v[d]  = io[i].v[d] * dvFac; /*FIXME: times??*/
-	    a[d]  = 0.0;
-	    }
-	p->iOrder = io[i].iOrder;
-	getClass(pkd,io[i].fMass,io[i].fSoft,FIO_SPECIES_DARK,p);
-	p->fDensity = io[i].fDensity;
-	*pPot = io[i].fPot;
-	}
-    *iIndex += nMax;
-
-    return pkd->nLocal - *iIndex;
-    }
-
-/*
-** This routine will pack at most nMax particles into an array of packed
-** particles (io).  It scans the particle list from *iIndex to the end
-** packing only particles with iOrder in the range [iMinOrder,iMaxOrder).
-** When this routine is done, it will return 0 for the number of particles
-** packed (and continues to return 0 if called again).
-*/
-int pkdPackIO(PKD pkd,
-	      PIO *io,
-	      int nMax,
-	      local_t *iIndex,
-	      total_t iMinOrder,
-	      total_t iMaxOrder,
-	      double dvFac ) {
-    PARTICLE *p;
-    float *pPot, dummypot;
-    double *v, dummyv[3];
-    local_t i;
-    int nCopied, d;
-
-    dummyv[0] = dummyv[1] = dummyv[2] = 0.0;
-    dummypot = 0.0;
-
-    mdlassert(pkd->mdl,*iIndex<=pkd->nLocal);
-
-    for ( i=*iIndex,nCopied=0; nCopied < nMax && i < pkd->nLocal; i++ ) {
-	p = pkdParticle(pkd,i);
-	if ( pkd->oPotential) pPot = pkdPot(pkd,p);
-	else pPot = &dummypot;
-	if (pkd->oVelocity) v = pkdVel(pkd,p);
-	else v = dummyv;
-
-	/* Not a particle of interest? */
-	if ( p->iOrder<iMinOrder || p->iOrder>=iMaxOrder)
-	    continue;
-
-	/* We should have certain special cases here */
-	mdlassert( pkd->mdl, pkdIsDark(pkd,p) );
-
-	for ( d=0; d<3; d++ ) {
-	    io[nCopied].r[d] = p->r[d];
-	    io[nCopied].v[d] = v[d] * dvFac;
-	    }
-	io[nCopied].iOrder= p->iOrder;
-	io[nCopied].fMass = pkdMass(pkd,p);
-	io[nCopied].fSoft = pkdSoft(pkd,p);
-	io[nCopied].fDensity = p->fDensity;
-	io[nCopied].fPot = *pPot;
-	nCopied++;
-	}
-    *iIndex = i;
-    return nCopied;
-    }
-
-
-uint32_t pkdWriteFIO(PKD pkd,FIO fio,double dvFac) {
-    PARTICLE *p;
+static void writeParticle(PKD pkd,FIO fio,double dvFac,PARTICLE *p) {
     STARFIELDS *pStar;
     SPHFIELDS *pSph;
     float *pPot, dummypot;
     double v[3];
     float fMass, fSoft;
-    uint32_t nCount;
     uint64_t iParticleID;
-    int i;
-
 
     v[0] = v[1] = v[2] = 0.0;
     dummypot = 0.0;
+
+    if ( pkd->oPotential) pPot = pkdPot(pkd,p);
+    else pPot = &dummypot;
+    if (pkd->oVelocity) {
+	double *pV = pkdVel(pkd,p);
+	v[0] = pV[0] * dvFac;
+	v[1] = pV[1] * dvFac;
+	v[2] = pV[2] * dvFac;
+	}
+    /* Initialize SPH fields if present */
+    if (pkd->oSph) pSph = pkdField(p,pkd->oSph);
+    else pSph = NULL;
+    if (pkd->oStar) pStar = pkdField(p,pkd->oStar);
+    else pStar = NULL;
+    fMass = pkdMass(pkd,p);
+    fSoft = pkdSoft0(pkd,p);
+    if (pkd->oParticleID) iParticleID = *pkdParticleID(pkd,p);
+    else iParticleID = p->iOrder;
+    switch(pkdSpecies(pkd,p)) {
+    case FIO_SPECIES_SPH:
+	assert(pSph);
+	assert(pkd->param.dTuFac>0.0);
+	    {
+	    double T;
+#ifdef COOLING
+	    COOLPARTICLE cp;
+	    if (pkd->param.bGasCooling) {
+		double E = pSph->u;
+		CoolTempFromEnergyCode( pkd->Cool, 
+		    &cp, &E, &T, p->fDensity, pSph->fMetals );
+		}
+	    else T = pSph->u/pkd->param.dTuFac;
+#else
+	    T = pSph->u/pkd->param.dTuFac;
+#endif
+	    fioWriteSph(fio,iParticleID,p->r,v,fMass,fSoft,*pPot,
+		p->fDensity,T,pSph->fMetals);
+	    }
+	break;
+    case FIO_SPECIES_DARK:
+	fioWriteDark(fio,iParticleID,p->r,v,fMass,fSoft,*pPot,p->fDensity);
+	break;
+    case FIO_SPECIES_STAR:
+	assert(pStar && pSph);
+	fioWriteStar(fio,iParticleID,p->r,v,fMass,fSoft,*pPot,p->fDensity,
+	    pSph->fMetals,pStar->fTimer);
+	break;
+    default:
+	fprintf(stderr,"Unsupported particle type: %d\n",pkdSpecies(pkd,p));
+	assert(0);
+	}
+
+    }
+
+struct packWriteCtx {
+    PKD pkd;
+    FIO fio;
+    double dvFac;
+    int iIndex;
+    };
+
+static int unpackWrite(void *vctx, int *id, size_t nSize, void *vBuff) {
+    struct packWriteCtx *ctx = (struct packWriteCtx *)vctx;
+    PKD pkd = ctx->pkd;
+    PARTICLE *p = (PARTICLE *)vBuff;
+    int n = nSize / pkdParticleSize(pkd);
+    int i;
+    assert( n*pkdParticleSize(pkd) == nSize);
+    for(i=0; i<n; ++i) {
+	writeParticle(pkd,ctx->fio,ctx->dvFac,pkdParticleGet(pkd,p,i));
+	}
+    return 1;
+    }
+
+void pkdWriteFromNode(PKD pkd,int iNode, FIO fio,double dvFac) {
+    struct packWriteCtx ctx;
+    ctx.pkd = pkd;
+    ctx.fio = fio;
+    ctx.dvFac = dvFac;
+    ctx.iIndex = 0;
+#ifdef MPI_VERSION
+    mdlRecv(pkd->mdl,iNode,unpackWrite,&ctx);
+#endif
+    }
+
+static int packWrite(void *vctx, int *id, size_t nSize, void *vBuff) {
+    struct packWriteCtx *ctx = (struct packWriteCtx *)vctx;
+    PKD pkd = ctx->pkd;
+    int nLeft = pkd->nLocal - ctx->iIndex;
+    int n = nSize / pkdParticleSize(pkd);
+    if ( n > nLeft ) n = nLeft;
+    nSize = n*pkdParticleSize(pkd);
+    memcpy(vBuff,pkdParticle(pkd,ctx->iIndex), nSize );
+    ctx->iIndex += n;
+    return nSize;
+    }
+
+/* Send all particled data to the specified node for writing */
+void pkdWriteViaNode(PKD pkd, int iNode) {
+    struct packWriteCtx ctx;
+    ctx.pkd = pkd;
+    ctx.fio = NULL;
+    ctx.dvFac = 1.0;
+    ctx.iIndex = 0;
+#ifdef MPI_VERSION
+    mdlSend(pkd->mdl,iNode,packWrite, &ctx);
+#endif
+    }
+
+uint32_t pkdWriteFIO(PKD pkd,FIO fio,double dvFac) {
+    PARTICLE *p;
+    int i;
+    uint32_t nCount;
     nCount = 0;
     for (i=0;i<pkdLocal(pkd);++i) {
 	p = pkdParticle(pkd,i);
 	if ( !pkdIsSrcActive(p,0,MAX_RUNG) ) continue;  /* JW: Ack! */
-	if ( pkd->oPotential) pPot = pkdPot(pkd,p);
-	else pPot = &dummypot;
-	if (pkd->oVelocity) {
-	    double *pV = pkdVel(pkd,p);
-	    v[0] = pV[0] * dvFac;
-	    v[1] = pV[1] * dvFac;
-	    v[2] = pV[2] * dvFac;
-	    }
-	/* Initialize SPH fields if present */
-	if (pkd->oSph) pSph = pkdField(p,pkd->oSph);
-	else pSph = NULL;
-	if (pkd->oStar) pStar = pkdField(p,pkd->oStar);
-	else pStar = NULL;
-	fMass = pkdMass(pkd,p);
-	fSoft = pkdSoft0(pkd,p);
-	if (pkd->oParticleID) iParticleID = *pkdParticleID(pkd,p);
-	else iParticleID = p->iOrder;
+	writeParticle(pkd,fio,dvFac,p);
 	nCount++;
-	switch(pkdSpecies(pkd,p)) {
-	case FIO_SPECIES_SPH:
-	    assert(pSph);
-	    assert(pkd->param.dTuFac>0.0);
-		{
-		double T;
-#ifdef COOLING
-		COOLPARTICLE cp;
-		if (pkd->param.bGasCooling) {
-		    double E = pSph->u;
-		    CoolTempFromEnergyCode( pkd->Cool, 
-					    &cp, &E, &T, p->fDensity, pSph->fMetals );
-		    }
-		else T = pSph->u/pkd->param.dTuFac;
-#else
-		T = pSph->u/pkd->param.dTuFac;
-#endif
-		fioWriteSph(fio,iParticleID,p->r,v,fMass,fSoft,*pPot,
-			    p->fDensity,T,pSph->fMetals);
-		}
-	    break;
-	case FIO_SPECIES_DARK:
-	    fioWriteDark(fio,iParticleID,p->r,v,fMass,fSoft,*pPot,p->fDensity);
-	    break;
-	case FIO_SPECIES_STAR:
-	    assert(pStar && pSph);
-	    fioWriteStar(fio,iParticleID,p->r,v,fMass,fSoft,*pPot,p->fDensity,
-		       pSph->fMetals,pStar->fTimer);
-	    break;
-	default:
-	    fprintf(stderr,"Unsupported particle type: %d\n",pkdSpecies(pkd,p));
-	    assert(0);
-	    }
-
 	}
     return nCount;
     }

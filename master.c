@@ -786,10 +786,6 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     */
     for (j=0;j<6;++j) msr->fCenter[j] = 0.0;
     /*
-    ** Define any "LOCAL" parameters (LCL)
-    */
-    msr->lcl.pszDataPath = getenv("PTOOLS_DATA_PATH");
-    /*
     ** Process command line arguments.
     */
     ret = prmArgProc(msr->prm,argc,argv);
@@ -1349,8 +1345,7 @@ msrGetLock(MSR msr) {
     FILE *fp = NULL;
     char achTmp[256],achFile[256];
 
-    _msrMakePath(msr->param.achDataSubPath,LOCKFILE,achTmp);
-    _msrMakePath(msr->lcl.pszDataPath,achTmp,achFile);
+    _msrMakePath(msr->param.achDataSubPath,LOCKFILE,achFile);
     if (!msr->param.bOverwrite && (fp = fopen(achFile,"r"))) {
 	(void) fscanf(fp,"%s",achTmp);
 	(void) fclose(fp);
@@ -1389,8 +1384,7 @@ msrCheckForStop(MSR msr) {
 
     if (first_call) {
 	char achTmp[256];
-	_msrMakePath(msr->param.achDataSubPath,STOPFILE,achTmp);
-	_msrMakePath(msr->lcl.pszDataPath,achTmp,achFile);
+	_msrMakePath(msr->param.achDataSubPath,STOPFILE,achFile);
 	first_call = 0;
 	}
     if ((fp = fopen(achFile,"r"))) {
@@ -1686,7 +1680,6 @@ void msrAllNodeWrite(MSR msr, const char *pszFileName, double dTime, double dvFa
     int nProcessors;
     PST pst0;
     LCL *plcl;
-    char achOutFile[PST_FILENAME_SIZE];
     struct inWrite in;
 
     pst0 = msr->pst;
@@ -1699,10 +1692,6 @@ void msrAllNodeWrite(MSR msr, const char *pszFileName, double dTime, double dvFa
     ** Add Data Subpath for local and non-local names.
     */
     _msrMakePath(msr->param.achDataSubPath,pszFileName,in.achOutFile);
-    /*
-    ** Add local Data Path.
-    */
-    _msrMakePath(plcl->pszDataPath,in.achOutFile,achOutFile);
 
     in.bStandard = msr->param.bStandard;
     /*
@@ -1739,11 +1728,9 @@ void msrAllNodeWrite(MSR msr, const char *pszFileName, double dTime, double dvFa
 	| (msr->param.bMemMass?0:FIO_FLAG_COMPRESS_MASS)
 	| (msr->param.bMemSoft?0:FIO_FLAG_COMPRESS_SOFT);
 
-    strcpy(in.achOutFile,achOutFile);
-
     if (!msr->param.bHDF5) {
 	FIO fio;
-	fio = fioTipsyCreate(achOutFile,
+	fio = fioTipsyCreate(in.achOutFile,
 			     in.mFlags&FIO_FLAG_CHECKPOINT,
 			     in.bStandard,in.dTime,
 			     in.nSph, in.nDark, in.nStar);
@@ -1799,7 +1786,6 @@ uint64_t msrCalcWriteStart(MSR msr) {
     }
 
 void msrWrite(MSR msr,const char *pszFileName,double dTime,int bCheckpoint) {
-    char achOutFile1[PST_FILENAME_SIZE];
     char achOutFile[PST_FILENAME_SIZE];
     LCL *plcl = msr->pst->plcl;
     int nProcessors;
@@ -1818,11 +1804,7 @@ void msrWrite(MSR msr,const char *pszFileName,double dTime,int bCheckpoint) {
     /*
     ** Add Data Subpath for local and non-local names.
     */
-    _msrMakePath(msr->param.achDataSubPath,pszFileName,achOutFile1);
-    /*
-    ** Add local Data Path.
-    */
-    _msrMakePath(plcl->pszDataPath,achOutFile1,achOutFile);
+    _msrMakePath(msr->param.achDataSubPath,pszFileName,achOutFile);
 
     /*
     ** If bParaWrite is 0, then we write serially; if it is 1, then we write
@@ -2990,8 +2972,6 @@ void msrKickKDKClose(MSR msr,double dTime,double dDelta,uint8_t uRungLo,uint8_t 
 	      out.SumTime/out.nSum,out.MaxTime);
     }
 
-
-
 int msrOutTime(MSR msr,double dTime) {
     if (msr->iOut < msr->nOuts) {
 	if (dTime >= msr->pdOutTime[msr->iOut]) {
@@ -3002,7 +2982,6 @@ int msrOutTime(MSR msr,double dTime) {
 	}
     else return(0);
     }
-
 
 int cmpTime(const void *v1,const void *v2) {
     double *d1 = (double *)v1;
@@ -3028,13 +3007,6 @@ void msrReadOuts(MSR msr,double dTime) {
     _msrMakePath(msr->param.achDataSubPath,msr->param.achOutName,achFile);
     strcat(achFile,".red");
 
-    /*
-    ** Add local Data Path.
-    */
-    if (plcl->pszDataPath) {
-	strcpy(ach,achFile);
-	sprintf(achFile,"%s/%s",plcl->pszDataPath,ach);
-	}
     fp = fopen(achFile,"r");
     if (!fp) {
 	msr->nOuts = 0;

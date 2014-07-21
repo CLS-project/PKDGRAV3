@@ -15,7 +15,6 @@
 #include "cosmo.h"
 
 typedef struct lclBlock {
-    char *pszDataPath;
     PKD	pkd;
     int iWtFrom;
     int iWtTo;

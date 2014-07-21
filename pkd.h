@@ -127,16 +127,6 @@ typedef struct {
     FLOAT vscale[3];
     } PSMETRIC;
 
-typedef struct pIO {
-    total_t iOrder;
-    double r[3];
-    double v[3];
-    float fMass;
-    float fSoft;
-    float  fDensity;
-    float  fPot;
-    } PIO;
-
 #define PKD_MAX_CLASSES 256
 #define MAX_RUNG     63
 
@@ -908,15 +898,16 @@ static inline size_t pkdParticleSize( PKD pkd ) {
 static inline size_t pkdParticleMemory(PKD pkd) {
     return (pkd->iParticleSize + sizeof(PLITE)) * (pkd->nStore+1);
     }
-static inline PARTICLE *pkdParticle( PKD pkd, int i ) {
-    char *v = (char *)pkd->pStorePRIVATE;
+static inline PARTICLE *pkdParticleGet( PKD pkd, void *pBase, int i ) {
+    char *v = (char *)pBase;
     PARTICLE *p = (PARTICLE *)(v + ((uint64_t)i)*pkd->iParticleSize);
     return p;
     }
+static inline PARTICLE *pkdParticle( PKD pkd, int i ) {
+    return pkdParticleGet(pkd,pkd->pStorePRIVATE,i);
+    }
 static inline PARTICLE *pkdParticle2( PKD pkd, int i ) {
-    char *v = (char *)pkd->pStorePRIVATE2;
-    PARTICLE *p = (PARTICLE *)(v + ((uint64_t)i)*pkd->iParticleSize);
-    return p;
+    return pkdParticleGet(pkd,pkd->pStorePRIVATE2,i);
     }
 static inline void pkdSaveParticle(PKD pkd, PARTICLE *a) {
     memcpy(pkd->pTempPRIVATE,a,pkdParticleSize(pkd));
@@ -1137,6 +1128,8 @@ int pkdNumDstActive(PKD pkd,uint8_t uRungLo,uint8_t uRungHi);
 int pkdColOrdRejects(PKD,uint64_t,int);
 void pkdLocalOrder(PKD);
 uint32_t pkdWriteFIO(PKD pkd,FIO fio,double dvFac);
+void pkdWriteFromNode(PKD pkd,int iNode, FIO fio,double dvFac);
+void pkdWriteViaNode(PKD pkd, int iNode);
 void
 pkdGravAll(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,int bPeriodic,
     int iOrder,int bEwald,int nGroup,int iRoot1,int iRoot2,double fEwCut,double fEwhCut,double dThetaMin,
@@ -1202,18 +1195,6 @@ struct outGetNParts {
 void pkdGetNParts(PKD pkd, struct outGetNParts *out );
 void pkdSetNParts(PKD pkd, int nGas, int nDark, int nStar);
 void pkdInitRelaxation(PKD pkd);
-
-int pkdPackIO(PKD pkd,
-	      PIO *io, int nMax,
-	      local_t *iIndex,
-	      total_t iMinOrder, total_t iMaxOrder,
-	      double dvFac);
-
-int pkdUnpackIO(PKD pkd,
-		PIO *io, int nMax,
-		local_t *iIndex,
-		total_t iMinOrder, total_t iMaxOrder,
-		double dvFac);
 
 #ifdef USE_GRAFIC
 void pkdGenerateIC(PKD pkd, GRAFICCTX gctx, int iDim,
