@@ -2485,6 +2485,7 @@ void pstWrite(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	    for(i=in->iLower+1; i<in->iUpper; ++i ) {
 		pkdWriteFromNode(plcl->pkd,i,fio,in->dvFac);
 		}
+	    fioClose(fio);
 	    }
 	}
 
