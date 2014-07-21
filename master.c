@@ -1728,7 +1728,7 @@ void msrAllNodeWrite(MSR msr, const char *pszFileName, double dTime, double dvFa
 	| (msr->param.bMemMass?0:FIO_FLAG_COMPRESS_MASS)
 	| (msr->param.bMemSoft?0:FIO_FLAG_COMPRESS_SOFT);
 
-    if (!msr->param.bHDF5) {
+    if (!msr->param.bHDF5 && strstr(in.achOutFile,"&I")==0) {
 	FIO fio;
 	fio = fioTipsyCreate(in.achOutFile,
 			     in.mFlags&FIO_FLAG_CHECKPOINT,
@@ -1741,35 +1741,6 @@ void msrAllNodeWrite(MSR msr, const char *pszFileName, double dTime, double dvFa
     in.iIndex = 0;
     in.nProcessors = nProcessors;
     pstWrite(msr->pst,&in,sizeof(in),NULL,NULL);
-
-#if 0
-    /*
-    ** Request the other processors start writing
-    */
-    for(i=1; i<nProcessors; ++i) {
-	int rID;
-	L = msr->nThreads * i / nProcessors;
-	U = msr->nThreads * (i+1) / nProcessors;
-	in.iIndex = i;
-	in.nProcessors = U - L;
-	rID = mdlReqService(pst0->mdl,L,PST_WRITE,&in,sizeof(in));
-	}
-
-    /*
-    ** Now do ourselves
-    */
-
-    L = 0;
-    U = msr->nThreads / nProcessors;
-    in.iIndex = 0;
-    in.nProcessors = U - L;
-    pstWrite(msr->pst,&in,sizeof(in),NULL,NULL);
-
-    for(i=1; i<nProcessors; ++i) {
-	L = msr->nThreads * i / nProcessors;
-	mdlGetReply(pst0->mdl,L,NULL,NULL);
-	}
-#endif
     }
 
 
