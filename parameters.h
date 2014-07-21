@@ -190,9 +190,9 @@ struct parameters {
 
     /* IC Generation */
     int bWriteIC;
-#ifdef USE_GRAFIC
     double h;
     double dBoxSize;
+#ifdef USE_GRAFIC
     int nGrid;
     int iSeed;
 #endif

@@ -531,13 +531,13 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
 #endif
 
     /* IC Generation */
-#ifdef USE_GRAFIC
     msr->param.h = 0.0;
     prmAddParam(msr->prm,"h",2,&msr->param.h,
 		sizeof(double),"h","<hubble parameter h> = 0");
     msr->param.dBoxSize = 0.0;
     prmAddParam(msr->prm,"dBoxSize",2,&msr->param.dBoxSize,
 		sizeof(double),"mpc","<Simulation Box size in Mpc> = 0");
+#ifdef USE_GRAFIC
     msr->param.nGrid = 0;
     prmAddParam(msr->prm,"nGrid",1,&msr->param.nGrid,
 		sizeof(int),"grid","<Grid size for IC 0=disabled> = 0");
@@ -1712,9 +1712,13 @@ void msrAllNodeWrite(MSR msr, const char *pszFileName, double dTime, double dvFa
 	in.dTime = dTime;
 	in.dvFac = 1.0;
 	}
-    in.dEcosmo  = msr->dEcosmo;
-    in.dTimeOld = msr->dTimeOld;
-    in.dUOld    = msr->dUOld;
+    in.dEcosmo    = msr->dEcosmo;
+    in.dTimeOld   = msr->dTimeOld;
+    in.dUOld      = msr->dUOld;
+    in.dBoxSize   = msr->param.dBoxSize;
+    in.Omega0     = msr->param.csm->dOmega0;
+    in.OmegaLambda= msr->param.csm->dLambda;
+    in.HubbleParam= msr->param.h;
 
     in.nDark = msr->nDark;
     in.nSph  = msr->nGas;
@@ -4507,6 +4511,8 @@ double msrRead(MSR msr, const char *achInFile) {
 
     if(!prmSpecified(msr->prm, "dOmega0")) fioGetAttr(fio,"dOmega0",FIO_TYPE_DOUBLE,&msr->param.csm->dOmega0);
     if(!prmSpecified(msr->prm, "dLambda")) fioGetAttr(fio,"dLambda",FIO_TYPE_DOUBLE,&msr->param.csm->dLambda);
+    if(!prmSpecified(msr->prm, "dBoxSize")) fioGetAttr(fio,"dBoxSize",FIO_TYPE_DOUBLE,&msr->param.dBoxSize);
+    if(!prmSpecified(msr->prm, "h")) fioGetAttr(fio,"h",FIO_TYPE_DOUBLE,&msr->param.h);
 
     msr->N     = fioGetN(fio,FIO_SPECIES_ALL);
     msr->nGas  = fioGetN(fio,FIO_SPECIES_SPH);

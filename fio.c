@@ -1827,6 +1827,8 @@ static int gadgetGetAttr(FIO fio,
     if ( strcmp(attr,"dTime")==0 ) v = gio->hdr.Time;
     else if ( strcmp(attr,"dOmega0")==0 ) v = gio->hdr.Omega0;
     else if ( strcmp(attr,"dLambda")==0 ) v = gio->hdr.OmegaLambda;
+    else if ( strcmp(attr,"dBoxSize")==0 ) v = gio->hdr.BoxSize;
+    else if ( strcmp(attr,"h")==0 ) v = gio->hdr.HubbleParam;
     else return 0;
 
     switch(dataType) {
