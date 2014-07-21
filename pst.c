@@ -2449,9 +2449,6 @@ void pstWrite(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	    pkdSwapAll(plcl->pkd, in->iLower);
 	    }
 	else {
-	    printf("%d: Writing from %d to %d\n", mdlSelf(pst->mdl), in->iLower, in->iUpper );
-
-
 #ifdef USE_HDF5
 	    if (in->bHDF5) {
 		makeName(achOutFile,in->achOutFile,in->iIndex);
