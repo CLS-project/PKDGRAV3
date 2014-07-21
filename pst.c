@@ -92,7 +92,8 @@
 **  FirstDt                       -       -      |
 **  ROParticleCache               -       -      |
 **  ParticleCacheFinish           -       -      |
-**  Kick                          Yes     Yes    |
+**  Kick                  nLocal  Yes     Yes    |
+**  KickTree              nActive Yes     Yes    |
 **  SetSoft                       Yes     -      |
 **  PhysicalSoft                  Yes     -      |
 **  SetTotal                      -       Yes    |
@@ -323,6 +324,12 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_KICK,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstKick,
 		  sizeof(struct inKick),sizeof(struct outKick));
+    mdlAddService(mdl,PST_KICKTREE,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstKickTree,
+		  sizeof(struct inKickTree),sizeof(struct outKickTree));
+    mdlAddService(mdl,PST_ZEROACC,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstZeroAcc,
+	          0,0);
     mdlAddService(mdl,PST_SETSOFT,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstSetSoft,
 		  sizeof(struct inSetSoft),0);
@@ -2399,7 +2406,6 @@ static void makeName( char *achOutName, const char *inName, int iIndex ) {
 
 void pstWrite(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     char achOutFile[PST_FILENAME_SIZE];
-    LCL *plcl;
     PST pst0;
     struct inWrite *in = vin;
     FIO fio;
@@ -2409,70 +2415,86 @@ void pstWrite(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 
     mdlassert(pst->mdl,nIn == sizeof(struct inWrite));
 
-    pst0 = pst;
-    while (pst0->nLeaves > 1)
-	pst0 = pst0->pstLower;
-    plcl = pst0->plcl;
-
-#ifdef USE_HDF5
-    if (in->bHDF5) {
-	makeName(achOutFile,in->achOutFile,in->iIndex);
-	fio = fioHDF5Create(achOutFile,in->mFlags);
-	if (fio) {
-	    fioSetAttr(fio, "dTime",    FIO_TYPE_DOUBLE, &in->dTime);
-	    /* Restart information */
-	    fioSetAttr(fio, "dEcosmo",  FIO_TYPE_DOUBLE, &in->dEcosmo );
-	    fioSetAttr(fio, "dTimeOld", FIO_TYPE_DOUBLE, &in->dTimeOld );
-	    fioSetAttr(fio, "dUOld",    FIO_TYPE_DOUBLE, &in->dUOld );
+    if (pst->nLeaves > 1) {
+	int nProcessors = in->nProcessors;
+	/* If we are the writer (nProcessors==1) or a producer (==1) keep requesting */
+	if (nProcessors<=1) {
+	    in->nProcessors = 0;
+	    int rID = mdlReqService(pst->mdl,pst->idUpper,PST_WRITE,in,nIn);
+	    in->nProcessors = nProcessors;
+	    pstWrite(pst->pstLower,in,nIn,vout,pnOut);
+	    mdlGetReply(pst->mdl,rID,NULL,NULL);
+	    }
+	/* Split writing tasks between child nodes */
+	else {
+	    int nLeft = nProcessors / 2;
+	    int iUpper = in->iUpper;
+	    assert(in->iLower == mdlSelf(pst->mdl));
+	    in->iLower = pst->idUpper;
+	    in->nProcessors -= nLeft;
+	    in->iIndex += nLeft;
+	    int rID = mdlReqService(pst->mdl,pst->idUpper,PST_WRITE,in,nIn);
+	    in->iLower = mdlSelf(pst->mdl);
+	    in->iUpper = pst->idUpper;
+	    in->iIndex -= nLeft;
+	    in->nProcessors = nLeft;
+	    pstWrite(pst->pstLower,in,nIn,vout,pnOut);
+	    mdlGetReply(pst->mdl,rID,NULL,NULL);
 	    }
 	}
     else {
-#else
-	{
-#endif
-        if (strstr(in->achOutFile, "&I" )) {
-	    makeName(achOutFile,in->achOutFile,in->iIndex);
-	    fio = fioTipsyCreatePart(achOutFile,0,in->mFlags&FIO_FLAG_CHECKPOINT,
-				     in->bStandard, in->dTime, 
-				     in->nSph, in->nDark, in->nStar, plcl->nWriteStart);
+	LCL *plcl = pst->plcl;
+	if (in->nProcessors==0) {
+	    pkdSwapAll(plcl->pkd, in->iLower);
+	    pkdSwapAll(plcl->pkd, in->iLower);
 	    }
 	else {
-	    fio = fioTipsyAppend(in->achOutFile,in->mFlags&FIO_FLAG_CHECKPOINT,in->bStandard);
-	    if (fio) {
-	        fioSeek(fio,plcl->nWriteStart,FIO_SPECIES_ALL);
-	        }
-	    }
-        }
-    if (fio==NULL) {
-	fprintf(stderr,"ERROR: unable to create file for output\n");
-	perror(in->achOutFile);
-	mdlassert(pst->mdl,fio!=NULL);
-	}
+	    printf("%d: Writing from %d to %d\n", mdlSelf(pst->mdl), in->iLower, in->iUpper );
 
-    nCount = pkdWriteFIO(plcl->pkd,fio,in->dvFac);
-    for (i=pst->idSelf+1;i<pst->idSelf+in->nProcessors; ++i) {
-	int id = i;
-	int inswap;
-	/*
-	 * Swap particles with the remote processor.
-	 */
-	inswap = pst->idSelf;
-	rID = mdlReqService(pst0->mdl,id,PST_SWAPALL,&inswap,sizeof(inswap));
-	pkdSwapAll(plcl->pkd, id);
-	mdlGetReply(pst0->mdl,rID,NULL,NULL);
-	/*
-	 * Write the swapped particles.
-	 */
-	nCount += pkdWriteFIO(plcl->pkd,fio,in->dvFac);
-	/*
-	 * Swap them back again.
-	 */
-	inswap = pst->idSelf;
-	rID = mdlReqService(pst0->mdl,id,PST_SWAPALL,&inswap,sizeof(inswap));
-	pkdSwapAll(plcl->pkd, id);
-	mdlGetReply(pst0->mdl,rID,NULL,NULL);
+
+#ifdef USE_HDF5
+	    if (in->bHDF5) {
+		makeName(achOutFile,in->achOutFile,in->iIndex);
+		fio = fioHDF5Create(achOutFile,in->mFlags);
+		if (fio) {
+		    fioSetAttr(fio, "dTime",    FIO_TYPE_DOUBLE, &in->dTime);
+		    /* Restart information */
+		    fioSetAttr(fio, "dEcosmo",  FIO_TYPE_DOUBLE, &in->dEcosmo );
+		    fioSetAttr(fio, "dTimeOld", FIO_TYPE_DOUBLE, &in->dTimeOld );
+		    fioSetAttr(fio, "dUOld",    FIO_TYPE_DOUBLE, &in->dUOld );
+		    }
+		}
+	    else {
+#else
+		{
+#endif
+		if (strstr(in->achOutFile, "&I" )) {
+		    makeName(achOutFile,in->achOutFile,in->iIndex);
+		    fio = fioTipsyCreatePart(achOutFile,0,in->mFlags&FIO_FLAG_CHECKPOINT,
+			in->bStandard, in->dTime, 
+			in->nSph, in->nDark, in->nStar, plcl->nWriteStart);
+		}
+		else {
+		    fio = fioTipsyAppend(in->achOutFile,in->mFlags&FIO_FLAG_CHECKPOINT,in->bStandard);
+		    if (fio) {
+			fioSeek(fio,plcl->nWriteStart,FIO_SPECIES_ALL);
+			}
+		}
+		if (fio==NULL) {
+		    fprintf(stderr,"ERROR: unable to create file for output\n");
+		    perror(in->achOutFile);
+		    mdlassert(pst->mdl,fio!=NULL);
+		    }
+		}
+	    
+	    pkdWriteFIO(plcl->pkd,fio,in->dvFac);
+	    for(i=in->iLower+1; i<in->iUpper; ++i ) {
+		pkdSwapAll(plcl->pkd, in->iLower);
+		pkdWriteFIO(plcl->pkd,fio,in->dvFac);
+		pkdSwapAll(plcl->pkd, in->iLower);
+		}
+	    }
 	}
-    fioClose(fio);
 
     if (pnOut) *pnOut = 0;
     }
@@ -3161,6 +3183,49 @@ void pstKick(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	out->nSum = 1;
 	}
     if (pnOut) *pnOut = sizeof(struct outKick);
+    }
+
+void pstKickTree(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl = pst->plcl;
+    struct inKickTree *in = vin;
+    struct outKickTree *out = vout;
+    struct outKickTree outUp;
+
+    mdlassert(pst->mdl,nIn == sizeof(struct inKick));
+
+    if (pst->nLeaves > 1) {
+	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_KICKTREE,in,nIn);
+	pstKickTree(pst->pstLower,in,nIn,out,NULL);
+	mdlGetReply(pst->mdl,rID,&outUp,NULL);
+
+	out->SumTime += outUp.SumTime;
+	out->nSum += outUp.nSum;
+	if (outUp.MaxTime > out->MaxTime) out->MaxTime = outUp.MaxTime;
+	}
+    else {
+	pkdKickTree(plcl->pkd,in->dTime,in->dDelta,in->dDeltaVPred,in->dDeltaU,in->dDeltaUPred,in->iRoot);
+	out->Time = pkdGetTimer(plcl->pkd,1);
+	out->MaxTime = out->Time;
+	out->SumTime = out->Time;
+	out->nSum = 1;
+	}
+    if (pnOut) *pnOut = sizeof(struct outKickTree);
+    }
+
+void pstZeroAcc(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl = pst->plcl;
+
+    mdlassert(pst->mdl,nIn == 0);
+
+    if (pst->nLeaves > 1) {
+	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_ZEROACC,vin,nIn);
+	pstZeroAcc(pst->pstLower,vin,nIn,vout,pnOut);
+	mdlGetReply(pst->mdl,rID,NULL,NULL);
+	}
+    else {
+	pkdZeroAcc(plcl->pkd);
+	}
+    if (pnOut) *pnOut = 0;
     }
 
 

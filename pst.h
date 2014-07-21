@@ -121,6 +121,8 @@ enum pst_service {
     PST_SUNCORRECTOR,
     PST_PREDICTORINACTIVE,
     PST_KICK,
+    PST_KICKTREE,
+    PST_ZEROACC,
     PST_SETSOFT,
     PST_PHYSICALSOFT,
     PST_SETTOTAL,
@@ -717,6 +719,26 @@ struct outKick {
     int nSum;
     };
 void pstKick(PST,void *,int,void *,int *);
+
+/* PST_KICKTREE */
+struct inKickTree {
+    double dTime;
+    double dDelta;
+    double dDeltaVPred;
+    double dDeltaU;
+    double dDeltaUPred;
+    int iRoot;
+    };
+struct outKickTree {
+    double Time;
+    double MaxTime;
+    double SumTime;
+    int nSum;
+    };
+void pstKickTree(PST,void *,int,void *,int *);
+
+/* PST_ZEROACC */
+void pstZeroAcc(PST,void *,int,void *,int *);
 
 /* PST_SETSOFT */
 struct inSetSoft {

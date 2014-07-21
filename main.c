@@ -166,6 +166,7 @@ void * master_ch(MDL mdl) {
 		if (msr->param.bHSDKD) {
 		    msrAccelStep(msr,0,MAX_RUNG,dTime);
 		    msrUpdateRung(msr,0);
+		    msrZeroAcc(msr);
 		    }
 		}
 	    }

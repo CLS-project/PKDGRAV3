@@ -25,6 +25,8 @@ struct parameters {
     int bRestart;
     int bParaRead;
     int bParaWrite;
+    int nParaRead;
+    int nParaWrite;
     int bStandard;
     int iCompress;
     int bHDF5;

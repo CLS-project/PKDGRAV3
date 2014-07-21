@@ -796,9 +796,10 @@ static void queueEwald( PKD pkd, workParticle *work ) {
 ** v_sqrt's and such.
 ** Returns nActive.
 */
-int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *pLoc,ILP ilp,ILC ilc,
-    float dirLsum,float normLsum,int bEwald,int bGravStep,int nGroup,double *pdFlop,double *pdEwFlop,double dRhoFac,
-    SMX smx,SMF *smf) {
+int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,int bKeepAcc,
+    KDN *pBucket,LOCR *pLoc,ILP ilp,ILC ilc,
+    float dirLsum,float normLsum,int bEwald,int bGravStep,int nGroup,double *pdFlop,double *pdEwFlop,
+    double dRhoFac,SMX smx,SMF *smf) {
     PARTICLE *p;
     KDN *pkdn = pBucket;
     double *v;
@@ -858,9 +859,8 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,KDN *pBucket,LOCR *p
 	work->pInfoIn[nP].a[0]  = a[0];
 	work->pInfoIn[nP].a[1]  = a[1];
 	work->pInfoIn[nP].a[2]  = a[2];
-	/*work->pInfoIn[nP].fMass = fMass;*/
-	/*work->pInfoIn[nP].fSoft = fSoft;*/
-	a[0] = a[1] = a[2] = 0.0;
+
+	if (!bKeepAcc) a[0] = a[1] = a[2] = 0.0;
 
 	work->pInfoOut[nP].a[0] = 0.0f;
 	work->pInfoOut[nP].a[1] = 0.0f;

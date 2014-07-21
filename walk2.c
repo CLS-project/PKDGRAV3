@@ -299,8 +299,8 @@ static void addChild(PKD pkd, CL cl, int iChild, int id, float *fOffset) {
 ** Returns total number of active particles for which gravity was calculated.
 */
 static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
-    uint8_t uRungLo,uint8_t uRungHi, double dRhoFac, int bEwald, int nGroup, double dThetaMin,
-    int bGravStep, double *pdFlop, double *pdPartSum,double *pdCellSum) {
+    uint8_t uRungLo,uint8_t uRungHi, int bKeepAcc, double dRhoFac, int bEwald, int nGroup,
+    double dThetaMin, int bGravStep, double *pdFlop, double *pdPartSum,double *pdCellSum) {
     KDN *k,*c,*kFind;
     int id,idUpper,iCell,iSib,iLower,iUpper,iCheckCell,iCheckLower,iCellDescend;
     PARTICLE *p;
@@ -738,7 +738,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
 	** Bucket!
 	*/
 	if (!pkd->param.bNoGrav) {
-	    nActive = pkdGravInteract(pkd,uRungLo,uRungHi,k,&L,pkd->ilp,pkd->ilc,
+	    nActive = pkdGravInteract(pkd,uRungLo,uRungHi,bKeepAcc,k,&L,pkd->ilp,pkd->ilc,
 		dirLsum,normLsum,bEwald,bGravStep,nGroup,pdFlop,&dEwFlop,dRhoFac,
 		smx, &smf);
 	    }
@@ -880,7 +880,8 @@ int pkdGravWalkHop(PKD pkd,double dTime,int nGroup, double dThetaMin,double *pdF
 	    addChild(pkd,pkd->cl,iRoot,id,fOffset);
 	    }
 	assert(pkd->hopRoots[iRootSelf].iPid==pkd->idSelf);
-	nActive += processCheckList(pkd, smx, smf, pkd->hopRoots[iRootSelf].iIndex, 0, 0, MAX_RUNG, dRhoFac, 0, nGroup, dThetaMin, 0, pdFlop, pdPartSum, pdCellSum);
+	nActive += processCheckList(pkd, smx, smf, pkd->hopRoots[iRootSelf].iIndex, 0, 0, MAX_RUNG,
+	    0, dRhoFac, 0, nGroup, dThetaMin, 0, pdFlop, pdPartSum, pdCellSum);
 	}
 
     mdlFinishCache(pkd->mdl,CID_PARTICLE);
@@ -903,6 +904,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
     const BND *cbnd;
     int nc;
     int nActive = 0;
+    int bKeepAcc = (iRoot2 > 0);
     double dRhoFac;
     SMX smx;
     SMF smf;
@@ -946,7 +948,8 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 		    }
 		}
 	    }
-	nActive += processCheckList(pkd, smx, smf, iLocalRoot, iVARoot, uRungLo, uRungHi, dRhoFac, bEwald, nGroup, dThetaMin, pkd->param.bGravStep, pdFlop, pdPartSum, pdCellSum);
+	nActive += processCheckList(pkd, smx, smf, iLocalRoot, iVARoot, uRungLo, uRungHi, bKeepAcc,
+	    dRhoFac, bEwald, nGroup, dThetaMin, pkd->param.bGravStep, pdFlop, pdPartSum, pdCellSum);
 	}
     /*
     ** Walk tree 2 against tree 1.
@@ -978,7 +981,8 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 		    }
 		}
 	    }
-	nActive += processCheckList(pkd, smx, smf, iLocalRoot, iVARoot, uRungLo, uRungHi, dRhoFac, bEwald, nGroup, dThetaMin, pkd->param.bGravStep, pdFlop, pdPartSum, pdCellSum);
+	nActive += processCheckList(pkd, smx, smf, iLocalRoot, iVARoot, uRungLo, uRungHi, bKeepAcc,
+	    dRhoFac, bEwald, nGroup, dThetaMin, pkd->param.bGravStep, pdFlop, pdPartSum, pdCellSum);
 	}
     return nActive;
     }
@@ -1021,7 +1025,8 @@ int pkdGravWalkGroups(PKD pkd,double dTime,int nGroup, double dThetaMin,double *
 	    addChild(pkd,pkd->cl,iRoot,id,fOffset);
         }
 #endif
-	nActive += processCheckList(pkd, smx, smf, gd[i].treeRoots[0].iLocalRootId, 0, 0, MAX_RUNG, dRhoFac, 0, nGroup, dThetaMin, 0, pdFlop, pdPartSum, pdCellSum);
+	nActive += processCheckList(pkd, smx, smf, gd[i].treeRoots[0].iLocalRootId, 0, 0, MAX_RUNG,
+	    0, dRhoFac, 0, nGroup, dThetaMin, 0, pdFlop, pdPartSum, pdCellSum);
     }
     return nActive;
 }

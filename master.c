@@ -187,12 +187,18 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.bRestart = 0;
     prmAddParam(msr->prm,"bRestart",0,&msr->param.bRestart,sizeof(int),"restart",
 		"restart from checkpoint");
-    msr->param.bParaRead = 64;
+    msr->param.bParaRead = 1;
     prmAddParam(msr->prm,"bParaRead",0,&msr->param.bParaRead,sizeof(int),"par",
 		"enable/disable parallel reading of files = +par");
     msr->param.bParaWrite = 0;
     prmAddParam(msr->prm,"bParaWrite",0,&msr->param.bParaWrite,sizeof(int),"paw",
 		"enable/disable parallel writing of files = +paw");
+    msr->param.nParaRead = 0;
+    prmAddParam(msr->prm,"nParaRead",1,&msr->param.nParaRead,sizeof(int),"npar",
+		"number of threads to read with during parallel read = 0 (unlimited)");
+    msr->param.nParaWrite = 0;
+    prmAddParam(msr->prm,"nParaWrite",1,&msr->param.nParaWrite,sizeof(int),"npaw",
+		"number of threads to write with during parallel write = 0 (unlimited)");
     msr->param.bDoDensity = 1;
     prmAddParam(msr->prm,"bDoDensity",0,&msr->param.bDoDensity,sizeof(int),
 		"den","enable/disable density outputs = +den");
@@ -1086,8 +1092,8 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->nThreads = mdlThreads(mdl);
 
     /* Make sure that parallel read and write are sane */
-    if (msr->param.bParaRead>msr->nThreads) msr->param.bParaRead = msr->nThreads;
-    if (msr->param.bParaWrite>msr->nThreads) msr->param.bParaWrite = msr->nThreads;
+    if (msr->param.nParaRead>msr->nThreads) msr->param.nParaRead = msr->nThreads;
+    if (msr->param.nParaWrite>msr->nThreads) msr->param.nParaWrite = msr->nThreads;
 
     /*
     ** Create the processor subset tree.
@@ -1163,7 +1169,9 @@ void msrLogParams(MSR msr,FILE *fp) {
     fprintf(fp," bComove: %d",msr->param.csm->bComove);
     fprintf(fp,"\n# bRestart: %d",msr->param.bRestart);
     fprintf(fp," bParaRead: %d",msr->param.bParaRead);
+    fprintf(fp," nParaRead: %d",msr->param.nParaRead);
     fprintf(fp," bParaWrite: %d",msr->param.bParaWrite);
+    fprintf(fp," nParaWrite: %d",msr->param.nParaWrite);
     fprintf(fp," bStandard: %d",msr->param.bStandard);
     fprintf(fp," iCompress: %d",msr->param.iCompress);
     fprintf(fp," bHDF5: %d",msr->param.bHDF5);
@@ -1704,7 +1712,7 @@ void msrAllNodeWrite(MSR msr, const char *pszFileName, double dTime, double dvFa
     ** the total amount of simultaneous I/O for file systems that cannot
     ** handle it.
     */
-    nProcessors = msr->param.bParaWrite==0?1:(msr->param.bParaWrite==1 ? msr->nThreads:msr->param.bParaWrite);
+    nProcessors = msr->param.bParaWrite==0?1:(msr->param.nParaWrite<=1 ? msr->nThreads:msr->param.nParaWrite);
     in.iIndex = 0;
 
     if (msr->param.csm->bComove) {
@@ -1741,7 +1749,6 @@ void msrAllNodeWrite(MSR msr, const char *pszFileName, double dTime, double dvFa
 			     in.nSph, in.nDark, in.nStar);
 	fioClose(fio);
 	}
-
     in.iLower = 0;
     in.iUpper = msr->nThreads;
     in.iIndex = 0;
@@ -1824,7 +1831,7 @@ void msrWrite(MSR msr,const char *pszFileName,double dTime,int bCheckpoint) {
     ** the total amount of simultaneous I/O for file systems that cannot
     ** handle it.
     */
-    nProcessors = msr->param.bParaWrite==1 ? msr->nThreads:msr->param.bParaWrite;
+    nProcessors = msr->param.bParaWrite==0?1:(msr->param.nParaWrite<=1 ? msr->nThreads:msr->param.nParaWrite);
 
     if (msr->param.csm->bComove) {
 	dExp = csmTime2Exp(msr->param.csm,dTime);
@@ -1839,7 +1846,7 @@ void msrWrite(MSR msr,const char *pszFileName,double dTime,int bCheckpoint) {
 		  achOutFile, (msr->param.bHDF5?"HDF5":"Tipsy"));
 	}
     else {
-	if ( msr->param.bParaWrite > 1 )
+	if ( msr->param.nParaWrite > 1 )
 	    msrprintf(msr,"Writing %s in %s format in parallel (but limited to %d processors) ...\n",
 		      achOutFile, (msr->param.bHDF5?"HDF5":"Tipsy"), nProcessors);
 	else
@@ -3417,11 +3424,15 @@ int msrUpdateRung(MSR msr, uint8_t uRung) {
     return(iRungVeryActive);
     }
 
+void msrZeroAcc(MSR msr) {
+    pstZeroAcc(msr->pst,NULL,0,NULL,NULL);
+    }
+
 void msrKickHSDKD(MSR msr,double dStep, double dTime,double dDelta, int iRung,
     int iAdjust, double *pdActiveSum,
 		   int *piSec) {
-    struct inKick in;
-    struct outKick out;
+    struct inKickTree in;
+    struct outKickTree out;
     uint64_t nActive;
 
     msrActiveRung(msr,iRung,1);
@@ -3448,9 +3459,8 @@ void msrKickHSDKD(MSR msr,double dStep, double dTime,double dDelta, int iRung,
 	    }
 	in.dDeltaU = dDelta;
 	in.dDeltaUPred = 0;
-	in.uRungLo = iRung;
-	in.uRungHi = msrCurrMaxRung(msr);
-	pstKick(msr->pst,&in,sizeof(in),&out,NULL);
+	in.iRoot = ROOT;
+	pstKickTree(msr->pst,&in,sizeof(in),&out,NULL);
 	}
     msrprintf(msr,"Kick: Avg Wallclock %f, Max Wallclock %f\n",
 	      out.SumTime/out.nSum,out.MaxTime);
@@ -3460,7 +3470,6 @@ void msrKickHSDKD(MSR msr,double dStep, double dTime,double dDelta, int iRung,
     // Rung+1 down only
     // >Rung+1 up or down
     if (iAdjust && (iRung < msrMaxRung(msr)-1)) {
-//    if (iAdjust) {
 	msrprintf(msr,"%*cAdjust, iRung: %d\n",2*iRung+2,' ',iRung);
 	msrActiveRung(msr, iRung, 1);
 	if (msr->param.bAccelStep) {
@@ -3476,7 +3485,7 @@ void msrKickHSDKD(MSR msr,double dStep, double dTime,double dDelta, int iRung,
 	    msrBuildTree(msr,dTime,0);
 	    msrDensityStep(msr,iRung,MAX_RUNG,dTime);
 	    }
-//	msrUpdateRung(msr,iRung);
+// -> SELECT GOES HERE:	msrUpdateRung(msr,iRung);
         }
 
     }
@@ -4598,7 +4607,8 @@ double msrRead(MSR msr, const char *achInFile) {
     ** the total amount of simultaneous I/O for file systems that cannot
     ** handle it.
     */
-    read->nProcessors = msr->param.bParaRead==1 ? msr->nThreads:msr->param.bParaRead;
+
+    read->nProcessors = msr->param.bParaRead==0?1:(msr->param.nParaRead<=1 ? msr->nThreads:msr->param.nParaRead);
     if (msr->param.bParaRead) {
 	fioClose(fio);
 	pstReadFile(msr->pst,read,sizeof(struct inReadFile)+nBytes,NULL,NULL);

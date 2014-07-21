@@ -2951,6 +2951,43 @@ void pkdKick(PKD pkd,double dTime,double dDelta,double dDeltaVPred,double dDelta
     mdlDiag(pkd->mdl, "Done pkdkick\n");
     }
 
+void pkdZeroAcc(PKD pkd) {
+    int i, j, n = pkdLocal(pkd);
+    PARTICLE *p;
+    float *a;
+    for (i=0;i<n;++i) {
+	p = pkdParticle(pkd,i);
+	a = pkdAccel(pkd,p);
+	for (j=0;j<3;++j) {
+	    a[j] = 0.0f;
+	    }
+	}
+    }
+
+
+/* Kick the tree at iRoot. */
+void pkdKickTree(PKD pkd,double dTime,double dDelta,double dDeltaVPred,double dDeltaU,double dDeltaUPred,int iRoot) {
+    KDN *c;
+    PARTICLE *p;
+    double *v;
+    float *a;
+    int i,j;
+
+    /* Skip to local tree */
+    c = pkdTreeNode(pkd,iRoot);
+    while(c->bRemote) c = pkdTreeNode(pkd,iRoot = c->iLower);
+
+    /* Now just kick all of the particles in the tree */
+    for(i=c->pLower; i<=c->pUpper; ++i) {
+	p = pkdParticle(pkd,i);
+	a = pkdAccel(pkd,p);
+	v = pkdVel(pkd,p);
+	for (j=0;j<3;++j) {
+	    v[j] += a[j]*dDelta;
+	    a[j] = 0.0;
+	    }
+	}
+    }
 
 void pkdInitStep(PKD pkd, struct parameters *p, CSM csm) {
     pkd->param = *p;
