@@ -121,7 +121,6 @@ enum pst_service {
     PST_PREDICTORINACTIVE,
     PST_KICK,
     PST_KICKTREE,
-    PST_ZEROACC,
     PST_SETSOFT,
     PST_PHYSICALSOFT,
     PST_SETTOTAL,
@@ -739,9 +738,6 @@ struct outKickTree {
     int nSum;
     };
 void pstKickTree(PST,void *,int,void *,int *);
-
-/* PST_ZEROACC */
-void pstZeroAcc(PST,void *,int,void *,int *);
 
 /* PST_SETSOFT */
 struct inSetSoft {

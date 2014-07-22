@@ -158,14 +158,13 @@ void * master_ch(MDL mdl) {
 	if (msrDoGravity(msr)) {
 	    msrGravity(msr,0,MAX_RUNG,ROOT,0,dTime,msr->param.iStartStep,msr->param.bEwald,msr->param.nGroup,&iSec,&nActive);
 	    msrMemStatus(msr);
-	    if (msr->param.bGravStep || msr->param.bHSDKD) {
+	    if (msr->param.bGravStep && !msr->param.bHSDKD) {
 		msrBuildTree(msr,dTime,msr->param.bEwald);
 		msrGravity(msr,0,MAX_RUNG,ROOT,0,dTime,msr->param.iStartStep,msr->param.bEwald,msr->param.nGroup,&iSec,&nActive);
 		msrMemStatus(msr);
 		if (msr->param.bHSDKD) {
 		    msrAccelStep(msr,0,MAX_RUNG,dTime);
 		    msrUpdateRung(msr,0);
-		    msrZeroAcc(msr);
 		    }
 		}
 	    }
@@ -193,16 +192,25 @@ void * master_ch(MDL mdl) {
 		}
 	    dMultiEff = 0.0;
 	    lSec = time(0);
-		    if (msr->param.bHSDKD) {
-			msrTopStepHSDKD(msr,iStep-1,dTime,
-			    msrDelta(msr),0,0,msrMaxRung(msr),1,
-			    &dMultiEff,&iSec);
-			}
-		    else {
-			msrTopStepKDK(msr,iStep-1,dTime,
-			    msrDelta(msr),0,0,msrMaxRung(msr),1,
-			    &dMultiEff,&iSec);
-		    }
+	    if (msr->param.bHSDKD) {
+
+		/* Perform select */
+		msrActiveRung(msr,0,1); /* Activate all particles */
+		msrBuildTree(msr,dTime,msr->param.bEwald);
+		msrGravity(msr,0,MAX_RUNG,ROOT,0,dTime,iStep-1,msr->param.bEwald,msr->param.nGroup,&iSec,&nActive);
+		msrMemStatus(msr);
+		msrAccelStep(msr,0,MAX_RUNG,dTime);
+		msrUpdateRung(msr,0);
+
+		msrTopStepHSDKD(msr,iStep-1,dTime,
+		    msrDelta(msr),0,0,msrMaxRung(msr),1,
+		    &dMultiEff,&iSec);
+		}
+	    else {
+		msrTopStepKDK(msr,iStep-1,dTime,
+		    msrDelta(msr),0,0,msrMaxRung(msr),1,
+		    &dMultiEff,&iSec);
+		}
 
 	    dTime += msrDelta(msr);
 	    lSec = time(0) - lSec;

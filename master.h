@@ -103,7 +103,6 @@ void msrDrift(MSR,double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi);
 void msrScaleVel(MSR msr,double dvFac);
 double msrAdjustTime(MSR msr, double aOld, double aNew);
 void msrKick(MSR,double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi);
-void msrZeroAcc(MSR);
 double msrReadCheck(MSR,int *);
 void msrWriteCheck(MSR,double,int);
 int msrOutTime(MSR,double);

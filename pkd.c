@@ -2915,20 +2915,6 @@ void pkdKick(PKD pkd,double dTime,double dDelta,double dDeltaVPred,double dDelta
     mdlDiag(pkd->mdl, "Done pkdkick\n");
     }
 
-void pkdZeroAcc(PKD pkd) {
-    int i, j, n = pkdLocal(pkd);
-    PARTICLE *p;
-    float *a;
-    for (i=0;i<n;++i) {
-	p = pkdParticle(pkd,i);
-	a = pkdAccel(pkd,p);
-	for (j=0;j<3;++j) {
-	    a[j] = 0.0f;
-	    }
-	}
-    }
-
-
 /* Kick the tree at iRoot. */
 void pkdKickTree(PKD pkd,double dTime,double dDelta,double dDeltaVPred,double dDeltaU,double dDeltaUPred,int iRoot) {
     KDN *c;

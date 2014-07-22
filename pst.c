@@ -327,9 +327,6 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_KICKTREE,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstKickTree,
 		  sizeof(struct inKickTree),sizeof(struct outKickTree));
-    mdlAddService(mdl,PST_ZEROACC,pst,
-		  (void (*)(void *,void *,int,void *,int *)) pstZeroAcc,
-	          0,0);
     mdlAddService(mdl,PST_SETSOFT,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstSetSoft,
 		  sizeof(struct inSetSoft),0);
@@ -3204,23 +3201,6 @@ void pstKickTree(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	}
     if (pnOut) *pnOut = sizeof(struct outKickTree);
     }
-
-void pstZeroAcc(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
-    LCL *plcl = pst->plcl;
-
-    mdlassert(pst->mdl,nIn == 0);
-
-    if (pst->nLeaves > 1) {
-	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_ZEROACC,vin,nIn);
-	pstZeroAcc(pst->pstLower,vin,nIn,vout,pnOut);
-	mdlGetReply(pst->mdl,rID,NULL,NULL);
-	}
-    else {
-	pkdZeroAcc(plcl->pkd);
-	}
-    if (pnOut) *pnOut = 0;
-    }
-
 
 void pstSetTotal(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;

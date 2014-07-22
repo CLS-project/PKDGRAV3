@@ -3371,10 +3371,6 @@ int msrUpdateRung(MSR msr, uint8_t uRung) {
     return(iRungVeryActive);
     }
 
-void msrZeroAcc(MSR msr) {
-    pstZeroAcc(msr->pst,NULL,0,NULL,NULL);
-    }
-
 void msrKickHSDKD(MSR msr,double dStep, double dTime,double dDelta, int iRung,
     int iAdjust, double *pdActiveSum,
 		   int *piSec) {
@@ -3407,6 +3403,8 @@ void msrKickHSDKD(MSR msr,double dStep, double dTime,double dDelta, int iRung,
 	in.dDeltaU = dDelta;
 	in.dDeltaUPred = 0;
 	in.iRoot = ROOT;
+	pstKickTree(msr->pst,&in,sizeof(in),&out,NULL);
+	in.iRoot = ROOT+1;
 	pstKickTree(msr->pst,&in,sizeof(in),&out,NULL);
 	}
     msrprintf(msr,"Kick: Avg Wallclock %f, Max Wallclock %f\n",

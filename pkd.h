@@ -1144,7 +1144,6 @@ void pkdKickKDKOpen(PKD pkd,double dTime,double dDelta,uint8_t uRungLo,uint8_t u
 void pkdKickKDKClose(PKD pkd,double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi);
 void pkdKick(PKD pkd,double dTime,double dDelta,double,double,double,uint8_t uRungLo,uint8_t uRungHi);
 void pkdKickTree(PKD pkd,double dTime,double dDelta,double,double,double,int iRoot);
-void pkdZeroAcc(PKD pkd);
 void pkdSwapAll(PKD pkd, int idSwap);
 void pkdInitStep(PKD pkd,struct parameters *p,CSM csm);
 void pkdSetRung(PKD pkd,uint8_t uRungLo, uint8_t uRungHi, uint8_t uRung);
