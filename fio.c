@@ -2160,6 +2160,7 @@ FIO fioGadgetCreate(
 	fwrite(&w, sizeof(w), 1, gio->fp_mass.fp);
 	safe_fseek(gio->fp_mass.fp,gio->fp_mass.lOffset+sizeof(w));
 	}
+    gio->fp_u.fp = NULL;
 
     return &gio->fio;
     }
