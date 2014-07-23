@@ -47,7 +47,7 @@ static void InitializeParticles(PKD pkd,int nTrees,TREESPEC *pSpec,BND *pbnd) {
     int bOnlyMarked;
 
     /* Special mode: build a tree with only marked particles */
-    bOnlyMarked == (nTrees==1 && pSpec[0].uRungFirst > pSpec[0].uRungLast);
+    bOnlyMarked = (nTrees==1 && pSpec[0].uRungFirst > pSpec[0].uRungLast);
     int bExcludeVeryActive = 0;
     /*
     ** Initialize the temporary particles.
