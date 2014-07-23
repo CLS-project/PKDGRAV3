@@ -399,6 +399,9 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_UPDATERUNG,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstUpdateRung,
 		  sizeof(struct inUpdateRung),sizeof(struct outUpdateRung));
+    mdlAddService(mdl,PST_UPDATERUNGBYTREE,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstUpdateRungByTree,
+		  sizeof(struct inUpdateRungByTree),sizeof(struct outUpdateRung));
     mdlAddService(mdl,PST_COLNPARTS,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstColNParts,
 		  0,nThreads*sizeof(struct outColNParts));
@@ -3500,11 +3503,30 @@ void pstUpdateRung(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	    }
 	}
     else {
-	int nRungCount[256];   /* we need a temporary array of INTEGERS */
-	for (i=0;i<in->uMaxRung;++i) nRungCount[i] = 0;
 	pkdUpdateRung(plcl->pkd,in->uRungLo,in->uRungHi,
-		      in->uMinRung,in->uMaxRung,nRungCount);
-	for (i=0;i<in->uMaxRung;++i) out->nRungCount[i] = nRungCount[i];
+		      in->uMinRung,in->uMaxRung,out->nRungCount);
+	}
+    if (pnOut) *pnOut = sizeof(*out);
+    }
+
+void pstUpdateRungByTree(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl = pst->plcl;
+    struct inUpdateRungByTree *in = vin;
+    struct outUpdateRung *out = vout;
+    struct outUpdateRung outTemp;
+    int i;
+
+    mdlassert(pst->mdl,nIn == sizeof(*in));
+    if (pst->nLeaves > 1) {
+	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_UPDATERUNGBYTREE,vin,nIn);
+	pstUpdateRungByTree(pst->pstLower,vin,nIn,vout,pnOut);
+	mdlGetReply(pst->mdl,rID,&outTemp,pnOut);
+	for (i=0;i<in->uMaxRung;++i) {
+	    out->nRungCount[i] += outTemp.nRungCount[i];
+	    }
+	}
+    else {
+	pkdUpdateRungByTree(plcl->pkd,in->iRoot,in->uMinRung,in->uMaxRung,out->nRungCount);
 	}
     if (pnOut) *pnOut = sizeof(*out);
     }

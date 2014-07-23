@@ -155,10 +155,10 @@ void * master_ch(MDL mdl) {
 	msrDomainDecomp(msr,0,0,0);
 	msrUpdateSoft(msr,dTime);
 	msrBuildTree(msr,dTime,msr->param.bEwald);
-	if (msrDoGravity(msr)) {
+	if (msrDoGravity(msr) && !msr->param.bHSDKD) {
 	    msrGravity(msr,0,MAX_RUNG,ROOT,0,dTime,msr->param.iStartStep,msr->param.bEwald,msr->param.nGroup,&iSec,&nActive);
 	    msrMemStatus(msr);
-	    if (msr->param.bGravStep && !msr->param.bHSDKD) {
+	    if (msr->param.bGravStep) {
 		msrBuildTree(msr,dTime,msr->param.bEwald);
 		msrGravity(msr,0,MAX_RUNG,ROOT,0,dTime,msr->param.iStartStep,msr->param.bEwald,msr->param.nGroup,&iSec,&nActive);
 		msrMemStatus(msr);
