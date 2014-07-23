@@ -3299,6 +3299,33 @@ void msrDensityStep(MSR msr,uint8_t uRungLo,uint8_t uRungHi,double dTime) {
     }
 
 /*
+** Updates all particles in the tree at iRoot.
+** Particles may not go higer (lower rung number) than uRung.
+*/
+void msrUpdateRungByTree(MSR msr, uint8_t uRung, int iRoot) {
+    struct inUpdateRungByTree in;
+    struct outUpdateRung out;
+    int iTempRung;
+
+    in.iRoot = iRoot;
+    in.uMinRung = uRung;
+    in.uMaxRung = msrMaxRung(msr);
+    pstUpdateRungByTree(msr->pst, &in, sizeof(in), &out, NULL);
+    for (iTempRung=uRung;iTempRung < msrMaxRung(msr);++iTempRung) msr->nRung[iTempRung] = out.nRungCount[iTempRung];
+    if (msr->param.bVRungStat) {
+	printf("Rung distribution:\n");
+	printf("\n");
+	for (iTempRung=0;iTempRung <= msr->iCurrMaxRung;++iTempRung) {
+	    if (msr->nRung[iTempRung] == 0) continue;
+	    printf("   rung:%d %"PRIu64"\n",iTempRung,msr->nRung[iTempRung]);
+	    }
+	printf("\n");
+	}
+
+
+    }
+
+/*
 ** Returns the Very Active rung based on the number of very active particles desired,
 ** or the fixed rung that was specified in the parameters.
 */
@@ -3430,7 +3457,8 @@ void msrKickHSDKD(MSR msr,double dStep, double dTime,double dDelta, int iRung,
 	    msrBuildTree(msr,dTime,0);
 	    msrDensityStep(msr,iRung,MAX_RUNG,dTime);
 	    }
-// -> SELECT GOES HERE:	msrUpdateRung(msr,iRung);
+	/* Select */
+	//msrUpdateRungByTree(msr,iRung+1,ROOT+1);
         }
 
     }
@@ -4518,8 +4546,11 @@ double msrRead(MSR msr, const char *achInFile) {
     msr->nStar = fioGetN(fio,FIO_SPECIES_STAR);
     msr->nMaxOrder = msr->N;
 
+    read->nProcessors = msr->param.bParaRead==0?1:(msr->param.nParaRead<=1 ? msr->nThreads:msr->param.nParaRead);
+
     if (!fioGetAttr(fio,"nFiles",FIO_TYPE_UINT32,&j)) j = 1;
-    printf("Reading %llu particles from %d file%s\n", msr->N, j, (j==1?"":"s") );
+    msrprintf(msr,"Reading %llu particles from %d file%s using %d processor%s\n",
+	msr->N, j, (j==1?"":"s"), read->nProcessors, (read->nProcessors==1?"":"s") );
 
     dTime = getTime(msr,dExpansion,&read->dvFac);
     read->dTuFac = msr->param.dTuFac;
@@ -4555,7 +4586,6 @@ double msrRead(MSR msr, const char *achInFile) {
     ** handle it.
     */
 
-    read->nProcessors = msr->param.bParaRead==0?1:(msr->param.nParaRead<=1 ? msr->nThreads:msr->param.nParaRead);
     if (msr->param.bParaRead) {
 	fioClose(fio);
 	pstReadFile(msr->pst,read,sizeof(struct inReadFile)+nBytes,NULL,NULL);

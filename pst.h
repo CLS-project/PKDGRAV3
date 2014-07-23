@@ -146,6 +146,7 @@ enum pst_service {
     PST_RESMOOTH,
     PST_INITACCEL,
     PST_UPDATERUNG,
+    PST_UPDATERUNGBYTREE,
     PST_INITDT,
     PST_ORDWEIGHT,
     PST_SETWRITESTART,
@@ -943,9 +944,17 @@ struct inUpdateRung {
     uint8_t uMaxRung; /* Maximum it can be set to */
     };
 struct outUpdateRung {
-    uint64_t nRungCount[256];
+    uint64_t nRungCount[MAX_RUNG];
     };
 void pstUpdateRung(PST,void *,int,void *,int *);
+
+/* PST_UPDATE_RUNGBYTREE */
+struct inUpdateRungByTree {
+    int iRoot;
+    uint8_t uMinRung;
+    uint8_t uMaxRung;
+    };
+void pstUpdateRungByTree(PST,void *,int,void *,int *);
 
 /* PST_ORDWEIGHT */
 struct inOrdWeight {

@@ -2728,7 +2728,7 @@ void pkdGravityVeryActive(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,i
 void pkdStepVeryActiveKDK(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dStep, double dTime, double dDelta,
 			  int iRung, int iKickRung, int iRungVeryActive,int iAdjust, double dThetaMin,
 			  int *pnMaxRung, double aSunInact[], double adSunInact[], double dSunMass) {
-    int nRungCount[256];
+    uint64_t nRungCount[256];
     double dDriftFac;
 
     if (iAdjust && (iRung < pkd->param.iMaxRung-1)) {
@@ -3373,8 +3373,24 @@ uint8_t pkdDtToRung(double dT, double dDelta, uint8_t uMaxRung) {
     }
 
 
+void pkdUpdateRungByTree(PKD pkd,int iRoot,uint8_t uMinRung,int iMaxRung,
+uint64_t *nRungCount) {
+    KDN *c = pkdTreeNode(pkd,iRoot);
+    int i;
+    for (i=0;i<iMaxRung;++i) nRungCount[i] = 0;
+    for (i=c->pLower; i<=c->pUpper; ++i) {
+	PARTICLE *p = pkdParticle(pkd,i);
+	if ( p->uNewRung >= iMaxRung ) p->uNewRung = iMaxRung-1;
+	else if (p->uNewRung < uMinRung) p->uNewRung = uMinRung;
+	if ( p->uNewRung > p->uRung ) ++p->uRung;
+	else if ( p->uNewRung < p->uRung ) --p->uRung;
+	nRungCount[p->uRung] += 1;
+	}
+    }
+
+
 int pkdUpdateRung(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
-		  uint8_t uRung,int iMaxRung,int *nRungCount) {
+		  uint8_t uRung,int iMaxRung,uint64_t *nRungCount) {
     PARTICLE *p;
     int i;
     int iTempRung;
