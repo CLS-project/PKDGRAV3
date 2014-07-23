@@ -77,7 +77,7 @@ static void InitializeParticles(PKD pkd,int nTrees,TREESPEC *pSpec,BND *pbnd) {
     /* Sometimes, not so much */
     else {
 	/* Figure out which tree each rung belongs to */
-	for (i=0; i<=MAX_RUNG;++i) iTreeRoot[i] = nTrees;
+	for (i=0; i<MAX_RUNG;++i) iTreeRoot[i] = nTrees;
 	if (bOnlyMarked) iTreeRoot[1] = 0; /* Single tree for marked particles only */
 	else for (i=0; i<nTrees;++i) {
 		for( j=pSpec[i].uRungFirst; j<=pSpec[i].uRungLast; ++j)
