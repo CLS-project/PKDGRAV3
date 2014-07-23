@@ -2341,7 +2341,6 @@ void *mdlDoMiss(MDL mdl, int cid, int iIndex, int id, int lock) {
     char ach[80];
     CAHEAD *caFlsh;
     char *pszFlsh;
-    MPI_Status status;
     MPI_Request reqFlsh;
     mdlkey_t iKey;
 
