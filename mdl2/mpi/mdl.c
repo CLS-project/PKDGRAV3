@@ -29,6 +29,9 @@
 #ifdef USE_CUDA
 #include "cudautil.h"
 #endif
+#ifdef USE_ITT
+#include "ittnotify.h"
+#endif
 
 #define MDL_NOCACHE			0
 #define MDL_ROCACHE			1
@@ -1011,7 +1014,13 @@ static void drainMPI(MDL mdl) {
 
 static void *mdlWorkerThread(void *vmdl) {
     MDL mdl = vmdl;
-    void *result = (*mdl->fcnWorker)(mdl);
+    void *result;
+#ifdef USE_ITT
+    char szName[20];
+    sprintf(szName,"ID %d", mdl->base.iCore);
+    __itt_thread_set_name(szName);
+#endif
+    result = (*mdl->fcnWorker)(mdl);
     if (mdl->base.iCore != mdl->iCoreMPI) {
 	mdlSendToMPI(mdl,&mdl->inMessage,MDL_SE_STOP);
 	mdlWaitThreadQueue(mdl,0); /* Wait for Send to complete */
@@ -1027,6 +1036,11 @@ int mdlLaunch(int argc,char **argv,void * (*fcnMaster)(MDL),void * (*fcnChild)(M
     int i,bDiag,bThreads,bDedicated,thread_support,rc,flag,*piTagUB;
     char *p, ach[256];
 
+#ifdef USE_ITT
+	__itt_domain* domain = __itt_domain_create("MyTraces.MyDomain");
+	__itt_string_handle* shMyTask = __itt_string_handle_create("MDL Startup");
+	__itt_task_begin(domain, __itt_null, __itt_null, shMyTask);
+#endif
     mdl = malloc(sizeof(struct mdlContext));
     assert(mdl != NULL);
     mdlBaseInitialize(&mdl->base,argc,argv);
@@ -1077,12 +1091,19 @@ int mdlLaunch(int argc,char **argv,void * (*fcnMaster)(MDL),void * (*fcnChild)(M
     assert(mdl->base.nCores>0);
 
     /* MPI Initialization */
+#ifdef USE_ITT
+    __itt_string_handle* shMPITask = __itt_string_handle_create("MPI");
+    __itt_task_begin(domain, __itt_null, __itt_null, shMPITask);
+#endif
     rc = MPI_Init_thread(&argc, &argv, MPI_THREAD_FUNNELED,&thread_support);
     if (rc!=MPI_SUCCESS) {
 	MPI_Error_string(rc, ach, &i);
 	perror(ach);
 	abort();
 	}
+#ifdef USE_ITT
+    __itt_task_end(domain);
+#endif
     mdl->mpi.commMDL = MPI_COMM_WORLD;
     mdl->mpi.ReqRcv = MPI_REQUEST_NULL;
     MPI_Comm_size(mdl->mpi.commMDL, &mdl->base.nProcs);
@@ -1149,7 +1170,15 @@ int mdlLaunch(int argc,char **argv,void * (*fcnMaster)(MDL),void * (*fcnChild)(M
 	assert(mdl->mpi.nRequestTargets*MDL_TAG_THREAD_OFFSET < *piTagUB);
 	}
 
+#ifdef USE_ITT
+    __itt_thread_set_name("MPI");
+#endif
+
     /* Launch threads: if dedicated MPI thread then launch all worker threads. */
+#ifdef USE_ITT
+    __itt_string_handle* shPthreadTask = __itt_string_handle_create("pthread");
+    __itt_task_begin(domain, __itt_null, __itt_null, shPthreadTask);
+#endif
     mdl->mpi.nActiveCores = 0;
     if (mdl->base.nCores > 1 || bDedicated) {
 	pthread_attr_t attr;
@@ -1162,6 +1191,10 @@ int mdlLaunch(int argc,char **argv,void * (*fcnMaster)(MDL),void * (*fcnChild)(M
 	    }
 	pthread_attr_destroy(&attr);
 	}
+#ifdef USE_ITT
+    __itt_task_end(domain);
+    __itt_task_end(domain);
+#endif
     if (!bDedicated) {
 	if (mdl->base.idSelf) (*fcnChild)(mdl);
 	else fcnMaster(mdl);

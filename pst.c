@@ -22,6 +22,9 @@
 #ifdef __linux__
 #include <unistd.h>
 #endif
+#ifdef USE_ITT
+#include "ittnotify.h"
+#endif
 #include "mdl.h"
 #include "pst.h"
 #include "pkd.h"
@@ -1649,6 +1652,11 @@ void pstDomainDecomp(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 
     pst->bnd = in->bnd;
     if (pst->nLeaves > 1) {
+#ifdef USE_ITT
+	__itt_domain* domain = __itt_domain_create("MyTraces.MyDomain");
+	__itt_string_handle* shMyTask = __itt_string_handle_create("Domain Decomposition");
+	__itt_task_begin(domain, __itt_null, __itt_null, shMyTask);
+#endif
 	if (pst->iSplitDim != -1 && in->nActive < NMINFORROOTFIND) {
 	    mdlprintf(pst->mdl,"Aborting RootFind -- too few actives.\n");
 	    in->bDoSplitDimFind = 0;
@@ -1728,6 +1736,9 @@ void pstDomainDecomp(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	pstDomainDecomp(pst->pstLower,vin,sizeof(*in),NULL,NULL);
 
 	mdlGetReply(pst->mdl,rID,NULL,NULL);
+#ifdef USE_ITT
+	__itt_task_end(domain);
+#endif
 	}
     else {
 	float offs;
@@ -2448,6 +2459,14 @@ void pstWrite(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	    pkdWriteViaNode(plcl->pkd, in->iLower);
 	    }
 	else {
+//	    if (in->bStandard==2) {
+//		makeName(achOutFile,in->achOutFile,in->iIndex);
+//		fio = fioGadgetCreate(achOutFile,in->mFlags,in->dTime,in->dBoxSize,
+//		    in->Omega0,in->OmegaLambda,in->HubbleParam,
+//		    int nTypes, const uint64_t *nPart,
+//		    int nFiles, const uint64_t *nAll,
+//		    const double *dMass );
+//		}
 	    if (in->bHDF5) {
 #ifdef USE_HDF5
 		makeName(achOutFile,in->achOutFile,in->iIndex);

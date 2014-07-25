@@ -18,6 +18,9 @@
 #ifdef HAVE_SYS_TIME_H
 #include <sys/time.h>
 #endif
+#ifdef USE_ITT
+#include "ittnotify.h"
+#endif
 
 
 void pkdDumpTrees(PKD pkd) {
@@ -764,6 +767,14 @@ void pkdCombineCells2(PKD pkd,KDN *pkdn,KDN *p1,KDN *p2) {
 void pkdTreeBuild(PKD pkd,int nBucket,int nTrees, TREESPEC *pSpec) {
     int iStart;
     int i;
+#ifdef USE_ITT
+    __itt_domain* domain = __itt_domain_create("MyTraces.MyDomain");
+    __itt_string_handle* shMyTask = __itt_string_handle_create("Tree Build");
+    __itt_string_handle* shMySubtask = __itt_string_handle_create("My SubTask");
+#endif
+#ifdef USE_ITT
+     __itt_task_begin(domain, __itt_null, __itt_null, shMyTask);
+#endif
 
     pkdClearTimer(pkd,0);
     pkdStartTimer(pkd,0);
@@ -774,6 +785,11 @@ void pkdTreeBuild(PKD pkd,int nBucket,int nTrees, TREESPEC *pSpec) {
     for(i=0; i<nTrees; ++i) Create(pkd,pSpec[i].uCell);
 
     pkdStopTimer(pkd,0);
+
+#ifdef USE_ITT
+    __itt_task_end(domain);
+#endif
+
     /*
     ** Finally activate a read only cache for remote access.
     */

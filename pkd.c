@@ -22,6 +22,9 @@
 #ifdef __linux__
 #include <sys/resource.h>
 #endif
+#ifdef USE_ITT
+#include "ittnotify.h"
+#endif
 #include "cudautil.h"
 #include "pkd.h"
 #include "ewald.h"
@@ -30,7 +33,6 @@
 #include "mdl.h"
 #include "tipsydefs.h"
 #include "outtype.h"
-
 #include "parameters.h"
 #include "cosmo.h"
 
@@ -884,6 +886,11 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
 
     mdlassert(pkd->mdl,fio != NULL);
 
+#ifdef USE_ITT
+    __itt_domain* domain = __itt_domain_create("MyTraces.MyDomain");
+    __itt_string_handle* shMyTask = __itt_string_handle_create("Read");
+     __itt_task_begin(domain, __itt_null, __itt_null, shMyTask);
+#endif
     if (pkd->oStar) {
 	/* Make sure star class established -- how do all procs know of these classes? How do we ensure they agree on the class identifiers? */
 	p = pkdParticle(pkd,pkd->nLocal);
@@ -966,6 +973,10 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
     
     pkd->nLocal += nLocal;
     pkd->nActive += nLocal;
+
+#ifdef USE_ITT
+    __itt_task_end(domain);
+#endif
     }
 
 void pkdCalcBound(PKD pkd,BND *pbnd) {
@@ -2545,6 +2556,15 @@ pkdGravAll(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,int bP
     double fEwCut,double fEwhCut,double dThetaMin,
     int *nActive,double *pdPartSum, double *pdCellSum,CASTAT *pcs, double *pdFlop) {
 
+
+#ifdef USE_ITT
+    __itt_domain* domain = __itt_domain_create("MyTraces.MyDomain");
+    __itt_string_handle* shMyTask = __itt_string_handle_create("Gravity");
+     __itt_task_begin(domain, __itt_null, __itt_null, shMyTask);
+#endif
+
+
+
     pkdClearTimer(pkd,1);
 #if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
     mdlTimeReset(pkd->mdl);
@@ -2584,6 +2604,10 @@ pkdGravAll(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,int bP
     ** Stop particle caching space.
     */
     mdlFinishCache(pkd->mdl,CID_PARTICLE);
+
+#ifdef USE_ITT
+    __itt_task_end(domain);
+#endif
     }
 
 void pkdCalcEandL(PKD pkd,double *T,double *U,double *Eth,double *L,double *F,double *W) {

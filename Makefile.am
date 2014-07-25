@@ -120,6 +120,13 @@ pkdgrav3_mpi_LDADD += -L @EFENCE_PATH@
 endif
 pkdgrav3_mpi_LDADD += -lefence
 endif
+if USE_ITT
+if HAVE_ITT_PATH
+pkdgrav3_mpi_LDADD += -L @ITT_PATH@/lib64
+pkdgrav3_mpi_CFLAGS += -I @ITT_PATH@/include
+endif
+pkdgrav3_mpi_LDADD += -littnotify
+endif
 if USE_CUDA
 pkdgrav3_mpi_LDADD += @CUDA_LIBS@
 endif

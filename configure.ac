@@ -100,6 +100,18 @@ AM_CONDITIONAL(USE_EFENCE, test "x$EFENCE_DIR" != "xno")
 AM_CONDITIONAL(HAVE_EFENCE_PATH, test "x$EFENCE_DIR" != "xyes")
 AC_SUBST([EFENCE_PATH],[$EFENCE_DIR])
 
+# Intel VTUNE
+AC_ARG_WITH(itt,
+  [  --with-itt=PATH      enable Vtune debugging],
+  [ITT_DIR="${withval}"],[ITT_DIR=no])
+AM_CONDITIONAL(USE_ITT, test "x$ITT_DIR" != "xno")
+AM_CONDITIONAL(HAVE_ITT_PATH, test "x$ITT_DIR" != "xyes")
+AC_SUBST([ITT_PATH],[$ITT_DIR])
+if test "x$ITT_DIR" != "xno" ; then
+AC_DEFINE([USE_ITT],1,
+  [Defined if Intel vtune support should be compiled into pkdgrav3])
+fi
+
 # Python
 AC_ARG_WITH(python,
   [  --with-python=VERSION   enable python scripting],
