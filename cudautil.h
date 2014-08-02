@@ -7,6 +7,8 @@
 extern "C" {
 #endif
 #ifdef USE_CUDA
+    void CUDA_nvtxRangePush(char *name);
+    void CUDA_nvtxRangePop();
     void *CUDA_malloc(size_t nBytes);
     void CUDA_free(void *data);
     void *CUDA_gpu_malloc(size_t nBytes);
@@ -40,53 +42,25 @@ extern "C" {
 #define CUDA_LOG_NUM_BANKS 4
 #define cfOffset(i) ((i) + ((i)>>CUDA_LOG_NUM_BANKS))
 
-
 template <typename T,unsigned int blockSize>
-inline __device__ T warpReduce(volatile T * data, int tid) {
-    T t = data[tid];
-    if (tid<blockSize/2) {
-	if (blockSize >= 64) data[tid] = t = t + data[tid + 32]; 
-	if (blockSize >= 32) data[tid] = t = t + data[tid + 16]; 
-	if (blockSize >= 16) data[tid] = t = t + data[tid +  8]; 
-	if (blockSize >= 8)  data[tid] = t = t + data[tid +  4]; 
-	if (blockSize >= 4)  data[tid] = t = t + data[tid +  2]; 
-	if (blockSize >= 2)  data[tid] = t = t + data[tid +  1]; 
-	}
-    return t;
-    }
-
-template <typename T,unsigned int blockSize>
-inline __device__ T warpReduce(volatile T * data, int tid, T t) {
-    data[tid] = t;
-    if (tid<blockSize/2) {
-	if (blockSize >= 64) data[tid] = t = t + data[tid + 32]; 
-	if (blockSize >= 32) data[tid] = t = t + data[tid + 16]; 
-	if (blockSize >= 16) data[tid] = t = t + data[tid +  8]; 
-	if (blockSize >= 8)  data[tid] = t = t + data[tid +  4]; 
-	if (blockSize >= 4)  data[tid] = t = t + data[tid +  2]; 
-	if (blockSize >= 2)  data[tid] = t = t + data[tid +  1]; 
-	}
+inline __device__ T warpReduce(/*volatile T * data, int tid,*/ T t) {
+    if (blockSize >= 32) t += __shfl_xor(t,16);
+    if (blockSize >= 16) t += __shfl_xor(t,8);
+    if (blockSize >= 8)  t += __shfl_xor(t,4);
+    if (blockSize >= 4)  t += __shfl_xor(t,2);
+    if (blockSize >= 2)  t += __shfl_xor(t,1);
     return t;
     }
 
 template <typename T,unsigned int blockSize>
 __device__ void warpReduceAndStore(volatile T * data, int tid,T *result) {
-    T t = warpReduce<T,blockSize>(data,tid);
+    T t = warpReduce<T,blockSize>(data[tid]);
     if (tid==0) *result = t;
     }
 
 template <typename T,unsigned int blockSize>
-__device__ void warpReduceAndStore(volatile T * data, int tid,T t,T *result) {
-    //if (__CUDA_ARCH__ >= 300) {
-	t += __shfl_xor(t,16);
-	t += __shfl_xor(t,8);
-	t += __shfl_xor(t,4);
-	t += __shfl_xor(t,2);
-	t += __shfl_xor(t,1);
-//	}
-//    else {
-//	t = warpReduce<T,blockSize>(data,tid,t);
-//	}
+__device__ void warpReduceAndStore(int tid,T t,T *result) {
+    t = warpReduce<T,blockSize>(t);
     if (tid==0) *result = t;
     }
 

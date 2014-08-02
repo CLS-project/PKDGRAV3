@@ -161,7 +161,7 @@ __global__ void cudaInteract(
         float   W[nWarps/nWarpsPerWU][nSyncRate*sizeof(ppInput)/sizeof(float)];
         } Particles;
 
-    __shared__ float reduce[nWarps][32];
+//    __shared__ float reduce[nWarps][32];
 
     __shared__ float wX[nSyncRate][nWarps];
     __shared__ float wY[nSyncRate][nWarps];
@@ -259,13 +259,13 @@ __global__ void cudaInteract(
                     }
                 }
             // Horizontal add within each warp -- no sychronization required
-            warpReduceAndStore<float,32>(reduce[iWarp],iTinW,ax,           &wX[i][iWarp]);
-            warpReduceAndStore<float,32>(reduce[iWarp],iTinW,ay,           &wY[i][iWarp]);
-            warpReduceAndStore<float,32>(reduce[iWarp],iTinW,az,           &wZ[i][iWarp]);
-            warpReduceAndStore<float,32>(reduce[iWarp],iTinW,fPot,       &wPot[i][iWarp]);
+            warpReduceAndStore<float,32>(iTinW,ax,           &wX[i][iWarp]);
+            warpReduceAndStore<float,32>(iTinW,ay,           &wY[i][iWarp]);
+            warpReduceAndStore<float,32>(iTinW,az,           &wZ[i][iWarp]);
+            warpReduceAndStore<float,32>(iTinW,fPot,       &wPot[i][iWarp]);
             if (bGravStep) {
-                warpReduceAndStore<float,32>(reduce[iWarp],iTinW,dirsum,  &wDirsum[i][iWarp]);
-                warpReduceAndStore<float,32>(reduce[iWarp],iTinW,normsum,&wNormsum[i][iWarp]);
+                warpReduceAndStore<float,32>(iTinW,dirsum,  &wDirsum[i][iWarp]);
+                warpReduceAndStore<float,32>(iTinW,normsum,&wNormsum[i][iWarp]);
                 }
             }
 
@@ -338,8 +338,6 @@ __global__ void cudaInteract(
         ppInput P[nWarps/nWarpsPerWU][nSyncRate];
         float   W[nWarps/nWarpsPerWU][nSyncRate*sizeof(ppInput)/sizeof(float)];
         } Particles;
-
-    __shared__ float reduce[nWarps][32];
 
     __shared__ float wX[nSyncRate][nWarps];
     __shared__ float wY[nSyncRate][nWarps];
@@ -493,13 +491,13 @@ __global__ void cudaInteract(
                     }
                 }
             // Horizontal add within each warp -- no sychronization required
-            warpReduceAndStore<float,32>(reduce[iWarp],iTinW,ax,     &wX[i][iWarp]);
-            warpReduceAndStore<float,32>(reduce[iWarp],iTinW,ay,     &wY[i][iWarp]);
-            warpReduceAndStore<float,32>(reduce[iWarp],iTinW,az,     &wZ[i][iWarp]);
-            warpReduceAndStore<float,32>(reduce[iWarp],iTinW,fPot,   &wPot[i][iWarp]);
+            warpReduceAndStore<float,32>(iTinW,ax,     &wX[i][iWarp]);
+            warpReduceAndStore<float,32>(iTinW,ay,     &wY[i][iWarp]);
+            warpReduceAndStore<float,32>(iTinW,az,     &wZ[i][iWarp]);
+            warpReduceAndStore<float,32>(iTinW,fPot,   &wPot[i][iWarp]);
             if (bGravStep) {
-                warpReduceAndStore<float,32>(reduce[iWarp],iTinW,dirsum, &wDirsum[i][iWarp]);
-                warpReduceAndStore<float,32>(reduce[iWarp],iTinW,normsum,&wNormsum[i][iWarp]);
+                warpReduceAndStore<float,32>(iTinW,dirsum, &wDirsum[i][iWarp]);
+                warpReduceAndStore<float,32>(iTinW,normsum,&wNormsum[i][iWarp]);
                 }
 	}
 
@@ -518,13 +516,13 @@ __global__ void cudaInteract(
             int iWarp = iI &  (nWarpsPerWU-1); // 0 .. 3
             int iOut  = iI / nWarpsPerWU + iSync;
          
-            warpReduceAndStore<float,nWarpsPerWU>(      &wX[0][0]+iP,iWarp,&out[iOut].ax);
-            warpReduceAndStore<float,nWarpsPerWU>(      &wY[0][0]+iP,iWarp,&out[iOut].ay);
-            warpReduceAndStore<float,nWarpsPerWU>(      &wZ[0][0]+iP,iWarp,&out[iOut].az);
-            warpReduceAndStore<float,nWarpsPerWU>(    &wPot[0][0]+iP,iWarp,&out[iOut].fPot);
+            warpReduceAndStore<float,nWarpsPerWU>(      &wX[0][iP],iWarp,&out[iOut].ax);
+            warpReduceAndStore<float,nWarpsPerWU>(      &wY[0][iP],iWarp,&out[iOut].ay);
+            warpReduceAndStore<float,nWarpsPerWU>(      &wZ[0][iP],iWarp,&out[iOut].az);
+            warpReduceAndStore<float,nWarpsPerWU>(    &wPot[0][iP],iWarp,&out[iOut].fPot);
             if (bGravStep) {
-                warpReduceAndStore<float,nWarpsPerWU>( &wDirsum[0][0]+iP,iWarp,&out[iOut].dirsum);
-                warpReduceAndStore<float,nWarpsPerWU>(&wNormsum[0][0]+iP,iWarp,&out[iOut].normsum);
+                warpReduceAndStore<float,nWarpsPerWU>( &wDirsum[0][iP],iWarp,&out[iOut].dirsum);
+                warpReduceAndStore<float,nWarpsPerWU>(&wNormsum[0][iP],iWarp,&out[iOut].normsum);
                 }
             }
         }

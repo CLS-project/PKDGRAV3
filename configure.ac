@@ -220,10 +220,10 @@ AC_DEFINE([USE_CUDA],1,
   [Use CUDA to accelerate calculations])
 if test "x$CUDA_DIR" = "xyes" ; then
   NVCC=nvcc
-  CUDA_LIBS="-lcudart"
+  CUDA_LIBS=""
 else
   NVCC=$CUDA_DIR/bin/nvcc
-  CUDA_LIBS="-L$CUDA_DIR/lib64 -L$CUDA_DIR/lib -lcudart"
+  CUDA_LIBS="-L$CUDA_DIR/lib64 -L$CUDA_DIR/lib"
 fi
 NVCCFLAGS="-arch compute_35"
 AC_SUBST(NVCC)

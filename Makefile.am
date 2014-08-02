@@ -4,7 +4,7 @@ ACLOCAL_AMFLAGS  = -I m4
 SUFFIXES = .cu
 
 .cu.o:
-	$(NVCC) $(CFLAGS) -I. -DHAVE_CONFIG_H -o $@ -c $< $(NVCCFLAGS) -Imdl2/mpi -Imdl2 -Iopenpa/src
+	$(NVCC) $(CFLAGS) -I. -DHAVE_CONFIG_H -lineinfo -o $@ -c $< $(NVCCFLAGS) -Imdl2/mpi -Imdl2 -Iopenpa/src
 
 
 #if USE_GRAFIC
@@ -128,7 +128,7 @@ endif
 pkdgrav3_mpi_LDADD += -littnotify
 endif
 if USE_CUDA
-pkdgrav3_mpi_LDADD += @CUDA_LIBS@
+pkdgrav3_mpi_LDADD += @CUDA_LIBS@ -lcudart -lnvToolsExt
 endif
 if USE_PYTHON
 if HAVE_RDYNAMIC
@@ -151,7 +151,7 @@ endif
 pkdgrav3_pthread_LDADD += -lefence
 endif
 if USE_CUDA
-pkdgrav3_pthread_LDADD += @CUDA_LIBS@
+pkdgrav3_pthread_LDADD += @CUDA_LIBS@ -lcudart -lnvToolsExt
 endif
 if USE_PYTHON
 if HAVE_RDYNAMIC

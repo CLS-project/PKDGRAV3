@@ -42,7 +42,8 @@ __constant__ float hSfac[MAX_TOTAL_REPLICAS];
 **   compute 5.0: 32 thread blocks, but 64K shared gives us ~ 31 resident.
 */
 
-__global__ void cudaEwald(double *X,double *Y,double *Z,double *pPot) {
+__global__ void cudaEwald(double *X,double *Y,double *Z,
+    double *Xout, double *Yout, double *Zout, double *pPot) {
     double x, y, z;
     double r2,dir,dir2,a;
     double rx, ry, rz;
@@ -165,9 +166,9 @@ __global__ void cudaEwald(double *X,double *Y,double *Z,double *pPot) {
 	fay += hy[i]*t;
 	faz += hz[i]*t;
 	}
-    X[pidx] = tax + fax;
-    Y[pidx] = tay + fay;
-    Z[pidx] = taz + faz;
+    Xout[pidx] = tax + fax;
+    Yout[pidx] = tay + fay;
+    Zout[pidx] = taz + faz;
     pPot[pidx] = tpot;
     }
 
@@ -188,8 +189,9 @@ int CUDAinitWorkEwald( void *ve, void *vwork ) {
     //CUDACTX ctx = reinterpret_cast<CUDACTX>(e->cudaCtx);
     double *pHostBuf = reinterpret_cast<double *>(work->pHostBuf);
     double *pCudaBufIn = reinterpret_cast<double *>(work->pCudaBufIn);
+    double *pCudaBufOut = reinterpret_cast<double *>(work->pCudaBufIn);
     double *X, *Y, *Z;
-    double *cudaX, *cudaY, *cudaZ, *cudaPot;
+    double *cudaX, *cudaY, *cudaZ, *cudaXout, *cudaYout, *cudaZout, *cudaPot;
     int align, i;
 
     align = (e->nP+31)&~31; /* Warp align the memory buffers */
@@ -199,7 +201,10 @@ int CUDAinitWorkEwald( void *ve, void *vwork ) {
     cudaX   = pCudaBufIn + 0*align;
     cudaY   = pCudaBufIn + 1*align;
     cudaZ   = pCudaBufIn + 2*align;
-    cudaPot = pCudaBufIn + 3*align;
+    cudaXout= pCudaBufOut + 0*align;
+    cudaYout= pCudaBufOut + 1*align;
+    cudaZout= pCudaBufOut + 2*align;
+    cudaPot = pCudaBufOut + 3*align;
 
     dim3 dimBlock( 32, 1 );
     dim3 dimGrid( align/32, 1,1 );
@@ -215,7 +220,7 @@ int CUDAinitWorkEwald( void *ve, void *vwork ) {
     // copy data directly to device memory
     CUDA_CHECK(cudaMemcpyAsync,(pCudaBufIn, pHostBuf, align*3*sizeof(double),
 	    cudaMemcpyHostToDevice, work->stream));
-    cudaEwald<<<dimGrid, dimBlock, 0, work->stream>>>(cudaX,cudaY,cudaZ,cudaPot);
+    cudaEwald<<<dimGrid, dimBlock, 0, work->stream>>>(cudaX,cudaY,cudaZ,cudaXout,cudaYout,cudaZout,cudaPot);
     CUDA_CHECK(cudaMemcpyAsync,(pHostBuf, pCudaBufIn, align*4*sizeof(double),
             cudaMemcpyDeviceToHost, work->stream));
     CUDA_CHECK(cudaEventRecord,(work->event,work->stream));

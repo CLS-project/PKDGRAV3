@@ -2,11 +2,22 @@
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
+#include <nvToolsExt.h>
 
 #include "cudautil.h"
 
 #include <assert.h>
 #include <stdio.h>
+
+extern "C"
+void CUDA_nvtxRangePush(char *name) {
+    nvtxRangePush(name);
+    }
+
+extern "C"
+void CUDA_nvtxRangePop() {
+    nvtxRangePop();
+    }
 
 extern "C"
 void *CUDA_malloc(size_t nBytes) {
