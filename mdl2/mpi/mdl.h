@@ -197,6 +197,7 @@ typedef struct mdlContext {
 
     OPA_Queue_info_t *inQueue;
     MDLserviceElement inMessage;
+    void *pvMessageData;
     int iCoreMPI;             /* Core that handles MPI requests */
     int cacheSize;
 
@@ -208,6 +209,7 @@ typedef struct mdlContext {
     uint16_t wqAccepting;
     uint16_t wqLastHelper;
     OPA_int_t wqCurSize;
+
     /*
      ** Services stuff!
      */
@@ -398,6 +400,8 @@ void mdlFFT( MDL mdl, MDLFFT fft, fftw_real *data, int bInverse );
  */
 void *mdlMalloc(MDL,size_t);
 void mdlFree(MDL,void *);
+void *mdlMallocArray(MDL,size_t);
+void mdlFreeArray(MDL,void *);
 void mdlSetCacheSize(MDL,int);
 void mdlROcache(MDL mdl,int cid,
 		void * (*getElt)(void *pData,int i,int iDataSize),

@@ -437,7 +437,7 @@ void pkdInitialize(
     ** particle.
     */
     pkd->iParticleSize = (pkd->iParticleSize + sizeof(double) - 1 ) & ~(sizeof(double)-1);
-    pkd->pStorePRIVATE = mdlMalloc(pkd->mdl,(nStore+1)*pkdParticleSize(pkd));
+    pkd->pStorePRIVATE = mdlMallocArray(pkd->mdl,(nStore+1)*pkdParticleSize(pkd));
     mdlassert(mdl,pkd->pStorePRIVATE != NULL);
     if ( mMemoryModel & PKD_MODEL_RUNGDEST ) {
 	pkd->pStorePRIVATE2 = mdlMalloc(pkd->mdl,(nStore+1)*pkdParticleSize(pkd));
@@ -643,7 +643,7 @@ void pkdFinish(PKD pkd) {
 #ifdef xMPI_VERSION
     mdlTypeFree(pkd->mdl,&pkd->typeParticle);
 #endif
-    mdlFree(pkd->mdl,pkd->pStorePRIVATE);
+    mdlFreeArray(pkd->mdl,pkd->pStorePRIVATE);
     if (pkd->pStorePRIVATE2)
 	mdlFree(pkd->mdl,pkd->pStorePRIVATE2);
     free(pkd->pTempPRIVATE);

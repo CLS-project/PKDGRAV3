@@ -1648,6 +1648,25 @@ void mdlFree(MDL mdl,void *p) {
     }
 
 /*
+** New collective form. All cores must call this at the same time,
+** and the iSize parameter must be identical (e.g., particle store).
+*/
+void *mdlMallocArray(MDL mdl,size_t iSize) {
+    char *data;
+    if (mdlCore(mdl)==0) mdl->pvMessageData = malloc(iSize*mdlCores(mdl));
+    mdlThreadBarrier(mdl);
+    data = mdl->pmdl[0]->pvMessageData;
+    data += iSize * mdlCore(mdl);
+    if (iSize > 4096) iSize -= 4096; /* Cheesy page hack */
+    memset(data,0,iSize); /* First touch */
+    mdlThreadBarrier(mdl);
+    return data;
+    }
+void mdlFreeArray(MDL mdl,void *p) {
+    if (mdlCore(mdl)==0) free(p);
+    }
+
+/*
 ** This is the default element fetch routine.  It impliments the old behaviour
 ** of a single large array.  New data structures need to be more clever.
 */
