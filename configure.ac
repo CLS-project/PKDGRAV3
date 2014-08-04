@@ -83,14 +83,16 @@ fi
 AM_CONDITIONAL(USE_BT, test "x$USE_BT" = "xyes")
 
 # This adds FFTW analysis - default disabled
-AC_ARG_ENABLE(fftw,
-  [  --enable-fftw                  Enable FFT support modules],
+AC_ARG_WITH(fftw,
+  [  --with-fftw                    Enable FFT support modules],
   [FFTW="$enableval"],[FFTW="no"])
-if test "x$FFTW" = "xyes" ; then
-   AC_DEFINE([MDL_FFTW], 1,
- 	[Include support for FFTW.])
+if test "x$FFTW" != "xno" ; then
+  AC_CHECK_LIB([fftw3], [fftw_execute], [],[AC_MSG_ERROR([Cannot find FFTW3])])
+  AC_CHECK_LIB([fftw3_mpi], [fftw_mpi_init],[],[AC_MSG_ERROR([Cannot find FFTW3])])
+  AC_CHECK_LIB([fftw3_threads], [fftw_init_threads],[],[AC_MSG_ERROR([Cannot find FFTW3])])
+  AC_DEFINE([MDL_FFTW], 1, [Include support for FFTW.])
 fi
-AM_CONDITIONAL(FFTW, test "x$FFTW" = "xyes")
+AM_CONDITIONAL(FFTW, test "x$FFTW" != "xno")
 
 # Electric fence
 AC_ARG_WITH(efence,

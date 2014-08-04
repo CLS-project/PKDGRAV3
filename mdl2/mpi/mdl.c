@@ -1101,6 +1101,11 @@ int mdlLaunch(int argc,char **argv,void * (*fcnMaster)(MDL),void * (*fcnChild)(M
 	perror(ach);
 	abort();
 	}
+#ifdef MDL_FFTW
+    FFTW3(mpi_init)();
+    if (mdlCores(mdl)>1) FFTW3(plan_with_nthreads)(mdlCores(mdl));
+#endif
+
 #ifdef USE_ITT
     __itt_task_end(domain);
 #endif
@@ -2663,22 +2668,26 @@ void mdlGridFree( MDL mdl, MDLGRID grid, void *p ) {
 size_t mdlFFTInitialize(MDL mdl,MDLFFT *pfft,
 			int n1,int n2,int n3,int bMeasure) {
     MDLFFT fft;
-    int sz,nz,sy,ny,nlocal;
 
     *pfft = NULL;
     fft = malloc(sizeof(struct mdlFFTContext));
     assert(fft != NULL);
 
-    /* Contruct the FFTW plans */
-    fft->fplan = rfftw3d_mpi_create_plan(mdl->commMDL,
-					 n3, n2, n1,
-					 FFTW_REAL_TO_COMPLEX,
-					 (bMeasure ? FFTW_MEASURE : FFTW_ESTIMATE) );
-    fft->iplan = rfftw3d_mpi_create_plan(mdl->commMDL,
-					 /* dim.'s of REAL data --> */ n3, n2, n1,
-					 FFTW_COMPLEX_TO_REAL,
-					 (bMeasure ? FFTW_MEASURE : FFTW_ESTIMATE));
-    rfftwnd_mpi_local_sizes( fft->fplan, &nz, &sz, &ny, &sy,&nlocal);
+
+
+    ptrdiff_t nz, sz, ny, sy, nlocal;
+    double *data = NULL;
+    fftw_complex *kdata = NULL;
+
+    nlocal = FFTW3(mpi_local_size_3d_transposed)(n3,n2,n1,mdl->mpi.commMDL,&nz,&sz,&ny,&sy);
+    //   loadInfo(nz,sz,ny,sy,nlocal);
+    //data = allocateData();
+    fft->fplan = FFTW3(mpi_plan_dft_r2c_3d)(
+        n3,n2,n1,data,kdata,
+        mdl->mpi.commMDL,FFTW_MPI_TRANSPOSED_OUT | FFTW_ESTIMATE );
+    fft->iplan = FFTW3(mpi_plan_dft_c2r_3d)(
+        n3,n2,n1,kdata,data,
+        mdl->mpi.commMDL,FFTW_MPI_TRANSPOSED_IN  | FFTW_ESTIMATE );
 
     /*
     ** Dimensions of k-space and r-space grid.  Note transposed order.
@@ -2698,8 +2707,8 @@ size_t mdlFFTInitialize(MDL mdl,MDLFFT *pfft,
     }
 
 void mdlFFTFinish( MDL mdl, MDLFFT fft ) {
-    rfftwnd_mpi_destroy_plan(fft->fplan);
-    rfftwnd_mpi_destroy_plan(fft->iplan);
+    FFTW3(destroy_plan)(fft->fplan);
+    FFTW3(destroy_plan)(fft->iplan);
     mdlGridFinish(mdl,fft->kgrid);
     mdlGridFinish(mdl,fft->rgrid);
     free(fft);
@@ -2714,8 +2723,8 @@ void mdlFFTFree( MDL mdl, MDLFFT fft, void *p ) {
     }
 
 void mdlFFT( MDL mdl, MDLFFT fft, fftw_real *data, int bInverse ) {
-    rfftwnd_mpi_plan plan = bInverse ? fft->iplan : fft->fplan;
-    rfftwnd_mpi(plan,1,data,0,FFTW_TRANSPOSED_ORDER);
+    if (bInverse) FFTW3(execute_dft_r2c)(fft->fplan,data,(fftw_complex *)(data));
+    else  FFTW3(execute_dft_c2r)(fft->iplan,(fftw_complex *)(data),data);
     }
 #endif
 

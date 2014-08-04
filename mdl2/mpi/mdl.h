@@ -16,7 +16,12 @@
 #include <stdint.h>
 #include "mpi.h"
 #ifdef MDL_FFTW
-#include <srfftw_mpi.h>
+#include <fftw3-mpi.h>
+#ifdef USE_SINGLE
+#define FFTW3(name) fftwf_ ## name
+#else
+#define FFTW3(name) fftw_ ## name
+#endif
 #endif
 #include "opa_queue.h"
 /*#define USE_ARC*/
@@ -375,9 +380,10 @@ static inline int mdlGridIdx(MDLGRID grid, uint32_t x, uint32_t y, uint32_t z) {
 typedef struct mdlFFTContext {
     MDLGRID rgrid;
     MDLGRID kgrid;
-    rfftwnd_mpi_plan fplan;
-    rfftwnd_mpi_plan iplan;
+    FFTW3(plan) fplan, iplan;
     } * MDLFFT;
+
+typedef double fftw_real;
 
 size_t mdlFFTInitialize(MDL mdl,MDLFFT *fft,
 			int nx,int ny,int nz,int bMeasure);

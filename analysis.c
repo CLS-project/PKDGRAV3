@@ -744,7 +744,7 @@ double grid_rms(MDL mdl, int nLocal, float *fGrid) {
     return sqrt(total);
     }
 
-double grid_mass(MDL mdl, int nLocal, float *fGrid) {
+double grid_mass(MDL mdl, int nLocal, fftw_real *fGrid) {
     int i,j,k;
     double sum, total;
 
@@ -960,8 +960,8 @@ void pkdMeasurePk(PKD pkd, double dCenter[3], double dRadius,
 
     /*printf("Calculating delta^2\n");*/
     for( i=0; i<fft->kgrid->nlocal; i++ ) {
-	c_re(fftDataK[i]) = pow2(c_re(fftDataK[i])) + pow2(c_im(fftDataK[i]));
-	c_im(fftDataK[i]) = 0.0;
+	fftDataK[i][0] = pow2(fftDataK[i][0]) + pow2(fftDataK[i][1]);
+	fftDataK[i][1] = 0.0;
 	}
 
     /*rms = grid_rms(pkd->mdl,fft->grid->nlocal, fftData);
@@ -990,7 +990,7 @@ void pkdMeasurePk(PKD pkd, double dCenter[3], double dRadius,
 		    ks = sqrtl(i*i + jj*jj + kk*kk);
 		    idx = mdlFFTkIdx(fft,i,j,k);
 		    if ( ks >= 1 && ks <= iNyquist ) {
-			fPower[ks] += c_re(fftDataK[idx]);
+			fPower[ks] += fftDataK[idx][0]; /* real part */
 			nPower[ks] += 1;
 			}
 		    }
