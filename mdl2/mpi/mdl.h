@@ -24,8 +24,6 @@
 #endif
 #endif
 #include "opa_queue.h"
-//#define USE_ARC
-#ifdef USE_ARC
 typedef struct CacheDataBucket {
     uint32_t uId;       /* upper 4 bits encode ARC_where and dirty bit */
     uint32_t uIndex;    /* page's ID number */
@@ -56,7 +54,6 @@ typedef struct ArcContext {
     uint32_t B2Length;
     uint32_t target_T1;
 } * ARC;
-#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -142,20 +139,9 @@ typedef struct cacheSpace {
     int iDataSize;
     int nData;
     int iLineSize;
-    int nLines;
-    int nTrans;
-    int iKeyShift;
-    int iInvKeyShift;
-    int iLastVictim;
-    mdlkey_t iTransMask;
-    mdlkey_t iIdMask;
-#ifdef USE_ARC
     ARC arc;
     void *pOneLine;
-#endif
-    int *pTrans;
-    CTAG *pTag;
-    char *pLine;
+
     MDLserviceCacheReq cacheRequest;
     void *ctx;
     void (*init)(void *,void *);
@@ -167,7 +153,6 @@ typedef struct cacheSpace {
     uint64_t nAccess;
     uint64_t nMiss;
     uint64_t nColl;
-    int nKeyMax;
     } CACHE;
 
 typedef struct {

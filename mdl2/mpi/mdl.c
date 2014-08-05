@@ -76,7 +76,6 @@
 #define MDL_SE_MPI_RECV        13
 
 
-#ifdef USE_ARC
 /*
 ** The bit values of these flags are NOT arbitrary!
 ** The implementation depends on their values being set this way.
@@ -299,8 +298,6 @@ void arcFinish(ARC arc) {
     */
     free(arc);
 }
-#endif
-
 
 /*
  ** This structure should be "maximally" aligned, with 4 ints it
@@ -961,9 +958,7 @@ void mdlInitCommon(MDL mdl0, int iMDL,int bDiag,int argc, char **argv,
     mdl->cacheSize = MDL_CACHE_SIZE;
     for (i = 0; i<mdl->nMaxCacheIds; ++i) {
 	mdl->cache[i].iType = MDL_NOCACHE;
-#ifdef USE_ARC
 	mdl->cache[i].arc = NULL;
-#endif
 	}
 
     /*
@@ -1223,9 +1218,7 @@ void mdlFinish(MDL mdl) {
 #endif
 
     for (i = 0; i<mdl->nMaxCacheIds; ++i) {
-#ifdef USE_ARC
 	if (mdl->cache[i].arc) arcFinish(mdl->cache[i].arc);
-#endif
 	}
 
 
@@ -1718,9 +1711,7 @@ CACHE *CacheInitialize(
 	 */
 	for (i=mdl->nMaxCacheIds;i<nMaxCacheIds;++i) {
 	    mdl->cache[i].iType = MDL_NOCACHE;
-#ifdef USE_ARC
 	    mdl->cache[i].arc = NULL;
-#endif
 	    }
 	mdl->nMaxCacheIds = nMaxCacheIds;
 	}
@@ -1732,64 +1723,11 @@ CACHE *CacheInitialize(
     c->nData = nData;
     c->iLineSize = MDL_CACHELINE_ELTS*c->iDataSize;
 
-    c->iKeyShift = 0;
-    while ((1 << c->iKeyShift) < mdl->base.nThreads) ++c->iKeyShift;
-    c->iIdMask = (1 << c->iKeyShift) - 1;
-
-    if (c->iKeyShift < MDL_CACHELINE_BITS) {
-	/*
-	 * Key will be (index & MDL_INDEX_MASK) | id.
-	 */
-	c->iInvKeyShift = MDL_CACHELINE_BITS;
-	c->iKeyShift = 0;
-	}
-    else {
-	/*
-	 * Key will be (index & MDL_INDEX_MASK) << KeyShift | id.
-	 */
-	c->iInvKeyShift = c->iKeyShift;
-	c->iKeyShift -= MDL_CACHELINE_BITS;
-	}
-
-    /*
-     ** Determine the number of cache lines to be allocated.
-     */
-    assert( mdl->cacheSize >= (1<<MDL_CACHELINE_BITS)*10*c->iDataSize);
-    c->nLines = (mdl->cacheSize/c->iDataSize) >> MDL_CACHELINE_BITS;
-    c->nTrans = 1;
-    while (c->nTrans < c->nLines) c->nTrans *= 2;
-    c->nTrans *= 2;
-    c->iTransMask = c->nTrans-1;
-    /*
-     **	Set up the translation table.
-     */
-    c->pTrans = malloc(c->nTrans*sizeof(int));
-    assert(c->pTrans != NULL);
-    for (i=0;i<c->nTrans;++i) c->pTrans[i] = 0;
-    /*
-     ** Set up the tags. Note pTag[0] is a Sentinel!
-     */
-    c->pTag = malloc(c->nLines*sizeof(CTAG));
-    assert(c->pTag != NULL);
-    for (i=0;i<c->nLines;++i) {
-	c->pTag[i].iKey = MDL_INVALID_KEY;
-	c->pTag[i].nLock = 0;
-	c->pTag[i].iLink = 0;
-	}
-    c->pTag[0].nLock = 1;     /* always locked */
-    c->iLastVictim = 0;       /* This makes sure we have the first iVictim = 1 */
     c->nAccess = 0;
     c->nMiss = 0;				/* !!!, not NB */
     c->nColl = 0;				/* !!!, not NB */
-    /*
-     ** Allocate cache data lines.
-     */
-    c->pLine = malloc(mdl->cacheSize);
-    assert(c->pLine != NULL);
-#ifdef USE_ARC
     if (c->arc==NULL) c->arc = arcInitialize(mdl->cacheSize/iDataSize,iDataSize);
     c->pOneLine = malloc(c->iLineSize);
-#endif
 
     /*
      ** Set up the request message as much as possible!
@@ -1862,6 +1800,7 @@ void mdlFlushCache(MDL mdl,int cid) {
     mdlTimeAddComputing(mdl);
     mdl->wqAccepting = 1;
     if (c->iType == MDL_COCACHE) {
+#if 0
 	/*
 	 ** Must flush all valid data elements.
 	 */
@@ -1910,12 +1849,12 @@ void mdlFlushCache(MDL mdl,int cid) {
 		}
 		c->pTag[i].iKey = MDL_INVALID_KEY;
 	    }
+#endif
 	}
     mdl->wqAccepting = 0;
     mdlTimeAddSynchronizing(mdl);
     }
 
-#ifdef USE_ARC
 static void arcFlushAll(ARC arc) {
     CDB *temp;
     for(;arc->T1Length;--arc->T1Length) {
@@ -1959,7 +1898,6 @@ static void arcFlushAll(ARC arc) {
     assert(arc->B2->next == arc->B2);
     assert(arc->B2->prev == arc->B2);
     }
-#endif
 
 void mdlFinishCache(MDL mdl,int cid) {
     CACHE *c = &mdl->cache[cid];
@@ -1978,16 +1916,11 @@ void mdlFinishCache(MDL mdl,int cid) {
     /*
      ** Free up storage and finish.
      */
-    free(c->pTrans);
-    free(c->pTag);
-    free(c->pLine);
-#ifdef USE_ARC
     free(c->pOneLine);
     arcFlushAll(c->arc);
 #ifdef FINISH_ARC
     arcFinish(c->arc);
     c->arc = NULL;
-#endif
 #endif
     c->iType = MDL_NOCACHE;
     mdl->wqAccepting = 0;
@@ -1997,7 +1930,6 @@ void mdlFinishCache(MDL mdl,int cid) {
 void mdlPrefetch(MDL mdl,int cid,int iIndex, int id) {
     }
 
-#ifdef USE_ARC
 static inline uint64_t *replace(ARC arc, int iInB2) {
     CDB *temp;
     uint64_t *data;
@@ -2397,149 +2329,6 @@ void *mdlDoMiss(MDL mdl, int cid, int iIndex, int id, int bLock) {
     }
     return((void *)temp->data);
 }
-#else
-void *mdlDoMiss(MDL mdl, int cid, int iIndex, int id, int lock) {
-    CACHE *c = &mdl->cache[cid];
-    char *pLine;
-    int iElt,i,iLine;
-    mdlkey_t iKeyVic;
-    int idVic;
-    int iVictim,*pi;
-    char ach[80];
-    CAHEAD *caFlsh;
-    char *pszFlsh;
-    MPI_Request reqFlsh;
-    mdlkey_t iKey;
-
-    if (!(++c->nAccess & MDL_CHECK_MASK)) mdlCacheCheck(mdl);
-
-    /* Short circuit the cache if this belongs to another thread */
-    int iCore = id - mdl->pmdl[0]->base.idSelf;
-    if (iCore >= 0 && iCore < mdl->base.nCores && c->iType == MDL_ROCACHE ) {
-	MDL omdl = mdl->pmdl[iCore];
-	c = &omdl->cache[cid];
-	return (*c->getElt)(c->pData,iIndex,c->iDataSize);
-	}
-
-    /*
-     ** Determine memory block key value and cache line.
-     */
-    iKey = iIndex & MDL_INDEX_MASK;
-    iKey <<= c->iKeyShift;
-    iKey |= id;
-    i = c->pTrans[iKey & c->iTransMask];
-    /*
-     ** Check for a match!
-     */
-    if (c->pTag[i].iKey == iKey) {
-	if (lock) ++c->pTag[i].nLock;
-	pLine = &c->pLine[i*c->iLineSize];
-	iElt = iIndex & MDL_CACHE_MASK;
-	return(&pLine[iElt*c->iDataSize]);
-	}
-    i = c->pTag[i].iLink;
-    /*
-     ** Collision chain search.
-     */
-    while (i) {
-	++c->nColl;
-	if (c->pTag[i].iKey == iKey) {
-	    if (lock) ++c->pTag[i].nLock;
-	    pLine = &c->pLine[i*c->iLineSize];
-	    iElt = iIndex & MDL_CACHE_MASK;
-	    return(&pLine[iElt*c->iDataSize]);
-	    }
-	i = c->pTag[i].iLink;
-	}
-
-    mdlTimeAddComputing(mdl);
-
-    /*
-    ** Cache Miss.
-    */
-    iLine = iIndex >> MDL_CACHELINE_BITS;
-    c->cacheRequest.caReq.cid = cid;
-    c->cacheRequest.caReq.mid = MDL_MID_CACHEREQ;
-    c->cacheRequest.caReq.idFrom = mdl->base.idSelf;
-    c->cacheRequest.caReq.idTo = id;
-    c->cacheRequest.caReq.iLine = iLine;
-    /* We could send the request now, but we don't know the target cache line yet. */
-
-    ++c->nMiss;
-
-    if (++c->iLastVictim == c->nLines) c->iLastVictim = 1;
-    iVictim = c->iLastVictim;
-
-    iElt = iIndex & MDL_CACHE_MASK;
-    for (i=1;i<c->nLines;++i) {
-	if (!c->pTag[iVictim].nLock) {
-	    /*
-	     ** Found victim.
-	     */
-	    iKeyVic = c->pTag[iVictim].iKey;
-	    /*
-	     ** 'pLine' will point to the actual data line in the cache.
-	     */
-	    pLine = &c->pLine[iVictim*c->iLineSize];
-	    caFlsh = NULL;
-	    if (iKeyVic != MDL_INVALID_KEY) {
-		if (c->iType == MDL_COCACHE) {
-		    /*
-		    ** Flush element since it is valid!
-		    */
-		    idVic = mdlkey_t_to_int(iKeyVic&c->iIdMask);
-		    caFlsh = (CAHEAD *)mdl->pszFlsh;
-		    pszFlsh = &mdl->pszFlsh[sizeof(CAHEAD)];
-		    caFlsh->cid = cid;
-		    caFlsh->mid = MDL_MID_CACHEFLSH;
-		    caFlsh->idFrom = mdl->base.idSelf;
-		    caFlsh->iLine = mdlkey_t_to_int(iKeyVic >> c->iInvKeyShift);
-		    for (i = 0; i < c->iLineSize; ++i)
-			pszFlsh[i] = pLine[i];
-		    MPI_Isend(caFlsh, (int)sizeof(CAHEAD)+c->iLineSize,
-			      MPI_BYTE, idVic,
-			      MDL_TAG_CACHECOM, mdl->mpi.commMDL, &reqFlsh);
-		    }
-		/*
-		 ** If valid iLine then "unlink" it from the cache.
-		 */
-		pi = &c->pTrans[iKeyVic & c->iTransMask];
-		while (*pi != iVictim) pi = &c->pTag[*pi].iLink;
-		*pi = c->pTag[iVictim].iLink;
-		}
-	    c->pTag[iVictim].iKey = iKey;
-	    if (lock) c->pTag[iVictim].nLock = 1;
-	    /*
-	     **	Add the modified victim tag back into the cache.
-	     ** Note: the new element is placed at the head of the chain.
-	     */
-	    pi = &c->pTrans[iKey & c->iTransMask];
-	    c->pTag[iVictim].iLink = *pi;
-	    *pi = iVictim;
-	    goto Await;
-	    }
-	if (++iVictim == c->nLines) iVictim = 1;
-	}
-    /*
-     ** Cache Failure!
-     */
-    sprintf(ach,"MDL CACHE FAILURE: cid == %d, no unlocked lines!\n",cid);
-    mdlDiag(mdl,ach);
-    exit(1);
-Await:
-    c->iLastVictim = iVictim;
-    /*
-     ** At this point 'pLine' is the recipient cache line for the
-     ** data requested from processor 'id'.
-     */
-    c->cacheRequest.pLine = pLine;
-    mdlSendToMPI(mdl,&c->cacheRequest,MDL_SE_CACHE_REQUEST);
-    mdlWaitThreadQueue(mdl,MDL_TAG_CACHECOM);
-
-    mdlTimeAddWaiting(mdl);
-    return(&pLine[iElt*c->iDataSize]);
-    }
-#endif
 
 void *mdlFetch(MDL mdl,int cid,int iIndex,int id) {
     const int lock = 0;  /* we never lock in fetch */
@@ -2553,21 +2342,7 @@ void *mdlAquire(MDL mdl,int cid,int iIndex,int id) {
 
 void mdlRelease(MDL mdl,int cid,void *p) {
     CACHE *c = &mdl->cache[cid];
-#ifdef USE_ARC
     arcRelease(c->arc,p);
-#else
-    int iLine;
-
-    iLine = ((char *)p - c->pLine) / c->iLineSize;
-    /*
-     ** Check if the pointer fell in a cache line, otherwise it
-     ** must have been a local pointer.
-     */
-    if (iLine > 0 && iLine < c->nLines) {
-	--c->pTag[iLine].nLock;
-	assert(c->pTag[iLine].nLock >= 0);
-	}
-#endif
     }
 
 
