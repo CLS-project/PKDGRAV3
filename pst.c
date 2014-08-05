@@ -3758,7 +3758,13 @@ void pstGenerateIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     mdlassert(pst->mdl,nIn == sizeof(struct inGenerateIC));
     mdlassert(pst->mdl,vout != NULL);
 
-    if (pst->nLeaves > 1) {
+    if (pst->nLeaves > mdlCores(pst->mdl)) {
+	rID = mdlReqService(pst->mdl,pst->idUpper,PST_GENERATEIC,in,nIn);
+	pstGenerateIC(pst->pstLower,in,nIn,vout,pnOut);
+	mdlGetReply(pst->mdl,rID,vout,pnOut);
+	}
+    /* The FFT is performed at this level - FFTW does its own threading */
+    else if (pst->nLeaves > 1) {
 	rID = mdlReqService(pst->mdl,pst->idUpper,PST_GENERATEIC,in,nIn);
 	pstGenerateIC(pst->pstLower,in,nIn,vout,pnOut);
 	mdlGetReply(pst->mdl,rID,vout,pnOut);
@@ -3777,7 +3783,7 @@ void pstGenerateIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	pkdInitialize(&plcl->pkd,pst->mdl,nStore,in->nBucket,in->fExtraNodes,in->iCacheSize,
 	    in->iWorkQueueSize,in->iCUDAQueueSize,in->fPeriod,nTotal,0,0);
 
-	/* Okay, here we set it to 1/50 of the interparticle seperation */
+	/* Okay, here we set it to 1/50 of the interparticle separation */
 	fSoft = 1.0 / (50.0 * in->nGrid);
 	/* Mass is easy */
 	fMass = in->omegac / (1.0 * in->nGrid * in->nGrid * in->nGrid );
@@ -4539,7 +4545,7 @@ void pstMeasurePk(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 
     assert( nIn==sizeof(struct inMeasurePk) );
     if (pst->nLeaves > 1) {
-	rID = mdlReqService(pst->mdl,pst->idUpper,PST_MEASUREPK,vin,nIn);
+	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_MEASUREPK,vin,nIn);
 	pstMeasurePk(pst->pstLower,vin,nIn,vout,pnOut);
 	mdlGetReply(pst->mdl,rID,&outUpper,&nOut);
 	assert(nOut==sizeof(struct outMeasurePk));

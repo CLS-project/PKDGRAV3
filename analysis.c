@@ -951,7 +951,7 @@ void pkdMeasurePk(PKD pkd, double dCenter[3], double dRadius,
 #endif
 
 
-    mdlFFT(pkd->mdl,fft,fftData,0);
+    mdlFFT(pkd->mdl,fft,fftData);
     /* Remember, the grid is now transposed to x,z,y (from x,y,z) */
 
     /*rms = grid_rms(pkd->mdl,fft->grid->nlocal, fftData);

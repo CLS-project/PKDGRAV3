@@ -24,7 +24,7 @@
 #endif
 #endif
 #include "opa_queue.h"
-/*#define USE_ARC*/
+//#define USE_ARC
 #ifdef USE_ARC
 typedef struct CacheDataBucket {
     uint32_t uId;       /* upper 4 bits encode ARC_where and dirty bit */
@@ -390,7 +390,8 @@ size_t mdlFFTInitialize(MDL mdl,MDLFFT *fft,
 void mdlFFTFinish( MDL mdl, MDLFFT fft );
 fftw_real *mdlFFTMAlloc( MDL mdl, MDLFFT fft );
 void mdlFFTFree( MDL mdl, MDLFFT fft, void *p );
-void mdlFFT( MDL mdl, MDLFFT fft, fftw_real *data, int bInverse );
+void mdlFFT( MDL mdl, MDLFFT fft, fftw_real *data);
+void mdlIFFT( MDL mdl, MDLFFT fft, fftw_complex *data);
 
 /* Grid accessors: r-space */
 #define mdlFFTrId(fft,x,y,z) mdlGridId((fft)->rgrid,x,y,z)

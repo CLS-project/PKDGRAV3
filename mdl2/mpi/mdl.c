@@ -2179,39 +2179,49 @@ static inline void arcRelease(ARC arc,uint64_t *p) {
 }
 
 static void queueCacheRequest(MDL mdl, int cid, int iIndex, int id) {
-    CACHE *c = &mdl->cache[cid];
-    int iLine = iIndex >> MDL_CACHELINE_BITS;
-    c->cacheRequest.caReq.cid = cid;
-    c->cacheRequest.caReq.mid = MDL_MID_CACHEREQ;
-    c->cacheRequest.caReq.idFrom = mdl->base.idSelf;
-    c->cacheRequest.caReq.idTo = id;
-    c->cacheRequest.caReq.iLine = iLine;
-    c->cacheRequest.pLine = c->pOneLine;
-    mdlSendToMPI(mdl,&c->cacheRequest,MDL_SE_CACHE_REQUEST);
+    int iCore = id - mdl->pmdl[0]->base.idSelf;
+    /* Local requests for combiner cache are handled in finishCacheRequest() */
+    if (iCore < 0 || iCore >= mdl->base.nCores ) {
+	CACHE *c = &mdl->cache[cid];
+	int iLine = iIndex >> MDL_CACHELINE_BITS;
+	c->cacheRequest.caReq.cid = cid;
+	c->cacheRequest.caReq.mid = MDL_MID_CACHEREQ;
+	c->cacheRequest.caReq.idFrom = mdl->base.idSelf;
+	c->cacheRequest.caReq.idTo = id;
+	c->cacheRequest.caReq.iLine = iLine;
+	c->cacheRequest.pLine = c->pOneLine;
+	mdlSendToMPI(mdl,&c->cacheRequest,MDL_SE_CACHE_REQUEST);
+	}
     }
 
-static void finishCacheRequest(MDL mdl, int cid, CDB *temp) {
-    CACHE *c = &mdl->cache[cid];
-    ARC arc = c->arc;
-    uint32_t uIndex = temp->uIndex;
-    uint32_t uId = temp->uId & _IDMASK_;
-    int iElt = uIndex & MDL_CACHE_MASK;
-    int s = uIndex & MDL_INDEX_MASK;
-
+static void finishCacheRequest(MDL mdl, int cid, int iIndex, int id, CDB *temp) {
+    int iCore = id - mdl->pmdl[0]->base.idSelf;
+    CACHE *c;
     assert(temp->data!=NULL);
-    mdlWaitThreadQueue(mdl,MDL_TAG_CACHECOM);
-    memcpy(temp->data,c->pOneLine + iElt*c->iDataSize, c->iDataSize);
-
-#if 1
-    ++temp->data[-1];       /* prefetch must never evict our data */
-    int i;
-    for(i=0; i<MDL_CACHELINE_ELTS; ++i) {
-	int nid = s + i;
-	if (nid != uIndex)
-	    arcSetPrefetchData(arc,nid,uId,c->pOneLine + i*c->iDataSize);
+    /* Local requests must be from a combiner cache if we get here */
+    if (iCore >= 0 && iCore < mdl->base.nCores ) {
+	MDL omdl = mdl->pmdl[iCore];
+	c = &omdl->cache[cid];
+	memcpy(temp->data,(*c->getElt)(c->pData,iIndex,c->iDataSize), c->iDataSize);
 	}
-    --temp->data[-1];       /* may lock below */
-#endif
+    else {
+	c = &mdl->cache[cid];
+	ARC arc = c->arc;
+	uint32_t uIndex = temp->uIndex;
+	uint32_t uId = temp->uId & _IDMASK_;
+	int iElt = uIndex & MDL_CACHE_MASK;
+	int s = uIndex & MDL_INDEX_MASK;
+	mdlWaitThreadQueue(mdl,MDL_TAG_CACHECOM);
+	memcpy(temp->data,c->pOneLine + iElt*c->iDataSize, c->iDataSize);
+	++temp->data[-1];       /* prefetch must never evict our data */
+	int i;
+	for(i=0; i<MDL_CACHELINE_ELTS; ++i) {
+	    int nid = s + i;
+	    if (nid != uIndex)
+		arcSetPrefetchData(arc,nid,uId,c->pOneLine + i*c->iDataSize);
+	    }
+	--temp->data[-1];       /* may lock below */
+	}
     }
 
 /*
@@ -2310,7 +2320,7 @@ void *mdlDoMiss(MDL mdl, int cid, int iIndex, int id, int bLock) {
 	    mru_insert(temp,arc->T2);                                     /* seen twice recently, put on T2 */
 	    arc->T2Length++;                 /* JS: this was not in the original code. Should it be? bookkeep */
 	    /*assert(temp->data!=NULL);*/
-	    finishCacheRequest(mdl,cid,temp);
+	    finishCacheRequest(mdl,cid,iIndex,id,temp);
 	    break;
 	    }
 	}
@@ -2372,7 +2382,7 @@ void *mdlDoMiss(MDL mdl, int cid, int iIndex, int id, int bLock) {
 	temp->coll = arc->Hash[uHash];                  /* add to collision chain */
 	arc->Hash[uHash] = temp;                               /* insert into hash table */
 
-	finishCacheRequest(mdl,cid,temp);
+	finishCacheRequest(mdl,cid,iIndex,id,temp);
 
 	mdlTimeAddWaiting(mdl);
     }
@@ -2722,9 +2732,11 @@ void mdlFFTFree( MDL mdl, MDLFFT fft, void *p ) {
     mdlGridFree(mdl,fft->rgrid,p);
     }
 
-void mdlFFT( MDL mdl, MDLFFT fft, fftw_real *data, int bInverse ) {
-    if (bInverse) FFTW3(execute_dft_r2c)(fft->fplan,data,(fftw_complex *)(data));
-    else  FFTW3(execute_dft_c2r)(fft->iplan,(fftw_complex *)(data),data);
+void mdlFFT( MDL mdl, MDLFFT fft, fftw_real *data ) {
+    FFTW3(execute_dft_r2c)(fft->fplan,data,(fftw_complex *)(data));
+    }
+void mdlIFFT( MDL mdl, MDLFFT fft, fftw_complex *kdata ) {
+    FFTW3(execute_dft_c2r)(fft->iplan,kdata,(fftw_real *)(kdata));
     }
 #endif
 
