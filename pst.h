@@ -1077,6 +1077,7 @@ struct inInitializePStore {
     };
 void pstInitializePStore(PST,void *,int,void *,int *);
 
+#ifdef MDL_FFTW
 /* PST_GETFFTMAXSIZES */
 struct inGetFFTMaxSizes {
     int nx,ny,nz;
@@ -1120,6 +1121,7 @@ struct outConstructIC {
     double dExpansion;
     };
 void pstConstructIC(PST,void *,int,void *,int *);
+#endif
 
 /* PST_HOSTNAME */
 struct outHostname {

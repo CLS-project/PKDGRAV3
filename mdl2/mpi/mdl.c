@@ -333,6 +333,7 @@ typedef struct {
     int n1,n2,n3;
     } fftSizes;
 
+#ifdef MDL_FFTW
 typedef struct {
     fftSizes sizes;
     FFTW3(plan) fplan, iplan;
@@ -346,6 +347,7 @@ typedef struct {
     double *data;
     fftw_complex *kdata;
     } fftTrans;
+#endif
 
 typedef struct {
     MDLserviceElement se;
@@ -500,9 +502,11 @@ static int checkMPI(MDL mdl) {
 	MDLserviceCacheReq *caReq;
 	MDLserviceElement *qhdr;
 	cacheOpenClose *coc;
+#ifdef MDL_FFTW
 	fftSizes* sizes;
 	fftPlans* plans;
 	fftTrans* trans;
+#endif
 	gridShare *share;
 	SRVHEAD *head;
 	int iProc, iCore, tag, i;
@@ -635,6 +639,7 @@ static int checkMPI(MDL mdl) {
 		mpi->pThreadCacheReq[caReq->iCoreFrom] = caReq;
 		MPI_Send(&caReq->caReq,sizeof(CAHEAD),MPI_BYTE,iProc,MDL_TAG_CACHECOM, mpi->commMDL);
 		break;
+#ifdef MDL_FFTW
 	    case MDL_SE_FFT_SIZES:
 		sizes = (fftSizes *)qhdr;
 		sizes->nLocal = FFTW3(mpi_local_size_3d_transposed)
@@ -664,6 +669,7 @@ static int checkMPI(MDL mdl) {
 		FFTW3(execute_dft_c2r)(trans->fft->iplan,trans->kdata,trans->data);
 		pthread_barrier_wait(&mdl->pmdl[0]->barrier);
 		break;
+#endif
 	    case MDL_SE_GRID_SHARE:
 		share = (gridShare *)qhdr;
 		MPI_Allgather(&share->grid->s,sizeof(*share->grid->rs),MPI_BYTE,
