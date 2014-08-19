@@ -2099,21 +2099,15 @@ static inline uint64_t *replace(MDL mdl,ARC arc, int iInB2) {
 ** The next 3 highest order bits of uId ((1<<30), (1<<29) and (1<<28)) are reserved 
 ** for list location and should be zero! The maximum legal uId is then (1<<28)-1.
 */
-static inline CDB *arcSetPrefetchData(MDL mdl,ARC arc,uint32_t uIndex,uint32_t uId,void *data) {
+static inline CDB *arcSetPrefetchDataByHash(MDL mdl,ARC arc,uint32_t uIndex,uint32_t uId,void *data,uint32_t uHash) {
     CDB *temp;
-    uint32_t uHash;
     uint32_t tuId = uId&_IDMASK_;
     uint32_t L1Length;
     int inB2=0;
 
-    uHash = (MurmurHash2(uIndex,tuId)&arc->uHashMask);
-    temp = arc->Hash[uHash];
-    while (temp) {
-	if (temp->uIndex == uIndex) {
-	    if ((temp->uId&_IDMASK_) == tuId) break;
+    for( temp = arc->Hash[uHash]; temp; temp = temp->coll ) {
+	if (temp->uIndex == uIndex && (temp->uId&_IDMASK_) == tuId) break;
 	}
-	temp = temp->coll;
-    }
     if (temp != NULL) {                       /* found in cache directory? */
 	switch (temp->uId & _WHERE_) {                   /* yes, which list? */
 	case _P1_:
@@ -2193,6 +2187,9 @@ static inline CDB *arcSetPrefetchData(MDL mdl,ARC arc,uint32_t uIndex,uint32_t u
     return temp;
 }
 
+static inline CDB *arcSetPrefetchData(MDL mdl,ARC arc,uint32_t uIndex,uint32_t uId,void *data) {
+    return arcSetPrefetchDataByHash(mdl,arc,uIndex,uId,data,MurmurHash2(uIndex,uId&_IDMASK_)&arc->uHashMask);
+    }
 
 /*
 ** This releases a lock on a page by decrementing the lock counter for that page. It also checks
@@ -2307,13 +2304,10 @@ static void *Aquire(MDL mdl, int cid, int iIndex, int id, int bLock) {
                    if (mdlCore(mdl)<iMDL) pthread_mutex_lock(&arc->mux);
                    pthread_mutex_lock(&tarc->mux);
                    if (mdlCore(mdl)>iMDL) pthread_mutex_lock(&arc->mux);
-                   temp = arcSetPrefetchData(mdl,arc,iIndex,id,temp->data);
-                   temp->uId = uId;     /* clears prefetch flag and sets WHERE = _T1_ and dirty bit */
-                   remove_from_list(temp);   /* take off T1 list */
-                   mru_insert(temp,arc->T1); /* first access but recently prefetched, put on T1 */
+                   temp = arcSetPrefetchDataByHash(mdl,arc,iIndex,id,temp->data,uHash);
                    pthread_mutex_unlock(&arc->mux);
                    pthread_mutex_unlock(&tarc->mux);
-                   return temp->data;
+		   break; /* Now treat it as a cache hit; it is. */
                    }
                }
            }
@@ -2392,10 +2386,10 @@ static void *Aquire(MDL mdl, int cid, int iIndex, int id, int bLock) {
 	** Can initiate the data request right here, and do the rest while waiting...
 	*/
 	queueCacheRequest(mdl,cid,iIndex,id);
+	pthread_mutex_lock(&arc->mux);
 	L1Length = arc->T1Length + arc->B1Length;
 	/*assert(L1Length<=arc->nCache);*/
 	if (L1Length == arc->nCache) {                                   /* B1 + T1 full? */
-	    pthread_mutex_lock(&arc->mux);
 	    if (arc->T1Length < arc->nCache) {                                           /* Still room in T1? */
 		temp = lru_remove(arc->B1);                                    /* yes: take page off B1 */
 		remove_from_hash(arc,temp);            /* remove from hash table */
@@ -2408,7 +2402,6 @@ static void *Aquire(MDL mdl, int cid, int iIndex, int id, int bLock) {
 		remove_from_hash(arc,temp);            /* remove from hash table */
 		arc->T1Length--;                                               /* bookkeep that */
 		}
-	    pthread_mutex_unlock(&arc->mux);
 	    /*assert(temp->data!=NULL);*/
 	    }
 	else {                                                          /* B1 + T1 have less than c pages */
@@ -2418,10 +2411,8 @@ static void *Aquire(MDL mdl, int cid, int iIndex, int id, int bLock) {
 		/* Yes, cache full: */
 		if (nCache == 2*arc->nCache) {
 		    /* directory is full: */
-		    pthread_mutex_lock(&arc->mux);
 		    temp = lru_remove(arc->B2);
 		    remove_from_hash(arc,temp);            /* remove from hash table */
-		    pthread_mutex_unlock(&arc->mux);
 		    arc->B2Length--;                                           /* find and reuse B2’s LRU */
 		    inB2=1;
 		} else {                                                   /* cache directory not full, easy case */
@@ -2435,17 +2426,18 @@ static void *Aquire(MDL mdl, int cid, int iIndex, int id, int bLock) {
 		assert(temp->data != NULL);               /* This CDB should have an unused page associated with it */
 		temp->data[-1] = _ARC_MAGIC_; /* this also sets nLock to zero */
 	    }
-	}
+	    }
 	mru_insert(temp,arc->T1);                                             /* seen once recently, put on T1 */
 	arc->T1Length++;                                                       /* bookkeep: */
 	/*assert(arc->T1Length+arc->B1Length<=arc->nCache);*/
+	pthread_mutex_unlock(&arc->mux);
 	temp->uId = uId;                  /* temp->dirty = dirty;  p->ARC_where = _T1_; as well! */
 	temp->uIndex = uIndex;
+	finishCacheRequest(mdl,cid,iIndex,id,temp);
 	pthread_mutex_lock(&arc->mux);
 	temp->coll = arc->Hash[uHash];                  /* add to collision chain */
 	arc->Hash[uHash] = temp;                               /* insert into hash table */
 	pthread_mutex_unlock(&arc->mux);
-	finishCacheRequest(mdl,cid,iIndex,id,temp);
 	mdlTimeAddWaiting(mdl);
     }
     /*assert(temp!=NULL);*/
