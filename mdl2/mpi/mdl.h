@@ -44,6 +44,7 @@ typedef struct ArcContext {
     CDB *T2;
     CDB *B2;
     CDB *Free;
+    pthread_mutex_t mux;
     uint32_t nHash;
     uint32_t uHashMask;
     uint32_t nCache;
@@ -183,11 +184,13 @@ typedef struct mdlContext {
     mdlBASE base;
     struct mdlContext **pmdl;
     pthread_t *threadid;
+    pthread_barrier_t barrier;
     void * (*fcnWorker)(struct mdlContext *mdl);
 
     OPA_Queue_info_t *inQueue;
     MDLserviceElement inMessage;
     void *pvMessageData;
+    size_t nMessageData;
     int iCoreMPI;             /* Core that handles MPI requests */
     int cacheSize;
 
@@ -214,11 +217,10 @@ typedef struct mdlContext {
     /*
      ** Caching stuff!
      */
-    char *pszFlsh;
     int nMaxCacheIds;
     CACHE *cache;
 
-    mdlContextMPI mpi;
+    mdlContextMPI *mpi;
     MDLserviceSend sendRequest;
     MDLserviceSend recvRequest;
 
@@ -307,11 +309,10 @@ int mdlTypeFree (MDL mdl, MDL_Datatype *datatype );
 */
 
 typedef struct mdlGridContext {
-    int n1, n2, n3; /* Real dimensions */
-    int a1;         /* Actual size of dimension 1 */
-    int s, n;       /* Start and number of slabs */
+    uint32_t n1, n2, n3; /* Real dimensions */
+    uint32_t a1;         /* Actual size of dimension 1 */
+    uint32_t s, n;       /* Start and number of slabs */
     int nlocal;     /* Number of local elements */
-
     uint32_t *rs;  /* Starting slab for each processor */
     uint32_t *rn;  /* Number of slabs on each processor */
     uint32_t *id;  /* Which processor has this slab */
@@ -353,7 +354,7 @@ static inline int mdlGridId(MDLGRID grid, uint32_t x, uint32_t y, uint32_t z) {
 ** This returns the index into the array on the appropriate processor.
 */
 static inline int mdlGridIdx(MDLGRID grid, uint32_t x, uint32_t y, uint32_t z) {
-    assert(x>=0&&x<grid->a1&&y>=0&&y<grid->n2&&z>=0&&z<grid->n3);
+    assert(x>=0&&x<=grid->a1&&y>=0&&y<grid->n2&&z>=0&&z<grid->n3);
     z -= grid->rs[grid->id[z]]; /* Make "z" zero based for its processor */
     return x + grid->a1*(y + grid->n2*z); /* Local index */
     }
@@ -370,8 +371,8 @@ typedef struct mdlFFTContext {
 
 typedef double fftw_real;
 
-size_t mdlFFTInitialize(MDL mdl,MDLFFT *fft,
-			int nx,int ny,int nz,int bMeasure);
+size_t mdlFFTlocalCount(MDL mdl,int n1,int n2,int n3,int *nz,int *sz,int *ny,int*sy);
+size_t mdlFFTInitialize(MDL mdl,MDLFFT *fft,int nx,int ny,int nz,int bMeasure,double *data);
 void mdlFFTFinish( MDL mdl, MDLFFT fft );
 fftw_real *mdlFFTMAlloc( MDL mdl, MDLFFT fft );
 void mdlFFTFree( MDL mdl, MDLFFT fft, void *p );
@@ -392,7 +393,7 @@ void mdlIFFT( MDL mdl, MDLFFT fft, fftw_complex *data);
  */
 void *mdlMalloc(MDL,size_t);
 void mdlFree(MDL,void *);
-void *mdlMallocArray(MDL,size_t);
+void *mdlMallocArray(MDL mdl,size_t nmemb,size_t size);
 void mdlFreeArray(MDL,void *);
 void mdlSetCacheSize(MDL,int);
 void mdlROcache(MDL mdl,int cid,

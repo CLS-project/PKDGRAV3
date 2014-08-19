@@ -192,10 +192,8 @@ struct parameters {
     int bWriteIC;
     double h;
     double dBoxSize;
-#ifdef USE_GRAFIC
     int nGrid;
     int iSeed;
-#endif
 
 #ifdef MDL_FFTW
     int nGridPk;

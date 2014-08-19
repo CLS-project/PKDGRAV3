@@ -437,7 +437,7 @@ void pkdInitialize(
     ** particle.
     */
     pkd->iParticleSize = (pkd->iParticleSize + sizeof(double) - 1 ) & ~(sizeof(double)-1);
-    pkd->pStorePRIVATE = mdlMallocArray(pkd->mdl,(nStore+1)*pkdParticleSize(pkd));
+    pkd->pStorePRIVATE = mdlMallocArray(pkd->mdl,nStore+1,pkdParticleSize(pkd));
     mdlassert(mdl,pkd->pStorePRIVATE != NULL);
     if ( mMemoryModel & PKD_MODEL_RUNGDEST ) {
 	pkd->pStorePRIVATE2 = mdlMalloc(pkd->mdl,(nStore+1)*pkdParticleSize(pkd));
@@ -809,14 +809,6 @@ void pkdSeek(PKD pkd,FILE *fp,uint64_t nStart,int bStandard,int bDoublePos) {
 	    }
 	}
 #endif
-    }
-
-
-void IOCheck(int nout) {
-    if (nout != 1) {
-	perror("IOCheck failed");
-	exit(errno);
-	}
     }
 
 

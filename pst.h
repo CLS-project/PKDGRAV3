@@ -13,6 +13,7 @@
 
 #include "parameters.h"
 #include "cosmo.h"
+#include "ic.h"
 
 typedef struct lclBlock {
     PKD	pkd;
@@ -169,15 +170,15 @@ enum pst_service {
     PST_GROUPPROFILES,
     PST_INITRELAXATION,
     PST_CLEARTIMER,
-#ifdef USE_GRAFIC
+    PST_INITIALIZEPSTORE,
+    PST_GETFFTMAXSIZES,
     PST_GENERATEIC,
-#endif
+    PST_CONSTRUCTIC,
     PST_HOSTNAME,
     PST_MEMSTATUS,
     PST_GETCLASSES,
     PST_SETCLASSES,
     PST_SWAPCLASSES,
-
     PST_SELSRCALL,
     PST_SELDSTALL,
     PST_SELSRCGAS,
@@ -1057,27 +1058,68 @@ void pstGroupMerge(PST,void *,int,void *,int *);
 void pstGroupProfiles(PST,void *,int,void *,int *);
 void pstInitRelaxation(PST,void *,int,void *,int *);
 
-#ifdef USE_GRAFIC
+/* PST_INITIALIZEPSTORE */
+struct inInitializePStore {
+    uint64_t mMemoryModel;
+    uint64_t nStore;
+    uint64_t nDark;
+    uint64_t nGas;
+    uint64_t nStar;
+    double fPeriod[3];
+    int nBucket;
+    int nGroup;
+    int nTreeBitsLo;
+    int nTreeBitsHi;
+    int nDomainRungs;
+    int iCacheSize;
+    int iWorkQueueSize;
+    int iCUDAQueueSize;
+    };
+void pstInitializePStore(PST,void *,int,void *,int *);
+
+/* PST_GETFFTMAXSIZES */
+struct inGetFFTMaxSizes {
+    int nx,ny,nz;
+    };
+struct outGetFFTMaxSizes {
+    uint64_t nMaxLocal;
+    int nMaxZ;
+    int nMaxY;
+    };
+void pstGetFFTMaxSizes(PST,void *,int,void *,int *);
+
 /* PST_GENERATEIC */
 struct inGenerateIC {
+    struct inInitializePStore ps;
+    uint64_t nPerNode;
     double h;
     double dBoxSize;
     double omegac;
     double omegab;
     double omegav;
+    double dExpansion;
+    float fExtraStore;
     int iSeed;
     int nGrid;
-    int nBucket;
     int bComove;
-    float fExtraStore;
-    FLOAT fPeriod[3];
     };
 struct outGenerateIC {
     double dExpansion;
     };
-
 void pstGenerateIC(PST,void *,int,void *,int *);
-#endif
+
+/* PST_CONSTRUCTIC */
+struct inConstructIC {
+    MDLFFT fft;
+    gridptr dic[8];
+    /* Threads get parts of each slab */
+    uint64_t iBegYr, iEndYr;
+    uint64_t iBegZk, iEndZk;
+    };
+struct outConstructIC {
+    double dExpansion;
+    };
+void pstConstructIC(PST,void *,int,void *,int *);
 
 /* PST_HOSTNAME */
 struct outHostname {

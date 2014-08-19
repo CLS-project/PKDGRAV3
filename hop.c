@@ -1188,6 +1188,7 @@ int pkdHopUnbind(PKD pkd, double dTime, int nMinGroupSize, int bPeriodic, double
 	iRoot = pkd->hopGroups[gid].iTreeRoot;
 	pNode = pkdTreeNode(pkd,iRoot);
 	n = pNode->pUpper - pNode->pLower + 1;
+	/* Calculate kinetic energy & total energy */
 	for(i=pNode->pLower; i<=pNode->pUpper; ++i) {
 	    p = pkdParticle(pkd,i);
 	    assert(*pkdGroup(pkd,p)==gid);

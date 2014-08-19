@@ -91,6 +91,7 @@ if test "x$FFTW" != "xno" ; then
   AC_CHECK_LIB([fftw3_mpi], [fftw_mpi_init],[],[AC_MSG_ERROR([Cannot find FFTW3])])
   AC_CHECK_LIB([fftw3_threads], [fftw_init_threads],[],[AC_MSG_ERROR([Cannot find FFTW3])])
   AC_DEFINE([MDL_FFTW], 1, [Include support for FFTW.])
+  AM_PATH_GSL(1.8,[],[AC_MSG_ERROR([Unable to locate GNU Scientific Library (gsl)])])
 fi
 AM_CONDITIONAL(FFTW, test "x$FFTW" != "xno")
 

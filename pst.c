@@ -30,11 +30,15 @@
 #include "pkd.h"
 #include "smooth.h"
 #include "hop.h"
-#ifdef USE_GRAFIC
-#include "grafic.h"
-#endif
 #include "psdtree.h"
 #include "unbind.h"
+
+#define pstOffNode(pst) ((pst)->nLeaves > mdlCores((pst)->mdl))
+#define pstOnNode(pst) ((pst)->nLeaves <= mdlCores((pst)->mdl))
+#define pstAmNode(pst) ((pst)->nLeaves == mdlCores((pst)->mdl))
+#define pstNotNode(pst) ((pst)->nLeaves != mdlCores((pst)->mdl))
+#define pstAmCore(pst) ((pst)->nLeaves == 1)
+#define pstNotCore(pst) ((pst)->nLeaves > 1)
 
 /*
 ** Order:
@@ -431,10 +435,19 @@ void pstAddServices(PST pst,MDL mdl) {
 		  sizeof(struct inGroupProfiles),sizeof(int));
     mdlAddService(mdl,PST_INITRELAXATION,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstInitRelaxation,0,0);
-#ifdef USE_GRAFIC
+#ifdef MDL_FFTW
+    mdlAddService(mdl,PST_INITIALIZEPSTORE,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstInitializePStore,
+		  sizeof(struct inInitializePStore),0);
+    mdlAddService(mdl,PST_GETFFTMAXSIZES,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstGetFFTMaxSizes,
+		  sizeof(struct inGetFFTMaxSizes),sizeof(struct outGetFFTMaxSizes));
     mdlAddService(mdl,PST_GENERATEIC,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstGenerateIC,
 		  sizeof(struct inGenerateIC),sizeof(struct outGenerateIC));
+    mdlAddService(mdl,PST_CONSTRUCTIC,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstConstructIC,
+		  sizeof(struct inConstructIC),sizeof(struct outConstructIC));
 #endif
     mdlAddService(mdl,PST_HOSTNAME,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstHostname,
@@ -3749,57 +3762,168 @@ void pstInitRelaxation(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     if (pnOut) *pnOut = 0;
     }
 
-#ifdef USE_GRAFIC
+#ifdef MDL_FFTW
+void pstInitializePStore(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl = pst->plcl;
+    struct inInitializePStore *in = vin;
+    mdlassert(pst->mdl,nIn == sizeof(struct inInitializePStore));
+    if (pstNotCore(pst)) {
+	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_INITIALIZEPSTORE,in,nIn);
+	pstInitializePStore(pst->pstLower,vin,nIn,vout,pnOut);
+	mdlGetReply(pst->mdl,rID,vout,pnOut);
+	}
+    else {
+	pkdInitialize(
+	    &plcl->pkd,pst->mdl,in->nStore,in->nBucket,in->nGroup,
+	    in->nTreeBitsLo,in->nTreeBitsHi,
+	    in->iCacheSize,in->iWorkQueueSize,in->iCUDAQueueSize,in->fPeriod,
+	    in->nDark,in->nGas,in->nStar,in->mMemoryModel, in->nDomainRungs);
+	}
+    }
+
+void pstGetFFTMaxSizes(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl = pst->plcl;
+    struct inGetFFTMaxSizes *in = vin;
+    struct outGetFFTMaxSizes *out = vout;
+    struct outGetFFTMaxSizes outUp;
+    uint64_t nTotal, nLocal, nStore;
+
+    mdlassert(pst->mdl,nIn == sizeof(struct inGetFFTMaxSizes));
+    mdlassert(pst->mdl,vout != NULL);
+    assert(mdlCore(pst->mdl)==0);
+
+    if (pstOffNode(pst)) {
+	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_GETFFTMAXSIZES,in,nIn);
+	pstGetFFTMaxSizes(pst->pstLower,in,nIn,vout,pnOut);
+	mdlGetReply(pst->mdl,rID,&outUp,pnOut);
+	if (outUp.nMaxLocal > out->nMaxLocal) out->nMaxLocal = outUp.nMaxLocal;
+	if (outUp.nMaxZ > out->nMaxZ) out->nMaxZ = outUp.nMaxZ;
+	if (outUp.nMaxY > out->nMaxY) out->nMaxY = outUp.nMaxZ;
+	}
+    else {
+	assert(pstAmNode(pst));
+	out->nMaxLocal = mdlFFTlocalCount(pst->mdl,in->nx,in->ny,in->nz,
+	    &out->nMaxZ,0,&out->nMaxY,0);
+	}
+    if (pnOut) *pnOut = 0;
+    }
+
+void pstConstructIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl = pst->plcl;
+    struct inConstructIC *in = vin;
+    struct outConstructIC *out = vout;
+
+    mdlassert(pst->mdl,nIn == sizeof(struct inConstructIC));
+
+    assert(pstOnNode(pst)); /* We pass around pointers! */
+    if (pstNotCore(pst)) {
+	int iBegYr = in->iBegYr;
+	int iBegZk = in->iBegZk;
+
+	in->iBegYr = (in->iBegYr + in->iEndYr) / 2;
+	in->iBegZk = (in->iBegZk + in->iEndZk) / 2;
+	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_CONSTRUCTIC,in,nIn);
+	in->iEndYr = in->iBegYr;
+	in->iEndZk = in->iBegZk;
+	in->iBegYr = iBegYr;
+	in->iBegZk = iBegZk;
+	pstConstructIC(pst->pstLower,in,nIn,vout,pnOut);
+	mdlGetReply(pst->mdl,rID,vout,pnOut);
+	}
+    else {
+	pkdGenerateIC(plcl->pkd,in->fft,in->iBegYr,in->iEndYr,in->iBegZk,in->iEndZk,in->dic);
+//	out->nLocal = mdlFFTlocalCount(pst->mdl,in->nGrid,in->nGrid,in->nGrid,0,0,0,0);
+	}
+    if (pnOut) *pnOut = 0;
+    }
+
 void pstGenerateIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct inGenerateIC *in = vin;
     struct outGenerateIC *out = vout;
+    uint64_t nTotal, nLocal;
+    struct inConstructIC cic;
 
     mdlassert(pst->mdl,nIn == sizeof(struct inGenerateIC));
     mdlassert(pst->mdl,vout != NULL);
 
-    if (pst->nLeaves > mdlCores(pst->mdl)) {
-	rID = mdlReqService(pst->mdl,pst->idUpper,PST_GENERATEIC,in,nIn);
-	pstGenerateIC(pst->pstLower,in,nIn,vout,pnOut);
-	mdlGetReply(pst->mdl,rID,vout,pnOut);
-	}
-    /* The FFT is performed at this level - FFTW does its own threading */
-    else if (pst->nLeaves > 1) {
-	rID = mdlReqService(pst->mdl,pst->idUpper,PST_GENERATEIC,in,nIn);
+    if (pstOffNode(pst)) {
+	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_GENERATEIC,in,nIn);
 	pstGenerateIC(pst->pstLower,in,nIn,vout,pnOut);
 	mdlGetReply(pst->mdl,rID,vout,pnOut);
 	}
     else {
-	GRAFICCTX gctx;
-	double dx, fSoft, fMass;
-	uint64_t nTotal, nLocal, nStore;
-	int d;
-
-	nTotal = in->nGrid * in->nGrid * in->nGrid;
+	assert(pstAmNode(pst)); /* We are "on node" here */
+	nTotal = in->nGrid; /* Careful: 32 bit integer cubed => 64 bit integer */
+	nTotal *= in->nGrid;
+	nTotal *= in->nGrid;
 	nLocal = nTotal / mdlThreads(pst->mdl);
-	nStore = nLocal + (int)ceil(nLocal*in->fExtraStore);
+	in->ps.nStore = nLocal + (int)ceil(nLocal*in->fExtraStore);
 
-	if (plcl->pkd) pkdFinish(plcl->pkd);
-	pkdInitialize(&plcl->pkd,pst->mdl,nStore,in->nBucket,in->fExtraNodes,in->iCacheSize,
-	    in->iWorkQueueSize,in->iCUDAQueueSize,in->fPeriod,nTotal,0,0);
+	/* Adjust upward if necessary */
+	if (in->ps.nStore*mdlCores(pst->mdl) < in->nPerNode) {
+	    in->ps.nStore = (in->nPerNode + mdlCores(pst->mdl) - 1) / mdlCores(pst->mdl);
+	    }
 
+	/*
+	** Allocate memory for particle/grid store. We require 8 double arrays
+	** and a PARTICLE is normally at least 10 when calculating gravity.
+	*/
+	pstInitializePStore(pst,&in->ps,sizeof(in->ps),NULL,NULL);
+	assert( 8*sizeof(double) <= pkdParticleSize(plcl->pkd) );
+
+
+	double *pEnd = (double *)pkdParticle(plcl->pkd,in->nPerNode);
+	cic.dic[7].r = pEnd - in->nPerNode;
+	cic.dic[6].r = cic.dic[7].r - in->nPerNode;
+	cic.dic[5].r = cic.dic[6].r - in->nPerNode;
+	cic.dic[4].r = cic.dic[5].r - in->nPerNode;
+	cic.dic[3].r = cic.dic[4].r - in->nPerNode;
+	cic.dic[2].r = cic.dic[3].r - in->nPerNode;
+	cic.dic[1].r = cic.dic[2].r - in->nPerNode;
+	cic.dic[0].r = cic.dic[1].r - in->nPerNode;
+	assert(cic.dic[0].r >= (double *)pkdParticleBase(plcl->pkd));
+
+	mdlFFTInitialize(pst->mdl,&cic.fft,in->nGrid,in->nGrid,in->nGrid,0,cic.dic[0].r);
+
+	cic.iBegYr = 0;
+	cic.iEndYr = cic.fft->rgrid->n2;
+	cic.iBegZk = 0;
+	cic.iEndZk = cic.fft->rgrid->n3;
+	pstConstructIC(pst,&cic,sizeof(cic),NULL,NULL);
+
+	// generate noise into dic1, dic2, dic3
+
+	// copy to dic4, dic5, dic6
+
+	// fft to real dic4, dic5, dic6 -> this is the first order
+
+
+
+
+
+
+	out->dExpansion = in->dExpansion;
+	}
+#if 0
 	/* Okay, here we set it to 1/50 of the interparticle separation */
 	fSoft = 1.0 / (50.0 * in->nGrid);
 	/* Mass is easy */
 	fMass = in->omegac / (1.0 * in->nGrid * in->nGrid * in->nGrid );
 
 	dx = in->dBoxSize / in->nGrid;
-	graficInitialize( &gctx, dx, 1, in->iSeed, in->h*100,
-			  in->omegac, in->omegab, in->omegav,
-			  in->nGrid, in->nGrid, in->nGrid );
-	out->dExpansion = graficGetExpansionFactor(gctx);
+//	graficInitialize( &gctx, dx, 1, in->iSeed, in->h*100,
+//			  in->omegac, in->omegab, in->omegav,
+//			  in->nGrid, in->nGrid, in->nGrid );
+//	out->dExpansion = graficGetExpansionFactor(gctx);
 
 	for ( d=1; d<=3; d++ ) {
-	    pkdGenerateIC( plcl->pkd, gctx, d,
-			   fSoft, fMass, in->bComove );
+//	    pkdGenerateIC( plcl->pkd, gctx, d,
+//			   fSoft, fMass, in->bComove );
 	    }
-	graficFinish(gctx);
+//	graficFinish(gctx);
 	}
+#endif
     if (pnOut) *pnOut = sizeof(struct outGenerateIC);
     }
 #endif

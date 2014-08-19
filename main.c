@@ -77,14 +77,17 @@ void * master_ch(MDL mdl) {
     ** Read in the binary file, this may set the number of timesteps or
     ** the size of the timestep when the zto parameter is used.
     */
-#ifdef USE_GRAFIC
     if (prmSpecified(msr->prm,"nGrid")) {
+#ifdef MDL_FFTW
 	dTime = msrGenerateIC(msr);
+#else
+	printf("To generate initial conditions, compile with FFTW\n");
+	return NULL;
+#endif
 	msrInitStep(msr);
 	if (prmSpecified(msr->prm,"dSoft")) msrSetSoft(msr,msrSoft(msr));
 	}
     else {
-#endif
 	if ( msr->param.achInFile[0] ) {
 	    dTime = msrRead(msr,msr->param.achInFile);
 	    msrInitStep(msr);
@@ -110,9 +113,7 @@ void * master_ch(MDL mdl) {
 #ifdef USE_PYTHON
 	    }
 #endif
-#ifdef USE_GRAFIC
 	}
-#endif
 
     if ( msr->param.bWriteIC ) {
 	msrBuildIoName(msr,achFile,0);

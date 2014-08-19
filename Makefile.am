@@ -105,6 +105,12 @@ pkdgrav3_mpi_LDADD = -lpthread
 pkdgrav3_mpi_SOURCES = $(SOURCES) $(MDL)/mpi/mdl.c openpa/src/opa_primitives.c openpa/src/opa_queue.c
 noinst_HEADERS += $(MDL)/mpi/mdl.h
 pkdgrav3_mpi_CFLAGS = -I$(MDL)/mpi/ -I$(MDL) -Iopenpa/src $(AM_CFLAGS)
+if FFTW
+pkdgrav3_mpi_CFLAGS += $(GSL_CFLAGS)
+pkdgrav3_mpi_LDADD += $(GSL_LIBS)
+pkdgrav3_mpi_SOURCES += ic.c
+noinst_HEADERS += ic.h
+endif
 #if USE_GRAFIC
 #pkdgrav3_mpi_CFLAGS += -Igrafic/
 #pkdgrav3_mpi_LDADD += grafic/libgrafic.a

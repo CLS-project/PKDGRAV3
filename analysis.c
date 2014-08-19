@@ -854,6 +854,13 @@ static void tsc_assign(PKD pkd, MDLFFT fft, int nGrid,
     cell_accumulate(pkd,fft,nGrid,ixp1,iyp1,izp1,hxp1*hyp1 *hzp1 * pw);
 }
 
+static double deconvolveWindow(int i,int nGrid) {
+    double win = M_PI * i / nGrid;
+    if(win>0.1) win = sin(win)/win;
+    else win=1.0-win*win/6.0*(1.0-win*win/20.0*(1.0-win*win/76.0));
+    return win*win*win;
+    }
+
 void pkdMeasurePk(PKD pkd, double dCenter[3], double dRadius,
 		  int nGrid, float *fPower, int *nPower) {
     PARTICLE *p;
@@ -887,7 +894,7 @@ void pkdMeasurePk(PKD pkd, double dCenter[3], double dRadius,
 
     fftNormalize = 1.0 / (1.0*nGrid*nGrid*nGrid);
 
-    mdlFFTInitialize(pkd->mdl,&fft,nGridFFT,nGridFFT,nGridFFT,0);
+    mdlFFTInitialize(pkd->mdl,&fft,nGridFFT,nGridFFT,nGridFFT,0,0);
     fftData = mdlFFTMAlloc( pkd->mdl, fft );
     fftDataK = (fftw_complex *)fftData;
 
@@ -954,20 +961,6 @@ void pkdMeasurePk(PKD pkd, double dCenter[3], double dRadius,
     mdlFFT(pkd->mdl,fft,fftData);
     /* Remember, the grid is now transposed to x,z,y (from x,y,z) */
 
-    /*rms = grid_rms(pkd->mdl,fft->grid->nlocal, fftData);
-      if (pkd->idSelf==0)	printf( "RMS after FFT: %g\n",rms);*/
-
-
-    /*printf("Calculating delta^2\n");*/
-    for( i=0; i<fft->kgrid->nlocal; i++ ) {
-	fftDataK[i][0] = pow2(fftDataK[i][0]) + pow2(fftDataK[i][1]);
-	fftDataK[i][1] = 0.0;
-	}
-
-    /*rms = grid_rms(pkd->mdl,fft->grid->nlocal, fftData);
-      if (pkd->idSelf==0) printf( "RMS after Delta: %g\n",rms);*/
-
-    /*printf("Calculating P(k)\n");*/
     for( i=0; i<=iNyquist; i++ ) {
 	fPower[i] = 0.0;
 	nPower[i] = 0;
@@ -984,13 +977,17 @@ void pkdMeasurePk(PKD pkd, double dCenter[3], double dRadius,
 	ey = sy + fft->kgrid->n;
 	for(j=sy;j<ey;j++) {
 	    int jj = j>iNyquist ? nGrid - j : j;
+            double win_j = deconvolveWindow(jj,nGrid);
 	    for(k=0;k<nGrid;k++) {
 		int kk = k>iNyquist ? nGrid - k : k;
+                double win_k = deconvolveWindow(kk,nGrid);
 		for(i=0;i<=iNyquist;i++) {
+                    double win = deconvolveWindow(i,nGrid) * win_k * win_j;
 		    ks = sqrtl(i*i + jj*jj + kk*kk);
 		    idx = mdlFFTkIdx(fft,i,j,k);
 		    if ( ks >= 1 && ks <= iNyquist ) {
-			fPower[ks] += fftDataK[idx][0]; /* real part */
+			double delta2 = (pow2(fftDataK[idx][0]) + pow2(fftDataK[idx][1]))/(win*win);
+			fPower[ks] += delta2;
 			nPower[ks] += 1;
 			}
 		    }

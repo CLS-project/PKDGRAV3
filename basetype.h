@@ -28,8 +28,6 @@ typedef struct particle {
     /*-----Used-for-Smooth-------*/
     float fBall;
     float fDensity;
-    /* a, fPot, v, pGroup, pBin moved to memory models */
-
     } PARTICLE;
 
 #define PP_CUDA_MEMORY_LIMIT (1024*1024)

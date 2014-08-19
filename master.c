@@ -537,14 +537,12 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.dBoxSize = 0.0;
     prmAddParam(msr->prm,"dBoxSize",2,&msr->param.dBoxSize,
 		sizeof(double),"mpc","<Simulation Box size in Mpc> = 0");
-#ifdef USE_GRAFIC
     msr->param.nGrid = 0;
     prmAddParam(msr->prm,"nGrid",1,&msr->param.nGrid,
 		sizeof(int),"grid","<Grid size for IC 0=disabled> = 0");
     msr->param.iSeed = 0;
     prmAddParam(msr->prm,"iSeed",1,&msr->param.iSeed,
 		sizeof(int),"seed","<Random seed for IC> = 0");
-#endif
 #ifdef USE_PYTHON
     strcpy(msr->param.achScriptFile,"");
     prmAddParam(msr->prm,"achScript",3,msr->param.achScriptFile,256,"script",
@@ -907,7 +905,7 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
 	}
 #endif
 
-#ifdef USE_GRAFIC
+#ifdef MDL_FFTW
     if ( msr->param.nGrid ) {
 	if (msr->param.achInFile[0]) {
 	    puts("ERROR: do not specify an input file when generating IC");
@@ -1623,10 +1621,46 @@ double getTime(MSR msr, double dExpansion, double *dvFac) {
     return dTime;
     }
 
-#ifdef USE_GRAFIC
+static uint64_t getMemoryModel(MSR msr) {
+    uint64_t mMemoryModel = 0;
+    /*
+    ** Figure out what memory models are in effect.  Configuration flags
+    ** can be used to request a specific model, but certain operations
+    ** will force these flags to be on.
+    */
+    if (msr->param.bFindGroups) mMemoryModel |= PKD_MODEL_GROUPS|PKD_MODEL_VELOCITY|PKD_MODEL_POTENTIAL;
+    if (msrDoGravity(msr)) mMemoryModel |= PKD_MODEL_VELOCITY|PKD_MODEL_ACCELERATION|PKD_MODEL_POTENTIAL|PKD_MODEL_NODE_MOMENT;
+
+    if (msr->param.nDomainRungs>0)   mMemoryModel |= PKD_MODEL_RUNGDEST;
+
+    if (msr->param.bMemParticleID)   mMemoryModel |= PKD_MODEL_PARTICLE_ID;
+    if (msr->param.bTraceRelaxation) mMemoryModel |= PKD_MODEL_RELAXATION;
+    if (msr->param.bMemAcceleration) mMemoryModel |= PKD_MODEL_ACCELERATION;
+    if (msr->param.bMemVelocity)     mMemoryModel |= PKD_MODEL_VELOCITY;
+    if (msr->param.bMemPotential)    mMemoryModel |= PKD_MODEL_POTENTIAL;
+    if (msr->param.bMemGroups)       mMemoryModel |= PKD_MODEL_GROUPS;
+    if (msr->param.bMemMass)         mMemoryModel |= PKD_MODEL_MASS;
+    if (msr->param.bMemSoft)         mMemoryModel |= PKD_MODEL_SOFTENING;
+    if (msr->param.bMemRelaxation)   mMemoryModel |= PKD_MODEL_RELAXATION;
+    if (msr->param.bMemVelSmooth)    mMemoryModel |= PKD_MODEL_VELSMOOTH;
+    if (msr->param.bMemNewDD)         mMemoryModel |= PKD_MODEL_RUNGDEST;
+
+    if (msr->param.bMemNodeAcceleration) mMemoryModel |= PKD_MODEL_NODE_ACCEL;
+    if (msr->param.bMemNodeVelocity)     mMemoryModel |= PKD_MODEL_NODE_VEL;
+    if (msr->param.bMemNodeMoment)       mMemoryModel |= PKD_MODEL_NODE_MOMENT;
+    if (msr->param.bMemNodeSphBounds)    mMemoryModel |= PKD_MODEL_NODE_SPHBNDS;
+
+    if (msr->param.bMemNodeBnd)          mMemoryModel |= PKD_MODEL_NODE_BND;
+    if (msr->param.bMemNodeVBnd)         mMemoryModel |= PKD_MODEL_NODE_VBND;
+    return mMemoryModel;
+    }
+
+#ifdef MDL_FFTW
 double msrGenerateIC(MSR msr) {
     struct inGenerateIC in;
     struct outGenerateIC out;
+    struct inGetFFTMaxSizes inFFTSizes;
+    struct outGetFFTMaxSizes outFFTSizes;
     int nOut;
     double sec,dsec;
     double dvFac;
@@ -1640,20 +1674,30 @@ double msrGenerateIC(MSR msr) {
     in.omegav= msr->param.csm->dLambda;
     in.bComove = msr->param.csm->bComove;
     in.fExtraStore = msr->param.dExtraStore;
-    in.nTreeBitsLo = msr->param.nTreeBitsLo;
-    in.nTreeBitsHi = msr->param.nTreeBitsHi;
-    in.iCacheSize  = msr->parm.iCacheSize;
-    in.iWorkQueueSize  = msr->parm.iWorkQueueSize;
-    in.iCUDAQueueSize  = msr->parm.iCUDAQueueSize;
-    in.fPeriod[0] = msr->param.dxPeriod;
-    in.fPeriod[1] = msr->param.dyPeriod;
-    in.fPeriod[2] = msr->param.dzPeriod;
-    in.nBucket = msr->param.nBucket;
-    in.nDomainRungs = msr->param.nDomainRungs;
+    in.ps.nDark = (uint64_t)in.nGrid * in.nGrid * in.nGrid;
+    in.ps.nGas = 0;
+    in.ps.nStar = 0;
+    in.ps.nTreeBitsLo = msr->param.nTreeBitsLo;
+    in.ps.nTreeBitsHi = msr->param.nTreeBitsHi;
+    in.ps.iCacheSize  = msr->param.iCacheSize;
+    in.ps.iWorkQueueSize  = msr->param.iWorkQueueSize;
+    in.ps.iCUDAQueueSize  = msr->param.iCUDAQueueSize;
+    in.ps.fPeriod[0] = msr->param.dxPeriod;
+    in.ps.fPeriod[1] = msr->param.dyPeriod;
+    in.ps.fPeriod[2] = msr->param.dzPeriod;
+    in.ps.nBucket = msr->param.nBucket;
+    in.ps.nGroup = msr->param.nGroup;
+    in.ps.nDomainRungs = msr->param.nDomainRungs;
+    in.ps.mMemoryModel = getMemoryModel(msr) | PKD_MODEL_VELOCITY;
+    if (prmSpecified(msr->prm,"dRedFrom")) {
+	assert(msr->param.dRedFrom >= 0.0 );
+	in.dExpansion = 1.0 / (1.0 + msr->param.dRedFrom);
+	}
+    else in.dExpansion = 0.0;
 
-    msr->nDark = in.nGrid * in.nGrid * in.nGrid;
-    msr->nGas  = 0;
-    msr->nStar = 0;
+    msr->nDark = in.ps.nDark;
+    msr->nGas  = in.ps.nGas;
+    msr->nStar = in.ps.nStar;
     msr->N = msr->nDark+msr->nGas+msr->nStar;
     msr->nMaxOrder = msr->N;
 
@@ -1663,9 +1707,20 @@ double msrGenerateIC(MSR msr) {
 	       msr->N, msr->nDark,msr->nGas,msr->nStar);
 
     sec = msrTime();
+
+    /* Figure out the minimum number of particles */
+    inFFTSizes.nx = inFFTSizes.ny = inFFTSizes.nz = in.nGrid;
+    pstGetFFTMaxSizes(msr->pst,&inFFTSizes,sizeof(inFFTSizes),&outFFTSizes,&nOut);
+    printf("Grid size %d x %d x %d, per node %d x %d x %d and %d x %d x %d\n",
+	inFFTSizes.nx, inFFTSizes.ny, inFFTSizes.nz,
+	inFFTSizes.nx, inFFTSizes.ny, outFFTSizes.nMaxZ,
+	inFFTSizes.nx, outFFTSizes.nMaxY, inFFTSizes.nz);
+
+    msrprintf(msr,"IC Generation @ a=%g\n",in.dExpansion,dsec);
+    in.nPerNode = outFFTSizes.nMaxLocal;
     pstGenerateIC(msr->pst,&in,sizeof(in),&out,&nOut);
     dsec = msrTime() - sec;
-    msrprintf(msr,"IC Generation Complete, Wallclock: %f secs\n\n",dsec);
+    msrprintf(msr,"IC Generation Complete @ a=%g, Wallclock: %f secs\n\n",out.dExpansion,dsec);
 
     return getTime(msr,out.dExpansion,&dvFac);
     }
@@ -4465,7 +4520,6 @@ void msrRelaxation(MSR msr,double dTime,double deltaT,int iSmoothType,int bSymme
 	}
     }
 
-
 double msrRead(MSR msr, const char *achInFile) {
     double dTime,dExpansion;
     FIO fio;
@@ -4483,35 +4537,7 @@ double msrRead(MSR msr, const char *achInFile) {
 	pst0 = pst0->pstLower;
     plcl = pst0->plcl;
 
-    /*
-    ** Figure out what memory models are in effect.  Configuration flags
-    ** can be used to request a specific model, but certain operations
-    ** will force these flags to be on.
-    */
-    if (msr->param.bFindGroups) mMemoryModel |= PKD_MODEL_GROUPS|PKD_MODEL_VELOCITY|PKD_MODEL_POTENTIAL;
-    if (msrDoGravity(msr)) mMemoryModel |= PKD_MODEL_VELOCITY|PKD_MODEL_ACCELERATION|PKD_MODEL_POTENTIAL|PKD_MODEL_NODE_MOMENT;
-
-    if (msr->param.nDomainRungs>0)   mMemoryModel |= PKD_MODEL_RUNGDEST;
-
-    if (msr->param.bMemParticleID)   mMemoryModel |= PKD_MODEL_PARTICLE_ID;
-    if (msr->param.bTraceRelaxation) mMemoryModel |= PKD_MODEL_RELAXATION;
-    if (msr->param.bMemAcceleration) mMemoryModel |= PKD_MODEL_ACCELERATION;
-    if (msr->param.bMemVelocity)     mMemoryModel |= PKD_MODEL_VELOCITY;
-    if (msr->param.bMemPotential)    mMemoryModel |= PKD_MODEL_POTENTIAL;
-    if (msr->param.bMemGroups)       mMemoryModel |= PKD_MODEL_GROUPS;
-    if (msr->param.bMemMass)         mMemoryModel |= PKD_MODEL_MASS;
-    if (msr->param.bMemSoft)         mMemoryModel |= PKD_MODEL_SOFTENING;
-    if (msr->param.bMemRelaxation)   mMemoryModel |= PKD_MODEL_RELAXATION;
-    if (msr->param.bMemVelSmooth)    mMemoryModel |= PKD_MODEL_VELSMOOTH;
-    if (msr->param.bMemNewDD)         mMemoryModel |= PKD_MODEL_RUNGDEST;
-
-    if (msr->param.bMemNodeAcceleration) mMemoryModel |= PKD_MODEL_NODE_ACCEL;
-    if (msr->param.bMemNodeVelocity)     mMemoryModel |= PKD_MODEL_NODE_VEL;
-    if (msr->param.bMemNodeMoment)       mMemoryModel |= PKD_MODEL_NODE_MOMENT;
-    if (msr->param.bMemNodeSphBounds)    mMemoryModel |= PKD_MODEL_NODE_SPHBNDS;
-
-    if (msr->param.bMemNodeBnd)          mMemoryModel |= PKD_MODEL_NODE_BND;
-    if (msr->param.bMemNodeVBnd)         mMemoryModel |= PKD_MODEL_NODE_VBND;
+    mMemoryModel = getMemoryModel(msr);
 
     sec = msrTime();
 
