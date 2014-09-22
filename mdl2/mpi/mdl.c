@@ -2304,7 +2304,11 @@ static void *Aquire(MDL mdl, int cid, int iIndex, int id, int bLock) {
                    if (mdlCore(mdl)<iMDL) pthread_mutex_lock(&arc->mux);
                    pthread_mutex_lock(&tarc->mux);
                    if (mdlCore(mdl)>iMDL) pthread_mutex_lock(&arc->mux);
-                   temp = arcSetPrefetchDataByHash(mdl,arc,iIndex,id,temp->data,uHash);
+		   for( temp = tarc->Hash[uHash]; temp; temp = temp->coll)
+		       if (temp->uIndex == uIndex && (temp->uId&_IDMASK_) == tuId)
+			   break;
+		   if (temp)
+		       temp = arcSetPrefetchDataByHash(mdl,arc,iIndex,id,temp->data,uHash);
                    pthread_mutex_unlock(&arc->mux);
                    pthread_mutex_unlock(&tarc->mux);
 		   break; /* Now treat it as a cache hit; it is. */
