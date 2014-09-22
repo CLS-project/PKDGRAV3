@@ -2105,6 +2105,7 @@ static inline CDB *arcSetPrefetchDataByHash(MDL mdl,ARC arc,uint32_t uIndex,uint
     uint32_t L1Length;
     int inB2=0;
 
+    assert(data!=NULL);
     for( temp = arc->Hash[uHash]; temp; temp = temp->coll ) {
 	if (temp->uIndex == uIndex && (temp->uId&_IDMASK_) == tuId) break;
 	}
@@ -2299,16 +2300,14 @@ static void *Aquire(MDL mdl, int cid, int iIndex, int id, int bLock) {
                    }
                pthread_mutex_unlock(&tarc->mux);
                /* Clone this into our cache */
-               if (temp) {
+               if (temp && temp->data) {
                    /* lock in the correct order lest we deadlock */
                    if (mdlCore(mdl)<iMDL) pthread_mutex_lock(&arc->mux);
                    pthread_mutex_lock(&tarc->mux);
                    if (mdlCore(mdl)>iMDL) pthread_mutex_lock(&arc->mux);
-		   for( temp = tarc->Hash[uHash]; temp; temp = temp->coll)
-		       if (temp->uIndex == uIndex && (temp->uId&_IDMASK_) == tuId)
-			   break;
-		   if (temp)
+		   if (temp->uIndex == uIndex && (temp->uId&_IDMASK_) == tuId && temp->data)
 		       temp = arcSetPrefetchDataByHash(mdl,arc,iIndex,id,temp->data,uHash);
+		   else temp = NULL;
                    pthread_mutex_unlock(&arc->mux);
                    pthread_mutex_unlock(&tarc->mux);
 		   break; /* Now treat it as a cache hit; it is. */
