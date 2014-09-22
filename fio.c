@@ -4196,7 +4196,7 @@ static FIO_SPECIES graficSpecies(FIO fio) {
     else return FIO_SPECIES_LAST;
     }
 
-static FIO graficOpenDirectory(const char *dirName,double UNUSED(dOmega0),double dOmegab) {
+static FIO graficOpenDirectory(fioFileList *fileList,double UNUSED(dOmega0),double dOmegab) {
     fioGrafic *gio;
     struct stat s;
     size_t n;
@@ -4204,6 +4204,7 @@ static FIO graficOpenDirectory(const char *dirName,double UNUSED(dOmega0),double
     char *fileName;
     double omega, f1, f2;
     double pi = 4.0 * atan(1.0);
+    const char *dirName = fileList->fileInfo[0].pszFilename;
 
     /*
     ** GRAFIC files are found in a specific directory, so verify
@@ -4222,6 +4223,8 @@ static FIO graficOpenDirectory(const char *dirName,double UNUSED(dOmega0),double
 
     gio = malloc(sizeof(fioGrafic));
     assert(gio!=NULL);
+    gio->fio.fileList = *fileList;
+
     gio->fio.eFormat = FIO_FORMAT_GRAFIC;
     gio->fio.eMode   = FIO_MODE_READING;
 
@@ -4369,7 +4372,7 @@ static FIO openMany(fioFileList *fileList, double dOmega0,double dOmegab, int bR
 #else
     else if ( S_ISDIR(s.st_mode) ) {
 #endif
-	fio = graficOpenDirectory(fileName,dOmega0,dOmegab);
+	fio = graficOpenDirectory(fileList,dOmega0,dOmegab);
 	}
 
 #ifdef USE_HDF5
