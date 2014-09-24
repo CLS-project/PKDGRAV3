@@ -69,17 +69,16 @@ typedef struct smContext {
     int nnListSize;
     int nnListMax;
     NN *nnList;
-    /*
-     ** Two stacks for the search algorithm.
-     */
     int *S;
     FLOAT *Smin;
     /*
-     ** Also need the two stacks for the search
-     ** within the top tree.
+     ** Also need the stacks for the tree search
      */
-    int *ST;
-    FLOAT *SminT;
+    struct stStack {
+	int id;
+	int iCell;
+	double min;
+	} *ST;
     /*
     ** Context for nearest neighbor lists.
     */
