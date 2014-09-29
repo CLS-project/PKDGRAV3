@@ -187,24 +187,17 @@ __global__ void cudaInteract(
         int iEnd = nP - iSync;
         if (iEnd > nSyncRate) iEnd=nSyncRate;
         // Preload the bucket of particles - this is a memcpy
-#if 1
         if (iI < iEnd*sizeof(ppInput) / sizeof(float)) {
             Particles.W[threadIdx.z][iI] = (reinterpret_cast<const float *>(pPart+iSync))[iI];
             }
-#endif
+        if (nWarpsPerWU>1) __syncthreads();
         if (iI < iEnd && bGravStep) { 
-#if 1
             float ax = Particles.P[threadIdx.z][iI].ax;
             float ay = Particles.P[threadIdx.z][iI].ay;
             float az = Particles.P[threadIdx.z][iI].az;
-#else
-            float ax = pPart[iSync+iI].ax;
-            float ay = pPart[iSync+iI].ay;
-            float az = pPart[iSync+iI].az;
-#endif
-            Particles.P[threadIdx.z][iI].dImaga = ax*ax + ay*ay + az*az;
-            if (Particles.P[threadIdx.z][iI].dImaga > 0.0f)
-                Particles.P[threadIdx.z][iI].dImaga = rsqrtf(Particles.P[threadIdx.z][iI].dImaga);
+            ax = ax*ax + ay*ay + az*az;
+            if (ax > 0.0f) ax = rsqrtf(ax);
+            Particles.P[threadIdx.z][iI].dImaga = ax;
             }
         if (nWarpsPerWU>1) __syncthreads();
 
@@ -212,15 +205,9 @@ __global__ void cudaInteract(
             float ax=0.0f, ay=0.0f, az=0.0f, fPot=0.0f, dirsum=0.0f, normsum=0.0f;
             if (iI < nI) {
                 float fourh2,dir,dir2,dir3;
-#if 1
                 float dx = iX + Particles.P[threadIdx.z][i].dx;
                 float dy = iY + Particles.P[threadIdx.z][i].dy;
                 float dz = iZ + Particles.P[threadIdx.z][i].dz;
-#else
-                float dx = iX + pPart[iSync+i].dx;
-                float dy = iY + pPart[iSync+i].dy;
-                float dz = iZ + pPart[iSync+i].dz;
-#endif
                 float d2 = dx*dx + dy*dy + dz*dz;
                 if (d2 != 0.0f ) { /* Ignore self interactions */
                     fourh2 = ifourh2;
@@ -247,10 +234,8 @@ __global__ void cudaInteract(
                     */
                     if (bGravStep) {
                         float adotai;
-//                    adotai = Particles.P[threadIdx.z][i].ax*ax + Particles.P[threadIdx.z][i].ay*ay + Particles.P[threadIdx.z][i].az*az;
-                        adotai = pPart[iSync+i].ax*ax + pPart[iSync+i].ay*ay + pPart[iSync+i].az*az;
-//                    if (adotai > 0.0f && d2 >= Particles.P[threadIdx.z][i].fSoft2 ) {
-                        if (adotai > 0.0f && d2 >= pPart[iSync+i].fSoft2 ) {
+                        adotai = Particles.P[threadIdx.z][i].ax*ax + Particles.P[threadIdx.z][i].ay*ay + Particles.P[threadIdx.z][i].az*az;
+                        if (adotai > 0.0f && d2 >= Particles.P[threadIdx.z][i].fSoft2 ) {
                             adotai *= Particles.P[threadIdx.z][i].dImaga;
                             dirsum = dir*adotai*adotai;
                             normsum = adotai*adotai;
@@ -295,10 +280,6 @@ __global__ void cudaInteract(
             }
         }
     }
-
-
-
-
 
 template <int nWarps,int nWarpsPerWU,int nSyncRate,int bGravStep>
 __global__ void cudaInteract(
@@ -397,6 +378,7 @@ __global__ void cudaInteract(
         if (iI < iEnd*sizeof(ppInput) / sizeof(float)) {
             Particles.W[threadIdx.z][iI] = (reinterpret_cast<const float *>(pPart+iSync))[iI];
             }
+        if (nWarpsPerWU>1) __syncthreads();
         if (iI < iEnd && bGravStep) { 
             float ax = Particles.P[threadIdx.z][iI].ax;
             float ay = Particles.P[threadIdx.z][iI].ay;
@@ -791,10 +773,6 @@ int CUDA_queue(CUDACTX cuda,CUDAwqNode **head,workParticle *wp, TILE tile, int b
 extern "C"
 int CUDA_queuePP(void *cudaCtx,workParticle *wp, ILPTILE tile, int bGravStep) {
     CUDACTX cuda = reinterpret_cast<CUDACTX>(cudaCtx);
-#if 0 // SAMPLE: this actually does work. We can use it for the hair.
-    finishGravity(wp,tile->lstTile.nBlocks,tile->lstTile.nInLast,tile->blk);
-    return 1;
-#endif
     return CUDA_queue< TB_THREADS, PP_WU, ILPTILE,ilpBlk<WIDTH> >(cuda,&cuda->nodePP,wp,tile,bGravStep);
     }
 
