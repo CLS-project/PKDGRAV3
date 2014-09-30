@@ -59,8 +59,6 @@
 **  Service               Order   Input   Output |
 **  -------               -----   -----   ------ |
 **  SetAdd                        yes     -      | fan out
-**  ReadTipsy                     yes     -      |
-**  ReadHDF5                      yes     -      |
 **  DomainDecomp                  yes     -      |
 **  CalcBound                     -       Reduce | Custom reduce: BND_COMBINE
 **  CombineBound                  -       Reduce | Custom reduce: BND_COMBINE
@@ -446,7 +444,7 @@ void pstAddServices(PST pst,MDL mdl) {
 		  (void (*)(void *,void *,int,void *,int *)) pstGenerateIC,
 		  sizeof(struct inGenerateIC),sizeof(struct outGenerateIC));
     mdlAddService(mdl,PST_CONSTRUCTIC,pst,
-		  (void (*)(void *,void *,int,void *,int *)) pstConstructIC,
+		  (void (*)(void *,void *,int,void *,int *)) pltConstructIC,
 		  sizeof(struct inConstructIC),sizeof(struct outConstructIC));
 #endif
     mdlAddService(mdl,PST_HOSTNAME,pst,
@@ -676,7 +674,6 @@ void pstOneNodeReadInit(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     struct inReadFile *in = vin;
     int *pout = vout;
     uint64_t nFileStart,nFileEnd,nFileTotal,nFileSplit,nStore;
-    int *ptmp;
     int nThreads;
     int i;
 
@@ -692,20 +689,11 @@ void pstOneNodeReadInit(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	rID = mdlReqService(pst->mdl,pst->idUpper,PST_ONENODEREADINIT,in,nIn);
 	in->nNodeStart = nFileStart;
 	in->nNodeEnd = nFileSplit - 1;
-	pstOneNodeReadInit(pst->pstLower,in,nIn,vout,pnOut);
+	pstOneNodeReadInit(pst->pstLower,in,nIn,pout,pnOut);
 	in->nNodeEnd = nFileEnd;
-	ptmp = malloc(nThreads*sizeof(*ptmp));
-	mdlassert(pst->mdl,ptmp != NULL);
-	mdlGetReply(pst->mdl,rID,ptmp,pnOut);
-	for (i = 0; i < nThreads; i++) {
-	    if (ptmp[i] != -1)
-		pout[i] = ptmp[i];
-	    }
-	free(ptmp);
+	mdlGetReply(pst->mdl,rID,pout+pst->nLower,pnOut);
 	}
     else {
-	for (i = 0; i < nThreads; i++)
-	    pout[i] = -1;
 	/*
 	** Determine the size of the local particle store.
 	*/
@@ -720,9 +708,9 @@ void pstOneNodeReadInit(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	    in->nSpecies[FIO_SPECIES_SPH],
 	    in->nSpecies[FIO_SPECIES_STAR],
 	    in->mMemoryModel, in->nDomainRungs);
-	pout[pst->idSelf] = nFileTotal; /* Truncated: okay */
+	*pout = nFileTotal; /* Truncated: okay */
 	}
-    if (pnOut) *pnOut = nThreads*sizeof(*pout);
+    if (pnOut) *pnOut = sizeof(*pout) * pst->nLeaves;
     }
 
 
@@ -743,7 +731,6 @@ void pstReadFile(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	int nProcUpper = pst->nUpper * nProcessors / pst->nLeaves;
 	int nProcLower = nProcessors - nProcUpper;
 	nNodeSplit = nNodeStart + pst->nLower*(nNodeTotal/pst->nLeaves);
-
 	if ( nProcessors > 1 ) {
 	    in->nProcessors = nProcUpper;
 	    in->nNodeStart = nNodeSplit;
@@ -3808,13 +3795,12 @@ void pstGetFFTMaxSizes(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     if (pnOut) *pnOut = 0;
     }
 
-void pstConstructIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+void pltConstructIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct inConstructIC *in = vin;
     struct outConstructIC *out = vout;
 
     mdlassert(pst->mdl,nIn == sizeof(struct inConstructIC));
-
     assert(pstOnNode(pst)); /* We pass around pointers! */
     if (pstNotCore(pst)) {
 	int iBegYr = in->iBegYr;
@@ -3827,11 +3813,11 @@ void pstConstructIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	in->iEndZk = in->iBegZk;
 	in->iBegYr = iBegYr;
 	in->iBegZk = iBegZk;
-	pstConstructIC(pst->pstLower,in,nIn,vout,pnOut);
+	pltConstructIC(pst->pstLower,in,nIn,vout,pnOut);
 	mdlGetReply(pst->mdl,rID,vout,pnOut);
 	}
     else {
-	pkdGenerateIC(plcl->pkd,in->fft,in->iBegYr,in->iEndYr,in->iBegZk,in->iEndZk,in->dic);
+	pkdGenerateIC(plcl->pkd,in->fft,in->iBegYr,in->iEndYr,in->iBegZk,in->iEndZk,in->dic,in->pos);
 //	out->nLocal = mdlFFTlocalCount(pst->mdl,in->nGrid,in->nGrid,in->nGrid,0,0,0,0);
 	}
     if (pnOut) *pnOut = 0;
@@ -3866,23 +3852,21 @@ void pstGenerateIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	    }
 
 	/*
-	** Allocate memory for particle/grid store. We require 8 double arrays
+	** Allocate memory for particle/grid store. We require 9 double arrays
 	** and a PARTICLE is normally at least 10 when calculating gravity.
 	*/
 	pstInitializePStore(pst,&in->ps,sizeof(in->ps),NULL,NULL);
-	assert( 8*sizeof(double) <= pkdParticleSize(plcl->pkd) );
+	assert( 9*sizeof(double) <= pkdParticleSize(plcl->pkd) );
+	assert(3*sizeof(double) == sizeof(gridpos));
 
-
-	double *pEnd = (double *)pkdParticle(plcl->pkd,in->nPerNode);
-	cic.dic[7].r = pEnd - in->nPerNode;
-	cic.dic[6].r = cic.dic[7].r - in->nPerNode;
-	cic.dic[5].r = cic.dic[6].r - in->nPerNode;
-	cic.dic[4].r = cic.dic[5].r - in->nPerNode;
-	cic.dic[3].r = cic.dic[4].r - in->nPerNode;
-	cic.dic[2].r = cic.dic[3].r - in->nPerNode;
-	cic.dic[1].r = cic.dic[2].r - in->nPerNode;
-	cic.dic[0].r = cic.dic[1].r - in->nPerNode;
-	assert(cic.dic[0].r >= (double *)pkdParticleBase(plcl->pkd));
+	cic.pos = (gridpos *)pkdParticleBase(plcl->pkd);
+	cic.dic[0].r = (double *)(cic.pos + in->nPerNode);
+	cic.dic[1].r = cic.dic[0].r + in->nPerNode;
+	cic.dic[2].r = cic.dic[1].r + in->nPerNode;
+	cic.dic[3].r = cic.dic[2].r + in->nPerNode;
+	cic.dic[4].r = cic.dic[3].r + in->nPerNode;
+	cic.dic[5].r = cic.dic[4].r + in->nPerNode;
+	assert(cic.dic[8].r+in->nPerNode <= (double *)pkdParticle(plcl->pkd,in->nPerNode));
 
 	mdlFFTInitialize(pst->mdl,&cic.fft,in->nGrid,in->nGrid,in->nGrid,0,cic.dic[0].r);
 
@@ -3890,7 +3874,7 @@ void pstGenerateIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	cic.iEndYr = cic.fft->rgrid->n2;
 	cic.iBegZk = 0;
 	cic.iEndZk = cic.fft->rgrid->n3;
-	pstConstructIC(pst,&cic,sizeof(cic),NULL,NULL);
+	pltConstructIC(pst,&cic,sizeof(cic),NULL,NULL);
 
 	// generate noise into dic1, dic2, dic3
 

@@ -1112,7 +1112,8 @@ void pstGenerateIC(PST,void *,int,void *,int *);
 /* PST_CONSTRUCTIC */
 struct inConstructIC {
     MDLFFT fft;
-    gridptr dic[8];
+    gridptr dic[6];
+    gridpos *pos;
     /* Threads get parts of each slab */
     uint64_t iBegYr, iEndYr;
     uint64_t iBegZk, iEndZk;
@@ -1120,7 +1121,7 @@ struct inConstructIC {
 struct outConstructIC {
     double dExpansion;
     };
-void pstConstructIC(PST,void *,int,void *,int *);
+void pltConstructIC(PST,void *,int,void *,int *);
 #endif
 
 /* PST_HOSTNAME */

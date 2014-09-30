@@ -6,17 +6,7 @@
 #include <gsl/gsl_errno.h>
 #include "pkd.h"
 #include "ic.h"
-
-typedef uint32_t rand_t;
-typedef uint64_t randl_t;
-static const rand_t rand_max = 0xffffffff;
-static const randl_t randl_max = 0xffffffffffffffff;
-#define mt_table_size 624
-
-typedef struct {
-    rand_t mt[mt_table_size];
-    int mi;
-    } rand_state_t;
+#include "RngStream.h"
 
 typedef struct {
     double omegam;
@@ -240,82 +230,15 @@ void PowerEHU97Setup(PowerEHU97 *power,double h0,double omega,double omegab,doub
 
     }
 
-
-void generate(rand_state_t *state) {
-    rand_t y;
-    int i;
-    for( i=0; i<mt_table_size; i++) {
-	y = ((state->mt[i]>>31)&1) + (state->mt[(i+1)%mt_table_size] & 0x7fffffff);
-	state->mt[i] = state->mt[(i + 397) % mt_table_size] ^ (y>>1);
-	if ( y & 1)
-	    state->mt[i] ^= 0x9908b0df;
-        }
-    state->mi = 0;
-    }
-
-
-static void initializeRNG(rand_state_t *state, int key_length, const rand_t *key) {
-    int i, j, k;
-
-    state->mt[0] = 19650218UL;
-    for( i=1; i<mt_table_size; i++ )
-	state->mt[i] = (1812433253 * (state->mt[i-1] ^ (state->mt[i-1]>>30)) + i) & 0xffffffff;
-    state->mi = mt_table_size;
-
-    i=1; j=0;
-    k = (mt_table_size>key_length ? mt_table_size : key_length);
-    for (; k; k--) {
-	state->mt[i] = (state->mt[i] ^ ((state->mt[i-1] ^ (state->mt[i-1] >> 30)) * 1664525UL))
-	    + key[j] + j; /* non linear */
-	state->mt[i] &= 0xffffffffUL; /* for WORDSIZE > 32 machines */
-	i++; j++;
-	if (i>=mt_table_size) { state->mt[0] = state->mt[mt_table_size-1]; i=1; }
-	if (j>=key_length) j=0;
-        }
-    for (k=mt_table_size-1; k; k--) {
-	state->mt[i] = (state->mt[i] ^ ((state->mt[i-1] ^ (state->mt[i-1] >> 30)) * 1566083941UL))
-	    - i; /* non linear */
-	state->mt[i] &= 0xffffffffUL; /* for WORDSIZE > 32 machines */
-	i++;
-	if (i>=mt_table_size) { state->mt[0] = state->mt[mt_table_size-1]; i=1; }
-        }
-    
-        state->mt[0] = 0x80000000UL; /* MSB is 1; assuring non-zero initial array */ 
-    }
-
-rand_t rand32(rand_state_t *state) {
-    rand_t y;
-    
-    if ( state->mi == mt_table_size ) generate(state);
-    y = state->mt[state->mi++];
-    y = y ^ (y>>11);
-    y = y ^ ((y<<7) & 0x9d2c5680);
-    y = y ^ ((y<<15) & 0xefc60000);
-    y = y ^ (y>>18);
-    return y;
-    }
-
-// Random number between 0 and 2^64 - 1
-static randl_t randl(rand_state_t *state) {
-    randl_t y1, y2;
-    y1 = rand32(state);
-    y2 = rand32(state);
-    return y1 | (y2<<32);
-    }
-
-static double randd(rand_state_t *state) {
-    return randl(state)/(randl_max+1.0);
-    }
-
-static void pairg( rand_state_t *state, double *y1, double *y2 ) {
+static void pairg( RngStream g, double *y1, double *y2 ) {
     double x1, x2, w;
     // Instead of this:
     //   y1 = sqrt( - 2 ln(x1) ) cos( 2 pi x2 )
     //   y2 = sqrt( - 2 ln(x1) ) sin( 2 pi x2 )
     // we use this:
     do {
-	x1 = 2.0 * randd(state) - 1.0;
-	x2 = 2.0 * randd(state) - 1.0;
+	x1 = 2.0 * RngStream_RandU01(g) - 1.0;
+	x2 = 2.0 * RngStream_RandU01(g) - 1.0;
 	w = x1 * x1 + x2 * x2;
         } while ( w >= 1.0 ); // Loop ~ 21.5% of the time
     w = sqrt( (-2.0 * log( w ) ) / w );
@@ -323,52 +246,45 @@ static void pairg( rand_state_t *state, double *y1, double *y2 ) {
     *y2 = x2 * w;
     }
 
-static void mrandg( rand_state_t *state, int n, double *y ) {
+static void mrandg( RngStream g, int n, double *y ) {
     int i;
     double y2;
     int n1 = n & ~1;
     
-    for( i=0; i<n1; i += 2 ) pairg(state,y+i,y+i+1);
-    if ( n&1 ) pairg(state,y+n1, &y2 );
+    for( i=0; i<n1; i += 2 ) pairg(g,y+i,y+i+1);
+    if ( n&1 ) pairg(g,y+n1, &y2 );
     }
 
-#define k_loop_begin(i,j,k,idx,ex,sy,ey,sz,ez,YINIT,ZINIT)	\
-    do { for(j=(sy); j<(ey); ++j) {				\
-    YINIT							\
-    for(k=0; k<(ez); ++k) {					\
-    ZINIT							\
-    for(i=0; i<(ex); ++i) {					\
-    idx = mdlFFTkIdx(fft,i,j,k);				\
-    do
-
-#define k_loop_end while(0); }}} } while(0)
-
 void pkdGenerateNoise(PKD pkd,MDLFFT fft,fftw_complex *ic,
-    rand_t seed,int sy,int ey,int sz,int ez) {
-    rand_state_t state;
-    rand_t fullKey[3];
+    unsigned long seed,int sy,int ey,int sz,int ez) {
+    RngStream g;
+    unsigned long fullKey[6];
     int i,j,k,idx;
 
-
     fullKey[0] = seed;
+    fullKey[1] = fullKey[0];
+    fullKey[2] = fullKey[0];
+    fullKey[3] = seed;
+    fullKey[4] = fullKey[3];
+    fullKey[5] = fullKey[3];
 
-//    k_loop_begin(i,j,k,idx,fft->kgrid->a1,sy,ey,sz,ez,
-//	{fullKey[1] = j;},
-//	{fullKey[2] = k; initializeRNG(&state,3,fullKey);}) {
-//	pairg(&state,ic[idx]+0,ic[idx]+1);
-//	} k_loop_end;
+    g = RngStream_CreateStream ("IC");
+    RngStream_IncreasedPrecis (g, 1);
+    RngStream_SetSeed(g,fullKey);
 
     for(j=sy; j<ey; ++j) {
-	fullKey[1] = j;
+	RngStream_ResetStartStream (g);
+	RngStream_AdvanceState (g, 0, (1L<<40)*j );
 	for(k=sz; k<ez; ++k) {
-	    fullKey[2] = k;
-	    initializeRNG(&state,3,fullKey);
+//	    RngStream_ResetStartStream (g);
+//	    RngStream_AdvanceState (g, 0, (1L<<40)*k + (1L<<20)*j );
 	    for(i=0; i<=fft->kgrid->a1; ++i) {
 		idx = mdlFFTkIdx(fft,i,j,k);
-		pairg(&state,ic[idx]+0,ic[idx]+1);
+		pairg(g,ic[idx]+0,ic[idx]+1);
 		}
 	    }
 	}
+    RngStream_DeleteStream(&g);
     }
 
 static int wrap(int v,int h,int m) {
@@ -378,20 +294,25 @@ static int wrap(int v,int h,int m) {
 
 #define RE 0
 #define IM 0
-void pkdGenerateIC(PKD pkd,MDLFFT fft,int iBegYr,int iEndYr,int iBegZk,int iEndZk,gridptr dic[]) {
+void pkdGenerateIC(PKD pkd,MDLFFT fft,int iBegYr,int iEndYr,int iBegZk,int iEndZk,gridptr dic[],gridpos *pos) {
     double twopi = 2.0 * 4.0 * atan(1.0);
     double itwopi = 1.0 / twopi;
-    int i,j,k,sy,ey,idx;
+    int i,j,k,sy,ey,sz,ez,idx;
     int ix, iy, iz;
     int nyx = fft->rgrid->n1 / 2;
     int nyy = fft->rgrid->n2 / 2;
     int nyz = fft->rgrid->n3 / 2;
     double ak, ak2, xfac, yfac, zfac;
 
+
     sy = fft->kgrid->s;
     ey = sy + fft->kgrid->n;
 
+    sz = fft->rgrid->s;
+    ez = sz + fft->rgrid->n;
+
     /* Generate white noise realization -> dic[5] */
+    if (mdlSelf(pkd->mdl)==0) printf("Generating noise\n");
     pkdGenerateNoise(pkd,fft,dic[5].k,12345,sy,ey,iBegZk,iEndZk);
 
     /* Nyquist modes need to be real */
@@ -439,11 +360,28 @@ void pkdGenerateIC(PKD pkd,MDLFFT fft,int iBegYr,int iEndYr,int iBegZk,int iEndZ
 	}
 
 
-    if (mdlSelf(pkd->mdl)==0) printf("FFT\n");
+    if (mdlSelf(pkd->mdl)==0) printf("FFT 1\n");
     mdlIFFT( pkd->mdl, fft, dic[3].k );
+    if (mdlSelf(pkd->mdl)==0) printf("FFT 2\n");
     mdlIFFT( pkd->mdl, fft, dic[4].k );
+    if (mdlSelf(pkd->mdl)==0) printf("FFT 3\n");
     mdlIFFT( pkd->mdl, fft, dic[5].k );
-    if (mdlSelf(pkd->mdl)==0) printf("FFT\n");
+    if (mdlSelf(pkd->mdl)==0) printf("FFT done\n");
+
+    idx = 0;
+    for(k=sz; k<ez; ++k) {
+	for(j=iBegYr; j<iEndYr; ++j) {
+	    for(i=0; i<=fft->rgrid->n1; ++i) {
+		pos[idx].x = dic[3].r[mdlFFTrIdx(fft,  i,  j,  k)];
+		pos[idx].y = dic[4].r[mdlFFTrIdx(fft,  i,  j,  k)];
+		pos[idx].z = dic[5].r[mdlFFTrIdx(fft,  i,  j,  k)];
+		++idx;
+		}
+	    }
+	}
+
+
+
 
 
     }
