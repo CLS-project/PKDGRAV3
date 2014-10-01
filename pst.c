@@ -682,6 +682,7 @@ void pstOneNodeReadInit(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     nFileStart = in->nNodeStart;
     nFileEnd = in->nNodeEnd;
     nFileTotal = nFileEnd - nFileStart + 1;
+    
     if (pst->nLeaves > 1) {
 	int rID;
 	nFileSplit = nFileStart + pst->nLower*(nFileTotal/pst->nLeaves);
@@ -713,6 +714,21 @@ void pstOneNodeReadInit(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     if (pnOut) *pnOut = sizeof(*pout) * pst->nLeaves;
     }
 
+static void _SwapClasses(PKD pkd, int id) {
+    PARTCLASS *pClass;
+    int n;
+    int rID;
+
+    pClass = malloc(PKD_MAX_CLASSES*sizeof(PARTCLASS));
+    assert(pClass!=NULL);
+
+    n = pkdGetClasses( pkd, PKD_MAX_CLASSES, pClass );
+    rID = mdlReqService(pkd->mdl,id,PST_SWAPCLASSES,pClass,n*sizeof(PARTCLASS));
+    mdlGetReply(pkd->mdl,rID,pClass,&n);
+    n = n / sizeof(PARTCLASS);
+    pkdSetClasses( pkd, n, pClass, 0 );
+    free(pClass);
+    }
 
 void pstReadFile(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
@@ -726,7 +742,7 @@ void pstReadFile(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     nNodeStart = in->nNodeStart;
     nNodeEnd = in->nNodeEnd;
     nNodeTotal = nNodeEnd - nNodeStart + 1;
-    if (pst->nLeaves > 1) {
+    if (pst->nLeaves > 1 && in->nProcessors > 1) {
 	int nProcessors = in->nProcessors;
 	int nProcUpper = pst->nUpper * nProcessors / pst->nLeaves;
 	int nProcLower = nProcessors - nProcUpper;
@@ -753,24 +769,44 @@ void pstReadFile(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	mdlGetReply(pst->mdl,rID,NULL,NULL);
 	}
     else {
-	/*
-	** Determine the size of the local particle store.
-	*/
-	nStore = nNodeTotal + (int)ceil(nNodeTotal*in->fExtraStore);
+	int *nParts = malloc(pst->nLeaves * sizeof(nParts));
+	int nid, i;
+	uint64_t nStart;
+	PKD pkd;
+	MDL mdl;
+	PST pst0;
 
-	if (plcl->pkd) pkdFinish(plcl->pkd);
-	pkdInitialize(
-	    &plcl->pkd,pst->mdl,nStore,in->nBucket,in->nGroup,
-	    in->nTreeBitsLo,in->nTreeBitsHi,
-	    in->iCacheSize,in->iWorkQueueSize,in->iCUDAQueueSize,in->fPeriod,
-	    in->nSpecies[FIO_SPECIES_DARK],
-	    in->nSpecies[FIO_SPECIES_SPH],
-	    in->nSpecies[FIO_SPECIES_STAR],
-	    in->mMemoryModel, in->nDomainRungs);
+	assert(nParts!=NULL);
+	pstOneNodeReadInit(pst,in,sizeof(*in),nParts,&nid);
+	pkd = plcl->pkd;
+	mdl = pkd->mdl;
 
 	fio = fioLoad(in+1,in->dOmega0,in->dOmegab);
 	assert(fio!=NULL);
-	pkdReadFIO(plcl->pkd,fio,nNodeStart,nNodeEnd-nNodeStart+1,in->dvFac,in->dTuFac);
+
+	nStart = nNodeStart + nParts[0];
+	for(i=1; i<pst->nLeaves; ++i) {
+	    int id = mdlSelf(mdl) + i;
+	    int inswap;
+	    /*
+	     * Read particles into the local storage.
+	     */
+	    assert(pkd->nStore >= nParts[i]);
+	    pkdReadFIO(pkd, fio, nStart, nParts[i], in->dvFac,in->dTuFac);
+	    nStart += nParts[i];
+	    /*
+	     * Now shove them over to the remote processor.
+	     */
+	    _SwapClasses(pkd,id);
+	    inswap = mdlSelf(mdl);
+	    rID = mdlReqService(mdl,id,PST_SWAPALL,&inswap,sizeof(inswap));
+	    pkdSwapAll(pkd, id);
+	    mdlGetReply(mdl,rID,NULL,NULL);
+	    }
+	pkdReadFIO(pkd, fio, nNodeStart, nParts[0], in->dvFac,in->dTuFac);
+
+	free(nParts);
+
 	fioClose(fio);
 	}
     if (pnOut) *pnOut = 0;
@@ -2154,9 +2190,7 @@ void pstSwapAll(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 
     mdlassert(pst->mdl,nIn == sizeof(*pidSwap));
     lpst = pst;
-    while (lpst->nLeaves > 1)
-	lpst = lpst->pstLower;
-
+    while (lpst->nLeaves > 1) lpst = lpst->pstLower;
     plcl = lpst->plcl;
     pkdSwapAll(plcl->pkd, *pidSwap);
     }
@@ -2417,7 +2451,6 @@ static void makeName( char *achOutName, const char *inName, int iIndex ) {
 
 void pstWrite(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     char achOutFile[PST_FILENAME_SIZE];
-    PST pst0;
     struct inWrite *in = vin;
     FIO fio;
     uint32_t nCount;
