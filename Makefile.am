@@ -108,8 +108,8 @@ pkdgrav3_mpi_CFLAGS = -I$(MDL)/mpi/ -I$(MDL) -Iopenpa/src $(AM_CFLAGS)
 if FFTW
 pkdgrav3_mpi_CFLAGS += $(GSL_CFLAGS)
 pkdgrav3_mpi_LDADD += $(GSL_LIBS)
-pkdgrav3_mpi_SOURCES += ic.c
-noinst_HEADERS += ic.h
+pkdgrav3_mpi_SOURCES += ic.c RngStream.c
+noinst_HEADERS += ic.h RngStream.h
 endif
 #if USE_GRAFIC
 #pkdgrav3_mpi_CFLAGS += -Igrafic/

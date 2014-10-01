@@ -1169,8 +1169,8 @@ int mdlLaunch(int argc,char **argv,void * (*fcnMaster)(MDL),void * (*fcnChild)(M
 	else bDedicated = 0;
 	}
     if (bDedicated == 1) {
-	if (mdl->base.nCores==1 || mdl->base.nProcs==1) bDedicated=0;
-	else --mdl->base.nCores;
+	/*if (mdl->base.nCores==1 || mdl->base.nProcs==1) bDedicated=0;
+	  else*/ --mdl->base.nCores;
 	}
 
     /* Construct the thread/processor map */

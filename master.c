@@ -549,7 +549,7 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
 		"<Python script for analysis> = \"\"");
 #endif
     msr->param.bWriteIC = 0;
-    prmAddParam(msr->prm,"bWriteIC",1,&msr->param.bWriteIC,
+    prmAddParam(msr->prm,"bWriteIC",0,&msr->param.bWriteIC,
 		sizeof(int),"wic","<Write IC after generating> = 0");
 
     /* Memory models */
