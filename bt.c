@@ -52,6 +52,7 @@ void bt_initialize(void) {
     signal(SIGILL, signal_handler);
     signal(SIGSEGV, signal_handler);
     signal(SIGABRT, signal_handler);
+    signal(SIGFPE, signal_handler);
 #ifdef USE_PSD
     atexit(exit_handler);
 #endif
