@@ -21,6 +21,19 @@
 #define OPT_H0        'H'
 #define OPT_LBOX      'L'
 
+#define OPT_PERIOD    'P'
+
+static inline void wrap(double *r,double dPeriod) {
+    if (dPeriod > 0.0) {
+	double dBound = dPeriod * 0.5;
+	int i;
+	for (i=0; i<3; ++i) {
+	    if (r[i] >= dBound) r[i] -= dPeriod;
+	    else if (r[i] < -dBound) r[i] += dPeriod;
+	    }
+	}
+    }
+
 int main( int argc, char *argv[] ) {
     int bError = 0;
     int bDouble = 0;
@@ -30,6 +43,7 @@ int main( int argc, char *argv[] ) {
     int bPotential = 0;
     int bDensity = 0;
     double Omega0 = 0.0, OmegaLambda = 0.0, HubbleParam = 0.0, Lbox=0.0;
+    double dPeriod = 0.0;
     int bSetOmega0=0, bSetOmegaLambda=0, bSetHubbleParam=0;
     uint64_t N, nSph, nDark, nStar, i;
     double dTime;
@@ -62,10 +76,11 @@ int main( int argc, char *argv[] ) {
                 { "hubble0",      1, 0, OPT_H0 },
                 { "H0",           1, 0, OPT_H0 },
                 { "box-width",    1, 0, OPT_LBOX },
+                { "period",       1, 0, OPT_PERIOD },
 		{ NULL,   0, 0, 0 },
 	    };
 
-	c = getopt_long( argc, argv, "dn5gprm:^:H:L:",
+	c = getopt_long( argc, argv, "dn5gprm:^:H:L:P:",
 			 long_options, &option_index );
 	if ( c == -1 ) break;
 
@@ -106,6 +121,10 @@ int main( int argc, char *argv[] ) {
 	case OPT_LBOX:
 	    assert( optarg != 0 );
 	    Lbox = atof(optarg);
+	    break;
+	case OPT_PERIOD:
+	    assert( optarg != 0 );
+	    dPeriod = atof(optarg);
 	    break;
 	default:
 	    bError = 1;
@@ -213,14 +232,17 @@ int main( int argc, char *argv[] ) {
         switch(eSpecies) {
         case FIO_SPECIES_SPH:
             fioReadSph(fioIn,&iOrder,r,v,&fMass,&fSoft,&fPot,&fRho,&u,&fMetals);
+	    wrap(r,dPeriod);
 	    fioWriteSph(fioOut,iOrder,r,v,fMass,fSoft,fPot,fRho,u,fMetals);
             break;
         case FIO_SPECIES_DARK:
             fioReadDark(fioIn,&iOrder,r,v,&fMass,&fSoft,&fPot,&fRho);
+	    wrap(r,dPeriod);
             fioWriteDark(fioOut,iOrder,r,v,fMass,fSoft,fPot,fRho);
             break;
         case FIO_SPECIES_STAR:
             fioReadStar(fioIn,&iOrder,r,v,&fMass,&fSoft,&fPot,&fRho,&fMetals,&fTimer);
+	    wrap(r,dPeriod);
             fioWriteStar(fioOut,iOrder,r,v,fMass,fSoft,fPot,fRho,fMetals,fTimer);
             break;
         default:
