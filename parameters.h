@@ -164,6 +164,7 @@ struct parameters {
 #ifdef USE_PYTHON
     char achScriptFile[256];
 #endif
+    char achTfFile[256];
     double dGrowDeltaM;
     double dGrowStartT;
     double dGrowEndT;

@@ -396,6 +396,12 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.csm->dOmegab = 0.0;
     prmAddParam(msr->prm,"dOmegab",2,&msr->param.csm->dOmegab,
 		sizeof(double),"Omb", "<dOmegab> = 0.0");
+    msr->param.csm->dSigma8 = 0.0;
+    prmAddParam(msr->prm,"dSigma8",2,&msr->param.csm->dSigma8,
+		sizeof(double),"S8", "<dSimga8> = 0.0");
+    msr->param.csm->dSpectral = 0.0;
+    prmAddParam(msr->prm,"dSpectral",2,&msr->param.csm->dSpectral,
+		sizeof(double),"ns", "<dSpectral> = 0.0");
     strcpy(msr->param.achDataSubPath,"");
     prmAddParam(msr->prm,"achDataSubPath",3,msr->param.achDataSubPath,256,
 		NULL,NULL);
@@ -540,6 +546,9 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.nGrid = 0;
     prmAddParam(msr->prm,"nGrid",1,&msr->param.nGrid,
 		sizeof(int),"grid","<Grid size for IC 0=disabled> = 0");
+    msr->param.achTfFile[0] = 0;
+    prmAddParam(msr->prm,"achTfFile",3,msr->param.achTfFile,256,"tf",
+		"<transfer file name> (file in CMBFAST format)");
     msr->param.iSeed = 0;
     prmAddParam(msr->prm,"iSeed",1,&msr->param.iSeed,
 		sizeof(int),"seed","<Random seed for IC> = 0");
@@ -1672,6 +1681,9 @@ double msrGenerateIC(MSR msr) {
     in.omegac= msr->param.csm->dOmega0 - msr->param.csm->dOmegab;
     in.omegab= msr->param.csm->dOmegab;
     in.omegav= msr->param.csm->dLambda;
+    in.sigma8= msr->param.csm->dSigma8;
+    in.spectral=msr->param.csm->dSpectral;
+
     in.bComove = msr->param.csm->bComove;
     in.fExtraStore = msr->param.dExtraStore;
     in.ps.nDark = (uint64_t)in.nGrid * in.nGrid * in.nGrid;
@@ -1706,6 +1718,30 @@ double msrGenerateIC(MSR msr) {
 	       " nGas:%"PRIu64" nStar:%"PRIu64"\n",
 	       msr->N, msr->nDark,msr->nGas,msr->nStar);
 
+    /* Read the transfer function */
+    in.nTf = 0;
+    if (prmSpecified(msr->prm,"achTfFile")) {
+	FILE *fp = fopen(msr->param.achTfFile,"r");
+	char buffer[256];
+
+	if (msr->param.bVStart)
+	    printf("Reading transfer function from %s\n", msr->param.achTfFile);
+	if (fp == NULL) {
+	    perror(msr->param.achTfFile);
+	    _msrExit(msr,1);
+	    }
+	while(fgets(buffer,sizeof(buffer),fp)) {
+	    assert(in.nTf < MAX_TF);
+	    if (sscanf(buffer," %lg %lg\n",&in.k[in.nTf],&in.tf[in.nTf])==2) {
+		++in.nTf;
+		}
+	    }
+	fclose(fp);
+	if (msr->param.bVStart)
+	    printf("Transfer function : %d lines kmin %g kmax %g\n", in.nTf, in.k[0], in.k[in.nTf-1]);
+
+	}
+
     sec = msrTime();
 
     /* Figure out the minimum number of particles */
@@ -1736,6 +1772,7 @@ void msrAllNodeWrite(MSR msr, const char *pszFileName, double dTime, double dvFa
     PST pst0;
     LCL *plcl;
     struct inWrite in;
+    int j;
 
     pst0 = msr->pst;
     while (pst0->nLeaves > 1)
@@ -1767,6 +1804,26 @@ void msrAllNodeWrite(MSR msr, const char *pszFileName, double dTime, double dvFa
 	in.dTime = dTime;
 	in.dvFac = 1.0;
 	}
+
+    /* We need to enforce periodic boundaries (when applicable) */
+    if (msr->param.bPeriodic &&
+	    msr->param.dxPeriod < FLOAT_MAXVAL &&
+	    msr->param.dyPeriod < FLOAT_MAXVAL &&
+	    msr->param.dzPeriod < FLOAT_MAXVAL) {
+	for (j=0;j<3;++j) {
+	    in.bnd.fCenter[j] = msr->fCenter[j];
+	    }
+	in.bnd.fMax[0] = 0.5*msr->param.dxPeriod;
+	in.bnd.fMax[1] = 0.5*msr->param.dyPeriod;
+	in.bnd.fMax[2] = 0.5*msr->param.dzPeriod;
+	}
+    else {
+	for (j=0;j<3;++j) {
+	    in.bnd.fCenter[j] = 0.0;
+	    in.bnd.fMax[j] = FLOAT_MAXVAL;
+	    }
+	}
+
     in.dEcosmo    = msr->dEcosmo;
     in.dTimeOld   = msr->dTimeOld;
     in.dUOld      = msr->dUOld;

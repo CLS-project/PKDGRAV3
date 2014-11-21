@@ -7,6 +7,8 @@
 #include "pkd.h"
 #include "ic.h"
 #include "RngStream.h"
+#define RE 0
+#define IM 1
 
 typedef struct {
     double omegam;
@@ -240,7 +242,7 @@ static void pairg( RngStream g, double *y1, double *y2 ) {
 	x1 = 2.0 * RngStream_RandU01(g) - 1.0;
 	x2 = 2.0 * RngStream_RandU01(g) - 1.0;
 	w = x1 * x1 + x2 * x2;
-        } while ( w >= 1.0 ); // Loop ~ 21.5% of the time
+        } while ( w >= 1.0 || w == 0.0 ); // Loop ~ 21.5% of the time
     w = sqrt( (-2.0 * log( w ) ) / w );
     *y1 = x1 * w;
     *y2 = x2 * w;
@@ -255,7 +257,14 @@ static void mrandg( RngStream g, int n, double *y ) {
     if ( n&1 ) pairg(g,y+n1, &y2 );
     }
 
-void pkdGenerateNoise(PKD pkd,MDLFFT fft,fftw_complex *ic,
+static double clockNow() {
+    struct timeval tv;
+    gettimeofday(&tv,NULL);
+    return (tv.tv_sec+(tv.tv_usec*1e-6));
+    }
+
+
+void pkdGenerateNoise(PKD pkd,MDLFFT fft,double *ic,
     unsigned long seed,int sy,int ey,int sz,int ez) {
     RngStream g;
     unsigned long fullKey[6];
@@ -272,19 +281,28 @@ void pkdGenerateNoise(PKD pkd,MDLFFT fft,fftw_complex *ic,
     RngStream_IncreasedPrecis (g, 1);
     RngStream_SetSeed(g,fullKey);
 
-    for(j=sy; j<ey; ++j) {
+
+    double b = clockNow();
+
+    for(k=sz; k<ez; ++k) {
 	RngStream_ResetStartStream (g);
-	RngStream_AdvanceState (g, 0, (1L<<40)*j );
-	for(k=sz; k<ez; ++k) {
+	RngStream_AdvanceState (g, 0, (1L<<40)*k );
+	for(j=sy; j<ey; ++j) {
 //	    RngStream_ResetStartStream (g);
 //	    RngStream_AdvanceState (g, 0, (1L<<40)*k + (1L<<20)*j );
-	    for(i=0; i<=fft->kgrid->a1; ++i) {
-		idx = mdlFFTkIdx(fft,i,j,k);
-		pairg(g,ic[idx]+0,ic[idx]+1);
+	    for(i=0; i<fft->rgrid->n1; i += 2) {
+		idx = mdlFFTrIdx(fft,i,j,k);
+		pairg(g,&ic[idx],&ic[idx+1]);
+//		printf("%2d,%2d,%2d -> %4d %+7.5f %+7.5f\n", k, j, i, idx, ic[idx], ic[idx+1] );
 		}
 	    }
 	}
     RngStream_DeleteStream(&g);
+
+    double a = clockNow();
+    printf("Wallclock %f seconds\n", a-b);
+
+
     }
 
 static int wrap(int v,int h,int m) {
@@ -292,9 +310,20 @@ static int wrap(int v,int h,int m) {
     }
 
 
-#define RE 0
-#define IM 0
-void pkdGenerateIC(PKD pkd,MDLFFT fft,int iBegYr,int iEndYr,int iBegZk,int iEndZk,gridptr dic[],gridpos *pos) {
+/* Approximation */
+static double Growth(double Om0, double OL0, double a, double *Om, double *OL) {
+    double Hsq,OK0;
+    OK0 = 1 - Om0 - OL0;
+    Hsq = Om0 / (a*a*a) + OK0 / (a*a) + OL0;
+    *Om = Om0 / (a*a*a*Hsq);
+    *OL = OL0 / Hsq;
+    return 2.5 * a * *Om / (pow(*Om,4./7.) - *OL + (1.+0.5* *Om)*(1.+ *OL/70.));
+    }
+
+
+
+void pkdGenerateIC(PKD pkd,int iSeed,double dBoxSize,double dOmega0,double dLambda0,double a,
+    MDLFFT fft,int iBegYr,int iEndYr,int iBegZk,int iEndZk,gridptr dic[],gridpos *pos) {
     double twopi = 2.0 * 4.0 * atan(1.0);
     double itwopi = 1.0 / twopi;
     int i,j,k,sy,ey,sz,ez,idx;
@@ -302,7 +331,16 @@ void pkdGenerateIC(PKD pkd,MDLFFT fft,int iBegYr,int iEndYr,int iBegZk,int iEndZ
     int nyx = fft->rgrid->n1 / 2;
     int nyy = fft->rgrid->n2 / 2;
     int nyz = fft->rgrid->n3 / 2;
+    double iLbox = twopi / dBoxSize;
+    double iLbox32 = pow(iLbox,1.5);
     double ak, ak2, xfac, yfac, zfac;
+    double dOmega, dLambda, D0, Da;
+
+    D0 = Growth(dOmega0,dLambda0,1,&dOmega,&dLambda);
+    Da = Growth(dOmega0,dLambda0,a,&dOmega,&dLambda);
+
+    printf("a=%g D0=%g Da=%g\n", a, D0, Da );
+    printf("%g %g\n", Da / D0, dplus(a,dOmega0,dLambda0) / dplus(1.0,dOmega0,dLambda0) );
 
 
     sy = fft->kgrid->s;
@@ -312,18 +350,10 @@ void pkdGenerateIC(PKD pkd,MDLFFT fft,int iBegYr,int iEndYr,int iBegZk,int iEndZ
     ez = sz + fft->rgrid->n;
 
     /* Generate white noise realization -> dic[5] */
-    if (mdlSelf(pkd->mdl)==0) printf("Generating noise\n");
-    pkdGenerateNoise(pkd,fft,dic[5].k,12345,sy,ey,iBegZk,iEndZk);
-
-    /* Nyquist modes need to be real */
-    dic[5].k[mdlFFTkIdx(fft,  0,  0,  0)][IM] = 0.0;
-    dic[5].k[mdlFFTkIdx(fft,nyx,  0,  0)][IM] = 0.0;
-    dic[5].k[mdlFFTkIdx(fft,  0,nyy,  0)][IM] = 0.0;
-    dic[5].k[mdlFFTkIdx(fft,nyx,nyy,  0)][IM] = 0.0;
-    dic[5].k[mdlFFTkIdx(fft,  0,  0,nyz)][IM] = 0.0;
-    dic[5].k[mdlFFTkIdx(fft,nyx,  0,nyz)][IM] = 0.0;
-    dic[5].k[mdlFFTkIdx(fft,  0,nyy,nyz)][IM] = 0.0;
-    dic[5].k[mdlFFTkIdx(fft,nyx,nyy,nyz)][IM] = 0.0;
+    if (mdlSelf(pkd->mdl)==0) printf("Generating noise in r-space\n");
+    pkdGenerateNoise(pkd,fft,dic[5].r,iSeed,sy,ey,iBegZk,iEndZk);
+    if (mdlSelf(pkd->mdl)==0) printf("Transforming to k-space\n");
+    mdlFFT( pkd->mdl, fft, dic[5].r );
 
     for(j=sy; j<ey; ++j) {
 	iy = wrap(j,nyy,fft->rgrid->n2);
@@ -334,7 +364,7 @@ void pkdGenerateIC(PKD pkd,MDLFFT fft,int iBegYr,int iEndYr,int iBegZk,int iEndZ
 		idx = mdlFFTkIdx(fft,i,j,k);
 		ak2 = ix*ix + iy*iy + iz*iz;
 		ak = sqrt(ak2);
-		double amp = 1.0;
+		double amp = sqrt(1.0*(ak*iLbox) * iLbox32) * itwopi;
 
 		amp /= ak2;
 		xfac = amp * ix; // THESE CAN BE NEGATIVE!
@@ -379,9 +409,5 @@ void pkdGenerateIC(PKD pkd,MDLFFT fft,int iBegYr,int iEndYr,int iBegZk,int iEndZ
 		}
 	    }
 	}
-
-
-
-
 
     }

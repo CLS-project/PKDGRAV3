@@ -699,7 +699,6 @@ void pstOneNodeReadInit(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	** Determine the size of the local particle store.
 	*/
 	nStore = nFileTotal + (int)ceil(nFileTotal*in->fExtraStore);
-
 	if (plcl->pkd) pkdFinish(plcl->pkd);
 	pkdInitialize(
 	    &plcl->pkd,pst->mdl,nStore,in->nBucket,in->nGroup,
@@ -775,6 +774,12 @@ void pstReadFile(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	PKD pkd;
 	MDL mdl;
 	PST pst0;
+	char fname[80];
+	FILE *fp;
+
+	sprintf(fname,"read.debug.%d",pst->idSelf);
+	fp = fopen(fname,"w");
+	assert(fp!=NULL);
 
 	assert(nParts!=NULL);
 	pstOneNodeReadInit(pst,in,sizeof(*in),nParts,&nid);
@@ -784,10 +789,17 @@ void pstReadFile(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	fio = fioLoad(in+1,in->dOmega0,in->dOmegab);
 	assert(fio!=NULL);
 
+	time_t t;
+	char b[100];
 	nStart = nNodeStart + nParts[0];
 	for(i=1; i<pst->nLeaves; ++i) {
 	    int id = mdlSelf(mdl) + i;
 	    int inswap;
+
+	    t = time(NULL);
+            strftime(b,100,"%F %T",localtime(&t));
+	    fprintf(fp,"%s Reading %d particles for %d\n",b,nParts[i], id); fflush(fp);
+
 	    /*
 	     * Read particles into the local storage.
 	     */
@@ -803,7 +815,17 @@ void pstReadFile(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	    pkdSwapAll(pkd, id);
 	    mdlGetReply(mdl,rID,NULL,NULL);
 	    }
+
+	t = time(NULL);
+	strftime(b,100,"%F %T",localtime(&t));
+	fprintf(fp,"%s Reading %d particles for %d\n",b,nParts[0], pst->idSelf); fflush(fp);
 	pkdReadFIO(pkd, fio, nNodeStart, nParts[0], in->dvFac,in->dTuFac);
+
+	t = time(NULL);
+	strftime(b,100,"%F %T",localtime(&t));
+	fprintf(fp,"%s done\n",b); fflush(fp);
+
+	fclose(fp);
 
 	free(nParts);
 
@@ -2533,9 +2555,9 @@ void pstWrite(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	    fioSetAttr(fio, "dTimeOld", FIO_TYPE_DOUBLE, &in->dTimeOld );
 	    fioSetAttr(fio, "dUOld",    FIO_TYPE_DOUBLE, &in->dUOld );
 
-	    pkdWriteFIO(plcl->pkd,fio,in->dvFac);
+	    pkdWriteFIO(plcl->pkd,fio,in->dvFac,&in->bnd);
 	    for(i=in->iLower+1; i<in->iUpper; ++i ) {
-		pkdWriteFromNode(plcl->pkd,i,fio,in->dvFac);
+		pkdWriteFromNode(plcl->pkd,i,fio,in->dvFac,&in->bnd);
 		}
 	    fioClose(fio);
 	    }
@@ -3850,7 +3872,8 @@ void pltConstructIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	mdlGetReply(pst->mdl,rID,vout,pnOut);
 	}
     else {
-	pkdGenerateIC(plcl->pkd,in->fft,in->iBegYr,in->iEndYr,in->iBegZk,in->iEndZk,in->dic,in->pos);
+	pkdGenerateIC(plcl->pkd,in->iSeed,in->dBoxSize,in->omegam,in->omegav,in->a,
+	    in->fft,in->iBegYr,in->iEndYr,in->iBegZk,in->iEndZk,in->dic,in->pos);
 //	out->nLocal = mdlFFTlocalCount(pst->mdl,in->nGrid,in->nGrid,in->nGrid,0,0,0,0);
 	}
     if (pnOut) *pnOut = 0;
@@ -3873,7 +3896,7 @@ void pstGenerateIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	}
     else {
 	assert(pstAmNode(pst)); /* We are "on node" here */
-	nTotal = in->nGrid; /* Careful: 32 bit integer cubed => 64 bit integer */
+	nTotal = in->nGrid + 2; /* Careful: 32 bit integer cubed => 64 bit integer */
 	nTotal *= in->nGrid;
 	nTotal *= in->nGrid;
 	nLocal = nTotal / mdlThreads(pst->mdl);
@@ -3907,6 +3930,12 @@ void pstGenerateIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	cic.iEndYr = cic.fft->rgrid->n2;
 	cic.iBegZk = 0;
 	cic.iEndZk = cic.fft->rgrid->n3;
+	cic.iSeed = in->iSeed;
+	cic.dBoxSize = in->dBoxSize;
+	cic.omegav = in->omegav;
+	cic.omegam = in->omegab + in->omegac;
+	cic.a = in->dExpansion;
+
 	pltConstructIC(pst,&cic,sizeof(cic),NULL,NULL);
 
 	// generate noise into dic1, dic2, dic3

@@ -2400,15 +2400,15 @@ void pkdLocalOrder(PKD pkd) {
     qsort(pkdParticleBase(pkd),pkdLocal(pkd),pkdParticleSize(pkd),cmpParticles);
     }
 
-static void writeParticle(PKD pkd,FIO fio,double dvFac,PARTICLE *p) {
+static void writeParticle(PKD pkd,FIO fio,double dvFac,BND *bnd,PARTICLE *p) {
     STARFIELDS *pStar;
     SPHFIELDS *pSph;
     float *pPot, dummypot;
-    double v[3];
+    double v[3],r[3];
     float fMass, fSoft;
     uint64_t iParticleID;
+    int j;
 
-    v[0] = v[1] = v[2] = 0.0;
     dummypot = 0.0;
 
     if ( pkd->oPotential) pPot = pkdPot(pkd,p);
@@ -2419,6 +2419,8 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,PARTICLE *p) {
 	v[1] = pV[1] * dvFac;
 	v[2] = pV[2] * dvFac;
 	}
+    else v[0] = v[1] = v[2] = 0.0;
+ 
     /* Initialize SPH fields if present */
     if (pkd->oSph) pSph = pkdField(p,pkd->oSph);
     else pSph = NULL;
@@ -2428,6 +2430,24 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,PARTICLE *p) {
     fSoft = pkdSoft0(pkd,p);
     if (pkd->oParticleID) iParticleID = *pkdParticleID(pkd,p);
     else iParticleID = p->iOrder;
+
+    r[0] = p->r[0];
+    r[1] = p->r[1];
+    r[2] = p->r[2];
+    /* Enforce periodic boundaries */
+    for (j=0;j<3;++j) {
+	if (r[j] < bnd->fCenter[j] - bnd->fMax[j]) r[j] += 2*bnd->fMax[j];
+	else if (r[j] >= bnd->fCenter[j] + bnd->fMax[j]) r[j] -= 2*bnd->fMax[j];
+	/*
+	** If it still doesn't lie in the "unit" cell then something has gone quite wrong with the 
+	** simulation. Either we have a super fast particle or the initial condition is somehow not conforming
+	** to the specified periodic box in a gross way.
+	*/
+	mdlassert(pkd->mdl,((r[j] >= bnd->fCenter[j] - bnd->fMax[j])&&
+		(r[j] < bnd->fCenter[j] + bnd->fMax[j])));
+	
+	}
+
     switch(pkdSpecies(pkd,p)) {
     case FIO_SPECIES_SPH:
 	assert(pSph);
@@ -2445,16 +2465,16 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,PARTICLE *p) {
 #else
 	    T = pSph->u/pkd->param.dTuFac;
 #endif
-	    fioWriteSph(fio,iParticleID,p->r,v,fMass,fSoft,*pPot,
+	    fioWriteSph(fio,iParticleID,r,v,fMass,fSoft,*pPot,
 		p->fDensity,T,pSph->fMetals);
 	    }
 	break;
     case FIO_SPECIES_DARK:
-	fioWriteDark(fio,iParticleID,p->r,v,fMass,fSoft,*pPot,p->fDensity);
+	fioWriteDark(fio,iParticleID,r,v,fMass,fSoft,*pPot,p->fDensity);
 	break;
     case FIO_SPECIES_STAR:
 	assert(pStar && pSph);
-	fioWriteStar(fio,iParticleID,p->r,v,fMass,fSoft,*pPot,p->fDensity,
+	fioWriteStar(fio,iParticleID,r,v,fMass,fSoft,*pPot,p->fDensity,
 	    pSph->fMetals,pStar->fTimer);
 	break;
     default:
@@ -2467,6 +2487,7 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,PARTICLE *p) {
 struct packWriteCtx {
     PKD pkd;
     FIO fio;
+    BND *bnd;
     double dvFac;
     int iIndex;
     };
@@ -2479,15 +2500,16 @@ static int unpackWrite(void *vctx, int *id, size_t nSize, void *vBuff) {
     int i;
     assert( n*pkdParticleSize(pkd) == nSize);
     for(i=0; i<n; ++i) {
-	writeParticle(pkd,ctx->fio,ctx->dvFac,pkdParticleGet(pkd,p,i));
+	writeParticle(pkd,ctx->fio,ctx->dvFac,ctx->bnd,pkdParticleGet(pkd,p,i));
 	}
     return 1;
     }
 
-void pkdWriteFromNode(PKD pkd,int iNode, FIO fio,double dvFac) {
+void pkdWriteFromNode(PKD pkd,int iNode, FIO fio,double dvFac,BND *bnd) {
     struct packWriteCtx ctx;
     ctx.pkd = pkd;
     ctx.fio = fio;
+    ctx.bnd = bnd;
     ctx.dvFac = dvFac;
     ctx.iIndex = 0;
 #ifdef MPI_VERSION
@@ -2519,7 +2541,7 @@ void pkdWriteViaNode(PKD pkd, int iNode) {
 #endif
     }
 
-uint32_t pkdWriteFIO(PKD pkd,FIO fio,double dvFac) {
+uint32_t pkdWriteFIO(PKD pkd,FIO fio,double dvFac,BND *bnd) {
     PARTICLE *p;
     int i;
     uint32_t nCount;
@@ -2527,7 +2549,7 @@ uint32_t pkdWriteFIO(PKD pkd,FIO fio,double dvFac) {
     for (i=0;i<pkdLocal(pkd);++i) {
 	p = pkdParticle(pkd,i);
 	if ( !pkdIsSrcActive(p,0,MAX_RUNG) ) continue;  /* JW: Ack! */
-	writeParticle(pkd,fio,dvFac,p);
+	writeParticle(pkd,fio,dvFac,bnd,p);
 	nCount++;
 	}
     return nCount;

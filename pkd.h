@@ -1127,8 +1127,8 @@ int pkdNumSrcActive(PKD pkd,uint8_t uRungLo,uint8_t uRungHi);
 int pkdNumDstActive(PKD pkd,uint8_t uRungLo,uint8_t uRungHi);
 int pkdColOrdRejects(PKD,uint64_t,int);
 void pkdLocalOrder(PKD);
-uint32_t pkdWriteFIO(PKD pkd,FIO fio,double dvFac);
-void pkdWriteFromNode(PKD pkd,int iNode, FIO fio,double dvFac);
+uint32_t pkdWriteFIO(PKD pkd,FIO fio,double dvFac,BND *bnd);
+void pkdWriteFromNode(PKD pkd,int iNode, FIO fio,double dvFac,BND *bnd);
 void pkdWriteViaNode(PKD pkd, int iNode);
 void
 pkdGravAll(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,int bPeriodic,

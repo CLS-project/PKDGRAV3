@@ -456,6 +456,7 @@ void pstWriteASCII(PST,void *,int,void *,int *);
 
 /* PST_WRITE */
 struct inWrite {
+    BND bnd;
     double dTime;
     double dEcosmo;
     double dTimeOld;
@@ -1090,6 +1091,7 @@ struct outGetFFTMaxSizes {
 void pstGetFFTMaxSizes(PST,void *,int,void *,int *);
 
 /* PST_GENERATEIC */
+#define MAX_TF 4096
 struct inGenerateIC {
     struct inInitializePStore ps;
     uint64_t nPerNode;
@@ -1098,11 +1100,16 @@ struct inGenerateIC {
     double omegac;
     double omegab;
     double omegav;
+    double sigma8;
+    double spectral;
     double dExpansion;
     float fExtraStore;
     int iSeed;
     int nGrid;
     int bComove;
+    int nTf;
+    double k[MAX_TF];
+    double tf[MAX_TF];
     };
 struct outGenerateIC {
     double dExpansion;
@@ -1117,6 +1124,11 @@ struct inConstructIC {
     /* Threads get parts of each slab */
     uint64_t iBegYr, iEndYr;
     uint64_t iBegZk, iEndZk;
+    int iSeed;
+    double dBoxSize;
+    double omegam;
+    double omegav;
+    double a;
     };
 struct outConstructIC {
     double dExpansion;

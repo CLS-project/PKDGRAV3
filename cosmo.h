@@ -11,6 +11,8 @@ typedef struct csmContext {
     double dOmegaDE;
     double w0;
     double wa;
+    double dSigma8;
+    double dSpectral;
     } * CSM;
 
 void csmInitialize(CSM *pcsm);
