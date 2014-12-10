@@ -797,11 +797,10 @@ static void queueEwald( PKD pkd, workParticle *work ) {
 ** Returns nActive.
 */
 int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
-    KDN *pBucket,LOCR *pLoc,ILP ilp,ILC ilc,
+    KDN *pkdn,LOCR *pLoc,ILP ilp,ILC ilc,
     float dirLsum,float normLsum,int bEwald,int bGravStep,int nGroup,double *pdFlop,double *pdEwFlop,
     double dRhoFac,SMX smx,SMF *smf) {
     PARTICLE *p;
-    KDN *pkdn = pBucket;
     double *v;
     double vx,vy,vz;
     float *a;
@@ -900,9 +899,9 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
 	    /*
 	    ** Evaluate local expansion.
 	    */
-	    dx = work->pPart[i]->r[0] - pkdn->r[0];
-	    dy = work->pPart[i]->r[1] - pkdn->r[1];
-	    dz = work->pPart[i]->r[2] - pkdn->r[2];
+	    dx = work->pPart[i]->r[0] - pkdn->rkCenter[0];
+	    dy = work->pPart[i]->r[1] - pkdn->rkCenter[1];
+	    dz = work->pPart[i]->r[2] - pkdn->rkCenter[2];
 	    dPot = 0;
 	    ax = 0;
 	    ay = 0;

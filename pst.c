@@ -2645,10 +2645,8 @@ void pstBuildTree(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	*/
 	for(i=0; i<in->nTrees; ++i) {
 	    pCell = pkdTreeNode(pkd,puCells[i]);
-	    pCell->bMax = HUGE_VAL;  /* initialize bMax for CombineCells */
-	    MINSIDE(pst->bnd.fMax,minside);
 	    pkdCombineCells1(pkd,pCell,pkdNode(pkd,pCell1,i),pkdNode(pkd,pCell2,i));
-	    CALCOPEN(pCell,minside);
+	    CALCOPEN(pCell,pkdNode(pkd,pCell1,i),pkdNode(pkd,pCell2,i));
 	    pkdCombineCells2(pkd,pCell,pkdNode(pkd,pCell1,i),pkdNode(pkd,pCell2,i));
 	    pkdTreeNode(pkd,pCell->iLower)->iParent = puCells[i];
 //	    printf("%d: %d -> %d\n",mdlSelf(pst->mdl),pCell->iLower, puCells[i]);

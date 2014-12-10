@@ -119,10 +119,10 @@ static void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin, i
     k_xMax = SIMD_SPLAT(kbnd->fMax[0]);
     k_yMax = SIMD_SPLAT(kbnd->fMax[1]);
     k_zMax = SIMD_SPLAT(kbnd->fMax[2]);
-    k_x = SIMD_SPLAT(k->r[0]);
-    k_y = SIMD_SPLAT(k->r[1]);
-    k_z = SIMD_SPLAT(k->r[2]);
-    k_bMax = SIMD_SPLAT(k->bMax);
+    k_x = SIMD_SPLAT(k->rkCenter[0]);
+    k_y = SIMD_SPLAT(k->rkCenter[1]);
+    k_z = SIMD_SPLAT(k->rkCenter[2]);
+    k_bMax = SIMD_SPLAT(k->kMax);
     k_nk = SIMD_SPLATI32(k->pUpper-k->pLower+1);
     k_Open = SIMD_MUL(consts.threehalves.p,SIMD_MUL(k_bMax,diCrit));
 
@@ -226,8 +226,8 @@ static void iOpenOutcomeCL(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin,int 
 		xc = blk->x.f[i] + blk->xOffset.f[i];
 		yc = blk->y.f[i] + blk->yOffset.f[i];
 		zc = blk->z.f[i] + blk->zOffset.f[i];
-		d2 = pow(k->r[0]-xc,2) + pow(k->r[1]-yc,2) + pow(k->r[2]-zc,2);
-		kOpen = 1.5f * k->bMax * diCrit;
+		d2 = pow(k->rkCenter[0]-xc,2) + pow(k->rkCenter[1]-yc,2) + pow(k->rkCenter[2]-zc,2);
+		kOpen = 1.5f * k->kMax * diCrit;
 		cOpen = blk->cOpen.f[i];
 		d2Open = pow(cOpen+kOpen,2);
 		dx = fabs(xc - kbnd->fCenter[0]) - kbnd->fMax[0];
@@ -572,13 +572,13 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
 				** Local expansion accepted!
 				*/
 				iCheckCell = blk->iCell.i[jTile];
-				if (iCheckCell<0) {
+				if (blk->nc.i[jTile] == 1) {
 				    fOffset[0] = blk->xOffset.f[jTile];
 				    fOffset[1] = blk->yOffset.f[jTile];
 				    fOffset[2] = blk->zOffset.f[jTile];
-				    dx[0] = k->r[0] - (blk->x.f[jTile] + blk->xOffset.f[jTile]);
-				    dx[1] = k->r[1] - (blk->y.f[jTile] + blk->yOffset.f[jTile]);
-				    dx[2] = k->r[2] - (blk->z.f[jTile] + blk->zOffset.f[jTile]);
+				    dx[0] = k->rkCenter[0] - (blk->x.f[jTile] + blk->xOffset.f[jTile]);
+				    dx[1] = k->rkCenter[1] - (blk->y.f[jTile] + blk->yOffset.f[jTile]);
+				    dx[2] = k->rkCenter[2] - (blk->z.f[jTile] + blk->zOffset.f[jTile]);
 				    d2 = dx[0]*dx[0] + dx[1]*dx[1] + dx[2]*dx[2];
 				    dir = 1.0/sqrt(d2);
 				    /* monoPole.m = blk->m.f[jTile];*/
@@ -602,7 +602,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
 				    else c = CAST(KDN *,mdlFetch(pkd->mdl,CID_CELL,iCheckCell,id));
 				    d2 = 0;
 				    for (j=0;j<3;++j) {
-					dx[j] = k->r[j] - (c->r[j] + dOffset[j]);
+					dx[j] = k->rkCenter[j] - (c->r[j] + dOffset[j]);
 					d2 += dx[j]*dx[j];
 					}
 				    dir = 1.0/sqrt(d2);
@@ -645,9 +645,9 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
 	    ** level of the tree.
 	    */
 	    if ((k->pUpper-k->pLower+1)<=nGroup) break;
-	    xParent = k->r[0];
-	    yParent = k->r[1];
-	    zParent = k->r[2];
+	    xParent = k->rkCenter[0];
+	    yParent = k->rkCenter[1];
+	    zParent = k->rkCenter[2];
 	    for (j=0;j<3;++j) fOffset[j] = 0.0f;
 	    iCell = k->iLower;
 	    nk = getCell(pkd,iCell,pkd->idSelf,&kOpen,&k);
@@ -706,9 +706,9 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
 		    pkd->S[iStack].dirLsum = dirLsum;
 		    pkd->S[iStack].normLsum = normLsum;
 		    dShiftFlop = momShiftLocr(&pkd->S[iStack].L,
-					      c->r[0] - xParent,
-					      c->r[1] - yParent,
-					      c->r[2] - zParent);
+					      c->rkCenter[0] - xParent,
+					      c->rkCenter[1] - yParent,
+					      c->rkCenter[2] - zParent);
 		    pkd->S[iStack].fWeight = (*pdFlop-tempI) + dShiftFlop;
 		    pkd->S[iStack].fWeight += dEwFlop;
 		    }
@@ -728,9 +728,9 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
 		*/
 		k = pkdTreeNode(pkd,++iCell);
 		}
-	    *pdFlop += momShiftLocr(&L,k->r[0] - xParent,
-				    k->r[1] - yParent,
-				    k->r[2] - zParent);
+	    *pdFlop += momShiftLocr(&L,k->rkCenter[0] - xParent,
+				    k->rkCenter[1] - yParent,
+				    k->rkCenter[2] - zParent);
 	    }
 	/*
 	** Now the interaction list should be complete and the
