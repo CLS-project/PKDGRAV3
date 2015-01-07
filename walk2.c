@@ -124,6 +124,13 @@ static void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin, i
     k_z = SIMD_SPLAT(k->rkCenter[2]);
     k_bMax = SIMD_SPLAT(k->kMax);
     k_nk = SIMD_SPLATI32(k->pUpper-k->pLower+1);
+    /*
+    ** We multiply the opening radius for the K cell opening radius
+    ** by a factor of 1.5 to reduce the errors which are correlated to
+    ** to the tree structure when using local expansions. The value of 
+    ** of 1.5 was determined emperically by examing the relative 
+    ** error distributions.
+    */
     k_Open = SIMD_MUL(consts.threehalves.p,SIMD_MUL(k_bMax,diCrit));
 
     blk = tile->blk;
@@ -520,7 +527,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
 				    else p = CAST(PARTICLE *,mdlFetch(pkd->mdl,CID_PARTICLE,pj,id));
 				    fMass = pkdMass(pkd,p);
 				    fSoft = pkdSoft(pkd,p);
-				    if (bGravStep && pkd->param.iTimeStepCrit == 1) v = pkdVel(pkd,p);
+				    if (bGravStep && pkd->param.iTimeStepCrit == 1) v = pkdVel(pkd,p);  /* is this line needed? */
 				    clAppend(pkd->clNew,-1 - pj,id,0,0,0,1,0.0,fMass,4.0f*fSoft*fSoft,
 					p->r,    /* center of mass */
 					fOffset, /* fOffset */

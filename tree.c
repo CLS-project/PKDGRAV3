@@ -528,6 +528,8 @@ void Create(PKD pkd,int iRoot) {
 	** will want the tightest bounding sphere to be used here.
 	*/
 	pkdn->rkCenter[0] = bnd->fCenter[0];
+	pkdn->rkCenter[1] = bnd->fCenter[1];
+	pkdn->rkCenter[2] = bnd->fCenter[2];
 	d2Max = 0.0;
 	for (pj=pkdn->pLower;pj<=pkdn->pUpper;++pj) {
 	    p = pkdParticle(pkd,pj);
