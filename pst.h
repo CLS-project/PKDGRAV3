@@ -483,6 +483,7 @@ void pstWrite(PST,void *,int,void *,int *);
 struct inBuildTree {
     int nBucket;
     int nTrees;
+    int bLocalComExpand;
     }; /* followed by an array of TREESPEC */
 void pstBuildTree(PST,void *,int,void *,int *);
 
@@ -554,6 +555,7 @@ void pstHopFinishUp(PST,void *,int,void *,int *);
 /* PST_BUILDTREE */
 struct inHopTreeBuild {
     int nBucket;
+    int bLocalComExpand;
     };
 void pstHopTreeBuild(PST,void *,int,void *,int *);
 

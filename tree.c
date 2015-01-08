@@ -371,7 +371,7 @@ void ShuffleParticles(PKD pkd,int iStart) {
 static double zeroV[3] = {0.0,0.0,0.0};
 static float  zeroF[3] = {0.0,0.0,0.0};
 
-void Create(PKD pkd,int iRoot) {
+void Create(PKD pkd,int iRoot,int bLocalComExpand) {
     int iNode = iRoot;
     PARTICLE *p;
     KDN *pkdn,*pkdl,*pkdu;
@@ -523,26 +523,37 @@ void Create(PKD pkd,int iRoot) {
 	    d2Max = (d2 > d2Max)?d2:d2Max;
 	    }
 	pkdn->bMax = sqrt(d2Max);
-	/*
-	** For now we set the rkCenter to be the bucket bounds center, but later we
-	** will want the tightest bounding sphere to be used here.
-	*/
-	pkdn->rkCenter[0] = bnd->fCenter[0];
-	pkdn->rkCenter[1] = bnd->fCenter[1];
-	pkdn->rkCenter[2] = bnd->fCenter[2];
-	d2Max = 0.0;
-	for (pj=pkdn->pLower;pj<=pkdn->pUpper;++pj) {
-	    p = pkdParticle(pkd,pj);
-	    x = p->r[0] - pkdn->rkCenter[0];
-	    y = p->r[1] - pkdn->rkCenter[1];
-	    z = p->r[2] - pkdn->rkCenter[2];
-	    d2 = x*x + y*y + z*z;
+	if (bLocalComExpand) {
 	    /*
-	    ** Update bounding ball and softened bounding ball.
+	    ** Make the rkCenter and kMax variables the same as the center of mass and bMax.
 	    */
-	    d2Max = (d2 > d2Max)?d2:d2Max;
+	    pkdn->rkCenter[0] = pkdn->r[0];
+	    pkdn->rkCenter[1] = pkdn->r[1];
+	    pkdn->rkCenter[2] = pkdn->r[2];
+	    pkdn->kMax = pkdn->bMax;
 	    }
-	pkdn->kMax = sqrt(d2Max);
+	else {
+	    /*
+	    ** For now we set the rkCenter to be the bucket bounds center, but later we
+	    ** might want the tightest bounding sphere to be used here.
+	    */
+	    pkdn->rkCenter[0] = bnd->fCenter[0];
+	    pkdn->rkCenter[1] = bnd->fCenter[1];
+	    pkdn->rkCenter[2] = bnd->fCenter[2];
+	    d2Max = 0.0;
+	    for (pj=pkdn->pLower;pj<=pkdn->pUpper;++pj) {
+		p = pkdParticle(pkd,pj);
+		x = p->r[0] - pkdn->rkCenter[0];
+		y = p->r[1] - pkdn->rkCenter[1];
+		z = p->r[2] - pkdn->rkCenter[2];
+		d2 = x*x + y*y + z*z;
+		/*
+		** Update bounding ball and softened bounding ball.
+		*/
+		d2Max = (d2 > d2Max)?d2:d2Max;
+		}
+	    pkdn->kMax = sqrt(d2Max);
+	    }
 	/*
 	** Now calculate the reduced multipole moment.
 	** Note that we use the cell's openening radius as the scaling factor!
@@ -649,30 +660,43 @@ void Create(PKD pkd,int iRoot) {
 		    d2Max = (d2 > d2Max)?d2:d2Max;
 		    }
 		pkdn->bMax = sqrt(d2Max);
-		/*
-		** Here we find the tightest bounding ball about rkCenter.
-		** In future we will solve for the tightest bounding ball center,
-		** but for now we assume it is the center of the tightest bounding box.
-		** NOTE: rkCenter is set in pkdCombineCells1() call above.
-		*/
-		pj = pkdn->pLower;
-		p = pkdParticle(pkd,pj);
-		x = p->r[0] - pkdn->rkCenter[0];
-		y = p->r[1] - pkdn->rkCenter[1];
-		z = p->r[2] - pkdn->rkCenter[2];
-		d2Max = x*x + y*y + z*z;
-		for (++pj;pj<=pkdn->pUpper;++pj) {
+		if (bLocalComExpand) {
+		    /*
+		    ** Make the rkCenter and kMax variables the same as the center of mass and bMax.
+		    */
+		    pkdn->rkCenter[0] = pkdn->r[0];
+		    pkdn->rkCenter[1] = pkdn->r[1];
+		    pkdn->rkCenter[2] = pkdn->r[2];
+		    pkdn->kMax = pkdn->bMax;
+		    }
+		else {
+		    /*
+		    ** Here we find the tightest bounding ball about rkCenter.
+		    ** In future we will solve for the tightest bounding ball center,
+		    ** but for now we assume it is the center of the tightest bounding box.
+		    */
+		    pkdn->rkCenter[0] = bnd->fCenter[0];
+		    pkdn->rkCenter[1] = bnd->fCenter[1];
+		    pkdn->rkCenter[2] = bnd->fCenter[2];
+		    pj = pkdn->pLower;
 		    p = pkdParticle(pkd,pj);
 		    x = p->r[0] - pkdn->rkCenter[0];
 		    y = p->r[1] - pkdn->rkCenter[1];
 		    z = p->r[2] - pkdn->rkCenter[2];
-		    d2 = x*x + y*y + z*z;
-		    d2Max = (d2 > d2Max)?d2:d2Max;
+		    d2Max = x*x + y*y + z*z;
+		    for (++pj;pj<=pkdn->pUpper;++pj) {
+			p = pkdParticle(pkd,pj);
+			x = p->r[0] - pkdn->rkCenter[0];
+			y = p->r[1] - pkdn->rkCenter[1];
+			z = p->r[2] - pkdn->rkCenter[2];
+			d2 = x*x + y*y + z*z;
+			d2Max = (d2 > d2Max)?d2:d2Max;
+			}
+		    pkdn->kMax = sqrt(d2Max);
 		    }
-		pkdn->kMax = sqrt(d2Max);
 		}
 	    else {
-		CALCOPEN(pkdn,pkdl,pkdu);  /* set bMax and kMax */
+		CALCOPEN(pkdn,pkdl,pkdu,bLocalComExpand);  /* set bMax and kMax */
 	    }
 	    pkdCombineCells2(pkd,pkdn,pkdl,pkdu);
 	    }
@@ -690,7 +714,6 @@ void pkdCombineCells1(PKD pkd,KDN *pkdn,KDN *p1,KDN *p2) {
     p1bnd = pkdNodeBnd(pkd, p1);
     p2bnd = pkdNodeBnd(pkd, p2);
     BND_COMBINE(bnd,p1bnd,p2bnd);
-    for (j=0;j<3;++j) pkdn->rkCenter[j] = bnd->fCenter[j]; /* provide a new "best bounding center" */
     if (pkd->oNodeMom) {
 	m1 = pkdNodeMom(pkd,p1)->m;
 	m2 = pkdNodeMom(pkd,p2)->m;
@@ -730,6 +753,8 @@ void pkdCombineCells1(PKD pkd,KDN *pkdn,KDN *p1,KDN *p2) {
     pkdn->bDstActive = p1->bDstActive || p2->bDstActive;
     if (0xffffffffu - p1->nActive < p2->nActive) pkdn->nActive = 0xffffffffu; 
     else pkdn->nActive = p1->nActive + p2->nActive;
+
+    for (j=0;j<3;++j) pkdn->rkCenter[j] = bnd->fCenter[j]; /* provide a new "best bounding center" */
 
     }
 
@@ -789,7 +814,7 @@ void pkdCombineCells2(PKD pkd,KDN *pkdn,KDN *p1,KDN *p2) {
     }
 }
 
-void pkdTreeBuild(PKD pkd,int nBucket,int nTrees, TREESPEC *pSpec) {
+void pkdTreeBuild(PKD pkd,int nBucket,int nTrees, TREESPEC *pSpec, int bLocalComExpand) {
     int iStart;
     int i;
 #ifdef USE_ITT
@@ -807,7 +832,7 @@ void pkdTreeBuild(PKD pkd,int nBucket,int nTrees, TREESPEC *pSpec) {
     for(i=0; i<nTrees; ++i) BuildTemp(pkd,pSpec[i].uCell,nBucket);
     iStart = 0;
     ShuffleParticles(pkd,iStart);
-    for(i=0; i<nTrees; ++i) Create(pkd,pSpec[i].uCell);
+    for(i=0; i<nTrees; ++i) Create(pkd,pSpec[i].uCell,bLocalComExpand);
 
     pkdStopTimer(pkd,0);
 
@@ -822,7 +847,7 @@ void pkdTreeBuild(PKD pkd,int nBucket,int nTrees, TREESPEC *pSpec) {
 	pkd->iTreeNodeSize,pkd->nNodes);
     }
 
-void pkdTreeBuildByGroup(PKD pkd, int nBucket) {
+void pkdTreeBuildByGroup(PKD pkd, int nBucket, int bLocalComExpand) {
     PLITE *pLite = pkd->pLite;
     PARTICLE *p;
     KDN *pNode;
@@ -951,7 +976,7 @@ void pkdTreeBuildByGroup(PKD pkd, int nBucket) {
     ShuffleParticles(pkd,0);
     for(gid=1; gid<pkd->nGroups; ++gid)
 	if (pkd->hopGroups[gid].bNeedGrav)
-	    Create(pkd,pkd->hopGroups[gid].iTreeRoot);
+	    Create(pkd,pkd->hopGroups[gid].iTreeRoot,bLocalComExpand);
     /*
     ** Finally activate a read only cache for remote access.
     */

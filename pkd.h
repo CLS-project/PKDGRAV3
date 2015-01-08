@@ -331,8 +331,7 @@ typedef struct sphBounds {
     else axr = 1e6;						\
 }
 
-
-#define CALCOPEN(pkdn,pkdl,pkdu) {					\
+#define CALCOPEN(pkdn,pkdl,pkdu,bLocalComExpand) {					\
     FLOAT CALCOPEN_d2,CALCOPEN_d2l;					\
     int CALCOPEN_j;							\
     BND *CALCOPEN_bnd;							\
@@ -365,37 +364,49 @@ typedef struct sphBounds {
     if (CALCOPEN_d2l > CALCOPEN_d2) CALCOPEN_d2 = CALCOPEN_d2l;		\
     CALCOPEN_d2 = sqrt(CALCOPEN_d2);					\
     if (CALCOPEN_d2 < (pkdn)->bMax) (pkdn)->bMax = CALCOPEN_d2;		\
-    /* Now we calculate the kMax ball */				\
-    CALCOPEN_d2 = 0.0;							\
-    for (CALCOPEN_j=0;CALCOPEN_j<3;++CALCOPEN_j) {			\
-	FLOAT CALCOPEN_d = (pkdn)->rkCenter[CALCOPEN_j] - (pkdl)->rkCenter[CALCOPEN_j]; \
-	CALCOPEN_d2 += CALCOPEN_d*CALCOPEN_d;				\
+    if (bLocalComExpand) {	                                        \
+	(pkdn)->rkCenter[0] = (pkdn)->r[0];				\
+	(pkdn)->rkCenter[1] = (pkdn)->r[1];				\
+	(pkdn)->rkCenter[2] = (pkdn)->r[2];				\
+	(pkdn)->kMax = (pkdn)->bMax;					\
+        }                  						\
+    else {								\
+	CALCOPEN_bnd = pkdNodeBnd(pkd, pkdn);				\
+	(pkdn)->rkCenter[0] = CALCOPEN_bnd->fCenter[0];				\
+	(pkdn)->rkCenter[1] = CALCOPEN_bnd->fCenter[1];				\
+	(pkdn)->rkCenter[2] = CALCOPEN_bnd->fCenter[2];				\
+	/* Now we calculate the kMax ball */				\
+	CALCOPEN_d2 = 0.0;						\
+	for (CALCOPEN_j=0;CALCOPEN_j<3;++CALCOPEN_j) {			\
+	    FLOAT CALCOPEN_d = (pkdn)->rkCenter[CALCOPEN_j] - (pkdl)->rkCenter[CALCOPEN_j]; \
+	    CALCOPEN_d2 += CALCOPEN_d*CALCOPEN_d;			\
+	    }								\
+	(pkdn)->kMax = sqrt(CALCOPEN_d2) + (pkdl)->kMax;		\
+	CALCOPEN_d2 = 0.0;						\
+	for (CALCOPEN_j=0;CALCOPEN_j<3;++CALCOPEN_j) {			\
+	    FLOAT CALCOPEN_d = (pkdn)->rkCenter[CALCOPEN_j] - (pkdu)->rkCenter[CALCOPEN_j]; \
+	    CALCOPEN_d2 += CALCOPEN_d*CALCOPEN_d;			\
+	    }								\
+	CALCOPEN_d2 = sqrt(CALCOPEN_d2) + (pkdu)->kMax;			\
+	if (CALCOPEN_d2 > (pkdn)->kMax) (pkdn)->kMax = CALCOPEN_d2;	\
+	CALCOPEN_bnd = pkdNodeBnd(pkd, pkdl);				\
+	CALCOPEN_d2 = 0.0;						\
+	for (CALCOPEN_j=0;CALCOPEN_j<3;++CALCOPEN_j) {			\
+	    FLOAT CALCOPEN_d = fabs(CALCOPEN_bnd->fCenter[CALCOPEN_j] - (pkdn)->rkCenter[CALCOPEN_j]) + CALCOPEN_bnd->fMax[CALCOPEN_j];	\
+	    CALCOPEN_d2 += CALCOPEN_d*CALCOPEN_d;			\
+	    }								\
+	CALCOPEN_d2l = CALCOPEN_d2;					\
+	CALCOPEN_bnd = pkdNodeBnd(pkd, pkdu);				\
+	CALCOPEN_d2 = 0.0;						\
+	for (CALCOPEN_j=0;CALCOPEN_j<3;++CALCOPEN_j) {			\
+	    FLOAT CALCOPEN_d = fabs(CALCOPEN_bnd->fCenter[CALCOPEN_j] - (pkdn)->rkCenter[CALCOPEN_j]) + CALCOPEN_bnd->fMax[CALCOPEN_j];	\
+	    CALCOPEN_d2 += CALCOPEN_d*CALCOPEN_d;			\
+	    }								\
+	if (CALCOPEN_d2l > CALCOPEN_d2) CALCOPEN_d2 = CALCOPEN_d2l;	\
+	CALCOPEN_d2 = sqrt(CALCOPEN_d2);				\
+	if (CALCOPEN_d2 < (pkdn)->kMax) (pkdn)->kMax = CALCOPEN_d2;	\
 	}								\
-    (pkdn)->kMax = sqrt(CALCOPEN_d2) + (pkdl)->kMax;			\
-    CALCOPEN_d2 = 0.0;							\
-    for (CALCOPEN_j=0;CALCOPEN_j<3;++CALCOPEN_j) {			\
-	FLOAT CALCOPEN_d = (pkdn)->rkCenter[CALCOPEN_j] - (pkdu)->rkCenter[CALCOPEN_j]; \
-	CALCOPEN_d2 += CALCOPEN_d*CALCOPEN_d;				\
-	}								\
-    CALCOPEN_d2 = sqrt(CALCOPEN_d2) + (pkdu)->kMax;			\
-    if (CALCOPEN_d2 > (pkdn)->kMax) (pkdn)->kMax = CALCOPEN_d2;	        \
-    CALCOPEN_bnd = pkdNodeBnd(pkd, pkdl);                               \
-    CALCOPEN_d2 = 0.0;		                                        \
-    for (CALCOPEN_j=0;CALCOPEN_j<3;++CALCOPEN_j) {			\
-        FLOAT CALCOPEN_d = fabs(CALCOPEN_bnd->fCenter[CALCOPEN_j] - (pkdn)->rkCenter[CALCOPEN_j]) + CALCOPEN_bnd->fMax[CALCOPEN_j];\
-        CALCOPEN_d2 += CALCOPEN_d*CALCOPEN_d;				\
-        }								\
-    CALCOPEN_d2l = CALCOPEN_d2;						\
-    CALCOPEN_bnd = pkdNodeBnd(pkd, pkdu);                               \
-    CALCOPEN_d2 = 0.0;		                                        \
-    for (CALCOPEN_j=0;CALCOPEN_j<3;++CALCOPEN_j) {			\
-        FLOAT CALCOPEN_d = fabs(CALCOPEN_bnd->fCenter[CALCOPEN_j] - (pkdn)->rkCenter[CALCOPEN_j]) + CALCOPEN_bnd->fMax[CALCOPEN_j];\
-        CALCOPEN_d2 += CALCOPEN_d*CALCOPEN_d;				\
-        }								\
-    if (CALCOPEN_d2l > CALCOPEN_d2) CALCOPEN_d2 = CALCOPEN_d2l;		\
-    CALCOPEN_d2 = sqrt(CALCOPEN_d2);					\
-    if (CALCOPEN_d2 < (pkdn)->kMax) (pkdn)->kMax = CALCOPEN_d2;		\
-}
+    }
 
 
 /*
@@ -1086,7 +1097,7 @@ typedef struct CacheStatistics {
 ** From tree.c:
 */
 void pkdVATreeBuild(PKD pkd,int nBucket);
-void pkdTreeBuild(PKD pkd,int nBucket,int nTrees, TREESPEC *pSpec);
+void pkdTreeBuild(PKD pkd,int nBucket,int nTrees, TREESPEC *pSpec, int bLocalComExpand);
 void pkdDumpTrees(PKD pkd);
 void pkdCombineCells1(PKD,KDN *pkdn,KDN *p1,KDN *p2);
 void pkdCombineCells2(PKD,KDN *pkdn,KDN *p1,KDN *p2);
@@ -1094,7 +1105,7 @@ void pkdCalcRoot(PKD,double *,MOMC *);
 void pkdDistribRoot(PKD,double *,MOMC *);
 void pkdTreeNumSrcActive(PKD pkd,uint8_t uRungLo,uint8_t uRungHi);
 void pkdBoundWalk(PKD pkd,BND *pbnd,uint8_t uRungLo,uint8_t uRungHi,uint32_t *pnActive,uint32_t *pnContained);
-void pkdTreeBuildByGroup(PKD pkd, int nBucket);
+void pkdTreeBuildByGroup(PKD pkd, int nBucket, int bLocalComExpand);
 
 #include "parameters.h"
 /*
