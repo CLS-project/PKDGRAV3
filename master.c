@@ -450,9 +450,6 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.bCenterOfMassExpand = 1;
     prmAddParam(msr->prm,"bCenterOfMassExpand",0,&msr->param.bCenterOfMassExpand,sizeof(int),"CoM",
 		"use multipole expansions about the center of mass = +CoM");
-    msr->param.bLocalComExpand = 1;
-    prmAddParam(msr->prm,"bLocalComExpand",0,&msr->param.bLocalComExpand,sizeof(int),"LCoM",
-		"use local expansions about the center of mass = +LCoM");
     msr->param.dRedTo = 0.0;
     prmAddParam(msr->prm,"dRedTo",2,&msr->param.dRedTo,sizeof(double),"zto",
 		"specifies final redshift for the simulation");
@@ -2318,7 +2315,6 @@ static void BuildTree(MSR msr,int bNeedEwald,int nTrees,TREESPEC *pSpecIn) {
 	}
     in->nBucket = msr->param.nBucket;
     in->nTrees = nTrees;
-    in->bLocalComExpand = msr->param.bLocalComExpand;
     sec = msrTime();
     pstBuildTree(msr->pst,in,inSize,pkdn,&iDum);
     dsec = msrTime() - sec;
@@ -4294,7 +4290,6 @@ void msrHop(MSR msr, double dTime) {
     do {
 	sec = msrTime();
 	inTreeBuild.nBucket = msr->param.nBucket;
-	inTreeBuild.bLocalComExpand = msr->param.bLocalComExpand;
 	pstHopTreeBuild(msr->pst,&inTreeBuild,sizeof(inTreeBuild),NULL,NULL);
 	dsec = msrTime() - sec;
 	if (msr->param.bVStep)

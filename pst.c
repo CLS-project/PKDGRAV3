@@ -2645,8 +2645,10 @@ void pstBuildTree(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	*/
 	for(i=0; i<in->nTrees; ++i) {
 	    pCell = pkdTreeNode(pkd,puCells[i]);
+	    pCell->bMax = HUGE_VAL;  /* initialize bMax for CombineCells */
+	    MINSIDE(pst->bnd.fMax,minside);
 	    pkdCombineCells1(pkd,pCell,pkdNode(pkd,pCell1,i),pkdNode(pkd,pCell2,i));
-	    CALCOPEN(pCell,pkdNode(pkd,pCell1,i),pkdNode(pkd,pCell2,i),in->bLocalComExpand);
+	    CALCOPEN(pCell,minside);
 	    pkdCombineCells2(pkd,pCell,pkdNode(pkd,pCell1,i),pkdNode(pkd,pCell2,i));
 	    pkdTreeNode(pkd,pCell->iLower)->iParent = puCells[i];
 //	    printf("%d: %d -> %d\n",mdlSelf(pst->mdl),pCell->iLower, puCells[i]);
@@ -2656,7 +2658,7 @@ void pstBuildTree(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	}
     else {
 	pkdTreeAlignNode(pkd);
-	pkdTreeBuild(plcl->pkd,in->nBucket,in->nTrees,pSpec,in->bLocalComExpand);
+	pkdTreeBuild(plcl->pkd,in->nBucket,in->nTrees,pSpec);
 	/* This cell will now have bRemote=0. pLower and pUpper are now particle indexes. */
 	}
     /*
@@ -2871,7 +2873,7 @@ void pstHopTreeBuild(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
         }
     else {
 	LCL *plcl = pst->plcl;
-        pkdHopTreeBuild(plcl->pkd,in->nBucket,in->bLocalComExpand);
+        pkdHopTreeBuild(plcl->pkd,in->nBucket);
         }
     if (pnOut) *pnOut = 0;
     }
