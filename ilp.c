@@ -12,11 +12,7 @@ void ilpInitialize(ILP *ilp) {
     lstInitialize(&(*ilp)->lst,NULL,
 	ILP_TILE_SIZE / sizeof(ILP_BLK), ILP_PART_PER_BLK,
 	2, /* two areas */
-#ifdef USE_CUDA
-	sizeof(ILP_BLK),CUDA_malloc,CUDA_free,
-#else
 	sizeof(ILP_BLK),SIMD_malloc,SIMD_free,
-#endif
 	sizeof(ILP_EXTRA),NULL,           NULL);
     (*ilp)->cx = (*ilp)->cy = (*ilp)->cz = 0.0;
     }
