@@ -10,16 +10,6 @@
 #include <stdio.h>
 
 extern "C"
-void CUDA_nvtxRangePush(char *name) {
-    nvtxRangePush(name);
-    }
-
-extern "C"
-void CUDA_nvtxRangePop() {
-    nvtxRangePop();
-    }
-
-extern "C"
 void *CUDA_malloc(size_t nBytes) {
     void *blk = NULL;
     cudaMallocHost( &blk, nBytes);
