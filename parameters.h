@@ -33,7 +33,6 @@ struct parameters {
     int bDoublePos;
     int bDoubleVel;
     int bCenterOfMassExpand;
-    int bLocalComExpand;
     int bGravStep;
     int bEpsAccStep;
     int bSqrtPhiStep;

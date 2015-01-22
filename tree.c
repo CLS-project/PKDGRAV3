@@ -371,14 +371,14 @@ void ShuffleParticles(PKD pkd,int iStart) {
 static double zeroV[3] = {0.0,0.0,0.0};
 static float  zeroF[3] = {0.0,0.0,0.0};
 
-void Create(PKD pkd,int iRoot,int bLocalComExpand) {
+void Create(PKD pkd,int iRoot) {
     int iNode = iRoot;
     PARTICLE *p;
     KDN *pkdn,*pkdl,*pkdu;
     FMOMR mom;
     SPHBNDS *bn;
     BND *bnd;
-    FLOAT m,fMass,fSoft,x,y,z,vx,vy,vz,ax,ay,az,ft,d2,d2Max,dih2;
+    FLOAT m,fMass,fSoft,x,y,z,vx,vy,vz,ax,ay,az,ft,d2,d2Max,dih2,bmin,b;
     float *a;
     double *v;
     int pj,d,nDepth,ism;
@@ -388,7 +388,6 @@ void Create(PKD pkd,int iRoot,int bLocalComExpand) {
     pkdn = pkdTreeNode(pkd,iNode);
     if (pkdn->pLower > pkdn->pUpper) {
 	pkdn->bMax = 1.0;
-	pkdn->kMax = 1.0;
 	pkdn->nActive = 0;
 	pkdn->uMinRung = MAX_RUNG;
 	pkdn->uMaxRung = 0;
@@ -426,6 +425,11 @@ void Create(PKD pkd,int iRoot,int bLocalComExpand) {
 	pkdn = pkdTreeNode(pkd,iNode);
         bnd = pkdNodeBnd(pkd, pkdn);
 	pkdn->nActive = 0;
+	/*
+	** Before squeezing the bounds, calculate a minimum b value based on the splitting bounds alone.
+	** This gives us a better feel for the "size" of a bucket with only a single particle.
+	*/
+	MINSIDE(bnd->fMax,bmin);
 	/*
 	** Now shrink wrap the bucket bounds.
 	*/
@@ -494,9 +498,18 @@ void Create(PKD pkd,int iRoot,int bLocalComExpand) {
 	    if (pkdIsActive(pkd,p)) ++pkdn->nActive;
 	    }
 	m = 1/fMass;
-	pkdn->r[0] = m*x;
-	pkdn->r[1] = m*y;
-	pkdn->r[2] = m*z;
+	if (pkd->param.bCenterOfMassExpand) {
+	    pkdn->r[0] = m*x;
+	    pkdn->r[1] = m*y;
+	    pkdn->r[2] = m*z;
+	    }
+	else {
+	    /*
+	    ** For now set it to the center of the bounding box, but later
+	    ** we want the tightest bounding sphere here.
+	    */
+	    for (d=0;d<3;++d) pkdn->r[d] = bnd->fCenter[d];
+	    }
 	if (pkd->oNodeVelocity) {
 	    double *pVel = pkdNodeVel(pkd,pkdn);
 	    pVel[0] = m*vx;
@@ -522,62 +535,31 @@ void Create(PKD pkd,int iRoot,int bLocalComExpand) {
 	    */
 	    d2Max = (d2 > d2Max)?d2:d2Max;
 	    }
-	pkdn->bMax = sqrt(d2Max);
-	if (bLocalComExpand) {
-	    /*
-	    ** Make the rkCenter and kMax variables the same as the center of mass and bMax.
-	    */
-	    pkdn->rkCenter[0] = pkdn->r[0];
-	    pkdn->rkCenter[1] = pkdn->r[1];
-	    pkdn->rkCenter[2] = pkdn->r[2];
-	    pkdn->kMax = pkdn->bMax;
-	    }
-	else {
-	    /*
-	    ** For now we set the rkCenter to be the bucket bounds center, but later we
-	    ** might want the tightest bounding sphere to be used here.
-	    */
-	    pkdn->rkCenter[0] = bnd->fCenter[0];
-	    pkdn->rkCenter[1] = bnd->fCenter[1];
-	    pkdn->rkCenter[2] = bnd->fCenter[2];
-	    d2Max = 0.0;
-	    for (pj=pkdn->pLower;pj<=pkdn->pUpper;++pj) {
-		p = pkdParticle(pkd,pj);
-		x = p->r[0] - pkdn->rkCenter[0];
-		y = p->r[1] - pkdn->rkCenter[1];
-		z = p->r[2] - pkdn->rkCenter[2];
-		d2 = x*x + y*y + z*z;
-		/*
-		** Update bounding ball and softened bounding ball.
-		*/
-		d2Max = (d2 > d2Max)?d2:d2Max;
-		}
-	    pkdn->kMax = sqrt(d2Max);
-	    }
+#ifdef USE_MAXSIDE
+        MAXSIDE(bnd->fMax,b);
+#else
+	b = sqrt(d2Max);
+#endif
+	if (b==0.0) b = 1.0f; /* FIXME: Single particle. Perhaps momMakeFmomr should be more robust. */
+        else if (b < bmin) b = bmin;
+	pkdn->bMax = b;
+	assert(pkdn->bMax>=0);
 	/*
 	** Now calculate the reduced multipole moment.
 	** Note that we use the cell's openening radius as the scaling factor!
 	*/
 	if (pkd->oNodeMom) {
 	    momClearFmomr(pkdNodeMom(pkd,pkdn));
-	    if (pkdn->pLower == pkdn->pUpper) {
-		p = pkdParticle(pkd,pkdn->pLower);
+	    for (pj=pkdn->pLower;pj<=pkdn->pUpper;++pj) {
+		p = pkdParticle(pkd,pj);
+		x = p->r[0] - pkdn->r[0];
+		y = p->r[1] - pkdn->r[1];
+		z = p->r[2] - pkdn->r[2];
 		m = pkdMass(pkd,p);
-		pkdNodeMom(pkd,pkdn)->m = m;
-		}
-	    else {
-		assert(pkdn->bMax > 0.0);
-		for (pj=pkdn->pLower;pj<=pkdn->pUpper;++pj) {
-		    p = pkdParticle(pkd,pj);
-		    x = p->r[0] - pkdn->r[0];
-		    y = p->r[1] - pkdn->r[1];
-		    z = p->r[2] - pkdn->r[2];
-		    m = pkdMass(pkd,p);
-		    momMakeFmomr(&mom,m,pkdn->bMax,x,y,z);
-		    momAddFmomr(pkdNodeMom(pkd,pkdn),&mom);
-		    }
-		}
+		momMakeFmomr(&mom,m,pkdn->bMax,x,y,z);
+		momAddFmomr(pkdNodeMom(pkd,pkdn),&mom);
 	    }
+	}
 	/*
 	** Calculate bucket fast gas bounds.
 	*/
@@ -637,14 +619,16 @@ void Create(PKD pkd,int iRoot,int bLocalComExpand) {
 	    */
 	    pkdn = pkdTreeNode(pkd,iNode);
             bnd = pkdNodeBnd(pkd, pkdn);
+	    /*
+	    ** Before squeezing the bounds, calculate a minimum b value based on the splitting bounds alone.
+	    ** This gives us a better feel for the "size" of a bucket with only a single particle.
+	    */
+	    MINSIDE(bnd->fMax,bmin);
 	    pj = pkdn->pLower;
 	    pkdl = pkdTreeNode(pkd,pkdn->iLower);
 	    pkdu = pkdTreeNode(pkd,pkdn->iLower + 1);
 	    pkdCombineCells1(pkd,pkdn,pkdl,pkdu);
 	    if (pkdn->pUpper - pj < NMAX_OPENCALC) {
-		/*
-		** Now determine the opening radius for gravity.
-		*/
 		assert(pj<=pkdn->pUpper);
 		p = pkdParticle(pkd,pj);
 		x = p->r[0] - pkdn->r[0];
@@ -659,44 +643,23 @@ void Create(PKD pkd,int iRoot,int bLocalComExpand) {
 		    d2 = x*x + y*y + z*z;
 		    d2Max = (d2 > d2Max)?d2:d2Max;
 		    }
+		assert(d2Max>0);
+		/*
+		** Now determine the opening radius for gravity.
+		*/
+#ifdef USE_MAXSIDE
+		MAXSIDE(bnd->fMax,b);
+		if (b < bmin) b = bmin;
+		if (d2Max>b) b = d2Max;
+		pkdn->bMax = b;
+#else
 		pkdn->bMax = sqrt(d2Max);
-		if (bLocalComExpand) {
-		    /*
-		    ** Make the rkCenter and kMax variables the same as the center of mass and bMax.
-		    */
-		    pkdn->rkCenter[0] = pkdn->r[0];
-		    pkdn->rkCenter[1] = pkdn->r[1];
-		    pkdn->rkCenter[2] = pkdn->r[2];
-		    pkdn->kMax = pkdn->bMax;
-		    }
-		else {
-		    /*
-		    ** Here we find the tightest bounding ball about rkCenter.
-		    ** In future we will solve for the tightest bounding ball center,
-		    ** but for now we assume it is the center of the tightest bounding box.
-		    */
-		    pkdn->rkCenter[0] = bnd->fCenter[0];
-		    pkdn->rkCenter[1] = bnd->fCenter[1];
-		    pkdn->rkCenter[2] = bnd->fCenter[2];
-		    pj = pkdn->pLower;
-		    p = pkdParticle(pkd,pj);
-		    x = p->r[0] - pkdn->rkCenter[0];
-		    y = p->r[1] - pkdn->rkCenter[1];
-		    z = p->r[2] - pkdn->rkCenter[2];
-		    d2Max = x*x + y*y + z*z;
-		    for (++pj;pj<=pkdn->pUpper;++pj) {
-			p = pkdParticle(pkd,pj);
-			x = p->r[0] - pkdn->rkCenter[0];
-			y = p->r[1] - pkdn->rkCenter[1];
-			z = p->r[2] - pkdn->rkCenter[2];
-			d2 = x*x + y*y + z*z;
-			d2Max = (d2 > d2Max)?d2:d2Max;
-			}
-		    pkdn->kMax = sqrt(d2Max);
-		    }
+		if (pkdn->bMax < bmin) pkdn->bMax = bmin;
+#endif
+		assert(pkdn->bMax >= 0);
 		}
 	    else {
-		CALCOPEN(pkdn,pkdl,pkdu,bLocalComExpand);  /* set bMax and kMax */
+	      CALCOPEN(pkdn,bmin);  /* set bMax */
 	    }
 	    pkdCombineCells2(pkd,pkdn,pkdl,pkdu);
 	    }
@@ -754,8 +717,6 @@ void pkdCombineCells1(PKD pkd,KDN *pkdn,KDN *p1,KDN *p2) {
     if (0xffffffffu - p1->nActive < p2->nActive) pkdn->nActive = 0xffffffffu; 
     else pkdn->nActive = p1->nActive + p2->nActive;
 
-    for (j=0;j<3;++j) pkdn->rkCenter[j] = bnd->fCenter[j]; /* provide a new "best bounding center" */
-
     }
 
 
@@ -769,33 +730,22 @@ void pkdCombineCells2(PKD pkd,KDN *pkdn,KDN *p1,KDN *p2) {
     ** Now calculate the reduced multipole moment.
     ** Shift the multipoles of each of the children
     ** to the CoM of this cell and add them up.
-    ** We have to be careful with cells that have only a single particle here!
     */
     if (pkd->oNodeMom) {
-	assert(pkdn->bMax > 0.0);
+	*pkdNodeMom(pkd,pkdn) = *pkdNodeMom(pkd,p1);
 	x = p1->r[0] - pkdn->r[0];
 	y = p1->r[1] - pkdn->r[1];
 	z = p1->r[2] - pkdn->r[2];
-	if (p1->pLower == p1->pUpper) {
-	    momMakeFmomr(pkdNodeMom(pkd,pkdn),pkdNodeMom(pkd,p1)->m,pkdn->bMax,x,y,z);
-	    }
-	else {
-	    *pkdNodeMom(pkd,pkdn) = *pkdNodeMom(pkd,p1);
-	    momShiftFmomr(pkdNodeMom(pkd,pkdn),p1->bMax,x,y,z);
-	    momRescaleFmomr(pkdNodeMom(pkd,pkdn),pkdn->bMax,p1->bMax);
-	    }
+	momShiftFmomr(pkdNodeMom(pkd,pkdn),p1->bMax,x,y,z);
+
+	momRescaleFmomr(pkdNodeMom(pkd,pkdn),pkdn->bMax,p1->bMax);
+
+	mom = *pkdNodeMom(pkd,p2);
 	x = p2->r[0] - pkdn->r[0];
 	y = p2->r[1] - pkdn->r[1];
 	z = p2->r[2] - pkdn->r[2];
-	if (p2->pLower == p2->pUpper) {
-	    momMakeFmomr(&mom,pkdNodeMom(pkd,p2)->m,pkdn->bMax,x,y,z);
-	    momAddFmomr(pkdNodeMom(pkd,pkdn),&mom);
-	    }
-	else {
-	    mom = *pkdNodeMom(pkd,p2);
-	    momShiftFmomr(&mom,p2->bMax,x,y,z);
-	    momScaledAddFmomr(pkdNodeMom(pkd,pkdn),pkdn->bMax,&mom,p2->bMax);
-	    }
+	momShiftFmomr(&mom,p2->bMax,x,y,z);
+	momScaledAddFmomr(pkdNodeMom(pkd,pkdn),pkdn->bMax,&mom,p2->bMax);
 
 	}
     /*
@@ -814,7 +764,7 @@ void pkdCombineCells2(PKD pkd,KDN *pkdn,KDN *p1,KDN *p2) {
     }
 }
 
-void pkdTreeBuild(PKD pkd,int nBucket,int nTrees, TREESPEC *pSpec, int bLocalComExpand) {
+void pkdTreeBuild(PKD pkd,int nBucket,int nTrees, TREESPEC *pSpec) {
     int iStart;
     int i;
 #ifdef USE_ITT
@@ -832,7 +782,7 @@ void pkdTreeBuild(PKD pkd,int nBucket,int nTrees, TREESPEC *pSpec, int bLocalCom
     for(i=0; i<nTrees; ++i) BuildTemp(pkd,pSpec[i].uCell,nBucket);
     iStart = 0;
     ShuffleParticles(pkd,iStart);
-    for(i=0; i<nTrees; ++i) Create(pkd,pSpec[i].uCell,bLocalComExpand);
+    for(i=0; i<nTrees; ++i) Create(pkd,pSpec[i].uCell);
 
     pkdStopTimer(pkd,0);
 
@@ -847,7 +797,7 @@ void pkdTreeBuild(PKD pkd,int nBucket,int nTrees, TREESPEC *pSpec, int bLocalCom
 	pkd->iTreeNodeSize,pkd->nNodes);
     }
 
-void pkdTreeBuildByGroup(PKD pkd, int nBucket, int bLocalComExpand) {
+void pkdTreeBuildByGroup(PKD pkd, int nBucket) {
     PLITE *pLite = pkd->pLite;
     PARTICLE *p;
     KDN *pNode;
@@ -976,7 +926,7 @@ void pkdTreeBuildByGroup(PKD pkd, int nBucket, int bLocalComExpand) {
     ShuffleParticles(pkd,0);
     for(gid=1; gid<pkd->nGroups; ++gid)
 	if (pkd->hopGroups[gid].bNeedGrav)
-	    Create(pkd,pkd->hopGroups[gid].iTreeRoot,bLocalComExpand);
+	    Create(pkd,pkd->hopGroups[gid].iTreeRoot);
     /*
     ** Finally activate a read only cache for remote access.
     */
