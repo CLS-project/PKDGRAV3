@@ -2112,7 +2112,46 @@ void msrDomainDecompOld(MSR msr,int iRung,int bSplitVA) {
 	    }
 	assert(iRungDD >= iRungRT);
 	assert(iRungRT >= iRungSD);
-
+#ifdef NAIVE_DOMAIN_DECOMP
+	if (iRung <= iRungRT) {
+	    /*
+	    ** We need to do a full domain decomposition with *ALL* particles being active.
+	    */
+	    in.bDoRootFind = 1;
+	    if (iRung <= iRungSD) {
+		if (msr->param.bVRungStat) {
+		    printf("Doing Domain Decomposition (nActive = %"PRIu64"/%"PRIu64", iRung:%d iRungRT:%d)\n",
+			msr->nActive,msr->N,iRung,iRungRT);
+		    }
+		in.bDoSplitDimFind = 1;
+		}
+	    else { 
+		if (msr->param.bVRungStat) {
+		    printf("Skipping Domain Dim Choice (nActive = %"PRIu64"/%"PRIu64", iRung:%d iRungSD:%d)\n",
+			msr->nActive,msr->N,iRung,iRungSD);
+		    }
+		in.bDoSplitDimFind = 0;
+		}
+	    msrActiveRung(msr,0,1); /* Here we activate all particles. */
+	    bRestoreActive = 1;
+	    }	    
+	else if (iRung <= iRungDD) {
+	    if (msr->param.bVRungStat) {
+		printf("Skipping Root Finder (nActive = %"PRIu64"/%"PRIu64", iRung:%d iRungRT:%d iRungDD:%d)\n",
+		    msr->nActive,msr->N,iRung,iRungRT,iRungDD);
+		}
+	    in.bDoRootFind = 0;
+	    in.bDoSplitDimFind = 0;
+	    bRestoreActive = 0;	    
+	    }
+	else {
+	    if (msr->param.bVRungStat) {
+		printf("Skipping Domain Decomposition (nActive = %"PRIu64"/%"PRIu64", iRung:%d iRungDD:%d)\n",
+		    msr->nActive,msr->N,iRung,iRungDD);
+		}
+	    return; /* do absolutely nothing! */
+	    }
+#else
 	if (msr->iLastRungRT < 0) {
 	    /*
 	    ** We need to do a full domain decompotition with iRungRT particles being active.
@@ -2195,25 +2234,24 @@ void msrDomainDecompOld(MSR msr,int iRung,int bSplitVA) {
 		in.bDoSplitDimFind = 1;
 		}
 	    }
+#endif
 	}
     msr->iLastRungDD = msr->iLastRungRT;
-
     in.nActive = msr->nActive;
     in.nTotal = msr->N;
 
     in.nBndWrap[0] = 0;
     in.nBndWrap[1] = 0;
     in.nBndWrap[2] = 0;
-
     /*
     ** If we are dealing with a nice periodic volume in all
     ** three dimensions then we can set the initial bounds
     ** instead of calculating them.
     */
     if (msr->param.bPeriodic &&
-	    msr->param.dxPeriod < FLOAT_MAXVAL &&
-	    msr->param.dyPeriod < FLOAT_MAXVAL &&
-	    msr->param.dzPeriod < FLOAT_MAXVAL) {
+	msr->param.dxPeriod < FLOAT_MAXVAL &&
+	msr->param.dyPeriod < FLOAT_MAXVAL &&
+	msr->param.dzPeriod < FLOAT_MAXVAL) {
 	for (j=0;j<3;++j) {
 	    in.bnd.fCenter[j] = msr->fCenter[j];
 	    }
@@ -2226,7 +2264,6 @@ void msrDomainDecompOld(MSR msr,int iRung,int bSplitVA) {
     else {
 	pstCombineBound(msr->pst,NULL,0,&in.bnd,NULL);
 	}
-
     /*
     ** If we are doing SPH we need to make absolutely certain to clear
     ** all neighbor lists here since the pointers in the particles will
@@ -2234,25 +2271,21 @@ void msrDomainDecompOld(MSR msr,int iRung,int bSplitVA) {
     */
     if (msr->param.bDoGas) {
 	pstFastGasCleanup(msr->pst,NULL,0,NULL,NULL);
-    }
-
+	}
     in.bSplitVA = bSplitVA;
     msrprintf(msr,"Domain Decomposition: nActive (Rung %d) %"PRIu64" SplitVA:%d\n",
-	      msr->iLastRungRT,msr->nActive,bSplitVA);
+	msr->iLastRungRT,msr->nActive,bSplitVA);
     msrprintf(msr,"Domain Decomposition... \n");
     sec = msrTime();
-
     pstDomainDecomp(msr->pst,&in,sizeof(in),NULL,NULL);
-
     dsec = msrTime() - sec;
     msrprintf(msr,"Domain Decomposition complete, Wallclock: %f secs\n\n",dsec);
-
-
     if (bRestoreActive) {
 	/* Restore Active data */
 	msrActiveRung(msr,iRung,1);
 	}
     }
+
 
 void msrDomainDecomp(MSR msr,int iRung,int bOthers,int bSplitVA) {
 #ifdef MPI_VERSION
