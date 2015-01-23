@@ -774,12 +774,6 @@ void pstReadFile(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	PKD pkd;
 	MDL mdl;
 	PST pst0;
-	char fname[80];
-	FILE *fp;
-
-	sprintf(fname,"read.debug.%d",pst->idSelf);
-	fp = fopen(fname,"w");
-	assert(fp!=NULL);
 
 	assert(nParts!=NULL);
 	pstOneNodeReadInit(pst,in,sizeof(*in),nParts,&nid);
@@ -789,17 +783,10 @@ void pstReadFile(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	fio = fioLoad(in+1,in->dOmega0,in->dOmegab);
 	assert(fio!=NULL);
 
-	time_t t;
-	char b[100];
 	nStart = nNodeStart + nParts[0];
 	for(i=1; i<pst->nLeaves; ++i) {
 	    int id = mdlSelf(mdl) + i;
 	    int inswap;
-
-	    t = time(NULL);
-            strftime(b,100,"%F %T",localtime(&t));
-	    fprintf(fp,"%s Reading %d particles for %d\n",b,nParts[i], id); fflush(fp);
-
 	    /*
 	     * Read particles into the local storage.
 	     */
@@ -815,20 +802,8 @@ void pstReadFile(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	    pkdSwapAll(pkd, id);
 	    mdlGetReply(mdl,rID,NULL,NULL);
 	    }
-
-	t = time(NULL);
-	strftime(b,100,"%F %T",localtime(&t));
-	fprintf(fp,"%s Reading %d particles for %d\n",b,nParts[0], pst->idSelf); fflush(fp);
 	pkdReadFIO(pkd, fio, nNodeStart, nParts[0], in->dvFac,in->dTuFac);
-
-	t = time(NULL);
-	strftime(b,100,"%F %T",localtime(&t));
-	fprintf(fp,"%s done\n",b); fflush(fp);
-
-	fclose(fp);
-
 	free(nParts);
-
 	fioClose(fio);
 	}
     if (pnOut) *pnOut = 0;
