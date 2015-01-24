@@ -2077,6 +2077,7 @@ static inline uint64_t *replace(MDL mdl,ARC arc, int iInB2) {
 	temp->data = NULL; /*GHOST*/
 	mru_insert(temp,arc->B1);           /* put it on B1 */
 	temp->uId = (temp->uId&_IDMASK_)|_B1_;  /* need to be careful here because it could have been _P1_ */
+/* 	assert( (temp->uId&_WHERE_) == _B1_ ); */
         arc->T1Length--; arc->B1Length++;          /* bookkeep */
 	/*assert(arc->B1Length<=arc->nCache);*/
     }
@@ -2088,6 +2089,7 @@ static inline uint64_t *replace(MDL mdl,ARC arc, int iInB2) {
 	temp->data = NULL; /*GHOST*/
         mru_insert(temp,arc->B2);           /* put it on B2 */
         temp->uId |= _B2_;          /* note that fact */
+/* 	assert( (temp->uId&_WHERE_) == _B2_ ); */
         arc->T2Length--; arc->B2Length++;          /* bookkeep */
     }
     /*assert(data!=NULL);*/
@@ -2128,11 +2130,13 @@ static inline CDB *arcSetPrefetchDataByHash(MDL mdl,ARC arc,uint32_t uIndex,uint
 	    temp->uIndex = uIndex;                          /* bookkeep */
 	    if (inB2) {
 		temp->uId = _T2_|(uId&_IDMASK_);     /* temp->ARC_where = _P1_; and clear the dirty bit for this page */
+/* 		assert( (temp->uId&_WHERE_) == _T2_ ); */
 		mru_insert(temp,arc->T2);                                     /* not seen yet, put on T1 */
 		arc->T2Length++;
 		}
 	    else {
 		temp->uId = _P1_|(uId&_IDMASK_);     /* temp->ARC_where = _P1_; and clear the dirty bit for this page */
+/* 		assert( (temp->uId&_WHERE_) == _P1_ ); */
 		mru_insert(temp,arc->T1);                                     /* not seen yet, put on T1 */
 		arc->T1Length++;
 		/*assert(arc->T1Length+arc->B1Length<=arc->nCache);*/
@@ -2180,6 +2184,7 @@ static inline CDB *arcSetPrefetchDataByHash(MDL mdl,ARC arc,uint32_t uIndex,uint
 	arc->T1Length++;                                                       /* bookkeep: */
 	/*assert(arc->T1Length+arc->B1Length<=arc->nCache);*/
 	temp->uId = _P1_|(uId&_IDMASK_);     /* temp->ARC_where = _P1_; and clear the dirty bit for this page */
+/* 	assert( (temp->uId&_WHERE_) == _P1_ ); */
 	temp->uIndex = uIndex;
 	temp->coll = arc->Hash[uHash];                  /* add to collision chain */
 	arc->Hash[uHash] = temp;                               /* insert into hash table */
@@ -2287,6 +2292,7 @@ static void *Aquire(MDL mdl, int cid, int iIndex, int id, int bLock) {
 	}
 
     /* Okay, now try other thread caches */
+#if 0
     if (temp == NULL) {
        int iMDL;
        for (iMDL = 0; iMDL < mdl->base.nCores; ++iMDL) {
@@ -2305,26 +2311,33 @@ static void *Aquire(MDL mdl, int cid, int iIndex, int id, int bLock) {
                    if (mdlCore(mdl)<iMDL) pthread_mutex_lock(&arc->mux);
                    pthread_mutex_lock(&tarc->mux);
                    if (mdlCore(mdl)>iMDL) pthread_mutex_lock(&arc->mux);
-		   if (temp->uIndex == uIndex && (temp->uId&_IDMASK_) == tuId && temp->data)
-		       temp = arcSetPrefetchDataByHash(mdl,arc,iIndex,id,temp->data,uHash);
+		   /* Look again */
+		   for( temp = tarc->Hash[uHash]; temp; temp = temp->coll ) {
+		       if (temp->uIndex == uIndex && (temp->uId&_IDMASK_) == tuId) break;
+		       }
+		   if (temp && temp->data)
+		       temp = arcSetPrefetchDataByHash(mdl,arc,iIndex,tuId,temp->data,uHash);
 		   else temp = NULL;
                    pthread_mutex_unlock(&arc->mux);
                    pthread_mutex_unlock(&tarc->mux);
-		   break; /* Now treat it as a cache hit; it is. */
+		   if (temp) break; /* Now treat it as a cache hit; it is. */
                    }
                }
            }
        }
+#endif
     if (temp != NULL) {                       /* found in cache directory? */
 	switch (temp->uId & _WHERE_) {                   /* yes, which list? */
 	case _P1_:
 	    temp->uId = uId;     /* clears prefetch flag and sets WHERE = _T1_ and dirty bit */
+/* 	    assert( (temp->uId&_WHERE_) == _T1_ ); */
 	    remove_from_list(temp);                           /* take off T1 list */
 	    mru_insert(temp,arc->T1);                         /* first access but recently prefetched, put on T1 */
 	    goto cachehit;
 	case _T1_:
 	    arc->T1Length--; arc->T2Length++;
 	    temp->uId |= _T2_;
+/* 	    assert( (temp->uId&_WHERE_) == _T2_ ); */
 	    /* fall through */
 	case _T2_:
 	    remove_from_list(temp);                                   /* take off whichever list */
@@ -2348,7 +2361,8 @@ static void *Aquire(MDL mdl, int cid, int iIndex, int id, int bLock) {
 	    ** Can initiate the data request right here, and do the rest while waiting...
 	    */
 	    queueCacheRequest(mdl,cid,iIndex,id);
-
+/* 	    assert(arc->B1->next != arc->B1); */
+/* 	    assert(arc->B1Length>0); */
 	    rat = arc->B2Length/arc->B1Length;
 	    if (rat < 1) rat = 1;
 	    arc->target_T1 += rat;
@@ -2361,6 +2375,8 @@ static void *Aquire(MDL mdl, int cid, int iIndex, int id, int bLock) {
 	    ** Can initiate the data request right here, and do the rest while waiting...
 	    */
 	    queueCacheRequest(mdl,cid,iIndex,id);
+/* 	    assert(arc->B2->next != arc->B2); */
+/* 	    assert(arc->B2Length>0); */
 
 	    rat = arc->B1Length/arc->B2Length;
 	    if (rat < 1) rat = 1;
@@ -2373,6 +2389,7 @@ static void *Aquire(MDL mdl, int cid, int iIndex, int id, int bLock) {
 	    remove_from_list(temp);                                   /* take off whichever list */
 	    temp->data = replace(mdl,arc,inB2);                                /* find a place to put new page */
 	    temp->uId = _T2_|uId;     /* temp->ARC_where = _T2_; and set the dirty bit for this page */
+/* 	    assert( (temp->uId&_WHERE_) == _T2_ ); */
 	    temp->uIndex = uIndex;                          /* bookkeep */
 	    mru_insert(temp,arc->T2);                                     /* seen twice recently, put on T2 */
 	    arc->T2Length++;                 /* JS: this was not in the original code. Should it be? bookkeep */
@@ -2428,13 +2445,14 @@ static void *Aquire(MDL mdl, int cid, int iIndex, int id, int bLock) {
 		temp = lru_remove(arc->Free);
 		assert(temp->data != NULL);               /* This CDB should have an unused page associated with it */
 		temp->data[-1] = _ARC_MAGIC_; /* this also sets nLock to zero */
-	    }
+		}
 	    }
 	mru_insert(temp,arc->T1);                                             /* seen once recently, put on T1 */
 	arc->T1Length++;                                                       /* bookkeep: */
 	/*assert(arc->T1Length+arc->B1Length<=arc->nCache);*/
 	pthread_mutex_unlock(&arc->mux);
 	temp->uId = uId;                  /* temp->dirty = dirty;  p->ARC_where = _T1_; as well! */
+/* 	assert( (temp->uId&_WHERE_) == _T1_ ); */
 	temp->uIndex = uIndex;
 	finishCacheRequest(mdl,cid,iIndex,id,temp);
 	pthread_mutex_lock(&arc->mux);
