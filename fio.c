@@ -3649,12 +3649,12 @@ typedef struct {
     } graficFile;
 
 typedef struct {
-    graficFile fp_velcx, fp_velcx2;
-    graficFile fp_velcy, fp_velcy2;
-    graficFile fp_velcz, fp_velcz2;
-    graficFile fp_velbx, fp_velbx2;
-    graficFile fp_velby, fp_velby2;
-    graficFile fp_velbz, fp_velbz2;
+    graficFile fp_velcx, fp_velcx2, fp_poscx;
+    graficFile fp_velcy, fp_velcy2, fp_poscy;
+    graficFile fp_velcz, fp_velcz2, fp_poscz;
+    graficFile fp_velbx, fp_velbx2, fp_posbx;
+    graficFile fp_velby, fp_velby2, fp_posby;
+    graficFile fp_velbz, fp_velbz2, fp_posbz;
     } graficLevel;
 
 typedef struct {
@@ -3948,6 +3948,9 @@ static int graficSeek(FIO fio,uint64_t iPart,FIO_SPECIES eSpecies) {
 	graficSeekFile(&gio->level[0].fp_velcx2,iPart);
 	graficSeekFile(&gio->level[0].fp_velcy2,iPart);
 	graficSeekFile(&gio->level[0].fp_velcz2,iPart);
+	graficSeekFile(&gio->level[0].fp_poscx,iPart);
+	graficSeekFile(&gio->level[0].fp_poscy,iPart);
+	graficSeekFile(&gio->level[0].fp_poscz,iPart);
 	}
     else {
 	graficSeekFile(&gio->level[0].fp_velbx,iPart);
@@ -3956,6 +3959,9 @@ static int graficSeek(FIO fio,uint64_t iPart,FIO_SPECIES eSpecies) {
 	graficSeekFile(&gio->level[0].fp_velbx2,iPart);
 	graficSeekFile(&gio->level[0].fp_velby2,iPart);
 	graficSeekFile(&gio->level[0].fp_velbz2,iPart);
+	graficSeekFile(&gio->level[0].fp_posbx,iPart);
+	graficSeekFile(&gio->level[0].fp_posby,iPart);
+	graficSeekFile(&gio->level[0].fp_posbz,iPart);
 	}
     return 0;
     }
@@ -3972,14 +3978,17 @@ static double wrap(double v) {
     }
 
 /* Apply scaling factors to position and velocity */
-static void graficSetPV(FIO fio,double *r,double *v,double x,double y,double z,double x2,double y2,double z2) {
+static void graficSetPV(FIO fio,double *r,double *v,
+    double vx1,double vy1,double vz1,
+    double vx2,double vy2,double vz2,
+    double x, double y, double z) {
     fioGrafic *gio = (fioGrafic *)fio;
-    r[0] = wrap((graficCellCenter(&gio->level[0],0) + x * gio->pFactor1 + x2 * gio->pFactor2) * gio->iLbox - 0.5);
-    r[1] = wrap((graficCellCenter(&gio->level[0],1) + y * gio->pFactor1 + y2 * gio->pFactor2) * gio->iLbox - 0.5);
-    r[2] = wrap((graficCellCenter(&gio->level[0],2) + z * gio->pFactor1 + z2 * gio->pFactor2) * gio->iLbox - 0.5);
-    v[0] = (x+x2) * gio->vFactor;
-    v[1] = (y+y2) * gio->vFactor;
-    v[2] = (z+z2) * gio->vFactor;
+    r[0] = wrap((graficCellCenter(&gio->level[0],0) + x + vx1 * gio->pFactor1 + vx2 * gio->pFactor2) * gio->iLbox - 0.5);
+    r[1] = wrap((graficCellCenter(&gio->level[0],1) + y + vy1 * gio->pFactor1 + vy2 * gio->pFactor2) * gio->iLbox - 0.5);
+    r[2] = wrap((graficCellCenter(&gio->level[0],2) + z + vz1 * gio->pFactor1 + vz2 * gio->pFactor2) * gio->iLbox - 0.5);
+    v[0] = (vx1+vx2) * gio->vFactor;
+    v[1] = (vy1+vy2) * gio->vFactor;
+    v[2] = (vz1+vz2) * gio->vFactor;
     }
 
 static int graficReadDark(FIO fio,
@@ -3995,7 +4004,10 @@ static int graficReadDark(FIO fio,
 	graficRead(&gio->level[0].fp_velcz),
 	graficRead(&gio->level[0].fp_velcx2),
 	graficRead(&gio->level[0].fp_velcy2),
-	graficRead(&gio->level[0].fp_velcz2) );
+	graficRead(&gio->level[0].fp_velcz2),
+	graficRead(&gio->level[0].fp_poscx),
+	graficRead(&gio->level[0].fp_poscy),
+	graficRead(&gio->level[0].fp_poscz) );
     *pfMass = gio->mValueCDM;
     *pfSoft = gio->sValue;
     if ( pfPot) *pfPot = 0.0f;
@@ -4017,7 +4029,10 @@ static int graficReadSph(
 	graficRead(&gio->level[0].fp_velbz),
 	graficRead(&gio->level[0].fp_velbx2),
 	graficRead(&gio->level[0].fp_velby2),
-	graficRead(&gio->level[0].fp_velbz2) );
+	graficRead(&gio->level[0].fp_velbz2),
+	graficRead(&gio->level[0].fp_posbx),
+	graficRead(&gio->level[0].fp_posby),
+	graficRead(&gio->level[0].fp_posbz) );
     *pfMass = gio->mValueBar;
     *pfSoft = gio->sValue;
     if (pfPot) *pfPot = 0.0;
@@ -4036,12 +4051,18 @@ static void graficClose(FIO fio) {
     if ( gio->level[0].fp_velcx2.fp!=NULL ) fclose(gio->level[0].fp_velcx2.fp);
     if ( gio->level[0].fp_velcy2.fp!=NULL ) fclose(gio->level[0].fp_velcy2.fp);
     if ( gio->level[0].fp_velcz2.fp!=NULL ) fclose(gio->level[0].fp_velcz2.fp);
+    if ( gio->level[0].fp_poscx.fp!=NULL )  fclose(gio->level[0].fp_poscx.fp);
+    if ( gio->level[0].fp_poscy.fp!=NULL )  fclose(gio->level[0].fp_poscy.fp);
+    if ( gio->level[0].fp_poscz.fp!=NULL )  fclose(gio->level[0].fp_poscz.fp);
     if ( gio->level[0].fp_velbx.fp!=NULL )  fclose(gio->level[0].fp_velbx.fp);
     if ( gio->level[0].fp_velby.fp!=NULL )  fclose(gio->level[0].fp_velby.fp);
     if ( gio->level[0].fp_velbz.fp!=NULL )  fclose(gio->level[0].fp_velbz.fp);
     if ( gio->level[0].fp_velbx2.fp!=NULL ) fclose(gio->level[0].fp_velbx2.fp);
     if ( gio->level[0].fp_velby2.fp!=NULL ) fclose(gio->level[0].fp_velby2.fp);
     if ( gio->level[0].fp_velbz2.fp!=NULL ) fclose(gio->level[0].fp_velbz2.fp);
+    if ( gio->level[0].fp_posbx.fp!=NULL )  fclose(gio->level[0].fp_posbx.fp);
+    if ( gio->level[0].fp_posby.fp!=NULL )  fclose(gio->level[0].fp_posby.fp);
+    if ( gio->level[0].fp_posbz.fp!=NULL )  fclose(gio->level[0].fp_posbz.fp);
     free(gio);
     }
 
@@ -4241,8 +4262,10 @@ static FIO graficOpenDirectory(fioFileList *fileList,double UNUSED(dOmega0),doub
     assert(gio->level);
     gio->level[0].fp_velcx.fp = gio->level[0].fp_velcy.fp = gio->level[0].fp_velcz.fp = NULL;
     gio->level[0].fp_velcx2.fp = gio->level[0].fp_velcy2.fp = gio->level[0].fp_velcz2.fp = NULL;
+    gio->level[0].fp_poscx.fp = gio->level[0].fp_poscy.fp = gio->level[0].fp_poscz.fp = NULL;
     gio->level[0].fp_velbx.fp = gio->level[0].fp_velby.fp = gio->level[0].fp_velbz.fp = NULL;
     gio->level[0].fp_velbx2.fp = gio->level[0].fp_velby2.fp = gio->level[0].fp_velbz2.fp = NULL;
+    gio->level[0].fp_posbx.fp = gio->level[0].fp_posby.fp = gio->level[0].fp_posbz.fp = NULL;
 
     for( i=0; i<FIO_SPECIES_LAST; i++)
 	gio->fio.nSpecies[i] = 0;
@@ -4280,6 +4303,14 @@ static FIO graficOpenDirectory(fioFileList *fileList,double UNUSED(dOmega0),doub
     strcpy(fileName+n,"ic_velcz2");
     graficOpen(&gio->level[0].fp_velcz2,fileName);
 
+    /* MUSIC stores positions for 2LPT */
+    strcpy(fileName+n,"ic_poscx");
+    graficOpen(&gio->level[0].fp_poscx,fileName);
+    strcpy(fileName+n,"ic_poscy");
+    graficOpen(&gio->level[0].fp_poscy,fileName);
+    strcpy(fileName+n,"ic_poscz");
+    graficOpen(&gio->level[0].fp_poscz,fileName);
+
     gio->iOrder = 0L;
 
     assert(graficCompare(&gio->level[0].fp_velcx,&gio->level[0].fp_velcy));
@@ -4316,6 +4347,13 @@ static FIO graficOpenDirectory(fioFileList *fileList,double UNUSED(dOmega0),doub
 	strcpy(fileName+n,"ic_velbz2");
 	graficOpen(&gio->level[0].fp_velbz2,fileName);
 
+	strcpy(fileName+n,"ic_posbx");
+	graficOpen(&gio->level[0].fp_posbx,fileName);
+	strcpy(fileName+n,"ic_posby");
+	graficOpen(&gio->level[0].fp_posby,fileName);
+	strcpy(fileName+n,"ic_posbz");
+	graficOpen(&gio->level[0].fp_posbz,fileName);
+
 	gio->fio.nSpecies[FIO_SPECIES_SPH] = gio->fio.nSpecies[FIO_SPECIES_DARK];
 
 	assert(graficCompare(&gio->level[0].fp_velbx,&gio->level[0].fp_velby));
@@ -4336,11 +4374,15 @@ static FIO graficOpenDirectory(fioFileList *fileList,double UNUSED(dOmega0),doub
     f2 = 2.0 * pow(omega,6.0/11.0);
     f1 = fomega(gio->level[0].fp_velcx.hdr.astart,gio->level[0].fp_velcx.hdr.omegam,gio->level[0].fp_velcx.hdr.omegav);
 
-    gio->pFactor1 = gio->pFactor2 = gio->level[0].fp_velcx.hdr.astart / (
-        gio->level[0].fp_velcx.hdr.H0
-        * dladt(gio->level[0].fp_velcx.hdr.astart,gio->level[0].fp_velcx.hdr.omegam,gio->level[0].fp_velcx.hdr.omegav) );
-    gio->pFactor1 /= f1;
-    gio->pFactor2 /= f2;
+    /* If positions are given, do not use the velocities */
+    if (gio->level[0].fp_poscx.fp != NULL) gio->pFactor1 = gio->pFactor2 = 0.0;
+    else {
+	gio->pFactor1 = gio->pFactor2 = gio->level[0].fp_velcx.hdr.astart / (
+	    gio->level[0].fp_velcx.hdr.H0
+	    * dladt(gio->level[0].fp_velcx.hdr.astart,gio->level[0].fp_velcx.hdr.omegam,gio->level[0].fp_velcx.hdr.omegav) );
+	gio->pFactor1 /= f1;
+	gio->pFactor2 /= f2;
+	}
 
     gio->vFactor  = sqrt(8.0*pi/3.0) * gio->iLbox / (gio->level[0].fp_velcx.hdr.H0*gio->level[0].fp_velcx.hdr.astart);
     gio->mValueCDM  = (gio->level[0].fp_velcx.hdr.omegam-dOmegab) / gio->fio.nSpecies[FIO_SPECIES_DARK];
