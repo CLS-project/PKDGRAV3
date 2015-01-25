@@ -33,6 +33,7 @@ fi
 AC_SUBST(MPICC)
 
 AC_DEFINE([HAVE_ROMBERG], 1, [Use the pkdgrav3 Romberg integrator.])
+AC_DEFINE([NAIVE_DOMAIN_DECOMP], 1, [Use a simplified domain decomposition.])
 
 # Cooling
 AC_ARG_ENABLE(cooling,
