@@ -55,13 +55,14 @@ static void InitializeParticles(PKD pkd,int nTrees,TREESPEC *pSpec,BND *pbnd) {
     /*
     ** Initialize the temporary particles.
     */
+#ifdef USE_PLITE
     for (i=0;i<pkd->nLocal;++i) {
 	p = pkdParticle(pkd,i);
 	for (j=0;j<3;++j) pLite[i].r[j] = p->r[j];
 	pLite[i].i = i;
 	pLite[i].uRung = (bOnlyMarked ? p->bMarked : p->uRung);
 	}
-
+#endif
     /* Sometimes the simple trees are the best trees */
     if (nTrees==1 && pSpec[0].uRungFirst==0 && pSpec[0].uRungLast == MAX_RUNG) {
 	pNode = pkdTreeNode(pkd,pSpec[0].uCell);
@@ -129,16 +130,21 @@ static void InitializeParticles(PKD pkd,int nTrees,TREESPEC *pSpec,BND *pbnd) {
 */
 #define TEMP_S_INCREASE 100
 void BuildTemp(PKD pkd,int iNode,int M) {
+#ifdef USE_PLITE
     PLITE *p = pkd->pLite;
+    PLITE t;
+#else
+    PARTICLE *pi, *pj;
+#endif
     KDN *pNode = pkdTreeNode(pkd,iNode);
     BND *bnd,*lbnd,*rbnd;
     KDN *pLeft, *pRight;
-    PLITE t;
     FLOAT fSplit;
     int *S;		/* this is the stack */
     int s,ns;
     int iLeft,iRight;
-    int d,i,j;
+    int d;
+    int i,j;
     int nr,nl;
     int lc,rc;
     int nBucket = 0;
@@ -187,6 +193,7 @@ void BuildTemp(PKD pkd,int iNode,int M) {
 	** Now start the partitioning of the particles about
 	** fSplit on dimension given by d.
 	*/
+#ifdef USE_PLITE
 	i = pNode->pLower;
 	j = pNode->pUpper;
 	while (i <= j) {
@@ -212,7 +219,30 @@ void BuildTemp(PKD pkd,int iNode,int M) {
 		else break;
 		}
 	    }
-
+#else
+	pi = pkdParticle(pkd,pNode->pLower);
+	pj = pkdParticle(pkd,pNode->pUpper);
+	while (pi <= pj) {
+	    if (pi->r[d] < fSplit) pi = (PARTICLE *)(((char *)pi) + pkdParticleSize(pkd));
+	    else break;
+	    }
+	while (pi <= pj) {
+	    if (fSplit < pj->r[d]) pj = (PARTICLE *)(((char *)pj) - pkdParticleSize(pkd));
+	    else break;
+	    }
+	if (pi < pj) {
+	    pkdSwapParticle(pkd,pi,pj);
+	    while (1) {
+		while ((pi = (PARTICLE *)(((char *)pi) + pkdParticleSize(pkd)))->r[d] < fSplit);
+		while (fSplit < (pj = (PARTICLE *)(((char *)pj) - pkdParticleSize(pkd)))->r[d]);
+		if (pi < pj) {
+		    pkdSwapParticle(pkd,pi,pj);
+		    }
+		else break;
+		}
+	    }
+	i = ((char *)pi - (char *)pkdParticleBase(pkd)) / pkdParticleSize(pkd);
+#endif
 	nl = i - pNode->pLower;
 	nr = pNode->pUpper - i + 1;
 	if (nl > 0 && nr > 0) {
@@ -341,6 +371,7 @@ DonePart:
 ** do for now.
 */
 void ShuffleParticles(PKD pkd,int iStart) {
+#ifdef USE_PLITE
     PARTICLE *p, *pNew;
     int i,iNew,iTemp;
 
@@ -366,6 +397,7 @@ void ShuffleParticles(PKD pkd,int iStart) {
 	pkd->pLite[i].i = i;
 	pkdLoadParticle(pkd,p);
 	}
+#endif
     }
 
 static double zeroV[3] = {0.0,0.0,0.0};
