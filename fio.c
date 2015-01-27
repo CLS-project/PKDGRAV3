@@ -3662,6 +3662,7 @@ typedef struct {
     uint64_t iOrder;
     double   dTime;
     double   vFactor;
+    double   pFactor0;
     double   pFactor1;
     double   pFactor2;
     double   iLbox;
@@ -3983,9 +3984,9 @@ static void graficSetPV(FIO fio,double *r,double *v,
     double vx2,double vy2,double vz2,
     double x, double y, double z) {
     fioGrafic *gio = (fioGrafic *)fio;
-    r[0] = wrap((graficCellCenter(&gio->level[0],0) + x + vx1 * gio->pFactor1 + vx2 * gio->pFactor2) * gio->iLbox - 0.5);
-    r[1] = wrap((graficCellCenter(&gio->level[0],1) + y + vy1 * gio->pFactor1 + vy2 * gio->pFactor2) * gio->iLbox - 0.5);
-    r[2] = wrap((graficCellCenter(&gio->level[0],2) + z + vz1 * gio->pFactor1 + vz2 * gio->pFactor2) * gio->iLbox - 0.5);
+    r[0] = wrap((graficCellCenter(&gio->level[0],0) + x * gio->pFactor0 + vx1 * gio->pFactor1 + vx2 * gio->pFactor2) * gio->iLbox - 0.5);
+    r[1] = wrap((graficCellCenter(&gio->level[0],1) + y * gio->pFactor0 + vy1 * gio->pFactor1 + vy2 * gio->pFactor2) * gio->iLbox - 0.5);
+    r[2] = wrap((graficCellCenter(&gio->level[0],2) + z * gio->pFactor0 + vz1 * gio->pFactor1 + vz2 * gio->pFactor2) * gio->iLbox - 0.5);
     v[0] = (vx1+vx2) * gio->vFactor;
     v[1] = (vy1+vy2) * gio->vFactor;
     v[2] = (vz1+vz2) * gio->vFactor;
@@ -4223,7 +4224,6 @@ static FIO graficOpenDirectory(fioFileList *fileList,double UNUSED(dOmega0),doub
     size_t n;
     int i;
     char *fileName;
-    double omega, f1, f2;
     double pi = 4.0 * atan(1.0);
     const char *dirName = fileList->fileInfo[0].pszFilename;
 
@@ -4368,15 +4368,17 @@ static FIO graficOpenDirectory(fioFileList *fileList,double UNUSED(dOmega0),doub
 
     /* Makes position dimensionless (i.e., be between 0 and 1) */
     gio->iLbox = 1.0 / (gio->level[0].fp_velcx.hdr.n[0]*gio->level[0].fp_velcx.hdr.dx);
-    omega = getOmega(
-	gio->level[0].fp_velcx.hdr.astart,gio->level[0].fp_velcx.hdr.H0,
-	gio->level[0].fp_velcx.hdr.omegam,gio->level[0].fp_velcx.hdr.omegav);
-    f2 = 2.0 * pow(omega,6.0/11.0);
-    f1 = fomega(gio->level[0].fp_velcx.hdr.astart,gio->level[0].fp_velcx.hdr.omegam,gio->level[0].fp_velcx.hdr.omegav);
 
     /* If positions are given, do not use the velocities */
+    gio->pFactor0 = 100.0 / gio->level[0].fp_velcx.hdr.H0; /* MUSIC positions are in MPC/h for some reason */
     if (gio->level[0].fp_poscx.fp != NULL) gio->pFactor1 = gio->pFactor2 = 0.0;
     else {
+	double omega, f1, f2;
+	omega = getOmega(
+	    gio->level[0].fp_velcx.hdr.astart,gio->level[0].fp_velcx.hdr.H0,
+	    gio->level[0].fp_velcx.hdr.omegam,gio->level[0].fp_velcx.hdr.omegav);
+	f2 = 2.0 * pow(omega,6.0/11.0);
+	f1 = fomega(gio->level[0].fp_velcx.hdr.astart,gio->level[0].fp_velcx.hdr.omegam,gio->level[0].fp_velcx.hdr.omegav);
 	gio->pFactor1 = gio->pFactor2 = gio->level[0].fp_velcx.hdr.astart / (
 	    gio->level[0].fp_velcx.hdr.H0
 	    * dladt(gio->level[0].fp_velcx.hdr.astart,gio->level[0].fp_velcx.hdr.omegam,gio->level[0].fp_velcx.hdr.omegav) );
