@@ -20,7 +20,6 @@ struct smExtraArray {
     uint32_t iIndex;
     char bInactive;
     char bDone;
-    char bArc;
 };
 
 struct smGroupArray {
