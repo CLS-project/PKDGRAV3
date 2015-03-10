@@ -1880,7 +1880,11 @@ void msrWrite(MSR msr,const char *pszFileName,double dTime,int bCheckpoint) {
     double sec,dsec;
     uint64_t N;
 
+#ifdef NAIVE_DOMAIN_DECOMP
+    msrReorder(msr);
+#else
     if ( msr->iLastRungRT >= 0 ) msrReorder(msr);
+#endif
     assert( msr->iLastRungRT < 0 );
 
     /*
