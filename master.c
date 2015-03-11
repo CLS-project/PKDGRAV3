@@ -1,6 +1,7 @@
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
+#define NAIVE_DOMAIN_DECOMP
 
 #define _LARGEFILE_SOURCE
 #define _FILE_OFFSET_BITS 64
@@ -2117,7 +2118,23 @@ void msrDomainDecompOld(MSR msr,int iRung,int bSplitVA) {
 	assert(iRungDD >= iRungRT);
 	assert(iRungRT >= iRungSD);
 #ifdef NAIVE_DOMAIN_DECOMP
-	if (iRung <= iRungRT) {
+	if (msr->iLastRungRT < 0) {
+	    /*
+	    ** We need to do a full domain decompotition with iRungRT particles being active.
+	    ** However, since I am not sure what the exact state of the domains can be at this point
+	    ** I had better do a split dim find as well.
+	    */
+	    msr->iLastRungRT = 0;
+	    msrActiveRung(msr,msr->iLastRungRT,1);
+	    bRestoreActive = 1;
+	    in.bDoRootFind = 1;
+	    in.bDoSplitDimFind = 1;
+	    if (msr->param.bVRungStat) {
+		printf("Doing Domain Decomposition (nActive = %"PRIu64"/%"PRIu64", iRung:%d iRungRT:%d)\n",
+		    msr->nActive,msr->N,iRung,iRungRT);
+		}
+	    }
+	else if (iRung <= iRungRT) {
 	    /*
 	    ** We need to do a full domain decomposition with *ALL* particles being active.
 	    */
