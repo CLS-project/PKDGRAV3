@@ -1,7 +1,6 @@
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
-#define NAIVE_DOMAIN_DECOMP
 
 #define _LARGEFILE_SOURCE
 #define _FILE_OFFSET_BITS 64
