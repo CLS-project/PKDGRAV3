@@ -895,7 +895,7 @@ void pkdMeasurePk(PKD pkd, double dCenter[3], double dRadius,
     fftNormalize = 1.0 / (1.0*nGrid*nGrid*nGrid);
 
     mdlFFTInitialize(pkd->mdl,&fft,nGridFFT,nGridFFT,nGridFFT,0,0);
-    fftData = mdlFFTMAlloc( pkd->mdl, fft );
+    fftData = mdlFFTMalloc( pkd->mdl, fft );
     fftDataK = (fftw_complex *)fftData;
 
     for( i=0; i<fft->rgrid->nlocal; i++ ) fftData[i] = 0.0;

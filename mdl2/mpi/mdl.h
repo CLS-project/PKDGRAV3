@@ -24,13 +24,32 @@
 #endif
 #endif
 #include "opa_queue.h"
-typedef struct CacheDataBucket {
-    uint32_t uId;       /* upper 4 bits encode ARC_where and dirty bit */
-    uint32_t uIndex;    /* page's ID number */
-    struct CacheDataBucket *coll; /* collision chain for hash table */
+
+typedef struct {
+    OPA_Queue_element_hdr_t hdr;
+    uint32_t iServiceID;
+    uint32_t iCoreFrom;
+    } MDLserviceElement;
+
+typedef struct  {
     struct CacheDataBucket *next;      /* for doubly linked list */
     struct CacheDataBucket *prev;      /* for doubly linked list */
+    } CacheDataLinks;
+
+typedef struct CacheDataBucket {
+    /*
+    ** When we are flushing, the element has been removed from all lists,
+    ** and from the hash table. We can "send" the CDB to the MPI node and
+    ** get it returned to us later.
+    */
+    union {
+	CacheDataLinks  links;
+	MDLserviceElement svc;
+	} hdr;
+    struct CacheDataBucket *coll; /* collision chain for hash table */
     uint64_t *data;      /* page's location in cache */
+    uint32_t uId;       /* upper 4 bits encode ARC_where and dirty bit */
+    uint32_t uIndex;    /* page's ID number */
 } CDB;
 
 
@@ -74,15 +93,7 @@ extern "C" {
 #define MDL_CHECK_MASK  	0x7f
 
 typedef struct {
-    OPA_Queue_element_hdr_t hdr;
-    uint32_t iServiceID;
-    uint32_t iCoreFrom;
-    } MDLserviceElement;
-
-typedef struct {
-    OPA_Queue_element_hdr_t hdr;
-    uint32_t iServiceID;
-    uint32_t iCoreFrom;
+    MDLserviceElement svc;
     void *buf;
     int count;
     int target;
@@ -127,9 +138,7 @@ typedef struct cacheHeader {
     } CAHEAD;
 
 typedef struct {
-    OPA_Queue_element_hdr_t hdr;
-    uint32_t iServiceID;
-    uint32_t iCoreFrom;
+    MDLserviceElement svc;
     void *pLine;
     CAHEAD caReq;
     } MDLserviceCacheReq;
@@ -170,7 +179,6 @@ typedef struct {
     int iCaBufSize;  /* Cache buffer size */
     char *pszRcv; /* Cache receive buffer */
 
-    int *pmidRpl;
     MPI_Request *pReqRpl;
 
     MPI_Request *pSendRecvReq;
@@ -374,7 +382,7 @@ typedef double fftw_real;
 size_t mdlFFTlocalCount(MDL mdl,int n1,int n2,int n3,int *nz,int *sz,int *ny,int*sy);
 size_t mdlFFTInitialize(MDL mdl,MDLFFT *fft,int nx,int ny,int nz,int bMeasure,double *data);
 void mdlFFTFinish( MDL mdl, MDLFFT fft );
-fftw_real *mdlFFTMAlloc( MDL mdl, MDLFFT fft );
+fftw_real *mdlFFTMalloc( MDL mdl, MDLFFT fft );
 void mdlFFTFree( MDL mdl, MDLFFT fft, void *p );
 void mdlFFT( MDL mdl, MDLFFT fft, fftw_real *data);
 void mdlIFFT( MDL mdl, MDLFFT fft, fftw_complex *data);

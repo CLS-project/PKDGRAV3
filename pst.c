@@ -3897,6 +3897,8 @@ void pstGenerateIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	cic.dic[3].r = cic.dic[2].r + in->nPerNode;
 	cic.dic[4].r = cic.dic[3].r + in->nPerNode;
 	cic.dic[5].r = cic.dic[4].r + in->nPerNode;
+	cic.vel = (gridpos *)cic.dic[3].r; /* We overlap here */
+
 	assert(cic.dic[8].r+in->nPerNode <= (double *)pkdParticle(plcl->pkd,in->nPerNode));
 
 	mdlFFTInitialize(pst->mdl,&cic.fft,in->nGrid,in->nGrid,in->nGrid,0,cic.dic[0].r);

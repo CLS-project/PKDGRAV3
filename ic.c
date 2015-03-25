@@ -277,6 +277,11 @@ void pkdGenerateNoise(PKD pkd,MDLFFT fft,double *ic,
     fullKey[4] = fullKey[3];
     fullKey[5] = fullKey[3];
 
+    /* Remember, we take elements from the stream and because we have increased the
+    ** precision, we take pairs. Also, the method of determining Gaussian deviates
+    ** also requires pairs (so four elements from the random stream), and some of
+    ** these pairs are rejected.
+    */
     g = RngStream_CreateStream ("IC");
     RngStream_IncreasedPrecis (g, 1);
     RngStream_SetSeed(g,fullKey);
@@ -288,12 +293,11 @@ void pkdGenerateNoise(PKD pkd,MDLFFT fft,double *ic,
 	RngStream_ResetStartStream (g);
 	RngStream_AdvanceState (g, 0, (1L<<40)*k );
 	for(j=sy; j<ey; ++j) {
-//	    RngStream_ResetStartStream (g);
-//	    RngStream_AdvanceState (g, 0, (1L<<40)*k + (1L<<20)*j );
+	    RngStream_ResetStartStream (g);
+	    RngStream_AdvanceState (g, 0, (1L<<40)*k + (1L<<20)*j );
 	    for(i=0; i<fft->rgrid->n1; i += 2) {
 		idx = mdlFFTrIdx(fft,i,j,k);
 		pairg(g,&ic[idx],&ic[idx+1]);
-//		printf("%2d,%2d,%2d -> %4d %+7.5f %+7.5f\n", k, j, i, idx, ic[idx], ic[idx+1] );
 		}
 	    }
 	}

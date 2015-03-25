@@ -1121,6 +1121,7 @@ struct inConstructIC {
     MDLFFT fft;
     gridptr dic[6];
     gridpos *pos;
+    gridpos *vel;
     /* Threads get parts of each slab */
     uint64_t iBegYr, iEndYr;
     uint64_t iBegZk, iEndZk;
