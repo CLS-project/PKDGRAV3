@@ -70,7 +70,7 @@
 #define MDL_SE_CACHE_OPEN       7
 #define MDL_SE_CACHE_CLOSE      8
 #define MDL_SE_CACHE_REQUEST    9
-
+#define MDL_SE_CACHE_FLUSH     10
 #define MDL_SE_MPI_SEND        11
 #define MDL_SE_MPI_SSEND       12
 #define MDL_SE_MPI_RECV        13
@@ -631,6 +631,9 @@ static int checkMPI(MDL mdl) {
 		iProc = mdlThreadToProc(mdl,caReq->caReq.idTo);
 		mpi->pThreadCacheReq[caReq->svc.iCoreFrom] = caReq;
 		MPI_Send(&caReq->caReq,sizeof(CAHEAD),MPI_BYTE,iProc,MDL_TAG_CACHECOM, mpi->commMDL);
+		break;
+	    case MDL_SE_CACHE_FLUSH:
+		mdlSendThreadMessage(mdl,0,qhdr->iCoreFrom,qhdr,MDL_SE_CACHE_FLUSH);
 		break;
 #ifdef MDL_FFTW
 	    case MDL_SE_FFT_SIZES:
@@ -1870,13 +1873,14 @@ void mdlCacheBarrier(MDL mdl,int cid) {
     mdl_MPI_Barrier(mdl);
     }
 
+/* This CDB must not be on any list when destage is called */
 static CDB *destage(MDL mdl, CDB *temp) {
     assert(temp->data != NULL);
     assert(temp->data[-1] == _ARC_MAGIC_);
     if (temp->uId & _DIRTY_) {     /* if dirty, evict before free */
-//	printf("Flushing\n");
-
-
+	/* Send the CDB to the MPI thread for flushing, and wait for it to come back */
+	mdlSendToMPI(mdl,&temp->hdr.svc,MDL_SE_CACHE_FLUSH);
+	mdlWaitThreadQueue(mdl,0);
 	temp->uId &= ~ _DIRTY_;    /* No longer dirty */
 	}
     return temp;
@@ -1996,8 +2000,8 @@ static inline uint64_t *replace(MDL mdl,ARC arc, int iInB2) {
     assert(0);
     if (0) {  /* using a Duff's device to handle the replacement */
     replace_T1: 
-	destage(mdl,temp);     /* if dirty, evict before overwrite */
         remove_from_list(temp);          /* grab LRU unlocked page from T1 */
+	destage(mdl,temp);     /* if dirty, evict before overwrite */
 	data = temp->data;
 	temp->data = NULL; /*GHOST*/
 	mru_insert(temp,arc->B1);           /* put it on B1 */
@@ -2008,8 +2012,8 @@ static inline uint64_t *replace(MDL mdl,ARC arc, int iInB2) {
     }
     if (0) {
     replace_T2:
-	destage(mdl,temp);     /* if dirty, evict before overwrite */
         remove_from_list(temp);          /* grab LRU unlocked page from T2 */
+	destage(mdl,temp);     /* if dirty, evict before overwrite */
 	data = temp->data;
 	temp->data = NULL; /*GHOST*/
         mru_insert(temp,arc->B2);           /* put it on B2 */
