@@ -2,7 +2,7 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.59)
-AC_INIT(pkdgrav3, 0.9.1, bugs@pkdgrav2.org)
+AC_INIT(pkdgrav3, 0.9.5, bugs@pkdgrav2.org)
 AM_INIT_AUTOMAKE
 AC_CONFIG_SRCDIR([main.c])
 AC_CONFIG_HEADER([config.h])
@@ -33,6 +33,7 @@ fi
 AC_SUBST(MPICC)
 
 AC_DEFINE([HAVE_ROMBERG], 1, [Use the pkdgrav3 Romberg integrator.])
+AC_DEFINE([NAIVE_DOMAIN_DECOMP], 1, [Use a simplified domain decomposition.])
 
 # Cooling
 AC_ARG_ENABLE(cooling,
