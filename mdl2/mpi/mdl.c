@@ -40,14 +40,14 @@
 #define MDL_DEFAULT_CACHEIDS	5
 
 #define MDL_TRANS_SIZE		5000000
-
-#define MDL_TAG_BARRIER        	1
-#define MDL_TAG_SWAPINIT 	2
-#define MDL_TAG_SWAP		3
-#define MDL_TAG_REQ	   	4
+/*                                   MQ   MPI */
+#define MDL_TAG_BARRIER        	1 /* Yes  Yes */
+#define MDL_TAG_SWAPINIT 	2 /* NO   Yes */
+#define MDL_TAG_SWAP		3 /* NO   Yes */
+#define MDL_TAG_REQ	   	4 /* NO   Yes */
 #define MDL_TAG_RPL		5 /* This is treated specially */
-#define MDL_TAG_SEND            6
-#define MDL_TAG_CACHECOM	7
+#define MDL_TAG_SEND            6 /* NO   Yes */
+#define MDL_TAG_CACHECOM	7 /* Yes  Yes */
 
 #define MDL_TAG_MAX             8
 
@@ -1920,7 +1920,6 @@ static void arcRemoveAll(MDL mdl,ARC arc) {
 
 void mdlFlushCache(MDL mdl,int cid) {
     CACHE *c = &mdl->cache[cid];
-    cacheOpenClose coc;
 
     mdlTimeAddComputing(mdl);
     mdl->wqAccepting = 1;
@@ -2193,11 +2192,9 @@ static void finishCacheRequest(MDL mdl, int cid, int iIndex, int id, CDB *temp) 
 ** The next 3 highest order bits of uId ((1<<30), (1<<29) and (1<<28)) are reserved 
 ** for list location and should be zero! The maximum legal uId is then (1<<28)-1.
 */
-static void *Aquire(MDL mdl, int cid, int iIndex, int id, int bLock,int bModify) {
+static void *Aquire(MDL mdl, int cid, uint32_t uIndex, int uId, int bLock,int bModify) {
     CACHE *c = &mdl->cache[cid];
     ARC arc = c->arc;
-    uint32_t uIndex = iIndex;
-    uint32_t uId = id;
     CDB *temp;
     uint32_t L1Length;
     uint32_t uHash,rat;
@@ -2207,11 +2204,11 @@ static void *Aquire(MDL mdl, int cid, int iIndex, int id, int bLock,int bModify)
     if (!(++c->nAccess & MDL_CHECK_MASK)) mdlCacheCheck(mdl);
 
     /* Short circuit the cache if this belongs to another thread (or ourselves) */
-    int iCore = id - mdl->pmdl[0]->base.idSelf;
-    if (iCore >= 0 && iCore < mdl->base.nCores && c->iType == MDL_ROCACHE ) {
-	MDL omdl = mdl->pmdl[iCore];
+    uint32_t uCore = uId - mdl->pmdl[0]->base.idSelf;
+    if (uCore < mdl->base.nCores && c->iType == MDL_ROCACHE ) {
+	MDL omdl = mdl->pmdl[uCore];
 	c = &omdl->cache[cid];
-	return (*c->getElt)(c->pData,iIndex,c->iDataSize);
+	return (*c->getElt)(c->pData,uIndex,c->iDataSize);
 	}
 
     /* First check our own cache */
@@ -2245,7 +2242,7 @@ static void *Aquire(MDL mdl, int cid, int iIndex, int id, int bLock,int bModify)
 		       if (temp->uIndex == uIndex && (temp->uId&_IDMASK_) == tuId) break;
 		       }
 		   if (temp && temp->data)
-		       temp = arcSetPrefetchDataByHash(mdl,arc,iIndex,tuId,temp->data,uHash);
+		       temp = arcSetPrefetchDataByHash(mdl,arc,uIndex,tuId,temp->data,uHash);
 		   else temp = NULL;
                    pthread_mutex_unlock(&arc->mux);
                    pthread_mutex_unlock(&tarc->mux);
@@ -2289,7 +2286,7 @@ static void *Aquire(MDL mdl, int cid, int iIndex, int id, int bLock,int bModify)
 	    /*
 	    ** Can initiate the data request right here, and do the rest while waiting...
 	    */
-	    queueCacheRequest(mdl,cid,iIndex,id);
+	    queueCacheRequest(mdl,cid,uIndex,uId);
 /* 	    assert(arc->B1->hdr.links.next != arc->B1); */
 /* 	    assert(arc->B1Length>0); */
 	    rat = arc->B2Length/arc->B1Length;
@@ -2303,7 +2300,7 @@ static void *Aquire(MDL mdl, int cid, int iIndex, int id, int bLock,int bModify)
 	    /*
 	    ** Can initiate the data request right here, and do the rest while waiting...
 	    */
-	    queueCacheRequest(mdl,cid,iIndex,id);
+	    queueCacheRequest(mdl,cid,uIndex,uId);
 /* 	    assert(arc->B2->hdr.links.next != arc->B2); */
 /* 	    assert(arc->B2Length>0); */
 
@@ -2323,7 +2320,7 @@ static void *Aquire(MDL mdl, int cid, int iIndex, int id, int bLock,int bModify)
 	    mru_insert(temp,arc->T2);                                     /* seen twice recently, put on T2 */
 	    arc->T2Length++;                 /* JS: this was not in the original code. Should it be? bookkeep */
 	    /*assert(temp->data!=NULL);*/
-	    finishCacheRequest(mdl,cid,iIndex,id,temp);
+	    finishCacheRequest(mdl,cid,uIndex,uId,temp);
 	    break;
 	    }
 	}
@@ -2334,7 +2331,7 @@ static void *Aquire(MDL mdl, int cid, int iIndex, int id, int bLock,int bModify)
 	/*
 	** Can initiate the data request right here, and do the rest while waiting...
 	*/
-	queueCacheRequest(mdl,cid,iIndex,id);
+	queueCacheRequest(mdl,cid,uIndex,uId);
 	pthread_mutex_lock(&arc->mux);
 	L1Length = arc->T1Length + arc->B1Length;
 	/*assert(L1Length<=arc->nCache);*/
@@ -2383,7 +2380,7 @@ static void *Aquire(MDL mdl, int cid, int iIndex, int id, int bLock,int bModify)
 	temp->uId = uId;                  /* temp->dirty = dirty;  p->ARC_where = _T1_; as well! */
 /* 	assert( (temp->uId&_WHERE_) == _T1_ ); */
 	temp->uIndex = uIndex;
-	finishCacheRequest(mdl,cid,iIndex,id,temp);
+	finishCacheRequest(mdl,cid,uIndex,uId,temp);
 	pthread_mutex_lock(&arc->mux);
 	temp->coll = arc->Hash[uHash];                  /* add to collision chain */
 	arc->Hash[uHash] = temp;                               /* insert into hash table */
