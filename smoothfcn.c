@@ -184,7 +184,7 @@ void LinkHopChains(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
 	if (nnList[i].iPid==pkd->idSelf && gid1==gid2) continue;
 	g.iPid = nnList[i].iPid;
 	g.iIndex = gid2;
-	g2 = mdlAquire(mdl,CID_GROUP,g.iIndex,g.iPid);
+	g2 = mdlAcquire(mdl,CID_GROUP,g.iIndex,g.iPid);
 
 	/* Remote is authoratative. Update myself, but also what I currently link to. */
 	if (g1->iPid > g2->iPid || (g1->iPid == g2->iPid && g1->iIndex > g2->iIndex)) {
@@ -193,7 +193,7 @@ void LinkHopChains(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
 	    g1->iPid = g2->iPid;
 	    g1->iIndex = g2->iIndex;
 	    mdlRelease(mdl,CID_GROUP,g2);
-	    g2 = mdlAquire(mdl,CID_GROUP,g.iIndex,g.iPid);
+	    g2 = mdlAcquire(mdl,CID_GROUP,g.iIndex,g.iPid);
 	    }
 
 	/* Update remote (or what we were pointing to) and what it points to if necessary. */
@@ -203,7 +203,7 @@ void LinkHopChains(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
 	    g2->iPid = g1->iPid;
 	    g2->iIndex = g1->iIndex;
 	    mdlRelease(mdl,CID_GROUP,g2);
-	    g2 = mdlAquire(mdl,CID_GROUP,g.iIndex,g.iPid);
+	    g2 = mdlAcquire(mdl,CID_GROUP,g.iIndex,g.iPid);
 	    }
 	mdlRelease(mdl,CID_GROUP,g2);
 	}

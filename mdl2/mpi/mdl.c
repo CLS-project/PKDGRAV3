@@ -2408,7 +2408,7 @@ void *mdlFetch(MDL mdl,int cid,int iIndex,int id) {
     return(Aquire(mdl, cid, iIndex, id, lock, modify));
     }
 
-void *mdlAquire(MDL mdl,int cid,int iIndex,int id) {
+void *mdlAcquire(MDL mdl,int cid,int iIndex,int id) {
     const int lock = 1;  /* we always lock in aquire */
     const int modify = (mdl->cache[cid].iType == MDL_COCACHE);
     return(Aquire(mdl, cid, iIndex, id, lock, modify));

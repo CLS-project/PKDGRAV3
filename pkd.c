@@ -424,7 +424,7 @@ void pkdInitialize(
     /*
     ** Allocate the main particle store.
     ** Need to use mdlMalloc() since the particles will need to be
-    ** visible to all other processors thru mdlAquire() later on.
+    ** visible to all other processors thru mdlAcquire() later on.
     **
     ** We need one EXTRA storage location at the very end to use for
     ** calculating acceleration on arbitrary positions in space, for example

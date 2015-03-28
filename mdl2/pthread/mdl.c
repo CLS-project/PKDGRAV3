@@ -1180,7 +1180,7 @@ void *doMiss(MDL mdl, int cid, int iIndex, int id, mdlkey_t iKey, int lock);
 void mdlPrefetch(MDL mdl,int cid,int iIndex,int id) {
     }
 
-void *mdlAquire(MDL mdl,int cid,int iIndex,int id) {
+void *mdlAcquire(MDL mdl,int cid,int iIndex,int id) {
     CACHE *c = &mdl->cache[cid];
     mdlkey_t iKey;
     int i;

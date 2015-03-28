@@ -666,7 +666,7 @@ int psdJoinBridges(PKD pkd, PSX psx) {
 	if (!bi[i].done && bi[i].remote_gid == -1)
 	{
 	    assert(bi[i].iPid != pkd->idSelf);
-	    p_remote = mdlAquire(mdl,CID_PARTICLE,bi[i].iIndex,bi[i].iPid);
+	    p_remote = mdlAcquire(mdl,CID_PARTICLE,bi[i].iIndex,bi[i].iPid);
 	    bi[i].remote_gid = *pkdGroup(pkd, p_remote);
 	    if (bi[i].remote_gid == 0)
 	    {
@@ -687,7 +687,7 @@ int psdJoinBridges(PKD pkd, PSX psx) {
     {
 	if (bi[i].done) continue;
 
-	struct psGroup *new_gd = mdlAquire(mdl, CID_GROUP, bi[i].remote_gid, bi[i].iPid);
+	struct psGroup *new_gd = mdlAcquire(mdl, CID_GROUP, bi[i].remote_gid, bi[i].iPid);
 	store.i = i;
 	store.gd = *new_gd;
 	EXTEND_STACK(S);
@@ -802,7 +802,7 @@ int psdJoinGroupBridges(PKD pkd, PSX psx) {
 
 	int is_remote = gd[i].sp.nbr.iPid != pkd->idSelf;
 	if (is_remote)
-	    new_gd = mdlAquire(mdl, CID_GROUP, gd[i].sp.nbr.iLocalId, gd[i].sp.nbr.iPid);
+	    new_gd = mdlAcquire(mdl, CID_GROUP, gd[i].sp.nbr.iLocalId, gd[i].sp.nbr.iPid);
 	else
 	    new_gd = gd + gd[i].sp.nbr.iLocalId;
 
@@ -950,7 +950,7 @@ void psdUpdateGroupProperties(PKD pkd)
     {
 	if (gd[i].iPid != pkd->idSelf)
 	{
-	    struct psGroup *remote_gd = mdlAquire(pkd->mdl,CID_GROUP, gd[i].iLocalId, gd[i].iPid);
+	    struct psGroup *remote_gd = mdlAcquire(pkd->mdl,CID_GROUP, gd[i].iLocalId, gd[i].iPid);
 	    *remote_gd = gd[i];
 	    mdlRelease(pkd->mdl,CID_GROUP,remote_gd);
 	}
@@ -962,7 +962,7 @@ void psdUpdateGroupProperties(PKD pkd)
     {
 	if (gd[i].iPid != pkd->idSelf)
 	{
-	    struct psGroup *remote_gd = mdlAquire(pkd->mdl,CID_GROUP, gd[i].iLocalId, gd[i].iPid);
+	    struct psGroup *remote_gd = mdlAcquire(pkd->mdl,CID_GROUP, gd[i].iLocalId, gd[i].iPid);
 	    assert(remote_gd->iPid == gd[i].iPid);
 	    assert(remote_gd->iLocalId == gd[i].iLocalId);
 	    gd[i].nTotal = remote_gd->nTotal;
@@ -1142,7 +1142,7 @@ void psdAssignGlobalIds(PKD pkd, int offs, int count)
 	if (gd[i].iPid != pkd->idSelf)
 	{
 	    assert(gd[i].dup == 0);
-	    struct psGroup *new_gd = mdlAquire(pkd->mdl,CID_GROUP, gd[i].iLocalId, gd[i].iPid);
+	    struct psGroup *new_gd = mdlAcquire(pkd->mdl,CID_GROUP, gd[i].iLocalId, gd[i].iPid);
 	    assert(new_gd->iPid == gd[i].iPid);
 	    assert(new_gd->dup == 0);
 	    gd[i] = *new_gd;
@@ -1203,7 +1203,7 @@ void psdAssignGlobalIds(PKD pkd, int offs, int count)
 	if (gd[i].iPid != pkd->idSelf)
 	{
 	    assert(gd[i].dup == 0);
-	    struct psGroup *remote_gd = mdlAquire(pkd->mdl,CID_GROUP, gd[i].iLocalId, gd[i].iPid);
+	    struct psGroup *remote_gd = mdlAcquire(pkd->mdl,CID_GROUP, gd[i].iLocalId, gd[i].iPid);
 	    remote_gd->nTotal = gd[i].nTotal;
 	    remote_gd->fMass  = gd[i].fMass;
 	    if (gd[i].fRMSRadius > remote_gd->fRMSRadius)
@@ -1236,7 +1236,7 @@ void psdAssignGlobalIds(PKD pkd, int offs, int count)
 	}
 	else
 	{
-	    PSGD *remote_gd = mdlAquire(pkd->mdl,CID_GROUP, gd[gid].iLocalId, gd[gid].iPid);
+	    PSGD *remote_gd = mdlAcquire(pkd->mdl,CID_GROUP, gd[gid].iLocalId, gd[gid].iPid);
 	    fRMSRadius = remote_gd->fRMSRadius;
 	    mdlRelease(pkd->mdl,CID_GROUP,remote_gd);
 	}
@@ -1425,7 +1425,7 @@ void psdMergeNoisyGroups(PKD pkd, PSX psx)
 	//int remote_group = gdentry->iPid != pkd->idSelf;
 	
 	//if (remote_group)
-	    //gdentry = mdlAquire(pkd->mdl,CID_GROUP, gdentry->iLocalId, gdentry->iPid);
+	    //gdentry = mdlAcquire(pkd->mdl,CID_GROUP, gdentry->iLocalId, gdentry->iPid);
 
 	int gid = gdentry->iGlobalId;
 
@@ -1449,7 +1449,7 @@ void psdMergeNoisyGroups(PKD pkd, PSX psx)
 	    ** we need is the global id of the group, which will be correct.
 	    */
 	    if (remote_nbr)
-		nbr_gd = mdlAquire(pkd->mdl,CID_GROUP, nbr_gid, psx->knn->pq[pj].iPid);
+		nbr_gd = mdlAcquire(pkd->mdl,CID_GROUP, nbr_gid, psx->knn->pq[pj].iPid);
 	    else
 		nbr_gd = gd + nbr_gid;
 
@@ -1612,7 +1612,7 @@ void psdMergeNoisyGroups(PKD pkd, PSX psx)
 		int offs = 0;
 		while (offs < gd[i].nSaddlePoints)
 		{
-		    sp_buffer = mdlAquire(pkd->mdl,CID_SADDLE_BUF,0, gd[i].iPid);
+		    sp_buffer = mdlAcquire(pkd->mdl,CID_SADDLE_BUF,0, gd[i].iPid);
 
 		    sp_buffer->iLocalId  = gd[i].iLocalId;
 		    sp_buffer->iGlobalId = gd[i].iGlobalId;
@@ -1653,7 +1653,7 @@ void psdMergeNoisyGroups(PKD pkd, PSX psx)
 		int offs = 0;
 		while (offs < gd[i].nSaddlePoints)
 		{
-		    sp_buffer = mdlAquire(pkd->mdl,CID_SADDLE_BUF,0, gd[i].iPid);
+		    sp_buffer = mdlAcquire(pkd->mdl,CID_SADDLE_BUF,0, gd[i].iPid);
 
 		    sp_buffer->iLocalId  = gd[i].iLocalId;
 		    sp_buffer->iGlobalId = gd[i].iGlobalId;
@@ -1755,13 +1755,13 @@ void psdMergeNoisyGroups(PKD pkd, PSX psx)
 		int remote_nbr = sp->nbr.iPid != pkd->idSelf;
 
 		if (remote_p)
-		    p = mdlAquire(pkd->mdl,CID_PARTICLE,sp->iLocalId,sp->iPid);
+		    p = mdlAcquire(pkd->mdl,CID_PARTICLE,sp->iLocalId,sp->iPid);
 		else
 		    p = pkdParticle(pkd, sp->iLocalId);
 
 		assert(sp->nbr.iLocalId > 0);
 		if (remote_nbr)
-		    gdentry = mdlAquire(pkd->mdl,CID_GROUP, sp->nbr.iLocalId, sp->nbr.iPid);
+		    gdentry = mdlAcquire(pkd->mdl,CID_GROUP, sp->nbr.iLocalId, sp->nbr.iPid);
 		else
 		    gdentry = gd + sp->nbr.iLocalId;
 

@@ -116,7 +116,7 @@ static void updateGroupIds(PKD pkd, int nGroups, struct smGroupArray *ga, int bI
 		ga[gid].id.iIndex = newGid[ga[gid].id.iIndex];
 		}
 	    else {
-		g = mdlAquire(pkd->mdl,CID_GROUP,ga[gid].id.iIndex,ga[gid].id.iPid);
+		g = mdlAcquire(pkd->mdl,CID_GROUP,ga[gid].id.iIndex,ga[gid].id.iPid);
 		ga[gid].id.iIndex = *g;
 		mdlRelease(pkd->mdl,CID_GROUP,g);
 		}
@@ -193,9 +193,9 @@ static int traverseLink(PKD pkd,remoteID *pl, struct smGroupArray *ga,int pi,
     int bRemote = *iPid2 != pkd->idSelf;
 
     if (!bRemote) p = pkdParticle(pkd,*iIndex2);
-    else p = mdlAquire(pkd->mdl,CID_PARTICLE,*iIndex2,*iPid2);
+    else p = mdlAcquire(pkd->mdl,CID_PARTICLE,*iIndex2,*iPid2);
     gid2 = *pkdGroup(pkd,p);
-    g2 = mdlAquire(pkd->mdl,CID_GROUP,gid2,*iPid2);
+    g2 = mdlAcquire(pkd->mdl,CID_GROUP,gid2,*iPid2);
 
     /* Update the minimum group id in case we need it below */
     if (iMinPartPid && (*iPid2 < *iMinPartPid || (*iPid2 == *iMinPartPid && *iIndex2 < *iMinPartIndex))) {
@@ -219,7 +219,7 @@ static int traverseLink(PKD pkd,remoteID *pl, struct smGroupArray *ga,int pi,
     ** the remote particle that started this, because it starts an arc!
     */
     else if (*iPid2 == mdlSelf(mdl) && gid2==pi) { /*LOOP*/
-	PARTICLE *p2 = mdlAquire(pkd->mdl,CID_PARTICLE,ga[pi].id.iIndex,ga[pi].id.iPid);
+	PARTICLE *p2 = mdlAcquire(pkd->mdl,CID_PARTICLE,ga[pi].id.iIndex,ga[pi].id.iPid);
 	p2->bMarked = 1;
 	mdlRelease(pkd->mdl,CID_PARTICLE,p2);
 	assert(ga[pi].id.iPid != pkd->idSelf);
@@ -411,12 +411,12 @@ int smHopLink(SMX smx,SMF *smf) {
     mdlROcache(mdl,CID_GROUP,NULL,pkd->tmpHopGroups,sizeof(GHtmpGroupTable), nGroups);
     nSpur = 0;
     for(pi=1; pi<nGroups; ++pi) {
-	PARTICLE *p1 = mdlAquire(mdl,CID_PARTICLE,ga[pi].id.iIndex,ga[pi].id.iPid);
+	PARTICLE *p1 = mdlAcquire(mdl,CID_PARTICLE,ga[pi].id.iIndex,ga[pi].id.iPid);
 	int gid1 = *pkdGroup(pkd,p1);
-	GHtmpGroupTable *g1 = mdlAquire(mdl,CID_GROUP,gid1,ga[pi].id.iPid);
-	PARTICLE *p2 = mdlAquire(mdl,CID_PARTICLE,g1->iIndex,g1->iPid);
+	GHtmpGroupTable *g1 = mdlAcquire(mdl,CID_GROUP,gid1,ga[pi].id.iPid);
+	PARTICLE *p2 = mdlAcquire(mdl,CID_PARTICLE,g1->iIndex,g1->iPid);
 	int gid2 = *pkdGroup(pkd,p2);
-	GHtmpGroupTable *g2 = mdlAquire(mdl,CID_GROUP,gid2,g1->iPid);
+	GHtmpGroupTable *g2 = mdlAcquire(mdl,CID_GROUP,gid2,g1->iPid);
 	assert (g2->iPid == g1->iPid);
 	ga[pi].id.iPid   = g2->iPid;
 	ga[pi].id.iIndex = g2->iIndex;
@@ -466,10 +466,10 @@ int smHopLink(SMX smx,SMF *smf) {
 	    assert(gid==pi); /* I point to myself! */
 	    }
 	else {
-	    p = mdlAquire(mdl,CID_PARTICLE,ga[pi].id.iIndex,ga[pi].id.iPid);
+	    p = mdlAcquire(mdl,CID_PARTICLE,ga[pi].id.iIndex,ga[pi].id.iPid);
 	    gid = *pkdGroup(pkd,p);
 	    mdlRelease(mdl,CID_PARTICLE,p);
-	    GHtmpGroupTable *g = mdlAquire(mdl,CID_GROUP,gid,ga[pi].id.iPid);
+	    GHtmpGroupTable *g = mdlAcquire(mdl,CID_GROUP,gid,ga[pi].id.iPid);
 	    /* The remote particle must point to itself */
 	    assert(g->iPid==ga[pi].id.iPid && g->iIndex==ga[pi].id.iIndex);
 	    mdlRelease(mdl,CID_GROUP,g);
@@ -533,7 +533,7 @@ int smHopJoin(SMX smx,SMF *smf, double dHopTau, int *nLocal) {
 	int iNextPid = pkd->tmpHopGroups[iIndex].iPid;
 	int iNextIndex = pkd->tmpHopGroups[iIndex].iIndex;
 	while(iPid!=iNextPid || iIndex!=iNextIndex) {
-	    GHtmpGroupTable *g = mdlAquire(mdl,CID_GROUP,iNextIndex,iNextPid);
+	    GHtmpGroupTable *g = mdlAcquire(mdl,CID_GROUP,iNextIndex,iNextPid);
 	    iPid = iNextPid;
 	    iIndex = iNextIndex;
 	    iNextPid = g->iPid;
@@ -606,7 +606,7 @@ static void hopRelocateGroups(PKD pkd) {
 	pkd, initMaxHopGroup, combMaxHopGroup );
     for(i=1+pkd->nLocalGroups; i<pkd->nGroups; ++i) {
 	assert(pkd->hopGroups[i].id.iPid != pkd->idSelf);
-	g = mdlAquire(mdl,CID_GROUP,pkd->hopGroups[i].id.iIndex,pkd->hopGroups[i].id.iPid);
+	g = mdlAcquire(mdl,CID_GROUP,pkd->hopGroups[i].id.iIndex,pkd->hopGroups[i].id.iPid);
 	assert(g->id.iPid!=pkd->idSelf);
 	g->id.iPid = pkd->idSelf;
 	g->id.iIndex = i;
@@ -618,7 +618,7 @@ static void hopRelocateGroups(PKD pkd) {
     /* Now update the new group location */
     mdlROcache(mdl,CID_GROUP,NULL,pkd->hopGroups,sizeof(HopGroupTable), pkd->nGroups);
     for(i=1+pkd->nLocalGroups; i<pkd->nGroups; ++i) {
-	g = mdlAquire(mdl,CID_GROUP,pkd->hopGroups[i].id.iIndex,pkd->hopGroups[i].id.iPid);
+	g = mdlAcquire(mdl,CID_GROUP,pkd->hopGroups[i].id.iIndex,pkd->hopGroups[i].id.iPid);
 	pkd->hopGroups[i].id.iPid = g->id.iPid;
 	pkd->hopGroups[i].id.iIndex = g->id.iIndex;
 	mdlRelease(mdl,CID_GROUP,g);
@@ -749,7 +749,7 @@ static void hopCalculateGroupStats(PKD pkd, int bPeriodic, double *dPeriod) {
     mdlROcache(mdl,CID_GROUP,NULL,pkd->hopGroups,sizeof(HopGroupTable), pkd->nGroups);
     for(i=1+pkd->nLocalGroups; i<pkd->nGroups; ++i) {
 	assert(pkd->hopGroups[i].id.iPid != pkd->idSelf);
-	g = mdlAquire(mdl,CID_GROUP,pkd->hopGroups[i].id.iIndex,pkd->hopGroups[i].id.iPid);
+	g = mdlAcquire(mdl,CID_GROUP,pkd->hopGroups[i].id.iIndex,pkd->hopGroups[i].id.iPid);
 	for(j=0;j<3;++j) pkd->hopGroups[i].rref[j] = g->rref[j];
 	mdlRelease(mdl,CID_GROUP,g);
 	}
@@ -795,7 +795,7 @@ static void hopCalculateGroupStats(PKD pkd, int bPeriodic, double *dPeriod) {
     for(i=1+pkd->nLocalGroups; i<pkd->nGroups; ++i) {
 	HopGroupTable *g;
 	if (pkd->hopGroups[i].id.iPid == pkd->idSelf) continue;
-	g = mdlAquire(mdl,CID_GROUP,pkd->hopGroups[i].id.iIndex,pkd->hopGroups[i].id.iPid);
+	g = mdlAcquire(mdl,CID_GROUP,pkd->hopGroups[i].id.iIndex,pkd->hopGroups[i].id.iPid);
 	g->nTotal += pkd->hopGroups[i].nLocal;
 	g->nRemote = 1;
 	for (j=0;j<3;j++) {
@@ -836,7 +836,7 @@ static void hopCalculateGroupStats(PKD pkd, int bPeriodic, double *dPeriod) {
     mdlROcache(mdl,CID_GROUP,NULL,pkd->hopGroups,sizeof(HopGroupTable), pkd->nGroups);
     for(i=1+pkd->nLocalGroups; i<pkd->nGroups; ++i) {
 	assert(pkd->hopGroups[i].id.iPid != pkd->idSelf);
-	g = mdlAquire(mdl,CID_GROUP,pkd->hopGroups[i].id.iIndex,pkd->hopGroups[i].id.iPid);
+	g = mdlAcquire(mdl,CID_GROUP,pkd->hopGroups[i].id.iIndex,pkd->hopGroups[i].id.iPid);
 	assert(pkd->hopGroups[i].id.iIndex==g->id.iIndex && pkd->hopGroups[i].id.iPid==g->id.iPid);
 	pkd->hopGroups[i].nRemote = g->nRemote;
 	pkd->hopGroups[i].nTotal = g->nTotal;
@@ -1007,7 +1007,7 @@ void pkdHopTreeBuild(PKD pkd, int nBucket) {
 	assert(pkd->hopGroups[i].id.iPid != pkd->idSelf);
 	if (pkd->hopNumRoots[i] == 0) continue; 
 	iRoot = pkd->hopRootIndex[i];
-	g = mdlAquire(mdl,CID_GROUP,pkd->hopGroups[i].id.iIndex,pkd->hopGroups[i].id.iPid);
+	g = mdlAcquire(mdl,CID_GROUP,pkd->hopGroups[i].id.iIndex,pkd->hopGroups[i].id.iPid);
 	g->rmt.iPid = pkd->idSelf;
 	g->rmt.iIndex = pkd->hopRoots[iRoot].iIndex; /* This is not actually set remotely */
 	g->iGlobalId = i;
@@ -1215,7 +1215,7 @@ int pkdHopUnbind(PKD pkd, double dTime, int nMinGroupSize, int bPeriodic, double
 	pkd->hopGroups[gid].dEnergy = dEnergy;
 
 	if (pkd->hopGroups[gid].id.iPid != pkd->idSelf) {
-	    g = mdlAquire(mdl,CID_GROUP,pkd->hopGroups[gid].id.iIndex,pkd->hopGroups[gid].id.iPid);
+	    g = mdlAcquire(mdl,CID_GROUP,pkd->hopGroups[gid].id.iIndex,pkd->hopGroups[gid].id.iPid);
 	    g->dEnergy = dEnergy;
 	    mdlRelease(mdl,CID_GROUP,g);
 	    }
@@ -1226,7 +1226,7 @@ int pkdHopUnbind(PKD pkd, double dTime, int nMinGroupSize, int bPeriodic, double
     for(gid=1+pkd->nLocalGroups; gid<pkd->nGroups; ++gid) {
 	if (pkd->hopGroups[gid].bComplete) continue;
 	assert(pkd->hopGroups[gid].id.iPid != pkd->idSelf);
-	g = mdlAquire(mdl,CID_GROUP,pkd->hopGroups[gid].id.iIndex,pkd->hopGroups[gid].id.iPid);
+	g = mdlAcquire(mdl,CID_GROUP,pkd->hopGroups[gid].id.iIndex,pkd->hopGroups[gid].id.iPid);
 	assert(pkd->hopGroups[gid].id.iIndex==g->id.iIndex && pkd->hopGroups[gid].id.iPid==g->id.iPid);
 	pkd->hopGroups[gid].dEnergy = g->dEnergy;
 	mdlRelease(mdl,CID_GROUP,g);
@@ -1281,7 +1281,7 @@ void pkdHopAssignGID(PKD pkd) {
     mdlROcache(mdl,CID_GROUP,NULL,pkd->hopGroups,sizeof(HopGroupTable), pkd->nGroups);
     for(; i<pkd->nGroups ; ++i) {
 	assert(pkd->hopGroups[i].id.iPid!=mdlSelf(mdl));
-	g = mdlAquire(mdl,CID_GROUP,pkd->hopGroups[i].id.iIndex,pkd->hopGroups[i].id.iPid);
+	g = mdlAcquire(mdl,CID_GROUP,pkd->hopGroups[i].id.iIndex,pkd->hopGroups[i].id.iPid);
 	assert(g->id.iPid==pkd->hopGroups[i].id.iPid);
 	pkd->hopGroups[i].iGlobalId = g->iGlobalId;
 	mdlRelease(mdl,CID_GROUP,g);

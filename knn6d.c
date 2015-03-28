@@ -407,7 +407,7 @@ static PQ6 *_SearchRemote(PKD pkd, KNN6D smx, PQ6 *pq, int id,FLOAT *r,FLOAT *v,
     assert(id != idSelf);
     kdn = pkdTreeNode(pkd,iCell = ROOT);
     S[sp] = iCell;
-    pkdn = mdlAquire(mdl,CID_CELL,iCell,id);
+    pkdn = mdlAcquire(mdl,CID_CELL,iCell,id);
     /*
     ** Start of PRIOQ searching loop.
     */
@@ -418,13 +418,13 @@ static PQ6 *_SearchRemote(PKD pkd, KNN6D smx, PQ6 *pq, int id,FLOAT *r,FLOAT *v,
 	while (pkdn->iLower) {
 	    kdn  = pkdTreeNode(pkd,iCell = pkdn->iLower);
 /**/	    mdlRelease(mdl,CID_CELL,pkdn);
-/**/	    pkdn = mdlAquire(mdl,CID_CELL,iCell,id);
+/**/	    pkdn = mdlAcquire(mdl,CID_CELL,iCell,id);
 	    bnd[0] = pkdNodeBnd(pkd,pkdn);
 	    bnd[1] = pkdNodeVBnd(pkd,pkdn);
 	    PSMINDIST(bnd,r,v,rscale,vscale, min1);
 
 	    kdn  = pkdTreeNode(pkd,++iCell);
-/**/	    pkdu = mdlAquire(mdl,CID_CELL,iCell,id);
+/**/	    pkdu = mdlAcquire(mdl,CID_CELL,iCell,id);
 	    bnd[0] = pkdNodeBnd(pkd,pkdu);
 	    bnd[1] = pkdNodeVBnd(pkd,pkdu);
 	    PSMINDIST(bnd,r,v,rscale,vscale, min2);
@@ -443,7 +443,7 @@ static PQ6 *_SearchRemote(PKD pkd, KNN6D smx, PQ6 *pq, int id,FLOAT *r,FLOAT *v,
 	}
 	pEnd = pkdn->pUpper;
 	for (pj=pkdn->pLower;pj<=pEnd;++pj) {
-/**/	    p = mdlAquire(mdl,CID_PARTICLE,pj,id);
+/**/	    p = mdlAcquire(mdl,CID_PARTICLE,pj,id);
 	    if (!p->bSrcActive || psHashPresent(smx,p)) {
 /**/		mdlRelease(mdl,CID_PARTICLE,p);
 /**/		continue;
@@ -488,12 +488,12 @@ static PQ6 *_SearchRemote(PKD pkd, KNN6D smx, PQ6 *pq, int id,FLOAT *r,FLOAT *v,
 	    --sp;
 	    kdn = pkdTreeNode(pkd,iCell = pkdn->iParent);
 	    mdlRelease(mdl,CID_CELL,pkdn);
-	    pkdn = mdlAquire(mdl,CID_CELL,iCell,id);
+	    pkdn = mdlAcquire(mdl,CID_CELL,iCell,id);
 	}
     NotContained:
 	kdn = pkdTreeNode(pkd,iCell ^= 1);
 /**/    mdlRelease(mdl,CID_CELL,pkdn);
-/**/    pkdn = mdlAquire(mdl,CID_CELL,iCell,id);
+/**/    pkdn = mdlAcquire(mdl,CID_CELL,iCell,id);
 	/*
 	** Intersection Test. (ball-test)
 	*/
@@ -508,7 +508,7 @@ static PQ6 *_SearchRemote(PKD pkd, KNN6D smx, PQ6 *pq, int id,FLOAT *r,FLOAT *v,
 	if (min2 >= pq->fDist2) {
 	    kdn = pkdTreeNode(pkd,iCell = pkdn->iParent);
 /**/	    mdlRelease(mdl,CID_CELL,pkdn);
-/**/	    pkdn = mdlAquire(mdl,CID_CELL,iCell,id);
+/**/	    pkdn = mdlAcquire(mdl,CID_CELL,iCell,id);
 	    goto NoIntersect;
 	    }
 	S[++sp] = iCell;
@@ -853,7 +853,7 @@ static PQ6 *_GatherRemote(PKD pkd, KNN6D smx, PQ6 *pq, int id, float fBall2, FLO
 
     assert(id != pkd->idSelf);
     iCell = ROOT;
-    pkdn = mdlAquire(mdl,CID_CELL,iCell,id);
+    pkdn = mdlAcquire(mdl,CID_CELL,iCell,id);
     while (1) {
         bnd[0] = pkdNodeBnd(pkd, pkdn);
         bnd[1] = pkdNodeVBnd(pkd, pkdn);
@@ -868,13 +868,13 @@ static PQ6 *_GatherRemote(PKD pkd, KNN6D smx, PQ6 *pq, int id, float fBall2, FLO
 	    iCell = pkdn->iLower;
 	    S[sp++] = iCell+1;
 	    mdlRelease(mdl,CID_CELL,pkdn);
-	    pkdn = mdlAquire(mdl,CID_CELL,iCell,id);
+	    pkdn = mdlAcquire(mdl,CID_CELL,iCell,id);
 	    continue;
 	}
 	else {
 	    pEnd = pkdn->pUpper;
 	    for (pj=pkdn->pLower;pj<=pEnd;++pj) {
-		p = mdlAquire(mdl,CID_PARTICLE,pj,id);
+		p = mdlAcquire(mdl,CID_PARTICLE,pj,id);
 	        if (!p->bSrcActive || psHashPresent(smx,p)) {
 		    mdlRelease(mdl,CID_PARTICLE,p);
 		    continue;
@@ -915,7 +915,7 @@ static PQ6 *_GatherRemote(PKD pkd, KNN6D smx, PQ6 *pq, int id, float fBall2, FLO
 	if (sp) {
 	    iCell = S[--sp];
 	    mdlRelease(mdl,CID_CELL,pkdn);
-	    pkdn = mdlAquire(mdl,CID_CELL,iCell,id);
+	    pkdn = mdlAcquire(mdl,CID_CELL,iCell,id);
 	}
 	else break;
     }

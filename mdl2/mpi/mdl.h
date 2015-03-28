@@ -415,7 +415,7 @@ void mdlFinishCache(MDL,int);
 void mdlCacheCheck(MDL);
 void mdlCacheBarrier(MDL,int);
 void mdlPrefetch(MDL mdl,int cid,int iIndex, int id);
-void *mdlAquire(MDL mdl,int cid,int iIndex,int id);
+void *mdlAcquire(MDL mdl,int cid,int iIndex,int id);
 void *mdlFetch(MDL mdl,int cid,int iIndex,int id);
 void mdlRelease(MDL,int,void *);
 void mdlFlushCache(MDL,int);

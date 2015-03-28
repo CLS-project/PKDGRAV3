@@ -221,7 +221,7 @@ static void ubBroadcastTreeRoots(PKD pkd)
 	if (gd[i].nLocal == 0) continue;
 	if (gd[i].iPid != pkd->idSelf)
 	{
-	    remote_msg = mdlAquire(pkd->mdl,CID_TREE_ROOT,0, gd[i].iPid);
+	    remote_msg = mdlAcquire(pkd->mdl,CID_TREE_ROOT,0, gd[i].iPid);
 	    remote_msg->iPid     = gd[i].iPid;
 	    remote_msg->iLocalId = gd[i].iLocalId;
 	    remote_msg->tr       = gd[i].treeRoots[0];

@@ -678,7 +678,7 @@ PQ *pqSearch(SMX smx,PQ *pq,FLOAT r[3]) {
 			smHashDel(smx,pq->pPart);
 			mdlRelease(mdl,CID_PARTICLE,pq->pPart);
 			}
-		    p = mdlAquire(mdl,CID_PARTICLE,pj,id);
+		    p = mdlAcquire(mdl,CID_PARTICLE,pj,id);
 		    pq->pPart = p;
 		    pq->fDist2 = fDist2;
 		    pq->dx = dx;
@@ -943,7 +943,7 @@ static inline int iOpenInactive(PKD pkd,KDN *k,CELT *check,KDN **pc,PARTICLE **p
 	    p = pkdParticle(pkd,iPart);
 	}
 	else {
-	    p = mdlAquire(pkd->mdl,CID_PARTICLE,iPart,check->id);
+	    p = mdlAcquire(pkd->mdl,CID_PARTICLE,iPart,check->id);
 	}
 	*pc = NULL;
 	*pp = p;
@@ -967,7 +967,7 @@ static inline int iOpenInactive(PKD pkd,KDN *k,CELT *check,KDN **pc,PARTICLE **p
 	    assert(c->iLower != 0);
 	}
 	else {
-	    c = mdlAquire(pkd->mdl,CID_CELL,iCell,check->id);
+	    c = mdlAcquire(pkd->mdl,CID_CELL,iCell,check->id);
 	}
 	*pc = c;
 	*pp = NULL;
@@ -1184,7 +1184,7 @@ uint32_t BoundWalkInactive(SMX smx) {
 		    }
 		    for (pj=c->pLower;pj<=c->pUpper;++pj) {
 			if (pkd->Check[i].id == pkd->idSelf) p = pkdParticle(pkd,pj);
-			else p = mdlAquire(pkd->mdl,CID_PARTICLE,pj,pkd->Check[i].id);
+			else p = mdlAcquire(pkd->mdl,CID_PARTICLE,pj,pkd->Check[i].id);
 			/*
 			** Only add those particle which we really need to check here!
 			*/
@@ -1398,7 +1398,7 @@ static inline int iOpenActive(PKD pkd,KDN *k,CELT *check,KDN **pc,PARTICLE **pp)
 	    p = pkdParticle(pkd,iPart);
 	}
 	else {
-	    p = mdlAquire(pkd->mdl,CID_PARTICLE,iPart,check->id);
+	    p = mdlAcquire(pkd->mdl,CID_PARTICLE,iPart,check->id);
 	}
 	*pc = NULL;
 	*pp = p;
@@ -1433,7 +1433,7 @@ static inline int iOpenActive(PKD pkd,KDN *k,CELT *check,KDN **pc,PARTICLE **pp)
 	    assert(c->iLower != 0);
 	}
 	else {
-	    c = mdlAquire(pkd->mdl,CID_CELL,iCell,check->id);
+	    c = mdlAcquire(pkd->mdl,CID_CELL,iCell,check->id);
 	}
 	*pc = c;
 	*pp = NULL;
@@ -1647,7 +1647,7 @@ void BoundWalkActive(SMX smx,LIST **ppList,int *pnMaxpList) {
 		    }
 		    for (pj=c->pLower;pj<=c->pUpper;++pj) {
 			if (pkd->Check[i].id == pkd->idSelf) p = pkdParticle(pkd,pj);
-			else p = mdlAquire(pkd->mdl,CID_PARTICLE,pj,pkd->Check[i].id);
+			else p = mdlAcquire(pkd->mdl,CID_PARTICLE,pj,pkd->Check[i].id);
 			/*
 			** Only add those particle which we really need to check here!
 			*/
@@ -2289,7 +2289,7 @@ void smFastGasPhase2(SMX smx,SMF *smf) {
 			pp = pkdParticle(pkd,pList[i].iIndex);
 		    }
 		    else {
-			pp = mdlAquire(pkd->mdl,CID_PARTICLE,pList[i].iIndex,pList[i].iPid);
+			pp = mdlAcquire(pkd->mdl,CID_PARTICLE,pList[i].iIndex,pList[i].iPid);
 		    }
 		    dx = p->r[0] - pp->r[0];
 		    dy = p->r[1] - pp->r[1];
@@ -2443,7 +2443,7 @@ void smGather(SMX smx,FLOAT fBall2,FLOAT r[3]) {
 			smx->nnList[nCnt].dx = dx;
 			smx->nnList[nCnt].dy = dy;
 			smx->nnList[nCnt].dz = dz;
-			smx->nnList[nCnt].pPart = mdlAquire(mdl,CID_PARTICLE,pj,id);
+			smx->nnList[nCnt].pPart = mdlAcquire(mdl,CID_PARTICLE,pj,id);
 			smx->nnList[nCnt].iIndex = pj;
 			smx->nnList[nCnt].iPid = id;
 			++nCnt;
@@ -3073,7 +3073,7 @@ int smGroupMerge(SMF *smf,int bPeriodic) {
 		    }
 		}
 		else {
-		    pPart = mdlAquire(mdl,CID_PARTICLE,rm.iIndex,rm.iPid);
+		    pPart = mdlAcquire(mdl,CID_PARTICLE,rm.iIndex,rm.iPid);
 		    iPartGroup = * pkdInt32(pPart,pkd->oGroup);
 		    mdlRelease(mdl,CID_PARTICLE,pPart);
 		    
@@ -3089,7 +3089,7 @@ int smGroupMerge(SMF *smf,int bPeriodic) {
 		    }
 		    /* Remote: New subgroup found, add to list: */
 		    index = (iPartGroup - 1 - rm.iPid)/pkd->nThreads ;
-		    sG = mdlAquire(mdl,CID_GROUP,index,rm.iPid);
+		    sG = mdlAcquire(mdl,CID_GROUP,index,rm.iPid);
 		    
 		    if (nSubGroups >= sgListSize) {
 			sgListSize = d2i(sgListSize * 1.5);
@@ -3106,7 +3106,7 @@ int smGroupMerge(SMF *smf,int bPeriodic) {
 		    pkd->groupData[i].nTotal += sG->nLocal;
 		    /* Add all its remote members to the Fifo: */
 		    for (j=sG->iFirstRm; j < sG->iFirstRm + sG->nRemoteMembers ;j++) {
-			remoteRM = mdlAquire(mdl,CID_RM,j,rm.iPid);
+			remoteRM = mdlAcquire(mdl,CID_RM,j,rm.iPid);
 			rmFifo[iTail] = *remoteRM;
 			if (++iTail == nFifo) iTail = 0;
 			if (iTail == iHead) expandFIFO(&iHead,&iTail,&nFifo,&rmFifo);
@@ -3243,7 +3243,7 @@ int smGroupMerge(SMF *smf,int bPeriodic) {
 	for (id=1; id < pkd->nThreads; id++) {
 	    index = 0;
 	    while (1) {
-		sG = mdlAquire(mdl,CID_GROUP,index,id);
+		sG = mdlAcquire(mdl,CID_GROUP,index,id);
 		mdlRelease(mdl,CID_GROUP,sG);
 		if (sG->bMyGroup != 0) {
 		    if (nMyGroups >= listSize-1) {
@@ -3298,7 +3298,7 @@ void DoBins(SMX smx,PARTICLE *p,FLOAT fDist2) {
 
     fMass = pkdMass(pkd,p);
     if (pid != smx->pkd->idSelf) {
-	pBin = mdlAquire(smx->pkd->mdl,CID_BIN,iBin,pid);
+	pBin = mdlAcquire(smx->pkd->mdl,CID_BIN,iBin,pid);
     } else {
 	pBin = pkd->groupBin[iBin];
     }
@@ -3355,7 +3355,7 @@ int smGroupProfiles(SMX smx, SMF *smf, int nTotalGroups) {
     mdlROcache(mdl,CID_GROUP,NULL,pkd->groupData,sizeof(FOFGD),pkd->nGroups);
     if (pkd->idSelf != 0) {
 	for (i=0; i< nTotalGroups; i++) {
-	    gdp = mdlAquire(mdl,CID_GROUP,i,0);
+	    gdp = mdlAcquire(mdl,CID_GROUP,i,0);
 	    mdlRelease(mdl,CID_GROUP,gdp);
 	    pkd->groupData[i] = *gdp;
 	}
@@ -3440,7 +3440,7 @@ int smGroupProfiles(SMX smx, SMF *smf, int nTotalGroups) {
     if (pkd->idSelf != 0) {
 	for (i=0; i< nBins; i++) {
 	    if (pkd->groupBin[i].fMassInBin > 0.0) {
-		bin = mdlAquire(mdl,CID_BIN,i,0);
+		bin = mdlAcquire(mdl,CID_BIN,i,0);
 		*bin = pkd->groupBin[i];
 		mdlRelease(mdl,CID_BIN,bin);
 	    }

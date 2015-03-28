@@ -85,8 +85,8 @@ void mdlCOcache(MDL mdl,int cid,
 void mdlFinishCache(MDL,int);
 void mdlCacheCheck(MDL);
 void mdlCacheBarrier(MDL,int);
-void *mdlAquire(MDL,int,int,int);
-#define mdlFetch mdlAquire
+void *mdlAcquire(MDL,int,int,int);
+#define mdlFetch mdlAcquire
 void mdlPrefetch(MDL,int,int,int);
 void mdlRelease(MDL,int,void *);
 /*

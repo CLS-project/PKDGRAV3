@@ -347,7 +347,7 @@ static void CalculateInertia(PKD pkd,int nBins, const double *dRadii, SHAPESBIN 
 	while( pl[i].r[0]<dRadii[iBin]*dRadii[iBin] && iBin < nBins ) ++iBin;
 	while( pl[i].r[0]>dRadii[iBin]*dRadii[iBin] ) --iBin;
 
-	pShape = CAST(SHAPESBIN *,mdlAquire(pkd->mdl,CID_SHAPES,iBin,0));
+	pShape = CAST(SHAPESBIN *,mdlAcquire(pkd->mdl,CID_SHAPES,iBin,0));
 	pShape->dMassEnclosed += m;
 	for (j=0; j<3; j++) {
 	    pShape->com[j] += m * p->r[j] ;
@@ -534,7 +534,7 @@ void pkdProfile(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
     r0 = 0.0;
     i = 0;
     for(iBin=0;iBin<nBins;iBin++) {
-	pBin = CAST(PROFILEBIN *,mdlAquire(pkd->mdl,CID_BIN,iBin,0));
+	pBin = CAST(PROFILEBIN *,mdlAcquire(pkd->mdl,CID_BIN,iBin,0));
 	r = pBin->dRadius;
 	r = dRadii[iBin];
 	r2 = r*r;
@@ -573,7 +573,7 @@ void pkdProfile(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
     r0 = 0.0;
     i = 0;
     for(iBin=0;iBin<nBins;iBin++) {
-	pBin = mdlAquire(pkd->mdl,CID_BIN,iBin,0);
+	pBin = mdlAcquire(pkd->mdl,CID_BIN,iBin,0);
 	r = dRadii[iBin];
 	r2 = r*r;
 	assert( r > r0 );
@@ -700,7 +700,7 @@ void pkdGridProject(PKD pkd) {
 	    idx = mdlGridIdx(pkd->grid,0,x,y);
 
 	    /* Update the cell */
-	    pCell = mdlAquire(pkd->mdl,CID_PNG,idx,id);
+	    pCell = mdlAcquire(pkd->mdl,CID_PNG,idx,id);
 	    if (v > *pCell) *pCell = v;
 	    mdlRelease(pkd->mdl,CID_PNG,pCell);
 	    }
@@ -769,7 +769,7 @@ static void cell_accumulate(PKD pkd, MDLFFT fft,int nGrid, int x,int y,int z, fl
     id = mdlFFTrId(fft,x,y,z);
     idx = mdlFFTrIdx(fft,x,y,z);
 
-    p = mdlAquire(pkd->mdl,CID_PK,idx,id);
+    p = mdlAcquire(pkd->mdl,CID_PK,idx,id);
     *p += m;
     mdlRelease(pkd->mdl,CID_PK,p);
     }
