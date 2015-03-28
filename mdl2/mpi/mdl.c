@@ -43,6 +43,7 @@
 /*                                   MQ   MPI */
 #define MDL_TAG_BARRIER        	1 /* Yes  Yes */
 #define MDL_TAG_SWAPINIT 	2 /* NO   Yes */
+#define MDL_TAG_CACHE_FLUSH 	2 /* Yes  NO  */
 #define MDL_TAG_SWAP		3 /* NO   Yes */
 #define MDL_TAG_REQ	   	4 /* NO   Yes */
 #define MDL_TAG_RPL		5 /* This is treated specially */
@@ -633,7 +634,7 @@ static int checkMPI(MDL mdl) {
 		MPI_Send(&caReq->caReq,sizeof(CAHEAD),MPI_BYTE,iProc,MDL_TAG_CACHECOM, mpi->commMDL);
 		break;
 	    case MDL_SE_CACHE_FLUSH:
-		mdlSendThreadMessage(mdl,0,qhdr->iCoreFrom,qhdr,MDL_SE_CACHE_FLUSH);
+		mdlSendThreadMessage(mdl,MDL_TAG_CACHE_FLUSH,qhdr->iCoreFrom,qhdr,MDL_SE_CACHE_FLUSH);
 		break;
 #ifdef MDL_FFTW
 	    case MDL_SE_FFT_SIZES:
@@ -1880,7 +1881,7 @@ static CDB *destage(MDL mdl, CDB *temp) {
     if (temp->uId & _DIRTY_) {     /* if dirty, evict before free */
 	/* Send the CDB to the MPI thread for flushing, and wait for it to come back */
 	mdlSendToMPI(mdl,&temp->hdr.svc,MDL_SE_CACHE_FLUSH);
-	mdlWaitThreadQueue(mdl,0);
+	mdlWaitThreadQueue(mdl,MDL_TAG_CACHE_FLUSH);
 	temp->uId &= ~ _DIRTY_;    /* No longer dirty */
 	}
     return temp;
