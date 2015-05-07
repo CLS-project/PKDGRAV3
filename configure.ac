@@ -4,6 +4,7 @@
 AC_PREREQ(2.59)
 AC_INIT(pkdgrav3, 0.9.5, bugs@pkdgrav2.org)
 AM_INIT_AUTOMAKE
+AM_MAINTAINER_MODE([disable])
 AC_CONFIG_SRCDIR([main.c])
 AC_CONFIG_HEADER([config.h])
 
