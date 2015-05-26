@@ -4691,7 +4691,7 @@ void pstMeasurePk(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     int i;
 
     assert( nIn==sizeof(struct inMeasurePk) );
-    if (pst->nLeaves > 1) {
+    if (pstNotCore(pst)) {
 	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_MEASUREPK,vin,nIn);
 	pstMeasurePk(pst->pstLower,vin,nIn,vout,pnOut);
 	mdlGetReply(pst->mdl,rID,&outUpper,&nOut);
