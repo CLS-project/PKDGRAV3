@@ -405,6 +405,10 @@ int mdlCacheReceive(MDL mdl) {
 	 ** difficulties surface. Making sure to have one buffer per
 	 ** thread solves those problems here.
 	 */
+	if (mpi->pReqRpl[iProc] != MPI_REQUEST_NULL) {
+	    MPI_Wait(&mpi->pReqRpl[iProc], &status);
+	    mpi->pReqRpl[iProc] = MPI_REQUEST_NULL;
+	    }
 	pszRpl = &mpi->ppszRpl[iProc][sizeof(CAHEAD)];
 	phRpl = (CAHEAD *)mpi->ppszRpl[iProc];
 	phRpl->cid = ph->cid;
@@ -420,10 +424,6 @@ int mdlCacheReceive(MDL mdl) {
 	for(i=s; i<n; i++ ) {
 	    t = (*c->getElt)(c->pData,i,c->iDataSize);
 	    memcpy(pszRpl+(i-s)*c->iDataSize,t,c->iDataSize);
-	    }
-	if (mpi->pReqRpl[iProc] != MPI_REQUEST_NULL) {
-	    MPI_Wait(&mpi->pReqRpl[iProc], &status);
-	    mpi->pReqRpl[iProc] = MPI_REQUEST_NULL;
 	    }
 	tag = MDL_TAG_CACHECOM /*+ MDL_TAG_THREAD_OFFSET * iCore*/;
 	MPI_Isend(phRpl,(int)sizeof(CAHEAD)+iLineSize,MPI_BYTE,
