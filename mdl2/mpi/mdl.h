@@ -86,10 +86,7 @@ extern "C" {
 #define SRV_STOP		0
 
 #define MDL_CACHE_SIZE		15000000
-#define MDL_CACHELINE_BITS	4
-#define MDL_CACHELINE_ELTS	(1<<MDL_CACHELINE_BITS)
-#define MDL_CACHE_MASK		(MDL_CACHELINE_ELTS-1)
-#define MDL_INDEX_MASK		(~MDL_CACHE_MASK)
+#define MDL_CACHELINE_ELTS	(16)
 #define MDL_CHECK_MASK  	0x7f
 
 typedef struct {
@@ -126,15 +123,15 @@ typedef struct cacheTag {
 
 
 /*
- ** This structure should be "maximally" aligned, with 4 ints it
- ** should align up to at least QUAD word, which should be enough.
+ ** This structure should be "maximally" aligned.
  */
 typedef struct cacheHeader {
-    int16_t cid;
-    int16_t mid;
+    uint8_t cid;
+    uint8_t mid;
+    uint16_t nItems;
     int32_t idFrom;
     int32_t idTo;
-    int32_t iLine;
+    int32_t iIndex;
     } CAHEAD;
 
 #define MDL_CACHE_DATA_SIZE (64*1024)

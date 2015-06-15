@@ -366,11 +366,11 @@ static void mdlSendToMPI(MDL mdl,void *vhdr, uint16_t iServiceID ) {
     OPA_Queue_enqueue(&mdl->pmdl[mdl->iCoreMPI]->mpi->queueMPI, qhdr, MDLserviceElement, hdr);
     }
 
-#define MDL_MID_CACHEREQ	2
-#define MDL_MID_CACHERPL	3
-#define MDL_MID_CACHEFLSH	5
+#define MDL_MID_CACHEREQ	1
+#define MDL_MID_CACHERPL	2
+#define MDL_MID_CACHEFLSH	3
 
-int mdlCacheReceive(MDL mdl) {
+int mdlCacheReceive(MDL mdl,MPI_Status *status) {
     mdlContextMPI *mpi = mdl->mpi;
     CACHE *c;
     CAHEAD *ph = (CAHEAD *)mpi->pszRcv;
@@ -382,14 +382,12 @@ int mdlCacheReceive(MDL mdl) {
     char *t;
     int id,tag;
     int s,n,i;
-    MPI_Status status;
-    int ret;
+    int ret, count;
     int iLineSize, iProc, iCore;
     char *pLine;
 
-    ret = MPI_Wait(&mpi->ReqRcv, &status); /* This will never block by design */
-    assert(ret == MPI_SUCCESS);
     mpi->ReqRcv = MPI_REQUEST_NULL;
+    MPI_Get_count(status, MPI_BYTE, &count);
 
     /* Well, could be any threads cache */
     iCore = ph->idTo - mdl->pmdl[0]->base.idSelf;
@@ -400,6 +398,7 @@ int mdlCacheReceive(MDL mdl) {
     switch (ph->mid) {
 	/* A different process wants local cache data - we can grab it directly */
     case MDL_MID_CACHEREQ:
+	assert( count == sizeof(CAHEAD) );
 	iProc = mdlThreadToProc(mdl,ph->idFrom);
 
 	/*
@@ -414,7 +413,7 @@ int mdlCacheReceive(MDL mdl) {
 	    plast = &mpi->busyCacheReplies;
 	    for(pdata = mpi->busyCacheReplies; pdata != NULL; pdata = pdata->next) {
 		int flag;
-		MPI_Test(&pdata->mpiRequest,&flag,&status);
+		MPI_Test(&pdata->mpiRequest,&flag,status);
 		if (flag) {
 		    *plast = pdata->next;
 		    pdata->next = mpi->freeCacheReplies;
@@ -433,18 +432,21 @@ int mdlCacheReceive(MDL mdl) {
 	    }
 	pdata->next = mpi->busyCacheReplies;
 	mpi->busyCacheReplies = pdata;
+
+	s = ph->iIndex;
+	n = s + ph->nItems;
+	if ( n > c->nData ) n = c->nData;
+	iLineSize = (n-s) * c->iDataSize;
 	phRpl = (CAHEAD *)(pdata + 1);
 	pszRpl = (char *)(phRpl + 1);
 	phRpl->cid = ph->cid;
 	phRpl->mid = MDL_MID_CACHERPL;
 	phRpl->idFrom = mdl->base.idSelf;
 	phRpl->idTo = ph->idFrom;
-	assert(ph->iLine>=0);
+	phRpl->iIndex = ph->iIndex;
+	phRpl->nItems = n - s;
+	assert(ph->iIndex>=0);
 
-	s = ph->iLine*MDL_CACHELINE_ELTS;
-	n = s + MDL_CACHELINE_ELTS;
-	if ( n > c->nData ) n = c->nData;
-	iLineSize = (n-s) * c->iDataSize;
 	for(i=s; i<n; i++ ) {
 	    t = (*c->getElt)(c->pData,i,c->iDataSize);
 	    memcpy(pszRpl+(i-s)*c->iDataSize,t,c->iDataSize);
@@ -457,8 +459,8 @@ int mdlCacheReceive(MDL mdl) {
 	break;
     case MDL_MID_CACHEFLSH:
 	assert(c->iType == MDL_COCACHE);
-	s = ph->iLine*MDL_CACHELINE_ELTS;
-	n = s + MDL_CACHELINE_ELTS;
+	s = ph->iIndex;
+	n = s + ph->nItems;
 	if (n > c->nData) n = c->nData;
 	for(i=s;i<n;i++) {
 	    (*c->combine)(c->ctx,(*c->getElt)(c->pData,i,c->iDataSize),
@@ -468,25 +470,26 @@ int mdlCacheReceive(MDL mdl) {
 	break;
 	/* A remote process has sent us cache data - we need to let that thread know */
     case MDL_MID_CACHERPL:
+	iLineSize = ph->nItems * c->iDataSize;
+	assert( count == sizeof(CAHEAD) + iLineSize );
 	creq = mpi->pThreadCacheReq[iCore];
 	assert(creq!=NULL);
 	mpi->pThreadCacheReq[iCore] = NULL;
 	pLine = creq->pLine;
-
+	creq->caReq.nItems = ph->nItems; /* Let caller know actual number */
 	/*
 	 ** For now assume no prefetching!
 	 ** This means that this WILL be the reply to this Aquire
 	 ** request.
 	 */
 	assert(pLine != NULL);
-	iLineSize = c->iLineSize;
 	for (i=0;i<iLineSize;++i) pLine[i] = pszRcv[i];
 	if (c->iType == MDL_COCACHE && c->init) {
 	    /*
 	     ** Call the initializer function for all elements in
 	     ** the cache line.
 	     */
-	    for (i=0;i<c->iLineSize;i+=c->iDataSize) {
+	    for (i=0;i<iLineSize;i+=c->iDataSize) {
 		    (*c->init)(c->ctx,&pLine[i]);
 		}
 	    }
@@ -734,7 +737,7 @@ static int checkMPI(MDL mdl) {
 	if (mpi->ReqRcv != MPI_REQUEST_NULL) {
 	    while(1) {
 		MPI_Test(&mpi->ReqRcv, &flag, &status);
-		if (flag) mdlCacheReceive(mdl);                    
+		if (flag) mdlCacheReceive(mdl,&status);
 		else break;
 		}
 	    }
@@ -1222,6 +1225,7 @@ int mdlLaunch(int argc,char **argv,void * (*fcnMaster)(MDL),void * (*fcnChild)(M
     ** Allocate caching buffers, with initial data size of 0.
     ** We need one reply buffer for each thread, to deadlock situations.
     */
+    assert(sizeof(CAHEAD) == 16); /* Well, should be a multiple of 8 at least. */
     mpi->nOpenCaches = 0;
     mpi->iMaxDataSize = MDL_CACHE_DATA_SIZE;
     mpi->iCaBufSize = sizeof(CAHEAD) + mpi->iMaxDataSize;
@@ -1815,6 +1819,8 @@ CACHE *CacheInitialize(
     c->cacheRequest.caReq.mid = MDL_MID_CACHEREQ;
     c->cacheRequest.caReq.idFrom = mdl->base.idSelf;
     c->cacheRequest.caReq.idTo = -1;
+    c->cacheRequest.caReq.iIndex = -1;
+    c->cacheRequest.caReq.nItems = 1;
 
     /* Read-only or combiner caches */
     c->iType = (init==NULL ? MDL_ROCACHE : MDL_COCACHE);
@@ -2129,12 +2135,12 @@ static void queueCacheRequest(MDL mdl, int cid, int iIndex, int id) {
     /* Local requests for combiner cache are handled in finishCacheRequest() */
     if (iCore < 0 || iCore >= mdl->base.nCores ) {
 	CACHE *c = &mdl->cache[cid];
-	int iLine = iIndex >> MDL_CACHELINE_BITS;
 	c->cacheRequest.caReq.cid = cid;
 	c->cacheRequest.caReq.mid = MDL_MID_CACHEREQ;
 	c->cacheRequest.caReq.idFrom = mdl->base.idSelf;
 	c->cacheRequest.caReq.idTo = id;
-	c->cacheRequest.caReq.iLine = iLine;
+	c->cacheRequest.caReq.iIndex = iIndex;
+	c->cacheRequest.caReq.nItems = MDL_CACHELINE_ELTS;
 	c->cacheRequest.pLine = c->pOneLine;
 	mdlSendToMPI(mdl,&c->cacheRequest,MDL_SE_CACHE_REQUEST);
 	}
@@ -2155,17 +2161,16 @@ static void finishCacheRequest(MDL mdl, int cid, int iIndex, int id, CDB *temp) 
 	ARC arc = c->arc;
 	uint32_t uIndex = temp->uIndex;
 	uint32_t uId = temp->uId & _IDMASK_;
-	int iElt = uIndex & MDL_CACHE_MASK;
-	int s = uIndex & MDL_INDEX_MASK;
 	mdlWaitThreadQueue(mdl,MDL_TAG_CACHECOM);
+	assert(uIndex == c->cacheRequest.caReq.iIndex );
 	pthread_mutex_lock(&arc->mux);
-	memcpy(temp->data,c->pOneLine + iElt*c->iDataSize, c->iDataSize);
+	memcpy(temp->data,c->pOneLine, c->iDataSize);
 	++temp->data[-1];       /* prefetch must never evict our data */
 	int i;
-	for(i=0; i<MDL_CACHELINE_ELTS; ++i) {
-	    int nid = s + i;
-	    if (nid != uIndex)
-		arcSetPrefetchData(mdl,arc,nid,uId,c->pOneLine + i*c->iDataSize);
+	int n = c->cacheRequest.caReq.nItems;
+	for(i=1; i<n; ++i) {
+	    int nid = uIndex + i;
+	    arcSetPrefetchData(mdl,arc,nid,uId,c->pOneLine + i*c->iDataSize);
 	    }
 	--temp->data[-1];       /* may lock below */
 	pthread_mutex_unlock(&arc->mux);
