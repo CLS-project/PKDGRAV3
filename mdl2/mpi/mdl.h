@@ -137,6 +137,14 @@ typedef struct cacheHeader {
     int32_t iLine;
     } CAHEAD;
 
+#define MDL_CACHE_DATA_SIZE (64*1024)
+typedef struct cache_reply_data {
+    struct cache_reply_data *next;
+    MPI_Request mpiRequest;
+    int nBytes;
+    } MDLcacheReplyData;
+    /* followed by CAHEAD and data */
+
 typedef struct {
     MDLserviceElement svc;
     void *pLine;
@@ -179,13 +187,12 @@ typedef struct {
     int iCaBufSize;  /* Cache buffer size */
     char *pszRcv; /* Cache receive buffer */
 
-    MPI_Request *pReqRpl;
-
     MPI_Request *pSendRecvReq;
     MPI_Request ReqRcv;
     MDLserviceSend **pSendRecvBuf;
     MDLserviceCacheReq **pThreadCacheReq;
-    char **ppszRpl;
+    MDLcacheReplyData *freeCacheReplies;
+    MDLcacheReplyData *busyCacheReplies;
     } mdlContextMPI;
 
 typedef struct mdlContext {

@@ -375,6 +375,7 @@ int mdlCacheReceive(MDL mdl) {
     CACHE *c;
     CAHEAD *ph = (CAHEAD *)mpi->pszRcv;
     MDLserviceCacheReq *creq;
+    MDLcacheReplyData *pdata;
     char *pszRcv = &mpi->pszRcv[sizeof(CAHEAD)];
     CAHEAD *phRpl;
     char *pszRpl;
@@ -400,17 +401,40 @@ int mdlCacheReceive(MDL mdl) {
 	/* A different process wants local cache data - we can grab it directly */
     case MDL_MID_CACHEREQ:
 	iProc = mdlThreadToProc(mdl,ph->idFrom);
+
 	/*
 	 ** This is the tricky part! Here is where the real deadlock
-	 ** difficulties surface. Making sure to have one buffer per
-	 ** thread solves those problems here.
+	 ** difficulties surface. We make sure that we always have a
+	 ** buffer for every reply we send. We try to reuse them, but
+	 ** worst case we would have one buffer per thread which is the
+	 ** same behaviour as before.
 	 */
-	if (mpi->pReqRpl[iProc] != MPI_REQUEST_NULL) {
-	    MPI_Wait(&mpi->pReqRpl[iProc], &status);
-	    mpi->pReqRpl[iProc] = MPI_REQUEST_NULL;
+	if (mpi->freeCacheReplies == NULL ) {
+	    MDLcacheReplyData **plast;
+	    plast = &mpi->busyCacheReplies;
+	    for(pdata = mpi->busyCacheReplies; pdata != NULL; pdata = pdata->next) {
+		int flag;
+		MPI_Test(&pdata->mpiRequest,&flag,&status);
+		if (flag) {
+		    *plast = pdata->next;
+		    pdata->next = mpi->freeCacheReplies;
+		    mpi->freeCacheReplies = pdata;
+		    }
+		else plast = &pdata->next;
+		}
 	    }
-	pszRpl = &mpi->ppszRpl[iProc][sizeof(CAHEAD)];
-	phRpl = (CAHEAD *)mpi->ppszRpl[iProc];
+	if (mpi->freeCacheReplies) {
+	    pdata = mpi->freeCacheReplies;
+	    mpi->freeCacheReplies = pdata->next;
+	    }
+	else {
+	    pdata = malloc(sizeof(MDLcacheReplyData) + MDL_CACHE_DATA_SIZE);
+	    assert(pdata != NULL);
+	    }
+	pdata->next = mpi->busyCacheReplies;
+	mpi->busyCacheReplies = pdata;
+	phRpl = (CAHEAD *)(pdata + 1);
+	pszRpl = (char *)(phRpl + 1);
 	phRpl->cid = ph->cid;
 	phRpl->mid = MDL_MID_CACHERPL;
 	phRpl->idFrom = mdl->base.idSelf;
@@ -428,7 +452,7 @@ int mdlCacheReceive(MDL mdl) {
 	tag = MDL_TAG_CACHECOM /*+ MDL_TAG_THREAD_OFFSET * iCore*/;
 	MPI_Isend(phRpl,(int)sizeof(CAHEAD)+iLineSize,MPI_BYTE,
 		  iProc, tag, mpi->commMDL,
-		  &mpi->pReqRpl[iProc]);
+		  &pdata->mpiRequest);
 	ret = 0;
 	break;
     case MDL_MID_CACHEFLSH:
@@ -590,22 +614,7 @@ static int checkMPI(MDL mdl) {
 		/* A thread has opened a cache -- we may need to resize our buffers */
 	    case MDL_SE_CACHE_OPEN:
 		coc = (cacheOpenClose *)qhdr;
-		/* If this cache is larger than the largest, we have to reallocate buffers */
-		if (coc->iDataSize > mpi->iMaxDataSize) {
-		    if (mpi->ReqRcv != MPI_REQUEST_NULL) MPI_Cancel(&mpi->ReqRcv);
-		    mpi->ReqRcv = MPI_REQUEST_NULL;
-		    mpi->iMaxDataSize = coc->iDataSize;
-		    mpi->iCaBufSize = (int)sizeof(CAHEAD) +
-			  mpi->iMaxDataSize*(1 << MDL_CACHELINE_BITS);
-		    mpi->pszRcv = realloc(mpi->pszRcv,mpi->iCaBufSize);
-		    assert(mpi->pszRcv != NULL);
-		    for (i=0;i<mdl->base.nProcs;++i) {
-			mpi->ppszRpl[i] = realloc(mpi->ppszRpl[i],mpi->iCaBufSize);
-			assert(mpi->ppszRpl[i] != NULL);
-			}
-//		    mdl->pszFlsh = realloc(mdl->pszFlsh,mpi->iCaBufSize);
-//		    assert(mdl->pszFlsh != NULL);
-		    }
+		assert(coc->iDataSize <= mpi->iMaxDataSize);
 		if (mpi->ReqRcv == MPI_REQUEST_NULL) {
 		    MPI_Irecv(mpi->pszRcv,mpi->iCaBufSize, MPI_BYTE,
 			MPI_ANY_SOURCE, MDL_TAG_CACHECOM,
@@ -1073,10 +1082,9 @@ static void *mdlWorkerThread(void *vmdl) {
 
 int mdlLaunch(int argc,char **argv,void * (*fcnMaster)(MDL),void * (*fcnChild)(MDL)) {
     MDL mdl;
-    int i,bDiag,bThreads,bDedicated,thread_support,rc,flag,*piTagUB;
+    int i,n,bDiag,bThreads,bDedicated,thread_support,rc,flag,*piTagUB;
     char *p, ach[256];
     mdlContextMPI *mpi;
-
 
 #ifdef USE_ITT
     __itt_domain* domain = __itt_domain_create("MyTraces.MyDomain");
@@ -1215,18 +1223,22 @@ int mdlLaunch(int argc,char **argv,void * (*fcnMaster)(MDL),void * (*fcnChild)(M
     ** We need one reply buffer for each thread, to deadlock situations.
     */
     mpi->nOpenCaches = 0;
-    mpi->iMaxDataSize = 0;
-    mpi->iCaBufSize = sizeof(CAHEAD);
+    mpi->iMaxDataSize = MDL_CACHE_DATA_SIZE;
+    mpi->iCaBufSize = sizeof(CAHEAD) + mpi->iMaxDataSize;
     mpi->pszRcv = malloc(mpi->iCaBufSize);
     assert(mpi->pszRcv != NULL);
-    mpi->ppszRpl = malloc(mdl->base.nProcs*sizeof(char *));
-    assert(mpi->ppszRpl != NULL);
-    mpi->pReqRpl = malloc(mdl->base.nProcs*sizeof(MPI_Request));
-    assert(mpi->pReqRpl != NULL);
+
+    /* Start with a sensible number of cache buffers */
+    mpi->freeCacheReplies = NULL;
+    mpi->busyCacheReplies = NULL;
+    n = mdl->base.nProcs;
+    if (n > 256) n = 256;
+    else if (n < 32) n = 32;
     for (i = 0; i<mdl->base.nProcs; ++i) {
-	mpi->pReqRpl[i] = MPI_REQUEST_NULL;
-	mpi->ppszRpl[i] = malloc(mpi->iCaBufSize);
-	assert(mpi->ppszRpl[i] != NULL);
+	MDLcacheReplyData *pdata = malloc(sizeof(MDLcacheReplyData) + MDL_CACHE_DATA_SIZE);
+	assert( pdata != NULL );
+	pdata->next = mpi->freeCacheReplies;
+	mpi->freeCacheReplies = pdata;
 	}
 
     /* Some bookeeping for the send/recv - 1 of each per thread */
@@ -1290,6 +1302,8 @@ int mdlLaunch(int argc,char **argv,void * (*fcnMaster)(MDL),void * (*fcnChild)(M
     }
 
 void mdlFinish(MDL mdl) {
+    mdlContextMPI *mpi = mdl->mpi;
+    MDLcacheReplyData *pdata, *pnext;
     int i;
 
     for (i = mdl->iCoreMPI+1; i < mdl->base.nCores; ++i) {
@@ -1313,18 +1327,30 @@ void mdlFinish(MDL mdl) {
     if (mdl->base.bDiag) {
 	fclose(mdl->base.fpDiag);
 	}
+
     /*
      ** Deallocate storage.
      */
+    /* Finish any outstanding cache sends */
+    for(pdata = mpi->busyCacheReplies; pdata != NULL; pdata=pnext) {
+	MPI_Status status;
+	pnext = pdata->next;
+	MPI_Wait(&pdata->mpiRequest,&status);
+	free(pdata);
+	}
+    mpi->busyCacheReplies = NULL;
+    for(pdata = mpi->freeCacheReplies; pdata != NULL; pdata=pnext) {
+	pnext = pdata->next;
+	free(pdata);
+	}
+    mpi->freeCacheReplies = NULL;
+
     free(mdl->pszIn);
     free(mdl->pszOut);
     free(mdl->pszBuf);
     free(mdl->pszTrans);
     free(mdl->cache);
     free(mdl->mpi->pszRcv);
-    for (i=0;i<mdl->base.nProcs;++i) free(mdl->mpi->ppszRpl[i]);
-    free(mdl->mpi->ppszRpl);
-    free(mdl->mpi->pReqRpl);
     free(mdl->base.iProcToThread);
     mdlBaseFinish(&mdl->base);
     free(mdl->mpi);
@@ -1659,46 +1685,6 @@ void mdlHandler(MDL mdl) {
 	} while (sid != SRV_STOP);
     }
 
-void AdjustDataSize(MDL mdl) {
-    int i,iMaxDataSize;
-
-    /*
-     ** Change buffer size?
-     */
-    iMaxDataSize = 0;
-    for (i=0;i<mdl->nMaxCacheIds;++i) {
-	if (mdl->cache[i].iType == MDL_NOCACHE) continue;
-	if (mdl->cache[i].iDataSize > iMaxDataSize) {
-	    iMaxDataSize = mdl->cache[i].iDataSize;
-	    }
-	}
-    if (mdl->base.iCore == mdl->iCoreMPI && iMaxDataSize != mdl->mpi->iMaxDataSize) {
-	/*
-	** Create new buffer with realloc?
-	** Be very careful when reallocing buffers in other libraries
-	** (not PVM) to be sure that the buffers are not in use!
-	** A pending non-blocking receive on a buffer which is realloced
-	** here will cause problems, make sure to take this into account!
-	** This is certainly true in using the MPL library.
-	*/
-	MPI_Cancel(&mdl->mpi->ReqRcv);
-	mdl->mpi->ReqRcv = MPI_REQUEST_NULL;
-	mdl->mpi->iMaxDataSize = iMaxDataSize;
-	mdl->mpi->iCaBufSize = (int)sizeof(CAHEAD) +
-	    iMaxDataSize*(1 << MDL_CACHELINE_BITS);
-	mdl->mpi->pszRcv = realloc(mdl->mpi->pszRcv,mdl->mpi->iCaBufSize);
-	assert(mdl->mpi->pszRcv != NULL);
-	for (i=0;i<mdl->base.nProcs;++i) {
-	    mdl->mpi->ppszRpl[i] = realloc(mdl->mpi->ppszRpl[i],mdl->mpi->iCaBufSize);
-	    assert(mdl->mpi->ppszRpl[i] != NULL);
-	    }
-	/* Fire up receive again. */
-	MPI_Irecv(mdl->mpi->pszRcv,mdl->mpi->iCaBufSize, MPI_BYTE,
-	    MPI_ANY_SOURCE, MDL_TAG_CACHECOM,
-	    mdl->mpi->commMDL, &mdl->mpi->ReqRcv);
-	}
-    }
-
 /*
  ** Special MDL memory allocation functions for allocating memory
  ** which must be visible to other processors thru the MDL cache
@@ -1840,11 +1826,9 @@ CACHE *CacheInitialize(
     mdl_MPI_Barrier(mdl);
 
     /* We might need to resize the cache buffer */
-    coc.iDataSize = c->iDataSize;
+    coc.iDataSize = c->iLineSize;
     mdlSendToMPI(mdl,&coc,MDL_SE_CACHE_OPEN);
     mdlWaitThreadQueue(mdl,0);
-
-    AdjustDataSize(mdl);
 
     return(c);
     }
