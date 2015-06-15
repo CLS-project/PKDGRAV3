@@ -197,7 +197,7 @@ typedef struct mdlContext {
 
     OPA_Queue_info_t *inQueue;
     MDLserviceElement inMessage;
-    void *pvMessageData;
+    void *pvMessageData; /* These two are for the collective malloc */
     size_t nMessageData;
     int iCoreMPI;             /* Core that handles MPI requests */
     int cacheSize;

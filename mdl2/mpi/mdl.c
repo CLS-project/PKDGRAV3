@@ -1736,7 +1736,7 @@ void *mdlMallocArray(MDL mdl,size_t nmemb,size_t size) {
 	int i;
 	iSize = 0;
 	for(i=0; i<mdlCores(mdl); ++i) iSize += mdl->pmdl[i]->nMessageData;
-	data = malloc(iSize);
+	data = mdlMalloc(mdl,iSize);
 	for(i=0; i<mdlCores(mdl); ++i) {
 	    mdl->pmdl[i]->pvMessageData = data;
 	    data += mdl->pmdl[i]->nMessageData;
@@ -2513,7 +2513,7 @@ void mdlGridShare(MDL mdl,MDLGRID grid) {
 ** how many to allocate.
 */
 void *mdlGridMalloc(MDL mdl,MDLGRID grid,int nEntrySize) {
-    return mdlMalloc(mdl,nEntrySize*grid->nlocal);
+    return mdlMallocArray(mdl,mdlCore(mdl)?0:grid->nlocal,nEntrySize);
     }
 
 void mdlGridFree( MDL mdl, MDLGRID grid, void *p ) {
@@ -2540,44 +2540,47 @@ size_t mdlFFTInitialize(MDL mdl,MDLFFT *pfft,int n1,int n2,int n3,int bMeasure,d
     fftPlans plans;
 
     *pfft = NULL;
-    if (mdlCore(mdl) != 0) return 0;
-    fft = malloc(sizeof(struct mdlFFTContext));
-    assert(fft != NULL);
+    if (mdlCore(mdl) == 0) {
+	fft = malloc(sizeof(struct mdlFFTContext));
+	assert(fft != NULL);
+	plans.sizes.n1 = n1;
+	plans.sizes.n2 = n2;
+	plans.sizes.n3 = n3;
+	plans.data = 0;/*Estimate is faster? data;*/
+	plans.kdata = 0;/*(fftw_complex *)data;*/
+	mdlSendToMPI(mdl,&plans,MDL_SE_FFT_PLANS);
+	mdlWaitThreadQueue(mdl,0);
+	fft->fplan = plans.fplan;
+	fft->iplan = plans.iplan;
 
-    plans.sizes.n1 = n1;
-    plans.sizes.n2 = n2;
-    plans.sizes.n3 = n3;
-    plans.data = 0;/*Estimate is faster? data;*/
-    plans.kdata = 0;/*(fftw_complex *)data;*/
-    mdlSendToMPI(mdl,&plans,MDL_SE_FFT_PLANS);
-    mdlWaitThreadQueue(mdl,0);
-
-    fft->fplan = plans.fplan;
-    fft->iplan = plans.iplan;
-
-    /*
-    ** Dimensions of k-space and r-space grid.  Note transposed order.
-    ** Note also that the "actual" dimension 1 side of the r-space array
-    ** can be (and usually is) larger than "n1" because of the inplace FFT.
-    */
-    mdlGridInitialize(mdl,&fft->rgrid,n1,n2,n3,2*(n1/2+1));
-    mdlGridInitialize(mdl,&fft->kgrid,n1/2+1,n3,n2,n1/2+1);
-
-    mdlGridSetLocal(mdl,fft->rgrid,plans.sizes.sz,plans.sizes.nz,plans.sizes.nLocal);
-    mdlGridSetLocal(mdl,fft->kgrid,plans.sizes.sy,plans.sizes.ny,plans.sizes.nLocal/2);
-    mdlGridShare(mdl,fft->rgrid);
-    mdlGridShare(mdl,fft->kgrid);
-
+	/*
+	** Dimensions of k-space and r-space grid.  Note transposed order.
+	** Note also that the "actual" dimension 1 side of the r-space array
+	** can be (and usually is) larger than "n1" because of the inplace FFT.
+	*/
+	mdlGridInitialize(mdl,&fft->rgrid,n1,n2,n3,2*(n1/2+1));
+	mdlGridInitialize(mdl,&fft->kgrid,n1/2+1,n3,n2,n1/2+1);
+	mdlGridSetLocal(mdl,fft->rgrid,plans.sizes.sz,plans.sizes.nz,plans.sizes.nLocal);
+	mdlGridSetLocal(mdl,fft->kgrid,plans.sizes.sy,plans.sizes.ny,plans.sizes.nLocal/2);
+	mdlGridShare(mdl,fft->rgrid);
+	mdlGridShare(mdl,fft->kgrid);
+	mdl->pvMessageData = fft;
+	}
+    mdlThreadBarrier(mdl);
+    fft = mdl->pmdl[0]->pvMessageData;
+    mdlThreadBarrier(mdl);
     *pfft = fft;
     return plans.sizes.nLocal;
     }
 
 void mdlFFTFinish( MDL mdl, MDLFFT fft ) {
-    FFTW3(destroy_plan)(fft->fplan);
-    FFTW3(destroy_plan)(fft->iplan);
-    mdlGridFinish(mdl,fft->kgrid);
-    mdlGridFinish(mdl,fft->rgrid);
-    free(fft);
+    if (mdlCore(mdl) == 0) {
+	FFTW3(destroy_plan)(fft->fplan);
+	FFTW3(destroy_plan)(fft->iplan);
+	mdlGridFinish(mdl,fft->kgrid);
+	mdlGridFinish(mdl,fft->rgrid);
+	free(fft);
+	}
     }
 
 fftw_real *mdlFFTMalloc( MDL mdl, MDLFFT fft ) {
