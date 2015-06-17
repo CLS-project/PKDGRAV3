@@ -1313,6 +1313,15 @@ void mdlFinish(MDL mdl) {
     for (i = mdl->iCoreMPI+1; i < mdl->base.nCores; ++i) {
 	pthread_join(mdl->threadid[i],0);
 	}
+    /* Finish any outstanding cache sends */
+    for(pdata = mpi->busyCacheReplies; pdata != NULL; pdata=pnext) {
+	MPI_Status status;
+	pnext = pdata->next;
+	MPI_Wait(&pdata->mpiRequest,&status);
+	pdata->next = mpi->freeCacheReplies;
+	mpi->freeCacheReplies = pdata;
+	}
+    mpi->busyCacheReplies = NULL;
     MPI_Barrier(mdl->mpi->commMDL);
     MPI_Finalize();
 
@@ -1324,7 +1333,6 @@ void mdlFinish(MDL mdl) {
 	if (mdl->cache[i].arc) arcFinish(mdl->cache[i].arc);
 	}
 
-
     /*
      ** Close Diagnostic file.
      */
@@ -1335,14 +1343,6 @@ void mdlFinish(MDL mdl) {
     /*
      ** Deallocate storage.
      */
-    /* Finish any outstanding cache sends */
-    for(pdata = mpi->busyCacheReplies; pdata != NULL; pdata=pnext) {
-	MPI_Status status;
-	pnext = pdata->next;
-	MPI_Wait(&pdata->mpiRequest,&status);
-	free(pdata);
-	}
-    mpi->busyCacheReplies = NULL;
     for(pdata = mpi->freeCacheReplies; pdata != NULL; pdata=pnext) {
 	pnext = pdata->next;
 	free(pdata);
