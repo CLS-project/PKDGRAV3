@@ -23,6 +23,7 @@
 #ifdef USE_PYTHON
 #include "pkdpython.h"
 #endif
+#include <signal.h>
 
 void * main_ch(MDL mdl) {
     PST pst;
@@ -37,6 +38,12 @@ void * main_ch(MDL mdl) {
 
     pstFinish(pst);
     return NULL;
+    }
+
+static int bGlobalStop = 0;
+static void USR1_handler(int signo) {
+    signal(SIGUSR1,USR1_handler);
+    bGlobalStop = 1;
     }
 
 /*
@@ -68,6 +75,10 @@ void * master_ch(MDL mdl) {
 	msrFinish(msr);
 	return NULL;
 	}
+
+    /* a USR1 signal indicates that the queue wants us to exit */
+    bGlobalStop = 0;
+    signal(SIGUSR1,USR1_handler);
 
     /*
     ** Output the host names to make troubleshooting easier
@@ -238,7 +249,8 @@ void * master_ch(MDL mdl) {
 	    /*
 	    ** Check for user interrupt.
 	    */
-	    iStop = msrCheckForStop(msr);
+	    if (bGlobalStop) iStop = 1;
+	    else iStop = msrCheckForStop(msr);
 
 	    /*
 	    ** Check to see if the runtime has been exceeded.
