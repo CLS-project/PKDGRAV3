@@ -25,9 +25,19 @@
 #endif
 #include <signal.h>
 
+static int bGlobalStop = 0;
+static void USR1_handler(int signo) {
+    signal(SIGUSR1,USR1_handler);
+    bGlobalStop = 1;
+    }
+
 void * main_ch(MDL mdl) {
     PST pst;
     LCL lcl;
+
+    /* a USR1 signal indicates that the queue wants us to exit */
+    bGlobalStop = 0;
+    signal(SIGUSR1,USR1_handler);
 
     lcl.pkd = NULL;
     pstInitialize(&pst,mdl,&lcl);
@@ -38,12 +48,6 @@ void * main_ch(MDL mdl) {
 
     pstFinish(pst);
     return NULL;
-    }
-
-static int bGlobalStop = 0;
-static void USR1_handler(int signo) {
-    signal(SIGUSR1,USR1_handler);
-    bGlobalStop = 1;
     }
 
 /*
