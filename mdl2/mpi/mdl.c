@@ -408,7 +408,7 @@ int mdlCacheReceive(MDL mdl,MPI_Status *status) {
 	 ** worst case we would have one buffer per thread which is the
 	 ** same behaviour as before.
 	 */
-	if (mpi->freeCacheReplies == NULL ) {
+	while (mpi->freeCacheReplies == NULL ) { /* Spin waiting for a buffer */
 	    MDLcacheReplyData **plast, *pnext;
 	    plast = &mpi->busyCacheReplies;
 	    for(pdata = mpi->busyCacheReplies; pdata != NULL; pdata = pnext) {
@@ -416,12 +416,15 @@ int mdlCacheReceive(MDL mdl,MPI_Status *status) {
 		pnext = pdata->next;
 		MPI_Test(&pdata->mpiRequest,&flag,status);
 		if (flag) {
+		    if (pdata->next==NULL) mpi->busyCacheRepliesTail = plast;
 		    *plast = pdata->next;
 		    pdata->next = mpi->freeCacheReplies;
 		    mpi->freeCacheReplies = pdata;
+		    break;
 		    }
 		else plast = &pdata->next;
 		}
+	    /*mpi->busyCacheRepliesTail = plast;*/
 	    }
 	if (mpi->freeCacheReplies) {
 	    pdata = mpi->freeCacheReplies;
@@ -431,8 +434,10 @@ int mdlCacheReceive(MDL mdl,MPI_Status *status) {
 	    pdata = malloc(sizeof(MDLcacheReplyData) + MDL_CACHE_DATA_SIZE);
 	    assert(pdata != NULL);
 	    }
-	pdata->next = mpi->busyCacheReplies;
-	mpi->busyCacheReplies = pdata;
+	assert(*mpi->busyCacheRepliesTail == NULL);
+	pdata->next = NULL;
+	*mpi->busyCacheRepliesTail = pdata;
+	mpi->busyCacheRepliesTail = &pdata->next;
 
 	s = ph->iIndex;
 	n = s + ph->nItems;
@@ -1250,10 +1255,11 @@ void mdlLaunch(int argc,char **argv,void * (*fcnMaster)(MDL),void * (*fcnChild)(
     /* Start with a sensible number of cache buffers */
     mpi->freeCacheReplies = NULL;
     mpi->busyCacheReplies = NULL;
+    mpi->busyCacheRepliesTail = &mpi->busyCacheReplies;
     n = mdl->base.nProcs;
     if (n > 256) n = 256;
     else if (n < 32) n = 32;
-    for (i = 0; i<mdl->base.nProcs; ++i) {
+    for (i = 0; i<n; ++i) {
 	MDLcacheReplyData *pdata = malloc(sizeof(MDLcacheReplyData) + MDL_CACHE_DATA_SIZE);
 	assert( pdata != NULL );
 	pdata->next = mpi->freeCacheReplies;
@@ -1341,6 +1347,7 @@ void mdlFinish(MDL mdl) {
 	mpi->freeCacheReplies = pdata;
 	}
     mpi->busyCacheReplies = NULL;
+    mpi->busyCacheRepliesTail = &mpi->busyCacheReplies;
     MPI_Barrier(mdl->mpi->commMDL);
     MPI_Finalize();
 

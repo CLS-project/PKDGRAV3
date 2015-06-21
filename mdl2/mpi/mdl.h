@@ -189,7 +189,7 @@ typedef struct {
     MDLserviceSend **pSendRecvBuf;
     MDLserviceCacheReq **pThreadCacheReq;
     MDLcacheReplyData *freeCacheReplies;
-    MDLcacheReplyData *busyCacheReplies;
+    MDLcacheReplyData *busyCacheReplies, **busyCacheRepliesTail;
     } mdlContextMPI;
 
 typedef struct mdlContext {
