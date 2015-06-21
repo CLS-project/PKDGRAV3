@@ -4730,6 +4730,7 @@ double msrRead(MSR msr, const char *achInFile) {
 	msrOneNodeRead(msr,read,fio);
 	fioClose(fio);
 	}
+    free(read);
 
     dsec = msrTime() - sec;
     msrSetClasses(msr);

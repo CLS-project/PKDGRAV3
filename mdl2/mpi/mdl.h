@@ -86,7 +86,7 @@ extern "C" {
 #define SRV_STOP		0
 
 #define MDL_CACHE_SIZE		15000000
-#define MDL_CACHELINE_ELTS	(16)
+#define MDL_CACHELINE_ELTS	(32)
 #define MDL_CHECK_MASK  	0x7f
 
 typedef struct {
@@ -246,7 +246,7 @@ typedef struct mdlContext {
 /*
  ** General Functions
  */
-int mdlLaunch(int,char **,void * (*)(MDL),void * (*)(MDL));
+void mdlLaunch(int,char **,void * (*)(MDL),void * (*)(MDL));
 void mdlFinish(MDL);
 int  mdlSplitComm(MDL mdl, int nProcs);
 void mdlSetComm(MDL mdl, int iComm);

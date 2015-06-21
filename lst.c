@@ -219,6 +219,7 @@ void lstFree(LST *lst) {
 		(*lst->info[i].fnFree)(blks[i]);
 		}
 	    lst->freeList->nTiles--;
+	    free(tile);
 	    }
 	assert(lst->freeList->nTiles == 0);
 	lst->freeList->list = NULL;

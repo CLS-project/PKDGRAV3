@@ -409,10 +409,11 @@ int mdlCacheReceive(MDL mdl,MPI_Status *status) {
 	 ** same behaviour as before.
 	 */
 	if (mpi->freeCacheReplies == NULL ) {
-	    MDLcacheReplyData **plast;
+	    MDLcacheReplyData **plast, *pnext;
 	    plast = &mpi->busyCacheReplies;
-	    for(pdata = mpi->busyCacheReplies; pdata != NULL; pdata = pdata->next) {
+	    for(pdata = mpi->busyCacheReplies; pdata != NULL; pdata = pnext) {
 		int flag;
+		pnext = pdata->next;
 		MPI_Test(&pdata->mpiRequest,&flag,status);
 		if (flag) {
 		    *plast = pdata->next;
@@ -1083,7 +1084,21 @@ static void *mdlWorkerThread(void *vmdl) {
     return result;
     }
 
-int mdlLaunch(int argc,char **argv,void * (*fcnMaster)(MDL),void * (*fcnChild)(MDL)) {
+static void cleanupMDL(MDL mdl) {
+    int i;
+    for (i = 0; i<mdl->nMaxCacheIds; ++i) {
+	if (mdl->cache[i].arc) arcFinish(mdl->cache[i].arc);
+	}
+    free(mdl->pszIn);
+    free(mdl->pszOut);
+    free(mdl->pszBuf);
+    free(mdl->inQueue);
+    free(mdl->pszTrans);
+    free(mdl->cache);
+    mdlBaseFinish(&mdl->base);
+    }
+
+void mdlLaunch(int argc,char **argv,void * (*fcnMaster)(MDL),void * (*fcnChild)(MDL)) {
     MDL mdl;
     int i,n,bDiag,bThreads,bDedicated,thread_support,rc,flag,*piTagUB;
     char *p, ach[256];
@@ -1300,9 +1315,8 @@ int mdlLaunch(int argc,char **argv,void * (*fcnMaster)(MDL),void * (*fcnChild)(M
 	else fcnMaster(mdl);
 	}
     drainMPI(mdl);
-    mdlFinish(mdl);
     pthread_barrier_destroy(&mdl->pmdl[0]->barrier);
-    return(mdl->base.nThreads);
+    mdlFinish(mdl);
     }
 
 void mdlFinish(MDL mdl) {
@@ -1312,7 +1326,12 @@ void mdlFinish(MDL mdl) {
 
     for (i = mdl->iCoreMPI+1; i < mdl->base.nCores; ++i) {
 	pthread_join(mdl->threadid[i],0);
+	cleanupMDL(mdl->pmdl[i]);
+	free(mdl->pmdl[i]);
 	}
+    free(mdl->threadid);
+    free(mdl->pmdl-1);
+
     /* Finish any outstanding cache sends */
     for(pdata = mpi->busyCacheReplies; pdata != NULL; pdata=pnext) {
 	MPI_Status status;
@@ -1329,9 +1348,7 @@ void mdlFinish(MDL mdl) {
     CUDA_finish(mdl->cudaCtx);
 #endif
 
-    for (i = 0; i<mdl->nMaxCacheIds; ++i) {
-	if (mdl->cache[i].arc) arcFinish(mdl->cache[i].arc);
-	}
+    cleanupMDL(mdl);
 
     /*
      ** Close Diagnostic file.
@@ -1349,14 +1366,12 @@ void mdlFinish(MDL mdl) {
 	}
     mpi->freeCacheReplies = NULL;
 
-    free(mdl->pszIn);
-    free(mdl->pszOut);
-    free(mdl->pszBuf);
-    free(mdl->pszTrans);
-    free(mdl->cache);
     free(mdl->mpi->pszRcv);
     free(mdl->base.iProcToThread);
-    mdlBaseFinish(&mdl->base);
+    free(mpi->pSendRecvReq);
+    free(mpi->pSendRecvBuf);
+    free(mpi->pThreadCacheReq);
+    free(mpi->pRequestTargets);
     free(mdl->mpi);
     free(mdl);
     }

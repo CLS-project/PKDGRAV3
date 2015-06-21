@@ -46,6 +46,9 @@ void prmFinish(PRM prm) {
 	if (pnKill->pszArgUsage) free(pnKill->pszArgUsage);
 	free(pnKill);
 	}
+#ifdef USE_PYTHON
+    if (prm->script_argv) free(prm->script_argv);
+#endif
     free(prm);
     }
 
