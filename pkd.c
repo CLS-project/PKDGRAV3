@@ -2277,12 +2277,14 @@ int pkdColRejects(PKD pkd,int nSplit) {
 
     pkd->nRejects = pkdLocal(pkd) - nSplit;
     iRejects = pkdFreeStore(pkd) - pkd->nRejects;
-    pkd->nLocal = nSplit;
     /*
     ** Move rejects to High memory.
     */
-    for (i=pkd->nRejects-1;i>=0;--i)
-	pkdCopyParticle(pkd,pkdParticle(pkd,iRejects+i),pkdParticle(pkd,pkd->nLocal+i));
+    if (pkdLocal(pkd) != pkdFreeStore(pkd)) {
+	for (i=pkd->nRejects-1;i>=0;--i)
+	    pkdCopyParticle(pkd,pkdParticle(pkd,iRejects+i),pkdParticle(pkd,nSplit+i));
+	}
+    pkd->nLocal = nSplit;
     return(pkd->nRejects);
     }
 
