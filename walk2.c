@@ -799,12 +799,16 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
 doneCheckList:
     pkdGravFinishEwald(pkd);
     *pdFlop += dEwFlop;   /* Finally add the ewald score to get a proper float count */
-    if (smx) {
-	smSmoothFinish(smx);
-	smFinish(smx,&smf);
-	}
     return(nTotActive);
     }
+
+static void doneGravWalk(PKD pkd,SMX smx,SMF *smf) {
+    if (smx) {
+	smSmoothFinish(smx);
+	smFinish(smx,smf);
+	}
+    }
+
 
 static void initGravWalk(PKD pkd,double dTime,double dThetaMin,int bPeriodic,int bGravStep,
     SMX *smx, SMF *smf, double *dRhoFac) {
@@ -883,7 +887,7 @@ int pkdGravWalkHop(PKD pkd,double dTime,int nGroup, double dThetaMin,double *pdF
 	nActive += processCheckList(pkd, smx, smf, pkd->hopRoots[iRootSelf].iIndex, 0, 0, MAX_RUNG,
 	    dRhoFac, 0, nGroup, dThetaMin, 0, pdFlop, pdPartSum, pdCellSum);
 	}
-
+    doneGravWalk(pkd,smx,&smf);
     mdlFinishCache(pkd->mdl,CID_PARTICLE);
     return nActive;
 }
@@ -983,6 +987,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 	nActive += processCheckList(pkd, smx, smf, iLocalRoot, iVARoot, uRungLo, uRungHi,
 	    dRhoFac, 0, nGroup, dThetaMin, pkd->param.bGravStep, pdFlop, pdPartSum, pdCellSum);
 	}
+    doneGravWalk(pkd,smx,&smf);
     return nActive;
     }
 
@@ -1027,6 +1032,7 @@ int pkdGravWalkGroups(PKD pkd,double dTime,int nGroup, double dThetaMin,double *
 	nActive += processCheckList(pkd, smx, smf, gd[i].treeRoots[0].iLocalRootId, 0, 0, MAX_RUNG,
 	    dRhoFac, 0, nGroup, dThetaMin, 0, pdFlop, pdPartSum, pdCellSum);
     }
+    doneGravWalk(pkd,smx,&smf);
     return nActive;
 }
 
