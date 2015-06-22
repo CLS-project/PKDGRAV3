@@ -11,6 +11,9 @@
 #if !defined(HAVE_CONFIG_H) || defined(HAVE_MALLOC_H)
 #include <malloc.h>
 #endif
+#ifdef HAVE_SIGNAL_H
+#include <signal.h>
+#endif
 #include <math.h>
 #include <limits.h>
 #include <assert.h>
@@ -1103,11 +1106,22 @@ static void cleanupMDL(MDL mdl) {
     mdlBaseFinish(&mdl->base);
     }
 
+#if defined(SIGRTMAX) && defined(HAVE_MALLOC_STATS)
+static void SIGRTMAX0_handler(int signo) {
+    malloc_stats();
+    }
+#endif
+
+
 void mdlLaunch(int argc,char **argv,void * (*fcnMaster)(MDL),void * (*fcnChild)(MDL)) {
     MDL mdl;
     int i,n,bDiag,bThreads,bDedicated,thread_support,rc,flag,*piTagUB;
     char *p, ach[256];
     mdlContextMPI *mpi;
+
+#if defined(SIGRTMAX) && defined(HAVE_MALLOC_STATS)
+    signal(SIGRTMAX-0,SIGRTMAX0_handler);
+#endif
 
 #ifdef USE_ITT
     __itt_domain* domain = __itt_domain_create("MyTraces.MyDomain");
@@ -2715,5 +2729,4 @@ void mdlAddWork(MDL mdl, void *ctx,
     /* Just handle it ourselves */
     while( doWork(ctx) != 0 ) {}
     doneWork(ctx);
-
     }

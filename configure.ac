@@ -510,7 +510,7 @@ AC_FUNC_REALLOC
 AC_FUNC_STAT
 AC_FUNC_VPRINTF
 AC_HEADER_STDC
-AC_CHECK_HEADERS([fcntl.h limits.h malloc.h stddef.h stdlib.h string.h sys/param.h sys/time.h unistd.h ansidecl.h fenv.h])
+AC_CHECK_HEADERS([fcntl.h limits.h malloc.h stddef.h stdlib.h string.h sys/param.h sys/time.h unistd.h ansidecl.h fenv.h signal.h])
 
 # Checks for typedefs, structures, and compiler characteristics.
 AC_C_CONST
@@ -536,7 +536,7 @@ AC_CHECK_TYPE([hrtime_t],[AC_DEFINE(HAVE_HRTIME_T, 1, [Define to 1 if hrtime_t i
 #include <sys/time.h>
 #endif])
 
-AC_CHECK_FUNCS([gethrtime read_real_time time_base_to_time clock_gettime mach_absolute_time atexit memmove memset])
+AC_CHECK_FUNCS([gethrtime read_real_time time_base_to_time clock_gettime mach_absolute_time atexit memmove memset malloc_stats])
 dnl Cray UNICOS _rtc() (real-time clock) intrinsic
 AC_MSG_CHECKING([for _rtc intrinsic])
 rtc_ok=yes
