@@ -4018,7 +4018,7 @@ void pstMemStatus(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	}
     else {
 	FILE *fp;
-	char buffer[1024], *f;
+	char buffer[512], *save, *f;
 	int i;
 
 	for (id=0;id<nThreads;++id) out[id].nBytesCl = 0;
@@ -4029,7 +4029,8 @@ void pstMemStatus(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	if ( fp != NULL ) {
 	    fgets(buffer,sizeof(buffer),fp);
 	    fclose(fp);
-	    f = strtok(buffer," ");
+printf("%d: [%s]\n", id, buffer);
+	    f = strtok_r(buffer," ",&save);
 	    for ( i=0; i<= 36 && f; i++ ) {
 		switch (i) {
 		case  9: out[id].minflt = atol(f); break;
@@ -4037,6 +4038,7 @@ void pstMemStatus(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 		case 11: out[id].majflt = atol(f); break;
 		case 12: out[id].majflt+= atol(f); break;
 		case 22:
+printf("%d: [%s]\n", id, f);
 		    out[id].vsize  = atol(f)/1024/1024;
 		    break;
 		case 23:
@@ -4048,7 +4050,7 @@ void pstMemStatus(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 		    break;
 		default: break;
 		    }
-		f = strtok(NULL," ");
+		f = strtok_r(NULL," ",&save);
 		}
 	    }
 #endif
@@ -4691,7 +4693,7 @@ void pstMeasurePk(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     int i;
 
     assert( nIn==sizeof(struct inMeasurePk) );
-    if (pstNotCore(pst)) {
+    if (pstOffNode(pst)) {
 	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_MEASUREPK,vin,nIn);
 	pstMeasurePk(pst->pstLower,vin,nIn,vout,pnOut);
 	mdlGetReply(pst->mdl,rID,&outUpper,&nOut);
@@ -4706,6 +4708,11 @@ void pstMeasurePk(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	pkdMeasurePk(plcl->pkd, in->dCenter, in->dRadius,
 		     in->nGrid, out->fPower, out->nPower);
 	}
+
+    if (pstAmNode(pst)) {
+	}
+
+
     if (pnOut) *pnOut = sizeof(struct outMeasurePk);
     }
 #endif
