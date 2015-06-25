@@ -179,18 +179,15 @@ static void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin, i
 	    T2 = SIMD_I2F(SIMD_CMP_EQ_EPI32(blk->iLower.p[i],iconsts.zero.p));
 	    T3 = SIMD_OR(SIMD_I2F(SIMD_CMP_GT_EPI32(iconsts.walk_min_multipole.p,blk->nc.p[i])),SIMD_CMP_LE(mink2,cOpen2));
 	    T4 = SIMD_CMP_GT(minbnd2,fourh2);
-
-
 	    T6 = SIMD_CMP_GT(cOpen,k_Open);
 	    T7 = SIMD_I2F(SIMD_CMP_GT_EPI32(k_nk,k_nGroup.p));
-	    iOpenA = SIMD_OR(SIMD_AND(T2,iconsts.one.pf),SIMD_ANDNOT(T2,iconsts.three.pf));
-	    iOpenB = SIMD_OR(SIMD_AND(T3,iOpenA),SIMD_ANDNOT(T3,
-		    SIMD_OR(SIMD_AND(T4,iconsts.four.pf),SIMD_ANDNOT(T4,iOpenA))));
-	    P1 = SIMD_OR(SIMD_AND(T2,iconsts.two.pf),SIMD_ANDNOT(T2,iconsts.three.pf));
-	    P2 = SIMD_OR(SIMD_AND(T7,iconsts.zero.pf),SIMD_ANDNOT(T7,iOpenB));
-	    P3 = SIMD_OR(SIMD_AND(T6,P1),SIMD_ANDNOT(T6,P2));
-	    P4 = SIMD_OR(SIMD_AND(T1,iconsts.eight.pf),SIMD_ANDNOT(T1,P3));
-	    iOpen = SIMD_OR(SIMD_AND(T0,P4),SIMD_ANDNOT(T0,iconsts.ten.pf));
+ 	    iOpenA = SIMD_SELECT(iconsts.three.pf,iconsts.one.pf,T2);
+	    iOpenB = SIMD_SELECT(SIMD_SELECT(iOpenA,iconsts.four.pf,T4),iOpenA,T3);
+	    P1 = SIMD_SELECT(iconsts.three.pf,iconsts.two.pf,T2);
+	    P2 = SIMD_SELECT(iOpenB,iconsts.zero.pf,T7);
+	    P3 = SIMD_SELECT(P2,P1,T6);
+	    P4 = SIMD_SELECT(P3,iconsts.eight.pf,T1);
+	    iOpen = SIMD_SELECT(iconsts.ten.pf,P4,T0);
 	    blk->iOpen.pf[i] = iOpen;
 	    }
 	}
