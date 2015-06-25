@@ -4029,7 +4029,6 @@ void pstMemStatus(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	if ( fp != NULL ) {
 	    fgets(buffer,sizeof(buffer),fp);
 	    fclose(fp);
-printf("%d: [%s]\n", id, buffer);
 	    f = strtok_r(buffer," ",&save);
 	    for ( i=0; i<= 36 && f; i++ ) {
 		switch (i) {
