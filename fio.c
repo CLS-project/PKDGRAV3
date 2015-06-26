@@ -4195,7 +4195,6 @@ static void graficClose(FIO fio) {
     fioGrafic *gio = (fioGrafic *)fio;
     graficCloseFiles(gio);
     graficFreeBuffers(gio);
-    fileScanFree(&fio->fileList);
     free(gio);
     }
 
