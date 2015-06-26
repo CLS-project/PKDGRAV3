@@ -3641,8 +3641,8 @@ typedef struct {
 	double *pDouble;
 	} data;
     int iPosition[3];
-    int iInSlab, iIndex;
-    int nPerSlab,nPerBuf;
+    int iIndex;
+    int nPerSlab;
     int nSlabSize;
     off_t nHdrSize;
     int bDouble;
@@ -3761,9 +3761,7 @@ static int graficReadHdr(graficFile *gf) {
     assert(gf->nHdrSize==w1+2*sizeof(w1));
 
     gf->nPerSlab = (uint64_t)gf->hdr.n[0] * (uint64_t)gf->hdr.n[1];
-    gf->nPerBuf = gf->nPerSlab;
-    gf->iIndex = gf->nPerBuf;
-    gf->iInSlab = gf->nPerSlab;
+    gf->iIndex = gf->nPerSlab;
     gf->iPosition[0] = -1;
     gf->iPosition[1] = gf->iPosition[2] = 0;
 
@@ -4175,6 +4173,7 @@ static void graficClose(FIO fio) {
     fioGrafic *gio = (fioGrafic *)fio;
     graficCloseFiles(gio);
     graficFreeBuffers(gio);
+    fileScanFree(&fio->fileList);
     free(gio);
     }
 
