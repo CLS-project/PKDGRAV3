@@ -3641,8 +3641,8 @@ typedef struct {
 	double *pDouble;
 	} data;
     int iPosition[3];
-    int iIndex;
-    int nPerSlab;
+    int iInSlab, iIndex;
+    int nPerSlab,nPerBuf;
     int nSlabSize;
     off_t nHdrSize;
     int bDouble;
@@ -3761,7 +3761,9 @@ static int graficReadHdr(graficFile *gf) {
     assert(gf->nHdrSize==w1+2*sizeof(w1));
 
     gf->nPerSlab = (uint64_t)gf->hdr.n[0] * (uint64_t)gf->hdr.n[1];
-    gf->iIndex = gf->nPerSlab;
+    gf->nPerBuf = gf->nPerSlab;
+    gf->iIndex = gf->nPerBuf;
+    gf->iInSlab = gf->nPerSlab;
     gf->iPosition[0] = -1;
     gf->iPosition[1] = gf->iPosition[2] = 0;
 
@@ -3880,6 +3882,26 @@ static int graficCloseFiles(fioGrafic *gio) {
     graficCloseFile( &gio->level[0].fp_posbx );
     graficCloseFile( &gio->level[0].fp_posby );
     graficCloseFile( &gio->level[0].fp_posbz );
+    }
+static int graficFreeBuffers(fioGrafic *gio) {
+    if (gio->level[0].fp_velcx.data.pFloat) free(gio->level[0].fp_velcx.data.pFloat);
+    if (gio->level[0].fp_velcy.data.pFloat) free(gio->level[0].fp_velcy.data.pFloat);
+    if (gio->level[0].fp_velcz.data.pFloat) free(gio->level[0].fp_velcz.data.pFloat);
+    if (gio->level[0].fp_velcx2.data.pFloat) free(gio->level[0].fp_velcx2.data.pFloat);
+    if (gio->level[0].fp_velcy2.data.pFloat) free(gio->level[0].fp_velcy2.data.pFloat);
+    if (gio->level[0].fp_velcz2.data.pFloat) free(gio->level[0].fp_velcz2.data.pFloat);
+    if (gio->level[0].fp_poscx.data.pFloat) free(gio->level[0].fp_poscx.data.pFloat);
+    if (gio->level[0].fp_poscy.data.pFloat) free(gio->level[0].fp_poscy.data.pFloat);
+    if (gio->level[0].fp_poscz.data.pFloat) free(gio->level[0].fp_poscz.data.pFloat);
+    if (gio->level[0].fp_velbx.data.pFloat) free(gio->level[0].fp_velbx.data.pFloat);
+    if (gio->level[0].fp_velby.data.pFloat) free(gio->level[0].fp_velby.data.pFloat);
+    if (gio->level[0].fp_velbz.data.pFloat) free(gio->level[0].fp_velbz.data.pFloat);
+    if (gio->level[0].fp_velbx2.data.pFloat) free(gio->level[0].fp_velbx2.data.pFloat);
+    if (gio->level[0].fp_velby2.data.pFloat) free(gio->level[0].fp_velby2.data.pFloat);
+    if (gio->level[0].fp_velbz2.data.pFloat) free(gio->level[0].fp_velbz2.data.pFloat);
+    if (gio->level[0].fp_posbx.data.pFloat) free(gio->level[0].fp_posbx.data.pFloat);
+    if (gio->level[0].fp_posby.data.pFloat) free(gio->level[0].fp_posby.data.pFloat);
+    if (gio->level[0].fp_posbz.data.pFloat) free(gio->level[0].fp_posbz.data.pFloat);
     }
 
 /*
@@ -4152,6 +4174,7 @@ static int graficReadSph(
 static void graficClose(FIO fio) {
     fioGrafic *gio = (fioGrafic *)fio;
     graficCloseFiles(gio);
+    graficFreeBuffers(gio);
     free(gio);
     }
 
@@ -4351,6 +4374,14 @@ static FIO graficOpenDirectory(fioFileList *fileList,double UNUSED(dOmega0),doub
     gio->level[0].fp_velbx2.fp = gio->level[0].fp_velby2.fp = gio->level[0].fp_velbz2.fp = NULL;
     gio->level[0].fp_posbx.fp = gio->level[0].fp_posby.fp = gio->level[0].fp_posbz.fp = NULL;
 
+    gio->level[0].fp_velcx.data.pFloat = gio->level[0].fp_velcy.data.pFloat = gio->level[0].fp_velcz.data.pFloat = NULL;
+    gio->level[0].fp_velcx2.data.pFloat = gio->level[0].fp_velcy2.data.pFloat = gio->level[0].fp_velcz2.data.pFloat = NULL;
+    gio->level[0].fp_poscx.data.pFloat = gio->level[0].fp_poscy.data.pFloat = gio->level[0].fp_poscz.data.pFloat = NULL;
+    gio->level[0].fp_velbx.data.pFloat = gio->level[0].fp_velby.data.pFloat = gio->level[0].fp_velbz.data.pFloat = NULL;
+    gio->level[0].fp_velbx2.data.pFloat = gio->level[0].fp_velby2.data.pFloat = gio->level[0].fp_velbz2.data.pFloat = NULL;
+    gio->level[0].fp_posbx.data.pFloat = gio->level[0].fp_posby.data.pFloat = gio->level[0].fp_posbz.data.pFloat = NULL;
+
+
     for( i=0; i<FIO_SPECIES_LAST; i++)
 	gio->fio.nSpecies[i] = 0;
 
@@ -4456,150 +4487,6 @@ static FIO graficOpenDirectory(fioFileList *fileList,double UNUSED(dOmega0),doub
 
     return &gio->fio;
     }
-
-static FIO graficOpenDirectoryNew(fioFileList *fileList,double UNUSED(dOmega0),double dOmegab) {
-    const char *dirName = fileList->fileInfo[0].pszFilename;
-    struct stat s;
-    graficFile gf;
-    int i, n, rc, iFile, nFiles, nSize;
-    uint64_t nSlabs, nDataSize, iStart;
-    char *fileName;
-    int bMany = 0;
-    int nInFileMax;
-    uint64_t *nInFile;
-
-    if ( stat(dirName,&s) != 0 ) return NULL; /* First file/directory must exist! */
-    if ( !S_ISDIR(s.st_mode) ) {              /* Needs to be a directory. */
-	errno = ENOTDIR;
-	return NULL;
-	}
-
-    /* Copy the directory to a buffer with enough space and add the slash */
-    fileName = malloc(strlen(dirName) + 2 + strlen("ic_velcx2.00000"));
-    assert(fileName!=NULL);
-    strcpy(fileName,dirName);
-    strcat(fileName,"/");
-    n = strlen(fileName);
-
-    /* Check for simple ic_velcx */
-    strcpy(fileName+n,"ic_velcx");
-    if ( stat(fileName,&s) == 0 ) {
-	if ( !S_ISREG(s.st_mode) ) return NULL; /* This needs to be a file */
-
-	fileList->nFiles = 1;
-	fileList->fileInfo = malloc(sizeof(fioFileInfo)*(fileList->nFiles+1));
-	assert(fileList->fileInfo);
-	for (i=0;i<FIO_SPECIES_LAST;++i) fileList->fileInfo[0].nSpecies[i] = 0;
-	fileList->fileInfo[0].nSpecies[FIO_SPECIES_DARK] = nSlabs * gf.nPerSlab;
-	if (dOmegab > 0.0)
-	    fileList->fileInfo[0].nSpecies[FIO_SPECIES_SPH] = 
-		fileList->fileInfo[0].nSpecies[FIO_SPECIES_DARK];
-	fileList->fileInfo[0].pszFilename = fileName;
-	fileList->fileInfo[0].iFirst = 0;
-
-
-
-
-
-
-	}
-
-
-
-
-
-    if ( stat(fileName,&s) != 0 ) {
-	strcpy(fileName+n,"ic_velcx.00000");
-	if ( stat(fileName,&s) != 0 ) return NULL;
-	bMany = 1;
-	}
-    if ( !S_ISREG(s.st_mode) ) return NULL; /* This needs to be a file */
-//    graficOpen(&gf,fileName);
-    assert(gf.fp != NULL);
-
-    nDataSize = s.st_size - gf.nHdrSize;
-    nSlabs = nDataSize / (8 + gf.nSlabSize);
-    assert(nSlabs * (8 + gf.nSlabSize) == nDataSize);
-    fclose(gf.fp);
-
-    if (!bMany) {
-	fileList->nFiles = 1;
-	fileList->fileInfo = malloc(sizeof(fioFileInfo)*(fileList->nFiles+1));
-	assert(fileList->fileInfo);
-	for (i=0;i<FIO_SPECIES_LAST;++i) fileList->fileInfo[0].nSpecies[i] = 0;
-	fileList->fileInfo[0].nSpecies[FIO_SPECIES_DARK] = nSlabs * gf.nPerSlab;
-	if (dOmegab > 0.0)
-	    fileList->fileInfo[0].nSpecies[FIO_SPECIES_SPH] = 
-		fileList->fileInfo[0].nSpecies[FIO_SPECIES_DARK];
-	fileList->fileInfo[0].pszFilename = fileName;
-	fileList->fileInfo[0].iFirst = 0;
-
-	return NULL;
-	//return graficOpenDirectory();
-	}
-
-    nInFileMax = 8192;
-    nInFile = malloc(sizeof(*nInFile)*nInFileMax);
-    assert(nInFile != NULL);
-    nInFile[0] = nSlabs * gf.nPerSlab;
-    for(nFiles=1;;++nFiles) {
-	if ( nFiles >= nInFileMax ) {
-	    nInFileMax *= 2;
-	    nInFile = realloc(nInFile,sizeof(*nInFile)*nInFileMax);
-	    assert(nInFile != NULL);
-	    }
-
-	sprintf(fileName+n,"ic_velcx.%05d",nFiles);
-	if ( stat(fileName,&s) != 0 ) break; /* No more files, must be done */
-	if ( s.st_size == 0 ) break; /* Zero length files are ignored */
-	if ( !S_ISREG(s.st_mode) ) return NULL; /* This needs to be a file */
-	nSlabs = s.st_size / (8 + gf.nSlabSize);
-	assert(nSlabs * (8 + gf.nSlabSize) == s.st_size);
-	nInFile[nFiles] = nSlabs * gf.nPerSlab;
-	}
-    nSize = (strlen(fileName)+1) * nFiles;
-    free(fileName);
-
-    /*
-    ** Allocate space for the list of files.  We use a single buffer for the
-    ** names -- we have already calculated how big this needs to be.
-    */
-    fileList->nFiles = nFiles;
-    fileList->fileInfo = malloc(sizeof(fioFileInfo)*(nFiles+1));
-    assert(fileList->fileInfo);
-    fileName = malloc(nSize);
-    assert(fileName);
-
-    /*
-    ** Great, now just copy the filenames into the new buffer
-    */
-    iStart = 0;
-    for( iFile=0; iFile<nFiles; ++iFile ) {
-	fileList->fileInfo[iFile].pszFilename = fileName;
-	fileList->fileInfo[iFile].iFirst = iStart;
-	for (i=0;i<FIO_SPECIES_LAST;++i) fileList->fileInfo[iFile].nSpecies[i] = 0;
-	fileList->fileInfo[iFile].nSpecies[FIO_SPECIES_DARK] = nInFile[iFile];
-	if (dOmegab > 0.0)
-	    fileList->fileInfo[iFile].nSpecies[FIO_SPECIES_SPH] = 
-		fileList->fileInfo[iFile].nSpecies[FIO_SPECIES_DARK];
-	iStart += nInFile[iFile];
-	sprintf(fileName,"%s/%s.%05d",dirName,"ic_velcx",iFile);
-	fileName += strlen(fileName) + 1;
-	printf("%s: %llu\n",fileList->fileInfo[iFile].pszFilename,fileList->fileInfo[iFile].iFirst);
-	}
-
-    free(nInFile);
-
-
-    assert(0); /* under development */
-
-
-//    return listOpen(fileList,gadgetOpenOne,bReopen);
-    }
-
-
-
-
 
 /******************************************************************************\
 ** Generic Routines
