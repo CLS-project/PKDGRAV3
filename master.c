@@ -4685,7 +4685,7 @@ double msrRead(MSR msr, const char *achInFile) {
     read->nProcessors = msr->param.bParaRead==0?1:(msr->param.nParaRead<=1 ? msr->nThreads:msr->param.nParaRead);
 
     if (!fioGetAttr(fio,"nFiles",FIO_TYPE_UINT32,&j)) j = 1;
-    msrprintf(msr,"Reading %llu particles from %d file%s using %d processor%s\n",
+    printf("Reading %llu particles from %d file%s using %d processor%s\n",
 	msr->N, j, (j==1?"":"s"), read->nProcessors, (read->nProcessors==1?"":"s") );
 
     dTime = getTime(msr,dExpansion,&read->dvFac);
@@ -4734,8 +4734,8 @@ double msrRead(MSR msr, const char *achInFile) {
 
     dsec = msrTime() - sec;
     msrSetClasses(msr);
-    msrprintf(msr,"Input file has been successfully read, Wallclock: %f secs.\n", dsec);
-    msrprintf(msr,"Allocated %lu MB for particle store on each processor.\n",
+    printf("Input file has been successfully read, Wallclock: %f secs.\n", dsec);
+    printf("Allocated %lu MB for particle store on each processor.\n",
 	      pkdParticleMemory(plcl->pkd)/(1024*1024));
 
     /*
