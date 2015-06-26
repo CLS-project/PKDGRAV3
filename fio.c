@@ -4542,8 +4542,7 @@ static FIO openMany(fioFileList *fileList, double dOmega0,double dOmegab, int bR
 #endif
 
     else errno = EINVAL;
-
-
+    if (fio==NULL) perror(fileName);
     return fio;
     }
 
