@@ -4418,7 +4418,6 @@ static FIO graficOpenDirectory(fioFileList *fileList,double UNUSED(dOmega0),doub
 		nInFile[nFiles] = nSlabs * nPerSlab;
 		}
 	    size_t nSize = (strlen(dirName)+1) * nFiles;
-	    puts(fileName);
 	    free(fileName);
 
 	    /*
