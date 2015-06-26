@@ -3794,6 +3794,23 @@ static int graficReadHdr(graficFile *gf) {
     }
 
 /*
+** Compare two GRAFIC headers for equality
+*/
+static int graficCompare(graficFile *a,graficFile *b) {
+    return a->hdr.n[0] == b->hdr.n[0]
+	&& a->hdr.n[1] == b->hdr.n[1]
+	&& a->hdr.n[2] == b->hdr.n[2]
+	&& a->hdr.dx == b->hdr.dx
+	&& a->hdr.o[0] == b->hdr.o[0]
+	&& a->hdr.o[1] == b->hdr.o[1]
+	&& a->hdr.o[2] == b->hdr.o[2]
+	&& a->hdr.astart == b->hdr.astart
+	&& a->hdr.omegam == b->hdr.omegam
+	&& a->hdr.omegav == b->hdr.omegav
+	&& a->hdr.H0 == b->hdr.H0;
+    }
+
+/*
 ** Open a single GRAFIC file and read in the header information
 */
 static int graficOpen(graficFile *gf,char *fileName,const char *dirName,const char *fieldName,int iIndex) {
@@ -3980,23 +3997,6 @@ static void graficSeekFile(graficFile *gf,uint64_t iPart,uint64_t iAbs) {
     /* Also verify that the FORTRAN record length is correct */
     rc = fread(&w,sizeof(w),1,gf->fp);
     assert(rc==1 && w==gf->nSlabSize);
-    }
-
-/*
-** Compare two GRAFIC headers for equality
-*/
-static int graficCompare(graficFile *a,graficFile *b) {
-    return a->hdr.n[0] == b->hdr.n[0]
-	&& a->hdr.n[1] == b->hdr.n[1]
-	&& a->hdr.n[2] == b->hdr.n[2]
-	&& a->hdr.dx == b->hdr.dx
-	&& a->hdr.o[0] == b->hdr.o[0]
-	&& a->hdr.o[1] == b->hdr.o[1]
-	&& a->hdr.o[2] == b->hdr.o[2]
-	&& a->hdr.astart == b->hdr.astart
-	&& a->hdr.omegam == b->hdr.omegam
-	&& a->hdr.omegav == b->hdr.omegav
-	&& a->hdr.H0 == b->hdr.H0;
     }
 
 static int graficGetAttr(FIO fio,
