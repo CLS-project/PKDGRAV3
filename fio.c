@@ -4384,6 +4384,7 @@ static FIO graficOpenDirectory(fioFileList *fileList,double UNUSED(dOmega0),doub
     gio->fio.fcnGetAttr  = graficGetAttr;
     gio->fio.fcnSpecies  = graficSpecies;
 
+    gio->mValueBar = dOmegab; /* we will correct this later */
     gio->nLevels = 1;
     gio->level = malloc(sizeof(graficLevel));
     assert(gio->level);
