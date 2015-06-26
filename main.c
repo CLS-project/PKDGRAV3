@@ -31,6 +31,12 @@ static void USR1_handler(int signo) {
     bGlobalStop = 1;
     }
 
+static int bGlobalOutput = 0;
+static void USR2_handler(int signo) {
+    signal(SIGUSR2,USR2_handler);
+    bGlobalOutput = 1;
+    }
+
 void * main_ch(MDL mdl) {
     PST pst;
     LCL lcl;
@@ -38,6 +44,10 @@ void * main_ch(MDL mdl) {
     /* a USR1 signal indicates that the queue wants us to exit */
     bGlobalStop = 0;
     signal(SIGUSR1,USR1_handler);
+
+    /* a USR2 signal indicates that we should write an output when convenient */
+    bGlobalOutput = 0;
+    signal(SIGUSR2,USR2_handler);
 
     lcl.pkd = NULL;
     pstInitialize(&pst,mdl,&lcl);
@@ -83,6 +93,10 @@ void * master_ch(MDL mdl) {
     /* a USR1 signal indicates that the queue wants us to exit */
     bGlobalStop = 0;
     signal(SIGUSR1,USR1_handler);
+
+    /* a USR2 signal indicates that we should write an output when convenient */
+    bGlobalOutput = 0;
+    signal(SIGUSR2,USR2_handler);
 
     /*
     ** Output the host names to make troubleshooting easier
@@ -273,9 +287,10 @@ void * master_ch(MDL mdl) {
 	    **           2) We are stopping
 	    **           3) we're at an output interval
 	    */
-	    if (msrOutTime(msr,dTime) || iStep == msrSteps(msr) || iStop ||
+	    if (bGlobalOutput || msrOutTime(msr,dTime) || iStep == msrSteps(msr) || iStop ||
 		    (msrOutInterval(msr) > 0 && iStep%msrOutInterval(msr) == 0) ||
 		    (msrCheckInterval(msr) > 0 && iStep%msrCheckInterval(msr) == 0)) {
+		bGlobalOutput = 0;
 		msrOutput(msr,iStep,dTime, msrCheckInterval(msr)>0
 			  && (iStep%msrCheckInterval(msr) == 0
 			      || iStep == msrSteps(msr) || iStop));
