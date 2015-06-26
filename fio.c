@@ -3610,6 +3610,8 @@ FIO fioHDF5Create(const char *fileName, int mFlags) {
 ** GRAFIC FORMAT
 \******************************************************************************/
 
+#define GRAFIC_BUFFER_ELEMENTS 1000000
+
 typedef struct {
     int32_t n[3];
     float dx, o[3];
@@ -3641,8 +3643,8 @@ typedef struct {
 	double *pDouble;
 	} data;
     int iPosition[3];
-    int iIndex;
-    int nPerSlab;
+    int iBufIdx, nPerBuf;
+    int iInSlab,nPerSlab;
     int nSlabSize;
     off_t nHdrSize;
     int bDouble;
@@ -3761,7 +3763,10 @@ static int graficReadHdr(graficFile *gf) {
     assert(gf->nHdrSize==w1+2*sizeof(w1));
 
     gf->nPerSlab = (uint64_t)gf->hdr.n[0] * (uint64_t)gf->hdr.n[1];
-    gf->iIndex = gf->nPerSlab;
+    gf->nPerBuf = gf->nPerSlab;
+    if (gf->nPerBuf > GRAFIC_BUFFER_ELEMENTS) gf->nPerBuf = GRAFIC_BUFFER_ELEMENTS;
+    gf->iInSlab = gf->nPerSlab;
+    gf->iBufIdx = 0;
     gf->iPosition[0] = -1;
     gf->iPosition[1] = gf->iPosition[2] = 0;
 
@@ -3772,13 +3777,13 @@ static int graficReadHdr(graficFile *gf) {
     if (w1 == sizeof(double)*gf->nPerSlab) {
 	gf->bDouble = 1;
 	gf->nSlabSize = sizeof(double)*gf->nPerSlab;
-	gf->data.pDouble = malloc(gf->nSlabSize);
+	gf->data.pDouble = malloc(sizeof(double)*gf->nPerBuf);
 	assert(gf->data.pDouble!=NULL);
 	}
     else if (w1 == sizeof(float)*gf->nPerSlab) {
 	gf->bDouble = 0;
 	gf->nSlabSize = sizeof(float)*gf->nPerSlab;
-	gf->data.pFloat = malloc(gf->nSlabSize);
+	gf->data.pFloat = malloc(sizeof(float)*gf->nPerBuf);
 	assert(gf->data.pFloat!=NULL);
 	}
     else {
@@ -3813,12 +3818,12 @@ static int graficCompare(graficFile *a,graficFile *b) {
 /*
 ** Open a single GRAFIC file and read in the header information
 */
-static int graficOpen(graficFile *gf,char *fileName,const char *dirName,const char *fieldName,int iIndex) {
-    if (iIndex < 0) sprintf(fileName,"%s/%s",dirName,fieldName);
-    else sprintf(fileName,"%s/%s.%05d",dirName,fieldName,iIndex);
+static int graficOpen(graficFile *gf,char *fileName,const char *dirName,const char *fieldName,int iFileIdx) {
+    if (iFileIdx < 0) sprintf(fileName,"%s/%s",dirName,fieldName);
+    else sprintf(fileName,"%s/%s.%05d",dirName,fieldName,iFileIdx);
     gf->fp = fopen(fileName,"rb");
     if ( gf->fp != NULL ) {
-	if ( iIndex <=0 ) {
+	if ( iFileIdx <=0 ) {
 	    if ( !graficReadHdr(gf) ) {
 		fclose(gf->fp);
 		gf->fp = NULL;
@@ -3928,7 +3933,8 @@ static double graficRead(graficFile *gf) {
 
     if (gf->fp==NULL) return 0.0;
 
-    assert( gf->iIndex <= gf->nPerSlab);
+    assert( gf->iBufIdx <= gf->nPerBuf);
+    assert( gf->iInSlab <= gf->nPerSlab);
     if ( ++gf->iPosition[0] == gf->hdr.n[0] ) {
 	gf->iPosition[0] = 0;
 	if ( ++gf->iPosition[1] == gf->hdr.n[1] ) {
@@ -3936,24 +3942,35 @@ static double graficRead(graficFile *gf) {
 	    ++gf->iPosition[2];
 	    }
 	}
-    if ( gf->iIndex == gf->nPerSlab) {
-	gf->iIndex = 0;
 
-	/* Read an entire slab */
+    if ( gf->iInSlab+gf->iBufIdx == gf->nPerSlab) {
 	rc = fread(&w,sizeof(w),1,gf->fp);
 	assert(rc==1 && w==gf->nSlabSize);
-
-	if ( gf->bDouble )
-	    rc = fread(gf->data.pDouble,sizeof(double),gf->nPerSlab,gf->fp);
-	else
-	    rc = fread(gf->data.pFloat,sizeof(float),gf->nPerSlab,gf->fp);
-	assert(rc==gf->nPerSlab);
-
-	rc = fread(&w,sizeof(w),1,gf->fp);
-	assert(rc==1 && w==gf->nSlabSize);
+	gf->iInSlab = gf->iBufIdx = 0;
+	if ( gf->bDouble ) rc = fread(gf->data.pDouble,sizeof(double),gf->nPerBuf,gf->fp);
+	else rc = fread(gf->data.pFloat,sizeof(float),gf->nPerBuf,gf->fp);
+	assert(rc==gf->nPerBuf);
+	if (gf->nPerSlab == gf->nPerBuf) {
+	    rc = fread(&w,sizeof(w),1,gf->fp);
+	    assert(rc==1 && w==gf->nSlabSize);
+	    }
 	}
-    if ( gf->bDouble ) return gf->data.pDouble[gf->iIndex++];
-    else return gf->data.pFloat[gf->iIndex++];
+    else if ( gf->iBufIdx == gf->nPerBuf) {
+	int nRead;
+	gf->iInSlab += gf->iBufIdx;
+	gf->iBufIdx = 0;
+	nRead = gf->nPerSlab - gf->iInSlab;
+	if (nRead > gf->nPerBuf ) nRead = gf->nPerBuf;
+	if ( gf->bDouble ) rc = fread(gf->data.pDouble,sizeof(double),nRead,gf->fp);
+	else rc = fread(gf->data.pFloat,sizeof(float),nRead,gf->fp);
+	assert(rc==nRead);
+	if (nRead + gf->iInSlab == gf->nPerSlab ) {
+	    rc = fread(&w,sizeof(w),1,gf->fp);
+	    assert(rc==1 && w==gf->nSlabSize);
+	    }
+	}
+    if ( gf->bDouble ) return gf->data.pDouble[gf->iBufIdx++];
+    else return gf->data.pFloat[gf->iBufIdx++];
     }
 
 static void graficSeekFile(graficFile *gf,uint64_t iPart,uint64_t iAbs) {
@@ -3961,6 +3978,7 @@ static void graficSeekFile(graficFile *gf,uint64_t iPart,uint64_t iAbs) {
 	sFloat,     /* Bytes in each float (could be double) */
 	iSlab;      /* Index of the slab */
     uint64_t iByte; /* Byte offset into the file */
+    int nRead;
     off_t iOffset;
     uint32_t w;
     int rc;
@@ -3985,18 +4003,22 @@ static void graficSeekFile(graficFile *gf,uint64_t iPart,uint64_t iAbs) {
 
     rc = safe_fseek(gf->fp,iByte); assert(rc==0);
 
-    /* Read the remainder of this slab */
-    if ( gf->bDouble )
-	rc = fread(gf->data.pDouble+iPart,sizeof(double),gf->nPerSlab-iPart,gf->fp);
-    else
-	rc = fread(gf->data.pFloat+iPart,sizeof(float),gf->nPerSlab-iPart,gf->fp);
-    assert(rc==gf->nPerSlab-iPart);
+    nRead = gf->nPerSlab-iPart;
+    if (nRead > gf->nPerBuf ) nRead = gf->nPerBuf;
 
-    gf->iIndex = iPart;
+    gf->iInSlab = iPart;
+    gf->iBufIdx = 0;
+
+    /* Read the remainder of this slab */
+    if ( gf->bDouble ) rc = fread(gf->data.pDouble+gf->iBufIdx,sizeof(double),nRead,gf->fp);
+    else rc = fread(gf->data.pFloat+gf->iBufIdx,sizeof(float),nRead,gf->fp);
+    assert(rc==nRead);
 
     /* Also verify that the FORTRAN record length is correct */
-    rc = fread(&w,sizeof(w),1,gf->fp);
-    assert(rc==1 && w==gf->nSlabSize);
+    if (nRead + gf->iBufIdx + gf->iInSlab == gf->nPerSlab ) {
+	rc = fread(&w,sizeof(w),1,gf->fp);
+	assert(rc==1 && w==gf->nSlabSize);
+	}
     }
 
 static int graficGetAttr(FIO fio,
@@ -4118,7 +4140,7 @@ static int graficReadDark(FIO fio,
     assert(gio->iOrder >= gio->fio.nSpecies[FIO_SPECIES_SPH]);
 
     /* New slab? The file may have changed so try seeking */
-    if (gio->level[0].fp_velcx.iIndex == gio->level[0].fp_velcx.nPerSlab ) {
+    if (gio->level[0].fp_velcx.iBufIdx + gio->level[0].fp_velcx.iInSlab == gio->level[0].fp_velcx.nPerSlab ) {
 	graficSeek(fio,gio->iOrder,FIO_SPECIES_ALL);
 	}
 
