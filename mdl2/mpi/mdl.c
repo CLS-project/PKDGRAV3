@@ -1120,7 +1120,7 @@ void mdlLaunch(int argc,char **argv,void * (*fcnMaster)(MDL),void * (*fcnChild)(
     mdlContextMPI *mpi;
 
 #if defined(SIGRTMAX) && defined(HAVE_MALLOC_STATS)
-    signal(SIGRTMAX-0,SIGRTMAX0_handler);
+    signal(SIGRTMAX-1,SIGRTMAX0_handler);
 #endif
 
 #ifdef USE_ITT
