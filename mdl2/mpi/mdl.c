@@ -488,7 +488,7 @@ int mdlCacheReceive(MDL mdl,MPI_Status *status) {
 	creq->caReq.nItems = ph->nItems; /* Let caller know actual number */
 	/*
 	 ** For now assume no prefetching!
-	 ** This means that this WILL be the reply to this Aquire
+	 ** This means that this WILL be the reply to this Acquire
 	 ** request.
 	 */
 	assert(pLine != NULL);
@@ -2218,7 +2218,7 @@ static void finishCacheRequest(MDL mdl, int cid, int iIndex, int id, CDB *temp) 
 ** The next 3 highest order bits of uId ((1<<30), (1<<29) and (1<<28)) are reserved 
 ** for list location and should be zero! The maximum legal uId is then (1<<28)-1.
 */
-static void *Aquire(MDL mdl, int cid, uint32_t uIndex, int uId, int bLock,int bModify) {
+static void *Acquire(MDL mdl, int cid, uint32_t uIndex, int uId, int bLock,int bModify) {
     CACHE *c = &mdl->cache[cid];
     ARC arc = c->arc;
     CDB *temp;
@@ -2431,13 +2431,13 @@ static void *Aquire(MDL mdl, int cid, uint32_t uIndex, int uId, int bLock,int bM
 void *mdlFetch(MDL mdl,int cid,int iIndex,int id) {
     const int lock = 0;  /* we never lock in fetch */
     const int modify = 0; /* fetch can never modify */
-    return(Aquire(mdl, cid, iIndex, id, lock, modify));
+    return(Acquire(mdl, cid, iIndex, id, lock, modify));
     }
 
 void *mdlAcquire(MDL mdl,int cid,int iIndex,int id) {
     const int lock = 1;  /* we always lock in aquire */
     const int modify = (mdl->cache[cid].iType == MDL_COCACHE);
-    return(Aquire(mdl, cid, iIndex, id, lock, modify));
+    return(Acquire(mdl, cid, iIndex, id, lock, modify));
     }
 
 void mdlRelease(MDL mdl,int cid,void *p) {
