@@ -230,7 +230,7 @@ void pstAddServices(PST pst,MDL mdl) {
 		  sizeof(struct inDomainOrder),0);
     mdlAddService(mdl,PST_LOCALORDER,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstLocalOrder,
-		  0,0);
+		  sizeof(struct inDomainOrder),0);
     mdlAddService(mdl,PST_COMPRESSASCII,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstCompressASCII,
 		  sizeof(struct inCompressASCII),sizeof(struct outCompressASCII));
@@ -2193,7 +2193,7 @@ void pstSwapAll(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     }
 
 
-void _pstOrdSplit(PST pst,uint64_t iMaxOrder) {
+uint64_t _pstOrdSplit(PST pst,uint64_t iMinOrder,uint64_t iMaxOrder) {
     struct outFreeStore outFree;
     struct inOrdWeight inWt;
     struct outOrdWeight outWtLow,outWtHigh;
@@ -2217,13 +2217,13 @@ void _pstOrdSplit(PST pst,uint64_t iMaxOrder) {
     ** Find the correct iOrdSplit, such that all processors will
     ** have close to the same number of particles in the end.
     ** Start the ROOT finder based on balancing number of particles.
-    */
-    il = 0;
+    */ 
+    il = iMinOrder;
     iu = iMaxOrder;
     im = 0;        /* just initialization */
     nLow = 0;      /* just initialization */
     nHigh = iu+1;  /* just initialization */
-    imm = (il + iu)/2;
+    imm = (il + iu + 1)/2;
     ittr = 0;
     while (il < imm && imm < iu && ittr < MAX_ITTR) {
 	im = imm;
@@ -2291,6 +2291,7 @@ void _pstOrdSplit(PST pst,uint64_t iMaxOrder) {
     free(pLowerRej);
     free(pUpperRej);
     free(pidSwap);
+    return pst->iOrdSplit;
     }
 
 
@@ -2300,11 +2301,17 @@ void pstDomainOrder(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 
     mdlassert(pst->mdl,nIn == sizeof(struct inDomainOrder));
     if (pst->nLeaves > 1) {
-	_pstOrdSplit(pst,in->iMaxOrder);
+	uint64_t iMinOrder = in->iMinOrder;
+	uint64_t iMaxOrder = in->iMaxOrder;
+	uint64_t iMidOrder;
+	iMidOrder = _pstOrdSplit(pst,iMinOrder,iMaxOrder);
 	/*
 	** Now go on to Domain Order of next levels.
 	*/
+	in->iMinOrder = iMidOrder;
 	if (pst->nUpper > 1) rID = mdlReqService(pst->mdl,pst->idUpper,PST_DOMAINORDER,in,nIn);
+	in->iMinOrder = iMinOrder;
+	in->iMaxOrder = iMidOrder-1;
 	if (pst->nLower > 1) pstDomainOrder(pst->pstLower,in,nIn,NULL,NULL);
 	if (pst->nUpper > 1) mdlGetReply(pst->mdl,rID,NULL,NULL);
 	}
@@ -2313,16 +2320,26 @@ void pstDomainOrder(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 
 
 void pstLocalOrder(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    struct inDomainOrder *in = vin;
     LCL *plcl = pst->plcl;
+    uint64_t iMinOrder = in->iMinOrder;
+    uint64_t iMaxOrder = in->iMaxOrder;
 
-    mdlassert(pst->mdl,nIn == 0);
+    mdlassert(pst->mdl,nIn == sizeof(struct inDomainOrder));
     if (pst->nLeaves > 1) {
-	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_LOCALORDER,NULL,0);
-	pstLocalOrder(pst->pstLower,NULL,0,NULL,NULL);
+	uint64_t iMinOrder = in->iMinOrder;
+	uint64_t iMaxOrder = in->iMaxOrder;
+	uint64_t iMidOrder = pst->iOrdSplit;
+	assert(iMidOrder >= iMinOrder && iMidOrder <= iMaxOrder);
+	in->iMinOrder = iMidOrder;
+	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_LOCALORDER,in,nIn);
+	in->iMinOrder = iMinOrder;
+	in->iMaxOrder = iMidOrder-1;
+	pstLocalOrder(pst->pstLower,in,nIn,NULL,NULL);
 	mdlGetReply(pst->mdl,rID,NULL,NULL);
 	}
     else {
-	pkdLocalOrder(plcl->pkd);
+	pkdLocalOrder(plcl->pkd,iMinOrder,iMaxOrder);
 	}
     if (pnOut) *pnOut = 0;
     }

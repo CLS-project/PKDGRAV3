@@ -2437,11 +2437,14 @@ void msrReorder(MSR msr) {
     struct inDomainOrder in;
     double sec,dsec;
 
-    in.iMaxOrder = msrMaxOrder(msr)-1;
     msrprintf(msr,"Ordering...\n");
     sec = msrTime();
+    in.iMinOrder = 0;
+    in.iMaxOrder = msrMaxOrder(msr)-1;
     pstDomainOrder(msr->pst,&in,sizeof(in),NULL,NULL);
-    pstLocalOrder(msr->pst,NULL,0,NULL,NULL);
+    in.iMinOrder = 0;
+    in.iMaxOrder = msrMaxOrder(msr)-1;
+    pstLocalOrder(msr->pst,&in,sizeof(in),NULL,NULL);
     dsec = msrTime() - sec;
     msrprintf(msr,"Order established, Wallclock: %f secs\n\n",dsec);
 

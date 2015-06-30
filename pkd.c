@@ -2388,8 +2388,18 @@ int cmpParticles(const void *pva,const void *pvb) {
     }
 
 
-void pkdLocalOrder(PKD pkd) {
-    qsort(pkdParticleBase(pkd),pkdLocal(pkd),pkdParticleSize(pkd),cmpParticles);
+void pkdLocalOrder(PKD pkd,uint64_t iMinOrder, uint64_t iMaxOrder) {
+    int i;
+    assert(pkd->nLocal == iMaxOrder - iMinOrder + 1);
+    for (i=0;i<pkd->nLocal;++i) {
+	PARTICLE *p1 = pkdParticle(pkd,i);
+	assert(p1->iOrder >= iMinOrder && p1->iOrder <= iMaxOrder);
+	while(p1->iOrder - iMinOrder !=  i) {
+	    PARTICLE *p2 = pkdParticle(pkd,p1->iOrder-iMinOrder);
+	    pkdSwapParticle(pkd,p1,p2);
+	    }
+	}
+    /* Above replaces: qsort(pkdParticleBase(pkd),pkdLocal(pkd),pkdParticleSize(pkd),cmpParticles); */
     }
 
 static void writeParticle(PKD pkd,FIO fio,double dvFac,BND *bnd,PARTICLE *p) {

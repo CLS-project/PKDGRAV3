@@ -428,6 +428,7 @@ void pstColOrdRejects(PST,void *,int,void *,int *);
 
 /* PST_DOMAINORDER */
 struct inDomainOrder {
+    uint64_t iMinOrder;
     uint64_t iMaxOrder;
     };
 void pstDomainOrder(PST,void *,int,void *,int *);
