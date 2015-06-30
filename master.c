@@ -2299,7 +2299,7 @@ void msrDomainDecompOld(MSR msr,int iRung,int bSplitVA) {
     sec = msrTime();
     pstDomainDecomp(msr->pst,&in,sizeof(in),NULL,NULL);
     dsec = msrTime() - sec;
-    msrprintf(msr,"Domain Decomposition complete, Wallclock: %f secs\n\n",dsec);
+    printf("Domain Decomposition complete, Wallclock: %f secs\n\n",dsec);
     if (bRestoreActive) {
 	/* Restore Active data */
 	msrActiveRung(msr,iRung,1);
@@ -2371,7 +2371,7 @@ static void BuildTree(MSR msr,int bNeedEwald,int nTrees,TREESPEC *pSpecIn) {
     sec = msrTime();
     pstBuildTree(msr->pst,in,inSize,pkdn,&iDum);
     dsec = msrTime() - sec;
-    msrprintf(msr,"Tree built, Wallclock: %f secs\n\n",dsec);
+    printf("Tree built, Wallclock: %f secs\n\n",dsec);
 
     if (bNeedEwald) {
 	/*
