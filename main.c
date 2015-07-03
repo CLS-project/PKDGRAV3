@@ -25,10 +25,10 @@
 #endif
 #include <signal.h>
 
-static int bGlobalStop = 0;
+static time_t timeGlobalSignalTime = 0;
 static void USR1_handler(int signo) {
     signal(SIGUSR1,USR1_handler);
-    bGlobalStop = 1;
+    timeGlobalSignalTime = time(0);
     }
 
 static int bGlobalOutput = 0;
@@ -42,7 +42,7 @@ void * main_ch(MDL mdl) {
     LCL lcl;
 
     /* a USR1 signal indicates that the queue wants us to exit */
-    bGlobalStop = 0;
+    timeGlobalSignalTime = 0;
     signal(SIGUSR1,USR1_handler);
 
     /* a USR2 signal indicates that we should write an output when convenient */
@@ -91,7 +91,7 @@ void * master_ch(MDL mdl) {
 	}
 
     /* a USR1 signal indicates that the queue wants us to exit */
-    bGlobalStop = 0;
+    timeGlobalSignalTime = 0;
     signal(SIGUSR1,USR1_handler);
 
     /* a USR2 signal indicates that we should write an output when convenient */
@@ -267,8 +267,7 @@ void * master_ch(MDL mdl) {
 	    /*
 	    ** Check for user interrupt.
 	    */
-	    if (bGlobalStop) iStop = 1;
-	    else iStop = msrCheckForStop(msr);
+	    iStop = msrCheckForStop(msr);
 
 	    /*
 	    ** Check to see if the runtime has been exceeded.
@@ -278,6 +277,16 @@ void * master_ch(MDL mdl) {
 		    printf("RunTime limit exceeded.  Writing checkpoint and exiting.\n");
 		    printf("    iWallRunTime(sec): %d   Time running: %ld   Last step: %ld\n",
 			   msr->param.iWallRunTime*60,time(0)-lStart,lSec);
+		    iStop = 1;
+		    }
+		}
+
+	    /* Check to see if there should be an output */
+	    if (!iStop && timeGlobalSignalTime>0) { /* USR1 received */
+		if ( (time(0)+(lSec*1.5)) > timeGlobalSignalTime+msr->param.iSignalSeconds) {
+		    printf("RunTime limit exceeded.  Writing checkpoint and exiting.\n");
+		    printf("    iSignalSeconds: %d   Time running: %ld   Last step: %ld\n",
+			msr->param.iSignalSeconds,time(0)-lStart,lSec);
 		    iStop = 1;
 		    }
 		}

@@ -69,6 +69,7 @@ struct parameters {
     int nTreeBitsLo;
     int nTreeBitsHi;
     int iWallRunTime;
+    int iSignalSeconds;
     int bPhysicalSoft;
     int bSoftMaxMul;
     int nSoftNbr;

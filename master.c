@@ -487,6 +487,10 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     prmAddParam(msr->prm,"iWallRunTime",1,&msr->param.iWallRunTime,
 		sizeof(int),"wall",
 		"<Maximum Wallclock time (in minutes) to run> = 0 = infinite");
+    msr->param.iSignalSeconds = 0;
+    prmAddParam(msr->prm,"iSignalSeconds",1,&msr->param.iSignalSeconds,
+		sizeof(int),"signal",
+		"<Time (in seconds) that USR1 is sent before termination> = 0 = immediate");
     msr->param.bFindGroups = 0;
     prmAddParam(msr->prm,"bFindGroups",0,&msr->param.bFindGroups,sizeof(int),
 		"groupfinder","<enable/disable group finder> = -groupfinder");
