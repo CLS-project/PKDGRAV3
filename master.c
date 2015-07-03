@@ -4233,9 +4233,7 @@ void msrHopWrite(MSR msr, const char *fname) {
 
     for (id=1;id<msr->nThreads;++id) {
         int rID = mdlReqService(pst0->mdl,id,PST_HOP_SEND_STATS,NULL,0);
-#ifdef MPI_VERSION
 	mdlRecv(pst0->mdl,id,unpackHop,fp);
-#endif
         mdlGetReply(pst0->mdl,rID,NULL,NULL);
         }
     fclose(fp);
