@@ -508,7 +508,7 @@ void pkdInitialize(
     ** type operations such as tree building and domain decomposition are being
     ** performed.
     */
-    pkd->pLite = malloc((nStore+1)*sizeof(PLITE));
+    pkd->pLite = mdlMallocArray(pkd->mdl,nStore+1,sizeof(PLITE));
     mdlassert(mdl,pkd->pLite != NULL);
     pkd->nNodes = 0;
     /*
@@ -647,7 +647,7 @@ void pkdFinish(PKD pkd) {
     if (pkd->pStorePRIVATE2)
 	mdlFree(pkd->mdl,pkd->pStorePRIVATE2);
     free(pkd->pTempPRIVATE);
-    free(pkd->pLite);
+    mdlFreeArray(pkd->mdl,pkd->pLite);
     free(pkd->piActive);
     free(pkd->piInactive);
     csmFinish(pkd->param.csm);
