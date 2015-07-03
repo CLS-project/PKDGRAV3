@@ -869,7 +869,6 @@ static int mdl_MPI_Send(void *buf, int count, MPI_Datatype datatype, int dest, i
     return rc;
     }
 
-
 static int mdl_remote_MPI_Recv(void *buf, int count, MPI_Datatype datatype, int source, int tag,
     MDL mdl, int *nBytes, int iServiceID) {
     MDLserviceSend *send = &mdl->recvRequest;
@@ -1401,15 +1400,6 @@ void mdlFinish(MDL mdl) {
 /*
 ** This needs to be improved by abstracting away more of the MPI functionality
 */
-
-int mdlBcast ( MDL mdl, void *buf, int count, MDL_Datatype datatype, int root ) {
-    return MPI_Bcast( buf, count, datatype, root, mdl->mpi->commMDL );
-    }
-
-int mdlScan ( MDL mdl, void *sendbuf, void *recvbuf, int count,
-		MDL_Datatype datatype, MDL_Op op ) {
-    return MPI_Scan( sendbuf, recvbuf, count, datatype, op, mdl->mpi->commMDL );
-    }
 
 int mdlExscan ( MDL mdl, void *sendbuf, void *recvbuf, int count,
 		MDL_Datatype datatype, MDL_Op op ) {

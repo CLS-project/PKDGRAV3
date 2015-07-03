@@ -288,11 +288,8 @@ void mdlHandler(MDL);
 typedef MPI_Op MDL_Op;
 typedef MPI_Datatype MDL_Datatype;
 #define MDL_Op_create(f,c,o) MPI_Op_create(f,c,o) 
-int mdlBcast ( MDL mdl, void *buf, int count, MDL_Datatype datatype, int root );
 int mdlReduce ( MDL mdl, void *sendbuf, void *recvbuf, int count,
 		MDL_Datatype datatype, MDL_Op op, int root );
-int mdlScan   ( MDL mdl, void *sendbuf, void *recvbuf, int count,
-		MDL_Datatype datatype, MDL_Op op );
 int mdlExscan   ( MDL mdl, void *sendbuf, void *recvbuf, int count,
 		MDL_Datatype datatype, MDL_Op op );
 int mdlAllreduce( MDL mdl, void *sendbuf, void *recvbuf, int count,
