@@ -421,6 +421,7 @@ void mdlCacheBarrier(MDL,int);
 void mdlPrefetch(MDL mdl,int cid,int iIndex, int id);
 void *mdlAcquire(MDL mdl,int cid,int iIndex,int id);
 void *mdlFetch(MDL mdl,int cid,int iIndex,int id);
+void *mdlVirtualAcquire(MDL mdl,int cid,int iIndex,int id,int bLock);
 void mdlRelease(MDL,int,void *);
 void mdlFlushCache(MDL,int);
 void mdlThreadBarrier(MDL);

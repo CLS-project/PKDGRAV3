@@ -434,7 +434,7 @@ int mdlCacheReceive(MDL mdl,MPI_Status *status) {
 	    mpi->freeCacheReplies = pdata->next;
 	    }
 	else {
-	    pdata = malloc(sizeof(MDLcacheReplyData) + MDL_CACHE_DATA_SIZE);
+	    pdata = malloc(sizeof(MDLcacheReplyData) + mpi->iCaBufSize);
 	    assert(pdata != NULL);
 	    }
 	assert(*mpi->busyCacheRepliesTail == NULL);
@@ -1274,7 +1274,7 @@ void mdlLaunch(int argc,char **argv,void * (*fcnMaster)(MDL),void * (*fcnChild)(
     if (n > 256) n = 256;
     else if (n < 32) n = 32;
     for (i = 0; i<n; ++i) {
-	MDLcacheReplyData *pdata = malloc(sizeof(MDLcacheReplyData) + MDL_CACHE_DATA_SIZE);
+	MDLcacheReplyData *pdata = malloc(sizeof(MDLcacheReplyData) + mpi->iCaBufSize);
 	assert( pdata != NULL );
 	pdata->next = mpi->freeCacheReplies;
 	mpi->freeCacheReplies = pdata;
@@ -2062,7 +2062,7 @@ static inline CDB *arcSetPrefetchDataByHash(MDL mdl,ARC arc,uint32_t uIndex,uint
     uint32_t L1Length;
     int inB2=0;
 
-    assert(data!=NULL);
+    assert(data);
     for( temp = arc->Hash[uHash]; temp; temp = temp->coll ) {
 	if (temp->uIndex == uIndex && (temp->uId&_IDMASK_) == tuId) break;
 	}
@@ -2182,18 +2182,20 @@ static void queueCacheRequest(MDL mdl, int cid, int iIndex, int id) {
 	}
     }
 
-static void finishCacheRequest(MDL mdl, int cid, int iIndex, int id, CDB *temp) {
+static void finishCacheRequest(MDL mdl, int cid, int iIndex, int id, CDB *temp,int bVirtual) {
     int iCore = id - mdl->pmdl[0]->base.idSelf;
-    CACHE *c;
-    assert(temp->data!=NULL);
+    CACHE *c = &mdl->cache[cid];
+    if (bVirtual) {
+	if (c->init) (*c->init)(c->ctx,temp->data);
+	}
     /* Local requests must be from a combiner cache if we get here */
     if (iCore >= 0 && iCore < mdl->base.nCores ) {
 	MDL omdl = mdl->pmdl[iCore];
-	c = &omdl->cache[cid];
-	memcpy(temp->data,(*c->getElt)(c->pData,iIndex,c->iDataSize), c->iDataSize);
+	CACHE *oc = &omdl->cache[cid];
+	memcpy(temp->data,(*oc->getElt)(oc->pData,iIndex,oc->iDataSize),oc->iDataSize);
+	if (c->init) (*c->init)(c->ctx,temp->data);
 	}
     else {
-	c = &mdl->cache[cid];
 	ARC arc = c->arc;
 	uint32_t uIndex = temp->uIndex;
 	uint32_t uId = temp->uId & _IDMASK_;
@@ -2201,12 +2203,14 @@ static void finishCacheRequest(MDL mdl, int cid, int iIndex, int id, CDB *temp) 
 	assert(uIndex == c->cacheRequest.caReq.iIndex );
 	pthread_mutex_lock(&arc->mux);
 	memcpy(temp->data,c->pOneLine, c->iDataSize);
+	if (c->init) (*c->init)(c->ctx,temp->data);
 	++temp->data[-1];       /* prefetch must never evict our data */
 	int i;
 	int n = c->cacheRequest.caReq.nItems;
 	for(i=1; i<n; ++i) {
 	    int nid = uIndex + i;
-	    arcSetPrefetchData(mdl,arc,nid,uId,c->pOneLine + i*c->iDataSize);
+	    CDB * temp2 = arcSetPrefetchData(mdl,arc,nid,uId,c->pOneLine + i*c->iDataSize);
+	    if (c->init) (*c->init)(c->ctx,temp2->data);
 	    }
 	--temp->data[-1];       /* may lock below */
 	pthread_mutex_unlock(&arc->mux);
@@ -2218,7 +2222,7 @@ static void finishCacheRequest(MDL mdl, int cid, int iIndex, int id, CDB *temp) 
 ** The next 3 highest order bits of uId ((1<<30), (1<<29) and (1<<28)) are reserved 
 ** for list location and should be zero! The maximum legal uId is then (1<<28)-1.
 */
-static void *Acquire(MDL mdl, int cid, uint32_t uIndex, int uId, int bLock,int bModify) {
+static void *Acquire(MDL mdl, int cid, uint32_t uIndex, int uId, int bLock,int bModify,int bVirtual) {
     CACHE *c = &mdl->cache[cid];
     ARC arc = c->arc;
     CDB *temp;
@@ -2312,7 +2316,7 @@ static void *Acquire(MDL mdl, int cid, uint32_t uIndex, int uId, int bLock,int b
 	    /*
 	    ** Can initiate the data request right here, and do the rest while waiting...
 	    */
-	    queueCacheRequest(mdl,cid,uIndex,uId);
+	    if (!bVirtual) queueCacheRequest(mdl,cid,uIndex,uId);
 /* 	    assert(arc->B1->hdr.links.next != arc->B1); */
 /* 	    assert(arc->B1Length>0); */
 	    rat = arc->B2Length/arc->B1Length;
@@ -2326,7 +2330,7 @@ static void *Acquire(MDL mdl, int cid, uint32_t uIndex, int uId, int bLock,int b
 	    /*
 	    ** Can initiate the data request right here, and do the rest while waiting...
 	    */
-	    queueCacheRequest(mdl,cid,uIndex,uId);
+	    if (!bVirtual) queueCacheRequest(mdl,cid,uIndex,uId);
 /* 	    assert(arc->B2->hdr.links.next != arc->B2); */
 /* 	    assert(arc->B2Length>0); */
 
@@ -2346,7 +2350,7 @@ static void *Acquire(MDL mdl, int cid, uint32_t uIndex, int uId, int bLock,int b
 	    mru_insert(temp,arc->T2);                                     /* seen twice recently, put on T2 */
 	    arc->T2Length++;                 /* JS: this was not in the original code. Should it be? bookkeep */
 	    /*assert(temp->data!=NULL);*/
-	    finishCacheRequest(mdl,cid,uIndex,uId,temp);
+	    finishCacheRequest(mdl,cid,uIndex,uId,temp,bVirtual);
 	    break;
 	    }
 	}
@@ -2357,7 +2361,7 @@ static void *Acquire(MDL mdl, int cid, uint32_t uIndex, int uId, int bLock,int b
 	/*
 	** Can initiate the data request right here, and do the rest while waiting...
 	*/
-	queueCacheRequest(mdl,cid,uIndex,uId);
+	if (!bVirtual) queueCacheRequest(mdl,cid,uIndex,uId);
 	pthread_mutex_lock(&arc->mux);
 	L1Length = arc->T1Length + arc->B1Length;
 	/*assert(L1Length<=arc->nCache);*/
@@ -2406,7 +2410,7 @@ static void *Acquire(MDL mdl, int cid, uint32_t uIndex, int uId, int bLock,int b
 	temp->uId = uId;                  /* temp->dirty = dirty;  p->ARC_where = _T1_; as well! */
 /* 	assert( (temp->uId&_WHERE_) == _T1_ ); */
 	temp->uIndex = uIndex;
-	finishCacheRequest(mdl,cid,uIndex,uId,temp);
+	finishCacheRequest(mdl,cid,uIndex,uId,temp,bVirtual);
 	pthread_mutex_lock(&arc->mux);
 	temp->coll = arc->Hash[uHash];                  /* add to collision chain */
 	arc->Hash[uHash] = temp;                               /* insert into hash table */
@@ -2428,16 +2432,28 @@ static void *Acquire(MDL mdl, int cid, uint32_t uIndex, int uId, int bLock,int b
     return((void *)temp->data);
 }
 
+/* Does not lock the element */
 void *mdlFetch(MDL mdl,int cid,int iIndex,int id) {
     const int lock = 0;  /* we never lock in fetch */
     const int modify = 0; /* fetch can never modify */
-    return(Acquire(mdl, cid, iIndex, id, lock, modify));
+    const int virtual = 0; /* really fetch the element */
+    return(Acquire(mdl, cid, iIndex, id, lock, modify, virtual));
     }
 
+/* Locks, so mdlRelease must be called eventually */
 void *mdlAcquire(MDL mdl,int cid,int iIndex,int id) {
-    const int lock = 1;  /* we always lock in aquire */
+    const int lock = 1;  /* we always lock in acquire */
     const int modify = (mdl->cache[cid].iType == MDL_COCACHE);
-    return(Acquire(mdl, cid, iIndex, id, lock, modify));
+    const int virtual = 0; /* really fetch the element */
+    return(Acquire(mdl, cid, iIndex, id, lock, modify, virtual));
+    }
+
+/* Locks the element, but does not fetch or initialize */
+void *mdlVirtualAcquire(MDL mdl,int cid,int iIndex,int id,int bLock) {
+    const int lock = 0;  /* we never lock in fetch */
+    const int modify = 0; /* fetch can never modify */
+    const int virtual = 1; /* do not fetch the element */
+    return(Acquire(mdl, cid, iIndex, id, lock, modify, virtual));
     }
 
 void mdlRelease(MDL mdl,int cid,void *p) {
