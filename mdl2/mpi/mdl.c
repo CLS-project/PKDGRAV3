@@ -484,6 +484,7 @@ int mdlCacheReceive(MDL mdl,MPI_Status *status) {
 	creq = mpi->pThreadCacheReq[iCore];
 	assert(creq!=NULL);
 	mpi->pThreadCacheReq[iCore] = NULL;
+	MPI_Request_free(&creq->request);
 	pLine = creq->pLine;
 	creq->caReq.nItems = ph->nItems; /* Let caller know actual number */
 	/*
@@ -652,7 +653,7 @@ static int checkMPI(MDL mdl) {
 		assert(mpi->pThreadCacheReq[caReq->svc.iCoreFrom]==NULL);
 		iProc = mdlThreadToProc(mdl,caReq->caReq.idTo);
 		mpi->pThreadCacheReq[caReq->svc.iCoreFrom] = caReq;
-		MPI_Send(&caReq->caReq,sizeof(CAHEAD),MPI_BYTE,iProc,MDL_TAG_CACHECOM, mpi->commMDL);
+		MPI_Isend(&caReq->caReq,sizeof(CAHEAD),MPI_BYTE,iProc,MDL_TAG_CACHECOM, mpi->commMDL,&caReq->request);
 		break;
 	    case MDL_SE_CACHE_FLUSH:
 		mdlSendThreadMessage(mdl,MDL_TAG_CACHE_FLUSH,qhdr->iCoreFrom,qhdr,MDL_SE_CACHE_FLUSH);

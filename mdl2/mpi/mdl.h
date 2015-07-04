@@ -146,6 +146,7 @@ typedef struct {
     MDLserviceElement svc;
     void *pLine;
     CAHEAD caReq;
+    MPI_Request request;
     } MDLserviceCacheReq;
 
 typedef struct cacheSpace {
