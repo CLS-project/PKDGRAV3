@@ -674,11 +674,9 @@ void pstOneNodeReadInit(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     struct inReadFile *in = vin;
     int *pout = vout;
     uint64_t nFileStart,nFileEnd,nFileTotal,nFileSplit,nStore;
-    int nThreads;
     int i;
 
     mdlassert(pst->mdl,nIn == sizeof(struct inReadFile));
-    nThreads = mdlThreads(pst->mdl);
     nFileStart = in->nNodeStart;
     nFileEnd = in->nNodeEnd;
     nFileTotal = nFileEnd - nFileStart + 1;
@@ -3031,45 +3029,27 @@ void pstGravity(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct inGravity *in = vin;
     struct outGravity *out = vout;
-    struct outGravity *outUp;
-    int nThreads = mdlThreads(pst->mdl);
-    int id;
+    struct outGravity *outUp = out + pst->idUpper-pst->idSelf;
 
     mdlassert(pst->mdl,nIn == sizeof(struct inGravity));
     if (pst->nLeaves > 1) {
 	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_GRAVITY,in,nIn);
 	pstGravity(pst->pstLower,in,nIn,out,NULL);
-	/*
-	** Allocate temporary array.
-	*/
-	outUp = malloc(nThreads*sizeof(struct outGravity));
-	assert(outUp != NULL);
 	mdlGetReply(pst->mdl,rID,outUp,NULL);
-	/*
-	** Now merge valid elements of outUp to out.
-	*/
-	for (id=0;id<nThreads;++id) {
-	    if (outUp[id].dWalkTime >= 0) {
-		out[id] = outUp[id];
-		}
-	    }
-	free(outUp);
 	}
     else {
-	for (id=0;id<nThreads;++id) out[id].dWalkTime = -1.0;  /* impossible, used as initialization */
-	id = pst->idSelf;
 	pkdGravAll(plcl->pkd,in->uRungLo,in->uRungHi,in->dTime,in->nReps,in->bPeriodic,
-	    4,in->bEwald,in->nGroup,in->iRoot1,in->iRoot2,in->dEwCut,in->dEwhCut, in->dThetaMin,&out[id].nActive,
-	    &out[id].dPartSum,&out[id].dCellSum,&out[id].cs,&out[id].dFlop);
-	out[id].nLocal = plcl->pkd->nLocal;
-	out[id].dWalkTime = pkdGetWallClockTimer(plcl->pkd,1);
+	    4,in->bEwald,in->nGroup,in->iRoot1,in->iRoot2,in->dEwCut,in->dEwhCut, in->dThetaMin,&out->nActive,
+	    &out->dPartSum,&out->dCellSum,&out->cs,&out->dFlop);
+	out->nLocal = plcl->pkd->nLocal;
+	out->dWalkTime = pkdGetWallClockTimer(plcl->pkd,1);
 #if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
-	out[id].dComputing     = mdlTimeComputing(pst->mdl);
-	out[id].dWaiting       = mdlTimeWaiting(pst->mdl);
-	out[id].dSynchronizing = mdlTimeSynchronizing(pst->mdl);
+	out->dComputing     = mdlTimeComputing(pst->mdl);
+	out->dWaiting       = mdlTimeWaiting(pst->mdl);
+	out->dSynchronizing = mdlTimeSynchronizing(pst->mdl);
 #endif
 	}
-    if (pnOut) *pnOut = nThreads*sizeof(struct outGravity);
+    if (pnOut) *pnOut = pst->nLeaves*sizeof(struct outGravity);
     }
 
 
@@ -3617,32 +3597,21 @@ void
 pstColNParts(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct outColNParts *out = vout;
-    struct outColNParts *ptmp;
-    int nThreads;
+    struct outColNParts *outUp = out + pst->idUpper-pst->idSelf;
     int i;
 
-    nThreads = mdlThreads(pst->mdl);
-    for (i=0;i<nThreads;i++)
-	out[i].nNew = -1;
     if (pst->nLeaves > 1) {
 	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_COLNPARTS,vin,nIn);
 	pstColNParts(pst->pstLower,vin,nIn,vout,pnOut);
-	ptmp = malloc(nThreads*sizeof(*ptmp));
-	mdlassert(pst->mdl,ptmp != NULL);
-	mdlGetReply(pst->mdl,rID,ptmp,pnOut);
-	for (i = 0; i < nThreads; i++) {
-	    if (ptmp[i].nNew != -1)
-		out[i] = ptmp[i];
-	    }
-	free(ptmp);
+	mdlGetReply(pst->mdl,rID,outUp,pnOut);
 	}
     else {
-	pkdColNParts(plcl->pkd, &out[pst->idSelf].nNew,
-		     &out[pst->idSelf].nDeltaGas,
-		     &out[pst->idSelf].nDeltaDark,
-		     &out[pst->idSelf].nDeltaStar);
+	pkdColNParts(plcl->pkd, &out->nNew,
+		     &out->nDeltaGas,
+		     &out->nDeltaDark,
+		     &out->nDeltaStar);
 	}
-    if (pnOut) *pnOut = nThreads*sizeof(*out);
+    if (pnOut) *pnOut = pst->nLeaves*sizeof(*out);
     }
 
 void
@@ -3970,76 +3939,40 @@ void pstGenerateIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 
 void pstHostname(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     struct outHostname *out = vout;
-    struct outHostname *outUp;
-    int nThreads = mdlThreads(pst->mdl);
-    int id;
+    struct outHostname *outUp = out + pst->idUpper-pst->idSelf;
 
     mdlassert(pst->mdl,nIn == 0);
     if (pst->nLeaves > 1) {
 	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_HOSTNAME,vin,nIn);
 	pstHostname(pst->pstLower,vin,nIn,out,NULL);
-	/*
-	** Allocate temporary array.
-	*/
-	outUp = malloc(nThreads*sizeof(struct outHostname));
-	assert(outUp != NULL);
 	mdlGetReply(pst->mdl,rID,outUp,NULL);
-	/*
-	** Now merge valid elements of outUp to out.
-	*/
-	for (id=0;id<nThreads;++id) {
-	    if (outUp[id].szHostname[0])
-		out[id] = outUp[id];
-	    }
-	free(outUp);
 	}
     else {
 	char *p;
-	for (id=0;id<nThreads;++id) out[id].szHostname[0] = 0;
-	id = pst->idSelf;
-	out[id].iMpiID = mdlSelf(pst->mdl);
-	strncpy(out[id].szHostname,mdlName(pst->mdl),sizeof(out[id].szHostname));
-	out[id].szHostname[sizeof(out[id].szHostname)-1] = 0;
-	p = strchr(out[id].szHostname,'.');
+	out->iMpiID = mdlSelf(pst->mdl);
+	strncpy(out->szHostname,mdlName(pst->mdl),sizeof(out->szHostname));
+	out->szHostname[sizeof(out->szHostname)-1] = 0;
+	p = strchr(out->szHostname,'.');
 	if (p) *p = 0;
-
 	}
-    if (pnOut) *pnOut = nThreads*sizeof(struct outHostname);
+    if (pnOut) *pnOut = pst->nLeaves*sizeof(struct outHostname);
     }
 
 void pstMemStatus(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct outMemStatus *out = vout;
-    struct outMemStatus *outUp;
-    int nThreads = mdlThreads(pst->mdl);
-    int id;
+    struct outMemStatus *outUp = out + pst->idUpper-pst->idSelf;
 
     mdlassert(pst->mdl,nIn == 0);
     if (pst->nLeaves > 1) {
 	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_MEMSTATUS,vin,nIn);
 	pstMemStatus(pst->pstLower,vin,nIn,out,NULL);
-	/*
-	** Allocate temporary array.
-	*/
-	outUp = malloc(nThreads*sizeof(struct outMemStatus));
-	assert(outUp != NULL);
 	mdlGetReply(pst->mdl,rID,outUp,NULL);
-	/*
-	** Now merge valid elements of outUp to out.
-	*/
-	for (id=0;id<nThreads;++id) {
-	    if (outUp[id].nBytesCl)
-		out[id] = outUp[id];
-	    }
-	free(outUp);
 	}
     else {
 	FILE *fp;
 	char buffer[512], *save, *f;
 	int i;
-
-	for (id=0;id<nThreads;++id) out[id].nBytesCl = 0;
-	id = pst->idSelf;
 
 #ifdef __linux__
 	fp = fopen("/proc/self/stat","r");
@@ -4049,18 +3982,18 @@ void pstMemStatus(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	    f = strtok_r(buffer," ",&save);
 	    for ( i=0; i<= 36 && f; i++ ) {
 		switch (i) {
-		case  9: out[id].minflt = atol(f); break;
-		case 10: out[id].minflt+= atol(f); break;
-		case 11: out[id].majflt = atol(f); break;
-		case 12: out[id].majflt+= atol(f); break;
+		case  9: out->minflt = atol(f); break;
+		case 10: out->minflt+= atol(f); break;
+		case 11: out->majflt = atol(f); break;
+		case 12: out->majflt+= atol(f); break;
 		case 22:
-		    out[id].vsize  = atol(f)/1024/1024;
+		    out->vsize  = atol(f)/1024/1024;
 		    break;
 		case 23:
 #ifdef HAVE_GETPAGESIZE
-		    out[id].rss    = atol(f)*getpagesize()/1024/1024;
+		    out->rss    = atol(f)*getpagesize()/1024/1024;
 #else
-		    out[id].rss    = atol(f)/1024;
+		    out->rss    = atol(f)/1024;
 #endif
 		    break;
 		default: break;
@@ -4069,13 +4002,13 @@ void pstMemStatus(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 		}
 	    }
 #endif
-	out[id].nBytesTree = pkdTreeMemory(plcl->pkd);
-	out[id].nBytesCl   = pkdClMemory(plcl->pkd);
-	out[id].nBytesIlp  = pkdIlpMemory(plcl->pkd);
-	out[id].nBytesIlc  = pkdIlcMemory(plcl->pkd);
+	out->nBytesTree = pkdTreeMemory(plcl->pkd);
+	out->nBytesCl   = pkdClMemory(plcl->pkd);
+	out->nBytesIlp  = pkdIlpMemory(plcl->pkd);
+	out->nBytesIlc  = pkdIlcMemory(plcl->pkd);
 
 	}
-    if (pnOut) *pnOut = nThreads*sizeof(struct outMemStatus);
+    if (pnOut) *pnOut = pst->nLeaves*sizeof(struct outMemStatus);
     }
 
 
