@@ -134,7 +134,7 @@ typedef struct cacheHeader {
     int32_t iIndex;
     } CAHEAD;
 
-#define MDL_CACHE_DATA_SIZE (64*1024)
+#define MDL_CACHE_DATA_SIZE (8000)
 typedef struct cache_reply_data {
     struct cache_reply_data *next;
     MPI_Request mpiRequest;
@@ -154,6 +154,7 @@ typedef struct cacheSpace {
     int iType;
     int iDataSize;
     int nData;
+    int nLineElements;
     int iLineSize;
     ARC arc;
     void *pOneLine;
@@ -181,7 +182,6 @@ typedef struct {
 
     int nActiveCores;
     int nOpenCaches;
-    int iMaxDataSize; /* Largest cache element */
     int iCaBufSize;  /* Cache buffer size */
     char *pszRcv; /* Cache receive buffer */
 

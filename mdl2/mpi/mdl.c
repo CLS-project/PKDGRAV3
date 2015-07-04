@@ -627,7 +627,7 @@ static int checkMPI(MDL mdl) {
 		/* A thread has opened a cache -- we may need to resize our buffers */
 	    case MDL_SE_CACHE_OPEN:
 		coc = (cacheOpenClose *)qhdr;
-		assert(coc->iDataSize <= mpi->iMaxDataSize);
+		assert(coc->iDataSize <= MDL_CACHE_DATA_SIZE);
 		if (mpi->ReqRcv == MPI_REQUEST_NULL) {
 		    MPI_Irecv(mpi->pszRcv,mpi->iCaBufSize, MPI_BYTE,
 			MPI_ANY_SOURCE, MDL_TAG_CACHECOM,
@@ -1261,8 +1261,7 @@ void mdlLaunch(int argc,char **argv,void * (*fcnMaster)(MDL),void * (*fcnChild)(
     */
     assert(sizeof(CAHEAD) == 16); /* Well, should be a multiple of 8 at least. */
     mpi->nOpenCaches = 0;
-    mpi->iMaxDataSize = MDL_CACHE_DATA_SIZE;
-    mpi->iCaBufSize = sizeof(CAHEAD) + mpi->iMaxDataSize;
+    mpi->iCaBufSize = sizeof(CAHEAD) + MDL_CACHE_DATA_SIZE;
     mpi->pszRcv = malloc(mpi->iCaBufSize);
     assert(mpi->pszRcv != NULL);
 
@@ -1828,7 +1827,9 @@ CACHE *CacheInitialize(
     c->pData = pData;
     c->iDataSize = iDataSize;
     c->nData = nData;
-    c->iLineSize = MDL_CACHELINE_ELTS*c->iDataSize;
+    c->nLineElements = MDL_CACHE_DATA_SIZE / c->iDataSize;
+    if (c->nLineElements > MDL_CACHELINE_ELTS) c->nLineElements = MDL_CACHELINE_ELTS;
+    c->iLineSize = c->nLineElements*c->iDataSize;
 
     c->nAccess = 0;
     c->nMiss = 0;				/* !!!, not NB */
@@ -2167,7 +2168,7 @@ static void queueCacheRequest(MDL mdl, int cid, int iIndex, int id) {
 	c->cacheRequest.caReq.idFrom = mdl->base.idSelf;
 	c->cacheRequest.caReq.idTo = id;
 	c->cacheRequest.caReq.iIndex = iIndex;
-	c->cacheRequest.caReq.nItems = MDL_CACHELINE_ELTS;
+	c->cacheRequest.caReq.nItems = c->nLineElements;
 	c->cacheRequest.pLine = c->pOneLine;
 	mdlSendToMPI(mdl,&c->cacheRequest,MDL_SE_CACHE_REQUEST);
 	}
