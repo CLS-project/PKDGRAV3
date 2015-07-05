@@ -99,7 +99,7 @@ static void ubBuildLocalGroupTrees(PKD pkd, int nBucket)
 	BuildTemp(pkd,gd[i].treeRoots[0].iLocalRootId,nBucket);
     }
     assert(S == pkd->nLocal);
-    ShuffleParticles(pkd,0);
+    assert(0); /*    ShuffleParticles(pkd,0);*/
 
     for (i=1; i < pkd->psGroupTable.nGroups; i++)
     {

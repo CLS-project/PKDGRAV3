@@ -39,30 +39,20 @@ void pkdDumpTrees(PKD pkd) {
     }
 
 static void InitializeParticles(PKD pkd,int nTrees,TREESPEC *pSpec,BND *pbnd) {
-    PLITE *pLite = pkd->pLite;
     int iTreeRoot[MAX_RUNG];
     int iTreeOffset[MAX_RUNG+1];
+    int iTreeEnd[MAX_RUNG+1];
     PLITE t;
     PARTICLE *p;
     KDN *pNode;
     BND *bnd;
-    int i,j,k;
+    int i,j,k,iTree;
     int bOnlyMarked;
 
     /* Special mode: build a tree with only marked particles */
     bOnlyMarked = (nTrees==1 && pSpec[0].uRungFirst > pSpec[0].uRungLast);
     int bExcludeVeryActive = 0;
-    /*
-    ** Initialize the temporary particles.
-    */
-#ifdef USE_PLITE
-    for (i=0;i<pkd->nLocal;++i) {
-	p = pkdParticle(pkd,i);
-	for (j=0;j<3;++j) pLite[i].r[j] = p->r[j];
-	pLite[i].i = i;
-	pLite[i].uRung = (bOnlyMarked ? p->bMarked : p->uRung);
-	}
-#endif
+
     /* Sometimes the simple trees are the best trees */
     if (nTrees==1 && pSpec[0].uRungFirst==0 && pSpec[0].uRungLast == MAX_RUNG) {
 	pNode = pkdTreeNode(pkd,pSpec[0].uCell);
@@ -90,10 +80,14 @@ static void InitializeParticles(PKD pkd,int nTrees,TREESPEC *pSpec,BND *pbnd) {
 
 	/* Count the number of particles in each tree, and find offsets */
 	for (i=0; i<=nTrees;++i) iTreeOffset[i] = 0;
-	for (i=0;i<pkd->nLocal;++i) ++iTreeOffset[iTreeRoot[pLite[i].uRung]];
+	for (i=0;i<pkd->nLocal;++i) {
+	    p = pkdParticle(pkd,i);
+	    iTree = (bOnlyMarked ? p->bMarked : p->uRung);
+	    ++iTreeOffset[iTreeRoot[iTree]];
+	    }
 	for(i=nTrees;i>0;--i) iTreeOffset[i] = iTreeOffset[i-1];
 	iTreeOffset[0] = 0;
-	for (i=1; i<=nTrees;++i) iTreeOffset[i] += iTreeOffset[i-1];
+	for (i=1; i<=nTrees;++i) iTreeEnd[i-1] = (iTreeOffset[i] += iTreeOffset[i-1]);
 
 	/* Construct the tree nodes */
 	for (i=0; i<nTrees;++i) {
@@ -111,13 +105,16 @@ static void InitializeParticles(PKD pkd,int nTrees,TREESPEC *pSpec,BND *pbnd) {
 	    }
 
 	/* Put the particles in the right place */
-	for (i=0;i<pkd->nLocal;++i) {
-	    p = pkdParticle(pkd,i);
-	    k = (bOnlyMarked ? p->bMarked : p->uRung);
-	    k = iTreeOffset[iTreeRoot[k]]++;
-	    for (j=0;j<3;++j) pLite[k].r[j] = p->r[j];
-	    pLite[k].i = i;
-	    pLite[k].uRung = p->uRung;
+	for(iTree=0;iTree<nTrees;++iTree) {
+	    for(i=iTreeOffset[iTree]; i<iTreeEnd[iTree]; ) {
+		p = pkdParticle(pkd,i);
+		k = (bOnlyMarked ? p->bMarked : p->uRung);
+		if (k == iTree) ++i;
+		else {
+		    PARTICLE *p2 = pkdParticle(pkd,iTreeOffset[iTreeRoot[k]]++);
+		    pkdSwapParticle(pkd,p,p2);
+		    }
+		}
 	    }
 	}
     }
@@ -130,12 +127,7 @@ static void InitializeParticles(PKD pkd,int nTrees,TREESPEC *pSpec,BND *pbnd) {
 */
 #define TEMP_S_INCREASE 100
 void BuildTemp(PKD pkd,int iNode,int M) {
-#ifdef USE_PLITE
-    PLITE *p = pkd->pLite;
-    PLITE t;
-#else
     PARTICLE *pi, *pj;
-#endif
     KDN *pNode = pkdTreeNode(pkd,iNode);
     BND *bnd,*lbnd,*rbnd;
     KDN *pLeft, *pRight;
@@ -363,41 +355,6 @@ void BuildTemp(PKD pkd,int iNode,int M) {
 	}
 DonePart:
     free(S);
-    }
-
-/*
-** If this is called with iStart being the index of the first very active particle
-** then it reshuffles only the very actives. This is again a bit ugly, but will
-** do for now.
-*/
-void ShuffleParticles(PKD pkd,int iStart) {
-#ifdef USE_PLITE
-    PARTICLE *p, *pNew;
-    int i,iNew,iTemp;
-
-    /*
-    ** Now we move the particles in one go using the temporary
-    ** particles which have been shuffled.
-    */
-    for(iTemp=iStart; iTemp<pkd->nLocal; ++iTemp) {
-	if (pkd->pLite[iTemp].i==iTemp) continue;
-	i = iTemp;
-	p = pkdParticle(pkd,i);
-	pkdSaveParticle(pkd,p);
-	iNew = pkd->pLite[i].i;
-	pNew = pkdParticle(pkd,iNew);
-	while(iNew!=iTemp) {
-	    pkdCopyParticle(pkd,p,pNew);
-	    pkd->pLite[i].i = i;
-	    i = iNew;
-	    p = pNew;
-	    iNew = pkd->pLite[i].i;
-	    pNew = pkdParticle(pkd,iNew);
-	    }
-	pkd->pLite[i].i = i;
-	pkdLoadParticle(pkd,p);
-	}
-#endif
     }
 
 static double zeroV[3] = {0.0,0.0,0.0};
@@ -797,7 +754,6 @@ void pkdCombineCells2(PKD pkd,KDN *pkdn,KDN *p1,KDN *p2) {
 }
 
 void pkdTreeBuild(PKD pkd,int nBucket,int nTrees, TREESPEC *pSpec) {
-    int iStart;
     int i;
 #ifdef USE_ITT
     __itt_domain* domain = __itt_domain_create("MyTraces.MyDomain");
@@ -812,8 +768,6 @@ void pkdTreeBuild(PKD pkd,int nBucket,int nTrees, TREESPEC *pSpec) {
     pkdStartTimer(pkd,0);
     InitializeParticles(pkd,nTrees,pSpec,&pkd->bnd);
     for(i=0; i<nTrees; ++i) BuildTemp(pkd,pSpec[i].uCell,nBucket);
-    iStart = 0;
-    ShuffleParticles(pkd,iStart);
     for(i=0; i<nTrees; ++i) Create(pkd,pSpec[i].uCell);
 
     pkdStopTimer(pkd,0);
@@ -830,13 +784,14 @@ void pkdTreeBuild(PKD pkd,int nBucket,int nTrees, TREESPEC *pSpec) {
     }
 
 void pkdTreeBuildByGroup(PKD pkd, int nBucket) {
-    PLITE *pLite = pkd->pLite;
     PARTICLE *p;
     KDN *pNode;
     BND *bnd;
     double dMin[3], dMax[3];
     int i,j,k,n,gid,gid2,iRoot;
+    int iTree;
 
+    assert(0); /* pLite is gone -- this code path needs to be tested */
     if (pkd->nNodes > 0) {
 	/*
 	** Close cell caching space and free up nodes.
@@ -852,6 +807,9 @@ void pkdTreeBuildByGroup(PKD pkd, int nBucket) {
     if (pkd->hopSavedRoots == 0) {
 	/* Sort particle by group, but with group 0 at the end */
 	int *iGrpOffset = malloc(sizeof(int)*(pkd->nGroups+1));
+	int *iGrpEnd = malloc(sizeof(int)*(pkd->nGroups+1));
+
+	/* Count the number of particles in each group */
 	for (i=0; i<=pkd->nGroups;++i) iGrpOffset[i] = 0;
 	for (i=0;i<pkd->nLocal;++i) {
 	    p = pkdParticle(pkd,i);
@@ -860,19 +818,13 @@ void pkdTreeBuildByGroup(PKD pkd, int nBucket) {
 	    }
 	iGrpOffset[0] = iGrpOffset[1];
 	iGrpOffset[1] = 0;
+	/* Calculate starting offsets for particles in a group */
 	for(i=2; i<=pkd->nGroups;++i) {
 	    iGrpOffset[i] += iGrpOffset[i-1];
+	    iGrpEnd[i-1] = iGrpOffset[i];
 	    }
-	for (i=0;i<pkd->nLocal;++i) {
-	    p = pkdParticle(pkd,i);
-	    gid = *pkdGroup(pkd,p);
-	    if (gid==0) k = iGrpOffset[pkd->nGroups]++;
-	    else k = iGrpOffset[gid]++;
-	    for (j=0;j<3;++j) pLite[k].r[j] = p->r[j];
-	    pLite[k].i = i;
-	    pLite[k].uRung = p->uRung;
-	    pLite[k].uGroup = gid;
-	    }
+
+	/* Now construct the top tree node for each group */
 	i = 0;
 	for(gid=1; gid<pkd->nGroups;++gid) {
 	    pkdTreeAllocRootNode(pkd,&iRoot);
@@ -882,9 +834,29 @@ void pkdTreeBuildByGroup(PKD pkd, int nBucket) {
 	    i = iGrpOffset[gid];
 	    pNode->pUpper = i - 1;
 	    }
+
+	/* Reorder the particles into group order */
+	for(iTree=1;iTree<pkd->nGroups;++iTree) {
+	    for(i=iGrpOffset[iTree]; i<iGrpEnd[iTree]; ) {
+		p = pkdParticle(pkd,i);
+		gid = *pkdGroup(pkd,p);
+		if (gid==0) gid = pkd->nGroups;
+		if (gid == iTree) ++i;
+		else {
+		    PARTICLE *p2 = pkdParticle(pkd,iGrpOffset[gid]++);
+		    pkdSwapParticle(pkd,p,p2);
+		    }
+		}
+	    }
+
 	free(iGrpOffset);
-	for (i=0;i<pkd->nLocal && pLite[i].uGroup;) {
-	    gid = pLite[i].uGroup;
+	free(iGrpEnd);
+
+	/* Calculate the bounds for each group */
+	for (i=0;i<pkd->nLocal;) {
+	    p = pkdParticle(pkd,i);
+	    gid = *pkdGroup(pkd,p);
+	    if (gid==0) break;
 	    iRoot = pkd->hopGroups[gid].iTreeRoot;
 	    pNode = pkdTreeNode(pkd,iRoot);
 	    bnd = pkdNodeBnd(pkd, pNode);
@@ -893,9 +865,9 @@ void pkdTreeBuildByGroup(PKD pkd, int nBucket) {
 	    pNode->iParent = 0;
 	    assert(pNode->pLower == i);
 
-	    for (j=0;j<3;++j) dMin[j] = dMax[j] = pLite[i].r[j];
-	    for(++i; i<pkd->nLocal && pLite[i].uGroup==gid; ++i) {
-		pkdMinMax(pLite[i].r,dMin,dMax);
+	    for (j=0;j<3;++j) dMin[j] = dMax[j] = p->r[j];
+	    for(p = pkdParticle(pkd,++i); i<pkd->nLocal && *pkdGroup(pkd,p)==gid; ++i) {
+		pkdMinMax(p->r,dMin,dMax);
 		}
 	    for (j=0;j<3;++j) {
 		bnd->fCenter[j] = 0.5*(dMin[j] + dMax[j]);
@@ -908,7 +880,6 @@ void pkdTreeBuildByGroup(PKD pkd, int nBucket) {
 	}
     else {
 	pkd->nNodes = pkd->hopSavedRoots;
-	for (i=0;i<pkd->nLocal;++i) pLite[i].i = i;
 	for(gid2=1; gid2<pkd->nGroups;++gid2) {
 	    if (!pkd->hopGroups[gid2].bNeedGrav) continue;
 	    iRoot = pkd->hopGroups[gid2].iTreeRoot;
@@ -917,29 +888,22 @@ void pkdTreeBuildByGroup(PKD pkd, int nBucket) {
 	    pNode->iParent = 0;
 	    bnd = pkdNodeBnd(pkd, pNode);
 	    n = pNode->pUpper;
-	    for(i=k=pNode->pLower; i<=pNode->pUpper; ++i) {
+	    for(i=pNode->pLower; i<=n; ) {
 		p = pkdParticle(pkd,i);
 		gid = *pkdGroup(pkd,p);
 		if (gid) {
 		    assert(gid==gid2);
-		    for (j=0;j<3;++j) pLite[k].r[j] = p->r[j];
-		    pLite[k].i = i;
-		    pLite[k].uRung = p->uRung;
-		    pLite[k].uGroup = gid;
-		    if (k==pNode->pLower) {
-			for (j=0;j<3;++j) dMin[j] = dMax[j] = pLite[k].r[j];
+		    if (i==pNode->pLower) {
+			for (j=0;j<3;++j) dMin[j] = dMax[j] = p->r[j];
 			}
 		    else {
-			pkdMinMax(pLite[k].r,dMin,dMax);
+			pkdMinMax(p->r,dMin,dMax);
 			}
-		    ++k;
+		    ++i;
 		    }
 		else {
-		    for (j=0;j<3;++j) pLite[n].r[j] = p->r[j];
-		    pLite[n].i = i;
-		    pLite[n].uRung = p->uRung;
-		    pLite[n].uGroup = gid;
-		    --n;
+		    PARTICLE *p2 = pkdParticle(pkd,n--);
+		    pkdSwapParticle(pkd,p,p2);
 		    }
 		}
 	    assert(k==n+1);
@@ -955,7 +919,6 @@ void pkdTreeBuildByGroup(PKD pkd, int nBucket) {
     for(gid=1; gid<pkd->nGroups; ++gid)
 	if (pkd->hopGroups[gid].bNeedGrav)
 	    BuildTemp(pkd,pkd->hopGroups[gid].iTreeRoot,nBucket);
-    ShuffleParticles(pkd,0);
     for(gid=1; gid<pkd->nGroups; ++gid)
 	if (pkd->hopGroups[gid].bNeedGrav)
 	    Create(pkd,pkd->hopGroups[gid].iTreeRoot);
