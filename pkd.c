@@ -2032,12 +2032,6 @@ void pkdCountVA(PKD pkd,int d,FLOAT fSplit,int *pnLow,int *pnHigh) {
 	}
     }
 
-double pkdTester(PKD pkd,int i) {
-    PARTICLE *p = pkdParticle(pkd,i);
-    return p->r[2];
-    }
-
-
 /*
 ** Partition particles between iFrom and iTo into those < fSplit and
 ** those >= to fSplit.  Find number and weight in each partition.
