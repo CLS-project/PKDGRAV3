@@ -213,7 +213,7 @@ void entropy(PKD pkd, float *e, KDN *pNode, BND **bnd, struct KEY *keys) {
     int64_t Nb;
     Nb = (int64_t)(1+cbrt(Npart/10.));
     int maxNb = 1 << ((sizeof(Nb)*8) / 3);
-    double *v;
+    vel_t *v;
 
     if (Nb > maxNb) Nb = maxNb;
     assert(Nb >= 1);
@@ -269,7 +269,7 @@ void shrink_wrap(PKD pkd, BND **bnd, int iLower, int iUpper)
     int d;
     double ft;
     PARTICLE *p;
-    double *v;
+    vel_t *v;
     int subspace;
 
     for (subspace = X; subspace <= V; subspace++)
@@ -327,7 +327,7 @@ void BuildPsdTemp(PKD pkd, PSX smx, int iNode,int M, int maxNb) {
     int backup = 0;
     int Ntotal;
 
-    double *v;
+    vel_t *v;
 
     pNode = pkdTreeNode(pkd,iNode);
 
@@ -724,7 +724,7 @@ void BuildPsdTemp(PKD pkd, PSX smx, int iNode,int M, int maxNb) {
 		for (i=pNode->pLower; i <=pNode->pUpper; i++)
 		{
 		    PARTICLE *p = pkdParticle(pkd, i);
-		    double *v = pkdVel(pkd, p);
+		    vel_t *v = pkdVel(pkd, p);
 		    fprintf(stderr, "%10ld] %e %e %e  %e %e %e\n", 
 			(uint64_t)p->iOrder,
 			p->r[0], p->r[1], p->r[2],

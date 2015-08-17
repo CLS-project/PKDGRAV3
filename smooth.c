@@ -2569,7 +2569,7 @@ void smReSmooth(SMX smx,SMF *smf) {
 FLOAT phase_dist(PKD pkd,double dvTau2,PARTICLE *pa,PARTICLE *pb,double H) {
     int j;
     FLOAT dx,dv,dx2,dv2;
-    double *va, *vb;
+    vel_t *va, *vb;
 
     assert(pkd->oGroup); /* Validate memory model */
     assert(pkd->oVelocity); /* Validate memory model */
@@ -2653,7 +2653,7 @@ void smFof(SMX smx,SMF *smf) {
     float *pPot;
     int32_t *pGroup;
     int32_t *pPartGroup;
-    double *v;
+    vel_t *v;
     RB_TYPE rm_type;
     FOFRM   rm_data;
     FOFPG* protoGroup;

@@ -19,10 +19,11 @@ typedef struct pq6Node {
 /*
 ** Used to keep track of the state of things from a previous call to knn()
 */
-struct knn_data
-{
-    FLOAT rscale[3], vscale[3];
-    FLOAT rLast[3], vLast[3];
+struct knn_data {
+    FLOAT rscale[3];
+    vel_t vscale[3];
+    FLOAT rLast[3];
+    vel_t vLast[3];
 };
 
 

@@ -891,7 +891,7 @@ void combMeanVel(void *vpkd, void *p1void,void *p2void) {
 void MeanVel(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
     PARTICLE *q;
-    double *qv;
+    vel_t *qv;
     VELSMOOTH *pvel;
     float v[3];
     float ih2,r2,rs,fMass;
@@ -915,7 +915,7 @@ void MeanVelSym(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
     PARTICLE *q;
     VELSMOOTH *pvel, *qvel;
-    double *pv, *qv;
+    vel_t *pv, *qv;
     float fNorm,ih2,r2,rs,fMassQ,fMassP;
     int i,j;
 
@@ -964,8 +964,8 @@ void combDivv(void *vpkd, void *p1void,void *p2void) {
 void Divv(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
     PARTICLE *q;
-    double *qv;
-    double *pv;
+    vel_t *qv;
+    vel_t *pv;
     VELSMOOTH *pvel;
     float fNorm,ih2,r2,rs,fMass,dvdotdr;
     int i;
@@ -990,7 +990,7 @@ void DivvSym(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
     PARTICLE *q;
     VELSMOOTH *pvel, *qvel;
-    double *pv, *qv;
+    vel_t *pv, *qv;
     float fNorm,ih2,r2,rs,fMassQ,fMassP,dvdotdr;
     int i;
 
@@ -1038,7 +1038,7 @@ void combVelDisp2(void *vpkd, void *p1void,void *p2void) {
 void VelDisp2(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
     PARTICLE *q;
-    double *qv;
+    vel_t *qv;
     VELSMOOTH *pvel;
     float fNorm,ih2,r2,rs,fMass,tv,tv2;
     int i;
@@ -1069,7 +1069,7 @@ void VelDisp2Sym(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
     PARTICLE *q;
     VELSMOOTH *pvel, *qvel;
-    double *qv;
+    vel_t *qv;
     float fNorm,ih2,r2,rs,fMassQ,fMassP,tv,tv2;
     int i;
 
@@ -1135,7 +1135,7 @@ void AddRelaxation(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
     FLOAT beta,gamma,rho;
     int i,j;
     PARTICLE *q;
-    double *v;
+    vel_t *v;
     double *pRelax;
 
     pRelax = pkdField(p,pkd->oRelaxation);

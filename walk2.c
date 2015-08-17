@@ -306,7 +306,8 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
     double cx,cy,cz,d2c;
     double fWeight = 0.0;
     double dShiftFlop;
-    const double *v, *a;
+    const vel_t *v;
+    const double *a;
     double dOffset[3];
     double xParent,yParent,zParent;
     double d2;
@@ -321,6 +322,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
     const BND *cbnd,*kbnd;
     static const float  fZero3[] = {0.0f,0.0f,0.0f};
     static const double dZero3[] = {0.0,0.0,0.0};
+    static const vel_t vZero3[] = {0.0,0.0,0.0};
     int nc,nk;
     ILPTILE tile;
     ILCTILE ctile;
@@ -346,7 +348,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
     nTotActive = 0;
 
     a = dZero3;
-    v = dZero3;
+    v = vZero3;
 
 
     /*
@@ -561,8 +563,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
 				    blk->x.f[jTile] + blk->xOffset.f[jTile],
 				    blk->y.f[jTile] + blk->yOffset.f[jTile],
 				    blk->z.f[jTile] + blk->zOffset.f[jTile],
-				    pkdNodeMom(pkd,c),c->bMax,
-				    v[0],v[1],v[2]);
+				    pkdNodeMom(pkd,c),c->bMax,v[0],v[1],v[2]);
 				break;
 			    case 8:
 				/*

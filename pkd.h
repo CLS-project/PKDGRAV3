@@ -643,7 +643,7 @@ typedef struct pkdContext {
     ** Advanced memory models
     */
     int oAcceleration; /* Three doubles */
-    int oVelocity; /* Three doubles */
+    int oVelocity; /* Three vel_t */
     int oPotential; /* One float */
     int oGroup; /* One int32 */
     int oMass; /* One float */
@@ -658,8 +658,8 @@ typedef struct pkdContext {
     /*
     ** Advanced memory models - Tree Nodes
     */
-    int oNodePosition; /* Three doubles */
-    int oNodeVelocity; /* Three doubles */
+    int oNodePosition; /* Three vel_t */
+    int oNodeVelocity; /* Three vel_t */
     int oNodeAcceleration; /* Three doubles */
     int oNodeBmax;
     int oNodeSoft;
@@ -756,29 +756,28 @@ typedef struct pkdContext {
     double *dSplits;
     } * PKD;
 
-static inline void pkdMinMax( double *dVal, double *dMin, double *dMax ) {
-    dMin[0] = dVal[0] < dMin[0] ? dVal[0] : dMin[0];
-    dMin[1] = dVal[1] < dMin[1] ? dVal[1] : dMin[1];
-    dMin[2] = dVal[2] < dMin[2] ? dVal[2] : dMin[2];
-    dMax[0] = dVal[0] > dMax[0] ? dVal[0] : dMax[0];
-    dMax[1] = dVal[1] > dMax[1] ? dVal[1] : dMax[1];
-    dMax[2] = dVal[2] > dMax[2] ? dVal[2] : dMax[2];
+#define pkdMinMax(dVal,dMin,dMax) {\
+    (dMin)[0] = (dVal)[0] < (dMin)[0] ? (dVal)[0] : (dMin)[0];	\
+    (dMin)[1] = (dVal)[1] < (dMin)[1] ? (dVal)[1] : (dMin)[1];		\
+    (dMin)[2] = (dVal)[2] < (dMin)[2] ? (dVal)[2] : (dMin)[2];		\
+    (dMax)[0] = (dVal)[0] > (dMax)[0] ? (dVal)[0] : (dMax)[0];		\
+    (dMax)[1] = (dVal)[1] > (dMax)[1] ? (dVal)[1] : (dMax)[1];		\
+    (dMax)[2] = (dVal)[2] > (dMax)[2] ? (dVal)[2] : (dMax)[2];		\
     }
 
-static inline void pkdMinMax6( double *dVal0, double *dVal1, double *dMin, double *dMax ) {
-    dMin[0] = dVal0[0] < dMin[0] ? dVal0[0] : dMin[0];
-    dMin[1] = dVal0[1] < dMin[1] ? dVal0[1] : dMin[1];
-    dMin[2] = dVal0[2] < dMin[2] ? dVal0[2] : dMin[2];
-    dMin[3] = dVal1[0] < dMin[3] ? dVal1[0] : dMin[3];
-    dMin[4] = dVal1[1] < dMin[4] ? dVal1[1] : dMin[4];
-    dMin[5] = dVal1[2] < dMin[5] ? dVal1[2] : dMin[5];
-
-    dMax[0] = dVal0[0] > dMax[0] ? dVal0[0] : dMax[0];
-    dMax[1] = dVal0[1] > dMax[1] ? dVal0[1] : dMax[1];
-    dMax[2] = dVal0[2] > dMax[2] ? dVal0[2] : dMax[2];
-    dMax[3] = dVal1[0] > dMax[3] ? dVal1[0] : dMax[3];
-    dMax[4] = dVal1[1] > dMax[4] ? dVal1[1] : dMax[4];
-    dMax[5] = dVal1[2] > dMax[5] ? dVal1[2] : dMax[5];
+#define pkdMinMax6(dVal0,dVal1,dMin,dMax) {\
+    (dMin)[0] = (dVal0)[0] < (dMin)[0] ? (dVal0)[0] : (dMin)[0];	\
+    (dMin)[1] = (dVal0)[1] < (dMin)[1] ? (dVal0)[1] : (dMin)[1];	\
+    (dMin)[2] = (dVal0)[2] < (dMin)[2] ? (dVal0)[2] : (dMin)[2];	\
+    (dMin)[3] = (dVal1)[0] < (dMin)[3] ? (dVal1)[0] : (dMin)[3];	\
+    (dMin)[4] = (dVal1)[1] < (dMin)[4] ? (dVal1)[1] : (dMin)[4];	\
+    (dMin)[5] = (dVal1)[2] < (dMin)[5] ? (dVal1)[2] : (dMin)[5];	\
+    (dMax)[0] = (dVal0)[0] > (dMax)[0] ? (dVal0)[0] : (dMax)[0];	\
+    (dMax)[1] = (dVal0)[1] > (dMax)[1] ? (dVal0)[1] : (dMax)[1];	\
+    (dMax)[2] = (dVal0)[2] > (dMax)[2] ? (dVal0)[2] : (dMax)[2];	\
+    (dMax)[3] = (dVal1)[0] > (dMax)[3] ? (dVal1)[0] : (dMax)[3];	\
+    (dMax)[4] = (dVal1)[1] > (dMax)[4] ? (dVal1)[1] : (dMax)[4];	\
+    (dMax)[5] = (dVal1)[2] > (dMax)[5] ? (dVal1)[2] : (dMax)[5];	\
     }
 
 /* New, rung based ACTIVE/INACTIVE routines */
@@ -833,8 +832,8 @@ static inline void *pkdNodeField( KDN *n, int iOffset ) {
 static inline FMOMR *pkdNodeMom(PKD pkd,KDN *n) {
     return CAST(FMOMR *,pkdNodeField(n,pkd->oNodeMom));
     }
-static inline double *pkdNodeVel( PKD pkd, KDN *n ) {
-    return CAST(double *,pkdNodeField(n,pkd->oNodeVelocity));
+static inline vel_t *pkdNodeVel( PKD pkd, KDN *n ) {
+    return CAST(vel_t *,pkdNodeField(n,pkd->oNodeVelocity));
     }
 static inline double *pkdNodeAccel( PKD pkd, KDN *n ) {
     return CAST(double *,pkdNodeField(n,pkd->oNodeAcceleration));
@@ -967,8 +966,8 @@ static inline float pkdSoft( PKD pkd, PARTICLE *p ) {
 static inline FIO_SPECIES pkdSpecies( PKD pkd, PARTICLE *p ) {
     return pkd->pClass[p->iClass].eSpecies;
     }
-static inline double *pkdVel( PKD pkd, PARTICLE *p ) {
-    return CAST(double *,pkdField(p,pkd->oVelocity));
+static inline vel_t *pkdVel( PKD pkd, PARTICLE *p ) {
+    return CAST(vel_t *,pkdField(p,pkd->oVelocity));
     }
 static inline float *pkdAccel( PKD pkd, PARTICLE *p ) {
     return CAST(float *,pkdField(p,pkd->oAcceleration));
@@ -1262,47 +1261,47 @@ extern "C" {
 #endif
 #endif
 
-static inline void vec_sub(double *r,const double *a,const double *b ) {
-    int i;
-    for (i=0; i<3; i++) r[i] = a[i] - b[i];
-}
+#define vec_sub(r,a,b) do {\
+    int i;\
+    for (i=0; i<3; i++) (r)[i] = (a)[i] - (b)[i];	\
+} while(0)
 
-static inline void vec_add_const_mult(double *r,const double *a,double c,const double *b) {
-    int i;
-    for (i=0; i<3; i++) r[i] = a[i] + c * b[i];
-}
+#define vec_add_const_mult(r,a,c,b) do {\
+    int i;\
+    for (i=0; i<3; i++) (r)[i] = (a)[i] + (c) * (b)[i];	\
+} while(0)
 
-static inline void matrix_vector_mult(double *b,double mat[3][3], const double *a) {
-    int i,j ;
-    for (i=0; i<3; i++) {
-        b[i] = 0.0;
-        for (j=0; j<3; j++) b[i] += mat[i][j] * a[j];
-    }
-}
+#define matrix_vector_mult(b,mat,a) do {\
+    int i;\
+    for (i=0; i<3; i++) {\
+        int j;\
+	(b)[i] = 0.0;					\
+        for (j=0; j<3; j++) (b)[i] += (mat)[i][j] * (a)[j];	\
+    }\
+} while(0)
 
 static inline double dot_product(const double *a,const double *b) {
-    int i;
     double r = 0.0;
+    int i;
     for(i=0; i<3; i++) r += a[i]*b[i];
     return r;
     }
 
-static inline void cross_product(double *r,const double *a,const double *b) {
-    r[0] = a[1] * b[2] - a[2] * b[1] ;
-    r[1] = a[2] * b[0] - a[0] * b[2] ;
-    r[2] = a[0] * b[1] - a[1] * b[0] ;
-}
+#define cross_product(r,a,b) do {\
+    (r)[0] = (a)[1] * (b)[2] - (a)[2] * (b)[1] ;	\
+    (r)[1] = (a)[2] * (b)[0] - (a)[0] * (b)[2] ;	\
+    (r)[2] = (a)[0] * (b)[1] - (a)[1] * (b)[0] ;	\
+} while(0)
 
-static inline void mat_transpose(double mat[3][3], double trans_mat[3][3]) {
-    int i,j ;
-    for (i=0; i<3; i++) {
-        for (j=0; j<3; j++) {
-            trans_mat[i][j] = mat[j][i];
-	    }
-	}
-    }
-
-
+#define mat_transpose(mat,trans_mat) do {\
+    int i;				 \
+    for (i=0; i<3; i++) {			\
+	int j;					\
+        for (j=0; j<3; j++) {			\
+            (trans_mat)[i][j] = (mat)[j][i];	\
+	    }					\
+	}					\
+} while(0)
 
 
 #endif

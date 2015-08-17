@@ -260,7 +260,7 @@ void pkdCalcCOM(PKD pkd, double *dCenter, double dRadius,
     for (i=0;i<pkd->nLocal;++i) {
 	PARTICLE *p = pkdParticle(pkd,i);
 	double m = pkdMass(pkd,p);
-	double *v = pkdVel(pkd,p);
+	vel_t *v = pkdVel(pkd,p);
 	d2 = pkdGetDistance2(pkd,p,dCenter );
 	if ( d2 < dRadius2 ) {
 	    *M += m;
@@ -543,7 +543,7 @@ void pkdProfile(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
 	while( pl[i].r[0] <= r2 && i<n) {
 	    PARTICLE *p = pkdParticle(pkd,pl[i].i);
 	    double m = pkdMass(pkd,p);
-	    double *v = pkdVel(pkd,p);
+	    vel_t *v = pkdVel(pkd,p);
 	    double delta_x[3], delta_v[3], ang_mom[3], dx2, vel;
 	    /*double vel_tang[3], vel_shell[3], vel_tang_pec[3];*/
 
@@ -580,7 +580,7 @@ void pkdProfile(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
 	while( pl[i].r[0] <= r2 && i<n) {
 	    PARTICLE *p = pkdParticle(pkd,pl[i].i);
 	    double m = pkdMass(pkd,p);
-	    double *v = pkdVel(pkd,p);
+	    vel_t *v = pkdVel(pkd,p);
 	    double delta_x[3], delta_v[3], dx2;
 	    double vel_tang[3], vel_shell[3], vel_tang_pec[3];
 

@@ -30,6 +30,8 @@ typedef struct particle {
     float fDensity;
     } PARTICLE;
 
+typedef float vel_t;
+
 #define PP_CUDA_MEMORY_LIMIT (1024*1024)
 
 typedef struct {

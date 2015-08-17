@@ -357,7 +357,7 @@ DonePart:
     free(S);
     }
 
-static double zeroV[3] = {0.0,0.0,0.0};
+static vel_t zeroV[3] = {0.0,0.0,0.0};
 static float  zeroF[3] = {0.0,0.0,0.0};
 
 void Create(PKD pkd,int iRoot) {
@@ -369,7 +369,7 @@ void Create(PKD pkd,int iRoot) {
     BND *bnd;
     FLOAT m,fMass,fSoft,x,y,z,vx,vy,vz,ax,ay,az,ft,d2,d2Max,dih2,bmin,b;
     float *a;
-    double *v;
+    vel_t *v;
     int pj,d,nDepth,ism;
     const int nMaxStackIncrease = 1;
 
@@ -500,7 +500,7 @@ void Create(PKD pkd,int iRoot) {
 	    for (d=0;d<3;++d) pkdn->r[d] = bnd->fCenter[d];
 	    }
 	if (pkd->oNodeVelocity) {
-	    double *pVel = pkdNodeVel(pkd,pkdn);
+	    vel_t *pVel = pkdNodeVel(pkd,pkdn);
 	    pVel[0] = m*vx;
 	    pVel[1] = m*vy;
 	    pVel[2] = m*vz;

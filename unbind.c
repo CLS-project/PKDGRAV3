@@ -392,7 +392,7 @@ static void ubDoUnbind(PKD pkd)
 
 	if (gid == 0) continue;
 
-	double *v = pkdVel(pkd, p);
+	vel_t *v = pkdVel(pkd, p);
 	double v2;
 
 	v2 = pow(v[0] - g[gid].vcom[0], 2) 

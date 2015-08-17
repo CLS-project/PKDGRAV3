@@ -934,7 +934,7 @@ void psdUpdateGroupProperties(PKD pkd)
 	if (p->fDensity > 0.9*gd[gid].fDensity)
 	{
 	    FLOAT fMass = pkdMass(pkd,p);
-	    double *v   = pkdVel(pkd,p);
+	    vel_t *v   = pkdVel(pkd,p);
 	    gd[gid].fMass_com += fMass;
 	    gd[gid].vcom[0] += fMass * v[0];
 	    gd[gid].vcom[1] += fMass * v[1];

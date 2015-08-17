@@ -309,11 +309,12 @@ void pkdInitialize(
     else
 	pkd->oParticleID = 0;
 
-    if ( mMemoryModel & PKD_MODEL_VELOCITY )
-	pkd->oVelocity = pkdParticleAddDouble(pkd,3);
-    else
-	pkd->oVelocity = 0;
-
+    pkd->oVelocity = 0;
+    if ( mMemoryModel & PKD_MODEL_VELOCITY ) {
+	if (sizeof(vel_t) == sizeof(double)) {
+	    pkd->oVelocity = pkdParticleAddDouble(pkd,3);
+	    }
+	}
     if ( mMemoryModel & PKD_MODEL_RELAXATION )
 	pkd->oRelaxation = pkdParticleAddDouble(pkd,1);
     else
@@ -333,7 +334,11 @@ void pkdInitialize(
 	pkd->oVelSmooth = pkdParticleAddStruct(pkd,sizeof(VELSMOOTH));
     else
 	pkd->oVelSmooth = 0;
-
+    if ( mMemoryModel & PKD_MODEL_VELOCITY ) {
+	if (sizeof(vel_t) == sizeof(float)) {
+	    pkd->oVelocity = pkdParticleAddFloat(pkd,3);
+	    }
+	}
     if ( mMemoryModel & PKD_MODEL_ACCELERATION )
 	pkd->oAcceleration = pkdParticleAddFloat(pkd,3);
     else
@@ -387,8 +392,14 @@ void pkdInitialize(
 	pkd->oNodeVBnd = 0;
     }
 
-    if ( mMemoryModel & PKD_MODEL_NODE_VEL )
-	pkd->oNodeVelocity = pkdNodeAddDouble(pkd,3);
+    if ( mMemoryModel & PKD_MODEL_NODE_VEL ) {
+	if (sizeof(vel_t) == sizeof(float)) {
+	    pkd->oNodeVelocity = pkdNodeAddFloat(pkd,3);
+	    }
+	else {
+	    pkd->oNodeVelocity = pkdNodeAddDouble(pkd,3);
+	    }
+	}
     else
 	pkd->oNodeVelocity = 0;
 
@@ -819,6 +830,7 @@ void pkdGenerateIC(PKD pkd, GRAFICCTX gctx,  int iDim,
     int i, j, k, d, pi, n1, n2, n3;
     double dx;
     double dvFac, a;
+    vel_t *v;
 
     graficGenerate(gctx, iDim, 1 );
 
@@ -838,6 +850,7 @@ void pkdGenerateIC(PKD pkd, GRAFICCTX gctx,  int iDim,
 	for ( j=0; j<n2; j++ ) {
 	    for ( k=0; k<n3; k++ ) {
 		p = pkdParticle(pkd,pi);
+		v = pkdVel(pkd,p);
 		p->uRung = p->uNewRung = 0;
 		p->bSrcActive = p->bDstActive = 1;
 		p->fDensity = 0.0;
@@ -851,7 +864,7 @@ void pkdGenerateIC(PKD pkd, GRAFICCTX gctx,  int iDim,
 		if ( p->r[d] < -0.5 ) p->r[d] += 1.0;
 		if ( p->r[d] >= 0.5 ) p->r[d] -= 1.0;
 		assert( p->r[d] >= -0.5 && p->r[d] < 0.5 );
-		p->v[d] = graficGetVelocity(gctx,i,j,k) * dvFac;
+		v[d] = graficGetVelocity(gctx,i,j,k) * dvFac;
 		getClass(pkd,fMass,fSoft,p);
 		p->iOrder = 0; /* FIXME */
 		p->iClass = 0;
@@ -871,7 +884,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
     STARFIELDS *pStar;
     SPHFIELDS *pSph;
     float *pPot, dummypot;
-    double *v, dummyv[3];
+    double vel[3];
     float fMass, fSoft;
     FIO_SPECIES eSpecies;
     uint64_t iParticleID;
@@ -909,8 +922,6 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
 	    }
 	if ( pkd->oPotential) pPot = pkdPot(pkd,p);
 	else pPot = &dummypot;
-	if (pkd->oVelocity) v = pkdVel(pkd,p);
-	else v = dummyv;
 
 	/* Initialize SPH fields if present */
 	if (pkd->oSph) {
@@ -933,33 +944,38 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
 	case FIO_SPECIES_SPH:
 	    assert(pSph); /* JW: Could convert to dark ... */
 	    assert(dTuFac>0.0);
-	    fioReadSph(fio,&iParticleID,p->r,v,&fMass,&fSoft,pPot,
+	    fioReadSph(fio,&iParticleID,p->r,vel,&fMass,&fSoft,pPot,
 			     &p->fDensity/*?*/,&pSph->u,&pSph->fMetals);
 	    pSph->u *= dTuFac; /* Can't do precise conversion until density known */
 	    pSph->uPred = pSph->u;
 	    pSph->fMetalsPred = pSph->fMetals;
-	    pSph->vPred[0] = v[0]*dvFac;
-	    pSph->vPred[1] = v[1]*dvFac;
-	    pSph->vPred[2] = v[2]*dvFac; /* density, divv, BalsaraSwitch, c set in smooth */
+	    pSph->vPred[0] = vel[0]*dvFac;
+	    pSph->vPred[1] = vel[1]*dvFac;
+	    pSph->vPred[2] = vel[2]*dvFac; /* density, divv, BalsaraSwitch, c set in smooth */
 	    break;
 	case FIO_SPECIES_DARK:
-	    fioReadDark(fio,&iParticleID,p->r,v,&fMass,&fSoft,pPot,&p->fDensity);
+	    fioReadDark(fio,&iParticleID,p->r,vel,&fMass,&fSoft,pPot,&p->fDensity);
 	    break;
 	case FIO_SPECIES_STAR:
 	    assert(pStar && pSph);
-	    fioReadStar(fio,&iParticleID,p->r,v,&fMass,&fSoft,pPot,&p->fDensity,
+	    fioReadStar(fio,&iParticleID,p->r,vel,&fMass,&fSoft,pPot,&p->fDensity,
 			      &pSph->fMetals,&pStar->fTimer);
-	    pSph->vPred[0] = v[0]*dvFac;
-	    pSph->vPred[1] = v[1]*dvFac;
-	    pSph->vPred[2] = v[2]*dvFac;
+	    pSph->vPred[0] = vel[0]*dvFac;
+	    pSph->vPred[1] = vel[1]*dvFac;
+	    pSph->vPred[2] = vel[2]*dvFac;
 	    break;
 	default:
 	    fprintf(stderr,"Unsupported particle type: %d\n",eSpecies);
 	    assert(0);
 	    }
+
+	if (pkd->oVelocity) {
+	    for (j=0;j<3;++j) pkdVel(pkd,p)[j] = vel[j]*dvFac;
+	    }
+
 	p->iOrder = iFirst++;
 	if (pkd->oParticleID) *pkdParticleID(pkd,p) = iParticleID;
-	for(j=0;j<3;++j) v[j] *= dvFac;
+
 	getClass(pkd,fMass,fSoft,eSpecies,p);
 	}
     
@@ -996,7 +1012,7 @@ void pkdCalcBound(PKD pkd,BND *pbnd) {
 void pkdCalcVBound(PKD pkd,BND *pbnd) {
     double dMin[3],dMax[3];
     PARTICLE *p;
-    double *v;
+    vel_t *v;
     int i = 0;
     int j;
 
@@ -2410,7 +2426,7 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,BND *bnd,PARTICLE *p) {
     if ( pkd->oPotential) pPot = pkdPot(pkd,p);
     else pPot = &dummypot;
     if (pkd->oVelocity) {
-	double *pV = pkdVel(pkd,p);
+	vel_t *pV = pkdVel(pkd,p);
 	v[0] = pV[0] * dvFac;
 	v[1] = pV[1] * dvFac;
 	v[2] = pV[2] * dvFac;
@@ -2624,7 +2640,7 @@ void pkdCalcEandL(PKD pkd,double *T,double *U,double *Eth,double *L,double *F,do
     /* L is calculated with respect to the origin (0,0,0) */
 
     PARTICLE *p;
-    double *v;
+    vel_t *v;
     float *a;
     FLOAT rx,ry,rz,vx,vy,vz;
     float fMass;
@@ -2664,7 +2680,7 @@ void pkdCalcEandL(PKD pkd,double *T,double *U,double *Eth,double *L,double *F,do
 
 void pkdScaleVel(PKD pkd,double dvFac) {
     PARTICLE *p;
-    double *v;
+    vel_t *v;
     int i,j,n;
     n = pkdLocal(pkd);
     for (i=0;i<n;++i) {
@@ -2683,7 +2699,7 @@ void pkdScaleVel(PKD pkd,double dvFac) {
 */
 void pkdDrift(PKD pkd,double dDelta,double dDeltaVPred,double dDeltaUPred,uint8_t uRungLo,uint8_t uRungHi) {
     PARTICLE *p;
-    double *v;
+    vel_t *v;
     float *a;
     SPHFIELDS *sph;
     int i,j,n;
@@ -2895,7 +2911,7 @@ void pkdKickKDKClose(PKD pkd,double dTime,double dDelta,uint8_t uRungLo,uint8_t 
 
 void pkdKick(PKD pkd,double dTime,double dDelta,double dDeltaVPred,double dDeltaU,double dDeltaUPred,uint8_t uRungLo,uint8_t uRungHi) {
     PARTICLE *p;
-    double *v;
+    vel_t *v;
     float *a;
     SPHFIELDS *sph;
     int i,j,n;
@@ -2953,7 +2969,7 @@ void pkdKick(PKD pkd,double dTime,double dDelta,double dDeltaVPred,double dDelta
 void pkdKickTree(PKD pkd,double dTime,double dDelta,double dDeltaVPred,double dDeltaU,double dDeltaUPred,int iRoot) {
     KDN *c;
     PARTICLE *p;
-    double *v;
+    vel_t *v;
     float *a;
     int i,j;
 
@@ -3032,7 +3048,7 @@ void pkdAccelStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,
 		  int bDoGravity,int bEpsAcc,int bSqrtPhi,double dhMinOverSoft) {
     PARTICLE *p;
     float *a, *pPot;
-    double *v;
+    vel_t *v;
     int i,uNewRung;
     double vel;
     double acc;

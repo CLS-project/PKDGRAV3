@@ -802,7 +802,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     double dRhoFac,SMX smx,SMF *smf) {
     PARTICLE *p;
     KDN *pkdn = pBucket;
-    double *v;
+    vel_t *v;
     double vx,vy,vz;
     float *a;
     float d2,dir,dir2;

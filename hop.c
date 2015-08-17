@@ -712,7 +712,8 @@ static void hopCalculateGroupStats(PKD pkd, int bPeriodic, double *dPeriod) {
     PARTICLE *p;
     double dHalf[3];
     float fMass;
-    double *r, *v;
+    double *r;
+    vel_t *v;
 
 #ifdef TEST_SINGLE_GRAVITY
     for(gid=2; gid<=pkd->nLocalGroups; ++gid)
@@ -1176,7 +1177,8 @@ int pkdHopUnbind(PKD pkd, double dTime, int nMinGroupSize, int bPeriodic, double
     double a = csmTime2Exp(pkd->param.csm,dTime);
     double ia = 1.0 / a;
     double a2 = a * a;
-    double dv, dv2, *v;
+    double dv, dv2;
+    vel_t *v;
     double dEnergy;
 
     mdlCOcache(mdl,CID_GROUP,NULL,pkd->hopGroups,sizeof(HopGroupTable), pkd->nGroups,

@@ -197,14 +197,14 @@ void knn6dFree(PKD pkd, KNN6D  smx) {
     free(smx);
 }
 
-static PQ6 *updateParticleQueue(PKD pkd, KNN6D  smx, KDN *kdn, PQ6 *pq, FLOAT *r, FLOAT *v, FLOAT *rscale, FLOAT *vscale)
+static PQ6 *updateParticleQueue(PKD pkd, KNN6D  smx, KDN *kdn, PQ6 *pq, FLOAT *r, vel_t *v, FLOAT *rscale, vel_t *vscale)
 {
     int pEnd;
     int pj;
     FLOAT fDist2;
     FLOAT dr0,dr1,dr2,dr3,dr4,dr5;
     PARTICLE *p;
-    double *pv;
+    vel_t *pv;
     int idSelf = pkd->idSelf;
 
     pEnd = kdn->pUpper;
@@ -246,7 +246,7 @@ static PQ6 *updateParticleQueue(PKD pkd, KNN6D  smx, KDN *kdn, PQ6 *pq, FLOAT *r
 }
 
 
-static int descendTree(PKD pkd, KDN **kdn0, PQ6 *pq, FLOAT *r,FLOAT *v, FLOAT *rscale, FLOAT *vscale, int *iCell0, int *S, int *sp0, FLOAT *Smin, int *sm0)
+static int descendTree(PKD pkd, KDN **kdn0, PQ6 *pq, FLOAT *r,vel_t *v, FLOAT *rscale, vel_t *vscale, int *iCell0, int *S, int *sp0, FLOAT *Smin, int *sm0)
 {
     FLOAT min1, min2;
     BND *bnd[2];
@@ -293,7 +293,7 @@ NotContained:
 /*
 ** This function performs a local nearest neighbor search.
 */
-static PQ6 *_SearchLocal(PKD pkd, KNN6D smx, PQ6 *pq, FLOAT *r,FLOAT *v, FLOAT *rscale, FLOAT *vscale, int *pbDone) {
+static PQ6 *_SearchLocal(PKD pkd, KNN6D smx, PQ6 *pq, FLOAT *r,vel_t *v, FLOAT *rscale, vel_t *vscale, int *pbDone) {
     KDN *kdn;
     PARTICLE *p;
     FLOAT dMin,min1,min2,fDist2;
@@ -388,10 +388,10 @@ static PQ6 *_SearchLocal(PKD pkd, KNN6D smx, PQ6 *pq, FLOAT *r,FLOAT *v, FLOAT *
 
 
 
-static PQ6 *_SearchRemote(PKD pkd, KNN6D smx, PQ6 *pq, int id,FLOAT *r,FLOAT *v, FLOAT *rscale, FLOAT *vscale) {
+static PQ6 *_SearchRemote(PKD pkd, KNN6D smx, PQ6 *pq, int id,FLOAT *r,vel_t *v, FLOAT *rscale, vel_t *vscale) {
     KDN *kdn;
     PARTICLE *p;
-    double *pv;
+    vel_t *pv;
     FLOAT dr0,dr1,dr2,dr3,dr4,dr5;
     FLOAT min1,min2,fDist2;
     FLOAT *Smin = smx->Smin;
@@ -516,7 +516,7 @@ static PQ6 *_SearchRemote(PKD pkd, KNN6D smx, PQ6 *pq, int id,FLOAT *r,FLOAT *v,
 }
 
 
-PQ6 *_Search(PKD pkd, KNN6D knn, PQ6 *pq, FLOAT *r,FLOAT *v, FLOAT *rscale,FLOAT *vscale, int bReplica,int *pbDone) {
+PQ6 *_Search(PKD pkd, KNN6D knn, PQ6 *pq, FLOAT *r,vel_t *v, FLOAT *rscale,vel_t *vscale, int bReplica,int *pbDone) {
     KDN *kdn;
     int idSelf = pkd->idSelf;
     FLOAT *Smin = knn->SminT;
@@ -643,7 +643,8 @@ PQ6 *_Search(PKD pkd, KNN6D knn, PQ6 *pq, FLOAT *r,FLOAT *v, FLOAT *rscale,FLOAT
 void knn6d(PKD pkd, KNN6D knn, int pid, float *fBall, int first_time)
 {
     int i,j;
-    FLOAT *r,*v;
+    FLOAT *r;
+    vel_t *v;
     PARTICLE *p;
     int iStart[3],iEnd[3];
     FLOAT R[3];
@@ -696,7 +697,7 @@ void knn6d(PKD pkd, KNN6D knn, int pid, float *fBall, int first_time)
     for (j=0;j<3;++j) knn->data.vscale[j] = knn->psm[pid].vscale[j];
 
     FLOAT *rscale = knn->data.rscale;
-    FLOAT *vscale = knn->data.vscale;
+    vel_t *vscale = knn->data.vscale;
 
     if (!first_time)
     {
@@ -765,11 +766,11 @@ void knn6dFinish(PKD pkd, KNN6D  knn)
     }
 }
 
-static PQ6 *_GatherLocal(PKD pkd, KNN6D smx, PQ6 *pq, float fBall2, FLOAT *r,FLOAT *v, FLOAT *rscale, FLOAT *vscale) {
+static PQ6 *_GatherLocal(PKD pkd, KNN6D smx, PQ6 *pq, float fBall2, FLOAT *r,vel_t *v, FLOAT *rscale, vel_t *vscale) {
     KDN *kdn;
     PARTICLE *p;
     FLOAT min2,fDist2;
-    double *pv;
+    vel_t *pv;
     FLOAT dr0,dr1,dr2,dr3,dr4,dr5;
     int *S = smx->S;
     int sp = 0;
@@ -837,12 +838,12 @@ static PQ6 *_GatherLocal(PKD pkd, KNN6D smx, PQ6 *pq, float fBall2, FLOAT *r,FLO
 }
 
 
-static PQ6 *_GatherRemote(PKD pkd, KNN6D smx, PQ6 *pq, int id, float fBall2, FLOAT *r,FLOAT *v, FLOAT *rscale, FLOAT *vscale) {
+static PQ6 *_GatherRemote(PKD pkd, KNN6D smx, PQ6 *pq, int id, float fBall2, FLOAT *r,vel_t *v, FLOAT *rscale, vel_t *vscale) {
     MDL mdl = pkd->mdl;
     KDN *pkdn;
     PARTICLE *p;
     FLOAT min2,fDist2;
-    double *pv;
+    vel_t *pv;
     FLOAT dr0,dr1,dr2,dr3,dr4,dr5;
     int *S = smx->S;
     int sp = 0;
@@ -924,7 +925,7 @@ static PQ6 *_GatherRemote(PKD pkd, KNN6D smx, PQ6 *pq, int id, float fBall2, FLO
 }
 
 
-static PQ6 *_Gather(PKD pkd, KNN6D  knn, PQ6 *pq, float fBall2, FLOAT *r,FLOAT *v, FLOAT *rscale,FLOAT *vscale) {
+static PQ6 *_Gather(PKD pkd, KNN6D  knn, PQ6 *pq, float fBall2, FLOAT *r,vel_t *v, FLOAT *rscale,vel_t *vscale) {
     KDN *kdn;
     int *S = knn->ST;
     FLOAT min2;
@@ -970,7 +971,8 @@ void knn6dGather(PKD pkd, KNN6D knn, float fBall, int pid, int first_time) {
     float fBall2 = fBall * fBall;
 
     int i,j;
-    FLOAT *r,*v;
+    FLOAT *r;
+    vel_t *v;
     PARTICLE *p;
     int iStart[3],iEnd[3];
     FLOAT R[3];
@@ -1023,7 +1025,7 @@ void knn6dGather(PKD pkd, KNN6D knn, float fBall, int pid, int first_time) {
     for (j=0;j<3;++j) knn->data.vscale[j] = knn->psm[pid].vscale[j];
 
     FLOAT *rscale = knn->data.rscale;
-    FLOAT *vscale = knn->data.vscale;
+    vel_t *vscale = knn->data.vscale;
 
     if (!first_time)
     {
