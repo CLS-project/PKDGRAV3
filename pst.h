@@ -3,7 +3,9 @@
 
 #include "pkd.h"
 #include "mdl.h"
+#ifdef USE_PSD
 #include "psd.h"
+#endif
 #include "smoothfcn.h"
 #ifndef HAVE_CONFIG_H
 #include "floattype.h"
@@ -214,6 +216,7 @@ enum pst_service {
     PST_MEASUREPK,
 #endif
     PST_TOTALMASS,
+#ifdef USE_PSD
     PST_BUILDPSDTREE,
     PST_PSD,
     PST_PSDLINK,
@@ -227,6 +230,7 @@ enum pst_service {
     PST_PSD_FINISH,
     PST_WRITE_PSGROUPS,
     PST_UNBIND,
+#endif
     };
 
 void pstAddServices(PST,MDL);
@@ -1364,6 +1368,7 @@ struct outTotalMass {
     };
 void pstTotalMass(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 
+#ifdef USE_PSD
 /* PST_PSD */
 struct inPSD {
     int nBucket;
@@ -1403,5 +1408,6 @@ void pstPSDJoinGroupBridges(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 void pstPSDSetGlobalId(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 void pstWritePsGroups(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 void pstUnbind(PST pst,void *vin,int nIn,void *vout,int *pnOut);
+#endif
 
 #endif

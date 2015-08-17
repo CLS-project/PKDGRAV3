@@ -4524,6 +4524,7 @@ void msrOutGroups(MSR msr,const char *pszFile,int iOutType, double dTime) {
     pkdOutGroup(plcl->pkd,achOutFile,iOutType,0,dvFac);
     }
 
+#ifdef USE_PSD
 void msrOutPsGroups(MSR msr,const char *pszFile,int iOutType, double dTime) {
     char achOutFile[PST_FILENAME_SIZE];
     LCL *plcl;
@@ -4565,7 +4566,7 @@ void msrOutPsGroups(MSR msr,const char *pszFile,int iOutType, double dTime) {
         mdlGetReply(pst0->mdl,rID,NULL,NULL);
         }
     }
-
+#endif
 void msrDeleteGroups(MSR msr) {
 
     LCL *plcl;
@@ -4923,6 +4924,7 @@ void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint) {
 #endif
 	}
 
+#ifdef USE_PSD
     if ( msr->param.bFindPSGroups ) {
 	/*
 	** Build tree, activating all particles first (just in case).
@@ -4950,6 +4952,7 @@ void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint) {
 	    }
 	msrDeletePSGroups(msr);
 	}
+#endif
 
     if (msr->param.bDoAccOutput) {
 	msrReorder(msr);
@@ -5556,6 +5559,7 @@ void msrMeasurePk(MSR msr,double *dCenter,double dRadius,int nGrid,float *Pk) {
     }
 #endif
 
+#ifdef USE_PSD
 /*
 ** Build the tree used to compute a phase-space metric.
 */
@@ -5779,3 +5783,4 @@ void msrSetPSGroupIds(MSR msr) {
     msrprintf(msr, "IDs set, Wallclock: %f secs\n",dsec);
 }
 
+#endif

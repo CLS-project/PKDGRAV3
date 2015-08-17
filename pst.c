@@ -30,8 +30,10 @@
 #include "pkd.h"
 #include "smooth.h"
 #include "hop.h"
+#ifdef USE_PSD
 #include "psdtree.h"
 #include "unbind.h"
+#endif
 
 #define pstOffNode(pst) ((pst)->nLeaves > mdlCores((pst)->mdl))
 #define pstOnNode(pst) ((pst)->nLeaves <= mdlCores((pst)->mdl))
@@ -559,6 +561,7 @@ void pstAddServices(PST pst,MDL mdl) {
 		  (void (*)(void *,void *,int,void *,int *)) pstTotalMass,
 		  0, sizeof(struct outTotalMass));
 
+#ifdef USE_PSD
     mdlAddService(mdl,PST_BUILDPSDTREE,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstBuildPsdTree,
 		  sizeof(struct inPSD),pkdMaxNodeSize());
@@ -599,6 +602,7 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_UNBIND,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstUnbind,
 		  sizeof(int), 0);
+#endif
     mdlCommitServices(mdl);
    }
 
@@ -4684,6 +4688,7 @@ void pstTotalMass(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     if (pnOut) *pnOut = sizeof(struct outTotalMass);
     }
 
+#ifdef USE_PSD
 void pstBuildPsdTree(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     PKD pkd = plcl->pkd;
@@ -4967,3 +4972,4 @@ void pstUnbind(PST pst,void *vin,int nIn,void *vout,int *pnOut)
         }
     if (pnOut) *pnOut = 0;
 }
+#endif

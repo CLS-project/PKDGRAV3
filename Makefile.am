@@ -49,8 +49,8 @@ if COOLING
 #noinst_HEADERS += cooling.h
 endif
 
-SOURCES += psdtree.c psd.c unbind.c knn6d.c
-noinst_HEADERS += psdtree.h psd.h unbind.h knn6d.h qsort.h
+#SOURCES += psdtree.c psd.c unbind.c knn6d.c
+#noinst_HEADERS += psdtree.h psd.h unbind.h knn6d.h qsort.h
 
 SOURCES += hop.c
 noinst_HEADERS += hop.h
