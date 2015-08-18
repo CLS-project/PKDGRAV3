@@ -1054,7 +1054,6 @@ void pkdCombineCells1(PKD,KDN *pkdn,KDN *p1,KDN *p2);
 void pkdCombineCells2(PKD,KDN *pkdn,KDN *p1,KDN *p2);
 void pkdCalcRoot(PKD,double *,MOMC *);
 void pkdDistribRoot(PKD,double *,MOMC *);
-void pkdTreeNumSrcActive(PKD pkd,uint8_t uRungLo,uint8_t uRungHi);
 void pkdBoundWalk(PKD pkd,BND *pbnd,uint8_t uRungLo,uint8_t uRungHi,uint32_t *pnActive,uint32_t *pnContained);
 void pkdTreeBuildByGroup(PKD pkd, int nBucket);
 

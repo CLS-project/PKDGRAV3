@@ -971,35 +971,6 @@ void pkdDistribRoot(PKD pkd,double *r,MOMC *pmom) {
     }
 
 
-void pkdTreeNumSrcActive(PKD pkd,uint8_t uRungLo,uint8_t uRungHi) {
-    KDN *kdn;
-    PARTICLE *p;
-    int iNode,pj;
-
-    kdn = pkdTreeNode(pkd,iNode = ROOT);
-    while (1) {
-	while (kdn->iLower) {
-	    kdn = pkdTreeNode(pkd,iNode = kdn->iLower);
-	    }
-	/*
-	** We have to test each particle of the bucket for activity.
-	*/
-	kdn->nActive = 0;
-	for (pj=kdn->pLower;pj<=kdn->pUpper;++pj) {
-	    p = pkdParticle(pkd,pj);
-	    if (pkdIsSrcActive(p,uRungLo,uRungHi)) ++kdn->nActive;
-	}
-	while (iNode & 1) {
-	    kdn = pkdTreeNode(pkd,iNode = kdn->iParent);
-	    if (!iNode) return;	/* exit point!!! */
-	    kdn->nActive = pkdTreeNode(pkd,kdn->iLower)->nActive
-		+ pkdTreeNode(pkd,kdn->iLower + 1)->nActive;
-	}
-	kdn = pkdTreeNode(pkd,++iNode);
-    }
-}
-
-
 void pkdBoundWalk(PKD pkd,BND *pbnd,uint8_t uRungLo,uint8_t uRungHi,uint32_t *pnActive,uint32_t *pnContained) {
     KDN *kdn;
     PARTICLE *p;

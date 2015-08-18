@@ -79,7 +79,6 @@
 **  CalcRoot              nLocal  -       Yes    |
 **  DistribRoot           1       Bcast   -      |
 **  EnforcePeriodic               Bcast   -      |
-**  TreeNumSrcActive              Bcast   -      |
 **  BoundsWalk                    Many    Many   | Bcast Many, Reduce Many
 **  Smooth                        Yes     -      |
 **  FastGasPhase1                 Yes     -      |
@@ -261,9 +260,6 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_ENFORCEPERIODIC,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstEnforcePeriodic,
 		  sizeof(BND),0);
-    mdlAddService(mdl,PST_TREENUMSRCACTIVE,pst,
-		  (void (*)(void *,void *,int,void *,int *)) pstTreeNumSrcActive,
-		  sizeof(struct inTreeNumSrcActive),0);
     mdlAddService(mdl,PST_BOUNDSWALK,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstBoundsWalk,
 		  3*nThreads*sizeof(struct inBoundsWalk),3*nThreads*sizeof(struct outBoundsWalk));
@@ -2719,25 +2715,6 @@ void pstEnforcePeriodic(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	}
     if (pnOut) *pnOut = 0;
     }
-
-
-void pstTreeNumSrcActive(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
-    LCL *plcl = pst->plcl;
-    struct inTreeNumSrcActive *in = vin;
-
-    assert(0);
-    mdlassert(pst->mdl,nIn == sizeof(BND)); /* jpc: Why BND(6)??? */
-    if (pst->nLeaves > 1) {
-	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_TREENUMSRCACTIVE,vin,nIn);
-	pstTreeNumSrcActive(pst->pstLower,vin,nIn,NULL,NULL);
-	mdlGetReply(pst->mdl,rID,NULL,NULL);
-	}
-    else {
-	pkdTreeNumSrcActive(plcl->pkd,in->uRungLo,in->uRungHi);
-	}
-    if (pnOut) *pnOut = 0;
-    }
-
 
 void pstBoundsWalk(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
