@@ -92,7 +92,7 @@ static inline void ilpAppendFloat(ILP ilp, float X, float Y, float Z, float M, f
 
 static inline void ilpAppend(ILP ilp, double X, double Y, double Z, float M, float S,
     uint64_t I, float VX, float VY, float VZ ) {
-    ilpAppendFloat(ilp,(ilp)->cx-(X),(ilp)->cy-(Y),(ilp)->cz-(Z),M,S,I,VX,VY,VZ);
+    ilpAppendFloat(ilp,(float)((ilp)->cx-(X)),(float)((ilp)->cy-(Y)),(float)((ilp)->cz-(Z)),M,S,I,VX,VY,VZ);
     }
 #define ILP_LOOP(ilp,ptile) for( ptile=(ILPTILE)((ilp)->lst.list); ptile!=NULL; ptile=(ILPTILE)(ptile->lstTile.next) )
 

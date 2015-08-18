@@ -1781,7 +1781,7 @@ void pstDomainDecomp(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	** We always set plcl->pkd->bnd from pst->bnd.
 	*/
 	plcl->pkd->bnd = pst->bnd;   /* This resets the local bounding box, but doesn't squeeze! */
-        offs= 0.5 / (plcl->pkd->nLocal*1.0 - 1.0);
+        offs= 0.5f / (plcl->pkd->nLocal*1.0f - 1.0f);
 	for (j=0; j < 3; j++) {
 	    pst->bnd.fMax[j] += offs;
 	    }

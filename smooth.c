@@ -1857,7 +1857,7 @@ void DoLocalSearch(SMX smx,SMF *smf,PARTICLE *p,double *rLast) {
 	    }
 	}
     }
-    p->fBall = sqrt(pq->fDist2);
+    p->fBall = sqrtf(pq->fDist2);
     /*
     ** Apply smooth funtion to the neighbor list.
     */
@@ -2724,11 +2724,11 @@ void smFof(SMX smx,SMF *smf) {
 	if (smf->bTauAbs) {
 	    p->fBall = smf->dTau2;
 	    /* enforce a real space linking length smaller than the mean particle separation at all times :*/
-	    if (smf->dTau2 > 0.2*pow(fMass,2.0/3.0) )
-		p->fBall = 0.2*pow(fMass,2.0/3.0);
+	    if (smf->dTau2 > 0.2f*powf(fMass,2.0/3.0) )
+		p->fBall = 0.2f*powf(fMass,2.0/3.0);
 	}
 	else {
-	    p->fBall = smf->dTau2*pow(fMass,2.0/3.0);
+	    p->fBall = smf->dTau2*powf(fMass,2.0/3.0);
 	}
 	if (p->fBall > fBall2Max) fBall2Max = p->fBall;
     }

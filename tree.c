@@ -367,9 +367,9 @@ void Create(PKD pkd,int iRoot) {
     FMOMR mom;
     SPHBNDS *bn;
     BND *bnd;
-    FLOAT m,fMass,fSoft,x,y,z,vx,vy,vz,ax,ay,az,ft,d2,d2Max,dih2,bmin,b;
-    float *a;
-    vel_t *v;
+    FLOAT fSoft,x,y,z,ax,ay,az,ft,d2,d2Max,dih2,bmin,b;
+    float *a, m, fMass;
+    vel_t *v, vx, vy, vz;
     int pj,d,nDepth,ism;
     const int nMaxStackIncrease = 1;
 
@@ -486,7 +486,7 @@ void Create(PKD pkd,int iRoot) {
 	    if ( p->bDstActive ) pkdn->bDstActive = 1;
 	    if (pkdIsActive(pkd,p)) ++pkdn->nActive;
 	    }
-	m = 1/fMass;
+	m = 1.0f / fMass;
 	if (pkd->param.bCenterOfMassExpand) {
 	    pkdn->r[0] = m*x;
 	    pkdn->r[1] = m*y;
@@ -722,17 +722,17 @@ void pkdCombineCells2(PKD pkd,KDN *pkdn,KDN *p1,KDN *p2) {
     */
     if (pkd->oNodeMom) {
 	*pkdNodeMom(pkd,pkdn) = *pkdNodeMom(pkd,p1);
-	x = p1->r[0] - pkdn->r[0];
-	y = p1->r[1] - pkdn->r[1];
-	z = p1->r[2] - pkdn->r[2];
+	x = (float)(p1->r[0] - pkdn->r[0]);
+	y = (float)(p1->r[1] - pkdn->r[1]);
+	z = (float)(p1->r[2] - pkdn->r[2]);
 	momShiftFmomr(pkdNodeMom(pkd,pkdn),p1->bMax,x,y,z);
 
 	momRescaleFmomr(pkdNodeMom(pkd,pkdn),pkdn->bMax,p1->bMax);
 
 	mom = *pkdNodeMom(pkd,p2);
-	x = p2->r[0] - pkdn->r[0];
-	y = p2->r[1] - pkdn->r[1];
-	z = p2->r[2] - pkdn->r[2];
+	x = (float)(p2->r[0] - pkdn->r[0]);
+	y = (float)(p2->r[1] - pkdn->r[1]);
+	z = (float)(p2->r[2] - pkdn->r[2]);
 	momShiftFmomr(&mom,p2->bMax,x,y,z);
 	momScaledAddFmomr(pkdNodeMom(pkd,pkdn),pkdn->bMax,&mom,p2->bMax);
 

@@ -698,9 +698,9 @@ double momShiftFlocr(FLOCR *l,float v,float x,float y,float z) {
     y *= iv;
     z *= iv;
 
-    hx = 0.5*x;
-    hy = 0.5*y;
-    hz = 0.5*z;
+    hx = 0.5f*x;
+    hy = 0.5f*y;
+    hz = 0.5f*z;
     tx = onethird*x;
     ty = onethird*y;
     tz = onethird*z;
@@ -767,7 +767,7 @@ double momShiftFlocr(FLOCR *l,float v,float x,float y,float z) {
     l->x += Lx;
     l->y += Ly;
     l->z += Lz;
-    l->m += 0.5*L;
+    l->m += 0.5f*L;
 
     Lxxxx = l->xxxxx*x + l->xxxxy*y + l->xxxxz*z;
     Lxxxy = l->xxxxy*x + l->xxxyy*y + l->xxxyz*z;
@@ -815,10 +815,10 @@ double momShiftFlocr(FLOCR *l,float v,float x,float y,float z) {
     l->xz += Lxz;
     l->yy += Lyy;
     l->yz += Lyz;
-    l->x += 0.5*Lx;
-    l->y += 0.5*Ly;
-    l->z += 0.5*Lz;
-    l->m += 0.2*L;
+    l->x += 0.5f*Lx;
+    l->y += 0.5f*Ly;
+    l->z += 0.5f*Lz;
+    l->m += 0.2f*L;
 
     return 332.0;
     }
@@ -1950,12 +1950,12 @@ void momEvalFlocr(FLOCR *l,float v,float x,float y,float z,
     x *= iv;
     y *= iv;
     z *= iv;
-    xx = 0.5*x*x;
+    xx = 0.5f*x*x;
     xy = x*y;
     xz = x*z;
-    yy = 0.5*y*y;
+    yy = 0.5f*y*y;
     yz = y*z;
-    zz = 0.5*z*z;
+    zz = 0.5f*z*z;
     xxx = x*(onethird*xx - zz);
     xxz = z*(xx - onethird*zz);
     yyy = y*(onethird*yy - zz);
@@ -1965,11 +1965,11 @@ void momEvalFlocr(FLOCR *l,float v,float x,float y,float z,
     xxy = y*xx;
     xyy = x*yy;
     xyz = xy*z;
-    xxxx = 0.25*(x*xxx - z*xxz);
+    xxxx = 0.25f*(x*xxx - z*xxz);
     xxxy = y*xxx;
     xxyy = xx*yy - 2*onethird*zz*zz;
     xyyy = x*yyy;
-    yyyy = 0.25*(y*yyy - z*yyz);
+    yyyy = 0.25f*(y*yyy - z*yyz);
     xxxz = onethird*x*z*xx;
     xxyz = y*xxz;
     xyyz = x*yyz;
@@ -1990,10 +1990,10 @@ void momEvalFlocr(FLOCR *l,float v,float x,float y,float z,
     Ax = l->xx*x + l->xy*y + l->xz*z;
     Ay = l->yy*y + l->xy*x + l->yz*z;
     Az = -(l->xx + l->yy)*z + l->xz*x + l->yz*y;
-    D = 0.2*(Dx*x + Dy*y + Dz*z);
-    C = 0.25*(Cx*x + Cy*y + Cz*z);
+    D = 0.2f*(Dx*x + Dy*y + Dz*z);
+    C = 0.25f*(Cx*x + Cy*y + Cz*z);
     B = onethird*(Bx*x + By*y + Bz*z);
-    A = 0.5*(Ax*x + Ay*y + Az*z);
+    A = 0.5f*(Ax*x + Ay*y + Az*z);
     g1 = x*l->x + y*l->y + z*l->z;
     *ax -= iv*(l->x + Ax + Bx + Cx + Dx);
     *ay -= iv*(l->y + Ay + By + Cy + Dy);

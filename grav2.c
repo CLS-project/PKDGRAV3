@@ -104,7 +104,7 @@ void pkdParticleWorkDone(workParticle *work) {
 		    fx = a[0];
 		    fy = a[1];
 		    fz = a[2];
-		    maga = sqrt(fx*fx + fy*fy + fz*fz);
+		    maga = sqrtf(fx*fx + fy*fy + fz*fz);
 		    dtGrav = maga*dirsum/normsum;
 		    }
 		else dtGrav = 0.0;
@@ -150,7 +150,7 @@ inline void pkdGravEvalPP(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk
 
     dimaga = a[0]*a[0] + a[1]*a[1] + a[2]*a[2];
     if (dimaga > 0) {
-	dimaga = 1.0/sqrt(dimaga);
+	dimaga = 1.0f/sqrtf(dimaga);
 	}
 
 #ifdef USE_SIMD_PP
@@ -417,7 +417,7 @@ inline void pkdGravEvalPC(PINFOIN *pPart, int nBlocks, int nInLast, ILC_BLK *blk
 
     dimaga = a[0]*a[0] + a[1]*a[1] + a[2]*a[2];
     if (dimaga > 0.0) {
-        dimaga = 1.0 / sqrtf(dimaga);
+        dimaga = 1.0f / sqrtf(dimaga);
         }
 
 #if defined(USE_SIMD_PC)
@@ -853,9 +853,9 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
 	work->pPart[nP] = p;
 
 	a = pkdAccel(pkd,p);
-	work->pInfoIn[nP].r[0]  = p->r[0] - ilp->cx;
-	work->pInfoIn[nP].r[1]  = p->r[1] - ilp->cy;
-	work->pInfoIn[nP].r[2]  = p->r[2] - ilp->cz;
+	work->pInfoIn[nP].r[0]  = (float)(p->r[0] - ilp->cx);
+	work->pInfoIn[nP].r[1]  = (float)(p->r[1] - ilp->cy);
+	work->pInfoIn[nP].r[2]  = (float)(p->r[2] - ilp->cz);
 	work->pInfoIn[nP].a[0]  = a[0];
 	work->pInfoIn[nP].a[1]  = a[1];
 	work->pInfoIn[nP].a[2]  = a[2];
@@ -976,8 +976,8 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
 				d2 *= dir2;
 				dir2 *= dir;
 				d2 = 1 - d2;
-				dir *= 1.0 + d2*(0.5 + d2*(3.0/8.0 + d2*(45.0/32.0)));
-				dir2 *= 1.0 + d2*(1.5 + d2*(135.0/16.0));
+				dir *= 1.0f + d2*(0.5f + d2*(3.0f/8.0f + d2*(45.0f/32.0f)));
+				dir2 *= 1.0f + d2*(1.5f + d2*(135.0f/16.0f));
 				}
 			    summ = fMass+tile->blk[blk].m.f[prt];
 			    rhopmaxlocal = summ*dir2;

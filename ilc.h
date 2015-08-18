@@ -106,7 +106,7 @@ static inline void ilcAppendFloat(ILC ilc,float X,float Y,float Z,FMOMR *M,float
     }
 
 static inline void ilcAppend(ILC ilc,double X,double Y,double Z,FMOMR *M,float U,float VX,float VY,float VZ) {
-    ilcAppendFloat(ilc,(ilc)->cx-(X),(ilc)->cy-(Y),(ilc)->cz-(Z),M,U,VX,VY,VZ);
+    ilcAppendFloat(ilc,(float)((ilc)->cx-(X)),(float)((ilc)->cy-(Y)),(float)((ilc)->cz-(Z)),M,U,VX,VY,VZ);
     }
 
 #define ILC_LOOP(ilc,ctile) for( ctile=(ILCTILE)((ilc)->lst.list); ctile!=NULL; ctile=(ILCTILE)(ctile->lstTile.next) )

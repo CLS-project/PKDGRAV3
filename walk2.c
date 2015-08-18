@@ -107,21 +107,21 @@ static void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin, i
     diCrit = SIMD_SPLAT(1.0f/dThetaMin);
 
     kbnd = pkdNodeBnd(pkd,k);
-    k_xMinBnd = SIMD_SPLAT(kbnd->fCenter[0]-kbnd->fMax[0]);
-    k_yMinBnd = SIMD_SPLAT(kbnd->fCenter[1]-kbnd->fMax[1]);
-    k_zMinBnd = SIMD_SPLAT(kbnd->fCenter[2]-kbnd->fMax[2]);
-    k_xMaxBnd = SIMD_SPLAT(kbnd->fCenter[0]+kbnd->fMax[0]);
-    k_yMaxBnd = SIMD_SPLAT(kbnd->fCenter[1]+kbnd->fMax[1]);
-    k_zMaxBnd = SIMD_SPLAT(kbnd->fCenter[2]+kbnd->fMax[2]);
-    k_xCenter = SIMD_SPLAT(kbnd->fCenter[0]);
-    k_yCenter = SIMD_SPLAT(kbnd->fCenter[1]);
-    k_zCenter = SIMD_SPLAT(kbnd->fCenter[2]);
-    k_xMax = SIMD_SPLAT(kbnd->fMax[0]);
-    k_yMax = SIMD_SPLAT(kbnd->fMax[1]);
-    k_zMax = SIMD_SPLAT(kbnd->fMax[2]);
-    k_x = SIMD_SPLAT(k->r[0]);
-    k_y = SIMD_SPLAT(k->r[1]);
-    k_z = SIMD_SPLAT(k->r[2]);
+    k_xMinBnd = SIMD_SPLAT((float)(kbnd->fCenter[0]-kbnd->fMax[0]));
+    k_yMinBnd = SIMD_SPLAT((float)(kbnd->fCenter[1]-kbnd->fMax[1]));
+    k_zMinBnd = SIMD_SPLAT((float)(kbnd->fCenter[2]-kbnd->fMax[2]));
+    k_xMaxBnd = SIMD_SPLAT((float)(kbnd->fCenter[0]+kbnd->fMax[0]));
+    k_yMaxBnd = SIMD_SPLAT((float)(kbnd->fCenter[1]+kbnd->fMax[1]));
+    k_zMaxBnd = SIMD_SPLAT((float)(kbnd->fCenter[2]+kbnd->fMax[2]));
+    k_xCenter = SIMD_SPLAT((float)(kbnd->fCenter[0]));
+    k_yCenter = SIMD_SPLAT((float)(kbnd->fCenter[1]));
+    k_zCenter = SIMD_SPLAT((float)(kbnd->fCenter[2]));
+    k_xMax = SIMD_SPLAT((float)(kbnd->fMax[0]));
+    k_yMax = SIMD_SPLAT((float)(kbnd->fMax[1]));
+    k_zMax = SIMD_SPLAT((float)(kbnd->fMax[2]));
+    k_x = SIMD_SPLAT((float)(k->r[0]));
+    k_y = SIMD_SPLAT((float)(k->r[1]));
+    k_z = SIMD_SPLAT((float)(k->r[2]));
     k_bMax = SIMD_SPLAT(k->bMax);
     k_nk = SIMD_SPLATI32(k->pUpper-k->pLower+1);
     k_Open = SIMD_MUL(consts.threehalves.p,SIMD_MUL(k_bMax,diCrit));
@@ -395,9 +395,9 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
 		for( nLeft=tile->lstTile.nBlocks; nLeft >= 0; --nLeft,blk++ ) {
 		    n = (nLeft ? pkd->ilp->lst.nPerBlock : tile->lstTile.nInLast);
 		    for (prt=0; prt<n; ++prt) {
-			blk->dx.f[prt] += cx - pkd->ilp->cx;
-			blk->dy.f[prt] += cy - pkd->ilp->cy;
-			blk->dz.f[prt] += cz - pkd->ilp->cz;
+			blk->dx.f[prt] += (float)(cx - pkd->ilp->cx);
+			blk->dy.f[prt] += (float)(cy - pkd->ilp->cy);
+			blk->dz.f[prt] += (float)(cz - pkd->ilp->cz);
 			}
 		    }
 		}
@@ -413,9 +413,9 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
 		for( nLeft=ctile->lstTile.nBlocks; nLeft >= 0; --nLeft,blk++ ) {
 		    n = (nLeft ? pkd->ilc->lst.nPerBlock : ctile->lstTile.nInLast);
 		    for (prt=0; prt<n; ++prt) {
-			blk->dx.f[prt] += cx - pkd->ilc->cx;
-			blk->dy.f[prt] += cy - pkd->ilc->cy;
-			blk->dz.f[prt] += cz - pkd->ilc->cz;
+			blk->dx.f[prt] += (float)(cx - pkd->ilc->cx);
+			blk->dy.f[prt] += (float)(cy - pkd->ilc->cy);
+			blk->dz.f[prt] += (float)(cz - pkd->ilc->cz);
 			}
 		    }
 		}
@@ -431,7 +431,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
 	    tempI += dEwFlop;
 	    if (bGravStep) {
 		a = pkdNodeAccel(pkd,k);
-		maga = sqrt(a[0]*a[0] + a[1]*a[1] + a[2]*a[2]);
+		maga = sqrtf(a[0]*a[0] + a[1]*a[1] + a[2]*a[2]);
 	    }
 	    /*
 	    ** For cells which will remain on the checklist for a further deeper level of 

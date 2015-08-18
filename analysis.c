@@ -669,7 +669,7 @@ void pkdGridProject(PKD pkd) {
     int i, x, y;
     int id, idx;
     float *pCell, v;
-    float r[3];
+    double r[3];
 
     for( i=0; i<pkd->grid->nlocal; i++ ) pkd->gridData[i] = 1e-20f;
 

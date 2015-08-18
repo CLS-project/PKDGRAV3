@@ -96,32 +96,32 @@ void DensityF1(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
 	if (rs < 0) rs = 0.0;
 	fDensity += rs*fMass;
 	}
-    p->fDensity = 1.875*M_1_PI*sqrt(ih2)*ih2*fDensity; /* F1 Kernel (15/8) */
+    p->fDensity = 1.875f*M_1_PI*sqrtf(ih2)*ih2*fDensity; /* F1 Kernel (15/8) */
     }
 
 void DensityM3(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
     float ih2,r2,rs,fDensity,fMass;
     int i;
-    ih2 = 1.0/BALL2(p);
+    ih2 = 1.0f/BALL2(p);
     fDensity = 0.0;
     for (i=0;i<nSmooth;++i) {
 	fMass = pkdMass(pkd,nnList[i].pPart);
 	r2 = nnList[i].fDist2*ih2;
 	if (r2 < 1.0) {
-	    double r = sqrt(r2);
-	    rs = 1.0 - r;
+	    float r = sqrtf(r2);
+	    rs = 1.0f - r;
 	    rs *= rs*rs; /* rs^3 */
 	    if (r < 0.5f) {
-		double rs2 = 0.5f - r;
+		float rs2 = 0.5f - r;
 		rs2 *= rs2*rs2; /* rs2^3 */
-		rs -= 4.0*rs2;
+		rs -= 4.0f*rs2;
 		}
 	    }
 	else rs = 0.0;
 	fDensity += rs*fMass;
 	}
-    p->fDensity = 16.0*M_1_PI*sqrt(ih2)*ih2*fDensity;
+    p->fDensity = 16.0f*M_1_PI*sqrtf(ih2)*ih2*fDensity;
     }
 
 void LinkGradientM3(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
@@ -129,20 +129,20 @@ void LinkGradientM3(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
     float ih2,r2,rs,fMass,fNorm,frho[3], idrho, r2min, dr;
     int i, j;
     ih2 = 1.0/BALL2(p);
-    fNorm = 16.0*M_1_PI*ih2*ih2*sqrt(ih2);
+    fNorm = 16.0f*M_1_PI*ih2*ih2*sqrtf(ih2);
     frho[0] = frho[1] = frho[2] = 0.0;
     for (i=0;i<nSmooth;++i) {
 	fMass = pkdMass(pkd,nnList[i].pPart);
 	r2 = nnList[i].fDist2*ih2;
 	if (r2 < 1.0) {
-	    double r = sqrt(r2);
+	    float r = sqrtf(r2);
 	    if (r < 0.5f) {
-		rs = -6.0 + 9.0*r;
+		rs = -6.0f + 9.0f*r;
 		}
 	    else {
-		rs = 1.0 - r;
+		rs = 1.0f - r;
 		rs *= rs; /* rs^2 */
-		rs *= -3.0;
+		rs *= -3.0f;
 		rs /= r;
 		}
 	    }
