@@ -99,7 +99,6 @@ enum pst_service {
     PST_CALCROOT,
     PST_DISTRIBROOT,
     PST_ENFORCEPERIODIC,
-    PST_BOUNDSWALK,
     PST_SMOOTH,
     PST_FASTGASPHASE1,
     PST_FASTGASPHASE2,
@@ -508,18 +507,6 @@ void pstDistribRoot(PST,void *,int,void *,int *);
 
 /* PST_ENFORCEPERIODIC */
 void pstEnforcePeriodic(PST,void *,int,void *,int *);
-
-/* PST_BOUNDSWALK */
-struct inBoundsWalk {
-    BND bnd;
-    uint8_t uRungLo;
-    uint8_t uRungHi;
-};
-struct outBoundsWalk {
-    uint64_t nActive;
-    uint64_t nContained;
-};
-void pstBoundsWalk(PST,void *,int,void *,int *);
 
 /* PST_HOP_LINK */
 struct inHopLink {

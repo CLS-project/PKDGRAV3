@@ -79,7 +79,6 @@
 **  CalcRoot              nLocal  -       Yes    |
 **  DistribRoot           1       Bcast   -      |
 **  EnforcePeriodic               Bcast   -      |
-**  BoundsWalk                    Many    Many   | Bcast Many, Reduce Many
 **  Smooth                        Yes     -      |
 **  FastGasPhase1                 Yes     -      |
 **  FastGasPhase2                 Yes     -      |
@@ -260,9 +259,6 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_ENFORCEPERIODIC,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstEnforcePeriodic,
 		  sizeof(BND),0);
-    mdlAddService(mdl,PST_BOUNDSWALK,pst,
-		  (void (*)(void *,void *,int,void *,int *)) pstBoundsWalk,
-		  3*nThreads*sizeof(struct inBoundsWalk),3*nThreads*sizeof(struct outBoundsWalk));
     mdlAddService(mdl,PST_HOP_LINK,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstHopLink,
 	          sizeof(struct inHopLink),sizeof(uint64_t));
@@ -2714,39 +2710,6 @@ void pstEnforcePeriodic(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	pkdEnforcePeriodic(plcl->pkd,in);
 	}
     if (pnOut) *pnOut = 0;
-    }
-
-void pstBoundsWalk(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
-    LCL *plcl = pst->plcl;
-    struct inBoundsWalk *in = vin;
-    struct outBoundsWalk *out = vout;
-    struct outBoundsWalk *otmp;
-    int i,n;
-    uint32_t nActive,nContained;
-
-    n = nIn/sizeof(struct inBoundsWalk);
-    mdlassert(pst->mdl,nIn == n*sizeof(struct inBoundsWalk));
-
-    if (pst->nLeaves > 1) {
-	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_BOUNDSWALK,vin,nIn);
-	otmp = malloc(n*sizeof(struct outBoundsWalk));
-	mdlassert(pst->mdl,otmp != NULL);
-	pstBoundsWalk(pst->pstLower,vin,nIn,otmp,NULL);
-	mdlGetReply(pst->mdl,rID,out,NULL);
-	for (i=0;i<n;++i) {
-	    out[i].nActive += otmp[i].nActive;
-	    out[i].nContained += otmp[i].nContained;
-	    }
-	free(otmp);
-	}
-    else {
-	for (i=0;i<n;++i) {
-	    pkdBoundWalk(plcl->pkd,&in[i].bnd,in[i].uRungLo,in[i].uRungHi,&nActive,&nContained);
-	    out[i].nActive = nActive;
-	    out[i].nContained = nContained;
-	}
-    }
-    if (pnOut) *pnOut = n*sizeof(struct outBoundsWalk);
     }
 
 void pstPhysicalSoft(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
