@@ -1033,37 +1033,3 @@ int pkdGravWalkGroups(PKD pkd,double dTime,int nGroup, double dThetaMin,double *
     doneGravWalk(pkd,smx,&smf);
     return nActive;
 }
-
-int pkdRungWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,void *pParams,void (*doFunc)(PKD pkd,PARTICLE *p,void *pParams)) {
-    KDN *k;
-    PARTICLE *p;
-    int iCell,pj;
-    int nTotActive = 0;
-
-    k = pkdTreeNode(pkd,iCell = ROOT);
-    while (1) {
-	if (k->uMaxRung >= uRungLo || k->uMinRung <= uRungHi ) {
-	    /*
-	    ** Descend.
-	    */
-	    if (!k->iLower) {
-		/*
-		** Process bucket!
-		*/
-		for (pj=k->pLower;pj<=k->pUpper;++pj) {
-		    p = pkdParticle(pkd,pj);
-		    if (pkdIsRungRange(p,uRungLo,uRungHi)) {
-			if (doFunc) (*doFunc)(pkd,p,pParams);
-			++nTotActive;
-			}
-		    }
-		}
-	    else k = pkdTreeNode(pkd,iCell = k->iLower);
-	    }
-	while (iCell & 1) {
-	    k = pkdTreeNode(pkd,iCell = k->iParent);
-	    if (!iCell) return(nTotActive);
-	    }
-	k = pkdTreeNode(pkd,++iCell);
-	}
-    }

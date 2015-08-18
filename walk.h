@@ -22,9 +22,4 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,i
 
 int pkdGravWalkGroups(PKD pkd,double dTime,int nGroup, double dThetaMin,double *pdFlop,double *pdPartSum,double *pdCellSum);
 
-/*
-** Returns total number of active particles on which doFunc operated.
-*/
-int pkdRungWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,void *pParams,void (*doFunc)(PKD pkd,PARTICLE *p,void *pParams));
-
 #endif
