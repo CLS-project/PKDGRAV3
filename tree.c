@@ -58,7 +58,6 @@ static void InitializeParticles(PKD pkd,int nTrees,TREESPEC *pSpec,BND *pbnd) {
 	pNode = pkdTreeNode(pkd,pSpec[0].uCell);
 	pNode->bRemote = 0;
 	pNode->iLower = 0;
-	pNode->iParent = 0;
 	pNode->pLower = 0;
 	pNode->pUpper = pkd->nLocal - 1;
 	bnd = pkdNodeBnd(pkd, pNode);
@@ -94,7 +93,6 @@ static void InitializeParticles(PKD pkd,int nTrees,TREESPEC *pSpec,BND *pbnd) {
 	    pNode = pkdTreeNode(pkd,pSpec[i].uCell);
 	    pNode->bRemote = 0;
 	    pNode->iLower = 0;
-	    pNode->iParent = 0;
 	    pNode->pLower = iTreeOffset[i];
 	    pNode->pUpper = iTreeOffset[i+1] - 1;
 	    bnd = pkdNodeBnd(pkd, pNode);
@@ -245,13 +243,11 @@ void BuildTemp(PKD pkd,int iNode,int M) {
 	    pkdTreeAllocNodePair(pkd,&iLeft,&iRight);
 	    pLeft = pkdTreeNode(pkd,iLeft);
 	    pLeft->bRemote = 0;
-	    pLeft->iParent = iNode;
 	    pLeft->pLower = pNode->pLower;
 	    pLeft->pUpper = i-1;
 	    pRight = pkdTreeNode(pkd,iRight);
 	    assert(iRight & 1);
 	    pRight->bRemote = 0;
-	    pRight->iParent = iNode;
 	    pRight->pLower = i;
 	    pRight->pUpper = pNode->pUpper;
 	    pNode->iLower = iLeft;
@@ -388,24 +384,26 @@ void Create(PKD pkd,int iRoot) {
     nDepth = 1;
     while (1) {
 	while ((pkdn=pkdTreeNode(pkd,iNode))->iLower) {
-	    ++nDepth;
+	    pkd->S[nDepth-1].iNodeIndex = iNode;
 	    iNode = pkdn->iLower;
-	    }
-	/*
-	** Is this the deepest in the tree so far? We might need to have more stack
-	** elements for the tree walk!
-	** nMaxStack == nDepth guarantees that there is at least one deeper
-	** stack entry available than what is needed to walk the tree.
-	*/
-	if (nDepth > pkd->nMaxStack) {
-	    pkd->S = CAST(CSTACK *,realloc(pkd->S,(pkd->nMaxStack+nMaxStackIncrease)*sizeof(CSTACK)));
-	    assert(pkd->S != NULL);
-	    for (ism=pkd->nMaxStack;ism<(pkd->nMaxStack+nMaxStackIncrease);++ism) {
-		clInitialize(&pkd->S[ism].cl,&pkd->clFreeList);
-		assert(pkd->S[ism].cl != NULL);
+	    ++nDepth;
+	    /*
+	    ** Is this the deepest in the tree so far? We might need to have more stack
+	    ** elements for the tree walk!
+	    ** nMaxStack == nDepth guarantees that there is at least one deeper
+	    ** stack entry available than what is needed to walk the tree.
+	    */
+	    if (nDepth > pkd->nMaxStack) {
+		pkd->S = CAST(CSTACK *,realloc(pkd->S,(pkd->nMaxStack+nMaxStackIncrease)*sizeof(CSTACK)));
+		assert(pkd->S != NULL);
+		for (ism=pkd->nMaxStack;ism<(pkd->nMaxStack+nMaxStackIncrease);++ism) {
+		    clInitialize(&pkd->S[ism].cl,&pkd->clFreeList);
+		    assert(pkd->S[ism].cl != NULL);
+		    }
+		pkd->nMaxStack += nMaxStackIncrease;
 		}
-	    pkd->nMaxStack += nMaxStackIncrease;
 	    }
+
 	/*
 	** Now calculate all bucket quantities!
 	** This includes M,CoM,Moments and special
@@ -595,12 +593,8 @@ void Create(PKD pkd,int iRoot) {
 	** or to the parent.
 	*/
 	while ((iNode & 1) || iNode==iRoot ) {
-	    iNode = pkdTreeNode(pkd,iNode)->iParent;
-	    --nDepth;
-	    if (!iNode) {
-		assert(nDepth == 0);
-		return;	/* exit point!!! */
-		}
+	    if ( --nDepth == 0) return; /* exit point!!! */
+	    iNode = pkd->S[nDepth-1].iNodeIndex;
 	    /*
 	    ** Now combine quantities from each of the children (2) of
 	    ** this cell to form the quantities for this cell.
@@ -862,7 +856,6 @@ void pkdTreeBuildByGroup(PKD pkd, int nBucket) {
 	    bnd = pkdNodeBnd(pkd, pNode);
 	    
 	    pNode->iLower = 0;
-	    pNode->iParent = 0;
 	    assert(pNode->pLower == i);
 
 	    for (j=0;j<3;++j) dMin[j] = dMax[j] = p->r[j];
@@ -885,7 +878,6 @@ void pkdTreeBuildByGroup(PKD pkd, int nBucket) {
 	    iRoot = pkd->hopGroups[gid2].iTreeRoot;
 	    pNode = pkdTreeNode(pkd,iRoot);
 	    pNode->iLower = 0;
-	    pNode->iParent = 0;
 	    bnd = pkdNodeBnd(pkd, pNode);
 	    n = pNode->pUpper;
 	    for(i=pNode->pLower; i<=n; ) {

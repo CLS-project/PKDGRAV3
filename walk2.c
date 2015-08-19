@@ -691,6 +691,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
 		    */
 		    ++iStack;
 		    assert(iStack < pkd->nMaxStack);
+		    pkd->S[iStack].iNodeIndex = iSib;
 		    /*
 		    ** At this point, the ILP is normally empty if you never do P-P except when reaching a bucket.
 		    ** Softened multi-poles are also an exception.
@@ -757,21 +758,9 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
 	    *pdCellSum += nActive*ilcCount(pkd->ilc);
 	    nTotActive += nActive;
 	    }
-	/* Find the next cell to process */
-	while(1) {
-	    if (iCell == iRoot) { /* Done if we reach the local root */
-		/* Make sure stack is empty. */
-		assert(iStack == -1);
-		goto doneCheckList;
-		}
-	    else if (iCell & 1) { /* If we are on the sibling, then ascend */
-		k = pkdTreeNode(pkd,iCell = k->iParent);
-		}
-	    else { /* Otherwise go to the sibling of this cell */
-		k = pkdTreeNode(pkd,++iCell);
-		if (k->nActive) break; /* but only if active particles */
-		}
-	    }
+	/* Get the next cell to process from the stack */
+	if (iStack == -1) goto doneCheckList;
+	k = pkdTreeNode(pkd,iCell = pkd->S[iStack].iNodeIndex);
 	/*
 	** Pop the Checklist from the top of the stack,
 	** also getting the state of the interaction list.

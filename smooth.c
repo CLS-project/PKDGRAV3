@@ -830,6 +830,7 @@ void smSmooth(SMX smx,SMF *smf) {
 
 
 void UpdateSphBounds(SMX smx) {
+#if 0
     PKD pkd = smx->pkd;
     PARTICLE *p;
     KDN *pkdn,*p1,*p2;
@@ -926,6 +927,7 @@ void UpdateSphBounds(SMX smx) {
 	}
 	++iNode;
     }
+#endif
 }
 
 #if 0

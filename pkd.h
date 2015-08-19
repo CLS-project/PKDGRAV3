@@ -260,7 +260,6 @@ typedef struct kdNode {
     double r[3];
     uint32_t iLower : 31; /* Local lower node */
     uint32_t bRemote : 1; /* sibling is remote */
-    int iParent;
     int pLower;		/* also serves as thread id for the LTT */
     int pUpper;		/* pUpper < 0 indicates no particles in tree! */
     float bMax;
@@ -372,6 +371,7 @@ typedef struct CheckStack {
     float dirLsum;
     float normLsum;
     float fWeight;
+    int iNodeIndex;
     } CSTACK;
 
 /*

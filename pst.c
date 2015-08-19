@@ -2608,7 +2608,6 @@ void pstBuildTree(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	    pCell = pkdTreeNode(pkd,iCell);
 	    pCell->bRemote = 1;                          /* Lower sibling is remote */
 	    pCell->iLower = pkdTreeAllocNode(pkd);       /* Lower cell */
-	    pCell->iParent = 0;                          /* We have no parent (yet) */
 	    pCell->pLower = pSpec[i].uRoot;              /* Remote root node */
 	    pCell->pUpper = pst->idUpper;                /* Remote processor */
 	    }
@@ -2636,8 +2635,6 @@ void pstBuildTree(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	    pkdCombineCells1(pkd,pCell,pkdNode(pkd,pCell1,i),pkdNode(pkd,pCell2,i));
 	    CALCOPEN(pCell,minside);
 	    pkdCombineCells2(pkd,pCell,pkdNode(pkd,pCell1,i),pkdNode(pkd,pCell2,i));
-	    pkdTreeNode(pkd,pCell->iLower)->iParent = puCells[i];
-//	    printf("%d: %d -> %d\n",mdlSelf(pst->mdl),pCell->iLower, puCells[i]);
 	    }
 	stack_free(pCell1);
 	stack_free(pCell2);
