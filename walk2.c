@@ -307,7 +307,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
     double fWeight = 0.0;
     double dShiftFlop;
     const vel_t *v;
-    const double *a;
+    const float *a;
     double dOffset[3];
     double xParent,yParent,zParent;
     double d2;
@@ -321,7 +321,6 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
     float cOpen,kOpen;
     const BND *cbnd,*kbnd;
     static const float  fZero3[] = {0.0f,0.0f,0.0f};
-    static const double dZero3[] = {0.0,0.0,0.0};
     static const vel_t vZero3[] = {0.0,0.0,0.0};
     int nc,nk;
     ILPTILE tile;
@@ -347,7 +346,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
     normLsum = 0;
     nTotActive = 0;
 
-    a = dZero3;
+    a = fZero3;
     v = vZero3;
 
 

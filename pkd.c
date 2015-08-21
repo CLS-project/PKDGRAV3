@@ -405,9 +405,11 @@ void pkdInitialize(
 
     /* The acceleration is required for the new time step criteria */
     if ( mMemoryModel & PKD_MODEL_NODE_ACCEL )
-	pkd->oNodeAcceleration = pkdNodeAddDouble(pkd,3);
+	pkd->oNodeAcceleration = pkdNodeAddFloat(pkd,3);
     else
 	pkd->oNodeAcceleration = 0;
+    pkd->iTreeNodeSize = (pkd->iTreeNodeSize + sizeof(double) - 1 ) & ~(sizeof(double)-1);
+
     /*
     ** Three extra bounds are required by the fast gas SPH code.
     */
@@ -426,6 +428,7 @@ void pkdInitialize(
     ** N.B.: Update pkdMaxNodeSize in pkd.h if you add fields.  We need to
     **       know the size of a node when setting up the pst.
     */
+    printf("node size %d\n", pkdNodeSize(pkd));
     assert(pkdNodeSize(pkd) > 0);
     if (pkdNodeSize(pkd) > pkdMaxNodeSize()) {
 	fprintf(stderr, "Node size is too large. Node size=%llu, max node size=%llu\n", pkdNodeSize(pkd), pkdMaxNodeSize());

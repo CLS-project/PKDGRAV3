@@ -500,7 +500,7 @@ void Create(PKD pkd,int iRoot) {
 	    pVel[2] = m*vz;
 	    }
 	if (pkd->oNodeAcceleration) {
-	    double *pAcc = pkdNodeAccel(pkd,pkdn);
+	    float *pAcc = pkdNodeAccel(pkd,pkdn);
 	    pAcc[0] = m*ax;
 	    pAcc[1] = m*ay;
 	    pAcc[2] = m*az;

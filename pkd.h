@@ -264,10 +264,10 @@ typedef struct kdNode {
     int pUpper;		/* pUpper < 0 indicates no particles in tree! */
     float bMax;
     float fSoft2;
-    uint8_t uMinRung;
-    uint8_t uMaxRung;
-    uint8_t bSrcActive;
-    uint8_t bDstActive;
+    uint8_t uMinRung; /* 6 */
+    uint8_t uMaxRung; /* 6 */
+    uint8_t bSrcActive; /* 1 */
+    uint8_t bDstActive; /* 1 */
     } KDN;
 
 typedef struct sphBounds {
@@ -834,8 +834,8 @@ static inline FMOMR *pkdNodeMom(PKD pkd,KDN *n) {
 static inline vel_t *pkdNodeVel( PKD pkd, KDN *n ) {
     return CAST(vel_t *,pkdNodeField(n,pkd->oNodeVelocity));
     }
-static inline double *pkdNodeAccel( PKD pkd, KDN *n ) {
-    return CAST(double *,pkdNodeField(n,pkd->oNodeAcceleration));
+static inline float *pkdNodeAccel( PKD pkd, KDN *n ) {
+    return CAST(float *,pkdNodeField(n,pkd->oNodeAcceleration));
     }
 static inline SPHBNDS *pkdNodeSphBounds( PKD pkd, KDN *n ) {
     return CAST(SPHBNDS *,pkdNodeField(n,pkd->oNodeSphBounds));
