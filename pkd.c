@@ -428,7 +428,6 @@ void pkdInitialize(
     ** N.B.: Update pkdMaxNodeSize in pkd.h if you add fields.  We need to
     **       know the size of a node when setting up the pst.
     */
-    printf("node size %d\n", pkdNodeSize(pkd));
     assert(pkdNodeSize(pkd) > 0);
     if (pkdNodeSize(pkd) > pkdMaxNodeSize()) {
 	fprintf(stderr, "Node size is too large. Node size=%llu, max node size=%llu\n", pkdNodeSize(pkd), pkdMaxNodeSize());
