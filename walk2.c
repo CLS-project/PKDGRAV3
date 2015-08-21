@@ -366,7 +366,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
 	kFind = k;
 	while (kFind->iLower) {
 	    kFind = pkdTreeNode(pkd,iCellDescend = kFind->iLower);
-	    if (!kFind->nActive) {
+	    if (kFind->uMinRung>uRungHi || kFind->uMaxRung < uRungLo) {
 		/*
 		** Move onto processing the sibling.
 		*/
@@ -655,14 +655,14 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
 	    ** rung check here when we start using tree repair, but
 	    ** for now this is just as good.
 	    */
-	    if (k->nActive) {
+	    if (k->uMinRung<=uRungHi && k->uMaxRung >= uRungLo) {
 		/*
 		** iCell is active, continue processing it.
 		** Put the sibling onto the checklist.
 		*/
 		iSib = iCell+1;
 		nc = getCell(pkd,iSib,pkd->idSelf,&cOpen,&c);
-		if (c->nActive) {
+		if (c->uMinRung<=uRungHi && c->uMaxRung >= uRungLo) {
 		    /*
 		    ** Sibling is active so we need to clone the checklist!
 		    */
@@ -683,7 +683,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
 		** have to be careful to not pop the stack when we
 		** hit the sibling.
 		*/
-		if (c->nActive) {
+		if (c->uMinRung<=uRungHi && c->uMaxRung >= uRungLo) {
 		    /*
 		    ** Sibling is active as well.
 		    ** Push Checklist for the sibling onto the stack

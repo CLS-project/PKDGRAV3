@@ -373,7 +373,6 @@ void Create(PKD pkd,int iRoot) {
     pkdn = pkdTreeNode(pkd,iNode);
     if (pkdn->pLower > pkdn->pUpper) {
 	pkdn->bMax = 1.0;
-	pkdn->nActive = 0;
 	pkdn->uMinRung = MAX_RUNG;
 	pkdn->uMaxRung = 0;
 	pkdn->bSrcActive = pkdn->bDstActive = 0;
@@ -411,7 +410,6 @@ void Create(PKD pkd,int iRoot) {
 	*/
 	pkdn = pkdTreeNode(pkd,iNode);
         bnd = pkdNodeBnd(pkd, pkdn);
-	pkdn->nActive = 0;
 	/*
 	** Before squeezing the bounds, calculate a minimum b value based on the splitting bounds alone.
 	** This gives us a better feel for the "size" of a bucket with only a single particle.
@@ -461,7 +459,6 @@ void Create(PKD pkd,int iRoot) {
 	az = m*a[2];
 	pkdn->uMinRung = pkdn->uMaxRung = p->uRung;
 	pkdn->bDstActive = p->bDstActive;
-	if (pkdIsActive(pkd,p)) ++pkdn->nActive;
 	for (++pj;pj<=pkdn->pUpper;++pj) {
 	    p = pkdParticle(pkd,pj);
 	    a = pkd->oAcceleration ? pkdAccel(pkd,p) : zeroF;
@@ -482,7 +479,6 @@ void Create(PKD pkd,int iRoot) {
 	    if ( p->uRung > pkdn->uMaxRung ) pkdn->uMaxRung = p->uRung;
 	    if ( p->uRung < pkdn->uMinRung ) pkdn->uMinRung = p->uRung;
 	    if ( p->bDstActive ) pkdn->bDstActive = 1;
-	    if (pkdIsActive(pkd,p)) ++pkdn->nActive;
 	    }
 	m = 1.0f / fMass;
 	if (pkd->param.bCenterOfMassExpand) {
@@ -697,9 +693,6 @@ void pkdCombineCells1(PKD pkd,KDN *pkdn,KDN *p1,KDN *p2) {
     pkdn->uMinRung = p1->uMinRung < p2->uMinRung ? p1->uMinRung : p2->uMinRung;
     pkdn->uMaxRung = p1->uMaxRung > p2->uMaxRung ? p1->uMaxRung : p2->uMaxRung;
     pkdn->bDstActive = p1->bDstActive || p2->bDstActive;
-    if (0xffffffffu - p1->nActive < p2->nActive) pkdn->nActive = 0xffffffffu; 
-    else pkdn->nActive = p1->nActive + p2->nActive;
-
     }
 
 

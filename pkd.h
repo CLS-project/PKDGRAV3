@@ -264,7 +264,6 @@ typedef struct kdNode {
     int pUpper;		/* pUpper < 0 indicates no particles in tree! */
     float bMax;
     float fSoft2;
-    uint32_t nActive; /* local active count used for walk2 */
     uint8_t uMinRung;
     uint8_t uMaxRung;
     uint8_t bSrcActive;
