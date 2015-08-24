@@ -4739,6 +4739,8 @@ double msrRead(MSR msr, const char *achInFile) {
     printf("Input file has been successfully read, Wallclock: %f secs.\n", dsec);
     printf("Allocated %lu MB for particle store on each processor.\n",
 	      pkdParticleMemory(plcl->pkd)/(1024*1024));
+    printf("Particles: %d bytes, Nodes: %d bytes\n",
+	pkdParticleSize(plcl->pkd),pkdNodeSize(plcl->pkd));
 
     /*
     ** If this is a non-periodic box, then we must precalculate the bounds.
