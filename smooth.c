@@ -793,7 +793,6 @@ float smSmoothSingle(SMX smx,SMF *smf,PARTICLE *p) {
 	    }
 	}
     fBall = sqrt(pq->fDist2);
-    p->fBall = fBall;
     /*
     ** Apply smooth funtion to the neighbor list.
     */
@@ -819,7 +818,7 @@ void smSmooth(SMX smx,SMF *smf) {
     for (pi=0;pi<pkd->nLocal;++pi) {
 	p = pkdParticle(pkd,pi);
 	if ( !pkdIsDstActive(p,0,MAX_RUNG) ) continue;
-	p->fBall = smSmoothSingle(smx,smf,p);
+	pkdSetBall(pkd,p,smSmoothSingle(smx,smf,p));
 
 	/*
 	** Call mdlCacheCheck to make sure we are making progress!
@@ -1827,6 +1826,7 @@ void DoLocalSearch(SMX smx,SMF *smf,PARTICLE *p,double *rLast) {
     PKD pkd = smx->pkd;
     PQ *pq;
     FLOAT r[3];
+    float fBall;
     int i,j,bDone,ix,iy,iz;
 
     /*
@@ -1860,11 +1860,12 @@ void DoLocalSearch(SMX smx,SMF *smf,PARTICLE *p,double *rLast) {
 	    }
 	}
     }
-    p->fBall = sqrtf(pq->fDist2);
+    fBall = sqrtf(pq->fDist2);
+    pkdSetBall(pkd,p,fBall);
     /*
     ** Apply smooth funtion to the neighbor list.
     */
-    smx->fcnSmooth(p,p->fBall,smx->nSmooth,smx->pq,smf);
+    smx->fcnSmooth(p,fBall,smx->nSmooth,smx->pq,smf);
     /*
     ** Call mdlCacheCheck to make sure we are making progress!
     */
@@ -2262,6 +2263,7 @@ void smFastGasPhase1(SMX smx,SMF *smf) {
 void smFastGasPhase2(SMX smx,SMF *smf) {
     PKD pkd = smx->pkd;
     PARTICLE *p,*pp;
+    float pBall, ppBall;
     LIST *pList;
     double dx,dy,dz,fDist2;
     int nMaxpList,nList,i,nCnt,pi;
@@ -2309,7 +2311,9 @@ void smFastGasPhase2(SMX smx,SMF *smf) {
 			else if (dz < -0.5*pkd->fPeriod[2]) dz += pkd->fPeriod[2];
 		    }
 		    fDist2 = dx*dx + dy*dy + dz*dz;
-		    if (fDist2 < p->fBall*p->fBall || fDist2 < pp->fBall*pp->fBall) {
+		    pBall= pkdBall(pkd,p);
+		    ppBall= pkdBall(pkd,pp);
+		    if (fDist2 < pBall*pBall || fDist2 < ppBall*ppBall) {
 			smx->nnList[nCnt].fDist2 = fDist2;
 			smx->nnList[nCnt].dx = dx;
 			smx->nnList[nCnt].dy = dy;
@@ -2330,7 +2334,7 @@ void smFastGasPhase2(SMX smx,SMF *smf) {
 		/*
 		** Apply smooth funtion to the neighbor list.
 		*/
-		smx->fcnSmooth(p,p->fBall,nCnt,smx->nnList,smf);
+		smx->fcnSmooth(p,pkdBall(pkd,p),nCnt,smx->nnList,smf);
 		/*
 		** Release acquired pointers.
 		*/
@@ -2546,7 +2550,7 @@ void smReSmoothSingle(SMX smx,SMF *smf,PARTICLE *p,FLOAT *R,FLOAT fBall) {
     /*
     ** Apply smooth funtion to the neighbor list.
     */
-    smx->fcnSmooth(p,p->fBall,smx->nnListSize,smx->nnList,smf);
+    smx->fcnSmooth(p,fBall,smx->nnListSize,smx->nnList,smf);
     /*
     ** Release acquired pointers.
     */
@@ -2566,7 +2570,7 @@ void smReSmooth(SMX smx,SMF *smf) {
     for (pi=0;pi<pkd->nLocal;++pi) {
 	p = pkdParticle(pkd,pi);
 	if ( pkdIsDstActive(p,0,MAX_RUNG) && pkdIsSrcActive(p,0,MAX_RUNG) )
-	    smReSmoothSingle(smx,smf,p,p->r,p->fBall);
+	    smReSmoothSingle(smx,smf,p,p->r,pkdBall(pkd,p));
     }
 }
 
@@ -2586,7 +2590,7 @@ FLOAT phase_dist(PKD pkd,double dvTau2,PARTICLE *pa,PARTICLE *pb,double H) {
 	dx = pa->r[j] - pb->r[j];
 	dx2 += dx*dx;
     }
-    dx2 /= pa->fBall;   /* this is actually fBall2! */
+    dx2 /= pkdBall(pkd,pa);   /* this is actually fBall2! */
     dv2 = 0.0;
     if (dvTau2 > 0) {
 	for (j=0;j<3;++j) {
@@ -2726,15 +2730,15 @@ void smFof(SMX smx,SMF *smf) {
 	pGroup = pkdInt32(p,pkd->oGroup);
 	*pGroup = 0; 
 	if (smf->bTauAbs) {
-	    p->fBall = smf->dTau2;
+	    pkdSetBall(pkd,p,smf->dTau2);
 	    /* enforce a real space linking length smaller than the mean particle separation at all times :*/
 	    if (smf->dTau2 > 0.2f*powf(fMass,2.0/3.0) )
-		p->fBall = 0.2f*powf(fMass,2.0/3.0);
+		pkdSetBall(pkd,p,0.2f*powf(fMass,2.0/3.0));
 	}
 	else {
-	    p->fBall = smf->dTau2*powf(fMass,2.0/3.0);
+	    pkdSetBall(pkd,p,smf->dTau2*powf(fMass,2.0/3.0));
 	}
-	if (p->fBall > fBall2Max) fBall2Max = p->fBall;
+	if (pkdBall(pkd,p) > fBall2Max) fBall2Max = pkdBall(pkd,p);
     }
 
     /* the velocity space linking length is the same for all particles. Zero means: do regular 3D FOF */
@@ -2770,7 +2774,7 @@ void smFof(SMX smx,SMF *smf) {
 	    ** Do a Ball Gather at the radius p->fBall
 	    */
 	    smx->nnListSize = 0;
-	    fBall = sqrt(p->fBall);
+	    fBall = sqrt(pkdBall(pkd,p));
 	    if (smx->bPeriodic) {
 		for (j=0;j<3;++j) {
 		    iStart[j] = d2i(floor((p->r[j] - fBall)/pkd->fPeriod[j] + 0.5));
@@ -2782,13 +2786,13 @@ void smFof(SMX smx,SMF *smf) {
 			r[1] = p->r[1] - iy*pkd->fPeriod[1];
 			for (iz=iStart[2];iz<=iEnd[2];++iz) {
 			    r[2] = p->r[2] - iz*pkd->fPeriod[2];
-			    smGather(smx,p->fBall,r);
+			    smGather(smx,pkdBall(pkd,p),r);
 			}
 		    }
 		}
 	    }
 	    else {
-		smGather(smx,p->fBall,p->r);
+		smGather(smx,pkdBall(pkd,p),p->r);
 	    }
 	    nCnt = smx->nnListSize;
 	    for (pnn=0;pnn<nCnt;++pnn ) {
@@ -2817,7 +2821,7 @@ void smFof(SMX smx,SMF *smf) {
 			    phase_dist(pkd,fvBall2,smx->nnList[pnn].pPart,p,smf->H) > 1.0) continue;
 		    }
 		    else { /* real space distance */
-			if (smx->nnList[pnn].fDist2 > smx->nnList[pnn].pPart->fBall) continue;
+			if (smx->nnList[pnn].fDist2 > pkdBall(pkd,smx->nnList[pnn].pPart)) continue;
 		    }
 		
 		    /* Add to remote member (RM) list if new */
@@ -2932,8 +2936,8 @@ void smFof(SMX smx,SMF *smf) {
 		    for (j=0;j<3;j++) pkd->groupData[i].r[j] = r[j];
 		}
 	    } else {
-		if (p->fDensity > pkd->groupData[i].potordenmax) {
-		    pkd->groupData[i].potordenmax = p->fDensity;
+		if (pkdDensity(pkd,p) > pkd->groupData[i].potordenmax) {
+		    pkd->groupData[i].potordenmax = pkdDensity(pkd,p);
 		    for (j=0;j<3;j++) pkd->groupData[i].r[j] = r[j];
 		}
 	    }

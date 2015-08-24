@@ -359,6 +359,13 @@ void pkdInitialize(
     else
 	pkd->oSoft = 0;
 
+    if ( mMemoryModel & PKD_MODEL_SPH )
+	pkd->oBall = pkdParticleAddFloat(pkd,1);
+    else pkd->oBall = 0;
+    if ( mMemoryModel & PKD_MODEL_SPH )
+	pkd->oDensity = pkdParticleAddFloat(pkd,1);
+    else pkd->oDensity = 0;
+
     if ( mMemoryModel & PKD_MODEL_GROUPS ) {
 	pkd->oGroup = pkdParticleAddInt32(pkd,1);
 	}
@@ -880,7 +887,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
     SPHFIELDS *pSph;
     float *pPot, dummypot;
     double vel[3];
-    float fMass, fSoft;
+    float fMass, fSoft,fDensity;
     FIO_SPECIES eSpecies;
     uint64_t iParticleID;
 
@@ -905,8 +912,8 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
 	*/
 	p->uRung = p->uNewRung = 0;
 	p->bSrcActive = p->bDstActive = 1;
-	p->fDensity = 0.0;
-	p->fBall = 0.0;
+	pkdSetDensity(pkd,p,0.0);
+	if (pkd->oBall) pkdSetBall(pkd,p,0.0);
 	/*
 	** Clear the accelerations so that the timestepping calculations do not
 	** get funny uninitialized values!
@@ -940,7 +947,8 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
 	    assert(pSph); /* JW: Could convert to dark ... */
 	    assert(dTuFac>0.0);
 	    fioReadSph(fio,&iParticleID,p->r,vel,&fMass,&fSoft,pPot,
-			     &p->fDensity/*?*/,&pSph->u,&pSph->fMetals);
+			     &fDensity/*?*/,&pSph->u,&pSph->fMetals);
+	    pkdSetDensity(pkd,p,fDensity);
 	    pSph->u *= dTuFac; /* Can't do precise conversion until density known */
 	    pSph->uPred = pSph->u;
 	    pSph->fMetalsPred = pSph->fMetals;
@@ -949,12 +957,14 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
 	    pSph->vPred[2] = vel[2]*dvFac; /* density, divv, BalsaraSwitch, c set in smooth */
 	    break;
 	case FIO_SPECIES_DARK:
-	    fioReadDark(fio,&iParticleID,p->r,vel,&fMass,&fSoft,pPot,&p->fDensity);
+	    fioReadDark(fio,&iParticleID,p->r,vel,&fMass,&fSoft,pPot,&fDensity);
+	    pkdSetDensity(pkd,p,fDensity);
 	    break;
 	case FIO_SPECIES_STAR:
 	    assert(pStar && pSph);
-	    fioReadStar(fio,&iParticleID,p->r,vel,&fMass,&fSoft,pPot,&p->fDensity,
+	    fioReadStar(fio,&iParticleID,p->r,vel,&fMass,&fSoft,pPot,&fDensity,
 			      &pSph->fMetals,&pStar->fTimer);
+	    pkdSetDensity(pkd,p,fDensity);
 	    pSph->vPred[0] = vel[0]*dvFac;
 	    pSph->vPred[1] = vel[1]*dvFac;
 	    pSph->vPred[2] = vel[2]*dvFac;
@@ -2412,7 +2422,7 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,BND *bnd,PARTICLE *p) {
     SPHFIELDS *pSph;
     float *pPot, dummypot;
     double v[3],r[3];
-    float fMass, fSoft;
+    float fMass, fSoft, fDensity;
     uint64_t iParticleID;
     int j;
 
@@ -2437,6 +2447,8 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,BND *bnd,PARTICLE *p) {
     fSoft = pkdSoft0(pkd,p);
     if (pkd->oParticleID) iParticleID = *pkdParticleID(pkd,p);
     else iParticleID = p->iOrder;
+    if (pkd->oDensity) fDensity = pkdDensity(pkd,p);
+    else fDensity = 0.0;
 
     r[0] = p->r[0];
     r[1] = p->r[1];
@@ -2473,15 +2485,15 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,BND *bnd,PARTICLE *p) {
 	    T = pSph->u/pkd->param.dTuFac;
 #endif
 	    fioWriteSph(fio,iParticleID,r,v,fMass,fSoft,*pPot,
-		p->fDensity,T,pSph->fMetals);
+		fDensity,T,pSph->fMetals);
 	    }
 	break;
     case FIO_SPECIES_DARK:
-	fioWriteDark(fio,iParticleID,r,v,fMass,fSoft,*pPot,p->fDensity);
+	fioWriteDark(fio,iParticleID,r,v,fMass,fSoft,*pPot,fDensity);
 	break;
     case FIO_SPECIES_STAR:
 	assert(pStar && pSph);
-	fioWriteStar(fio,iParticleID,r,v,fMass,fSoft,*pPot,p->fDensity,
+	fioWriteStar(fio,iParticleID,r,v,fMass,fSoft,*pPot,fDensity,
 	    pSph->fMetals,pStar->fTimer);
 	break;
     default:
@@ -3107,7 +3119,7 @@ void pkdSphStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,double dAccFac) {
 		    }
 		acc = sqrt(acc)*dAccFac;
 		dtNew = FLOAT_MAXVAL;
-		if (acc>0) dtNew = pkd->param.dEta*sqrt(p->fBall/acc);
+		if (acc>0) dtNew = pkd->param.dEta*sqrt(pkdBall(pkd,p)/acc);
 		u2 = pkdDtToRung(dtNew,pkd->param.dDelta,pkd->param.iMaxRung-1);
 		uDot = *pkd_uDot(pkd,p);
 		u3=0;
@@ -3174,7 +3186,7 @@ void pkdStarForm(PKD pkd, double dRateCoeff, double dTMax, double dDenMin,
 	    sph = pkdSph(pkd,p);
 	    dt = pkd->param.dDelta/(1<<p->uRung); /* Actual Rung */
 	    pkdStar(pkd,p)->totaltime += dt;
-	    if (p->fDensity < dDenMin || (bdivv && sph->divv >= 0.0)) continue;
+	    if (pkdDensity(pkd,p) < dDenMin || (bdivv && sph->divv >= 0.0)) continue;
 	    E = sph->uPred;
 #ifdef COOLING
 	    if (pkd->param.bGasCooling) 
@@ -3194,7 +3206,7 @@ void pkdStarForm(PKD pkd, double dRateCoeff, double dTMax, double dDenMin,
 		    }
 		}
 
-	    dmstar = dRateCoeff*sqrt(p->fDensity)*pkdMass(pkd,p)*dt;
+	    dmstar = dRateCoeff*sqrt(pkdDensity(pkd,p))*pkdMass(pkd,p)*dt;
 	    prob = 1.0 - exp(-dmstar/dInitStarMass); 
 	    
 	    /* Star formation event? */
@@ -3389,7 +3401,7 @@ void pkdDensityStep(PKD pkd, uint8_t uRungLo, uint8_t uRungHi, double dEta, doub
     for (i=0;i<pkdLocal(pkd);++i) {
 	p = pkdParticle(pkd,i);
 	if (pkdIsActive(pkd,p)) {
-	    dT = dEta/sqrt(p->fDensity*dRhoFac);
+	    dT = dEta/sqrt(pkdDensity(pkd,p)*dRhoFac);
 	    p->uNewRung = pkdDtToRung(dT,pkd->param.dDelta,pkd->param.iMaxRung-1);
 	    }
 	}
@@ -3806,7 +3818,7 @@ int pkdSelSrcPhaseDensity(PKD pkd,double dMinDensity, double dMaxDensity, int se
     for( i=0; i<n; i++ ) {
 	p = pkdParticle(pkd,i);
 	pvel = pkdField(p,pkd->oVelSmooth);
-	density = p->fDensity * pow(pvel->veldisp2,-1.5);
+	density = pkdDensity(pkd,p) * pow(pvel->veldisp2,-1.5);
 	p->bSrcActive = isSelected((density >= dMinDensity && density <=dMaxDensity),setIfTrue,clearIfFalse,p->bSrcActive);
 	if ( p->bSrcActive ) nSelected++;
 	}
@@ -3824,7 +3836,7 @@ int pkdSelDstPhaseDensity(PKD pkd,double dMinDensity, double dMaxDensity, int se
     for( i=0; i<n; i++ ) {
 	p = pkdParticle(pkd,i);
 	pvel = pkdField(p,pkd->oVelSmooth);
-	density = p->fDensity * pow(pvel->veldisp2,-1.5);
+	density = pkdDensity(pkd,p) * pow(pvel->veldisp2,-1.5);
 	p->bDstActive = isSelected((density >= dMinDensity && density <=dMaxDensity),setIfTrue,clearIfFalse,p->bDstActive);
 	if ( p->bDstActive ) nSelected++;
 	}

@@ -285,7 +285,7 @@ int smHopLink(SMX smx,SMF *smf) {
 	ga[nGroups].iGid = nGroups;
 	for(;;) {
 	    *pkdGroup(pkd,p) = nGroups;
-	    smReSmoothSingle(smx,smf,p,p->r,p->fBall);
+	    smReSmoothSingle(smx,smf,p,p->r,pkdBall(pkd,p));
 	    ga[nGroups].id = pl[iParticle] = smf->hopParticleLink;
 
 	    /*
@@ -518,7 +518,7 @@ int smHopJoin(SMX smx,SMF *smf, double dHopTau, int *nLocal) {
 	assert(p->bMarked);
 	if (dHopTau<0.0) fBall = -dHopTau * pkdSoft(pkd,p);
 	else fBall = dHopTau;
-	fBall = fmaxf(fBall,p->fBall*0.5f);
+	fBall = fmaxf(fBall,pkdBall(pkd,p)*0.5f);
 	smReSmoothSingle(smx,smf,p,p->r,fBall);
 	}
     mdlFinishCache(mdl,CID_GROUP);

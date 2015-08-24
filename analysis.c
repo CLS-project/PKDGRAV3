@@ -671,6 +671,7 @@ void pkdGridProject(PKD pkd) {
     float *pCell, v;
     double r[3];
 
+    assert(pkd->oDensity);
     for( i=0; i<pkd->grid->nlocal; i++ ) pkd->gridData[i] = 1e-20f;
 
     /* Now project the data onto the grid */
@@ -679,7 +680,7 @@ void pkdGridProject(PKD pkd) {
     for (i=0;i<pkd->nLocal;++i) {
 	p = pkdParticle(pkd,i);
 	if ( !pkdIsSrcActive(p,0,MAX_RUNG) ) continue;
-	v = p->fDensity;
+	v = pkdDensity(pkd,p);
 
 	/* Should scale and rotate here */
 	r[0] = p->r[0];

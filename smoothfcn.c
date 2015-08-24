@@ -75,11 +75,11 @@ void NullSmooth(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     }
 
 void initDensity(void *vpkd, void *p) {
-    ((PARTICLE *)p)->fDensity = 0.0;
+    pkdSetDensity(vpkd,(PARTICLE *)p,0.0);
     }
 
 void combDensity(void *vpkd, void *p1,void *p2) {
-    ((PARTICLE *)p1)->fDensity += ((PARTICLE *)p2)->fDensity;
+    pkdSetDensity(vpkd,p1,pkdDensity(vpkd,p1)+pkdDensity(vpkd,p2));
     }
 
 void DensityF1(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
@@ -98,7 +98,7 @@ void DensityF1(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 	}
     fDensity *= 1.875f*M_1_PI*sqrtf(ih2)*ih2; /* F1 Kernel (15/8) */
     if (smf->pfDensity) *smf->pfDensity = fDensity;
-    else p->fDensity = fDensity;
+    else pkdSetDensity(pkd,p,fDensity);
     }
 
 void DensityM3(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
@@ -123,7 +123,7 @@ void DensityM3(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 	else rs = 0.0;
 	fDensity += rs*fMass;
 	}
-    p->fDensity = 16.0f*M_1_PI*sqrtf(ih2)*ih2*fDensity;
+    pkdSetDensity(pkd,p,16.0f*M_1_PI*sqrtf(ih2)*ih2*fDensity);
     }
 
 void LinkGradientM3(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
@@ -150,13 +150,13 @@ void LinkGradientM3(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 	    }
 	else rs = 0.0;
 	rs *= fNorm*fMass;
-	rs *= (nnList[i].pPart->fDensity - p->fDensity)/nnList[i].pPart->fDensity;
+	rs *= (pkdDensity(pkd,nnList[i].pPart) - pkdDensity(pkd,p))/pkdDensity(pkd,nnList[i].pPart);
 	frho[0] -= nnList[i].dx*rs;
 	frho[1] -= nnList[i].dy*rs;
 	frho[2] -= nnList[i].dz*rs;
 	}
     idrho = 1.0/sqrt(frho[0]*frho[0] + frho[1]*frho[1] + frho[2]*frho[2]);
-    for (j=0;j<3;++j) frho[j] *= 0.5*idrho*p->fBall;
+    for (j=0;j<3;++j) frho[j] *= 0.5*idrho*fBall;
     r2min = HUGE;
     if (nSmooth==0) *pkdGroup(pkd, p) = -1;
     for (i=0;i<nSmooth;++i) {
@@ -224,7 +224,7 @@ void Density(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 	KERNEL(rs,r2);
 	fDensity += rs*fMass;
 	}
-    p->fDensity = M_1_PI*sqrt(ih2)*ih2*fDensity;
+    pkdSetDensity(pkd,p,M_1_PI*sqrt(ih2)*ih2*fDensity);
     }
 
 void DensitySym(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
@@ -241,8 +241,8 @@ void DensitySym(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 	rs *= fNorm;
 	q = nnList[i].pPart;
 	fMassQ = pkdMass(pkd,q);
-	p->fDensity += rs*fMassQ;
-	q->fDensity += rs*fMassP;
+	pkdSetDensity(pkd,p,pkdDensity(pkd,p) + rs*fMassQ);
+	pkdSetDensity(pkd,q,pkdDensity(pkd,q) + rs*fMassP);
 	}
     }
 
@@ -283,7 +283,7 @@ void DenDVDX(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf)
 
     assert(pkd->oSph);
     psph = pkdSph(pkd,p);
-    ih = 2.0/p->fBall;  ih2 = ih*ih;
+    ih = 2.0/fBall;  ih2 = ih*ih;
     vFac = (smf->bComove ? 1./(smf->a*smf->a) : 1.0); /* converts v to xdot (physical) */
     fNorm = M_1_PI*ih2*ih;
     fNorm1 = fNorm*ih2;	
@@ -318,7 +318,7 @@ void DenDVDX(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf)
 	dvzdz += dvz*dz*rs1;
 	}
     fDensity*=fNorm;
-    p->fDensity = fDensity; 
+    pkdSetDensity(pkd,p,fDensity); 
     psph->c = sqrt(smf->gamma*(smf->gamma-1)*psph->uPred);
     fNorm1 /= fDensity;
     trace = dvxdx+dvydy+dvzdz;
@@ -352,7 +352,7 @@ void DenDVDX(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf)
 	double syz = 0.5*(dvydz + dvzdy);
 	/* diff coeff., nu ~ C L^2 S (add C via dMetalDiffusionConstant, assume L ~ h) */
 	if (smf->iDiffusion == 2) psph->diff = 1;
-	else psph->diff = fNorm1*p->fBall*p->fBall*sqrt(2*(sxx*sxx + syy*syy + szz*szz + 2*(sxy*sxy + sxz*sxz + syz*syz)));
+	else psph->diff = fNorm1*fBall*fBall*sqrt(2*(sxx*sxx + syy*syy + szz*szz + 2*(sxy*sxy + sxz*sxz + syz*syz)));
 	}
     else psph->diff = 0;
 
@@ -428,11 +428,11 @@ void SphForces(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 
     psph = pkdSph(pkd,p);
     pc = psph->c;
-    pDensity = p->fDensity;
+    pDensity = pkdDensity(pkd,p);
     pMass = pkdMass(pkd,p);
-    pPoverRho2 = gammainv*psph->c*psph->c/p->fDensity;
+    pPoverRho2 = gammainv*psph->c*psph->c/pDensity;
     pPoverRho2f = pPoverRho2;
-    ph = 0.5*p->fBall;
+    ph = 0.5*fBall;
     /* JW: Active tests here -- Rung info in pkd */
     pActive = pkdIsActive(pkd,p);
     pa = pkdAccel(pkd,p);
@@ -464,18 +464,18 @@ void SphForces(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 	dvdotdr = vFac*(dvx*dx + dvy*dy + dvz*dz)
 	    + nnList[i].fDist2*smf->H;
 
-	qPoverRho2 = gammainv*qsph->c*qsph->c/q->fDensity;
+	qPoverRho2 = gammainv*qsph->c*qsph->c/pkdDensity(pkd,q);
 	qPoverRho2f = qPoverRho2;
 
 #define DIFFUSIONThermal() \
     { double diff = 2*smf->dThermalDiffusionCoeff*(psph->diff+qsph->diff)*(psph->uPred-qsph->uPred) \
-		/(p->fDensity+q->fDensity); \
+	    /(pkdDensity(pkd,p)+pkdDensity(pkd,q));		\
       PACTIVE( psph->uDot += diff*rq ); \
       QACTIVE( qsph->uDot -= diff*rp ); }
 
 #define DIFFUSIONMetals() \
     { double diff = 2*smf->dMetalDiffusionCoeff*(psph->diff+qsph->diff)*(psph->fMetals - qsph->fMetals) \
-		/(p->fDensity+q->fDensity); \
+	    /(pkdDensity(pkd,p)+pkdDensity(pkd,q));		\
       PACTIVE( psph->fMetalsDot += diff*rq ); \
       QACTIVE( qsph->fMetalsDot -= diff*rp ); }
 
@@ -497,19 +497,19 @@ void SphForces(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 		absmu = 0; \
 		} \
 	    else {  \
-		hav=0.5*(ph+0.5*q->fBall);  /* h mean */ \
+		hav=0.5*(ph+0.5*pkdBall(pkd,q));  /* h mean */ \
 		absmu = -hav*dvdotdr*smf->a  \
 		    /(nnList[i].fDist2+0.01*hav*hav); /* mu multiply by a to be consistent with physical c */ \
 		visc = SWITCHCOMBINE(psph,qsph)* \
 		    (ALPHA*(pc + qsph->c) + BETA*2*absmu)  \
-		    *absmu/(pDensity + q->fDensity); \
+		    *absmu/(pDensity + pkdDensity(pkd,q));	\
 		PACTIVE( psph->uDot += rq*(PRES_PDV(pPoverRho2,qPoverRho2) + 0.5*visc)*dvdotdr; ); \
 		QACTIVE( qsph->uDot += rp*(PRES_PDV(qPoverRho2,pPoverRho2) + 0.5*visc)*dvdotdr; ); \
 		PACTIVE( Accp = (PRES_ACC(pPoverRho2f,qPoverRho2f) + visc); ); \
 		QACTIVE( Accq = (PRES_ACC(qPoverRho2f,pPoverRho2f) + visc); ); \
 		} \
 	    dtEst = ph/(dtC*psph->c+dtMu*absmu);	\
-	    dt2 = 0.5*q->fBall/(dtC*qsph->c+dtMu*absmu);	\
+	    dt2 = 0.5*pkdBall(pkd,q)/(dtC*qsph->c+dtMu*absmu); \
 	    if (dt2 < dtEst) dtEst=dt2; \
 	    uNewRung = pkdDtToRung(dtEst,smf->dDelta,MAX_RUNG);	\
 	    /*	    if (uNewRung > 5) if (!(p->iOrder%1000)) printf("RUNG %d: Sph %d  h %g tpc %g tp %g hq %g tqc %g tq %g\n",p->iOrder,uNewRung,ph,ph/(dtC*psph->c),ph/(dtMu*absmu),0.5*q->fBall,0.5*q->fBall/(dtC*qsph->c),0.5*q->fBall/(dtMu*absmu)); */ \
@@ -639,7 +639,7 @@ void DistDeletedGas(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf)
     pmass = pkdField(p,pkd->oMass);
     if (*pmass <= 0) return;
 
-    ih2 = 4.0/(p->fBall*p->fBall);
+    ih2 = 4.0/(fBall*fBall);
     rstot = 0;        
     for (i=0;i<nSmooth;++i) {
 	q = nnList[i].pPart;
@@ -761,6 +761,7 @@ void DistSNEnergy(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf)
     {
     PKD pkd = (PKD) smf->pkd;
     PARTICLE *q,*qmin;
+    float qBall;
     float ih2,r2,r2min,fp,fq;
     float *pmass, *qmass;
     double m,im,delta_m,delta_u,delta_Z;
@@ -781,7 +782,7 @@ void DistSNEnergy(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf)
     assert(pkdSph(pkd,p)->u == 1); /* Star must not have fedback */
 
     /* Keep star timestep of order Courant time in FB region */
-    dtNew=smf->SFdFBFac*p->fBall;
+    dtNew=smf->SFdFBFac*fBall;
     uNewRung = pkdDtToRung(dtNew,pkd->param.dDelta,pkd->param.iMaxRung-1);
     if (uNewRung > p->uNewRung) p->uNewRung = uNewRung;
 
@@ -802,7 +803,7 @@ void DistSNEnergy(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf)
     dtC = (1+0.6*smf->alpha)/(smf->a*smf->dEtaCourant);
     pmass = pkdField(p,pkd->oMass);
 
-    ih2 = 4.0/(p->fBall*p->fBall);
+    ih2 = 4.0/(fBall*fBall);
     r2min = 1e37f;
     qmin = NULL;
     for (i=0;i<nSmooth;++i) {
@@ -848,7 +849,8 @@ void DistSNEnergy(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf)
 	pkdSph(pkd,q)->fMetalsPred = fq*pkdSph(pkd,q)->fMetalsPred+delta_Z;
 
 	c = sqrt(smf->gamma*(smf->gamma-1)*pkdSph(pkd,q)->uPred);
-	dt = 0.5*q->fBall/(dtC*c);
+	qBall = pkdBall(pkd,q);
+	dt = 0.5*qBall/(dtC*c);
 	uNewRung = pkdDtToRung(dt,smf->pkd->param.dDelta,MAX_RUNG);	
     
 	if (q->uNewRung > uNewRung) uNewRung = q->uNewRung;
@@ -908,7 +910,7 @@ void MeanVel(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 	q = nnList[i].pPart;
 	fMass = pkdMass(pkd,q);
 	qv = pkdVel(pkd,q);
-	for (j=0;j<3;++j) v[j] += rs*fMass/q->fDensity*qv[j];
+	for (j=0;j<3;++j) v[j] += rs*fMass/pkdDensity(pkd,q)*qv[j];
 	}
     for (j=0;j<3;++j) pvel->vmean[j] = M_1_PI*sqrt(ih2)*ih2*v[j];
     }
@@ -935,8 +937,8 @@ void MeanVelSym(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 	qvel = pkdField(q,pkd->oVelSmooth);
 	fMassQ = pkdMass(pkd,q);
 	for (j=0;j<3;++j) {
-	    pvel->vmean[j] += rs*fMassQ/q->fDensity*qv[j];
-	    qvel->vmean[j] += rs*fMassP/p->fDensity*pv[j];
+	    pvel->vmean[j] += rs*fMassQ/pkdDensity(pkd,q)*qv[j];
+	    qvel->vmean[j] += rs*fMassP/pkdDensity(pkd,p)*pv[j];
 	    }
 	}
     }
@@ -984,7 +986,7 @@ void Divv(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 	fMass = pkdMass(pkd,q);
 	qv = pkdVel(pkd,q);
 	dvdotdr = (qv[0] - pv[0])*nnList[i].dx + (qv[1] - pv[1])*nnList[i].dy + (qv[2] - pv[2])*nnList[i].dz;
-	pvel->divv += rs*fMass/q->fDensity*dvdotdr;
+	pvel->divv += rs*fMass/pkdDensity(pkd,q)*dvdotdr;
 	}
     }
 
@@ -1010,8 +1012,8 @@ void DivvSym(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 	qvel = pkdField(q,pkd->oVelSmooth);
 	fMassQ = pkdMass(pkd,q);
 	dvdotdr = (qv[0] - pv[0])*nnList[i].dx + (qv[1] - pv[1])*nnList[i].dy + (qv[2] - pv[2])*nnList[i].dz;
-	pvel->divv += rs*fMassQ/q->fDensity*dvdotdr;
-	qvel->divv += rs*fMassP/p->fDensity*dvdotdr;
+	pvel->divv += rs*fMassQ/pkdDensity(pkd,q)*dvdotdr;
+	qvel->divv += rs*fMassP/pkdDensity(pkd,p)*dvdotdr;
 	}
     }
 
@@ -1063,7 +1065,7 @@ void VelDisp2(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 	tv = qv[2] - pvel->vmean[2] - pvel->divv*nnList[i].dz;
 	tv2 += tv*tv;
 
-	pvel->veldisp2 += rs*fMass/q->fDensity*tv2;
+	pvel->veldisp2 += rs*fMass/pkdDensity(pkd,q)*tv2;
 	}
     }
 
@@ -1095,8 +1097,8 @@ void VelDisp2Sym(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 	tv = qv[2] - pvel->vmean[2] - pvel->divv*nnList[i].dz;
 	tv2 += tv*tv;
 
-	pvel->veldisp2 += rs*fMassQ/q->fDensity*tv2;
-	qvel->veldisp2 += rs*fMassP/p->fDensity*tv2;
+	pvel->veldisp2 += rs*fMassQ/pkdDensity(pkd,q)*tv2;
+	qvel->veldisp2 += rs*fMassP/pkdDensity(pkd,p)*tv2;
 	}
     }
 
@@ -1161,7 +1163,7 @@ void AddRelaxation(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 	    }
 	}
     vSigma2 /= nSmooth;
-    rho /= 4.18*pow(p->fBall,3.0);
+    rho /= 4.18*pow(fBall,3.0);
     for (j=0;j<3;++j) {
 	vMean[j] /= nSmooth;
 	vSigma2 -= vMean[j]*vMean[j];

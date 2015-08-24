@@ -364,7 +364,7 @@ void Create(PKD pkd,int iRoot) {
     SPHBNDS *bn;
     BND *bnd;
     FLOAT fSoft,x,y,z,ax,ay,az,ft,d2,d2Max,dih2,bmin,b;
-    float *a, m, fMass;
+    float *a, m, fMass, fBall;
     vel_t *v, vx, vy, vz;
     int pj,d,nDepth,ism;
     const int nMaxStackIncrease = 1;
@@ -559,19 +559,20 @@ void Create(PKD pkd,int iRoot) {
 	    for (d=0;d<3;++d) bn->BI.max[d] = -HUGE_VAL;
 	    for (pj=pkdn->pLower;pj<=pkdn->pUpper;++pj) {
 		p = pkdParticle(pkd,pj);
+		fBall = pkdBall(pkd,p);
 		if (pkdIsGas(pkd,p)) {
 		    /*
 		    ** This first ball bound over all gas particles is only used for remote searching.
 		    */
-		    for (d=0;d<3;++d) bn->B.min[d] = fmin(bn->B.min[d],p->r[d] - (1+pkd->param.ddHonHLimit)*p->fBall);
-		    for (d=0;d<3;++d) bn->B.max[d] = fmax(bn->B.max[d],p->r[d] + (1+pkd->param.ddHonHLimit)*p->fBall);
+		    for (d=0;d<3;++d) bn->B.min[d] = fmin(bn->B.min[d],p->r[d] - (1+pkd->param.ddHonHLimit)*fBall);
+		    for (d=0;d<3;++d) bn->B.max[d] = fmax(bn->B.max[d],p->r[d] + (1+pkd->param.ddHonHLimit)*fBall);
 		    if (pkdIsActive(pkd,p)) {
 			for (d=0;d<3;++d) bn->A.min[d] = fmin(bn->A.min[d],p->r[d]);
 			for (d=0;d<3;++d) bn->A.max[d] = fmax(bn->A.max[d],p->r[d]);
 		    }
 		    else {
-			for (d=0;d<3;++d) bn->BI.min[d] = fmin(bn->BI.min[d],p->r[d] - (1+pkd->param.ddHonHLimit)*p->fBall);
-			for (d=0;d<3;++d) bn->BI.max[d] = fmax(bn->BI.max[d],p->r[d] + (1+pkd->param.ddHonHLimit)*p->fBall);
+			for (d=0;d<3;++d) bn->BI.min[d] = fmin(bn->BI.min[d],p->r[d] - (1+pkd->param.ddHonHLimit)*fBall);
+			for (d=0;d<3;++d) bn->BI.max[d] = fmax(bn->BI.max[d],p->r[d] + (1+pkd->param.ddHonHLimit)*fBall);
 		    }
 		}
 	    }

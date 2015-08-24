@@ -97,10 +97,10 @@ static double fetchFloat(PKD pkd,PARTICLE *p,int iType,int iDim) {
     VELSMOOTH *pvel;
     switch (iType) {
     case OUT_DENSITY_ARRAY:
-	v = p->fDensity;
+	v = pkdDensity(pkd,p);
 	break;
     case OUT_BALL_ARRAY:
-	v = p->fBall;
+	v = pkdBall(pkd,p);
 	break;
     case OUT_COLOR_ARRAY:
 	assert(0);
@@ -142,7 +142,7 @@ static double fetchFloat(PKD pkd,PARTICLE *p,int iType,int iDim) {
     case OUT_PHASEDENS_ARRAY:
 	assert(pkd->oVelSmooth); /* Validate memory model */
 	pvel = pkdField(p,pkd->oVelSmooth);
-	v = p->fDensity*pow(pvel->veldisp2,-1.5);
+	v = pkdDensity(pkd,p)*pow(pvel->veldisp2,-1.5);
 	break;
     case OUT_UDOT_ARRAY:
 	v = pkdSph(pkd,p)->uDot;
@@ -154,7 +154,7 @@ static double fetchFloat(PKD pkd,PARTICLE *p,int iType,int iDim) {
 	v = pkdSph(pkd,p)->c;
 	break;
     case OUT_HSPH_ARRAY:
-	v = p->fBall*0.5;
+	v = pkdBall(pkd,p) * 0.5;
 	break;
     case OUT_POS_VECTOR:
 	v = p->r[iDim];

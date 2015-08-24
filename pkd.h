@@ -26,7 +26,7 @@
 #ifdef __cplusplus
 #define CAST(T,V) reinterpret_cast<T>(V)
 #else
-#define CAST(T,V) (V)
+#define CAST(T,V) ((T)(V))
 #endif
 
 typedef uint_fast32_t local_t; /* Count of particles locally (per processor) */
@@ -647,6 +647,8 @@ typedef struct pkdContext {
     int oGroup; /* One int32 */
     int oMass; /* One float */
     int oSoft; /* One float */
+    int oDensity; /* One float */
+    int oBall; /* One float */
     int oSph; /* Sph structure */
     int oStar; /* Star structure */
     int oRelaxation;
@@ -940,6 +942,39 @@ static inline int32_t *pkdGroup( PKD pkd, PARTICLE *p ) {
     assert(pkd->oGroup);
     return CAST(int32_t *, pkdField(p,pkd->oGroup));
     }
+
+static inline float pkdDensity( PKD pkd, PARTICLE *p ) {
+#ifndef SMOOTH_VARS
+    assert(pkd->oDensity);
+    return * CAST(float *, pkdField(p,pkd->oDensity));
+#else
+    return p->fDensityPRIVATE;
+#endif
+    }
+static inline void pkdSetDensity( PKD pkd, PARTICLE *p, float fDensity ) {
+#ifndef SMOOTH_VARS
+    if (pkd->oDensity) *CAST(float *, pkdField(p,pkd->oDensity)) = fDensity;
+#else
+    p->fDensityPRIVATE = fDensity;
+#endif
+    }
+
+static inline float pkdBall( PKD pkd, PARTICLE *p ) {
+#ifndef SMOOTH_VARS
+    assert(pkd->oBall);
+    return *CAST(float *, pkdField(p,pkd->oBall));
+#else
+    return p->fBallPRIVATE;
+#endif
+    }
+static inline void pkdSetBall(PKD pkd, PARTICLE *p, float fBall) {
+#ifndef SMOOTH_VARS
+    if (pkd->oBall) *CAST(float *, pkdField(p,pkd->oBall)) = fBall;
+#else
+    p->fBallPRIVATE = fBall;
+#endif
+    }
+
 
 /* Here is the new way of getting mass and softening */
 static inline float pkdMass( PKD pkd, PARTICLE *p ) {

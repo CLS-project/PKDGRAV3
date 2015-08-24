@@ -25,9 +25,11 @@ typedef struct particle {
     uint8_t  bDstActive :  1;
     uint8_t  iClass     :  8;
     double r[3];
+#ifdef SMOOTH_VARS
     /*-----Used-for-Smooth-------*/
-    float fBall;
-    float fDensity;
+    float fBallPRIVATE;
+    float fDensityPRIVATE;
+#endif
     } PARTICLE;
 
 typedef float vel_t;
