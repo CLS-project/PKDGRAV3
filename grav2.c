@@ -109,7 +109,7 @@ void pkdParticleWorkDone(workParticle *work) {
 		    dtGrav = maga*dirsum/normsum;
 		    }
 		else dtGrav = 0.0;
-		dtGrav += pkd->param.dPreFacRhoLoc*p->fDensity;
+		dtGrav += pkd->param.dPreFacRhoLoc*work->pInfoIn[i].fDensity;
 		dtGrav = (work->pInfoOut[i].rhopmax > dtGrav?work->pInfoOut[i].rhopmax:dtGrav);
 		if (dtGrav > 0.0) {
 		    dT = pkd->param.dEta/sqrt(dtGrav*work->dRhoFac);
@@ -812,6 +812,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     double dx,dy,dz,dPot,ax,ay,az;
     float rhopmax,rhopmaxlocal;
     float summ;
+    float fBall;
     ILPTILE tile;
     int i,n,nSoft,nActive;
     float fourh2;
@@ -878,8 +879,9 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
 	    ** Calculate local density using smooth; this is fast because the particles are
 	    ** likely to be cached already because they will be on the P-P list.
 	    */
-	    smSmoothSingle(smx,smf,p);
-	    work->pInfoIn[nP].fSmooth2 = p->fBall * p->fBall;
+	    smf->pfDensity = &work->pInfoIn[nP].fDensity;
+	    fBall = smSmoothSingle(smx,smf,p);
+	    work->pInfoIn[nP].fSmooth2 = fBall * fBall;
 	    }
 	else {
 	    /*

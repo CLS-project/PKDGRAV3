@@ -9,7 +9,7 @@
 
 #ifdef M43D
 /* M43D Creates a 3D kernel by convolution of 3D tophats the way M4(1D) is made in 1D */
-#define BALL2(a) ((a)->fBall*(a)->fBall)
+#define BALL2(fBall) ((fBall)*(fBall))
 #define KERNEL(ak,ar2) { \
 		ak = sqrt(ar2); \
 		if (ar2 < 1.0) ak = 6.*0.25/350./3. *(1360+ar2*(-2880 \
@@ -31,7 +31,7 @@
 #ifdef HSHRINK
 /* HSHRINK M4 Kernel uses an effective h of (pi/6)^(1/3) times h for nSmooth neighbours */
 #define dSHRINKFACTOR        0.805995977
-#define BALL2(a) ((a)->fBall*(a)->fBall*(dSHRINKFACTOR*dSHRINKFACTOR))
+#define BALL2(fBall) ((fBall)*(fBall)*(dSHRINKFACTOR*dSHRINKFACTOR))
 #define KERNEL(ak,ar2) { \
 		ak = 2.0 - sqrt(ar2); \
 		if (ar2 < 1.0) ak = (1.0 - 0.75*ak*ar2); \
@@ -51,7 +51,7 @@
 
 #else
 /* Standard M_4 Kernel */
-#define BALL2(a) ((a)->fBall*(a)->fBall)
+#define BALL2(fBall) ((fBall)*(fBall))
 #define KERNEL(ak,ar2) { \
 		ak = 2.0 - sqrt(ar2); \
 		if (ar2 < 1.0) ak = (1.0 - 0.75*ak*ar2); \
@@ -71,7 +71,7 @@
 #endif
 #endif
 
-void NullSmooth(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
+void NullSmooth(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     }
 
 void initDensity(void *vpkd, void *p) {
@@ -82,12 +82,12 @@ void combDensity(void *vpkd, void *p1,void *p2) {
     ((PARTICLE *)p1)->fDensity += ((PARTICLE *)p2)->fDensity;
     }
 
-void DensityF1(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
+void DensityF1(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
     float ih2,r2,rs,fDensity,fMass;
     int i;
 
-    ih2 = 1.0/BALL2(p);
+    ih2 = 1.0/BALL2(fBall);
     fDensity = 0.0;
     for (i=0;i<nSmooth;++i) {
 	fMass = pkdMass(pkd,nnList[i].pPart);
@@ -96,14 +96,16 @@ void DensityF1(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
 	if (rs < 0) rs = 0.0;
 	fDensity += rs*fMass;
 	}
-    p->fDensity = 1.875f*M_1_PI*sqrtf(ih2)*ih2*fDensity; /* F1 Kernel (15/8) */
+    fDensity *= 1.875f*M_1_PI*sqrtf(ih2)*ih2; /* F1 Kernel (15/8) */
+    if (smf->pfDensity) *smf->pfDensity = fDensity;
+    else p->fDensity = fDensity;
     }
 
-void DensityM3(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
+void DensityM3(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
     float ih2,r2,rs,fDensity,fMass;
     int i;
-    ih2 = 1.0f/BALL2(p);
+    ih2 = 1.0f/BALL2(fBall);
     fDensity = 0.0;
     for (i=0;i<nSmooth;++i) {
 	fMass = pkdMass(pkd,nnList[i].pPart);
@@ -124,11 +126,11 @@ void DensityM3(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
     p->fDensity = 16.0f*M_1_PI*sqrtf(ih2)*ih2*fDensity;
     }
 
-void LinkGradientM3(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
+void LinkGradientM3(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
     float ih2,r2,rs,fMass,fNorm,frho[3], idrho, r2min, dr;
     int i, j;
-    ih2 = 1.0/BALL2(p);
+    ih2 = 1.0/BALL2(fBall);
     fNorm = 16.0f*M_1_PI*ih2*ih2*sqrtf(ih2);
     frho[0] = frho[1] = frho[2] = 0.0;
     for (i=0;i<nSmooth;++i) {
@@ -172,7 +174,7 @@ void LinkGradientM3(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
 	}
     }
 
-void LinkHopChains(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
+void LinkHopChains(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
     MDL mdl = pkd->mdl;
     int i, gid1, gid2;
@@ -209,12 +211,12 @@ void LinkHopChains(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
 	}
     }
 
-void Density(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
+void Density(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
     float ih2,r2,rs,fDensity,fMass;
     int i;
 
-    ih2 = 4.0/BALL2(p);
+    ih2 = 4.0/BALL2(fBall);
     fDensity = 0.0;
     for (i=0;i<nSmooth;++i) {
 	fMass = pkdMass(pkd,nnList[i].pPart);
@@ -225,13 +227,13 @@ void Density(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
     p->fDensity = M_1_PI*sqrt(ih2)*ih2*fDensity;
     }
 
-void DensitySym(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
+void DensitySym(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
     PARTICLE *q;
     float fNorm,ih2,r2,rs,fMassQ,fMassP;
     int i;
     fMassP = pkdMass(pkd,p);
-    ih2 = 4.0/(BALL2(p));
+    ih2 = 4.0/(BALL2(fBall));
     fNorm = 0.5*M_1_PI*sqrt(ih2)*ih2;
     for (i=0;i<nSmooth;++i) {
 	r2 = nnList[i].fDist2*ih2;
@@ -244,7 +246,7 @@ void DensitySym(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
 	}
     }
 
-void PrintNN(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
+void PrintNN(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
     int i;
 
@@ -268,7 +270,7 @@ void combDenDVDX(void *vpkd, void *p1,void *p2)
 
 /* Gather only version */
 /* JW: What types should dx etc... have -- why is NN using FLOAT ? */
-void DenDVDX(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf)
+void DenDVDX(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf)
     {
     PKD pkd = smf->pkd;
     PARTICLE *q;
@@ -403,7 +405,7 @@ void combSphForces(void *vpkd, void *p1,void *p2) {
 	}
     }
 
-void SphForces(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
+void SphForces(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 
     PKD pkd = smf->pkd;
     PARTICLE *q;
@@ -622,7 +624,7 @@ void combDistDeletedGas(void *vpkd,void *vp1,void *vp2)
 	}
     }
 
-void DistDeletedGas(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf)
+void DistDeletedGas(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf)
     {	
     PKD pkd = (PKD) smf->pkd;
     PARTICLE *q;
@@ -755,7 +757,7 @@ void combDistSNEnergy(void *vpkd,void *vp1,void *vp2)
 	}
     }
 
-void DistSNEnergy(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf)
+void DistSNEnergy(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf)
     {
     PKD pkd = (PKD) smf->pkd;
     PARTICLE *q,*qmin;
@@ -888,7 +890,7 @@ void combMeanVel(void *vpkd, void *p1void,void *p2void) {
     for (j=0;j<3;++j) p1vel->vmean[j] += p2vel->vmean[j];
     }
 
-void MeanVel(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
+void MeanVel(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
     PARTICLE *q;
     vel_t *qv;
@@ -898,7 +900,7 @@ void MeanVel(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
     int i,j;
 
     pvel = pkdField(p,pkd->oVelSmooth);
-    ih2 = 4.0/BALL2(p);
+    ih2 = 4.0/BALL2(fBall);
     for (j=0;j<3;++j) v[j] = 0.0;
     for (i=0;i<nSmooth;++i) {
 	r2 = nnList[i].fDist2*ih2;
@@ -911,7 +913,7 @@ void MeanVel(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
     for (j=0;j<3;++j) pvel->vmean[j] = M_1_PI*sqrt(ih2)*ih2*v[j];
     }
 
-void MeanVelSym(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
+void MeanVelSym(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
     PARTICLE *q;
     VELSMOOTH *pvel, *qvel;
@@ -922,7 +924,7 @@ void MeanVelSym(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
     pv = pkdVel(pkd,p);
     pvel = pkdField(p,pkd->oVelSmooth);
     fMassP = pkdMass(pkd,p);
-    ih2 = 4.0/(BALL2(p));
+    ih2 = 4.0/(BALL2(fBall));
     fNorm = 0.5*M_1_PI*sqrt(ih2)*ih2;
     for (i=0;i<nSmooth;++i) {
 	r2 = nnList[i].fDist2*ih2;
@@ -961,7 +963,7 @@ void combDivv(void *vpkd, void *p1void,void *p2void) {
     p1vel->divv += p2vel->divv;
     }
 
-void Divv(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
+void Divv(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
     PARTICLE *q;
     vel_t *qv;
@@ -972,7 +974,7 @@ void Divv(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
 
     pvel = pkdField(p,pkd->oVelSmooth);
     pv = pkdVel(pkd,p);
-    ih2 = 4.0/BALL2(p);
+    ih2 = 4.0/BALL2(fBall);
     fNorm = M_1_PI*ih2*ih2;
     for (i=0;i<nSmooth;++i) {
 	r2 = nnList[i].fDist2*ih2;
@@ -986,7 +988,7 @@ void Divv(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
 	}
     }
 
-void DivvSym(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
+void DivvSym(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
     PARTICLE *q;
     VELSMOOTH *pvel, *qvel;
@@ -997,7 +999,7 @@ void DivvSym(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
     pvel = pkdField(p,pkd->oVelSmooth);
     pv = pkdVel(pkd,p);
     fMassP = pkdMass(pkd,p);
-    ih2 = 4.0/(BALL2(p));
+    ih2 = 4.0/(BALL2(fBall));
     fNorm = 0.5*M_1_PI*ih2*ih2;
     for (i=0;i<nSmooth;++i) {
 	r2 = nnList[i].fDist2*ih2;
@@ -1035,7 +1037,7 @@ void combVelDisp2(void *vpkd, void *p1void,void *p2void) {
     p1vel->veldisp2 += p2vel->veldisp2;
     }
 
-void VelDisp2(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
+void VelDisp2(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
     PARTICLE *q;
     vel_t *qv;
@@ -1044,7 +1046,7 @@ void VelDisp2(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
     int i;
 
     pvel = pkdField(p,pkd->oVelSmooth);
-    ih2 = 4.0/BALL2(p);
+    ih2 = 4.0/BALL2(fBall);
     fNorm = M_1_PI*sqrt(ih2)*ih2;
     for (i=0;i<nSmooth;++i) {
 	r2 = nnList[i].fDist2*ih2;
@@ -1065,7 +1067,7 @@ void VelDisp2(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
 	}
     }
 
-void VelDisp2Sym(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
+void VelDisp2Sym(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
     PARTICLE *q;
     VELSMOOTH *pvel, *qvel;
@@ -1075,7 +1077,7 @@ void VelDisp2Sym(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
 
     pvel = pkdField(p,pkd->oVelSmooth);
     fMassP = pkdMass(pkd,p);
-    ih2 = 4.0/(BALL2(p));
+    ih2 = 4.0/(BALL2(fBall));
     fNorm = 0.5*M_1_PI*sqrt(ih2)*ih2;
     for (i=0;i<nSmooth;++i) {
 	r2 = nnList[i].fDist2*ih2;
@@ -1129,7 +1131,7 @@ void combGroupBins(void *vpkd, void *b1, void *b2) {
     gb1->fMassInBin += gb2->fMassInBin;
     }
 
-void AddRelaxation(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
+void AddRelaxation(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
     FLOAT  vSigma2,L,fRel,e,pmax,pmin,vMean[3],feps;
     FLOAT beta,gamma,rho;
@@ -1177,7 +1179,7 @@ void AddRelaxation(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
     }
 
 #ifdef SYMBA
-void DrmininDrift(PARTICLE *p,int nSmooth,NN *nnList,SMF *smf) {
+void DrmininDrift(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     int i,j,k,ial;
     PARTICLE *q;
     double dDelta = smf->pkd->param.dDelta;

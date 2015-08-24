@@ -38,6 +38,7 @@ typedef struct {
     float r[3];
     float a[3];
     float fSmooth2;
+    float fDensity;
 /*    float v[3];*/
 /*    float fMass;*/
 /*    float fSoft;*/

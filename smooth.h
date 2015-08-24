@@ -31,7 +31,7 @@ struct smGroupArray {
 typedef struct smContext {
     PKD pkd;
     PARTICLE pSentinel;
-    void (*fcnSmooth)(PARTICLE *,int,NN *,SMF *);
+    void (*fcnSmooth)(PARTICLE *,float,int,NN *,SMF *);
     void (*fcnPost)(void *,PARTICLE *,SMF *);
     int nSmooth;
     int nQueue;
@@ -92,9 +92,9 @@ int smInitializeRO(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,
 void smFinish(SMX,SMF *);
 void smSmoothInitialize(SMX smx);
 void smSmoothFinish(SMX smx);
-void smSmoothSingle(SMX smx,SMF *smf,PARTICLE *p);
+float smSmoothSingle(SMX smx,SMF *smf,PARTICLE *p);
 void smSmooth(SMX,SMF *);
-void smReSmoothSingle(SMX smx,SMF *smf,void *p,FLOAT *R,FLOAT fBall);
+void smReSmoothSingle(SMX smx,SMF *smf,PARTICLE *p,FLOAT *R,FLOAT fBall);
 void smReSmooth(SMX,SMF *);
 
 void smFastGasPhase1(SMX smx,SMF *smf);

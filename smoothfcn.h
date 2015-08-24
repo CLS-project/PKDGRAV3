@@ -46,6 +46,7 @@ typedef struct smfParameters {
     PKD pkd; /* useful for diagnostics, etc. */
     remoteID hopParticleLink;
     int bDone;
+    float *pfDensity;
     } SMF;
 
 
@@ -124,55 +125,55 @@ typedef PQ NN;
 
 
 #define SMX_NULL                            0
-void NullSmooth(PARTICLE *,int,NN *,SMF *);
+void NullSmooth(PARTICLE *,float fBall,int,NN *,SMF *);
 
 #define SMX_DENSITY				1
 void initDensity(void *,void *);
 void combDensity(void *,void *,void *);
-void Density(PARTICLE *,int,NN *,SMF *);
-void DensitySym(PARTICLE *,int,NN *,SMF *);
+void Density(PARTICLE *,float fBall,int,NN *,SMF *);
+void DensitySym(PARTICLE *,float fBall,int,NN *,SMF *);
 
 #define SMX_MEANVEL				2
 void initMeanVel(void *,void *);
 void combMeanVel(void *,void *,void *);
-void MeanVel(PARTICLE *,int,NN *,SMF *);
-void MeanVelSym(PARTICLE *,int,NN *,SMF *);
+void MeanVel(PARTICLE *,float fBall,int,NN *,SMF *);
+void MeanVelSym(PARTICLE *,float fBall,int,NN *,SMF *);
 
 #define SMX_DIVV				3
 void initDivv(void *,void *);
 void combDivv(void *,void *,void *);
-void Divv(PARTICLE *,int,NN *,SMF *);
-void DivvSym(PARTICLE *,int,NN *,SMF *);
+void Divv(PARTICLE *,float fBall,int,NN *,SMF *);
+void DivvSym(PARTICLE *,float fBall,int,NN *,SMF *);
 
 #define SMX_VELDISP2				4
 void initVelDisp2(void *,void *);
 void combVelDisp2(void *,void *,void *);
-void VelDisp2(PARTICLE *,int,NN *,SMF *);
-void VelDisp2Sym(PARTICLE *,int,NN *,SMF *);
+void VelDisp2(PARTICLE *,float fBall,int,NN *,SMF *);
+void VelDisp2Sym(PARTICLE *,float fBall,int,NN *,SMF *);
 
 #define SMX_DENDVDX				5
 void initDenDVDX(void *,void *);
 void combDenDVDX(void *,void *,void *);
-void DenDVDX(PARTICLE *,int,NN *,SMF *);
+void DenDVDX(PARTICLE *,float fBall,int,NN *,SMF *);
 
 #define SMX_SPHFORCES				6
 void initSphForcesParticle(void *,void *);
 void initSphForces(void *,void *);
 void combSphForces(void *,void *,void *);
-void SphForces(PARTICLE *,int,NN *,SMF *);
+void SphForces(PARTICLE *,float fBall,int,NN *,SMF *);
 
 #define SMX_DIST_DELETED_GAS                    7
 void initDistDeletedGas(void *,void *p1);
 void combDistDeletedGas(void *,void *p1,void *p2);
-void DistDeletedGas(PARTICLE *, int, NN *, SMF *);
+void DistDeletedGas(PARTICLE *,float fBall, int, NN *, SMF *);
 
 #define SMX_DIST_SN_ENERGY                      8
 void initDistSNEnergy(void *,void *p1);
 void combDistSNEnergy(void *,void *p1,void *p2);
-void DistSNEnergy(PARTICLE *p, int, NN *, SMF *);
+void DistSNEnergy(PARTICLE *p, float, int, NN *, SMF *);
 
 #define SMX_PRINTNN                            9
-void PrintNN(PARTICLE *,int,NN *,SMF *);
+void PrintNN(PARTICLE *,float fBall,int,NN *,SMF *);
 
 #define SMX_FOF			25
 void initGroupIds(void *,void *p);
@@ -182,22 +183,22 @@ void initGroupBins(void *,void *b);
 void combGroupBins(void *,void *b1, void *b2);
 
 #define SMX_RELAXATION		26
-void AddRelaxation(PARTICLE *,int,NN *,SMF *);
+void AddRelaxation(PARTICLE *,float fBall,int,NN *,SMF *);
 
 #ifdef SYMBA
 #define SMX_SYMBA               27
-void DrmininDrift(PARTICLE *,int,NN *,SMF *);
+void DrmininDrift(PARTICLE *,float fBall,int,NN *,SMF *);
 #endif
 
 #define SMX_DENSITY_F1          28
-void DensityF1(PARTICLE *,int,NN *,SMF *);
+void DensityF1(PARTICLE *,float fBall,int,NN *,SMF *);
 
 #define SMX_DENSITY_M3          29
-void DensityM3(PARTICLE *,int,NN *,SMF *);
+void DensityM3(PARTICLE *,float fBall,int,NN *,SMF *);
 #define SMX_GRADIENT_M3         30
-void LinkGradientM3(PARTICLE *,int,NN *,SMF *);
+void LinkGradientM3(PARTICLE *,float fBall,int,NN *,SMF *);
 #define SMX_HOP_LINK            31
-void LinkHopChains(PARTICLE *,int,NN *,SMF *);
+void LinkHopChains(PARTICLE *,float fBall,int,NN *,SMF *);
 #endif
 
 

@@ -739,7 +739,7 @@ void smSmoothFinish(SMX smx) {
 	}
     }
 
-void smSmoothSingle(SMX smx,SMF *smf,PARTICLE *p) {
+float smSmoothSingle(SMX smx,SMF *smf,PARTICLE *p) {
     PKD pkd = smx->pkd;
     int ix,iy,iz;
     FLOAT r[3],fBall;
@@ -792,11 +792,13 @@ void smSmoothSingle(SMX smx,SMF *smf,PARTICLE *p) {
 		}
 	    }
 	}
-    p->fBall = sqrt(pq->fDist2);
+    fBall = sqrt(pq->fDist2);
+    p->fBall = fBall;
     /*
     ** Apply smooth funtion to the neighbor list.
     */
-    smx->fcnSmooth(p,smx->nSmooth,smx->pq,smf);
+    smx->fcnSmooth(p,fBall,smx->nSmooth,smx->pq,smf);
+    return fBall;
     }
 
 void smSmooth(SMX smx,SMF *smf) {
@@ -813,12 +815,11 @@ void smSmooth(SMX smx,SMF *smf) {
     }
     smx->ea[pkd->nLocal].bInactive = 0;  /* initialize for Sentinel, but this is not really needed */
     smSmoothInitialize(smx);
-
+    smf->pfDensity = NULL;
     for (pi=0;pi<pkd->nLocal;++pi) {
 	p = pkdParticle(pkd,pi);
 	if ( !pkdIsDstActive(p,0,MAX_RUNG) ) continue;
-
-	smSmoothSingle(smx,smf,p);
+	p->fBall = smSmoothSingle(smx,smf,p);
 
 	/*
 	** Call mdlCacheCheck to make sure we are making progress!
@@ -1863,7 +1864,7 @@ void DoLocalSearch(SMX smx,SMF *smf,PARTICLE *p,double *rLast) {
     /*
     ** Apply smooth funtion to the neighbor list.
     */
-    smx->fcnSmooth(p,smx->nSmooth,smx->pq,smf);
+    smx->fcnSmooth(p,p->fBall,smx->nSmooth,smx->pq,smf);
     /*
     ** Call mdlCacheCheck to make sure we are making progress!
     */
@@ -2329,7 +2330,7 @@ void smFastGasPhase2(SMX smx,SMF *smf) {
 		/*
 		** Apply smooth funtion to the neighbor list.
 		*/
-		smx->fcnSmooth(p,nCnt,smx->nnList,smf);
+		smx->fcnSmooth(p,p->fBall,nCnt,smx->nnList,smf);
 		/*
 		** Release acquired pointers.
 		*/
@@ -2510,7 +2511,7 @@ void smDoGatherLocal(SMX smx,FLOAT fBall2,FLOAT r[3],void (*Do)(SMX,PARTICLE *,F
 }
 
 
-void smReSmoothSingle(SMX smx,SMF *smf,void *p,FLOAT *R,FLOAT fBall) {
+void smReSmoothSingle(SMX smx,SMF *smf,PARTICLE *p,FLOAT *R,FLOAT fBall) {
     PKD pkd = smx->pkd;
     FLOAT r[3];
     int iStart[3],iEnd[3];
@@ -2545,7 +2546,7 @@ void smReSmoothSingle(SMX smx,SMF *smf,void *p,FLOAT *R,FLOAT fBall) {
     /*
     ** Apply smooth funtion to the neighbor list.
     */
-    smx->fcnSmooth(p,smx->nnListSize,smx->nnList,smf);
+    smx->fcnSmooth(p,p->fBall,smx->nnListSize,smx->nnList,smf);
     /*
     ** Release acquired pointers.
     */
@@ -2561,6 +2562,7 @@ void smReSmooth(SMX smx,SMF *smf) {
     PARTICLE *p;
     int pi;
 
+    smf->pfDensity = NULL;
     for (pi=0;pi<pkd->nLocal;++pi) {
 	p = pkdParticle(pkd,pi);
 	if ( pkdIsDstActive(p,0,MAX_RUNG) && pkdIsSrcActive(p,0,MAX_RUNG) )
