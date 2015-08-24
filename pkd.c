@@ -2789,7 +2789,7 @@ void pkdStepVeryActiveKDK(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dStep, 
 	    double dAccFac = 1.0/(a*a*a);
 	    double dhMinOverSoft = 0;
 	    pkdAccelStep(pkd,uRungLo,uRungHi,pkd->param.dEta, dVelFac,dAccFac,pkd->param.bDoGravity,
-			 pkd->param.bEpsAccStep,pkd->param.bSqrtPhiStep,dhMinOverSoft);
+			 pkd->param.bEpsAccStep,dhMinOverSoft);
 	    }
 	*pnMaxRung = pkdUpdateRung(pkd,iRung,pkd->param.iMaxRung-1,
 				   iRung,pkd->param.iMaxRung-1, nRungCount);
@@ -3041,7 +3041,7 @@ int pkdCurrRung(PKD pkd,uint8_t uRung) {
 
 void pkdAccelStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,
 		  double dEta,double dVelFac,double dAccFac,
-		  int bDoGravity,int bEpsAcc,int bSqrtPhi,double dhMinOverSoft) {
+		  int bDoGravity,int bEpsAcc,double dhMinOverSoft) {
     PARTICLE *p;
     float *a, *pPot;
     vel_t *v;
@@ -3054,7 +3054,6 @@ void pkdAccelStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,
 
     assert(pkd->oVelocity);
     assert(pkd->oAcceleration);
-    assert(pkd->oPotential);
 
     for (i=0;i<pkdLocal(pkd);++i) {
 	p = pkdParticle(pkd,i);
@@ -3076,18 +3075,6 @@ void pkdAccelStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,
 	    if (acc>0) {
 		if (bEpsAcc) {
 		    dT = dEta*sqrt(fSoft/acc);
-		    }
-		if (bSqrtPhi) {
-		    double dtemp;
-		    /*
-		    ** NOTE: The factor of 3.5 keeps this criterion in sync
-		    ** with DensityStep. The nominal value of dEta for both
-		    ** cases is then 0.02-0.03.
-		    */
-		    pPot = pkdPot(pkd,p);
-		    dtemp = dEta*3.5*sqrt(dAccFac*fabs(*pPot))/acc;
-		    if (dtemp < dT)
-			dT = dtemp;
 		    }
 		}
 	    uNewRung = pkdDtToRung(dT,pkd->param.dDelta,pkd->param.iMaxRung-1);

@@ -35,8 +35,7 @@ struct parameters {
     int bCenterOfMassExpand;
     int bGravStep;
     int bEpsAccStep;
-    int bSqrtPhiStep;
-    int bAccelStep; /* true if bEpsAccStep or bSqrtPhiStep */
+    int bAccelStep; /* true if bEpsAccStep */
     int bDensityStep;
     int iTimeStepCrit;
     int nPartRhoLoc;

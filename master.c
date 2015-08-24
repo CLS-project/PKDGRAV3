@@ -291,9 +291,6 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.bEpsAccStep = 0;
     prmAddParam(msr->prm,"bEpsAccStep",0,&msr->param.bEpsAccStep,sizeof(int),
 		"ea", "<Sqrt(Epsilon on a) timestepping>");
-    msr->param.bSqrtPhiStep = 0;
-    prmAddParam(msr->prm,"bSqrtPhiStep",0,&msr->param.bSqrtPhiStep,sizeof(int),
-		"sphi", "<Sqrt(Phi) on a timestepping>");
     msr->param.bDensityStep = 0;
     prmAddParam(msr->prm,"bDensityStep",0,&msr->param.bDensityStep,sizeof(int),
 		"isrho", "<Sqrt(1/Rho) timestepping>");
@@ -1059,17 +1056,16 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
 	    msr->param.bMemNodeVelocity = 0;
 	}
 	else {
-	    if (msr->param.bEpsAccStep || msr->param.bSqrtPhiStep) {
+	    if (msr->param.bEpsAccStep) {
 		msr->param.bAccelStep = 1;
 	    }
-	    if ((msr->param.bAccelStep || msr->param.bSqrtPhiStep || msr->param.bDensityStep) && msr->param.bGravStep) {
+	    if ((msr->param.bAccelStep || msr->param.bDensityStep) && msr->param.bGravStep) {
 		/*
 		** We cannot combine these 2 types of timestepping criteria, we need to choose one
 		** or the other basic timestep criterion, in this case we choose only bGravStep.
 		*/
 		msr->param.bAccelStep = 0;
 		msr->param.bEpsAccStep = 0;
-		msr->param.bSqrtPhiStep = 0;
 		msr->param.bDensityStep = 0;
 		if (msr->param.bVWarnings) fprintf(stderr,"WARNING: bGravStep set in combination with older criteria, now using ONLY bGravStep!\n");
 	    }
@@ -1223,7 +1219,6 @@ void msrLogParams(MSR msr,FILE *fp) {
     fprintf(fp," bDoRungDestOutput: %d",msr->param.bDoRungDestOutput);
     fprintf(fp,"\n# bGravStep: %d",msr->param.bGravStep);
     fprintf(fp," bEpsAccStep: %d",msr->param.bEpsAccStep);
-    fprintf(fp," bSqrtPhiStep: %d",msr->param.bSqrtPhiStep);
     fprintf(fp," bDensityStep: %d",msr->param.bDensityStep);
     fprintf(fp," nTruncateRung: %d",msr->param.nTruncateRung);
     fprintf(fp,"\n# iTimeStepCrit: %d",msr->param.iTimeStepCrit);
@@ -3438,7 +3433,6 @@ void msrAccelStep(MSR msr,uint8_t uRungLo,uint8_t uRungHi,double dTime) {
     in.dAccFac = 1.0/(a*a*a);
     in.bDoGravity = msrDoGravity(msr);
     in.bEpsAcc = msr->param.bEpsAccStep;
-    in.bSqrtPhi = msr->param.bSqrtPhiStep;
     in.uRungLo = uRungLo;
     in.uRungHi = uRungHi;
     pstAccelStep(msr->pst,&in,sizeof(in),NULL,NULL);

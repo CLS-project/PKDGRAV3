@@ -816,7 +816,6 @@ struct inAccelStep {
     double dAccFac;
     int    bDoGravity;
     int    bEpsAcc;
-    int    bSqrtPhi;
     double dhMinOverSoft;
     uint8_t uRungLo;
     uint8_t uRungHi;

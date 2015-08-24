@@ -3337,7 +3337,7 @@ pstAccelStep(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	}
     else {
 	pkdAccelStep(plcl->pkd,in->uRungLo,in->uRungHi,in->dEta,in->dVelFac,in->dAccFac,
-		     in->bDoGravity,in->bEpsAcc,in->bSqrtPhi,in->dhMinOverSoft);
+		     in->bDoGravity,in->bEpsAcc,in->dhMinOverSoft);
 	}
     if (pnOut) *pnOut = 0;
     }
