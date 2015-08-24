@@ -392,24 +392,9 @@ void pkdInitialize(
 	pkd->oNodeVBnd = 0;
     }
 
-    if ( mMemoryModel & PKD_MODEL_NODE_VEL ) {
-	if (sizeof(vel_t) == sizeof(float)) {
-	    pkd->oNodeVelocity = pkdNodeAddFloat(pkd,3);
-	    }
-	else {
+    pkd->oNodeVelocity = 0;
+    if ( (mMemoryModel & PKD_MODEL_NODE_VEL) && sizeof(vel_t) == sizeof(double))
 	    pkd->oNodeVelocity = pkdNodeAddDouble(pkd,3);
-	    }
-	}
-    else
-	pkd->oNodeVelocity = 0;
-
-    /* The acceleration is required for the new time step criteria */
-    if ( mMemoryModel & PKD_MODEL_NODE_ACCEL )
-	pkd->oNodeAcceleration = pkdNodeAddFloat(pkd,3);
-    else
-	pkd->oNodeAcceleration = 0;
-    pkd->iTreeNodeSize = (pkd->iTreeNodeSize + sizeof(double) - 1 ) & ~(sizeof(double)-1);
-
     /*
     ** Three extra bounds are required by the fast gas SPH code.
     */
@@ -424,6 +409,14 @@ void pkdInitialize(
     else
 	pkd->oNodeMom = 0;
 
+    /* The acceleration is required for the new time step criteria */
+    if ( mMemoryModel & PKD_MODEL_NODE_ACCEL )
+	pkd->oNodeAcceleration = pkdNodeAddFloat(pkd,3);
+    else
+	pkd->oNodeAcceleration = 0;
+
+    if ( (mMemoryModel & PKD_MODEL_NODE_VEL) && sizeof(vel_t) == sizeof(float))
+	    pkd->oNodeVelocity = pkdNodeAddFloat(pkd,3);
     /*
     ** N.B.: Update pkdMaxNodeSize in pkd.h if you add fields.  We need to
     **       know the size of a node when setting up the pst.
