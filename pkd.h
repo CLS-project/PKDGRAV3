@@ -682,6 +682,9 @@ typedef struct pkdContext {
     ** Opening angle table for mass weighting.
     */
     float fiCritTheta;
+    /* Potential Energy for when potential is not in the particle */
+    double dEnergyU;
+
     /*
     ** New activation methods
     */

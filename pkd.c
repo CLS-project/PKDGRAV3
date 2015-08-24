@@ -2670,6 +2670,7 @@ void pkdCalcEandL(PKD pkd,double *T,double *U,double *Eth,double *L,double *F,do
 	    L[2] += fMass*(rx*vy - ry*vx);
 	    }
 	}
+    if (!pkd->oPotential) *U = pkd->dEnergyU;
     }
 
 

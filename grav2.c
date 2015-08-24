@@ -83,6 +83,7 @@ void pkdParticleWorkDone(workParticle *work) {
 	    a[1] += work->pInfoOut[i].a[1];
 	    a[2] += work->pInfoOut[i].a[2];
 	    if (pPot) *pPot = work->pInfoOut[i].fPot;
+	    pkd->dEnergyU += 0.5 * pkdMass(pkd,p) * work->pInfoOut[i].fPot;
 
 	    // FIXME: what about the Ewald contribution?
 	    // we need to save dirsum/normsum for later if ewald is not done.

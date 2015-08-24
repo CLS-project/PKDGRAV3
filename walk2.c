@@ -800,6 +800,7 @@ static void initGravWalk(PKD pkd,double dTime,double dThetaMin,int bPeriodic,int
     SMX *smx, SMF *smf, double *dRhoFac) {
     int pi;
 
+    pkd->dEnergyU = 0.0;
     pkd->fiCritTheta = 1.0f / dThetaMin;
 
     assert(pkd->oNodeMom);
