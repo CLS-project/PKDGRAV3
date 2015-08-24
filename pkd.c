@@ -886,6 +886,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
     STARFIELDS *pStar;
     SPHFIELDS *pSph;
     float *pPot, dummypot;
+    double r[3];
     double vel[3];
     float fMass, fSoft,fDensity;
     FIO_SPECIES eSpecies;
@@ -946,7 +947,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
 	case FIO_SPECIES_SPH:
 	    assert(pSph); /* JW: Could convert to dark ... */
 	    assert(dTuFac>0.0);
-	    fioReadSph(fio,&iParticleID,p->r,vel,&fMass,&fSoft,pPot,
+	    fioReadSph(fio,&iParticleID,r,vel,&fMass,&fSoft,pPot,
 			     &fDensity/*?*/,&pSph->u,&pSph->fMetals);
 	    pkdSetDensity(pkd,p,fDensity);
 	    pSph->u *= dTuFac; /* Can't do precise conversion until density known */
@@ -957,12 +958,12 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
 	    pSph->vPred[2] = vel[2]*dvFac; /* density, divv, BalsaraSwitch, c set in smooth */
 	    break;
 	case FIO_SPECIES_DARK:
-	    fioReadDark(fio,&iParticleID,p->r,vel,&fMass,&fSoft,pPot,&fDensity);
+	    fioReadDark(fio,&iParticleID,r,vel,&fMass,&fSoft,pPot,&fDensity);
 	    pkdSetDensity(pkd,p,fDensity);
 	    break;
 	case FIO_SPECIES_STAR:
 	    assert(pStar && pSph);
-	    fioReadStar(fio,&iParticleID,p->r,vel,&fMass,&fSoft,pPot,&fDensity,
+	    fioReadStar(fio,&iParticleID,r,vel,&fMass,&fSoft,pPot,&fDensity,
 			      &pSph->fMetals,&pStar->fTimer);
 	    pkdSetDensity(pkd,p,fDensity);
 	    pSph->vPred[0] = vel[0]*dvFac;
@@ -974,6 +975,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
 	    assert(0);
 	    }
 
+	for (j=0;j<3;++j) pkdSetPos(p->r,j,r[j]);
 	if (pkd->oVelocity) {
 	    for (j=0;j<3;++j) pkdVel(pkd,p)[j] = vel[j]*dvFac;
 	    }
@@ -993,7 +995,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
     }
 
 void pkdCalcBound(PKD pkd,BND *pbnd) {
-    double dMin[3],dMax[3];
+    double r[3],dMin[3],dMax[3];
     PARTICLE *p;
     int i = 0;
     int j;
@@ -1001,12 +1003,12 @@ void pkdCalcBound(PKD pkd,BND *pbnd) {
     mdlassert(pkd->mdl,pkd->nLocal > 0);
     p = pkdParticle(pkd,i);
     for (j=0;j<3;++j) {
-	dMin[j] = p->r[j];
-	dMax[j] = p->r[j];
+	dMin[j] = dMax[j] = pkdPos(p->r,j);
 	}
     for (++i;i<pkd->nLocal;++i) {
 	p = pkdParticle(pkd,i);
-	pkdMinMax(p->r,dMin,dMax);
+	for (j=0;j<3;++j) r[j] = pkdPos(p->r,j);
+	pkdMinMax(r,dMin,dMax);
 	}
     for (j=0;j<3;++j) {
 	pbnd->fCenter[j] = pkd->bnd.fCenter[j] = 0.5*(dMin[j] + dMax[j]);
@@ -1042,21 +1044,23 @@ void pkdCalcVBound(PKD pkd,BND *pbnd) {
 
 void pkdEnforcePeriodic(PKD pkd,BND *pbnd) {
     PARTICLE *p;
+    double r;
     int i,j;
 
     for (i=0;i<pkd->nLocal;++i) {
 	p = pkdParticle(pkd,i);
 	for (j=0;j<3;++j) {
-	    if (p->r[j] < pbnd->fCenter[j] - pbnd->fMax[j]) p->r[j] += 2*pbnd->fMax[j];
-	    else if (p->r[j] >= pbnd->fCenter[j] + pbnd->fMax[j]) p->r[j] -= 2*pbnd->fMax[j];
+	    r = pkdPos(p->r,j);
+	    if (r < pbnd->fCenter[j] - pbnd->fMax[j]) r += 2*pbnd->fMax[j];
+	    else if (r >= pbnd->fCenter[j] + pbnd->fMax[j]) r -= 2*pbnd->fMax[j];
+	    pkdSetPos(p->r,j,r);
 	    /*
 	    ** If it still doesn't lie in the "unit" cell then something has gone quite wrong with the 
 	    ** simulation. Either we have a super fast particle or the initial condition is somehow not conforming
 	    ** to the specified periodic box in a gross way.
 	    */
-	    mdlassert(pkd->mdl,((p->r[j] >= pbnd->fCenter[j] - pbnd->fMax[j])&&
-				(p->r[j] < pbnd->fCenter[j] + pbnd->fMax[j])));
-
+	    mdlassert(pkd->mdl,((r >= pbnd->fCenter[j] - pbnd->fMax[j])&&
+	    (r < pbnd->fCenter[j] + pbnd->fMax[j])));
 	    }
 	}
     }
@@ -1302,13 +1306,13 @@ void pkdPeanoHilbertDecomp(PKD pkd, int nRungs, int iMethod) {
 	p = pkdParticle(pkd,i);
 	if (p->uRung < iRungMin) iRungMin = p->uRung;
 	if (p->uRung > iRungMax) iRungMax = p->uRung;
-	x = p->r[0] + 1.5;
+	x = pkdPos(p->r,0) + 1.5;
 	if (x < 1.0) x = 1.0;
 	else if (x >= 2.0) x = 2.0;
-	y = p->r[1] + 1.5;
+	y = pkdPos(p->r,1) + 1.5;
 	if (y < 1.0) y = 1.0;
 	else if (y >= 2.0) y = 2.0;
-	z = p->r[2] + 1.5;
+	z = pkdPos(p->r,2) + 1.5;
 	if (z < 1.0) z = 1.0;
 	else if (z >= 2.0) z = 2.0;
 
@@ -1653,7 +1657,7 @@ void pkdOrbBegin(PKD pkd, int nRungs) {
         p = pkdParticle(pkd,i);
 	if (p->uRung < iRungMin) iRungMin = p->uRung;
 	if (p->uRung > iRungMax) iRungMax = p->uRung;
-        for(j=0;j<3;++j) pl[i].r[j] = p->r[j];
+        for(j=0;j<3;++j) pl[i].r[j] = pkdPos(p->r,j);
         pl[i].i = i;
         pl[i].uRung = p->uRung;
         }
@@ -2047,7 +2051,7 @@ void pkdCountVA(PKD pkd,int d,FLOAT fSplit,int *pnLow,int *pnHigh) {
     for (i=0;i<pkd->nLocal;++i) {
 	p = pkdParticle(pkd,i);
 	if (pkdIsVeryActive(pkd,p)) {
-	    if (p->r[d] < fSplit) *pnLow += 1;
+	    if (pkdPos(p->r,d) < fSplit) *pnLow += 1;
 	    else *pnHigh += 1;
 	    }
 	}
@@ -2104,9 +2108,9 @@ int pkdLowerPart(PKD pkd,int d,FLOAT fSplit,int i,int j) {
     pi = pkdParticle(pkd,i);
     pj = pkdParticle(pkd,j);
     PARTITION(pi<pj,pi<=pj,
-	       pi=pkdParticle(pkd,++i),pj=pkdParticle(pkd,--j),
-	       pkdSwapParticle(pkd,pi,pj),
-	       pi->r[d] >= fSplit,pj->r[d] < fSplit);
+	pi=pkdParticle(pkd,++i),pj=pkdParticle(pkd,--j),
+	pkdSwapParticle(pkd,pi,pj),
+	pkdPos(pi->r,d) >= fSplit,pkdPos(pj->r,d) < fSplit);
     return(i);
     }
 
@@ -2116,9 +2120,9 @@ int pkdUpperPart(PKD pkd,int d,FLOAT fSplit,int i,int j) {
     pi = pkdParticle(pkd,i);
     pj = pkdParticle(pkd,j);
     PARTITION(pi<pj,pi<=pj,
-	       pi=pkdParticle(pkd,++i),pj=pkdParticle(pkd,--j),
-	       pkdSwapParticle(pkd,pi,pj),
-	       pi->r[d] < fSplit,pj->r[d] >= fSplit);
+	pi=pkdParticle(pkd,++i),pj=pkdParticle(pkd,--j),
+	pkdSwapParticle(pkd,pi,pj),
+	pkdPos(pi->r,d) < fSplit,pkdPos(pj->r,d) >= fSplit);
     return(i);
     }
 
@@ -2130,55 +2134,55 @@ int pkdLowerPartWrap(PKD pkd,int d,FLOAT fSplit1,FLOAT fSplit2,int iVASplitSide,
     if (fSplit1 > fSplit2) {
 	if (iVASplitSide < 0) {
 	    PARTITION(pi<pj,pi<=pj,
-		       pi=pkdParticle(pkd,++i),pj=pkdParticle(pkd,--j),
-		       pkdSwapParticle(pkd,pi,pj),
-		       (pi->r[d] < fSplit2 || pi->r[d] >= fSplit1) &&
+		pi=pkdParticle(pkd,++i),pj=pkdParticle(pkd,--j),
+		pkdSwapParticle(pkd,pi,pj),
+	    (pkdPos(pi->r,d) < fSplit2 || pkdPos(pi->r,d) >= fSplit1) &&
 		       !pkdIsVeryActive(pkd,pi),
-		       (pj->r[d] >= fSplit2 && pj->r[d] < fSplit1) ||
+	    (pkdPos(pj->r,d) >= fSplit2 && pkdPos(pj->r,d) < fSplit1) ||
 		       pkdIsVeryActive(pkd,pj));
 	    }
 	else if (iVASplitSide > 0) {
 	    PARTITION(pi<pj,pi<=pj,
-		       pi=pkdParticle(pkd,++i),pj=pkdParticle(pkd,--j),
-		       pkdSwapParticle(pkd,pi,pj),
-		       (pi->r[d] < fSplit2 || pi->r[d] >= fSplit1) ||
-		       pkdIsVeryActive(pkd,pi),
-		       (pj->r[d] >= fSplit2 && pj->r[d] < fSplit1) &&
-		       !pkdIsVeryActive(pkd,pj));
+		pi=pkdParticle(pkd,++i),pj=pkdParticle(pkd,--j),
+		pkdSwapParticle(pkd,pi,pj),
+	    (pkdPos(pi->r,d) < fSplit2 || pkdPos(pi->r,d) >= fSplit1) ||
+		pkdIsVeryActive(pkd,pi),
+	    (pkdPos(pj->r,d) >= fSplit2 && pkdPos(pj->r,d) < fSplit1) &&
+		!pkdIsVeryActive(pkd,pj));
 	    }
 	else {
 	    PARTITION(pi<pj,pi<=pj,
-		       pi=pkdParticle(pkd,++i),pj=pkdParticle(pkd,--j),
-		       pkdSwapParticle(pkd,pi,pj),
-		       (pi->r[d] < fSplit2 || pi->r[d] >= fSplit1),
-		       (pj->r[d] >= fSplit2 && pj->r[d] < fSplit1));
+		pi=pkdParticle(pkd,++i),pj=pkdParticle(pkd,--j),
+		pkdSwapParticle(pkd,pi,pj),
+	    (pkdPos(pi->r,d) < fSplit2 || pkdPos(pi->r,d) >= fSplit1),
+	    (pkdPos(pj->r,d) >= fSplit2 && pkdPos(pj->r,d) < fSplit1));
 	    }
 	}
     else {
 	if (iVASplitSide < 0) {
 	    PARTITION(pi<pj,pi<=pj,
-		       pi=pkdParticle(pkd,++i),pj=pkdParticle(pkd,--j),
-		       pkdSwapParticle(pkd,pi,pj),
-		       (pi->r[d] < fSplit2 && pi->r[d] >= fSplit1) &&
-		       !pkdIsVeryActive(pkd,pi),
-		       (pj->r[d] >= fSplit2 || pj->r[d] < fSplit1) ||
+		pi=pkdParticle(pkd,++i),pj=pkdParticle(pkd,--j),
+		pkdSwapParticle(pkd,pi,pj),
+	    (pkdPos(pi->r,d) < fSplit2 && pkdPos(pi->r,d) >= fSplit1) &&
+		!pkdIsVeryActive(pkd,pi),
+	    (pkdPos(pj->r,d) >= fSplit2 || pkdPos(pj->r,d) < fSplit1) ||
 		       pkdIsVeryActive(pkd,pj));
 	    }
 	else if (iVASplitSide > 0) {
 	    PARTITION(pi<pj,pi<=pj,
-		       pi=pkdParticle(pkd,++i),pj=pkdParticle(pkd,--j),
-		       pkdSwapParticle(pkd,pi,pj),
-		       (pi->r[d] < fSplit2 && pi->r[d] >= fSplit1) ||
-		       pkdIsVeryActive(pkd,pi),
-		       (pj->r[d] >= fSplit2 || pj->r[d] < fSplit1) &&
-		       !pkdIsVeryActive(pkd,pj));
+		pi=pkdParticle(pkd,++i),pj=pkdParticle(pkd,--j),
+		pkdSwapParticle(pkd,pi,pj),
+	    (pkdPos(pi->r,d) < fSplit2 && pkdPos(pi->r,d) >= fSplit1) ||
+		pkdIsVeryActive(pkd,pi),
+	    (pkdPos(pj->r,d) >= fSplit2 || pkdPos(pj->r,d) < fSplit1) &&
+		!pkdIsVeryActive(pkd,pj));
 	    }
 	else {
 	    PARTITION(pi<pj,pi<=pj,
-		       pi=pkdParticle(pkd,++i),pj=pkdParticle(pkd,--j),
-		       pkdSwapParticle(pkd,pi,pj),
-		       (pi->r[d] < fSplit2 && pi->r[d] >= fSplit1),
-		       (pj->r[d] >= fSplit2 || pj->r[d] < fSplit1));
+		pi=pkdParticle(pkd,++i),pj=pkdParticle(pkd,--j),
+		pkdSwapParticle(pkd,pi,pj),
+	    (pkdPos(pi->r,d) < fSplit2 && pkdPos(pi->r,d) >= fSplit1),
+	    (pkdPos(pj->r,d) >= fSplit2 || pkdPos(pj->r,d) < fSplit1));
 	    }
 	}
     return(i);
@@ -2192,55 +2196,55 @@ int pkdUpperPartWrap(PKD pkd,int d,FLOAT fSplit1,FLOAT fSplit2,int iVASplitSide,
     if (fSplit1 > fSplit2) {
 	if (iVASplitSide < 0) {
 	    PARTITION(pi<pj,pi<=pj,
-		       pi=pkdParticle(pkd,++i),pj=pkdParticle(pkd,--j),
-		       pkdSwapParticle(pkd,pi,pj),
-		       (pi->r[d] >= fSplit2 && pi->r[d] < fSplit1) ||
-		       pkdIsVeryActive(pkd,pi),
-		       (pj->r[d] < fSplit2 || pj->r[d] >= fSplit1) &&
-		       !pkdIsVeryActive(pkd,pj));
+		pi=pkdParticle(pkd,++i),pj=pkdParticle(pkd,--j),
+		pkdSwapParticle(pkd,pi,pj),
+	    (pkdPos(pi->r,d) >= fSplit2 && pkdPos(pi->r,d) < fSplit1) ||
+		pkdIsVeryActive(pkd,pi),
+	    (pkdPos(pj->r,d) < fSplit2 || pkdPos(pj->r,d) >= fSplit1) &&
+		!pkdIsVeryActive(pkd,pj));
 	    }
 	else if (iVASplitSide > 0) {
 	    PARTITION(pi<pj,pi<=pj,
-		       pi=pkdParticle(pkd,++i),pj=pkdParticle(pkd,--j),
-		       pkdSwapParticle(pkd,pi,pj),
-		       (pi->r[d] >= fSplit2 && pi->r[d] < fSplit1) &&
-		       !pkdIsVeryActive(pkd,pi),
-		       (pj->r[d] < fSplit2 || pj->r[d] >= fSplit1) ||
-		       pkdIsVeryActive(pkd,pj));
+		pi=pkdParticle(pkd,++i),pj=pkdParticle(pkd,--j),
+		pkdSwapParticle(pkd,pi,pj),
+	    (pkdPos(pi->r,d) >= fSplit2 && pkdPos(pi->r,d) < fSplit1) &&
+		!pkdIsVeryActive(pkd,pi),
+	    (pkdPos(pj->r,d) < fSplit2 || pkdPos(pj->r,d) >= fSplit1) ||
+		pkdIsVeryActive(pkd,pj));
 	    }
 	else {
 	    PARTITION(pi<pj,pi<=pj,
-		       pi=pkdParticle(pkd,++i),pj=pkdParticle(pkd,--j),
-		       pkdSwapParticle(pkd,pi,pj),
-		       (pi->r[d] >= fSplit2 && pi->r[d] < fSplit1),
-		       (pj->r[d] < fSplit2 || pj->r[d] >= fSplit1));
+		pi=pkdParticle(pkd,++i),pj=pkdParticle(pkd,--j),
+		pkdSwapParticle(pkd,pi,pj),
+	    (pkdPos(pi->r,d) >= fSplit2 && pkdPos(pi->r,d) < fSplit1),
+	    (pkdPos(pj->r,d) < fSplit2 || pkdPos(pj->r,d) >= fSplit1));
 	    }
 	}
     else {
 	if (iVASplitSide < 0) {
 	    PARTITION(pi<pj,pi<=pj,
-		       pi=pkdParticle(pkd,++i),pj=pkdParticle(pkd,--j),
-		       pkdSwapParticle(pkd,pi,pj),
-		       (pi->r[d] >= fSplit2 || pi->r[d] < fSplit1) ||
-		       pkdIsVeryActive(pkd,pi),
-		       (pj->r[d] < fSplit2 && pj->r[d] >= fSplit1) &&
-		       !pkdIsVeryActive(pkd,pj));
+		pi=pkdParticle(pkd,++i),pj=pkdParticle(pkd,--j),
+		pkdSwapParticle(pkd,pi,pj),
+	    (pkdPos(pi->r,d) >= fSplit2 || pkdPos(pi->r,d) < fSplit1) ||
+		pkdIsVeryActive(pkd,pi),
+	    (pkdPos(pj->r,d) < fSplit2 && pkdPos(pj->r,d) >= fSplit1) &&
+		!pkdIsVeryActive(pkd,pj));
 	    }
 	else if (iVASplitSide > 0) {
 	    PARTITION(pi<pj,pi<=pj,
-		       pi=pkdParticle(pkd,++i),pj=pkdParticle(pkd,--j),
-		       pkdSwapParticle(pkd,pi,pj),
-		       (pi->r[d] >= fSplit2 || pi->r[d] < fSplit1) &&
-		       !pkdIsVeryActive(pkd,pi),
-		       (pj->r[d] < fSplit2 && pj->r[d] >= fSplit1) ||
-		       pkdIsVeryActive(pkd,pj));
+		pi=pkdParticle(pkd,++i),pj=pkdParticle(pkd,--j),
+		pkdSwapParticle(pkd,pi,pj),
+	    (pkdPos(pi->r,d) >= fSplit2 || pkdPos(pi->r,d) < fSplit1) &&
+		!pkdIsVeryActive(pkd,pi),
+	    (pkdPos(pj->r,d) < fSplit2 && pkdPos(pj->r,d) >= fSplit1) ||
+		pkdIsVeryActive(pkd,pj));
 	    }
 	else {
 	    PARTITION(pi<pj,pi<=pj,
-		       pi=pkdParticle(pkd,++i),pj=pkdParticle(pkd,--j),
-		       pkdSwapParticle(pkd,pi,pj),
-		       (pi->r[d] >= fSplit2 || pi->r[d] < fSplit1),
-		       (pj->r[d] < fSplit2 && pj->r[d] >= fSplit1));
+		pi=pkdParticle(pkd,++i),pj=pkdParticle(pkd,--j),
+		pkdSwapParticle(pkd,pi,pj),
+	    (pkdPos(pi->r,d) >= fSplit2 || pkdPos(pi->r,d) < fSplit1),
+	    (pkdPos(pj->r,d) < fSplit2 && pkdPos(pj->r,d) >= fSplit1));
 	    }
 	}
     return(i);
@@ -2450,9 +2454,9 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,BND *bnd,PARTICLE *p) {
     if (pkd->oDensity) fDensity = pkdDensity(pkd,p);
     else fDensity = 0.0;
 
-    r[0] = p->r[0];
-    r[1] = p->r[1];
-    r[2] = p->r[2];
+    r[0] = pkdPos(p->r,0);
+    r[1] = pkdPos(p->r,1);
+    r[2] = pkdPos(p->r,2);
     /* Enforce periodic boundaries */
     for (j=0;j<3;++j) {
 	if (r[j] < bnd->fCenter[j] - bnd->fMax[j]) r[j] += 2*bnd->fMax[j];
@@ -2666,7 +2670,7 @@ void pkdCalcEandL(PKD pkd,double *T,double *U,double *Eth,double *L,double *F,do
 	if (pkd->oPotential) *U += 0.5*fMass*(*(pkdPot(pkd,p)));
 	if (pkd->oAcceleration) {
 	    a = pkdAccel(pkd,p);
-	    *W += fMass*(p->r[0]*a[0] + p->r[1]*a[1] + p->r[2]*a[2]);
+	    *W += fMass*(pkdPos(p->r,0)*a[0] + pkdPos(p->r,1)*a[1] + pkdPos(p->r,2)*a[2]);
 	    F[0] += fMass*a[0];
 	    F[1] += fMass*a[1];
 	    F[2] += fMass*a[2];
@@ -2674,7 +2678,7 @@ void pkdCalcEandL(PKD pkd,double *T,double *U,double *Eth,double *L,double *F,do
 	if (pkd->oSph && pkdIsGas(pkd,p)) *Eth += fMass*pkdSph(pkd,p)->u;
 	if (pkd->oVelocity) {
 	    v = pkdVel(pkd,p);
-	    rx = p->r[0]; ry = p->r[1]; rz = p->r[2];
+	    rx = pkdPos(p->r,0); ry = pkdPos(p->r,1); rz = pkdPos(p->r,2);
 	    vx = v[0]; vy = v[1]; vz = v[2];
 	    *T += 0.5*fMass*(vx*vx + vy*vy + vz*vz);
 	    L[0] += fMass*(ry*vz - rz*vy);
@@ -2711,7 +2715,7 @@ void pkdDrift(PKD pkd,double dDelta,double dDeltaVPred,double dDeltaUPred,uint8_
     float *a;
     SPHFIELDS *sph;
     int i,j,n;
-    double dMin[3],dMax[3];
+    double r[3],dMin[3],dMax[3];
 
     mdlDiag(pkd->mdl, "Into pkdDrift\n");
     assert(pkd->oVelocity);
@@ -2741,9 +2745,9 @@ void pkdDrift(PKD pkd,double dDelta,double dDeltaVPred,double dDeltaUPred,uint8_
 		    sph->fMetalsPred += sph->fMetalsDot*dDeltaUPred;
 		    }
 		for (j=0;j<3;++j) {
-		    p->r[j] += dDelta*v[j];
+		    r[j] = pkdSetPos(p->r,j,pkdPos(p->r,j) + dDelta*v[j]);
 		    }
-		pkdMinMax(p->r,dMin,dMax);
+		pkdMinMax(r,dMin,dMax);
 		}
 	    }
 	}
@@ -2753,9 +2757,9 @@ void pkdDrift(PKD pkd,double dDelta,double dDeltaVPred,double dDeltaUPred,uint8_
 	    if (pkdIsRungRange(p,uRungLo,uRungHi)) {
 		v = pkdVel(pkd,p);
 		for (j=0;j<3;++j) {
-		    p->r[j] += dDelta*v[j];
+		    r[j] = pkdSetPos(p->r,j,pkdPos(p->r,j) + dDelta*v[j]);
 		    }
-		pkdMinMax(p->r,dMin,dMax);
+		pkdMinMax(r,dMin,dMax);
 		}
 	    }
 	}
@@ -3854,7 +3858,7 @@ int pkdSelSrcBox(PKD pkd,double *dCenter, double *dSize, int setIfTrue, int clea
 	p = pkdParticle(pkd,i);
 	predicate = 1;
 	for(j=0; j<3; j++ ) {
-	    double dx = dCenter[j] - p->r[j];
+	    double dx = dCenter[j] - pkdPos(p->r,j);
 	    predicate = predicate && dx < dSize[j] && dx >= -dSize[j];
 	    }
 	p->bSrcActive = isSelected(predicate,setIfTrue,clearIfFalse,p->bSrcActive);
@@ -3874,7 +3878,7 @@ int pkdSelDstBox(PKD pkd,double *dCenter, double *dSize, int setIfTrue, int clea
 	p = pkdParticle(pkd,i);
 	predicate = 1;
 	for(j=0; j<3; j++ )
-	    predicate = predicate && fabs(dCenter[j] - p->r[j]) <= dSize[j];
+	    predicate = predicate && fabs(dCenter[j] - pkdPos(p->r,j)) <= dSize[j];
 	p->bDstActive = isSelected(predicate,setIfTrue,clearIfFalse,p->bDstActive);
 	if ( p->bDstActive ) nSelected++;
 	}
@@ -3891,9 +3895,9 @@ int pkdSelSrcSphere(PKD pkd,double *r, double dRadius, int setIfTrue, int clearI
     dRadius2 = dRadius*dRadius;
     for( i=0; i<n; i++ ) {
 	p = pkdParticle(pkd,i);
-	dx = r[0] - p->r[0];
-	dy = r[1] - p->r[1];
-	dz = r[2] - p->r[2];
+	dx = r[0] - pkdPos(p->r,0);
+	dy = r[1] - pkdPos(p->r,1);
+	dz = r[2] - pkdPos(p->r,2);
 
 	d2 = dx*dx + dy*dy + dz*dz;
 	p->bSrcActive = isSelected((d2<=dRadius2),setIfTrue,clearIfFalse,p->bSrcActive);
@@ -3912,9 +3916,9 @@ int pkdSelDstSphere(PKD pkd,double *r, double dRadius, int setIfTrue, int clearI
     dRadius2 = dRadius*dRadius;
     for( i=0; i<n; i++ ) {
 	p = pkdParticle(pkd,i);
-	dx = r[0] - p->r[0];
-	dy = r[1] - p->r[1];
-	dz = r[2] - p->r[2];
+	dx = r[0] - pkdPos(p->r,0);
+	dy = r[1] - pkdPos(p->r,1);
+	dz = r[2] - pkdPos(p->r,2);
 
 	d2 = dx*dx + dy*dy + dz*dz;
 	p->bDstActive = isSelected((d2<=dRadius2),setIfTrue,clearIfFalse,p->bSrcActive);
@@ -3948,7 +3952,7 @@ int pkdSelSrcCylinder(PKD pkd,double *dP1, double *dP2, double dRadius,
 	p = pkdParticle(pkd,i);
 	pdotr = 0.0;
 	for( j=0;j<3;j++ ) {
-	    dPart[j] = p->r[j] - dP1[j];
+	    dPart[j] = pkdPos(p->r,j) - dP1[j];
 	    pdotr += dPart[j] * dCyl[j];
 	    }
 
@@ -3989,7 +3993,7 @@ int pkdSelDstCylinder(PKD pkd,double *dP1, double *dP2, double dRadius,
 	p = pkdParticle(pkd,i);
 	pdotr = 0.0;
 	for( j=0;j<3;j++ ) {
-	    dPart[j] = p->r[j] - dP1[j];
+	    dPart[j] = pkdPos(p->r,j) - dP1[j];
 	    pdotr += dPart[j] * dCyl[j];
 	    }
 
@@ -4052,9 +4056,9 @@ int pkdDeepestPot(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
 		}
 	    }
 	}
-    r[0] = pLocal->r[0];
-    r[1] = pLocal->r[1];
-    r[2] = pLocal->r[2];
+    r[0] = pkdPos(pLocal->r,0);
+    r[1] = pkdPos(pLocal->r,1);
+    r[2] = pkdPos(pLocal->r,2);
     *fPot= *pPotLocal;
     return nChecked;
     }

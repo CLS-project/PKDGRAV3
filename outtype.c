@@ -157,7 +157,7 @@ static double fetchFloat(PKD pkd,PARTICLE *p,int iType,int iDim) {
 	v = pkdBall(pkd,p) * 0.5;
 	break;
     case OUT_POS_VECTOR:
-	v = p->r[iDim];
+	v = pkdPos(p->r,iDim);
 	break;
     case OUT_VEL_VECTOR:
 	assert(pkd->oVelocity); /* Validate memory model */
@@ -210,13 +210,13 @@ static void storeRungDest(PKD pkd,PKDOUT ctx,PARTICLE *p,int iType,int iDim) {
     pRungDest = pkdRungDest(pkd,p);
 
 
-    x = p->r[0] + 1.5;
+    x = pkdPos(p->r,0) + 1.5;
     if (x < 1.0) x = 1.0;
     else if (x >= 2.0) x = 2.0;
-    y = p->r[1] + 1.5;
+    y = pkdPos(p->r,1) + 1.5;
     if (y < 1.0) y = 1.0;
     else if (y >= 2.0) y = 2.0;
-    z = p->r[2] + 1.5;
+    z = pkdPos(p->r,2) + 1.5;
     if (z < 1.0) z = 1.0;
     else if (z >= 2.0) z = 2.0;
 

@@ -213,18 +213,18 @@ void BuildTemp(PKD pkd,int iNode,int M) {
 	pi = pkdParticle(pkd,pNode->pLower);
 	pj = pkdParticle(pkd,pNode->pUpper);
 	while (pi <= pj) {
-	    if (pi->r[d] < fSplit) pi = (PARTICLE *)(((char *)pi) + pkdParticleSize(pkd));
+	    if (pkdPos(pi->r,d) < fSplit) pi = (PARTICLE *)(((char *)pi) + pkdParticleSize(pkd));
 	    else break;
 	    }
 	while (pi <= pj) {
-	    if (fSplit < pj->r[d]) pj = (PARTICLE *)(((char *)pj) - pkdParticleSize(pkd));
+	    if (fSplit < pkdPos(pj->r,d)) pj = (PARTICLE *)(((char *)pj) - pkdParticleSize(pkd));
 	    else break;
 	    }
 	if (pi < pj) {
 	    pkdSwapParticle(pkd,pi,pj);
 	    while (1) {
-		while ((pi = (PARTICLE *)(((char *)pi) + pkdParticleSize(pkd)))->r[d] < fSplit);
-		while (fSplit < (pj = (PARTICLE *)(((char *)pj) - pkdParticleSize(pkd)))->r[d]);
+		while (pkdPos((pi = (PARTICLE *)(((char *)pi) + pkdParticleSize(pkd)))->r,d) < fSplit);
+		while (fSplit < pkdPos((pj = (PARTICLE *)(((char *)pj) - pkdParticleSize(pkd)))->r,d));
 		if (pi < pj) {
 		    pkdSwapParticle(pkd,pi,pj);
 		    }
@@ -421,14 +421,14 @@ void Create(PKD pkd,int iRoot) {
 	pj = pkdn->pLower;
 	p = pkdParticle(pkd,pj);
 	for (d=0;d<3;++d) {
-	    ft = p->r[d];
+	    ft = pkdPos(p->r,d);
 	    bnd->fCenter[d] = ft;
 	    bnd->fMax[d] = ft;
 	    }
 	for (++pj;pj<=pkdn->pUpper;++pj) {
 	    p = pkdParticle(pkd,pj);
 	    for (d=0;d<3;++d) {
-		ft = p->r[d];
+		ft = pkdPos(p->r,d);
 		if (ft < bnd->fCenter[d])
 		    bnd->fCenter[d] = ft;
 		else if (ft > bnd->fMax[d])
@@ -448,9 +448,9 @@ void Create(PKD pkd,int iRoot) {
 	v = pkd->oVelocity ? pkdVel(pkd,p) : zeroV;
 	fMass = m;
 	dih2 = fSoft;
-	x = m*p->r[0];
-	y = m*p->r[1];
-	z = m*p->r[2];
+	x = m*pkdPos(p->r,0);
+	y = m*pkdPos(p->r,1);
+	z = m*pkdPos(p->r,2);
 	vx = m*v[0];
 	vy = m*v[1];
 	vz = m*v[2];
@@ -467,9 +467,9 @@ void Create(PKD pkd,int iRoot) {
 	    v = pkd->oVelocity ? pkdVel(pkd,p) : zeroV;
 	    fMass += m;
 	    if (fSoft>dih2) dih2=fSoft;
-	    x += m*p->r[0];
-	    y += m*p->r[1];
-	    z += m*p->r[2];
+	    x += m*pkdPos(p->r,0);
+	    y += m*pkdPos(p->r,1);
+	    z += m*pkdPos(p->r,2);
 	    vx += m*v[0];
 	    vy += m*v[1];
 	    vz += m*v[2];
@@ -509,9 +509,9 @@ void Create(PKD pkd,int iRoot) {
 	d2Max = 0.0;
 	for (pj=pkdn->pLower;pj<=pkdn->pUpper;++pj) {
 	    p = pkdParticle(pkd,pj);
-	    x = p->r[0] - pkdn->r[0];
-	    y = p->r[1] - pkdn->r[1];
-	    z = p->r[2] - pkdn->r[2];
+	    x = pkdPos(p->r,0) - pkdn->r[0];
+	    y = pkdPos(p->r,1) - pkdn->r[1];
+	    z = pkdPos(p->r,2) - pkdn->r[2];
 	    d2 = x*x + y*y + z*z;
 	    /*
 	    ** Update bounding ball and softened bounding ball.
@@ -535,9 +535,9 @@ void Create(PKD pkd,int iRoot) {
 	    momClearFmomr(pkdNodeMom(pkd,pkdn));
 	    for (pj=pkdn->pLower;pj<=pkdn->pUpper;++pj) {
 		p = pkdParticle(pkd,pj);
-		x = p->r[0] - pkdn->r[0];
-		y = p->r[1] - pkdn->r[1];
-		z = p->r[2] - pkdn->r[2];
+		x = pkdPos(p->r,0) - pkdn->r[0];
+		y = pkdPos(p->r,1) - pkdn->r[1];
+		z = pkdPos(p->r,2) - pkdn->r[2];
 		m = pkdMass(pkd,p);
 		momMakeFmomr(&mom,m,pkdn->bMax,x,y,z);
 		momAddFmomr(pkdNodeMom(pkd,pkdn),&mom);
@@ -564,15 +564,15 @@ void Create(PKD pkd,int iRoot) {
 		    /*
 		    ** This first ball bound over all gas particles is only used for remote searching.
 		    */
-		    for (d=0;d<3;++d) bn->B.min[d] = fmin(bn->B.min[d],p->r[d] - (1+pkd->param.ddHonHLimit)*fBall);
-		    for (d=0;d<3;++d) bn->B.max[d] = fmax(bn->B.max[d],p->r[d] + (1+pkd->param.ddHonHLimit)*fBall);
+		    for (d=0;d<3;++d) bn->B.min[d] = fmin(bn->B.min[d],pkdPos(p->r,d) - (1+pkd->param.ddHonHLimit)*fBall);
+		    for (d=0;d<3;++d) bn->B.max[d] = fmax(bn->B.max[d],pkdPos(p->r,d) + (1+pkd->param.ddHonHLimit)*fBall);
 		    if (pkdIsActive(pkd,p)) {
-			for (d=0;d<3;++d) bn->A.min[d] = fmin(bn->A.min[d],p->r[d]);
-			for (d=0;d<3;++d) bn->A.max[d] = fmax(bn->A.max[d],p->r[d]);
+			for (d=0;d<3;++d) bn->A.min[d] = fmin(bn->A.min[d],pkdPos(p->r,d));
+			for (d=0;d<3;++d) bn->A.max[d] = fmax(bn->A.max[d],pkdPos(p->r,d));
 		    }
 		    else {
-			for (d=0;d<3;++d) bn->BI.min[d] = fmin(bn->BI.min[d],p->r[d] - (1+pkd->param.ddHonHLimit)*fBall);
-			for (d=0;d<3;++d) bn->BI.max[d] = fmax(bn->BI.max[d],p->r[d] + (1+pkd->param.ddHonHLimit)*fBall);
+			for (d=0;d<3;++d) bn->BI.min[d] = fmin(bn->BI.min[d],pkdPos(p->r,d) - (1+pkd->param.ddHonHLimit)*fBall);
+			for (d=0;d<3;++d) bn->BI.max[d] = fmax(bn->BI.max[d],pkdPos(p->r,d) + (1+pkd->param.ddHonHLimit)*fBall);
 		    }
 		}
 	    }
@@ -611,15 +611,15 @@ void Create(PKD pkd,int iRoot) {
 	    if (pkdn->pUpper - pj < NMAX_OPENCALC) {
 		assert(pj<=pkdn->pUpper);
 		p = pkdParticle(pkd,pj);
-		x = p->r[0] - pkdn->r[0];
-		y = p->r[1] - pkdn->r[1];
-		z = p->r[2] - pkdn->r[2];
+		x = pkdPos(p->r,0) - pkdn->r[0];
+		y = pkdPos(p->r,1) - pkdn->r[1];
+		z = pkdPos(p->r,2) - pkdn->r[2];
 		d2Max = x*x + y*y + z*z;
 		for (++pj;pj<=pkdn->pUpper;++pj) {
 		    p = pkdParticle(pkd,pj);
-		    x = p->r[0] - pkdn->r[0];
-		    y = p->r[1] - pkdn->r[1];
-		    z = p->r[2] - pkdn->r[2];
+		    x = pkdPos(p->r,0) - pkdn->r[0];
+		    y = pkdPos(p->r,1) - pkdn->r[1];
+		    z = pkdPos(p->r,2) - pkdn->r[2];
 		    d2 = x*x + y*y + z*z;
 		    d2Max = (d2 > d2Max)?d2:d2Max;
 		    }
@@ -775,7 +775,7 @@ void pkdTreeBuildByGroup(PKD pkd, int nBucket) {
     PARTICLE *p;
     KDN *pNode;
     BND *bnd;
-    double dMin[3], dMax[3];
+    double r[3], dMin[3], dMax[3];
     int i,j,k,n,gid,gid2,iRoot;
     int iTree;
 
@@ -852,9 +852,10 @@ void pkdTreeBuildByGroup(PKD pkd, int nBucket) {
 	    pNode->iLower = 0;
 	    assert(pNode->pLower == i);
 
-	    for (j=0;j<3;++j) dMin[j] = dMax[j] = p->r[j];
+	    for (j=0;j<3;++j) dMin[j] = dMax[j] = pkdPos(p->r,j);
 	    for(p = pkdParticle(pkd,++i); i<pkd->nLocal && *pkdGroup(pkd,p)==gid; ++i) {
-		pkdMinMax(p->r,dMin,dMax);
+		for (j=0;j<3;++j) r[j] = pkdPos(p->r,j);
+		pkdMinMax(r,dMin,dMax);
 		}
 	    for (j=0;j<3;++j) {
 		bnd->fCenter[j] = 0.5*(dMin[j] + dMax[j]);
@@ -880,10 +881,11 @@ void pkdTreeBuildByGroup(PKD pkd, int nBucket) {
 		if (gid) {
 		    assert(gid==gid2);
 		    if (i==pNode->pLower) {
-			for (j=0;j<3;++j) dMin[j] = dMax[j] = p->r[j];
+			for (j=0;j<3;++j) dMin[j] = dMax[j] = pkdPos(p->r,j);
 			}
 		    else {
-			pkdMinMax(p->r,dMin,dMax);
+			for (j=0;j<3;++j) r[j] = pkdPos(p->r,j);
+			pkdMinMax(r,dMin,dMax);
 			}
 		    ++i;
 		    }
@@ -932,17 +934,17 @@ void pkdCalcRoot(PKD pkd,double *com,MOMC *pmom) {
     int i = 0;
 
     p = pkdParticle(pkd,i);
-    x = p->r[0] - xr;
-    y = p->r[1] - yr;
-    z = p->r[2] - zr;
+    x = pkdPos(p->r,0) - xr;
+    y = pkdPos(p->r,1) - yr;
+    z = pkdPos(p->r,2) - zr;
     fMass = pkdMass(pkd,p);
     momMakeMomc(pmom,fMass,x,y,z);
     for (++i;i<pkd->nLocal;++i) {
 	p = pkdParticle(pkd,i);
 	fMass = pkdMass(pkd,p);
-	x = p->r[0] - xr;
-	y = p->r[1] - yr;
-	z = p->r[2] - zr;
+	x = pkdPos(p->r,0) - xr;
+	y = pkdPos(p->r,1) - yr;
+	z = pkdPos(p->r,2) - zr;
 	momMakeMomc(&mc,fMass,x,y,z);
 	momAddMomc(pmom,&mc);
 	}

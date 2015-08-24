@@ -285,7 +285,7 @@ int smHopLink(SMX smx,SMF *smf) {
 	ga[nGroups].iGid = nGroups;
 	for(;;) {
 	    *pkdGroup(pkd,p) = nGroups;
-	    smReSmoothSingle(smx,smf,p,p->r,pkdBall(pkd,p));
+	    smReSmoothSingle(smx,smf,p,pkdBall(pkd,p));
 	    ga[nGroups].id = pl[iParticle] = smf->hopParticleLink;
 
 	    /*
@@ -519,7 +519,7 @@ int smHopJoin(SMX smx,SMF *smf, double dHopTau, int *nLocal) {
 	if (dHopTau<0.0) fBall = -dHopTau * pkdSoft(pkd,p);
 	else fBall = dHopTau;
 	fBall = fmaxf(fBall,pkdBall(pkd,p)*0.5f);
-	smReSmoothSingle(smx,smf,p,p->r,fBall);
+	smReSmoothSingle(smx,smf,p,fBall);
 	}
     mdlFinishCache(mdl,CID_GROUP);
 
@@ -712,7 +712,7 @@ static void hopCalculateGroupStats(PKD pkd, int bPeriodic, double *dPeriod) {
     PARTICLE *p;
     double dHalf[3];
     float fMass;
-    double *r;
+    double r[3];
     vel_t *v;
 
 #ifdef TEST_SINGLE_GRAVITY
@@ -738,7 +738,7 @@ static void hopCalculateGroupStats(PKD pkd, int bPeriodic, double *dPeriod) {
     for (i=0;i<pkd->nLocal;++i) {
 	p = pkdParticle(pkd,i);
 	gid = *pkdGroup(pkd,p);
-	for (j=0;j<3;j++) pkd->hopGroups[gid].rref[j] = p->r[j];
+	for (j=0;j<3;j++) pkd->hopGroups[gid].rref[j] = pkdPos(p->r,j);
 	}
     for(gid=1; gid<=pkd->nLocalGroups; ++gid) {
 	for (j=0;j<3;j++) {
@@ -758,7 +758,7 @@ static void hopCalculateGroupStats(PKD pkd, int bPeriodic, double *dPeriod) {
     for (i=0;i<pkd->nLocal;++i) {
 	p = pkdParticle(pkd,i);
 	gid = *pkdGroup(pkd,p);
-	r = p->r;
+	pkdGetPos(r,p->r);
 	v = pkdVel(pkd,p);
 	fMass = pkdMass(pkd,p);
 

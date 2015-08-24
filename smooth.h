@@ -94,7 +94,7 @@ void smSmoothInitialize(SMX smx);
 void smSmoothFinish(SMX smx);
 float smSmoothSingle(SMX smx,SMF *smf,PARTICLE *p);
 void smSmooth(SMX,SMF *);
-void smReSmoothSingle(SMX smx,SMF *smf,PARTICLE *p,FLOAT *R,FLOAT fBall);
+void smReSmoothSingle(SMX smx,SMF *smf,PARTICLE *p,FLOAT fBall);
 void smReSmooth(SMX,SMF *);
 
 void smFastGasPhase1(SMX smx,SMF *smf);

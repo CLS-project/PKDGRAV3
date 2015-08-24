@@ -1003,6 +1003,14 @@ static inline float pkdSoft( PKD pkd, PARTICLE *p ) {
 static inline FIO_SPECIES pkdSpecies( PKD pkd, PARTICLE *p ) {
     return pkd->pClass[p->iClass].eSpecies;
     }
+#ifdef INTEGER_POSITION
+#define pkdPos(r,d) ((r##PRIVATE)[d] * (1.0/0xffffffffu) - 0.5)
+#define pkdSetPos(r,d,v) ((r##PRIVATE)[d] = ((v)+0.5)*0xffffffffu  )
+#else
+#define pkdPos(r,d) (r##PRIVATE)[d]
+#define pkdSetPos(r,d,v) ((r##PRIVATE)[d] = (v))
+#endif
+#define pkdGetPos(d,s) ((d)[0]=pkdPos(s,0),(d)[1]=pkdPos(s,1),(d)[2]=pkdPos(s,2))
 static inline vel_t *pkdVel( PKD pkd, PARTICLE *p ) {
     return CAST(vel_t *,pkdField(p,pkd->oVelocity));
     }

@@ -854,9 +854,9 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
 	work->pPart[nP] = p;
 
 	a = pkdAccel(pkd,p);
-	work->pInfoIn[nP].r[0]  = (float)(p->r[0] - ilp->cx);
-	work->pInfoIn[nP].r[1]  = (float)(p->r[1] - ilp->cy);
-	work->pInfoIn[nP].r[2]  = (float)(p->r[2] - ilp->cz);
+	work->pInfoIn[nP].r[0]  = (float)(pkdPos(p->r,0) - ilp->cx);
+	work->pInfoIn[nP].r[1]  = (float)(pkdPos(p->r,1) - ilp->cy);
+	work->pInfoIn[nP].r[2]  = (float)(pkdPos(p->r,2) - ilp->cz);
 	work->pInfoIn[nP].a[0]  = a[0];
 	work->pInfoIn[nP].a[1]  = a[1];
 	work->pInfoIn[nP].a[2]  = a[2];
@@ -902,9 +902,9 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
 	    /*
 	    ** Evaluate local expansion.
 	    */
-	    dx = work->pPart[i]->r[0] - pkdn->r[0];
-	    dy = work->pPart[i]->r[1] - pkdn->r[1];
-	    dz = work->pPart[i]->r[2] - pkdn->r[2];
+	    dx = pkdPos(work->pPart[i]->r,0) - pkdn->r[0];
+	    dy = pkdPos(work->pPart[i]->r,1) - pkdn->r[1];
+	    dz = pkdPos(work->pPart[i]->r,2) - pkdn->r[2];
 	    dPot = 0;
 	    ax = 0;
 	    ay = 0;
@@ -958,9 +958,9 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
 		    n = (blk==tile->lstTile.nBlocks ? tile->lstTile.nInLast : ilp->lst.nPerBlock);
 		    for (prt=0; prt<n; ++prt) {
 			if (p->iOrder < pkd->param.nPartColl || tile->xtr[blk].iOrder.i[prt] < pkd->param.nPartColl) {
-			    fx = p->r[0] - ilp->cx + tile->blk[blk].dx.f[prt];
-			    fy = p->r[1] - ilp->cy + tile->blk[blk].dy.f[prt];
-			    fz = p->r[2] - ilp->cz + tile->blk[blk].dz.f[prt];
+			    fx = pkdPos(p->r,0) - ilp->cx + tile->blk[blk].dx.f[prt];
+			    fy = pkdPos(p->r,1) - ilp->cy + tile->blk[blk].dy.f[prt];
+			    fz = pkdPos(p->r,2) - ilp->cz + tile->blk[blk].dz.f[prt];
 			    d2 = fx*fx + fy*fy + fz*fz;
 			    if (p->iOrder == tile->xtr[blk].iOrder.i[prt]) continue;
 			    fourh2 = softmassweight(fMass,4*fSoft*fSoft,

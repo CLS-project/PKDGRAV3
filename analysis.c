@@ -173,7 +173,7 @@ double pkdGetDistance2(PKD pkd,PARTICLE *p, const double *dCenter ) {
 
     d2 = 0.0;
     for( j=0; j<3; j++ ) {
-	dx = p->r[j] - dCenter[j];
+	dx = pkdPos(p->r,j) - dCenter[j];
 	/*
 	** If a periodic wrap results in a smaller distance, then use that.
 	*/
@@ -261,12 +261,16 @@ void pkdCalcCOM(PKD pkd, double *dCenter, double dRadius,
 	PARTICLE *p = pkdParticle(pkd,i);
 	double m = pkdMass(pkd,p);
 	vel_t *v = pkdVel(pkd,p);
+	double r[3];
+	r[0] = pkdPos(p->r,0);
+	r[1] = pkdPos(p->r,1);
+	r[2] = pkdPos(p->r,2);
 	d2 = pkdGetDistance2(pkd,p,dCenter );
 	if ( d2 < dRadius2 ) {
 	    *M += m;
-	    vec_add_const_mult(com, com, m, p->r);
+	    vec_add_const_mult(com, com, m, r);
 	    vec_add_const_mult(vcm, vcm, m, v);
-	    cross_product(T, p->r, v);
+	    cross_product(T, r, v);
 	    vec_add_const_mult(L, L, m, T);
 	    (*N)++;
 	    }
@@ -350,9 +354,9 @@ static void CalculateInertia(PKD pkd,int nBins, const double *dRadii, SHAPESBIN 
 	pShape = CAST(SHAPESBIN *,mdlAcquire(pkd->mdl,CID_SHAPES,iBin,0));
 	pShape->dMassEnclosed += m;
 	for (j=0; j<3; j++) {
-	    pShape->com[j] += m * p->r[j] ;
+	    pShape->com[j] += m * pkdPos(p->r,j);
 	    for (k=0; k<=j; k++) {
-		pShape->dInertia[j][k] += m * p->r[j] * p->r[k];
+		pShape->dInertia[j][k] += m * pkdPos(p->r,j) * pkdPos(p->r,k);
 		}
 	    }
 	mdlRelease(pkd->mdl,CID_SHAPES,pShape);
@@ -545,12 +549,17 @@ void pkdProfile(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
 	    double m = pkdMass(pkd,p);
 	    vel_t *v = pkdVel(pkd,p);
 	    double delta_x[3], delta_v[3], ang_mom[3], dx2, vel;
+	    double r[3];
 	    /*double vel_tang[3], vel_shell[3], vel_tang_pec[3];*/
+
+	    r[0] = pkdPos(p->r,0);
+	    r[1] = pkdPos(p->r,1);
+	    r[2] = pkdPos(p->r,2);
 
 	    pBin->dMassInBin += pl[i].r[1];
 	    pBin->nParticles++;
 
-	    vec_sub(delta_x,p->r,com);
+	    vec_sub(delta_x,r,com);
 	    vec_sub(delta_v,v,vcm);
 	    cross_product(ang_mom,delta_x,delta_v);
 	    vec_add_const_mult(pBin->L,pBin->L,m,ang_mom);
@@ -581,10 +590,13 @@ void pkdProfile(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
 	    PARTICLE *p = pkdParticle(pkd,pl[i].i);
 	    double m = pkdMass(pkd,p);
 	    vel_t *v = pkdVel(pkd,p);
-	    double delta_x[3], delta_v[3], dx2;
+	    double delta_x[3], delta_v[3], dx2, r[3];
 	    double vel_tang[3], vel_shell[3], vel_tang_pec[3];
+	    r[0] = pkdPos(p->r,0);
+	    r[1] = pkdPos(p->r,1);
+	    r[2] = pkdPos(p->r,2);
 
-	    vec_sub(delta_x,p->r,com);
+	    vec_sub(delta_x,r,com);
 	    vec_sub(delta_v,v,vcm);
 	    dx2 = dot_product(delta_x,delta_x);
 
@@ -683,9 +695,9 @@ void pkdGridProject(PKD pkd) {
 	v = pkdDensity(pkd,p);
 
 	/* Should scale and rotate here */
-	r[0] = p->r[0];
-	r[1] = p->r[1];
-	r[2] = p->r[2];
+	r[0] = pkdPos(p->r,0);
+	r[1] = pkdPos(p->r,1);
+	r[2] = pkdPos(p->r,2);
 	if ( r[0]>=-0.5 && r[0]<0.5 && r[1]>=-0.5 && r[1]<0.5 ) {
 	    /* Calculate grid position and respect rounding */
 	    x = d2i(r[0] * pkd->grid->n2 + pkd->grid->n2/2);

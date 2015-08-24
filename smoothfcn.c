@@ -563,9 +563,9 @@ void initDistDeletedGas(void *vpkd,void *vp)
     if (pkdIsDeleted(pkd,p)) return; /* deleted */
 
     *((float *) pkdField(p,pkd->oMass))=0;
-    p->r[0]=0;
-    p->r[1]=0;
-    p->r[2]=0;
+    pkdSetPos(p->r,0,0);
+    pkdSetPos(p->r,1,0);
+    pkdSetPos(p->r,2,0);
     pkdVel(pkd,p)[0] = 0;
     pkdVel(pkd,p)[1] = 0;
     pkdVel(pkd,p)[2] = 0;
@@ -603,9 +603,9 @@ void combDistDeletedGas(void *vpkd,void *vp1,void *vp2)
 	f1=(*p1mass)/m;
 	f2=(*p2mass)/m;
 	*p1mass = m;
-	p1->r[0]= f1*p1->r[0]+f2*p2->r[0];
-	p1->r[1]= f1*p1->r[1]+f2*p2->r[1];
-	p1->r[2]= f1*p1->r[2]+f2*p2->r[2];
+	pkdSetPos(p1->r,0,f1*pkdPos(p1->r,0)+f2*pkdPos(p2->r,0));
+	pkdSetPos(p1->r,1,f1*pkdPos(p1->r,1)+f2*pkdPos(p2->r,1));
+	pkdSetPos(p1->r,2,f1*pkdPos(p1->r,2)+f2*pkdPos(p2->r,2));
 	pkdVel(pkd,p1)[0] = f1*pkdVel(pkd,p1)[0]+f2*pkdVel(pkd,p2)[0];
 	pkdVel(pkd,p1)[1] = f1*pkdVel(pkd,p1)[1]+f2*pkdVel(pkd,p2)[1];
 	pkdVel(pkd,p1)[2] = f1*pkdVel(pkd,p1)[2]+f2*pkdVel(pkd,p2)[2];
@@ -665,9 +665,9 @@ void DistDeletedGas(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf)
 	fq = (*qmass)/m;
 	*qmass = m;
 
-	q->r[0]= fq*q->r[0]+fp*p->r[0];
-	q->r[1]= fq*q->r[1]+fp*p->r[1];
-	q->r[2]= fq*q->r[2]+fp*p->r[2];
+	pkdSetPos(q->r,0,fq*pkdPos(q->r,0)+fp*pkdPos(p->r,0));
+	pkdSetPos(q->r,1,fq*pkdPos(q->r,1)+fp*pkdPos(p->r,1));
+	pkdSetPos(q->r,2,fq*pkdPos(q->r,2)+fp*pkdPos(p->r,2));
 	pkdVel(pkd,q)[0] = fq*pkdVel(pkd,q)[0]+fp*pkdVel(pkd,p)[0];
 	pkdVel(pkd,q)[1] = fq*pkdVel(pkd,q)[1]+fp*pkdVel(pkd,p)[1];
 	pkdVel(pkd,q)[2] = fq*pkdVel(pkd,q)[2]+fp*pkdVel(pkd,p)[2];
@@ -697,9 +697,9 @@ void initDistSNEnergy(void *vpkd,void *vp)
     if (!pkdIsGas(pkd,p)) return; /* not gas */
 
     *((float *) pkdField(p,pkd->oMass))=0;
-    p->r[0]=0;
-    p->r[1]=0;
-    p->r[2]=0;
+    pkdSetPos(p->r,0,0);
+    pkdSetPos(p->r,1,0);
+    pkdSetPos(p->r,2,0);
     pkdVel(pkd,p)[0] = 0;
     pkdVel(pkd,p)[1] = 0;
     pkdVel(pkd,p)[2] = 0;
@@ -736,9 +736,9 @@ void combDistSNEnergy(void *vpkd,void *vp1,void *vp2)
 	f1=(*p1mass)/m;
 	f2=(*p2mass)/m;
 	*p1mass = m;
-	p1->r[0]= f1*p1->r[0]+f2*p2->r[0];
-	p1->r[1]= f1*p1->r[1]+f2*p2->r[1];
-	p1->r[2]= f1*p1->r[2]+f2*p2->r[2];
+	pkdSetPos(p1->r,0,f1*pkdPos(p1->r,0)+f2*pkdPos(p2->r,0));
+	pkdSetPos(p1->r,1,f1*pkdPos(p1->r,1)+f2*pkdPos(p2->r,1));
+	pkdSetPos(p1->r,2,f1*pkdPos(p1->r,2)+f2*pkdPos(p2->r,2));
 	pkdVel(pkd,p1)[0] = f1*pkdVel(pkd,p1)[0]+f2*pkdVel(pkd,p2)[0];
 	pkdVel(pkd,p1)[1] = f1*pkdVel(pkd,p1)[1]+f2*pkdVel(pkd,p2)[1];
 	pkdVel(pkd,p1)[2] = f1*pkdVel(pkd,p1)[2]+f2*pkdVel(pkd,p2)[2];
@@ -831,9 +831,9 @@ void DistSNEnergy(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf)
 	pkdStar(pkd,q)->fTimer = smf->dTime+smf->SFdtCoolingShutoff;
 
 	*qmass = m;
-	q->r[0]= fq*q->r[0]+fp*p->r[0];
-	q->r[1]= fq*q->r[1]+fp*p->r[1];
-	q->r[2]= fq*q->r[2]+fp*p->r[2];
+	pkdSetPos(q->r,0,fq*pkdPos(q->r,0)+fp*pkdPos(p->r,0));
+	pkdSetPos(q->r,1,fq*pkdPos(q->r,1)+fp*pkdPos(p->r,1));
+	pkdSetPos(q->r,2,fq*pkdPos(q->r,2)+fp*pkdPos(p->r,2));
 	pkdVel(pkd,q)[0] = fq*pkdVel(pkd,q)[0]+fp*pkdVel(pkd,p)[0];
 	pkdVel(pkd,q)[1] = fq*pkdVel(pkd,q)[1]+fp*pkdVel(pkd,p)[1];
 	pkdVel(pkd,q)[2] = fq*pkdVel(pkd,q)[2]+fp*pkdVel(pkd,p)[2];
