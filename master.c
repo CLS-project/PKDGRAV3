@@ -1047,6 +1047,8 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     ** Check timestepping and gravity combinations.
     */
     if (msr->param.bDoGravity) {
+	/* Potential is optional, but the default for gravity */
+	if (!prmSpecified(msr->prm,"bMemPotential")) msr->param.bMemPotential = 1;
 	if (msr->param.iMaxRung < 1) {
 	    msr->param.iMaxRung = 1;
 	    if (msr->param.bVWarnings) fprintf(stderr,"WARNING: iMaxRung set to 1, SINGLE STEPPING run!\n");
@@ -1642,7 +1644,7 @@ static uint64_t getMemoryModel(MSR msr) {
     ** will force these flags to be on.
     */
     if (msr->param.bFindGroups) mMemoryModel |= PKD_MODEL_GROUPS|PKD_MODEL_VELOCITY|PKD_MODEL_POTENTIAL;
-    if (msrDoGravity(msr)) mMemoryModel |= PKD_MODEL_VELOCITY|PKD_MODEL_ACCELERATION|PKD_MODEL_POTENTIAL|PKD_MODEL_NODE_MOMENT;
+    if (msrDoGravity(msr)) mMemoryModel |= PKD_MODEL_VELOCITY|PKD_MODEL_ACCELERATION|PKD_MODEL_NODE_MOMENT;
 
     if (msr->param.nDomainRungs>0)   mMemoryModel |= PKD_MODEL_RUNGDEST;
 

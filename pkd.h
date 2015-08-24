@@ -972,7 +972,7 @@ static inline float *pkdAccel( PKD pkd, PARTICLE *p ) {
     return CAST(float *,pkdField(p,pkd->oAcceleration));
     }
 static inline float *pkdPot( PKD pkd, PARTICLE *p ) {
-    return CAST(float *,pkdField(p,pkd->oPotential));
+    return pkd->oPotential ? CAST(float *,pkdField(p,pkd->oPotential)) : NULL;
     }
 static inline uint16_t *pkdRungDest( PKD pkd, PARTICLE *p ) {
     return CAST(uint16_t *,pkdField(p,pkd->oRungDest));

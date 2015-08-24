@@ -82,7 +82,7 @@ void pkdParticleWorkDone(workParticle *work) {
 	    a[0] += work->pInfoOut[i].a[0];
 	    a[1] += work->pInfoOut[i].a[1];
 	    a[2] += work->pInfoOut[i].a[2];
-	    *pPot = work->pInfoOut[i].fPot;
+	    if (pPot) *pPot = work->pInfoOut[i].fPot;
 
 	    // FIXME: what about the Ewald contribution?
 	    // we need to save dirsum/normsum for later if ewald is not done.
@@ -816,7 +816,6 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     float fourh2;
     int nP;
 
-    assert(pkd->oPotential);
     assert(pkd->oAcceleration);
 
     /*
