@@ -42,7 +42,6 @@ static void InitializeParticles(PKD pkd,int nTrees,TREESPEC *pSpec,BND *pbnd) {
     int iTreeRoot[MAX_RUNG];
     int iTreeOffset[MAX_RUNG+1];
     int iTreeEnd[MAX_RUNG+1];
-    PLITE t;
     PARTICLE *p;
     KDN *pNode;
     BND *bnd;

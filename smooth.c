@@ -500,11 +500,13 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
     /*
     ** Need to cast the pLite to an array of extra stuff.
     */
-    STATIC_ASSERT(sizeof(PLITE) >= sizeof(struct smExtraArray)+sizeof(struct smGroupArray)+sizeof(remoteID),
+    STATIC_ASSERT(EPHEMERAL_BYTES >= sizeof(struct smExtraArray),
 	"The pLite structure is not large enough");
-    smx->ea = (struct smExtraArray *)(pkd->pLite);
-    smx->pl = (remoteID *)(smx->ea + pkd->nLocal + 1);
-    smx->ga = (struct smGroupArray *)(smx->pl + pkd->nLocal + 1);
+    STATIC_ASSERT(EPHEMERAL_BYTES >= sizeof(struct smGroupArray)/2 + sizeof(remoteID),
+	"The pLite structure is not large enough");
+    smx->ea = (struct smExtraArray *)(pkd->pLite); /* Used only for SPH */
+    smx->pl = (remoteID *)(pkd->pLite); /* Used for Hop: particle links */
+    smx->ga = (struct smGroupArray *)(smx->pl + pkd->nLocal + 1); /* Hop: Skeleton groups nGroups << nLocal/2 */
     *psmx = smx;
     return(1);
 }
@@ -635,15 +637,15 @@ PQ *pqSearch(SMX smx,PQ *pq,FLOAT r[3]) {
 	if (id == idSelf ) {
 	    pEnd = kdn->pUpper;
 	    for (pj=kdn->pLower;pj<=pEnd;++pj) {
-		if (smx->ea[pj].bInactive) continue;
 		p = pkdParticle(pkd,pj);
+		if (!p->bMarked) continue;
 		dx = r[0] - pkdPos(p->r,0);
 		dy = r[1] - pkdPos(p->r,1);
 		dz = r[2] - pkdPos(p->r,2);
 		fDist2 = dx*dx + dy*dy + dz*dz;
 		if (fDist2 <= pq->fDist2) {
 		    if (pq->iPid == idSelf) {
-			smx->ea[pq->iIndex].bInactive = 0;
+			pkdParticle(pkd,pq->iIndex)->bMarked = 1;
 			} 
 		    else {
 			smHashDel(smx,pq->pPart);
@@ -656,7 +658,7 @@ PQ *pqSearch(SMX smx,PQ *pq,FLOAT r[3]) {
 		    pq->dy = dy;
 		    pq->dz = dz;
 		    pq->iIndex = pj;
-		    smx->ea[pj].bInactive = 1; /* de-activate a particle that enters the queue */
+		    p->bMarked = 0; /* de-activate a particle that enters the queue */
 		    PQ_REPLACE(pq);
 		    }
 		}
@@ -672,7 +674,7 @@ PQ *pqSearch(SMX smx,PQ *pq,FLOAT r[3]) {
 		fDist2 = dx*dx + dy*dy + dz*dz;
 		if (fDist2 <= pq->fDist2) {
 		    if (pq->iPid == idSelf) {
-			smx->ea[pq->iIndex].bInactive = 0;
+			pkdParticle(pkd,pq->iIndex)->bMarked = 1;
 			}
 		    else {
 			smHashDel(smx,pq->pPart);
@@ -730,7 +732,7 @@ void smSmoothFinish(SMX smx) {
     */
     for (i=0;i<smx->nSmooth;++i) {
 	if (smx->pq[i].iPid == smx->pkd->idSelf) {
-	    smx->ea[smx->pq[i].iIndex].bInactive = 0;
+	    pkdParticle(smx->pkd,smx->pq[i].iIndex)->bMarked = 1;
 	    }
 	else {
 	    smHashDel(smx,smx->pq[i].pPart);
@@ -810,9 +812,8 @@ void smSmooth(SMX smx,SMF *smf) {
     */
     for (pi=0;pi<pkd->nLocal;++pi) {
 	p = pkdParticle(pkd,pi);
-	smx->ea[pi].bInactive = (p->bSrcActive?0:1);
+	p->bMarked = p->bSrcActive;
     }
-    smx->ea[pkd->nLocal].bInactive = 0;  /* initialize for Sentinel, but this is not really needed */
     smSmoothInitialize(smx);
     smf->pfDensity = NULL;
     for (pi=0;pi<pkd->nLocal;++pi) {
@@ -1915,7 +1916,7 @@ void smFastGasPhase1(SMX smx,SMF *smf) {
     uTail = 0;
     for (pi=0;pi<pkd->nLocal;++pi) {
 	p = pkdParticle(pkd,pi);
-	smx->ea[pi].bInactive = (p->bSrcActive)?0:1;
+	p->bMarked = p->bSrcActive;
 	smx->ea[pi].bDone = 0;
 	if (pkdIsGas(pkd,p) && pkdIsActive(pkd,p)) {
 	    /*
@@ -1934,7 +1935,6 @@ void smFastGasPhase1(SMX smx,SMF *smf) {
     }
     if (uTail == 0) return;  /* no active particles??? */
     else if (uTail == pkd->nLocal) uTail = 0;  /* wrap uTail around in this case */
-    smx->ea[pkd->nLocal].bInactive = 1;  /* initialize for Sentinel, but this is not really needed */
     smx->ea[pkd->nLocal].bDone = 1;  /* initialize for Sentinel, but this is not really needed */
     /*
     ** Initialize the priority queue first.
@@ -2252,7 +2252,7 @@ void smFastGasPhase1(SMX smx,SMF *smf) {
     */
     for (i=0;i<smx->nSmooth;++i) {
 	if (smx->pq[i].iPid == pkd->idSelf) {
-	    smx->ea[smx->pq[i].iIndex].bInactive = 0;
+	    pkdParticle(pkd,smx->pq[i].iIndex)->bMarked = 1;
 	}
 	else {
 	    smHashDel(smx,smx->pq[i].pPart);

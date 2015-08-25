@@ -521,7 +521,7 @@ void pkdInitialize(
     ** type operations such as tree building and domain decomposition are being
     ** performed.
     */
-    pkd->pLite = mdlMallocArray(pkd->mdl,nStore+1,sizeof(PLITE));
+    pkd->pLite = mdlMallocArray(pkd->mdl,nStore+1,EPHEMERAL_BYTES);
     mdlassert(mdl,pkd->pLite != NULL);
     pkd->nNodes = 0;
     /*

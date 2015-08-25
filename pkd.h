@@ -115,12 +115,7 @@ typedef struct {
     uint32_t uCell;
     } TREESPEC;
 
-typedef struct pLite {
-    FLOAT r[3];
-    int i;
-    uint8_t uRung : 6;
-    uint32_t uGroup : 26;
-    } PLITE;
+#define EPHEMERAL_BYTES 16
 
 typedef struct {
     FLOAT rscale[3];
@@ -626,7 +621,7 @@ typedef struct pkdContext {
     int nMaxBucketActive;
     PARTICLE **piActive;
     PARTICLE **piInactive;
-    PLITE *pLite;
+    void *pLite;
 #ifdef COOLING
     COOL *Cool; /* Cooling Context */
 #endif
@@ -899,7 +894,7 @@ static inline size_t pkdParticleSize( PKD pkd ) {
     return pkd->iParticleSize;
     }
 static inline size_t pkdParticleMemory(PKD pkd) {
-    return (pkd->iParticleSize + sizeof(PLITE)) * (pkd->nStore+1);
+    return (pkd->iParticleSize + EPHEMERAL_BYTES) * (pkd->nStore+1);
     }
 static inline PARTICLE *pkdParticleGet( PKD pkd, void *pBase, int i ) {
     char *v = (char *)pBase;

@@ -822,7 +822,7 @@ static void initGravWalk(PKD pkd,double dTime,double dThetaMin,int bPeriodic,int
 	smSmoothInitialize(*smx);
 	/* No particles are inactive for density calculation */
 	for (pi=0;pi<pkd->nLocal;++pi) {
-	    (*smx)->ea[pi].bInactive = 0;
+	    pkdParticle(pkd,pi)->bMarked = 1;
 	    }
 	}
     else (*smx) = NULL;

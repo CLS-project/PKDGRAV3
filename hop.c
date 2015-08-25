@@ -255,14 +255,13 @@ int smHopLink(SMX smx,SMF *smf) {
 	p = pkdParticle(pkd,pi);
 	*pkdGroup(pkd,p) = 0; /* Ungrouped */
 	p->bMarked = 0; /* Not an arc (yet) */
-	smx->ea[pi].bInactive = (p->bSrcActive?0:1);
+	p->bMarked = p->bSrcActive;
 	smx->ea[pi].iIndex = -1;
 	ga[pi].iGid = pi;
 	ga[pi].id.iPid = mdlSelf(mdl);
 	ga[pi].id.iIndex = -1; /* Sentinel */
 	pl[pi].iPid = pl[pi].iIndex = -1;
 	}
-    smx->ea[pkd->nLocal].bInactive = 0;  /* initialize for Sentinel, but this is not really needed */
     smSmoothInitialize(smx);
 
     pkd->nGroups = 0;

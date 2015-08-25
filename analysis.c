@@ -213,10 +213,15 @@ int pkdShellCount(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
     return iCount;
     }
 
+typedef struct {
+    float d2;
+    uint32_t i;
+    } distance;
+
 static int cmpRadiusLite(const void *pva,const void *pvb) {
-    PLITE *pa = (PLITE *)pva;
-    PLITE *pb = (PLITE *)pvb;
-    double d = pa->r[0] - pb->r[0];
+    distance *pa = (distance *)pva;
+    distance *pb = (distance *)pvb;
+    float d = pa->d2 - pb->d2;
     if ( d > 0 ) return 1;
     else if ( d < 0 ) return -1;
     return 0;
@@ -227,7 +232,7 @@ static int cmpRadiusLite(const void *pva,const void *pvb) {
 ** Sort by distance when finished.
 */
 void pkdCalcDistance(PKD pkd, double *dCenter) {
-    PLITE *pl = pkd->pLite;
+    distance *pl = (distance *)pkd->pLite;
     int i;
 
     /*
@@ -236,12 +241,10 @@ void pkdCalcDistance(PKD pkd, double *dCenter) {
     for (i=0;i<pkd->nLocal;++i) {
 	PARTICLE *p = pkdParticle(pkd,i);
 	double m = pkdMass(pkd,p);
-	pl[i].r[0] = pkdGetDistance2(pkd,p,dCenter);
-	pl[i].r[1] = m;
-	pl[i].r[2] = 0.0;
+	pl[i].d2 = pkdGetDistance2(pkd,p,dCenter);
 	pl[i].i = i;
 	}
-    qsort(pkd->pLite,pkdLocal(pkd),sizeof(PLITE),cmpRadiusLite);
+    qsort(pkd->pLite,pkdLocal(pkd),sizeof(distance),cmpRadiusLite);
     }
 
 /*
@@ -281,14 +284,14 @@ void pkdCalcCOM(PKD pkd, double *dCenter, double dRadius,
 ** Count the number of elements that are interior to r2
 */
 uint_fast32_t pkdCountDistance(PKD pkd, double r2i, double r2o ) {
-    PLITE *pl = pkd->pLite;
+    distance *pl = pkd->pLite;
     uint64_t lo,hi,i,upper;
 
     lo = 0;
     hi = pkd->nLocal;
     while( lo<hi ) {
 	i = (lo+hi) / 2;
-	if ( pl[i].r[0] >= r2o ) hi = i;
+	if ( pl[i].d2 >= r2o ) hi = i;
 	else lo = i+1;
 	}
     upper = hi;
@@ -296,7 +299,7 @@ uint_fast32_t pkdCountDistance(PKD pkd, double r2i, double r2o ) {
     lo = 0;
     while( lo<hi ) {
 	i = (lo+hi) / 2;
-	if ( pl[i].r[0] >= r2i ) hi = i;
+	if ( pl[i].d2 >= r2i ) hi = i;
 	else lo = i+1;
 	}
 
@@ -325,7 +328,7 @@ double ell_distance2(const double *r,SHAPESBIN *pShape, double ba, double ca) {
 **     taking the algorithm from Nbin * Npart down to Npart.
 */
 static void CalculateInertia(PKD pkd,int nBins, const double *dRadii, SHAPESBIN *shapesBins) {
-    PLITE *pl = pkd->pLite;
+    distance *pl = pkd->pLite;
     local_t n = pkdLocal(pkd);
     SHAPESBIN *pShape;
     double r, r2;
@@ -348,8 +351,8 @@ static void CalculateInertia(PKD pkd,int nBins, const double *dRadii, SHAPESBIN 
 	r2 = r*r;
 
 	/* Find the bin: Assume that the last particle was close to the correct bin */
-	while( pl[i].r[0]<dRadii[iBin]*dRadii[iBin] && iBin < nBins ) ++iBin;
-	while( pl[i].r[0]>dRadii[iBin]*dRadii[iBin] ) --iBin;
+	while( pl[i].d2<dRadii[iBin]*dRadii[iBin] && iBin < nBins ) ++iBin;
+	while( pl[i].d2>dRadii[iBin]*dRadii[iBin] ) --iBin;
 
 	pShape = CAST(SHAPESBIN *,mdlAcquire(pkd->mdl,CID_SHAPES,iBin,0));
 	pShape->dMassEnclosed += m;
@@ -503,7 +506,7 @@ void pkdShapes(PKD pkd, int nBins, const double *dCenter, const double *dRadii) 
 void pkdProfile(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
 		const double *dCenter, const double *dRadii, int nBins,
 		const double *com, const double *vcm, const double *L) {
-    PLITE *pl = pkd->pLite;
+    distance *pl = pkd->pLite;
     local_t n = pkdLocal(pkd);
     double r0, r, r2;
     int i,iBin;
@@ -544,7 +547,7 @@ void pkdProfile(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
 	r2 = r*r;
 	assert( r > r0 );
 
-	while( pl[i].r[0] <= r2 && i<n) {
+	while( pl[i].d2 <= r2 && i<n) {
 	    PARTICLE *p = pkdParticle(pkd,pl[i].i);
 	    double m = pkdMass(pkd,p);
 	    vel_t *v = pkdVel(pkd,p);
@@ -556,7 +559,7 @@ void pkdProfile(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
 	    r[1] = pkdPos(p->r,1);
 	    r[2] = pkdPos(p->r,2);
 
-	    pBin->dMassInBin += pl[i].r[1];
+	    pBin->dMassInBin += m;
 	    pBin->nParticles++;
 
 	    vec_sub(delta_x,r,com);
@@ -586,7 +589,7 @@ void pkdProfile(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
 	r = dRadii[iBin];
 	r2 = r*r;
 	assert( r > r0 );
-	while( pl[i].r[0] <= r2 && i<n) {
+	while( pl[i].d2 <= r2 && i<n) {
 	    PARTICLE *p = pkdParticle(pkd,pl[i].i);
 	    double m = pkdMass(pkd,p);
 	    vel_t *v = pkdVel(pkd,p);
