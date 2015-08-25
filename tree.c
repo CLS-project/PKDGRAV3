@@ -182,33 +182,6 @@ void BuildTemp(PKD pkd,int iNode,int M) {
 	** Now start the partitioning of the particles about
 	** fSplit on dimension given by d.
 	*/
-#ifdef USE_PLITE
-	i = pNode->pLower;
-	j = pNode->pUpper;
-	while (i <= j) {
-	    if (p[i].r[d] < fSplit) ++i;
-	    else break;
-	    }
-	while (i <= j) {
-	    if (fSplit < p[j].r[d]) --j;
-	    else break;
-	    }
-	if (i < j) {
-	    t = p[i];
-	    p[i] = p[j];
-	    p[j] = t;
-	    while (1) {
-		while (p[++i].r[d] < fSplit);
-		while (fSplit < p[--j].r[d]);
-		if (i < j) {
-		    t = p[i];
-		    p[i] = p[j];
-		    p[j] = t;
-		    }
-		else break;
-		}
-	    }
-#else
 	pi = pkdParticle(pkd,pNode->pLower);
 	pj = pkdParticle(pkd,pNode->pUpper);
 	while (pi <= pj) {
@@ -231,7 +204,6 @@ void BuildTemp(PKD pkd,int iNode,int M) {
 		}
 	    }
 	i = ((char *)pi - (char *)pkdParticleBase(pkd)) / pkdParticleSize(pkd);
-#endif
 	nl = i - pNode->pLower;
 	nr = pNode->pUpper - i + 1;
 	if (nl > 0 && nr > 0) {
