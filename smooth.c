@@ -261,6 +261,8 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
 
     smx = malloc(sizeof(struct smContext));
     assert(smx != NULL);
+    smx->pSentinel = malloc(pkdParticleSize(pkd));
+    assert(smx->pSentinel != NULL);
     smx->pkd = pkd;
     if (smf != NULL) smf->pkd = pkd;
     smx->nSmooth = nSmooth;
@@ -493,10 +495,10 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
     ** as long as there are nSmooth particles set bSrcActive=1.
     */
     for (j=0;j<3;++j) {
-	pkdSetPos(smx->pSentinel.r,j,HUGE_VAL);
+	pkdSetPos(smx->pSentinel->r,j,HUGE_VAL);
     }
-    smx->pSentinel.bSrcActive = 1;
-    smx->pSentinel.bDstActive = 0;
+    smx->pSentinel->bSrcActive = 1;
+    smx->pSentinel->bDstActive = 0;
     /*
     ** Need to cast the pLite to an array of extra stuff.
     */
@@ -576,6 +578,7 @@ void smFinish(SMX smx,SMF *smf) {
     free(smx->pq);
     free(smx->nnList);
     free(smx->pHash);
+    free(smx->pSentinel);
     free(smx);
 }
 
@@ -713,12 +716,12 @@ void smSmoothInitialize(SMX smx) {
     ** Initialize the priority queue first.
     */
     for (i=0;i<smx->nSmooth;++i) {
-	smx->pq[i].pPart = &smx->pSentinel;
+	smx->pq[i].pPart = smx->pSentinel;
 	smx->pq[i].iIndex = smx->pkd->nLocal;
 	smx->pq[i].iPid = smx->pkd->idSelf;
-	smx->pq[i].dx = pkdPos(smx->pSentinel.r,0);
-	smx->pq[i].dy = pkdPos(smx->pSentinel.r,1);
-	smx->pq[i].dz = pkdPos(smx->pSentinel.r,2);
+	smx->pq[i].dx = pkdPos(smx->pSentinel->r,0);
+	smx->pq[i].dy = pkdPos(smx->pSentinel->r,1);
+	smx->pq[i].dz = pkdPos(smx->pSentinel->r,2);
 	smx->pq[i].fDist2 = pow(smx->pq[i].dx,2) + pow(smx->pq[i].dy,2) + 
 	    pow(smx->pq[i].dz,2);
 	}
@@ -1940,12 +1943,12 @@ void smFastGasPhase1(SMX smx,SMF *smf) {
     ** Initialize the priority queue first.
     */
     for (i=0;i<smx->nSmooth;++i) {
-	smx->pq[i].pPart = &smx->pSentinel;
+	smx->pq[i].pPart = smx->pSentinel;
 	smx->pq[i].iIndex = pkd->nLocal;
 	smx->pq[i].iPid = pkd->idSelf;
-	smx->pq[i].dx = pkdPos(smx->pSentinel.r,0);
-	smx->pq[i].dy = pkdPos(smx->pSentinel.r,1);
-	smx->pq[i].dz = pkdPos(smx->pSentinel.r,2);
+	smx->pq[i].dx = pkdPos(smx->pSentinel->r,0);
+	smx->pq[i].dy = pkdPos(smx->pSentinel->r,1);
+	smx->pq[i].dz = pkdPos(smx->pSentinel->r,2);
 	smx->pq[i].fDist2 = pow(smx->pq[i].dx,2) + pow(smx->pq[i].dy,2) + 
 	    pow(smx->pq[i].dz,2);
     }

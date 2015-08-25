@@ -29,7 +29,7 @@ struct smGroupArray {
 
 typedef struct smContext {
     PKD pkd;
-    PARTICLE pSentinel;
+    PARTICLE *pSentinel;
     void (*fcnSmooth)(PARTICLE *,float,int,NN *,SMF *);
     void (*fcnPost)(void *,PARTICLE *,SMF *);
     int nSmooth;
