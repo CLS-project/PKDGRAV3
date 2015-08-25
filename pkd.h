@@ -939,37 +939,20 @@ static inline int32_t *pkdGroup( PKD pkd, PARTICLE *p ) {
     }
 
 static inline float pkdDensity( PKD pkd, PARTICLE *p ) {
-#ifndef SMOOTH_VARS
     assert(pkd->oDensity);
     return * CAST(float *, pkdField(p,pkd->oDensity));
-#else
-    return p->fDensityPRIVATE;
-#endif
     }
 static inline void pkdSetDensity( PKD pkd, PARTICLE *p, float fDensity ) {
-#ifndef SMOOTH_VARS
     if (pkd->oDensity) *CAST(float *, pkdField(p,pkd->oDensity)) = fDensity;
-#else
-    p->fDensityPRIVATE = fDensity;
-#endif
     }
 
 static inline float pkdBall( PKD pkd, PARTICLE *p ) {
-#ifndef SMOOTH_VARS
     assert(pkd->oBall);
     return *CAST(float *, pkdField(p,pkd->oBall));
-#else
-    return p->fBallPRIVATE;
-#endif
     }
 static inline void pkdSetBall(PKD pkd, PARTICLE *p, float fBall) {
-#ifndef SMOOTH_VARS
     if (pkd->oBall) *CAST(float *, pkdField(p,pkd->oBall)) = fBall;
-#else
-    p->fBallPRIVATE = fBall;
-#endif
     }
-
 
 /* Here is the new way of getting mass and softening */
 static inline float pkdMass( PKD pkd, PARTICLE *p ) {

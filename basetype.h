@@ -33,11 +33,6 @@ typedef struct particle {
     uint8_t  bDstActive :  1;
     uint8_t  iClass     :  8;
     pos_t rPRIVATE[3];
-#ifdef SMOOTH_VARS
-    /*-----Used-for-Smooth-------*/
-    float fBallPRIVATE;
-    float fDensityPRIVATE;
-#endif
     } PARTICLE;
 
 #define PP_CUDA_MEMORY_LIMIT (1024*1024)
