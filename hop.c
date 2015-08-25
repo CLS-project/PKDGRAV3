@@ -181,7 +181,7 @@ static int combineDuplicateGroupIds(PKD pkd, int nGroups, struct smGroupArray *g
 /*
 ** Follow the link for the given particle
 */
-static int traverseLink(PKD pkd,remoteID *pl, struct smGroupArray *ga,int pi,
+static int traverseLink(PKD pkd,struct smGroupArray *ga,int pi,
     int *iPid2,int *iIndex2,int *iMinPartPid,int *iMinPartIndex) {
     MDL mdl = pkd->mdl;
     PARTICLE *p;
@@ -249,7 +249,7 @@ int smHopLink(SMX smx,SMF *smf) {
     int nGroups, nLocal, nRemote;
     int iIndex1, iIndex2, iMinPartIndex, iPid1, iPid2, iMinPartPid, iParticle;
     struct smGroupArray *ga = smx->ga;
-    remoteID *pl = smx->pl;
+    uint32_t *pl = smx->pl;
 
     for (pi=0;pi<pkd->nLocal;++pi) {
 	p = pkdParticle(pkd,pi);
@@ -260,7 +260,7 @@ int smHopLink(SMX smx,SMF *smf) {
 	ga[pi].iGid = pi;
 	ga[pi].id.iPid = mdlSelf(mdl);
 	ga[pi].id.iIndex = -1; /* Sentinel */
-	pl[pi].iPid = pl[pi].iIndex = -1;
+	pl[pi] = -1;
 	}
     smSmoothInitialize(smx);
 
@@ -285,7 +285,7 @@ int smHopLink(SMX smx,SMF *smf) {
 	for(;;) {
 	    *pkdGroup(pkd,p) = nGroups;
 	    smReSmoothSingle(smx,smf,p,pkdBall(pkd,p));
-	    ga[nGroups].id = pl[iParticle] = smf->hopParticleLink;
+	    ga[nGroups].id = smf->hopParticleLink;
 
 	    /*
 	    ** Call mdlCacheCheck to make sure we are making progress!
@@ -295,16 +295,16 @@ int smHopLink(SMX smx,SMF *smf) {
 	    ** If we link to a remote node, then this group chain is done for now.
 	    ** Later we will merge remote groups.
 	    **/
-	    if (pl[iParticle].iPid != pkd->idSelf ) { ++nGroups; ++nRemote; break; }
+	    if (smf->hopParticleLink.iPid != pkd->idSelf ) { ++nGroups; ++nRemote; break; }
 	    else {
-		iParticle=pl[iParticle].iIndex;
+		iParticle=pl[iParticle]=smf->hopParticleLink.iIndex;
 		p = pkdParticle(pkd,iParticle);
 		gid = *pkdGroup(pkd,p);
 		/* We link to ourselves: this forms a new "loop" */
 		if ( gid == nGroups ) { ++nGroups; ++nLoop; break; }
 		/* Ok, some other group: merge this "spur" on to it */
 		else if ( gid > 0 ) {
-		    for(j=pi; j!=iParticle; j=pl[j].iIndex) {
+		    for(j=pi; j!=iParticle; j=pl[j]) {
 			p = pkdParticle(pkd,j);
 			*pkdGroup(pkd,p) = gid;
 			}
@@ -361,9 +361,9 @@ int smHopLink(SMX smx,SMF *smf) {
 	    iMinPartIndex = iIndex1 = iIndex2 = ga[pi].id.iIndex;
 	    for(;;) {
 		/* We use Floyd's cycle-finding algorithm here */
-		if (traverseLink(pkd,pl,ga,pi,&iPid2,&iIndex2,&iMinPartPid,&iMinPartIndex)) break;
-		if (traverseLink(pkd,pl,ga,pi,&iPid2,&iIndex2,&iMinPartPid,&iMinPartIndex)) break;
-		traverseLink(pkd,pl,ga,pi,&iPid1,&iIndex1,NULL,NULL);
+		if (traverseLink(pkd,ga,pi,&iPid2,&iIndex2,&iMinPartPid,&iMinPartIndex)) break;
+		if (traverseLink(pkd,ga,pi,&iPid2,&iIndex2,&iMinPartPid,&iMinPartIndex)) break;
+		traverseLink(pkd,ga,pi,&iPid1,&iIndex1,NULL,NULL);
 		/*
 		** If we see a loop here, then we are not a part of it (we are a spur).
 		** We point ourselves at one of the loop members so we can later
@@ -388,12 +388,10 @@ int smHopLink(SMX smx,SMF *smf) {
     for (pi=0;pi<pkd->nLocal;++pi) {
 	p = pkdParticle(pkd,pi);
 	if (!p->bMarked) continue;
-	iPid1 = pl[pi].iPid;
-	iIndex1 = pl[pi].iIndex;
-	while(iPid1==pkd->idSelf && !(p=pkdParticle(pkd,iIndex1))->bMarked) {
+	iIndex1 = pl[pi];
+	while(iIndex1!=-1 && !(p=pkdParticle(pkd,iIndex1))->bMarked) {
 	    p->bMarked = 1;
-	    iPid1 = pl[iIndex1].iPid;
-	    iIndex1 = pl[iIndex1].iIndex;
+	    iIndex1 = pl[iIndex1];
 	    }
 	}
     nGroups = combineDuplicateGroupIds(pkd,nGroups,ga,0);

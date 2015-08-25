@@ -504,11 +504,11 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
     */
     STATIC_ASSERT(EPHEMERAL_BYTES >= sizeof(struct smExtraArray),
 	"The pLite structure is not large enough");
-    STATIC_ASSERT(EPHEMERAL_BYTES >= sizeof(struct smGroupArray)/2 + sizeof(remoteID),
+    STATIC_ASSERT(EPHEMERAL_BYTES >= sizeof(struct smGroupArray)/4 + sizeof(uint32_t),
 	"The pLite structure is not large enough");
     smx->ea = (struct smExtraArray *)(pkd->pLite); /* Used only for SPH */
-    smx->pl = (remoteID *)(pkd->pLite); /* Used for Hop: particle links */
-    smx->ga = (struct smGroupArray *)(smx->pl + pkd->nLocal + 1); /* Hop: Skeleton groups nGroups << nLocal/2 */
+    smx->pl = (uint32_t *)(pkd->pLite); /* Used for Hop: particle links */
+    smx->ga = (struct smGroupArray *)(smx->pl + pkd->nLocal + 1); /* Hop: Skeleton groups nGroups << nLocal/4 */
     *psmx = smx;
     return(1);
 }

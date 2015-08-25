@@ -115,7 +115,7 @@ typedef struct {
     uint32_t uCell;
     } TREESPEC;
 
-#define EPHEMERAL_BYTES 16
+#define EPHEMERAL_BYTES 8
 
 typedef struct {
     FLOAT rscale[3];
