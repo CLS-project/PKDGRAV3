@@ -1004,8 +1004,8 @@ static inline FIO_SPECIES pkdSpecies( PKD pkd, PARTICLE *p ) {
     return pkd->pClass[p->iClass].eSpecies;
     }
 #ifdef INTEGER_POSITION
-#define pkdPos(r,d) ((r##PRIVATE)[d] * (1.0/0xffffffffu) - 0.5)
-#define pkdSetPos(r,d,v) ((r##PRIVATE)[d] = ((v)+0.5)*0xffffffffu  )
+#define pkdPos(r,d) ((r##PRIVATE)[d] * (1.0/0x80000000u) - 1.0 )
+#define pkdSetPos(r,d,v) ((r##PRIVATE)[d] = ((v)+1.0)*0x80000000u  )
 #else
 #define pkdPos(r,d) (r##PRIVATE)[d]
 #define pkdSetPos(r,d,v) ((r##PRIVATE)[d] = (v))
