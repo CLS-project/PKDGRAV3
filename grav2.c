@@ -803,6 +803,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     double dRhoFac,SMX smx,SMF *smf) {
     PARTICLE *p;
     KDN *pkdn = pBucket;
+    double r[3];
     vel_t *v;
     double vx,vy,vz;
     float *a;
@@ -844,6 +845,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
 #endif
     for (i=pkdn->pLower;i<=pkdn->pUpper;++i) {
 	p = pkdParticle(pkd,i);
+	pkdGetPos1(p->r,r);
 	fMass = pkdMass(pkd,p);
 	fSoft = pkdSoft(pkd,p);
 	v = pkdVel(pkd,p);
@@ -854,9 +856,9 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
 	work->pPart[nP] = p;
 
 	a = pkdAccel(pkd,p);
-	work->pInfoIn[nP].r[0]  = (float)(pkdPos(p->r,0) - ilp->cx);
-	work->pInfoIn[nP].r[1]  = (float)(pkdPos(p->r,1) - ilp->cy);
-	work->pInfoIn[nP].r[2]  = (float)(pkdPos(p->r,2) - ilp->cz);
+	work->pInfoIn[nP].r[0]  = (float)(r[0] - ilp->cx);
+	work->pInfoIn[nP].r[1]  = (float)(r[1] - ilp->cy);
+	work->pInfoIn[nP].r[2]  = (float)(r[2] - ilp->cz);
 	work->pInfoIn[nP].a[0]  = a[0];
 	work->pInfoIn[nP].a[1]  = a[1];
 	work->pInfoIn[nP].a[2]  = a[2];
@@ -899,12 +901,13 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     */
     if (pLoc) {
 	for( i=0; i<work->nP; i++ ) {
+	    pkdGetPos1(work->pPart[i]->r,r);
 	    /*
 	    ** Evaluate local expansion.
 	    */
-	    dx = pkdPos(work->pPart[i]->r,0) - pkdn->r[0];
-	    dy = pkdPos(work->pPart[i]->r,1) - pkdn->r[1];
-	    dz = pkdPos(work->pPart[i]->r,2) - pkdn->r[2];
+	    dx = r[0] - pkdn->r[0];
+	    dy = r[1] - pkdn->r[1];
+	    dz = r[2] - pkdn->r[2];
 	    dPot = 0;
 	    ax = 0;
 	    ay = 0;
@@ -939,6 +942,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
 
     for( i=0; i<work->nP; i++ ) {
         p = work->pPart[i];
+	pkdGetPos1(p->r,r);
         v = pkdVel(pkd,p);
         a = pkdAccel(pkd,p);
         /*
@@ -958,9 +962,9 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
 		    n = (blk==tile->lstTile.nBlocks ? tile->lstTile.nInLast : ilp->lst.nPerBlock);
 		    for (prt=0; prt<n; ++prt) {
 			if (p->iOrder < pkd->param.nPartColl || tile->xtr[blk].iOrder.i[prt] < pkd->param.nPartColl) {
-			    fx = pkdPos(p->r,0) - ilp->cx + tile->blk[blk].dx.f[prt];
-			    fy = pkdPos(p->r,1) - ilp->cy + tile->blk[blk].dy.f[prt];
-			    fz = pkdPos(p->r,2) - ilp->cz + tile->blk[blk].dz.f[prt];
+			    fx = r[0] - ilp->cx + tile->blk[blk].dx.f[prt];
+			    fy = r[1] - ilp->cy + tile->blk[blk].dy.f[prt];
+			    fz = r[2] - ilp->cz + tile->blk[blk].dz.f[prt];
 			    d2 = fx*fx + fy*fy + fz*fz;
 			    if (p->iOrder == tile->xtr[blk].iOrder.i[prt]) continue;
 			    fourh2 = softmassweight(fMass,4*fSoft*fSoft,

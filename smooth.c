@@ -598,6 +598,7 @@ PQ *pqSearch(SMX smx,PQ *pq,FLOAT r[3]) {
     int idSelf = smx->pkd->idSelf;
     struct stStack *S = smx->ST;
     FLOAT dMin,min1,min2;
+    double p_r[3];
     int j,iCell,id;
     int sp = 0;
     const BND *bnd;
@@ -646,9 +647,10 @@ PQ *pqSearch(SMX smx,PQ *pq,FLOAT r[3]) {
 	    for (pj=kdn->pLower;pj<=pEnd;++pj) {
 		p = pkdParticle(pkd,pj);
 		if (!p->bMarked) continue;
-		dx = r[0] - pkdPos(p->r,0);
-		dy = r[1] - pkdPos(p->r,1);
-		dz = r[2] - pkdPos(p->r,2);
+		pkdGetPos1(p->r,p_r);
+		dx = r[0] - p_r[0];
+		dy = r[1] - p_r[1];
+		dz = r[2] - p_r[2];
 		fDist2 = dx*dx + dy*dy + dz*dz;
 		if (fDist2 <= pq->fDist2) {
 		    if (pq->iPid == idSelf) {
@@ -675,9 +677,10 @@ PQ *pqSearch(SMX smx,PQ *pq,FLOAT r[3]) {
 	    for (pj=kdn->pLower;pj<=pEnd;++pj) {
 		p = mdlFetch(mdl,CID_PARTICLE,pj,id);
 		if (!p->bSrcActive || smHashPresent(smx,p)) continue;
-		dx = r[0] - pkdPos(p->r,0);
-		dy = r[1] - pkdPos(p->r,1);
-		dz = r[2] - pkdPos(p->r,2);
+		pkdGetPos1(p->r,p_r);
+		dx = r[0] - p_r[0];
+		dy = r[1] - p_r[1];
+		dz = r[2] - p_r[2];
 		fDist2 = dx*dx + dy*dy + dz*dz;
 		if (fDist2 <= pq->fDist2) {
 		    if (pq->iPid == idSelf) {
@@ -751,31 +754,34 @@ void smSmoothFinish(SMX smx) {
 float smSmoothSingle(SMX smx,SMF *smf,PARTICLE *p) {
     PKD pkd = smx->pkd;
     int ix,iy,iz;
+    double p_r[3];
     FLOAT r[3],fBall;
     int iStart[3],iEnd[3];
     int j;
     PQ *pq;
+
+    pkdGetPos1(p->r,p_r);
 
     /*
     ** Correct distances and rebuild priority queue.
     */
     if (smx->bPeriodic) {
 	for (j=0;j<3;++j) {
-	    if (pkdPos(p->r,j) > smx->rLast[j] + 0.5 * pkd->fPeriod[j])
+	    if (p_r[j] > smx->rLast[j] + 0.5 * pkd->fPeriod[j])
 		smx->rLast[j] += pkd->fPeriod[j];
-	    else if (pkdPos(p->r,j) < smx->rLast[j] - 0.5 * pkd->fPeriod[j])
+	    else if (p_r[j] < smx->rLast[j] - 0.5 * pkd->fPeriod[j])
 		smx->rLast[j] -= pkd->fPeriod[j];
 	    }
 	}
 
     for (j=0;j<smx->nSmooth;++j) {
-	smx->pq[j].dx += pkdPos(p->r,0)-smx->rLast[0];
-	smx->pq[j].dy += pkdPos(p->r,1)-smx->rLast[1];
-	smx->pq[j].dz += pkdPos(p->r,2)-smx->rLast[2];
+	smx->pq[j].dx += p_r[0]-smx->rLast[0];
+	smx->pq[j].dy += p_r[1]-smx->rLast[1];
+	smx->pq[j].dz += p_r[2]-smx->rLast[2];
 	smx->pq[j].fDist2 = pow(smx->pq[j].dx,2) + pow(smx->pq[j].dy,2) + 
 	    pow(smx->pq[j].dz,2);
 	}
-    for (j=0;j<3;++j) smx->rLast[j] = r[j] = pkdPos(p->r,j);
+    for (j=0;j<3;++j) smx->rLast[j] = r[j] = p_r[j];
 
     PQ_BUILD(smx->pq,smx->nSmooth,pq);
     pq = pqSearch(smx,pq,r);
@@ -785,15 +791,15 @@ float smSmoothSingle(SMX smx,SMF *smf,PARTICLE *p) {
     if (smx->bPeriodic) {
 	fBall = sqrt(pq->fDist2);
 	for (j=0;j<3;++j) {
-	    iStart[j] = d2i(floor((pkdPos(p->r,j) - fBall)/pkd->fPeriod[j] + 0.5));
-	    iEnd[j] = d2i(floor((pkdPos(p->r,j) + fBall)/pkd->fPeriod[j] + 0.5));
+	    iStart[j] = d2i(floor((p_r[j] - fBall)/pkd->fPeriod[j] + 0.5));
+	    iEnd[j] = d2i(floor((p_r[j] + fBall)/pkd->fPeriod[j] + 0.5));
 	    }
 	for (ix=iStart[0];ix<=iEnd[0];++ix) {
-	    r[0] = pkdPos(p->r,0) - ix*pkd->fPeriod[0];
+	    r[0] = p_r[0] - ix*pkd->fPeriod[0];
 	    for (iy=iStart[1];iy<=iEnd[1];++iy) {
-		r[1] = pkdPos(p->r,1) - iy*pkd->fPeriod[1];
+		r[1] = p_r[1] - iy*pkd->fPeriod[1];
 		for (iz=iStart[2];iz<=iEnd[2];++iz) {
-		    r[2] = pkdPos(p->r,2) - iz*pkd->fPeriod[2];
+		    r[2] = p_r[2] - iz*pkd->fPeriod[2];
 		    if (ix || iy || iz) {
 			pq = pqSearch(smx,pq,r);
 			}
@@ -1833,37 +1839,35 @@ void BoundWalkActive(SMX smx,LIST **ppList,int *pnMaxpList) {
 void DoLocalSearch(SMX smx,SMF *smf,PARTICLE *p,double *rLast) {
     PKD pkd = smx->pkd;
     PQ *pq;
-    FLOAT r[3];
+    double p_r[3], r[3];
     float fBall;
     int i,j,bDone,ix,iy,iz;
+
+    pkdGetPos1(p->r,p_r);
 
     /*
     ** Correct distances and rebuild priority queue.
     */
     for (i=0;i<smx->nSmooth;++i) {
-	smx->pq[i].dx += pkdPos(p->r,0)-rLast[0];
-	smx->pq[i].dy += pkdPos(p->r,1)-rLast[1];
-	smx->pq[i].dz += pkdPos(p->r,2)-rLast[2];
+	smx->pq[i].dx += p_r[0]-rLast[0];
+	smx->pq[i].dy += p_r[1]-rLast[1];
+	smx->pq[i].dz += p_r[2]-rLast[2];
 	smx->pq[i].fDist2 = pow(smx->pq[i].dx,2) + pow(smx->pq[i].dy,2) + 
 	    pow(smx->pq[i].dz,2);
     }
-    for (j=0;j<3;++j) rLast[j] = pkdPos(p->r,j);
+    for (j=0;j<3;++j) rLast[j] = p_r[j];
     PQ_BUILD(smx->pq,smx->nSmooth,pq);
-
-    r[0] = pkdPos(p->r,0);
-    r[1] = pkdPos(p->r,1);
-    r[2] = pkdPos(p->r,2);
-    pq = pqSearch(smx,pq,r);
+    pq = pqSearch(smx,pq,p_r);
     /*
     ** Search in replica boxes if it is required.
     */
     if (smx->bPeriodic) {
 	for (ix=-1;ix<=1;++ix) {
-	    r[0] = pkdPos(p->r,0) - ix*pkd->fPeriod[0];
+	    r[0] = p_r[0] - ix*pkd->fPeriod[0];
 	    for (iy=-1;iy<=1;++iy) {
-		r[1] = pkdPos(p->r,1) - iy*pkd->fPeriod[1];
+		r[1] = p_r[1] - iy*pkd->fPeriod[1];
 		for (iz=-1;iz<=1;++iz) {
-		    r[2] = pkdPos(p->r,2) - iz*pkd->fPeriod[2];
+		    r[2] = p_r[2] - iz*pkd->fPeriod[2];
 		    if (ix || iy || iz) {
 			pq = pqSearch(smx,pq,r);
 		    }
@@ -2390,6 +2394,7 @@ void smGather(SMX smx,FLOAT fBall2,FLOAT r[3]) {
     int sp = 0;
     const BND *bnd;
     PARTICLE *p;
+    double p_r[3];
     FLOAT dx, dy, dz, fDist2;
     int pj, pEnd, nCnt;
 
@@ -2420,9 +2425,10 @@ void smGather(SMX smx,FLOAT fBall2,FLOAT r[3]) {
 		for (pj=kdn->pLower;pj<=pEnd;++pj) {
 		    p = pkdParticle(pkd,pj);
 		    if ( !pkdIsSrcActive(p,0,MAX_RUNG) ) continue;
-		    dx = r[0] - pkdPos(p->r,0);
-		    dy = r[1] - pkdPos(p->r,1);
-		    dz = r[2] - pkdPos(p->r,2);
+		    pkdGetPos1(p->r,p_r);
+		    dx = r[0] - p_r[0];
+		    dy = r[1] - p_r[1];
+		    dz = r[2] - p_r[2];
 		    fDist2 = dx*dx + dy*dy + dz*dz;
 		    if (fDist2 <= fBall2) {
 			if (nCnt >= smx->nnListMax) {
@@ -2446,9 +2452,10 @@ void smGather(SMX smx,FLOAT fBall2,FLOAT r[3]) {
 		for (pj=kdn->pLower;pj<=pEnd;++pj) {
 		    p = mdlFetch(mdl,CID_PARTICLE,pj,id);
 		    if ( !pkdIsSrcActive(p,0,MAX_RUNG) ) continue;
-		    dx = r[0] - pkdPos(p->r,0);
-		    dy = r[1] - pkdPos(p->r,1);
-		    dz = r[2] - pkdPos(p->r,2);
+		    pkdGetPos1(p->r,p_r);
+		    dx = r[0] - p_r[0];
+		    dy = r[1] - p_r[1];
+		    dz = r[2] - p_r[2];
 		    fDist2 = dx*dx + dy*dy + dz*dz;
 		    if (fDist2 <= fBall2) {
 			if (nCnt >= smx->nnListMax) {
@@ -2483,6 +2490,7 @@ void smDoGatherLocal(SMX smx,FLOAT fBall2,FLOAT r[3],void (*Do)(SMX,PARTICLE *,F
     PKD pkd = smx->pkd;
     KDN *kdn;
     PARTICLE *p;
+    double p_r[3];
     FLOAT min2,dx,dy,dz,fDist2;
     int *S = smx->S;
     int sp = 0;
@@ -2509,9 +2517,10 @@ void smDoGatherLocal(SMX smx,FLOAT fBall2,FLOAT r[3],void (*Do)(SMX,PARTICLE *,F
 	    for (pj=kdn->pLower;pj<=pEnd;++pj) {
 		p = pkdParticle(pkd,pj);
 		if ( !pkdIsSrcActive(p,0,MAX_RUNG) ) continue;
-		dx = r[0] - pkdPos(p->r,0);
-		dy = r[1] - pkdPos(p->r,1);
-		dz = r[2] - pkdPos(p->r,2);
+		pkdGetPos1(p->r,p_r);
+		dx = r[0] - p_r[0];
+		dy = r[1] - p_r[1];
+		dz = r[2] - p_r[2];
 		fDist2 = dx*dx + dy*dy + dz*dz;
 		if (fDist2 <= fBall2) {
 		    Do(smx,p,fDist2);
@@ -2527,14 +2536,12 @@ void smDoGatherLocal(SMX smx,FLOAT fBall2,FLOAT r[3],void (*Do)(SMX,PARTICLE *,F
 
 void smReSmoothSingle(SMX smx,SMF *smf,PARTICLE *p,FLOAT fBall) {
     PKD pkd = smx->pkd;
-    FLOAT R[3], r[3];
+    double R[3], r[3];
     int iStart[3],iEnd[3];
     int i,j;
     int ix,iy,iz;
 
-    R[0] = pkdPos(p->r,0);
-    R[1] = pkdPos(p->r,1);
-    R[2] = pkdPos(p->r,2);
+    pkdGetPos1(p->r,R);
 
     smx->nnListSize = 0;
     /*
@@ -2787,15 +2794,13 @@ void smFof(SMX smx,SMF *smf) {
 	    /*
 	    ** Do a Ball Gather at the radius p->fBall
 	    */
-	    R[0] = pkdPos(p->r,0);
-	    R[1] = pkdPos(p->r,1);
-	    R[2] = pkdPos(p->r,2);
+	    pkdGetPos1(p->r,R);
 	    smx->nnListSize = 0;
 	    fBall = sqrt(pkdBall(pkd,p));
 	    if (smx->bPeriodic) {
 		for (j=0;j<3;++j) {
-		    iStart[j] = d2i(floor((pkdPos(p->r,j) - fBall)/pkd->fPeriod[j] + 0.5));
-		    iEnd[j] = d2i(floor((pkdPos(p->r,j) + fBall)/pkd->fPeriod[j] + 0.5));
+		    iStart[j] = d2i(floor((R[j] - fBall)/pkd->fPeriod[j] + 0.5));
+		    iEnd[j] = d2i(floor((R[j] + fBall)/pkd->fPeriod[j] + 0.5));
 		}
 		for (ix=iStart[0];ix<=iEnd[0];++ix) {
 		    r[0] = R[0] - ix*pkd->fPeriod[0];

@@ -26,11 +26,19 @@ typedef double pos_t;
 #ifdef INTEGER_POSITION
 #define pkdPos(r,d) ((r##PRIVATE)[d] * (1.0/0x80000000u))
 #define pkdSetPos(r,d,v) ((r##PRIVATE)[d] = (v)*0x80000000u)
+#define pkdGetPos3(s,d1,d2,d3) do {					\
+	union { __m256d p; double d[4]; } r_pkdGetPos3;			\
+	r_pkdGetPos3.p = _mm256_mul_pd(_mm256_cvtepi32_pd(*(__m128i *)&(s##PRIVATE)),_mm256_set1_pd(1.0/0x80000000u) ); \
+	d1 = r_pkdGetPos3.d[0];						\
+	d2 = r_pkdGetPos3.d[1];						\
+	d3 = r_pkdGetPos3.d[2];						\
+	} while(0)
 #else
 #define pkdPos(r,d) (r##PRIVATE)[d]
 #define pkdSetPos(r,d,v) ((r##PRIVATE)[d] = (v))
+#define pkdGetPos3(s,d1,d2,d3) ((d1)=pkdPos(s,0),(d2)=pkdPos(s,1),(d3)=pkdPos(s,2))
 #endif
-#define pkdGetPos(d,s) ((d)[0]=pkdPos(s,0),(d)[1]=pkdPos(s,1),(d)[2]=pkdPos(s,2))
+#define pkdGetPos1(s,d) pkdGetPos3(s,(d)[0],(d)[1],(d)[2])
 typedef struct particle {
     /*-----Base-Particle-Data----*/
     uint64_t iOrder     :  IORDERBITS;

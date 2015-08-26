@@ -308,6 +308,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
     double dShiftFlop;
     const vel_t *v;
     const float *a;
+    double r[3];
     double dOffset[3];
     double xParent,yParent,zParent;
     double d2;
@@ -375,9 +376,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
 	for (pj=kFind->pLower;pj<=kFind->pUpper;++pj) {
 	    p = pkdParticle(pkd,pj);
 	    if (!pkdIsActive(pkd,p)) continue;
-	    cx = pkdPos(p->r,0);
-	    cy = pkdPos(p->r,1);
-	    cz = pkdPos(p->r,2);
+	    pkdGetPos3(p->r,cx,cy,cz);
 	    goto found_it;
 	}
 	assert(0); /* We didn't find an active particle */
@@ -472,10 +471,11 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
 				    if (id == pkd->idSelf) p = pkdParticle(pkd,pj);
 				    else p = CAST(PARTICLE *,mdlFetch(pkd->mdl,CID_PARTICLE,pj,id));
 				    if (bGravStep && pkd->param.iTimeStepCrit == 1) v = pkdVel(pkd,p);
+				    pkdGetPos1(p->r,r);
 				    ilpAppend(pkd->ilp,
-					pkdPos(p->r,0) + blk->xOffset.f[jTile],
-					pkdPos(p->r,1) + blk->yOffset.f[jTile],
-					pkdPos(p->r,2) + blk->zOffset.f[jTile],
+					r[0] + blk->xOffset.f[jTile],
+					r[1] + blk->yOffset.f[jTile],
+					r[2] + blk->zOffset.f[jTile],
 					blk->m.f[jTile], blk->fourh2.f[jTile],
 					p->iOrder, v[0], v[1], v[2]);
 				    }
@@ -490,10 +490,11 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
 					fMass = pkdMass(pkd,p);
 					fSoft = pkdSoft(pkd,p);
 					if (bGravStep && pkd->param.iTimeStepCrit == 1) v = pkdVel(pkd,p);
+					pkdGetPos1(p->r,r);
 					ilpAppend(pkd->ilp,
-					    pkdPos(p->r,0) + blk->xOffset.f[jTile],
-					    pkdPos(p->r,1) + blk->yOffset.f[jTile],
-					    pkdPos(p->r,2) + blk->zOffset.f[jTile],
+					    r[0] + blk->xOffset.f[jTile],
+					    r[1] + blk->yOffset.f[jTile],
+					    r[2] + blk->zOffset.f[jTile],
 					    fMass, 4*fSoft*fSoft,
 					    p->iOrder, v[0], v[1], v[2]);
 					}
@@ -514,10 +515,9 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
 				if (id == pkd->idSelf) c = pkdTreeNode(pkd,iCheckCell);
 				else c = CAST(KDN *,mdlFetch(pkd->mdl,CID_CELL,iCheckCell,id));
 				for (pj=c->pLower;pj<=c->pUpper;++pj) {
-				    double r[3];
 				    if (id == pkd->idSelf) p = pkdParticle(pkd,pj);
 				    else p = CAST(PARTICLE *,mdlFetch(pkd->mdl,CID_PARTICLE,pj,id));
-				    for (j=0;j<3;++j) r[j] = pkdPos(p->r,j);
+				    pkdGetPos1(p->r,r);
 				    fMass = pkdMass(pkd,p);
 				    fSoft = pkdSoft(pkd,p);
 				    if (bGravStep && pkd->param.iTimeStepCrit == 1) v = pkdVel(pkd,p);

@@ -760,7 +760,7 @@ static void hopCalculateGroupStats(PKD pkd, int bPeriodic, double *dPeriod) {
     for (i=0;i<pkd->nLocal;++i) {
 	p = pkdParticle(pkd,i);
 	gid = *pkdGroup(pkd,p);
-	pkdGetPos(r,p->r);
+	pkdGetPos1(p->r,r);
 	v = pkdVel(pkd,p);
 	fMass = pkdMass(pkd,p);
 
