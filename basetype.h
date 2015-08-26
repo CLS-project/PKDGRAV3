@@ -18,7 +18,7 @@
 typedef float vel_t;
 /*#define INTEGER_POSITION*/
 #ifdef INTEGER_POSITION
-typedef uint32_t pos_t;
+typedef int32_t pos_t;
 #else
 typedef double pos_t;
 #endif
