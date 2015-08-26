@@ -212,9 +212,9 @@ int CUDAinitWorkEwald( void *ve, void *vwork ) {
     for(i=0; i<e->nP; ++i) {
         workParticle *wp = e->ppWorkPart[i];
         PARTICLE *p = wp->pPart[e->piWorkPart[i]];
-	X[i] = p->r[0];
-	Y[i] = p->r[1];
-	Z[i] = p->r[2];
+	X[i] = pkdPos(p->r,0);
+	Y[i] = pkdPos(p->r,1);
+	Z[i] = pkdPos(p->r,2);
 	}
 
     // copy data directly to device memory

@@ -23,6 +23,14 @@ typedef int32_t pos_t;
 typedef double pos_t;
 #endif
 
+#ifdef INTEGER_POSITION
+#define pkdPos(r,d) ((r##PRIVATE)[d] * (1.0/0x80000000u))
+#define pkdSetPos(r,d,v) ((r##PRIVATE)[d] = (v)*0x80000000u)
+#else
+#define pkdPos(r,d) (r##PRIVATE)[d]
+#define pkdSetPos(r,d,v) ((r##PRIVATE)[d] = (v))
+#endif
+#define pkdGetPos(d,s) ((d)[0]=pkdPos(s,0),(d)[1]=pkdPos(s,1),(d)[2]=pkdPos(s,2))
 typedef struct particle {
     /*-----Base-Particle-Data----*/
     uint64_t iOrder     :  IORDERBITS;

@@ -495,7 +495,11 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
     ** as long as there are nSmooth particles set bSrcActive=1.
     */
     for (j=0;j<3;++j) {
+#ifdef INTEGER_POSITION
+	smx->pSentinel->rPRIVATE[j] = 0x7fffffff;
+#else
 	pkdSetPos(smx->pSentinel->r,j,HUGE_VAL);
+#endif
     }
     smx->pSentinel->bSrcActive = 1;
     smx->pSentinel->bDstActive = 0;

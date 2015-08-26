@@ -922,7 +922,7 @@ void pkdMeasurePk(PKD pkd, double dCenter[3], double dRadius,
 	if ( !pkdIsSrcActive(p,0,MAX_RUNG) ) continue;
 	/* Recenter, apply periodic boundary and scale to the correct size */
 	for(j=0;j<3;j++) {
-	    r[j] = p->r[j] - dCenter[j] + dRadius;
+	    r[j] = pkdPos(p->r,j) - dCenter[j] + dRadius;
 	    if ( pkd->param.bPeriodic ) {
 		if ( r[j] >= pkd->fPeriod[j] ) r[j] -= pkd->fPeriod[j];
 		else if ( r[j] < 0.0 ) r[j] += pkd->fPeriod[j];
