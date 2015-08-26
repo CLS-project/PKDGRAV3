@@ -240,6 +240,7 @@ static int traverseLink(PKD pkd,struct smGroupArray *ga,int pi,
 ** Link particles based on density gradients
 ** After we finish, all "chains" will be complete globally across all domains.
 ** Chains still need to be joined if their terminating loops are close together.
+** Prerequisites: Density and fBall from smooth
 */
 int smHopLink(SMX smx,SMF *smf) {
     PKD pkd = smx->pkd;
@@ -251,16 +252,13 @@ int smHopLink(SMX smx,SMF *smf) {
     struct smGroupArray *ga = smx->ga;
     uint32_t *pl = smx->pl;
 
+    ga[0].iGid = 0;
+    ga[0].id.iPid = mdlSelf(mdl);
+    ga[0].id.iIndex = -1; /* Sentinel */
     for (pi=0;pi<pkd->nLocal;++pi) {
 	p = pkdParticle(pkd,pi);
 	*pkdGroup(pkd,p) = 0; /* Ungrouped */
-	p->bMarked = 0; /* Not an arc (yet) */
-	p->bMarked = p->bSrcActive;
-	smx->ea[pi].iIndex = -1;
-	ga[pi].iGid = pi;
-	ga[pi].id.iPid = mdlSelf(mdl);
-	ga[pi].id.iIndex = -1; /* Sentinel */
-	pl[pi] = -1;
+	p->bMarked = p->bSrcActive; /* Used by smooth to determine active particles */
 	}
     smSmoothInitialize(smx);
 
@@ -284,9 +282,11 @@ int smHopLink(SMX smx,SMF *smf) {
 	ga[nGroups].iGid = nGroups;
 	for(;;) {
 	    *pkdGroup(pkd,p) = nGroups;
+	    /* Need: fDensity and fBall but pl[iParticle] is not yet used */
+	    /* fDensity MUST persist but fBall could be stashed into pl[] */
 	    smReSmoothSingle(smx,smf,p,pkdBall(pkd,p));
+	    /* Done: fBall */
 	    ga[nGroups].id = smf->hopParticleLink;
-
 	    /*
 	    ** Call mdlCacheCheck to make sure we are making progress!
 	    */
@@ -339,6 +339,8 @@ int smHopLink(SMX smx,SMF *smf) {
 
     /* We will update bMarked (an arc) remotely, so we need a combiner cache */
     mdlFinishCache(mdl,CID_PARTICLE);
+    for (pi=0;pi<pkd->nLocal;++pi)
+	pkdParticle(pkd,pi)->bMarked = 0; /* Not an arc (yet) */
     mdlCOcache(pkd->mdl,CID_PARTICLE,NULL,
 	pkdParticleBase(pkd),pkdParticleSize(pkd),
 	pkdLocal(pkd),pkd,initSetArc,combSetArc);
@@ -394,6 +396,9 @@ int smHopLink(SMX smx,SMF *smf) {
 	    iIndex1 = pl[iIndex1];
 	    }
 	}
+    /* Done: pl[] is no longer needed */
+    pl = NULL;
+
     nGroups = combineDuplicateGroupIds(pkd,nGroups,ga,0);
     /*
     ** Now handle deferred groups (ones pointing to, but not part of, loops).
