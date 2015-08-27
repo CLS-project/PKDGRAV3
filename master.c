@@ -1007,6 +1007,18 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     if (msr->param.dyPeriod == 0) msr->param.dyPeriod = FLOAT_MAXVAL;
     if (msr->param.dzPeriod == 0) msr->param.dzPeriod = FLOAT_MAXVAL;
     /*
+    ** At the moment, integer positions only work on periodic boxes.
+    */
+#ifdef INTEGER_POSITION
+    if (!msr->param.bPeriodic||msr->param.dxPeriod!=1.0||msr->param.dyPeriod!=1.0||msr->param.dzPeriod!=1.0) {
+	fprintf(stderr,"ERROR: Integer coordinates are enabled but the the box is not periodic\n"
+	               "       and/or the box size is not 1. Set bPeriodic=1 and dPeriod=1.\n");
+	_msrExit(msr,1);
+	}
+#endif
+
+
+    /*
     ** Determine opening type.
     */
     if (!prmSpecified(msr->prm,"dTheta2"))

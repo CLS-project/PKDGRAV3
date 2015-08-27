@@ -23,6 +23,12 @@ typedef int32_t pos_t;
 typedef double pos_t;
 #endif
 
+/*
+** Integerized coordinates: signed integer -0x7fffffff to +0x7fffffff
+** We assume a periodic box of width 1 so a simple multiple will convert.
+** The situation is more complicated with non-periodic boxes, or for boxes
+** with a different period so this is not currently supported.
+*/
 #ifdef INTEGER_POSITION
 #define pkdPos(r,d) ((r##PRIVATE)[d] * (1.0/0x80000000u))
 #define pkdSetPos(r,d,v) ((r##PRIVATE)[d] = (v)*0x80000000u)
