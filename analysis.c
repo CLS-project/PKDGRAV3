@@ -265,9 +265,7 @@ void pkdCalcCOM(PKD pkd, double *dCenter, double dRadius,
 	double m = pkdMass(pkd,p);
 	vel_t *v = pkdVel(pkd,p);
 	double r[3];
-	r[0] = pkdPos(p->r,0);
-	r[1] = pkdPos(p->r,1);
-	r[2] = pkdPos(p->r,2);
+	pkdGetPos1(p->r,r);
 	d2 = pkdGetDistance2(pkd,p,dCenter );
 	if ( d2 < dRadius2 ) {
 	    *M += m;

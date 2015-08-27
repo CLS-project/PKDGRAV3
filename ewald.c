@@ -450,7 +450,7 @@ int pkdParticleEwald(PKD pkd,PARTICLE *p, float *pa, float *pPot) {
     struct EwaldVariables *ew = &pkd->ew;
     EwaldTable *ewt = &pkd->ewt;
     const MOMC * restrict mom = &ew->mom;
-    double L,Pot,ax,ay,az,dx,dy,dz,x,y,z,r2;
+    double L,Pot,ax,ay,az,dx,dy,dz,x,y,z,r[3],r2;
 #ifdef USE_SIMD_EWALD
     v_df dPot,dax,day,daz;
     v_sf fPot,fax,fay,faz,fx,fy,fz;
@@ -465,9 +465,10 @@ int pkdParticleEwald(PKD pkd,PARTICLE *p, float *pa, float *pPot) {
     assert(pkd->oAcceleration); /* Validate memory model */
 
     L = ew->Lbox;
-    dx = pkdPos(p->r,0) - ew->r[0];
-    dy = pkdPos(p->r,1) - ew->r[1];
-    dz = pkdPos(p->r,2) - ew->r[2];
+    pkdGetPos1(p->r,r);
+    dx = r[0] - ew->r[0];
+    dy = r[1] - ew->r[1];
+    dz = r[2] - ew->r[2];
 
     ax = ay = az = 0.0;
     Pot = mom->m*ew->k1;
