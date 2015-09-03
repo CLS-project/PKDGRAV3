@@ -62,20 +62,6 @@ static inline int64_t d2u64(double d) {
 #define CID_TREE_ROOT   3
 
 /*
-** These macros implement the index manipulation tricks we use for moving
-** around in the top-tree. Note: these do NOT apply to the local-tree!
-*/
-#define LOWER(i)	(i<<1)
-#define UPPER(i)	((i<<1)+1)
-#define SIBLING(i) 	(i^1)
-#define PARENT(i)	(i>>1)
-#define SETNEXT(i)				\
-{\
-	while (i&1) i=i>>1;\
-	++i;\
-	}
-
-/*
 ** This is useful for debugging the very-active force calculation.
 */
 #define A_VERY_ACTIVE  1
@@ -754,7 +740,16 @@ typedef struct pkdContext {
     uint8_t *cSplitDims;
     double *dSplits;
     } * PKD;
-
+#ifdef __SSE2__
+#define pkdMinMax(dVal,dMin,dMax) do {					\
+    (dMin)[0] = _mm_cvtsd_f64(_mm_min_sd(_mm_set_sd((dMin)[0]),_mm_set_sd((dVal)[0]))); \
+    (dMin)[1] = _mm_cvtsd_f64(_mm_min_sd(_mm_set_sd((dMin)[1]),_mm_set_sd((dVal)[1])));	\
+    (dMin)[2] = _mm_cvtsd_f64(_mm_min_sd(_mm_set_sd((dMin)[2]),_mm_set_sd((dVal)[2])));	\
+    (dMax)[0] = _mm_cvtsd_f64(_mm_max_sd(_mm_set_sd((dMax)[0]),_mm_set_sd((dVal)[0])));	\
+    (dMax)[1] = _mm_cvtsd_f64(_mm_max_sd(_mm_set_sd((dMax)[1]),_mm_set_sd((dVal)[1])));	\
+    (dMax)[2] = _mm_cvtsd_f64(_mm_max_sd(_mm_set_sd((dMax)[2]),_mm_set_sd((dVal)[2]))); \
+    } while(0)
+#else
 #define pkdMinMax(dVal,dMin,dMax) {\
     (dMin)[0] = (dVal)[0] < (dMin)[0] ? (dVal)[0] : (dMin)[0];	\
     (dMin)[1] = (dVal)[1] < (dMin)[1] ? (dVal)[1] : (dMin)[1];		\
@@ -763,7 +758,7 @@ typedef struct pkdContext {
     (dMax)[1] = (dVal)[1] > (dMax)[1] ? (dVal)[1] : (dMax)[1];		\
     (dMax)[2] = (dVal)[2] > (dMax)[2] ? (dVal)[2] : (dMax)[2];		\
     }
-
+#endif
 #define pkdMinMax6(dVal0,dVal1,dMin,dMax) {\
     (dMin)[0] = (dVal0)[0] < (dMin)[0] ? (dVal0)[0] : (dMin)[0];	\
     (dMin)[1] = (dVal0)[1] < (dMin)[1] ? (dVal0)[1] : (dMin)[1];	\
