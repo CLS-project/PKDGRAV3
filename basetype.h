@@ -15,6 +15,9 @@
 #define IORDERBITS 41
 #define IORDERMAX ((((uint64_t) 1)<<IORDERBITS)-1)
 
+#define IRUNGBITS 6
+#define IRUNGMAX ((1<<IRUNGBITS)-1)
+
 typedef float vel_t;
 /*#define INTEGER_POSITION*/
 #ifdef INTEGER_POSITION
@@ -53,8 +56,8 @@ typedef struct particle {
     /*-----Base-Particle-Data----*/
     uint64_t iOrder     :  IORDERBITS;
     uint8_t  bMarked    :  1;
-    uint8_t  uNewRung   :  6;
-    uint8_t  uRung      :  6;
+    uint8_t  uNewRung   :  IRUNGBITS;
+    uint8_t  uRung      :  IRUNGBITS;
     uint8_t  bSrcActive :  1;
     uint8_t  bDstActive :  1;
     uint8_t  iClass     :  8;
@@ -116,6 +119,11 @@ typedef struct {
     int nRefs;
     void *ctx;
     int bGravStep;
+    uint8_t uRungLo;
+    int bKickClose;
+    int bKickOpen;
+    double *dtClose;
+    double *dtOpen;
 #ifdef USE_CUDA
     void *cudaCtx;
 #endif

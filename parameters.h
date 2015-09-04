@@ -92,6 +92,7 @@ struct parameters {
     int iDiffusion;
     int iRungCoolTableUpdate;
     int bHSDKD;
+    int bNewKDK;
     double dEtaCourant;
     double dEtaUDot;
     double dConstAlpha;

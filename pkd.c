@@ -2588,20 +2588,22 @@ void pkdPhysicalSoft(PKD pkd,double dSoftMax,double dFac,int bSoftMaxMul) {
     }
 
 void
-pkdGravAll(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,int bPeriodic,
+pkdGravAll(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
+    int bKickClose,int bKickOpen,double *dtClose,double *dtOpen,
+    double dTime,int nReps,int bPeriodic,
     int iOrder,int bEwald,int nGroup,int iRoot1, int iRoot2,
     double fEwCut,double fEwhCut,double dThetaMin,
-    int *nActive,double *pdPartSum, double *pdCellSum,CASTAT *pcs, double *pdFlop) {
+    int *nActive,double *pdPartSum, double *pdCellSum,CASTAT *pcs, double *pdFlop,uint8_t *puRungMax) {
 
 
 #ifdef USE_ITT
     __itt_domain* domain = __itt_domain_create("MyTraces.MyDomain");
     __itt_string_handle* shMyTask = __itt_string_handle_create("Gravity");
-     __itt_task_begin(domain, __itt_null, __itt_null, shMyTask);
+    __itt_task_begin(domain, __itt_null, __itt_null, shMyTask);
 #endif
 
-
-
+    pkd->uRungMax = 0;
+     
     pkdClearTimer(pkd,1);
 #if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
     mdlTimeReset(pkd->mdl);
@@ -2625,7 +2627,7 @@ pkdGravAll(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,int bP
     *pdPartSum = 0.0;
     *pdCellSum = 0.0;
     pkdStartTimer(pkd,1);
-    *nActive = pkdGravWalk(pkd,uRungLo,uRungHi,dTime,nReps,bPeriodic && bEwald,nGroup,iRoot1,iRoot2,0,dThetaMin,pdFlop,pdPartSum,pdCellSum);
+    *nActive = pkdGravWalk(pkd,uRungLo,uRungHi,bKickClose,bKickOpen,dtClose,dtOpen,dTime,nReps,bPeriodic && bEwald,nGroup,iRoot1,iRoot2,0,dThetaMin,pdFlop,pdPartSum,pdCellSum);
     pkdStopTimer(pkd,1);
 
     /*
@@ -2641,6 +2643,8 @@ pkdGravAll(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,int bP
     ** Stop particle caching space.
     */
     mdlFinishCache(pkd->mdl,CID_PARTICLE);
+
+    *puRungMax = pkd->uRungMax;
 
 #ifdef USE_ITT
     __itt_task_end(domain);
@@ -2680,12 +2684,12 @@ void pkdCalcEandL(PKD pkd,double *T,double *U,double *Eth,double *L,double *F,do
 	    v = pkdVel(pkd,p);
 	    rx = pkdPos(p->r,0); ry = pkdPos(p->r,1); rz = pkdPos(p->r,2);
 	    vx = v[0]; vy = v[1]; vz = v[2];
-	    *T += 0.5*fMass*(vx*vx + vy*vy + vz*vz);
 	    L[0] += fMass*(ry*vz - rz*vy);
 	    L[1] += fMass*(rz*vx - rx*vz);
 	    L[2] += fMass*(rx*vy - ry*vx);
 	    }
 	}
+    *T += pkd->dEnergyT;
     if (!pkd->oPotential) *U = pkd->dEnergyU;
     }
 
@@ -2783,7 +2787,7 @@ void pkdGravityVeryActive(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,i
     dFlop = 0.0;
     dPartSum = 0.0;
     dCellSum = 0.0;
-    nActive = pkdGravWalk(pkd,uRungLo,uRungHi,dTime,nReps,bEwald,nGroup,ROOT,0,VAROOT,dTheta,&dFlop,&dPartSum,&dCellSum);
+    nActive = pkdGravWalk(pkd,uRungLo,uRungHi,0,0,NULL,NULL,dTime,nReps,bEwald,nGroup,ROOT,0,VAROOT,dTheta,&dFlop,&dPartSum,&dCellSum);
     }
 
 

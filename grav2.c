@@ -72,24 +72,27 @@ void pkdParticleWorkDone(workParticle *work) {
     PKD pkd = work->ctx;
     int i;
     PARTICLE *p;
-    float *pPot, *a;
+    vel_t *v,v2;
+    float fx, fy, fz;
+    float maga, dT, dtGrav;
+    unsigned char uNewRung;
 
     if ( --work->nRefs == 0 ) {
 	for( i=0; i<work->nP; i++ ) {
 	    p = work->pPart[i];
-	    a = pkdAccel(pkd,p);
-	    pPot = pkdPot(pkd,p);
-	    a[0] += work->pInfoOut[i].a[0];
-	    a[1] += work->pInfoOut[i].a[1];
-	    a[2] += work->pInfoOut[i].a[2];
-	    if (pPot) *pPot = work->pInfoOut[i].fPot;
+	    if (pkd->oAcceleration) {
+		float *a = pkdAccel(pkd,p);
+		a[0] = work->pInfoOut[i].a[0];
+		a[1] = work->pInfoOut[i].a[1];
+		a[2] = work->pInfoOut[i].a[2];
+		}
+	    if (pkd->oPotential) {
+		float *pPot = pkdPot(pkd,p);
+		*pPot = work->pInfoOut[i].fPot;
+		}
 	    pkd->dEnergyU += 0.5 * pkdMass(pkd,p) * work->pInfoOut[i].fPot;
 
-	    // FIXME: what about the Ewald contribution?
-	    // we need to save dirsum/normsum for later if ewald is not done.
 	    if (work->bGravStep) {
-		float fx, fy, fz;
-		float maga, dT, dtGrav;
 		float dirsum = work->pInfoOut[i].dirsum;
 		float normsum = work->pInfoOut[i].normsum;
 
@@ -102,9 +105,9 @@ void pkdParticleWorkDone(workParticle *work) {
 		    /*
 		    ** Use new acceleration here!
 		    */
-		    fx = a[0];
-		    fy = a[1];
-		    fz = a[2];
+		    fx = work->pInfoOut[i].a[0];
+		    fy = work->pInfoOut[i].a[1];
+		    fz = work->pInfoOut[i].a[2];
 		    maga = sqrtf(fx*fx + fy*fy + fz*fz);
 		    dtGrav = maga*dirsum/normsum;
 		    }
@@ -116,6 +119,58 @@ void pkdParticleWorkDone(workParticle *work) {
 		    p->uNewRung = pkdDtToRung(dT,pkd->param.dDelta,pkd->param.iMaxRung-1);
 		    }
 		else p->uNewRung = 0; /* Assumes current uNewRung is outdated -- not ideal */
+		} /* end of work->bGravStep */
+	    else {
+		/*
+		** We are doing eps/a timestepping.
+		*/
+		fx = work->pInfoOut[i].a[0];
+		fy = work->pInfoOut[i].a[1];
+		fz = work->pInfoOut[i].a[2];
+		maga = sqrtf(fx*fx + fy*fy + fz*fz);
+		if (maga > 0) {
+		    dT = pkd->param.dEta*sqrt(pkdSoft(pkd,p)/maga);
+		    p->uNewRung = pkdDtToRung(dT,pkd->param.dDelta,pkd->param.iMaxRung-1);
+		    }
+		else p->uNewRung = 0;
+		}
+	    /*
+	    ** Here we must make sure we do not try to take a larger opening
+	    ** timestep than the current active particles involved in the
+	    ** gravity calculation!
+	    */
+	    if (p->uNewRung < work->uRungLo) p->uNewRung = work->uRungLo;
+	    /*
+	    ** Now we want to kick the particle velocities with a closing kick 
+	    ** based on the old rung and an opening kick based on the new rung.
+	    ** However, we are not always allowed to decrease uNewRung by an
+	    ** arbitrary amount, as this depends on where we are in the 
+	    ** substep hierarchy.
+	    ** This also requires the various timestep factors to have been 
+	    ** pre-calculated for this dTime and all possible rungs at play.
+	    ** Note that the only persistent info needed is the old rung which 
+	    ** gets updated at the end of this so that p->uRung indicates 
+	    ** which particles are active in this time step. 
+	    ** p->uRung = uNewRung could be done here, but we let the outside 
+	    ** code handle this.
+	    */
+	    if (pkd->oVelocity) {
+		v = pkdVel(pkd,p);
+		if (work->bKickClose) {
+		    v[0] += work->dtClose[p->uRung]*work->pInfoOut[i].a[0];
+		    v[1] += work->dtClose[p->uRung]*work->pInfoOut[i].a[1];
+		    v[2] += work->dtClose[p->uRung]*work->pInfoOut[i].a[2];
+		    }
+		v2 = v[0]*v[0] + v[1]*v[1] + v[2]*v[2];
+		/*
+		** Now calculate the kinetic energy term.
+		*/
+		pkd->dEnergyT += 0.5*pkdMass(pkd,p)*v2;
+		if (work->bKickOpen) {
+		    v[0] += work->dtOpen[p->uNewRung]*work->pInfoOut[i].a[0];
+		    v[1] += work->dtOpen[p->uNewRung]*work->pInfoOut[i].a[1];
+		    v[2] += work->dtOpen[p->uNewRung]*work->pInfoOut[i].a[2];
+		    }
 		}
 	    }
 	free(work->pPart);
@@ -798,6 +853,7 @@ static void queueEwald( PKD pkd, workParticle *work ) {
 ** Returns nActive.
 */
 int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
+    int bKickClose,int bKickOpen,double *dtClose,double *dtOpen,
     KDN *pBucket,LOCR *pLoc,ILP ilp,ILC ilc,
     float dirLsum,float normLsum,int bEwald,int bGravStep,int nGroup,double *pdFlop,double *pdEwFlop,
     double dRhoFac,SMX smx,SMF *smf) {
@@ -806,7 +862,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     double r[3];
     vel_t *v;
     double vx,vy,vz;
-    float *a;
+    float *ap;
     float d2,dir,dir2;
     float fMass,fSoft;
     float fx,fy,fz;
@@ -818,8 +874,6 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     int i,n,nSoft,nActive;
     float fourh2;
     int nP;
-
-    assert(pkd->oAcceleration);
 
     /*
     ** Now process the two interaction lists for each active particle.
@@ -840,9 +894,20 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     work->dRhoFac = dRhoFac;
     work->ctx = pkd;
     work->bGravStep = bGravStep;
+    work->uRungLo = uRungLo;
+    work->bKickClose = bKickClose;
+    work->bKickOpen = bKickOpen;
+    /*
+    ** We copy the pointers here assuming that the storage for them lasts at least as long as
+    ** the work structure. Depending on how this is called it could create problems if the 
+    ** work is flushed out somewhere else, as is the case when using CUDA.
+    */
+    work->dtClose = dtClose;
+    work->dtOpen = dtOpen;
 #ifdef USE_CUDA
     work->cudaCtx = pkd->cudaCtx;
 #endif
+
     for (i=pkdn->pLower;i<=pkdn->pUpper;++i) {
 	p = pkdParticle(pkd,i);
 	pkdGetPos1(p->r,r);
@@ -855,15 +920,15 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
 	nP = work->nP++;
 	work->pPart[nP] = p;
 
-	a = pkdAccel(pkd,p);
+	ap = pkdAccel(pkd,p);
 	work->pInfoIn[nP].r[0]  = (float)(r[0] - ilp->cx);
 	work->pInfoIn[nP].r[1]  = (float)(r[1] - ilp->cy);
 	work->pInfoIn[nP].r[2]  = (float)(r[2] - ilp->cz);
-	work->pInfoIn[nP].a[0]  = a[0];
-	work->pInfoIn[nP].a[1]  = a[1];
-	work->pInfoIn[nP].a[2]  = a[2];
+	work->pInfoIn[nP].a[0]  = ap[0];
+	work->pInfoIn[nP].a[1]  = ap[1];
+	work->pInfoIn[nP].a[2]  = ap[2];
 
-	a[0] = a[1] = a[2] = 0.0;
+	ap[0] = ap[1] = ap[2] = 0.0;
 
 	work->pInfoOut[nP].a[0] = 0.0f;
 	work->pInfoOut[nP].a[1] = 0.0f;
@@ -944,7 +1009,6 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
         p = work->pPart[i];
 	pkdGetPos1(p->r,r);
         v = pkdVel(pkd,p);
-        a = pkdAccel(pkd,p);
         /*
         ** Set value for time-step, note that we have the current ewald acceleration
         ** in this now as well!

@@ -598,6 +598,7 @@ typedef struct pkdContext {
     int iTreeMask;
     int nTreeTiles;
     int nMaxNodes;
+    uint8_t uRungMax;  /* set when time-stepping */
     uint64_t nDark;
     uint64_t nGas;
     uint64_t nStar;
@@ -681,6 +682,8 @@ typedef struct pkdContext {
     float fiCritTheta;
     /* Potential Energy for when potential is not in the particle */
     double dEnergyU;
+    /* also put kinetic energy here to calculate it on the fly */
+    double dEnergyT;
 
     /*
     ** New activation methods
@@ -1143,9 +1146,10 @@ uint32_t pkdWriteFIO(PKD pkd,FIO fio,double dvFac,BND *bnd);
 void pkdWriteFromNode(PKD pkd,int iNode, FIO fio,double dvFac,BND *bnd);
 void pkdWriteViaNode(PKD pkd, int iNode);
 void
-pkdGravAll(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,int bPeriodic,
+pkdGravAll(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,int bKickClose, int bKickOpen,
+    double *dtClose,double *dtOpen,double dTime,int nReps,int bPeriodic,
     int iOrder,int bEwald,int nGroup,int iRoot1,int iRoot2,double fEwCut,double fEwhCut,double dThetaMin,
-    int *nActive,double *pdPartSum, double *pdCellSum,CASTAT *pcs, double *pdFlop);
+    int *nActive,double *pdPartSum, double *pdCellSum,CASTAT *pcs, double *pdFlop,uint8_t *puRungMax);
 void pkdCalcEandL(PKD pkd,double *T,double *U,double *Eth,double *L,double *F,double *W);
 void pkdDrift(PKD pkd,double dDelta,double,double,uint8_t uRungLo,uint8_t uRungHi);
 void pkdScaleVel(PKD pkd,double dvFac);

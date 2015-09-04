@@ -611,6 +611,10 @@ struct inGravity {
     int iRoot2;
     uint8_t uRungLo;
     uint8_t uRungHi;
+    int bKickClose;
+    int bKickOpen;
+    double dtClose[IRUNGMAX+1];
+    double dtOpen[IRUNGMAX+1];
     };
 struct outGravity {
     int nActive;
@@ -631,6 +635,7 @@ struct outGravity {
     double dSynchronizing;
     double dWaiting;
 #endif
+    uint8_t uRungMax;  /* maximum rung reached in the opening step */
     };
 void pstGravity(PST,void *,int,void *,int *);
 

@@ -2979,9 +2979,10 @@ void pstGravity(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	mdlGetReply(pst->mdl,rID,outUp,NULL);
 	}
     else {
-	pkdGravAll(plcl->pkd,in->uRungLo,in->uRungHi,in->dTime,in->nReps,in->bPeriodic,
+	pkdGravAll(plcl->pkd,in->uRungLo,in->uRungHi,in->bKickClose,in->bKickOpen,
+	    in->dtClose,in->dtOpen,in->dTime,in->nReps,in->bPeriodic,
 	    4,in->bEwald,in->nGroup,in->iRoot1,in->iRoot2,in->dEwCut,in->dEwhCut, in->dThetaMin,&out->nActive,
-	    &out->dPartSum,&out->dCellSum,&out->cs,&out->dFlop);
+	    &out->dPartSum,&out->dCellSum,&out->cs,&out->dFlop,&out->uRungMax);
 	out->nLocal = plcl->pkd->nLocal;
 	out->dWalkTime = pkdGetWallClockTimer(plcl->pkd,1);
 #if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)

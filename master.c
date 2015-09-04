@@ -327,6 +327,9 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.bHSDKD = 0;
     prmAddParam(msr->prm,"bHSDKD",0,&msr->param.bHSDKD,
 		sizeof(int), "HSDKD", "<Use Hold/Select drift-kick-drift time stepping=no>");
+    msr->param.bNewKDK = 0;
+    prmAddParam(msr->prm,"bNewKDK",0,&msr->param.bNewKDK,
+		sizeof(int), "NewKDK", "<Use new implementation of KDK time stepping=no>");
     msr->param.dEwCut = 2.6;
     prmAddParam(msr->prm,"dEwCut",2,&msr->param.dEwCut,sizeof(double),"ew",
 		"<dEwCut> = 2.6");
@@ -1055,6 +1058,7 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     /*
     ** Check timestepping and gravity combinations.
     */
+    assert(msr->param.iMaxRung <= IRUNGMAX);
     if (msr->param.bDoGravity) {
 	/* Potential is optional, but the default for gravity */
 	if (!prmSpecified(msr->prm,"bMemPotential")) msr->param.bMemPotential = 1;
@@ -2810,12 +2814,13 @@ void msrMemStatus(MSR msr) {
 	}
     }
 
-void msrGravity(MSR msr,uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
-    double dTime, double dStep,int bEwald,int nGroup,int *piSec,uint64_t *pnActive) {
+uint8_t msrGravity(MSR msr,uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
+    double dTime, double dStep,int bKickClose,int bKickOpen,int bEwald,int nGroup,int *piSec,uint64_t *pnActive) {
     struct inGravity in;
     struct outGravity *out;
     int i,id,iDum;
-    double sec,dsec,dTotFlop;
+    double sec,dsec,dTotFlop,dt;
+    uint8_t uc,uRungMax;
 
     if (msr->param.bVStep) printf("Calculating Gravity, Step:%f\n",dStep);
     in.dTime = dTime;
@@ -2830,6 +2835,27 @@ void msrGravity(MSR msr,uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
     in.dThetaMin = msr->dThetaMin;
     in.iRoot1 = iRoot1;
     in.iRoot2 = iRoot2;
+    /*
+    ** Now calculate the timestepping factors for kick close and open if the
+    ** gravity should kick the particles. If the code uses bKickClose and 
+    ** bKickOpen it no longer needs to store accelerations per particle.
+    */
+    in.bKickClose = bKickClose;
+    in.bKickOpen = bKickOpen;
+    for (uc=0,dt=msr->param.dDelta;uc<=msr->param.iMaxRung;++uc,dt*=0.5) {
+	in.dtClose[uc] = 0.0;
+	in.dtOpen[uc] = 0.0;
+	if (uc>=uRungLo) {
+	    if (msr->param.csm->bComove) {
+		if (bKickClose) in.dtClose[uc] = csmComoveKickFac(msr->param.csm,dTime-dt,dt);
+		if (bKickOpen) in.dtOpen[uc] = csmComoveKickFac(msr->param.csm,dTime,dt);
+		}
+	    else {
+		if (bKickClose) in.dtClose[uc] = dt;
+		if (bKickOpen) in.dtOpen[uc] = dt;
+		}
+	    }
+	}
 
     out = malloc(msr->nThreads*sizeof(struct outGravity));
     assert(out != NULL);
@@ -2841,6 +2867,7 @@ void msrGravity(MSR msr,uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
     *piSec = d2i(dsec);
     *pnActive = 0;
     for (id=0;id<msr->nThreads;++id) {
+	if (out[id].uRungMax > uRungMax) uRungMax = out[id].uRungMax; 
 	*pnActive += out[id].nActive;
 	}
 
@@ -2900,6 +2927,8 @@ void msrGravity(MSR msr,uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
 	    }
 	}
     free(out);
+
+    return(uRungMax);
     }
 
 
@@ -3595,7 +3624,7 @@ void msrKickHSDKD(MSR msr,double dStep, double dTime,double dDelta, int iRung,
 	msrprintf(msr,"%*cForces, iRung: %d to %d\n",2*iRung+2,' ',iRung,iRung);
 	msrBuildTreeByRung(msr,dTime,msr->param.bEwald,iRung);
 	msrGravity(msr,iRung,MAX_RUNG,ROOT,msrCurrMaxRung(msr) == iRung ? 0 : ROOT+1,
-	    dTime,dStep,msr->param.bEwald,msr->param.nGroup,piSec,&nActive);
+	    dTime,dStep,0,0,msr->param.bEwald,msr->param.nGroup,piSec,&nActive);
 	*pdActiveSum += (double)nActive/msr->N;
 
 	in.dTime = dTime;
@@ -3687,6 +3716,31 @@ void msrTopStepHSDKD(MSR msr,
 
 
 
+uint8_t msrNewTopStepKDK(MSR msr,
+    double dStep,	/* Current step */
+    double dTime,	/* Current time */
+    uint8_t uRung,		/* Rung level */
+    uint8_t uRungMax,
+    int *piSec) {
+
+    uint64_t nActive;
+    double dDelta;
+    
+    if (uRung < uRungMax) uRungMax = msrNewTopStepKDK(msr,dStep,dTime,0,uRungMax,piSec);
+    /* This Drifts everybody */
+    msrprintf(msr,"Drift, uRung: %d\n",uRung);
+    dDelta = msr->param.dDelta/(1 << uRungMax);
+    msrDrift(msr,dTime,dDelta,0,MAX_RUNG);
+    dTime += dDelta;
+    dStep += 1.0/(1 << uRung);
+    msrDomainDecomp(msr,uRung,0,0);
+    msrBuildTree(msr,dTime,msr->param.bEwald);
+    uRungMax = msrGravity(msr,uRung,MAX_RUNG,ROOT,0,dTime,dStep,1,1,msr->param.bEwald,msr->param.nGroup,piSec,&nActive);
+    if (uRung && uRung < uRungMax) uRungMax = msrNewTopStepKDK(msr,dStep,dTime,0,uRungMax,piSec);
+    return(uRungMax);
+    }
+
+
 void msrTopStepKDK(MSR msr,
 		   double dStep,	/* Current step */
 		   double dTime,	/* Current time */
@@ -3761,7 +3815,7 @@ void msrTopStepKDK(MSR msr,
 	    msrBuildTree(msr,dTime,msr->param.bEwald);
 	    }
 	if (msrDoGravity(msr)) {
-	    msrGravity(msr,iKickRung,MAX_RUNG,ROOT,0,dTime,dStep,msr->param.bEwald,msr->param.nGroup,piSec,&nActive);
+	    msrGravity(msr,iKickRung,MAX_RUNG,ROOT,0,dTime,dStep,0,0,msr->param.bEwald,msr->param.nGroup,piSec,&nActive);
 	    *pdActiveSum += (double)nActive/msr->N;
 	    }
 	
@@ -3841,7 +3895,7 @@ void msrTopStepKDK(MSR msr,
 	    msrprintf(msr,"%*cGravity, iRung: %d to %d\n",
 		      2*iRung+2,' ',iKickRung,msrCurrMaxRung(msr));
 	    msrBuildTree(msr,dTime,msr->param.bEwald);
-	    msrGravity(msr,iKickRung,MAX_RUNG,ROOT,0,dTime,dStep,msr->param.bEwald,msr->param.nGroup,piSec,&nActive);
+	    msrGravity(msr,iKickRung,MAX_RUNG,ROOT,0,dTime,dStep,0,0,msr->param.bEwald,msr->param.nGroup,piSec,&nActive);
 	    *pdActiveSum += (double)nActive/msr->N;
 	    }
 

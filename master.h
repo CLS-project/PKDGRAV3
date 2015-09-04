@@ -96,8 +96,8 @@ void msrFastGasPhase1(MSR,double,int);
 void msrFastGasPhase2(MSR,double,int);
 void msrReSmooth(MSR,double,int,int);
 void msrUpdateSoft(MSR,double);
-void msrGravity(MSR msr,uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
-    double dTime,double dStep,int bEwald,int nGroup,int *piSec,uint64_t *pnActive);
+uint8_t msrGravity(MSR msr,uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
+    double dTime,double dStep,int bKickClose,int bKickOpen,int bEwald,int nGroup,int *piSec,uint64_t *pnActive);
 void msrCalcEandL(MSR msr,int bFirst,double dTime,double *E,double *T,double *U,double *Eth,double *L,double *F,double *W);
 void msrDrift(MSR,double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi);
 void msrScaleVel(MSR msr,double dvFac);
@@ -107,6 +107,12 @@ double msrReadCheck(MSR,int *);
 void msrWriteCheck(MSR,double,int);
 int msrOutTime(MSR,double);
 void msrReadOuts(MSR,double);
+uint8_t msrNewTopStepKDK(MSR msr,
+    double dStep,	/* Current step */
+    double dTime,	/* Current time */
+    uint8_t uRung,		/* Rung level */
+    uint8_t uRungMax,
+    int *piSec);
 void msrTopStepKDK(MSR msr,
 		   double dStep,	/* Current step */
 		   double dTime,	/* Current time */
