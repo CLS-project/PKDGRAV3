@@ -1657,15 +1657,18 @@ static uint64_t getMemoryModel(MSR msr) {
     ** will force these flags to be on.
     */
     if (msr->param.bFindGroups) mMemoryModel |= PKD_MODEL_GROUPS|PKD_MODEL_VELOCITY|PKD_MODEL_POTENTIAL;
-    if (msrDoGravity(msr)) mMemoryModel |= PKD_MODEL_VELOCITY|PKD_MODEL_ACCELERATION|PKD_MODEL_NODE_MOMENT;
+    if (msrDoGravity(msr)) {
+	mMemoryModel |= PKD_MODEL_VELOCITY|PKD_MODEL_NODE_MOMENT;
+	if (!msr->param.bNewKDK) mMemoryModel |= PKD_MODEL_ACCELERATION;
+	}
 
     if (msr->param.nDomainRungs>0)   mMemoryModel |= PKD_MODEL_RUNGDEST;
 
     if (msr->param.bMemParticleID)   mMemoryModel |= PKD_MODEL_PARTICLE_ID;
     if (msr->param.bTraceRelaxation) mMemoryModel |= PKD_MODEL_RELAXATION;
-    if (msr->param.bMemAcceleration) mMemoryModel |= PKD_MODEL_ACCELERATION;
+    if (msr->param.bMemAcceleration || msr->param.bDoAccOutput) mMemoryModel |= PKD_MODEL_ACCELERATION;
     if (msr->param.bMemVelocity)     mMemoryModel |= PKD_MODEL_VELOCITY;
-    if (msr->param.bMemPotential)    mMemoryModel |= PKD_MODEL_POTENTIAL;
+    if (msr->param.bMemPotential || msr->param.bDoPotOutput)    mMemoryModel |= PKD_MODEL_POTENTIAL;
     if (msr->param.bMemGroups)       mMemoryModel |= PKD_MODEL_GROUPS;
     if (msr->param.bMemMass)         mMemoryModel |= PKD_MODEL_MASS;
     if (msr->param.bMemSoft)         mMemoryModel |= PKD_MODEL_SOFTENING;
@@ -1680,6 +1683,7 @@ static uint64_t getMemoryModel(MSR msr) {
 
     if (msr->param.bMemNodeBnd)          mMemoryModel |= PKD_MODEL_NODE_BND;
     if (msr->param.bMemNodeVBnd)         mMemoryModel |= PKD_MODEL_NODE_VBND;
+
     return mMemoryModel;
     }
 
