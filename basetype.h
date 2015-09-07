@@ -120,6 +120,7 @@ typedef struct {
     void *ctx;
     int bGravStep;
     uint8_t uRungLo;
+    uint8_t uRungHi;
     int bKickClose;
     int bKickOpen;
     double *dtClose;

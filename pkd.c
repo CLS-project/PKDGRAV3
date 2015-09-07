@@ -2797,7 +2797,7 @@ void pkdStepVeryActiveKDK(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dStep, 
     uint64_t nRungCount[256];
     double dDriftFac;
 
-    if (iAdjust && (iRung < pkd->param.iMaxRung-1)) {
+    if (iAdjust && (iRung < pkd->param.iMaxRung)) {
 
 	/*
 	** The following should be replaced with a single call which sets the rungs of all particles.
@@ -2811,8 +2811,8 @@ void pkdStepVeryActiveKDK(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dStep, 
 	    pkdAccelStep(pkd,uRungLo,uRungHi,pkd->param.dEta, dVelFac,dAccFac,pkd->param.bDoGravity,
 			 pkd->param.bEpsAccStep,dhMinOverSoft);
 	    }
-	*pnMaxRung = pkdUpdateRung(pkd,iRung,pkd->param.iMaxRung-1,
-				   iRung,pkd->param.iMaxRung-1, nRungCount);
+	*pnMaxRung = pkdUpdateRung(pkd,iRung,pkd->param.iMaxRung,
+				   iRung,pkd->param.iMaxRung, nRungCount);
 
 
 	if (pkd->param.bVDetails) {
@@ -3097,7 +3097,7 @@ void pkdAccelStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,
 		    dT = dEta*sqrt(fSoft/acc);
 		    }
 		}
-	    uNewRung = pkdDtToRung(dT,pkd->param.dDelta,pkd->param.iMaxRung-1);
+	    uNewRung = pkdDtToRung(dT,pkd->param.dDelta,pkd->param.iMaxRung);
 	    if (uNewRung > p->uNewRung) p->uNewRung = uNewRung;
 	    }
 	}
@@ -3128,15 +3128,15 @@ void pkdSphStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,double dAccFac) {
 		acc = sqrt(acc)*dAccFac;
 		dtNew = FLOAT_MAXVAL;
 		if (acc>0) dtNew = pkd->param.dEta*sqrt(pkdBall(pkd,p)/acc);
-		u2 = pkdDtToRung(dtNew,pkd->param.dDelta,pkd->param.iMaxRung-1);
+		u2 = pkdDtToRung(dtNew,pkd->param.dDelta,pkd->param.iMaxRung);
 		uDot = *pkd_uDot(pkd,p);
 		u3=0;
 		if (uDot < 0) {
 		    double dtemp = pkd->param.dEtaUDot*(*pkd_u(pkd,p))/fabs(uDot);
 		    if (dtemp < dtNew) dtNew = dtemp;
-		    u3 = pkdDtToRung(dtemp,pkd->param.dDelta,pkd->param.iMaxRung-1);
+		    u3 = pkdDtToRung(dtemp,pkd->param.dDelta,pkd->param.iMaxRung);
 		    }
-		uNewRung = pkdDtToRung(dtNew,pkd->param.dDelta,pkd->param.iMaxRung-1);
+		uNewRung = pkdDtToRung(dtNew,pkd->param.dDelta,pkd->param.iMaxRung);
 		if (uNewRung > p->uNewRung) p->uNewRung = uNewRung;
 		if (!(p->iOrder%10000) || (p->uNewRung > 5 && !(p->iOrder%1000))) {
 		    SPHFIELDS *sph = pkdSph(pkd,p);
@@ -3301,7 +3301,7 @@ void pkdCooling(PKD pkd, double dTime, double z, int bUpdateState, int bUpdateTa
 			    double dtNew;
 			    int uNewRung;
 			    dtNew = pkd->param.dEtaUDot*sph->u/fabs(uDot);
-			    uNewRung = pkdDtToRung(dtNew,pkd->param.dDelta,pkd->param.iMaxRung-1);
+			    uNewRung = pkdDtToRung(dtNew,pkd->param.dDelta,pkd->param.iMaxRung);
 			    if (uNewRung > p->uNewRung) {
 				p->uNewRung = uNewRung;
 				continue;
@@ -3410,7 +3410,7 @@ void pkdDensityStep(PKD pkd, uint8_t uRungLo, uint8_t uRungHi, double dEta, doub
 	p = pkdParticle(pkd,i);
 	if (pkdIsActive(pkd,p)) {
 	    dT = dEta/sqrt(pkdDensity(pkd,p)*dRhoFac);
-	    p->uNewRung = pkdDtToRung(dT,pkd->param.dDelta,pkd->param.iMaxRung-1);
+	    p->uNewRung = pkdDtToRung(dT,pkd->param.dDelta,pkd->param.iMaxRung);
 	    }
 	}
     }
@@ -3430,10 +3430,10 @@ void pkdUpdateRungByTree(PKD pkd,int iRoot,uint8_t uMinRung,int iMaxRung,
 uint64_t *nRungCount) {
     KDN *c = pkdTreeNode(pkd,iRoot);
     int i;
-    for (i=0;i<iMaxRung;++i) nRungCount[i] = 0;
+    for (i=0;i<=iMaxRung;++i) nRungCount[i] = 0;
     for (i=c->pLower; i<=c->pUpper; ++i) {
 	PARTICLE *p = pkdParticle(pkd,i);
-	if ( p->uNewRung >= iMaxRung ) p->uNewRung = iMaxRung-1;
+	if ( p->uNewRung > iMaxRung ) p->uNewRung = iMaxRung;
 	else if (p->uNewRung < uMinRung) p->uNewRung = uMinRung;
 	if ( p->uNewRung > p->uRung ) ++p->uRung;
 	else if ( p->uNewRung < p->uRung ) --p->uRung;
@@ -3452,7 +3452,7 @@ int pkdUpdateRung(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     for (i=0;i<pkdLocal(pkd);++i) {
 	p = pkdParticle(pkd,i);
 	if ( pkdIsActive(pkd,p) ) {
-	    if ( p->uNewRung >= iMaxRung ) p->uNewRung = iMaxRung-1;
+	    if ( p->uNewRung > iMaxRung ) p->uNewRung = iMaxRung;
 	    if ( p->uNewRung >= uRung ) p->uRung = p->uNewRung;
 	    else if ( p->uRung > uRung) p->uRung = uRung;
 	    }
@@ -3461,7 +3461,7 @@ int pkdUpdateRung(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
 	*/
 	nRungCount[p->uRung] += 1;
 	}
-    iTempRung = iMaxRung-1;
+    iTempRung = iMaxRung;
     while (nRungCount[iTempRung] == 0 && iTempRung > 0) --iTempRung;
     return iTempRung;
     }

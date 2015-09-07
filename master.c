@@ -78,8 +78,8 @@ double msrTime() {
 #endif
 
 void _msrLeader(void) {
-    puts("pkdgrav"PACKAGE_VERSION" Joachim Stadel & Doug Potter Sept 2007");
-    puts("USAGE: pkdgrav2 [SETTINGS | FLAGS] [SIM_FILE]");
+    puts("pkdgrav"PACKAGE_VERSION" Joachim Stadel & Doug Potter Sept 2015");
+    puts("USAGE: pkdgrav3 [SETTINGS | FLAGS] [SIM_FILE]");
     puts("SIM_FILE: Configuration file of a particular simulation, which");
     puts("          includes desired settings and relevant input and");
     puts("          output files. Settings specified in this file override");
@@ -129,6 +129,7 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     int i,j,ret;
     int nDigits;
     struct inSetAdd inAdd;
+    char ach[256];
 
     msr = (MSR)malloc(sizeof(struct msrContext));
     assert(msr != NULL);
@@ -315,9 +316,10 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.nTruncateRung = 0;
     prmAddParam(msr->prm,"nTruncateRung",1,&msr->param.nTruncateRung,sizeof(int),"nTR",
 		"<number of MaxRung particles to delete MaxRung> = 0");
-    msr->param.iMaxRung = 16;
+    msr->param.iMaxRung = MAX_RUNG;
+    sprintf(ach,"<maximum timestep rung> = %d",msr->param.iMaxRung);
     prmAddParam(msr->prm,"iMaxRung",1,&msr->param.iMaxRung,sizeof(int),
-		"mrung", "<maximum timestep rung>");
+		"mrung",ach);
     msr->param.nRungVeryActive = 31;
     prmAddParam(msr->prm,"nRungVeryActive",1,&msr->param.nRungVeryActive,
 		sizeof(int), "nvactrung", "<timestep rung to use very active timestepping>");
@@ -3730,12 +3732,13 @@ uint8_t msrNewTopStepKDK(MSR msr,
     /* This Drifts everybody */
     msrprintf(msr,"Drift, uRung: %d\n",uRung);
     dDelta = msr->param.dDelta/(1 << uRungMax);
-    msrDrift(msr,dTime,dDelta,0,MAX_RUNG);
+    msrDrift(msr,dTime,dDelta,0,msrMaxRung(msr));
     dTime += dDelta;
     dStep += 1.0/(1 << uRung);
     msrDomainDecomp(msr,uRung,0,0);
     msrBuildTree(msr,dTime,msr->param.bEwald);
-    uRungMax = msrGravity(msr,uRung,MAX_RUNG,ROOT,0,dTime,dStep,1,1,msr->param.bEwald,msr->param.nGroup,piSec,&nActive);
+    uRungMax = msrGravity(msr,uRung,msrMaxRung(msr),ROOT,0,dTime,dStep,1,1,msr->param.bEwald,msr->param.nGroup,piSec,&nActive);
+    msrUpdateRung(msr,uRung);
     if (uRung && uRung < uRungMax) uRungMax = msrNewTopStepKDK(msr,dStep,dTime,0,uRungMax,piSec);
     return(uRungMax);
     }

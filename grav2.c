@@ -140,6 +140,7 @@ void pkdParticleWorkDone(workParticle *work) {
 	    ** gravity calculation!
 	    */
 	    if (p->uNewRung < work->uRungLo) p->uNewRung = work->uRungLo;
+	    else if (p->uNewRung > work->uRungHi) p->uNewRung = work->uRungHi; 
 	    /*
 	    ** Now we want to kick the particle velocities with a closing kick 
 	    ** based on the old rung and an opening kick based on the new rung.
@@ -895,6 +896,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     work->ctx = pkd;
     work->bGravStep = bGravStep;
     work->uRungLo = uRungLo;
+    work->uRungHi = uRungHi;
     work->bKickClose = bKickClose;
     work->bKickOpen = bKickOpen;
     /*
