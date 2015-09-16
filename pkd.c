@@ -2590,7 +2590,7 @@ void pkdPhysicalSoft(PKD pkd,double dSoftMax,double dFac,int bSoftMaxMul) {
 void
 pkdGravAll(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     int bKickClose,int bKickOpen,double *dtClose,double *dtOpen,
-    double dTime,int nReps,int bPeriodic,
+    double dAccFac,double dTime,int nReps,int bPeriodic,
     int iOrder,int bEwald,int nGroup,int iRoot1, int iRoot2,
     double fEwCut,double fEwhCut,double dThetaMin,
     int *nActive,double *pdPartSum, double *pdCellSum,CASTAT *pcs, double *pdFlop,uint8_t *puRungMax) {
@@ -2627,7 +2627,7 @@ pkdGravAll(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     *pdPartSum = 0.0;
     *pdCellSum = 0.0;
     pkdStartTimer(pkd,1);
-    *nActive = pkdGravWalk(pkd,uRungLo,uRungHi,bKickClose,bKickOpen,dtClose,dtOpen,dTime,nReps,bPeriodic && bEwald,nGroup,iRoot1,iRoot2,0,dThetaMin,pdFlop,pdPartSum,pdCellSum);
+    *nActive = pkdGravWalk(pkd,uRungLo,uRungHi,bKickClose,bKickOpen,dtClose,dtOpen,dAccFac,dTime,nReps,bPeriodic && bEwald,nGroup,iRoot1,iRoot2,0,dThetaMin,pdFlop,pdPartSum,pdCellSum);
     pkdStopTimer(pkd,1);
 
     /*
@@ -2787,7 +2787,7 @@ void pkdGravityVeryActive(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,i
     dFlop = 0.0;
     dPartSum = 0.0;
     dCellSum = 0.0;
-    nActive = pkdGravWalk(pkd,uRungLo,uRungHi,0,0,NULL,NULL,dTime,nReps,bEwald,nGroup,ROOT,0,VAROOT,dTheta,&dFlop,&dPartSum,&dCellSum);
+    nActive = pkdGravWalk(pkd,uRungLo,uRungHi,0,0,NULL,NULL,1.0,dTime,nReps,bEwald,nGroup,ROOT,0,VAROOT,dTheta,&dFlop,&dPartSum,&dCellSum);
     }
 
 

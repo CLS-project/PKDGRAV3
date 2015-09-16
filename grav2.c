@@ -129,6 +129,7 @@ void pkdParticleWorkDone(workParticle *work) {
 		fz = work->pInfoOut[i].a[2];
 		maga = sqrtf(fx*fx + fy*fy + fz*fz);
 		if (maga > 0) {
+		    maga *= work->dAccFac;
 		    dT = pkd->param.dEta*sqrt(pkdSoft(pkd,p)/maga);
 		    p->uNewRung = pkdDtToRung(dT,pkd->param.dDelta,pkd->param.iMaxRung-1);
 		    }
@@ -141,6 +142,7 @@ void pkdParticleWorkDone(workParticle *work) {
 	    */
 	    if (p->uNewRung < work->uRungLo) p->uNewRung = work->uRungLo;
 	    else if (p->uNewRung > work->uRungHi) p->uNewRung = work->uRungHi; 
+	    if (p->uNewRung > pkd->uRungMax) pkd->uRungMax = p->uNewRung;
 	    /*
 	    ** Now we want to kick the particle velocities with a closing kick 
 	    ** based on the old rung and an opening kick based on the new rung.
@@ -168,9 +170,10 @@ void pkdParticleWorkDone(workParticle *work) {
 		*/
 		pkd->dEnergyT += 0.5*pkdMass(pkd,p)*v2;
 		if (work->bKickOpen) {
-		    v[0] += work->dtOpen[p->uNewRung]*work->pInfoOut[i].a[0];
-		    v[1] += work->dtOpen[p->uNewRung]*work->pInfoOut[i].a[1];
-		    v[2] += work->dtOpen[p->uNewRung]*work->pInfoOut[i].a[2];
+		    p->uRung = p->uNewRung;
+		    v[0] += work->dtOpen[p->uRung]*work->pInfoOut[i].a[0];
+		    v[1] += work->dtOpen[p->uRung]*work->pInfoOut[i].a[1];
+		    v[2] += work->dtOpen[p->uRung]*work->pInfoOut[i].a[2];		    
 		    }
 		}
 	    }
@@ -854,7 +857,7 @@ static void queueEwald( PKD pkd, workParticle *work ) {
 ** Returns nActive.
 */
 int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
-    int bKickClose,int bKickOpen,double *dtClose,double *dtOpen,
+    int bKickClose,int bKickOpen,double *dtClose,double *dtOpen,double dAccFac,
     KDN *pBucket,LOCR *pLoc,ILP ilp,ILC ilc,
     float dirLsum,float normLsum,int bEwald,int bGravStep,int nGroup,double *pdFlop,double *pdEwFlop,
     double dRhoFac,SMX smx,SMF *smf) {
@@ -906,6 +909,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     */
     work->dtClose = dtClose;
     work->dtOpen = dtOpen;
+    work->dAccFac = dAccFac;
 #ifdef USE_CUDA
     work->cudaCtx = pkd->cudaCtx;
 #endif
@@ -922,15 +926,21 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
 	nP = work->nP++;
 	work->pPart[nP] = p;
 
-	ap = pkdAccel(pkd,p);
 	work->pInfoIn[nP].r[0]  = (float)(r[0] - ilp->cx);
 	work->pInfoIn[nP].r[1]  = (float)(r[1] - ilp->cy);
 	work->pInfoIn[nP].r[2]  = (float)(r[2] - ilp->cz);
-	work->pInfoIn[nP].a[0]  = ap[0];
-	work->pInfoIn[nP].a[1]  = ap[1];
-	work->pInfoIn[nP].a[2]  = ap[2];
-
-	ap[0] = ap[1] = ap[2] = 0.0;
+	if (pkd->oAcceleration) {
+	    ap = pkdAccel(pkd,p);
+	    work->pInfoIn[nP].a[0]  = ap[0];
+	    work->pInfoIn[nP].a[1]  = ap[1];
+	    work->pInfoIn[nP].a[2]  = ap[2];
+	    ap[0] = ap[1] = ap[2] = 0.0;
+	    }
+	else {
+	    work->pInfoIn[nP].a[0]  = 0;
+	    work->pInfoIn[nP].a[1]  = 0;
+	    work->pInfoIn[nP].a[2]  = 0;
+	    }
 
 	work->pInfoOut[nP].a[0] = 0.0f;
 	work->pInfoOut[nP].a[1] = 0.0f;

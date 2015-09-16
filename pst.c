@@ -2980,7 +2980,7 @@ void pstGravity(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	}
     else {
 	pkdGravAll(plcl->pkd,in->uRungLo,in->uRungHi,in->bKickClose,in->bKickOpen,
-	    in->dtClose,in->dtOpen,in->dTime,in->nReps,in->bPeriodic,
+	    in->dtClose,in->dtOpen,in->dAccFac,in->dTime,in->nReps,in->bPeriodic,
 	    4,in->bEwald,in->nGroup,in->iRoot1,in->iRoot2,in->dEwCut,in->dEwhCut, in->dThetaMin,&out->nActive,
 	    &out->dPartSum,&out->dCellSum,&out->cs,&out->dFlop,&out->uRungMax);
 	out->nLocal = plcl->pkd->nLocal;

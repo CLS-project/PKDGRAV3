@@ -17,7 +17,7 @@ void pkdGravStartEwald(PKD pkd);
 void pkdGravFinishEwald(PKD pkd);
 
 int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
-    int bKickClose,int bKickOpen,double *dtClose,double *dtOpen,KDN *pBucket,LOCR *pLoc,ILP ilp,ILC ilc,
+    int bKickClose,int bKickOpen,double *dtClose,double *dtOpen,double dAccFac,KDN *pBucket,LOCR *pLoc,ILP ilp,ILC ilc,
     float dirLsum,float normLsum,int bEwald,int bGravStep,int nGroup,double *pdFlop,double *pdEwFlop,double dRhoFac,
     SMX smx,SMF *smf);
 

@@ -1142,7 +1142,7 @@ void pkdWriteFromNode(PKD pkd,int iNode, FIO fio,double dvFac,BND *bnd);
 void pkdWriteViaNode(PKD pkd, int iNode);
 void
 pkdGravAll(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,int bKickClose, int bKickOpen,
-    double *dtClose,double *dtOpen,double dTime,int nReps,int bPeriodic,
+    double *dtClose,double *dtOpen,double dAccFac,double dTime,int nReps,int bPeriodic,
     int iOrder,int bEwald,int nGroup,int iRoot1,int iRoot2,double fEwCut,double fEwhCut,double dThetaMin,
     int *nActive,double *pdPartSum, double *pdCellSum,CASTAT *pcs, double *pdFlop,uint8_t *puRungMax);
 void pkdCalcEandL(PKD pkd,double *T,double *U,double *Eth,double *L,double *F,double *W);

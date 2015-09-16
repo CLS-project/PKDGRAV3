@@ -2825,8 +2825,8 @@ uint8_t msrGravity(MSR msr,uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot
     struct inGravity in;
     struct outGravity *out;
     int i,id,iDum;
-    double sec,dsec,dTotFlop,dt;
-    uint8_t uc,uRungMax;
+    double sec,dsec,dTotFlop,dt,a;
+    uint8_t uc,uRungMax=0;
 
     if (msr->param.bVStep) printf("Calculating Gravity, Step:%f\n",dStep);
     in.dTime = dTime;
@@ -2848,6 +2848,13 @@ uint8_t msrGravity(MSR msr,uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot
     */
     in.bKickClose = bKickClose;
     in.bKickOpen = bKickOpen;
+    if (msr->param.csm->bComove) {
+	a = csmTime2Exp(msr->param.csm,dTime);
+	in.dAccFac = 1.0/(a*a*a);
+	}
+    else {
+	in.dAccFac = 1.0;
+	}
     for (uc=0,dt=msr->param.dDelta;uc<=msr->param.iMaxRung;++uc,dt*=0.5) {
 	in.dtClose[uc] = 0.0;
 	in.dtOpen[uc] = 0.0;
@@ -2876,7 +2883,6 @@ uint8_t msrGravity(MSR msr,uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot
 	if (out[id].uRungMax > uRungMax) uRungMax = out[id].uRungMax; 
 	*pnActive += out[id].nActive;
 	}
-
     if (msr->param.bVStep) {
 	/*
 	** Output some info...
@@ -3732,18 +3738,20 @@ uint8_t msrNewTopStepKDK(MSR msr,
     uint64_t nActive;
     double dDelta;
     
-    if (uRung < uRungMax) uRungMax = msrNewTopStepKDK(msr,dStep,dTime,0,uRungMax,piSec);
+    if (uRung < uRungMax) uRungMax = msrNewTopStepKDK(msr,dStep,dTime,uRung+1,uRungMax,piSec);
     /* This Drifts everybody */
-    msrprintf(msr,"Drift, uRung: %d\n",uRung);
+    msrprintf(msr,"Drift, uRung: %d\n",uRungMax);
     dDelta = msr->param.dDelta/(1 << uRungMax);
     msrDrift(msr,dTime,dDelta,0,msrMaxRung(msr));
     dTime += dDelta;
-    dStep += 1.0/(1 << uRung);
+    dStep += 1.0/(1 << uRungMax);
+
+    msrActiveRung(msr,uRung,1);
     msrDomainDecomp(msr,uRung,0,0);
     msrBuildTree(msr,dTime,msr->param.bEwald);
     uRungMax = msrGravity(msr,uRung,msrMaxRung(msr),ROOT,0,dTime,dStep,1,1,msr->param.bEwald,msr->param.nGroup,piSec,&nActive);
-    msrUpdateRung(msr,uRung);
-    if (uRung && uRung < uRungMax) uRungMax = msrNewTopStepKDK(msr,dStep,dTime,0,uRungMax,piSec);
+    printf("************************************** uRungMax = %d\n",uRungMax);
+    if (uRung && uRung < uRungMax) uRungMax = msrNewTopStepKDK(msr,dStep,dTime,uRung+1,uRungMax,piSec);
     return(uRungMax);
     }
 

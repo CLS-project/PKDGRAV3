@@ -125,6 +125,7 @@ typedef struct {
     int bKickOpen;
     double *dtClose;
     double *dtOpen;
+    double dAccFac;
 #ifdef USE_CUDA
     void *cudaCtx;
 #endif
