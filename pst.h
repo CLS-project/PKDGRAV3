@@ -617,26 +617,43 @@ struct inGravity {
     double dtClose[IRUNGMAX+1];
     double dtOpen[IRUNGMAX+1];
     };
-struct outGravity {
-    int nActive;
-    int nLocal;
-    double dPartSum;
-    double dCellSum;
-    double dFlop;
+
+
+typedef struct StatsCollector {
+    double dSum;
+    double dSum2;
+    double dMax;
+    int idMax;
+    int n;
+    } STAT;
+
+/*
+** The outGravityReduct structure is at the beginning of the output message, 
+** followed by number of threads times the outGravityPerProc structure.
+*/
+struct outGravityReduct {
+    STAT sLocal;
+    STAT sActive;
+    STAT sPart;
+    STAT sPartNumAccess;
+    STAT sPartMissRatio;
+    STAT sCell;
+    STAT sCellNumAccess;
+    STAT sCellMissRatio;
+    STAT sFlop;
+#ifdef INSTRUMENT
+    STAT sComputing;
+    STAT sWaiting;
+    STAT sSynchronizing;
+#endif
+    uint64_t nActive;
+    uint64_t nRung[IRUNGMAX+1];
+    };
+struct outGravityPerProc {
     /*
     ** Collected CPU time.
     */
     double dWalkTime;
-    /*
-    ** Cache Statistics.
-    */
-    CASTAT cs;
-#ifdef INSTRUMENT
-    double dComputing;
-    double dSynchronizing;
-    double dWaiting;
-#endif
-    uint8_t uRungMax;  /* maximum rung reached in the opening step */
     };
 void pstGravity(PST,void *,int,void *,int *);
 

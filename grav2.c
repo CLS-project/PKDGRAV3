@@ -142,7 +142,6 @@ void pkdParticleWorkDone(workParticle *work) {
 	    */
 	    if (p->uNewRung < work->uRungLo) p->uNewRung = work->uRungLo;
 	    else if (p->uNewRung > work->uRungHi) p->uNewRung = work->uRungHi; 
-	    if (p->uNewRung > pkd->uRungMax) pkd->uRungMax = p->uNewRung;
 	    /*
 	    ** Now we want to kick the particle velocities with a closing kick 
 	    ** based on the old rung and an opening kick based on the new rung.
@@ -171,6 +170,7 @@ void pkdParticleWorkDone(workParticle *work) {
 		pkd->dEnergyT += 0.5*pkdMass(pkd,p)*v2;
 		if (work->bKickOpen) {
 		    p->uRung = p->uNewRung;
+		    ++pkd->nRung[p->uRung];
 		    v[0] += work->dtOpen[p->uRung]*work->pInfoOut[i].a[0];
 		    v[1] += work->dtOpen[p->uRung]*work->pInfoOut[i].a[1];
 		    v[2] += work->dtOpen[p->uRung]*work->pInfoOut[i].a[2];		    

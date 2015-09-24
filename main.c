@@ -77,6 +77,8 @@ void * master_ch(MDL mdl) {
     uint64_t nActive;
     int bKickOpen = 0;
     uint8_t uRungMax;
+    double diStep;
+    double ddTime;
 
     lStart=time(0);
 
@@ -241,7 +243,9 @@ void * master_ch(MDL mdl) {
 		    &dMultiEff,&iSec);
 		}
 	    else if (msr->param.bNewKDK) {
-		uRungMax = msrNewTopStepKDK(msr,iStep-1,dTime,0,uRungMax,&iSec);
+		diStep = (double)(iStep-1);
+		ddTime = dTime;
+		msrNewTopStepKDK(msr,0,&diStep,&ddTime,&uRungMax,&iSec);
 		}
 	    else {
 		msrTopStepKDK(msr,iStep-1,dTime,

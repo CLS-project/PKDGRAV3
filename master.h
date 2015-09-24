@@ -107,11 +107,11 @@ double msrReadCheck(MSR,int *);
 void msrWriteCheck(MSR,double,int);
 int msrOutTime(MSR,double);
 void msrReadOuts(MSR,double);
-uint8_t msrNewTopStepKDK(MSR msr,
-    double dStep,	/* Current step */
-    double dTime,	/* Current time */
+void msrNewTopStepKDK(MSR msr,
     uint8_t uRung,		/* Rung level */
-    uint8_t uRungMax,
+    double *pdStep,	/* Current step */
+    double *pdTime,	/* Current time */
+    uint8_t *puRungMax,
     int *piSec);
 void msrTopStepKDK(MSR msr,
 		   double dStep,	/* Current step */

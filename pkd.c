@@ -2593,8 +2593,15 @@ pkdGravAll(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     double dAccFac,double dTime,int nReps,int bPeriodic,
     int iOrder,int bEwald,int nGroup,int iRoot1, int iRoot2,
     double fEwCut,double fEwhCut,double dThetaMin,
-    int *nActive,double *pdPartSum, double *pdCellSum,CASTAT *pcs, double *pdFlop,uint8_t *puRungMax) {
+    uint64_t *pnActive,
+    double *pdPart,double *pdPartNumAccess,double *pdPartMissRatio,
+    double *pdCell,double *pdCellNumAccess,double *pdCellMissRatio,
+    double *pdFlop,uint64_t *pnRung) {
 
+    double dActive;
+    double dPartSum;
+    double dCellSum;
+    int i;
 
 #ifdef USE_ITT
     __itt_domain* domain = __itt_domain_create("MyTraces.MyDomain");
@@ -2602,7 +2609,10 @@ pkdGravAll(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     __itt_task_begin(domain, __itt_null, __itt_null, shMyTask);
 #endif
 
-    pkd->uRungMax = 0;
+    /*
+    ** Clear all the rung counters to be safe.
+    */
+    for (i=0;i<=IRUNGMAX;++i) pkd->nRung[i] = 0;
      
     pkdClearTimer(pkd,1);
 #if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
@@ -2624,27 +2634,45 @@ pkdGravAll(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     ** Calculate newtonian gravity, including replicas if any.
     */
     *pdFlop = 0.0;
-    *pdPartSum = 0.0;
-    *pdCellSum = 0.0;
+    dPartSum = 0.0;
+    dCellSum = 0.0;
     pkdStartTimer(pkd,1);
-    *nActive = pkdGravWalk(pkd,uRungLo,uRungHi,bKickClose,bKickOpen,dtClose,dtOpen,dAccFac,dTime,nReps,bPeriodic && bEwald,nGroup,iRoot1,iRoot2,0,dThetaMin,pdFlop,pdPartSum,pdCellSum);
+    *pnActive = pkdGravWalk(pkd,uRungLo,uRungHi,bKickClose,bKickOpen,dtClose,dtOpen,dAccFac,dTime,nReps,bPeriodic && bEwald,nGroup,iRoot1,iRoot2,0,dThetaMin,pdFlop,&dPartSum,&dCellSum);
     pkdStopTimer(pkd,1);
 
+    dActive = (double)(*pnActive);
+    if (*pnActive) {
+	*pdPart = dPartSum/dActive;
+	*pdCell = dCellSum/dActive;
+	}
+    else {
+	assert(dPartSum == 0 && dCellSum == 0);
+	*pdPart = 0;  /* for the statistics we don't count this processor, see pstGravity(). */
+	*pdCell = 0;
+	}
     /*
     ** Get caching statistics.
     */
-    pcs->dcNumAccess = mdlNumAccess(pkd->mdl,CID_CELL);
-    pcs->dcMissRatio = mdlMissRatio(pkd->mdl,CID_CELL);
-    pcs->dcCollRatio = mdlCollRatio(pkd->mdl,CID_CELL);
-    pcs->dpNumAccess = mdlNumAccess(pkd->mdl,CID_PARTICLE);
-    pcs->dpMissRatio = mdlMissRatio(pkd->mdl,CID_PARTICLE);
-    pcs->dpCollRatio = mdlCollRatio(pkd->mdl,CID_PARTICLE);
+    if (*pnActive) {
+	*pdCellNumAccess = mdlNumAccess(pkd->mdl,CID_CELL)/dActive;
+	*pdPartNumAccess = mdlNumAccess(pkd->mdl,CID_PARTICLE)/dActive;
+	}
+    else {
+	*pdCellNumAccess = 0;
+	*pdPartNumAccess = 0;
+	}
+    *pdCellMissRatio = 100.0*mdlMissRatio(pkd->mdl,CID_CELL);      /* as a percentage */
+    *pdPartMissRatio = 100.0*mdlMissRatio(pkd->mdl,CID_PARTICLE);  /* as a percentage */
+    /*
+    ** Output flops count in GFlops!
+    */
+    *pdFlop *= 1e-9;
     /*
     ** Stop particle caching space.
     */
     mdlFinishCache(pkd->mdl,CID_PARTICLE);
 
-    *puRungMax = pkd->uRungMax;
+    for (i=0;i<=IRUNGMAX;++i) pnRung[i] = pkd->nRung[i];
 
 #ifdef USE_ITT
     __itt_task_end(domain);

@@ -297,7 +297,8 @@ void pstAddServices(PST pst,MDL mdl) {
 		  0,0);
     mdlAddService(mdl,PST_GRAVITY,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstGravity,
-		  sizeof(struct inGravity),nThreads*sizeof(struct outGravity));
+	          sizeof(struct inGravity),
+	          nThreads*sizeof(struct outGravityPerProc) + sizeof(struct outGravityReduct));
     mdlAddService(mdl,PST_CALCEANDL,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstCalcEandL,
 		  0,sizeof(struct outCalcEandL));
@@ -2966,32 +2967,115 @@ void pstReSmooth(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     if (pnOut) *pnOut = 0;
     }
 
+
+void pstInitStat(STAT *ps,int id) {
+    ps->idMax = id;
+    ps->dMax = ps->dSum;
+    ps->dSum2 = ps->dSum*ps->dSum;
+    ps->n = 1;  /* sometimes we will need to zero this */
+    }
+    
+void pstCombStat(STAT *ps,STAT *pa) {
+    if (pa->dMax > ps->dMax) {
+	ps->idMax = pa->idMax;
+	ps->dMax = pa->dMax;
+	}
+    ps->dSum += pa->dSum;
+    ps->dSum2 += pa->dSum2;
+    ps->n += pa->n;
+    }
+    
 void pstGravity(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct inGravity *in = vin;
-    struct outGravity *out = vout;
-    struct outGravity *outUp = out + pst->idUpper-pst->idSelf;
+    struct outGravityPerProc *out = vout;
+    struct outGravityPerProc *outup = out + pst->idUpper - pst->idSelf;
+    struct outGravityPerProc *outend = out + mdlThreads(pst->mdl) - pst->idSelf;
+    struct outGravityReduct *outr = (struct outGravityReduct *)outend;
+    struct outGravityReduct tmp;
+    int i;
 
     mdlassert(pst->mdl,nIn == sizeof(struct inGravity));
     if (pst->nLeaves > 1) {
 	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_GRAVITY,in,nIn);
 	pstGravity(pst->pstLower,in,nIn,out,NULL);
-	mdlGetReply(pst->mdl,rID,outUp,NULL);
+	/*
+	** Make a temporary copy of the reduct part of the out buffer before setting it as the 
+	** reply buffer. The reduct part follows at the end of all the outGravityPerProc entries.
+	*/
+	tmp = *outr;  /* copy the whole GravityReduct structure */
+	mdlGetReply(pst->mdl,rID,outup,NULL);
+	/*
+	** Now combine in the tempory copy of the lower branch reduct part.
+	*/
+	pstCombStat(&outr->sLocal,&tmp.sLocal);
+	pstCombStat(&outr->sActive,&tmp.sActive);
+	pstCombStat(&outr->sPart,&tmp.sPart);
+	pstCombStat(&outr->sPartNumAccess,&tmp.sPartNumAccess);
+	pstCombStat(&outr->sPartMissRatio,&tmp.sPartMissRatio);
+	pstCombStat(&outr->sCell,&tmp.sCell);
+	pstCombStat(&outr->sCellNumAccess,&tmp.sCellNumAccess);
+	pstCombStat(&outr->sCellMissRatio,&tmp.sCellMissRatio);
+	pstCombStat(&outr->sFlop,&tmp.sFlop);
+#if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
+	pstCombStat(&outr->sComputing,&tmp.sComputing);
+	pstCombStat(&outr->sWaiting,&tmp.sWaiting);
+	pstCombStat(&outr->sSynchronizing,&tmp.sSynchronizing);
+#endif
+	/*
+	** Combine the rung counts for the next timestep...
+	*/
+	for (i=in->uRungLo;i<=IRUNGMAX;++i) outr->nRung[i] += tmp.nRung[i];
+	/*
+	** and the number of actives processed in this gravity call.
+	*/
+	outr->nActive += tmp.nActive;
 	}
     else {
 	pkdGravAll(plcl->pkd,in->uRungLo,in->uRungHi,in->bKickClose,in->bKickOpen,
 	    in->dtClose,in->dtOpen,in->dAccFac,in->dTime,in->nReps,in->bPeriodic,
-	    4,in->bEwald,in->nGroup,in->iRoot1,in->iRoot2,in->dEwCut,in->dEwhCut, in->dThetaMin,&out->nActive,
-	    &out->dPartSum,&out->dCellSum,&out->cs,&out->dFlop,&out->uRungMax);
-	out->nLocal = plcl->pkd->nLocal;
-	out->dWalkTime = pkdGetWallClockTimer(plcl->pkd,1);
+	    4,in->bEwald,in->nGroup,in->iRoot1,in->iRoot2,in->dEwCut,in->dEwhCut,in->dThetaMin,
+	    &outr->nActive,
+	    &outr->sPart.dSum,&outr->sPartNumAccess.dSum,&outr->sPartMissRatio.dSum,
+	    &outr->sCell.dSum,&outr->sCellNumAccess.dSum,&outr->sCellMissRatio.dSum,
+	    &outr->sFlop.dSum,outr->nRung);
+	outr->sLocal.dSum = plcl->pkd->nLocal;
+	outr->sActive.dSum = (double)outr->nActive;
+	/*
+	** Initialize statistics tracking variables assuming dSum is set.
+	*/
+	pstInitStat(&outr->sLocal,pst->idSelf);
+	pstInitStat(&outr->sActive,pst->idSelf);
+	pstInitStat(&outr->sPart,pst->idSelf);
+	pstInitStat(&outr->sPartNumAccess,pst->idSelf);
+	pstInitStat(&outr->sPartMissRatio,pst->idSelf);
+	pstInitStat(&outr->sCell,pst->idSelf);
+	pstInitStat(&outr->sCellNumAccess,pst->idSelf);
+	pstInitStat(&outr->sCellMissRatio,pst->idSelf);
+	pstInitStat(&outr->sFlop,pst->idSelf);
 #if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
-	out->dComputing     = mdlTimeComputing(pst->mdl);
-	out->dWaiting       = mdlTimeWaiting(pst->mdl);
-	out->dSynchronizing = mdlTimeSynchronizing(pst->mdl);
+	outr->sComputing.dSum     = mdlTimeComputing(pst->mdl);
+	outr->sWaiting.dSum       = mdlTimeWaiting(pst->mdl);
+	outr->sSynchronizing.dSum = mdlTimeSynchronizing(pst->mdl);
+	pstInitStat(&outr->sComputing,pst->idSelf);
+	pstInitStat(&outr->sWaiting,pst->idSelf);
+	pstInitStat(&outr->sSynchronizing,pst->idSelf);
 #endif
+	/*
+	** If there were no actives then we need to zero statistics counts
+	** for those quantities which are based on per active particles.
+	*/
+	if (!outr->nActive) {
+	    outr->sPart.n = 0;
+	    outr->sPartNumAccess.n = 0;
+	    outr->sPartMissRatio.n = 0;
+	    outr->sCell.n = 0;
+	    outr->sCellNumAccess.n = 0;
+	    outr->sCellMissRatio.n = 0;	    
+	    }
+	out->dWalkTime = pkdGetWallClockTimer(plcl->pkd,1);
 	}
-    if (pnOut) *pnOut = pst->nLeaves*sizeof(struct outGravity);
+    if (pnOut) *pnOut = (mdlThreads(pst->mdl) - pst->idSelf)*sizeof(struct outGravityPerProc) + sizeof(struct outGravityReduct);
     }
 
 
