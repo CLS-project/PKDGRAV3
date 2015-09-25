@@ -2872,7 +2872,7 @@ uint8_t msrGravity(MSR msr,uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot
     else {
 	in.dAccFac = 1.0;
 	}
-    for (i=0,dt=msr->param.dDelta;i<=msr->param.iMaxRung;++i,dt*=0.5) {
+    for (i=0,dt=0.5*msr->param.dDelta;i<=msr->param.iMaxRung;++i,dt*=0.5) {
 	in.dtClose[i] = 0.0;
 	in.dtOpen[i] = 0.0;
 	if (i>=uRungLo) {
