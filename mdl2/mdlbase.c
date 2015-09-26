@@ -154,7 +154,7 @@ double mdlCpuTimer(void * mdl) {
 #ifdef __linux__
     struct rusage ru;
 
-    getrusage(0, &ru);
+    getrusage(RUSAGE_SELF, &ru);
     return((double)ru.ru_utime.tv_sec + 1e-6*(double)ru.ru_utime.tv_usec);
 #elif defined(_MSC_VER)
     FILETIME createTime;
@@ -219,7 +219,7 @@ void mdlZeroTimer(void * mdl, mdlTimer *t) {
     tz.tz_dsttime = 0;
     gettimeofday(&tv, &tz);
     t->wallclock = tv.tv_sec + 1e-6*(double)tv.tv_usec;
-    getrusage(0, &ru);
+    getrusage(RUSAGE_SELF, &ru);
     t->cpu = (double)ru.ru_utime.tv_sec + 1e-6*(double)ru.ru_utime.tv_usec;
     t->system = (double)ru.ru_stime.tv_sec + 1e-6*(double)ru.ru_stime.tv_usec;
 #endif
@@ -240,7 +240,7 @@ void mdlGetTimer(void *mdl, mdlTimer *t0, mdlTimer *t) {
     struct timeval tv;
     struct rusage ru;
 
-    getrusage(0, &ru);
+    getrusage(RUSAGE_SELF, &ru);
     t->cpu = (double)ru.ru_utime.tv_sec + 1e-6*(double)ru.ru_utime.tv_usec - t0->cpu;
     t->system = (double)ru.ru_stime.tv_sec + 1e-6*(double)ru.ru_stime.tv_usec - t0->system;
     tz.tz_minuteswest = 0;

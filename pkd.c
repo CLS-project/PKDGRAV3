@@ -93,7 +93,7 @@ void pkdStartTimer(PKD pkd,int iTimer) {
 	{
 	    struct rusage ru;
 
-	    getrusage(0,&ru);
+	    getrusage(RUSAGE_SELF,&ru);
 	    pkd->ti[iTimer].system_stamp = (double)ru.ru_stime.tv_sec + 1e-6*(double)ru.ru_stime.tv_usec;
 	    }
 #endif
@@ -137,7 +137,7 @@ void pkdStopTimer(PKD pkd,int iTimer) {
 	struct rusage ru;
 
 	sec = -pkd->ti[iTimer].system_stamp;
-	getrusage(0,&ru);
+	getrusage(RUSAGE_SELF,&ru);
 	pkd->ti[iTimer].system_stamp = ((double)ru.ru_stime.tv_sec + 1e-6*(double)ru.ru_stime.tv_usec);
 	sec += pkd->ti[iTimer].system_stamp;
 	if (sec < 0.0) sec = 0.0;

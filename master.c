@@ -4751,7 +4751,7 @@ double msrRead(MSR msr, const char *achInFile) {
     printf("Input file has been successfully read, Wallclock: %f secs.\n", dsec);
     printf("Allocated %lu MB for particle store on each processor.\n",
 	      pkdParticleMemory(plcl->pkd)/(1024*1024));
-    printf("Particles: %d bytes (persistent) + %d bytes (ephemeral), Nodes: %d bytes\n",
+    printf("Particles: %lu bytes (persistent) + %d bytes (ephemeral), Nodes: %lu bytes\n",
 	pkdParticleSize(plcl->pkd),EPHEMERAL_BYTES,pkdNodeSize(plcl->pkd));
 
     /*

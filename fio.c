@@ -3879,11 +3879,11 @@ int graficOpenFiles(fioGrafic *gio, char *fileName, const char *dirName) {
     }
 
 
-static int graficCloseFile(graficFile *gf) {
+static void graficCloseFile(graficFile *gf) {
     if ( gf->fp!=NULL ) fclose(gf->fp);
     }
 
-static int graficCloseFiles(fioGrafic *gio) {
+static void graficCloseFiles(fioGrafic *gio) {
     graficCloseFile( &gio->level[0].fp_velcx );
     graficCloseFile( &gio->level[0].fp_velcy );
     graficCloseFile( &gio->level[0].fp_velcz );
@@ -3903,7 +3903,7 @@ static int graficCloseFiles(fioGrafic *gio) {
     graficCloseFile( &gio->level[0].fp_posby );
     graficCloseFile( &gio->level[0].fp_posbz );
     }
-static int graficFreeBuffers(fioGrafic *gio) {
+static void graficFreeBuffers(fioGrafic *gio) {
     if (gio->level[0].fp_velcx.data.pFloat) free(gio->level[0].fp_velcx.data.pFloat);
     if (gio->level[0].fp_velcy.data.pFloat) free(gio->level[0].fp_velcy.data.pFloat);
     if (gio->level[0].fp_velcz.data.pFloat) free(gio->level[0].fp_velcz.data.pFloat);
