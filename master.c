@@ -3774,6 +3774,7 @@ void msrNewTopStepKDK(MSR msr,
 
     msrActiveRung(msr,uRung,1);
     msrDomainDecomp(msr,uRung,0,0);
+    msrUpdateSoft(msr,*pdTime);
     msrBuildTree(msr,*pdTime,msr->param.bEwald);
     *puRungMax = msrGravity(msr,uRung,msrMaxRung(msr),ROOT,0,*pdTime,*pdStep,1,1,msr->param.bEwald,msr->param.nGroup,piSec,&nActive);
     if (uRung && uRung < *puRungMax) msrNewTopStepKDK(msr,uRung+1,pdStep,pdTime,puRungMax,piSec);
