@@ -38,34 +38,59 @@ void pkdDumpTrees(PKD pkd) {
     pkd->nNodes = NRESERVED_NODES;
     }
 
-static void InitializeParticles(PKD pkd,int nTrees,TREESPEC *pSpec,BND *pbnd) {
+void pkdDistribTopTree(PKD pkd, uint32_t uRoot, uint32_t nTop, KDN *pTop) {
+    int i, iTop;
+    KDN *pLocalRoot = pkdTreeNode(pkd,uRoot);
+
+    iTop = pkd->iTopTree[uRoot] = pkdTreeAllocNodes(pkd, nTop);
+    for(i=0; i<nTop; ++i) {
+	KDN *pNode = pkdNode(pkd,pTop,i);
+	KDN *pLocal = pkdTreeNode(pkd,iTop+i);
+	pkdCopyNode(pkd,pLocal,pNode);
+	assert(pLocal->bTopTree);
+	if (!pLocal->bRemote) { /* Fixup the links if necessary */
+	    pLocal->iLower += iTop + i;
+	    pLocal->pUpper += iTop + i;
+	    }
+#if 1
+	else if (pLocal->pLower == pkd->idSelf) {
+	    pLocal->pLower = pLocalRoot->pLower;
+	    pLocal->pUpper = pLocalRoot->pUpper;
+	    pLocal->iLower = pLocalRoot->iLower;
+	    pLocal->bRemote = 0;
+	    pLocal->bTopTree = 0;
+	    }
+#endif
+	}
+    }
+
+static void InitializeParticles(PKD pkd,KDN *pRoot,BND *pbnd) {
     int iTreeRoot[MAX_RUNG];
     int iTreeOffset[MAX_RUNG+1];
     int iTreeEnd[MAX_RUNG+1];
     PARTICLE *p;
-    KDN *pNode;
     BND *bnd;
     int i,j,k,iTree;
-    int bOnlyMarked;
+//    int bOnlyMarked;
 
     /* Special mode: build a tree with only marked particles */
-    bOnlyMarked = (nTrees==1 && pSpec[0].uRungFirst > pSpec[0].uRungLast);
-    int bExcludeVeryActive = 0;
+//    bOnlyMarked = (nTrees==1 && pSpec[0].uRungFirst > pSpec[0].uRungLast);
+//    int bExcludeVeryActive = 0;
 
     /* Sometimes the simple trees are the best trees */
-    if (nTrees==1 && pSpec[0].uRungFirst==0 && pSpec[0].uRungLast == MAX_RUNG) {
-	pNode = pkdTreeNode(pkd,pSpec[0].uCell);
-	pNode->bRemote = 0;
-	pNode->iLower = 0;
-	pNode->pLower = 0;
-	pNode->pUpper = pkd->nLocal - 1;
-	bnd = pkdNodeBnd(pkd, pNode);
-	for (j=0;j<3;++j) {
-	    bnd->fCenter[j] = pbnd->fCenter[j];
-	    bnd->fMax[j] = pbnd->fMax[j];
-	    }
+//    if (nTrees==1 && pSpec[0].uRungFirst==0 && pSpec[0].uRungLast == MAX_RUNG) {
+//    pNode = pkdTreeNode(pkd,pSpec[0].uCell);
+    pRoot->bTopTree = 0;
+    pRoot->bRemote = 0;
+    pRoot->iLower = 0;
+    pRoot->pLower = 0;
+    pRoot->pUpper = pkd->nLocal - 1;
+    bnd = pkdNodeBnd(pkd, pRoot);
+    for (j=0;j<3;++j) {
+	bnd->fCenter[j] = pbnd->fCenter[j];
+	bnd->fMax[j] = pbnd->fMax[j];
 	}
-
+#if 0
     /* Sometimes, not so much */
     else {
 	/* Figure out which tree each rung belongs to */
@@ -90,6 +115,7 @@ static void InitializeParticles(PKD pkd,int nTrees,TREESPEC *pSpec,BND *pbnd) {
 	/* Construct the tree nodes */
 	for (i=0; i<nTrees;++i) {
 	    pNode = pkdTreeNode(pkd,pSpec[i].uCell);
+	    pNode->bTopTree = 0;
 	    pNode->bRemote = 0;
 	    pNode->iLower = 0;
 	    pNode->pLower = iTreeOffset[i];
@@ -114,6 +140,7 @@ static void InitializeParticles(PKD pkd,int nTrees,TREESPEC *pSpec,BND *pbnd) {
 		}
 	    }
 	}
+#endif
     }
 
 #define MIN_SRATIO    0.05
@@ -213,11 +240,13 @@ void BuildTemp(PKD pkd,int iNode,int M) {
 	    */
 	    pkdTreeAllocNodePair(pkd,&iLeft,&iRight);
 	    pLeft = pkdTreeNode(pkd,iLeft);
+	    pLeft->bTopTree = 0;
 	    pLeft->bRemote = 0;
 	    pLeft->pLower = pNode->pLower;
 	    pLeft->pUpper = i-1;
 	    pRight = pkdTreeNode(pkd,iRight);
 	    assert(iRight & 1);
+	    pRight->bTopTree = 0;
 	    pRight->bRemote = 0;
 	    pRight->pLower = i;
 	    pRight->pUpper = pNode->pUpper;
@@ -712,7 +741,7 @@ void pkdCombineCells2(PKD pkd,KDN *pkdn,KDN *p1,KDN *p2) {
     }
 }
 
-void pkdTreeBuild(PKD pkd,int nBucket,int nTrees, TREESPEC *pSpec) {
+void pkdTreeBuild(PKD pkd,int nBucket, uint32_t uRoot) {
     int i;
 #ifdef USE_ITT
     __itt_domain* domain = __itt_domain_create("MyTraces.MyDomain");
@@ -725,9 +754,10 @@ void pkdTreeBuild(PKD pkd,int nBucket,int nTrees, TREESPEC *pSpec) {
 
     pkdClearTimer(pkd,0);
     pkdStartTimer(pkd,0);
-    InitializeParticles(pkd,nTrees,pSpec,&pkd->bnd);
-    for(i=0; i<nTrees; ++i) BuildTemp(pkd,pSpec[i].uCell,nBucket);
-    for(i=0; i<nTrees; ++i) Create(pkd,pSpec[i].uCell);
+    KDN *pRoot = pkdTreeNode(pkd,uRoot);
+    InitializeParticles(pkd,pRoot,&pkd->bnd); /* Eventually this is done elsewhere */
+    BuildTemp(pkd,uRoot,nBucket);
+    Create(pkd,uRoot);
 
     pkdStopTimer(pkd,0);
 

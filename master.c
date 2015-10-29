@@ -2346,18 +2346,18 @@ void msrDomainDecomp(MSR msr,int iRung,int bOthers,int bSplitVA) {
 ** This the meat of the tree build, but will be called by differently named
 ** functions in order to implement special features without recoding...
 */
-static void BuildTree(MSR msr,int bNeedEwald,int nTrees,TREESPEC *pSpecIn) {
-    struct inBuildTree *in;
-    TREESPEC *pSpec;
+static void BuildTree(MSR msr,int bNeedEwald,uint32_t uRoot) {
+    struct inBuildTree in;
     struct ioCalcRoot root;
     struct ioDistribRoot droot;
-    int inSize;
+    struct inDistribTopTree *pDistribTop;
     int i;
     PST pst0;
     LCL *plcl;
     PKD pkd;
     KDN *pkdn;
     int iDum;
+    int nTopTree;
     double sec,dsec;
 
     pst0 = msr->pst;
@@ -2371,18 +2371,20 @@ static void BuildTree(MSR msr,int bNeedEwald,int nTrees,TREESPEC *pSpecIn) {
     /* First we need to dump existing trees and set the number of used nodes to the default */
     pstDumpTrees(msr->pst,NULL,0,NULL,NULL);
 
-    pkdn = stack_alloc(nTrees*pkdNodeSize(pkd));
-    inSize = sizeof(struct inBuildTree) + nTrees * sizeof(TREESPEC);
-    in = stack_alloc(inSize);
-    pSpec = (TREESPEC *)(in + 1);
-    for(i=0; i<nTrees; ++i) {
-	pSpec[i] = pSpecIn[i];
-	pSpec[i].uCell = pSpec[i].uRoot;
-	}
-    in->nBucket = msr->param.nBucket;
-    in->nTrees = nTrees;
+
+    nTopTree = pkdNodeSize(pkd) * (2*msr->nThreads-1);
+    pDistribTop = malloc( sizeof(struct inDistribTopTree) + nTopTree );
+    assert(pDistribTop != NULL);
+    pDistribTop->uRoot = uRoot;
+    pkdn = (KDN *)(pDistribTop + 1);
+
+    in.nBucket = msr->param.nBucket;
+    in.uRoot = uRoot;
     sec = msrTime();
-    pstBuildTree(msr->pst,in,inSize,pkdn,&iDum);
+    pstBuildTree(msr->pst,&in,sizeof(in),pkdn,&nTopTree);
+    pDistribTop->nTop = nTopTree / pkdNodeSize(pkd);
+    assert(pDistribTop->nTop == (2*msr->nThreads-1));
+    pstDistribTopTree(msr->pst,pDistribTop,sizeof(struct inDistribTopTree) + nTopTree,NULL,NULL);
     dsec = msrTime() - sec;
     printf("Tree built, Wallclock: %f secs\n\n",dsec);
 
@@ -2400,50 +2402,49 @@ static void BuildTree(MSR msr,int bNeedEwald,int nTrees,TREESPEC *pSpecIn) {
 	droot.r[2] = pkdn->r[2];
 	pstDistribRoot(msr->pst,&droot,sizeof(struct ioDistribRoot),NULL,NULL);
 	}
-    stack_free(pkdn);
-    stack_free(in);
+
+    free(pDistribTop);
     }
 
 void msrBuildTree(MSR msr,double dTime,int bNeedEwald) {
-    TREESPEC spec[1];
-    spec[0].uRoot = ROOT;
-    spec[0].uRungFirst = 0;
-    spec[0].uRungLast = MAX_RUNG;
-    BuildTree(msr,bNeedEwald,1,spec);
+    BuildTree(msr,bNeedEwald,ROOT);
     }
 
 void msrBuildTreeByRung(MSR msr,double dTime,int bNeedEwald,int iRung) {
-    TREESPEC spec[2];
-    int nTrees = 1;
-    spec[0].uRoot = ROOT;
-    spec[0].uRungFirst = iRung;
-    spec[0].uRungLast = iRung;
-    if (msrCurrMaxRung(msr) > iRung) {
-	spec[1].uRoot = ROOT+1;
-	spec[1].uRungFirst = iRung+1;
-	spec[1].uRungLast = MAX_RUNG;
-	++nTrees;
-	}
-    BuildTree(msr,bNeedEwald,nTrees,spec);
+    assert(0);
+//    TREESPEC spec[2];
+//    int nTrees = 1;
+//    spec[0].uRoot = ROOT;
+//    spec[0].uRungFirst = iRung;
+//    spec[0].uRungLast = iRung;
+//    if (msrCurrMaxRung(msr) > iRung) {
+//	spec[1].uRoot = ROOT+1;
+//	spec[1].uRungFirst = iRung+1;
+//	spec[1].uRungLast = MAX_RUNG;
+//	++nTrees;
+//	}
+//    BuildTree(msr,bNeedEwald,nTrees,spec);
     }
 
 void msrBuildTreeExcludeVeryActive(MSR msr,double dTime) {
-    TREESPEC spec[2];
-    spec[0].uRoot = ROOT;
-    spec[0].uRungFirst = 0;
-    spec[0].uRungLast = msr->iRungVeryActive;
-    spec[1].uRoot = ROOT+1;
-    spec[1].uRungFirst = spec[0].uRungLast+1;
-    spec[1].uRungLast = MAX_RUNG;
-    BuildTree(msr,0,2,spec);
+    assert(0);
+//    TREESPEC spec[2];
+//    spec[0].uRoot = ROOT;
+//    spec[0].uRungFirst = 0;
+//    spec[0].uRungLast = msr->iRungVeryActive;
+//    spec[1].uRoot = ROOT+1;
+//    spec[1].uRungFirst = spec[0].uRungLast+1;
+//    spec[1].uRungLast = MAX_RUNG;
+//    BuildTree(msr,0,2,spec);
     }
 
 void msrBuildTreeMarked(MSR msr,double dTime) {
-    TREESPEC spec[1];
-    spec[0].uRoot = ROOT;
-    spec[0].uRungFirst = MAX_RUNG;
-    spec[0].uRungLast = 0;
-    BuildTree(msr,0,1,spec);
+    assert(0);
+//    TREESPEC spec[1];
+//    spec[0].uRoot = ROOT;
+//    spec[0].uRungFirst = MAX_RUNG;
+//    spec[0].uRungLast = 0;
+//    BuildTree(msr,0,1,spec);
     }
 
 void msrReorder(MSR msr) {

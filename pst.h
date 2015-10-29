@@ -95,6 +95,7 @@ enum pst_service {
     PST_WRITEASCII,
     PST_WRITE,
     PST_BUILDTREE,
+    PST_DISTRIBTOPTREE,
     PST_DUMPTREES,
     PST_CALCROOT,
     PST_DISTRIBROOT,
@@ -484,10 +485,17 @@ void pstWrite(PST,void *,int,void *,int *);
 
 /* PST_BUILDTREE */
 struct inBuildTree {
-    int nBucket;
-    int nTrees;
-    }; /* followed by an array of TREESPEC */
+    int nBucket;    /* Bucket Size */
+    uint32_t uRoot; /* Which root node to use */
+    };
 void pstBuildTree(PST,void *,int,void *,int *);
+
+/* PST_DISTRIBTOPTREE */
+struct inDistribTopTree {
+    uint32_t uRoot; /* Which root node to use */
+    uint32_t nTop;
+    };
+void pstDistribTopTree(PST,void *,int,void *,int *);
 
 /* PST_DUMPTREES */
 void pstDumpTrees(PST,void *,int,void *,int *);

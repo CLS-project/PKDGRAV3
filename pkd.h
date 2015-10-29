@@ -94,13 +94,6 @@ static inline int64_t d2u64(double d) {
 #define PKD_MODEL_NODE_BND     (1<<28) /* Include normal bounds in tree */
 #define PKD_MODEL_NODE_VBND    (1<<29) /* Include velocity bounds in tree for phase-space density*/
 
-typedef struct {
-    uint8_t  uRungFirst;
-    uint8_t  uRungLast;
-    uint16_t uRoot;
-    uint32_t uCell;
-    } TREESPEC;
-
 #define EPHEMERAL_BYTES 8
 
 typedef struct {
@@ -236,19 +229,39 @@ static inline int IN_BND(const FLOAT *R,const BND *b) {
 #define CLEAR_STACK(S) do { S ## __s=0; } while (0)
 #define STACK_SIZE(S) (S ## __s)
 
+/* This macro give the id (processor) and index of the two child cells */
+#define pkdGetChildCells(c,id,idLower,idxLower,idUpper,idxUpper)	\
+    do {								\
+        idxLower = c->iLower;   /* This is always true */		\
+	idLower = idUpper = id; /* Default */				\
+	if (c->bTopTree) {						\
+	    /* We may point off node, but then nodes are adjacent */	\
+	    if (c->bRemote) {						\
+		idLower = c->pLower;					\
+		idUpper = idLower;					\
+		idxUpper = idxLower+1;					\
+		}							\
+	    else {							\
+		idxUpper = c->pUpper;					\
+		}							\
+	    }								\
+	else { idxUpper = idxLower+1; }					\
+	} while(0)							\
 
 typedef struct kdNode {
     double r[3];
-    uint32_t iLower : 31; /* Local lower node */
-    uint32_t bRemote : 1; /* sibling is remote */
-    int pLower;		/* also serves as thread id for the LTT */
-    int pUpper;		/* pUpper < 0 indicates no particles in tree! */
+    int pLower;		     /* also serves as thread id for the LTT */
+    int pUpper;		     /* pUpper < 0 indicates no particles in tree! */
+    uint32_t iLower;         /* Local lower node (or remote processor w/bRemote=1) */
+    uint16_t uCore;          /* Reserved: will be the owner core */
+    uint16_t uMinRung   : 6;
+    uint16_t uMaxRung   : 6;
+    uint16_t bSrcActive : 1;
+    uint16_t bDstActive : 1;
+    uint16_t bTopTree   : 1; /* This is a top tree node: pLower,pUpper are node indexes */
+    uint16_t bRemote    : 1; /* children are remote */
     float bMax;
     float fSoft2;
-    uint8_t uMinRung; /* 6 */
-    uint8_t uMaxRung; /* 6 */
-    uint8_t bSrcActive; /* 1 */
-    uint8_t bDstActive; /* 1 */
     } KDN;
 
 typedef struct sphBounds {
@@ -589,7 +602,7 @@ typedef struct pkdContext {
     uint64_t nStar;
     FLOAT fPeriod[3];
     char **kdNodeListPRIVATE; /* BEWARE: also char instead of KDN */
-    int iTopRoot;
+    int iTopTree[NRESERVED_NODES];
     int nNodes;
     int nNodesFull;     /* number of nodes in the full tree (including very active particles) */
     int nNonVANodes;    /* number of nodes *not* in Very Active Tree, or index to the start of the VA nodes (except VAROOT) */
@@ -853,15 +866,19 @@ static inline KDN *pkdTreeNode(PKD pkd,int iNode) {
     char *kdn = &pkd->kdNodeListPRIVATE[(iNode>>pkd->nTreeBitsLo)][pkd->iTreeNodeSize*(iNode&pkd->iTreeMask)];
     return (KDN *)kdn;
     }
-static inline void pkdTreeAlignNode(PKD pkd) {
+static inline int pkdTreeAlignNode(PKD pkd) {
     if (pkd->nNodes&1) ++pkd->nNodes;
+    return pkd->nNodes;
     }
 
+static inline int pkdTreeAllocNodes(PKD pkd, int nNodes) {
+    int iNode = pkd->nNodes;
+    pkd->nNodes += nNodes;
+    while(pkd->nNodes > pkd->nMaxNodes) pkdExtendTree(pkd);
+    return iNode;
+    }
 static inline int pkdTreeAllocNode(PKD pkd) {
-    if ( pkd->nNodes+1 > pkd->nMaxNodes ) {
-	pkdExtendTree(pkd);
-	}
-    return pkd->nNodes++;
+    return pkdTreeAllocNodes(pkd,1);
     }
 static inline void pkdTreeAllocNodePair(PKD pkd,int *iLeft, int *iRight) {
     *iLeft = pkdTreeAllocNode(pkd);
@@ -1058,7 +1075,8 @@ typedef struct CacheStatistics {
 ** From tree.c:
 */
 void pkdVATreeBuild(PKD pkd,int nBucket);
-void pkdTreeBuild(PKD pkd,int nBucket,int nTrees, TREESPEC *pSpec);
+void pkdTreeBuild(PKD pkd,int nBucket,uint32_t uRoot );
+void pkdDistribTopTree(PKD pkd, uint32_t uRoot, uint32_t nTop, KDN *pTop);
 void pkdDumpTrees(PKD pkd);
 void pkdCombineCells1(PKD,KDN *pkdn,KDN *p1,KDN *p2);
 void pkdCombineCells2(PKD,KDN *pkdn,KDN *p1,KDN *p2);

@@ -246,7 +246,11 @@ void pstAddServices(PST pst,MDL mdl) {
     */
     mdlAddService(mdl,PST_BUILDTREE,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstBuildTree,
-	sizeof(struct inBuildTree)+MAX_RUNG*sizeof(TREESPEC),2*pkdMaxNodeSize());
+	sizeof(struct inBuildTree),
+	(nThreads==1?1:2*nThreads-1)*pkdMaxNodeSize());
+    mdlAddService(mdl,PST_DISTRIBTOPTREE,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstDistribTopTree,
+	sizeof(struct inDistribTopTree) + (nThreads==1?1:2*nThreads-1)*pkdMaxNodeSize(),0);
     mdlAddService(mdl,PST_DUMPTREES,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstDumpTrees,
 		  0,0);
@@ -2585,76 +2589,77 @@ void pstDumpTrees(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     if (pnOut) *pnOut = 0;
     }
 
+void pstDistribTopTree(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl = pst->plcl;
+    PKD pkd = plcl->pkd;
+    KDN *pTop = vin;
+    struct inDistribTopTree *in = vin;
+    if (pst->nLeaves > 1) {
+	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_DISTRIBTOPTREE,vin,nIn);
+	pstDistribTopTree(pst->pstLower,vin,nIn,vout,pnOut);
+	mdlGetReply(pst->mdl,rID,vout,pnOut);
+	}
+    else {
+	pkdDistribTopTree(pkd,in->uRoot,in->nTop,(KDN *)(in+1));
+	}
+    if (pnOut) *pnOut = 0;
+    }
+
 void pstBuildTree(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     PKD pkd = plcl->pkd;
     struct inBuildTree *in = vin;
-    TREESPEC *pSpec = (TREESPEC *)(in+1);
-    KDN *pkdn = vout;
-    KDN *pCell1, *pCell2, *pCell;
+    uint32_t uRoot = in->uRoot;
+    KDN *pTop = vout;
+    KDN *pCell1, *pCell2;
     FLOAT minside;
-    uint32_t *puCells;
-    int iCell,iLower;
+    int nOutUpper;
+    int iLower;
     int i;
 
     /* We need to save our cells so we can update them later */
-    puCells = stack_alloc( in->nTrees * sizeof(uint32_t));
-    for(i=0; i<in->nTrees; ++i) puCells[i] = pSpec[i].uCell;
-
     if (pst->nLeaves > 1) {
-	/* Get our cell ready */
-	for(i=0; i<in->nTrees; ++i) {
-	    iCell = pSpec[i].uCell;
-	    pCell = pkdTreeNode(pkd,iCell);
-	    pCell->bRemote = 1;                          /* Lower sibling is remote */
-	    pCell->iLower = pkdTreeAllocNode(pkd);       /* Lower cell */
-	    pCell->pLower = pSpec[i].uRoot;              /* Remote root node */
-	    pCell->pUpper = pst->idUpper;                /* Remote processor */
-	    }
-	pCell1 = stack_alloc(in->nTrees*pkdNodeSize(plcl->pkd));
-	pCell2 = stack_alloc(in->nTrees*pkdNodeSize(plcl->pkd));
+	pCell1 = pkdNode(pkd,pTop,1);
+	pCell2 = pkdNode(pkd,pTop,pst->nLower*2);
 
-	/* The right of the trees starts in a new domain */
-	for(i=0; i<in->nTrees; ++i) pSpec[i].uCell = pSpec[i].uRoot;
-	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_BUILDTREE,in,nIn);
-
-	/* We descend down the left -- we will get back the combined cell */
-	for(i=0; i<in->nTrees; ++i) pSpec[i].uCell = pkdTreeNode(pkd,puCells[i])->iLower;
-	pstBuildTree(pst->pstLower,in,nIn,pCell1,pnOut);
-	mdlGetReply(pst->mdl,rID,pCell2,pnOut);
+	/* We will accumulate the top tree here */
+	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_BUILDTREE,vin,nIn);
+	pstBuildTree(pst->pstLower,vin,nIn,pCell1,pnOut);
+	assert(*pnOut == (pst->nLower*2-1) * pkdNodeSize(pkd));
+	mdlGetReply(pst->mdl,rID,pCell2,&nOutUpper);
+	assert(nOutUpper == (pst->nUpper*2-1) * pkdNodeSize(pkd));
+	*pnOut += nOutUpper + pkdNodeSize(pkd);
 
 	/*
 	** Combine Cell1 and Cell2 into pCell
 	** to find cell CoM, bounds and multipoles.
 	** This also computes the opening radius for gravity.
 	*/
-	for(i=0; i<in->nTrees; ++i) {
-	    pCell = pkdTreeNode(pkd,puCells[i]);
-	    pCell->bMax = HUGE_VAL;  /* initialize bMax for CombineCells */
-	    MINSIDE(pst->bnd.fMax,minside);
-	    pkdCombineCells1(pkd,pCell,pkdNode(pkd,pCell1,i),pkdNode(pkd,pCell2,i));
-	    CALCOPEN(pCell,minside);
-	    pkdCombineCells2(pkd,pCell,pkdNode(pkd,pCell1,i),pkdNode(pkd,pCell2,i));
-	    }
-	stack_free(pCell1);
-	stack_free(pCell2);
+	pTop->bMax = HUGE_VAL;  /* initialize bMax for CombineCells */
+	MINSIDE(pst->bnd.fMax,minside);
+	pkdCombineCells1(pkd,pTop,pCell1,pCell2);
+	CALCOPEN(pTop,minside);
+	pkdCombineCells2(pkd,pTop,pCell1,pCell2);
+
+	/* Get our cell ready */
+	pTop->bTopTree = 1;                         /* The replicated top tree */
+	pTop->bRemote = 0;                          /* top tree is not remote */
+	pTop->iLower = 1;                           /* Relative index to lower cell */
+	pTop->pUpper = pst->nLower*2;               /* Relative index to upper cell */
+	pTop->pLower = 0;                           /* Not used */
 	}
     else {
+	KDN *pRoot = pkdTreeNode(pkd,uRoot);
 	pkdTreeAlignNode(pkd);
-	pkdTreeBuild(plcl->pkd,in->nBucket,in->nTrees,pSpec);
-	/* This cell will now have bRemote=0. pLower and pUpper are now particle indexes. */
+	pkdTreeBuild(plcl->pkd,in->nBucket,in->uRoot);
+	pkdCopyNode(pkd,pTop,pRoot);
+	/* Get our cell ready */
+	pTop->bTopTree = 1;
+	pTop->bRemote = 1;
+	pTop->pUpper = pTop->pLower = pst->idSelf;
+	/* iLower is valid = ROOT */
+	*pnOut = pkdNodeSize(pkd);
 	}
-    /*
-    ** Calculated all cell properties, now pass up this cell info.
-    */
-    if (pkdn != NULL) {
-	for(i=0; i<in->nTrees; ++i) {
-	    pkdCopyNode(pkd,pkdNode(pkd,pkdn,i),pkdTreeNode(pkd,puCells[i]));
-	    }
-	if (pnOut) *pnOut = in->nTrees * pkdNodeSize(plcl->pkd);
-	}
-    else if (pnOut) *pnOut = 0;
-    stack_free(puCells);
     }
 
 void pstCalcRoot(PST pst,void *vin,int nIn,void *vout,int *pnOut) {

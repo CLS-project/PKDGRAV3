@@ -610,11 +610,8 @@ PQ *pqSearch(SMX smx,PQ *pq,FLOAT r[3]) {
     kdn = getCell(pkd,ROOT,id = 0);
     while (1) {
 	while (kdn->iLower) {
-	    int idLower = id;
-	    int iLower = kdn->iLower;
-	    int iUpper = kdn->bRemote ? kdn->pLower : iLower+1;
-	    int idUpper = kdn->bRemote ? kdn->pUpper : id;
-
+	    int idLower,iLower,idUpper,iUpper;
+	    pkdGetChildCells(kdn,id,idLower,iLower,idUpper,iUpper);
 	    kdn = getCell(pkd,iLower,idLower);
             bnd = pkdNodeBnd(pkd, kdn);
 	    MINDIST(bnd,r,min1);
@@ -2409,9 +2406,8 @@ void smGather(SMX smx,FLOAT fBall2,FLOAT r[3]) {
 	** We have an intersection to test.
 	*/
 	if (kdn->iLower) {
-	    int iUpper = kdn->bRemote ? kdn->pLower : kdn->iLower+1;
-	    int idUpper = kdn->bRemote ? kdn->pUpper : id;
-	    iCell = kdn->iLower;
+	    int idUpper,iUpper;
+	    pkdGetChildCells(kdn,id,id,iCell,idUpper,iUpper);
 	    kdn = getCell(pkd,iCell,id);
 	    S[sp].id = idUpper;
 	    S[sp].iCell = iUpper;
