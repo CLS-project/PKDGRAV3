@@ -462,8 +462,6 @@ int pkdParticleEwald(PKD pkd,PARTICLE *p, float *pa, float *pPot) {
     int nFlop = 0;
     int nLoop = 0;
 
-    assert(pkd->oAcceleration); /* Validate memory model */
-
     L = ew->Lbox;
     pkdGetPos1(p->r,r);
     dx = r[0] - ew->r[0];

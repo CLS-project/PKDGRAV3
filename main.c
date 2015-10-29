@@ -75,6 +75,10 @@ void * master_ch(MDL mdl) {
     long lSec=0,lStart;
     int i,iStep,iSec=0,iStop=0;
     uint64_t nActive;
+    int bKickOpen = 0;
+    uint8_t uRungMax;
+    double diStep;
+    double ddTime;
 
     lStart=time(0);
 
@@ -186,11 +190,14 @@ void * master_ch(MDL mdl) {
 	msrUpdateSoft(msr,dTime);
 	msrBuildTree(msr,dTime,msr->param.bEwald);
 	if (msrDoGravity(msr) && !msr->param.bHSDKD) {
-	    msrGravity(msr,0,MAX_RUNG,ROOT,0,dTime,msr->param.iStartStep,msr->param.bEwald,msr->param.nGroup,&iSec,&nActive);
+	    if (msr->param.bNewKDK) bKickOpen = 1;
+	    else bKickOpen = 0;
+	    uRungMax = msrGravity(msr,0,MAX_RUNG,ROOT,0,dTime,msr->param.iStartStep,0,bKickOpen,msr->param.bEwald,msr->param.nGroup,&iSec,&nActive);
 	    msrMemStatus(msr);
 	    if (msr->param.bGravStep) {
+		assert(msr->param.bNewKDK == 0);    /* for now! */
 		msrBuildTree(msr,dTime,msr->param.bEwald);
-		msrGravity(msr,0,MAX_RUNG,ROOT,0,dTime,msr->param.iStartStep,msr->param.bEwald,msr->param.nGroup,&iSec,&nActive);
+		msrGravity(msr,0,MAX_RUNG,ROOT,0,dTime,msr->param.iStartStep,0,0,msr->param.bEwald,msr->param.nGroup,&iSec,&nActive);
 		msrMemStatus(msr);
 		if (msr->param.bHSDKD) {
 		    msrAccelStep(msr,0,MAX_RUNG,dTime);
@@ -223,11 +230,10 @@ void * master_ch(MDL mdl) {
 	    dMultiEff = 0.0;
 	    lSec = time(0);
 	    if (msr->param.bHSDKD) {
-
 		/* Perform select */
 		msrActiveRung(msr,0,1); /* Activate all particles */
 		msrBuildTree(msr,dTime,msr->param.bEwald);
-		msrGravity(msr,0,MAX_RUNG,ROOT,0,dTime,iStep-1,msr->param.bEwald,msr->param.nGroup,&iSec,&nActive);
+		msrGravity(msr,0,MAX_RUNG,ROOT,0,dTime,iStep-1,0,0,msr->param.bEwald,msr->param.nGroup,&iSec,&nActive);
 		msrMemStatus(msr);
 		msrAccelStep(msr,0,MAX_RUNG,dTime);
 		msrUpdateRung(msr,0);
@@ -235,6 +241,11 @@ void * master_ch(MDL mdl) {
 		msrTopStepHSDKD(msr,iStep-1,dTime,
 		    msrDelta(msr),0,0,msrMaxRung(msr),1,
 		    &dMultiEff,&iSec);
+		}
+	    else if (msr->param.bNewKDK) {
+		diStep = (double)(iStep-1);
+		ddTime = dTime;
+		msrNewTopStepKDK(msr,0,&diStep,&ddTime,&uRungMax,&iSec);
 		}
 	    else {
 		msrTopStepKDK(msr,iStep-1,dTime,
@@ -327,11 +338,11 @@ void * master_ch(MDL mdl) {
 		msrBuildTree(msr,dTime,msr->param.bEwald);
 		
 		if (msrDoGravity(msr)) {
-		    msrGravity(msr,0,MAX_RUNG,ROOT,0,dTime,msr->param.iStartStep,msr->param.bEwald,msr->param.nGroup,&iSec,&nActive);
+		    msrGravity(msr,0,MAX_RUNG,ROOT,0,dTime,msr->param.iStartStep,0,0,msr->param.bEwald,msr->param.nGroup,&iSec,&nActive);
 		    msrMemStatus(msr);
 		    if (msr->param.bGravStep) {
 			msrBuildTree(msr,dTime,msr->param.bEwald);
-			msrGravity(msr,0,MAX_RUNG,ROOT,0,dTime,msr->param.iStartStep,msr->param.bEwald,msr->param.nGroup,&iSec,&nActive);
+			msrGravity(msr,0,MAX_RUNG,ROOT,0,dTime,msr->param.iStartStep,0,0,msr->param.bEwald,msr->param.nGroup,&iSec,&nActive);
 			msrMemStatus(msr);
 		    }
 		}

@@ -78,8 +78,8 @@ double msrTime() {
 #endif
 
 void _msrLeader(void) {
-    puts("pkdgrav"PACKAGE_VERSION" Joachim Stadel & Doug Potter Sept 2007");
-    puts("USAGE: pkdgrav2 [SETTINGS | FLAGS] [SIM_FILE]");
+    puts("pkdgrav"PACKAGE_VERSION" Joachim Stadel & Doug Potter Sept 2015");
+    puts("USAGE: pkdgrav3 [SETTINGS | FLAGS] [SIM_FILE]");
     puts("SIM_FILE: Configuration file of a particular simulation, which");
     puts("          includes desired settings and relevant input and");
     puts("          output files. Settings specified in this file override");
@@ -129,6 +129,7 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     int i,j,ret;
     int nDigits;
     struct inSetAdd inAdd;
+    char ach[256];
 
     msr = (MSR)malloc(sizeof(struct msrContext));
     assert(msr != NULL);
@@ -315,9 +316,10 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.nTruncateRung = 0;
     prmAddParam(msr->prm,"nTruncateRung",1,&msr->param.nTruncateRung,sizeof(int),"nTR",
 		"<number of MaxRung particles to delete MaxRung> = 0");
-    msr->param.iMaxRung = 16;
+    msr->param.iMaxRung = IRUNGMAX;
+    sprintf(ach,"<maximum timestep rung> = %d",msr->param.iMaxRung);
     prmAddParam(msr->prm,"iMaxRung",1,&msr->param.iMaxRung,sizeof(int),
-		"mrung", "<maximum timestep rung>");
+		"mrung",ach);
     msr->param.nRungVeryActive = 31;
     prmAddParam(msr->prm,"nRungVeryActive",1,&msr->param.nRungVeryActive,
 		sizeof(int), "nvactrung", "<timestep rung to use very active timestepping>");
@@ -327,6 +329,9 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.bHSDKD = 0;
     prmAddParam(msr->prm,"bHSDKD",0,&msr->param.bHSDKD,
 		sizeof(int), "HSDKD", "<Use Hold/Select drift-kick-drift time stepping=no>");
+    msr->param.bNewKDK = 0;
+    prmAddParam(msr->prm,"bNewKDK",0,&msr->param.bNewKDK,
+		sizeof(int), "NewKDK", "<Use new implementation of KDK time stepping=no>");
     msr->param.dEwCut = 2.6;
     prmAddParam(msr->prm,"dEwCut",2,&msr->param.dEwCut,sizeof(double),"ew",
 		"<dEwCut> = 2.6");
@@ -1055,12 +1060,13 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     /*
     ** Check timestepping and gravity combinations.
     */
+    assert(msr->param.iMaxRung <= IRUNGMAX);
     if (msr->param.bDoGravity) {
 	/* Potential is optional, but the default for gravity */
 	if (!prmSpecified(msr->prm,"bMemPotential")) msr->param.bMemPotential = 1;
 	if (msr->param.iMaxRung < 1) {
-	    msr->param.iMaxRung = 1;
-	    if (msr->param.bVWarnings) fprintf(stderr,"WARNING: iMaxRung set to 1, SINGLE STEPPING run!\n");
+	    msr->param.iMaxRung = 0;
+	    if (msr->param.bVWarnings) fprintf(stderr,"WARNING: iMaxRung set to 0, SINGLE STEPPING run!\n");
 	    /*
 	    ** For single stepping we don't need fancy timestepping variables.
 	    */
@@ -1651,15 +1657,18 @@ static uint64_t getMemoryModel(MSR msr) {
     ** will force these flags to be on.
     */
     if (msr->param.bFindGroups) mMemoryModel |= PKD_MODEL_GROUPS|PKD_MODEL_VELOCITY|PKD_MODEL_POTENTIAL;
-    if (msrDoGravity(msr)) mMemoryModel |= PKD_MODEL_VELOCITY|PKD_MODEL_ACCELERATION|PKD_MODEL_NODE_MOMENT;
+    if (msrDoGravity(msr)) {
+	mMemoryModel |= PKD_MODEL_VELOCITY|PKD_MODEL_NODE_MOMENT;
+	if (!msr->param.bNewKDK) mMemoryModel |= PKD_MODEL_ACCELERATION;
+	}
 
     if (msr->param.nDomainRungs>0)   mMemoryModel |= PKD_MODEL_RUNGDEST;
 
     if (msr->param.bMemParticleID)   mMemoryModel |= PKD_MODEL_PARTICLE_ID;
     if (msr->param.bTraceRelaxation) mMemoryModel |= PKD_MODEL_RELAXATION;
-    if (msr->param.bMemAcceleration) mMemoryModel |= PKD_MODEL_ACCELERATION;
+    if (msr->param.bMemAcceleration || msr->param.bDoAccOutput) mMemoryModel |= PKD_MODEL_ACCELERATION;
     if (msr->param.bMemVelocity)     mMemoryModel |= PKD_MODEL_VELOCITY;
-    if (msr->param.bMemPotential)    mMemoryModel |= PKD_MODEL_POTENTIAL;
+    if (msr->param.bMemPotential || msr->param.bDoPotOutput)    mMemoryModel |= PKD_MODEL_POTENTIAL;
     if (msr->param.bMemGroups)       mMemoryModel |= PKD_MODEL_GROUPS;
     if (msr->param.bMemMass)         mMemoryModel |= PKD_MODEL_MASS;
     if (msr->param.bMemSoft)         mMemoryModel |= PKD_MODEL_SOFTENING;
@@ -1674,6 +1683,7 @@ static uint64_t getMemoryModel(MSR msr) {
 
     if (msr->param.bMemNodeBnd)          mMemoryModel |= PKD_MODEL_NODE_BND;
     if (msr->param.bMemNodeVBnd)         mMemoryModel |= PKD_MODEL_NODE_VBND;
+
     return mMemoryModel;
     }
 
@@ -2811,12 +2821,30 @@ void msrMemStatus(MSR msr) {
 	}
     }
 
-void msrGravity(MSR msr,uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
-    double dTime, double dStep,int bEwald,int nGroup,int *piSec,uint64_t *pnActive) {
+void msrPrintStat(STAT *ps,char *pszPrefix,int p) {
+    if (ps->n > 1) {
+	printf("%s max=%8.*f @%5d avg=%8.*f of %5d std-dev=%8.*f\n",pszPrefix,
+	    p,ps->dMax,ps->idMax,p,ps->dSum/ps->n,ps->n,p,sqrt((ps->dSum2 - ps->dSum*ps->dSum/ps->n)/(ps->n-1)));
+	}
+    else if (ps->n == 1) {
+	printf("%s max=%8.*f @%5d\n",pszPrefix,p,ps->dMax,ps->idMax);
+	}
+    else {
+	printf("%s no data\n",pszPrefix);
+	}	
+    }
+
+uint8_t msrGravity(MSR msr,uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
+    double dTime, double dStep,int bKickClose,int bKickOpen,int bEwald,int nGroup,int *piSec,uint64_t *pnActive) {
     struct inGravity in;
-    struct outGravity *out;
+    struct outGravityPerProc *out;
+    struct outGravityPerProc *outend;
+    struct outGravityReduct *outr;
+    uint64_t nRungSum[IRUNGMAX+1];
     int i,id,iDum;
-    double sec,dsec,dTotFlop;
+    double sec,dsec,dTotFlop,dt,a;
+    uint8_t uRungMax=0;
+    char c;
 
     if (msr->param.bVStep) printf("Calculating Gravity, Step:%f\n",dStep);
     in.dTime = dTime;
@@ -2831,76 +2859,115 @@ void msrGravity(MSR msr,uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
     in.dThetaMin = msr->dThetaMin;
     in.iRoot1 = iRoot1;
     in.iRoot2 = iRoot2;
+    /*
+    ** Now calculate the timestepping factors for kick close and open if the
+    ** gravity should kick the particles. If the code uses bKickClose and 
+    ** bKickOpen it no longer needs to store accelerations per particle.
+    */
+    in.bKickClose = bKickClose;
+    in.bKickOpen = bKickOpen;
+    if (msr->param.csm->bComove) {
+	a = csmTime2Exp(msr->param.csm,dTime);
+	in.dAccFac = 1.0/(a*a*a);
+	}
+    else {
+	in.dAccFac = 1.0;
+	}
+    for (i=0,dt=0.5*msr->param.dDelta;i<=msr->param.iMaxRung;++i,dt*=0.5) {
+	in.dtClose[i] = 0.0;
+	in.dtOpen[i] = 0.0;
+	if (i>=uRungLo) {
+	    if (msr->param.csm->bComove) {
+		if (bKickClose) in.dtClose[i] = csmComoveKickFac(msr->param.csm,dTime-dt,dt);
+		if (bKickOpen) in.dtOpen[i] = csmComoveKickFac(msr->param.csm,dTime,dt);
+		}
+	    else {
+		if (bKickClose) in.dtClose[i] = dt;
+		if (bKickOpen) in.dtOpen[i] = dt;
+		}
+	    }
+	}
 
-    out = malloc(msr->nThreads*sizeof(struct outGravity));
+    out = malloc(msr->nThreads*sizeof(struct outGravityPerProc) + sizeof(struct outGravityReduct));
     assert(out != NULL);
+    outend = out + msr->nThreads;
+    outr = (struct outGravityReduct *)outend;
 
     sec = msrTime();
     pstGravity(msr->pst,&in,sizeof(in),out,&iDum);
     dsec = msrTime() - sec;
 
     *piSec = d2i(dsec);
-    *pnActive = 0;
-    for (id=0;id<msr->nThreads;++id) {
-	*pnActive += out[id].nActive;
+    *pnActive = outr->nActive;
+    if (bKickOpen) {
+	for (i=IRUNGMAX;i>=uRungLo;--i) {
+	    if (outr->nRung[i]) break;
+	    }
+	assert(i >= uRungLo);
+	uRungMax = i;
+	msr->iCurrMaxRung = uRungMax;   /* this assignment shouldn't be needed */
+	/*
+	** Update only the active rung counts in the master rung counts.
+	** We need to go all the way to IRUNGMAX to clear any prior counts at rungs 
+	** deeper than the current uRungMax!
+	*/
+	for (i=uRungLo;i<=IRUNGMAX;++i) msr->nRung[i] = outr->nRung[i];
 	}
-
     if (msr->param.bVStep) {
 	/*
 	** Output some info...
 	*/
-	dTotFlop = 0.0;
-	for (id=0;id<msr->nThreads;++id) {
-	    dTotFlop += out[id].dFlop;
-	    if (out[id].nActive > 0) {
-		out[id].dPartSum /= out[id].nActive;
-		out[id].dCellSum /= out[id].nActive;
-		}
-	    }
-
+	dTotFlop = outr->sFlop.dSum;
 	if (dsec > 0.0) {
-	    double dGFlops = dTotFlop/dsec*1e-9;
-	    printf("Gravity Calculated, Wallclock: %f secs, GFlops:%.1f, Flop:%.3g\n",
+	    double dGFlops = dTotFlop/dsec;
+	    printf("Gravity Calculated, Wallclock: %f secs, Gflops:%.1f, Total Gflop:%.3g\n",
 		   dsec,dGFlops,dTotFlop);
 	    }
 	else {
-	    printf("Gravity Calculated, Wallclock: %f secs, GFlops:unknown, Flop:%.3g\n",
+	    printf("Gravity Calculated, Wallclock: %f secs, Gflops:unknown, Total Gflop:%.3g\n",
 		   dsec,dTotFlop);
 	    }
+	msrPrintStat(&outr->sLocal,         "  particle  load:",0);
+	msrPrintStat(&outr->sActive,        "  actives   load:",0);
+	msrPrintStat(&outr->sFlop,          "  Gflop     load:",1);
+	msrPrintStat(&outr->sPart,          "  P-P per active:",2);
+	msrPrintStat(&outr->sCell,          "  P-C per active:",2);
+#ifdef INSTRUMENT
+	msrPrintStat(&outr->sComputing,     "     % computing:",3);
+	msrPrintStat(&outr->sWaiting,       "     %   waiting:",3);
+	msrPrintStat(&outr->sSynchronizing, "     %   syncing:",3);
+#endif
+	printf("  (cache access statistics are given per active particle)\n");
+	msrPrintStat(&outr->sPartNumAccess, "  P-cache access:",1);
+	msrPrintStat(&outr->sCellNumAccess, "  C-cache access:",1);
+	msrPrintStat(&outr->sPartMissRatio, "  P-cache miss %:",2);
+	msrPrintStat(&outr->sCellMissRatio, "  C-cache miss %:",2);
 	/*
 	** Now comes the really verbose output for each processor.
 	*/
 	if (msr->param.bVDetails) {
 	    printf("Walk Timings:\n");
 	    PRINTGRID(8,"% 8.2f",dWalkTime);
-	    printf("Particle Cache Accesses:\n");
-	    PRINTGRID(8,"% 8.2f",cs.dpNumAccess);
-	    printf("Particle Cache Miss Ratio:\n");
-	    PRINTGRID(8,"% 8.2f",cs.dpMissRatio);
-	    printf("Cell Cache Accesses:\n");
-	    PRINTGRID(8,"% 8.2f",cs.dcNumAccess);
-	    printf("Cell Cache Miss Ratio:\n");
-	    PRINTGRID(8,"% 8.2f",cs.dcMissRatio);
-#if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
-	    /* Okay: Compute + Wait + Imbalance = 100.0 by definition
-	       printf("Compute Percentage:\n");
-	       PRINTGRID(8,"% 8.2f",dComputing);*/
-	    printf("Cache Wait Percentage:\n");
-	    PRINTGRID(8,"% 8.2f",dWaiting);
-	    printf("Load Imbalance Percentage:\n");
-	    PRINTGRID(8,"% 8.2f",dSynchronizing);
-#endif
-	    printf("Number of Active:\n");
-	    PRINTGRID(8,"% 8d",nActive);
-	    printf("Number of Local Particles:\n");
-	    PRINTGRID(8,"% 8d",nLocal);
-	    printf("Average Number of P-P per Active Particle:\n");
-	    PRINTGRID(8,"% 8.1f",dPartSum);
-	    printf("Average Number of P-C per Active Particle:\n");
-	    PRINTGRID(8,"% 8.1f",dCellSum);
 	    }
 	}
+    if (msr->param.bVRungStat && bKickOpen) {
+	printf("Rung distribution:\n");
+	printf("\n");
+	nRungSum[uRungMax] = msr->nRung[uRungMax];
+	for (i=uRungMax-1;i>=0;--i) {
+	    nRungSum[i] = nRungSum[i+1] + msr->nRung[i];
+	    }
+	for (i=0;i<=uRungMax;++i) {
+	    if (msr->nRung[i]) break;
+	    }
+	for (;i<=uRungMax;++i) {
+	    c = ' ';
+	    printf(" %c rung:%d %12"PRIu64"    %12"PRIu64"\n",c,i,msr->nRung[i],nRungSum[i]);
+	    }
+	printf("\n");
+	}
     free(out);
+    return(uRungMax);
     }
 
 
@@ -3596,7 +3663,7 @@ void msrKickHSDKD(MSR msr,double dStep, double dTime,double dDelta, int iRung,
 	msrprintf(msr,"%*cForces, iRung: %d to %d\n",2*iRung+2,' ',iRung,iRung);
 	msrBuildTreeByRung(msr,dTime,msr->param.bEwald,iRung);
 	msrGravity(msr,iRung,MAX_RUNG,ROOT,msrCurrMaxRung(msr) == iRung ? 0 : ROOT+1,
-	    dTime,dStep,msr->param.bEwald,msr->param.nGroup,piSec,&nActive);
+	    dTime,dStep,0,0,msr->param.bEwald,msr->param.nGroup,piSec,&nActive);
 	*pdActiveSum += (double)nActive/msr->N;
 
 	in.dTime = dTime;
@@ -3688,6 +3755,33 @@ void msrTopStepHSDKD(MSR msr,
 
 
 
+void msrNewTopStepKDK(MSR msr,
+    uint8_t uRung,		/* Rung level */
+    double *pdStep,	/* Current step */
+    double *pdTime,	/* Current time */
+    uint8_t *puRungMax,
+    int *piSec) {
+
+    uint64_t nActive;
+    double dDelta;
+    
+    if (uRung < *puRungMax) msrNewTopStepKDK(msr,uRung+1,pdStep,pdTime,puRungMax,piSec);
+    /* This Drifts everybody */
+    msrprintf(msr,"Drift, uRung: %d\n",*puRungMax);
+    dDelta = msr->param.dDelta/(1 << *puRungMax);
+    msrDrift(msr,*pdTime,dDelta,0,msrMaxRung(msr));
+    *pdTime += dDelta;
+    *pdStep += 1.0/(1 << *puRungMax);
+
+    msrActiveRung(msr,uRung,1);
+    msrDomainDecomp(msr,uRung,0,0);
+    msrUpdateSoft(msr,*pdTime);
+    msrBuildTree(msr,*pdTime,msr->param.bEwald);
+    *puRungMax = msrGravity(msr,uRung,msrMaxRung(msr),ROOT,0,*pdTime,*pdStep,1,1,msr->param.bEwald,msr->param.nGroup,piSec,&nActive);
+    if (uRung && uRung < *puRungMax) msrNewTopStepKDK(msr,uRung+1,pdStep,pdTime,puRungMax,piSec);
+    }
+
+
 void msrTopStepKDK(MSR msr,
 		   double dStep,	/* Current step */
 		   double dTime,	/* Current time */
@@ -3762,7 +3856,7 @@ void msrTopStepKDK(MSR msr,
 	    msrBuildTree(msr,dTime,msr->param.bEwald);
 	    }
 	if (msrDoGravity(msr)) {
-	    msrGravity(msr,iKickRung,MAX_RUNG,ROOT,0,dTime,dStep,msr->param.bEwald,msr->param.nGroup,piSec,&nActive);
+	    msrGravity(msr,iKickRung,MAX_RUNG,ROOT,0,dTime,dStep,0,0,msr->param.bEwald,msr->param.nGroup,piSec,&nActive);
 	    *pdActiveSum += (double)nActive/msr->N;
 	    }
 	
@@ -3842,7 +3936,7 @@ void msrTopStepKDK(MSR msr,
 	    msrprintf(msr,"%*cGravity, iRung: %d to %d\n",
 		      2*iRung+2,' ',iKickRung,msrCurrMaxRung(msr));
 	    msrBuildTree(msr,dTime,msr->param.bEwald);
-	    msrGravity(msr,iKickRung,MAX_RUNG,ROOT,0,dTime,dStep,msr->param.bEwald,msr->param.nGroup,piSec,&nActive);
+	    msrGravity(msr,iKickRung,MAX_RUNG,ROOT,0,dTime,dStep,0,0,msr->param.bEwald,msr->param.nGroup,piSec,&nActive);
 	    *pdActiveSum += (double)nActive/msr->N;
 	    }
 

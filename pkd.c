@@ -2588,20 +2588,32 @@ void pkdPhysicalSoft(PKD pkd,double dSoftMax,double dFac,int bSoftMaxMul) {
     }
 
 void
-pkdGravAll(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,int bPeriodic,
+pkdGravAll(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
+    int bKickClose,int bKickOpen,double *dtClose,double *dtOpen,
+    double dAccFac,double dTime,int nReps,int bPeriodic,
     int iOrder,int bEwald,int nGroup,int iRoot1, int iRoot2,
     double fEwCut,double fEwhCut,double dThetaMin,
-    int *nActive,double *pdPartSum, double *pdCellSum,CASTAT *pcs, double *pdFlop) {
+    uint64_t *pnActive,
+    double *pdPart,double *pdPartNumAccess,double *pdPartMissRatio,
+    double *pdCell,double *pdCellNumAccess,double *pdCellMissRatio,
+    double *pdFlop,uint64_t *pnRung) {
 
+    double dActive;
+    double dPartSum;
+    double dCellSum;
+    int i;
 
 #ifdef USE_ITT
     __itt_domain* domain = __itt_domain_create("MyTraces.MyDomain");
     __itt_string_handle* shMyTask = __itt_string_handle_create("Gravity");
-     __itt_task_begin(domain, __itt_null, __itt_null, shMyTask);
+    __itt_task_begin(domain, __itt_null, __itt_null, shMyTask);
 #endif
 
-
-
+    /*
+    ** Clear all the rung counters to be safe.
+    */
+    for (i=0;i<=IRUNGMAX;++i) pkd->nRung[i] = 0;
+     
     pkdClearTimer(pkd,1);
 #if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
     mdlTimeReset(pkd->mdl);
@@ -2622,25 +2634,45 @@ pkdGravAll(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,int bP
     ** Calculate newtonian gravity, including replicas if any.
     */
     *pdFlop = 0.0;
-    *pdPartSum = 0.0;
-    *pdCellSum = 0.0;
+    dPartSum = 0.0;
+    dCellSum = 0.0;
     pkdStartTimer(pkd,1);
-    *nActive = pkdGravWalk(pkd,uRungLo,uRungHi,dTime,nReps,bPeriodic && bEwald,nGroup,iRoot1,iRoot2,0,dThetaMin,pdFlop,pdPartSum,pdCellSum);
+    *pnActive = pkdGravWalk(pkd,uRungLo,uRungHi,bKickClose,bKickOpen,dtClose,dtOpen,dAccFac,dTime,nReps,bPeriodic && bEwald,nGroup,iRoot1,iRoot2,0,dThetaMin,pdFlop,&dPartSum,&dCellSum);
     pkdStopTimer(pkd,1);
 
+    dActive = (double)(*pnActive);
+    if (*pnActive) {
+	*pdPart = dPartSum/dActive;
+	*pdCell = dCellSum/dActive;
+	}
+    else {
+	assert(dPartSum == 0 && dCellSum == 0);
+	*pdPart = 0;  /* for the statistics we don't count this processor, see pstGravity(). */
+	*pdCell = 0;
+	}
     /*
     ** Get caching statistics.
     */
-    pcs->dcNumAccess = mdlNumAccess(pkd->mdl,CID_CELL);
-    pcs->dcMissRatio = mdlMissRatio(pkd->mdl,CID_CELL);
-    pcs->dcCollRatio = mdlCollRatio(pkd->mdl,CID_CELL);
-    pcs->dpNumAccess = mdlNumAccess(pkd->mdl,CID_PARTICLE);
-    pcs->dpMissRatio = mdlMissRatio(pkd->mdl,CID_PARTICLE);
-    pcs->dpCollRatio = mdlCollRatio(pkd->mdl,CID_PARTICLE);
+    if (*pnActive) {
+	*pdCellNumAccess = mdlNumAccess(pkd->mdl,CID_CELL)/dActive;
+	*pdPartNumAccess = mdlNumAccess(pkd->mdl,CID_PARTICLE)/dActive;
+	}
+    else {
+	*pdCellNumAccess = 0;
+	*pdPartNumAccess = 0;
+	}
+    *pdCellMissRatio = 100.0*mdlMissRatio(pkd->mdl,CID_CELL);      /* as a percentage */
+    *pdPartMissRatio = 100.0*mdlMissRatio(pkd->mdl,CID_PARTICLE);  /* as a percentage */
+    /*
+    ** Output flops count in GFlops!
+    */
+    *pdFlop *= 1e-9;
     /*
     ** Stop particle caching space.
     */
     mdlFinishCache(pkd->mdl,CID_PARTICLE);
+
+    for (i=0;i<=IRUNGMAX;++i) pnRung[i] = pkd->nRung[i];
 
 #ifdef USE_ITT
     __itt_task_end(domain);
@@ -2680,12 +2712,12 @@ void pkdCalcEandL(PKD pkd,double *T,double *U,double *Eth,double *L,double *F,do
 	    v = pkdVel(pkd,p);
 	    rx = pkdPos(p->r,0); ry = pkdPos(p->r,1); rz = pkdPos(p->r,2);
 	    vx = v[0]; vy = v[1]; vz = v[2];
-	    *T += 0.5*fMass*(vx*vx + vy*vy + vz*vz);
 	    L[0] += fMass*(ry*vz - rz*vy);
 	    L[1] += fMass*(rz*vx - rx*vz);
 	    L[2] += fMass*(rx*vy - ry*vx);
 	    }
 	}
+    *T += pkd->dEnergyT;
     if (!pkd->oPotential) *U = pkd->dEnergyU;
     }
 
@@ -2783,7 +2815,7 @@ void pkdGravityVeryActive(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,i
     dFlop = 0.0;
     dPartSum = 0.0;
     dCellSum = 0.0;
-    nActive = pkdGravWalk(pkd,uRungLo,uRungHi,dTime,nReps,bEwald,nGroup,ROOT,0,VAROOT,dTheta,&dFlop,&dPartSum,&dCellSum);
+    nActive = pkdGravWalk(pkd,uRungLo,uRungHi,0,0,NULL,NULL,1.0,dTime,nReps,bEwald,nGroup,ROOT,0,VAROOT,dTheta,&dFlop,&dPartSum,&dCellSum);
     }
 
 
@@ -2793,7 +2825,7 @@ void pkdStepVeryActiveKDK(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dStep, 
     uint64_t nRungCount[256];
     double dDriftFac;
 
-    if (iAdjust && (iRung < pkd->param.iMaxRung-1)) {
+    if (iAdjust && (iRung < pkd->param.iMaxRung)) {
 
 	/*
 	** The following should be replaced with a single call which sets the rungs of all particles.
@@ -2807,8 +2839,8 @@ void pkdStepVeryActiveKDK(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dStep, 
 	    pkdAccelStep(pkd,uRungLo,uRungHi,pkd->param.dEta, dVelFac,dAccFac,pkd->param.bDoGravity,
 			 pkd->param.bEpsAccStep,dhMinOverSoft);
 	    }
-	*pnMaxRung = pkdUpdateRung(pkd,iRung,pkd->param.iMaxRung-1,
-				   iRung,pkd->param.iMaxRung-1, nRungCount);
+	*pnMaxRung = pkdUpdateRung(pkd,iRung,pkd->param.iMaxRung,
+				   iRung,pkd->param.iMaxRung, nRungCount);
 
 
 	if (pkd->param.bVDetails) {
@@ -3093,7 +3125,7 @@ void pkdAccelStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,
 		    dT = dEta*sqrt(fSoft/acc);
 		    }
 		}
-	    uNewRung = pkdDtToRung(dT,pkd->param.dDelta,pkd->param.iMaxRung-1);
+	    uNewRung = pkdDtToRung(dT,pkd->param.dDelta,pkd->param.iMaxRung);
 	    if (uNewRung > p->uNewRung) p->uNewRung = uNewRung;
 	    }
 	}
@@ -3124,15 +3156,15 @@ void pkdSphStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,double dAccFac) {
 		acc = sqrt(acc)*dAccFac;
 		dtNew = FLOAT_MAXVAL;
 		if (acc>0) dtNew = pkd->param.dEta*sqrt(pkdBall(pkd,p)/acc);
-		u2 = pkdDtToRung(dtNew,pkd->param.dDelta,pkd->param.iMaxRung-1);
+		u2 = pkdDtToRung(dtNew,pkd->param.dDelta,pkd->param.iMaxRung);
 		uDot = *pkd_uDot(pkd,p);
 		u3=0;
 		if (uDot < 0) {
 		    double dtemp = pkd->param.dEtaUDot*(*pkd_u(pkd,p))/fabs(uDot);
 		    if (dtemp < dtNew) dtNew = dtemp;
-		    u3 = pkdDtToRung(dtemp,pkd->param.dDelta,pkd->param.iMaxRung-1);
+		    u3 = pkdDtToRung(dtemp,pkd->param.dDelta,pkd->param.iMaxRung);
 		    }
-		uNewRung = pkdDtToRung(dtNew,pkd->param.dDelta,pkd->param.iMaxRung-1);
+		uNewRung = pkdDtToRung(dtNew,pkd->param.dDelta,pkd->param.iMaxRung);
 		if (uNewRung > p->uNewRung) p->uNewRung = uNewRung;
 		if (!(p->iOrder%10000) || (p->uNewRung > 5 && !(p->iOrder%1000))) {
 		    SPHFIELDS *sph = pkdSph(pkd,p);
@@ -3297,7 +3329,7 @@ void pkdCooling(PKD pkd, double dTime, double z, int bUpdateState, int bUpdateTa
 			    double dtNew;
 			    int uNewRung;
 			    dtNew = pkd->param.dEtaUDot*sph->u/fabs(uDot);
-			    uNewRung = pkdDtToRung(dtNew,pkd->param.dDelta,pkd->param.iMaxRung-1);
+			    uNewRung = pkdDtToRung(dtNew,pkd->param.dDelta,pkd->param.iMaxRung);
 			    if (uNewRung > p->uNewRung) {
 				p->uNewRung = uNewRung;
 				continue;
@@ -3406,7 +3438,7 @@ void pkdDensityStep(PKD pkd, uint8_t uRungLo, uint8_t uRungHi, double dEta, doub
 	p = pkdParticle(pkd,i);
 	if (pkdIsActive(pkd,p)) {
 	    dT = dEta/sqrt(pkdDensity(pkd,p)*dRhoFac);
-	    p->uNewRung = pkdDtToRung(dT,pkd->param.dDelta,pkd->param.iMaxRung-1);
+	    p->uNewRung = pkdDtToRung(dT,pkd->param.dDelta,pkd->param.iMaxRung);
 	    }
 	}
     }
@@ -3426,10 +3458,10 @@ void pkdUpdateRungByTree(PKD pkd,int iRoot,uint8_t uMinRung,int iMaxRung,
 uint64_t *nRungCount) {
     KDN *c = pkdTreeNode(pkd,iRoot);
     int i;
-    for (i=0;i<iMaxRung;++i) nRungCount[i] = 0;
+    for (i=0;i<=iMaxRung;++i) nRungCount[i] = 0;
     for (i=c->pLower; i<=c->pUpper; ++i) {
 	PARTICLE *p = pkdParticle(pkd,i);
-	if ( p->uNewRung >= iMaxRung ) p->uNewRung = iMaxRung-1;
+	if ( p->uNewRung > iMaxRung ) p->uNewRung = iMaxRung;
 	else if (p->uNewRung < uMinRung) p->uNewRung = uMinRung;
 	if ( p->uNewRung > p->uRung ) ++p->uRung;
 	else if ( p->uNewRung < p->uRung ) --p->uRung;
@@ -3448,7 +3480,7 @@ int pkdUpdateRung(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     for (i=0;i<pkdLocal(pkd);++i) {
 	p = pkdParticle(pkd,i);
 	if ( pkdIsActive(pkd,p) ) {
-	    if ( p->uNewRung >= iMaxRung ) p->uNewRung = iMaxRung-1;
+	    if ( p->uNewRung > iMaxRung ) p->uNewRung = iMaxRung;
 	    if ( p->uNewRung >= uRung ) p->uRung = p->uNewRung;
 	    else if ( p->uRung > uRung) p->uRung = uRung;
 	    }
@@ -3457,7 +3489,7 @@ int pkdUpdateRung(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
 	*/
 	nRungCount[p->uRung] += 1;
 	}
-    iTempRung = iMaxRung-1;
+    iTempRung = iMaxRung;
     while (nRungCount[iTempRung] == 0 && iTempRung > 0) --iTempRung;
     return iTempRung;
     }

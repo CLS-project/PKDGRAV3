@@ -597,6 +597,7 @@ typedef struct pkdContext {
     int iTreeMask;
     int nTreeTiles;
     int nMaxNodes;
+    uint64_t nRung[IRUNGMAX+1];
     uint64_t nDark;
     uint64_t nGas;
     uint64_t nStar;
@@ -680,6 +681,8 @@ typedef struct pkdContext {
     float fiCritTheta;
     /* Potential Energy for when potential is not in the particle */
     double dEnergyU;
+    /* also put kinetic energy here to calculate it on the fly */
+    double dEnergyT;
 
     /*
     ** New activation methods
@@ -753,6 +756,8 @@ typedef struct pkdContext {
     uint8_t *cSplitDims;
     double *dSplits;
     } * PKD;
+
+
 #ifdef __SSE2__
 #define pkdMinMax(dVal,dMin,dMax) do {					\
     (dMin)[0] = _mm_cvtsd_f64(_mm_min_sd(_mm_set_sd((dMin)[0]),_mm_set_sd((dVal)[0]))); \
@@ -1062,15 +1067,6 @@ static inline int pkdIsNew(PKD pkd,PARTICLE *p) {
     }
 
 
-typedef struct CacheStatistics {
-    double dpNumAccess;
-    double dpMissRatio;
-    double dpCollRatio;
-    double dcNumAccess;
-    double dcMissRatio;
-    double dcCollRatio;
-    } CASTAT;
-
 /*
 ** From tree.c:
 */
@@ -1155,10 +1151,15 @@ void pkdLocalOrder(PKD,uint64_t iMinOrder,uint64_t iMaxOrder);
 uint32_t pkdWriteFIO(PKD pkd,FIO fio,double dvFac,BND *bnd);
 void pkdWriteFromNode(PKD pkd,int iNode, FIO fio,double dvFac,BND *bnd);
 void pkdWriteViaNode(PKD pkd, int iNode);
-void
-pkdGravAll(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,int nReps,int bPeriodic,
-    int iOrder,int bEwald,int nGroup,int iRoot1,int iRoot2,double fEwCut,double fEwhCut,double dThetaMin,
-    int *nActive,double *pdPartSum, double *pdCellSum,CASTAT *pcs, double *pdFlop);
+void pkdGravAll(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
+    int bKickClose,int bKickOpen,double *dtClose,double *dtOpen,
+    double dAccFac,double dTime,int nReps,int bPeriodic,
+    int iOrder,int bEwald,int nGroup,int iRoot1, int iRoot2,
+    double fEwCut,double fEwhCut,double dThetaMin,
+    uint64_t *pnActive,
+    double *pdPart,double *pdPartNumAccess,double *pdPartMissRatio,
+    double *pdCell,double *pdCellNumAccess,double *pdCellMissRatio,
+    double *pdFlop,uint64_t *pnRung);
 void pkdCalcEandL(PKD pkd,double *T,double *U,double *Eth,double *L,double *F,double *W);
 void pkdDrift(PKD pkd,double dDelta,double,double,uint8_t uRungLo,uint8_t uRungHi);
 void pkdScaleVel(PKD pkd,double dvFac);
