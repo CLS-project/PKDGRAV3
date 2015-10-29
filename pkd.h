@@ -998,6 +998,35 @@ static inline float pkdSoft( PKD pkd, PARTICLE *p ) {
 static inline FIO_SPECIES pkdSpecies( PKD pkd, PARTICLE *p ) {
     return pkd->pClass[p->iClass].eSpecies;
     }
+
+
+/*
+** Integerized coordinates: signed integer -0x7fffffff to +0x7fffffff
+** We assume a periodic box of width 1 so a simple multiple will convert.
+** The situation is more complicated with non-periodic boxes, or for boxes
+** with a different period so this is not currently supported.
+*/
+#ifdef INTEGER_POSITION
+#define pkdPos(pkd,p,d) ((p)->rPRIVATE[d] * (1.0/0x80000000u))
+#define pkdSetPos(pkd,p,d,v) ((p)->rPRIVATE[d] = (v)*0x80000000u)
+#ifdef __AVX__
+#define pkdGetPos3(pkd,p,d1,d2,d3) do {					\
+	union { __m256d p; double d[4]; } r_pkdGetPos3;			\
+	r_pkdGetPos3.p = _mm256_mul_pd(_mm256_cvtepi32_pd(*(__m128i *)&(p)->rPRIVATE),_mm256_set1_pd(1.0/0x80000000u) ); \
+	d1 = r_pkdGetPos3.d[0];						\
+	d2 = r_pkdGetPos3.d[1];						\
+	d3 = r_pkdGetPos3.d[2];						\
+	} while(0)
+#else
+#define pkdGetPos3(pkd,p,d1,d2,d3) do { d1=pkdPos(pkd,p,0); d2=pkdPos(pkd,p,1); d3=pkdPos(pkd,p,2); } while(0)
+#endif
+#else
+#define pkdPos(pkd,p,d) ((p)->rPRIVATE[d])
+#define pkdSetPos(pkd,p,d,v) ((p)->rPRIVATE[d] = (v))
+#define pkdGetPos3(pkd,p,d1,d2,d3) ((d1)=pkdPos(pkd,p,0),(d2)=pkdPos(pkd,p,1),(d3)=pkdPos(pkd,p,2))
+#endif
+#define pkdGetPos1(pkd,p,d) pkdGetPos3(pkd,p,(d)[0],(d)[1],(d)[2])
+
 static inline vel_t *pkdVel( PKD pkd, PARTICLE *p ) {
     return CAST(vel_t *,pkdField(p,pkd->oVelocity));
     }

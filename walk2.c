@@ -374,7 +374,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
 	for (pj=kFind->pLower;pj<=kFind->pUpper;++pj) {
 	    p = pkdParticle(pkd,pj);
 	    if (!pkdIsActive(pkd,p)) continue;
-	    pkdGetPos3(p->r,cx,cy,cz);
+	    pkdGetPos3(pkd,p,cx,cy,cz);
 	    goto found_it;
 	}
 	assert(0); /* We didn't find an active particle */
@@ -469,7 +469,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
 				    if (id == pkd->idSelf) p = pkdParticle(pkd,pj);
 				    else p = CAST(PARTICLE *,mdlFetch(pkd->mdl,CID_PARTICLE,pj,id));
 				    if (bGravStep && pkd->param.iTimeStepCrit == 1) v = pkdVel(pkd,p);
-				    pkdGetPos1(p->r,r);
+				    pkdGetPos1(pkd,p,r);
 				    ilpAppend(pkd->ilp,
 					r[0] + blk->xOffset.f[jTile],
 					r[1] + blk->yOffset.f[jTile],
@@ -487,7 +487,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
 					fMass = pkdMass(pkd,p);
 					fSoft = pkdSoft(pkd,p);
 					if (bGravStep && pkd->param.iTimeStepCrit == 1) v = pkdVel(pkd,p);
-					pkdGetPos1(p->r,r);
+					pkdGetPos1(pkd,p,r);
 					ilpAppend(pkd->ilp,
 					    r[0] + blk->xOffset.f[jTile],
 					    r[1] + blk->yOffset.f[jTile],
@@ -514,7 +514,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
 				for (pj=c->pLower;pj<=c->pUpper;++pj) {
 				    if (id == pkd->idSelf) p = pkdParticle(pkd,pj);
 				    else p = CAST(PARTICLE *,mdlFetch(pkd->mdl,CID_PARTICLE,pj,id));
-				    pkdGetPos1(p->r,r);
+				    pkdGetPos1(pkd,p,r);
 				    fMass = pkdMass(pkd,p);
 				    fSoft = pkdSoft(pkd,p);
 				    if (bGravStep && pkd->param.iTimeStepCrit == 1) v = pkdVel(pkd,p);

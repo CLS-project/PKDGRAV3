@@ -26,32 +26,6 @@ typedef int32_t pos_t;
 typedef double pos_t;
 #endif
 
-/*
-** Integerized coordinates: signed integer -0x7fffffff to +0x7fffffff
-** We assume a periodic box of width 1 so a simple multiple will convert.
-** The situation is more complicated with non-periodic boxes, or for boxes
-** with a different period so this is not currently supported.
-*/
-#ifdef INTEGER_POSITION
-#define pkdPos(r,d) ((r##PRIVATE)[d] * (1.0/0x80000000u))
-#define pkdSetPos(r,d,v) ((r##PRIVATE)[d] = (v)*0x80000000u)
-#ifdef __AVX__
-#define pkdGetPos3(s,d1,d2,d3) do {					\
-	union { __m256d p; double d[4]; } r_pkdGetPos3;			\
-	r_pkdGetPos3.p = _mm256_mul_pd(_mm256_cvtepi32_pd(*(__m128i *)&(s##PRIVATE)),_mm256_set1_pd(1.0/0x80000000u) ); \
-	d1 = r_pkdGetPos3.d[0];						\
-	d2 = r_pkdGetPos3.d[1];						\
-	d3 = r_pkdGetPos3.d[2];						\
-	} while(0)
-#else
-#define pkdGetPos3(s,d1,d2,d3) do { d1=pkdPos(s,0); d2=pkdPos(s,1); d3=pkdPos(s,2); } while(0)
-#endif
-#else
-#define pkdPos(r,d) (r##PRIVATE)[d]
-#define pkdSetPos(r,d,v) ((r##PRIVATE)[d] = (v))
-#define pkdGetPos3(s,d1,d2,d3) ((d1)=pkdPos(s,0),(d2)=pkdPos(s,1),(d3)=pkdPos(s,2))
-#endif
-#define pkdGetPos1(s,d) pkdGetPos3(s,(d)[0],(d)[1],(d)[2])
 typedef struct particle {
     /*-----Base-Particle-Data----*/
     uint64_t iOrder     :  IORDERBITS;
@@ -114,6 +88,7 @@ typedef struct {
     PARTICLE **pPart;
     PINFOIN *pInfoIn;
     PINFOOUT *pInfoOut;
+    double c[3];
     float dRhoFac;
     int nP;
     int nRefs;

@@ -794,13 +794,18 @@ static void queuePC( PKD pkd,  workParticle *work, ILC ilc, int bGravStep ) {
 int CPUdoWorkEwald(void *ve) {
     workEwald *ew = ve;
     PKD pkd = (PKD)ew->pkd;
+    double r[3];
     while(ew->nP--) {
 	workParticle *wp = ew->ppWorkPart[ew->nP];
 	int wi = ew->piWorkPart[ew->nP];
-	PARTICLE *p = wp->pPart[wi];
-	/*PINFOIN *in = &wp->pInfoIn[wi];*/
+	//PARTICLE *p = wp->pPart[wi];
+	PINFOIN *in = &wp->pInfoIn[wi];
 	PINFOOUT *out = &wp->pInfoOut[wi];
-	/*dEwFlop +=*/ pkdParticleEwald(pkd,p,out->a,&out->fPot);
+	//pkdGetPos1(p->r,r);
+	r[0] = wp->c[0] + in->r[0];
+	r[1] = wp->c[1] + in->r[1];
+	r[2] = wp->c[2] + in->r[2];
+	/*dEwFlop +=*/ pkdParticleEwald(pkd,r,out->a,&out->fPot);
 	pkdParticleWorkDone(wp);
 	}
     return 0;
@@ -893,6 +898,10 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     work->pPart = malloc(sizeof(PARTICLE *) * nP); assert(work->pPart != NULL);
     work->pInfoIn = malloc(sizeof(PINFOIN) * nP); assert(work->pInfoIn != NULL);
     work->pInfoOut = malloc(sizeof(PINFOOUT) * nP); assert(work->pInfoOut != NULL);
+    work->c[0] = ilp->cx; assert(work->c[0] == ilc->cx);
+    work->c[1] = ilp->cy; assert(work->c[1] == ilc->cy);
+    work->c[2] = ilp->cz; assert(work->c[2] == ilc->cz);
+
     work->nRefs = 1; /* I am using it currently */
     work->nP = 0;
     work->dRhoFac = dRhoFac;
@@ -916,7 +925,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
 
     for (i=pkdn->pLower;i<=pkdn->pUpper;++i) {
 	p = pkdParticle(pkd,i);
-	pkdGetPos1(p->r,r);
+	pkdGetPos1(pkd,p,r);
 	fMass = pkdMass(pkd,p);
 	fSoft = pkdSoft(pkd,p);
 	v = pkdVel(pkd,p);
@@ -978,7 +987,13 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     */
     if (pLoc) {
 	for( i=0; i<work->nP; i++ ) {
-	    pkdGetPos1(work->pPart[i]->r,r);
+	    double *c = work->c;
+	    float *in = work->pInfoIn[i].r;
+	    //pkdGetPos1(work->pPart[i]->r,r);
+	    r[0] = c[0] + in[0];
+	    r[1] = c[1] + in[1];
+	    r[2] = c[2] + in[2];
+
 	    /*
 	    ** Evaluate local expansion.
 	    */
@@ -1018,8 +1033,13 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
 	}
 
     for( i=0; i<work->nP; i++ ) {
-        p = work->pPart[i];
-	pkdGetPos1(p->r,r);
+	double *c = work->c;
+	float *in = work->pInfoIn[i].r;
+	r[0] = c[0] + in[0];
+	r[1] = c[1] + in[1];
+	r[2] = c[2] + in[2];
+        //p = work->pPart[i];
+	//pkdGetPos1(p->r,r);
         v = pkdVel(pkd,p);
         /*
         ** Set value for time-step, note that we have the current ewald acceleration
