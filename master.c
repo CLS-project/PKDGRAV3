@@ -2806,6 +2806,8 @@ void msrMemStatus(MSR msr) {
 	PRINTGRID(8,"%8"PRIu64,vsize);
 	printf("Resident (MB):\n");
 	PRINTGRID(8,"%8"PRIu64,rss);
+	printf("Free Memory (MB):\n");
+	PRINTGRID(8,"%8"PRIu64,freeMemory);
 	printf("Major faults:\n");
 	PRINTGRID(8,"%8"PRIu64,majflt);
 #endif
@@ -2822,12 +2824,21 @@ void msrMemStatus(MSR msr) {
     }
 
 void msrPrintStat(STAT *ps,char *pszPrefix,int p) {
+    double dSum = ps->dSum;
+    double dMax = ps->dMax;
+    const char *minmax = "max";
+
+    if (dSum<0) {
+	dSum = -dSum;
+	dMax = -dMax;
+	minmax = "min";
+	}
     if (ps->n > 1) {
-	printf("%s max=%8.*f @%5d avg=%8.*f of %5d std-dev=%8.*f\n",pszPrefix,
-	    p,ps->dMax,ps->idMax,p,ps->dSum/ps->n,ps->n,p,sqrt((ps->dSum2 - ps->dSum*ps->dSum/ps->n)/(ps->n-1)));
+	printf("%s %s=%8.*f @%5d avg=%8.*f of %5d std-dev=%8.*f\n",pszPrefix,minmax,
+	    p,dMax,ps->idMax,p,dSum/ps->n,ps->n,p,sqrt((ps->dSum2 - ps->dSum*ps->dSum/ps->n)/(ps->n-1)));
 	}
     else if (ps->n == 1) {
-	printf("%s max=%8.*f @%5d\n",pszPrefix,p,ps->dMax,ps->idMax);
+	printf("%s %s=%8.*f @%5d\n",pszPrefix,minmax,p,dMax,ps->idMax);
 	}
     else {
 	printf("%s no data\n",pszPrefix);
@@ -2937,6 +2948,8 @@ uint8_t msrGravity(MSR msr,uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot
 	msrPrintStat(&outr->sWaiting,       "     %   waiting:",3);
 	msrPrintStat(&outr->sSynchronizing, "     %   syncing:",3);
 #endif
+	msrPrintStat(&outr->sFreeMemory,    "free memory (GB):",3);
+	msrPrintStat(&outr->sRSS,           "   resident size:",3);
 	printf("  (cache access statistics are given per active particle)\n");
 	msrPrintStat(&outr->sPartNumAccess, "  P-cache access:",1);
 	msrPrintStat(&outr->sCellNumAccess, "  C-cache access:",1);

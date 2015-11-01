@@ -654,6 +654,10 @@ struct outGravityReduct {
     STAT sWaiting;
     STAT sSynchronizing;
 #endif
+#ifdef __linux__
+    STAT sRSS;
+    STAT sFreeMemory;
+#endif
     uint64_t nActive;
     uint64_t nRung[IRUNGMAX+1];
     };
@@ -1165,6 +1169,7 @@ struct outMemStatus {
     uint64_t majflt;
     uint64_t vsize;
     uint64_t rss;
+    uint64_t freeMemory;
 #endif
     uint64_t nBytesTree;
     uint64_t nBytesCl;

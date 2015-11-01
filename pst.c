@@ -3013,6 +3013,8 @@ void pstGravity(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	/*
 	** Now combine in the tempory copy of the lower branch reduct part.
 	*/
+	pstCombStat(&outr->sRSS,&tmp.sRSS);
+	pstCombStat(&outr->sFreeMemory,&tmp.sFreeMemory);
 	pstCombStat(&outr->sLocal,&tmp.sLocal);
 	pstCombStat(&outr->sActive,&tmp.sActive);
 	pstCombStat(&outr->sPart,&tmp.sPart);
@@ -3037,6 +3039,10 @@ void pstGravity(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	outr->nActive += tmp.nActive;
 	}
     else {
+#ifdef __linux__
+	FILE *fp;
+	char buffer[512], *save, *f, *v;
+#endif
 	pkdGravAll(plcl->pkd,in->uRungLo,in->uRungHi,in->bKickClose,in->bKickOpen,
 	    in->dtClose,in->dtOpen,in->dAccFac,in->dTime,in->nReps,in->bPeriodic,
 	    4,in->bEwald,in->nGroup,in->iRoot1,in->iRoot2,in->dEwCut,in->dEwhCut,in->dThetaMin,
@@ -3046,9 +3052,50 @@ void pstGravity(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	    &outr->sFlop.dSum,outr->nRung);
 	outr->sLocal.dSum = plcl->pkd->nLocal;
 	outr->sActive.dSum = (double)outr->nActive;
+#ifdef __linux__
+	fp = fopen("/proc/self/stat","r");
+	if ( fp != NULL ) {
+	    fgets(buffer,sizeof(buffer),fp);
+	    fclose(fp);
+	    f = strtok_r(buffer," ",&save);
+	    for ( i=0; i<= 36 && f; i++ ) {
+		switch (i) {
+		    /*case 22: out->vsize  = atol(f)/1024/1024; break;*/
+		case 23:
+#ifdef HAVE_GETPAGESIZE
+		    outr->sRSS.dSum = atol(f)*1.0*getpagesize()/1024/1024/1024;
+#else
+		    outr->sRSS.dSum = atol(f)*1.0/1024/1024;
+#endif
+		    break;
+		default: break;
+		    }
+		f = strtok_r(NULL," ",&save);
+		}
+	    }
+	else outr->sRSS.dSum = 0;
+
+	fp = fopen("/proc/meminfo","r");
+	outr->sFreeMemory.dSum = 0;
+	if ( fp != NULL ) {
+	    while(fgets(buffer,sizeof(buffer),fp)) {
+		f = strtok_r(buffer,":",&save);
+		v = strtok_r(NULL," ",&save);
+		if (strcmp(f,"MemFree")==0 || strcmp(f,"Buffers")==0 || strcmp(f,"Cached")==0) {
+		    outr->sFreeMemory.dSum -= atol(v) * 1.0 / 1024 / 1024;
+		    }
+		}
+	    fclose(fp);
+	    }
+#else
+	outr->sRSS.dSum = 0;
+	outr->sFreeMemory.dSum = 0;
+#endif
 	/*
 	** Initialize statistics tracking variables assuming dSum is set.
 	*/
+	pstInitStat(&outr->sRSS,pst->idSelf);
+	pstInitStat(&outr->sFreeMemory,pst->idSelf);
 	pstInitStat(&outr->sLocal,pst->idSelf);
 	pstInitStat(&outr->sActive,pst->idSelf);
 	pstInitStat(&outr->sPart,pst->idSelf);
@@ -4002,7 +4049,7 @@ void pstMemStatus(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	}
     else {
 	FILE *fp;
-	char buffer[512], *save, *f;
+	char buffer[512], *save, *f, *v;
 	int i;
 
 #ifdef __linux__
@@ -4031,6 +4078,18 @@ void pstMemStatus(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 		    }
 		f = strtok_r(NULL," ",&save);
 		}
+	    }
+	out->freeMemory = 0;
+	fp = fopen("/proc/meminfo","r");
+	if ( fp != NULL ) {
+	    while(fgets(buffer,sizeof(buffer),fp)) {
+		f = strtok_r(buffer,":",&save);
+		v = strtok_r(NULL," ",&save);
+		if (strcmp(f,"MemFree")==0 || strcmp(f,"Buffers")==0 || strcmp(f,"Cached")==0) {
+		    out->freeMemory += atol(v) / 1024;
+		    }
+		}
+	    fclose(fp);
 	    }
 #endif
 	out->nBytesTree = pkdTreeMemory(plcl->pkd);
