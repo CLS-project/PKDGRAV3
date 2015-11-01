@@ -1007,6 +1007,7 @@ static inline FIO_SPECIES pkdSpecies( PKD pkd, PARTICLE *p ) {
 ** with a different period so this is not currently supported.
 */
 #define pkdPosRaw(pkd,p,d) ((p)->rPRIVATE[d])
+#define pkdSetPosRaw(pkd,p,d,v) (p)->rPRIVATE[d] = (v);
 #ifdef INTEGER_POSITION
 #define pkdDblToPos(pkd,d) (pos_t)((d)*0x80000000u)
 #define pkdPos(pkd,p,d) ((p)->rPRIVATE[d] * (1.0/0x80000000u))

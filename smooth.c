@@ -496,7 +496,7 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
     */
     for (j=0;j<3;++j) {
 #ifdef INTEGER_POSITION
-	smx->pSentinel->rPRIVATE[j] = 0x7fffffff;
+	pkdSetPosRaw(pkd,smx->pSentinel,j,0x7fffffff);
 #else
 	pkdSetPos(pkd,smx->pSentinel,j,HUGE_VAL);
 #endif
