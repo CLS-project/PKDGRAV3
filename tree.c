@@ -155,7 +155,7 @@ void BuildTemp(PKD pkd,int iNode,int M) {
     KDN *pNode = pkdTreeNode(pkd,iNode);
     BND *bnd,*lbnd,*rbnd;
     KDN *pLeft, *pRight;
-    FLOAT fSplit;
+    pos_t Split; /* Integer or double */
     int *S;		/* this is the stack */
     int s,ns;
     int iLeft,iRight;
@@ -204,7 +204,7 @@ void BuildTemp(PKD pkd,int iNode,int M) {
 	    }
 	else if (bnd->fMax[0] < bnd->fMax[2]) d = 2;
 	else d = 0;
-	fSplit = bnd->fCenter[d];
+	Split = pkdDblToPos(pkd,bnd->fCenter[d]);
 	/*
 	** Now start the partitioning of the particles about
 	** fSplit on dimension given by d.
@@ -212,18 +212,18 @@ void BuildTemp(PKD pkd,int iNode,int M) {
 	pi = pkdParticle(pkd,pNode->pLower);
 	pj = pkdParticle(pkd,pNode->pUpper);
 	while (pi <= pj) {
-	    if (pkdPos(pkd,pi,d) < fSplit) pi = (PARTICLE *)(((char *)pi) + pkdParticleSize(pkd));
+	    if (pkdPosRaw(pkd,pi,d) < Split) pi = (PARTICLE *)(((char *)pi) + pkdParticleSize(pkd));
 	    else break;
 	    }
 	while (pi <= pj) {
-	    if (fSplit < pkdPos(pkd,pj,d)) pj = (PARTICLE *)(((char *)pj) - pkdParticleSize(pkd));
+	    if (Split < pkdPosRaw(pkd,pj,d)) pj = (PARTICLE *)(((char *)pj) - pkdParticleSize(pkd));
 	    else break;
 	    }
 	if (pi < pj) {
 	    pkdSwapParticle(pkd,pi,pj);
 	    while (1) {
-		while (pkdPos(pkd,(pi = (PARTICLE *)(((char *)pi) + pkdParticleSize(pkd))),d) < fSplit);
-		while (fSplit < pkdPos(pkd,(pj = (PARTICLE *)(((char *)pj) - pkdParticleSize(pkd))),d));
+		while (pkdPosRaw(pkd,(pi = (PARTICLE *)(((char *)pi) + pkdParticleSize(pkd))),d) < Split);
+		while (Split < pkdPosRaw(pkd,(pj = (PARTICLE *)(((char *)pj) - pkdParticleSize(pkd))),d));
 		if (pi < pj) {
 		    pkdSwapParticle(pkd,pi,pj);
 		    }

@@ -1006,7 +1006,9 @@ static inline FIO_SPECIES pkdSpecies( PKD pkd, PARTICLE *p ) {
 ** The situation is more complicated with non-periodic boxes, or for boxes
 ** with a different period so this is not currently supported.
 */
+#define pkdPosRaw(pkd,p,d) ((p)->rPRIVATE[d])
 #ifdef INTEGER_POSITION
+#define pkdDblToPos(pkd,d) (pos_t)((d)*0x80000000u)
 #define pkdPos(pkd,p,d) ((p)->rPRIVATE[d] * (1.0/0x80000000u))
 #define pkdSetPos(pkd,p,d,v) ((p)->rPRIVATE[d] = (v)*0x80000000u)
 #ifdef __AVX__
@@ -1021,6 +1023,7 @@ static inline FIO_SPECIES pkdSpecies( PKD pkd, PARTICLE *p ) {
 #define pkdGetPos3(pkd,p,d1,d2,d3) do { d1=pkdPos(pkd,p,0); d2=pkdPos(pkd,p,1); d3=pkdPos(pkd,p,2); } while(0)
 #endif
 #else
+#define pkdDblToPos(pkd,d) (d)
 #define pkdPos(pkd,p,d) ((p)->rPRIVATE[d])
 #define pkdSetPos(pkd,p,d,v) ((p)->rPRIVATE[d] = (v))
 #define pkdGetPos3(pkd,p,d1,d2,d3) ((d1)=pkdPos(pkd,p,0),(d2)=pkdPos(pkd,p,1),(d3)=pkdPos(pkd,p,2))
