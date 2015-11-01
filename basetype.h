@@ -35,7 +35,6 @@ typedef struct particle {
     uint8_t  bSrcActive :  1;
     uint8_t  bDstActive :  1;
     uint8_t  iClass     :  8;
-    pos_t rPRIVATE[3];
     } PARTICLE;
 
 #define PP_CUDA_MEMORY_LIMIT (1024*1024)

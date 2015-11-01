@@ -636,7 +636,8 @@ typedef struct pkdContext {
     /*
     ** Advanced memory models
     */
-    int oAcceleration; /* Three doubles */
+    int oPosition;
+    int oAcceleration; /* Three float */
     int oVelocity; /* Three vel_t */
     int oPotential; /* One float */
     int oGroup; /* One int32 */
@@ -1006,16 +1007,16 @@ static inline FIO_SPECIES pkdSpecies( PKD pkd, PARTICLE *p ) {
 ** The situation is more complicated with non-periodic boxes, or for boxes
 ** with a different period so this is not currently supported.
 */
-#define pkdPosRaw(pkd,p,d) ((p)->rPRIVATE[d])
-#define pkdSetPosRaw(pkd,p,d,v) (p)->rPRIVATE[d] = (v);
+#define pkdPosRaw(pkd,p,d) (CAST(pos_t *,pkdField(p,pkd->oPosition))[d])
+#define pkdSetPosRaw(pkd,p,d,v) (CAST(pos_t *,pkdField(p,pkd->oPosition))[d]) = (v);
 #ifdef INTEGER_POSITION
 #define pkdDblToPos(pkd,d) (pos_t)((d)*0x80000000u)
-#define pkdPos(pkd,p,d) ((p)->rPRIVATE[d] * (1.0/0x80000000u))
-#define pkdSetPos(pkd,p,d,v) ((p)->rPRIVATE[d] = (v)*0x80000000u)
+#define pkdPos(pkd,p,d) ((CAST(pos_t *,pkdField(p,pkd->oPosition))[d]) * (1.0/0x80000000u))
+#define pkdSetPos(pkd,p,d,v) (void)((CAST(pos_t *,pkdField(p,pkd->oPosition))[d]) = (v)*0x80000000u)
 #ifdef __AVX__
 #define pkdGetPos3(pkd,p,d1,d2,d3) do {					\
 	union { __m256d p; double d[4]; } r_pkdGetPos3;			\
-	r_pkdGetPos3.p = _mm256_mul_pd(_mm256_cvtepi32_pd(*(__m128i *)&(p)->rPRIVATE),_mm256_set1_pd(1.0/0x80000000u) ); \
+	r_pkdGetPos3.p = _mm256_mul_pd(_mm256_cvtepi32_pd(*(__m128i *)(CAST(pos_t *,pkdField(p,pkd->oPosition)))),_mm256_set1_pd(1.0/0x80000000u) ); \
 	d1 = r_pkdGetPos3.d[0];						\
 	d2 = r_pkdGetPos3.d[1];						\
 	d3 = r_pkdGetPos3.d[2];						\
@@ -1025,8 +1026,8 @@ static inline FIO_SPECIES pkdSpecies( PKD pkd, PARTICLE *p ) {
 #endif
 #else
 #define pkdDblToPos(pkd,d) (d)
-#define pkdPos(pkd,p,d) ((p)->rPRIVATE[d])
-#define pkdSetPos(pkd,p,d,v) ((p)->rPRIVATE[d] = (v))
+#define pkdPos(pkd,p,d) (CAST(pos_t *,pkdField(p,pkd->oPosition))[d])
+#define pkdSetPos(pkd,p,d,v) (void)((CAST(pos_t *,pkdField(p,pkd->oPosition))[d]) = (v))
 #define pkdGetPos3(pkd,p,d1,d2,d3) ((d1)=pkdPos(pkd,p,0),(d2)=pkdPos(pkd,p,1),(d3)=pkdPos(pkd,p,2))
 #endif
 #define pkdGetPos1(pkd,p,d) pkdGetPos3(pkd,p,(d)[0],(d)[1],(d)[2])

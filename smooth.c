@@ -723,9 +723,9 @@ void smSmoothInitialize(SMX smx) {
 	smx->pq[i].pPart = smx->pSentinel;
 	smx->pq[i].iIndex = smx->pkd->nLocal;
 	smx->pq[i].iPid = smx->pkd->idSelf;
-	smx->pq[i].dx = pkdPos(pkd,smx->pSentinel,0);
-	smx->pq[i].dy = pkdPos(pkd,smx->pSentinel,1);
-	smx->pq[i].dz = pkdPos(pkd,smx->pSentinel,2);
+	smx->pq[i].dx = pkdPos(smx->pkd,smx->pSentinel,0);
+	smx->pq[i].dy = pkdPos(smx->pkd,smx->pSentinel,1);
+	smx->pq[i].dz = pkdPos(smx->pkd,smx->pSentinel,2);
 	smx->pq[i].fDist2 = pow(smx->pq[i].dx,2) + pow(smx->pq[i].dy,2) + 
 	    pow(smx->pq[i].dz,2);
 	}

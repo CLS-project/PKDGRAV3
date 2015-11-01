@@ -304,6 +304,9 @@ void pkdInitialize(
     pkd->iParticleSize = sizeof(PARTICLE);
     pkd->iTreeNodeSize = sizeof(KDN);
 
+#ifndef INTEGER_POSITION
+    pkd->oPosition = pkdParticleAddDouble(pkd,3);
+#endif
     if ( mMemoryModel & PKD_MODEL_PARTICLE_ID )
 	pkd->oParticleID = pkdParticleAddInt64(pkd,1);
     else
@@ -315,6 +318,9 @@ void pkdInitialize(
 	    pkd->oVelocity = pkdParticleAddDouble(pkd,3);
 	    }
 	}
+#ifdef INTEGER_POSITION
+    pkd->oPosition = pkdParticleAddInt32(pkd,3);
+#endif
     if ( mMemoryModel & PKD_MODEL_RELAXATION )
 	pkd->oRelaxation = pkdParticleAddDouble(pkd,1);
     else
@@ -2777,7 +2783,7 @@ void pkdDrift(PKD pkd,double dDelta,double dDeltaVPred,double dDeltaUPred,uint8_
 		    sph->fMetalsPred += sph->fMetalsDot*dDeltaUPred;
 		    }
 		for (j=0;j<3;++j) {
-		    r[j] = pkdSetPos(pkd,p,j,pkdPos(pkd,p,j) + dDelta*v[j]);
+		    pkdSetPos(pkd,p,j,r[j] = pkdPos(pkd,p,j) + dDelta*v[j]);
 		    }
 		pkdMinMax(r,dMin,dMax);
 		}
@@ -2789,13 +2795,12 @@ void pkdDrift(PKD pkd,double dDelta,double dDeltaVPred,double dDeltaUPred,uint8_
 	    if (pkdIsRungRange(p,uRungLo,uRungHi)) {
 		v = pkdVel(pkd,p);
 		for (j=0;j<3;++j) {
-		    r[j] = pkdSetPos(pkd,p,j,pkdPos(pkd,p,j) + dDelta*v[j]);
+		    pkdSetPos(pkd,p,j,r[j] = pkdPos(pkd,p,j) + dDelta*v[j]);
 		    }
 		pkdMinMax(r,dMin,dMax);
 		}
 	    }
 	}
-
     for (j=0;j<3;++j) {
 	pkd->bnd.fCenter[j] = 0.5*(dMin[j] + dMax[j]);
 	pkd->bnd.fMax[j] = 0.5*(dMax[j] - dMin[j]);
