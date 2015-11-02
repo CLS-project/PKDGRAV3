@@ -302,7 +302,6 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
     FMOMR monoPole;
     LOCR L;
     double cx,cy,cz,d2c;
-    double fWeight = 0.0;
     double dShiftFlop;
     const vel_t *v;
     const float *a;
@@ -329,7 +328,6 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
 #ifdef USE_SIMD_MOMR
     int ig,iv;
 #endif
-    double tempI;
     double dEwFlop = 0.0;
 
     pkdGravStartEwald(pkd);
@@ -423,8 +421,6 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
 	    /*
 	    ** Process the Checklist.
 	    */
-	    tempI = *pdFlop;
-	    tempI += dEwFlop;
 	    if (bGravStep) {
 		a = pkdNodeAccel(pkd,k);
 		maga = sqrtf(a[0]*a[0] + a[1]*a[1] + a[2]*a[2]);
@@ -706,8 +702,6 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
 					      c->r[0] - xParent,
 					      c->r[1] - yParent,
 					      c->r[2] - zParent);
-		    pkd->S[iStack].fWeight = (*pdFlop-tempI) + dShiftFlop;
-		    pkd->S[iStack].fWeight += dEwFlop;
 		    }
 		}
 	    else {
@@ -744,10 +738,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
 	** Update the limit for a shift of the center here based on the opening radius of this
 	** cell (the one we just evaluated).
 	*/
-	fWeight += (*pdFlop-tempI);
-	fWeight += dEwFlop;
 	if (nActive) {
-	    fWeight /= nActive;
 	    /*
 	    ** Here we used to set the weights of particles based on the work done, but now we just assume that
 	    ** all particles cost the same in domain decomposition, so we really don't need to set anything here.
@@ -776,9 +767,6 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
 	L = pkd->S[iStack].L;
 	dirLsum = pkd->S[iStack].dirLsum;
 	normLsum = pkd->S[iStack].normLsum;
-	fWeight = pkd->S[iStack].fWeight;
-	tempI = *pdFlop;
-	tempI += dEwFlop;
 	--iStack;
 	}
 doneCheckList:

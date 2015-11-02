@@ -363,7 +363,6 @@ typedef struct CheckStack {
     LOCR L;
     float dirLsum;
     float normLsum;
-    float fWeight;
     int iNodeIndex;
     } CSTACK;
 
@@ -1141,8 +1140,6 @@ void pkdCalcBound(PKD,BND *);
 void pkdCalcVBound(PKD,BND *);
 void pkdEnforcePeriodic(PKD,BND *);
 void pkdPhysicalSoft(PKD pkd,double dSoftMax,double dFac,int bSoftMaxMul);
-
-void pkdBucketWeight(PKD pkd,int iBucket,FLOAT fWeight);
 int pkdWeight(PKD,int,FLOAT,int,int,int,int *,int *,FLOAT *,FLOAT *);
 void pkdCountVA(PKD,int,FLOAT,int *,int *);
 double pkdTotalMass(PKD pkd);
