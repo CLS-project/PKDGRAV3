@@ -787,7 +787,7 @@ static int mdlDoSomeWork(MDL mdl) {
     return rc;
     }
 
-static void mdlCompleteAllWork(MDL mdl) {
+void mdlCompleteAllWork(MDL mdl) {
 #ifdef USE_CUDA
     CUDA_sendWork(mdl->cudaCtx);
 #endif

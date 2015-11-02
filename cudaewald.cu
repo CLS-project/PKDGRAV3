@@ -43,19 +43,18 @@ __constant__ float hSfac[MAX_TOTAL_REPLICAS];
 */
 
 __global__ void cudaEwald(double *X,double *Y,double *Z,
-    double *Xout, double *Yout, double *Zout, double *pPot) {
+    double *Xout, double *Yout, double *Zout, double *pPot,double *pdFlop) {
     double x, y, z;
     double r2,dir,dir2,a;
     double rx, ry, rz;
     double g0,g1,g2,g3,g4,g5,alphan;
     int i, ix, iy, iz, bInHole;
     int pidx = threadIdx.x + 32*blockIdx.x;
-    double tax = 0.0, tay = 0.0, taz = 0.0, tpot=0.0;
+    double tax = 0.0, tay = 0.0, taz = 0.0, tpot=0.0, dFlop=0.0;
 
     rx = X[pidx] - ew.r[0];
     ry = Y[pidx] - ew.r[1];
     rz = Z[pidx] - ew.r[2];
-
     for(ix=-3; ix<=3; ++ix) {
         for(iy=-3; iy<=3; ++iy) {
             for(iz=-3; iz<=3; ++iz) {
@@ -149,6 +148,7 @@ __global__ void cudaEwald(double *X,double *Y,double *Z,
                 tax += g2*(Q2mirx - ew.Q3x) + g3*(Q3mirx - Q4x) + g4*Q4mirx - x*Qta;
                 tay += g2*(Q2miry - ew.Q3y) + g3*(Q3miry - Q4y) + g4*Q4miry - y*Qta;
                 taz += g2*(Q2mirz - ew.Q3z) + g3*(Q3mirz - Q4z) + g4*Q4mirz - z*Qta;
+                dFlop += 447;
                 }
             }
 	}
@@ -166,10 +166,12 @@ __global__ void cudaEwald(double *X,double *Y,double *Z,
 	fay += hy[i]*t;
 	faz += hz[i]*t;
 	}
+    dFlop += 58 * ew.nEwhLoop;
     Xout[pidx] = tax + fax;
     Yout[pidx] = tay + fay;
     Zout[pidx] = taz + faz;
     pPot[pidx] = tpot;
+    pdFlop[pidx] = dFlop;
     }
 
 extern "C"
@@ -191,7 +193,7 @@ int CUDAinitWorkEwald( void *ve, void *vwork ) {
     double *pCudaBufIn = reinterpret_cast<double *>(work->pCudaBufIn);
     double *pCudaBufOut = reinterpret_cast<double *>(work->pCudaBufIn);
     double *X, *Y, *Z;
-    double *cudaX, *cudaY, *cudaZ, *cudaXout, *cudaYout, *cudaZout, *cudaPot;
+    double *cudaX, *cudaY, *cudaZ, *cudaXout, *cudaYout, *cudaZout, *cudaPot, *cudaFlop;
     int align, i;
 
     align = (e->nP+31)&~31; /* Warp align the memory buffers */
@@ -205,6 +207,7 @@ int CUDAinitWorkEwald( void *ve, void *vwork ) {
     cudaYout= pCudaBufOut + 1*align;
     cudaZout= pCudaBufOut + 2*align;
     cudaPot = pCudaBufOut + 3*align;
+    cudaFlop= pCudaBufOut + 4*align;
 
     dim3 dimBlock( 32, 1 );
     dim3 dimGrid( align/32, 1,1 );
@@ -221,8 +224,8 @@ int CUDAinitWorkEwald( void *ve, void *vwork ) {
     // copy data directly to device memory
     CUDA_CHECK(cudaMemcpyAsync,(pCudaBufIn, pHostBuf, align*3*sizeof(double),
 	    cudaMemcpyHostToDevice, work->stream));
-    cudaEwald<<<dimGrid, dimBlock, 0, work->stream>>>(cudaX,cudaY,cudaZ,cudaXout,cudaYout,cudaZout,cudaPot);
-    CUDA_CHECK(cudaMemcpyAsync,(pHostBuf, pCudaBufIn, align*4*sizeof(double),
+    cudaEwald<<<dimGrid, dimBlock, 0, work->stream>>>(cudaX,cudaY,cudaZ,cudaXout,cudaYout,cudaZout,cudaPot,cudaFlop);
+    CUDA_CHECK(cudaMemcpyAsync,(pHostBuf, pCudaBufIn, align*5*sizeof(double),
             cudaMemcpyDeviceToHost, work->stream));
     CUDA_CHECK(cudaEventRecord,(work->event,work->stream));
 
@@ -230,7 +233,7 @@ int CUDAinitWorkEwald( void *ve, void *vwork ) {
     }
 
 extern "C"
-void pkdAccumulateCUDA(void * pkd,workEwald *we,double *pax,double *pay,double *paz,double *pot);
+void pkdAccumulateCUDA(void * pkd,workEwald *we,double *pax,double *pay,double *paz,double *pot,double *pdFlop);
 
 
 extern "C"
@@ -238,7 +241,7 @@ int CUDAcheckWorkEwald( void *ve, void *vwork ) {
     workEwald *e = reinterpret_cast<workEwald *>(ve);
     CUDAwqNode *work = reinterpret_cast<CUDAwqNode *>(vwork);
     double *pHostBuf = reinterpret_cast<double *>(work->pHostBuf);
-    double *X, *Y, *Z, *pPot;
+    double *X, *Y, *Z, *pPot, *pdFlop;
     int align;
 
     align = (e->nP+31)&~31; /* As above! Warp align the memory buffers */
@@ -246,7 +249,8 @@ int CUDAcheckWorkEwald( void *ve, void *vwork ) {
     Y       = pHostBuf + 1*align;
     Z       = pHostBuf + 2*align;
     pPot    = pHostBuf + 3*align;
-    pkdAccumulateCUDA(e->pkd,e,X,Y,Z,pPot);
+    pdFlop  = pHostBuf + 4*align;
+    pkdAccumulateCUDA(e->pkd,e,X,Y,Z,pPot,pdFlop);
     free(e->ppWorkPart);
     free(e->piWorkPart);
     free(e);

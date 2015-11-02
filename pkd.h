@@ -674,6 +674,7 @@ typedef struct pkdContext {
     LSTFREELIST clFreeList;
     CL cl;
     CL clNew;
+    double dFlop;
 
     /*
     ** Opening angle table for mass weighting.

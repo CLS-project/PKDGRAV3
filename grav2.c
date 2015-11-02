@@ -78,6 +78,7 @@ void pkdParticleWorkDone(workParticle *work) {
     unsigned char uNewRung;
 
     if ( --work->nRefs == 0 ) {
+	pkd->dFlop += work->dFlop;
 	for( i=0; i<work->nP; i++ ) {
 	    p = work->pPart[i];
 	    if (pkd->oAcceleration) {
@@ -805,7 +806,7 @@ int CPUdoWorkEwald(void *ve) {
 	r[0] = wp->c[0] + in->r[0];
 	r[1] = wp->c[1] + in->r[1];
 	r[2] = wp->c[2] + in->r[2];
-	/*dEwFlop +=*/ pkdParticleEwald(pkd,r,out->a,&out->fPot);
+	wp->dFlop += pkdParticleEwald(pkd,r,out->a,&out->fPot);
 	pkdParticleWorkDone(wp);
 	}
     return 0;
@@ -864,7 +865,7 @@ static void queueEwald( PKD pkd, workParticle *work ) {
 int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     int bKickClose,int bKickOpen,double *dtClose,double *dtOpen,double dAccFac,
     KDN *pBucket,LOCR *pLoc,ILP ilp,ILC ilc,
-    float dirLsum,float normLsum,int bEwald,int bGravStep,int nGroup,double *pdFlop,double *pdEwFlop,
+    float dirLsum,float normLsum,int bEwald,int bGravStep,int nGroup,double *pdFlop,
     double dRhoFac,SMX smx,SMF *smf) {
     PARTICLE *p;
     KDN *pkdn = pBucket;
@@ -903,6 +904,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     work->c[2] = ilp->cz; assert(work->c[2] == ilc->cz);
 
     work->nRefs = 1; /* I am using it currently */
+    work->dFlop = 0.0;
     work->nP = 0;
     work->dRhoFac = dRhoFac;
     work->ctx = pkd;

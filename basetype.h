@@ -87,6 +87,7 @@ typedef struct {
     PARTICLE **pPart;
     PINFOIN *pInfoIn;
     PINFOOUT *pInfoOut;
+    double dFlop;
     double c[3];
     float dRhoFac;
     int nP;

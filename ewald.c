@@ -80,7 +80,7 @@ static int evalEwald(struct EwaldVariables *ew,double *ax, double *ay, double *a
     }
 
 /* Once CUDA has completed, we need to acumulate */
-void pkdAccumulateCUDA(PKD pkd,workEwald *we,double *pax,double *pay,double *paz,double *pot) {
+void pkdAccumulateCUDA(PKD pkd,workEwald *we,double *pax,double *pay,double *paz,double *pot,double *pdFlop) {
     int i;
 
     for(i=0; i<we->nP; ++i) {
@@ -91,6 +91,7 @@ void pkdAccumulateCUDA(PKD pkd,workEwald *we,double *pax,double *pay,double *paz
 	out->a[1] += pay[i];
 	out->a[2] += paz[i];
 	out->fPot += pot[i];
+	pkd->dFlop += pdFlop[i];
 	pkdParticleWorkDone(wp);
 	}
    }
@@ -290,7 +291,7 @@ v_df verf(v_df v,v_df iv,v_df ex2,v_df *r_erf,v_df *r_erfc) {
     }
 #endif
 
-int evalEwaldSIMD( ewaldSIMD *ew, v_df *ax, v_df *ay, v_df *az, v_df *dPot, v_df x, v_df y, v_df z, v_df r2, v_df doerfc ) {
+double evalEwaldSIMD( ewaldSIMD *ew, v_df *ax, v_df *ay, v_df *az, v_df *dPot, v_df x, v_df y, v_df z, v_df r2, v_df doerfc ) {
     v_df dir,dir2,a,g0,g1,g2,g3,g4,g5,alphan;
     v_df xx,xxx,xxy,xxz,yy,yyy,yyz,xyy,zz,zzz,xzz,yzz,xy,xyz,xz,yz;
     v_df Qta,Q4mirx,Q4miry,Q4mirz,Q4mir,Q4x,Q4y,Q4z;
@@ -446,7 +447,7 @@ int evalEwaldSIMD( ewaldSIMD *ew, v_df *ax, v_df *ay, v_df *az, v_df *dPot, v_df
     }
 #endif
 
-int pkdParticleEwald(PKD pkd,double *r, float *pa, float *pPot) {
+double pkdParticleEwald(PKD pkd,double *r, float *pa, float *pPot) {
     struct EwaldVariables *ew = &pkd->ew;
     EwaldTable *ewt = &pkd->ewt;
     const MOMC * restrict mom = &ew->mom;
@@ -459,7 +460,7 @@ int pkdParticleEwald(PKD pkd,double *r, float *pa, float *pPot) {
 #endif
     int i,ix,iy,iz;
     int bInHole,bInHolex,bInHolexy;
-    int nFlop = 0;
+    double dFlop = 0;
     int nLoop = 0;
 
     L = ew->Lbox;
@@ -507,7 +508,7 @@ int pkdParticleEwald(PKD pkd,double *r, float *pa, float *pPot) {
 		    alphan *= 2*ew->alpha2;
 		    g5 = alphan*((1.0/13.0)*r2 - (1.0/11.0));
 
-		    nFlop += evalEwald(ew,&ax,&ay,&az,&Pot,x,y,z,g0,g1,g2,g3,g4,g5);
+		    dFlop += evalEwald(ew,&ax,&ay,&az,&Pot,x,y,z,g0,g1,g2,g3,g4,g5);
 		    }
 		else {
 #if defined(USE_SIMD_EWALD)
@@ -518,7 +519,7 @@ int pkdParticleEwald(PKD pkd,double *r, float *pa, float *pPot) {
 		    doerfc.i[nSIMD] = bInHole ? 0 : UINT64_MAX;
 		    if (++nSIMD == SIMD_DWIDTH) {
 			v_df tax, tay, taz, tpot;
-			nFlop += evalEwaldSIMD(&pkd->es,&tax,&tay,&taz,&tpot,px.p,py.p,pz.p,pr2.p,doerfc.p);
+			dFlop += evalEwaldSIMD(&pkd->es,&tax,&tay,&taz,&tpot,px.p,py.p,pz.p,pr2.p,doerfc.p);
  			dax = SIMD_DADD(dax,tax);
 			day = SIMD_DADD(day,tay);
 			daz = SIMD_DADD(daz,taz);
@@ -550,7 +551,7 @@ int pkdParticleEwald(PKD pkd,double *r, float *pa, float *pPot) {
 		    g4 = 7*g3*dir2 + alphan*a;
 		    alphan *= 2*ew->alpha2;
 		    g5 = 9*g4*dir2 + alphan*a;
-		    nFlop += evalEwald(ew,&ax,&ay,&az,&Pot,x,y,z,g0,g1,g2,g3,g4,g5);
+		    dFlop += evalEwald(ew,&ax,&ay,&az,&Pot,x,y,z,g0,g1,g2,g3,g4,g5);
 #endif
 		    }
 		++nLoop;
@@ -561,7 +562,7 @@ int pkdParticleEwald(PKD pkd,double *r, float *pa, float *pPot) {
     /* Finish remaining SIMD operations if necessary */
     if (nSIMD) { /* nSIMD can be 0, 1, 2 or 3 */
 	v_df t, tax, tay, taz, tpot;
-	evalEwaldSIMD(&pkd->es,&tax,&tay,&taz,&tpot,px.p,py.p,pz.p,pr2.p,doerfc.p);
+	dFlop += evalEwaldSIMD(&pkd->es,&tax,&tay,&taz,&tpot,px.p,py.p,pz.p,pr2.p,doerfc.p);
 	t = iconsts.keepmask[nSIMD].pd;
 	tax = SIMD_DAND(tax,t);
 	tay = SIMD_DAND(tay,t);
@@ -599,7 +600,7 @@ int pkdParticleEwald(PKD pkd,double *r, float *pa, float *pPot) {
 	fay = SIMD_ADD(fay,SIMD_MUL(ewt->hy.p[i],t));
 	faz = SIMD_ADD(faz,SIMD_MUL(ewt->hz.p[i],t));
 	} while(++i < nLoop);
-    nFlop += nLoop*58*SIMD_WIDTH;
+    dFlop += nLoop*58*SIMD_WIDTH;
 
     ax += SIMD_HADD(fax);
     ay += SIMD_HADD(fay);
@@ -624,13 +625,13 @@ int pkdParticleEwald(PKD pkd,double *r, float *pa, float *pPot) {
 	ay += ewt->hy.f[i]*t;
 	az += ewt->hz.f[i]*t;
 	}
-    nFlop += ew->nEwhLoop*58;
+    dFlop += ew->nEwhLoop*58;
 #endif
     pa[0] += ax;
     pa[1] += ay;
     pa[2] += az;
     *pPot += Pot;
-    return(nFlop);
+    return dFlop;
     }
 
 void pkdEwaldInit(PKD pkd,int nReps,double fEwCut,double fhCut) {

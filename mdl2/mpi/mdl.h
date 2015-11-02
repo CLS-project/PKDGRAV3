@@ -423,6 +423,7 @@ void *mdlVirtualAcquire(MDL mdl,int cid,int iIndex,int id,int bLock);
 void mdlRelease(MDL,int,void *);
 void mdlFlushCache(MDL,int);
 void mdlThreadBarrier(MDL);
+void mdlCompleteAllWork(MDL);
 /*
  ** Cache statistics functions.
  */

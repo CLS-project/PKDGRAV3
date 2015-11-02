@@ -328,10 +328,9 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
 #ifdef USE_SIMD_MOMR
     int ig,iv;
 #endif
-    double dEwFlop = 0.0;
 
+    pkd->dFlop = 0.0; /* Flops are accumulated here! */
     pkdGravStartEwald(pkd);
-
     iStack = -1;
 
     /*
@@ -345,7 +344,6 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
 
     a = fZero3;
     v = vZero3;
-
 
     /*
     ** We are now going to work on the local tree.
@@ -730,7 +728,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
 	*/
 	if (!pkd->param.bNoGrav) {
 	    nActive = pkdGravInteract(pkd,uRungLo,uRungHi,bKickClose,bKickOpen,dtClose,dtOpen,dAccFac,
-		k,&L,pkd->ilp,pkd->ilc,dirLsum,normLsum,bEwald,bGravStep,nGroup,pdFlop,&dEwFlop,dRhoFac,
+		k,&L,pkd->ilp,pkd->ilc,dirLsum,normLsum,bEwald,bGravStep,nGroup,pdFlop,dRhoFac,
 		smx, &smf);
 	    }
 	else nActive = 0;
@@ -771,7 +769,8 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iVARoot,
 	}
 doneCheckList:
     pkdGravFinishEwald(pkd);
-    *pdFlop += dEwFlop;   /* Finally add the ewald score to get a proper float count */
+    mdlCompleteAllWork(pkd->mdl);
+    *pdFlop += pkd->dFlop; /* Accumulate work flops (notably Ewald) */
     return(nTotActive);
     }
 

@@ -477,7 +477,7 @@ void pkdInitialize(
     // This is cheeserific - chooses the largest specified
 
 #ifdef USE_CUDA
-    mdlSetCudaBufferSize(pkd->mdl,MAX_EWALD_PARTICLES*sizeof(double)*4,MAX_EWALD_PARTICLES*sizeof(double)*4);
+    mdlSetCudaBufferSize(pkd->mdl,MAX_EWALD_PARTICLES*sizeof(double)*4,MAX_EWALD_PARTICLES*sizeof(double)*5);
     mdlSetCudaBufferSize(pkd->mdl,PP_CUDA_MEMORY_LIMIT,PP_CUDA_MEMORY_LIMIT);
 #endif
     mdlSetWorkQueueSize(pkd->mdl,iWorkQueueSize,iCUDAQueueSize);
