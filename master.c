@@ -2802,14 +2802,10 @@ void msrMemStatus(MSR msr) {
 	assert(out != NULL);
 	pstMemStatus(msr->pst,0,0,out,&iDum);
 #ifdef __linux__
-	printf("Virtual Size (MB):\n");
-	PRINTGRID(8,"%8"PRIu64,vsize);
 	printf("Resident (MB):\n");
 	PRINTGRID(8,"%8"PRIu64,rss);
 	printf("Free Memory (MB):\n");
 	PRINTGRID(8,"%8"PRIu64,freeMemory);
-	printf("Major faults:\n");
-	PRINTGRID(8,"%8"PRIu64,majflt);
 #endif
 	printf("Tree size (MB):\n");
 	PRINTGRID(8,"%8"PRIu64,nBytesTree/1024/1024);

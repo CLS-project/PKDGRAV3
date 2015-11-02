@@ -3060,7 +3060,6 @@ void pstGravity(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	    f = strtok_r(buffer," ",&save);
 	    for ( i=0; i<= 36 && f; i++ ) {
 		switch (i) {
-		    /*case 22: out->vsize  = atol(f)/1024/1024; break;*/
 		case 23:
 #ifdef HAVE_GETPAGESIZE
 		    outr->sRSS.dSum = atol(f)*1.0*getpagesize()/1024/1024/1024;
@@ -4060,13 +4059,6 @@ void pstMemStatus(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	    f = strtok_r(buffer," ",&save);
 	    for ( i=0; i<= 36 && f; i++ ) {
 		switch (i) {
-		case  9: out->minflt = atol(f); break;
-		case 10: out->minflt+= atol(f); break;
-		case 11: out->majflt = atol(f); break;
-		case 12: out->majflt+= atol(f); break;
-		case 22:
-		    out->vsize  = atol(f)/1024/1024;
-		    break;
 		case 23:
 #ifdef HAVE_GETPAGESIZE
 		    out->rss    = atol(f)*getpagesize()/1024/1024;

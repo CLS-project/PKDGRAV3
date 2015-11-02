@@ -1165,9 +1165,6 @@ void pstHostname(PST,void *,int,void *,int *);
 /* PST_MEMSTATUS */
 struct outMemStatus {
 #ifdef __linux__
-    uint64_t minflt;
-    uint64_t majflt;
-    uint64_t vsize;
     uint64_t rss;
     uint64_t freeMemory;
 #endif
