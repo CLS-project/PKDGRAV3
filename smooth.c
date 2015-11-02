@@ -288,21 +288,24 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
 	smx->fcnPost = NULL;
 	break;
     case SMX_DENSITY_F1:
+	assert(!bSymmetric);
 	smx->fcnSmooth = DensityF1;
-	initParticle = initDensity; /* Original Particle */
+	initParticle = NULL;
 	init = NULL;
 	comb = NULL;
 	smx->fcnPost = NULL;
 	break;
     case SMX_DENSITY_M3:
+	assert(!bSymmetric);
 	assert(pkd->oGroup);
 	smx->fcnSmooth = DensityM3;
-	initParticle = initDensity; /* Original Particle */
+	initParticle = NULL;
 	init = NULL;
 	comb = NULL;
 	smx->fcnPost = NULL;
 	break;
     case SMX_GRADIENT_M3:
+	assert(!bSymmetric);
 	smx->fcnSmooth = LinkGradientM3;
 	initParticle = NULL;
 	init = NULL;
@@ -310,6 +313,7 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
 	smx->fcnPost = NULL;
 	break;
     case SMX_HOP_LINK:
+	assert(!bSymmetric);
 	smx->fcnSmooth = LinkHopChains;
 	initParticle = NULL;
 	init = NULL;

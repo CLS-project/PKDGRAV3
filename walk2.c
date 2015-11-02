@@ -804,10 +804,6 @@ static void initGravWalk(PKD pkd,double dTime,double dThetaMin,int bPeriodic,int
     if (bGravStep) {
 	smInitializeRO(smx,pkd,smf,pkd->param.nPartRhoLoc,bPeriodic,SMX_DENSITY_F1);
 	smSmoothInitialize(*smx);
-	/* No particles are inactive for density calculation */
-	for (pi=0;pi<pkd->nLocal;++pi) {
-	    pkdParticle(pkd,pi)->bMarked = 1;
-	    }
 	}
     else (*smx) = NULL;
 

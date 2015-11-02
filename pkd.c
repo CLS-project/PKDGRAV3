@@ -860,7 +860,7 @@ void pkdGenerateIC(PKD pkd, GRAFICCTX gctx,  int iDim,
 		p = pkdParticle(pkd,pi);
 		v = pkdVel(pkd,p);
 		p->uRung = p->uNewRung = 0;
-		p->bSrcActive = p->bDstActive = 1;
+		p->bSrcActive = p->bDstActive = p->bMarked = 1;
 		p->fDensity = 0.0;
 		p->fBall = 0.0;
 		/*
@@ -918,7 +918,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
 	** General initialization.
 	*/
 	p->uRung = p->uNewRung = 0;
-	p->bSrcActive = p->bDstActive = 1;
+	p->bSrcActive = p->bDstActive = p->bMarked = 1;
 	pkdSetDensity(pkd,p,0.0);
 	if (pkd->oBall) pkdSetBall(pkd,p,0.0);
 	/*
