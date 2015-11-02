@@ -211,7 +211,8 @@ int CUDAinitWorkEwald( void *ve, void *vwork ) {
 
     for(i=0; i<e->nP; ++i) {
         workParticle *wp = e->ppWorkPart[i];
-	PINFOIN *in = &wp->pInfoIn[i];
+	int wi = e->piWorkPart[i];
+	PINFOIN *in = &wp->pInfoIn[wi];
 	X[i] = wp->c[0] + in->r[0];
 	Y[i] = wp->c[1] + in->r[1];
 	Z[i] = wp->c[2] + in->r[2];
