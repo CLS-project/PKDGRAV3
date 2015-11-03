@@ -3778,7 +3778,7 @@ void pstFof(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	(&in->smf)->pkd = pst->plcl->pkd;
 	smInitialize(&smx,plcl->pkd,&in->smf,in->nSmooth,
 		     in->bPeriodic,in->bSymmetric,in->iSmoothType);
-	smFof(smx,&in->smf);
+	smNewFof(smx,&in->smf);
 	smFinish(smx,&in->smf);
 	}
     if (pnOut) *pnOut = 0;

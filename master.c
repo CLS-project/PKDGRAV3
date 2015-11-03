@@ -4505,6 +4505,7 @@ void msrFof(MSR msr, double exp) {
 	}
     in.smf.bTauAbs = msr->param.bTauAbs;
     in.smf.nMinMembers = msr->param.nMinMembers;
+
     if (msr->param.bVStep) {
 	double sec,dsec;
 	if (msr->param.bTauAbs == 0){
@@ -4522,6 +4523,8 @@ void msrFof(MSR msr, double exp) {
     else {
 	pstFof(msr->pst,&in,sizeof(in),NULL,NULL);
 	}
+
+    pstHopAssignGID(msr->pst,NULL,0,NULL,NULL);
     }
 
 void msrGroupMerge(MSR msr, double exp) {
@@ -4987,7 +4990,8 @@ void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint) {
 	msrDomainDecomp(msr,-1,0,0);
 	msrBuildTree(msr,dTime,0);
 	msrFof(msr,csmTime2Exp(msr->param.csm,dTime));
-	msrGroupMerge(msr,csmTime2Exp(msr->param.csm,dTime));
+
+/*	msrGroupMerge(msr,csmTime2Exp(msr->param.csm,dTime));
 	if (msr->param.nBins > 0) msrGroupProfiles(msr,csmTime2Exp(msr->param.csm,dTime));
 	msrReorder(msr);
 	sprintf(achFile,"%s.%i.fof",msrOutName(msr),nFOFsDone);
@@ -5006,6 +5010,10 @@ void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint) {
 	else msrOutGroups(msr,achFile,OUT_GROUP_TIPSY_NAT,dTime);
 	nFOFsDone++;
 	if ( nFOFsDone )msrDeleteGroups(msr);
+*/
+	msrBuildName(msr,achFile,iStep);
+	strncat(achFile,".fofstats",256);
+	msrHopWrite(msr,achFile);
 	}
 
     if ( msr->param.bFindPSGroups ) {

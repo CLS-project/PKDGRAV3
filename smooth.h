@@ -83,6 +83,12 @@ typedef struct smContext {
     ** Context for nearest neighbor lists.
     */
     LCODE lcmp;
+    /*
+    ** Some variables needed for smNewFof().
+    */
+    uint32_t iHead;
+    uint32_t iTail;
+    int  *Fifo;
     } * SMX;
 
 
