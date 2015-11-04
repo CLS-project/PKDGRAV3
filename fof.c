@@ -126,6 +126,7 @@ int smNewFof(SMX smx,SMF *smf) {
 	pkd->hopGroups[i].bComplete    = 0;
 	}
 //    purgeSmallGroups(pkd,nMinGroupSize,bPeriodic,dPeriod);
+    purgeSmallGroups(pkd,8,0,1.0);
     pkd->hopSavedRoots = 0;
 
     return pkd->nLocalGroups;
