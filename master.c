@@ -4933,7 +4933,7 @@ void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint) {
 	msrOutArray(msr,achFile,OUT_HSPH_ARRAY);
 	}
 
-    if (msrDoDensity(msr) || msr->param.bFindGroups) {
+    if (msrDoDensity(msr)) {
 #ifdef FASTGAS_TESTING
 	msrActiveRung(msr,3,1); /* Activate some particles */
 	msrDomainDecomp(msr,0,0,0);

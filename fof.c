@@ -82,7 +82,7 @@ int smNewFof(SMX smx,SMF *smf) {
     int pn,pi,i;
 
     assert(pkd->oGroup); /* Validate memory model */
-    smx->Fifo = (int32_t *)(pkd->pLite); /* Used only for SPH */
+    smx->Fifo = (int32_t *)(pkd->pLite);
     pkd->nGroups = 0;    
     iGroup = 0;
     for (pn=0;pi<pkd->nLocal;++pn) {
@@ -122,7 +122,7 @@ int smNewFof(SMX smx,SMF *smf) {
     for(i=0; i<pkd->nGroups; ++i) {
 	pkd->hopGroups[i].id.iPid      = pkd->idSelf;
 	pkd->hopGroups[i].id.iIndex    = i;
-	pkd->hopGroups[i].bNeedGrav    = 1;
+	pkd->hopGroups[i].bNeedGrav    = 0;
 	pkd->hopGroups[i].bComplete    = 0;
 	}
 //    purgeSmallGroups(pkd,nMinGroupSize,bPeriodic,dPeriod);

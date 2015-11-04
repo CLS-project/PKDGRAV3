@@ -492,6 +492,8 @@ static int smInitializeBasic(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,int bPeriodi
     */
     smx->ST = malloc(1024*sizeof(struct stStack));
     assert(smx->ST != NULL);
+    smx->S = malloc(1024*sizeof(int));
+    assert(smx->S != NULL);
     /*
     ** Set up the sentinel particle with some very far away distance.
     ** This is used to initially load the priority queue and all references
@@ -582,6 +584,7 @@ void smFinish(SMX smx,SMF *smf) {
     /*
     ** Free up context storage.
     */
+    free(smx->S);
     free(smx->ST);
     free(smx->pq);
     free(smx->nnList);
