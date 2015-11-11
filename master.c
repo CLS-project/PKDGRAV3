@@ -5668,6 +5668,8 @@ void msrMeasurePk(MSR msr,double *dCenter,double dRadius,int nGrid,float *Pk) {
     in.dCenter[1] = dCenter[1];
     in.dCenter[2] = dCenter[2];
     in.dRadius = dRadius;
+    in.dTotalMass = msrTotalMass(msr);
+
     pstMeasurePk(msr->pst, &in, sizeof(in), &out, &nOut);
     for( i=0; i<=nGrid/2; i++ ) {
 	/*printf( "%3d:  %.8g %ld\n", i, out.fPower[i], out.nPower[i] );*/

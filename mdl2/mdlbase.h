@@ -111,6 +111,7 @@ void mdlBaseAddService(mdlBASE *base, int sid, void *p1,
 #define mdlCore(mdl) ((mdl)->base.iCore)
 #define mdlCores(mdl) ((mdl)->base.nCores)
 #define mdlProc(mdl) ((mdl)->base.iProc)
+#define mdlProcs(mdl) ((mdl)->base.nProcs)
 const char *mdlName(void *mdl);
 
 int mdlBaseProcToThread(mdlBASE *base, int iProc);

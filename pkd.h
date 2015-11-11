@@ -1299,7 +1299,7 @@ void pkdCalcCOM(PKD pkd, double *dCenter, double dRadius,
 void pkdGridInitialize(PKD pkd, int n1, int n2, int n3, int a1, int s, int n);
 void pkdGridProject(PKD pkd);
 #ifdef MDL_FFTW
-void pkdMeasurePk(PKD pkd, double dCenter[3], double dRadius,
+void pkdMeasurePk(PKD pkd, double dCenter[3], double dRadius, double dTotalMass,
 		  int nGrid, float *fPower, int *nPower);
 #endif
 void pkdOutPsGroup(PKD pkd,char *pszFileName,int iType);

@@ -75,9 +75,11 @@
 #define MDL_SE_CACHE_CLOSE      8
 #define MDL_SE_CACHE_REQUEST    9
 #define MDL_SE_CACHE_FLUSH     10
-#define MDL_SE_MPI_SEND        11
-#define MDL_SE_MPI_SSEND       12
-#define MDL_SE_MPI_RECV        13
+#define MDL_SE_CACHE_FLUSH_OUT 11
+#define MDL_SE_CACHE_FLUSH_LCL 12
+#define MDL_SE_MPI_SEND        13
+#define MDL_SE_MPI_SSEND       14
+#define MDL_SE_MPI_RECV        15
 
 #define MDL_SE_FFT_SIZES       20
 #define MDL_SE_FFT_PLANS       21
@@ -176,17 +178,17 @@ static inline CDB * remove_from_hash(ARC arc,CDB *p) {
 		/*
 		** Unlink.
 		*/
-		*pt = (*pt)->coll;
+		*pt = (*pt)->extra.coll;
 		return p;
 		}
 	    }
-	pt = &((*pt)->coll);
+	pt = &((*pt)->extra.coll);
 	}
     printf("Tried to remove uIndex %d uId %x\n", uIndex, uId);
     assert(0);  /* should never get here, the element should always be found in the hash */
     }
 
-ARC arcInitialize(uint32_t nCache,uint32_t uDataSize) {
+ARC arcInitialize(uint32_t nCache,uint32_t uDataSize,CACHE *c) {
     ARC arc;
     uint32_t i;
     
@@ -195,6 +197,7 @@ ARC arcInitialize(uint32_t nCache,uint32_t uDataSize) {
     */
     arc = malloc(sizeof(struct ArcContext));
     assert(arc != NULL);
+    arc->cache = c;
     arc->nCache = nCache;
     arc->cdbBase = malloc(2*nCache*sizeof(CDB));
     assert(arc->cdbBase != NULL);
@@ -263,7 +266,7 @@ ARC arcInitialize(uint32_t nCache,uint32_t uDataSize) {
     for (i=0;i<nCache;++i) {
 	/*arc->dataBase[i*(arc->uDataSize+1)] = _ARC_MAGIC_;*/ /* Defer this until we use it. */
 	arc->cdbBase[i].data = &arc->dataBase[i*(arc->uDataSize+1)+1];
-	arc->cdbBase[i].coll = NULL;
+	arc->cdbBase[i].extra.coll = NULL;
 	lru_insert(&arc->cdbBase[i],arc->Free);
     }
     /*
@@ -271,7 +274,7 @@ ARC arcInitialize(uint32_t nCache,uint32_t uDataSize) {
     */
     for (i=nCache;i<2*nCache;++i) {
 	arc->cdbBase[i].data = 0;
-	arc->cdbBase[i].coll = NULL;
+	arc->cdbBase[i].extra.coll = NULL;
 	mru_insert(&arc->cdbBase[i],arc->Free);
     }
     return(arc);
@@ -335,15 +338,15 @@ typedef struct {
 typedef struct {
     fftSizes sizes;
     FFTW3(plan) fplan, iplan;
-    double *data;
-    fftw_complex *kdata;
+    FFTW3(real) *data;
+    FFTW3(complex) *kdata;
     } fftPlans;
 
 typedef struct {
     MDLserviceElement se;
     MDLFFT fft;
-    double *data;
-    fftw_complex *kdata;
+    FFTW3(real) *data;
+    FFTW3(complex) *kdata;
     } fftTrans;
 #endif
 
@@ -369,28 +372,86 @@ static void mdlSendToMPI(MDL mdl,void *vhdr, uint16_t iServiceID ) {
     OPA_Queue_enqueue(&mdl->pmdl[mdl->iCoreMPI]->mpi->queueMPI, qhdr, MDLserviceElement, hdr);
     }
 
+static MDLflushBuffer *get_local_flush_buffer(MDL mdl) {
+    mdlContextMPI *mpi = mdl->mpi;
+    MDLflushBuffer *flush;
+
+    /* This is bad. We just have to wait and hope for the best. */
+    while (OPA_Queue_is_empty(&mpi->localFlushBuffers)) {
+	mdlCacheCheck(mdl);
+	}
+    OPA_Queue_dequeue(&mpi->localFlushBuffers, flush, MDLflushBuffer, hdr.hdr);
+    flush->nBytes = 0;
+    return flush;
+    }
+
+static void finish_local_flush(MDL mdl) {
+    mdlContextMPI *mpi = mdl->mpi;
+    MDLflushBuffer *flush;
+    int iCore;
+
+    for(iCore=0; iCore<mdlCores(mdl); ++iCore) {
+	MDL mdl1 = mdl->pmdl[iCore];
+	if ((flush=mpi->flushBuffersByCore[iCore])) {
+	    OPA_Queue_enqueue(&mdl1->wqCacheFlush, flush, MDLflushBuffer, hdr.hdr);
+	    mpi->flushBuffersByCore[iCore] = NULL;
+	    }
+	}
+    }
+
+static void queue_local_flush(MDL mdl,CAHEAD *ph) {
+    mdlContextMPI *mpi = mdl->mpi;
+    int iCore = ph->idTo;
+    MDL mdl1 = mdl->pmdl[iCore];
+    CACHE *c = &mdl1->cache[ph->cid];
+    MDLflushBuffer *flush;
+    int nLeft, nToAdd;
+
+    assert(iCore < mdlCores(mdl));
+
+    if ((flush=mpi->flushBuffersByCore[iCore]) == NULL) {
+	flush = mpi->flushBuffersByCore[iCore] = get_local_flush_buffer(mdl);
+	}
+
+    nLeft = flush->nBufferSize - flush->nBytes;
+    nToAdd = sizeof(CAHEAD) + c->iDataSize;
+
+    /* No room left? Send this buffer and grab a new one for this rank */
+    if (nToAdd > nLeft ) {
+	OPA_Queue_enqueue(&mdl1->wqCacheFlush, flush, MDLflushBuffer, hdr.hdr);
+	flush = mpi->flushBuffersByCore[iCore] = get_local_flush_buffer(mdl);
+	}
+
+    /* Buffer this element */
+    CAHEAD *ca = (CAHEAD *)( (char *)(flush+1) + flush->nBytes);
+    char *pData = (char *)(ca+1);
+    memcpy(ca,ph,sizeof(CAHEAD) + c->iDataSize);
+    flush->nBytes += sizeof(CAHEAD) + c->iDataSize;
+    }
+
 #define MDL_MID_CACHEREQ	1
 #define MDL_MID_CACHERPL	2
-#define MDL_MID_CACHEFLSH	3
+#define MDL_MID_CACHEFLUSH	3
 
 int mdlCacheReceive(MDL mdl,MPI_Status *status) {
     mdlContextMPI *mpi = mdl->mpi;
     CACHE *c;
-    CAHEAD *ph = (CAHEAD *)mpi->pszRcv;
+    CAHEAD *ph = (CAHEAD *)(mpi->pReqRcv+1);
+    char *pszRcv = (char *)(ph+1);
     MDLserviceCacheReq *creq;
     MDLcacheReplyData *pdata;
-    char *pszRcv = &mpi->pszRcv[sizeof(CAHEAD)];
     CAHEAD *phRpl;
     char *pszRpl;
     char *t;
-    int id,tag;
+    int tag;
     int s,n,i;
     int ret, count;
     int iLineSize, iProc, iCore;
     char *pLine;
 
-    mpi->ReqRcv = MPI_REQUEST_NULL;
+    mpi->pReqRcv->mpiRequest = MPI_REQUEST_NULL;
     MPI_Get_count(status, MPI_BYTE, &count);
+    int iRankFrom = status->MPI_SOURCE;
 
     /* Well, could be any threads cache */
     iCore = ph->idTo - mdl->pmdl[0]->base.idSelf;
@@ -402,23 +463,18 @@ int mdlCacheReceive(MDL mdl,MPI_Status *status) {
 	/* A different process wants local cache data - we can grab it directly */
     case MDL_MID_CACHEREQ:
 	assert( count == sizeof(CAHEAD) );
-	iProc = mdlThreadToProc(mdl,ph->idFrom);
-
-	/*
-	 ** This is the tricky part! Here is where the real deadlock
-	 ** difficulties surface. We make sure that we always have a
-	 ** buffer for every reply we send. We try to reuse them, but
-	 ** worst case we would have one buffer per thread which is the
-	 ** same behaviour as before.
-	 */
+	iProc = mdlThreadToProc(mdl,ph->idFrom); /* Can use iRankFrom */
+	assert(iProc==iRankFrom);
 	while (mpi->freeCacheReplies == NULL ) { /* Spin waiting for a buffer */
 	    MDLcacheReplyData **plast, *pnext;
 	    plast = &mpi->busyCacheReplies;
 	    for(pdata = mpi->busyCacheReplies; pdata != NULL; pdata = pnext) {
 		int flag;
 		pnext = pdata->next;
+		assert(pdata->mpiRequest!=MPI_REQUEST_NULL);
 		MPI_Test(&pdata->mpiRequest,&flag,status);
 		if (flag) {
+		    pdata->mpiRequest = MPI_REQUEST_NULL;
 		    if (pdata->next==NULL) mpi->busyCacheRepliesTail = plast;
 		    *plast = pdata->next;
 		    pdata->next = mpi->freeCacheReplies;
@@ -451,6 +507,8 @@ int mdlCacheReceive(MDL mdl,MPI_Status *status) {
 	phRpl->cid = ph->cid;
 	phRpl->mid = MDL_MID_CACHERPL;
 	phRpl->idFrom = mdl->base.idSelf;
+
+	/* Caclulation based on threads */
 	phRpl->idTo = ph->idFrom;
 	phRpl->iIndex = ph->iIndex;
 	phRpl->nItems = n - s;
@@ -461,13 +519,37 @@ int mdlCacheReceive(MDL mdl,MPI_Status *status) {
 	    memcpy(pszRpl+(i-s)*c->iDataSize,t,c->iDataSize);
 	    }
 	tag = MDL_TAG_CACHECOM /*+ MDL_TAG_THREAD_OFFSET * iCore*/;
+	assert(pdata->mpiRequest == MPI_REQUEST_NULL);
 	MPI_Isend(phRpl,(int)sizeof(CAHEAD)+iLineSize,MPI_BYTE,
-		  iProc, tag, mpi->commMDL,
-		  &pdata->mpiRequest);
+		  iRankFrom, tag, mpi->commMDL,&pdata->mpiRequest);
+	/* This is found on the "busyCacheReplies" list */
 	ret = 0;
 	break;
-    case MDL_MID_CACHEFLSH:
+    case MDL_MID_CACHEFLUSH:
 	assert(c->iType == MDL_COCACHE);
+//	printf("%d: Received %d bytes of flush data from %d\n", mdlProc(mdl),
+//	    count, iRankFrom );
+	while(count>0) {
+	    assert(count > sizeof(CAHEAD));
+	    pszRcv = (char *)(ph+1);
+	    iCore = ph->idTo - mdl->pmdl[0]->base.idSelf;
+	    c = &mdl->pmdl[iCore]->cache[ph->cid];
+	    while(ph->iIndex >= c->nData) {
+		ph->iIndex -= c->nData;
+		c = &mdl->pmdl[++iCore]->cache[ph->cid];
+		assert(iCore<mdlCores(mdl));
+		}
+//	    printf("%d: flush to %d.%d.%d\n", mdlSelf(mdl),
+//		ph->cid, iCore, ph->iIndex);
+	    ph->idTo = iCore;
+	    queue_local_flush(mdl,ph);
+	    pszRcv += c->iDataSize;
+	    ph = (CAHEAD *)(pszRcv);
+	    count -= sizeof(CAHEAD) + c->iDataSize;
+	    }
+	assert(count==0);
+
+#if 0
 	s = ph->iIndex;
 	n = s + ph->nItems;
 	if (n > c->nData) n = c->nData;
@@ -475,6 +557,7 @@ int mdlCacheReceive(MDL mdl,MPI_Status *status) {
 	    (*c->combine)(c->ctx,(*c->getElt)(c->pData,i,c->iDataSize),
 		&pszRcv[(i-s)*c->iDataSize]);
 	    }
+#endif
 	ret = 0;
 	break;
 	/* A remote process has sent us cache data - we need to let that thread know */
@@ -484,7 +567,9 @@ int mdlCacheReceive(MDL mdl,MPI_Status *status) {
 	creq = mpi->pThreadCacheReq[iCore];
 	assert(creq!=NULL);
 	mpi->pThreadCacheReq[iCore] = NULL;
+	assert(creq->request!=MPI_REQUEST_NULL);
 	MPI_Request_free(&creq->request);
+	creq->request = MPI_REQUEST_NULL;
 	pLine = creq->pLine;
 	creq->caReq.nItems = ph->nItems; /* Let caller know actual number */
 	/*
@@ -510,17 +595,134 @@ int mdlCacheReceive(MDL mdl,MPI_Status *status) {
 	assert(0);
 	}
 
-    /*
-     * Fire up next receive
-     */
-    id = MPI_ANY_SOURCE;
-    MPI_Irecv(mpi->pszRcv,mpi->iCaBufSize, MPI_BYTE, id,
-	      MDL_TAG_CACHECOM, mpi->commMDL, &mpi->ReqRcv);
+    /* Fire up next receive */
+    assert(mpi->pReqRcv->mpiRequest == MPI_REQUEST_NULL);
+    MPI_Irecv(mpi->pReqRcv+1,mpi->iCaBufSize, MPI_BYTE, MPI_ANY_SOURCE,
+	      MDL_TAG_CACHECOM, mpi->commMDL, &mpi->pReqRcv->mpiRequest);
 
     return ret;
     }
 
+/* Remove the given flush buffer from whichever list it is in */
+static inline MDLflushBuffer *flush_remove(MDLflushBuffer *t) {
+    t->hdr.mpi.prev->hdr.mpi.next = t->hdr.mpi.next;
+    t->hdr.mpi.next->hdr.mpi.prev = t->hdr.mpi.prev;
+    return t;
+}
 
+/* Insert element "e" after "list" (head or other element) */
+static inline void flush_insert_after(MDLflushBuffer *list, MDLflushBuffer *e) {
+    e->hdr.mpi.prev = list;
+    e->hdr.mpi.next = list->hdr.mpi.next;
+    list->hdr.mpi.next->hdr.mpi.prev = e;
+    list->hdr.mpi.next = e;
+}
+
+/* Check all pending sends to see if they have completed so we can reuse the buffer */
+static int flush_check_completion(MDL mdl) {
+    mdlContextMPI *mpi = mdl->mpi;
+    MDLflushBuffer *pBuffer, *pNext;
+
+    for(pBuffer=mpi->flushHeadSent.hdr.mpi.next; pBuffer != &mpi->flushHeadSent; pBuffer=pNext) {
+	int flag;
+	pNext = pBuffer->hdr.mpi.next;
+	MPI_Test(&pBuffer->request, &flag, MPI_STATUS_IGNORE);
+	if (flag) {
+	    flush_insert_after(&mpi->flushHeadFree,flush_remove(pBuffer));
+	    }
+	}
+    return mpi->flushHeadSent.hdr.mpi.next != &mpi->flushHeadSent; /* true == still waiting */
+    }
+
+/* Send the given buffer. Remove it from whichever list and put it on the "sent" list. */
+static void flush_send(MDL mdl,MDLflushBuffer *pBuffer) {
+    mdlContextMPI *mpi = mdl->mpi;
+//    printf("%d: Sent buffer with %d bytes to %d\n", mdlProc(mdl),
+//	pBuffer->nBytes, pBuffer->iRankTo);
+    MPI_Issend(pBuffer+1,pBuffer->nBytes,MPI_BYTE,pBuffer->iRankTo,
+	MDL_TAG_CACHECOM,mpi->commMDL,&pBuffer->request);
+    flush_insert_after(mpi->flushHeadSent.hdr.mpi.prev,flush_remove(pBuffer));
+    }
+
+static void flush_element(MDL mdl,MDLserviceElement *qhdr) {
+    mdlContextMPI *mpi = mdl->mpi;
+    CDB *entry = (CDB *)qhdr;
+    int iThread = entry->uId&_IDMASK_;
+    int iProc = mdlThreadToProc(mdl,iThread);
+    MDLflushBuffer *pBuffer;
+    CACHE *c;
+    int iCore;
+
+    c = entry->extra.cache;
+    assert(c->iType != MDL_NOCACHE);
+
+    /* If we have a buffer already then add to it if we can */
+    if ( (pBuffer=mpi->flushBuffersByRank[iProc]) != NULL ) {
+	int nLeft = pBuffer->nBufferSize - pBuffer->nBytes;
+	int nToAdd = sizeof(CAHEAD) + c->iDataSize;
+	/* No room left? Send this buffer and grab a new one for this rank */
+	if (nToAdd > nLeft ) {
+	    flush_send(mdl,pBuffer);
+	    pBuffer = mpi->flushBuffersByRank[iProc] = NULL;
+	    }
+	else {
+	    /* We have used this buffer, so let's make it most recently used. */
+	    flush_insert_after(&mpi->flushHeadBusy,flush_remove(pBuffer));
+	    }
+	}
+    if (pBuffer == NULL) flush_check_completion(mdl);
+    /* Try grabbing a free buffer */
+    if (pBuffer==NULL && mpi->flushHeadFree.hdr.mpi.next != &mpi->flushHeadFree) {
+	pBuffer = flush_remove(mpi->flushHeadFree.hdr.mpi.next);
+	flush_insert_after(&mpi->flushHeadBusy,pBuffer);
+	mpi->flushBuffersByRank[iProc] = pBuffer;
+	pBuffer->nBytes = 0;
+	pBuffer->iRankTo = iProc;
+	/* If we have run out of free buffers then flush the oldest right away */
+	if (mpi->flushHeadFree.hdr.mpi.next == &mpi->flushHeadFree ) {
+	    if (mpi->flushHeadBusy.hdr.mpi.next == &mpi->flushHeadBusy ) {
+		MDLflushBuffer *flush = mpi->flushHeadBusy.hdr.mpi.prev;
+		mpi->flushBuffersByRank[flush->iRankTo] = NULL;
+		flush_send(mdl,flush);
+		}
+	    }
+	}
+
+    /* If we have a buffer, then we just buffer the data */
+    if (pBuffer) {
+	CAHEAD *ca = (CAHEAD *)( (char *)(pBuffer+1) + pBuffer->nBytes);
+	char *pData = (char *)(ca+1);
+	ca->cid = entry->extra.cache->iCID;
+	ca->mid = MDL_MID_CACHEFLUSH;
+	ca->nItems = 1;
+	ca->idFrom = mdlSelf(mdl);
+	ca->idTo = iThread;
+	ca->iIndex = entry->uIndex;
+	memcpy(pData,entry->data,c->iDataSize);
+	pBuffer->nBytes += sizeof(CAHEAD) + c->iDataSize;
+
+	/* As we have buffered this message we can tell the calling thread to continue */
+	mdlSendThreadMessage(mdl,MDL_TAG_CACHE_FLUSH,qhdr->iCoreFrom,qhdr,MDL_SE_CACHE_FLUSH);
+	}
+    /* We have run out of buffers for flushing */
+    else {
+	/* We add this to a flush queue: at most we can have nCores of these waiting */
+	OPA_Queue_enqueue(&mpi->queueFlushPending, qhdr, MDLserviceElement, hdr);
+	/* When a buffer becomes free we can process this */
+	}
+    }
+
+/*
+** At the end we need to flush any pending cache elements
+*/
+void flush_all_elements(MDL mdl) {
+    mdlContextMPI *mpi = mdl->mpi;
+    while (mpi->flushHeadBusy.hdr.mpi.next != &mpi->flushHeadBusy ) {
+	MDLflushBuffer *flush = mpi->flushHeadBusy.hdr.mpi.prev;
+	mpi->flushBuffersByRank[flush->iRankTo] = NULL;
+	flush_send(mdl,flush);
+	}
+    }
 
 /*
 ** This routine must be called often by the MPI thread. It will drain
@@ -628,10 +830,10 @@ static int checkMPI(MDL mdl) {
 	    case MDL_SE_CACHE_OPEN:
 		coc = (cacheOpenClose *)qhdr;
 		assert(coc->iDataSize <= MDL_CACHE_DATA_SIZE);
-		if (mpi->ReqRcv == MPI_REQUEST_NULL) {
-		    MPI_Irecv(mpi->pszRcv,mpi->iCaBufSize, MPI_BYTE,
+		if (mpi->pReqRcv->mpiRequest == MPI_REQUEST_NULL) {
+		    MPI_Irecv(mpi->pReqRcv+1,mpi->iCaBufSize, MPI_BYTE,
 			MPI_ANY_SOURCE, MDL_TAG_CACHECOM,
-			mpi->commMDL, &mpi->ReqRcv);
+			mpi->commMDL, &mpi->pReqRcv->mpiRequest);
 		    }
 		++mpi->nOpenCaches;
 		mdlSendThreadMessage(mdl,0,qhdr->iCoreFrom,qhdr,MDL_SE_CACHE_OPEN);
@@ -640,10 +842,11 @@ static int checkMPI(MDL mdl) {
 	    case MDL_SE_CACHE_CLOSE:
 		assert(mpi->nOpenCaches > 0);
 		--mpi->nOpenCaches;
-		assert (mpi->ReqRcv != MPI_REQUEST_NULL);
+		assert (mpi->pReqRcv->mpiRequest != MPI_REQUEST_NULL);
 		if (mpi->nOpenCaches == 0) {
-		    MPI_Cancel(&mpi->ReqRcv);
-		    mpi->ReqRcv = MPI_REQUEST_NULL;
+		    flush_all_elements(mdl);
+		    MPI_Cancel(&mpi->pReqRcv->mpiRequest);
+		    mpi->pReqRcv->mpiRequest = MPI_REQUEST_NULL;
 		    }
 		mdlSendThreadMessage(mdl,0,qhdr->iCoreFrom,qhdr,MDL_SE_CACHE_CLOSE);
 		break;
@@ -653,22 +856,32 @@ static int checkMPI(MDL mdl) {
 		assert(mpi->pThreadCacheReq[caReq->svc.iCoreFrom]==NULL);
 		iProc = mdlThreadToProc(mdl,caReq->caReq.idTo);
 		mpi->pThreadCacheReq[caReq->svc.iCoreFrom] = caReq;
+		assert(caReq->request==MPI_REQUEST_NULL);
 		MPI_Isend(&caReq->caReq,sizeof(CAHEAD),MPI_BYTE,iProc,MDL_TAG_CACHECOM, mpi->commMDL,&caReq->request);
 		break;
 	    case MDL_SE_CACHE_FLUSH:
-		mdlSendThreadMessage(mdl,MDL_TAG_CACHE_FLUSH,qhdr->iCoreFrom,qhdr,MDL_SE_CACHE_FLUSH);
+		flush_element(mdl,qhdr);
+		break;
+	    case MDL_SE_CACHE_FLUSH_OUT:
+		flush_all_elements(mdl);
+		mdlSendThreadMessage(mdl,0,qhdr->iCoreFrom,qhdr,MDL_SE_CACHE_FLUSH_OUT);
+		break;
+	    case MDL_SE_CACHE_FLUSH_LCL:
+		finish_local_flush(mdl);
+		mdlSendThreadMessage(mdl,0,qhdr->iCoreFrom,qhdr,MDL_SE_CACHE_FLUSH_LCL);
 		break;
 #ifdef MDL_FFTW
 	    case MDL_SE_FFT_SIZES:
 		sizes = (fftSizes *)qhdr;
-		sizes->nLocal = FFTW3(mpi_local_size_3d_transposed)
-		    (sizes->n1,sizes->n2,sizes->n3,mpi->commMDL,&sizes->nz,&sizes->sz,&sizes->ny,&sizes->sy);
+		sizes->nLocal = 2*FFTW3(mpi_local_size_3d_transposed)
+		    (sizes->n3,sizes->n2,sizes->n1/2+1,mpi->commMDL,
+		    &sizes->nz,&sizes->sz,&sizes->ny,&sizes->sy);
 		mdlSendThreadMessage(mdl,0,qhdr->iCoreFrom,qhdr,MDL_SE_CACHE_CLOSE);
 		break;
 	    case MDL_SE_FFT_PLANS:
 		plans = (fftPlans *)qhdr;
-		plans->sizes.nLocal = FFTW3(mpi_local_size_3d_transposed)
-		    (plans->sizes.n1,plans->sizes.n2,plans->sizes.n3,mpi->commMDL,
+		plans->sizes.nLocal = 2*FFTW3(mpi_local_size_3d_transposed)
+		    (plans->sizes.n3,plans->sizes.n2,plans->sizes.n1/2+1,mpi->commMDL,
 		    &plans->sizes.nz,&plans->sizes.sz,&plans->sizes.ny,&plans->sizes.sy);
 		plans->fplan = FFTW3(mpi_plan_dft_r2c_3d)(
 		    plans->sizes.n3,plans->sizes.n2,plans->sizes.n1,plans->data,plans->kdata,
@@ -691,10 +904,10 @@ static int checkMPI(MDL mdl) {
 #endif
 	    case MDL_SE_GRID_SHARE:
 		share = (gridShare *)qhdr;
-		MPI_Allgather(&share->grid->s,sizeof(*share->grid->rs),MPI_BYTE,
+		MPI_Allgather(&share->grid->sSlab,sizeof(*share->grid->rs),MPI_BYTE,
 		    share->grid->rs,sizeof(*share->grid->rs),MPI_BYTE,
 		    mpi->commMDL);
-		MPI_Allgather(&share->grid->n,sizeof(*share->grid->rn),MPI_BYTE,
+		MPI_Allgather(&share->grid->nSlab,sizeof(*share->grid->rn),MPI_BYTE,
 		    share->grid->rn,sizeof(*share->grid->rn),MPI_BYTE,
 		    mpi->commMDL);
 		mdlSendThreadMessage(mdl,0,qhdr->iCoreFrom,qhdr,MDL_SE_CACHE_CLOSE);
@@ -736,6 +949,7 @@ static int checkMPI(MDL mdl) {
 		    assert(send == &mdl->pmdl[send->svc.iCoreFrom]->recvRequest);
 		    tag = send->tag % MDL_TAG_THREAD_OFFSET;
 		    MPI_Get_count(&status, MPI_BYTE, &send->count);
+		    send->target = status.MPI_SOURCE;
 		    break;
 		default:
 		    assert(0);
@@ -744,9 +958,9 @@ static int checkMPI(MDL mdl) {
 		continue;
 		}
 	    }
-	if (mpi->ReqRcv != MPI_REQUEST_NULL) {
+	if (mpi->pReqRcv->mpiRequest != MPI_REQUEST_NULL) {
 	    while(1) {
-		MPI_Test(&mpi->ReqRcv, &flag, &status);
+		MPI_Test(&mpi->pReqRcv->mpiRequest, &flag, &status);
 		if (flag) mdlCacheReceive(mdl,&status);
 		else break;
 		}
@@ -763,6 +977,7 @@ static int mdlDoSomeWork(MDL mdl) {
 #ifdef NO_TOO_OFTEN_USE_CUDA
     rc = CUDA_flushDone(mdl->cudaCtx);
 #endif
+    mdlCacheCheck(mdl);
     if (!OPA_Queue_is_empty(&mdl->wq)) {
 	/* Grab a work package, and perform it */
 	OPA_Queue_dequeue(&mdl->wq, work, MDLwqNode, q.hdr);
@@ -795,7 +1010,6 @@ void mdlCompleteAllWork(MDL mdl) {
 #ifdef USE_CUDA
     while(CUDA_flushDone(mdl->cudaCtx)) {}
 #endif
-
     }
 
 static void /*MDLserviceElement*/ *mdlWaitThreadQueue(MDL mdl,int iQueue) {
@@ -1042,12 +1256,14 @@ void mdlInitCommon(MDL mdl0, int iMDL,int bDiag,int argc, char **argv,
     mdl->nMaxCacheIds = MDL_DEFAULT_CACHEIDS;
     mdl->cache = malloc(mdl->nMaxCacheIds*sizeof(CACHE));
     assert(mdl->cache != NULL);
+    OPA_Queue_init(&mdl->wqCacheFlush);
     /*
     ** Initialize caching spaces.
     */
     mdl->cacheSize = MDL_CACHE_SIZE;
     for (i = 0; i<mdl->nMaxCacheIds; ++i) {
 	mdl->cache[i].iType = MDL_NOCACHE;
+	mdl->cache[i].iCID = i;
 	mdl->cache[i].arc = NULL;
 	}
 
@@ -1201,7 +1417,6 @@ void mdlLaunch(int argc,char **argv,void * (*fcnMaster)(MDL),void * (*fcnChild)(
     __itt_task_end(domain);
 #endif
     mpi->commMDL = MPI_COMM_WORLD;
-    mpi->ReqRcv = MPI_REQUEST_NULL;
     MPI_Comm_size(mpi->commMDL, &mdl->base.nProcs);
     MPI_Comm_rank(mpi->commMDL, &mdl->base.iProc);
 
@@ -1255,15 +1470,12 @@ void mdlLaunch(int argc,char **argv,void * (*fcnMaster)(MDL),void * (*fcnChild)(
     mpi->nRequestTargets = 0;
     mpi->iRequestTarget = 0;
 
-    /*
-    ** Allocate caching buffers, with initial data size of 0.
-    ** We need one reply buffer for each thread, to deadlock situations.
-    */
     assert(sizeof(CAHEAD) == 16); /* Well, should be a multiple of 8 at least. */
     mpi->nOpenCaches = 0;
     mpi->iCaBufSize = sizeof(CAHEAD) + MDL_CACHE_DATA_SIZE;
-    mpi->pszRcv = malloc(mpi->iCaBufSize);
-    assert(mpi->pszRcv != NULL);
+    mpi->pReqRcv = malloc(sizeof(MDLcacheReplyData) + mpi->iCaBufSize);
+    assert(mpi->pReqRcv != NULL);
+    mpi->pReqRcv->mpiRequest = MPI_REQUEST_NULL;
 
     /* Start with a sensible number of cache buffers */
     mpi->freeCacheReplies = NULL;
@@ -1275,8 +1487,42 @@ void mdlLaunch(int argc,char **argv,void * (*fcnMaster)(MDL),void * (*fcnChild)(
     for (i = 0; i<n; ++i) {
 	MDLcacheReplyData *pdata = malloc(sizeof(MDLcacheReplyData) + mpi->iCaBufSize);
 	assert( pdata != NULL );
+	pdata->mpiRequest = MPI_REQUEST_NULL;
 	pdata->next = mpi->freeCacheReplies;
 	mpi->freeCacheReplies = pdata;
+	}
+
+    /* Structures for queue flushing */
+    OPA_Queue_init(&mpi->queueFlushPending);
+
+    /* For flushing to remote processes/nodes */
+    mpi->flushBuffersByRank = malloc(sizeof(MDLflushBuffer *) * mdl->base.nProcs);
+    assert(mpi->flushBuffersByRank);
+    for(i=0; i<mdlProcs(mdl); ++i) mpi->flushBuffersByRank[i] = NULL;
+
+    /* For flushing to threads on this processor */
+    OPA_Queue_init(&mpi->localFlushBuffers);
+    mpi->flushBuffersByCore = malloc(sizeof(MDLflushBuffer *) * mdlCores(mdl));
+    assert(mpi->flushBuffersByCore);
+    for(i=0; i<mdlCores(mdl); ++i) mpi->flushBuffersByCore[i] = NULL;
+    for(i=0; i<2*mdlCores(mdl); ++i) {
+	MDLflushBuffer *pBuffer = malloc(sizeof(MDLflushBuffer) + MDL_CACHE_DATA_SIZE);
+	assert(pBuffer!=NULL);
+	pBuffer->nBufferSize = MDL_CACHE_DATA_SIZE;
+	pBuffer->nBytes = 0;
+	OPA_Queue_enqueue(&mpi->localFlushBuffers, pBuffer, MDLflushBuffer, hdr.hdr);
+	}
+
+    mpi->flushHeadBusy.hdr.mpi.prev = mpi->flushHeadBusy.hdr.mpi.next = &mpi->flushHeadBusy;
+    mpi->flushHeadFree.hdr.mpi.prev = mpi->flushHeadFree.hdr.mpi.next = &mpi->flushHeadFree;
+    mpi->flushHeadSent.hdr.mpi.prev = mpi->flushHeadSent.hdr.mpi.next = &mpi->flushHeadSent;
+
+    for(i=0; i<n; ++i) {
+	MDLflushBuffer *pBuffer = malloc(sizeof(MDLflushBuffer) + MDL_CACHE_DATA_SIZE);
+	assert(pBuffer!=NULL);
+	pBuffer->nBufferSize = MDL_CACHE_DATA_SIZE;
+	pBuffer->nBytes = 0;
+	flush_insert_after(mpi->flushHeadFree.hdr.mpi.prev,pBuffer);
 	}
 
     /* Some bookeeping for the send/recv - 1 of each per thread */
@@ -1354,6 +1600,7 @@ void mdlFinish(MDL mdl) {
     /* Finish any outstanding cache sends */
     for(pdata = mpi->busyCacheReplies; pdata != NULL; pdata=pnext) {
 	MPI_Status status;
+	assert(pdata->mpiRequest!=MPI_REQUEST_NULL);
 	pnext = pdata->next;
 	MPI_Wait(&pdata->mpiRequest,&status);
 	pdata->next = mpi->freeCacheReplies;
@@ -1386,7 +1633,7 @@ void mdlFinish(MDL mdl) {
 	}
     mpi->freeCacheReplies = NULL;
 
-    free(mdl->mpi->pszRcv);
+    free(mdl->mpi->pReqRcv);
     free(mdl->base.iProcToThread);
     free(mpi->pSendRecvReq);
     free(mpi->pSendRecvBuf);
@@ -1738,6 +1985,21 @@ void mdlFree(MDL mdl,void *p) {
     free(p);
     }
 
+void *mdlSetArray(MDL mdl,size_t nmemb,size_t size,void *vdata) {
+    char *data = vdata;
+    mdl->nMessageData = nmemb * size;
+    mdlThreadBarrier(mdl);
+    if (mdlCore(mdl)==0) {
+	int i;
+	for(i=0; i<mdlCores(mdl); ++i) {
+	    mdl->pmdl[i]->pvMessageData = data;
+	    data += mdl->pmdl[i]->nMessageData;
+	    }
+	}
+    mdlThreadBarrier(mdl);
+    return mdl->pvMessageData;
+    }
+
 /*
 ** New collective form. All cores must call this at the same time.
 ** Normally "size" is identical on all cores, while nmemb may differ
@@ -1784,7 +2046,31 @@ void mdlSetCacheSize(MDL mdl,int cacheSize) {
     }
 
 void mdlCacheCheck(MDL mdl) {
+    mdlContextMPI *mpi = mdl->pmdl[mdl->iCoreMPI]->mpi;
+
     if (mdl->base.iCore == mdl->iCoreMPI) checkMPI(mdl);
+    /* Process any cache flushes */
+    while (!OPA_Queue_is_empty(&mdl->wqCacheFlush)) {
+	MDLflushBuffer *flush;
+	CACHE *c;
+	CAHEAD *ca;
+	char *pData;
+	int count;
+
+	OPA_Queue_dequeue(&mdl->wqCacheFlush, flush, MDLflushBuffer, hdr.hdr);
+	count = flush->nBytes;
+	ca = (CAHEAD *)(flush + 1);
+	while(count > 0) {
+	    pData = (char *)(ca+1);
+	    c = &mdl->cache[ca->cid];
+	    (*c->combine)(c->ctx,(*c->getElt)(c->pData,ca->iIndex,c->iDataSize),pData);
+	    pData += c->iDataSize;
+	    ca = (CAHEAD *)pData;
+	    count -= sizeof(CAHEAD) + c->iDataSize;
+	    }
+	assert(count == 0);
+	OPA_Queue_enqueue(&mpi->localFlushBuffers, flush, MDLflushBuffer, hdr.hdr);
+	}
     }
 
 /*
@@ -1817,6 +2103,7 @@ CACHE *CacheInitialize(
 	 */
 	for (i=mdl->nMaxCacheIds;i<nMaxCacheIds;++i) {
 	    mdl->cache[i].iType = MDL_NOCACHE;
+	    mdl->cache[i].iCID = i;
 	    mdl->cache[i].arc = NULL;
 	    }
 	mdl->nMaxCacheIds = nMaxCacheIds;
@@ -1834,7 +2121,7 @@ CACHE *CacheInitialize(
     c->nAccess = 0;
     c->nMiss = 0;				/* !!!, not NB */
     c->nColl = 0;				/* !!!, not NB */
-    if (c->arc==NULL) c->arc = arcInitialize(mdl->cacheSize/iDataSize,iDataSize);
+    if (c->arc==NULL) c->arc = arcInitialize(mdl->cacheSize/iDataSize,iDataSize,c);
     c->pOneLine = malloc(c->iLineSize);
 
     /*
@@ -1849,6 +2136,7 @@ CACHE *CacheInitialize(
     c->cacheRequest.caReq.idTo = -1;
     c->cacheRequest.caReq.iIndex = -1;
     c->cacheRequest.caReq.nItems = 1;
+    c->cacheRequest.request = MPI_REQUEST_NULL;
 
     /* Read-only or combiner caches */
     c->iType = (init==NULL ? MDL_ROCACHE : MDL_COCACHE);
@@ -1893,10 +2181,11 @@ void mdlCacheBarrier(MDL mdl,int cid) {
     }
 
 /* This CDB must not be on any list when destage is called */
-static CDB *destage(MDL mdl, CDB *temp) {
+static CDB *destage(MDL mdl, ARC arc, CDB *temp) {
     assert(temp->data != NULL);
     assert(temp->data[-1] == _ARC_MAGIC_);
     if (temp->uId & _DIRTY_) {     /* if dirty, evict before free */
+	temp->extra.cache = arc->cache;
 	/* Send the CDB to the MPI thread for flushing, and wait for it to come back */
 	mdlSendToMPI(mdl,&temp->hdr.svc,MDL_SE_CACHE_FLUSH);
 	mdlWaitThreadQueue(mdl,MDL_TAG_CACHE_FLUSH);
@@ -1909,12 +2198,12 @@ static void arcRemoveAll(MDL mdl,ARC arc) {
     CDB *temp;
     for(;arc->T1Length;--arc->T1Length) {
 	temp = remove_from_hash(arc,lru_remove(arc->T1));
-	destage(mdl,temp);     /* if dirty, evict before free */
+	destage(mdl,arc,temp);     /* if dirty, evict before free */
 	lru_insert(temp,arc->Free);
 	}
     for(;arc->T2Length;--arc->T2Length) {
 	temp = remove_from_hash(arc,lru_remove(arc->T2));
-	destage(mdl,temp);     /* if dirty, evict before free */
+	destage(mdl,arc,temp);     /* if dirty, evict before free */
 	lru_insert(temp,arc->Free);
 	}
     for(;arc->B1Length;--arc->B1Length) {
@@ -1944,9 +2233,18 @@ void mdlFlushCache(MDL mdl,int cid) {
     mdl->wqAccepting = 1;
     arcRemoveAll(mdl,c->arc);
 
+    mdlThreadBarrier(mdl);
+    if (mdlCore(mdl)==0) { /* This flushes all buffered data, not just our thread */
+	mdlSendToMPI(mdl,&mdl->inMessage,MDL_SE_CACHE_FLUSH_OUT);
+	mdlWaitThreadQueue(mdl,0);
+	}
     /* We must wait for all threads to finish with this cache */
     mdl_MPI_Barrier(mdl);
-
+    if (mdlCore(mdl)==0) { /* This flushes all buffered data, not just our thread */
+	mdlSendToMPI(mdl,&mdl->inMessage,MDL_SE_CACHE_FLUSH_LCL);
+	mdlWaitThreadQueue(mdl,0);
+	}
+    mdlThreadBarrier(mdl);
     mdl->wqAccepting = 0;
     mdlTimeAddSynchronizing(mdl);
     }
@@ -1967,7 +2265,6 @@ void mdlFinishCache(MDL mdl,int cid) {
      ** Free up storage and finish.
      */
     free(c->pOneLine);
-    arcRemoveAll(mdl,c->arc);
 #ifdef FINISH_ARC
     arcFinish(c->arc);
     c->arc = NULL;
@@ -2019,7 +2316,7 @@ static inline uint64_t *replace(MDL mdl,ARC arc, int iInB2) {
     if (0) {  /* using a Duff's device to handle the replacement */
     replace_T1: 
         remove_from_list(temp);          /* grab LRU unlocked page from T1 */
-	destage(mdl,temp);     /* if dirty, evict before overwrite */
+	destage(mdl,arc,temp);     /* if dirty, evict before overwrite */
 	data = temp->data;
 	temp->data = NULL; /*GHOST*/
 	mru_insert(temp,arc->B1);           /* put it on B1 */
@@ -2031,7 +2328,7 @@ static inline uint64_t *replace(MDL mdl,ARC arc, int iInB2) {
     if (0) {
     replace_T2:
         remove_from_list(temp);          /* grab LRU unlocked page from T2 */
-	destage(mdl,temp);     /* if dirty, evict before overwrite */
+	destage(mdl,arc,temp);     /* if dirty, evict before overwrite */
 	data = temp->data;
 	temp->data = NULL; /*GHOST*/
         mru_insert(temp,arc->B2);           /* put it on B2 */
@@ -2055,7 +2352,7 @@ static inline CDB *arcSetPrefetchDataByHash(MDL mdl,ARC arc,uint32_t uIndex,uint
     int inB2=0;
 
     assert(data);
-    for( temp = arc->Hash[uHash]; temp; temp = temp->coll ) {
+    for( temp = arc->Hash[uHash]; temp; temp = temp->extra.coll ) {
 	if (temp->uIndex == uIndex && (temp->uId&_IDMASK_) == tuId) break;
 	}
     if (temp != NULL) {                       /* found in cache directory? */
@@ -2102,7 +2399,7 @@ static inline CDB *arcSetPrefetchDataByHash(MDL mdl,ARC arc,uint32_t uIndex,uint
 	    } else {                                                      /* no: B1 must be empty */
 		temp = lru_remove(arc->T1);                                    /* take page off T1 */
 		remove_from_hash(arc,temp);            /* remove from hash table */
-		destage(mdl,temp);     /* if dirty, evict before overwrite */
+		destage(mdl,arc,temp);     /* if dirty, evict before overwrite */
 		arc->T1Length--;                                               /* bookkeep that */
 	    }
 	} else {                                                          /* B1 + T1 have less than c pages */
@@ -2133,7 +2430,7 @@ static inline CDB *arcSetPrefetchDataByHash(MDL mdl,ARC arc,uint32_t uIndex,uint
 	temp->uId = _P1_|(uId&_IDMASK_);     /* temp->ARC_where = _P1_; and clear the dirty bit for this page */
 /* 	assert( (temp->uId&_WHERE_) == _P1_ ); */
 	temp->uIndex = uIndex;
-	temp->coll = arc->Hash[uHash];                  /* add to collision chain */
+	temp->extra.coll = arc->Hash[uHash];                  /* add to collision chain */
 	arc->Hash[uHash] = temp;                               /* insert into hash table */
     }
     memcpy(temp->data,data,arc->uDataSize*sizeof(uint64_t));
@@ -2179,6 +2476,7 @@ static void finishCacheRequest(MDL mdl, int cid, int iIndex, int id, CDB *temp,i
     CACHE *c = &mdl->cache[cid];
     if (bVirtual) {
 	if (c->init) (*c->init)(c->ctx,temp->data);
+	return;
 	}
     /* Local requests must be from a combiner cache if we get here */
     if (iCore >= 0 && iCore < mdl->base.nCores ) {
@@ -2235,7 +2533,7 @@ static void *Acquire(MDL mdl, int cid, uint32_t uIndex, int uId, int bLock,int b
 
     /* First check our own cache */
     uHash = (MurmurHash2(uIndex,tuId)&arc->uHashMask);
-    for ( temp = arc->Hash[uHash]; temp; temp = temp->coll ) {
+    for ( temp = arc->Hash[uHash]; temp; temp = temp->extra.coll ) {
 	if (temp->uIndex == uIndex && (temp->uId&_IDMASK_) == tuId) break;
 	}
 
@@ -2367,7 +2665,7 @@ static void *Acquire(MDL mdl, int cid, uint32_t uIndex, int uId, int bLock,int b
 	    else {                                                      /* no: B1 must be empty */
 		temp = lru_remove(arc->T1);                                    /* take page off T1 */
 		remove_from_hash(arc,temp);            /* remove from hash table */
-		destage(mdl,temp);     /* if dirty, evict before overwrite */
+		destage(mdl,arc,temp);     /* if dirty, evict before overwrite */
 		arc->T1Length--;                                               /* bookkeep that */
 		}
 	    /*assert(temp->data!=NULL);*/
@@ -2404,7 +2702,7 @@ static void *Acquire(MDL mdl, int cid, uint32_t uIndex, int uId, int bLock,int b
 	temp->uIndex = uIndex;
 	finishCacheRequest(mdl,cid,uIndex,uId,temp,bVirtual);
 	pthread_mutex_lock(&arc->mux);
-	temp->coll = arc->Hash[uHash];                  /* add to collision chain */
+	temp->extra.coll = arc->Hash[uHash];                  /* add to collision chain */
 	arc->Hash[uHash] = temp;                               /* insert into hash table */
 	pthread_mutex_unlock(&arc->mux);
 	mdlTimeAddWaiting(mdl);
@@ -2442,10 +2740,9 @@ void *mdlAcquire(MDL mdl,int cid,int iIndex,int id) {
 
 /* Locks the element, but does not fetch or initialize */
 void *mdlVirtualAcquire(MDL mdl,int cid,int iIndex,int id,int bLock) {
-    const int lock = 0;  /* we never lock in fetch */
-    const int modify = 0; /* fetch can never modify */
+    const int modify = 1; /* virtual always modifies */
     const int virtual = 1; /* do not fetch the element */
-    return(Acquire(mdl, cid, iIndex, id, lock, modify, virtual));
+    return(Acquire(mdl, cid, iIndex, id, bLock, modify, virtual));
     }
 
 void mdlRelease(MDL mdl,int cid,void *p) {
@@ -2503,7 +2800,8 @@ void mdlGridInitialize(MDL mdl,MDLGRID *pgrid,int n1,int n2,int n3,int a1) {
     grid->rn = mdlMalloc(mdl,sizeof(*grid->rn)*mdl->base.nProcs); assert(grid->rn!=NULL);
 
     /* The following need to be set to appropriate values still. */
-    grid->s = grid->n = grid->nlocal = 0;
+    grid->sSlab = grid->nSlab = 0;
+    grid->nLocal = 0;
     }
 
 void mdlGridFinish(MDL mdl, MDLGRID grid) {
@@ -2513,12 +2811,12 @@ void mdlGridFinish(MDL mdl, MDLGRID grid) {
     free(grid);
     }
 
-void mdlGridSetLocal(MDL mdl,MDLGRID grid,int s, int n, int nlocal) {
+void mdlGridSetLocal(MDL mdl,MDLGRID grid,int s, int n, uint64_t nLocal) {
     assert( s>=0 && s<grid->n3);
     assert( n>=0 && s+n<=grid->n3);
-    grid->s = s;
-    grid->n = n;
-    grid->nlocal = nlocal;
+    grid->sSlab = s;
+    grid->nSlab = n;
+    grid->nLocal = nLocal;
     }
 
 /*
@@ -2541,12 +2839,44 @@ void mdlGridShare(MDL mdl,MDLGRID grid) {
     }
 
 /*
+** Retrieve the first and last element for the calling thread.
+*/
+void mdlGridCoordFirstLast(MDL mdl,MDLGRID grid,mdlGridCoord *f,mdlGridCoord *l) {
+    uint64_t nPerCore, nThisCore;
+
+    nPerCore = nThisCore = grid->nLocal / mdlCores(mdl) + grid->a1 - 1;
+    nPerCore -= nPerCore % grid->a1;
+    if (mdlCore(mdl) == mdlCores(mdl)-1) {
+	nThisCore = grid->nLocal - (mdlCores(mdl)-1)*nThisCore;
+	}
+
+    /*
+    ** Calculate global x,y,z coordinates, and local "i" coordinate.
+    */
+    f->I = nPerCore * mdlCore(mdl);
+    l->I = f->I + nThisCore;
+    f->i = 0;
+    l->i = nThisCore;
+
+    f->x = l->x = 0;
+    f->z = f->I/(grid->a1*grid->n2);
+    f->y = f->I/grid->a1 - f->z * grid->n2;
+    l->z = l->I/(grid->a1*grid->n2);
+    l->y = l->I/grid->a1 - l->z * grid->n2;
+    f->z += grid->sSlab;
+    l->z += grid->sSlab;
+
+    f->grid = grid;
+    l->grid = grid;
+    }
+
+/*
 ** Allocate the local elements.  The size of a single element is
 ** given and the local GRID information is consulted to determine
 ** how many to allocate.
 */
 void *mdlGridMalloc(MDL mdl,MDLGRID grid,int nEntrySize) {
-    return mdlMallocArray(mdl,mdlCore(mdl)?0:grid->nlocal,nEntrySize);
+    return mdlMallocArray(mdl,mdlCore(mdl)?0:grid->nLocal,nEntrySize);
     }
 
 void mdlGridFree( MDL mdl, MDLGRID grid, void *p ) {
@@ -2568,19 +2898,18 @@ size_t mdlFFTlocalCount(MDL mdl,int n1,int n2,int n3,int *nz,int *sz,int *ny,int
     return sizes.nLocal;
     }
 
-size_t mdlFFTInitialize(MDL mdl,MDLFFT *pfft,int n1,int n2,int n3,int bMeasure,double *data) {
-    MDLFFT fft;
+size_t mdlFFTInitialize(MDL mdl,MDLFFT *pfft,int n1,int n2,int n3,int bMeasure,FFTW3(real) *data) {
     fftPlans plans;
+    MDLFFT fft;
 
-    *pfft = NULL;
+    fft = malloc(sizeof(struct mdlFFTContext));
+    assert( fft != NULL);
     if (mdlCore(mdl) == 0) {
-	fft = malloc(sizeof(struct mdlFFTContext));
-	assert(fft != NULL);
 	plans.sizes.n1 = n1;
 	plans.sizes.n2 = n2;
 	plans.sizes.n3 = n3;
 	plans.data = 0;/*Estimate is faster? data;*/
-	plans.kdata = 0;/*(fftw_complex *)data;*/
+	plans.kdata = 0;/*(FFTW3(complex) *)data;*/
 	mdlSendToMPI(mdl,&plans,MDL_SE_FFT_PLANS);
 	mdlWaitThreadQueue(mdl,0);
 	fft->fplan = plans.fplan;
@@ -2599,56 +2928,56 @@ size_t mdlFFTInitialize(MDL mdl,MDLFFT *pfft,int n1,int n2,int n3,int bMeasure,d
 	mdlGridShare(mdl,fft->kgrid);
 	mdl->pvMessageData = fft;
 	}
+
     mdlThreadBarrier(mdl);
-    fft = mdl->pmdl[0]->pvMessageData;
+    *pfft = mdl->pmdl[0]->pvMessageData;
     mdlThreadBarrier(mdl);
-    *pfft = fft;
     return plans.sizes.nLocal;
     }
 
 void mdlFFTFinish( MDL mdl, MDLFFT fft ) {
+    mdlThreadBarrier(mdl);
     if (mdlCore(mdl) == 0) {
 	FFTW3(destroy_plan)(fft->fplan);
 	FFTW3(destroy_plan)(fft->iplan);
 	mdlGridFinish(mdl,fft->kgrid);
 	mdlGridFinish(mdl,fft->rgrid);
-	free(fft);
 	}
     }
 
-fftw_real *mdlFFTMalloc( MDL mdl, MDLFFT fft ) {
-    return mdlGridMalloc(mdl,fft->rgrid,sizeof(fftw_real));
+FFTW3(real) *mdlFFTMalloc( MDL mdl, MDLFFT fft ) {
+    return mdlGridMalloc(mdl,fft->rgrid,sizeof(FFTW3(real)));
     }
 
 void mdlFFTFree( MDL mdl, MDLFFT fft, void *p ) {
     mdlGridFree(mdl,fft->rgrid,p);
     }
 
-void mdlFFT( MDL mdl, MDLFFT fft, fftw_real *data ) {
+void mdlFFT( MDL mdl, MDLFFT fft, FFTW3(real) *data ) {
     fftTrans trans;
     mdlThreadBarrier(mdl);
     if (mdl->base.iCore == mdl->iCoreMPI) {
-	FFTW3(execute_dft_r2c)(fft->fplan,data,(fftw_complex *)(data));
+	FFTW3(execute_dft_r2c)(fft->fplan,data,(FFTW3(complex) *)(data));
 	}
     else if (mdlCore(mdl) == 0) {
 	trans.fft = fft;
 	trans.data = data;
-	trans.kdata = (fftw_complex *)data;
+	trans.kdata = (FFTW3(complex) *)data;
 	mdlSendToMPI(mdl,&trans,MDL_SE_FFT_DFT_R2C);
 	}
     pthread_barrier_wait(&mdl->pmdl[0]->barrier);
     mdlThreadBarrier(mdl);
     }
-void mdlIFFT( MDL mdl, MDLFFT fft, fftw_complex *kdata ) {
+void mdlIFFT( MDL mdl, MDLFFT fft, FFTW3(complex) *kdata ) {
     fftTrans trans;
     mdlThreadBarrier(mdl);
     if (mdl->base.iCore == mdl->iCoreMPI) {
-	FFTW3(execute_dft_c2r)(fft->iplan,kdata,(fftw_real *)(kdata));
+	FFTW3(execute_dft_c2r)(fft->iplan,kdata,(FFTW3(real) *)(kdata));
 	}
     else if (mdlCore(mdl) == 0) {
 	trans.fft = fft;
 	trans.kdata = kdata;
-	trans.data = (fftw_real *)kdata;
+	trans.data = (FFTW3(real) *)kdata;
 	mdlSendToMPI(mdl,&trans,MDL_SE_FFT_DFT_C2R);
 	}
     pthread_barrier_wait(&mdl->pmdl[0]->barrier);

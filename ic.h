@@ -2,17 +2,17 @@
 #define IC_H
 #ifdef MDL_FFTW
 typedef union {
-    double *r;
-    fftw_complex *k;
+    FFTW3(real) *r;
+    FFTW3(complex) *k;
     } gridptr;
 
 typedef struct {
-    double x,y,z;
+    FFTW3(real) x,y,z;
     } gridpos;
 
 typedef struct {
-    double x,y,z;
-    double vx,vy,vz;
+    FFTW3(real) x,y,z;
+    FFTW3(real) vx,vy,vz;
     } gridpsc;
 
 void pkdGenerateIC(PKD pkd,int iSeed,double dBoxSize,double dOmegaMatter,double dOmegaLambda,double a,

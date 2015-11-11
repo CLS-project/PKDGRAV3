@@ -1364,6 +1364,7 @@ void pstGridProject(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 struct inMeasurePk {
     double dCenter[3];
     double dRadius;
+    double dTotalMass;
     int nGrid;
     };
 struct outMeasurePk {

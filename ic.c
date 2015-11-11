@@ -232,7 +232,7 @@ void PowerEHU97Setup(PowerEHU97 *power,double h0,double omega,double omegab,doub
 
     }
 
-static void pairg( RngStream g, double *y1, double *y2 ) {
+static void pairg( RngStream g, FFTW3(real) *y1, FFTW3(real) *y2 ) {
     double x1, x2, w;
     // Instead of this:
     //   y1 = sqrt( - 2 ln(x1) ) cos( 2 pi x2 )
@@ -248,9 +248,9 @@ static void pairg( RngStream g, double *y1, double *y2 ) {
     *y2 = x2 * w;
     }
 
-static void mrandg( RngStream g, int n, double *y ) {
+static void mrandg( RngStream g, int n, FFTW3(real) *y ) {
     int i;
-    double y2;
+    FFTW3(real) y2;
     int n1 = n & ~1;
     
     for( i=0; i<n1; i += 2 ) pairg(g,y+i,y+i+1);
@@ -264,7 +264,7 @@ static double clockNow() {
     }
 
 
-void pkdGenerateNoise(PKD pkd,MDLFFT fft,double *ic,
+void pkdGenerateNoise(PKD pkd,MDLFFT fft,FFTW3(real) *ic,
     unsigned long seed,int sy,int ey,int sz,int ez) {
     RngStream g;
     unsigned long fullKey[6];
@@ -296,7 +296,7 @@ void pkdGenerateNoise(PKD pkd,MDLFFT fft,double *ic,
 	    RngStream_ResetStartStream (g);
 	    RngStream_AdvanceState (g, 0, (1L<<40)*k + (1L<<20)*j );
 	    for(i=0; i<fft->rgrid->n1; i += 2) {
-		idx = mdlFFTrIdx(fft,i,j,k);
+		idx = mdlFFTrIdx(pkd->mdl,fft,i,j,k);
 		pairg(g,&ic[idx],&ic[idx+1]);
 		}
 	    }
@@ -328,6 +328,7 @@ static double Growth(double Om0, double OL0, double a, double *Om, double *OL) {
 
 void pkdGenerateIC(PKD pkd,int iSeed,double dBoxSize,double dOmega0,double dLambda0,double a,
     MDLFFT fft,int iBegYr,int iEndYr,int iBegZk,int iEndZk,gridptr dic[],gridpos *pos) {
+    MDL mdl = pkd->mdl;
     double twopi = 2.0 * 4.0 * atan(1.0);
     double itwopi = 1.0 / twopi;
     int i,j,k,sy,ey,sz,ez,idx;
@@ -347,17 +348,17 @@ void pkdGenerateIC(PKD pkd,int iSeed,double dBoxSize,double dOmega0,double dLamb
     printf("%g %g\n", Da / D0, dplus(a,dOmega0,dLambda0) / dplus(1.0,dOmega0,dLambda0) );
 
 
-    sy = fft->kgrid->s;
-    ey = sy + fft->kgrid->n;
+    sy = fft->kgrid->sSlab;
+    ey = sy + fft->kgrid->nSlab;
 
-    sz = fft->rgrid->s;
-    ez = sz + fft->rgrid->n;
+    sz = fft->rgrid->sSlab;
+    ez = sz + fft->rgrid->nSlab;
 
     /* Generate white noise realization -> dic[5] */
-    if (mdlSelf(pkd->mdl)==0) printf("Generating noise in r-space\n");
+    if (mdlSelf(mdl)==0) printf("Generating noise in r-space\n");
     pkdGenerateNoise(pkd,fft,dic[5].r,iSeed,sy,ey,iBegZk,iEndZk);
-    if (mdlSelf(pkd->mdl)==0) printf("Transforming to k-space\n");
-    mdlFFT( pkd->mdl, fft, dic[5].r );
+    if (mdlSelf(mdl)==0) printf("Transforming to k-space\n");
+    mdlFFT( mdl, fft, dic[5].r );
 
     for(j=sy; j<ey; ++j) {
 	iy = wrap(j,nyy,fft->rgrid->n2);
@@ -365,7 +366,7 @@ void pkdGenerateIC(PKD pkd,int iSeed,double dBoxSize,double dOmega0,double dLamb
 	    iz = wrap(j,nyy,fft->rgrid->n2);
 	    for(i=0; i<=fft->kgrid->a1; ++i) {
 		ix = wrap(j,nyy,fft->rgrid->n2);
-		idx = mdlFFTkIdx(fft,i,j,k);
+		idx = mdlFFTkIdx(mdl,fft,i,j,k);
 		ak2 = ix*ix + iy*iy + iz*iz;
 		ak = sqrt(ak2);
 		double amp = sqrt(1.0*(ak*iLbox) * iLbox32) * itwopi;
@@ -394,21 +395,21 @@ void pkdGenerateIC(PKD pkd,int iSeed,double dBoxSize,double dOmega0,double dLamb
 	}
 
 
-    if (mdlSelf(pkd->mdl)==0) printf("FFT 1\n");
-    mdlIFFT( pkd->mdl, fft, dic[3].k );
-    if (mdlSelf(pkd->mdl)==0) printf("FFT 2\n");
-    mdlIFFT( pkd->mdl, fft, dic[4].k );
-    if (mdlSelf(pkd->mdl)==0) printf("FFT 3\n");
-    mdlIFFT( pkd->mdl, fft, dic[5].k );
-    if (mdlSelf(pkd->mdl)==0) printf("FFT done\n");
+    if (mdlSelf(mdl)==0) printf("FFT 1\n");
+    mdlIFFT(mdl, fft, dic[3].k );
+    if (mdlSelf(mdl)==0) printf("FFT 2\n");
+    mdlIFFT(mdl, fft, dic[4].k );
+    if (mdlSelf(mdl)==0) printf("FFT 3\n");
+    mdlIFFT(mdl, fft, dic[5].k );
+    if (mdlSelf(mdl)==0) printf("FFT done\n");
 
     idx = 0;
     for(k=sz; k<ez; ++k) {
 	for(j=iBegYr; j<iEndYr; ++j) {
 	    for(i=0; i<=fft->rgrid->n1; ++i) {
-		pos[idx].x = dic[3].r[mdlFFTrIdx(fft,  i,  j,  k)];
-		pos[idx].y = dic[4].r[mdlFFTrIdx(fft,  i,  j,  k)];
-		pos[idx].z = dic[5].r[mdlFFTrIdx(fft,  i,  j,  k)];
+		pos[idx].x = dic[3].r[mdlFFTrIdx(mdl, fft,  i,  j,  k)];
+		pos[idx].y = dic[4].r[mdlFFTrIdx(mdl, fft,  i,  j,  k)];
+		pos[idx].z = dic[5].r[mdlFFTrIdx(mdl, fft,  i,  j,  k)];
 		++idx;
 		}
 	    }

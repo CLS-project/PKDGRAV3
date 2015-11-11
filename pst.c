@@ -3933,6 +3933,8 @@ void pstGenerateIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	mdlGetReply(pst->mdl,rID,vout,pnOut);
 	}
     else {
+	MDLFFT fft;
+
 	assert(pstAmNode(pst)); /* We are "on node" here */
 	nTotal = in->nGrid + 2; /* Careful: 32 bit integer cubed => 64 bit integer */
 	nTotal *= in->nGrid;
@@ -3954,7 +3956,7 @@ void pstGenerateIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	assert(3*sizeof(double) == sizeof(gridpos));
 
 	cic.pos = (gridpos *)pkdParticleBase(plcl->pkd);
-	cic.dic[0].r = (double *)(cic.pos + in->nPerNode);
+	cic.dic[0].r = (FFTW3(real) *)(cic.pos + in->nPerNode);
 	cic.dic[1].r = cic.dic[0].r + in->nPerNode;
 	cic.dic[2].r = cic.dic[1].r + in->nPerNode;
 	cic.dic[3].r = cic.dic[2].r + in->nPerNode;
@@ -3962,10 +3964,11 @@ void pstGenerateIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	cic.dic[5].r = cic.dic[4].r + in->nPerNode;
 	cic.vel = (gridpos *)cic.dic[3].r; /* We overlap here */
 
-	assert(cic.dic[8].r+in->nPerNode <= (double *)pkdParticle(plcl->pkd,in->nPerNode));
+	assert(cic.dic[8].r+in->nPerNode <= (FFTW3(real) *)pkdParticle(plcl->pkd,in->nPerNode));
 
-	mdlFFTInitialize(pst->mdl,&cic.fft,in->nGrid,in->nGrid,in->nGrid,0,cic.dic[0].r);
+	mdlFFTInitialize(pst->mdl,&fft,in->nGrid,in->nGrid,in->nGrid,0,cic.dic[0].r);
 
+	cic.fft = fft;
 	cic.iBegYr = 0;
 	cic.iEndYr = cic.fft->rgrid->n2;
 	cic.iBegZk = 0;
@@ -4723,7 +4726,7 @@ void pstMeasurePk(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     int i;
 
     assert( nIn==sizeof(struct inMeasurePk) );
-    if (pstOffNode(pst)) {
+    if (pstNotCore(pst)) {
 	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_MEASUREPK,vin,nIn);
 	pstMeasurePk(pst->pstLower,vin,nIn,vout,pnOut);
 	mdlGetReply(pst->mdl,rID,&outUpper,&nOut);
@@ -4735,7 +4738,7 @@ void pstMeasurePk(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	    }
 	}
     else {
-	pkdMeasurePk(plcl->pkd, in->dCenter, in->dRadius,
+	pkdMeasurePk(plcl->pkd, in->dCenter, in->dRadius, in->dTotalMass,
 		     in->nGrid, out->fPower, out->nPower);
 	}
 

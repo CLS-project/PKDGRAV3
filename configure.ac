@@ -89,9 +89,11 @@ AC_ARG_WITH(fftw,
   [  --with-fftw                    Enable FFT support modules],
   [FFTW="$enableval"],[FFTW="no"])
 if test "x$FFTW" != "xno" ; then
-  AC_CHECK_LIB([fftw3], [fftw_execute], [],[AC_MSG_ERROR([Cannot find FFTW3])])
-  AC_CHECK_LIB([fftw3_mpi], [fftw_mpi_init],[],[AC_MSG_ERROR([Cannot find FFTW3])])
-  AC_CHECK_LIB([fftw3_threads], [fftw_init_threads],[],[AC_MSG_ERROR([Cannot find FFTW3])])
+  AC_DEFINE([USE_SINGLE], 1,
+        [Use single precision FFT.])
+  AC_CHECK_LIB([fftw3f], [fftwf_execute], [],[AC_MSG_ERROR([Cannot find FFTW3])])
+  AC_CHECK_LIB([fftw3f_mpi], [fftwf_mpi_init],[],[AC_MSG_ERROR([Cannot find FFTW3])])
+  AC_CHECK_LIB([fftw3f_threads], [fftwf_init_threads],[],[AC_MSG_ERROR([Cannot find FFTW3])])
   AC_DEFINE([MDL_FFTW], 1, [Include support for FFTW.])
   AM_PATH_GSL(1.8,[],[AC_MSG_ERROR([Unable to locate GNU Scientific Library (gsl)])])
 fi

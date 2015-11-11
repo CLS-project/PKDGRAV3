@@ -678,6 +678,7 @@ void pkdGridInitialize(PKD pkd, int n1, int n2, int n3, int a1, int s, int n) {
     }
 
 void pkdGridProject(PKD pkd) {
+    MDL mdl = pkd->mdl;
     PARTICLE *p;
     int i, x, y;
     int id, idx;
@@ -685,11 +686,11 @@ void pkdGridProject(PKD pkd) {
     double r[3];
 
     assert(pkd->oDensity);
-    for( i=0; i<pkd->grid->nlocal; i++ ) pkd->gridData[i] = 1e-20f;
+    for( i=0; i<pkd->grid->nLocal; i++ ) pkd->gridData[i] = 1e-20f;
 
     /* Now project the data onto the grid */
-    mdlCOcache(pkd->mdl,CID_PNG,NULL,pkd->gridData,sizeof(*pkd->gridData),
-	       pkd->grid->nlocal,pkd,initPng,combPng);
+    mdlCOcache(mdl,CID_PNG,NULL,pkd->gridData,sizeof(*pkd->gridData),
+	       pkd->grid->nLocal,pkd,initPng,combPng);
     for (i=0;i<pkd->nLocal;++i) {
 	p = pkdParticle(pkd,i);
 	if ( !pkdIsSrcActive(p,0,MAX_RUNG) ) continue;
@@ -710,16 +711,16 @@ void pkdGridProject(PKD pkd) {
 	    y = pkd->grid->n3 - y - 1;
 
 	    /* Map coordinate to processor/index */
-	    id = mdlGridId(pkd->grid,0,x,y);
-	    idx = mdlGridIdx(pkd->grid,0,x,y);
+	    id = mdlGridId(mdl,pkd->grid,0,x,y);
+	    idx = mdlGridIdx(mdl,pkd->grid,0,x,y);
 
 	    /* Update the cell */
-	    pCell = mdlAcquire(pkd->mdl,CID_PNG,idx,id);
+	    pCell = mdlAcquire(mdl,CID_PNG,idx,id);
 	    if (v > *pCell) *pCell = v;
-	    mdlRelease(pkd->mdl,CID_PNG,pCell);
+	    mdlRelease(mdl,CID_PNG,pCell);
 	    }
 	}
-    mdlFinishCache(pkd->mdl,CID_PNG);
+    mdlFinishCache(mdl,CID_PNG);
     }
 
 /*#endif*/
@@ -727,13 +728,12 @@ void pkdGridProject(PKD pkd) {
 #ifdef MDL_FFTW
 
 static void initPk(void *vpkd, void *g) {
-    fftw_real * r = (fftw_real *)g;
+    FFTW3(real) * r = (FFTW3(real) *)g;
     *r = 0.0;
     }
 static void combPk(void *vpkd, void *g1, void *g2) {
-    fftw_real * r1 = (fftw_real *)g1;
-    fftw_real * r2 = (fftw_real *)g2;
-
+    FFTW3(real) * r1 = (FFTW3(real) *)g1;
+    FFTW3(real) * r2 = (FFTW3(real) *)g2;
     *r1 += *r2;
     }
 
@@ -747,45 +747,33 @@ static inline float pow2(float x) {
     return x*x;
     }
 
-double grid_rms(MDL mdl, int nLocal, float *fGrid) {
-    int i;
-    double sum2, total;
-
-    sum2 = 0.0;
-    for( i=0; i<nLocal; i++ )
-	sum2 += fGrid[i] * fGrid[i];
-    mdlReduce(mdl,&sum2,&total,1,MDL_DOUBLE,MDL_SUM,0);
-    return sqrt(total);
-    }
-
-double grid_mass(MDL mdl, int nLocal, fftw_real *fGrid) {
-    int i,j,k;
-    double sum, total;
-
-    sum = 0.0;
-    for( i=0; i<nLocal; i++ )
-	sum += fGrid[i];
-    mdlAllreduce(mdl,&sum,&total,1,MDL_DOUBLE,MDL_SUM);
-    return total;
-    }
+//double grid_mass(MDL mdl, int nLocal, FFTW3(real) *fGrid) {
+//    int i,j,k;
+//    double sum, total;
+//
+//    sum = 0.0;
+//    for( i=0; i<nLocal; i++ )
+//	sum += fGrid[i];
+//    mdlAllreduce(mdl,&sum,&total,1,MDL_DOUBLE,MDL_SUM);
+//    return total;
+//    }
 
 /*
 ** Given grid coordinates x,y,z (integer), find out on which processor
 ** this cell can be found and accumulate mass into it.
 */
 static void cell_accumulate(PKD pkd, MDLFFT fft,int nGrid, int x,int y,int z, float m) {
-    fftw_real *p;
+    FFTW3(real) *p;
     int id, idx;
 
     if ( x<0 || y<0 || z<0 || x>=fft->rgrid->n1 || y>=fft->rgrid->n2 || z>=fft->rgrid->n3 ) return;
 
     /* Map coordinate to processor/index */
-    id = mdlFFTrId(fft,x,y,z);
-    idx = mdlFFTrIdx(fft,x,y,z);
-
-    p = mdlAcquire(pkd->mdl,CID_PK,idx,id);
+    id = mdlFFTrId(pkd->mdl,fft,x,y,z);
+    idx = mdlFFTrIdx(pkd->mdl,fft,x,y,z);
+    p = mdlVirtualAcquire(pkd->mdl,CID_PK,idx,id,0);
     *p += m;
-    mdlRelease(pkd->mdl,CID_PK,p);
+    /*mdlRelease(pkd->mdl,CID_PK,p);*/
     }
 
 static void tsc_assign(PKD pkd, MDLFFT fft, int nGrid,
@@ -875,13 +863,14 @@ static double deconvolveWindow(int i,int nGrid) {
     return win*win*win;
     }
 
-void pkdMeasurePk(PKD pkd, double dCenter[3], double dRadius,
+void pkdMeasurePk(PKD pkd, double dCenter[3], double dRadius, double dTotalMass,
 		  int nGrid, float *fPower, int *nPower) {
     PARTICLE *p;
     MDLFFT fft;
-    fftw_real *fftData;
-    fftw_complex *fftDataK;
-    double dTotalMass, dRhoMean, diRhoMean;
+    mdlGridCoord first, last, index;
+    FFTW3(real) *fftData;
+    FFTW3(complex) *fftDataK;
+    double dRhoMean, diRhoMean;
     double fftNormalize;
     double rms;
     double r[3];
@@ -894,33 +883,29 @@ void pkdMeasurePk(PKD pkd, double dCenter[3], double dRadius,
     iNyquist = nGrid / 2;
     nGridFFT = bPeriodic ? nGrid : nGrid*2;
 
-    /* Non-periodic doesn't work, so always do a periodic FFT */
-#if 0
-    bPeriodic = pkd->param.bPeriodic;
-    if ( pkd->param.bPeriodic ) {
-	for(i=0;i<3;i++) {
-	    if ( fabs(dRadius-pkd->fPeriod[i]) > 1e-10 ) bPeriodic = 0;
-	}
-#endif
-
     /* Box scaling factor */
     dScale = 0.5 / dRadius;
 
     fftNormalize = 1.0 / (1.0*nGrid*nGrid*nGrid);
-
     mdlFFTInitialize(pkd->mdl,&fft,nGridFFT,nGridFFT,nGridFFT,0,0);
-    fftData = mdlFFTMalloc( pkd->mdl, fft );
-    fftDataK = (fftw_complex *)fftData;
+    mdlGridCoordFirstLast(pkd->mdl,fft->rgrid,&first,&last);
 
-    for( i=0; i<fft->rgrid->nlocal; i++ ) fftData[i] = 0.0;
+    //printf("%d.%d: %p\n", mdlProc(pkd->mdl), mdlCore(pkd->mdl),pkd->pLite);
+    fftData = mdlSetArray(pkd->mdl,last.i,sizeof(FFTW3(real)),pkd->pLite);
+    fftDataK = (FFTW3(complex) *)fftData;
 
-    mdlCOcache(pkd->mdl,CID_PK,NULL,fftData,sizeof(fftw_real), fft->rgrid->nlocal,pkd,initPk,combPk);
+    //printf("%d.%d: %d to %d (@ %llu %p)\n", mdlProc(pkd->mdl), mdlCore(pkd->mdl),
+    //first.i, last.i, first.I,fftData);
+    for( i=first.i; i<last.i; ++i ) fftData[i] = 0.0;
+
+    mdlCOcache(pkd->mdl,CID_PK,NULL,fftData,sizeof(FFTW3(real)),last.i,pkd,initPk,combPk);
+    fflush(stdout);
     for (i=0;i<pkd->nLocal;++i) {
 	p = pkdParticle(pkd,i);
 	if ( !pkdIsSrcActive(p,0,MAX_RUNG) ) continue;
 	/* Recenter, apply periodic boundary and scale to the correct size */
 	for(j=0;j<3;j++) {
-	    r[j] = pkdPos(p->r,j) - dCenter[j] + dRadius;
+	    r[j] = pkdPos(pkd,p,j) - dCenter[j] + dRadius;
 	    if ( pkd->param.bPeriodic ) {
 		if ( r[j] >= pkd->fPeriod[j] ) r[j] -= pkd->fPeriod[j];
 		else if ( r[j] < 0.0 ) r[j] += pkd->fPeriod[j];
@@ -935,45 +920,22 @@ void pkdMeasurePk(PKD pkd, double dCenter[3], double dRadius,
 	    tsc_assign(pkd, fft, nGrid, r[0], r[1], r[2], pkdMass(pkd,p));
 	}
     mdlFinishCache(pkd->mdl,CID_PK);
+    for( i=first.i; i<last.i; ++i ) {
+	assert(fftData[i] >= 0.0);
+	}
 
-
-    dTotalMass = grid_mass(pkd->mdl,fft->rgrid->nlocal, fftData);
+    //dTotalMass = grid_mass(pkd->mdl,last.i, fftData);
     dRhoMean = dTotalMass * fftNormalize;
     diRhoMean = 1.0 / dRhoMean;
 
-    /*rms = grid_rms(pkd->mdl,fft->grid->nlocal, fftData);
-      if (pkd->idSelf==0)	printf( "RMS after TSC: %g\n",rms);*/
-
     /*printf( "Calculating density contrast\n" );*/
-    for( i=0; i<fft->rgrid->nlocal; i++ ) {
+    for( i=first.i; i<last.i; ++i ) {
 	fftData[i] = (fftData[i] - dRhoMean) * diRhoMean;
 	}
-    /*rms = grid_rms(pkd->mdl,fft->grid->nlocal, fftData);
-      if (pkd->idSelf==0) printf( "RMS after Density: %g\n",rms);*/
-
-#if 0
-    /* Apply apodization window */
-    float FiltFact = 1.0 / (nGrid-1);
-    uint32_t h = nGrid/2;
-    for(k=fft->grid->sz;k<fft->grid->sz+fft->grid->nz;k++) {
-	for(j=0;j<fft->grid->n2;j++) {
-	    for(i=0;i<fft->grid->a1r;i++) {
-		ks = h - sqrtl((i-h)*(i-h) + (j-h)*(j-h) + (k-h)*(k-h));
-		idx = mdlFFTrIdx(fft,i,j,k);
-		if ( ks >= 1 && ks < h ) {
-		    fftData[idx] *= 0.42
-			- 0.5 *cos(2.0*M_PI*ks*FiltFact)
-			+ 0.08*cos(4.0*M_PI*ks*FiltFact);
-		    }
-		else fftData[idx] = 0.0;
-		}
-	    }
-	}
-#endif
-
 
     mdlFFT(pkd->mdl,fft,fftData);
     /* Remember, the grid is now transposed to x,z,y (from x,y,z) */
+    mdlGridCoordFirstLast(pkd->mdl,fft->kgrid,&first,&last);
 
     for( i=0; i<=iNyquist; i++ ) {
 	fPower[i] = 0.0;
@@ -985,55 +947,38 @@ void pkdMeasurePk(PKD pkd, double dCenter[3], double dRadius,
     ** there may be nothing to process here, in which case ey will
     ** be less than sy.  This is fine.
     */
-
     if ( bPeriodic ) {
-	sy = fft->kgrid->s;
-	ey = sy + fft->kgrid->n;
-	for(j=sy;j<ey;j++) {
-	    int jj = j>iNyquist ? nGrid - j : j;
-            double win_j = deconvolveWindow(jj,nGrid);
-	    for(k=0;k<nGrid;k++) {
-		int kk = k>iNyquist ? nGrid - k : k;
-                double win_k = deconvolveWindow(kk,nGrid);
-		for(i=0;i<=iNyquist;i++) {
-                    double win = deconvolveWindow(i,nGrid) * win_k * win_j;
-		    ks = sqrtl(i*i + jj*jj + kk*kk);
-		    idx = mdlFFTkIdx(fft,i,j,k);
-		    if ( ks >= 1 && ks <= iNyquist ) {
-			double delta2 = (pow2(fftDataK[idx][0]) + pow2(fftDataK[idx][1]))/(win*win);
-			fPower[ks] += delta2;
-			nPower[ks] += 1;
-			}
-		    }
+	i = j = k = -1;
+	for( index=first; !mdlGridCoordCompare(&index,&last); mdlGridCoordIncrement(&index) ) {
+//	    printf("%d.%d: %d,%d,%d\n", mdlProc(pkd->mdl), mdlCore(pkd->mdl),
+//		index.z,index.y,index.x);
+	    int jj, kk;
+	    double win_j, win_k;
+	    if ( j != index.z ) {
+		j = index.z;
+		jj = j>iNyquist ? nGrid - j : j;
+		win_j = deconvolveWindow(jj,nGrid);
+		}
+	    if ( k != index.y ) {
+		k = index.y;
+		kk = k>iNyquist ? nGrid - k : k;
+                win_k = deconvolveWindow(kk,nGrid);
+		}
+	    i = index.x;
+	    double win = deconvolveWindow(i,nGrid) * win_k * win_j;
+	    ks = sqrtl(i*i + jj*jj + kk*kk);
+	    idx = index.i;
+	    if ( ks >= 1 && ks <= iNyquist ) {
+		double delta2 = (pow2(fftDataK[idx][0]) + pow2(fftDataK[idx][1]))/(win*win);
+		fPower[ks] += delta2;
+		nPower[ks] += 1;
 		}
 	    }
 	}
     else {
 	assert(0);
-#if 0
-	sy = fft->kgrid->s;
-	ey = sy + fft->kgrid->n;
-	if ( sy < iNyquist ) sy = iNyquist;
-	if ( ey > nGrid ) ey = nGrid;
-	for(j=sy;j<ey;j++) {
-	    int jj = j>nGrid ? nGridFFT - j : j - iNyquist;
-	    for(k=iNyquist;k<nGrid;k++) {
-		int kk = k>nGrid ? nGridFFT - k : k - iNyquist;
-		for(i=iNyquist;i<=nGrid;i++) {
-		    int ii = i - iNyquist;
-		    ks = sqrtl(ii*ii + jj*jj + kk*kk);
-		    idx = mdlFFTkIdx(fft,i,j,k);
-		    if ( ks >= 1 && ks <= iNyquist ) {
-			fPower[ks] += c_re(fftDataK[idx]);
-			nPower[ks] += 1;
-			}
-		    }
-		}
-	    }
-#endif
 	}
-
-    mdlFFTFree(pkd->mdl,fft,fftData);
+//    mdlFFTFree(pkd->mdl,fft,fftData);
     mdlFFTFinish(pkd->mdl,fft);
     }
 #endif

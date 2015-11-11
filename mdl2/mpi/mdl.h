@@ -19,8 +19,10 @@
 #include <fftw3-mpi.h>
 #ifdef USE_SINGLE
 #define FFTW3(name) fftwf_ ## name
+typedef float fftwf_real;
 #else
 #define FFTW3(name) fftw_ ## name
+typedef double fftw_real;
 #endif
 #endif
 #include "opa_queue.h"
@@ -43,10 +45,13 @@ typedef struct CacheDataBucket {
     ** get it returned to us later.
     */
     union {
-	CacheDataLinks  links;
-	MDLserviceElement svc;
+	CacheDataLinks  links; /* When in the ARC cache */
+	MDLserviceElement svc; /* When sending to/from the MPI thread */
 	} hdr;
-    struct CacheDataBucket *coll; /* collision chain for hash table */
+    union {
+	struct CacheDataBucket *coll; /* collision chain for hash table */
+	struct cacheSpace *cache; /* when flushing need to know which cache */
+	} extra;
     uint64_t *data;      /* page's location in cache */
     uint32_t uId;       /* upper 4 bits encode ARC_where and dirty bit */
     uint32_t uIndex;    /* page's ID number */
@@ -73,6 +78,7 @@ typedef struct ArcContext {
     uint32_t T2Length;
     uint32_t B2Length;
     uint32_t target_T1;
+    struct cacheSpace *cache;
 } * ARC;
 
 #ifdef __cplusplus
@@ -123,8 +129,8 @@ typedef struct cacheTag {
 
 
 /*
- ** This structure should be "maximally" aligned.
- */
+** This structure should be "maximally" aligned.
+*/
 typedef struct cacheHeader {
     uint8_t cid;
     uint8_t mid;
@@ -134,9 +140,39 @@ typedef struct cacheHeader {
     int32_t iIndex;
     } CAHEAD;
 
+typedef struct cacheHeaderNew {
+    uint8_t mid;     /*  2: Message ID: request, flush, reply */
+    uint8_t cid;     /*  6: Cache for this entry */
+    union {
+	uint8_t tidFrom; /* 12: thread id that made the request */
+	uint8_t xxx;
+	};
+    uint8_t tidTo;   /* 12: thread id that gets the reply */
+    uint32_t iIndex; /* Index of the element */
+    } CAHEADnew;
+
+typedef struct {
+    struct mdl_flush_buffer *next, *prev;
+    MPI_Request request;
+    } mdl_flush_links;
+
+typedef struct mdl_flush_buffer {
+    union {
+	mdl_flush_links mpi;
+	OPA_Queue_element_hdr_t hdr;
+	} hdr;
+    MPI_Request request;
+    uint32_t nBufferSize;
+    uint32_t nBytes;
+    uint32_t iRankTo;
+    } MDLflushBuffer;
+/* followed by CAHEAD, element, CAHEAD, element, etc. */
+
 #define MDL_CACHE_DATA_SIZE (8000)
 typedef struct cache_reply_data {
-    struct cache_reply_data *next;
+    union {
+	struct cache_reply_data *next;
+	};
     MPI_Request mpiRequest;
     int nBytes;
     } MDLcacheReplyData;
@@ -151,13 +187,14 @@ typedef struct {
 
 typedef struct cacheSpace {
     void *pData;
-    int iType;
+    uint16_t iType;
+    uint16_t iCID;
     int iDataSize;
     int nData;
     int nLineElements;
     int iLineSize;
     ARC arc;
-    void *pOneLine;
+    char *pOneLine;
 
     MDLserviceCacheReq cacheRequest;
     void *ctx;
@@ -175,6 +212,13 @@ typedef struct cacheSpace {
 typedef struct {
     MPI_Comm commMDL;             /* Current active communicator */
     OPA_Queue_info_t queueMPI;
+    OPA_Queue_info_t queueFlushPending;
+    OPA_Queue_info_t localFlushBuffers;
+    MDLflushBuffer **flushBuffersByRank;
+    MDLflushBuffer **flushBuffersByCore;
+    MDLflushBuffer flushHeadBusy;
+    MDLflushBuffer flushHeadFree;
+    MDLflushBuffer flushHeadSent;
     int *pRequestTargets;
     int nRequestTargets;
     int iRequestTarget;
@@ -183,10 +227,8 @@ typedef struct {
     int nActiveCores;
     int nOpenCaches;
     int iCaBufSize;  /* Cache buffer size */
-    char *pszRcv; /* Cache receive buffer */
-
     MPI_Request *pSendRecvReq;
-    MPI_Request ReqRcv;
+    MDLcacheReplyData *pReqRcv;
     MDLserviceSend **pSendRecvBuf;
     MDLserviceCacheReq **pThreadCacheReq;
     MDLcacheReplyData *freeCacheReplies;
@@ -232,6 +274,7 @@ typedef struct mdlContext {
      */
     int nMaxCacheIds;
     CACHE *cache;
+    OPA_Queue_info_t wqCacheFlush;
 
     mdlContextMPI *mpi;
     MDLserviceSend sendRequest;
@@ -319,15 +362,41 @@ int mdlTypeFree (MDL mdl, MDL_Datatype *datatype );
 */
 
 typedef struct mdlGridContext {
-    uint32_t n1, n2, n3; /* Real dimensions */
-    uint32_t a1;         /* Actual size of dimension 1 */
-    uint32_t s, n;       /* Start and number of slabs */
-    int nlocal;     /* Number of local elements */
+    uint32_t n1,n2,n3;     /* Real dimensions */
+    uint32_t a1;           /* Actual size of dimension 1 */
+    uint32_t sSlab, nSlab; /* Start and number of slabs */
+    uint64_t nLocal;       /* Number of local elements */
     uint32_t *rs;  /* Starting slab for each processor */
     uint32_t *rn;  /* Number of slabs on each processor */
     uint32_t *id;  /* Which processor has this slab */
     } * MDLGRID;
 
+typedef struct {
+    MDLGRID grid;
+    uint64_t I;
+    int x, y, z; /* Real coordinate */
+    int i;       /* Index into local array */
+    } mdlGridCoord;
+
+static inline int mdlGridCoordCompare(const mdlGridCoord *a,const mdlGridCoord *b) {
+    return a->x==b->x && a->y==b->y && a->z==b->z; 
+    }
+
+static inline mdlGridCoord *mdlGridCoordIncrement(mdlGridCoord *a) {
+    ++a->i;
+    ++a->I;
+    if ( ++a->x == a->grid->n1 ) {
+	a->i += a->grid->a1 - a->grid->n1;
+	a->x = 0;
+	if ( ++a->y == a->grid->n2 ) {
+	    a->y = 0;
+	    ++a->z;
+	    }
+	}
+    return a;
+    }
+
+void mdlGridCoordFirstLast(MDL mdl,MDLGRID grid,mdlGridCoord *f,mdlGridCoord *l);
 
 /*
 ** Allocate a MDLGRID context.  This has no actual data, but only describes
@@ -341,7 +410,7 @@ void mdlGridFinish(MDL mdl, MDLGRID grid);
 /*
 ** Sets the local geometry (i.e., what is on this processor) of this grid.
 */
-void mdlGridSetLocal(MDL mdl,MDLGRID grid,int s, int n, int nlocal);
+void mdlGridSetLocal(MDL mdl,MDLGRID grid,int s, int n, uint64_t nLocal);
 /*
 ** Share the local geometry between processors.
 */
@@ -356,15 +425,15 @@ void mdlGridFree( MDL mdl, MDLGRID grid, void *p );
 /*
 ** This gives the processor on which the given slab can be found.
 */
-static inline int mdlGridId(MDLGRID grid, uint32_t x, uint32_t y, uint32_t z) {
-    assert(z>=0&&z<grid->n3);
-    return grid->id[z];
+static inline int mdlGridId(MDL mdl,MDLGRID grid, uint32_t x, uint32_t y, uint32_t z) {
+    assert(z<grid->n3);
+    return mdlProcToThread(mdl,grid->id[z]);
     }
 /*
 ** This returns the index into the array on the appropriate processor.
 */
-static inline int mdlGridIdx(MDLGRID grid, uint32_t x, uint32_t y, uint32_t z) {
-    assert(x>=0&&x<=grid->a1&&y>=0&&y<grid->n2&&z>=0&&z<grid->n3);
+static inline int mdlGridIdx(MDL mdl,MDLGRID grid, uint32_t x, uint32_t y, uint32_t z) {
+    assert(x<=grid->a1 && y<grid->n2 && z<grid->n3);
     z -= grid->rs[grid->id[z]]; /* Make "z" zero based for its processor */
     return x + grid->a1*(y + grid->n2*z); /* Local index */
     }
@@ -379,23 +448,21 @@ typedef struct mdlFFTContext {
     FFTW3(plan) fplan, iplan;
     } * MDLFFT;
 
-typedef double fftw_real;
-
 size_t mdlFFTlocalCount(MDL mdl,int n1,int n2,int n3,int *nz,int *sz,int *ny,int*sy);
-size_t mdlFFTInitialize(MDL mdl,MDLFFT *fft,int nx,int ny,int nz,int bMeasure,double *data);
+size_t mdlFFTInitialize(MDL mdl,MDLFFT *pfft,int nx,int ny,int nz,int bMeasure,FFTW3(real) *data);
 void mdlFFTFinish( MDL mdl, MDLFFT fft );
-fftw_real *mdlFFTMalloc( MDL mdl, MDLFFT fft );
+FFTW3(real) *mdlFFTMalloc( MDL mdl, MDLFFT fft );
 void mdlFFTFree( MDL mdl, MDLFFT fft, void *p );
-void mdlFFT( MDL mdl, MDLFFT fft, fftw_real *data);
-void mdlIFFT( MDL mdl, MDLFFT fft, fftw_complex *data);
+void mdlFFT( MDL mdl, MDLFFT fft, FFTW3(real) *data);
+void mdlIFFT( MDL mdl, MDLFFT fft, FFTW3(complex) *data);
 
 /* Grid accessors: r-space */
-#define mdlFFTrId(fft,x,y,z) mdlGridId((fft)->rgrid,x,y,z)
-#define mdlFFTrIdx(fft,x,y,z) mdlGridIdx((fft)->rgrid,x,y,z)
+#define mdlFFTrId(mdl,fft,x,y,z) mdlGridId(mdl,(fft)->rgrid,x,y,z)
+#define mdlFFTrIdx(mdl,fft,x,y,z) mdlGridIdx(mdl,(fft)->rgrid,x,y,z)
 
 /* Grid accessors: k-space (note permuted indices) */
-#define mdlFFTkId(fft,x,y,z) mdlGridId((fft)->kgrid,x,z,y)
-#define mdlFFTkIdx(fft,x,y,z) mdlGridIdx((fft)->kgrid,x,z,y)
+#define mdlFFTkId(mdl,fft,x,y,z) mdlGridId(mdl,(fft)->kgrid,x,z,y)
+#define mdlFFTkIdx(mdl,fft,x,y,z) mdlGridIdx(mdl,(fft)->kgrid,x,z,y)
 
 #endif
 /*
@@ -404,6 +471,7 @@ void mdlIFFT( MDL mdl, MDLFFT fft, fftw_complex *data);
 void *mdlMalloc(MDL,size_t);
 void mdlFree(MDL,void *);
 void *mdlMallocArray(MDL mdl,size_t nmemb,size_t size);
+void *mdlSetArray(MDL mdl,size_t nmemb,size_t size,void *vdata);
 void mdlFreeArray(MDL,void *);
 void mdlSetCacheSize(MDL,int);
 void mdlROcache(MDL mdl,int cid,
