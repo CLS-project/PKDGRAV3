@@ -698,6 +698,7 @@ static void flush_element(MDL mdl,MDLserviceElement *qhdr) {
 	ca->idFrom = mdlSelf(mdl);
 	ca->idTo = iThread;
 	ca->iIndex = entry->uIndex;
+
 	memcpy(pData,entry->data,c->iDataSize);
 	pBuffer->nBytes += sizeof(CAHEAD) + c->iDataSize;
 
@@ -2844,12 +2845,12 @@ void mdlGridShare(MDL mdl,MDLGRID grid) {
 void mdlGridCoordFirstLast(MDL mdl,MDLGRID grid,mdlGridCoord *f,mdlGridCoord *l) {
     uint64_t nPerCore, nThisCore;
 
-    nPerCore = nThisCore = grid->nLocal / mdlCores(mdl) + grid->a1 - 1;
+    nPerCore = grid->nLocal / mdlCores(mdl) + grid->a1 - 1;
     nPerCore -= nPerCore % grid->a1;
+    nThisCore = nPerCore;
     if (mdlCore(mdl) == mdlCores(mdl)-1) {
 	nThisCore = grid->nLocal - (mdlCores(mdl)-1)*nThisCore;
 	}
-
     /*
     ** Calculate global x,y,z coordinates, and local "i" coordinate.
     */
