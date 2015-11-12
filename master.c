@@ -1720,6 +1720,7 @@ double msrGenerateIC(MSR msr) {
     in.ps.fPeriod[0] = msr->param.dxPeriod;
     in.ps.fPeriod[1] = msr->param.dyPeriod;
     in.ps.fPeriod[2] = msr->param.dzPeriod;
+    in.ps.nMinLocalMemory = 0;
     in.ps.nBucket = msr->param.nBucket;
     in.ps.nGroup = msr->param.nGroup;
     in.ps.nDomainRungs = msr->param.nDomainRungs;
@@ -4835,6 +4836,18 @@ double msrRead(MSR msr, const char *achInFile) {
     read->fPeriod[2] = msr->param.dzPeriod;
     for( j=0; j<FIO_SPECIES_LAST; j++) read->nSpecies[j] = fioGetN(fio,j);
 
+    read->nMinLocalMemory = 0;
+#ifdef MDL_FFTW
+    if (msr->param.nGridPk>0) {
+	struct inGetFFTMaxSizes inFFTSizes;
+	struct outGetFFTMaxSizes outFFTSizes;
+	int n;
+	inFFTSizes.nx = inFFTSizes.ny = inFFTSizes.nz = msr->param.nGridPk;
+	pstGetFFTMaxSizes(msr->pst,&inFFTSizes,sizeof(inFFTSizes),&outFFTSizes,&n);
+	read->nMinLocalMemory = outFFTSizes.nMaxLocal*sizeof(FFTW3(real));
+	}
+#endif
+
     /*
     ** If bParaRead is 0, then we read serially; if it is 1, then we read
     ** in parallel using all available threads, otherwise we read in parallel
@@ -4851,7 +4864,6 @@ double msrRead(MSR msr, const char *achInFile) {
 	msrOneNodeRead(msr,read,fio);
 	fioClose(fio);
 	}
-    free(read);
 
     dsec = msrTime() - sec;
     msrSetClasses(msr);
@@ -4860,6 +4872,12 @@ double msrRead(MSR msr, const char *achInFile) {
 	      pkdParticleMemory(plcl->pkd)/(1024*1024));
     printf("Particles: %lu bytes (persistent) + %d bytes (ephemeral), Nodes: %lu bytes\n",
 	pkdParticleSize(plcl->pkd),EPHEMERAL_BYTES,pkdNodeSize(plcl->pkd));
+    if (read->nMinLocalMemory) {
+	printf("Allocating at least %llu ephemeral bytes per node for FFT\n",
+	    read->nMinLocalMemory);
+	}
+
+    free(read);
 
     /*
     ** If this is a non-periodic box, then we must precalculate the bounds.

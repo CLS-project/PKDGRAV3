@@ -258,7 +258,7 @@ void pkdExtendTree(PKD pkd) {
     }
 
 void pkdInitialize(
-    PKD *ppkd,MDL mdl,int nStore,int nBucket,int nGroup,int nTreeBitsLo, int nTreeBitsHi,
+    PKD *ppkd,MDL mdl,int nStore,uint64_t nMinLocalMemory,int nBucket,int nGroup,int nTreeBitsLo, int nTreeBitsHi,
     int iCacheSize,int iWorkQueueSize,int iCUDAQueueSize,FLOAT *fPeriod,uint64_t nDark,uint64_t nGas,uint64_t nStar,
     uint64_t mMemoryModel, int nMaxDomainRungs) {
     PKD pkd;
@@ -456,7 +456,7 @@ void pkdInitialize(
     ** particle.
     */
     pkd->iParticleSize = (pkd->iParticleSize + sizeof(double) - 1 ) & ~(sizeof(double)-1);
-    pkd->pStorePRIVATE = mdlMallocArray(pkd->mdl,nStore+1,pkdParticleSize(pkd));
+    pkd->pStorePRIVATE = mdlMallocArray(pkd->mdl,nStore+1,pkdParticleSize(pkd),0);
     mdlassert(mdl,pkd->pStorePRIVATE != NULL);
     if ( mMemoryModel & PKD_MODEL_RUNGDEST ) {
 	pkd->pStorePRIVATE2 = mdlMalloc(pkd->mdl,(nStore+1)*pkdParticleSize(pkd));
@@ -527,7 +527,7 @@ void pkdInitialize(
     ** type operations such as tree building and domain decomposition are being
     ** performed.
     */
-    pkd->pLite = mdlMallocArray(pkd->mdl,nStore+1,EPHEMERAL_BYTES);
+    pkd->pLite = mdlMallocArray(pkd->mdl,nStore+1,EPHEMERAL_BYTES,nMinLocalMemory);
     mdlassert(mdl,pkd->pLite != NULL);
     pkd->nNodes = 0;
     /*

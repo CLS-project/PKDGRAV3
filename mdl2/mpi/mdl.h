@@ -212,7 +212,6 @@ typedef struct cacheSpace {
 typedef struct {
     MPI_Comm commMDL;             /* Current active communicator */
     OPA_Queue_info_t queueMPI;
-    OPA_Queue_info_t queueFlushPending;
     OPA_Queue_info_t localFlushBuffers;
     MDLflushBuffer **flushBuffersByRank;
     MDLflushBuffer **flushBuffersByCore;
@@ -470,7 +469,7 @@ void mdlIFFT( MDL mdl, MDLFFT fft, FFTW3(complex) *data);
  */
 void *mdlMalloc(MDL,size_t);
 void mdlFree(MDL,void *);
-void *mdlMallocArray(MDL mdl,size_t nmemb,size_t size);
+void *mdlMallocArray(MDL mdl,size_t nmemb,size_t size,size_t minSize);
 void *mdlSetArray(MDL mdl,size_t nmemb,size_t size,void *vdata);
 void mdlFreeArray(MDL,void *);
 void mdlSetCacheSize(MDL,int);

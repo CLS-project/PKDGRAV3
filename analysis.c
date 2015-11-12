@@ -889,17 +889,11 @@ void pkdMeasurePk(PKD pkd, double dCenter[3], double dRadius, double dTotalMass,
     fftNormalize = 1.0 / (1.0*nGrid*nGrid*nGrid);
     mdlFFTInitialize(pkd->mdl,&fft,nGridFFT,nGridFFT,nGridFFT,0,0);
     mdlGridCoordFirstLast(pkd->mdl,fft->rgrid,&first,&last);
-
-    //printf("%d.%d: %p\n", mdlProc(pkd->mdl), mdlCore(pkd->mdl),pkd->pLite);
     fftData = mdlSetArray(pkd->mdl,last.i,sizeof(FFTW3(real)),pkd->pLite);
     fftDataK = (FFTW3(complex) *)fftData;
-
-    //printf("%d.%d: %d to %d (@ %llu %p)\n", mdlProc(pkd->mdl), mdlCore(pkd->mdl),
-    //first.i, last.i, first.I,fftData);
     for( i=first.i; i<last.i; ++i ) fftData[i] = 0.0;
-
     mdlCOcache(pkd->mdl,CID_PK,NULL,fftData,sizeof(FFTW3(real)),last.i,pkd,initPk,combPk);
-    fflush(stdout);
+#ifndef TEST_DENSITY
     for (i=0;i<pkd->nLocal;++i) {
 	p = pkdParticle(pkd,i);
 	if ( !pkdIsSrcActive(p,0,MAX_RUNG) ) continue;
@@ -918,11 +912,34 @@ void pkdMeasurePk(PKD pkd, double dCenter[3], double dRadius, double dTotalMass,
 	*/
 	if( r[0]>=0.0 && r[0]<1.0 && r[1]>=0.0 && r[1]<1.0 && r[2]>=0.0 && r[2]<1.0 )
 	    tsc_assign(pkd, fft, nGrid, r[0], r[1], r[2], pkdMass(pkd,p));
+	else assert(0);
 	}
+#else
+    for (k=0;k<nGrid;++k) {
+	for (j=0;j<nGrid;++j) {
+	    for (i=0;i<nGrid;++i) {
+		int id = mdlFFTrId(pkd->mdl,fft,i,j,k);
+		int idx = mdlFFTrIdx(pkd->mdl,fft,i,j,k);
+		float *p = mdlVirtualAcquire(pkd->mdl,CID_PK,idx,id,0);
+    		*p += 1;
+	    }
+	}
+    }
+#endif
     mdlFinishCache(pkd->mdl,CID_PK);
     for( i=first.i; i<last.i; ++i ) {
 	assert(fftData[i] >= 0.0);
 	}
+#ifdef TEST_DENSITY
+    FILE *fp;
+    char name[32];
+    sprintf(name,"density.%02d",mdlSelf(pkd->mdl));
+    fp = fopen(name,"w");
+    for( index=first; !mdlGridCoordCompare(&index,&last); mdlGridCoordIncrement(&index) ) {
+	fprintf(fp,"%d.%d.%d %g\n",index.z,index.y,index.x,fftData[index.i]);
+	}
+    fclose(fp);
+#endif
 
     //dTotalMass = grid_mass(pkd->mdl,last.i, fftData);
     dRhoMean = dTotalMass * fftNormalize;
@@ -950,8 +967,6 @@ void pkdMeasurePk(PKD pkd, double dCenter[3], double dRadius, double dTotalMass,
     if ( bPeriodic ) {
 	i = j = k = -1;
 	for( index=first; !mdlGridCoordCompare(&index,&last); mdlGridCoordIncrement(&index) ) {
-//	    printf("%d.%d: %d,%d,%d\n", mdlProc(pkd->mdl), mdlCore(pkd->mdl),
-//		index.z,index.y,index.x);
 	    int jj, kk;
 	    double win_j, win_k;
 	    if ( j != index.z ) {

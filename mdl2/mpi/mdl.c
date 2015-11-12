@@ -671,8 +671,11 @@ static void flush_element(MDL mdl,MDLserviceElement *qhdr) {
 	    }
 	}
     if (pBuffer == NULL) flush_check_completion(mdl);
-    /* Try grabbing a free buffer */
-    if (pBuffer==NULL && mpi->flushHeadFree.hdr.mpi.next != &mpi->flushHeadFree) {
+    /* Grab a free buffer, or wait for one to become free */
+    if (pBuffer==NULL) {
+	while (mpi->flushHeadFree.hdr.mpi.next == &mpi->flushHeadFree) {
+	    flush_check_completion(mdl);
+	    }
 	pBuffer = flush_remove(mpi->flushHeadFree.hdr.mpi.next);
 	flush_insert_after(&mpi->flushHeadBusy,pBuffer);
 	mpi->flushBuffersByRank[iProc] = pBuffer;
@@ -687,41 +690,34 @@ static void flush_element(MDL mdl,MDLserviceElement *qhdr) {
 		}
 	    }
 	}
-
-    /* If we have a buffer, then we just buffer the data */
-    if (pBuffer) {
-	CAHEAD *ca = (CAHEAD *)( (char *)(pBuffer+1) + pBuffer->nBytes);
-	char *pData = (char *)(ca+1);
-	ca->cid = entry->extra.cache->iCID;
-	ca->mid = MDL_MID_CACHEFLUSH;
-	ca->nItems = 1;
-	ca->idFrom = mdlSelf(mdl);
-	ca->idTo = iThread;
-	ca->iIndex = entry->uIndex;
-
-	memcpy(pData,entry->data,c->iDataSize);
-	pBuffer->nBytes += sizeof(CAHEAD) + c->iDataSize;
-
-	/* As we have buffered this message we can tell the calling thread to continue */
-	mdlSendThreadMessage(mdl,MDL_TAG_CACHE_FLUSH,qhdr->iCoreFrom,qhdr,MDL_SE_CACHE_FLUSH);
-	}
-    /* We have run out of buffers for flushing */
-    else {
-	/* We add this to a flush queue: at most we can have nCores of these waiting */
-	OPA_Queue_enqueue(&mpi->queueFlushPending, qhdr, MDLserviceElement, hdr);
-	/* When a buffer becomes free we can process this */
-	}
+    /* Now just buffer the data */
+    CAHEAD *ca = (CAHEAD *)( (char *)(pBuffer+1) + pBuffer->nBytes);
+    char *pData = (char *)(ca+1);
+    ca->cid = entry->extra.cache->iCID;
+    ca->mid = MDL_MID_CACHEFLUSH;
+    ca->nItems = 1;
+    ca->idFrom = mdlSelf(mdl);
+    ca->idTo = iThread;
+    ca->iIndex = entry->uIndex;
+    memcpy(pData,entry->data,c->iDataSize);
+    pBuffer->nBytes += sizeof(CAHEAD) + c->iDataSize;
+    /* As we have buffered this message we can tell the calling thread to continue */
+    mdlSendThreadMessage(mdl,MDL_TAG_CACHE_FLUSH,qhdr->iCoreFrom,qhdr,MDL_SE_CACHE_FLUSH);
     }
 
 /*
 ** At the end we need to flush any pending cache elements
 */
+static int checkMPI(MDL mdl);
 void flush_all_elements(MDL mdl) {
     mdlContextMPI *mpi = mdl->mpi;
     while (mpi->flushHeadBusy.hdr.mpi.next != &mpi->flushHeadBusy ) {
 	MDLflushBuffer *flush = mpi->flushHeadBusy.hdr.mpi.prev;
 	mpi->flushBuffersByRank[flush->iRankTo] = NULL;
 	flush_send(mdl,flush);
+	}
+    while(flush_check_completion(mdl)) {
+	checkMPI(mdl);
 	}
     }
 
@@ -1493,9 +1489,6 @@ void mdlLaunch(int argc,char **argv,void * (*fcnMaster)(MDL),void * (*fcnChild)(
 	mpi->freeCacheReplies = pdata;
 	}
 
-    /* Structures for queue flushing */
-    OPA_Queue_init(&mpi->queueFlushPending);
-
     /* For flushing to remote processes/nodes */
     mpi->flushBuffersByRank = malloc(sizeof(MDLflushBuffer *) * mdl->base.nProcs);
     assert(mpi->flushBuffersByRank);
@@ -2006,7 +1999,7 @@ void *mdlSetArray(MDL mdl,size_t nmemb,size_t size,void *vdata) {
 ** Normally "size" is identical on all cores, while nmemb may differ
 ** but this is not strictly a requirement.
 */
-void *mdlMallocArray(MDL mdl,size_t nmemb,size_t size) {
+void *mdlMallocArray(MDL mdl,size_t nmemb,size_t size,size_t minSize) {
     char *data;
     size_t iSize;
     mdl->nMessageData = nmemb * size;
@@ -2015,6 +2008,7 @@ void *mdlMallocArray(MDL mdl,size_t nmemb,size_t size) {
 	int i;
 	iSize = 0;
 	for(i=0; i<mdlCores(mdl); ++i) iSize += mdl->pmdl[i]->nMessageData;
+	if (iSize < minSize) iSize = minSize;
 	data = mdlMalloc(mdl,iSize);
 	for(i=0; i<mdlCores(mdl); ++i) {
 	    mdl->pmdl[i]->pvMessageData = data;
@@ -2844,12 +2838,13 @@ void mdlGridShare(MDL mdl,MDLGRID grid) {
 */
 void mdlGridCoordFirstLast(MDL mdl,MDLGRID grid,mdlGridCoord *f,mdlGridCoord *l) {
     uint64_t nPerCore, nThisCore;
+    uint64_t nLocal = (uint64_t)(grid->a1) * grid->n2 * grid->nSlab;
 
-    nPerCore = grid->nLocal / mdlCores(mdl) + grid->a1 - 1;
+    nPerCore = nLocal / mdlCores(mdl) + grid->a1 - 1;
     nPerCore -= nPerCore % grid->a1;
     nThisCore = nPerCore;
     if (mdlCore(mdl) == mdlCores(mdl)-1) {
-	nThisCore = grid->nLocal - (mdlCores(mdl)-1)*nThisCore;
+	nThisCore = nLocal - (mdlCores(mdl)-1)*nThisCore;
 	}
     /*
     ** Calculate global x,y,z coordinates, and local "i" coordinate.
@@ -2877,7 +2872,7 @@ void mdlGridCoordFirstLast(MDL mdl,MDLGRID grid,mdlGridCoord *f,mdlGridCoord *l)
 ** how many to allocate.
 */
 void *mdlGridMalloc(MDL mdl,MDLGRID grid,int nEntrySize) {
-    return mdlMallocArray(mdl,mdlCore(mdl)?0:grid->nLocal,nEntrySize);
+    return mdlMallocArray(mdl,mdlCore(mdl)?0:grid->nLocal,nEntrySize,0);
     }
 
 void mdlGridFree( MDL mdl, MDLGRID grid, void *p ) {

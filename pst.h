@@ -255,6 +255,7 @@ struct inReadFile {
     double dTuFac;
     double dOmega0;
     double dOmegab;
+    uint64_t nMinLocalMemory;
     float fExtraStore;
     int nTreeBitsLo;
     int nTreeBitsHi;
@@ -1085,6 +1086,7 @@ struct inInitializePStore {
     uint64_t nGas;
     uint64_t nStar;
     double fPeriod[3];
+    uint64_t nMinLocalMemory;
     int nBucket;
     int nGroup;
     int nTreeBitsLo;

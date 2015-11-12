@@ -700,7 +700,7 @@ void pstOneNodeReadInit(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	nStore = nFileTotal + (int)ceil(nFileTotal*in->fExtraStore);
 	if (plcl->pkd) pkdFinish(plcl->pkd);
 	pkdInitialize(
-	    &plcl->pkd,pst->mdl,nStore,in->nBucket,in->nGroup,
+	    &plcl->pkd,pst->mdl,nStore,in->nMinLocalMemory,in->nBucket,in->nGroup,
 	    in->nTreeBitsLo,in->nTreeBitsHi,
 	    in->iCacheSize,in->iWorkQueueSize,in->iCUDAQueueSize,in->fPeriod,
 	    in->nSpecies[FIO_SPECIES_DARK],
@@ -3854,7 +3854,7 @@ void pstInitializePStore(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	}
     else {
 	pkdInitialize(
-	    &plcl->pkd,pst->mdl,in->nStore,in->nBucket,in->nGroup,
+	    &plcl->pkd,pst->mdl,in->nStore,in->nMinLocalMemory,in->nBucket,in->nGroup,
 	    in->nTreeBitsLo,in->nTreeBitsHi,
 	    in->iCacheSize,in->iWorkQueueSize,in->iCUDAQueueSize,in->fPeriod,
 	    in->nDark,in->nGas,in->nStar,in->mMemoryModel, in->nDomainRungs);
@@ -3885,7 +3885,7 @@ void pstGetFFTMaxSizes(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	out->nMaxLocal = mdlFFTlocalCount(pst->mdl,in->nx,in->ny,in->nz,
 	    &out->nMaxZ,0,&out->nMaxY,0);
 	}
-    if (pnOut) *pnOut = 0;
+    if (pnOut) *pnOut = sizeof(struct outGetFFTMaxSizes);
     }
 
 void pltConstructIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
@@ -3948,12 +3948,12 @@ void pstGenerateIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	    }
 
 	/*
-	** Allocate memory for particle/grid store. We require 9 double arrays
+	** Allocate memory for particle/grid store. We require 9 float arrays
 	** and a PARTICLE is normally at least 10 when calculating gravity.
 	*/
 	pstInitializePStore(pst,&in->ps,sizeof(in->ps),NULL,NULL);
-	assert( 9*sizeof(double) <= pkdParticleSize(plcl->pkd) );
-	assert(3*sizeof(double) == sizeof(gridpos));
+	assert( 9*sizeof(FFTW3(real)) <= pkdParticleSize(plcl->pkd) );
+	assert(3*sizeof(FFTW3(real)) == sizeof(gridpos));
 
 	cic.pos = (gridpos *)pkdParticleBase(plcl->pkd);
 	cic.dic[0].r = (FFTW3(real) *)(cic.pos + in->nPerNode);
@@ -3964,7 +3964,7 @@ void pstGenerateIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	cic.dic[5].r = cic.dic[4].r + in->nPerNode;
 	cic.vel = (gridpos *)cic.dic[3].r; /* We overlap here */
 
-	assert(cic.dic[8].r+in->nPerNode <= (FFTW3(real) *)pkdParticle(plcl->pkd,in->nPerNode));
+	assert(cic.dic[5].r+in->nPerNode <= (FFTW3(real) *)pkdParticle(plcl->pkd,in->nPerNode));
 
 	mdlFFTInitialize(pst->mdl,&fft,in->nGrid,in->nGrid,in->nGrid,0,cic.dic[0].r);
 
