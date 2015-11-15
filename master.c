@@ -238,6 +238,9 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.iLogInterval = 1;
     prmAddParam(msr->prm,"iLogInterval",1,&msr->param.iLogInterval,sizeof(int),
 		"ol","<number of timesteps between logfile outputs> = 1");
+    msr->param.iPkInterval = 1;
+    prmAddParam(msr->prm,"iPkInterval",1,&msr->param.iPkInterval,sizeof(int),
+		"opk","<number of timesteps between pk outputs> = 1");
     msr->param.bEwald = 1;
     prmAddParam(msr->prm,"bEwald",0,&msr->param.bEwald,sizeof(int),"ewald",
 		"enable/disable Ewald correction = +ewald");
@@ -4933,6 +4936,8 @@ void msrOutputPk(MSR msr,int iStep) {
     FILE *fp;
     int i;
 
+    if (msr->param.nGridPk == 0) return;
+    
     fPk = malloc(sizeof(float)*(msr->param.nGridPk/2+1));
     assert(fPk != NULL);
 

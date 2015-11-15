@@ -320,6 +320,9 @@ void * master_ch(MDL mdl) {
 			  && (iStep%msrCheckInterval(msr) == 0
 			      || iStep == msrSteps(msr) || iStop));
 		}
+	    else if (iStep%msr->param.iPkInterval == 0) {
+		msrOutputPk(msr,iStep);
+		}
 	    }
 	}
 

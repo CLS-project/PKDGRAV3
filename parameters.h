@@ -55,6 +55,7 @@ struct parameters {
     int iOutInterval;
     int iCheckInterval;
     int iLogInterval;
+    int iPkInterval;
     int iOrder;
     int bEwald;
     int iEwOrder;
