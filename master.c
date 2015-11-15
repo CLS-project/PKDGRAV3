@@ -4921,6 +4921,7 @@ void msrCalcVBound(MSR msr,BND *pbnd) {
     pstCalcVBound(msr->pst,NULL,0,pbnd,NULL);
     }
 
+#ifdef MDL_FFTW
 void msrOutputPk(MSR msr,int iStep) {
 #ifdef _MSC_VER
     char achFile[MAX_PATH];
@@ -4951,6 +4952,7 @@ void msrOutputPk(MSR msr,int iStep) {
     fclose(fp);
     free(fPk);
     }
+#endif
 
 /*
 **  This routine will output all requested files and fields
