@@ -164,6 +164,7 @@ int msrUpdateRung(MSR msr, uint8_t uRung);
 ** Interface functions.
 */
 int msrSteps(MSR);
+void msrOutputPk(MSR msr,int iStep);
 void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint);
 char *msrOutName(MSR);
 char *msrBuildName(MSR msr,char *achFile,int iStep);

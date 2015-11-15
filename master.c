@@ -558,6 +558,9 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.iSeed = 0;
     prmAddParam(msr->prm,"iSeed",1,&msr->param.iSeed,
 		sizeof(int),"seed","<Random seed for IC> = 0");
+    msr->param.b2LPT = 1;
+    prmAddParam(msr->prm,"b2LPT",0,&msr->param.b2LPT,
+		sizeof(int),"2lpt","<Enable/disable 2LPT> = 1");
 #ifdef USE_PYTHON
     strcpy(msr->param.achScriptFile,"");
     prmAddParam(msr->prm,"achScript",3,msr->param.achScriptFile,256,"script",
@@ -926,10 +929,9 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
 	    puts("ERROR: do not specify an input file when generating IC");
 	    _msrExit(msr,1);
 	    }
-
 	if ( msr->param.iSeed == 0 ) {
-	    puts("ERROR: Random seed for IC not specified");
-	    _msrExit(msr,1);
+	    //puts("ERROR: Random seed for IC not specified");
+	    msr->param.iSeed = time(NULL);
 	    }
 	if ( msr->param.dBoxSize <= 0 ) {
 	    puts("ERROR: Box size for IC not specified");
@@ -1701,6 +1703,7 @@ double msrGenerateIC(MSR msr) {
     in.dBoxSize = msr->param.dBoxSize;
     in.iSeed = msr->param.iSeed;
     in.nGrid = msr->param.nGrid;
+    in.b2LPT = msr->param.b2LPT;
     in.omegac= msr->param.csm->dOmega0 - msr->param.csm->dOmegab;
     in.omegab= msr->param.csm->dOmegab;
     in.omegav= msr->param.csm->dLambda;
@@ -1757,12 +1760,14 @@ double msrGenerateIC(MSR msr) {
 	while(fgets(buffer,sizeof(buffer),fp)) {
 	    assert(in.nTf < MAX_TF);
 	    if (sscanf(buffer," %lg %lg\n",&in.k[in.nTf],&in.tf[in.nTf])==2) {
+		in.k[in.nTf] = log(in.k[in.nTf]);
 		++in.nTf;
 		}
 	    }
 	fclose(fp);
 	if (msr->param.bVStart)
-	    printf("Transfer function : %d lines kmin %g kmax %g\n", in.nTf, in.k[0], in.k[in.nTf-1]);
+	    printf("Transfer function : %d lines kmin %g kmax %g\n",
+		in.nTf, exp(in.k[0]), exp(in.k[in.nTf-1]));
 
 	}
 
@@ -1776,9 +1781,10 @@ double msrGenerateIC(MSR msr) {
 	inFFTSizes.nx, inFFTSizes.ny, outFFTSizes.nMaxZ,
 	inFFTSizes.nx, outFFTSizes.nMaxY, inFFTSizes.nz);
 
-    msrprintf(msr,"IC Generation @ a=%g\n",in.dExpansion,dsec);
+    msrprintf(msr,"IC Generation @ a=%g with seed %d\n",in.dExpansion,dsec,msr->param.iSeed);
     in.nPerNode = outFFTSizes.nMaxLocal;
     pstGenerateIC(msr->pst,&in,sizeof(in),&out,&nOut);
+    msrSetClasses(msr);
     dsec = msrTime() - sec;
     msrprintf(msr,"IC Generation Complete @ a=%g, Wallclock: %f secs\n\n",out.dExpansion,dsec);
 
@@ -4915,6 +4921,36 @@ void msrCalcVBound(MSR msr,BND *pbnd) {
     pstCalcVBound(msr->pst,NULL,0,pbnd,NULL);
     }
 
+void msrOutputPk(MSR msr,int iStep) {
+#ifdef _MSC_VER
+    char achFile[MAX_PATH];
+#else
+    char achFile[PATH_MAX];
+#endif
+    double dCenter[3] = {0.0,0.0,0.0};
+    float *fPk;
+    FILE *fp;
+    int i;
+
+    fPk = malloc(sizeof(float)*(msr->param.nGridPk/2+1));
+    assert(fPk != NULL);
+
+    msrMeasurePk(msr,dCenter,0.5,msr->param.nGridPk,fPk);
+
+    msrBuildName(msr,achFile,iStep);
+    strncat(achFile,".pk",256);
+
+    fp = fopen(achFile,"w");
+    if ( fp==NULL) {
+	printf("Could not create P(k) File:%s\n",achFile);
+	_msrExit(msr,1);
+	}
+    for(i=1; i<=msr->param.nGridPk/2; ++i) {
+	fprintf(fp,"%d %g\n",i,fPk[i]);
+	}
+    fclose(fp);
+    free(fPk);
+    }
 
 /*
 **  This routine will output all requested files and fields
@@ -4972,32 +5008,9 @@ void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint) {
 
 #ifdef MDL_FFTW
     if (msr->param.nGridPk>0) {
-	double dCenter[3] = {0.0,0.0,0.0};
-	float *fPk;
-	FILE *fp;
-
-	fPk = malloc(sizeof(float)*(msr->param.nGridPk/2+1));
-	assert(fPk != NULL);
-
-	msrMeasurePk(msr,dCenter,0.5,msr->param.nGridPk,fPk);
-
-	msrBuildName(msr,achFile,iStep);
-	strncat(achFile,".pk",256);
-
-	fp = fopen(achFile,"w");
-	if ( fp==NULL) {
-	    printf("Could not create P(k) File:%s\n",achFile);
-	    _msrExit(msr,1);
-	    }
-	for(i=1; i<=msr->param.nGridPk/2; ++i) {
-	    fprintf(fp,"%d %g\n",i,fPk[i]);
-	    }
-	fclose(fp);
-	free(fPk);
+	msrOutputPk(msr,iStep);
 	}
 #endif
-
-
 
     if ( msr->param.bFindGroups ) {
 	/*

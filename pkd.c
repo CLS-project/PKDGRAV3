@@ -528,7 +528,13 @@ void pkdInitialize(
     ** performed.
     */
     pkd->pLite = mdlMallocArray(pkd->mdl,nStore+1,EPHEMERAL_BYTES,nMinLocalMemory);
+    if (mdlCore(pkd->mdl)==0) {
+	if (nMinLocalMemory < (nStore+1)*EPHEMERAL_BYTES)
+	    nMinLocalMemory = (nStore+1)*EPHEMERAL_BYTES;
+	}
+
     mdlassert(mdl,pkd->pLite != NULL);
+
     pkd->nNodes = 0;
     /*
     ** Ewald stuff!
@@ -697,7 +703,7 @@ size_t pkdTreeMemory(PKD pkd) {
     return pkd->nTreeTiles * (1<<pkd->nTreeBitsLo) * pkd->iTreeNodeSize;
     }
 
-static void getClass( PKD pkd, float fMass, float fSoft, FIO_SPECIES eSpecies, PARTICLE *p ) {
+void pkdSetClass( PKD pkd, float fMass, float fSoft, FIO_SPECIES eSpecies, PARTICLE *p ) {
     int i;
 
     if ( pkd->oMass ) {
@@ -873,7 +879,7 @@ void pkdGenerateIC(PKD pkd, GRAFICCTX gctx,  int iDim,
 		if ( p->r[d] >= 0.5 ) p->r[d] -= 1.0;
 		assert( p->r[d] >= -0.5 && p->r[d] < 0.5 );
 		v[d] = graficGetVelocity(gctx,i,j,k) * dvFac;
-		getClass(pkd,fMass,fSoft,p);
+		pkdSetClass(pkd,fMass,fSoft,p);
 		p->iOrder = 0; /* FIXME */
 		p->iClass = 0;
 		pi++;
@@ -908,7 +914,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
     if (pkd->oStar) {
 	/* Make sure star class established -- how do all procs know of these classes? How do we ensure they agree on the class identifiers? */
 	p = pkdParticle(pkd,pkd->nLocal);
-	getClass(pkd,0,0,FIO_SPECIES_STAR,p);
+	pkdSetClass(pkd,0,0,FIO_SPECIES_STAR,p);
 	}
 
     fioSeek(fio,iFirst,FIO_SPECIES_ALL);
@@ -989,7 +995,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
 	p->iOrder = iFirst++;
 	if (pkd->oParticleID) *pkdParticleID(pkd,p) = iParticleID;
 
-	getClass(pkd,fMass,fSoft,eSpecies,p);
+	pkdSetClass(pkd,fMass,fSoft,eSpecies,p);
 	}
     
     pkd->nLocal += nLocal;
@@ -3274,7 +3280,7 @@ void pkdStarForm(PKD pkd, double dRateCoeff, double dTMax, double dDenMin,
 		else pkdStar(pkd,starp)->fTimer = dTime-0.5*dtFeedbackDelay;
 		pkdSph(pkd,starp)->u = 1; /* no FB yet */
 		
-		getClass(pkd,pkdMass(pkd,starp),pkdSoft(pkd,starp),FIO_SPECIES_STAR,starp); /* How do I make a new particle? -- this is bad it rewrites mass and soft for particle */
+		pkdSetClass(pkd,pkdMass(pkd,starp),pkdSoft(pkd,starp),FIO_SPECIES_STAR,starp); /* How do I make a new particle? -- this is bad it rewrites mass and soft for particle */
 		/* JW: If class doesn't exist this is very bad -- what is the soft? 
 		   For now force softening to exist to get around this */
 		(*nFormed)++;
@@ -3450,7 +3456,6 @@ void pkdDensityStep(PKD pkd, uint8_t uRungLo, uint8_t uRungHi, double dEta, doub
 
 uint8_t pkdDtToRung(double dT, double dDelta, uint8_t uMaxRung) {
     double dRung;
-
     assert(dT>0.0);
     dRung = log(dDelta/dT) / M_LN2;
     dRung = (dRung > 0)?dRung:0;
@@ -3501,7 +3506,7 @@ int pkdUpdateRung(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
 
 void pkdDeleteParticle(PKD pkd, PARTICLE *p) {
     /* p->iOrder = -2 - p->iOrder; JW: Not needed -- just preserve iOrder */
-    getClass(pkd,pkdMass(pkd,p),pkdSoft(pkd,p),FIO_SPECIES_LAST,p); /* Special "DELETED" class == FIO_SPECIES_LAST */
+    pkdSetClass(pkd,pkdMass(pkd,p),pkdSoft(pkd,p),FIO_SPECIES_LAST,p); /* Special "DELETED" class == FIO_SPECIES_LAST */
     }
 
 void pkdNewParticle(PKD pkd, PARTICLE *p) {

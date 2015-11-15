@@ -187,6 +187,11 @@ void * master_ch(MDL mdl) {
 	*/
 	msrActiveRung(msr,0,1); /* Activate all particles */
 	msrDomainDecomp(msr,0,0,0);
+#ifdef MDL_FFTW
+	if (msr->param.bWriteIC && msr->param.nGridPk>0) {
+	    msrOutputPk(msr,iStep);
+	    }
+#endif
 	msrUpdateSoft(msr,dTime);
 	msrBuildTree(msr,dTime,msr->param.bEwald);
 	if (msrDoGravity(msr) && !msr->param.bHSDKD) {

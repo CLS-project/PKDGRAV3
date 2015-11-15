@@ -442,9 +442,9 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_GENERATEIC,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstGenerateIC,
 		  sizeof(struct inGenerateIC),sizeof(struct outGenerateIC));
-    mdlAddService(mdl,PST_CONSTRUCTIC,pst,
-		  (void (*)(void *,void *,int,void *,int *)) pltConstructIC,
-		  sizeof(struct inConstructIC),sizeof(struct outConstructIC));
+    mdlAddService(mdl,PST_MOVEIC,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pltMoveIC,
+		  sizeof(struct inMoveIC),0);
 #endif
     mdlAddService(mdl,PST_HOSTNAME,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstHostname,
@@ -3888,31 +3888,46 @@ void pstGetFFTMaxSizes(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     if (pnOut) *pnOut = sizeof(struct outGetFFTMaxSizes);
     }
 
-void pltConstructIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+void pltMoveIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
-    struct inConstructIC *in = vin;
-    struct outConstructIC *out = vout;
+    struct inMoveIC *in = vin;
+    int i;
 
-    mdlassert(pst->mdl,nIn == sizeof(struct inConstructIC));
+    mdlassert(pst->mdl,nIn == sizeof(struct inMoveIC));
     assert(pstOnNode(pst)); /* We pass around pointers! */
     if (pstNotCore(pst)) {
-	int iBegYr = in->iBegYr;
-	int iBegZk = in->iBegZk;
+	struct inMoveIC icUp;
+	
+	icUp.pBase = in->pBase;
+	icUp.nMove = pst->nUpper * in->nMove / pst->nLeaves;
+	in->nMove -= icUp.nMove;
+	icUp.iStart = in->iStart + in->nMove;
+	icUp.iNodeStart = in->iNodeStart;
+	icUp.fMass = in->fMass;
+	icUp.fSoft = in->fSoft;
 
-	in->iBegYr = (in->iBegYr + in->iEndYr) / 2;
-	in->iBegZk = (in->iBegZk + in->iEndZk) / 2;
-	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_CONSTRUCTIC,in,nIn);
-	in->iEndYr = in->iBegYr;
-	in->iEndZk = in->iBegZk;
-	in->iBegYr = iBegYr;
-	in->iBegZk = iBegZk;
-	pltConstructIC(pst->pstLower,in,nIn,vout,pnOut);
+	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_MOVEIC,&icUp,nIn);
 	mdlGetReply(pst->mdl,rID,vout,pnOut);
+	pltMoveIC(pst->pstLower,in,nIn,vout,pnOut);
 	}
     else {
-	pkdGenerateIC(plcl->pkd,in->iSeed,in->dBoxSize,in->omegam,in->omegav,in->a,
-	    in->fft,in->iBegYr,in->iEndYr,in->iBegZk,in->iEndZk,in->dic,in->pos);
-//	out->nLocal = mdlFFTlocalCount(pst->mdl,in->nGrid,in->nGrid,in->nGrid,0,0,0,0);
+	PKD pkd = plcl->pkd;
+	for(i=in->nMove-1; i>=0; --i) {
+	    basicParticle *b = in->pBase + in->iStart + i;
+	    PARTICLE *p = pkdParticle(pkd,i);
+	    vel_t *pVel = pkdVel(pkd,p);
+	    pVel[2] = b->v[2];
+	    pVel[1] = b->v[1];
+	    pVel[0] = b->v[0];
+	    pkdSetPos(pkd,p,2,b->r[2]); 
+	    pkdSetPos(pkd,p,1,b->r[1]); 
+	    pkdSetPos(pkd,p,0,b->r[0]); 
+	    pkdSetClass(pkd,in->fMass,in->fSoft,FIO_SPECIES_DARK,p);
+	    p->iOrder = in->iNodeStart + in->iStart + i;
+	    p->bMarked = p->bSrcActive = p->bDstActive = 1;
+	    p->uNewRung = p->uRung = 0;
+	    }
+	pkd->nLocal = pkd->nActive = in->nMove;
 	}
     if (pnOut) *pnOut = 0;
     }
@@ -3920,99 +3935,60 @@ void pltConstructIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 void pstGenerateIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct inGenerateIC *in = vin;
-    struct outGenerateIC *out = vout;
-    uint64_t nTotal, nLocal;
-    struct inConstructIC cic;
+    struct outGenerateIC *out = vout, outUp;
 
     mdlassert(pst->mdl,nIn == sizeof(struct inGenerateIC));
     mdlassert(pst->mdl,vout != NULL);
 
-    if (pstOffNode(pst)) {
+    if (pstNotCore(pst)) {
 	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_GENERATEIC,in,nIn);
 	pstGenerateIC(pst->pstLower,in,nIn,vout,pnOut);
-	mdlGetReply(pst->mdl,rID,vout,pnOut);
+	mdlGetReply(pst->mdl,rID,&outUp,pnOut);
+	out->N += outUp.N;
+	/* We need to relocate the particles */
+	if (pstAmNode(pst)) {
+	    struct inMoveIC move;
+	    uint64_t nTotal;
+	    int sZ;
+	    nTotal = in->nGrid; /* Careful: 32 bit integer cubed => 64 bit integer */
+	    nTotal *= in->nGrid;
+	    nTotal *= in->nGrid;
+	    move.pBase = (basicParticle *)pkdParticleBase(plcl->pkd);
+	    move.iStart = 0;
+	    move.nMove = out->N;
+	    move.fMass = (in->omegac+in->omegab) / nTotal;
+	    move.fSoft = 1.0 / (50.0*in->nGrid);
+
+	    mdlFFTlocalCount(pst->mdl,in->nGrid,in->nGrid,in->nGrid,0,&sZ,0,0);
+	    move.iNodeStart = sZ;
+	    move.iNodeStart *= in->nGrid;
+	    move.iNodeStart *= in->nGrid;
+
+	    pltMoveIC(pst,&move,sizeof(move),NULL,0);
+	    }
 	}
     else {
-	MDLFFT fft;
-
-	assert(pstAmNode(pst)); /* We are "on node" here */
+	uint64_t nTotal, nLocal;
 	nTotal = in->nGrid + 2; /* Careful: 32 bit integer cubed => 64 bit integer */
 	nTotal *= in->nGrid;
 	nTotal *= in->nGrid;
 	nLocal = nTotal / mdlThreads(pst->mdl);
-	in->ps.nStore = nLocal + (int)ceil(nLocal*in->fExtraStore);
-
-	/* Adjust upward if necessary */
-	if (in->ps.nStore*mdlCores(pst->mdl) < in->nPerNode) {
-	    in->ps.nStore = (in->nPerNode + mdlCores(pst->mdl) - 1) / mdlCores(pst->mdl);
+	nLocal += (int)ceil(nLocal*in->fExtraStore);
+	if (nLocal*mdlCores(pst->mdl) < in->nPerNode) {
+	    nLocal = (in->nPerNode + mdlCores(pst->mdl) - 1) / mdlCores(pst->mdl);
 	    }
+	pkdInitialize(
+	    &plcl->pkd,pst->mdl,nLocal,in->ps.nMinLocalMemory,in->ps.nBucket,in->ps.nGroup,
+	    in->ps.nTreeBitsLo,in->ps.nTreeBitsHi,
+	    in->ps.iCacheSize,in->ps.iWorkQueueSize,in->ps.iCUDAQueueSize,in->ps.fPeriod,
+	    in->ps.nDark,in->ps.nGas,in->ps.nStar,in->ps.mMemoryModel, in->ps.nDomainRungs);
 
-	/*
-	** Allocate memory for particle/grid store. We require 9 float arrays
-	** and a PARTICLE is normally at least 10 when calculating gravity.
-	*/
-	pstInitializePStore(pst,&in->ps,sizeof(in->ps),NULL,NULL);
-	assert( 9*sizeof(FFTW3(real)) <= pkdParticleSize(plcl->pkd) );
-	assert(3*sizeof(FFTW3(real)) == sizeof(gridpos));
-
-	cic.pos = (gridpos *)pkdParticleBase(plcl->pkd);
-	cic.dic[0].r = (FFTW3(real) *)(cic.pos + in->nPerNode);
-	cic.dic[1].r = cic.dic[0].r + in->nPerNode;
-	cic.dic[2].r = cic.dic[1].r + in->nPerNode;
-	cic.dic[3].r = cic.dic[2].r + in->nPerNode;
-	cic.dic[4].r = cic.dic[3].r + in->nPerNode;
-	cic.dic[5].r = cic.dic[4].r + in->nPerNode;
-	cic.vel = (gridpos *)cic.dic[3].r; /* We overlap here */
-
-	assert(cic.dic[5].r+in->nPerNode <= (FFTW3(real) *)pkdParticle(plcl->pkd,in->nPerNode));
-
-	mdlFFTInitialize(pst->mdl,&fft,in->nGrid,in->nGrid,in->nGrid,0,cic.dic[0].r);
-
-	cic.fft = fft;
-	cic.iBegYr = 0;
-	cic.iEndYr = cic.fft->rgrid->n2;
-	cic.iBegZk = 0;
-	cic.iEndZk = cic.fft->rgrid->n3;
-	cic.iSeed = in->iSeed;
-	cic.dBoxSize = in->dBoxSize;
-	cic.omegav = in->omegav;
-	cic.omegam = in->omegab + in->omegac;
-	cic.a = in->dExpansion;
-
-	pltConstructIC(pst,&cic,sizeof(cic),NULL,NULL);
-
-	// generate noise into dic1, dic2, dic3
-
-	// copy to dic4, dic5, dic6
-
-	// fft to real dic4, dic5, dic6 -> this is the first order
-
-
-
-
-
-
+	out->N = pkdGenerateIC(plcl->pkd,in->iSeed,in->nGrid,in->b2LPT,in->dBoxSize,
+	    in->omegac+in->omegab,in->omegav,in->sigma8,in->spectral,in->h,
+	    in->dExpansion,in->nTf, in->k, in->tf);
 	out->dExpansion = in->dExpansion;
 	}
-#if 0
-	/* Okay, here we set it to 1/50 of the interparticle separation */
-	fSoft = 1.0 / (50.0 * in->nGrid);
-	/* Mass is easy */
-	fMass = in->omegac / (1.0 * in->nGrid * in->nGrid * in->nGrid );
 
-	dx = in->dBoxSize / in->nGrid;
-//	graficInitialize( &gctx, dx, 1, in->iSeed, in->h*100,
-//			  in->omegac, in->omegab, in->omegav,
-//			  in->nGrid, in->nGrid, in->nGrid );
-//	out->dExpansion = graficGetExpansionFactor(gctx);
-
-	for ( d=1; d<=3; d++ ) {
-//	    pkdGenerateIC( plcl->pkd, gctx, d,
-//			   fSoft, fMass, in->bComove );
-	    }
-//	graficFinish(gctx);
-	}
-#endif
     if (pnOut) *pnOut = sizeof(struct outGenerateIC);
     }
 #endif

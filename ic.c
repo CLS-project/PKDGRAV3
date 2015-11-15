@@ -4,6 +4,7 @@
 #include <math.h>
 #include <gsl/gsl_integration.h>
 #include <gsl/gsl_errno.h>
+#include <gsl/gsl_spline.h>
 #include "pkd.h"
 #include "ic.h"
 #include "RngStream.h"
@@ -232,6 +233,49 @@ void PowerEHU97Setup(PowerEHU97 *power,double h0,double omega,double omegab,doub
 
     }
 
+typedef struct {
+    gsl_interp_accel *acc;
+    gsl_spline *spline;
+    double *tk, *tf;
+    double spectral;
+    double normalization;
+    int nTf;
+    } powerParameters;
+
+static double power(powerParameters *P,double k, double a) {
+    double T = gsl_spline_eval(P->spline,log(k),P->acc);
+    return pow(k,P->spectral) * P->normalization * T * T / P->tf[0] / P->tf[0];
+    }
+
+typedef struct {
+    powerParameters *P;
+    double r;
+    } varianceParameters;
+
+static double variance_integrand(double ak, void * params) {
+    varianceParameters *vprm = params;
+    double x, w;
+    // Window function for spherical tophat of given radius
+    x = ak * vprm->r;
+    w = 3.0*(sin(x)-x*cos(x))/(x*x*x);
+    return power(vprm->P,ak,1.0)*ak*ak*w*w*4.0*M_PI;
+    }
+
+static double variance(powerParameters *P,double dRadius,double dSigma8) {
+    varianceParameters vprm;
+    gsl_function F;
+    double result, error;
+    gsl_integration_workspace *W = gsl_integration_workspace_alloc (1000);
+    vprm.P = P;
+    vprm.r = dRadius; /* 8 Mpc/h for example */
+    F.function = &variance_integrand;
+    F.params = &vprm;
+    gsl_integration_qag(&F, exp(P->tk[0]), exp(P->tk[P->nTf-1]),
+	0.0, 1e-6, 1000, GSL_INTEG_GAUSS61, W, &result, &error);
+    gsl_integration_workspace_free(W);
+    return result;
+    }
+
 static void pairg( RngStream g, FFTW3(real) *y1, FFTW3(real) *y2 ) {
     double x1, x2, w;
     // Instead of this:
@@ -264,11 +308,25 @@ static double clockNow() {
     }
 
 
-void pkdGenerateNoise(PKD pkd,MDLFFT fft,FFTW3(real) *ic,
-    unsigned long seed,int sy,int ey,int sz,int ez) {
+static int wrap(int v,int h,int m) {
+    return v - (v >= h ? m : 0);
+    }
+
+static int getk(int v,int h,int m) {
+    return v <= h ? v : m - v;
+    }
+
+void pkdGenerateNoise(PKD pkd,unsigned long seed,MDLFFT fft,float complex *ic) {
+    MDL mdl = pkd->mdl;
+    const int nGrid = fft->kgrid->n3;
+    const int iNyquist = nGrid / 2;
     RngStream g;
     unsigned long fullKey[6];
-    int i,j,k,idx;
+    int j,k,jj,kk;
+    float v1,v2;
+
+    mdlGridCoord kfirst, klast, kindex;
+    mdlGridCoordFirstLast(mdl,fft->kgrid,&kfirst,&klast);
 
     fullKey[0] = seed;
     fullKey[1] = fullKey[0];
@@ -283,36 +341,57 @@ void pkdGenerateNoise(PKD pkd,MDLFFT fft,FFTW3(real) *ic,
     ** these pairs are rejected.
     */
     g = RngStream_CreateStream ("IC");
+#ifndef USE_SINGLE
     RngStream_IncreasedPrecis (g, 1);
+#endif
     RngStream_SetSeed(g,fullKey);
 
+    j = k = nGrid; /* Start with invalid values so we advance the RNG correctly. */
+    for( kindex=kfirst; !mdlGridCoordCompare(&kindex,&klast); mdlGridCoordIncrement(&kindex) ) {
+	if (j!=kindex.z || k!=kindex.y) {
+	    assert(kindex.x==0);
+	    j = kindex.z; /* Remember: z and y indexes are permuted in k-space */
+	    k = kindex.y;
 
-    double b = clockNow();
+	    jj = j<=iNyquist ? j*2 : (nGrid-j)*2 + 1;
+	    kk = k<=iNyquist ? k*2 : (nGrid-k)*2 + 1;
 
-    for(k=sz; k<ez; ++k) {
-	RngStream_ResetStartStream (g);
-	RngStream_AdvanceState (g, 0, (1L<<40)*k );
-	for(j=sy; j<ey; ++j) {
 	    RngStream_ResetStartStream (g);
-	    RngStream_AdvanceState (g, 0, (1L<<40)*k + (1L<<20)*j );
-	    for(i=0; i<fft->rgrid->n1; i += 2) {
-		idx = mdlFFTrIdx(pkd->mdl,fft,i,j,k);
-		pairg(g,&ic[idx],&ic[idx+1]);
+
+	    /* We need to generate the correct complex conjugates */
+	    if (k && j > iNyquist) {
+		int jjc = j<iNyquist ? j*2 + 1 : (nGrid-j)*2;
+		int kkc = k<iNyquist ? k*2 + 1 : (nGrid-k)*2;
+		RngStream_AdvanceState (g, 0, (1L<<40)*(jjc) + (1L<<20)*(kkc) );
+		pairg(g,&v1,&v2);
+		ic[kindex.i+iNyquist] = v1 - I * v2;
+		pairg(g,&v1,&v2);
+		ic[kindex.i] = v1 - I * v2;
+		RngStream_ResetStartStream (g);
+		RngStream_AdvanceState (g, 0, (1L<<40)*jj + (1L<<20)*kk );
+		pairg(g,&v1,&v2);
+		pairg(g,&v1,&v2);
 		}
+	    else {
+		RngStream_AdvanceState (g, 0, (1L<<40)*jj + (1L<<20)*kk );
+		pairg(g,&v1,&v2);
+		ic[kindex.i+iNyquist] = v1 + I * v2;
+		pairg(g,&v1,&v2);
+		ic[kindex.i] = v1 + I * v2;
+		}
+	    }
+	else if (kindex.i!=iNyquist) {
+	    pairg(g,&v1,&v2);
+	    ic[kindex.i] = v1 + I * v2;
+	    }
+	if (kindex.x%iNyquist + kindex.y%iNyquist + kindex.z%iNyquist == 0) {
+	    ic[kindex.i] = creal(ic[kindex.i]);
 	    }
 	}
     RngStream_DeleteStream(&g);
-
-    double a = clockNow();
-    printf("Wallclock %f seconds\n", a-b);
-
-
+    if (kfirst.x+kfirst.y+kfirst.z == 0)
+	ic[0] = 0;
     }
-
-static int wrap(int v,int h,int m) {
-    return v - (v >= h ? m : 0);
-    }
-
 
 /* Approximation */
 static double Growth(double Om0, double OL0, double a, double *Om, double *OL) {
@@ -324,95 +403,217 @@ static double Growth(double Om0, double OL0, double a, double *Om, double *OL) {
     return 2.5 * a * *Om / (pow(*Om,4./7.) - *OL + (1.+0.5* *Om)*(1.+ *OL/70.));
     }
 
-
-
-void pkdGenerateIC(PKD pkd,int iSeed,double dBoxSize,double dOmega0,double dLambda0,double a,
-    MDLFFT fft,int iBegYr,int iEndYr,int iBegZk,int iEndZk,gridptr dic[],gridpos *pos) {
+int pkdGenerateIC(PKD pkd,int iSeed,int nGrid,int b2LPT,double dBoxSize,
+    double dOmega0,double dLambda0,double dSigma8,double dSpectral,double h,
+    double a,int nTf, double *tk, double *tf) {
     MDL mdl = pkd->mdl;
     double twopi = 2.0 * 4.0 * atan(1.0);
     double itwopi = 1.0 / twopi;
-    int i,j,k,sy,ey,sz,ez,idx;
+    float inGrid = 1.0 / nGrid;
+    float fftNormalize = inGrid*inGrid*inGrid;
+    int i,j,k,idx;
     int ix, iy, iz;
-    int nyx = fft->rgrid->n1 / 2;
-    int nyy = fft->rgrid->n2 / 2;
-    int nyz = fft->rgrid->n3 / 2;
+    int iNyquist = nGrid / 2;
     double iLbox = twopi / dBoxSize;
-    double iLbox32 = pow(iLbox,1.5);
-    double ak, ak2, xfac, yfac, zfac;
+    double iLbox32 = pow(iLbox,3.0) / 2.0;
+    double ak, ak2, xfac, yfac, zfac, amp;
     double dOmega, dLambda, D0, Da;
+    double velFactor;
+    float f1, f2;
+    basicParticle *p;
+    int nLocal;
+
+    MDLFFT fft;
+    mdlGridCoord kfirst, klast, kindex;
+    mdlGridCoord rfirst, rlast, rindex;
+    gridptr ic[10];
+
+    powerParameters P;
 
     D0 = Growth(dOmega0,dLambda0,1,&dOmega,&dLambda);
     Da = Growth(dOmega0,dLambda0,a,&dOmega,&dLambda);
+    dSigma8 *= Da/D0;
 
-    printf("a=%g D0=%g Da=%g\n", a, D0, Da );
-    printf("%g %g\n", Da / D0, dplus(a,dOmega0,dLambda0) / dplus(1.0,dOmega0,dLambda0) );
+    P.normalization = 1e4;
+    P.spectral = dSpectral;
+    P.nTf = nTf;
+    P.tk = tk;
+    P.tf = tf;
+    P.acc = gsl_interp_accel_alloc();
+    P.spline = gsl_spline_alloc (gsl_interp_cspline, nTf);
+    gsl_spline_init(P.spline, P.tk, P.tf, P.nTf);
+    P.normalization *= dSigma8*dSigma8 / variance(&P,8.0,dSigma8);
+    f1 = pow(dOmega,5.0/9.0);
+    f2 = 2.0 * pow(dOmega,6.0/11.0);
 
+    velFactor = (sqrt(dOmega0/(a*a*a) + (1-dOmega0-dLambda0)/(a*a) + dLambda0)) * sqrt(8.0/3.0*M_PI);
+    velFactor *= a*a; /* Comoving */
 
-    sy = fft->kgrid->sSlab;
-    ey = sy + fft->kgrid->nSlab;
+    mdlFFTInitialize(mdl,&fft,nGrid,nGrid,nGrid,0,0);
+    mdlGridCoordFirstLast(mdl,fft->kgrid,&kfirst,&klast);
+    mdlGridCoordFirstLast(mdl,fft->rgrid,&rfirst,&rlast);
 
-    sz = fft->rgrid->sSlab;
-    ez = sz + fft->rgrid->nSlab;
+    /* The mdlSetArray will use the values from thread 0 */
+    ic[0].r = (FFTW3(real)*)pkdParticleBase(pkd);
+    ic[1].r = ic[0].r + fft->rgrid->nLocal;
+    ic[2].r = ic[1].r + fft->rgrid->nLocal;
+    ic[3].r = ic[2].r + fft->rgrid->nLocal;
+    ic[4].r = ic[3].r + fft->rgrid->nLocal;
+    ic[5].r = ic[4].r + fft->rgrid->nLocal;
+    ic[6].r = ic[5].r + fft->rgrid->nLocal;
+    ic[7].r = ic[6].r + fft->rgrid->nLocal;
+    ic[8].r = (FFTW3(real)*)pkd->pLite;;
+    ic[9].r = ic[8].r + fft->rgrid->nLocal;
 
-    /* Generate white noise realization -> dic[5] */
-    if (mdlSelf(mdl)==0) printf("Generating noise in r-space\n");
-    pkdGenerateNoise(pkd,fft,dic[5].r,iSeed,sy,ey,iBegZk,iEndZk);
-    if (mdlSelf(mdl)==0) printf("Transforming to k-space\n");
-    mdlFFT( mdl, fft, dic[5].r );
+    ic[0].r = mdlSetArray(pkd->mdl,rlast.i,sizeof(FFTW3(real)),ic[0].r);
+    ic[1].r = mdlSetArray(pkd->mdl,rlast.i,sizeof(FFTW3(real)),ic[1].r);
+    ic[2].r = mdlSetArray(pkd->mdl,rlast.i,sizeof(FFTW3(real)),ic[2].r);
+    ic[3].r = mdlSetArray(pkd->mdl,rlast.i,sizeof(FFTW3(real)),ic[3].r);
+    ic[4].r = mdlSetArray(pkd->mdl,rlast.i,sizeof(FFTW3(real)),ic[4].r);
+    ic[5].r = mdlSetArray(pkd->mdl,rlast.i,sizeof(FFTW3(real)),ic[5].r);
+    ic[6].r = mdlSetArray(pkd->mdl,rlast.i,sizeof(FFTW3(real)),ic[6].r);
+    ic[7].r = mdlSetArray(pkd->mdl,rlast.i,sizeof(FFTW3(real)),ic[7].r);
+    ic[8].r = mdlSetArray(pkd->mdl,rlast.i,sizeof(FFTW3(real)),ic[8].r);
+    ic[9].r = mdlSetArray(pkd->mdl,rlast.i,sizeof(FFTW3(real)),ic[9].r);
 
-    for(j=sy; j<ey; ++j) {
-	iy = wrap(j,nyy,fft->rgrid->n2);
-	for(k=iBegZk; k<iEndZk; ++k) {
-	    iz = wrap(j,nyy,fft->rgrid->n2);
-	    for(i=0; i<=fft->kgrid->a1; ++i) {
-		ix = wrap(j,nyy,fft->rgrid->n2);
-		idx = mdlFFTkIdx(mdl,fft,i,j,k);
-		ak2 = ix*ix + iy*iy + iz*iz;
-		ak = sqrt(ak2);
-		double amp = sqrt(1.0*(ak*iLbox) * iLbox32) * itwopi;
+    /* Particles will overlap ic[0] through ic[5] eventually */
+    nLocal = rlast.i / fft->rgrid->a1 * fft->rgrid->n1;
+    p = mdlSetArray(pkd->mdl,nLocal,sizeof(basicParticle),pkdParticleBase(pkd));
 
-		amp /= ak2;
-		xfac = amp * ix; // THESE CAN BE NEGATIVE!
-		yfac = amp * iy;
-		zfac = amp * iz;
-		dic[0].k[idx][RE] = dic[5].k[idx][RE] * xfac;
-		dic[0].k[idx][IM] = dic[5].k[idx][IM] * xfac;
-		dic[1].k[idx][RE] = dic[5].k[idx][RE] * yfac;
-		dic[1].k[idx][IM] = dic[5].k[idx][IM] * yfac;
-		dic[2].k[idx][RE] = dic[5].k[idx][RE] * zfac;
-		dic[2].k[idx][IM] = dic[5].k[idx][IM] * zfac;
-		dic[3].k[idx][RE] = dic[0].k[idx][RE];
-		dic[3].k[idx][IM] = dic[0].k[idx][IM];
-		dic[4].k[idx][RE] = dic[1].k[idx][RE];
-		dic[4].k[idx][IM] = dic[1].k[idx][IM];
-		dic[5].k[idx][RE] = dic[2].k[idx][RE];
-		dic[5].k[idx][IM] = dic[2].k[idx][IM];
-		}
+    /* Generate white noise realization -> ic[5] */
+    if (mdlSelf(mdl)==0) {printf("Generating random noise\n"); fflush(stdout); }
+    pkdGenerateNoise(pkd,iSeed,fft,ic[5].k);
+
+    if (mdlSelf(mdl)==0) {printf("Imprinting power\n"); fflush(stdout); }
+    for( kindex=kfirst; !mdlGridCoordCompare(&kindex,&klast); mdlGridCoordIncrement(&kindex) ) {
+	/* Range: [0,iNyquist] */
+	iy = getk(kindex.z,iNyquist,fft->rgrid->n3);
+	iz = getk(kindex.y,iNyquist,fft->rgrid->n2);
+	ix = getk(kindex.x,iNyquist,fft->rgrid->n1);
+	idx = kindex.i;
+
+	ak2 = ix*ix + iy*iy + iz*iz;
+	if (ak2>0) {
+	    ak = sqrt(ak2) * iLbox;
+	    amp = sqrt(power(&P,ak,a) * iLbox32) * itwopi / ak2;
+	    }
+	else amp = 0.0;
+	/*
+	** Note: noise for Nyquist is complex conjugate, so:
+	** (a + ib) * +x * -i = (b - ia) * x
+	** (a - ib) * -x * -i = (b + ia) * x [conjugate]
+	*/
+	xfac = amp * ix;
+	yfac = amp * iy;
+	zfac = amp * iz;
+
+	ic[7].k[idx] = ic[5].k[idx] * xfac;
+	ic[8].k[idx] = ic[5].k[idx] * yfac;
+	ic[9].k[idx] = ic[5].k[idx] * zfac;
+
+	if (b2LPT) {
+	    ic[0].k[idx] = ic[7].k[idx] * ix * twopi * -I; /* xx */
+	    ic[1].k[idx] = ic[8].k[idx] * iy * twopi * -I; /* yy */
+	    ic[2].k[idx] = ic[9].k[idx] * iz * twopi * -I; /* zz */
+	    ic[3].k[idx] = ic[7].k[idx] * iy * twopi * -I; /* xy */
+	    ic[4].k[idx] = ic[8].k[idx] * iz * twopi * -I; /* yz */
+	    ic[5].k[idx] = ic[9].k[idx] * ix * twopi * -I; /* zx */
 	    }
 	}
-    if (iBegZk==0) {
-	for(i=0; i<6; ++i) dic[i].k[0][RE] = dic[i].k[0][IM] = 0.0;
+
+    if (mdlSelf(mdl)==0) {printf("Generating x velocities\n"); fflush(stdout); }
+    mdlIFFT(mdl, fft, (FFTW3(complex)*)ic[7].k );
+    if (mdlSelf(mdl)==0) {printf("Generating y velocities\n"); fflush(stdout); }
+    mdlIFFT(mdl, fft, (FFTW3(complex)*)ic[8].k );
+    if (mdlSelf(mdl)==0) {printf("Generating z velocities\n"); fflush(stdout); }
+    mdlIFFT(mdl, fft, (FFTW3(complex)*)ic[9].k );
+
+    if (b2LPT) {
+	if (mdlSelf(mdl)==0) {printf("Generating xx term\n"); fflush(stdout); }
+	mdlIFFT(mdl, fft, (FFTW3(complex)*)ic[0].k );
+	if (mdlSelf(mdl)==0) {printf("Generating yy term\n"); fflush(stdout); }
+	mdlIFFT(mdl, fft, (FFTW3(complex)*)ic[1].k );
+	if (mdlSelf(mdl)==0) {printf("Generating zz term\n"); fflush(stdout); }
+	mdlIFFT(mdl, fft, (FFTW3(complex)*)ic[2].k );
+	if (mdlSelf(mdl)==0) {printf("Generating xy term\n"); fflush(stdout); }
+	mdlIFFT(mdl, fft, (FFTW3(complex)*)ic[3].k );
+	if (mdlSelf(mdl)==0) {printf("Generating yz term\n"); fflush(stdout); }
+	mdlIFFT(mdl, fft, (FFTW3(complex)*)ic[4].k );
+	if (mdlSelf(mdl)==0) {printf("Generating xz term\n"); fflush(stdout); }
+	mdlIFFT(mdl, fft, (FFTW3(complex)*)ic[5].k );
+
+	/* Calculate the source term */
+	if (mdlSelf(mdl)==0) {printf("Generating source term\n"); fflush(stdout); }
+	for( rindex=rfirst; !mdlGridCoordCompare(&rindex,&rlast); mdlGridCoordIncrement(&rindex) ) {
+	    int i = rindex.i;
+	    ic[6].r[i] = ic[0].r[i]*ic[1].r[i] + ic[0].r[i]*ic[2].r[i] + ic[1].r[i]*ic[2].r[i]
+		- ic[3].r[i]*ic[3].r[i] - ic[4].r[i]*ic[4].r[i] - ic[5].r[i]*ic[5].r[i];
+	    }
+	mdlFFT(mdl, fft, ic[6].r );
 	}
 
-
-    if (mdlSelf(mdl)==0) printf("FFT 1\n");
-    mdlIFFT(mdl, fft, dic[3].k );
-    if (mdlSelf(mdl)==0) printf("FFT 2\n");
-    mdlIFFT(mdl, fft, dic[4].k );
-    if (mdlSelf(mdl)==0) printf("FFT 3\n");
-    mdlIFFT(mdl, fft, dic[5].k );
-    if (mdlSelf(mdl)==0) printf("FFT done\n");
-
+    /* Move the 1LPT positions/velocities to the particle area */
     idx = 0;
-    for(k=sz; k<ez; ++k) {
-	for(j=iBegYr; j<iEndYr; ++j) {
-	    for(i=0; i<=fft->rgrid->n1; ++i) {
-		pos[idx].x = dic[3].r[mdlFFTrIdx(mdl, fft,  i,  j,  k)];
-		pos[idx].y = dic[4].r[mdlFFTrIdx(mdl, fft,  i,  j,  k)];
-		pos[idx].z = dic[5].r[mdlFFTrIdx(mdl, fft,  i,  j,  k)];
-		++idx;
+    for( rindex=rfirst; !mdlGridCoordCompare(&rindex,&rlast); mdlGridCoordIncrement(&rindex) ) {
+	float x = ic[7].r[rindex.i];
+	float y = ic[8].r[rindex.i];
+	float z = ic[9].r[rindex.i];
+	p[idx].r[0] = (rindex.x+0.5) * inGrid + x - 0.5;
+	p[idx].r[1] = (rindex.y+0.5) * inGrid + y - 0.5;
+	p[idx].r[2] = (rindex.z+0.5) * inGrid + z - 0.5;
+	p[idx].v[0] = f1 * x * velFactor;
+	p[idx].v[1] = f1 * y * velFactor;
+	p[idx].v[2] = f1 * z * velFactor;
+	++idx;
+	}
+    assert(idx == nLocal);
+
+    if (b2LPT) {
+	for(kindex=kfirst; !mdlGridCoordCompare(&kindex,&klast); mdlGridCoordIncrement(&kindex)) {
+	    iy = wrap(kindex.z,iNyquist,fft->rgrid->n3);
+	    iz = wrap(kindex.y,iNyquist,fft->rgrid->n2);
+	    ix = wrap(kindex.x,iNyquist,fft->rgrid->n1);
+	    idx = kindex.i;
+	    ak2 = ix*ix + iy*iy + iz*iz;
+	    ak = sqrt(ak2);
+
+	    if (ak2>0.0) {
+		ic[7].k[idx] = -3.0/ak2 * ix * ic[6].k[idx] * -I;
+		ic[8].k[idx] = -3.0/ak2 * iy * ic[6].k[idx] * -I;
+		ic[9].k[idx] = -3.0/ak2 * iz * ic[6].k[idx] * -I;
+		}
+	    else {
+		ic[7].k[idx] = 0.0;
+		ic[8].k[idx] = 0.0;
+		ic[9].k[idx] = 0.0;
 		}
 	    }
-	}
 
+	if (mdlSelf(mdl)==0) {printf("Generating x2 velocities\n"); fflush(stdout); }
+	mdlIFFT(mdl, fft, (FFTW3(complex)*)ic[7].k );
+	if (mdlSelf(mdl)==0) {printf("Generating y2 velocities\n"); fflush(stdout); }
+	mdlIFFT(mdl, fft, (FFTW3(complex)*)ic[8].k );
+	if (mdlSelf(mdl)==0) {printf("Generating z2 velocities\n"); fflush(stdout); }
+	mdlIFFT(mdl, fft, (FFTW3(complex)*)ic[9].k );
+
+	/* Add the 2LPT positions/velocities corrections to the particle area */
+	idx = 0;
+	for( rindex=rfirst; !mdlGridCoordCompare(&rindex,&rlast); mdlGridCoordIncrement(&rindex) ) {
+	    float x = ic[7].r[rindex.i] * fftNormalize;
+	    float y = ic[8].r[rindex.i] * fftNormalize;
+	    float z = ic[9].r[rindex.i] * fftNormalize;
+
+	    p[idx].r[0] += x;
+	    p[idx].r[1] += y;
+	    p[idx].r[2] += z;
+	    p[idx].v[0] += f2 * x * velFactor;
+	    p[idx].v[1] += f2 * y * velFactor;
+	    p[idx].v[2] += f2 * z * velFactor;
+	    ++idx;
+	    }
+	}
+    gsl_spline_free(P.spline);
+    gsl_interp_accel_free(P.acc);
+
+    return nLocal;
     }

@@ -196,6 +196,7 @@ struct parameters {
     double dBoxSize;
     int nGrid;
     int iSeed;
+    int b2LPT;
 
 #ifdef MDL_FFTW
     int nGridPk;

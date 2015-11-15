@@ -174,7 +174,7 @@ enum pst_service {
     PST_INITIALIZEPSTORE,
     PST_GETFFTMAXSIZES,
     PST_GENERATEIC,
-    PST_CONSTRUCTIC,
+    PST_MOVEIC,
     PST_HOSTNAME,
     PST_MEMSTATUS,
     PST_GETCLASSES,
@@ -1126,6 +1126,7 @@ struct inGenerateIC {
     float fExtraStore;
     int iSeed;
     int nGrid;
+    int b2LPT;
     int bComove;
     int nTf;
     double k[MAX_TF];
@@ -1133,28 +1134,20 @@ struct inGenerateIC {
     };
 struct outGenerateIC {
     double dExpansion;
+    uint64_t N;
     };
 void pstGenerateIC(PST,void *,int,void *,int *);
 
-/* PST_CONSTRUCTIC */
-struct inConstructIC {
-    MDLFFT fft;
-    gridptr dic[6];
-    gridpos *pos;
-    gridpos *vel;
-    /* Threads get parts of each slab */
-    uint64_t iBegYr, iEndYr;
-    uint64_t iBegZk, iEndZk;
-    int iSeed;
-    double dBoxSize;
-    double omegam;
-    double omegav;
-    double a;
+/* PST_MOVEIC */
+struct inMoveIC {
+    basicParticle *pBase;
+    uint64_t iStart;
+    uint64_t nMove;
+    uint64_t iNodeStart;
+    float fMass;
+    float fSoft;
     };
-struct outConstructIC {
-    double dExpansion;
-    };
-void pltConstructIC(PST,void *,int,void *,int *);
+void pltMoveIC(PST,void *,int,void *,int *);
 #endif
 
 /* PST_HOSTNAME */

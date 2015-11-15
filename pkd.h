@@ -1260,6 +1260,7 @@ void pkdGenerateIC(PKD pkd, GRAFICCTX gctx, int iDim,
 #endif
 int pkdGetClasses( PKD pkd, int nMax, PARTCLASS *pClass );
 void pkdSetClasses( PKD pkd, int n, PARTCLASS *pClass, int bUpdate );
+void pkdSetClass( PKD pkd, float fMass, float fSoft, FIO_SPECIES eSpecies, PARTICLE *p );
 
 int pkdSelSrcAll(PKD pkd);
 int pkdSelDstAll(PKD pkd);
