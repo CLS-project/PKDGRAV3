@@ -674,7 +674,11 @@ static void flush_element(MDL mdl,MDLserviceElement *qhdr) {
     /* Grab a free buffer, or wait for one to become free */
     if (pBuffer==NULL) {
 	while (mpi->flushHeadFree.hdr.mpi.next == &mpi->flushHeadFree) {
+	    MPI_Status status;
+	    int flag;
 	    flush_check_completion(mdl);
+	    MPI_Test(&mpi->pReqRcv->mpiRequest, &flag, &status);
+	    if (flag) mdlCacheReceive(mdl,&status);
 	    }
 	pBuffer = flush_remove(mpi->flushHeadFree.hdr.mpi.next);
 	flush_insert_after(&mpi->flushHeadBusy,pBuffer);
