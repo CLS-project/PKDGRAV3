@@ -188,8 +188,8 @@ void * master_ch(MDL mdl) {
 	msrActiveRung(msr,0,1); /* Activate all particles */
 	msrDomainDecomp(msr,0,0,0);
 #ifdef MDL_FFTW
-	if (msr->param.bWriteIC && msr->param.nGridPk>0) {
-	    msrOutputPk(msr,iStep);
+	if (prmSpecified(msr->prm,"nGrid") && msr->param.nGridPk>0) {
+	    msrOutputPk(msr,msr->param.iStartStep);
 	    }
 #endif
 	msrUpdateSoft(msr,dTime);
