@@ -68,7 +68,6 @@ typedef struct ArcContext {
     CDB *T2;
     CDB *B2;
     CDB *Free;
-    pthread_mutex_t mux;
     uint32_t nHash;
     uint32_t uHashMask;
     uint32_t nCache;

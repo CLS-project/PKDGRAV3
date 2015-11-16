@@ -196,8 +196,6 @@ ARC arcInitialize(uint32_t nCache,uint32_t uDataSize,CACHE *c) {
     arc->nCache = nCache;
     arc->cdbBase = malloc(2*nCache*sizeof(CDB));
     assert(arc->cdbBase != NULL);
-    /* We need a mutex for cache trolling */
-    pthread_mutex_init(&arc->mux,NULL);
     /*
     ** Make sure we have sufficient alignment of data.
     ** In this case to nearest long word (8 bytes).
@@ -297,8 +295,6 @@ void arcFinish(ARC arc) {
     ** Free the CDBs.
     */
     free(arc->cdbBase);
-    /* Get rid of the mutex */
-    pthread_mutex_destroy(&arc->mux);
     /*
     ** Free context.
     */
@@ -2479,7 +2475,6 @@ static void finishCacheRequest(MDL mdl, int cid, int iIndex, int id, CDB *temp,i
 	uint32_t uId = temp->uId & _IDMASK_;
 	mdlWaitThreadQueue(mdl,MDL_TAG_CACHECOM);
 	assert(uIndex == c->cacheRequest.caReq.iIndex );
-	pthread_mutex_lock(&arc->mux);
 	memcpy(temp->data,c->pOneLine, c->iDataSize);
 	if (c->init) (*c->init)(c->ctx,temp->data);
 	++temp->data[-1];       /* prefetch must never evict our data */
@@ -2491,7 +2486,6 @@ static void finishCacheRequest(MDL mdl, int cid, int iIndex, int id, CDB *temp,i
 	    if (c->init) (*c->init)(c->ctx,temp2->data);
 	    }
 	--temp->data[-1];       /* may lock below */
-	pthread_mutex_unlock(&arc->mux);
 	}
     }
 
@@ -2524,42 +2518,6 @@ static void *Acquire(MDL mdl, int cid, uint32_t uIndex, int uId, int bLock,int b
     for ( temp = arc->Hash[uHash]; temp; temp = temp->extra.coll ) {
 	if (temp->uIndex == uIndex && (temp->uId&_IDMASK_) == tuId) break;
 	}
-
-    /* Okay, now try other thread caches */
-#if 0
-    if (temp == NULL) {
-       int iMDL;
-       for (iMDL = 0; iMDL < mdl->base.nCores; ++iMDL) {
-           if (iMDL != mdlCore(mdl)) {
-               MDL tMDL = mdl->pmdl[iMDL];
-               CACHE *tc = &tMDL->cache[cid];
-               ARC tarc = tc->arc;
-               pthread_mutex_lock(&tarc->mux);
-	       for( temp = tarc->Hash[uHash]; temp; temp = temp->coll) {
-                   if (temp->uIndex == uIndex && (temp->uId&_IDMASK_) == tuId) break;
-                   }
-               pthread_mutex_unlock(&tarc->mux);
-               /* Clone this into our cache */
-               if (temp && temp->data) {
-                   /* lock in the correct order lest we deadlock */
-                   if (mdlCore(mdl)<iMDL) pthread_mutex_lock(&arc->mux);
-                   pthread_mutex_lock(&tarc->mux);
-                   if (mdlCore(mdl)>iMDL) pthread_mutex_lock(&arc->mux);
-		   /* Look again */
-		   for( temp = tarc->Hash[uHash]; temp; temp = temp->coll ) {
-		       if (temp->uIndex == uIndex && (temp->uId&_IDMASK_) == tuId) break;
-		       }
-		   if (temp && temp->data)
-		       temp = arcSetPrefetchDataByHash(mdl,arc,uIndex,tuId,temp->data,uHash);
-		   else temp = NULL;
-                   pthread_mutex_unlock(&arc->mux);
-                   pthread_mutex_unlock(&tarc->mux);
-		   if (temp) break; /* Now treat it as a cache hit; it is. */
-                   }
-               }
-           }
-       }
-#endif
     if (temp != NULL) {                       /* found in cache directory? */
 	switch (temp->uId & _WHERE_) {                   /* yes, which list? */
 	case _P1_:
@@ -2640,7 +2598,6 @@ static void *Acquire(MDL mdl, int cid, uint32_t uIndex, int uId, int bLock,int b
 	** Can initiate the data request right here, and do the rest while waiting...
 	*/
 	if (!bVirtual) queueCacheRequest(mdl,cid,uIndex,uId);
-	pthread_mutex_lock(&arc->mux);
 	L1Length = arc->T1Length + arc->B1Length;
 	/*assert(L1Length<=arc->nCache);*/
 	if (L1Length == arc->nCache) {                                   /* B1 + T1 full? */
@@ -2681,15 +2638,12 @@ static void *Acquire(MDL mdl, int cid, uint32_t uIndex, int uId, int bLock,int b
 	mru_insert(temp,arc->T1);                                             /* seen once recently, put on T1 */
 	arc->T1Length++;                                                       /* bookkeep: */
 	/*assert(arc->T1Length+arc->B1Length<=arc->nCache);*/
-	pthread_mutex_unlock(&arc->mux);
 	temp->uId = uId;                  /* temp->dirty = dirty;  p->ARC_where = _T1_; as well! */
 /* 	assert( (temp->uId&_WHERE_) == _T1_ ); */
 	temp->uIndex = uIndex;
 	finishCacheRequest(mdl,cid,uIndex,uId,temp,bVirtual);
-	pthread_mutex_lock(&arc->mux);
 	temp->extra.coll = arc->Hash[uHash];                  /* add to collision chain */
 	arc->Hash[uHash] = temp;                               /* insert into hash table */
-	pthread_mutex_unlock(&arc->mux);
 	mdlTimeAddWaiting(mdl);
     }
     /*assert(temp!=NULL);*/
