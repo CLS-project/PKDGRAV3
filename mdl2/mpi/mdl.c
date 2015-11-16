@@ -2172,10 +2172,14 @@ static CDB *destage(MDL mdl, ARC arc, CDB *temp) {
     assert(temp->data != NULL);
     assert(temp->data[-1] == _ARC_MAGIC_);
     if (temp->uId & _DIRTY_) {     /* if dirty, evict before free */
+	/* We save this because we can still be in the hash table (see replace)! */
+	struct CacheDataBucket *coll = temp->extra.coll;
 	temp->extra.cache = arc->cache;
 	/* Send the CDB to the MPI thread for flushing, and wait for it to come back */
 	mdlSendToMPI(mdl,&temp->hdr.svc,MDL_SE_CACHE_FLUSH);
 	mdlWaitThreadQueue(mdl,MDL_TAG_CACHE_FLUSH);
+	temp->extra.coll = coll; /* FIXME: can we "do work in WaitThreadQueue? */
+	/*temp->extra.cache = 0xdeadbeef;*/
 	temp->uId &= ~ _DIRTY_;    /* No longer dirty */
 	}
     return temp;
