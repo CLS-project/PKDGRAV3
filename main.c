@@ -187,13 +187,13 @@ void * master_ch(MDL mdl) {
 	*/
 	msrActiveRung(msr,0,1); /* Activate all particles */
 	msrDomainDecomp(msr,0,0,0);
+	msrUpdateSoft(msr,dTime);
+	msrBuildTree(msr,dTime,msr->param.bEwald);
 #ifdef MDL_FFTW
 	if (prmSpecified(msr->prm,"nGrid") && msr->param.nGridPk>0) {
 	    msrOutputPk(msr,msr->param.iStartStep);
 	    }
 #endif
-	msrUpdateSoft(msr,dTime);
-	msrBuildTree(msr,dTime,msr->param.bEwald);
 	if (msrDoGravity(msr) && !msr->param.bHSDKD) {
 	    if (msr->param.bNewKDK) bKickOpen = 1;
 	    else bKickOpen = 0;
