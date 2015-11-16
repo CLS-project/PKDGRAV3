@@ -171,18 +171,13 @@ static inline CDB * remove_from_hash(ARC arc,CDB *p) {
     uint32_t uIndex = p->uIndex;
     uint32_t uId = p->uId&_IDMASK_;
     uint32_t uHash = (MurmurHash2(uIndex,uId)&arc->uHashMask);
-    CDB **pt = &arc->Hash[uHash];
-    while (*pt) {
-	if ((*pt)->uIndex == uIndex) {
-	    if (((*pt)->uId&_IDMASK_) == uId) {
-		/*
-		** Unlink.
-		*/
-		*pt = (*pt)->extra.coll;
-		return p;
-		}
+    CDB **pt;
+
+    for(pt = &arc->Hash[uHash]; *pt != NULL; pt = &((*pt)->extra.coll)) {
+	if ( *pt == p) {
+	    *pt = (*pt)->extra.coll;
+	    return p;
 	    }
-	pt = &((*pt)->extra.coll);
 	}
     printf("Tried to remove uIndex %d uId %x\n", uIndex, uId);
     assert(0);  /* should never get here, the element should always be found in the hash */
