@@ -685,8 +685,13 @@ static void mpi_flush_element(MDL mdl,MDLserviceElement *qhdr) {
 	    MPI_Status status;
 	    int flag;
 	    flush_check_completion(mdl);
-//	    MPI_Test(&mpi->pReqRcv->mpiRequest, &flag, &status);
-//	    if (flag) mdlCacheReceive(mdl,&status);
+    	    if (mpi->pReqRcv->mpiRequest != MPI_REQUEST_NULL) {
+            	while(1) {
+                    MPI_Test(&mpi->pReqRcv->mpiRequest, &flag, &status);
+                    if (flag) mdlCacheReceive(mdl,&status);
+                    else break;
+                    }
+                }
 	    }
 	pBuffer = flush_remove(mpi->flushHeadFree.hdr.mpi.next);
 	flush_insert_after(&mpi->flushHeadBusy,pBuffer);
