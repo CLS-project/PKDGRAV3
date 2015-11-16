@@ -2383,13 +2383,11 @@ static inline CDB *arcSetPrefetchDataByHash(MDL mdl,ARC arc,uint32_t uIndex,uint
 	/*assert(L1Length<=arc->nCache);*/
 	if (L1Length == arc->nCache) {                                   /* B1 + T1 full? */
 	    if (arc->T1Length < arc->nCache) {                                           /* Still room in T1? */
-		temp = lru_remove(arc->B1);                                    /* yes: take page off B1 */
-		remove_from_hash(arc,temp);            /* remove from hash table */
+		temp = remove_from_hash(arc,lru_remove(arc->B1));        /* yes: take page off B1 */
 		arc->B1Length--;                                               /* bookkeep that */
 		temp->data = replace(mdl,arc,0);                                /* find new place to put page */
 	    } else {                                                      /* no: B1 must be empty */
-		temp = lru_remove(arc->T1);                                    /* take page off T1 */
-		remove_from_hash(arc,temp);            /* remove from hash table */
+		temp = remove_from_hash(arc,lru_remove(arc->T1));         /* take page off T1 */
 		destage(mdl,arc,temp);     /* if dirty, evict before overwrite */
 		arc->T1Length--;                                               /* bookkeep that */
 	    }
@@ -2401,8 +2399,7 @@ static inline CDB *arcSetPrefetchDataByHash(MDL mdl,ARC arc,uint32_t uIndex,uint
 		if (arc->T1Length + arc->T2Length + arc->B1Length + arc->B2Length == 2*arc->nCache) {
 		    /* directory is full: */
 		    /*assert(arc->B2Length>0);*/
-		    temp = lru_remove(arc->B2);            /* here we lose memory of what was in lru B2 */
-		    remove_from_hash(arc,temp);            /* remove from hash table */
+		    temp = remove_from_hash(arc,lru_remove(arc->B2));/* here we lose memory of what was in lru B2 */
 		    arc->B2Length--;                                           /* find and reuse B2’s LRU */
 		    inB2=1;
 		} else {                                                   /* cache directory not full, easy case */
@@ -2424,7 +2421,7 @@ static inline CDB *arcSetPrefetchDataByHash(MDL mdl,ARC arc,uint32_t uIndex,uint
 	temp->extra.coll = arc->Hash[uHash];                  /* add to collision chain */
 	arc->Hash[uHash] = temp;                               /* insert into hash table */
     }
-    memcpy(temp->data,data,arc->uDataSize*sizeof(uint64_t));
+    memcpy(temp->data,data,arc->cache->iDataSize); /* Copy actual cache data amount */
     return temp;
 }
 
@@ -2648,14 +2645,12 @@ static void *Acquire(MDL mdl, int cid, uint32_t uIndex, int uId, int bLock,int b
 	/*assert(L1Length<=arc->nCache);*/
 	if (L1Length == arc->nCache) {                                   /* B1 + T1 full? */
 	    if (arc->T1Length < arc->nCache) {                                           /* Still room in T1? */
-		temp = lru_remove(arc->B1);                                    /* yes: take page off B1 */
-		remove_from_hash(arc,temp);            /* remove from hash table */
+		temp = remove_from_hash(arc,lru_remove(arc->B1));        /* yes: take page off B1 */
 		arc->B1Length--;                                               /* bookkeep that */
 		temp->data = replace(mdl,arc,0);                                /* find new place to put page */
 		}
 	    else {                                                      /* no: B1 must be empty */
-		temp = lru_remove(arc->T1);                                    /* take page off T1 */
-		remove_from_hash(arc,temp);            /* remove from hash table */
+		temp = remove_from_hash(arc,lru_remove(arc->T1));       /* take page off T1 */
 		destage(mdl,arc,temp);     /* if dirty, evict before overwrite */
 		arc->T1Length--;                                               /* bookkeep that */
 		}
@@ -2668,8 +2663,7 @@ static void *Acquire(MDL mdl, int cid, uint32_t uIndex, int uId, int bLock,int b
 		/* Yes, cache full: */
 		if (nCache == 2*arc->nCache) {
 		    /* directory is full: */
-		    temp = lru_remove(arc->B2);
-		    remove_from_hash(arc,temp);            /* remove from hash table */
+		    temp = remove_from_hash(arc,lru_remove(arc->B2));
 		    arc->B2Length--;                                           /* find and reuse B2’s LRU */
 		    inB2=1;
 		} else {                                                   /* cache directory not full, easy case */
