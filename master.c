@@ -1789,7 +1789,12 @@ double msrGenerateIC(MSR msr) {
     pstGenerateIC(msr->pst,&in,sizeof(in),&out,&nOut);
     msrSetClasses(msr);
     dsec = msrTime() - sec;
+    PKD pkd = msr->pst->plcl->pkd;
     msrprintf(msr,"IC Generation Complete @ a=%g, Wallclock: %f secs\n\n",out.dExpansion,dsec);
+    printf("Allocated %lu MB for particle store on each processor.\n",
+	      pkdParticleMemory(pkd)/(1024*1024));
+    printf("Particles: %lu bytes (persistent) + %d bytes (ephemeral), Nodes: %lu bytes\n",
+	pkdParticleSize(pkd),EPHEMERAL_BYTES,pkdNodeSize(pkd));
 
     return getTime(msr,out.dExpansion,&dvFac);
     }
