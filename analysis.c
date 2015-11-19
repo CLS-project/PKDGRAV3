@@ -5,6 +5,7 @@
 #include <assert.h>
 #include <stdlib.h>
 #include <math.h>
+#include "vqsort.h"
 #include "pkd.h"
 
 #define SHAPES
@@ -776,6 +777,24 @@ static void cell_accumulate(PKD pkd, MDLFFT fft,int nGrid, int x,int y,int z, fl
     /*mdlRelease(pkd->mdl,CID_PK,p);*/
     }
 
+#ifdef NGP
+static void ngp_assign(PKD pkd, MDLFFT fft, int nGrid,
+                       double x, double y, double z, double mass) {
+    int           ix, iy, iz;
+
+    /* coordinates in subcube units [0,NGRID] */
+    ix = (x * nGrid);
+    iy = (y * nGrid);
+    iz = (z * nGrid);
+
+    /* If very close to 1.0, it could round up, so correct */
+    if (ix==nGrid) ix = nGrid-1;
+    if (iy==nGrid) iy = nGrid-1;
+    if (iz==nGrid) iz = nGrid-1;
+
+    cell_accumulate(pkd,fft,nGrid,ix,iy,iz,mass);
+    }
+#else
 static void tsc_assign(PKD pkd, MDLFFT fft, int nGrid,
 		       double x, double y, double z, double mass) {
     int           ix, iy, iz, ixp1, iyp1, izp1, ixm1, iym1, izm1;
@@ -855,14 +874,38 @@ static void tsc_assign(PKD pkd, MDLFFT fft, int nGrid,
     cell_accumulate(pkd,fft,nGrid,  ix,iyp1,izp1,hx0 *hyp1 *hzp1 * pw);
     cell_accumulate(pkd,fft,nGrid,ixp1,iyp1,izp1,hxp1*hyp1 *hzp1 * pw);
 }
+#endif
 
 static double deconvolveWindow(int i,int nGrid) {
     double win = M_PI * i / nGrid;
     if(win>0.1) win = sin(win)/win;
     else win=1.0-win*win/6.0*(1.0-win*win/20.0*(1.0-win*win/76.0));
+#ifdef NGP
+    return win;
+#else
     return win*win*win;
+#endif
     }
 
+static inline int pkd_grid_order(PKD pkd,void *a,void *b,int nGrid) {
+    PARTICLE *pa = a;
+    PARTICLE *pb = b;
+    int i1, i2;
+
+    i1 = nGrid * (pkdPos(pkd,pa,0) + 0.5);
+    i2 = nGrid * (pkdPos(pkd,pb,0) + 0.5);
+    if (i1 != i2) return i1 < i2;
+    i1 = nGrid * (pkdPos(pkd,pa,2) + 0.5);
+    i2 = nGrid * (pkdPos(pkd,pb,2) + 0.5);
+    if (i1 != i2) return i1 < i2;
+    i1 = nGrid * (pkdPos(pkd,pa,1) + 0.5);
+    i2 = nGrid * (pkdPos(pkd,pb,1) + 0.5);
+    return i1 < i2;
+    }
+
+#define qsort_lt(a,b) pkd_grid_order(pkd,a,b,nGrid)
+
+/*#define TEST_DENSITY*/
 void pkdMeasurePk(PKD pkd, double dCenter[3], double dRadius, double dTotalMass,
 		  int nGrid, float *fPower, int *nPower) {
     PARTICLE *p;
@@ -879,6 +922,9 @@ void pkdMeasurePk(PKD pkd, double dCenter[3], double dRadius, double dTotalMass,
     int iNyquist;
     int nGridFFT;
     int bPeriodic = 1;
+
+    /* Sort the particles into optimal "cell" order */
+    QSORT(pkdParticleSize(pkd),pkdParticle(pkd,0),pkd->nLocal,qsort_lt);
 
     iNyquist = nGrid / 2;
     nGridFFT = bPeriodic ? nGrid : nGrid*2;
@@ -910,9 +956,12 @@ void pkdMeasurePk(PKD pkd, double dCenter[3], double dRadius, double dTotalMass,
 	** The position has been rescaled to [0,1).  If it is not in that range,
 	** then this particle is outside of the given box and should be ignored.
 	*/
-	if( r[0]>=0.0 && r[0]<1.0 && r[1]>=0.0 && r[1]<1.0 && r[2]>=0.0 && r[2]<1.0 )
-	    tsc_assign(pkd, fft, nGrid, r[0], r[1], r[2], pkdMass(pkd,p));
-	else assert(0);
+	assert( r[0]>=0.0 && r[0]<1.0 && r[1]>=0.0 && r[1]<1.0 && r[2]>=0.0 && r[2]<1.0 );
+#ifdef NGP
+	tsc_assign(pkd, fft, nGrid, r[0], r[1], r[2], pkdMass(pkd,p));
+#else
+	tsc_assign(pkd, fft, nGrid, r[0], r[1], r[2], pkdMass(pkd,p));
+#endif
 	}
 #else
     for (k=0;k<nGrid;++k) {
