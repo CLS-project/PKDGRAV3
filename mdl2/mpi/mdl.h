@@ -159,6 +159,7 @@ typedef struct mdl_flush_buffer {
     union {
 	mdl_flush_links mpi;
 	OPA_Queue_element_hdr_t hdr;
+	MDLserviceElement svc; /* When sending to/from the MPI thread */
 	} hdr;
     MPI_Request request;
     uint32_t nBufferSize;
@@ -217,14 +218,15 @@ typedef struct {
     MDLflushBuffer flushHeadBusy;
     MDLflushBuffer flushHeadFree;
     MDLflushBuffer flushHeadSent;
+    int flushBusyCount, flushBuffCount;
     int *pRequestTargets;
     int nRequestTargets;
     int iRequestTarget;
     int nSendRecvReq;
-
     int nActiveCores;
     int nOpenCaches;
-    int iCaBufSize;  /* Cache buffer size */
+    int iCacheBufSize;  /* Cache input buffer size */
+    int iReplyBufSize;  /* Cache reply buffer size */
     MPI_Request *pSendRecvReq;
     MDLcacheReplyData *pReqRcv;
     MDLserviceSend **pSendRecvBuf;
@@ -272,7 +274,11 @@ typedef struct mdlContext {
      */
     int nMaxCacheIds;
     CACHE *cache;
+    MDLflushBuffer *coreFlushBuffer;
+    OPA_Queue_info_t coreFlushBuffers; /* Buffers we can destage to */
     OPA_Queue_info_t wqCacheFlush;
+
+    int nFlushOutBytes;
 
     mdlContextMPI *mpi;
     MDLserviceSend sendRequest;

@@ -43,6 +43,7 @@
 #define MDL_DEFAULT_CACHEIDS	5
 
 #define MDL_TRANS_SIZE		5000000
+#define MDL_FLUSH_DATA_SIZE	32000
 /*                                   MQ   MPI */
 #define MDL_TAG_BARRIER        	1 /* Yes  Yes */
 #define MDL_TAG_SWAPINIT 	2 /* NO   Yes */
@@ -479,6 +480,8 @@ int mdlCacheReceive(MDL mdl,MPI_Status *status) {
     iCore = ph->idTo - mdl->pmdl[0]->base.idSelf;
     assert(iCore>=0 && iCore<mdl->base.nCores);
     c = &mdl->pmdl[iCore]->cache[ph->cid];
+    if (c->iType == MDL_NOCACHE) printf("Cache %d\n",ph->cid);
+
     assert(c->iType != MDL_NOCACHE);
 
     switch (ph->mid) {
@@ -512,7 +515,7 @@ int mdlCacheReceive(MDL mdl,MPI_Status *status) {
 	    mpi->freeCacheReplies = pdata->next;
 	    }
 	else {
-	    pdata = malloc(sizeof(MDLcacheReplyData) + mpi->iCaBufSize);
+	    pdata = malloc(sizeof(MDLcacheReplyData) + mpi->iReplyBufSize);
 	    assert(pdata != NULL);
 	    }
 	assert(*mpi->busyCacheRepliesTail == NULL);
@@ -605,7 +608,7 @@ int mdlCacheReceive(MDL mdl,MPI_Status *status) {
 
     /* Fire up next receive */
     assert(mpi->pReqRcv->mpiRequest == MPI_REQUEST_NULL);
-    MPI_Irecv(mpi->pReqRcv+1,mpi->iCaBufSize, MPI_BYTE, MPI_ANY_SOURCE,
+    MPI_Irecv(mpi->pReqRcv+1,mpi->iCacheBufSize, MPI_BYTE, MPI_ANY_SOURCE,
 	      MDL_TAG_CACHECOM, mpi->commMDL, &mpi->pReqRcv->mpiRequest);
 
     return ret;
@@ -648,26 +651,21 @@ static void flush_send(MDL mdl,MDLflushBuffer *pBuffer) {
     MPI_Issend(pBuffer+1,pBuffer->nBytes,MPI_BYTE,pBuffer->iRankTo,
 	MDL_TAG_CACHECOM,mpi->commMDL,&pBuffer->request);
     flush_insert_after(mpi->flushHeadSent.hdr.mpi.prev,flush_remove(pBuffer));
+    mpi->flushBusyCount--;
     }
 
-static void mpi_flush_element(MDL mdl,MDLserviceElement *qhdr) {
+static void mpi_flush_element(MDL mdl,CAHEAD *pHdr,int iDataSize) {
     mdlContextMPI *mpi = mdl->mpi;
-    CDB *entry = (CDB *)qhdr;
-    int iThread = entry->uId&_IDMASK_;
-    int iProc = mdlThreadToProc(mdl,iThread);
+    int iProc = mdlThreadToProc(mdl,pHdr->idTo);
     MDLflushBuffer *pBuffer;
-    CACHE *c;
     int iCore;
 
     assert(mdl->base.iCore == mdl->iCoreMPI); /* MPI thread only */
 
-    c = entry->extra.cache;
-    assert(c->iType != MDL_NOCACHE);
-
     /* If we have a buffer already then add to it if we can */
     if ( (pBuffer=mpi->flushBuffersByRank[iProc]) != NULL ) {
 	int nLeft = pBuffer->nBufferSize - pBuffer->nBytes;
-	int nToAdd = sizeof(CAHEAD) + c->iDataSize;
+	int nToAdd = sizeof(CAHEAD) + iDataSize;
 	/* No room left? Send this buffer and grab a new one for this rank */
 	if (nToAdd > nLeft ) {
 	    flush_send(mdl,pBuffer);
@@ -678,7 +676,6 @@ static void mpi_flush_element(MDL mdl,MDLserviceElement *qhdr) {
 	    flush_insert_after(&mpi->flushHeadBusy,flush_remove(pBuffer));
 	    }
 	}
-    if (pBuffer == NULL) flush_check_completion(mdl);
     /* Grab a free buffer, or wait for one to become free */
     if (pBuffer==NULL) {
 	while (mpi->flushHeadFree.hdr.mpi.next == &mpi->flushHeadFree) {
@@ -695,31 +692,50 @@ static void mpi_flush_element(MDL mdl,MDLserviceElement *qhdr) {
 	    }
 	pBuffer = flush_remove(mpi->flushHeadFree.hdr.mpi.next);
 	flush_insert_after(&mpi->flushHeadBusy,pBuffer);
+	mpi->flushBusyCount++;
 	mpi->flushBuffersByRank[iProc] = pBuffer;
 	pBuffer->nBytes = 0;
 	pBuffer->iRankTo = iProc;
 	/* If we have run out of free buffers then flush the oldest right away */
-	if (mpi->flushHeadFree.hdr.mpi.next == &mpi->flushHeadFree ) {
-	    if (mpi->flushHeadBusy.hdr.mpi.next == &mpi->flushHeadBusy ) {
+//	if (mpi->flushHeadFree.hdr.mpi.next == &mpi->flushHeadFree ) {
+	if (mpi->flushBusyCount >= mpi->flushBuffCount-32) {
+	    assert(mpi->flushBusyCount>=0);
+	    assert(mpi->flushBusyCount<=mpi->flushBuffCount);
+	    if (mpi->flushHeadBusy.hdr.mpi.next != &mpi->flushHeadBusy ) {
 		MDLflushBuffer *flush = mpi->flushHeadBusy.hdr.mpi.prev;
 		mpi->flushBuffersByRank[flush->iRankTo] = NULL;
 		flush_send(mdl,flush);
 		}
 	    }
 	}
+
     /* Now just buffer the data */
     CAHEAD *ca = (CAHEAD *)( (char *)(pBuffer+1) + pBuffer->nBytes);
     char *pData = (char *)(ca+1);
-    ca->cid = entry->extra.cache->iCID;
-    ca->mid = MDL_MID_CACHEFLUSH;
-    ca->nItems = 1;
-    ca->idFrom = mdlSelf(mdl);
-    ca->idTo = iThread;
-    ca->iIndex = entry->uIndex;
-    memcpy(pData,entry->data,c->iDataSize);
-    pBuffer->nBytes += sizeof(CAHEAD) + c->iDataSize;
-    /* As we have buffered this message we can tell the calling thread to continue */
-    mdlSendThreadMessage(mdl,MDL_TAG_CACHE_FLUSH,qhdr->iCoreFrom,qhdr,MDL_SE_CACHE_FLUSH);
+    iDataSize += sizeof(CAHEAD);
+    memcpy(ca,pHdr,iDataSize);
+    pBuffer->nBytes += iDataSize;
+    }
+
+
+static void mpi_flush_elements(MDL mdl,MDLflushBuffer *pFlush) {
+    mdlContextMPI *mpi = mdl->mpi;
+    CAHEAD *ca;
+    char *pData;
+    int count;
+
+    assert(mdl->base.iCore == mdl->iCoreMPI); /* MPI thread only */
+    count = pFlush->nBytes;
+    ca = (CAHEAD *)(pFlush + 1);
+    while(count > 0) {
+	int iDataSize = mdl->pmdl[0]->cache[ca->cid].iDataSize;
+	pData = (char *)(ca+1);
+	mpi_flush_element(mdl,ca,iDataSize);
+	pData += iDataSize;
+	ca = (CAHEAD *)pData;
+	count -= sizeof(CAHEAD) + iDataSize;
+	}
+    assert(count == 0);
     }
 
 /*
@@ -750,6 +766,7 @@ static int checkMPI(MDL mdl) {
 	MDLserviceSend *send;
 	MDLserviceCacheReq *caReq;
 	MDLserviceElement *qhdr;
+	MDLflushBuffer *pFlush;
 	cacheOpenClose *coc;
 #ifdef MDL_FFTW
 	fftSizes* sizes;
@@ -847,7 +864,7 @@ static int checkMPI(MDL mdl) {
 		coc = (cacheOpenClose *)qhdr;
 		assert(coc->iDataSize <= MDL_CACHE_DATA_SIZE);
 		if (mpi->pReqRcv->mpiRequest == MPI_REQUEST_NULL) {
-		    MPI_Irecv(mpi->pReqRcv+1,mpi->iCaBufSize, MPI_BYTE,
+		    MPI_Irecv(mpi->pReqRcv+1,mpi->iCacheBufSize, MPI_BYTE,
 			MPI_ANY_SOURCE, MDL_TAG_CACHECOM,
 			mpi->commMDL, &mpi->pReqRcv->mpiRequest);
 		    }
@@ -876,7 +893,9 @@ static int checkMPI(MDL mdl) {
 		MPI_Isend(&caReq->caReq,sizeof(CAHEAD),MPI_BYTE,iProc,MDL_TAG_CACHECOM, mpi->commMDL,&caReq->request);
 		break;
 	    case MDL_SE_CACHE_FLUSH:
-		mpi_flush_element(mdl,qhdr);
+		pFlush = (MDLflushBuffer *)qhdr;
+		mpi_flush_elements(mdl,pFlush);
+		OPA_Queue_enqueue(&mdl->pmdl[qhdr->iCoreFrom]->coreFlushBuffers, pFlush, MDLflushBuffer, hdr.hdr);
 		break;
 	    case MDL_SE_CACHE_FLUSH_OUT:
 		mpi_flush_all_elements(mdl);
@@ -1274,6 +1293,21 @@ void mdlInitCommon(MDL mdl0, int iMDL,int bDiag,int argc, char **argv,
     mdl->cache = malloc(mdl->nMaxCacheIds*sizeof(CACHE));
     assert(mdl->cache != NULL);
     OPA_Queue_init(&mdl->wqCacheFlush);
+    mdl->nFlushOutBytes = 0;
+
+    OPA_Queue_init(&mdl->coreFlushBuffers);
+    for(i=0; i<9; ++i) {
+	MDLflushBuffer *pFlush = malloc(sizeof(MDLflushBuffer) + MDL_FLUSH_DATA_SIZE);
+	assert(pFlush!=NULL);
+	pFlush->nBufferSize = MDL_FLUSH_DATA_SIZE;
+	pFlush->nBytes = 0;
+	OPA_Queue_enqueue(&mdl->coreFlushBuffers, pFlush, MDLflushBuffer, hdr.hdr);
+	}
+    mdl->coreFlushBuffer = malloc(sizeof(MDLflushBuffer) + MDL_FLUSH_DATA_SIZE);
+    assert(mdl->coreFlushBuffer!=NULL);
+    mdl->coreFlushBuffer->nBufferSize = MDL_FLUSH_DATA_SIZE;
+    mdl->coreFlushBuffer->nBytes = 0;
+
     /*
     ** Initialize caching spaces.
     */
@@ -1489,8 +1523,9 @@ void mdlLaunch(int argc,char **argv,void * (*fcnMaster)(MDL),void * (*fcnChild)(
 
     assert(sizeof(CAHEAD) == 16); /* Well, should be a multiple of 8 at least. */
     mpi->nOpenCaches = 0;
-    mpi->iCaBufSize = sizeof(CAHEAD) + MDL_CACHE_DATA_SIZE;
-    mpi->pReqRcv = malloc(sizeof(MDLcacheReplyData) + mpi->iCaBufSize);
+    mpi->iReplyBufSize = sizeof(CAHEAD) + MDL_CACHE_DATA_SIZE;
+    mpi->iCacheBufSize = sizeof(CAHEAD) + MDL_FLUSH_DATA_SIZE;
+    mpi->pReqRcv = malloc(sizeof(MDLcacheReplyData) + mpi->iCacheBufSize);
     assert(mpi->pReqRcv != NULL);
     mpi->pReqRcv->mpiRequest = MPI_REQUEST_NULL;
 
@@ -1500,9 +1535,9 @@ void mdlLaunch(int argc,char **argv,void * (*fcnMaster)(MDL),void * (*fcnChild)(
     mpi->busyCacheRepliesTail = &mpi->busyCacheReplies;
     n = mdl->base.nProcs;
     if (n > 256) n = 256;
-    else if (n < 32) n = 32;
+    else if (n < 32) n = 64;
     for (i = 0; i<n; ++i) {
-	MDLcacheReplyData *pdata = malloc(sizeof(MDLcacheReplyData) + mpi->iCaBufSize);
+	MDLcacheReplyData *pdata = malloc(sizeof(MDLcacheReplyData) + mpi->iReplyBufSize);
 	assert( pdata != NULL );
 	pdata->mpiRequest = MPI_REQUEST_NULL;
 	pdata->next = mpi->freeCacheReplies;
@@ -1520,9 +1555,9 @@ void mdlLaunch(int argc,char **argv,void * (*fcnMaster)(MDL),void * (*fcnChild)(
     assert(mpi->flushBuffersByCore);
     for(i=0; i<mdlCores(mdl); ++i) mpi->flushBuffersByCore[i] = NULL;
     for(i=0; i<2*mdlCores(mdl); ++i) {
-	MDLflushBuffer *pBuffer = malloc(sizeof(MDLflushBuffer) + MDL_CACHE_DATA_SIZE);
+	MDLflushBuffer *pBuffer = malloc(sizeof(MDLflushBuffer) + MDL_FLUSH_DATA_SIZE);
 	assert(pBuffer!=NULL);
-	pBuffer->nBufferSize = MDL_CACHE_DATA_SIZE;
+	pBuffer->nBufferSize = MDL_FLUSH_DATA_SIZE;
 	pBuffer->nBytes = 0;
 	OPA_Queue_enqueue(&mpi->localFlushBuffers, pBuffer, MDLflushBuffer, hdr.hdr);
 	}
@@ -1531,10 +1566,12 @@ void mdlLaunch(int argc,char **argv,void * (*fcnMaster)(MDL),void * (*fcnChild)(
     mpi->flushHeadFree.hdr.mpi.prev = mpi->flushHeadFree.hdr.mpi.next = &mpi->flushHeadFree;
     mpi->flushHeadSent.hdr.mpi.prev = mpi->flushHeadSent.hdr.mpi.next = &mpi->flushHeadSent;
 
+    mpi->flushBuffCount = n;
+    mpi->flushBusyCount = 0;
     for(i=0; i<n; ++i) {
-	MDLflushBuffer *pBuffer = malloc(sizeof(MDLflushBuffer) + MDL_CACHE_DATA_SIZE);
+	MDLflushBuffer *pBuffer = malloc(sizeof(MDLflushBuffer) + MDL_FLUSH_DATA_SIZE);
 	assert(pBuffer!=NULL);
-	pBuffer->nBufferSize = MDL_CACHE_DATA_SIZE;
+	pBuffer->nBufferSize = MDL_FLUSH_DATA_SIZE;
 	pBuffer->nBytes = 0;
 	flush_insert_after(mpi->flushHeadFree.hdr.mpi.prev,pBuffer);
 	}
@@ -2172,19 +2209,42 @@ void mdlCacheBarrier(MDL mdl,int cid) {
     mdl_MPI_Barrier(mdl);
     }
 
+MDLflushBuffer *flush_core_buffer(MDL mdl) {
+    MDLflushBuffer *pBuffer = mdl->coreFlushBuffer;
+    if (pBuffer->nBytes) {
+	mdlSendToMPI(mdl,&pBuffer->hdr.svc,MDL_SE_CACHE_FLUSH);
+	while (OPA_Queue_is_empty(&mdl->coreFlushBuffers)) {
+	    combine_all_incoming(mdl);
+	    }
+	OPA_Queue_dequeue(&mdl->coreFlushBuffers, pBuffer, MDLflushBuffer, hdr.hdr);
+	mdl->coreFlushBuffer = pBuffer;
+	pBuffer->nBytes = 0;
+	pBuffer->iRankTo = -1;
+	}
+    return pBuffer;
+    }
+
 /* This CDB must not be on any list when destage is called */
 static CDB *destage(MDL mdl, ARC arc, CDB *temp) {
     assert(temp->data != NULL);
     assert(temp->data[-1] == _ARC_MAGIC_);
     if (temp->uId & _DIRTY_) {     /* if dirty, evict before free */
-	/* We save this because we can still be in the hash table (see replace)! */
-	struct CacheDataBucket *coll = temp->extra.coll;
-	temp->extra.cache = arc->cache;
-	/* Send the CDB to the MPI thread for flushing, and wait for it to come back */
-	mdlSendToMPI(mdl,&temp->hdr.svc,MDL_SE_CACHE_FLUSH);
-	mdlWaitThreadQueue(mdl,MDL_TAG_CACHE_FLUSH);
-	temp->extra.coll = coll; /* FIXME: can we "do work in WaitThreadQueue? */
-	/*temp->extra.cache = 0xdeadbeef;*/
+	CACHE *c = arc->cache;
+	int iSize = sizeof(CAHEAD) + c->iDataSize;
+	MDLflushBuffer *pBuffer = mdl->coreFlushBuffer;
+	if (pBuffer->nBytes + iSize > pBuffer->nBufferSize) {
+	    pBuffer = flush_core_buffer(mdl);
+	    }
+	CAHEAD *ca = (CAHEAD *)( (char *)(pBuffer+1) + pBuffer->nBytes);
+	char *pData = (char *)(ca+1);
+	ca->cid = c->iCID;
+	ca->mid = MDL_MID_CACHEFLUSH;
+	ca->nItems = 1;
+	ca->idFrom = mdlSelf(mdl);
+	ca->idTo = temp->uId&_IDMASK_;
+	ca->iIndex = temp->uIndex;
+	memcpy(pData,temp->data,c->iDataSize);
+	pBuffer->nBytes += iSize;
 	temp->uId &= ~ _DIRTY_;    /* No longer dirty */
 	}
     return temp;
@@ -2228,7 +2288,7 @@ void mdlFlushCache(MDL mdl,int cid) {
     mdlTimeAddComputing(mdl);
     mdl->wqAccepting = 1;
     arcRemoveAll(mdl,c->arc);
-
+    flush_core_buffer(mdl);
     mdlThreadBarrier(mdl);
     if (mdlCore(mdl)==0) { /* This flushes all buffered data, not just our thread */
 	mdlSendToMPI(mdl,&mdl->inMessage,MDL_SE_CACHE_FLUSH_OUT);
