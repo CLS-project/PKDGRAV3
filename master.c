@@ -5702,7 +5702,7 @@ void msrMeasurePk(MSR msr,double *dCenter,double dRadius,int nGrid,float *Pk) {
     double fftNormalize = 1.0 / (1.0*nGrid*nGrid*nGrid);
     double sec,dsec;
 
-    printf("Measuring P(k)...\n");
+    printf("Measuring P(k) with grid size %d ...\n",nGrid);
     sec = msrTime();
 
     /* NOTE: reordering the particles by their z coordinate would be good here */
