@@ -170,8 +170,8 @@ QSORT_TYPE *const _base = (char *)(QSORT_BASE);				\
          probability of picking a pathological pivot value and		\
          skips a comparison for both the LEFT_PTR and RIGHT_PTR in	\
          the while loops. */						\
-									\
-      QSORT_TYPE *_mid = _lo + (((_hi - _lo)>>1)/_size*_size);		\
+      ptrdiff_t _diff = (_hi - _lo)>>1;					\
+      QSORT_TYPE *_mid = _lo + (_diff - _diff % _size);			\
 									\
       if (QSORT_LT (_mid, _lo))						\
 	  _QSORT_SWAP (_mid, _lo, _hold, _size);			\
