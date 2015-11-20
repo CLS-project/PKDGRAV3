@@ -4697,7 +4697,7 @@ void pstMeasurePk(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct inMeasurePk *in = vin;
     struct outMeasurePk *out = vout;
-    struct outMeasurePk outUpper;
+    struct outMeasurePk *outUpper;
     int nOut;
     int i;
 
@@ -4705,13 +4705,16 @@ void pstMeasurePk(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     if (pstNotCore(pst)) {
 	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_MEASUREPK,vin,nIn);
 	pstMeasurePk(pst->pstLower,vin,nIn,vout,pnOut);
-	mdlGetReply(pst->mdl,rID,&outUpper,&nOut);
+	outUpper = malloc(sizeof(struct outMeasurePk));
+	assert(outUpper != NULL);
+	mdlGetReply(pst->mdl,rID,outUpper,&nOut);
 	assert(nOut==sizeof(struct outMeasurePk));
 
 	for(i=0;i<=in->nGrid/2; i++) {
-	    out->fPower[i] += outUpper.fPower[i];
-	    out->nPower[i] += outUpper.nPower[i];
+	    out->fPower[i] += outUpper->fPower[i];
+	    out->nPower[i] += outUpper->nPower[i];
 	    }
+	free(outUpper);
 	}
     else {
 	pkdMeasurePk(plcl->pkd, in->dCenter, in->dRadius, in->dTotalMass,

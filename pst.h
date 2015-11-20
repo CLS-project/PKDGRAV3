@@ -1354,7 +1354,7 @@ struct inGridProject {
 void pstGridProject(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 
 #ifdef MDL_FFTW
-#define PST_MAX_K 4096
+#define PST_MAX_K 20484
 /* PST_MEASUREPK */
 struct inMeasurePk {
     double dCenter[3];

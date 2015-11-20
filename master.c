@@ -5696,13 +5696,15 @@ void msrGridProject(MSR msr,double x,double y,double z) {
 #ifdef MDL_FFTW
 void msrMeasurePk(MSR msr,double *dCenter,double dRadius,int nGrid,float *Pk) {
     struct inMeasurePk in;
-    struct outMeasurePk out;
+    struct outMeasurePk *out;
     int nOut;
     int i;
     double fftNormalize = 1.0 / (1.0*nGrid*nGrid*nGrid);
     double sec,dsec;
 
     printf("Measuring P(k) with grid size %d ...\n",nGrid);
+    assert(nGrid/2 < PST_MAX_K);
+
     sec = msrTime();
 
     /* NOTE: reordering the particles by their z coordinate would be good here */
@@ -5713,11 +5715,12 @@ void msrMeasurePk(MSR msr,double *dCenter,double dRadius,int nGrid,float *Pk) {
     in.dRadius = dRadius;
     in.dTotalMass = msrTotalMass(msr);
 
-    pstMeasurePk(msr->pst, &in, sizeof(in), &out, &nOut);
+    out = malloc(sizeof(struct outMeasurePk));
+    assert(out != NULL);
+    pstMeasurePk(msr->pst, &in, sizeof(in), out, &nOut);
     for( i=0; i<=nGrid/2; i++ ) {
-	/*printf( "%3d:  %.8g %ld\n", i, out.fPower[i], out.nPower[i] );*/
-	if ( out.nPower[i] == 0 ) Pk[i] = 0;
-	else Pk[i] = out.fPower[i]/out.nPower[i]*fftNormalize*1.0*fftNormalize;
+	if ( out->nPower[i] == 0 ) Pk[i] = 0;
+	else Pk[i] = out->fPower[i]/out->nPower[i]*fftNormalize*1.0*fftNormalize;
 	}
     /* At this point, Pk[] needs to be corrected by the box size */
 
