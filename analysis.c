@@ -924,7 +924,7 @@ void pkdMeasurePk(PKD pkd, double dCenter[3], double dRadius, double dTotalMass,
     int bPeriodic = 1;
 
     /* Sort the particles into optimal "cell" order */
-    QSORT(pkdParticleSize(pkd),pkdParticle(pkd,0),pkd->nLocal,qsort_lt);
+    QSORT(pkdParticleSize(pkd),pkdParticle(pkd,0),pkd->nLocal-1,qsort_lt);
 
     iNyquist = nGrid / 2;
     nGridFFT = bPeriodic ? nGrid : nGrid*2;
