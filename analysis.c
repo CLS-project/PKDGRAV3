@@ -1014,10 +1014,10 @@ void pkdMeasurePk(PKD pkd, double dCenter[3], double dRadius, double dTotalMass,
     ** be less than sy.  This is fine.
     */
     if ( bPeriodic ) {
+	double win_j, win_k;
 	i = j = k = -1;
 	for( index=first; !mdlGridCoordCompare(&index,&last); mdlGridCoordIncrement(&index) ) {
 	    int jj, kk;
-	    double win_j, win_k;
 	    if ( j != index.z ) {
 		j = index.z;
 		jj = j>iNyquist ? nGrid - j : j;
