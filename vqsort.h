@@ -182,7 +182,7 @@ QSORT_TYPE *const _base = (char *)(QSORT_BASE);				\
       } 								\
 									\
       _left_ptr  = _lo + _size;						\
-      _right_ptr = _hi + _size;						\
+      _right_ptr = _hi - _size;						\
 									\
       /* Here's the famous ``collapse the walls'' section of quicksort.	\
          Gotta like those tight inner loops!  They are the main reason	\
