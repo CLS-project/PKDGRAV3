@@ -260,7 +260,7 @@ void pkdExtendTree(PKD pkd) {
 void pkdInitialize(
     PKD *ppkd,MDL mdl,int nStore,uint64_t nMinLocalMemory,int nBucket,int nGroup,int nTreeBitsLo, int nTreeBitsHi,
     int iCacheSize,int iWorkQueueSize,int iCUDAQueueSize,FLOAT *fPeriod,uint64_t nDark,uint64_t nGas,uint64_t nStar,
-    uint64_t mMemoryModel, int nMaxDomainRungs) {
+    uint64_t mMemoryModel, int nMaxDomainRungs, int bLightCone, int bLightConeParticles) {
     PKD pkd;
     PARTICLE *p;
     uint32_t pi;
@@ -464,6 +464,16 @@ void pkdInitialize(
 	}
     pkd->pTempPRIVATE = malloc(pkdParticleSize(pkd));
     mdlassert(mdl,pkd->pTempPRIVATE != NULL);
+
+    /*
+    ** allocate enough space for light cone particle output
+    */
+    pkd->nLightCone = 0;
+    pkd->pLightCone = NULL;
+    if (bLightCone && bLightConeParticles) {
+	pkd->pLightCone = malloc(nStore*sizeof(LIGHTCONEP));
+	mdlassert(mdl,pkd->pLightCone != NULL);
+	}
 
     /* Create a type for our particle -- we use an opaque type */
 #ifdef xMPI_VERSION
@@ -673,6 +683,7 @@ void pkdFinish(PKD pkd) {
 	mdlFree(pkd->mdl,pkd->pStorePRIVATE2);
     free(pkd->pTempPRIVATE);
     mdlFreeArray(pkd->mdl,pkd->pLite);
+    if (pkd->pLightCone) free(pkd->pLightCone);
     free(pkd->piActive);
     free(pkd->piInactive);
     csmFinish(pkd->param.csm);
@@ -2753,13 +2764,15 @@ void pkdScaleVel(PKD pkd,double dvFac) {
 ** Note that the drift funtion no longer wraps the particles around the periodic "unit" cell. This is
 ** now done by Domain Decomposition only.
 */
-void pkdDrift(PKD pkd,double dDelta,double dDeltaVPred,double dDeltaUPred,uint8_t uRungLo,uint8_t uRungHi) {
+void pkdDrift(PKD pkd,double dTime,double dDelta,double dDeltaVPred,double dDeltaUPred,uint8_t uRungLo,uint8_t uRungHi) {
     PARTICLE *p;
     vel_t *v;
     float *a;
     SPHFIELDS *sph;
     int i,j,n;
-    double r[3],dMin[3],dMax[3];
+    double r1[3],r0[3],mr0,mr1,x,dMin[3],dMax[3];
+    double dLightSpeed = dLightSpeedSim(pkd->param.dBoxSize);
+    double dLookbackTime = pkd->dTimeRedshift0 - dTime;
 
     mdlDiag(pkd->mdl, "Into pkdDrift\n");
     assert(pkd->oVelocity);
@@ -2789,9 +2802,39 @@ void pkdDrift(PKD pkd,double dDelta,double dDeltaVPred,double dDeltaUPred,uint8_
 		    sph->fMetalsPred += sph->fMetalsDot*dDeltaUPred;
 		    }
 		for (j=0;j<3;++j) {
-		    pkdSetPos(pkd,p,j,r[j] = pkdPos(pkd,p,j) + dDelta*v[j]);
+		    pkdSetPos(pkd,p,j,r1[j] = pkdPos(pkd,p,j) + dDelta*v[j]);
 		    }
-		pkdMinMax(r,dMin,dMax);
+		pkdMinMax(r1,dMin,dMax);
+		}
+	    }
+	}
+    /*
+    ** If the light surface enters the unit box, then we can start generating light cone output. 
+    */
+    else if (pkd->param.bLightCone && dLookbackTime*dLightSpeed < 0.5) {
+	for (i=0;i<n;++i) {
+	    p = pkdParticle(pkd,i);
+	    if (pkdIsRungRange(p,uRungLo,uRungHi)) {
+		v = pkdVel(pkd,p);
+		pkdGetPos1(pkd,p,r0);
+		for (j=0;j<3;++j) r1[j] = r0[j] + dDelta*v[j];
+		mr0 = sqrt(r0[0]*r0[0] + r0[1]*r0[1] + r0[2]*r0[2]);
+		mr1 = sqrt(r1[0]*r1[0] + r1[1]*r1[1] + r1[2]*r1[2]);
+		x = (dLightSpeed*dLookbackTime - mr0)/(dLightSpeed*dDelta - mr0 + mr1);
+		if (x >=0 && x < 1) {
+		    /*
+		    ** Create a new light cone particle.
+		    */
+		    if (pkd->param.bLightConeParticles) {
+			mdlassert(pkd->mdl,pkd->nLightCone < pkd->nStore);
+			for (j=0;j<3;++j) {
+			    pkd->pLightCone[pkd->nLightCone].pos[j] = (1-x)*r0[j] + x*r1[j]; 
+			    }
+			++pkd->nLightCone;
+			}
+		    }
+		for (j=0;j<3;++j) pkdSetPos(pkd,p,j,r1[j]);
+		pkdMinMax(r1,dMin,dMax);
 		}
 	    }
 	}
@@ -2800,10 +2843,9 @@ void pkdDrift(PKD pkd,double dDelta,double dDeltaVPred,double dDeltaUPred,uint8_
 	    p = pkdParticle(pkd,i);
 	    if (pkdIsRungRange(p,uRungLo,uRungHi)) {
 		v = pkdVel(pkd,p);
-		for (j=0;j<3;++j) {
-		    pkdSetPos(pkd,p,j,r[j] = pkdPos(pkd,p,j) + dDelta*v[j]);
-		    }
-		pkdMinMax(r,dMin,dMax);
+		pkdGetPos1(pkd,p,r0);
+		for (j=0;j<3;++j) pkdSetPos(pkd,p,j,r1[j] = r0[j] + dDelta*v[j]);
+		pkdMinMax(r1,dMin,dMax);
 		}
 	    }
 	}
@@ -2905,7 +2947,7 @@ void pkdStepVeryActiveKDK(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dStep, 
 	/*
 	** This should drift *all* very actives!
 	*/
-	pkdDrift(pkd,dDriftFac,0,0,iRungVeryActive+1,MAX_RUNG);
+	pkdDrift(pkd,dTime,dDriftFac,0,0,iRungVeryActive+1,MAX_RUNG);
 	dTime += dDelta;
 	dStep += 1.0/(1 << iRung);
 
@@ -3052,6 +3094,11 @@ void pkdInitStep(PKD pkd, struct parameters *p, CSM csm) {
     */
     csmInitialize(&pkd->param.csm);
     *pkd->param.csm = *csm;
+    /*
+    ** Also set up the time of redshift 0 which is needed for the 
+    ** generation of light cone outputs.
+    */
+    pkd->dTimeRedshift0 = csmExp2Time(csm,1.0);
     }
 
 

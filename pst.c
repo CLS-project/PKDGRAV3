@@ -706,7 +706,8 @@ void pstOneNodeReadInit(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	    in->nSpecies[FIO_SPECIES_DARK],
 	    in->nSpecies[FIO_SPECIES_SPH],
 	    in->nSpecies[FIO_SPECIES_STAR],
-	    in->mMemoryModel, in->nDomainRungs);
+	    in->mMemoryModel, in->nDomainRungs,
+	    in->bLightCone, in->bLightConeParticles);
 	*pout = nFileTotal; /* Truncated: okay */
 	}
     if (pnOut) *pnOut = sizeof(*pout) * pst->nLeaves;
@@ -3166,7 +3167,7 @@ void pstDrift(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	mdlGetReply(pst->mdl,rID,NULL,NULL);
 	}
     else {
-	pkdDrift(plcl->pkd,in->dDelta,in->dDeltaVPred,in->dDeltaUPred,in->uRungLo,in->uRungHi);
+	pkdDrift(plcl->pkd,in->dTime,in->dDelta,in->dDeltaVPred,in->dDeltaUPred,in->uRungLo,in->uRungHi);
 	}
     if (pnOut) *pnOut = 0;
     }
@@ -3778,7 +3779,7 @@ void pstFof(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	(&in->smf)->pkd = pst->plcl->pkd;
 	smInitialize(&smx,plcl->pkd,&in->smf,in->nSmooth,
 		     in->bPeriodic,in->bSymmetric,in->iSmoothType);
-	smNewFof(smx,&in->smf);
+/*	smNewFof(smx,&in->smf);*/
 	smFinish(smx,&in->smf);
 	}
     if (pnOut) *pnOut = 0;
@@ -3857,7 +3858,8 @@ void pstInitializePStore(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	    &plcl->pkd,pst->mdl,in->nStore,in->nMinLocalMemory,in->nBucket,in->nGroup,
 	    in->nTreeBitsLo,in->nTreeBitsHi,
 	    in->iCacheSize,in->iWorkQueueSize,in->iCUDAQueueSize,in->fPeriod,
-	    in->nDark,in->nGas,in->nStar,in->mMemoryModel, in->nDomainRungs);
+	    in->nDark,in->nGas,in->nStar,in->mMemoryModel, in->nDomainRungs
+	    in->bLightCone,in->bLightConeParticles);
 	}
     }
 

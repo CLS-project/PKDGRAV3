@@ -149,6 +149,11 @@ typedef struct starfields {
     } STARFIELDS;   
 
 
+typedef struct partLightCone {
+    float pos[3];
+    } LIGHTCONEP;
+
+
 typedef struct bndBound {
     double fCenter[3];
     double fMax[3];
@@ -612,6 +617,9 @@ typedef struct pkdContext {
     size_t iParticleSize;
     PARTICLE *pStorePRIVATE, *pStorePRIVATE2;
     PARTICLE *pTempPRIVATE;
+    double dTimeRedshift0;
+    int nLightCone;
+    LIGHTCONEP *pLightCone;
     PARTCLASS *pClass;
     float fSoftFix;
     float fSoftFac;
@@ -1127,7 +1135,7 @@ void pkdStopTimer(PKD,int);
 void pkdInitialize(
     PKD *ppkd,MDL mdl,int nStore,uint64_t nMinLocalMemory,int nBucket,int nGroup,int nTreeBitsLo, int nTreeBitsHi,
     int iCacheSize,int iWorkQueueSize,int iCUDAQueueSize,FLOAT *fPeriod,uint64_t nDark,uint64_t nGas,uint64_t nStar,
-    uint64_t mMemoryModel, int nMaxDomainRungs);
+    uint64_t mMemoryModel, int nMaxDomainRungs, int bLightCone, int bLightConeParticles);
 void pkdFinish(PKD);
 size_t pkdClCount(PKD pkd);
 size_t pkdClMemory(PKD pkd);
@@ -1193,7 +1201,7 @@ void pkdGravAll(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     double *pdCell,double *pdCellNumAccess,double *pdCellMissRatio,
     double *pdFlop,uint64_t *pnRung);
 void pkdCalcEandL(PKD pkd,double *T,double *U,double *Eth,double *L,double *F,double *W);
-void pkdDrift(PKD pkd,double dDelta,double,double,uint8_t uRungLo,uint8_t uRungHi);
+void pkdDrift(PKD pkd,double dTime,double dDelta,double,double,uint8_t uRungLo,uint8_t uRungHi);
 void pkdScaleVel(PKD pkd,double dvFac);
 void pkdStepVeryActiveKDK(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dStep, double dTime, double dDelta,
 			  int iRung, int iKickRung, int iRungVeryActive,int iAdjust, double diCrit2,

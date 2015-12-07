@@ -19,7 +19,7 @@
 #define IRUNGMAX ((1<<IRUNGBITS)-1)
 
 typedef float vel_t;
-#define INTEGER_POSITION
+//#define INTEGER_POSITION
 #ifdef INTEGER_POSITION
 typedef int32_t pos_t;
 #else

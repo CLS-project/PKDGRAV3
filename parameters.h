@@ -81,6 +81,8 @@ struct parameters {
     int iWorkQueueSize;
     int iCUDAQueueSize;
     int bAddDelete;
+    int bLightCone;
+    int bLightConeParticles;
     /* BEGIN Gas Parameters */
     int bDoGas;
     int bGasAdiabatic;

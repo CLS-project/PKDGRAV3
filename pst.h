@@ -266,6 +266,8 @@ struct inReadFile {
     int iWorkQueueSize;
     int iCUDAQueueSize;
     int nProcessors;
+    int bLightCone;
+    int bLightConeParticles;
     /*char achFilename[PST_FILENAME_SIZE];*/
     };
 typedef char inReadFileFilename[PST_FILENAME_SIZE];
@@ -683,6 +685,7 @@ void pstCalcEandL(PST,void *,int,void *,int *);
 
 /* PST_DRIFT */
 struct inDrift {
+    double dTime;
     double dDelta;
     double dDeltaVPred;
     double dDeltaUPred;
@@ -1095,6 +1098,8 @@ struct inInitializePStore {
     int iCacheSize;
     int iWorkQueueSize;
     int iCUDAQueueSize;
+    int bLightCone;
+    int bLightConeParticles;
     };
 void pstInitializePStore(PST,void *,int,void *,int *);
 

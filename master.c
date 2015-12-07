@@ -452,6 +452,12 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.bDoubleVel = 0;
     prmAddParam(msr->prm,"bDoubleVel",0,&msr->param.bDoubleVel,sizeof(int),"dv",
 		"input/output double precision velocities (standard format only) = -dv");
+    msr->param.bLightCone = 0;
+    prmAddParam(msr->prm,"bLightCone",0,&msr->param.bLightCone,sizeof(int),"lc",
+		"output light cone data = -lc");
+    msr->param.bLightConeParticles = 0;
+    prmAddParam(msr->prm,"bLightConeParticles",0,&msr->param.bLightConeParticles,sizeof(int),"lcp",
+		"output light cone particles = -lcp");
     msr->param.bCenterOfMassExpand = 1;
     prmAddParam(msr->prm,"bCenterOfMassExpand",0,&msr->param.bCenterOfMassExpand,sizeof(int),"CoM",
 		"use multipole expansions about the center of mass = +CoM");
@@ -1801,7 +1807,7 @@ double msrGenerateIC(MSR msr) {
 #endif
 
 /*
-** This function makes some DANGEROUS assumptions!!!
+** This function makes some potentially problematic assumptions!!!
 ** Main problem is that it calls pkd level routines, bypassing the
 ** pst level. It uses plcl pointer which is not desirable.
 */
@@ -3043,6 +3049,7 @@ void msrDrift(MSR msr,double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi
 	in.dDelta = dDelta;
 	in.dDeltaVPred = dDelta;
 	}
+    in.dTime = dTime;
     in.dDeltaUPred = dDelta;
     in.uRungLo = uRungLo;
     in.uRungHi = uRungHi;
@@ -3778,6 +3785,9 @@ void msrTopStepHSDKD(MSR msr,
     }
 
 
+void msrLightCone(MSR msr,double dTime) {
+    }
+
 
 void msrNewTopStepKDK(MSR msr,
     uint8_t uRung,		/* Rung level */
@@ -3801,6 +3811,7 @@ void msrNewTopStepKDK(MSR msr,
     msrDomainDecomp(msr,uRung,0,0);
     msrUpdateSoft(msr,*pdTime);
     msrBuildTree(msr,*pdTime,msr->param.bEwald);
+    msrLightCone(msr,*pdTime);
     *puRungMax = msrGravity(msr,uRung,msrMaxRung(msr),ROOT,0,*pdTime,*pdStep,1,1,msr->param.bEwald,msr->param.nGroup,piSec,&nActive);
     if (uRung && uRung < *puRungMax) msrNewTopStepKDK(msr,uRung+1,pdStep,pdTime,puRungMax,piSec);
     }
@@ -4843,6 +4854,8 @@ double msrRead(MSR msr, const char *achInFile) {
     read->iCacheSize  = msr->param.iCacheSize;
     read->iWorkQueueSize  = msr->param.iWorkQueueSize;
     read->iCUDAQueueSize  = msr->param.iCUDAQueueSize;
+    read->bLightCone  = msr->param.bLightCone;
+    read->bLightConeParticles  = msr->param.bLightConeParticles;    
     read->dOmega0 = msr->param.csm->dOmega0;
     read->dOmegab = msr->param.csm->dOmegab;
     read->fPeriod[0] = msr->param.dxPeriod;

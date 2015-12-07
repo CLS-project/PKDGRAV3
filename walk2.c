@@ -997,3 +997,11 @@ int pkdGravWalkGroups(PKD pkd,double dTime,int nGroup, double dThetaMin,double *
     doneGravWalk(pkd,smx,&smf);
     return nActive;
 }
+
+/*
+void pkdLightConeWalk(PKD pkd,double dTime,double dDelta) {
+    rComove = dTime*dLightSpeed()/Lbox;
+    
+    
+    }
+*/
