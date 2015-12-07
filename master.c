@@ -1742,6 +1742,8 @@ double msrGenerateIC(MSR msr) {
 	in.dExpansion = 1.0 / (1.0 + msr->param.dRedFrom);
 	}
     else in.dExpansion = 0.0;
+    in.ps.bLightCone  = msr->param.bLightCone;
+    in.ps.bLightConeParticles  = msr->param.bLightConeParticles;    
 
     msr->nDark = in.ps.nDark;
     msr->nGas  = in.ps.nGas;

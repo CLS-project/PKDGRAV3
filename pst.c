@@ -3858,7 +3858,7 @@ void pstInitializePStore(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	    &plcl->pkd,pst->mdl,in->nStore,in->nMinLocalMemory,in->nBucket,in->nGroup,
 	    in->nTreeBitsLo,in->nTreeBitsHi,
 	    in->iCacheSize,in->iWorkQueueSize,in->iCUDAQueueSize,in->fPeriod,
-	    in->nDark,in->nGas,in->nStar,in->mMemoryModel, in->nDomainRungs
+	    in->nDark,in->nGas,in->nStar,in->mMemoryModel, in->nDomainRungs,
 	    in->bLightCone,in->bLightConeParticles);
 	}
     }
@@ -3983,7 +3983,8 @@ void pstGenerateIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	    &plcl->pkd,pst->mdl,nLocal,in->ps.nMinLocalMemory,in->ps.nBucket,in->ps.nGroup,
 	    in->ps.nTreeBitsLo,in->ps.nTreeBitsHi,
 	    in->ps.iCacheSize,in->ps.iWorkQueueSize,in->ps.iCUDAQueueSize,in->ps.fPeriod,
-	    in->ps.nDark,in->ps.nGas,in->ps.nStar,in->ps.mMemoryModel, in->ps.nDomainRungs);
+	    in->ps.nDark,in->ps.nGas,in->ps.nStar,in->ps.mMemoryModel, in->ps.nDomainRungs,
+	    in->ps.bLightCone, in->ps.bLightConeParticles);
 
 	out->N = pkdGenerateIC(plcl->pkd,in->iSeed,in->nGrid,in->b2LPT,in->dBoxSize,
 	    in->omegac+in->omegab,in->omegav,in->sigma8,in->spectral,in->h,
