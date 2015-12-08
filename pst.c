@@ -3947,6 +3947,8 @@ void pstGenerateIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	pstGenerateIC(pst->pstLower,in,nIn,vout,pnOut);
 	mdlGetReply(pst->mdl,rID,&outUp,pnOut);
 	out->N += outUp.N;
+	out->noiseMean += outUp.noiseMean;
+	out->noiseCSQ += outUp.noiseCSQ;
 	/* We need to relocate the particles */
 	if (pstAmNode(pst)) {
 	    struct inMoveIC move;
@@ -3988,7 +3990,7 @@ void pstGenerateIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 
 	out->N = pkdGenerateIC(plcl->pkd,in->iSeed,in->nGrid,in->b2LPT,in->dBoxSize,
 	    in->omegac+in->omegab,in->omegav,in->sigma8,in->spectral,in->h,
-	    in->dExpansion,in->nTf, in->k, in->tf);
+	    in->dExpansion,in->nTf, in->k, in->tf,&out->noiseMean,&out->noiseCSQ);
 	out->dExpansion = in->dExpansion;
 	}
 

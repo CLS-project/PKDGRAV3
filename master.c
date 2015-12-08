@@ -1707,6 +1707,7 @@ double msrGenerateIC(MSR msr) {
     int nOut;
     double sec,dsec;
     double dvFac;
+    double mean, rms;
 
     in.h = msr->param.h;
     in.dBoxSize = msr->param.dBoxSize;
@@ -1795,10 +1796,14 @@ double msrGenerateIC(MSR msr) {
     msrprintf(msr,"IC Generation @ a=%g with seed %d\n",in.dExpansion,dsec,msr->param.iSeed);
     in.nPerNode = outFFTSizes.nMaxLocal;
     pstGenerateIC(msr->pst,&in,sizeof(in),&out,&nOut);
+    mean = out.noiseMean / msr->N;
+    rms = sqrt(out.noiseCSQ / msr->N);
+
     msrSetClasses(msr);
     dsec = msrTime() - sec;
     PKD pkd = msr->pst->plcl->pkd;
     msrprintf(msr,"IC Generation Complete @ a=%g, Wallclock: %f secs\n\n",out.dExpansion,dsec);
+    msrprintf(msr,"Mean of noise same is %g, RMS %g.\n",mean,rms);
     printf("Allocated %lu MB for particle store on each processor.\n",
 	      pkdParticleMemory(pkd)/(1024*1024));
     printf("Particles: %lu bytes (persistent) + %d bytes (ephemeral), Nodes: %lu bytes\n",

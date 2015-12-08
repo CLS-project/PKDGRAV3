@@ -1140,6 +1140,8 @@ struct inGenerateIC {
 struct outGenerateIC {
     double dExpansion;
     uint64_t N;
+    double noiseMean;
+    double noiseCSQ;
     };
 void pstGenerateIC(PST,void *,int,void *,int *);
 
