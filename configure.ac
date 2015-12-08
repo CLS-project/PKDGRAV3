@@ -2,7 +2,7 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.59)
-AC_INIT(pkdgrav3, 0.9.7, bugs@pkdgrav.org)
+AC_INIT(pkdgrav3, 0.9.8, bugs@pkdgrav.org)
 AM_INIT_AUTOMAKE
 AM_MAINTAINER_MODE([disable])
 AC_CONFIG_SRCDIR([main.c])
@@ -185,17 +185,12 @@ AC_ARG_WITH(mdl,
    fi])
 AC_SUBST([MDL_PATH],[$MDL_PATH])
 
-#AC_ARG_ENABLE(grafic,
-#  [  --enable-grafic         enable GRAFIC IC support for MPI version],
-#  [USE_GRAFIC="$enableval"],
-#  [USE_GRAFIC="no"])
-#if test "x$USE_GRAFIC" != "xno" ; then
-#   AC_DEFINE([USE_GRAFIC], 1,
-# 	[ICs can be generated with GRAFIC.])
-#fi
-#AM_CONDITIONAL(USE_GRAFIC,test "x$USE_GRAFIC" != "xno")
-
 AM_CONDITIONAL(USE_HDF5, test "x$USE_HDF5" = "xyes")
+
+AC_ARG_ENABLE(integer-positions,
+  [  --enable-integer-positions     enable Integerized positions to save memory)],
+  [AC_DEFINE([INTEGER_POSITION], 1,
+        [Define if Integerized positions are to be used.])])
 
 # PNG Output
 AC_ARG_ENABLE(png,

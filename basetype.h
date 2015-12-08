@@ -1,5 +1,8 @@
 #ifndef BASETYPE_H
 #define BASETYPE_H
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
 #include <stdint.h>
 #include "ilp.h"
 #include "ilc.h"
@@ -19,7 +22,6 @@
 #define IRUNGMAX ((1<<IRUNGBITS)-1)
 
 typedef float vel_t;
-//#define INTEGER_POSITION
 #ifdef INTEGER_POSITION
 typedef int32_t pos_t;
 #else
