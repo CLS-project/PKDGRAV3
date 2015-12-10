@@ -465,7 +465,7 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     prmAddParam(msr->prm,"dRedTo",2,&msr->param.dRedTo,sizeof(double),"zto",
 		"specifies final redshift for the simulation");
     msr->param.dRedFrom = 0.0;
-    prmAddParam(msr->prm,"dRedFrom",2,&msr->param.dRedFrom,sizeof(double),"zto",
+    prmAddParam(msr->prm,"dRedFrom",2,&msr->param.dRedFrom,sizeof(double),"z",
 		"specifies initial redshift for the simulation");
     msr->param.dGrowDeltaM = 0.0;
     prmAddParam(msr->prm,"dGrowDeltaM",2,&msr->param.dGrowDeltaM,
@@ -564,6 +564,9 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.achTfFile[0] = 0;
     prmAddParam(msr->prm,"achTfFile",3,msr->param.achTfFile,256,"tf",
 		"<transfer file name> (file in CMBFAST format)");
+    msr->param.dTfRedshift = 0.0;
+    prmAddParam(msr->prm,"dTfRedshift",2,&msr->param.dTfRedshift,sizeof(double),"ztf",
+		"specifies redshift of the given transfer function = 0");
     msr->param.iSeed = 0;
     prmAddParam(msr->prm,"iSeed",1,&msr->param.iSeed,
 		sizeof(int),"seed","<Random seed for IC> = 0");
@@ -1719,7 +1722,7 @@ double msrGenerateIC(MSR msr) {
     in.omegav= msr->param.csm->dLambda;
     in.sigma8= msr->param.csm->dSigma8;
     in.spectral=msr->param.csm->dSpectral;
-
+    in.dTfExpansion = 1.0 / (1.0 + msr->param.dTfRedshift);
     in.bComove = msr->param.csm->bComove;
     in.fExtraStore = msr->param.dExtraStore;
     in.ps.nDark = (uint64_t)in.nGrid * in.nGrid * in.nGrid;

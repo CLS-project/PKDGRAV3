@@ -225,7 +225,7 @@ void pkdGenerateNoise(PKD pkd,unsigned long seed,MDLFFT fft,float complex *ic,do
 
 int pkdGenerateIC(PKD pkd,int iSeed,int nGrid,int b2LPT,double dBoxSize,
     double dOmega0,double dLambda0,double dSigma8,double dSpectral,double h,
-    double a,int nTf, double *tk, double *tf,
+    double a,double dTfExpansion,int nTf, double *tk, double *tf,
     double *noiseMean, double *noiseCSQ) {
     MDL mdl = pkd->mdl;
     double twopi = 2.0 * 4.0 * atan(1.0);
@@ -251,9 +251,11 @@ int pkdGenerateIC(PKD pkd,int iSeed,int nGrid,int b2LPT,double dBoxSize,
 
     powerParameters P;
 
-    D0 = Growth(dOmega0,dLambda0,1,&dOmega,&dLambda);
-    Da = Growth(dOmega0,dLambda0,a,&dOmega,&dLambda);
-    dSigma8 *= Da/D0;
+    if (a != dTfExpansion ) {
+	D0 = Growth(dOmega0,dLambda0,dTfExpansion,&dOmega,&dLambda);
+	Da = Growth(dOmega0,dLambda0,a,&dOmega,&dLambda);
+	dSigma8 *= Da/D0;
+	}
 
     P.normalization = 1e4;
     P.spectral = dSpectral;
@@ -283,7 +285,7 @@ int pkdGenerateIC(PKD pkd,int iSeed,int nGrid,int b2LPT,double dBoxSize,
     ic[5].r = ic[4].r + fft->rgrid->nLocal;
     ic[6].r = ic[5].r + fft->rgrid->nLocal;
     ic[7].r = ic[6].r + fft->rgrid->nLocal;
-    ic[8].r = (FFTW3(real)*)pkd->pLite;;
+    ic[8].r = (FFTW3(real)*)pkd->pLite;
     ic[9].r = ic[8].r + fft->rgrid->nLocal;
 
     ic[0].r = mdlSetArray(pkd->mdl,rlast.i,sizeof(FFTW3(real)),ic[0].r);

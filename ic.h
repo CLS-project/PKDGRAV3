@@ -26,7 +26,7 @@ typedef struct {
 
 int pkdGenerateIC(PKD pkd,int iSeed,int nGrid,int b2LPT,double dBoxSize,
     double dOmega0,double dLambda0,double dSigma8,double dSpectral,double h,
-    double a,int nTf, double *tk, double *tf,
+    double a,double dTfExpansion,int nTf, double *tk, double *tf,
     double *noiseMean, double *noiseCSQ);
 #endif
 #endif

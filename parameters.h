@@ -169,6 +169,7 @@ struct parameters {
     char achScriptFile[256];
 #endif
     char achTfFile[256];
+    double dTfRedshift;
     double dGrowDeltaM;
     double dGrowStartT;
     double dGrowEndT;
