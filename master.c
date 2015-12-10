@@ -1796,9 +1796,10 @@ double msrGenerateIC(MSR msr) {
     msrprintf(msr,"IC Generation @ a=%g with seed %d\n",in.dExpansion,dsec,msr->param.iSeed);
     in.nPerNode = outFFTSizes.nMaxLocal;
     pstGenerateIC(msr->pst,&in,sizeof(in),&out,&nOut);
-    mean = out.noiseMean / msr->N;
-    rms = sqrt(out.noiseCSQ / msr->N);
+    mean = 2*out.noiseMean / msr->N;
+    rms = sqrt(2*out.noiseCSQ / msr->N);
 
+//    double dev = sqrt(2*out.noiseCSQ/msr->N - mean*mean);
     msrSetClasses(msr);
     dsec = msrTime() - sec;
     PKD pkd = msr->pst->plcl->pkd;
