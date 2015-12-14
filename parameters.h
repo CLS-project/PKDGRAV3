@@ -204,6 +204,7 @@ struct parameters {
 
 #ifdef MDL_FFTW
     int nGridPk;
+    int nBinsPk;
 #endif
 
     int nDomainRungs;

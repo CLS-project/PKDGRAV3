@@ -248,7 +248,7 @@ void msrCalcCOM(MSR msr,const double *dCenter, double dRadius,
 void msrInitGrid(MSR msr,int x,int y,int z);
 void msrGridProject(MSR msr,double x,double y,double z);
 #ifdef MDL_FFTW
-void msrMeasurePk(MSR msr,double *dCenter,double dRadius,int nGrid,float *Pk);
+void msrMeasurePk(MSR msr,double *dCenter,double dRadius,int nGrid,int nBins,float *Pk);
 #endif
 void msrPSGroupFinder(MSR msr);
 void msrOutPsGroups(MSR msr,const char *pszFile,int iOutType, double dTime);

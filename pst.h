@@ -1362,17 +1362,18 @@ struct inGridProject {
 void pstGridProject(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 
 #ifdef MDL_FFTW
-#define PST_MAX_K 20484
+#define PST_MAX_K_BINS 4096
 /* PST_MEASUREPK */
 struct inMeasurePk {
     double dCenter[3];
     double dRadius;
     double dTotalMass;
     int nGrid;
+    int nBins;
     };
 struct outMeasurePk {
-    float fPower[PST_MAX_K];
-    int   nPower[PST_MAX_K];
+    float fPower[PST_MAX_K_BINS];
+    int   nPower[PST_MAX_K_BINS];
     };
 void pstMeasurePk(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 #endif

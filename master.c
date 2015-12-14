@@ -546,6 +546,9 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
 		"rtrace","<enable/disable relaxation tracing> = -rtrace");
 
 #ifdef MDL_FFTW
+    msr->param.nBinsPk = 0;
+    prmAddParam(msr->prm,"nBinsPk",1,&msr->param.nBinsPk,
+		sizeof(int),"npk","<Number of log bins for P(k)> = nGridPk/2");
     msr->param.nGridPk = 0;
     prmAddParam(msr->prm,"nGridPk",1,&msr->param.nGridPk,
 		sizeof(int),"pk","<Grid size for measure P(k) 0=disabled> = 0");
@@ -936,6 +939,16 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
 #endif
 
 #ifdef MDL_FFTW
+    if ( msr->param.nGridPk ) {
+	if (prmSpecified(msr->prm,"nBinsPk")) {
+	    if (msr->param.nBinsPk > msr->param.nGridPk/2) {
+		msr->param.nBinsPk = msr->param.nGridPk/2;
+		}
+	    }
+	else msr->param.nBinsPk = msr->param.nGridPk/2;
+	if (msr->param.nBinsPk > PST_MAX_K_BINS)
+	    msr->param.nBinsPk = PST_MAX_K_BINS;
+	}
     if ( msr->param.nGrid ) {
 	if (msr->param.achInFile[0]) {
 	    puts("ERROR: do not specify an input file when generating IC");
@@ -4883,7 +4896,7 @@ double msrRead(MSR msr, const char *achInFile) {
 	inFFTSizes.nx = inFFTSizes.ny = inFFTSizes.nz = msr->param.nGridPk;
 	pstGetFFTMaxSizes(msr->pst,&inFFTSizes,sizeof(inFFTSizes),&outFFTSizes,&n);
 	read->nMinLocalMemory = outFFTSizes.nMaxLocal*sizeof(FFTW3(real));
-	}
+		}
 #endif
 
     /*
@@ -4961,16 +4974,17 @@ void msrOutputPk(MSR msr,int iStep) {
     char achFile[PATH_MAX];
 #endif
     double dCenter[3] = {0.0,0.0,0.0};
+    double kscale;
     float *fPk;
     FILE *fp;
     int i;
 
     if (msr->param.nGridPk == 0) return;
-    
+
     fPk = malloc(sizeof(float)*(msr->param.nGridPk/2+1));
     assert(fPk != NULL);
 
-    msrMeasurePk(msr,dCenter,0.5,msr->param.nGridPk,fPk);
+    msrMeasurePk(msr,dCenter,0.5,msr->param.nGridPk,msr->param.nBinsPk,fPk);
 
     msrBuildName(msr,achFile,iStep);
     strncat(achFile,".pk",256);
@@ -4980,8 +4994,11 @@ void msrOutputPk(MSR msr,int iStep) {
 	printf("Could not create P(k) File:%s\n",achFile);
 	_msrExit(msr,1);
 	}
-    for(i=1; i<=msr->param.nGridPk/2; ++i) {
-	fprintf(fp,"%d %g\n",i,fPk[i]);
+    kscale = 0.5 * msr->param.nGridPk / msr->param.nBinsPk;
+    for(i=0; i<msr->param.nBinsPk; ++i) {
+	if (fPk[i] > 0.0) {
+	    fprintf(fp,"%g %g\n",kscale * (i+1),fPk[i]);
+	    }
 	}
     fclose(fp);
     free(fPk);
@@ -5718,21 +5735,25 @@ void msrGridProject(MSR msr,double x,double y,double z) {
     }
 
 #ifdef MDL_FFTW
-void msrMeasurePk(MSR msr,double *dCenter,double dRadius,int nGrid,float *Pk) {
+void msrMeasurePk(MSR msr,double *dCenter,double dRadius,int nGrid,int nBins,float *Pk) {
     struct inMeasurePk in;
     struct outMeasurePk *out;
     int nOut;
     int i;
-    double fftNormalize = 1.0 / (1.0*nGrid*nGrid*nGrid);
+    double fftNormalize;
     double sec,dsec;
 
     printf("Measuring P(k) with grid size %d ...\n",nGrid);
-    assert(nGrid/2 < PST_MAX_K);
+    assert(nBins <= PST_MAX_K_BINS);
+
+    fftNormalize = 1.0 / (1.0*nGrid*nGrid*nGrid);
+    fftNormalize *= fftNormalize;
 
     sec = msrTime();
 
     /* NOTE: reordering the particles by their z coordinate would be good here */
     in.nGrid = nGrid;
+    in.nBins = nGrid/2 < nBins ? nGrid/2 : nBins ;
     in.dCenter[0] = dCenter[0];
     in.dCenter[1] = dCenter[1];
     in.dCenter[2] = dCenter[2];
@@ -5742,9 +5763,9 @@ void msrMeasurePk(MSR msr,double *dCenter,double dRadius,int nGrid,float *Pk) {
     out = malloc(sizeof(struct outMeasurePk));
     assert(out != NULL);
     pstMeasurePk(msr->pst, &in, sizeof(in), out, &nOut);
-    for( i=0; i<=nGrid/2; i++ ) {
+    for( i=0; i<nBins; i++ ) {
 	if ( out->nPower[i] == 0 ) Pk[i] = 0;
-	else Pk[i] = out->fPower[i]/out->nPower[i]*fftNormalize*1.0*fftNormalize;
+	else Pk[i] = out->fPower[i]/out->nPower[i]*fftNormalize;
 	}
     /* At this point, Pk[] needs to be corrected by the box size */
 

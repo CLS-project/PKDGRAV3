@@ -4715,7 +4715,7 @@ void pstMeasurePk(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	mdlGetReply(pst->mdl,rID,outUpper,&nOut);
 	assert(nOut==sizeof(struct outMeasurePk));
 
-	for(i=0;i<=in->nGrid/2; i++) {
+	for(i=0;i<in->nBins; i++) {
 	    out->fPower[i] += outUpper->fPower[i];
 	    out->nPower[i] += outUpper->nPower[i];
 	    }
@@ -4723,13 +4723,8 @@ void pstMeasurePk(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	}
     else {
 	pkdMeasurePk(plcl->pkd, in->dCenter, in->dRadius, in->dTotalMass,
-		     in->nGrid, out->fPower, out->nPower);
+	    in->nGrid, in->nBins, out->fPower, out->nPower);
 	}
-
-    if (pstAmNode(pst)) {
-	}
-
-
     if (pnOut) *pnOut = sizeof(struct outMeasurePk);
     }
 #endif
