@@ -4979,7 +4979,6 @@ void msrOutputPk(MSR msr,int iStep) {
     char achFile[PATH_MAX];
 #endif
     double dCenter[3] = {0.0,0.0,0.0};
-    double kscale;
     float *fK, *fPk;
     FILE *fp;
     int i;
@@ -5001,12 +5000,8 @@ void msrOutputPk(MSR msr,int iStep) {
 	printf("Could not create P(k) File:%s\n",achFile);
 	_msrExit(msr,1);
 	}
-    kscale = 0.5 * msr->param.nGridPk / msr->param.nBinsPk;
     for(i=0; i<msr->param.nBinsPk; ++i) {
-	if (fPk[i] > 0.0) {
-	    fprintf(fp,"%g %g\n",kscale*fK[i],fPk[i]);
-//	    fprintf(fp,"%g %g\n",kscale * (i+1),fPk[i]);
-	    }
+	if (fPk[i] > 0.0) fprintf(fp,"%g %g\n",fK[i],fPk[i]);
 	}
     fclose(fp);
     free(fK);
