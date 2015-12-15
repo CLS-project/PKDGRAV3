@@ -907,7 +907,7 @@ static inline int pkd_grid_order(PKD pkd,void *a,void *b,int nGrid) {
 
 /*#define TEST_DENSITY*/
 void pkdMeasurePk(PKD pkd, double dCenter[3], double dRadius, double dTotalMass,
-    int nGrid, int nBins, float *fPower, int *nPower) {
+    int nGrid, int nBins, float *fK, float *fPower, int *nPower) {
     PARTICLE *p;
     MDLFFT fft;
     mdlGridCoord first, last, index;
@@ -917,7 +917,7 @@ void pkdMeasurePk(PKD pkd, double dCenter[3], double dRadius, double dTotalMass,
     double fftNormalize;
     double rms;
     double r[3];
-    double dScale;
+    double dScale,ak;
     int i,j,k, sy, ey, idx, ks;
     int iNyquist;
     int nGridFFT;
@@ -1004,6 +1004,7 @@ void pkdMeasurePk(PKD pkd, double dCenter[3], double dRadius, double dTotalMass,
     mdlGridCoordFirstLast(pkd->mdl,fft->kgrid,&first,&last);
 
     for( i=0; i<nBins; i++ ) {
+	fK[i] = 0.0;
 	fPower[i] = 0.0;
 	nPower[i] = 0;
 	}
@@ -1031,12 +1032,14 @@ void pkdMeasurePk(PKD pkd, double dCenter[3], double dRadius, double dTotalMass,
 		}
 	    i = index.x;
 	    double win = deconvolveWindow(i,nGrid) * win_k * win_j;
-	    ks = sqrt(i*i + jj*jj + kk*kk);
+	    ak = sqrt(i*i + jj*jj + kk*kk);
+	    ks = ak;
 	    if ( ks >= 1 && ks <= iNyquist ) {
 		ks = floor((ks-1.0) * scale);
 		assert(ks>=0 && ks <nBins);
 		idx = index.i;
 		double delta2 = (pow2(fftDataK[idx][0]) + pow2(fftDataK[idx][1]))/(win*win);
+		fK[ks] += ak;
 		fPower[ks] += delta2;
 		nPower[ks] += 1;
 		}

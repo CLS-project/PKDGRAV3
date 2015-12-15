@@ -4975,16 +4975,18 @@ void msrOutputPk(MSR msr,int iStep) {
 #endif
     double dCenter[3] = {0.0,0.0,0.0};
     double kscale;
-    float *fPk;
+    float *fK, *fPk;
     FILE *fp;
     int i;
 
     if (msr->param.nGridPk == 0) return;
 
-    fPk = malloc(sizeof(float)*(msr->param.nGridPk/2+1));
+    fK = malloc(sizeof(float)*(msr->param.nBinsPk));
+    assert(fK != NULL);
+    fPk = malloc(sizeof(float)*(msr->param.nBinsPk));
     assert(fPk != NULL);
 
-    msrMeasurePk(msr,dCenter,0.5,msr->param.nGridPk,msr->param.nBinsPk,fPk);
+    msrMeasurePk(msr,dCenter,0.5,msr->param.nGridPk,msr->param.nBinsPk,fK,fPk);
 
     msrBuildName(msr,achFile,iStep);
     strncat(achFile,".pk",256);
@@ -4997,10 +4999,12 @@ void msrOutputPk(MSR msr,int iStep) {
     kscale = 0.5 * msr->param.nGridPk / msr->param.nBinsPk;
     for(i=0; i<msr->param.nBinsPk; ++i) {
 	if (fPk[i] > 0.0) {
-	    fprintf(fp,"%g %g\n",kscale * (i+1),fPk[i]);
+	    fprintf(fp,"%g %g\n",kscale*fK[i],fPk[i]);
+//	    fprintf(fp,"%g %g\n",kscale * (i+1),fPk[i]);
 	    }
 	}
     fclose(fp);
+    free(fK);
     free(fPk);
     }
 #endif
@@ -5735,7 +5739,7 @@ void msrGridProject(MSR msr,double x,double y,double z) {
     }
 
 #ifdef MDL_FFTW
-void msrMeasurePk(MSR msr,double *dCenter,double dRadius,int nGrid,int nBins,float *Pk) {
+void msrMeasurePk(MSR msr,double *dCenter,double dRadius,int nGrid,int nBins,float *fK,float *fPk) {
     struct inMeasurePk in;
     struct outMeasurePk *out;
     int nOut;
@@ -5764,10 +5768,13 @@ void msrMeasurePk(MSR msr,double *dCenter,double dRadius,int nGrid,int nBins,flo
     assert(out != NULL);
     pstMeasurePk(msr->pst, &in, sizeof(in), out, &nOut);
     for( i=0; i<nBins; i++ ) {
-	if ( out->nPower[i] == 0 ) Pk[i] = 0;
-	else Pk[i] = out->fPower[i]/out->nPower[i]*fftNormalize;
+	if ( out->nPower[i] == 0 ) fK[i] = fPk[i] = 0;
+	else {
+	    fK[i] = out->fK[i]/out->nPower[i];
+	    fPk[i] = out->fPower[i]/out->nPower[i]*fftNormalize;
+	    }
 	}
-    /* At this point, Pk[] needs to be corrected by the box size */
+    /* At this point, dPk[] needs to be corrected by the box size */
 
     dsec = msrTime() - sec;
     printf("P(k) Calculated, Wallclock: %f secs\n\n",dsec);

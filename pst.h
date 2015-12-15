@@ -1372,6 +1372,7 @@ struct inMeasurePk {
     int nBins;
     };
 struct outMeasurePk {
+    float fK[PST_MAX_K_BINS];
     float fPower[PST_MAX_K_BINS];
     int   nPower[PST_MAX_K_BINS];
     };

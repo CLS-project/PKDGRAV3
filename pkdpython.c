@@ -681,7 +681,7 @@ ppy_msr_MeasurePk(PyObject *self, PyObject *args, PyObject *kwobj) {
     double dCenter[3] = {0.0,0.0,0.0};
     double dRadius = 0.5;
     int nGrid, iNyquist, i;
-    float *fPk;
+    float *fK,*fPk;
     PyObject *List, *value;
 
     ppy2prm();
@@ -694,7 +694,8 @@ ppy_msr_MeasurePk(PyObject *self, PyObject *args, PyObject *kwobj) {
 
 
     fPk = malloc(sizeof(float)*(iNyquist+1));
-    msrMeasurePk(ppy_msr,dCenter,dRadius,nGrid,nGrid/2,fPk);
+    fK = malloc(sizeof(float)*(iNyquist+1));
+    msrMeasurePk(ppy_msr,dCenter,dRadius,nGrid,nGrid/2,fK,fPk);
 
     List = PyList_New( iNyquist+1 );
     assert( List !=NULL );
@@ -703,6 +704,9 @@ ppy_msr_MeasurePk(PyObject *self, PyObject *args, PyObject *kwobj) {
 	assert( value != NULL );
 	assert( PyList_SetItem(List,i,value) >= 0 );
 	}
+    free(fK);
+    free(fPk);
+
     return List;
 }
 #endif
