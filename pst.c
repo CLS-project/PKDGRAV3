@@ -3960,7 +3960,7 @@ void pstGenerateIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	    move.pBase = (basicParticle *)pkdParticleBase(plcl->pkd);
 	    move.iStart = 0;
 	    move.nMove = out->N;
-	    move.fMass = (in->omegac+in->omegab) / nTotal;
+	    move.fMass = in->omegam / nTotal;
 	    move.fSoft = 1.0 / (50.0*in->nGrid);
 
 	    mdlFFTlocalCount(pst->mdl,in->nGrid,in->nGrid,in->nGrid,0,&sZ,0,0);
@@ -3982,7 +3982,7 @@ void pstGenerateIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	    in->ps.nDark,in->ps.nGas,in->ps.nStar,in->ps.mMemoryModel, in->ps.nDomainRungs,
 	    in->ps.bLightCone, in->ps.bLightConeParticles);
 	out->N = pkdGenerateIC(plcl->pkd,in->iSeed,in->nGrid,in->b2LPT,in->dBoxSize,
-	    in->omegac+in->omegab,in->omegav,in->sigma8,in->spectral,in->h,
+	    in->omegam,in->omegav,in->sigma8,in->spectral,in->h,
 	    in->dExpansion,in->dTfExpansion,in->nTf, in->k, in->tf,&out->noiseMean,&out->noiseCSQ);
 	out->dExpansion = in->dExpansion;
 	}

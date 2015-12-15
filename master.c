@@ -1730,7 +1730,7 @@ double msrGenerateIC(MSR msr) {
     in.iSeed = msr->param.iSeed;
     in.nGrid = msr->param.nGrid;
     in.b2LPT = msr->param.b2LPT;
-    in.omegac= msr->param.csm->dOmega0 - msr->param.csm->dOmegab;
+    in.omegam= msr->param.csm->dOmega0;
     in.omegab= msr->param.csm->dOmegab;
     in.omegav= msr->param.csm->dLambda;
     in.sigma8= msr->param.csm->dSigma8;

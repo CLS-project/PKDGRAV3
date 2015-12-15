@@ -1122,7 +1122,7 @@ struct inGenerateIC {
     uint64_t nPerNode;
     double h;
     double dBoxSize;
-    double omegac;
+    double omegam;
     double omegab;
     double omegav;
     double sigma8;
