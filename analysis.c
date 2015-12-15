@@ -1016,7 +1016,11 @@ void pkdMeasurePk(PKD pkd, double dCenter[3], double dRadius, double dTotalMass,
     */
     if ( bPeriodic ) {
 	double win_j, win_k;
+#ifdef LINEAR_PK
 	double scale = nBins * 1.0 / iNyquist;
+#else
+	double scale = nBins * 1.0 / log(iNyquist+1);
+#endif
 	int jj, kk;
 	i = j = k = -1;
 	for( index=first; !mdlGridCoordCompare(&index,&last); mdlGridCoordIncrement(&index) ) {
@@ -1035,7 +1039,11 @@ void pkdMeasurePk(PKD pkd, double dCenter[3], double dRadius, double dTotalMass,
 	    ak = sqrt(i*i + jj*jj + kk*kk);
 	    ks = ak;
 	    if ( ks >= 1 && ks <= iNyquist ) {
+#ifdef LINEAR_PK
 		ks = floor((ks-1.0) * scale);
+#else
+		ks = floor(log(ks) * scale);
+#endif
 		assert(ks>=0 && ks <nBins);
 		idx = index.i;
 		double delta2 = (pow2(fftDataK[idx][0]) + pow2(fftDataK[idx][1]))/(win*win);
