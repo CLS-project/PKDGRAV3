@@ -748,60 +748,98 @@ static inline float pow2(float x) {
     return x*x;
     }
 
-//double grid_mass(MDL mdl, int nLocal, FFTW3(real) *fGrid) {
-//    int i,j,k;
-//    double sum, total;
-//
-//    sum = 0.0;
-//    for( i=0; i<nLocal; i++ )
-//	sum += fGrid[i];
-//    mdlAllreduce(mdl,&sum,&total,1,MDL_DOUBLE,MDL_SUM);
-//    return total;
-//    }
-
 /*
 ** Given grid coordinates x,y,z (integer), find out on which processor
 ** this cell can be found and accumulate mass into it.
 */
-static void cell_accumulate(PKD pkd, MDLFFT fft,int nGrid, int x,int y,int z, float m) {
+static void cell_accumulate(PKD pkd, MDLFFT fft,int x,int y,int z, float m) {
     FFTW3(real) *p;
     int id, idx;
 
-    if ( x<0 || y<0 || z<0 || x>=fft->rgrid->n1 || y>=fft->rgrid->n2 || z>=fft->rgrid->n3 ) return;
+    //assert ( x>=0 && y>=0 && z>=0 && x<fft->rgrid->n1 && y<fft->rgrid->n2 && z<fft->rgrid->n3 );
 
     /* Map coordinate to processor/index */
     id = mdlFFTrId(pkd->mdl,fft,x,y,z);
     idx = mdlFFTrIdx(pkd->mdl,fft,x,y,z);
     p = mdlVirtualAcquire(pkd->mdl,CID_PK,idx,id,0);
     *p += m;
-    /*mdlRelease(pkd->mdl,CID_PK,p);*/
     }
 
-#ifdef NGP
+#if defined(DO_NOT_USE_NGP)
 static void ngp_assign(PKD pkd, MDLFFT fft, int nGrid,
-                       double x, double y, double z, double mass) {
+                       double x, double y, double z, float mass) {
     int           ix, iy, iz;
 
     /* coordinates in subcube units [0,NGRID] */
-    ix = (x * nGrid);
-    iy = (y * nGrid);
-    iz = (z * nGrid);
+    ix = (int)(x * nGrid);
+    iy = (int)(y * nGrid);
+    iz = (int)(z * nGrid);
 
     /* If very close to 1.0, it could round up, so correct */
     if (ix==nGrid) ix = nGrid-1;
     if (iy==nGrid) iy = nGrid-1;
     if (iz==nGrid) iz = nGrid-1;
 
-    cell_accumulate(pkd,fft,nGrid,ix,iy,iz,mass);
+    cell_accumulate(pkd,fft,ix,iy,iz,mass);
     }
+#elif defined(USE_CIC)
+static void cic_assign(PKD pkd, MDLFFT fft, int nGrid,
+		       double x, double y, double z, float mass) {
+    int           ix, iy, iz, ixp1, iyp1, izp1;
+    float         rrx, rry, rrz;
+    float         hx, hy, hz;
+    float         hx0, hy0, hz0, hxp1, hyp1, hzp1;
+   
+    /* coordinates in subcube units [0,NGRID] */
+    rrx = x * (float)(nGrid);
+    rry = y * (float)(nGrid);
+    rrz = z * (float)(nGrid);
+               
+    /* index of nearest grid point [0,NGRID] */
+    ix  = (int)(rrx);
+    iy  = (int)(rry);
+    iz  = (int)(rrz);
+
+    /* If very close to 1.0, it could round up, so correct */
+    if (ix==nGrid) ix = nGrid-1;
+    if (iy==nGrid) iy = nGrid-1;
+    if (iz==nGrid) iz = nGrid-1;
+               
+    /* distance to nearest grid point */
+    hx  = rrx - (float)ix;
+    hy  = rry - (float)iy;
+    hz  = rrz - (float)iz;
+
+    /* calculate TSC weights */
+    hx0 = 1.0 - hx;
+    hxp1= hx;
+    hy0 = 1.0 - hy;
+    hyp1= hy;
+    hz0 = 1.0 - hz;
+    hzp1= hz;
+
+    /* keep track of periodic boundaries */
+    ixp1=wrap(ix+1,fft->rgrid->n1);
+    iyp1=wrap(iy+1,fft->rgrid->n2);
+    izp1=wrap(iz+1,fft->rgrid->n3);
+
+    /* assign particle according to weights to 8 neighboring nodes */
+    cell_accumulate(pkd,fft,  ix,  iy,  iz,hx0 *hy0  *hz0  * mass);
+    cell_accumulate(pkd,fft,ixp1,  iy,  iz,hxp1*hy0  *hz0  * mass);
+    cell_accumulate(pkd,fft,  ix,iyp1,  iz,hx0 *hyp1 *hz0  * mass);
+    cell_accumulate(pkd,fft,ixp1,iyp1,  iz,hxp1*hyp1 *hz0  * mass);
+    cell_accumulate(pkd,fft,  ix,  iy,izp1,hx0 *hy0  *hzp1 * mass);
+    cell_accumulate(pkd,fft,ixp1,  iy,izp1,hxp1*hy0  *hzp1 * mass);
+    cell_accumulate(pkd,fft,  ix,iyp1,izp1,hx0 *hyp1 *hzp1 * mass);
+    cell_accumulate(pkd,fft,ixp1,iyp1,izp1,hxp1*hyp1 *hzp1 * mass);
+}
 #else
 static void tsc_assign(PKD pkd, MDLFFT fft, int nGrid,
-		       double x, double y, double z, double mass) {
+		       double x, double y, double z, float mass) {
     int           ix, iy, iz, ixp1, iyp1, izp1, ixm1, iym1, izm1;
     float         rrx, rry, rrz;
     float         hx, hy, hz;
     float         hx0, hy0, hz0, hxp1, hyp1, hzp1, hxm1, hym1, hzm1;
-    float         pw;
    
     /* coordinates in subcube units [0,NGRID] */
     rrx = x * (float)(nGrid);
@@ -823,9 +861,6 @@ static void tsc_assign(PKD pkd, MDLFFT fft, int nGrid,
     hy  = (rry-0.5) - (float)iy;
     hz  = (rrz-0.5) - (float)iz;
 
-    /* particle mass */
-    pw = mass;
-               
     /* calculate TSC weights */
     hx0=0.75 - hx*hx;
     hxp1=0.5* pow2(0.5 + hx);
@@ -846,33 +881,33 @@ static void tsc_assign(PKD pkd, MDLFFT fft, int nGrid,
     izm1=wrap(iz-1,fft->rgrid->n3);
 
     /* assign particle according to weights to 27 neighboring nodes */
-    cell_accumulate(pkd,fft,nGrid,ixm1,iym1,izm1,hxm1*hym1 *hzm1 * pw);
-    cell_accumulate(pkd,fft,nGrid,ix,  iym1,izm1,hx0 *hym1 *hzm1 * pw);
-    cell_accumulate(pkd,fft,nGrid,ixp1,iym1,izm1,hxp1*hym1 *hzm1 * pw);
-    cell_accumulate(pkd,fft,nGrid,ixm1,  iy,izm1,hxm1*hy0  *hzm1 * pw);
-    cell_accumulate(pkd,fft,nGrid,  ix,  iy,izm1,hx0 *hy0  *hzm1 * pw);
-    cell_accumulate(pkd,fft,nGrid,ixp1,  iy,izm1,hxp1*hy0  *hzm1 * pw);
-    cell_accumulate(pkd,fft,nGrid,ixm1,iyp1,izm1,hxm1*hyp1 *hzm1 * pw);
-    cell_accumulate(pkd,fft,nGrid,  ix,iyp1,izm1,hx0 *hyp1 *hzm1 * pw);
-    cell_accumulate(pkd,fft,nGrid,ixp1,iyp1,izm1,hxp1*hyp1 *hzm1 * pw);
-    cell_accumulate(pkd,fft,nGrid,ixm1,iym1,  iz,hxm1*hym1 *hz0 * pw);
-    cell_accumulate(pkd,fft,nGrid,  ix,iym1,  iz,hx0 *hym1 *hz0 * pw);
-    cell_accumulate(pkd,fft,nGrid,ixp1,iym1,  iz,hxp1*hym1 *hz0 * pw);
-    cell_accumulate(pkd,fft,nGrid,ixm1,  iy,  iz,hxm1*hy0  *hz0 * pw);
-    cell_accumulate(pkd,fft,nGrid,  ix,  iy,  iz,hx0 *hy0  *hz0 * pw);
-    cell_accumulate(pkd,fft,nGrid,ixp1,  iy,  iz,hxp1*hy0  *hz0 * pw);
-    cell_accumulate(pkd,fft,nGrid,ixm1,iyp1,  iz,hxm1*hyp1 *hz0 * pw);
-    cell_accumulate(pkd,fft,nGrid,  ix,iyp1,  iz,hx0 *hyp1 *hz0 * pw);
-    cell_accumulate(pkd,fft,nGrid,ixp1,iyp1,  iz,hxp1*hyp1 *hz0 * pw);
-    cell_accumulate(pkd,fft,nGrid,ixm1,iym1,izp1,hxm1*hym1 *hzp1 * pw);
-    cell_accumulate(pkd,fft,nGrid,  ix,iym1,izp1,hx0 *hym1 *hzp1 * pw);
-    cell_accumulate(pkd,fft,nGrid,ixp1,iym1,izp1,hxp1*hym1 *hzp1 * pw);
-    cell_accumulate(pkd,fft,nGrid,ixm1,  iy,izp1,hxm1*hy0  *hzp1 * pw);
-    cell_accumulate(pkd,fft,nGrid,  ix,  iy,izp1,hx0 *hy0  *hzp1 * pw);
-    cell_accumulate(pkd,fft,nGrid,ixp1,  iy,izp1,hxp1*hy0  *hzp1 * pw);
-    cell_accumulate(pkd,fft,nGrid,ixm1,iyp1,izp1,hxm1*hyp1 *hzp1 * pw);
-    cell_accumulate(pkd,fft,nGrid,  ix,iyp1,izp1,hx0 *hyp1 *hzp1 * pw);
-    cell_accumulate(pkd,fft,nGrid,ixp1,iyp1,izp1,hxp1*hyp1 *hzp1 * pw);
+    cell_accumulate(pkd,fft,ixm1,iym1,izm1,hxm1*hym1 *hzm1 * mass);
+    cell_accumulate(pkd,fft,ix,  iym1,izm1,hx0 *hym1 *hzm1 * mass);
+    cell_accumulate(pkd,fft,ixp1,iym1,izm1,hxp1*hym1 *hzm1 * mass);
+    cell_accumulate(pkd,fft,ixm1,  iy,izm1,hxm1*hy0  *hzm1 * mass);
+    cell_accumulate(pkd,fft,  ix,  iy,izm1,hx0 *hy0  *hzm1 * mass);
+    cell_accumulate(pkd,fft,ixp1,  iy,izm1,hxp1*hy0  *hzm1 * mass);
+    cell_accumulate(pkd,fft,ixm1,iyp1,izm1,hxm1*hyp1 *hzm1 * mass);
+    cell_accumulate(pkd,fft,  ix,iyp1,izm1,hx0 *hyp1 *hzm1 * mass);
+    cell_accumulate(pkd,fft,ixp1,iyp1,izm1,hxp1*hyp1 *hzm1 * mass);
+    cell_accumulate(pkd,fft,ixm1,iym1,  iz,hxm1*hym1 *hz0  * mass);
+    cell_accumulate(pkd,fft,  ix,iym1,  iz,hx0 *hym1 *hz0  * mass);
+    cell_accumulate(pkd,fft,ixp1,iym1,  iz,hxp1*hym1 *hz0  * mass);
+    cell_accumulate(pkd,fft,ixm1,  iy,  iz,hxm1*hy0  *hz0  * mass);
+    cell_accumulate(pkd,fft,  ix,  iy,  iz,hx0 *hy0  *hz0  * mass);
+    cell_accumulate(pkd,fft,ixp1,  iy,  iz,hxp1*hy0  *hz0  * mass);
+    cell_accumulate(pkd,fft,ixm1,iyp1,  iz,hxm1*hyp1 *hz0  * mass);
+    cell_accumulate(pkd,fft,  ix,iyp1,  iz,hx0 *hyp1 *hz0  * mass);
+    cell_accumulate(pkd,fft,ixp1,iyp1,  iz,hxp1*hyp1 *hz0  * mass);
+    cell_accumulate(pkd,fft,ixm1,iym1,izp1,hxm1*hym1 *hzp1 * mass);
+    cell_accumulate(pkd,fft,  ix,iym1,izp1,hx0 *hym1 *hzp1 * mass);
+    cell_accumulate(pkd,fft,ixp1,iym1,izp1,hxp1*hym1 *hzp1 * mass);
+    cell_accumulate(pkd,fft,ixm1,  iy,izp1,hxm1*hy0  *hzp1 * mass);
+    cell_accumulate(pkd,fft,  ix,  iy,izp1,hx0 *hy0  *hzp1 * mass);
+    cell_accumulate(pkd,fft,ixp1,  iy,izp1,hxp1*hy0  *hzp1 * mass);
+    cell_accumulate(pkd,fft,ixm1,iyp1,izp1,hxm1*hyp1 *hzp1 * mass);
+    cell_accumulate(pkd,fft,  ix,iyp1,izp1,hx0 *hyp1 *hzp1 * mass);
+    cell_accumulate(pkd,fft,ixp1,iyp1,izp1,hxp1*hyp1 *hzp1 * mass);
 }
 #endif
 
@@ -880,8 +915,10 @@ static double deconvolveWindow(int i,int nGrid) {
     double win = M_PI * i / nGrid;
     if(win>0.1) win = sin(win)/win;
     else win=1.0-win*win/6.0*(1.0-win*win/20.0*(1.0-win*win/76.0));
-#ifdef NGP
+#if defined(DO_NOT_USE_NGP)
     return win;
+#elif defined(USE_CIC)
+    return win*win;
 #else
     return win*win*win;
 #endif
@@ -905,7 +942,6 @@ static inline int pkd_grid_order(PKD pkd,void *a,void *b,int nGrid) {
 
 #define qsort_lt(a,b) pkd_grid_order(pkd,a,b,nGrid)
 
-/*#define TEST_DENSITY*/
 void pkdMeasurePk(PKD pkd, double dCenter[3], double dRadius, double dTotalMass,
     int nGrid, int nBins, float *fK, float *fPower, int *nPower) {
     PARTICLE *p;
@@ -939,7 +975,6 @@ void pkdMeasurePk(PKD pkd, double dCenter[3], double dRadius, double dTotalMass,
     fftDataK = (FFTW3(complex) *)fftData;
     for( i=first.i; i<last.i; ++i ) fftData[i] = 0.0;
     mdlCOcache(pkd->mdl,CID_PK,NULL,fftData,sizeof(FFTW3(real)),last.i,pkd,initPk,combPk);
-#ifndef TEST_DENSITY
     for (i=0;i<pkd->nLocal;++i) {
 	p = pkdParticle(pkd,i);
 	if ( !pkdIsSrcActive(p,0,MAX_RUNG) ) continue;
@@ -957,46 +992,24 @@ void pkdMeasurePk(PKD pkd, double dCenter[3], double dRadius, double dTotalMass,
 	** then this particle is outside of the given box and should be ignored.
 	*/
 	assert( r[0]>=0.0 && r[0]<1.0 && r[1]>=0.0 && r[1]<1.0 && r[2]>=0.0 && r[2]<1.0 );
-#ifdef NGP
-	tsc_assign(pkd, fft, nGrid, r[0], r[1], r[2], pkdMass(pkd,p));
+#if defined(DO_NOT_USE_NGP)
+	ngp_assign(pkd, fft, nGrid, r[0], r[1], r[2], pkdMass(pkd,p));
+#elif defined(USE_CIC)
+	cic_assign(pkd, fft, nGrid, r[0], r[1], r[2], pkdMass(pkd,p));
 #else
 	tsc_assign(pkd, fft, nGrid, r[0], r[1], r[2], pkdMass(pkd,p));
 #endif
 	}
-#else
-    for (k=0;k<nGrid;++k) {
-	for (j=0;j<nGrid;++j) {
-	    for (i=0;i<nGrid;++i) {
-		int id = mdlFFTrId(pkd->mdl,fft,i,j,k);
-		int idx = mdlFFTrIdx(pkd->mdl,fft,i,j,k);
-		float *p = mdlVirtualAcquire(pkd->mdl,CID_PK,idx,id,0);
-    		*p += 1;
-	    }
-	}
-    }
-#endif
     mdlFinishCache(pkd->mdl,CID_PK);
     for( i=first.i; i<last.i; ++i ) {
 	assert(fftData[i] >= 0.0);
 	}
-#ifdef TEST_DENSITY
-    FILE *fp;
-    char name[32];
-    sprintf(name,"density.%02d",mdlSelf(pkd->mdl));
-    fp = fopen(name,"w");
-    for( index=first; !mdlGridCoordCompare(&index,&last); mdlGridCoordIncrement(&index) ) {
-	fprintf(fp,"%d.%d.%d %g\n",index.z,index.y,index.x,fftData[index.i]);
-	}
-    fclose(fp);
-#endif
-
-    //dTotalMass = grid_mass(pkd->mdl,last.i, fftData);
     dRhoMean = dTotalMass * fftNormalize;
     diRhoMean = 1.0 / dRhoMean;
 
     /*printf( "Calculating density contrast\n" );*/
     for( i=first.i; i<last.i; ++i ) {
-	fftData[i] = (fftData[i] - dRhoMean) * diRhoMean;
+	fftData[i] = fftData[i]*diRhoMean - 1.0;
 	}
 
     mdlFFT(pkd->mdl,fft,fftData);
