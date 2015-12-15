@@ -3972,22 +3972,15 @@ void pstGenerateIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	    }
 	}
     else {
-	uint64_t nTotal, nLocal;
-	nTotal = in->nGrid + 2; /* Careful: 32 bit integer cubed => 64 bit integer */
-	nTotal *= in->nGrid;
-	nTotal *= in->nGrid;
-	nLocal = nTotal / mdlThreads(pst->mdl);
-	nLocal += (int)ceil(nLocal*in->fExtraStore);
-	if (nLocal*mdlCores(pst->mdl) < in->nPerNode) {
-	    nLocal = (in->nPerNode + mdlCores(pst->mdl) - 1) / mdlCores(pst->mdl);
+	if (in->ps.nStore*mdlCores(pst->mdl) < in->nPerNode) {
+	    in->ps.nStore = (in->nPerNode + mdlCores(pst->mdl) - 1) / mdlCores(pst->mdl);
 	    }
 	pkdInitialize(
-	    &plcl->pkd,pst->mdl,nLocal,in->ps.nMinLocalMemory,in->ps.nBucket,in->ps.nGroup,
-	    in->ps.nTreeBitsLo,in->ps.nTreeBitsHi,
+	    &plcl->pkd,pst->mdl,in->ps.nStore,in->ps.nMinLocalMemory,
+	    in->ps.nBucket,in->ps.nGroup,in->ps.nTreeBitsLo,in->ps.nTreeBitsHi,
 	    in->ps.iCacheSize,in->ps.iWorkQueueSize,in->ps.iCUDAQueueSize,in->ps.fPeriod,
 	    in->ps.nDark,in->ps.nGas,in->ps.nStar,in->ps.mMemoryModel, in->ps.nDomainRungs,
 	    in->ps.bLightCone, in->ps.bLightConeParticles);
-
 	out->N = pkdGenerateIC(plcl->pkd,in->iSeed,in->nGrid,in->b2LPT,in->dBoxSize,
 	    in->omegac+in->omegab,in->omegav,in->sigma8,in->spectral,in->h,
 	    in->dExpansion,in->dTfExpansion,in->nTf, in->k, in->tf,&out->noiseMean,&out->noiseCSQ);

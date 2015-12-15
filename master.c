@@ -1738,6 +1738,11 @@ double msrGenerateIC(MSR msr) {
     in.dTfExpansion = 1.0 / (1.0 + msr->param.dTfRedshift);
     in.bComove = msr->param.csm->bComove;
     in.fExtraStore = msr->param.dExtraStore;
+    in.ps.nStore = in.nGrid + 2; /* Careful: 32 bit integer cubed => 64 bit integer */
+    in.ps.nStore *= in.nGrid;
+    in.ps.nStore *= in.nGrid;
+    in.ps.nStore /= mdlThreads(msr->mdl);
+    in.ps.nStore += (int)ceil(in.ps.nStore*in.fExtraStore);
     in.ps.nDark = (uint64_t)in.nGrid * in.nGrid * in.nGrid;
     in.ps.nGas = 0;
     in.ps.nStar = 0;
