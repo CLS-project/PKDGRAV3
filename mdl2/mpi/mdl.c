@@ -2215,6 +2215,7 @@ MDLflushBuffer *flush_core_buffer(MDL mdl) {
 	mdlSendToMPI(mdl,&pBuffer->hdr.svc,MDL_SE_CACHE_FLUSH);
 	while (OPA_Queue_is_empty(&mdl->coreFlushBuffers)) {
 	    combine_all_incoming(mdl);
+	    if (mdl->base.iCore == mdl->iCoreMPI) checkMPI(mdl);
 	    }
 	OPA_Queue_dequeue(&mdl->coreFlushBuffers, pBuffer, MDLflushBuffer, hdr.hdr);
 	mdl->coreFlushBuffer = pBuffer;
