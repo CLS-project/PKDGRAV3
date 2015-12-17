@@ -152,8 +152,8 @@ void pkdGenerateNoise(PKD pkd,unsigned long seed,MDLFFT fft,float complex *ic,do
     const int iNyquist = nGrid / 2;
     RngStream g;
     unsigned long fullKey[6];
-    int j,k,jj,kk;
-    float v1,v2;
+    int i,j,k,jj,kk;
+    float complex v_ny,v_wn;
 
     mdlGridCoord kfirst, klast, kindex;
     mdlGridCoordFirstLast(mdl,fft->kgrid,&kfirst,&klast);
@@ -181,24 +181,25 @@ void pkdGenerateNoise(PKD pkd,unsigned long seed,MDLFFT fft,float complex *ic,do
     j = k = nGrid; /* Start with invalid values so we advance the RNG correctly. */
     for( kindex=kfirst; !mdlGridCoordCompare(&kindex,&klast); mdlGridCoordIncrement(&kindex) ) {
 	if (j!=kindex.z || k!=kindex.y) {
-	    assert(kindex.x==0);
+	    assert(kindex.x==0); /* The contrary should work properly now but needs testing. */
 	    j = kindex.z; /* Remember: z and y indexes are permuted in k-space */
 	    k = kindex.y;
 
 	    jj = j<=iNyquist ? j*2 : (nGrid-j)*2 + 1;
 	    kk = k<=iNyquist ? k*2 : (nGrid-k)*2 + 1;
 
+	    /* We need the sample for x==0 AND/OR x==iNyquist, usually both but at least one. */
 	    RngStream_ResetStartStream (g);
 	    if (kindex.z <= iNyquist && kindex.y <= iNyquist) { /* Positive zone */
 		RngStream_AdvanceState (g, 0, (1L<<40)*jj + (1L<<20)*kk );
-		ic[kindex.i+iNyquist] = pairc(g);
-		ic[kindex.i] = pairc(g);
+		v_ny = pairc(g);
+		v_wn = pairc(g);
 		if ( (kindex.z==0 || kindex.z==iNyquist)  && (kindex.y==0 || kindex.y==iNyquist) ) {
 		    /* These are real because they must be a complex conjugate of themselves. */
-		    ic[kindex.i+iNyquist] = creal(ic[kindex.i+iNyquist]);
-		    ic[kindex.i] = creal(ic[kindex.i]);
+		    v_ny = creal(v_ny);
+		    v_wn = creal(v_wn);
 		    /* DC mode is zero */
-		    if ( /* kindex.x==0 && (always true) */ kindex.y==0 && kindex.z==0) ic[kindex.i] = 0.0;
+		    if ( kindex.y==0 && kindex.z==0) v_wn = 0.0;
 		    }
 		}
 	    /* We need to generate the correct complex conjugates */
@@ -207,11 +208,17 @@ void pkdGenerateNoise(PKD pkd,unsigned long seed,MDLFFT fft,float complex *ic,do
 		int kkc = (nGrid-k) % nGrid * 2;
 
 		RngStream_AdvanceState (g, 0, (1L<<40)*jjc + (1L<<20)*kkc );
-		ic[kindex.i+iNyquist] = conj(pairc(g));
-		ic[kindex.i] = conj(pairc(g));
+		v_ny = conj(pairc(g));
+		v_wn = conj(pairc(g));
 		RngStream_ResetStartStream (g);
 		RngStream_AdvanceState (g, 0, (1L<<40)*jj + (1L<<20)*kk );
 		pairc(g); pairc(g); /* Burn the two samples we didn't use. */
+		}
+	    if (kindex.z!=klast.z || kindex.y!=klast.y || klast.x>iNyquist) 
+		ic[kindex.i-kindex.x+iNyquist] = v_ny;
+	    if (kindex.x < iNyquist) {
+		for(i=0; i<kindex.x; ++i) v_wn = pairc(g); /* (optional) advance to this sample */
+		ic[kindex.i] = v_wn;
 		}
 	    }
 	else if (kindex.x!=iNyquist) {
