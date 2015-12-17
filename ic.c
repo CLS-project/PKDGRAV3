@@ -62,20 +62,6 @@ static double Growth(double Om0, double OL0, double a, double *Om, double *OL) {
     return 2.5 * a * *Om / (pow(*Om,4./7.) - *OL + (1.+0.5* *Om)*(1.+ *OL/70.));
     }
 
-#if 0
-static void pairg( RngStream g, FFTW3(real) *y1, FFTW3(real) *y2 ) {
-    double x1, x2, w;
-    do {
-	x1 = 2.0 * RngStream_RandU01(g) - 1.0;
-	x2 = 2.0 * RngStream_RandU01(g) - 1.0;
-	w = x1 * x1 + x2 * x2;
-        } while ( w >= 1.0 || w == 0.0 ); /* Loop ~ 21.5% of the time */
-    w = M_SQRT2 * sqrt(-log(w)/w);
-    *y1 = x1 * w;
-    *y2 = x2 * w;
-    }
-#endif
-
 /* Gaussian noise in k-space. Note correction sqrt(2) because of FFT normalization. */
 static float complex pairc( RngStream g ) {
     double x1, x2, w;
@@ -91,54 +77,6 @@ static float complex pairc( RngStream g ) {
 static int wrap(int v,int h,int m) {
     return v - (v > h ? m : 0);
     }
-
-#if 0
-void pkdGenerateNoiseInRealSpace(PKD pkd,unsigned long seed,MDLFFT fft,float *ic,double *mean,double *csq) {
-    MDL mdl = pkd->mdl;
-    const int nGrid = fft->rgrid->n3;
-    const int iNyquist = nGrid / 2;
-    RngStream g;
-    unsigned long fullKey[6];
-    float fNormal = 1.0 / sqrt(nGrid*nGrid*nGrid);
-    float v1,v2;
-
-    mdlGridCoord rfirst, rlast, rindex;
-    mdlGridCoord kfirst, klast, kindex;
-    mdlGridCoordFirstLast(mdl,fft->rgrid,&rfirst,&rlast);
-    mdlGridCoordFirstLast(mdl,fft->kgrid,&kfirst,&klast);
-
-    fullKey[0] = seed;
-    fullKey[1] = fullKey[0];
-    fullKey[2] = fullKey[0];
-    fullKey[3] = seed;
-    fullKey[4] = fullKey[3];
-    fullKey[5] = fullKey[3];
-
-    /* Remember, we take elements from the stream and because we have increased the
-    ** precision, we take pairs. Also, the method of determining Gaussian deviates
-    ** also requires pairs (so four elements from the random stream), and some of
-    ** these pairs are rejected.
-    */
-    g = RngStream_CreateStream ("IC");
-#ifndef USE_SINGLE
-    RngStream_IncreasedPrecis (g, 1);
-#endif
-    RngStream_SetSeed(g,fullKey);
-    RngStream_AdvanceState (g, 0, (1L<<40)*(rfirst.z) + (1L<<20)*(rfirst.y) );
-
-    *mean = *csq = 0.0;
-
-    for( rindex=rfirst; !mdlGridCoordCompare(&rindex,&rlast); mdlGridCoordIncrement(&rindex) ) {
-	pairg(g,&v1,&v2);
-	ic[rindex.i] = v1;
-	*mean += ic[rindex.i];
-	*csq += ic[rindex.i]*ic[rindex.i];
-	ic[rindex.i] *= fNormal;
-	}
-    RngStream_DeleteStream(&g);
-    mdlFFT(mdl, fft, ic );
-    }
-#endif
 
 /*
 ** Generate Gaussian white noise in k-space. The noise is in the proper form for
@@ -313,7 +251,6 @@ int pkdGenerateIC(PKD pkd,int iSeed,int nGrid,int b2LPT,double dBoxSize,
     /* Generate white noise realization -> ic[6] */
     if (mdlSelf(mdl)==0) {printf("Generating random noise\n"); fflush(stdout); }
     pkdGenerateNoise(pkd,iSeed,fft,ic[6].k,noiseMean,noiseCSQ);
-    //pkdGenerateNoiseInRealSpace(pkd,iSeed,fft,ic[6].r,noiseMean,noiseCSQ);
 
     if (mdlSelf(mdl)==0) {printf("Imprinting power\n"); fflush(stdout); }
     for( kindex=kfirst; !mdlGridCoordCompare(&kindex,&klast); mdlGridCoordIncrement(&kindex) ) {
@@ -399,22 +336,15 @@ int pkdGenerateIC(PKD pkd,int iSeed,int nGrid,int b2LPT,double dBoxSize,
 	    iy = wrap(kindex.z,iNyquist,fft->rgrid->n3);
 	    iz = wrap(kindex.y,iNyquist,fft->rgrid->n2);
 	    ix = wrap(kindex.x,iNyquist,fft->rgrid->n1);
-
 	    idx = kindex.i;
 	    ak2 = ix*ix + iy*iy + iz*iz;
-	    //ak = sqrt(ak2);
-
 	    if (ak2>0.0) {
 		float f = (-3.0/7.0) / (ak2 * twopi);
 		ic[7].k[idx] = f * ic[6].k[idx] * ix * -I;
 		ic[8].k[idx] = f * ic[6].k[idx] * iy * -I;
 		ic[9].k[idx] = f * ic[6].k[idx] * iz * -I;
 		}
-	    else {
-		ic[7].k[idx] = 0.0;
-		ic[8].k[idx] = 0.0;
-		ic[9].k[idx] = 0.0;
-		}
+	    else ic[7].k[idx] = ic[8].k[idx] = ic[9].k[idx] = 0.0;
 	    }
 
 	if (mdlSelf(mdl)==0) {printf("Generating x2 displacements\n"); fflush(stdout); }
