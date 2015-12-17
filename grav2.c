@@ -196,6 +196,7 @@ inline void pkdGravEvalPP(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk
     v_sf padotai,pimaga,psmooth2,pirsum,pnorms;
 #else
     float d2,dx,dy,dz,fourh2,dir,dir2,adotai;
+    int n;
 #endif
     float ax,ay,az,fPot,dirsum,normsum;
     float tax,tay,taz;
