@@ -1134,7 +1134,6 @@ struct inGenerateIC {
     int b2LPT;
     int bComove;
     int nTf;
-    double dTfExpansion;
     double k[MAX_TF];
     double tf[MAX_TF];
     };

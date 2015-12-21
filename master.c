@@ -567,9 +567,6 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.achTfFile[0] = 0;
     prmAddParam(msr->prm,"achTfFile",3,msr->param.achTfFile,256,"tf",
 		"<transfer file name> (file in CMBFAST format)");
-    msr->param.dTfRedshift = 0.0;
-    prmAddParam(msr->prm,"dTfRedshift",2,&msr->param.dTfRedshift,sizeof(double),"ztf",
-		"specifies redshift of the given transfer function = 0");
     msr->param.iSeed = 0;
     prmAddParam(msr->prm,"iSeed",1,&msr->param.iSeed,
 		sizeof(int),"seed","<Random seed for IC> = 0");
@@ -1735,7 +1732,6 @@ double msrGenerateIC(MSR msr) {
     in.omegav= msr->param.csm->dLambda;
     in.sigma8= msr->param.csm->dSigma8;
     in.spectral=msr->param.csm->dSpectral;
-    in.dTfExpansion = 1.0 / (1.0 + msr->param.dTfRedshift);
     in.bComove = msr->param.csm->bComove;
     in.fExtraStore = msr->param.dExtraStore;
     in.ps.nStore = in.nGrid + 2; /* Careful: 32 bit integer cubed => 64 bit integer */

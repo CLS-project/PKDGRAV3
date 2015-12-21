@@ -20,7 +20,7 @@ typedef struct {
 
 static double power(powerParameters *P,double k, double a) {
     double T = gsl_spline_eval(P->spline,log(k),P->acc);
-    return pow(k,P->spectral) * P->normalization * T * T / P->tf[0] / P->tf[0];
+    return pow(k,P->spectral) * P->normalization * T * T;
     }
 
 typedef struct {
@@ -37,7 +37,7 @@ static double variance_integrand(double ak, void * params) {
     return power(vprm->P,ak,1.0)*ak*ak*w*w*4.0*M_PI;
     }
 
-static double variance(powerParameters *P,double dRadius,double dSigma8) {
+static double variance(powerParameters *P,double dRadius) {
     varianceParameters vprm;
     gsl_function F;
     double result, error;
@@ -54,11 +54,11 @@ static double variance(powerParameters *P,double dRadius,double dSigma8) {
 
 /* Approximation */
 static double Growth(double Om0, double OL0, double a, double *Om, double *OL) {
-    double Hsq,OK0;
+    double H2,OK0;
     OK0 = 1 - Om0 - OL0;
-    Hsq = Om0 / (a*a*a) + OK0 / (a*a) + OL0;
-    *Om = Om0 / (a*a*a*Hsq);
-    *OL = OL0 / Hsq;
+    H2 = Om0 / (a*a*a) + OK0 / (a*a) + OL0;
+    *Om = Om0 / (a*a*a*H2);
+    *OL = OL0 / H2;
     return 2.5 * a * *Om / (pow(*Om,4./7.) - *OL + (1.+0.5* *Om)*(1.+ *OL/70.));
     }
 
@@ -170,7 +170,7 @@ void pkdGenerateNoise(PKD pkd,unsigned long seed,MDLFFT fft,float complex *ic,do
 
 int pkdGenerateIC(PKD pkd,int iSeed,int nGrid,int b2LPT,double dBoxSize,
     double dOmega0,double dLambda0,double dSigma8,double dSpectral,double h,
-    double a,double dTfExpansion,int nTf, double *tk, double *tf,
+    double a,int nTf, double *tk, double *tf,
     double *noiseMean, double *noiseCSQ) {
     MDL mdl = pkd->mdl;
     double twopi = 2.0 * 4.0 * atan(1.0);
@@ -196,13 +196,11 @@ int pkdGenerateIC(PKD pkd,int iSeed,int nGrid,int b2LPT,double dBoxSize,
 
     powerParameters P;
 
-    if (a != dTfExpansion ) {
-	D0 = Growth(dOmega0,dLambda0,dTfExpansion,&dOmega,&dLambda);
-	Da = Growth(dOmega0,dLambda0,a,&dOmega,&dLambda);
-	dSigma8 *= Da/D0;
-	}
+    D0 = Growth(dOmega0,dLambda0,1.0,&dOmega,&dLambda);
+    Da = Growth(dOmega0,dLambda0,a,&dOmega,&dLambda);
+    dSigma8 *= Da/D0;
 
-    P.normalization = 1e4;
+    P.normalization = 1.0;
     P.spectral = dSpectral;
     P.nTf = nTf;
     P.tk = tk;
@@ -210,7 +208,7 @@ int pkdGenerateIC(PKD pkd,int iSeed,int nGrid,int b2LPT,double dBoxSize,
     P.acc = gsl_interp_accel_alloc();
     P.spline = gsl_spline_alloc (gsl_interp_cspline, nTf);
     gsl_spline_init(P.spline, P.tk, P.tf, P.nTf);
-    P.normalization *= dSigma8*dSigma8 / variance(&P,8.0,dSigma8);
+    P.normalization *= dSigma8*dSigma8 / variance(&P,8.0);
     f1 = pow(dOmega,5.0/9.0);
     f2 = 2.0 * pow(dOmega,6.0/11.0);
 
