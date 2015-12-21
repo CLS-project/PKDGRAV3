@@ -2168,6 +2168,7 @@ CACHE *CacheInitialize(
     c->cacheRequest.request = MPI_REQUEST_NULL;
 
     /* Read-only or combiner caches */
+    assert( init==NULL && combine==NULL || init!=NULL && combine!=NULL );
     c->iType = (init==NULL ? MDL_ROCACHE : MDL_COCACHE);
     c->init = init;
     c->combine = combine;
@@ -2854,29 +2855,32 @@ void mdlGridCoordFirstLast(MDL mdl,MDLGRID grid,mdlGridCoord *f,mdlGridCoord *l)
     uint64_t nPerCore, nThisCore;
     uint64_t nLocal = (uint64_t)(grid->a1) * grid->n2 * grid->nSlab;
 
+    /* Number on each core with multiples of "a1" elments (complete pencils). */
+    /* This needs to change to be complete MDL "cache lines" at some point. */
     nPerCore = nLocal / mdlCores(mdl) + grid->a1 - 1;
     nPerCore -= nPerCore % grid->a1;
     nThisCore = nPerCore;
     if (mdlCore(mdl) == mdlCores(mdl)-1) {
 	nThisCore = nLocal - (mdlCores(mdl)-1)*nThisCore;
 	}
-    /*
-    ** Calculate global x,y,z coordinates, and local "i" coordinate.
-    */
+    /* Calculate global x,y,z coordinates, and local "i" coordinate. */
     f->I = nPerCore * mdlCore(mdl);
     l->I = f->I + nThisCore;
     f->i = 0;
     l->i = nThisCore;
 
-    f->x = l->x = 0;
     f->z = f->I/(grid->a1*grid->n2);
     f->y = f->I/grid->a1 - f->z * grid->n2;
+    f->x = f->I - grid->a1 * (f->z*grid->n2 + f->y);
+    assert(f->x == 0); // MDL depends on this at the moment
+    f->z += grid->sSlab;
+    f->grid = grid;
+
     l->z = l->I/(grid->a1*grid->n2);
     l->y = l->I/grid->a1 - l->z * grid->n2;
-    f->z += grid->sSlab;
+    l->x = l->I - grid->a1 * (l->z*grid->n2 + l->y);
+    assert(l->x == 0); // MDL depends on this at the moment
     l->z += grid->sSlab;
-
-    f->grid = grid;
     l->grid = grid;
     }
 
