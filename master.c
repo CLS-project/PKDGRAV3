@@ -1711,126 +1711,6 @@ static uint64_t getMemoryModel(MSR msr) {
     return mMemoryModel;
     }
 
-#ifdef MDL_FFTW
-double msrGenerateIC(MSR msr) {
-    struct inGenerateIC in;
-    struct outGenerateIC out;
-    struct inGetFFTMaxSizes inFFTSizes;
-    struct outGetFFTMaxSizes outFFTSizes;
-    int nOut;
-    double sec,dsec;
-    double dvFac;
-    double mean, rms;
-
-    in.h = msr->param.h;
-    in.dBoxSize = msr->param.dBoxSize;
-    in.iSeed = msr->param.iSeed;
-    in.nGrid = msr->param.nGrid;
-    in.b2LPT = msr->param.b2LPT;
-    in.omegam= msr->param.csm->dOmega0;
-    in.omegab= msr->param.csm->dOmegab;
-    in.omegav= msr->param.csm->dLambda;
-    in.sigma8= msr->param.csm->dSigma8;
-    in.spectral=msr->param.csm->dSpectral;
-    in.bComove = msr->param.csm->bComove;
-    in.fExtraStore = msr->param.dExtraStore;
-    in.ps.nStore = in.nGrid + 2; /* Careful: 32 bit integer cubed => 64 bit integer */
-    in.ps.nStore *= in.nGrid;
-    in.ps.nStore *= in.nGrid;
-    in.ps.nStore /= mdlThreads(msr->mdl);
-    in.ps.nStore += (int)ceil(in.ps.nStore*in.fExtraStore);
-    in.ps.nDark = (uint64_t)in.nGrid * in.nGrid * in.nGrid;
-    in.ps.nGas = 0;
-    in.ps.nStar = 0;
-    in.ps.nTreeBitsLo = msr->param.nTreeBitsLo;
-    in.ps.nTreeBitsHi = msr->param.nTreeBitsHi;
-    in.ps.iCacheSize  = msr->param.iCacheSize;
-    in.ps.iWorkQueueSize  = msr->param.iWorkQueueSize;
-    in.ps.iCUDAQueueSize  = msr->param.iCUDAQueueSize;
-    in.ps.fPeriod[0] = msr->param.dxPeriod;
-    in.ps.fPeriod[1] = msr->param.dyPeriod;
-    in.ps.fPeriod[2] = msr->param.dzPeriod;
-    in.ps.nMinLocalMemory = 0;
-    in.ps.nBucket = msr->param.nBucket;
-    in.ps.nGroup = msr->param.nGroup;
-    in.ps.nDomainRungs = msr->param.nDomainRungs;
-    in.ps.mMemoryModel = getMemoryModel(msr) | PKD_MODEL_VELOCITY;
-    if (prmSpecified(msr->prm,"dRedFrom")) {
-	assert(msr->param.dRedFrom >= 0.0 );
-	in.dExpansion = 1.0 / (1.0 + msr->param.dRedFrom);
-	}
-    else in.dExpansion = 0.0;
-    in.ps.bLightCone  = msr->param.bLightCone;
-    in.ps.bLightConeParticles  = msr->param.bLightConeParticles;    
-
-    msr->nDark = in.ps.nDark;
-    msr->nGas  = in.ps.nGas;
-    msr->nStar = in.ps.nStar;
-    msr->N = msr->nDark+msr->nGas+msr->nStar;
-    msr->nMaxOrder = msr->N;
-
-    if (msr->param.bVStart)
-	printf("Generating IC...\nN:%"PRIu64" nDark:%"PRIu64
-	       " nGas:%"PRIu64" nStar:%"PRIu64"\n",
-	       msr->N, msr->nDark,msr->nGas,msr->nStar);
-
-    /* Read the transfer function */
-    in.nTf = 0;
-    if (prmSpecified(msr->prm,"achTfFile")) {
-	FILE *fp = fopen(msr->param.achTfFile,"r");
-	char buffer[256];
-
-	if (msr->param.bVStart)
-	    printf("Reading transfer function from %s\n", msr->param.achTfFile);
-	if (fp == NULL) {
-	    perror(msr->param.achTfFile);
-	    _msrExit(msr,1);
-	    }
-	while(fgets(buffer,sizeof(buffer),fp)) {
-	    assert(in.nTf < MAX_TF);
-	    if (sscanf(buffer," %lg %lg\n",&in.k[in.nTf],&in.tf[in.nTf])==2) {
-		in.k[in.nTf] = log(in.k[in.nTf]);
-		++in.nTf;
-		}
-	    }
-	fclose(fp);
-	if (msr->param.bVStart)
-	    printf("Transfer function : %d lines kmin %g kmax %g\n",
-		in.nTf, exp(in.k[0]), exp(in.k[in.nTf-1]));
-
-	}
-
-    sec = msrTime();
-
-    /* Figure out the minimum number of particles */
-    inFFTSizes.nx = inFFTSizes.ny = inFFTSizes.nz = in.nGrid;
-    pstGetFFTMaxSizes(msr->pst,&inFFTSizes,sizeof(inFFTSizes),&outFFTSizes,&nOut);
-    printf("Grid size %d x %d x %d, per node %d x %d x %d and %d x %d x %d\n",
-	inFFTSizes.nx, inFFTSizes.ny, inFFTSizes.nz,
-	inFFTSizes.nx, inFFTSizes.ny, outFFTSizes.nMaxZ,
-	inFFTSizes.nx, outFFTSizes.nMaxY, inFFTSizes.nz);
-
-    msrprintf(msr,"IC Generation @ a=%g with seed %d\n",in.dExpansion,dsec,msr->param.iSeed);
-    in.nPerNode = outFFTSizes.nMaxLocal;
-    pstGenerateIC(msr->pst,&in,sizeof(in),&out,&nOut);
-    mean = 2*out.noiseMean / msr->N;
-    rms = sqrt(2*out.noiseCSQ / msr->N);
-
-//    double dev = sqrt(2*out.noiseCSQ/msr->N - mean*mean);
-    msrSetClasses(msr);
-    dsec = msrTime() - sec;
-    PKD pkd = msr->pst->plcl->pkd;
-    msrprintf(msr,"IC Generation Complete @ a=%g, Wallclock: %f secs\n\n",out.dExpansion,dsec);
-    msrprintf(msr,"Mean of noise same is %g, RMS %g.\n",mean,rms);
-    printf("Allocated %lu MB for particle store on each processor.\n",
-	      pkdParticleMemory(pkd)/(1024*1024));
-    printf("Particles: %lu bytes (persistent) + %d bytes (ephemeral), Nodes: %lu bytes\n",
-	pkdParticleSize(pkd),EPHEMERAL_BYTES,pkdNodeSize(pkd));
-
-    return getTime(msr,out.dExpansion,&dvFac);
-    }
-#endif
-
 /*
 ** This function makes some potentially problematic assumptions!!!
 ** Main problem is that it calls pkd level routines, bypassing the
@@ -4802,6 +4682,126 @@ void msrRelaxation(MSR msr,double dTime,double deltaT,int iSmoothType,int bSymme
 	}
     }
 
+#ifdef MDL_FFTW
+double msrGenerateIC(MSR msr) {
+    struct inGenerateIC in;
+    struct outGenerateIC out;
+    struct inGetFFTMaxSizes inFFTSizes;
+    struct outGetFFTMaxSizes outFFTSizes;
+    int nOut;
+    double sec,dsec;
+    double dvFac;
+    double mean, rms;
+    int j;
+
+    in.h = msr->param.h;
+    in.dBoxSize = msr->param.dBoxSize;
+    in.iSeed = msr->param.iSeed;
+    in.nGrid = msr->param.nGrid;
+    in.b2LPT = msr->param.b2LPT;
+    in.omegam= msr->param.csm->dOmega0;
+    in.omegab= msr->param.csm->dOmegab;
+    in.omegav= msr->param.csm->dLambda;
+    in.sigma8= msr->param.csm->dSigma8;
+    in.spectral=msr->param.csm->dSpectral;
+    in.bComove = msr->param.csm->bComove;
+    in.fExtraStore = msr->param.dExtraStore;
+    in.ps.nStore = in.nGrid + 2; /* Careful: 32 bit integer cubed => 64 bit integer */
+    in.ps.nStore *= in.nGrid;
+    in.ps.nStore *= in.nGrid;
+    in.ps.nStore /= mdlThreads(msr->mdl);
+    in.ps.nStore += (int)ceil(in.ps.nStore*in.fExtraStore);
+    in.ps.nTreeBitsLo = msr->param.nTreeBitsLo;
+    in.ps.nTreeBitsHi = msr->param.nTreeBitsHi;
+    in.ps.iCacheSize  = msr->param.iCacheSize;
+    in.ps.iWorkQueueSize  = msr->param.iWorkQueueSize;
+    in.ps.iCUDAQueueSize  = msr->param.iCUDAQueueSize;
+    in.ps.fPeriod[0] = msr->param.dxPeriod;
+    in.ps.fPeriod[1] = msr->param.dyPeriod;
+    in.ps.fPeriod[2] = msr->param.dzPeriod;
+    in.ps.nMinLocalMemory = 0;
+    in.ps.nBucket = msr->param.nBucket;
+    in.ps.nGroup = msr->param.nGroup;
+    in.ps.nDomainRungs = msr->param.nDomainRungs;
+    in.ps.mMemoryModel = getMemoryModel(msr) | PKD_MODEL_VELOCITY;
+    for( j=0; j<FIO_SPECIES_LAST; j++) in.ps.nSpecies[j] = 0;
+    in.ps.nSpecies[FIO_SPECIES_ALL] = in.ps.nSpecies[FIO_SPECIES_DARK] = (uint64_t)in.nGrid * in.nGrid * in.nGrid;
+
+    if (prmSpecified(msr->prm,"dRedFrom")) {
+	assert(msr->param.dRedFrom >= 0.0 );
+	in.dExpansion = 1.0 / (1.0 + msr->param.dRedFrom);
+	}
+    else in.dExpansion = 0.0;
+    in.ps.bLightCone  = msr->param.bLightCone;
+    in.ps.bLightConeParticles  = msr->param.bLightConeParticles;    
+
+    msr->N     = in.ps.nSpecies[FIO_SPECIES_ALL];
+    msr->nGas  = in.ps.nSpecies[FIO_SPECIES_SPH];
+    msr->nDark = in.ps.nSpecies[FIO_SPECIES_DARK];
+    msr->nStar = in.ps.nSpecies[FIO_SPECIES_STAR];
+    msr->nMaxOrder = msr->N;
+
+    if (msr->param.bVStart)
+	printf("Generating IC...\nN:%"PRIu64" nDark:%"PRIu64
+	       " nGas:%"PRIu64" nStar:%"PRIu64"\n",
+	       msr->N, msr->nDark,msr->nGas,msr->nStar);
+
+    /* Read the transfer function */
+    in.nTf = 0;
+    if (prmSpecified(msr->prm,"achTfFile")) {
+	FILE *fp = fopen(msr->param.achTfFile,"r");
+	char buffer[256];
+
+	if (msr->param.bVStart)
+	    printf("Reading transfer function from %s\n", msr->param.achTfFile);
+	if (fp == NULL) {
+	    perror(msr->param.achTfFile);
+	    _msrExit(msr,1);
+	    }
+	while(fgets(buffer,sizeof(buffer),fp)) {
+	    assert(in.nTf < MAX_TF);
+	    if (sscanf(buffer," %lg %lg\n",&in.k[in.nTf],&in.tf[in.nTf])==2) {
+		in.k[in.nTf] = log(in.k[in.nTf]);
+		++in.nTf;
+		}
+	    }
+	fclose(fp);
+	if (msr->param.bVStart)
+	    printf("Transfer function : %d lines kmin %g kmax %g\n",
+		in.nTf, exp(in.k[0]), exp(in.k[in.nTf-1]));
+
+	}
+
+    sec = msrTime();
+
+    /* Figure out the minimum number of particles */
+    inFFTSizes.nx = inFFTSizes.ny = inFFTSizes.nz = in.nGrid;
+    pstGetFFTMaxSizes(msr->pst,&inFFTSizes,sizeof(inFFTSizes),&outFFTSizes,&nOut);
+    printf("Grid size %d x %d x %d, per node %d x %d x %d and %d x %d x %d\n",
+	inFFTSizes.nx, inFFTSizes.ny, inFFTSizes.nz,
+	inFFTSizes.nx, inFFTSizes.ny, outFFTSizes.nMaxZ,
+	inFFTSizes.nx, outFFTSizes.nMaxY, inFFTSizes.nz);
+
+    msrprintf(msr,"IC Generation @ a=%g with seed %d\n",in.dExpansion,dsec,msr->param.iSeed);
+    in.nPerNode = outFFTSizes.nMaxLocal;
+    pstGenerateIC(msr->pst,&in,sizeof(in),&out,&nOut);
+    mean = 2*out.noiseMean / msr->N;
+    rms = sqrt(2*out.noiseCSQ / msr->N);
+
+    msrSetClasses(msr);
+    dsec = msrTime() - sec;
+    PKD pkd = msr->pst->plcl->pkd;
+    msrprintf(msr,"IC Generation Complete @ a=%g, Wallclock: %f secs\n\n",out.dExpansion,dsec);
+    msrprintf(msr,"Mean of noise same is %g, RMS %g.\n",mean,rms);
+    printf("Allocated %lu MB for particle store on each processor.\n",
+	      pkdParticleMemory(pkd)/(1024*1024));
+    printf("Particles: %lu bytes (persistent) + %d bytes (ephemeral), Nodes: %lu bytes\n",
+	pkdParticleSize(pkd),EPHEMERAL_BYTES,pkdNodeSize(pkd));
+
+    return getTime(msr,out.dExpansion,&dvFac);
+    }
+#endif
+
 double msrRead(MSR msr, const char *achInFile) {
     double dTime,dExpansion;
     FIO fio;
@@ -4869,26 +4869,26 @@ double msrRead(MSR msr, const char *achInFile) {
     
     read->nNodeStart = 0;
     read->nNodeEnd = msr->N - 1;
-    read->nBucket = msr->param.nBucket;
-    read->nGroup = msr->param.nGroup;
-    read->nDomainRungs = msr->param.nDomainRungs;
-    read->mMemoryModel = mMemoryModel;
-    read->fExtraStore = msr->param.dExtraStore;
-    read->nTreeBitsLo = msr->param.nTreeBitsLo;
-    read->nTreeBitsHi = msr->param.nTreeBitsHi;
-    read->iCacheSize  = msr->param.iCacheSize;
-    read->iWorkQueueSize  = msr->param.iWorkQueueSize;
-    read->iCUDAQueueSize  = msr->param.iCUDAQueueSize;
-    read->bLightCone  = msr->param.bLightCone;
-    read->bLightConeParticles  = msr->param.bLightConeParticles;    
+    read->ps.nBucket = msr->param.nBucket;
+    read->ps.nGroup = msr->param.nGroup;
+    read->ps.nDomainRungs = msr->param.nDomainRungs;
+    read->ps.mMemoryModel = mMemoryModel;
+    read->ps.nTreeBitsLo = msr->param.nTreeBitsLo;
+    read->ps.nTreeBitsHi = msr->param.nTreeBitsHi;
+    read->ps.iCacheSize  = msr->param.iCacheSize;
+    read->ps.iWorkQueueSize  = msr->param.iWorkQueueSize;
+    read->ps.iCUDAQueueSize  = msr->param.iCUDAQueueSize;
+    read->ps.bLightCone  = msr->param.bLightCone;
+    read->ps.bLightConeParticles  = msr->param.bLightConeParticles;    
+    read->ps.fPeriod[0] = msr->param.dxPeriod;
+    read->ps.fPeriod[1] = msr->param.dyPeriod;
+    read->ps.fPeriod[2] = msr->param.dzPeriod;
+    for( j=0; j<FIO_SPECIES_LAST; j++) read->ps.nSpecies[j] = fioGetN(fio,j);
+    read->ps.nStore = ceil( (1.0+msr->param.dExtraStore) * read->ps.nSpecies[FIO_SPECIES_ALL] / mdlThreads(msr->mdl));
     read->dOmega0 = msr->param.csm->dOmega0;
     read->dOmegab = msr->param.csm->dOmegab;
-    read->fPeriod[0] = msr->param.dxPeriod;
-    read->fPeriod[1] = msr->param.dyPeriod;
-    read->fPeriod[2] = msr->param.dzPeriod;
-    for( j=0; j<FIO_SPECIES_LAST; j++) read->nSpecies[j] = fioGetN(fio,j);
 
-    read->nMinLocalMemory = 0;
+    read->ps.nMinLocalMemory = 0;
 #ifdef MDL_FFTW
     if (msr->param.nGridPk>0) {
 	struct inGetFFTMaxSizes inFFTSizes;
@@ -4896,8 +4896,8 @@ double msrRead(MSR msr, const char *achInFile) {
 	int n;
 	inFFTSizes.nx = inFFTSizes.ny = inFFTSizes.nz = msr->param.nGridPk;
 	pstGetFFTMaxSizes(msr->pst,&inFFTSizes,sizeof(inFFTSizes),&outFFTSizes,&n);
-	read->nMinLocalMemory = outFFTSizes.nMaxLocal*sizeof(FFTW3(real));
-		}
+	read->ps.nMinLocalMemory = outFFTSizes.nMaxLocal*sizeof(FFTW3(real));
+	}
 #endif
 
     /*
@@ -4924,9 +4924,9 @@ double msrRead(MSR msr, const char *achInFile) {
 	      pkdParticleMemory(plcl->pkd)/(1024*1024));
     printf("Particles: %lu bytes (persistent) + %d bytes (ephemeral), Nodes: %lu bytes\n",
 	pkdParticleSize(plcl->pkd),EPHEMERAL_BYTES,pkdNodeSize(plcl->pkd));
-    if (read->nMinLocalMemory) {
+    if (read->ps.nMinLocalMemory) {
 	printf("Allocating at least %llu ephemeral bytes per node for FFT\n",
-	    read->nMinLocalMemory);
+	    read->ps.nMinLocalMemory);
 	}
 
     free(read);

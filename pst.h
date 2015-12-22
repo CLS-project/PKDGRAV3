@@ -244,30 +244,37 @@ struct inSetAdd {
     };
 void pstSetAdd(PST,void *,int,void *,int *);
 
-/* PST_READFILE */
-struct inReadFile {
-    uint64_t nNodeStart; /* First particle to read (of total) */
-    uint64_t nNodeEnd;   /* Last particle to read (of total) */
-    uint64_t nSpecies[FIO_SPECIES_LAST];
+/* PST_INITIALIZEPSTORE */
+struct inInitializePStore {
     uint64_t mMemoryModel;
+    uint64_t nStore;
+    uint64_t nSpecies[FIO_SPECIES_LAST];
     double fPeriod[3];
-    double dvFac;
-    double dTuFac;
-    double dOmega0;
-    double dOmegab;
     uint64_t nMinLocalMemory;
-    float fExtraStore;
-    int nTreeBitsLo;
-    int nTreeBitsHi;
     int nBucket;
     int nGroup;
+    int nTreeBitsLo;
+    int nTreeBitsHi;
     int nDomainRungs;
     int iCacheSize;
     int iWorkQueueSize;
     int iCUDAQueueSize;
-    int nProcessors;
     int bLightCone;
     int bLightConeParticles;
+    };
+void pstInitializePStore(PST,void *,int,void *,int *);
+
+
+/* PST_READFILE */
+struct inReadFile {
+    struct inInitializePStore ps;
+    uint64_t nNodeStart; /* First particle to read (of total) */
+    uint64_t nNodeEnd;   /* Last particle to read (of total) */
+    double dvFac;
+    double dTuFac;
+    double dOmega0;
+    double dOmegab;
+    int nProcessors;
     /*char achFilename[PST_FILENAME_SIZE];*/
     };
 typedef char inReadFileFilename[PST_FILENAME_SIZE];
@@ -1080,28 +1087,6 @@ void pstFof(PST,void *,int,void *,int *);
 void pstGroupMerge(PST,void *,int,void *,int *);
 void pstGroupProfiles(PST,void *,int,void *,int *);
 void pstInitRelaxation(PST,void *,int,void *,int *);
-
-/* PST_INITIALIZEPSTORE */
-struct inInitializePStore {
-    uint64_t mMemoryModel;
-    uint64_t nStore;
-    uint64_t nDark;
-    uint64_t nGas;
-    uint64_t nStar;
-    double fPeriod[3];
-    uint64_t nMinLocalMemory;
-    int nBucket;
-    int nGroup;
-    int nTreeBitsLo;
-    int nTreeBitsHi;
-    int nDomainRungs;
-    int iCacheSize;
-    int iWorkQueueSize;
-    int iCUDAQueueSize;
-    int bLightCone;
-    int bLightConeParticles;
-    };
-void pstInitializePStore(PST,void *,int,void *,int *);
 
 #ifdef MDL_FFTW
 /* PST_GETFFTMAXSIZES */

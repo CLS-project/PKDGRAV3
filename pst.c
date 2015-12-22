@@ -432,10 +432,10 @@ void pstAddServices(PST pst,MDL mdl) {
 		  sizeof(struct inGroupProfiles),sizeof(int));
     mdlAddService(mdl,PST_INITRELAXATION,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstInitRelaxation,0,0);
-#ifdef MDL_FFTW
     mdlAddService(mdl,PST_INITIALIZEPSTORE,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstInitializePStore,
 		  sizeof(struct inInitializePStore),0);
+#ifdef MDL_FFTW
     mdlAddService(mdl,PST_GETFFTMAXSIZES,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstGetFFTMaxSizes,
 		  sizeof(struct inGetFFTMaxSizes),sizeof(struct outGetFFTMaxSizes));
@@ -670,11 +670,34 @@ void pstSetAdd(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     if (pnOut) *pnOut = 0;
     }
 
+static void initializePStore(PKD *ppkd,MDL mdl,struct inInitializePStore *in) {
+    pkdInitialize(
+	ppkd,mdl,in->nStore,in->nMinLocalMemory,in->nBucket,in->nGroup,
+	in->nTreeBitsLo,in->nTreeBitsHi,
+	in->iCacheSize,in->iWorkQueueSize,in->iCUDAQueueSize,in->fPeriod,
+	in->nSpecies[FIO_SPECIES_DARK],in->nSpecies[FIO_SPECIES_SPH],in->nSpecies[FIO_SPECIES_STAR],
+	in->mMemoryModel, in->nDomainRungs,in->bLightCone,in->bLightConeParticles);
+    }
+
+void pstInitializePStore(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl = pst->plcl;
+    struct inInitializePStore *in = vin;
+    mdlassert(pst->mdl,nIn == sizeof(struct inInitializePStore));
+    if (pstNotCore(pst)) {
+	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_INITIALIZEPSTORE,in,nIn);
+	pstInitializePStore(pst->pstLower,vin,nIn,vout,pnOut);
+	mdlGetReply(pst->mdl,rID,vout,pnOut);
+	}
+    else {
+	initializePStore(&plcl->pkd,pst->mdl,in);
+	}
+    }
+
 void pstOneNodeReadInit(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct inReadFile *in = vin;
     int *pout = vout;
-    uint64_t nFileStart,nFileEnd,nFileTotal,nFileSplit,nStore;
+    uint64_t nFileStart,nFileEnd,nFileTotal,nFileSplit;
     int i;
 
     mdlassert(pst->mdl,nIn == sizeof(struct inReadFile));
@@ -697,17 +720,8 @@ void pstOneNodeReadInit(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	/*
 	** Determine the size of the local particle store.
 	*/
-	nStore = nFileTotal + (int)ceil(nFileTotal*in->fExtraStore);
 	if (plcl->pkd) pkdFinish(plcl->pkd);
-	pkdInitialize(
-	    &plcl->pkd,pst->mdl,nStore,in->nMinLocalMemory,in->nBucket,in->nGroup,
-	    in->nTreeBitsLo,in->nTreeBitsHi,
-	    in->iCacheSize,in->iWorkQueueSize,in->iCUDAQueueSize,in->fPeriod,
-	    in->nSpecies[FIO_SPECIES_DARK],
-	    in->nSpecies[FIO_SPECIES_SPH],
-	    in->nSpecies[FIO_SPECIES_STAR],
-	    in->mMemoryModel, in->nDomainRungs,
-	    in->bLightCone, in->bLightConeParticles);
+	pstInitializePStore(pst,&in->ps,sizeof(in->ps),NULL,NULL);
 	*pout = nFileTotal; /* Truncated: okay */
 	}
     if (pnOut) *pnOut = sizeof(*pout) * pst->nLeaves;
@@ -733,7 +747,7 @@ void pstReadFile(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct inReadFile *in = vin;
     FIO fio;
-    uint64_t nNodeStart,nNodeEnd,nNodeTotal,nNodeSplit,nStore;
+    uint64_t nNodeStart,nNodeEnd,nNodeTotal,nNodeSplit;
     int rID;
 
     mdlassert(pst->mdl,nIn >= sizeof(struct inReadFile));
@@ -3844,25 +3858,6 @@ void pstInitRelaxation(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     }
 
 #ifdef MDL_FFTW
-void pstInitializePStore(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
-    LCL *plcl = pst->plcl;
-    struct inInitializePStore *in = vin;
-    mdlassert(pst->mdl,nIn == sizeof(struct inInitializePStore));
-    if (pstNotCore(pst)) {
-	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_INITIALIZEPSTORE,in,nIn);
-	pstInitializePStore(pst->pstLower,vin,nIn,vout,pnOut);
-	mdlGetReply(pst->mdl,rID,vout,pnOut);
-	}
-    else {
-	pkdInitialize(
-	    &plcl->pkd,pst->mdl,in->nStore,in->nMinLocalMemory,in->nBucket,in->nGroup,
-	    in->nTreeBitsLo,in->nTreeBitsHi,
-	    in->iCacheSize,in->iWorkQueueSize,in->iCUDAQueueSize,in->fPeriod,
-	    in->nDark,in->nGas,in->nStar,in->mMemoryModel, in->nDomainRungs,
-	    in->bLightCone,in->bLightConeParticles);
-	}
-    }
-
 void pstGetFFTMaxSizes(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct inGetFFTMaxSizes *in = vin;
@@ -3975,12 +3970,7 @@ void pstGenerateIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	if (in->ps.nStore*mdlCores(pst->mdl) < in->nPerNode) {
 	    in->ps.nStore = (in->nPerNode + mdlCores(pst->mdl) - 1) / mdlCores(pst->mdl);
 	    }
-	pkdInitialize(
-	    &plcl->pkd,pst->mdl,in->ps.nStore,in->ps.nMinLocalMemory,
-	    in->ps.nBucket,in->ps.nGroup,in->ps.nTreeBitsLo,in->ps.nTreeBitsHi,
-	    in->ps.iCacheSize,in->ps.iWorkQueueSize,in->ps.iCUDAQueueSize,in->ps.fPeriod,
-	    in->ps.nDark,in->ps.nGas,in->ps.nStar,in->ps.mMemoryModel, in->ps.nDomainRungs,
-	    in->ps.bLightCone, in->ps.bLightConeParticles);
+	pstInitializePStore(pst,&in->ps,sizeof(in->ps),NULL,NULL);
 	out->N = pkdGenerateIC(plcl->pkd,in->iSeed,in->nGrid,in->b2LPT,in->dBoxSize,
 	    in->omegam,in->omegav,in->sigma8,in->spectral,in->h,
 	    in->dExpansion,in->nTf, in->k, in->tf,&out->noiseMean,&out->noiseCSQ);
