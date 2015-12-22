@@ -18,7 +18,7 @@ typedef struct {
     int nTf;
     } powerParameters;
 
-static double power(powerParameters *P,double k, double a) {
+static double power(powerParameters *P,double k) {
     double T = gsl_spline_eval(P->spline,log(k),P->acc);
     return pow(k,P->spectral) * P->normalization * T * T;
     }
@@ -34,7 +34,7 @@ static double variance_integrand(double ak, void * params) {
     /* Window function for spherical tophat of given radius (e.g., 8 Mpc/h) */
     x = ak * vprm->r;
     w = 3.0*(sin(x)-x*cos(x))/(x*x*x);
-    return power(vprm->P,ak,1.0)*ak*ak*w*w*4.0*M_PI;
+    return power(vprm->P,ak)*ak*ak*w*w*4.0*M_PI;
     }
 
 static double variance(powerParameters *P,double dRadius) {
@@ -267,7 +267,7 @@ int pkdGenerateIC(PKD pkd,int iSeed,int nGrid,int b2LPT,double dBoxSize,
 	ak2 = ix*ix + iy*iy + iz*iz;
 	if (ak2>0) {
 	    ak = sqrt(ak2) * iLbox;
-	    amp = sqrt(power(&P,ak,a) * iLbox3) * itwopi / ak2;
+	    amp = sqrt(power(&P,ak) * iLbox3) * itwopi / ak2;
 	    }
 	else amp = 0.0;
 	ic[7].k[idx] = ic[6].k[idx] * amp * ix;
