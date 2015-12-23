@@ -317,9 +317,11 @@ void * master_ch(MDL mdl) {
 		    || (iStep%msrCheckInterval(msr) == 0) ) ) {
 		bGlobalOutput = 0;
 		msrCheckpoint(msr,iStep,dTime);
+#ifdef MDL_FFTW
 		if (iStep%msr->param.iPkInterval == 0) {
 		    msrOutputPk(msr,iStep);
 		    }
+#endif
 		}
 	    else if (bGlobalOutput || msrOutTime(msr,dTime) || iStep == msrSteps(msr) || iStop ||
 		    (msrOutInterval(msr) > 0 && iStep%msrOutInterval(msr) == 0) ||
