@@ -480,8 +480,8 @@ void pkdInitialize(
     ** IMPORTANT: There is a whole lot of pointer math here. If you mess with this
     **            you better be sure you get it right or really bad things will happen.
     */
-    uint64_t nBytesParticles = mdlCores(pkd->mdl) * (nStore+1)*pkdParticleSize(pkd); // Constraint (a)
-    uint64_t nBytesEphemeral = mdlCores(pkd->mdl) * (nStore+1)*EPHEMERAL_BYTES; // Constraint (a)
+    uint64_t nBytesParticles = (uint64_t)mdlCores(pkd->mdl) * (nStore+1)*pkdParticleSize(pkd); // Constraint (a)
+    uint64_t nBytesEphemeral = (uint64_t)mdlCores(pkd->mdl) * (nStore+1)*EPHEMERAL_BYTES; // Constraint (a)
     uint64_t nBytesTreeNodes = 0;
     if (nBytesEphemeral < nMinEphemeral) nBytesEphemeral = nMinEphemeral; // Constraint (b)
     if (nBytesParticles + nBytesEphemeral < nMinTotalStore) // Constraint (c)
