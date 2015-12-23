@@ -455,6 +455,7 @@ typedef struct mdlFFTContext {
 size_t mdlFFTlocalCount(MDL mdl,int n1,int n2,int n3,int *nz,int *sz,int *ny,int*sy);
 MDLFFT mdlFFTNodeInitialize(MDL mdl,int nx,int ny,int nz,int bMeasure,FFTW3(real) *data);
 MDLFFT mdlFFTInitialize(MDL mdl,int nx,int ny,int nz,int bMeasure,FFTW3(real) *data);
+void mdlFFTNodeFinish( MDL mdl, MDLFFT fft );
 void mdlFFTFinish( MDL mdl, MDLFFT fft );
 FFTW3(real) *mdlFFTMalloc( MDL mdl, MDLFFT fft );
 void mdlFFTFree( MDL mdl, MDLFFT fft, void *p );

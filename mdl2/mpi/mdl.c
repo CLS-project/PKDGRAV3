@@ -2953,14 +2953,17 @@ MDLFFT mdlFFTInitialize(MDL mdl,int n1,int n2,int n3,int bMeasure,FFTW3(real) *d
     return fft;
     }
 
+void mdlFFTNodeFinish( MDL mdl, MDLFFT fft ) {
+    FFTW3(destroy_plan)(fft->fplan);
+    FFTW3(destroy_plan)(fft->iplan);
+    mdlGridFinish(mdl,fft->kgrid);
+    mdlGridFinish(mdl,fft->rgrid);
+    free(fft);
+    }
 void mdlFFTFinish( MDL mdl, MDLFFT fft ) {
     mdlThreadBarrier(mdl);
     if (mdlCore(mdl) == 0) {
-	FFTW3(destroy_plan)(fft->fplan);
-	FFTW3(destroy_plan)(fft->iplan);
-	mdlGridFinish(mdl,fft->kgrid);
-	mdlGridFinish(mdl,fft->rgrid);
-	free(fft);
+	mdlFFTNodeFinish(mdl,fft);
 	}
     }
 
