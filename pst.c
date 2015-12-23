@@ -3967,9 +3967,6 @@ void pstGenerateIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	    }
 	}
     else {
-	if (in->ps.nStore*mdlCores(pst->mdl) < in->nPerNode) {
-	    in->ps.nStore = (in->nPerNode + mdlCores(pst->mdl) - 1) / mdlCores(pst->mdl);
-	    }
 	pstInitializePStore(pst,&in->ps,sizeof(in->ps),NULL,NULL);
 	out->N = pkdGenerateIC(plcl->pkd,in->iSeed,in->nGrid,in->b2LPT,in->dBoxSize,
 	    in->omegam,in->omegav,in->sigma8,in->spectral,in->h,
