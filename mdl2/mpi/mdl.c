@@ -2036,6 +2036,7 @@ void mdlFree(MDL mdl,void *p) {
     free(p);
     }
 
+/* This is a "thread collective" call. */
 void *mdlSetArray(MDL mdl,size_t nmemb,size_t size,void *vdata) {
     char *data = vdata;
     mdl->nMessageData = nmemb * size;
@@ -2956,6 +2957,7 @@ void mdlFFTFinish( MDL mdl, MDLFFT fft ) {
 	FFTW3(destroy_plan)(fft->iplan);
 	mdlGridFinish(mdl,fft->kgrid);
 	mdlGridFinish(mdl,fft->rgrid);
+	free(fft);
 	}
     }
 
