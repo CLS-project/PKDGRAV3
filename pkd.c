@@ -257,8 +257,18 @@ void pkdExtendTree(PKD pkd) {
     pkd->nMaxNodes = (1<<pkd->nTreeBitsLo) * pkd->nTreeTiles;
     }
 
+static void firstTouch(uint64_t n,char *p) {
+    if (n>4096) n-= 4096;
+    while(n>=4096) {
+	*p = 0;
+	p += 4096;
+	n -= 4096;
+	}
+    }
+
 void pkdInitialize(
-    PKD *ppkd,MDL mdl,int nStore,uint64_t nMinLocalMemory,int nBucket,int nGroup,int nTreeBitsLo, int nTreeBitsHi,
+    PKD *ppkd,MDL mdl,int nStore,uint64_t nMinTotalStore,uint64_t nMinEphemeral,
+    int nBucket,int nGroup,int nTreeBitsLo, int nTreeBitsHi,
     int iCacheSize,int iWorkQueueSize,int iCUDAQueueSize,FLOAT *fPeriod,uint64_t nDark,uint64_t nGas,uint64_t nStar,
     uint64_t mMemoryModel, int nMaxDomainRungs, int bLightCone, int bLightConeParticles) {
     PKD pkd;
@@ -440,31 +450,100 @@ void pkdInitialize(
 	}
     assert(pkdNodeSize(pkd)<=pkdMaxNodeSize());
 
+    /* Align the particle size and the tree node, and store the tree node parameters */
+    pkd->iParticleSize = (pkd->iParticleSize + sizeof(double) - 1 ) & ~(sizeof(double)-1);
+    pkd->iTreeNodeSize = (pkd->iTreeNodeSize + sizeof(double) - 1 ) & ~(sizeof(double)-1);
+    pkd->nTreeBitsLo = nTreeBitsLo;
+    pkd->nTreeBitsHi = nTreeBitsHi;
+    pkd->iTreeMask = (1<<pkd->nTreeBitsLo) - 1;
+
+
     /*
-    ** Allocate the main particle store.
-    ** Need to use mdlMalloc() since the particles will need to be
-    ** visible to all other processors thru mdlAcquire() later on.
+    ** We need to allocate one large chunk of memory for:
+    **   (1) The particles, and,
+    **   (2) The emphemeral storage,
+    ** subject to the following constraints:
+    **   (a) We must be able to store nStore+1 particles in both stores,
+    **   (b) The total per-node ephemeral storage must be at least nMinEphemeral
+    **   (c) The total size of the storage block must be at least nMinTotalStore
     **
-    ** We need one EXTRA storage location at the very end to use for
+    ** If (b) is not met then we increase the effective size of the ephemeral storage.
+    ** If (c) is not met (even after increasing the ephemeral storage), then we increase
+    ** the size of the block and use the left over for the first parts of the tree.
+    **
+    ** STILL TRUE?: We need one EXTRA storage location at the very end to use for
     ** calculating acceleration on arbitrary positions in space, for example
     ** determining the force on the sun. The easiest way to do this is to
     ** allocate one hidden particle, which won't interfere with the rest of
     ** the code (hopefully). pkd->pStore[pkd->nStore] is this particle.
     **
-    ** We also allocate a temporary particle used for swapping.  We need to do
-    ** this now because the outside world can no longer know the size of a
-    ** particle.
+    ** IMPORTANT: There is a whole lot of pointer math here. If you mess with this
+    **            you better be sure you get it right or really bad things will happen.
     */
-    pkd->iParticleSize = (pkd->iParticleSize + sizeof(double) - 1 ) & ~(sizeof(double)-1);
-    pkd->pStorePRIVATE = mdlMallocArray(pkd->mdl,nStore+1,pkdParticleSize(pkd),0);
-    mdlassert(mdl,pkd->pStorePRIVATE != NULL);
-    if ( mMemoryModel & PKD_MODEL_RUNGDEST ) {
+    uint64_t nBytesParticles = mdlCores(pkd->mdl) * (nStore+1)*pkdParticleSize(pkd); // Constraint (a)
+    uint64_t nBytesEphemeral = mdlCores(pkd->mdl) * (nStore+1)*EPHEMERAL_BYTES; // Constraint (a)
+    uint64_t nBytesTreeNodes = 0;
+    if (nBytesEphemeral < nMinEphemeral) nBytesEphemeral = nMinEphemeral; // Constraint (b)
+    if (nBytesParticles + nBytesEphemeral < nMinTotalStore) // Constraint (c)
+	nBytesTreeNodes = nMinTotalStore - nBytesParticles - nBytesEphemeral;
+    // Align to a even number of "tree tiles"
+    uint64_t nTreeTileBytesPerNode = (1<<pkd->nTreeBitsLo)*pkd->iTreeNodeSize*mdlCores(pkd->mdl);
+    uint64_t nTreeTiles = (uint64_t)ceil(1.0 * nBytesTreeNodes / nTreeTileBytesPerNode);
+    nBytesTreeNodes = nTreeTiles * nTreeTileBytesPerNode;
+    char *pParticles, *pEphemeral, *pTreeNodes;
+    if (mdlCore(pkd->mdl)==0) {
+	uint64_t nBytesTotal = nBytesParticles + nBytesEphemeral + nBytesTreeNodes;
+	pParticles = mdlMalloc(pkd->mdl,nBytesTotal);
+	mdlassert(mdl,pParticles != NULL);
+	pEphemeral = pParticles + nBytesParticles;
+	pTreeNodes = pEphemeral + nBytesEphemeral;
+	}
+    else pParticles = pEphemeral = pTreeNodes = 0; // Ignore anyway in mdlSetArray() below
+    pParticles = mdlSetArray(pkd->mdl,1,nBytesParticles/mdlCores(pkd->mdl),pParticles);
+    pEphemeral = mdlSetArray(pkd->mdl,1,nBytesEphemeral/mdlCores(pkd->mdl),pEphemeral);
+    pTreeNodes = mdlSetArray(pkd->mdl,1,nBytesTreeNodes/mdlCores(pkd->mdl),pTreeNodes);
+    firstTouch(nBytesParticles/mdlCores(pkd->mdl),pParticles);
+    firstTouch(nBytesEphemeral/mdlCores(pkd->mdl),pEphemeral);
+    firstTouch(nBytesTreeNodes/mdlCores(pkd->mdl),pTreeNodes);
+    pkd->pStorePRIVATE = (PARTICLE *)pParticles;
+    pkd->pLite = pEphemeral;
+    if ( mMemoryModel & PKD_MODEL_RUNGDEST ) { // This is really obsolete
 	pkd->pStorePRIVATE2 = mdlMalloc(pkd->mdl,(nStore+1)*pkdParticleSize(pkd));
 	mdlassert(mdl,pkd->pStorePRIVATE2 != NULL);
 	}
+    /*
+    ** Now we setup the node storage for the tree.  This storage is no longer
+    ** continguous as the MDL now supports non-contiguous arrays.  We allocate
+    ** a single "tile" for the tree.  If this is not sufficient, then additional
+    ** tiles are allocated dynamically.  The default parameters allow for 2^32
+    ** nodes total which is the integer limit anyway. We may use the extra storage
+    ** from above if constraint (c) could not otherwise be met.
+    */
+    pkd->kdNodeListPRIVATE = mdlMalloc(pkd->mdl,(1<<pkd->nTreeBitsHi)*sizeof(KDN *));
+    mdlassert(mdl,pkd->kdNodeListPRIVATE != NULL);
+    if (nTreeTiles) {
+	pkd->nTreeTilesReserved = nTreeTiles;
+	pkd->nTreeTiles = nTreeTiles;
+	for(j=0; j<nTreeTiles; ++j) {
+	    pkd->kdNodeListPRIVATE[j] = pTreeNodes;
+	    pTreeNodes += (1<<pkd->nTreeBitsLo)*pkd->iTreeNodeSize;
+	    }
+	}
+    else {
+	pkd->nTreeTilesReserved = 0;
+	pkd->kdNodeListPRIVATE[0] = mdlMalloc(pkd->mdl,(1<<pkd->nTreeBitsLo)*pkd->iTreeNodeSize);
+	mdlassert(mdl,pkd->kdNodeListPRIVATE[0] != NULL);
+	pkd->nTreeTiles = 1;
+	}
+    pkd->nMaxNodes = (1<<pkd->nTreeBitsLo) * pkd->nTreeTiles;
+    pkd->nNodes = 0;
+    /*
+    ** We also allocate a temporary particle used for swapping.  We need to do
+    ** this now because the outside world can no longer know the size of a
+    ** particle a priori.
+    */
     pkd->pTempPRIVATE = malloc(pkdParticleSize(pkd));
     mdlassert(mdl,pkd->pTempPRIVATE != NULL);
-
     /*
     ** allocate enough space for light cone particle output
     */
@@ -515,37 +594,6 @@ void pkdInitialize(
     pkd->fSoftFix = -1.0;
     pkd->fSoftFac = 1.0;
     pkd->fSoftMax = HUGE;
-    /*
-    ** Now we setup the node storage for the tree.  This storage is no longer
-    ** continguous as the MDL now supports non-contiguous arrays.  We allocate
-    ** a single "tile" for the tree.  If this is not sufficient, then additional
-    ** tiles are allocated dynamically.  The default parameters allow for 2^32
-    ** nodes total which is the integer limit anyway.
-    */
-    pkd->iTreeNodeSize = (pkd->iTreeNodeSize + sizeof(double) - 1 ) & ~(sizeof(double)-1);
-    pkd->nTreeBitsLo = nTreeBitsLo;
-    pkd->nTreeBitsHi = nTreeBitsHi;
-    pkd->iTreeMask = (1<<pkd->nTreeBitsLo) - 1;
-    pkd->kdNodeListPRIVATE = mdlMalloc(pkd->mdl,(1<<pkd->nTreeBitsHi)*sizeof(KDN *));
-    mdlassert(mdl,pkd->kdNodeListPRIVATE != NULL);
-    pkd->kdNodeListPRIVATE[0] = mdlMalloc(pkd->mdl,(1<<pkd->nTreeBitsLo)*pkd->iTreeNodeSize);
-    mdlassert(mdl,pkd->kdNodeListPRIVATE[0] != NULL);
-    pkd->nTreeTiles = 1;
-    pkd->nMaxNodes = (1<<pkd->nTreeBitsLo) * pkd->nTreeTiles;
-    /*
-    ** pLite particles are also allocated and are quicker when sorting particle
-    ** type operations such as tree building and domain decomposition are being
-    ** performed.
-    */
-    pkd->pLite = mdlMallocArray(pkd->mdl,nStore+1,EPHEMERAL_BYTES,nMinLocalMemory);
-    if (mdlCore(pkd->mdl)==0) {
-	if (nMinLocalMemory < (nStore+1)*EPHEMERAL_BYTES)
-	    nMinLocalMemory = (nStore+1)*EPHEMERAL_BYTES;
-	}
-
-    mdlassert(mdl,pkd->pLite != NULL);
-
-    pkd->nNodes = 0;
     /*
     ** Ewald stuff!
     */
@@ -632,7 +680,7 @@ void pkdFinish(PKD pkd) {
 	*/
 	if (pkd->nNodes > 0)
 	    mdlFinishCache(pkd->mdl,CID_CELL);
-	for( i=0; i<pkd->nTreeTiles; i++)
+	for( i=pkd->nTreeTilesReserved; i<pkd->nTreeTiles; i++)
 	    mdlFree(pkd->mdl,pkd->kdNodeListPRIVATE[i]);
 	mdlFree(pkd->mdl,pkd->kdNodeListPRIVATE);
 	}
@@ -678,11 +726,12 @@ void pkdFinish(PKD pkd) {
 #ifdef xMPI_VERSION
     mdlTypeFree(pkd->mdl,&pkd->typeParticle);
 #endif
-    mdlFreeArray(pkd->mdl,pkd->pStorePRIVATE);
+    /* Only thread zero allocated this memory block  */
+    mdlThreadBarrier(pkd->mdl);
+    if (mdlCore(pkd->mdl)==0) mdlFree(pkd->mdl,pkd->pStorePRIVATE);
     if (pkd->pStorePRIVATE2)
 	mdlFree(pkd->mdl,pkd->pStorePRIVATE2);
     free(pkd->pTempPRIVATE);
-    mdlFreeArray(pkd->mdl,pkd->pLite);
     if (pkd->pLightCone) free(pkd->pLightCone);
     free(pkd->piActive);
     free(pkd->piInactive);

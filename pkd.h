@@ -600,6 +600,7 @@ typedef struct pkdContext {
     int nTreeBitsHi;
     int iTreeMask;
     int nTreeTiles;
+    int nTreeTilesReserved;
     int nMaxNodes;
     uint64_t nRung[IRUNGMAX+1];
     uint64_t nDark;
@@ -1133,7 +1134,8 @@ void pkdClearTimer(PKD,int);
 void pkdStartTimer(PKD,int);
 void pkdStopTimer(PKD,int);
 void pkdInitialize(
-    PKD *ppkd,MDL mdl,int nStore,uint64_t nMinLocalMemory,int nBucket,int nGroup,int nTreeBitsLo, int nTreeBitsHi,
+    PKD *ppkd,MDL mdl,int nStore,uint64_t nMinTotalStore,uint64_t nMinEphemeral,
+    int nBucket,int nGroup,int nTreeBitsLo, int nTreeBitsHi,
     int iCacheSize,int iWorkQueueSize,int iCUDAQueueSize,FLOAT *fPeriod,uint64_t nDark,uint64_t nGas,uint64_t nStar,
     uint64_t mMemoryModel, int nMaxDomainRungs, int bLightCone, int bLightConeParticles);
 void pkdFinish(PKD);

@@ -4682,6 +4682,45 @@ void msrRelaxation(MSR msr,double dTime,double deltaT,int iSmoothType,int bSymme
 	}
     }
 
+static void setInitializePStore(MSR msr, struct inInitializePStore *ps) {
+    ps->nTreeBitsLo = msr->param.nTreeBitsLo;
+    ps->nTreeBitsHi = msr->param.nTreeBitsHi;
+    ps->iCacheSize  = msr->param.iCacheSize;
+    ps->iWorkQueueSize  = msr->param.iWorkQueueSize;
+    ps->iCUDAQueueSize  = msr->param.iCUDAQueueSize;
+    ps->fPeriod[0] = msr->param.dxPeriod;
+    ps->fPeriod[1] = msr->param.dyPeriod;
+    ps->fPeriod[2] = msr->param.dzPeriod;
+    ps->nBucket = msr->param.nBucket;
+    ps->nGroup = msr->param.nGroup;
+    ps->nDomainRungs = msr->param.nDomainRungs;
+    ps->mMemoryModel = getMemoryModel(msr) | PKD_MODEL_VELOCITY;
+    ps->bLightCone  = msr->param.bLightCone;
+    ps->bLightConeParticles  = msr->param.bLightConeParticles;    
+
+    ps->nMinEphemeral = 0;
+    ps->nMinTotalStore = 0;
+#ifdef MDL_FFTW
+    if (msr->param.nGridPk>0) {
+	struct inGetFFTMaxSizes inFFTSizes;
+	struct outGetFFTMaxSizes outFFTSizes;
+	int n;
+	inFFTSizes.nx = inFFTSizes.ny = inFFTSizes.nz = msr->param.nGridPk;
+	pstGetFFTMaxSizes(msr->pst,&inFFTSizes,sizeof(inFFTSizes),&outFFTSizes,&n);
+	ps->nMinEphemeral = outFFTSizes.nMaxLocal*sizeof(FFTW3(real));
+	}
+    if (msr->param.nGrid>0) {
+	struct inGetFFTMaxSizes inFFTSizes;
+	struct outGetFFTMaxSizes outFFTSizes;
+	int n;
+	inFFTSizes.nx = inFFTSizes.ny = inFFTSizes.nz = msr->param.nGrid;
+	pstGetFFTMaxSizes(msr->pst,&inFFTSizes,sizeof(inFFTSizes),&outFFTSizes,&n);
+	ps->nMinTotalStore = 11*outFFTSizes.nMaxLocal*sizeof(FFTW3(real));
+	}
+#endif
+    }
+
+
 #ifdef MDL_FFTW
 double msrGenerateIC(MSR msr) {
     struct inGenerateIC in;
@@ -4692,6 +4731,7 @@ double msrGenerateIC(MSR msr) {
     double sec,dsec;
     double dvFac;
     double mean, rms;
+    uint64_t nTotal;
     int j;
 
     in.h = msr->param.h;
@@ -4705,25 +4745,11 @@ double msrGenerateIC(MSR msr) {
     in.sigma8= msr->param.csm->dSigma8;
     in.spectral=msr->param.csm->dSpectral;
     in.bComove = msr->param.csm->bComove;
-    in.fExtraStore = msr->param.dExtraStore;
-    in.ps.nStore = in.nGrid + 2; /* Careful: 32 bit integer cubed => 64 bit integer */
-    in.ps.nStore *= in.nGrid;
-    in.ps.nStore *= in.nGrid;
-    in.ps.nStore /= mdlThreads(msr->mdl);
-    in.ps.nStore += (int)ceil(in.ps.nStore*in.fExtraStore);
-    in.ps.nTreeBitsLo = msr->param.nTreeBitsLo;
-    in.ps.nTreeBitsHi = msr->param.nTreeBitsHi;
-    in.ps.iCacheSize  = msr->param.iCacheSize;
-    in.ps.iWorkQueueSize  = msr->param.iWorkQueueSize;
-    in.ps.iCUDAQueueSize  = msr->param.iCUDAQueueSize;
-    in.ps.fPeriod[0] = msr->param.dxPeriod;
-    in.ps.fPeriod[1] = msr->param.dyPeriod;
-    in.ps.fPeriod[2] = msr->param.dzPeriod;
-    in.ps.nMinLocalMemory = 0;
-    in.ps.nBucket = msr->param.nBucket;
-    in.ps.nGroup = msr->param.nGroup;
-    in.ps.nDomainRungs = msr->param.nDomainRungs;
-    in.ps.mMemoryModel = getMemoryModel(msr) | PKD_MODEL_VELOCITY;
+    setInitializePStore(msr,&in.ps);
+    nTotal  = in.nGrid; /* Careful: 32 bit integer cubed => 64 bit integer */
+    nTotal *= in.nGrid;
+    nTotal *= in.nGrid;
+    in.ps.nStore = ceil( (1.0+msr->param.dExtraStore) * nTotal / mdlThreads(msr->mdl));
     for( j=0; j<FIO_SPECIES_LAST; j++) in.ps.nSpecies[j] = 0;
     in.ps.nSpecies[FIO_SPECIES_ALL] = in.ps.nSpecies[FIO_SPECIES_DARK] = (uint64_t)in.nGrid * in.nGrid * in.nGrid;
 
@@ -4732,8 +4758,6 @@ double msrGenerateIC(MSR msr) {
 	in.dExpansion = 1.0 / (1.0 + msr->param.dRedFrom);
 	}
     else in.dExpansion = 0.0;
-    in.ps.bLightCone  = msr->param.bLightCone;
-    in.ps.bLightConeParticles  = msr->param.bLightConeParticles;    
 
     msr->N     = in.ps.nSpecies[FIO_SPECIES_ALL];
     msr->nGas  = in.ps.nSpecies[FIO_SPECIES_SPH];
@@ -4869,36 +4893,14 @@ double msrRead(MSR msr, const char *achInFile) {
     
     read->nNodeStart = 0;
     read->nNodeEnd = msr->N - 1;
-    read->ps.nBucket = msr->param.nBucket;
-    read->ps.nGroup = msr->param.nGroup;
-    read->ps.nDomainRungs = msr->param.nDomainRungs;
-    read->ps.mMemoryModel = mMemoryModel;
-    read->ps.nTreeBitsLo = msr->param.nTreeBitsLo;
-    read->ps.nTreeBitsHi = msr->param.nTreeBitsHi;
-    read->ps.iCacheSize  = msr->param.iCacheSize;
-    read->ps.iWorkQueueSize  = msr->param.iWorkQueueSize;
-    read->ps.iCUDAQueueSize  = msr->param.iCUDAQueueSize;
-    read->ps.bLightCone  = msr->param.bLightCone;
-    read->ps.bLightConeParticles  = msr->param.bLightConeParticles;    
-    read->ps.fPeriod[0] = msr->param.dxPeriod;
-    read->ps.fPeriod[1] = msr->param.dyPeriod;
-    read->ps.fPeriod[2] = msr->param.dzPeriod;
+
+    setInitializePStore(msr, &read->ps);
+
     for( j=0; j<FIO_SPECIES_LAST; j++) read->ps.nSpecies[j] = fioGetN(fio,j);
     read->ps.nStore = ceil( (1.0+msr->param.dExtraStore) * read->ps.nSpecies[FIO_SPECIES_ALL] / mdlThreads(msr->mdl));
     read->dOmega0 = msr->param.csm->dOmega0;
     read->dOmegab = msr->param.csm->dOmegab;
 
-    read->ps.nMinLocalMemory = 0;
-#ifdef MDL_FFTW
-    if (msr->param.nGridPk>0) {
-	struct inGetFFTMaxSizes inFFTSizes;
-	struct outGetFFTMaxSizes outFFTSizes;
-	int n;
-	inFFTSizes.nx = inFFTSizes.ny = inFFTSizes.nz = msr->param.nGridPk;
-	pstGetFFTMaxSizes(msr->pst,&inFFTSizes,sizeof(inFFTSizes),&outFFTSizes,&n);
-	read->ps.nMinLocalMemory = outFFTSizes.nMaxLocal*sizeof(FFTW3(real));
-	}
-#endif
 
     /*
     ** If bParaRead is 0, then we read serially; if it is 1, then we read
@@ -4924,9 +4926,9 @@ double msrRead(MSR msr, const char *achInFile) {
 	      pkdParticleMemory(plcl->pkd)/(1024*1024));
     printf("Particles: %lu bytes (persistent) + %d bytes (ephemeral), Nodes: %lu bytes\n",
 	pkdParticleSize(plcl->pkd),EPHEMERAL_BYTES,pkdNodeSize(plcl->pkd));
-    if (read->ps.nMinLocalMemory) {
+    if (read->ps.nMinEphemeral) {
 	printf("Allocating at least %llu ephemeral bytes per node for FFT\n",
-	    read->ps.nMinLocalMemory);
+	    read->ps.nMinEphemeral);
 	}
 
     free(read);

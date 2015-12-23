@@ -250,7 +250,8 @@ struct inInitializePStore {
     uint64_t nStore;
     uint64_t nSpecies[FIO_SPECIES_LAST];
     double fPeriod[3];
-    uint64_t nMinLocalMemory;
+    uint64_t nMinEphemeral;
+    uint64_t nMinTotalStore;
     int nBucket;
     int nGroup;
     int nTreeBitsLo;
@@ -1113,7 +1114,6 @@ struct inGenerateIC {
     double sigma8;
     double spectral;
     double dExpansion;
-    float fExtraStore;
     int iSeed;
     int nGrid;
     int b2LPT;

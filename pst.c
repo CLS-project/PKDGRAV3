@@ -672,8 +672,8 @@ void pstSetAdd(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 
 static void initializePStore(PKD *ppkd,MDL mdl,struct inInitializePStore *in) {
     pkdInitialize(
-	ppkd,mdl,in->nStore,in->nMinLocalMemory,in->nBucket,in->nGroup,
-	in->nTreeBitsLo,in->nTreeBitsHi,
+	ppkd,mdl,in->nStore,in->nMinTotalStore,in->nMinEphemeral,
+	in->nBucket,in->nGroup,in->nTreeBitsLo,in->nTreeBitsHi,
 	in->iCacheSize,in->iWorkQueueSize,in->iCUDAQueueSize,in->fPeriod,
 	in->nSpecies[FIO_SPECIES_DARK],in->nSpecies[FIO_SPECIES_SPH],in->nSpecies[FIO_SPECIES_STAR],
 	in->mMemoryModel, in->nDomainRungs,in->bLightCone,in->bLightConeParticles);
