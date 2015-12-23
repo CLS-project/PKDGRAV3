@@ -168,7 +168,7 @@ void pkdGenerateNoise(PKD pkd,unsigned long seed,MDLFFT fft,float complex *ic,do
     RngStream_DeleteStream(&g);
     }
 
-int pkdGenerateIC(PKD pkd,int iSeed,int nGrid,int b2LPT,double dBoxSize,
+int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int nGrid,int b2LPT,double dBoxSize,
     double dOmega0,double dLambda0,double dSigma8,double dSpectral,double h,
     double a,int nTf, double *tk, double *tf,
     double *noiseMean, double *noiseCSQ) {
@@ -189,7 +189,6 @@ int pkdGenerateIC(PKD pkd,int iSeed,int nGrid,int b2LPT,double dBoxSize,
     basicParticle *p;
     int nLocal;
 
-    MDLFFT fft;
     mdlGridCoord kfirst, klast, kindex;
     mdlGridCoord rfirst, rlast, rindex;
     gridptr ic[10];
@@ -215,7 +214,6 @@ int pkdGenerateIC(PKD pkd,int iSeed,int nGrid,int b2LPT,double dBoxSize,
     velFactor = (sqrt(dOmega0/(a*a*a) + (1-dOmega0-dLambda0)/(a*a) + dLambda0)) * sqrt(8.0/3.0*M_PI);
     velFactor *= a*a; /* Comoving */
 
-    mdlFFTInitialize(mdl,&fft,nGrid,nGrid,nGrid,0,0);
     mdlGridCoordFirstLast(mdl,fft->kgrid,&kfirst,&klast);
     mdlGridCoordFirstLast(mdl,fft->rgrid,&rfirst,&rlast);
 

@@ -969,7 +969,7 @@ void pkdMeasurePk(PKD pkd, double dCenter[3], double dRadius, double dTotalMass,
     dScale = 0.5 / dRadius;
 
     fftNormalize = 1.0 / (1.0*nGrid*nGrid*nGrid);
-    mdlFFTInitialize(pkd->mdl,&fft,nGridFFT,nGridFFT,nGridFFT,0,0);
+    fft = mdlFFTInitialize(pkd->mdl,nGridFFT,nGridFFT,nGridFFT,0,0);
     mdlGridCoordFirstLast(pkd->mdl,fft->rgrid,&first,&last);
     fftData = mdlSetArray(pkd->mdl,last.i,sizeof(FFTW3(real)),pkd->pLite);
     fftDataK = (FFTW3(complex) *)fftData;

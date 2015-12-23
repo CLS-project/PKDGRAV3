@@ -24,7 +24,7 @@ typedef struct {
     FFTW3(real) vx,vy,vz;
     } gridpsc;
 
-int pkdGenerateIC(PKD pkd,int iSeed,int nGrid,int b2LPT,double dBoxSize,
+int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int nGrid,int b2LPT,double dBoxSize,
     double dOmega0,double dLambda0,double dSigma8,double dSpectral,double h,
     double a,int nTf, double *tk, double *tf,
     double *noiseMean, double *noiseCSQ);

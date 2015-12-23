@@ -442,7 +442,10 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_GENERATEIC,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstGenerateIC,
 		  sizeof(struct inGenerateIC),sizeof(struct outGenerateIC));
-    mdlAddService(mdl,PST_MOVEIC,pst,
+    mdlAddService(mdl,PLT_GENERATEIC,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pltGenerateIC,
+		  sizeof(struct inGenerateICthread),sizeof(struct outGenerateIC));
+    mdlAddService(mdl,PLT_MOVEIC,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pltMoveIC,
 		  sizeof(struct inMoveIC),0);
 #endif
@@ -3903,7 +3906,7 @@ void pltMoveIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	icUp.fMass = in->fMass;
 	icUp.fSoft = in->fSoft;
 
-	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_MOVEIC,&icUp,nIn);
+	int rID = mdlReqService(pst->mdl,pst->idUpper,PLT_MOVEIC,&icUp,nIn);
 	mdlGetReply(pst->mdl,rID,vout,pnOut);
 	pltMoveIC(pst->pstLower,in,nIn,vout,pnOut);
 	}
@@ -3929,6 +3932,35 @@ void pltMoveIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     if (pnOut) *pnOut = 0;
     }
 
+/* NOTE: only called when on-node -- pointers are passed around. */
+void pltGenerateIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl = pst->plcl;
+    struct inGenerateICthread *tin = vin;
+    struct inGenerateIC *in = tin->ic;
+    struct outGenerateIC *out = vout, outUp;
+    mdlassert(pst->mdl,nIn == sizeof(struct inGenerateICthread));
+    mdlassert(pst->mdl,vout != NULL);
+    assert(pstOnNode(pst)); /* We pass around pointers! */
+
+    if (pstNotCore(pst)) {
+	int rID = mdlReqService(pst->mdl,pst->idUpper,PLT_GENERATEIC,vin,nIn);
+	pltGenerateIC(pst->pstLower,vin,nIn,vout,pnOut);
+	mdlGetReply(pst->mdl,rID,&outUp,pnOut);
+	out->N += outUp.N;
+	out->noiseMean += outUp.noiseMean;
+	out->noiseCSQ += outUp.noiseCSQ;
+	}
+    else {
+	pstInitializePStore(pst,&in->ps,sizeof(in->ps),NULL,NULL);
+	out->N = pkdGenerateIC(plcl->pkd,tin->fft,in->iSeed,in->nGrid,in->b2LPT,in->dBoxSize,
+	    in->omegam,in->omegav,in->sigma8,in->spectral,in->h,
+	    in->dExpansion,in->nTf, in->k, in->tf,&out->noiseMean,&out->noiseCSQ);
+	out->dExpansion = in->dExpansion;
+	}
+
+    if (pnOut) *pnOut = sizeof(struct outGenerateIC);
+    }
+
 void pstGenerateIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct inGenerateIC *in = vin;
@@ -3937,43 +3969,39 @@ void pstGenerateIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     mdlassert(pst->mdl,nIn == sizeof(struct inGenerateIC));
     mdlassert(pst->mdl,vout != NULL);
 
-    if (pstNotCore(pst)) {
+    if (pstAmNode(pst)) {
+	struct inGenerateICthread tin;
+	tin.ic = vin;
+	tin.fft = mdlFFTNodeInitialize(pst->mdl,in->nGrid,in->nGrid,in->nGrid,0,0);
+	pltGenerateIC(pst,&tin,sizeof(tin),vout,pnOut);
+	/* We need to relocate the particles */
+	struct inMoveIC move;
+	uint64_t nTotal;
+	int sZ;
+	nTotal = in->nGrid; /* Careful: 32 bit integer cubed => 64 bit integer */
+	nTotal *= in->nGrid;
+	nTotal *= in->nGrid;
+	move.pBase = (basicParticle *)pkdParticleBase(plcl->pkd);
+	move.iStart = 0;
+	move.nMove = out->N;
+	move.fMass = in->omegam / nTotal;
+	move.fSoft = 1.0 / (50.0*in->nGrid);
+
+	mdlFFTlocalCount(pst->mdl,in->nGrid,in->nGrid,in->nGrid,0,&sZ,0,0);
+	move.iNodeStart = sZ;
+	move.iNodeStart *= in->nGrid;
+	move.iNodeStart *= in->nGrid;
+	
+	pltMoveIC(pst,&move,sizeof(move),NULL,0);
+	}
+    else if (pstNotCore(pst)) {
 	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_GENERATEIC,in,nIn);
 	pstGenerateIC(pst->pstLower,in,nIn,vout,pnOut);
 	mdlGetReply(pst->mdl,rID,&outUp,pnOut);
 	out->N += outUp.N;
 	out->noiseMean += outUp.noiseMean;
 	out->noiseCSQ += outUp.noiseCSQ;
-	/* We need to relocate the particles */
-	if (pstAmNode(pst)) {
-	    struct inMoveIC move;
-	    uint64_t nTotal;
-	    int sZ;
-	    nTotal = in->nGrid; /* Careful: 32 bit integer cubed => 64 bit integer */
-	    nTotal *= in->nGrid;
-	    nTotal *= in->nGrid;
-	    move.pBase = (basicParticle *)pkdParticleBase(plcl->pkd);
-	    move.iStart = 0;
-	    move.nMove = out->N;
-	    move.fMass = in->omegam / nTotal;
-	    move.fSoft = 1.0 / (50.0*in->nGrid);
-
-	    mdlFFTlocalCount(pst->mdl,in->nGrid,in->nGrid,in->nGrid,0,&sZ,0,0);
-	    move.iNodeStart = sZ;
-	    move.iNodeStart *= in->nGrid;
-	    move.iNodeStart *= in->nGrid;
-
-	    pltMoveIC(pst,&move,sizeof(move),NULL,0);
-	    }
 	}
-    else {
-	pstInitializePStore(pst,&in->ps,sizeof(in->ps),NULL,NULL);
-	out->N = pkdGenerateIC(plcl->pkd,in->iSeed,in->nGrid,in->b2LPT,in->dBoxSize,
-	    in->omegam,in->omegav,in->sigma8,in->spectral,in->h,
-	    in->dExpansion,in->nTf, in->k, in->tf,&out->noiseMean,&out->noiseCSQ);
-	out->dExpansion = in->dExpansion;
-	}
-
     if (pnOut) *pnOut = sizeof(struct outGenerateIC);
     }
 #endif

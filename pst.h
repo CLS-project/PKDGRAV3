@@ -174,7 +174,8 @@ enum pst_service {
     PST_INITIALIZEPSTORE,
     PST_GETFFTMAXSIZES,
     PST_GENERATEIC,
-    PST_MOVEIC,
+    PLT_GENERATEIC,
+    PLT_MOVEIC,
     PST_HOSTNAME,
     PST_MEMSTATUS,
     PST_GETCLASSES,
@@ -1130,7 +1131,13 @@ struct outGenerateIC {
     };
 void pstGenerateIC(PST,void *,int,void *,int *);
 
-/* PST_MOVEIC */
+struct inGenerateICthread {
+    struct inGenerateIC *ic;
+    MDLFFT fft;
+    };
+void pltGenerateIC(PST,void *,int,void *,int *);
+
+/* PLT_MOVEIC */
 struct inMoveIC {
     basicParticle *pBase;
     uint64_t iStart;
