@@ -4715,7 +4715,7 @@ static void setInitializePStore(MSR msr, struct inInitializePStore *ps) {
 	int n;
 	inFFTSizes.nx = inFFTSizes.ny = inFFTSizes.nz = msr->param.nGrid;
 	pstGetFFTMaxSizes(msr->pst,&inFFTSizes,sizeof(inFFTSizes),&outFFTSizes,&n);
-	ps->nMinTotalStore = 11*outFFTSizes.nMaxLocal*sizeof(FFTW3(real));
+	ps->nMinTotalStore = 10*outFFTSizes.nMaxLocal*sizeof(FFTW3(real));
 	}
 #endif
     }
