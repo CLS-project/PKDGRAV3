@@ -2913,41 +2913,44 @@ size_t mdlFFTlocalCount(MDL mdl,int n1,int n2,int n3,int *nz,int *sz,int *ny,int
     return sizes.nLocal;
     }
 
-size_t mdlFFTInitialize(MDL mdl,MDLFFT *pfft,int n1,int n2,int n3,int bMeasure,FFTW3(real) *data) {
+MDLFFT mdlFFTNodeInitialize(MDL mdl,int n1,int n2,int n3,int bMeasure,FFTW3(real) *data) {
     fftPlans plans;
-    MDLFFT fft;
-
-    fft = malloc(sizeof(struct mdlFFTContext));
+    MDLFFT fft = malloc(sizeof(struct mdlFFTContext));
     assert( fft != NULL);
+    assert(mdlCore(mdl) == 0);
+    plans.sizes.n1 = n1;
+    plans.sizes.n2 = n2;
+    plans.sizes.n3 = n3;
+    plans.data = 0;/*Estimate is faster? data;*/
+    plans.kdata = 0;/*(FFTW3(complex) *)data;*/
+    mdlSendToMPI(mdl,&plans,MDL_SE_FFT_PLANS);
+    mdlWaitThreadQueue(mdl,0);
+    fft->fplan = plans.fplan;
+    fft->iplan = plans.iplan;
+
+    /*
+    ** Dimensions of k-space and r-space grid.  Note transposed order.
+    ** Note also that the "actual" dimension 1 side of the r-space array
+    ** can be (and usually is) larger than "n1" because of the inplace FFT.
+    */
+    mdlGridInitialize(mdl,&fft->rgrid,n1,n2,n3,2*(n1/2+1));
+    mdlGridInitialize(mdl,&fft->kgrid,n1/2+1,n3,n2,n1/2+1);
+    mdlGridSetLocal(mdl,fft->rgrid,plans.sizes.sz,plans.sizes.nz,plans.sizes.nLocal);
+    mdlGridSetLocal(mdl,fft->kgrid,plans.sizes.sy,plans.sizes.ny,plans.sizes.nLocal/2);
+    mdlGridShare(mdl,fft->rgrid);
+    mdlGridShare(mdl,fft->kgrid);
+    return fft;
+    }
+
+MDLFFT mdlFFTInitialize(MDL mdl,int n1,int n2,int n3,int bMeasure,FFTW3(real) *data) {
+    MDLFFT fft;
     if (mdlCore(mdl) == 0) {
-	plans.sizes.n1 = n1;
-	plans.sizes.n2 = n2;
-	plans.sizes.n3 = n3;
-	plans.data = 0;/*Estimate is faster? data;*/
-	plans.kdata = 0;/*(FFTW3(complex) *)data;*/
-	mdlSendToMPI(mdl,&plans,MDL_SE_FFT_PLANS);
-	mdlWaitThreadQueue(mdl,0);
-	fft->fplan = plans.fplan;
-	fft->iplan = plans.iplan;
-
-	/*
-	** Dimensions of k-space and r-space grid.  Note transposed order.
-	** Note also that the "actual" dimension 1 side of the r-space array
-	** can be (and usually is) larger than "n1" because of the inplace FFT.
-	*/
-	mdlGridInitialize(mdl,&fft->rgrid,n1,n2,n3,2*(n1/2+1));
-	mdlGridInitialize(mdl,&fft->kgrid,n1/2+1,n3,n2,n1/2+1);
-	mdlGridSetLocal(mdl,fft->rgrid,plans.sizes.sz,plans.sizes.nz,plans.sizes.nLocal);
-	mdlGridSetLocal(mdl,fft->kgrid,plans.sizes.sy,plans.sizes.ny,plans.sizes.nLocal/2);
-	mdlGridShare(mdl,fft->rgrid);
-	mdlGridShare(mdl,fft->kgrid);
-	mdl->pvMessageData = fft;
+	mdl->pvMessageData = mdlFFTNodeInitialize(mdl,n1,n2,n3,bMeasure,data);
 	}
-
-    mdlThreadBarrier(mdl);
-    *pfft = mdl->pmdl[0]->pvMessageData;
-    mdlThreadBarrier(mdl);
-    return plans.sizes.nLocal;
+    mdlThreadBarrier(mdl); /* To synchronize pvMessageData */
+    fft = mdl->pmdl[0]->pvMessageData;
+    mdlThreadBarrier(mdl); /* In case we reuse pvMessageData */
+    return fft;
     }
 
 void mdlFFTFinish( MDL mdl, MDLFFT fft ) {
