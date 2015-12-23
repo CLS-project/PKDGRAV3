@@ -162,6 +162,7 @@ struct parameters {
     char achOutName[256];
     char achOutPath[256];
     char achIoPath[256];
+    char achCheckpointPath[256];
     char achDataSubPath[256];
     char achOutTypes[256];
     char achCheckTypes[256];

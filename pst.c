@@ -240,6 +240,9 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_WRITE,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstWrite,
 		  sizeof(struct inWrite),0);
+    mdlAddService(mdl,PST_CHECKPOINT,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstCheckpoint,
+		  sizeof(struct inWrite),0);
     /*
     ** Calculate the number of levels in the top tree and use it to
     ** define the size of the messages.
@@ -2477,6 +2480,23 @@ static void makeName( char *achOutName, const char *inName, int iIndex ) {
     else {
 	p = achOutName + strlen(achOutName);
 	sprintf(p,".%d", iIndex);
+	}
+    }
+
+void pstCheckpoint(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    struct inWrite *in = vin;
+
+    mdlassert(pst->mdl,nIn == sizeof(struct inWrite));
+    if (pstNotCore(pst)) {
+	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_CHECKPOINT,in,nIn);
+	pstCheckpoint(pst->pstLower,in,nIn,vout,pnOut);
+	mdlGetReply(pst->mdl,rID,NULL,NULL);
+	}
+    else {
+	PKD pkd = pst->plcl->pkd;
+	char achOutFile[PST_FILENAME_SIZE];
+	makeName(achOutFile,in->achOutFile,mdlSelf(pkd->mdl));
+	pkdCheckpoint(pkd,achOutFile);
 	}
     }
 

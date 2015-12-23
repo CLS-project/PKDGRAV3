@@ -374,6 +374,9 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     strcpy(msr->param.achIoPath,"");
     prmAddParam(msr->prm,"achIoPath",3,msr->param.achIoPath,256,"iop",
 		"<output path for snapshots and logfile> = \"\"");
+    strcpy(msr->param.achCheckpointPath,"");
+    prmAddParam(msr->prm,"achCheckpointPath",3,msr->param.achCheckpointPath,256,"cpp",
+		"<output path for checkpoints> = \"\"");
     msr->param.csm->bComove = 0;
     prmAddParam(msr->prm,"bComove",0,&msr->param.csm->bComove,sizeof(int),
 		"cm", "enable/disable comoving coordinates = -cm");
@@ -1709,6 +1712,64 @@ static uint64_t getMemoryModel(MSR msr) {
     if (msr->param.bMemNodeVBnd)         mMemoryModel |= PKD_MODEL_NODE_VBND;
 
     return mMemoryModel;
+    }
+
+char *_BuildName(MSR msr,char *achFile,int iStep,char *defaultPath) {
+    char achOutPath[256], *p;
+    int n;
+
+    if ( defaultPath[0] ) {
+	strcpy( achOutPath, defaultPath );
+	p = strstr( achOutPath, "&N" );
+	if ( p ) {
+	    n = p - achOutPath;
+	    strcpy( p, msrOutName(msr) );
+	    strcat( p+2, defaultPath + n + 2 );
+	    }
+	else {
+	    n = strlen(achOutPath);
+	    if ( !n || achOutPath[n-1]!='/' )
+		achOutPath[n++] = '/';
+	    strcpy(achOutPath+n,msrOutName(msr));
+	    }
+	}
+    else {
+	strcpy(achOutPath,msrOutName(msr));
+	}
+
+    p = strstr( achOutPath, "&S" );
+    if ( p ) {
+	n = p - achOutPath;
+	strncpy( achFile, achOutPath, n );
+	achFile += n;
+	sprintf( achFile, "%05d", iStep );
+	strcat( achFile, p+2 );
+	}
+    else {
+	sprintf(achFile,msr->param.achDigitMask,msrOutName(msr),iStep);
+	}
+    return achFile;
+    }
+
+void msrCheckpoint(MSR msr,int iStep,double dTime) {
+    struct inWrite in;
+    double sec,dsec;
+    if ( msr->param.achCheckpointPath[0] )
+	_BuildName(msr,in.achOutFile,iStep, msr->param.achCheckpointPath);
+    else
+	_BuildName(msr,in.achOutFile,iStep, msr->param.achOutPath);
+
+    if (msr->param.csm->bComove) {
+	double dExp = csmTime2Exp(msr->param.csm,dTime);
+	msrprintf(msr,"Writing checkpoing for Step: %d Time:%g Redshift:%g\n",
+	    iStep,dTime,(1.0/dExp - 1.0));
+	}
+    else
+	msrprintf(msr,"Writing checkpoing for Step: %d Time:%g\n",iStep,dTime);
+    sec = msrTime();
+    pstCheckpoint(msr->pst,&in,sizeof(in),NULL,NULL);
+    dsec = msrTime() - sec;
+    msrprintf(msr,"Checkpoint has been successfully written, Wallclock: %f secs.\n", dsec);
     }
 
 /*
@@ -3226,43 +3287,6 @@ int msrSteps(MSR msr) {
 
 char *msrOutName(MSR msr) {
     return(msr->param.achOutName);
-    }
-
-char *_BuildName(MSR msr,char *achFile,int iStep,char *defaultPath) {
-    char achOutPath[256], *p;
-    int n;
-
-    if ( defaultPath[0] ) {
-	strcpy( achOutPath, defaultPath );
-	p = strstr( achOutPath, "&N" );
-	if ( p ) {
-	    n = p - achOutPath;
-	    strcpy( p, msrOutName(msr) );
-	    strcat( p+2, defaultPath + n + 2 );
-	    }
-	else {
-	    n = strlen(achOutPath);
-	    if ( !n || achOutPath[n-1]!='/' )
-		achOutPath[n++] = '/';
-	    strcpy(achOutPath+n,msrOutName(msr));
-	    }
-	}
-    else {
-	strcpy(achOutPath,msrOutName(msr));
-	}
-
-    p = strstr( achOutPath, "&S" );
-    if ( p ) {
-	n = p - achOutPath;
-	strncpy( achFile, achOutPath, n );
-	achFile += n;
-	sprintf( achFile, "%05d", iStep );
-	strcat( achFile, p+2 );
-	}
-    else {
-	sprintf(achFile,msr->param.achDigitMask,msrOutName(msr),iStep);
-	}
-    return achFile;
     }
 
 char *msrBuildName(MSR msr,char *achFile,int iStep) {

@@ -2493,6 +2493,13 @@ void pkdLocalOrder(PKD pkd,uint64_t iMinOrder, uint64_t iMaxOrder) {
     /* Above replaces: qsort(pkdParticleBase(pkd),pkdLocal(pkd),pkdParticleSize(pkd),cmpParticles); */
     }
 
+void pkdCheckpoint(PKD pkd,const char *fname) {
+    FILE *fp = fopen(fname,"wb");
+    assert(fp!=NULL);
+    fwrite(pkdParticleBase(pkd),pkdParticleSize(pkd),pkd->nLocal,fp);
+    fclose(fp);
+    }
+
 static void writeParticle(PKD pkd,FIO fio,double dvFac,BND *bnd,PARTICLE *p) {
     STARFIELDS *pStar;
     SPHFIELDS *pSph;

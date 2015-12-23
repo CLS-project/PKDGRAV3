@@ -165,6 +165,7 @@ int msrUpdateRung(MSR msr, uint8_t uRung);
 */
 int msrSteps(MSR);
 void msrOutputPk(MSR msr,int iStep);
+void msrCheckpoint(MSR msr, int iStep, double dTime);
 void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint);
 char *msrOutName(MSR);
 char *msrBuildName(MSR msr,char *achFile,int iStep);

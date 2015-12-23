@@ -94,6 +94,7 @@ enum pst_service {
     PST_COMPRESSASCII,
     PST_WRITEASCII,
     PST_WRITE,
+    PST_CHECKPOINT,
     PST_BUILDTREE,
     PST_DISTRIBTOPTREE,
     PST_DUMPTREES,
@@ -494,6 +495,9 @@ struct inWrite {
     char achOutFile[PST_FILENAME_SIZE];
     };
 void pstWrite(PST,void *,int,void *,int *);
+
+/* PST_CHECKPOINT */
+void pstCheckpoint(PST,void *,int,void *,int *);
 
 /* PST_BUILDTREE */
 struct inBuildTree {

@@ -312,7 +312,16 @@ void * master_ch(MDL mdl) {
 	    **           2) We are stopping
 	    **           3) we're at an output interval
 	    */
-	    if (bGlobalOutput || msrOutTime(msr,dTime) || iStep == msrSteps(msr) || iStop ||
+	    if (msrCheckInterval(msr)>0 &&
+		(iStop || bGlobalOutput
+		    || (iStep%msrCheckInterval(msr) == 0) ) ) {
+		bGlobalOutput = 0;
+		msrCheckpoint(msr,iStep,dTime);
+		if (iStep%msr->param.iPkInterval == 0) {
+		    msrOutputPk(msr,iStep);
+		    }
+		}
+	    else if (bGlobalOutput || msrOutTime(msr,dTime) || iStep == msrSteps(msr) || iStop ||
 		    (msrOutInterval(msr) > 0 && iStep%msrOutInterval(msr) == 0) ||
 		    (msrCheckInterval(msr) > 0 && iStep%msrCheckInterval(msr) == 0)) {
 		bGlobalOutput = 0;
