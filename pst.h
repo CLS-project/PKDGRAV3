@@ -1139,10 +1139,9 @@ void pltGenerateIC(PST,void *,int,void *,int *);
 
 /* PLT_MOVEIC */
 struct inMoveIC {
-    basicParticle *pBase;
+    overlayedParticle *pBase;
     uint64_t iStart;
     uint64_t nMove;
-    uint64_t iNodeStart;
     float fMass;
     float fSoft;
     };

@@ -7,11 +7,21 @@ typedef struct {
     float v[3];
     } basicParticle;
 
+typedef struct {
+    uint64_t iOrder;
+    float r[3];
+    float v[3];
+    } expandParticle;
+
+typedef union {
+    basicParticle b;
+    expandParticle e;
+    } overlayedParticle;
+
 #ifdef MDL_FFTW
 
 typedef union {
     FFTW3(real) *r;
-//    FFTW3(complex) *k;
     float complex *k;
     } gridptr;
 

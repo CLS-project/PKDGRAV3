@@ -226,7 +226,7 @@ int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int nGrid,int b2LPT,double dBoxSi
     ic[5].r = ic[4].r + fft->rgrid->nLocal;
     ic[6].r = ic[5].r + fft->rgrid->nLocal;
     ic[7].r = ic[6].r + fft->rgrid->nLocal;
-    ic[8].r = (FFTW3(real)*)pkd->pLite;
+    ic[8].r = ic[7].r + fft->rgrid->nLocal;
     ic[9].r = ic[8].r + fft->rgrid->nLocal;
 
     ic[0].r = mdlSetArray(pkd->mdl,rlast.i,sizeof(FFTW3(real)),ic[0].r);
