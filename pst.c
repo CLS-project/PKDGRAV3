@@ -2488,9 +2488,23 @@ void pstCheckpoint(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 
     mdlassert(pst->mdl,nIn == sizeof(struct inWrite));
     if (pstNotCore(pst)) {
-	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_CHECKPOINT,in,nIn);
-	pstCheckpoint(pst->pstLower,in,nIn,vout,pnOut);
-	mdlGetReply(pst->mdl,rID,NULL,NULL);
+	int nProcessors = in->nProcessors;
+	if (nProcessors>1) { /* Keep going parallel */
+	    int nLower, nUpper;
+	    nLower = nProcessors * pst->nLower / pst->nLeaves;
+	    if (nLower==0) nLower=1;
+	    nUpper = nProcessors - nLower;
+	    in->nProcessors = nUpper;
+	    int rID = mdlReqService(pst->mdl,pst->idUpper,PST_CHECKPOINT,in,nIn);
+	    in->nProcessors = nLower;
+	    pstCheckpoint(pst->pstLower,in,nIn,vout,pnOut);
+	    mdlGetReply(pst->mdl,rID,NULL,NULL);
+	    }
+	else { /* Serialize these processors now */
+	    pstCheckpoint(pst->pstLower,in,nIn,vout,pnOut);
+	    int rID = mdlReqService(pst->mdl,pst->idUpper,PST_CHECKPOINT,in,nIn);
+	    mdlGetReply(pst->mdl,rID,NULL,NULL);
+	    }
 	}
     else {
 	PKD pkd = pst->plcl->pkd;

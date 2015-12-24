@@ -1758,7 +1758,7 @@ void msrCheckpoint(MSR msr,int iStep,double dTime) {
 	_BuildName(msr,in.achOutFile,iStep, msr->param.achCheckpointPath);
     else
 	_BuildName(msr,in.achOutFile,iStep, msr->param.achOutPath);
-
+    in.nProcessors = msr->param.bParaWrite==0?1:(msr->param.nParaWrite<=1 ? msr->nThreads:msr->param.nParaWrite);
     if (msr->param.csm->bComove) {
 	double dExp = csmTime2Exp(msr->param.csm,dTime);
 	msrprintf(msr,"Writing checkpoing for Step: %d Time:%g Redshift:%g\n",
