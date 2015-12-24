@@ -3936,26 +3936,18 @@ void pltMoveIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	    expandParticle *b = ((expandParticle *)in->pBase) + in->iStart + i;
 	    PARTICLE *p = pkdParticle(pkd,i);
 	    vel_t *pVel = pkdVel(pkd,p);
-	    float r[3], v[3];
-	    uint64_t iOrder;
-	    v[2] = b->v[2];
-	    v[1] = b->v[1];
-	    v[0] = b->v[0];
-	    r[2] = b->r[2];
-	    r[1] = b->r[1];
-	    r[0] = b->r[0];
-	    iOrder = b->iOrder;
-	    pVel[2] = v[2];
-	    pVel[1] = v[1];
-	    pVel[0] = v[0];
-	    pkdSetPos(pkd,p,2,r[2]); 
-	    pkdSetPos(pkd,p,1,r[1]); 
-	    pkdSetPos(pkd,p,0,r[0]); 
+	    expandParticle temp;
+	    memcpy(&temp,b,sizeof(temp));
+	    pVel[2] = temp.v[2];
+	    pVel[1] = temp.v[1];
+	    pVel[0] = temp.v[0];
+	    pkdSetPos(pkd,p,2,temp.r[2]); 
+	    pkdSetPos(pkd,p,1,temp.r[1]); 
+	    pkdSetPos(pkd,p,0,temp.r[0]); 
 	    pkdSetClass(pkd,in->fMass,in->fSoft,FIO_SPECIES_DARK,p);
-	    p->iOrder = iOrder;
+	    p->iOrder = temp.iOrder;
 	    p->bMarked = p->bSrcActive = p->bDstActive = 1;
 	    p->uNewRung = p->uRung = 0;
-	    assert(fabs(r[0]) <= 1.1);
 	    }
 	pkd->nLocal = pkd->nActive = in->nMove;
 	}
@@ -4041,20 +4033,14 @@ void pstGenerateIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	for(i=nLocal-1; i>=0; --i) {
 	    basicParticle  *b = &pbBase->b + i;
 	    expandParticle *p = &pbBase->e + i;
-	    float r[3], v[3];
-	    v[2] = b->v[2];
-	    v[1] = b->v[1];
-	    v[0] = b->v[0];
-	    r[2] = b->r[2];
-	    r[1] = b->r[1];
-	    r[0] = b->r[0];
-	    p->v[2] = v[2];
-	    p->v[1] = v[1];
-	    p->v[0] = v[0];
-	    p->r[2] = r[2];
-	    p->r[1] = r[1];
-	    p->r[0] = r[0];
-	    assert(fabs(p->r[0]) <= 1.01);
+	    basicParticle temp;
+	    memcpy(&temp,b,sizeof(temp));
+	    p->v[2] = temp.v[2];
+	    p->v[1] = temp.v[1];
+	    p->v[0] = temp.v[0];
+	    p->r[2] = temp.r[2];
+	    p->r[1] = temp.r[1];
+	    p->r[0] = temp.r[0];
 	    p->iOrder = iNodeStart + i;
 	    }
 	/* Now we need to move excess particles between nodes so nStore is obeyed. */
