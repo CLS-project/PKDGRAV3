@@ -475,6 +475,7 @@ int mdlCacheReceive(MDL mdl,MPI_Status *status) {
     mpi->pReqRcv->mpiRequest = MPI_REQUEST_NULL;
     MPI_Get_count(status, MPI_BYTE, &count);
     int iRankFrom = status->MPI_SOURCE;
+    assert(count>=sizeof(CAHEAD));
 
     /* Well, could be any threads cache */
     iCore = ph->idTo - mdl->pmdl[0]->base.idSelf;
@@ -648,9 +649,14 @@ static int flush_check_completion(MDL mdl) {
 /* Send the given buffer. Remove it from whichever list and put it on the "sent" list. */
 static void flush_send(MDL mdl,MDLflushBuffer *pBuffer) {
     mdlContextMPI *mpi = mdl->mpi;
-    MPI_Issend(pBuffer+1,pBuffer->nBytes,MPI_BYTE,pBuffer->iRankTo,
-	MDL_TAG_CACHECOM,mpi->commMDL,&pBuffer->request);
-    flush_insert_after(mpi->flushHeadSent.hdr.mpi.prev,flush_remove(pBuffer));
+    if (pBuffer->nBytes>0) {
+	MPI_Issend(pBuffer+1,pBuffer->nBytes,MPI_BYTE,pBuffer->iRankTo,
+	    MDL_TAG_CACHECOM,mpi->commMDL,&pBuffer->request);
+	flush_insert_after(mpi->flushHeadSent.hdr.mpi.prev,flush_remove(pBuffer));
+	}
+    else {
+	flush_insert_after(&mpi->flushHeadFree,flush_remove(pBuffer));
+	}
     mpi->flushBusyCount--;
     }
 
