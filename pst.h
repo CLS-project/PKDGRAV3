@@ -67,17 +67,6 @@ enum pst_service {
     PST_SPLITIO,
     PST_SETADD,
     PST_READFILE,
-#ifdef MPI_VERSION
-    PST_ORB_BEGIN,
-    PST_ORB_SELECT_RUNG,
-    PST_ORB_UPDATE_RUNG,
-    PST_ORB_DECOMP,
-    PST_ORB_FINISH,
-    PST_ORB_ROOT_FIND,
-    PST_ORB_SPLIT,
-    PST_PEANOHILBERTDECOMP,
-    PST_RUNGORDER,
-#endif
     PST_DOMAINDECOMP,
     PST_CALCBOUND,
     PST_CALCVBOUND,
@@ -258,7 +247,6 @@ struct inInitializePStore {
     int nGroup;
     int nTreeBitsLo;
     int nTreeBitsHi;
-    int nDomainRungs;
     int iCacheSize;
     int iWorkQueueSize;
     int iCUDAQueueSize;
@@ -282,73 +270,6 @@ struct inReadFile {
     };
 typedef char inReadFileFilename[PST_FILENAME_SIZE];
 void pstReadFile(PST,void *,int,void *,int *);
-
-#ifdef MPI_VERSION
-
-/* PST_PEANOHILBERTDECOMP */
-struct inPeanoHilbertDecomp {
-    int     nRungs;
-    int     iMethod;
-    };
-struct outPeanoHilbertDecomp {
-    int x;
-    };
-void pstPeanoHilbertDecomp(PST,void *,int,void *,int *);
-
-/* PST_ORB_BEGIN,PST_ORB_FINISH */
-struct inOrbBegin {
-    int nRungs;
-    };
-void pstOrbBegin(PST,void *,int,void *,int *);
-void pstOrbFinish(PST,void *,int,void *,int *);
-
-/* PST_SELECT_RUNG */
-struct inOrbSelectRung {
-    int iRung;
-    };
-struct outOrbSelectRung {
-    uint64_t nActive;
-    };
-void pstOrbSelectRung(PST,void *,int,void *,int *);
-
-/* PST_UPDATE_RUNG */
-void pstOrbUpdateRung(PST,void *,int,void *,int *);
-
-/* PST_ORB_DECOMP */
-struct inOrbDecomp {
-    BND bnd;
-    };
-void pstOrbDecomp(PST,void *,int,void *,int *);
-
-
-/* PST_ORB_ROOT_FIND */
-struct inOrbRootFind {
-    BND     bnd;
-    double  dFraction;
-    double  dReserveFraction; /* [0,1) */
-    uint64_t nLower, nUpper;
-    };
-struct outOrbRootFind {
-    double dSplit;
-    int    iDim;
-    int    nDomains;
-    };
-void pstOrbRootFind(PST,void *,int,void *,int *);
-
-/* PST_ORB_SPLIT */
-void pstOrbSplit(PST,void *,int,void *,int *);
-
-/* PST_RUNGORDER */
-struct inRungOrder {
-    int     iRung;
-    };
-struct outRungOrder {
-    total_t nMoved;
-    BND     bnd;
-    };
-void pstRungOrder(PST,void *,int,void *,int *);
-
-#endif
 
 /* PST_DOMAINDECOMP */
 struct inDomainDecomp {

@@ -613,15 +613,6 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.bMemVelSmooth = 0;
     prmAddParam(msr->prm,"bMemVelSmooth",0,&msr->param.bMemVelSmooth,
 		sizeof(int),"Mvs","<Particles support velocity smoothing> = -Mvs");
-    msr->param.nDomainRungs = 0;
-    prmAddParam(msr->prm,"nDomainRungs",1,&msr->param.nDomainRungs,
-		sizeof(int),"drungs","<Decompose domains on this many rungs> = 0");
-    msr->param.iDomainMethod = 1;
-    prmAddParam(msr->prm,"iDomainMethod",1,&msr->param.iDomainMethod,
-		sizeof(int),"dmeth","<New domain decomposition method (0-4)> = 1");
-    msr->param.bMemNewDD = 0;
-    prmAddParam(msr->prm,"bMemNewDD",1,&msr->param.bMemNewDD,
-		sizeof(int),"MnewDD","<Use new Domain Decomposition (test only)> = 0");
     msr->param.bMemNodeMoment = 0;
     prmAddParam(msr->prm,"bMemNodeMoment",0,&msr->param.bMemNodeMoment,
 		sizeof(int),"MNm","<Tree nodes support multipole moments> = 0");
@@ -1079,11 +1070,6 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     if (msr->param.bDoGas) {
 	msr->param.bMemNodeSphBounds = 1;
     }
-
-
-    if (prmSpecified(msr->prm,"iDomainMethod") && !prmSpecified(msr->prm,"iDomainRungs"))
-	msr->param.nDomainRungs = 8;
-
     /*
     ** Check timestepping and gravity combinations.
     */
@@ -1689,8 +1675,6 @@ static uint64_t getMemoryModel(MSR msr) {
 	if (!msr->param.bNewKDK) mMemoryModel |= PKD_MODEL_ACCELERATION;
 	}
 
-    if (msr->param.nDomainRungs>0)   mMemoryModel |= PKD_MODEL_RUNGDEST;
-
     if (msr->param.bMemParticleID)   mMemoryModel |= PKD_MODEL_PARTICLE_ID;
     if (msr->param.bTraceRelaxation) mMemoryModel |= PKD_MODEL_RELAXATION;
     if (msr->param.bMemAcceleration || msr->param.bDoAccOutput) mMemoryModel |= PKD_MODEL_ACCELERATION;
@@ -1701,7 +1685,6 @@ static uint64_t getMemoryModel(MSR msr) {
     if (msr->param.bMemSoft)         mMemoryModel |= PKD_MODEL_SOFTENING;
     if (msr->param.bMemRelaxation)   mMemoryModel |= PKD_MODEL_RELAXATION;
     if (msr->param.bMemVelSmooth)    mMemoryModel |= PKD_MODEL_VELSMOOTH;
-    if (msr->param.bMemNewDD)         mMemoryModel |= PKD_MODEL_RUNGDEST;
 
     if (msr->param.bMemNodeAcceleration) mMemoryModel |= PKD_MODEL_NODE_ACCEL;
     if (msr->param.bMemNodeVelocity)     mMemoryModel |= PKD_MODEL_NODE_VEL;
@@ -1959,142 +1942,6 @@ void msrSetSoft(MSR msr,double dSoft) {
     }
 
 
-#ifdef MPI_VERSION
-/*
-** This function calculates where all particles should go for each rung
-** and stores this information in the particle structure.
-*/
-void msrDomainDecompNew(MSR msr) {
-    double sec, dsec;
-    BND bnd;
-    int j;
-    struct inPeanoHilbertDecomp pk;
-
-    /*
-    ** If we are dealing with a nice periodic volume in all
-    ** three dimensions then we can set the initial bounds
-    ** instead of calculating them.
-    */
-    if (msr->param.bPeriodic &&
-	    msr->param.dxPeriod < FLOAT_MAXVAL &&
-	    msr->param.dyPeriod < FLOAT_MAXVAL &&
-	    msr->param.dzPeriod < FLOAT_MAXVAL) {
-	for (j=0;j<3;++j) {
-	    bnd.fCenter[j] = msr->fCenter[j];
-	    }
-	bnd.fMax[0] = 0.5*msr->param.dxPeriod;
-	bnd.fMax[1] = 0.5*msr->param.dyPeriod;
-	bnd.fMax[2] = 0.5*msr->param.dzPeriod;
-
-	pstEnforcePeriodic(msr->pst,&bnd,sizeof(BND),NULL,NULL);
-	}
-    else {
-	pstCombineBound(msr->pst,NULL,0,&bnd,NULL);
-	}
-
-
-
-    sec = msrTime();
-
-    msrprintf(msr,"Domain Decomposition: Method %d\n",msr->param.iDomainMethod);
-
-    /* Generate hilbert keys for each particle and sort them */
-    pk.nRungs = msr->param.nDomainRungs;
-    pk.iMethod = msr->param.iDomainMethod;
-    pstPeanoHilbertDecomp(msr->pst,&pk,sizeof(pk),NULL,NULL);
-
-    dsec = msrTime() - sec;
-    msrprintf(msr,"Domain Decomposition complete, Wallclock: %f secs\n\n",dsec);
-    }
-
-void msrRungOrder(MSR msr, int iRung) {
-    double sec, dsec;
-    struct inRungOrder ro;
-    struct outRungOrder outRung;
-
-    sec = msrTime();
-
-    if ( iRung==0 )
-	msr->nActive = msr->N;
-    else {
-	int i;
-
-	assert( msr->nRung != NULL );
-
-	msr->nActive = 0;
-	for ( i=iRung; i <= msr->param.iMaxRung; i++ )
-	    msr->nActive += msr->nRung[i];
-	}
-
-    /* Generate hilbert keys for each particle and sort them */
-    msrprintf(msr,"Reordering for rung %d (%llu active)\n",iRung, msr->nActive);
-
-    ro.iRung = iRung;
-    msr->iLastRungRT = iRung;
-    msr->iLastRungDD = iRung;
-    pstRungOrder(msr->pst,&ro,sizeof(ro),&outRung,NULL);
-
-    dsec = msrTime() - sec;
-    msrprintf(msr,"Domain Reorder complete, Wallclock: %f secs, moved %llu particles\n\n",
-	dsec, outRung.nMoved);
-    }
-
-void msrDomainDecompORB(MSR msr,int bOthers) {
-    struct outFreeStore fs;
-    struct inOrbBegin inb;
-    struct inOrbSelectRung inr;
-    struct outOrbSelectRung outr;
-    struct inOrbDecomp in;
-    int nout;
-    int j, iRung, iRungFirst, iRungLast;
-
-    /*
-    ** If we are dealing with a nice periodic volume in all
-    ** three dimensions then we can set the initial bounds
-    ** instead of calculating them.
-    */
-    if (msr->param.bPeriodic &&
-	    msr->param.dxPeriod < FLOAT_MAXVAL &&
-	    msr->param.dyPeriod < FLOAT_MAXVAL &&
-	    msr->param.dzPeriod < FLOAT_MAXVAL) {
-	for (j=0;j<3;++j) {
-	    in.bnd.fCenter[j] = msr->fCenter[j];
-	    }
-	in.bnd.fMax[0] = 0.5*msr->param.dxPeriod;
-	in.bnd.fMax[1] = 0.5*msr->param.dyPeriod;
-	in.bnd.fMax[2] = 0.5*msr->param.dzPeriod;
-
-	pstEnforcePeriodic(msr->pst,&in.bnd,sizeof(BND),NULL,NULL);
-	}
-    else {
-	pstCombineBound(msr->pst,NULL,0,&in.bnd,NULL);
-	}
-
-    pstFreeStore(msr->pst,NULL,0,&fs,NULL);
-    inb.nRungs = msr->param.nDomainRungs;
-    pstOrbBegin(msr->pst,&inb,sizeof(inb),NULL,NULL);
-    if (bOthers) {
-	iRungFirst = 1;
-	iRungLast = msr->param.nDomainRungs;
-	}
-    else {
-	iRungFirst = 0;
-	iRungLast = 1;
-	}
-
-    for(iRung=iRungFirst; iRung<iRungLast; ++iRung) {
-	inr.iRung = iRung;
-	msrprintf(msr,"Domain Decomposition for rung %d\n",
-	    iRung);
-	pstOrbSelectRung(msr->pst,&inr,sizeof(inr),&outr,&nout);
-	if (outr.nActive==0) break;
-	pstOrbDecomp(msr->pst,&in,sizeof(in),NULL,NULL);
-	pstOrbUpdateRung(msr->pst,NULL,0,NULL,NULL);
-	}
-    pstOrbFinish(msr->pst,NULL,0,NULL,NULL);
-    }
-#endif
-
 void msrDomainDecompOld(MSR msr,int iRung,int bSplitVA) {
     struct inDomainDecomp in;
     uint64_t nActive;
@@ -2318,25 +2165,7 @@ void msrDomainDecompOld(MSR msr,int iRung,int bSplitVA) {
 
 
 void msrDomainDecomp(MSR msr,int iRung,int bOthers,int bSplitVA) {
-#ifdef MPI_VERSION
-    if (prmSpecified(msr->prm,"iDomainMethod")) {
-	double sec,dsec;
-	sec = msrTime();
-	if (iRung==0) {
-	    if (msr->param.iDomainMethod<0)
-		msrDomainDecompORB(msr,bOthers);
-	    else 
-		msrDomainDecompNew(msr);
-	    }
-	dsec = msrTime() - sec;
-	msrprintf(msr,"Domain Decomposition complete, Wallclock: %f secs\n\n",dsec);
-	msrRungOrder(msr,iRung);
- 	}
-    else
-#endif 
-	{
-	msrDomainDecompOld(msr,iRung,bSplitVA);
-	}
+    msrDomainDecompOld(msr,iRung,bSplitVA);
     }
 
 /*
@@ -4717,7 +4546,6 @@ static void setInitializePStore(MSR msr, struct inInitializePStore *ps) {
     ps->fPeriod[2] = msr->param.dzPeriod;
     ps->nBucket = msr->param.nBucket;
     ps->nGroup = msr->param.nGroup;
-    ps->nDomainRungs = msr->param.nDomainRungs;
     ps->mMemoryModel = getMemoryModel(msr) | PKD_MODEL_VELOCITY;
     ps->bLightCone  = msr->param.bLightCone;
     ps->bLightConeParticles  = msr->param.bLightConeParticles;    

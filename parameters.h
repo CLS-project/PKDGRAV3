@@ -207,9 +207,6 @@ struct parameters {
     int nBinsPk;
 #endif
 
-    int nDomainRungs;
-    int iDomainMethod;
-
     /*
     ** Memory models.  Other parameters can force these to be set.
     */
@@ -223,7 +220,6 @@ struct parameters {
     int bMemRelaxation;
     int bMemVelSmooth;
     int bMemPsMetric;
-    int bMemNewDD ;
     int bMemNodeMoment;
     int bMemNodeAcceleration;
     int bMemNodeVelocity;

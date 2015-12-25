@@ -83,7 +83,6 @@ static inline int64_t d2u64(double d) {
 #define PKD_MODEL_VELSMOOTH    (1<<8)  /* Velocity Smoothing */
 #define PKD_MODEL_SPH          (1<<9)  /* Sph Fields */
 #define PKD_MODEL_STAR         (1<<10) /* Star Fields */
-#define PKD_MODEL_RUNGDEST     (1<<11) /* New Domain Decomposition */
 #define PKD_MODEL_PARTICLE_ID  (1<<12) /* Particles have a unique ID */
 
 #define PKD_MODEL_NODE_MOMENT  (1<<24) /* Include moment in the tree */
@@ -616,7 +615,7 @@ typedef struct pkdContext {
     BND vbnd;
     size_t iTreeNodeSize;
     size_t iParticleSize;
-    PARTICLE *pStorePRIVATE, *pStorePRIVATE2;
+    PARTICLE *pStorePRIVATE;
     PARTICLE *pTempPRIVATE;
     double dTimeRedshift0;
     int nLightCone;
@@ -633,14 +632,6 @@ typedef struct pkdContext {
 #ifdef COOLING
     COOL *Cool; /* Cooling Context */
 #endif
-
-#ifdef MPI_VERSION
-    MDL_Datatype typeParticle;
-#endif
-
-    int nMaxDomainRungs;
-    int iFirstDomainRung, iLastDomainRung;
-
     /*
     ** Advanced memory models
     */
@@ -931,9 +922,6 @@ static inline PARTICLE *pkdParticleGet( PKD pkd, void *pBase, int i ) {
 static inline PARTICLE *pkdParticle( PKD pkd, int i ) {
     return pkdParticleGet(pkd,pkd->pStorePRIVATE,i);
     }
-static inline PARTICLE *pkdParticle2( PKD pkd, int i ) {
-    return pkdParticleGet(pkd,pkd->pStorePRIVATE2,i);
-    }
 static inline void pkdSaveParticle(PKD pkd, PARTICLE *a) {
     memcpy(pkd->pTempPRIVATE,a,pkdParticleSize(pkd));
     }
@@ -1137,7 +1125,7 @@ void pkdInitialize(
     PKD *ppkd,MDL mdl,int nStore,uint64_t nMinTotalStore,uint64_t nMinEphemeral,
     int nBucket,int nGroup,int nTreeBitsLo, int nTreeBitsHi,
     int iCacheSize,int iWorkQueueSize,int iCUDAQueueSize,FLOAT *fPeriod,uint64_t nDark,uint64_t nGas,uint64_t nStar,
-    uint64_t mMemoryModel, int nMaxDomainRungs, int bLightCone, int bLightConeParticles);
+    uint64_t mMemoryModel, int bLightCone, int bLightConeParticles);
 void pkdFinish(PKD);
 size_t pkdClCount(PKD pkd);
 size_t pkdClMemory(PKD pkd);

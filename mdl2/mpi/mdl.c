@@ -1710,16 +1710,6 @@ int mdlExscan ( MDL mdl, void *sendbuf, void *recvbuf, int count,
     return MPI_Exscan( sendbuf, recvbuf, count, datatype, op, mdl->mpi->commMDL );
     }
 
-int mdlReduce ( MDL mdl, void *sendbuf, void *recvbuf, int count,
-		MDL_Datatype datatype, MDL_Op op, int root ) {
-    return MPI_Reduce( sendbuf, recvbuf, count, datatype, op, root, mdl->mpi->commMDL );
-    }
-
-int mdlAllreduce ( MDL mdl, void *sendbuf, void *recvbuf, int count,
-		MDL_Datatype datatype, MDL_Op op ) {
-    return MPI_Allreduce( sendbuf, recvbuf, count, datatype, op, mdl->mpi->commMDL );
-    }
-
 int mdlAlltoall( MDL mdl, void *sendbuf, int scount, MDL_Datatype stype,
 		 void *recvbuf, int rcount, MDL_Datatype rtype) {
     return MPI_Alltoall(sendbuf,scount,stype,
@@ -1736,21 +1726,6 @@ int mdlAlltoallw( MDL mdl, void *sendbuf, int *sendcnts, int *sdispls, MDL_Datat
     void *recvbuf, int *recvcnts, int *rdispls, MDL_Datatype *rtypes) {
     return MPI_Alltoallw( sendbuf, sendcnts, sdispls, stypes,
         recvbuf, recvcnts, rdispls, rtypes, mdl->mpi->commMDL );
-    }
-
-int mdlAllGather( MDL mdl, void *sendbuf, int scount, MDL_Datatype stype,
-    void *recvbuf, int rcount, MDL_Datatype recvtype) {
-    return MPI_Allgather(sendbuf, scount, stype, recvbuf, rcount, recvtype, mdl->mpi->commMDL);
-    } 
-
-int mdlAllGatherv( MDL mdl, void *sendbuf, int scount, MDL_Datatype stype,
-    void *recvbuf, int *recvcnts, int *rdisps, MDL_Datatype recvtype) {
-    return MPI_Allgatherv(sendbuf, scount, stype, recvbuf, recvcnts, rdisps, recvtype, mdl->mpi->commMDL);
-    } 
-
-int mdlReduceScatter( MDL mdl, void* sendbuf, void* recvbuf, int *recvcounts,
-    MDL_Datatype datatype, MDL_Op op) {
-    return MPI_Reduce_scatter(sendbuf, recvbuf, recvcounts, datatype, op, mdl->mpi->commMDL );
     }
 
 int mdlTypeContiguous(MDL mdl,int count, MDL_Datatype old_type, MDL_Datatype *newtype) {

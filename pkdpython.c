@@ -464,31 +464,6 @@ ppy_msr_UpdateRung(PyObject *self, PyObject *args, PyObject *kwobj) {
     return Py_None;
 }
 
-#ifdef MPI_VERSION
-
-static PyObject *
-ppy_msr_DomainDecompNew(PyObject *self, PyObject *args, PyObject *kwobj) {
-    ppy2prm();
-    msrDomainDecompNew(ppy_msr);
-    Py_INCREF(Py_None);
-    return Py_None;
-}
-
-static PyObject *
-ppy_msr_RungOrder(PyObject *self, PyObject *args, PyObject *kwobj) {
-    static char *kwlist[]={"Rung",NULL};
-    int iRung    = 0;
-    ppy2prm();
-    if ( !PyArg_ParseTupleAndKeywords(
-	     args, kwobj, "|i:RungOrder", kwlist,
-	     &iRung ) )
-	return NULL;
-    msrRungOrder(ppy_msr,iRung);
-    Py_INCREF(Py_None);
-    return Py_None;
-}
-#endif
-
 static PyObject *
 ppy_msr_BuildTree(PyObject *self, PyObject *args, PyObject *kwobj) {
     static char *kwlist[]={"Time","Ewald",NULL};
@@ -1030,12 +1005,6 @@ static PyMethodDef msr_methods[] = {
      "Reorders the particles by iOrder"},
     {"DomainDecomp", (PyCFunction)ppy_msr_DomainDecomp, METH_VARARGS|METH_KEYWORDS,
      "Reorder the particles by position"},
-#ifdef MPI_VERSION
-    {"DomainDecompNew", (PyCFunction)ppy_msr_DomainDecompNew, METH_VARARGS|METH_KEYWORDS,
-     "Reorder the particles by position"},
-    {"RungOrder", (PyCFunction)ppy_msr_RungOrder, METH_VARARGS|METH_KEYWORDS,
-     "Reorder particles to the domains for the given rung"},
-#endif
     {"UpdateRung", (PyCFunction)ppy_msr_UpdateRung, METH_VARARGS|METH_KEYWORDS,
      "Update particle rungs"},
     {"BuildTree", (PyCFunction)ppy_msr_BuildTree, METH_VARARGS|METH_KEYWORDS,

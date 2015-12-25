@@ -336,24 +336,14 @@ void mdlHandler(MDL);
 typedef MPI_Op MDL_Op;
 typedef MPI_Datatype MDL_Datatype;
 #define MDL_Op_create(f,c,o) MPI_Op_create(f,c,o) 
-int mdlReduce ( MDL mdl, void *sendbuf, void *recvbuf, int count,
-		MDL_Datatype datatype, MDL_Op op, int root );
 int mdlExscan   ( MDL mdl, void *sendbuf, void *recvbuf, int count,
 		MDL_Datatype datatype, MDL_Op op );
-int mdlAllreduce( MDL mdl, void *sendbuf, void *recvbuf, int count,
-		  MDL_Datatype datatype, MDL_Op op );
 int mdlAlltoall( MDL mdl, void *sendbuf, int scount, MDL_Datatype stype,
     void *recvbuf, int rcount, MDL_Datatype rtype);
 int mdlAlltoallv( MDL mdl, void *sendbuf, int *sendcnts, int *sdispls, MDL_Datatype sendtype,
     void *recvbuf, int *recvcnts, int *rdispls, MDL_Datatype recvtype);
 int mdlAlltoallw( MDL mdl, void *sendbuf, int *sendcnts, int *sdispls, MDL_Datatype *stypes,
     void *recvbuf, int *recvcnts, int *rdispls, MDL_Datatype *rtypes);
-int mdlAllGather( MDL mdl, void *sendbuf, int scount, MDL_Datatype stype,
-    void *recvbuf, int rcount, MDL_Datatype recvtype);
-int mdlAllGatherv( MDL mdl, void *sendbuf, int scount, MDL_Datatype stype,
-    void *recvbuf, int *recvcnts, int *rdispls, MDL_Datatype recvtype);
-int mdlReduceScatter( MDL mdl, void* sendbuf, void* recvbuf, int *recvcounts,
-    MDL_Datatype datatype, MDL_Op op);
 int mdlTypeContiguous(MDL mdl,int count, MDL_Datatype old_type, MDL_Datatype *newtype);
 int mdlTypeIndexed(MDL mdl, int count,
     int array_of_blocklengths[], int array_of_displacements[],
