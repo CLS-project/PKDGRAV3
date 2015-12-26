@@ -9,10 +9,6 @@ extern "C" {
 #ifdef USE_CUDA
     void CUDA_nvtxRangePush(char *name);
     void CUDA_nvtxRangePop();
-    void *CUDA_malloc(size_t nBytes);
-    void CUDA_free(void *data);
-    void *CUDA_gpu_malloc(size_t nBytes);
-    void CUDA_gpu_free(void *data);
     void *CUDA_initialize(int iCore);
     void CUDA_finish(void *vctx);
     void CUDA_SetQueueSize(void *vcuda,int cudaSize, int inCudaBufSize, int outCudaBufSiz);

@@ -9,27 +9,23 @@
 #include <assert.h>
 #include <stdio.h>
 
-extern "C"
-void *CUDA_malloc(size_t nBytes) {
+static void *CUDA_malloc(size_t nBytes) {
     void *blk = NULL;
     cudaMallocHost( &blk, nBytes);
     return blk;
     }
 
-extern "C"
-void CUDA_free(void *data) {
+static void CUDA_free(void *data) {
     cudaFreeHost(data);
     }
 
-extern "C"
-void *CUDA_gpu_malloc(size_t nBytes) {
+static void *CUDA_gpu_malloc(size_t nBytes) {
     void *blk = NULL;
     CUDA_CHECK(cudaMalloc,(&blk, nBytes));
     return blk;
     }
 
-extern "C"
-void CUDA_gpu_free(void *blk) {
+static void CUDA_gpu_free(void *blk) {
     CUDA_CHECK(cudaFree,(blk));
     }
 
