@@ -342,19 +342,6 @@ void BuildPsdTemp(PKD pkd, PSX smx, int iNode,int M, int maxNb) {
     NEW_STACK(D, TEMP_S_INCREASE);
     /*************************************************************************/
 
-
-    /*
-    ** Make sure we don't have buckets which are larger than the
-    ** pointer arrays for actives and inactives!
-    */
-    if (M > pkd->nMaxBucketActive) {
-	pkd->nMaxBucketActive = M;
-	pkd->piActive = realloc(pkd->piActive,pkd->nMaxBucketActive*sizeof(PARTICLE *));
-	mdlassert(pkd->mdl,pkd->piActive != NULL);
-	pkd->piInactive = realloc(pkd->piInactive,pkd->nMaxBucketActive*sizeof(PARTICLE *));
-	mdlassert(pkd->mdl,pkd->piInactive != NULL);
-	}
-
     if (pNode->pUpper - pNode->pLower + 1 <= M)
 	goto DonePart;
 

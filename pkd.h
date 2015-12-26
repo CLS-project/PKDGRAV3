@@ -625,9 +625,6 @@ typedef struct pkdContext {
     float fSoftFac;
     float fSoftMax;
     int nClasses;
-    int nMaxBucketActive;
-    PARTICLE **piActive;
-    PARTICLE **piInactive;
     void *pLite;
 #ifdef COOLING
     COOL *Cool; /* Cooling Context */

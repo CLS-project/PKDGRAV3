@@ -174,18 +174,6 @@ void BuildTemp(PKD pkd,int iNode,int M) {
     s = 0;
     S = CAST(int*,malloc(ns*sizeof(int)));
     assert(S != NULL);
-    /*
-    ** Make sure we don't have buckets which are larger than the
-    ** pointer arrays for actives and inactives!
-    */
-    if (M > pkd->nMaxBucketActive) {
-	pkd->nMaxBucketActive = M;
-	pkd->piActive = CAST(PARTICLE **,realloc(pkd->piActive,pkd->nMaxBucketActive*sizeof(PARTICLE *)));
-	mdlassert(pkd->mdl,pkd->piActive != NULL);
-	pkd->piInactive = CAST(PARTICLE **,realloc(pkd->piInactive,pkd->nMaxBucketActive*sizeof(PARTICLE *)));
-	mdlassert(pkd->mdl,pkd->piInactive != NULL);
-	}
-
     if (pNode->pUpper - pNode->pLower + 1 <= M)
 	goto DonePart;
 

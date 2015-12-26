@@ -601,15 +601,6 @@ void pkdInitialize(
     for (ism=0;ism<pkd->nMaxStack;++ism) {
 	clInitialize(&pkd->S[ism].cl,&pkd->clFreeList);
 	}
-    /*
-    ** Allocate initial particle pointer arrays for active/inactive particles.
-    */
-    pkd->nMaxBucketActive = 1000;
-    pkd->piActive = malloc(pkd->nMaxBucketActive*sizeof(PARTICLE *));
-    mdlassert(mdl,pkd->piActive != NULL);
-    pkd->piInactive = malloc(pkd->nMaxBucketActive*sizeof(PARTICLE *));
-    mdlassert(mdl,pkd->piInactive != NULL);
-
     pkd->profileBins = NULL;
     pkd->groupBin = NULL;
 
@@ -708,8 +699,6 @@ void pkdFinish(PKD pkd) {
     if (mdlCore(pkd->mdl)==0) mdlFree(pkd->mdl,pkd->pStorePRIVATE);
     free(pkd->pTempPRIVATE);
     if (pkd->pLightCone) free(pkd->pLightCone);
-    free(pkd->piActive);
-    free(pkd->piInactive);
     csmFinish(pkd->param.csm);
     SIMD_free(pkd);
     }
