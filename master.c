@@ -5597,7 +5597,7 @@ void msrMeasurePk(MSR msr,double *dCenter,double dRadius,int nGrid,int nBins,flo
     double fftNormalize;
     double sec,dsec;
 
-    printf("Measuring P(k) with grid size %d ...\n",nGrid);
+    if (nGrid/2 < nBins) nBins = nGrid/2;
     assert(nBins <= PST_MAX_K_BINS);
 
     fftNormalize = 1.0 / (1.0*nGrid*nGrid*nGrid);
@@ -5607,7 +5607,7 @@ void msrMeasurePk(MSR msr,double *dCenter,double dRadius,int nGrid,int nBins,flo
 
     /* NOTE: reordering the particles by their z coordinate would be good here */
     in.nGrid = nGrid;
-    in.nBins = nGrid/2 < nBins ? nGrid/2 : nBins ;
+    in.nBins = nBins ;
     in.dCenter[0] = dCenter[0];
     in.dCenter[1] = dCenter[1];
     in.dCenter[2] = dCenter[2];
@@ -5616,12 +5616,16 @@ void msrMeasurePk(MSR msr,double *dCenter,double dRadius,int nGrid,int nBins,flo
 
     out = malloc(sizeof(struct outMeasurePk));
     assert(out != NULL);
+
+
+    printf("Measuring P(k) with grid size %d (%d bins)...\n",in.nGrid,in.nBins);
     pstMeasurePk(msr->pst, &in, sizeof(in), out, &nOut);
     for( i=0; i<nBins; i++ ) {
 	if ( out->nPower[i] == 0 ) fK[i] = fPk[i] = 0;
 	else {
 	    fK[i] = out->fK[i]/out->nPower[i];
 	    fPk[i] = out->fPower[i]/out->nPower[i]*fftNormalize;
+printf("%g %g %d %g\n",fK[i],fPk[i],out->nPower[i],out->fPower[i]);
 	    }
 	}
     /* At this point, dPk[] needs to be corrected by the box size */
