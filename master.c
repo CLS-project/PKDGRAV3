@@ -5625,7 +5625,6 @@ void msrMeasurePk(MSR msr,double *dCenter,double dRadius,int nGrid,int nBins,flo
 	else {
 	    fK[i] = out->fK[i]/out->nPower[i];
 	    fPk[i] = out->fPower[i]/out->nPower[i]*fftNormalize;
-printf("%g %g %d %g\n",fK[i],fPk[i],out->nPower[i],out->fPower[i]);
 	    }
 	}
     /* At this point, dPk[] needs to be corrected by the box size */
