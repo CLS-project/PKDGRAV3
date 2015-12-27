@@ -19,6 +19,12 @@
 #ifdef HAVE_SYS_TYPES_H
 #include <sys/types.h>
 #endif
+#ifdef HAVE_SYS_STAT_H
+#include <sys/stat.h>
+#endif
+#ifdef HAVE_FCNTL_H
+#include <fcntl.h>
+#endif
 #ifdef __linux__
 #include <sys/resource.h>
 #endif
@@ -1662,10 +1668,10 @@ void pkdLocalOrder(PKD pkd,uint64_t iMinOrder, uint64_t iMaxOrder) {
     }
 
 void pkdCheckpoint(PKD pkd,const char *fname) {
-    FILE *fp = fopen(fname,"wb");
-    assert(fp!=NULL);
-    fwrite(pkdParticleBase(pkd),pkdParticleSize(pkd),pkd->nLocal,fp);
-    fclose(fp);
+    int fd = open(fname,O_CREAT|O_WRONLY|O_TRUNC|O_DIRECT,S_IRWXU|S_IRWXG);
+    assert(fd>=0);
+    write(fd,pkdParticleBase(pkd),((size_t)pkdParticleSize(pkd))*pkd->nLocal);
+    close(fd);
     }
 
 static void writeParticle(PKD pkd,FIO fio,double dvFac,BND *bnd,PARTICLE *p) {
