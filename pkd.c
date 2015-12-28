@@ -1668,9 +1668,17 @@ void pkdLocalOrder(PKD pkd,uint64_t iMinOrder, uint64_t iMaxOrder) {
     }
 
 void pkdCheckpoint(PKD pkd,const char *fname) {
-    int fd = open(fname,O_CREAT|O_WRONLY|O_TRUNC|O_DIRECT,S_IRWXU|S_IRWXG);
+    int fd = open(fname,O_CREAT|O_WRONLY|O_TRUNC,S_IRWXU|S_IRWXG);
+    size_t nBytes = pkdParticleSize(pkd) * pkd->nLocal;
+    ssize_t nBytesWritten;
     assert(fd>=0);
-    write(fd,pkdParticleBase(pkd),((size_t)pkdParticleSize(pkd))*pkd->nLocal);
+    if (nBytes>0) nBytesWritten = write(fd,pkdParticleBase(pkd),nBytes);
+    else nBytesWritten = 0;
+    if (nBytesWritten<0 || nBytes != nBytesWritten) {
+	char szError[100];
+	sprintf(szError,"errno=%d nBytes=%llu nBytesWritten=%llu\n",errno,nBytes,nBytesWritten);
+	perror(szError);
+        }
     close(fd);
     }
 

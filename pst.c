@@ -2281,7 +2281,7 @@ void pstCheckpoint(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 
     mdlassert(pst->mdl,nIn == sizeof(struct inWrite));
     if (pstNotCore(pst)) {
-	int nProcessors = in->nProcessors;
+	uint64_t nProcessors = in->nProcessors;
 	if (nProcessors>1) { /* Keep going parallel */
 	    int nLower, nUpper;
 	    nLower = nProcessors * pst->nLower / pst->nLeaves;
@@ -2305,6 +2305,7 @@ void pstCheckpoint(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	makeName(achOutFile,in->achOutFile,mdlSelf(pkd->mdl));
 	pkdCheckpoint(pkd,achOutFile);
 	}
+    if (pstAmNode(pst)) sync();
     }
 
 void pstWrite(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
