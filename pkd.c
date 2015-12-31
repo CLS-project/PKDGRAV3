@@ -1740,7 +1740,6 @@ static void asyncCheckpoint(PKD pkd,const char *fname) {
 	pBuffer    += info.nPageSize - nExcess;
 	nEphemeral -= info.nPageSize - nExcess;
 	}
-
     /*
     ** Calculate buffer size and count. We want at least ASYNC_COUNT (or more)
     ** buffers each of which are multiples of DIRECT_IO_SIZE bytes long.
@@ -1751,9 +1750,8 @@ static void asyncCheckpoint(PKD pkd,const char *fname) {
     info.nBuffers = nEphemeral / info.nBufferSize;
     assert(info.nBuffers>=ASYNC_COUNT && info.nBuffers<=2*ASYNC_COUNT);
 
-    /* Assign portions of the ephemeral store to each buffer. */
+    /* Setup, and assign portions of the ephemeral store to each buffer. */
     memset(&info.cb,0,sizeof(info.cb));
-    if (iBuffer&(info.nPageSize-1)) pBuffer += info.nPageSize - (iBuffer&(info.nPageSize-1));
     for(i=0; i<info.nBuffers; ++i) {
 	info.pcb[i] = info.cb + i;
 	info.pBuffer[i] = pBuffer;
@@ -1775,25 +1773,8 @@ static void asyncCheckpoint(PKD pkd,const char *fname) {
 	queue_dio_write(&info,i);
     info.nBuffers = i;
 
-    /* Keep queueing when I/O completes while we still have something to write */
-    while(info.nBytes) {
-	rc = aio_suspend(info.pcb,info.nBuffers,NULL);
-	if (rc) { perror("aio_suspend"); abort(); }
-	for(i=0; i<info.nBuffers; ++i) {
-	    if (info.pcb[i] == NULL) continue;
-	    rc = aio_error(info.pcb[i]);
-	    if (rc == EINPROGRESS) continue;
-	    else if (rc == 0) break;
-	    perror("aio_error"); abort();
-	    }
-	assert(i<info.nBuffers);
-	ssize_t nWritten = aio_return(&info.cb[i]);
-	assert(nWritten == info.cb[i].aio_nbytes);
-	queue_dio_write(&info,i);
-	}
-
-    /* Wait for all outstanding I/O requests to complete */
-    int bDone = 0;
+    /* Main loop. Keep going until nothing left to write */
+    int bDone;
     do {
 	rc = aio_suspend(info.pcb,info.nBuffers,NULL);
 	if (rc) { perror("aio_suspend"); abort(); }
@@ -1805,7 +1786,11 @@ static void asyncCheckpoint(PKD pkd,const char *fname) {
 	    else if (rc == 0) {
 		ssize_t nWritten = aio_return(&info.cb[i]);
 		assert(nWritten == info.cb[i].aio_nbytes);
-		info.pcb[i] = NULL;
+		if (info.nBytes) {
+		    bDone = 0;
+		    queue_dio_write(&info,i);
+		    }
+		else info.pcb[i] = NULL;
 		}
 	    else { perror("aio_error"); abort(); }
 	    }
@@ -1820,13 +1805,14 @@ static void simpleCheckpoint(PKD pkd,const char *fname) {
     int fd = open(fname,O_CREAT|O_WRONLY|O_TRUNC,S_IRWXU|S_IRWXG);
     size_t nBytes = pkdParticleSize(pkd) * pkd->nLocal;
     ssize_t nBytesWritten;
-    assert(fd>=0);
+    if (fd<0) { perror(fname); abort(); }
     if (nBytes>0) nBytesWritten = write(fd,pkdParticleBase(pkd),nBytes);
     else nBytesWritten = 0;
-    if (nBytesWritten<0 || nBytes != nBytesWritten) {
+    if (nBytes != nBytesWritten) {
 	char szError[100];
 	sprintf(szError,"errno=%d nBytes=%llu nBytesWritten=%llu\n",errno,nBytes,nBytesWritten);
 	perror(szError);
+	abort();
         }
     close(fd);
     }
@@ -1839,9 +1825,8 @@ void pkdCheckpoint(PKD pkd,const char *fname) {
     int nPageSize = sysconf(_SC_PAGESIZE);
 
     /*
-    ** We want at least 10 buffers of 1 MB each, otherwise it is not worth
+    ** We want at least (10) buffers of (1 MB) each, otherwise it is not worth
     ** the effort so we fall back to a regular buffered write scheme.
-    ** Sizes and counts may vary, but these were the initial values.
     */
     if (nEphemeral-nPageSize < ASYNC_COUNT * DIRECT_IO_SIZE) 
 	simpleCheckpoint(pkd,fname);
