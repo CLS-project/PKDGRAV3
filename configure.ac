@@ -119,6 +119,11 @@ AC_DEFINE([USE_ITT],1,
   [Defined if Intel vtune support should be compiled into pkdgrav3])
 fi
 
+AC_CHECK_HEADERS([libaio.h],[USE_LIBAIO=yes],[USE_LIBAIO=no])
+AC_CHECK_HEADERS([aio.h],[USE_AIO=yes],[USE_AIO=no])
+AM_CONDITIONAL(USE_LIBAIO, test "$USE_LIBAIO" != "no")
+AM_CONDITIONAL(USE_AIO, test "$USE_AIO" != "no")
+
 # Python
 AC_ARG_WITH(python,
   [  --with-python=VERSION   enable python scripting],

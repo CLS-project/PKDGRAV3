@@ -16,7 +16,6 @@
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>
 #include <linux/fs.h>
-#define USE_DIRECT_IO
 #endif
 #ifdef HAVE_SYS_TIME_H
 #include <sys/time.h>
@@ -1672,7 +1671,134 @@ void pkdLocalOrder(PKD pkd,uint64_t iMinOrder, uint64_t iMaxOrder) {
     /* Above replaces: qsort(pkdParticleBase(pkd),pkdLocal(pkd),pkdParticleSize(pkd),cmpParticles); */
     }
 
-#ifdef USE_DIRECT_IO
+#if defined(HAVE_LIBAIO_H)
+#define DIRECT_IO_SIZE (1*1024*1024)
+#define ASYNC_COUNT 10
+
+#include <libaio.h>
+typedef struct {
+    struct iocb cb[2*ASYNC_COUNT];
+    struct iocb * pcb[2*ASYNC_COUNT];
+    struct io_event events[2*ASYNC_COUNT];
+    void *pBuffer[2*ASYNC_COUNT];
+    off_t iFilePosition;   /* File position */
+    size_t nBufferSize;
+    char *pSource;         /* Source of particles (in pStore) */
+    size_t nBytes;         /* Number of bytes left to write */
+    io_context_t ctx;
+    int nPageSize;
+    int nBuffers;
+    int fd;
+    } asyncInfo;
+
+static void queue_dio_write(asyncInfo *info,int i) {
+    size_t nWrite = info->nBytes > info->nBufferSize 
+	? info->nBufferSize : info->nBytes;
+    memcpy(info->pBuffer[i],info->pSource,nWrite);
+    /* Align buffer size for direct I/O. File will be truncated before closing */
+    nWrite = (nWrite+info->nPageSize-1) & ~(info->nPageSize-1);
+
+    io_prep_pwrite(info->cb+i,info->fd,info->pBuffer[i],nWrite,info->iFilePosition);
+    int rc = io_submit(info->ctx,1,info->pcb+i);
+    if (rc<0) { perror("io_submit"); abort(); }
+    info->iFilePosition += nWrite;
+    if (nWrite < info->nBytes) {
+	info->pSource += nWrite;
+	info->nBytes -= nWrite;
+	}
+    else info->nBytes = 0;
+    }
+
+/*
+** This does DIRECT I/O to avoid swamping memory with I/O buffers. Ideally this
+** would not be required, but buffered I/O causes it to CRASH during I/O on the Cray
+** (or any Linux system probably) when the amount of available memory is quite low.
+** The test was performed on Piz Daint and Piz Dora and the memory statistics at
+** the time were:
+** Piz Dora (Cray XC40):
+**   free memory (GB): min=   2.522 @ 1195 avg=   2.797 of  2024 std-dev=   0.257
+**      resident size: max=  57.671 @  129 avg=  57.415 of  2024 std-dev=   0.256
+** Piz Daint (Cray XC30):
+**   free memory (GB): min=   1.599 @21174 avg=   1.870 of 34300 std-dev=   0.029
+**      resident size: max=  27.921 @17709 avg=  27.870 of 34300 std-dev=   0.013
+*/
+static void asyncCheckpoint(PKD pkd,const char *fname) {
+    size_t nFileSize = pkdParticleSize(pkd) * pkd->nLocal;
+    size_t nEphemeral = (size_t)EPHEMERAL_BYTES * pkd->nStore;
+    char *pBuffer = pkd->pLite;
+    uintptr_t iBuffer = (uintptr_t)pBuffer;
+    asyncInfo info;
+    int i, rc;
+
+    info.fd = open(fname,O_DIRECT|O_CREAT|O_WRONLY|O_TRUNC,S_IRWXU|S_IRWXG);
+    if (info.fd<0) { perror(fname); abort(); }
+
+    /* Align the ephemeral storage to a page boundary - require for direct I/O */
+    info.nPageSize = sysconf(_SC_PAGESIZE);
+    int nExcess = iBuffer&(info.nPageSize-1);
+    if (nExcess) {
+	pBuffer    += info.nPageSize - nExcess;
+	nEphemeral -= info.nPageSize - nExcess;
+	}
+    /*
+    ** Calculate buffer size and count. We want at least ASYNC_COUNT (or more)
+    ** buffers each of which are multiples of DIRECT_IO_SIZE bytes long.
+    */
+    info.nBufferSize = nEphemeral / ASYNC_COUNT;
+    info.nBufferSize -= info.nBufferSize % DIRECT_IO_SIZE;
+    assert(info.nBufferSize>=DIRECT_IO_SIZE);
+    info.nBuffers = nEphemeral / info.nBufferSize;
+    assert(info.nBuffers>=ASYNC_COUNT && info.nBuffers<=2*ASYNC_COUNT);
+
+    info.ctx = 0;
+    rc = io_setup(info.nBuffers, &info.ctx);
+    if (rc<0) { perror("io_setup"); abort(); }
+
+    /* Setup, and assign portions of the ephemeral store to each buffer. */
+    memset(&info.cb,0,sizeof(info.cb));
+    for(i=0; i<info.nBuffers; ++i) {
+	info.pcb[i] = info.cb + i;
+	info.pBuffer[i] = pBuffer;
+	pBuffer += info.nBufferSize;
+	}
+
+    info.pSource = (char *)pkdParticleBase(pkd);
+    info.nBytes = nFileSize;
+
+    /* Queue as many writes as we have buffers */
+    info.iFilePosition = 0;
+    for(i=0; i<info.nBuffers && info.nBytes; ++i)
+	queue_dio_write(&info,i);
+    info.nBuffers = i;
+
+    /* Main loop. Keep going until nothing left to write */
+    int nInFlight = i;
+    while (nInFlight) {
+	int nEvent = io_getevents(info.ctx,1,info.nBuffers,info.events,NULL);
+	if (nEvent<=0) { perror("aio_getevents"); abort(); }
+	for(i=0; i<nEvent; ++i) {
+	    if (info.events[i].res !=  info.events[i].obj->u.c.nbytes) {
+		char szError[100];
+		sprintf(szError,"errno=%d nBytes=%llu nBytesWritten=%llu\n",
+		    errno,info.events[i].obj->u.c.nbytes,info.events[i].res);
+		perror(szError);
+		abort();
+		}
+	    else if (info.nBytes) {
+		queue_dio_write(&info,info.events[i].obj-info.cb);
+		}
+	    else --nInFlight;
+	    }
+	}
+
+    rc = io_destroy(info.ctx);
+    if (rc<0) { perror("io_destroy"); abort(); }
+
+    /* Record the actual file size */
+    ftruncate(info.fd,nFileSize);
+    close(info.fd);
+    }
+#elif defined(HAVE_AIO_H)
 
 #define DIRECT_IO_SIZE (1*1024*1024)
 #define ASYNC_COUNT 10
@@ -1785,7 +1911,13 @@ static void asyncCheckpoint(PKD pkd,const char *fname) {
 	    if (rc == EINPROGRESS) bDone = 0;
 	    else if (rc == 0) {
 		ssize_t nWritten = aio_return(&info.cb[i]);
-		assert(nWritten == info.cb[i].aio_nbytes);
+		if (nWritten != info.cb[i].aio_nbytes) {
+		    char szError[100];
+		    sprintf(szError,"errno=%d nBytes=%llu nBytesWritten=%llu\n",
+			errno,info.cb[i].aio_nbytes,nWritten);
+		    perror(szError);
+		    abort();
+		    }
 		if (info.nBytes) {
 		    bDone = 0;
 		    queue_dio_write(&info,i);
@@ -1799,6 +1931,8 @@ static void asyncCheckpoint(PKD pkd,const char *fname) {
     ftruncate(fd,nFileSize);
     close(fd);
     }
+#else
+#define ayncCheckpoint simpleCheckpoint
 #endif
 
 static void simpleCheckpoint(PKD pkd,const char *fname) {

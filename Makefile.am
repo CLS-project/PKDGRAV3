@@ -111,12 +111,9 @@ pkdgrav3_mpi_LDADD += $(GSL_LIBS)
 pkdgrav3_mpi_SOURCES += ic.c RngStream.c
 noinst_HEADERS += ic.h RngStream.h
 endif
-#if USE_GRAFIC
-#pkdgrav3_mpi_CFLAGS += -Igrafic/
-#pkdgrav3_mpi_LDADD += grafic/libgrafic.a
-##pkdgrav3_mpi_LDADD += -L @GRAFIC_PATH@ -lgrafic -lsrfftw_mpi -lsfftw_mpi -lsrf#ftw -lsfftw -lgfortran
-##CCLD=mpicxx
-#endif
+if USE_LIBAIO
+pkdgrav3_mpi_LDADD += -laio
+endif
 if USE_EFENCE
 if HAVE_EFENCE_PATH
 pkdgrav3_mpi_LDADD += -L @EFENCE_PATH@
