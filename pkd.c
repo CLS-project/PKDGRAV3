@@ -1690,7 +1690,7 @@ typedef struct {
     int nBuffers;
     } asyncInfo;
 
-void queue_dio_write(asyncInfo *info,int i) {
+static void queue_dio_write(asyncInfo *info,int i) {
     size_t nWrite = info->nBytes > info->nBufferSize 
 	? info->nBufferSize : info->nBytes;
     memcpy(info->pBuffer[i],info->pSource,nWrite);
