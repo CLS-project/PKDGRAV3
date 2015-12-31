@@ -1671,9 +1671,24 @@ void pkdLocalOrder(PKD pkd,uint64_t iMinOrder, uint64_t iMaxOrder) {
     /* Above replaces: qsort(pkdParticleBase(pkd),pkdLocal(pkd),pkdParticleSize(pkd),cmpParticles); */
     }
 
-#if defined(HAVE_LIBAIO_H)
 #define DIRECT_IO_SIZE (1*1024*1024)
 #define ASYNC_COUNT 10
+
+/*
+** This does DIRECT I/O to avoid swamping memory with I/O buffers. Ideally this
+** would not be required, but buffered I/O causes it to CRASH during I/O on the Cray
+** (or any Linux system probably) when the amount of available memory is quite low.
+** The test was performed on Piz Daint and Piz Dora and the memory statistics at
+** the time were:
+** Piz Dora (Cray XC40):
+**   free memory (GB): min=   2.522 @ 1195 avg=   2.797 of  2024 std-dev=   0.257
+**      resident size: max=  57.671 @  129 avg=  57.415 of  2024 std-dev=   0.256
+** Piz Daint (Cray XC30):
+**   free memory (GB): min=   1.599 @21174 avg=   1.870 of 34300 std-dev=   0.029
+**      resident size: max=  27.921 @17709 avg=  27.870 of 34300 std-dev=   0.013
+*/
+
+#if defined(HAVE_LIBAIO_H)
 
 #include <libaio.h>
 typedef struct {
@@ -1709,19 +1724,6 @@ static void queue_dio_write(asyncInfo *info,int i) {
     else info->nBytes = 0;
     }
 
-/*
-** This does DIRECT I/O to avoid swamping memory with I/O buffers. Ideally this
-** would not be required, but buffered I/O causes it to CRASH during I/O on the Cray
-** (or any Linux system probably) when the amount of available memory is quite low.
-** The test was performed on Piz Daint and Piz Dora and the memory statistics at
-** the time were:
-** Piz Dora (Cray XC40):
-**   free memory (GB): min=   2.522 @ 1195 avg=   2.797 of  2024 std-dev=   0.257
-**      resident size: max=  57.671 @  129 avg=  57.415 of  2024 std-dev=   0.256
-** Piz Daint (Cray XC30):
-**   free memory (GB): min=   1.599 @21174 avg=   1.870 of 34300 std-dev=   0.029
-**      resident size: max=  27.921 @17709 avg=  27.870 of 34300 std-dev=   0.013
-*/
 static void asyncCheckpoint(PKD pkd,const char *fname) {
     size_t nFileSize = pkdParticleSize(pkd) * pkd->nLocal;
     size_t nEphemeral = (size_t)EPHEMERAL_BYTES * pkd->nStore;
@@ -1779,8 +1781,10 @@ static void asyncCheckpoint(PKD pkd,const char *fname) {
 	for(i=0; i<nEvent; ++i) {
 	    if (info.events[i].res !=  info.events[i].obj->u.c.nbytes) {
 		char szError[100];
-		sprintf(szError,"errno=%d nBytes=%llu nBytesWritten=%llu\n",
-		    errno,info.events[i].obj->u.c.nbytes,info.events[i].res);
+		fprintf(stderr,"errno=%d nBytes=%lu: nWritten=%lu%s\n",
+		    errno,info.events[i].obj->u.c.nbytes,
+		    info.events[i].res,
+		    strerror((long)info.events[i].res));
 		perror(szError);
 		abort();
 		}
@@ -1798,10 +1802,8 @@ static void asyncCheckpoint(PKD pkd,const char *fname) {
     ftruncate(info.fd,nFileSize);
     close(info.fd);
     }
-#elif defined(HAVE_AIO_H)
 
-#define DIRECT_IO_SIZE (1*1024*1024)
-#define ASYNC_COUNT 10
+#elif defined(HAVE_AIO_H)
 
 #include <aio.h>
 typedef struct {
@@ -1835,19 +1837,6 @@ static void queue_dio_write(asyncInfo *info,int i) {
     else info->nBytes = 0;
     }
 
-/*
-** This does DIRECT I/O to avoid swamping memory with I/O buffers. Ideally this
-** would not be required, but buffered I/O causes it to CRASH during I/O on the Cray
-** (or any Linux system probably) when the amount of available memory is quite low.
-** The test was performed on Piz Daint and Piz Dora and the memory statistics at
-** the time were:
-** Piz Dora (Cray XC40):
-**   free memory (GB): min=   2.522 @ 1195 avg=   2.797 of  2024 std-dev=   0.257
-**      resident size: max=  57.671 @  129 avg=  57.415 of  2024 std-dev=   0.256
-** Piz Daint (Cray XC30):
-**   free memory (GB): min=   1.599 @21174 avg=   1.870 of 34300 std-dev=   0.029
-**      resident size: max=  27.921 @17709 avg=  27.870 of 34300 std-dev=   0.013
-*/
 static void asyncCheckpoint(PKD pkd,const char *fname) {
     size_t nFileSize = pkdParticleSize(pkd) * pkd->nLocal;
     size_t nEphemeral = (size_t)EPHEMERAL_BYTES * pkd->nStore;
@@ -1932,29 +1921,33 @@ static void asyncCheckpoint(PKD pkd,const char *fname) {
     close(fd);
     }
 #else
-#define ayncCheckpoint simpleCheckpoint
+#define asyncCheckpoint simpleCheckpoint
 #endif
 
+#define WRITE_LIMIT (1024*1024*1024)
 static void simpleCheckpoint(PKD pkd,const char *fname) {
     int fd = open(fname,O_CREAT|O_WRONLY|O_TRUNC,S_IRWXU|S_IRWXG);
-    size_t nBytes = pkdParticleSize(pkd) * pkd->nLocal;
+    size_t nBytesToWrite = pkdParticleSize(pkd) * pkd->nLocal;
+    char *pBuffer = (char *)pkdParticleBase(pkd);
     ssize_t nBytesWritten;
     if (fd<0) { perror(fname); abort(); }
-    if (nBytes>0) nBytesWritten = write(fd,pkdParticleBase(pkd),nBytes);
-    else nBytesWritten = 0;
-    if (nBytes != nBytesWritten) {
-	char szError[100];
-	sprintf(szError,"errno=%d nBytes=%llu nBytesWritten=%llu\n",errno,nBytes,nBytesWritten);
-	perror(szError);
-	abort();
-        }
+    while(nBytesToWrite) {
+	size_t nWrite = nBytesToWrite > WRITE_LIMIT ? WRITE_LIMIT : nBytesToWrite;
+	nBytesWritten = write(fd,pBuffer,nWrite);
+	if (nBytesWritten != nWrite) {
+	    char szError[100];
+	    sprintf(szError,"errno=%d nBytes=%llu nWrite=%llu\n",
+		errno,nBytesWritten,nWrite);
+	    perror(szError);
+	    abort();
+	    }
+	pBuffer += nWrite;
+	nBytesToWrite -= nWrite;
+	}
     close(fd);
     }
 
 void pkdCheckpoint(PKD pkd,const char *fname) {
-#ifndef USE_DIRECT_IO
-    simpleCheckpoint(pkd,fname);
-#else
     size_t nEphemeral = (size_t)EPHEMERAL_BYTES * pkd->nStore;
     int nPageSize = sysconf(_SC_PAGESIZE);
 
@@ -1965,7 +1958,6 @@ void pkdCheckpoint(PKD pkd,const char *fname) {
     if (nEphemeral-nPageSize < ASYNC_COUNT * DIRECT_IO_SIZE) 
 	simpleCheckpoint(pkd,fname);
     else asyncCheckpoint(pkd,fname);
-#endif
     }
 
 static void writeParticle(PKD pkd,FIO fio,double dvFac,BND *bnd,PARTICLE *p) {
