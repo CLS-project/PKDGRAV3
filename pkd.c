@@ -13,6 +13,11 @@
 #include <math.h>
 #include <assert.h>
 #include <errno.h>
+#ifdef HAVE_UNISTD_H
+#include <unistd.h>
+#include <linux/fs.h>
+#define USE_DIRECT_IO
+#endif
 #ifdef HAVE_SYS_TIME_H
 #include <sys/time.h>
 #endif
@@ -1667,7 +1672,151 @@ void pkdLocalOrder(PKD pkd,uint64_t iMinOrder, uint64_t iMaxOrder) {
     /* Above replaces: qsort(pkdParticleBase(pkd),pkdLocal(pkd),pkdParticleSize(pkd),cmpParticles); */
     }
 
-void pkdCheckpoint(PKD pkd,const char *fname) {
+#ifdef USE_DIRECT_IO
+
+#define DIRECT_IO_SIZE (1*1024*1024)
+#define ASYNC_COUNT 10
+
+#include <aio.h>
+typedef struct {
+    struct aiocb cb[2*ASYNC_COUNT];
+    struct aiocb const * pcb[2*ASYNC_COUNT];
+    void *pBuffer[2*ASYNC_COUNT];
+    off_t iFilePosition;   /* File position */
+    size_t nBufferSize;
+    char *pSource;         /* Source of particles (in pStore) */
+    size_t nBytes;         /* Number of bytes left to write */
+    int nPageSize;
+    int nBuffers;
+    } asyncInfo;
+
+void queue_dio_write(asyncInfo *info,int i) {
+    size_t nWrite = info->nBytes > info->nBufferSize 
+	? info->nBufferSize : info->nBytes;
+    memcpy(info->pBuffer[i],info->pSource,nWrite);
+    /* Align buffer size for direct I/O. File will be truncated before closing */
+    nWrite = (nWrite+info->nPageSize-1) & ~(info->nPageSize-1);
+    info->cb[i].aio_offset = info->iFilePosition;
+    info->cb[i].aio_nbytes = nWrite;
+    info->cb[i].aio_lio_opcode = LIO_WRITE;
+    int rc = aio_write(&info->cb[i]);
+    if (rc) { perror("aio_write"); abort(); }
+    info->iFilePosition += nWrite;
+    if (nWrite < info->nBytes) {
+	info->pSource += nWrite;
+	info->nBytes -= nWrite;
+	}
+    else info->nBytes = 0;
+    }
+
+/*
+** This does DIRECT I/O to avoid swamping memory with I/O buffers. Ideally this
+** would not be required, but buffered I/O causes it to CRASH during I/O on the Cray
+** (or any Linux system probably) when the amount of available memory is quite low.
+** The test was performed on Piz Daint and Piz Dora and the memory statistics at
+** the time were:
+** Piz Dora (Cray XC40):
+**   free memory (GB): min=   2.522 @ 1195 avg=   2.797 of  2024 std-dev=   0.257
+**      resident size: max=  57.671 @  129 avg=  57.415 of  2024 std-dev=   0.256
+** Piz Daint (Cray XC30):
+**   free memory (GB): min=   1.599 @21174 avg=   1.870 of 34300 std-dev=   0.029
+**      resident size: max=  27.921 @17709 avg=  27.870 of 34300 std-dev=   0.013
+*/
+static void asyncCheckpoint(PKD pkd,const char *fname) {
+    size_t nFileSize = pkdParticleSize(pkd) * pkd->nLocal;
+    size_t nEphemeral = (size_t)EPHEMERAL_BYTES * pkd->nStore;
+    char *pBuffer = pkd->pLite;
+    uintptr_t iBuffer = (uintptr_t)pBuffer;
+    asyncInfo info;
+    int i, rc;
+
+    int fd = open(fname,O_DIRECT|O_CREAT|O_WRONLY|O_TRUNC,S_IRWXU|S_IRWXG);
+    if (fd<0) { perror(fname); abort(); }
+
+    /* Align the ephemeral storage to a page boundary - require for direct I/O */
+    info.nPageSize = sysconf(_SC_PAGESIZE);
+    int nExcess = iBuffer&(info.nPageSize-1);
+    if (nExcess) {
+	pBuffer    += info.nPageSize - nExcess;
+	nEphemeral -= info.nPageSize - nExcess;
+	}
+
+    /*
+    ** Calculate buffer size and count. We want at least ASYNC_COUNT (or more)
+    ** buffers each of which are multiples of DIRECT_IO_SIZE bytes long.
+    */
+    info.nBufferSize = nEphemeral / ASYNC_COUNT;
+    info.nBufferSize -= info.nBufferSize % DIRECT_IO_SIZE;
+    assert(info.nBufferSize>=DIRECT_IO_SIZE);
+    info.nBuffers = nEphemeral / info.nBufferSize;
+    assert(info.nBuffers>=ASYNC_COUNT && info.nBuffers<=2*ASYNC_COUNT);
+
+    /* Assign portions of the ephemeral store to each buffer. */
+    memset(&info.cb,0,sizeof(info.cb));
+    if (iBuffer&(info.nPageSize-1)) pBuffer += info.nPageSize - (iBuffer&(info.nPageSize-1));
+    for(i=0; i<info.nBuffers; ++i) {
+	info.pcb[i] = info.cb + i;
+	info.pBuffer[i] = pBuffer;
+	info.cb[i].aio_fildes = fd;
+	info.cb[i].aio_offset = 0;
+	info.cb[i].aio_buf = pBuffer;
+	info.cb[i].aio_nbytes = info.nBufferSize;
+	info.cb[i].aio_sigevent.sigev_notify = SIGEV_NONE;
+	info.cb[i].aio_lio_opcode = LIO_NOP;
+	pBuffer += info.nBufferSize;
+	}
+
+    info.pSource = (char *)pkdParticleBase(pkd);
+    info.nBytes = nFileSize;
+
+    /* Queue as many writes as we have buffers */
+    info.iFilePosition = 0;
+    for(i=0; i<info.nBuffers && info.nBytes; ++i)
+	queue_dio_write(&info,i);
+    info.nBuffers = i;
+
+    /* Keep queueing when I/O completes while we still have something to write */
+    while(info.nBytes) {
+	rc = aio_suspend(info.pcb,info.nBuffers,NULL);
+	if (rc) { perror("aio_suspend"); abort(); }
+	for(i=0; i<info.nBuffers; ++i) {
+	    if (info.pcb[i] == NULL) continue;
+	    rc = aio_error(info.pcb[i]);
+	    if (rc == EINPROGRESS) continue;
+	    else if (rc == 0) break;
+	    perror("aio_error"); abort();
+	    }
+	assert(i<info.nBuffers);
+	ssize_t nWritten = aio_return(&info.cb[i]);
+	assert(nWritten == info.cb[i].aio_nbytes);
+	queue_dio_write(&info,i);
+	}
+
+    /* Wait for all outstanding I/O requests to complete */
+    int bDone = 0;
+    do {
+	rc = aio_suspend(info.pcb,info.nBuffers,NULL);
+	if (rc) { perror("aio_suspend"); abort(); }
+	bDone = 1;
+	for(i=0; i<info.nBuffers; ++i) {
+	    if (info.pcb[i] == NULL) continue;
+	    rc = aio_error(info.pcb[i]);
+	    if (rc == EINPROGRESS) bDone = 0;
+	    else if (rc == 0) {
+		ssize_t nWritten = aio_return(&info.cb[i]);
+		assert(nWritten == info.cb[i].aio_nbytes);
+		info.pcb[i] = NULL;
+		}
+	    else { perror("aio_error"); abort(); }
+	    }
+	} while(!bDone);
+    /* Record the actual file size */
+    ftruncate(fd,nFileSize);
+    close(fd);
+    }
+#endif
+
+static void simpleCheckpoint(PKD pkd,const char *fname) {
     int fd = open(fname,O_CREAT|O_WRONLY|O_TRUNC,S_IRWXU|S_IRWXG);
     size_t nBytes = pkdParticleSize(pkd) * pkd->nLocal;
     ssize_t nBytesWritten;
@@ -1680,6 +1829,24 @@ void pkdCheckpoint(PKD pkd,const char *fname) {
 	perror(szError);
         }
     close(fd);
+    }
+
+void pkdCheckpoint(PKD pkd,const char *fname) {
+#ifndef USE_DIRECT_IO
+    simpleCheckpoint(pkd,fname);
+#else
+    size_t nEphemeral = (size_t)EPHEMERAL_BYTES * pkd->nStore;
+    int nPageSize = sysconf(_SC_PAGESIZE);
+
+    /*
+    ** We want at least 10 buffers of 1 MB each, otherwise it is not worth
+    ** the effort so we fall back to a regular buffered write scheme.
+    ** Sizes and counts may vary, but these were the initial values.
+    */
+    if (nEphemeral-nPageSize < ASYNC_COUNT * DIRECT_IO_SIZE) 
+	simpleCheckpoint(pkd,fname);
+    else asyncCheckpoint(pkd,fname);
+#endif
     }
 
 static void writeParticle(PKD pkd,FIO fio,double dvFac,BND *bnd,PARTICLE *p) {

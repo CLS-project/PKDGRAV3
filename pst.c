@@ -2305,7 +2305,6 @@ void pstCheckpoint(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	makeName(achOutFile,in->achOutFile,mdlSelf(pkd->mdl));
 	pkdCheckpoint(pkd,achOutFile);
 	}
-    if (pstAmNode(pst)) sync();
     }
 
 void pstWrite(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
