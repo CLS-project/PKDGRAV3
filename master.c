@@ -1734,6 +1734,67 @@ char *_BuildName(MSR msr,char *achFile,int iStep,char *defaultPath) {
     return achFile;
     }
 
+static void writeParameters(MSR msr,const char *baseName,int iStep,double dTime) {
+    PRM_NODE *pn;
+    char *p, achOutName[PST_FILENAME_SIZE];
+    char szNumber[30];
+    double v;
+
+    strcpy( achOutName, baseName );
+    p = strstr( achOutName, "&I" );
+    if ( p ) {
+	int n = p - achOutName;
+	strcpy( p, "cpt" );
+	strcat( p, baseName + n + 2 );
+	}
+    else {
+	strcat(achOutName,".cpt");
+	}
+
+    FILE *fp = fopen(achOutName,"w");
+    if (fp==NULL) {perror(achOutName); abort(); }
+
+    fprintf(fp,"VERSION=\"%s\"\n",PACKAGE_VERSION);
+    fprintf(fp,"iStep=%d\n",iStep);
+    fprintf(fp,"dTime=%.17g\n",dTime);
+    fprintf(fp,"dEcosmo=%.17g\n",msr->dEcosmo);
+    fprintf(fp,"dTimeOld=%.17g\n",msr->dTimeOld);
+    fprintf(fp,"dUOld=%.17g\n",msr->dUOld);
+    fprintf(fp,"nCheckpointFiles=%d\n",mdlThreads(msr->mdl));
+    fprintf(fp,"achCheckpointName=\"%s\"\n",baseName);
+
+    for( pn=msr->prm->pnHead; pn!=NULL; pn=pn->pnNext ) {
+	switch (pn->iType) {
+	case 0:
+	case 1:
+	    assert(pn->iSize == sizeof(int));
+	    fprintf(fp,"%s%s=%d\n",pn->bArg|pn->bFile?"":"#",
+		pn->pszName,*(int *)pn->pValue);
+	    break;
+	case 2:
+	    assert(pn->iSize == sizeof(double));
+	    /* This is purely cosmetic so 0.15 doesn't turn into 0.14999999... */
+	    sprintf(szNumber,"%.16g",*(double *)pn->pValue);
+	    sscanf(szNumber,"%le",&v);
+	    if ( v!= *(double *)pn->pValue )
+		sprintf(szNumber,"%.17g",*(double *)pn->pValue);
+	    fprintf(fp,"%s%s=%s\n",pn->bArg|pn->bFile?"":"#",
+		pn->pszName,szNumber);
+	    break;
+	case 3:
+	    fprintf(fp,"%s%s=\"%s\"\n",pn->bArg|pn->bFile?"":"#",
+		pn->pszName,pn->pValue);
+	    break;
+	case 4:
+	    assert(pn->iSize == sizeof(uint64_t));
+	    fprintf(fp,"%s%s=%llu\n",pn->bArg|pn->bFile?"":"#",
+		pn->pszName,*(uint64_t *)pn->pValue);
+	    break;
+	    }
+	}
+    fclose(fp);
+    }
+
 void msrCheckpoint(MSR msr,int iStep,double dTime) {
     struct inWrite in;
     double sec,dsec;
@@ -1750,6 +1811,9 @@ void msrCheckpoint(MSR msr,int iStep,double dTime) {
     else
 	msrprintf(msr,"Writing checkpoing for Step: %d Time:%g\n",iStep,dTime);
     sec = msrTime();
+
+    writeParameters(msr,in.achOutFile,iStep,dTime);
+
     pstCheckpoint(msr->pst,&in,sizeof(in),NULL,NULL);
     dsec = msrTime() - sec;
     msrprintf(msr,"Checkpoint has been successfully written, Wallclock: %f secs.\n", dsec);
