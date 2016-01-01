@@ -466,6 +466,7 @@ void pkdInitialize(
     **   (a) We must be able to store nStore+1 particles in both stores,
     **   (b) The total per-node ephemeral storage must be at least nMinEphemeral
     **   (c) The total size of the storage block must be at least nMinTotalStore
+    **   (d) pStore must be page aligned on each thread
     **
     ** If (b) is not met then we increase the effective size of the ephemeral storage.
     ** If (c) is not met (even after increasing the ephemeral storage), then we increase
@@ -480,7 +481,9 @@ void pkdInitialize(
     ** IMPORTANT: There is a whole lot of pointer math here. If you mess with this
     **            you better be sure you get it right or really bad things will happen.
     */
-    uint64_t nBytesParticles = (uint64_t)mdlCores(pkd->mdl) * (nStore+1)*pkdParticleSize(pkd); // Constraint (a)
+    uint64_t nPageMask = sysconf(_SC_PAGESIZE)-1;
+    uint64_t nBytesPerThread = ((nStore+1)*pkdParticleSize(pkd)+nPageMask) & ~nPageMask; // Constraint (d)
+    uint64_t nBytesParticles = (uint64_t)mdlCores(pkd->mdl) * nBytesPerThread; // Constraint (a)
     uint64_t nBytesEphemeral = (uint64_t)mdlCores(pkd->mdl) * (nStore+1)*EPHEMERAL_BYTES; // Constraint (a)
     uint64_t nBytesTreeNodes = 0;
     if (nBytesEphemeral < nMinEphemeral) nBytesEphemeral = nMinEphemeral; // Constraint (b)
@@ -493,13 +496,16 @@ void pkdInitialize(
     char *pParticles, *pEphemeral, *pTreeNodes;
     if (mdlCore(pkd->mdl)==0) {
 	uint64_t nBytesTotal = nBytesParticles + nBytesEphemeral + nBytesTreeNodes;
-	pParticles = mdlMalloc(pkd->mdl,nBytesTotal);
+	void *vParticles;
+	if (posix_memalign(&vParticles,sysconf(_SC_PAGESIZE),nBytesTotal)) pParticles = NULL;
+	else pParticles = vParticles;
+//	pParticles = mdlMalloc(pkd->mdl,nBytesTotal);
 	mdlassert(mdl,pParticles != NULL);
 	pEphemeral = pParticles + nBytesParticles;
 	pTreeNodes = pEphemeral + nBytesEphemeral;
 	}
     else pParticles = pEphemeral = pTreeNodes = 0; // Ignore anyway in mdlSetArray() below
-    pParticles = mdlSetArray(pkd->mdl,1,nBytesParticles/mdlCores(pkd->mdl),pParticles);
+    pParticles = mdlSetArray(pkd->mdl,1,nBytesPerThread,pParticles);
     pEphemeral = mdlSetArray(pkd->mdl,1,nBytesEphemeral/mdlCores(pkd->mdl),pEphemeral);
     pTreeNodes = mdlSetArray(pkd->mdl,1,nBytesTreeNodes/mdlCores(pkd->mdl),pTreeNodes);
     firstTouch(nBytesParticles/mdlCores(pkd->mdl),pParticles);
@@ -1692,10 +1698,10 @@ void pkdLocalOrder(PKD pkd,uint64_t iMinOrder, uint64_t iMaxOrder) {
 
 #include <libaio.h>
 typedef struct {
-    struct iocb cb[2*ASYNC_COUNT];
-    struct iocb * pcb[2*ASYNC_COUNT];
-    struct io_event events[2*ASYNC_COUNT];
-    void *pBuffer[2*ASYNC_COUNT];
+    struct iocb cb[2*ASYNC_COUNT+1];
+    struct iocb * pcb[2*ASYNC_COUNT+1];
+    struct io_event events[2*ASYNC_COUNT+1];
+//    void *pBuffer[2*ASYNC_COUNT];
     off_t iFilePosition;   /* File position */
     size_t nBufferSize;
     char *pSource;         /* Source of particles (in pStore) */
@@ -1709,11 +1715,13 @@ typedef struct {
 static void queue_dio_write(asyncInfo *info,int i) {
     size_t nWrite = info->nBytes > info->nBufferSize 
 	? info->nBufferSize : info->nBytes;
-    memcpy(info->pBuffer[i],info->pSource,nWrite);
+//    memcpy(info->pBuffer[i],info->pSource,nWrite);
     /* Align buffer size for direct I/O. File will be truncated before closing */
     nWrite = (nWrite+info->nPageSize-1) & ~(info->nPageSize-1);
 
-    io_prep_pwrite(info->cb+i,info->fd,info->pBuffer[i],nWrite,info->iFilePosition);
+//    io_prep_pwrite(info->cb+i,info->fd,info->pBuffer[i],nWrite,info->iFilePosition);
+    io_prep_pwrite(info->cb+i,info->fd,info->pSource,nWrite,info->iFilePosition);
+
     int rc = io_submit(info->ctx,1,info->pcb+i);
     if (rc<0) { perror("io_submit"); abort(); }
     info->iFilePosition += nWrite;
@@ -1726,9 +1734,9 @@ static void queue_dio_write(asyncInfo *info,int i) {
 
 static void asyncCheckpoint(PKD pkd,const char *fname) {
     size_t nFileSize = pkdParticleSize(pkd) * pkd->nLocal;
-    size_t nEphemeral = (size_t)EPHEMERAL_BYTES * pkd->nStore;
-    char *pBuffer = pkd->pLite;
-    uintptr_t iBuffer = (uintptr_t)pBuffer;
+//    size_t nEphemeral = (size_t)EPHEMERAL_BYTES * pkd->nStore;
+//    char *pBuffer = pkd->pLite;
+//    uintptr_t iBuffer = (uintptr_t)pBuffer;
     asyncInfo info;
     int i, rc;
 
@@ -1737,20 +1745,22 @@ static void asyncCheckpoint(PKD pkd,const char *fname) {
 
     /* Align the ephemeral storage to a page boundary - require for direct I/O */
     info.nPageSize = sysconf(_SC_PAGESIZE);
-    int nExcess = iBuffer&(info.nPageSize-1);
-    if (nExcess) {
-	pBuffer    += info.nPageSize - nExcess;
-	nEphemeral -= info.nPageSize - nExcess;
-	}
+//    int nExcess = iBuffer&(info.nPageSize-1);
+//    if (nExcess) {
+//	pBuffer    += info.nPageSize - nExcess;
+//	nEphemeral -= info.nPageSize - nExcess;
+//	}
     /*
     ** Calculate buffer size and count. We want at least ASYNC_COUNT (or more)
     ** buffers each of which are multiples of DIRECT_IO_SIZE bytes long.
     */
-    info.nBufferSize = nEphemeral / ASYNC_COUNT;
-    info.nBufferSize -= info.nBufferSize % DIRECT_IO_SIZE;
+//    info.nBufferSize = nEphemeral / ASYNC_COUNT;
+    info.nBufferSize = nFileSize / ASYNC_COUNT;
+    info.nBufferSize = 1 << (int)log2(info.nBufferSize); /* Prefer power of two */
     assert(info.nBufferSize>=DIRECT_IO_SIZE);
-    info.nBuffers = nEphemeral / info.nBufferSize;
-    assert(info.nBuffers>=ASYNC_COUNT && info.nBuffers<=2*ASYNC_COUNT);
+//    info.nBuffers = nEphemeral / info.nBufferSize;
+    info.nBuffers = nFileSize / info.nBufferSize + 1;
+    assert(info.nBuffers>=ASYNC_COUNT && info.nBuffers<=2*ASYNC_COUNT+1);
 
     info.ctx = 0;
     rc = io_setup(info.nBuffers, &info.ctx);
@@ -1760,8 +1770,8 @@ static void asyncCheckpoint(PKD pkd,const char *fname) {
     memset(&info.cb,0,sizeof(info.cb));
     for(i=0; i<info.nBuffers; ++i) {
 	info.pcb[i] = info.cb + i;
-	info.pBuffer[i] = pBuffer;
-	pBuffer += info.nBufferSize;
+//	info.pBuffer[i] = pBuffer;
+//	pBuffer += info.nBufferSize;
 	}
 
     info.pSource = (char *)pkdParticleBase(pkd);
@@ -1779,11 +1789,12 @@ static void asyncCheckpoint(PKD pkd,const char *fname) {
 	int nEvent = io_getevents(info.ctx,1,info.nBuffers,info.events,NULL);
 	if (nEvent<=0) { perror("aio_getevents"); abort(); }
 	for(i=0; i<nEvent; ++i) {
-	    if (info.events[i].res !=  info.events[i].obj->u.c.nbytes) {
+	    ssize_t nWritten = info.events[i].res;
+	    if (nWritten < 0 || nWritten >  info.events[i].obj->u.c.nbytes) {
 		char szError[100];
 		fprintf(stderr,"errno=%d nBytes=%lu: nWritten=%lu%s\n",
 		    errno,info.events[i].obj->u.c.nbytes,
-		    info.events[i].res,
+		    nWritten,
 		    strerror((long)info.events[i].res));
 		perror(szError);
 		abort();
@@ -1860,7 +1871,7 @@ static void asyncCheckpoint(PKD pkd,const char *fname) {
     ** buffers each of which are multiples of DIRECT_IO_SIZE bytes long.
     */
     info.nBufferSize = nEphemeral / ASYNC_COUNT;
-    info.nBufferSize -= info.nBufferSize % DIRECT_IO_SIZE;
+    info.nBufferSize = 1 << (int)log2(info.nBufferSize); /* Prefer power of two */
     assert(info.nBufferSize>=DIRECT_IO_SIZE);
     info.nBuffers = nEphemeral / info.nBufferSize;
     assert(info.nBuffers>=ASYNC_COUNT && info.nBuffers<=2*ASYNC_COUNT);
