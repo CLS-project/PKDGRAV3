@@ -970,7 +970,7 @@ void pkdMeasurePk(PKD pkd, double dCenter[3], double dRadius, double dTotalMass,
 
     fftNormalize = 1.0 / (1.0*nGrid*nGrid*nGrid);
     fft = mdlFFTInitialize(pkd->mdl,nGridFFT,nGridFFT,nGridFFT,0,0);
-    mdlGridCoordFirstLast(pkd->mdl,fft->rgrid,&first,&last);
+    mdlGridCoordFirstLast(pkd->mdl,fft->rgrid,&first,&last,1);
     fftData = mdlSetArray(pkd->mdl,last.i,sizeof(FFTW3(real)),pkd->pLite);
     fftDataK = (FFTW3(complex) *)fftData;
     for( i=first.i; i<last.i; ++i ) fftData[i] = 0.0;
@@ -1013,8 +1013,10 @@ void pkdMeasurePk(PKD pkd, double dCenter[3], double dRadius, double dTotalMass,
 	}
 
     mdlFFT(pkd->mdl,fft,fftData);
+
     /* Remember, the grid is now transposed to x,z,y (from x,y,z) */
-    mdlGridCoordFirstLast(pkd->mdl,fft->kgrid,&first,&last);
+    mdlGridCoordFirstLast(pkd->mdl,fft->kgrid,&first,&last,0);
+    fftDataK = mdlSetArray(pkd->mdl,last.i,sizeof(FFTW3(complex)),pkd->pLite);
 
     for( i=0; i<nBins; i++ ) {
 	fK[i] = 0.0;

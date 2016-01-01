@@ -54,7 +54,7 @@ typedef struct CacheDataBucket {
 	} extra;
     uint64_t *data;      /* page's location in cache */
     uint32_t uId;       /* upper 4 bits encode ARC_where and dirty bit */
-    uint32_t uIndex;    /* page's ID number */
+    uint32_t uPage;    /* page's ID number */
 } CDB;
 
 
@@ -91,7 +91,6 @@ extern "C" {
 #define SRV_STOP		0
 
 #define MDL_CACHE_SIZE		15000000
-#define MDL_CACHELINE_ELTS	(32)
 #define MDL_CHECK_MASK  	0x7f
 
 typedef struct {
@@ -136,18 +135,15 @@ typedef struct cacheHeader {
     uint16_t nItems;
     int32_t idFrom;
     int32_t idTo;
-    int32_t iIndex;
+    int32_t iLine;
     } CAHEAD;
 
 typedef struct cacheHeaderNew {
-    uint8_t mid;     /*  2: Message ID: request, flush, reply */
-    uint8_t cid;     /*  6: Cache for this entry */
-    union {
-	uint8_t tidFrom; /* 12: thread id that made the request */
-	uint8_t xxx;
-	};
-    uint8_t tidTo;   /* 12: thread id that gets the reply */
-    uint32_t iIndex; /* Index of the element */
+    uint32_t mid     :  2; /*  2: Message ID: request, flush, reply */
+    uint32_t cid     :  6; /*  6: Cache for this entry */
+    uint32_t tidFrom : 12; /* 12: thread id that made the request */
+    uint32_t tidTo   : 12; /* 12: thread id that gets the reply */
+    uint32_t iLine;        /* Index of the cache line */
     } CAHEADnew;
 
 typedef struct {
@@ -168,7 +164,7 @@ typedef struct mdl_flush_buffer {
     } MDLflushBuffer;
 /* followed by CAHEAD, element, CAHEAD, element, etc. */
 
-#define MDL_CACHE_DATA_SIZE (8000)
+#define MDL_CACHE_DATA_SIZE (512)
 typedef struct cache_reply_data {
     union {
 	struct cache_reply_data *next;
@@ -191,6 +187,8 @@ typedef struct cacheSpace {
     uint16_t iCID;
     int iDataSize;
     int nData;
+    uint32_t nLineBits;
+    uint32_t nLineMask;
     int nLineElements;
     int iLineSize;
     ARC arc;
@@ -390,7 +388,7 @@ static inline mdlGridCoord *mdlGridCoordIncrement(mdlGridCoord *a) {
     return a;
     }
 
-void mdlGridCoordFirstLast(MDL mdl,MDLGRID grid,mdlGridCoord *f,mdlGridCoord *l);
+void mdlGridCoordFirstLast(MDL mdl,MDLGRID grid,mdlGridCoord *f,mdlGridCoord *l,int bCacheALign);
 
 /*
 ** Allocate a MDLGRID context.  This has no actual data, but only describes

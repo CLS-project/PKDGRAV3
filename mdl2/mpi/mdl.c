@@ -169,9 +169,9 @@ static inline void mru_insert(CDB *p,CDB *list) {
     }
 
 static inline CDB * remove_from_hash(ARC arc,CDB *p) {
-    uint32_t uIndex = p->uIndex;
+    uint32_t uPage = p->uPage;
     uint32_t uId = p->uId&_IDMASK_;
-    uint32_t uHash = (MurmurHash2(uIndex,uId)&arc->uHashMask);
+    uint32_t uHash = (MurmurHash2(uPage,uId)&arc->uHashMask);
     CDB **pt;
 
     for(pt = &arc->Hash[uHash]; *pt != NULL; pt = &((*pt)->extra.coll)) {
@@ -180,8 +180,8 @@ static inline CDB * remove_from_hash(ARC arc,CDB *p) {
 	    return p;
 	    }
 	}
-    printf("Tried to remove uIndex %d uId %x\n", uIndex, uId);
-    assert(0);  /* should never get here, the element should always be found in the hash */
+    printf("Tried to remove uPage %d uId %x\n", uPage, uId);
+    abort();  /* should never get here, the element should always be found in the hash */
     }
 
 ARC arcInitialize(uint32_t nCache,uint32_t uDataSize,CACHE *c) {
@@ -371,18 +371,25 @@ static void combine_all_incoming(MDL mdl) {
 	CACHE *c;
 	CAHEAD *ca;
 	char *pData;
-	int count;
+	int count, i, s, n;
+	uint32_t uIndex;
 
 	OPA_Queue_dequeue(&mdl->wqCacheFlush, flush, MDLflushBuffer, hdr.hdr);
 	count = flush->nBytes;
-	ca = (CAHEAD *)(flush + 1);
+    	ca = (CAHEAD *)(flush + 1);
 	while(count > 0) {
 	    pData = (char *)(ca+1);
 	    c = &mdl->cache[ca->cid];
-	    (*c->combine)(c->ctx,(*c->getElt)(c->pData,ca->iIndex,c->iDataSize),pData);
-	    pData += c->iDataSize;
+	    uIndex = ca->iLine << c->nLineBits;
+	    s = uIndex;
+	    n = s + c->nLineElements;
+	    for(i=s; i<n; i++ ) {
+		if (i<c->nData)
+		    (*c->combine)(c->ctx,(*c->getElt)(c->pData,i,c->iDataSize),pData);
+		pData += c->iDataSize;
+		}
+	    count -= sizeof(CAHEAD) + c->iLineSize;
 	    ca = (CAHEAD *)pData;
-	    count -= sizeof(CAHEAD) + c->iDataSize;
 	    }
 	assert(count == 0);
 	OPA_Queue_enqueue(&mpi->localFlushBuffers, flush, MDLflushBuffer, hdr.hdr);
@@ -437,7 +444,7 @@ static void mpi_queue_local_flush(MDL mdl,CAHEAD *ph) {
 	}
 
     nLeft = flush->nBufferSize - flush->nBytes;
-    nToAdd = sizeof(CAHEAD) + c->iDataSize;
+    nToAdd = sizeof(CAHEAD) + c->iLineSize;
 
     /* No room left? Send this buffer and grab a new one for this rank */
     if (nToAdd > nLeft ) {
@@ -448,8 +455,8 @@ static void mpi_queue_local_flush(MDL mdl,CAHEAD *ph) {
     /* Buffer this element */
     CAHEAD *ca = (CAHEAD *)( (char *)(flush+1) + flush->nBytes);
     char *pData = (char *)(ca+1);
-    memcpy(ca,ph,sizeof(CAHEAD) + c->iDataSize);
-    flush->nBytes += sizeof(CAHEAD) + c->iDataSize;
+    memcpy(ca,ph,sizeof(CAHEAD) + c->iLineSize);
+    flush->nBytes += sizeof(CAHEAD) + c->iLineSize;
     }
 
 #define MDL_MID_CACHEREQ	1
@@ -470,6 +477,7 @@ int mdlCacheReceive(MDL mdl,MPI_Status *status) {
     int s,n,i;
     int ret, count;
     int iLineSize, iProc, iCore;
+    uint32_t iIndex;
     char *pLine;
 
     mpi->pReqRcv->mpiRequest = MPI_REQUEST_NULL;
@@ -524,10 +532,6 @@ int mdlCacheReceive(MDL mdl,MPI_Status *status) {
 	*mpi->busyCacheRepliesTail = pdata;
 	mpi->busyCacheRepliesTail = &pdata->next;
 
-	s = ph->iIndex;
-	n = s + ph->nItems;
-	if ( n > c->nData ) n = c->nData;
-	iLineSize = (n-s) * c->iDataSize;
 	phRpl = (CAHEAD *)(pdata + 1);
 	pszRpl = (char *)(phRpl + 1);
 	phRpl->cid = ph->cid;
@@ -536,13 +540,19 @@ int mdlCacheReceive(MDL mdl,MPI_Status *status) {
 
 	/* Caclulation based on threads */
 	phRpl->idTo = ph->idFrom;
-	phRpl->iIndex = ph->iIndex;
-	phRpl->nItems = n - s;
-	assert(ph->iIndex>=0);
+	phRpl->iLine = ph->iLine;
+	phRpl->nItems = 1;
 
+	s = ph->iLine << c->nLineBits;
+	n = s + c->nLineElements;
+	iLineSize = c->iLineSize;
 	for(i=s; i<n; i++ ) {
-	    t = (*c->getElt)(c->pData,i,c->iDataSize);
-	    memcpy(pszRpl+(i-s)*c->iDataSize,t,c->iDataSize);
+	    if (i<c->nData) {
+		t = (*c->getElt)(c->pData,i,c->iDataSize);
+		memcpy(pszRpl,t,c->iDataSize);
+		}
+	    else memset(pszRpl,0,c->iDataSize);
+	    pszRpl += c->iDataSize;
 	    }
 	tag = MDL_TAG_CACHECOM /*+ MDL_TAG_THREAD_OFFSET * iCore*/;
 	assert(pdata->mpiRequest == MPI_REQUEST_NULL);
@@ -558,23 +568,25 @@ int mdlCacheReceive(MDL mdl,MPI_Status *status) {
 	    pszRcv = (char *)(ph+1);
 	    iCore = ph->idTo - mdl->pmdl[0]->base.idSelf;
 	    c = &mdl->pmdl[iCore]->cache[ph->cid];
-	    while(ph->iIndex >= c->nData) {
-		ph->iIndex -= c->nData;
+	    iIndex = ph->iLine << c->nLineBits;
+	    while(iIndex >= c->nData) {
+		iIndex -= c->nData;
 		c = &mdl->pmdl[++iCore]->cache[ph->cid];
 		assert(iCore<mdlCores(mdl));
 		}
+	    ph->iLine = iIndex >> c->nLineBits;
 	    ph->idTo = iCore;
 	    mpi_queue_local_flush(mdl,ph);
-	    pszRcv += c->iDataSize;
+	    pszRcv += c->iLineSize;
 	    ph = (CAHEAD *)(pszRcv);
-	    count -= sizeof(CAHEAD) + c->iDataSize;
+	    count -= sizeof(CAHEAD) + c->iLineSize;
 	    }
 	assert(count==0);
 	ret = 0;
 	break;
 	/* A remote process has sent us cache data - we need to let that thread know */
     case MDL_MID_CACHERPL:
-	iLineSize = ph->nItems * c->iDataSize;
+	iLineSize = c->iLineSize;
 	assert( count == sizeof(CAHEAD) + iLineSize );
 	creq = mpi->pThreadCacheReq[iCore];
 	assert(creq!=NULL);
@@ -590,7 +602,7 @@ int mdlCacheReceive(MDL mdl,MPI_Status *status) {
 	 ** request.
 	 */
 	assert(pLine != NULL);
-	for (i=0;i<iLineSize;++i) pLine[i] = pszRcv[i];
+	memcpy(pLine,pszRcv,iLineSize);
 	if (c->iType == MDL_COCACHE && c->init) {
 	    /*
 	     ** Call the initializer function for all elements in
@@ -660,7 +672,7 @@ static void flush_send(MDL mdl,MDLflushBuffer *pBuffer) {
     mpi->flushBusyCount--;
     }
 
-static void mpi_flush_element(MDL mdl,CAHEAD *pHdr,int iDataSize) {
+static void mpi_flush_element(MDL mdl,CAHEAD *pHdr,int iLineSize) {
     mdlContextMPI *mpi = mdl->mpi;
     int iProc = mdlThreadToProc(mdl,pHdr->idTo);
     MDLflushBuffer *pBuffer;
@@ -671,7 +683,7 @@ static void mpi_flush_element(MDL mdl,CAHEAD *pHdr,int iDataSize) {
     /* If we have a buffer already then add to it if we can */
     if ( (pBuffer=mpi->flushBuffersByRank[iProc]) != NULL ) {
 	int nLeft = pBuffer->nBufferSize - pBuffer->nBytes;
-	int nToAdd = sizeof(CAHEAD) + iDataSize;
+	int nToAdd = sizeof(CAHEAD) + iLineSize;
 	/* No room left? Send this buffer and grab a new one for this rank */
 	if (nToAdd > nLeft ) {
 	    flush_send(mdl,pBuffer);
@@ -718,9 +730,9 @@ static void mpi_flush_element(MDL mdl,CAHEAD *pHdr,int iDataSize) {
     /* Now just buffer the data */
     CAHEAD *ca = (CAHEAD *)( (char *)(pBuffer+1) + pBuffer->nBytes);
     char *pData = (char *)(ca+1);
-    iDataSize += sizeof(CAHEAD);
-    memcpy(ca,pHdr,iDataSize);
-    pBuffer->nBytes += iDataSize;
+    iLineSize += sizeof(CAHEAD);
+    memcpy(ca,pHdr,iLineSize);
+    pBuffer->nBytes += iLineSize;
     }
 
 
@@ -734,12 +746,12 @@ static void mpi_flush_elements(MDL mdl,MDLflushBuffer *pFlush) {
     count = pFlush->nBytes;
     ca = (CAHEAD *)(pFlush + 1);
     while(count > 0) {
-	int iDataSize = mdl->pmdl[0]->cache[ca->cid].iDataSize;
+	int iLineSize = mdl->pmdl[0]->cache[ca->cid].iLineSize;
 	pData = (char *)(ca+1);
-	mpi_flush_element(mdl,ca,iDataSize);
-	pData += iDataSize;
+	mpi_flush_element(mdl,ca,iLineSize);
+	pData += iLineSize;
 	ca = (CAHEAD *)pData;
-	count -= sizeof(CAHEAD) + iDataSize;
+	count -= sizeof(CAHEAD) + iLineSize;
 	}
     assert(count == 0);
     }
@@ -868,7 +880,6 @@ static int checkMPI(MDL mdl) {
 		/* A thread has opened a cache -- we may need to resize our buffers */
 	    case MDL_SE_CACHE_OPEN:
 		coc = (cacheOpenClose *)qhdr;
-		assert(coc->iDataSize <= MDL_CACHE_DATA_SIZE);
 		if (mpi->pReqRcv->mpiRequest == MPI_REQUEST_NULL) {
 		    MPI_Irecv(mpi->pReqRcv+1,mpi->iCacheBufSize, MPI_BYTE,
 			MPI_ANY_SOURCE, MDL_TAG_CACHECOM,
@@ -2125,14 +2136,16 @@ CACHE *CacheInitialize(
     c->pData = pData;
     c->iDataSize = iDataSize;
     c->nData = nData;
-    c->nLineElements = MDL_CACHE_DATA_SIZE / c->iDataSize;
-    if (c->nLineElements > MDL_CACHELINE_ELTS) c->nLineElements = MDL_CACHELINE_ELTS;
+    if (c->iDataSize > MDL_CACHE_DATA_SIZE) c->nLineBits = 0;
+    else c->nLineBits = log2(MDL_CACHE_DATA_SIZE / c->iDataSize);
+    c->nLineElements = 1 << c->nLineBits;
+    c->nLineMask = (1 << c->nLineBits) - 1;
     c->iLineSize = c->nLineElements*c->iDataSize;
 
     c->nAccess = 0;
     c->nMiss = 0;				/* !!!, not NB */
     c->nColl = 0;				/* !!!, not NB */
-    if (c->arc==NULL) c->arc = arcInitialize(mdl->cacheSize/iDataSize,iDataSize,c);
+    if (c->arc==NULL) c->arc = arcInitialize(mdl->cacheSize/c->iLineSize,c->iLineSize,c);
     c->pOneLine = malloc(c->iLineSize);
 
     /*
@@ -2145,7 +2158,7 @@ CACHE *CacheInitialize(
     c->cacheRequest.caReq.mid = MDL_MID_CACHEREQ;
     c->cacheRequest.caReq.idFrom = mdl->base.idSelf;
     c->cacheRequest.caReq.idTo = -1;
-    c->cacheRequest.caReq.iIndex = -1;
+    c->cacheRequest.caReq.iLine = -1;
     c->cacheRequest.caReq.nItems = 1;
     c->cacheRequest.request = MPI_REQUEST_NULL;
 
@@ -2214,7 +2227,7 @@ static CDB *destage(MDL mdl, ARC arc, CDB *temp) {
     assert(temp->data[-1] == _ARC_MAGIC_);
     if (temp->uId & _DIRTY_) {     /* if dirty, evict before free */
 	CACHE *c = arc->cache;
-	int iSize = sizeof(CAHEAD) + c->iDataSize;
+	int iSize = sizeof(CAHEAD) + c->iLineSize;
 	MDLflushBuffer *pBuffer = mdl->coreFlushBuffer;
 	if (pBuffer->nBytes + iSize > pBuffer->nBufferSize) {
 	    pBuffer = flush_core_buffer(mdl);
@@ -2226,8 +2239,8 @@ static CDB *destage(MDL mdl, ARC arc, CDB *temp) {
 	ca->nItems = 1;
 	ca->idFrom = mdlSelf(mdl);
 	ca->idTo = temp->uId&_IDMASK_;
-	ca->iIndex = temp->uIndex;
-	memcpy(pData,temp->data,c->iDataSize);
+	ca->iLine = temp->uPage;
+	memcpy(pData,temp->data,c->iLineSize);
 	pBuffer->nBytes += iSize;
 	temp->uId &= ~ _DIRTY_;    /* No longer dirty */
 	}
@@ -2385,7 +2398,7 @@ static inline uint64_t *replace(MDL mdl,ARC arc, int iInB2) {
 ** The next 3 highest order bits of uId ((1<<30), (1<<29) and (1<<28)) are reserved 
 ** for list location and should be zero! The maximum legal uId is then (1<<28)-1.
 */
-static inline CDB *arcSetPrefetchDataByHash(MDL mdl,ARC arc,uint32_t uIndex,uint32_t uId,void *data,uint32_t uHash) {
+static inline CDB *arcSetPrefetchDataByHash(MDL mdl,ARC arc,uint32_t uPage,uint32_t uId,void *data,uint32_t uHash) {
     CDB *temp;
     uint32_t tuId = uId&_IDMASK_;
     uint32_t L1Length;
@@ -2393,7 +2406,7 @@ static inline CDB *arcSetPrefetchDataByHash(MDL mdl,ARC arc,uint32_t uIndex,uint
 
     assert(data);
     for( temp = arc->Hash[uHash]; temp; temp = temp->extra.coll ) {
-	if (temp->uIndex == uIndex && (temp->uId&_IDMASK_) == tuId) break;
+	if (temp->uPage == uPage && (temp->uId&_IDMASK_) == tuId) break;
 	}
     if (temp != NULL) {                       /* found in cache directory? */
 	switch (temp->uId & _WHERE_) {                   /* yes, which list? */
@@ -2411,7 +2424,7 @@ static inline CDB *arcSetPrefetchDataByHash(MDL mdl,ARC arc,uint32_t uIndex,uint
 	    /* Better would be to put this back on P1, but L1 may be full. */
 	    remove_from_list(temp);                                   /* take off whichever list */
 	    temp->data = replace(mdl,arc,inB2);                                /* find a place to put new page */
-	    temp->uIndex = uIndex;                          /* bookkeep */
+	    temp->uPage = uPage;                          /* bookkeep */
 	    if (inB2) {
 		temp->uId = _T2_|(uId&_IDMASK_);     /* temp->ARC_where = _P1_; and clear the dirty bit for this page */
 /* 		assert( (temp->uId&_WHERE_) == _T2_ ); */
@@ -2466,16 +2479,16 @@ static inline CDB *arcSetPrefetchDataByHash(MDL mdl,ARC arc,uint32_t uIndex,uint
 	/*assert(arc->T1Length+arc->B1Length<=arc->nCache);*/
 	temp->uId = _P1_|(uId&_IDMASK_);     /* temp->ARC_where = _P1_; and clear the dirty bit for this page */
 /* 	assert( (temp->uId&_WHERE_) == _P1_ ); */
-	temp->uIndex = uIndex;
+	temp->uPage = uPage;
 	temp->extra.coll = arc->Hash[uHash];                  /* add to collision chain */
 	arc->Hash[uHash] = temp;                               /* insert into hash table */
     }
-    memcpy(temp->data,data,arc->cache->iDataSize); /* Copy actual cache data amount */
+    memcpy(temp->data,data,arc->cache->iLineSize); /* Copy actual cache data amount */
     return temp;
 }
 
-static inline CDB *arcSetPrefetchData(MDL mdl,ARC arc,uint32_t uIndex,uint32_t uId,void *data) {
-    return arcSetPrefetchDataByHash(mdl,arc,uIndex,uId,data,MurmurHash2(uIndex,uId&_IDMASK_)&arc->uHashMask);
+static inline CDB *arcSetPrefetchData(MDL mdl,ARC arc,uint32_t uPage,uint32_t uId,void *data) {
+    return arcSetPrefetchDataByHash(mdl,arc,uPage,uId,data,MurmurHash2(uPage,uId&_IDMASK_)&arc->uHashMask);
     }
 
 /*
@@ -2492,7 +2505,7 @@ static inline void arcRelease(ARC arc,uint64_t *p) {
 	}
 }
 
-static void queueCacheRequest(MDL mdl, int cid, int iIndex, int id) {
+static void queueCacheRequest(MDL mdl, int cid, int iLine, int id) {
     int iCore = id - mdl->pmdl[0]->base.idSelf;
     /* Local requests for combiner cache are handled in finishCacheRequest() */
     if (iCore < 0 || iCore >= mdl->base.nCores ) {
@@ -2501,45 +2514,51 @@ static void queueCacheRequest(MDL mdl, int cid, int iIndex, int id) {
 	c->cacheRequest.caReq.mid = MDL_MID_CACHEREQ;
 	c->cacheRequest.caReq.idFrom = mdl->base.idSelf;
 	c->cacheRequest.caReq.idTo = id;
-	c->cacheRequest.caReq.iIndex = iIndex;
+	c->cacheRequest.caReq.iLine = iLine;
 	c->cacheRequest.caReq.nItems = c->nLineElements;
 	c->cacheRequest.pLine = c->pOneLine;
 	mdlSendToMPI(mdl,&c->cacheRequest,MDL_SE_CACHE_REQUEST);
 	}
     }
 
-static void finishCacheRequest(MDL mdl, int cid, int iIndex, int id, CDB *temp,int bVirtual) {
+static void finishCacheRequest(MDL mdl, int cid, int iLine, int id, CDB *temp,int bVirtual) {
     int iCore = id - mdl->pmdl[0]->base.idSelf;
     CACHE *c = &mdl->cache[cid];
+    int i,s,n;
+    char *pData = (char *)temp->data;
+    uint32_t iIndex = iLine << c->nLineBits;
+
+    s = iIndex;
+    n = s + c->nLineElements;
+
     if (bVirtual) {
-	if (c->init) (*c->init)(c->ctx,temp->data);
-	return;
+	memset(temp->data,0,c->iLineSize);
 	}
     /* Local requests must be from a combiner cache if we get here */
-    if (iCore >= 0 && iCore < mdl->base.nCores ) {
+    else if (iCore >= 0 && iCore < mdl->base.nCores ) {
 	MDL omdl = mdl->pmdl[iCore];
 	CACHE *oc = &omdl->cache[cid];
-	memcpy(temp->data,(*oc->getElt)(oc->pData,iIndex,oc->iDataSize),oc->iDataSize);
-	if (c->init) (*c->init)(c->ctx,temp->data);
+	if ( n > oc->nData ) n = oc->nData;
+	for(i=s; i<n; i++ ) {
+	    memcpy(pData,(*oc->getElt)(oc->pData,i,oc->iDataSize),oc->iDataSize);
+	    pData += oc->iDataSize;
+	    }
 	}
     else {
-	ARC arc = c->arc;
-	uint32_t uIndex = temp->uIndex;
-	uint32_t uId = temp->uId & _IDMASK_;
+	assert(iLine == temp->uPage);
 	mdlWaitThreadQueue(mdl,MDL_TAG_CACHECOM);
-	assert(uIndex == c->cacheRequest.caReq.iIndex );
-	memcpy(temp->data,c->pOneLine, c->iDataSize);
-	if (c->init) (*c->init)(c->ctx,temp->data);
-	++temp->data[-1];       /* prefetch must never evict our data */
-	int i;
-	int n = c->cacheRequest.caReq.nItems;
-	for(i=1; i<n; ++i) {
-	    int nid = uIndex + i;
-	    CDB * temp2 = arcSetPrefetchData(mdl,arc,nid,uId,c->pOneLine + i*c->iDataSize);
-	    if (c->init) (*c->init)(c->ctx,temp2->data);
-	    }
-	--temp->data[-1];       /* may lock below */
+	assert(iLine == c->cacheRequest.caReq.iLine );
+	memcpy(temp->data,c->pOneLine, c->iLineSize);
 	}
+
+    if (c->init) {
+	pData = (char *)temp->data;
+	for(i=s; i<n; i++ ) {
+	    (*c->init)(c->ctx,pData);
+	    pData += c->iDataSize;
+	    }
+	}
+
     }
 
 /*
@@ -2554,6 +2573,8 @@ static void *Acquire(MDL mdl, int cid, uint32_t uIndex, int uId, int bLock,int b
     uint32_t L1Length;
     uint32_t uHash,rat;
     uint32_t tuId = uId&_IDMASK_;
+    uint32_t uLine;
+    uint32_t iInLine;
     int inB2=0;
 
     if (!(++c->nAccess & MDL_CHECK_MASK)) mdlCacheCheck(mdl);
@@ -2565,11 +2586,13 @@ static void *Acquire(MDL mdl, int cid, uint32_t uIndex, int uId, int bLock,int b
 	c = &omdl->cache[cid];
 	return (*c->getElt)(c->pData,uIndex,c->iDataSize);
 	}
+    iInLine = uIndex & c->nLineMask;
+    uLine = uIndex >> c->nLineBits;
 
     /* First check our own cache */
-    uHash = (MurmurHash2(uIndex,tuId)&arc->uHashMask);
+    uHash = (MurmurHash2(uLine,tuId)&arc->uHashMask);
     for ( temp = arc->Hash[uHash]; temp; temp = temp->extra.coll ) {
-	if (temp->uIndex == uIndex && (temp->uId&_IDMASK_) == tuId) break;
+	if (temp->uPage == uLine && (temp->uId&_IDMASK_) == tuId) break;
 	}
     if (temp != NULL) {                       /* found in cache directory? */
 	switch (temp->uId & _WHERE_) {                   /* yes, which list? */
@@ -2600,12 +2623,12 @@ static void *Acquire(MDL mdl, int cid, uint32_t uIndex, int uId, int bLock,int b
 	    /*
 	    ** Get me outa here.
 	    */
-	    return((void *)temp->data);
+	    return (char *)temp->data + c->iDataSize*iInLine;
 	case _B1_:                            /* B1 hit: favor recency */
 	    /*
 	    ** Can initiate the data request right here, and do the rest while waiting...
 	    */
-	    if (!bVirtual) queueCacheRequest(mdl,cid,uIndex,uId);
+	    if (!bVirtual) queueCacheRequest(mdl,cid,uLine,uId);
 /* 	    assert(arc->B1->hdr.links.next != arc->B1); */
 /* 	    assert(arc->B1Length>0); */
 	    rat = arc->B2Length/arc->B1Length;
@@ -2619,7 +2642,7 @@ static void *Acquire(MDL mdl, int cid, uint32_t uIndex, int uId, int bLock,int b
 	    /*
 	    ** Can initiate the data request right here, and do the rest while waiting...
 	    */
-	    if (!bVirtual) queueCacheRequest(mdl,cid,uIndex,uId);
+	    if (!bVirtual) queueCacheRequest(mdl,cid,uLine,uId);
 /* 	    assert(arc->B2->hdr.links.next != arc->B2); */
 /* 	    assert(arc->B2Length>0); */
 
@@ -2635,11 +2658,11 @@ static void *Acquire(MDL mdl, int cid, uint32_t uIndex, int uId, int bLock,int b
 	    temp->data = replace(mdl,arc,inB2);                                /* find a place to put new page */
 	    temp->uId = _T2_|uId;     /* temp->ARC_where = _T2_; and set the dirty bit for this page */
 /* 	    assert( (temp->uId&_WHERE_) == _T2_ ); */
-	    temp->uIndex = uIndex;                          /* bookkeep */
+	    temp->uPage = uLine;                          /* bookkeep */
 	    mru_insert(temp,arc->T2);                                     /* seen twice recently, put on T2 */
 	    arc->T2Length++;                 /* JS: this was not in the original code. Should it be? bookkeep */
 	    /*assert(temp->data!=NULL);*/
-	    finishCacheRequest(mdl,cid,uIndex,uId,temp,bVirtual);
+	    finishCacheRequest(mdl,cid,uLine,uId,temp,bVirtual);
 	    break;
 	    }
 	}
@@ -2650,7 +2673,7 @@ static void *Acquire(MDL mdl, int cid, uint32_t uIndex, int uId, int bLock,int b
 	/*
 	** Can initiate the data request right here, and do the rest while waiting...
 	*/
-	if (!bVirtual) queueCacheRequest(mdl,cid,uIndex,uId);
+	if (!bVirtual) queueCacheRequest(mdl,cid,uLine,uId);
 	L1Length = arc->T1Length + arc->B1Length;
 	/*assert(L1Length<=arc->nCache);*/
 	if (L1Length == arc->nCache) {                                   /* B1 + T1 full? */
@@ -2693,8 +2716,8 @@ static void *Acquire(MDL mdl, int cid, uint32_t uIndex, int uId, int bLock,int b
 	/*assert(arc->T1Length+arc->B1Length<=arc->nCache);*/
 	temp->uId = uId;                  /* temp->dirty = dirty;  p->ARC_where = _T1_; as well! */
 /* 	assert( (temp->uId&_WHERE_) == _T1_ ); */
-	temp->uIndex = uIndex;
-	finishCacheRequest(mdl,cid,uIndex,uId,temp,bVirtual);
+	temp->uPage = uLine;
+	finishCacheRequest(mdl,cid,uLine,uId,temp,bVirtual);
 	temp->extra.coll = arc->Hash[uHash];                  /* add to collision chain */
 	arc->Hash[uHash] = temp;                               /* insert into hash table */
 	mdlTimeAddWaiting(mdl);
@@ -2711,7 +2734,7 @@ static void *Acquire(MDL mdl, int cid, uint32_t uIndex, int uId, int bLock,int b
     /* If we will modify the element, then it must eventually be flushed. */
     if (bModify) temp->uId |= _DIRTY_;
 
-    return((void *)temp->data);
+    return (char *)temp->data + c->iDataSize*iInLine;
 }
 
 /* Does not lock the element */
@@ -2833,14 +2856,18 @@ void mdlGridShare(MDL mdl,MDLGRID grid) {
 /*
 ** Retrieve the first and last element for the calling thread.
 */
-void mdlGridCoordFirstLast(MDL mdl,MDLGRID grid,mdlGridCoord *f,mdlGridCoord *l) {
+void mdlGridCoordFirstLast(MDL mdl,MDLGRID grid,mdlGridCoord *f,mdlGridCoord *l,int bCacheAlign) {
     uint64_t nPerCore, nThisCore;
     uint64_t nLocal = (uint64_t)(grid->a1) * grid->n2 * grid->nSlab;
 
     /* Number on each core with multiples of "a1" elments (complete pencils). */
     /* This needs to change to be complete MDL "cache lines" at some point. */
-    nPerCore = nLocal / mdlCores(mdl) + grid->a1 - 1;
-    nPerCore -= nPerCore % grid->a1;
+    uint64_t nAlign;
+    if (bCacheAlign) nAlign = 1 << (int)(log2(MDL_CACHE_DATA_SIZE / sizeof(float)));
+    else nAlign = grid->a1;
+
+    nPerCore = nLocal / mdlCores(mdl) + nAlign - 1;
+    nPerCore -= nPerCore % nAlign;
     nThisCore = nPerCore;
     if (mdlCore(mdl) == mdlCores(mdl)-1) {
 	nThisCore = nLocal - (mdlCores(mdl)-1)*nThisCore;
@@ -2854,14 +2881,14 @@ void mdlGridCoordFirstLast(MDL mdl,MDLGRID grid,mdlGridCoord *f,mdlGridCoord *l)
     f->z = f->I/(grid->a1*grid->n2);
     f->y = f->I/grid->a1 - f->z * grid->n2;
     f->x = f->I - grid->a1 * (f->z*grid->n2 + f->y);
-    assert(f->x == 0); // MDL depends on this at the moment
+    assert(bCacheAlign || f->x == 0); // MDL depends on this at the moment
     f->z += grid->sSlab;
     f->grid = grid;
 
     l->z = l->I/(grid->a1*grid->n2);
     l->y = l->I/grid->a1 - l->z * grid->n2;
     l->x = l->I - grid->a1 * (l->z*grid->n2 + l->y);
-    assert(l->x == 0); // MDL depends on this at the moment
+    assert(bCacheAlign || l->x == 0); // MDL depends on this at the moment
     l->z += grid->sSlab;
     l->grid = grid;
     }

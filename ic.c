@@ -94,7 +94,7 @@ void pkdGenerateNoise(PKD pkd,unsigned long seed,MDLFFT fft,float complex *ic,do
     float complex v_ny,v_wn;
 
     mdlGridCoord kfirst, klast, kindex;
-    mdlGridCoordFirstLast(mdl,fft->kgrid,&kfirst,&klast);
+    mdlGridCoordFirstLast(mdl,fft->kgrid,&kfirst,&klast,0);
 
     fullKey[0] = seed;
     fullKey[1] = fullKey[0];
@@ -214,8 +214,8 @@ int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int nGrid,int b2LPT,double dBoxSi
     velFactor = (sqrt(dOmega0/(a*a*a) + (1-dOmega0-dLambda0)/(a*a) + dLambda0)) * sqrt(8.0/3.0*M_PI);
     velFactor *= a*a; /* Comoving */
 
-    mdlGridCoordFirstLast(mdl,fft->kgrid,&kfirst,&klast);
-    mdlGridCoordFirstLast(mdl,fft->rgrid,&rfirst,&rlast);
+    mdlGridCoordFirstLast(mdl,fft->kgrid,&kfirst,&klast,0);
+    mdlGridCoordFirstLast(mdl,fft->rgrid,&rfirst,&rlast,0);
 
     /* The mdlSetArray will use the values from thread 0 */
     ic[0].r = (FFTW3(real)*)pkdParticleBase(pkd);
