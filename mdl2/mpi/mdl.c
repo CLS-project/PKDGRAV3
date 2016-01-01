@@ -2138,6 +2138,13 @@ CACHE *CacheInitialize(
     c->nData = nData;
     if (c->iDataSize > MDL_CACHE_DATA_SIZE) c->nLineBits = 0;
     else c->nLineBits = log2(MDL_CACHE_DATA_SIZE / c->iDataSize);
+    /*
+    ** Let's not have too much of a good thing. We want to fetch in cache lines both for
+    ** performance, and to save memory (ARC cache has a high overhead), but too much has
+    ** a negative effect on performance. Empirically, 16 elements maximal is optimal.
+    ** This was tested with the particle, cell and P(k) caches.
+    */
+    if (c->nLineBits > 4) c->nLineBits = 4;
     c->nLineElements = 1 << c->nLineBits;
     c->nLineMask = (1 << c->nLineBits) - 1;
     c->iLineSize = c->nLineElements*c->iDataSize;
