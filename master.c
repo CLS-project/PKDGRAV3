@@ -144,7 +144,7 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     */
     prmInitialize(&msr->prm,_msrLeader,_msrTrailer);
     msr->param.nThreads = 1;
-    prmAddParam(msr->prm,"nThreads",1,&msr->param.nThreadsUNUSED,sizeof(int),"sz",
+    prmAddParam(msr->prm,"nThreads",1,&msr->param.nThreads,sizeof(int),"sz",
 		"<nThreads>");
     msr->param.bDiag = 0;
     prmAddParam(msr->prm,"bDiag",0,&msr->param.bDiag,sizeof(int),"d",
