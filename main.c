@@ -117,6 +117,7 @@ void * master_ch(MDL mdl) {
 	    }
 #else
 	printf("To generate initial conditions, compile with FFTW\n");
+	msrFinish(msr);
 	return NULL;
 #endif
 	msrInitStep(msr);
@@ -148,6 +149,7 @@ void * master_ch(MDL mdl) {
 #endif
     else {
 	printf("No input file specified\n");
+	msrFinish(msr);
 	return NULL;
 	}
 
@@ -223,7 +225,7 @@ void * master_ch(MDL mdl) {
 	msrDomainDecomp(msr,0,0,0);
 #ifdef MDL_FFTW
 	if (msr->param.nGridPk>0) {
-	    msrOutputPk(msr,msr->param.iStartStep);
+	    msrOutputPk(msr,msr->param.iStartStep,dTime);
 	    }
 #endif
 	msrUpdateSoft(msr,dTime);
@@ -351,7 +353,7 @@ void * master_ch(MDL mdl) {
 		msrCheckpoint(msr,iStep,dTime);
 #ifdef MDL_FFTW
 		if (iStep%msr->param.iPkInterval == 0) {
-		    msrOutputPk(msr,iStep);
+		    msrOutputPk(msr,iStep,dTime);
 		    }
 #endif
 		}
@@ -365,7 +367,7 @@ void * master_ch(MDL mdl) {
 		}
 #ifdef MDL_FFTW
 	    else if (iStep%msr->param.iPkInterval == 0) {
-		msrOutputPk(msr,iStep);
+		msrOutputPk(msr,iStep,dTime);
 		}
 #endif
 	    }

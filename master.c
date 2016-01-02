@@ -100,13 +100,11 @@ void _msrExit(MSR msr,int status) {
     MDL mdl=msr->mdl;
 
     msrFinish(msr);
-    mdlFinish(mdl);
     exit(status);
     }
 
 
-void
-_msrMakePath(const char *dir,const char *base,char *path) {
+void _msrMakePath(const char *dir,const char *base,char *path) {
     /*
     ** Prepends "dir" to "base" and returns the result in "path". It is the
     ** caller's responsibility to ensure enough memory has been allocated
@@ -122,7 +120,6 @@ _msrMakePath(const char *dir,const char *base,char *path) {
     if (!base) return;
     strcat(path,base);
     }
-
 
 void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     MSR msr;
@@ -147,17 +144,17 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     */
     prmInitialize(&msr->prm,_msrLeader,_msrTrailer);
     msr->param.nThreads = 1;
-    prmAddParam(msr->prm,"nThreads",1,&msr->param.nThreads,sizeof(int),"sz",
+    prmAddParam(msr->prm,"nThreads",1,&msr->param.nThreadsUNUSED,sizeof(int),"sz",
 		"<nThreads>");
+    msr->param.bDiag = 0;
+    prmAddParam(msr->prm,"bDiag",0,&msr->param.bDiag,sizeof(int),"d",
+		"enable/disable per thread diagnostic output");
     msr->param.bDedicatedMPI = 0;
     prmAddParam(msr->prm,"bDedicatedMPI",0,&msr->param.bDedicatedMPI,sizeof(int),"dedicated",
 		"enable/disable dedicated MPI thread");
     msr->param.bSharedMPI = 0;
     prmAddParam(msr->prm,"bSharedMPI",0,&msr->param.bSharedMPI,sizeof(int),"sharedmpi",
 		"enable/disable extra dedicated MPI thread");
-    msr->param.bDiag = 0;
-    prmAddParam(msr->prm,"bDiag",0,&msr->param.bDiag,sizeof(int),"d",
-		"enable/disable per thread diagnostic output");
     msr->param.bNoGrav = 0;
     prmAddParam(msr->prm,"bNoGrav",0,&msr->param.bNoGrav,sizeof(int),"nograv",
 		"enable/disable Gravity calulation for testing = -nograv");
@@ -182,7 +179,11 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     nDigits = 5;
     prmAddParam(msr->prm,"nDigits",1,&nDigits,sizeof(int),"nd",
 		"<number of digits to use in output filenames> = 5");
+#ifdef INTEGER_POSITION
+    msr->param.bPeriodic = 1;
+#else
     msr->param.bPeriodic = 0;
+#endif
     prmAddParam(msr->prm,"bPeriodic",0,&msr->param.bPeriodic,sizeof(int),"p",
 		"periodic/non-periodic = -p");
     msr->param.bRestart = 0;
@@ -960,14 +961,6 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
 	}
     else
 #endif
-#ifdef USE_PYTHON
-	if (msr->param.achScriptFile[0]) {}
-	else
-#endif
-	    if (!msr->param.achInFile[0]) {
-		puts("ERROR: no input file specified");
-		_msrExit(msr,1);
-		}
 
     if (msr->param.dTheta <= 0) {
 	if (msr->param.dTheta == 0 && msr->param.bVWarnings)
@@ -1436,10 +1429,9 @@ msrCheckForStop(MSR msr) {
     }
 
 void msrFinish(MSR msr) {
-    int id;
+   int id;
     for (id=1;id<msr->nThreads;++id) {
 	int rID;
-	msrprintf(msr,"Stopping thread %d\n",id);
 	rID = mdlReqService(msr->mdl,id,SRV_STOP,NULL,0);
 	mdlGetReply(msr->mdl,rID,NULL,NULL);
 	}
@@ -4886,7 +4878,7 @@ void msrCalcVBound(MSR msr,BND *pbnd) {
     }
 
 #ifdef MDL_FFTW
-void msrOutputPk(MSR msr,int iStep) {
+void msrOutputPk(MSR msr,int iStep,double dTime) {
 #ifdef _MSC_VER
     char achFile[MAX_PATH];
 #else
@@ -4894,6 +4886,7 @@ void msrOutputPk(MSR msr,int iStep) {
 #endif
     double dCenter[3] = {0.0,0.0,0.0};
     float *fK, *fPk;
+    double a, ia2;
     FILE *fp;
     int i;
 
@@ -4909,13 +4902,18 @@ void msrOutputPk(MSR msr,int iStep) {
     msrBuildName(msr,achFile,iStep);
     strncat(achFile,".pk",256);
 
+    if (!msr->param.csm->bComove) a = 1.0;
+    else a = csmTime2Exp(msr->param.csm,dTime);
+    ia2 = 1.0 / (a*a);
+
     fp = fopen(achFile,"w");
     if ( fp==NULL) {
 	printf("Could not create P(k) File:%s\n",achFile);
 	_msrExit(msr,1);
 	}
     for(i=0; i<msr->param.nBinsPk; ++i) {
-	if (fPk[i] > 0.0) fprintf(fp,"%g %g\n",fK[i],fPk[i]);
+	if (fPk[i] > 0.0) fprintf(fp,"%g %g\n",
+	    fK[i] * 2.0 * M_PI,fPk[i]*ia2);
 	}
     fclose(fp);
     free(fK);
@@ -4979,7 +4977,7 @@ void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint) {
 
 #ifdef MDL_FFTW
     if (msr->param.nGridPk>0) {
-	msrOutputPk(msr,iStep);
+	msrOutputPk(msr,iStep,dTime);
 	}
 #endif
 
