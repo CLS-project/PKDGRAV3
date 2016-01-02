@@ -106,82 +106,116 @@ void * master_ch(MDL mdl) {
     ** Output the host names to make troubleshooting easier
     */
     msrHostname(msr);
-    /*
-    ** Read in the binary file, this may set the number of timesteps or
-    ** the size of the timestep when the zto parameter is used.
-    */
+
+    /* Generate the initial particle distribution */
     if (prmSpecified(msr->prm,"nGrid")) {
 #ifdef MDL_FFTW
-	dTime = msrGenerateIC(msr);
+	dTime = msrGenerateIC(msr); /* May change nSteps/dDelta */
+	if ( msr->param.bWriteIC ) {
+	    msrBuildIoName(msr,achFile,0);
+	    msrWrite( msr,achFile,dTime,msr->param.bWriteIC-1);
+	    }
 #else
 	printf("To generate initial conditions, compile with FFTW\n");
 	return NULL;
 #endif
 	msrInitStep(msr);
 	if (prmSpecified(msr->prm,"dSoft")) msrSetSoft(msr,msrSoft(msr));
+	iStep = msrSteps(msr); /* 0=analysis, >1=simulate, <0=python */
 	}
-    else {
-	if ( msr->param.achInFile[0] ) {
-	    dTime = msrRead(msr,msr->param.achInFile);
+
+    /* Read in a binary file */
+    else if ( msr->param.achInFile[0] ) {
+	dTime = msrRead(msr,msr->param.achInFile); /* May change nSteps/dDelta */
+	msrInitStep(msr);
+	if (msr->param.bAddDelete) msrGetNParts(msr);
+	if (prmSpecified(msr->prm,"dRedFrom")) {
+	    double aOld, aNew;
+	    aOld = csmTime2Exp(msr->param.csm,dTime);
+	    aNew = 1.0 / (1.0 + msr->param.dRedFrom);
+	    dTime = msrAdjustTime(msr,aOld,aNew);
+	    /* Seriously, we shouldn't need to send parameters *again*.
+	       When we remove sending parameters, we should remove this. */
 	    msrInitStep(msr);
-	    if (msr->param.bAddDelete) msrGetNParts(msr);
-	    if (prmSpecified(msr->prm,"dRedFrom")) {
-		double aOld, aNew;
-		aOld = csmTime2Exp(msr->param.csm,dTime);
-		aNew = 1.0 / (1.0 + msr->param.dRedFrom);
-		dTime = msrAdjustTime(msr,aOld,aNew);
-		/* Seriously, we shouldn't need to send parameters *again*.
-		   When we remove sending parameters, we should remove this. */
-		msrInitStep(msr);
-		}
-	    if (prmSpecified(msr->prm,"dSoft")) msrSetSoft(msr,msrSoft(msr));
 	    }
-	else {
+	if (prmSpecified(msr->prm,"dSoft")) msrSetSoft(msr,msrSoft(msr));
+	iStep = msrSteps(msr); /* 0=analysis, >1=simulate, <0=python */
+	}
 #ifdef USE_PYTHON
-	    if ( !msr->param.achScriptFile[0] ) {
+    else if ( msr->param.achScriptFile[0] ) {
+	iStep = -1;
+	}
 #endif
-		printf("No input file specified\n");
-		return NULL;
-		}
-#ifdef USE_PYTHON
-	    }
-#endif
+    else {
+	printf("No input file specified\n");
+	return NULL;
 	}
 
-    if ( msr->param.bWriteIC ) {
-	msrBuildIoName(msr,achFile,0);
-	msrWrite( msr,achFile,dTime,msr->param.bWriteIC-1);
+    /* Adjust theta for gravity calculations. */
+    if (msrComove(msr)) msrSwitchTheta(msr,dTime);
+
+    /* Analysis mode */
+    if (iStep==0) {
+	if (msrDoGravity(msr) ||msrDoGas(msr)) {
+	    msrActiveRung(msr,0,1); /* Activate all particles */
+	    msrDomainDecomp(msr,0,0,0);
+	    msrUpdateSoft(msr,dTime);
+	    msrBuildTree(msr,dTime,msr->param.bEwald);
+	    if (msrDoGravity(msr)) {
+		msrGravity(msr,0,MAX_RUNG,ROOT,0,dTime,msr->param.iStartStep,0,0,
+		    msr->param.bEwald,msr->param.nGroup,&iSec,&nActive);
+		msrMemStatus(msr);
+		if (msr->param.bGravStep) {
+		    msrBuildTree(msr,dTime,msr->param.bEwald);
+		    msrGravity(msr,0,MAX_RUNG,ROOT,0,dTime,msr->param.iStartStep,0,0,
+			msr->param.bEwald,msr->param.nGroup,&iSec,&nActive);
+		    msrMemStatus(msr);
+		    }
+		}
+		
+	    if (msrDoGas(msr)) {
+		/* Initialize SPH, Cooling and SF/FB and gas time step */
+		msrCoolSetup(msr,dTime);
+		/* Fix dTuFac conversion of T in InitSPH */
+		msrInitSph(msr,dTime);
+		}
+		   
+	    msrUpdateRung(msr,0); /* set rungs for output */
+	    }
+	msrOutput(msr,0,dTime,0);  /* JW: Will trash gas density */
 	}
 
-    /*
-    ** Now we have all the parameters for the simulation we can make a
-    ** log file entry.
-    */
-    if (msrLogInterval(msr)) {
-	sprintf(achFile,"%s.log",msrOutName(msr));
-	fpLog = fopen(achFile,"a");
-	assert(fpLog != NULL);
-	setbuf(fpLog,(char *) NULL); /* no buffering */
+#ifdef USE_PYTHON
+    else if ( iStep < 0 ) {
+	PPY ppy;
+	ppyInitialize(&ppy,msr,dTime);
+	msr->prm->script_argv[0] = msr->param.achScriptFile;
+	ppyRunScript(ppy,msr->prm->script_argc,msr->prm->script_argv);
+	ppyFinish(ppy);
+	}
+#endif
+
+    /* Simulation mode */
+    else {
 	/*
-	** Include a comment at the start of the log file showing the
-	** command line options.
+	** Now we have all the parameters for the simulation we can make a
+	** log file entry.
 	*/
-	fprintf(fpLog,"# ");
-	for (i=0;i<argc;++i) fprintf(fpLog,"%s ",argv[i]);
-	fprintf(fpLog,"\n");
-	msrLogParams(msr,fpLog);
-	}
-
-#ifdef USE_PYTHON
-    /* If a script file was specified, enter analysis mode */
-    if ( msr->param.achScriptFile[0] ) iStep = 0;
-    else
-#endif
-	iStep = msrSteps(msr);
-    if (iStep > 0) {
-	if (msrComove(msr)) {
-	    msrSwitchTheta(msr,dTime);
+	if (msrLogInterval(msr)) {
+	    sprintf(achFile,"%s.log",msrOutName(msr));
+	    fpLog = fopen(achFile,"a");
+	    assert(fpLog != NULL);
+	    setbuf(fpLog,(char *) NULL); /* no buffering */
+	    /*
+	    ** Include a comment at the start of the log file showing the
+	    ** command line options.
+	    */
+	    fprintf(fpLog,"# ");
+	    for (i=0;i<argc;++i) fprintf(fpLog,"%s ",argv[i]);
+	    fprintf(fpLog,"\n");
+	    msrLogParams(msr,fpLog);
 	    }
+
 	/*
 	** Build tree, activating all particles first (just in case).
 	*/
@@ -229,9 +263,7 @@ void * master_ch(MDL mdl) {
 	    msrInitRelaxation(msr);
 	    }
 	for (iStep=msr->param.iStartStep+1;iStep<=msrSteps(msr)&&!iStop;++iStep) {
-	    if (msrComove(msr)) {
-		msrSwitchTheta(msr,dTime);
-		}
+	    if (msrComove(msr)) msrSwitchTheta(msr,dTime);
 	    dMultiEff = 0.0;
 	    lSec = time(0);
 	    if (msr->param.bHSDKD) {
@@ -337,69 +369,8 @@ void * master_ch(MDL mdl) {
 		}
 #endif
 	    }
+	if (msrLogInterval(msr)) (void) fclose(fpLog);
 	}
-
-    /* No steps were requested */
-    else {
-#ifdef USE_PYTHON
-	if ( msr->param.achScriptFile[0] ) {
-	    PPY ppy;
-	    ppyInitialize(&ppy,msr,dTime);
-	    msr->prm->script_argv[0] = msr->param.achScriptFile;
-	    ppyRunScript(ppy,msr->prm->script_argc,msr->prm->script_argv);
-	    ppyFinish(ppy);
-	    }
-	else {
-
-#endif
-	    if (msrDoGravity(msr) ||msrDoGas(msr)) {
-		msrActiveRung(msr,0,1); /* Activate all particles */
-		msrDomainDecomp(msr,0,0,0);
-		msrUpdateSoft(msr,dTime);
-		msrBuildTree(msr,dTime,msr->param.bEwald);
-		
-		if (msrDoGravity(msr)) {
-		    msrGravity(msr,0,MAX_RUNG,ROOT,0,dTime,msr->param.iStartStep,0,0,msr->param.bEwald,msr->param.nGroup,&iSec,&nActive);
-		    msrMemStatus(msr);
-		    if (msr->param.bGravStep) {
-			msrBuildTree(msr,dTime,msr->param.bEwald);
-			msrGravity(msr,0,MAX_RUNG,ROOT,0,dTime,msr->param.iStartStep,0,0,msr->param.bEwald,msr->param.nGroup,&iSec,&nActive);
-			msrMemStatus(msr);
-		    }
-		}
-		
-		if (msrDoGas(msr)) {
-		    /* Initialize SPH, Cooling and SF/FB and gas time step */
-		    msrCoolSetup(msr,dTime);
-		    /* Fix dTuFac conversion of T in InitSPH */
-		    msrInitSph(msr,dTime);
-		    }
-		   
-		msrUpdateRung(msr,0); /* set rungs for output */
- 
-		msrCalcEandL(msr,MSR_INIT_E,dTime,&E,&T,&U,&Eth,L,F,&W);
-		dMultiEff = 1.0;
-		if (msrLogInterval(msr)) {
-		    (void) fprintf(fpLog,"%e %e %.16e %e %e %e %.16e %.16e "
-			       "%.16e %.16e %.16e %.16e %.16e %i %e\n",dTime,
-			       1.0/csmTime2Exp(msr->param.csm,dTime)-1.0,
-			       E,T,U,Eth,L[0],L[1],L[2],F[0],F[1],F[2],W,iSec,dMultiEff);
-		    }
-		}
-
-	    msrOutput(msr,0,dTime,0);  /* JW: Will trash gas density */
-
-#ifdef USE_PYTHON
-	    }
-#endif
-
-	}
-
-    if (msrLogInterval(msr)) (void) fclose(fpLog);
-
-#ifdef PP_SIMD_BENCHMARK
-    PPDumpStats();
-#endif
 
     msrFinish(msr);
     return NULL;
