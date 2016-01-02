@@ -72,8 +72,10 @@ void pkdParticleWorkDone(workParticle *work) {
     PKD pkd = work->ctx;
     int i;
     PARTICLE *p;
+    double r[3];
     vel_t *v,v2;
-    float fx, fy, fz;
+    float *a;
+    float fx, fy, fz, m;
     float maga, dT, dtGrav;
     unsigned char uNewRung;
 
@@ -81,8 +83,10 @@ void pkdParticleWorkDone(workParticle *work) {
 	pkd->dFlop += work->dFlop;
 	for( i=0; i<work->nP; i++ ) {
 	    p = work->pPart[i];
+	    pkdGetPos1(pkd,p,r);
+	    m = pkdMass(pkd,p);
 	    if (pkd->oAcceleration) {
-		float *a = pkdAccel(pkd,p);
+		a = pkdAccel(pkd,p);
 		a[0] = work->pInfoOut[i].a[0];
 		a[1] = work->pInfoOut[i].a[1];
 		a[2] = work->pInfoOut[i].a[2];
@@ -91,7 +95,12 @@ void pkdParticleWorkDone(workParticle *work) {
 		float *pPot = pkdPot(pkd,p);
 		*pPot = work->pInfoOut[i].fPot;
 		}
-	    pkd->dEnergyU += 0.5 * pkdMass(pkd,p) * work->pInfoOut[i].fPot;
+	    a = work->pInfoOut[i].a;
+	    pkd->dEnergyU += 0.5 * m * work->pInfoOut[i].fPot;
+	    pkd->dEnergyW += m*(r[0]*a[0] + r[1]*a[1] + r[2]*a[2]);
+	    pkd->dEnergyF[0] += m*a[0];
+	    pkd->dEnergyF[1] += m*a[1];
+	    pkd->dEnergyF[2] += m*a[2];
 
 	    if (work->bGravStep) {
 		float dirsum = work->pInfoOut[i].dirsum;
@@ -168,7 +177,12 @@ void pkdParticleWorkDone(workParticle *work) {
 		/*
 		** Now calculate the kinetic energy term.
 		*/
-		pkd->dEnergyT += 0.5*pkdMass(pkd,p)*v2;
+		pkd->dEnergyT += 0.5*m*v2;
+		/* L is calculated with respect to the origin (0,0,0) */
+		pkd->dEnergyL[0] += m*(r[1]*v[2] - r[2]*v[1]);
+		pkd->dEnergyL[1] += m*(r[2]*v[0] - r[0]*v[2]);
+		pkd->dEnergyL[2] += m*(r[0]*v[1] - r[1]*v[0]);
+
 		if (work->bKickOpen) {
 		    p->uRung = p->uNewRung;
 		    ++pkd->nRung[p->uRung];

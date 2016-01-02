@@ -2229,46 +2229,26 @@ pkdGravAll(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
 #endif
     }
 
+/* This became easier; we already calculated these values on the fly */
 void pkdCalcEandL(PKD pkd,double *T,double *U,double *Eth,double *L,double *F,double *W) {
-    /* L is calculated with respect to the origin (0,0,0) */
+    int i;
 
-    PARTICLE *p;
-    vel_t *v;
-    float *a;
-    FLOAT rx,ry,rz,vx,vy,vz;
-    float fMass;
-    int i,n;
-
-    n = pkdLocal(pkd);
-    *T = 0.0;
-    *U = 0.0;
-    *Eth = 0.0;
-    L[0] = L[1] = L[2] = 0.0;
-    F[0] = F[1] = F[2] = 0.0;
-    *W = 0.0;
-    for (i=0;i<n;++i) {
-	p = pkdParticle(pkd,i);
-	fMass = pkdMass(pkd,p);
-	if (pkd->oPotential) *U += 0.5*fMass*(*(pkdPot(pkd,p)));
-	if (pkd->oAcceleration) {
-	    a = pkdAccel(pkd,p);
-	    *W += fMass*(pkdPos(pkd,p,0)*a[0] + pkdPos(pkd,p,1)*a[1] + pkdPos(pkd,p,2)*a[2]);
-	    F[0] += fMass*a[0];
-	    F[1] += fMass*a[1];
-	    F[2] += fMass*a[2];
+    *T = pkd->dEnergyT;
+    *U = pkd->dEnergyU;
+    *W = pkd->dEnergyW;
+    for(i=0; i<3; ++i) {
+	L[i] = pkd->dEnergyL[i];
+	F[i] = pkd->dEnergyF[i];
 	}
-	if (pkd->oSph && pkdIsGas(pkd,p)) *Eth += fMass*pkdSph(pkd,p)->u;
-	if (pkd->oVelocity) {
-	    v = pkdVel(pkd,p);
-	    rx = pkdPos(pkd,p,0); ry = pkdPos(pkd,p,1); rz = pkdPos(pkd,p,2);
-	    vx = v[0]; vy = v[1]; vz = v[2];
-	    L[0] += fMass*(ry*vz - rz*vy);
-	    L[1] += fMass*(rz*vx - rx*vz);
-	    L[2] += fMass*(rx*vy - ry*vx);
+    if (pkd->oSph) {
+	int n = pkdLocal(pkd);
+	*Eth = 0.0;
+	for (i=0;i<n;++i) {
+	    PARTICLE *p = pkdParticle(pkd,i);
+	    float fMass = pkdMass(pkd,p);
+	    if (pkdIsGas(pkd,p)) *Eth += fMass*pkdSph(pkd,p)->u;
 	    }
 	}
-    *T += pkd->dEnergyT;
-    if (!pkd->oPotential) *U = pkd->dEnergyU;
     }
 
 

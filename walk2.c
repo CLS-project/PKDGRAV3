@@ -781,12 +781,16 @@ static void doneGravWalk(PKD pkd,SMX smx,SMF *smf) {
 	}
     }
 
-
 static void initGravWalk(PKD pkd,double dTime,double dThetaMin,int bPeriodic,int bGravStep,
     SMX *smx, SMF *smf, double *dRhoFac) {
     int pi;
 
     pkd->dEnergyU = 0.0;
+    pkd->dEnergyT = 0.0;
+    pkd->dEnergyW = 0.0;
+    pkd->dEnergyF[0] = pkd->dEnergyF[1] = pkd->dEnergyF[2] = 0.0;
+    pkd->dEnergyL[0] = pkd->dEnergyL[1] = pkd->dEnergyL[2] = 0.0;
+
     pkd->fiCritTheta = 1.0f / dThetaMin;
 
     assert(pkd->oNodeMom);

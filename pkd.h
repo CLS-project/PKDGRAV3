@@ -681,6 +681,9 @@ typedef struct pkdContext {
     double dEnergyU;
     /* also put kinetic energy here to calculate it on the fly */
     double dEnergyT;
+    double dEnergyW;
+    double dEnergyF[3];
+    double dEnergyL[3];
 
     /*
     ** New activation methods
