@@ -110,7 +110,6 @@
 **  SetRung                       Yes     -      |
 **  ZeroNewRung                   Yes     -      |
 **  ActiveRung                    Yes     -      |
-**  CurrRung                      Yes     Yes    |
 **  DensityStep                   Yes     -      |
 **  CoolSetup                     Yes     -      |
 **  Cooling                       Yes     Yes    |
@@ -216,6 +215,9 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_CHECKPOINT,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstCheckpoint,
 		  sizeof(struct inWrite),0);
+    mdlAddService(mdl,PST_RESTORE,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstRestore,
+		  sizeof(struct inRestore),0);
     /*
     ** Calculate the number of levels in the top tree and use it to
     ** define the size of the messages.
@@ -344,9 +346,9 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_ACTIVERUNG,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstActiveRung,
 		  sizeof(struct inActiveRung),0);
-    mdlAddService(mdl,PST_CURRRUNG,pst,
-		  (void (*)(void *,void *,int,void *,int *)) pstCurrRung,
-		  sizeof(struct inCurrRung),sizeof(struct outCurrRung));
+    mdlAddService(mdl,PST_COUNTRUNGS,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstCountRungs,
+		  0,sizeof(struct outCountRungs));
     mdlAddService(mdl,PST_DENSITYSTEP,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstDensityStep,
 		  sizeof(struct inDensityStep),0);
@@ -2260,19 +2262,50 @@ void pstWriteASCII(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     if (pnOut) *pnOut = 0;
     }
 
-static void makeName( char *achOutName, const char *inName, int iIndex ) {
+static void makeName( char *achOutName, const char *inName, int iIndex,const char *prefix ) {
     char *p;
 
     strcpy( achOutName, inName );
     p = strstr( achOutName, "&I" );
     if ( p ) {
 	int n = p - achOutName;
-	sprintf( p, "%d", iIndex );
+	sprintf( p, "%s%d", prefix, iIndex );
 	strcat( p, inName + n + 2 );
 	}
     else {
 	p = achOutName + strlen(achOutName);
-	sprintf(p,".%d", iIndex);
+	sprintf(p,".%s%d", prefix, iIndex);
+	}
+    }
+
+void pstRestore(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    struct inRestore *in = vin;
+
+    mdlassert(pst->mdl,nIn == sizeof(struct inRestore));
+    if (pstNotCore(pst)) {
+	uint64_t nProcessors = in->nProcessors;
+	if (nProcessors>1) { /* Keep going parallel */
+	    int nLower, nUpper;
+	    nLower = nProcessors * pst->nLower / pst->nLeaves;
+	    if (nLower==0) nLower=1;
+	    nUpper = nProcessors - nLower;
+	    in->nProcessors = nUpper;
+	    int rID = mdlReqService(pst->mdl,pst->idUpper,PST_RESTORE,in,nIn);
+	    in->nProcessors = nLower;
+	    pstRestore(pst->pstLower,in,nIn,vout,pnOut);
+	    mdlGetReply(pst->mdl,rID,NULL,NULL);
+	    }
+	else { /* Serialize these processors now */
+	    pstRestore(pst->pstLower,in,nIn,vout,pnOut);
+	    int rID = mdlReqService(pst->mdl,pst->idUpper,PST_RESTORE,in,nIn);
+	    mdlGetReply(pst->mdl,rID,NULL,NULL);
+	    }
+	}
+    else {
+	PKD pkd = pst->plcl->pkd;
+	char achInFile[PST_FILENAME_SIZE];
+	makeName(achInFile,in->achInFile,mdlSelf(pkd->mdl),"chk.");
+	pkdRestore(pkd,achInFile);
 	}
     }
 
@@ -2302,7 +2335,7 @@ void pstCheckpoint(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     else {
 	PKD pkd = pst->plcl->pkd;
 	char achOutFile[PST_FILENAME_SIZE];
-	makeName(achOutFile,in->achOutFile,mdlSelf(pkd->mdl));
+	makeName(achOutFile,in->achOutFile,mdlSelf(pkd->mdl),"chk.");
 	pkdCheckpoint(pkd,achOutFile);
 	}
     }
@@ -2368,7 +2401,7 @@ void pstWrite(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 		}
 	    else {
 		if (strstr(in->achOutFile, "&I" )) {
-		    makeName(achOutFile,in->achOutFile,in->iIndex);
+		    makeName(achOutFile,in->achOutFile,in->iIndex,"");
 		    fio = fioTipsyCreatePart(achOutFile,0,in->mFlags&FIO_FLAG_CHECKPOINT,
 			in->bStandard, in->dTime, 
 			in->nSph, in->nDark, in->nStar, plcl->nWriteStart);
@@ -3284,23 +3317,18 @@ pstActiveRung(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     }
 
 void
-pstCurrRung(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+pstCountRungs(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
-    struct inCurrRung *in = vin;
-    struct outCurrRung *out = vout;
-    int iCurrent;
-
-    mdlassert(pst->mdl,nIn == sizeof(*in));
+    struct outCountRungs *out = vout, outUpper;
+    int i;
     if (pst->nLeaves > 1) {
-	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_CURRRUNG,vin,nIn);
-	pstCurrRung(pst->pstLower,vin,nIn,vout,pnOut);
-	iCurrent = out->iCurrent;
-	mdlGetReply(pst->mdl,rID,vout,pnOut);
-	if (iCurrent)
-	    out->iCurrent = iCurrent;
+	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_COUNTRUNGS,vin,nIn);
+	pstCountRungs(pst->pstLower,vin,nIn,vout,pnOut);
+	mdlGetReply(pst->mdl,rID,&outUpper,pnOut);
+	for(i=0; i<=MAX_RUNG; ++i) out->nRungs[i] += outUpper.nRungs[i];
 	}
     else {
-	out->iCurrent = pkdCurrRung(plcl->pkd, in->iRung);
+	pkdCountRungs(plcl->pkd, out->nRungs);
 	}
     if (pnOut) *pnOut = sizeof(*out);
     }

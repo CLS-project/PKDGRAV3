@@ -84,6 +84,7 @@ enum pst_service {
     PST_WRITEASCII,
     PST_WRITE,
     PST_CHECKPOINT,
+    PST_RESTORE,
     PST_BUILDTREE,
     PST_DISTRIBTOPTREE,
     PST_DUMPTREES,
@@ -124,7 +125,7 @@ enum pst_service {
     PST_SETRUNG,
     PST_ZERONEWRUNG,
     PST_ACTIVERUNG,
-    PST_CURRRUNG,
+    PST_COUNTRUNGS,
     PST_GRAVSTEP,
     PST_ACCELSTEP,
     PST_SPHSTEP,
@@ -391,6 +392,13 @@ struct inWriteASCII {
     char achOutFile[PST_FILENAME_SIZE];
     };
 void pstWriteASCII(PST,void *,int,void *,int *);
+
+/* PST_RESTORE */
+struct inRestore {
+    int nProcessors;
+    char achInFile[PST_FILENAME_SIZE];
+    };
+void pstRestore(PST,void *,int,void *,int *);
 
 /* PST_WRITE */
 struct inWrite {
@@ -773,14 +781,11 @@ struct inActiveRung {
 
 void pstActiveRung(PST,void *,int,void *,int *);
 
-/* PST_CURRRUNG */
-struct inCurrRung {
-    int iRung;
+/* PST_COUNTRUNGS */
+struct outCountRungs {
+    uint64_t nRungs[MAX_RUNG+1];
     };
-struct outCurrRung {
-    int iCurrent;
-    };
-void pstCurrRung(PST,void *,int,void *,int *);
+void pstCountRungs(PST,void *,int,void *,int *);
 
 /* PST_ACCELSTEP */
 struct inAccelStep {

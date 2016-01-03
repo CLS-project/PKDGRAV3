@@ -103,6 +103,44 @@ void _msrExit(MSR msr,int status) {
     exit(status);
     }
 
+char *_BuildName(MSR msr,char *achFile,int iStep,char *defaultPath) {
+    char achOutPath[256], *p;
+    int n;
+
+    if ( defaultPath[0] ) {
+	strcpy( achOutPath, defaultPath );
+	p = strstr( achOutPath, "&N" );
+	if ( p ) {
+	    n = p - achOutPath;
+	    strcpy( p, msrOutName(msr) );
+	    strcat( p+2, defaultPath + n + 2 );
+	    }
+	else {
+	    n = strlen(achOutPath);
+	    if ( !n || achOutPath[n-1]!='/' )
+		achOutPath[n++] = '/';
+	    strcpy(achOutPath+n,msrOutName(msr));
+	    }
+	}
+    else {
+	strcpy(achOutPath,msrOutName(msr));
+	}
+
+    p = strstr( achOutPath, "&S" );
+    if ( p ) {
+	n = p - achOutPath;
+	strncpy( achFile, achOutPath, n );
+	achFile += n;
+	sprintf( achFile, "%05d", iStep );
+	strcat( achFile, p+2 );
+	}
+    else {
+	char achDigitMask[20];
+	sprintf(achDigitMask,"%%s.%%0%ii",msr->param.nDigits);
+	sprintf(achFile,achDigitMask,msrOutName(msr),iStep);
+	}
+    return achFile;
+    }
 
 void _msrMakePath(const char *dir,const char *base,char *path) {
     /*
@@ -121,12 +159,602 @@ void _msrMakePath(const char *dir,const char *base,char *path) {
     strcat(path,base);
     }
 
-void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
+static uint64_t getMemoryModel(MSR msr) {
+    uint64_t mMemoryModel = 0;
+    /*
+    ** Figure out what memory models are in effect.  Configuration flags
+    ** can be used to request a specific model, but certain operations
+    ** will force these flags to be on.
+    */
+    if (msr->param.bFindGroups) mMemoryModel |= PKD_MODEL_GROUPS|PKD_MODEL_VELOCITY|PKD_MODEL_POTENTIAL;
+    if (msrDoGravity(msr)) {
+	mMemoryModel |= PKD_MODEL_VELOCITY|PKD_MODEL_NODE_MOMENT;
+	if (!msr->param.bNewKDK) mMemoryModel |= PKD_MODEL_ACCELERATION;
+	}
+
+    if (msr->param.bMemParticleID)   mMemoryModel |= PKD_MODEL_PARTICLE_ID;
+    if (msr->param.bTraceRelaxation) mMemoryModel |= PKD_MODEL_RELAXATION;
+    if (msr->param.bMemAcceleration || msr->param.bDoAccOutput) mMemoryModel |= PKD_MODEL_ACCELERATION;
+    if (msr->param.bMemVelocity)     mMemoryModel |= PKD_MODEL_VELOCITY;
+    if (msr->param.bMemPotential || msr->param.bDoPotOutput)    mMemoryModel |= PKD_MODEL_POTENTIAL;
+    if (msr->param.bMemGroups)       mMemoryModel |= PKD_MODEL_GROUPS;
+    if (msr->param.bMemMass)         mMemoryModel |= PKD_MODEL_MASS;
+    if (msr->param.bMemSoft)         mMemoryModel |= PKD_MODEL_SOFTENING;
+    if (msr->param.bMemRelaxation)   mMemoryModel |= PKD_MODEL_RELAXATION;
+    if (msr->param.bMemVelSmooth)    mMemoryModel |= PKD_MODEL_VELSMOOTH;
+
+    if (msr->param.bMemNodeAcceleration) mMemoryModel |= PKD_MODEL_NODE_ACCEL;
+    if (msr->param.bMemNodeVelocity)     mMemoryModel |= PKD_MODEL_NODE_VEL;
+    if (msr->param.bMemNodeMoment)       mMemoryModel |= PKD_MODEL_NODE_MOMENT;
+    if (msr->param.bMemNodeSphBounds)    mMemoryModel |= PKD_MODEL_NODE_SPHBNDS;
+
+    if (msr->param.bMemNodeBnd)          mMemoryModel |= PKD_MODEL_NODE_BND;
+    if (msr->param.bMemNodeVBnd)         mMemoryModel |= PKD_MODEL_NODE_VBND;
+
+    return mMemoryModel;
+    }
+
+static void setInitializePStore(MSR msr, struct inInitializePStore *ps) {
+    ps->nTreeBitsLo = msr->param.nTreeBitsLo;
+    ps->nTreeBitsHi = msr->param.nTreeBitsHi;
+    ps->iCacheSize  = msr->param.iCacheSize;
+    ps->iWorkQueueSize  = msr->param.iWorkQueueSize;
+    ps->iCUDAQueueSize  = msr->param.iCUDAQueueSize;
+    ps->fPeriod[0] = msr->param.dxPeriod;
+    ps->fPeriod[1] = msr->param.dyPeriod;
+    ps->fPeriod[2] = msr->param.dzPeriod;
+    ps->nBucket = msr->param.nBucket;
+    ps->nGroup = msr->param.nGroup;
+    ps->mMemoryModel = getMemoryModel(msr) | PKD_MODEL_VELOCITY;
+    ps->bLightCone  = msr->param.bLightCone;
+    ps->bLightConeParticles  = msr->param.bLightConeParticles;    
+
+    ps->nMinEphemeral = 0;
+    ps->nMinTotalStore = 0;
+#ifdef MDL_FFTW
+    if (msr->param.nGridPk>0) {
+	struct inGetFFTMaxSizes inFFTSizes;
+	struct outGetFFTMaxSizes outFFTSizes;
+	int n;
+	inFFTSizes.nx = inFFTSizes.ny = inFFTSizes.nz = msr->param.nGridPk;
+	pstGetFFTMaxSizes(msr->pst,&inFFTSizes,sizeof(inFFTSizes),&outFFTSizes,&n);
+	ps->nMinEphemeral = outFFTSizes.nMaxLocal*sizeof(FFTW3(real));
+	}
+    if (msr->param.nGrid>0) {
+	struct inGetFFTMaxSizes inFFTSizes;
+	struct outGetFFTMaxSizes outFFTSizes;
+	int n;
+	inFFTSizes.nx = inFFTSizes.ny = inFFTSizes.nz = msr->param.nGrid;
+	pstGetFFTMaxSizes(msr->pst,&inFFTSizes,sizeof(inFFTSizes),&outFFTSizes,&n);
+	ps->nMinTotalStore = 10*outFFTSizes.nMaxLocal*sizeof(FFTW3(real));
+	}
+#endif
+    }
+
+static char *formatKey(char *buf,char *fmt,int i) {
+    sprintf(buf,fmt,i);
+    return buf;
+    }
+
+static int readParametersClasses(MSR msr,FILE *fp) {
+    int i;
+    char key[50];
+
+    if (fscanf(fp,"nClasses=%d\n",&msr->nCheckpointClasses) != 1) return 1;
+    for(i=0; i<msr->nCheckpointClasses; ++i) {
+	if (fscanf(fp,formatKey(key,"fMass%d=%%g\n",i),&msr->aCheckpointClasses[i].fMass) != 1) return 1;
+	if (fscanf(fp,formatKey(key,"fSoft%d=%%g\n",i),&msr->aCheckpointClasses[i].fSoft) != 1) return 1;
+	if (fscanf(fp,formatKey(key,"eSpecies%d=%%d\n",i),&msr->aCheckpointClasses[i].eSpecies) != 1) return 1;
+	}
+
+    return 0;
+    }
+
+
+
+/*
+** Read parameters from the checkpoint file. This is extremely STRICT;
+** even an extra space will cause problems. This is by design.
+*/
+int readParameters(MSR msr,const char *fileName) {
+    if (fileName == NULL) return 0;
+    FILE *fp = fopen(fileName,"r");
+    PRM_NODE *pn;
+    char achBuffer[500];
+    char achFormat[50];
+    char *pScan;
+    int bError = 0;
+
+    if (fp==NULL) return 0;
+    if (fscanf(fp,"VERSION=\"%[^\"]\"\n",achBuffer) == 1 ) {
+	if (strcmp(achBuffer,PACKAGE_VERSION)!=0) return 0;
+	}
+    if (fscanf(fp,"iStep=%d\n",&msr->iCheckpointStep)!=1) bError=1;
+    else if (fscanf(fp,"dTime=%lg\n",&msr->dCheckpointTime)!=1) bError=1;
+    else if (fscanf(fp,"dEcosmo=%lg\n",&msr->dEcosmo)!=1) bError=1;
+    else if (fscanf(fp,"dTimeOld=%lg\n",&msr->dTimeOld)!=1) bError=1;
+    else if (fscanf(fp,"dUOld=%lg\n",&msr->dUOld)!=1) bError=1;
+    else if (fscanf(fp,"nSpecies0=%llu\n",&msr->N)!=1) bError=1;
+    else if (fscanf(fp,"nSpecies1=%llu\n",&msr->nDark)!=1) bError=1;
+    else if (fscanf(fp,"nSpecies2=%llu\n",&msr->nGas)!=1) bError=1;
+    else if (fscanf(fp,"nSpecies3=%llu\n",&msr->nStar)!=1) bError=1;
+    else if (readParametersClasses(msr,fp)) bError=1;
+    else if (fscanf(fp,"nCheckpointFiles=%d\n",&msr->nCheckpointThreads)!=1) bError=1;
+    else if (fscanf(fp,"achCheckpointName=\"%[^\"]\"\n",msr->achCheckpointName)!=1) bError=1;
+    else for( pn=msr->prm->pnHead; pn!=NULL; pn=pn->pnNext ) {
+	if (fgets(achBuffer,sizeof(achBuffer),fp)==NULL) bError=1;
+	else switch (pn->iType) {
+	case 0:
+	case 1:
+	    assert(pn->iSize == sizeof(int));
+	    sprintf(achFormat,"%s=%%d\n",pn->pszName);
+	    break;
+	case 2:
+	    assert(pn->iSize == sizeof(double));
+	    sprintf(achFormat,"%s=%%lg\n",pn->pszName);
+	    break;
+	case 3:
+	    *(char *)pn->pValue = 0;
+	    pScan = achBuffer + strlen(achBuffer);
+	    while (pScan>achBuffer && pScan[-1]=='\n') --pScan;
+	    if (pScan-achBuffer >= 2 && pScan[-2]=='"')
+		sprintf(achFormat,"%s=\"\"\n",pn->pszName);
+	    else
+		sprintf(achFormat,"%s=\"%[^\"]\"\n",pn->pszName);
+	    break;
+	case 4:
+	    assert(pn->iSize == sizeof(uint64_t));
+	    sprintf(achFormat,"%s=%%llu\n",pn->pszName);
+	    break;
+	    }
+	pScan = achBuffer;
+	if (*pScan=='#') ++pScan;
+	else  pn->bFile = 1;
+	if (strcmp(pScan,achFormat))
+	    if (sscanf(pScan,achFormat,pn->pValue)!=1) bError=1;
+	if (bError) break;
+	}
+    fclose(fp);
+    return (pn==NULL);
+    }
+
+double msrRestore(MSR msr) {
+    struct inInitializePStore ps;
+    struct inRestore restore;
+    int i;
+    double sec,dsec;
+    BND bnd;
+
+    if (mdlThreads(msr->mdl) != msr->nCheckpointThreads) {
+	fprintf(stderr,"ERROR: You must restart a checkpoint with the same number of threads\n");
+	fprintf(stderr,"       nThreads=%d, nCheckpointThreads=%d\n",mdlThreads(msr->mdl),msr->nCheckpointThreads);
+	fprintf(stderr,"       RESTART WITH %d THREADS\n",msr->nCheckpointThreads);
+	_msrExit(msr,1);
+	}
+
+    if (msr->param.bVStart)
+	printf("Restoring from checkpoint\n");
+    sec = msrTime();
+
+    msr->nMaxOrder = msr->N;
+    setInitializePStore(msr,&ps);
+    ps.nStore = ceil( (1.0+msr->param.dExtraStore) * msr->N / mdlThreads(msr->mdl));
+    for( i=0; i<FIO_SPECIES_LAST; ++i) ps.nSpecies[i] = 0;
+    ps.nSpecies[FIO_SPECIES_ALL]  = msr->N;
+    ps.nSpecies[FIO_SPECIES_SPH]  = msr->nGas;
+    ps.nSpecies[FIO_SPECIES_DARK] = msr->nDark;
+    ps.nSpecies[FIO_SPECIES_STAR] = msr->nStar;
+    pstInitializePStore(msr->pst,&ps,sizeof(ps),NULL,NULL);
+
+    restore.nProcessors = msr->param.bParaRead==0?1:(msr->param.nParaRead<=1 ? msr->nThreads:msr->param.nParaRead);
+    strcpy(restore.achInFile,msr->achCheckpointName);
+    pstRestore(msr->pst,&restore,sizeof(restore),NULL,NULL);
+    pstSetClasses(msr->pst,msr->aCheckpointClasses,msr->nCheckpointClasses*sizeof(PARTCLASS),NULL,NULL);
+    pstCalcBound(msr->pst,NULL,0,&bnd,NULL);
+    msrCountRungs(msr,NULL);
+
+    dsec = msrTime() - sec;
+    PKD pkd = msr->pst->plcl->pkd;
+    double dExp = csmTime2Exp(msr->param.csm,msr->dCheckpointTime);
+    msrprintf(msr,"Checkpoint Restart Complete @ a=%g, Wallclock: %f secs\n\n",dExp,dsec);
+    printf("Allocated %lu MB for particle store on each processor.\n",
+	      pkdParticleMemory(pkd)/(1024*1024));
+    printf("Particles: %lu bytes (persistent) + %d bytes (ephemeral), Nodes: %lu bytes\n",
+	pkdParticleSize(pkd),EPHEMERAL_BYTES,pkdNodeSize(pkd));
+
+    /* We can indicate that the DD was already done at rung 0 */
+    msr->iLastRungRT = 0;
+    msr->iLastRungDD = 0;
+
+    return msr->dCheckpointTime;
+    }
+
+static void writeParameters(MSR msr,const char *baseName,int iStep,double dTime) {
+    PRM_NODE *pn;
+    char *p, achOutName[PST_FILENAME_SIZE];
+    char szNumber[30];
+    double v;
+    uint64_t nSpecies[FIO_SPECIES_LAST];
+    int i;
+    int nBytes;
+
+    pstGetClasses(msr->pst,NULL,0,msr->aCheckpointClasses,&nBytes);
+    msr->nCheckpointClasses = nBytes / sizeof(PARTCLASS);
+    assert(msr->nCheckpointClasses*sizeof(PARTCLASS)==nBytes);
+
+    strcpy( achOutName, baseName );
+    p = strstr( achOutName, "&I" );
+    if ( p ) {
+	int n = p - achOutName;
+	strcpy( p, "chk" );
+	strcat( p, baseName + n + 2 );
+	}
+    else {
+	strcat(achOutName,".chk");
+	}
+
+    FILE *fp = fopen(achOutName,"w");
+    if (fp==NULL) {perror(achOutName); abort(); }
+
+    for(i=0; i<FIO_SPECIES_LAST; ++i) nSpecies[i] = i;
+    nSpecies[FIO_SPECIES_ALL]  = msr->N;
+    nSpecies[FIO_SPECIES_SPH]  = msr->nGas;
+    nSpecies[FIO_SPECIES_DARK] = msr->nDark;
+    nSpecies[FIO_SPECIES_STAR] = msr->nStar;
+
+    fprintf(fp,"VERSION=\"%s\"\n",PACKAGE_VERSION);
+    fprintf(fp,"iStep=%d\n",iStep);
+    fprintf(fp,"dTime=%.17g\n",dTime);
+    fprintf(fp,"dEcosmo=%.17g\n",msr->dEcosmo);
+    fprintf(fp,"dTimeOld=%.17g\n",msr->dTimeOld);
+    fprintf(fp,"dUOld=%.17g\n",msr->dUOld);
+    for(i=0; i<FIO_SPECIES_LAST; ++i)
+	fprintf(fp,"nSpecies%d=%llu\n",i,nSpecies[i]);
+    fprintf(fp,"nClasses=%d\n",msr->nCheckpointClasses);
+    for(i=0; i<msr->nCheckpointClasses; ++i) {
+	fprintf(fp,"fMass%d=%.17g\n",i,msr->aCheckpointClasses[i].fMass);
+	fprintf(fp,"fSoft%d=%.17g\n",i,msr->aCheckpointClasses[i].fSoft);
+	fprintf(fp,"eSpecies%d=%d\n",i,msr->aCheckpointClasses[i].eSpecies);
+	}
+    fprintf(fp,"nCheckpointFiles=%d\n",mdlThreads(msr->mdl));
+    fprintf(fp,"achCheckpointName=\"%s\"\n",baseName);
+
+    for( pn=msr->prm->pnHead; pn!=NULL; pn=pn->pnNext ) {
+	switch (pn->iType) {
+	case 0:
+	case 1:
+	    assert(pn->iSize == sizeof(int));
+	    fprintf(fp,"%s%s=%d\n",pn->bArg|pn->bFile?"":"#",
+		pn->pszName,*(int *)pn->pValue);
+	    break;
+	case 2:
+	    assert(pn->iSize == sizeof(double));
+	    /* This is purely cosmetic so 0.15 doesn't turn into 0.14999999... */
+	    sprintf(szNumber,"%.16g",*(double *)pn->pValue);
+	    sscanf(szNumber,"%le",&v);
+	    if ( v!= *(double *)pn->pValue )
+		sprintf(szNumber,"%.17g",*(double *)pn->pValue);
+	    fprintf(fp,"%s%s=%s\n",pn->bArg|pn->bFile?"":"#",
+		pn->pszName,szNumber);
+	    break;
+	case 3:
+	    fprintf(fp,"%s%s=\"%s\"\n",pn->bArg|pn->bFile?"":"#",
+		pn->pszName,pn->pValue);
+	    break;
+	case 4:
+	    assert(pn->iSize == sizeof(uint64_t));
+	    fprintf(fp,"%s%s=%llu\n",pn->bArg|pn->bFile?"":"#",
+		pn->pszName,*(uint64_t *)pn->pValue);
+	    break;
+	    }
+	}
+    fclose(fp);
+    }
+
+void msrCheckpoint(MSR msr,int iStep,double dTime) {
+    struct inWrite in;
+    double sec,dsec;
+    if ( msr->param.achCheckpointPath[0] )
+	_BuildName(msr,in.achOutFile,iStep, msr->param.achCheckpointPath);
+    else
+	_BuildName(msr,in.achOutFile,iStep, msr->param.achOutPath);
+    in.nProcessors = msr->param.bParaWrite==0?1:(msr->param.nParaWrite<=1 ? msr->nThreads:msr->param.nParaWrite);
+    if (msr->param.csm->bComove) {
+	double dExp = csmTime2Exp(msr->param.csm,dTime);
+	msrprintf(msr,"Writing checkpoing for Step: %d Time:%g Redshift:%g\n",
+	    iStep,dTime,(1.0/dExp - 1.0));
+	}
+    else
+	msrprintf(msr,"Writing checkpoing for Step: %d Time:%g\n",iStep,dTime);
+    sec = msrTime();
+
+    writeParameters(msr,in.achOutFile,iStep,dTime);
+
+    pstCheckpoint(msr->pst,&in,sizeof(in),NULL,NULL);
+
+    /* This is not necessary, but it means the bounds will be identical upon restore */
+    BND bnd;
+    pstCalcBound(msr->pst,NULL,0,&bnd,NULL);
+
+    dsec = msrTime() - sec;
+    msrprintf(msr,"Checkpoint has been successfully written, Wallclock: %f secs.\n", dsec);
+    }
+
+/*
+** This routine validates the given parameters and makes any adjustments.
+*/
+static int validateParameters(PRM prm,struct parameters *param) {
+    
+#define KBOLTZ	1.38e-16     /* bolzman constant in cgs */
+#define MHYDR 1.67e-24       /* mass of hydrogen atom in grams */
+#define MSOLG 1.99e33        /* solar mass in grams */
+#define GCGS 6.67e-8         /* G in cgs */
+#define KPCCM 3.085678e21    /* kiloparsec in centimeters */
+#define SIGMAT 6.6524e-25    /* Thompson cross-section (cm^2) */
+#define LIGHTSPEED 2.9979e10 /* Speed of Light cm/s */
+    /*
+    ** Convert kboltz/mhydrogen to system units, assuming that
+    ** G == 1.
+    */
+    if(prmSpecified(prm, "dMsolUnit") &&
+       prmSpecified(prm, "dKpcUnit")) {
+	param->dGasConst = param->dKpcUnit*KPCCM*KBOLTZ
+	    /MHYDR/GCGS/param->dMsolUnit/MSOLG;
+	/* code energy per unit mass --> erg per g */
+	param->dErgPerGmUnit = GCGS*param->dMsolUnit*MSOLG/(param->dKpcUnit*KPCCM);
+	/* code density --> g per cc */
+	param->dGmPerCcUnit = (param->dMsolUnit*MSOLG)/pow(param->dKpcUnit*KPCCM,3.0);
+	/* code time --> seconds */
+	param->dSecUnit = sqrt(1/(param->dGmPerCcUnit*GCGS));
+	/* code speed --> km/s */
+	param->dKmPerSecUnit = sqrt(GCGS*param->dMsolUnit*MSOLG/(param->dKpcUnit*KPCCM))/1e5;
+	/* code comoving density --> g per cc = param->dGmPerCcUnit (1+z)^3 */
+	param->dComovingGmPerCcUnit = param->dGmPerCcUnit;
+	}
+    else {
+	param->dSecUnit = 1;
+	param->dKmPerSecUnit = 1;
+	param->dComovingGmPerCcUnit = 1;
+	param->dGmPerCcUnit = 1;
+	param->dErgPerGmUnit = 1;
+	}
+
+    param->dTuFac = param->dGasConst/(param->dConstGamma - 1)/
+		param->dMeanMolWeight;
+
+    if (prmSpecified(prm, "dMetalDiffsionCoeff") || prmSpecified(prm,"dThermalDiffusionCoeff")) {
+	if (!prmSpecified(prm, "iDiffusion")) param->iDiffusion=1;
+	}
+
+    {
+	int nCoolingSet=0;
+	if (param->bGasIsothermal) nCoolingSet++; 
+	if (param->bGasCooling) nCoolingSet++; 
+	if (!prmSpecified(prm, "bGasAdiabatic") && nCoolingSet) param->bGasAdiabatic=0;
+	else if (param->bGasAdiabatic) nCoolingSet++;
+
+	if (nCoolingSet != 1) {
+	    fprintf(stderr,"One of bGasAdiabatic (%d), bGasIsothermal (%d) and bGasCooling (%d) may be set\n", param->bGasAdiabatic, param->bGasIsothermal, param->bGasCooling);
+	    assert(0);
+	    }
+	}
+
+
+
+    /* Star parameter checks */
+
+    if (param->bStarForm) {
+	param->bAddDelete = 1;
+	if (!prmSpecified(prm, "bFeedback")) param->bFeedback=1;
+	}
+
+    /* END Gas and Star Parameter Checks */
+
+    if (param->nDigits < 1 || param->nDigits > 9) {
+	(void) fprintf(stderr,"Unreasonable number of filename digits.\n");
+	return 0;
+	}
+
+    /*
+    ** Make sure that we have some setting for nReplicas if bPeriodic is set.
+    */
+    if (param->bPeriodic && !prmSpecified(prm,"nReplicas")) {
+	param->nReplicas = 1;
+	}
+    /*
+    ** Warn that we have a setting for nReplicas if bPeriodic NOT set.
+    */
+    if (!param->bPeriodic && param->nReplicas != 0) {
+	printf("WARNING: nReplicas set to non-zero value for non-periodic!\n");
+	}
+
+    /*
+    ** CUDA likes a larger group size
+    */
+    if (param->iCUDAQueueSize>0 && !prmSpecified(prm,"nGroup") && param->nGroup<256)
+	param->nGroup = 256;
+
+
+#ifndef USE_HDF5
+    if (param->bHDF5) {
+	printf("WARNING: HDF5 output was requested by is not supported: using Tipsy format\n");
+	param->bHDF5 = 0;
+	}
+#endif
+
+#ifdef MDL_FFTW
+    if ( param->nGridPk ) {
+	if (prmSpecified(prm,"nBinsPk")) {
+	    if (param->nBinsPk > param->nGridPk/2) {
+		param->nBinsPk = param->nGridPk/2;
+		}
+	    }
+	else param->nBinsPk = param->nGridPk/2;
+	if (param->nBinsPk > PST_MAX_K_BINS)
+	    param->nBinsPk = PST_MAX_K_BINS;
+	}
+    if ( param->nGrid ) {
+	if (param->achInFile[0]) {
+	    puts("ERROR: do not specify an input file when generating IC");
+	    return 0;
+	    }
+	if ( param->iSeed == 0 ) {
+	    //puts("ERROR: Random seed for IC not specified");
+	    param->iSeed = time(NULL);
+	    }
+	if ( param->dBoxSize <= 0 ) {
+	    puts("ERROR: Box size for IC not specified");
+	    return 0;
+	    }
+	if ( param->h <= 0 ) {
+	    puts("ERROR: Hubble parameter (h) was not specified for IC generation");
+	    return 0;
+	    }
+	}
+    else
+#endif
+
+    if (param->dTheta <= 0) {
+	if (param->dTheta == 0 && param->bVWarnings)
+	    fprintf(stderr,"WARNING: Zero opening angle may cause numerical problems\n");
+	else if (param->dTheta < 0) {
+	    fprintf(stderr,"ERROR: Opening angle must be non-negative\n");
+	    return 0;
+	    }
+	}
+
+    if ( param->dFracNoDomainDecomp > param->dFracNoDomainRootFind
+	    || param->dFracNoDomainRootFind > param->dFracNoDomainDimChoice
+	    || param->dFracNoDomainDecomp<0.0 || param->dFracNoDomainDimChoice > 1.0 ) {
+	puts("ERROR: check that 0 <= dFracNoDomainDecomp <= dFracNoDomainRootFind <= dFracNoDomainDimChoice <= 1");
+	return 0;
+	}
+
+    /* Make sure that the old behaviour is obeyed. */
+    if ( param->nSteps == 0 ) {
+	if ( !prmSpecified(prm,"bDoAccOutput") ) param->bDoAccOutput = 1;
+	if ( !prmSpecified(prm,"bDoPotOutput") ) param->bDoPotOutput = 1;
+	}
+
+    /*
+     * Softening
+     */
+    if (param->bPhysicalSoft ) {
+	if (param->bPhysicalSoft && !param->csm->bComove) {
+	    printf("WARNING: bPhysicalSoft reset to 0 for non-comoving (bComove == 0)\n");
+	    param->bPhysicalSoft = 0;
+	    }
+	}
+    /*
+    ** Determine the period of the box that we are using.
+    ** Set the new d[xyz]Period parameters which are now used instead
+    ** of a single dPeriod, but we still want to have compatibility
+    ** with the old method of setting dPeriod.
+    */
+    if (prmSpecified(prm,"dPeriod") &&
+	    !prmSpecified(prm,"dxPeriod")) {
+	param->dxPeriod = param->dPeriod;
+	}
+    if (prmSpecified(prm,"dPeriod") &&
+	    !prmSpecified(prm,"dyPeriod")) {
+	param->dyPeriod = param->dPeriod;
+	}
+    if (prmSpecified(prm,"dPeriod") &&
+	    !prmSpecified(prm,"dzPeriod")) {
+	param->dzPeriod = param->dPeriod;
+	}
+    /*
+    ** Periodic boundary conditions can be disabled along any of the
+    ** x,y,z axes by specifying a period of zero for the given axis.
+    ** Internally, the period is set to infinity (Cf. pkdBucketWalk()
+    ** and pkdDrift(); also the INTERSECT() macro in smooth.h).
+    */
+    if (param->dPeriod  == 0) param->dPeriod  = FLOAT_MAXVAL;
+    if (param->dxPeriod == 0) param->dxPeriod = FLOAT_MAXVAL;
+    if (param->dyPeriod == 0) param->dyPeriod = FLOAT_MAXVAL;
+    if (param->dzPeriod == 0) param->dzPeriod = FLOAT_MAXVAL;
+    /*
+    ** At the moment, integer positions only work on periodic boxes.
+    */
+#ifdef INTEGER_POSITION
+    if (!param->bPeriodic||param->dxPeriod!=1.0||param->dyPeriod!=1.0||param->dzPeriod!=1.0) {
+	fprintf(stderr,"ERROR: Integer coordinates are enabled but the the box is not periodic\n"
+	               "       and/or the box size is not 1. Set bPeriodic=1 and dPeriod=1.\n");
+	return 0;
+	}
+#endif
+
+    if (!prmSpecified(prm,"dTheta2")) param->dTheta2 = param->dTheta;
+
+
+    /*
+    ** Check if fast gas boundaries are needed.
+    */
+    if (param->bDoGas) {
+	param->bMemNodeSphBounds = 1;
+    }
+    /*
+    ** Check timestepping and gravity combinations.
+    */
+    assert(param->iMaxRung <= IRUNGMAX);
+    if (param->bDoGravity) {
+	/* Potential is optional, but the default for gravity */
+	if (!prmSpecified(prm,"bMemPotential")) param->bMemPotential = 1;
+	if (param->iMaxRung < 1) {
+	    param->iMaxRung = 0;
+	    if (param->bVWarnings) fprintf(stderr,"WARNING: iMaxRung set to 0, SINGLE STEPPING run!\n");
+	    /*
+	    ** For single stepping we don't need fancy timestepping variables.
+	    */
+	    param->bMemNodeAcceleration = 0;
+	    param->bMemNodeVelocity = 0;
+	}
+	else {
+	    if (param->bEpsAccStep) {
+		param->bAccelStep = 1;
+	    }
+	    if ((param->bAccelStep || param->bDensityStep) && param->bGravStep) {
+		/*
+		** We cannot combine these 2 types of timestepping criteria, we need to choose one
+		** or the other basic timestep criterion, in this case we choose only bGravStep.
+		*/
+		param->bAccelStep = 0;
+		param->bEpsAccStep = 0;
+		param->bDensityStep = 0;
+		if (param->bVWarnings) fprintf(stderr,"WARNING: bGravStep set in combination with older criteria, now using ONLY bGravStep!\n");
+	    }
+	    else if (!param->bAccelStep && !param->bGravStep && !param->bDensityStep) {
+		param->bGravStep = 1;
+		if (param->bVWarnings) fprintf(stderr,"WARNING: none of bAccelStep, bDensityStep, or bGravStep set, now using bGravStep!\n");
+	    }
+	    /*
+	    ** Set the needed memory model based on the chosen timestepping method.
+	    */
+	    if (param->bGravStep) {
+		param->bMemNodeAcceleration = 1;
+		if (param->iTimeStepCrit == 1) {
+		    param->bMemNodeVelocity = 1;
+		}
+	    } 
+	    else {
+		param->bMemNodeAcceleration = 0;
+		param->bMemNodeVelocity = 0;
+	    }
+	}
+    }
+
+
+
+    return 1;
+    }
+
+
+int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     MSR msr;
     int i,j,ret;
-    int nDigits;
     struct inSetAdd inAdd;
     char ach[256];
+    int bDoRestore;
 
     msr = (MSR)malloc(sizeof(struct msrContext));
     assert(msr != NULL);
@@ -176,8 +804,8 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.bVDetails = 0;
     prmAddParam(msr->prm,"bVDetails",0,&msr->param.bVDetails,sizeof(int),
 		"vdetails","enable/disable verbose details = +vdetails");
-    nDigits = 5;
-    prmAddParam(msr->prm,"nDigits",1,&nDigits,sizeof(int),"nd",
+    msr->param.nDigits = 5;
+    prmAddParam(msr->prm,"nDigits",1,&msr->param.nDigits,sizeof(int),"nd",
 		"<number of digits to use in output filenames> = 5");
 #ifdef INTEGER_POSITION
     msr->param.bPeriodic = 1;
@@ -232,7 +860,7 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
 		"<output types for snapshot> = \"rvmsp\"");
     msr->param.iCheckInterval = 0;
     prmAddParam(msr->prm,"iCheckInterval",1,&msr->param.iCheckInterval,sizeof(int),
-		"oc","<number of timesteps between checkpoints> = 0");
+		"ci","<number of timesteps between checkpoints> = 0");
     strcpy(msr->param.achCheckTypes,"RVMSP");
     prmAddParam(msr->prm,"achCheckTypes",3,msr->param.achCheckTypes,256,"ct",
 		"<output types for checkpoints> = \"RVMSP\"");
@@ -815,305 +1443,41 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     if (!ret) {
 	_msrExit(msr,1);
 	}
-    /*
-    ** Now read parameter file if one was specified.
-    ** NOTE: command line argument take precedence.
-    */
-    if (!prmParseParam(msr->prm)) {
-	_msrExit(msr,1);
+
+    /* This was a checkpoint file! */
+    bDoRestore = readParameters(msr,msr->prm->pszFilename);
+    if (!bDoRestore) {
+	/*
+	** Now read parameter file if one was specified.
+	** NOTE: command line argument take precedence.
+	*/
+	if (!prmParseParam(msr->prm)) {
+	    _msrExit(msr,1);
+	    }
+	if (!validateParameters(msr->prm,&msr->param)) _msrExit(msr,1);
 	}
 
     /* Gas parameter checks */
 #ifdef CLASSICAL_FOPEN
     fprintf(stderr,"WARNING: CLASSICAL_FOPEN\n");
 #endif
-    /* bolzman constant in cgs */
-#define KBOLTZ	1.38e-16
-    /* mass of hydrogen atom in grams */
-#define MHYDR 1.67e-24
-    /* solar mass in grams */
-#define MSOLG 1.99e33
-    /* G in cgs */
-#define GCGS 6.67e-8
-    /* kiloparsec in centimeters */
-#define KPCCM 3.085678e21
-    /* Thompson cross-section (cm^2) */
-#define SIGMAT 6.6524e-25
-    /* Speed of Light cm/s */
-#define LIGHTSPEED 2.9979e10
-    /*
-    ** Convert kboltz/mhydrogen to system units, assuming that
-    ** G == 1.
-    */
-    if(prmSpecified(msr->prm, "dMsolUnit") &&
-       prmSpecified(msr->prm, "dKpcUnit")) {
-	msr->param.dGasConst = msr->param.dKpcUnit*KPCCM*KBOLTZ
-	    /MHYDR/GCGS/msr->param.dMsolUnit/MSOLG;
-	/* code energy per unit mass --> erg per g */
-	msr->param.dErgPerGmUnit = GCGS*msr->param.dMsolUnit*MSOLG/(msr->param.dKpcUnit*KPCCM);
-	/* code density --> g per cc */
-	msr->param.dGmPerCcUnit = (msr->param.dMsolUnit*MSOLG)/pow(msr->param.dKpcUnit*KPCCM,3.0);
-	/* code time --> seconds */
-	msr->param.dSecUnit = sqrt(1/(msr->param.dGmPerCcUnit*GCGS));
-	/* code speed --> km/s */
-	msr->param.dKmPerSecUnit = sqrt(GCGS*msr->param.dMsolUnit*MSOLG/(msr->param.dKpcUnit*KPCCM))/1e5;
-	/* code comoving density --> g per cc = msr->param.dGmPerCcUnit (1+z)^3 */
-	msr->param.dComovingGmPerCcUnit = msr->param.dGmPerCcUnit;
-	}
-    else {
-	msr->param.dSecUnit = 1;
-	msr->param.dKmPerSecUnit = 1;
-	msr->param.dComovingGmPerCcUnit = 1;
-	msr->param.dGmPerCcUnit = 1;
-	msr->param.dErgPerGmUnit = 1;
-	}
 
-    msr->param.dTuFac = msr->param.dGasConst/(msr->param.dConstGamma - 1)/
-		msr->param.dMeanMolWeight;
-
-    if (prmSpecified(msr->prm, "dMetalDiffsionCoeff") || prmSpecified(msr->prm,"dThermalDiffusionCoeff")) {
-	if (!prmSpecified(msr->prm, "iDiffusion")) msr->param.iDiffusion=1;
-	}
-
-    {
-	int nCoolingSet=0;
-	if (msr->param.bGasIsothermal) nCoolingSet++; 
-	if (msr->param.bGasCooling) nCoolingSet++; 
-	if (!prmSpecified(msr->prm, "bGasAdiabatic") && nCoolingSet) msr->param.bGasAdiabatic=0;
-	else if (msr->param.bGasAdiabatic) nCoolingSet++;
-
-	if (nCoolingSet != 1) {
-	    fprintf(stderr,"One of bGasAdiabatic (%d), bGasIsothermal (%d) and bGasCooling (%d) may be set\n", msr->param.bGasAdiabatic, msr->param.bGasIsothermal, msr->param.bGasCooling);
-	    assert(0);
-	    }
-	}
     
-    /* Star parameter checks */
 
-    if (msr->param.bStarForm) {
-	msr->param.bAddDelete = 1;
-	if (!prmSpecified(msr->prm, "bFeedback")) msr->param.bFeedback=1;
-	}
-
-    /* END Gas and Star Parameter Checks */
-
-    if (nDigits < 1 || nDigits > 9) {
-	(void) fprintf(stderr,"Unreasonable number of filename digits.\n");
-	_msrExit(msr,1);
-	}
-
-    (void) sprintf(msr->param.achDigitMask,"%%s.%%0%ii",nDigits);
-    /*
-    ** Make sure that we have some setting for nReplicas if bPeriodic is set.
-    */
-    if (msr->param.bPeriodic && !prmSpecified(msr->prm,"nReplicas")) {
-	msr->param.nReplicas = 1;
-	}
-    /*
-    ** Warn that we have a setting for nReplicas if bPeriodic NOT set.
-    */
-    if (!msr->param.bPeriodic && msr->param.nReplicas != 0) {
-	printf("WARNING: nReplicas set to non-zero value for non-periodic!\n");
-	}
-
-    /*
-    ** CUDA likes a larger group size
-    */
-    if (msr->param.iCUDAQueueSize>0 && !prmSpecified(msr->prm,"nGroup") && msr->param.nGroup<256)
-	msr->param.nGroup = 256;
-
-
-#ifndef USE_HDF5
-    if (msr->param.bHDF5) {
-	printf("WARNING: HDF5 output was requested by is not supported: using Tipsy format\n");
-	msr->param.bHDF5 = 0;
-	}
-#endif
-
-#ifdef MDL_FFTW
-    if ( msr->param.nGridPk ) {
-	if (prmSpecified(msr->prm,"nBinsPk")) {
-	    if (msr->param.nBinsPk > msr->param.nGridPk/2) {
-		msr->param.nBinsPk = msr->param.nGridPk/2;
-		}
-	    }
-	else msr->param.nBinsPk = msr->param.nGridPk/2;
-	if (msr->param.nBinsPk > PST_MAX_K_BINS)
-	    msr->param.nBinsPk = PST_MAX_K_BINS;
-	}
-    if ( msr->param.nGrid ) {
-	if (msr->param.achInFile[0]) {
-	    puts("ERROR: do not specify an input file when generating IC");
-	    _msrExit(msr,1);
-	    }
-	if ( msr->param.iSeed == 0 ) {
-	    //puts("ERROR: Random seed for IC not specified");
-	    msr->param.iSeed = time(NULL);
-	    }
-	if ( msr->param.dBoxSize <= 0 ) {
-	    puts("ERROR: Box size for IC not specified");
-	    _msrExit(msr,1);
-	    }
-	if ( msr->param.h <= 0 ) {
-	    puts("ERROR: Hubble parameter (h) was not specified for IC generation");
-	    _msrExit(msr,1);
-	    }
-	}
-    else
-#endif
-
-    if (msr->param.dTheta <= 0) {
-	if (msr->param.dTheta == 0 && msr->param.bVWarnings)
-	    fprintf(stderr,"WARNING: Zero opening angle may cause numerical problems\n");
-	else if (msr->param.dTheta < 0) {
-	    fprintf(stderr,"ERROR: Opening angle must be non-negative\n");
-	    _msrExit(msr,1);
-	    }
-	}
-
-    if ( msr->param.dFracNoDomainDecomp > msr->param.dFracNoDomainRootFind
-	    || msr->param.dFracNoDomainRootFind > msr->param.dFracNoDomainDimChoice
-	    || msr->param.dFracNoDomainDecomp<0.0 || msr->param.dFracNoDomainDimChoice > 1.0 ) {
-	puts("ERROR: check that 0 <= dFracNoDomainDecomp <= dFracNoDomainRootFind <= dFracNoDomainDimChoice <= 1");
-	_msrExit(msr,1);
-	}
-
-    /* Make sure that the old behaviour is obeyed. */
-    if ( msr->param.nSteps == 0 ) {
-	if ( !prmSpecified(msr->prm,"bDoAccOutput") ) msr->param.bDoAccOutput = 1;
-	if ( !prmSpecified(msr->prm,"bDoPotOutput") ) msr->param.bDoPotOutput = 1;
-	}
-
-    /*
-     * Softening
-     */
-
-    if (msr->param.bPhysicalSoft ) {
-	if (msr->param.bPhysicalSoft && !msrComove(msr)) {
-	    printf("WARNING: bPhysicalSoft reset to 0 for non-comoving (bComove == 0)\n");
-	    msr->param.bPhysicalSoft = 0;
-	    }
-	}
-    /*
-    ** Determine the period of the box that we are using.
-    ** Set the new d[xyz]Period parameters which are now used instead
-    ** of a single dPeriod, but we still want to have compatibility
-    ** with the old method of setting dPeriod.
-    */
-    if (prmSpecified(msr->prm,"dPeriod") &&
-	    !prmSpecified(msr->prm,"dxPeriod")) {
-	msr->param.dxPeriod = msr->param.dPeriod;
-	}
-    if (prmSpecified(msr->prm,"dPeriod") &&
-	    !prmSpecified(msr->prm,"dyPeriod")) {
-	msr->param.dyPeriod = msr->param.dPeriod;
-	}
-    if (prmSpecified(msr->prm,"dPeriod") &&
-	    !prmSpecified(msr->prm,"dzPeriod")) {
-	msr->param.dzPeriod = msr->param.dPeriod;
-	}
-    /*
-    ** Periodic boundary conditions can be disabled along any of the
-    ** x,y,z axes by specifying a period of zero for the given axis.
-    ** Internally, the period is set to infinity (Cf. pkdBucketWalk()
-    ** and pkdDrift(); also the INTERSECT() macro in smooth.h).
-    */
-    if (msr->param.dPeriod  == 0) msr->param.dPeriod  = FLOAT_MAXVAL;
-    if (msr->param.dxPeriod == 0) msr->param.dxPeriod = FLOAT_MAXVAL;
-    if (msr->param.dyPeriod == 0) msr->param.dyPeriod = FLOAT_MAXVAL;
-    if (msr->param.dzPeriod == 0) msr->param.dzPeriod = FLOAT_MAXVAL;
-    /*
-    ** At the moment, integer positions only work on periodic boxes.
-    */
-#ifdef INTEGER_POSITION
-    if (!msr->param.bPeriodic||msr->param.dxPeriod!=1.0||msr->param.dyPeriod!=1.0||msr->param.dzPeriod!=1.0) {
-	fprintf(stderr,"ERROR: Integer coordinates are enabled but the the box is not periodic\n"
-	               "       and/or the box size is not 1. Set bPeriodic=1 and dPeriod=1.\n");
-	_msrExit(msr,1);
-	}
-#endif
-
-
-    /*
-    ** Determine opening type.
-    */
-    if (!prmSpecified(msr->prm,"dTheta2"))
-	msr->param.dTheta2 = msr->param.dTheta;
+    /* Determine current opening angle  */
     msr->dThetaMin = msr->param.dTheta;
     if ( !prmSpecified(msr->prm,"nReplicas") && msr->param.nReplicas==1 ) {
 	if ( msr->dThetaMin < 0.52 ) msr->param.nReplicas = 2;
 	}
 
     /*
-    ** Make sure n2min is greater than nBucket^2!
-    msr->param.n2min = (msr->param.n2min < msr->param.nBucket*msr->param.nBucket+1)?
-	msr->param.nBucket*msr->param.nBucket+1:msr->param.n2min;
-    */
-    /*
     ** Initialize comove variables.
     */
     msr->nMaxOuts = 100;
     msr->pdOutTime = malloc(msr->nMaxOuts*sizeof(double));
     assert(msr->pdOutTime != NULL);
-    msr->nOuts = 0;
-
-    /*
-    ** Check if fast gas boundaries are needed.
-    */
-    if (msr->param.bDoGas) {
-	msr->param.bMemNodeSphBounds = 1;
-    }
-    /*
-    ** Check timestepping and gravity combinations.
-    */
-    assert(msr->param.iMaxRung <= IRUNGMAX);
-    if (msr->param.bDoGravity) {
-	/* Potential is optional, but the default for gravity */
-	if (!prmSpecified(msr->prm,"bMemPotential")) msr->param.bMemPotential = 1;
-	if (msr->param.iMaxRung < 1) {
-	    msr->param.iMaxRung = 0;
-	    if (msr->param.bVWarnings) fprintf(stderr,"WARNING: iMaxRung set to 0, SINGLE STEPPING run!\n");
-	    /*
-	    ** For single stepping we don't need fancy timestepping variables.
-	    */
-	    msr->param.bMemNodeAcceleration = 0;
-	    msr->param.bMemNodeVelocity = 0;
-	}
-	else {
-	    if (msr->param.bEpsAccStep) {
-		msr->param.bAccelStep = 1;
-	    }
-	    if ((msr->param.bAccelStep || msr->param.bDensityStep) && msr->param.bGravStep) {
-		/*
-		** We cannot combine these 2 types of timestepping criteria, we need to choose one
-		** or the other basic timestep criterion, in this case we choose only bGravStep.
-		*/
-		msr->param.bAccelStep = 0;
-		msr->param.bEpsAccStep = 0;
-		msr->param.bDensityStep = 0;
-		if (msr->param.bVWarnings) fprintf(stderr,"WARNING: bGravStep set in combination with older criteria, now using ONLY bGravStep!\n");
-	    }
-	    else if (!msr->param.bAccelStep && !msr->param.bGravStep && !msr->param.bDensityStep) {
-		msr->param.bGravStep = 1;
-		if (msr->param.bVWarnings) fprintf(stderr,"WARNING: none of bAccelStep, bDensityStep, or bGravStep set, now using bGravStep!\n");
-	    }
-	    /*
-	    ** Set the needed memory model based on the chosen timestepping method.
-	    */
-	    if (msr->param.bGravStep) {
-		msr->param.bMemNodeAcceleration = 1;
-		if (msr->param.iTimeStepCrit == 1) {
-		    msr->param.bMemNodeVelocity = 1;
-		}
-	    } 
-	    else {
-		msr->param.bMemNodeAcceleration = 0;
-		msr->param.bMemNodeVelocity = 0;
-	    }
-	}
-    }
-
     msr->nOuts = msr->iOut = 0;
+
 
     pstInitialize(&msr->pst,msr->mdl,&msr->lcl);
     pstAddServices(msr->pst,msr->mdl);
@@ -1146,6 +1510,8 @@ void msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
 
     msr->iRungVeryActive = msr->param.iMaxRung; /* No very active particles */
     msr->bSavePending = 0;                      /* There is no pending save */
+
+    return bDoRestore;
     }
 
 void msrLogParams(MSR msr,FILE *fp) {
@@ -1469,7 +1835,6 @@ void msrSetClasses(MSR msr) {
     free(pClass);
     }
 
-
 static void _SwapClasses(MSR msr, int id) {
     LCL *plcl = msr->pst->plcl;
     PST pst0 = msr->pst;
@@ -1652,163 +2017,6 @@ double getTime(MSR msr, double dExpansion, double *dvFac) {
 	}
 
     return dTime;
-    }
-
-static uint64_t getMemoryModel(MSR msr) {
-    uint64_t mMemoryModel = 0;
-    /*
-    ** Figure out what memory models are in effect.  Configuration flags
-    ** can be used to request a specific model, but certain operations
-    ** will force these flags to be on.
-    */
-    if (msr->param.bFindGroups) mMemoryModel |= PKD_MODEL_GROUPS|PKD_MODEL_VELOCITY|PKD_MODEL_POTENTIAL;
-    if (msrDoGravity(msr)) {
-	mMemoryModel |= PKD_MODEL_VELOCITY|PKD_MODEL_NODE_MOMENT;
-	if (!msr->param.bNewKDK) mMemoryModel |= PKD_MODEL_ACCELERATION;
-	}
-
-    if (msr->param.bMemParticleID)   mMemoryModel |= PKD_MODEL_PARTICLE_ID;
-    if (msr->param.bTraceRelaxation) mMemoryModel |= PKD_MODEL_RELAXATION;
-    if (msr->param.bMemAcceleration || msr->param.bDoAccOutput) mMemoryModel |= PKD_MODEL_ACCELERATION;
-    if (msr->param.bMemVelocity)     mMemoryModel |= PKD_MODEL_VELOCITY;
-    if (msr->param.bMemPotential || msr->param.bDoPotOutput)    mMemoryModel |= PKD_MODEL_POTENTIAL;
-    if (msr->param.bMemGroups)       mMemoryModel |= PKD_MODEL_GROUPS;
-    if (msr->param.bMemMass)         mMemoryModel |= PKD_MODEL_MASS;
-    if (msr->param.bMemSoft)         mMemoryModel |= PKD_MODEL_SOFTENING;
-    if (msr->param.bMemRelaxation)   mMemoryModel |= PKD_MODEL_RELAXATION;
-    if (msr->param.bMemVelSmooth)    mMemoryModel |= PKD_MODEL_VELSMOOTH;
-
-    if (msr->param.bMemNodeAcceleration) mMemoryModel |= PKD_MODEL_NODE_ACCEL;
-    if (msr->param.bMemNodeVelocity)     mMemoryModel |= PKD_MODEL_NODE_VEL;
-    if (msr->param.bMemNodeMoment)       mMemoryModel |= PKD_MODEL_NODE_MOMENT;
-    if (msr->param.bMemNodeSphBounds)    mMemoryModel |= PKD_MODEL_NODE_SPHBNDS;
-
-    if (msr->param.bMemNodeBnd)          mMemoryModel |= PKD_MODEL_NODE_BND;
-    if (msr->param.bMemNodeVBnd)         mMemoryModel |= PKD_MODEL_NODE_VBND;
-
-    return mMemoryModel;
-    }
-
-char *_BuildName(MSR msr,char *achFile,int iStep,char *defaultPath) {
-    char achOutPath[256], *p;
-    int n;
-
-    if ( defaultPath[0] ) {
-	strcpy( achOutPath, defaultPath );
-	p = strstr( achOutPath, "&N" );
-	if ( p ) {
-	    n = p - achOutPath;
-	    strcpy( p, msrOutName(msr) );
-	    strcat( p+2, defaultPath + n + 2 );
-	    }
-	else {
-	    n = strlen(achOutPath);
-	    if ( !n || achOutPath[n-1]!='/' )
-		achOutPath[n++] = '/';
-	    strcpy(achOutPath+n,msrOutName(msr));
-	    }
-	}
-    else {
-	strcpy(achOutPath,msrOutName(msr));
-	}
-
-    p = strstr( achOutPath, "&S" );
-    if ( p ) {
-	n = p - achOutPath;
-	strncpy( achFile, achOutPath, n );
-	achFile += n;
-	sprintf( achFile, "%05d", iStep );
-	strcat( achFile, p+2 );
-	}
-    else {
-	sprintf(achFile,msr->param.achDigitMask,msrOutName(msr),iStep);
-	}
-    return achFile;
-    }
-
-static void writeParameters(MSR msr,const char *baseName,int iStep,double dTime) {
-    PRM_NODE *pn;
-    char *p, achOutName[PST_FILENAME_SIZE];
-    char szNumber[30];
-    double v;
-
-    strcpy( achOutName, baseName );
-    p = strstr( achOutName, "&I" );
-    if ( p ) {
-	int n = p - achOutName;
-	strcpy( p, "cpt" );
-	strcat( p, baseName + n + 2 );
-	}
-    else {
-	strcat(achOutName,".cpt");
-	}
-
-    FILE *fp = fopen(achOutName,"w");
-    if (fp==NULL) {perror(achOutName); abort(); }
-
-    fprintf(fp,"VERSION=\"%s\"\n",PACKAGE_VERSION);
-    fprintf(fp,"iStep=%d\n",iStep);
-    fprintf(fp,"dTime=%.17g\n",dTime);
-    fprintf(fp,"dEcosmo=%.17g\n",msr->dEcosmo);
-    fprintf(fp,"dTimeOld=%.17g\n",msr->dTimeOld);
-    fprintf(fp,"dUOld=%.17g\n",msr->dUOld);
-    fprintf(fp,"nCheckpointFiles=%d\n",mdlThreads(msr->mdl));
-    fprintf(fp,"achCheckpointName=\"%s\"\n",baseName);
-
-    for( pn=msr->prm->pnHead; pn!=NULL; pn=pn->pnNext ) {
-	switch (pn->iType) {
-	case 0:
-	case 1:
-	    assert(pn->iSize == sizeof(int));
-	    fprintf(fp,"%s%s=%d\n",pn->bArg|pn->bFile?"":"#",
-		pn->pszName,*(int *)pn->pValue);
-	    break;
-	case 2:
-	    assert(pn->iSize == sizeof(double));
-	    /* This is purely cosmetic so 0.15 doesn't turn into 0.14999999... */
-	    sprintf(szNumber,"%.16g",*(double *)pn->pValue);
-	    sscanf(szNumber,"%le",&v);
-	    if ( v!= *(double *)pn->pValue )
-		sprintf(szNumber,"%.17g",*(double *)pn->pValue);
-	    fprintf(fp,"%s%s=%s\n",pn->bArg|pn->bFile?"":"#",
-		pn->pszName,szNumber);
-	    break;
-	case 3:
-	    fprintf(fp,"%s%s=\"%s\"\n",pn->bArg|pn->bFile?"":"#",
-		pn->pszName,pn->pValue);
-	    break;
-	case 4:
-	    assert(pn->iSize == sizeof(uint64_t));
-	    fprintf(fp,"%s%s=%llu\n",pn->bArg|pn->bFile?"":"#",
-		pn->pszName,*(uint64_t *)pn->pValue);
-	    break;
-	    }
-	}
-    fclose(fp);
-    }
-
-void msrCheckpoint(MSR msr,int iStep,double dTime) {
-    struct inWrite in;
-    double sec,dsec;
-    if ( msr->param.achCheckpointPath[0] )
-	_BuildName(msr,in.achOutFile,iStep, msr->param.achCheckpointPath);
-    else
-	_BuildName(msr,in.achOutFile,iStep, msr->param.achOutPath);
-    in.nProcessors = msr->param.bParaWrite==0?1:(msr->param.nParaWrite<=1 ? msr->nThreads:msr->param.nParaWrite);
-    if (msr->param.csm->bComove) {
-	double dExp = csmTime2Exp(msr->param.csm,dTime);
-	msrprintf(msr,"Writing checkpoing for Step: %d Time:%g Redshift:%g\n",
-	    iStep,dTime,(1.0/dExp - 1.0));
-	}
-    else
-	msrprintf(msr,"Writing checkpoing for Step: %d Time:%g\n",iStep,dTime);
-    sec = msrTime();
-
-    writeParameters(msr,in.achOutFile,iStep,dTime);
-
-    pstCheckpoint(msr->pst,&in,sizeof(in),NULL,NULL);
-    dsec = msrTime() - sec;
-    msrprintf(msr,"Checkpoint has been successfully written, Wallclock: %f secs.\n", dsec);
     }
 
 /*
@@ -3253,11 +3461,11 @@ void msrInitStep(MSR msr) {
     /*
     ** Initialize particles to lowest rung. (what for? JW: Seconded and removed)
     */
-    insr.uRung = 0; /* msr->param.iMaxRung - 1; */
-    insr.uRungLo = 0;
-    insr.uRungHi = MAX_RUNG;
-    pstSetRung(msr->pst, &insr, sizeof(insr), NULL, NULL);
-    msr->iCurrMaxRung = insr.uRung;
+//    insr.uRung = 0; /* msr->param.iMaxRung - 1; */
+//    insr.uRungLo = 0;
+//    insr.uRungHi = MAX_RUNG;
+//    pstSetRung(msr->pst, &insr, sizeof(insr), NULL, NULL);
+//    msr->iCurrMaxRung = insr.uRung;
     }
 
 
@@ -3334,13 +3542,17 @@ void msrSetRungVeryActive(MSR msr, int iRung) {
     pstSetRungVeryActive(msr->pst,&in,sizeof(in),NULL,NULL);
     }
 
-int msrCurrRung(MSR msr, int iRung) {
-    struct inCurrRung in;
-    struct outCurrRung out;
-
-    in.iRung = iRung;
-    pstCurrRung(msr->pst, &in, sizeof(in), &out, NULL);
-    return out.iCurrent;
+int msrCountRungs(MSR msr, uint64_t *nRungs) {
+    struct outCountRungs out;
+    int i, iMaxRung=0;
+    pstCountRungs(msr->pst, NULL, 0, &out, NULL);
+    for(i=0; i<=MAX_RUNG; ++i) {
+	msr->nRung[i] = out.nRungs[i];
+	if (msr->nRung[i]) iMaxRung = i;
+	if (nRungs) nRungs[i] = msr->nRung[i];
+	}
+    msr->iCurrMaxRung = iMaxRung;
+    return iMaxRung;
     }
 
 void msrAccelStep(MSR msr,uint8_t uRungLo,uint8_t uRungHi,double dTime) {
@@ -3612,7 +3824,6 @@ void msrNewTopStepKDK(MSR msr,
 
     uint64_t nActive;
     double dDelta;
-    
     if (uRung < *puRungMax) msrNewTopStepKDK(msr,uRung+1,pdStep,pdTime,puRungMax,piSec);
     /* This Drifts everybody */
     msrprintf(msr,"Drift, uRung: %d\n",*puRungMax);
@@ -4591,44 +4802,6 @@ void msrRelaxation(MSR msr,double dTime,double deltaT,int iSmoothType,int bSymme
 	}
     }
 
-static void setInitializePStore(MSR msr, struct inInitializePStore *ps) {
-    ps->nTreeBitsLo = msr->param.nTreeBitsLo;
-    ps->nTreeBitsHi = msr->param.nTreeBitsHi;
-    ps->iCacheSize  = msr->param.iCacheSize;
-    ps->iWorkQueueSize  = msr->param.iWorkQueueSize;
-    ps->iCUDAQueueSize  = msr->param.iCUDAQueueSize;
-    ps->fPeriod[0] = msr->param.dxPeriod;
-    ps->fPeriod[1] = msr->param.dyPeriod;
-    ps->fPeriod[2] = msr->param.dzPeriod;
-    ps->nBucket = msr->param.nBucket;
-    ps->nGroup = msr->param.nGroup;
-    ps->mMemoryModel = getMemoryModel(msr) | PKD_MODEL_VELOCITY;
-    ps->bLightCone  = msr->param.bLightCone;
-    ps->bLightConeParticles  = msr->param.bLightConeParticles;    
-
-    ps->nMinEphemeral = 0;
-    ps->nMinTotalStore = 0;
-#ifdef MDL_FFTW
-    if (msr->param.nGridPk>0) {
-	struct inGetFFTMaxSizes inFFTSizes;
-	struct outGetFFTMaxSizes outFFTSizes;
-	int n;
-	inFFTSizes.nx = inFFTSizes.ny = inFFTSizes.nz = msr->param.nGridPk;
-	pstGetFFTMaxSizes(msr->pst,&inFFTSizes,sizeof(inFFTSizes),&outFFTSizes,&n);
-	ps->nMinEphemeral = outFFTSizes.nMaxLocal*sizeof(FFTW3(real));
-	}
-    if (msr->param.nGrid>0) {
-	struct inGetFFTMaxSizes inFFTSizes;
-	struct outGetFFTMaxSizes outFFTSizes;
-	int n;
-	inFFTSizes.nx = inFFTSizes.ny = inFFTSizes.nz = msr->param.nGrid;
-	pstGetFFTMaxSizes(msr->pst,&inFFTSizes,sizeof(inFFTSizes),&outFFTSizes,&n);
-	ps->nMinTotalStore = 10*outFFTSizes.nMaxLocal*sizeof(FFTW3(real));
-	}
-#endif
-    }
-
-
 #ifdef MDL_FFTW
 double msrGenerateIC(MSR msr) {
     struct inGenerateIC in;
@@ -4974,12 +5147,6 @@ void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint) {
 	msrSmooth(msr,dTime,SMX_DENSITY,bSymmetric,msr->param.nSmooth);
 #endif
 	}
-
-#ifdef MDL_FFTW
-    if (msr->param.nGridPk>0) {
-	msrOutputPk(msr,iStep,dTime);
-	}
-#endif
 
     if ( msr->param.bFindGroups ) {
 	/*

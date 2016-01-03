@@ -63,9 +63,16 @@ typedef struct msrContext {
 
     int bSavePending;
 
+    /* Values for a restore from checkpoint */
+    double dCheckpointTime;
+    int iCheckpointStep;
+    int nCheckpointThreads;
+    char achCheckpointName[PST_FILENAME_SIZE];
+    int nCheckpointClasses;
+    PARTCLASS aCheckpointClasses[PKD_MAX_CLASSES];
     } * MSR;
 
-void msrInitialize(MSR *,MDL,int,char **);
+int msrInitialize(MSR *,MDL,int,char **);
 void msrLogParams(MSR msr, FILE *fp);
 void msrprintf(MSR msr, const char *Format, ... );
 int msrGetLock(MSR msr);
@@ -156,6 +163,7 @@ void msrGravStep(MSR msr, double dTime);
 void msrAccelStep(MSR msr,uint8_t uRungLo,uint8_t uRungHi,double dTime);
 void msrDensityStep(MSR msr,uint8_t uRungLo,uint8_t uRungHi,double dTime);
 int msrUpdateRung(MSR msr, uint8_t uRung);
+int msrCountRungs(MSR msr, uint64_t *nRungs);
 
 /*
 ** Interface functions.
@@ -163,6 +171,7 @@ int msrUpdateRung(MSR msr, uint8_t uRung);
 int msrSteps(MSR);
 void msrOutputPk(MSR msr,int iStep,double dTime);
 void msrCheckpoint(MSR msr, int iStep, double dTime);
+double msrRestore(MSR msr);
 void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint);
 char *msrOutName(MSR);
 char *msrBuildName(MSR msr,char *achFile,int iStep);

@@ -748,14 +748,6 @@ typedef struct pkdContext {
     float *gridData;
     struct psContext *psx;
 
-    /* ORB Domain Decomposition */
-    int iDomainRung;
-    ORBCOUNT *pDomainCountsLocal; /* [nDomains] */
-    int *iFirstActive, *iFirstInActive;
-    int *iSplitActive, *iSplitInActive;
-    int *counts, *rdisps;
-    uint8_t *cSplitDims;
-    double *dSplits;
     } * PKD;
 
 
@@ -986,7 +978,6 @@ static inline float pkdSoft0( PKD pkd, PARTICLE *p ) {
     }
 static inline float pkdSoft( PKD pkd, PARTICLE *p ) {
     float fSoft;
-
     if ( pkd->fSoftFix >= 0.0 ) fSoft = pkd->fSoftFix;
     else fSoft = pkdSoft0(pkd,p);
     fSoft *= pkd->fSoftFac;
@@ -1179,6 +1170,7 @@ int pkdNumDstActive(PKD pkd,uint8_t uRungLo,uint8_t uRungHi);
 int pkdColOrdRejects(PKD,uint64_t,int);
 void pkdLocalOrder(PKD,uint64_t iMinOrder,uint64_t iMaxOrder);
 void pkdCheckpoint(PKD pkd,const char *fname);
+void pkdRestore(PKD pkd,const char *fname);
 uint32_t pkdWriteFIO(PKD pkd,FIO fio,double dvFac,BND *bnd);
 void pkdWriteFromNode(PKD pkd,int iNode, FIO fio,double dvFac,BND *bnd);
 void pkdWriteViaNode(PKD pkd, int iNode);
@@ -1206,7 +1198,7 @@ void pkdInitStep(PKD pkd,struct parameters *p,CSM csm);
 void pkdSetRung(PKD pkd,uint8_t uRungLo, uint8_t uRungHi, uint8_t uRung);
 void pkdZeroNewRung(PKD pkd,uint8_t uRungLo, uint8_t uRungHi, uint8_t uRung);
 void pkdActiveRung(PKD pkd, int iRung, int bGreater);
-int pkdCurrRung(PKD pkd,uint8_t uRung);
+void pkdCountRungs(PKD pkd,uint64_t *nRungs);
 void pkdAccelStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,
 		  double dEta,double dVelFac,double dAccFac,
 		  int bDoGravity,int bEpsAcc,double dhMinOverSoft);

@@ -73,18 +73,20 @@ void * master_ch(MDL mdl) {
     double E=0,T=0,U=0,Eth=0,L[3]={0,0,0},F[3]={0,0,0},W=0;
     double dMultiEff=0;
     long lSec=0,lStart;
-    int i,iStep,iSec=0,iStop=0;
+    int i,iStep,iStartStep,iSec=0,iStop=0;
     uint64_t nActive;
     int bKickOpen = 0;
+    int64_t nRungs[MAX_RUNG+1];
     uint8_t uRungMax;
     double diStep;
     double ddTime;
+    int bRestore;
 
     lStart=time(0);
 
     printf("%s\n", PACKAGE_STRING );
 
-    msrInitialize(&msr,mdl,argc,argv);
+    bRestore = msrInitialize(&msr,mdl,argc,argv);
 
     /*
     ** Establish safety lock.
@@ -107,8 +109,19 @@ void * master_ch(MDL mdl) {
     */
     msrHostname(msr);
 
+    /* Restore from a previous checkpoint */
+    if (bRestore) {
+	dTime = msrRestore(msr);
+	iStartStep = msr->iCheckpointStep;
+	msrInitStep(msr);
+	if (prmSpecified(msr->prm,"dSoft")) msrSetSoft(msr,msrSoft(msr));
+	iStep = msrSteps(msr); /* 0=analysis, >1=simulate, <0=python */
+	uRungMax = msr->iCurrMaxRung;
+	}
+
     /* Generate the initial particle distribution */
-    if (prmSpecified(msr->prm,"nGrid")) {
+    else if (prmSpecified(msr->prm,"nGrid")) {
+	iStartStep = msr->param.iStartStep; /* Should be zero */
 #ifdef MDL_FFTW
 	dTime = msrGenerateIC(msr); /* May change nSteps/dDelta */
 	if ( msr->param.bWriteIC ) {
@@ -127,6 +140,7 @@ void * master_ch(MDL mdl) {
 
     /* Read in a binary file */
     else if ( msr->param.achInFile[0] ) {
+	iStartStep = msr->param.iStartStep; /* Should be zero */
 	dTime = msrRead(msr,msr->param.achInFile); /* May change nSteps/dDelta */
 	msrInitStep(msr);
 	if (msr->param.bAddDelete) msrGetNParts(msr);
@@ -164,12 +178,12 @@ void * master_ch(MDL mdl) {
 	    msrUpdateSoft(msr,dTime);
 	    msrBuildTree(msr,dTime,msr->param.bEwald);
 	    if (msrDoGravity(msr)) {
-		msrGravity(msr,0,MAX_RUNG,ROOT,0,dTime,msr->param.iStartStep,0,0,
+		msrGravity(msr,0,MAX_RUNG,ROOT,0,dTime,iStartStep,0,0,
 		    msr->param.bEwald,msr->param.nGroup,&iSec,&nActive);
 		msrMemStatus(msr);
 		if (msr->param.bGravStep) {
 		    msrBuildTree(msr,dTime,msr->param.bEwald);
-		    msrGravity(msr,0,MAX_RUNG,ROOT,0,dTime,msr->param.iStartStep,0,0,
+		    msrGravity(msr,0,MAX_RUNG,ROOT,0,dTime,iStartStep,0,0,
 			msr->param.bEwald,msr->param.nGroup,&iSec,&nActive);
 		    msrMemStatus(msr);
 		    }
@@ -218,6 +232,8 @@ void * master_ch(MDL mdl) {
 	    msrLogParams(msr,fpLog);
 	    }
 
+	if (bRestore) goto test_continue;
+
 	/*
 	** Build tree, activating all particles first (just in case).
 	*/
@@ -225,7 +241,7 @@ void * master_ch(MDL mdl) {
 	msrDomainDecomp(msr,0,0,0);
 #ifdef MDL_FFTW
 	if (msr->param.nGridPk>0) {
-	    msrOutputPk(msr,msr->param.iStartStep,dTime);
+	    msrOutputPk(msr,iStartStep,dTime);
 	    }
 #endif
 	msrUpdateSoft(msr,dTime);
@@ -233,12 +249,12 @@ void * master_ch(MDL mdl) {
 	if (msrDoGravity(msr) && !msr->param.bHSDKD) {
 	    if (msr->param.bNewKDK) bKickOpen = 1;
 	    else bKickOpen = 0;
-	    uRungMax = msrGravity(msr,0,MAX_RUNG,ROOT,0,dTime,msr->param.iStartStep,0,bKickOpen,msr->param.bEwald,msr->param.nGroup,&iSec,&nActive);
+	    uRungMax = msrGravity(msr,0,MAX_RUNG,ROOT,0,dTime,iStartStep,0,bKickOpen,msr->param.bEwald,msr->param.nGroup,&iSec,&nActive);
 	    msrMemStatus(msr);
 	    if (msr->param.bGravStep) {
 		assert(msr->param.bNewKDK == 0);    /* for now! */
 		msrBuildTree(msr,dTime,msr->param.bEwald);
-		msrGravity(msr,0,MAX_RUNG,ROOT,0,dTime,msr->param.iStartStep,0,0,msr->param.bEwald,msr->param.nGroup,&iSec,&nActive);
+		msrGravity(msr,0,MAX_RUNG,ROOT,0,dTime,iStartStep,0,0,msr->param.bEwald,msr->param.nGroup,&iSec,&nActive);
 		msrMemStatus(msr);
 		if (msr->param.bHSDKD) {
 		    msrAccelStep(msr,0,MAX_RUNG,dTime);
@@ -264,7 +280,9 @@ void * master_ch(MDL mdl) {
 	if ( msr->param.bTraceRelaxation) {
 	    msrInitRelaxation(msr);
 	    }
-	for (iStep=msr->param.iStartStep+1;iStep<=msrSteps(msr)&&!iStop;++iStep) {
+    test_continue:
+
+	for (iStep=iStartStep+1;iStep<=msrSteps(msr)&&!iStop;++iStep) {
 	    if (msrComove(msr)) msrSwitchTheta(msr,dTime);
 	    dMultiEff = 0.0;
 	    lSec = time(0);
@@ -351,19 +369,17 @@ void * master_ch(MDL mdl) {
 		    || (iStep%msrCheckInterval(msr) == 0) ) ) {
 		bGlobalOutput = 0;
 		msrCheckpoint(msr,iStep,dTime);
-#ifdef MDL_FFTW
-		if (iStep%msr->param.iPkInterval == 0) {
-		    msrOutputPk(msr,iStep,dTime);
-		    }
-#endif
 		}
-	    else if (bGlobalOutput || msrOutTime(msr,dTime) || iStep == msrSteps(msr) || iStop ||
-		    (msrOutInterval(msr) > 0 && iStep%msrOutInterval(msr) == 0) ||
-		    (msrCheckInterval(msr) > 0 && iStep%msrCheckInterval(msr) == 0)) {
+
+#ifdef MDL_FFTW
+	    if (iStep%msr->param.iPkInterval == 0) {
+		msrOutputPk(msr,iStep,dTime);
+		}
+#endif
+	    if (bGlobalOutput || msrOutTime(msr,dTime) || iStep == msrSteps(msr) || iStop ||
+		    (msrOutInterval(msr) > 0 && iStep%msrOutInterval(msr) == 0)) {
 		bGlobalOutput = 0;
-		msrOutput(msr,iStep,dTime, msrCheckInterval(msr)>0
-			  && (iStep%msrCheckInterval(msr) == 0
-			      || iStep == msrSteps(msr) || iStop));
+		msrOutput(msr,iStep,dTime, 0);
 		}
 #ifdef MDL_FFTW
 	    else if (iStep%msr->param.iPkInterval == 0) {

@@ -96,6 +96,7 @@ struct parameters {
     int iRungCoolTableUpdate;
     int bHSDKD;
     int bNewKDK;
+    int nDigits;
     double dEtaCourant;
     double dEtaUDot;
     double dConstAlpha;
@@ -157,7 +158,6 @@ struct parameters {
     double dRedTo;
     double dRedFrom;
     double dCentMass;
-    char achDigitMask[256];
     char achInFile[256];
     char achOutName[256];
     char achOutPath[256];

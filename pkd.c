@@ -786,7 +786,7 @@ void pkdSetClasses( PKD pkd, int n, PARTCLASS *pClass, int bUpdate ) {
     PARTICLE *p;
     int i,j;
 
-    if ( bUpdate ) {
+    if ( bUpdate && pkd->nClasses) {
 	/* Build a map from the old class to the new class */
 	assert( n >= pkd->nClasses );
 	for ( i=0; i<pkd->nClasses; i++ ) {
@@ -806,8 +806,7 @@ void pkdSetClasses( PKD pkd, int n, PARTCLASS *pClass, int bUpdate ) {
 	}
 
     /* Finally, set the new class table */
-    for ( i=0; i<n; i++ )
-	pkd->pClass[i] = pClass[i];
+    for ( i=0; i<n; i++ ) pkd->pClass[i] = pClass[i];
     pkd->nClasses = n;
     }
 
@@ -875,62 +874,6 @@ void pkdSeek(PKD pkd,FILE *fp,uint64_t nStart,int bStandard,int bDoublePos) {
 	}
 #endif
     }
-
-
-#ifdef USE_GRAFIC
-void pkdGenerateIC(PKD pkd, GRAFICCTX gctx,  int iDim,
-		   double fSoft, double fMass, int bComove) {
-    PARTICLE *p;
-    int i, j, k, d, pi, n1, n2, n3;
-    double dx;
-    double dvFac, a;
-    vel_t *v;
-
-    graficGenerate(gctx, iDim, 1 );
-
-    pkd->nLocal = pkd->nActive = graficGetLocal(gctx);
-
-    pi = 0;
-    n1 = graficGetLocalDim(gctx,1);
-    n2 = graficGetLocalDim(gctx,2);
-    n3 = graficGetLocalDim(gctx,3);
-
-    dx = 1.0 / n1;
-    d = iDim - 1;
-    a = graficGetExpansionFactor(gctx);
-    dvFac = bComove ? a*a : 1.0;
-
-    for ( i=0; i<n1; i++ ) {
-	for ( j=0; j<n2; j++ ) {
-	    for ( k=0; k<n3; k++ ) {
-		p = pkdParticle(pkd,pi);
-		v = pkdVel(pkd,p);
-		p->uRung = p->uNewRung = 0;
-		p->bSrcActive = p->bDstActive = p->bMarked = 1;
-		p->fDensity = 0.0;
-		p->fBall = 0.0;
-		/*
-		** Clear the accelerations so that the timestepping calculations
-		** do not get funny uninitialized values!
-		*/
-		p->a[0] = p->a[1] = p->a[2] = 0.0;
-		p->r[d] = graficGetPosition(gctx,i,j,k,d) - 0.5;
-		if ( p->r[d] < -0.5 ) p->r[d] += 1.0;
-		if ( p->r[d] >= 0.5 ) p->r[d] -= 1.0;
-		assert( p->r[d] >= -0.5 && p->r[d] < 0.5 );
-		v[d] = graficGetVelocity(gctx,i,j,k) * dvFac;
-		pkdSetClass(pkd,fMass,fSoft,p);
-		p->iOrder = 0; /* FIXME */
-		p->iClass = 0;
-		pi++;
-		}
-	    }
-	}
-
-    assert( pi == pkd->nLocal );
-    }
-
-#endif
 
 void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double dTuFac) {
     int i,j;
@@ -1712,36 +1655,47 @@ typedef struct {
     int fd;
     } asyncInfo;
 
-static void queue_dio_write(asyncInfo *info,int i) {
-    size_t nWrite = info->nBytes > info->nBufferSize 
+static void queue_dio(asyncInfo *info,int i,int bWrite) {
+    size_t nBytes = info->nBytes > info->nBufferSize 
 	? info->nBufferSize : info->nBytes;
-//    memcpy(info->pBuffer[i],info->pSource,nWrite);
+//    if (bWrite) memcpy(info->pBuffer[i],info->pSource,nBytes);
     /* Align buffer size for direct I/O. File will be truncated before closing */
-    nWrite = (nWrite+info->nPageSize-1) & ~(info->nPageSize-1);
+    nBytes = (nBytes+info->nPageSize-1) & ~(info->nPageSize-1);
 
-//    io_prep_pwrite(info->cb+i,info->fd,info->pBuffer[i],nWrite,info->iFilePosition);
-    io_prep_pwrite(info->cb+i,info->fd,info->pSource,nWrite,info->iFilePosition);
-
+//    io_prep_pwrite(info->cb+i,info->fd,info->pBuffer[i],nBytes,info->iFilePosition);
+    if (bWrite) io_prep_pwrite(info->cb+i,info->fd,info->pSource,nBytes,info->iFilePosition);
+    else        io_prep_pread(info->cb+i,info->fd,info->pSource,nBytes,info->iFilePosition);
     int rc = io_submit(info->ctx,1,info->pcb+i);
     if (rc<0) { perror("io_submit"); abort(); }
-    info->iFilePosition += nWrite;
-    if (nWrite < info->nBytes) {
-	info->pSource += nWrite;
-	info->nBytes -= nWrite;
+    info->iFilePosition += nBytes;
+    if (nBytes < info->nBytes) {
+	info->pSource += nBytes;
+	info->nBytes -= nBytes;
 	}
     else info->nBytes = 0;
     }
 
-static void asyncCheckpoint(PKD pkd,const char *fname) {
-    size_t nFileSize = pkdParticleSize(pkd) * pkd->nLocal;
+static void asyncCheckpoint(PKD pkd,const char *fname,int bWrite) {
+    size_t nFileSize;
 //    size_t nEphemeral = (size_t)EPHEMERAL_BYTES * pkd->nStore;
 //    char *pBuffer = pkd->pLite;
 //    uintptr_t iBuffer = (uintptr_t)pBuffer;
     asyncInfo info;
     int i, rc;
 
-    info.fd = open(fname,O_DIRECT|O_CREAT|O_WRONLY|O_TRUNC,S_IRWXU|S_IRWXG);
-    if (info.fd<0) { perror(fname); abort(); }
+    if (bWrite) {
+	info.fd = open(fname,O_DIRECT|O_CREAT|O_WRONLY|O_TRUNC,S_IRWXU|S_IRWXG);
+	if (info.fd<0) { perror(fname); abort(); }
+	nFileSize = pkdParticleSize(pkd) * pkd->nLocal;
+	}
+    else {
+	struct stat s;
+	info.fd = open(fname,O_DIRECT|O_RDONLY);
+	if (info.fd<0) { perror(fname); abort(); }
+	if ( fstat(info.fd,&s) != 0 ) { perror(fname); abort(); }
+	nFileSize = s.st_size;
+	pkd->nLocal = nFileSize / pkdParticleSize(pkd);
+	}
 
     /* Align the ephemeral storage to a page boundary - require for direct I/O */
     info.nPageSize = sysconf(_SC_PAGESIZE);
@@ -1757,7 +1711,8 @@ static void asyncCheckpoint(PKD pkd,const char *fname) {
 //    info.nBufferSize = nEphemeral / ASYNC_COUNT;
     info.nBufferSize = nFileSize / ASYNC_COUNT;
     info.nBufferSize = 1 << (int)log2(info.nBufferSize); /* Prefer power of two */
-    assert(info.nBufferSize>=DIRECT_IO_SIZE);
+    assert(info.nBufferSize >= info.nPageSize);
+//    assert(info.nBufferSize>=DIRECT_IO_SIZE);
 //    info.nBuffers = nEphemeral / info.nBufferSize;
     info.nBuffers = nFileSize / info.nBufferSize + 1;
     assert(info.nBuffers>=ASYNC_COUNT && info.nBuffers<=2*ASYNC_COUNT+1);
@@ -1776,14 +1731,13 @@ static void asyncCheckpoint(PKD pkd,const char *fname) {
 
     info.pSource = (char *)pkdParticleBase(pkd);
     info.nBytes = nFileSize;
-
-    /* Queue as many writes as we have buffers */
+    /* Queue as many operations as we have buffers */
     info.iFilePosition = 0;
     for(i=0; i<info.nBuffers && info.nBytes; ++i)
-	queue_dio_write(&info,i);
+	queue_dio(&info,i,bWrite);
     info.nBuffers = i;
 
-    /* Main loop. Keep going until nothing left to write */
+    /* Main loop. Keep going until nothing left to do */
     int nInFlight = i;
     while (nInFlight) {
 	int nEvent = io_getevents(info.ctx,1,info.nBuffers,info.events,NULL);
@@ -1800,7 +1754,7 @@ static void asyncCheckpoint(PKD pkd,const char *fname) {
 		abort();
 		}
 	    else if (info.nBytes) {
-		queue_dio_write(&info,info.events[i].obj-info.cb);
+		queue_dio(&info,info.events[i].obj-info.cb,bWrite);
 		}
 	    else --nInFlight;
 	    }
@@ -1810,7 +1764,7 @@ static void asyncCheckpoint(PKD pkd,const char *fname) {
     if (rc<0) { perror("io_destroy"); abort(); }
 
     /* Record the actual file size */
-    ftruncate(info.fd,nFileSize);
+    if (bWrite) ftruncate(info.fd,nFileSize);
     close(info.fd);
     }
 
@@ -1827,37 +1781,51 @@ typedef struct {
     size_t nBytes;         /* Number of bytes left to write */
     int nPageSize;
     int nBuffers;
+    int fd;
     } asyncInfo;
 
-static void queue_dio_write(asyncInfo *info,int i) {
-    size_t nWrite = info->nBytes > info->nBufferSize 
+static void queue_dio(asyncInfo *info,int i,int bWrite) {
+    int rc;
+    size_t nBytes = info->nBytes > info->nBufferSize 
 	? info->nBufferSize : info->nBytes;
-    memcpy(info->pBuffer[i],info->pSource,nWrite);
+    if (bWrite) memcpy(info->pBuffer[i],info->pSource,nBytes);
     /* Align buffer size for direct I/O. File will be truncated before closing */
-    nWrite = (nWrite+info->nPageSize-1) & ~(info->nPageSize-1);
+    nBytes = (nBytes+info->nPageSize-1) & ~(info->nPageSize-1);
     info->cb[i].aio_offset = info->iFilePosition;
-    info->cb[i].aio_nbytes = nWrite;
-    info->cb[i].aio_lio_opcode = LIO_WRITE;
-    int rc = aio_write(&info->cb[i]);
-    if (rc) { perror("aio_write"); abort(); }
-    info->iFilePosition += nWrite;
-    if (nWrite < info->nBytes) {
-	info->pSource += nWrite;
-	info->nBytes -= nWrite;
+    info->cb[i].aio_nbytes = nBytes;
+    if (bWrite) rc = aio_write(&info->cb[i]);
+    else rc = aio_read(&info->cb[i]);
+    if (rc) { perror("aio_write/read"); abort(); }
+    info->iFilePosition += nBytes;
+    if (nBytes < info->nBytes) {
+	info->pSource += nBytes;
+	info->nBytes -= nBytes;
 	}
     else info->nBytes = 0;
     }
 
-static void asyncCheckpoint(PKD pkd,const char *fname) {
-    size_t nFileSize = pkdParticleSize(pkd) * pkd->nLocal;
+static void asyncCheckpoint(PKD pkd,const char *fname, int bWrite) {
+    size_t nFileSize;
     size_t nEphemeral = (size_t)EPHEMERAL_BYTES * pkd->nStore;
     char *pBuffer = pkd->pLite;
     uintptr_t iBuffer = (uintptr_t)pBuffer;
     asyncInfo info;
     int i, rc;
 
-    int fd = open(fname,O_DIRECT|O_CREAT|O_WRONLY|O_TRUNC,S_IRWXU|S_IRWXG);
-    if (fd<0) { perror(fname); abort(); }
+    if (bWrite) {
+	info.fd = open(fname,O_DIRECT|O_CREAT|O_WRONLY|O_TRUNC,S_IRWXU|S_IRWXG);
+	if (info.fd<0) { perror(fname); abort(); }
+	nFileSize = pkdParticleSize(pkd) * pkd->nLocal;
+	}
+    else {
+	struct stat s;
+	info.fd = open(fname,O_DIRECT|O_RDONLY);
+	if (info.fd<0) { perror(fname); abort(); }
+	if ( fstat(info.fd,&s) != 0 ) { perror(fname); abort(); }
+	nFileSize = s.st_size;
+	pkd->nLocal = nFileSize / pkdParticleSize(pkd);
+	}
+
 
     /* Align the ephemeral storage to a page boundary - require for direct I/O */
     info.nPageSize = sysconf(_SC_PAGESIZE);
@@ -1881,7 +1849,7 @@ static void asyncCheckpoint(PKD pkd,const char *fname) {
     for(i=0; i<info.nBuffers; ++i) {
 	info.pcb[i] = info.cb + i;
 	info.pBuffer[i] = pBuffer;
-	info.cb[i].aio_fildes = fd;
+	info.cb[i].aio_fildes = info.fd;
 	info.cb[i].aio_offset = 0;
 	info.cb[i].aio_buf = pBuffer;
 	info.cb[i].aio_nbytes = info.nBufferSize;
@@ -1893,13 +1861,13 @@ static void asyncCheckpoint(PKD pkd,const char *fname) {
     info.pSource = (char *)pkdParticleBase(pkd);
     info.nBytes = nFileSize;
 
-    /* Queue as many writes as we have buffers */
+    /* Queue as many operations as we have buffers */
     info.iFilePosition = 0;
     for(i=0; i<info.nBuffers && info.nBytes; ++i)
-	queue_dio_write(&info,i);
+	queue_dio(&info,i,bWrite);
     info.nBuffers = i;
 
-    /* Main loop. Keep going until nothing left to write */
+    /* Main loop. Keep going until nothing left to do */
     int bDone;
     do {
 	rc = aio_suspend(info.pcb,info.nBuffers,NULL);
@@ -1918,9 +1886,10 @@ static void asyncCheckpoint(PKD pkd,const char *fname) {
 		    perror(szError);
 		    abort();
 		    }
+		if (!bWrite) memcpy()
 		if (info.nBytes) {
 		    bDone = 0;
-		    queue_dio_write(&info,i);
+		    queue_dio(&info,i,bWrite);
 		    }
 		else info.pcb[i] = NULL;
 		}
@@ -1928,11 +1897,9 @@ static void asyncCheckpoint(PKD pkd,const char *fname) {
 	    }
 	} while(!bDone);
     /* Record the actual file size */
-    ftruncate(fd,nFileSize);
-    close(fd);
+    if(bWrite) ftruncate(info.fd,nFileSize);
+    close(info.fd);
     }
-#else
-#define asyncCheckpoint simpleCheckpoint
 #endif
 
 #define WRITE_LIMIT (1024*1024*1024)
@@ -1966,9 +1933,49 @@ void pkdCheckpoint(PKD pkd,const char *fname) {
     ** We want at least (10) buffers of (1 MB) each, otherwise it is not worth
     ** the effort so we fall back to a regular buffered write scheme.
     */
+#if defined(HAVE_LIBAIO_H) || defined(HAVE_LIBAIO_H)
     if (nEphemeral-nPageSize < ASYNC_COUNT * DIRECT_IO_SIZE) 
 	simpleCheckpoint(pkd,fname);
-    else asyncCheckpoint(pkd,fname);
+    else asyncCheckpoint(pkd,fname,1);
+#else
+    simpleCheckpoint(pkd,fname);
+#endif
+    }
+
+#define READ_LIMIT (1024*1024*1024)
+static void simpleRestore(PKD pkd,const char *fname) {
+    int fd = open(fname,O_RDONLY);
+    if (fd<0) { perror(fname); abort(); }
+
+    struct stat s;
+    if ( fstat(fd,&s) != 0 ) { perror(fname); abort(); }
+
+    size_t nBytesToRead = s.st_size;
+    pkd->nLocal = nBytesToRead / pkdParticleSize(pkd);
+    char *pBuffer = (char *)pkdParticleBase(pkd);
+    ssize_t nBytesRead;
+    while(nBytesToRead) {
+	size_t nRead = nBytesToRead > READ_LIMIT ? READ_LIMIT : nBytesToRead;
+	nBytesRead = read(fd,pBuffer,nRead);
+	if (nBytesRead != nRead) {
+	    char szError[100];
+	    sprintf(szError,"errno=%d nBytes=%llu nRead=%llu\n",
+		errno,nBytesRead,nRead);
+	    perror(szError);
+	    abort();
+	    }
+	pBuffer += nRead;
+	nBytesToRead -= nRead;
+	}
+    close(fd);
+    }
+
+void pkdRestore(PKD pkd,const char *fname) {
+#if defined(HAVE_LIBAIO_H) || defined(HAVE_LIBAIO_H)
+    asyncCheckpoint(pkd,fname,0);
+#else
+    simpleRestore(pkd,fname);
+#endif
     }
 
 static void writeParticle(PKD pkd,FIO fio,double dvFac,BND *bnd,PARTICLE *p) {
@@ -2636,20 +2643,15 @@ void pkdActiveRung(PKD pkd, int iRung, int bGreater) {
     pkd->uMaxRungActive = bGreater ? 255 : iRung;
     }
 
-int pkdCurrRung(PKD pkd,uint8_t uRung) {
+void pkdCountRungs(PKD pkd,uint64_t *nRungs) {
     PARTICLE *p;
     int i;
-    int iCurrent;
+    for (i=0;i<=MAX_RUNG;++i) nRungs[i] = 0;
 
-    iCurrent = 0;
     for (i=0;i<pkdLocal(pkd);++i) {
 	p = pkdParticle(pkd,i);
-	if (p->uRung == uRung) {
-	    iCurrent = 1;
-	    break;
-	    }
+	++nRungs[p->uRung];
 	}
-    return iCurrent;
     }
 
 void pkdAccelStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,
@@ -3040,7 +3042,6 @@ int pkdUpdateRung(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     int i;
     int iTempRung;
     for (i=0;i<iMaxRung;++i) nRungCount[i] = 0;
-
     for (i=0;i<pkdLocal(pkd);++i) {
 	p = pkdParticle(pkd,i);
 	if ( pkdIsActive(pkd,p) ) {
