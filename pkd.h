@@ -426,7 +426,8 @@ typedef struct {
     remoteID rmt;
     uint32_t iGlobalId;   /* Global unique group id */
     uint32_t nLocal;      /* Local to this processor */
-    uint32_t iTreeRoot;
+    uint32_t iTreeRoot;   /* Our local tree root */
+    uint32_t iAllRoots;
     uint16_t nRemote;     /* Number of remote partners */
     uint8_t  bNeedGrav : 1;
     uint8_t  bComplete : 1;
@@ -719,7 +720,6 @@ typedef struct pkdContext {
 
     GHtmpGroupTable *tmpHopGroups;
     HopGroupTable *hopGroups;
-    uint16_t *hopNumRoots;
     int *hopRootIndex;
     int hopSavedRoots;
     remoteID *hopRoots;

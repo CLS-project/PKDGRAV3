@@ -117,9 +117,8 @@ static void updateGroupIds(PKD pkd, int nGroups, struct smGroupArray *ga, int bI
 		ga[gid].id.iIndex = newGid[ga[gid].id.iIndex];
 		}
 	    else {
-		g = mdlAcquire(pkd->mdl,CID_GROUP,ga[gid].id.iIndex,ga[gid].id.iPid);
+		g = mdlFetch(pkd->mdl,CID_GROUP,ga[gid].id.iIndex,ga[gid].id.iPid);
 		ga[gid].id.iIndex = *g;
-		mdlRelease(pkd->mdl,CID_GROUP,g);
 		}
 	    }
 	mdlFinishCache(mdl,CID_GROUP);
@@ -924,7 +923,6 @@ static void initHopGetRoots(void *vpkd, void *v) {
     g->rmt.iPid = -1;
     g->rmt.iIndex = 0;
     g->iGlobalId = 0;
-
     }
 
 static void combHopGetRoots(void *vctx, void *v1, void *v2) {
@@ -934,10 +932,9 @@ static void combHopGetRoots(void *vctx, void *v1, void *v2) {
 
     if (g2->iGlobalId) {
 	int gid = g1 - pkd->hopGroups;
-	int iRoot = pkd->hopRootIndex[gid] + pkd->hopNumRoots[gid];
-	assert(pkd->hopNumRoots[gid]>0);
-	assert(iRoot < pkd->hopRootIndex[gid+1]);
-	++pkd->hopNumRoots[gid];
+	int iRoot = pkd->hopRootIndex[gid]++;
+	assert(gid<pkd->nLocalGroups); /* We should only get data for local groups */
+	assert(pkd->hopRoots[iRoot].iPid==-1 && pkd->hopRoots[iRoot].iIndex==-1);
 	pkd->hopRoots[iRoot].iPid = g2->rmt.iPid;
 	pkd->hopRoots[iRoot].iIndex = g2->rmt.iIndex;
 	}
@@ -947,8 +944,6 @@ void pkdHopTreeBuild(PKD pkd, int nBucket) {
     MDL mdl = pkd->mdl;
     int nDomains = mdlThreads(mdl);
     HopGroupTable * g;
-    MDL_Datatype typeRemoteID, *stypes, *rtypes;
-    int *scounts, *rcounts, *sdispls, *rdispls, *lens, *disps;
     int i, gid, iRoot;
     int iPid, iLastPid;
     int nRootsTotal;
@@ -964,43 +959,36 @@ void pkdHopTreeBuild(PKD pkd, int nBucket) {
 	}
 
     /* Setup the buffer for tree roots */
-    pkd->hopNumRoots = malloc((pkd->nGroups+1) * sizeof(*pkd->hopNumRoots) );
-    assert(pkd->hopNumRoots!=NULL);
     pkd->hopRootIndex= malloc((pkd->nGroups+1) * sizeof(*pkd->hopRootIndex) );
     assert(pkd->hopRootIndex!=NULL);
 
-    /* Count roots and calculate offsets, ignoring groups that don't need gravity done */
+    /* Calculate the index into the tree roots table */
     nRootsTotal = 0;
-    pkd->hopNumRoots[0] = 0;
-    pkd->hopRootIndex[0] = 0;
     for(i=1; i<pkd->nGroups; ++i) {
-	pkd->hopNumRoots[i] = 1 + pkd->hopGroups[i].nRemote;
-	nRootsTotal += pkd->hopNumRoots[i];
-	pkd->hopRootIndex[i] = pkd->hopRootIndex[i-1] + pkd->hopNumRoots[i-1];
+	pkd->hopRootIndex[i] = nRootsTotal;
+	pkd->hopGroups[i].iAllRoots = nRootsTotal;
+	nRootsTotal += 1 + pkd->hopGroups[i].nRemote;
 	}
-    pkd->hopNumRoots[i] = 0;
-    pkd->hopRootIndex[i] = pkd->hopRootIndex[i-1] + pkd->hopNumRoots[i-1];
-    assert(nRootsTotal == pkd->hopRootIndex[i]);
 
     pkd->hopRoots= malloc( (nRootsTotal+1) * sizeof(*pkd->hopRoots) );
     assert(pkd->hopRoots!=NULL);
 
+    /* Invalidate all entries (for debug checks) */
     for(iRoot=0; iRoot<=nRootsTotal; ++iRoot)
 	pkd->hopRoots[iRoot].iPid = pkd->hopRoots[iRoot].iIndex = -1;
 
-    for(i=1; i<pkd->nGroups; ++i) pkd->hopNumRoots[i] = 0; /* Start with no roots for each group */
-
-    /* We build a tree of each group of particles */
+    /* We build a tree of each group of particles - hopGroups[].iTreeRoot is set */
     pkdTreeBuildByGroup(pkd,nBucket);
 
-    for(gid=1; gid<pkd->nGroups; ++gid) {
-	iRoot = pkd->hopRootIndex[gid] + pkd->hopNumRoots[gid];
-	assert(pkd->hopNumRoots[gid]==0);
-	assert(iRoot < pkd->hopRootIndex[gid+1]);
-	++pkd->hopNumRoots[gid];
-	pkd->hopRoots[iRoot].iPid = pkd->idSelf;
-	pkd->hopRoots[iRoot].iIndex = pkd->hopGroups[gid].iTreeRoot;
+    /* Add ourselves for local groups */
+    for(gid=1; gid<pkd->nLocalGroups; ++gid) {
+	iRoot = pkd->hopRootIndex[gid]++;
+	assert(iRoot < nRootsTotal);
+	assert(pkd->hopRoots[iRoot].iPid==-1 && pkd->hopRoots[iRoot].iIndex==-1);
+	pkd->hopRoots[iRoot].iPid = mdlSelf(mdl);
+	pkd->hopRoots[iRoot].iIndex = i;
 	}
+
     /*
     ** Let the group master know about the remote tree roots. We can use the
     ** combiner cache because there is at most 1 root per group per node.
@@ -1009,121 +997,38 @@ void pkdHopTreeBuild(PKD pkd, int nBucket) {
 	pkd, initHopGetRoots, combHopGetRoots );
     for(i=1+pkd->nLocalGroups; i<pkd->nGroups; ++i) {
 	assert(pkd->hopGroups[i].id.iPid != pkd->idSelf);
-	if (pkd->hopNumRoots[i] == 0) continue; 
-	iRoot = pkd->hopRootIndex[i];
+//	if (pkd->hopNumRoots[i] == 0) continue; 
 	g = mdlAcquire(mdl,CID_GROUP,pkd->hopGroups[i].id.iIndex,pkd->hopGroups[i].id.iPid);
 	g->rmt.iPid = pkd->idSelf;
-	g->rmt.iIndex = pkd->hopRoots[iRoot].iIndex; /* This is not actually set remotely */
+	g->rmt.iIndex = pkd->hopGroups[i].iTreeRoot;
 	g->iGlobalId = i;
-	assert(pkd->hopRoots[iRoot].iPid==g->rmt.iPid);
+	pkd->hopGroups[i].iAllRoots = g->iAllRoots; /* We will fix this later! */
 	mdlRelease(mdl,CID_GROUP,g);
 	}
     mdlFinishCache(mdl,CID_GROUP);
 
     /*
-    ** At this point, each group master has the complete list of tree roots. We now need to
-    ** send these tree roots to every remote group. We use an alltoall for this. We can just
-    ** fill in the slots as if by magic!
+    ** Now we just need to fetch all of the roots for remote groups
     */
-    assert(sizeof(remoteID) == 2*sizeof(int));
-#ifdef MPI_VERSION
-    mdlTypeContiguous(mdl, 2, MDL_INT, &typeRemoteID );
-    mdlTypeCommit(mdl,&typeRemoteID);
-#endif
-    scounts = malloc(sizeof(*scounts) * nDomains);
-    assert(scounts != NULL);
-    rcounts = malloc(sizeof(*rcounts) * nDomains);
-    assert(rcounts != NULL);
-    sdispls = malloc(sizeof(*sdispls) * nDomains);
-    assert(sdispls != NULL);
-    rdispls = malloc(sizeof(*rdispls) * nDomains);
-    assert(rdispls != NULL);
-    stypes = malloc(sizeof(*stypes) * nDomains);
-    assert(stypes != NULL);
-    rtypes = malloc(sizeof(*rtypes) * nDomains);
-    assert(rtypes != NULL);
-
-    for(i=0; i<nDomains; ++i) {
-	scounts[i] = rcounts[i] = sdispls[i] = rdispls[i] = 0;
-#ifdef MPI_VERSION
-	stypes[i] = rtypes[i] = MDL_DATATYPE_NULL;
-#endif
-	}
-
-    /* Setup the send list */
-    iLastPid = pkd->hopGroups[1].id.iPid;
-    for (i=0; i<nDomains; ++i) scounts[i] = 0;
-    for(gid=1; gid<=pkd->nLocalGroups; ++gid) {
-	assert(pkd->hopGroups[gid].id.iPid == pkd->idSelf);
-	assert(pkd->hopRootIndex[gid] + pkd->hopNumRoots[gid] == pkd->hopRootIndex[gid+1]);
-	/* Count the number of *blocks* we are sending to each remote node */
-	for (iRoot=pkd->hopRootIndex[gid]+1; iRoot<pkd->hopRootIndex[gid+1]; ++iRoot)
-	    scounts[pkd->hopRoots[iRoot].iPid]++;
-	}
-    assert(scounts[pkd->idSelf]==0);
-    sdispls[0] = 0;
-    for (i=1; i<nDomains; ++i) sdispls[i] = sdispls[i-1] + scounts[i-1];
-
-    lens = malloc( sizeof(*lens) * (sdispls[nDomains-1] + scounts[nDomains-1]) );
-    assert(lens!=NULL);
-    disps = malloc( sizeof(*disps) * (sdispls[nDomains-1] + scounts[nDomains-1]) );
-    assert(disps!=NULL);
-
-    for (i=0; i<nDomains; ++i) scounts[i] = 0;
-    for(gid=1; gid<=pkd->nLocalGroups; ++gid) {
-	assert(pkd->hopGroups[gid].id.iPid == pkd->idSelf);
-	assert(pkd->hopRootIndex[gid] + pkd->hopNumRoots[gid] == pkd->hopRootIndex[gid+1]);
-	for (iRoot=pkd->hopRootIndex[gid]+1; iRoot<pkd->hopRootIndex[gid+1]; ++iRoot) {
-	    iPid = pkd->hopRoots[iRoot].iPid;
-	    i = sdispls[iPid] + scounts[iPid]++;
-	    disps[i] = pkd->hopRootIndex[gid];
-	    lens[i]  = pkd->hopNumRoots[gid];
+    mdlROcache(mdl,CID_GROUP,NULL,pkd->hopRoots,sizeof(*pkd->hopRoots), nRootsTotal);
+    for(gid=1+pkd->nLocalGroups; gid<pkd->nGroups; ++gid) {
+	int iIndex = pkd->hopGroups[gid].iAllRoots;
+	for(i=0; i<pkd->hopGroups[gid].nRemote+1; ++i) {
+	    remoteID *pRoot = mdlFetch(mdl,CID_GROUP,iIndex+i,pkd->hopGroups[gid].id.iPid);
+	    int iRoot = pkd->hopRootIndex[gid]++;
+	    assert(pkd->hopRoots[iRoot].iPid==-1 && pkd->hopRoots[iRoot].iIndex==-1);
+	    pkd->hopRoots[iRoot].iPid = pRoot->iPid;
+	    pkd->hopRoots[iRoot].iIndex = pRoot->iIndex;
 	    }
 	}
-    for (i=0; i<nDomains; ++i) {
-#ifdef MPI_VERSION
-	if (scounts[i]==0) stypes[i] = MDL_DATATYPE_NULL;
-	else {
-	    mdlTypeIndexed(mdl,scounts[i],lens+sdispls[i],disps+sdispls[i],typeRemoteID,&stypes[i]);
-	    mdlTypeCommit(mdl,&stypes[i]);
-	    scounts[i] = 1;
-	    }
-#endif
-	sdispls[i] = 0;
-	}
-    /*
-    ** Constructing the receive list is much easier; we simply go through the
-    ** sorted list and increment the counts of roots we will receive. They will
-    ** arrive from each processor in the correct order. Sweet!
-    */
-    iLastPid = iPid = -1;
-    for(gid=pkd->nLocalGroups+1; gid<pkd->nGroups; ++gid) {
-	iPid = pkd->hopGroups[gid].id.iPid;
-	assert(iPid != pkd->idSelf);
-	if (iPid != iLastPid) {
-	    rdispls[iPid] = pkd->hopRootIndex[gid] * sizeof(remoteID);
-	    iLastPid = iPid;
-	    }
-	rcounts[iPid] += pkd->hopGroups[gid].nRemote + 1;
-	rtypes[iPid] = typeRemoteID;
-	}
+    mdlFinishCache(mdl,CID_GROUP);
 
-#ifdef MPI_VERSION
-    mdlAlltoallw(mdl,pkd->hopRoots,scounts,sdispls,stypes,
-	pkd->hopRoots,rcounts,rdispls,rtypes);
-    for (i=0; i<nDomains; ++i)
-	if (scounts[i] >0)
-	    mdlTypeFree(mdl,&stypes[i]);
-    mdlTypeFree(mdl,&typeRemoteID);
-#endif
-    free(lens);
-    free(disps);
-    free(scounts);
-    free(rcounts);
-    free(sdispls);
-    free(rdispls);
-    free(stypes);
-    free(rtypes);
+    /* Fix the indexes */
+    nRootsTotal = 0;
+    for(gid=1; gid<pkd->nGroups; ++gid) {
+	pkd->hopGroups[gid].iAllRoots = nRootsTotal;
+	nRootsTotal += 1 + pkd->hopGroups[gid].nRemote;
+	}
 
     for(iRoot=1; iRoot<nRootsTotal; ++iRoot)
 	assert(pkd->hopRoots[iRoot].iPid>=0 && pkd->hopRoots[iRoot].iIndex>0);
@@ -1143,9 +1048,8 @@ void pkdHopTreeBuild(PKD pkd, int nBucket) {
 		}
 	    }
 	}
-
-    free(pkd->hopNumRoots);   pkd->hopNumRoots = NULL;
-    /* free: We have allocated pkd->hopRootIndex, pkd->hopRoots -- needed for gravity */
+    free(pkd->hopRootIndex); pkd->hopRootIndex = NULL;
+    /* free: We have allocated pkd->hopRoots -- needed for gravity */
     }
 
 typedef struct EnergyElement {

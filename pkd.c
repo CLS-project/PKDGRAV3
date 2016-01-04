@@ -625,7 +625,6 @@ void pkdInitialize(
 
     pkd->tmpHopGroups = NULL;
     pkd->hopGroups = NULL;
-    pkd->hopNumRoots = NULL;
     pkd->hopRootIndex = NULL;
     pkd->hopRoots = NULL;
 

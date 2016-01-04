@@ -848,8 +848,8 @@ int pkdGravWalkHop(PKD pkd,double dTime,int nGroup, double dThetaMin,double *pdF
 	ilpClear(pkd->ilp);
 	ilcClear(pkd->ilc);
 	clClear(pkd->cl);
-	iRootSelf = pkd->hopRootIndex[gid];
-	for (i=pkd->hopRootIndex[gid]; i<pkd->hopRootIndex[gid+1]; ++i) {
+	iRootSelf = pkd->hopGroups[gid].iAllRoots;
+	for (i=iRootSelf; i<iRootSelf + pkd->hopGroups[gid].nRemote+1; ++i) {
 	    for (j=0;j<3;++j) fOffset[j] = 0.0f;
 	    id = pkd->hopRoots[i].iPid;
 	    iRoot = pkd->hopRoots[i].iIndex;

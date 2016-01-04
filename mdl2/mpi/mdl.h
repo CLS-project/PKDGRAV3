@@ -308,42 +308,6 @@ void mdlGetReply(MDL,int,void *,int *);
 void mdlHandler(MDL);
 
 /*
-** Collective operations
-*/
-#define MDL_BAND  MPI_BAND
-#define MDL_BOR MPI_BOR
-#define MDL_BXOR MPI_BXOR
-#define MDL_LAND MPI_LAND
-#define MDL_LOR MPI_LOR
-#define MDL_LXOR MPI_LXOR
-#define MDL_MAX MPI_MAX
-#define MDL_MAXLOC MPI_MAXLOC
-#define MDL_MIN MPI_MIN
-#define MDL_MINLOC MPI_MINLOC
-#define MDL_PROD MPI_PROD
-#define MDL_REPLACE MPI_REPLACE
-#define MDL_SUM MPI_SUM
-
-#define MDL_BYTE MPI_BYTE
-#define MDL_INT MPI_INT
-#define MDL_LONG_LONG MPI_LONG_LONG
-#define MDL_FLOAT MPI_FLOAT
-#define MDL_DOUBLE MPI_DOUBLE
-#define MDL_DATATYPE_NULL MPI_DATATYPE_NULL
-
-typedef MPI_Op MDL_Op;
-typedef MPI_Datatype MDL_Datatype;
-#define MDL_Op_create(f,c,o) MPI_Op_create(f,c,o) 
-int mdlAlltoallw( MDL mdl, void *sendbuf, int *sendcnts, int *sdispls, MDL_Datatype *stypes,
-    void *recvbuf, int *recvcnts, int *rdispls, MDL_Datatype *rtypes);
-int mdlTypeContiguous(MDL mdl,int count, MDL_Datatype old_type, MDL_Datatype *newtype);
-int mdlTypeIndexed(MDL mdl, int count,
-    int array_of_blocklengths[], int array_of_displacements[],
-    MDL_Datatype oldtype, MDL_Datatype *newtype);
-int mdlTypeCommit(MDL mdl, MDL_Datatype *datatype );
-int mdlTypeFree (MDL mdl, MDL_Datatype *datatype );
-
-/*
 ** Grid Operations
 */
 

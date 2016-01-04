@@ -1711,38 +1711,6 @@ void mdlFinish(MDL mdl) {
     free(mdl);
     }
 
-
-/*
-** This needs to be improved by abstracting away more of the MPI functionality
-*/
-
-int mdlAlltoallw( MDL mdl, void *sendbuf, int *sendcnts, int *sdispls, MDL_Datatype *stypes,
-    void *recvbuf, int *recvcnts, int *rdispls, MDL_Datatype *rtypes) {
-    return MPI_Alltoallw( sendbuf, sendcnts, sdispls, stypes,
-        recvbuf, recvcnts, rdispls, rtypes, mdl->mpi->commMDL );
-    }
-
-int mdlTypeContiguous(MDL mdl,int count, MDL_Datatype old_type, MDL_Datatype *newtype) {
-    return MPI_Type_contiguous(count,old_type,newtype);
-    }
-
-int mdlTypeIndexed(MDL mdl, int count,
-    int array_of_blocklengths[], int array_of_displacements[],
-    MDL_Datatype oldtype, MDL_Datatype *newtype) {
-    return MPI_Type_indexed(count,
-	array_of_blocklengths,array_of_displacements,
-	oldtype,newtype);
-    }
-
-int mdlTypeCommit(MDL mdl, MDL_Datatype *datatype) {
-    return MPI_Type_commit(datatype);
-    }
-
-int mdlTypeFree (MDL mdl, MDL_Datatype *datatype ) {
-    return MPI_Type_free(datatype);
-    }
-
-
 /*
 ** This function will transfer a block of data using a pack function.
 ** The corresponding node must call mdlRecv.
