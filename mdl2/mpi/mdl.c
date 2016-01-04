@@ -1716,23 +1716,6 @@ void mdlFinish(MDL mdl) {
 ** This needs to be improved by abstracting away more of the MPI functionality
 */
 
-int mdlExscan ( MDL mdl, void *sendbuf, void *recvbuf, int count,
-		MDL_Datatype datatype, MDL_Op op ) {
-    return MPI_Exscan( sendbuf, recvbuf, count, datatype, op, mdl->mpi->commMDL );
-    }
-
-int mdlAlltoall( MDL mdl, void *sendbuf, int scount, MDL_Datatype stype,
-		 void *recvbuf, int rcount, MDL_Datatype rtype) {
-    return MPI_Alltoall(sendbuf,scount,stype,
-			recvbuf,rcount,rtype,mdl->mpi->commMDL);
-    }
-
-int mdlAlltoallv( MDL mdl, void *sendbuf, int *sendcnts, int *sdispls, MDL_Datatype sendtype,
-    void *recvbuf, int *recvcnts, int *rdispls, MDL_Datatype recvtype) {
-    return MPI_Alltoallv( sendbuf, sendcnts, sdispls, sendtype, 
-        recvbuf, recvcnts, rdispls, recvtype, mdl->mpi->commMDL );
-    }
-
 int mdlAlltoallw( MDL mdl, void *sendbuf, int *sendcnts, int *sdispls, MDL_Datatype *stypes,
     void *recvbuf, int *recvcnts, int *rdispls, MDL_Datatype *rtypes) {
     return MPI_Alltoallw( sendbuf, sendcnts, sdispls, stypes,

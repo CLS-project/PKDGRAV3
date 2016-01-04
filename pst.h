@@ -54,7 +54,13 @@ typedef struct pstContext {
     uint64_t nUpperStore;
     uint64_t nLowTot;    /* total number of particles in the lower subset of processors */
     uint64_t nHighTot;   /* total number of particles in the upper subset of processors */
-    int ioIndex;
+
+    /*
+    ** Analysis information. Sticking this stuff in the PST is perhaps a bad idea,
+    ** but in avoids order(nThread) storage on the master.
+    */
+    uint64_t nGroupsLower;
+
     } * PST;
 
 
@@ -156,6 +162,7 @@ enum pst_service {
     PST_HOP_TREE_BUILD,
     PST_HOP_GRAVITY,
     PST_HOP_UNBIND,
+    PST_HOP_COUNT_GID,
     PST_HOP_ASSIGN_GID,
     PST_HOP_SEND_STATS,
     PST_GROUPMERGE,
@@ -521,7 +528,16 @@ struct outHopUnbind {
     };
 void pstHopUnbind(PST,void *,int,void *,int *);
 
+/* PST_HOP_COUNT_GID */
+struct outHopCountGID {
+    uint64_t nGroups;
+    };
+void pstHopCountGID(PST,void *,int,void *,int *);
+
 /* PST_HOP_ASSIGN_GID */
+struct inHopAssignGID {
+    uint64_t iStartGID;
+    };
 void pstHopAssignGID(PST,void *,int,void *,int *);
 
 /* PST_HOP_SEND_STATS */

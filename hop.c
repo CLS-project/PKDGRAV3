@@ -1262,9 +1262,19 @@ int pkdHopUnbind(PKD pkd, double dTime, int nMinGroupSize, int bPeriodic, double
     return nEvaporated;
     }
 
-void pkdHopAssignGID(PKD pkd) {
+int pkdHopCountGID(PKD pkd) {
     MDL mdl = pkd->mdl;
-    int i, nLocal,iStart;
+    int nLocal, i;
+    for(i=1,nLocal=0; i<pkd->nGroups; ++i) {
+	if (pkd->hopGroups[i].id.iPid==mdlSelf(mdl)) ++nLocal;
+	}
+    return nLocal;
+    }
+
+
+void pkdHopAssignGID(PKD pkd,uint64_t iStartGID) {
+    MDL mdl = pkd->mdl;
+    int i, nLocal;
     PARTICLE *p;
     HopGroupTable *g;
 
@@ -1274,14 +1284,9 @@ void pkdHopAssignGID(PKD pkd) {
     for(i=1,nLocal=0; i<pkd->nGroups; ++i) {
 	if (pkd->hopGroups[i].id.iPid==mdlSelf(mdl)) ++nLocal;
 	}
-#ifdef MPI_VERSION
-    mdlExscan(mdl,&nLocal,&iStart,1,MDL_INT,MDL_SUM);
-#endif
-    if (pkd->idSelf==0) iStart=0;
-
     for(i=1; i<=nLocal; ++i) {
 	assert(pkd->hopGroups[i].id.iPid==mdlSelf(mdl));
-	pkd->hopGroups[i].iGlobalId = iStart + i;
+	pkd->hopGroups[i].iGlobalId = iStartGID + i;
 	}
     mdlROcache(mdl,CID_GROUP,NULL,pkd->hopGroups,sizeof(HopGroupTable), pkd->nGroups);
     for(; i<pkd->nGroups ; ++i) {

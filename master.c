@@ -4420,6 +4420,8 @@ void msrHop(MSR msr, double dTime) {
     struct inHopGravity inGravity;
     struct inHopUnbind inUnbind;
     struct outHopUnbind outUnbind;
+    struct outHopCountGID outCount;
+    struct inHopAssignGID inAssign;
     int i;
     uint64_t nGroups;
     double sec,dsec,ssec;
@@ -4531,7 +4533,9 @@ void msrHop(MSR msr, double dTime) {
 		dsec,outUnbind.nEvaporated, nGroups);
 	} while(++inUnbind.iIteration < 100 && outUnbind.nEvaporated);
 
-    pstHopAssignGID(msr->pst,NULL,0,NULL,NULL);
+    pstHopCountGID(msr->pst,NULL,0,&outCount,NULL); /* This has the side-effect of updating counts in the PST */
+    inAssign.iStartGID = 0;
+    pstHopAssignGID(msr->pst,&inAssign,sizeof(inAssign),NULL,NULL); /* Requires correct counts in the PST */
     dsec = msrTime() - ssec;
     if (msr->param.bVStep)
 	printf("Grasshopper complete, Wallclock: %f secs\n\n",dsec);
@@ -4539,6 +4543,9 @@ void msrHop(MSR msr, double dTime) {
 
 void msrFof(MSR msr, double exp) {
     struct inFof in;
+    struct outHopCountGID outCount;
+    struct inHopAssignGID inAssign;
+
     in.nSmooth = msr->param.nSmooth;
     in.bPeriodic = msr->param.bPeriodic;
     in.bSymmetric = 0;
@@ -4575,7 +4582,9 @@ void msrFof(MSR msr, double exp) {
 	pstFof(msr->pst,&in,sizeof(in),NULL,NULL);
 	}
 
-    pstHopAssignGID(msr->pst,NULL,0,NULL,NULL);
+    pstHopCountGID(msr->pst,NULL,0,&outCount,NULL); /* This has the side-effect of updating counts in the PST */
+    inAssign.iStartGID = 0;
+    pstHopAssignGID(msr->pst,&inAssign,sizeof(inAssign),NULL,NULL); /* Requires correct counts in the PST */
     }
 
 void msrGroupMerge(MSR msr, double exp) {

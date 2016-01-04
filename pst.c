@@ -259,9 +259,12 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_HOP_UNBIND,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstHopUnbind,
 	          sizeof(struct inHopUnbind),sizeof(struct outHopUnbind));
+    mdlAddService(mdl,PST_HOP_COUNT_GID,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstHopCountGID,
+		  0,sizeof(struct outHopCountGID));
     mdlAddService(mdl,PST_HOP_ASSIGN_GID,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstHopAssignGID,
-		  0,0);
+	          sizeof(struct inHopAssignGID),0);
     mdlAddService(mdl,PST_HOP_SEND_STATS,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstHopSendStats,
 		  0,0);
@@ -2729,16 +2732,38 @@ void pstHopUnbind(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     if (pnOut) *pnOut = sizeof(struct outHopUnbind);
     }
 
-void pstHopAssignGID(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+void pstHopCountGID(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    struct outHopCountGID *out = (struct outHopCountGID *)vout;
+    struct outHopCountGID outUpper;
     mdlassert(pst->mdl,nIn == 0);
     if (pst->nLeaves > 1) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_HOP_ASSIGN_GID,vin,nIn);
+        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_HOP_COUNT_GID,vin,nIn);
+        pstHopCountGID(pst->pstLower,vin,nIn,vout,pnOut);
+        mdlGetReply(pst->mdl,rID,&outUpper,pnOut);
+	pst->nGroupsLower = out->nGroups; /* Remember this for later -- this is an exscan */
+	out->nGroups += outUpper.nGroups;
+        }
+    else {
+	LCL *plcl = pst->plcl;
+	pst->nGroupsLower = 0;
+        out->nGroups = pkdHopCountGID(plcl->pkd);
+        }
+    if (pnOut) *pnOut = 0;
+    }
+
+void pstHopAssignGID(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    struct inHopAssignGID *inAssign = vin;
+    struct inHopAssignGID inAssignUpper;
+    mdlassert(pst->mdl,nIn == sizeof(struct inHopAssignGID));
+    if (pst->nLeaves > 1) {
+	inAssignUpper.iStartGID = inAssign->iStartGID + pst->nGroupsLower;
+        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_HOP_ASSIGN_GID,&inAssignUpper,nIn);
         pstHopAssignGID(pst->pstLower,vin,nIn,NULL,pnOut);
         mdlGetReply(pst->mdl,rID,NULL,pnOut);
         }
     else {
 	LCL *plcl = pst->plcl;
-        pkdHopAssignGID(plcl->pkd);
+        pkdHopAssignGID(plcl->pkd,inAssign->iStartGID);
         }
     if (pnOut) *pnOut = 0;
     }
