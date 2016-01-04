@@ -2457,6 +2457,8 @@ static inline CDB *arcSetPrefetchData(MDL mdl,ARC arc,uint32_t uPage,uint32_t uI
 */
 static inline void arcRelease(ARC arc,uint64_t *p) {
     if (p>arc->dataBase && p<arc->dataLast) { /* Might have been a fast, read-only grab */
+	/* We will be given an element, but this needs to be turned into a cache line */
+	p = arc->dataBase + (p - arc->dataBase) / (arc->uDataSize+1) * (arc->uDataSize+1) + 1;
 	uint64_t t = p[-1]-1;
 	assert((t^_ARC_MAGIC_) < 0x00000000ffffffff);
 	p[-1] = t;
