@@ -614,7 +614,7 @@ PQ *pqSearch(SMX smx,PQ *pq,FLOAT r[3]) {
     FLOAT dx,dy,dz,fDist2;
 
     /* Start at the root node of the tree */
-    kdn = getCell(pkd,ROOT,id = 0);
+    kdn = getCell(pkd,pkd->iTopTree[ROOT],id = idSelf);
     while (1) {
 	while (kdn->iLower) {
 	    int idLower,iLower,idUpper,iUpper;
@@ -2402,7 +2402,7 @@ void smGather(SMX smx,FLOAT fBall2,FLOAT r[3]) {
     FLOAT dx, dy, dz, fDist2;
     int pj, pEnd, nCnt;
 
-    kdn = getCell(pkd,iCell=ROOT,id = 0);
+    kdn = getCell(pkd,iCell=pkd->iTopTree[ROOT],id = idSelf);
     while (1) {
         bnd = pkdNodeBnd(pkd, kdn);
 	MINDIST(bnd,r,min2);
