@@ -40,7 +40,7 @@ AC_DEFINE([NAIVE_DOMAIN_DECOMP], 1, [Use a simplified domain decomposition.])
 AC_ARG_ENABLE(cooling,
   [  --enable-cooling             enable cooling],
   [COOLING=yes
-   AC_DEFINE([OOOLING], 1,
+   AC_DEFINE([COOLING], 1,
  	[Define if cooling module should be used.])])
 AM_CONDITIONAL(COOLING, test "x$COOLING" = "xyes")
 
