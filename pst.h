@@ -94,6 +94,7 @@ enum pst_service {
     PST_BUILDTREE,
     PST_DISTRIBTOPTREE,
     PST_DUMPTREES,
+    PST_OPENCELLCACHE,
     PST_CALCROOT,
     PST_DISTRIBROOT,
     PST_ENFORCEPERIODIC,
@@ -266,7 +267,6 @@ void pstInitializePStore(PST,void *,int,void *,int *);
 
 /* PST_READFILE */
 struct inReadFile {
-    struct inInitializePStore ps;
     uint64_t nNodeStart; /* First particle to read (of total) */
     uint64_t nNodeEnd;   /* Last particle to read (of total) */
     double dvFac;
@@ -437,10 +437,13 @@ void pstCheckpoint(PST,void *,int,void *,int *);
 
 /* PST_BUILDTREE */
 struct inBuildTree {
-    int nBucket;    /* Bucket Size */
-    uint32_t uRoot; /* Which root node to use */
+    int nBucket;      /* Bucket Size */
+    uint32_t uRoot;   /* Which root node to use */
     };
 void pstBuildTree(PST,void *,int,void *,int *);
+
+/* PST_OPENCELLCACHE */
+void pstOpenCellCache(PST,void *,int,void *,int *);
 
 /* PST_DISTRIBTOPTREE */
 struct inDistribTopTree {
@@ -450,10 +453,19 @@ struct inDistribTopTree {
 void pstDistribTopTree(PST,void *,int,void *,int *);
 
 /* PST_DUMPTREES */
+struct inDumpTrees {
+    uint32_t uRootDump;
+    int bOnlyVA;
+    uint8_t uRungDD; /* Domain DD was done on this rung */
+    };
 void pstDumpTrees(PST,void *,int,void *,int *);
 
 /* PST_CALCROOT */
-struct ioCalcRoot {
+struct inCalcRoot {
+    double com[3];
+    uint32_t uRoot;
+    };
+struct outCalcRoot {
     MOMC momc;
     };
 void pstCalcRoot(PST,void *,int,void *,int *);
@@ -1051,7 +1063,6 @@ void pstGetFFTMaxSizes(PST,void *,int,void *,int *);
 /* PST_GENERATEIC */
 #define MAX_TF 4096
 struct inGenerateIC {
-    struct inInitializePStore ps;
     uint64_t nPerNode;
     double h;
     double dBoxSize;

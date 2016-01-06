@@ -42,114 +42,6 @@
 #define pstAmCore(pst) ((pst)->nLeaves == 1)
 #define pstNotCore(pst) ((pst)->nLeaves > 1)
 
-/*
-** Order:
-**  nLocal  - depends on all local particles, regardless of rung
-**  nActive - depends only on active particles
-**  1       - constant time
-**
-** Input:
-**  Bcast   - The same data is sent to all processors
-**  Scatter - A unique value is sent to each processor
-**  Fan Out
-**
-** Output:
-**  Reduce  - The return value is reduced (sum, etc.)
-**  Gather  - A unique value is received from all processors
-**
-**
-**  Service               Order   Input   Output |
-**  -------               -----   -----   ------ |
-**  SetAdd                        yes     -      | fan out
-**  DomainDecomp                  yes     -      |
-**  CalcBound                     -       Reduce | Custom reduce: BND_COMBINE
-**  CombineBound                  -       Reduce | Custom reduce: BND_COMBINE
-**  Weight                        Bcast   Reduce | Sum several fields
-**  CountVA                       Bcast   Reduce | Sum two fields
-**  WeightWrap                    Bcast   Reduce | Sum two fields
-**  OrdWeight                     Bcast   Reduce | Sum two fields
-**  FreeStore                     -       Reduce | Sum a field
-**  ColRejects                    -       Gather |
-**  SwapRejects                   Scatter Gather |
-**  ColOrdRejects                 Yes     Gather |
-**  DomainOrder                   Yes     -      |
-**  LocalOrder                    -       -      | Bcast
-**  WriteTipsy                    Yes     -      |
-**  BuildTree                     Yes     Many   | Multiple cells
-**  CalcRoot              nLocal  -       Yes    |
-**  DistribRoot           1       Bcast   -      |
-**  EnforcePeriodic               Bcast   -      |
-**  Smooth                        Yes     -      |
-**  FastGasPhase1                 Yes     -      |
-**  FastGasPhase2                 Yes     -      |
-**  FastGasCleanup                Yes     -      |
-**  Gravity                       Yes     Gather |
-**  CalcEandL                     -       Reduce |
-**  Drift                         Bcast   -      |
-**  CacheBarrier                  -       -      |
-**  StepVeryActiveKDK             Yes     Yes    |
-**  Copy0                         Yes     -      |
-**  Predictor                     Yes     -      |
-**  Corrector                     Yes     -      |
-**  SunCorrector                  Yes     -      |
-**  PredictorInactive             Yes     -      |
-**  AarsethStep                   Yes     -      |
-**  FirstDt                       -       -      |
-**  ROParticleCache               -       -      |
-**  ParticleCacheFinish           -       -      |
-**  Kick                  nLocal  Yes     Yes    |
-**  KickTree              nActive Yes     Yes    |
-**  SetSoft                       Yes     -      |
-**  PhysicalSoft                  Yes     -      |
-**  SetTotal                      -       Yes    |
-**  SetWriteStart                 Yes     -      |
-**  OneNodeReadInit               Yes     Gather |
-**  SwapAll                       Yes     -      |
-**  ActiveOrder                   -       Yes    |
-**  InitStep                      Yes     -      |
-**  SetRung                       Yes     -      |
-**  ZeroNewRung                   Yes     -      |
-**  ActiveRung                    Yes     -      |
-**  DensityStep                   Yes     -      |
-**  CoolSetup                     Yes     -      |
-**  Cooling                       Yes     Yes    |
-**  CorrectEnergy                 Yes     -      |
-**  AccelStep                     Yes     -      |
-**  SphStep                       Yes     -      |
-**  SetRungVeryActive             Yes     -      |
-**  ReSmooth                      Yes     -      |
-**  UpdateRung                    Yes     Yes    |
-**  ColNParts                     -       Gather |
-**  NewOrder                      Scatter -      |
-**  GetNParts                     -       Gather |
-**  SetNParts                     Yes     -      |
-**  ClearTimer                    Yes     -      |
-**  Fof                           Yes     -      |
-**  GroupMerge                    Yes     Yes    |
-**  GroupProfiles                 Yes     Yes    |
-**  InitRelaxation                -       -      |
-**  FindIOS                       Yes     Yes    |
-**  StartIO                       Yes     -      |
-**  ReadSS                        Yes     -      |
-**  WriteSS                       Yes     -      |
-**  SunIndirect                   Yes     Yes    |
-**  GravSun                       Yes     -      |
-**  HandSunMass                   Yes     -      |
-**  NextCollision                 -       Yes    |
-**  GetColliderInfo               Yes     Yes    |
-**  DoCollision                   Yes     Yes    |
-**  GetVariableVeryActive         -       Yes    |
-**  CheckHelioDist                -       Yes    |
-**  StepVeryActiveSymba           Yes     Yes    |
-**  DrminToRung                   Yes     Yes    |
-**  MomSun                        -       Yes    |
-**  DriftSun                      Yes     -      |
-**  KeplerDrift                   Yes     -      |
-**  GenerateIC                    Yes     Yes    |
-**  Hostname                      -       Gather |
-**  MemStatus                     -       Gather |
-*/
-
 void pstAddServices(PST pst,MDL mdl) {
     int nThreads;
 
@@ -231,10 +123,13 @@ void pstAddServices(PST pst,MDL mdl) {
 	sizeof(struct inDistribTopTree) + (nThreads==1?1:2*nThreads-1)*pkdMaxNodeSize(),0);
     mdlAddService(mdl,PST_DUMPTREES,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstDumpTrees,
-		  0,0);
+	          sizeof(struct inDumpTrees),0);
+    mdlAddService(mdl,PST_OPENCELLCACHE,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstOpenCellCache,
+	          0,0);
     mdlAddService(mdl,PST_CALCROOT,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstCalcRoot,
-	          3*sizeof(double),sizeof(struct ioCalcRoot));
+	          sizeof(struct inCalcRoot),sizeof(struct outCalcRoot));
     mdlAddService(mdl,PST_DISTRIBROOT,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstDistribRoot,
 		  sizeof(struct ioDistribRoot),0);
@@ -673,6 +568,7 @@ void pstInitializePStore(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	mdlGetReply(pst->mdl,rID,vout,pnOut);
 	}
     else {
+	if (plcl->pkd) pkdFinish(plcl->pkd);
 	initializePStore(&plcl->pkd,pst->mdl,in);
 	}
     }
@@ -704,8 +600,6 @@ void pstOneNodeReadInit(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	/*
 	** Determine the size of the local particle store.
 	*/
-	if (plcl->pkd) pkdFinish(plcl->pkd);
-	pstInitializePStore(pst,&in->ps,sizeof(in->ps),NULL,NULL);
 	*pout = nFileTotal; /* Truncated: okay */
 	}
     if (pnOut) *pnOut = sizeof(*pout) * pst->nLeaves;
@@ -2455,10 +2349,26 @@ void pstSetSoft(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     if (pnOut) *pnOut = 0;
     }
 
-void pstDumpTrees(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+void pstOpenCellCache(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     PKD pkd = plcl->pkd;
     mdlassert(pst->mdl,nIn == 0);
+    if (pst->nLeaves > 1) {
+	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_OPENCELLCACHE,vin,nIn);
+	pstOpenCellCache(pst->pstLower,vin,nIn,vout,pnOut);
+	mdlGetReply(pst->mdl,rID,vout,pnOut);
+	}
+    else {
+	pkdOpenCellCache(pkd);
+	}
+    if (pnOut) *pnOut = 0;
+    }
+
+void pstDumpTrees(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl = pst->plcl;
+    PKD pkd = plcl->pkd;
+    struct inDumpTrees *in = (struct inDumpTrees *)vin;
+    mdlassert(pst->mdl,nIn == sizeof(struct inDumpTrees));
 
     if (pst->nLeaves > 1) {
 	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_DUMPTREES,vin,nIn);
@@ -2466,7 +2376,7 @@ void pstDumpTrees(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	mdlGetReply(pst->mdl,rID,vout,pnOut);
 	}
     else {
-	pkdDumpTrees(pkd);
+	pkdDumpTrees(pkd,in->bOnlyVA,in->uRootDump,in->uRungDD);
 	}
     if (pnOut) *pnOut = 0;
     }
@@ -2546,10 +2456,11 @@ void pstBuildTree(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 
 void pstCalcRoot(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
-    struct ioCalcRoot *out = vout;
-    struct ioCalcRoot temp;
+    struct inCalcRoot *in = vin;
+    struct outCalcRoot *out = vout;
+    struct outCalcRoot temp;
 
-    mdlassert(pst->mdl,nIn == 3*sizeof(double) );
+    mdlassert(pst->mdl,nIn == sizeof(struct inCalcRoot) );
     if (pst->nLeaves > 1) {
 	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_CALCROOT,vin,nIn);
 	pstCalcRoot(pst->pstLower,vin,nIn,out,NULL);
@@ -2557,10 +2468,9 @@ void pstCalcRoot(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	momAddMomc(&out->momc,&temp.momc);
 	}
     else {
-	double *com = vin;
-	pkdCalcRoot(plcl->pkd,com,&out->momc);
+	pkdCalcRoot(plcl->pkd,in->uRoot,in->com,&out->momc);
 	}
-    if (pnOut) *pnOut = sizeof(struct ioCalcRoot);
+    if (pnOut) *pnOut = sizeof(struct outCalcRoot);
     }
 
 void pstDistribRoot(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
@@ -3833,7 +3743,6 @@ void pltGenerateIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	out->noiseCSQ += outUp.noiseCSQ;
 	}
     else {
-	pstInitializePStore(pst,&in->ps,sizeof(in->ps),NULL,NULL);
 	out->N = pkdGenerateIC(plcl->pkd,tin->fft,in->iSeed,in->nGrid,in->b2LPT,in->dBoxSize,
 	    in->omegam,in->omegav,in->sigma8,in->spectral,in->h,
 	    in->dExpansion,in->nTf, in->k, in->tf,&out->noiseMean,&out->noiseCSQ);
@@ -3883,7 +3792,7 @@ void pstGenerateIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	pltGenerateIC(pst,&tin,sizeof(tin),vout,pnOut);
 
 	packWriteIC pack;
-	uint64_t nPerNode = (uint64_t)mdlCores(pst->mdl) * in->ps.nStore;
+	uint64_t nPerNode = (uint64_t)mdlCores(pst->mdl) * plcl->pkd->nStore;
 	int myProc = mdlProc(pst->mdl);
 	uint64_t nLocal = (int64_t)fft->rgrid->rn[myProc] * in->nGrid*in->nGrid;
 	uint64_t iNodeStart = (int64_t)fft->rgrid->rs[myProc] * in->nGrid*in->nGrid;

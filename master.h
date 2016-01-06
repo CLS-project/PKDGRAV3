@@ -35,6 +35,13 @@ typedef struct msrContext {
     uint64_t nMaxOrder;		/* Order number of last particle */
     int iCurrMaxRung;
     double dThetaMin;
+
+    /*
+    ** Tree moments (for Ewald)
+    */
+    MOMC momTreeRoot[IRUNGMAX+1];
+    double momTreeCom[IRUNGMAX+1][3];
+
     /*
     ** Comoving coordinate variables.
     */
@@ -55,7 +62,9 @@ typedef struct msrContext {
      * Domain Decomposition Done
      */
     uint64_t *nRung;
+    int iRungDD;
     int iLastRungRT,iLastRungDD;
+    int iTreeStatus;
     uint64_t nActive;
     int nGroups;
     int nBins;
@@ -78,12 +87,14 @@ void msrprintf(MSR msr, const char *Format, ... );
 int msrGetLock(MSR msr);
 int msrCheckForStop(MSR msr);
 void msrFinish(MSR);
+void msrInitializePStore(MSR msr, uint64_t *nSpecies);
 double msrGenerateIC(MSR);
 double msrRead(MSR msr,const char *achInFile);
 void msrWrite(MSR,const char *,double, int bCheckpoint );
 void msrSetSoft(MSR msr,double);
 void msrDomainDecomp(MSR,int iRung,int bOthers,int bSplitVA);
 void msrBuildTree(MSR msr,double dTime,int bNeedEwald);
+void msrBuildTreeVeryActive(MSR msr,double dTime,int bNeedEwald,int bOnlyVA,uint8_t uRungDD);
 void msrBuildTreeByRung(MSR msr,double dTime,int bNeedEwald,int iRung);
 void msrBuildTreeExcludeVeryActive(MSR msr,double dTime);
 void msrBuildTreeMarked(MSR msr,double dTime);

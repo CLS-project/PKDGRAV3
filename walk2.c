@@ -924,6 +924,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,int bKickClose,int bKick
 	    bKickClose,bKickOpen,dtClose,dtOpen,dAccFac,
 	    dRhoFac, bEwald, nGroup, dThetaMin, pkd->param.bGravStep, pdFlop, pdPartSum, pdCellSum);
 	}
+#if 0
     /*
     ** Walk tree 2 against tree 1.
     */
@@ -952,6 +953,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,int bKickClose,int bKick
 	    bKickClose,bKickOpen,dtClose,dtOpen,dAccFac,
 	    dRhoFac, 0, nGroup, dThetaMin, pkd->param.bGravStep, pdFlop, pdPartSum, pdCellSum);
 	}
+#endif
     doneGravWalk(pkd,smx,&smf);
     return nActive;
     }

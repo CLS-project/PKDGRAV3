@@ -309,6 +309,7 @@ void pkdInitialize(
     pkd->uMinRungActive  = 0;
     pkd->uMaxRungActive  = 255;
     pkd->uRungVeryActive = 255;
+    for (j=0;j<=IRUNGMAX;++j) pkd->nRung[j] = 0;
 
     pkd->psGroupTable.nGroups = 0;
     pkd->psGroupTable.pGroup = NULL;
@@ -539,6 +540,7 @@ void pkdInitialize(
 	}
     pkd->nMaxNodes = (1<<pkd->nTreeBitsLo) * pkd->nTreeTiles;
     pkd->nNodes = 0;
+
     /*
     ** We also allocate a temporary particle used for swapping.  We need to do
     ** this now because the outside world can no longer know the size of a
@@ -2555,6 +2557,7 @@ void pkdCountRungs(PKD pkd,uint64_t *nRungs) {
 	p = pkdParticle(pkd,i);
 	++nRungs[p->uRung];
 	}
+    for (i=0;i<=MAX_RUNG;++i) pkd->nRung[i] = nRungs[i];
     }
 
 void pkdAccelStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,

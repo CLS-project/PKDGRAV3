@@ -1093,12 +1093,13 @@ static inline int pkdIsNew(PKD pkd,PARTICLE *p) {
 ** From tree.c:
 */
 void pkdVATreeBuild(PKD pkd,int nBucket);
-void pkdTreeBuild(PKD pkd,int nBucket,uint32_t uRoot );
-void pkdDistribTopTree(PKD pkd, uint32_t uRoot, uint32_t nTop, KDN *pTop);
-void pkdDumpTrees(PKD pkd);
+void pkdTreeBuild(PKD pkd,int nBucket,uint32_t uRoot);
+uint32_t pkdDistribTopTree(PKD pkd, uint32_t uRoot, uint32_t nTop, KDN *pTop);
+void pkdOpenCellCache(PKD pkd);
+void pkdDumpTrees(PKD pkd,int bOnlyVA,uint32_t uDumpRoot,uint8_t uRungDD);
 void pkdCombineCells1(PKD,KDN *pkdn,KDN *p1,KDN *p2);
 void pkdCombineCells2(PKD,KDN *pkdn,KDN *p1,KDN *p2);
-void pkdCalcRoot(PKD,double *,MOMC *);
+void pkdCalcRoot(PKD,uint32_t,double *,MOMC *);
 void pkdDistribRoot(PKD,double *,MOMC *);
 void pkdTreeBuildByGroup(PKD pkd, int nBucket);
 

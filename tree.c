@@ -23,22 +23,7 @@
 #endif
 
 
-void pkdDumpTrees(PKD pkd) {
-    if (pkd->nNodes > 0) {
-	/*
-	** Close cell caching space and free up nodes.
-	*/
-	mdlFinishCache(pkd->mdl,CID_CELL);
-	}
-
-    /*
-    ** It is only forseen that there are 4 reserved nodes at present 0-NULL, 1-ROOT, 2-UNUSED, 3-VAROOT.
-    ** This routine may eventually selectively remove trees as needed.
-    */
-    pkd->nNodes = NRESERVED_NODES;
-    }
-
-void pkdDistribTopTree(PKD pkd, uint32_t uRoot, uint32_t nTop, KDN *pTop) {
+uint32_t pkdDistribTopTree(PKD pkd, uint32_t uRoot, uint32_t nTop, KDN *pTop) {
     int i, iTop;
     KDN *pLocalRoot = pkdTreeNode(pkd,uRoot);
 
@@ -52,7 +37,6 @@ void pkdDistribTopTree(PKD pkd, uint32_t uRoot, uint32_t nTop, KDN *pTop) {
 	    pLocal->iLower += iTop + i;
 	    pLocal->pUpper += iTop + i;
 	    }
-#if 1
 	else if (pLocal->pLower == pkd->idSelf) {
 	    pLocal->pLower = pLocalRoot->pLower;
 	    pLocal->pUpper = pLocalRoot->pUpper;
@@ -60,16 +44,106 @@ void pkdDistribTopTree(PKD pkd, uint32_t uRoot, uint32_t nTop, KDN *pTop) {
 	    pLocal->bRemote = 0;
 	    pLocal->bTopTree = 0;
 	    }
-#endif
 	}
+    return iTop;
+    }
+
+static KDN *InitializeRootCommon(PKD pkd,uint32_t uRoot) {
+    KDN *pRoot = pkdTreeNode(pkd,uRoot);
+    BND *bnd;
+    int j;
+
+    pRoot->bTopTree = 0;
+    pRoot->bRemote = 0;
+    bnd = pkdNodeBnd(pkd, pRoot);
+    for (j=0;j<3;++j) {
+	bnd->fCenter[j] = pkd->bnd.fCenter[j];
+	bnd->fMax[j] = pkd->bnd.fMax[j];
+	}
+
+    return pRoot;
+    }
+
+
+/*
+** Create a single tree at ROOT. No need to move anything at this time.
+*/
+static void InitializeRootAll(PKD pkd) {
+    KDN *pRoot = InitializeRootCommon(pkd,ROOT);
+    KDN *pRootVA = InitializeRootCommon(pkd,VAROOT);
+    pRoot->pLower = 0;
+    pRoot->pUpper = pkd->nLocal - 1;
+    pRootVA->pLower = pkd->nLocal;
+    pRootVA->pUpper = pkd->nLocal - 1;
+    }
+
+/*
+** Create a two roots at ROOT and VAROOT. All particles on rungs that
+** EXCEED uRungDD are put on the VAROOT tree. We need to partition.
+*/
+static void InitializeRootVeryActive(PKD pkd,uint8_t uRungDD) {
+    KDN *pRoot   = InitializeRootCommon(pkd,ROOT);
+    KDN *pRootVA = InitializeRootCommon(pkd,VAROOT);
+    PARTICLE *p, *pVA = NULL;
+    local_t nVeryActive = 0;
+    local_t iLast;
+    int i;
+
+    if (uRungDD < IRUNGMAX) {
+	p = pkdParticle(pkd,i=0);
+	pVA = pkdParticle(pkd,iLast=pkd->nLocal-1);
+	PARTITION(p<pVA,p<=pVA,
+	    p=pkdParticle(pkd,++i),pVA=pkdParticle(pkd,--iLast),
+	    pkdSwapParticle(pkd,p,pVA),
+	    p->uRung <= uRungDD,pVA->uRung > uRungDD);
+	}
+    else iLast = pkd->nLocal - 1;
+
+    pRoot->pLower = 0;
+    pRoot->pUpper = iLast;
+    pRootVA->pLower = iLast + 1;
+    pRootVA->pUpper = pkd->nLocal - 1;
+    }
+
+/*
+** Creates a single root at ROOT with only marked particles
+*/
+static void InitializeRootMarked(PKD pkd,uint8_t uRungDD) {
+    KDN *pRoot   = InitializeRootCommon(pkd,ROOT);
+    PARTICLE *pMarked, *pNot = NULL;
+    local_t iLast;
+    int i;
+
+    pMarked = pkdParticle(pkd,i=0);
+    pNot = pkdParticle(pkd,iLast=pkd->nLocal-1);
+    PARTITION(pMarked<pNot,pMarked<=pNot,
+	pMarked=pkdParticle(pkd,++i),pNot=pkdParticle(pkd,--iLast),
+	pkdSwapParticle(pkd,pMarked,pNot),
+	pMarked->bMarked==0,pNot->bMarked!=0);
+
+    pRoot->pLower = 0;
+    pRoot->pUpper = iLast;
     }
 
 static void InitializeParticles(PKD pkd,KDN *pRoot,BND *pbnd) {
+    BND *bnd;
+    int j;
+
+    pRoot->bTopTree = 0;
+    pRoot->bRemote = 0;
+    pRoot->iLower = 0;
+    bnd = pkdNodeBnd(pkd, pRoot);
+    for (j=0;j<3;++j) {
+	bnd->fCenter[j] = pbnd->fCenter[j];
+	bnd->fMax[j] = pbnd->fMax[j];
+	}
+    pRoot->pLower = 0;
+    pRoot->pUpper = pkd->nLocal - 1;
+#if 0
     int iTreeRoot[MAX_RUNG];
     int iTreeOffset[MAX_RUNG+1];
     int iTreeEnd[MAX_RUNG+1];
     PARTICLE *p;
-    BND *bnd;
     int i,j,k,iTree;
 //    int bOnlyMarked;
 
@@ -80,17 +154,6 @@ static void InitializeParticles(PKD pkd,KDN *pRoot,BND *pbnd) {
     /* Sometimes the simple trees are the best trees */
 //    if (nTrees==1 && pSpec[0].uRungFirst==0 && pSpec[0].uRungLast == MAX_RUNG) {
 //    pNode = pkdTreeNode(pkd,pSpec[0].uCell);
-    pRoot->bTopTree = 0;
-    pRoot->bRemote = 0;
-    pRoot->iLower = 0;
-    pRoot->pLower = 0;
-    pRoot->pUpper = pkd->nLocal - 1;
-    bnd = pkdNodeBnd(pkd, pRoot);
-    for (j=0;j<3;++j) {
-	bnd->fCenter[j] = pbnd->fCenter[j];
-	bnd->fMax[j] = pbnd->fMax[j];
-	}
-#if 0
     /* Sometimes, not so much */
     else {
 	/* Figure out which tree each rung belongs to */
@@ -141,6 +204,37 @@ static void InitializeParticles(PKD pkd,KDN *pRoot,BND *pbnd) {
 	    }
 	}
 #endif
+    }
+
+
+void pkdOpenCellCache(PKD pkd) {
+    /*
+    ** Finally activate a read only cache for remote access.
+    */
+    mdlROcache(pkd->mdl,CID_CELL,pkdTreeNodeGetElement,pkd,
+	pkd->iTreeNodeSize,pkd->nNodes);
+    }
+
+void pkdDumpTrees(PKD pkd,int bOnlyVA,uint32_t uRootDump, uint8_t uRungDD) {
+    KDN *pRoot = pkdTreeNode(pkd,uRootDump);
+    if (pkd->nNodes > 0) {
+	/*
+	** Close cell caching space and free up nodes.
+	*/
+	mdlFinishCache(pkd->mdl,CID_CELL);
+	}
+    else {
+	pRoot->iLower = NRESERVED_NODES; /* When we dump a tree, we go back to this node */
+	}
+
+    /*
+    ** It is only forseen that there are 4 reserved nodes at present 0-NULL, 1-ROOT, 2-UNUSED, 3-VAROOT.
+    ** This routine may eventually selectively remove trees as needed.
+    */
+    pkd->nNodes = pRoot->iLower; /* This effectively truncates the nodes used by this tree */
+
+    /* HACK: find a better way */
+    if (uRootDump==ROOT) InitializeRootVeryActive(pkd,uRungDD);
     }
 
 #define MIN_SRATIO    0.05
@@ -739,25 +833,24 @@ void pkdTreeBuild(PKD pkd,int nBucket, uint32_t uRoot) {
 #ifdef USE_ITT
      __itt_task_begin(domain, __itt_null, __itt_null, shMyTask);
 #endif
-
     pkdClearTimer(pkd,0);
     pkdStartTimer(pkd,0);
-    KDN *pRoot = pkdTreeNode(pkd,uRoot);
-    InitializeParticles(pkd,pRoot,&pkd->bnd); /* Eventually this is done elsewhere */
+
+    /*
+    ** The KDN at "uRoot" (e.g., ROOT) is already setup (pLower and pUpper are correct)
+    ** For more information look a pkdDumpTrees and the Initialize*() routines above.
+    */
     BuildTemp(pkd,uRoot,nBucket);
     Create(pkd,uRoot);
-
     pkdStopTimer(pkd,0);
 
+    KDN *kdn = pkdTreeNode(pkd,uRoot);
+    printf("uRoot=%d pLower=%d pUpper=%d n=%d MinRung=%d MaxRung=%d\n", 
+	uRoot, kdn->pLower, kdn->pUpper, kdn->pUpper - kdn->pLower+1,
+	kdn->uMinRung, kdn->uMaxRung);
 #ifdef USE_ITT
     __itt_task_end(domain);
 #endif
-
-    /*
-    ** Finally activate a read only cache for remote access.
-    */
-    mdlROcache(pkd->mdl,CID_CELL,pkdTreeNodeGetElement,pkd,
-	pkd->iTreeNodeSize,pkd->nNodes);
     }
 
 void pkdTreeBuildByGroup(PKD pkd, int nBucket) {
@@ -912,7 +1005,7 @@ void pkdTreeBuildByGroup(PKD pkd, int nBucket) {
 ** Hopefully we can bypass this step once we figure out how to do the
 ** Multipole Ewald with reduced multipoles.
 */
-void pkdCalcRoot(PKD pkd,double *com,MOMC *pmom) {
+void pkdCalcRoot(PKD pkd,uint32_t uRoot,double *com,MOMC *pmom) {
     PARTICLE *p;
     FLOAT xr = com[0];
     FLOAT yr = com[1];
@@ -920,22 +1013,25 @@ void pkdCalcRoot(PKD pkd,double *com,MOMC *pmom) {
     FLOAT x,y,z;
     FLOAT fMass;
     MOMC mc;
-    int i = 0;
-
-    p = pkdParticle(pkd,i);
-    x = pkdPos(pkd,p,0) - xr;
-    y = pkdPos(pkd,p,1) - yr;
-    z = pkdPos(pkd,p,2) - zr;
-    fMass = pkdMass(pkd,p);
-    momMakeMomc(pmom,fMass,x,y,z);
-    for (++i;i<pkd->nLocal;++i) {
+    KDN *kdn = pkdTreeNode(pkd,uRoot);
+    int i = kdn->pLower;
+    if (kdn->pLower > kdn->pUpper) momClearMomc(pmom);
+    else {
 	p = pkdParticle(pkd,i);
-	fMass = pkdMass(pkd,p);
 	x = pkdPos(pkd,p,0) - xr;
 	y = pkdPos(pkd,p,1) - yr;
 	z = pkdPos(pkd,p,2) - zr;
-	momMakeMomc(&mc,fMass,x,y,z);
-	momAddMomc(pmom,&mc);
+	fMass = pkdMass(pkd,p);
+	momMakeMomc(pmom,fMass,x,y,z);
+	for (++i;i<=kdn->pUpper;++i) {
+	    p = pkdParticle(pkd,i);
+	    fMass = pkdMass(pkd,p);
+	    x = pkdPos(pkd,p,0) - xr;
+	    y = pkdPos(pkd,p,1) - yr;
+	    z = pkdPos(pkd,p,2) - zr;
+	    momMakeMomc(&mc,fMass,x,y,z);
+	    momAddMomc(pmom,&mc);
+	    }
 	}
     }
 

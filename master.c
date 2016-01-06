@@ -194,23 +194,27 @@ static uint64_t getMemoryModel(MSR msr) {
     return mMemoryModel;
     }
 
-static void setInitializePStore(MSR msr, struct inInitializePStore *ps) {
-    ps->nTreeBitsLo = msr->param.nTreeBitsLo;
-    ps->nTreeBitsHi = msr->param.nTreeBitsHi;
-    ps->iCacheSize  = msr->param.iCacheSize;
-    ps->iWorkQueueSize  = msr->param.iWorkQueueSize;
-    ps->iCUDAQueueSize  = msr->param.iCUDAQueueSize;
-    ps->fPeriod[0] = msr->param.dxPeriod;
-    ps->fPeriod[1] = msr->param.dyPeriod;
-    ps->fPeriod[2] = msr->param.dzPeriod;
-    ps->nBucket = msr->param.nBucket;
-    ps->nGroup = msr->param.nGroup;
-    ps->mMemoryModel = getMemoryModel(msr) | PKD_MODEL_VELOCITY;
-    ps->bLightCone  = msr->param.bLightCone;
-    ps->bLightConeParticles  = msr->param.bLightConeParticles;    
+void msrInitializePStore(MSR msr, uint64_t *nSpecies) {
+    struct inInitializePStore ps;
+    int i;
+    for( i=0; i<FIO_SPECIES_LAST; ++i) ps.nSpecies[i] = nSpecies[i];
+    ps.nStore = ceil( (1.0+msr->param.dExtraStore) * ps.nSpecies[FIO_SPECIES_ALL] / mdlThreads(msr->mdl));
+    ps.nTreeBitsLo = msr->param.nTreeBitsLo;
+    ps.nTreeBitsHi = msr->param.nTreeBitsHi;
+    ps.iCacheSize  = msr->param.iCacheSize;
+    ps.iWorkQueueSize  = msr->param.iWorkQueueSize;
+    ps.iCUDAQueueSize  = msr->param.iCUDAQueueSize;
+    ps.fPeriod[0] = msr->param.dxPeriod;
+    ps.fPeriod[1] = msr->param.dyPeriod;
+    ps.fPeriod[2] = msr->param.dzPeriod;
+    ps.nBucket = msr->param.nBucket;
+    ps.nGroup = msr->param.nGroup;
+    ps.mMemoryModel = getMemoryModel(msr) | PKD_MODEL_VELOCITY;
+    ps.bLightCone  = msr->param.bLightCone;
+    ps.bLightConeParticles  = msr->param.bLightConeParticles;    
 
-    ps->nMinEphemeral = 0;
-    ps->nMinTotalStore = 0;
+    ps.nMinEphemeral = 0;
+    ps.nMinTotalStore = 0;
 #ifdef MDL_FFTW
     if (msr->param.nGridPk>0) {
 	struct inGetFFTMaxSizes inFFTSizes;
@@ -218,7 +222,7 @@ static void setInitializePStore(MSR msr, struct inInitializePStore *ps) {
 	int n;
 	inFFTSizes.nx = inFFTSizes.ny = inFFTSizes.nz = msr->param.nGridPk;
 	pstGetFFTMaxSizes(msr->pst,&inFFTSizes,sizeof(inFFTSizes),&outFFTSizes,&n);
-	ps->nMinEphemeral = outFFTSizes.nMaxLocal*sizeof(FFTW3(real));
+	ps.nMinEphemeral = outFFTSizes.nMaxLocal*sizeof(FFTW3(real));
 	}
     if (msr->param.nGrid>0) {
 	struct inGetFFTMaxSizes inFFTSizes;
@@ -226,9 +230,10 @@ static void setInitializePStore(MSR msr, struct inInitializePStore *ps) {
 	int n;
 	inFFTSizes.nx = inFFTSizes.ny = inFFTSizes.nz = msr->param.nGrid;
 	pstGetFFTMaxSizes(msr->pst,&inFFTSizes,sizeof(inFFTSizes),&outFFTSizes,&n);
-	ps->nMinTotalStore = 10*outFFTSizes.nMaxLocal*sizeof(FFTW3(real));
+	ps.nMinTotalStore = 10*outFFTSizes.nMaxLocal*sizeof(FFTW3(real));
 	}
 #endif
+       pstInitializePStore(msr->pst,&ps,sizeof(ps),NULL,NULL);
     }
 
 static char *formatKey(char *buf,char *fmt,int i) {
@@ -249,8 +254,6 @@ static int readParametersClasses(MSR msr,FILE *fp) {
 
     return 0;
     }
-
-
 
 /*
 ** Read parameters from the checkpoint file. This is extremely STRICT;
@@ -319,7 +322,7 @@ int readParameters(MSR msr,const char *fileName) {
     }
 
 double msrRestore(MSR msr) {
-    struct inInitializePStore ps;
+    uint64_t nSpecies[FIO_SPECIES_LAST];
     struct inRestore restore;
     int i;
     double sec,dsec;
@@ -337,14 +340,13 @@ double msrRestore(MSR msr) {
     sec = msrTime();
 
     msr->nMaxOrder = msr->N;
-    setInitializePStore(msr,&ps);
-    ps.nStore = ceil( (1.0+msr->param.dExtraStore) * msr->N / mdlThreads(msr->mdl));
-    for( i=0; i<FIO_SPECIES_LAST; ++i) ps.nSpecies[i] = 0;
-    ps.nSpecies[FIO_SPECIES_ALL]  = msr->N;
-    ps.nSpecies[FIO_SPECIES_SPH]  = msr->nGas;
-    ps.nSpecies[FIO_SPECIES_DARK] = msr->nDark;
-    ps.nSpecies[FIO_SPECIES_STAR] = msr->nStar;
-    pstInitializePStore(msr->pst,&ps,sizeof(ps),NULL,NULL);
+
+    for( i=0; i<FIO_SPECIES_LAST; ++i) nSpecies[i] = 0;
+    nSpecies[FIO_SPECIES_ALL]  = msr->N;
+    nSpecies[FIO_SPECIES_SPH]  = msr->nGas;
+    nSpecies[FIO_SPECIES_DARK] = msr->nDark;
+    nSpecies[FIO_SPECIES_STAR] = msr->nStar;
+    msrInitializePStore(msr,nSpecies);
 
     restore.nProcessors = msr->param.bParaRead==0?1:(msr->param.nParaRead<=1 ? msr->nThreads:msr->param.nParaRead);
     strcpy(restore.achInFile,msr->achCheckpointName);
@@ -1502,8 +1504,10 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     /*
     ** Mark the Domain Decompositon as not done
     */
+    msr->iRungDD = 0;
     msr->iLastRungRT = -1;
     msr->iLastRungDD = -1;
+    msr->iTreeStatus = 0; /* no valid trees exist */
     msr->nRung = malloc((msr->param.iMaxRung+1)*sizeof(uint64_t));
     assert(msr->nRung != NULL);
     for (i=0;i<=msr->param.iMaxRung;++i) msr->nRung[i] = 0;
@@ -2237,6 +2241,7 @@ void msrDomainDecompOld(MSR msr,int iRung,int bSplitVA) {
 	    }
 	assert(iRungDD >= iRungRT);
 	assert(iRungRT >= iRungSD);
+	msr->iRungDD = iRungDD;
 #ifdef NAIVE_DOMAIN_DECOMP
 	if (msr->iLastRungRT < 0) {
 	    /*
@@ -2418,6 +2423,8 @@ void msrDomainDecompOld(MSR msr,int iRung,int bSplitVA) {
 	msr->iLastRungRT,msr->nActive,bSplitVA);
     msrprintf(msr,"Domain Decomposition... \n");
     sec = msrTime();
+
+    msr->iTreeStatus = 0; /* no valid trees exist */
     pstDomainDecomp(msr->pst,&in,sizeof(in),NULL,NULL);
     dsec = msrTime() - sec;
     printf("Domain Decomposition complete, Wallclock: %f secs\n\n",dsec);
@@ -2438,8 +2445,8 @@ void msrDomainDecomp(MSR msr,int iRung,int bOthers,int bSplitVA) {
 */
 static void BuildTree(MSR msr,int bNeedEwald,uint32_t uRoot) {
     struct inBuildTree in;
-    struct ioCalcRoot root;
-    struct ioDistribRoot droot;
+    struct inCalcRoot calc;
+    struct outCalcRoot root;
     struct inDistribTopTree *pDistribTop;
     int i;
     PST pst0;
@@ -2457,10 +2464,6 @@ static void BuildTree(MSR msr,int bNeedEwald,uint32_t uRoot) {
     pkd = plcl->pkd;
 
     msrprintf(msr,"Building local trees...\n\n");
-
-    /* First we need to dump existing trees and set the number of used nodes to the default */
-    pstDumpTrees(msr->pst,NULL,0,NULL,NULL);
-
 
     nTopTree = pkdNodeSize(pkd) * (2*msr->nThreads-1);
     pDistribTop = malloc( sizeof(struct inDistribTopTree) + nTopTree );
@@ -2485,19 +2488,99 @@ static void BuildTree(MSR msr,int bNeedEwald,uint32_t uRoot) {
 	** could add to the mass and because it probably is not important to
 	** update the root so frequently.
 	*/
-	pstCalcRoot(msr->pst,pkdn->r,3*sizeof(double),&root,&iDum);
-	droot.momc = root.momc;
-	droot.r[0] = pkdn->r[0];
-	droot.r[1] = pkdn->r[1];
-	droot.r[2] = pkdn->r[2];
-	pstDistribRoot(msr->pst,&droot,sizeof(struct ioDistribRoot),NULL,NULL);
+	calc.com[0] = pkdn->r[0];
+	calc.com[1] = pkdn->r[1];
+	calc.com[2] = pkdn->r[2];
+	calc.uRoot = uRoot;
+	pstCalcRoot(msr->pst,&calc,sizeof(calc),&root,&iDum);
+	msr->momTreeRoot[uRoot] = root.momc;
+	msr->momTreeCom[uRoot][0] = pkdn->r[0];
+	msr->momTreeCom[uRoot][1] = pkdn->r[1];
+	msr->momTreeCom[uRoot][2] = pkdn->r[2];
 	}
 
     free(pDistribTop);
     }
 
 void msrBuildTree(MSR msr,double dTime,int bNeedEwald) {
+   /*
+    ** The trees reset/removed. This does the following:
+    **   1. Closes any open cell cache (it will be subsequently invalid)
+    **   2. Resets the number of used nodes to zero (or more if we keep the main tree)
+    **   3. Sets up the ROOT and VAROOT node (either of which may have zero particles).
+    */
+    struct inDumpTrees dump;
+    dump.uRootDump = ROOT;
+    dump.bOnlyVA = 0;
+    dump.uRungDD = IRUNGMAX;
+    pstDumpTrees(msr->pst,&dump,sizeof(dump),NULL,NULL);
     BuildTree(msr,bNeedEwald,ROOT);
+    msr->iTreeStatus = 1;
+
+    if (bNeedEwald) {
+	struct ioDistribRoot droot;
+	droot.momc = msr->momTreeRoot[ROOT];
+	droot.r[0] = msr->momTreeCom[ROOT][0];
+	droot.r[1] = msr->momTreeCom[ROOT][1];
+	droot.r[2] = msr->momTreeCom[ROOT][2];
+	pstDistribRoot(msr->pst,&droot,sizeof(struct ioDistribRoot),NULL,NULL);
+	}
+
+    pstOpenCellCache(msr->pst,NULL,0,NULL,NULL);
+    }
+
+void msrBuildTreeVeryActive(MSR msr,double dTime,int bNeedEwald,int bOnlyVA,uint8_t uRungDD) {
+   /*
+    ** The trees reset/removed. This does the following:
+    **   1. Closes any open cell cache (it will be subsequently invalid)
+    **   2. Resets the number of used nodes to zero (or more if we keep the main tree)
+    **   3. Sets up the ROOT and VAROOT node (either of which may have zero particles).
+    */
+    struct inDumpTrees dump;
+    dump.uRootDump = msr->iTreeStatus==2 ? VAROOT : ROOT;
+    dump.bOnlyVA = bOnlyVA;
+    dump.uRungDD = uRungDD;
+    pstDumpTrees(msr->pst,&dump,sizeof(dump),NULL,NULL);
+
+    /* Build the main tree if it does not exist */
+    if (msr->iTreeStatus<2) BuildTree(msr,bNeedEwald,ROOT);
+    /* New build the very active tree */
+    BuildTree(msr,bNeedEwald,VAROOT);
+    msr->iTreeStatus = 2;
+
+    /* For ewald we have to shift and combine the individual tree moments */
+    if (bNeedEwald) {
+	struct ioDistribRoot droot;
+	MOMC momc;
+	double *com1 = msr->momTreeCom[ROOT];
+	double    m1 = msr->momTreeRoot[ROOT].m;
+	double *com2 = msr->momTreeCom[VAROOT];
+	double    m2 = msr->momTreeRoot[VAROOT].m;
+	double ifMass = 1.0 / (m1 + m2);
+	double x, y, z;
+	int j;
+
+	/* New Center of Mass, then shift and scale the moments */
+	for (j=0;j<3;++j) droot.r[j] = ifMass*(m1*com1[j] + m2*com2[j]);
+
+	droot.momc = msr->momTreeRoot[ROOT];
+	x = com1[0] - droot.r[0];
+	y = com1[1] - droot.r[1];
+	z = com1[2] - droot.r[2];
+	momShiftMomc(&droot.momc,x,y,z);
+
+	momc = msr->momTreeRoot[VAROOT];
+	x = com2[0] - droot.r[0];
+	y = com2[1] - droot.r[1];
+	z = com2[2] - droot.r[2];
+	momShiftMomc(&momc,x,y,z);
+
+	momAddMomc(&droot.momc, &momc);
+
+	pstDistribRoot(msr->pst,&droot,sizeof(struct ioDistribRoot),NULL,NULL);
+	}
+
+    pstOpenCellCache(msr->pst,NULL,0,NULL,NULL);
     }
 
 void msrBuildTreeByRung(MSR msr,double dTime,int bNeedEwald,int iRung) {
@@ -2946,6 +3029,10 @@ uint8_t msrGravity(MSR msr,uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot
     in.dThetaMin = msr->dThetaMin;
     in.iRoot1 = iRoot1;
     in.iRoot2 = iRoot2;
+
+    printf("Gravity: iRoot1=%d iRoot2=%d\n", iRoot1, iRoot2);
+
+
     /*
     ** Now calculate the timestepping factors for kick close and open if the
     ** gravity should kick the particles. If the code uses bKickClose and 
@@ -3049,9 +3136,11 @@ uint8_t msrGravity(MSR msr,uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot
 	for (i=0;i<=uRungMax;++i) {
 	    if (msr->nRung[i]) break;
 	    }
-	for (;i<=uRungMax;++i) {
+	if (nRungSum[0]>0) for (;i<=uRungMax;++i) {
 	    c = ' ';
-	    printf(" %c rung:%d %12"PRIu64"    %12"PRIu64"\n",c,i,msr->nRung[i],nRungSum[i]);
+	    printf(" %c rung:%d %14"PRIu64"    %14"PRIu64"  %3.0f %%\n",
+		c,i,msr->nRung[i],nRungSum[i],
+		ceil(100.0 * nRungSum[i] / nRungSum[0]));
 	    }
 	printf("\n");
 	}
@@ -3821,9 +3910,10 @@ void msrNewTopStepKDK(MSR msr,
     double *pdTime,	/* Current time */
     uint8_t *puRungMax,
     int *piSec) {
-
     uint64_t nActive;
     double dDelta;
+    uint32_t uRoot1=ROOT, uRoot2=0;
+
     if (uRung < *puRungMax) msrNewTopStepKDK(msr,uRung+1,pdStep,pdTime,puRungMax,piSec);
     /* This Drifts everybody */
     msrprintf(msr,"Drift, uRung: %d\n",*puRungMax);
@@ -3835,9 +3925,33 @@ void msrNewTopStepKDK(MSR msr,
     msrActiveRung(msr,uRung,1);
     msrDomainDecomp(msr,uRung,0,0);
     msrUpdateSoft(msr,*pdTime);
+#if 0
+    if (msr->iRungDD<uRung) {
+	uRoot1 = VAROOT;
+	uRoot2 = ROOT;
+	/* drop the second tree and rebuild it. */
+	if (msr->iTreeStatus == 2) {
+	    printf("***************** REBUILDING very active tree\n");
+	    msrBuildTreeVeryActive(msr,*pdTime,msr->param.bEwald,0,msr->iRungDD);
+	    }
+	/* Build both trees */
+	else {
+	    printf("***************** BUILDING two trees\n");
+	    msrBuildTreeVeryActive(msr,*pdTime,msr->param.bEwald,1,msr->iRungDD);
+	    }
+	}
+    else {
+	uRoot1 = ROOT;
+	uRoot2 = 0;
+	msrBuildTree(msr,*pdTime,msr->param.bEwald);
+	}
+#else
     msrBuildTree(msr,*pdTime,msr->param.bEwald);
+#endif
+
     msrLightCone(msr,*pdTime);
-    *puRungMax = msrGravity(msr,uRung,msrMaxRung(msr),ROOT,0,*pdTime,*pdStep,1,1,msr->param.bEwald,msr->param.nGroup,piSec,&nActive);
+    *puRungMax = msrGravity(msr,uRung,msrMaxRung(msr),uRoot1,uRoot2,*pdTime,
+	*pdStep,1,1,msr->param.bEwald,msr->param.nGroup,piSec,&nActive);
     if (uRung && uRung < *puRungMax) msrNewTopStepKDK(msr,uRung+1,pdStep,pdTime,puRungMax,piSec);
     }
 
@@ -4817,6 +4931,7 @@ double msrGenerateIC(MSR msr) {
     struct outGenerateIC out;
     struct inGetFFTMaxSizes inFFTSizes;
     struct outGetFFTMaxSizes outFFTSizes;
+    uint64_t nSpecies[FIO_SPECIES_LAST];
     int nOut;
     double sec,dsec;
     double dvFac;
@@ -4835,13 +4950,13 @@ double msrGenerateIC(MSR msr) {
     in.sigma8= msr->param.csm->dSigma8;
     in.spectral=msr->param.csm->dSpectral;
     in.bComove = msr->param.csm->bComove;
-    setInitializePStore(msr,&in.ps);
+
     nTotal  = in.nGrid; /* Careful: 32 bit integer cubed => 64 bit integer */
     nTotal *= in.nGrid;
     nTotal *= in.nGrid;
-    in.ps.nStore = ceil( (1.0+msr->param.dExtraStore) * nTotal / mdlThreads(msr->mdl));
-    for( j=0; j<FIO_SPECIES_LAST; j++) in.ps.nSpecies[j] = 0;
-    in.ps.nSpecies[FIO_SPECIES_ALL] = in.ps.nSpecies[FIO_SPECIES_DARK] = (uint64_t)in.nGrid * in.nGrid * in.nGrid;
+    for( j=0; j<FIO_SPECIES_LAST; j++) nSpecies[j] = 0;
+    nSpecies[FIO_SPECIES_ALL] = nSpecies[FIO_SPECIES_DARK] = nTotal;
+    msrInitializePStore(msr,nSpecies);
 
     if (prmSpecified(msr->prm,"dRedFrom")) {
 	assert(msr->param.dRedFrom >= 0.0 );
@@ -4849,10 +4964,10 @@ double msrGenerateIC(MSR msr) {
 	}
     else in.dExpansion = 0.0;
 
-    msr->N     = in.ps.nSpecies[FIO_SPECIES_ALL];
-    msr->nGas  = in.ps.nSpecies[FIO_SPECIES_SPH];
-    msr->nDark = in.ps.nSpecies[FIO_SPECIES_DARK];
-    msr->nStar = in.ps.nSpecies[FIO_SPECIES_STAR];
+    msr->N     = nSpecies[FIO_SPECIES_ALL];
+    msr->nGas  = nSpecies[FIO_SPECIES_SPH];
+    msr->nDark = nSpecies[FIO_SPECIES_DARK];
+    msr->nStar = nSpecies[FIO_SPECIES_STAR];
     msr->nMaxOrder = msr->N;
 
     if (msr->param.bVStart)
@@ -4896,7 +5011,7 @@ double msrGenerateIC(MSR msr) {
 	inFFTSizes.nx, inFFTSizes.ny, outFFTSizes.nMaxZ,
 	inFFTSizes.nx, outFFTSizes.nMaxY, inFFTSizes.nz);
 
-    msrprintf(msr,"IC Generation @ a=%g with seed %d\n",in.dExpansion,dsec,msr->param.iSeed);
+    msrprintf(msr,"IC Generation @ a=%g with seed %d\n",in.dExpansion,msr->param.iSeed);
     in.nPerNode = outFFTSizes.nMaxLocal;
     pstGenerateIC(msr->pst,&in,sizeof(in),&out,&nOut);
     mean = 2*out.noiseMean / msr->N;
@@ -4922,6 +5037,7 @@ double msrRead(MSR msr, const char *achInFile) {
     int j;
     double sec,dsec;
     struct inReadFile *read;
+    uint64_t nSpecies[FIO_SPECIES_LAST];
     size_t nBytes;
     inReadFileFilename achFilename;
     uint64_t mMemoryModel = 0;
@@ -4984,13 +5100,12 @@ double msrRead(MSR msr, const char *achInFile) {
     read->nNodeStart = 0;
     read->nNodeEnd = msr->N - 1;
 
-    setInitializePStore(msr, &read->ps);
 
-    for( j=0; j<FIO_SPECIES_LAST; j++) read->ps.nSpecies[j] = fioGetN(fio,j);
-    read->ps.nStore = ceil( (1.0+msr->param.dExtraStore) * read->ps.nSpecies[FIO_SPECIES_ALL] / mdlThreads(msr->mdl));
+    for( j=0; j<FIO_SPECIES_LAST; j++) nSpecies[j] = fioGetN(fio,j);
+    msrInitializePStore(msr, nSpecies);
+
     read->dOmega0 = msr->param.csm->dOmega0;
     read->dOmegab = msr->param.csm->dOmegab;
-
 
     /*
     ** If bParaRead is 0, then we read serially; if it is 1, then we read
@@ -5016,10 +5131,6 @@ double msrRead(MSR msr, const char *achInFile) {
 	      pkdParticleMemory(plcl->pkd)/(1024*1024));
     printf("Particles: %lu bytes (persistent) + %d bytes (ephemeral), Nodes: %lu bytes\n",
 	pkdParticleSize(plcl->pkd),EPHEMERAL_BYTES,pkdNodeSize(plcl->pkd));
-    if (read->ps.nMinEphemeral) {
-	printf("Allocating at least %llu ephemeral bytes per node for FFT\n",
-	    read->ps.nMinEphemeral);
-	}
 
     free(read);
 
