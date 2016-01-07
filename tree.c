@@ -78,34 +78,6 @@ static void InitializeRootAll(PKD pkd) {
     }
 
 /*
-** Create a two roots at ROOT and VAROOT. All particles on rungs that
-** EXCEED uRungDD are put on the VAROOT tree. We need to partition.
-*/
-static void InitializeRootVeryActive(PKD pkd,uint8_t uRungDD) {
-    KDN *pRoot   = InitializeRootCommon(pkd,ROOT);
-    KDN *pRootVA = InitializeRootCommon(pkd,VAROOT);
-    PARTICLE *p, *pVA = NULL;
-    local_t nVeryActive = 0;
-    local_t iLast;
-    int i;
-
-    if (uRungDD < IRUNGMAX) {
-	p = pkdParticle(pkd,i=0);
-	pVA = pkdParticle(pkd,iLast=pkd->nLocal-1);
-	PARTITION(p<pVA,p<=pVA,
-	    p=pkdParticle(pkd,++i),pVA=pkdParticle(pkd,--iLast),
-	    pkdSwapParticle(pkd,p,pVA),
-	    p->uRung <= uRungDD,pVA->uRung > uRungDD);
-	}
-    else iLast = pkd->nLocal - 1;
-
-    pRoot->pLower = 0;
-    pRoot->pUpper = iLast;
-    pRootVA->pLower = iLast + 1;
-    pRootVA->pUpper = pkd->nLocal - 1;
-    }
-
-/*
 ** Creates a single root at ROOT with only marked particles
 */
 static void InitializeRootMarked(PKD pkd,uint8_t uRungDD) {
@@ -125,88 +97,6 @@ static void InitializeRootMarked(PKD pkd,uint8_t uRungDD) {
     pRoot->pUpper = iLast;
     }
 
-static void InitializeParticles(PKD pkd,KDN *pRoot,BND *pbnd) {
-    BND *bnd;
-    int j;
-
-    pRoot->bTopTree = 0;
-    pRoot->bRemote = 0;
-    pRoot->iLower = 0;
-    bnd = pkdNodeBnd(pkd, pRoot);
-    for (j=0;j<3;++j) {
-	bnd->fCenter[j] = pbnd->fCenter[j];
-	bnd->fMax[j] = pbnd->fMax[j];
-	}
-    pRoot->pLower = 0;
-    pRoot->pUpper = pkd->nLocal - 1;
-#if 0
-    int iTreeRoot[MAX_RUNG];
-    int iTreeOffset[MAX_RUNG+1];
-    int iTreeEnd[MAX_RUNG+1];
-    PARTICLE *p;
-    int i,j,k,iTree;
-//    int bOnlyMarked;
-
-    /* Special mode: build a tree with only marked particles */
-//    bOnlyMarked = (nTrees==1 && pSpec[0].uRungFirst > pSpec[0].uRungLast);
-//    int bExcludeVeryActive = 0;
-
-    /* Sometimes the simple trees are the best trees */
-//    if (nTrees==1 && pSpec[0].uRungFirst==0 && pSpec[0].uRungLast == MAX_RUNG) {
-//    pNode = pkdTreeNode(pkd,pSpec[0].uCell);
-    /* Sometimes, not so much */
-    else {
-	/* Figure out which tree each rung belongs to */
-	for (i=0; i<MAX_RUNG;++i) iTreeRoot[i] = nTrees;
-	if (bOnlyMarked) iTreeRoot[1] = 0; /* Single tree for marked particles only */
-	else for (i=0; i<nTrees;++i) {
-		for( j=pSpec[i].uRungFirst; j<=pSpec[i].uRungLast; ++j)
-		    iTreeRoot[j] = i;
-		}
-
-	/* Count the number of particles in each tree, and find offsets */
-	for (i=0; i<=nTrees;++i) iTreeOffset[i] = 0;
-	for (i=0;i<pkd->nLocal;++i) {
-	    p = pkdParticle(pkd,i);
-	    iTree = (bOnlyMarked ? p->bMarked : p->uRung);
-	    ++iTreeOffset[iTreeRoot[iTree]];
-	    }
-	for(i=nTrees;i>0;--i) iTreeOffset[i] = iTreeOffset[i-1];
-	iTreeOffset[0] = 0;
-	for (i=1; i<=nTrees;++i) iTreeEnd[i-1] = (iTreeOffset[i] += iTreeOffset[i-1]);
-
-	/* Construct the tree nodes */
-	for (i=0; i<nTrees;++i) {
-	    pNode = pkdTreeNode(pkd,pSpec[i].uCell);
-	    pNode->bTopTree = 0;
-	    pNode->bRemote = 0;
-	    pNode->iLower = 0;
-	    pNode->pLower = iTreeOffset[i];
-	    pNode->pUpper = iTreeOffset[i+1] - 1;
-	    bnd = pkdNodeBnd(pkd, pNode);
-	    for (j=0;j<3;++j) {
-		bnd->fCenter[j] = pbnd->fCenter[j];
-		bnd->fMax[j] = pbnd->fMax[j];
-		}
-	    }
-
-	/* Put the particles in the right place */
-	for(iTree=0;iTree<nTrees;++iTree) {
-	    for(i=iTreeOffset[iTree]; i<iTreeEnd[iTree]; ) {
-		p = pkdParticle(pkd,i);
-		k = (bOnlyMarked ? p->bMarked : p->uRung);
-		if (k == iTree) ++i;
-		else {
-		    PARTICLE *p2 = pkdParticle(pkd,iTreeOffset[iTreeRoot[k]]++);
-		    pkdSwapParticle(pkd,p,p2);
-		    }
-		}
-	    }
-	}
-#endif
-    }
-
-
 void pkdOpenCellCache(PKD pkd) {
     /*
     ** Finally activate a read only cache for remote access.
@@ -215,8 +105,9 @@ void pkdOpenCellCache(PKD pkd) {
 	pkd->iTreeNodeSize,pkd->nNodes);
     }
 
-void pkdDumpTrees(PKD pkd,int bOnlyVA,uint32_t uRootDump, uint8_t uRungDD) {
-    KDN *pRoot = pkdTreeNode(pkd,uRootDump);
+void pkdDumpTrees(PKD pkd,int bOnlyVA, uint8_t uRungDD) {
+    KDN *pRoot   = InitializeRootCommon(pkd,ROOT);
+    KDN *pRootVA = InitializeRootCommon(pkd,VAROOT);
     if (pkd->nNodes > 0) {
 	/*
 	** Close cell caching space and free up nodes.
@@ -224,17 +115,57 @@ void pkdDumpTrees(PKD pkd,int bOnlyVA,uint32_t uRootDump, uint8_t uRungDD) {
 	mdlFinishCache(pkd->mdl,CID_CELL);
 	}
     else {
-	pRoot->iLower = NRESERVED_NODES; /* When we dump a tree, we go back to this node */
+	assert(bOnlyVA==0);
+	pkdTreeNode(pkd,ROOT)->iLower = NRESERVED_NODES;
+	pkdTreeNode(pkd,VAROOT)->iLower = NRESERVED_NODES;
 	}
 
-    /*
-    ** It is only forseen that there are 4 reserved nodes at present 0-NULL, 1-ROOT, 2-UNUSED, 3-VAROOT.
-    ** This routine may eventually selectively remove trees as needed.
-    */
-    pkd->nNodes = pRoot->iLower; /* This effectively truncates the nodes used by this tree */
+    /* Full Normal tree build. Only ROOT will be used */
+    if (uRungDD == IRUNGMAX) {
+	pRoot->pLower = 0;
+	pRoot->pUpper = pkd->nLocal - 1;
+	pkd->nNodes = pRoot->iLower; /* This effectively truncates the nodes used by this tree */
+	pRoot->iLower = 0;
+	assert(pkd->nNodes==NRESERVED_NODES);
+	}
+    /* Just rebuilding VAROOT. Truncate it. pLower and pUpper are still valid. */
+    else if (bOnlyVA) {
+	if (pRootVA->iLower) {
+	    assert(pRootVA->iLower >= NRESERVED_NODES);
+	    pkd->nNodes = pRootVA->iLower; /* This effectively truncates the nodes used by this tree */
+	    pRootVA->iLower = 0;
+	    }
+	}
 
-    /* HACK: find a better way */
-    if (uRootDump==ROOT) InitializeRootVeryActive(pkd,uRungDD);
+    /* Need to build two trees which is more complicated. */
+    else {
+	PARTICLE *p, *pVA = NULL;
+	local_t nVeryActive = 0;
+	local_t iLast;
+	int i;
+
+	p = pkdParticle(pkd,i=0);
+	pVA = pkdParticle(pkd,iLast=pkd->nLocal-1);
+	PARTITION(p<pVA,p<=pVA,
+	    p=pkdParticle(pkd,++i),pVA=pkdParticle(pkd,--iLast),
+	    pkdSwapParticle(pkd,p,pVA),
+	    p->uRung <= uRungDD,pVA->uRung > uRungDD);
+
+	pkd->nNodes = pRoot->iLower; /* This effectively truncates the nodes used by this tree */
+	assert(pkd->nNodes==NRESERVED_NODES);
+	pRoot->iLower = 0;
+	pRootVA->iLower = 0;
+
+	pRoot->pLower = 0;
+	pRoot->pUpper = iLast;
+	pRootVA->pLower = iLast + 1;
+	pRootVA->pUpper = pkd->nLocal - 1;
+
+	for(i=pRoot->pLower; i<=pRoot->pUpper; ++i) assert(pkdParticle(pkd,i)->uRung<=uRungDD);
+	for(i=pRootVA->pLower; i<=pRootVA->pUpper; ++i) assert(pkdParticle(pkd,i)->uRung>uRungDD);
+	}
+
+
     }
 
 #define MIN_SRATIO    0.05
@@ -844,10 +775,6 @@ void pkdTreeBuild(PKD pkd,int nBucket, uint32_t uRoot) {
     Create(pkd,uRoot);
     pkdStopTimer(pkd,0);
 
-    KDN *kdn = pkdTreeNode(pkd,uRoot);
-    printf("uRoot=%d pLower=%d pUpper=%d n=%d MinRung=%d MaxRung=%d\n", 
-	uRoot, kdn->pLower, kdn->pUpper, kdn->pUpper - kdn->pLower+1,
-	kdn->uMinRung, kdn->uMaxRung);
 #ifdef USE_ITT
     __itt_task_end(domain);
 #endif

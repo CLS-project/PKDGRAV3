@@ -454,7 +454,6 @@ void pstDistribTopTree(PST,void *,int,void *,int *);
 
 /* PST_DUMPTREES */
 struct inDumpTrees {
-    uint32_t uRootDump;
     int bOnlyVA;
     uint8_t uRungDD; /* Domain DD was done on this rung */
     };

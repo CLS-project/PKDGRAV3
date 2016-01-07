@@ -2510,7 +2510,6 @@ void msrBuildTree(MSR msr,double dTime,int bNeedEwald) {
     **   3. Sets up the ROOT and VAROOT node (either of which may have zero particles).
     */
     struct inDumpTrees dump;
-    dump.uRootDump = ROOT;
     dump.bOnlyVA = 0;
     dump.uRungDD = IRUNGMAX;
     pstDumpTrees(msr->pst,&dump,sizeof(dump),NULL,NULL);
@@ -2537,7 +2536,6 @@ void msrBuildTreeVeryActive(MSR msr,double dTime,int bNeedEwald,int bOnlyVA,uint
     **   3. Sets up the ROOT and VAROOT node (either of which may have zero particles).
     */
     struct inDumpTrees dump;
-    dump.uRootDump = msr->iTreeStatus==2 ? VAROOT : ROOT;
     dump.bOnlyVA = bOnlyVA;
     dump.uRungDD = uRungDD;
     pstDumpTrees(msr->pst,&dump,sizeof(dump),NULL,NULL);
@@ -3029,9 +3027,6 @@ uint8_t msrGravity(MSR msr,uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot
     in.dThetaMin = msr->dThetaMin;
     in.iRoot1 = iRoot1;
     in.iRoot2 = iRoot2;
-
-    printf("Gravity: iRoot1=%d iRoot2=%d\n", iRoot1, iRoot2);
-
 
     /*
     ** Now calculate the timestepping factors for kick close and open if the
@@ -3932,12 +3927,12 @@ void msrNewTopStepKDK(MSR msr,
 	/* drop the second tree and rebuild it. */
 	if (msr->iTreeStatus == 2) {
 	    printf("***************** REBUILDING very active tree\n");
-	    msrBuildTreeVeryActive(msr,*pdTime,msr->param.bEwald,0,msr->iRungDD);
+	    msrBuildTreeVeryActive(msr,*pdTime,msr->param.bEwald,1,msr->iRungDD);
 	    }
 	/* Build both trees */
 	else {
 	    printf("***************** BUILDING two trees\n");
-	    msrBuildTreeVeryActive(msr,*pdTime,msr->param.bEwald,1,msr->iRungDD);
+	    msrBuildTreeVeryActive(msr,*pdTime,msr->param.bEwald,0,msr->iRungDD);
 	    }
 	}
     else {

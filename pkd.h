@@ -150,6 +150,7 @@ typedef struct starfields {
 
 typedef struct partLightCone {
     float pos[3];
+    float vel[3];
     } LIGHTCONEP;
 
 
@@ -619,8 +620,14 @@ typedef struct pkdContext {
     PARTICLE *pStorePRIVATE;
     PARTICLE *pTempPRIVATE;
     double dTimeRedshift0;
-    int nLightCone;
-    LIGHTCONEP *pLightCone;
+
+#if 0
+    struct iocb cbLightCone[2];
+    struct io_event eventsLightCone[2];
+    int fdLightCone[2];
+#endif
+    int nLightCone, nLightConeMax;
+    LIGHTCONEP *pLightCone[2];
     PARTCLASS *pClass;
     float fSoftFix;
     float fSoftFac;
@@ -1096,7 +1103,7 @@ void pkdVATreeBuild(PKD pkd,int nBucket);
 void pkdTreeBuild(PKD pkd,int nBucket,uint32_t uRoot);
 uint32_t pkdDistribTopTree(PKD pkd, uint32_t uRoot, uint32_t nTop, KDN *pTop);
 void pkdOpenCellCache(PKD pkd);
-void pkdDumpTrees(PKD pkd,int bOnlyVA,uint32_t uDumpRoot,uint8_t uRungDD);
+void pkdDumpTrees(PKD pkd,int bOnlyVA,uint8_t uRungDD);
 void pkdCombineCells1(PKD,KDN *pkdn,KDN *p1,KDN *p2);
 void pkdCombineCells2(PKD,KDN *pkdn,KDN *p1,KDN *p2);
 void pkdCalcRoot(PKD,uint32_t,double *,MOMC *);

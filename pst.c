@@ -2376,7 +2376,7 @@ void pstDumpTrees(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	mdlGetReply(pst->mdl,rID,vout,pnOut);
 	}
     else {
-	pkdDumpTrees(pkd,in->bOnlyVA,in->uRootDump,in->uRungDD);
+	pkdDumpTrees(pkd,in->bOnlyVA,in->uRungDD);
 	}
     if (pnOut) *pnOut = 0;
     }

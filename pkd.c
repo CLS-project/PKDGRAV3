@@ -551,11 +551,22 @@ void pkdInitialize(
     /*
     ** allocate enough space for light cone particle output
     */
+    uint64_t nPageSize = sysconf(_SC_PAGESIZE);
+    uint64_t nLightConeBytes = (1024*1024*16);
+    pkd->nLightConeMax = nLightConeBytes / sizeof(LIGHTCONEP);
     pkd->nLightCone = 0;
-    pkd->pLightCone = NULL;
     if (bLightCone && bLightConeParticles) {
-	pkd->pLightCone = malloc(nStore*sizeof(LIGHTCONEP));
-	mdlassert(mdl,pkd->pLightCone != NULL);
+	void *v;
+	if (posix_memalign(&v,sysconf(_SC_PAGESIZE),nLightConeBytes)) pkd->pLightCone[0] = NULL;
+	else pkd->pLightCone[0] = v;
+	if (posix_memalign(&v,sysconf(_SC_PAGESIZE),nLightConeBytes)) pkd->pLightCone[1] = NULL;
+	else pkd->pLightCone[1] = v;
+	mdlassert(mdl,pkd->pLightCone[0] != NULL);
+	mdlassert(mdl,pkd->pLightCone[1] != NULL);
+	}
+    else {
+	pkd->pLightCone[0] = NULL;
+	pkd->pLightCone[1] = NULL;
 	}
 
 #ifdef MDL_CACHE_SIZE
@@ -2176,6 +2187,43 @@ void pkdScaleVel(PKD pkd,double dvFac) {
 	}
     }
 
+
+static void flushLightCone(PKD pkd) {
+#if 0
+
+    struct iocb cbLightCone[2];
+    struct io_event eventsLightCone[2];
+
+
+
+    struct iocb *pcb = &info->cb[i];
+    io_prep_pwrite(pkd->cbLightCone+0,pkd->fdLightCone+0,pkd->pLightCone+0,nBytes,info->iFilePosition);
+    else        io_prep_pread(info->cb+i,info->fd,info->pSource,nBytes,info->iFilePosition);
+    rc = io_submit(info->ctx,1,&pcb);
+    if (rc<0) { perror("io_submit"); abort(); }
+
+
+
+
+
+
+#endif
+    }
+
+
+static void addToLightCone(PKD pkd,double *r,float *v) {
+    LIGHTCONEP *pLC = pkd->pLightCone[0];
+
+    pLC[pkd->nLightCone].pos[0] = r[0];
+    pLC[pkd->nLightCone].pos[1] = r[1];
+    pLC[pkd->nLightCone].pos[2] = r[2];
+    pLC[pkd->nLightCone].vel[0] = v[0];
+    pLC[pkd->nLightCone].vel[1] = v[1];
+    pLC[pkd->nLightCone].vel[2] = v[2];
+    if (++pkd->nLightCone == pkd->nLightConeMax) flushLightCone(pkd);
+    }
+
+
 /*
 ** Drift particles whose Rung falls between uRungLo (large step) and uRungHi (small step) inclusive,
 ** and those whose destination activity flag is set.
@@ -2189,7 +2237,7 @@ void pkdDrift(PKD pkd,double dTime,double dDelta,double dDeltaVPred,double dDelt
     float *a;
     SPHFIELDS *sph;
     int i,j,n;
-    double r1[3],r0[3],mr0,mr1,x,dMin[3],dMax[3];
+    double r1[3],r0[3],dMin[3],dMax[3];
     double dLightSpeed = dLightSpeedSim(pkd->param.dBoxSize);
     double dLookbackTime = pkd->dTimeRedshift0 - dTime;
 
@@ -2230,26 +2278,46 @@ void pkdDrift(PKD pkd,double dTime,double dDelta,double dDeltaVPred,double dDelt
     /*
     ** If the light surface enters the unit box, then we can start generating light cone output. 
     */
-    else if (pkd->param.bLightCone && dLookbackTime*dLightSpeed < 0.5) {
+    else if (pkd->param.bLightCone && dLookbackTime*dLightSpeed < 1.0) {
+	const double xOffset[8] = {-0.5,-0.5,-0.5,-0.5,+0.5,+0.5,+0.5,+0.5};
+	const double yOffset[8] = {-0.5,-0.5,+0.5,+0.5,-0.5,-0.5,+0.5,+0.5};
+	const double zOffset[8] = {-0.5,+0.5,-0.5,+0.5,-0.5,+0.5,-0.5,+0.5};
+	double vrx0[8],vry0[8],vrz0[8];
+	double vrx1[8],vry1[8],vrz1[8];
+	double mr0[8],mr1[8];
+	double x[8];
+	int iOct;
+
 	for (i=0;i<n;++i) {
 	    p = pkdParticle(pkd,i);
 	    if (pkdIsRungRange(p,uRungLo,uRungHi)) {
 		v = pkdVel(pkd,p);
 		pkdGetPos1(pkd,p,r0);
 		for (j=0;j<3;++j) r1[j] = r0[j] + dDelta*v[j];
-		mr0 = sqrt(r0[0]*r0[0] + r0[1]*r0[1] + r0[2]*r0[2]);
-		mr1 = sqrt(r1[0]*r1[0] + r1[1]*r1[1] + r1[2]*r1[2]);
-		x = (dLightSpeed*dLookbackTime - mr0)/(dLightSpeed*dDelta - mr0 + mr1);
-		if (x >=0 && x < 1) {
-		    /*
-		    ** Create a new light cone particle.
-		    */
-		    if (pkd->param.bLightConeParticles) {
-			mdlassert(pkd->mdl,pkd->nLightCone < pkd->nStore);
-			for (j=0;j<3;++j) {
-			    pkd->pLightCone[pkd->nLightCone].pos[j] = (1-x)*r0[j] + x*r1[j]; 
+
+		for(iOct=0; iOct<8; ++iOct) {
+		    vrx0[iOct] = xOffset[iOct] + r0[0];
+		    vry0[iOct] = yOffset[iOct] + r0[1];
+		    vrz0[iOct] = zOffset[iOct] + r0[2];
+		    vrx1[iOct] = xOffset[iOct] + r1[0];
+		    vry1[iOct] = yOffset[iOct] + r1[1];
+		    vrz1[iOct] = zOffset[iOct] + r1[2];
+		    mr0[iOct] = sqrt(vrx0[iOct]*vrx0[iOct] + vry0[iOct]*vry0[iOct] + vrz0[iOct]*vrz0[iOct]);
+		    mr1[iOct] = sqrt(vrx1[iOct]*vrx1[iOct] + vry1[iOct]*vry1[iOct] + vrz1[iOct]*vrz1[iOct]);
+		    x[iOct] = (dLightSpeed*dLookbackTime - mr0[iOct])/(dLightSpeed*dDelta - mr0[iOct] + mr1[iOct]);
+		    }
+		for(iOct=0; iOct<8; ++iOct) {
+		    if (x[iOct] >=0 && x[iOct] < 1) {
+			double r[3];
+			/*
+			** Create a new light cone particle.
+			*/
+			if (pkd->param.bLightConeParticles) {
+			    r[0] = (1-x[iOct])*vrx0[iOct] + x[iOct]*vrx1[iOct];
+			    r[1] = (1-x[iOct])*vry0[iOct] + x[iOct]*vry1[iOct];
+			    r[2] = (1-x[iOct])*vrz0[iOct] + x[iOct]*vrz1[iOct];
+			    addToLightCone(pkd,r,v);
 			    }
-			++pkd->nLightCone;
 			}
 		    }
 		for (j=0;j<3;++j) pkdSetPos(pkd,p,j,r1[j]);
