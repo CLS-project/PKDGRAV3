@@ -726,7 +726,8 @@ void pkdFinish(PKD pkd) {
     mdlThreadBarrier(pkd->mdl);
     if (mdlCore(pkd->mdl)==0) mdlFree(pkd->mdl,pkd->pStorePRIVATE);
     free(pkd->pTempPRIVATE);
-    if (pkd->pLightCone) free(pkd->pLightCone);
+    if (pkd->pLightCone[0]) free(pkd->pLightCone[0]);
+    if (pkd->pLightCone[1]) free(pkd->pLightCone[1]);
     csmFinish(pkd->param.csm);
     SIMD_free(pkd);
     }
