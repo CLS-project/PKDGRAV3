@@ -177,6 +177,11 @@ void * master_ch(MDL mdl) {
 	    msrDomainDecomp(msr,0,0,0);
 	    msrUpdateSoft(msr,dTime);
 	    msrBuildTree(msr,dTime,msr->param.bEwald);
+#ifdef MDL_FFTW
+	    if (msr->param.nGridPk>0) {
+		msrOutputPk(msr,iStartStep,dTime);
+		}
+#endif
 	    if (msrDoGravity(msr)) {
 		msrGravity(msr,0,MAX_RUNG,ROOT,0,dTime,iStartStep,0,0,
 		    msr->param.bEwald,msr->param.nGroup,&iSec,&nActive);
@@ -239,13 +244,13 @@ void * master_ch(MDL mdl) {
 	*/
 	msrActiveRung(msr,0,1); /* Activate all particles */
 	msrDomainDecomp(msr,0,0,0);
+	msrUpdateSoft(msr,dTime);
+	msrBuildTree(msr,dTime,msr->param.bEwald);
 #ifdef MDL_FFTW
 	if (msr->param.nGridPk>0) {
 	    msrOutputPk(msr,iStartStep,dTime);
 	    }
 #endif
-	msrUpdateSoft(msr,dTime);
-	msrBuildTree(msr,dTime,msr->param.bEwald);
 	if (msrDoGravity(msr) && !msr->param.bHSDKD) {
 	    if (msr->param.bNewKDK) bKickOpen = 1;
 	    else bKickOpen = 0;
@@ -381,11 +386,6 @@ void * master_ch(MDL mdl) {
 		bGlobalOutput = 0;
 		msrOutput(msr,iStep,dTime, 0);
 		}
-#ifdef MDL_FFTW
-	    else if (iStep%msr->param.iPkInterval == 0) {
-		msrOutputPk(msr,iStep,dTime);
-		}
-#endif
 	    }
 	if (msrLogInterval(msr)) (void) fclose(fpLog);
 	}

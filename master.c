@@ -5941,6 +5941,9 @@ void msrMeasurePk(MSR msr,double *dCenter,double dRadius,int nGrid,int nBins,flo
     double fftNormalize;
     double sec,dsec;
 
+    /* We must have a single tree at this point so particles are in a cache friendly order */
+    assert(msr->iTreeStatus == 1);
+
     if (nGrid/2 < nBins) nBins = nGrid/2;
     assert(nBins <= PST_MAX_K_BINS);
 
