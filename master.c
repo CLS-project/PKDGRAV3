@@ -3924,17 +3924,17 @@ void msrNewTopStepKDK(MSR msr,
     double dDelta;
     uint32_t uRoot1=ROOT, uRoot2=0;
 
+    if (uRung == msr->iRungDD+1) {
+	struct inDumpTrees dump;
+	dump.bOnlyVA = 0;
+	dump.uRungDD = msr->iRungDD;
+	pstDumpTrees(msr->pst,&dump,sizeof(dump),NULL,NULL);
+	msrprintf(msr,"Half Drift, uRung: %d\n",msr->iRungDD);
+	dDelta = msr->param.dDelta/(1 << uRung);
+	msrDrift(msr,*pdTime,dDelta,ROOT);
+	msrBuildTreeFixed(msr,*pdTime,msr->param.bEwald,msr->iRungDD);
+	}
     if (uRung < *puRungMax) {
-	if (uRung == msr->iRungDD+1) {
-	    struct inDumpTrees dump;
-	    dump.bOnlyVA = 0;
-	    dump.uRungDD = msr->iRungDD;
-	    pstDumpTrees(msr->pst,&dump,sizeof(dump),NULL,NULL);
-	    msrprintf(msr,"Half Drift, uRung: %d\n",msr->iRungDD);
-	    dDelta = msr->param.dDelta/(1 << uRung);
-	    msrDrift(msr,*pdTime,dDelta,ROOT);
-	    msrBuildTreeFixed(msr,*pdTime,msr->param.bEwald,msr->iRungDD);
-	    }
 	msrNewTopStepKDK(msr,uRung+1,pdStep,pdTime,puRungMax,piSec);
 	}
 
@@ -3966,14 +3966,13 @@ void msrNewTopStepKDK(MSR msr,
 	*pdStep,1,1,msr->param.bEwald,msr->param.nGroup,piSec,&nActive);
     if (uRung && uRung < *puRungMax) {
 	msrNewTopStepKDK(msr,uRung+1,pdStep,pdTime,puRungMax,piSec);
-	if (uRung == msr->iRungDD+1) {
-	    msrprintf(msr,"Half Drift, uRung: %d\n",msr->iRungDD);
-	    dDelta = msr->param.dDelta/(1 << uRung);
-	    msrDrift(msr,*pdTime,dDelta,ROOT);
-	    }
+	}
+    if (uRung == msr->iRungDD+1) {
+	msrprintf(msr,"Half Drift, uRung: %d\n",msr->iRungDD);
+	dDelta = msr->param.dDelta/(1 << uRung);
+	msrDrift(msr,*pdTime,dDelta,ROOT);
 	}
     }
-
 
 void msrTopStepKDK(MSR msr,
 		   double dStep,	/* Current step */
