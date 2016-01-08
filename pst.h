@@ -658,8 +658,7 @@ struct inDrift {
     double dDelta;
     double dDeltaVPred;
     double dDeltaUPred;
-    uint8_t uRungLo;
-    uint8_t uRungHi;
+    int iRoot;
     };
 void pstDrift(PST,void *,int,void *,int *);
 

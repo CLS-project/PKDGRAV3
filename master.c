@@ -1507,7 +1507,6 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->iRungDD = 0;
     msr->iLastRungRT = -1;
     msr->iLastRungDD = -1;
-    msr->iTreeStatus = 0; /* no valid trees exist */
     msr->nRung = malloc((msr->param.iMaxRung+1)*sizeof(uint64_t));
     assert(msr->nRung != NULL);
     for (i=0;i<=msr->param.iMaxRung;++i) msr->nRung[i] = 0;
@@ -2424,7 +2423,6 @@ void msrDomainDecompOld(MSR msr,int iRung,int bSplitVA) {
     msrprintf(msr,"Domain Decomposition... \n");
     sec = msrTime();
 
-    msr->iTreeStatus = 0; /* no valid trees exist */
     pstDomainDecomp(msr->pst,&in,sizeof(in),NULL,NULL);
     dsec = msrTime() - sec;
     printf("Domain Decomposition complete, Wallclock: %f secs\n\n",dsec);
@@ -2462,8 +2460,6 @@ static void BuildTree(MSR msr,int bNeedEwald,uint32_t uRoot) {
 	pst0 = pst0->pstLower;
     plcl = pst0->plcl;
     pkd = plcl->pkd;
-
-    msrprintf(msr,"Building local trees...\n\n");
 
     nTopTree = pkdNodeSize(pkd) * (2*msr->nThreads-1);
     pDistribTop = malloc( sizeof(struct inDistribTopTree) + nTopTree );
@@ -2509,12 +2505,14 @@ void msrBuildTree(MSR msr,double dTime,int bNeedEwald) {
     **   2. Resets the number of used nodes to zero (or more if we keep the main tree)
     **   3. Sets up the ROOT and VAROOT node (either of which may have zero particles).
     */
+
+    msrprintf(msr,"Building local trees...\n\n");
+
     struct inDumpTrees dump;
     dump.bOnlyVA = 0;
     dump.uRungDD = IRUNGMAX;
     pstDumpTrees(msr->pst,&dump,sizeof(dump),NULL,NULL);
     BuildTree(msr,bNeedEwald,ROOT);
-    msr->iTreeStatus = 1;
 
     if (bNeedEwald) {
 	struct ioDistribRoot droot;
@@ -2528,23 +2526,33 @@ void msrBuildTree(MSR msr,double dTime,int bNeedEwald) {
     pstOpenCellCache(msr->pst,NULL,0,NULL,NULL);
     }
 
-void msrBuildTreeVeryActive(MSR msr,double dTime,int bNeedEwald,int bOnlyVA,uint8_t uRungDD) {
+/*
+** Separates the particles into two trees, and builds the "fixed" tree.
+*/
+void msrBuildTreeFixed(MSR msr,double dTime,int bNeedEwald,uint8_t uRungDD) {
+    msrprintf(msr,"Building fixed local trees...\n\n");
+
+    BuildTree(msr,bNeedEwald,ROOT);
+    pstOpenCellCache(msr->pst,NULL,0,NULL,NULL); /* REMOVE THIS LATER */
+    }
+
+void msrBuildTreeVeryActive(MSR msr,double dTime,int bNeedEwald,uint8_t uRungDD) {
    /*
     ** The trees reset/removed. This does the following:
     **   1. Closes any open cell cache (it will be subsequently invalid)
     **   2. Resets the number of used nodes to zero (or more if we keep the main tree)
     **   3. Sets up the ROOT and VAROOT node (either of which may have zero particles).
     */
+
+    msrprintf(msr,"Building active local trees...\n\n");
+
     struct inDumpTrees dump;
-    dump.bOnlyVA = bOnlyVA;
+    dump.bOnlyVA = 1;
     dump.uRungDD = uRungDD;
     pstDumpTrees(msr->pst,&dump,sizeof(dump),NULL,NULL);
 
-    /* Build the main tree if it does not exist */
-    if (msr->iTreeStatus<2) BuildTree(msr,bNeedEwald,ROOT);
     /* New build the very active tree */
     BuildTree(msr,bNeedEwald,VAROOT);
-    msr->iTreeStatus = 2;
 
     /* For ewald we have to shift and combine the individual tree moments */
     if (bNeedEwald) {
@@ -3081,6 +3089,14 @@ uint8_t msrGravity(MSR msr,uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot
 	** deeper than the current uRungMax!
 	*/
 	for (i=uRungLo;i<=IRUNGMAX;++i) msr->nRung[i] = outr->nRung[i];
+
+	const uint64_t nDD = d2u64(msr->N*msr->param.dFracNoDomainDecomp);
+	uint64_t nActive = 0;
+	msr->iRungDD = 0;
+	for (i=msr->iCurrMaxRung;i>=0;--i) {
+	    nActive += msr->nRung[i];
+	    if (nActive > nDD && !msr->iRungDD) msr->iRungDD = i;
+	    }
 	}
     if (msr->param.bVStep) {
 	/*
@@ -3181,7 +3197,7 @@ void msrCalcEandL(MSR msr,int bFirst,double dTime,double *E,double *T,double *U,
     }
 
 
-void msrDrift(MSR msr,double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi) {
+void msrDrift(MSR msr,double dTime,double dDelta,int iRoot) {
     struct inDrift in;
 
     if (msr->param.csm->bComove) {
@@ -3194,8 +3210,7 @@ void msrDrift(MSR msr,double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi
 	}
     in.dTime = dTime;
     in.dDeltaUPred = dDelta;
-    in.uRungLo = uRungLo;
-    in.uRungHi = uRungHi;
+    in.iRoot = iRoot;
     pstDrift(msr->pst,&in,sizeof(in),NULL,NULL);
     }
 
@@ -3300,8 +3315,7 @@ double msrAdjustTime(MSR msr, double aOld, double aNew) {
 
     in.dDeltaVPred = 0.0;
     in.dDeltaUPred = 0.0;
-    in.uRungLo = 0;
-    in.uRungHi = MAX_RUNG;
+    in.iRoot = ROOT;
     msrprintf(msr,"Drifing particles from Time:%g Redshift:%g to Time:%g Redshift:%g ...\n",
 	      aOld, 1.0/aOld-1.0, aNew, aNew>0 ? 1.0/aNew-1.0 : 999999.0);
     msrprintf(msr,"WARNING: This only works if the input file is a Zel'dovich perturbed grid\n");
@@ -3868,10 +3882,11 @@ void msrTopStepHSDKD(MSR msr,
 		   double *pdActiveSum,
 		   int *piSec) {
 
+    assert(0); // msrDrift() is wrong
     msrprintf(msr,"%*cHSDKD open  at iRung: %d 0.5*dDelta: %g\n",
 	      2*iRung+2,' ',iRung,0.5*dDelta);
 
-    msrDrift(msr,dTime,dDelta*0.5,iRung,iRung);
+    msrDrift(msr,dTime,dDelta*0.5,ROOT);
     if ( iRung < msrCurrMaxRung(msr) ) {
 	msrTopStepHSDKD(msr,dStep,dTime,0.5*dDelta,iRung+1,iRung+1,iRungVeryActive,1,pdActiveSum,piSec);
 
@@ -3887,7 +3902,7 @@ void msrTopStepHSDKD(MSR msr,
 	dStep += 1.0/(2 << iRung);
 	msrKickHSDKD(msr,dStep,dTime,dDelta,iRung,iAdjust,pdActiveSum,piSec);
 	}
-    msrDrift(msr,dTime,dDelta*0.5,iRung,iRung);
+    msrDrift(msr,dTime,dDelta*0.5,ROOT);
 
     msrprintf(msr,"%*cHSDKD close  at iRung: %d 0.5*dDelta: %g\n",
 	      2*iRung+2,' ',iRung,0.5*dDelta);
@@ -3909,45 +3924,54 @@ void msrNewTopStepKDK(MSR msr,
     double dDelta;
     uint32_t uRoot1=ROOT, uRoot2=0;
 
-    if (uRung < *puRungMax) msrNewTopStepKDK(msr,uRung+1,pdStep,pdTime,puRungMax,piSec);
-    /* This Drifts everybody */
+    if (uRung < *puRungMax) {
+	if (uRung == msr->iRungDD+1) {
+	    struct inDumpTrees dump;
+	    dump.bOnlyVA = 0;
+	    dump.uRungDD = msr->iRungDD;
+	    pstDumpTrees(msr->pst,&dump,sizeof(dump),NULL,NULL);
+	    msrprintf(msr,"Half Drift, uRung: %d\n",msr->iRungDD);
+	    dDelta = msr->param.dDelta/(1 << uRung);
+	    msrDrift(msr,*pdTime,dDelta,ROOT);
+	    msrBuildTreeFixed(msr,*pdTime,msr->param.bEwald,msr->iRungDD);
+	    }
+	msrNewTopStepKDK(msr,uRung+1,pdStep,pdTime,puRungMax,piSec);
+	}
+
+    /* Drift the small tree or the single tree */
     msrprintf(msr,"Drift, uRung: %d\n",*puRungMax);
     dDelta = msr->param.dDelta/(1 << *puRungMax);
-    msrDrift(msr,*pdTime,dDelta,0,msrMaxRung(msr));
+    if (uRung > msr->iRungDD) msrDrift(msr,*pdTime,dDelta,VAROOT);
+    else msrDrift(msr,*pdTime,dDelta,ROOT);
     *pdTime += dDelta;
     *pdStep += 1.0/(1 << *puRungMax);
 
     msrActiveRung(msr,uRung,1);
-    msrDomainDecomp(msr,uRung,0,0);
+    if (uRung <= msr->iRungDD) msrDomainDecomp(msr,uRung,0,0);
     msrUpdateSoft(msr,*pdTime);
-#if 0
-    if (msr->iRungDD<uRung) {
+
+    if (uRung > msr->iRungDD) {
 	uRoot1 = VAROOT;
 	uRoot2 = ROOT;
-	/* drop the second tree and rebuild it. */
-	if (msr->iTreeStatus == 2) {
-	    printf("***************** REBUILDING very active tree\n");
-	    msrBuildTreeVeryActive(msr,*pdTime,msr->param.bEwald,1,msr->iRungDD);
-	    }
-	/* Build both trees */
-	else {
-	    printf("***************** BUILDING two trees\n");
-	    msrBuildTreeVeryActive(msr,*pdTime,msr->param.bEwald,0,msr->iRungDD);
-	    }
+	msrBuildTreeVeryActive(msr,*pdTime,msr->param.bEwald,msr->iRungDD);
 	}
     else {
 	uRoot1 = ROOT;
 	uRoot2 = 0;
 	msrBuildTree(msr,*pdTime,msr->param.bEwald);
 	}
-#else
-    msrBuildTree(msr,*pdTime,msr->param.bEwald);
-#endif
 
     msrLightCone(msr,*pdTime);
     *puRungMax = msrGravity(msr,uRung,msrMaxRung(msr),uRoot1,uRoot2,*pdTime,
 	*pdStep,1,1,msr->param.bEwald,msr->param.nGroup,piSec,&nActive);
-    if (uRung && uRung < *puRungMax) msrNewTopStepKDK(msr,uRung+1,pdStep,pdTime,puRungMax,piSec);
+    if (uRung && uRung < *puRungMax) {
+	msrNewTopStepKDK(msr,uRung+1,pdStep,pdTime,puRungMax,piSec);
+	if (uRung == msr->iRungDD+1) {
+	    msrprintf(msr,"Half Drift, uRung: %d\n",msr->iRungDD);
+	    dDelta = msr->param.dDelta/(1 << uRung);
+	    msrDrift(msr,*pdTime,dDelta,ROOT);
+	    }
+	}
     }
 
 
@@ -4008,7 +4032,7 @@ void msrTopStepKDK(MSR msr,
     else if (msrCurrMaxRung(msr) == iRung) {
 	/* This Drifts everybody */
 	msrprintf(msr,"%*cDrift, iRung: %d\n",2*iRung+2,' ',iRung);
-	msrDrift(msr,dTime,dDelta,0,MAX_RUNG);
+	msrDrift(msr,dTime,dDelta,ROOT);
 	dTime += dDelta;
 	dStep += 1.0/(1 << iRung);
 
@@ -4054,7 +4078,7 @@ void msrTopStepKDK(MSR msr,
 	 */
 	msrprintf(msr,"%*cInActiveDrift at iRung: %d, 0.5*dDelta: %g\n",
 		  2*iRung+2,' ',iRung,0.5*dDelta);
-	msrDrift(msr,dTime,0.5*dDelta,0,msr->iRungVeryActive);
+	msrDrift(msr,dTime,0.5*dDelta,ROOT);
 	/*
 	 * Build a tree out of them for use by the VeryActives
 	 */
@@ -4090,7 +4114,7 @@ void msrTopStepKDK(MSR msr,
 	** The inactives are half time step behind the actives.
 	** Move them a half time step ahead to synchronize everything again.
 	*/
-	msrDrift(msr,dTime-0.5*dDelta,0.5*dDelta,0,msr->iRungVeryActive);
+	msrDrift(msr,dTime-0.5*dDelta,0.5*dDelta,ROOT);
 
 	/*
 	 * Regular Tree gravity
@@ -5940,9 +5964,6 @@ void msrMeasurePk(MSR msr,double *dCenter,double dRadius,int nGrid,int nBins,flo
     int i;
     double fftNormalize;
     double sec,dsec;
-
-    /* We must have a single tree at this point so particles are in a cache friendly order */
-    assert(msr->iTreeStatus == 1);
 
     if (nGrid/2 < nBins) nBins = nGrid/2;
     assert(nBins <= PST_MAX_K_BINS);

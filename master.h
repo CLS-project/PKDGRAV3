@@ -64,7 +64,6 @@ typedef struct msrContext {
     uint64_t *nRung;
     int iRungDD;
     int iLastRungRT,iLastRungDD;
-    int iTreeStatus;
     uint64_t nActive;
     int nGroups;
     int nBins;
@@ -94,7 +93,7 @@ void msrWrite(MSR,const char *,double, int bCheckpoint );
 void msrSetSoft(MSR msr,double);
 void msrDomainDecomp(MSR,int iRung,int bOthers,int bSplitVA);
 void msrBuildTree(MSR msr,double dTime,int bNeedEwald);
-void msrBuildTreeVeryActive(MSR msr,double dTime,int bNeedEwald,int bOnlyVA,uint8_t uRungDD);
+void msrBuildTreeVeryActive(MSR msr,double dTime,int bNeedEwald,uint8_t uRungDD);
 void msrBuildTreeByRung(MSR msr,double dTime,int bNeedEwald,int iRung);
 void msrBuildTreeExcludeVeryActive(MSR msr,double dTime);
 void msrBuildTreeMarked(MSR msr,double dTime);
@@ -114,7 +113,7 @@ void msrUpdateSoft(MSR,double);
 uint8_t msrGravity(MSR msr,uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
     double dTime,double dStep,int bKickClose,int bKickOpen,int bEwald,int nGroup,int *piSec,uint64_t *pnActive);
 void msrCalcEandL(MSR msr,int bFirst,double dTime,double *E,double *T,double *U,double *Eth,double *L,double *F,double *W);
-void msrDrift(MSR,double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi);
+void msrDrift(MSR,double dTime,double dDelta,int iRoot);
 void msrScaleVel(MSR msr,double dvFac);
 double msrAdjustTime(MSR msr, double aOld, double aNew);
 void msrKick(MSR,double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi);

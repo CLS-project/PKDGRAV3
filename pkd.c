@@ -1717,7 +1717,7 @@ static void asyncCheckpoint(PKD pkd,const char *fname,int bWrite) {
     int i, rc;
 
     if (bWrite) {
-	info.fd = open(fname,O_DIRECT|O_CREAT|O_WRONLY|O_TRUNC,S_IRWXU|S_IRWXG);
+	info.fd = open(fname,O_DIRECT|O_CREAT|O_WRONLY|O_TRUNC,S_IRUSR|S_IWUSR|S_IRGRP);
 	if (info.fd<0) { perror(fname); abort(); }
 	nFileSize = pkdParticleSize(pkd) * pkd->nLocal;
 	}
@@ -1830,7 +1830,7 @@ static void asyncCheckpoint(PKD pkd,const char *fname,int bWrite) {
 
 #define WRITE_LIMIT (1024*1024*1024)
 static void simpleCheckpoint(PKD pkd,const char *fname) {
-    int fd = open(fname,O_CREAT|O_WRONLY|O_TRUNC,S_IRWXU|S_IRWXG);
+    int fd = open(fname,O_CREAT|O_WRONLY|O_TRUNC,S_IRUSR|S_IWUSR|S_IRGRP);
     size_t nBytesToWrite = pkdParticleSize(pkd) * pkd->nLocal;
     char *pBuffer = (char *)pkdParticleBase(pkd);
     ssize_t nBytesWritten;
@@ -2224,7 +2224,6 @@ static void addToLightCone(PKD pkd,double *r,float *v) {
     if (++pkd->nLightCone == pkd->nLightConeMax) flushLightCone(pkd);
     }
 
-
 /*
 ** Drift particles whose Rung falls between uRungLo (large step) and uRungHi (small step) inclusive,
 ** and those whose destination activity flag is set.
@@ -2232,15 +2231,19 @@ static void addToLightCone(PKD pkd,double *r,float *v) {
 ** Note that the drift funtion no longer wraps the particles around the periodic "unit" cell. This is
 ** now done by Domain Decomposition only.
 */
-void pkdDrift(PKD pkd,double dTime,double dDelta,double dDeltaVPred,double dDeltaUPred,uint8_t uRungLo,uint8_t uRungHi) {
+void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVPred,double dDeltaUPred) {
     PARTICLE *p;
     vel_t *v;
     float *a;
     SPHFIELDS *sph;
-    int i,j,n;
+    int i,j;
     double r1[3],r0[3],dMin[3],dMax[3];
     double dLightSpeed = dLightSpeedSim(pkd->param.dBoxSize);
     double dLookbackTime = pkd->dTimeRedshift0 - dTime;
+
+    KDN *pRoot = pkdTreeNode(pkd,iRoot);
+    int pLower = pRoot->pLower;
+    int pUpper = pRoot->pUpper;
 
     mdlDiag(pkd->mdl, "Into pkdDrift\n");
     assert(pkd->oVelocity);
@@ -2249,31 +2252,28 @@ void pkdDrift(PKD pkd,double dTime,double dDelta,double dDeltaVPred,double dDelt
 	dMin[j] = pkd->bnd.fCenter[j] - pkd->bnd.fMax[j];
 	dMax[j] = pkd->bnd.fCenter[j] + pkd->bnd.fMax[j];
 	}
-    n = pkdLocal(pkd);
     /*
     ** Update particle positions
     */
     if (pkd->param.bDoGas) {
 	assert(pkd->oSph);
 	assert(pkd->oAcceleration);
-	for (i=0;i<n;++i) {
+	for (i=pLower;i<=pUpper;++i) {
 	    p = pkdParticle(pkd,i);
-	    if (pkdIsRungRange(p,uRungLo,uRungHi)) {
-		v = pkdVel(pkd,p);
-		if (pkdIsGas(pkd,p)) {
-		    a = pkdAccel(pkd,p);
-		    sph = pkdSph(pkd,p);
-		    for (j=0;j<3;++j) { /* NB: Pred quantities must be done before std. */
-			sph->vPred[j] += a[j]*dDeltaVPred;
-			}
-		    sph->uPred += sph->uDot*dDeltaUPred;
-		    sph->fMetalsPred += sph->fMetalsDot*dDeltaUPred;
+	    v = pkdVel(pkd,p);
+	    if (pkdIsGas(pkd,p)) {
+		a = pkdAccel(pkd,p);
+		sph = pkdSph(pkd,p);
+		for (j=0;j<3;++j) { /* NB: Pred quantities must be done before std. */
+		    sph->vPred[j] += a[j]*dDeltaVPred;
 		    }
-		for (j=0;j<3;++j) {
-		    pkdSetPos(pkd,p,j,r1[j] = pkdPos(pkd,p,j) + dDelta*v[j]);
-		    }
-		pkdMinMax(r1,dMin,dMax);
+		sph->uPred += sph->uDot*dDeltaUPred;
+		sph->fMetalsPred += sph->fMetalsDot*dDeltaUPred;
 		}
+	    for (j=0;j<3;++j) {
+		pkdSetPos(pkd,p,j,r1[j] = pkdPos(pkd,p,j) + dDelta*v[j]);
+		}
+	    pkdMinMax(r1,dMin,dMax);
 	    }
 	}
     /*
@@ -2289,52 +2289,48 @@ void pkdDrift(PKD pkd,double dTime,double dDelta,double dDeltaVPred,double dDelt
 	double x[8];
 	int iOct;
 
-	for (i=0;i<n;++i) {
+	for (i=pLower;i<=pUpper;++i) {
 	    p = pkdParticle(pkd,i);
-	    if (pkdIsRungRange(p,uRungLo,uRungHi)) {
-		v = pkdVel(pkd,p);
-		pkdGetPos1(pkd,p,r0);
-		for (j=0;j<3;++j) r1[j] = r0[j] + dDelta*v[j];
+	    v = pkdVel(pkd,p);
+	    pkdGetPos1(pkd,p,r0);
+	    for (j=0;j<3;++j) r1[j] = r0[j] + dDelta*v[j];
 
-		for(iOct=0; iOct<8; ++iOct) {
-		    vrx0[iOct] = xOffset[iOct] + r0[0];
-		    vry0[iOct] = yOffset[iOct] + r0[1];
-		    vrz0[iOct] = zOffset[iOct] + r0[2];
-		    vrx1[iOct] = xOffset[iOct] + r1[0];
-		    vry1[iOct] = yOffset[iOct] + r1[1];
-		    vrz1[iOct] = zOffset[iOct] + r1[2];
-		    mr0[iOct] = sqrt(vrx0[iOct]*vrx0[iOct] + vry0[iOct]*vry0[iOct] + vrz0[iOct]*vrz0[iOct]);
-		    mr1[iOct] = sqrt(vrx1[iOct]*vrx1[iOct] + vry1[iOct]*vry1[iOct] + vrz1[iOct]*vrz1[iOct]);
-		    x[iOct] = (dLightSpeed*dLookbackTime - mr0[iOct])/(dLightSpeed*dDelta - mr0[iOct] + mr1[iOct]);
-		    }
-		for(iOct=0; iOct<8; ++iOct) {
-		    if (x[iOct] >=0 && x[iOct] < 1) {
-			double r[3];
-			/*
-			** Create a new light cone particle.
-			*/
-			if (pkd->param.bLightConeParticles) {
-			    r[0] = (1-x[iOct])*vrx0[iOct] + x[iOct]*vrx1[iOct];
-			    r[1] = (1-x[iOct])*vry0[iOct] + x[iOct]*vry1[iOct];
-			    r[2] = (1-x[iOct])*vrz0[iOct] + x[iOct]*vrz1[iOct];
-			    addToLightCone(pkd,r,v);
-			    }
+	    for(iOct=0; iOct<8; ++iOct) {
+		vrx0[iOct] = xOffset[iOct] + r0[0];
+		vry0[iOct] = yOffset[iOct] + r0[1];
+		vrz0[iOct] = zOffset[iOct] + r0[2];
+		vrx1[iOct] = xOffset[iOct] + r1[0];
+		vry1[iOct] = yOffset[iOct] + r1[1];
+		vrz1[iOct] = zOffset[iOct] + r1[2];
+		mr0[iOct] = sqrt(vrx0[iOct]*vrx0[iOct] + vry0[iOct]*vry0[iOct] + vrz0[iOct]*vrz0[iOct]);
+		mr1[iOct] = sqrt(vrx1[iOct]*vrx1[iOct] + vry1[iOct]*vry1[iOct] + vrz1[iOct]*vrz1[iOct]);
+		x[iOct] = (dLightSpeed*dLookbackTime - mr0[iOct])/(dLightSpeed*dDelta - mr0[iOct] + mr1[iOct]);
+		}
+	    for(iOct=0; iOct<8; ++iOct) {
+		if (x[iOct] >=0 && x[iOct] < 1) {
+		    double r[3];
+		    /*
+		    ** Create a new light cone particle.
+		    */
+		    if (pkd->param.bLightConeParticles) {
+			r[0] = (1-x[iOct])*vrx0[iOct] + x[iOct]*vrx1[iOct];
+			r[1] = (1-x[iOct])*vry0[iOct] + x[iOct]*vry1[iOct];
+			r[2] = (1-x[iOct])*vrz0[iOct] + x[iOct]*vrz1[iOct];
+			addToLightCone(pkd,r,v);
 			}
 		    }
-		for (j=0;j<3;++j) pkdSetPos(pkd,p,j,r1[j]);
-		pkdMinMax(r1,dMin,dMax);
 		}
+	    for (j=0;j<3;++j) pkdSetPos(pkd,p,j,r1[j]);
+	    pkdMinMax(r1,dMin,dMax);
 	    }
 	}
     else {
-	for (i=0;i<n;++i) {
+	for (i=pLower;i<=pUpper;++i) {
 	    p = pkdParticle(pkd,i);
-	    if (pkdIsRungRange(p,uRungLo,uRungHi)) {
-		v = pkdVel(pkd,p);
-		pkdGetPos1(pkd,p,r0);
-		for (j=0;j<3;++j) pkdSetPos(pkd,p,j,r1[j] = r0[j] + dDelta*v[j]);
-		pkdMinMax(r1,dMin,dMax);
-		}
+	    v = pkdVel(pkd,p);
+	    pkdGetPos1(pkd,p,r0);
+	    for (j=0;j<3;++j) pkdSetPos(pkd,p,j,r1[j] = r0[j] + dDelta*v[j]);
+	    pkdMinMax(r1,dMin,dMax);
 	    }
 	}
     for (j=0;j<3;++j) {
@@ -2435,7 +2431,7 @@ void pkdStepVeryActiveKDK(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dStep, 
 	/*
 	** This should drift *all* very actives!
 	*/
-	pkdDrift(pkd,dTime,dDriftFac,0,0,iRungVeryActive+1,MAX_RUNG);
+	pkdDrift(pkd,VAROOT,dTime,dDriftFac,0,0);
 	dTime += dDelta;
 	dStep += 1.0/(1 << iRung);
 

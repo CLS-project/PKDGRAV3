@@ -106,7 +106,7 @@ typedef struct {
 /*
 ** Here we define some special reserved nodes. Node-0 is a sentinel or null node, node-1
 ** is here defined as the ROOT of the local tree (or top tree), node-2 is unused and
-** node-3 is the root node for the very active tree.
+** node-3 is the root node "fixed" tree.
 */
 #define VAROOT          3
 #define ROOT		1
@@ -1192,7 +1192,7 @@ void pkdGravAll(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     double *pdCell,double *pdCellNumAccess,double *pdCellMissRatio,
     double *pdFlop,uint64_t *pnRung);
 void pkdCalcEandL(PKD pkd,double *T,double *U,double *Eth,double *L,double *F,double *W);
-void pkdDrift(PKD pkd,double dTime,double dDelta,double,double,uint8_t uRungLo,uint8_t uRungHi);
+void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double,double);
 void pkdScaleVel(PKD pkd,double dvFac);
 void pkdStepVeryActiveKDK(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dStep, double dTime, double dDelta,
 			  int iRung, int iKickRung, int iRungVeryActive,int iAdjust, double diCrit2,

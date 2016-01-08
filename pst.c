@@ -2979,7 +2979,7 @@ void pstDrift(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	mdlGetReply(pst->mdl,rID,NULL,NULL);
 	}
     else {
-	pkdDrift(plcl->pkd,in->dTime,in->dDelta,in->dDeltaVPred,in->dDeltaUPred,in->uRungLo,in->uRungHi);
+	pkdDrift(plcl->pkd,in->iRoot,in->dTime,in->dDelta,in->dDeltaVPred,in->dDeltaUPred);
 	}
     if (pnOut) *pnOut = 0;
     }
