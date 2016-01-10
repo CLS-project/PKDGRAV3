@@ -2240,10 +2240,17 @@ void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVPred,do
     double r1[3],r0[3],dMin[3],dMax[3];
     double dLightSpeed = dLightSpeedSim(pkd->param.dBoxSize);
     double dLookbackTime = pkd->dTimeRedshift0 - dTime;
+    int pLower, pUpper;
 
-    KDN *pRoot = pkdTreeNode(pkd,iRoot);
-    int pLower = pRoot->pLower;
-    int pUpper = pRoot->pUpper;
+    if (iRoot>=0) {
+	KDN *pRoot = pkdTreeNode(pkd,iRoot);
+	pLower = pRoot->pLower;
+	pUpper = pRoot->pUpper;
+	}
+    else {
+	pLower = 0;
+	pUpper = pkdLocal(pkd);
+	}
 
     mdlDiag(pkd->mdl, "Into pkdDrift\n");
     assert(pkd->oVelocity);

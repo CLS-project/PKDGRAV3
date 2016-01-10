@@ -64,19 +64,6 @@ static KDN *InitializeRootCommon(PKD pkd,uint32_t uRoot) {
     return pRoot;
     }
 
-
-/*
-** Create a single tree at ROOT. No need to move anything at this time.
-*/
-static void InitializeRootAll(PKD pkd) {
-    KDN *pRoot = InitializeRootCommon(pkd,ROOT);
-    KDN *pRootVA = InitializeRootCommon(pkd,VAROOT);
-    pRoot->pLower = 0;
-    pRoot->pUpper = pkd->nLocal - 1;
-    pRootVA->pLower = pkd->nLocal;
-    pRootVA->pUpper = pkd->nLocal - 1;
-    }
-
 /*
 ** Creates a single root at ROOT with only marked particles
 */
