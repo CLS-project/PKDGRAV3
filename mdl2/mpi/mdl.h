@@ -426,6 +426,7 @@ void *mdlMallocArray(MDL mdl,size_t nmemb,size_t size,size_t minSize);
 void *mdlSetArray(MDL mdl,size_t nmemb,size_t size,void *vdata);
 void mdlFreeArray(MDL,void *);
 void mdlSetCacheSize(MDL,int);
+int mdlCacheStatus(MDL mdl,int cid); /* zero means not open */
 void mdlROcache(MDL mdl,int cid,
 		void * (*getElt)(void *pData,int i,int iDataSize),
 		void *pData,int iDataSize,int nData);

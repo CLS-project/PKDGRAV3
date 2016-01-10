@@ -598,7 +598,7 @@ static KDN *getCell(PKD pkd, int iCell, int id) {
     return mdlFetch(pkd->mdl,CID_CELL,iCell,id);
     }
 
-PQ *pqSearch(SMX smx,PQ *pq,FLOAT r[3]) {
+PQ *pqSearch(SMX smx,PQ *pq,FLOAT r[3],int iRoot) {
     PKD pkd = smx->pkd;
     MDL mdl = smx->pkd->mdl;
     KDN *kdn;
@@ -614,7 +614,7 @@ PQ *pqSearch(SMX smx,PQ *pq,FLOAT r[3]) {
     FLOAT dx,dy,dz,fDist2;
 
     /* Start at the root node of the tree */
-    kdn = getCell(pkd,pkd->iTopTree[ROOT],id = idSelf);
+    kdn = getCell(pkd,pkd->iTopTree[iRoot],id = idSelf);
     while (1) {
 	while (kdn->iLower) {
 	    int idLower,iLower,idUpper,iUpper;
@@ -755,7 +755,7 @@ void smSmoothFinish(SMX smx) {
 	}
     }
 
-float smSmoothSingle(SMX smx,SMF *smf,PARTICLE *p) {
+float smSmoothSingle(SMX smx,SMF *smf,PARTICLE *p,int iRoot1, int iRoot2) {
     PKD pkd = smx->pkd;
     int ix,iy,iz;
     double p_r[3];
@@ -788,7 +788,8 @@ float smSmoothSingle(SMX smx,SMF *smf,PARTICLE *p) {
     for (j=0;j<3;++j) smx->rLast[j] = r[j] = p_r[j];
 
     PQ_BUILD(smx->pq,smx->nSmooth,pq);
-    pq = pqSearch(smx,pq,r);
+    pq = pqSearch(smx,pq,r,iRoot1);
+    if (iRoot2) pq = pqSearch(smx,pq,r,iRoot2);
     /*
     ** Search in replica boxes if it is required.
     */
@@ -805,7 +806,8 @@ float smSmoothSingle(SMX smx,SMF *smf,PARTICLE *p) {
 		for (iz=iStart[2];iz<=iEnd[2];++iz) {
 		    r[2] = p_r[2] - iz*pkd->fPeriod[2];
 		    if (ix || iy || iz) {
-			pq = pqSearch(smx,pq,r);
+			pq = pqSearch(smx,pq,r,iRoot1);
+			if (iRoot2) pq = pqSearch(smx,pq,r,iRoot2);
 			}
 		    }
 		}
@@ -836,7 +838,7 @@ void smSmooth(SMX smx,SMF *smf) {
     for (pi=0;pi<pkd->nLocal;++pi) {
 	p = pkdParticle(pkd,pi);
 	if ( !pkdIsDstActive(p,0,MAX_RUNG) ) continue;
-	pkdSetBall(pkd,p,smSmoothSingle(smx,smf,p));
+	pkdSetBall(pkd,p,smSmoothSingle(smx,smf,p,ROOT,0));
 
 	/*
 	** Call mdlCacheCheck to make sure we are making progress!
@@ -1861,7 +1863,7 @@ void DoLocalSearch(SMX smx,SMF *smf,PARTICLE *p,double *rLast) {
     }
     for (j=0;j<3;++j) rLast[j] = p_r[j];
     PQ_BUILD(smx->pq,smx->nSmooth,pq);
-    pq = pqSearch(smx,pq,p_r);
+    pq = pqSearch(smx,pq,p_r,ROOT);
     /*
     ** Search in replica boxes if it is required.
     */
@@ -1873,7 +1875,7 @@ void DoLocalSearch(SMX smx,SMF *smf,PARTICLE *p,double *rLast) {
 		for (iz=-1;iz<=1;++iz) {
 		    r[2] = p_r[2] - iz*pkd->fPeriod[2];
 		    if (ix || iy || iz) {
-			pq = pqSearch(smx,pq,r);
+			pq = pqSearch(smx,pq,r,ROOT);
 		    }
 		}
 	    }

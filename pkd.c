@@ -677,8 +677,9 @@ void pkdFinish(PKD pkd) {
 	/*
 	** Close caching space and free up nodes.
 	*/
-	if (pkd->nNodes > 0)
-	    mdlFinishCache(pkd->mdl,CID_CELL);
+	if (mdlCacheStatus(pkd->mdl,CID_CELL))      mdlFinishCache(pkd->mdl,CID_CELL);
+	if (mdlCacheStatus(pkd->mdl,CID_CELL2))     mdlFinishCache(pkd->mdl,CID_CELL2);
+	if (mdlCacheStatus(pkd->mdl,CID_PARTICLE2)) mdlFinishCache(pkd->mdl,CID_PARTICLE2);
 	for( i=pkd->nTreeTilesReserved; i<pkd->nTreeTiles; i++)
 	    mdlFree(pkd->mdl,pkd->kdNodeListPRIVATE[i]);
 	mdlFree(pkd->mdl,pkd->kdNodeListPRIVATE);

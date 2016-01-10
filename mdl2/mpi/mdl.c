@@ -2046,6 +2046,13 @@ void mdlCacheCheck(MDL mdl) {
     combine_all_incoming(mdl);
     }
 
+int mdlCacheStatus(MDL mdl,int cid) {
+    assert(cid >= 0);
+    if (cid >= mdl->nMaxCacheIds) return MDL_NOCACHE;
+    CACHE *c = &mdl->cache[cid];
+    return c->iType;
+    }
+
 /*
  ** Common initialization for all types of caches.
  */

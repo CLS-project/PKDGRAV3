@@ -99,7 +99,7 @@ int smInitializeRO(SMX *psmx,PKD pkd,SMF *smf,int nSmooth,
 void smFinish(SMX,SMF *);
 void smSmoothInitialize(SMX smx);
 void smSmoothFinish(SMX smx);
-float smSmoothSingle(SMX smx,SMF *smf,PARTICLE *p);
+float smSmoothSingle(SMX smx,SMF *smf,PARTICLE *p,int iRoot1, int iRoot2);
 void smSmooth(SMX,SMF *);
 void smReSmoothSingle(SMX smx,SMF *smf,PARTICLE *p,FLOAT fBall);
 void smReSmooth(SMX,SMF *);

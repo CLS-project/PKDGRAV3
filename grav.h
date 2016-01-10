@@ -19,7 +19,7 @@ void pkdGravFinishEwald(PKD pkd);
 int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     int bKickClose,int bKickOpen,double *dtClose,double *dtOpen,double dAccFac,KDN *pBucket,LOCR *pLoc,ILP ilp,ILC ilc,
     float dirLsum,float normLsum,int bEwald,int bGravStep,int nGroup,double *pdFlop,double dRhoFac,
-    SMX smx,SMF *smf);
+    SMX smx,SMF *smf,int iRoot1,int iRoot2);
 
 double pkdRho1(double rhopmaxlocal, double summ, double dir, double x, double y, double z, double vx, double vy, double vz, double EccFacMax);
 

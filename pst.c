@@ -124,9 +124,6 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_DUMPTREES,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstDumpTrees,
 	          sizeof(struct inDumpTrees),0);
-    mdlAddService(mdl,PST_OPENCELLCACHE,pst,
-		  (void (*)(void *,void *,int,void *,int *)) pstOpenCellCache,
-	          0,0);
     mdlAddService(mdl,PST_CALCROOT,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstCalcRoot,
 	          sizeof(struct inCalcRoot),sizeof(struct outCalcRoot));
@@ -2345,21 +2342,6 @@ void pstSetSoft(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	}
     else {
 	pkdSetSoft(plcl->pkd,in->dSoft);
-	}
-    if (pnOut) *pnOut = 0;
-    }
-
-void pstOpenCellCache(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
-    LCL *plcl = pst->plcl;
-    PKD pkd = plcl->pkd;
-    mdlassert(pst->mdl,nIn == 0);
-    if (pst->nLeaves > 1) {
-	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_OPENCELLCACHE,vin,nIn);
-	pstOpenCellCache(pst->pstLower,vin,nIn,vout,pnOut);
-	mdlGetReply(pst->mdl,rID,vout,pnOut);
-	}
-    else {
-	pkdOpenCellCache(pkd);
 	}
     if (pnOut) *pnOut = 0;
     }

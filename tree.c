@@ -84,43 +84,34 @@ static void InitializeRootMarked(PKD pkd,uint8_t uRungDD) {
     pRoot->pUpper = iLast;
     }
 
-void pkdOpenCellCache(PKD pkd) {
-    /*
-    ** Finally activate a read only cache for remote access.
-    */
-    mdlROcache(pkd->mdl,CID_CELL,pkdTreeNodeGetElement,pkd,
-	pkd->iTreeNodeSize,pkd->nNodes);
-    }
-
 void pkdDumpTrees(PKD pkd,int bOnlyVA, uint8_t uRungDD) {
-    KDN *pRoot   = InitializeRootCommon(pkd,ROOT);
-    KDN *pRootVA = InitializeRootCommon(pkd,VAROOT);
-    if (pkd->nNodes > 0) {
-	/*
-	** Close cell caching space and free up nodes.
-	*/
-	mdlFinishCache(pkd->mdl,CID_CELL);
-	}
-    else {
+    KDN *pRoot    = InitializeRootCommon(pkd,ROOT);
+    KDN *pRootFix = InitializeRootCommon(pkd,FIXROOT);
+
+    if (pkd->nNodes == 0) {
 	assert(bOnlyVA==0);
+	pkd->nNodes = NRESERVED_NODES;
 	pkdTreeNode(pkd,ROOT)->iLower = NRESERVED_NODES;
-	pkdTreeNode(pkd,VAROOT)->iLower = NRESERVED_NODES;
+	pkdTreeNode(pkd,FIXROOT)->iLower = NRESERVED_NODES;
 	}
+
+    /* We can always close the "active" caches */
+    if (mdlCacheStatus(pkd->mdl,CID_CELL)) mdlFinishCache(pkd->mdl,CID_CELL);
+// done elsewhere   if (mdlCacheStatus(pkd->mdl,CID_PARTICLE)) mdlFinishCache(pkd->mdl,CID_PARTICLE);
 
     /* Full Normal tree build. Only ROOT will be used */
     if (uRungDD == IRUNGMAX) {
 	pRoot->pLower = 0;
 	pRoot->pUpper = pkd->nLocal - 1;
-	pkd->nNodes = pRoot->iLower; /* This effectively truncates the nodes used by this tree */
+	pkd->nNodes = NRESERVED_NODES;
 	pRoot->iLower = 0;
-	assert(pkd->nNodes==NRESERVED_NODES);
 	}
-    /* Just rebuilding VAROOT. Truncate it. pLower and pUpper are still valid. */
+    /* Just rebuilding (active) ROOT. Truncate it. pLower and pUpper are still valid. */
     else if (bOnlyVA) {
-	if (pRootVA->iLower) {
-	    assert(pRootVA->iLower >= NRESERVED_NODES);
-	    pkd->nNodes = pRootVA->iLower; /* This effectively truncates the nodes used by this tree */
-	    pRootVA->iLower = 0;
+	if (pRoot->iLower) {
+	    assert(pRoot->iLower >= NRESERVED_NODES);
+	    pkd->nNodes = pRoot->iLower; /* This effectively truncates the nodes used by this tree */
+	    pRoot->iLower = 0;
 	    }
 	}
 
@@ -131,6 +122,11 @@ void pkdDumpTrees(PKD pkd,int bOnlyVA, uint8_t uRungDD) {
 	local_t iLast;
 	int i;
 
+#ifndef SINGLE_CACHES
+	/* Here we also have to close the "fixed" caches */
+	if (mdlCacheStatus(pkd->mdl,CID_CELL2))     mdlFinishCache(pkd->mdl,CID_CELL2);
+	if (mdlCacheStatus(pkd->mdl,CID_PARTICLE2)) mdlFinishCache(pkd->mdl,CID_PARTICLE2);
+#endif
 	p = pkdParticle(pkd,i=0);
 	pVA = pkdParticle(pkd,iLast=pkd->nLocal-1);
 	PARTITION(p<pVA,p<=pVA,
@@ -138,21 +134,18 @@ void pkdDumpTrees(PKD pkd,int bOnlyVA, uint8_t uRungDD) {
 	    pkdSwapParticle(pkd,p,pVA),
 	    p->uRung <= uRungDD,pVA->uRung > uRungDD);
 
-	pkd->nNodes = pRoot->iLower; /* This effectively truncates the nodes used by this tree */
-	assert(pkd->nNodes==NRESERVED_NODES);
+	pkd->nNodes = NRESERVED_NODES;
 	pRoot->iLower = 0;
-	pRootVA->iLower = 0;
+	pRootFix->iLower = 0;
 
-	pRoot->pLower = 0;
-	pRoot->pUpper = iLast;
-	pRootVA->pLower = iLast + 1;
-	pRootVA->pUpper = pkd->nLocal - 1;
+	pRootFix->pLower = 0;
+	pRootFix->pUpper = iLast;
+	pRoot->pLower = iLast + 1;
+	pRoot->pUpper = pkd->nLocal - 1;
 
-	for(i=pRoot->pLower; i<=pRoot->pUpper; ++i) assert(pkdParticle(pkd,i)->uRung<=uRungDD);
-	for(i=pRootVA->pLower; i<=pRootVA->pUpper; ++i) assert(pkdParticle(pkd,i)->uRung>uRungDD);
+	for(i=pRootFix->pLower; i<=pRootFix->pUpper; ++i) assert(pkdParticle(pkd,i)->uRung<=uRungDD);
+	for(i=pRoot->pLower; i<=pRoot->pUpper; ++i) assert(pkdParticle(pkd,i)->uRung>uRungDD);
 	}
-
-
     }
 
 #define MIN_SRATIO    0.05
@@ -761,6 +754,16 @@ void pkdTreeBuild(PKD pkd,int nBucket, uint32_t uRoot) {
     BuildTemp(pkd,uRoot,nBucket);
     Create(pkd,uRoot);
     pkdStopTimer(pkd,0);
+
+    if (uRoot == FIXROOT) {
+#ifndef SINGLE_CACHES
+	mdlROcache(pkd->mdl,CID_CELL2,pkdTreeNodeGetElement,pkd,pkd->iTreeNodeSize,pkd->nNodes);
+	mdlROcache(pkd->mdl,CID_PARTICLE2,NULL,pkdParticleBase(pkd),pkdParticleSize(pkd),pkdLocal(pkd));
+#endif
+	}
+    else {
+	mdlROcache(pkd->mdl,CID_CELL,pkdTreeNodeGetElement,pkd,pkd->iTreeNodeSize,pkd->nNodes);
+	}
 
 #ifdef USE_ITT
     __itt_task_end(domain);

@@ -881,7 +881,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     int bKickClose,int bKickOpen,double *dtClose,double *dtOpen,double dAccFac,
     KDN *pBucket,LOCR *pLoc,ILP ilp,ILC ilc,
     float dirLsum,float normLsum,int bEwald,int bGravStep,int nGroup,double *pdFlop,
-    double dRhoFac,SMX smx,SMF *smf) {
+    double dRhoFac,SMX smx,SMF *smf,int iRoot1,int iRoot2) {
     PARTICLE *p;
     KDN *pkdn = pBucket;
     double r[3];
@@ -985,7 +985,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
 	    ** likely to be cached already because they will be on the P-P list.
 	    */
 	    smf->pfDensity = &work->pInfoIn[nP].fDensity;
-	    fBall = smSmoothSingle(smx,smf,p);
+	    fBall = smSmoothSingle(smx,smf,p,iRoot1,iRoot2);
 	    work->pInfoIn[nP].fSmooth2 = fBall * fBall;
 	    }
 	else {

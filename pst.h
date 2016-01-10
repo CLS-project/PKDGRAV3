@@ -94,7 +94,6 @@ enum pst_service {
     PST_BUILDTREE,
     PST_DISTRIBTOPTREE,
     PST_DUMPTREES,
-    PST_OPENCELLCACHE,
     PST_CALCROOT,
     PST_DISTRIBROOT,
     PST_ENFORCEPERIODIC,
@@ -441,9 +440,6 @@ struct inBuildTree {
     uint32_t uRoot;   /* Which root node to use */
     };
 void pstBuildTree(PST,void *,int,void *,int *);
-
-/* PST_OPENCELLCACHE */
-void pstOpenCellCache(PST,void *,int,void *,int *);
 
 /* PST_DISTRIBTOPTREE */
 struct inDistribTopTree {

@@ -52,6 +52,8 @@ static inline int64_t d2u64(double d) {
 
 #define CID_PARTICLE	0
 #define CID_CELL	1
+#define CID_PARTICLE2	8
+#define CID_CELL2	9
 #define CID_GROUP	2
 #define CID_RM		3
 #define CID_BIN		4
@@ -108,6 +110,7 @@ typedef struct {
 ** is here defined as the ROOT of the local tree (or top tree), node-2 is unused and
 ** node-3 is the root node "fixed" tree.
 */
+#define FIXROOT         3
 #define VAROOT          3
 #define ROOT		1
 #define NRESERVED_NODES MAX_RUNG+1
@@ -1102,7 +1105,7 @@ static inline int pkdIsNew(PKD pkd,PARTICLE *p) {
 void pkdVATreeBuild(PKD pkd,int nBucket);
 void pkdTreeBuild(PKD pkd,int nBucket,uint32_t uRoot);
 uint32_t pkdDistribTopTree(PKD pkd, uint32_t uRoot, uint32_t nTop, KDN *pTop);
-void pkdOpenCellCache(PKD pkd);
+void pkdOpenCloseCaches(PKD pkd,int bOpen,int bFixed);
 void pkdDumpTrees(PKD pkd,int bOnlyVA,uint8_t uRungDD);
 void pkdCombineCells1(PKD,KDN *pkdn,KDN *p1,KDN *p2);
 void pkdCombineCells2(PKD,KDN *pkdn,KDN *p1,KDN *p2);
