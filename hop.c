@@ -169,7 +169,7 @@ static int renumberGroups(PKD pkd, int nGroups,struct smGroupArray *ga) {
 /*
 ** Merge duplicate groups (iPid/iIndex is the same), and update particle pointers.
 */
-static int combineDuplicateGroupIds(PKD pkd, int nGroups, struct smGroupArray *ga,int bIndexIsGID) {
+int pkdCombineDuplicateGroupIds(PKD pkd, int nGroups, struct smGroupArray *ga,int bIndexIsGID) {
     int gid, nNew;
 
     nNew = renumberGroups(pkd,nGroups,ga);
@@ -326,7 +326,7 @@ int smHopLink(SMX smx,SMF *smf) {
     ** fewer remote searches to perform. This results in substantially fewer chains.
     */
     mdlFinishCache(mdl,CID_PARTICLE);
-    nGroups = combineDuplicateGroupIds(pkd,nGroups,ga,0);
+    nGroups = pkdCombineDuplicateGroupIds(pkd,nGroups,ga,0);
     mdlROcache(mdl,CID_PARTICLE,NULL,pkdParticleBase(pkd),pkdParticleSize(pkd),pkdLocal(pkd));
     /*
     ** Now lets go looking for remote loops and see if we are part of them.
@@ -401,7 +401,7 @@ int smHopLink(SMX smx,SMF *smf) {
     /* Done: pl[] is no longer needed */
     pl = NULL;
 
-    nGroups = combineDuplicateGroupIds(pkd,nGroups,ga,0);
+    nGroups = pkdCombineDuplicateGroupIds(pkd,nGroups,ga,0);
     /*
     ** Now handle deferred groups (ones pointing to, but not part of, loops).
     */
@@ -442,7 +442,7 @@ int smHopLink(SMX smx,SMF *smf) {
 	    }
 	}
     mdlFinishCache(mdl,CID_PARTICLE);
-    nGroups = combineDuplicateGroupIds(pkd,nGroups,ga,0);
+    nGroups = pkdCombineDuplicateGroupIds(pkd,nGroups,ga,0);
     mdlROcache(mdl,CID_PARTICLE,NULL,pkdParticleBase(pkd),pkdParticleSize(pkd),pkdLocal(pkd));
 
     /*
@@ -554,7 +554,7 @@ int smHopJoin(SMX smx,SMF *smf, double dHopTau, int *nLocal) {
 	ga[pi].id.iIndex = pkd->tmpHopGroups[pi].iIndex;
 	}
     mdlFinishCache(mdl,CID_PARTICLE);
-    pkd->nGroups = combineDuplicateGroupIds(pkd,pkd->nGroups,ga,1);
+    pkd->nGroups = pkdCombineDuplicateGroupIds(pkd,pkd->nGroups,ga,1);
     mdlROcache(mdl,CID_PARTICLE,NULL,pkdParticleBase(pkd),pkdParticleSize(pkd),pkdLocal(pkd));
     int nRemote = 0;
     *nLocal = 0;
@@ -860,7 +860,7 @@ static void hopCalculateGroupStats(PKD pkd, int bPeriodic, double *dPeriod) {
     }
 
 
-void purgeSmallGroups(PKD pkd,int nMinGroupSize, int bPeriodic, double *dPeriod) {
+void pkdPurgeSmallGroups(PKD pkd,int nMinGroupSize, int bPeriodic, double *dPeriod) {
     struct smGroupArray *ga = (struct smGroupArray *)(pkd->pLite);
     int i, j, gid;
 
@@ -911,7 +911,7 @@ int pkdHopFinishUp(PKD pkd,int nMinGroupSize, int bPeriodic, double *dPeriod) {
 	pkd->hopGroups[i].bNeedGrav    = 1;
 	pkd->hopGroups[i].bComplete    = 0;
 	}
-    purgeSmallGroups(pkd,nMinGroupSize,bPeriodic,dPeriod);
+    pkdPurgeSmallGroups(pkd,nMinGroupSize,bPeriodic,dPeriod);
     pkd->hopSavedRoots = 0;
 
     /* free: We have allocated pkd->hopGroups */
@@ -1161,7 +1161,7 @@ int pkdHopUnbind(PKD pkd, double dTime, int nMinGroupSize, int bPeriodic, double
 	    else pkdSwapParticle(pkd,p,pkdParticle(pkd,pNode->pUpper--));
 	    }
 	}
-    purgeSmallGroups(pkd,nMinGroupSize,bPeriodic,dPeriod);
+    pkdPurgeSmallGroups(pkd,nMinGroupSize,bPeriodic,dPeriod);
 
     return nEvaporated;
     }

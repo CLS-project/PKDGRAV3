@@ -297,6 +297,15 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_FOF,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstFof,
 		  sizeof(struct inFof),0);
+    mdlAddService(mdl,PST_NEW_FOF,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstNewFof,
+		  sizeof(struct inNewFof),0);
+    mdlAddService(mdl,PST_FOF_PHASES,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstFofPhases,
+	          0,sizeof(struct outFofPhases));
+    mdlAddService(mdl,PST_FOF_FINISH_UP,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstFofFinishUp,
+	          sizeof(struct inFofFinishUp),sizeof(uint64_t));
     mdlAddService(mdl,PST_GROUPMERGE,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstGroupMerge,
 		  sizeof(struct inGroupMerge),sizeof(int));
@@ -3568,11 +3577,70 @@ void pstFof(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	(&in->smf)->pkd = pst->plcl->pkd;
 	smInitialize(&smx,plcl->pkd,&in->smf,in->nSmooth,
 		     in->bPeriodic,in->bSymmetric,in->iSmoothType);
-/*	smNewFof(smx,&in->smf);*/
+	smFof(smx,&in->smf);
 	smFinish(smx,&in->smf);
 	}
     if (pnOut) *pnOut = 0;
     }
+
+void pstNewFof(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    struct inNewFof *in = vin;
+
+    mdlassert(pst->mdl,nIn == sizeof(struct inNewFof));
+    if (pst->nLeaves > 1) {
+	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_NEW_FOF,in,nIn);
+	pstNewFof(pst->pstLower,in,nIn,NULL,NULL);
+	mdlGetReply(pst->mdl,rID,NULL,NULL);
+	}
+    else {
+	LCL *plcl = pst->plcl;
+	pkdNewFof(plcl->pkd,in->dTau2,in->nMinMembers);
+	}
+    if (pnOut) *pnOut = 0;
+    }
+
+void pstFofPhases(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    struct outFofPhases *out = vout;
+    int bMadeProgress;
+
+    mdlassert(pst->mdl,nIn == 0);
+    if (pst->nLeaves > 1) {
+	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_FOF_PHASES,vin,nIn);
+	pstFofPhases(pst->pstLower,vin,nIn,out,NULL);
+	bMadeProgress = out->bMadeProgress;
+	mdlGetReply(pst->mdl,rID,out,NULL);
+	if (!out->bMadeProgress) out->bMadeProgress = bMadeProgress;
+	}
+    else {
+	LCL *plcl = pst->plcl;
+	out->bMadeProgress = pkdFofPhases(plcl->pkd);
+	}
+    if (pnOut) *pnOut = sizeof(struct outFofPhases);
+    }
+
+
+/*
+** This is an almost identical copy of HopFinishUp.
+*/
+void pstFofFinishUp(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    struct inFofFinishUp *in = (struct inFofFinishUp *)vin;
+    uint64_t *nOutGroups = (uint64_t *)vout;
+    uint64_t nOutUpper;
+
+    mdlassert(pst->mdl,nIn == sizeof(struct inFofFinishUp));
+    if (pst->nLeaves > 1) {
+        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_FOF_FINISH_UP,vin,nIn);
+        pstFofFinishUp(pst->pstLower,vin,nIn,vout,pnOut);
+        mdlGetReply(pst->mdl,rID,&nOutUpper,pnOut);
+	*nOutGroups += nOutUpper;
+        }
+    else {
+	LCL *plcl = pst->plcl;
+        *nOutGroups = pkdFofFinishUp(plcl->pkd,in->nMinGroupSize,in->bPeriodic,in->fPeriod);
+        }
+    if (pnOut) *pnOut = sizeof(uint64_t);
+    }
+
 
 void pstGroupMerge(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     struct inGroupMerge *in = vin;

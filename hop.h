@@ -4,6 +4,8 @@
 
 int smHopLink(SMX smx,SMF *smf);
 int smHopJoin(SMX smx,SMF *smf,double dHopTau,int *nLocal);
+int pkdCombineDuplicateGroupIds(PKD pkd, int nGroups, struct smGroupArray *ga,int bIndexIsGID);
+void pkdPurgeSmallGroups(PKD pkd,int nMinGroupSize, int bPeriodic, double *dPeriod);
 int pkdHopFinishUp(PKD pkd, int nMinGroupSize, int bPeriodic, double *dPeriod);
 void pkdHopAssignGID(PKD pkd,uint64_t iStartGID);
 int pkdHopCountGID(PKD pkd);

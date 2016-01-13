@@ -24,7 +24,10 @@ struct smExtraArray {
 struct smGroupArray {
     remoteID id;       /* iPid, iIndex */
     int32_t iGid;      /* local group ID */
-    int32_t iNewGid;   /* new local group ID */
+    union {
+	int32_t iNewGid;   /* new local group ID */
+	uint32_t iLink;    /* link to remote groups */
+	};
     };
 
 typedef struct smContext {

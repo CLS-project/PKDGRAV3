@@ -38,6 +38,7 @@ static inline int getCell(PKD pkd,int iCache,int iCell,int id,float *pcOpen,KDN 
     return nc;
     }
 
+
 #ifdef USE_SIMD_OPEN
 static const struct CONSTS {
     vfloat zero;

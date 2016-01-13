@@ -156,6 +156,10 @@ enum pst_service {
     PST_SETNPARTS,
     PST_DENSCHECK,
     PST_FOF,
+    PST_NEW_FOF,
+    PST_FOF_PHASES,
+    PST_FOF_FINISH_UP,
+    PST_FOFMERGE,
     PST_HOP_LINK,
     PST_HOP_JOIN,
     PST_HOP_FINISH_UP,
@@ -1024,11 +1028,37 @@ struct inFof {
     int iCenterType;
     SMF smf;
     };
+void pstFof(PST,void *,int,void *,int *);
+
+/* PST_NEW_FOF */
+struct inNewFof {
+    double dTau2;
+    int nMinMembers;
+    };
+void pstNewFof(PST,void *,int,void *,int *);
+
+/* PST_FOF_PHASES */
+struct outFofPhases {
+    int bMadeProgress;
+    };   
+void pstFofPhases(PST,void *,int,void *,int *);
+
+/* PST_FOF_FINISH_UP */
+struct inFofFinishUp{
+    double fPeriod[3];
+    int bPeriodic;
+    int nMinGroupSize;
+    };
+void pstFofFinishUp(PST,void *,int,void *,int *);
+
+
 struct inGroupMerge {
     int bPeriodic;
     int iCenterType;
     SMF smf;
   };
+void pstGroupMerge(PST,void *,int,void *,int *);
+
 struct inGroupProfiles {
     int nSmooth;
     int bPeriodic;
@@ -1037,8 +1067,6 @@ struct inGroupProfiles {
     int iSmoothType;
     SMF smf;
     };
-void pstFof(PST,void *,int,void *,int *);
-void pstGroupMerge(PST,void *,int,void *,int *);
 void pstGroupProfiles(PST,void *,int,void *,int *);
 void pstInitRelaxation(PST,void *,int,void *,int *);
 

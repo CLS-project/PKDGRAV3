@@ -4702,6 +4702,58 @@ void msrHop(MSR msr, double dTime) {
 	printf("Grasshopper complete, Wallclock: %f secs\n\n",dsec);
     }
 
+void msrNewFof(MSR msr, double dTime) {
+    struct inNewFof in;
+    struct outFofPhases out;
+    struct inHopFinishUp inFinish;
+    int i;
+    uint64_t nGroups;
+    double sec,dsec,ssec;
+
+    ssec = msrTime();
+
+    in.dTau2 = msr->param.dTau*msr->param.dTau;
+    in.nMinMembers = msr->param.nMinMembers;
+    if (msr->param.bVStep) {
+	printf("Running FoF with fixed linking length %g\n", in.dTau2 );
+	}
+
+    sec = msrTime();
+    pstNewFof(msr->pst,&in,sizeof(in),NULL,NULL);
+    dsec = msrTime() - sec;
+    if (msr->param.bVStep)
+	printf("Initial FoF calculation complete in %f secs\n",dsec);
+
+    sec = msrTime();
+    i = 0;
+    do {
+	++i;
+	assert(i<100);
+	pstFofPhases(msr->pst,NULL,0,&out,NULL);
+	if (msr->param.bVStep)
+	    printf("... %d iteration%s\n",i,i==1?"":"s");
+	} while( out.bMadeProgress );
+    dsec = msrTime() - sec;
+    if (msr->param.bVStep)
+	printf("Global merge complete in %f secs\n",dsec);
+
+    inFinish.nMinGroupSize = msr->param.nMinMembers;
+    inFinish.bPeriodic = msr->param.bPeriodic;
+    inFinish.fPeriod[0] = msr->param.dxPeriod;
+    inFinish.fPeriod[1] = msr->param.dyPeriod;
+    inFinish.fPeriod[2] = msr->param.dzPeriod;
+    pstFofFinishUp(msr->pst,&inFinish,sizeof(inFinish),&nGroups,NULL);
+    if (msr->param.bVStep)
+	printf("Removed groups with fewer than %d particles, %"PRIu64" remain\n",
+	    inFinish.nMinGroupSize, nGroups);
+
+    pstHopAssignGID(msr->pst,NULL,0,NULL,NULL);
+    dsec = msrTime() - ssec;
+    if (msr->param.bVStep)
+	printf("FoF complete, Wallclock: %f secs\n\n",dsec);
+    }
+
+
 void msrFof(MSR msr, double exp) {
     struct inFof in;
     struct outHopCountGID outCount;
@@ -5323,7 +5375,7 @@ void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint) {
 	msrActiveRung(msr,0,1); /* Activate all particles */
 	msrDomainDecomp(msr,-1,0,0);
 	msrBuildTree(msr,dTime,0);
-	msrFof(msr,csmTime2Exp(msr->param.csm,dTime));
+	msrNewFof(msr,csmTime2Exp(msr->param.csm,dTime));
 
 /*	msrGroupMerge(msr,csmTime2Exp(msr->param.csm,dTime));
 	if (msr->param.nBins > 0) msrGroupProfiles(msr,csmTime2Exp(msr->param.csm,dTime));
