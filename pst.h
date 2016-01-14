@@ -438,6 +438,7 @@ void pstCheckpoint(PST,void *,int,void *,int *);
 struct inBuildTree {
     int nBucket;      /* Bucket Size */
     uint32_t uRoot;   /* Which root node to use */
+    uint32_t utRoot;  /* Template tree */
     };
 void pstBuildTree(PST,void *,int,void *,int *);
 

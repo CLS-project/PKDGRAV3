@@ -261,7 +261,7 @@ typedef struct kdNode {
     int pLower;		     /* also serves as thread id for the LTT */
     int pUpper;		     /* pUpper < 0 indicates no particles in tree! */
     uint32_t iLower;         /* Local lower node (or remote processor w/bRemote=1) */
-    uint16_t uCore;          /* Reserved: will be the owner core */
+    uint16_t iDepth;
     uint16_t uMinRung   : 6;
     uint16_t uMaxRung   : 6;
     uint16_t bSrcActive : 1;
@@ -618,6 +618,7 @@ typedef struct pkdContext {
     int nNonVANodes;    /* number of nodes *not* in Very Active Tree, or index to the start of the VA nodes (except VAROOT) */
     BND bnd;
     BND vbnd;
+    BND fixbnd;
     size_t iTreeNodeSize;
     size_t iParticleSize;
     PARTICLE *pStorePRIVATE;
@@ -1103,7 +1104,7 @@ static inline int pkdIsNew(PKD pkd,PARTICLE *p) {
 ** From tree.c:
 */
 void pkdVATreeBuild(PKD pkd,int nBucket);
-void pkdTreeBuild(PKD pkd,int nBucket,uint32_t uRoot);
+void pkdTreeBuild(PKD pkd,int nBucket,uint32_t uRoot,uint32_t uTemp);
 uint32_t pkdDistribTopTree(PKD pkd, uint32_t uRoot, uint32_t nTop, KDN *pTop);
 void pkdOpenCloseCaches(PKD pkd,int bOpen,int bFixed);
 void pkdDumpTrees(PKD pkd,int bOnlyVA,uint8_t uRungDD);

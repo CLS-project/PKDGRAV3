@@ -2425,7 +2425,7 @@ void pstBuildTree(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     else {
 	KDN *pRoot = pkdTreeNode(pkd,uRoot);
 	pkdTreeAlignNode(pkd);
-	pkdTreeBuild(plcl->pkd,in->nBucket,in->uRoot);
+	pkdTreeBuild(plcl->pkd,in->nBucket,in->uRoot,in->utRoot);
 	pkdCopyNode(pkd,pTop,pRoot);
 	/* Get our cell ready */
 	pTop->bTopTree = 1;

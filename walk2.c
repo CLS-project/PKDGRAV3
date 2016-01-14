@@ -123,7 +123,7 @@ static void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin, i
     k_y = SIMD_SPLAT((float)(k->r[1]));
     k_z = SIMD_SPLAT((float)(k->r[2]));
     k_bMax = SIMD_SPLAT(k->bMax);
-    k_nk = SIMD_SPLATI32(k->pUpper-k->pLower+1);
+    k_nk = SIMD_SPLATI32(k->iLower?(k->pUpper-k->pLower+1):0);
     k_Open = SIMD_MUL(consts.threehalves.p,SIMD_MUL(k_bMax,diCrit));
 
     blk = tile->blk;
@@ -211,6 +211,7 @@ static void iOpenOutcomeCL(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin,int 
 
     kbnd = pkdNodeBnd(pkd,k);
     nk = k->pUpper - k->pLower + 1;
+    if (k->iLower==0) nk = 0;
 
     diCrit = 1.0f / dThetaMin;
     blk = tile->blk;
@@ -373,6 +374,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2, ui
 	    pkdGetPos3(pkd,p,cx,cy,cz);
 	    goto found_it;
 	}
+	printf("%d: TREE ERROR\n", pkd->idSelf);
 	assert(0); /* We didn't find an active particle */
     found_it:
 	d2c = (cx - pkd->ilp->cx)*(cx - pkd->ilp->cx) + (cy - pkd->ilp->cy)*(cy - pkd->ilp->cy) +
@@ -645,7 +647,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2, ui
 	    ** Now prepare to proceed to the next deeper
 	    ** level of the tree.
 	    */
-	    if ((k->pUpper-k->pLower+1)<=nGroup) break;
+	    if ((k->pUpper-k->pLower+1)<=nGroup || k->iLower==0) break;
 	    xParent = k->r[0];
 	    yParent = k->r[1];
 	    zParent = k->r[2];

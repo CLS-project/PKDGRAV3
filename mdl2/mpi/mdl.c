@@ -40,7 +40,7 @@
 #define MDL_ROCACHE			1
 #define MDL_COCACHE			2
 
-#define MDL_DEFAULT_CACHEIDS	5
+#define MDL_DEFAULT_CACHEIDS	10
 
 #define MDL_TRANS_SIZE		5000000
 #define MDL_FLUSH_DATA_SIZE	32000
@@ -2067,10 +2067,11 @@ CACHE *CacheInitialize(
     cacheOpenClose coc;
 
     /*
-     ** Allocate more cache spaces if required!
+     ** We cannot reallocate this structure because there may be other threads accessing it.
      */
-    assert(cid >= 0);
+    assert(cid >= 0 && cid <mdl->nMaxCacheIds);
     if (cid >= mdl->nMaxCacheIds) {
+	abort();
 	/*
 	 ** reallocate cache spaces, adding space for 2 new cache spaces
 	 ** including the one just defined.

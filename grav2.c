@@ -995,7 +995,8 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
 	    work->pInfoIn[nP].fSmooth2 = 0.0;
 	    }
 	}
-    assert(work->nP<=nGroup);
+    /* This is not true with the "active" tree */
+    /*assert(work->nP<=nGroup);*/
 
     nActive += work->nP;
 
