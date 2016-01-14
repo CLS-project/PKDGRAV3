@@ -3901,7 +3901,6 @@ void msrTopStepHSDKD(MSR msr,
 void msrLightCone(MSR msr,double dTime) {
     }
 
-#define USE_DUAL_TREE
 #ifndef USE_DUAL_TREE
 void msrNewTopStepKDK(MSR msr,
     uint8_t uRung,		/* Rung level */
