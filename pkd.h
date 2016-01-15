@@ -23,6 +23,12 @@
 #endif
 #include "basetype.h"
 
+#if defined(HAVE_LIBAIO_H)
+#include <libaio.h>
+#elif defined(HAVE_AIO_H)
+#include <aio.h>
+#endif
+
 #ifdef __cplusplus
 #define CAST(T,V) reinterpret_cast<T>(V)
 #else
@@ -625,13 +631,21 @@ typedef struct pkdContext {
     PARTICLE *pTempPRIVATE;
     double dTimeRedshift0;
 
-#if 0
-    struct iocb cbLightCone[2];
-    struct io_event eventsLightCone[2];
-    int fdLightCone[2];
+#define NUMLCBUFS 2
+#if defined(HAVE_LIBAIO_H)
+    struct iocb cbLightCone[NUMLCBUFS];
+    struct io_event eventsLightCone[NUMLCBUFS];
+    io_context_t ctxLightCone;
+#elif defined(HAVE_AIO_H)
+    struct aiocb cbLightCone[NUMLCBUFS];
+    struct aiocb const * pcbLightCone[NUMLCBUFS];
 #endif
+    LIGHTCONEP *pLightCone[NUMLCBUFS];
+    off_t iFilePositionLightCone;
+    int fdLightCone;
+    int iLightConeBuffer;
     int nLightCone, nLightConeMax;
-    LIGHTCONEP *pLightCone[2];
+
     PARTCLASS *pClass;
     float fSoftFix;
     float fSoftFac;
@@ -1307,6 +1321,10 @@ void pkdMeasurePk(PKD pkd, double dCenter[3], double dRadius, double dTotalMass,
     int nGrid, int nBins, float *fK, float *fPower, int *nPower);
 #endif
 void pkdOutPsGroup(PKD pkd,char *pszFileName,int iType);
+
+void pkdLightConeOpen(PKD pkd, const char *fname);
+void pkdLightConeClose(PKD pkd);
+
 
 #ifdef USE_CUDA
 #ifdef __cplusplus

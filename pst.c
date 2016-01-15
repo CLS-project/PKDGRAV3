@@ -476,6 +476,13 @@ void pstAddServices(PST pst,MDL mdl) {
 		  (void (*)(void *,void *,int,void *,int *)) pstUnbind,
 		  sizeof(int), 0);
 #endif
+    mdlAddService(mdl,PST_LIGHTCONE_OPEN,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstLightConeOpen,
+		  sizeof(struct inLightConeOpen), 0);
+    mdlAddService(mdl,PST_LIGHTCONE_CLOSE,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstLightConeClose,
+		  0, 0);
+
     mdlCommitServices(mdl);
    }
 
@@ -4908,3 +4915,34 @@ void pstUnbind(PST pst,void *vin,int nIn,void *vout,int *pnOut)
     if (pnOut) *pnOut = 0;
 }
 #endif
+
+void pstLightConeOpen(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    struct inLightConeOpen *in = vin;
+    mdlassert(pst->mdl,nIn == sizeof(struct inLightConeOpen));
+    if (pst->nLeaves > 1) {
+        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_LIGHTCONE_OPEN,in,nIn);
+        pstLightConeOpen(pst->pstLower,in,nIn,NULL,NULL);
+        mdlGetReply(pst->mdl,rID,NULL,NULL);
+        }
+    else {
+	PKD pkd = pst->plcl->pkd;
+	char achOutFile[PST_FILENAME_SIZE];
+	makeName(achOutFile,in->achOutFile,mdlSelf(pkd->mdl),"lcp.");
+        pkdLightConeOpen(pkd, achOutFile);
+        }
+    if (pnOut) *pnOut = 0;
+}
+
+void pstLightConeClose(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    int *in = vin;
+    mdlassert(pst->mdl,nIn == 0);
+    if (pst->nLeaves > 1) {
+        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_LIGHTCONE_CLOSE,in,nIn);
+        pstLightConeClose(pst->pstLower,in,nIn,NULL,NULL);
+        mdlGetReply(pst->mdl,rID,NULL,NULL);
+        }
+    else {
+        pkdLightConeClose(pst->plcl->pkd);
+        }
+    if (pnOut) *pnOut = 0;
+}

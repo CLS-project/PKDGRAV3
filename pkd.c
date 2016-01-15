@@ -568,6 +568,7 @@ void pkdInitialize(
 	pkd->pLightCone[0] = NULL;
 	pkd->pLightCone[1] = NULL;
 	}
+    pkd->fdLightCone = 0;
 
 #ifdef MDL_CACHE_SIZE
     if ( iCacheSize > 0 ) mdlSetCacheSize(pkd->mdl,iCacheSize);
@@ -1651,29 +1652,27 @@ void pkdLocalOrder(PKD pkd,uint64_t iMinOrder, uint64_t iMaxOrder) {
 **      resident size: max=  27.921 @17709 avg=  27.870 of 34300 std-dev=   0.013
 */
 
-#undef HAVE_LIBAIO_H
 #if defined(HAVE_LIBAIO_H) || defined(HAVE_AIO_H)
 
 #ifdef HAVE_LIBAIO_H
-#include <libaio.h>
 typedef struct {
     struct iocb cb[2*ASYNC_COUNT+1];
     struct io_event events[2*ASYNC_COUNT+1];
+    io_context_t ctx;
+
     off_t iFilePosition;   /* File position */
     size_t nBufferSize;
     char *pSource;         /* Source of particles (in pStore) */
     size_t nBytes;         /* Number of bytes left to write */
-    io_context_t ctx;
     int nPageSize;
     int nBuffers;
     int fd;
     } asyncInfo;
 #else
-#include <aio.h>
 typedef struct {
     struct aiocb cb[2*ASYNC_COUNT+1];
     struct aiocb const * pcb[2*ASYNC_COUNT+1];
-    void *pBuffer[2*ASYNC_COUNT];
+
     off_t iFilePosition;   /* File position */
     size_t nBufferSize;
     char *pSource;         /* Source of particles (in pStore) */
@@ -1718,7 +1717,7 @@ static void asyncCheckpoint(PKD pkd,const char *fname,int bWrite) {
     int i, rc;
 
     if (bWrite) {
-	info.fd = open(fname,O_DIRECT|O_CREAT|O_WRONLY|O_TRUNC,S_IRUSR|S_IWUSR|S_IRGRP);
+	info.fd = open(fname,O_DIRECT|O_CREAT|O_WRONLY|O_TRUNC,S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP);
 	if (info.fd<0) { perror(fname); abort(); }
 	nFileSize = pkdParticleSize(pkd) * pkd->nLocal;
 	}
@@ -1831,7 +1830,7 @@ static void asyncCheckpoint(PKD pkd,const char *fname,int bWrite) {
 
 #define WRITE_LIMIT (1024*1024*1024)
 static void simpleCheckpoint(PKD pkd,const char *fname) {
-    int fd = open(fname,O_CREAT|O_WRONLY|O_TRUNC,S_IRUSR|S_IWUSR|S_IRGRP);
+    int fd = open(fname,O_CREAT|O_WRONLY|O_TRUNC,S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP);
     size_t nBytesToWrite = pkdParticleSize(pkd) * pkd->nLocal;
     char *pBuffer = (char *)pkdParticleBase(pkd);
     ssize_t nBytesWritten;
@@ -2192,30 +2191,52 @@ void pkdScaleVel(PKD pkd,double dvFac) {
 
 static void flushLightCone(PKD pkd) {
 #if 0
-
     struct iocb cbLightCone[2];
     struct io_event eventsLightCone[2];
-
-
-
     struct iocb *pcb = &info->cb[i];
     io_prep_pwrite(pkd->cbLightCone+0,pkd->fdLightCone+0,pkd->pLightCone+0,nBytes,info->iFilePosition);
     else        io_prep_pread(info->cb+i,info->fd,info->pSource,nBytes,info->iFilePosition);
     rc = io_submit(info->ctx,1,&pcb);
     if (rc<0) { perror("io_submit"); abort(); }
-
-
-
-
-
-
 #endif
+    size_t count = pkd->nLightCone * sizeof(LIGHTCONEP);
+    write(pkd->fdLightCone,pkd->pLightCone[pkd->iLightConeBuffer],count);
+    pkd->nLightCone = 0;
+    }
+
+void pkdLightConeClose(PKD pkd) {
+    flushLightCone(pkd);
+    close(pkd->fdLightCone);
+    }
+
+void pkdLightConeOpen(PKD pkd,const char *fname) {
+    int i, rc;
+//    pkd->fdLightCone = open(fname,O_DIRECT|O_CREAT|O_WRONLY|O_TRUNC,S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP);
+    pkd->fdLightCone = open(fname,O_CREAT|O_WRONLY|O_TRUNC,S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP);
+    if (pkd->fdLightCone<0) { perror(fname); abort(); }
+    pkd->iFilePositionLightCone = 0;
+#ifdef HAVE_LIBAIO_H
+    pkd->ctxLightCone = 0;
+    rc = io_setup(NUMLCBUFS, &pkd->ctxLightCone);
+    if (rc<0) { perror("io_setup"); abort(); }
+#else
+    memset(&pkd->cbLightCone,0,sizeof(pkd->cbLightCone));
+    for(i=0; i<NUMLCBUFS; ++i) {
+	pkd->pcbLightCone[i] = pkd->cbLightCone + i;
+	pkd->cbLightCone[i].aio_fildes = pkd->fdLightCone;
+	pkd->cbLightCone[i].aio_offset = 0;
+	pkd->cbLightCone[i].aio_buf = NULL;
+	pkd->cbLightCone[i].aio_nbytes = 0;
+	pkd->cbLightCone[i].aio_sigevent.sigev_notify = SIGEV_NONE;
+	pkd->cbLightCone[i].aio_lio_opcode = LIO_NOP;
+	}
+#endif
+    pkd->iLightConeBuffer = 0;
     }
 
 
 static void addToLightCone(PKD pkd,double *r,float *v) {
-    LIGHTCONEP *pLC = pkd->pLightCone[0];
-
+    LIGHTCONEP *pLC = pkd->pLightCone[pkd->iLightConeBuffer];
     pLC[pkd->nLightCone].pos[0] = r[0];
     pLC[pkd->nLightCone].pos[1] = r[1];
     pLC[pkd->nLightCone].pos[2] = r[2];

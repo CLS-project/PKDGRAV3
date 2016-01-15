@@ -3898,6 +3898,28 @@ void msrTopStepHSDKD(MSR msr,
     }
 
 
+
+/*
+** Open the healpix output file, and also the particles files if requested.
+*/
+void msrLightConeOpen(MSR msr, int iStep) {
+    if (msr->param.bLightCone && msr->param.bLightConeParticles ) {
+	struct inLightConeOpen lc;
+	msrBuildName(msr,lc.achOutFile,iStep);
+	pstLightConeOpen(msr->pst,&lc,sizeof(lc),NULL,NULL);
+	}
+    }
+
+
+/*
+** Close the files for this step.
+*/
+void msrLightConeClose(MSR msr) {
+    if (msr->param.bLightCone && msr->param.bLightConeParticles ) {
+	pstLightConeClose(msr->pst,NULL,0,NULL,NULL);
+	}
+    }
+
 void msrLightCone(MSR msr,double dTime) {
     }
 

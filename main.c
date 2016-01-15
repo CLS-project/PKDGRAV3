@@ -291,6 +291,7 @@ void * master_ch(MDL mdl) {
 	    if (msrComove(msr)) msrSwitchTheta(msr,dTime);
 	    dMultiEff = 0.0;
 	    lSec = time(0);
+	    msrLightConeOpen(msr,iStep);
 	    if (msr->param.bHSDKD) {
 		/* Perform select */
 		msrActiveRung(msr,0,1); /* Activate all particles */
@@ -314,11 +315,11 @@ void * master_ch(MDL mdl) {
 		    msrDelta(msr),0,0,msrMaxRung(msr),1,
 		    &dMultiEff,&iSec);
 		}
-
 	    dTime += msrDelta(msr);
 	    lSec = time(0) - lSec;
-
 	    msrMemStatus(msr);
+
+	    msrLightConeClose(msr);
 
 	    /*
 	    ** Output a log file line if requested.
@@ -377,7 +378,7 @@ void * master_ch(MDL mdl) {
 		}
 
 #ifdef MDL_FFTW
-	    if (iStep%msr->param.iPkInterval == 0) {
+	    if (msr->param.iPkInterval && iStep%msr->param.iPkInterval == 0) {
 		msrOutputPk(msr,iStep,dTime);
 		}
 #endif

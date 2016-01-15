@@ -229,6 +229,9 @@ enum pst_service {
     PST_WRITE_PSGROUPS,
     PST_UNBIND,
 #endif
+    PST_LIGHTCONE_OPEN,
+    PST_LIGHTCONE_CLOSE,
+
     };
 
 void pstAddServices(PST,MDL);
@@ -1368,5 +1371,12 @@ void pstPSDSetGlobalId(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 void pstWritePsGroups(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 void pstUnbind(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 #endif
+
+struct inLightConeOpen {
+    char achOutFile[PST_FILENAME_SIZE];
+    };
+void pstLightConeOpen(PST pst,void *vin,int nIn,void *vout,int *pnOut);
+void pstLightConeClose(PST pst,void *vin,int nIn,void *vout,int *pnOut);
+
 
 #endif
