@@ -2253,13 +2253,13 @@ static void addToLightCone(PKD pkd,double *r,float *v) {
 ** Note that the drift funtion no longer wraps the particles around the periodic "unit" cell. This is
 ** now done by Domain Decomposition only.
 */
-void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVPred,double dDeltaUPred) {
+void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVPred,double dDeltaTime) {
     PARTICLE *p;
     vel_t *v;
     float *a;
     SPHFIELDS *sph;
-    int i,j;
-    double r1[3],r0[3],dMin[3],dMax[3];
+    int i,j,k;
+    double rfinal[3],r1[3],r0[3],dMin[3],dMax[3];
     double dLightSpeed = dLightSpeedSim(pkd->param.dBoxSize);
     double dLookbackTime = pkd->dTimeRedshift0 - dTime;
     int pLower, pUpper;
@@ -2285,6 +2285,7 @@ void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVPred,do
     ** Update particle positions
     */
     if (pkd->param.bDoGas) {
+	double dDeltaUPred = dDeltaTime;
 	assert(pkd->oSph);
 	assert(pkd->oAcceleration);
 	for (i=pLower;i<=pUpper;++i) {
@@ -2316,41 +2317,112 @@ void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVPred,do
 	double vrx1[8],vry1[8],vrz1[8];
 	double mr0[8],mr1[8];
 	double x[8];
-	int iOct;
-
+	int iOct, bOutside[3];
+	double r0a[8][3];
+	double dlbt, dt;
+	struct {
+	    double dt;
+	    double fOffset;
+	    int jPlane;
+	    } isect[4], temp;
+	
 	for (i=pLower;i<=pUpper;++i) {
 	    p = pkdParticle(pkd,i);
 	    v = pkdVel(pkd,p);
 	    pkdGetPos1(pkd,p,r0);
-	    for (j=0;j<3;++j) r1[j] = r0[j] + dDelta*v[j];
+	    for (j=0;j<3;++j) rfinal[j] = r0[j] + dDelta*v[j];
 
-	    for(iOct=0; iOct<8; ++iOct) {
-		vrx0[iOct] = xOffset[iOct] + r0[0];
-		vry0[iOct] = yOffset[iOct] + r0[1];
-		vrz0[iOct] = zOffset[iOct] + r0[2];
-		vrx1[iOct] = xOffset[iOct] + r1[0];
-		vry1[iOct] = yOffset[iOct] + r1[1];
-		vrz1[iOct] = zOffset[iOct] + r1[2];
-		mr0[iOct] = sqrt(vrx0[iOct]*vrx0[iOct] + vry0[iOct]*vry0[iOct] + vrz0[iOct]*vrz0[iOct]);
-		mr1[iOct] = sqrt(vrx1[iOct]*vrx1[iOct] + vry1[iOct]*vry1[iOct] + vrz1[iOct]*vrz1[iOct]);
-		x[iOct] = (dLightSpeed*dLookbackTime - mr0[iOct])/(dLightSpeed*dDelta - mr0[iOct] + mr1[iOct]);
+	    for (j=0;j<3;++j) {
+		if (r0[j] < -0.5) r0[j] += 1.0;
+		else if (r0[j] >= 0.5) r0[j] -= 1.0;
 		}
-	    for(iOct=0; iOct<8; ++iOct) {
-		if (x[iOct] >=0 && x[iOct] < 1) {
-		    double r[3];
+	    for (j=0;j<3;++j) {
+		isect[j].dt = (0.5 - r0[j])/v[j];
+		if (isect[j].dt > 0.0) {
 		    /*
-		    ** Create a new light cone particle.
+		    ** Particle crosses the upper j-coordinate boundary of the unit cell at isect[j].dt.
 		    */
-		    if (pkd->param.bLightConeParticles) {
-			r[0] = (1-x[iOct])*vrx0[iOct] + x[iOct]*vrx1[iOct];
-			r[1] = (1-x[iOct])*vry0[iOct] + x[iOct]*vry1[iOct];
-			r[2] = (1-x[iOct])*vrz0[iOct] + x[iOct]*vrz1[iOct];
-			addToLightCone(pkd,r,v);
+		    isect[j].fOffset = -1.0;
+		    }
+		else {
+		    /*
+		    ** Particle crosses the lower j-coordinate boundary of the unit cell at isect[j].dt.
+		    */
+		    isect[j].dt = (-0.5 - r0[j])/v[j];
+		    isect[j].fOffset = 1.0;
+		    }
+		isect[j].jPlane = j;
+		}
+	    isect[3].dt = dDelta;
+	    isect[3].fOffset = 0.0;
+	    isect[3].jPlane = 3;
+	    /*
+	    ** Sort them!
+	    */
+	    if (isect[0].dt>isect[1].dt) { temp = isect[0]; isect[0] = isect[1]; isect[1] = temp; }
+	    if (isect[2].dt>isect[3].dt) { temp = isect[2]; isect[2] = isect[3]; isect[3] = temp; }
+	    temp = isect[1]; isect[1] = isect[2]; isect[2] = temp;
+	    if (isect[0].dt>isect[1].dt) { temp = isect[0]; isect[0] = isect[1]; isect[1] = temp; }
+	    if (isect[2].dt>isect[3].dt) { temp = isect[2]; isect[2] = isect[3]; isect[3] = temp; }
+	    if (isect[1].dt>isect[2].dt) { temp = isect[1]; isect[1] = isect[2]; isect[2] = temp; }
+
+	    for (k=0;k<4;++k) {
+		double dtApprox;
+		if (k==0) {
+		    /*
+		    ** Check lightcone from 0 <= dt < isect[k].dt
+		    */
+		    dt = isect[k].dt;
+		    dtApprox = dt/dDelta*dDeltaTime;
+		    dlbt = dLookbackTime;
+		    }
+		else {
+		    /*
+		    ** Check lightcone from isect[k-1].dt <= dt < isect[k].dt
+		    */
+		    dt = isect[k].dt - isect[k-1].dt;
+		    dtApprox = dt/dDelta*dDeltaTime;
+		    dlbt = dLookbackTime - dtApprox;
+		    }
+		for (j=0;j<3;++j) r1[j] = r0[j] + dt*v[j];
+		for(iOct=0; iOct<8; ++iOct) {
+		    vrx0[iOct] = xOffset[iOct] + r0[0];
+		    vry0[iOct] = yOffset[iOct] + r0[1];
+		    vrz0[iOct] = zOffset[iOct] + r0[2];
+		    vrx1[iOct] = xOffset[iOct] + r1[0];
+		    vry1[iOct] = yOffset[iOct] + r1[1];
+		    vrz1[iOct] = zOffset[iOct] + r1[2];
+		    mr0[iOct] = sqrt(vrx0[iOct]*vrx0[iOct] + vry0[iOct]*vry0[iOct] + vrz0[iOct]*vrz0[iOct]);
+		    mr1[iOct] = sqrt(vrx1[iOct]*vrx1[iOct] + vry1[iOct]*vry1[iOct] + vrz1[iOct]*vrz1[iOct]);
+		    x[iOct] = (dLightSpeed*dlbt - mr0[iOct])/(dLightSpeed*dtApprox - mr0[iOct] + mr1[iOct]);
+		    }
+		for(iOct=0; iOct<8; ++iOct) {
+		    if (x[iOct] >= 0 && x[iOct] < 1.0) {
+			double r[3];
+			/*
+			** Create a new light cone particle.
+			*/
+			if (pkd->param.bLightConeParticles) {
+			    r[0] = (1-x[iOct])*vrx0[iOct] + x[iOct]*vrx1[iOct];
+			    r[1] = (1-x[iOct])*vry0[iOct] + x[iOct]*vry1[iOct];
+			    r[2] = (1-x[iOct])*vrz0[iOct] + x[iOct]*vrz1[iOct];
+			    addToLightCone(pkd,r,v);
+			    }
 			}
 		    }
+		if (isect[k].jPlane == 3) break;
+		/*
+		** Now we need to reposition r0 to the new segment.
+		*/
+		for (j=0;j<3;++j) r0[j] = r1[j];
+		r0[isect[k].jPlane] += isect[k].fOffset;
 		}
-	    for (j=0;j<3;++j) pkdSetPos(pkd,p,j,r1[j]);
-	    pkdMinMax(r1,dMin,dMax);
+	    /*
+	    ** We set the final position based on the initial drift, since we don't want to leave any
+	    ** particle wrapping to the domain decomposion code!
+	    */
+	    for (j=0;j<3;++j) pkdSetPos(pkd,p,j,rfinal[j]);
+	    pkdMinMax(rfinal,dMin,dMax);
 	    }
 	}
     else {
