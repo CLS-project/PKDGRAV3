@@ -302,6 +302,16 @@ void arcFinish(ARC arc) {
     free(arc);
 }
 
+ARC arcReinitialize(ARC arc,uint32_t nCache,uint32_t uDataSize,CACHE *c) {
+    if (arc!=NULL) {
+	assert(arc->cache == c);
+	if ( arc->nCache == nCache && arc->uDataSize == ((uDataSize+7)>>3) )
+	    return arc;
+	arcFinish(arc);
+	}
+    return arcInitialize(nCache,uDataSize,c);
+    }
+
 /*
  ** This structure should be "maximally" aligned, with 4 ints it
  ** should align up to at least QUAD word, which should be enough.
@@ -2111,7 +2121,7 @@ CACHE *CacheInitialize(
     c->nAccess = 0;
     c->nMiss = 0;				/* !!!, not NB */
     c->nColl = 0;				/* !!!, not NB */
-    if (c->arc==NULL) c->arc = arcInitialize(mdl->cacheSize/c->iLineSize,c->iLineSize,c);
+    c->arc = arcReinitialize(c->arc,mdl->cacheSize/c->iLineSize,c->iLineSize,c);
     c->pOneLine = malloc(c->iLineSize);
 
     /*
