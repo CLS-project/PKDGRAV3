@@ -571,8 +571,8 @@ int mdlCacheReceive(MDL mdl,MPI_Status *status) {
 	    iIndex = ph->iLine << c->nLineBits;
 	    while(iIndex >= c->nData) {
 		iIndex -= c->nData;
+		assert(iCore+1<mdlCores(mdl));
 		c = &mdl->pmdl[++iCore]->cache[ph->cid];
-		assert(iCore<mdlCores(mdl));
 		}
 	    ph->iLine = iIndex >> c->nLineBits;
 	    ph->idTo = iCore;

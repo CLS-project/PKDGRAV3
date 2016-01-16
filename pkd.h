@@ -675,13 +675,12 @@ typedef struct pkdContext {
     size_t iParticleSize;
     PARTICLE *pStorePRIVATE;
     PARTICLE *pTempPRIVATE;
-    double dTimeRedshift0;
-
 #if 0
     struct iocb cbLightCone[2];
     struct io_event eventsLightCone[2];
     int fdLightCone[2];
 #endif
+    double dTimeRedshift0;
     int nLightCone, nLightConeMax;
     LIGHTCONEP *pLightCone[2];
     PARTCLASS *pClass;

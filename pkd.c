@@ -2590,7 +2590,7 @@ void pkdInitStep(PKD pkd, struct parameters *p, CSM csm) {
     ** Also set up the time of redshift 0 which is needed for the 
     ** generation of light cone outputs.
     */
-    pkd->dTimeRedshift0 = csmExp2Time(csm,1.0);
+    if (csm->bComove) pkd->dTimeRedshift0 = csmExp2Time(csm,1.0);
     }
 
 

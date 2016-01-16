@@ -146,6 +146,7 @@ void pkdFofRemoteSearch(PKD pkd,double dTau2) {
     CLTILE cltile;
     CL clTemp;
     double xj,yj,zj,d2;
+    int npi;
     double *xi,*yi,*zi;
     uint32_t pjGroup;
     uint32_t *piGroup;
@@ -269,10 +270,10 @@ void pkdFofRemoteSearch(PKD pkd,double dTau2) {
 				/*
 				** Convert all the coordinates in the k-cell and store them in vectors.
 				*/
-				for (pi=k->pLower,n=0;pi<=k->pUpper;++pi,++n) {
+				for (pi=k->pLower,npi=0;pi<=k->pUpper;++pi,++npi) {
 				    p = pkdParticle(pkd,pi);
-				    pkdGetPos3(pkd,p,xi[n],yi[n],zi[n]);
-				    piGroup[n] = *pkdInt32(p,pkd->oGroup);
+				    pkdGetPos3(pkd,p,xi[npi],yi[npi],zi[npi]);
+				    piGroup[npi] = *pkdInt32(p,pkd->oGroup);
 				    }
 				for (pj=c->pLower;pj<=c->pUpper;++pj) {
 				    if (id == pkd->idSelf) p = pkdParticle(pkd,pj);
@@ -285,7 +286,7 @@ void pkdFofRemoteSearch(PKD pkd,double dTau2) {
 				    /*
 				    ** The following could be vectorized over the vectors xi,yi and zi!
 				    */
-				    for (i=0;i<n;++i) {
+				    for (i=0;i<npi;++i) {
 					d2 = (xj-xi[i])*(xj-xi[i]) + (yj-yi[i])*(yj-yi[i]) + (zj-zi[i])*(zj-zi[i]);
 					if (d2 < dTau2) {
 					    /*
@@ -308,6 +309,7 @@ void pkdFofRemoteSearch(PKD pkd,double dTau2) {
 						** (we really should be ok as long as our nMinMembers is greater than 1 or 2)
 						*/
 						assert(pkd->iRemoteGroup < pkd->nMaxRemoteGroups);
+						printf("%1d: adding link to %1d:%d\n",pkd->idSelf,id,pjGroup);
 						pkd->tmpFofRemote[iRemote].key.iIndex = pjGroup;
 						pkd->tmpFofRemote[iRemote].key.iPid = id;
 						pkd->tmpFofRemote[iRemote].iLink = pkd->ga[piGroup[i]].iLink;
@@ -321,7 +323,7 @@ void pkdFofRemoteSearch(PKD pkd,double dTau2) {
 				/*
 				** Open the cell.
 				** We could do a prefetch here for non-local
-				** cells.
+				§				** cells.
 				*/
 				iCheckCell = blk->iCell.i[jTile];    assert(iCheckCell >= 0);
 				iCheckLower = blk->iLower.i[jTile];  assert(iCheckLower > 0);
@@ -464,6 +466,7 @@ int pkdNewFof(PKD pkd,double dTau2,int nMinMembers) {
 	    pkd->iFofMap[iGroup] = ++pkd->nLocalGroups;
 	    }
 	}
+    printf("%3d:done local FoF nGroups=%d\n",pkd->idSelf,iGroup);
     /*
     ** Renumber the group assignments for the particles (having removed some small groups).
     */
@@ -471,7 +474,9 @@ int pkdNewFof(PKD pkd,double dTau2,int nMinMembers) {
 	p = pkdParticle(pkd,pn);
 	pGroup = pkdInt32(p,pkd->oGroup);
 	*pGroup = pkd->iFofMap[*pGroup];
+	assert(*pGroup <= pkd->nLocalGroups);
 	}
+    printf("%3d:cull initial small groups nGroups=%d\n",pkd->idSelf,pkd->nLocalGroups);
     pkd->nGroups = pkd->nLocalGroups + 1;
     free(S);  /* this stack is no longer needed */
     pkd->iFofMap = NULL; /* done with the temporary map of group numbers */ 
@@ -491,12 +496,15 @@ int pkdNewFof(PKD pkd,double dTau2,int nMinMembers) {
 	pkd->ga[i].iLink = 0;   /* this is a linked list of remote groups linked to this local group */
 	}
     pkd->iRemoteGroup = 1;  /* The first entry is a dummy one for a null index */
-    mdlROcache(mdl,CID_PARTICLE,NULL,pkdParticleBase(pkd),pkdParticleSize(pkd),pkdLocal(pkd));
     /*
     ** Now lets go looking for local particles which have a remote neighbor that is part of 
     ** a group.
     */
+    sleep(10);
+    mdlROcache(mdl,CID_PARTICLE,NULL,pkdParticleBase(pkd),pkdParticleSize(pkd),pkdLocal(pkd));
+    printf("%3d:start remote search\n",pkd->idSelf);
     pkdFofRemoteSearch(pkd,dTau2);
+    printf("%3d:done remote search\n",pkd->idSelf);
     mdlFinishCache(mdl,CID_PARTICLE);
     }
 
@@ -533,6 +541,7 @@ int pkdFofPhases(PKD pkd) {
     /*
     ** Phase 1: fetch remote names.
     */
+    printf("%1d:phase 1\n",pkd->idSelf);
     mdlROcache(mdl,CID_GROUP,NULL,pkd->ga,sizeof(struct smGroupArray),pkd->nGroups);
     for (iRemote=1;iRemote<pkd->iRemoteGroup;++iRemote) {
 	iIndex = pkd->tmpFofRemote[iRemote].key.iIndex;
@@ -548,10 +557,12 @@ int pkdFofPhases(PKD pkd) {
     /*
     ** Phase 2: update to unique names.
     */
-    for(i=0;i<pkd->nGroups;++i) {
+    printf("%1d:phase 2\n",pkd->idSelf);
+    for(i=1;i<pkd->nGroups;++i) {
 	iLink = pkd->ga[i].iLink;
 	if (iLink) {
-	    name = pkd->ga[i].id;
+	    name.iIndex = pkd->ga[i].id.iIndex;
+	    name.iPid = pkd->ga[i].id.iPid;
 	    /*
 	    ** Find current master name (this is the lowest iPid,iIndex pair found).
 	    */
@@ -569,22 +580,33 @@ int pkdFofPhases(PKD pkd) {
 		    bMadeProgress = 1;
 		    }
 		}
-	    pkd->ga[i].id = name;
+	    pkd->ga[i].id.iIndex = name.iIndex;
+	    pkd->ga[i].id.iPid = name.iPid;
+	    iLink = pkd->ga[i].iLink;
+	    while (iLink) {
+		pkd->tmpFofRemote[iLink].name.iPid = name.iPid;
+		pkd->tmpFofRemote[iLink].name.iIndex = name.iIndex;
+		iLink = pkd->tmpFofRemote[iLink].iLink;
+		}
 	    }
 	}
     /*
     ** Phase 3: propagate.
     */
+    printf("%1d:phase 3, bMadePrgress:%1d\n",pkd->idSelf,bMadeProgress);
     mdlCOcache(mdl,CID_GROUP,NULL,pkd->ga,sizeof(struct smGroupArray),pkd->nGroups,
 	NULL, initNames, combNames );
-    for(i=0;i<pkd->nGroups;++i) {
+    for(i=1;i<pkd->nGroups;++i) {
 	iLink = pkd->ga[i].iLink;
 	if (iLink) {
-	    name = pkd->ga[i].id;
 	    while (iLink) {
 		iPid = pkd->tmpFofRemote[iLink].key.iPid;
 		iIndex = pkd->tmpFofRemote[iLink].key.iIndex;
+		name.iPid = pkd->tmpFofRemote[iLink].name.iPid;
+		name.iIndex = pkd->tmpFofRemote[iLink].name.iIndex;
+		if (pkd->idSelf == 1) printf("VA %d <= 65805\n",iIndex);
 		pRemote = mdlVirtualAcquire(mdl,CID_GROUP,iIndex,iPid,0);
+		assert(pRemote);
 		if (name.iPid < pRemote->id.iPid) {
 		    pRemote->id.iPid = name.iPid;
 		    pRemote->id.iIndex = name.iIndex;
@@ -596,7 +618,9 @@ int pkdFofPhases(PKD pkd) {
 		}
 	    }
 	}
+    printf("%1d:flushing\n",pkd->idSelf);    
     mdlFinishCache(mdl,CID_GROUP);
+    printf("%1d:bMadeProgress:%1d\n",pkd->idSelf,bMadeProgress);
     return(bMadeProgress);
     }
 
