@@ -309,7 +309,6 @@ void pkdFofRemoteSearch(PKD pkd,double dTau2) {
 						** (we really should be ok as long as our nMinMembers is greater than 1 or 2)
 						*/
 						assert(pkd->iRemoteGroup < pkd->nMaxRemoteGroups);
-						printf("%1d: adding link to %1d:%d\n",pkd->idSelf,id,pjGroup);
 						pkd->tmpFofRemote[iRemote].key.iIndex = pjGroup;
 						pkd->tmpFofRemote[iRemote].key.iPid = id;
 						pkd->tmpFofRemote[iRemote].iLink = pkd->ga[piGroup[i]].iLink;
@@ -396,7 +395,7 @@ int pkdNewFof(PKD pkd,double dTau2,int nMinMembers) {
     PARTICLE *p;
     double p_r[3];
     int32_t iGroup,*pGroup;
-    int pn,pi,i,j;
+    int pn,i,j;
     KDN *kdnSelf;
     BND *bndSelf;
     int *S;
@@ -426,7 +425,7 @@ int pkdNewFof(PKD pkd,double dTau2,int nMinMembers) {
     iGroup = 0;
     pkd->iFofMap[iGroup] = 0;
     pkd->nLocalGroups = 0;
-    for (pn=0;pi<pkd->nLocal;++pn) {
+    for (pn=0;pn<pkd->nLocal;++pn) {
 	p = pkdParticle(pkd,pn);
 	pGroup = pkdInt32(p,pkd->oGroup);
 	if (*pGroup) continue;
@@ -450,7 +449,7 @@ int pkdNewFof(PKD pkd,double dTau2,int nMinMembers) {
 		}
 	    }
 	while (pkd->iHead != pkd->iTail) {
-	    pi = pkd->Fifo[pkd->iHead++];
+	    int pi = pkd->Fifo[pkd->iHead++];
 	    p = pkdParticle(pkd,pi);
 	    pkdGetPos1(pkd,p,p_r);
 	    pkdFofGatherLocal(pkd,S,dTau2,p_r,iGroup);
@@ -470,11 +469,10 @@ int pkdNewFof(PKD pkd,double dTau2,int nMinMembers) {
     /*
     ** Renumber the group assignments for the particles (having removed some small groups).
     */
-    for (pn=0;pi<pkd->nLocal;++pn) {
+    for (pn=0;pn<pkd->nLocal;++pn) {
 	p = pkdParticle(pkd,pn);
 	pGroup = pkdInt32(p,pkd->oGroup);
 	*pGroup = pkd->iFofMap[*pGroup];
-	assert(*pGroup <= pkd->nLocalGroups);
 	}
     printf("%3d:cull initial small groups nGroups=%d\n",pkd->idSelf,pkd->nLocalGroups);
     pkd->nGroups = pkd->nLocalGroups + 1;
@@ -500,7 +498,6 @@ int pkdNewFof(PKD pkd,double dTau2,int nMinMembers) {
     ** Now lets go looking for local particles which have a remote neighbor that is part of 
     ** a group.
     */
-    sleep(10);
     mdlROcache(mdl,CID_PARTICLE,NULL,pkdParticleBase(pkd),pkdParticleSize(pkd),pkdLocal(pkd));
     printf("%3d:start remote search\n",pkd->idSelf);
     pkdFofRemoteSearch(pkd,dTau2);
@@ -604,7 +601,6 @@ int pkdFofPhases(PKD pkd) {
 		iIndex = pkd->tmpFofRemote[iLink].key.iIndex;
 		name.iPid = pkd->tmpFofRemote[iLink].name.iPid;
 		name.iIndex = pkd->tmpFofRemote[iLink].name.iIndex;
-		if (pkd->idSelf == 1) printf("VA %d <= 65805\n",iIndex);
 		pRemote = mdlVirtualAcquire(mdl,CID_GROUP,iIndex,iPid,0);
 		assert(pRemote);
 		if (name.iPid < pRemote->id.iPid) {
@@ -620,7 +616,6 @@ int pkdFofPhases(PKD pkd) {
 	}
     printf("%1d:flushing\n",pkd->idSelf);    
     mdlFinishCache(mdl,CID_GROUP);
-    printf("%1d:bMadeProgress:%1d\n",pkd->idSelf,bMadeProgress);
     return(bMadeProgress);
     }
 
@@ -633,10 +628,13 @@ uint64_t pkdFofFinishUp(PKD pkd,int nMinGroupSize,int bPeriodic,double *dPeriod)
     ** For a given name in the table, we need to know if some other entry has the same name and remap that 
     ** index.
     */
+    printf("%1d:combining duplicate groups\n",pkd->idSelf);    
+
     pkd->nGroups = pkdCombineDuplicateGroupIds(pkd,pkd->nGroups,pkd->ga,1);
     /*
     ** Create final group table.
     */
+    printf("%1d:creating final group table\n",pkd->idSelf);    
     pkd->hopGroups = mdlMalloc(pkd->mdl, pkd->nGroups * sizeof(HopGroupTable));
     assert(pkd->hopGroups!=NULL);
     for(i=0; i<pkd->nGroups; ++i) {
@@ -645,6 +643,7 @@ uint64_t pkdFofFinishUp(PKD pkd,int nMinGroupSize,int bPeriodic,double *dPeriod)
 	pkd->hopGroups[i].bNeedGrav    = 0;
 	pkd->hopGroups[i].bComplete    = 0;
 	}
+    printf("%1d:purge small groups\n",pkd->idSelf);    
     pkdPurgeSmallGroups(pkd,nMinGroupSize,bPeriodic,dPeriod);
     pkd->hopSavedRoots = 0;
 
