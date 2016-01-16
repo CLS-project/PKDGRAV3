@@ -4735,6 +4735,8 @@ void msrNewFof(MSR msr, double dTime) {
     struct inNewFof in;
     struct outFofPhases out;
     struct inHopFinishUp inFinish;
+    struct outHopCountGID outCount;
+    struct inHopAssignGID inAssign;
     int i;
     uint64_t nGroups;
     double sec,dsec,ssec;
@@ -4776,7 +4778,9 @@ void msrNewFof(MSR msr, double dTime) {
 	printf("Removed groups with fewer than %d particles, %"PRIu64" remain\n",
 	    inFinish.nMinGroupSize, nGroups);
 
-    pstHopAssignGID(msr->pst,NULL,0,NULL,NULL);
+    pstHopCountGID(msr->pst,NULL,0,&outCount,NULL); /* This has the side-effect of updating counts in the PST */
+    inAssign.iStartGID = 0;
+    pstHopAssignGID(msr->pst,&inAssign,sizeof(inAssign),NULL,NULL); /* Requires correct counts in the PST */
     dsec = msrTime() - ssec;
     if (msr->param.bVStep)
 	printf("FoF complete, Wallclock: %f secs\n\n",dsec);

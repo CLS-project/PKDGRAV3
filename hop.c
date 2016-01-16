@@ -840,6 +840,11 @@ static void hopCalculateGroupStats(PKD pkd, int bPeriodic, double *dPeriod) {
     for(i=1+pkd->nLocalGroups; i<pkd->nGroups; ++i) {
 	assert(pkd->hopGroups[i].id.iPid != pkd->idSelf);
 	g = mdlAcquire(mdl,CID_GROUP,pkd->hopGroups[i].id.iIndex,pkd->hopGroups[i].id.iPid);
+	if (pkd->hopGroups[i].id.iIndex==g->id.iIndex && pkd->hopGroups[i].id.iPid==g->id.iPid) {}
+	else {
+	    printf("%d.%d points to %d.%d points to %d.%d\n",pkd->idSelf,i,pkd->hopGroups[i].id.iPid,
+		pkd->hopGroups[i].id.iIndex,g->id.iPid,g->id.iIndex);
+	    }
 	assert(pkd->hopGroups[i].id.iIndex==g->id.iIndex && pkd->hopGroups[i].id.iPid==g->id.iPid);
 	pkd->hopGroups[i].nRemote = g->nRemote;
 	pkd->hopGroups[i].nTotal = g->nTotal;

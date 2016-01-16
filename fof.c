@@ -115,7 +115,10 @@ static void iOpenRemoteFof(PKD pkd,KDN *k,CL cl,CLTILE tile,float dTau2) {
 		dx = blk->zCenter.f[i] + blk->zOffset.f[i] - blk->zMax.f[i] - kbnd->fCenter[2] - kbnd->fMax[2];
 		if (dx > 0) minbnd2 += dx*dx;
        		if (minbnd2 > dTau2) iOpen = 10;  /* ignore this cell */
-		else if (k->iLower == 0 && blk->iLower.i[i] == 0) iOpen = 1;
+		else if (k->iLower == 0) {
+		    if (blk->iLower.i[i] == 0) iOpen = 1;
+		    else iOpen = 3;
+		    }
 		else if (kOpen > blk->cOpen.f[i] || blk->iLower.i[i] == 0) iOpen = 0;
 		else iOpen = 3;
 		}
@@ -278,11 +281,11 @@ void pkdFofRemoteSearch(PKD pkd,double dTau2) {
 				for (pj=c->pLower;pj<=c->pUpper;++pj) {
 				    if (id == pkd->idSelf) p = pkdParticle(pkd,pj);
 				    else p = CAST(PARTICLE *,mdlFetch(pkd->mdl,CID_PARTICLE,pj,id));
+				    pjGroup = *pkdInt32(p,pkd->oGroup);
 				    pkdGetPos3(pkd,p,xj,yj,zj);
 				    xj += blk->xOffset.f[jTile];
 				    yj += blk->yOffset.f[jTile];
 				    zj += blk->zOffset.f[jTile];
-				    pjGroup = *pkdInt32(p,pkd->oGroup);
 				    /*
 				    ** The following could be vectorized over the vectors xi,yi and zi!
 				    */
@@ -293,6 +296,7 @@ void pkdFofRemoteSearch(PKD pkd,double dTau2) {
 					    ** We have found a remote group link!
 					    ** Check if it is already linked to this group and if not add the link.
 					    */
+					    if (pjGroup == 0) printf("UNGROUPED PARTICLE FOUND at %.15g < %.15g\n",d2,dTau2);
 					    iRemote = pkd->ga[piGroup[i]].iLink;
 					    while (iRemote) {
 						if (pkd->tmpFofRemote[iRemote].key.iIndex == pjGroup && 
@@ -310,6 +314,7 @@ void pkdFofRemoteSearch(PKD pkd,double dTau2) {
 						*/
 						assert(pkd->iRemoteGroup < pkd->nMaxRemoteGroups);
 						pkd->tmpFofRemote[iRemote].key.iIndex = pjGroup;
+						assert(pjGroup > 0);
 						pkd->tmpFofRemote[iRemote].key.iPid = id;
 						pkd->tmpFofRemote[iRemote].iLink = pkd->ga[piGroup[i]].iLink;
 						pkd->ga[piGroup[i]].iLink = iRemote;
@@ -372,6 +377,7 @@ void pkdFofRemoteSearch(PKD pkd,double dTau2) {
 	** Now the checklist should be empty and we should have dealt with all 
 	** links going across the processor domains for this bucket.
 	*/
+	assert(clCount(pkd->S[iStack+1].cl)==0);
 	/*
 	** Get the next cell to process from the stack. 
 	*/
@@ -438,6 +444,7 @@ int pkdNewFof(PKD pkd,double dTau2,int nMinMembers) {
 	*pGroup = iGroup;
 	pkd->nCurrFofParticles = 1;
 	pkd->bCurrGroupContained = 1;
+	pkdGetPos1(pkd,p,p_r);
 	for (j=0;j<3;++j) {
 	    if (p_r[j] < pkd->fMinFofContained[j]) {
 		pkd->bCurrGroupContained = 0;
@@ -542,11 +549,13 @@ int pkdFofPhases(PKD pkd) {
     mdlROcache(mdl,CID_GROUP,NULL,pkd->ga,sizeof(struct smGroupArray),pkd->nGroups);
     for (iRemote=1;iRemote<pkd->iRemoteGroup;++iRemote) {
 	iIndex = pkd->tmpFofRemote[iRemote].key.iIndex;
+	assert(iIndex > 0);
 	iPid = pkd->tmpFofRemote[iRemote].key.iPid;
 	pRemote = mdlFetch(mdl,CID_GROUP,iIndex,iPid);
 	/*
 	** Now update the name in the local table of remote group links.
 	*/
+	assert(pRemote->id.iIndex > 0);
 	pkd->tmpFofRemote[iRemote].name.iIndex = pRemote->id.iIndex;
 	pkd->tmpFofRemote[iRemote].name.iPid = pRemote->id.iPid;
 	}
@@ -577,6 +586,7 @@ int pkdFofPhases(PKD pkd) {
 		    bMadeProgress = 1;
 		    }
 		}
+	    assert(name.iIndex > 0);
 	    pkd->ga[i].id.iIndex = name.iIndex;
 	    pkd->ga[i].id.iPid = name.iPid;
 	    iLink = pkd->ga[i].iLink;
@@ -590,7 +600,7 @@ int pkdFofPhases(PKD pkd) {
     /*
     ** Phase 3: propagate.
     */
-    printf("%1d:phase 3, bMadePrgress:%1d\n",pkd->idSelf,bMadeProgress);
+    printf("%1d:phase 3, bMadeProgress:%1d\n",pkd->idSelf,bMadeProgress);
     mdlCOcache(mdl,CID_GROUP,NULL,pkd->ga,sizeof(struct smGroupArray),pkd->nGroups,
 	NULL, initNames, combNames );
     for(i=1;i<pkd->nGroups;++i) {
@@ -628,6 +638,9 @@ uint64_t pkdFofFinishUp(PKD pkd,int nMinGroupSize,int bPeriodic,double *dPeriod)
     ** For a given name in the table, we need to know if some other entry has the same name and remap that 
     ** index.
     */
+    for(i=1; i<pkd->nGroups; ++i) {
+	assert(pkd->ga[i].id.iIndex > 0);
+	}
     printf("%1d:combining duplicate groups\n",pkd->idSelf);    
 
     pkd->nGroups = pkdCombineDuplicateGroupIds(pkd,pkd->nGroups,pkd->ga,1);
@@ -637,7 +650,12 @@ uint64_t pkdFofFinishUp(PKD pkd,int nMinGroupSize,int bPeriodic,double *dPeriod)
     printf("%1d:creating final group table\n",pkd->idSelf);    
     pkd->hopGroups = mdlMalloc(pkd->mdl, pkd->nGroups * sizeof(HopGroupTable));
     assert(pkd->hopGroups!=NULL);
-    for(i=0; i<pkd->nGroups; ++i) {
+    pkd->hopGroups[0].id.iPid      = -1;
+    pkd->hopGroups[0].id.iIndex    = -1;
+    pkd->hopGroups[0].bNeedGrav    = 0;
+    pkd->hopGroups[0].bComplete    = 0;
+    for(i=1; i<pkd->nGroups; ++i) {
+	assert(pkd->ga[i].id.iIndex > 0);
 	pkd->hopGroups[i].id.iPid      = pkd->ga[i].id.iPid;
 	pkd->hopGroups[i].id.iIndex    = pkd->ga[i].id.iIndex;
 	pkd->hopGroups[i].bNeedGrav    = 0;
