@@ -233,6 +233,9 @@ enum pst_service {
     PST_WRITE_PSGROUPS,
     PST_UNBIND,
 #endif
+    PST_LIGHTCONE_OPEN,
+    PST_LIGHTCONE_CLOSE,
+
     };
 
 void pstAddServices(PST,MDL);
@@ -442,6 +445,7 @@ void pstCheckpoint(PST,void *,int,void *,int *);
 struct inBuildTree {
     int nBucket;      /* Bucket Size */
     uint32_t uRoot;   /* Which root node to use */
+    uint32_t utRoot;  /* Template tree */
     };
 void pstBuildTree(PST,void *,int,void *,int *);
 
@@ -1395,5 +1399,12 @@ void pstPSDSetGlobalId(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 void pstWritePsGroups(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 void pstUnbind(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 #endif
+
+struct inLightConeOpen {
+    char achOutFile[PST_FILENAME_SIZE];
+    };
+void pstLightConeOpen(PST pst,void *vin,int nIn,void *vout,int *pnOut);
+void pstLightConeClose(PST pst,void *vin,int nIn,void *vout,int *pnOut);
+
 
 #endif

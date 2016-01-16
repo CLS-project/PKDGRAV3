@@ -2441,7 +2441,7 @@ void msrDomainDecomp(MSR msr,int iRung,int bOthers,int bSplitVA) {
 ** This the meat of the tree build, but will be called by differently named
 ** functions in order to implement special features without recoding...
 */
-static void BuildTree(MSR msr,int bNeedEwald,uint32_t uRoot) {
+static void BuildTree(MSR msr,int bNeedEwald,uint32_t uRoot,uint32_t utRoot) {
     struct inBuildTree in;
     struct inCalcRoot calc;
     struct outCalcRoot root;
@@ -2469,6 +2469,7 @@ static void BuildTree(MSR msr,int bNeedEwald,uint32_t uRoot) {
 
     in.nBucket = msr->param.nBucket;
     in.uRoot = uRoot;
+    in.utRoot = utRoot;
     sec = msrTime();
     pstBuildTree(msr->pst,&in,sizeof(in),pkdn,&nTopTree);
     pDistribTop->nTop = nTopTree / pkdNodeSize(pkd);
@@ -2505,7 +2506,7 @@ void msrBuildTree(MSR msr,double dTime,int bNeedEwald) {
     dump.bOnlyVA = 0;
     dump.uRungDD = IRUNGMAX;
     pstDumpTrees(msr->pst,&dump,sizeof(dump),NULL,NULL);
-    BuildTree(msr,bNeedEwald,ROOT);
+    BuildTree(msr,bNeedEwald,ROOT,0);
 
     if (bNeedEwald) {
 	struct ioDistribRoot droot;
@@ -2522,7 +2523,7 @@ void msrBuildTree(MSR msr,double dTime,int bNeedEwald) {
 */
 void msrBuildTreeFixed(MSR msr,double dTime,int bNeedEwald,uint8_t uRungDD) {
     msrprintf(msr,"Building fixed local trees...\n\n");
-    BuildTree(msr,bNeedEwald,FIXROOT);
+    BuildTree(msr,bNeedEwald,FIXROOT,0);
     }
 
 void msrBuildTreeActive(MSR msr,double dTime,int bNeedEwald,uint8_t uRungDD) {
@@ -2541,7 +2542,7 @@ void msrBuildTreeActive(MSR msr,double dTime,int bNeedEwald,uint8_t uRungDD) {
     pstDumpTrees(msr->pst,&dump,sizeof(dump),NULL,NULL);
 
     /* New build the very active tree */
-    BuildTree(msr,bNeedEwald,ROOT);
+    BuildTree(msr,bNeedEwald,ROOT,FIXROOT);
 
     /* For ewald we have to shift and combine the individual tree moments */
     if (bNeedEwald) {
@@ -3897,10 +3898,33 @@ void msrTopStepHSDKD(MSR msr,
     }
 
 
+
+/*
+** Open the healpix output file, and also the particles files if requested.
+*/
+void msrLightConeOpen(MSR msr, int iStep) {
+    if (msr->param.bLightCone && msr->param.bLightConeParticles ) {
+	struct inLightConeOpen lc;
+	msrBuildName(msr,lc.achOutFile,iStep);
+	pstLightConeOpen(msr->pst,&lc,sizeof(lc),NULL,NULL);
+	}
+    }
+
+
+/*
+** Close the files for this step.
+*/
+void msrLightConeClose(MSR msr) {
+    if (msr->param.bLightCone && msr->param.bLightConeParticles ) {
+	pstLightConeClose(msr->pst,NULL,0,NULL,NULL);
+	}
+    }
+
 void msrLightCone(MSR msr,double dTime) {
     }
 
-void msrNewTopStepKDKSingle(MSR msr,
+#ifndef USE_DUAL_TREE
+void msrNewTopStepKDK(MSR msr,
     uint8_t uRung,		/* Rung level */
     double *pdStep,	/* Current step */
     double *pdTime,	/* Current time */
@@ -3925,7 +3949,7 @@ void msrNewTopStepKDKSingle(MSR msr,
 	*pdStep,1,1,msr->param.bEwald,msr->param.nGroup,piSec,&nActive);
     if (uRung && uRung < *puRungMax) msrNewTopStepKDK(msr,uRung+1,pdStep,pdTime,puRungMax,piSec);
     }
-
+#else
 void msrNewTopStepKDK(MSR msr,
     uint8_t uRung,		/* Rung level */
     double *pdStep,	/* Current step */
@@ -3979,11 +4003,15 @@ void msrNewTopStepKDK(MSR msr,
 	uRoot2 = 0;
 	msrBuildTree(msr,*pdTime,msr->param.bEwald);
 	}
-    // Reopen "ROOT" caches here (part of buildtree atm).
 
+    // Reopen "ROOT" caches here (part of buildtree atm).
     msrLightCone(msr,*pdTime);
+
+    // We need to make sure we descend all the way to the bucket with the
+    // active tree, or we can get HUGE group cells, and hence too much P-P/P-C
+    int nGroup = uRung>iRungDD ? 1 : msr->param.nGroup;
     *puRungMax = msrGravity(msr,uRung,msrMaxRung(msr),ROOT,uRoot2,*pdTime,
-	*pdStep,1,1,msr->param.bEwald,msr->param.nGroup,piSec,&nActive);
+	*pdStep,1,1,msr->param.bEwald,nGroup,piSec,&nActive);
     if (uRung && uRung < *puRungMax) {
 	msrNewTopStepKDK(msr,uRung+1,pdStep,pdTime,puRungMax,piSec);
 	}
@@ -4002,6 +4030,7 @@ void msrNewTopStepKDK(MSR msr,
 	// close secondary caches here.
 	}
     }
+#endif
 
 void msrTopStepKDK(MSR msr,
 		   double dStep,	/* Current step */

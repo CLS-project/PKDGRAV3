@@ -568,6 +568,7 @@ void pkdInitialize(
 	pkd->pLightCone[0] = NULL;
 	pkd->pLightCone[1] = NULL;
 	}
+    pkd->fdLightCone = 0;
 
 #ifdef MDL_CACHE_SIZE
     if ( iCacheSize > 0 ) mdlSetCacheSize(pkd->mdl,iCacheSize);
@@ -1651,29 +1652,27 @@ void pkdLocalOrder(PKD pkd,uint64_t iMinOrder, uint64_t iMaxOrder) {
 **      resident size: max=  27.921 @17709 avg=  27.870 of 34300 std-dev=   0.013
 */
 
-#undef HAVE_LIBAIO_H
 #if defined(HAVE_LIBAIO_H) || defined(HAVE_AIO_H)
 
 #ifdef HAVE_LIBAIO_H
-#include <libaio.h>
 typedef struct {
     struct iocb cb[2*ASYNC_COUNT+1];
     struct io_event events[2*ASYNC_COUNT+1];
+    io_context_t ctx;
+
     off_t iFilePosition;   /* File position */
     size_t nBufferSize;
     char *pSource;         /* Source of particles (in pStore) */
     size_t nBytes;         /* Number of bytes left to write */
-    io_context_t ctx;
     int nPageSize;
     int nBuffers;
     int fd;
     } asyncInfo;
 #else
-#include <aio.h>
 typedef struct {
     struct aiocb cb[2*ASYNC_COUNT+1];
     struct aiocb const * pcb[2*ASYNC_COUNT+1];
-    void *pBuffer[2*ASYNC_COUNT];
+
     off_t iFilePosition;   /* File position */
     size_t nBufferSize;
     char *pSource;         /* Source of particles (in pStore) */
@@ -1718,7 +1717,7 @@ static void asyncCheckpoint(PKD pkd,const char *fname,int bWrite) {
     int i, rc;
 
     if (bWrite) {
-	info.fd = open(fname,O_DIRECT|O_CREAT|O_WRONLY|O_TRUNC,S_IRUSR|S_IWUSR|S_IRGRP);
+	info.fd = open(fname,O_DIRECT|O_CREAT|O_WRONLY|O_TRUNC,S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP);
 	if (info.fd<0) { perror(fname); abort(); }
 	nFileSize = pkdParticleSize(pkd) * pkd->nLocal;
 	}
@@ -1831,7 +1830,7 @@ static void asyncCheckpoint(PKD pkd,const char *fname,int bWrite) {
 
 #define WRITE_LIMIT (1024*1024*1024)
 static void simpleCheckpoint(PKD pkd,const char *fname) {
-    int fd = open(fname,O_CREAT|O_WRONLY|O_TRUNC,S_IRUSR|S_IWUSR|S_IRGRP);
+    int fd = open(fname,O_CREAT|O_WRONLY|O_TRUNC,S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP);
     size_t nBytesToWrite = pkdParticleSize(pkd) * pkd->nLocal;
     char *pBuffer = (char *)pkdParticleBase(pkd);
     ssize_t nBytesWritten;
@@ -2192,30 +2191,52 @@ void pkdScaleVel(PKD pkd,double dvFac) {
 
 static void flushLightCone(PKD pkd) {
 #if 0
-
     struct iocb cbLightCone[2];
     struct io_event eventsLightCone[2];
-
-
-
     struct iocb *pcb = &info->cb[i];
     io_prep_pwrite(pkd->cbLightCone+0,pkd->fdLightCone+0,pkd->pLightCone+0,nBytes,info->iFilePosition);
     else        io_prep_pread(info->cb+i,info->fd,info->pSource,nBytes,info->iFilePosition);
     rc = io_submit(info->ctx,1,&pcb);
     if (rc<0) { perror("io_submit"); abort(); }
-
-
-
-
-
-
 #endif
+    size_t count = pkd->nLightCone * sizeof(LIGHTCONEP);
+    write(pkd->fdLightCone,pkd->pLightCone[pkd->iLightConeBuffer],count);
+    pkd->nLightCone = 0;
+    }
+
+void pkdLightConeClose(PKD pkd) {
+    flushLightCone(pkd);
+    close(pkd->fdLightCone);
+    }
+
+void pkdLightConeOpen(PKD pkd,const char *fname) {
+    int i, rc;
+//    pkd->fdLightCone = open(fname,O_DIRECT|O_CREAT|O_WRONLY|O_TRUNC,S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP);
+    pkd->fdLightCone = open(fname,O_CREAT|O_WRONLY|O_TRUNC,S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP);
+    if (pkd->fdLightCone<0) { perror(fname); abort(); }
+    pkd->iFilePositionLightCone = 0;
+#ifdef HAVE_LIBAIO_H
+    pkd->ctxLightCone = 0;
+    rc = io_setup(NUMLCBUFS, &pkd->ctxLightCone);
+    if (rc<0) { perror("io_setup"); abort(); }
+#else
+    memset(&pkd->cbLightCone,0,sizeof(pkd->cbLightCone));
+    for(i=0; i<NUMLCBUFS; ++i) {
+	pkd->pcbLightCone[i] = pkd->cbLightCone + i;
+	pkd->cbLightCone[i].aio_fildes = pkd->fdLightCone;
+	pkd->cbLightCone[i].aio_offset = 0;
+	pkd->cbLightCone[i].aio_buf = NULL;
+	pkd->cbLightCone[i].aio_nbytes = 0;
+	pkd->cbLightCone[i].aio_sigevent.sigev_notify = SIGEV_NONE;
+	pkd->cbLightCone[i].aio_lio_opcode = LIO_NOP;
+	}
+#endif
+    pkd->iLightConeBuffer = 0;
     }
 
 
 static void addToLightCone(PKD pkd,double *r,float *v) {
-    LIGHTCONEP *pLC = pkd->pLightCone[0];
-
+    LIGHTCONEP *pLC = pkd->pLightCone[pkd->iLightConeBuffer];
     pLC[pkd->nLightCone].pos[0] = r[0];
     pLC[pkd->nLightCone].pos[1] = r[1];
     pLC[pkd->nLightCone].pos[2] = r[2];
@@ -2232,13 +2253,13 @@ static void addToLightCone(PKD pkd,double *r,float *v) {
 ** Note that the drift funtion no longer wraps the particles around the periodic "unit" cell. This is
 ** now done by Domain Decomposition only.
 */
-void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVPred,double dDeltaUPred) {
+void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVPred,double dDeltaTime) {
     PARTICLE *p;
     vel_t *v;
     float *a;
     SPHFIELDS *sph;
-    int i,j;
-    double r1[3],r0[3],dMin[3],dMax[3];
+    int i,j,k;
+    double rfinal[3],r1[3],r0[3],dMin[3],dMax[3];
     double dLightSpeed = dLightSpeedSim(pkd->param.dBoxSize);
     double dLookbackTime = pkd->dTimeRedshift0 - dTime;
     int pLower, pUpper;
@@ -2264,6 +2285,7 @@ void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVPred,do
     ** Update particle positions
     */
     if (pkd->param.bDoGas) {
+	double dDeltaUPred = dDeltaTime;
 	assert(pkd->oSph);
 	assert(pkd->oAcceleration);
 	for (i=pLower;i<=pUpper;++i) {
@@ -2295,41 +2317,112 @@ void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVPred,do
 	double vrx1[8],vry1[8],vrz1[8];
 	double mr0[8],mr1[8];
 	double x[8];
-	int iOct;
-
+	int iOct, bOutside[3];
+	double r0a[8][3];
+	double dlbt, dt;
+	struct {
+	    double dt;
+	    double fOffset;
+	    int jPlane;
+	    } isect[4], temp;
+	
 	for (i=pLower;i<=pUpper;++i) {
 	    p = pkdParticle(pkd,i);
 	    v = pkdVel(pkd,p);
 	    pkdGetPos1(pkd,p,r0);
-	    for (j=0;j<3;++j) r1[j] = r0[j] + dDelta*v[j];
+	    for (j=0;j<3;++j) rfinal[j] = r0[j] + dDelta*v[j];
 
-	    for(iOct=0; iOct<8; ++iOct) {
-		vrx0[iOct] = xOffset[iOct] + r0[0];
-		vry0[iOct] = yOffset[iOct] + r0[1];
-		vrz0[iOct] = zOffset[iOct] + r0[2];
-		vrx1[iOct] = xOffset[iOct] + r1[0];
-		vry1[iOct] = yOffset[iOct] + r1[1];
-		vrz1[iOct] = zOffset[iOct] + r1[2];
-		mr0[iOct] = sqrt(vrx0[iOct]*vrx0[iOct] + vry0[iOct]*vry0[iOct] + vrz0[iOct]*vrz0[iOct]);
-		mr1[iOct] = sqrt(vrx1[iOct]*vrx1[iOct] + vry1[iOct]*vry1[iOct] + vrz1[iOct]*vrz1[iOct]);
-		x[iOct] = (dLightSpeed*dLookbackTime - mr0[iOct])/(dLightSpeed*dDelta - mr0[iOct] + mr1[iOct]);
+	    for (j=0;j<3;++j) {
+		if (r0[j] < -0.5) r0[j] += 1.0;
+		else if (r0[j] >= 0.5) r0[j] -= 1.0;
 		}
-	    for(iOct=0; iOct<8; ++iOct) {
-		if (x[iOct] >=0 && x[iOct] < 1) {
-		    double r[3];
+	    for (j=0;j<3;++j) {
+		isect[j].dt = (0.5 - r0[j])/v[j];
+		if (isect[j].dt > 0.0) {
 		    /*
-		    ** Create a new light cone particle.
+		    ** Particle crosses the upper j-coordinate boundary of the unit cell at isect[j].dt.
 		    */
-		    if (pkd->param.bLightConeParticles) {
-			r[0] = (1-x[iOct])*vrx0[iOct] + x[iOct]*vrx1[iOct];
-			r[1] = (1-x[iOct])*vry0[iOct] + x[iOct]*vry1[iOct];
-			r[2] = (1-x[iOct])*vrz0[iOct] + x[iOct]*vrz1[iOct];
-			addToLightCone(pkd,r,v);
+		    isect[j].fOffset = -1.0;
+		    }
+		else {
+		    /*
+		    ** Particle crosses the lower j-coordinate boundary of the unit cell at isect[j].dt.
+		    */
+		    isect[j].dt = (-0.5 - r0[j])/v[j];
+		    isect[j].fOffset = 1.0;
+		    }
+		isect[j].jPlane = j;
+		}
+	    isect[3].dt = dDelta;
+	    isect[3].fOffset = 0.0;
+	    isect[3].jPlane = 3;
+	    /*
+	    ** Sort them!
+	    */
+	    if (isect[0].dt>isect[1].dt) { temp = isect[0]; isect[0] = isect[1]; isect[1] = temp; }
+	    if (isect[2].dt>isect[3].dt) { temp = isect[2]; isect[2] = isect[3]; isect[3] = temp; }
+	    temp = isect[1]; isect[1] = isect[2]; isect[2] = temp;
+	    if (isect[0].dt>isect[1].dt) { temp = isect[0]; isect[0] = isect[1]; isect[1] = temp; }
+	    if (isect[2].dt>isect[3].dt) { temp = isect[2]; isect[2] = isect[3]; isect[3] = temp; }
+	    if (isect[1].dt>isect[2].dt) { temp = isect[1]; isect[1] = isect[2]; isect[2] = temp; }
+
+	    for (k=0;k<4;++k) {
+		double dtApprox;
+		if (k==0) {
+		    /*
+		    ** Check lightcone from 0 <= dt < isect[k].dt
+		    */
+		    dt = isect[k].dt;
+		    dtApprox = dt/dDelta*dDeltaTime;
+		    dlbt = dLookbackTime;
+		    }
+		else {
+		    /*
+		    ** Check lightcone from isect[k-1].dt <= dt < isect[k].dt
+		    */
+		    dt = isect[k].dt - isect[k-1].dt;
+		    dtApprox = dt/dDelta*dDeltaTime;
+		    dlbt = dLookbackTime - dtApprox;
+		    }
+		for (j=0;j<3;++j) r1[j] = r0[j] + dt*v[j];
+		for(iOct=0; iOct<8; ++iOct) {
+		    vrx0[iOct] = xOffset[iOct] + r0[0];
+		    vry0[iOct] = yOffset[iOct] + r0[1];
+		    vrz0[iOct] = zOffset[iOct] + r0[2];
+		    vrx1[iOct] = xOffset[iOct] + r1[0];
+		    vry1[iOct] = yOffset[iOct] + r1[1];
+		    vrz1[iOct] = zOffset[iOct] + r1[2];
+		    mr0[iOct] = sqrt(vrx0[iOct]*vrx0[iOct] + vry0[iOct]*vry0[iOct] + vrz0[iOct]*vrz0[iOct]);
+		    mr1[iOct] = sqrt(vrx1[iOct]*vrx1[iOct] + vry1[iOct]*vry1[iOct] + vrz1[iOct]*vrz1[iOct]);
+		    x[iOct] = (dLightSpeed*dlbt - mr0[iOct])/(dLightSpeed*dtApprox - mr0[iOct] + mr1[iOct]);
+		    }
+		for(iOct=0; iOct<8; ++iOct) {
+		    if (x[iOct] >= 0 && x[iOct] < 1.0) {
+			double r[3];
+			/*
+			** Create a new light cone particle.
+			*/
+			if (pkd->param.bLightConeParticles) {
+			    r[0] = (1-x[iOct])*vrx0[iOct] + x[iOct]*vrx1[iOct];
+			    r[1] = (1-x[iOct])*vry0[iOct] + x[iOct]*vry1[iOct];
+			    r[2] = (1-x[iOct])*vrz0[iOct] + x[iOct]*vrz1[iOct];
+			    addToLightCone(pkd,r,v);
+			    }
 			}
 		    }
+		if (isect[k].jPlane == 3) break;
+		/*
+		** Now we need to reposition r0 to the new segment.
+		*/
+		for (j=0;j<3;++j) r0[j] = r1[j];
+		r0[isect[k].jPlane] += isect[k].fOffset;
 		}
-	    for (j=0;j<3;++j) pkdSetPos(pkd,p,j,r1[j]);
-	    pkdMinMax(r1,dMin,dMax);
+	    /*
+	    ** We set the final position based on the initial drift, since we don't want to leave any
+	    ** particle wrapping to the domain decomposion code!
+	    */
+	    for (j=0;j<3;++j) pkdSetPos(pkd,p,j,rfinal[j]);
+	    pkdMinMax(rfinal,dMin,dMax);
 	    }
 	}
     else {

@@ -50,16 +50,16 @@ uint32_t pkdDistribTopTree(PKD pkd, uint32_t uRoot, uint32_t nTop, KDN *pTop) {
 
 static KDN *InitializeRootCommon(PKD pkd,uint32_t uRoot) {
     KDN *pRoot = pkdTreeNode(pkd,uRoot);
-    BND *bnd;
-    int j;
+//    BND *bnd;
+//    int j;
 
     pRoot->bTopTree = 0;
     pRoot->bRemote = 0;
-    bnd = pkdNodeBnd(pkd, pRoot);
-    for (j=0;j<3;++j) {
-	bnd->fCenter[j] = pkd->bnd.fCenter[j];
-	bnd->fMax[j] = pkd->bnd.fMax[j];
-	}
+    *pkdNodeBnd(pkd, pRoot) = pkd->bnd;
+//    for (j=0;j<3;++j) {
+//	bnd->fCenter[j] = pkd->bnd.fCenter[j];
+//	bnd->fMax[j] = pkd->bnd.fMax[j];
+//	}
 
     return pRoot;
     }
@@ -86,7 +86,6 @@ static void InitializeRootMarked(PKD pkd,uint8_t uRungDD) {
 
 void pkdDumpTrees(PKD pkd,int bOnlyVA, uint8_t uRungDD) {
     KDN *pRoot    = InitializeRootCommon(pkd,ROOT);
-    KDN *pRootFix = InitializeRootCommon(pkd,FIXROOT);
 
     if (pkd->nNodes == 0) {
 	assert(bOnlyVA==0);
@@ -117,10 +116,13 @@ void pkdDumpTrees(PKD pkd,int bOnlyVA, uint8_t uRungDD) {
 
     /* Need to build two trees which is more complicated. */
     else {
+	KDN *pRootFix = InitializeRootCommon(pkd,FIXROOT);
 	PARTICLE *p, *pVA = NULL;
 	local_t nVeryActive = 0;
 	local_t iLast;
 	int i;
+
+	pkd->fixbnd = *pkdNodeBnd(pkd, pRoot);
 
 #ifndef SINGLE_CACHES
 	/* Here we also have to close the "fixed" caches */
@@ -143,23 +145,54 @@ void pkdDumpTrees(PKD pkd,int bOnlyVA, uint8_t uRungDD) {
 	pRoot->pLower = iLast + 1;
 	pRoot->pUpper = pkd->nLocal - 1;
 
-	for(i=pRootFix->pLower; i<=pRootFix->pUpper; ++i) assert(pkdParticle(pkd,i)->uRung<=uRungDD);
-	for(i=pRoot->pLower; i<=pRoot->pUpper; ++i) assert(pkdParticle(pkd,i)->uRung>uRungDD);
+//	for(i=pRootFix->pLower; i<=pRootFix->pUpper; ++i) assert(pkdParticle(pkd,i)->uRung<=uRungDD);
+//	for(i=pRoot->pLower; i<=pRoot->pUpper; ++i) assert(pkdParticle(pkd,i)->uRung>uRungDD);
 	}
     }
 
 #define MIN_SRATIO    0.05
 
 /*
+** Partition the particles between pLower and pUpper (inclusive)
+** around "Split" in dimension "d". Return the index of the split.
+*/
+static int PartPart(PKD pkd,int pLower,int pUpper,int d,pos_t Split) {
+	PARTICLE *pi = pkdParticle(pkd,pLower);
+	PARTICLE *pj = pkdParticle(pkd,pUpper);
+	while (pi <= pj) {
+	    if (pkdPosRaw(pkd,pi,d) < Split) pi = (PARTICLE *)(((char *)pi) + pkdParticleSize(pkd));
+	    else break;
+	    }
+	while (pi <= pj) {
+	    if (Split < pkdPosRaw(pkd,pj,d)) pj = (PARTICLE *)(((char *)pj) - pkdParticleSize(pkd));
+	    else break;
+	    }
+	if (pi < pj) {
+	    pkdSwapParticle(pkd,pi,pj);
+	    while (1) {
+		while (pkdPosRaw(pkd,(pi = (PARTICLE *)(((char *)pi) + pkdParticleSize(pkd))),d) < Split);
+		while (Split < pkdPosRaw(pkd,(pj = (PARTICLE *)(((char *)pj) - pkdParticleSize(pkd))),d));
+		if (pi < pj) {
+		    pkdSwapParticle(pkd,pi,pj);
+		    }
+		else break;
+		}
+	    }
+	return ((char *)pi - (char *)pkdParticleBase(pkd)) / pkdParticleSize(pkd);
+    }
+
+
+/*
 ** M is the bucket size.
 ** This function assumes that the root node is correctly set up (particularly the bounds).
 */
 #define TEMP_S_INCREASE 100
-void BuildTemp(PKD pkd,int iNode,int M) {
+void BuildTemp(PKD pkd,int iNode,int M,double dMaxMax) {
     PARTICLE *pi, *pj;
     KDN *pNode = pkdTreeNode(pkd,iNode);
     BND *bnd,*lbnd,*rbnd;
     KDN *pLeft, *pRight;
+    double lrMax;
     pos_t Split; /* Integer or double */
     int *S;		/* this is the stack */
     int s,ns;
@@ -170,7 +203,10 @@ void BuildTemp(PKD pkd,int iNode,int M) {
     int lc,rc;
     int nBucket = 0;
 
-    bnd = pkdNodeBnd(pkd,pNode);
+    pNode->iDepth = 0;
+
+    // Single bucket? We are done.
+    if (pNode->pUpper - pNode->pLower + 1 <= M) return;
 
     /*
     ** Allocate stack!
@@ -179,9 +215,8 @@ void BuildTemp(PKD pkd,int iNode,int M) {
     s = 0;
     S = CAST(int*,malloc(ns*sizeof(int)));
     assert(S != NULL);
-    if (pNode->pUpper - pNode->pLower + 1 <= M)
-	goto DonePart;
 
+    bnd = pkdNodeBnd(pkd,pNode);
     assert( bnd->fMax[0] > 0.0 ||
 	    bnd->fMax[1] > 0.0 ||
 	    bnd->fMax[2] > 0.0 );
@@ -202,28 +237,7 @@ void BuildTemp(PKD pkd,int iNode,int M) {
 	** Now start the partitioning of the particles about
 	** fSplit on dimension given by d.
 	*/
-	pi = pkdParticle(pkd,pNode->pLower);
-	pj = pkdParticle(pkd,pNode->pUpper);
-	while (pi <= pj) {
-	    if (pkdPosRaw(pkd,pi,d) < Split) pi = (PARTICLE *)(((char *)pi) + pkdParticleSize(pkd));
-	    else break;
-	    }
-	while (pi <= pj) {
-	    if (Split < pkdPosRaw(pkd,pj,d)) pj = (PARTICLE *)(((char *)pj) - pkdParticleSize(pkd));
-	    else break;
-	    }
-	if (pi < pj) {
-	    pkdSwapParticle(pkd,pi,pj);
-	    while (1) {
-		while (pkdPosRaw(pkd,(pi = (PARTICLE *)(((char *)pi) + pkdParticleSize(pkd))),d) < Split);
-		while (Split < pkdPosRaw(pkd,(pj = (PARTICLE *)(((char *)pj) - pkdParticleSize(pkd))),d));
-		if (pi < pj) {
-		    pkdSwapParticle(pkd,pi,pj);
-		    }
-		else break;
-		}
-	    }
-	i = ((char *)pi - (char *)pkdParticleBase(pkd)) / pkdParticleSize(pkd);
+	i = PartPart(pkd,pNode->pLower,pNode->pUpper,d,Split);
 	nl = i - pNode->pLower;
 	nr = pNode->pUpper - i + 1;
 	if (nl > 0 && nr > 0) {
@@ -237,12 +251,14 @@ void BuildTemp(PKD pkd,int iNode,int M) {
 	    pLeft->bRemote = 0;
 	    pLeft->pLower = pNode->pLower;
 	    pLeft->pUpper = i-1;
+	    pLeft->iDepth = pNode->iDepth+1;
 	    pRight = pkdTreeNode(pkd,iRight);
 	    assert(iRight & 1);
 	    pRight->bTopTree = 0;
 	    pRight->bRemote = 0;
 	    pRight->pLower = i;
 	    pRight->pUpper = pNode->pUpper;
+	    pRight->iDepth = pNode->iDepth+1;
 	    pNode->iLower = iLeft;
 
             lbnd = pkdNodeBnd(pkd, pLeft);
@@ -251,6 +267,7 @@ void BuildTemp(PKD pkd,int iNode,int M) {
 	    /*
 	    ** Now deal with the bounds.
 	    */
+	    lrMax = 0.0;
 	    for (j=0;j<3;++j) {
 		if (j == d) {
 		    rbnd->fMax[j] = lbnd->fMax[j] = 0.5*bnd->fMax[j];
@@ -263,12 +280,19 @@ void BuildTemp(PKD pkd,int iNode,int M) {
 		    rbnd->fCenter[j] = bnd->fCenter[j];
 		    rbnd->fMax[j] = bnd->fMax[j];
 		    }
+		if (rbnd->fMax[j] > lrMax) lrMax = rbnd->fMax[j];
 		}
 	    /*
 	    ** Now figure out which subfile to process next.
 	    */
-	    lc = (nl > M); /* this condition means the left child is not a bucket */
-	    rc = (nr > M);
+	    if (lrMax >dMaxMax) {
+		lc = (nl > 0); /* this condition means the left child is not a bucket */
+		rc = (nr > 0);
+		}
+	    else {
+		lc = (nl > M); /* this condition means the left child is not a bucket */
+		rc = (nr > M);
+		}
 	    if (rc && lc) {
 		/* Allocate more stack if required */
 		if ( s+1 >= ns ) {
@@ -314,13 +338,17 @@ void BuildTemp(PKD pkd,int iNode,int M) {
 		}
 	    }
 	else {
+	    ++pNode->iDepth;
 	    /*
 	    ** No nodes allocated, Change the bounds if needed!
 	    */
 	    if (d >= 0 && d < 3) bnd->fMax[d] *= 0.5;
+	    lrMax = 0.0;
+	    for(j=0; j<3; ++j)
+		if (bnd->fMax[j] > lrMax) lrMax = bnd->fMax[j];
 	    if (nl > 0) {
 		if (d >= 0 && d < 3) bnd->fCenter[d] -= bnd->fMax[d];
-		lc = (nl > M); /* this condition means the node is not a bucket */
+		lc = (lrMax>dMaxMax || nl > M); /* this condition means the node is not a bucket */
 		if (!lc) {
 		    pNode->iLower = 0;
 		    ++nBucket;
@@ -330,7 +358,7 @@ void BuildTemp(PKD pkd,int iNode,int M) {
 		}
 	    else {
 		if (d >= 0 && d < 3) bnd->fCenter[d] += bnd->fMax[d];
-		rc = (nr > M);
+		rc = (lrMax>dMaxMax || nr > M);
 		if (!rc) {
 		    pNode->iLower = 0;
 		    ++nBucket;
@@ -342,9 +370,232 @@ void BuildTemp(PKD pkd,int iNode,int M) {
 	pNode = pkdTreeNode(pkd,iNode);
         bnd = pkdNodeBnd(pkd, pNode);
 	}
-DonePart:
     free(S);
     }
+
+
+/*
+** With more than a single tree, we must be careful to make sure
+** that they match or the P-P, P-C and hence checklists will explode.
+** This routine takes a template tree (usually the large "fixed" tree)
+** and contructs a tree with buckets no larger than the corresponding
+** buckets in the template tree. Once we reach a bucket in the template
+** tree, then we can either create a bucket, or continue to create the
+** new tree in the usual way.
+*/
+void BuildFromTemplate(PKD pkd,int iNode,int M,int iTemplate) {
+
+    // The tree we are building
+    KDN *pNode, *pLeft, *pRight;
+    BND *bnd, *lbnd, *rbnd; 
+    int iLeft, iRight;
+
+    // The "template" tree
+    KDN *pTemp, *ptLeft, *ptRight;
+    BND tbnd, *ltbnd, *rtbnd;
+
+    pos_t Split;
+    int d;
+    int i, j, nr, nl;
+    int lg, rg;
+
+    double dMaxMax;
+    int ns,s;
+    struct buildStack {
+	BND tbnd;
+	KDN *pTemp;
+	int iNode;
+	} *S;
+    // If we have an empty tree root then we are "done"
+    pNode = pkdTreeNode(pkd,iNode);
+    pNode->iDepth = 0;
+    pNode->iLower = 0;
+    if (pNode->pUpper - pNode->pLower + 1 == 0) return;
+
+    // Setup stack and push the two root cells of each tree.
+    ns = TEMP_S_INCREASE;
+    S = (struct buildStack *)malloc(ns*sizeof(struct buildStack));
+    assert(S != NULL);
+    s = 1;
+    S[0].iNode = iNode;
+    S[0].pTemp = pkdTreeNode(pkd,iTemplate);
+    S[0].tbnd = pkd->fixbnd;
+
+    do {
+	// Pop the next cells to process
+	assert(s);
+	--s;
+	pTemp = S[s].pTemp;
+	tbnd = S[s].tbnd;
+	iNode = S[s].iNode;
+	bnd = pkdNodeBnd(pkd,pNode = pkdTreeNode(pkd,iNode));
+
+	// Follow the template tree to wherever it leads.
+	while(pTemp->iLower) {
+	    assert(pTemp->iDepth >= pNode->iDepth);
+	    ltbnd = pkdNodeBnd(pkd, ptLeft=pkdTreeNode(pkd,pTemp->iLower));
+	    rtbnd = pkdNodeBnd(pkd, ptRight=pkdTreeNode(pkd,pTemp->iLower+1));
+
+	    // Calculate the dimension and it's split value based on the algorithm above
+	    if (tbnd.fMax[0] < tbnd.fMax[1]) {
+		if (tbnd.fMax[1] < tbnd.fMax[2]) d = 2;
+		else d = 1;
+		}
+	    else if (tbnd.fMax[0] < tbnd.fMax[2]) d = 2;
+	    else d = 0;
+	    Split = pkdDblToPos(pkd,tbnd.fCenter[d]);
+
+	    // We must have done a split along this dimension or something is wacked
+	    assert(ltbnd->fCenter[d] != tbnd.fCenter[d]);
+	    assert(rtbnd->fCenter[d] != tbnd.fCenter[d]);
+
+	    // Check for ghosting on the template tree
+	    lg = (ltbnd->fCenter[d] > tbnd.fCenter[d]);
+	    rg = (rtbnd->fCenter[d] < tbnd.fCenter[d]);
+	    if (pTemp->iDepth == pNode->iDepth) {
+		assert(lg==0 && rg==0); // Neither can be ghosted
+		}
+	    else {
+		assert(lg==0 || rg==0); // Obviously both cannot be ghosted
+		}
+
+	    // Partition the particles on either side of the split
+	    i = PartPart(pkd,pNode->pLower,pNode->pUpper,d,Split);
+	    nl = i - pNode->pLower;
+	    nr = pNode->pUpper - i + 1;
+	    assert(nl>0 || nr>0);
+
+	    if (nl==0) {
+		++pNode->iDepth;
+		bnd->fMax[d] = 0.5 * (bnd->fCenter[d] + bnd->fMax[d] - tbnd.fCenter[d]);
+		assert(bnd->fMax[d] >0.0);
+		bnd->fCenter[d] = tbnd.fCenter[d] + bnd->fMax[d];
+		if (rg) break; // Just out and build normally
+		else {
+		    tbnd.fMax[d] *= 0.5;
+		    tbnd.fCenter[d] += tbnd.fMax[d];
+		    pTemp = ptRight;
+		    continue;
+		    }
+		}
+	    else if (nr==0) {
+		++pNode->iDepth;
+		bnd->fMax[d] = 0.5 * (tbnd.fCenter[d] - bnd->fCenter[d] + bnd->fMax[d]);
+		assert(bnd->fMax[d] >0.0);
+		bnd->fCenter[d] = tbnd.fCenter[d] - bnd->fMax[d];
+		if (lg) break; // Just out and build normally
+		else {
+		    tbnd.fMax[d] *= 0.5;
+		    tbnd.fCenter[d] -= tbnd.fMax[d];
+		    pTemp = ptLeft;
+		    continue;
+		    }
+		}
+
+	    // Good. We have particles on both sides, so we need to split this cell
+	    // and setup the appropriate bounds.
+
+	    pkdTreeAllocNodePair(pkd,&iLeft,&iRight);
+
+	    pLeft = pkdTreeNode(pkd,iLeft);
+	    pLeft->bTopTree = 0;
+	    pLeft->bRemote = 0;
+	    pLeft->pLower = pNode->pLower;
+	    pLeft->pUpper = i-1;
+	    pLeft->iLower = 0;
+	    pLeft->iDepth = pNode->iDepth + 1;
+	    assert(pLeft->pLower <= pLeft->pUpper);
+
+	    pRight = pkdTreeNode(pkd,iRight);
+	    assert(iRight & 1);
+	    pRight->bTopTree = 0;
+	    pRight->bRemote = 0;
+	    pRight->pLower = i;
+	    pRight->pUpper = pNode->pUpper;
+	    pRight->iLower = 0;
+	    pRight->iDepth = pNode->iDepth + 1;
+	    assert(pRight->pLower <= pRight->pUpper);
+
+	    pNode->iLower = iLeft;
+
+	    lbnd = pkdNodeBnd(pkd, pLeft);
+	    rbnd = pkdNodeBnd(pkd, pRight);
+
+	    iNode = -1;
+	    pNode = NULL;
+
+	    /*
+	    ** Now deal with the bounds.
+	    ** tbnd.fCenter[d] is the "split"
+	    */
+	    for (j=0;j<3;++j) {
+		if (j == d) {
+		    rbnd->fMax[d] = 0.5 * (bnd->fCenter[d] + bnd->fMax[d] - tbnd.fCenter[d]);
+		    rbnd->fCenter[d] = tbnd.fCenter[d] + rbnd->fMax[d];
+		    lbnd->fMax[d] = 0.5 * (tbnd.fCenter[d] - bnd->fCenter[d] + bnd->fMax[d]);
+		    lbnd->fCenter[d] = tbnd.fCenter[d] - lbnd->fMax[d];
+		    assert(rbnd->fMax[d] >0.0);
+		    assert(lbnd->fMax[d] >0.0);
+		    }
+		else {
+		    lbnd->fCenter[j] = bnd->fCenter[j];
+		    lbnd->fMax[j] = bnd->fMax[j];
+		    rbnd->fCenter[j] = bnd->fCenter[j];
+		    rbnd->fMax[j] = bnd->fMax[j];
+		    }
+		}
+
+	    tbnd.fMax[d] *= 0.5; // Shrink template cell
+	    dMaxMax = HUGE_VAL;
+	    for (j=0;j<3;++j) if (tbnd.fMax[j]<dMaxMax) dMaxMax = tbnd.fMax[j];
+	    assert(dMaxMax>0.0);
+
+	    // Left is a ghost cell or bucket
+	    if (lg || ptLeft->iLower==0) {
+		BuildTemp(pkd,iLeft,M,dMaxMax);
+		tbnd.fCenter[d] += tbnd.fMax[d];
+		iNode = iRight;
+		pTemp = ptRight;
+		}
+	    else if (rg || ptRight->iLower==0) {
+		BuildTemp(pkd,iRight,M,dMaxMax);
+		tbnd.fCenter[d] -= tbnd.fMax[d];
+		iNode = iLeft;
+		pTemp = ptLeft;
+		}
+	    // push right and continue left
+	    else {
+		if ( s+1 >= ns ) {
+		    assert( s+1 == ns );
+		    ns += TEMP_S_INCREASE;
+		    S = (struct buildStack *)realloc(S,ns*sizeof(struct buildStack));
+		    }
+		S[s].tbnd = tbnd;
+		S[s].tbnd.fCenter[d] += tbnd.fMax[d];
+		S[s].pTemp = ptRight;
+		S[s].iNode = iRight;
+		++s;
+
+		tbnd.fCenter[d] -= tbnd.fMax[d];
+		pTemp = ptLeft;
+		iNode = iLeft;
+		}
+	    pNode = pkdTreeNode(pkd,iNode);
+	    bnd = pkdNodeBnd(pkd,pNode);
+	    }
+
+	dMaxMax = HUGE_VAL;
+	for (j=0;j<3;++j) if (tbnd.fMax[j]<dMaxMax) dMaxMax = tbnd.fMax[j];
+	assert(dMaxMax>0.0);
+
+	// Bucket in the template tree: Now just build
+	BuildTemp(pkd,iNode,M,dMaxMax);
+	} while(s);
+
+    free(S);
+    }
+
+
 
 static vel_t zeroV[3] = {0.0,0.0,0.0};
 static float  zeroF[3] = {0.0,0.0,0.0};
@@ -734,7 +985,7 @@ void pkdCombineCells2(PKD pkd,KDN *pkdn,KDN *p1,KDN *p2) {
     }
 }
 
-void pkdTreeBuild(PKD pkd,int nBucket, uint32_t uRoot) {
+void pkdTreeBuild(PKD pkd,int nBucket, uint32_t uRoot,uint32_t uTemp) {
     int i;
 #ifdef USE_ITT
     __itt_domain* domain = __itt_domain_create("MyTraces.MyDomain");
@@ -751,7 +1002,9 @@ void pkdTreeBuild(PKD pkd,int nBucket, uint32_t uRoot) {
     ** The KDN at "uRoot" (e.g., ROOT) is already setup (pLower and pUpper are correct)
     ** For more information look a pkdDumpTrees and the Initialize*() routines above.
     */
-    BuildTemp(pkd,uRoot,nBucket);
+
+    if (uTemp==0) BuildTemp(pkd,uRoot,nBucket,HUGE_VAL);
+    else  BuildFromTemplate(pkd,uRoot,nBucket,uTemp);
     Create(pkd,uRoot);
     pkdStopTimer(pkd,0);
 
@@ -905,7 +1158,7 @@ void pkdTreeBuildByGroup(PKD pkd, int nBucket) {
 
     for(gid=1; gid<pkd->nGroups; ++gid)
 	if (pkd->hopGroups[gid].bNeedGrav)
-	    BuildTemp(pkd,pkd->hopGroups[gid].iTreeRoot,nBucket);
+	    BuildTemp(pkd,pkd->hopGroups[gid].iTreeRoot,nBucket,HUGE_VAL);
     for(gid=1; gid<pkd->nGroups; ++gid)
 	if (pkd->hopGroups[gid].bNeedGrav)
 	    Create(pkd,pkd->hopGroups[gid].iTreeRoot);

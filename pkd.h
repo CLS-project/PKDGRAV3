@@ -23,6 +23,12 @@
 #endif
 #include "basetype.h"
 
+#if defined(HAVE_LIBAIO_H)
+#include <libaio.h>
+#elif defined(HAVE_AIO_H)
+#include <aio.h>
+#endif
+
 #ifdef __cplusplus
 #define CAST(T,V) reinterpret_cast<T>(V)
 #else
@@ -309,7 +315,7 @@ typedef struct kdNode {
     int pLower;		     /* also serves as thread id for the LTT */
     int pUpper;		     /* pUpper < 0 indicates no particles in tree! */
     uint32_t iLower;         /* Local lower node (or remote processor w/bRemote=1) */
-    uint16_t uCore;          /* Reserved: will be the owner core */
+    uint16_t iDepth;
     uint16_t uMinRung   : 6;
     uint16_t uMaxRung   : 6;
     uint16_t bSrcActive : 1;
@@ -671,18 +677,28 @@ typedef struct pkdContext {
     int nNonVANodes;    /* number of nodes *not* in Very Active Tree, or index to the start of the VA nodes (except VAROOT) */
     BND bnd;
     BND vbnd;
+    BND fixbnd;
     size_t iTreeNodeSize;
     size_t iParticleSize;
     PARTICLE *pStorePRIVATE;
     PARTICLE *pTempPRIVATE;
-#if 0
-    struct iocb cbLightCone[2];
-    struct io_event eventsLightCone[2];
-    int fdLightCone[2];
-#endif
     double dTimeRedshift0;
+
+#define NUMLCBUFS 2
+#if defined(HAVE_LIBAIO_H)
+    struct iocb cbLightCone[NUMLCBUFS];
+    struct io_event eventsLightCone[NUMLCBUFS];
+    io_context_t ctxLightCone;
+#elif defined(HAVE_AIO_H)
+    struct aiocb cbLightCone[NUMLCBUFS];
+    struct aiocb const * pcbLightCone[NUMLCBUFS];
+#endif
+    LIGHTCONEP *pLightCone[NUMLCBUFS];
+    off_t iFilePositionLightCone;
+    int fdLightCone;
+    int iLightConeBuffer;
     int nLightCone, nLightConeMax;
-    LIGHTCONEP *pLightCone[2];
+
     PARTCLASS *pClass;
     float fSoftFix;
     float fSoftFac;
@@ -1170,7 +1186,7 @@ static inline int pkdIsNew(PKD pkd,PARTICLE *p) {
 ** From tree.c:
 */
 void pkdVATreeBuild(PKD pkd,int nBucket);
-void pkdTreeBuild(PKD pkd,int nBucket,uint32_t uRoot);
+void pkdTreeBuild(PKD pkd,int nBucket,uint32_t uRoot,uint32_t uTemp);
 uint32_t pkdDistribTopTree(PKD pkd, uint32_t uRoot, uint32_t nTop, KDN *pTop);
 void pkdOpenCloseCaches(PKD pkd,int bOpen,int bFixed);
 void pkdDumpTrees(PKD pkd,int bOnlyVA,uint8_t uRungDD);
@@ -1373,6 +1389,10 @@ void pkdMeasurePk(PKD pkd, double dCenter[3], double dRadius, double dTotalMass,
     int nGrid, int nBins, float *fK, float *fPower, int *nPower);
 #endif
 void pkdOutPsGroup(PKD pkd,char *pszFileName,int iType);
+
+void pkdLightConeOpen(PKD pkd, const char *fname);
+void pkdLightConeClose(PKD pkd);
+
 
 #ifdef USE_CUDA
 #ifdef __cplusplus

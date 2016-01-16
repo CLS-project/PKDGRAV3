@@ -40,7 +40,7 @@
 #define MDL_ROCACHE			1
 #define MDL_COCACHE			2
 
-#define MDL_DEFAULT_CACHEIDS	5
+#define MDL_DEFAULT_CACHEIDS	10
 
 #define MDL_TRANS_SIZE		5000000
 #define MDL_FLUSH_DATA_SIZE	32000
@@ -301,6 +301,16 @@ void arcFinish(ARC arc) {
     */
     free(arc);
 }
+
+ARC arcReinitialize(ARC arc,uint32_t nCache,uint32_t uDataSize,CACHE *c) {
+    if (arc!=NULL) {
+	assert(arc->cache == c);
+	if ( arc->nCache == nCache && arc->uDataSize == ((uDataSize+7)>>3) )
+	    return arc;
+	arcFinish(arc);
+	}
+    return arcInitialize(nCache,uDataSize,c);
+    }
 
 /*
  ** This structure should be "maximally" aligned, with 4 ints it
@@ -2067,10 +2077,11 @@ CACHE *CacheInitialize(
     cacheOpenClose coc;
 
     /*
-     ** Allocate more cache spaces if required!
+     ** We cannot reallocate this structure because there may be other threads accessing it.
      */
-    assert(cid >= 0);
+    assert(cid >= 0 && cid <mdl->nMaxCacheIds);
     if (cid >= mdl->nMaxCacheIds) {
+	abort();
 	/*
 	 ** reallocate cache spaces, adding space for 2 new cache spaces
 	 ** including the one just defined.
@@ -2110,7 +2121,7 @@ CACHE *CacheInitialize(
     c->nAccess = 0;
     c->nMiss = 0;				/* !!!, not NB */
     c->nColl = 0;				/* !!!, not NB */
-    if (c->arc==NULL) c->arc = arcInitialize(mdl->cacheSize/c->iLineSize,c->iLineSize,c);
+    c->arc = arcReinitialize(c->arc,mdl->cacheSize/c->iLineSize,c->iLineSize,c);
     c->pOneLine = malloc(c->iLineSize);
 
     /*
