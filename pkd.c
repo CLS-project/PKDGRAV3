@@ -2261,7 +2261,10 @@ void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVPred,do
     int i,j,k;
     double rfinal[3],r1[3],r0[3],dMin[3],dMax[3];
     double dLightSpeed = dLightSpeedSim(pkd->param.dBoxSize);
-    double dLookbackTime = pkd->dTimeRedshift0 - dTime;
+    /*
+    ** Maybe master.c should calculate dLookbackFac, but this should work for now.
+    */
+    double dLookbackFac = csmComoveKickFac(pkd->param.csm,dTime,(pkd->dTimeRedshift0 - dTime));
     int pLower, pUpper;
 
     if (iRoot>=0) {
@@ -2309,7 +2312,7 @@ void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVPred,do
     /*
     ** If the light surface enters the unit box, then we can start generating light cone output. 
     */
-    else if (pkd->param.bLightCone && dLookbackTime*dLightSpeed < 1.0) {
+    else if (pkd->param.bLightCone && dLookbackFac*dLightSpeed < 1.0) {
 	const double xOffset[8] = {-0.5,-0.5,-0.5,-0.5,+0.5,+0.5,+0.5,+0.5};
 	const double yOffset[8] = {-0.5,-0.5,+0.5,+0.5,-0.5,-0.5,+0.5,+0.5};
 	const double zOffset[8] = {-0.5,+0.5,-0.5,+0.5,-0.5,+0.5,-0.5,+0.5};
@@ -2373,16 +2376,16 @@ void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVPred,do
 		    ** Check lightcone from 0 <= dt < isect[k].dt
 		    */
 		    dt = isect[k].dt;
-		    dtApprox = dt/dDelta*dDeltaTime;
-		    dlbt = dLookbackTime;
+		    dtApprox = dt/dDelta*dDeltaVPred;
+		    dlbt = dLookbackFac;
 		    }
 		else {
 		    /*
 		    ** Check lightcone from isect[k-1].dt <= dt < isect[k].dt
 		    */
 		    dt = isect[k].dt - isect[k-1].dt;
-		    dtApprox = dt/dDelta*dDeltaTime;
-		    dlbt = dLookbackTime - dtApprox;
+		    dtApprox = dt/dDelta*dDeltaVPred;
+		    dlbt = dLookbackFac - dtApprox;
 		    }
 		for (j=0;j<3;++j) r1[j] = r0[j] + dt*v[j];
 		for(iOct=0; iOct<8; ++iOct) {
