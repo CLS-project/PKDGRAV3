@@ -87,10 +87,11 @@ static inline int64_t d2u64(double d) {
 #define PKD_MODEL_GROUPS       (1<<3)  /* Group profiling */
 #define PKD_MODEL_RELAXATION   (1<<5)  /* Trace relaxation */
 #define PKD_MODEL_MASS         (1<<6)  /* Mass for each particle */
-#define PKD_MODEL_SOFTENING    (1<<7)  /* Softening for each particle */
-#define PKD_MODEL_VELSMOOTH    (1<<8)  /* Velocity Smoothing */
-#define PKD_MODEL_SPH          (1<<9)  /* Sph Fields */
-#define PKD_MODEL_STAR         (1<<10) /* Star Fields */
+#define PKD_MODEL_DENSITY      (1<<7)  /* Density for each particle */
+#define PKD_MODEL_SOFTENING    (1<<8)  /* Softening for each particle */
+#define PKD_MODEL_VELSMOOTH    (1<<9)  /* Velocity Smoothing */
+#define PKD_MODEL_SPH          (1<<10) /* Sph Fields */
+#define PKD_MODEL_STAR         (1<<11) /* Star Fields */
 #define PKD_MODEL_PARTICLE_ID  (1<<12) /* Particles have a unique ID */
 
 #define PKD_MODEL_NODE_MOMENT  (1<<24) /* Include moment in the tree */

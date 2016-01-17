@@ -388,7 +388,7 @@ void pkdInitialize(
     if ( mMemoryModel & PKD_MODEL_SPH )
 	pkd->oBall = pkdParticleAddFloat(pkd,1);
     else pkd->oBall = 0;
-    if ( mMemoryModel & PKD_MODEL_SPH )
+    if ( mMemoryModel & (PKD_MODEL_SPH|PKD_MODEL_DENSITY) )
 	pkd->oDensity = pkdParticleAddFloat(pkd,1);
     else pkd->oDensity = 0;
 
@@ -2328,7 +2328,11 @@ void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVPred,do
 	    double fOffset;
 	    int jPlane;
 	    } isect[4], temp;
-	
+	static int foo=1;
+	if (foo) {
+	    printf("Started at z=%g\n",1.0/csmTime2Exp(pkd->param.csm,dTime) - 1.0);
+	    foo=0;
+	    }
 	for (i=pLower;i<=pUpper;++i) {
 	    p = pkdParticle(pkd,i);
 	    v = pkdVel(pkd,p);
