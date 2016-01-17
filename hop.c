@@ -840,11 +840,6 @@ static void hopCalculateGroupStats(PKD pkd, int bPeriodic, double *dPeriod) {
     for(i=1+pkd->nLocalGroups; i<pkd->nGroups; ++i) {
 	assert(pkd->hopGroups[i].id.iPid != pkd->idSelf);
 	g = mdlAcquire(mdl,CID_GROUP,pkd->hopGroups[i].id.iIndex,pkd->hopGroups[i].id.iPid);
-	if (pkd->hopGroups[i].id.iIndex==g->id.iIndex && pkd->hopGroups[i].id.iPid==g->id.iPid) {}
-	else {
-	    printf("%d.%d points to %d.%d points to %d.%d\n",pkd->idSelf,i,pkd->hopGroups[i].id.iPid,
-		pkd->hopGroups[i].id.iIndex,g->id.iPid,g->id.iIndex);
-	    }
 	assert(pkd->hopGroups[i].id.iIndex==g->id.iIndex && pkd->hopGroups[i].id.iPid==g->id.iPid);
 	pkd->hopGroups[i].nRemote = g->nRemote;
 	pkd->hopGroups[i].nTotal = g->nTotal;
@@ -869,13 +864,10 @@ void pkdPurgeSmallGroups(PKD pkd,int nMinGroupSize, int bPeriodic, double *dPeri
     struct smGroupArray *ga = (struct smGroupArray *)(pkd->pLite);
     int i, j, gid;
 
-    printf("%1d:relocate\n",pkd->idSelf);
     hopRelocateGroups(pkd);
-    printf("%1d:group stats\n",pkd->idSelf);
     hopCalculateGroupStats(pkd,bPeriodic,dPeriod);
     /* Purge groups with too few particles */
-    printf("%1d:purge\n",pkd->idSelf);
-   for(i=j=1; i<pkd->nGroups; ++i) {
+    for(i=j=1; i<pkd->nGroups; ++i) {
 	assert(pkd->hopGroups[i].nTotal==0 || pkd->hopGroups[i].id.iPid!=pkd->idSelf || pkd->hopGroups[i].nLocal>0);
 	if (pkd->hopGroups[i].nLocal==0 || pkd->hopGroups[i].nTotal<nMinGroupSize) gid=0;
 	else gid = j++;
@@ -883,9 +875,7 @@ void pkdPurgeSmallGroups(PKD pkd,int nMinGroupSize, int bPeriodic, double *dPeri
 	ga[i].id.iIndex = pkd->hopGroups[i].id.iIndex;
 	ga[i].iNewGid = gid;
 	}
-    printf("%1d:update group ids\n",pkd->idSelf);
     updateGroupIds(pkd,pkd->nGroups,ga,1);
-    printf("%1d:final loop\n",pkd->idSelf);
     for(i=gid=j=1; i<pkd->nGroups; ++i) {
 	if (ga[i].iNewGid && ga[i].id.iIndex) {
 	    if (ga[i].id.iPid==pkd->idSelf) ++j;
