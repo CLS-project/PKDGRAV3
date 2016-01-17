@@ -2656,7 +2656,7 @@ void pstHopCountGID(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	pst->nGroupsLower = 0;
         out->nGroups = pkdHopCountGID(plcl->pkd);
         }
-    if (pnOut) *pnOut = 0;
+    if (pnOut) *pnOut = sizeof(struct outHopCountGID);
     }
 
 void pstHopAssignGID(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
