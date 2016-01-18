@@ -83,6 +83,7 @@ struct parameters {
     int bAddDelete;
     int bLightCone;
     int bLightConeParticles;
+    int nSideHealpix;
     /* BEGIN Gas Parameters */
     int bDoGas;
     int bGasAdiabatic;

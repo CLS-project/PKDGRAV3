@@ -319,7 +319,7 @@ void * master_ch(MDL mdl) {
 	    lSec = time(0) - lSec;
 	    msrMemStatus(msr);
 
-	    msrLightConeClose(msr);
+	    msrLightConeClose(msr,iStep);
 
 	    /*
 	    ** Output a log file line if requested.

@@ -155,7 +155,7 @@ void msrStepVeryActiveKDK(MSR msr, double dStep, double dTime, double dDelta,
 void msrBallMax(MSR msr, int iRung, int bGreater);
 
 void msrLightConeOpen(MSR msr, int iStep);
-void msrLightConeClose(MSR msr);
+void msrLightConeClose(MSR msr, int iStep);
 
 /*------------------*/
 /* Active Functions */

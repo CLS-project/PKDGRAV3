@@ -107,6 +107,13 @@ AM_CONDITIONAL(USE_EFENCE, test "x$EFENCE_DIR" != "xno")
 AM_CONDITIONAL(HAVE_EFENCE_PATH, test "x$EFENCE_DIR" != "xyes")
 AC_SUBST([EFENCE_PATH],[$EFENCE_DIR])
 
+# cfitsio library (for hpb2fits conversion utility)
+AC_ARG_WITH(cfitsio,
+  [  --with-cfitsio=PATH     gives path to cfitsio library],
+  [CFITSIO_DIR="${withval}"],[CFITSIO_DIR=no])
+AM_CONDITIONAL(HAVE_CFITSIO_PATH, test "x$CFITSIO_DIR" != "xyes")
+AC_SUBST([CFITSIO_PATH],[$CFITSIO_DIR])
+
 # Intel VTUNE
 AC_ARG_WITH(itt,
   [  --with-itt=PATH      enable Vtune debugging],

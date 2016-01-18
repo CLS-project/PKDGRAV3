@@ -13,6 +13,7 @@
 #include <math.h>
 #include <assert.h>
 #include <errno.h>
+#include <limits.h>
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>
 #include <linux/fs.h>
@@ -569,6 +570,7 @@ void pkdInitialize(
 	pkd->pLightCone[1] = NULL;
 	}
     pkd->fdLightCone = 0;
+    pkd->pHealpixCounts = NULL;
 
 #ifdef MDL_CACHE_SIZE
     if ( iCacheSize > 0 ) mdlSetCacheSize(pkd->mdl,iCacheSize);
@@ -730,6 +732,7 @@ void pkdFinish(PKD pkd) {
     free(pkd->pTempPRIVATE);
     if (pkd->pLightCone[0]) free(pkd->pLightCone[0]);
     if (pkd->pLightCone[1]) free(pkd->pLightCone[1]);
+    if (pkd->pHealpixCounts) free(pkd->pHealpixCounts);
     csmFinish(pkd->param.csm);
     SIMD_free(pkd);
     }
@@ -2204,46 +2207,98 @@ static void flushLightCone(PKD pkd) {
     pkd->nLightCone = 0;
     }
 
-void pkdLightConeClose(PKD pkd) {
-    flushLightCone(pkd);
-    close(pkd->fdLightCone);
+static void initHealpix(void *vpkd, void *v) {
+    uint32_t *m = (uint32_t *)v;
+    *m = 0;
     }
 
-void pkdLightConeOpen(PKD pkd,const char *fname) {
-    int i, rc;
-//    pkd->fdLightCone = open(fname,O_DIRECT|O_CREAT|O_WRONLY|O_TRUNC,S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP);
-    pkd->fdLightCone = open(fname,O_CREAT|O_WRONLY|O_TRUNC,S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP);
-    if (pkd->fdLightCone<0) { perror(fname); abort(); }
-    pkd->iFilePositionLightCone = 0;
-#ifdef HAVE_LIBAIO_H
-    pkd->ctxLightCone = 0;
-    rc = io_setup(NUMLCBUFS, &pkd->ctxLightCone);
-    if (rc<0) { perror("io_setup"); abort(); }
-#else
-    memset(&pkd->cbLightCone,0,sizeof(pkd->cbLightCone));
-    for(i=0; i<NUMLCBUFS; ++i) {
-	pkd->pcbLightCone[i] = pkd->cbLightCone + i;
-	pkd->cbLightCone[i].aio_fildes = pkd->fdLightCone;
-	pkd->cbLightCone[i].aio_offset = 0;
-	pkd->cbLightCone[i].aio_buf = NULL;
-	pkd->cbLightCone[i].aio_nbytes = 0;
-	pkd->cbLightCone[i].aio_sigevent.sigev_notify = SIGEV_NONE;
-	pkd->cbLightCone[i].aio_lio_opcode = LIO_NOP;
+static void combHealpix(void *vctx, void *v1, void *v2) {
+    PKD pkd = (PKD)vctx;
+    uint32_t * m1 = (uint32_t *)v1;
+    uint32_t * m2 = (uint32_t *)v2;
+    uint64_t sum = (uint64_t)*m1 + *m2;
+    if (sum > 0xffffffffu) *m1 = 0xffffffffu;
+    else *m1 = sum;
+    }
+
+void pkdLightConeClose(PKD pkd,const char *healpixname) {
+    if (pkd->fdLightCone > 0) {
+	flushLightCone(pkd);
+	close(pkd->fdLightCone);
 	}
-#endif
-    pkd->iLightConeBuffer = 0;
+    if (pkd->nSideHealpix) {
+	assert(healpixname && healpixname[0]);
+	mdlFinishCache(pkd->mdl,CID_HEALPIX);
+	int fd = open(healpixname,O_CREAT|O_WRONLY|O_TRUNC,S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP);
+	if (fd<0) { perror(healpixname); abort(); }
+	write(fd,pkd->pHealpixCounts,pkd->nHealpixPerDomain * sizeof(*pkd->pHealpixCounts));
+	close(fd);
+	}
     }
 
+void pkdLightConeOpen(PKD pkd,const char *fname,int nSideHealpix) {
+    int i, rc;
+    if (fname[0]) {
+//    pkd->fdLightCone = open(fname,O_DIRECT|O_CREAT|O_WRONLY|O_TRUNC,S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP);
+	pkd->fdLightCone = open(fname,O_CREAT|O_WRONLY|O_TRUNC,S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP);
+	if (pkd->fdLightCone<0) { perror(fname); abort(); }
+	pkd->iFilePositionLightCone = 0;
+#ifdef HAVE_LIBAIO_H
+	pkd->ctxLightCone = 0;
+	rc = io_setup(NUMLCBUFS, &pkd->ctxLightCone);
+	if (rc<0) { perror("io_setup"); abort(); }
+#else
+	memset(&pkd->cbLightCone,0,sizeof(pkd->cbLightCone));
+	for(i=0; i<NUMLCBUFS; ++i) {
+	    pkd->pcbLightCone[i] = pkd->cbLightCone + i;
+	    pkd->cbLightCone[i].aio_fildes = pkd->fdLightCone;
+	    pkd->cbLightCone[i].aio_offset = 0;
+	    pkd->cbLightCone[i].aio_buf = NULL;
+	    pkd->cbLightCone[i].aio_nbytes = 0;
+	    pkd->cbLightCone[i].aio_sigevent.sigev_notify = SIGEV_NONE;
+	    pkd->cbLightCone[i].aio_lio_opcode = LIO_NOP;
+	    }
+#endif
+	pkd->iLightConeBuffer = 0;
+	}
+    else pkd->fdLightCone = -1;
+
+    pkd->nSideHealpix = nSideHealpix;
+    if (pkd->nSideHealpix) {
+	pkd->nHealpixPerDomain = ( nside2npix64(pkd->nSideHealpix) + mdlThreads(pkd->mdl) - 1) / mdlThreads(pkd->mdl);
+	pkd->nHealpixPerDomain = (pkd->nHealpixPerDomain+15) & ~15;
+	if (pkd->pHealpixCounts==NULL) {
+	    pkd->pHealpixCounts = malloc(pkd->nHealpixPerDomain * sizeof(*pkd->pHealpixCounts));
+	    assert(pkd->pHealpixCounts!=NULL);
+	    }
+	for (i=0; i<pkd->nHealpixPerDomain; ++i) pkd->pHealpixCounts[i] = 0;
+	mdlCOcache(pkd->mdl,CID_HEALPIX,NULL,
+	    pkd->pHealpixCounts,sizeof(*pkd->pHealpixCounts),
+	    pkd->nHealpixPerDomain,pkd,initHealpix,combHealpix);
+	}
+    }
 
 static void addToLightCone(PKD pkd,double *r,float *v) {
-    LIGHTCONEP *pLC = pkd->pLightCone[pkd->iLightConeBuffer];
-    pLC[pkd->nLightCone].pos[0] = r[0];
-    pLC[pkd->nLightCone].pos[1] = r[1];
-    pLC[pkd->nLightCone].pos[2] = r[2];
-    pLC[pkd->nLightCone].vel[0] = v[0];
-    pLC[pkd->nLightCone].vel[1] = v[1];
-    pLC[pkd->nLightCone].vel[2] = v[2];
-    if (++pkd->nLightCone == pkd->nLightConeMax) flushLightCone(pkd);
+    if (pkd->fdLightCone>0) {
+	LIGHTCONEP *pLC = pkd->pLightCone[pkd->iLightConeBuffer];
+	pLC[pkd->nLightCone].pos[0] = r[0];
+	pLC[pkd->nLightCone].pos[1] = r[1];
+	pLC[pkd->nLightCone].pos[2] = r[2];
+	pLC[pkd->nLightCone].vel[0] = v[0];
+	pLC[pkd->nLightCone].vel[1] = v[1];
+	pLC[pkd->nLightCone].vel[2] = v[2];
+	if (++pkd->nLightCone == pkd->nLightConeMax) flushLightCone(pkd);
+	}
+    if (pkd->nSideHealpix) {
+	int64_t iPixel = vec2pix_ring64(pkd->nSideHealpix, r);
+	assert(iPixel >= 0);
+	int id  = iPixel / pkd->nHealpixPerDomain;
+	int idx = iPixel - id*pkd->nHealpixPerDomain;
+	assert(id<mdlThreads(pkd->mdl));
+	assert(idx < pkd->nHealpixPerDomain);
+	uint32_t *m = mdlVirtualAcquire(pkd->mdl,CID_HEALPIX,idx,id,0);
+	if (*m < 0xffffffffu) ++*m; /* Increment with saturate */
+	}
     }
 
 /*
