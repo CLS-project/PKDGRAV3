@@ -5412,9 +5412,11 @@ void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint) {
 
 /*	msrGroupMerge(msr,csmTime2Exp(msr->param.csm,dTime));
 	if (msr->param.nBins > 0) msrGroupProfiles(msr,csmTime2Exp(msr->param.csm,dTime));
+*/
 	msrReorder(msr);
-	sprintf(achFile,"%s.%i.fof",msrOutName(msr),nFOFsDone);
+	sprintf(achFile,"%s.fof",msrOutName(msr));
 	msrOutArray(msr,achFile,OUT_GROUP_ARRAY);
+/*
 	msrBuildName(msr,achFile,iStep);
 	strncat(achFile,".stats",256);
 	msrOutGroups(msr,achFile,OUT_GROUP_STATS,dTime);

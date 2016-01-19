@@ -154,11 +154,12 @@ void pkdFofRemoteSearch(PKD pkd,double dTau2) {
     uint32_t pjGroup;
     uint32_t *piGroup;
     uint32_t pi,pj;
-    int iRemote;
-    int sp,i,j,ix,iy,iz,nReps,bRep;
+    int iRemote;    
+    int sp,i,j,ix,iy,iz,bRep;
     int idSelf,iTop,iCell,id,iCellLo,idLo,iCellUp,idUp,iSib,iCheckCell,iCheckLower;
     int jTile,M,iStack;
     float fOffset[3];
+
 
     /*
     ** Allocate the vectors to be large enough to handle all particles in a bucket.
@@ -177,10 +178,10 @@ void pkdFofRemoteSearch(PKD pkd,double dTau2) {
     iStack = 0;
     clClear(pkd->cl);
 
-    iTop = pkd->iTopTree[ROOT];
     kdnSelf = pkdTreeNode(pkd,ROOT);
     bndSelf = pkdNodeBnd(pkd, kdnSelf);
     idSelf = mdlSelf(pkd->mdl);
+    iTop = pkd->iTopTree[ROOT];
     id = idSelf;
     for (j=0;j<3;++j) fOffset[j] = 0.0;
     /*
@@ -208,6 +209,7 @@ void pkdFofRemoteSearch(PKD pkd,double dTau2) {
 	addChildFof(pkd,pkd->cl,iCellUp,idUp,fOffset);
 	iCell = iCellLo;
 	id = idLo;
+	assert(id == idSelf);
     NextCell:
 	;
 	}
@@ -215,6 +217,7 @@ void pkdFofRemoteSearch(PKD pkd,double dTau2) {
     ** Add all replica global roots to the checklist for periodic BCs.
     */
     if (pkd->param.bPeriodic) {
+	int nReps = pkd->param.nReplicas;
 	for (ix=-nReps;ix<=nReps;++ix) {
 	    fOffset[0] = ix*pkd->fPeriod[0];
 	    for (iy=-nReps;iy<=nReps;++iy) {
@@ -222,7 +225,7 @@ void pkdFofRemoteSearch(PKD pkd,double dTau2) {
 		for (iz=-nReps;iz<=nReps;++iz) {
 		    fOffset[2] = iz*pkd->fPeriod[2];
 		    bRep = ix || iy || iz;
-		    if (bRep) addChildFof(pkd,pkd->cl,iTop,id,fOffset);
+		    if (bRep) addChildFof(pkd,pkd->cl,iTop,idSelf,fOffset);
 		    }
 		}
 	    }
@@ -268,7 +271,10 @@ void pkdFofRemoteSearch(PKD pkd,double dTau2) {
 				*/
 				iCheckCell = blk->iCell.i[jTile];
 				id = blk->idCell.i[jTile];
-				if (id == pkd->idSelf) c = pkdTreeNode(pkd,iCheckCell);
+				if (id == pkd->idSelf) {
+				    printf("local checkcell:%d\n",iCheckCell);
+				    c = pkdTreeNode(pkd,iCheckCell);
+				    }
 				else c = CAST(KDN *,mdlFetch(pkd->mdl,CID_CELL,iCheckCell,id));
 				/*
 				** Convert all the coordinates in the k-cell and store them in vectors.
@@ -297,6 +303,7 @@ void pkdFofRemoteSearch(PKD pkd,double dTau2) {
 					    ** Check if it is already linked to this group and if not add the link.
 					    */
 					    if (pjGroup == 0) printf("UNGROUPED PARTICLE FOUND at %.15g < %.15g\n",d2,dTau2);
+					    assert(pjGroup > 0);
 					    iRemote = pkd->ga[piGroup[i]].iLink;
 					    while (iRemote) {
 						if (pkd->tmpFofRemote[iRemote].key.iIndex == pjGroup && 
