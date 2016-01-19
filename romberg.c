@@ -10,7 +10,7 @@
 #include "floattype.h"
 #endif
 
-#define MAXLEV 13
+#define MAXLEV 20
 
 /*
  ** Romberg integrator for an open interval.

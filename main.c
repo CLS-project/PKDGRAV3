@@ -239,6 +239,11 @@ void * master_ch(MDL mdl) {
 
 	if (bRestore) goto test_continue;
 
+	if (msr->param.bLightCone && msrComove(msr)) {
+	    printf("LightCone output will begin at z=%.10g\n",
+		1.0/csmComoveLookbackTime2Exp(msr->param.csm,1.0 / dLightSpeedSim(msr->param.dBoxSize)) - 1.0 );;
+	    }
+
 	/*
 	** Build tree, activating all particles first (just in case).
 	*/

@@ -31,17 +31,33 @@ double csmComoveLookbackTime2Exp(CSM csm,double dComoveTime);
  ** returns the speed of light in simulation units, given
  ** the simulation length unit in h^-1 Mpc.
  */
-static inline double dLightSpeedSim(double dMpcUnit)
-{
-	/*
-	 ** Find the speed of light in simulation units.
-	 **
-	 ** c[Mpc/Gyr] = c[cm/s] * Julian Year[s] / pc[cm] * 1000 
-	 ** c_sim = c[Mpc/Gyr] * (x Gyrs/ 1 sim time) * ( 1 sim length/Boxsize (Mpc))
-	 ** x = 1/sqrt(4.498*h*h*2.776e-4)
-	 */
-	return(8676.85/dMpcUnit);
-	}
+static inline double dLightSpeedSim(double dMpcUnit) {
+    /*
+    ** Find the speed of light in simulation units.
+    **
+    ** c[Mpc/Gyr] = c[cm/s] * Julian Year[s] / pc[cm] * 1000 
+    ** c_sim = c[Mpc/Gyr] * (x Gyrs/ 1 sim time) * ( 1 sim length/Boxsize (Mpc))
+    ** x = 1/sqrt(4.498*h*h*2.776e-4)
+    */
+    /*return(8676.85/dMpcUnit);*/
 
+    /* 
+    ** Doug's version:
+    **
+    ** Cosmological coordinates
+    ** G     = 4.30172e-9 Mpc/M. (km/s)^2
+    ** rho_c = 3 H^2 / (8 pi G)
+    ** c     = 299792.458 km/s
+    **
+    ** c_sim = c[km/s] * sqrt(Lbox / (G * rho_c * Lbox^3))
+    * *      = c[km/s] * sqrt(8 pi / (3 H^2 Lbox^2) )
+    **       = c[km/s] * sqrt(8 pi / 3) / Lbox / H
+    **       = c[km/s] * sqrt(8 pi / 3) / Lbox / h / 100
+    ** dMpcUnit given in Mpc/h gives:
+    **       = 299792.458 * sqrt(8 pi / 3) / 100 / dMpcUnit
+    **       = 8677.20794864 / dMpcUnit
+    */
+    return 8677.20794864 / dMpcUnit; /* Really only six digit accuracy (G uncertainty) */
+    }
 
 #endif

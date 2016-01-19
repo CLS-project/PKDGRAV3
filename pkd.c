@@ -2367,7 +2367,7 @@ void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVPred,do
     /*
     ** If the light surface enters the unit box, then we can start generating light cone output. 
     */
-    else if (pkd->param.bLightCone && dLookbackFac*dLightSpeed < 1.0) {
+    else if (pkd->param.bLightCone && (dLookbackFac-dDeltaVPred)*dLightSpeed < 1.0) {
 	const double xOffset[8] = {-0.5,-0.5,-0.5,-0.5,+0.5,+0.5,+0.5,+0.5};
 	const double yOffset[8] = {-0.5,-0.5,+0.5,+0.5,-0.5,-0.5,+0.5,+0.5};
 	const double zOffset[8] = {-0.5,+0.5,-0.5,+0.5,-0.5,+0.5,-0.5,+0.5};
@@ -2377,16 +2377,17 @@ void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVPred,do
 	double x[8];
 	int iOct, bOutside[3];
 	double r0a[8][3];
-	double dlbt, dt;
+	double dlbt, dt, xStart=0.0;
 	struct {
 	    double dt;
 	    double fOffset;
 	    int jPlane;
 	    } isect[4], temp;
-	static int foo=1;
-	if (foo) {
-	    printf("Started at z=%g\n",1.0/csmTime2Exp(pkd->param.csm,dTime) - 1.0);
-	    foo=0;
+	if (dLookbackFac*dLightSpeed >= 1) {
+	    /*
+	    ** Reject particles which have a comoving distance greater than 1 from a corner!
+	    */
+	    xStart = (dLookbackFac*dLightSpeed - 1.0)/(dDeltaVPred*dLightSpeed);
 	    }
 	for (i=pLower;i<=pUpper;++i) {
 	    p = pkdParticle(pkd,i);
@@ -2459,7 +2460,7 @@ void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVPred,do
 		    x[iOct] = (dLightSpeed*dlbt - mr0[iOct])/(dLightSpeed*dtApprox - mr0[iOct] + mr1[iOct]);
 		    }
 		for(iOct=0; iOct<8; ++iOct) {
-		    if (x[iOct] >= 0 && x[iOct] < 1.0) {
+		    if (x[iOct] >= xStart && x[iOct] < 1.0) {
 			double r[3];
 			/*
 			** Create a new light cone particle.
