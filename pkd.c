@@ -2296,7 +2296,7 @@ static void addToLightCone(PKD pkd,double *r,float *v) {
 	int idx = iPixel - id*pkd->nHealpixPerDomain;
 	assert(id<mdlThreads(pkd->mdl));
 	assert(idx < pkd->nHealpixPerDomain);
-	uint32_t *m = mdlVirtualAcquire(pkd->mdl,CID_HEALPIX,idx,id,0);
+	uint32_t *m = mdlVirtualFetch(pkd->mdl,CID_HEALPIX,idx,id);
 	if (*m < 0xffffffffu) ++*m; /* Increment with saturate */
 	}
     }

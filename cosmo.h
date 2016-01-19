@@ -50,14 +50,14 @@ static inline double dLightSpeedSim(double dMpcUnit) {
     ** c     = 299792.458 km/s
     **
     ** c_sim = c[km/s] * sqrt(Lbox / (G * rho_c * Lbox^3))
-    * *      = c[km/s] * sqrt(8 pi / (3 H^2 Lbox^2) )
+    **       = c[km/s] * sqrt(8 pi / (3 H^2 Lbox^2) )
     **       = c[km/s] * sqrt(8 pi / 3) / Lbox / H
     **       = c[km/s] * sqrt(8 pi / 3) / Lbox / h / 100
     ** dMpcUnit given in Mpc/h gives:
     **       = 299792.458 * sqrt(8 pi / 3) / 100 / dMpcUnit
-    **       = 8677.20794864 / dMpcUnit
+    **       = 8677.2079486362706 / dMpcUnit
     */
-    return 8677.20794864 / dMpcUnit;
+    return 8677.2079486362706 / dMpcUnit;
     }
 
 #endif
