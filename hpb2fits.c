@@ -80,7 +80,7 @@ int main(int argc, char *argv[]) {
 	}
 
     if (nMaxPixelValue <= 0xff) {
-	tform[0] = "1B";    /* 16-bit integer */
+	tform[0] = "1B";    /* 8-bit integer */
 	bzero = 0;          /* unsigned (yes) */
 	}
     else if (nMaxPixelValue <= 0x7fff) {
