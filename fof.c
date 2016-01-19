@@ -721,7 +721,7 @@ int pkdFofPhases(PKD pkd) {
 		    name.iIndex = pkd->tmpFofRemote[iLink].name.iIndex;
 		    iPid = pkd->tmpFofRemote[iLink].key.iPid;
 		    iIndex = pkd->tmpFofRemote[iLink].key.iIndex;
-		    pRemote = mdlVirtualAcquire(mdl,CID_GROUP,iIndex,iPid,0);
+		    pRemote = mdlVirtualFetch(mdl,CID_GROUP,iIndex,iPid);
 		    assert(pRemote);
 		    if (name.iPid < pRemote->id.iPid) {
 			pRemote->id.iPid = name.iPid;

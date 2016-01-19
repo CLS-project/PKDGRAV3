@@ -1401,9 +1401,13 @@ void pstUnbind(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 #endif
 
 struct inLightConeOpen {
+    int nSideHealpix;
     char achOutFile[PST_FILENAME_SIZE];
     };
 void pstLightConeOpen(PST pst,void *vin,int nIn,void *vout,int *pnOut);
+struct inLightConeClose {
+    char achOutFile[PST_FILENAME_SIZE];
+    };
 void pstLightConeClose(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 
 

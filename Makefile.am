@@ -29,7 +29,7 @@ mpi:
 	$(MAKE) CC=@MPICC@ FC=@MPIFC@ $(AM_MAKEFLAGS) pkdgrav3_mpi
 endif
 
-EXTRA_PROGRAMS += tostd tdiff
+EXTRA_PROGRAMS += tostd tdiff hpb2fits
 
 null	: pkdgrav3_null
 
@@ -48,6 +48,9 @@ if COOLING
 #SOURCES        += cooling.c cooling_module.F90
 #noinst_HEADERS += cooling.h
 endif
+
+SOURCES += healpix.c
+noinst_HEADERS += healpix.h
 
 #SOURCES += psdtree.c psd.c unbind.c knn6d.c
 #noinst_HEADERS += psdtree.h psd.h unbind.h knn6d.h qsort.h
@@ -164,3 +167,9 @@ endif
 
 tostd_SOURCES = tostd.c fio.c romberg.c
 tdiff_SOURCES = tdiff.c fio.c romberg.c
+hpb2fits_SOURCES = hpb2fits.c
+
+if HAVE_CFITSIO_PATH
+hpb2fits_LDADD = -L@CFITSIO_PATH@/lib -lcfitsio -lm
+hpb2fits_CFLAGS = -I @CFITSIO_PATH@/include
+endif

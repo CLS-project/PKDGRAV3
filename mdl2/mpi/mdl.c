@@ -2544,7 +2544,7 @@ static void finishCacheRequest(MDL mdl, int cid, int iLine, int id, CDB *temp,in
 ** The next 3 highest order bits of uId ((1<<30), (1<<29) and (1<<28)) are reserved 
 ** for list location and should be zero! The maximum legal uId is then (1<<28)-1.
 */
-static void *Acquire(MDL mdl, int cid, uint32_t uIndex, int uId, int bLock,int bModify,int bVirtual) {
+void *mdlAccess(MDL mdl, int cid, uint32_t uIndex, int uId, int bLock,int bModify,int bVirtual) {
     CACHE *c = &mdl->cache[cid];
     ARC arc = c->arc;
     CDB *temp;
@@ -2720,7 +2720,7 @@ void *mdlFetch(MDL mdl,int cid,int iIndex,int id) {
     const int lock = 0;  /* we never lock in fetch */
     const int modify = 0; /* fetch can never modify */
     const int virtual = 0; /* really fetch the element */
-    return(Acquire(mdl, cid, iIndex, id, lock, modify, virtual));
+    return mdlAccess(mdl, cid, iIndex, id, lock, modify, virtual);
     }
 
 /* Locks, so mdlRelease must be called eventually */
@@ -2728,14 +2728,15 @@ void *mdlAcquire(MDL mdl,int cid,int iIndex,int id) {
     const int lock = 1;  /* we always lock in acquire */
     const int modify = (mdl->cache[cid].iType == MDL_COCACHE);
     const int virtual = 0; /* really fetch the element */
-    return(Acquire(mdl, cid, iIndex, id, lock, modify, virtual));
+    return mdlAccess(mdl, cid, iIndex, id, lock, modify, virtual);
     }
 
 /* Locks the element, but does not fetch or initialize */
-void *mdlVirtualAcquire(MDL mdl,int cid,int iIndex,int id,int bLock) {
+void *mdlVirtualFetch(MDL mdl,int cid,int iIndex,int id) {
+    const int lock = 0; /* fetch never locks */
     const int modify = 1; /* virtual always modifies */
     const int virtual = 1; /* do not fetch the element */
-    return(Acquire(mdl, cid, iIndex, id, bLock, modify, virtual));
+    return mdlAccess(mdl, cid, iIndex, id, lock, modify, virtual);
     }
 
 void mdlRelease(MDL mdl,int cid,void *p) {

@@ -761,7 +761,7 @@ static void cell_accumulate(PKD pkd, MDLFFT fft,int x,int y,int z, float m) {
     /* Map coordinate to processor/index */
     id = mdlFFTrId(pkd->mdl,fft,x,y,z);
     idx = mdlFFTrIdx(pkd->mdl,fft,x,y,z);
-    p = mdlVirtualAcquire(pkd->mdl,CID_PK,idx,id,0);
+    p = mdlVirtualFetch(pkd->mdl,CID_PK,idx,id);
     *p += m;
     }
 

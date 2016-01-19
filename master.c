@@ -1089,6 +1089,10 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.bLightCone = 0;
     prmAddParam(msr->prm,"bLightCone",0,&msr->param.bLightCone,sizeof(int),"lc",
 		"output light cone data = -lc");
+    msr->param.nSideHealpix = 8192;
+    prmAddParam(msr->prm,"nSideHealpix",1,&msr->param.nSideHealpix,
+		sizeof(int),"healpix",
+		"<Number per side of the healpix map> = 8192");
     msr->param.bLightConeParticles = 0;
     prmAddParam(msr->prm,"bLightConeParticles",0,&msr->param.bLightConeParticles,sizeof(int),"lcp",
 		"output light cone particles = -lcp");
@@ -3903,9 +3907,12 @@ void msrTopStepHSDKD(MSR msr,
 ** Open the healpix output file, and also the particles files if requested.
 */
 void msrLightConeOpen(MSR msr, int iStep) {
-    if (msr->param.bLightCone && msr->param.bLightConeParticles ) {
+    if (msr->param.bLightCone) {
 	struct inLightConeOpen lc;
-	msrBuildName(msr,lc.achOutFile,iStep);
+	if (msr->param.bLightConeParticles )
+	    msrBuildName(msr,lc.achOutFile,iStep);
+	else lc.achOutFile[0] = 0;
+	lc.nSideHealpix = msr->param.nSideHealpix;
 	pstLightConeOpen(msr->pst,&lc,sizeof(lc),NULL,NULL);
 	}
     }
@@ -3914,9 +3921,11 @@ void msrLightConeOpen(MSR msr, int iStep) {
 /*
 ** Close the files for this step.
 */
-void msrLightConeClose(MSR msr) {
+void msrLightConeClose(MSR msr,int iStep) {
     if (msr->param.bLightCone && msr->param.bLightConeParticles ) {
-	pstLightConeClose(msr->pst,NULL,0,NULL,NULL);
+	struct inLightConeClose lc;
+	msrBuildName(msr,lc.achOutFile,iStep);
+	pstLightConeClose(msr->pst,&lc,sizeof(lc),NULL,NULL);
 	}
     }
 

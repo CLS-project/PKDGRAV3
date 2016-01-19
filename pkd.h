@@ -60,6 +60,7 @@ static inline int64_t d2u64(double d) {
 #define CID_CELL	1
 #define CID_PARTICLE2	8
 #define CID_CELL2	9
+#define CID_HEALPIX     7
 #define CID_GROUP	2
 #define CID_RM		3
 #define CID_BIN		4
@@ -699,7 +700,9 @@ typedef struct pkdContext {
     int fdLightCone;
     int iLightConeBuffer;
     int nLightCone, nLightConeMax;
-
+    int64_t nHealpixPerDomain;
+    int64_t nSideHealpix;
+    uint32_t *pHealpixCounts;
     PARTCLASS *pClass;
     float fSoftFix;
     float fSoftFac;
@@ -1391,8 +1394,8 @@ void pkdMeasurePk(PKD pkd, double dCenter[3], double dRadius, double dTotalMass,
 #endif
 void pkdOutPsGroup(PKD pkd,char *pszFileName,int iType);
 
-void pkdLightConeOpen(PKD pkd, const char *fname);
-void pkdLightConeClose(PKD pkd);
+void pkdLightConeOpen(PKD pkd, const char *fname,int nSideHealpix);
+void pkdLightConeClose(PKD pkd, const char *healpixname);
 
 
 #ifdef USE_CUDA
