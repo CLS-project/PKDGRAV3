@@ -57,7 +57,7 @@ static inline double dLightSpeedSim(double dMpcUnit) {
     **       = 299792.458 * sqrt(8 pi / 3) / 100 / dMpcUnit
     **       = 8677.20794864 / dMpcUnit
     */
-    return 8677.20794864 / dMpcUnit; /* Really only six digit accuracy (G uncertainty) */
+    return 8677.20794864 / dMpcUnit;
     }
 
 #endif
