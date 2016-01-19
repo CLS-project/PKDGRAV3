@@ -386,7 +386,7 @@ void pkdInitialize(
     else
 	pkd->oSoft = 0;
 
-    if ( mMemoryModel & PKD_MODEL_SPH )
+    if ( mMemoryModel & (PKD_MODEL_SPH|PKD_MODEL_BALL) )
 	pkd->oBall = pkdParticleAddFloat(pkd,1);
     else pkd->oBall = 0;
     if ( mMemoryModel & (PKD_MODEL_SPH|PKD_MODEL_DENSITY) )
