@@ -67,18 +67,20 @@ static KDN *InitializeRootCommon(PKD pkd,uint32_t uRoot) {
 /*
 ** Creates a single root at ROOT with only marked particles
 */
-static void InitializeRootMarked(PKD pkd,uint8_t uRungDD) {
+void pkdTreeInitMarked(PKD pkd) {
     KDN *pRoot   = InitializeRootCommon(pkd,ROOT);
     PARTICLE *pMarked, *pNot = NULL;
     local_t iLast;
     int i;
+
+    if (mdlCacheStatus(pkd->mdl,CID_CELL)) mdlFinishCache(pkd->mdl,CID_CELL);
 
     pMarked = pkdParticle(pkd,i=0);
     pNot = pkdParticle(pkd,iLast=pkd->nLocal-1);
     PARTITION(pMarked<pNot,pMarked<=pNot,
 	pMarked=pkdParticle(pkd,++i),pNot=pkdParticle(pkd,--iLast),
 	pkdSwapParticle(pkd,pMarked,pNot),
-	pMarked->bMarked==0,pNot->bMarked!=0);
+	pMarked->bMarked!=0,pNot->bMarked==0);
 
     pRoot->pLower = 0;
     pRoot->pUpper = iLast;

@@ -94,6 +94,7 @@ enum pst_service {
     PST_BUILDTREE,
     PST_DISTRIBTOPTREE,
     PST_DUMPTREES,
+    PST_TREEINITMARKED,
     PST_CALCROOT,
     PST_DISTRIBROOT,
     PST_ENFORCEPERIODIC,
@@ -462,6 +463,9 @@ struct inDumpTrees {
     uint8_t uRungDD; /* Domain DD was done on this rung */
     };
 void pstDumpTrees(PST,void *,int,void *,int *);
+
+/* PST_TREEINITMARKED */
+void pstTreeInitMarked(PST,void *,int,void *,int *);
 
 /* PST_CALCROOT */
 struct inCalcRoot {
