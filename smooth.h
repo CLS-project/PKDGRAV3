@@ -4,6 +4,7 @@
 #include "listcomp.h"
 #include "pkd.h"
 #include "smoothfcn.h"
+#include "group.h"
 #ifndef HAVE_CONFIG_H
 #include "floattype.h"
 #endif
@@ -20,15 +21,6 @@ struct smExtraArray {
     uint32_t iIndex;
     char bDone;
 };
-
-struct smGroupArray {
-    remoteID id;       /* iPid, iIndex */
-    int32_t iGid;      /* local group ID */
-    union {
-	int32_t iNewGid;   /* new local group ID */
-	uint32_t iLink;    /* link to remote groups */
-	};
-    };
 
 typedef struct smContext {
     PKD pkd;

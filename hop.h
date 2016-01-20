@@ -1,18 +1,15 @@
 #ifndef HOP_H
 #define HOP_H
 #include "smooth.h"
+#include "group.h"
 
 int smHopLink(SMX smx,SMF *smf);
 int smHopJoin(SMX smx,SMF *smf,double dHopTau,int *nLocal);
-int pkdCombineDuplicateGroupIds(PKD pkd, int nGroups, struct smGroupArray *ga,int bIndexIsGID);
-void pkdPurgeSmallGroups(PKD pkd,int nMinGroupSize, int bPeriodic, double *dPeriod);
 int pkdHopFinishUp(PKD pkd, int nMinGroupSize, int bPeriodic, double *dPeriod);
-void pkdHopAssignGID(PKD pkd,uint64_t iStartGID);
-int pkdHopCountGID(PKD pkd);
 void pkdHopTreeBuild(PKD pkd,int nBucket);
 int pkdHopUnbind(PKD pkd,double dTime,int nMinGroupSize, int bPeriodic, double *dPeriod);
-void pkdHopSendStats(PKD pkd);
-int pkdGravWalkHop(PKD pkd,double dTime,int nGroup, double dThetaMin,double *pdFlop,double *pdPartSum,double *pdCellSum);
+int pkdGravWalkHop(PKD pkd,double dTime,int nGroup, double dThetaMin,double *pdFlop
+,double *pdPartSum,double *pdCellSum);
 
 int smNewFof(SMX smx,SMF *smf);
 
