@@ -2357,6 +2357,7 @@ void smGather(SMX smx,FLOAT fBall2,FLOAT r[3]) {
     FLOAT dx, dy, dz, fDist2;
     int pj, pEnd, nCnt;
 
+    nCnt = smx->nnListSize;
     kdn = getCell(pkd,iCell=pkd->iTopTree[ROOT],id = idSelf);
     while (1) {
         bnd = pkdNodeBnd(pkd, kdn);
@@ -2442,6 +2443,7 @@ void smGather(SMX smx,FLOAT fBall2,FLOAT r[3]) {
 	    }
 	else break;
     }
+    smx->nnListSize = nCnt;
 }
 
 void smDoGatherLocal(SMX smx,FLOAT fBall2,FLOAT r[3],void (*Do)(SMX,PARTICLE *,FLOAT)) {

@@ -177,6 +177,7 @@ static uint64_t getMemoryModel(MSR msr) {
     if (msr->param.bMemAcceleration || msr->param.bDoAccOutput) mMemoryModel |= PKD_MODEL_ACCELERATION;
     if (msr->param.bMemVelocity)     mMemoryModel |= PKD_MODEL_VELOCITY;
     if (msr->param.bMemPotential || msr->param.bDoPotOutput)    mMemoryModel |= PKD_MODEL_POTENTIAL;
+    if (msr->param.bFindHopGroups)   mMemoryModel |= PKD_MODEL_GROUPS | PKD_MODEL_DENSITY | PKD_MODEL_BALL;
     if (msr->param.bMemGroups)       mMemoryModel |= PKD_MODEL_GROUPS;
     if (msr->param.bMemMass)         mMemoryModel |= PKD_MODEL_MASS;
     if (msr->param.bMemSoft)         mMemoryModel |= PKD_MODEL_SOFTENING;
@@ -1148,7 +1149,7 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
 		"psgroupfinder","<enable/disable phase-space group finder> = -psgroupfinder");
     msr->param.bFindHopGroups = 0;
     prmAddParam(msr->prm,"bFindHopGroups",0,&msr->param.bFindHopGroups,sizeof(int),
-		"hopgroupfinder","<enable/disable phase-space group finder> = -hopgroupfinder");
+		"hop","<enable/disable phase-space group finder> = -hop");
     msr->param.dHopTau = -4.0;
     prmAddParam(msr->prm,"dHopTau",2,&msr->param.dHopTau,sizeof(double),"dHopTau",
 		"<linking length for Gasshopper (negative for multiples of softening)> = -4.0");
@@ -4689,6 +4690,7 @@ void msrHop(MSR msr, double dTime) {
     if (msr->param.bVStep)
 	printf("Removed groups with fewer than %d particles, %"PRIu64" remain\n",
 	    inFinish.nMinGroupSize, nGroups);
+#if 0
     if (msr->param.bVStep)
 	printf("Unbinding\n");
 
@@ -4731,7 +4733,7 @@ void msrHop(MSR msr, double dTime) {
 	    printf("Unbinding completed in %f secs, %"PRIu64" particles evaporated, %"PRIu64" groups remain\n",
 		dsec,outUnbind.nEvaporated, nGroups);
 	} while(++inUnbind.iIteration < 100 && outUnbind.nEvaporated);
-
+#endif
     pstHopCountGID(msr->pst,NULL,0,&outCount,NULL); /* This has the side-effect of updating counts in the PST */
     inAssign.iStartGID = 0;
     pstHopAssignGID(msr->pst,&inAssign,sizeof(inAssign),NULL,NULL); /* Requires correct counts in the PST */
@@ -5446,9 +5448,10 @@ void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint) {
 	msrHopWrite(msr,achFile);
 	}
 
-    if ( msr->param.bFindPSGroups ) {
+    if ( msr->param.bFindHopGroups ) {
 	msrActiveRung(msr,0,1); /* Activate all particles */
 	msrDomainDecomp(msr,-1,0,0);
+	msrBuildTree(msr,dTime,0);
 	msrHop(msr,dTime);
 #if 0
 	msrPSGroupFinder(msr); /*,csmTime2Exp(msr->param.csm,dTime)); */
