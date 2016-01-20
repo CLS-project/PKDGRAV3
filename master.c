@@ -4627,7 +4627,7 @@ void msrHop(MSR msr, double dTime) {
     h.nSmooth    = in.nSmooth = 80;
     h.bPeriodic  = in.bPeriodic = msr->param.bPeriodic;
     h.bSymmetric = in.bSymmetric = 0;
-    h.dHopTau    = msr->param.dHopTau<0 ? msr->param.dHopTau : pow(msr->param.dHopTau,2.0);
+    h.dHopTau    = msr->param.dHopTau<0 ? msr->param.dHopTau : msr->param.dHopTau;
     h.smf.a      = in.smf.a = dTime;
     h.smf.dTau2  = in.smf.dTau2 = 0.0;
     h.smf.nMinMembers = in.smf.nMinMembers = msr->param.nMinMembers;
