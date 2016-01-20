@@ -1151,7 +1151,7 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     prmAddParam(msr->prm,"bFindHopGroups",0,&msr->param.bFindHopGroups,sizeof(int),
 		"hop","<enable/disable phase-space group finder> = -hop");
     msr->param.dHopTau = -4.0;
-    prmAddParam(msr->prm,"dHopTau",2,&msr->param.dHopTau,sizeof(double),"dHopTau",
+    prmAddParam(msr->prm,"dHopTau",2,&msr->param.dHopTau,sizeof(double),"hoptau",
 		"<linking length for Gasshopper (negative for multiples of softening)> = -4.0");
     msr->param.nMinMembers = 10;
     prmAddParam(msr->prm,"nMinMembers",1,&msr->param.nMinMembers,sizeof(int),
@@ -2611,12 +2611,8 @@ void msrBuildTreeExcludeVeryActive(MSR msr,double dTime) {
     }
 
 void msrBuildTreeMarked(MSR msr,double dTime) {
-    assert(0);
-//    TREESPEC spec[1];
-//    spec[0].uRoot = ROOT;
-//    spec[0].uRungFirst = MAX_RUNG;
-//    spec[0].uRungLast = 0;
-//    BuildTree(msr,0,1,spec);
+    pstTreeInitMarked(msr->pst,NULL,0,NULL,NULL);
+    BuildTree(msr,0,ROOT,0);
     }
 
 void msrReorder(MSR msr) {

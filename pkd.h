@@ -1194,6 +1194,7 @@ void pkdVATreeBuild(PKD pkd,int nBucket);
 void pkdTreeBuild(PKD pkd,int nBucket,uint32_t uRoot,uint32_t uTemp);
 uint32_t pkdDistribTopTree(PKD pkd, uint32_t uRoot, uint32_t nTop, KDN *pTop);
 void pkdOpenCloseCaches(PKD pkd,int bOpen,int bFixed);
+void pkdTreeInitMarked(PKD pkd);
 void pkdDumpTrees(PKD pkd,int bOnlyVA,uint8_t uRungDD);
 void pkdCombineCells1(PKD,KDN *pkdn,KDN *p1,KDN *p2);
 void pkdCombineCells2(PKD,KDN *pkdn,KDN *p1,KDN *p2);

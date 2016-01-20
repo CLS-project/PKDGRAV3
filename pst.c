@@ -124,6 +124,9 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_DUMPTREES,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstDumpTrees,
 	          sizeof(struct inDumpTrees),0);
+    mdlAddService(mdl,PST_TREEINITMARKED,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstTreeInitMarked,
+	          0,0);
     mdlAddService(mdl,PST_CALCROOT,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstCalcRoot,
 	          sizeof(struct inCalcRoot),sizeof(struct outCalcRoot));
@@ -2375,6 +2378,22 @@ void pstDumpTrees(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	}
     else {
 	pkdDumpTrees(pkd,in->bOnlyVA,in->uRungDD);
+	}
+    if (pnOut) *pnOut = 0;
+    }
+
+void pstTreeInitMarked(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl = pst->plcl;
+    PKD pkd = plcl->pkd;
+    mdlassert(pst->mdl,nIn == 0);
+
+    if (pst->nLeaves > 1) {
+	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_TREEINITMARKED,vin,nIn);
+	pstTreeInitMarked(pst->pstLower,vin,nIn,vout,pnOut);
+	mdlGetReply(pst->mdl,rID,vout,pnOut);
+	}
+    else {
+	pkdTreeInitMarked(pkd);
 	}
     if (pnOut) *pnOut = 0;
     }
