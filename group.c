@@ -393,7 +393,7 @@ static void hopCalculateGroupStats(PKD pkd, int bPeriodic, double *dPeriod) {
     for(i=1+pkd->nLocalGroups; i<pkd->nGroups; ++i) {
 	HopGroupTable *g;
 	if (pkd->hopGroups[i].id.iPid == pkd->idSelf) continue;
-	g = mdlAcquire(mdl,CID_GROUP,pkd->hopGroups[i].id.iIndex,pkd->hopGroups[i].id.iPid);
+	g = mdlVirtualFetch(mdl,CID_GROUP,pkd->hopGroups[i].id.iIndex,pkd->hopGroups[i].id.iPid);
 	g->nTotal += pkd->hopGroups[i].nLocal;
 	g->nRemote = 1;
 	for (j=0;j<3;j++) {
@@ -407,7 +407,6 @@ static void hopCalculateGroupStats(PKD pkd, int bPeriodic, double *dPeriod) {
 	g->fMass += pkd->hopGroups[i].fMass;
 	g->bNeedGrav = pkd->hopGroups[i].bNeedGrav;
 	g->bComplete = pkd->hopGroups[i].bComplete;
-	mdlRelease(mdl,CID_GROUP,g);
 	}
     mdlFinishCache(mdl,CID_GROUP);
 
