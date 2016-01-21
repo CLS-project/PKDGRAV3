@@ -5318,7 +5318,7 @@ void msrOutputPk(MSR msr,int iStep,double dTime) {
 #endif
     double dCenter[3] = {0.0,0.0,0.0};
     float *fK, *fPk;
-    double a, ia2;
+    double a;
     FILE *fp;
     int i;
 
@@ -5336,7 +5336,6 @@ void msrOutputPk(MSR msr,int iStep,double dTime) {
 
     if (!msr->param.csm->bComove) a = 1.0;
     else a = csmTime2Exp(msr->param.csm,dTime);
-    ia2 = 1.0 / (a*a);
 
     fp = fopen(achFile,"w");
     if ( fp==NULL) {
@@ -5345,7 +5344,7 @@ void msrOutputPk(MSR msr,int iStep,double dTime) {
 	}
     for(i=0; i<msr->param.nBinsPk; ++i) {
 	if (fPk[i] > 0.0) fprintf(fp,"%g %g\n",
-	    fK[i] * 2.0 * M_PI,fPk[i]*ia2);
+	    fK[i] * 2.0 * M_PI,fPk[i]);
 	}
     fclose(fp);
     free(fK);
