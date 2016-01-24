@@ -751,26 +751,7 @@ uint64_t pkdFofFinishUp(PKD pkd,int nMinGroupSize,int bPeriodic,double *dPeriod)
     for(i=1; i<pkd->nGroups; ++i) {
 	assert(pkd->ga[i].id.iIndex > 0);
 	}
-    pkd->nGroups = pkdCombineDuplicateGroupIds(pkd,pkd->nGroups,pkd->ga,1);
-    /*
-    ** Create final group table.
-    */
-    pkd->hopGroups = mdlMalloc(pkd->mdl, pkd->nGroups * sizeof(HopGroupTable));
-    assert(pkd->hopGroups!=NULL);
-    pkd->hopGroups[0].id.iPid      = -1;
-    pkd->hopGroups[0].id.iIndex    = -1;
-    pkd->hopGroups[0].bNeedGrav    = 0;
-    pkd->hopGroups[0].bComplete    = 0;
-    for(i=1; i<pkd->nGroups; ++i) {
-	assert(pkd->ga[i].id.iIndex > 0);
-	pkd->hopGroups[i].id.iPid      = pkd->ga[i].id.iPid;
-	pkd->hopGroups[i].id.iIndex    = pkd->ga[i].id.iIndex;
-	pkd->hopGroups[i].bNeedGrav    = 0;
-	pkd->hopGroups[i].bComplete    = 0;
-	}
-    pkdPurgeSmallGroups(pkd,nMinGroupSize,bPeriodic,dPeriod);
-    pkd->hopSavedRoots = 0;
-
-    /* free: We have allocated pkd->hopGroups */
+    pkd->nGroups = pkdGroupCombineDuplicateIds(pkd,pkd->nGroups,pkd->ga,1);
+    pkd->nGroups = pkdPurgeSmallGroups(pkd,pkd->nGroups,pkd->ga,nMinGroupSize);
     return pkd->nLocalGroups;
     }

@@ -171,7 +171,7 @@ int smHopLink(SMX smx,SMF *smf) {
     ** fewer remote searches to perform. This results in substantially fewer chains.
     */
     mdlFinishCache(mdl,CID_PARTICLE);
-    nGroups = pkdCombineDuplicateGroupIds(pkd,nGroups,ga,0);
+    nGroups = pkdGroupCombineDuplicateIds(pkd,nGroups,ga,0);
     mdlROcache(mdl,CID_PARTICLE,NULL,pkdParticleBase(pkd),pkdParticleSize(pkd),pkdLocal(pkd));
     /*
     ** Now lets go looking for remote loops and see if we are part of them.
@@ -246,7 +246,7 @@ int smHopLink(SMX smx,SMF *smf) {
     /* Done: pl[] is no longer needed */
     pl = NULL;
 
-    nGroups = pkdCombineDuplicateGroupIds(pkd,nGroups,ga,0);
+    nGroups = pkdGroupCombineDuplicateIds(pkd,nGroups,ga,0);
     /*
     ** Now handle deferred groups (ones pointing to, but not part of, loops).
     */
@@ -287,7 +287,7 @@ int smHopLink(SMX smx,SMF *smf) {
 	    }
 	}
     mdlFinishCache(mdl,CID_PARTICLE);
-    nGroups = pkdCombineDuplicateGroupIds(pkd,nGroups,ga,0);
+    nGroups = pkdGroupCombineDuplicateIds(pkd,nGroups,ga,0);
     mdlROcache(mdl,CID_PARTICLE,NULL,pkdParticleBase(pkd),pkdParticleSize(pkd),pkdLocal(pkd));
 
     /*
@@ -399,7 +399,7 @@ int smHopJoin(SMX smx,SMF *smf, double dHopTau, int *nLocal) {
 	ga[pi].id.iIndex = pkd->tmpHopGroups[pi].iIndex;
 	}
     mdlFinishCache(mdl,CID_PARTICLE);
-    pkd->nGroups = pkdCombineDuplicateGroupIds(pkd,pkd->nGroups,ga,1);
+    pkd->nGroups = pkdGroupCombineDuplicateIds(pkd,pkd->nGroups,ga,1);
     mdlROcache(mdl,CID_PARTICLE,NULL,pkdParticleBase(pkd),pkdParticleSize(pkd),pkdLocal(pkd));
     int nRemote = 0;
     *nLocal = 0;
@@ -435,7 +435,7 @@ int pkdHopFinishUp(PKD pkd,int nMinGroupSize, int bPeriodic, double *dPeriod) {
 	pkd->hopGroups[i].bNeedGrav    = 1;
 	pkd->hopGroups[i].bComplete    = 0;
 	}
-    pkdPurgeSmallGroups(pkd,nMinGroupSize,bPeriodic,dPeriod);
+    pkd->nGroups = pkdPurgeSmallGroups(pkd,pkd->nGroups,ga,nMinGroupSize);
     pkd->hopSavedRoots = 0;
 
     /* free: We have allocated pkd->hopGroups */
@@ -685,7 +685,9 @@ int pkdHopUnbind(PKD pkd, double dTime, int nMinGroupSize, int bPeriodic, double
 	    else pkdSwapParticle(pkd,p,pkdParticle(pkd,pNode->pUpper--));
 	    }
 	}
-    pkdPurgeSmallGroups(pkd,nMinGroupSize,bPeriodic,dPeriod);
+
+    assert(0);  /* the purge small groups below must work on ga... */
+    pkd->nGroups = pkdPurgeSmallGroups(pkd,pkd->nGroups,pkd->ga,nMinGroupSize);
 
     return nEvaporated;
     }

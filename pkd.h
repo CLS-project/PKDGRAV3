@@ -800,6 +800,9 @@ typedef struct pkdContext {
 
     FOFGD *groupData;
 
+
+
+    uint64_t iStartGID;
     int nGroups, nLocalGroups;
     /*
     ** Some variables needed for pkdNewFof().
@@ -815,7 +818,7 @@ typedef struct pkdContext {
     struct smGroupArray *ga;
     uint32_t iRemoteGroup,nMaxRemoteGroups;
     FOFRemote *tmpFofRemote;
-
+    
 
     GHtmpGroupTable *tmpHopGroups;
     HopGroupTable *hopGroups;

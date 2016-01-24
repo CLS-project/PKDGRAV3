@@ -9,12 +9,13 @@ struct smGroupArray {
     union {
 	int32_t iNewGid;   /* new local group ID */
 	uint32_t iLink;    /* link to remote groups */
+	uint32_t nTotal;   /* count of total number of particles in the group */
 	};
     };
 
-int pkdCombineDuplicateGroupIds(PKD pkd, int nGroups, struct smGroupArray *ga,int bIndexIsGID);
-void pkdPurgeSmallGroups(PKD pkd,int nMinGroupSize, int bPeriodic, double *dPeriod);
-void pkdHopSendStats(PKD pkd);
+int pkdGroupCombineDuplicateIds(PKD pkd,int nGroups, struct smGroupArray *ga,int bIndexIsGID);
+int pkdGroupRelocate(PKD pkd,int nGroups,struct smGroupArray *ga);
+int pkdPurgeSmallGroups(PKD pkd,int nGroups, struct smGroupArray *ga,int nMinGroupSize);
 void pkdHopAssignGID(PKD pkd,uint64_t iStartGID);
 int pkdHopCountGID(PKD pkd);
 
