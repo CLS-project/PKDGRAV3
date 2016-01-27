@@ -46,6 +46,7 @@
 #include "outtype.h"
 #include "parameters.h"
 #include "cosmo.h"
+#include "iomodule.h"
 
 double pkdGetTimer(PKD pkd,int iTimer) {
     return(pkd->ti[iTimer].sec);
@@ -501,7 +502,6 @@ void pkdInitialize(
 	void *vParticles;
 	if (posix_memalign(&vParticles,sysconf(_SC_PAGESIZE),nBytesTotal)) pParticles = NULL;
 	else pParticles = vParticles;
-//	pParticles = mdlMalloc(pkd->mdl,nBytesTotal);
 	mdlassert(mdl,pParticles != NULL);
 	pEphemeral = pParticles + nBytesParticles;
 	pTreeNodes = pEphemeral + nBytesEphemeral;
@@ -552,24 +552,21 @@ void pkdInitialize(
     /*
     ** allocate enough space for light cone particle output
     */
-    uint64_t nPageSize = sysconf(_SC_PAGESIZE);
     uint64_t nLightConeBytes = (1024*1024*16);
     pkd->nLightConeMax = nLightConeBytes / sizeof(LIGHTCONEP);
     pkd->nLightCone = 0;
     if (bLightCone && bLightConeParticles) {
 	void *v;
-	if (posix_memalign(&v,sysconf(_SC_PAGESIZE),nLightConeBytes)) pkd->pLightCone[0] = NULL;
-	else pkd->pLightCone[0] = v;
-	if (posix_memalign(&v,sysconf(_SC_PAGESIZE),nLightConeBytes)) pkd->pLightCone[1] = NULL;
-	else pkd->pLightCone[1] = v;
-	mdlassert(mdl,pkd->pLightCone[0] != NULL);
-	mdlassert(mdl,pkd->pLightCone[1] != NULL);
+	if (posix_memalign(&v,sysconf(_SC_PAGESIZE),nLightConeBytes)) pkd->pLightCone = NULL;
+	else pkd->pLightCone = v;
+	mdlassert(mdl,pkd->pLightCone != NULL);
+	io_init(&pkd->afiLightCone);
 	}
     else {
-	pkd->pLightCone[0] = NULL;
-	pkd->pLightCone[1] = NULL;
+	pkd->afiLightCone.nBuffers = 0;
+	pkd->pLightCone = NULL;
 	}
-    pkd->fdLightCone = 0;
+    pkd->afiLightCone.fd = -1;
     pkd->pHealpixCounts = NULL;
 
 #ifdef MDL_CACHE_SIZE
@@ -730,9 +727,9 @@ void pkdFinish(PKD pkd) {
     mdlThreadBarrier(pkd->mdl);
     if (mdlCore(pkd->mdl)==0) mdlFree(pkd->mdl,pkd->pStorePRIVATE);
     free(pkd->pTempPRIVATE);
-    if (pkd->pLightCone[0]) free(pkd->pLightCone[0]);
-    if (pkd->pLightCone[1]) free(pkd->pLightCone[1]);
+    if (pkd->pLightCone) free(pkd->pLightCone);
     if (pkd->pHealpixCounts) free(pkd->pHealpixCounts);
+    io_free(&pkd->afiLightCone);
     csmFinish(pkd->param.csm);
     SIMD_free(pkd);
     }
@@ -1616,13 +1613,11 @@ int pkdColOrdRejects(PKD pkd,uint64_t nOrdSplit,int iSplitSide) {
     return pkdColRejects(pkd,nSplit);
     }
 
-int cmpParticles(const void *pva,const void *pvb) {
-    PARTICLE *pa = (PARTICLE *)pva;
-    PARTICLE *pb = (PARTICLE *)pvb;
-
-    return(pa->iOrder - pb->iOrder);
-    }
-
+//static int cmpParticles(const void *pva,const void *pvb) {
+//    PARTICLE *pa = (PARTICLE *)pva;
+//    PARTICLE *pb = (PARTICLE *)pvb;
+//    return(pa->iOrder - pb->iOrder);
+//    }
 
 void pkdLocalOrder(PKD pkd,uint64_t iMinOrder, uint64_t iMaxOrder) {
     int i;
@@ -1638,8 +1633,8 @@ void pkdLocalOrder(PKD pkd,uint64_t iMinOrder, uint64_t iMaxOrder) {
     /* Above replaces: qsort(pkdParticleBase(pkd),pkdLocal(pkd),pkdParticleSize(pkd),cmpParticles); */
     }
 
-#define MAX_IO_BUFFER_SIZE (1024*1024*1024)
-#define ASYNC_COUNT 10
+#define MAX_IO_BUFFER_SIZE (256*1024*1024)
+#define ASYNC_COUNT 16
 
 /*
 ** This does DIRECT I/O to avoid swamping memory with I/O buffers. Ideally this
@@ -1657,25 +1652,15 @@ void pkdLocalOrder(PKD pkd,uint64_t iMinOrder, uint64_t iMaxOrder) {
 
 #if defined(HAVE_LIBAIO_H) || defined(HAVE_AIO_H)
 
+typedef struct {
 #ifdef HAVE_LIBAIO_H
-typedef struct {
-    struct iocb cb[2*ASYNC_COUNT+1];
-    struct io_event events[2*ASYNC_COUNT+1];
+    struct iocb cb[ASYNC_COUNT];
+    struct io_event events[ASYNC_COUNT];
     io_context_t ctx;
-
-    off_t iFilePosition;   /* File position */
-    size_t nBufferSize;
-    char *pSource;         /* Source of particles (in pStore) */
-    size_t nBytes;         /* Number of bytes left to write */
-    int nPageSize;
-    int nBuffers;
-    int fd;
-    } asyncInfo;
 #else
-typedef struct {
-    struct aiocb cb[2*ASYNC_COUNT+1];
-    struct aiocb const * pcb[2*ASYNC_COUNT+1];
-
+    struct aiocb cb[ASYNC_COUNT];
+    struct aiocb const * pcb[ASYNC_COUNT];
+#endif
     off_t iFilePosition;   /* File position */
     size_t nBufferSize;
     char *pSource;         /* Source of particles (in pStore) */
@@ -1684,7 +1669,6 @@ typedef struct {
     int nBuffers;
     int fd;
     } asyncInfo;
-#endif
 
 static void queue_dio(asyncInfo *info,int i,int bWrite) {
     size_t nBytes = info->nBytes > info->nBufferSize ? info->nBufferSize : info->nBytes;
@@ -1737,15 +1721,16 @@ static void asyncCheckpoint(PKD pkd,const char *fname,int bWrite) {
     info.nPageSize = sysconf(_SC_PAGESIZE);
 
     /*
-    ** Calculate buffer size and count. We want at least ASYNC_COUNT (or more)
+    ** Calculate buffer size and count. We want at least ASYNC_COUNT
     ** buffers each of which are multiples of DIRECT_IO_SIZE bytes long.
+    **   Limit: nPageSize <= nBufferSize <= MAX_IO_BUFFER
     */
     info.nBufferSize = nFileSize / ASYNC_COUNT;
-    info.nBufferSize = 1 << (int)log2(info.nBufferSize); /* Prefer power of two */
+    info.nBufferSize = 1 << (int)ceil(log2(info.nBufferSize)); /* Prefer power of two */
     if (info.nBufferSize < info.nPageSize) info.nBufferSize = info.nPageSize;
     if (info.nBufferSize > MAX_IO_BUFFER_SIZE) info.nBufferSize = MAX_IO_BUFFER_SIZE;
     info.nBuffers = nFileSize / info.nBufferSize + 1;
-    if (info.nBuffers > 2*ASYNC_COUNT+1) info.nBuffers = 2*ASYNC_COUNT+1;
+    if (info.nBuffers > ASYNC_COUNT) info.nBuffers = ASYNC_COUNT;
 
 #ifdef HAVE_LIBAIO_H
     info.ctx = 0;
@@ -2193,17 +2178,8 @@ void pkdScaleVel(PKD pkd,double dvFac) {
 
 
 static void flushLightCone(PKD pkd) {
-#if 0
-    struct iocb cbLightCone[2];
-    struct io_event eventsLightCone[2];
-    struct iocb *pcb = &info->cb[i];
-    io_prep_pwrite(pkd->cbLightCone+0,pkd->fdLightCone+0,pkd->pLightCone+0,nBytes,info->iFilePosition);
-    else        io_prep_pread(info->cb+i,info->fd,info->pSource,nBytes,info->iFilePosition);
-    rc = io_submit(info->ctx,1,&pcb);
-    if (rc<0) { perror("io_submit"); abort(); }
-#endif
     size_t count = pkd->nLightCone * sizeof(LIGHTCONEP);
-    write(pkd->fdLightCone,pkd->pLightCone[pkd->iLightConeBuffer],count);
+    io_write(&pkd->afiLightCone,pkd->pLightCone,count);
     pkd->nLightCone = 0;
     }
 
@@ -2222,9 +2198,9 @@ static void combHealpix(void *vctx, void *v1, void *v2) {
     }
 
 void pkdLightConeClose(PKD pkd,const char *healpixname) {
-    if (pkd->fdLightCone > 0) {
+    if (pkd->afiLightCone.fd > 0) {
 	flushLightCone(pkd);
-	close(pkd->fdLightCone);
+	io_close(&pkd->afiLightCone);
 	}
     if (pkd->nSideHealpix) {
 	assert(healpixname && healpixname[0]);
@@ -2240,28 +2216,9 @@ void pkdLightConeOpen(PKD pkd,const char *fname,int nSideHealpix) {
     int i, rc;
     if (fname[0]) {
 //    pkd->fdLightCone = open(fname,O_DIRECT|O_CREAT|O_WRONLY|O_TRUNC,S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP);
-	pkd->fdLightCone = open(fname,O_CREAT|O_WRONLY|O_TRUNC,S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP);
-	if (pkd->fdLightCone<0) { perror(fname); abort(); }
-	pkd->iFilePositionLightCone = 0;
-#ifdef HAVE_LIBAIO_H
-	pkd->ctxLightCone = 0;
-	rc = io_setup(NUMLCBUFS, &pkd->ctxLightCone);
-	if (rc<0) { perror("io_setup"); abort(); }
-#else
-	memset(&pkd->cbLightCone,0,sizeof(pkd->cbLightCone));
-	for(i=0; i<NUMLCBUFS; ++i) {
-	    pkd->pcbLightCone[i] = pkd->cbLightCone + i;
-	    pkd->cbLightCone[i].aio_fildes = pkd->fdLightCone;
-	    pkd->cbLightCone[i].aio_offset = 0;
-	    pkd->cbLightCone[i].aio_buf = NULL;
-	    pkd->cbLightCone[i].aio_nbytes = 0;
-	    pkd->cbLightCone[i].aio_sigevent.sigev_notify = SIGEV_NONE;
-	    pkd->cbLightCone[i].aio_lio_opcode = LIO_NOP;
-	    }
-#endif
-	pkd->iLightConeBuffer = 0;
+	if (io_create(&pkd->afiLightCone,fname) < 0) { perror(fname); abort(); }
 	}
-    else pkd->fdLightCone = -1;
+    else pkd->afiLightCone.fd = -1;
 
     pkd->nSideHealpix = nSideHealpix;
     if (pkd->nSideHealpix) {
@@ -2279,8 +2236,8 @@ void pkdLightConeOpen(PKD pkd,const char *fname,int nSideHealpix) {
     }
 
 static void addToLightCone(PKD pkd,double *r,float *v) {
-    if (pkd->fdLightCone>0) {
-	LIGHTCONEP *pLC = pkd->pLightCone[pkd->iLightConeBuffer];
+    if (pkd->afiLightCone.fd>0) {
+	LIGHTCONEP *pLC = pkd->pLightCone;
 	pLC[pkd->nLightCone].pos[0] = r[0];
 	pLC[pkd->nLightCone].pos[1] = r[1];
 	pLC[pkd->nLightCone].pos[2] = r[2];

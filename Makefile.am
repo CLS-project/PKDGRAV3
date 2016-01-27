@@ -42,8 +42,8 @@ SOURCES = main.c tree.c analysis.c romberg.c bt.c
 noinst_HEADERS = bt.h parameters.h grav.h walk.h cycle.h tipsydefs.h basetype.h vqsort.h
 SOURCES        += cosmo.c master.c param.c pst.c smooth.c ewald.c
 noinst_HEADERS += cosmo.h master.h param.h pst.h smooth.h ewald.h meval.h qeval.h
-SOURCES        += moments.c intype.c outtype.c pkd.c smoothfcn.c rbtree.c fio.c listcomp.c illinois.c
-noinst_HEADERS += moments.h intype.h outtype.h pkd.h smoothfcn.h rbtree.h fio.h listcomp.h illinois.h
+SOURCES        += moments.c intype.c outtype.c pkd.c smoothfcn.c rbtree.c fio.c listcomp.c illinois.c iomodule.c
+noinst_HEADERS += moments.h intype.h outtype.h pkd.h smoothfcn.h rbtree.h fio.h listcomp.h illinois.h iomodule.h
 if COOLING
 #SOURCES        += cooling.c cooling_module.F90
 #noinst_HEADERS += cooling.h

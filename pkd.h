@@ -22,6 +22,7 @@
 #include "grafic.h"
 #endif
 #include "basetype.h"
+#include "iomodule.h"
 
 #if defined(HAVE_LIBAIO_H)
 #include <libaio.h>
@@ -687,23 +688,13 @@ typedef struct pkdContext {
     PARTICLE *pTempPRIVATE;
     double dTimeRedshift0;
 
-#define NUMLCBUFS 2
-#if defined(HAVE_LIBAIO_H)
-    struct iocb cbLightCone[NUMLCBUFS];
-    struct io_event eventsLightCone[NUMLCBUFS];
-    io_context_t ctxLightCone;
-#elif defined(HAVE_AIO_H)
-    struct aiocb cbLightCone[NUMLCBUFS];
-    struct aiocb const * pcbLightCone[NUMLCBUFS];
-#endif
-    LIGHTCONEP *pLightCone[NUMLCBUFS];
-    off_t iFilePositionLightCone;
-    int fdLightCone;
-    int iLightConeBuffer;
+    asyncFileInfo afiLightCone;
+    LIGHTCONEP *pLightCone;
     int nLightCone, nLightConeMax;
     int64_t nHealpixPerDomain;
     int64_t nSideHealpix;
     uint32_t *pHealpixCounts;
+
     PARTCLASS *pClass;
     float fSoftFix;
     float fSoftFac;
