@@ -53,7 +53,7 @@ SOURCES += healpix.c
 noinst_HEADERS += healpix.h
 
 SOURCES += hop.c fof.c group.c groupstats.c
-noinst_HEADERS += hop.h group.h groupstats.h
+noinst_HEADERS += hop.h fof.h group.h groupstats.h
 
 SOURCES += $(MDL)/mdlbase.c
 noinst_HEADERS += $(MDL)/mdlbase.h
