@@ -52,9 +52,6 @@ endif
 SOURCES += healpix.c
 noinst_HEADERS += healpix.h
 
-#SOURCES += psdtree.c psd.c unbind.c knn6d.c
-#noinst_HEADERS += psdtree.h psd.h unbind.h knn6d.h qsort.h
-
 SOURCES += hop.c fof.c group.c groupstats.c
 noinst_HEADERS += hop.h group.h groupstats.h
 

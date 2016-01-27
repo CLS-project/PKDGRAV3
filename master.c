@@ -605,7 +605,7 @@ static int validateParameters(PRM prm,struct parameters *param) {
 	    //puts("ERROR: Random seed for IC not specified");
 	    param->iSeed = time(NULL);
 	    }
-	if ( param->dBoxSize <= 0 ) {
+	if ( !prmSpecified(prm,"dBoxSize") || param->dBoxSize <= 0 ) {
 	    puts("ERROR: Box size for IC not specified");
 	    return 0;
 	    }
@@ -1200,9 +1200,9 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.h = 0.0;
     prmAddParam(msr->prm,"h",2,&msr->param.h,
 		sizeof(double),"h","<hubble parameter h> = 0");
-    msr->param.dBoxSize = 0.0;
+    msr->param.dBoxSize = 1.0;
     prmAddParam(msr->prm,"dBoxSize",2,&msr->param.dBoxSize,
-		sizeof(double),"mpc","<Simulation Box size in Mpc> = 0");
+		sizeof(double),"mpc","<Simulation Box size in Mpc> = 1.0");
     msr->param.nGrid = 0;
     prmAddParam(msr->prm,"nGrid",1,&msr->param.nGrid,
 		sizeof(int),"grid","<Grid size for IC 0=disabled> = 0");
@@ -5318,7 +5318,7 @@ void msrOutputPk(MSR msr,int iStep,double dTime) {
 #endif
     double dCenter[3] = {0.0,0.0,0.0};
     float *fK, *fPk;
-    double a;
+    double a, vfact, kfact;
     FILE *fp;
     int i;
 
@@ -5337,6 +5337,12 @@ void msrOutputPk(MSR msr,int iStep,double dTime) {
     if (!msr->param.csm->bComove) a = 1.0;
     else a = csmTime2Exp(msr->param.csm,dTime);
 
+    /* If the Box Size (in mpc/h) was specified, then we can scale the output power spectrum measurement */
+    if ( prmSpecified(msr->prm,"dBoxSize") && msr->param.dBoxSize > 0.0 ) kfact = msr->param.dBoxSize;
+    else kfact = 1.0;
+    vfact = kfact * kfact * kfact;
+    kfact = 1.0 / kfact;
+
     fp = fopen(achFile,"w");
     if ( fp==NULL) {
 	printf("Could not create P(k) File:%s\n",achFile);
@@ -5344,7 +5350,7 @@ void msrOutputPk(MSR msr,int iStep,double dTime) {
 	}
     for(i=0; i<msr->param.nBinsPk; ++i) {
 	if (fPk[i] > 0.0) fprintf(fp,"%g %g\n",
-	    fK[i] * 2.0 * M_PI,fPk[i]);
+	    kfact * fK[i] * 2.0 * M_PI,vfact * fPk[i]);
 	}
     fclose(fp);
     free(fK);
