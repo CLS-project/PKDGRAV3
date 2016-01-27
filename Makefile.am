@@ -29,7 +29,7 @@ mpi:
 	$(MAKE) CC=@MPICC@ FC=@MPIFC@ $(AM_MAKEFLAGS) pkdgrav3_mpi
 endif
 
-EXTRA_PROGRAMS += tostd tdiff hpb2fits
+EXTRA_PROGRAMS += tostd tdiff hpb2fits lcp2tip
 
 null	: pkdgrav3_null
 
@@ -165,6 +165,7 @@ endif
 tostd_SOURCES = tostd.c fio.c romberg.c
 tdiff_SOURCES = tdiff.c fio.c romberg.c
 hpb2fits_SOURCES = hpb2fits.c
+lcp2tip_SOURCES = lcp2tip.c
 
 if HAVE_CFITSIO_PATH
 hpb2fits_LDADD = -L@CFITSIO_PATH@/lib -lcfitsio -lm
