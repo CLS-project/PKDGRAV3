@@ -12,6 +12,7 @@ typedef struct csmContext {
     double w0;
     double wa;
     double dSigma8;
+    double dNormalization;  /* either sigma8 or normalization must be non-zero */
     double dSpectral;
     } * CSM;
 

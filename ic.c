@@ -169,7 +169,7 @@ void pkdGenerateNoise(PKD pkd,unsigned long seed,MDLFFT fft,float complex *ic,do
     }
 
 int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int nGrid,int b2LPT,double dBoxSize,
-    double dOmega0,double dLambda0,double dSigma8,double dSpectral,double h,
+    double dOmega0,double dLambda0,double dSigma8,double dNormalization,double dSpectral,double h,
     double a,int nTf, double *tk, double *tf,
     double *noiseMean, double *noiseCSQ) {
     MDL mdl = pkd->mdl;
@@ -197,7 +197,7 @@ int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int nGrid,int b2LPT,double dBoxSi
 
     D0 = Growth(dOmega0,dLambda0,1.0,&dOmega,&dLambda);
     Da = Growth(dOmega0,dLambda0,a,&dOmega,&dLambda);
-    dSigma8 *= Da/D0;
+
 
     P.normalization = 1.0;
     P.spectral = dSpectral;
@@ -207,7 +207,15 @@ int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int nGrid,int b2LPT,double dBoxSi
     P.acc = gsl_interp_accel_alloc();
     P.spline = gsl_spline_alloc (gsl_interp_cspline, nTf);
     gsl_spline_init(P.spline, P.tk, P.tf, P.nTf);
-    P.normalization *= dSigma8*dSigma8 / variance(&P,8.0);
+    if (dSigma8 > 0) {
+	dSigma8 *= Da/D0;
+	P.normalization *= dSigma8*dSigma8 / variance(&P,8.0);
+	}
+    else if (dNormalization > 0) {
+	dNormalization *= Da/D0;
+	P.normalization = dNormalization;
+	dSigma8 = sqrt(variance(&P,8.0));
+	}
     f1 = pow(dOmega,5.0/9.0);
     f2 = 2.0 * pow(dOmega,6.0/11.0);
 

@@ -11,6 +11,4 @@ int pkdHopUnbind(PKD pkd,double dTime,int nMinGroupSize, int bPeriodic, double *
 int pkdGravWalkHop(PKD pkd,double dTime,int nGroup, double dThetaMin,double *pdFlop
 ,double *pdPartSum,double *pdCellSum);
 
-int smNewFof(SMX smx,SMF *smf);
-
 #endif

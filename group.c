@@ -250,12 +250,12 @@ int pkdPurgeSmallGroups(PKD pkd,int nGroups,struct smGroupArray *ga,int nMinGrou
 /*
 ** pkd->nLocalGroups is the count of groups owned by this processor.
 */
-int pkdHopCountGID(PKD pkd) {
+int pkdGroupCountGID(PKD pkd) {
     return pkd->nLocalGroups;
     }
 
 
-void pkdHopAssignGID(PKD pkd,uint64_t iStartGID) {
+void pkdGroupAssignGID(PKD pkd,uint64_t iStartGID) {
     pkd->iStartGID = iStartGID;
     }
 

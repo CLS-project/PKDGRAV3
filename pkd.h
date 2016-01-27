@@ -468,24 +468,10 @@ typedef struct {
 #endif
 
 /*
-** This is an important base type. Alter with care, or even better, leave it alone.
-*/
-typedef struct {
-    int32_t  iPid;      /* A processor */
-    int32_t  iIndex;    /* Index of item on the processor */
-    } remoteID;
-
-/*
 ** This is the temporary group table used when Grasshopping.
 ** We eventually contruct a proper table.
 */
 typedef remoteID GHtmpGroupTable;
-
-typedef struct {
-    remoteID key;
-    remoteID name;
-    uint32_t iLink;
-    } FOFRemote;
 
 typedef struct {
     uint64_t nTotal;      /* Total particles in this group */
@@ -508,6 +494,12 @@ typedef struct {
     double rcom[3];
     double vcom[3];
     } HopGroupTable;
+
+typedef struct {
+    remoteID key;
+    remoteID name;
+    uint32_t iLink;
+    } FOFRemote;
 
 /*
 ** components required for groupfinder:  --J.D.--
@@ -791,22 +783,12 @@ typedef struct pkdContext {
 
     FOFGD *groupData;
 
-
-
     uint64_t iStartGID;
     int nGroups, nLocalGroups;
+    struct smGroupArray *ga;
     /*
     ** Some variables needed for pkdNewFof().
     */
-    uint32_t iHead;
-    uint32_t iTail;
-    uint32_t  *Fifo;
-    uint32_t  *iFofMap;
-    int bCurrGroupContained;
-    uint32_t nCurrFofParticles;
-    FLOAT fMinFofContained[3];
-    FLOAT fMaxFofContained[3];    
-    struct smGroupArray *ga;
     uint32_t iRemoteGroup,nMaxRemoteGroups;
     FOFRemote *tmpFofRemote;
     
