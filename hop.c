@@ -38,7 +38,7 @@ static int traverseLink(PKD pkd,struct smGroupArray *ga,int pi,
     int bRemote = *iPid2 != pkd->idSelf;
 
     if (!bRemote) p = pkdParticle(pkd,*iIndex2);
-    else p = mdlAcquire(pkd->mdl,CID_PARTICLE,*iIndex2,*iPid2);
+    else p = mdlFetch(pkd->mdl,CID_PARTICLE,*iIndex2,*iPid2);
     gid2 = *pkdGroup(pkd,p);
     g2 = mdlAcquire(pkd->mdl,CID_GROUP,gid2,*iPid2);
 
@@ -78,7 +78,6 @@ static int traverseLink(PKD pkd,struct smGroupArray *ga,int pi,
     *iIndex2 = g2->iIndex;
 
     mdlRelease(pkd->mdl,CID_GROUP,g2);
-    if (bRemote) mdlRelease(pkd->mdl,CID_PARTICLE,p);
 
     return bDone;
     }
