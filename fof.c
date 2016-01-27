@@ -2,8 +2,9 @@
 #include "config.h"
 #endif
 #include <math.h>
-#include "hop.h"
+#include "fof.h"
 #include "pkd.h"
+#include "group.h"
 
 
 static inline int getCell(PKD pkd,int iCell,int id,float *pcOpen,KDN **pc) {
@@ -21,7 +22,10 @@ static inline int getCell(PKD pkd,int iCell,int id,float *pcOpen,KDN **pc) {
     }
 
 
-void pkdFofGatherLocal(PKD pkd,int *S,FLOAT fBall2,FLOAT r[3],int32_t iGroup) {
+void pkdFofGatherLocal(PKD pkd,int *S,FLOAT fBall2,FLOAT r[3],int32_t iGroup,
+    int *piTail,uint32_t *Fifo,
+    int *pbCurrFofContained,int *pnCurrFofParticles,
+    FLOAT *fMinFofContained,FLOAT *fMaxFofContained) {
     KDN *kdn;
     PARTICLE *p;
     double p_r[3];
@@ -62,16 +66,16 @@ void pkdFofGatherLocal(PKD pkd,int *S,FLOAT fBall2,FLOAT r[3],int32_t iGroup) {
 		    **  Mark particle and add it to the do-fifo
 		    */
 		    *pPartGroup = iGroup;
-		    pkd->Fifo[pkd->iTail++] = pj;
-		    ++pkd->nCurrFofParticles;
-		    if (pkd->bCurrGroupContained) {
+		    Fifo[*piTail++] = pj;
+		    ++(*pnCurrFofParticles);
+		    if (*pbCurrFofContained) {
 			for (j=0;j<3;++j) {
-			    if (p_r[j] < pkd->fMinFofContained[j]) {
-				pkd->bCurrGroupContained = 0;
+			    if (p_r[j] < fMinFofContained[j]) {
+				*pbCurrFofContained = 0;
 				break;
 				}
-			    else if (p_r[j] > pkd->fMaxFofContained[j]) {
-				pkd->bCurrGroupContained = 0;
+			    else if (p_r[j] > fMaxFofContained[j]) {
+				*pbCurrFofContained = 0;
 				break;
 				}
 			    }
@@ -403,24 +407,24 @@ void pkdFofRemoteSearch(PKD pkd,double dTau2) {
     }
 
 
-void pkdUpdateFofBound(PKD pkd,BND *bnd) {
+void updateFofBound(FLOAT *fMinFofContained,FLOAT *fMaxFofContained,BND *bnd) {
     int j;
     for (j=0;j<3;++j) {
 	FLOAT bmin = bnd->fCenter[j] - bnd->fMax[j];
 	FLOAT bmax = bnd->fCenter[j] + bnd->fMax[j];
 	assert(bmin <= bmax);
-	if (bmin > pkd->fMaxFofContained[j] || bmax < pkd->fMinFofContained[j]) continue;
-	else if (bmax < pkd->fMaxFofContained[j] && bmin > pkd->fMinFofContained[j]) {
-	    if (bmin - pkd->fMinFofContained[j] > pkd->fMaxFofContained[j] - bmax)
-		pkd->fMaxFofContained[j] = bmin;
+	if (bmin > fMaxFofContained[j] || bmax < fMinFofContained[j]) continue;
+	else if (bmax < fMaxFofContained[j] && bmin > fMinFofContained[j]) {
+	    if (bmin - fMinFofContained[j] > fMaxFofContained[j] - bmax)
+		fMaxFofContained[j] = bmin;
 	    else 
-		pkd->fMinFofContained[j] = bmax;
+		fMinFofContained[j] = bmax;
 	    }
 	else {
-	    if (bmin < pkd->fMaxFofContained[j]) 
-		pkd->fMaxFofContained[j] = bmin;
-	    if (bmax > pkd->fMinFofContained[j]) 
-		pkd->fMinFofContained[j] = bmax;		
+	    if (bmin < fMaxFofContained[j]) 
+		fMaxFofContained[j] = bmin;
+	    if (bmax > fMinFofContained[j]) 
+		fMinFofContained[j] = bmax;		
 	    }
 	}
     }
@@ -436,6 +440,13 @@ int pkdNewFof(PKD pkd,double dTau2,int nMinMembers) {
     KDN *kdnSelf;
     BND *bndSelf,*bnd,*bndTop;
     int *S;
+    int bCurrFofContained;
+    uint32_t nCurrFofParticles;
+    FLOAT fMinFofContained[3];
+    FLOAT fMaxFofContained[3];    
+    uint32_t iHead;
+    uint32_t iTail;
+    uint32_t  *Fifo;
 
     assert(pkd->oGroup); /* Validate memory model */
     S = malloc(1024*sizeof(int));
@@ -449,8 +460,8 @@ int pkdNewFof(PKD pkd,double dTau2,int nMinMembers) {
     kdnSelf = pkdTreeNode(pkd,ROOT);
     bndSelf = pkdNodeBnd(pkd, kdnSelf);
     for (j=0;j<3;++j) {
-	pkd->fMinFofContained[j] = bndSelf->fCenter[j] - bndSelf->fMax[j];
-	pkd->fMaxFofContained[j] = bndSelf->fCenter[j] + bndSelf->fMax[j];
+	fMinFofContained[j] = bndSelf->fCenter[j] - bndSelf->fMax[j];
+	fMaxFofContained[j] = bndSelf->fCenter[j] + bndSelf->fMax[j];
 	}
 #if (0)
     /*
@@ -471,7 +482,7 @@ int pkdNewFof(PKD pkd,double dTau2,int nMinMembers) {
 		    /*
 		    ** Check bounds against this sibling.
 		    */
-		    pkdUpdateFofBound(pkd,bnd);
+		    updateFofBound(fMinFofContained,fMaxFofContained,bnd);
 		    id = idUp;
 		    assert(id == idSelf);
 		    iCell = iCellUp;
@@ -486,7 +497,7 @@ int pkdNewFof(PKD pkd,double dTau2,int nMinMembers) {
 	/*
 	** Check bounds against this sibling.
 	*/
-	pkdUpdateFofBound(pkd,bnd);
+	updateFofBound(fMinFofContained,fMaxFofContained,bnd);
 	iCell = iCellLo;
 	id = idLo;
     NextCell:
@@ -511,7 +522,7 @@ int pkdNewFof(PKD pkd,double dTau2,int nMinMembers) {
 			*/
 			for (j=0;j<3;++j) 
 			    rbnd.fCenter[j] = bndTop->fCenter[j] + fOffset[j];
-			pkdUpdateFofBound(pkd,&rbnd);
+			updateFofBound(fMinFofContained,fMaxFofContained,&rbnd);
 			}
 		    }
 		}
@@ -522,15 +533,15 @@ int pkdNewFof(PKD pkd,double dTau2,int nMinMembers) {
     ** Finally make the contained region be dTau smaller on each side.
     */
     for (j=0;j<3;++j) {
-	pkd->fMinFofContained[j] += sqrt(dTau2);
-	pkd->fMaxFofContained[j] -= sqrt(dTau2);
+	fMinFofContained[j] += sqrt(dTau2);
+	fMaxFofContained[j] -= sqrt(dTau2);
 	}
     /*
     ** The following *just* fits into ephemeral storage of 8bytes/particle.
     */
     assert(EPHEMERAL_BYTES >= 8);
-    pkd->Fifo = (uint32_t *)(pkd->pLite);
-    iFofMap = &pkd->Fifo[pkd->nLocal];
+    Fifo = (uint32_t *)(pkd->pLite);
+    iFofMap = &Fifo[pkd->nLocal];
     pkd->nGroups = 0;    
     iGroup = 0;
     iFofMap[iGroup] = 0;
@@ -543,33 +554,34 @@ int pkdNewFof(PKD pkd,double dTau2,int nMinMembers) {
 	/*
 	** Mark particle and add it to the do-fifo
 	*/
-	pkd->iHead = pkd->iTail = 0;
-	pkd->Fifo[pkd->iTail++] = pn;
+	iHead = iTail = 0;
+	Fifo[iTail++] = pn;
 	*pGroup = iGroup;
-	pkd->nCurrFofParticles = 1;
-	pkd->bCurrGroupContained = 1;
+	nCurrFofParticles = 1;
+	bCurrFofContained = 1;
 	pkdGetPos1(pkd,p,p_r);
 	for (j=0;j<3;++j) {
-	    if (p_r[j] < pkd->fMinFofContained[j]) {
-		pkd->bCurrGroupContained = 0;
+	    if (p_r[j] < fMinFofContained[j]) {
+		bCurrFofContained = 0;
 		break;
 		}
-	    else if (p_r[j] > pkd->fMaxFofContained[j]) {
-		pkd->bCurrGroupContained = 0;
+	    else if (p_r[j] > fMaxFofContained[j]) {
+		bCurrFofContained = 0;
 		break;
 		}
 	    }
-	while (pkd->iHead != pkd->iTail) {
-	    int pi = pkd->Fifo[pkd->iHead++];
+	while (iHead != iTail) {
+	    int pi = Fifo[iHead++];
 	    p = pkdParticle(pkd,pi);
 	    pkdGetPos1(pkd,p,p_r);
-	    pkdFofGatherLocal(pkd,S,dTau2,p_r,iGroup);
+	    pkdFofGatherLocal(pkd,S,dTau2,p_r,iGroup,&iTail,Fifo,
+		&bCurrFofContained,&nCurrFofParticles,fMinFofContained,fMaxFofContained);
 	    }
-	assert(pkd->iTail < pkd->nLocal);
+	assert(iTail < pkd->nLocal);
 	/*
 	** Now check if this fof group is contained and has fewer than nMinFof particles.
 	*/
-	if (pkd->bCurrGroupContained && pkd->nCurrFofParticles < nMinMembers) {
+	if (bCurrFofContained && nCurrFofParticles < nMinMembers) {
 	    iFofMap[iGroup] = 0;
 	    }
 	else {
@@ -588,7 +600,7 @@ int pkdNewFof(PKD pkd,double dTau2,int nMinMembers) {
     pkd->nGroups = pkd->nLocalGroups + 1;
     free(S);  /* this stack is no longer needed */
     iFofMap = NULL; /* done with the temporary map of group numbers */ 
-    pkd->Fifo = NULL;  /* done with the Fifo, can use the storage for other stuff now */
+    Fifo = NULL;  /* done with the Fifo, can use the storage for other stuff now */
     /*
     ** Create initial group table. The assert below is a very minimal requirement as it doesn't account for remote
     ** links (tmpFofRemote). However, we check this again everytime we add a new remote link.

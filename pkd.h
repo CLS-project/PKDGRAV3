@@ -473,12 +473,6 @@ typedef struct {
 typedef remoteID GHtmpGroupTable;
 
 typedef struct {
-    remoteID key;
-    remoteID name;
-    uint32_t iLink;
-    } FOFRemote;
-
-typedef struct {
     uint64_t nTotal;      /* Total particles in this group */
     remoteID id;          /* Owner (or myself) */
     remoteID rmt;
@@ -499,6 +493,12 @@ typedef struct {
     double rcom[3];
     double vcom[3];
     } HopGroupTable;
+
+typedef struct {
+    remoteID key;
+    remoteID name;
+    uint32_t iLink;
+    } FOFRemote;
 
 /*
 ** components required for groupfinder:  --J.D.--
@@ -792,21 +792,12 @@ typedef struct pkdContext {
 
     FOFGD *groupData;
 
-
-
     uint64_t iStartGID;
     int nGroups, nLocalGroups;
+    struct smGroupArray *ga;
     /*
     ** Some variables needed for pkdNewFof().
     */
-    uint32_t iHead;
-    uint32_t iTail;
-    uint32_t  *Fifo;
-    int bCurrGroupContained;
-    uint32_t nCurrFofParticles;
-    FLOAT fMinFofContained[3];
-    FLOAT fMaxFofContained[3];    
-    struct smGroupArray *ga;
     uint32_t iRemoteGroup,nMaxRemoteGroups;
     FOFRemote *tmpFofRemote;
     
