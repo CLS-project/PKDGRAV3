@@ -1039,6 +1039,9 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.csm->dSigma8 = 0.0;
     prmAddParam(msr->prm,"dSigma8",2,&msr->param.csm->dSigma8,
 		sizeof(double),"S8", "<dSimga8> = 0.0");
+    msr->param.csm->dNormalization = 0.0;
+    prmAddParam(msr->prm,"dNormalization",2,&msr->param.csm->dNormalization,
+		sizeof(double),"As", "<dNormalization> = 0.0");
     msr->param.csm->dSpectral = 0.0;
     prmAddParam(msr->prm,"dSpectral",2,&msr->param.csm->dSpectral,
 		sizeof(double),"ns", "<dSpectral> = 0.0");
@@ -4616,8 +4619,8 @@ void msrHop(MSR msr, double dTime) {
     struct inHopGravity inGravity;
     struct inHopUnbind inUnbind;
     struct outHopUnbind outUnbind;
-    struct outHopCountGID outCount;
-    struct inHopAssignGID inAssign;
+    struct outGroupCountGID outCount;
+    struct inGroupAssignGID inAssign;
     int i;
     uint64_t nGroups;
     double sec,dsec,ssec;
@@ -4730,9 +4733,9 @@ void msrHop(MSR msr, double dTime) {
 		dsec,outUnbind.nEvaporated, nGroups);
 	} while(++inUnbind.iIteration < 100 && outUnbind.nEvaporated);
 #endif
-    pstHopCountGID(msr->pst,NULL,0,&outCount,NULL); /* This has the side-effect of updating counts in the PST */
+    pstGroupCountGID(msr->pst,NULL,0,&outCount,NULL); /* This has the side-effect of updating counts in the PST */
     inAssign.iStartGID = 0;
-    pstHopAssignGID(msr->pst,&inAssign,sizeof(inAssign),NULL,NULL); /* Requires correct counts in the PST */
+    pstGroupAssignGID(msr->pst,&inAssign,sizeof(inAssign),NULL,NULL); /* Requires correct counts in the PST */
     dsec = msrTime() - ssec;
     if (msr->param.bVStep)
 	printf("Grasshopper complete, Wallclock: %f secs\n\n",dsec);
@@ -4741,9 +4744,9 @@ void msrHop(MSR msr, double dTime) {
 void msrNewFof(MSR msr, double dTime) {
     struct inNewFof in;
     struct outFofPhases out;
-    struct inHopFinishUp inFinish;
-    struct outHopCountGID outCount;
-    struct inHopAssignGID inAssign;
+    struct inFofFinishUp inFinish;
+    struct outGroupCountGID outCount;
+    struct inGroupAssignGID inAssign;
     int i;
     uint64_t nGroups;
     double sec,dsec,ssec;
@@ -4776,18 +4779,14 @@ void msrNewFof(MSR msr, double dTime) {
 	printf("Global merge complete in %f secs\n",dsec);
 
     inFinish.nMinGroupSize = msr->param.nMinMembers;
-    inFinish.bPeriodic = msr->param.bPeriodic;
-    inFinish.fPeriod[0] = msr->param.dxPeriod;
-    inFinish.fPeriod[1] = msr->param.dyPeriod;
-    inFinish.fPeriod[2] = msr->param.dzPeriod;
     pstFofFinishUp(msr->pst,&inFinish,sizeof(inFinish),&nGroups,NULL);
     if (msr->param.bVStep)
 	printf("Removed groups with fewer than %d particles, %"PRIu64" remain\n",
 	    inFinish.nMinGroupSize, nGroups);
-
-    pstHopCountGID(msr->pst,NULL,0,&outCount,NULL); /* This has the side-effect of updating counts in the PST */
+    pstGroupRelocate(msr->pst,NULL,0,NULL,NULL);
+    pstGroupCountGID(msr->pst,NULL,0,&outCount,NULL); /* This has the side-effect of updating counts in the PST */
     inAssign.iStartGID = 0;
-    pstHopAssignGID(msr->pst,&inAssign,sizeof(inAssign),NULL,NULL); /* Requires correct counts in the PST */
+    pstGroupAssignGID(msr->pst,&inAssign,sizeof(inAssign),NULL,NULL); /* Requires correct counts in the PST */
     dsec = msrTime() - ssec;
     if (msr->param.bVStep)
 	printf("FoF complete, Wallclock: %f secs\n\n",dsec);
@@ -4796,8 +4795,8 @@ void msrNewFof(MSR msr, double dTime) {
 
 void msrFof(MSR msr, double exp) {
     struct inFof in;
-    struct outHopCountGID outCount;
-    struct inHopAssignGID inAssign;
+    struct outGroupCountGID outCount;
+    struct inGroupAssignGID inAssign;
 
     in.nSmooth = msr->param.nSmooth;
     in.bPeriodic = msr->param.bPeriodic;
@@ -4835,9 +4834,9 @@ void msrFof(MSR msr, double exp) {
 	pstFof(msr->pst,&in,sizeof(in),NULL,NULL);
 	}
 
-    pstHopCountGID(msr->pst,NULL,0,&outCount,NULL); /* This has the side-effect of updating counts in the PST */
+    pstGroupCountGID(msr->pst,NULL,0,&outCount,NULL); /* This has the side-effect of updating counts in the PST */
     inAssign.iStartGID = 0;
-    pstHopAssignGID(msr->pst,&inAssign,sizeof(inAssign),NULL,NULL); /* Requires correct counts in the PST */
+    pstGroupAssignGID(msr->pst,&inAssign,sizeof(inAssign),NULL,NULL); /* Requires correct counts in the PST */
     }
 
 void msrGroupMerge(MSR msr, double exp) {
@@ -5087,6 +5086,7 @@ double msrGenerateIC(MSR msr) {
     in.omegab= msr->param.csm->dOmegab;
     in.omegav= msr->param.csm->dLambda;
     in.sigma8= msr->param.csm->dSigma8;
+    in.normalization = msr->param.csm->dNormalization;
     in.spectral=msr->param.csm->dSpectral;
     in.bComove = msr->param.csm->bComove;
 

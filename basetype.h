@@ -28,6 +28,14 @@ typedef int32_t pos_t;
 typedef double pos_t;
 #endif
 
+/*
+** This is an important base type. Alter with care, or even better, leave it alone.
+*/
+typedef struct {
+    int32_t  iPid;      /* A processor */
+    int32_t  iIndex;    /* Index of item on the processor */
+    } remoteID;
+
 typedef struct particle {
     /*-----Base-Particle-Data----*/
     uint64_t iOrder     :  IORDERBITS;

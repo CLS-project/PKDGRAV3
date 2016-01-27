@@ -431,6 +431,7 @@ int pkdNewFof(PKD pkd,double dTau2,int nMinMembers) {
     PARTICLE *p;
     double p_r[3];
     int32_t iGroup,*pGroup;
+    uint32_t *iFofMap;
     int pn,i,j;
     KDN *kdnSelf;
     BND *bndSelf,*bnd,*bndTop;
@@ -529,10 +530,10 @@ int pkdNewFof(PKD pkd,double dTau2,int nMinMembers) {
     */
     assert(EPHEMERAL_BYTES >= 8);
     pkd->Fifo = (uint32_t *)(pkd->pLite);
-    pkd->iFofMap = &pkd->Fifo[pkd->nLocal];
+    iFofMap = &pkd->Fifo[pkd->nLocal];
     pkd->nGroups = 0;    
     iGroup = 0;
-    pkd->iFofMap[iGroup] = 0;
+    iFofMap[iGroup] = 0;
     pkd->nLocalGroups = 0;
     for (pn=0;pn<pkd->nLocal;++pn) {
 	p = pkdParticle(pkd,pn);
@@ -569,10 +570,10 @@ int pkdNewFof(PKD pkd,double dTau2,int nMinMembers) {
 	** Now check if this fof group is contained and has fewer than nMinFof particles.
 	*/
 	if (pkd->bCurrGroupContained && pkd->nCurrFofParticles < nMinMembers) {
-	    pkd->iFofMap[iGroup] = 0;
+	    iFofMap[iGroup] = 0;
 	    }
 	else {
-	    pkd->iFofMap[iGroup] = ++pkd->nLocalGroups;
+	    iFofMap[iGroup] = ++pkd->nLocalGroups;
 	    }
 	}
     /*
@@ -581,12 +582,12 @@ int pkdNewFof(PKD pkd,double dTau2,int nMinMembers) {
     for (pn=0;pn<pkd->nLocal;++pn) {
 	p = pkdParticle(pkd,pn);
 	pGroup = pkdInt32(p,pkd->oGroup);
-	*pGroup = pkd->iFofMap[*pGroup];
+	*pGroup = iFofMap[*pGroup];
 	}
     printf("%3d:cull initial small groups from %d to nGroups=%d\n",pkd->idSelf,iGroup,pkd->nLocalGroups);
     pkd->nGroups = pkd->nLocalGroups + 1;
     free(S);  /* this stack is no longer needed */
-    pkd->iFofMap = NULL; /* done with the temporary map of group numbers */ 
+    iFofMap = NULL; /* done with the temporary map of group numbers */ 
     pkd->Fifo = NULL;  /* done with the Fifo, can use the storage for other stuff now */
     /*
     ** Create initial group table. The assert below is a very minimal requirement as it doesn't account for remote
@@ -740,7 +741,7 @@ int pkdFofPhases(PKD pkd) {
     }
 
 
-uint64_t pkdFofFinishUp(PKD pkd,int nMinGroupSize,int bPeriodic,double *dPeriod) {
+uint64_t pkdFofFinishUp(PKD pkd,int nMinGroupSize) {
     int i;
 
     /*

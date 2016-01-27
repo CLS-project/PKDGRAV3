@@ -154,12 +154,12 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_HOP_UNBIND,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstHopUnbind,
 	          sizeof(struct inHopUnbind),sizeof(struct outHopUnbind));
-    mdlAddService(mdl,PST_HOP_COUNT_GID,pst,
-		  (void (*)(void *,void *,int,void *,int *)) pstHopCountGID,
-		  0,sizeof(struct outHopCountGID));
-    mdlAddService(mdl,PST_HOP_ASSIGN_GID,pst,
-		  (void (*)(void *,void *,int,void *,int *)) pstHopAssignGID,
-	          sizeof(struct inHopAssignGID),0);
+    mdlAddService(mdl,PST_GROUP_COUNT_GID,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstGroupCountGID,
+		  0,sizeof(struct outGroupCountGID));
+    mdlAddService(mdl,PST_GROUP_ASSIGN_GID,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstGroupAssignGID,
+	          sizeof(struct inGroupAssignGID),0);
     mdlAddService(mdl,PST_HOP_SEND_STATS,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstHopSendStats,
 		  0,0);
@@ -2659,13 +2659,27 @@ void pstHopUnbind(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     if (pnOut) *pnOut = sizeof(struct outHopUnbind);
     }
 
-void pstHopCountGID(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
-    struct outHopCountGID *out = (struct outHopCountGID *)vout;
-    struct outHopCountGID outUpper;
+void pstGroupRelocate(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    if (pst->nLeaves > 1) {
+        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_GROUP_RELOCATE,NULL,0);
+        pstGroupRelocate(pst->pstLower,vin,nIn,NULL,pnOut);
+        mdlGetReply(pst->mdl,rID,NULL,pnOut);
+        }
+    else {
+	LCL *plcl = pst->plcl;
+	PKD pkd = plcl->pkd;
+        pkdGroupRelocate(pkd,pkd->nGroups,pkd->ga);
+        }
+    if (pnOut) *pnOut = 0;
+    }
+
+void pstGroupCountGID(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    struct outGroupCountGID *out = (struct outGroupCountGID *)vout;
+    struct outGroupCountGID outUpper;
     mdlassert(pst->mdl,nIn == 0);
     if (pst->nLeaves > 1) {
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_HOP_COUNT_GID,vin,nIn);
-        pstHopCountGID(pst->pstLower,vin,nIn,vout,pnOut);
+        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_GROUP_COUNT_GID,vin,nIn);
+        pstGroupCountGID(pst->pstLower,vin,nIn,vout,pnOut);
         mdlGetReply(pst->mdl,rID,&outUpper,pnOut);
 	pst->nGroupsLower = out->nGroups; /* Remember this for later -- this is an exscan */
 	out->nGroups += outUpper.nGroups;
@@ -2673,24 +2687,24 @@ void pstHopCountGID(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     else {
 	LCL *plcl = pst->plcl;
 	pst->nGroupsLower = 0;
-        out->nGroups = pkdHopCountGID(plcl->pkd);
+        out->nGroups = pkdGroupCountGID(plcl->pkd);
         }
-    if (pnOut) *pnOut = sizeof(struct outHopCountGID);
+    if (pnOut) *pnOut = sizeof(struct outGroupCountGID);
     }
 
-void pstHopAssignGID(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
-    struct inHopAssignGID *inAssign = vin;
-    struct inHopAssignGID inAssignUpper;
-    mdlassert(pst->mdl,nIn == sizeof(struct inHopAssignGID));
+void pstGroupAssignGID(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    struct inGroupAssignGID *inAssign = vin;
+    struct inGroupAssignGID inAssignUpper;
+    mdlassert(pst->mdl,nIn == sizeof(struct inGroupAssignGID));
     if (pst->nLeaves > 1) {
 	inAssignUpper.iStartGID = inAssign->iStartGID + pst->nGroupsLower;
-        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_HOP_ASSIGN_GID,&inAssignUpper,nIn);
-        pstHopAssignGID(pst->pstLower,vin,nIn,NULL,pnOut);
+        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_GROUP_ASSIGN_GID,&inAssignUpper,nIn);
+        pstGroupAssignGID(pst->pstLower,vin,nIn,NULL,pnOut);
         mdlGetReply(pst->mdl,rID,NULL,pnOut);
         }
     else {
 	LCL *plcl = pst->plcl;
-        pkdHopAssignGID(plcl->pkd,inAssign->iStartGID);
+        pkdGroupAssignGID(plcl->pkd,inAssign->iStartGID);
         }
     if (pnOut) *pnOut = 0;
     }
@@ -3662,7 +3676,7 @@ void pstFofFinishUp(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
         }
     else {
 	LCL *plcl = pst->plcl;
-        *nOutGroups = pkdFofFinishUp(plcl->pkd,in->nMinGroupSize,in->bPeriodic,in->fPeriod);
+        *nOutGroups = pkdFofFinishUp(plcl->pkd,in->nMinGroupSize);
         }
     if (pnOut) *pnOut = sizeof(uint64_t);
     }
@@ -3820,7 +3834,7 @@ void pltGenerateIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	}
     else {
 	out->N = pkdGenerateIC(plcl->pkd,tin->fft,in->iSeed,in->nGrid,in->b2LPT,in->dBoxSize,
-	    in->omegam,in->omegav,in->sigma8,in->spectral,in->h,
+	    in->omegam,in->omegav,in->sigma8,in->normalization,in->spectral,in->h,
 	    in->dExpansion,in->nTf, in->k, in->tf,&out->noiseMean,&out->noiseCSQ);
 	out->dExpansion = in->dExpansion;
 	}

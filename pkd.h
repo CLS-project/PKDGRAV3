@@ -467,14 +467,6 @@ typedef struct {
 #endif
 
 /*
-** This is an important base type. Alter with care, or even better, leave it alone.
-*/
-typedef struct {
-    int32_t  iPid;      /* A processor */
-    int32_t  iIndex;    /* Index of item on the processor */
-    } remoteID;
-
-/*
 ** This is the temporary group table used when Grasshopping.
 ** We eventually contruct a proper table.
 */
@@ -810,7 +802,6 @@ typedef struct pkdContext {
     uint32_t iHead;
     uint32_t iTail;
     uint32_t  *Fifo;
-    uint32_t  *iFofMap;
     int bCurrGroupContained;
     uint32_t nCurrFofParticles;
     FLOAT fMinFofContained[3];

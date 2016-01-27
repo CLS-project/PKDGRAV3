@@ -167,8 +167,9 @@ enum pst_service {
     PST_HOP_TREE_BUILD,
     PST_HOP_GRAVITY,
     PST_HOP_UNBIND,
-    PST_HOP_COUNT_GID,
-    PST_HOP_ASSIGN_GID,
+    PST_GROUP_RELOCATE,
+    PST_GROUP_COUNT_GID,
+    PST_GROUP_ASSIGN_GID,
     PST_HOP_SEND_STATS,
     PST_GROUPMERGE,
     PST_GROUPPROFILES,
@@ -547,17 +548,20 @@ struct outHopUnbind {
     };
 void pstHopUnbind(PST,void *,int,void *,int *);
 
-/* PST_HOP_COUNT_GID */
-struct outHopCountGID {
+/* PST_GROUP_RELOCATE */
+void pstGroupRelocate(PST,void *,int,void *,int *);
+
+/* PST_GROUP_COUNT_GID */
+struct outGroupCountGID {
     uint64_t nGroups;
     };
-void pstHopCountGID(PST,void *,int,void *,int *);
+void pstGroupCountGID(PST,void *,int,void *,int *);
 
-/* PST_HOP_ASSIGN_GID */
-struct inHopAssignGID {
+/* PST_GROUP_ASSIGN_GID */
+struct inGroupAssignGID {
     uint64_t iStartGID;
     };
-void pstHopAssignGID(PST,void *,int,void *,int *);
+void pstGroupAssignGID(PST,void *,int,void *,int *);
 
 /* PST_HOP_SEND_STATS */
 void pstHopSendStats(PST,void *,int,void *,int *);
@@ -1053,8 +1057,6 @@ void pstFofPhases(PST,void *,int,void *,int *);
 
 /* PST_FOF_FINISH_UP */
 struct inFofFinishUp{
-    double fPeriod[3];
-    int bPeriodic;
     int nMinGroupSize;
     };
 void pstFofFinishUp(PST,void *,int,void *,int *);
@@ -1100,6 +1102,7 @@ struct inGenerateIC {
     double omegab;
     double omegav;
     double sigma8;
+    double normalization;
     double spectral;
     double dExpansion;
     int iSeed;

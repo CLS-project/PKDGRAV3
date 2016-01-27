@@ -16,7 +16,7 @@ struct smGroupArray {
 int pkdGroupCombineDuplicateIds(PKD pkd,int nGroups, struct smGroupArray *ga,int bIndexIsGID);
 int pkdGroupRelocate(PKD pkd,int nGroups,struct smGroupArray *ga);
 int pkdPurgeSmallGroups(PKD pkd,int nGroups, struct smGroupArray *ga,int nMinGroupSize);
-void pkdHopAssignGID(PKD pkd,uint64_t iStartGID);
-int pkdHopCountGID(PKD pkd);
+void pkdGroupAssignGID(PKD pkd,uint64_t iStartGID);
+int pkdGroupCountGID(PKD pkd);
 
 #endif
