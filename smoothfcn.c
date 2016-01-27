@@ -512,13 +512,10 @@ void SphForces(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 	    dt2 = 0.5*pkdBall(pkd,q)/(dtC*qsph->c+dtMu*absmu); \
 	    if (dt2 < dtEst) dtEst=dt2; \
 	    uNewRung = pkdDtToRung(dtEst,smf->dDelta,MAX_RUNG);	\
-	    /*	    if (uNewRung > 5) if (!(p->iOrder%1000)) printf("RUNG %d: Sph %d  h %g tpc %g tp %g hq %g tqc %g tq %g\n",p->iOrder,uNewRung,ph,ph/(dtC*psph->c),ph/(dtMu*absmu),0.5*q->fBall,0.5*q->fBall/(dtC*qsph->c),0.5*q->fBall/(dtMu*absmu)); */ \
             PACTIVE( if (uNewRung > p->uNewRung ) p->uNewRung = uNewRung; );	\
             QACTIVE( if (uNewRung > q->uNewRung ) q->uNewRung = uNewRung; );	\
 	    PACTIVE( Accp *= rq*aFac; );/* aFac - convert to comoving acceleration */ \
 	    QACTIVE( Accq *= rp*aFac; ); \
-	    /*	    PACTIVE( if (p->iOrder==17477 || q->iOrder==17477) fprintf(stderr,"BA p: %d q: %d(%d)  %g %g %g %g  %g %g %g\n",p->iOrder,q->iOrder,pkdIsGas(pkd,q),PRES_PDV(qPoverRho2,pPoverRho2),p->fDensity,p->fBall,pkdSph(pkd,p)->uPred,0.5*visc,dvdotdr,psph->uDot); ); */ \
-	    /* if (p->iOrder==0 && q->iOrder==31775) assert(0); */	\
 	    PACTIVE( pa[0] -= Accp * dx; ); \
 	    PACTIVE( pa[1] -= Accp * dy; ); \
 	    PACTIVE( pa[2] -= Accp * dz; ); \
@@ -1237,8 +1234,6 @@ void DrmininDrift(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 
 	if (dr1 < 3.0*hill) {
 	    p->drmin2 = dr1/hill;
-	    /* printf("dr1 iOrder %d jOrder %d dr0 %e\n",
-	    p->iOrder,q->iOrder,dr0/hillb);*/
 	    /* check if particle q is already in the list*/
 	    ial = 0;
 	    if (p->n_VA > 0) {
@@ -1275,13 +1270,11 @@ void DrmininDrift(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
 	d = 4.0*b*b -12.0*a*c; /* BB-4AC: A=3a, B=2b C=c */
 
 	if (d < 0.0) {
-	    /*printf("iOrder %d, 2, drmin2 %e \n",p->iOrder, p->drmin2);*/
 	    goto enstep; /* no encounter */
 	    }
 	else {
 	    tmin = 0.5*(-b+sqrt(d))/a;
 	    if (tmin < 0.0 || tmin > 1.0) {
-		/*printf("iOrder %d, 3, drmin2 %e \n",p->iOrder, p->drmin2);*/
 		goto enstep; /* no encounter */
 		}
 	    else {
