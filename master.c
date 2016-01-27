@@ -214,6 +214,18 @@ void msrInitializePStore(MSR msr, uint64_t *nSpecies) {
     ps.bLightCone  = msr->param.bLightCone;
     ps.bLightConeParticles  = msr->param.bLightConeParticles;    
 
+#define SHOW(m) ((ps.mMemoryModel&PKD_MODEL_##m)?" " #m:"")
+       printf("Memory Models:%s%s%s%s%s%s%s%s%s%s%s%s%s%s\n", 
+#ifdef INTEGER_POSITION
+	   " INTEGER_POSITION",
+#else
+	   " DOUBLE_POSITION",
+#endif
+	   SHOW(VELOCITY),SHOW(ACCELERATION),SHOW(POTENTIAL),SHOW(GROUPS),
+	   SHOW(RELAXATION),SHOW(MASS),SHOW(DENSITY),SHOW(BALL),
+	   SHOW(SOFTENING),SHOW(VELSMOOTH),SHOW(SPH),SHOW(STAR),
+	   SHOW(PARTICLE_ID));
+#undef SHOW
     ps.nMinEphemeral = 0;
     ps.nMinTotalStore = 0;
 #ifdef MDL_FFTW
