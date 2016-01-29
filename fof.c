@@ -66,7 +66,7 @@ void pkdFofGatherLocal(PKD pkd,int *S,FLOAT fBall2,FLOAT r[3],int32_t iGroup,
 		    **  Mark particle and add it to the do-fifo
 		    */
 		    *pPartGroup = iGroup;
-		    Fifo[*piTail++] = pj;
+		    Fifo[(*piTail)++] = pj;
 		    ++(*pnCurrFofParticles);
 		    if (*pbCurrFofContained) {
 			for (j=0;j<3;++j) {
@@ -435,18 +435,18 @@ int pkdNewFof(PKD pkd,double dTau2,int nMinMembers) {
     PARTICLE *p;
     double p_r[3];
     int32_t iGroup,*pGroup;
-    uint32_t *iFofMap;
     int pn,i,j;
     KDN *kdnSelf;
     BND *bndSelf,*bnd,*bndTop;
     int *S;
+    uint32_t iHead;
+    uint32_t iTail;
+    uint32_t *Fifo;
+    uint32_t *iFofMap;
     int bCurrFofContained;
     uint32_t nCurrFofParticles;
     FLOAT fMinFofContained[3];
     FLOAT fMaxFofContained[3];    
-    uint32_t iHead;
-    uint32_t iTail;
-    uint32_t  *Fifo;
 
     assert(pkd->oGroup); /* Validate memory model */
     S = malloc(1024*sizeof(int));
@@ -766,5 +766,11 @@ uint64_t pkdFofFinishUp(PKD pkd,int nMinGroupSize) {
 	}
     pkd->nGroups = pkdGroupCombineDuplicateIds(pkd,pkd->nGroups,pkd->ga,1);
     pkd->nGroups = pkdPurgeSmallGroups(pkd,pkd->nGroups,pkd->ga,nMinGroupSize);
+    /*
+    ** This last call to pkdGroupCounts just gets the final group counts in pkd->ga restored
+    ** which is optional if group stats are calculated later (which does the same thing again).
+    ** pkd->nLocalGroups is kept consistent within pkdPurgeSmallGroups as well.
+    */
+    pkdGroupCounts(pkd,pkd->nGroups,pkd->ga);
     return pkd->nLocalGroups;
     }

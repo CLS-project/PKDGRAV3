@@ -30,6 +30,9 @@
 #include "pkd.h"
 #include "smooth.h"
 #include "hop.h"
+#include "fof.h"
+#include "group.h"
+#include "groupstats.h"
 #ifdef USE_PSD
 #include "psdtree.h"
 #include "unbind.h"
@@ -154,12 +157,18 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_HOP_UNBIND,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstHopUnbind,
 	          sizeof(struct inHopUnbind),sizeof(struct outHopUnbind));
+    mdlAddService(mdl,PST_GROUP_RELOCATE,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstGroupRelocate,
+		  0,0);
     mdlAddService(mdl,PST_GROUP_COUNT_GID,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstGroupCountGID,
 		  0,sizeof(struct outGroupCountGID));
     mdlAddService(mdl,PST_GROUP_ASSIGN_GID,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstGroupAssignGID,
 	          sizeof(struct inGroupAssignGID),0);
+    mdlAddService(mdl,PST_GROUP_STATS,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstGroupStats,
+	          sizeof(struct inGroupStats),0);
     mdlAddService(mdl,PST_HOP_SEND_STATS,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstHopSendStats,
 		  0,0);
@@ -2705,6 +2714,21 @@ void pstGroupAssignGID(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     else {
 	LCL *plcl = pst->plcl;
         pkdGroupAssignGID(plcl->pkd,inAssign->iStartGID);
+        }
+    if (pnOut) *pnOut = 0;
+    }
+
+void pstGroupStats(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    struct inGroupStats *in = vin;
+    mdlassert(pst->mdl,nIn == sizeof(struct inGroupStats));
+    if (pst->nLeaves > 1) {
+        int rID = mdlReqService(pst->mdl,pst->idUpper,PST_GROUP_STATS,vin,nIn);
+        pstGroupStats(pst->pstLower,vin,nIn,NULL,pnOut);
+        mdlGetReply(pst->mdl,rID,NULL,pnOut);
+        }
+    else {
+	LCL *plcl = pst->plcl;
+        pkdCalculateGroupStats(plcl->pkd,in->bPeriodic,in->dPeriod);
         }
     if (pnOut) *pnOut = 0;
     }
