@@ -315,7 +315,6 @@ static inline FLOAT mindist(const BND *bnd,const FLOAT *pos) {
 	} while(0)							\
 
 typedef struct kdNode {
-    double r[3];
     int pLower;		     /* also serves as thread id for the LTT */
     int pUpper;		     /* pUpper < 0 indicates no particles in tree! */
     uint32_t iLower;         /* Local lower node (or remote processor w/bRemote=1) */
@@ -326,6 +325,7 @@ typedef struct kdNode {
     uint16_t bDstActive : 1;
     uint16_t bTopTree   : 1; /* This is a top tree node: pLower,pUpper are node indexes */
     uint16_t bRemote    : 1; /* children are remote */
+    double r[3];
     float bMax;
     float fSoft2;
     } KDN;
@@ -1071,15 +1071,29 @@ static inline FIO_SPECIES pkdSpecies( PKD pkd, PARTICLE *p ) {
 ** with a different period so this is not currently supported.
 */
 #define pkdPosRaw(pkd,p,d) (CAST(pos_t *,pkdField(p,pkd->oPosition))[d])
-#define pkdSetPosRaw(pkd,p,d,v) (CAST(pos_t *,pkdField(p,pkd->oPosition))[d]) = (v);
+#define pkdSetPosRaw(pkd,p,d,v) (CAST(pos_t *,pkdField(p,pkd->oPosition))[d]) = (v)
 #ifdef INTEGER_POSITION
-#define pkdDblToPos(pkd,d) (pos_t)((d)*0x80000000u)
-#define pkdPos(pkd,p,d) ((CAST(pos_t *,pkdField(p,pkd->oPosition))[d]) * (1.0/0x80000000u))
-#define pkdSetPos(pkd,p,d,v) (void)((CAST(pos_t *,pkdField(p,pkd->oPosition))[d]) = (v)*0x80000000u)
+#define INTEGER_FACTOR 0x80000000u
+#define pkdDblToPos(pkd,d) (pos_t)((d)*INTEGER_FACTOR)
+#define pkdPos(pkd,p,d) ((CAST(pos_t *,pkdField(p,pkd->oPosition))[d]) * (1.0/INTEGER_FACTOR))
+#define pkdSetPos(pkd,p,d,v) (void)((CAST(pos_t *,pkdField(p,pkd->oPosition))[d]) = (v)*INTEGER_FACTOR)
 #ifdef __AVX__
+static inline void pkdSetPosRaw1(PKD pkd,PARTICLE *p,__m128i v) {
+    pos_t *r = pkdField(p,pkd->oPosition);
+    r[0] = _mm_extract_epi32 (v,0);
+    r[1] = _mm_extract_epi32 (v,1);
+    r[2] = _mm_extract_epi32 (v,2);
+//    _mm_maskmoveu_si128 (v,_mm_setr_epi32(-1,-1,-1,0), pkdField(p,pkd->oPosition));
+    }
+static inline __m128i pkdGetPosRaw(PKD pkd,PARTICLE *p) {
+    return _mm_loadu_si128(pkdField(p,pkd->oPosition));
+    }
+static inline __m256d pkdGetPos(PKD pkd,PARTICLE *p) {
+    return _mm256_mul_pd(_mm256_cvtepi32_pd(pkdGetPosRaw(pkd,p)),_mm256_set1_pd(1.0/INTEGER_FACTOR));
+    }
 #define pkdGetPos3(pkd,p,d1,d2,d3) do {					\
 	union { __m256d p; double d[4]; } r_pkdGetPos3;			\
-	r_pkdGetPos3.p = _mm256_mul_pd(_mm256_cvtepi32_pd(*(__m128i *)(CAST(pos_t *,pkdField(p,pkd->oPosition)))),_mm256_set1_pd(1.0/0x80000000u) ); \
+	r_pkdGetPos3.p = pkdGetPos(pkd,p);				\
 	d1 = r_pkdGetPos3.d[0];						\
 	d2 = r_pkdGetPos3.d[1];						\
 	d3 = r_pkdGetPos3.d[2];						\
