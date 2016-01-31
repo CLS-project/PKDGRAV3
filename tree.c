@@ -672,10 +672,10 @@ void Create(PKD pkd,int iRoot) {
 	__m256d vmin, vmax;
 #if defined(INTEGER_POSITION)
 	__m128i ivmin, ivmax;
-	ivmin = ivmax = *(__m128i *)(CAST(pos_t *,pkdField(p,pkd->oPosition)));
+	ivmin = ivmax = pkdGetPosRaw(pkd,p);
 	for (++pj;pj<=pkdn->pUpper;++pj) {
 	    p = pkdParticle(pkd,pj);
-	    __m128i v = *(__m128i *)(CAST(pos_t *,pkdField(p,pkd->oPosition)));
+	    __m128i v = pkdGetPosRaw(pkd,p);
 	    ivmin = _mm_min_epi32(ivmin,v);
 	    ivmax = _mm_max_epi32(ivmin,v);
 	    }
