@@ -1159,9 +1159,6 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.bFindGroups = 0;
     prmAddParam(msr->prm,"bFindGroups",0,&msr->param.bFindGroups,sizeof(int),
 		"groupfinder","<enable/disable group finder> = -groupfinder");
-    msr->param.bFindPSGroups = 0;
-    prmAddParam(msr->prm,"bFindPSGroups",0,&msr->param.bFindPSGroups,sizeof(int),
-		"psgroupfinder","<enable/disable phase-space group finder> = -psgroupfinder");
     msr->param.bFindHopGroups = 0;
     prmAddParam(msr->prm,"bFindHopGroups",0,&msr->param.bFindHopGroups,sizeof(int),
 		"hop","<enable/disable phase-space group finder> = -hop");
@@ -1697,7 +1694,6 @@ void msrLogParams(MSR msr,FILE *fp) {
     fprintf(fp," SFdMinGasMass %g",msr->param.SFdMinGasMass);
     fprintf(fp," SFbdivv %d",msr->param.SFbdivv);
     /* -- */
-    fprintf(fp,"\n# Group Find: bFindPSGroups: %d",msr->param.bFindPSGroups);
     fprintf(fp,"\n# Group Find: bFindHopGroups: %d",msr->param.bFindHopGroups);
     fprintf(fp," dHopTau: %g",msr->param.dHopTau);
     /* -- */
@@ -4598,9 +4594,18 @@ void msrHopWrite(MSR msr, const char *fname) {
 	pst0 = pst0->pstLower;
     plcl = pst0->plcl;
 
+
     if (msr->param.bVStep)
 	printf("Writing Grasshopper statistics to %s\n", fname );
     sec = msrTime();
+
+#if 0
+    struct inOutput out;
+    out.iPartner = -1;
+    out.iProcessor = 0;
+    out.nProcessor = msr->param.bParaWrite==0?1:(msr->param.nParaWrite<=1 ? msr->nThreads:msr->param.nParaWrite);
+    pstOutput(msr->pst,&out,sizeof(out),NULL,NULL);
+#endif
 
     fp = fopen(fname,"w");
     if (!fp) {

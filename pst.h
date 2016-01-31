@@ -89,6 +89,7 @@ enum pst_service {
     PST_COMPRESSASCII,
     PST_WRITEASCII,
     PST_WRITE,
+    PST_OUTPUT,
     PST_CHECKPOINT,
     PST_RESTORE,
     PST_BUILDTREE,
@@ -442,6 +443,17 @@ void pstWrite(PST,void *,int,void *,int *);
 
 /* PST_CHECKPOINT */
 void pstCheckpoint(PST,void *,int,void *,int *);
+
+struct inOutput {
+    int iProcessor;   /* Output number: 0 to nParaWrite */
+    int nProcessor;   /* Number of processors left in parallel */
+    int iPartner;     /* Who to send the data to */
+    int nPartner;     /* How many partners there are */
+    int eOutputType;  /* What kind of output */
+    };
+
+/* PST_OUTPUT */
+void pstOutput(PST,void *,int,void *,int *);
 
 /* PST_BUILDTREE */
 struct inBuildTree {

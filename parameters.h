@@ -180,7 +180,6 @@ struct parameters {
     /*
     ** Additional parameters for group finding.
     */
-    int	bFindPSGroups;
     int	bFindGroups;
     int bFindHopGroups;
     int	nMinMembers;
