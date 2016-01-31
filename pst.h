@@ -451,6 +451,7 @@ struct inOutput {
     int iPartner;     /* Who to send the data to */
     int nPartner;     /* How many partners there are */
     int eOutputType;  /* What kind of output */
+    char achOutFile[PST_FILENAME_SIZE];
     };
 
 /* PST_OUTPUT */
