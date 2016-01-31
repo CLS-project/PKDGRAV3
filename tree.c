@@ -609,7 +609,7 @@ void Create(PKD pkd,int iRoot) {
     FMOMR mom;
     SPHBNDS *bn;
     BND *bnd;
-    FLOAT fSoft,x,y,z,ax,ay,az,ft,d2,d2Max,dih2,bmin,b;
+    double fSoft,x,y,z,ax,ay,az,ft[3],d2,d2Max,dih2,bmin,b;
     float *a, m, fMass, fBall;
     vel_t *v, vx, vy, vz;
     int pj,d,nDepth,ism;
@@ -666,26 +666,60 @@ void Create(PKD pkd,int iRoot) {
 	*/
 	pj = pkdn->pLower;
 	p = pkdParticle(pkd,pj);
+
+
+#if defined(__AVX__) && defined(INTEGER_POSITION)
+	__m256d vmin, vmax;
+#if defined(INTEGER_POSITION)
+	__m128i ivmin, ivmax;
+	ivmin = ivmax = *(__m128i *)(CAST(pos_t *,pkdField(p,pkd->oPosition)));
+	for (++pj;pj<=pkdn->pUpper;++pj) {
+	    p = pkdParticle(pkd,pj);
+	    __m128i v = *(__m128i *)(CAST(pos_t *,pkdField(p,pkd->oPosition)));
+	    ivmin = _mm_min_epi32(ivmin,v);
+	    ivmax = _mm_max_epi32(ivmin,v);
+	    }
+	vmin = _mm256_mul_pd(_mm256_cvtepi32_pd(ivmin),_mm256_set1_pd(1.0/INTEGER_FACTOR) );
+	vmax = _mm256_mul_pd(_mm256_cvtepi32_pd(ivmax),_mm256_set1_pd(1.0/INTEGER_FACTOR) );
+#else
+	vmin = vmax = pkdGetPos(pkd,p);
+	for (++pj;pj<=pkdn->pUpper;++pj) {
+	    p = pkdParticle(pkd,pj);
+	    __m256d v = pkdGetPos(pkd,p);
+	    vmin = _mm256_min_pd(vmin,v);
+	    vmax = _mm256_max_pd(vmin,v);
+	    }
+#endif
+	vdouble dout;
+	dout.p = _mm256_mul_pd(_mm256_set1_pd(0.5),_mm256_add_pd(vmax,vmin));
+	bnd->fCenter[0] = dout.d[0];
+	bnd->fCenter[1] = dout.d[1];
+	bnd->fCenter[2] = dout.d[2];
+	dout.p = _mm256_mul_pd(_mm256_set1_pd(0.5),_mm256_sub_pd(vmax,vmin));
+	bnd->fMax[0] = dout.d[0];
+	bnd->fMax[1] = dout.d[1];
+	bnd->fMax[2] = dout.d[2];
+
+#else
+	pkdGetPos1(pkd,p,ft);
 	for (d=0;d<3;++d) {
-	    ft = pkdPos(pkd,p,d);
-	    bnd->fCenter[d] = ft;
-	    bnd->fMax[d] = ft;
+	    bnd->fCenter[d] = ft[d];
+	    bnd->fMax[d] = ft[d];
 	    }
 	for (++pj;pj<=pkdn->pUpper;++pj) {
 	    p = pkdParticle(pkd,pj);
+	    pkdGetPos1(pkd,p,ft);
 	    for (d=0;d<3;++d) {
-		ft = pkdPos(pkd,p,d);
-		if (ft < bnd->fCenter[d])
-		    bnd->fCenter[d] = ft;
-		else if (ft > bnd->fMax[d])
-		    bnd->fMax[d] = ft;
+		if (ft[d] < bnd->fCenter[d]) bnd->fCenter[d] = ft[d];
+		else if (ft[d] > bnd->fMax[d]) bnd->fMax[d] = ft[d];
 		}
 	    }
 	for (d=0;d<3;++d) {
-	    ft = bnd->fCenter[d];
-	    bnd->fCenter[d] = 0.5*(bnd->fMax[d] + ft);
-	    bnd->fMax[d] = 0.5*(bnd->fMax[d] - ft);
+	    ft[d] = bnd->fCenter[d];
+	    bnd->fCenter[d] = 0.5*(bnd->fMax[d] + ft[d]);
+	    bnd->fMax[d] = 0.5*(bnd->fMax[d] - ft[d]);
 	    }
+#endif
 	pj = pkdn->pLower;
 	p = pkdParticle(pkd,pj);
 	a = pkd->oAcceleration ? pkdAccel(pkd,p) : zeroF;
@@ -694,9 +728,10 @@ void Create(PKD pkd,int iRoot) {
 	v = pkd->oVelocity ? pkdVel(pkd,p) : zeroV;
 	fMass = m;
 	dih2 = fSoft;
-	x = m*pkdPos(pkd,p,0);
-	y = m*pkdPos(pkd,p,1);
-	z = m*pkdPos(pkd,p,2);
+	pkdGetPos3(pkd,p,x,y,z);
+	x *= m;
+	y *= m;
+	z *= m;
 	vx = m*v[0];
 	vy = m*v[1];
 	vz = m*v[2];
@@ -713,9 +748,10 @@ void Create(PKD pkd,int iRoot) {
 	    v = pkd->oVelocity ? pkdVel(pkd,p) : zeroV;
 	    fMass += m;
 	    if (fSoft>dih2) dih2=fSoft;
-	    x += m*pkdPos(pkd,p,0);
-	    y += m*pkdPos(pkd,p,1);
-	    z += m*pkdPos(pkd,p,2);
+	    pkdGetPos1(pkd,p,ft);
+	    x += m*ft[0];
+	    y += m*ft[1];
+	    z += m*ft[2];
 	    vx += m*v[0];
 	    vy += m*v[1];
 	    vz += m*v[2];
@@ -755,14 +791,23 @@ void Create(PKD pkd,int iRoot) {
 	d2Max = 0.0;
 	for (pj=pkdn->pLower;pj<=pkdn->pUpper;++pj) {
 	    p = pkdParticle(pkd,pj);
-	    x = pkdPos(pkd,p,0) - pkdn->r[0];
-	    y = pkdPos(pkd,p,1) - pkdn->r[1];
-	    z = pkdPos(pkd,p,2) - pkdn->r[2];
+#if defined(__AVX__) && defined(INTEGER_POSITION)
+	    __m256d v = _mm256_sub_pd(pkdGetPos(pkd,p),_mm256_setr_pd(pkdn->r[0],pkdn->r[1],pkdn->r[2],0.0));
+	    v = _mm256_mul_pd(v,v);
+	    vdouble vd;
+	    vd.p = v;
+	    d2Max = _mm_cvtsd_f64(_mm_max_sd(_mm_set_sd(vd.d[0] + vd.d[1] + vd.d[2]),_mm_set_sd(d2Max)));
+#else
+	    pkdGetPos1(pkd,p,ft);
+	    x = ft[0] - pkdn->r[0];
+	    y = ft[1] - pkdn->r[1];
+	    z = ft[2] - pkdn->r[2];
 	    d2 = x*x + y*y + z*z;
 	    /*
 	    ** Update bounding ball and softened bounding ball.
 	    */
 	    d2Max = (d2 > d2Max)?d2:d2Max;
+#endif
 	    }
 #ifdef USE_MAXSIDE
         MAXSIDE(bnd->fMax,b);
@@ -781,9 +826,10 @@ void Create(PKD pkd,int iRoot) {
 	    momClearFmomr(pkdNodeMom(pkd,pkdn));
 	    for (pj=pkdn->pLower;pj<=pkdn->pUpper;++pj) {
 		p = pkdParticle(pkd,pj);
-		x = pkdPos(pkd,p,0) - pkdn->r[0];
-		y = pkdPos(pkd,p,1) - pkdn->r[1];
-		z = pkdPos(pkd,p,2) - pkdn->r[2];
+		pkdGetPos1(pkd,p,ft);
+		x = ft[0] - pkdn->r[0];
+		y = ft[1] - pkdn->r[1];
+		z = ft[2] - pkdn->r[2];
 		m = pkdMass(pkd,p);
 		momMakeFmomr(&mom,m,pkdn->bMax,x,y,z);
 		momAddFmomr(pkdNodeMom(pkd,pkdn),&mom);
@@ -807,18 +853,20 @@ void Create(PKD pkd,int iRoot) {
 		p = pkdParticle(pkd,pj);
 		fBall = pkdBall(pkd,p);
 		if (pkdIsGas(pkd,p)) {
+		    double r[3];
+		    pkdGetPos1(pkd,p,r);
 		    /*
 		    ** This first ball bound over all gas particles is only used for remote searching.
 		    */
-		    for (d=0;d<3;++d) bn->B.min[d] = fmin(bn->B.min[d],pkdPos(pkd,p,d) - (1+pkd->param.ddHonHLimit)*fBall);
-		    for (d=0;d<3;++d) bn->B.max[d] = fmax(bn->B.max[d],pkdPos(pkd,p,d) + (1+pkd->param.ddHonHLimit)*fBall);
+		    for (d=0;d<3;++d) bn->B.min[d] = fmin(bn->B.min[d],r[d] - (1+pkd->param.ddHonHLimit)*fBall);
+		    for (d=0;d<3;++d) bn->B.max[d] = fmax(bn->B.max[d],r[d] + (1+pkd->param.ddHonHLimit)*fBall);
 		    if (pkdIsActive(pkd,p)) {
-			for (d=0;d<3;++d) bn->A.min[d] = fmin(bn->A.min[d],pkdPos(pkd,p,d));
-			for (d=0;d<3;++d) bn->A.max[d] = fmax(bn->A.max[d],pkdPos(pkd,p,d));
+			for (d=0;d<3;++d) bn->A.min[d] = fmin(bn->A.min[d],r[d]);
+			for (d=0;d<3;++d) bn->A.max[d] = fmax(bn->A.max[d],r[d]);
 		    }
 		    else {
-			for (d=0;d<3;++d) bn->BI.min[d] = fmin(bn->BI.min[d],pkdPos(pkd,p,d) - (1+pkd->param.ddHonHLimit)*fBall);
-			for (d=0;d<3;++d) bn->BI.max[d] = fmax(bn->BI.max[d],pkdPos(pkd,p,d) + (1+pkd->param.ddHonHLimit)*fBall);
+			for (d=0;d<3;++d) bn->BI.min[d] = fmin(bn->BI.min[d],r[d] - (1+pkd->param.ddHonHLimit)*fBall);
+			for (d=0;d<3;++d) bn->BI.max[d] = fmax(bn->BI.max[d],r[d] + (1+pkd->param.ddHonHLimit)*fBall);
 		    }
 		}
 	    }
@@ -856,18 +904,23 @@ void Create(PKD pkd,int iRoot) {
 	    pkdCombineCells1(pkd,pkdn,pkdl,pkdu);
 	    if (pkdn->pUpper - pj < NMAX_OPENCALC) {
 		assert(pj<=pkdn->pUpper);
-		p = pkdParticle(pkd,pj);
-		x = pkdPos(pkd,p,0) - pkdn->r[0];
-		y = pkdPos(pkd,p,1) - pkdn->r[1];
-		z = pkdPos(pkd,p,2) - pkdn->r[2];
-		d2Max = x*x + y*y + z*z;
-		for (++pj;pj<=pkdn->pUpper;++pj) {
+		d2Max = 0;
+		for (;pj<=pkdn->pUpper;++pj) {
 		    p = pkdParticle(pkd,pj);
-		    x = pkdPos(pkd,p,0) - pkdn->r[0];
-		    y = pkdPos(pkd,p,1) - pkdn->r[1];
-		    z = pkdPos(pkd,p,2) - pkdn->r[2];
+#if defined(__AVX__) && defined(INTEGER_POSITION)
+		    __m256d v = _mm256_sub_pd(pkdGetPos(pkd,p),_mm256_setr_pd(pkdn->r[0],pkdn->r[1],pkdn->r[2],0.0));
+		    v = _mm256_mul_pd(v,v);
+		    vdouble vd;
+		    vd.p = v;
+		    d2Max = _mm_cvtsd_f64(_mm_max_sd(_mm_set_sd(vd.d[0] + vd.d[1] + vd.d[2]),_mm_set_sd(d2Max)));
+#else
+		    pkdGetPos3(pkd,p,x,y,z);
+		    x -= pkdn->r[0];
+		    y -= pkdn->r[1];
+		    z -= pkdn->r[2];
 		    d2 = x*x + y*y + z*z;
 		    d2Max = (d2 > d2Max)?d2:d2Max;
+#endif
 		    }
 		assert(d2Max>0);
 		/*
@@ -1097,6 +1150,7 @@ void pkdTreeBuildByGroup(PKD pkd, int nBucket) {
 	/* Calculate the bounds for each group */
 	for (i=0;i<pkd->nLocal;) {
 	    p = pkdParticle(pkd,i);
+	    pkdGetPos1(pkd,p,r);
 	    gid = *pkdGroup(pkd,p);
 	    if (gid==0) break;
 	    iRoot = pkd->hopGroups[gid].iTreeRoot;
@@ -1106,9 +1160,9 @@ void pkdTreeBuildByGroup(PKD pkd, int nBucket) {
 	    pNode->iLower = 0;
 	    assert(pNode->pLower == i);
 
-	    for (j=0;j<3;++j) dMin[j] = dMax[j] = pkdPos(pkd,p,j);
+	    for (j=0;j<3;++j) dMin[j] = dMax[j] = r[j];
 	    for(p = pkdParticle(pkd,++i); i<pkd->nLocal && *pkdGroup(pkd,p)==gid; ++i) {
-		for (j=0;j<3;++j) r[j] = pkdPos(pkd,p,j);
+		pkdGetPos1(pkd,p,r);
 		pkdMinMax(r,dMin,dMax);
 		}
 	    for (j=0;j<3;++j) {
@@ -1131,14 +1185,15 @@ void pkdTreeBuildByGroup(PKD pkd, int nBucket) {
 	    n = pNode->pUpper;
 	    for(i=pNode->pLower; i<=n; ) {
 		p = pkdParticle(pkd,i);
+		pkdGetPos1(pkd,p,r);
 		gid = *pkdGroup(pkd,p);
 		if (gid) {
 		    assert(gid==gid2);
 		    if (i==pNode->pLower) {
-			for (j=0;j<3;++j) dMin[j] = dMax[j] = pkdPos(pkd,p,j);
+			for (j=0;j<3;++j) dMin[j] = dMax[j] = r[j];
 			}
 		    else {
-			for (j=0;j<3;++j) r[j] = pkdPos(pkd,p,j);
+			for (j=0;j<3;++j) r[j] = r[j];
 			pkdMinMax(r,dMin,dMax);
 			}
 		    ++i;
@@ -1190,17 +1245,19 @@ void pkdCalcRoot(PKD pkd,uint32_t uRoot,double *com,MOMC *pmom) {
     if (kdn->pLower > kdn->pUpper) momClearMomc(pmom);
     else {
 	p = pkdParticle(pkd,i);
-	x = pkdPos(pkd,p,0) - xr;
-	y = pkdPos(pkd,p,1) - yr;
-	z = pkdPos(pkd,p,2) - zr;
+	pkdGetPos3(pkd,p,x,y,z);
+	x -= xr;
+	y -= yr;
+	z -= zr;
 	fMass = pkdMass(pkd,p);
 	momMakeMomc(pmom,fMass,x,y,z);
 	for (++i;i<=kdn->pUpper;++i) {
 	    p = pkdParticle(pkd,i);
+	    pkdGetPos3(pkd,p,x,y,z);
 	    fMass = pkdMass(pkd,p);
-	    x = pkdPos(pkd,p,0) - xr;
-	    y = pkdPos(pkd,p,1) - yr;
-	    z = pkdPos(pkd,p,2) - zr;
+	    x -= xr;
+	    y -= yr;
+	    z -= zr;
 	    momMakeMomc(&mc,fMass,x,y,z);
 	    momAddMomc(pmom,&mc);
 	    }
