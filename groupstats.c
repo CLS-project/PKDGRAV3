@@ -63,7 +63,7 @@ void pkdHopSendStats(PKD pkd) {
     mdlSend(pkd->mdl,0,packHop, &ctx);
     }
 
-static void hopCalculateGroupStats(PKD pkd, int bPeriodic, double *dPeriod) {
+void pkdCalculateGroupStats(PKD pkd, int bPeriodic, double *dPeriod) {
     MDL mdl = pkd->mdl;
     HopGroupTable * g;
     int i,j,gid;
@@ -72,6 +72,18 @@ static void hopCalculateGroupStats(PKD pkd, int bPeriodic, double *dPeriod) {
     float fMass;
     double r[3];
     vel_t *v;
+
+    pkd->hopGroups = (HopGroupTable *)&pkd->ga[pkd->nGroups];
+    /*
+    ** Copy the name of the group to the group table structure for now, 
+    ** but actually we don't need to duplicate this information.
+    */
+    for (i=0;i<pkd->nGroups;++i) {
+	pkd->hopGroups[i].id.iPid = pkd->ga[i].id.iPid;
+	pkd->hopGroups[i].id.iIndex = pkd->ga[i].id.iIndex;
+	pkd->hopGroups[i].bNeedGrav = 1;
+	pkd->hopGroups[i].bComplete = 0;	
+	}
 
 #ifdef TEST_SINGLE_GRAVITY
     for(gid=2; gid<=pkd->nLocalGroups; ++gid)

@@ -58,7 +58,9 @@ static int reorderGroups(PKD pkd, int nGroups, struct smGroupArray *ga) {
     PARTITION(nNew<pi,nNew<=pi,++nNew,--pi,
     {tmp = ga[pi]; ga[pi]=ga[nNew]; ga[nNew]=tmp;},
 	ga[nNew].iGid>0,ga[pi].iGid<=0);
+    pkd->nLocalGroups = 0;
     for(pi=1; pi<nGroups; ++pi) {
+	if (ga[pi].id.iPid == pkd->idSelf && pi<nNew) ++pkd->nLocalGroups;
 	if (pi<nNew) {
 	    assert(ga[pi].iGid>0);
 	    assert(ga[pi].iGid<nNew);
@@ -91,7 +93,7 @@ static int reorderGroups(PKD pkd, int nGroups, struct smGroupArray *ga) {
 ** Sort groups by Processor and ID, with local groups first
 ** The new group ID is in iNewGid and groups are in still in the old order.
 */
-static void renumberGroups(PKD pkd, int nGroups,struct smGroupArray *ga) {
+static int renumberGroups(PKD pkd, int nGroups,struct smGroupArray *ga) {
     int i, gid, nNew;
 
     /* We want local groups first */
@@ -117,7 +119,8 @@ static void renumberGroups(PKD pkd, int nGroups,struct smGroupArray *ga) {
 	    }
 	ga[i].iNewGid = nNew-1;
 	}
-    reorderGroups(pkd,nGroups,ga);
+    nGroups = reorderGroups(pkd,nGroups,ga);
+    return(nGroups);
     }
 
 /*
@@ -129,7 +132,7 @@ static void renumberGroups(PKD pkd, int nGroups,struct smGroupArray *ga) {
 int pkdGroupCombineDuplicateIds(PKD pkd, int nGroups, struct smGroupArray *ga,int bIndexIsGID) {
     int gid;
 
-    renumberGroups(pkd,nGroups,ga);
+    nGroups = renumberGroups(pkd,nGroups,ga);
     updateGroupIds(pkd,nGroups,ga,bIndexIsGID);
     /* We will now put the groups in the new order */
     for(gid=1; gid<nGroups; ++gid) ga[gid].iGid = ga[gid].iNewGid;
@@ -205,18 +208,18 @@ static void combTotalnGroup(void *vctx, void *v1, void *v2) {
     g1->nTotal += g2->nTotal;
     }
 
-int pkdPurgeSmallGroups(PKD pkd,int nGroups,struct smGroupArray *ga,int nMinGroupSize) {
+int pkdGroupCounts(PKD pkd,int nGroups,struct smGroupArray *ga) {
     MDL mdl = pkd->mdl;
     PARTICLE *p;
     struct smGroupArray *g;
-    int i, j, gid;
+    int i, gid;
     int nLocalGroups;
 
     /*
     ** First count the number of particles in each group.
     */
     nLocalGroups = 0;
-    for(i=0; i<pkd->nGroups; ++i) {
+    for(i=0; i<nGroups; ++i) {
 	if (ga[i].id.iPid == pkd->idSelf && i) ++nLocalGroups;
 	ga[i].nTotal = 0;
 	}
@@ -225,6 +228,9 @@ int pkdPurgeSmallGroups(PKD pkd,int nGroups,struct smGroupArray *ga,int nMinGrou
 	gid = *pkdGroup(pkd,p);
 	++ga[gid].nTotal;
 	}
+    /*
+    ** Then add to counts for all groups owned by a remote processor.
+    */
     mdlCOcache(mdl,CID_GROUP,NULL,ga,sizeof(struct smGroupArray),nGroups,
 	NULL,initTotalnGroup,combTotalnGroup);
     for(i=1+nLocalGroups; i<nGroups; ++i) {
@@ -233,8 +239,27 @@ int pkdPurgeSmallGroups(PKD pkd,int nGroups,struct smGroupArray *ga,int nMinGrou
 	g->nTotal += ga[i].nTotal;
 	}
     mdlFinishCache(mdl,CID_GROUP);
+    /*
+    ** Finally update remote group counts.
+    */
+    mdlROcache(mdl,CID_GROUP,NULL,ga,sizeof(struct smGroupArray),nGroups);
+    for(i=1+nLocalGroups; i<nGroups; ++i) {
+	g = mdlFetch(mdl,CID_GROUP,ga[i].id.iIndex,ga[i].id.iPid);
+	ga[i].nTotal = g->nTotal;
+	}
+    mdlFinishCache(mdl,CID_GROUP);
+
+    return(nLocalGroups);
+    }
+
+
+int pkdPurgeSmallGroups(PKD pkd,int nGroups,struct smGroupArray *ga,int nMinGroupSize) {
+    int i,j,gid;
+    int nLocalGroups;
+
+    nLocalGroups = pkdGroupCounts(pkd,nGroups,ga);
     /* Purge groups with too few particles */
-    for(i=j=1; i<nGroups; ++i) {
+    for(i=j=1;i<nGroups;++i) {
 	if (ga[i].nTotal < nMinGroupSize) gid=0;
 	else gid = j++;
 	ga[i].iNewGid = gid;

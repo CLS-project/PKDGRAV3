@@ -4758,12 +4758,14 @@ void msrHop(MSR msr, double dTime) {
 	printf("Grasshopper complete, Wallclock: %f secs\n\n",dsec);
     }
 
+
 void msrNewFof(MSR msr, double dTime) {
     struct inNewFof in;
     struct outFofPhases out;
     struct inFofFinishUp inFinish;
     struct outGroupCountGID outCount;
     struct inGroupAssignGID inAssign;
+    struct inGroupStats inGroupStats;
     int i;
     uint64_t nGroups;
     double sec,dsec,ssec;
@@ -4800,13 +4802,22 @@ void msrNewFof(MSR msr, double dTime) {
     if (msr->param.bVStep)
 	printf("Removed groups with fewer than %d particles, %"PRIu64" remain\n",
 	    inFinish.nMinGroupSize, nGroups);
-    pstGroupRelocate(msr->pst,NULL,0,NULL,NULL);
+//    pstGroupRelocate(msr->pst,NULL,0,NULL,NULL);
     pstGroupCountGID(msr->pst,NULL,0,&outCount,NULL); /* This has the side-effect of updating counts in the PST */
     inAssign.iStartGID = 0;
     pstGroupAssignGID(msr->pst,&inAssign,sizeof(inAssign),NULL,NULL); /* Requires correct counts in the PST */
     dsec = msrTime() - ssec;
     if (msr->param.bVStep)
 	printf("FoF complete, Wallclock: %f secs\n\n",dsec);
+
+    /*
+    ** This should be done as a separate msr function.
+    */
+    inGroupStats.bPeriodic = msr->param.bPeriodic;
+    inGroupStats.dPeriod[0] = msr->param.dxPeriod;
+    inGroupStats.dPeriod[1] = msr->param.dyPeriod;
+    inGroupStats.dPeriod[2] = msr->param.dzPeriod;
+    pstGroupStats(msr->pst,&inAssign,sizeof(inGroupStats),NULL,NULL); /* Requires correct counts in the PST */
     }
 
 

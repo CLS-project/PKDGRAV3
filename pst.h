@@ -171,6 +171,7 @@ enum pst_service {
     PST_GROUP_RELOCATE,
     PST_GROUP_COUNT_GID,
     PST_GROUP_ASSIGN_GID,
+    PST_GROUP_STATS,
     PST_HOP_SEND_STATS,
     PST_GROUPMERGE,
     PST_GROUPPROFILES,
@@ -574,6 +575,14 @@ struct inGroupAssignGID {
     uint64_t iStartGID;
     };
 void pstGroupAssignGID(PST,void *,int,void *,int *);
+
+/* PST_GROUP_STATS */
+struct inGroupStats {
+    int bPeriodic;
+    double dPeriod[3];
+    };
+void pstGroupStats(PST,void *,int,void *,int *);
+
 
 /* PST_HOP_SEND_STATS */
 void pstHopSendStats(PST,void *,int,void *,int *);

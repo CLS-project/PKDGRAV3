@@ -425,21 +425,11 @@ int pkdHopFinishUp(PKD pkd,int nMinGroupSize, int bPeriodic, double *dPeriod) {
 	}
     mdlFree(mdl,pkd->tmpHopGroups); pkd->tmpHopGroups = NULL;
 
-    /* Create the final group table */
-    pkd->hopGroups = mdlMalloc(mdl, pkd->nGroups * sizeof(HopGroupTable));
-    assert(pkd->hopGroups!=NULL);
-    for(i=0; i<pkd->nGroups; ++i) {
-	pkd->hopGroups[i].id.iPid      = ga[i].id.iPid;
-	pkd->hopGroups[i].id.iIndex    = ga[i].id.iIndex;
-	pkd->hopGroups[i].bNeedGrav    = 1;
-	pkd->hopGroups[i].bComplete    = 0;
-	}
     pkd->nGroups = pkdPurgeSmallGroups(pkd,pkd->nGroups,ga,nMinGroupSize);
     pkd->hopSavedRoots = 0;
-
-    /* free: We have allocated pkd->hopGroups */
     return pkd->nLocalGroups;
     }
+
 
 static void initHopGetRoots(void *vpkd, void *v) {
     HopGroupTable * g = (HopGroupTable *)v;
