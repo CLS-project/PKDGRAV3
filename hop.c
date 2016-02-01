@@ -95,8 +95,14 @@ int smHopLink(SMX smx,SMF *smf) {
     int pi, j, gid, nLoop, nSpur;
     int nGroups, nLocal, nRemote;
     int iIndex1, iIndex2, iMinPartIndex, iPid1, iPid2, iMinPartPid, iParticle;
-    struct smGroupArray *ga = smx->ga;
-    uint32_t *pl = smx->pl;
+    struct smGroupArray *ga;
+    /* Next particle in the chain or -1 if at the end in which case */
+    /* the next particle will be remote and can be found in the group array */
+    uint32_t *pl;
+
+    pkd->ga = ga = (struct smGroupArray *)(pkd->pLite);
+    pl = (uint32_t *)(((char *)pkd->pLite + pkd->nLocal*EPHEMERAL_BYTES) - (pkd->nLocal+1)*sizeof(uint32_t));
+    assert((uint32_t *)ga < pl);
 
     ga[0].iGid = 0;
     ga[0].id.iPid = mdlSelf(mdl);
@@ -125,6 +131,7 @@ int smHopLink(SMX smx,SMF *smf) {
 	p = pkdParticle(pkd,iParticle=pi);
 	if ( *pkdGroup(pkd,p) > 0 ) continue; /* Already done (below) */
 	if ( !pkdIsDstActive(p,0,MAX_RUNG) ) continue;
+	assert((uint32_t *)&ga[nGroups+1] < pl);
 	ga[nGroups].iGid = nGroups;
 	for(;;) {
 	    *pkdGroup(pkd,p) = nGroups;
@@ -349,7 +356,7 @@ int smHopJoin(SMX smx,SMF *smf, double dHopTau, int *nLocal) {
     PKD pkd = smx->pkd;
     MDL mdl = pkd->mdl;
     KDN *pRoot = pkdTreeNode(pkd,ROOT);
-    struct smGroupArray *ga = smx->ga;
+    struct smGroupArray *ga = pkd->ga;
     PARTICLE *p;
     int pi;
 
