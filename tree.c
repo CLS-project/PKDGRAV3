@@ -1108,7 +1108,7 @@ void pkdTreeBuildByGroup(PKD pkd, int nBucket) {
 	for (i=0; i<=pkd->nGroups;++i) iGrpOffset[i] = 0;
 	for (i=0;i<pkd->nLocal;++i) {
 	    p = pkdParticle(pkd,i);
-	    gid = *pkdGroup(pkd,p);
+	    gid = pkdGetGroup(pkd,p);
 	    ++iGrpOffset[gid+1];
 	    }
 	iGrpOffset[0] = iGrpOffset[1];
@@ -1134,7 +1134,7 @@ void pkdTreeBuildByGroup(PKD pkd, int nBucket) {
 	for(iTree=1;iTree<pkd->nGroups;++iTree) {
 	    for(i=iGrpOffset[iTree]; i<iGrpEnd[iTree]; ) {
 		p = pkdParticle(pkd,i);
-		gid = *pkdGroup(pkd,p);
+		gid = pkdGetGroup(pkd,p);
 		if (gid==0) gid = pkd->nGroups;
 		if (gid == iTree) ++i;
 		else {
@@ -1151,7 +1151,7 @@ void pkdTreeBuildByGroup(PKD pkd, int nBucket) {
 	for (i=0;i<pkd->nLocal;) {
 	    p = pkdParticle(pkd,i);
 	    pkdGetPos1(pkd,p,r);
-	    gid = *pkdGroup(pkd,p);
+	    gid = pkdGetGroup(pkd,p);
 	    if (gid==0) break;
 	    iRoot = pkd->hopGroups[gid].iTreeRoot;
 	    pNode = pkdTreeNode(pkd,iRoot);
@@ -1161,7 +1161,7 @@ void pkdTreeBuildByGroup(PKD pkd, int nBucket) {
 	    assert(pNode->pLower == i);
 
 	    for (j=0;j<3;++j) dMin[j] = dMax[j] = r[j];
-	    for(p = pkdParticle(pkd,++i); i<pkd->nLocal && *pkdGroup(pkd,p)==gid; ++i) {
+	    for(p = pkdParticle(pkd,++i); i<pkd->nLocal && pkdGetGroup(pkd,p)==gid; ++i) {
 		pkdGetPos1(pkd,p,r);
 		pkdMinMax(r,dMin,dMax);
 		}
@@ -1186,7 +1186,7 @@ void pkdTreeBuildByGroup(PKD pkd, int nBucket) {
 	    for(i=pNode->pLower; i<=n; ) {
 		p = pkdParticle(pkd,i);
 		pkdGetPos1(pkd,p,r);
-		gid = *pkdGroup(pkd,p);
+		gid = pkdGetGroup(pkd,p);
 		if (gid) {
 		    assert(gid==gid2);
 		    if (i==pNode->pLower) {

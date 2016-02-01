@@ -96,6 +96,7 @@ static inline int64_t d2u64(double d) {
 #define PKD_MODEL_SPH          (1<<11) /* Sph Fields */
 #define PKD_MODEL_STAR         (1<<12) /* Star Fields */
 #define PKD_MODEL_PARTICLE_ID  (1<<13) /* Particles have a unique ID */
+#define PKD_MODEL_UNORDERED    (1<<14) /* Particles do not have an order */
 
 #define PKD_MODEL_NODE_MOMENT  (1<<24) /* Include moment in the tree */
 #define PKD_MODEL_NODE_ACCEL   (1<<25) /* mean accel on cell (for grav step) */
@@ -699,6 +700,7 @@ typedef struct pkdContext {
     /*
     ** Advanced memory models
     */
+    int bGidInHeader;
     int oPosition;
     int oAcceleration; /* Three float */
     int oVelocity; /* Three vel_t */
@@ -1015,9 +1017,22 @@ static inline int32_t *pkdInt32( PARTICLE *p, int iOffset ) {
     return (int32_t *)(v + iOffset);
     }
 
+/* Obsolete: please remove */
 static inline int32_t *pkdGroup( PKD pkd, PARTICLE *p ) {
     assert(pkd->oGroup);
+    assert(!pkd->bGidInHeader);
     return CAST(int32_t *, pkdField(p,pkd->oGroup));
+    }
+
+static inline int32_t pkdGetGroup( PKD pkd, PARTICLE *p ) {
+    if (pkd->bGidInHeader) return ((UPARTICLE *)p)->iGroup;
+    assert(pkd->oGroup);
+    return CAST(int32_t *, pkdField(p,pkd->oGroup))[0];
+    }
+
+static inline void pkdSetGroup( PKD pkd, PARTICLE *p, uint32_t gid ) {
+    if (pkd->bGidInHeader) ((UPARTICLE *)p)->iGroup = gid;
+    else if (pkd->oGroup) CAST(int32_t *, pkdField(p,pkd->oGroup))[0] = gid;
     }
 
 static inline float pkdDensity( PKD pkd, PARTICLE *p ) {

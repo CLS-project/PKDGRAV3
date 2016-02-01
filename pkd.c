@@ -394,11 +394,11 @@ void pkdInitialize(
 	pkd->oDensity = pkdParticleAddFloat(pkd,1);
     else pkd->oDensity = 0;
 
+    pkd->bGidInHeader = 0;
+    pkd->oGroup = 0;
     if ( mMemoryModel & PKD_MODEL_GROUPS ) {
-	pkd->oGroup = pkdParticleAddInt32(pkd,1);
-	}
-    else {
-	pkd->oGroup = 0;
+	if (mMemoryModel&PKD_MODEL_UNORDERED) pkd->bGidInHeader = 1;
+	else pkd->oGroup = pkdParticleAddInt32(pkd,1);
 	}
 
     /*
@@ -3726,7 +3726,7 @@ int pkdSelSrcGroup(PKD pkd, int iGroup) {
     PARTICLE *p;
     for( i=0; i<n; i++ ) {
 	p=pkdParticle(pkd,i);
-	p->bSrcActive = *pkdGroup(pkd,p)==iGroup;
+	p->bSrcActive = pkdGetGroup(pkd,p)==iGroup;
 	}
     return n;
     }
@@ -3737,7 +3737,7 @@ int pkdSelDstGroup(PKD pkd, int iGroup) {
     PARTICLE *p;
     for( i=0; i<n; i++ ) {
 	p=pkdParticle(pkd,i);
-	p->bDstActive = *pkdGroup(pkd,p)==iGroup;
+	p->bDstActive = pkdGetGroup(pkd,p)==iGroup;
 	}
     return n;
     }

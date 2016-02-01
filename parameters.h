@@ -210,6 +210,7 @@ struct parameters {
     /*
     ** Memory models.  Other parameters can force these to be set.
     */
+    int bMemUnordered;
     int bMemParticleID;
     int bMemAcceleration;
     int bMemVelocity;

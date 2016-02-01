@@ -36,16 +36,22 @@ typedef struct {
     int32_t  iIndex;    /* Index of item on the processor */
     } remoteID;
 
+/* Regular particle with order and all the goodies */
 typedef struct particle {
-    /*-----Base-Particle-Data----*/
-    uint64_t iOrder     :  IORDERBITS;
-    uint8_t  bMarked    :  1;
-    uint8_t  uNewRung   :  IRUNGBITS;
-    uint8_t  uRung      :  IRUNGBITS;
-    uint8_t  bSrcActive :  1;
-    uint8_t  bDstActive :  1;
-    uint8_t  iClass     :  8;
+    uint64_t  uRung      :  IRUNGBITS;
+    uint64_t  uNewRung   :  IRUNGBITS;
+    uint64_t  bSrcActive :  1;
+    uint64_t  bDstActive :  1;
+    uint64_t  iClass     :  8;
+    uint64_t  bMarked    :  1;
+    uint64_t  iOrder     :  IORDERBITS;
     } PARTICLE;
+
+/* Abbreviated particle header with group id */
+typedef struct uparticle {
+    uint32_t  uRung      :  IRUNGBITS;
+    uint32_t  iGroup     :  (32-IRUNGBITS);
+    } UPARTICLE;
 
 #define PP_CUDA_MEMORY_LIMIT (1024*1024)
 

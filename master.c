@@ -172,6 +172,7 @@ static uint64_t getMemoryModel(MSR msr) {
 	if (!msr->param.bNewKDK) mMemoryModel |= PKD_MODEL_ACCELERATION;
 	}
     if (msr->param.bDoDensity)       mMemoryModel |= PKD_MODEL_DENSITY;
+    if (msr->param.bMemUnordered)    mMemoryModel |= PKD_MODEL_UNORDERED;
     if (msr->param.bMemParticleID)   mMemoryModel |= PKD_MODEL_PARTICLE_ID;
     if (msr->param.bTraceRelaxation) mMemoryModel |= PKD_MODEL_RELAXATION;
     if (msr->param.bMemAcceleration || msr->param.bDoAccOutput) mMemoryModel |= PKD_MODEL_ACCELERATION;
@@ -215,16 +216,16 @@ void msrInitializePStore(MSR msr, uint64_t *nSpecies) {
     ps.bLightConeParticles  = msr->param.bLightConeParticles;    
 
 #define SHOW(m) ((ps.mMemoryModel&PKD_MODEL_##m)?" " #m:"")
-       printf("Memory Models:%s%s%s%s%s%s%s%s%s%s%s%s%s%s\n", 
+       printf("Memory Models:%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s\n", 
 #ifdef INTEGER_POSITION
 	   " INTEGER_POSITION",
 #else
 	   " DOUBLE_POSITION",
 #endif
-	   SHOW(VELOCITY),SHOW(ACCELERATION),SHOW(POTENTIAL),SHOW(GROUPS),
-	   SHOW(RELAXATION),SHOW(MASS),SHOW(DENSITY),SHOW(BALL),
-	   SHOW(SOFTENING),SHOW(VELSMOOTH),SHOW(SPH),SHOW(STAR),
-	   SHOW(PARTICLE_ID));
+	   SHOW(UNORDERED),SHOW(VELOCITY),SHOW(ACCELERATION),SHOW(POTENTIAL),
+	   SHOW(GROUPS),SHOW(RELAXATION),SHOW(MASS),SHOW(DENSITY),
+	   SHOW(BALL),SHOW(SOFTENING),SHOW(VELSMOOTH),SHOW(SPH),
+	   SHOW(STAR),SHOW(PARTICLE_ID));
 #undef SHOW
     ps.nMinEphemeral = 0;
     ps.nMinTotalStore = 0;
@@ -1234,6 +1235,9 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
 		sizeof(int),"wic","<Write IC after generating> = 0");
 
     /* Memory models */
+    msr->param.bMemUnordered = 0;
+    prmAddParam(msr->prm,"bMemUnordered",0,&msr->param.bMemUnordered,
+		sizeof(int),"unordered","<Particles have no specific order> = -unordered");
     msr->param.bMemParticleID = 0;
     prmAddParam(msr->prm,"bMemParticleID",0,&msr->param.bMemParticleID,
 		sizeof(int),"pid","<Particles have a unique identifier> = -pid");
