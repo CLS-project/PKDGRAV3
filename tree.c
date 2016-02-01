@@ -794,9 +794,12 @@ void Create(PKD pkd,int iRoot) {
 #if defined(__AVX__) && defined(INTEGER_POSITION)
 	    __m256d v = _mm256_sub_pd(pkdGetPos(pkd,p),_mm256_setr_pd(pkdn->r[0],pkdn->r[1],pkdn->r[2],0.0));
 	    v = _mm256_mul_pd(v,v);
-	    vdouble vd;
-	    vd.p = v;
-	    d2Max = _mm_cvtsd_f64(_mm_max_sd(_mm_set_sd(vd.d[0] + vd.d[1] + vd.d[2]),_mm_set_sd(d2Max)));
+	    __m128d t0 = _mm256_extractf128_pd(v,0);
+	    __m128d t2 = _mm256_extractf128_pd(v,1);
+	    __m128d t1 = _mm_unpackhi_pd(t0,t0);
+	    t0 = _mm_add_sd(t0,t2);
+	    t0 = _mm_add_sd(t0,t1);
+	    d2Max = _mm_cvtsd_f64(_mm_max_sd(t0,_mm_set_sd(d2Max)));
 #else
 	    pkdGetPos1(pkd,p,ft);
 	    x = ft[0] - pkdn->r[0];
@@ -910,9 +913,12 @@ void Create(PKD pkd,int iRoot) {
 #if defined(__AVX__) && defined(INTEGER_POSITION)
 		    __m256d v = _mm256_sub_pd(pkdGetPos(pkd,p),_mm256_setr_pd(pkdn->r[0],pkdn->r[1],pkdn->r[2],0.0));
 		    v = _mm256_mul_pd(v,v);
-		    vdouble vd;
-		    vd.p = v;
-		    d2Max = _mm_cvtsd_f64(_mm_max_sd(_mm_set_sd(vd.d[0] + vd.d[1] + vd.d[2]),_mm_set_sd(d2Max)));
+		    __m128d t0 = _mm256_extractf128_pd(v,0);
+		    __m128d t2 = _mm256_extractf128_pd(v,1);
+		    __m128d t1 = _mm_unpackhi_pd(t0,t0);
+		    t0 = _mm_add_sd(t0,t2);
+		    t0 = _mm_add_sd(t0,t1);
+		    d2Max = _mm_cvtsd_f64(_mm_max_sd(t0,_mm_set_sd(d2Max)));
 #else
 		    pkdGetPos3(pkd,p,x,y,z);
 		    x -= pkdn->r[0];
