@@ -2066,7 +2066,7 @@ void pkdPhysicalSoft(PKD pkd,double dSoftMax,double dFac,int bSoftMaxMul) {
 
 void
 pkdGravAll(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
-    int bKickClose,int bKickOpen,double *dtClose,double *dtOpen,
+    int bKickClose,int bKickOpen,vel_t *dtClose,vel_t *dtOpen,
     double dAccFac,double dTime,int nReps,int bPeriodic,
     int iOrder,int bEwald,int nGroup,int iRoot1, int iRoot2,
     double fEwCut,double fEwhCut,double dThetaMin,

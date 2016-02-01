@@ -58,6 +58,33 @@ static const struct CONSTS {
     };
 #endif
 
+#if 1
+#ifdef __SSE2__
+/* Caution: This uses v/sqrt(v) so v annot be zero! */
+static inline float asqrtf(float v) {
+    __m128 r2 = _mm_set_ss(v);
+    __m128 r = _mm_rsqrt_ps(r2);
+    r = _mm_mul_ss(r,_mm_sub_ss(_mm_set_ss(3.0/2.0),_mm_mul_ss(_mm_mul_ss(r,r),_mm_mul_ss(r2,_mm_set_ss(0.5)))));
+    r = _mm_mul_ss(r,r2);
+    v = _mm_cvtss_f32(r);
+    return v;
+    }
+static inline float rsqrtf(float v) {
+    __m128 r2 = _mm_set_ss(v);
+    __m128 r = _mm_rsqrt_ps(r2);
+    r = _mm_mul_ss(r,_mm_sub_ss(_mm_set_ss(3.0/2.0),_mm_mul_ss(_mm_mul_ss(r,r),_mm_mul_ss(r2,_mm_set_ss(0.5)))));
+    v =_mm_cvtss_f32(r);
+    return v;
+    }
+#else
+static inline float asqrtf(float v) {
+    return sqrtf(v);
+    }
+static inline float rsqrtf(float v) {
+    return 1.0f / sqrtf(v);
+    }
+#endif
+#endif
 
 #define SQRT1(d2,dir)\
     {\
@@ -80,6 +107,9 @@ void pkdParticleWorkDone(workParticle *work) {
     unsigned char uNewRung;
 
     if ( --work->nRefs == 0 ) {
+	float fiDelta = 1.0/pkd->param.dDelta;
+	float fEta = pkd->param.dEta;
+	float fiAccFac = 1.0 / work->dAccFac;
 	pkd->dFlop += work->dFlop;
 	for( i=0; i<work->nP; i++ ) {
 	    p = work->pPart[i];
@@ -118,15 +148,16 @@ void pkdParticleWorkDone(workParticle *work) {
 		    fx = work->pInfoOut[i].a[0];
 		    fy = work->pInfoOut[i].a[1];
 		    fz = work->pInfoOut[i].a[2];
-		    maga = sqrtf(fx*fx + fy*fy + fz*fz);
+		    maga = fx*fx + fy*fy + fz*fz;
+		    if (maga>0.0f) maga = asqrtf(maga);
 		    dtGrav = maga*dirsum/normsum;
 		    }
 		else dtGrav = 0.0;
 		dtGrav += pkd->param.dPreFacRhoLoc*work->pInfoIn[i].fDensity;
 		dtGrav = (work->pInfoOut[i].rhopmax > dtGrav?work->pInfoOut[i].rhopmax:dtGrav);
 		if (dtGrav > 0.0) {
-		    dT = pkd->param.dEta/sqrt(dtGrav*work->dRhoFac);
-		    p->uNewRung = pkdDtToRung(dT,pkd->param.dDelta,pkd->param.iMaxRung-1);
+		    dT = fEta * rsqrtf(dtGrav*work->dRhoFac);
+		    p->uNewRung = pkdDtToRungInverse(dT,fiDelta,pkd->param.iMaxRung-1);
 		    }
 		else p->uNewRung = 0; /* Assumes current uNewRung is outdated -- not ideal */
 		} /* end of work->bGravStep */
@@ -137,11 +168,11 @@ void pkdParticleWorkDone(workParticle *work) {
 		fx = work->pInfoOut[i].a[0];
 		fy = work->pInfoOut[i].a[1];
 		fz = work->pInfoOut[i].a[2];
-		maga = sqrtf(fx*fx + fy*fy + fz*fz);
+		maga = fx*fx + fy*fy + fz*fz;
 		if (maga > 0) {
-		    maga *= work->dAccFac;
-		    dT = pkd->param.dEta*sqrt(pkdSoft(pkd,p)/maga);
-		    p->uNewRung = pkdDtToRung(dT,pkd->param.dDelta,pkd->param.iMaxRung-1);
+		    float imaga = rsqrtf(maga) * fiAccFac;
+		    dT = fEta*asqrtf(pkdSoft(pkd,p)*imaga);
+		    p->uNewRung = pkdDtToRungInverse(dT,fiDelta,pkd->param.iMaxRung-1);
 		    }
 		else p->uNewRung = 0;
 		}
@@ -878,7 +909,7 @@ static void queueEwald( PKD pkd, workParticle *work ) {
 ** Returns nActive.
 */
 int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
-    int bKickClose,int bKickOpen,double *dtClose,double *dtOpen,double dAccFac,
+    int bKickClose,int bKickOpen,vel_t *dtClose,vel_t *dtOpen,double dAccFac,
     KDN *pBucket,LOCR *pLoc,ILP ilp,ILC ilc,
     float dirLsum,float normLsum,int bEwald,int bGravStep,int nGroup,double *pdFlop,
     double dRhoFac,SMX smx,SMF *smf,int iRoot1,int iRoot2) {

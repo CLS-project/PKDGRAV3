@@ -1265,7 +1265,7 @@ uint32_t pkdWriteFIO(PKD pkd,FIO fio,double dvFac,BND *bnd);
 void pkdWriteFromNode(PKD pkd,int iNode, FIO fio,double dvFac,BND *bnd);
 void pkdWriteViaNode(PKD pkd, int iNode);
 void pkdGravAll(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
-    int bKickClose,int bKickOpen,double *dtClose,double *dtOpen,
+    int bKickClose,int bKickOpen,vel_t *dtClose,vel_t *dtOpen,
     double dAccFac,double dTime,int nReps,int bPeriodic,
     int iOrder,int bEwald,int nGroup,int iRoot1, int iRoot2,
     double fEwCut,double fEwhCut,double dThetaMin,
@@ -1310,6 +1310,22 @@ int pkdUpdateRung(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
 		  uint8_t uRung,int iMaxRung,uint64_t *nRungCount);
 void pkdUpdateRungByTree(PKD pkd,int iRoot,uint8_t uMinRung,int iMaxRung,uint64_t *nRungCount);
 uint8_t pkdDtToRung(double dT, double dDelta, uint8_t uMaxRung);
+static inline uint8_t pkdDtToRungInverse(float fT, float fiDelta, uint8_t uMaxRung) {
+    union {
+	float f;
+	struct {
+	    uint32_t mantisa : 23;
+	    uint32_t exponent : 8;
+	    uint32_t sign : 1;
+	    } ieee;
+	} T;
+    int iRung;
+    T.f = fiDelta*fT;
+    if (T.f>=1.0) return 0;
+    iRung = 126 - T.ieee.exponent; /* -log2(d) */
+    if (iRung > uMaxRung) return uMaxRung;
+    else return iRung;
+    }
 int pkdOrdWeight(PKD pkd,uint64_t iOrdSplit,int iSplitSide,int iFrom,int iTo,
 		 int *pnLow,int *pnHigh);
 void pkdDeleteParticle(PKD pkd, PARTICLE *p);

@@ -628,8 +628,8 @@ struct inGravity {
     int bKickClose;
     int bKickOpen;
     double dAccFac;
-    double dtClose[IRUNGMAX+1];
-    double dtOpen[IRUNGMAX+1];
+    vel_t dtClose[IRUNGMAX+1];
+    vel_t dtOpen[IRUNGMAX+1];
     };
 
 

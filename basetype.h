@@ -108,8 +108,8 @@ typedef struct {
     uint8_t uRungHi;
     int bKickClose;
     int bKickOpen;
-    double *dtClose;
-    double *dtOpen;
+    vel_t *dtClose;
+    vel_t *dtOpen;
     double dAccFac;
 #ifdef USE_CUDA
     void *cudaCtx;

@@ -294,7 +294,7 @@ static void addChild(PKD pkd, int iCache, CL cl, int iChild, int id, float *fOff
 ** Returns total number of active particles for which gravity was calculated.
 */
 static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2, uint8_t uRungLo,uint8_t uRungHi, 
-    int bKickClose,int bKickOpen,double *dtClose,double *dtOpen,double dAccFac,
+    int bKickClose,int bKickOpen,vel_t *dtClose,vel_t *dtOpen,double dAccFac,
     double dRhoFac, int bEwald, int nGroup,
     double dThetaMin, int bGravStep, double *pdFlop, double *pdPartSum,double *pdCellSum) {
     KDN *k,*c,*kFind;
@@ -909,7 +909,7 @@ int pkdGravWalkHop(PKD pkd,double dTime,int nGroup, double dThetaMin,double *pdF
 ** Returns total number of active particles for which gravity was calculated.
 */
 int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,int bKickClose,int bKickOpen,
-    double *dtClose,double *dtOpen,double dAccFac,double dTime,int nReps,int bEwald,int nGroup,
+    vel_t *dtClose,vel_t *dtOpen,double dAccFac,double dTime,int nReps,int bEwald,int nGroup,
     int iLocalRoot1, int iLocalRoot2,int iVARoot,
     double dThetaMin,double *pdFlop,double *pdPartSum,double *pdCellSum) {
     int id;
