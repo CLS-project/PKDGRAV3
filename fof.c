@@ -537,6 +537,14 @@ int pkdNewFof(PKD pkd,double dTau2,int nMinMembers) {
 	fMaxFofContained[j] -= sqrt(dTau2);
 	}
     /*
+    ** Clear the group numbers!
+    */
+    for (pn=0;pn<pkd->nLocal;++pn) {
+	p = pkdParticle(pkd,pn);
+	pGroup = pkdInt32(p,pkd->oGroup);
+	*pGroup = 0;
+	}
+    /*
     ** The following *just* fits into ephemeral storage of 8bytes/particle.
     */
     assert(EPHEMERAL_BYTES >= 8);
