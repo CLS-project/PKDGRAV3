@@ -677,7 +677,7 @@ void Create(PKD pkd,int iRoot) {
 	    p = pkdParticle(pkd,pj);
 	    __m128i v = pkdGetPosRaw(pkd,p);
 	    ivmin = _mm_min_epi32(ivmin,v);
-	    ivmax = _mm_max_epi32(ivmin,v);
+	    ivmax = _mm_max_epi32(ivmax,v);
 	    }
 	vmin = _mm256_mul_pd(_mm256_cvtepi32_pd(ivmin),_mm256_set1_pd(1.0/INTEGER_FACTOR) );
 	vmax = _mm256_mul_pd(_mm256_cvtepi32_pd(ivmax),_mm256_set1_pd(1.0/INTEGER_FACTOR) );
