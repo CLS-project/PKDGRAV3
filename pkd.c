@@ -613,6 +613,7 @@ void pkdInitialize(
     */
     ilpInitialize(&pkd->ilp);
     ilcInitialize(&pkd->ilc);
+    ilcInitialize(&pkd->ill);
     /*
     ** Allocate Checklist.
     */
@@ -689,6 +690,7 @@ void pkdFinish(PKD pkd) {
     */
     ilpFinish(pkd->ilp);
     ilcFinish(pkd->ilc);
+    ilcFinish(pkd->ill);
     /*
     ** Free checklist.
     */
@@ -752,6 +754,10 @@ size_t pkdIlpMemory(PKD pkd) {
 
 size_t pkdIlcMemory(PKD pkd) {
     return ilcMemory(pkd->ilc);
+    }
+
+size_t pkdIllMemory(PKD pkd) {
+    return ilcMemory(pkd->ill);
     }
 
 size_t pkdTreeMemory(PKD pkd) {

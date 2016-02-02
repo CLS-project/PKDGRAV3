@@ -62,7 +62,9 @@ SOURCES += grav2.c walk2.c
 SOURCES += lst.c ilp.c ilc.c cl.c
 noinst_HEADERS += lst.h ilp.h ilc.h cl.h
 if USE_SIMD
+SOURCES        += vmoments.cxx
 AM_CFLAGS = @SIMD_CFLAGS@
+AM_CXXFLAGS = @SIMD_CFLAGS@
 noinst_HEADERS += simd.h sse_mathfun.h avx_mathfun.h
 endif
 MDL=@MDL_PATH@

@@ -737,6 +737,7 @@ typedef struct pkdContext {
     CSTACK *S;
     ILP ilp;
     ILC ilc;
+    ILC ill;
     LSTFREELIST clFreeList;
     CL cl;
     CL clNew;
@@ -1225,6 +1226,7 @@ void pkdInitialize(
 void pkdFinish(PKD);
 size_t pkdClCount(PKD pkd);
 size_t pkdClMemory(PKD pkd);
+size_t pkdIllMemory(PKD pkd);
 size_t pkdIlcMemory(PKD pkd);
 size_t pkdIlpMemory(PKD pkd);
 size_t pkdTreeMemory(PKD pkd);

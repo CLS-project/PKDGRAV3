@@ -2536,6 +2536,96 @@ void momAddFlocr(FLOCR *lr,FLOCR *la) {
     lr->xxyyz += la->xxyyz;
 }
 
+void momFlocrToLocr(LOCR *lr,FLOCR *la,float v) {
+    double u = 1.0/((double)v);
+    double uu;
+
+    lr->m = la->m;
+    lr->x = u*la->x;
+    lr->y = u*la->y;
+    lr->z = u*la->z;
+    uu = u*u;
+    lr->xx = uu*la->xx;
+    lr->yy = uu*la->yy;
+    lr->xy = uu*la->xy;
+    lr->xz = uu*la->xz;
+    lr->yz = uu*la->yz;
+    uu *= u;
+    lr->xxx = uu*la->xxx;
+    lr->xyy = uu*la->xyy;
+    lr->xxy = uu*la->xxy;
+    lr->yyy = uu*la->yyy;
+    lr->xxz = uu*la->xxz;
+    lr->yyz = uu*la->yyz;
+    lr->xyz = uu*la->xyz;
+    uu *= u;
+    lr->xxxx = uu*la->xxxx;
+    lr->xyyy = uu*la->xyyy;
+    lr->xxxy = uu*la->xxxy;
+    lr->yyyy = uu*la->yyyy;
+    lr->xxxz = uu*la->xxxz;
+    lr->yyyz = uu*la->yyyz;
+    lr->xxyy = uu*la->xxyy;
+    lr->xxyz = uu*la->xxyz;
+    lr->xyyz = uu*la->xyyz;
+    uu *= u;
+    lr->xxxxx = uu*la->xxxxx;
+    lr->xyyyy = uu*la->xyyyy;
+    lr->xxxxy = uu*la->xxxxy;
+    lr->yyyyy = uu*la->yyyyy;
+    lr->xxxxz = uu*la->xxxxz;
+    lr->yyyyz = uu*la->yyyyz;
+    lr->xxxyy = uu*la->xxxyy;
+    lr->xxyyy = uu*la->xxyyy;
+    lr->xxxyz = uu*la->xxxyz;
+    lr->xyyyz = uu*la->xyyyz;
+    lr->xxyyz = uu*la->xxyyz;
+}
+
+void momLocrToFlocr(FLOCR *lr,LOCR *la,float v) {
+    double u = v;
+    double uu;
+    lr->m = u*la->m;
+    lr->x = u*la->x;
+    lr->y = u*la->y;
+    lr->z = u*la->z;
+    uu = u*u;
+    lr->xx = u*la->xx;
+    lr->yy = u*la->yy;
+    lr->xy = u*la->xy;
+    lr->xz = u*la->xz;
+    lr->yz = u*la->yz;
+    uu *= u;
+    lr->xxx = u*la->xxx;
+    lr->xyy = u*la->xyy;
+    lr->xxy = u*la->xxy;
+    lr->yyy = u*la->yyy;
+    lr->xxz = u*la->xxz;
+    lr->yyz = u*la->yyz;
+    lr->xyz = u*la->xyz;
+    uu *= u;
+    lr->xxxx = u*la->xxxx;
+    lr->xyyy = u*la->xyyy;
+    lr->xxxy = u*la->xxxy;
+    lr->yyyy = u*la->yyyy;
+    lr->xxxz = u*la->xxxz;
+    lr->yyyz = u*la->yyyz;
+    lr->xxyy = u*la->xxyy;
+    lr->xxyz = u*la->xxyz;
+    lr->xyyz = u*la->xyyz;
+    uu *= u;
+    lr->xxxxx = u*la->xxxxx;
+    lr->xyyyy = u*la->xyyyy;
+    lr->xxxxy = u*la->xxxxy;
+    lr->yyyyy = u*la->yyyyy;
+    lr->xxxxz = u*la->xxxxz;
+    lr->yyyyz = u*la->yyyyz;
+    lr->xxxyy = u*la->xxxyy;
+    lr->xxyyy = u*la->xxyyy;
+    lr->xxxyz = u*la->xxxyz;
+    lr->xyyyz = u*la->xyyyz;
+    lr->xxyyz = u*la->xxyyz;
+}
 
 /*
  ** This function adds the reduced scaled local expansion la to the reduced scaled local expansion lr.

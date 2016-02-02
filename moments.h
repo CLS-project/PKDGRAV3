@@ -137,6 +137,11 @@ void momRescaleFlocr(FLOCR *lr,float vnew,float vold);
 void momSubMomc(MOMC *mc,MOMC *ma);
 void momSubMomr(MOMR *mr,MOMR *ma);
 /*
+** Conversion
+*/
+void momFlocrToLocr(LOCR *lr,FLOCR *la,float v);
+void momLocrToFlocr(FLOCR *lr,LOCR *la,float v);
+/*
 ** Printing functions:
 */
 void momPrintMomc(MOMC *m);
