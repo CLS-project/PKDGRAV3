@@ -7,6 +7,7 @@
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>
 #endif
+#include <stdlib.h>
 #include <errno.h>
 
 void io_init(asyncFileInfo *info) {
