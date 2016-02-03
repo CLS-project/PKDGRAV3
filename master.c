@@ -172,6 +172,7 @@ static uint64_t getMemoryModel(MSR msr) {
 	if (!msr->param.bNewKDK) mMemoryModel |= PKD_MODEL_ACCELERATION;
 	}
     if (msr->param.bDoDensity)       mMemoryModel |= PKD_MODEL_DENSITY;
+    if (msr->param.bMemUnordered)    mMemoryModel |= PKD_MODEL_UNORDERED;
     if (msr->param.bMemParticleID)   mMemoryModel |= PKD_MODEL_PARTICLE_ID;
     if (msr->param.bTraceRelaxation) mMemoryModel |= PKD_MODEL_RELAXATION;
     if (msr->param.bMemAcceleration || msr->param.bDoAccOutput) mMemoryModel |= PKD_MODEL_ACCELERATION;
@@ -215,16 +216,16 @@ void msrInitializePStore(MSR msr, uint64_t *nSpecies) {
     ps.bLightConeParticles  = msr->param.bLightConeParticles;    
 
 #define SHOW(m) ((ps.mMemoryModel&PKD_MODEL_##m)?" " #m:"")
-       printf("Memory Models:%s%s%s%s%s%s%s%s%s%s%s%s%s%s\n", 
+       printf("Memory Models:%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s\n", 
 #ifdef INTEGER_POSITION
 	   " INTEGER_POSITION",
 #else
 	   " DOUBLE_POSITION",
 #endif
-	   SHOW(VELOCITY),SHOW(ACCELERATION),SHOW(POTENTIAL),SHOW(GROUPS),
-	   SHOW(RELAXATION),SHOW(MASS),SHOW(DENSITY),SHOW(BALL),
-	   SHOW(SOFTENING),SHOW(VELSMOOTH),SHOW(SPH),SHOW(STAR),
-	   SHOW(PARTICLE_ID));
+	   SHOW(UNORDERED),SHOW(VELOCITY),SHOW(ACCELERATION),SHOW(POTENTIAL),
+	   SHOW(GROUPS),SHOW(RELAXATION),SHOW(MASS),SHOW(DENSITY),
+	   SHOW(BALL),SHOW(SOFTENING),SHOW(VELSMOOTH),SHOW(SPH),
+	   SHOW(STAR),SHOW(PARTICLE_ID));
 #undef SHOW
     ps.nMinEphemeral = 0;
     ps.nMinTotalStore = 0;
@@ -1159,9 +1160,6 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.bFindGroups = 0;
     prmAddParam(msr->prm,"bFindGroups",0,&msr->param.bFindGroups,sizeof(int),
 		"groupfinder","<enable/disable group finder> = -groupfinder");
-    msr->param.bFindPSGroups = 0;
-    prmAddParam(msr->prm,"bFindPSGroups",0,&msr->param.bFindPSGroups,sizeof(int),
-		"psgroupfinder","<enable/disable phase-space group finder> = -psgroupfinder");
     msr->param.bFindHopGroups = 0;
     prmAddParam(msr->prm,"bFindHopGroups",0,&msr->param.bFindHopGroups,sizeof(int),
 		"hop","<enable/disable phase-space group finder> = -hop");
@@ -1237,6 +1235,9 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
 		sizeof(int),"wic","<Write IC after generating> = 0");
 
     /* Memory models */
+    msr->param.bMemUnordered = 0;
+    prmAddParam(msr->prm,"bMemUnordered",0,&msr->param.bMemUnordered,
+		sizeof(int),"unordered","<Particles have no specific order> = -unordered");
     msr->param.bMemParticleID = 0;
     prmAddParam(msr->prm,"bMemParticleID",0,&msr->param.bMemParticleID,
 		sizeof(int),"pid","<Particles have a unique identifier> = -pid");
@@ -1697,7 +1698,6 @@ void msrLogParams(MSR msr,FILE *fp) {
     fprintf(fp," SFdMinGasMass %g",msr->param.SFdMinGasMass);
     fprintf(fp," SFbdivv %d",msr->param.SFbdivv);
     /* -- */
-    fprintf(fp,"\n# Group Find: bFindPSGroups: %d",msr->param.bFindPSGroups);
     fprintf(fp,"\n# Group Find: bFindHopGroups: %d",msr->param.bFindHopGroups);
     fprintf(fp," dHopTau: %g",msr->param.dHopTau);
     /* -- */
@@ -4598,10 +4598,20 @@ void msrHopWrite(MSR msr, const char *fname) {
 	pst0 = pst0->pstLower;
     plcl = pst0->plcl;
 
+
     if (msr->param.bVStep)
 	printf("Writing Grasshopper statistics to %s\n", fname );
     sec = msrTime();
 
+#if 0
+    /* This is the new parallel binary format */
+    struct inOutput out;
+    out.iPartner = -1;
+    out.iProcessor = 0;
+    out.nProcessor = msr->param.bParaWrite==0?1:(msr->param.nParaWrite<=1 ? msr->nThreads:msr->param.nParaWrite);
+    strcpy(out.achOutFile,fname);
+    pstOutput(msr->pst,&out,sizeof(out),NULL,NULL);
+#else
     fp = fopen(fname,"w");
     if (!fp) {
 	printf("Could not open Group Output File:%s\n",fname);
@@ -4615,7 +4625,7 @@ void msrHopWrite(MSR msr, const char *fname) {
         mdlGetReply(pst0->mdl,rID,NULL,NULL);
         }
     fclose(fp);
-
+#endif
     dsec = msrTime() - sec;
     if (msr->param.bVStep)
 	printf("Written statistics, Wallclock: %f secs\n",dsec);
@@ -4748,6 +4758,17 @@ void msrHop(MSR msr, double dTime) {
     pstGroupCountGID(msr->pst,NULL,0,&outCount,NULL); /* This has the side-effect of updating counts in the PST */
     inAssign.iStartGID = 0;
     pstGroupAssignGID(msr->pst,&inAssign,sizeof(inAssign),NULL,NULL); /* Requires correct counts in the PST */
+
+    /*
+    ** This should be done as a separate msr function.
+    */
+    struct inGroupStats inGroupStats;
+    inGroupStats.bPeriodic = msr->param.bPeriodic;
+    inGroupStats.dPeriod[0] = msr->param.dxPeriod;
+    inGroupStats.dPeriod[1] = msr->param.dyPeriod;
+    inGroupStats.dPeriod[2] = msr->param.dzPeriod;
+    pstGroupStats(msr->pst,&inAssign,sizeof(inGroupStats),NULL,NULL); /* Requires correct counts in the PST */
+
     dsec = msrTime() - ssec;
     if (msr->param.bVStep)
 	printf("Grasshopper complete, Wallclock: %f secs\n\n",dsec);

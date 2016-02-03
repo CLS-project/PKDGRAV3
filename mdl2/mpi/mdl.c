@@ -1500,7 +1500,7 @@ void mdlLaunch(int argc,char **argv,void * (*fcnMaster)(MDL),void * (*fcnChild)(
 
     /* Dedicate one of the threads for MPI, unless it would be senseless to do so */
     if (bDedicated == -1) {
-	if (mdl->base.nProcs>1 && mdl->base.nCores>3) bDedicated = 1;
+	if (mdl->base.nProcs>0 && mdl->base.nCores>3) bDedicated = 1;
 	else bDedicated = 0;
 	}
     if (bDedicated == 1) {

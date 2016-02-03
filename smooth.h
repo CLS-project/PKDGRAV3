@@ -43,13 +43,6 @@ typedef struct smContext {
     */
     struct smExtraArray *ea;
     /*
-    ** Similarly, this will also use a portion of the pLite.
-    */
-    struct smGroupArray *ga;
-    /* Next particle in the chain or -1 if at the end in which case */
-    /* the next particle will be remote and can be found in the group array */
-    uint32_t *pl;
-    /*
     ** Flags to mark local particles which are finished in the processing
     ** of the smFastGas routine. They have updated their densities.
     */

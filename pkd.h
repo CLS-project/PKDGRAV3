@@ -96,6 +96,7 @@ static inline int64_t d2u64(double d) {
 #define PKD_MODEL_SPH          (1<<11) /* Sph Fields */
 #define PKD_MODEL_STAR         (1<<12) /* Star Fields */
 #define PKD_MODEL_PARTICLE_ID  (1<<13) /* Particles have a unique ID */
+#define PKD_MODEL_UNORDERED    (1<<14) /* Particles do not have an order */
 
 #define PKD_MODEL_NODE_MOMENT  (1<<24) /* Include moment in the tree */
 #define PKD_MODEL_NODE_ACCEL   (1<<25) /* mean accel on cell (for grav step) */
@@ -315,7 +316,6 @@ static inline FLOAT mindist(const BND *bnd,const FLOAT *pos) {
 	} while(0)							\
 
 typedef struct kdNode {
-    double r[3];
     int pLower;		     /* also serves as thread id for the LTT */
     int pUpper;		     /* pUpper < 0 indicates no particles in tree! */
     uint32_t iLower;         /* Local lower node (or remote processor w/bRemote=1) */
@@ -326,6 +326,7 @@ typedef struct kdNode {
     uint16_t bDstActive : 1;
     uint16_t bTopTree   : 1; /* This is a top tree node: pLower,pUpper are node indexes */
     uint16_t bRemote    : 1; /* children are remote */
+    double r[3];
     float bMax;
     float fSoft2;
     } KDN;
@@ -708,6 +709,7 @@ typedef struct pkdContext {
     /*
     ** Advanced memory models
     */
+    int bGidInHeader;
     int oPosition;
     int oAcceleration; /* Three float */
     int oVelocity; /* Three vel_t */
@@ -744,6 +746,7 @@ typedef struct pkdContext {
     CSTACK *S;
     ILP ilp;
     ILC ilc;
+    ILC ill;
     LSTFREELIST clFreeList;
     CL cl;
     CL clNew;
@@ -1024,9 +1027,22 @@ static inline int32_t *pkdInt32( PARTICLE *p, int iOffset ) {
     return (int32_t *)(v + iOffset);
     }
 
+/* Obsolete: please remove */
 static inline int32_t *pkdGroup( PKD pkd, PARTICLE *p ) {
     assert(pkd->oGroup);
+    assert(!pkd->bGidInHeader);
     return CAST(int32_t *, pkdField(p,pkd->oGroup));
+    }
+
+static inline int32_t pkdGetGroup( PKD pkd, PARTICLE *p ) {
+    if (pkd->bGidInHeader) return ((UPARTICLE *)p)->iGroup;
+    assert(pkd->oGroup);
+    return CAST(int32_t *, pkdField(p,pkd->oGroup))[0];
+    }
+
+static inline void pkdSetGroup( PKD pkd, PARTICLE *p, uint32_t gid ) {
+    if (pkd->bGidInHeader) ((UPARTICLE *)p)->iGroup = gid;
+    else if (pkd->oGroup) CAST(int32_t *, pkdField(p,pkd->oGroup))[0] = gid;
     }
 
 static inline float pkdDensity( PKD pkd, PARTICLE *p ) {
@@ -1080,16 +1096,30 @@ static inline FIO_SPECIES pkdSpecies( PKD pkd, PARTICLE *p ) {
 ** with a different period so this is not currently supported.
 */
 #define pkdPosRaw(pkd,p,d) (CAST(pos_t *,pkdField(p,pkd->oPosition))[d])
-#define pkdSetPosRaw(pkd,p,d,v) (CAST(pos_t *,pkdField(p,pkd->oPosition))[d]) = (v);
+#define pkdSetPosRaw(pkd,p,d,v) (CAST(pos_t *,pkdField(p,pkd->oPosition))[d]) = (v)
 #ifdef INTEGER_POSITION
-#define pkdDblToPos(pkd,d) (pos_t)((d)*0x80000000u)
-#define pkdPosToDbl(pkd,pos) ((pos)*(1.0/0x80000000u))
-#define pkdPos(pkd,p,d) ((CAST(pos_t *,pkdField(p,pkd->oPosition))[d]) * (1.0/0x80000000u))
-#define pkdSetPos(pkd,p,d,v) (void)((CAST(pos_t *,pkdField(p,pkd->oPosition))[d]) = (v)*0x80000000u)
+#define INTEGER_FACTOR 0x80000000u
+#define pkdDblToPos(pkd,d) (pos_t)((d)*INTEGER_FACTOR)
+#define pkdPosToDbl(pkd,pos) ((pos)*(1.0/INTEGER_FACTOR))
+#define pkdPos(pkd,p,d) ((CAST(pos_t *,pkdField(p,pkd->oPosition))[d]) * (1.0/INTEGER_FACTOR))
+#define pkdSetPos(pkd,p,d,v) (void)((CAST(pos_t *,pkdField(p,pkd->oPosition))[d]) = (v)*INTEGER_FACTOR)
 #ifdef __AVX__
+static inline void pkdSetPosRaw1(PKD pkd,PARTICLE *p,__m128i v) {
+    pos_t *r = pkdField(p,pkd->oPosition);
+    r[0] = _mm_extract_epi32 (v,0);
+    r[1] = _mm_extract_epi32 (v,1);
+    r[2] = _mm_extract_epi32 (v,2);
+//    _mm_maskmoveu_si128 (v,_mm_setr_epi32(-1,-1,-1,0), pkdField(p,pkd->oPosition));
+    }
+static inline __m128i pkdGetPosRaw(PKD pkd,PARTICLE *p) {
+    return _mm_loadu_si128(pkdField(p,pkd->oPosition));
+    }
+static inline __m256d pkdGetPos(PKD pkd,PARTICLE *p) {
+    return _mm256_mul_pd(_mm256_cvtepi32_pd(pkdGetPosRaw(pkd,p)),_mm256_set1_pd(1.0/INTEGER_FACTOR));
+    }
 #define pkdGetPos3(pkd,p,d1,d2,d3) do {					\
 	union { __m256d p; double d[4]; } r_pkdGetPos3;			\
-	r_pkdGetPos3.p = _mm256_mul_pd(_mm256_cvtepi32_pd(*(__m128i *)(CAST(pos_t *,pkdField(p,pkd->oPosition)))),_mm256_set1_pd(1.0/0x80000000u) ); \
+	r_pkdGetPos3.p = pkdGetPos(pkd,p);				\
 	d1 = r_pkdGetPos3.d[0];						\
 	d2 = r_pkdGetPos3.d[1];						\
 	d3 = r_pkdGetPos3.d[2];						\
@@ -1207,6 +1237,7 @@ void pkdInitialize(
 void pkdFinish(PKD);
 size_t pkdClCount(PKD pkd);
 size_t pkdClMemory(PKD pkd);
+size_t pkdIllMemory(PKD pkd);
 size_t pkdIlcMemory(PKD pkd);
 size_t pkdIlpMemory(PKD pkd);
 size_t pkdTreeMemory(PKD pkd);
@@ -1262,7 +1293,7 @@ uint32_t pkdWriteFIO(PKD pkd,FIO fio,double dvFac,BND *bnd);
 void pkdWriteFromNode(PKD pkd,int iNode, FIO fio,double dvFac,BND *bnd);
 void pkdWriteViaNode(PKD pkd, int iNode);
 void pkdGravAll(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
-    int bKickClose,int bKickOpen,double *dtClose,double *dtOpen,
+    int bKickClose,int bKickOpen,vel_t *dtClose,vel_t *dtOpen,
     double dAccFac,double dTime,int nReps,int bPeriodic,
     int iOrder,int bEwald,int nGroup,int iRoot1, int iRoot2,
     double fEwCut,double fEwhCut,double dThetaMin,
@@ -1307,6 +1338,22 @@ int pkdUpdateRung(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
 		  uint8_t uRung,int iMaxRung,uint64_t *nRungCount);
 void pkdUpdateRungByTree(PKD pkd,int iRoot,uint8_t uMinRung,int iMaxRung,uint64_t *nRungCount);
 uint8_t pkdDtToRung(double dT, double dDelta, uint8_t uMaxRung);
+static inline uint8_t pkdDtToRungInverse(float fT, float fiDelta, uint8_t uMaxRung) {
+    union {
+	float f;
+	struct {
+	    uint32_t mantisa : 23;
+	    uint32_t exponent : 8;
+	    uint32_t sign : 1;
+	    } ieee;
+	} T;
+    int iRung;
+    T.f = fiDelta*fT;
+    if (T.f>=1.0) return 0;
+    iRung = 126 - T.ieee.exponent; /* -log2(d) */
+    if (iRung > uMaxRung) return uMaxRung;
+    else return iRung;
+    }
 int pkdOrdWeight(PKD pkd,uint64_t iOrdSplit,int iSplitSide,int iFrom,int iTo,
 		 int *pnLow,int *pnHigh);
 void pkdDeleteParticle(PKD pkd, PARTICLE *p);

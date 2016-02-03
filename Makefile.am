@@ -42,8 +42,8 @@ SOURCES = main.c tree.c analysis.c romberg.c bt.c
 noinst_HEADERS = bt.h parameters.h grav.h walk.h cycle.h tipsydefs.h basetype.h vqsort.h
 SOURCES        += cosmo.c master.c param.c pst.c smooth.c ewald.c
 noinst_HEADERS += cosmo.h master.h param.h pst.h smooth.h ewald.h meval.h qeval.h
-SOURCES        += moments.c intype.c outtype.c pkd.c smoothfcn.c rbtree.c fio.c listcomp.c illinois.c iomodule.c
-noinst_HEADERS += moments.h intype.h outtype.h pkd.h smoothfcn.h rbtree.h fio.h listcomp.h illinois.h iomodule.h
+SOURCES        += moments.c intype.c outtype.c pkd.c smoothfcn.c rbtree.c fio.c listcomp.c illinois.c iomodule.c output.c
+noinst_HEADERS += moments.h intype.h outtype.h pkd.h smoothfcn.h rbtree.h fio.h listcomp.h illinois.h iomodule.h output.h
 if COOLING
 #SOURCES        += cooling.c cooling_module.F90
 #noinst_HEADERS += cooling.h
@@ -62,7 +62,9 @@ SOURCES += grav2.c walk2.c
 SOURCES += lst.c ilp.c ilc.c cl.c
 noinst_HEADERS += lst.h ilp.h ilc.h cl.h
 if USE_SIMD
+SOURCES        += vmoments.cxx
 AM_CFLAGS = @SIMD_CFLAGS@
+AM_CXXFLAGS = @SIMD_CFLAGS@
 noinst_HEADERS += simd.h sse_mathfun.h avx_mathfun.h
 endif
 MDL=@MDL_PATH@

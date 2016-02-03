@@ -76,15 +76,15 @@ static uint64_t fetchInteger(PKD pkd,PARTICLE *p,int iType,int iDim) {
 	v = p->iOrder;
 	break;
     case OUT_GROUP_ARRAY:
-	v = *pkdGroup(pkd,p);
+	v = pkdGetGroup(pkd,p);
 	break;
     case OUT_MARKED_ARRAY:
 	v = p->bMarked;
 	break;
     case OUT_PSGROUP_ARRAY:
 	assert(0);
-	/*v = pkd->psGroupData[*pkdGroup(pkd,p)].iGlobalId;*/
-	v = *pkdGroup(pkd,p);
+	/*v = pkd->psGroupData[pkdGetGroup(pkd,p)].iGlobalId;*/
+	v = pkdGetGroup(pkd,p);
 	break;
     default:
 	v = 0;
@@ -249,7 +249,7 @@ static void finish(PKD pkd,PKDOUT ctx) {
 static void storePsGroup(PKD pkd,PKDOUT ctx,PARTICLE *p,int iType,int iDim) {
     if ( PKDOUT_BUFFER_SIZE - (ctx->inOffset-ctx->inBuffer) < 40 )
 	(*ctx->fnFlush)(pkd,ctx,0);
-    sprintf(ctx->inOffset,"%"PRIu64" %i\n",(uint64_t)p->iOrder, *pkdGroup(pkd,p));
+    sprintf(ctx->inOffset,"%"PRIu64" %i\n",(uint64_t)p->iOrder, pkdGetGroup(pkd,p));
     assert(strlen(ctx->inOffset) < 40 );
     while( *ctx->inOffset ) ++ctx->inOffset;
     }

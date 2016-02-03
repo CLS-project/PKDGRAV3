@@ -180,7 +180,6 @@ struct parameters {
     /*
     ** Additional parameters for group finding.
     */
-    int	bFindPSGroups;
     int	bFindGroups;
     int bFindHopGroups;
     int	nMinMembers;
@@ -211,6 +210,7 @@ struct parameters {
     /*
     ** Memory models.  Other parameters can force these to be set.
     */
+    int bMemUnordered;
     int bMemParticleID;
     int bMemAcceleration;
     int bMemVelocity;

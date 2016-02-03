@@ -110,6 +110,9 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_CHECKPOINT,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstCheckpoint,
 		  sizeof(struct inWrite),0);
+    mdlAddService(mdl,PST_OUTPUT,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstOutput,
+		  sizeof(struct inOutput),0);
     mdlAddService(mdl,PST_RESTORE,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstRestore,
 		  sizeof(struct inRestore),0);
@@ -2261,6 +2264,79 @@ void pstCheckpoint(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	pkdCheckpoint(pkd,achOutFile);
 	}
     }
+
+void pstOutput(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    struct inOutput *in = vin;
+
+    mdlassert(pst->mdl,nIn >= sizeof(struct inOutput));
+    if (pstNotCore(pst)) {
+	int nProcessor = in->nProcessor;
+	int iProcessor = in->iProcessor;
+
+	/* Still allowed to write more in parallel */
+	if (nProcessor>1) {
+	    int nLower, nUpper;
+	    nLower = nProcessor * pst->nLower / pst->nLeaves;
+	    if (nLower==0) nLower=1;
+	    nUpper = nProcessor - nLower;
+	    in->nProcessor = nUpper;
+	    in->iProcessor = iProcessor + nLower;
+	    int rID = mdlReqService(pst->mdl,pst->idUpper,PST_OUTPUT,in,nIn);
+	    in->nProcessor = nLower;
+	    in->iProcessor = iProcessor;
+	    pstOutput(pst->pstLower,in,nIn,vout,pnOut);
+	    mdlGetReply(pst->mdl,rID,NULL,NULL);
+	    }
+
+	/* We are the node that will be the writer for all of the pst children */
+	else if (nProcessor==1) {
+	    in->iPartner = pst->idSelf;
+	    in->nPartner = pst->nLeaves;
+	    in->nProcessor = 0;
+	    int rID = mdlReqService(pst->mdl,pst->idUpper,PST_OUTPUT,in,nIn);
+	    pstOutput(pst->pstLower,in,nIn,vout,pnOut);
+	    mdlGetReply(pst->mdl,rID,NULL,NULL);
+	    }
+	/* Keep parallel as I need to do all the writing */
+	else if (in->iPartner == pst->idSelf) {
+	    int rID = mdlReqService(pst->mdl,pst->idUpper,PST_OUTPUT,in,nIn);
+	    pstOutput(pst->pstLower,in,nIn,vout,pnOut);
+	    mdlGetReply(pst->mdl,rID,NULL,NULL);
+	    }
+	/* Serialize to avoid overwhelming the receiver */
+	else {
+	    pstOutput(pst->pstLower,in,nIn,vout,pnOut);
+	    int rID = mdlReqService(pst->mdl,pst->idUpper,PST_OUTPUT,in,nIn);
+	    mdlGetReply(pst->mdl,rID,NULL,NULL);
+	    }
+	}
+    else {
+	/* If it is fully parallel then there is just us writing. */
+	if (in->nProcessor>0) {
+	    in->iPartner = pst->idSelf;
+	    in->nPartner = 1;
+	    }
+	PKD pkd = pst->plcl->pkd;
+	pkdOutput(pkd,in->eOutputType,in->iProcessor,in->nProcessor,
+	    in->iPartner,in->nPartner,in->achOutFile);
+
+//	printf("%2d: iProcessor=%d nProcessor=%d iPartner=%2d nPartner=%2d\n", pkd->idSelf,
+//	    in->iProcessor, in->nProcessor, in->iPartner, in->nPartner );
+
+
+
+//writer:	if (in->iPartner == pst->idSelf)
+
+
+//	char achOutFile[PST_FILENAME_SIZE];
+//	makeName(achOutFile,in->achOutFile,mdlSelf(pkd->mdl),"chk.");
+//	pkdCheckpoint(pkd,achOutFile);
+	}
+    }
+
+
+
+
 
 void pstWrite(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     char achOutFile[PST_FILENAME_SIZE];

@@ -22,7 +22,7 @@ static void combSetArc(void *vpkd, void *v1, void *v2) {
     PARTICLE * p1 = (PARTICLE *)v1;
     PARTICLE * p2 = (PARTICLE *)v2;
     if (p2->bMarked) p1->bMarked = 1;
-    assert( *pkdGroup(pkd,p1) == *pkdGroup(pkd,p2) );
+    assert( pkdGetGroup(pkd,p1) == pkdGetGroup(pkd,p2) );
     }
 
 /*
@@ -39,7 +39,7 @@ static int traverseLink(PKD pkd,struct smGroupArray *ga,int pi,
 
     if (!bRemote) p = pkdParticle(pkd,*iIndex2);
     else p = mdlFetch(pkd->mdl,CID_PARTICLE,*iIndex2,*iPid2);
-    gid2 = *pkdGroup(pkd,p);
+    gid2 = pkdGetGroup(pkd,p);
     g2 = mdlAcquire(pkd->mdl,CID_GROUP,gid2,*iPid2);
 
     /* Update the minimum group id in case we need it below */
@@ -95,15 +95,21 @@ int smHopLink(SMX smx,SMF *smf) {
     int pi, j, gid, nLoop, nSpur;
     int nGroups, nLocal, nRemote;
     int iIndex1, iIndex2, iMinPartIndex, iPid1, iPid2, iMinPartPid, iParticle;
-    struct smGroupArray *ga = smx->ga;
-    uint32_t *pl = smx->pl;
+    struct smGroupArray *ga;
+    /* Next particle in the chain or -1 if at the end in which case */
+    /* the next particle will be remote and can be found in the group array */
+    uint32_t *pl;
+
+    pkd->ga = ga = (struct smGroupArray *)(pkd->pLite);
+    pl = (uint32_t *)(((char *)pkd->pLite + pkd->nLocal*EPHEMERAL_BYTES) - (pkd->nLocal+1)*sizeof(uint32_t));
+    assert((uint32_t *)ga < pl);
 
     ga[0].iGid = 0;
     ga[0].id.iPid = mdlSelf(mdl);
     ga[0].id.iIndex = -1; /* Sentinel */
     for (pi=0;pi<pkd->nLocal;++pi) {
 	p = pkdParticle(pkd,pi);
-	*pkdGroup(pkd,p) = 0; /* Ungrouped */
+	pkdSetGroup(pkd,p,0); /* Ungrouped */
 	p->bMarked = p->bSrcActive; /* Used by smooth to determine active particles */
 	}
     smSmoothInitialize(smx);
@@ -123,11 +129,12 @@ int smHopLink(SMX smx,SMF *smf) {
     nSpur = nLoop = nRemote = 0;
     for (pi=0;pi<pkd->nLocal;++pi) {
 	p = pkdParticle(pkd,iParticle=pi);
-	if ( *pkdGroup(pkd,p) > 0 ) continue; /* Already done (below) */
+	if ( pkdGetGroup(pkd,p) > 0 ) continue; /* Already done (below) */
 	if ( !pkdIsDstActive(p,0,MAX_RUNG) ) continue;
+	assert((uint32_t *)&ga[nGroups+1] < pl);
 	ga[nGroups].iGid = nGroups;
 	for(;;) {
-	    *pkdGroup(pkd,p) = nGroups;
+	    pkdSetGroup(pkd,p,nGroups);
 	    /* Need: fDensity and fBall but pl[iParticle] is not yet used */
 	    /* fDensity MUST persist but fBall could be stashed into pl[] */
 	    smReSmoothSingle(smx,smf,p,pkdBall(pkd,p));
@@ -145,14 +152,14 @@ int smHopLink(SMX smx,SMF *smf) {
 	    else {
 		iParticle=pl[iParticle]=smf->hopParticleLink.iIndex;
 		p = pkdParticle(pkd,iParticle);
-		gid = *pkdGroup(pkd,p);
+		gid = pkdGetGroup(pkd,p);
 		/* We link to ourselves: this forms a new "loop" */
 		if ( gid == nGroups ) { ++nGroups; ++nLoop; break; }
 		/* Ok, some other group: merge this "spur" on to it */
 		else if ( gid > 0 ) {
 		    for(j=pi; j!=iParticle; j=pl[j]) {
 			p = pkdParticle(pkd,j);
-			*pkdGroup(pkd,p) = gid;
+			pkdSetGroup(pkd,p,gid);
 			}
 		    ++nSpur;
 		    break;
@@ -258,10 +265,10 @@ int smHopLink(SMX smx,SMF *smf) {
     nSpur = 0;
     for(pi=1; pi<nGroups; ++pi) {
 	PARTICLE *p1 = mdlAcquire(mdl,CID_PARTICLE,ga[pi].id.iIndex,ga[pi].id.iPid);
-	int gid1 = *pkdGroup(pkd,p1);
+	int gid1 = pkdGetGroup(pkd,p1);
 	GHtmpGroupTable *g1 = mdlAcquire(mdl,CID_GROUP,gid1,ga[pi].id.iPid);
 	PARTICLE *p2 = mdlAcquire(mdl,CID_PARTICLE,g1->iIndex,g1->iPid);
-	int gid2 = *pkdGroup(pkd,p2);
+	int gid2 = pkdGetGroup(pkd,p2);
 	GHtmpGroupTable *g2 = mdlAcquire(mdl,CID_GROUP,gid2,g1->iPid);
 	assert (g2->iPid == g1->iPid);
 	ga[pi].id.iPid   = g2->iPid;
@@ -276,7 +283,7 @@ int smHopLink(SMX smx,SMF *smf) {
     /* If we end up point on-node, then we might have to combine the groups */
     for(pi=1; pi<nGroups; ++pi) {
 	if (ga[pi].id.iPid==pkd->idSelf) {
-	    gid = *pkdGroup(pkd,pkdParticle(pkd,ga[pi].id.iIndex));
+	    gid = pkdGetGroup(pkd,pkdParticle(pkd,ga[pi].id.iIndex));
 	    if (gid!=pi) {
 		assert(ga[gid].id.iPid==pkd->idSelf);
 		ga[pi].iGid = pi;
@@ -308,12 +315,12 @@ int smHopLink(SMX smx,SMF *smf) {
     for(pi=1; pi<nGroups; ++pi) {
 	if (ga[pi].id.iPid == pkd->idSelf) {
 	    p = pkdParticle(pkd,ga[pi].id.iIndex);
-	    gid = *pkdGroup(pkd,p);
+	    gid = pkdGetGroup(pkd,p);
 	    assert(gid==pi); /* I point to myself! */
 	    }
 	else {
 	    p = mdlAcquire(mdl,CID_PARTICLE,ga[pi].id.iIndex,ga[pi].id.iPid);
-	    gid = *pkdGroup(pkd,p);
+	    gid = pkdGetGroup(pkd,p);
 	    mdlRelease(mdl,CID_PARTICLE,p);
 	    GHtmpGroupTable *g = mdlAcquire(mdl,CID_GROUP,gid,ga[pi].id.iPid);
 	    /* The remote particle must point to itself */
@@ -349,7 +356,7 @@ int smHopJoin(SMX smx,SMF *smf, double dHopTau, int *nLocal) {
     PKD pkd = smx->pkd;
     MDL mdl = pkd->mdl;
     KDN *pRoot = pkdTreeNode(pkd,ROOT);
-    struct smGroupArray *ga = smx->ga;
+    struct smGroupArray *ga = pkd->ga;
     PARTICLE *p;
     int pi;
 
@@ -613,7 +620,7 @@ int pkdHopUnbind(PKD pkd, double dTime, int nMinGroupSize, int bPeriodic, double
 	/* Calculate kinetic energy & total energy */
 	for(i=pNode->pLower; i<=pNode->pUpper; ++i) {
 	    p = pkdParticle(pkd,i);
-	    assert(*pkdGroup(pkd,p)==gid);
+	    assert(pkdGetGroup(pkd,p)==gid);
 	    v = pkdVel(pkd,p);
 	    dv2 = 0.0;
 	    for (j=0;j<3;++j) {
@@ -663,14 +670,14 @@ int pkdHopUnbind(PKD pkd, double dTime, int nMinGroupSize, int bPeriodic, double
 	n = pNode->pUpper - pNode->pLower + 1;
 	for( i=pNode->pUpper; i>=pNode->pLower && ee[i].dTot >= dEnergy; --i) {
 	    p = pkdParticle(pkd,ee[i].i);
-	    *pkdGroup(pkd,p) = 0;
+	    pkdSetGroup(pkd,p,0);
 	    ++nEvaporated;
 	    }
 	if (i==pNode->pUpper) pkd->hopGroups[gid].bComplete = 1;
 	/* Move evaporated particles to the end */
 	else for(i=pNode->pLower; i<=pNode->pUpper; ) {
 	    p = pkdParticle(pkd,i);
-	    if (*pkdGroup(pkd,p)) ++i;
+	    if (pkdGetGroup(pkd,p)) ++i;
 	    else pkdSwapParticle(pkd,p,pkdParticle(pkd,pNode->pUpper--));
 	    }
 	}

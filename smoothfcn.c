@@ -158,7 +158,7 @@ void LinkGradientM3(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     idrho = 1.0/sqrt(frho[0]*frho[0] + frho[1]*frho[1] + frho[2]*frho[2]);
     for (j=0;j<3;++j) frho[j] *= 0.5*idrho*fBall;
     r2min = HUGE;
-    if (nSmooth==0) *pkdGroup(pkd, p) = -1;
+    if (nSmooth==0) pkdSetGroup(pkd, p, -1);
     for (i=0;i<nSmooth;++i) {
 	dr = nnList[i].dx - frho[0];
 	r2 = dr*dr;
@@ -179,10 +179,10 @@ void LinkHopChains(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     MDL mdl = pkd->mdl;
     int i, gid1, gid2;
     GHtmpGroupTable *g1, *g2, g;
-    gid1 = *pkdGroup(pkd,p);
+    gid1 = pkdGetGroup(pkd,p);
     g1 = &pkd->tmpHopGroups[gid1];
     for (i=0;i<nSmooth;++i) {
-	gid2 = *pkdGroup(pkd,nnList[i].pPart);
+	gid2 = pkdGetGroup(pkd,nnList[i].pPart);
 	if (nnList[i].iPid==pkd->idSelf && gid1==gid2) continue;
 	g.iPid = nnList[i].iPid;
 	g.iIndex = gid2;

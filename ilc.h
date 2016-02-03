@@ -66,7 +66,7 @@ void ilcFinish(ILC ilc);
 /*
 ** The X, Y and Z coordinates must already be relative to cx, cy and cz!
 */
-static inline void ilcAppendFloat(ILC ilc,float X,float Y,float Z,FMOMR *M,float U,float VX,float VY,float VZ) {
+static inline void ilcAppendFloat(ILC ilc,float X,float Y,float Z,FMOMR *M,float U) {
     ILCTILE tile = (ILCTILE)lstReposition(&ilc->lst);
     uint_fast32_t blk = tile->lstTile.nBlocks;
     uint_fast32_t prt = tile->lstTile.nInLast;
@@ -105,8 +105,8 @@ static inline void ilcAppendFloat(ILC ilc,float X,float Y,float Z,FMOMR *M,float
     ++tile->lstTile.nInLast;
     }
 
-static inline void ilcAppend(ILC ilc,double X,double Y,double Z,FMOMR *M,float U,float VX,float VY,float VZ) {
-    ilcAppendFloat(ilc,(float)((ilc)->cx-(X)),(float)((ilc)->cy-(Y)),(float)((ilc)->cz-(Z)),M,U,VX,VY,VZ);
+static inline void ilcAppend(ILC ilc,double X,double Y,double Z,FMOMR *M,float U) {
+    ilcAppendFloat(ilc,(float)((ilc)->cx-(X)),(float)((ilc)->cy-(Y)),(float)((ilc)->cz-(Z)),M,U);
     }
 
 #define ILC_LOOP(ilc,ctile) for( ctile=(ILCTILE)((ilc)->lst.list); ctile!=NULL; ctile=(ILCTILE)(ctile->lstTile.next) )

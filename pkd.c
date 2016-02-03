@@ -394,11 +394,11 @@ void pkdInitialize(
 	pkd->oDensity = pkdParticleAddFloat(pkd,1);
     else pkd->oDensity = 0;
 
+    pkd->bGidInHeader = 0;
+    pkd->oGroup = 0;
     if ( mMemoryModel & PKD_MODEL_GROUPS ) {
-	pkd->oGroup = pkdParticleAddInt32(pkd,1);
-	}
-    else {
-	pkd->oGroup = 0;
+	if (mMemoryModel&PKD_MODEL_UNORDERED) pkd->bGidInHeader = 1;
+	else pkd->oGroup = pkdParticleAddInt32(pkd,1);
 	}
 
     /*
@@ -613,6 +613,7 @@ void pkdInitialize(
     */
     ilpInitialize(&pkd->ilp);
     ilcInitialize(&pkd->ilc);
+    ilcInitialize(&pkd->ill);
     /*
     ** Allocate Checklist.
     */
@@ -689,6 +690,7 @@ void pkdFinish(PKD pkd) {
     */
     ilpFinish(pkd->ilp);
     ilcFinish(pkd->ilc);
+    ilcFinish(pkd->ill);
     /*
     ** Free checklist.
     */
@@ -752,6 +754,10 @@ size_t pkdIlpMemory(PKD pkd) {
 
 size_t pkdIlcMemory(PKD pkd) {
     return ilcMemory(pkd->ilc);
+    }
+
+size_t pkdIllMemory(PKD pkd) {
+    return ilcMemory(pkd->ill);
     }
 
 size_t pkdTreeMemory(PKD pkd) {
@@ -1056,7 +1062,27 @@ void pkdEnforcePeriodic(PKD pkd,BND *pbnd) {
     PARTICLE *p;
     double r;
     int i,j;
+#if defined(__SSE2__) && defined(INTEGER_POSITION)
+    __m128i period = _mm_set1_epi32 (INTEGER_FACTOR);
+    __m128i top = _mm_setr_epi32 ( (INTEGER_FACTOR/2)-1,(INTEGER_FACTOR/2)-1,(INTEGER_FACTOR/2)-1,0x7fffffff );
+    __m128i bot = _mm_setr_epi32 (-(INTEGER_FACTOR/2),-(INTEGER_FACTOR/2),-(INTEGER_FACTOR/2),-0x80000000 );
 
+    char *pPos = pkdField(pkdParticle(pkd,0),pkd->oPosition);
+    const int iSize = pkd->iParticleSize;
+    for (i=0;i<pkd->nLocal;++i) {
+	__m128i v = _mm_loadu_si128((__m128i *)pPos);
+	__m128i *r = (__m128i *)pPos;
+	pPos += iSize;
+	_mm_prefetch(pPos,_MM_HINT_T0);
+	v = _mm_sub_epi32(_mm_add_epi32(v,_mm_and_si128(_mm_cmplt_epi32(v,bot),period)),
+	    _mm_and_si128(_mm_cmpgt_epi32(v,top),period));
+	/* The fourth field (not part of position) is not modified because of bot/top */
+	_mm_storeu_si128(r,v);
+//	r[0] = _mm_extract_epi32 (v,0);
+//	r[1] = _mm_extract_epi32 (v,1);
+//	r[2] = _mm_extract_epi32 (v,2);
+	}
+#else
     for (i=0;i<pkd->nLocal;++i) {
 	p = pkdParticle(pkd,i);
 	for (j=0;j<3;++j) {
@@ -1069,10 +1095,11 @@ void pkdEnforcePeriodic(PKD pkd,BND *pbnd) {
 	    ** simulation. Either we have a super fast particle or the initial condition is somehow not conforming
 	    ** to the specified periodic box in a gross way.
 	    */
-	    mdlassert(pkd->mdl,((r >= pbnd->fCenter[j] - pbnd->fMax[j])&&
-	    (r < pbnd->fCenter[j] + pbnd->fMax[j])));
+//	    mdlassert(pkd->mdl,((r >= pbnd->fCenter[j] - pbnd->fMax[j])&&
+//	    (r < pbnd->fCenter[j] + pbnd->fMax[j])));
 	    }
 	}
+#endif
     }
 
 
@@ -1236,14 +1263,8 @@ int pkdWeight(PKD pkd,int d,FLOAT fSplit,int iSplitSide,int iFrom,int iTo,
     ** Calculate the lower weight and upper weight BETWEEN the particles
     ** iFrom to iTo!
     */
-    fLower = 0.0;
-    for (i=iFrom;i<iPart;++i) {
-	fLower += 1.0;
-	}
-    fUpper = 0.0;
-    for (i=iPart;i<=iTo;++i) {
-	fUpper += 1.0;
-	}
+    fLower = iPart - iFrom;
+    fUpper = iTo - iPart + 1;
     if (iSplitSide) {
 	*pfLow = fUpper;
 	*pfHigh = fLower;
@@ -2051,7 +2072,7 @@ void pkdPhysicalSoft(PKD pkd,double dSoftMax,double dFac,int bSoftMaxMul) {
 
 void
 pkdGravAll(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
-    int bKickClose,int bKickOpen,double *dtClose,double *dtOpen,
+    int bKickClose,int bKickOpen,vel_t *dtClose,vel_t *dtOpen,
     double dAccFac,double dTime,int nReps,int bPeriodic,
     int iOrder,int bEwald,int nGroup,int iRoot1, int iRoot2,
     double fEwCut,double fEwhCut,double dThetaMin,
@@ -3103,12 +3124,20 @@ void pkdDensityStep(PKD pkd, uint8_t uRungLo, uint8_t uRungHi, double dEta, doub
     }
 
 uint8_t pkdDtToRung(double dT, double dDelta, uint8_t uMaxRung) {
-    double dRung;
-    assert(dT>0.0);
-    dRung = log(dDelta/dT) / M_LN2;
-    dRung = (dRung > 0)?dRung:0;
-    if (dRung > (double)uMaxRung) return(uMaxRung);
-    else return((uint8_t)floor(dRung));
+    union {
+	double d;
+	struct {
+	    uint64_t mantisa : 52;
+	    uint64_t exponent : 11;
+	    uint64_t sign : 1;
+	    } ieee;
+	} T;
+    int iRung;
+    T.d = dDelta/dT;
+    if (T.d<=1.0) return 0;
+    iRung = T.ieee.exponent - 1023; /* log2(d) */
+    if (iRung > uMaxRung) return uMaxRung;
+    else return iRung;
     }
 
 
@@ -3703,7 +3732,7 @@ int pkdSelSrcGroup(PKD pkd, int iGroup) {
     PARTICLE *p;
     for( i=0; i<n; i++ ) {
 	p=pkdParticle(pkd,i);
-	p->bSrcActive = *pkdGroup(pkd,p)==iGroup;
+	p->bSrcActive = pkdGetGroup(pkd,p)==iGroup;
 	}
     return n;
     }
@@ -3714,7 +3743,7 @@ int pkdSelDstGroup(PKD pkd, int iGroup) {
     PARTICLE *p;
     for( i=0; i<n; i++ ) {
 	p=pkdParticle(pkd,i);
-	p->bDstActive = *pkdGroup(pkd,p)==iGroup;
+	p->bDstActive = pkdGetGroup(pkd,p)==iGroup;
 	}
     return n;
     }
