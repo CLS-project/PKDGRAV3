@@ -4568,8 +4568,7 @@ void msrCooling(MSR msr,double dTime,double dStep,int bUpdateState, int bUpdateT
 static void writeTinyGroupStats(FILE *fp, int nGroups, TinyGroupTable *g) {
     int i;
     for( i=0; i<nGroups; ++i ) {
-	fprintf(fp, "%d %.7g %.7g %.7g %.10g %.10g %.10g %.7g %.7g %.7g %.7g %.7g %.7g\n",
-	    g[i].n,
+	fprintf(fp, "%.7g %.7g %.7g %.10g %.10g %.10g %.7g %.7g %.7g %.7g %.7g %.7g\n",
 	    g[i].fMass,
 	    g[i].rMax,
 	    g[i].minPot,

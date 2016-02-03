@@ -36,12 +36,14 @@ static void initTinyGroup(void *vpkd, void *v) {
 static void combTinyGroup(void *vpkd, void *v1, void *v2) {
     TinyGroupTable *g1 = (TinyGroupTable *)v1;
     TinyGroupTable *g2 = (TinyGroupTable *)v2;
+    float x;
     int j;
 
     g1->fMass += g2->fMass;
+    x = g2->fMass/g1->fMass;
     for (j=0;j<3;j++) {
-	g1->rcom[j] += g2->rcom[j];
-	g1->vcom[j] += g2->vcom[j];
+	g1->rcom[j] = (1-x)*g1->rcom[j] + x*g2->rcom[j];
+	g1->vcom[j] = (1-x)*g1->vcom[j] + x*g2->vcom[j];
 	}
     if (g2->rMax > g1->rMax) g1->rMax = g2->rMax;
     }
@@ -74,44 +76,57 @@ void pkdCalculateGroupStats(PKD pkd, int bPeriodic, double *dPeriod) {
     PARTICLE *p;
     float fPot;
     double fMass;
-    double r[3],r2,rMax;
+    double r[3];
     double dHalf[3];
+    float r2,rMax;
     int i,j,gid;
     vel_t *v;
     TinyGroupTable *g;
     int nLocalGroups;
+    double *dAccumulate;
 
     pkd->tinyGroupTable = (TinyGroupTable *)(&pkd->ga[pkd->nGroups]);
+    dAccumulate = (double *)(&pkd->tinyGroupTable[pkd->nGroups]);
     /*
     ** Initialize the table.
     */
     nLocalGroups = 0;
     for (gid=0;gid<pkd->nGroups;++gid) {
 	if (pkd->ga[gid].id.iPid == pkd->idSelf && gid) ++nLocalGroups;
-	pkd->tinyGroupTable[gid].n = pkd->ga[gid].nTotal;
 	pkd->tinyGroupTable[gid].minPot = FLOAT_MAXVAL;
 	pkd->tinyGroupTable[gid].rMax = 0;
-	pkd->tinyGroupTable[gid].fMass = 0;
-	for (j=0;j<3;++j) {
-	    pkd->tinyGroupTable[gid].rcom[j] = 0;
-	    pkd->tinyGroupTable[gid].vcom[j] = 0;
-	    }
+	dAccumulate[4*gid] = 0;
+	dAccumulate[4*gid+1] = 0;
+	dAccumulate[4*gid+2] = 0;
+	dAccumulate[4*gid+3] = 0;
 	}
     /*
     ** First determine the minimum potential particle for each group.
     ** This will be the reference position for the group as well.
+    ** In this first pass we also sum up the total mass and vcom locally.
     */
     for (i=0;i<pkd->nLocal;++i) {
 	p = pkdParticle(pkd,i);
 	gid = pkdGetGroup(pkd,p);
+	fMass = pkdMass(pkd,p);
+	dAccumulate[4*gid+3] += fMass;
 	if (!gid) continue;
 	fPot = *pkdPot(pkd,p);
+	v = pkdVel(pkd,p);
+	for (j=0;j<3;++j) dAccumulate[4*gid+j] += fMass*v[j];
 	if (fPot < pkd->tinyGroupTable[gid].minPot) {
 	    pkd->tinyGroupTable[gid].minPot = fPot;
 	    for (j=0;j<3;++j) {
 		pkd->tinyGroupTable[gid].rPot[j] = pkdPosRaw(pkd,p,j);
 		}
 	    }
+	}
+    for (gid=1;gid<pkd->nGroups;++gid) {
+	for (j=0;j<3;++j) {
+	    pkd->tinyGroupTable[gid].vcom[j] = dAccumulate[4*gid+j]/dAccumulate[4*gid+3];
+	    dAccumulate[4*gid+j] = 0;
+	    }
+	pkd->tinyGroupTable[gid].fMass = dAccumulate[4*gid+3];
 	}
     /*
     ** Now look at remote group particle to see if we have a lower potential.
@@ -141,29 +156,32 @@ void pkdCalculateGroupStats(PKD pkd, int bPeriodic, double *dPeriod) {
 	}
     mdlFinishCache(mdl,CID_GROUP);
     /*
-    ** Now based on the newly defined reference point for the groups we can
-    ** determine the other group properties.
+    ** Now find rcom and rMax.
     */
     for (j=0;j<3;++j) dHalf[j] = bPeriodic ? 0.5 * dPeriod[j] : FLOAT_MAXVAL;
     for (i=0;i<pkd->nLocal;++i) {
 	p = pkdParticle(pkd,i);
 	gid = pkdGetGroup(pkd,p);
-	fMass = pkdMass(pkd,p);
-	v = pkdVel(pkd,p);
-	pkd->tinyGroupTable[gid].fMass += fMass;
 	if (gid > 0) {
+	    fMass = pkdMass(pkd,p);
 	    r2 = 0.0;
 	    for (j=0;j<3;++j) {
 		r[j] =  pkdPosToDbl(pkd,pkdPosRaw(pkd,p,j) - pkd->tinyGroupTable[gid].rPot[j]);
 		if      (r[j] < -dHalf[j]) r[j] += dPeriod[j];
 		else if (r[j] > +dHalf[j]) r[j] -= dPeriod[j];
+		dAccumulate[4*gid+j] += fMass*r[j];
 		r2 += r[j]*r[j];
-		pkd->tinyGroupTable[gid].rcom[j] += fMass*r[j];
-		pkd->tinyGroupTable[gid].vcom[j] += fMass*v[j];
 		}
-	    rMax = sqrt(r2);
+	    rMax = sqrtf(r2);
 	    if (rMax > pkd->tinyGroupTable[gid].rMax) pkd->tinyGroupTable[gid].rMax = rMax;
 	    }
+	}
+    for (gid=1;gid<pkd->nGroups;++gid) {
+	for (j=0;j<3;++j) {
+	    pkd->tinyGroupTable[gid].rcom[j] = dAccumulate[4*gid+j]/dAccumulate[4*gid+3];
+	    dAccumulate[4*gid+j] = 0;
+	    }
+	dAccumulate[4*gid+3] = 0;  /* if we still need masses later we should not clear this field */
 	}
     /* 
     ** Now accumulate totals globally
@@ -181,13 +199,13 @@ void pkdCalculateGroupStats(PKD pkd, int bPeriodic, double *dPeriod) {
 	if (pkd->tinyGroupTable[gid].rMax > g->rMax) g->rMax = pkd->tinyGroupTable[gid].rMax;
 	}
     mdlFinishCache(mdl,CID_GROUP);
+#if 0
     for(gid=1;gid<=nLocalGroups;++gid) {
 	for (j=0;j<3;j++) {
-	    pkd->tinyGroupTable[gid].rcom[j] /= pkd->tinyGroupTable[gid].fMass;
 	    pkd->tinyGroupTable[gid].rcom[j] += pkdPosToDbl(pkd,pkd->tinyGroupTable[gid].rPot[j]);
-	    pkd->tinyGroupTable[gid].vcom[j] /= pkd->tinyGroupTable[gid].fMass;
 	    }
 	}
+#endif
     /*
     ** Fetch remote group properties (we probably only need rMax to be fetched here).
     */

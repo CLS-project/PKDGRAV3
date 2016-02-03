@@ -601,7 +601,6 @@ int pkdNewFof(PKD pkd,double dTau2,int nMinMembers) {
 	p = pkdParticle(pkd,pn);
 	pkdSetGroup(pkd,p,iFofMap[pkdGetGroup(pkd,p)]);
 	}
-    printf("%3d:cull initial small groups from %d to nGroups=%d\n",pkd->idSelf,iGroup,pkd->nLocalGroups);
     pkd->nGroups = pkd->nLocalGroups + 1;
     free(S);  /* this stack is no longer needed */
     iFofMap = NULL; /* done with the temporary map of group numbers */ 

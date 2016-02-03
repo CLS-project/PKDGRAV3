@@ -508,8 +508,7 @@ typedef struct {
     float rcom[3];
     float vcom[3];
     float rMax;
-    double fMass;
-    uint32_t n;
+    float fMass;
     } TinyGroupTable;
 
 typedef struct {
