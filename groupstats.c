@@ -1,43 +1,49 @@
 #include <math.h>
 #include "groupstats.h"
+#include "group.h"
 
 /*
 ** Stuff to calculate group properties...
 */
+static void initMinPot(void *vpkd,void *v) {
+    }
 
-static void initHopGroupProperties(void *vpkd, void *v) {
-    HopGroupTable * g = (HopGroupTable *)v;
+static void combMinPot(void *vpkd, void *v1, void *v2) {
+    TinyGroupTable *g1 = (TinyGroupTable *)v1;
+    TinyGroupTable *g2 = (TinyGroupTable *)v2;
+    int j;
+   
+    if (g2->minPot < g1->minPot) {
+	g1->minPot = g2->minPot;
+	for (j=0;j<3;++j) {
+	    g1->rPot[j] = g2->rPot[j];
+	    }
+	}
+    }
+
+static void initTinyGroup(void *vpkd, void *v) {
+    TinyGroupTable * g = (TinyGroupTable *)v;
     int j;
 
-    g->nLocal = 0;
-    g->nTotal = 0;
-    g->nRemote = 0;
+    g->fMass = 0.0;
     for (j=0;j<3;j++) {
-	g->ravg[j] = 0.0;
 	g->rcom[j] = 0.0;
 	g->vcom[j] = 0.0;
 	}
-    g->fRMSRadius =  0.0;
-    g->fMass = 0.0;
+    g->rMax =  0.0;
     }
 
-static void combHopGroupProperties(void *vpkd, void *v1, void *v2) {
-    HopGroupTable * g1 = (HopGroupTable *)v1;
-    HopGroupTable * g2 = (HopGroupTable *)v2;
+static void combTinyGroup(void *vpkd, void *v1, void *v2) {
+    TinyGroupTable *g1 = (TinyGroupTable *)v1;
+    TinyGroupTable *g2 = (TinyGroupTable *)v2;
     int j;
 
-    g1->nTotal += g2->nTotal;
-    g1->nRemote += g2->nRemote;
+    g1->fMass += g2->fMass;
     for (j=0;j<3;j++) {
-	if (g2->rmin[j] < g1->rmin[j]) g1->rmin[j] = g2->rmin[j];
-	if (g2->rmax[j] > g1->rmax[j]) g1->rmax[j] = g2->rmax[j];
-	g1->ravg[j] += g2->ravg[j];
 	g1->rcom[j] += g2->rcom[j];
 	g1->vcom[j] += g2->vcom[j];
 	}
-    g1->fRMSRadius += g2->fRMSRadius;
-    g1->fMass += g2->fMass;
-    g1->bComplete = g1->bComplete && g2->bComplete;
+    if (g2->rMax > g1->rMax) g1->rMax = g2->rMax;
     }
 
 struct packHopCtx {
@@ -48,11 +54,11 @@ struct packHopCtx {
 static int packHop(void *vctx, int *id, size_t nSize, void *vBuff) {
     struct packHopCtx *ctx = (struct packHopCtx *)vctx;
     int nLeft = ctx->pkd->nLocalGroups - ctx->iIndex;
-    int n = nSize / sizeof(HopGroupTable);
+    int n = nSize / sizeof(TinyGroupTable);
     if ( n > nLeft ) n = nLeft;
-    memcpy(vBuff,ctx->pkd->hopGroups + 1 + ctx->iIndex, n*sizeof(HopGroupTable) );
+    memcpy(vBuff,ctx->pkd->tinyGroupTable + 1 + ctx->iIndex, n*sizeof(TinyGroupTable) );
     ctx->iIndex += n;
-    return n*sizeof(HopGroupTable);
+    return n*sizeof(TinyGroupTable);
     }
 
 /* Send the group information to processor 0 */
@@ -65,163 +71,139 @@ void pkdHopSendStats(PKD pkd) {
 
 void pkdCalculateGroupStats(PKD pkd, int bPeriodic, double *dPeriod) {
     MDL mdl = pkd->mdl;
-    HopGroupTable * g;
-    int i,j,gid;
     PARTICLE *p;
+    float fPot;
+    double fMass;
+    double r[3],r2,rMax;
     double dHalf[3];
-    float fMass;
-    double r[3];
+    int i,j,gid;
     vel_t *v;
+    TinyGroupTable *g;
+    int nLocalGroups;
 
-    pkd->hopGroups = (HopGroupTable *)&pkd->ga[pkd->nGroups];
+    pkd->tinyGroupTable = (TinyGroupTable *)(&pkd->ga[pkd->nGroups]);
     /*
-    ** Copy the name of the group to the group table structure for now, 
-    ** but actually we don't need to duplicate this information.
+    ** Initialize the table.
     */
-    for (i=0;i<pkd->nGroups;++i) {
-	pkd->hopGroups[i].id.iPid = pkd->ga[i].id.iPid;
-	pkd->hopGroups[i].id.iIndex = pkd->ga[i].id.iIndex;
-	pkd->hopGroups[i].bNeedGrav = 1;
-	pkd->hopGroups[i].bComplete = 0;	
-	}
-
-#ifdef TEST_SINGLE_GRAVITY
-    for(gid=2; gid<=pkd->nLocalGroups; ++gid)
-	pkd->hopGroups[gid].bNeedGrav = 0;
-#endif
-
-    for(i=0; i<pkd->nGroups; ++i) {
-	pkd->hopGroups[i].iGlobalId = 0;
-	pkd->hopGroups[i].nLocal = 0;
-	pkd->hopGroups[i].nTotal = 0;
-	pkd->hopGroups[i].nRemote = 0;
-	pkd->hopGroups[i].fMass = 0.0;
-	for (j=0;j<3;j++) {
-	    pkd->hopGroups[i].ravg[j] = 0.0;
-	    pkd->hopGroups[i].rcom[j] = 0.0;
-	    pkd->hopGroups[i].vcom[j] = 0.0;
+    nLocalGroups = 0;
+    for (gid=0;gid<pkd->nGroups;++gid) {
+	if (pkd->ga[gid].id.iPid == pkd->idSelf && gid) ++nLocalGroups;
+	pkd->tinyGroupTable[gid].n = pkd->ga[gid].nTotal;
+	pkd->tinyGroupTable[gid].minPot = FLOAT_MAXVAL;
+	pkd->tinyGroupTable[gid].rMax = 0;
+	pkd->tinyGroupTable[gid].fMass = 0;
+	for (j=0;j<3;++j) {
+	    pkd->tinyGroupTable[gid].rcom[j] = 0;
+	    pkd->tinyGroupTable[gid].vcom[j] = 0;
 	    }
-	pkd->hopGroups[i].fRMSRadius = 0.0;
 	}
-
-    /* Get a reference point for each group; any particle will do */
+    /*
+    ** First determine the minimum potential particle for each group.
+    ** This will be the reference position for the group as well.
+    */
     for (i=0;i<pkd->nLocal;++i) {
 	p = pkdParticle(pkd,i);
-	gid = *pkdGroup(pkd,p);
-	pkdGetPos1(pkd,p,pkd->hopGroups[gid].rref);
-	}
-    for(gid=1; gid<=pkd->nLocalGroups; ++gid) {
-	for (j=0;j<3;j++) {
-	    pkd->hopGroups[gid].rmin[j] = pkd->hopGroups[gid].rmax[j] = pkd->hopGroups[gid].rref[j];
+	gid = pkdGetGroup(pkd,p);
+	if (!gid) continue;
+	fPot = *pkdPot(pkd,p);
+	if (fPot < pkd->tinyGroupTable[gid].minPot) {
+	    pkd->tinyGroupTable[gid].minPot = fPot;
+	    for (j=0;j<3;++j) {
+		pkd->tinyGroupTable[gid].rPot[j] = pkdPosRaw(pkd,p,j);
+		}
 	    }
 	}
-    mdlROcache(mdl,CID_GROUP,NULL,pkd->hopGroups,sizeof(HopGroupTable), pkd->nGroups);
-    for(i=1+pkd->nLocalGroups; i<pkd->nGroups; ++i) {
-	assert(pkd->hopGroups[i].id.iPid != pkd->idSelf);
-	g = mdlAcquire(mdl,CID_GROUP,pkd->hopGroups[i].id.iIndex,pkd->hopGroups[i].id.iPid);
-	for(j=0;j<3;++j) pkd->hopGroups[i].rref[j] = g->rref[j];
-	mdlRelease(mdl,CID_GROUP,g);
+    /*
+    ** Now look at remote group particle to see if we have a lower potential.
+    ** Note that we only expose the local groups to the cache! This allows us 
+    ** to make any desired update to the remote group entries of the table.
+    */
+    mdlCOcache(mdl,CID_GROUP,NULL,pkd->tinyGroupTable,sizeof(TinyGroupTable),nLocalGroups+1,
+	NULL,initMinPot,combMinPot);
+    for(gid=1+nLocalGroups;gid<pkd->nGroups;++gid) {
+	assert(pkd->ga[gid].id.iPid != pkd->idSelf);
+	g = mdlFetch(mdl,CID_GROUP,pkd->ga[gid].id.iIndex,pkd->ga[gid].id.iPid);
+	if (g->minPot <= pkd->tinyGroupTable[gid].minPot) {
+	    pkd->tinyGroupTable[gid].minPot = g->minPot;
+	    for (j=0;j<3;++j) {
+		pkd->tinyGroupTable[gid].rPot[j] = g->rPot[j];
+		}
+	    }
+	else {
+	    /*
+	    ** We update the remote center (the inverse of the above).
+	    */
+	    g->minPot = pkd->tinyGroupTable[gid].minPot;
+	    for (j=0;j<3;++j) {
+		g->rPot[j] = pkd->tinyGroupTable[gid].rPot[j];
+		}	   
+	    }
 	}
     mdlFinishCache(mdl,CID_GROUP);
-
-    for(j=0; j<3; ++j) dHalf[j] = bPeriodic ? 0.5 * dPeriod[j] : FLOAT_MAXVAL;
+    /*
+    ** Now based on the newly defined reference point for the groups we can
+    ** determine the other group properties.
+    */
+    for (j=0;j<3;++j) dHalf[j] = bPeriodic ? 0.5 * dPeriod[j] : FLOAT_MAXVAL;
     for (i=0;i<pkd->nLocal;++i) {
 	p = pkdParticle(pkd,i);
-	gid = *pkdGroup(pkd,p);
-	pkdGetPos1(pkd,p,r);
-	v = pkdVel(pkd,p);
+	gid = pkdGetGroup(pkd,p);
 	fMass = pkdMass(pkd,p);
-
-	/*
-	** Groups cannot be larger than half a box width -- this is a requirement.
-	** We correct the particle position by wrapping if this constraint is
-	** violated. This cannot happen with non-periodic boxes of course.
-	*/
-	for (j=0;j<3;j++) {
-	    double Gr = pkd->hopGroups[gid].rref[j];
-	    if      (r[j] < Gr - dHalf[j]) r[j] += dPeriod[j];
-	    else if (r[j] > Gr + dHalf[j]) r[j] -= dPeriod[j];
-	    assert(r[j] > Gr - dHalf[j] && r[j] < Gr + dHalf[j] );
+	v = pkdVel(pkd,p);
+	pkd->tinyGroupTable[gid].fMass += fMass;
+	if (gid > 0) {
+	    r2 = 0.0;
+	    for (j=0;j<3;++j) {
+		r[j] =  pkdPosToDbl(pkd,pkdPosRaw(pkd,p,j) - pkd->tinyGroupTable[gid].rPot[j]);
+		if      (r[j] < -dHalf[j]) r[j] += dPeriod[j];
+		else if (r[j] > +dHalf[j]) r[j] -= dPeriod[j];
+		r2 += r[j]*r[j];
+		pkd->tinyGroupTable[gid].rcom[j] += fMass*r[j];
+		pkd->tinyGroupTable[gid].vcom[j] += fMass*v[j];
+		}
+	    rMax = sqrt(r2);
+	    if (rMax > pkd->tinyGroupTable[gid].rMax) pkd->tinyGroupTable[gid].rMax = rMax;
 	    }
-
-	for (j=0;j<3;j++) {
-	    if (r[j]<pkd->hopGroups[gid].rmin[j]) pkd->hopGroups[gid].rmin[j] = r[j];
-	    else if (r[j]>pkd->hopGroups[gid].rmax[j]) pkd->hopGroups[gid].rmax[j] = r[j];
-	    pkd->hopGroups[gid].ravg[j] += r[j];
-	    pkd->hopGroups[gid].rcom[j] += r[j]*fMass;
-	    pkd->hopGroups[gid].fRMSRadius +=  r[j]*r[j]*fMass;
-	    pkd->hopGroups[gid].vcom[j] += v[j]*fMass;
-	    }
-	pkd->hopGroups[gid].fMass += fMass;
-	++pkd->hopGroups[gid].nLocal;
-	++pkd->hopGroups[gid].nTotal;
 	}
-
-    /* Now accumulate totals globally */
-    mdlCOcache(mdl,CID_GROUP,NULL,pkd->hopGroups,sizeof(HopGroupTable), pkd->nGroups,
-	pkd, initHopGroupProperties, combHopGroupProperties );
-
-    for(i=1+pkd->nLocalGroups; i<pkd->nGroups; ++i) {
-	HopGroupTable *g;
-	if (pkd->hopGroups[i].id.iPid == pkd->idSelf) continue;
-	g = mdlVirtualFetch(mdl,CID_GROUP,pkd->hopGroups[i].id.iIndex,pkd->hopGroups[i].id.iPid);
-	g->nTotal += pkd->hopGroups[i].nLocal;
-	g->nRemote = 1;
+    /* 
+    ** Now accumulate totals globally
+    */
+    mdlCOcache(mdl,CID_GROUP,NULL,pkd->tinyGroupTable,sizeof(TinyGroupTable),nLocalGroups+1,
+	NULL,initTinyGroup,combTinyGroup);
+    for(gid=1+nLocalGroups;gid<pkd->nGroups;++gid) {
+	TinyGroupTable *g;
+	g = mdlVirtualFetch(mdl,CID_GROUP,pkd->ga[gid].id.iIndex,pkd->ga[gid].id.iPid);
+	g->fMass += pkd->tinyGroupTable[gid].fMass;
 	for (j=0;j<3;j++) {
-	    g->rmin[j] = pkd->hopGroups[i].rmin[j];
-	    g->rmax[j] = pkd->hopGroups[i].rmax[j];
-	    g->ravg[j] += pkd->hopGroups[i].ravg[j];
-	    g->rcom[j] += pkd->hopGroups[i].rcom[j];
-	    g->vcom[j] += pkd->hopGroups[i].vcom[j];
+	    g->rcom[j] += pkd->tinyGroupTable[gid].rcom[j];
+	    g->vcom[j] += pkd->tinyGroupTable[gid].vcom[j];
 	    }
-	g->fRMSRadius += pkd->hopGroups[i].fRMSRadius;
-	g->fMass += pkd->hopGroups[i].fMass;
-	g->bNeedGrav = pkd->hopGroups[i].bNeedGrav;
-	g->bComplete = pkd->hopGroups[i].bComplete;
+	if (pkd->tinyGroupTable[gid].rMax > g->rMax) g->rMax = pkd->tinyGroupTable[gid].rMax;
 	}
     mdlFinishCache(mdl,CID_GROUP);
-
-    int nActive = 0;
-    for(i=1; i<=pkd->nLocalGroups; ++i) {
+    for(gid=1;gid<=nLocalGroups;++gid) {
 	for (j=0;j<3;j++) {
-	    pkd->hopGroups[i].ravg[j] /= pkd->hopGroups[i].nTotal;
-	    pkd->hopGroups[i].rcom[j] /= pkd->hopGroups[i].fMass;
-	    pkd->hopGroups[i].vcom[j] /= pkd->hopGroups[i].fMass;
+	    pkd->tinyGroupTable[gid].rcom[j] /= pkd->tinyGroupTable[gid].fMass;
+	    pkd->tinyGroupTable[gid].rcom[j] += pkdPosToDbl(pkd,pkd->tinyGroupTable[gid].rPot[j]);
+	    pkd->tinyGroupTable[gid].vcom[j] /= pkd->tinyGroupTable[gid].fMass;
 	    }
-	/* 
-	** Do not calculate fDeltaR2 with the corrected positions!
-	*/
-	pkd->hopGroups[i].fRMSRadius /= pkd->hopGroups[i].fMass;
-	pkd->hopGroups[i].fRMSRadius -= pkd->hopGroups[i].rcom[0]*pkd->hopGroups[i].rcom[0]
-	    + pkd->hopGroups[i].rcom[1]*pkd->hopGroups[i].rcom[1]
-	    + pkd->hopGroups[i].rcom[2]*pkd->hopGroups[i].rcom[2];
-	pkd->hopGroups[i].fRMSRadius = sqrt(pkd->hopGroups[i].fRMSRadius);
-	if (pkd->hopGroups[i].bComplete) pkd->hopGroups[i].bNeedGrav = 0;
-	if (!pkd->hopGroups[i].bComplete) nActive++;
 	}
-
-   /* Fetch remote group properties */
-    mdlROcache(mdl,CID_GROUP,NULL,pkd->hopGroups,sizeof(HopGroupTable), pkd->nGroups);
-    for(i=1+pkd->nLocalGroups; i<pkd->nGroups; ++i) {
-	assert(pkd->hopGroups[i].id.iPid != pkd->idSelf);
-	g = mdlAcquire(mdl,CID_GROUP,pkd->hopGroups[i].id.iIndex,pkd->hopGroups[i].id.iPid);
-	assert(pkd->hopGroups[i].id.iIndex==g->id.iIndex && pkd->hopGroups[i].id.iPid==g->id.iPid);
-	pkd->hopGroups[i].nRemote = g->nRemote;
-	pkd->hopGroups[i].nTotal = g->nTotal;
-	pkd->hopGroups[i].fMass = g->fMass;
-	pkd->hopGroups[i].fRMSRadius = g->fRMSRadius;
-	pkd->hopGroups[i].bNeedGrav = g->bNeedGrav;
-	pkd->hopGroups[i].bComplete = g->bComplete;
-	for(j=0;j<3;++j) {
-	    pkd->hopGroups[i].rmin[j] = g->rmin[j];
-	    pkd->hopGroups[i].rmax[j] = g->rmax[j];
-	    pkd->hopGroups[i].ravg[j] = g->ravg[j];
-	    pkd->hopGroups[i].rcom[j] = g->rcom[j];
-	    pkd->hopGroups[i].vcom[j] = g->vcom[j];
+    /*
+    ** Fetch remote group properties (we probably only need rMax to be fetched here).
+    */
+    mdlROcache(mdl,CID_GROUP,NULL,pkd->tinyGroupTable,sizeof(TinyGroupTable),nLocalGroups+1);
+    for(gid=1+nLocalGroups;gid<pkd->nGroups;++gid) {
+	g = mdlFetch(mdl,CID_GROUP,pkd->ga[gid].id.iIndex,pkd->ga[gid].id.iPid);
+	pkd->tinyGroupTable[gid].fMass = g->fMass;
+	for (j=0;j<3;++j) {
+	    pkd->tinyGroupTable[gid].rcom[j] = g->rcom[j];
+	    pkd->tinyGroupTable[gid].vcom[j] = g->vcom[j];
 	    }
-	mdlRelease(mdl,CID_GROUP,g);
+	pkd->tinyGroupTable[gid].rMax = g->rMax;
 	}
     mdlFinishCache(mdl,CID_GROUP);
+    /*
+    ** Important to really make sure pkd->nLocalGroups is set correctly before output!
+    */
+    pkd->nLocalGroups = nLocalGroups;
     }
-
-

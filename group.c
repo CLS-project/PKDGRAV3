@@ -16,9 +16,9 @@ static void updateGroupIds(PKD pkd, int nGroups, struct smGroupArray *ga, int bI
     /* Update the group for all local particles */
     for (pi=0;pi<pkd->nLocal;++pi) {
 	p = pkdParticle(pkd,pi);
-	gid = *pkdGroup(pkd,p);
+	gid = pkdGetGroup(pkd,p);
 	if (gid<=0) continue;
-	*pkdGroup(pkd,p) = ga[gid].iNewGid;
+	pkdSetGroup(pkd,p,ga[gid].iNewGid);
 	}
 
     /* Now gid has the new position -- a reorder is necessary */
@@ -171,7 +171,7 @@ int pkdGroupRelocate(PKD pkd,int nGroups,struct smGroupArray *ga) {
 	}
     for (i=0;i<pkd->nLocal;++i) {
 	p = pkdParticle(pkd,i);
-	gid = *pkdGroup(pkd,p);
+	gid = pkdGetGroup(pkd,p);
 	++ga[gid].nTotal;
 	}
     /* Now find the real processor with the most particles for each group */
@@ -185,6 +185,9 @@ int pkdGroupRelocate(PKD pkd,int nGroups,struct smGroupArray *ga) {
 	g->nTotal = ga[i].nTotal;
 	}
     mdlFinishCache(mdl,CID_GROUP);
+    /*
+    ** Now the local groups are not at the start of the table!
+    */
     /* Now update the new group location */
     mdlROcache(mdl,CID_GROUP,NULL,ga,sizeof(struct smGroupArray), pkd->nGroups);
     for(i=1+nLocalGroups; i<nGroups; ++i) {
@@ -193,6 +196,11 @@ int pkdGroupRelocate(PKD pkd,int nGroups,struct smGroupArray *ga) {
 	ga[i].id.iIndex = g->id.iIndex;
 	}
     mdlFinishCache(mdl,CID_GROUP);
+    /*
+    ** Get local groups back at the begining of the table.
+    */
+
+
     nGroups = pkdGroupCombineDuplicateIds(pkd,nGroups,ga,1);
     return(nGroups);
     }
@@ -208,6 +216,9 @@ static void combTotalnGroup(void *vctx, void *v1, void *v2) {
     g1->nTotal += g2->nTotal;
     }
 
+/*
+** Returns the number of local groups in the smGroupArray table.
+*/
 int pkdGroupCounts(PKD pkd,int nGroups,struct smGroupArray *ga) {
     MDL mdl = pkd->mdl;
     PARTICLE *p;
@@ -225,7 +236,7 @@ int pkdGroupCounts(PKD pkd,int nGroups,struct smGroupArray *ga) {
 	}
     for (i=0;i<pkd->nLocal;++i) {
 	p = pkdParticle(pkd,i);
-	gid = *pkdGroup(pkd,p);
+	gid = pkdGetGroup(pkd,p);
 	++ga[gid].nTotal;
 	}
     /*

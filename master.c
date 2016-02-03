@@ -4565,13 +4565,17 @@ void msrCooling(MSR msr,double dTime,double dStep,int bUpdateState, int bUpdateT
 
 /* END Gas routines */
 
-static void writeHopStats(FILE *fp, int nGroups, HopGroupTable *g) {
+static void writeTinyGroupStats(FILE *fp, int nGroups, TinyGroupTable *g) {
     int i;
     for( i=0; i<nGroups; ++i ) {
-	fprintf(fp, "%d %llu %g %g %g %g %g %g %g %g %g %g\n",
-	    g[i].iGlobalId, g[i].nTotal,
+	fprintf(fp, "%d %.7g %.7g %.7g %.10g %.10g %.10g %.7g %.7g %.7g %.7g %.7g %.7g\n",
+	    g[i].n,
 	    g[i].fMass,
-	    g[i].ravg[0], g[i].ravg[1], g[i].ravg[2],
+	    g[i].rMax,
+	    g[i].minPot,
+	    pkdPosToDbl(NULL,g[i].rPot[0]),            /* this is a little bit bad, but will work for now */
+	    pkdPosToDbl(NULL,g[i].rPot[1]),
+	    pkdPosToDbl(NULL,g[i].rPot[2]),
 	    g[i].rcom[0], g[i].rcom[1], g[i].rcom[2],
 	    g[i].vcom[0], g[i].vcom[1], g[i].vcom[2]);
 	}
@@ -4579,10 +4583,10 @@ static void writeHopStats(FILE *fp, int nGroups, HopGroupTable *g) {
 
 static int unpackHop(void *vctx, int *id, size_t nSize, void *vBuff) {
     FILE *fp = (FILE *)vctx;
-    HopGroupTable *g = (HopGroupTable *)vBuff;
-    int n = nSize / sizeof(HopGroupTable);
-    assert( n*sizeof(HopGroupTable) == nSize);
-    writeHopStats(fp,n,g);
+    TinyGroupTable *g = (TinyGroupTable *)vBuff;
+    int n = nSize / sizeof(TinyGroupTable);
+    assert( n*sizeof(TinyGroupTable) == nSize);
+    writeTinyGroupStats(fp,n,g);
     return 1;
     }
 
@@ -4617,7 +4621,7 @@ void msrHopWrite(MSR msr, const char *fname) {
 	printf("Could not open Group Output File:%s\n",fname);
 	_msrExit(msr,1);
 	}
-    writeHopStats(fp,plcl->pkd->nLocalGroups,plcl->pkd->hopGroups+1);
+    writeTinyGroupStats(fp,plcl->pkd->nLocalGroups,plcl->pkd->tinyGroupTable+1);
 
     for (id=1;id<msr->nThreads;++id) {
         int rID = mdlReqService(pst0->mdl,id,PST_HOP_SEND_STATS,NULL,0);
@@ -4819,9 +4823,9 @@ void msrNewFof(MSR msr, double dTime) {
 	printf("Removed groups with fewer than %d particles, %"PRIu64" remain\n",
 	    inFinish.nMinGroupSize, nGroups);
 //    pstGroupRelocate(msr->pst,NULL,0,NULL,NULL);
-    pstGroupCountGID(msr->pst,NULL,0,&outCount,NULL); /* This has the side-effect of updating counts in the PST */
-    inAssign.iStartGID = 0;
-    pstGroupAssignGID(msr->pst,&inAssign,sizeof(inAssign),NULL,NULL); /* Requires correct counts in the PST */
+//    pstGroupCountGID(msr->pst,NULL,0,&outCount,NULL); /* This has the side-effect of updating counts in the PST */
+//    inAssign.iStartGID = 0;
+//    pstGroupAssignGID(msr->pst,&inAssign,sizeof(inAssign),NULL,NULL); /* Requires correct counts in the PST */
     dsec = msrTime() - ssec;
     if (msr->param.bVStep)
 	printf("FoF complete, Wallclock: %f secs\n\n",dsec);

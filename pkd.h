@@ -502,6 +502,22 @@ typedef struct {
     uint32_t iLink;
     } FOFRemote;
 
+typedef struct {
+    pos_t rPot[3];
+    float minPot;
+    float rcom[3];
+    float vcom[3];
+    float rMax;
+    double fMass;
+    uint32_t n;
+    } TinyGroupTable;
+
+typedef struct {
+    } SmallGroupTable;
+
+
+
+
 /*
 ** components required for groupfinder:  --J.D.--
 */
@@ -794,7 +810,7 @@ typedef struct pkdContext {
     */
     uint32_t iRemoteGroup,nMaxRemoteGroups;
     FOFRemote *tmpFofRemote;
-    
+    TinyGroupTable *tinyGroupTable;
 
     GHtmpGroupTable *tmpHopGroups;
     HopGroupTable *hopGroups;
@@ -1091,6 +1107,7 @@ static inline FIO_SPECIES pkdSpecies( PKD pkd, PARTICLE *p ) {
 #ifdef INTEGER_POSITION
 #define INTEGER_FACTOR 0x80000000u
 #define pkdDblToPos(pkd,d) (pos_t)((d)*INTEGER_FACTOR)
+#define pkdPosToDbl(pkd,pos) ((pos)*(1.0/INTEGER_FACTOR))
 #define pkdPos(pkd,p,d) ((CAST(pos_t *,pkdField(p,pkd->oPosition))[d]) * (1.0/INTEGER_FACTOR))
 #define pkdSetPos(pkd,p,d,v) (void)((CAST(pos_t *,pkdField(p,pkd->oPosition))[d]) = (v)*INTEGER_FACTOR)
 #ifdef __AVX__
@@ -1119,6 +1136,7 @@ static inline __m256d pkdGetPos(PKD pkd,PARTICLE *p) {
 #endif
 #else
 #define pkdDblToPos(pkd,d) (d)
+#define pkdPosToDbl(pkd,pos) (pos)
 #define pkdPos(pkd,p,d) (CAST(pos_t *,pkdField(p,pkd->oPosition))[d])
 #define pkdSetPos(pkd,p,d,v) (void)((CAST(pos_t *,pkdField(p,pkd->oPosition))[d]) = (v))
 #define pkdGetPos3(pkd,p,d1,d2,d3) ((d1)=pkdPos(pkd,p,0),(d2)=pkdPos(pkd,p,1),(d3)=pkdPos(pkd,p,2))
