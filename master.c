@@ -3978,7 +3978,7 @@ void msrNewTopStepKDK(MSR msr,
     uint8_t *puRungMax,
     int *piSec) {
     uint64_t nActive;
-    double dDelta;
+    double dDelta,dTimeFixed;
     uint32_t uRoot2=0;
     int iRungDD = msr->iRungDD;
 
@@ -3990,6 +3990,7 @@ void msrNewTopStepKDK(MSR msr,
 	msrprintf(msr,"Half Drift, uRung: %d\n",iRungDD);
 	dDelta = msr->param.dDelta/(1 << iRungDD); // Main tree step
 	msrDrift(msr,*pdTime,0.5 * dDelta,FIXROOT);
+	dTimeFixed = *pdTime + 0.5 * dDelta;
 	msrBuildTreeFixed(msr,*pdTime,msr->param.bEwald,iRungDD);
 	// Open secondary caches here.
 	}
@@ -4047,7 +4048,7 @@ void msrNewTopStepKDK(MSR msr,
 	msrDrift(msr,*pdTime,dDelta,ROOT);
 	msrprintf(msr,"Half Drift, uRung: %d\n",msr->iRungDD);
 	dDelta = msr->param.dDelta/(1 << msr->iRungDD);
-	msrDrift(msr,*pdTime,0.5 * dDelta,FIXROOT);
+	msrDrift(msr,dTimeFixed,0.5 * dDelta,FIXROOT);
 	// close secondary caches here.
 	}
     }
