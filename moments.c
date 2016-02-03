@@ -2536,6 +2536,52 @@ void momAddFlocr(FLOCR *lr,FLOCR *la) {
     lr->xxyyz += la->xxyyz;
 }
 
+void momLocrAddFlocr(LOCR *lr,FLOCR *la,float v) {
+    double u = 1.0/((double)v);
+    double uu;
+
+    lr->m += la->m;
+    lr->x += u*la->x;
+    lr->y += u*la->y;
+    lr->z += u*la->z;
+    uu = u*u;
+    lr->xx += uu*la->xx;
+    lr->yy += uu*la->yy;
+    lr->xy += uu*la->xy;
+    lr->xz += uu*la->xz;
+    lr->yz += uu*la->yz;
+    uu *= u;
+    lr->xxx += uu*la->xxx;
+    lr->xyy += uu*la->xyy;
+    lr->xxy += uu*la->xxy;
+    lr->yyy += uu*la->yyy;
+    lr->xxz += uu*la->xxz;
+    lr->yyz += uu*la->yyz;
+    lr->xyz += uu*la->xyz;
+    uu *= u;
+    lr->xxxx += uu*la->xxxx;
+    lr->xyyy += uu*la->xyyy;
+    lr->xxxy += uu*la->xxxy;
+    lr->yyyy += uu*la->yyyy;
+    lr->xxxz += uu*la->xxxz;
+    lr->yyyz += uu*la->yyyz;
+    lr->xxyy += uu*la->xxyy;
+    lr->xxyz += uu*la->xxyz;
+    lr->xyyz += uu*la->xyyz;
+    uu *= u;
+    lr->xxxxx += uu*la->xxxxx;
+    lr->xyyyy += uu*la->xyyyy;
+    lr->xxxxy += uu*la->xxxxy;
+    lr->yyyyy += uu*la->yyyyy;
+    lr->xxxxz += uu*la->xxxxz;
+    lr->yyyyz += uu*la->yyyyz;
+    lr->xxxyy += uu*la->xxxyy;
+    lr->xxyyy += uu*la->xxyyy;
+    lr->xxxyz += uu*la->xxxyz;
+    lr->xyyyz += uu*la->xyyyz;
+    lr->xxyyz += uu*la->xxyyz;
+}
+
 void momFlocrToLocr(LOCR *lr,FLOCR *la,float v) {
     double u = 1.0/((double)v);
     double uu;

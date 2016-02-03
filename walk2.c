@@ -22,6 +22,7 @@
 #include "floattype.h"
 #endif
 #include "moments.h"
+#include "vmoments.h"
 #include "cl.h"
 
 static inline int getCell(PKD pkd,int iCache,int iCell,int id,float *pcOpen,KDN **pc) {
@@ -314,7 +315,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2, ui
     double dx[3],dir;
     double tax,tay,taz;
     float fOffset[3];
-    float dirLsum,normLsum,adotai,imaga;
+    float dirLsum,normLsum,adotai;
     float fMass,fSoft;
     int iStack;
     int j,jTile,pj,nActive,nTotActive;
@@ -329,9 +330,10 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2, ui
     CLTILE cltile;
     int iCidPart, iCidCell;
     int bReferenceFound;
-
-#ifdef USE_SIMD_MOMR
-    int ig,iv;
+#ifdef USE_SIMD_FMM
+    float fzero[3] = {0,0,0};
+#else
+    float imaga;
 #endif
 
     pkd->dFlop = 0.0; /* Flops are accumulated here! */
@@ -429,16 +431,21 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2, ui
 	    /*
 	    ** Process the Checklist.
 	    */
+#ifdef USE_SIMD_FMM
+	    if (bGravStep) a = pkdNodeAccel(pkd,k);
+	    else a = fzero;
+#else
 	    if (bGravStep) {
 		a = pkdNodeAccel(pkd,k);
 		imaga = 1.0 / sqrtf(a[0]*a[0] + a[1]*a[1] + a[2]*a[2]);
 	    }
+#endif
 	    /*
 	    ** For cells which will remain on the checklist for a further deeper level of 
 	    ** level of the tree we will be using the stack cl (even if no push happens later).
 	    */
 	    clClear(pkd->S[iStack+1].cl);
-#ifdef USE_SIMD_LOCR
+#ifdef USE_SIMD_FMM
 	    ilcClear(pkd->ill);
 #endif
 	    do {
@@ -605,7 +612,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2, ui
 				    dx[2] = k->r[2] - (blk->z.f[jTile] + blk->zOffset.f[jTile]);
 				    d2 = dx[0]*dx[0] + dx[1]*dx[1] + dx[2]*dx[2];
 				    dir = 1.0/sqrt(d2);
-#ifdef USE_SIMD_LOCR
+#ifdef USE_SIMD_FMM
 				    monoPole.m = blk->m.f[jTile];
 				    ilcAppendFloat(pkd->ill,dx[0],dx[1],dx[2],&monoPole,1.0);
 #else
@@ -631,7 +638,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2, ui
 				    else {
 					c = CAST(KDN *,mdlFetch(pkd->mdl,blk->iCache.i[jTile],iCheckCell,id));
 					}
-#ifdef USE_SIMD_LOCR
+#ifdef USE_SIMD_FMM
 				    for (j=0;j<3;++j) dx[j] = k->r[j] - (c->r[j] + dOffset[j]);
 				    ilcAppendFloat(pkd->ill,dx[0],dx[1],dx[2],pkdNodeMom(pkd,c),c->bMax);
 #else
@@ -677,18 +684,13 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2, ui
 	    /*
 	    ** Now calculate the local expansion.
 	    */
-#ifdef USE_SIMD_LOCR
+#ifdef USE_SIMD_FMM
 	    // Need to do something here with dirLsum and normLsum for GravStep
 	    // Need to get the scaling factor correct here
 	    if (ilcCount(pkd->ill)) {
-		float v = 1.0; // k->bMax;
-		double momFlocrAddVFmomr5cm(FLOCR *l,float v1,ILC ill,double *tax,double *tay,double *taz);
-//		if (pkd->idSelf==0) printf("******************* kmax=%g\n",k->bMax);
-		momLocrToFlocr(&Lf,&L,v);
-		momFlocrAddVFmomr5cm(&Lf,v,pkd->ill,&tax,&tay,&taz);
-//		if (pkd->idSelf==0) momPrintFlocr(&Lf,v);
-		momFlocrToLocr(&L,&Lf,v);
-//		if (pkd->idSelf==0) momPrintLocr(&L);
+		float v = k->bMax;
+		*pdFlop += momFlocrSetVFmomr5cm(&Lf,v,pkd->ill,a,&dirLsum,&normLsum);
+		momLocrAddFlocr(&L,&Lf,v);
 		}
 #endif
 	    /*

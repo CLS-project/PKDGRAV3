@@ -251,14 +251,6 @@ AC_ARG_ENABLE(simd,
   [  --disable-simd                 disable SIMD optimizations],
   [USE_SIMD="$enableval"])
 
-USE_SIMD_MOMR="no"
-AC_ARG_ENABLE(simd-momr,
-  [  --enable-simd-momr             enable MOMR SIMD optimizations],
-  [USE_SIMD_MOMR="$enableval"])
-if test "x$USE_SIMD_MOMR" = "xyes" ; then
-  USE_SIMD=yes
-fi
-
 USE_SIMD_EWALD="$USE_SIMD"
 AC_ARG_ENABLE(simd-ewald,
   [  --disable-simd-ewald           disable Ewald SIMD optimizations],
@@ -291,14 +283,16 @@ if test "x$USE_SIMD_PC" != "xno" ; then
   USE_SIMD="$USE_SIMD_PC"
 fi
 
-# The floating point data type for moments
-if test "x$USE_SIMD_MOMR" = "xyes" -o "x$USE_SIMD_LOCR" = "xyes" ; then
-AC_DEFINE([MOMFLOAT],float,
-	[This defines the base floating point type for moments.])
-else
+USE_SIMD_FMM="$USE_SIMD"
+AC_ARG_ENABLE(simd-fmm,
+  [  --disable-simd-fmm             disable FMM SIMD optimizations],
+  [USE_SIMD_FMM="$enableval"])
+if test "x$USE_SIMD_FMM" != "xno" ; then
+  USE_SIMD="$USE_SIMD_FMM"
+fi
+
 AC_DEFINE([MOMFLOAT],double,
 	[This defines the base floating point type for moments.])
-fi
 
 # Change softening
 CHANGESOFT=yes
@@ -459,7 +453,6 @@ fi
       USE_SIMD_EWALD=no
       USE_SIMD_PP=no
       USE_SIMD_PC=no
-      USE_SIMD_MOMR=no
     fi
   fi
   AC_SUBST(SIMD_CFLAGS)
@@ -480,15 +473,14 @@ if test "x$USE_SIMD_PC" != "xno" ; then
   AC_DEFINE([USE_SIMD_PC],1, 
  	[Define if SIMD optimizations should be used for PC interactions.])
 fi
+if test "x$USE_SIMD_FMM" != "xno" ; then
+  AC_DEFINE([USE_SIMD_FMM],1, 
+ 	[Define if SIMD optimizations should be used for FMM interactions.])
+fi
 if test "x$USE_SIMD_EWALD" != "xno" ; then
   AC_DEFINE([USE_SIMD_EWALD],1,
         [Define if SIMD optimizations should be used for Ewald.])
 fi
-if test "x$USE_SIMD_MOMR" = "xyes" ; then
-  AC_DEFINE([USE_SIMD_MOMR],1, 
- 	[Define if SIMD optimizations should be used for MOMRs.])
-fi
-
 AM_CONDITIONAL(USE_SIMD, test "x$USE_SIMD" != "xno")
 AM_CONDITIONAL(USE_SIMD_OPEN,test "x$USE_SIMD_OPEN" != "xno")
 AM_CONDITIONAL(USE_SIMD_PP,test "x$USE_SIMD_PP" != "xno")
