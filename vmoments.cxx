@@ -117,6 +117,7 @@ double momFlocrSetVFmomr5cm(FLOCR *l,float v1,ILC ill,const float *a,float *pfdi
     vdirLsum.zero();
     vnormLsum.zero();
 
+    int nLoops = 0;
     ILCTILE tile;
     ILC_LOOP(ill,tile) {
 	ILC_BLK *blk = tile->blk;
@@ -142,6 +143,8 @@ double momFlocrSetVFmomr5cm(FLOCR *l,float v1,ILC ill,const float *a,float *pfdi
 		fvec v=v1;
 		fvec dir = rsqrt(x*x + y*y + z*z);
 		fvec sdir = dir;
+
+		++nLoops;
 
 		u *= dir;
 		x *= dir;
@@ -356,5 +359,5 @@ double momFlocrSetVFmomr5cm(FLOCR *l,float v1,ILC ill,const float *a,float *pfdi
 
     // OpCount(*,+,-) = (269,160,43,1) = 472.0 + 7.0
     // mov: 147.0
-    return(479.0 * 8);
+    return(479.0 * 8 * nLoops);
 }
