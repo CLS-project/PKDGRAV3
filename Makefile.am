@@ -26,7 +26,7 @@ EXTRA_PROGRAMS	+= pkdgrav3_mpi
 TARGETS	+= mpi
 
 mpi:
-	$(MAKE) CC=@MPICC@ FC=@MPIFC@ $(AM_MAKEFLAGS) pkdgrav3_mpi
+	$(MAKE) CC=@MPICC@ CXX=@MPICXX@ FC=@MPIFC@ $(AM_MAKEFLAGS) pkdgrav3_mpi
 endif
 
 EXTRA_PROGRAMS += tostd tdiff hpb2fits lcp2tip

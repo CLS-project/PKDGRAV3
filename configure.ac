@@ -14,25 +14,25 @@ AC_PROG_CXX
 AC_PROG_MAKE_SET
 AM_PROG_CC_C_O
 
-AC_ARG_WITH(mpicc,
-  [  --with-mpicc=mpicc      specify the name of the MPI C compiler],
-  [MPICC="${withval}"],[MPICC=""])
-if test "$MPICC" == "no" ; then
-  MPICC=""
-else
-  AC_LANG_PUSH(C)
-  if test "$MPICC" = "yes" ; then
-    MPICC=""
-  fi
-  oldCC="$CC"
-  for CC in cc mpicc $oldCC ; do
-    test -n "$MPICC" && break
-    AC_TRY_COMPILE([#include "mpi.h"],[MPI_Init(0,0)],[MPICC="$CC"],[])
-  done
-  CC="$oldCC"
-  AC_LANG_POP(C)
-fi
+AC_LANG_PUSH(C)
+oldCC="$CC"
+for CC in cc mpicc $oldCC ; do
+  test -n "$MPICC" && break
+  AC_TRY_COMPILE([#include "mpi.h"],[MPI_Init(0,0)],[MPICC="$CC"],[])
+done
+CC="$oldCC"
+AC_LANG_POP(C)
 AC_SUBST(MPICC)
+
+AC_LANG_PUSH(C++)
+oldCXX="$CXX"
+for CXX in CC mpicxx $oldCC ; do
+  test -n "$MPICXX" && break
+  AC_TRY_COMPILE([#include "mpi.h"],[MPI_Init(0,0)],[MPICXX="$CXX"],[])
+done
+CXX="$oldCXX"
+AC_LANG_POP(C++)
+AC_SUBST(MPICXX)
 
 AC_DEFINE([HAVE_ROMBERG], 1, [Use the pkdgrav3 Romberg integrator.])
 AC_DEFINE([NAIVE_DOMAIN_DECOMP], 1, [Use a simplified domain decomposition.])
