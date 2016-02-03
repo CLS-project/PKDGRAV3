@@ -54,11 +54,11 @@ struct packHopCtx {
 static int packHop(void *vctx, int *id, size_t nSize, void *vBuff) {
     struct packHopCtx *ctx = (struct packHopCtx *)vctx;
     int nLeft = ctx->pkd->nLocalGroups - ctx->iIndex;
-    int n = nSize / sizeof(HopGroupTable);
+    int n = nSize / sizeof(TinyGroupTable);
     if ( n > nLeft ) n = nLeft;
-    memcpy(vBuff,ctx->pkd->hopGroups + 1 + ctx->iIndex, n*sizeof(HopGroupTable) );
+    memcpy(vBuff,ctx->pkd->tinyGroupTable + 1 + ctx->iIndex, n*sizeof(TinyGroupTable) );
     ctx->iIndex += n;
-    return n*sizeof(HopGroupTable);
+    return n*sizeof(TinyGroupTable);
     }
 
 /* Send the group information to processor 0 */
@@ -72,7 +72,8 @@ void pkdHopSendStats(PKD pkd) {
 void pkdCalculateGroupStats(PKD pkd, int bPeriodic, double *dPeriod) {
     MDL mdl = pkd->mdl;
     PARTICLE *p;
-    float fPot,fMass;
+    float fPot;
+    double fMass;
     double r[3],r2,rMax;
     double dHalf[3];
     int i,j,gid;
@@ -87,7 +88,8 @@ void pkdCalculateGroupStats(PKD pkd, int bPeriodic, double *dPeriod) {
     nLocalGroups = 0;
     for (gid=0;gid<pkd->nGroups;++gid) {
 	if (pkd->ga[gid].id.iPid == pkd->idSelf && gid) ++nLocalGroups;
-	pkd->tinyGroupTable[gid].minPot = HUGE;
+	pkd->tinyGroupTable[gid].n = pkd->ga[gid].nTotal;
+	pkd->tinyGroupTable[gid].minPot = FLOAT_MAXVAL;
 	pkd->tinyGroupTable[gid].rMax = 0;
 	pkd->tinyGroupTable[gid].fMass = 0;
 	for (j=0;j<3;++j) {
@@ -145,7 +147,7 @@ void pkdCalculateGroupStats(PKD pkd, int bPeriodic, double *dPeriod) {
     for (j=0;j<3;++j) dHalf[j] = bPeriodic ? 0.5 * dPeriod[j] : FLOAT_MAXVAL;
     for (i=0;i<pkd->nLocal;++i) {
 	p = pkdParticle(pkd,i);
-	gid = *pkdGroup(pkd,p);
+	gid = pkdGetGroup(pkd,p);
 	fMass = pkdMass(pkd,p);
 	v = pkdVel(pkd,p);
 	pkd->tinyGroupTable[gid].fMass += fMass;
@@ -170,7 +172,7 @@ void pkdCalculateGroupStats(PKD pkd, int bPeriodic, double *dPeriod) {
 	NULL,initTinyGroup,combTinyGroup);
     for(gid=1+nLocalGroups;gid<pkd->nGroups;++gid) {
 	TinyGroupTable *g;
-	g = mdlVirtualFetch(mdl,CID_GROUP,pkd->hopGroups[gid].id.iIndex,pkd->hopGroups[gid].id.iPid);
+	g = mdlVirtualFetch(mdl,CID_GROUP,pkd->ga[gid].id.iIndex,pkd->ga[gid].id.iPid);
 	g->fMass += pkd->tinyGroupTable[gid].fMass;
 	for (j=0;j<3;j++) {
 	    g->rcom[j] += pkd->tinyGroupTable[gid].rcom[j];
@@ -183,11 +185,11 @@ void pkdCalculateGroupStats(PKD pkd, int bPeriodic, double *dPeriod) {
 	for (j=0;j<3;j++) {
 	    pkd->tinyGroupTable[gid].rcom[j] /= pkd->tinyGroupTable[gid].fMass;
 	    pkd->tinyGroupTable[gid].rcom[j] += pkdPosToDbl(pkd,pkd->tinyGroupTable[gid].rPot[j]);
-	    pkd->hopGroups[gid].vcom[j] /= pkd->tinyGroupTable[gid].fMass;
+	    pkd->tinyGroupTable[gid].vcom[j] /= pkd->tinyGroupTable[gid].fMass;
 	    }
 	}
     /*
-    ** Fetch remote group properties
+    ** Fetch remote group properties (we probably only need rMax to be fetched here).
     */
     mdlROcache(mdl,CID_GROUP,NULL,pkd->tinyGroupTable,sizeof(TinyGroupTable),nLocalGroups+1);
     for(gid=1+nLocalGroups;gid<pkd->nGroups;++gid) {
@@ -200,4 +202,8 @@ void pkdCalculateGroupStats(PKD pkd, int bPeriodic, double *dPeriod) {
 	pkd->tinyGroupTable[gid].rMax = g->rMax;
 	}
     mdlFinishCache(mdl,CID_GROUP);
+    /*
+    ** Important to really make sure pkd->nLocalGroups is set correctly before output!
+    */
+    pkd->nLocalGroups = nLocalGroups;
     }

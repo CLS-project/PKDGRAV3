@@ -508,8 +508,15 @@ typedef struct {
     float rcom[3];
     float vcom[3];
     float rMax;
-    float fMass;
+    double fMass;
+    uint32_t n;
     } TinyGroupTable;
+
+typedef struct {
+    } SmallGroupTable;
+
+
+
 
 /*
 ** components required for groupfinder:  --J.D.--

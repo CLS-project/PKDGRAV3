@@ -33,7 +33,7 @@ void pkdFofGatherLocal(PKD pkd,int *S,FLOAT fBall2,FLOAT r[3],int32_t iGroup,
     int sp = 0;
     int iCell,pj,pEnd,j;
     const BND *bnd;
-    int32_t *pPartGroup;
+    int32_t iPartGroup;
 
     kdn = pkdTreeNode(pkd,iCell = ROOT);
     while (1) {
@@ -54,8 +54,8 @@ void pkdFofGatherLocal(PKD pkd,int *S,FLOAT fBall2,FLOAT r[3],int32_t iGroup,
 	    pEnd = kdn->pUpper;
 	    for (pj=kdn->pLower;pj<=pEnd;++pj) {
 		p = pkdParticle(pkd,pj);
-		pPartGroup = pkdInt32(p,pkd->oGroup);
-		if (*pPartGroup) continue;		    
+		iPartGroup = pkdGetGroup(pkd,p);
+		if (iPartGroup) continue;		    
 		pkdGetPos1(pkd,p,p_r);
 		dx = r[0] - p_r[0];
 		dy = r[1] - p_r[1];
@@ -65,7 +65,7 @@ void pkdFofGatherLocal(PKD pkd,int *S,FLOAT fBall2,FLOAT r[3],int32_t iGroup,
 		    /*
 		    **  Mark particle and add it to the do-fifo
 		    */
-		    *pPartGroup = iGroup;
+		    pkdSetGroup(pkd,p,iGroup);
 		    Fifo[(*piTail)++] = pj;
 		    ++(*pnCurrFofParticles);
 		    if (*pbCurrFofContained) {
@@ -286,12 +286,12 @@ void pkdFofRemoteSearch(PKD pkd,double dTau2) {
 				for (pi=k->pLower,npi=0;pi<=k->pUpper;++pi,++npi) {
 				    p = pkdParticle(pkd,pi);
 				    pkdGetPos3(pkd,p,xi[npi],yi[npi],zi[npi]);
-				    piGroup[npi] = *pkdInt32(p,pkd->oGroup);
+				    piGroup[npi] = pkdGetGroup(pkd,p);
 				    }
 				for (pj=c->pLower;pj<=c->pUpper;++pj) {
 				    if (id == pkd->idSelf) p = pkdParticle(pkd,pj);
 				    else p = CAST(PARTICLE *,mdlFetch(pkd->mdl,CID_PARTICLE,pj,id));
-				    pjGroup = *pkdInt32(p,pkd->oGroup);
+				    pjGroup = pkdGetGroup(pkd,p);
 				    pkdGetPos3(pkd,p,xj,yj,zj);
 				    xj += blk->xOffset.f[jTile];
 				    yj += blk->yOffset.f[jTile];
@@ -541,8 +541,7 @@ int pkdNewFof(PKD pkd,double dTau2,int nMinMembers) {
     */
     for (pn=0;pn<pkd->nLocal;++pn) {
 	p = pkdParticle(pkd,pn);
-	pGroup = pkdInt32(p,pkd->oGroup);
-	*pGroup = 0;
+	pkdSetGroup(pkd,p,0);
 	}
     /*
     ** The following *just* fits into ephemeral storage of 8bytes/particle.
@@ -556,15 +555,14 @@ int pkdNewFof(PKD pkd,double dTau2,int nMinMembers) {
     pkd->nLocalGroups = 0;
     for (pn=0;pn<pkd->nLocal;++pn) {
 	p = pkdParticle(pkd,pn);
-	pGroup = pkdInt32(p,pkd->oGroup);
-	if (*pGroup) continue;
+	if (pkdGetGroup(pkd,p)) continue;
 	++iGroup;
 	/*
 	** Mark particle and add it to the do-fifo
 	*/
 	iHead = iTail = 0;
 	Fifo[iTail++] = pn;
-	*pGroup = iGroup;
+	pkdSetGroup(pkd,p,iGroup);
 	nCurrFofParticles = 1;
 	bCurrFofContained = 1;
 	pkdGetPos1(pkd,p,p_r);
@@ -601,8 +599,7 @@ int pkdNewFof(PKD pkd,double dTau2,int nMinMembers) {
     */
     for (pn=0;pn<pkd->nLocal;++pn) {
 	p = pkdParticle(pkd,pn);
-	pGroup = pkdInt32(p,pkd->oGroup);
-	*pGroup = iFofMap[*pGroup];
+	pkdSetGroup(pkd,p,iFofMap[pkdGetGroup(pkd,p)]);
 	}
     printf("%3d:cull initial small groups from %d to nGroups=%d\n",pkd->idSelf,iGroup,pkd->nLocalGroups);
     pkd->nGroups = pkd->nLocalGroups + 1;

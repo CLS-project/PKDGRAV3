@@ -16,9 +16,9 @@ static void updateGroupIds(PKD pkd, int nGroups, struct smGroupArray *ga, int bI
     /* Update the group for all local particles */
     for (pi=0;pi<pkd->nLocal;++pi) {
 	p = pkdParticle(pkd,pi);
-	gid = *pkdGroup(pkd,p);
+	gid = pkdGetGroup(pkd,p);
 	if (gid<=0) continue;
-	*pkdGroup(pkd,p) = ga[gid].iNewGid;
+	pkdSetGroup(pkd,p,ga[gid].iNewGid);
 	}
 
     /* Now gid has the new position -- a reorder is necessary */
@@ -171,7 +171,7 @@ int pkdGroupRelocate(PKD pkd,int nGroups,struct smGroupArray *ga) {
 	}
     for (i=0;i<pkd->nLocal;++i) {
 	p = pkdParticle(pkd,i);
-	gid = *pkdGroup(pkd,p);
+	gid = pkdGetGroup(pkd,p);
 	++ga[gid].nTotal;
 	}
     /* Now find the real processor with the most particles for each group */
@@ -236,7 +236,7 @@ int pkdGroupCounts(PKD pkd,int nGroups,struct smGroupArray *ga) {
 	}
     for (i=0;i<pkd->nLocal;++i) {
 	p = pkdParticle(pkd,i);
-	gid = *pkdGroup(pkd,p);
+	gid = pkdGetGroup(pkd,p);
 	++ga[gid].nTotal;
 	}
     /*
