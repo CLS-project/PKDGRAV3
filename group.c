@@ -185,6 +185,9 @@ int pkdGroupRelocate(PKD pkd,int nGroups,struct smGroupArray *ga) {
 	g->nTotal = ga[i].nTotal;
 	}
     mdlFinishCache(mdl,CID_GROUP);
+    /*
+    ** Now the local groups are not at the start of the table!
+    */
     /* Now update the new group location */
     mdlROcache(mdl,CID_GROUP,NULL,ga,sizeof(struct smGroupArray), pkd->nGroups);
     for(i=1+nLocalGroups; i<nGroups; ++i) {
@@ -193,6 +196,11 @@ int pkdGroupRelocate(PKD pkd,int nGroups,struct smGroupArray *ga) {
 	ga[i].id.iIndex = g->id.iIndex;
 	}
     mdlFinishCache(mdl,CID_GROUP);
+    /*
+    ** Get local groups back at the begining of the table.
+    */
+
+
     nGroups = pkdGroupCombineDuplicateIds(pkd,nGroups,ga,1);
     return(nGroups);
     }
@@ -208,6 +216,9 @@ static void combTotalnGroup(void *vctx, void *v1, void *v2) {
     g1->nTotal += g2->nTotal;
     }
 
+/*
+** Returns the number of local groups in the smGroupArray table.
+*/
 int pkdGroupCounts(PKD pkd,int nGroups,struct smGroupArray *ga) {
     MDL mdl = pkd->mdl;
     PARTICLE *p;
