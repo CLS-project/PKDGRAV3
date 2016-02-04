@@ -3026,7 +3026,7 @@ uint8_t msrGravity(MSR msr,uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot
     uint8_t uRungMax=0;
     char c;
 
-    if (msr->param.bVStep) printf("Calculating Gravity, Step:%f\n",dStep);
+    if (msr->param.bVStep) printf("Calculating Gravity, Step:%f (rung %d)\n",dStep,uRungLo);
     in.dTime = dTime;
     in.nReps = msr->param.nReplicas;
     in.bPeriodic = msr->param.bPeriodic;
