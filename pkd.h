@@ -319,13 +319,14 @@ typedef struct kdNode {
     int pLower;		     /* also serves as thread id for the LTT */
     int pUpper;		     /* pUpper < 0 indicates no particles in tree! */
     uint32_t iLower;         /* Local lower node (or remote processor w/bRemote=1) */
-    uint16_t iDepth;
-    uint16_t uMinRung   : 6;
-    uint16_t uMaxRung   : 6;
-    uint16_t bSrcActive : 1;
-    uint16_t bDstActive : 1;
-    uint16_t bTopTree   : 1; /* This is a top tree node: pLower,pUpper are node indexes */
-    uint16_t bRemote    : 1; /* children are remote */
+    uint32_t iDepth     : 14;
+    uint32_t iSplitDim  : 2;
+    uint32_t uMinRung   : 6;
+    uint32_t uMaxRung   : 6;
+    uint32_t bSrcActive : 1;
+    uint32_t bDstActive : 1;
+    uint32_t bTopTree   : 1; /* This is a top tree node: pLower,pUpper are node indexes */
+    uint32_t bRemote    : 1; /* children are remote */
     double r[3];
     float bMax;
     float fSoft2;

@@ -206,6 +206,7 @@ void BuildTemp(PKD pkd,int iNode,int M,double dMaxMax) {
     int nBucket = 0;
 
     pNode->iDepth = 0;
+    pNode->iSplitDim = 3;
 
     // Single bucket? We are done.
     if (pNode->pUpper - pNode->pLower + 1 <= M) return;
@@ -235,6 +236,7 @@ void BuildTemp(PKD pkd,int iNode,int M,double dMaxMax) {
 	else if (bnd->fMax[0] < bnd->fMax[2]) d = 2;
 	else d = 0;
 	Split = pkdDblToPos(pkd,bnd->fCenter[d]);
+	pNode->iSplitDim = d;
 	/*
 	** Now start the partitioning of the particles about
 	** fSplit on dimension given by d.
@@ -254,6 +256,7 @@ void BuildTemp(PKD pkd,int iNode,int M,double dMaxMax) {
 	    pLeft->pLower = pNode->pLower;
 	    pLeft->pUpper = i-1;
 	    pLeft->iDepth = pNode->iDepth+1;
+	    pLeft->iSplitDim = 3;
 	    pRight = pkdTreeNode(pkd,iRight);
 	    assert(iRight & 1);
 	    pRight->bTopTree = 0;
@@ -261,6 +264,7 @@ void BuildTemp(PKD pkd,int iNode,int M,double dMaxMax) {
 	    pRight->pLower = i;
 	    pRight->pUpper = pNode->pUpper;
 	    pRight->iDepth = pNode->iDepth+1;
+	    pRight->iSplitDim = 3;
 	    pNode->iLower = iLeft;
 
             lbnd = pkdNodeBnd(pkd, pLeft);
@@ -434,17 +438,12 @@ void BuildFromTemplate(PKD pkd,int iNode,int M,int iTemplate) {
 
 	// Follow the template tree to wherever it leads.
 	while(pTemp->iLower) {
-	    assert(pTemp->iDepth >= pNode->iDepth);
+	    d = pTemp->iSplitDim;
+	    if (pTemp->iDepth != pNode->iDepth || d>2) break;
+
 	    ltbnd = pkdNodeBnd(pkd, ptLeft=pkdTreeNode(pkd,pTemp->iLower));
 	    rtbnd = pkdNodeBnd(pkd, ptRight=pkdTreeNode(pkd,pTemp->iLower+1));
 
-	    // Calculate the dimension and it's split value based on the algorithm above
-	    if (tbnd.fMax[0] < tbnd.fMax[1]) {
-		if (tbnd.fMax[1] < tbnd.fMax[2]) d = 2;
-		else d = 1;
-		}
-	    else if (tbnd.fMax[0] < tbnd.fMax[2]) d = 2;
-	    else d = 0;
 	    Split = pkdDblToPos(pkd,tbnd.fCenter[d]);
 
 	    // We must have done a split along this dimension or something is wacked
@@ -454,12 +453,6 @@ void BuildFromTemplate(PKD pkd,int iNode,int M,int iTemplate) {
 	    // Check for ghosting on the template tree
 	    lg = (ltbnd->fCenter[d] > tbnd.fCenter[d]);
 	    rg = (rtbnd->fCenter[d] < tbnd.fCenter[d]);
-	    if (pTemp->iDepth == pNode->iDepth) {
-		assert(lg==0 && rg==0); // Neither can be ghosted
-		}
-	    else {
-		assert(lg==0 || rg==0); // Obviously both cannot be ghosted
-		}
 
 	    // Partition the particles on either side of the split
 	    i = PartPart(pkd,pNode->pLower,pNode->pUpper,d,Split);
