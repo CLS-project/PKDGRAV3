@@ -193,7 +193,11 @@ struct parameters {
     double fMinRadius;
     int bLogBins;
     int	bTraceRelaxation;
-
+    /*
+    ** Parameters for group stats.
+    */
+    double dEnvironment0;
+    double dEnvironment1;
     /* IC Generation */
     int bWriteIC;
     double h;

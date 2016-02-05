@@ -275,10 +275,7 @@ void pkdFofRemoteSearch(PKD pkd,double dTau2) {
 				*/
 				iCheckCell = blk->iCell.i[jTile];
 				id = blk->idCell.i[jTile];
-				if (id == pkd->idSelf) {
-				    printf("local checkcell:%d\n",iCheckCell);
-				    c = pkdTreeNode(pkd,iCheckCell);
-				    }
+				if (id == pkd->idSelf) c = pkdTreeNode(pkd,iCheckCell);
 				else c = CAST(KDN *,mdlFetch(pkd->mdl,CID_CELL,iCheckCell,id));
 				/*
 				** Convert all the coordinates in the k-cell and store them in vectors.

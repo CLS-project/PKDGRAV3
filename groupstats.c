@@ -2,6 +2,60 @@
 #include "groupstats.h"
 #include "group.h"
 
+
+#if 0
+double illinois(double (*func)(double),double r,double s,double xacc,int *pnIter) {
+    const int maxIter = 100;
+    double t,fr,fs,ft,phis,phir,gamma;
+    int i;
+
+    fr = func(r);
+    fs = func(s);
+    assert(fr*fs < 0);
+    t = (s*fr - r*fs)/(fr - fs);
+    for (i=0;i < maxIter && fabs(t-s) > xacc;++i) {
+
+	ft = func(t);
+
+	if (ft*fs < 0) {
+	    /*
+	    ** Unmodified step.
+	    */
+	    r = s;
+	    s = t;
+	    fr = fs;
+	    fs = ft;
+	}
+	else {
+	    /*
+	    ** Modified step to make sure we do not retain the 
+	    ** endpoint r indefinitely.
+	    */
+#if 1
+	    phis = ft/fs;
+	    phir = ft/fr;
+	    gamma = 1 - (phis/(1-phir));  /* method 3 */
+	    if (gamma < 0) gamma = 0.5;
+#else
+	    gamma = 0.5;    /* illinois */
+#endif
+	    fr *= gamma;
+	    s = t;
+	    fs = ft;
+	}
+	t = (s*fr - r*fs)/(fr - fs);
+/*
+	printf("%d %d r:%.14f fr:%.14f s:%.14f fs:%.14f t:%.14f\n",
+	       i,r,fr,s,fs,t);
+*/
+    }
+    *pnIter = i;
+    return(t);
+}
+#endif
+
+
+
 /*
 ** Stuff to calculate group properties...
 */
@@ -73,20 +127,139 @@ void pkdHopSendStats(PKD pkd) {
     mdlSend(pkd->mdl,0,packHop, &ctx);
     }
 
+typedef struct {
+    float fMass;
+    float dr2;
+    }  MassRadius;
 
-void pkdCalculateGroupStats(PKD pkd, int bPeriodic, double *dPeriod) {
+
+
+static KDN *getCell(PKD pkd, int iCell, int id) {
+    if (id==pkd->idSelf) return pkdTreeNode(pkd,iCell);
+    return mdlFetch(pkd->mdl,CID_CELL,iCell,id);
+    }
+
+static double gatherMass(PKD pkd,remoteID *S,double fBall2,double ri2,double ro2,double r[3]) {
+    KDN *kdn;
+    MDL mdl = pkd->mdl;
+    double min2,max2;
+    int iCell,id;
+    int sp = 0;
+    const BND *bnd;
+    PARTICLE *p;
+    double p_r[3];
+    double dx,dy,dz,fDist2;
+    int pj,pEnd;
+    double fMass = 0;
+
+    kdn = getCell(pkd,iCell=pkd->iTopTree[ROOT],id = pkd->idSelf);
+    while (1) {
+        bnd = pkdNodeBnd(pkd,kdn);
+	MINDIST(bnd,r,min2);
+	if (min2 > ri2) goto NoIntersect;
+	MAXDIST(bnd,r,max2);
+	if (max2 <= ro2) {
+	    fMass += pkdNodeMom(pkd,kdn)->m;
+	    goto NoIntersect;
+	    }
+	/*
+	** We have an intersection to test.
+	*/
+	if (kdn->iLower) {
+	    int idUpper,iUpper;
+	    pkdGetChildCells(kdn,id,id,iCell,idUpper,iUpper);
+	    kdn = getCell(pkd,iCell,id);
+	    S[sp].iPid = idUpper;
+	    S[sp].iIndex = iUpper;
+	    ++sp;
+	    continue;
+	    }
+	else {
+	    if (id == pkd->idSelf) {
+		pEnd = kdn->pUpper;
+		for (pj=kdn->pLower;pj<=pEnd;++pj) {
+		    p = pkdParticle(pkd,pj);
+		    pkdGetPos1(pkd,p,p_r);
+		    dx = r[0] - p_r[0];
+		    dy = r[1] - p_r[1];
+		    dz = r[2] - p_r[2];
+		    fDist2 = dx*dx + dy*dy + dz*dz;
+		    if (fDist2 <= fBall2) {
+			fMass += pkdMass(pkd,p);
+			}
+		    }
+		}
+	    else {
+		pEnd = kdn->pUpper;
+		for (pj=kdn->pLower;pj<=pEnd;++pj) {
+		    p = mdlFetch(mdl,CID_PARTICLE,pj,id);
+		    pkdGetPos1(pkd,p,p_r);
+		    dx = r[0] - p_r[0];
+		    dy = r[1] - p_r[1];
+		    dz = r[2] - p_r[2];
+		    fDist2 = dx*dx + dy*dy + dz*dz;
+		    if (fDist2 <= fBall2) {
+			fMass += pkdMass(pkd,p);
+			}
+		    }
+		}
+	    }
+    NoIntersect:
+	if (sp) {
+	    --sp;
+	    id = S[sp].iPid;
+	    iCell = S[sp].iIndex;
+	    kdn = getCell(pkd,iCell,id);
+	    }
+	else break;
+	}
+    return(fMass);
+    }
+
+
+double pkdGatherMass(PKD pkd,remoteID *S,double fBall,double r[3],int bPeriodic,double dPeriod[3]) {
+    double rp[3];
+    int ix,iy,iz,nReps;
+    double fMass=0;
+    double fBall2 = fBall*fBall;
+    double ri,ri2,ro2;
+
+    assert(pkd->oNodeMom);    
+    ri = 0.9*fBall;        /* we use an approximate radius but make sure it is unbiased by volume */
+    ri2 = ri*ri;
+    ro2 = pow(2*fBall2*fBall - ri2*ri,2.0/3.0);
+    if (bPeriodic) nReps = 1;
+    else nReps = 0;
+    for (ix=-nReps;ix<=nReps;++ix) {
+	rp[0] = r[0] + ix*dPeriod[0];
+	for (iy=-nReps;iy<=nReps;++iy) {
+	    rp[1] = r[1] + iy*dPeriod[1];
+	    for (iz=-nReps;iz<=nReps;++iz) {
+		rp[2] = r[2] + iz*dPeriod[2];
+		fMass += gatherMass(pkd,S,fBall2,ri2,ro2,rp);
+		}
+	    }
+	}
+    return(fMass);
+    }
+
+
+void pkdCalculateGroupStats(PKD pkd,int bPeriodic,double *dPeriod,double rEnvironment[2]) {
     MDL mdl = pkd->mdl;
     PARTICLE *p;
     float fPot;
     double fMass;
     double r[3],v2;
     double dHalf[3];
+    double diVol0,diVol1;
     float r2,rMax;
     int i,j,gid;
     vel_t *v;
     TinyGroupTable *g;
     int nLocalGroups;
     double *dAccumulate;
+    MassRadius *mr;
+    remoteID *S;
 
     assert(pkd->nGroups*(sizeof(*pkd->ga)+sizeof(*pkd->tinyGroupTable)+4*sizeof(double)) < EPHEMERAL_BYTES*pkd->nStore);
     pkd->tinyGroupTable = (TinyGroupTable *)(&pkd->ga[pkd->nGroups]);
@@ -213,7 +386,6 @@ void pkdCalculateGroupStats(PKD pkd, int bPeriodic, double *dPeriod) {
 	if (pkd->tinyGroupTable[gid].rMax > g->rMax) g->rMax = pkd->tinyGroupTable[gid].rMax;
 	}
     mdlFinishCache(mdl,CID_GROUP);
-
     for(gid=1;gid<=nLocalGroups;++gid) {
 	v2 = 0;
 	for (j=0;j<3;j++) {
@@ -230,7 +402,27 @@ void pkdCalculateGroupStats(PKD pkd, int bPeriodic, double *dPeriod) {
 	pkd->tinyGroupTable[gid].sigma -= v2;
 	pkd->tinyGroupTable[gid].sigma = sqrtf(pkd->tinyGroupTable[gid].sigma);
 	}
-
+    /*
+    ** Scoop environment mass (note the full tree must be present).
+    */
+    S = (remoteID *)(&pkd->tinyGroupTable[pkd->nGroups]);
+    mdlROcache(mdl,CID_PARTICLE,NULL,pkdParticleBase(pkd),pkdParticleSize(pkd),pkdLocal(pkd));
+    diVol0 = 3.0/4.0*M_1_PI*pow(rEnvironment[0],-3);
+    diVol1 = 3.0/4.0*M_1_PI*pow(rEnvironment[1],-3);
+    for (gid=1;gid<=nLocalGroups;++gid) {
+	for (j=0;j<3;++j) r[j] = pkdPosToDbl(pkd,pkd->tinyGroupTable[gid].rPot[j]);
+	if (rEnvironment[0] > 0.0) {
+	    pkd->tinyGroupTable[gid].fEnvironDensity0 = 
+		pkdGatherMass(pkd,S,rEnvironment[0],r,bPeriodic,dPeriod)*diVol0;
+	    }
+	else pkd->tinyGroupTable[gid].fEnvironDensity0 = 0.0;
+	if (rEnvironment[1] > 0.0) {
+	    pkd->tinyGroupTable[gid].fEnvironDensity1 = 
+		pkdGatherMass(pkd,S,rEnvironment[1],r,bPeriodic,dPeriod)*diVol1;
+	    }
+	else pkd->tinyGroupTable[gid].fEnvironDensity1 = 0.0; 
+	}
+    mdlFinishCache(mdl,CID_PARTICLE);
     /*
     ** Fetch remote group properties (we probably only need rMax to be fetched here).
     */
@@ -244,8 +436,32 @@ void pkdCalculateGroupStats(PKD pkd, int bPeriodic, double *dPeriod) {
 	    }
 	pkd->tinyGroupTable[gid].sigma = g->sigma;
 	pkd->tinyGroupTable[gid].rMax = g->rMax;
+	pkd->tinyGroupTable[gid].fEnvironDensity0 = g->fEnvironDensity0;
+	pkd->tinyGroupTable[gid].fEnvironDensity1 = g->fEnvironDensity1;	
 	}
     mdlFinishCache(mdl,CID_GROUP);
+
+#if 0
+    /*
+    ** Now find the half mass radii of the groups.
+    ** First do all purely local groups. We can do these one at a time without 
+    ** worrying about remote particles. We should use the bounds determined by 
+    ** fof previously.
+    */
+    mr = (MassRadius *)(&pkd->tinyGroupTable[pkd->nGroups]);
+    mrFree = mr;
+    kdnSelf = pkdTreeNode(pkd,ROOT);
+    bndSelf = pkdNodeBnd(pkd,kdnSelf);
+    for (gid=1;gid<=nLocalGroups;++gid) {
+	if (bContained(bndSelf,pkd->tinyGroupTable[gid].rPot,pkd->tinyGroupTable.rMax)) {
+	    }
+	else {
+	    /*
+	    ** Setup some MassRadius array for this group for the root finding later.
+	    */
+	    }
+	}
+#endif
     /*
     ** Important to really make sure pkd->nLocalGroups is set correctly before output!
     */

@@ -2804,7 +2804,7 @@ void pstGroupStats(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
         }
     else {
 	LCL *plcl = pst->plcl;
-        pkdCalculateGroupStats(plcl->pkd,in->bPeriodic,in->dPeriod);
+        pkdCalculateGroupStats(plcl->pkd,in->bPeriodic,in->dPeriod,in->rEnvironment);
         }
     if (pnOut) *pnOut = 0;
     }

@@ -581,6 +581,7 @@ void pstGroupAssignGID(PST,void *,int,void *,int *);
 struct inGroupStats {
     int bPeriodic;
     double dPeriod[3];
+    double rEnvironment[2];
     };
 void pstGroupStats(PST,void *,int,void *,int *);
 

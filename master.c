@@ -166,7 +166,7 @@ static uint64_t getMemoryModel(MSR msr) {
     ** can be used to request a specific model, but certain operations
     ** will force these flags to be on.
     */
-    if (msr->param.bFindGroups) mMemoryModel |= PKD_MODEL_GROUPS|PKD_MODEL_VELOCITY|PKD_MODEL_POTENTIAL;
+    if (msr->param.bFindGroups) mMemoryModel |= PKD_MODEL_GROUPS|PKD_MODEL_VELOCITY|PKD_MODEL_POTENTIAL|PKD_MODEL_NODE_MOMENT;
     if (msrDoGravity(msr)) {
 	mMemoryModel |= PKD_MODEL_VELOCITY|PKD_MODEL_NODE_MOMENT;
 	if (!msr->param.bNewKDK) mMemoryModel |= PKD_MODEL_ACCELERATION;
@@ -1178,6 +1178,12 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.bTauAbs = 0;
     prmAddParam(msr->prm,"bTauAbs",0,&msr->param.bTauAbs,sizeof(int),"bTauAbs",
 		"<if 1 use z=0 simulation units for dTau, not mean particle separation> = 0");
+    msr->param.dEnvironment0 = -1.0;
+    prmAddParam(msr->prm,"dEnvironment0",2,&msr->param.dEnvironment0,sizeof(double),"dEnv0",
+		"<first radius for density environment about a group> = -1.0 (disabled)");
+    msr->param.dEnvironment1 = -1.0;
+    prmAddParam(msr->prm,"dEnvironment1",2,&msr->param.dEnvironment1,sizeof(double),"dEnv1",
+		"<second radius for density environment about a group> = -1.0 (disabled)");
     msr->param.nBins = 0;
     prmAddParam(msr->prm,"nBins",1,&msr->param.nBins,sizeof(int),"nBins",
 		"<number of bin in profiles, no profiles if 0 or negative> = 0");
@@ -4569,16 +4575,18 @@ void msrCooling(MSR msr,double dTime,double dStep,int bUpdateState, int bUpdateT
 static void writeTinyGroupStats(FILE *fp, int nGroups, TinyGroupTable *g) {
     int i;
     for( i=0; i<nGroups; ++i ) {
-	fprintf(fp, "%.7g %.7g %.7g %.10g %.10g %.10g %.7g %.7g %.7g %.7g %.7g %.7g %.7g\n",
+	fprintf(fp, "%.7g %.7g %.7g %.10g %.10g %.10g %.7g %.7g %.7g %.7g %.7g %.7g %.7g %.7g %.7g\n",
 	    g[i].fMass,
 	    g[i].rMax,
 	    g[i].minPot,
-	    pkdPosToDbl(NULL,g[i].rPot[0]),            /* this is a little bit bad, but will work for now */
+	    pkdPosToDbl(NULL,g[i].rPot[0]),  /* BAD, should pass PKD but will work for now */
 	    pkdPosToDbl(NULL,g[i].rPot[1]),
+
 	    pkdPosToDbl(NULL,g[i].rPot[2]),
 	    g[i].rcom[0], g[i].rcom[1], g[i].rcom[2],
 	    g[i].vcom[0], g[i].vcom[1], g[i].vcom[2],
-	    g[i].sigma);
+	    g[i].sigma,
+	    g[i].fEnvironDensity0,g[i].fEnvironDensity1);
 	}
     }
 
@@ -4648,6 +4656,7 @@ void msrHop(MSR msr, double dTime) {
     struct outHopUnbind outUnbind;
     struct outGroupCountGID outCount;
     struct inGroupAssignGID inAssign;
+    struct inGroupStats inGroupStats;
     int i;
     uint64_t nGroups;
     double sec,dsec,ssec;
@@ -4767,12 +4776,13 @@ void msrHop(MSR msr, double dTime) {
     /*
     ** This should be done as a separate msr function.
     */
-    struct inGroupStats inGroupStats;
     inGroupStats.bPeriodic = msr->param.bPeriodic;
     inGroupStats.dPeriod[0] = msr->param.dxPeriod;
     inGroupStats.dPeriod[1] = msr->param.dyPeriod;
     inGroupStats.dPeriod[2] = msr->param.dzPeriod;
-    pstGroupStats(msr->pst,&inAssign,sizeof(inGroupStats),NULL,NULL); /* Requires correct counts in the PST */
+    inGroupStats.rEnvironment[0] = msr->param.dEnvironment0;
+    inGroupStats.rEnvironment[1] = msr->param.dEnvironment1;
+    pstGroupStats(msr->pst,&inGroupStats,sizeof(inGroupStats),NULL,NULL);
 
     dsec = msrTime() - ssec;
     if (msr->param.bVStep)
@@ -4829,8 +4839,9 @@ void msrNewFof(MSR msr, double dTime) {
 //    pstGroupAssignGID(msr->pst,&inAssign,sizeof(inAssign),NULL,NULL); /* Requires correct counts in the PST */
     dsec = msrTime() - ssec;
     if (msr->param.bVStep)
-	printf("FoF complete, Wallclock: %f secs\n\n",dsec);
+	printf("FoF complete, Wallclock: %f secs\n",dsec);
 
+    sec = msrTime();
     /*
     ** This should be done as a separate msr function.
     */
@@ -4838,7 +4849,12 @@ void msrNewFof(MSR msr, double dTime) {
     inGroupStats.dPeriod[0] = msr->param.dxPeriod;
     inGroupStats.dPeriod[1] = msr->param.dyPeriod;
     inGroupStats.dPeriod[2] = msr->param.dzPeriod;
-    pstGroupStats(msr->pst,&inAssign,sizeof(inGroupStats),NULL,NULL); /* Requires correct counts in the PST */
+    inGroupStats.rEnvironment[0] = msr->param.dEnvironment0;
+    inGroupStats.rEnvironment[1] = msr->param.dEnvironment1;
+    pstGroupStats(msr->pst,&inGroupStats,sizeof(inGroupStats),NULL,NULL);
+    dsec = msrTime() - sec;
+    if (msr->param.bVStep)
+	printf("Group statistics complete, Wallclock: %f secs\n\n",dsec);
     }
 
 
