@@ -53,6 +53,7 @@ struct parameters {
     int nGroup;
     int n2min;
     int iOutInterval;
+    int iFofInterval;
     int iCheckInterval;
     int iLogInterval;
     int iPkInterval;

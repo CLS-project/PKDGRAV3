@@ -1,6 +1,7 @@
 #include <math.h>
 #include "groupstats.h"
 #include "group.h"
+#include "vqsort.h"
 
 
 #if 0
@@ -129,10 +130,10 @@ void pkdHopSendStats(PKD pkd) {
 
 typedef struct {
     float fMass;
-    float dr2;
+    float dr;
     }  MassRadius;
 
-
+#define mrLessThan(a,b) (((MassRadius *)a)->dr < ((MassRadius *)b)->dr)
 
 static KDN *getCell(PKD pkd, int iCell, int id) {
     if (id==pkd->idSelf) return pkdTreeNode(pkd,iCell);
@@ -253,13 +254,15 @@ void pkdCalculateGroupStats(PKD pkd,int bPeriodic,double *dPeriod,double rEnviro
     double dHalf[3];
     double diVol0,diVol1;
     float r2,rMax;
-    int i,j,gid;
+    int i,j,gid,n;
     vel_t *v;
     TinyGroupTable *g;
     int nLocalGroups;
     double *dAccumulate;
-    MassRadius *mr;
+    MassRadius *mr,*mrFree;
     remoteID *S;
+    uint32_t *iGrpOffset,*iGrpEnd;
+    int nRootFind,bIncomplete;
 
     assert(pkd->nGroups*(sizeof(*pkd->ga)+sizeof(*pkd->tinyGroupTable)+4*sizeof(double)) < EPHEMERAL_BYTES*pkd->nStore);
     pkd->tinyGroupTable = (TinyGroupTable *)(&pkd->ga[pkd->nGroups]);
@@ -440,28 +443,83 @@ void pkdCalculateGroupStats(PKD pkd,int bPeriodic,double *dPeriod,double rEnviro
 	pkd->tinyGroupTable[gid].fEnvironDensity1 = g->fEnvironDensity1;	
 	}
     mdlFinishCache(mdl,CID_GROUP);
-
-#if 0
     /*
     ** Now find the half mass radii of the groups.
+    ** Start by reordering particles into group order.
+    ** Note that we must not access tree cells until the next tree build! 
+    */
+    mdlFinishCache(mdl,CID_CELL);
+    iGrpOffset = (uint32_t *)(&pkd->tinyGroupTable[pkd->nGroups]);
+    mr = (MassRadius *)(&iGrpOffset[2*pkd->nGroups]);  /* we must be careful how much of this we use! */
+    pkdGroupOrder(pkd,iGrpOffset);
+    iGrpEnd = &iGrpOffset[pkd->nGroups];
+    iGrpEnd[0] = 0;
+    /*
     ** First do all purely local groups. We can do these one at a time without 
     ** worrying about remote particles. We should use the bounds determined by 
     ** fof previously.
     */
-    mr = (MassRadius *)(&pkd->tinyGroupTable[pkd->nGroups]);
     mrFree = mr;
-    kdnSelf = pkdTreeNode(pkd,ROOT);
-    bndSelf = pkdNodeBnd(pkd,kdnSelf);
+    nRootFind = 0;
     for (gid=1;gid<=nLocalGroups;++gid) {
-	if (bContained(bndSelf,pkd->tinyGroupTable[gid].rPot,pkd->tinyGroupTable.rMax)) {
+	rMax = pkd->tinyGroupTable[gid].rMax;
+	for (j=0;j<3;++j) {
+	    double rt = fabs(pkd->bndInterior.fCenter[j] - pkdPosToDbl(pkd,pkdPosRaw(pkd,p,j)));
+	    if (rt < rMax) rMax = rt;
 	    }
-	else {
+	n = 0;
+	for (i=iGrpEnd[gid-1];i<iGrpEnd[gid];++i,++n) {
+	    p = pkdParticle(pkd,i);
+	    assert(gid == pkdGetGroup(pkd,p)); /* make sure it is really in group order */
+	    r2 = 0.0;
+	    for (j=0;j<3;++j) {
+		r[j] =  pkdPosToDbl(pkd,pkdPosRaw(pkd,p,j) - pkd->tinyGroupTable[gid].rPot[j]);
+		if      (r[j] < -dHalf[j]) r[j] += dPeriod[j];
+		else if (r[j] > +dHalf[j]) r[j] -= dPeriod[j];
+		r2 += r[j]*r[j];
+		}
+	    mrFree[n].fMass = pkdMass(pkd,p);
+	    mrFree[n].dr = sqrtf(r2);
+	    }
+	QSORT(sizeof(MassRadius),mrFree,n,mrLessThan);
+	/*
+	** Sum up the enclosed mass.
+	** If the radius in this sum ever exceeds rMax, then we have to resolve this
+	** group's rHalf by using particles from the other remote processors.
+	*/
+	fMass = mrFree[0].fMass;
+	for (i=1;i<n;++i) {
+	    fMass += mrFree[i].fMass;
+	    mrFree[i].fMass = fMass;
+	    }
+	bIncomplete = 0;
+	for (i=1;i<n;++i) {
+	    if (mrFree[i].dr > rMax) {
+		bIncomplete = 1;
+		break;
+		}
+	    else if (mrFree[i].fMass > 0.5*pkd->tinyGroupTable[gid].fMass) break;
+	    }
+	pkd->tinyGroupTable[gid].rHalf = mrFree[i-1].dr;
+	if (bIncomplete) {
+#if 0
 	    /*
-	    ** Setup some MassRadius array for this group for the root finding later.
+	    ** We need to do some root finding on this group in order to determine the 
+	    ** correct rHalf. The stored rHalf is only a lower bound at present in this
+	    ** case.
 	    */
+	    rootTable[nRootFind].gid = gid;
+	    rootTable[nRootFind].a = pkd->tinyGroupTable[gid].rHalf;
+	    rootTable[nRootFind].b = pkd->tinyGroupTable[gid].rMax;
+	    rootTable[nRootFind].c = ;
+	    rootTable[nRootFind].fMass = 0;
+	    rootTable[nRootFind].ia = 0;
+	    rootTable[nRootFind].ib = n-i;	    
+#endif
+	    ++nRootFind;
 	    }
 	}
-#endif
+//    printf("%d:incomplete rHalf groups:%d\n",pkd->idSelf,nRootFind);
     /*
     ** Important to really make sure pkd->nLocalGroups is set correctly before output!
     */

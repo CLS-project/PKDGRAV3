@@ -326,6 +326,13 @@ void * master_ch(MDL mdl) {
 
 	    msrLightConeClose(msr,iStep);
 
+	    if (msr->param.iFofInterval<0 || msr->param.iFofInterval>0 && iStep%msr->param.iFofInterval==0) {
+		msrNewFof(msr,dTime);
+		if (msr->param.iFofInterval<0) iStep = iStep<<(-msr->param.iFofInterval);
+		msrBuildName(msr,achFile,iStep);
+		strncat(achFile,".fofstats",256);
+		msrHopWrite(msr,achFile);
+		}
 	    /*
 	    ** Output a log file line if requested.
 	    ** Note: no extra gravity calculation required.

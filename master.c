@@ -871,6 +871,9 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.iOutInterval = 0;
     prmAddParam(msr->prm,"iOutInterval",1,&msr->param.iOutInterval,sizeof(int),
 		"oi","<number of timesteps between snapshots> = 0");
+    msr->param.iFofInterval = 0;
+    prmAddParam(msr->prm,"iFofInterval",1,&msr->param.iFofInterval,sizeof(int),
+		"fof","<number of timesteps between fof group finding> = 0");
     strcpy(msr->param.achOutTypes,"rvmsp");
     prmAddParam(msr->prm,"achOutTypes",3,msr->param.achOutTypes,256,"ot",
 		"<output types for snapshot> = \"rvmsp\"");
@@ -3660,17 +3663,6 @@ int msrCountRungs(MSR msr, uint64_t *nRungs) {
 	if (nRungs) nRungs[i] = msr->nRung[i];
 	}
     msr->iCurrMaxRung = iMaxRung;
-
-
-    /* Update the rung used for domain decomposition */
-    const uint64_t nDD = d2u64(msr->N*msr->param.dFracNoDomainDecomp);
-    uint64_t nActive = 0;
-    msr->iRungDD = 0;
-    for (i=msr->iCurrMaxRung;i>=0;--i) {
-	nActive += msr->nRung[i];
-	if (nActive > nDD && !msr->iRungDD) msr->iRungDD = i;
-	}
-
     return iMaxRung;
     }
 
@@ -3970,6 +3962,9 @@ void msrNewTopStepKDK(MSR msr,
     int *piSec) {
     uint64_t nActive;
     double dDelta;
+    char achFile[256];
+    int iStep;
+
     if (uRung < *puRungMax) msrNewTopStepKDK(msr,uRung+1,pdStep,pdTime,puRungMax,piSec);
     /* This Drifts everybody */
     msrprintf(msr,"Drift, uRung: %d\n",*puRungMax);
@@ -3985,6 +3980,13 @@ void msrNewTopStepKDK(MSR msr,
     msrLightCone(msr,*pdTime);
     *puRungMax = msrGravity(msr,uRung,msrMaxRung(msr),ROOT,0,*pdTime,
 	*pdStep,1,1,msr->param.bEwald,msr->param.nGroup,piSec,&nActive);
+    if (uRung && uRung == -msr->param.iFofInterval) {
+	msrNewFof(msr,*pdTime);
+	iStep = (*pdStep)*pow(2.0,-msr->param.iFofInterval);
+	msrBuildName(msr,achFile,iStep);
+	strncat(achFile,".fofstats",256);
+	msrHopWrite(msr,achFile);
+	}
     if (uRung && uRung < *puRungMax) msrNewTopStepKDK(msr,uRung+1,pdStep,pdTime,puRungMax,piSec);
     }
 #else
@@ -4586,9 +4588,10 @@ void msrCooling(MSR msr,double dTime,double dStep,int bUpdateState, int bUpdateT
 static void writeTinyGroupStats(FILE *fp, int nGroups, TinyGroupTable *g) {
     int i;
     for( i=0; i<nGroups; ++i ) {
-	fprintf(fp, "%.7g %.7g %.7g %.10g %.10g %.10g %.7g %.7g %.7g %.7g %.7g %.7g %.7g %.7g %.7g\n",
+	fprintf(fp, "%.7g %.7g %.7g %.7g %.10g %.10g %.10g %.7g %.7g %.7g %.7g %.7g %.7g %.7g %.7g %.7g\n",
 	    g[i].fMass,
 	    g[i].rMax,
+	    g[i].rHalf,
 	    g[i].minPot,
 	    pkdPosToDbl(NULL,g[i].rPot[0]),  /* BAD, should pass PKD but will work for now */
 	    pkdPosToDbl(NULL,g[i].rPot[1]),
@@ -4624,10 +4627,10 @@ void msrHopWrite(MSR msr, const char *fname) {
 
 
     if (msr->param.bVStep)
-	printf("Writing Grasshopper statistics to %s\n", fname );
+	printf("Writing group statistics to %s\n", fname );
     sec = msrTime();
 
-#if 0
+#if 1
     /* This is the new parallel binary format */
     struct inOutput out;
     out.iPartner = -1;
@@ -4844,7 +4847,7 @@ void msrNewFof(MSR msr, double dTime) {
     if (msr->param.bVStep)
 	printf("Removed groups with fewer than %d particles, %"PRIu64" remain\n",
 	    inFinish.nMinGroupSize, nGroups);
-//    pstGroupRelocate(msr->pst,NULL,0,NULL,NULL);
+    pstGroupRelocate(msr->pst,NULL,0,NULL,NULL);
 //    pstGroupCountGID(msr->pst,NULL,0,&outCount,NULL); /* This has the side-effect of updating counts in the PST */
 //    inAssign.iStartGID = 0;
 //    pstGroupAssignGID(msr->pst,&inAssign,sizeof(inAssign),NULL,NULL); /* Requires correct counts in the PST */
@@ -5487,7 +5490,7 @@ void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint) {
 	msrSmooth(msr,dTime,SMX_DENSITY,bSymmetric,msr->param.nSmooth);
 #endif
 	}
-
+#if 0
     if ( msr->param.bFindGroups ) {
 	/*
 	** Build tree, activating all particles first (just in case).
@@ -5524,7 +5527,7 @@ void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint) {
 	strncat(achFile,".fofstats",256);
 	msrHopWrite(msr,achFile);
 	}
-
+#endif
     if ( msr->param.bFindHopGroups ) {
 	msrActiveRung(msr,0,1); /* Activate all particles */
 	msrDomainDecomp(msr,-1,0,0);

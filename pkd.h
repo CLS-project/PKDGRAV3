@@ -531,6 +531,7 @@ typedef struct {
     float fMass;
     float fEnvironDensity0;
     float fEnvironDensity1;
+    float rHalf;
     } TinyGroupTable;
 
 typedef struct {
@@ -826,6 +827,7 @@ typedef struct pkdContext {
     uint64_t iStartGID;
     int nGroups, nLocalGroups;
     struct smGroupArray *ga;
+    BND bndInterior;  /* this gets calculated at the start of Fof for now but should be done elsewhere */
     /*
     ** Some variables needed for pkdNewFof().
     */
@@ -1245,6 +1247,7 @@ void pkdCombineCells1(PKD,KDN *pkdn,KDN *p1,KDN *p2);
 void pkdCombineCells2(PKD,KDN *pkdn,KDN *p1,KDN *p2);
 void pkdCalcRoot(PKD,uint32_t,double *,MOMC *);
 void pkdDistribRoot(PKD,double *,MOMC *);
+void pkdGroupOrder(PKD pkd,uint32_t *iGrpOffset);
 void pkdTreeBuildByGroup(PKD pkd, int nBucket);
 
 #include "parameters.h"

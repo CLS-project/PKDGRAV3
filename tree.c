@@ -1077,6 +1077,43 @@ void pkdTreeBuild(PKD pkd,int nBucket, uint32_t uRoot,uint32_t uTemp) {
 #endif
     }
 
+/*
+** The array iGrpOffset[i] passed in here must have 2*pkd->nGroups entries!
+*/
+void pkdGroupOrder(PKD pkd,uint32_t *iGrpOffset) {
+    PARTICLE *p,*p2;
+    uint32_t i,gid,iTree;
+    uint32_t *iGrpEnd = &iGrpOffset[pkd->nGroups]; /* tricky because the 0th element is not used! */
+
+    /* Count the number of particles in each group */
+    for (i=0;i<=pkd->nGroups;++i) iGrpOffset[i] = 0;
+    for (i=0;i<pkd->nLocal;++i) {
+	p = pkdParticle(pkd,i);
+	gid = pkdGetGroup(pkd,p);
+	++iGrpOffset[gid+1];
+	}
+    iGrpOffset[1] = 0;
+    /* Calculate starting offsets for particles in a group */
+    for(i=2; i<=pkd->nGroups;++i) {
+	iGrpOffset[i] += iGrpOffset[i-1];
+	iGrpEnd[i-1] = iGrpOffset[i];
+	}
+    /* Reorder the particles into group order */
+    for (iTree=1;iTree<pkd->nGroups;++iTree) {
+	for (i=iGrpOffset[iTree];i<iGrpEnd[iTree];) {
+	    p = pkdParticle(pkd,i);
+	    gid = pkdGetGroup(pkd,p);
+	    if (!gid) gid = pkd->nGroups;
+	    if (gid == iTree) ++i;
+	    else {
+		PARTICLE *p2 = pkdParticle(pkd,iGrpOffset[gid]++);
+		pkdSwapParticle(pkd,p,p2);
+		}
+	    }
+	}
+    }
+
+
 void pkdTreeBuildByGroup(PKD pkd, int nBucket) {
     PARTICLE *p;
     KDN *pNode;
@@ -1085,6 +1122,11 @@ void pkdTreeBuildByGroup(PKD pkd, int nBucket) {
     int i,j,k,n,gid,gid2,iRoot;
     int iTree;
 
+    /*
+    ** Should use the pkdGroupOrder function to just reorder the particles 
+    ** without building the trees first. This is useful for some of the 
+    ** groupstats functions.
+    */
     assert(0); /* pLite is gone -- this code path needs to be tested */
     if (pkd->nNodes > 0) {
 	/*

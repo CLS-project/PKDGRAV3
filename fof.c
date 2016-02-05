@@ -404,25 +404,27 @@ void pkdFofRemoteSearch(PKD pkd,double dTau2) {
     }
 
 
-void updateFofBound(FLOAT *fMinFofContained,FLOAT *fMaxFofContained,BND *bnd) {
+void updateInteriorBound(BND *ibnd,BND *bnd) {
     int j;
     for (j=0;j<3;++j) {
-	FLOAT bmin = bnd->fCenter[j] - bnd->fMax[j];
-	FLOAT bmax = bnd->fCenter[j] + bnd->fMax[j];
+	double bmin = bnd->fCenter[j] - bnd->fMax[j];
+	double bmax = bnd->fCenter[j] + bnd->fMax[j];
+	double fmin = ibnd->fCenter[j] - ibnd->fMax[j];
+	double fmax = ibnd->fCenter[j] + ibnd->fMax[j];
 	assert(bmin <= bmax);
-	if (bmin > fMaxFofContained[j] || bmax < fMinFofContained[j]) continue;
-	else if (bmax < fMaxFofContained[j] && bmin > fMinFofContained[j]) {
-	    if (bmin - fMinFofContained[j] > fMaxFofContained[j] - bmax)
-		fMaxFofContained[j] = bmin;
+	if (bmin > fmax || bmax < fmin) continue;
+	else if (bmax < fmax && bmin > fmin) {
+	    if (bmin - fmin > fmax - bmax)
+		fmax = bmin;
 	    else 
-		fMinFofContained[j] = bmax;
+		fmin = bmax;
 	    }
 	else {
-	    if (bmin < fMaxFofContained[j]) 
-		fMaxFofContained[j] = bmin;
-	    if (bmax > fMinFofContained[j]) 
-		fMinFofContained[j] = bmax;		
+	    if (bmin < fmax) fmax = bmin;
+	    if (bmax > fmin) fmin = bmax;		
 	    }
+	ibnd->fCenter[j] = 0.5*(fmin + fmax);
+	ibnd->fMax[j] = 0.5*(fmax - fmin);
 	}
     }
 
@@ -442,8 +444,8 @@ int pkdNewFof(PKD pkd,double dTau2,int nMinMembers) {
     uint32_t *iFofMap;
     int bCurrFofContained;
     uint32_t nCurrFofParticles;
-    FLOAT fMinFofContained[3];
-    FLOAT fMaxFofContained[3];    
+    double fMinFofContained[3];
+    double fMaxFofContained[3];
 
     assert(pkd->oGroup); /* Validate memory model */
     S = malloc(1024*sizeof(int));
@@ -457,10 +459,10 @@ int pkdNewFof(PKD pkd,double dTau2,int nMinMembers) {
     kdnSelf = pkdTreeNode(pkd,ROOT);
     bndSelf = pkdNodeBnd(pkd, kdnSelf);
     for (j=0;j<3;++j) {
-	fMinFofContained[j] = bndSelf->fCenter[j] - bndSelf->fMax[j];
-	fMaxFofContained[j] = bndSelf->fCenter[j] + bndSelf->fMax[j];
+	pkd->bndInterior.fCenter[j] = bndSelf->fCenter[j];
+	pkd->bndInterior.fMax[j] = bndSelf->fMax[j];
 	}
-#if (0)
+#if 0
     /*
     ** The following code would allow doing fof on a substep, which isn't 
     ** forseen in the near future. We can test it at a later stage.
@@ -479,7 +481,7 @@ int pkdNewFof(PKD pkd,double dTau2,int nMinMembers) {
 		    /*
 		    ** Check bounds against this sibling.
 		    */
-		    updateFofBound(fMinFofContained,fMaxFofContained,bnd);
+		    updateFofBound(pkd->bndInterior,bnd);
 		    id = idUp;
 		    assert(id == idSelf);
 		    iCell = iCellUp;
@@ -494,7 +496,7 @@ int pkdNewFof(PKD pkd,double dTau2,int nMinMembers) {
 	/*
 	** Check bounds against this sibling.
 	*/
-	updateFofBound(fMinFofContained,fMaxFofContained,bnd);
+	updateFofBound(pkd->bndInterior,bnd);
 	iCell = iCellLo;
 	id = idLo;
     NextCell:
@@ -519,7 +521,7 @@ int pkdNewFof(PKD pkd,double dTau2,int nMinMembers) {
 			*/
 			for (j=0;j<3;++j) 
 			    rbnd.fCenter[j] = bndTop->fCenter[j] + fOffset[j];
-			updateFofBound(fMinFofContained,fMaxFofContained,&rbnd);
+			updateFofBound(pkd->bndInterior,&rbnd);
 			}
 		    }
 		}
@@ -530,8 +532,8 @@ int pkdNewFof(PKD pkd,double dTau2,int nMinMembers) {
     ** Finally make the contained region be dTau smaller on each side.
     */
     for (j=0;j<3;++j) {
-	fMinFofContained[j] += sqrt(dTau2);
-	fMaxFofContained[j] -= sqrt(dTau2);
+	fMinFofContained[j] = pkd->bndInterior.fCenter[j] - pkd->bndInterior.fMax[j] + sqrt(dTau2);
+	fMaxFofContained[j] = pkd->bndInterior.fCenter[j] + pkd->bndInterior.fMax[j] - sqrt(dTau2);
 	}
     /*
     ** Clear the group numbers!
