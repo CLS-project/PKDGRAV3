@@ -3660,6 +3660,17 @@ int msrCountRungs(MSR msr, uint64_t *nRungs) {
 	if (nRungs) nRungs[i] = msr->nRung[i];
 	}
     msr->iCurrMaxRung = iMaxRung;
+
+
+    /* Update the rung used for domain decomposition */
+    const uint64_t nDD = d2u64(msr->N*msr->param.dFracNoDomainDecomp);
+    uint64_t nActive = 0;
+    msr->iRungDD = 0;
+    for (i=msr->iCurrMaxRung;i>=0;--i) {
+	nActive += msr->nRung[i];
+	if (nActive > nDD && !msr->iRungDD) msr->iRungDD = i;
+	}
+
     return iMaxRung;
     }
 
