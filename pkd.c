@@ -278,6 +278,14 @@ static void firstTouch(uint64_t n,char *p) {
 	}
     }
 
+/* Greatest common divisor */
+static int gcd ( int a, int b ) {
+    while ( a != 0 ) {
+        int c = a; a = b%a;  b = c;
+        }
+    return b;
+    }
+
 void pkdInitialize(
     PKD *ppkd,MDL mdl,int nStore,uint64_t nMinTotalStore,uint64_t nMinEphemeral,
     int nBucket,int nGroup,int nTreeBitsLo, int nTreeBitsHi,
@@ -287,6 +295,9 @@ void pkdInitialize(
     PARTICLE *p;
     uint32_t pi;
     int j,ism;
+
+    uint64_t nPageSize = sysconf(_SC_PAGESIZE);
+    uint64_t nPageMask = nPageSize-1;
 
 #define RANDOM_SEED 1
     srand(RANDOM_SEED);
@@ -460,6 +471,12 @@ void pkdInitialize(
     pkd->nTreeBitsHi = nTreeBitsHi;
     pkd->iTreeMask = (1<<pkd->nTreeBitsLo) - 1;
 
+    /* Adjust nStore so that we use an integer number of pages */
+    int n = nPageSize / gcd(nPageSize,pkd->iParticleSize);
+    pkd->nStore += n; /* Not "n-1" here because we reserve one at the end */
+    pkd->nStore -= pkd->nStore % n;
+    assert( pkd->nStore*pkd->iParticleSize % nPageSize == 0);
+    --pkd->nStore;
 
     /*
     ** We need to allocate one large chunk of memory for:
@@ -484,7 +501,6 @@ void pkdInitialize(
     ** IMPORTANT: There is a whole lot of pointer math here. If you mess with this
     **            you better be sure you get it right or really bad things will happen.
     */
-    uint64_t nPageMask = sysconf(_SC_PAGESIZE)-1;
     uint64_t nBytesPerThread = ((nStore+1)*pkdParticleSize(pkd)+nPageMask) & ~nPageMask; // Constraint (d)
     uint64_t nBytesParticles = (uint64_t)mdlCores(pkd->mdl) * nBytesPerThread; // Constraint (a)
     uint64_t nBytesEphemeral = (uint64_t)mdlCores(pkd->mdl) * (nStore+1)*EPHEMERAL_BYTES; // Constraint (a)
@@ -500,7 +516,7 @@ void pkdInitialize(
     if (mdlCore(pkd->mdl)==0) {
 	uint64_t nBytesTotal = nBytesParticles + nBytesEphemeral + nBytesTreeNodes;
 	void *vParticles;
-	if (posix_memalign(&vParticles,sysconf(_SC_PAGESIZE),nBytesTotal)) pParticles = NULL;
+	if (posix_memalign(&vParticles,nPageSize,nBytesTotal)) pParticles = NULL;
 	else pParticles = vParticles;
 	mdlassert(mdl,pParticles != NULL);
 	pEphemeral = pParticles + nBytesParticles;

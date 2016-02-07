@@ -40,15 +40,19 @@ typedef struct {
     ilpFloat fourh2;        /* Softening: calculated */
     } ILP_BLK;
 
+#ifdef TIMESTEP_CRITICAL
 typedef struct {
     ilpDouble vx, vy, vz;
     ilpInt64 iOrder;
     } ILP_EXTRA;
+#endif
 
 typedef struct ilpTile {
     LSTTILE lstTile;
     ILP_BLK *blk;
+#ifdef TIMESTEP_CRITICAL
     ILP_EXTRA *xtr;
+#endif
     } *ILPTILE;
 
 typedef struct ilpContext {
@@ -83,10 +87,12 @@ static inline void ilpAppendFloat(ILP ilp, float X, float Y, float Z, float M, f
     tile->blk[blk].m.f[prt] = (M);
     tile->blk[blk].fourh2.f[prt] = (S);
     assert( (M) > 0.0 );
+#ifdef TIMESTEP_CRITICAL
     tile->xtr[blk].iOrder.i[prt] = (I);
     tile->xtr[blk].vx.d[prt] = (VX);
     tile->xtr[blk].vy.d[prt] = (VY);
     tile->xtr[blk].vz.d[prt] = (VZ);
+#endif
     ++tile->lstTile.nInLast;
     }
 

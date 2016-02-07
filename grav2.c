@@ -1094,6 +1094,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
         ** Set value for time-step, note that we have the current ewald acceleration
         ** in this now as well!
         */
+#ifdef TIMESTEP_CRITICAL
         if (bGravStep && pkd->param.iTimeStepCrit == 1) {
 	    /*
 	    ** GravStep if iTimeStepCrit =
@@ -1144,6 +1145,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
 		}
 	    work->pInfoOut[i].rhopmax = rhopmax;
 	    }
+#endif
         } /* end of i-loop cells & particles */
 
     pkdParticleWorkDone(work);
@@ -1152,6 +1154,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     return(nActive);
     }
 
+#ifdef TIMESTEP_CRITICAL
 /*
 ** Gravitational scattering regime (iTimeStepCrit=1)
 */
@@ -1171,3 +1174,4 @@ double pkdRho1(double rhopmaxlocal, double summ, double dir, double x, double y,
     if (eccfac > 1.0) rhopmaxlocal *= eccfac;
     return rhopmaxlocal;
     }
+#endif

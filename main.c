@@ -43,10 +43,12 @@ void * main_ch(MDL mdl) {
 
     /* a USR1 signal indicates that the queue wants us to exit */
     timeGlobalSignalTime = 0;
+    signal(SIGUSR1,NULL);
     signal(SIGUSR1,USR1_handler);
 
     /* a USR2 signal indicates that we should write an output when convenient */
     bGlobalOutput = 0;
+    signal(SIGUSR2,NULL);
     signal(SIGUSR2,USR2_handler);
 
     lcl.pkd = NULL;
@@ -98,10 +100,12 @@ void * master_ch(MDL mdl) {
 
     /* a USR1 signal indicates that the queue wants us to exit */
     timeGlobalSignalTime = 0;
+    signal(SIGUSR1,NULL);
     signal(SIGUSR1,USR1_handler);
 
     /* a USR2 signal indicates that we should write an output when convenient */
     bGlobalOutput = 0;
+    signal(SIGUSR2,NULL);
     signal(SIGUSR2,USR2_handler);
 
     /*
@@ -326,6 +330,11 @@ void * master_ch(MDL mdl) {
 
 	    msrLightConeClose(msr,iStep);
 
+#ifdef MDL_FFTW
+	    if (msr->param.iPkInterval && iStep%msr->param.iPkInterval == 0) {
+		msrOutputPk(msr,iStep,dTime);
+		}
+#endif
 	    if (msr->param.iFofInterval<0 || msr->param.iFofInterval>0 && iStep%msr->param.iFofInterval==0) {
 		msrNewFof(msr,dTime);
 		if (msr->param.iFofInterval<0) iStep = iStep<<(-msr->param.iFofInterval);
@@ -389,11 +398,6 @@ void * master_ch(MDL mdl) {
 		msrCheckpoint(msr,iStep,dTime);
 		}
 
-#ifdef MDL_FFTW
-	    if (msr->param.iPkInterval && iStep%msr->param.iPkInterval == 0) {
-		msrOutputPk(msr,iStep,dTime);
-		}
-#endif
 	    if (bGlobalOutput || msrOutTime(msr,dTime) || iStep == msrSteps(msr) || iStop ||
 		    (msrOutInterval(msr) > 0 && iStep%msrOutInterval(msr) == 0)) {
 		bGlobalOutput = 0;

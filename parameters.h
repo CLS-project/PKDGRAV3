@@ -67,6 +67,7 @@ struct parameters {
     int iMaxRung;
     int nRungVeryActive;
     int nPartVeryActive;
+    int bDualTree;
     int nTreeBitsLo;
     int nTreeBitsHi;
     int iWallRunTime;
