@@ -21,7 +21,9 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     float dirLsum,float normLsum,int bEwald,int bGravStep,int nGroup,double *pdFlop,double dRhoFac,
     SMX smx,SMF *smf,int iRoot1,int iRoot2);
 
+#ifdef TIMESTEP_CRITICAL
 double pkdRho1(double rhopmaxlocal, double summ, double dir, double x, double y, double z, double vx, double vy, double vz, double EccFacMax);
+#endif
 
 #endif
 

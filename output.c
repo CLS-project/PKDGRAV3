@@ -41,7 +41,9 @@ void pkdOutput(PKD pkd, int eOutputType, int iProcessor,int nProcessor,
 	if (io_create(&info,achOutFile) < 0) { perror(fname); abort(); }
 	io_write(&info,pkd->tinyGroupTable+1,sizeof(TinyGroupTable)*pkd->nLocalGroups);
 	while(--nPartner) {
+//	    int rID = mdlReqService(pst->mdl,pst->idUpper,PST_OUTPUT,in,nIn);
 	    mdlRecv(pkd->mdl,++iPartner,unpackGroupStats,&info);
+//	    mdlGetReply(pst->mdl,rID,NULL,NULL);
 	    }
 	io_close(&info);
 	io_free(&info);

@@ -2319,23 +2319,8 @@ void pstOutput(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	PKD pkd = pst->plcl->pkd;
 	pkdOutput(pkd,in->eOutputType,in->iProcessor,in->nProcessor,
 	    in->iPartner,in->nPartner,in->achOutFile);
-
-//	printf("%2d: iProcessor=%d nProcessor=%d iPartner=%2d nPartner=%2d\n", pkd->idSelf,
-//	    in->iProcessor, in->nProcessor, in->iPartner, in->nPartner );
-
-
-
-//writer:	if (in->iPartner == pst->idSelf)
-
-
-//	char achOutFile[PST_FILENAME_SIZE];
-//	makeName(achOutFile,in->achOutFile,mdlSelf(pkd->mdl),"chk.");
-//	pkdCheckpoint(pkd,achOutFile);
 	}
     }
-
-
-
 
 
 void pstWrite(PST pst,void *vin,int nIn,void *vout,int *pnOut) {

@@ -1069,6 +1069,9 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.dExtraStore = 0.1;
     prmAddParam(msr->prm,"dExtraStore",2,&msr->param.dExtraStore,
 		sizeof(double),NULL,NULL);
+    msr->param.bDualTree = 0;
+    prmAddParam(msr->prm,"bDualTree",0,&msr->param.bDualTree,sizeof(int),"2tree",
+		"enable/disable second tree for active rungs = -2tree");
     msr->param.nTreeBitsLo = 14;
     prmAddParam(msr->prm,"nTreeBitsLo",1,&msr->param.nTreeBitsLo,
 	sizeof(int),"treelo",
@@ -4002,6 +4005,7 @@ void msrNewTopStepKDK(MSR msr,
     double dDelta,dTimeFixed;
     uint32_t uRoot2=0;
     int iRungDD = msr->iRungDD;
+    int bDualTree;
 
     if (uRung == iRungDD+1) { // Switch to a second active tree
 	struct inDumpTrees dump;
@@ -4013,11 +4017,9 @@ void msrNewTopStepKDK(MSR msr,
 	msrDrift(msr,*pdTime,0.5 * dDelta,FIXROOT);
 	dTimeFixed = *pdTime + 0.5 * dDelta;
 	msrBuildTreeFixed(msr,*pdTime,msr->param.bEwald,iRungDD);
-	// Open secondary caches here.
 	}
-    if (uRung < *puRungMax) {
-	msrNewTopStepKDK(msr,uRung+1,pdStep,pdTime,puRungMax,piSec);
-	}
+    if (uRung < *puRungMax) msrNewTopStepKDK(msr,uRung+1,pdStep,pdTime,puRungMax,piSec);
+
     /* If iRungDD was the maximum rung then we didn't build a second tree */
     else if (uRung == iRungDD) {
 	msrprintf(msr,"Drift, uRung: %d\n",*puRungMax);
@@ -4055,9 +4057,8 @@ void msrNewTopStepKDK(MSR msr,
     int nGroup = uRung>iRungDD ? 1 : msr->param.nGroup;
     *puRungMax = msrGravity(msr,uRung,msrMaxRung(msr),ROOT,uRoot2,*pdTime,
 	*pdStep,1,1,msr->param.bEwald,nGroup,piSec,&nActive);
-    if (uRung && uRung < *puRungMax) {
-	msrNewTopStepKDK(msr,uRung+1,pdStep,pdTime,puRungMax,piSec);
-	}
+    if (uRung && uRung < *puRungMax) msrNewTopStepKDK(msr,uRung+1,pdStep,pdTime,puRungMax,piSec);
+
     else if (uRung == msr->iRungDD) {
 	msrprintf(msr,"Drift, uRung: %d\n",*puRungMax);
 	dDelta = msr->param.dDelta/(1 << msr->iRungDD); // Main tree step

@@ -39,18 +39,19 @@ typedef struct {
 /* Regular particle with order and all the goodies */
 typedef struct particle {
     uint64_t  uRung      :  IRUNGBITS;
-    uint64_t  uNewRung   :  IRUNGBITS;
+    uint64_t  bMarked    :  1;
     uint64_t  bSrcActive :  1;
     uint64_t  bDstActive :  1;
+    uint64_t  uNewRung   :  IRUNGBITS;
     uint64_t  iClass     :  8;
-    uint64_t  bMarked    :  1;
     uint64_t  iOrder     :  IORDERBITS;
     } PARTICLE;
 
 /* Abbreviated particle header with group id */
 typedef struct uparticle {
     uint32_t  uRung      :  IRUNGBITS;
-    uint32_t  iGroup     :  (32-IRUNGBITS);
+    uint64_t  bMarked    :  1;
+    uint32_t  iGroup     :  (32-IRUNGBITS-1);
     } UPARTICLE;
 
 #define PP_CUDA_MEMORY_LIMIT (1024*1024)
