@@ -2,6 +2,8 @@
 #include "config.h"
 #endif
 
+//#define FOF_TESTING
+
 #define _LARGEFILE_SOURCE
 #define _FILE_OFFSET_BITS 64
 #include <stdio.h>
@@ -4630,7 +4632,7 @@ void msrHopWrite(MSR msr, const char *fname) {
 	printf("Writing group statistics to %s\n", fname );
     sec = msrTime();
 
-#if 1
+#ifndef FOF_TESTING
     /* This is the new parallel binary format */
     struct inOutput out;
     out.iPartner = -1;
@@ -4847,7 +4849,7 @@ void msrNewFof(MSR msr, double dTime) {
     if (msr->param.bVStep)
 	printf("Removed groups with fewer than %d particles, %"PRIu64" remain\n",
 	    inFinish.nMinGroupSize, nGroups);
-    pstGroupRelocate(msr->pst,NULL,0,NULL,NULL);
+//    pstGroupRelocate(msr->pst,NULL,0,NULL,NULL);
 //    pstGroupCountGID(msr->pst,NULL,0,&outCount,NULL); /* This has the side-effect of updating counts in the PST */
 //    inAssign.iStartGID = 0;
 //    pstGroupAssignGID(msr->pst,&inAssign,sizeof(inAssign),NULL,NULL); /* Requires correct counts in the PST */
@@ -5490,7 +5492,7 @@ void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint) {
 	msrSmooth(msr,dTime,SMX_DENSITY,bSymmetric,msr->param.nSmooth);
 #endif
 	}
-#if 0
+#ifdef FOF_TESTING
     if ( msr->param.bFindGroups ) {
 	/*
 	** Build tree, activating all particles first (just in case).

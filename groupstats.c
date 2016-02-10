@@ -135,6 +135,19 @@ typedef struct {
 
 #define mrLessThan(a,b) (((MassRadius *)a)->dr < ((MassRadius *)b)->dr)
 
+static void initRoot(void *vpkd, void *v) {
+    MassRadius * g = (MassRadius *)v;
+
+    g->fMass = 0.0;
+    }
+
+static void combRoot(void *vpkd, void *v1, void *v2) {
+    MassRadius *g1 = (MassRadius *)v1;
+    MassRadius *g2 = (MassRadius *)v2;
+
+    g1->fMass += g2->fMass;
+    }
+
 static KDN *getCell(PKD pkd, int iCell, int id) {
     if (id==pkd->idSelf) return pkdTreeNode(pkd,iCell);
     return mdlFetch(pkd->mdl,CID_CELL,iCell,id);
@@ -245,6 +258,15 @@ double pkdGatherMass(PKD pkd,remoteID *S,double fBall,double r[3],int bPeriodic,
     }
 
 
+typedef struct {
+    float a;
+    float b;
+    int bConverged;
+    int iter;            /* this is only used for a diagnostic */
+    int gid;
+    } RootFindingTable;
+
+
 void pkdCalculateGroupStats(PKD pkd,int bPeriodic,double *dPeriod,double rEnvironment[2]) {
     MDL mdl = pkd->mdl;
     PARTICLE *p;
@@ -259,10 +281,12 @@ void pkdCalculateGroupStats(PKD pkd,int bPeriodic,double *dPeriod,double rEnviro
     TinyGroupTable *g;
     int nLocalGroups;
     double *dAccumulate;
-    MassRadius *mr,*mrFree;
+    MassRadius *mr,*mrFree,*rootFunction,*pmr;
     remoteID *S;
     uint32_t *iGrpOffset,*iGrpEnd;
-    int nRootFind,bIncomplete;
+    int nRootFind,bIncomplete,nMaxIter,iter;
+    int *mrIndex,iRoot,*bRemoteDone;
+    RootFindingTable *rootFindingTable;
 
     assert(pkd->nGroups*(sizeof(*pkd->ga)+sizeof(*pkd->tinyGroupTable)+4*sizeof(double)) < EPHEMERAL_BYTES*pkd->nStore);
     pkd->tinyGroupTable = (TinyGroupTable *)(&pkd->ga[pkd->nGroups]);
@@ -322,7 +346,7 @@ void pkdCalculateGroupStats(PKD pkd,int bPeriodic,double *dPeriod,double rEnviro
 	NULL,initMinPot,combMinPot);
     for(gid=1+nLocalGroups;gid<pkd->nGroups;++gid) {
 	assert(pkd->ga[gid].id.iPid != pkd->idSelf);
-	g = mdlFetch(mdl,CID_GROUP,pkd->ga[gid].id.iIndex,pkd->ga[gid].id.iPid);
+	g = mdlAcquire(mdl,CID_GROUP,pkd->ga[gid].id.iIndex,pkd->ga[gid].id.iPid);
 	if (g->minPot <= pkd->tinyGroupTable[gid].minPot) {
 	    pkd->tinyGroupTable[gid].minPot = g->minPot;
 	    for (j=0;j<3;++j) {
@@ -338,6 +362,7 @@ void pkdCalculateGroupStats(PKD pkd,int bPeriodic,double *dPeriod,double rEnviro
 		g->rPot[j] = pkd->tinyGroupTable[gid].rPot[j];
 		}	   
 	    }
+	mdlRelease(mdl,CID_GROUP,g);
 	}
     mdlFinishCache(mdl,CID_GROUP);
     /*
@@ -450,7 +475,8 @@ void pkdCalculateGroupStats(PKD pkd,int bPeriodic,double *dPeriod,double rEnviro
     */
     mdlFinishCache(mdl,CID_CELL);
     iGrpOffset = (uint32_t *)(&pkd->tinyGroupTable[pkd->nGroups]);
-    mr = (MassRadius *)(&iGrpOffset[2*pkd->nGroups]);  /* we must be careful how much of this we use! */
+    mrIndex = (int *)(&iGrpOffset[2*pkd->nGroups]);    /* this stores the ending index of each group in the mr below */
+    mr = (MassRadius *)(&mrIndex[pkd->nGroups]);  /* we must be careful how much of this we use! */
     pkdGroupOrder(pkd,iGrpOffset);
     iGrpEnd = &iGrpOffset[pkd->nGroups];
     iGrpEnd[0] = 0;
@@ -461,10 +487,12 @@ void pkdCalculateGroupStats(PKD pkd,int bPeriodic,double *dPeriod,double rEnviro
     */
     mrFree = mr;
     nRootFind = 0;
+    mrIndex[0] = 0;
     for (gid=1;gid<=nLocalGroups;++gid) {
 	rMax = pkd->tinyGroupTable[gid].rMax;
 	for (j=0;j<3;++j) {
-	    double rt = fabs(pkd->bndInterior.fCenter[j] - pkdPosToDbl(pkd,pkdPosRaw(pkd,p,j)));
+	    double rt = pkd->bndInterior.fMax[j] - 
+		fabs(pkd->bndInterior.fCenter[j] - pkdPosToDbl(pkd,pkd->tinyGroupTable[gid].rPot[j]));
 	    if (rt < rMax) rMax = rt;
 	    }
 	n = 0;
@@ -482,44 +510,183 @@ void pkdCalculateGroupStats(PKD pkd,int bPeriodic,double *dPeriod,double rEnviro
 	    mrFree[n].dr = sqrtf(r2);
 	    }
 	QSORT(sizeof(MassRadius),mrFree,n,mrLessThan);
-	/*
-	** Sum up the enclosed mass.
-	** If the radius in this sum ever exceeds rMax, then we have to resolve this
-	** group's rHalf by using particles from the other remote processors.
-	*/
-	fMass = mrFree[0].fMass;
+	fMass = mrFree[i].fMass;
 	for (i=1;i<n;++i) {
 	    fMass += mrFree[i].fMass;
 	    mrFree[i].fMass = fMass;
 	    }
+	/*
+	** If the radius in this sum ever exceeds rMax, then we have to resolve this
+	** group's rHalf by using particles from the other remote processors.
+	*/
 	bIncomplete = 0;
-	for (i=1;i<n;++i) {
+	for (i=0;i<n;++i) {
 	    if (mrFree[i].dr > rMax) {
 		bIncomplete = 1;
 		break;
 		}
 	    else if (mrFree[i].fMass > 0.5*pkd->tinyGroupTable[gid].fMass) break;
 	    }
-	pkd->tinyGroupTable[gid].rHalf = mrFree[i-1].dr;
+	pkd->tinyGroupTable[gid].rHalf = (i > 0)?mrFree[--i].dr:0;
 	if (bIncomplete) {
-#if 0
+	    /*
+	    ** Compact the mrFree array.
+	    */
+	    for (j=0;i<n;++i,++j) mrFree[j] = mrFree[i];
 	    /*
 	    ** We need to do some root finding on this group in order to determine the 
 	    ** correct rHalf. The stored rHalf is only a lower bound at present in this
-	    ** case.
+	    ** case. Only the rootTable is exposed to the remote processors via the cache.
 	    */
-	    rootTable[nRootFind].gid = gid;
-	    rootTable[nRootFind].a = pkd->tinyGroupTable[gid].rHalf;
-	    rootTable[nRootFind].b = pkd->tinyGroupTable[gid].rMax;
-	    rootTable[nRootFind].c = ;
-	    rootTable[nRootFind].fMass = 0;
-	    rootTable[nRootFind].ia = 0;
-	    rootTable[nRootFind].ib = n-i;	    
-#endif
+	    mrIndex[gid] = mrFree - mr + j;
+	    /*
+	    ** Set the new mrFree to unallocated space.
+	    */
+	    mrFree = mr + mrIndex[gid];
 	    ++nRootFind;
 	    }
+	else {
+	    mrIndex[gid] = mrFree - mr;
+	    }
 	}
-//    printf("%d:incomplete rHalf groups:%d\n",pkd->idSelf,nRootFind);
+    for (gid=nLocalGroups+1;gid<pkd->nGroups;++gid) {
+	n = 0;
+	for (i=iGrpEnd[gid-1];i<iGrpEnd[gid];++i,++n) {
+	    p = pkdParticle(pkd,i);
+	    assert(gid == pkdGetGroup(pkd,p)); /* make sure it is really in group order */
+	    r2 = 0.0;
+	    for (j=0;j<3;++j) {
+		r[j] =  pkdPosToDbl(pkd,pkdPosRaw(pkd,p,j) - pkd->tinyGroupTable[gid].rPot[j]);
+		if      (r[j] < -dHalf[j]) r[j] += dPeriod[j];
+		else if (r[j] > +dHalf[j]) r[j] -= dPeriod[j];
+		r2 += r[j]*r[j];
+		}
+	    mrFree[n].fMass = pkdMass(pkd,p);
+	    mrFree[n].dr = sqrtf(r2);
+	    }
+	QSORT(sizeof(MassRadius),mrFree,n,mrLessThan);
+	fMass = mrFree[i].fMass;
+	for (i=1;i<n;++i) {
+	    fMass += mrFree[i].fMass;
+	    mrFree[i].fMass = fMass;
+	    }
+	mrIndex[gid] = mrFree - mr + n;
+	/*
+	** Set the new mrFree to unallocated space.
+	*/
+	mrFree = mr + mrIndex[gid];
+	}
+    /* 
+    ** Set up a table which defines the rootFunction of all enclosed 
+    ** group mass at a given dr. Also set up extra table needed to keep 
+    ** track of lower and upper bounds for root finding after all the 
+    ** saved mass-radius values.
+    ** We will only need nRootFind entries in this table.
+    */
+    iRoot = 0;
+    rootFunction = mrFree;
+    bRemoteDone = (int *)(&rootFunction[nLocalGroups+1]);
+    for (gid=nLocalGroups+1;gid<pkd->nGroups;++gid) bRemoteDone[gid-(nLocalGroups+1)] = 0;
+    rootFindingTable = (RootFindingTable *)(&bRemoteDone[pkd->nGroups-(nLocalGroups+1)]);
+    for (gid=0;gid<=nLocalGroups;++gid) {
+	if (mrIndex[gid] > mrIndex[gid-1]) {
+	    rootFindingTable[iRoot].bConverged = 0;
+	    rootFindingTable[iRoot].gid = gid;
+	    rootFindingTable[iRoot].iter = 65536;
+	    rootFindingTable[iRoot].a = pkd->tinyGroupTable[gid].rHalf;
+	    rootFindingTable[iRoot].b = pkd->tinyGroupTable[gid].rMax;	    
+	    ++iRoot;
+	    }
+	else {
+	    rootFunction[gid].dr = -1.0; /* marks no root finding needed */
+	    }
+	rootFunction[gid].fMass = 0;
+	}
+    assert(iRoot == nRootFind);
+    /*
+    ** Now everything is set up for the root finding phases.
+    */
+    nMaxIter = 16;
+    for (iter=0;iter<nMaxIter;++iter) {
+	/*
+	** First calculate the local mass contained in a trial dr.
+	*/
+	for (iRoot=0;iRoot<nRootFind;++iRoot) {
+	    gid = rootFindingTable[iRoot].gid;
+	    if (!rootFindingTable[iRoot].bConverged) {
+		rootFunction[gid].dr = 0.5*(rootFindingTable[iRoot].a + rootFindingTable[iRoot].b);
+		/*
+		** Binary search for rootFunction[gid].dr
+		*/
+		int ia = mrIndex[gid-1];
+		int ib = mrIndex[gid] - 1;
+		while (ia < ib) {
+		    int ic = (ia+ib+1)/2;
+		    if (mr[ic].dr > rootFunction[gid].dr) ib = ic-1;
+		    else ia = ic;
+		    }
+		assert(ia == ib);
+		rootFunction[gid].fMass = (rootFunction[gid].dr > mr[ia].dr)?mr[ia].fMass:0;
+		}
+	    else {
+		rootFunction[gid].dr = -1.0;  /* communicates to the remote that nothing needs to be done for this gid */
+		}
+	    }
+	/*
+	** Now scatter the enclosed local mass to remote groups at their trial dr.
+	*/
+	mdlCOcache(mdl,CID_RM,NULL,rootFunction,sizeof(MassRadius),nLocalGroups+1,
+	    NULL,initRoot,combRoot);
+  	for (gid=nLocalGroups+1;gid<pkd->nGroups;++gid) {
+	    if (bRemoteDone[gid-(nLocalGroups+1)]) continue;
+	    pmr = mdlAcquire(mdl,CID_RM,pkd->ga[gid].id.iIndex,pkd->ga[gid].id.iPid);
+	    if (pmr->dr > 0) {
+		/*
+		** Binary search for pmr->dr!
+		*/
+		int ia = mrIndex[gid-1];
+		int ib = mrIndex[gid] - 1;
+		while (ia < ib) {
+		    int ic = (ia+ib+1)/2;
+		    if (mr[ic].dr > pmr->dr) ib = ic-1;
+		    else ia = ic;
+		    }
+		assert(ia == ib);
+		pmr->fMass += (pmr->dr > mr[ia].dr)?mr[ia].fMass:0;
+		}
+	    else {
+		bRemoteDone[gid-(nLocalGroups+1)] = 1;  /* This will even bypass the mdlAcquire in the next iteration. */
+		}
+	    mdlRelease(mdl,CID_RM,pmr);
+	    }
+	mdlFinishCache(mdl,CID_RM);
+	/*
+	** Now the root functions are complete.
+	*/
+	for (iRoot=0;iRoot<nRootFind;++iRoot) {	    
+	    if (!rootFindingTable[iRoot].bConverged) {
+		gid = rootFindingTable[iRoot].gid;
+		if (rootFunction[gid].fMass > (0.5 + 0.6/pkd->ga[gid].nTotal)*pkd->tinyGroupTable[gid].fMass) 
+		    rootFindingTable[iRoot].b = rootFunction[gid].dr;
+		else if (rootFunction[gid].fMass < (0.5 - 0.6/pkd->ga[gid].nTotal)*pkd->tinyGroupTable[gid].fMass)
+		    rootFindingTable[iRoot].a = rootFunction[gid].dr;
+		else {
+		    rootFindingTable[iRoot].bConverged = 1;
+		    pkd->tinyGroupTable[gid].rHalf = rootFunction[gid].dr;
+		    rootFindingTable[iRoot].iter = iter;
+		    }
+		}
+	    }
+	}
+
+    for (iRoot=0;iRoot<nRootFind;++iRoot) {
+	gid = rootFindingTable[iRoot].gid;
+	printf("%d: iter:%d gid:%d MassRatio:%g rHalf:%g\n",pkd->idSelf,rootFindingTable[iRoot].iter,gid,
+	    rootFunction[gid].fMass/pkd->tinyGroupTable[gid].fMass,
+	    pkd->tinyGroupTable[gid].rHalf);
+	}
+
+
     /*
     ** Important to really make sure pkd->nLocalGroups is set correctly before output!
     */
