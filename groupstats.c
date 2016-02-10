@@ -678,15 +678,14 @@ void pkdCalculateGroupStats(PKD pkd,int bPeriodic,double *dPeriod,double rEnviro
 		}
 	    }
 	}
-
+/*
     for (iRoot=0;iRoot<nRootFind;++iRoot) {
 	gid = rootFindingTable[iRoot].gid;
 	printf("%d: iter:%d gid:%d MassRatio:%g rHalf:%g\n",pkd->idSelf,rootFindingTable[iRoot].iter,gid,
 	    rootFunction[gid].fMass/pkd->tinyGroupTable[gid].fMass,
 	    pkd->tinyGroupTable[gid].rHalf);
 	}
-
-
+*/
     /*
     ** Important to really make sure pkd->nLocalGroups is set correctly before output!
     */
