@@ -317,7 +317,7 @@ void * master_ch(MDL mdl) {
 	    else if (msr->param.bNewKDK) {
 		diStep = (double)(iStep-1);
 		ddTime = dTime;
-		msrNewTopStepKDK(msr,0,&diStep,&ddTime,&uRungMax,&iSec);
+		msrNewTopStepKDK(msr,0,0,&diStep,&ddTime,&uRungMax,&iSec);
 		}
 	    else {
 		msrTopStepKDK(msr,iStep-1,dTime,

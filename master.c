@@ -3958,45 +3958,9 @@ void msrLightConeClose(MSR msr,int iStep) {
 void msrLightCone(MSR msr,double dTime) {
     }
 
-#ifndef USE_DUAL_TREE
-void msrNewTopStepKDK(MSR msr,
-    uint8_t uRung,		/* Rung level */
-    double *pdStep,	/* Current step */
-    double *pdTime,	/* Current time */
-    uint8_t *puRungMax,
-    int *piSec) {
-    uint64_t nActive;
-    double dDelta;
-    char achFile[256];
-    int iStep;
-
-    if (uRung < *puRungMax) msrNewTopStepKDK(msr,uRung+1,pdStep,pdTime,puRungMax,piSec);
-    /* This Drifts everybody */
-    msrprintf(msr,"Drift, uRung: %d\n",*puRungMax);
-    dDelta = msr->param.dDelta/(1 << *puRungMax);
-    msrDrift(msr,*pdTime,dDelta,ROOT);
-    *pdTime += dDelta;
-    *pdStep += 1.0/(1 << *puRungMax);
-
-    msrActiveRung(msr,uRung,1);
-    msrDomainDecomp(msr,uRung,0,0);
-    msrUpdateSoft(msr,*pdTime);
-    msrBuildTree(msr,*pdTime,msr->param.bEwald);
-    msrLightCone(msr,*pdTime);
-    *puRungMax = msrGravity(msr,uRung,msrMaxRung(msr),ROOT,0,*pdTime,
-	*pdStep,1,1,msr->param.bEwald,msr->param.nGroup,piSec,&nActive);
-    if (uRung && uRung == -msr->param.iFofInterval) {
-	msrNewFof(msr,*pdTime);
-	iStep = (*pdStep)*pow(2.0,-msr->param.iFofInterval);
-	msrBuildName(msr,achFile,iStep);
-	strncat(achFile,".fofstats",256);
-	msrHopWrite(msr,achFile);
-	}
-    if (uRung && uRung < *puRungMax) msrNewTopStepKDK(msr,uRung+1,pdStep,pdTime,puRungMax,piSec);
-    }
-#else
-void msrNewTopStepKDK(MSR msr,
-    uint8_t uRung,		/* Rung level */
+int msrNewTopStepKDK(MSR msr,
+    int bDualTree,      /* Should be zero at rung 0! */
+    uint8_t uRung,	/* Rung level */
     double *pdStep,	/* Current step */
     double *pdTime,	/* Current time */
     uint8_t *puRungMax,
@@ -4005,41 +3969,42 @@ void msrNewTopStepKDK(MSR msr,
     double dDelta,dTimeFixed;
     uint32_t uRoot2=0;
     int iRungDD = msr->iRungDD;
-    int bDualTree;
+    char achFile[256];
+    int iStep;
 
-    if (uRung == iRungDD+1) { // Switch to a second active tree
-	struct inDumpTrees dump;
-	dump.bOnlyVA = 0;
-	dump.uRungDD = iRungDD;
-	pstDumpTrees(msr->pst,&dump,sizeof(dump),NULL,NULL);
-	msrprintf(msr,"Half Drift, uRung: %d\n",iRungDD);
-	dDelta = msr->param.dDelta/(1 << iRungDD); // Main tree step
-	msrDrift(msr,*pdTime,0.5 * dDelta,FIXROOT);
-	dTimeFixed = *pdTime + 0.5 * dDelta;
-	msrBuildTreeFixed(msr,*pdTime,msr->param.bEwald,iRungDD);
+    if (uRung == iRungDD+1) {
+	if ( msr->param.bDualTree && uRung < *puRungMax) {
+	    bDualTree = 1;
+	    struct inDumpTrees dump;
+	    dump.bOnlyVA = 0;
+	    dump.uRungDD = iRungDD;
+	    pstDumpTrees(msr->pst,&dump,sizeof(dump),NULL,NULL);
+	    msrprintf(msr,"Half Drift, uRung: %d\n",iRungDD);
+	    dDelta = msr->param.dDelta/(1 << iRungDD); // Main tree step
+	    msrDrift(msr,*pdTime,0.5 * dDelta,FIXROOT);
+	    dTimeFixed = *pdTime + 0.5 * dDelta;
+	    msrBuildTreeFixed(msr,*pdTime,msr->param.bEwald,iRungDD);
+	    }
+	else bDualTree = 0;
 	}
-    if (uRung < *puRungMax) msrNewTopStepKDK(msr,uRung+1,pdStep,pdTime,puRungMax,piSec);
+    if (uRung < *puRungMax) bDualTree = msrNewTopStepKDK(msr,bDualTree,uRung+1,pdStep,pdTime,puRungMax,piSec);
 
-    /* If iRungDD was the maximum rung then we didn't build a second tree */
-    else if (uRung == iRungDD) {
-	msrprintf(msr,"Drift, uRung: %d\n",*puRungMax);
-	dDelta = msr->param.dDelta/(1 << iRungDD); // Main tree step
-	msrDrift(msr,*pdTime,dDelta,-1); // Drift all particles
-	}
-
-    /* Drift the small tree by the smallest step */
+    /* Drift the "ROOT" (active) tree or all particle */
     dDelta = msr->param.dDelta/(1 << *puRungMax);
-    if (uRung > iRungDD) {
+    if (bDualTree) {
 	msrprintf(msr,"Drift very actives, uRung: %d\n",*puRungMax);
 	msrDrift(msr,*pdTime,dDelta,ROOT);
 	}
-
+    else {
+	msrprintf(msr,"Drift, uRung: %d\n",*puRungMax);
+	msrDrift(msr,*pdTime,dDelta,-1);
+	}
     *pdTime += dDelta;
     *pdStep += 1.0/(1 << *puRungMax);
 
     msrActiveRung(msr,uRung,1);
     msrUpdateSoft(msr,*pdTime);
-    if (uRung > iRungDD) {
+    if (bDualTree && uRung > iRungDD) {
 	uRoot2 = FIXROOT;
 	msrBuildTreeActive(msr,*pdTime,msr->param.bEwald,iRungDD);
 	}
@@ -4054,27 +4019,26 @@ void msrNewTopStepKDK(MSR msr,
 
     // We need to make sure we descend all the way to the bucket with the
     // active tree, or we can get HUGE group cells, and hence too much P-P/P-C
-    int nGroup = uRung>iRungDD ? 1 : msr->param.nGroup;
+    int nGroup = (bDualTree && uRung > iRungDD) ? 1 : msr->param.nGroup;
     *puRungMax = msrGravity(msr,uRung,msrMaxRung(msr),ROOT,uRoot2,*pdTime,
 	*pdStep,1,1,msr->param.bEwald,nGroup,piSec,&nActive);
-    if (uRung && uRung < *puRungMax) msrNewTopStepKDK(msr,uRung+1,pdStep,pdTime,puRungMax,piSec);
 
-    else if (uRung == msr->iRungDD) {
-	msrprintf(msr,"Drift, uRung: %d\n",*puRungMax);
-	dDelta = msr->param.dDelta/(1 << msr->iRungDD); // Main tree step
-	msrDrift(msr,*pdTime,dDelta,-1); // Drift all particles
+    if (uRung && uRung == -msr->param.iFofInterval) {
+	msrNewFof(msr,*pdTime);
+	iStep = (*pdStep)*pow(2.0,-msr->param.iFofInterval);
+	msrBuildName(msr,achFile,iStep);
+	strncat(achFile,".fofstats",256);
+	msrHopWrite(msr,achFile);
 	}
-   if (uRung==msr->iRungDD+1) {
-	dDelta = msr->param.dDelta/(1 << *puRungMax);
-	msrprintf(msr,"Drift very actives, uRung: %d\n",*puRungMax);
-	msrDrift(msr,*pdTime,dDelta,ROOT);
+
+    if (uRung && uRung < *puRungMax) bDualTree = msrNewTopStepKDK(msr,bDualTree,uRung+1,pdStep,pdTime,puRungMax,piSec);
+    if (bDualTree && uRung==iRungDD+1) {
 	msrprintf(msr,"Half Drift, uRung: %d\n",msr->iRungDD);
-	dDelta = msr->param.dDelta/(1 << msr->iRungDD);
+	dDelta = msr->param.dDelta/(1 << iRungDD);
 	msrDrift(msr,dTimeFixed,0.5 * dDelta,FIXROOT);
-	// close secondary caches here.
 	}
+    return bDualTree;
     }
-#endif
 
 void msrTopStepKDK(MSR msr,
 		   double dStep,	/* Current step */
