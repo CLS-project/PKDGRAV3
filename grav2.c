@@ -60,7 +60,7 @@ static const struct CONSTS {
 
 #if 1
 #ifdef __SSE2__
-/* Caution: This uses v/sqrt(v) so v annot be zero! */
+/* Caution: This uses v/sqrt(v) so v cannot be zero! */
 static inline float asqrtf(float v) {
     __m128 r2 = _mm_set_ss(v);
     __m128 r = _mm_rsqrt_ps(r2);
@@ -909,7 +909,7 @@ static void queueEwald( PKD pkd, workParticle *work ) {
 ** Returns nActive.
 */
 int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
-    int bKickClose,int bKickOpen,vel_t *dtClose,vel_t *dtOpen,double dAccFac,
+    int bKickClose,int bKickOpen,double dTime,vel_t *dtClose,vel_t *dtOpen,double dAccFac,
     KDN *pBucket,LOCR *pLoc,ILP ilp,ILC ilc,
     float dirLsum,float normLsum,int bEwald,int bGravStep,int nGroup,double *pdFlop,
     double dRhoFac,SMX smx,SMF *smf,int iRoot1,int iRoot2) {
@@ -964,6 +964,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     ** the work structure. Depending on how this is called it could create problems if the 
     ** work is flushed out somewhere else, as is the case when using CUDA.
     */
+    work->dTime = dTime;  /* maybe we want the look-back factor. */
     work->dtClose = dtClose;
     work->dtOpen = dtOpen;
     work->dAccFac = dAccFac;
@@ -973,12 +974,12 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
 
     for (i=pkdn->pLower;i<=pkdn->pUpper;++i) {
 	p = pkdParticle(pkd,i);
+	if ( !pkdIsDstActive(p,uRungLo,uRungHi) ) continue;
+
 	pkdGetPos1(pkd,p,r);
 	fMass = pkdMass(pkd,p);
 	fSoft = pkdSoft(pkd,p);
 	v = pkdVel(pkd,p);
-
-	if ( !pkdIsDstActive(p,uRungLo,uRungHi) ) continue;
 
 	nP = work->nP++;
 	work->pPart[nP] = p;

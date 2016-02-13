@@ -231,6 +231,59 @@ static double gatherMass(PKD pkd,remoteID *S,double fBall2,double ri2,double ro2
     }
 
 
+static double gatherLocalMass(PKD pkd,remoteID *S,double fBall2,double ri2,double ro2,double r[3]) {
+    KDN *kdn;
+    MDL mdl = pkd->mdl;
+    double min2,max2;
+    int iCell;
+    int sp = 0;
+    const BND *bnd;
+    PARTICLE *p;
+    double p_r[3];
+    double dx,dy,dz,fDist2;
+    int pj,pEnd;
+    double fMass = 0;
+
+    kdn = pkdTreeNode(pkd,iCell=ROOT);
+    while (1) {
+        bnd = pkdNodeBnd(pkd,kdn);
+	MINDIST(bnd,r,min2);
+	if (min2 > ri2) goto NoIntersect;
+	MAXDIST(bnd,r,max2);
+	if (max2 <= ro2) {
+	    fMass += pkdNodeMom(pkd,kdn)->m;
+	    goto NoIntersect;
+	    }
+	/*
+	** We have an intersection to test.
+	*/
+	if (kdn->iLower) {
+	    kdn = pkdTreeNode(pkd,iCell = kdn->iLower);
+	    S[sp++].iIndex = iCell+1;
+	    continue;
+	    }
+	else {
+	    pEnd = kdn->pUpper;
+	    for (pj=kdn->pLower;pj<=pEnd;++pj) {
+		p = pkdParticle(pkd,pj);
+		pkdGetPos1(pkd,p,p_r);
+		dx = r[0] - p_r[0];
+		dy = r[1] - p_r[1];
+		dz = r[2] - p_r[2];
+		fDist2 = dx*dx + dy*dy + dz*dz;
+		if (fDist2 <= fBall2) {
+		    fMass += pkdMass(pkd,p);
+		    }
+		}
+	    }
+    NoIntersect:
+	if (sp) kdn = pkdTreeNode(pkd,iCell = S[--sp].iIndex);
+	else break;
+	}
+    return(fMass);
+    }
+
+
 double pkdGatherMass(PKD pkd,remoteID *S,double fBall,double r[3],int bPeriodic,double dPeriod[3]) {
     double rp[3];
     int ix,iy,iz,nReps;

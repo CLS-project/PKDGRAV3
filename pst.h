@@ -105,6 +105,7 @@ enum pst_service {
     PST_FASTGASCLEANUP,
     PST_GRAVITY,
     PST_GRAVEXTERNAL,
+    PST_LIGHTCONE,
     PST_CALCEANDL,
     PST_CALCEANDLEXT,
     PST_DRIFT,
@@ -675,6 +676,16 @@ struct outGravityPerProc {
     double dWalkTime;
     };
 void pstGravity(PST,void *,int,void *,int *);
+
+/* PST_LIGHTCONE */
+struct inLightCone {
+    double dtLCDrift[IRUNGMAX+1];
+    double dtLCKick[IRUNGMAX+1];
+    double dLookbackFac;
+    uint8_t uRungLo;
+    uint8_t uRungHi;
+    };
+void pstLightCone(PST,void *,int,void *,int *);
 
 /* PST_CALCEANDL */
 struct outCalcEandL {

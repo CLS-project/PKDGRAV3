@@ -295,7 +295,7 @@ static void addChild(PKD pkd, int iCache, CL cl, int iChild, int id, float *fOff
 ** Returns total number of active particles for which gravity was calculated.
 */
 static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2, uint8_t uRungLo,uint8_t uRungHi, 
-    int bKickClose,int bKickOpen,vel_t *dtClose,vel_t *dtOpen,double dAccFac,
+    int bKickClose,int bKickOpen,vel_t *dtClose,vel_t *dtOpen,double dAccFac,double dTime,
     double dRhoFac, int bEwald, int nGroup,
     double dThetaMin, int bGravStep, double *pdFlop, double *pdPartSum,double *pdCellSum) {
     KDN *k,*c,*kFind;
@@ -791,7 +791,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2, ui
 	** Bucket!
 	*/
 	if (!pkd->param.bNoGrav) {
-	    nActive = pkdGravInteract(pkd,uRungLo,uRungHi,bKickClose,bKickOpen,dtClose,dtOpen,dAccFac,
+	    nActive = pkdGravInteract(pkd,uRungLo,uRungHi,bKickClose,bKickOpen,dTime,dtClose,dtOpen,dAccFac,
 		k,&L,pkd->ilp,pkd->ilc,dirLsum,normLsum,bEwald,bGravStep,nGroup,pdFlop,dRhoFac,
 		smx, &smf, iRoot, iRoot2);
 	    }
@@ -922,7 +922,7 @@ int pkdGravWalkHop(PKD pkd,double dTime,int nGroup, double dThetaMin,double *pdF
 	    }
 	assert(pkd->hopRoots[iRootSelf].iPid==pkd->idSelf);
 	nActive += processCheckList(pkd, smx, smf, pkd->hopRoots[iRootSelf].iIndex, 0, 0, MAX_RUNG,
-	    0,0,NULL,NULL,1.0,
+	    0,0,NULL,NULL,1.0,dTime,
 	    dRhoFac, 0, nGroup, dThetaMin, 0, pdFlop, pdPartSum, pdCellSum);
 	}
     doneGravWalk(pkd,smx,&smf);
@@ -989,7 +989,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,int bKickClose,int bKick
 		}
 	    }
 	nActive += processCheckList(pkd, smx, smf, iLocalRoot1, iLocalRoot2, uRungLo, uRungHi,
-	    bKickClose,bKickOpen,dtClose,dtOpen,dAccFac,
+	    bKickClose,bKickOpen,dtClose,dtOpen,dAccFac,dTime,
 	    dRhoFac, bEwald, nGroup, dThetaMin, pkd->param.bGravStep, pdFlop, pdPartSum, pdCellSum);
 	}
 #if 0
@@ -1018,7 +1018,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,int bKickClose,int bKick
 		}
 	    }
 	nActive += processCheckList(pkd, smx, smf, iLocalRoot2, iLocalRoot1, uRungLo, uRungHi,
-	    bKickClose,bKickOpen,dtClose,dtOpen,dAccFac,
+	    bKickClose,bKickOpen,dtClose,dtOpen,dAccFac,dTime,
 	    dRhoFac, 0, nGroup, dThetaMin, pkd->param.bGravStep, pdFlop, pdPartSum, pdCellSum);
 	}
 #endif
@@ -1065,17 +1065,9 @@ int pkdGravWalkGroups(PKD pkd,double dTime,int nGroup, double dThetaMin,double *
         }
 #endif
 	nActive += processCheckList(pkd, smx, smf, gd[i].treeRoots[0].iLocalRootId, 0, 0, MAX_RUNG,
-	    0,0,NULL,NULL,1.0,
+	    0,0,NULL,NULL,1.0,dTime,
 	    dRhoFac, 0, nGroup, dThetaMin, 0, pdFlop, pdPartSum, pdCellSum);
     }
     doneGravWalk(pkd,smx,&smf);
     return nActive;
 }
-
-/*
-void pkdLightConeWalk(PKD pkd,double dTime,double dDelta) {
-    rComove = dTime*dLightSpeed()/Lbox;
-    
-    
-    }
-*/

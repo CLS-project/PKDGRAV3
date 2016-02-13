@@ -2136,7 +2136,9 @@ pkdGravAll(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     dPartSum = 0.0;
     dCellSum = 0.0;
     pkdStartTimer(pkd,1);
-    *pnActive = pkdGravWalk(pkd,uRungLo,uRungHi,bKickClose,bKickOpen,dtClose,dtOpen,dAccFac,dTime,nReps,bPeriodic && bEwald,nGroup,iRoot1,iRoot2,0,dThetaMin,pdFlop,&dPartSum,&dCellSum);
+    *pnActive = pkdGravWalk(pkd,uRungLo,uRungHi,bKickClose,bKickOpen,dtClose,dtOpen,
+	dAccFac,dTime,nReps,bPeriodic && bEwald,nGroup,
+	iRoot1,iRoot2,0,dThetaMin,pdFlop,&dPartSum,&dCellSum);
     pkdStopTimer(pkd,1);
 
     dActive = (double)(*pnActive);
@@ -2272,7 +2274,7 @@ void pkdLightConeOpen(PKD pkd,const char *fname,int nSideHealpix) {
 	}
     }
 
-static void addToLightCone(PKD pkd,double *r,float *v) {
+static void addToLightCone(PKD pkd,double *r,float *v,PARTICLE *p) {
     if (pkd->afiLightCone.fd>0) {
 	LIGHTCONEP *pLC = pkd->pLightCone;
 	pLC[pkd->nLightCone].pos[0] = r[0];
@@ -2295,6 +2297,140 @@ static void addToLightCone(PKD pkd,double *r,float *v) {
 	}
     }
 
+
+void pkdProcessLightCone(PKD pkd,PARTICLE *p,double dLookbackFac,double dDriftDelta,double dKickDelta) {
+    const double dLightSpeed = dLightSpeedSim(pkd->param.dBoxSize);
+    const double xOffset[8] = {-0.5,-0.5,-0.5,-0.5,+0.5,+0.5,+0.5,+0.5};
+    const double yOffset[8] = {-0.5,-0.5,+0.5,+0.5,-0.5,-0.5,+0.5,+0.5};
+    const double zOffset[8] = {-0.5,+0.5,-0.5,+0.5,-0.5,+0.5,-0.5,+0.5};
+    double vrx0[8],vry0[8],vrz0[8];
+    double vrx1[8],vry1[8],vrz1[8];
+    double mr0[8],mr1[8];
+    double x[8];
+    double r0[3],r1[3];
+    double r0a[8][3];
+    double dlbt, dt, xStart;
+    vel_t *v;
+    int j,k,iOct, bOutside[3];
+    struct {
+	double dt;
+	double fOffset;
+	int jPlane;
+	} isect[4], temp;
+    
+    /*
+    ** If the light surface enters the unit box, then we can start generating light cone output. 
+    */
+    xStart = (dLookbackFac*dLightSpeed - 1.0)/(dKickDelta*dLightSpeed);
+    if (xStart > 1) return;
+    if (xStart < 0) xStart = 0;
+
+    v = pkdVel(pkd,p);
+    pkdGetPos1(pkd,p,r0);
+    for (j=0;j<3;++j) {
+	if (r0[j] < -0.5) r0[j] += 1.0;
+	else if (r0[j] >= 0.5) r0[j] -= 1.0;
+	}
+    for (j=0;j<3;++j) {
+	isect[j].dt = (0.5 - r0[j])/v[j];
+	if (isect[j].dt > 0.0) {
+	    /*
+	    ** Particle crosses the upper j-coordinate boundary of the unit cell at isect[j].dt.
+	    */
+	    isect[j].fOffset = -1.0;
+	    }
+	else {
+	    /*
+	    ** Particle crosses the lower j-coordinate boundary of the unit cell at isect[j].dt.
+	    */
+	    isect[j].dt = (-0.5 - r0[j])/v[j];
+	    isect[j].fOffset = 1.0;
+	    }
+	isect[j].jPlane = j;
+	}
+    isect[3].dt = dDriftDelta;
+    isect[3].fOffset = 0.0;
+    isect[3].jPlane = 3;
+    /*
+    ** Sort them!
+    */
+    if (isect[0].dt>isect[1].dt) { temp = isect[0]; isect[0] = isect[1]; isect[1] = temp; }
+    if (isect[2].dt>isect[3].dt) { temp = isect[2]; isect[2] = isect[3]; isect[3] = temp; }
+    temp = isect[1]; isect[1] = isect[2]; isect[2] = temp;
+    if (isect[0].dt>isect[1].dt) { temp = isect[0]; isect[0] = isect[1]; isect[1] = temp; }
+    if (isect[2].dt>isect[3].dt) { temp = isect[2]; isect[2] = isect[3]; isect[3] = temp; }
+    if (isect[1].dt>isect[2].dt) { temp = isect[1]; isect[1] = isect[2]; isect[2] = temp; }
+
+    for (k=0;k<4;++k) {
+	double dtApprox;
+	if (k==0) {
+	    /*
+	    ** Check lightcone from 0 <= dt < isect[k].dt
+	    */
+	    dt = isect[k].dt;
+	    dtApprox = dt/dDriftDelta*dKickDelta;
+	    dlbt = dLookbackFac;
+	    }
+	else {
+	    /*
+	    ** Check lightcone from isect[k-1].dt <= dt < isect[k].dt
+	    */
+	    dt = isect[k].dt - isect[k-1].dt;
+	    dtApprox = dt/dDriftDelta*dKickDelta;
+	    dlbt = dLookbackFac - dtApprox;
+	    }
+	for (j=0;j<3;++j) r1[j] = r0[j] + dt*v[j];
+	for(iOct=0; iOct<8; ++iOct) {
+	    vrx0[iOct] = xOffset[iOct] + r0[0];
+	    vry0[iOct] = yOffset[iOct] + r0[1];
+	    vrz0[iOct] = zOffset[iOct] + r0[2];
+	    vrx1[iOct] = xOffset[iOct] + r1[0];
+	    vry1[iOct] = yOffset[iOct] + r1[1];
+	    vrz1[iOct] = zOffset[iOct] + r1[2];
+	    mr0[iOct] = sqrt(vrx0[iOct]*vrx0[iOct] + vry0[iOct]*vry0[iOct] + vrz0[iOct]*vrz0[iOct]);
+	    mr1[iOct] = sqrt(vrx1[iOct]*vrx1[iOct] + vry1[iOct]*vry1[iOct] + vrz1[iOct]*vrz1[iOct]);
+	    x[iOct] = (dLightSpeed*dlbt - mr0[iOct])/(dLightSpeed*dtApprox - mr0[iOct] + mr1[iOct]);
+	    }
+	for(iOct=0; iOct<8; ++iOct) {
+	    if (x[iOct] >= xStart && x[iOct] < 1.0) {
+		double r[3];
+		/*
+		** Create a new light cone particle.
+		*/
+		if (pkd->param.bLightConeParticles) {
+		    r[0] = (1-x[iOct])*vrx0[iOct] + x[iOct]*vrx1[iOct];
+		    r[1] = (1-x[iOct])*vry0[iOct] + x[iOct]*vry1[iOct];
+		    r[2] = (1-x[iOct])*vrz0[iOct] + x[iOct]*vrz1[iOct];
+		    addToLightCone(pkd,r,v,p);
+		    }
+		}
+	    }
+	if (isect[k].jPlane == 3) break;
+	/*
+	** Now we need to reposition r0 to the new segment.
+	*/
+	for (j=0;j<3;++j) r0[j] = r1[j];
+	r0[isect[k].jPlane] += isect[k].fOffset;
+	}
+    }
+
+
+void pkdLightCone(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dLookbackFac,double *dtLCDrift,double *dtLCKick) {
+    PARTICLE *p;
+    int i;
+
+    for (i=0;i<pkdLocal(pkd);++i) {
+	p = pkdParticle(pkd,i);
+	if ( !pkdIsDstActive(p,uRungLo,uRungHi) ) continue;
+	/*
+	** Now check the particle against the passing light surface.
+	** We should now be able to just pass the particle pointer.
+	*/
+	pkdProcessLightCone(pkd,p,dLookbackFac,dtLCDrift[p->uRung],dtLCKick[p->uRung]);
+	}
+    }
+
+
 /*
 ** Drift particles whose Rung falls between uRungLo (large step) and uRungHi (small step) inclusive,
 ** and those whose destination activity flag is set.
@@ -2308,12 +2444,7 @@ void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVPred,do
     float *a;
     SPHFIELDS *sph;
     int i,j,k;
-    double rfinal[3],r1[3],r0[3],dMin[3],dMax[3];
-    double dLightSpeed = dLightSpeedSim(pkd->param.dBoxSize);
-    /*
-    ** Maybe master.c should calculate dLookbackFac, but this should work for now.
-    */
-    double dLookbackFac = csmComoveKickFac(pkd->param.csm,dTime,(pkd->dTimeRedshift0 - dTime));
+    double rfinal[3],r0[3],dMin[3],dMax[3];
     int pLower, pUpper;
 
     if (iRoot>=0) {
@@ -2353,132 +2484,8 @@ void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVPred,do
 		sph->fMetalsPred += sph->fMetalsDot*dDeltaUPred;
 		}
 	    for (j=0;j<3;++j) {
-		pkdSetPos(pkd,p,j,r1[j] = pkdPos(pkd,p,j) + dDelta*v[j]);
+		pkdSetPos(pkd,p,j,rfinal[j] = pkdPos(pkd,p,j) + dDelta*v[j]);
 		}
-	    pkdMinMax(r1,dMin,dMax);
-	    }
-	}
-    /*
-    ** If the light surface enters the unit box, then we can start generating light cone output. 
-    */
-    else if (pkd->param.bLightCone && (dLookbackFac-dDeltaVPred)*dLightSpeed < 1.0) {
-	const double xOffset[8] = {-0.5,-0.5,-0.5,-0.5,+0.5,+0.5,+0.5,+0.5};
-	const double yOffset[8] = {-0.5,-0.5,+0.5,+0.5,-0.5,-0.5,+0.5,+0.5};
-	const double zOffset[8] = {-0.5,+0.5,-0.5,+0.5,-0.5,+0.5,-0.5,+0.5};
-	double vrx0[8],vry0[8],vrz0[8];
-	double vrx1[8],vry1[8],vrz1[8];
-	double mr0[8],mr1[8];
-	double x[8];
-	int iOct, bOutside[3];
-	double r0a[8][3];
-	double dlbt, dt, xStart=0.0;
-	struct {
-	    double dt;
-	    double fOffset;
-	    int jPlane;
-	    } isect[4], temp;
-	if (dLookbackFac*dLightSpeed >= 1) {
-	    /*
-	    ** Reject particles which have a comoving distance greater than 1 from a corner!
-	    */
-	    xStart = (dLookbackFac*dLightSpeed - 1.0)/(dDeltaVPred*dLightSpeed);
-	    }
-	for (i=pLower;i<=pUpper;++i) {
-	    p = pkdParticle(pkd,i);
-	    v = pkdVel(pkd,p);
-	    pkdGetPos1(pkd,p,r0);
-	    for (j=0;j<3;++j) rfinal[j] = r0[j] + dDelta*v[j];
-
-	    for (j=0;j<3;++j) {
-		if (r0[j] < -0.5) r0[j] += 1.0;
-		else if (r0[j] >= 0.5) r0[j] -= 1.0;
-		}
-	    for (j=0;j<3;++j) {
-		isect[j].dt = (0.5 - r0[j])/v[j];
-		if (isect[j].dt > 0.0) {
-		    /*
-		    ** Particle crosses the upper j-coordinate boundary of the unit cell at isect[j].dt.
-		    */
-		    isect[j].fOffset = -1.0;
-		    }
-		else {
-		    /*
-		    ** Particle crosses the lower j-coordinate boundary of the unit cell at isect[j].dt.
-		    */
-		    isect[j].dt = (-0.5 - r0[j])/v[j];
-		    isect[j].fOffset = 1.0;
-		    }
-		isect[j].jPlane = j;
-		}
-	    isect[3].dt = dDelta;
-	    isect[3].fOffset = 0.0;
-	    isect[3].jPlane = 3;
-	    /*
-	    ** Sort them!
-	    */
-	    if (isect[0].dt>isect[1].dt) { temp = isect[0]; isect[0] = isect[1]; isect[1] = temp; }
-	    if (isect[2].dt>isect[3].dt) { temp = isect[2]; isect[2] = isect[3]; isect[3] = temp; }
-	    temp = isect[1]; isect[1] = isect[2]; isect[2] = temp;
-	    if (isect[0].dt>isect[1].dt) { temp = isect[0]; isect[0] = isect[1]; isect[1] = temp; }
-	    if (isect[2].dt>isect[3].dt) { temp = isect[2]; isect[2] = isect[3]; isect[3] = temp; }
-	    if (isect[1].dt>isect[2].dt) { temp = isect[1]; isect[1] = isect[2]; isect[2] = temp; }
-
-	    for (k=0;k<4;++k) {
-		double dtApprox;
-		if (k==0) {
-		    /*
-		    ** Check lightcone from 0 <= dt < isect[k].dt
-		    */
-		    dt = isect[k].dt;
-		    dtApprox = dt/dDelta*dDeltaVPred;
-		    dlbt = dLookbackFac;
-		    }
-		else {
-		    /*
-		    ** Check lightcone from isect[k-1].dt <= dt < isect[k].dt
-		    */
-		    dt = isect[k].dt - isect[k-1].dt;
-		    dtApprox = dt/dDelta*dDeltaVPred;
-		    dlbt = dLookbackFac - dtApprox;
-		    }
-		for (j=0;j<3;++j) r1[j] = r0[j] + dt*v[j];
-		for(iOct=0; iOct<8; ++iOct) {
-		    vrx0[iOct] = xOffset[iOct] + r0[0];
-		    vry0[iOct] = yOffset[iOct] + r0[1];
-		    vrz0[iOct] = zOffset[iOct] + r0[2];
-		    vrx1[iOct] = xOffset[iOct] + r1[0];
-		    vry1[iOct] = yOffset[iOct] + r1[1];
-		    vrz1[iOct] = zOffset[iOct] + r1[2];
-		    mr0[iOct] = sqrt(vrx0[iOct]*vrx0[iOct] + vry0[iOct]*vry0[iOct] + vrz0[iOct]*vrz0[iOct]);
-		    mr1[iOct] = sqrt(vrx1[iOct]*vrx1[iOct] + vry1[iOct]*vry1[iOct] + vrz1[iOct]*vrz1[iOct]);
-		    x[iOct] = (dLightSpeed*dlbt - mr0[iOct])/(dLightSpeed*dtApprox - mr0[iOct] + mr1[iOct]);
-		    }
-		for(iOct=0; iOct<8; ++iOct) {
-		    if (x[iOct] >= xStart && x[iOct] < 1.0) {
-			double r[3];
-			/*
-			** Create a new light cone particle.
-			*/
-			if (pkd->param.bLightConeParticles) {
-			    r[0] = (1-x[iOct])*vrx0[iOct] + x[iOct]*vrx1[iOct];
-			    r[1] = (1-x[iOct])*vry0[iOct] + x[iOct]*vry1[iOct];
-			    r[2] = (1-x[iOct])*vrz0[iOct] + x[iOct]*vrz1[iOct];
-			    addToLightCone(pkd,r,v);
-			    }
-			}
-		    }
-		if (isect[k].jPlane == 3) break;
-		/*
-		** Now we need to reposition r0 to the new segment.
-		*/
-		for (j=0;j<3;++j) r0[j] = r1[j];
-		r0[isect[k].jPlane] += isect[k].fOffset;
-		}
-	    /*
-	    ** We set the final position based on the initial drift, since we don't want to leave any
-	    ** particle wrapping to the domain decomposion code!
-	    */
-	    for (j=0;j<3;++j) pkdSetPos(pkd,p,j,rfinal[j]);
 	    pkdMinMax(rfinal,dMin,dMax);
 	    }
 	}
@@ -2487,8 +2494,8 @@ void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double dDeltaVPred,do
 	    p = pkdParticle(pkd,i);
 	    v = pkdVel(pkd,p);
 	    pkdGetPos1(pkd,p,r0);
-	    for (j=0;j<3;++j) pkdSetPos(pkd,p,j,r1[j] = r0[j] + dDelta*v[j]);
-	    pkdMinMax(r1,dMin,dMax);
+	    for (j=0;j<3;++j) pkdSetPos(pkd,p,j,rfinal[j] = r0[j] + dDelta*v[j]);
+	    pkdMinMax(rfinal,dMin,dMax);
 	    }
 	}
     for (j=0;j<3;++j) {
@@ -2510,7 +2517,8 @@ void pkdGravityVeryActive(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,i
     dFlop = 0.0;
     dPartSum = 0.0;
     dCellSum = 0.0;
-    nActive = pkdGravWalk(pkd,uRungLo,uRungHi,0,0,NULL,NULL,1.0,dTime,nReps,bEwald,nGroup,ROOT,0,VAROOT,dTheta,&dFlop,&dPartSum,&dCellSum);
+    nActive = pkdGravWalk(pkd,uRungLo,uRungHi,0,0,NULL,NULL,1.0,dTime,nReps,bEwald,nGroup,
+	ROOT,0,VAROOT,dTheta,&dFlop,&dPartSum,&dCellSum);
     }
 
 
@@ -2736,11 +2744,6 @@ void pkdInitStep(PKD pkd, struct parameters *p, CSM csm) {
     */
     csmInitialize(&pkd->param.csm);
     *pkd->param.csm = *csm;
-    /*
-    ** Also set up the time of redshift 0 which is needed for the 
-    ** generation of light cone outputs.
-    */
-    if (csm->bComove) pkd->dTimeRedshift0 = csmExp2Time(csm,1.0);
     }
 
 

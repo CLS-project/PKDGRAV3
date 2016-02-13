@@ -2,7 +2,7 @@
 #include "config.h"
 #endif
 
-//#define FOF_TESTING
+#define FOF_TESTING
 
 #define _LARGEFILE_SOURCE
 #define _FILE_OFFSET_BITS 64
@@ -3028,6 +3028,42 @@ void msrPrintStat(STAT *ps,char *pszPrefix,int p) {
 	}	
     }
 
+
+void msrLightCone(MSR msr,double dTime,uint8_t uRungLo,uint8_t uRungHi) {
+    struct inLightCone in;
+    double sec,dsec,dt;
+    int i;
+
+    if (!msr->param.bLightCone) return;
+    in.dLookbackFac = csmComoveKickFac(msr->param.csm,dTime,(csmExp2Time(msr->param.csm,1.0) - dTime));
+    in.uRungLo = uRungLo;
+    in.uRungHi = uRungHi;
+    for (i=0,dt=msr->param.dDelta;i<=msr->param.iMaxRung;++i,dt*=0.5) {
+	in.dtLCDrift[i] = 0.0;
+	in.dtLCKick[i] = 0.0;
+	if (i>=uRungLo) {
+	    if (msr->param.csm->bComove) {
+		in.dtLCDrift[i] = csmComoveDriftFac(msr->param.csm,dTime,dt);
+		in.dtLCKick[i] = csmComoveKickFac(msr->param.csm,dTime,dt);
+		}
+	    else {
+	        in.dtLCDrift[i] = dt;
+	        in.dtLCKick[i] = dt;
+		}
+	    }
+	}
+    sec = msrTime();
+    pstLightCone(msr->pst,&in,sizeof(in),NULL,NULL);
+    dsec = msrTime() - sec;
+    if (msr->param.bVStep) {
+	/*
+	** Output some info...
+	*/
+	printf("Light-Cone Calculated, Wallclock: %f secs\n",dsec);
+	}
+    }
+
+
 uint8_t msrGravity(MSR msr,uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot2,
     double dTime, double dStep,int bKickClose,int bKickOpen,int bEwald,int nGroup,int *piSec,uint64_t *pnActive) {
     struct inGravity in;
@@ -3073,8 +3109,12 @@ uint8_t msrGravity(MSR msr,uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot
 	in.dtOpen[i] = 0.0;
 	if (i>=uRungLo) {
 	    if (msr->param.csm->bComove) {
-		if (bKickClose) in.dtClose[i] = csmComoveKickFac(msr->param.csm,dTime-dt,dt);
-		if (bKickOpen) in.dtOpen[i] = csmComoveKickFac(msr->param.csm,dTime,dt);
+		if (bKickClose) {
+		    in.dtClose[i] = csmComoveKickFac(msr->param.csm,dTime-dt,dt);
+		    }
+		if (bKickOpen) {
+		    in.dtOpen[i] = csmComoveKickFac(msr->param.csm,dTime,dt);
+		    }
 		}
 	    else {
 		if (bKickClose) in.dtClose[i] = dt;
@@ -3955,9 +3995,6 @@ void msrLightConeClose(MSR msr,int iStep) {
 	}
     }
 
-void msrLightCone(MSR msr,double dTime) {
-    }
-
 #ifndef USE_DUAL_TREE
 void msrNewTopStepKDK(MSR msr,
     uint8_t uRung,		/* Rung level */
@@ -3971,6 +4008,7 @@ void msrNewTopStepKDK(MSR msr,
     int iStep;
 
     if (uRung < *puRungMax) msrNewTopStepKDK(msr,uRung+1,pdStep,pdTime,puRungMax,piSec);
+    msrLightCone(msr,*pdTime,uRung,msrMaxRung(msr));
     /* This Drifts everybody */
     msrprintf(msr,"Drift, uRung: %d\n",*puRungMax);
     dDelta = msr->param.dDelta/(1 << *puRungMax);
@@ -3982,7 +4020,6 @@ void msrNewTopStepKDK(MSR msr,
     msrDomainDecomp(msr,uRung,0,0);
     msrUpdateSoft(msr,*pdTime);
     msrBuildTree(msr,*pdTime,msr->param.bEwald);
-    msrLightCone(msr,*pdTime);
     *puRungMax = msrGravity(msr,uRung,msrMaxRung(msr),ROOT,0,*pdTime,
 	*pdStep,1,1,msr->param.bEwald,msr->param.nGroup,piSec,&nActive);
     if (uRung && uRung == -msr->param.iFofInterval) {
@@ -4020,6 +4057,8 @@ void msrNewTopStepKDK(MSR msr,
 	}
     if (uRung < *puRungMax) msrNewTopStepKDK(msr,uRung+1,pdStep,pdTime,puRungMax,piSec);
 
+    msrLightCone(msr,*pdTime,uRung,msrMaxRung(msr));
+
     /* If iRungDD was the maximum rung then we didn't build a second tree */
     else if (uRung == iRungDD) {
 	msrprintf(msr,"Drift, uRung: %d\n",*puRungMax);
@@ -4048,9 +4087,6 @@ void msrNewTopStepKDK(MSR msr,
 	uRoot2 = 0;
 	msrBuildTree(msr,*pdTime,msr->param.bEwald);
 	}
-
-    // Reopen "ROOT" caches here (part of buildtree atm).
-    msrLightCone(msr,*pdTime);
 
     // We need to make sure we descend all the way to the bucket with the
     // active tree, or we can get HUGE group cells, and hence too much P-P/P-C

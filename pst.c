@@ -191,6 +191,9 @@ void pstAddServices(PST pst,MDL mdl) {
 		  (void (*)(void *,void *,int,void *,int *)) pstGravity,
 	          sizeof(struct inGravity),
 	          nThreads*sizeof(struct outGravityPerProc) + sizeof(struct outGravityReduct));
+    mdlAddService(mdl,PST_LIGHTCONE,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstLightCone,
+		  sizeof(struct inLightCone),0);
     mdlAddService(mdl,PST_CALCEANDL,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstCalcEandL,
 		  0,sizeof(struct outCalcEandL));
@@ -3056,6 +3059,23 @@ void pstGravity(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	out->dWalkTime = pkdGetWallClockTimer(plcl->pkd,1);
 	}
     if (pnOut) *pnOut = (mdlThreads(pst->mdl) - pst->idSelf)*sizeof(struct outGravityPerProc) + sizeof(struct outGravityReduct);
+    }
+
+
+void pstLightCone(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl = pst->plcl;
+    struct inLightCone *in = vin;
+
+    mdlassert(pst->mdl,nIn == sizeof(struct inLightCone));
+    if (pst->nLeaves > 1) {
+	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_LIGHTCONE,in,nIn);
+	pstLightCone(pst->pstLower,in,nIn,NULL,NULL);
+	mdlGetReply(pst->mdl,rID,NULL,NULL);
+	}
+    else {
+	pkdLightCone(plcl->pkd,in->uRungLo,in->uRungHi,in->dLookbackFac,in->dtLCDrift,in->dtLCKick);
+	}
+    if (pnOut) *pnOut = 0;
     }
 
 

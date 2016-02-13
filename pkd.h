@@ -717,7 +717,6 @@ typedef struct pkdContext {
     size_t iParticleSize;
     PARTICLE *pStorePRIVATE;
     PARTICLE *pTempPRIVATE;
-    double dTimeRedshift0;
 
     asyncFileInfo afiLightCone;
     LIGHTCONEP *pLightCone;
@@ -1333,6 +1332,7 @@ void pkdGravAll(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     double *pdCell,double *pdCellNumAccess,double *pdCellMissRatio,
     double *pdFlop,uint64_t *pnRung);
 void pkdCalcEandL(PKD pkd,double *T,double *U,double *Eth,double *L,double *F,double *W);
+void pkdProcessLightCone(PKD pkd,PARTICLE *p,double dLookbackFac,double dDriftDelta,double dKickDelta);
 void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double,double);
 void pkdScaleVel(PKD pkd,double dvFac);
 void pkdStepVeryActiveKDK(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dStep, double dTime, double dDelta,
@@ -1461,6 +1461,7 @@ void pkdMeasurePk(PKD pkd, double dCenter[3], double dRadius, double dTotalMass,
 #endif
 void pkdOutPsGroup(PKD pkd,char *pszFileName,int iType);
 
+void pkdLightCone(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dLookbackFac,double *dtLCDrift,double *dtLCKick);
 void pkdLightConeOpen(PKD pkd, const char *fname,int nSideHealpix);
 void pkdLightConeClose(PKD pkd, const char *healpixname);
 
