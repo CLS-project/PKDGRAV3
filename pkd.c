@@ -309,7 +309,7 @@ void pkdInitialize(
     pkd->nThreads = mdlThreads(mdl);
     pkd->kdNodeListPRIVATE = NULL;
     pkd->pStorePRIVATE = NULL;
-    pkd->nStore = nStore;
+    pkd->nStore = 0; /* Set properly below */
     pkd->nLocal = 0;
     pkd->nDark = nDark;
     pkd->nGas = nGas;
@@ -473,10 +473,11 @@ void pkdInitialize(
 
     /* Adjust nStore so that we use an integer number of pages */
     int n = nPageSize / gcd(nPageSize,pkd->iParticleSize);
-    pkd->nStore += n; /* Not "n-1" here because we reserve one at the end */
-    pkd->nStore -= pkd->nStore % n;
-    assert( pkd->nStore*pkd->iParticleSize % nPageSize == 0);
-    --pkd->nStore;
+    nStore += n; /* Not "n-1" here because we reserve one at the end */
+    nStore -= nStore % n;
+    assert( (uint64_t)nStore*pkd->iParticleSize % nPageSize == 0);
+    --nStore;
+    pkd->nStore = nStore;
 
     /*
     ** We need to allocate one large chunk of memory for:

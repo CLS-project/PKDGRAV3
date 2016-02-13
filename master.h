@@ -121,8 +121,9 @@ double msrReadCheck(MSR,int *);
 void msrWriteCheck(MSR,double,int);
 int msrOutTime(MSR,double);
 void msrReadOuts(MSR,double);
-void msrNewTopStepKDK(MSR msr,
-    uint8_t uRung,		/* Rung level */
+int msrNewTopStepKDK(MSR msr,
+    int bDualTree,      /* Should be zero at rung 0! */
+    uint8_t uRung,	/* Rung level */
     double *pdStep,	/* Current step */
     double *pdTime,	/* Current time */
     uint8_t *puRungMax,
