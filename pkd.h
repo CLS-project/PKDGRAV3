@@ -534,8 +534,8 @@ typedef struct {
     float rHalf;
     } TinyGroupTable;
 
-typedef struct {
-    } SmallGroupTable;
+//typedef struct {
+//    } SmallGroupTable;
 
 
 
