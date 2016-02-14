@@ -245,15 +245,6 @@ static int pkdParticleAddInt32(PKD pkd,int n) {
     return iOffset;
     }
 
-/* Add n 16-bit integers to the particle structure */
-static int pkdParticleAddInt16(PKD pkd,int n) {
-    int iOffset = pkd->iParticleSize;
-    mdlassert( pkd->mdl, pkd->pStorePRIVATE == NULL );
-    mdlassert( pkd->mdl, (iOffset & (sizeof(int16_t)-1)) == 0 );
-    pkd->iParticleSize += sizeof(int16_t) * n;
-    return iOffset;
-    }
-
 /* Extend the tree by adding more nodes */
 void pkdExtendTree(PKD pkd) {
     if ( pkd->nTreeTiles >= (1<<pkd->nTreeBitsHi) ) {
@@ -383,11 +374,6 @@ void pkdInitialize(
     else
 	pkd->oAcceleration = 0;
 
-    if ( mMemoryModel & PKD_MODEL_POTENTIAL )
-	pkd->oPotential = pkdParticleAddFloat(pkd,1);
-    else
-	pkd->oPotential = 0;
-
     if ( mMemoryModel & PKD_MODEL_MASS )
 	pkd->oMass = pkdParticleAddFloat(pkd,1);
     else
@@ -405,12 +391,17 @@ void pkdInitialize(
 	pkd->oDensity = pkdParticleAddFloat(pkd,1);
     else pkd->oDensity = 0;
 
-    pkd->bGidInHeader = 0;
+    pkd->bNoParticleOrder = 0;
     pkd->oGroup = 0;
     if ( mMemoryModel & PKD_MODEL_GROUPS ) {
-	if (mMemoryModel&PKD_MODEL_UNORDERED) pkd->bGidInHeader = 1;
+	if (mMemoryModel&PKD_MODEL_UNORDERED) pkd->bNoParticleOrder = 1;
 	else pkd->oGroup = pkdParticleAddInt32(pkd,1);
 	}
+
+    if (mMemoryModel&PKD_MODEL_UNORDERED) pkd->oPotential = 4;
+    else if ( mMemoryModel & PKD_MODEL_POTENTIAL )
+	pkd->oPotential = pkdParticleAddFloat(pkd,1);
+    else pkd->oPotential = 0;
 
     /*
     ** Tree node memory models
@@ -809,7 +800,9 @@ void pkdSetClass( PKD pkd, float fMass, float fSoft, FIO_SPECIES eSpecies, PARTI
 	pkd->pClass[i].fMass    = fMass;
 	pkd->pClass[i].eSpecies = eSpecies;
 	}
-    p->iClass = i;
+    if (pkd->bNoParticleOrder) { assert(i==0); }
+    else p->iClass = i;
+
     }
 
 int pkdGetClasses( PKD pkd, int nMax, PARTCLASS *pClass ) {
@@ -824,7 +817,7 @@ void pkdSetClasses( PKD pkd, int n, PARTCLASS *pClass, int bUpdate ) {
     PARTICLE *p;
     int i,j;
 
-    if ( bUpdate && pkd->nClasses) {
+    if ( bUpdate && pkd->nClasses && !pkd->bNoParticleOrder) {
 	/* Build a map from the old class to the new class */
 	assert( n >= pkd->nClasses );
 	for ( i=0; i<pkd->nClasses; i++ ) {
@@ -944,7 +937,8 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
 	/*
 	** General initialization.
 	*/
-	p->uRung = p->uNewRung = 0;
+	p->uRung =  0;
+	if (!pkd->bNoParticleOrder) p->uNewRung = 0;
 	p->bSrcActive = p->bDstActive = p->bMarked = 1;
 	pkdSetDensity(pkd,p,0.0);
 	if (pkd->oBall) pkdSetBall(pkd,p,0.0);
@@ -2755,7 +2749,8 @@ void pkdSetRung(PKD pkd,uint8_t uRungLo, uint8_t uRungHi, uint8_t uRung) {
     for (i=0;i<pkdLocal(pkd);++i) {
 	p = pkdParticle(pkd,i);
 	if ( !pkdIsDstActive(p,uRungLo,uRungHi) ) continue;
-	p->uRung = p->uNewRung = uRung;
+	p->uRung = uRung;
+	if (!pkd->bNoParticleOrder) p->uNewRung = uRung;
 	}
     }
 
@@ -2763,7 +2758,7 @@ void pkdZeroNewRung(PKD pkd,uint8_t uRungLo, uint8_t uRungHi, uint8_t uRung) {  
     PARTICLE *p;
     int i;
 
-    for (i=0;i<pkdLocal(pkd);++i) {
+    if (!pkd->bNoParticleOrder) for (i=0;i<pkdLocal(pkd);++i) {
 	p = pkdParticle(pkd,i);
 	if ( !pkdIsActive(pkd,p) ) continue;
 	p->uNewRung = 0;
@@ -2802,6 +2797,7 @@ void pkdAccelStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,
 
     assert(pkd->oVelocity);
     assert(pkd->oAcceleration);
+    assert(!pkd->bNoParticleOrder);
 
     for (i=0;i<pkdLocal(pkd);++i) {
 	p = pkdParticle(pkd,i);
@@ -2842,6 +2838,7 @@ void pkdSphStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,double dAccFac) {
 
     assert(pkd->oAcceleration);
     assert(pkd->oSph);
+    assert(!pkd->bNoParticleOrder);
 
     for (i=0;i<pkdLocal(pkd);++i) {
 	p = pkdParticle(pkd,i);
@@ -2997,6 +2994,7 @@ void pkdCooling(PKD pkd, double dTime, double z, int bUpdateState, int bUpdateTa
     pkdStartTimer(pkd,1);
   
     assert(pkd->oSph);
+    assert(!pkd->bNoParticleOrder);
 
     if (bIsothermal)  {
 	for (i=0;i<pkdLocal(pkd);++i) {
@@ -3134,6 +3132,7 @@ void pkdDensityStep(PKD pkd, uint8_t uRungLo, uint8_t uRungHi, double dEta, doub
     int i;
     double dT;
 
+    assert(!pkd->bNoParticleOrder);
     for (i=0;i<pkdLocal(pkd);++i) {
 	p = pkdParticle(pkd,i);
 	if (pkdIsActive(pkd,p)) {
@@ -3165,6 +3164,7 @@ void pkdUpdateRungByTree(PKD pkd,int iRoot,uint8_t uMinRung,int iMaxRung,
 uint64_t *nRungCount) {
     KDN *c = pkdTreeNode(pkd,iRoot);
     int i;
+    assert(!pkd->bNoParticleOrder);
     for (i=0;i<=iMaxRung;++i) nRungCount[i] = 0;
     for (i=c->pLower; i<=c->pUpper; ++i) {
 	PARTICLE *p = pkdParticle(pkd,i);
@@ -3182,6 +3182,7 @@ int pkdUpdateRung(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     PARTICLE *p;
     int i;
     int iTempRung;
+    assert(!pkd->bNoParticleOrder);
     for (i=0;i<iMaxRung;++i) nRungCount[i] = 0;
     for (i=0;i<pkdLocal(pkd);++i) {
 	p = pkdParticle(pkd,i);

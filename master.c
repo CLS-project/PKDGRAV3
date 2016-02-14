@@ -627,7 +627,6 @@ static int validateParameters(PRM prm,struct parameters *param) {
 	    return 0;
 	    }
 	}
-    else
 #endif
 
     if (param->dTheta <= 0) {
@@ -644,6 +643,16 @@ static int validateParameters(PRM prm,struct parameters *param) {
 	    || param->dFracNoDomainDecomp<0.0 || param->dFracNoDomainDimChoice > 1.0 ) {
 	puts("ERROR: check that 0 <= dFracNoDomainDecomp <= dFracNoDomainRootFind <= dFracNoDomainDimChoice <= 1");
 	return 0;
+	}
+
+    if (param->bMemUnordered) {
+	if (!prmSpecified(prm,"bNewKDK")) {
+	    param->bNewKDK = 1;
+	    }
+	else if (!param->bNewKDK) {
+	    puts("ERROR: bNewKDK must be zero when bMemUnordered is enabled!");
+	    return 0;
+	    }
 	}
 
     /* Make sure that the old behaviour is obeyed. */

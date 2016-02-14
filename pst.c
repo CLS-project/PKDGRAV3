@@ -3912,7 +3912,8 @@ void pltMoveIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	    pkdSetClass(pkd,in->fMass,in->fSoft,FIO_SPECIES_DARK,p);
 	    p->iOrder = temp.iOrder;
 	    p->bMarked = p->bSrcActive = p->bDstActive = 1;
-	    p->uNewRung = p->uRung = 0;
+	    p->uRung = 0;
+	    if (!pkd->bNoParticleOrder) p->uNewRung = 0;
 	    }
 	pkd->nLocal = pkd->nActive = in->nMove;
 	}
