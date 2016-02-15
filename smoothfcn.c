@@ -363,6 +363,7 @@ void DenDVDX(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf)
 void initSphForcesParticle(void *vpkd, void *vp) {
     PKD pkd = (PKD) vpkd;
     PARTICLE *p = vp;
+    assert(!pkd->bNoParticleOrder);
     if (pkdIsActive(pkd,p)) {
 	SPHFIELDS *psph = pkdSph(pkd,p);
 	psph->uDot = 0;
@@ -379,6 +380,7 @@ void initSphForcesParticle(void *vpkd, void *vp) {
 void initSphForces(void *vpkd, void *vp) {
     PKD pkd = (PKD) vpkd;
     PARTICLE *p = vp;
+    assert(!pkd->bNoParticleOrder);
     if (pkdIsActive(pkd,p)) {
 	SPHFIELDS *psph = pkdSph(pkd,p);
 	psph->uDot = 0;
@@ -392,6 +394,7 @@ void initSphForces(void *vpkd, void *vp) {
 
 void combSphForces(void *vpkd, void *p1,void *p2) {
     PKD pkd = (PKD) vpkd;
+    assert(!pkd->bNoParticleOrder);
     if (pkdIsActive(pkd,p1)) {
 	SPHFIELDS *psph1 = pkdSph(pkd,p1), *psph2 = pkdSph(pkd,p2);
 	float *a1 = pkdAccel(pkd,p1), *a2 = pkdAccel(pkd,p2);
@@ -419,6 +422,8 @@ void SphForces(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     float *pa,*qa;
     int i,pActive,qActive;
     uint8_t uNewRung;
+
+    assert(!pkd->bNoParticleOrder);
 
     aFac = (smf->a);        /* comoving acceleration factor */
     vFac = (smf->bComove ? 1./(smf->a*smf->a) : 1.0); /* converts v to xdot */
@@ -764,6 +769,8 @@ void DistSNEnergy(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf)
     double m,im,delta_m,delta_u,delta_Z;
     double dtp,dt,c,dtC,dtNew,Timer;
     int i,uNewRung;
+
+    assert(!pkd->bNoParticleOrder);
 
     if (!pkdIsStar( pkd, p )) return; /* not a star */
 

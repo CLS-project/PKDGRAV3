@@ -157,9 +157,9 @@ void pkdParticleWorkDone(workParticle *work) {
 		dtGrav = (work->pInfoOut[i].rhopmax > dtGrav?work->pInfoOut[i].rhopmax:dtGrav);
 		if (dtGrav > 0.0) {
 		    dT = fEta * rsqrtf(dtGrav*work->dRhoFac);
-		    p->uNewRung = pkdDtToRungInverse(dT,fiDelta,pkd->param.iMaxRung-1);
+		    uNewRung = pkdDtToRungInverse(dT,fiDelta,pkd->param.iMaxRung-1);
 		    }
-		else p->uNewRung = 0; /* Assumes current uNewRung is outdated -- not ideal */
+		else uNewRung = 0; /* Assumes current uNewRung is outdated -- not ideal */
 		} /* end of work->bGravStep */
 	    else {
 		/*
@@ -172,17 +172,18 @@ void pkdParticleWorkDone(workParticle *work) {
 		if (maga > 0) {
 		    float imaga = rsqrtf(maga) * fiAccFac;
 		    dT = fEta*asqrtf(pkdSoft(pkd,p)*imaga);
-		    p->uNewRung = pkdDtToRungInverse(dT,fiDelta,pkd->param.iMaxRung-1);
+		    uNewRung = pkdDtToRungInverse(dT,fiDelta,pkd->param.iMaxRung-1);
 		    }
-		else p->uNewRung = 0;
+		else uNewRung = 0;
 		}
 	    /*
 	    ** Here we must make sure we do not try to take a larger opening
 	    ** timestep than the current active particles involved in the
 	    ** gravity calculation!
 	    */
-	    if (p->uNewRung < work->uRungLo) p->uNewRung = work->uRungLo;
-	    else if (p->uNewRung > work->uRungHi) p->uNewRung = work->uRungHi; 
+	    if (uNewRung < work->uRungLo) uNewRung = work->uRungLo;
+	    else if (uNewRung > work->uRungHi) uNewRung = work->uRungHi; 
+	    if (!pkd->bNoParticleOrder) p->uNewRung = uNewRung;
 	    /*
 	    ** Now we want to kick the particle velocities with a closing kick 
 	    ** based on the old rung and an opening kick based on the new rung.
@@ -215,7 +216,7 @@ void pkdParticleWorkDone(workParticle *work) {
 		pkd->dEnergyL[2] += m*(r[0]*v[1] - r[1]*v[0]);
 
 		if (work->bKickOpen) {
-		    p->uRung = p->uNewRung;
+		    p->uRung = uNewRung;
 		    ++pkd->nRung[p->uRung];
 		    v[0] += work->dtOpen[p->uRung]*work->pInfoOut[i].a[0];
 		    v[1] += work->dtOpen[p->uRung]*work->pInfoOut[i].a[1];

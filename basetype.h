@@ -42,16 +42,18 @@ typedef struct particle {
     uint64_t  bMarked    :  1;
     uint64_t  bSrcActive :  1;
     uint64_t  bDstActive :  1;
-    uint64_t  uNewRung   :  IRUNGBITS;
-    uint64_t  iClass     :  8;
-    uint64_t  iOrder     :  IORDERBITS;
+    uint64_t  uNewRung   :  IRUNGBITS;  /* Optional with bNewKDK + bMemUnordered */
+    uint64_t  iClass     :  8;          /* Optional with bMemUnordered */
+    uint64_t  iOrder     :  IORDERBITS; /* Optional with bMemUnordered */
     } PARTICLE;
 
 /* Abbreviated particle header with group id */
 typedef struct uparticle {
     uint32_t  uRung      :  IRUNGBITS;
     uint64_t  bMarked    :  1;
-    uint32_t  iGroup     :  (32-IRUNGBITS-1);
+    uint64_t  bSrcActive :  1;
+    uint64_t  bDstActive :  1;
+    uint32_t  iGroup     :  (32-IRUNGBITS-3);
     } UPARTICLE;
 
 #define PP_CUDA_MEMORY_LIMIT (1024*1024)

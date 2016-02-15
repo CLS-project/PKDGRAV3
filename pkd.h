@@ -737,7 +737,7 @@ typedef struct pkdContext {
     /*
     ** Advanced memory models
     */
-    int bGidInHeader;
+    int bNoParticleOrder;
     int oPosition;
     int oAcceleration; /* Three float */
     int oVelocity; /* Three vel_t */
@@ -1056,21 +1056,14 @@ static inline int32_t *pkdInt32( PARTICLE *p, int iOffset ) {
     return (int32_t *)(v + iOffset);
     }
 
-/* Obsolete: please remove */
-static inline int32_t *pkdGroup( PKD pkd, PARTICLE *p ) {
-    assert(pkd->oGroup);
-    assert(!pkd->bGidInHeader);
-    return CAST(int32_t *, pkdField(p,pkd->oGroup));
-    }
-
 static inline int32_t pkdGetGroup( PKD pkd, PARTICLE *p ) {
-    if (pkd->bGidInHeader) return ((UPARTICLE *)p)->iGroup;
+    if (pkd->bNoParticleOrder) return ((UPARTICLE *)p)->iGroup;
     assert(pkd->oGroup);
     return CAST(int32_t *, pkdField(p,pkd->oGroup))[0];
     }
 
 static inline void pkdSetGroup( PKD pkd, PARTICLE *p, uint32_t gid ) {
-    if (pkd->bGidInHeader) ((UPARTICLE *)p)->iGroup = gid;
+    if (pkd->bNoParticleOrder) ((UPARTICLE *)p)->iGroup = gid;
     else if (pkd->oGroup) CAST(int32_t *, pkdField(p,pkd->oGroup))[0] = gid;
     }
 
@@ -1096,14 +1089,16 @@ static inline float pkdMass( PKD pkd, PARTICLE *p ) {
 	float *pMass = CAST(float *,pkdField(p,pkd->oMass));
 	return *pMass;
 	}
-    return pkd->pClass[p->iClass].fMass;
+    else if (pkd->bNoParticleOrder) return pkd->pClass[0].fMass;
+    else return pkd->pClass[p->iClass].fMass;
     }
 static inline float pkdSoft0( PKD pkd, PARTICLE *p ) {
     if ( pkd->oSoft ) {
 	float *pSoft = CAST(float *,pkdField(p,pkd->oSoft));
 	return *pSoft;
 	}
-    return pkd->pClass[p->iClass].fSoft;
+    else if (pkd->bNoParticleOrder) return pkd->pClass[0].fSoft;
+    else return pkd->pClass[p->iClass].fSoft;
     }
 static inline float pkdSoft( PKD pkd, PARTICLE *p ) {
     float fSoft;
@@ -1114,9 +1109,9 @@ static inline float pkdSoft( PKD pkd, PARTICLE *p ) {
     return fSoft;
     }
 static inline FIO_SPECIES pkdSpecies( PKD pkd, PARTICLE *p ) {
-    return pkd->pClass[p->iClass].eSpecies;
+    if (pkd->bNoParticleOrder) return pkd->pClass[0].eSpecies;
+    else return pkd->pClass[p->iClass].eSpecies;
     }
-
 
 /*
 ** Integerized coordinates: signed integer -0x7fffffff to +0x7fffffff
