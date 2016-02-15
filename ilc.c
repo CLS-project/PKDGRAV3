@@ -9,11 +9,10 @@
 void ilcInitialize(ILC *ilc) {
     *ilc = malloc(sizeof(struct ilcContext));
     assert( *ilc != NULL );
-    lstInitialize(&(*ilc)->lst,NULL,
-	ILC_TILE_SIZE / sizeof(ILC_BLK), ILC_PART_PER_BLK,
-	2, /* two areas */
-	sizeof(ILC_BLK),SIMD_malloc,SIMD_free,
-	sizeof(ILC_XTR),NULL,           NULL);
+	lstInitialize(&(*ilc)->lst, NULL,
+		ILC_TILE_SIZE / sizeof(ILC_BLK), ILC_PART_PER_BLK,
+		1, /* one area */
+		sizeof(ILC_BLK), SIMD_malloc, SIMD_free);
     (*ilc)->cx = (*ilc)->cy = (*ilc)->cz = 0.0;
     }
 

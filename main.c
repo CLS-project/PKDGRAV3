@@ -26,22 +26,26 @@
 #include <signal.h>
 
 static time_t timeGlobalSignalTime = 0;
+static int bGlobalOutput = 0;
+
+#ifndef _MSC_VER
 static void USR1_handler(int signo) {
     signal(SIGUSR1,USR1_handler);
     timeGlobalSignalTime = time(0);
     }
 
-static int bGlobalOutput = 0;
 static void USR2_handler(int signo) {
     signal(SIGUSR2,USR2_handler);
     bGlobalOutput = 1;
     }
+#endif
 
 void * main_ch(MDL mdl) {
     PST pst;
     LCL lcl;
 
-    /* a USR1 signal indicates that the queue wants us to exit */
+#ifndef _MSC_VER
+	/* a USR1 signal indicates that the queue wants us to exit */
     timeGlobalSignalTime = 0;
     signal(SIGUSR1,NULL);
     signal(SIGUSR1,USR1_handler);
@@ -50,6 +54,7 @@ void * main_ch(MDL mdl) {
     bGlobalOutput = 0;
     signal(SIGUSR2,NULL);
     signal(SIGUSR2,USR2_handler);
+#endif
 
     lcl.pkd = NULL;
     pstInitialize(&pst,mdl,&lcl);
@@ -99,7 +104,8 @@ void * master_ch(MDL mdl) {
 	}
 
     /* a USR1 signal indicates that the queue wants us to exit */
-    timeGlobalSignalTime = 0;
+#ifndef _MSC_VER
+	timeGlobalSignalTime = 0;
     signal(SIGUSR1,NULL);
     signal(SIGUSR1,USR1_handler);
 
@@ -107,6 +113,7 @@ void * master_ch(MDL mdl) {
     bGlobalOutput = 0;
     signal(SIGUSR2,NULL);
     signal(SIGUSR2,USR2_handler);
+#endif
 
     /*
     ** Output the host names to make troubleshooting easier

@@ -7,10 +7,17 @@
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>
 #endif
+#include <sys/stat.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#ifdef _MSC_VER
+#define FILE_PROTECTION (_S_IREAD | _S_IWRITE)
+typedef int ssize_t;
+#else
+#define FILE_PROTECTION (S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP)
+#endif
 
 void io_init(asyncFileInfo *info) {
 #if defined(HAVE_LIBAIO_H) || defined(HAVE_AIO_H)
@@ -66,11 +73,11 @@ void io_free(asyncFileInfo *info) {
 
 int io_create(asyncFileInfo *info, const char *pathname) {
 #if defined(HAVE_LIBAIO_H) || defined(HAVE_AIO_H)
-    info->fd = open(pathname,O_DIRECT|O_CREAT|O_WRONLY|O_TRUNC,S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP);
+    info->fd = open(pathname,O_DIRECT|O_CREAT|O_WRONLY|O_TRUNC,FILE_PROTECTION);
     info->iBuffer = 0; // Start in buffer zero
     info->iByte = 0; // Nothing in the buffer
 #else
-    info->fd = open(pathname,O_CREAT|O_WRONLY|O_TRUNC,S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP);
+    info->fd = open(pathname,O_CREAT|O_WRONLY|O_TRUNC,FILE_PROTECTION);
 #endif
     info->iFilePosition = 0;
     return info->fd;
@@ -176,7 +183,7 @@ void io_close(asyncFileInfo *info) {
     if (info->iByte) queue_dio(info,info->iBuffer,1);
     if (info->nPending) wait_complete(info,info->nPending);
     assert(info->nPending==0);
+	ftruncate(info->fd, info->iFilePosition);
 #endif
-    ftruncate(info->fd,info->iFilePosition);
     close(info->fd);
     }

@@ -2945,8 +2945,10 @@ void pstGravity(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	/*
 	** Now combine in the tempory copy of the lower branch reduct part.
 	*/
-	pstCombStat(&outr->sRSS,&tmp.sRSS);
+#ifdef __linux__
+	pstCombStat(&outr->sRSS, &tmp.sRSS);
 	pstCombStat(&outr->sFreeMemory,&tmp.sFreeMemory);
+#endif
 	pstCombStat(&outr->sLocal,&tmp.sLocal);
 	pstCombStat(&outr->sActive,&tmp.sActive);
 	pstCombStat(&outr->sPart,&tmp.sPart);
@@ -3018,15 +3020,14 @@ void pstGravity(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 		}
 	    fclose(fp);
 	    }
-#else
-	outr->sRSS.dSum = 0;
-	outr->sFreeMemory.dSum = 0;
 #endif
 	/*
 	** Initialize statistics tracking variables assuming dSum is set.
 	*/
-	pstInitStat(&outr->sRSS,pst->idSelf);
+#ifdef __linux__
+	pstInitStat(&outr->sRSS, pst->idSelf);
 	pstInitStat(&outr->sFreeMemory,pst->idSelf);
+#endif
 	pstInitStat(&outr->sLocal,pst->idSelf);
 	pstInitStat(&outr->sActive,pst->idSelf);
 	pstInitStat(&outr->sPart,pst->idSelf);

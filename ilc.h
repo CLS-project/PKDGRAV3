@@ -36,14 +36,9 @@ typedef struct {
     ilcFloat m,u;
     } ILC_BLK;
 
-typedef struct {
-    char dummy[0];
-    } ILC_XTR;
-
 typedef struct ilcTile {
     LSTTILE lstTile;
     ILC_BLK *blk;
-    ILC_XTR *xtr;
     } *ILCTILE;
 
 typedef struct ilcContext {

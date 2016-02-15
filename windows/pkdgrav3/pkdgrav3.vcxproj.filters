@@ -1,0 +1,55 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <CudaCompile Include="..\..\cudaewald.cu" />
+    <CudaCompile Include="..\..\cudapppc.cu" />
+    <CudaCompile Include="..\..\cudautil.cu" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\main.c" />
+    <ClCompile Include="..\..\ilp.c" />
+    <ClCompile Include="..\..\analysis.c" />
+    <ClCompile Include="..\..\cl.c" />
+    <ClCompile Include="..\..\ewald.c" />
+    <ClCompile Include="..\..\fio.c" />
+    <ClCompile Include="..\..\fof.c" />
+    <ClCompile Include="..\..\grav2.c" />
+    <ClCompile Include="..\..\group.c" />
+    <ClCompile Include="..\..\groupstats.c" />
+    <ClCompile Include="..\..\healpix.c" />
+    <ClCompile Include="..\..\hop.c" />
+    <ClCompile Include="..\..\iomodule.c" />
+    <ClCompile Include="..\..\lst.c" />
+    <ClCompile Include="..\..\master.c" />
+    <ClCompile Include="..\..\moments.c" />
+    <ClCompile Include="..\..\output.c" />
+    <ClCompile Include="..\..\outtype.c" />
+    <ClCompile Include="..\..\param.c" />
+    <ClCompile Include="..\..\pkd.c" />
+    <ClCompile Include="..\..\pst.c" />
+    <ClCompile Include="..\..\smooth.c" />
+    <ClCompile Include="..\..\smoothfcn.c" />
+    <ClCompile Include="..\..\tree.c" />
+    <ClCompile Include="..\..\walk2.c" />
+    <ClCompile Include="..\..\mdl2\mdlbase.c" />
+    <ClCompile Include="..\..\mdl2\mpi\mdl.c" />
+    <ClCompile Include="..\..\cosmo.c" />
+    <ClCompile Include="..\..\openpa\src\opa_primitives.c" />
+    <ClCompile Include="..\..\openpa\src\opa_queue.c" />
+    <ClCompile Include="..\..\ilc.c" />
+    <ClCompile Include="..\..\romberg.c" />
+    <ClCompile Include="..\..\illinois.c" />
+    <ClCompile Include="..\..\rbtree.c" />
+    <ClCompile Include="..\..\listcomp.c" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\cudautil.h" />
+    <ClInclude Include="..\config.h" />
+    <ClInclude Include="..\..\ilc.h" />
+    <ClInclude Include="..\..\ilp.h" />
+    <ClInclude Include="..\opa_config.h" />
+    <ClInclude Include="..\..\vqsort.h" />
+    <ClInclude Include="..\..\mdl2\mdlbase.h" />
+    <ClInclude Include="..\..\mdl2\mpi\mdl.h" />
+  </ItemGroup>
+</Project>

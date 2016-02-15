@@ -148,7 +148,7 @@ typedef struct {
 QSORT_TYPE *const _base = (char *)(QSORT_BASE);				\
   const unsigned _elems = (QSORT_NELT);					\
   const unsigned _size = (QSORT_SIZE);					\
-  char _hold[_size];							\
+  char _hold[QSORT_SIZE];							\
 									\
   /* Don't declare two variables of type QSORT_TYPE in a single		\
    * statement: eg `TYPE a, b;', in case if TYPE is a pointer,		\

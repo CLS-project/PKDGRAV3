@@ -317,6 +317,9 @@
 /* Print a backtrace on crash. */
 /* #undef USE_BT */
 
+/* Use CUDA to accelerate calculations */
+#define USE_CUDA 1
+
 /* Define GRAFICIC IC should be available. */
 /* #undef USE_GRAFIC */
 

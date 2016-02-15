@@ -3178,8 +3178,10 @@ uint8_t msrGravity(MSR msr,uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot
 	msrPrintStat(&outr->sWaiting,       "     %   waiting:",3);
 	msrPrintStat(&outr->sSynchronizing, "     %   syncing:",3);
 #endif
-	msrPrintStat(&outr->sFreeMemory,    "free memory (GB):",3);
+#ifdef __linux__
+	msrPrintStat(&outr->sFreeMemory, "free memory (GB):", 3);
 	msrPrintStat(&outr->sRSS,           "   resident size:",3);
+#endif
 	printf("  (cache access statistics are given per active particle)\n");
 	msrPrintStat(&outr->sPartNumAccess, "  P-cache access:",1);
 	msrPrintStat(&outr->sCellNumAccess, "  C-cache access:",1);

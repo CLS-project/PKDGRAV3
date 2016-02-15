@@ -48,6 +48,13 @@
 #include "cosmo.h"
 #include "iomodule.h"
 
+#ifdef _MSC_VER
+#define FILE_PROTECTION (_S_IREAD | _S_IWRITE)
+typedef int ssize_t;
+#else
+#define FILE_PROTECTION (S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP)
+#endif
+
 double pkdGetTimer(PKD pkd,int iTimer) {
     return(pkd->ti[iTimer].sec);
     }
@@ -296,8 +303,12 @@ void pkdInitialize(
     uint32_t pi;
     int j,ism;
 
-    uint64_t nPageSize = sysconf(_SC_PAGESIZE);
-    uint64_t nPageMask = nPageSize-1;
+#ifdef __linux__
+	uint64_t nPageSize = sysconf(_SC_PAGESIZE);
+#else
+	uint64_t nPageSize = 512;
+#endif
+	uint64_t nPageMask = nPageSize-1;
 
 #define RANDOM_SEED 1
     srand(RANDOM_SEED);
@@ -517,8 +528,12 @@ void pkdInitialize(
     if (mdlCore(pkd->mdl)==0) {
 	uint64_t nBytesTotal = nBytesParticles + nBytesEphemeral + nBytesTreeNodes;
 	void *vParticles;
+#ifdef _MSC_VER
+	pParticles = _aligned_malloc(nBytesTotal,nPageSize);
+#else
 	if (posix_memalign(&vParticles,nPageSize,nBytesTotal)) pParticles = NULL;
 	else pParticles = vParticles;
+#endif
 	mdlassert(mdl,pParticles != NULL);
 	pEphemeral = pParticles + nBytesParticles;
 	pTreeNodes = pEphemeral + nBytesEphemeral;
@@ -574,8 +589,12 @@ void pkdInitialize(
     pkd->nLightCone = 0;
     if (bLightCone && bLightConeParticles) {
 	void *v;
-	if (posix_memalign(&v,sysconf(_SC_PAGESIZE),nLightConeBytes)) pkd->pLightCone = NULL;
+#ifdef _MSC_VER
+	pkd->pLightCone = _aligned_malloc(nLightConeBytes, nPageSize);
+#else
+	if (posix_memalign(&v, nPageSize, nLightConeBytes)) pkd->pLightCone = NULL;
 	else pkd->pLightCone = v;
+#endif
 	mdlassert(mdl,pkd->pLightCone != NULL);
 	io_init(&pkd->afiLightCone);
 	}
@@ -1742,7 +1761,7 @@ static void asyncCheckpoint(PKD pkd,const char *fname,int bWrite) {
     int i, rc;
 
     if (bWrite) {
-	info.fd = open(fname,O_DIRECT|O_CREAT|O_WRONLY|O_TRUNC,S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP);
+	info.fd = open(fname,O_DIRECT|O_CREAT|O_WRONLY|O_TRUNC,FILE_PROTECTION);
 	if (info.fd<0) { perror(fname); abort(); }
 	nFileSize = pkdParticleSize(pkd) * pkd->nLocal;
 	}
@@ -1856,7 +1875,7 @@ static void asyncCheckpoint(PKD pkd,const char *fname,int bWrite) {
 
 #define WRITE_LIMIT (1024*1024*1024)
 static void simpleCheckpoint(PKD pkd,const char *fname) {
-    int fd = open(fname,O_CREAT|O_WRONLY|O_TRUNC,S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP);
+    int fd = open(fname,O_CREAT|O_WRONLY|O_TRUNC,FILE_PROTECTION);
     size_t nBytesToWrite = pkdParticleSize(pkd) * pkd->nLocal;
     char *pBuffer = (char *)pkdParticleBase(pkd);
     ssize_t nBytesWritten;
@@ -2245,7 +2264,7 @@ void pkdLightConeClose(PKD pkd,const char *healpixname) {
     if (pkd->nSideHealpix) {
 	assert(healpixname && healpixname[0]);
 	mdlFinishCache(pkd->mdl,CID_HEALPIX);
-	int fd = open(healpixname,O_CREAT|O_WRONLY|O_TRUNC,S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP);
+	int fd = open(healpixname,O_CREAT|O_WRONLY|O_TRUNC,FILE_PROTECTION);
 	if (fd<0) { perror(healpixname); abort(); }
 	write(fd,pkd->pHealpixCounts,pkd->nHealpixPerDomain * sizeof(*pkd->pHealpixCounts));
 	close(fd);

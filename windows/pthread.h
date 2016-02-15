@@ -328,6 +328,25 @@ static int pthread_rwlock_wrlock(pthread_rwlock_t *l)
 	return 0;
 }
 
+static int pthread_rwlock_unlock(pthread_rwlock_t *l)
+{
+	void *state = *(void **)l;
+
+	if (state == (void *)1)
+	{
+		/* Known to be an exclusive lock */
+		ReleaseSRWLockExclusive(l);
+	}
+	else
+	{
+		/* A shared unlock will work */
+		ReleaseSRWLockShared(l);
+	}
+
+	return 0;
+}
+
+
 static void pthread_tls_init(void)
 {
 	_pthread_tls = TlsAlloc();
@@ -406,24 +425,6 @@ static pthread_t pthread_self(void)
 	}
 	
 	return t;
-}
-
-static int pthread_rwlock_unlock(pthread_rwlock_t *l)
-{
-	void *state = *(void **)l;
-	
-	if (state == (void *) 1)
-	{
-		/* Known to be an exclusive lock */
-		ReleaseSRWLockExclusive(l);
-	}
-	else
-	{
-		/* A shared unlock will work */
-		ReleaseSRWLockShared(l);
-	}
-	
-	return 0;
 }
 
 
@@ -743,7 +744,7 @@ static int pthread_setcanceltype(int type, int *oldtype)
 	return 0;
 }
 
-static int pthread_create_wrapper(void *args)
+static int __stdcall pthread_create_wrapper(void *args)
 {
 	struct _pthread_v *tv = args;
 	

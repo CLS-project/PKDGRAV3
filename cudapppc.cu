@@ -616,7 +616,7 @@ void CUDA_sendWork(CUDACTX cuda,CUDAwqNode **head) {
             }
 
         ppResult *pCudaBufOut = reinterpret_cast<ppResult *>(work->pCudaBufOut);
-        int nBufferIn = reinterpret_cast<char *>(partHost) - reinterpret_cast<char *>(work->pHostBuf);
+        size_t nBufferIn = reinterpret_cast<char *>(partHost) - reinterpret_cast<char *>(work->pHostBuf);
         CUDA_CHECK(cudaMemcpyAsync,(blkCuda, blkHost, nBufferIn, cudaMemcpyHostToDevice, work->stream));
 
         assert((iI & (nWUPerTB-1)) == 0);
