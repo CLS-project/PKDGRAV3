@@ -2979,7 +2979,7 @@ void pstGravity(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 #endif
 	pkdGravAll(plcl->pkd,in->uRungLo,in->uRungHi,in->bKickClose,in->bKickOpen,
 	    in->dtClose,in->dtOpen,in->dAccFac,in->dTime,in->nReps,in->bPeriodic,
-	    4,in->bEwald,in->nGroup,in->iRoot1,in->iRoot2,in->dEwCut,in->dEwhCut,in->dThetaMin,
+	    in->bEwald,in->nGroup,in->iRoot1,in->iRoot2,in->dEwCut,in->dEwhCut,in->dThetaMin,
 	    &outr->nActive,
 	    &outr->sPart.dSum,&outr->sPartNumAccess.dSum,&outr->sPartMissRatio.dSum,
 	    &outr->sCell.dSum,&outr->sCellNumAccess.dSum,&outr->sCellMissRatio.dSum,
@@ -3911,10 +3911,15 @@ void pltMoveIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	    pkdSetPos(pkd,p,1,temp.r[1]); 
 	    pkdSetPos(pkd,p,0,temp.r[0]); 
 	    pkdSetClass(pkd,in->fMass,in->fSoft,FIO_SPECIES_DARK,p);
-	    p->iOrder = temp.iOrder;
 	    p->bMarked = p->bSrcActive = p->bDstActive = 1;
 	    p->uRung = 0;
-	    if (!pkd->bNoParticleOrder) p->uNewRung = 0;
+	    if (pkd->bNoParticleOrder) {
+		((UPARTICLE *)p)->iGroup = 0;
+		}
+	    else {
+		p->iOrder = temp.iOrder;
+		p->uNewRung = 0;
+		}
 	    }
 	pkd->nLocal = pkd->nActive = in->nMove;
 	}

@@ -1320,7 +1320,7 @@ void pkdWriteViaNode(PKD pkd, int iNode);
 void pkdGravAll(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     int bKickClose,int bKickOpen,vel_t *dtClose,vel_t *dtOpen,
     double dAccFac,double dTime,int nReps,int bPeriodic,
-    int iOrder,int bEwald,int nGroup,int iRoot1, int iRoot2,
+    int bEwald,int nGroup,int iRoot1, int iRoot2,
     double fEwCut,double fEwhCut,double dThetaMin,
     uint64_t *pnActive,
     double *pdPart,double *pdPartNumAccess,double *pdPartMissRatio,

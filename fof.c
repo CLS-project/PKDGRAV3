@@ -447,7 +447,7 @@ int pkdNewFof(PKD pkd,double dTau2,int nMinMembers) {
     double fMinFofContained[3];
     double fMaxFofContained[3];
 
-    assert(pkd->oGroup); /* Validate memory model */
+    assert(pkd->oGroup || pkd->bNoParticleOrder); /* Validate memory model */
     S = malloc(1024*sizeof(int));
     assert(S != NULL);
     /*

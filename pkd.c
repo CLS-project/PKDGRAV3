@@ -1026,7 +1026,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
 	    for (j=0;j<3;++j) pkdVel(pkd,p)[j] = vel[j]*dvFac;
 	    }
 
-	p->iOrder = iFirst++;
+	if (!pkd->bNoParticleOrder) p->iOrder = iFirst++;
 	if (pkd->oParticleID) *pkdParticleID(pkd,p) = iParticleID;
 
 	pkdSetClass(pkd,fMass,fSoft,eSpecies,p);
@@ -1963,7 +1963,8 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,BND *bnd,PARTICLE *p) {
     fMass = pkdMass(pkd,p);
     fSoft = pkdSoft0(pkd,p);
     if (pkd->oParticleID) iParticleID = *pkdParticleID(pkd,p);
-    else iParticleID = p->iOrder;
+    else if (!pkd->bNoParticleOrder) iParticleID = p->iOrder;
+    else iParticleID = 0;
     if (pkd->oDensity) fDensity = pkdDensity(pkd,p);
     else fDensity = 0.0;
 
@@ -2104,7 +2105,7 @@ void
 pkdGravAll(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     int bKickClose,int bKickOpen,vel_t *dtClose,vel_t *dtOpen,
     double dAccFac,double dTime,int nReps,int bPeriodic,
-    int iOrder,int bEwald,int nGroup,int iRoot1, int iRoot2,
+    int bEwald,int nGroup,int iRoot1, int iRoot2,
     double fEwCut,double fEwhCut,double dThetaMin,
     uint64_t *pnActive,
     double *pdPart,double *pdPartNumAccess,double *pdPartMissRatio,
