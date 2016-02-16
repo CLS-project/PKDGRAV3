@@ -2,7 +2,7 @@
 #include "config.h"
 #endif
 
-#define FOF_TESTING
+//#define FOF_TESTING
 
 #define _LARGEFILE_SOURCE
 #define _FILE_OFFSET_BITS 64
@@ -4046,12 +4046,6 @@ int msrNewTopStepKDK(MSR msr,
 	msrLightCone(msr,*pdTime,uRung,msrMaxRung(msr));
 
 	}
-    /* If iRungDD was the maximum rung then we didn't build a second tree */
-    else if (uRung == iRungDD) {
-	msrprintf(msr,"Drift, uRung: %d\n",*puRungMax);
-	dDelta = msr->param.dDelta/(1 << iRungDD); // Main tree step
-	msrDrift(msr,*pdTime,dDelta,-1); // Drift all particles
-	}
 
     /* Drift the "ROOT" (active) tree or all particle */
     dDelta = msr->param.dDelta/(1 << *puRungMax);
@@ -4666,7 +4660,6 @@ void msrHopWrite(MSR msr, const char *fname) {
     out.nPartner = -1;
     out.iProcessor = 0;
     out.nProcessor = msr->param.bParaWrite==0?1:(msr->param.nParaWrite<=1 ? msr->nThreads:msr->param.nParaWrite);
-    printf("************************************ %d [%s]\n",strlen(fname),fname);
     strcpy(out.achOutFile,fname);
     pstOutput(msr->pst,&out,sizeof(out),NULL,NULL);
 #else
