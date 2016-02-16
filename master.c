@@ -2,6 +2,8 @@
 #include "config.h"
 #endif
 
+#define FOF_TESTING
+
 #define _LARGEFILE_SOURCE
 #define _FILE_OFFSET_BITS 64
 #include <stdio.h>
@@ -2186,7 +2188,6 @@ void msrWrite(MSR msr,const char *pszFileName,double dTime,int bCheckpoint) {
 #else
     if ( msr->iLastRungRT >= 0 ) msrReorder(msr);
 #endif
-    assert( msr->iLastRungRT < 0 );
 
     /*
     ** Calculate where to start writing.
@@ -2652,25 +2653,27 @@ void msrBuildTreeMarked(MSR msr,double dTime) {
     }
 
 void msrReorder(MSR msr) {
-    struct inDomainOrder in;
-    double sec,dsec;
+    if (!msr->param.bMemUnordered) {
+	struct inDomainOrder in;
+	double sec,dsec;
 
-    msrprintf(msr,"Ordering...\n");
-    sec = msrTime();
-    in.iMinOrder = 0;
-    in.iMaxOrder = msrMaxOrder(msr)-1;
-    pstDomainOrder(msr->pst,&in,sizeof(in),NULL,NULL);
-    in.iMinOrder = 0;
-    in.iMaxOrder = msrMaxOrder(msr)-1;
-    pstLocalOrder(msr->pst,&in,sizeof(in),NULL,NULL);
-    dsec = msrTime() - sec;
-    msrprintf(msr,"Order established, Wallclock: %f secs\n\n",dsec);
+	msrprintf(msr,"Ordering...\n");
+	sec = msrTime();
+	in.iMinOrder = 0;
+	in.iMaxOrder = msrMaxOrder(msr)-1;
+	pstDomainOrder(msr->pst,&in,sizeof(in),NULL,NULL);
+	in.iMinOrder = 0;
+	in.iMaxOrder = msrMaxOrder(msr)-1;
+	pstLocalOrder(msr->pst,&in,sizeof(in),NULL,NULL);
+	dsec = msrTime() - sec;
+	msrprintf(msr,"Order established, Wallclock: %f secs\n\n",dsec);
 
-    /*
-    ** Mark domain decomp as not done.
-    */
-    msr->iLastRungRT = -1;
-    msr->iLastRungDD = -1;
+	/*
+	** Mark domain decomp as not done.
+	*/
+	msr->iLastRungRT = -1;
+	msr->iLastRungDD = -1;
+	}
     }
 
 void msrOutASCII(MSR msr,const char *pszFile,int iType,int nDims) {
@@ -4658,9 +4661,12 @@ void msrHopWrite(MSR msr, const char *fname) {
 #ifndef FOF_TESTING
     /* This is the new parallel binary format */
     struct inOutput out;
+    out.eOutputType = OUT_TINY_GROUP;
     out.iPartner = -1;
+    out.nPartner = -1;
     out.iProcessor = 0;
     out.nProcessor = msr->param.bParaWrite==0?1:(msr->param.nParaWrite<=1 ? msr->nThreads:msr->param.nParaWrite);
+    printf("************************************ %d [%s]\n",strlen(fname),fname);
     strcpy(out.achOutFile,fname);
     pstOutput(msr->pst,&out,sizeof(out),NULL,NULL);
 #else

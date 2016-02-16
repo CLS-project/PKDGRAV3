@@ -12,6 +12,7 @@
 #endif
 #include "moments.h"
 #include "outtype.h"
+#include "output.h"
 
 #include "parameters.h"
 #include "cosmo.h"
@@ -90,6 +91,7 @@ enum pst_service {
     PST_WRITEASCII,
     PST_WRITE,
     PST_OUTPUT,
+    PST_OUTPUT_SEND,
     PST_CHECKPOINT,
     PST_RESTORE,
     PST_BUILDTREE,
@@ -451,12 +453,15 @@ struct inOutput {
     int nProcessor;   /* Number of processors left in parallel */
     int iPartner;     /* Who to send the data to */
     int nPartner;     /* How many partners there are */
-    int eOutputType;  /* What kind of output */
+    outType eOutputType;  /* What kind of output */
     char achOutFile[PST_FILENAME_SIZE];
     };
 
 /* PST_OUTPUT */
 void pstOutput(PST,void *,int,void *,int *);
+
+/* PST_OUTPUT_SEND */
+void pstOutputSend(PST,void *,int,void *,int *);
 
 /* PST_BUILDTREE */
 struct inBuildTree {

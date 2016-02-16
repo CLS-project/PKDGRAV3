@@ -113,6 +113,9 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_OUTPUT,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstOutput,
 		  sizeof(struct inOutput),0);
+    mdlAddService(mdl,PST_OUTPUT_SEND,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstOutputSend,
+		  sizeof(struct inOutputSend),0);
     mdlAddService(mdl,PST_RESTORE,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstRestore,
 		  sizeof(struct inRestore),0);
@@ -2268,6 +2271,12 @@ void pstCheckpoint(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	}
     }
 
+void pstOutputSend(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    struct inOutputSend *in = vin;
+    pkdOutputSend(pst->plcl->pkd, in->eOutputType, in->iPartner);
+    if (pnOut) *pnOut = 0;
+    }
+
 void pstOutput(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     struct inOutput *in = vin;
 
@@ -2290,27 +2299,15 @@ void pstOutput(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	    pstOutput(pst->pstLower,in,nIn,vout,pnOut);
 	    mdlGetReply(pst->mdl,rID,NULL,NULL);
 	    }
-
 	/* We are the node that will be the writer for all of the pst children */
 	else if (nProcessor==1) {
 	    in->iPartner = pst->idSelf;
 	    in->nPartner = pst->nLeaves;
 	    in->nProcessor = 0;
-	    int rID = mdlReqService(pst->mdl,pst->idUpper,PST_OUTPUT,in,nIn);
-	    pstOutput(pst->pstLower,in,nIn,vout,pnOut);
-	    mdlGetReply(pst->mdl,rID,NULL,NULL);
+	    pstOutput(pst->pstLower,in,nIn,vout,pnOut); /* Keep decending to write */
 	    }
-	/* Keep parallel as I need to do all the writing */
-	else if (in->iPartner == pst->idSelf) {
-	    int rID = mdlReqService(pst->mdl,pst->idUpper,PST_OUTPUT,in,nIn);
-	    pstOutput(pst->pstLower,in,nIn,vout,pnOut);
-	    mdlGetReply(pst->mdl,rID,NULL,NULL);
-	    }
-	/* Serialize to avoid overwhelming the receiver */
 	else {
-	    pstOutput(pst->pstLower,in,nIn,vout,pnOut);
-	    int rID = mdlReqService(pst->mdl,pst->idUpper,PST_OUTPUT,in,nIn);
-	    mdlGetReply(pst->mdl,rID,NULL,NULL);
+	    pstOutput(pst->pstLower,in,nIn,vout,pnOut); /* Keep decending to write */
 	    }
 	}
     else {
