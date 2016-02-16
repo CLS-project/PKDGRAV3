@@ -50,9 +50,9 @@ typedef struct particle {
 /* Abbreviated particle header with group id */
 typedef struct uparticle {
     uint32_t  uRung      :  IRUNGBITS;
-    uint64_t  bMarked    :  1;
-    uint64_t  bSrcActive :  1;
-    uint64_t  bDstActive :  1;
+    uint32_t  bMarked    :  1;
+    uint32_t  bSrcActive :  1;
+    uint32_t  bDstActive :  1;
     uint32_t  iGroup     :  (32-IRUNGBITS-3);
     } UPARTICLE;
 
