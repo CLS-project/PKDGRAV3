@@ -342,10 +342,9 @@ void * master_ch(MDL mdl) {
 		msrOutputPk(msr,iStep,dTime);
 		}
 #endif
-	    if (msr->param.iFofInterval<0 || msr->param.iFofInterval>0 && iStep%msr->param.iFofInterval==0) {
+	    if (msr->param.iFofInterval<0 || (msr->param.iFofInterval>0 && (iStep%msr->param.iFofInterval==0))) {
 		msrNewFof(msr,dTime);
-		if (msr->param.iFofInterval<0) iStep = iStep<<(-msr->param.iFofInterval);
-		msrBuildName(msr,achFile,iStep);
+		msrBuildName(msr,achFile,(msr->param.iFofInterval<0)?(iStep<<(-msr->param.iFofInterval)):iStep);
 		strncat(achFile,".fofstats",256);
 		msrHopWrite(msr,achFile);
 		}
