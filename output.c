@@ -57,44 +57,32 @@ void pkdOutput(PKD pkd, outType eOutputType, int iProcessor,int nProcessor,
     int iPartner,int nPartner, const char *fname ) {
     struct packCtx ctx = {pkd,0};
     mdlPack unpack;
+    asyncFileInfo info;
+    char achOutFile[256];
+    strcpy(achOutFile,fname);
+    sprintf(achOutFile+strlen(achOutFile),".%d",iProcessor);
+    io_init(&info);
+    if (io_create(&info,achOutFile) < 0) { perror(fname); abort(); }
 
-    /* I do all of the writing */
-    if (iPartner == pkd->idSelf) {
-	asyncFileInfo info;
-	char achOutFile[256];
-	strcpy(achOutFile,fname);
-	sprintf(achOutFile+strlen(achOutFile),".%d",iProcessor);
-	io_init(&info);
-	if (io_create(&info,achOutFile) < 0) { perror(fname); abort(); }
-
-	switch(eOutputType) {
-	case OUT_TINY_GROUP:
-	    io_write(&info,pkd->tinyGroupTable+1,sizeof(TinyGroupTable)*pkd->nLocalGroups);
-	    unpack = unpackGroupStats;
-	    break;
-	default:
-	    unpack = NULL;
-	    fprintf(stderr,"ERROR: invalid output type %d\n", eOutputType);
-	    abort();
-	    }
-	while(--nPartner) {
-	    struct inOutputSend send;
-	    send.iPartner = pkd->idSelf;
-	    send.eOutputType = eOutputType;
-	    ++iPartner;
-	    int rID = mdlReqService(pkd->mdl,iPartner,PST_OUTPUT_SEND,&send,sizeof(send));
-	    mdlRecv(pkd->mdl,iPartner,unpack,&info);
-	    mdlGetReply(pkd->mdl,rID,NULL,NULL);
-	    }
-	io_close(&info);
-	io_free(&info);
+    switch(eOutputType) {
+    case OUT_TINY_GROUP:
+	io_write(&info,pkd->tinyGroupTable+1,sizeof(TinyGroupTable)*pkd->nLocalGroups);
+	unpack = unpackGroupStats;
+	break;
+    default:
+	unpack = NULL;
+	fprintf(stderr,"ERROR: invalid output type %d\n", eOutputType);
+	abort();
 	}
-    /* We just send all of our data onward */
-    else {
-	struct packCtx ctx;
-	ctx.pkd = pkd;
-	ctx.iIndex = 0;
-	mdlSend(pkd->mdl,iPartner,packGroupStats, &ctx);
+    while(--nPartner) {
+	struct inOutputSend send;
+	send.iPartner = pkd->idSelf;
+	send.eOutputType = eOutputType;
+	++iPartner;
+	int rID = mdlReqService(pkd->mdl,iPartner,PST_OUTPUT_SEND,&send,sizeof(send));
+	mdlRecv(pkd->mdl,iPartner,unpack,&info);
+	mdlGetReply(pkd->mdl,rID,NULL,NULL);
 	}
+    io_close(&info);
+    io_free(&info);
     }
-
