@@ -582,7 +582,7 @@ int pkdNewFof(PKD pkd,double dTau2,int nMinMembers) {
 	    pkdFofGatherLocal(pkd,S,dTau2,p_r,iGroup,&iTail,Fifo,
 		&bCurrFofContained,&nCurrFofParticles,fMinFofContained,fMaxFofContained);
 	    }
-	assert(iTail < pkd->nLocal);
+	assert(iTail <= pkd->nLocal);
 	/*
 	** Now check if this fof group is contained and has fewer than nMinFof particles.
 	*/
