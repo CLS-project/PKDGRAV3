@@ -4844,7 +4844,7 @@ void msrNewFof(MSR msr, double dTime) {
     in.dTau2 = msr->param.dTau*msr->param.dTau;
     in.nMinMembers = msr->param.nMinMembers;
     if (msr->param.bVStep) {
-	printf("Running FoF with fixed linking length %g\n", in.dTau2 );
+	printf("Running FoF with fixed linking length %g\n", msr->param.dTau );
 	}
 
     sec = msrTime();
