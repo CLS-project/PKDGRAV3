@@ -4039,12 +4039,6 @@ int msrNewTopStepKDK(MSR msr,
 	}
     if (uRung < *puRungMax) {
 	bDualTree = msrNewTopStepKDK(msr,bDualTree,uRung+1,pdStep,pdTime,puRungMax,piSec);
-
-	/*
-	** Is this correct for the dual tree case?
-	*/
-	msrLightCone(msr,*pdTime,uRung,msrMaxRung(msr));
-
 	}
 
     /* Drift the "ROOT" (active) tree or all particle */
@@ -4077,6 +4071,7 @@ int msrNewTopStepKDK(MSR msr,
     int nGroup = (bDualTree && uRung > iRungDD) ? 1 : msr->param.nGroup;
     *puRungMax = msrGravity(msr,uRung,msrMaxRung(msr),ROOT,uRoot2,*pdTime,
 	*pdStep,1,1,msr->param.bEwald,nGroup,piSec,&nActive);
+    msrLightCone(msr,*pdTime,uRung,msrMaxRung(msr));
 
     if (uRung && uRung == -msr->param.iFofInterval) {
 	msrNewFof(msr,*pdTime);
