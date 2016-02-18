@@ -429,7 +429,7 @@ void updateInteriorBound(BND *ibnd,BND *bnd) {
     }
 
 
-int pkdNewFof(PKD pkd,double dTau2,int nMinMembers) {
+void pkdNewFof(PKD pkd,double dTau2,int nMinMembers) {
     MDL mdl = pkd->mdl;
     PARTICLE *p;
     double p_r[3];
