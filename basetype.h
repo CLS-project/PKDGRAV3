@@ -48,12 +48,15 @@ typedef struct particle {
     } PARTICLE;
 
 /* Abbreviated particle header with group id */
+#define IGROUPBITS (32-IRUNGBITS-3)
+#define IGROUPMAX ((1<<IGROUPBITS)-1)
+
 typedef struct uparticle {
     uint32_t  uRung      :  IRUNGBITS;
     uint32_t  bMarked    :  1;
     uint32_t  bSrcActive :  1;
     uint32_t  bDstActive :  1;
-    uint32_t  iGroup     :  (32-IRUNGBITS-3);
+    uint32_t  iGroup     :  IGROUPBITS;
     } UPARTICLE;
 
 #define PP_CUDA_MEMORY_LIMIT (1024*1024)

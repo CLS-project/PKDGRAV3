@@ -2,6 +2,7 @@
 #include "config.h"
 #endif
 #include <math.h>
+#include "basetype.h"
 #include "fof.h"
 #include "pkd.h"
 #include "group.h"
@@ -22,10 +23,8 @@ static inline int getCell(PKD pkd,int iCell,int id,float *pcOpen,KDN **pc) {
     }
 
 
-void pkdFofGatherLocal(PKD pkd,int *S,FLOAT fBall2,FLOAT r[3],int32_t iGroup,
-    int *piTail,uint32_t *Fifo,
-    int *pbCurrFofContained,int *pnCurrFofParticles,
-    FLOAT *fMinFofContained,FLOAT *fMaxFofContained) {
+void pkdFofGatherLocal(PKD pkd,int *S,FLOAT fBall2,FLOAT r[3],uint32_t iGroup,
+    uint32_t *piTail,uint32_t *Fifo,int *pbCurrFofContained,FLOAT *fMinFofContained,FLOAT *fMaxFofContained) {
     KDN *kdn;
     PARTICLE *p;
     double p_r[3];
@@ -33,7 +32,7 @@ void pkdFofGatherLocal(PKD pkd,int *S,FLOAT fBall2,FLOAT r[3],int32_t iGroup,
     int sp = 0;
     int iCell,pj,pEnd,j;
     const BND *bnd;
-    int32_t iPartGroup;
+    uint32_t iPartGroup;
 
     kdn = pkdTreeNode(pkd,iCell = ROOT);
     while (1) {
@@ -67,7 +66,6 @@ void pkdFofGatherLocal(PKD pkd,int *S,FLOAT fBall2,FLOAT r[3],int32_t iGroup,
 		    */
 		    pkdSetGroup(pkd,p,iGroup);
 		    Fifo[(*piTail)++] = pj;
-		    ++(*pnCurrFofParticles);
 		    if (*pbCurrFofContained) {
 			for (j=0;j<3;++j) {
 			    if (p_r[j] < fMinFofContained[j]) {
@@ -440,10 +438,9 @@ int pkdNewFof(PKD pkd,double dTau2,int nMinMembers) {
     int *S;
     uint32_t iHead;
     uint32_t iTail;
+    const uint32_t uGroupMax = (pkd->bNoParticleOrder)?IGROUPMAX:0xffffffff;
     uint32_t *Fifo;
-    uint32_t *iFofMap;
     int bCurrFofContained;
-    uint32_t nCurrFofParticles;
     double fMinFofContained[3];
     double fMaxFofContained[3];
 
@@ -543,26 +540,21 @@ int pkdNewFof(PKD pkd,double dTau2,int nMinMembers) {
 	pkdSetGroup(pkd,p,0);
 	}
     /*
-    ** The following *just* fits into ephemeral storage of 8bytes/particle.
+    ** The following *just* fits into ephemeral storage of 4 bytes/particle.
     */
-    assert(EPHEMERAL_BYTES >= 8);
+    assert(EPHEMERAL_BYTES >= 4);
     Fifo = (uint32_t *)(pkd->pLite);
-    iFofMap = &Fifo[pkd->nLocal];
-    pkd->nGroups = 0;    
-    iGroup = 0;
-    iFofMap[iGroup] = 0;
-    pkd->nLocalGroups = 0;
+    iGroup = 1;
     for (pn=0;pn<pkd->nLocal;++pn) {
 	p = pkdParticle(pkd,pn);
 	if (pkdGetGroup(pkd,p)) continue;
-	++iGroup;
 	/*
 	** Mark particle and add it to the do-fifo
 	*/
 	iHead = iTail = 0;
 	Fifo[iTail++] = pn;
+	assert(iGroup < uGroupMax);
 	pkdSetGroup(pkd,p,iGroup);
-	nCurrFofParticles = 1;
 	bCurrFofContained = 1;
 	pkdGetPos1(pkd,p,p_r);
 	for (j=0;j<3;++j) {
@@ -576,33 +568,38 @@ int pkdNewFof(PKD pkd,double dTau2,int nMinMembers) {
 		}
 	    }
 	while (iHead != iTail) {
-	    int pi = Fifo[iHead++];
-	    p = pkdParticle(pkd,pi);
+	    p = pkdParticle(pkd,Fifo[iHead++]);
 	    pkdGetPos1(pkd,p,p_r);
 	    pkdFofGatherLocal(pkd,S,dTau2,p_r,iGroup,&iTail,Fifo,
-		&bCurrFofContained,&nCurrFofParticles,fMinFofContained,fMaxFofContained);
+		&bCurrFofContained,fMinFofContained,fMaxFofContained);
 	    }
 	assert(iTail <= pkd->nLocal);
 	/*
 	** Now check if this fof group is contained and has fewer than nMinFof particles.
 	*/
-	if (bCurrFofContained && nCurrFofParticles < nMinMembers) {
-	    iFofMap[iGroup] = 0;
+	if (bCurrFofContained && iTail < nMinMembers) {
+	    /*
+	    ** In this case mark the group particles as belonging to a removed group.
+	    */
+	    for (i=0;i<iTail;++i) {
+		p = pkdParticle(pkd,Fifo[i]);
+		pkdSetGroup(pkd,p,uGroupMax);
+		}
 	    }
 	else {
-	    iFofMap[iGroup] = ++pkd->nLocalGroups;
+	    ++iGroup;
 	    }
 	}
     /*
-    ** Renumber the group assignments for the particles (having removed some small groups).
+    ** Clear removed small group's group ids.
     */
     for (pn=0;pn<pkd->nLocal;++pn) {
 	p = pkdParticle(pkd,pn);
-	pkdSetGroup(pkd,p,iFofMap[pkdGetGroup(pkd,p)]);
+	if (pkdGetGroup(pkd,p) == uGroupMax) pkdSetGroup(pkd,p,0);
 	}
+    pkd->nLocalGroups = iGroup-1;
     pkd->nGroups = pkd->nLocalGroups + 1;
     free(S);  /* this stack is no longer needed */
-    iFofMap = NULL; /* done with the temporary map of group numbers */ 
     Fifo = NULL;  /* done with the Fifo, can use the storage for other stuff now */
     /*
     ** Create initial group table. The assert below is a very minimal requirement as it doesn't account for remote
