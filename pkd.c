@@ -2206,9 +2206,9 @@ void pkdCalcEandL(PKD pkd,double *T,double *U,double *Eth,double *L,double *F,do
 	L[i] = pkd->dEnergyL[i];
 	F[i] = pkd->dEnergyF[i];
 	}
+    *Eth = 0.0;
     if (pkd->oSph) {
 	int n = pkdLocal(pkd);
-	*Eth = 0.0;
 	for (i=0;i<n;++i) {
 	    PARTICLE *p = pkdParticle(pkd,i);
 	    float fMass = pkdMass(pkd,p);

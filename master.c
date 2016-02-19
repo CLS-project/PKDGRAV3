@@ -912,6 +912,7 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.dSoft = 0.0;
     prmAddParam(msr->prm,"dSoft",2,&msr->param.dSoft,sizeof(double),"e",
 		"<gravitational softening length> = 0.0");
+#ifdef I_DO_NOT_CARE_ABOUT_ENERGY_CONSERVATION
     msr->param.dSoftMax = 0.0;
     prmAddParam(msr->prm,"dSoftMax",2,&msr->param.dSoftMax,sizeof(double),"eMax",
 		"<maximum comoving gravitational softening length (abs or multiplier)> = 0.0");
@@ -921,6 +922,11 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.bSoftMaxMul = 1;
     prmAddParam(msr->prm,"bSoftMaxMul",0,&msr->param.bSoftMaxMul,sizeof(int),"SMM",
 		"<Use maximum comoving gravitational softening length as a multiplier> +SMM");
+#else
+    msr->param.bPhysicalSoft = 0;
+    msr->param.dSoftMax = 0.0;
+    msr->param.bSoftMaxMul = 1;
+#endif
     msr->param.nSoftNbr = 32;
     prmAddParam(msr->prm,"nSoftNbr",1,&msr->param.nSoftNbr,sizeof(int),"VarSoft",
 		"<Neighbours for Variable gravitational softening length> 32");
