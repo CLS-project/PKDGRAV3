@@ -31,8 +31,6 @@
     <ClCompile Include="..\..\smoothfcn.c" />
     <ClCompile Include="..\..\tree.c" />
     <ClCompile Include="..\..\walk2.c" />
-    <ClCompile Include="..\..\mdl2\mdlbase.c" />
-    <ClCompile Include="..\..\mdl2\mpi\mdl.c" />
     <ClCompile Include="..\..\cosmo.c" />
     <ClCompile Include="..\..\openpa\src\opa_primitives.c" />
     <ClCompile Include="..\..\openpa\src\opa_queue.c" />
@@ -41,6 +39,13 @@
     <ClCompile Include="..\..\illinois.c" />
     <ClCompile Include="..\..\rbtree.c" />
     <ClCompile Include="..\..\listcomp.c" />
+    <ClCompile Include="..\..\vmoments.cxx" />
+    <ClCompile Include="..\..\mdl2\mdlbase.c">
+      <Filter>mdl</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\mdl2\mpi\mdl.c">
+      <Filter>mdl</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\cudautil.h" />
@@ -49,7 +54,16 @@
     <ClInclude Include="..\..\ilp.h" />
     <ClInclude Include="..\opa_config.h" />
     <ClInclude Include="..\..\vqsort.h" />
-    <ClInclude Include="..\..\mdl2\mdlbase.h" />
-    <ClInclude Include="..\..\mdl2\mpi\mdl.h" />
+    <ClInclude Include="..\..\mdl2\mdlbase.h">
+      <Filter>mdl</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\mdl2\mpi\mdl.h">
+      <Filter>mdl</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="mdl">
+      <UniqueIdentifier>{ce717cee-c603-44c5-8af4-c623dc971106}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
 </Project>

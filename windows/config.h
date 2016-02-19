@@ -10,10 +10,6 @@
 /* Define if softening can be changed. */
 #define CHANGESOFT 1
 
-//double erf(double x);
-//double erfc(double x);
-//double acosh(double x);
-
 /* Define to one of `_getb67', `GETB67', `getb67' for Cray-2 and Cray-YMP
    systems. This function is required for `alloca.c' support on those systems.
    */
@@ -362,6 +358,9 @@
 
 /* Define if SIMD optimizations should be used for Ewald. */
 #define USE_SIMD_EWALD 1
+
+/* Define if SIMD optimizations should be used for FMM interactions. */
+#define USE_SIMD_FMM 1
 
 /* Define if SIMD optimizations should be used for MOMRs. */
 /* #undef USE_SIMD_MOMR */
