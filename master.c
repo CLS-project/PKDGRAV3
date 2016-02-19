@@ -2,7 +2,7 @@
 #include "config.h"
 #endif
 
-#define FOF_TESTING
+//#define FOF_TESTING
 
 #define _LARGEFILE_SOURCE
 #define _FILE_OFFSET_BITS 64
@@ -912,7 +912,6 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.dSoft = 0.0;
     prmAddParam(msr->prm,"dSoft",2,&msr->param.dSoft,sizeof(double),"e",
 		"<gravitational softening length> = 0.0");
-#ifdef I_DO_NOT_CARE_ABOUT_ENERGY_CONSERVATION
     msr->param.dSoftMax = 0.0;
     prmAddParam(msr->prm,"dSoftMax",2,&msr->param.dSoftMax,sizeof(double),"eMax",
 		"<maximum comoving gravitational softening length (abs or multiplier)> = 0.0");
@@ -922,11 +921,6 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.bSoftMaxMul = 1;
     prmAddParam(msr->prm,"bSoftMaxMul",0,&msr->param.bSoftMaxMul,sizeof(int),"SMM",
 		"<Use maximum comoving gravitational softening length as a multiplier> +SMM");
-#else
-    msr->param.bPhysicalSoft = 0;
-    msr->param.dSoftMax = 0.0;
-    msr->param.bSoftMaxMul = 1;
-#endif
     msr->param.nSoftNbr = 32;
     prmAddParam(msr->prm,"nSoftNbr",1,&msr->param.nSoftNbr,sizeof(int),"VarSoft",
 		"<Neighbours for Variable gravitational softening length> 32");
@@ -4026,7 +4020,6 @@ int msrNewTopStepKDK(MSR msr,
     uint32_t uRoot2=0;
     int iRungDD = msr->iRungDD;
     char achFile[256];
-    int iStep;
 
     if (uRung == iRungDD+1) {
 	if ( msr->param.bDualTree && uRung < *puRungMax) {
@@ -4081,8 +4074,7 @@ int msrNewTopStepKDK(MSR msr,
 
     if (uRung && uRung == -msr->param.iFofInterval) {
 	msrNewFof(msr,*pdTime);
-	iStep = (*pdStep)*pow(2.0,-msr->param.iFofInterval);
-	msrBuildName(msr,achFile,iStep);
+	msrBuildName(msr,achFile,(*pdStep)*pow(2.0,-msr->param.iFofInterval));
 	strncat(achFile,".fofstats",256);
 	msrHopWrite(msr,achFile);
 	}
