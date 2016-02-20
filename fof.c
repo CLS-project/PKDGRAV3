@@ -23,12 +23,12 @@ static inline int getCell(PKD pkd,int iCell,int id,float *pcOpen,KDN **pc) {
     }
 
 
-void pkdFofGatherLocal(PKD pkd,int *S,FLOAT fBall2,FLOAT r[3],uint32_t iGroup,
-    uint32_t *piTail,uint32_t *Fifo,int *pbCurrFofContained,FLOAT *fMinFofContained,FLOAT *fMaxFofContained) {
+uint32_t pkdFofGatherLocal(PKD pkd,int *S,double fBall2,double r[3],uint32_t iGroup,
+    uint32_t iTail,uint32_t *Fifo,int *pbCurrFofContained,double *fMinFofContained,double *fMaxFofContained) {
     KDN *kdn;
     PARTICLE *p;
     double p_r[3];
-    FLOAT min2,dx,dy,dz,fDist2;
+    double min2,dx,dy,dz,fDist2;
     int sp = 0;
     int iCell,pj,pEnd,j;
     const BND *bnd;
@@ -65,7 +65,7 @@ void pkdFofGatherLocal(PKD pkd,int *S,FLOAT fBall2,FLOAT r[3],uint32_t iGroup,
 		    **  Mark particle and add it to the do-fifo
 		    */
 		    pkdSetGroup(pkd,p,iGroup);
-		    Fifo[(*piTail)++] = pj;
+		    Fifo[iTail++] = pj;
 		    if (*pbCurrFofContained) {
 			for (j=0;j<3;++j) {
 			    if (p_r[j] < fMinFofContained[j]) {
@@ -85,6 +85,7 @@ void pkdFofGatherLocal(PKD pkd,int *S,FLOAT fBall2,FLOAT r[3],uint32_t iGroup,
 	if (sp) kdn = pkdTreeNode(pkd,iCell = S[--sp]);
 	else break;
 	}
+    return(iTail);
     }
 
 
@@ -399,6 +400,13 @@ void pkdFofRemoteSearch(PKD pkd,double dTau2) {
 	pkd->S[iStack].cl = clTemp;
 	--iStack;
 	}
+    /*
+    ** Free the temporary arrays.
+    */
+    free(xi);
+    free(yi);
+    free(zi);
+    free(piGroup);
     }
 
 
@@ -431,7 +439,7 @@ void pkdNewFof(PKD pkd,double dTau2,int nMinMembers) {
     MDL mdl = pkd->mdl;
     PARTICLE *p;
     double p_r[3];
-    int32_t iGroup,*pGroup;
+    uint32_t iGroup,*pGroup;
     int pn,i,j;
     KDN *kdnSelf;
     BND *bndSelf,*bnd,*bndTop;
@@ -567,10 +575,10 @@ void pkdNewFof(PKD pkd,double dTau2,int nMinMembers) {
 		break;
 		}
 	    }
-	while (iHead != iTail) {
+	while (iHead < iTail) {
 	    p = pkdParticle(pkd,Fifo[iHead++]);
 	    pkdGetPos1(pkd,p,p_r);
-	    pkdFofGatherLocal(pkd,S,dTau2,p_r,iGroup,&iTail,Fifo,
+	    iTail = pkdFofGatherLocal(pkd,S,dTau2,p_r,iGroup,iTail,Fifo,
 		&bCurrFofContained,fMinFofContained,fMaxFofContained);
 	    }
 	assert(iTail <= pkd->nLocal);
@@ -581,8 +589,8 @@ void pkdNewFof(PKD pkd,double dTau2,int nMinMembers) {
 	    /*
 	    ** In this case mark the group particles as belonging to a removed group.
 	    */
-	    for (i=0;i<iTail;++i) {
-		p = pkdParticle(pkd,Fifo[i]);
+	    for (iHead=0;iHead<iTail;++iHead) {
+		p = pkdParticle(pkd,Fifo[iHead]);
 		pkdSetGroup(pkd,p,uGroupMax);
 		}
 	    }
@@ -591,7 +599,7 @@ void pkdNewFof(PKD pkd,double dTau2,int nMinMembers) {
 	    }
 	}
     /*
-    ** Clear removed small group's group ids.
+    ** Clear group ids for removed small groups.
     */
     for (pn=0;pn<pkd->nLocal;++pn) {
 	p = pkdParticle(pkd,pn);
