@@ -400,6 +400,13 @@ void pkdFofRemoteSearch(PKD pkd,double dTau2) {
 	pkd->S[iStack].cl = clTemp;
 	--iStack;
 	}
+    /*
+    ** Free the temporary arrays.
+    */
+    free(xi);
+    free(yi);
+    free(zi);
+    free(piGroup);
     }
 
 
