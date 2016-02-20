@@ -906,6 +906,7 @@ static int checkMPI(MDL mdl) {
 		if (mpi->nOpenCaches == 0) {
 		    mpi_flush_all_elements(mdl);
 		    MPI_Cancel(&mpi->pReqRcv->mpiRequest);
+		    MPI_Wait(&mpi->pReqRcv->mpiRequest, &status);
 		    mpi->pReqRcv->mpiRequest = MPI_REQUEST_NULL;
 		    }
 		mdlSendThreadMessage(mdl,0,qhdr->iCoreFrom,qhdr,MDL_SE_CACHE_CLOSE);
