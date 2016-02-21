@@ -687,6 +687,7 @@ struct inLightCone {
     double dtLCDrift[IRUNGMAX+1];
     double dtLCKick[IRUNGMAX+1];
     double dLookbackFac;
+    double dLookbackFacLCP;
     uint8_t uRungLo;
     uint8_t uRungHi;
     };

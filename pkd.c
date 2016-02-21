@@ -284,6 +284,57 @@ static int gcd ( int a, int b ) {
     return b;
     }
 
+void initLightConeOffsets(PKD pkd) {
+    BND bnd = {0,0,0,0.5,0.5,0.5};
+    double min2;
+    int ix,iy,iz,nBox;
+
+    /*
+    ** Set up the light cone offsets such that they proceed from the inner 8
+    ** unit boxes outward layer by layer so that we can skip checks of the 
+    ** outer layers if we want.
+    */
+    nBox = 0;
+    for (ix=0;ix<=1;++ix) {
+	for (iy=0;iy<=1;++iy) {
+	    for (iz=0;iz<=1;++iz) {
+		pkd->lcOffset[nBox][0] = ix - 0.5;
+		pkd->lcOffset[nBox][1] = iy - 0.5;
+		pkd->lcOffset[nBox][2] = iz - 0.5;
+		++nBox;
+		}
+	    }
+	}	
+    assert(nBox == 8);
+    for (ix=-1;ix<=2;++ix) {
+	for (iy=-1;iy<=2;++iy) {
+	    for (iz=-1;iz<=2;++iz) {
+		if (ix>=0 && ix<=1 && iy>=0 && iy<=1 && iz>=0 && iz<=1) 
+		    continue;
+		pkd->lcOffset[nBox][0] = ix - 0.5;
+		pkd->lcOffset[nBox][1] = iy - 0.5;
+		pkd->lcOffset[nBox][2] = iz - 0.5;
+		++nBox;
+		}
+	    }
+	}
+    assert(nBox == 64);
+    for (ix=-2;ix<=3;++ix) {
+	for (iy=-2;iy<=3;++iy) {
+	    for (iz=-2;iz<=3;++iz) {
+		if (ix>=-1 && ix<=2 && iy>=-1 && iy<=2 && iz>=-1 && iz<=2) 
+		    continue;
+		pkd->lcOffset[nBox][0] = ix - 0.5;
+		pkd->lcOffset[nBox][1] = iy - 0.5;
+		pkd->lcOffset[nBox][2] = iz - 0.5;
+		MINDIST(&bnd,pkd->lcOffset[nBox],min2);
+		if (min2 < 9.0) ++nBox;
+		}
+	    }
+	}
+    assert(nBox == 184);
+    }
+
 void pkdInitialize(
     PKD *ppkd,MDL mdl,int nStore,uint64_t nMinTotalStore,uint64_t nMinEphemeral,
     int nBucket,int nGroup,int nTreeBitsLo, int nTreeBitsHi,
@@ -572,6 +623,10 @@ void pkdInitialize(
     */
     pkd->pTempPRIVATE = malloc(pkdParticleSize(pkd));
     mdlassert(mdl,pkd->pTempPRIVATE != NULL);
+    /*
+    ** Initialize light cone offsets.
+    */
+    initLightConeOffsets(pkd);
     /*
     ** allocate enough space for light cone particle output
     */
@@ -2289,8 +2344,9 @@ void pkdLightConeOpen(PKD pkd,const char *fname,int nSideHealpix) {
 	}
     }
 
-static void addToLightCone(PKD pkd,double *r,float *v,PARTICLE *p) {
-    if (pkd->afiLightCone.fd>0) {
+static void addToLightCone(PKD pkd,double *r,PARTICLE *p,int bParticleOutput) {
+    vel_t *v = pkdVel(pkd,p);
+    if (pkd->afiLightCone.fd>0 && bParticleOutput) {
 	LIGHTCONEP *pLC = pkd->pLightCone;
 	pLC[pkd->nLightCone].pos[0] = r[0];
 	pLC[pkd->nLightCone].pos[1] = r[1];
@@ -2312,21 +2368,18 @@ static void addToLightCone(PKD pkd,double *r,float *v,PARTICLE *p) {
 	}
     }
 
+#define NBOX 184
 
-void pkdProcessLightCone(PKD pkd,PARTICLE *p,double dLookbackFac,double dDriftDelta,double dKickDelta) {
+void pkdProcessLightCone(PKD pkd,PARTICLE *p,double dLookbackFac,double dLookbackFacLCP,double dDriftDelta,double dKickDelta) {
     const double dLightSpeed = dLightSpeedSim(pkd->param.dBoxSize);
-    const double xOffset[8] = {-0.5,-0.5,-0.5,-0.5,+0.5,+0.5,+0.5,+0.5};
-    const double yOffset[8] = {-0.5,-0.5,+0.5,+0.5,-0.5,-0.5,+0.5,+0.5};
-    const double zOffset[8] = {-0.5,+0.5,-0.5,+0.5,-0.5,+0.5,-0.5,+0.5};
-    double vrx0[8],vry0[8],vrz0[8];
-    double vrx1[8],vry1[8],vrz1[8];
-    double mr0[8],mr1[8];
-    double x[8];
+    const double mrLCP = dLightSpeed*dLookbackFacLCP;
+    double vrx0[NBOX],vry0[NBOX],vrz0[NBOX];
+    double vrx1[NBOX],vry1[NBOX],vrz1[NBOX];
+    double mr0[NBOX],mr1[NBOX],x[NBOX];
     double r0[3],r1[3];
-    double r0a[8][3];
-    double dlbt, dt, xStart;
+    double dlbt, dt, xStart, mr;
     vel_t *v;
-    int j,k,iOct, bOutside[3];
+    int j,k,iOct,nBox,bParticleOutput;
     struct {
 	double dt;
 	double fOffset;
@@ -2334,11 +2387,30 @@ void pkdProcessLightCone(PKD pkd,PARTICLE *p,double dLookbackFac,double dDriftDe
 	} isect[4], temp;
     
     /*
-    ** If the light surface enters the unit box, then we can start generating light cone output. 
+    ** Check all 184 by default.
     */
-    xStart = (dLookbackFac*dLightSpeed - 1.0)/(dKickDelta*dLightSpeed);
+    nBox = NBOX;
+    xStart = (dLookbackFac*dLightSpeed - 3.0)/(dKickDelta*dLightSpeed);
     if (xStart > 1) return;
-    if (xStart < 0) xStart = 0;
+    else if (xStart < 0) {
+	xStart = (dLookbackFac*dLightSpeed - 2.0)/(dKickDelta*dLightSpeed);
+	if (xStart >= 0) xStart = 0;
+	else {
+	    /*
+	    ** Check only 64!
+	    */
+	    nBox = 64;
+	    xStart = (dLookbackFac*dLightSpeed - 1.0)/(dKickDelta*dLightSpeed);
+	    if (xStart >= 0) xStart = 0;
+	    else {
+		/*
+		** Check only 8!
+		*/
+		nBox = 8;
+		xStart = 0;
+		}
+	    }
+	}
 
     v = pkdVel(pkd,p);
     pkdGetPos1(pkd,p,r0);
@@ -2395,29 +2467,28 @@ void pkdProcessLightCone(PKD pkd,PARTICLE *p,double dLookbackFac,double dDriftDe
 	    dlbt = dLookbackFac - dtApprox;
 	    }
 	for (j=0;j<3;++j) r1[j] = r0[j] + dt*v[j];
-	for(iOct=0; iOct<8; ++iOct) {
-	    vrx0[iOct] = xOffset[iOct] + r0[0];
-	    vry0[iOct] = yOffset[iOct] + r0[1];
-	    vrz0[iOct] = zOffset[iOct] + r0[2];
-	    vrx1[iOct] = xOffset[iOct] + r1[0];
-	    vry1[iOct] = yOffset[iOct] + r1[1];
-	    vrz1[iOct] = zOffset[iOct] + r1[2];
+	for(iOct=0; iOct<nBox; ++iOct) {
+	    vrx0[iOct] = pkd->lcOffset[iOct][0] + r0[0];
+	    vry0[iOct] = pkd->lcOffset[iOct][1] + r0[1];
+	    vrz0[iOct] = pkd->lcOffset[iOct][2] + r0[2];
+	    vrx1[iOct] = pkd->lcOffset[iOct][0] + r1[0];
+	    vry1[iOct] = pkd->lcOffset[iOct][1] + r1[1];
+	    vrz1[iOct] = pkd->lcOffset[iOct][2] + r1[2];
 	    mr0[iOct] = sqrt(vrx0[iOct]*vrx0[iOct] + vry0[iOct]*vry0[iOct] + vrz0[iOct]*vrz0[iOct]);
 	    mr1[iOct] = sqrt(vrx1[iOct]*vrx1[iOct] + vry1[iOct]*vry1[iOct] + vrz1[iOct]*vrz1[iOct]);
 	    x[iOct] = (dLightSpeed*dlbt - mr0[iOct])/(dLightSpeed*dtApprox - mr0[iOct] + mr1[iOct]);
 	    }
-	for(iOct=0; iOct<8; ++iOct) {
+	for(iOct=0; iOct<nBox; ++iOct) {
 	    if (x[iOct] >= xStart && x[iOct] < 1.0) {
 		double r[3];
 		/*
 		** Create a new light cone particle.
 		*/
-		if (pkd->param.bLightConeParticles) {
-		    r[0] = (1-x[iOct])*vrx0[iOct] + x[iOct]*vrx1[iOct];
-		    r[1] = (1-x[iOct])*vry0[iOct] + x[iOct]*vry1[iOct];
-		    r[2] = (1-x[iOct])*vrz0[iOct] + x[iOct]*vrz1[iOct];
-		    addToLightCone(pkd,r,v,p);
-		    }
+		r[0] = (1-x[iOct])*vrx0[iOct] + x[iOct]*vrx1[iOct];
+		r[1] = (1-x[iOct])*vry0[iOct] + x[iOct]*vry1[iOct];
+		r[2] = (1-x[iOct])*vrz0[iOct] + x[iOct]*vrz1[iOct];
+		mr = sqrt(r[0]*r[0] + r[1]*r[1] + r[2]*r[2]);
+		addToLightCone(pkd,r,p,pkd->param.bLightConeParticles && (mr <= mrLCP));
 		}
 	    }
 	if (isect[k].jPlane == 3) break;
@@ -2429,8 +2500,10 @@ void pkdProcessLightCone(PKD pkd,PARTICLE *p,double dLookbackFac,double dDriftDe
 	}
     }
 
+#undef NBOX
 
-void pkdLightCone(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dLookbackFac,double *dtLCDrift,double *dtLCKick) {
+void pkdLightCone(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dLookbackFac,double dLookbackFacLCP,
+    double *dtLCDrift,double *dtLCKick) {
     PARTICLE *p;
     int i;
 
@@ -2441,7 +2514,7 @@ void pkdLightCone(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dLookbackFac,do
 	** Now check the particle against the passing light surface.
 	** We should now be able to just pass the particle pointer.
 	*/
-	pkdProcessLightCone(pkd,p,dLookbackFac,dtLCDrift[p->uRung],dtLCKick[p->uRung]);
+	pkdProcessLightCone(pkd,p,dLookbackFac,dLookbackFacLCP,dtLCDrift[p->uRung],dtLCKick[p->uRung]);
 	}
     }
 
