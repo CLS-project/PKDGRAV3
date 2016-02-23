@@ -760,7 +760,6 @@ typedef struct pkdContext {
     int oNodePosition; /* Three vel_t */
     int oNodeVelocity; /* Three vel_t */
     int oNodeAcceleration; /* Three doubles */
-    int oNodeBmax;
     int oNodeSoft;
     int oNodeMom; /* an FMOMR */
     int oNodeBnd;
