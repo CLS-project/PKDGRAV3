@@ -2,8 +2,6 @@
 #include "config.h"
 #endif
 
-//#define FOF_TESTING
-
 #define _LARGEFILE_SOURCE
 #define _FILE_OFFSET_BITS 64
 #include <stdio.h>
@@ -1130,6 +1128,9 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.bLightConeParticles = 0;
     prmAddParam(msr->prm,"bLightConeParticles",0,&msr->param.bLightConeParticles,sizeof(int),"lcp",
 		"output light cone particles = -lcp");
+    msr->param.dRedshiftLCP = 0;
+    prmAddParam(msr->prm,"dRedshiftLCP",2,&msr->param.dRedshiftLCP,sizeof(double),"zlcp",
+		"starting redshift to output light cone particles = 0");
     msr->param.bCenterOfMassExpand = 1;
     prmAddParam(msr->prm,"bCenterOfMassExpand",0,&msr->param.bCenterOfMassExpand,sizeof(int),"CoM",
 		"use multipole expansions about the center of mass = +CoM");
@@ -3041,10 +3042,13 @@ void msrPrintStat(STAT *ps,char *pszPrefix,int p) {
 void msrLightCone(MSR msr,double dTime,uint8_t uRungLo,uint8_t uRungHi) {
     struct inLightCone in;
     double sec,dsec,dt;
+    double dTimeLCP,dLookbackFacLCP;
     int i;
 
     if (!msr->param.bLightCone) return;
     in.dLookbackFac = csmComoveKickFac(msr->param.csm,dTime,(csmExp2Time(msr->param.csm,1.0) - dTime));
+    dTimeLCP = csmExp2Time(msr->param.csm,1.0/(1.0+msr->param.dRedshiftLCP));
+    in.dLookbackFacLCP = csmComoveKickFac(msr->param.csm,dTimeLCP,(csmExp2Time(msr->param.csm,1.0) - dTimeLCP));
     in.uRungLo = uRungLo;
     in.uRungHi = uRungHi;
     for (i=0,dt=msr->param.dDelta;i<=msr->param.iMaxRung;++i,dt*=0.5) {

@@ -3071,7 +3071,7 @@ void pstLightCone(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	mdlGetReply(pst->mdl,rID,NULL,NULL);
 	}
     else {
-	pkdLightCone(plcl->pkd,in->uRungLo,in->uRungHi,in->dLookbackFac,in->dtLCDrift,in->dtLCKick);
+	pkdLightCone(plcl->pkd,in->uRungLo,in->uRungHi,in->dLookbackFac,in->dLookbackFacLCP,in->dtLCDrift,in->dtLCKick);
 	}
     if (pnOut) *pnOut = 0;
     }
