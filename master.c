@@ -3613,9 +3613,15 @@ double msrSoft(MSR msr) {
 */
 void msrSwitchTheta(MSR msr,double dTime) {
     double a = csmTime2Exp(msr->param.csm,dTime);
-    if (a < (1.0/21.0)) msr->dThetaMin = msr->param.dTheta;
-    else if (a < (1.0/3.0)) msr->dThetaMin = msr->param.dTheta20;
-    else msr->dThetaMin = msr->param.dTheta2;
+    double dNewTheta;
+    if (a < (1.0/21.0)) dNewTheta = msr->param.dTheta;
+    else if (a < (1.0/3.0)) dNewTheta = msr->param.dTheta20;
+    else dNewTheta = msr->param.dTheta2;
+    if (msr->dThetaMin != dNewTheta) {
+	msr->dThetaMin = dNewTheta;
+	if (msr->param.bVDetails)
+	    printf("Theta changed to %g at z=%g\n",dNewTheta,1.0/a - 1.0);
+	}
     if ( !prmSpecified(msr->prm,"nReplicas") && msr->param.nReplicas>=1 ) {
 	if ( msr->dThetaMin < 0.52 ) msr->param.nReplicas = 2;
 	else msr->param.nReplicas = 1;
