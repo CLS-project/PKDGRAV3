@@ -622,10 +622,6 @@ static int validateParameters(PRM prm,struct parameters *param) {
 	    puts("ERROR: Box size for IC not specified");
 	    return 0;
 	    }
-	if ( param->h <= 0 ) {
-	    puts("ERROR: Hubble parameter (h) was not specified for IC generation");
-	    return 0;
-	    }
 	}
 #endif
 
@@ -5212,7 +5208,6 @@ double msrGenerateIC(MSR msr) {
     uint64_t nTotal;
     int j;
 
-    in.h = msr->param.h;
     in.dBoxSize = msr->param.dBoxSize;
     in.iSeed = msr->param.iSeed;
     in.nGrid = msr->param.nGrid;

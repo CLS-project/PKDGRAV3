@@ -1136,7 +1136,6 @@ void pstGetFFTMaxSizes(PST,void *,int,void *,int *);
 #define MAX_TF 4096
 struct inGenerateIC {
     uint64_t nPerNode;
-    double h;
     double dBoxSize;
     double omegam;
     double omegab;
