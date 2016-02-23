@@ -711,8 +711,8 @@ static int validateParameters(PRM prm,struct parameters *param) {
 	}
 #endif
 
-    if (!prmSpecified(prm,"dTheta2")) param->dTheta2 = param->dTheta;
-
+    if (!prmSpecified(prm,"dTheta20")) param->dTheta20 = param->dTheta;
+    if (!prmSpecified(prm,"dTheta2")) param->dTheta2 = param->dTheta20;
 
     /*
     ** Check if fast gas boundaries are needed.
@@ -1002,13 +1002,13 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
 		"<dEwhCut> = 2.8");
     msr->param.dTheta = 0.8;
     msr->param.dTheta2 = msr->param.dTheta;
+    msr->param.dTheta20 = msr->param.dTheta;
     prmAddParam(msr->prm,"dTheta",2,&msr->param.dTheta,sizeof(double),"theta",
 		"<Barnes opening criterion> = 0.8");
+    prmAddParam(msr->prm,"dTheta20",2,&msr->param.dTheta20,sizeof(double),
+		"theta20","<Barnes opening criterion for 2 < z <= 20> = 0.8");
     prmAddParam(msr->prm,"dTheta2",2,&msr->param.dTheta2,sizeof(double),
-		"theta2","<Barnes opening criterion for a >= daSwitchTheta> = 0.8");
-    msr->param.daSwitchTheta = 1./3.;
-    prmAddParam(msr->prm,"daSwitchTheta",2,&msr->param.daSwitchTheta,sizeof(double),"aSwitchTheta",
-		"<a to switch theta at> = 1./3.");
+		"theta2","<Barnes opening criterion for z <= 2> = 0.8");
     msr->param.dPeriod = 1.0;
     prmAddParam(msr->prm,"dPeriod",2,&msr->param.dPeriod,sizeof(double),"L",
 		"<periodic box length> = 1.0");
@@ -1508,12 +1508,11 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     fprintf(stderr,"WARNING: CLASSICAL_FOPEN\n");
 #endif
 
-    
-
     /* Determine current opening angle  */
     msr->dThetaMin = msr->param.dTheta;
-    if ( !prmSpecified(msr->prm,"nReplicas") && msr->param.nReplicas==1 ) {
+    if ( !prmSpecified(msr->prm,"nReplicas") && msr->param.nReplicas>=1 ) {
 	if ( msr->dThetaMin < 0.52 ) msr->param.nReplicas = 2;
+	else msr->param.nReplicas = 1;
 	}
 
     /*
@@ -3602,13 +3601,20 @@ double msrSoft(MSR msr) {
     return(msr->param.dSoft);
     }
 
+/*
+** Theta switch. Default is to use dTheta, then switch:
+**   at z=20 to dTheta20
+**   at z=2 to dTheta2
+** We also adjust the number of replicas if the accuracy warrants it.
+*/
 void msrSwitchTheta(MSR msr,double dTime) {
     double a = csmTime2Exp(msr->param.csm,dTime);
-    if (a >= msr->param.daSwitchTheta) {
-	msr->dThetaMin = msr->param.dTheta2;
-	if ( !prmSpecified(msr->prm,"nReplicas") && msr->param.nReplicas==1 ) {
-	    if ( msr->dThetaMin < 0.52 ) msr->param.nReplicas = 2;
-	    }
+    if (a < (1.0/21.0)) msr->dThetaMin = msr->param.dTheta;
+    else if (a < (1.0/3.0)) msr->dThetaMin = msr->param.dTheta20;
+    else msr->dThetaMin = msr->param.dTheta2;
+    if ( !prmSpecified(msr->prm,"nReplicas") && msr->param.nReplicas>=1 ) {
+	if ( msr->dThetaMin < 0.52 ) msr->param.nReplicas = 2;
+	else msr->param.nReplicas = 1;
 	}
     }
 
