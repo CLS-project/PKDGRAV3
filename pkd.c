@@ -2269,7 +2269,6 @@ void pkdLightConeClose(PKD pkd,const char *healpixname) {
 void pkdLightConeOpen(PKD pkd,const char *fname,int nSideHealpix) {
     int i, rc;
     if (fname[0]) {
-//    pkd->fdLightCone = open(fname,O_DIRECT|O_CREAT|O_WRONLY|O_TRUNC,S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP);
 	if (io_create(&pkd->afiLightCone,fname) < 0) { perror(fname); abort(); }
 	}
     else pkd->afiLightCone.fd = -1;
@@ -2434,7 +2433,8 @@ void pkdLightCone(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dLookbackFac,do
     PARTICLE *p;
     int i;
 
-    for (i=0;i<pkdLocal(pkd);++i) {
+    KDN *kdn = pkdTreeNode(pkd,ROOT);
+    for (i=kdn->pLower;i<=kdn->pUpper;++i) {
 	p = pkdParticle(pkd,i);
 	if ( !pkdIsDstActive(p,uRungLo,uRungHi) ) continue;
 	/*
