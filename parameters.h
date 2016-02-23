@@ -177,6 +177,7 @@ struct parameters {
     double dGrowDeltaM;
     double dGrowStartT;
     double dGrowEndT;
+    double dFracDualTree;
     double dFracNoDomainDecomp;
     double dFracNoDomainRootFind;
     double dFracNoDomainDimChoice;

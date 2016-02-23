@@ -638,9 +638,11 @@ static int validateParameters(PRM prm,struct parameters *param) {
 	    }
 	}
 
-    if ( param->dFracNoDomainDecomp > param->dFracNoDomainRootFind
-	    || param->dFracNoDomainRootFind > param->dFracNoDomainDimChoice
-	    || param->dFracNoDomainDecomp<0.0 || param->dFracNoDomainDimChoice > 1.0 ) {
+    if (!prmSpecified(prm,"dFracNoDomainDecomp")) param->dFracDualTree = param->dFracNoDomainDecomp;
+    if ( param->dFracDualTree > param->dFracNoDomainDecomp
+	|| param->dFracNoDomainDecomp > param->dFracNoDomainRootFind
+	|| param->dFracNoDomainRootFind > param->dFracNoDomainDimChoice
+	|| param->dFracNoDomainDecomp<0.0 || param->dFracNoDomainDimChoice > 1.0 ) {
 	puts("ERROR: check that 0 <= dFracNoDomainDecomp <= dFracNoDomainRootFind <= dFracNoDomainDimChoice <= 1");
 	return 0;
 	}
@@ -1149,6 +1151,10 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.dGrowEndT = 1.0;
     prmAddParam(msr->prm,"dGrowEndT",2,&msr->param.dGrowEndT,
 		sizeof(double),"gmet","<End time for growing mass> = 1.0");
+    msr->param.dFracDualTree = 0.00;
+    prmAddParam(msr->prm,"dFracDualTree",2,&msr->param.dFracDualTree,
+		sizeof(double),"fndt",
+		"<Fraction of Active Particles for to use a dual tree> = dFracNoDomainDecomp ");
     msr->param.dFracNoDomainDecomp = 0.1;
     prmAddParam(msr->prm,"dFracNoDomainDecomp",2,&msr->param.dFracNoDomainDecomp,
 		sizeof(double),"fndd",
@@ -1549,6 +1555,7 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     ** Mark the Domain Decompositon as not done
     */
     msr->iRungDD = 0;
+    msr->iRungDT = 0;
     msr->iLastRungRT = -1;
     msr->iLastRungDD = -1;
     msr->nRung = malloc((msr->param.iMaxRung+1)*sizeof(uint64_t));
@@ -1666,7 +1673,8 @@ void msrLogParams(MSR msr,FILE *fp) {
     fprintf(fp," nPartColl: %d", msr->param.nPartColl);
     fprintf(fp,"\n# bDoGravity: %d",msr->param.bDoGravity);
     fprintf(fp," bAarsethStep: %d",msr->param.bAarsethStep);
-    fprintf(fp,"\n# dFracNoDomainDecomp: %g",msr->param.dFracNoDomainDecomp);
+    fprintf(fp,"\n# dFracDualTree: %g",msr->param.dFracDualTree);
+    fprintf(fp,"dFracNoDomainDecomp: %g",msr->param.dFracNoDomainDecomp);
     fprintf(fp," dFracNoDomainRootFind: %g",msr->param.dFracNoDomainRootFind);
     fprintf(fp," dFracNoDomainDimChoice: %g",msr->param.dFracNoDomainDimChoice);
     fprintf(fp,"\n# nTruncateRung: %d",msr->param.nTruncateRung);
@@ -2254,11 +2262,12 @@ void msrSetSoft(MSR msr,double dSoft) {
 void msrDomainDecompOld(MSR msr,int iRung,int bSplitVA) {
     struct inDomainDecomp in;
     uint64_t nActive;
+    const uint64_t nDT = d2u64(msr->N*msr->param.dFracDualTree);
     const uint64_t nDD = d2u64(msr->N*msr->param.dFracNoDomainDecomp);
     const uint64_t nRT = d2u64(msr->N*msr->param.dFracNoDomainRootFind);
     const uint64_t nSD = d2u64(msr->N*msr->param.dFracNoDomainDimChoice);
     double sec,dsec;
-    int iRungDD=0,iRungRT,iRungSD;
+    int iRungDT, iRungDD=0,iRungRT,iRungSD;
     int i,j;
     int bRestoreActive = 0;
 
@@ -2271,11 +2280,13 @@ void msrDomainDecompOld(MSR msr,int iRung,int bSplitVA) {
 	** particles does change.
 	*/
 	nActive = 0;
+	iRungDT = 0;
 	iRungDD = 0;
 	iRungRT = 0;
 	iRungSD = 0;
 	for (i=msr->iCurrMaxRung;i>=0;--i) {
 	    nActive += msr->nRung[i];
+	    if (nActive > nDT && !iRungDT) iRungDT = i;
 	    if (nActive > nDD && !iRungDD) iRungDD = i;
 	    if (nActive > nRT && !iRungRT) iRungRT = i;
 	    if (nActive > nSD && !iRungSD) iRungSD = i;
@@ -2283,6 +2294,7 @@ void msrDomainDecompOld(MSR msr,int iRung,int bSplitVA) {
 	assert(iRungDD >= iRungRT);
 	assert(iRungRT >= iRungSD);
 	msr->iRungDD = iRungDD;
+	msr->iRungDT = iRungDT;
 #ifdef NAIVE_DOMAIN_DECOMP
 	if (msr->iLastRungRT < 0) {
 	    /*
@@ -3161,11 +3173,14 @@ uint8_t msrGravity(MSR msr,uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot
 	*/
 	for (i=uRungLo;i<=IRUNGMAX;++i) msr->nRung[i] = outr->nRung[i];
 
+	const uint64_t nDT = d2u64(msr->N*msr->param.dFracDualTree);
 	const uint64_t nDD = d2u64(msr->N*msr->param.dFracNoDomainDecomp);
 	uint64_t nActive = 0;
 	msr->iRungDD = 0;
+	msr->iRungDT = 0;
 	for (i=msr->iCurrMaxRung;i>=0;--i) {
 	    nActive += msr->nRung[i];
+	    if (nActive > nDT && !msr->iRungDT) msr->iRungDT = i;
 	    if (nActive > nDD && !msr->iRungDD) msr->iRungDD = i;
 	    }
 	}
@@ -4034,21 +4049,21 @@ int msrNewTopStepKDK(MSR msr,
     uint64_t nActive;
     double dDelta,dTimeFixed;
     uint32_t uRoot2=0;
-    int iRungDD = msr->iRungDD;
+    int iRungDT = msr->iRungDT;
     char achFile[256];
 
-    if (uRung == iRungDD+1) {
+    if (uRung == iRungDT+1) {
 	if ( msr->param.bDualTree && uRung < *puRungMax) {
 	    bDualTree = 1;
 	    struct inDumpTrees dump;
 	    dump.bOnlyVA = 0;
-	    dump.uRungDD = iRungDD;
+	    dump.uRungDD = iRungDT;
 	    pstDumpTrees(msr->pst,&dump,sizeof(dump),NULL,NULL);
-	    msrprintf(msr,"Half Drift, uRung: %d\n",iRungDD);
-	    dDelta = msr->param.dDelta/(1 << iRungDD); // Main tree step
+	    msrprintf(msr,"Half Drift, uRung: %d\n",iRungDT);
+	    dDelta = msr->param.dDelta/(1 << iRungDT); // Main tree step
 	    msrDrift(msr,*pdTime,0.5 * dDelta,FIXROOT);
 	    dTimeFixed = *pdTime + 0.5 * dDelta;
-	    msrBuildTreeFixed(msr,*pdTime,msr->param.bEwald,iRungDD);
+	    msrBuildTreeFixed(msr,*pdTime,msr->param.bEwald,iRungDT);
 	    }
 	else bDualTree = 0;
 	}
@@ -4071,9 +4086,9 @@ int msrNewTopStepKDK(MSR msr,
 
     msrActiveRung(msr,uRung,1);
     msrUpdateSoft(msr,*pdTime);
-    if (bDualTree && uRung > iRungDD) {
+    if (bDualTree && uRung > iRungDT) {
 	uRoot2 = FIXROOT;
-	msrBuildTreeActive(msr,*pdTime,msr->param.bEwald,iRungDD);
+	msrBuildTreeActive(msr,*pdTime,msr->param.bEwald,iRungDT);
 	}
     else {
 	msrDomainDecomp(msr,uRung,0,0);
@@ -4083,7 +4098,7 @@ int msrNewTopStepKDK(MSR msr,
 
     // We need to make sure we descend all the way to the bucket with the
     // active tree, or we can get HUGE group cells, and hence too much P-P/P-C
-    int nGroup = (bDualTree && uRung > iRungDD) ? 1 : msr->param.nGroup;
+    int nGroup = (bDualTree && uRung > iRungDT) ? 1 : msr->param.nGroup;
     *puRungMax = msrGravity(msr,uRung,msrMaxRung(msr),ROOT,uRoot2,*pdTime,
 	*pdStep,1,1,msr->param.bEwald,nGroup,piSec,&nActive);
     msrLightCone(msr,*pdTime,uRung,msrMaxRung(msr));
@@ -4096,9 +4111,9 @@ int msrNewTopStepKDK(MSR msr,
 	}
 
     if (uRung && uRung < *puRungMax) bDualTree = msrNewTopStepKDK(msr,bDualTree,uRung+1,pdStep,pdTime,puRungMax,piSec);
-    if (bDualTree && uRung==iRungDD+1) {
-	msrprintf(msr,"Half Drift, uRung: %d\n",msr->iRungDD);
-	dDelta = msr->param.dDelta/(1 << iRungDD);
+    if (bDualTree && uRung==iRungDT+1) {
+	msrprintf(msr,"Half Drift, uRung: %d\n",iRungDT);
+	dDelta = msr->param.dDelta/(1 << iRungDT);
 	msrDrift(msr,dTimeFixed,0.5 * dDelta,FIXROOT);
 	}
     return bDualTree;
