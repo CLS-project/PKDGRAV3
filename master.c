@@ -4844,6 +4844,10 @@ void msrHop(MSR msr, double dTime) {
     inGroupStats.dPeriod[2] = msr->param.dzPeriod;
     inGroupStats.rEnvironment[0] = msr->param.dEnvironment0;
     inGroupStats.rEnvironment[1] = msr->param.dEnvironment1;
+    if ( prmSpecified(msr->prm,"dBoxSize") && msr->param.dBoxSize > 0.0 ) {
+	inGroupStats.rEnvironment[0] /= msr->param.dBoxSize;
+	inGroupStats.rEnvironment[1] /= msr->param.dBoxSize;
+	}
     pstGroupStats(msr->pst,&inGroupStats,sizeof(inGroupStats),NULL,NULL);
 
     dsec = msrTime() - ssec;
@@ -4913,6 +4917,10 @@ void msrNewFof(MSR msr, double dTime) {
     inGroupStats.dPeriod[2] = msr->param.dzPeriod;
     inGroupStats.rEnvironment[0] = msr->param.dEnvironment0;
     inGroupStats.rEnvironment[1] = msr->param.dEnvironment1;
+    if ( prmSpecified(msr->prm,"dBoxSize") && msr->param.dBoxSize > 0.0 ) {
+	inGroupStats.rEnvironment[0] /= msr->param.dBoxSize;
+	inGroupStats.rEnvironment[1] /= msr->param.dBoxSize;
+	}
     pstGroupStats(msr->pst,&inGroupStats,sizeof(inGroupStats),NULL,NULL);
     dsec = msrTime() - sec;
     if (msr->param.bVStep)
