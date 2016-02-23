@@ -291,7 +291,7 @@ void BuildTemp(PKD pkd,int iNode,int M,double dMaxMax) {
 	    /*
 	    ** Now figure out which subfile to process next.
 	    */
-	    if (lrMax >dMaxMax) {
+	    if (lrMax > dMaxMax) {
 		lc = (nl > 0); /* this condition means the left child is not a bucket */
 		rc = (nr > 0);
 		}
@@ -398,17 +398,15 @@ void BuildFromTemplate(PKD pkd,int iNode,int M,int iTemplate) {
 
     // The "template" tree
     KDN *pTemp, *ptLeft, *ptRight;
-    BND tbnd, *ltbnd, *rtbnd;
+    BND *tbnd, *ltbnd, *rtbnd;
 
+    double dSplit;
     pos_t Split;
     int d;
     int i, j, nr, nl;
-    int lg, rg;
-
-    double dMaxMax;
     int ns,s;
+    double dMaxMax;
     struct buildStack {
-	BND tbnd;
 	KDN *pTemp;
 	int iNode;
 	} *S;
@@ -425,15 +423,17 @@ void BuildFromTemplate(PKD pkd,int iNode,int M,int iTemplate) {
     s = 1;
     S[0].iNode = iNode;
     S[0].pTemp = pkdTreeNode(pkd,iTemplate);
-    S[0].tbnd = pkd->fixbnd;
+
+    dMaxMax = S[0].pTemp->bMax;
+
 
     do {
 	// Pop the next cells to process
 	assert(s);
 	--s;
 	pTemp = S[s].pTemp;
-	tbnd = S[s].tbnd;
 	iNode = S[s].iNode;
+
 	bnd = pkdNodeBnd(pkd,pNode = pkdTreeNode(pkd,iNode));
 
 	// Follow the template tree to wherever it leads.
@@ -441,18 +441,12 @@ void BuildFromTemplate(PKD pkd,int iNode,int M,int iTemplate) {
 	    d = pTemp->iSplitDim;
 	    if (pTemp->iDepth != pNode->iDepth || d>2) break;
 
+	    // Split is between left and right child nodes in the given dimension
 	    ltbnd = pkdNodeBnd(pkd, ptLeft=pkdTreeNode(pkd,pTemp->iLower));
 	    rtbnd = pkdNodeBnd(pkd, ptRight=pkdTreeNode(pkd,pTemp->iLower+1));
-
-	    Split = pkdDblToPos(pkd,tbnd.fCenter[d]);
-
-	    // We must have done a split along this dimension or something is wacked
-	    assert(ltbnd->fCenter[d] != tbnd.fCenter[d]);
-	    assert(rtbnd->fCenter[d] != tbnd.fCenter[d]);
-
-	    // Check for ghosting on the template tree
-	    lg = (ltbnd->fCenter[d] > tbnd.fCenter[d]);
-	    rg = (rtbnd->fCenter[d] < tbnd.fCenter[d]);
+	    assert(ltbnd->fCenter[d] < rtbnd->fCenter[d]);
+	    dSplit = 0.5 * (ltbnd->fCenter[d] + ltbnd->fMax[d] + rtbnd->fCenter[d] - rtbnd->fMax[d]);
+	    Split = pkdDblToPos(pkd,dSplit);
 
 	    // Partition the particles on either side of the split
 	    i = PartPart(pkd,pNode->pLower,pNode->pUpper,d,Split);
@@ -460,31 +454,21 @@ void BuildFromTemplate(PKD pkd,int iNode,int M,int iTemplate) {
 	    nr = pNode->pUpper - i + 1;
 	    assert(nl>0 || nr>0);
 
-	    if (nl==0) {
+	    if (nl==0) { // Particles on the right only
 		++pNode->iDepth;
-		bnd->fMax[d] = 0.5 * (bnd->fCenter[d] + bnd->fMax[d] - tbnd.fCenter[d]);
-		assert(bnd->fMax[d] >0.0);
-		bnd->fCenter[d] = tbnd.fCenter[d] + bnd->fMax[d];
-		if (rg) break; // Just out and build normally
-		else {
-		    tbnd.fMax[d] *= 0.5;
-		    tbnd.fCenter[d] += tbnd.fMax[d];
-		    pTemp = ptRight;
-		    continue;
-		    }
+		bnd->fMax[d] = 0.5 * (bnd->fCenter[d] + bnd->fMax[d] - dSplit);
+		assert(bnd->fMax[d] > 0.0);
+		bnd->fCenter[d] = dSplit + bnd->fMax[d];
+		pTemp = ptRight;
+		continue;
 		}
-	    else if (nr==0) {
+	    else if (nr==0) { // Particles on the left only
 		++pNode->iDepth;
-		bnd->fMax[d] = 0.5 * (tbnd.fCenter[d] - bnd->fCenter[d] + bnd->fMax[d]);
-		assert(bnd->fMax[d] >0.0);
-		bnd->fCenter[d] = tbnd.fCenter[d] - bnd->fMax[d];
-		if (lg) break; // Just out and build normally
-		else {
-		    tbnd.fMax[d] *= 0.5;
-		    tbnd.fCenter[d] -= tbnd.fMax[d];
-		    pTemp = ptLeft;
-		    continue;
-		    }
+		bnd->fMax[d] = 0.5 * (dSplit - (bnd->fCenter[d] - bnd->fMax[d]));
+		assert(bnd->fMax[d] > 0.0);
+		bnd->fCenter[d] = dSplit - bnd->fMax[d];
+		pTemp = ptLeft;
+		continue;
 		}
 
 	    // Good. We have particles on both sides, so we need to split this cell
@@ -521,16 +505,15 @@ void BuildFromTemplate(PKD pkd,int iNode,int M,int iTemplate) {
 
 	    /*
 	    ** Now deal with the bounds.
-	    ** tbnd.fCenter[d] is the "split"
 	    */
 	    for (j=0;j<3;++j) {
 		if (j == d) {
-		    rbnd->fMax[d] = 0.5 * (bnd->fCenter[d] + bnd->fMax[d] - tbnd.fCenter[d]);
-		    rbnd->fCenter[d] = tbnd.fCenter[d] + rbnd->fMax[d];
-		    lbnd->fMax[d] = 0.5 * (tbnd.fCenter[d] - bnd->fCenter[d] + bnd->fMax[d]);
-		    lbnd->fCenter[d] = tbnd.fCenter[d] - lbnd->fMax[d];
-		    assert(rbnd->fMax[d] >0.0);
-		    assert(lbnd->fMax[d] >0.0);
+		    rbnd->fMax[d] = 0.5 * (bnd->fCenter[d] + bnd->fMax[d] - dSplit);
+		    rbnd->fCenter[d] = dSplit + rbnd->fMax[d];
+		    lbnd->fMax[d] = 0.5 * (dSplit - (bnd->fCenter[d] - bnd->fMax[d]));
+		    lbnd->fCenter[d] = dSplit - lbnd->fMax[d];
+		    assert(rbnd->fMax[d] > 0.0);
+		    assert(lbnd->fMax[d] > 0.0);
 		    }
 		else {
 		    lbnd->fCenter[j] = bnd->fCenter[j];
@@ -540,51 +523,23 @@ void BuildFromTemplate(PKD pkd,int iNode,int M,int iTemplate) {
 		    }
 		}
 
-	    tbnd.fMax[d] *= 0.5; // Shrink template cell
-	    dMaxMax = HUGE_VAL;
-	    for (j=0;j<3;++j) if (tbnd.fMax[j]<dMaxMax) dMaxMax = tbnd.fMax[j];
-	    assert(dMaxMax>0.0);
-
-	    // Left is a ghost cell or bucket
-	    if (lg || ptLeft->iLower==0) {
-		BuildTemp(pkd,iLeft,M,dMaxMax);
-		tbnd.fCenter[d] += tbnd.fMax[d];
-		iNode = iRight;
-		pTemp = ptRight;
-		}
-	    else if (rg || ptRight->iLower==0) {
-		BuildTemp(pkd,iRight,M,dMaxMax);
-		tbnd.fCenter[d] -= tbnd.fMax[d];
-		iNode = iLeft;
-		pTemp = ptLeft;
-		}
 	    // push right and continue left
-	    else {
-		if ( s+1 >= ns ) {
-		    assert( s+1 == ns );
-		    ns += TEMP_S_INCREASE;
-		    S = (struct buildStack *)realloc(S,ns*sizeof(struct buildStack));
-		    }
-		S[s].tbnd = tbnd;
-		S[s].tbnd.fCenter[d] += tbnd.fMax[d];
-		S[s].pTemp = ptRight;
-		S[s].iNode = iRight;
-		++s;
-
-		tbnd.fCenter[d] -= tbnd.fMax[d];
-		pTemp = ptLeft;
-		iNode = iLeft;
+	    if ( s+1 >= ns ) {
+		assert( s+1 == ns );
+		ns += TEMP_S_INCREASE;
+		S = (struct buildStack *)realloc(S,ns*sizeof(struct buildStack));
 		}
+	    S[s].pTemp = ptRight;
+	    S[s].iNode = iRight;
+	    ++s;
+	    pTemp = ptLeft;
+	    iNode = iLeft;
 	    pNode = pkdTreeNode(pkd,iNode);
 	    bnd = pkdNodeBnd(pkd,pNode);
 	    }
-
-	dMaxMax = HUGE_VAL;
-	for (j=0;j<3;++j) if (tbnd.fMax[j]<dMaxMax) dMaxMax = tbnd.fMax[j];
-	assert(dMaxMax>0.0);
-
-	// Bucket in the template tree: Now just build
-	BuildTemp(pkd,iNode,M,dMaxMax);
+	
+	// Bucket in the template tree: Now just build, but set a sensible maximum cell size
+	BuildTemp(pkd,iNode,M,dMaxMax * pow(2.0,-pNode->iDepth/3.0));
 	} while(s);
 
     free(S);
@@ -659,8 +614,6 @@ void Create(PKD pkd,int iRoot) {
 	*/
 	pj = pkdn->pLower;
 	p = pkdParticle(pkd,pj);
-
-
 #if defined(__AVX__) && defined(INTEGER_POSITION)
 	__m256d vmin, vmax;
 #if defined(INTEGER_POSITION)
