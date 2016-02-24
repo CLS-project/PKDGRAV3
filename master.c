@@ -269,6 +269,26 @@ static int readParametersClasses(MSR msr,FILE *fp) {
     return 0;
     }
 
+static int parseString(char *s, int size, const char *match) {
+    char *p;
+    if ( (p = strchr(s,'=')) == NULL) return 0;
+    *p++ = 0;
+    if (*p++ != '"') return 0;
+    if (strcmp(s,match)!=0) return 0;
+    size_t n = strlen(p);
+    while(n && isspace(p[n-1])) --n;
+    if (n==0) return 0;
+    if (p[n-1] != '"') return 0;
+    p[n-1] = 0;
+    memmove(s,p,n);
+    return 1;
+    }
+
+static int scanString(char *s, int size, FILE *fp, const char *match) {
+    if (fgets(s,size,fp)==NULL) return 0;
+    return parseString(s,size,match);
+    }
+
 /*
 ** Read parameters from the checkpoint file. This is extremely STRICT;
 ** even an extra space will cause problems. This is by design.
@@ -279,14 +299,13 @@ int readParameters(MSR msr,const char *fileName) {
     PRM_NODE *pn;
     char achBuffer[500];
     char achFormat[50];
-    char *pScan;
+    char *pScan, *p;
     int bError = 0;
 
     if (fp==NULL) return 0;
-    if (fscanf(fp,"VERSION=\"%[^\"]\"\n",achBuffer) == 1 ) {
-	if (strcmp(achBuffer,PACKAGE_VERSION)!=0) return 0;
-	}
-    if (fscanf(fp,"iStep=%d\n",&msr->iCheckpointStep)!=1) bError=1;
+
+    if (scanString(achBuffer,sizeof(achBuffer),fp,"VERSION")!=1 || strcmp(achBuffer,PACKAGE_VERSION)!=0) bError = 1;
+    else if (fscanf(fp,"iStep=%d\n",&msr->iCheckpointStep)!=1) bError=1;
     else if (fscanf(fp,"dTime=%lg\n",&msr->dCheckpointTime)!=1) bError=1;
     else if (fscanf(fp,"dEcosmo=%lg\n",&msr->dEcosmo)!=1) bError=1;
     else if (fscanf(fp,"dTimeOld=%lg\n",&msr->dTimeOld)!=1) bError=1;
@@ -297,42 +316,40 @@ int readParameters(MSR msr,const char *fileName) {
     else if (fscanf(fp,"nSpecies3=%llu\n",&msr->nStar)!=1) bError=1;
     else if (readParametersClasses(msr,fp)) bError=1;
     else if (fscanf(fp,"nCheckpointFiles=%d\n",&msr->nCheckpointThreads)!=1) bError=1;
-    else if (fscanf(fp,"achCheckpointName=\"%[^\"]\"\n",msr->achCheckpointName)!=1) bError=1;
+    else if (scanString(msr->achCheckpointName,sizeof(msr->achCheckpointName),fp,"achCheckpointName")==0) bError = 1;
     else for( pn=msr->prm->pnHead; pn!=NULL; pn=pn->pnNext ) {
 	if (fgets(achBuffer,sizeof(achBuffer),fp)==NULL) bError=1;
-	else switch (pn->iType) {
-	case 0:
-	case 1:
-	    assert(pn->iSize == sizeof(int));
-	    sprintf(achFormat,"%s=%%d\n",pn->pszName);
-	    break;
-	case 2:
-	    assert(pn->iSize == sizeof(double));
-	    sprintf(achFormat,"%s=%%lg\n",pn->pszName);
-	    break;
-	case 3:
-	    *(char *)pn->pValue = 0;
-	    pScan = achBuffer + strlen(achBuffer);
-	    while (pScan>achBuffer && pScan[-1]=='\n') --pScan;
-	    if (pScan-achBuffer >= 2 && pScan[-2]=='"')
-		sprintf(achFormat,"%s=\"\"\n",pn->pszName);
-	    else
-		sprintf(achFormat,"%s=\"%[^\"]\"\n",pn->pszName);
-	    break;
-	case 4:
-	    assert(pn->iSize == sizeof(uint64_t));
-	    sprintf(achFormat,"%s=%%llu\n",pn->pszName);
-	    break;
+	else {
+	    pScan = achBuffer;
+	    if (*pScan=='#') ++pScan;
+	    else  pn->bFile = 1;
+	    switch (pn->iType) {
+	    case 0:
+	    case 1:
+		assert(pn->iSize == sizeof(int));
+		sprintf(achFormat,"%s=%%d\n",pn->pszName);
+		if (sscanf(pScan,achFormat,pn->pValue)!=1) bError=1;
+		break;
+	    case 2:
+		assert(pn->iSize == sizeof(double));
+		sprintf(achFormat,"%s=%%lg\n",pn->pszName);
+		if (sscanf(pScan,achFormat,pn->pValue)!=1) bError=1;
+		break;
+	    case 3:
+		if (parseString(pScan,256,pn->pszName)!=1) bError = 1;
+		else strcpy(pn->pValue,pScan);
+		break;
+	    case 4:
+		assert(pn->iSize == sizeof(uint64_t));
+		sprintf(achFormat,"%s=%%llu\n",pn->pszName);
+		if (sscanf(pScan,achFormat,pn->pValue)!=1) bError=1;
+		break;
+		}
 	    }
-	pScan = achBuffer;
-	if (*pScan=='#') ++pScan;
-	else  pn->bFile = 1;
-	if (strcmp(pScan,achFormat))
-	    if (sscanf(pScan,achFormat,pn->pValue)!=1) bError=1;
 	if (bError) break;
 	}
     fclose(fp);
-    return (pn==NULL);
+    return (pn==NULL && bError==0);
     }
 
 double msrRestore(MSR msr) {
