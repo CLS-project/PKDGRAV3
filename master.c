@@ -3764,6 +3764,18 @@ int msrCountRungs(MSR msr, uint64_t *nRungs) {
 	if (nRungs) nRungs[i] = msr->nRung[i];
 	}
     msr->iCurrMaxRung = iMaxRung;
+
+    const uint64_t nDT = d2u64(msr->N*msr->param.dFracDualTree);
+    const uint64_t nDD = d2u64(msr->N*msr->param.dFracNoDomainDecomp);
+    uint64_t nActive = 0;
+    msr->iRungDD = 0;
+    msr->iRungDT = 0;
+    for (i=msr->iCurrMaxRung;i>=0;--i) {
+	nActive += msr->nRung[i];
+	if (nActive > nDT && !msr->iRungDT) msr->iRungDT = i;
+	if (nActive > nDD && !msr->iRungDD) msr->iRungDD = i;
+	}
+
     return iMaxRung;
     }
 
