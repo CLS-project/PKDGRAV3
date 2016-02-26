@@ -2,7 +2,7 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.59)
-AC_INIT(pkdgrav3, 0.9.23, bugs@pkdgrav.org)
+AC_INIT(pkdgrav3, 0.9.24, bugs@pkdgrav.org)
 AM_INIT_AUTOMAKE
 AM_MAINTAINER_MODE([disable])
 AC_CONFIG_SRCDIR([main.c])
@@ -486,6 +486,7 @@ AM_CONDITIONAL(USE_SIMD_OPEN,test "x$USE_SIMD_OPEN" != "xno")
 AM_CONDITIONAL(USE_SIMD_PP,test "x$USE_SIMD_PP" != "xno")
 AM_CONDITIONAL(USE_SIMD_PC,test "x$USE_SIMD_PC" != "xno")
 AM_CONDITIONAL(USE_SIMD_MOMR,test "x$USE_SIMD_MOMR" = "xyes")
+AM_CONDITIONAL(USE_SIMD_FMM,test "x$USE_SIMD_FMM" = "xyes")
 
 if test "x$HAVE_POSIX_MEMALIGN" == "xyes" ; then
   AC_DEFINE([HAVE_POSIX_MEMALIGN],1, 
