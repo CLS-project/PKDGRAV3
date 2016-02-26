@@ -19,7 +19,7 @@ typedef struct msrContext {
     PST pst;
     MDL mdl;
     LCL lcl;
-    FLOAT fCenter[6];
+    double fCenter[6];
     /*
     ** Parameters.
     */

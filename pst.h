@@ -24,11 +24,11 @@ typedef struct lclBlock {
     int iWtTo;
     int iPart;
     uint64_t iOrdSplit;
-    FLOAT fSplit;
-    FLOAT fWtLow;
-    FLOAT fWtHigh;
-    FLOAT fLow;
-    FLOAT fHigh;
+    double fSplit;
+    double fWtLow;
+    double fWtHigh;
+    double fLow;
+    double fHigh;
     int nSplit;
     uint64_t nWriteStart;
     PKDOUT pkdout;
@@ -47,8 +47,8 @@ typedef struct pstContext {
     BND bnd;
     int iSplitDim;
     uint64_t iOrdSplit;
-    FLOAT fSplit;
-    FLOAT fSplitInactive;
+    double fSplit;
+    double fSplitInactive;
     uint64_t nTotal;
     int iVASplitSide;
     uint64_t nLowerStore;
@@ -316,7 +316,7 @@ void pstCombineBound(PST,void *,int,void *,int *);
 /* PST_WEIGHT */
 struct inWeight {
     int iSplitDim;
-    FLOAT fSplit;
+    double fSplit;
     int iSplitSide;
     int ittr;
     int pFlag;
@@ -324,15 +324,15 @@ struct inWeight {
 struct outWeight {
     uint64_t nLow;
     uint64_t nHigh;
-    FLOAT fLow;
-    FLOAT fHigh;
+    double fLow;
+    double fHigh;
     };
 void pstWeight(PST,void *,int,void *,int *);
 
 /* PST_COUNTVA */
 struct inCountVA {
     int iSplitDim;
-    FLOAT fSplit;
+    double fSplit;
     };
 struct outCountVA {
     int nLow;
@@ -343,8 +343,8 @@ void pstCountVA(PST,void *,int,void *,int *);
 /* PST_WEIGHTWRAP */
 struct inWeightWrap {
     int iSplitDim;
-    FLOAT fSplit;
-    FLOAT fSplit2;
+    double fSplit;
+    double fSplit2;
     int iSplitSide;
     int ittr;
     int iVASplitSide;

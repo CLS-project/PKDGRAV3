@@ -18,9 +18,6 @@
 #include "walk.h"
 #include "grav.h"
 #include "smooth.h"
-#ifndef HAVE_CONFIG_H
-#include "floattype.h"
-#endif
 #include "moments.h"
 #include "vmoments.h"
 #include "cl.h"

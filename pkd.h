@@ -109,8 +109,8 @@ static inline int64_t d2u64(double d) {
 #define EPHEMERAL_BYTES 8
 
 typedef struct {
-    FLOAT rscale[3];
-    FLOAT vscale[3];
+    double rscale[3];
+    double vscale[3];
     } PSMETRIC;
 
 #define PKD_MAX_CLASSES 256
@@ -177,7 +177,7 @@ typedef struct bndBound {
 {\
 	int BND_COMBINE_j;\
 	for (BND_COMBINE_j=0;BND_COMBINE_j<3;++BND_COMBINE_j) {\
-		FLOAT BND_COMBINE_t1,BND_COMBINE_t2,BND_COMBINE_max,BND_COMBINE_min;\
+		double BND_COMBINE_t1,BND_COMBINE_t2,BND_COMBINE_max,BND_COMBINE_min;\
 		BND_COMBINE_t1 = (b1)->fCenter[BND_COMBINE_j] + (b1)->fMax[BND_COMBINE_j];\
 		BND_COMBINE_t2 = (b2)->fCenter[BND_COMBINE_j] + (b2)->fMax[BND_COMBINE_j];\
 		BND_COMBINE_max = (BND_COMBINE_t1 > BND_COMBINE_t2)?BND_COMBINE_t1:BND_COMBINE_t2;\
@@ -189,7 +189,7 @@ typedef struct bndBound {
 		}\
 	}
 
-static inline int IN_BND(const FLOAT *R,const BND *b) {
+static inline int IN_BND(const double *R,const BND *b) {
     int i;
     for( i=0; i<3; i++ )
 	if ( R[i]<b->fCenter[i]-b->fMax[i] || R[i]>=b->fCenter[i]+b->fMax[i] )
@@ -199,7 +199,7 @@ static inline int IN_BND(const FLOAT *R,const BND *b) {
 
 
 #if defined(USE_SIMD) && defined(__SSE2__)
-static inline FLOAT mindist(const BND *bnd,const FLOAT *pos) {
+static inline double mindist(const BND *bnd,const double *pos) {
 #ifdef __AVX__
     typedef union {
 	uint64_t i[4];
@@ -409,12 +409,12 @@ typedef struct sphBounds {
 
 
 #define CALCOPEN(pkdn,minside) {					\
-        FLOAT CALCOPEN_d2 = 0;						\
-	FLOAT CALCOPEN_b;						\
+        double CALCOPEN_d2 = 0;						\
+	double CALCOPEN_b;						\
         int CALCOPEN_j;							\
 	BND *CALCOPEN_bnd = pkdNodeBnd(pkd, pkdn);			\
         for (CALCOPEN_j=0;CALCOPEN_j<3;++CALCOPEN_j) {                  \
-            FLOAT CALCOPEN_d = fabs(CALCOPEN_bnd->fCenter[CALCOPEN_j] - (pkdn)->r[CALCOPEN_j]) + \
+            double CALCOPEN_d = fabs(CALCOPEN_bnd->fCenter[CALCOPEN_j] - (pkdn)->r[CALCOPEN_j]) + \
                 CALCOPEN_bnd->fMax[CALCOPEN_j];                          \
             CALCOPEN_d2 += CALCOPEN_d*CALCOPEN_d;                       \
             }								\
@@ -426,11 +426,11 @@ typedef struct sphBounds {
 
 #if (0)
 #define CALCOPEN(pkdn) {						\
-        FLOAT CALCOPEN_d2 = 0;						\
+        double CALCOPEN_d2 = 0;						\
         int CALCOPEN_j;							\
 	BND *CALCOPEN_bnd = pkdNodeBnd(pkd, pkdn);			\
         for (CALCOPEN_j=0;CALCOPEN_j<3;++CALCOPEN_j) {                  \
-            FLOAT CALCOPEN_d = fabs(CALCOPEN_bnd->fCenter[CALCOPEN_j] - (pkdn)->r[CALCOPEN_j]) + \
+            double CALCOPEN_d = fabs(CALCOPEN_bnd->fCenter[CALCOPEN_j] - (pkdn)->r[CALCOPEN_j]) + \
                 CALCOPEN_bnd->fMax[CALCOPEN_j];                          \
             CALCOPEN_d2 += CALCOPEN_d*CALCOPEN_d;                       \
             }\
@@ -576,13 +576,13 @@ struct saddle_point_group
     int iGlobalId;
     int iLocalId;
     int iPid;
-    FLOAT fDensity;
+    double fDensity;
 };
 
 struct saddle_point
 {
     /* Information about the particle that is the saddle point */
-    FLOAT fDensity;
+    double fDensity;
     int iLocalId;
     int iPid;
 
@@ -635,12 +635,12 @@ struct psGroup {
     int *sp;
     /*-----Shared-Data-----------*/
     uint64_t nTotal;
-    FLOAT fDensity;
-    FLOAT fMass;
-    FLOAT fRMSRadius;
-    FLOAT r[3], rcom[3];
-    FLOAT v[3], vcom[3];
-    FLOAT fMass_com;
+    double fDensity;
+    double fMass;
+    double fRMSRadius;
+    double r[3], rcom[3];
+    double v[3], vcom[3];
+    double fMass_com;
 };
 
 struct psGroupTable
@@ -650,9 +650,9 @@ struct psGroupTable
 };
 
 typedef struct groupBin {
-  FLOAT fRadius;
+  double fRadius;
   int nMembers;
-  FLOAT fMassInBin;
+  double fMassInBin;
 } FOFBIN;
 
 typedef struct profileBin {
@@ -704,7 +704,7 @@ typedef struct pkdContext {
     uint64_t nDark;
     uint64_t nGas;
     uint64_t nStar;
-    FLOAT fPeriod[3];
+    double fPeriod[3];
     char **kdNodeListPRIVATE; /* BEWARE: also char instead of KDN */
     int iTopTree[NRESERVED_NODES];
     int nNodes;
@@ -720,7 +720,9 @@ typedef struct pkdContext {
     /*
     ** Light cone variables.
     */
-    double lcOffset[184][3];
+    double lcOffset0[184];
+    double lcOffset1[184];
+    double lcOffset2[184];
     asyncFileInfo afiLightCone;
     LIGHTCONEP *pLightCone;
     int nLightCone, nLightConeMax;
@@ -1131,14 +1133,14 @@ static inline FIO_SPECIES pkdSpecies( PKD pkd, PARTICLE *p ) {
 #define pkdSetPos(pkd,p,d,v) (void)((CAST(pos_t *,pkdField(p,pkd->oPosition))[d]) = (v)*INTEGER_FACTOR)
 #ifdef __AVX__
 static inline void pkdSetPosRaw1(PKD pkd,PARTICLE *p,__m128i v) {
-    pos_t *r = pkdField(p,pkd->oPosition);
+    pos_t *r = (pos_t *)pkdField(p,pkd->oPosition);
     r[0] = _mm_extract_epi32 (v,0);
     r[1] = _mm_extract_epi32 (v,1);
     r[2] = _mm_extract_epi32 (v,2);
 //    _mm_maskmoveu_si128 (v,_mm_setr_epi32(-1,-1,-1,0), pkdField(p,pkd->oPosition));
     }
 static inline __m128i pkdGetPosRaw(PKD pkd,PARTICLE *p) {
-    return _mm_loadu_si128(pkdField(p,pkd->oPosition));
+    return _mm_loadu_si128((__m128i *)pkdField(p,pkd->oPosition));
     }
 static inline __m256d pkdGetPos(PKD pkd,PARTICLE *p) {
     return _mm256_mul_pd(_mm256_cvtepi32_pd(pkdGetPosRaw(pkd,p)),_mm256_set1_pd(1.0/INTEGER_FACTOR));
@@ -1259,7 +1261,7 @@ void pkdStopTimer(PKD,int);
 void pkdInitialize(
     PKD *ppkd,MDL mdl,int nStore,uint64_t nMinTotalStore,uint64_t nMinEphemeral,
     int nBucket,int nGroup,int nTreeBitsLo, int nTreeBitsHi,
-    int iCacheSize,int iWorkQueueSize,int iCUDAQueueSize,FLOAT *fPeriod,uint64_t nDark,uint64_t nGas,uint64_t nStar,
+    int iCacheSize,int iWorkQueueSize,int iCUDAQueueSize,double *fPeriod,uint64_t nDark,uint64_t nGas,uint64_t nStar,
     uint64_t mMemoryModel, int bLightCone, int bLightConeParticles);
 void pkdFinish(PKD);
 size_t pkdClCount(PKD pkd);
@@ -1275,14 +1277,14 @@ void pkdCalcBound(PKD,BND *);
 void pkdCalcVBound(PKD,BND *);
 void pkdEnforcePeriodic(PKD,BND *);
 void pkdPhysicalSoft(PKD pkd,double dSoftMax,double dFac,int bSoftMaxMul);
-int pkdWeight(PKD,int,FLOAT,int,int,int,int *,int *,FLOAT *,FLOAT *);
-void pkdCountVA(PKD,int,FLOAT,int *,int *);
+int pkdWeight(PKD,int,double,int,int,int,int *,int *,double *,double *);
+void pkdCountVA(PKD,int,double,int *,int *);
 double pkdTotalMass(PKD pkd);
-int pkdLowerPart(PKD,int,FLOAT,int,int);
-int pkdUpperPart(PKD,int,FLOAT,int,int);
-int pkdWeightWrap(PKD,int,FLOAT,FLOAT,int,int,int,int,int *,int *);
-int pkdLowerPartWrap(PKD,int,FLOAT,FLOAT,int,int,int);
-int pkdUpperPartWrap(PKD,int,FLOAT,FLOAT,int,int,int);
+int pkdLowerPart(PKD,int,double,int,int);
+int pkdUpperPart(PKD,int,double,int,int);
+int pkdWeightWrap(PKD,int,double,double,int,int,int,int,int *,int *);
+int pkdLowerPartWrap(PKD,int,double,double,int,int,int);
+int pkdUpperPartWrap(PKD,int,double,double,int,int,int);
 int pkdLowerOrdPart(PKD,uint64_t,int,int);
 int pkdUpperOrdPart(PKD,uint64_t,int,int);
 int pkdActiveOrder(PKD);
@@ -1301,7 +1303,7 @@ void pkdOrbUpdateRung(PKD pkd);
 void pkdPeanoHilbertDecomp(PKD pkd, int nRungs, int iMethod);
 void pkdRungOrder(PKD pkd, int iRung, total_t *nMoved);
 int pkdColRejects(PKD,int);
-int pkdColRejects_Old(PKD,int,FLOAT,FLOAT,int);
+int pkdColRejects_Old(PKD,int,double,double,int);
 
 int pkdSwapRejects(PKD,int);
 int pkdSwapSpace(PKD);
@@ -1329,6 +1331,9 @@ void pkdGravAll(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     double *pdCell,double *pdCellNumAccess,double *pdCellMissRatio,
     double *pdFlop,uint64_t *pnRung);
 void pkdCalcEandL(PKD pkd,double *T,double *U,double *Eth,double *L,double *F,double *W);
+#ifdef __cplusplus
+extern "C"
+#endif
 void pkdProcessLightCone(PKD pkd,PARTICLE *p,double dLookbackFac,double dLookbackFacLCP,double dDriftDelta,double dKickDelta);
 void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double,double);
 void pkdScaleVel(PKD pkd,double dvFac);

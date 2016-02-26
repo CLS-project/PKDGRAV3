@@ -65,7 +65,7 @@ typedef struct serviceRec {
     void(*fcnService)(void *, void *, int, void *, int *);
 } SERVICE;
 
-#define MAX_PROCESSOR_NAME      256
+#define MAX_NODE_NAME_LENGTH      256
 typedef struct {
     int32_t nThreads; /* Global number of threads (total) */
     int32_t idSelf;   /* Global index of this thread */
@@ -88,7 +88,7 @@ typedef struct {
     /* Maps a give process (Proc) to the first global thread ID */
     int *iProcToThread; /* [0,nProcs] (note inclusive extra element) */
 
-    char nodeName[MAX_PROCESSOR_NAME];
+    char nodeName[MAX_NODE_NAME_LENGTH];
 
 #if defined(INSTRUMENT) && defined(HAVE_TICK_COUNTER)
     ticks nTicks;

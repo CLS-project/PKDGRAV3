@@ -298,9 +298,9 @@ void initLightConeOffsets(PKD pkd) {
     for (ix=0;ix<=1;++ix) {
 	for (iy=0;iy<=1;++iy) {
 	    for (iz=0;iz<=1;++iz) {
-		pkd->lcOffset[nBox][0] = ix - 0.5;
-		pkd->lcOffset[nBox][1] = iy - 0.5;
-		pkd->lcOffset[nBox][2] = iz - 0.5;
+		pkd->lcOffset0[nBox] = ix - 0.5;
+		pkd->lcOffset1[nBox] = iy - 0.5;
+		pkd->lcOffset2[nBox] = iz - 0.5;
 		++nBox;
 		}
 	    }
@@ -311,9 +311,9 @@ void initLightConeOffsets(PKD pkd) {
 	    for (iz=-1;iz<=2;++iz) {
 		if (ix>=0 && ix<=1 && iy>=0 && iy<=1 && iz>=0 && iz<=1) 
 		    continue;
-		pkd->lcOffset[nBox][0] = ix - 0.5;
-		pkd->lcOffset[nBox][1] = iy - 0.5;
-		pkd->lcOffset[nBox][2] = iz - 0.5;
+		pkd->lcOffset0[nBox] = ix - 0.5;
+		pkd->lcOffset1[nBox] = iy - 0.5;
+		pkd->lcOffset2[nBox] = iz - 0.5;
 		++nBox;
 		}
 	    }
@@ -324,11 +324,14 @@ void initLightConeOffsets(PKD pkd) {
 	    for (iz=-2;iz<=3;++iz) {
 		if (ix>=-1 && ix<=2 && iy>=-1 && iy<=2 && iz>=-1 && iz<=2) 
 		    continue;
-		pkd->lcOffset[nBox][0] = ix - 0.5;
-		pkd->lcOffset[nBox][1] = iy - 0.5;
-		pkd->lcOffset[nBox][2] = iz - 0.5;
-		MINDIST(&bnd,pkd->lcOffset[nBox],min2);
-		if (min2 < 9.0) ++nBox;
+		double r[3] = {ix - 0.5, iy - 0.5, iz - 0.5};
+		MINDIST(&bnd,r,min2);
+		if (min2 < 9.0) {
+		    pkd->lcOffset0[nBox] = r[0];
+		    pkd->lcOffset1[nBox] = r[1];
+		    pkd->lcOffset2[nBox] = r[2];
+		    ++nBox;
+		    }
 		}
 	    }
 	}
@@ -338,7 +341,7 @@ void initLightConeOffsets(PKD pkd) {
 void pkdInitialize(
     PKD *ppkd,MDL mdl,int nStore,uint64_t nMinTotalStore,uint64_t nMinEphemeral,
     int nBucket,int nGroup,int nTreeBitsLo, int nTreeBitsHi,
-    int iCacheSize,int iWorkQueueSize,int iCUDAQueueSize,FLOAT *fPeriod,uint64_t nDark,uint64_t nGas,uint64_t nStar,
+    int iCacheSize,int iWorkQueueSize,int iCUDAQueueSize,double *fPeriod,uint64_t nDark,uint64_t nGas,uint64_t nStar,
     uint64_t mMemoryModel, int bLightCone, int bLightConeParticles) {
     PKD pkd;
     PARTICLE *p;
@@ -1326,10 +1329,10 @@ uint64_t hilbert3d(float x,float y,float z) {
 ** Partition particles between iFrom and iTo into those < fSplit and
 ** those >= to fSplit.  Find number and weight in each partition.
 */
-int pkdWeight(PKD pkd,int d,FLOAT fSplit,int iSplitSide,int iFrom,int iTo,
-	      int *pnLow,int *pnHigh,FLOAT *pfLow,FLOAT *pfHigh) {
+int pkdWeight(PKD pkd,int d,double fSplit,int iSplitSide,int iFrom,int iTo,
+	      int *pnLow,int *pnHigh,double *pfLow,double *pfHigh) {
     int i,iPart;
-    FLOAT fLower,fUpper;
+    double fLower,fUpper;
 
     /*
     ** First partition the memory about fSplit for particles iFrom to iTo.
@@ -1362,7 +1365,7 @@ int pkdWeight(PKD pkd,int d,FLOAT fSplit,int iSplitSide,int iFrom,int iTo,
     }
 
 
-void pkdCountVA(PKD pkd,int d,FLOAT fSplit,int *pnLow,int *pnHigh) {
+void pkdCountVA(PKD pkd,int d,double fSplit,int *pnLow,int *pnHigh) {
     PARTICLE *p;
     int i;
 
@@ -1381,7 +1384,7 @@ void pkdCountVA(PKD pkd,int d,FLOAT fSplit,int *pnLow,int *pnHigh) {
 ** Partition particles between iFrom and iTo into those < fSplit and
 ** those >= to fSplit.  Find number and weight in each partition.
 */
-int pkdWeightWrap(PKD pkd,int d,FLOAT fSplit,FLOAT fSplit2,int iSplitSide,int iVASplitSide,
+int pkdWeightWrap(PKD pkd,int d,double fSplit,double fSplit2,int iSplitSide,int iVASplitSide,
 		  int iFrom,int iTo,int *pnLow,int *pnHigh) {
     int iPart;
 
@@ -1423,7 +1426,7 @@ int pkdOrdWeight(PKD pkd,uint64_t iOrdSplit,int iSplitSide,int iFrom,int iTo,
     }
 
 
-int pkdLowerPart(PKD pkd,int d,FLOAT fSplit,int i,int j) {
+int pkdLowerPart(PKD pkd,int d,double fSplit,int i,int j) {
     PARTICLE *pi, *pj;
     pi = pkdParticle(pkd,i);
     pj = pkdParticle(pkd,j);
@@ -1435,7 +1438,7 @@ int pkdLowerPart(PKD pkd,int d,FLOAT fSplit,int i,int j) {
     }
 
 
-int pkdUpperPart(PKD pkd,int d,FLOAT fSplit,int i,int j) {
+int pkdUpperPart(PKD pkd,int d,double fSplit,int i,int j) {
     PARTICLE *pi, *pj;
     pi = pkdParticle(pkd,i);
     pj = pkdParticle(pkd,j);
@@ -1447,7 +1450,7 @@ int pkdUpperPart(PKD pkd,int d,FLOAT fSplit,int i,int j) {
     }
 
 
-int pkdLowerPartWrap(PKD pkd,int d,FLOAT fSplit1,FLOAT fSplit2,int iVASplitSide,int i,int j) {
+int pkdLowerPartWrap(PKD pkd,int d,double fSplit1,double fSplit2,int iVASplitSide,int i,int j) {
     PARTICLE *pi = pkdParticle(pkd,i);
     PARTICLE *pj = pkdParticle(pkd,j);
 
@@ -1509,7 +1512,7 @@ int pkdLowerPartWrap(PKD pkd,int d,FLOAT fSplit1,FLOAT fSplit2,int iVASplitSide,
     }
 
 
-int pkdUpperPartWrap(PKD pkd,int d,FLOAT fSplit1,FLOAT fSplit2,int iVASplitSide,int i,int j) {
+int pkdUpperPartWrap(PKD pkd,int d,double fSplit1,double fSplit2,int iVASplitSide,int i,int j) {
     PARTICLE *pi = pkdParticle(pkd,i);
     PARTICLE *pj = pkdParticle(pkd,j);
 
@@ -2343,7 +2346,7 @@ void pkdLightConeOpen(PKD pkd,const char *fname,int nSideHealpix) {
 	}
     }
 
-static void addToLightCone(PKD pkd,double *r,PARTICLE *p,int bParticleOutput) {
+void addToLightCone(PKD pkd,double *r,PARTICLE *p,int bParticleOutput) {
     vel_t *v = pkdVel(pkd,p);
     if (pkd->afiLightCone.fd>0 && bParticleOutput) {
 	LIGHTCONEP *pLC = pkd->pLightCone;
@@ -2367,8 +2370,8 @@ static void addToLightCone(PKD pkd,double *r,PARTICLE *p,int bParticleOutput) {
 	}
     }
 
+#ifndef USE_SIMD_LC
 #define NBOX 184
-
 void pkdProcessLightCone(PKD pkd,PARTICLE *p,double dLookbackFac,double dLookbackFacLCP,double dDriftDelta,double dKickDelta) {
     const double dLightSpeed = dLightSpeedSim(pkd->param.dBoxSize);
     const double mrLCP = dLightSpeed*dLookbackFacLCP;
@@ -2467,12 +2470,12 @@ void pkdProcessLightCone(PKD pkd,PARTICLE *p,double dLookbackFac,double dLookbac
 	    }
 	for (j=0;j<3;++j) r1[j] = r0[j] + dt*v[j];
 	for(iOct=0; iOct<nBox; ++iOct) {
-	    vrx0[iOct] = pkd->lcOffset[iOct][0] + r0[0];
-	    vry0[iOct] = pkd->lcOffset[iOct][1] + r0[1];
-	    vrz0[iOct] = pkd->lcOffset[iOct][2] + r0[2];
-	    vrx1[iOct] = pkd->lcOffset[iOct][0] + r1[0];
-	    vry1[iOct] = pkd->lcOffset[iOct][1] + r1[1];
-	    vrz1[iOct] = pkd->lcOffset[iOct][2] + r1[2];
+	    vrx0[iOct] = pkd->lcOffset0[iOct] + r0[0];
+	    vry0[iOct] = pkd->lcOffset1[iOct] + r0[1];
+	    vrz0[iOct] = pkd->lcOffset2[iOct] + r0[2];
+	    vrx1[iOct] = pkd->lcOffset0[iOct] + r1[0];
+	    vry1[iOct] = pkd->lcOffset1[iOct] + r1[1];
+	    vrz1[iOct] = pkd->lcOffset2[iOct] + r1[2];
 	    mr0[iOct] = sqrt(vrx0[iOct]*vrx0[iOct] + vry0[iOct]*vry0[iOct] + vrz0[iOct]*vrz0[iOct]);
 	    mr1[iOct] = sqrt(vrx1[iOct]*vrx1[iOct] + vry1[iOct]*vry1[iOct] + vrz1[iOct]*vrz1[iOct]);
 	    x[iOct] = (dLightSpeed*dlbt - mr0[iOct])/(dLightSpeed*dtApprox - mr0[iOct] + mr1[iOct]);
@@ -2498,8 +2501,8 @@ void pkdProcessLightCone(PKD pkd,PARTICLE *p,double dLookbackFac,double dLookbac
 	r0[isect[k].jPlane] += isect[k].fOffset;
 	}
     }
-
 #undef NBOX
+#endif
 
 void pkdLightCone(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dLookbackFac,double dLookbackFacLCP,
     double *dtLCDrift,double *dtLCKick) {
@@ -2886,7 +2889,7 @@ void pkdAccelStep(PKD pkd, uint8_t uRungLo,uint8_t uRungHi,
     double acc;
     int j;
     double dT;
-    FLOAT fSoft;
+    double fSoft;
 
     assert(pkd->oVelocity);
     assert(pkd->oAcceleration);

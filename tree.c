@@ -11,9 +11,6 @@
 #include <assert.h>
 #include "pkd.h"
 #include "moments.h"
-#ifndef HAVE_CONFIG_H
-#include "floattype.h"
-#endif
 
 #ifdef HAVE_SYS_TIME_H
 #include <sys/time.h>
@@ -900,7 +897,7 @@ void Create(PKD pkd,int iRoot) {
 
 
 void pkdCombineCells1(PKD pkd,KDN *pkdn,KDN *p1,KDN *p2) {
-    FLOAT m1,m2,ifMass;
+    double m1,m2,ifMass;
     int j;
     BND *bnd, *p1bnd, *p2bnd;
 
@@ -1228,11 +1225,11 @@ void pkdTreeBuildByGroup(PKD pkd, int nBucket) {
 */
 void pkdCalcRoot(PKD pkd,uint32_t uRoot,double *com,MOMC *pmom) {
     PARTICLE *p;
-    FLOAT xr = com[0];
-    FLOAT yr = com[1];
-    FLOAT zr = com[2];
-    FLOAT x,y,z;
-    FLOAT fMass;
+    double xr = com[0];
+    double yr = com[1];
+    double zr = com[2];
+    double x,y,z;
+    double fMass;
     MOMC mc;
     KDN *kdn = pkdTreeNode(pkd,uRoot);
     int i = kdn->pLower;

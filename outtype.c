@@ -13,9 +13,6 @@
 #endif
 #include "pkd.h"
 #include "outtype.h"
-#ifndef HAVE_CONFIG_H
-#include "floattype.h"
-#endif
 #include "tipsydefs.h"
 #ifdef LARGEF
 #include <fcntl.h>

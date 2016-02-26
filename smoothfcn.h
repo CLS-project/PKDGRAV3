@@ -22,8 +22,8 @@ typedef struct smfParameters {
     int nBins;
     int iCenterType;
     int bLogBins;
-    FLOAT binFactor;
-    FLOAT fMinRadius;
+    double binFactor;
+    double fMinRadius;
     /* Gas */
     double alpha;
     double beta;
@@ -56,10 +56,10 @@ typedef struct pqNode {
     struct pqNode *pqFromExt;
     struct pqNode *pqWinner;	/* Only used when building initial tree */
     PARTICLE *pPart;
-    FLOAT fDist2;
-    FLOAT dx;
-    FLOAT dy;
-    FLOAT dz;
+    double fDist2;
+    double dx;
+    double dy;
+    double dz;
     int iIndex;
     int iPid;
     } PQ;

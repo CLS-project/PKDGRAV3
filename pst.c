@@ -844,8 +844,8 @@ void _pstRootSplit(PST pst,int iSplitDim,int bDoRootFind,int bDoSplitDimFind,
     uint64_t nLast;					/* number of particles at the last split iteration */
     uint64_t nTotalActive;
     int nDiff=0;				/* Difference between one iteration and the next, seems to only be used to warn. */
-    FLOAT fLow,fHigh;
-    FLOAT fl,fu,fm=-1,fmm;
+    double fLow,fHigh;
+    double fl,fu,fm=-1,fmm;
     struct outFreeStore outFree;
     struct inWeight inWt;
     struct inWeightWrap inWtWrap;
@@ -1601,7 +1601,7 @@ void pstWeight(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     struct inWeight *in = vin;
     struct outWeight *out = vout;
     struct outWeight outWt;
-    FLOAT fSplit,fLow,fHigh;
+    double fSplit,fLow,fHigh;
     int iSplitSide;
     int nLow,nHigh;
 
@@ -2491,7 +2491,7 @@ void pstBuildTree(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     uint32_t uRoot = in->uRoot;
     KDN *pTop = vout;
     KDN *pCell1, *pCell2;
-    FLOAT minside;
+    double minside;
     int nOutUpper;
     int iLower;
     int i;

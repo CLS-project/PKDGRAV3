@@ -31,7 +31,7 @@ typedef struct smContext {
     int nQueue;
     int bPeriodic;
     int bOwnCache;
-    FLOAT rLast[3]; /* For the snake */
+    double rLast[3]; /* For the snake */
     PQ *pq;
     /*
     ** Flags to mark local particles which are inactive either because they
@@ -58,7 +58,7 @@ typedef struct smContext {
     int nnListMax;
     NN *nnList;
     int *S;
-    FLOAT *Smin;
+    double *Smin;
     /*
      ** Also need the stacks for the tree search
      */
@@ -89,7 +89,7 @@ void smSmoothInitialize(SMX smx);
 void smSmoothFinish(SMX smx);
 float smSmoothSingle(SMX smx,SMF *smf,PARTICLE *p,int iRoot1, int iRoot2);
 void smSmooth(SMX,SMF *);
-void smReSmoothSingle(SMX smx,SMF *smf,PARTICLE *p,FLOAT fBall);
+void smReSmoothSingle(SMX smx,SMF *smf,PARTICLE *p,double fBall);
 void smReSmooth(SMX,SMF *);
 
 void smFastGasPhase1(SMX smx,SMF *smf);

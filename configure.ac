@@ -61,8 +61,6 @@ AC_DEFINE([FC_MAIN],main,
 fi
 
 # The floating point data type - This should be detected and --with-float added
-AC_DEFINE([FLOAT],double,
-	[This defines the base floating point type for particles.])
 AC_DEFINE([FLOAT_MAXVAL],HUGE,
 	[This defines the maximum value that a FLOAT can represent.])
 
@@ -291,6 +289,14 @@ if test "x$USE_SIMD_FMM" != "xno" ; then
   USE_SIMD="$USE_SIMD_FMM"
 fi
 
+USE_SIMD_LC="$USE_SIMD"
+AC_ARG_ENABLE(simd-light-cone,
+  [  --disable-simd-light-cone      disable light-cone SIMD optimizations],
+  [USE_SIMD_LC="$enableval"])
+if test "x$USE_SIMD_LC" != "xno" ; then
+  USE_SIMD="$USE_SIMD_LC"
+fi
+
 AC_DEFINE([MOMFLOAT],double,
 	[This defines the base floating point type for moments.])
 
@@ -454,6 +460,7 @@ fi
       USE_SIMD_PP=no
       USE_SIMD_PC=no
       USE_SIMD_FMM=no
+      USE_SIMD_LC=no
     fi
   fi
   AC_SUBST(SIMD_CFLAGS)
@@ -478,6 +485,10 @@ if test "x$USE_SIMD_FMM" != "xno" ; then
   AC_DEFINE([USE_SIMD_FMM],1, 
  	[Define if SIMD optimizations should be used for FMM interactions.])
 fi
+if test "x$USE_SIMD_LC" != "xno" ; then
+  AC_DEFINE([USE_SIMD_LC],1, 
+ 	[Define if SIMD optimizations should be used for light-cone interactions.])
+fi
 if test "x$USE_SIMD_EWALD" != "xno" ; then
   AC_DEFINE([USE_SIMD_EWALD],1,
         [Define if SIMD optimizations should be used for Ewald.])
@@ -487,6 +498,7 @@ AM_CONDITIONAL(USE_SIMD_OPEN,test "x$USE_SIMD_OPEN" != "xno")
 AM_CONDITIONAL(USE_SIMD_PP,test "x$USE_SIMD_PP" != "xno")
 AM_CONDITIONAL(USE_SIMD_PC,test "x$USE_SIMD_PC" != "xno")
 AM_CONDITIONAL(USE_SIMD_FMM,test "x$USE_SIMD_FMM" != "xno")
+AM_CONDITIONAL(USE_SIMD_LC,test "x$USE_SIMD_LC" != "xno")
 AM_CONDITIONAL(USE_SIMD_MOMR,test "x$USE_SIMD_MOMR" = "xyes")
 
 if test "x$HAVE_POSIX_MEMALIGN" == "xyes" ; then

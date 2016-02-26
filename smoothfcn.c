@@ -1139,8 +1139,8 @@ void combGroupBins(void *vpkd, void *b1, void *b2) {
 
 void AddRelaxation(PARTICLE *p,float fBall,int nSmooth,NN *nnList,SMF *smf) {
     PKD pkd = smf->pkd;
-    FLOAT  vSigma2,L,fRel,e,pmax,pmin,vMean[3],feps;
-    FLOAT beta,gamma,rho;
+    double  vSigma2,L,fRel,e,pmax,pmin,vMean[3],feps;
+    double beta,gamma,rho;
     int i,j;
     PARTICLE *q;
     vel_t *v;

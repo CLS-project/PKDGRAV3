@@ -43,7 +43,7 @@ typedef struct CoolingContextStruct {
     } COOL;
 
 typedef struct CoolingParticleStruct {
-    FLOAT Y_HI,Y_HeI,Y_HeII;	/* Abundance of ions */
+    double Y_HI,Y_HeI,Y_HeII;	/* Abundance of ions */
     } COOLPARTICLE;
 
 COOL *CoolInit();

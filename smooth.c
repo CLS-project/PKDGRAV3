@@ -549,20 +549,20 @@ static KDN *getCell(PKD pkd, int iCell, int id) {
     return mdlFetch(pkd->mdl,CID_CELL,iCell,id);
     }
 
-PQ *pqSearch(SMX smx,PQ *pq,FLOAT r[3],int iRoot) {
+PQ *pqSearch(SMX smx,PQ *pq,double r[3],int iRoot) {
     PKD pkd = smx->pkd;
     MDL mdl = smx->pkd->mdl;
     KDN *kdn;
     int idSelf = smx->pkd->idSelf;
     struct stStack *S = smx->ST;
-    FLOAT dMin,min1,min2;
+    double dMin,min1,min2;
     double p_r[3];
     int j,iCell,id;
     int sp = 0;
     const BND *bnd;
     int pEnd, pj;
     PARTICLE *p;
-    FLOAT dx,dy,dz,fDist2;
+    double dx,dy,dz,fDist2;
 
     /* Start at the root node of the tree */
     kdn = getCell(pkd,pkd->iTopTree[iRoot],id = idSelf);
@@ -710,7 +710,7 @@ float smSmoothSingle(SMX smx,SMF *smf,PARTICLE *p,int iRoot1, int iRoot2) {
     PKD pkd = smx->pkd;
     int ix,iy,iz;
     double p_r[3];
-    FLOAT r[3],fBall;
+    double r[3],fBall;
     int iStart[3],iEnd[3];
     int j;
     PQ *pq;
@@ -982,8 +982,8 @@ uint32_t BoundWalkInactive(SMX smx) {
     SPHBNDS *bn;
     double BImin[3];
     double BImax[3];
-    FLOAT rOffset[3];
-    FLOAT d2;
+    double rOffset[3];
+    double d2;
     int iStack,ism;
     int ix,iy,iz,bRep;
     int nMaxInitCheck,nCheck;
@@ -1442,8 +1442,8 @@ void BoundWalkActive(SMX smx,LIST **ppList,int *pnMaxpList) {
     PKD pkd = smx->pkd;
     PARTICLE *p,*pp;
     KDN *k,*c,*kSib;
-    FLOAT rOffset[3];
-    FLOAT d2;
+    double rOffset[3];
+    double d2;
     int iStack,ism;
     int ix,iy,iz,bRep;
     int nMaxInitCheck,nCheck;
@@ -1858,7 +1858,7 @@ void DoLocalSearch(SMX smx,SMF *smf,PARTICLE *p,double *rLast) {
 void smFastGasPhase1(SMX smx,SMF *smf) {
     PKD pkd = smx->pkd;
     PARTICLE *p,*pp;
-    FLOAT rLast[3];
+    double rLast[3];
     int pi,i,j,ii;
     uint32_t uHead,uTail;
     LIST *pList;
@@ -2340,19 +2340,19 @@ void pkdFastGasCleanup(PKD pkd) {
     }
 }
 
-void smGather(SMX smx,FLOAT fBall2,FLOAT r[3]) {
+void smGather(SMX smx,double fBall2,double r[3]) {
     KDN *kdn;
     PKD pkd = smx->pkd;
     MDL mdl = pkd->mdl;
     int idSelf = pkd->idSelf;
     struct stStack *S = smx->ST;
-    FLOAT min2;
+    double min2;
     int iCell,id;
     int sp = 0;
     const BND *bnd;
     PARTICLE *p;
     double p_r[3];
-    FLOAT dx, dy, dz, fDist2;
+    double dx, dy, dz, fDist2;
     int pj, pEnd, nCnt;
 
     nCnt = smx->nnListSize;
@@ -2444,12 +2444,12 @@ void smGather(SMX smx,FLOAT fBall2,FLOAT r[3]) {
     smx->nnListSize = nCnt;
 }
 
-void smDoGatherLocal(SMX smx,FLOAT fBall2,FLOAT r[3],void (*Do)(SMX,PARTICLE *,FLOAT)) {
+void smDoGatherLocal(SMX smx,double fBall2,double r[3],void (*Do)(SMX,PARTICLE *,double)) {
     PKD pkd = smx->pkd;
     KDN *kdn;
     PARTICLE *p;
     double p_r[3];
-    FLOAT min2,dx,dy,dz,fDist2;
+    double min2,dx,dy,dz,fDist2;
     int *S = smx->S;
     int sp = 0;
     int iCell,pj,pEnd;
@@ -2492,7 +2492,7 @@ void smDoGatherLocal(SMX smx,FLOAT fBall2,FLOAT r[3],void (*Do)(SMX,PARTICLE *,F
 }
 
 
-void smReSmoothSingle(SMX smx,SMF *smf,PARTICLE *p,FLOAT fBall) {
+void smReSmoothSingle(SMX smx,SMF *smf,PARTICLE *p,double fBall) {
     PKD pkd = smx->pkd;
     double R[3], r[3];
     int iStart[3],iEnd[3];
@@ -2553,9 +2553,9 @@ void smReSmooth(SMX smx,SMF *smf) {
     }
 }
 
-FLOAT phase_dist(PKD pkd,double dvTau2,PARTICLE *pa,PARTICLE *pb,double H) {
+double phase_dist(PKD pkd,double dvTau2,PARTICLE *pa,PARTICLE *pb,double H) {
     int j;
-    FLOAT dx,dv,dx2,dv2;
+    double dx,dv,dx2,dv2;
     vel_t *va, *vb;
 
     assert(pkd->oGroup); /* Validate memory model */
@@ -2582,9 +2582,9 @@ FLOAT phase_dist(PKD pkd,double dvTau2,PARTICLE *pa,PARTICLE *pb,double H) {
 }
 
 
-FLOAT corrPos(FLOAT c,FLOAT r,FLOAT l) {
+double corrPos(double c,double r,double l) {
 
-    FLOAT d;
+    double d;
 
     d = r-c;
     if (d >= 0.5*l) return r - l;
@@ -2593,7 +2593,7 @@ FLOAT corrPos(FLOAT c,FLOAT r,FLOAT l) {
 }
 
 
-FLOAT PutInBox(FLOAT r,FLOAT l) {
+double PutInBox(double r,double l) {
     if (r < -0.5*l) return r + l;
     else if (r >= 0.5*l) return r - l;
     else return r;
@@ -2653,8 +2653,8 @@ void smFof(SMX smx,SMF *smf) {
     int ix,iy,iz;
     int idSelf = pkd->idSelf;
 
-    FLOAT R[3],r[3],l[3],lx,ly,lz,fBall,fBall2Max,fvBall2;
-    FLOAT fMass;
+    double R[3],r[3],l[3],lx,ly,lz,fBall,fBall2Max,fvBall2;
+    double fMass;
     int nTree,tmp;
 
     assert(pkd->oGroup); /* Validate memory model */
@@ -2962,7 +2962,7 @@ int smGroupMerge(SMF *smf,int bPeriodic) {
     PARTICLE *pPart;
     int32_t *pGroup;
     int32_t *pPartGroup, iPartGroup;
-    FLOAT l[3], rtmp,rcomsubgroup;
+    double l[3], rtmp,rcomsubgroup;
     int pi,id,i,j,k,index,listSize, sgListSize, lsgListSize;
     int nLSubGroups,nSubGroups,nMyGroups;
     int iHead, iTail, nFifo,tmp, nTree;
@@ -3266,7 +3266,7 @@ int smGroupMerge(SMF *smf,int bPeriodic) {
 
 
 #if 0
-void DoBins(SMX smx,PARTICLE *p,FLOAT fDist2) {
+void DoBins(SMX smx,PARTICLE *p,double fDist2) {
     FOFGD *pCurGrp = smx->pCurrentGroup;
     FOFBIN *pBin;
     int iStart,nBins,pid;
@@ -3306,8 +3306,8 @@ int smGroupProfiles(SMX smx, SMF *smf, int nTotalGroups) {
     int32_t *pBin, *pPartBin;
     double *v;
     double dx2;
-    FLOAT l[3],L[3],r[3],relvel[3],com[3];
-    FLOAT rvir,Mvir,fBall,lastbin,fMass,fAvgDens;
+    double l[3],L[3],r[3],relvel[3],com[3];
+    double rvir,Mvir,fBall,lastbin,fMass,fAvgDens;
     int pn,i,j,k,iBin,nBins,nTree,index,nCnt,pnn;
     int iStart[3],iEnd[3];
     int ix,iy,iz;

@@ -66,6 +66,10 @@ if USE_SIMD_FMM
 SOURCES        += vmoments.cxx
 noinst_HEADERS += vmoments.h
 endif
+if USE_SIMD_LC
+SOURCES        += lightcone.cxx
+noinst_HEADERS += lightcone.h
+endif
 AM_CFLAGS = @SIMD_CFLAGS@
 AM_CXXFLAGS = @SIMD_CFLAGS@
 noinst_HEADERS += simd.h sse_mathfun.h avx_mathfun.h
@@ -87,6 +91,7 @@ endif
 pkdgrav3_null_SOURCES = $(SOURCES) $(MDL)/null/mdl.c
 noinst_HEADERS += $(MDL)/null/mdl.h
 pkdgrav3_null_CFLAGS =  -I$(MDL)/null/ -I$(MDL) $(AM_CFLAGS)
+pkdgrav3_null_CXXFLAGS =  -I$(MDL)/null/ -I$(MDL) $(AM_CXXFLAGS)
 pkdgrav3_null_LDADD = $(FLIBS)
 if USE_EFENCE
 if HAVE_EFENCE_PATH
@@ -110,6 +115,7 @@ pkdgrav3_mpi_LDADD = -lpthread
 pkdgrav3_mpi_SOURCES = $(SOURCES) $(MDL)/mpi/mdl.c openpa/src/opa_primitives.c openpa/src/opa_queue.c
 noinst_HEADERS += $(MDL)/mpi/mdl.h
 pkdgrav3_mpi_CFLAGS = -I$(MDL)/mpi/ -I$(MDL) -Iopenpa/src $(AM_CFLAGS)
+pkdgrav3_mpi_CXXFLAGS = -I$(MDL)/mpi/ -I$(MDL) -Iopenpa/src $(AM_CXXFLAGS)
 if FFTW
 pkdgrav3_mpi_CFLAGS += $(GSL_CFLAGS)
 pkdgrav3_mpi_LDADD += $(GSL_LIBS)
@@ -148,6 +154,7 @@ if HAVE_PTHREAD
 pkdgrav3_pthread_SOURCES = $(SOURCES) $(MDL)/pthread/mdl.c
 noinst_HEADERS += $(MDL)/pthread/mdl.h
 pkdgrav3_pthread_CFLAGS = -DUSE_PTHREAD -I$(MDL)/pthread/ -I$(MDL) $(AM_CFLAGS)
+pkdgrav3_pthread_CXXFLAGS = -DUSE_PTHREAD -I$(MDL)/pthread/ -I$(MDL) $(AM_CXXFLAGS)
 pkdgrav3_pthread_LDADD = -lpthread
 if USE_EFENCE
 if HAVE_EFENCE_PATH
