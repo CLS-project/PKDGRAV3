@@ -453,6 +453,7 @@ fi
       USE_SIMD_EWALD=no
       USE_SIMD_PP=no
       USE_SIMD_PC=no
+      USE_SIMD_FMM=no
     fi
   fi
   AC_SUBST(SIMD_CFLAGS)
@@ -485,8 +486,8 @@ AM_CONDITIONAL(USE_SIMD, test "x$USE_SIMD" != "xno")
 AM_CONDITIONAL(USE_SIMD_OPEN,test "x$USE_SIMD_OPEN" != "xno")
 AM_CONDITIONAL(USE_SIMD_PP,test "x$USE_SIMD_PP" != "xno")
 AM_CONDITIONAL(USE_SIMD_PC,test "x$USE_SIMD_PC" != "xno")
+AM_CONDITIONAL(USE_SIMD_FMM,test "x$USE_SIMD_FMM" != "xno")
 AM_CONDITIONAL(USE_SIMD_MOMR,test "x$USE_SIMD_MOMR" = "xyes")
-AM_CONDITIONAL(USE_SIMD_FMM,test "x$USE_SIMD_FMM" = "xyes")
 
 if test "x$HAVE_POSIX_MEMALIGN" == "xyes" ; then
   AC_DEFINE([HAVE_POSIX_MEMALIGN],1, 
