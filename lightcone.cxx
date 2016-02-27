@@ -56,17 +56,11 @@ static inline dvec & operator*=(dvec &a,dvec const &b) { return a = a * b; }
 static inline dvec & operator/=(dvec &a,dvec const &b) { return a = a / b; }
 static inline dvec & operator&=(dvec &a,dvec const &b) { return a = a & b; }
 static inline dvec & operator|=(dvec &a,dvec const &b) { return a = a | b; }
-static inline int allzero(dvec const &r2) { return _mm256_movemask_pd(r2); }
+static inline int movemask(dvec const &r2) { return _mm256_movemask_pd(r2); }
+static inline dvec sqrt(dvec const &r2) { return _mm256_sqrt_pd(r2); }
+static inline dvec max(dvec const &a,dvec const &b) { return _mm256_max_pd(a,b); }
+static inline dvec min(dvec const &a,dvec const &b) { return _mm256_min_pd(a,b); }
 
-static inline dvec sqrt(dvec const &r2) {
-    return _mm256_sqrt_pd(r2);
-    }
-static inline dvec max(dvec const &a,dvec const &b) {
-    return _mm256_max_pd(a,b);
-    }
-static inline dvec min(dvec const &a,dvec const &b) {
-    return _mm256_min_pd(a,b);
-    }
 /******************************************************************************/
 
 extern "C" void addToLightCone(PKD pkd,double *r,PARTICLE *p,int bParticleOutput);
@@ -174,8 +168,8 @@ void pkdProcessLightCone(PKD pkd,PARTICLE *p,double dLookbackFac,double dLookbac
 	    dtApprox = dt/dDriftDelta*dKickDelta;
 	    dlbt = dLookbackFac - dtApprox;
 	    }
-	double t0 = dlbt*dlbt*dLightSpeed*dLightSpeed;
-	double t1 = (dlbt - dtApprox)*(dlbt - dtApprox)*dLightSpeed*dLightSpeed;
+	dvec t0 = dlbt*dlbt*dLightSpeed*dLightSpeed;
+	dvec t1 = (dlbt - dtApprox)*(dlbt - dtApprox)*dLightSpeed*dLightSpeed;
 	for (j=0;j<3;++j) r1[j] = r0[j] + dt*v[j];
 	for(int iOct=0; iOct<nBox; ++iOct) {
 	    dvec off0, off1, off2;
@@ -190,12 +184,12 @@ void pkdProcessLightCone(PKD pkd,PARTICLE *p,double dLookbackFac,double dLookbac
 	    dvec vrz1 = off2 + r1[2];
 	    dvec mr0 = vrx0*vrx0 + vry0*vry0 + vrz0*vrz0;
 	    dvec mr1 = vrx1*vrx1 + vry1*vry1 + vrz1*vrz1;
-	    int msk = allzero((t1 <= max(mr0,mr1)) & (t0 >= min(mr0,mr1)));
+	    int msk = movemask((t1 <= max(mr0,mr1)) & (t0 >= min(mr0,mr1)));
 	    if (msk) {
 		mr0 = sqrt(mr0);
 		mr1 = sqrt(mr1);
 		dvec vx = (dLightSpeed*dlbt - mr0)/(dLightSpeed*dtApprox - mr0 + mr1);
-		msk = allzero(vx >= xStart & vx < 1.0);
+		msk = movemask(vx >= xStart & vx < 1.0);
 		if (msk) {
 		    dvec vr[3];
 		    vr[0] = (1-vx)*vrx0 + vx*vrx1;
