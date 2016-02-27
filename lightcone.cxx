@@ -61,6 +61,12 @@ static inline int allzero(dvec const &r2) { return _mm256_movemask_pd(r2); }
 static inline dvec sqrt(dvec const &r2) {
     return _mm256_sqrt_pd(r2);
     }
+static inline dvec max(dvec const &a,dvec const &b) {
+    return _mm256_max_pd(a,b);
+    }
+static inline dvec min(dvec const &a,dvec const &b) {
+    return _mm256_min_pd(a,b);
+    }
 /******************************************************************************/
 
 extern "C" void addToLightCone(PKD pkd,double *r,PARTICLE *p,int bParticleOutput);
@@ -168,6 +174,8 @@ void pkdProcessLightCone(PKD pkd,PARTICLE *p,double dLookbackFac,double dLookbac
 	    dtApprox = dt/dDriftDelta*dKickDelta;
 	    dlbt = dLookbackFac - dtApprox;
 	    }
+	double t0 = dlbt*dlbt*dLightSpeed*dLightSpeed;
+	double t1 = (dlbt - dtApprox)*(dlbt - dtApprox)*dLightSpeed*dLightSpeed;
 	for (j=0;j<3;++j) r1[j] = r0[j] + dt*v[j];
 	for(int iOct=0; iOct<nBox; ++iOct) {
 	    dvec off0, off1, off2;
@@ -180,26 +188,31 @@ void pkdProcessLightCone(PKD pkd,PARTICLE *p,double dLookbackFac,double dLookbac
 	    dvec vrx1 = off0 + r1[0];
 	    dvec vry1 = off1 + r1[1];
 	    dvec vrz1 = off2 + r1[2];
-	    dvec mr0 = sqrt(vrx0*vrx0 + vry0*vry0 + vrz0*vrz0);
-	    dvec mr1 = sqrt(vrx1*vrx1 + vry1*vry1 + vrz1*vrz1);
-	    dvec vx = (dLightSpeed*dlbt - mr0)/(dLightSpeed*dtApprox - mr0 + mr1);
-	    int msk = allzero(vx >= xStart & vx < 1.0);
+	    dvec mr0 = vrx0*vrx0 + vry0*vry0 + vrz0*vrz0;
+	    dvec mr1 = vrx1*vrx1 + vry1*vry1 + vrz1*vrz1;
+	    int msk = allzero((t1 <= max(mr0,mr1)) & (t0 >= min(mr0,mr1)));
 	    if (msk) {
-		dvec vr[3];
-		vr[0] = (1-vx)*vrx0 + vx*vrx1;
-		vr[1] = (1-vx)*vry0 + vx*vry1;
-		vr[2] = (1-vx)*vrz0 + vx*vrz1;
-		for(int j=0; j<4; ++j) {
-		    if (msk & (1<<j)) {
-			double r[3];
-			r[0] = vr[0][j];
-			r[1] = vr[1][j];
-			r[2] = vr[2][j];
-			/*
-			** Create a new light cone particle.
-			*/
-			double mr = sqrt(r[0]*r[0] + r[1]*r[1] + r[2]*r[2]);
-			addToLightCone(pkd,r,p,pkd->param.bLightConeParticles && (mr <= mrLCP));
+		mr0 = sqrt(mr0);
+		mr1 = sqrt(mr1);
+		dvec vx = (dLightSpeed*dlbt - mr0)/(dLightSpeed*dtApprox - mr0 + mr1);
+		msk = allzero(vx >= xStart & vx < 1.0);
+		if (msk) {
+		    dvec vr[3];
+		    vr[0] = (1-vx)*vrx0 + vx*vrx1;
+		    vr[1] = (1-vx)*vry0 + vx*vry1;
+		    vr[2] = (1-vx)*vrz0 + vx*vrz1;
+		    for(int j=0; j<4; ++j) {
+			if (msk & (1<<j)) {
+			    double r[3];
+			    r[0] = vr[0][j];
+			    r[1] = vr[1][j];
+			    r[2] = vr[2][j];
+			    /*
+			    ** Create a new light cone particle.
+			    */
+			    double mr = sqrt(r[0]*r[0] + r[1]*r[1] + r[2]*r[2]);
+			    addToLightCone(pkd,r,p,pkd->param.bLightConeParticles && (mr <= mrLCP));
+			    }
 			}
 		    }
 		}
