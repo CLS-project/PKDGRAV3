@@ -32,6 +32,8 @@
 #define HEALPIX_H
 #include <stdint.h>
 
+typedef int64_t hpint64;
+
 hpint64 nside2npix64(hpint64 nside);
 int64_t vec2pix_ring64(hpint64 nside, const double *vec);
 

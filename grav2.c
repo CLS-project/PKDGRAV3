@@ -231,7 +231,7 @@ void pkdParticleWorkDone(workParticle *work) {
 	}
     }
 
-inline void pkdGravEvalPP(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  PINFOOUT *pOut ) {
+void pkdGravEvalPP(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  PINFOOUT *pOut ) {
     int nLeft;
     int j;
 #if defined(USE_SIMD_PP)
@@ -489,7 +489,7 @@ static void queuePP( PKD pkd, workParticle *work, ILP ilp, int bGravStep ) {
 	}
     }
 
-inline void pkdGravEvalPC(PINFOIN *pPart, int nBlocks, int nInLast, ILC_BLK *blk,  PINFOOUT *pOut ) {
+void pkdGravEvalPC(PINFOIN *pPart, int nBlocks, int nInLast, ILC_BLK *blk,  PINFOOUT *pOut ) {
 
 #if defined(USE_SIMD_PC)
     v_sf u,g0,g1,g2,g3,g4;

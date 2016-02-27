@@ -47,6 +47,7 @@
 #include "parameters.h"
 #include "cosmo.h"
 #include "iomodule.h"
+#include "healpix.h"
 
 #ifdef _MSC_VER
 #define FILE_PROTECTION (_S_IREAD | _S_IWRITE)

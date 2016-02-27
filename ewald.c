@@ -13,6 +13,7 @@
 #include "meval.h"
 #include "qeval.h"
 #include "moments.h"
+#include "grav.h"
 #if defined(USE_SIMD_EWALD) && defined(__SSE2__)
 #ifdef __AVX__
 #include "avx_mathfun.h"

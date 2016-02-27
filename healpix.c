@@ -31,8 +31,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <math.h>
-
-typedef int64_t hpint64;
+#include "healpix.h"
 
 static const double twothird=2.0/3.0;
 static const double twopi=6.283185307179586476925286766559005768394;
