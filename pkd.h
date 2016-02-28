@@ -526,6 +526,7 @@ typedef struct {
     float minPot;
     float rcom[3];
     float vcom[3];
+    float lcom[3];
     float sigma;
     float rMax;
     float fMass;

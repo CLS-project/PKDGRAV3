@@ -108,6 +108,26 @@ static void combTinyGroup(void *vpkd, void *v1, void *v2) {
     if (g2->rMax > g1->rMax) g1->rMax = g2->rMax;
     }
 
+static void initAngular(void *vpkd, void *v) {
+    TinyGroupTable * g = (TinyGroupTable *)v;
+    int j;
+
+    for (j=0;j<3;j++) {
+	g->lcom[j] = 0.0;
+	}
+    }
+
+static void combAngular(void *vpkd, void *v1, void *v2) {
+    TinyGroupTable *g1 = (TinyGroupTable *)v1;
+    TinyGroupTable *g2 = (TinyGroupTable *)v2;
+    float x;
+    int j;
+
+    for (j=0;j<3;j++) {
+	g1->lcom[j] += g2->lcom[j];
+	}
+    }
+
 struct packHopCtx {
     PKD pkd;
     int iIndex;
@@ -334,6 +354,7 @@ void pkdCalculateGroupStats(PKD pkd,int bPeriodic,double *dPeriod,double rEnviro
     float r2,rMax;
     int i,j,gid,n;
     vel_t *v;
+    double vrel[3];
     TinyGroupTable *g;
     int nLocalGroups;
     double *dAccumulate;
@@ -487,6 +508,46 @@ void pkdCalculateGroupStats(PKD pkd,int bPeriodic,double *dPeriod,double rEnviro
 	pkd->tinyGroupTable[gid].sigma = sqrtf(pkd->tinyGroupTable[gid].sigma);
 	}
     /*
+    ** Calculate angular momentum about the center of mass locally.
+    */
+    for (i=0;i<pkd->nLocal;++i) {
+	p = pkdParticle(pkd,i);
+	gid = pkdGetGroup(pkd,p);
+	if (gid > 0) {
+	    fMass = pkdMass(pkd,p);
+	    v = pkdVel(pkd,p);
+	    for (j=0;j<3;++j) {
+		r[j] =  pkdPosToDbl(pkd,pkdPosRaw(pkd,p,j) - pkd->tinyGroupTable[gid].rPot[j]);
+		if      (r[j] < -dHalf[j]) r[j] += dPeriod[j];
+		else if (r[j] > +dHalf[j]) r[j] -= dPeriod[j];
+		r[j] += pkd->tinyGroupTable[gid].rcom[j];
+		vrel[j] = v[j] - pkd->tinyGroupTable[gid].vcom[j];
+		}
+	    dAccumulate[4*gid+0] += fMass*r[1]*vrel[2];
+	    dAccumulate[4*gid+1] -= fMass*r[0]*vrel[2];
+	    dAccumulate[4*gid+2] += fMass*r[0]*vrel[1];
+	    }
+	}
+    for (gid=1;gid<pkd->nGroups;++gid) {
+	for (j=0;j<3;++j) {
+	    pkd->tinyGroupTable[gid].lcom[j] = dAccumulate[4*gid+j];
+	    dAccumulate[4*gid+j] = 0;
+	    }
+	}
+    /* 
+    ** Now accumulate angular momentum globally
+    */
+    mdlCOcache(mdl,CID_GROUP,NULL,pkd->tinyGroupTable,sizeof(TinyGroupTable),nLocalGroups+1,
+	NULL,initAngular,combAngular);
+    for(gid=1+nLocalGroups;gid<pkd->nGroups;++gid) {
+	TinyGroupTable *g;
+	g = mdlVirtualFetch(mdl,CID_GROUP,pkd->ga[gid].id.iIndex,pkd->ga[gid].id.iPid);
+	for (j=0;j<3;j++) {
+	    g->lcom[j] += pkd->tinyGroupTable[gid].lcom[j];
+	    }
+	}
+    mdlFinishCache(mdl,CID_GROUP);
+    /*
     ** Scoop environment mass (note the full tree must be present).
     */
     S = (remoteID *)(&pkd->tinyGroupTable[pkd->nGroups]);
@@ -517,6 +578,7 @@ void pkdCalculateGroupStats(PKD pkd,int bPeriodic,double *dPeriod,double rEnviro
 	for (j=0;j<3;++j) {
 	    pkd->tinyGroupTable[gid].rcom[j] = g->rcom[j];
 	    pkd->tinyGroupTable[gid].vcom[j] = g->vcom[j];
+	    pkd->tinyGroupTable[gid].lcom[j] = g->lcom[j];
 	    }
 	pkd->tinyGroupTable[gid].sigma = g->sigma;
 	pkd->tinyGroupTable[gid].rMax = g->rMax;
