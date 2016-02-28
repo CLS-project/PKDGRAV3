@@ -653,7 +653,7 @@ void pkdInitialize(
 	pkd->pLightCone = NULL;
 	}
     pkd->afiLightCone.fd = -1;
-    pkd->pHealpixCounts = NULL;
+    pkd->pHealpixData = NULL;
 
 #ifdef MDL_CACHE_SIZE
     if ( iCacheSize > 0 ) mdlSetCacheSize(pkd->mdl,iCacheSize);
@@ -816,7 +816,7 @@ void pkdFinish(PKD pkd) {
     if (mdlCore(pkd->mdl)==0) mdlFree(pkd->mdl,pkd->pStorePRIVATE);
     free(pkd->pTempPRIVATE);
     if (pkd->pLightCone) free(pkd->pLightCone);
-    if (pkd->pHealpixCounts) free(pkd->pHealpixCounts);
+    if (pkd->pHealpixData) free(pkd->pHealpixData);
     io_free(&pkd->afiLightCone);
     csmFinish(pkd->param.csm);
     SIMD_free(pkd);
@@ -2297,20 +2297,29 @@ static void flushLightCone(PKD pkd) {
     }
 
 static void initHealpix(void *vpkd, void *v) {
-    uint32_t *m = (uint32_t *)v;
-    *m = 0;
+    healpixData *m = (healpixData *)v;
+    m->nGrouped = 0;
+    m->nUngrouped = 0;
+    m->fPotential = 0;
+    }
+
+static uint32_t SumWithSaturate(uint32_t a,uint32_t b) {
+    uint64_t sum = (uint64_t)a + b;
+    if (sum > 0xffffffffu) return 0xffffffffu;
+    else return sum;
     }
 
 static void combHealpix(void *vctx, void *v1, void *v2) {
     PKD pkd = (PKD)vctx;
-    uint32_t * m1 = (uint32_t *)v1;
-    uint32_t * m2 = (uint32_t *)v2;
-    uint64_t sum = (uint64_t)*m1 + *m2;
-    if (sum > 0xffffffffu) *m1 = 0xffffffffu;
-    else *m1 = sum;
+    healpixData * m1 = (healpixData *)v1;
+    healpixData * m2 = (healpixData *)v2;
+    m1->nGrouped = SumWithSaturate(m1->nGrouped,m2->nGrouped);
+    m1->nUngrouped = SumWithSaturate(m1->nUngrouped,m2->nUngrouped);
+    m1->fPotential += m2->fPotential;
     }
 
 void pkdLightConeClose(PKD pkd,const char *healpixname) {
+    int i;
     if (pkd->afiLightCone.fd > 0) {
 	flushLightCone(pkd);
 	io_close(&pkd->afiLightCone);
@@ -2320,7 +2329,12 @@ void pkdLightConeClose(PKD pkd,const char *healpixname) {
 	mdlFinishCache(pkd->mdl,CID_HEALPIX);
 	int fd = open(healpixname,O_CREAT|O_WRONLY|O_TRUNC,FILE_PROTECTION);
 	if (fd<0) { perror(healpixname); abort(); }
-	write(fd,pkd->pHealpixCounts,pkd->nHealpixPerDomain * sizeof(*pkd->pHealpixCounts));
+	for(i=0; i<pkd->nHealpixPerDomain; ++i) {
+	    uint64_t sum = pkd->pHealpixData[i].nGrouped;
+	    sum += pkd->pHealpixData[i].nUngrouped;
+	    if (sum) pkd->pHealpixData[i].fPotential /= sum;
+	    }
+	write(fd,pkd->pHealpixData,pkd->nHealpixPerDomain * sizeof(*pkd->pHealpixData));
 	close(fd);
 	}
     }
@@ -2336,13 +2350,17 @@ void pkdLightConeOpen(PKD pkd,const char *fname,int nSideHealpix) {
     if (pkd->nSideHealpix) {
 	pkd->nHealpixPerDomain = ( nside2npix64(pkd->nSideHealpix) + mdlThreads(pkd->mdl) - 1) / mdlThreads(pkd->mdl);
 	pkd->nHealpixPerDomain = (pkd->nHealpixPerDomain+15) & ~15;
-	if (pkd->pHealpixCounts==NULL) {
-	    pkd->pHealpixCounts = malloc(pkd->nHealpixPerDomain * sizeof(*pkd->pHealpixCounts));
-	    assert(pkd->pHealpixCounts!=NULL);
+	if (pkd->pHealpixData==NULL) {
+	    pkd->pHealpixData = malloc(pkd->nHealpixPerDomain * sizeof(*pkd->pHealpixData));
+	    assert(pkd->pHealpixData!=NULL);
 	    }
-	for (i=0; i<pkd->nHealpixPerDomain; ++i) pkd->pHealpixCounts[i] = 0;
+	for (i=0; i<pkd->nHealpixPerDomain; ++i) {
+	    pkd->pHealpixData[i].nGrouped = 0;
+	    pkd->pHealpixData[i].nUngrouped = 0;
+	    pkd->pHealpixData[i].fPotential = 0;
+	    }
 	mdlCOcache(pkd->mdl,CID_HEALPIX,NULL,
-	    pkd->pHealpixCounts,sizeof(*pkd->pHealpixCounts),
+	    pkd->pHealpixData,sizeof(*pkd->pHealpixData),
 	    pkd->nHealpixPerDomain,pkd,initHealpix,combHealpix);
 	}
     }
@@ -2366,8 +2384,15 @@ void addToLightCone(PKD pkd,double *r,PARTICLE *p,int bParticleOutput) {
 	int idx = iPixel - id*pkd->nHealpixPerDomain;
 	assert(id<mdlThreads(pkd->mdl));
 	assert(idx < pkd->nHealpixPerDomain);
-	uint32_t *m = mdlVirtualFetch(pkd->mdl,CID_HEALPIX,idx,id);
-	if (*m < 0xffffffffu) ++*m; /* Increment with saturate */
+	healpixData *m = mdlVirtualFetch(pkd->mdl,CID_HEALPIX,idx,id);
+	if (pkdGetGroup(pkd,p)) {
+	    if (m->nGrouped < 0xffffffffu) ++m->nGrouped; /* Increment with saturate */
+	    }
+	else {
+	    if (m->nUngrouped < 0xffffffffu) ++m->nUngrouped; /* Increment with saturate */
+	    }
+	float *pPot = pkdPot(pkd,p);
+	if (pPot) m->fPotential += *pPot;
 	}
     }
 

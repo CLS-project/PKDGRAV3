@@ -685,6 +685,12 @@ typedef struct {
     uint64_t nTotalAbove;
     } ORBCOUNT;
 
+typedef struct {
+    uint32_t nGrouped;
+    uint32_t nUngrouped;
+    float fPotential;
+    } healpixData;
+
 struct psContext;
 
 typedef struct pkdContext {
@@ -730,7 +736,7 @@ typedef struct pkdContext {
     int nLightCone, nLightConeMax;
     int64_t nHealpixPerDomain;
     int64_t nSideHealpix;
-    uint32_t *pHealpixCounts;
+    healpixData *pHealpixData;
 
     PARTCLASS *pClass;
     float fSoftFix;
