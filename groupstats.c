@@ -113,7 +113,10 @@ static void initAngular(void *vpkd, void *v) {
     int j;
 
     for (j=0;j<3;j++) {
-	g->lcom[j] = 0.0;
+	g->angular[j] = 0.0;
+	}
+    for (j=0;j<6;j++) {
+	g->inertia[j] = 0.0;
 	}
     }
 
@@ -124,7 +127,10 @@ static void combAngular(void *vpkd, void *v1, void *v2) {
     int j;
 
     for (j=0;j<3;j++) {
-	g1->lcom[j] += g2->lcom[j];
+	g1->angular[j] += g2->angular[j];
+	}
+    for (j=0;j<6;j++) {
+	g1->inertia[j] += g2->inertia[j];
 	}
     }
 
@@ -508,7 +514,7 @@ void pkdCalculateGroupStats(PKD pkd,int bPeriodic,double *dPeriod,double rEnviro
 	pkd->tinyGroupTable[gid].sigma = sqrtf(pkd->tinyGroupTable[gid].sigma);
 	}
     /*
-    ** Calculate angular momentum about the center of mass locally.
+    ** Calculate angular momentum about the center of the group.
     */
     for (i=0;i<pkd->nLocal;++i) {
 	p = pkdParticle(pkd,i);
@@ -520,17 +526,60 @@ void pkdCalculateGroupStats(PKD pkd,int bPeriodic,double *dPeriod,double rEnviro
 		r[j] =  pkdPosToDbl(pkd,pkdPosRaw(pkd,p,j) - pkd->tinyGroupTable[gid].rPot[j]);
 		if      (r[j] < -dHalf[j]) r[j] += dPeriod[j];
 		else if (r[j] > +dHalf[j]) r[j] -= dPeriod[j];
-		r[j] += pkd->tinyGroupTable[gid].rcom[j];
-		vrel[j] = v[j] - pkd->tinyGroupTable[gid].vcom[j];
 		}
-	    dAccumulate[4*gid+0] += fMass*r[1]*vrel[2];
-	    dAccumulate[4*gid+1] -= fMass*r[0]*vrel[2];
-	    dAccumulate[4*gid+2] += fMass*r[0]*vrel[1];
+	    dAccumulate[4*gid+0] += fMass*(r[1]*v[2] - r[2]*v[1]);
+	    dAccumulate[4*gid+1] += fMass*(r[2]*v[0] - r[0]*v[2]);
+	    dAccumulate[4*gid+2] += fMass*(r[0]*v[1] - r[1]*v[0]);
 	    }
 	}
     for (gid=1;gid<pkd->nGroups;++gid) {
 	for (j=0;j<3;++j) {
-	    pkd->tinyGroupTable[gid].lcom[j] = dAccumulate[4*gid+j];
+	    pkd->tinyGroupTable[gid].angular[j] = dAccumulate[4*gid+j];
+	    dAccumulate[4*gid+j] = 0;
+	    }
+	}
+    /*
+    ** Calculate the moment of inertia (we do this in 2 stages to save accumulator memory.
+    */
+    for (i=0;i<pkd->nLocal;++i) {
+	p = pkdParticle(pkd,i);
+	gid = pkdGetGroup(pkd,p);
+	if (gid > 0) {
+	    fMass = pkdMass(pkd,p);
+	    for (j=0;j<3;++j) {
+		r[j] =  pkdPosToDbl(pkd,pkdPosRaw(pkd,p,j) - pkd->tinyGroupTable[gid].rPot[j]);
+		if      (r[j] < -dHalf[j]) r[j] += dPeriod[j];
+		else if (r[j] > +dHalf[j]) r[j] -= dPeriod[j];
+		}
+	    dAccumulate[4*gid+0] += fMass*r[0]*r[0];
+	    dAccumulate[4*gid+1] += fMass*r[0]*r[1];
+	    dAccumulate[4*gid+2] += fMass*r[0]*r[2];
+	    }
+	}
+    for (gid=1;gid<pkd->nGroups;++gid) {
+	for (j=0;j<3;++j) {
+	    pkd->tinyGroupTable[gid].inertia[j] = dAccumulate[4*gid+j];
+	    dAccumulate[4*gid+j] = 0;
+	    }
+	}
+    for (i=0;i<pkd->nLocal;++i) {
+	p = pkdParticle(pkd,i);
+	gid = pkdGetGroup(pkd,p);
+	if (gid > 0) {
+	    fMass = pkdMass(pkd,p);
+	    for (j=1;j<3;++j) {  /* careful, this loop skips r[0]! */
+		r[j] =  pkdPosToDbl(pkd,pkdPosRaw(pkd,p,j) - pkd->tinyGroupTable[gid].rPot[j]);
+		if      (r[j] < -dHalf[j]) r[j] += dPeriod[j];
+		else if (r[j] > +dHalf[j]) r[j] -= dPeriod[j];
+		}
+	    dAccumulate[4*gid+0] += fMass*r[1]*r[1];
+	    dAccumulate[4*gid+1] += fMass*r[1]*r[2];
+	    dAccumulate[4*gid+2] += fMass*r[2]*r[2];
+	    }
+	}
+    for (gid=1;gid<pkd->nGroups;++gid) {
+	for (j=0;j<3;++j) {
+	    pkd->tinyGroupTable[gid].inertia[j+3] = dAccumulate[4*gid+j];
 	    dAccumulate[4*gid+j] = 0;
 	    }
 	}
@@ -543,7 +592,10 @@ void pkdCalculateGroupStats(PKD pkd,int bPeriodic,double *dPeriod,double rEnviro
 	TinyGroupTable *g;
 	g = mdlVirtualFetch(mdl,CID_GROUP,pkd->ga[gid].id.iIndex,pkd->ga[gid].id.iPid);
 	for (j=0;j<3;j++) {
-	    g->lcom[j] += pkd->tinyGroupTable[gid].lcom[j];
+	    g->angular[j] += pkd->tinyGroupTable[gid].angular[j];
+	    }
+	for (j=0;j<6;++j) {
+	    g->inertia[j] += pkd->tinyGroupTable[gid].inertia[j];
 	    }
 	}
     mdlFinishCache(mdl,CID_GROUP);
@@ -578,7 +630,10 @@ void pkdCalculateGroupStats(PKD pkd,int bPeriodic,double *dPeriod,double rEnviro
 	for (j=0;j<3;++j) {
 	    pkd->tinyGroupTable[gid].rcom[j] = g->rcom[j];
 	    pkd->tinyGroupTable[gid].vcom[j] = g->vcom[j];
-	    pkd->tinyGroupTable[gid].lcom[j] = g->lcom[j];
+	    pkd->tinyGroupTable[gid].angular[j] = g->angular[j];
+	    }
+	for (j=0;j<6;++j) {
+	    pkd->tinyGroupTable[gid].inertia[j] = g->inertia[j];
 	    }
 	pkd->tinyGroupTable[gid].sigma = g->sigma;
 	pkd->tinyGroupTable[gid].rMax = g->rMax;

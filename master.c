@@ -4660,7 +4660,7 @@ void msrCooling(MSR msr,double dTime,double dStep,int bUpdateState, int bUpdateT
 static void writeTinyGroupStats(FILE *fp, int nGroups, TinyGroupTable *g) {
     int i;
     for( i=0; i<nGroups; ++i ) {
-	fprintf(fp, "%.7g %.7g %.7g %.7g %.10g %.10g %.10g %.7g %.7g %.7g %.7g %.7g %.7g %.7g %.7g %.7g %.7g %.7g %.7g\n",
+	fprintf(fp, "%.7g %.7g %.7g %.7g %.10g %.10g %.10g %.7g %.7g %.7g %.7g %.7g %.7g %.7g %.7g %.7g %.7g %.7g %.7g %.7g %.7g %.7g %.7g %.7g %.7g\n",
 	    g[i].fMass,
 	    g[i].rMax,
 	    g[i].rHalf,
@@ -4671,7 +4671,9 @@ static void writeTinyGroupStats(FILE *fp, int nGroups, TinyGroupTable *g) {
 	    pkdPosToDbl(NULL,g[i].rPot[2]),
 	    g[i].rcom[0], g[i].rcom[1], g[i].rcom[2],
 	    g[i].vcom[0], g[i].vcom[1], g[i].vcom[2],
-	    g[i].lcom[0], g[i].lcom[1], g[i].lcom[2],
+	    g[i].angular[0], g[i].angular[1], g[i].angular[2],
+	    g[i].inertia[0], g[i].inertia[1], g[i].inertia[2],
+	    g[i].inertia[3], g[i].inertia[4], g[i].inertia[5],
 	    g[i].sigma,
 	    g[i].fEnvironDensity0,g[i].fEnvironDensity1);
 	}
