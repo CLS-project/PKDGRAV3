@@ -159,7 +159,7 @@ void pkdGenerateNoise(PKD pkd,unsigned long seed,MDLFFT fft,float complex *ic,do
     }
 
 int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int nGrid,int b2LPT,double dBoxSize,
-    double dOmega0,double dLambda0,double dSigma8,double dNormalization,double dSpectral,
+    CSM csm,double dOmega0,double dLambda0,double dSigma8,double dNormalization,double dSpectral,
     double a,int nTf, double *tk, double *tf,
     double *noiseMean, double *noiseCSQ) {
     MDL mdl = pkd->mdl;
@@ -185,9 +185,16 @@ int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int nGrid,int b2LPT,double dBoxSi
 
     powerParameters P;
 
-    D0 = csmComoveGrowthFactor(pkd->param.csm,1.0);
-    Da = csmComoveGrowthFactor(pkd->param.csm,a);
-    dOmega = dOmega0 / (a*a*a*pow(csmExp2Hub(pkd->param.csm, a)/pkd->param.csm->dHubble0,2.0));
+
+    printf("pkd=%p csm=%p\n",pkd, csm);
+
+    D0 = csmComoveGrowthFactor(csm,1.0);
+    Da = csmComoveGrowthFactor(csm,a);
+
+    printf("D0=%g\n",D0);
+
+    dOmega = dOmega0 / (a*a*a*pow(csmExp2Hub(csm, a)/csm->dHubble0,2.0));
+
 
     P.normalization = 1.0;
     P.spectral = dSpectral;
@@ -209,7 +216,7 @@ int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int nGrid,int b2LPT,double dBoxSi
     f1 = pow(dOmega,5.0/9.0);
     f2 = 2.0 * pow(dOmega,6.0/11.0);
 
-    velFactor = csmExp2Hub(pkd->param.csm,a);
+    velFactor = csmExp2Hub(csm,a);
     velFactor *= a*a; /* Comoving */
 
     mdlGridCoordFirstLast(mdl,fft->kgrid,&kfirst,&klast,0);

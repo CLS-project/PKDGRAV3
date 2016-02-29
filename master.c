@@ -5252,6 +5252,7 @@ double msrGenerateIC(MSR msr) {
     in.normalization = msr->param.csm->dNormalization;
     in.spectral=msr->param.csm->dSpectral;
     in.bComove = msr->param.csm->bComove;
+    in.csm = *msr->param.csm;
 
     nTotal  = in.nGrid; /* Careful: 32 bit integer cubed => 64 bit integer */
     nTotal *= in.nGrid;

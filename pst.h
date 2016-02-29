@@ -1149,6 +1149,7 @@ struct inGenerateIC {
     int b2LPT;
     int bComove;
     int nTf;
+    struct csmContext csm;
     double k[MAX_TF];
     double tf[MAX_TF];
     };

@@ -3943,7 +3943,7 @@ void pltGenerateIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	}
     else {
 	out->N = pkdGenerateIC(plcl->pkd,tin->fft,in->iSeed,in->nGrid,in->b2LPT,in->dBoxSize,
-	    in->omegam,in->omegav,in->sigma8,in->normalization,in->spectral,
+	    &in->csm,in->omegam,in->omegav,in->sigma8,in->normalization,in->spectral,
 	    in->dExpansion,in->nTf, in->k, in->tf,&out->noiseMean,&out->noiseCSQ);
 	out->dExpansion = in->dExpansion;
 	}
