@@ -185,16 +185,9 @@ int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int nGrid,int b2LPT,double dBoxSi
 
     powerParameters P;
 
-
-    printf("pkd=%p csm=%p\n",pkd, csm);
-
     D0 = csmComoveGrowthFactor(csm,1.0);
     Da = csmComoveGrowthFactor(csm,a);
-
-    printf("D0=%g\n",D0);
-
     dOmega = dOmega0 / (a*a*a*pow(csmExp2Hub(csm, a)/csm->dHubble0,2.0));
-
 
     P.normalization = 1.0;
     P.spectral = dSpectral;
