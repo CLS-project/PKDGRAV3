@@ -52,16 +52,6 @@ static double variance(powerParameters *P,double dRadius) {
     return result;
     }
 
-/* Approximation */
-static double Growth(double Om0, double OL0, double a, double *Om, double *OL) {
-    double H2,OK0;
-    OK0 = 1 - Om0 - OL0;
-    H2 = Om0 / (a*a*a) + OK0 / (a*a) + OL0;
-    *Om = Om0 / (a*a*a*H2);
-    *OL = OL0 / H2;
-    return 2.5 * a * *Om / (pow(*Om,4./7.) - *OL + (1.+0.5* *Om)*(1.+ *OL/70.));
-    }
-
 /* Gaussian noise in k-space. Note correction sqrt(2) because of FFT normalization. */
 static float complex pairc( RngStream g ) {
     double x1, x2, w;
@@ -195,9 +185,9 @@ int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int nGrid,int b2LPT,double dBoxSi
 
     powerParameters P;
 
-    D0 = Growth(dOmega0,dLambda0,1.0,&dOmega,&dLambda);
-    Da = Growth(dOmega0,dLambda0,a,&dOmega,&dLambda);
-
+    D0 = csmComoveGrowthFactor(pkd->param.csm,1.0);
+    Da = csmComoveGrowthFactor(pkd->param.csm,a);
+    dOmega = dOmega0 / (a*a*a*pow(csmExp2Hub(pkd->param.csm, a)/pkd->param.csm->dHubble0,2.0));
 
     P.normalization = 1.0;
     P.spectral = dSpectral;
@@ -219,7 +209,7 @@ int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int nGrid,int b2LPT,double dBoxSi
     f1 = pow(dOmega,5.0/9.0);
     f2 = 2.0 * pow(dOmega,6.0/11.0);
 
-    velFactor = (sqrt(dOmega0/(a*a*a) + (1-dOmega0-dLambda0)/(a*a) + dLambda0)) * sqrt(8.0/3.0*M_PI);
+    velFactor = csmExp2Hub(pkd->param.csm,a);
     velFactor *= a*a; /* Comoving */
 
     mdlGridCoordFirstLast(mdl,fft->kgrid,&kfirst,&klast,0);

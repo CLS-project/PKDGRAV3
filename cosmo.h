@@ -27,6 +27,7 @@ double csmComoveKickInt(CSM csm, double dIExp);
 double csmComoveDriftFac(CSM csm,double dTime,double dDelta);
 double csmComoveKickFac(CSM csm,double dTime,double dDelta);
 double csmComoveLookbackTime2Exp(CSM csm,double dComoveTime);
+double csmComoveGrowthFactor(CSM csm,double a);
 
 /*
  ** returns the speed of light in simulation units, given

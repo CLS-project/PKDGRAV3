@@ -371,3 +371,16 @@ double csmComoveLookbackTime2Exp(CSM csm,double dComoveTime) {
 	return dExpNew;
 	}
     }
+
+
+double csmComoveGrowthInt(CSM csm, double a) {
+    if (a==0.0) return 0;
+    else return pow(a*csmExp2Hub(csm,a),-3.0);
+    }
+
+double csmComoveGrowthFactor(CSM csm,double a) {
+    double eta = csmExp2Hub(csm, a);
+    return csm->dHubble0*csm->dHubble0*2.5*csm->dOmega0*eta*dRombergO(csm,
+	(double (*)(void *, double)) csmComoveGrowthInt,
+	0, a, 1e-12);
+    }
