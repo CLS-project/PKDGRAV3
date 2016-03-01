@@ -159,8 +159,7 @@ void pkdGenerateNoise(PKD pkd,unsigned long seed,MDLFFT fft,float complex *ic,do
     }
 
 int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int nGrid,int b2LPT,double dBoxSize,
-    CSM csm,double dOmega0,double dLambda0,double dSigma8,double dNormalization,double dSpectral,
-    double a,int nTf, double *tk, double *tf,
+    CSM csm,double a,int nTf, double *tk, double *tf,
     double *noiseMean, double *noiseCSQ) {
     MDL mdl = pkd->mdl;
     double twopi = 2.0 * 4.0 * atan(1.0);
@@ -173,11 +172,12 @@ int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int nGrid,int b2LPT,double dBoxSi
     double iLbox = twopi / dBoxSize;
     double iLbox3 = pow(iLbox,3.0);
     double ak, ak2, amp;
-    double dOmega, dLambda, D0, Da;
+    double dOmega, D0, Da;
     double velFactor;
     float f1, f2;
     basicParticle *p;
     int nLocal;
+    double dSigma8 = csm->dSigma8;
 
     mdlGridCoord kfirst, klast, kindex;
     mdlGridCoord rfirst, rlast, rindex;
@@ -187,10 +187,10 @@ int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int nGrid,int b2LPT,double dBoxSi
 
     D0 = csmComoveGrowthFactor(csm,1.0);
     Da = csmComoveGrowthFactor(csm,a);
-    dOmega = dOmega0 / (a*a*a*pow(csmExp2Hub(csm, a)/csm->dHubble0,2.0));
+    dOmega = csm->dOmega0 / (a*a*a*pow(csmExp2Hub(csm, a)/csm->dHubble0,2.0));
 
     P.normalization = 1.0;
-    P.spectral = dSpectral;
+    P.spectral = csm->dSpectral;
     P.nTf = nTf;
     P.tk = tk;
     P.tf = tf;
@@ -201,9 +201,8 @@ int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int nGrid,int b2LPT,double dBoxSi
 	dSigma8 *= Da/D0;
 	P.normalization *= dSigma8*dSigma8 / variance(&P,8.0);
 	}
-    else if (dNormalization > 0) {
-	dNormalization *= Da/D0;
-	P.normalization = dNormalization;
+    else if (csm->dNormalization > 0) {
+	P.normalization = csm->dNormalization * Da/D0;
 	dSigma8 = sqrt(variance(&P,8.0));
 	}
     f1 = pow(dOmega,5.0/9.0);

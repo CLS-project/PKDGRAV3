@@ -5245,13 +5245,13 @@ double msrGenerateIC(MSR msr) {
     in.iSeed = msr->param.iSeed;
     in.nGrid = msr->param.nGrid;
     in.b2LPT = msr->param.b2LPT;
-    in.omegam= msr->param.csm->dOmega0;
-    in.omegab= msr->param.csm->dOmegab;
-    in.omegav= msr->param.csm->dLambda;
-    in.sigma8= msr->param.csm->dSigma8;
-    in.normalization = msr->param.csm->dNormalization;
-    in.spectral=msr->param.csm->dSpectral;
-    in.bComove = msr->param.csm->bComove;
+//    in.omegam= msr->param.csm->dOmega0;
+//    in.omegab= msr->param.csm->dOmegab;
+//    in.omegav= msr->param.csm->dLambda;
+//    in.sigma8= msr->param.csm->dSigma8;
+//    in.normalization = msr->param.csm->dNormalization;
+//    in.spectral=msr->param.csm->dSpectral;
+//    in.bComove = msr->param.csm->bComove;
     in.csm = *msr->param.csm;
 
     nTotal  = in.nGrid; /* Careful: 32 bit integer cubed => 64 bit integer */

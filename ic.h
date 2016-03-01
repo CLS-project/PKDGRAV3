@@ -35,8 +35,7 @@ typedef struct {
     } gridpsc;
 
 int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int nGrid,int b2LPT,double dBoxSize,
-    CSM csm,double dOmega0,double dLambda0,double dSigma8,double dNormalization,double dSpectral,
-    double a,int nTf, double *tk, double *tf,
+    CSM csm,double a,int nTf, double *tk, double *tf,
     double *noiseMean, double *noiseCSQ);
 #endif
 #endif

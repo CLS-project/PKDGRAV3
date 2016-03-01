@@ -1137,12 +1137,12 @@ void pstGetFFTMaxSizes(PST,void *,int,void *,int *);
 struct inGenerateIC {
     uint64_t nPerNode;
     double dBoxSize;
-    double omegam;
-    double omegab;
-    double omegav;
-    double sigma8;
-    double normalization;
-    double spectral;
+//    double omegam;
+//    double omegab;
+//    double omegav;
+//    double sigma8;
+//    double normalization;
+//    double spectral;
     double dExpansion;
     int iSeed;
     int nGrid;
