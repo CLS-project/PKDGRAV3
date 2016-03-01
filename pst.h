@@ -1149,7 +1149,7 @@ struct inGenerateIC {
     int b2LPT;
     int bComove;
     int nTf;
-    struct csmContext csm;
+    struct csmVariables cosmo;
     double k[MAX_TF];
     double tf[MAX_TF];
     };

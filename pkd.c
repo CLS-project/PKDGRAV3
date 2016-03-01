@@ -2705,7 +2705,7 @@ void pkdStepVeryActiveKDK(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dStep, 
 	** Note that for kicks we have written new "master-like" functions
 	** KickOpen and KickClose which do this same job at PKD level.
 	*/
-	if (pkd->param.csm->bComove) {
+	if (pkd->param.csm->val.bComove) {
 	    dDriftFac = csmComoveDriftFac(pkd->param.csm,dTime,dDelta);
 	    }
 	else {
@@ -2759,14 +2759,14 @@ void pkdStepVeryActiveKDK(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dStep, 
  * Stripped down versions of routines from master.c
  */
 void pkdKickKDKOpen(PKD pkd,double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi) {
-    if (pkd->param.csm->bComove) {
+    if (pkd->param.csm->val.bComove) {
 	dDelta = csmComoveKickFac(pkd->param.csm,dTime,dDelta);
     }
     pkdKick(pkd,dTime,dDelta,0,0,0,uRungLo,uRungHi);
     }
 
 void pkdKickKDKClose(PKD pkd,double dTime,double dDelta,uint8_t uRungLo,uint8_t uRungHi) {
-    if (pkd->param.csm->bComove) {
+    if (pkd->param.csm->val.bComove) {
 	dDelta = csmComoveKickFac(pkd->param.csm,dTime,dDelta);
     }
     pkdKick(pkd,dTime,dDelta,0,0,0,uRungLo,uRungHi);

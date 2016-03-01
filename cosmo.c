@@ -13,6 +13,10 @@
 
 #include "cosmo.h"
 
+#ifdef USE_GSL_COSMO
+#define LIMIT 1000
+#endif
+
 /*
  * Cosmological module for PKDGRAV.
  * N.B.  This code is being shared with skid and the I.C. generator.
@@ -24,43 +28,51 @@ void csmInitialize(CSM *pcsm) {
     csm = (CSM) malloc(sizeof(struct csmContext));
     assert(csm != NULL);
 
-    csm->dHubble0 = 0.0;
-    csm->dOmega0 = 0.0;
-    csm->dLambda = 0.0;
-    csm->dOmegaDE = 0.0;
-    csm->w0 = 0.0;
-    csm->wa = 0.0;
-    csm->dOmegaRad = 0.0;
-    csm->dOmegab = 0.0;
-    csm->bComove = 0;
-
+    csm->val.dHubble0 = 0.0;
+    csm->val.dOmega0 = 0.0;
+    csm->val.dLambda = 0.0;
+    csm->val.dOmegaDE = 0.0;
+    csm->val.w0 = 0.0;
+    csm->val.wa = 0.0;
+    csm->val.dOmegaRad = 0.0;
+    csm->val.dOmegab = 0.0;
+    csm->val.bComove = 0;
+#ifdef USE_GSL_COSMO
+    csm->W = gsl_integration_workspace_alloc (LIMIT);
+#endif
     *pcsm = csm;
     }
 
 void csmFinish(CSM csm) {
+#ifdef USE_GSL_COSMO
+    gsl_integration_workspace_free(csm->W);
+#endif
     free(csm);
     }
 
 #define EPSCOSMO 1e-7
 
+#ifndef USE_GSL_COSMO
 double dRombergO(void *CTX, double (*func)(void *, double), double a,
 		 double b, double eps);
+#endif
+
 /*
  ** The cosmological equation of state is entirely determined here.  We
  ** will derive all other quantities from this function.
  */
 
 double csmExp2Hub(CSM csm, double dExp) {
-    double dOmegaCurve = 1.0 - csm->dOmega0 -
-			 csm->dLambda - csm->dOmegaDE - csm->dOmegaRad;
+    double dOmegaCurve = 1.0 - csm->val.dOmega0 -
+			 csm->val.dLambda - csm->val.dOmegaDE - csm->val.dOmegaRad;
 
     assert(dExp > 0.0);
-    return csm->dHubble0
-	   *sqrt(csm->dOmega0*dExp
+    return csm->val.dHubble0
+	   *sqrt(csm->val.dOmega0*dExp
 		 + dOmegaCurve*dExp*dExp
-		 + csm->dOmegaRad
-		 + csm->dOmegaDE*pow(dExp,1.0 - 3.0*(csm->w0 + csm->wa))*exp(-3.0*csm->wa*(1.0 - dExp))
-		 + csm->dLambda*dExp*dExp*dExp*dExp)/(dExp*dExp);
+		 + csm->val.dOmegaRad
+		 + csm->val.dOmegaDE*pow(dExp,1.0 - 3.0*(csm->val.w0 + csm->val.wa))*exp(-3.0*csm->val.wa*(1.0 - dExp))
+		 + csm->val.dLambda*dExp*dExp*dExp*dExp)/(dExp*dExp);
     }
 
 
@@ -78,18 +90,33 @@ double csmCosmoTint(CSM csm, double dY) {
     return 2.0/(3.0*dY*csmExp2Hub(csm, dExp));
     }
 
+#ifdef USE_GSL_COSMO
+static double Exp2Time_integrand(double ak, void * params) {
+    return csmCosmoTint(params,ak);
+    }
+static double Exp2TimeIntegrate(CSM csm,double dExp) {
+    gsl_function F;
+    F.function = &Exp2Time_integrand;
+    F.params = csm;
+    double result,error;
+    gsl_integration_qag(&F, 0.0, pow(dExp, 1.5),
+	0.0, EPSCOSMO, LIMIT, GSL_INTEG_GAUSS61, csm->W, &result, &error);
+    return result;
+    }
+#endif
+
 double csmExp2Time(CSM csm,double dExp) {
-    double dOmega0 = csm->dOmega0;
-    double dHubble0 = csm->dHubble0;
+    double dOmega0 = csm->val.dOmega0;
+    double dHubble0 = csm->val.dHubble0;
     double a0,A,B,eta;
 
-    if (!csm->bComove) {
+    if (!csm->val.bComove) {
 	/*
 	 ** Invalid call!
 	 */
 	assert(0);
 	}
-    if (csm->dLambda == 0.0 && csm->dOmegaRad == 0.0) {
+    if (csm->val.dLambda == 0.0 && csm->val.dOmegaRad == 0.0) {
 	if (dOmega0 == 1.0) {
 	    assert(dHubble0 > 0.0);
 	    if (dExp == 0.0) return(0.0);
@@ -132,8 +159,12 @@ double csmExp2Time(CSM csm,double dExp) {
 	    }
 	}
     else {
+#ifdef USE_GSL_COSMO
+	return Exp2TimeIntegrate(csm,dExp);
+#else
 	return dRombergO(csm, (double (*)(void *, double)) csmCosmoTint,
 			 0.0, pow(dExp, 1.5), EPSCOSMO);
+#endif
 	}
     }
 
@@ -144,7 +175,7 @@ double csmTime2Exp(CSM csm,double dTime) {
     double th,f,f1,h,ho;
     int j;
 
-    if (!csm->bComove) return(1.0);
+    if (!csm->val.bComove) return(1.0);
     else {
 	assert(dTime > 0);
 	th = csmExp2Time(csm,ah);
@@ -160,7 +191,11 @@ double csmTime2Exp(CSM csm,double dTime) {
 	a = 0.5*(al+ah);
 	ho = ah-al;
 	h = ho;
+#ifdef USE_GSL_COSMO
+	f = dTime - Exp2TimeIntegrate(csm,a);
+#else
 	f = dTime - dRombergO(csm, (double (*)(void *, double)) csmCosmoTint,0.0,pow(a,1.5),EPSCOSMO);
+#endif
 	f1 = 1/(a*csmExp2Hub(csm,a));
 	for (j=0;j<MAX_ITER;++j) {
 	    if (a+f/f1 < al || a+f/f1 > ah || fabs(2*f) > fabs(ho*f1)) {
@@ -196,7 +231,11 @@ double csmTime2Exp(CSM csm,double dTime) {
 		*/
 		return a;
 		}
+#ifdef USE_GSL_COSMO
+	    f = dTime - Exp2TimeIntegrate(csm,a);
+#else
 	    f = dTime - dRombergO(csm, (double (*)(void *, double)) csmCosmoTint,0.0,pow(a,1.5),EPSCOSMO*1e-1);
+#endif
 	    f1 = 1/(a*csmExp2Hub(csm,a));
 	    if (f < 0) ah = a;
 	    else al = a;
@@ -210,6 +249,9 @@ double csmTime2Exp(CSM csm,double dTime) {
 double csmComoveDriftInt(CSM csm, double dIExp) {
     return -dIExp/(csmExp2Hub(csm, 1.0/dIExp));
     }
+static double ComoveDrift_integrand(double diExp, void * params) {
+    return csmComoveDriftInt(params,diExp);
+    }
 
 /*
  ** Make the substitution y = 1/a to integrate da/(a^2*H(a))
@@ -218,16 +260,20 @@ double csmComoveKickInt(CSM csm, double dIExp) {
     return -1.0/(csmExp2Hub(csm, 1.0/dIExp));
     }
 
+static double ComoveKick_integrand(double diExp, void * params) {
+    return csmComoveKickInt(params,diExp);
+    }
+
 /*
  ** This function integrates the time dependence of the "drift"-Hamiltonian.
  */
 double csmComoveDriftFac(CSM csm,double dTime,double dDelta) {
-    double dOmega0 = csm->dOmega0;
-    double dHubble0 = csm->dHubble0;
+    double dOmega0 = csm->val.dOmega0;
+    double dHubble0 = csm->val.dHubble0;
     double a0,A,B,a1,a2,eta1,eta2;
 
-    if (!csm->bComove) return(dDelta);
-    else if (csm->dLambda == 0.0 && csm->dOmegaRad == 0.0) {
+    if (!csm->val.bComove) return(dDelta);
+    else if (csm->val.dLambda == 0.0 && csm->val.dOmegaRad == 0.0) {
 	a1 = csmTime2Exp(csm,dTime);
 	a2 = csmTime2Exp(csm,dTime+dDelta);
 	if (dOmega0 == 1.0) {
@@ -273,10 +319,21 @@ double csmComoveDriftFac(CSM csm,double dTime,double dDelta) {
 	    }
 	}
     else {
+#ifdef USE_GSL_COSMO
+	gsl_function F;
+	F.function = &ComoveDrift_integrand;
+	F.params = csm;
+	double result,error;
+	gsl_integration_qag(&F, 
+	    1.0/csmTime2Exp(csm, dTime), 1.0/csmTime2Exp(csm, dTime + dDelta),
+	    0.0, EPSCOSMO, LIMIT, GSL_INTEG_GAUSS61, csm->W, &result, &error);
+	return result;
+#else
 	return dRombergO(csm,
 			 (double (*)(void *, double)) csmComoveDriftInt,
 			 1.0/csmTime2Exp(csm, dTime),
 			 1.0/csmTime2Exp(csm, dTime + dDelta), EPSCOSMO);
+#endif
 	}
     }
 
@@ -285,12 +342,12 @@ double csmComoveDriftFac(CSM csm,double dTime,double dDelta) {
  ** This function integrates the time dependence of the "kick"-Hamiltonian.
  */
 double csmComoveKickFac(CSM csm,double dTime,double dDelta) {
-    double dOmega0 = csm->dOmega0;
-    double dHubble0 = csm->dHubble0;
+    double dOmega0 = csm->val.dOmega0;
+    double dHubble0 = csm->val.dHubble0;
     double a0,A,B,a1,a2,eta1,eta2;
 
-    if (!csm->bComove) return(dDelta);
-    else if (csm->dLambda == 0.0 && csm->dOmegaRad == 0.0) {
+    if (!csm->val.bComove) return(dDelta);
+    else if (csm->val.dLambda == 0.0 && csm->val.dOmegaRad == 0.0) {
 	a1 = csmTime2Exp(csm,dTime);
 	a2 = csmTime2Exp(csm,dTime+dDelta);
 	if (dOmega0 == 1.0) {
@@ -336,15 +393,26 @@ double csmComoveKickFac(CSM csm,double dTime,double dDelta) {
 	    }
 	}
     else {
+#ifdef USE_GSL_COSMO
+	gsl_function F;
+	F.function = &ComoveKick_integrand;
+	F.params = csm;
+	double result,error;
+	gsl_integration_qag(&F, 
+	    1.0/csmTime2Exp(csm, dTime), 1.0/csmTime2Exp(csm, dTime + dDelta),
+	    0.0, EPSCOSMO, LIMIT, GSL_INTEG_GAUSS61, csm->W, &result, &error);
+	return result;
+#else
 	return dRombergO(csm,
 			 (double (*)(void *, double)) csmComoveKickInt,
 			 1.0/csmTime2Exp(csm, dTime),
 			 1.0/csmTime2Exp(csm, dTime + dDelta), EPSCOSMO);
+#endif
 	}
     }
 
 double csmComoveLookbackTime2Exp(CSM csm,double dComoveTime) {
-    if (!csm->bComove) return(1.0);
+    if (!csm->val.bComove) return(1.0);
     else {
 	double dExpOld = 0.0;
 	double dT0 = csmExp2Time(csm, 1.0);
@@ -372,15 +440,28 @@ double csmComoveLookbackTime2Exp(CSM csm,double dComoveTime) {
 	}
     }
 
-
 double csmComoveGrowthInt(CSM csm, double a) {
     if (a==0.0) return 0;
     else return pow(a*csmExp2Hub(csm,a),-3.0);
     }
+static double ComoveGrowth_integrand(double a, void * params) {
+    return csmComoveGrowthInt(params,a);
+    }
 
 double csmComoveGrowthFactor(CSM csm,double a) {
     double eta = csmExp2Hub(csm, a);
-    return csm->dHubble0*csm->dHubble0*2.5*csm->dOmega0*eta*dRombergO(csm,
+    double result;
+#ifdef USE_GSL_COSMO
+    gsl_function F;
+    F.function = &ComoveGrowth_integrand;
+    F.params = csm;
+    double error;
+    gsl_integration_qag(&F, 
+	0, a,0.0, 1e-12, LIMIT, GSL_INTEG_GAUSS61, csm->W, &result, &error);
+#else
+    result = dRombergO(csm,
 	(double (*)(void *, double)) csmComoveGrowthInt,
 	0, a, 1e-12);
+#endif
+    return csm->val.dHubble0*csm->val.dHubble0*2.5*csm->val.dOmega0*eta*result;
     }

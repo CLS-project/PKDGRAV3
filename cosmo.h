@@ -1,19 +1,29 @@
 #ifndef COSMO_HINCLUDED
 #define COSMO_HINCLUDED
 
+#define USE_GSL_COSMO
+#ifdef USE_GSL_COSMO
+#include <gsl/gsl_integration.h>
+#endif
+
 typedef struct csmContext {
-    int bComove;
-    double dHubble0;
-    double dOmega0;
-    double dLambda;
-    double dOmegaRad;
-    double dOmegab;
-    double dOmegaDE;
-    double w0;
-    double wa;
-    double dSigma8;
-    double dNormalization;  /* either sigma8 or normalization must be non-zero */
-    double dSpectral;
+    struct csmVariables {
+	int bComove;
+	double dHubble0;
+	double dOmega0;
+	double dLambda;
+	double dOmegaRad;
+	double dOmegab;
+	double dOmegaDE;
+	double w0;
+	double wa;
+	double dSigma8;
+	double dNormalization;  /* either sigma8 or normalization must be non-zero */
+	double dSpectral;
+	} val;
+#ifdef USE_GSL_COSMO
+    gsl_integration_workspace *W;
+#endif
     } * CSM;
 
 void csmInitialize(CSM *pcsm);

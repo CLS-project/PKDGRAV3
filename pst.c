@@ -3943,7 +3943,7 @@ void pltGenerateIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	}
     else {
 	out->N = pkdGenerateIC(plcl->pkd,tin->fft,in->iSeed,in->nGrid,in->b2LPT,in->dBoxSize,
-	    &in->csm,in->dExpansion,in->nTf, in->k, in->tf,&out->noiseMean,&out->noiseCSQ);
+	    &in->cosmo,in->dExpansion,in->nTf, in->k, in->tf,&out->noiseMean,&out->noiseCSQ);
 	out->dExpansion = in->dExpansion;
 	}
 
@@ -4072,7 +4072,7 @@ void pstGenerateIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	move.pBase = (overlayedParticle *)pkdParticleBase(plcl->pkd);
 	move.iStart = 0;
 	move.nMove = nLocal;
-	move.fMass = in->csm.dOmega0 / nTotal;
+	move.fMass = in->cosmo.dOmega0 / nTotal;
 	move.fSoft = 1.0 / (50.0*in->nGrid);
 	pltMoveIC(pst,&move,sizeof(move),NULL,0);
 	}
