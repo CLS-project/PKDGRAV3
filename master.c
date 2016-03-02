@@ -4056,7 +4056,7 @@ void msrLightConeOpen(MSR msr, int iStep) {
 ** Close the files for this step.
 */
 void msrLightConeClose(MSR msr,int iStep) {
-    if (msr->param.bLightCone && msr->param.bLightConeParticles ) {
+    if (msr->param.bLightCone) {
 	struct inLightConeClose lc;
 	msrBuildName(msr,lc.achOutFile,iStep);
 	pstLightConeClose(msr->pst,&lc,sizeof(lc),NULL,NULL);
