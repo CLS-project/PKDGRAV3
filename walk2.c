@@ -190,6 +190,9 @@ static void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin, i
 	    blk->iOpen.pf[i] = iOpen;
 	    }
 	}
+    double dFlop = COST_FLOP_OPEN*(tile->lstTile.nBlocks*CL_PART_PER_BLK  + tile->lstTile.nInLast);
+    pkd->dFlop += dFlop;
+    pkd->dFlopSingleCPU += dFlop;
     }
 #else
 /*
@@ -275,6 +278,9 @@ static void iOpenOutcomeCL(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin,int 
 #endif
 	    }
 	}
+    double dFlop = COST_FLOP_OPEN*(tile->lstTile.nBlocks*CL_PART_PER_BLK  + tile->lstTile.nInLast);
+    pkd->dFlop += dFlop;
+    pkd->dFlopSingleCPU += dFlop;
     }
 #endif
 

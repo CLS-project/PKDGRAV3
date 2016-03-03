@@ -38,6 +38,7 @@ typedef double pos_t;
 #define COST_FLOP_EWALD 386 // +-*: 306 AND/CMP:3 div:2 rsqrt:1
 #define COST_FLOP_HLOOP 62 // +-*:46  AND/CMP:16 div: rsqrt:0
 #define COST_FLOP_SOFT 15
+#define COST_FLOP_OPEN 97 // +-*:55  AND/CMP:42
 
 /*
 ** This is an important base type. Alter with care, or even better, leave it alone.
