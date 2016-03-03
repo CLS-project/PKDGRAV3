@@ -28,6 +28,10 @@ fitsfile *create_fits(const char *outName, long nSideHealpix, long bzero, char *
 
     /* create new FITS file */
     fits_create_file(&fptr, outName, &status);
+    if (fptr==NULL || status) {
+	fits_report_error(stderr, status);
+	return NULL;
+	}
     fits_create_img(fptr, SHORT_IMG, 0, naxes, &status);
     fits_write_date(fptr, &status);
     fits_movabs_hdu(fptr, 1, &hdutype, &status);
@@ -175,6 +179,7 @@ int main(int argc, char *argv[]) {
 	}
     bzero = set_type(nPix,uSignal,tform);
     fptr = create_fits(outName,nSideHealpix,bzero,tform);
+    if (fptr==NULL) return 1; 
     fits_write_col(fptr, TUINT, 1, 1, 1, nPix, (void *)uSignal,&status);
     fits_close_file(fptr, &status);
 
