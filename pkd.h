@@ -791,7 +791,8 @@ typedef struct pkdContext {
     CL cl;
     CL clNew;
     double dFlop;
-
+    double dFlopSingleCPU, dFlopDoubleCPU;
+    double dFlopSingleGPU, dFlopDoubleGPU;
     /*
     ** Opening angle table for mass weighting.
     */

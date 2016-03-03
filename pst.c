@@ -2968,19 +2968,28 @@ void pstGravity(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	** and the number of actives processed in this gravity call.
 	*/
 	outr->nActive += tmp.nActive;
+	outr->dFlopSingleCPU += tmp.dFlopSingleCPU;
+	outr->dFlopDoubleCPU += tmp.dFlopDoubleCPU;
+	outr->dFlopSingleGPU += tmp.dFlopSingleGPU;
+	outr->dFlopDoubleGPU += tmp.dFlopDoubleGPU;
 	}
     else {
 #ifdef __linux__
 	FILE *fp;
 	char buffer[512], *save, *f, *v;
 #endif
-	pkdGravAll(plcl->pkd,in->uRungLo,in->uRungHi,in->bKickClose,in->bKickOpen,
+	PKD pkd = plcl->pkd;
+	pkdGravAll(pkd,in->uRungLo,in->uRungHi,in->bKickClose,in->bKickOpen,
 	    in->dtClose,in->dtOpen,in->dAccFac,in->dTime,in->nReps,in->bPeriodic,
 	    in->bEwald,in->nGroup,in->iRoot1,in->iRoot2,in->dEwCut,in->dEwhCut,in->dThetaMin,
 	    &outr->nActive,
 	    &outr->sPart.dSum,&outr->sPartNumAccess.dSum,&outr->sPartMissRatio.dSum,
 	    &outr->sCell.dSum,&outr->sCellNumAccess.dSum,&outr->sCellMissRatio.dSum,
 	    &outr->sFlop.dSum,outr->nRung);
+	outr->dFlopSingleCPU = 1e-9*pkd->dFlopSingleCPU;
+	outr->dFlopDoubleCPU = 1e-9*pkd->dFlopDoubleCPU;
+	outr->dFlopSingleGPU = 1e-9*pkd->dFlopSingleGPU;
+	outr->dFlopDoubleGPU = 1e-9*pkd->dFlopDoubleGPU;
 	outr->sLocal.dSum = plcl->pkd->nLocal;
 	outr->sActive.dSum = (double)outr->nActive;
 #ifdef __linux__

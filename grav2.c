@@ -111,6 +111,10 @@ void pkdParticleWorkDone(workParticle *work) {
 	float fEta = pkd->param.dEta;
 	float fiAccFac = 1.0 / work->dAccFac;
 	pkd->dFlop += work->dFlop;
+	pkd->dFlopSingleCPU += work->dFlopSingleCPU;
+	pkd->dFlopDoubleCPU += work->dFlopDoubleCPU;
+	pkd->dFlopSingleGPU += work->dFlopSingleGPU;
+	pkd->dFlopDoubleGPU += work->dFlopDoubleGPU;
 	for( i=0; i<work->nP; i++ ) {
 	    p = work->pPart[i];
 	    pkdGetPos1(pkd,p,r);
@@ -255,6 +259,7 @@ void pkdGravEvalPP(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  PINF
     /*float fSoft = pPart->.fSoft;*/
     float fsmooth2 = pPart->fSmooth2;
     float *a =pPart->a;
+    int nSoft, nIntr;
 
     dimaga = a[0]*a[0] + a[1]*a[1] + a[2]*a[2];
     if (dimaga > 0) {
@@ -297,6 +302,8 @@ void pkdGravEvalPP(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  PINF
     /*p4soft2 = SIMD_SPLAT(4.0*fSoft*fSoft);*/
     psmooth2= SIMD_SPLAT(fsmooth2);
 
+    nSoft = 0;
+    nIntr = nBlocks * ILP_PART_PER_BLK + nInLast;
     for( nLeft=nBlocks; nLeft >= 0; --nLeft,++blk ) {
 	int n = ((nLeft ? ILP_PART_PER_BLK : nInLast) + SIMD_MASK) >> SIMD_BITS;
 	for (j=0; j<n; ++j) {
@@ -324,6 +331,7 @@ void pkdGravEvalPP(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  PINF
 	    /* pir and pir2 are valid now for both softened and unsoftened particles */
 	    /* Now we apply the fix to softened particles only */
 	    if (msk) {
+		++nSoft;
 		td2 = SIMD_SUB(consts.one.p,td2);
 		td2 = SIMD_AND(vcmp,td2);
 		t1 = SIMD_MADD(consts.R45_32.p, td2, consts.R3_8.p);
@@ -373,6 +381,8 @@ void pkdGravEvalPP(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  PINF
     dirsum = 0.0;
     normsum = 0.0;
 
+    nSoft = 0;
+    nIntr = nBlocks * ILP_PART_PER_BLK + nInLast;
     for( nLeft=nBlocks; nLeft >= 0; --nLeft,++blk ) {
 	n = (nLeft ? ILP_PART_PER_BLK : nInLast);
 	for (j=0; j<n; ++j) {
@@ -387,6 +397,7 @@ void pkdGravEvalPP(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  PINF
 		dir2 = dir*dir*dir;
 		}
 	    else {
+		++nSoft;
 		/*
 		** This uses the Dehnen K1 kernel function now, it's fast!
 		*/
@@ -429,6 +440,7 @@ void pkdGravEvalPP(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  PINF
 
 int CPUdoWorkPP(void *vpp) {
     workPP *pp = vpp;
+    workParticle *work = pp->work;
     ILPTILE tile = pp->tile;
     ILP_BLK *blk = tile->blk;
     PINFOIN *pPart = &pp->work->pInfoIn[pp->i];
@@ -443,7 +455,7 @@ int CPUdoWorkPP(void *vpp) {
     pOut->dirsum = 0.0;
     pOut->normsum = 0.0;
     pkdGravEvalPP(pPart,nBlocks,nInLast,blk,pOut);
-
+    work->dFlopSingleCPU += COST_FLOP_PP*(tile->lstTile.nBlocks*ILP_PART_PER_BLK  + tile->lstTile.nInLast);
     if ( ++pp->i == pp->work->nP ) return 0;
     else return 1;
     }
@@ -779,6 +791,7 @@ void pkdGravEvalPC(PINFOIN *pPart, int nBlocks, int nInLast, ILC_BLK *blk,  PINF
 
 int CPUdoWorkPC(void *vpc) {
     workPC *pc = vpc;
+    workParticle *work = pc->work;
     ILCTILE tile = pc->tile;
     ILC_BLK *blk = tile->blk;
     PINFOIN *pPart = &pc->work->pInfoIn[pc->i];
@@ -793,6 +806,7 @@ int CPUdoWorkPC(void *vpc) {
     pOut->dirsum = 0.0;
     pOut->normsum = 0.0;
     pkdGravEvalPC(pPart,nBlocks,nInLast,blk,pOut);
+    work->dFlopSingleCPU += COST_FLOP_PC*(tile->lstTile.nBlocks*ILC_PART_PER_BLK  + tile->lstTile.nInLast);
     if ( ++pc->i == pc->work->nP ) return 0;
     else return 1;
     }
@@ -853,7 +867,7 @@ int CPUdoWorkEwald(void *ve) {
 	r[0] = wp->c[0] + in->r[0];
 	r[1] = wp->c[1] + in->r[1];
 	r[2] = wp->c[2] + in->r[2];
-	wp->dFlop += pkdParticleEwald(pkd,r,out->a,&out->fPot);
+	wp->dFlop += pkdParticleEwald(pkd,r,out->a,&out->fPot,&wp->dFlopSingleCPU,&wp->dFlopDoubleCPU);
 	pkdParticleWorkDone(wp);
 	}
     return 0;
@@ -952,6 +966,8 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
 
     work->nRefs = 1; /* I am using it currently */
     work->dFlop = 0.0;
+    work->dFlopSingleCPU = work->dFlopSingleGPU = 0.0;
+    work->dFlopDoubleCPU = work->dFlopDoubleGPU = 0.0;
     work->nP = 0;
     work->dRhoFac = dRhoFac;
     work->ctx = pkd;
@@ -1152,7 +1168,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
 
     pkdParticleWorkDone(work);
 
-    *pdFlop += nActive*(ilpCount(pkd->ilp)*40 + ilcCount(pkd->ilc)*200) + nSoft*15;
+    *pdFlop += nActive*(ilpCount(pkd->ilp)*COST_FLOP_PP + ilcCount(pkd->ilc)*COST_FLOP_PC) + nSoft*15;
     return(nActive);
     }
 

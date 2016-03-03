@@ -148,7 +148,7 @@ __global__ void cudaEwald(double *X,double *Y,double *Z,
                 tax += g2*(Q2mirx - ew.Q3x) + g3*(Q3mirx - Q4x) + g4*Q4mirx - x*Qta;
                 tay += g2*(Q2miry - ew.Q3y) + g3*(Q3miry - Q4y) + g4*Q4miry - y*Qta;
                 taz += g2*(Q2mirz - ew.Q3z) + g3*(Q3mirz - Q4z) + g4*Q4mirz - z*Qta;
-                dFlop += 447;
+                dFlop += COST_FLOP_EWALD;
                 }
             }
 	}
@@ -166,7 +166,7 @@ __global__ void cudaEwald(double *X,double *Y,double *Z,
 	fay += hy[i]*t;
 	faz += hz[i]*t;
 	}
-    dFlop += 58 * ew.nEwhLoop;
+/*    dFlop += COST_FLOP_HLOOP * ew.nEwhLoop;*/ /* Accounted for outside */
     Xout[pidx] = tax + fax;
     Yout[pidx] = tay + fay;
     Zout[pidx] = taz + faz;

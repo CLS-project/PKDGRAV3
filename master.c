@@ -3206,11 +3206,18 @@ uint8_t msrGravity(MSR msr,uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot
 	    double dGFlops = dTotFlop/dsec;
 	    printf("Gravity Calculated, Wallclock: %f secs, Gflops:%.1f, Total Gflop:%.3g\n",
 		   dsec,dGFlops,dTotFlop);
+	    printf("  Gflops: CPU:%.1f,%.1f GPU:%.1f,%.1f",
+		outr->dFlopSingleCPU/dsec,outr->dFlopDoubleCPU/dsec,
+		outr->dFlopSingleGPU/dsec,outr->dFlopDoubleGPU/dsec);
 	    }
 	else {
 	    printf("Gravity Calculated, Wallclock: %f secs, Gflops:unknown, Total Gflop:%.3g\n",
 		   dsec,dTotFlop);
+
 	    }
+	printf("  Gflop: CPU:%.1f,%.1f GPU:%.1f,%.1f\n",
+	    outr->dFlopSingleCPU,outr->dFlopDoubleCPU,
+	    outr->dFlopSingleGPU,outr->dFlopDoubleGPU);
 	msrPrintStat(&outr->sLocal,         "  particle  load:",0);
 	msrPrintStat(&outr->sActive,        "  actives   load:",0);
 	msrPrintStat(&outr->sFlop,          "  Gflop     load:",1);
@@ -5506,7 +5513,7 @@ void msrOutputPk(MSR msr,int iStep,double dTime) {
 	}
     for(i=0; i<msr->param.nBinsPk; ++i) {
 	if (fPk[i] > 0.0) fprintf(fp,"%g %g\n",
-	    kfact * fK[i] * 2.0 * M_PI,vfact * fPk[i]);
+ 	    kfact * fK[i] * 2.0 * M_PI,vfact * fPk[i]);
 	}
     fclose(fp);
     free(fK);

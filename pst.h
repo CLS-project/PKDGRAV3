@@ -671,6 +671,10 @@ struct outGravityReduct {
     STAT sRSS;
     STAT sFreeMemory;
 #endif
+    double dFlopSingleCPU;
+    double dFlopDoubleCPU;
+    double dFlopSingleGPU;
+    double dFlopDoubleGPU;
     uint64_t nActive;
     uint64_t nRung[IRUNGMAX+1];
     };

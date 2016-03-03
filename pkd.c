@@ -2210,6 +2210,8 @@ pkdGravAll(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     dPartSum = 0.0;
     dCellSum = 0.0;
     pkdStartTimer(pkd,1);
+    pkd->dFlopSingleCPU = pkd->dFlopDoubleCPU = 0.0;
+    pkd->dFlopSingleGPU = pkd->dFlopDoubleGPU = 0.0;
     *pnActive = pkdGravWalk(pkd,uRungLo,uRungHi,bKickClose,bKickOpen,dtClose,dtOpen,
 	dAccFac,dTime,nReps,bPeriodic && bEwald,nGroup,
 	iRoot1,iRoot2,0,dThetaMin,pdFlop,&dPartSum,&dCellSum);

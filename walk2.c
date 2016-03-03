@@ -333,6 +333,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2, ui
 #else
     float imaga;
 #endif
+    double dFlop;
 
     pkd->dFlop = 0.0; /* Flops are accumulated here! */
     pkdGravStartEwald(pkd);
@@ -618,7 +619,9 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2, ui
 #else
 				    /* monoPole.m = blk->m.f[jTile];*/
 				    /* *pdFlop += momLocrAddFmomr5cm(&L,&monoPole,0.0,dir,dx[0],dx[1],dx[2],&tax,&tay,&taz);*/
-				    *pdFlop += momLocrAddMono5(&L,blk->m.f[jTile],dir,dx[0],dx[1],dx[2],&tax,&tay,&taz);
+				    dFlop = momLocrAddMono5(&L,blk->m.f[jTile],dir,dx[0],dx[1],dx[2],&tax,&tay,&taz);
+				    *pdFlop += dFlop;
+				    pkd->dFlopDoubleCPU += dFlop;
 				    if (bGravStep) {
 					adotai = a[0]*tax + a[1]*tay + a[2]*taz;
 					if (adotai > 0) {
@@ -649,11 +652,13 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2, ui
 					}
 				    dir = 1.0/sqrt(d2);
 				    if (pkd->param.bCenterOfMassExpand) { 
-					*pdFlop += momLocrAddFmomr5cm(&L,pkdNodeMom(pkd,c),c->bMax,dir,dx[0],dx[1],dx[2],&tax,&tay,&taz);
+					dFlop = momLocrAddFmomr5cm(&L,pkdNodeMom(pkd,c),c->bMax,dir,dx[0],dx[1],dx[2],&tax,&tay,&taz);
 					}
 				    else {
-					*pdFlop += momLocrAddFmomr5(&L,pkdNodeMom(pkd,c),c->bMax,dir,dx[0],dx[1],dx[2],&tax,&tay,&taz);
+					dFlop = momLocrAddFmomr5(&L,pkdNodeMom(pkd,c),c->bMax,dir,dx[0],dx[1],dx[2],&tax,&tay,&taz);
 					}
+				    *pdFlop += dFlop;
+				    pkd->dFlopDoubleCPU += dFlop;
 				    if (bGravStep) {
 					adotai = a[0]*tax + a[1]*tay + a[2]*taz;
 					if (adotai > 0) {
@@ -689,7 +694,9 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2, ui
 	    // Need to get the scaling factor correct here
 	    if (ilcCount(pkd->ill)) {
 		float v = k->bMax;
-		*pdFlop += momFlocrSetVFmomr5cm(&Lf,v,pkd->ill,a,&dirLsum,&normLsum);
+		dFlop = momFlocrSetVFmomr5cm(&Lf,v,pkd->ill,a,&dirLsum,&normLsum);
+		*pdFlop += dFlop;
+		pkd->dFlopSingleCPU += dFlop;
 		momLocrAddFlocr(&L,&Lf,v);
 		}
 #endif
@@ -781,9 +788,11 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2, ui
 		*/
 		k = pkdTreeNode(pkd,++iCell);
 		}
-	    *pdFlop += momShiftLocr(&L,k->r[0] - xParent,
+	    dFlop = momShiftLocr(&L,k->r[0] - xParent,
 				    k->r[1] - yParent,
 				    k->r[2] - zParent);
+	    *pdFlop += dFlop;
+	    pkd->dFlopDoubleCPU += dFlop;
 	    }
 	/*
 	** Now the interaction list should be complete and the

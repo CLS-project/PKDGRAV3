@@ -29,6 +29,17 @@ typedef double pos_t;
 #endif
 
 /*
+** Costs: ADD/SUB/MUL/AND/CMP 1 cycle
+** RSQRT: 7 cycles (latency)
+** DIV: 35 cycles (latency)
+*/
+#define COST_FLOP_PP 53 // +-*: 38 AND/CMP:8 rsqrt:1
+#define COST_FLOP_PC 215 // +-*: 206 AND/CMP:2 rsqrt:1
+#define COST_FLOP_EWALD 386 // +-*: 306 AND/CMP:3 div:2 rsqrt:1
+#define COST_FLOP_HLOOP 62 // +-*:46  AND/CMP:16 div: rsqrt:0
+#define COST_FLOP_SOFT 15
+
+/*
 ** This is an important base type. Alter with care, or even better, leave it alone.
 */
 typedef struct {
@@ -127,6 +138,10 @@ typedef struct {
 #ifdef USE_CUDA
     void *cudaCtx;
 #endif
+    double dFlopSingleCPU;
+    double dFlopSingleGPU;
+    double dFlopDoubleCPU;
+    double dFlopDoubleGPU;
     } workParticle;
 
 /*

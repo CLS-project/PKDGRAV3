@@ -773,12 +773,20 @@ int CUDA_queue(CUDACTX cuda,CUDAwqNode **head,workParticle *wp, TILE tile, int b
 extern "C"
 int CUDA_queuePP(void *cudaCtx,workParticle *wp, ILPTILE tile, int bGravStep) {
     CUDACTX cuda = reinterpret_cast<CUDACTX>(cudaCtx);
-    return CUDA_queue< TB_THREADS, PP_WU, ILPTILE,ilpBlk<WIDTH> >(cuda,&cuda->nodePP,wp,tile,bGravStep);
+    if(CUDA_queue< TB_THREADS, PP_WU, ILPTILE,ilpBlk<WIDTH> >(cuda,&cuda->nodePP,wp,tile,bGravStep)) {
+        wp->dFlopSingleGPU += COST_FLOP_PP*wp->nP*(tile->lstTile.nBlocks*ILP_PART_PER_BLK  + tile->lstTile.nInLast);
+        return 1;
+        }
+    return 0;
     }
 
 extern "C"
 int CUDA_queuePC(void *cudaCtx,workParticle *wp, ILCTILE tile, int bGravStep) {
     CUDACTX cuda = reinterpret_cast<CUDACTX>(cudaCtx);
-    return CUDA_queue< TB_THREADS, PC_WU, ILCTILE,ilcBlk<WIDTH> >(cuda,&cuda->nodePC,wp,tile,bGravStep);
+    if (CUDA_queue< TB_THREADS, PC_WU, ILCTILE,ilcBlk<WIDTH> >(cuda,&cuda->nodePC,wp,tile,bGravStep)) {
+        wp->dFlopSingleGPU += COST_FLOP_PC*wp->nP*(tile->lstTile.nBlocks*ILC_PART_PER_BLK  + tile->lstTile.nInLast);
+        return 1;
+        }
+    return 0;
     }
 
