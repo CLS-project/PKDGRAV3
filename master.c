@@ -3213,9 +3213,8 @@ uint8_t msrGravity(MSR msr,uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot
 	else {
 	    printf("Gravity Calculated, Wallclock: %f secs, Gflops:unknown, Total Gflop:%.3g\n",
 		   dsec,dTotFlop);
-
 	    }
-	printf("  Gflop: CPU:%.1f,%.1f GPU:%.1f,%.1f\n",
+	printf("  Gflop: CPU:%.3g,%.3g GPU:%.3g,%.3g\n",
 	    outr->dFlopSingleCPU,outr->dFlopDoubleCPU,
 	    outr->dFlopSingleGPU,outr->dFlopDoubleGPU);
 	msrPrintStat(&outr->sLocal,         "  particle  load:",0);
