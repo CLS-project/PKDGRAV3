@@ -646,7 +646,7 @@ void pkdInitialize(
 	else pkd->pLightCone = v;
 #endif
 	mdlassert(mdl,pkd->pLightCone != NULL);
-	io_init(&pkd->afiLightCone);
+	io_init(&pkd->afiLightCone,8,2*1024*1024);
 	}
     else {
 	pkd->afiLightCone.nBuffers = 0;

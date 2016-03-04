@@ -19,18 +19,15 @@ typedef int ssize_t;
 #define FILE_PROTECTION (S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP)
 #endif
 
-void io_init(asyncFileInfo *info) {
+void io_init(asyncFileInfo *info, size_t nBuffers,size_t nBufferSize) {
 #if defined(HAVE_LIBAIO_H) || defined(HAVE_AIO_H)
     int i, rc;
-    size_t nBuffers    = IO_ASYNC_COUNT;
-    size_t nBufferSize = IO_BUFFER_SIZE;
-
 #ifdef HAVE_UNISTD_H
     info->nPageSize = sysconf(_SC_PAGESIZE);
 #else
     info->nPageSize = 4096; /* A conservative guess */
 #endif
-    if (nBuffers > IO_ASYNC_COUNT) nBuffers = IO_ASYNC_COUNT;
+    if (nBuffers > IO_MAX_ASYNC_COUNT) nBuffers = IO_MAX_ASYNC_COUNT;
     info->nBufferSize = nBufferSize;
     info->nBuffers = nBuffers;
     info->iBuffer = 0;
