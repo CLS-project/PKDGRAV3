@@ -398,14 +398,19 @@ void * master_ch(MDL mdl) {
 	    **           3) we're at an output interval
 	    */
 	    if (msrCheckInterval(msr)>0 &&
-		(iStop || bGlobalOutput
-		    || (iStep%msrCheckInterval(msr) == 0) ) ) {
+		(bGlobalOutput
+		|| iStop
+		|| (iStep%msrCheckInterval(msr) == 0) ) ) {
 		bGlobalOutput = 0;
 		msrCheckpoint(msr,iStep,dTime);
 		}
 
-	    if (bGlobalOutput || msrOutTime(msr,dTime) || iStep == msrSteps(msr) || iStop ||
-		    (msrOutInterval(msr) > 0 && iStep%msrOutInterval(msr) == 0)) {
+	    if (msrOutTime(msr,dTime) 
+		|| (msrOutInterval(msr) > 0 &&
+			(bGlobalOutput
+			|| iStop
+			|| iStep == msrSteps(msr)
+			    || (iStep%msrOutInterval(msr) == 0))) ) {
 		bGlobalOutput = 0;
 		msrOutput(msr,iStep,dTime, 0);
 		}
