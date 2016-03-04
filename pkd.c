@@ -2855,14 +2855,14 @@ void pkdKickTree(PKD pkd,double dTime,double dDelta,double dDeltaVPred,double dD
 	}
     }
 
-void pkdInitStep(PKD pkd, struct parameters *p, CSM csm) {
+void pkdInitStep(PKD pkd, struct parameters *p, struct csmVariables *cosmo) {
     pkd->param = *p;
     /*
     ** Need to be careful to correctly copy the cosmo
     ** parameters. This is very ugly!
     */
     csmInitialize(&pkd->param.csm);
-    *pkd->param.csm = *csm;
+    pkd->param.csm->val = *cosmo;
     }
 
 

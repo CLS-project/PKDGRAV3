@@ -837,7 +837,7 @@ void pstZeroNewRung(PST,void *,int,void *,int *);
 /* PST_INITSTEP */
 struct inInitStep {
     struct parameters param;
-    struct csmContext csm;
+    struct csmVariables cosmo;
     };
 void pstInitStep(PST,void *,int,void *,int *);
 

@@ -3373,7 +3373,7 @@ pstInitStep(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	mdlGetReply(pst->mdl,rID,NULL,NULL);
 	}
     else {
-	pkdInitStep(plcl->pkd,&in->param,&in->csm);
+	pkdInitStep(plcl->pkd,&in->param,&in->cosmo);
 	}
     if (pnOut) *pnOut = 0;
     }

@@ -3673,7 +3673,7 @@ void msrInitStep(MSR msr) {
     ** initialized for each processor.
     */
     in.param = msr->param;
-    in.csm = *msr->param.csm;
+    in.cosmo = msr->param.csm->val;
     pstInitStep(msr->pst, &in, sizeof(in), NULL, NULL);
 
     /*

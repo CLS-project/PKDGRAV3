@@ -38,7 +38,7 @@ void csmInitialize(CSM *pcsm) {
     csm->val.dOmegab = 0.0;
     csm->val.bComove = 0;
 #ifdef USE_GSL_COSMO
-    csm->W = gsl_integration_workspace_alloc (LIMIT);
+    csm->W = gsl_integration_workspace_alloc(LIMIT);
 #endif
     *pcsm = csm;
     }
