@@ -3,9 +3,6 @@
 
 #include "pkd.h"
 #include "mdl.h"
-#ifdef USE_PSD
-#include "psd.h"
-#endif
 #include "smoothfcn.h"
 #ifndef HAVE_CONFIG_H
 #include "floattype.h"
@@ -225,21 +222,6 @@ enum pst_service {
     PST_MEASUREPK,
 #endif
     PST_TOTALMASS,
-#ifdef USE_PSD
-    PST_BUILDPSDTREE,
-    PST_PSD,
-    PST_PSDLINK,
-    PST_PSD_INIT,
-    PST_PSD_JOINBRIDGES,
-    PST_PSD_CLG,
-    PST_PSD_ASSIGN_GLOBAL_IDS,
-    PST_PSD_MERGENOISYGROUPS,
-    PST_PSD_JOINGROUPBRIDGES,
-    PST_PSD_SETGLOBALID,
-    PST_PSD_FINISH,
-    PST_WRITE_PSGROUPS,
-    PST_UNBIND,
-#endif
     PST_LIGHTCONE_OPEN,
     PST_LIGHTCONE_CLOSE,
 
@@ -1408,48 +1390,6 @@ struct outTotalMass {
     double dMass;
     };
 void pstTotalMass(PST pst,void *vin,int nIn,void *vout,int *pnOut);
-
-#ifdef USE_PSD
-/* PST_PSD */
-struct inPSD {
-    int nBucket;
-    int iCell;
-    int nCell;
-    int nSmooth;
-    int bPeriodic;
-    };
-struct outPSD {
-    int dummy;
-    };
-
-struct inAssignGlobalIds
-{
-    int offs;
-    int count;
-};
-
-struct inWritePsGroups
-{
-    char achOutFile[PST_FILENAME_SIZE];
-    int iType;
-};
-
-void pstBuildPsdTree(PST pst,void *vin,int nIn,void *vout,int *pnOut);
-void pstPSD(PST pst,void *vin,int nIn,void *vout,int *pnOut);
-void pstPSDLink(PST pst,void *vin,int nIn,void *vout,int *pnOut);
-void pstPSDInit(PST pst,void *vin,int nIn,void *vout,int *pnOut);
-void pstPSDFinish(PST pst,void *vin,int nIn,void *vout,int *pnOut);
-void pstPSDJoinBridges(PST pst,void *vin,int nIn,void *vout,int *pnOut);
-void pstPSDCountLocalGroups(PST pst,void *vin,int nIn,void *vout,int *pnOut);
-void pstPSDAssignGlobalIds(PST pst,void *vin,int nIn,void *vout,int *pnOut);
-void pstPSDUpdateRemoteGroups(PST pst,void *vin,int nIn,void *vout,int *pnOut);
-void pstPSDUpdateParticleGroups(PST pst,void *vin,int nIn,void *vout,int *pnOut);
-void pstPSDMergeNoisyGroups(PST pst,void *vin,int nIn,void *vout,int *pnOut);
-void pstPSDJoinGroupBridges(PST pst,void *vin,int nIn,void *vout,int *pnOut);
-void pstPSDSetGlobalId(PST pst,void *vin,int nIn,void *vout,int *pnOut);
-void pstWritePsGroups(PST pst,void *vin,int nIn,void *vout,int *pnOut);
-void pstUnbind(PST pst,void *vin,int nIn,void *vout,int *pnOut);
-#endif
 
 struct inLightConeOpen {
     int nSideHealpix;

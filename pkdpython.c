@@ -814,7 +814,6 @@ ppy_msr_Save(PyObject *self, PyObject *args, PyObject *kwobj) {
     case OUT_SOFT_ARRAY:
     case OUT_GROUP_ARRAY:
     case OUT_MARKED_ARRAY:
-    case OUT_PSGROUP_ARRAY:
     case OUT_RELAX_ARRAY:
     case OUT_RUNGDEST_ARRAY:
 	msrOutArray(ppy_msr,fname,iType);
@@ -833,12 +832,6 @@ ppy_msr_Save(PyObject *self, PyObject *args, PyObject *kwobj) {
     case OUT_GROUP_PROFILES:
 	msrOutGroups(ppy_msr,fname,iType,dTime);
 	break;
-
-#ifdef USE_PSD
-    case OUT_PSGROUP_STATS:
-        msrOutPsGroups(ppy_msr,fname,iType,dTime);
-        break;
-#endif
 
     default:
 	assert(0);
@@ -877,61 +870,6 @@ ppy_msr_SaveArray(PyObject *self, PyObject *args, PyObject *kwobj) {
     Py_INCREF(Py_None);
     return Py_None;
 }
-
-#ifdef USE_PSD
-static PyObject *
-ppy_msr_BuildPsdTree(PyObject *self, PyObject *args, PyObject *kwobj) {
-    static char *kwlist[]={"Time","Ewald",NULL};
-    double dTime = 0.0;
-    int bEwald = ppy_msr->param.bEwald;
-    PyObject *v, *dict;
-
-    dict = PyModule_GetDict(global_ppy->module);
-    if ( (v = PyDict_GetItemString(dict, "dTime")) == NULL )
-	return NULL;
-    dTime = PyFloat_AsDouble(v);
-    if ( !PyArg_ParseTupleAndKeywords(
-	     args, kwobj, "|di:BuildPsdTree", kwlist,
-	     &dTime, &bEwald ) )
-	return NULL;
-    msrBuildPsdTree(ppy_msr,dTime,bEwald);
-    Py_INCREF(Py_None);
-    return Py_None;
-}
-
-static PyObject *
-ppy_msr_PSGroupFinder(PyObject *self, PyObject *args, PyObject *kwobj) {
-    static char *kwlist[]={NULL};
-
-    ppy2prm();
-    msrPSGroupFinder(ppy_msr);
-
-    Py_INCREF(Py_None);
-    return Py_None;
-}
-
-static PyObject *
-ppy_msr_Unbind(PyObject *self, PyObject *args, PyObject *kwobj) {
-    static char *kwlist[]={NULL};
-
-    ppy2prm();
-    msrUnbind(ppy_msr);
-
-    Py_INCREF(Py_None);
-    return Py_None;
-}
-
-static PyObject *
-ppy_msr_SetPSGroupIds(PyObject *self, PyObject *args, PyObject *kwobj) {
-    static char *kwlist[]={NULL};
-
-    ppy2prm();
-    msrSetPSGroupIds(ppy_msr);
-
-    Py_INCREF(Py_None);
-    return Py_None;
-}
-#endif
 
 #if 0
 static PyObject *
@@ -1039,16 +977,6 @@ static PyMethodDef msr_methods[] = {
      "Save a vector to a file"},
     {"SaveArray", (PyCFunction)ppy_msr_SaveArray, METH_VARARGS|METH_KEYWORDS,
      "Save an array to a file"},
-#ifdef USE_PSD
-    {"BuildPsdTree", (PyCFunction)ppy_msr_BuildPsdTree, METH_VARARGS|METH_KEYWORDS,
-     "Build the phase-space tree"},
-    {"PSGroupFinder", (PyCFunction)ppy_msr_PSGroupFinder, METH_NOARGS,
-     "Calculate phase space density using EnBiD algorithm"},
-    {"Unbind", (PyCFunction)ppy_msr_Unbind, METH_NOARGS,
-     "Unbind phase-space groups."},
-    {"SetPSGroupIds", (PyCFunction)ppy_msr_SetPSGroupIds, METH_NOARGS,
-     "Assign global group IDs to particles. Must be done before a reorder."},
-#endif
 #if 0
     {"PsFof", (PyCFunction)ppy_msr_PsFof, METH_VARARGS|METH_KEYWORDS,
      "Phase-space Friends of Friends"},
