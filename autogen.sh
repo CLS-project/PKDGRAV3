@@ -6,7 +6,7 @@
 # a "make distclean" if already configured before running this script.
 ( cd openpa ; autoheader ; aclocal -Iconfdb ; automake -acf ; autoconf -i -f )
 autoheader
-aclocal -Im4
+aclocal -Im4 -I$(gsl-config --prefix)/share/aclocal
 automake -acf
 autoconf -i -f
 # ./configure
