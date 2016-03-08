@@ -2848,26 +2848,28 @@ void mdlGridCoordFirstLast(MDL mdl,MDLGRID grid,mdlGridCoord *f,mdlGridCoord *l,
 
     nPerCore = nLocal / mdlCores(mdl) + nAlign - 1;
     nPerCore -= nPerCore % nAlign;
-    nThisCore = nPerCore;
-    if (mdlCore(mdl) == mdlCores(mdl)-1) {
-	nThisCore = nLocal - (mdlCores(mdl)-1)*nThisCore;
-	}
+
+    if ( mdlCore(mdl)*nPerCore >= nLocal) nThisCore = 0;
+    else if (mdlCore(mdl) == mdlCores(mdl)-1) nThisCore = nLocal - (mdlCores(mdl)-1)*nPerCore;
+    else if ( (1+mdlCore(mdl))*nPerCore < nLocal) nThisCore = nPerCore;
+    else nThisCore = nLocal - mdlCore(mdl)*nPerCore;
+
     /* Calculate global x,y,z coordinates, and local "i" coordinate. */
-    f->I = nPerCore * mdlCore(mdl);
-    l->I = f->I + nThisCore;
+    f->II = nPerCore * mdlCore(mdl);
+    if (f->II > nLocal) f->II = nLocal;
+    l->II = f->II + nThisCore;
     f->i = 0;
     l->i = nThisCore;
-
-    f->z = f->I/(grid->a1*grid->n2);
-    f->y = f->I/grid->a1 - f->z * grid->n2;
-    f->x = f->I - grid->a1 * (f->z*grid->n2 + f->y);
+    f->z = f->II/(grid->a1*grid->n2);
+    f->y = f->II/grid->a1 - f->z * grid->n2;
+    f->x = f->II - grid->a1 * (f->z*grid->n2 + f->y);
     assert(bCacheAlign || f->x == 0); // MDL depends on this at the moment
     f->z += grid->sSlab;
     f->grid = grid;
 
-    l->z = l->I/(grid->a1*grid->n2);
-    l->y = l->I/grid->a1 - l->z * grid->n2;
-    l->x = l->I - grid->a1 * (l->z*grid->n2 + l->y);
+    l->z = l->II/(grid->a1*grid->n2);
+    l->y = l->II/grid->a1 - l->z * grid->n2;
+    l->x = l->II - grid->a1 * (l->z*grid->n2 + l->y);
     assert(bCacheAlign || l->x == 0); // MDL depends on this at the moment
     l->z += grid->sSlab;
     l->grid = grid;

@@ -323,7 +323,7 @@ typedef struct mdlGridContext {
 
 typedef struct {
     MDLGRID grid;
-    uint64_t I;
+    uint64_t II;
     int x, y, z; /* Real coordinate */
     int i;       /* Index into local array */
     } mdlGridCoord;
@@ -334,7 +334,7 @@ static inline int mdlGridCoordCompare(const mdlGridCoord *a,const mdlGridCoord *
 
 static inline mdlGridCoord *mdlGridCoordIncrement(mdlGridCoord *a) {
     ++a->i;
-    ++a->I;
+    ++a->II;
     if ( ++a->x == a->grid->n1 ) {
 	a->i += a->grid->a1 - a->grid->n1;
 	a->x = 0;
