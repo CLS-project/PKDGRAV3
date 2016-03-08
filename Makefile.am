@@ -121,6 +121,7 @@ pkdgrav3_mpi_SOURCES += ic.c RngStream.c
 noinst_HEADERS += ic.h RngStream.h
 endif
 pkdgrav3_mpi_CFLAGS += $(GSL_CFLAGS)
+pkdgrav3_mpi_CXXFLAGS += $(GSL_CFLAGS)
 pkdgrav3_mpi_LDADD += $(GSL_LIBS)
 if USE_LIBAIO
 pkdgrav3_mpi_LDADD += -laio
