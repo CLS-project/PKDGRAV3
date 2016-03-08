@@ -238,7 +238,9 @@ else
   NVCC=$CUDA_DIR/bin/nvcc
   CUDA_LIBS="-L$CUDA_DIR/lib64 -L$CUDA_DIR/lib"
 fi
-NVCCFLAGS="-arch compute_35"
+if test -z "$NVCCFLAGS" ; then
+  NVCCFLAGS="-arch compute_35"
+fi
 AC_SUBST(NVCC)
 AC_SUBST(NVCCFLAGS)
 AC_SUBST(CUDA_LIBS)
@@ -373,12 +375,21 @@ AC_CHECK_LIB([m], [fabs])
 if test "x$USE_SIMD" != "xno" ; then
   AC_CHECK_FUNCS([posix_memalign],HAVE_POSIX_MEMALIGN=yes)
 
-  AC_MSG_CHECKING([if the compiler accepts -march=native])
-  oldCFLAGS="$CFLAGS"; CFLAGS="-march=native"
-  AC_TRY_COMPILE([],[],
+  if test "x$SIMD_CFLAGS" != "x" ; then
+    AC_MSG_CHECKING([if the compiler accepts $SIMD_CFLAGS])
+    oldCFLAGS="$CFLAGS"; CFLAGS="$SIMD_CFLAGS"
+    AC_TRY_COMPILE([],[],
+        AC_MSG_RESULT(yes);,
+        AC_MSG_RESULT(no);AC_MSG_ERROR([Invalid SIMD_CFLAGS]);)
+    CFLAGS="$oldCFLAGS"
+  else 
+    AC_MSG_CHECKING([if the compiler accepts -march=native])
+    oldCFLAGS="$CFLAGS"; CFLAGS="-march=native"
+    AC_TRY_COMPILE([],[],
 	AC_MSG_RESULT(yes); SIMD_CFLAGS="-march=native",
 	AC_MSG_RESULT(no);)
-  CFLAGS="$oldCFLAGS"
+    CFLAGS="$oldCFLAGS"
+  fi
   if test "x$SIMD_CFLAGS" = "x" ; then
     AC_MSG_CHECKING([if the compiler accepts -msse3])
     oldCFLAGS="$CFLAGS"; CFLAGS="-msse3"
