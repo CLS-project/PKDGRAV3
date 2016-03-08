@@ -3973,6 +3973,7 @@ void pstGenerateIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	    p->iOrder = iNodeStart + i;
 	    }
 	/* Now we need to move excess particles between nodes so nStore is obeyed. */
+	if (mdlSelf(pst->mdl)==0) {printf("Transfering particle between nodes\n"); fflush(stdout); }
 	uint64_t iUnderBeg=0, iOverBeg=0;
 	uint64_t iUnderEnd, iOverEnd;
 	uint64_t iBeg, iEnd;
@@ -4026,6 +4027,7 @@ void pstGenerateIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	mdlFFTNodeFinish(pst->mdl,fft);
 
 	/* We need to relocate the particles */
+	if (mdlSelf(pst->mdl)==0) {printf("Relocating particles\n"); fflush(stdout); }
 	struct inMoveIC move;
 	uint64_t nTotal;
 	nTotal = in->nGrid; /* Careful: 32 bit integer cubed => 64 bit integer */

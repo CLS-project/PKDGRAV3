@@ -313,6 +313,7 @@ int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int nGrid,int b2LPT,double dBoxSi
 	}
 
     /* Move the 1LPT positions/velocities to the particle area */
+    if (mdlSelf(mdl)==0) {printf("Transfering 1LPT results to output area\n"); fflush(stdout); }
     idx = 0;
     for( rindex=rfirst; !mdlGridCoordCompare(&rindex,&rlast); mdlGridCoordIncrement(&rindex) ) {
 	float x = ic[7].r[rindex.i];
@@ -352,6 +353,7 @@ int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int nGrid,int b2LPT,double dBoxSi
 	mdlIFFT(mdl, fft, (FFTW3(complex)*)ic[9].k );
 
 	/* Add the 2LPT positions/velocities corrections to the particle area */
+	if (mdlSelf(mdl)==0) {printf("Transfering 2LPT results to output area\n"); fflush(stdout); }
 	idx = 0;
 	for( rindex=rfirst; !mdlGridCoordCompare(&rindex,&rlast); mdlGridCoordIncrement(&rindex) ) {
 	    float x = ic[7].r[rindex.i] * fftNormalize;
