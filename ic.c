@@ -217,7 +217,7 @@ int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int nGrid,int b2LPT,double dBoxSi
 
     mdlGridCoordFirstLast(mdl,fft->kgrid,&kfirst,&klast,0);
     mdlGridCoordFirstLast(mdl,fft->rgrid,&rfirst,&rlast,0);
-    assert(rlast.i == klast.i*2);
+    assert(rlast.i == klast.i*2); /* Arrays must overlap here. */
 
     /* The mdlSetArray will use the values from thread 0 */
     ic[0].r = (FFTW3(real)*)pkdParticleBase(pkd);
@@ -320,9 +320,9 @@ int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int nGrid,int b2LPT,double dBoxSi
 	float x = ic[7].r[rindex.i];
 	float y = ic[8].r[rindex.i];
 	float z = ic[9].r[rindex.i];
-	p[idx].r[0] = (rindex.x+0.5) * inGrid + x - 0.5;
-	p[idx].r[1] = (rindex.y+0.5) * inGrid + y - 0.5;
-	p[idx].r[2] = (rindex.z+0.5) * inGrid + z - 0.5;
+	p[idx].dr[0] = x;
+	p[idx].dr[1] = y;
+	p[idx].dr[2] = z;
 	p[idx].v[0] = f1 * x * velFactor;
 	p[idx].v[1] = f1 * y * velFactor;
 	p[idx].v[2] = f1 * z * velFactor;
@@ -361,9 +361,9 @@ int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int nGrid,int b2LPT,double dBoxSi
 	    float y = ic[8].r[rindex.i] * fftNormalize;
 	    float z = ic[9].r[rindex.i] * fftNormalize;
 
-	    p[idx].r[0] += x;
-	    p[idx].r[1] += y;
-	    p[idx].r[2] += z;
+	    p[idx].dr[0] += x;
+	    p[idx].dr[1] += y;
+	    p[idx].dr[2] += z;
 	    p[idx].v[0] += f2 * x * velFactor;
 	    p[idx].v[1] += f2 * y * velFactor;
 	    p[idx].v[2] += f2 * z * velFactor;

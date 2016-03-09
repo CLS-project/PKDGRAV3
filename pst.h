@@ -1161,6 +1161,7 @@ struct inMoveIC {
     uint64_t nMove;
     float fMass;
     float fSoft;
+    int nGrid;
     };
 void pltMoveIC(PST,void *,int,void *,int *);
 void pstMoveIC(PST,void *,int,void *,int *);

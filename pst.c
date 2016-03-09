@@ -3873,6 +3873,7 @@ void pltMoveIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	icUp.iStart = in->iStart + in->nMove;
 	icUp.fMass = in->fMass;
 	icUp.fSoft = in->fSoft;
+	icUp.nGrid = in->nGrid;
 
 	int rID = mdlReqService(pst->mdl,pst->idUpper,PLT_MOVEIC,&icUp,nIn);
 	mdlGetReply(pst->mdl,rID,vout,pnOut);
@@ -3881,6 +3882,7 @@ void pltMoveIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     else {
 	PKD pkd = plcl->pkd;
 	assert(in->nMove <= pkd->nStore);
+	double inGrid = 1.0 / in->nGrid;
 	for(i=in->nMove-1; i>=0; --i) {
 	    expandParticle *b = ((expandParticle *)in->pBase) + in->iStart + i;
 	    PARTICLE *p = pkdParticle(pkd,i);
@@ -3890,9 +3892,9 @@ void pltMoveIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	    pVel[2] = temp.v[2];
 	    pVel[1] = temp.v[1];
 	    pVel[0] = temp.v[0];
-	    pkdSetPos(pkd,p,2,temp.r[2]); 
-	    pkdSetPos(pkd,p,1,temp.r[1]); 
-	    pkdSetPos(pkd,p,0,temp.r[0]); 
+	    pkdSetPos(pkd,p,2,temp.dr[2] + (temp.iz+0.5) * inGrid - 0.5);
+	    pkdSetPos(pkd,p,1,temp.dr[1] + (temp.iy+0.5) * inGrid - 0.5);
+	    pkdSetPos(pkd,p,0,temp.dr[0] + (temp.ix+0.5) * inGrid - 0.5);
 	    pkdSetClass(pkd,in->fMass,in->fSoft,FIO_SPECIES_DARK,p);
 	    p->bMarked = p->bSrcActive = p->bDstActive = 1;
 	    p->uRung = 0;
@@ -3900,7 +3902,7 @@ void pltMoveIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 		((UPARTICLE *)p)->iGroup = 0;
 		}
 	    else {
-		p->iOrder = temp.iOrder;
+		p->iOrder = temp.ix + in->nGrid*(temp.iy + 1ul*in->nGrid*temp.iz);
 		p->uNewRung = 0;
 		}
 	    }
@@ -3996,6 +3998,7 @@ void pstMoveIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	move.nMove = nLocal;
 	move.fMass = in->cosmo.dOmega0 / nTotal;
 	move.fSoft = 1.0 / (50.0*in->nGrid);
+	move.nGrid = in->nGrid;
 	pltMoveIC(pst,&move,sizeof(move),NULL,0);
 	}
     }
@@ -4048,23 +4051,37 @@ void pstGenerateIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	uint64_t nPerNode = (uint64_t)mdlCores(pst->mdl) * pkd->nStore;
 	int myProc = mdlProc(pst->mdl);
 	uint64_t nLocal = (int64_t)fft->rgrid->rn[myProc] * in->nGrid*in->nGrid;
-	uint64_t iNodeStart = (int64_t)fft->rgrid->rs[myProc] * in->nGrid*in->nGrid;
 
 	/* Expand the particles by adding an iOrder */
 	assert(sizeof(expandParticle) >= sizeof(basicParticle));
 	overlayedParticle  * pbBase = (overlayedParticle *)pkdParticleBase(pkd);
+	int iz = fft->rgrid->rs[myProc] + fft->rgrid->rn[myProc];
+	int iy=0, ix=0;
+	float inGrid = 1.0 / in->nGrid;
 	for(i=nLocal-1; i>=0; --i) {
 	    basicParticle  *b = &pbBase->b + i;
 	    expandParticle *p = &pbBase->e + i;
 	    basicParticle temp;
+	    if (ix>0) --ix;
+	    else {
+		ix = in->nGrid-1;
+		if (iy>0) --iy;
+		else {
+		    iy = in->nGrid-1;
+		    --iz;
+		    assert(iz>=0);
+		    }
+		}
 	    memcpy(&temp,b,sizeof(temp));
 	    p->v[2] = temp.v[2];
 	    p->v[1] = temp.v[1];
 	    p->v[0] = temp.v[0];
-	    p->r[2] = temp.r[2];
-	    p->r[1] = temp.r[1];
-	    p->r[0] = temp.r[0];
-	    p->iOrder = iNodeStart + i;
+	    p->dr[2] = temp.dr[2];
+	    p->dr[1] = temp.dr[1];
+	    p->dr[0] = temp.dr[0];
+	    p->ix = ix;
+	    p->iy = iy;
+	    p->iz = iz;
 	    }
 	/* Now we need to move excess particles between nodes so nStore is obeyed. */
 	pkd->fft = fft; /* This is freed in pstMoveIC() */

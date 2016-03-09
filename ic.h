@@ -3,13 +3,15 @@
 #include <complex.h>
 
 typedef struct {
-    float r[3];
+    float dr[3];
     float v[3];
     } basicParticle;
 
 typedef struct {
-    uint64_t iOrder;
-    float r[3];
+    uint64_t ix : 21;
+    uint64_t iy : 21;
+    uint64_t iz : 21;
+    float dr[3];
     float v[3];
     } expandParticle;
 
