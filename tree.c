@@ -121,8 +121,6 @@ void pkdDumpTrees(PKD pkd,int bOnlyVA, uint8_t uRungDD) {
 	local_t iLast;
 	int i;
 
-	pkd->fixbnd = *pkdNodeBnd(pkd, pRoot);
-
 #ifndef SINGLE_CACHES
 	/* Here we also have to close the "fixed" caches */
 	if (mdlCacheStatus(pkd->mdl,CID_CELL2))     mdlFinishCache(pkd->mdl,CID_CELL2);
