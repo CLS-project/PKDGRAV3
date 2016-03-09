@@ -47,6 +47,12 @@ static inline int64_t d2u64(double d) {
     return (uint64_t)d;
 }
 
+#ifdef INTEGER_POSITION
+#define INTEGER_FACTOR 0x80000000u
+#define pkdDblToPos(pkd,d) (pos_t)((d)*INTEGER_FACTOR)
+#define pkdPosToDbl(pkd,pos) ((pos)*(1.0/INTEGER_FACTOR))
+#endif
+
 /*
 ** Handy type punning macro.
 */
@@ -720,7 +726,6 @@ typedef struct pkdContext {
     int nNonVANodes;    /* number of nodes *not* in Very Active Tree, or index to the start of the VA nodes (except VAROOT) */
     BND bnd;
     BND vbnd;
-    BND fixbnd;
     size_t iTreeNodeSize;
     size_t iParticleSize;
     PARTICLE *pStorePRIVATE;
@@ -872,7 +877,9 @@ typedef struct pkdContext {
 #ifdef USE_CUDA
     void *cudaCtx;
 #endif
-
+#ifdef MDL_FFTW
+    MDLFFT fft;
+#endif
     MDLGRID grid;
     float *gridData;
     struct psContext *psx;
@@ -962,7 +969,6 @@ static inline void *pkdNodeField( KDN *n, int iOffset ) {
     /*assert(iOffset);*/ /* Remove this for better performance */
     return (void *)(v + iOffset);
     }
-
 static inline FMOMR *pkdNodeMom(PKD pkd,KDN *n) {
     return CAST(FMOMR *,pkdNodeField(n,pkd->oNodeMom));
     }
@@ -978,6 +984,22 @@ static inline SPHBNDS *pkdNodeSphBounds( PKD pkd, KDN *n ) {
 
 static inline BND *pkdNodeBnd( PKD pkd, KDN *n ) {
     return CAST(BND *,pkdNodeField(n,pkd->oNodeBnd));
+    }
+static inline BND pkdNodeGetBnd( PKD pkd, KDN *n ) {
+    return *pkdNodeBnd(pkd,n);
+    }
+static inline void pkdNodeSetBnd( PKD pkd, KDN *n, const BND *bnd ) {
+    *pkdNodeBnd(pkd,n) = *bnd;
+    }
+
+static inline void pkdNodeSetBndMinMax( PKD pkd, KDN *n, double *dMin, double *dMax ) {
+    BND bnd;
+    int j;
+    for (j=0;j<3;++j) {
+	bnd.fCenter[j] = 0.5*(dMin[j] + dMax[j]);
+	bnd.fMax[j] = 0.5*(dMax[j] - dMin[j]);
+	}
+    *pkdNodeBnd(pkd,n) = bnd;
     }
 
 static inline BND *pkdNodeVBnd( PKD pkd, KDN *n ) {
@@ -1135,13 +1157,10 @@ static inline FIO_SPECIES pkdSpecies( PKD pkd, PARTICLE *p ) {
 #define pkdPosRaw(pkd,p,d) (CAST(pos_t *,pkdField(p,pkd->oPosition))[d])
 #define pkdSetPosRaw(pkd,p,d,v) (CAST(pos_t *,pkdField(p,pkd->oPosition))[d]) = (v)
 #ifdef INTEGER_POSITION
-#define INTEGER_FACTOR 0x80000000u
-#define pkdDblToPos(pkd,d) (pos_t)((d)*INTEGER_FACTOR)
-#define pkdPosToDbl(pkd,pos) ((pos)*(1.0/INTEGER_FACTOR))
-#define pkdPos(pkd,p,d) ((CAST(pos_t *,pkdField(p,pkd->oPosition))[d]) * (1.0/INTEGER_FACTOR))
-#define pkdSetPos(pkd,p,d,v) (void)((CAST(pos_t *,pkdField(p,pkd->oPosition))[d]) = (v)*INTEGER_FACTOR)
+#define pkdPos(pkd,p,d) pkdPosToDbl(pkd,CAST(pos_t *,pkdField(p,pkd->oPosition))[d])
+#define pkdSetPos(pkd,p,d,v) (void)((CAST(pos_t *,pkdField(p,pkd->oPosition))[d]) = pkdDblToPos(pkd,v))
 #ifdef __AVX__
-static inline void pkdSetPosRaw1(PKD pkd,PARTICLE *p,__m128i v) {
+static inline void pkdSetPosRaw1xx(PKD pkd,PARTICLE *p,__m128i v) {
     pos_t *r = (pos_t *)pkdField(p,pkd->oPosition);
     r[0] = _mm_extract_epi32 (v,0);
     r[1] = _mm_extract_epi32 (v,1);

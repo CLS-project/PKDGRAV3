@@ -347,6 +347,9 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PLT_MOVEIC,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pltMoveIC,
 		  sizeof(struct inMoveIC),0);
+    mdlAddService(mdl,PST_MOVEIC,pst,
+		  (void (*)(void *,void *,int,void *,int *)) pstMoveIC,
+		  sizeof(struct inGenerateIC),0);
 #endif
     mdlAddService(mdl,PST_HOSTNAME,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstHostname,
@@ -3833,6 +3836,27 @@ void pstGetFFTMaxSizes(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     if (pnOut) *pnOut = sizeof(struct outGetFFTMaxSizes);
     }
 
+typedef struct {
+    char *pBase;
+    size_t nBytes;
+    } packWriteIC;
+
+static int unpackIC(void *vctx, int *id, size_t nSize, void *vBuff) {
+    packWriteIC *ctx = (packWriteIC *)vctx;
+    memcpy(ctx->pBase,vBuff,nSize);
+    ctx->pBase += nSize;
+    return 1;
+    }
+
+static int packIC(void *vctx, int *id, size_t nSize, void *vBuff) {
+    packWriteIC *ctx = (packWriteIC *)vctx;
+    if (nSize > ctx->nBytes) nSize = ctx->nBytes;
+    memcpy(vBuff,ctx->pBase,nSize);
+    ctx->pBase += nSize;
+    ctx->nBytes -= nSize;
+    return nSize;
+    }
+
 void pltMoveIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
     struct inMoveIC *in = vin;
@@ -3885,6 +3909,97 @@ void pltMoveIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     if (pnOut) *pnOut = 0;
     }
 
+void pstMoveIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
+    LCL *plcl = pst->plcl;
+    PKD pkd = plcl->pkd;
+    struct inGenerateIC *in = vin;
+
+    if (pstOffNode(pst)) {
+	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_MOVEIC,vin,nIn);
+	pstMoveIC(pst->pstLower,vin,nIn,vout,pnOut);
+	mdlGetReply(pst->mdl,rID,vout,pnOut);
+	}
+    else {
+	MDLFFT fft = pkd->fft;
+	int myProc = mdlProc(pst->mdl);
+	int iProc;
+	packWriteIC pack;
+	uint64_t iUnderBeg=0, iOverBeg=0;
+	uint64_t iUnderEnd, iOverEnd;
+	uint64_t iBeg, iEnd;
+
+	assert(pstAmNode(pst));
+	assert(fft != NULL);
+
+	uint64_t nPerNode = (uint64_t)mdlCores(pst->mdl) * pkd->nStore;
+	uint64_t nLocal = (int64_t)fft->rgrid->rn[myProc] * in->nGrid*in->nGrid;
+
+	for(iProc=0; iProc<myProc; ++iProc) {
+	    uint64_t nOnNode = fft->rgrid->rn[iProc] * in->nGrid*in->nGrid;
+	    if (nOnNode>nPerNode) iOverBeg += nOnNode - nPerNode;
+	    else iUnderBeg += nPerNode - nOnNode;
+	    }
+	expandParticle *pBase = (expandParticle *)pkdParticleBase(pkd);
+	if (nLocal > nPerNode) {      /* Send extra particles to other nodes */
+	    iUnderBeg = 0;
+	    iOverEnd = iOverBeg + nLocal - nPerNode;
+	    for(iProc=0; iProc<mdlProcs(pst->mdl); ++iProc) {
+		uint64_t nOnNode = fft->rgrid->rn[iProc] * in->nGrid*in->nGrid;
+		if (nOnNode<nPerNode) {
+		    iUnderEnd = iUnderBeg + nPerNode - nOnNode;
+		    /* The transfer condition */
+		    if (iUnderEnd>iOverBeg && iUnderBeg<iOverEnd) {
+			iBeg = iOverBeg>iUnderBeg ? iOverBeg : iUnderBeg;
+			iEnd = iOverEnd<iUnderEnd ? iOverEnd : iUnderEnd;
+			pack.pBase = (char *)(pBase + nPerNode + iBeg-iOverBeg);
+			pack.nBytes = (iEnd-iBeg) * sizeof(expandParticle);
+			nLocal -= iEnd-iBeg;
+			mdlSend(pst->mdl,mdlProcToThread(pst->mdl,iProc),packIC,&pack);
+			}
+		    iUnderBeg = iUnderEnd;
+		    }
+		}
+	    assert(nLocal == nPerNode);
+	    }
+	else if (nLocal < nPerNode) { /* Possibly receive particles from other nodes */
+	    expandParticle *eBase = pBase + nLocal;
+	    iOverBeg = 0;
+	    iUnderEnd = iUnderBeg + nPerNode - nLocal;
+	    for(iProc=0; iProc<mdlProcs(pst->mdl); ++iProc) {
+		uint64_t nOnNode = fft->rgrid->rn[iProc] * in->nGrid*in->nGrid;
+		if (nOnNode>nPerNode) {
+		    iOverEnd = iOverBeg + nOnNode - nPerNode;
+		    if (iOverEnd>iUnderBeg && iOverBeg<iUnderEnd) {
+			iBeg = iOverBeg>iUnderBeg ? iOverBeg : iUnderBeg;
+			iEnd = iOverEnd<iUnderEnd ? iOverEnd : iUnderEnd;
+			pack.pBase = (char *)(eBase + iBeg-iUnderBeg);
+			mdlRecv(pst->mdl,mdlProcToThread(pst->mdl,iProc),unpackIC,&pack);
+			nLocal += iEnd-iBeg;
+			}
+		    iOverBeg = iOverEnd;
+		    }
+		}
+	    assert(nLocal <= nPerNode);
+	    }
+	mdlFFTNodeFinish(pst->mdl,fft);
+	pkd->fft = NULL;
+
+	/* We need to relocate the particles */
+	if (mdlSelf(pst->mdl)==0) {printf("Relocating particles\n"); fflush(stdout); }
+	struct inMoveIC move;
+	uint64_t nTotal;
+	nTotal = in->nGrid; /* Careful: 32 bit integer cubed => 64 bit integer */
+	nTotal *= in->nGrid;
+	nTotal *= in->nGrid;
+	move.pBase = (overlayedParticle *)pkdParticleBase(pkd);
+	move.iStart = 0;
+	move.nMove = nLocal;
+	move.fMass = in->cosmo.dOmega0 / nTotal;
+	move.fSoft = 1.0 / (50.0*in->nGrid);
+	pltMoveIC(pst,&move,sizeof(move),NULL,0);
+	}
+    }
+
 /* NOTE: only called when on-node -- pointers are passed around. */
 void pltGenerateIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
@@ -3912,31 +4027,9 @@ void pltGenerateIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     if (pnOut) *pnOut = sizeof(struct outGenerateIC);
     }
 
-
-
-typedef struct {
-    char *pBase;
-    size_t nBytes;
-    } packWriteIC;
-
-static int unpackIC(void *vctx, int *id, size_t nSize, void *vBuff) {
-    packWriteIC *ctx = (packWriteIC *)vctx;
-    memcpy(ctx->pBase,vBuff,nSize);
-    ctx->pBase += nSize;
-    return 1;
-    }
-
-static int packIC(void *vctx, int *id, size_t nSize, void *vBuff) {
-    packWriteIC *ctx = (packWriteIC *)vctx;
-    if (nSize > ctx->nBytes) nSize = ctx->nBytes;
-    memcpy(vBuff,ctx->pBase,nSize);
-    ctx->pBase += nSize;
-    ctx->nBytes -= nSize;
-    return nSize;
-    }
-
 void pstGenerateIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     LCL *plcl = pst->plcl;
+    PKD pkd = plcl->pkd;
     struct inGenerateIC *in = vin;
     struct outGenerateIC *out = vout, outUp;
     int i;
@@ -3952,13 +4045,14 @@ void pstGenerateIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	pltGenerateIC(pst,&tin,sizeof(tin),vout,pnOut);
 
 	packWriteIC pack;
-	uint64_t nPerNode = (uint64_t)mdlCores(pst->mdl) * plcl->pkd->nStore;
+	uint64_t nPerNode = (uint64_t)mdlCores(pst->mdl) * pkd->nStore;
 	int myProc = mdlProc(pst->mdl);
 	uint64_t nLocal = (int64_t)fft->rgrid->rn[myProc] * in->nGrid*in->nGrid;
 	uint64_t iNodeStart = (int64_t)fft->rgrid->rs[myProc] * in->nGrid*in->nGrid;
 
 	/* Expand the particles by adding an iOrder */
-	overlayedParticle  * pbBase = (overlayedParticle *)pkdParticleBase(plcl->pkd);
+	assert(sizeof(expandParticle) >= sizeof(basicParticle));
+	overlayedParticle  * pbBase = (overlayedParticle *)pkdParticleBase(pkd);
 	for(i=nLocal-1; i>=0; --i) {
 	    basicParticle  *b = &pbBase->b + i;
 	    expandParticle *p = &pbBase->e + i;
@@ -3973,72 +4067,7 @@ void pstGenerateIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	    p->iOrder = iNodeStart + i;
 	    }
 	/* Now we need to move excess particles between nodes so nStore is obeyed. */
-	if (mdlSelf(pst->mdl)==0) {printf("Transfering particle between nodes\n"); fflush(stdout); }
-	uint64_t iUnderBeg=0, iOverBeg=0;
-	uint64_t iUnderEnd, iOverEnd;
-	uint64_t iBeg, iEnd;
-	int iProc;
-	for(iProc=0; iProc<myProc; ++iProc) {
-	    uint64_t nOnNode = fft->rgrid->rn[iProc] * in->nGrid*in->nGrid;
-	    if (nOnNode>nPerNode) iOverBeg += nOnNode - nPerNode;
-	    else iUnderBeg += nPerNode - nOnNode;
-	    }
-	if (nLocal > nPerNode) {      /* Send extra particles to other nodes */
-	    iUnderBeg = 0;
-	    iOverEnd = iOverBeg + nLocal - nPerNode;
-	    for(iProc=0; iProc<mdlProcs(pst->mdl); ++iProc) {
-		uint64_t nOnNode = fft->rgrid->rn[iProc] * in->nGrid*in->nGrid;
-		if (nOnNode<nPerNode) {
-		    iUnderEnd = iUnderBeg + nPerNode - nOnNode;
-		    /* The transfer condition */
-		    if (iUnderEnd>iOverBeg && iUnderBeg<iOverEnd) {
-			iBeg = iOverBeg>iUnderBeg ? iOverBeg : iUnderBeg;
-			iEnd = iOverEnd<iUnderEnd ? iOverEnd : iUnderEnd;
-			pack.pBase = (char *)(&pbBase->e + nPerNode + iBeg-iOverBeg);
-			pack.nBytes = (iEnd-iBeg) * sizeof(expandParticle);
-			nLocal -= iEnd-iBeg;
-			mdlSend(pst->mdl,mdlProcToThread(pst->mdl,iProc),packIC,&pack);
-			}
-		    iUnderBeg = iUnderEnd;
-		    }
-		}
-	    assert(nLocal == nPerNode);
-	    }
-	else if (nLocal < nPerNode) { /* Possibly receive particles from other nodes */
-	    expandParticle *eBase = &pbBase->e + nLocal;
-	    iOverBeg = 0;
-	    iUnderEnd = iUnderBeg + nPerNode - nLocal;
-	    for(iProc=0; iProc<mdlProcs(pst->mdl); ++iProc) {
-		uint64_t nOnNode = fft->rgrid->rn[iProc] * in->nGrid*in->nGrid;
-		if (nOnNode>nPerNode) {
-		    iOverEnd = iOverBeg + nOnNode - nPerNode;
-		    if (iOverEnd>iUnderBeg && iOverBeg<iUnderEnd) {
-			iBeg = iOverBeg>iUnderBeg ? iOverBeg : iUnderBeg;
-			iEnd = iOverEnd<iUnderEnd ? iOverEnd : iUnderEnd;
-			pack.pBase = (char *)(eBase + iBeg-iUnderBeg);
-			mdlRecv(pst->mdl,mdlProcToThread(pst->mdl,iProc),unpackIC,&pack);
-			nLocal += iEnd-iBeg;
-			}
-		    iOverBeg = iOverEnd;
-		    }
-		}
-	    assert(nLocal <= nPerNode);
-	    }
-	mdlFFTNodeFinish(pst->mdl,fft);
-
-	/* We need to relocate the particles */
-	if (mdlSelf(pst->mdl)==0) {printf("Relocating particles\n"); fflush(stdout); }
-	struct inMoveIC move;
-	uint64_t nTotal;
-	nTotal = in->nGrid; /* Careful: 32 bit integer cubed => 64 bit integer */
-	nTotal *= in->nGrid;
-	nTotal *= in->nGrid;
-	move.pBase = (overlayedParticle *)pkdParticleBase(plcl->pkd);
-	move.iStart = 0;
-	move.nMove = nLocal;
-	move.fMass = in->cosmo.dOmega0 / nTotal;
-	move.fSoft = 1.0 / (50.0*in->nGrid);
-	pltMoveIC(pst,&move,sizeof(move),NULL,0);
+	pkd->fft = fft; /* This is freed in pstMoveIC() */
 	}
     else if (pstNotCore(pst)) {
 	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_GENERATEIC,in,nIn);

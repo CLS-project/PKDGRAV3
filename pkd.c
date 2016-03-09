@@ -384,6 +384,9 @@ void pkdInitialize(
     pkd->psGroupTable.nGroups = 0;
     pkd->psGroupTable.pGroup = NULL;
 
+#ifdef MDL_FFTW
+    pkd->fft = NULL;
+#endif
 
     /*
     ** Calculate the amount of memory (size) of each particle.  This is the

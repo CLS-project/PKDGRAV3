@@ -5258,6 +5258,9 @@ double msrGenerateIC(MSR msr) {
     mean = 2*out.noiseMean / msr->N;
     rms = sqrt(2*out.noiseCSQ / msr->N);
 
+    msrprintf(msr,"Transferring particles between/within nodes\n");
+    pstMoveIC(msr->pst,&in,sizeof(in),NULL,NULL);
+
     msrSetClasses(msr);
     dsec = msrTime() - sec;
     PKD pkd = msr->pst->plcl->pkd;

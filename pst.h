@@ -181,6 +181,7 @@ enum pst_service {
     PST_GETFFTMAXSIZES,
     PST_GENERATEIC,
     PLT_GENERATEIC,
+    PST_MOVEIC,
     PLT_MOVEIC,
     PST_HOSTNAME,
     PST_MEMSTATUS,
@@ -1162,6 +1163,7 @@ struct inMoveIC {
     float fSoft;
     };
 void pltMoveIC(PST,void *,int,void *,int *);
+void pstMoveIC(PST,void *,int,void *,int *);
 #endif
 
 /* PST_HOSTNAME */
