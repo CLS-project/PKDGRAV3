@@ -2846,7 +2846,8 @@ void mdlGridCoordFirstLast(MDL mdl,MDLGRID grid,mdlGridCoord *f,mdlGridCoord *l,
     if (bCacheAlign) nAlign = 1 << (int)(log2(MDL_CACHE_DATA_SIZE / sizeof(float)));
     else nAlign = grid->a1;
 
-    nPerCore = nLocal / mdlCores(mdl) + nAlign - 1;
+    /*nPerCore = nLocal / mdlCores(mdl) + nAlign - 1;*/
+    nPerCore = (nLocal-1) / mdlCores(mdl) + nAlign;
     nPerCore -= nPerCore % nAlign;
 
     if ( mdlCore(mdl)*nPerCore >= nLocal) nThisCore = 0;

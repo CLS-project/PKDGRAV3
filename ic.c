@@ -217,6 +217,7 @@ int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int nGrid,int b2LPT,double dBoxSi
 
     mdlGridCoordFirstLast(mdl,fft->kgrid,&kfirst,&klast,0);
     mdlGridCoordFirstLast(mdl,fft->rgrid,&rfirst,&rlast,0);
+    assert(rlast.i == klast.i*2);
 
     /* The mdlSetArray will use the values from thread 0 */
     ic[0].r = (FFTW3(real)*)pkdParticleBase(pkd);
