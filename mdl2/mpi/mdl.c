@@ -89,6 +89,8 @@
 
 #define MDL_SE_GRID_SHARE      30
 
+#define MDL_SE_ALLTOALLV       40
+
 /*
 ** The bit values of these flags are NOT arbitrary!
 ** The implementation depends on their values being set this way.
@@ -357,6 +359,16 @@ typedef struct {
     MDLGRID grid;
     } gridShare;
 
+typedef struct {
+    MDLserviceElement se;
+    void *sbuff;
+    int *scount;
+    int *sdisps;
+    void *rbuff;
+    int *rcount;
+    int *rdisps;
+    int dataSize;
+    } alltoallv;
 
 static void mdlSendThreadMessage(MDL mdl,int iQueue,int iCore, void *vhdr, uint16_t iServiceID ) {
     MDLserviceElement *qhdr = (MDLserviceElement *)vhdr;
@@ -801,11 +813,13 @@ static int checkMPI(MDL mdl) {
 	fftPlans* plans;
 	fftTrans* trans;
 #endif
+	alltoallv *a2a;
 	gridShare *share;
 	SRVHEAD *head;
 	int iProc, iCore, tag, i;
 	int flag,indx;
 	MPI_Status status;
+	MPI_Datatype mpitype;
 
 	/* These are messages from other threads */
 	if (!OPA_Queue_is_empty(&mpi->queueMPI)) {
@@ -978,6 +992,17 @@ static int checkMPI(MDL mdl) {
 	    case MDL_SE_BARRIER_REQUEST:
 		MPI_Barrier(mpi->commMDL);
 		mdlSendThreadMessage(mdl,MDL_TAG_BARRIER,0,qhdr,MDL_SE_BARRIER_REPLY);
+		break;
+	    case MDL_SE_ALLTOALLV:
+		a2a = (alltoallv *)qhdr;
+		MPI_Type_contiguous(a2a->dataSize,MPI_BYTE,&mpitype);
+		MPI_Type_commit(&mpitype);
+		MPI_Alltoallv(
+		    a2a->sbuff, a2a->scount, a2a->sdisps, mpitype,
+		    a2a->rbuff, a2a->rcount, a2a->rdisps, mpitype,
+		    mpi->commMDL);
+		MPI_Type_free(&mpitype);
+		mdlSendThreadMessage(mdl,0,qhdr->iCoreFrom,qhdr,MDL_SE_ALLTOALLV);
 		break;
 	    default:
 		assert(0);
@@ -2998,6 +3023,19 @@ void mdlIFFT( MDL mdl, MDLFFT fft, FFTW3(complex) *kdata ) {
     }
 #endif
 
+void mdlAlltoallv(MDL mdl,int dataSize,void *sbuff,int *scount,int *sdisps,void *rbuff,int *rcount,int *rdisps) {
+    alltoallv a2a;
+    assert(mdlCore(mdl) == 0);
+    a2a.sbuff = sbuff;
+    a2a.scount = scount;
+    a2a.sdisps = sdisps;
+    a2a.rbuff = rbuff;
+    a2a.rcount = rcount;
+    a2a.rdisps = rdisps;
+    a2a.dataSize = dataSize;
+    mdlSendToMPI(mdl,&a2a,MDL_SE_ALLTOALLV);
+    mdlWaitThreadQueue(mdl,0);
+    }
 #ifdef USE_CUDA
 void mdlSetCudaBufferSize(MDL mdl,int inBufSize, int outBufSize) {
     if (mdl->inCudaBufSize < inBufSize) mdl->inCudaBufSize = inBufSize;

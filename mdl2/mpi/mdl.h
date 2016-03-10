@@ -417,6 +417,9 @@ void mdlIFFT( MDL mdl, MDLFFT fft, FFTW3(complex) *data);
 #define mdlFFTkIdx(mdl,fft,x,y,z) mdlGridIdx(mdl,(fft)->kgrid,x,z,y)
 
 #endif
+
+void mdlAlltoallv(MDL mdl,int dataSize,void *sbuff,int *scount,int *sdisps,void *rbuff,int *rcount,int *rdisps);
+
 /*
  ** Caching functions.
  */
