@@ -474,7 +474,7 @@ public:
     vec & load(ftype *f);
     const vec & store(ftype *f) const;
     static int width() { return sizeof(vtype)/sizeof(ftype); }
-    static int mask()  { width()-1; }
+    static int mask()  { return sizeof(vtype)/sizeof(ftype)-1; }
     };
 
 #if defined(__AVX__)
