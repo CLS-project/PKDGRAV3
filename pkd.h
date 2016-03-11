@@ -51,6 +51,9 @@ static inline int64_t d2u64(double d) {
 #define INTEGER_FACTOR 0x80000000u
 #define pkdDblToPos(pkd,d) (pos_t)((d)*INTEGER_FACTOR)
 #define pkdPosToDbl(pkd,pos) ((pos)*(1.0/INTEGER_FACTOR))
+#else
+#define pkdDblToPos(pkd,d) (d)
+#define pkdPosToDbl(pkd,pos) (pos)
 #endif
 
 /*
@@ -357,7 +360,6 @@ typedef struct kdNode {
     uint32_t bDstActive : 1;
     uint32_t bTopTree   : 1; /* This is a top tree node: pLower,pUpper are node indexes */
     uint32_t bRemote    : 1; /* children are remote */
-    double r[3];
     float bMax;
     float fSoft2;
     } KDN;
@@ -425,8 +427,10 @@ typedef struct sphBounds {
 	double CALCOPEN_b;						\
         int CALCOPEN_j;							\
 	const BND CALCOPEN_bnd = pkdNodeGetBnd(pkd, pkdn);		\
+	double CALCOPEN_r[3];						\
+	pkdNodeGetPos(pkd, (pkdn), CALCOPEN_r);				\
         for (CALCOPEN_j=0;CALCOPEN_j<3;++CALCOPEN_j) {                  \
-            double CALCOPEN_d = fabs(CALCOPEN_bnd.fCenter[CALCOPEN_j] - (pkdn)->r[CALCOPEN_j]) + \
+            double CALCOPEN_d = fabs(CALCOPEN_bnd.fCenter[CALCOPEN_j] - CALCOPEN_r[CALCOPEN_j]) + \
                 CALCOPEN_bnd.fMax[CALCOPEN_j];                          \
             CALCOPEN_d2 += CALCOPEN_d*CALCOPEN_d;                       \
             }								\
@@ -781,7 +785,7 @@ typedef struct pkdContext {
     /*
     ** Advanced memory models - Tree Nodes
     */
-    int oNodePosition; /* Three vel_t */
+    int oNodePosition; /* Three pos_t */
     int oNodeVelocity; /* Three vel_t */
     int oNodeAcceleration; /* Three doubles */
     int oNodeSoft;
@@ -986,6 +990,22 @@ static inline float *pkdNodeAccel( PKD pkd, KDN *n ) {
     }
 static inline SPHBNDS *pkdNodeSphBounds( PKD pkd, KDN *n ) {
     return CAST(SPHBNDS *,pkdNodeField(n,pkd->oNodeSphBounds));
+    }
+
+static inline void pkdNodeGetPos(PKD pkd,KDN *n,double *r) {
+    pos_t *pr = CAST(pos_t *,pkdNodeField(n,pkd->oNodePosition));
+    r[0] = pkdPosToDbl(pkd,pr[0]);
+    r[1] = pkdPosToDbl(pkd,pr[1]);
+    r[2] = pkdPosToDbl(pkd,pr[2]);
+    }
+static inline void pkdNodeSetPos3(PKD pkd,KDN *n,double x, double y, double z) {
+    pos_t *pr = CAST(pos_t *,pkdNodeField(n,pkd->oNodePosition));
+    pr[0] = pkdDblToPos(pkd,x);
+    pr[1] = pkdDblToPos(pkd,y);
+    pr[2] = pkdDblToPos(pkd,z);
+    }
+static inline void pkdNodeSetPos1(PKD pkd,KDN *n,const double *r) {
+    pkdNodeSetPos3(pkd,n,r[0],r[1],r[2]);
     }
 
 static inline BND *pkdNodeBndPRIVATE( PKD pkd, KDN *n ) {
@@ -1212,8 +1232,6 @@ static inline __m256d pkdGetPos(PKD pkd,PARTICLE *p) {
 #define pkdGetPos3(pkd,p,d1,d2,d3) do { d1=pkdPos(pkd,p,0); d2=pkdPos(pkd,p,1); d3=pkdPos(pkd,p,2); } while(0)
 #endif
 #else
-#define pkdDblToPos(pkd,d) (d)
-#define pkdPosToDbl(pkd,pos) (pos)
 #define pkdPos(pkd,p,d) (CAST(pos_t *,pkdField(p,pkd->oPosition))[d])
 #define pkdSetPos(pkd,p,d,v) (void)((CAST(pos_t *,pkdField(p,pkd->oPosition))[d]) = (v))
 #define pkdGetPos3(pkd,p,d1,d2,d3) ((d1)=pkdPos(pkd,p,0),(d2)=pkdPos(pkd,p,1),(d3)=pkdPos(pkd,p,2))

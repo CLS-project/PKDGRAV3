@@ -100,6 +100,8 @@ static void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin, i
     v_sf k_x, k_y, k_z, k_bMax, k_Open;
     v_i  k_nk;
     vint k_nGroup = {SIMD_CONST(nGroup)};
+    double k_r[3];
+    pkdNodeGetPos(pkd,k,k_r);
 
     assert ( pkdNodeMom(pkd,k)->m > 0.0f );
 
@@ -118,9 +120,9 @@ static void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin, i
     k_xMax = SIMD_SPLAT((float)(kbnd.fMax[0]));
     k_yMax = SIMD_SPLAT((float)(kbnd.fMax[1]));
     k_zMax = SIMD_SPLAT((float)(kbnd.fMax[2]));
-    k_x = SIMD_SPLAT((float)(k->r[0]));
-    k_y = SIMD_SPLAT((float)(k->r[1]));
-    k_z = SIMD_SPLAT((float)(k->r[2]));
+    k_x = SIMD_SPLAT((float)(k_r[0]));
+    k_y = SIMD_SPLAT((float)(k_r[1]));
+    k_z = SIMD_SPLAT((float)(k_r[2]));
     k_bMax = SIMD_SPLAT(k->bMax);
     k_nk = SIMD_SPLATI32(k->iLower?(k->pUpper-k->pLower+1):0);
     k_Open = SIMD_MUL(consts.threehalves.p,SIMD_MUL(k_bMax,diCrit));
@@ -288,11 +290,13 @@ static void addChild(PKD pkd, int iCache, CL cl, int iChild, int id, float *fOff
     int idLower, iLower, idUpper, iUpper;
     float cOpen;
     KDN *c;
+    double c_r[3];
     int nc = getCell(pkd,iCache,iChild,id,&cOpen,&c);
+    pkdNodeGetPos(pkd,c,c_r);
     BND cbnd = pkdNodeGetBnd(pkd,c);
     pkdGetChildCells(c,id,idLower,iLower,idUpper,iUpper);
     clAppend(cl,iCache,id,iChild,idLower,iLower,idUpper,iUpper,nc,cOpen,
-	pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c->r,fOffset,cbnd.fCenter,cbnd.fMax);
+	pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c_r,fOffset,cbnd.fCenter,cbnd.fMax);
     }
 /*
 ** Returns total number of active particles for which gravity was calculated.
@@ -311,7 +315,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2, ui
     double dShiftFlop;
     const vel_t *v;
     const float *a;
-    double r[3];
+    double r[3], k_r[3], c_r[3];
     double dOffset[3];
     double xParent,yParent,zParent;
     double d2;
@@ -361,6 +365,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2, ui
     ** Make iCell point to the root of the tree again.
     */
     k = pkdTreeNode(pkd,iCell = iRoot);
+    pkdNodeGetPos(pkd,k,k_r);
 
     while (1) {
 #ifdef ILP_ILC_CAN_BE_NON_EMPTY
@@ -613,9 +618,9 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2, ui
 				    fOffset[0] = blk->xOffset.f[jTile];
 				    fOffset[1] = blk->yOffset.f[jTile];
 				    fOffset[2] = blk->zOffset.f[jTile];
-				    dx[0] = k->r[0] - (blk->x.f[jTile] + blk->xOffset.f[jTile]);
-				    dx[1] = k->r[1] - (blk->y.f[jTile] + blk->yOffset.f[jTile]);
-				    dx[2] = k->r[2] - (blk->z.f[jTile] + blk->zOffset.f[jTile]);
+				    dx[0] = k_r[0] - (blk->x.f[jTile] + blk->xOffset.f[jTile]);
+				    dx[1] = k_r[1] - (blk->y.f[jTile] + blk->yOffset.f[jTile]);
+				    dx[2] = k_r[2] - (blk->z.f[jTile] + blk->zOffset.f[jTile]);
 				    d2 = dx[0]*dx[0] + dx[1]*dx[1] + dx[2]*dx[2];
 				    dir = 1.0/sqrt(d2);
 #ifdef USE_SIMD_FMM
@@ -646,13 +651,14 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2, ui
 				    else {
 					c = CAST(KDN *,mdlFetch(pkd->mdl,blk->iCache.i[jTile],iCheckCell,id));
 					}
+				    pkdNodeGetPos(pkd,c,c_r);
 #ifdef USE_SIMD_FMM
-				    for (j=0;j<3;++j) dx[j] = k->r[j] - (c->r[j] + dOffset[j]);
+				    for (j=0;j<3;++j) dx[j] = k_r[j] - (c_r[j] + dOffset[j]);
 				    ilcAppendFloat(pkd->ill,dx[0],dx[1],dx[2],pkdNodeMom(pkd,c),c->bMax);
 #else
 				    d2 = 0;
 				    for (j=0;j<3;++j) {
-					dx[j] = k->r[j] - (c->r[j] + dOffset[j]);
+					dx[j] = k_r[j] - (c_r[j] + dOffset[j]);
 					d2 += dx[j]*dx[j];
 					}
 				    dir = 1.0/sqrt(d2);
@@ -711,12 +717,13 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2, ui
 	    ** level of the tree.
 	    */
 	    if ((k->pUpper-k->pLower+1)<=nGroup || k->iLower==0) break;
-	    xParent = k->r[0];
-	    yParent = k->r[1];
-	    zParent = k->r[2];
+	    xParent = k_r[0];
+	    yParent = k_r[1];
+	    zParent = k_r[2];
 	    for (j=0;j<3;++j) fOffset[j] = 0.0f;
 	    iCell = k->iLower;
 	    nk = getCell(pkd,-1,iCell,pkd->idSelf,&kOpen,&k);
+	    pkdNodeGetPos(pkd,k,k_r);
 	    /*
 	    ** Check iCell is active. We eventually want to just to a
 	    ** rung check here when we start using tree repair, but
@@ -771,10 +778,11 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2, ui
 		    pkd->S[iStack].L = L;
 		    pkd->S[iStack].dirLsum = dirLsum;
 		    pkd->S[iStack].normLsum = normLsum;
+		    pkdNodeGetPos(pkd,c,c_r);
 		    dShiftFlop = momShiftLocr(&pkd->S[iStack].L,
-					      c->r[0] - xParent,
-					      c->r[1] - yParent,
-					      c->r[2] - zParent);
+					      c_r[0] - xParent,
+					      c_r[1] - yParent,
+					      c_r[2] - zParent);
 		    }
 		}
 	    else {
@@ -791,10 +799,11 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2, ui
 		** Move onto processing the sibling.
 		*/
 		k = pkdTreeNode(pkd,++iCell);
+		pkdNodeGetPos(pkd,k,k_r);
 		}
-	    dFlop = momShiftLocr(&L,k->r[0] - xParent,
-				    k->r[1] - yParent,
-				    k->r[2] - zParent);
+	    dFlop = momShiftLocr(&L,k_r[0] - xParent,
+				    k_r[1] - yParent,
+				    k_r[2] - zParent);
 	    *pdFlop += dFlop;
 	    pkd->dFlopDoubleCPU += dFlop;
 	    }
@@ -825,6 +834,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2, ui
 	/* Get the next cell to process from the stack */
 	if (iStack == -1) goto doneCheckList;
 	k = pkdTreeNode(pkd,iCell = pkd->S[iStack].iNodeIndex);
+	pkdNodeGetPos(pkd,k,k_r);
 	/*
 	** Pop the Checklist from the top of the stack,
 	** also getting the state of the interaction list.

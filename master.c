@@ -2552,15 +2552,17 @@ static void BuildTree(MSR msr,int bNeedEwald,uint32_t uRoot,uint32_t utRoot) {
 	** could add to the mass and because it probably is not important to
 	** update the root so frequently.
 	*/
-	calc.com[0] = pkdn->r[0];
-	calc.com[1] = pkdn->r[1];
-	calc.com[2] = pkdn->r[2];
+	double kdn_r[3];
+	pkdNodeGetPos(pkd,pkdn,kdn_r);
+	calc.com[0] = kdn_r[0];
+	calc.com[1] = kdn_r[1];
+	calc.com[2] = kdn_r[2];
 	calc.uRoot = uRoot;
 	pstCalcRoot(msr->pst,&calc,sizeof(calc),&root,&iDum);
 	msr->momTreeRoot[uRoot] = root.momc;
-	msr->momTreeCom[uRoot][0] = pkdn->r[0];
-	msr->momTreeCom[uRoot][1] = pkdn->r[1];
-	msr->momTreeCom[uRoot][2] = pkdn->r[2];
+	msr->momTreeCom[uRoot][0] = kdn_r[0];
+	msr->momTreeCom[uRoot][1] = kdn_r[1];
+	msr->momTreeCom[uRoot][2] = kdn_r[2];
 	}
 
     free(pDistribTop);

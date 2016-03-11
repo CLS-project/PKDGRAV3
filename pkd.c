@@ -171,7 +171,7 @@ void pkdStopTimer(PKD pkd,int iTimer) {
 static int pkdNodeAddStruct(PKD pkd,int n) {
     int iOffset = pkd->iTreeNodeSize;
     mdlassert( pkd->mdl, pkd->kdNodeListPRIVATE == NULL );
-    mdlassert( pkd->mdl, (iOffset & (sizeof(double)-1)) == 0 );
+//    mdlassert( pkd->mdl, (iOffset & (sizeof(double)-1)) == 0 );
     pkd->iTreeNodeSize += n;
     return iOffset;
     }
@@ -475,6 +475,11 @@ void pkdInitialize(
     /*
     ** Tree node memory models
     */
+#ifdef INTEGER_POSITION
+    pkd->oNodePosition = pkdNodeAddInt32(pkd,3);
+#else
+    pkd->oNodePosition = pkdNodeAddDouble(pkd,3);
+#endif
     if ( mMemoryModel & PKD_MODEL_NODE_BND ) {
 #ifdef INTEGER_POSITION
         pkd->oNodeBnd  = pkdNodeAddStruct(pkd,sizeof(IBND));

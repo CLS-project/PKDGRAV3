@@ -547,6 +547,7 @@ void Create(PKD pkd,int iRoot) {
     FMOMR mom;
     SPHBNDS *bn;
     BND bnd;
+    double kdn_r[3];
     double fSoft,x,y,z,ax,ay,az,ft[3],d2,d2Max,dih2,bmin,b;
     float *a, m, fMass, fBall;
     vel_t *v, vx, vy, vz;
@@ -701,17 +702,18 @@ void Create(PKD pkd,int iRoot) {
 	    }
 	m = 1.0f / fMass;
 	if (pkd->param.bCenterOfMassExpand) {
-	    pkdn->r[0] = m*x;
-	    pkdn->r[1] = m*y;
-	    pkdn->r[2] = m*z;
+	    kdn_r[0] = m*x;
+	    kdn_r[1] = m*y;
+	    kdn_r[2] = m*z;
 	    }
 	else {
 	    /*
 	    ** For now set it to the center of the bounding box, but later
 	    ** we want the tightest bounding sphere here.
 	    */
-	    for (d=0;d<3;++d) pkdn->r[d] = bnd.fCenter[d];
+	    for (d=0;d<3;++d) kdn_r[d] = bnd.fCenter[d];
 	    }
+	pkdNodeSetPos1(pkd,pkdn,kdn_r);
 	if (pkd->oNodeVelocity) {
 	    vel_t *pVel = pkdNodeVel(pkd,pkdn);
 	    pVel[0] = m*vx;
@@ -729,7 +731,7 @@ void Create(PKD pkd,int iRoot) {
 	for (pj=pkdn->pLower;pj<=pkdn->pUpper;++pj) {
 	    p = pkdParticle(pkd,pj);
 #if defined(__AVX__) && defined(INTEGER_POSITION)
-	    __m256d v = _mm256_sub_pd(pkdGetPos(pkd,p),_mm256_setr_pd(pkdn->r[0],pkdn->r[1],pkdn->r[2],0.0));
+	    __m256d v = _mm256_sub_pd(pkdGetPos(pkd,p),_mm256_setr_pd(kdn_r[0],kdn_r[1],kdn_r[2],0.0));
 	    v = _mm256_mul_pd(v,v);
 	    __m128d t0 = _mm256_extractf128_pd(v,0);
 	    __m128d t2 = _mm256_extractf128_pd(v,1);
@@ -739,9 +741,9 @@ void Create(PKD pkd,int iRoot) {
 	    d2Max = _mm_cvtsd_f64(_mm_max_sd(t0,_mm_set_sd(d2Max)));
 #else
 	    pkdGetPos1(pkd,p,ft);
-	    x = ft[0] - pkdn->r[0];
-	    y = ft[1] - pkdn->r[1];
-	    z = ft[2] - pkdn->r[2];
+	    x = ft[0] - kdn_r[0];
+	    y = ft[1] - kdn_r[1];
+	    z = ft[2] - kdn_r[2];
 	    d2 = x*x + y*y + z*z;
 	    /*
 	    ** Update bounding ball and softened bounding ball.
@@ -767,9 +769,9 @@ void Create(PKD pkd,int iRoot) {
 	    for (pj=pkdn->pLower;pj<=pkdn->pUpper;++pj) {
 		p = pkdParticle(pkd,pj);
 		pkdGetPos1(pkd,p,ft);
-		x = ft[0] - pkdn->r[0];
-		y = ft[1] - pkdn->r[1];
-		z = ft[2] - pkdn->r[2];
+		x = ft[0] - kdn_r[0];
+		y = ft[1] - kdn_r[1];
+		z = ft[2] - kdn_r[2];
 		m = pkdMass(pkd,p);
 		momMakeFmomr(&mom,m,pkdn->bMax,x,y,z);
 		momAddFmomr(pkdNodeMom(pkd,pkdn),&mom);
@@ -842,13 +844,14 @@ void Create(PKD pkd,int iRoot) {
 	    pkdl = pkdTreeNode(pkd,pkdn->iLower);
 	    pkdu = pkdTreeNode(pkd,pkdn->iLower + 1);
 	    pkdCombineCells1(pkd,pkdn,pkdl,pkdu);
+	    pkdNodeGetPos(pkd,pkdn,kdn_r);
 	    if (pkdn->pUpper - pj < NMAX_OPENCALC) {
 		assert(pj<=pkdn->pUpper);
 		d2Max = 0;
 		for (;pj<=pkdn->pUpper;++pj) {
 		    p = pkdParticle(pkd,pj);
 #if defined(__AVX__) && defined(INTEGER_POSITION)
-		    __m256d v = _mm256_sub_pd(pkdGetPos(pkd,p),_mm256_setr_pd(pkdn->r[0],pkdn->r[1],pkdn->r[2],0.0));
+		    __m256d v = _mm256_sub_pd(pkdGetPos(pkd,p),_mm256_setr_pd(kdn_r[0],kdn_r[1],kdn_r[2],0.0));
 		    v = _mm256_mul_pd(v,v);
 		    __m128d t0 = _mm256_extractf128_pd(v,0);
 		    __m128d t2 = _mm256_extractf128_pd(v,1);
@@ -858,9 +861,9 @@ void Create(PKD pkd,int iRoot) {
 		    d2Max = _mm_cvtsd_f64(_mm_max_sd(t0,_mm_set_sd(d2Max)));
 #else
 		    pkdGetPos3(pkd,p,x,y,z);
-		    x -= pkdn->r[0];
-		    y -= pkdn->r[1];
-		    z -= pkdn->r[2];
+		    x -= kdn_r[0];
+		    y -= kdn_r[1];
+		    z -= kdn_r[2];
 		    d2 = x*x + y*y + z*z;
 		    d2Max = (d2 > d2Max)?d2:d2Max;
 #endif
@@ -894,6 +897,7 @@ void pkdCombineCells1(PKD pkd,KDN *pkdn,KDN *p1,KDN *p2) {
     double m1,m2,ifMass;
     int j;
     BND bnd, p1bnd, p2bnd;
+    double kdn_r[3];
 
     p1bnd = pkdNodeGetBnd(pkd, p1);
     p2bnd = pkdNodeGetBnd(pkd, p2);
@@ -917,11 +921,15 @@ void pkdCombineCells1(PKD pkd,KDN *pkdn,KDN *p1,KDN *p2) {
 	m1 = m2 = 0.5;
 	}
     if (pkd->param.bCenterOfMassExpand) {
-	for (j=0;j<3;++j) pkdn->r[j] = ifMass*(m1*p1->r[j] + m2*p2->r[j]);
+	double p1_r[3], p2_r[3];
+	pkdNodeGetPos(pkd,p1,p1_r);
+	pkdNodeGetPos(pkd,p2,p2_r);
+	for (j=0;j<3;++j) kdn_r[j] = ifMass*(m1*p1_r[j] + m2*p2_r[j]);
 	}
     else {
-	for (j=0;j<3;++j) pkdn->r[j] = bnd.fCenter[j];
+	for (j=0;j<3;++j) kdn_r[j] = bnd.fCenter[j];
 	}
+    pkdNodeSetPos1(pkd,pkdn,kdn_r);
     if (pkd->oNodeVelocity) {
 	for (j=0;j<3;++j)	
 	    pkdNodeVel(pkd,pkdn)[j]
@@ -951,18 +959,22 @@ void pkdCombineCells2(PKD pkd,KDN *pkdn,KDN *p1,KDN *p2) {
     ** to the CoM of this cell and add them up.
     */
     if (pkd->oNodeMom) {
+	double kdn_r[3], p1_r[3], p2_r[3];
+	pkdNodeGetPos(pkd,pkdn,kdn_r);
+	pkdNodeGetPos(pkd,p1,p1_r);
+	pkdNodeGetPos(pkd,p2,p2_r);
 	*pkdNodeMom(pkd,pkdn) = *pkdNodeMom(pkd,p1);
-	x = (float)(p1->r[0] - pkdn->r[0]);
-	y = (float)(p1->r[1] - pkdn->r[1]);
-	z = (float)(p1->r[2] - pkdn->r[2]);
+	x = (float)(p1_r[0] - kdn_r[0]);
+	y = (float)(p1_r[1] - kdn_r[1]);
+	z = (float)(p1_r[2] - kdn_r[2]);
 	momShiftFmomr(pkdNodeMom(pkd,pkdn),p1->bMax,x,y,z);
 
 	momRescaleFmomr(pkdNodeMom(pkd,pkdn),pkdn->bMax,p1->bMax);
 
 	mom = *pkdNodeMom(pkd,p2);
-	x = (float)(p2->r[0] - pkdn->r[0]);
-	y = (float)(p2->r[1] - pkdn->r[1]);
-	z = (float)(p2->r[2] - pkdn->r[2]);
+	x = (float)(p2_r[0] - kdn_r[0]);
+	y = (float)(p2_r[1] - kdn_r[1]);
+	z = (float)(p2_r[2] - kdn_r[2]);
 	momShiftFmomr(&mom,p2->bMax,x,y,z);
 	momScaledAddFmomr(pkdNodeMom(pkd,pkdn),pkdn->bMax,&mom,p2->bMax);
 

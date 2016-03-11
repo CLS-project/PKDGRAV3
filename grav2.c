@@ -930,7 +930,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     double dRhoFac,SMX smx,SMF *smf,int iRoot1,int iRoot2) {
     PARTICLE *p;
     KDN *pkdn = pBucket;
-    double r[3];
+    double r[3], kdn_r[3];
     vel_t *v;
     double vx,vy,vz;
     float *ap;
@@ -945,6 +945,8 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     int i,n,nSoft,nActive;
     float fourh2;
     int nP;
+
+    pkdNodeGetPos(pkd,pkdn,kdn_r);
 
     /*
     ** Now process the two interaction lists for each active particle.
@@ -1064,9 +1066,9 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
 	    /*
 	    ** Evaluate local expansion.
 	    */
-	    dx = r[0] - pkdn->r[0];
-	    dy = r[1] - pkdn->r[1];
-	    dz = r[2] - pkdn->r[2];
+	    dx = r[0] - kdn_r[0];
+	    dy = r[1] - kdn_r[1];
+	    dz = r[2] - kdn_r[2];
 	    dPot = 0;
 	    ax = 0;
 	    ay = 0;
