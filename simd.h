@@ -482,11 +482,11 @@ public:
 * AVX single precision
 \**********************************************************************/
 
-inline vec<__m256,float>::vec(const float &d) { ymm = _mm256_set1_ps(d); }
-inline vec<__m256,float> & vec<__m256,float>::zero() { ymm = _mm256_setzero_ps(); return *this; }
-inline vec<__m256,float> & vec<__m256,float>::load1(float f) { ymm = _mm256_setr_ps(f,0,0,0,0,0,0,0); return *this; }
-inline vec<__m256,float> & vec<__m256,float>::load(float *pf) { ymm = _mm256_loadu_ps(pf); return *this; }
-inline const vec<__m256,float> & vec<__m256,float>::store(float *pf) const { _mm256_storeu_ps(pf,ymm); return *this; }
+template<> inline vec<__m256,float>::vec(const float &d) { ymm = _mm256_set1_ps(d); }
+template<> inline vec<__m256,float> & vec<__m256,float>::zero() { ymm = _mm256_setzero_ps(); return *this; }
+template<> inline vec<__m256,float> & vec<__m256,float>::load1(float f) { ymm = _mm256_setr_ps(f,0,0,0,0,0,0,0); return *this; }
+template<> inline vec<__m256,float> & vec<__m256,float>::load(float *pf) { ymm = _mm256_loadu_ps(pf); return *this; }
+template<> inline const vec<__m256,float> & vec<__m256,float>::store(float *pf) const { _mm256_storeu_ps(pf,ymm); return *this; }
 inline vec<__m256,float> operator-(vec<__m256,float> const &a) {
     return _mm256_xor_ps(a,_mm256_castsi256_ps(_mm256_set1_epi32(0x80000000)));
     }
@@ -524,11 +524,11 @@ inline vec<__m256,float> rsqrt(vec<__m256,float> const &r2) {
 * AVX double precision
 \**********************************************************************/
 
-inline vec<__m256d,double>::vec(const double &d) { ymm = _mm256_set1_pd(d); }
-inline vec<__m256d,double> & vec<__m256d,double>::zero() { ymm = _mm256_setzero_pd(); return *this; }
-inline vec<__m256d,double> & vec<__m256d,double>::load1(double f) { ymm = _mm256_setr_pd(f,0,0,0); return *this; }
-inline vec<__m256d,double> & vec<__m256d,double>::load(double *pf) { ymm = _mm256_loadu_pd(pf); return *this; }
-inline const vec<__m256d,double> & vec<__m256d,double>::store(double *pf) const { _mm256_storeu_pd(pf,ymm); return *this; }
+template<> inline vec<__m256d,double>::vec(const double &d) { ymm = _mm256_set1_pd(d); }
+template<> inline vec<__m256d,double> & vec<__m256d,double>::zero() { ymm = _mm256_setzero_pd(); return *this; }
+template<> inline vec<__m256d,double> & vec<__m256d,double>::load1(double f) { ymm = _mm256_setr_pd(f,0,0,0); return *this; }
+template<> inline vec<__m256d,double> & vec<__m256d,double>::load(double *pf) { ymm = _mm256_loadu_pd(pf); return *this; }
+template<> inline const vec<__m256d,double> & vec<__m256d,double>::store(double *pf) const { _mm256_storeu_pd(pf,ymm); return *this; }
 inline vec<__m256d,double>  operator-(vec<__m256d,double> const &a) {
     return _mm256_xor_pd(a,_mm256_castsi256_pd(_mm256_set1_epi64x(0x8000000000000000)));
     }
@@ -555,19 +555,17 @@ inline vec<__m256d,double> rsqrt(vec<__m256d,double> const &r2) {
     r = r*(1.5 - 0.5*r*r*r2); /* Newton step correction */
     return r*(1.5 - 0.5*r*r*r2); /* Newton step correction */
     }
-#endif
-
-#if defined(__SSE__)
+#elif defined(__SSE__)
 
 /**********************************************************************\
 * SSE single precision
 \**********************************************************************/
 
-inline vec<__m128,float>::vec(const float &d) { ymm = _mm_set1_ps(d); }
-inline vec<__m128,float> & vec<__m128,float>::zero() { ymm = _mm_setzero_ps(); return *this; }
-inline vec<__m128,float> & vec<__m128,float>::load1(float f) { ymm = _mm_setr_ps(f,0,0,0); return *this; }
-inline vec<__m128,float> & vec<__m128,float>::load(float *pf) { ymm = _mm_loadu_ps(pf); return *this; }
-inline const vec<__m128,float> & vec<__m128,float>::store(float *pf) const { _mm_storeu_ps(pf,ymm); return *this; }
+template<> inline vec<__m128,float>::vec(const float &d) { ymm = _mm_set1_ps(d); }
+template<> inline vec<__m128,float> & vec<__m128,float>::zero() { ymm = _mm_setzero_ps(); return *this; }
+template<> inline vec<__m128,float> & vec<__m128,float>::load1(float f) { ymm = _mm_setr_ps(f,0,0,0); return *this; }
+template<> inline vec<__m128,float> & vec<__m128,float>::load(float *pf) { ymm = _mm_loadu_ps(pf); return *this; }
+template<> inline const vec<__m128,float> & vec<__m128,float>::store(float *pf) const { _mm_storeu_ps(pf,ymm); return *this; }
 inline vec<__m128,float> operator-(vec<__m128,float> const &a) {
     return _mm_xor_ps(a,_mm_castsi128_ps(_mm_set1_epi32(0x80000000)));
     }
@@ -605,18 +603,17 @@ inline vec<__m128,float> blend(vec<__m128,float> const &a,vec<__m128,float> cons
     return _mm_or_ps(_mm_and_ps(p,b),_mm_andnot_ps(p,a));
 #endif
     }
-#endif
 
 #if defined(__SSE2__)
 /**********************************************************************\
 * SSE double precision
 \**********************************************************************/
 
-inline vec<__m128d,double>::vec(const double &d) { ymm = _mm_set1_pd(d); }
-inline vec<__m128d,double> & vec<__m128d,double>::zero() { ymm = _mm_setzero_pd(); return *this; }
-inline vec<__m128d,double> & vec<__m128d,double>::load1(double f) { ymm = _mm_setr_pd(f,0); return *this; }
-inline vec<__m128d,double> & vec<__m128d,double>::load(double *pf) { ymm = _mm_loadu_pd(pf); return *this; }
-inline const vec<__m128d,double> & vec<__m128d,double>::store(double *pf) const { _mm_storeu_pd(pf,ymm); return *this; }
+template<> inline vec<__m128d,double>::vec(const double &d) { ymm = _mm_set1_pd(d); }
+template<> inline vec<__m128d,double> & vec<__m128d,double>::zero() { ymm = _mm_setzero_pd(); return *this; }
+template<> inline vec<__m128d,double> & vec<__m128d,double>::load1(double f) { ymm = _mm_setr_pd(f,0); return *this; }
+template<> inline vec<__m128d,double> & vec<__m128d,double>::load(double *pf) { ymm = _mm_loadu_pd(pf); return *this; }
+template<> inline const vec<__m128d,double> & vec<__m128d,double>::store(double *pf) const { _mm_storeu_pd(pf,ymm); return *this; }
 inline vec<__m128d,double>  operator-(vec<__m128d,double> const &a) {
     return _mm_xor_pd(a,_mm_castsi128_pd(_mm_set1_epi64x(0x8000000000000000)));
     }
@@ -653,6 +650,7 @@ inline vec<__m128d,double> blend(vec<__m128d,double> const &a,vec<__m128d,double
     return _mm_or_pd(_mm_and_pd(p,b),_mm_andnot_pd(p,a));
 #endif
     }
+#endif
 #endif
 
 /**********************************************************************\
