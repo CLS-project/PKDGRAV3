@@ -512,6 +512,7 @@ inline float hadd(vec<__m256,float> const &a) {
     __m128 t3 = _mm256_extractf128_ps(t2,1);
     return _mm_cvtss_f32(_mm_add_ss(_mm256_castps256_ps128(t2),t3));
     }
+inline vec<__m256,float> blend(vec<__m256,float> const &a,vec<__m256,float> const &b,vec<__m256,float> const &p) { return _mm256_blendv_ps(a,b,p); }
 inline int movemask(vec<__m256,float> const &r2) { return _mm256_movemask_ps(r2); }
 inline vec<__m256,float> sqrt(vec<__m256,float> const &r2) { return _mm256_sqrt_ps(r2); }
 inline vec<__m256,float> rsqrt(vec<__m256,float> const &r2) {
@@ -546,7 +547,7 @@ inline vec<__m256d,double> operator>=(vec<__m256d,double> const &a,vec<__m256d,d
 inline vec<__m256d,double> operator<=(vec<__m256d,double> const &a,vec<__m256d,double> const &b) { return _mm256_cmp_pd(a,b,_CMP_LE_OQ); }
 inline vec<__m256d,double> operator&(vec<__m256d,double> const &a,vec<__m256d,double> const &b) { return _mm256_and_pd(a,b); }
 inline vec<__m256d,double> operator|(vec<__m256d,double> const &a,vec<__m256d,double> const &b) { return _mm256_or_pd(a,b); }
-
+inline vec<__m256d,double> blend(vec<__m256d,double> const &a,vec<__m256d,double> const &b,vec<__m256d,double> const &p) { return _mm256_blendv_pd(a,b,p); }
 inline int movemask(vec<__m256d,double> const &r2) { return _mm256_movemask_pd(r2); }
 inline vec<__m256d,double> sqrt(vec<__m256d,double> const &r2) { return _mm256_sqrt_pd(r2); }
 inline vec<__m256d,double> rsqrt(vec<__m256d,double> const &r2) {
@@ -597,6 +598,13 @@ inline vec<__m128,float> rsqrt(vec<__m128,float> const &r2) {
     vec<__m128,float> r = _mm_rsqrt_ps(r2); /* Approximation */
     return r*(1.5 - 0.5*r*r*r2); /* Newton step correction */
     }
+inline vec<__m128,float> blend(vec<__m128,float> const &a,vec<__m128,float> const &b,vec<__m128,float> const &p) {
+#ifdef __SSE4_1__
+    return _mm_blendv_ps(a,b,p);
+#else
+    return _mm_or_ps(_mm_and_ps(p,b),_mm_andnot_ps(p,a));
+#endif
+    }
 #endif
 
 #if defined(__SSE2__)
@@ -638,6 +646,13 @@ inline vec<__m128d,double> rsqrt(vec<__m128d,double> const &r2) {
     r = r*(1.5 - 0.5*r*r*r2); /* Newton step correction */
     return r*(1.5 - 0.5*r*r*r2); /* Newton step correction */
     }
+inline vec<__m128d,double> blend(vec<__m128d,double> const &a,vec<__m128d,double> const &b,vec<__m128d,double> const &p) {
+#ifdef __SSE4_1__
+    return _mm_blendv_pd(a,b,p);
+#else
+    return _mm_or_pd(_mm_and_pd(p,b),_mm_andnot_pd(p,a));
+#endif
+    }
 #endif
 
 /**********************************************************************\
@@ -670,6 +685,8 @@ typedef vec<__m128,float> fvec;
 typedef vec<__m128d,double> dvec;
 #endif
 #else
+typedef vec<float,float> fvec;
+typedef vec<double,double> dvec;
 #endif
 #endif
 
