@@ -455,4 +455,222 @@ static inline v_df SIMD_DRE_EXACT(v_df a) {
 #define SIMD_free free
 #endif
 
+
+#ifdef __cplusplus
+/**********************************************************************\
+* SIMD Vector class template
+\**********************************************************************/
+template<typename vtype,typename ftype>
+class vec {
+    vtype ymm;
+public:
+    vec() {}
+    vec(const ftype &d);
+    vec(vtype const &d) { ymm = d; }
+    operator vtype() const { return ymm; }
+    ftype operator [] (uint32_t idx) const;
+    vec & zero();
+    vec & load1(ftype f);
+    vec & load(ftype *f);
+    const vec & store(ftype *f) const;
+    static int width() { return sizeof(vtype)/sizeof(ftype); }
+    static int mask()  { width()-1; }
+    };
+
+#if defined(__AVX__)
+/**********************************************************************\
+* AVX single precision
+\**********************************************************************/
+
+inline vec<__m256,float>::vec(const float &d) { ymm = _mm256_set1_ps(d); }
+inline vec<__m256,float> & vec<__m256,float>::zero() { ymm = _mm256_setzero_ps(); return *this; }
+inline vec<__m256,float> & vec<__m256,float>::load1(float f) { ymm = _mm256_setr_ps(f,0,0,0,0,0,0,0); return *this; }
+inline vec<__m256,float> & vec<__m256,float>::load(float *pf) { ymm = _mm256_loadu_ps(pf); return *this; }
+inline const vec<__m256,float> & vec<__m256,float>::store(float *pf) const { _mm256_storeu_ps(pf,ymm); return *this; }
+inline vec<__m256,float> operator-(vec<__m256,float> const &a) {
+    return _mm256_xor_ps(a,_mm256_castsi256_ps(_mm256_set1_epi32(0x80000000)));
+    }
+
+inline vec<__m256,float> min(vec<__m256,float> const &a,vec<__m256,float> const &b) { return _mm256_min_ps(a,b); }
+inline vec<__m256,float> max(vec<__m256,float> const &a,vec<__m256,float> const &b) { return _mm256_max_ps(a,b); }
+inline vec<__m256,float> cmp(vec<__m256,float> const &a,vec<__m256,float> const &b, const int imm8) { return _mm256_cmp_ps(a,b,imm8); }
+inline vec<__m256,float> operator*(vec<__m256,float> const &a,vec<__m256,float> const &b) { return _mm256_mul_ps(a,b); }
+inline vec<__m256,float> operator/(vec<__m256,float> const &a,vec<__m256,float> const &b) { return _mm256_div_ps(a,b); }
+inline vec<__m256,float> operator+(vec<__m256,float> const &a,vec<__m256,float> const &b) { return _mm256_add_ps(a,b); }
+inline vec<__m256,float> operator-(vec<__m256,float> const &a,vec<__m256,float> const &b) { return _mm256_sub_ps(a,b); }
+inline vec<__m256,float> operator==(vec<__m256,float> const &a,vec<__m256,float> const &b) { return _mm256_cmp_ps(a,b,_CMP_EQ_OQ); }
+inline vec<__m256,float> operator!=(vec<__m256,float> const &a,vec<__m256,float> const &b) { return _mm256_cmp_ps(a,b,_CMP_NEQ_OQ); }
+inline vec<__m256,float> operator>(vec<__m256,float> const &a,vec<__m256,float> const &b) { return _mm256_cmp_ps(a,b,_CMP_GT_OQ); }
+inline vec<__m256,float> operator<(vec<__m256,float> const &a,vec<__m256,float> const &b) { return _mm256_cmp_ps(a,b,_CMP_LT_OQ); }
+inline vec<__m256,float> operator>=(vec<__m256,float> const &a,vec<__m256,float> const &b) { return _mm256_cmp_ps(a,b,_CMP_GE_OQ); }
+inline vec<__m256,float> operator<=(vec<__m256,float> const &a,vec<__m256,float> const &b) { return _mm256_cmp_ps(a,b,_CMP_LE_OQ); }
+inline vec<__m256,float> operator&(vec<__m256,float> const &a,vec<__m256,float> const &b) { return _mm256_and_ps(a,b); }
+inline vec<__m256,float> operator|(vec<__m256,float> const &a,vec<__m256,float> const &b) { return _mm256_or_ps(a,b); }
+inline float hadd(vec<__m256,float> const &a) {
+    __m256 t1 = _mm256_hadd_ps(a,a);
+    __m256 t2 = _mm256_hadd_ps(t1,t1);
+    __m128 t3 = _mm256_extractf128_ps(t2,1);
+    return _mm_cvtss_f32(_mm_add_ss(_mm256_castps256_ps128(t2),t3));
+    }
+inline int movemask(vec<__m256,float> const &r2) { return _mm256_movemask_ps(r2); }
+inline vec<__m256,float> sqrt(vec<__m256,float> const &r2) { return _mm256_sqrt_ps(r2); }
+inline vec<__m256,float> rsqrt(vec<__m256,float> const &r2) {
+    vec<__m256,float> r = _mm256_rsqrt_ps(r2); /* Approximation */
+    return r*(1.5 - 0.5*r*r*r2); /* Newton step correction */
+    }
+
+/**********************************************************************\
+* AVX double precision
+\**********************************************************************/
+
+inline vec<__m256d,double>::vec(const double &d) { ymm = _mm256_set1_pd(d); }
+inline vec<__m256d,double> & vec<__m256d,double>::zero() { ymm = _mm256_setzero_pd(); return *this; }
+inline vec<__m256d,double> & vec<__m256d,double>::load1(double f) { ymm = _mm256_setr_pd(f,0,0,0); return *this; }
+inline vec<__m256d,double> & vec<__m256d,double>::load(double *pf) { ymm = _mm256_loadu_pd(pf); return *this; }
+inline const vec<__m256d,double> & vec<__m256d,double>::store(double *pf) const { _mm256_storeu_pd(pf,ymm); return *this; }
+inline vec<__m256d,double>  operator-(vec<__m256d,double> const &a) {
+    return _mm256_xor_pd(a,_mm256_castsi256_pd(_mm256_set1_epi64x(0x8000000000000000)));
+    }
+inline vec<__m256d,double> min(vec<__m256d,double> const &a,vec<__m256d,double> const &b) { return _mm256_min_pd(a,b); }
+inline vec<__m256d,double> max(vec<__m256d,double> const &a,vec<__m256d,double> const &b) { return _mm256_max_pd(a,b); }
+inline vec<__m256d,double> cmp(vec<__m256d,double> const &a,vec<__m256d,double> const &b, const int imm8) { return _mm256_cmp_pd(a,b,imm8); }
+inline vec<__m256d,double> operator*(vec<__m256d,double> const &a,vec<__m256d,double> const &b) { return _mm256_mul_pd(a,b); }
+inline vec<__m256d,double> operator/(vec<__m256d,double> const &a,vec<__m256d,double> const &b) { return _mm256_div_pd(a,b); }
+inline vec<__m256d,double> operator+(vec<__m256d,double> const &a,vec<__m256d,double> const &b) { return _mm256_add_pd(a,b); }
+inline vec<__m256d,double> operator-(vec<__m256d,double> const &a,vec<__m256d,double> const &b) { return _mm256_sub_pd(a,b); }
+inline vec<__m256d,double> operator==(vec<__m256d,double> const &a,vec<__m256d,double> const &b) { return _mm256_cmp_pd(a,b,_CMP_EQ_OQ); }
+inline vec<__m256d,double> operator!=(vec<__m256d,double> const &a,vec<__m256d,double> const &b) { return _mm256_cmp_pd(a,b,_CMP_NEQ_OQ); }
+inline vec<__m256d,double> operator>(vec<__m256d,double> const &a,vec<__m256d,double> const &b) { return _mm256_cmp_pd(a,b,_CMP_GT_OQ); }
+inline vec<__m256d,double> operator<(vec<__m256d,double> const &a,vec<__m256d,double> const &b) { return _mm256_cmp_pd(a,b,_CMP_LT_OQ); }
+inline vec<__m256d,double> operator>=(vec<__m256d,double> const &a,vec<__m256d,double> const &b) { return _mm256_cmp_pd(a,b,_CMP_GE_OQ); }
+inline vec<__m256d,double> operator<=(vec<__m256d,double> const &a,vec<__m256d,double> const &b) { return _mm256_cmp_pd(a,b,_CMP_LE_OQ); }
+inline vec<__m256d,double> operator&(vec<__m256d,double> const &a,vec<__m256d,double> const &b) { return _mm256_and_pd(a,b); }
+inline vec<__m256d,double> operator|(vec<__m256d,double> const &a,vec<__m256d,double> const &b) { return _mm256_or_pd(a,b); }
+
+inline int movemask(vec<__m256d,double> const &r2) { return _mm256_movemask_pd(r2); }
+inline vec<__m256d,double> sqrt(vec<__m256d,double> const &r2) { return _mm256_sqrt_pd(r2); }
+inline vec<__m256d,double> rsqrt(vec<__m256d,double> const &r2) {
+    vec<__m256d,double> r = _mm256_cvtps_pd(_mm_rsqrt_ps(_mm256_cvtpd_ps(r2))); /* Approximation */
+    r = r*(1.5 - 0.5*r*r*r2); /* Newton step correction */
+    return r*(1.5 - 0.5*r*r*r2); /* Newton step correction */
+    }
+#endif
+
+#if defined(__SSE__)
+
+/**********************************************************************\
+* SSE single precision
+\**********************************************************************/
+
+inline vec<__m128,float>::vec(const float &d) { ymm = _mm_set1_ps(d); }
+inline vec<__m128,float> & vec<__m128,float>::zero() { ymm = _mm_setzero_ps(); return *this; }
+inline vec<__m128,float> & vec<__m128,float>::load1(float f) { ymm = _mm_setr_ps(f,0,0,0); return *this; }
+inline vec<__m128,float> & vec<__m128,float>::load(float *pf) { ymm = _mm_loadu_ps(pf); return *this; }
+inline const vec<__m128,float> & vec<__m128,float>::store(float *pf) const { _mm_storeu_ps(pf,ymm); return *this; }
+inline vec<__m128,float> operator-(vec<__m128,float> const &a) {
+    return _mm_xor_ps(a,_mm_castsi128_ps(_mm_set1_epi32(0x80000000)));
+    }
+inline vec<__m128,float> min(vec<__m128,float> const &a,vec<__m128,float> const &b) { return _mm_min_ps(a,b); }
+inline vec<__m128,float> max(vec<__m128,float> const &a,vec<__m128,float> const &b) { return _mm_max_ps(a,b); }
+inline vec<__m128,float> operator*(vec<__m128,float> const &a,vec<__m128,float> const &b) { return _mm_mul_ps(a,b); }
+inline vec<__m128,float> operator/(vec<__m128,float> const &a,vec<__m128,float> const &b) { return _mm_div_ps(a,b); }
+inline vec<__m128,float> operator+(vec<__m128,float> const &a,vec<__m128,float> const &b) { return _mm_add_ps(a,b); }
+inline vec<__m128,float> operator-(vec<__m128,float> const &a,vec<__m128,float> const &b) { return _mm_sub_ps(a,b); }
+inline vec<__m128,float> operator==(vec<__m128,float> const &a,vec<__m128,float> const &b) { return _mm_cmpeq_ps(a,b); }
+inline vec<__m128,float> operator!=(vec<__m128,float> const &a,vec<__m128,float> const &b) { return _mm_cmpneq_ps(a,b); }
+inline vec<__m128,float> operator>(vec<__m128,float> const &a,vec<__m128,float> const &b) { return _mm_cmpgt_ps(a,b); }
+inline vec<__m128,float> operator<(vec<__m128,float> const &a,vec<__m128,float> const &b) { return _mm_cmplt_ps(a,b); }
+inline vec<__m128,float> operator>=(vec<__m128,float> const &a,vec<__m128,float> const &b) { return _mm_cmpge_ps(a,b); }
+inline vec<__m128,float> operator<=(vec<__m128,float> const &a,vec<__m128,float> const &b) { return _mm_cmple_ps(a,b); }
+inline vec<__m128,float> operator&(vec<__m128,float> const &a,vec<__m128,float> const &b) { return _mm_and_ps(a,b); }
+inline vec<__m128,float> operator|(vec<__m128,float> const &a,vec<__m128,float> const &b) { return _mm_or_ps(a,b); }
+#if defined(__SSE3__)
+inline float hadd(vec<__m128,float> const &a) {
+    __m128 t1 = _mm_hadd_ps(a,a);
+    __m128 t2 = _mm_hadd_ps(t1,t1);
+    return _mm_cvtss_f32(t2);
+    }
+#endif
+inline int movemask(vec<__m128,float> const &r2) { return _mm_movemask_ps(r2); }
+inline vec<__m128,float> sqrt(vec<__m128,float> const &r2) { return _mm_sqrt_ps(r2); }
+inline vec<__m128,float> rsqrt(vec<__m128,float> const &r2) {
+    vec<__m128,float> r = _mm_rsqrt_ps(r2); /* Approximation */
+    return r*(1.5 - 0.5*r*r*r2); /* Newton step correction */
+    }
+#endif
+
+#if defined(__SSE2__)
+/**********************************************************************\
+* SSE double precision
+\**********************************************************************/
+
+inline vec<__m128d,double>::vec(const double &d) { ymm = _mm_set1_pd(d); }
+inline vec<__m128d,double> & vec<__m128d,double>::zero() { ymm = _mm_setzero_pd(); return *this; }
+inline vec<__m128d,double> & vec<__m128d,double>::load1(double f) { ymm = _mm_setr_pd(f,0); return *this; }
+inline vec<__m128d,double> & vec<__m128d,double>::load(double *pf) { ymm = _mm_loadu_pd(pf); return *this; }
+inline const vec<__m128d,double> & vec<__m128d,double>::store(double *pf) const { _mm_storeu_pd(pf,ymm); return *this; }
+inline vec<__m128d,double>  operator-(vec<__m128d,double> const &a) {
+    return _mm_xor_pd(a,_mm_castsi128_pd(_mm_set1_epi64x(0x8000000000000000)));
+    }
+inline vec<__m128d,double> min(vec<__m128d,double> const &a,vec<__m128d,double> const &b) { return _mm_min_pd(a,b); }
+inline vec<__m128d,double> max(vec<__m128d,double> const &a,vec<__m128d,double> const &b) { return _mm_max_pd(a,b); }
+inline vec<__m128d,double> operator*(vec<__m128d,double> const &a,vec<__m128d,double> const &b) { return _mm_mul_pd(a,b); }
+inline vec<__m128d,double> operator/(vec<__m128d,double> const &a,vec<__m128d,double> const &b) { return _mm_div_pd(a,b); }
+inline vec<__m128d,double> operator+(vec<__m128d,double> const &a,vec<__m128d,double> const &b) { return _mm_add_pd(a,b); }
+inline vec<__m128d,double> operator-(vec<__m128d,double> const &a,vec<__m128d,double> const &b) { return _mm_sub_pd(a,b); }
+inline vec<__m128d,double> operator==(vec<__m128d,double> const &a,vec<__m128d,double> const &b) { return _mm_cmpeq_pd(a,b); }
+inline vec<__m128d,double> operator!=(vec<__m128d,double> const &a,vec<__m128d,double> const &b) { return _mm_cmpneq_pd(a,b); }
+inline vec<__m128d,double> operator>(vec<__m128d,double> const &a,vec<__m128d,double> const &b) { return _mm_cmpgt_pd(a,b); }
+inline vec<__m128d,double> operator<(vec<__m128d,double> const &a,vec<__m128d,double> const &b) { return _mm_cmplt_pd(a,b); }
+inline vec<__m128d,double> operator>=(vec<__m128d,double> const &a,vec<__m128d,double> const &b) { return _mm_cmpge_pd(a,b); }
+inline vec<__m128d,double> operator<=(vec<__m128d,double> const &a,vec<__m128d,double> const &b) { return _mm_cmple_pd(a,b); }
+inline vec<__m128d,double> operator&(vec<__m128d,double> const &a,vec<__m128d,double> const &b) { return _mm_and_pd(a,b); }
+inline vec<__m128d,double> operator|(vec<__m128d,double> const &a,vec<__m128d,double> const &b) { return _mm_or_pd(a,b); }
+#if defined(__SSE3__)
+inline double hadd(vec<__m128d,double> const &a) {
+    return _mm_cvtsd_f64(_mm_hadd_pd(a,a));
+    }
+#endif
+inline int movemask(vec<__m128d,double> const &r2) { return _mm_movemask_pd(r2); }
+inline vec<__m128d,double> sqrt(vec<__m128d,double> const &r2) { return _mm_sqrt_pd(r2); }
+inline vec<__m128d,double> rsqrt(vec<__m128d,double> const &r2) {
+    vec<__m128d,double> r = _mm_cvtps_pd(_mm_rsqrt_ps(_mm_cvtpd_ps(r2))); /* Approximation */
+    r = r*(1.5 - 0.5*r*r*r2); /* Newton step correction */
+    return r*(1.5 - 0.5*r*r*r2); /* Newton step correction */
+    }
+#endif
+
+/**********************************************************************\
+* Generic Operators
+\**********************************************************************/
+
+template<typename v,typename ftype> inline vec<v,ftype> & operator+=(vec<v,ftype> &a,vec<v,ftype> const &b) { return a = a + b; }
+template<typename v,typename ftype> inline vec<v,ftype> & operator+=(vec<v,ftype> &a,ftype const &b) { return a = a + b; }
+template<typename v,typename ftype> inline vec<v,ftype> & operator-=(vec<v,ftype> &a,vec<v,ftype> const &b) { return a = a - b; }
+template<typename v,typename ftype> inline vec<v,ftype> & operator-=(vec<v,ftype> &a,ftype const &b) { return a = a - b; }
+template<typename v,typename ftype> inline vec<v,ftype> & operator*=(vec<v,ftype> &a,vec<v,ftype> const &b) { return a = a * b; }
+template<typename v,typename ftype> inline vec<v,ftype> & operator*=(vec<v,ftype> &a,ftype const &b) { return a = a * b; }
+template<typename v,typename ftype> inline vec<v,ftype> & operator/=(vec<v,ftype> &a,vec<v,ftype> const &b) { return a = a / b; }
+template<typename v,typename ftype> inline vec<v,ftype> & operator/=(vec<v,ftype> &a,ftype const &b) { return a = a / b; }
+template<typename v,typename ftype> inline vec<v,ftype> & operator&=(vec<v,ftype> &a,vec<v,ftype> const &b) { return a = a & b; }
+template<typename v,typename ftype> inline vec<v,ftype> & operator&=(vec<v,ftype> &a,ftype const &b) { return a = a & b; }
+template<typename v,typename ftype> inline vec<v,ftype> & operator|=(vec<v,ftype> &a,vec<v,ftype> const &b) { return a = a | b; }
+template<typename v,typename ftype> inline vec<v,ftype> & operator|=(vec<v,ftype> &a,ftype const &b) { return a = a | b; }
+template<typename v,typename ftype> inline ftype vec<v,ftype>::operator [] (uint32_t idx) const {
+    ftype d[width()];
+    store(d);
+    return d[idx];
+    }
+#if defined(__AVX__)
+typedef vec<__m256,float> fvec;
+typedef vec<__m256d,double> dvec;
+#elif defined(__SSE__)
+typedef vec<__m128,float> fvec;
+#if defined(__SSE2__)
+typedef vec<__m128d,double> dvec;
+#endif
+#else
+#endif
+#endif
+
 #endif

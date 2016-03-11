@@ -6,56 +6,7 @@
 #include <immintrin.h>
 #include "ilc.h"
 
-/******************************************************************************/
-class fvec {
-    __m256 ymm;
-public:
-    fvec() {}
-    fvec(float d) { ymm = _mm256_set1_ps(d); }
-    fvec(__m256 const &d) { ymm = d; }
-    operator __m256() const { return ymm; }
-    fvec & zero() { ymm = _mm256_setzero_ps(); return *this; }
-    fvec & load1(float f) {
-	ymm = _mm256_setr_ps(f,0,0,0,0,0,0,0);
-	return *this;
-	}
-    };
-static inline fvec operator-(fvec const &a) {
-    static const union {
-	uint32_t i[8];
-	__m256 f;
-	} p = {{0x80000000,0x80000000,0x80000000,0x80000000,0x80000000,0x80000000,0x80000000,0x80000000}};
-    return _mm256_xor_ps(a,p.f);
-    }
-static inline fvec operator*(fvec const &a,fvec const &b) { return _mm256_mul_ps(a,b); }
-static inline fvec operator/(fvec const &a,fvec const &b) { return _mm256_div_ps(a,b); }
-static inline fvec operator+(fvec const &a,fvec const &b) { return _mm256_add_ps(a,b); }
-static inline fvec operator-(fvec const &a,fvec const &b) { return _mm256_sub_ps(a,b); }
-static inline fvec operator>(fvec const &a,fvec const &b) { return _mm256_cmp_ps(a,b,_CMP_GT_OQ); }
-static inline fvec operator<(fvec const &a,fvec const &b) { return _mm256_cmp_ps(a,b,_CMP_LT_OQ); }
-static inline fvec operator&(fvec const &a,fvec const &b) { return _mm256_and_ps(a,b); }
-static inline fvec operator|(fvec const &a,fvec const &b) { return _mm256_or_ps(a,b); }
-static inline fvec & operator+=(fvec &a,fvec const &b) { return a = a + b; }
-static inline fvec & operator-=(fvec &a,fvec const &b) { return a = a - b; }
-static inline fvec & operator*=(fvec &a,fvec const &b) { return a = a * b; }
-static inline fvec & operator/=(fvec &a,fvec const &b) { return a = a / b; }
-static inline fvec & operator&=(fvec &a,fvec const &b) { return a = a & b; }
-static inline fvec & operator|=(fvec &a,fvec const &b) { return a = a | b; }
-
-
-static inline float hadd(fvec const &a) {
-    __m256 t1 = _mm256_hadd_ps(a,a);
-    __m256 t2 = _mm256_hadd_ps(t1,t1);
-    __m128 t3 = _mm256_extractf128_ps(t2,1);
-    return _mm_cvtss_f32(_mm_add_ss(_mm256_castps256_ps128(t2),t3));
-    }
-
-static inline fvec rsqrt(fvec const &r2) {
-    fvec r = _mm256_rsqrt_ps(r2); /* Approximation */
-    return r*(1.5 - 0.5*r*r*r2); /* Newton step correction */
-    }
-
-/******************************************************************************/
+#include "simd.h"
 
 extern "C"
 double momFlocrSetVFmomr5cm(FLOCR *l,float v1,ILC ill,const float *a,float *pfdirLsum, float *pfnormLsum) {
@@ -125,14 +76,14 @@ double momFlocrSetVFmomr5cm(FLOCR *l,float v1,ILC ill,const float *a,float *pfdi
 	int nInLast = tile->lstTile.nInLast;
 	int nLeft;
 	int j;
-	for( j = nInLast; j&SIMD_MASK; j++) {
+	for( j = nInLast; j&fvec::mask(); j++) {
 	    blk[nBlocks].dx.f[j] = blk[nBlocks].dy.f[j] = blk[nBlocks].dz.f[j] = 1e18f;
 	    blk[nBlocks].m.f[j] = 0.0f;
 	    blk[nBlocks].u.f[j] = 0.0f;
 	    }
 
 	for( nLeft=nBlocks; nLeft >= 0; --nLeft,++blk ) {
-	    int n = ((nLeft ? ILC_PART_PER_BLK : nInLast) + SIMD_MASK) >> SIMD_BITS;
+	    int n = ((nLeft ? ILC_PART_PER_BLK : nInLast) + fvec::mask()) / fvec::width();
 	    for (j=0; j<n; ++j) {
 		fvec
 		    x = blk->dx.p[j],
