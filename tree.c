@@ -47,17 +47,9 @@ uint32_t pkdDistribTopTree(PKD pkd, uint32_t uRoot, uint32_t nTop, KDN *pTop) {
 
 static KDN *InitializeRootCommon(PKD pkd,uint32_t uRoot) {
     KDN *pRoot = pkdTreeNode(pkd,uRoot);
-//    BND *bnd;
-//    int j;
-
     pRoot->bTopTree = 0;
     pRoot->bRemote = 0;
-    *pkdNodeBnd(pkd, pRoot) = pkd->bnd;
-//    for (j=0;j<3;++j) {
-//	bnd->fCenter[j] = pkd->bnd.fCenter[j];
-//	bnd->fMax[j] = pkd->bnd.fMax[j];
-//	}
-
+    pkdNodeSetBnd(pkd, pRoot, &pkd->bnd);
     return pRoot;
     }
 
@@ -187,7 +179,7 @@ static int PartPart(PKD pkd,int pLower,int pUpper,int d,pos_t Split) {
 void BuildTemp(PKD pkd,int iNode,int M,double dMaxMax) {
     PARTICLE *pi, *pj;
     KDN *pNode = pkdTreeNode(pkd,iNode);
-    BND *bnd,*lbnd,*rbnd;
+    BND bnd,lbnd,rbnd;
     KDN *pLeft, *pRight;
     double lrMax;
     pos_t Split; /* Integer or double */
@@ -214,23 +206,23 @@ void BuildTemp(PKD pkd,int iNode,int M,double dMaxMax) {
     S = CAST(int*,malloc(ns*sizeof(int)));
     assert(S != NULL);
 
-    bnd = pkdNodeBnd(pkd,pNode);
-    assert( bnd->fMax[0] > 0.0 ||
-	    bnd->fMax[1] > 0.0 ||
-	    bnd->fMax[2] > 0.0 );
+    bnd = pkdNodeGetBnd(pkd,pNode);
+    assert( bnd.fMax[0] > 0.0 ||
+	    bnd.fMax[1] > 0.0 ||
+	    bnd.fMax[2] > 0.0 );
     while (1) {
 	/*
 	** Begin new stage!
 	** Calculate the appropriate fSplit.
 	** Pick longest dimension and split it in half.
 	*/
-	if (bnd->fMax[0] < bnd->fMax[1]) {
-	    if (bnd->fMax[1] < bnd->fMax[2]) d = 2;
+	if (bnd.fMax[0] < bnd.fMax[1]) {
+	    if (bnd.fMax[1] < bnd.fMax[2]) d = 2;
 	    else d = 1;
 	    }
-	else if (bnd->fMax[0] < bnd->fMax[2]) d = 2;
+	else if (bnd.fMax[0] < bnd.fMax[2]) d = 2;
 	else d = 0;
-	Split = pkdDblToPos(pkd,bnd->fCenter[d]);
+	Split = pkdDblToPos(pkd,bnd.fCenter[d]);
 	pNode->iSplitDim = d;
 	/*
 	** Now start the partitioning of the particles about
@@ -262,27 +254,27 @@ void BuildTemp(PKD pkd,int iNode,int M,double dMaxMax) {
 	    pRight->iSplitDim = 3;
 	    pNode->iLower = iLeft;
 
-            lbnd = pkdNodeBnd(pkd, pLeft);
-            rbnd = pkdNodeBnd(pkd, pRight);
-
 	    /*
 	    ** Now deal with the bounds.
 	    */
 	    lrMax = 0.0;
 	    for (j=0;j<3;++j) {
 		if (j == d) {
-		    rbnd->fMax[j] = lbnd->fMax[j] = 0.5*bnd->fMax[j];
-		    lbnd->fCenter[j] = bnd->fCenter[j] - lbnd->fMax[j];
-		    rbnd->fCenter[j] = bnd->fCenter[j] + rbnd->fMax[j];
+		    rbnd.fMax[j] = lbnd.fMax[j] = 0.5*bnd.fMax[j];
+		    lbnd.fCenter[j] = bnd.fCenter[j] - lbnd.fMax[j];
+		    rbnd.fCenter[j] = bnd.fCenter[j] + rbnd.fMax[j];
 		    }
 		else {
-		    lbnd->fCenter[j] = bnd->fCenter[j];
-		    lbnd->fMax[j] = bnd->fMax[j];
-		    rbnd->fCenter[j] = bnd->fCenter[j];
-		    rbnd->fMax[j] = bnd->fMax[j];
+		    lbnd.fCenter[j] = bnd.fCenter[j];
+		    lbnd.fMax[j] = bnd.fMax[j];
+		    rbnd.fCenter[j] = bnd.fCenter[j];
+		    rbnd.fMax[j] = bnd.fMax[j];
 		    }
-		if (rbnd->fMax[j] > lrMax) lrMax = rbnd->fMax[j];
+		if (rbnd.fMax[j] > lrMax) lrMax = rbnd.fMax[j];
 		}
+            pkdNodeSetBnd(pkd, pLeft, &lbnd);
+            pkdNodeSetBnd(pkd, pRight, &rbnd);
+
 	    /*
 	    ** Now figure out which subfile to process next.
 	    */
@@ -343,12 +335,13 @@ void BuildTemp(PKD pkd,int iNode,int M,double dMaxMax) {
 	    /*
 	    ** No nodes allocated, Change the bounds if needed!
 	    */
-	    if (d >= 0 && d < 3) bnd->fMax[d] *= 0.5;
+	    if (d >= 0 && d < 3) bnd.fMax[d] *= 0.5;
 	    lrMax = 0.0;
 	    for(j=0; j<3; ++j)
-		if (bnd->fMax[j] > lrMax) lrMax = bnd->fMax[j];
+		if (bnd.fMax[j] > lrMax) lrMax = bnd.fMax[j];
 	    if (nl > 0) {
-		if (d >= 0 && d < 3) bnd->fCenter[d] -= bnd->fMax[d];
+		if (d >= 0 && d < 3) bnd.fCenter[d] -= bnd.fMax[d];
+		pkdNodeSetBnd(pkd, pNode, &bnd);
 		lc = (lrMax>dMaxMax || nl > M); /* this condition means the node is not a bucket */
 		if (!lc) {
 		    pNode->iLower = 0;
@@ -358,7 +351,8 @@ void BuildTemp(PKD pkd,int iNode,int M,double dMaxMax) {
 		    }
 		}
 	    else {
-		if (d >= 0 && d < 3) bnd->fCenter[d] += bnd->fMax[d];
+		if (d >= 0 && d < 3) bnd.fCenter[d] += bnd.fMax[d];
+		pkdNodeSetBnd(pkd, pNode, &bnd);
 		rc = (lrMax>dMaxMax || nr > M);
 		if (!rc) {
 		    pNode->iLower = 0;
@@ -369,7 +363,7 @@ void BuildTemp(PKD pkd,int iNode,int M,double dMaxMax) {
 		}
 	    }
 	pNode = pkdTreeNode(pkd,iNode);
-        bnd = pkdNodeBnd(pkd, pNode);
+        bnd = pkdNodeGetBnd(pkd, pNode);
 	}
     free(S);
     }
@@ -388,12 +382,12 @@ void BuildFromTemplate(PKD pkd,int iNode,int M,int iTemplate) {
 
     // The tree we are building
     KDN *pNode, *pLeft, *pRight;
-    BND *bnd, *lbnd, *rbnd; 
+    BND bnd, lbnd, rbnd; 
     int iLeft, iRight;
 
     // The "template" tree
     KDN *pTemp, *ptLeft, *ptRight;
-    BND *tbnd, *ltbnd, *rtbnd;
+    BND tbnd, ltbnd, rtbnd;
 
     double dSplit;
     pos_t Split;
@@ -429,7 +423,7 @@ void BuildFromTemplate(PKD pkd,int iNode,int M,int iTemplate) {
 	pTemp = S[s].pTemp;
 	iNode = S[s].iNode;
 
-	bnd = pkdNodeBnd(pkd,pNode = pkdTreeNode(pkd,iNode));
+	bnd = pkdNodeGetBnd(pkd,pNode = pkdTreeNode(pkd,iNode));
 
 	// Follow the template tree to wherever it leads.
 	while(pTemp->iLower) {
@@ -437,10 +431,10 @@ void BuildFromTemplate(PKD pkd,int iNode,int M,int iTemplate) {
 	    if (pTemp->iDepth != pNode->iDepth || d>2) break;
 
 	    // Split is between left and right child nodes in the given dimension
-	    ltbnd = pkdNodeBnd(pkd, ptLeft=pkdTreeNode(pkd,pTemp->iLower));
-	    rtbnd = pkdNodeBnd(pkd, ptRight=pkdTreeNode(pkd,pTemp->iLower+1));
-	    assert(ltbnd->fCenter[d] < rtbnd->fCenter[d]);
-	    dSplit = 0.5 * (ltbnd->fCenter[d] + ltbnd->fMax[d] + rtbnd->fCenter[d] - rtbnd->fMax[d]);
+	    ltbnd = pkdNodeGetBnd(pkd, ptLeft=pkdTreeNode(pkd,pTemp->iLower));
+	    rtbnd = pkdNodeGetBnd(pkd, ptRight=pkdTreeNode(pkd,pTemp->iLower+1));
+	    assert(ltbnd.fCenter[d] < rtbnd.fCenter[d]);
+	    dSplit = 0.5 * (ltbnd.fCenter[d] + ltbnd.fMax[d] + rtbnd.fCenter[d] - rtbnd.fMax[d]);
 	    Split = pkdDblToPos(pkd,dSplit);
 
 	    // Partition the particles on either side of the split
@@ -451,17 +445,19 @@ void BuildFromTemplate(PKD pkd,int iNode,int M,int iTemplate) {
 
 	    if (nl==0) { // Particles on the right only
 		++pNode->iDepth;
-		bnd->fMax[d] = 0.5 * (bnd->fCenter[d] + bnd->fMax[d] - dSplit);
-		assert(bnd->fMax[d] > 0.0);
-		bnd->fCenter[d] = dSplit + bnd->fMax[d];
+		bnd.fMax[d] = 0.5 * (bnd.fCenter[d] + bnd.fMax[d] - dSplit);
+		assert(bnd.fMax[d] > 0.0);
+		bnd.fCenter[d] = dSplit + bnd.fMax[d];
+		pkdNodeSetBnd(pkd,pNode, &bnd);
 		pTemp = ptRight;
 		continue;
 		}
 	    else if (nr==0) { // Particles on the left only
 		++pNode->iDepth;
-		bnd->fMax[d] = 0.5 * (dSplit - (bnd->fCenter[d] - bnd->fMax[d]));
-		assert(bnd->fMax[d] > 0.0);
-		bnd->fCenter[d] = dSplit - bnd->fMax[d];
+		bnd.fMax[d] = 0.5 * (dSplit - (bnd.fCenter[d] - bnd.fMax[d]));
+		assert(bnd.fMax[d] > 0.0);
+		bnd.fCenter[d] = dSplit - bnd.fMax[d];
+		pkdNodeSetBnd(pkd,pNode, &bnd);
 		pTemp = ptLeft;
 		continue;
 		}
@@ -492,9 +488,6 @@ void BuildFromTemplate(PKD pkd,int iNode,int M,int iTemplate) {
 
 	    pNode->iLower = iLeft;
 
-	    lbnd = pkdNodeBnd(pkd, pLeft);
-	    rbnd = pkdNodeBnd(pkd, pRight);
-
 	    iNode = -1;
 	    pNode = NULL;
 
@@ -503,20 +496,22 @@ void BuildFromTemplate(PKD pkd,int iNode,int M,int iTemplate) {
 	    */
 	    for (j=0;j<3;++j) {
 		if (j == d) {
-		    rbnd->fMax[d] = 0.5 * (bnd->fCenter[d] + bnd->fMax[d] - dSplit);
-		    rbnd->fCenter[d] = dSplit + rbnd->fMax[d];
-		    lbnd->fMax[d] = 0.5 * (dSplit - (bnd->fCenter[d] - bnd->fMax[d]));
-		    lbnd->fCenter[d] = dSplit - lbnd->fMax[d];
-		    assert(rbnd->fMax[d] > 0.0);
-		    assert(lbnd->fMax[d] > 0.0);
+		    rbnd.fMax[d] = 0.5 * (bnd.fCenter[d] + bnd.fMax[d] - dSplit);
+		    rbnd.fCenter[d] = dSplit + rbnd.fMax[d];
+		    lbnd.fMax[d] = 0.5 * (dSplit - (bnd.fCenter[d] - bnd.fMax[d]));
+		    lbnd.fCenter[d] = dSplit - lbnd.fMax[d];
+		    assert(rbnd.fMax[d] > 0.0);
+		    assert(lbnd.fMax[d] > 0.0);
 		    }
 		else {
-		    lbnd->fCenter[j] = bnd->fCenter[j];
-		    lbnd->fMax[j] = bnd->fMax[j];
-		    rbnd->fCenter[j] = bnd->fCenter[j];
-		    rbnd->fMax[j] = bnd->fMax[j];
+		    lbnd.fCenter[j] = bnd.fCenter[j];
+		    lbnd.fMax[j] = bnd.fMax[j];
+		    rbnd.fCenter[j] = bnd.fCenter[j];
+		    rbnd.fMax[j] = bnd.fMax[j];
 		    }
 		}
+	    pkdNodeSetBnd(pkd, pLeft, &lbnd);
+	    pkdNodeSetBnd(pkd, pRight, &rbnd);
 
 	    // push right and continue left
 	    if ( s+1 >= ns ) {
@@ -530,7 +525,7 @@ void BuildFromTemplate(PKD pkd,int iNode,int M,int iTemplate) {
 	    pTemp = ptLeft;
 	    iNode = iLeft;
 	    pNode = pkdTreeNode(pkd,iNode);
-	    bnd = pkdNodeBnd(pkd,pNode);
+	    bnd = pkdNodeGetBnd(pkd,pNode);
 	    }
 	
 	// Bucket in the template tree: Now just build, but set a sensible maximum cell size
@@ -551,7 +546,7 @@ void Create(PKD pkd,int iRoot) {
     KDN *pkdn,*pkdl,*pkdu;
     FMOMR mom;
     SPHBNDS *bn;
-    BND *bnd;
+    BND bnd;
     double fSoft,x,y,z,ax,ay,az,ft[3],d2,d2Max,dih2,bmin,b;
     float *a, m, fMass, fBall;
     vel_t *v, vx, vy, vz;
@@ -598,12 +593,12 @@ void Create(PKD pkd,int iRoot) {
 	** bounds and iMaxRung.
 	*/
 	pkdn = pkdTreeNode(pkd,iNode);
-        bnd = pkdNodeBnd(pkd, pkdn);
+        bnd = pkdNodeGetBnd(pkd, pkdn);
 	/*
 	** Before squeezing the bounds, calculate a minimum b value based on the splitting bounds alone.
 	** This gives us a better feel for the "size" of a bucket with only a single particle.
 	*/
-	MINSIDE(bnd->fMax,bmin);
+	MINSIDE(bnd.fMax,bmin);
 	/*
 	** Now shrink wrap the bucket bounds.
 	*/
@@ -633,34 +628,35 @@ void Create(PKD pkd,int iRoot) {
 #endif
 	vdouble dout;
 	dout.p = _mm256_mul_pd(_mm256_set1_pd(0.5),_mm256_add_pd(vmax,vmin));
-	bnd->fCenter[0] = dout.d[0];
-	bnd->fCenter[1] = dout.d[1];
-	bnd->fCenter[2] = dout.d[2];
+	bnd.fCenter[0] = dout.d[0];
+	bnd.fCenter[1] = dout.d[1];
+	bnd.fCenter[2] = dout.d[2];
 	dout.p = _mm256_mul_pd(_mm256_set1_pd(0.5),_mm256_sub_pd(vmax,vmin));
-	bnd->fMax[0] = dout.d[0];
-	bnd->fMax[1] = dout.d[1];
-	bnd->fMax[2] = dout.d[2];
+	bnd.fMax[0] = dout.d[0];
+	bnd.fMax[1] = dout.d[1];
+	bnd.fMax[2] = dout.d[2];
 
 #else
 	pkdGetPos1(pkd,p,ft);
 	for (d=0;d<3;++d) {
-	    bnd->fCenter[d] = ft[d];
-	    bnd->fMax[d] = ft[d];
+	    bnd.fCenter[d] = ft[d];
+	    bnd.fMax[d] = ft[d];
 	    }
 	for (++pj;pj<=pkdn->pUpper;++pj) {
 	    p = pkdParticle(pkd,pj);
 	    pkdGetPos1(pkd,p,ft);
 	    for (d=0;d<3;++d) {
-		if (ft[d] < bnd->fCenter[d]) bnd->fCenter[d] = ft[d];
-		else if (ft[d] > bnd->fMax[d]) bnd->fMax[d] = ft[d];
+		if (ft[d] < bnd.fCenter[d]) bnd.fCenter[d] = ft[d];
+		else if (ft[d] > bnd.fMax[d]) bnd.fMax[d] = ft[d];
 		}
 	    }
 	for (d=0;d<3;++d) {
-	    ft[d] = bnd->fCenter[d];
-	    bnd->fCenter[d] = 0.5*(bnd->fMax[d] + ft[d]);
-	    bnd->fMax[d] = 0.5*(bnd->fMax[d] - ft[d]);
+	    ft[d] = bnd.fCenter[d];
+	    bnd.fCenter[d] = 0.5*(bnd.fMax[d] + ft[d]);
+	    bnd.fMax[d] = 0.5*(bnd.fMax[d] - ft[d]);
 	    }
 #endif
+        pkdNodeSetBnd(pkd, pkdn, &bnd);
 	pj = pkdn->pLower;
 	p = pkdParticle(pkd,pj);
 	a = pkd->oAcceleration ? pkdAccel(pkd,p) : zeroF;
@@ -714,7 +710,7 @@ void Create(PKD pkd,int iRoot) {
 	    ** For now set it to the center of the bounding box, but later
 	    ** we want the tightest bounding sphere here.
 	    */
-	    for (d=0;d<3;++d) pkdn->r[d] = bnd->fCenter[d];
+	    for (d=0;d<3;++d) pkdn->r[d] = bnd.fCenter[d];
 	    }
 	if (pkd->oNodeVelocity) {
 	    vel_t *pVel = pkdNodeVel(pkd,pkdn);
@@ -754,7 +750,7 @@ void Create(PKD pkd,int iRoot) {
 #endif
 	    }
 #ifdef USE_MAXSIDE
-        MAXSIDE(bnd->fMax,b);
+        MAXSIDE(bnd.fMax,b);
 #else
 	b = sqrt(d2Max);
 #endif
@@ -836,12 +832,12 @@ void Create(PKD pkd,int iRoot) {
 	    ** First find the CoM, just like for the bucket.
 	    */
 	    pkdn = pkdTreeNode(pkd,iNode);
-            bnd = pkdNodeBnd(pkd, pkdn);
+            bnd = pkdNodeGetBnd(pkd, pkdn);
 	    /*
 	    ** Before squeezing the bounds, calculate a minimum b value based on the splitting bounds alone.
 	    ** This gives us a better feel for the "size" of a bucket with only a single particle.
 	    */
-	    MINSIDE(bnd->fMax,bmin);
+	    MINSIDE(bnd.fMax,bmin);
 	    pj = pkdn->pLower;
 	    pkdl = pkdTreeNode(pkd,pkdn->iLower);
 	    pkdu = pkdTreeNode(pkd,pkdn->iLower + 1);
@@ -874,7 +870,7 @@ void Create(PKD pkd,int iRoot) {
 		** Now determine the opening radius for gravity.
 		*/
 #ifdef USE_MAXSIDE
-		MAXSIDE(bnd->fMax,b);
+		MAXSIDE(bnd.fMax,b);
 		if (b < bmin) b = bmin;
 		if (d2Max>b) b = d2Max;
 		pkdn->bMax = b;
@@ -897,12 +893,12 @@ void Create(PKD pkd,int iRoot) {
 void pkdCombineCells1(PKD pkd,KDN *pkdn,KDN *p1,KDN *p2) {
     double m1,m2,ifMass;
     int j;
-    BND *bnd, *p1bnd, *p2bnd;
+    BND bnd, p1bnd, p2bnd;
 
-    bnd = pkdNodeBnd(pkd, pkdn);
-    p1bnd = pkdNodeBnd(pkd, p1);
-    p2bnd = pkdNodeBnd(pkd, p2);
-    BND_COMBINE(bnd,p1bnd,p2bnd);
+    p1bnd = pkdNodeGetBnd(pkd, p1);
+    p2bnd = pkdNodeGetBnd(pkd, p2);
+    BND_COMBINE(&bnd,&p1bnd,&p2bnd);
+    pkdNodeSetBnd(pkd, pkdn,&bnd);
     if (pkd->oNodeMom) {
 	m1 = pkdNodeMom(pkd,p1)->m;
 	m2 = pkdNodeMom(pkd,p2)->m;
@@ -924,7 +920,7 @@ void pkdCombineCells1(PKD pkd,KDN *pkdn,KDN *p1,KDN *p2) {
 	for (j=0;j<3;++j) pkdn->r[j] = ifMass*(m1*p1->r[j] + m2*p2->r[j]);
 	}
     else {
-	for (j=0;j<3;++j) pkdn->r[j] = bnd->fCenter[j];
+	for (j=0;j<3;++j) pkdn->r[j] = bnd.fCenter[j];
 	}
     if (pkd->oNodeVelocity) {
 	for (j=0;j<3;++j)	
@@ -1065,7 +1061,7 @@ void pkdGroupOrder(PKD pkd,uint32_t *iGrpOffset) {
 void pkdTreeBuildByGroup(PKD pkd, int nBucket) {
     PARTICLE *p;
     KDN *pNode;
-    BND *bnd;
+    BND bnd;
     double r[3], dMin[3], dMax[3];
     int i,j,k,n,gid,gid2,iRoot;
     int iTree;
@@ -1144,7 +1140,7 @@ void pkdTreeBuildByGroup(PKD pkd, int nBucket) {
 	    if (gid==0) break;
 	    iRoot = pkd->hopGroups[gid].iTreeRoot;
 	    pNode = pkdTreeNode(pkd,iRoot);
-	    bnd = pkdNodeBnd(pkd, pNode);
+	    bnd = pkdNodeGetBnd(pkd, pNode);
 	    
 	    pNode->iLower = 0;
 	    assert(pNode->pLower == i);
@@ -1154,10 +1150,7 @@ void pkdTreeBuildByGroup(PKD pkd, int nBucket) {
 		pkdGetPos1(pkd,p,r);
 		pkdMinMax(r,dMin,dMax);
 		}
-	    for (j=0;j<3;++j) {
-		bnd->fCenter[j] = 0.5*(dMin[j] + dMax[j]);
-		bnd->fMax[j] = 0.5*(dMax[j] - dMin[j]);
-		}
+	    pkdNodeSetBndMinMax(pkd,pNode,dMin,dMax);
 	    assert(pNode->pUpper == i-1);
 	    }
 	/* We can use this to quickly rebuild the trees */
@@ -1170,7 +1163,6 @@ void pkdTreeBuildByGroup(PKD pkd, int nBucket) {
 	    iRoot = pkd->hopGroups[gid2].iTreeRoot;
 	    pNode = pkdTreeNode(pkd,iRoot);
 	    pNode->iLower = 0;
-	    bnd = pkdNodeBnd(pkd, pNode);
 	    n = pNode->pUpper;
 	    for(i=pNode->pLower; i<=n; ) {
 		p = pkdParticle(pkd,i);
@@ -1195,9 +1187,10 @@ void pkdTreeBuildByGroup(PKD pkd, int nBucket) {
 	    assert(k==n+1);
 	    pNode->pUpper = n;
 	    for (j=0;j<3;++j) {
-		bnd->fCenter[j] = 0.5*(dMin[j] + dMax[j]);
-		bnd->fMax[j] = 0.5*(dMax[j] - dMin[j]);
+		bnd.fCenter[j] = 0.5*(dMin[j] + dMax[j]);
+		bnd.fMax[j] = 0.5*(dMax[j] - dMin[j]);
 		}
+	    pkdNodeSetBnd(pkd, pNode, &bnd);
 	    }
 	}
 

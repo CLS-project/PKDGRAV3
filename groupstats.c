@@ -188,7 +188,7 @@ static double gatherMass(PKD pkd,remoteID *S,double fBall2,double ri2,double ro2
     double min2,max2;
     int iCell,id;
     int sp = 0;
-    const BND *bnd;
+    BND bnd;
     PARTICLE *p;
     double p_r[3];
     double dx,dy,dz,fDist2;
@@ -197,10 +197,10 @@ static double gatherMass(PKD pkd,remoteID *S,double fBall2,double ri2,double ro2
 
     kdn = getCell(pkd,iCell=pkd->iTopTree[ROOT],id = pkd->idSelf);
     while (1) {
-        bnd = pkdNodeBnd(pkd,kdn);
-	MINDIST(bnd,r,min2);
+        bnd = pkdNodeGetBnd(pkd,kdn);
+	MINDIST(&bnd,r,min2);
 	if (min2 > ri2) goto NoIntersect;
-	MAXDIST(bnd,r,max2);
+	MAXDIST(&bnd,r,max2);
 	if (max2 <= ro2) {
 	    fMass += pkdNodeMom(pkd,kdn)->m;
 	    goto NoIntersect;
@@ -266,7 +266,7 @@ static double gatherLocalMass(PKD pkd,remoteID *S,double fBall2,double ri2,doubl
     double min2,max2;
     int iCell;
     int sp = 0;
-    const BND *bnd;
+    BND bnd;
     PARTICLE *p;
     double p_r[3];
     double dx,dy,dz,fDist2;
@@ -275,10 +275,10 @@ static double gatherLocalMass(PKD pkd,remoteID *S,double fBall2,double ri2,doubl
 
     kdn = pkdTreeNode(pkd,iCell=ROOT);
     while (1) {
-        bnd = pkdNodeBnd(pkd,kdn);
-	MINDIST(bnd,r,min2);
+        bnd = pkdNodeGetBnd(pkd,kdn);
+	MINDIST(&bnd,r,min2);
 	if (min2 > ri2) goto NoIntersect;
-	MAXDIST(bnd,r,max2);
+	MAXDIST(&bnd,r,max2);
 	if (max2 <= ro2) {
 	    fMass += pkdNodeMom(pkd,kdn)->m;
 	    goto NoIntersect;

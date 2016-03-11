@@ -559,7 +559,7 @@ PQ *pqSearch(SMX smx,PQ *pq,double r[3],int iRoot) {
     double p_r[3];
     int j,iCell,id;
     int sp = 0;
-    const BND *bnd;
+    BND bnd;
     int pEnd, pj;
     PARTICLE *p;
     double dx,dy,dz,fDist2;
@@ -571,11 +571,11 @@ PQ *pqSearch(SMX smx,PQ *pq,double r[3],int iRoot) {
 	    int idLower,iLower,idUpper,iUpper;
 	    pkdGetChildCells(kdn,id,idLower,iLower,idUpper,iUpper);
 	    kdn = getCell(pkd,iLower,idLower);
-            bnd = pkdNodeBnd(pkd, kdn);
-	    MINDIST(bnd,r,min1);
+            bnd = pkdNodeGetBnd(pkd, kdn);
+	    MINDIST(&bnd,r,min1);
 	    kdn = getCell(pkd,iUpper,idUpper);
-            bnd = pkdNodeBnd(pkd, kdn);
-	    MINDIST(bnd,r,min2);
+            bnd = pkdNodeGetBnd(pkd, kdn);
+	    MINDIST(&bnd,r,min2);
 	    if (min1 < min2) {
 		if (min1 > pq->fDist2) goto NoIntersect;
 		S[sp].id = idUpper;
@@ -2349,7 +2349,7 @@ void smGather(SMX smx,double fBall2,double r[3]) {
     double min2;
     int iCell,id;
     int sp = 0;
-    const BND *bnd;
+    BND bnd;
     PARTICLE *p;
     double p_r[3];
     double dx, dy, dz, fDist2;
@@ -2358,8 +2358,8 @@ void smGather(SMX smx,double fBall2,double r[3]) {
     nCnt = smx->nnListSize;
     kdn = getCell(pkd,iCell=pkd->iTopTree[ROOT],id = idSelf);
     while (1) {
-        bnd = pkdNodeBnd(pkd, kdn);
-	MINDIST(bnd,r,min2);
+        bnd = pkdNodeGetBnd(pkd, kdn);
+	MINDIST(&bnd,r,min2);
 	if (min2 > fBall2) {
 	    goto NoIntersect;
 	}
@@ -2453,12 +2453,12 @@ void smDoGatherLocal(SMX smx,double fBall2,double r[3],void (*Do)(SMX,PARTICLE *
     int *S = smx->S;
     int sp = 0;
     int iCell,pj,pEnd;
-    const BND *bnd;
+    BND bnd;
 
     kdn = pkdTreeNode(pkd,iCell = ROOT);
     while (1) {
-        bnd = pkdNodeBnd(pkd, kdn);
-	MINDIST(bnd,r,min2);
+        bnd = pkdNodeGetBnd(pkd, kdn);
+	MINDIST(&bnd,r,min2);
 	if (min2 > fBall2) {
 	    goto NoIntersect;
 	}

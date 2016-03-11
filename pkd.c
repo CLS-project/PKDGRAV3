@@ -476,7 +476,11 @@ void pkdInitialize(
     ** Tree node memory models
     */
     if ( mMemoryModel & PKD_MODEL_NODE_BND ) {
+#ifdef INTEGER_POSITION
+        pkd->oNodeBnd  = pkdNodeAddStruct(pkd,sizeof(IBND));
+#else
         pkd->oNodeBnd  = pkdNodeAddStruct(pkd,sizeof(BND));
+#endif
     }
     else {
 	pkd->oNodeBnd  = 0;

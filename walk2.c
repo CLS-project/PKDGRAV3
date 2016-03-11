@@ -94,7 +94,7 @@ static void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin, i
     int i,iEnd,nLeft;
     CL_BLK *blk;
     v_sf iOpen,iOpenA,iOpenB;
-    const BND *kbnd;
+    BND kbnd;
     v_sf k_xCenter, k_yCenter, k_zCenter, k_xMax, k_yMax, k_zMax;
     v_sf k_xMinBnd, k_yMinBnd, k_zMinBnd, k_xMaxBnd, k_yMaxBnd, k_zMaxBnd;
     v_sf k_x, k_y, k_z, k_bMax, k_Open;
@@ -105,19 +105,19 @@ static void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin, i
 
     diCrit = SIMD_SPLAT(1.0f/dThetaMin);
 
-    kbnd = pkdNodeBnd(pkd,k);
-    k_xMinBnd = SIMD_SPLAT((float)(kbnd->fCenter[0]-kbnd->fMax[0]));
-    k_yMinBnd = SIMD_SPLAT((float)(kbnd->fCenter[1]-kbnd->fMax[1]));
-    k_zMinBnd = SIMD_SPLAT((float)(kbnd->fCenter[2]-kbnd->fMax[2]));
-    k_xMaxBnd = SIMD_SPLAT((float)(kbnd->fCenter[0]+kbnd->fMax[0]));
-    k_yMaxBnd = SIMD_SPLAT((float)(kbnd->fCenter[1]+kbnd->fMax[1]));
-    k_zMaxBnd = SIMD_SPLAT((float)(kbnd->fCenter[2]+kbnd->fMax[2]));
-    k_xCenter = SIMD_SPLAT((float)(kbnd->fCenter[0]));
-    k_yCenter = SIMD_SPLAT((float)(kbnd->fCenter[1]));
-    k_zCenter = SIMD_SPLAT((float)(kbnd->fCenter[2]));
-    k_xMax = SIMD_SPLAT((float)(kbnd->fMax[0]));
-    k_yMax = SIMD_SPLAT((float)(kbnd->fMax[1]));
-    k_zMax = SIMD_SPLAT((float)(kbnd->fMax[2]));
+    kbnd = pkdNodeGetBnd(pkd,k);
+    k_xMinBnd = SIMD_SPLAT((float)(kbnd.fCenter[0]-kbnd.fMax[0]));
+    k_yMinBnd = SIMD_SPLAT((float)(kbnd.fCenter[1]-kbnd.fMax[1]));
+    k_zMinBnd = SIMD_SPLAT((float)(kbnd.fCenter[2]-kbnd.fMax[2]));
+    k_xMaxBnd = SIMD_SPLAT((float)(kbnd.fCenter[0]+kbnd.fMax[0]));
+    k_yMaxBnd = SIMD_SPLAT((float)(kbnd.fCenter[1]+kbnd.fMax[1]));
+    k_zMaxBnd = SIMD_SPLAT((float)(kbnd.fCenter[2]+kbnd.fMax[2]));
+    k_xCenter = SIMD_SPLAT((float)(kbnd.fCenter[0]));
+    k_yCenter = SIMD_SPLAT((float)(kbnd.fCenter[1]));
+    k_zCenter = SIMD_SPLAT((float)(kbnd.fCenter[2]));
+    k_xMax = SIMD_SPLAT((float)(kbnd.fMax[0]));
+    k_yMax = SIMD_SPLAT((float)(kbnd.fMax[1]));
+    k_zMax = SIMD_SPLAT((float)(kbnd.fMax[2]));
     k_x = SIMD_SPLAT((float)(k->r[0]));
     k_y = SIMD_SPLAT((float)(k->r[1]));
     k_z = SIMD_SPLAT((float)(k->r[2]));
@@ -209,9 +209,9 @@ static void iOpenOutcomeCL(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin,int 
     int iOpen,iOpenA,iOpenB;
     CL_BLK *blk;
     int n, nLeft;
-    const BND *kbnd;
+    BND kbnd;
 
-    kbnd = pkdNodeBnd(pkd,k);
+    kbnd = pkdNodeGetBnd(pkd,k);
     nk = k->pUpper - k->pLower + 1;
     if (k->iLower==0) nk = 0;
 
@@ -230,25 +230,25 @@ static void iOpenOutcomeCL(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin,int 
 		kOpen = 1.5f * k->bMax * diCrit;
 		cOpen = blk->cOpen.f[i];
 		d2Open = pow(cOpen+kOpen,2);
-		dx = fabs(xc - kbnd->fCenter[0]) - kbnd->fMax[0];
-		dy = fabs(yc - kbnd->fCenter[1]) - kbnd->fMax[1];
-		dz = fabs(zc - kbnd->fCenter[2]) - kbnd->fMax[2];
+		dx = fabs(xc - kbnd.fCenter[0]) - kbnd.fMax[0];
+		dy = fabs(yc - kbnd.fCenter[1]) - kbnd.fMax[1];
+		dz = fabs(zc - kbnd.fCenter[2]) - kbnd.fMax[2];
 		mink2 = ((dx>0)?dx*dx:0) + ((dy>0)?dy*dy:0) + ((dz>0)?dz*dz:0);
 		minbnd2 = 0;
 
-		dx = kbnd->fCenter[0] - kbnd->fMax[0] -  blk->xCenter.f[i] - blk->xOffset.f[i] - blk->xMax.f[i];
+		dx = kbnd.fCenter[0] - kbnd.fMax[0] -  blk->xCenter.f[i] - blk->xOffset.f[i] - blk->xMax.f[i];
 		if (dx > 0) minbnd2 += dx*dx;
-		dx = blk->xCenter.f[i] + blk->xOffset.f[i] - blk->xMax.f[i] - kbnd->fCenter[0] - kbnd->fMax[0];
-		if (dx > 0) minbnd2 += dx*dx;
-
-		dx = kbnd->fCenter[1] - kbnd->fMax[1] - blk->yCenter.f[i] - blk->yOffset.f[i] - blk->yMax.f[i];
-		if (dx > 0) minbnd2 += dx*dx;
-		dx = blk->yCenter.f[i] + blk->yOffset.f[i] - blk->yMax.f[i] - kbnd->fCenter[1] - kbnd->fMax[1];
+		dx = blk->xCenter.f[i] + blk->xOffset.f[i] - blk->xMax.f[i] - kbnd.fCenter[0] - kbnd.fMax[0];
 		if (dx > 0) minbnd2 += dx*dx;
 
-		dx = kbnd->fCenter[2] - kbnd->fMax[2] - blk->zCenter.f[i] - blk->zOffset.f[i] - blk->zMax.f[i];
+		dx = kbnd.fCenter[1] - kbnd.fMax[1] - blk->yCenter.f[i] - blk->yOffset.f[i] - blk->yMax.f[i];
 		if (dx > 0) minbnd2 += dx*dx;
-		dx = blk->zCenter.f[i] + blk->zOffset.f[i] - blk->zMax.f[i] - kbnd->fCenter[2] - kbnd->fMax[2];
+		dx = blk->yCenter.f[i] + blk->yOffset.f[i] - blk->yMax.f[i] - kbnd.fCenter[1] - kbnd.fMax[1];
+		if (dx > 0) minbnd2 += dx*dx;
+
+		dx = kbnd.fCenter[2] - kbnd.fMax[2] - blk->zCenter.f[i] - blk->zOffset.f[i] - blk->zMax.f[i];
+		if (dx > 0) minbnd2 += dx*dx;
+		dx = blk->zCenter.f[i] + blk->zOffset.f[i] - blk->zMax.f[i] - kbnd.fCenter[2] - kbnd.fMax[2];
 		if (dx > 0) minbnd2 += dx*dx;
 
 		if (d2 > d2Open && minbnd2 > fourh2) iOpen = 8;
@@ -289,10 +289,10 @@ static void addChild(PKD pkd, int iCache, CL cl, int iChild, int id, float *fOff
     float cOpen;
     KDN *c;
     int nc = getCell(pkd,iCache,iChild,id,&cOpen,&c);
-    const BND *cbnd = pkdNodeBnd(pkd,c);
+    BND cbnd = pkdNodeGetBnd(pkd,c);
     pkdGetChildCells(c,id,idLower,iLower,idUpper,iUpper);
     clAppend(cl,iCache,id,iChild,idLower,iLower,idUpper,iUpper,nc,cOpen,
-	pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c->r,fOffset,cbnd->fCenter,cbnd->fMax);
+	pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c->r,fOffset,cbnd.fCenter,cbnd.fMax);
     }
 /*
 ** Returns total number of active particles for which gravity was calculated.
@@ -323,7 +323,6 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2, ui
     int iStack;
     int j,jTile,pj,nActive,nTotActive;
     float cOpen,kOpen;
-    const BND *cbnd,*kbnd;
     static const float  fZero3[] = {0.0f,0.0f,0.0f};
     static const vel_t vZero3[] = {0.0,0.0,0.0};
     int nc,nk;
@@ -718,7 +717,6 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2, ui
 	    for (j=0;j<3;++j) fOffset[j] = 0.0f;
 	    iCell = k->iLower;
 	    nk = getCell(pkd,-1,iCell,pkd->idSelf,&kOpen,&k);
-	    kbnd = pkdNodeBnd(pkd,k);
 	    /*
 	    ** Check iCell is active. We eventually want to just to a
 	    ** rung check here when we start using tree repair, but

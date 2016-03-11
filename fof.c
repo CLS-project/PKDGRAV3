@@ -31,13 +31,13 @@ uint32_t pkdFofGatherLocal(PKD pkd,int *S,double fBall2,double r[3],uint32_t iGr
     double min2,dx,dy,dz,fDist2;
     int sp = 0;
     int iCell,pj,pEnd,j;
-    const BND *bnd;
+    BND bnd;
     uint32_t iPartGroup;
 
     kdn = pkdTreeNode(pkd,iCell = ROOT);
     while (1) {
-        bnd = pkdNodeBnd(pkd, kdn);
-	MINDIST(bnd,r,min2);
+        bnd = pkdNodeGetBnd(pkd, kdn);
+	MINDIST(&bnd,r,min2);
 	if (min2 > fBall2) {
 	    goto NoIntersect;
 	    }
@@ -94,10 +94,10 @@ static void iOpenRemoteFof(PKD pkd,KDN *k,CL cl,CLTILE tile,float dTau2) {
     float dx,minbnd2,kOpen;
     CL_BLK *blk;
     int i,n,nLeft,iOpen;
-    const BND *kbnd;
+    BND kbnd;
 
-    kbnd = pkdNodeBnd(pkd,k);
-    kOpen = kbnd->fMax[0] + kbnd->fMax[1] + kbnd->fMax[2]; /* Manhatten metric */
+    kbnd = pkdNodeGetBnd(pkd,k);
+    kOpen = kbnd.fMax[0] + kbnd.fMax[1] + kbnd.fMax[2]; /* Manhatten metric */
     blk = tile->blk;
     for(nLeft=tile->lstTile.nBlocks; nLeft>=0; --nLeft,blk++) {
 	n = nLeft ? cl->lst.nPerBlock : tile->lstTile.nInLast;
@@ -105,17 +105,17 @@ static void iOpenRemoteFof(PKD pkd,KDN *k,CL cl,CLTILE tile,float dTau2) {
 	    if (blk->idCell.i[i] > pkd->idSelf) iOpen = 10;  /* ignore this cell, but this never ignores the top tree */
 	    else {
 		minbnd2 = 0;
-		dx = kbnd->fCenter[0] - kbnd->fMax[0] -  blk->xCenter.f[i] - blk->xOffset.f[i] - blk->xMax.f[i];
+		dx = kbnd.fCenter[0] - kbnd.fMax[0] -  blk->xCenter.f[i] - blk->xOffset.f[i] - blk->xMax.f[i];
 		if (dx > 0) minbnd2 += dx*dx;
-		dx = blk->xCenter.f[i] + blk->xOffset.f[i] - blk->xMax.f[i] - kbnd->fCenter[0] - kbnd->fMax[0];
+		dx = blk->xCenter.f[i] + blk->xOffset.f[i] - blk->xMax.f[i] - kbnd.fCenter[0] - kbnd.fMax[0];
 		if (dx > 0) minbnd2 += dx*dx;
-		dx = kbnd->fCenter[1] - kbnd->fMax[1] - blk->yCenter.f[i] - blk->yOffset.f[i] - blk->yMax.f[i];
+		dx = kbnd.fCenter[1] - kbnd.fMax[1] - blk->yCenter.f[i] - blk->yOffset.f[i] - blk->yMax.f[i];
 		if (dx > 0) minbnd2 += dx*dx;
-		dx = blk->yCenter.f[i] + blk->yOffset.f[i] - blk->yMax.f[i] - kbnd->fCenter[1] - kbnd->fMax[1];
+		dx = blk->yCenter.f[i] + blk->yOffset.f[i] - blk->yMax.f[i] - kbnd.fCenter[1] - kbnd.fMax[1];
 		if (dx > 0) minbnd2 += dx*dx;
-		dx = kbnd->fCenter[2] - kbnd->fMax[2] - blk->zCenter.f[i] - blk->zOffset.f[i] - blk->zMax.f[i];
+		dx = kbnd.fCenter[2] - kbnd.fMax[2] - blk->zCenter.f[i] - blk->zOffset.f[i] - blk->zMax.f[i];
 		if (dx > 0) minbnd2 += dx*dx;
-		dx = blk->zCenter.f[i] + blk->zOffset.f[i] - blk->zMax.f[i] - kbnd->fCenter[2] - kbnd->fMax[2];
+		dx = blk->zCenter.f[i] + blk->zOffset.f[i] - blk->zMax.f[i] - kbnd.fCenter[2] - kbnd.fMax[2];
 		if (dx > 0) minbnd2 += dx*dx;
        		if (minbnd2 > dTau2) iOpen = 10;  /* ignore this cell */
 		else if (k->iLower == 0) {
@@ -136,18 +136,18 @@ static void addChildFof(PKD pkd, CL cl, int iChild, int id, float *fOffset) {
     float cOpen;
     KDN *c;
     int nc = getCell(pkd,iChild,id,&cOpen,&c);
-    const BND *cbnd = pkdNodeBnd(pkd,c);
+    BND cbnd = pkdNodeGetBnd(pkd,c);
     iCache = 0;
-    cOpen = cbnd->fMax[0] + cbnd->fMax[1] + cbnd->fMax[2]; /* Manhatten metric */
+    cOpen = cbnd.fMax[0] + cbnd.fMax[1] + cbnd.fMax[2]; /* Manhatten metric */
     pkdGetChildCells(c,id,idLower,iLower,idUpper,iUpper);
     clAppend(cl,iCache,id,iChild,idLower,iLower,idUpper,iUpper,nc,cOpen,
-	pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c->r,fOffset,cbnd->fCenter,cbnd->fMax);
+	pkdNodeMom(pkd,c)->m,4.0f*c->fSoft2,c->r,fOffset,cbnd.fCenter,cbnd.fMax);
     }
 
 
 void pkdFofRemoteSearch(PKD pkd,double dTau2) {
     KDN *kdnSelf,*kdn,*c,*k;
-    BND *bndSelf,*bnd;
+    BND bndSelf,bnd;
     PARTICLE *p;
     CLTILE cltile;
     CL clTemp;
@@ -182,7 +182,7 @@ void pkdFofRemoteSearch(PKD pkd,double dTau2) {
     clClear(pkd->cl);
 
     kdnSelf = pkdTreeNode(pkd,ROOT);
-    bndSelf = pkdNodeBnd(pkd, kdnSelf);
+    bndSelf = pkdNodeGetBnd(pkd, kdnSelf);
     idSelf = mdlSelf(pkd->mdl);
     iTop = pkd->iTopTree[ROOT];
     id = idSelf;
@@ -197,9 +197,9 @@ void pkdFofRemoteSearch(PKD pkd,double dTau2) {
 	pkdGetChildCells(c,id,idLo,iCellLo,idUp,iCellUp);
 	if (idLo == idSelf) { 
 	    c = pkdTreeNode(pkd,iCellLo);
-	    bnd = pkdNodeBnd(pkd,c);
+	    bnd = pkdNodeGetBnd(pkd,c);
 	    for (j=0;j<3;++j) {
-		if (fabs(bndSelf->fCenter[j] - bnd->fCenter[j]) > bnd->fMax[j]) {
+		if (fabs(bndSelf.fCenter[j] - bnd.fCenter[j]) > bnd.fMax[j]) {
 		    addChildFof(pkd,pkd->cl,iCellLo,idLo,fOffset);
 		    id = idUp;
 		    assert(id == idSelf);
@@ -442,7 +442,7 @@ void pkdNewFof(PKD pkd,double dTau2,int nMinMembers) {
     uint32_t iGroup,*pGroup;
     int pn,i,j;
     KDN *kdnSelf;
-    BND *bndSelf,*bnd,*bndTop;
+    BND bndSelf,bnd,bndTop;
     int *S;
     uint32_t iHead;
     uint32_t iTail;
@@ -462,10 +462,10 @@ void pkdNewFof(PKD pkd,double dTau2,int nMinMembers) {
     ** domains just involves a tree walk.
     */
     kdnSelf = pkdTreeNode(pkd,ROOT);
-    bndSelf = pkdNodeBnd(pkd, kdnSelf);
+    bndSelf = pkdNodeGetBnd(pkd, kdnSelf);
     for (j=0;j<3;++j) {
-	pkd->bndInterior.fCenter[j] = bndSelf->fCenter[j];
-	pkd->bndInterior.fMax[j] = bndSelf->fMax[j];
+	pkd->bndInterior.fCenter[j] = bndSelf.fCenter[j];
+	pkd->bndInterior.fMax[j] = bndSelf.fMax[j];
 	}
 #if 0
     /*
@@ -475,14 +475,14 @@ void pkdNewFof(PKD pkd,double dTau2,int nMinMembers) {
     */
     iCell = iTop;
     c = pkdTreeNode(pkd,iCell);
-    bndTop = pkdNodeBnd(pkd,c);
+    bndTop = pkdNodeGetBnd(pkd,c);
     while (c->bTopTree) {
 	pkdGetChildCells(c,id,idLo,iCellLo,idUp,iCellUp);
 	if (idLo == idSelf) { 
 	    c = pkdTreeNode(pkd,iCellLo);
-	    bnd = pkdNodeBnd(pkd,c);
+	    bnd = pkdNodeGetBnd(pkd,c);
 	    for (j=0;j<3;++j) {
-		if (fabs(bndSelf->fCenter[j]-bnd->fCenter[j]) > bnd->fMax[j]) {
+		if (fabs(bndSelf.fCenter[j]-bnd.fCenter[j]) > bnd.fMax[j]) {
 		    /*
 		    ** Check bounds against this sibling.
 		    */
@@ -497,7 +497,7 @@ void pkdNewFof(PKD pkd,double dTau2,int nMinMembers) {
 	    }
 	assert(idUp == idSelf);
 	c = pkdTreeNode(pkd,iCellUp);
-	bnd = pkdNodeBnd(pkd,c);
+	bnd = pkdNodeGetBnd(pkd,c);
 	/*
 	** Check bounds against this sibling.
 	*/
@@ -525,7 +525,7 @@ void pkdNewFof(PKD pkd,double dTau2,int nMinMembers) {
 			** Check bounds against this replica.
 			*/
 			for (j=0;j<3;++j) 
-			    rbnd.fCenter[j] = bndTop->fCenter[j] + fOffset[j];
+			    rbnd.fCenter[j] = bndTop.fCenter[j] + fOffset[j];
 			updateFofBound(pkd->bndInterior,&rbnd);
 			}
 		    }
