@@ -4,7 +4,7 @@ ACLOCAL_AMFLAGS  = -I m4
 SUFFIXES = .cu
 
 .cu.o:
-	$(NVCC) $(CFLAGS) -I. -DHAVE_CONFIG_H -lineinfo -o $@ -c $< $(NVCCFLAGS) -Imdl2/mpi -Imdl2 -Iopenpa/src
+	$(NVCC) -I. -DHAVE_CONFIG_H -lineinfo -o $@ -c $< $(NVCCFLAGS) -Imdl2/mpi -Imdl2 -Iopenpa/src
 
 
 #if USE_GRAFIC
