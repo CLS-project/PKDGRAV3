@@ -943,7 +943,7 @@ static inline int pkd_grid_order(PKD pkd,void *a,void *b,int nGrid) {
 #define qsort_lt(a,b) pkd_grid_order(pkd,a,b,nGrid)
 
 void pkdMeasurePk(PKD pkd, double dCenter[3], double dRadius, double dTotalMass,
-    int nGrid, int nBins, float *fK, float *fPower, int *nPower) {
+    int nGrid, int nBins, double *fK, double *fPower, uint64_t *nPower) {
     PARTICLE *p;
     MDLFFT fft;
     mdlGridCoord first, last, index;

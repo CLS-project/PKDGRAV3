@@ -1533,7 +1533,7 @@ void pkdGridInitialize(PKD pkd, int n1, int n2, int n3, int a1, int s, int n);
 void pkdGridProject(PKD pkd);
 #ifdef MDL_FFTW
 void pkdMeasurePk(PKD pkd, double dCenter[3], double dRadius, double dTotalMass,
-    int nGrid, int nBins, float *fK, float *fPower, int *nPower);
+    int nGrid, int nBins, double *fK, double *fPower, uint64_t *nPower);
 #endif
 void pkdOutPsGroup(PKD pkd,char *pszFileName,int iType);
 
