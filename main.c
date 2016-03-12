@@ -183,13 +183,18 @@ void * master_ch(MDL mdl) {
 
     /* Analysis mode */
     if (iStep==0) {
-	if (msrDoGravity(msr) ||msrDoGas(msr) || msr->param.nGridPk) {
+#ifdef MDL_FFTW
+	int bDoPk = msr->param.nGridPk>0;
+#else
+	int bDoPk = 0;
+#endif
+	if (msrDoGravity(msr) ||msrDoGas(msr) || bDoPk) {
 	    msrActiveRung(msr,0,1); /* Activate all particles */
 	    msrDomainDecomp(msr,0,0,0);
 	    msrUpdateSoft(msr,dTime);
 	    msrBuildTree(msr,dTime,msr->param.bEwald);
 #ifdef MDL_FFTW
-	    if (msr->param.nGridPk>0) {
+	    if (bDoPk) {
 		msrOutputPk(msr,iStartStep,dTime);
 		}
 #endif
