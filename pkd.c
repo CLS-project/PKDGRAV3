@@ -3521,12 +3521,14 @@ void pkdInflate(PKD pkd,int nReps) {
     int i,j,n;
     int nInflate = nReps + 1;
     double dFactor = 1.0 / nInflate;
+    uint64_t iOrder = 0;
+    uint64_t N = pkd->nGas + pkd->nDark + pkd->nStar;
     j = n = pkdLocal(pkd);
     for( i=0; i<n; i++ ) {
 	PARTICLE *p = pkdParticle(pkd,i);
 	double r0[3];
-	vel_t *v;
-	v = pkdVel(pkd,p);
+	vel_t *v = pkdVel(pkd,p);
+	if (!pkd->bNoParticleOrder) iOrder = p->iOrder;
 	v[0] *= dFactor;
 	v[1] *= dFactor;
 	v[2] *= dFactor;
@@ -3547,6 +3549,7 @@ void pkdInflate(PKD pkd,int nReps) {
 			pkdSetPos(pkd,p2,0,r0[0] + ix*dFactor);
 			pkdSetPos(pkd,p2,1,r0[1] + iy*dFactor);
 			pkdSetPos(pkd,p2,2,r0[2] + iz*dFactor);
+			if (!pkd->bNoParticleOrder) p2->iOrder = (iOrder+=N);
 			}
 		    }
 		}
