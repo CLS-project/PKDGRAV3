@@ -3525,6 +3525,11 @@ void pkdInflate(PKD pkd,int nReps) {
     for( i=0; i<n; i++ ) {
 	PARTICLE *p = pkdParticle(pkd,i);
 	double r0[3];
+	vel_t *v;
+	v = pkdVel(pkd,p);
+	v[0] *= dFactor;
+	v[1] *= dFactor;
+	v[2] *= dFactor;
 	pkdGetPos1(pkd,p,r0);
 	r0[0] = (r0[0]+0.5)*dFactor - 0.5;
 	r0[1] = (r0[1]+0.5)*dFactor - 0.5;
