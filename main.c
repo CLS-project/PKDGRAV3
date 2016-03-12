@@ -183,7 +183,7 @@ void * master_ch(MDL mdl) {
 
     /* Analysis mode */
     if (iStep==0) {
-	if (msrDoGravity(msr) ||msrDoGas(msr)) {
+	if (msrDoGravity(msr) ||msrDoGas(msr) || msr->param.nGridPk) {
 	    msrActiveRung(msr,0,1); /* Activate all particles */
 	    msrDomainDecomp(msr,0,0,0);
 	    msrUpdateSoft(msr,dTime);
