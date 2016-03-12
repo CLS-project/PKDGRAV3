@@ -263,6 +263,7 @@ void * master_ch(MDL mdl) {
 	/*
 	** Build tree, activating all particles first (just in case).
 	*/
+	msrInflate(msr,iStartStep);
 	msrActiveRung(msr,0,1); /* Activate all particles */
 	msrDomainDecomp(msr,0,0,0);
 	msrUpdateSoft(msr,dTime);

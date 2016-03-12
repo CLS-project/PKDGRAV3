@@ -215,6 +215,9 @@ struct parameters {
     int nBinsPk;
 #endif
 
+    int iInflateStep;
+    int nInflateReps;
+
     /*
     ** Memory models.  Other parameters can force these to be set.
     */

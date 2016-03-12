@@ -225,7 +225,7 @@ enum pst_service {
     PST_TOTALMASS,
     PST_LIGHTCONE_OPEN,
     PST_LIGHTCONE_CLOSE,
-
+    PST_INFLATE,
     };
 
 void pstAddServices(PST,MDL);
@@ -1403,6 +1403,12 @@ struct inLightConeClose {
     char achOutFile[PST_FILENAME_SIZE];
     };
 void pstLightConeClose(PST pst,void *vin,int nIn,void *vout,int *pnOut);
+
+/* PST_INFLATE */
+struct inInflate {
+    int nInflateReps;
+    };
+void pstInflate(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 
 
 #endif

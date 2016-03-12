@@ -199,9 +199,15 @@ static uint64_t getMemoryModel(MSR msr) {
 
 void msrInitializePStore(MSR msr, uint64_t *nSpecies) {
     struct inInitializePStore ps;
+    double dStorageAmount = (1.0+msr->param.dExtraStore);
     int i;
     for( i=0; i<FIO_SPECIES_LAST; ++i) ps.nSpecies[i] = nSpecies[i];
-    ps.nStore = ceil( (1.0+msr->param.dExtraStore) * ps.nSpecies[FIO_SPECIES_ALL] / mdlThreads(msr->mdl));
+    /* If we plan to replicate the particles later then reserve space */
+    if (msr->param.nInflateReps) {
+	i = msr->param.nInflateReps + 1;
+	dStorageAmount *= i*i*i;
+	}
+    ps.nStore = ceil( dStorageAmount * ps.nSpecies[FIO_SPECIES_ALL] / mdlThreads(msr->mdl));
     ps.nTreeBitsLo = msr->param.nTreeBitsLo;
     ps.nTreeBitsHi = msr->param.nTreeBitsHi;
     ps.iCacheSize  = msr->param.iCacheSize;
@@ -1248,6 +1254,13 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     prmAddParam(msr->prm,"nGridPk",1,&msr->param.nGridPk,
 		sizeof(int),"pk","<Grid size for measure P(k) 0=disabled> = 0");
 #endif
+
+    msr->param.iInflateStep = 0;
+    prmAddParam(msr->prm,"iInflateStep",1,&msr->param.iInflateStep,
+		sizeof(int),"iis","<Step when to inflate the number of particles> = 0");
+    msr->param.nInflateReps = 0;
+    prmAddParam(msr->prm,"nInflateReps",1,&msr->param.nInflateReps,
+		sizeof(int),"nir","<Number of replicas when inflating> = 0");
 
     /* IC Generation */
     msr->param.h = 0.0;
@@ -2499,6 +2512,20 @@ void msrDomainDecompOld(MSR msr,int iRung,int bSplitVA) {
 	}
     }
 
+void msrInflate(MSR msr,int iStep) {
+    if (msr->param.nInflateReps>0 && iStep==msr->param.iInflateStep) {
+	struct inInflate inflate;
+	int i = msr->param.nInflateReps + 1;
+	printf("Inflating number of particles by a factor of %d\n",i*i*i);
+	inflate.nInflateReps = msr->param.nInflateReps;
+	pstInflate(msr->pst,&inflate,sizeof(inflate),NULL,NULL);
+	msr->N *= i*i*i;
+	msr->nGas *= i*i*i;
+	msr->nDark *= i*i*i;
+	msr->nStar *= i*i*i;
+	msr->nMaxOrder = msr->N;
+	}
+    }
 
 void msrDomainDecomp(MSR msr,int iRung,int bOthers,int bSplitVA) {
     msrDomainDecompOld(msr,iRung,bSplitVA);
@@ -4124,6 +4151,7 @@ int msrNewTopStepKDK(MSR msr,
 	msrBuildTreeActive(msr,*pdTime,msr->param.bEwald,iRungDT);
 	}
     else {
+	if (uRung==0) msrInflate(msr,round(*pdStep));
 	msrDomainDecomp(msr,uRung,0,0);
 	uRoot2 = 0;
 	msrBuildTree(msr,*pdTime,msr->param.bEwald);
