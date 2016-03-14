@@ -216,8 +216,6 @@ void msrInitializePStore(MSR msr, uint64_t *nSpecies) {
     ps.fPeriod[0] = msr->param.dxPeriod;
     ps.fPeriod[1] = msr->param.dyPeriod;
     ps.fPeriod[2] = msr->param.dzPeriod;
-    ps.nBucket = msr->param.nBucket;
-    ps.nGroup = msr->param.nGroup;
     ps.mMemoryModel = getMemoryModel(msr) | PKD_MODEL_VELOCITY;
     ps.bLightCone  = msr->param.bLightCone;
     ps.bLightConeParticles  = msr->param.bLightConeParticles;    
@@ -2562,6 +2560,7 @@ static void BuildTree(MSR msr,int bNeedEwald,uint32_t uRoot,uint32_t utRoot) {
     pkdn = (KDN *)(pDistribTop + 1);
 
     in.nBucket = msr->param.nBucket;
+    in.nGroup = msr->param.nGroup;
     in.uRoot = uRoot;
     in.utRoot = utRoot;
     sec = msrTime();
@@ -4875,6 +4874,7 @@ void msrHop(MSR msr, double dTime) {
     do {
 	sec = msrTime();
 	inTreeBuild.nBucket = msr->param.nBucket;
+	inTreeBuild.nGroup = msr->param.nGroup;
 	pstHopTreeBuild(msr->pst,&inTreeBuild,sizeof(inTreeBuild),NULL,NULL);
 	dsec = msrTime() - sec;
 	if (msr->param.bVStep)

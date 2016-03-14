@@ -545,7 +545,7 @@ void pstSetAdd(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 static void initializePStore(PKD *ppkd,MDL mdl,struct inInitializePStore *in) {
     pkdInitialize(
 	ppkd,mdl,in->nStore,in->nMinTotalStore,in->nMinEphemeral,
-	in->nBucket,in->nGroup,in->nTreeBitsLo,in->nTreeBitsHi,
+	in->nTreeBitsLo,in->nTreeBitsHi,
 	in->iCacheSize,in->iWorkQueueSize,in->iCUDAQueueSize,in->fPeriod,
 	in->nSpecies[FIO_SPECIES_DARK],in->nSpecies[FIO_SPECIES_SPH],in->nSpecies[FIO_SPECIES_STAR],
 	in->mMemoryModel,in->bLightCone,in->bLightConeParticles);
@@ -2481,6 +2481,7 @@ void pstBuildTree(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 
 	/* Get our cell ready */
 	pTop->bTopTree = 1;                         /* The replicated top tree */
+	pTop->bGroup = 0;                           /* top tree can never be a group */
 	pTop->bRemote = 0;                          /* top tree is not remote */
 	pTop->iLower = 1;                           /* Relative index to lower cell */
 	pTop->pUpper = pst->nLower*2;               /* Relative index to upper cell */
@@ -2489,10 +2490,11 @@ void pstBuildTree(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
     else {
 	KDN *pRoot = pkdTreeNode(pkd,uRoot);
 	pkdTreeAlignNode(pkd);
-	pkdTreeBuild(plcl->pkd,in->nBucket,in->uRoot,in->utRoot);
+	pkdTreeBuild(plcl->pkd,in->nBucket,in->nGroup,in->uRoot,in->utRoot);
 	pkdCopyNode(pkd,pTop,pRoot);
 	/* Get our cell ready */
 	pTop->bTopTree = 1;
+	pTop->bGroup = 0;
 	pTop->bRemote = 1;
 	pTop->pUpper = pTop->pLower = pst->idSelf;
 	/* iLower is valid = ROOT */
@@ -2647,7 +2649,7 @@ void pstHopTreeBuild(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
         }
     else {
 	LCL *plcl = pst->plcl;
-        pkdHopTreeBuild(plcl->pkd,in->nBucket);
+        pkdHopTreeBuild(plcl->pkd,in->nBucket,in->nGroup);
         }
     if (pnOut) *pnOut = 0;
     }

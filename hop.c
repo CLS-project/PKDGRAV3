@@ -460,7 +460,7 @@ static void combHopGetRoots(void *vctx, void *v1, void *v2) {
 	}
     }
 
-void pkdHopTreeBuild(PKD pkd, int nBucket) {
+void pkdHopTreeBuild(PKD pkd, int nBucket,int nGroup) {
     MDL mdl = pkd->mdl;
     int nDomains = mdlThreads(mdl);
     HopGroupTable * g;
@@ -498,7 +498,7 @@ void pkdHopTreeBuild(PKD pkd, int nBucket) {
 	pkd->hopRoots[iRoot].iPid = pkd->hopRoots[iRoot].iIndex = -1;
 
     /* We build a tree of each group of particles - hopGroups[].iTreeRoot is set */
-    pkdTreeBuildByGroup(pkd,nBucket);
+    pkdTreeBuildByGroup(pkd,nBucket,nGroup);
 
     /* Add ourselves for local groups */
     for(gid=1; gid<pkd->nLocalGroups; ++gid) {

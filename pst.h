@@ -248,8 +248,6 @@ struct inInitializePStore {
     double fPeriod[3];
     uint64_t nMinEphemeral;
     uint64_t nMinTotalStore;
-    int nBucket;
-    int nGroup;
     int nTreeBitsLo;
     int nTreeBitsHi;
     int iCacheSize;
@@ -449,6 +447,7 @@ void pstOutputSend(PST,void *,int,void *,int *);
 /* PST_BUILDTREE */
 struct inBuildTree {
     int nBucket;      /* Bucket Size */
+    int nGroup;       /* Group Size */
     uint32_t uRoot;   /* Which root node to use */
     uint32_t utRoot;  /* Template tree */
     };
@@ -521,6 +520,7 @@ void pstHopFinishUp(PST,void *,int,void *,int *);
 /* PST_BUILDTREE */
 struct inHopTreeBuild {
     int nBucket;
+    int nGroup;
     };
 void pstHopTreeBuild(PST,void *,int,void *,int *);
 

@@ -926,7 +926,7 @@ static void queueEwald( PKD pkd, workParticle *work ) {
 int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     int bKickClose,int bKickOpen,double dTime,vel_t *dtClose,vel_t *dtOpen,double dAccFac,
     KDN *pBucket,LOCR *pLoc,ILP ilp,ILC ilc,
-    float dirLsum,float normLsum,int bEwald,int bGravStep,int nGroup,double *pdFlop,
+    float dirLsum,float normLsum,int bEwald,int bGravStep,double *pdFlop,
     double dRhoFac,SMX smx,SMF *smf,int iRoot1,int iRoot2) {
     PARTICLE *p;
     KDN *pkdn = pBucket;
@@ -1046,8 +1046,6 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
 	    work->pInfoIn[nP].fSmooth2 = 0.0;
 	    }
 	}
-    /* This is not true with the "active" tree */
-    /*assert(work->nP<=nGroup);*/
 
     nActive += work->nP;
 

@@ -88,7 +88,7 @@ static union {
 **
 ** This version will also open buckets ("new" criteria)
 */
-static void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin, int nGroup) {
+static void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin ) {
     v_sf T0,T1,T2,T3,T4,T6,T7,P1,P2,P3,P4;
     v_sf xc,yc,zc,dx,dy,dz,d2,diCrit,cOpen,cOpen2,d2Open,mink2,minbnd2,fourh2;
     int i,iEnd,nLeft;
@@ -98,8 +98,7 @@ static void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin, i
     v_sf k_xCenter, k_yCenter, k_zCenter, k_xMax, k_yMax, k_zMax;
     v_sf k_xMinBnd, k_yMinBnd, k_zMinBnd, k_xMaxBnd, k_yMaxBnd, k_zMaxBnd;
     v_sf k_x, k_y, k_z, k_bMax, k_Open;
-    v_i  k_nk;
-    vint k_nGroup = {SIMD_CONST(nGroup)};
+    v_sf k_notgrp;
     double k_r[3];
     pkdNodeGetPos(pkd,k,k_r);
 
@@ -124,7 +123,8 @@ static void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin, i
     k_y = SIMD_SPLAT((float)(k_r[1]));
     k_z = SIMD_SPLAT((float)(k_r[2]));
     k_bMax = SIMD_SPLAT(k->bMax);
-    k_nk = SIMD_SPLATI32(k->iLower?(k->pUpper-k->pLower+1):0);
+    k_notgrp = SIMD_I2F(SIMD_SPLATI32(k->bGroup?0:0xffffffff));
+
     k_Open = SIMD_MUL(consts.threehalves.p,SIMD_MUL(k_bMax,diCrit));
 
     blk = tile->blk;
@@ -181,7 +181,7 @@ static void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin, i
 	    T3 = SIMD_OR(SIMD_I2F(SIMD_CMP_GT_EPI32(iconsts.walk_min_multipole.p,blk->nc.p[i])),SIMD_CMP_LE(mink2,cOpen2));
 	    T4 = SIMD_CMP_GT(minbnd2,fourh2);
 	    T6 = SIMD_CMP_GT(cOpen,k_Open);
-	    T7 = SIMD_I2F(SIMD_CMP_GT_EPI32(k_nk,k_nGroup.p));
+	    T7 = k_notgrp;
  	    iOpenA = SIMD_SELECT(iconsts.three.pf,iconsts.one.pf,T2);
 	    iOpenB = SIMD_SELECT(SIMD_SELECT(iOpenA,iconsts.four.pf,T4),iOpenA,T3);
 	    P1 = SIMD_SELECT(iconsts.three.pf,iconsts.two.pf,T2);
@@ -204,18 +204,16 @@ static void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin, i
 **
 ** This version has been changed by adding the ability to open buckets.
 */
-static void iOpenOutcomeCL(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin,int nGroup) {
+static void iOpenOutcomeCL(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin) {
     const int walk_min_multipole = 3;
     float dx,dy,dz,mink2,d2,d2Open,xc,yc,zc,fourh2,minbnd2,kOpen,cOpen,diCrit;
-    int i,nk;
+    int i;
     int iOpen,iOpenA,iOpenB;
     CL_BLK *blk;
     int n, nLeft;
     BND kbnd;
 
     kbnd = pkdNodeGetBnd(pkd,k);
-    nk = k->pUpper - k->pLower + 1;
-    if (k->iLower==0) nk = 0;
 
     diCrit = 1.0f / dThetaMin;
     blk = tile->blk;
@@ -264,7 +262,7 @@ static void iOpenOutcomeCL(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin,int 
 		    if (blk->nc.i[i] < walk_min_multipole || mink2 <= cOpen*cOpen) iOpenB = iOpenA;
 		    else if (minbnd2 > fourh2) iOpenB = 4;
 		    else iOpenB = iOpenA;
-		    if (nk>nGroup) iOpen = 0;
+		    if (!k->bGroup) iOpen = 0;
 		    else iOpen = iOpenB;
 		    }
 		}
@@ -303,7 +301,7 @@ static void addChild(PKD pkd, int iCache, CL cl, int iChild, int id, float *fOff
 */
 static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2, uint8_t uRungLo,uint8_t uRungHi, 
     int bKickClose,int bKickOpen,vel_t *dtClose,vel_t *dtOpen,double dAccFac,double dTime,
-    double dRhoFac, int bEwald, int nGroup,
+    double dRhoFac, int bEwald,
     double dThetaMin, int bGravStep, double *pdFlop, double *pdPartSum,double *pdCellSum) {
     KDN *k,*c,*kFind;
     int id,idUpper,iCell,iSib,iLower,iUpper,iCheckCell,iCheckLower,iCellDescend;
@@ -329,7 +327,6 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2, ui
     float cOpen,kOpen;
     static const float  fZero3[] = {0.0f,0.0f,0.0f};
     static const vel_t vZero3[] = {0.0,0.0,0.0};
-    int nc,nk;
     ILPTILE tile;
     ILCTILE ctile;
     CL clTemp;
@@ -460,10 +457,10 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2, ui
 	    do {
 		CL_LOOP(pkd->cl,cltile) {
 #ifdef USE_SIMD_OPEN
-		    iOpenOutcomeSIMD(pkd,k,pkd->cl,cltile,dThetaMin,nGroup);
+		    iOpenOutcomeSIMD(pkd,k,pkd->cl,cltile,dThetaMin);
 		    /*Verify:iOpenOutcomeNewCL(pkd,k,pkd->cl,cltile,dThetaMin);*/
 #else
-		    iOpenOutcomeCL(pkd,k,pkd->cl,cltile,dThetaMin,nGroup);
+		    iOpenOutcomeCL(pkd,k,pkd->cl,cltile,dThetaMin);
 #endif
 		    }
 		clClear(pkd->clNew);
@@ -716,13 +713,13 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2, ui
 	    ** Now prepare to proceed to the next deeper
 	    ** level of the tree.
 	    */
-	    if ((k->pUpper-k->pLower+1)<=nGroup || k->iLower==0) break;
+	    if (k->bGroup) break; /* A bucket is ALWAYS a group */
 	    xParent = k_r[0];
 	    yParent = k_r[1];
 	    zParent = k_r[2];
 	    for (j=0;j<3;++j) fOffset[j] = 0.0f;
 	    iCell = k->iLower;
-	    nk = getCell(pkd,-1,iCell,pkd->idSelf,&kOpen,&k);
+	    getCell(pkd,-1,iCell,pkd->idSelf,&kOpen,&k);
 	    pkdNodeGetPos(pkd,k,k_r);
 	    /*
 	    ** Check iCell is active. We eventually want to just to a
@@ -735,7 +732,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2, ui
 		** Put the sibling onto the checklist.
 		*/
 		iSib = iCell+1;
-		nc = getCell(pkd,-1,iSib,pkd->idSelf,&cOpen,&c);
+		getCell(pkd,-1,iSib,pkd->idSelf,&cOpen,&c);
 		if (c->uMinRung<=uRungHi && c->uMaxRung >= uRungLo) {
 		    /*
 		    ** Sibling is active so we need to clone the checklist!
@@ -814,7 +811,7 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2, ui
 	*/
 	if (!pkd->param.bNoGrav) {
 	    nActive = pkdGravInteract(pkd,uRungLo,uRungHi,bKickClose,bKickOpen,dTime,dtClose,dtOpen,dAccFac,
-		k,&L,pkd->ilp,pkd->ilc,dirLsum,normLsum,bEwald,bGravStep,nGroup,pdFlop,dRhoFac,
+		k,&L,pkd->ilp,pkd->ilc,dirLsum,normLsum,bEwald,bGravStep,pdFlop,dRhoFac,
 		smx, &smf, iRoot, iRoot2);
 	    }
 	else nActive = 0;
@@ -946,7 +943,7 @@ int pkdGravWalkHop(PKD pkd,double dTime,int nGroup, double dThetaMin,double *pdF
 	assert(pkd->hopRoots[iRootSelf].iPid==pkd->idSelf);
 	nActive += processCheckList(pkd, smx, smf, pkd->hopRoots[iRootSelf].iIndex, 0, 0, MAX_RUNG,
 	    0,0,NULL,NULL,1.0,dTime,
-	    dRhoFac, 0, nGroup, dThetaMin, 0, pdFlop, pdPartSum, pdCellSum);
+	    dRhoFac, 0, dThetaMin, 0, pdFlop, pdPartSum, pdCellSum);
 	}
     doneGravWalk(pkd,smx,&smf);
     mdlFinishCache(pkd->mdl,CID_PARTICLE);
@@ -1013,7 +1010,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,int bKickClose,int bKick
 	    }
 	nActive += processCheckList(pkd, smx, smf, iLocalRoot1, iLocalRoot2, uRungLo, uRungHi,
 	    bKickClose,bKickOpen,dtClose,dtOpen,dAccFac,dTime,
-	    dRhoFac, bEwald, nGroup, dThetaMin, pkd->param.bGravStep, pdFlop, pdPartSum, pdCellSum);
+	    dRhoFac, bEwald, dThetaMin, pkd->param.bGravStep, pdFlop, pdPartSum, pdCellSum);
 	}
 #if 0
     /*
@@ -1042,7 +1039,7 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,int bKickClose,int bKick
 	    }
 	nActive += processCheckList(pkd, smx, smf, iLocalRoot2, iLocalRoot1, uRungLo, uRungHi,
 	    bKickClose,bKickOpen,dtClose,dtOpen,dAccFac,dTime,
-	    dRhoFac, 0, nGroup, dThetaMin, pkd->param.bGravStep, pdFlop, pdPartSum, pdCellSum);
+	    dRhoFac, 0, dThetaMin, pkd->param.bGravStep, pdFlop, pdPartSum, pdCellSum);
 	}
 #endif
     doneGravWalk(pkd,smx,&smf);
@@ -1089,7 +1086,7 @@ int pkdGravWalkGroups(PKD pkd,double dTime,int nGroup, double dThetaMin,double *
 #endif
 	nActive += processCheckList(pkd, smx, smf, gd[i].treeRoots[0].iLocalRootId, 0, 0, MAX_RUNG,
 	    0,0,NULL,NULL,1.0,dTime,
-	    dRhoFac, 0, nGroup, dThetaMin, 0, pdFlop, pdPartSum, pdCellSum);
+	    dRhoFac, 0, dThetaMin, 0, pdFlop, pdPartSum, pdCellSum);
     }
     doneGravWalk(pkd,smx,&smf);
     return nActive;

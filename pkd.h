@@ -352,7 +352,8 @@ typedef struct kdNode {
     int pLower;		     /* also serves as thread id for the LTT */
     int pUpper;		     /* pUpper < 0 indicates no particles in tree! */
     uint32_t iLower;         /* Local lower node (or remote processor w/bRemote=1) */
-    uint32_t iDepth     : 14;
+    uint32_t iDepth     : 13;
+    uint32_t bGroup     : 1;
     uint32_t iSplitDim  : 2;
     uint32_t uMinRung   : 6;
     uint32_t uMaxRung   : 6;
@@ -1310,7 +1311,7 @@ static inline int pkdIsNew(PKD pkd,PARTICLE *p) {
 ** From tree.c:
 */
 void pkdVATreeBuild(PKD pkd,int nBucket);
-void pkdTreeBuild(PKD pkd,int nBucket,uint32_t uRoot,uint32_t uTemp);
+void pkdTreeBuild(PKD pkd,int nBucket,int nGroup,uint32_t uRoot,uint32_t uTemp);
 uint32_t pkdDistribTopTree(PKD pkd, uint32_t uRoot, uint32_t nTop, KDN *pTop);
 void pkdOpenCloseCaches(PKD pkd,int bOpen,int bFixed);
 void pkdTreeInitMarked(PKD pkd);
@@ -1320,7 +1321,7 @@ void pkdCombineCells2(PKD,KDN *pkdn,KDN *p1,KDN *p2);
 void pkdCalcRoot(PKD,uint32_t,double *,MOMC *);
 void pkdDistribRoot(PKD,double *,MOMC *);
 void pkdGroupOrder(PKD pkd,uint32_t *iGrpOffset);
-void pkdTreeBuildByGroup(PKD pkd, int nBucket);
+void pkdTreeBuildByGroup(PKD pkd, int nBucket, int nGroup);
 
 #include "parameters.h"
 /*
@@ -1334,7 +1335,7 @@ void pkdStartTimer(PKD,int);
 void pkdStopTimer(PKD,int);
 void pkdInitialize(
     PKD *ppkd,MDL mdl,int nStore,uint64_t nMinTotalStore,uint64_t nMinEphemeral,
-    int nBucket,int nGroup,int nTreeBitsLo, int nTreeBitsHi,
+    int nTreeBitsLo, int nTreeBitsHi,
     int iCacheSize,int iWorkQueueSize,int iCUDAQueueSize,double *fPeriod,uint64_t nDark,uint64_t nGas,uint64_t nStar,
     uint64_t mMemoryModel, int bLightCone, int bLightConeParticles);
 void pkdFinish(PKD);
