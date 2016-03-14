@@ -315,6 +315,125 @@ ARC arcReinitialize(ARC arc,uint32_t nCache,uint32_t uDataSize,CACHE *c) {
     }
 
 /*
+** Perform a global swap: effectively a specialized in-place alltoallv
+** - data to be sent starts at "buffer" and send items are contiguous and in order by target
+** - total size of the buffer is "count" and must be at least as big as what we sent
+** - free space immediately follows send data and there must be some free space.
+*/
+static int mdl_swapall(MDL mdl,const void *buffer,int count,int datasize,/*const*/ int *counts) {
+    mdlContextMPI *mpi = mdl->mpi;
+    size_t size = datasize; /* NB!! must be a 64-bit type, hence size_t */
+    char * const pBufferEnd = (char *)buffer + size*count;
+    int *rcount, *scount;
+    MPI_Datatype mpitype;
+    MPI_Request *requests;
+    MPI_Status *statuses;
+    char *pSendBuff;
+    int nTotalReceived = 0;
+    int nSend, nRecv, iSend, iRecv, nMaxSend;
+    int nRequests;
+    int i;
+
+    /* MPI buffers and datatype */
+    MPI_Type_contiguous(datasize,MPI_BYTE,&mpitype);
+    MPI_Type_commit(&mpitype);
+    rcount = malloc(sizeof(int) * mdlProcs(mdl));
+    assert(rcount != NULL);
+    scount = malloc(sizeof(int) * mdlProcs(mdl));
+    assert(scount != NULL);
+    /* Note twice as many request/status pairs because of send + recv possibility */
+    requests = malloc(sizeof(MPI_Request) * 2 * mdlProcs(mdl));
+    assert(requests != NULL);
+    statuses = malloc(sizeof(MPI_Status) * 2 * mdlProcs(mdl));
+    assert(statuses != NULL);
+
+    /* Counts of what to send and then move the "rejects" to the end of the buffer */
+    for(nSend=0,i=0; i<mdlProcs(mdl); ++i) nSend += counts[i];
+    assert(nSend <= count);
+    nRecv = count - nSend;
+    pSendBuff = (char *)buffer + size * nRecv;
+    if (nRecv && nSend) memmove(pSendBuff,buffer,size * nSend);
+
+    for(;;) {
+	/*
+	** At the start of this loop:
+	**   nRecv: amount of element we have room to receive
+	**   buffer: pointer to the receive buffer
+	**   nSend: number of element (total) that we need to send
+	**   pSendBuff: pointer to first element to send
+	**   counts[]: number to send to each target: sum = nSend
+	*/
+
+	/* We are done when there is nothing globally left to send */
+	MPI_Allreduce(&nSend,&nMaxSend,1,MPI_INT,MPI_MAX,mpi->commMDL);
+	if (nMaxSend==0) break;
+
+	/* Collect how many we need to receive */
+	MPI_Alltoall(counts,1,MPI_INT,rcount,1,MPI_INT,mpi->commMDL);
+
+	nRequests = 0;
+	iRecv = 0;
+	/* Calculate how many we can actually receive and post the receive */
+	for(i=0; i<mdlProcs(mdl); ++i) {
+	    if (iRecv < nRecv && rcount[i]) {
+		if ( nRecv-iRecv < rcount[i] ) rcount[i] = nRecv-iRecv;
+		MPI_Irecv((char *)buffer + size * iRecv, rcount[i], mpitype,
+		    i, MDL_TAG_SWAP, mpi->commMDL, requests + nRequests++ );
+		iRecv += rcount[i];
+		}
+	    else rcount[i] = 0;
+	    }
+	assert(iRecv <= nRecv);
+
+	/* Now communicate how many we actually want to receive */
+	MPI_Alltoall(rcount,1,MPI_INT,scount,1,MPI_INT,mpi->commMDL);
+
+	/* Now we post the matching sends. We can use "rsend" here because the receives are posted. */
+	iSend = 0;
+	for(i=0; i<mdlProcs(mdl); ++i) {
+	    if (scount[i]) {
+		MPI_Irsend(pSendBuff + size * iSend, scount[i], mpitype,
+		    i, MDL_TAG_SWAP, mpi->commMDL, requests + nRequests++ );
+		}
+	    iSend += counts[i]; /* note "counts" here, not "scount" */
+	    }
+
+	/* Wait for all communication (send and recv) to finish */
+	MPI_Waitall(nRequests, requests, statuses);
+
+	/* Now we compact the buffer for the next iteration */
+	char *pSrc = pBufferEnd;
+	pSendBuff = pBufferEnd;
+	nRecv -= iRecv; /* We received "iRecv" element, so we have that must less room */
+	for(i=mdlProcs(mdl)-1; i>=0; --i) {
+	    if (counts[i]) {
+		size_t nLeft = counts[i] - scount[i];
+		nRecv += scount[i]; /* We sent data so we have more receive room */
+		nSend -= scount[i];
+		if (nLeft) {
+		    size_t nMove = size*nLeft;
+		    if (pSrc != pSendBuff) memmove(pSendBuff - nMove, pSrc - nMove, nMove);
+		    pSendBuff -= nMove;
+		    }
+		pSrc -= size * counts[i];
+		counts[i] = nLeft;
+		}
+	    }
+	nTotalReceived += iRecv;
+	buffer += size * iRecv; /* New receive area */
+	}
+
+    MPI_Type_free(&mpitype);
+    free(rcount);
+    free(scount);
+    free(requests);
+    free(statuses);
+
+    return nTotalReceived;
+    }
+
+
+/*
  ** This structure should be "maximally" aligned, with 4 ints it
  ** should align up to at least QUAD word, which should be enough.
  */
