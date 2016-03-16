@@ -485,7 +485,8 @@ static void queuePP( PKD pkd, workParticle *work, ILP ilp, int bGravStep ) {
 
     ILP_LOOP(ilp,tile) {
 #ifdef USE_CUDA
-	if (CUDA_queuePP(pkd->mdl->cudaCtx,work,tile,bGravStep)) continue;
+	if (work->nP > 2)
+	    if (CUDA_queuePP(pkd->mdl->cudaCtx,work,tile,bGravStep)) continue;
 #endif
 	pp = malloc(sizeof(workPP));
 	assert(pp!=NULL);
@@ -837,7 +838,8 @@ static void queuePC( PKD pkd,  workParticle *work, ILC ilc, int bGravStep ) {
 
     ILC_LOOP(ilc,tile) {
 #ifdef USE_CUDA
-	if (CUDA_queuePC(pkd->mdl->cudaCtx,work,tile,bGravStep)) continue;
+	if (work->nP > 2)
+	    if (CUDA_queuePC(pkd->mdl->cudaCtx,work,tile,bGravStep)) continue;
 #endif
 	pc = malloc(sizeof(workPC));
 	assert(pc!=NULL);
