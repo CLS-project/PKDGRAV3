@@ -157,6 +157,7 @@ void msrBallMax(MSR msr, int iRung, int bGreater);
 
 void msrLightConeOpen(MSR msr, int iStep);
 void msrLightConeClose(MSR msr, int iStep);
+void msrInflate(MSR msr,int iStep);
 
 /*------------------*/
 /* Active Functions */
