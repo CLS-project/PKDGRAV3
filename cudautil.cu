@@ -43,6 +43,8 @@ void *CUDA_initialize(int iCore) {
     CUDA_CHECK(cudaSetDevice,(iCore % nDevices));
     CUDACTX ctx = reinterpret_cast<CUDACTX>(malloc(sizeof(struct cuda_ctx)));
     assert(ctx!=NULL);
+    ctx->nWorkQueueSize = 0;
+    ctx->nWorkQueueBusy = 0;
     ctx->wqCuda = ctx->wqFree = NULL;
     ctx->nodePP = NULL;
     ctx->nodePC = NULL;
@@ -63,6 +65,7 @@ int CUDA_flushDone(void *vcuda) {
                 *last = work->next;
                 work->next = cuda->wqFree;
                 cuda->wqFree = work;
+                --cuda->nWorkQueueBusy;
                 continue;
                 }
             }
@@ -86,6 +89,7 @@ int CUDA_queue(void *vcuda, void *ctx,
     if (cuda->wqFree == NULL || initWork==NULL) return 0;
     work = cuda->wqFree;
     cuda->wqFree = work->next;
+    ++cuda->nWorkQueueBusy;
     if ( (*initWork)(ctx,work) ) {
 	    work->ctx = ctx;
 	    work->checkFcn = checkWork;
@@ -104,6 +108,7 @@ void CUDA_SetQueueSize(void *vcuda,int cudaSize, int inCudaBufSize, int outCudaB
     int hostBufSize = inCudaBufSize > outCudaBufSize ? inCudaBufSize : outCudaBufSize;
     cuda->inCudaBufSize = inCudaBufSize;
     cuda->outCudaBufSize = outCudaBufSize;
+    cuda->nWorkQueueSize = cudaSize;
     while(cudaSize--) {
         work = reinterpret_cast<CUDAwqNode *>(malloc(sizeof(CUDAwqNode)));
         work->pHostBuf = CUDA_malloc(hostBufSize);
@@ -119,6 +124,7 @@ void CUDA_SetQueueSize(void *vcuda,int cudaSize, int inCudaBufSize, int outCudaB
         work->next = cuda->wqFree;
         cuda->wqFree = work;
         }
+    cuda->nWorkQueueBusy = 0;
     }
 
 extern "C"

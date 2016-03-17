@@ -90,7 +90,7 @@ typedef struct cuda_ctx {
     CUDAwqNode *wqFree;
     CUDAwqNode *nodePP; // We are building a PP request
     CUDAwqNode *nodePC; // We are building a PC request
-    int iWorkQueueSize;
+    int nWorkQueueSize, nWorkQueueBusy;
     int inCudaBufSize, outCudaBufSize;
     } *CUDACTX;
 

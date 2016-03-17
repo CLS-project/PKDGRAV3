@@ -80,6 +80,7 @@ CUDAwqNode *getNode(CUDACTX cuda) {
         }
     work = cuda->wqFree;
     cuda->wqFree = work->next;
+    ++cuda->nWorkQueueBusy;
     work->ctx = cuda;
     work->checkFcn = NULL;
     work->next = cuda->wqCuda;
@@ -704,6 +705,11 @@ int copyBLKs(ilcBlk<n> *out, ILC_BLK *in,int nIlp) {
 // nIntPer: number of interactions handled per work unit: e.g., 128
 template<int nIntPerTB, int nIntPerWU, typename TILE,typename BLK>
 int CUDA_queue(CUDACTX cuda,CUDAwqNode **head,workParticle *wp, TILE tile, int bGravStep) {
+    /* Refuse the work if it looks like we will overwhelm the GPU with nonsense */
+    assert(cuda->nWorkQueueSize > 0);
+    assert(cuda->nWorkQueueBusy >=0 && cuda->nWorkQueueBusy <= cuda->nWorkQueueSize);
+    if (cuda->nWorkQueueBusy > cuda->nWorkQueueSize/2 && wp->nP <= 2) return 0;
+
     CUDAwqNode *work = *head;
     /*const int nBlkPerTB = nIntPerTB / WIDTH;*/
     const int nBlkPerWU = nIntPerWU / WIDTH;
