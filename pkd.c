@@ -3524,6 +3524,12 @@ void pkdInflate(PKD pkd,int nReps) {
     uint64_t iOrder = 0;
     uint64_t N = pkd->nGas + pkd->nDark + pkd->nStar;
     j = n = pkdLocal(pkd);
+
+    assert(pkd->nClasses>0);
+    for(i=0; i<pkd->nClasses; ++i) {
+	pkd->pClass[i].fMass *= dFactor*dFactor*dFactor;
+	pkd->pClass[i].fSoft *= dFactor;
+	}
     for( i=0; i<n; i++ ) {
 	PARTICLE *p = pkdParticle(pkd,i);
 	double r0[3];
@@ -3550,6 +3556,14 @@ void pkdInflate(PKD pkd,int nReps) {
 			pkdSetPos(pkd,p2,1,r0[1] + iy*dFactor);
 			pkdSetPos(pkd,p2,2,r0[2] + iz*dFactor);
 			if (!pkd->bNoParticleOrder) p2->iOrder = (iOrder+=N);
+			if ( pkd->oMass ) {
+			    float *pMass = CAST(float *,pkdField(p,pkd->oMass));
+			    *pMass *= dFactor*dFactor*dFactor;
+			    }
+			if ( pkd->oSoft ) {
+			    float *pSoft = CAST(float *,pkdField(p,pkd->oSoft));
+			    *pSoft *= dFactor;
+			    }
 			}
 		    }
 		}
