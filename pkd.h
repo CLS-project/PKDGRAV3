@@ -248,16 +248,40 @@ static inline double mindist(const BND *bnd,const double *pos) {
     return _mm_cvtsd_f64(m2);
 #endif
     }
-#define MINDIST(bnd,pos,min2) ((min2) = mindist(bnd,pos))
-#define MAXDIST(bnd,pos,max2) {					\
-    double BND_dMax;							\
-    int BND_j;								\
-    (max2) = 0;							        \
-    for (BND_j=0;BND_j<3;++BND_j) {				        \
-	BND_dMax = fabs((bnd)->fCenter[BND_j] - (pos)[BND_j]) + (bnd)->fMax[BND_j];		\
-	(max2) += BND_dMax*BND_dMax;					\
-	}							        \
+static inline double maxdist(const BND *bnd,const double *pos) {
+#ifdef __AVX__
+    typedef union {
+	uint64_t i[4];
+	__m256d p;
+	} vint64;
+    static const vint64 isignmask = {{0x8000000000000000,0x8000000000000000,0x8000000000000000,0x8000000000000000}};
+    __m256i justthree = {-1,-1,-1,0};
+    __m256d fCenter = _mm256_maskload_pd(bnd->fCenter,justthree);
+    __m256d fMax = _mm256_maskload_pd(bnd->fMax,justthree);
+    __m256d ppos = _mm256_maskload_pd(pos,justthree);
+    __m128d d;
+    __m256d m = _mm256_add_pd(_mm256_andnot_pd(isignmask.p,_mm256_sub_pd(fCenter,ppos)),fMax);
+    m = _mm256_mul_pd(m,m);
+    d = _mm_hadd_pd(_mm256_extractf128_pd(m,1),_mm256_castpd256_pd128(m));
+    return _mm_cvtsd_f64(_mm_hadd_pd(d,d));
+#else
+    typedef union {
+	uint64_t i[2];
+	__m128d p;
+	} vint64;
+    static const vint64 isignmask = {{0x8000000000000000,0x8000000000000000}};
+     __m128d m2,m1;
+    m1 = _mm_add_sd(_mm_andnot_pd(isignmask.p,_mm_sub_sd(_mm_load_sd(bnd->fCenter+0),_mm_load_sd(pos+0))),_mm_load_sd(bnd->fMax+0));
+    m2 = _mm_mul_sd(m1,m1);
+    m1 = _mm_add_sd(_mm_andnot_pd(isignmask.p,_mm_sub_sd(_mm_load_sd(bnd->fCenter+1),_mm_load_sd(pos+1))),_mm_load_sd(bnd->fMax+1));
+    m2 = _mm_add_sd(m2,_mm_mul_sd(m1,m1));
+    m1 = _mm_add_sd(_mm_andnot_pd(isignmask.p,_mm_sub_sd(_mm_load_sd(bnd->fCenter+2),_mm_load_sd(pos+2))),_mm_load_sd(bnd->fMax+2));
+    m2 = _mm_add_sd(m2,_mm_mul_sd(m1,m1));
+    return _mm_cvtsd_f64(m2);
+#endif
     }
+#define MINDIST(bnd,pos,min2) ((min2) = mindist(bnd,pos))
+#define MAXDIST(bnd,pos,max2) ((max2)=maxdist(bnd,pos))
 #else
 #define MINDIST(bnd,pos,min2) {\
     double BND_dMin;\
