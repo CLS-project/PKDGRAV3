@@ -38,6 +38,40 @@ void CUDA_Abort(cudaError_t rc, const char *fname, const char *file, int line) {
     exit(1);
     }
 
+/*
+** This function allocates buffers, and can restart outstanding requests after a device reset.
+*/
+static void setup_cuda(CUDACTX cuda) {
+    CUDAwqNode *work;
+    int hostBufSize = cuda->inCudaBufSize > cuda->outCudaBufSize ? cuda->inCudaBufSize : cuda->outCudaBufSize;
+
+    // Free element -- just allocate buffers and create the stream and event
+    for(work=cuda->wqFree; work!=NULL; work=work->next) {
+        work->pHostBuf = CUDA_malloc(hostBufSize);
+        assert(work->pHostBuf!=NULL);
+        work->pCudaBufIn = CUDA_gpu_malloc(cuda->inCudaBufSize);
+        assert(work->pCudaBufIn!=NULL);
+        work->pCudaBufOut = CUDA_gpu_malloc(cuda->outCudaBufSize);
+        assert(work->pCudaBufOut!=NULL);
+        CUDA_CHECK(cudaEventCreateWithFlags,( &work->event, cudaEventDisableTiming ));
+        CUDA_CHECK(cudaStreamCreate,( &work->stream ));
+        }
+
+    // During a restart we have to restart any active requests as well.
+    // At normal startup this work queue will be empty.
+    for(work=cuda->wqCuda; work!=NULL; work=work->next) {
+        work->pHostBuf = CUDA_malloc(hostBufSize);
+        assert(work->pHostBuf!=NULL);
+        work->pCudaBufIn = CUDA_gpu_malloc(cuda->inCudaBufSize);
+        assert(work->pCudaBufIn!=NULL);
+        work->pCudaBufOut = CUDA_gpu_malloc(cuda->outCudaBufSize);
+        assert(work->pCudaBufOut!=NULL);
+        CUDA_CHECK(cudaEventCreateWithFlags,( &work->event, cudaEventDisableTiming ));
+        CUDA_CHECK(cudaStreamCreate,( &work->stream ));
+        (*work->initFcn)(work->ctx,work); // This restarts the work
+        }
+    }
+
 extern "C"
 void *CUDA_initialize(int iCore) {
     int nDevices;
@@ -52,6 +86,8 @@ void *CUDA_initialize(int iCore) {
     ctx->wqCuda = ctx->wqFree = NULL;
     ctx->nodePP = NULL;
     ctx->nodePC = NULL;
+    ctx->ewIn = NULL;
+    ctx->ewt = NULL;
 
     CUDA_CHECK(cudaGetDeviceProperties,(&ctx->prop,iCore % nDevices));
 
@@ -111,10 +147,11 @@ int CUDA_queue(void *vcuda, void *ctx,
     work = cuda->wqFree;
     cuda->wqFree = work->next;
     ++cuda->nWorkQueueBusy;
-    if ( (*initWork)(ctx,work) ) {
+    work->ctx = ctx;
+    work->checkFcn = checkWork;
+    work->initFcn = initWork;
+    if ( (*initWork)(work->ctx,work) ) {
 	    time(&work->startTime);
-	    work->ctx = ctx;
-	    work->checkFcn = checkWork;
 	    work->next = cuda->wqCuda;
 	    cuda->wqCuda = work;
 	    }
@@ -124,28 +161,15 @@ int CUDA_queue(void *vcuda, void *ctx,
     return 1;
     }
 
-static void setup_cuda(CUDACTX cuda) {
-    }
-
-
 extern "C"
 void CUDA_SetQueueSize(void *vcuda,int cudaSize, int inCudaBufSize, int outCudaBufSize) {
     CUDACTX cuda = reinterpret_cast<CUDACTX>(vcuda);
     CUDAwqNode *work;
-    int hostBufSize = inCudaBufSize > outCudaBufSize ? inCudaBufSize : outCudaBufSize;
     cuda->inCudaBufSize = inCudaBufSize;
     cuda->outCudaBufSize = outCudaBufSize;
     cuda->nWorkQueueSize = cudaSize;
     while(cudaSize--) {
         work = reinterpret_cast<CUDAwqNode *>(malloc(sizeof(CUDAwqNode)));
-        work->pHostBuf = CUDA_malloc(hostBufSize);
-        assert(work->pHostBuf!=NULL);
-        work->pCudaBufIn = CUDA_gpu_malloc(inCudaBufSize);
-        assert(work->pCudaBufIn!=NULL);
-        work->pCudaBufOut = CUDA_gpu_malloc(outCudaBufSize);
-        assert(work->pCudaBufOut!=NULL);
-        CUDA_CHECK(cudaEventCreateWithFlags,( &work->event, cudaEventDisableTiming ));
-        CUDA_CHECK(cudaStreamCreate,( &work->stream ));
         work->ctx = NULL;
         work->checkFcn = NULL;
         work->startTime = 0;
@@ -153,6 +177,7 @@ void CUDA_SetQueueSize(void *vcuda,int cudaSize, int inCudaBufSize, int outCudaB
         cuda->wqFree = work;
         }
     cuda->nWorkQueueBusy = 0;
+    setup_cuda(cuda);
     }
 
 extern "C"

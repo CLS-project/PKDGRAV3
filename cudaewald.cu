@@ -174,14 +174,23 @@ __global__ void cudaEwald(double *X,double *Y,double *Z,
     pdFlop[pidx] = dFlop;
     }
 
+void cuda_setup_ewald(CUDACTX cuda) {
+    if (cuda->ewIn && cuda->ewt) {
+        CUDA_CHECK(cudaMemcpyToSymbol,(ew,cuda->ewIn,sizeof(ew),0,cudaMemcpyHostToDevice));
+        CUDA_CHECK(cudaMemcpyToSymbol,(hx,cuda->ewt->hx.f,sizeof(float)*cuda->ewIn->nEwhLoop,0,cudaMemcpyHostToDevice));
+        CUDA_CHECK(cudaMemcpyToSymbol,(hy,cuda->ewt->hy.f,sizeof(float)*cuda->ewIn->nEwhLoop,0,cudaMemcpyHostToDevice));
+        CUDA_CHECK(cudaMemcpyToSymbol,(hz,cuda->ewt->hz.f,sizeof(float)*cuda->ewIn->nEwhLoop,0,cudaMemcpyHostToDevice));
+        CUDA_CHECK(cudaMemcpyToSymbol,(hCfac,cuda->ewt->hCfac.f,sizeof(float)*cuda->ewIn->nEwhLoop,0,cudaMemcpyHostToDevice));
+        CUDA_CHECK(cudaMemcpyToSymbol,(hSfac,cuda->ewt->hSfac.f,sizeof(float)*cuda->ewIn->nEwhLoop,0,cudaMemcpyHostToDevice));
+        }
+    }
+
 extern "C"
-void cudaEwaldInit(struct EwaldVariables *ewIn, EwaldTable *ewt ) {
-    CUDA_CHECK(cudaMemcpyToSymbol,(ew,ewIn,sizeof(ew),0,cudaMemcpyHostToDevice));
-    CUDA_CHECK(cudaMemcpyToSymbol,(hx,ewt->hx.f,sizeof(float)*ewIn->nEwhLoop,0,cudaMemcpyHostToDevice));
-    CUDA_CHECK(cudaMemcpyToSymbol,(hy,ewt->hy.f,sizeof(float)*ewIn->nEwhLoop,0,cudaMemcpyHostToDevice));
-    CUDA_CHECK(cudaMemcpyToSymbol,(hz,ewt->hz.f,sizeof(float)*ewIn->nEwhLoop,0,cudaMemcpyHostToDevice));
-    CUDA_CHECK(cudaMemcpyToSymbol,(hCfac,ewt->hCfac.f,sizeof(float)*ewIn->nEwhLoop,0,cudaMemcpyHostToDevice));
-    CUDA_CHECK(cudaMemcpyToSymbol,(hSfac,ewt->hSfac.f,sizeof(float)*ewIn->nEwhLoop,0,cudaMemcpyHostToDevice));
+void cudaEwaldInit(void *cudaCtx, struct EwaldVariables *ewIn, EwaldTable *ewt ) {
+    CUDACTX cuda = reinterpret_cast<CUDACTX>(cudaCtx);
+    cuda->ewIn = ewIn;
+    cuda->ewt = ewt;
+    cuda_setup_ewald(cuda);
     }
 
 extern "C"

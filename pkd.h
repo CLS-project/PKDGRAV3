@@ -1554,7 +1554,7 @@ extern "C" {
     extern int CUDAcheckWorkPC( void *vpp, void *vwork );
     extern int CUDAinitWorkEwald( void *vpp, void *vwork );
     extern int CUDAcheckWorkEwald( void *vpp, void *vwork );
-    extern void cudaEwaldInit(struct EwaldVariables *ewIn, EwaldTable *ewt );
+    extern void cudaEwaldInit(void *cudaCtx, struct EwaldVariables *ewIn, EwaldTable *ewt );
 #ifdef __cplusplus
 }
 #endif

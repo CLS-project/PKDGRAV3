@@ -657,7 +657,8 @@ void CUDA_sendWork(CUDACTX cuda,CUDAwqNode **head) {
         work->pppc.nGrid = iI/nWUPerTB;
         work->pppc.nBufferIn = reinterpret_cast<char *>(partHost) - reinterpret_cast<char *>(work->pHostBuf);
 
-        initWork<nIntPerTB,nIntPerWU,BLK>(NULL,work);
+//        initWork<nIntPerTB,nIntPerWU,BLK>(NULL,work);
+        (*work->initFcn)(work->ctx,work);
 
         work->next = cuda->wqCuda;
         cuda->wqCuda = work;
@@ -766,7 +767,9 @@ int CUDA_queue(CUDACTX cuda,CUDAwqNode **head,workParticle *wp, TILE tile, int b
         *head = work = getNode(cuda);
         if (work==NULL) return 0;
         time(&work->startTime);
+        work->ctx = NULL;
         work->checkFcn = CUDAcheckWorkInteraction<nIntPerWU>;
+        work->initFcn = initWork<nIntPerTB,nIntPerWU,BLK>;
         work->ppSizeIn = 0;
         work->ppSizeOut = 0;
         work->ppnBuffered = 0;

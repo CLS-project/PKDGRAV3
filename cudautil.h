@@ -69,6 +69,7 @@ typedef struct cuda_wq_node {
     /* We can put this on different types of queues */
     struct cuda_wq_node *next;
     void *ctx;
+    int (*initFcn)(void *,void *);
     int (*checkFcn)(void *,void *);
     void *pHostBuf;
     void *pCudaBufIn;
@@ -100,6 +101,10 @@ typedef struct cuda_ctx {
     CUDAwqNode *nodePC; // We are building a PC request
     int nWorkQueueSize, nWorkQueueBusy;
     int inCudaBufSize, outCudaBufSize;
+
+    struct EwaldVariables *ewIn;
+    EwaldTable *ewt;
+
     } *CUDACTX;
 
 
