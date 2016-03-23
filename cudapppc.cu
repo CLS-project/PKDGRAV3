@@ -547,27 +547,64 @@ void CUDAsetupPP(void) {
     }
 
 template<int nIntPerTB, int nIntPerWU, typename BLK>
+int initWork( void *ve, void *vwork ) {
+//    workEwald *e = reinterpret_cast<workEwald *>(ve);
+    CUDAwqNode *work = reinterpret_cast<CUDAwqNode *>(vwork);
+    const int nBlkPer = nIntPerWU / WIDTH;
+    const int nWork = work->ppnBlocks/nBlkPer;
+
+    // The interation blocks -- already copied to the host memory
+    BLK * __restrict__ blkHost = reinterpret_cast<BLK*>(work->pHostBuf);
+    BLK * __restrict__ blkCuda = reinterpret_cast<BLK*>(work->pCudaBufIn);
+
+    // The interaction block descriptors
+    ppWorkUnit * __restrict__ wuCuda = reinterpret_cast<ppWorkUnit *>(blkCuda + work->ppnBlocks);
+
+    // The particle information
+    ppInput * __restrict__ partCuda = reinterpret_cast<ppInput *>(wuCuda + ((nWork+7)&~7));
+
+    ppResult *pCudaBufOut = reinterpret_cast<ppResult *>(work->pCudaBufOut);
+
+    CUDA_CHECK(cudaMemcpyAsync,(blkCuda, blkHost, work->pppc.nBufferIn, cudaMemcpyHostToDevice, work->stream));
+
+    dim3 dimBlock( WIDTH, nIntPerWU/WIDTH, nIntPerTB/nIntPerWU );
+    dim3 dimGrid( work->pppc.nGrid, 1,1);
+    if (work->bGravStep) {
+        cudaInteract<WARPS,nIntPerWU/32,SYNC_RATE*nIntPerWU/nIntPerTB,1>
+            <<<dimGrid, dimBlock, 0, work->stream>>>
+            (wuCuda,partCuda,blkCuda,pCudaBufOut );
+        }
+    else {
+        cudaInteract<WARPS,nIntPerWU/32,SYNC_RATE*nIntPerWU/nIntPerTB,0>
+            <<<dimGrid, dimBlock, 0, work->stream>>>
+            (wuCuda,partCuda,blkCuda,pCudaBufOut );
+        }
+
+    CUDA_CHECK(cudaMemcpyAsync,(blkHost, work->pCudaBufOut, work->pppc.nBufferOut, cudaMemcpyDeviceToHost, work->stream) );
+    CUDA_CHECK(cudaEventRecord,(work->event,work->stream));
+
+    return 1;
+    }
+
+template<int nIntPerTB, int nIntPerWU, typename BLK>
 void CUDA_sendWork(CUDACTX cuda,CUDAwqNode **head) {
     CUDAwqNode *work = *head;
     if (work != NULL) {
         int i, j;
         int iI=0, iP=0, iO=0;
-        int nBufferOut = 0;
-        int nBlkPer = nIntPerWU / WIDTH;
-        int nWork = work->ppnBlocks/nBlkPer;
+        const int nBlkPer = nIntPerWU / WIDTH;
+        const int nWork = work->ppnBlocks/nBlkPer;
 
         // The interation blocks -- already copied to the host memory
         BLK * __restrict__ blkHost = reinterpret_cast<BLK*>(work->pHostBuf);
-        BLK * __restrict__ blkCuda = reinterpret_cast<BLK*>(work->pCudaBufIn);
-        
+
         // The interaction block descriptors
         ppWorkUnit * __restrict__ wuHost = reinterpret_cast<ppWorkUnit *>(blkHost + work->ppnBlocks);
-        ppWorkUnit * __restrict__ wuCuda = reinterpret_cast<ppWorkUnit *>(blkCuda + work->ppnBlocks);
 
         // The particle information
         ppInput * __restrict__ partHost = reinterpret_cast<ppInput *>(wuHost + ((nWork+7)&~7));
-        ppInput * __restrict__ partCuda = reinterpret_cast<ppInput *>(wuCuda + ((nWork+7)&~7));
 
+        work->pppc.nBufferOut = 0;
         for( i=0; i<work->ppnBuffered; ++i) {
             const int nP = work->ppWP[i]->nP;
             PINFOIN *pInfoIn = work->ppWP[i]->pInfoIn;
@@ -586,7 +623,7 @@ void CUDA_sendWork(CUDACTX cuda,CUDAwqNode **head) {
                 nInteract -= wuHost->nI;
                 ++wuHost;
                 ++iI;
-                nBufferOut += nP * sizeof(ppResult);
+                work->pppc.nBufferOut += nP * sizeof(ppResult);
                 }
             assert(nInteract==0);
 
@@ -606,7 +643,7 @@ void CUDA_sendWork(CUDACTX cuda,CUDAwqNode **head) {
             }
         assert(iI == work->ppnBlocks/nBlkPer);
         /* Pad the work out so all work units have valid data */
-        int nWUPerTB = nIntPerTB/nIntPerWU;
+        const int nWUPerTB = nIntPerTB/nIntPerWU;
         while((iI&(nWUPerTB-1)) != 0) {
             wuHost->nP = 0;
             wuHost->iP = 0;
@@ -616,29 +653,11 @@ void CUDA_sendWork(CUDACTX cuda,CUDAwqNode **head) {
             ++iI;
             }
 
-        ppResult *pCudaBufOut = reinterpret_cast<ppResult *>(work->pCudaBufOut);
-        size_t nBufferIn = reinterpret_cast<char *>(partHost) - reinterpret_cast<char *>(work->pHostBuf);
-        CUDA_CHECK(cudaMemcpyAsync,(blkCuda, blkHost, nBufferIn, cudaMemcpyHostToDevice, work->stream));
-
         assert((iI & (nWUPerTB-1)) == 0);
-        dim3 dimBlock( WIDTH, nIntPerWU/WIDTH, nIntPerTB/nIntPerWU );
-        dim3 dimGrid( iI/nWUPerTB, 1,1);
-//        printf("%d x %d x %d X %d x %d x %d\n",
-//            dimBlock.x, dimBlock.y, dimBlock.z,
-//            dimGrid.x, dimGrid.y, dimGrid.z);
-        if (work->bGravStep) {
-            cudaInteract<WARPS,nIntPerWU/32,SYNC_RATE*nIntPerWU/nIntPerTB,1>
-                <<<dimGrid, dimBlock, 0, work->stream>>>
-                (wuCuda,partCuda,blkCuda,pCudaBufOut );
-            }
-        else {
-            cudaInteract<WARPS,nIntPerWU/32,SYNC_RATE*nIntPerWU/nIntPerTB,0>
-                <<<dimGrid, dimBlock, 0, work->stream>>>
-                (wuCuda,partCuda,blkCuda,pCudaBufOut );
-            }
-        CUDA_CHECK(cudaMemcpyAsync,(blkHost, work->pCudaBufOut, nBufferOut, cudaMemcpyDeviceToHost, work->stream)
-);
-        CUDA_CHECK(cudaEventRecord,(work->event,work->stream));
+        work->pppc.nGrid = iI/nWUPerTB;
+        work->pppc.nBufferIn = reinterpret_cast<char *>(partHost) - reinterpret_cast<char *>(work->pHostBuf);
+
+        initWork<nIntPerTB,nIntPerWU,BLK>(NULL,work);
 
         work->next = cuda->wqCuda;
         cuda->wqCuda = work;

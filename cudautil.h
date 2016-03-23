@@ -83,6 +83,13 @@ typedef struct cuda_wq_node {
     int ppnBlocks;
     int ppnBuffered;
     int bGravStep;
+    union {
+	struct {
+	    size_t nBufferIn;
+	    size_t nBufferOut;
+	    int nGrid;
+	    } pppc;
+	};
     } CUDAwqNode;
 
 typedef struct cuda_ctx {
