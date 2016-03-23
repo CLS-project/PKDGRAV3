@@ -746,6 +746,7 @@ int CUDA_queue(CUDACTX cuda,CUDAwqNode **head,workParticle *wp, TILE tile, int b
     if (work==NULL) {
         *head = work = getNode(cuda);
         if (work==NULL) return 0;
+        time(&work->startTime);
         work->checkFcn = CUDAcheckWorkInteraction<nIntPerWU>;
         work->ppSizeIn = 0;
         work->ppSizeOut = 0;

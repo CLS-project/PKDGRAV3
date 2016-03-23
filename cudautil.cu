@@ -8,6 +8,10 @@
 
 #include <assert.h>
 #include <stdio.h>
+#include <unistd.h>
+#ifdef HAVE_SYS_PARAM_H
+#include <sys/param.h> /* for MAXHOSTNAMELEN, if available */
+#endif
 
 static void *CUDA_malloc(size_t nBytes) {
     void *blk = NULL;
@@ -61,18 +65,35 @@ int CUDA_flushDone(void *vcuda) {
     while( (work=*last) !=NULL ) {
         cudaError_t rc = cudaEventQuery(work->event);
         if (rc==cudaSuccess) {
-            if ( (*work->checkFcn)(work->ctx,work) == 0) {
-                *last = work->next;
-                work->next = cuda->wqFree;
-                cuda->wqFree = work;
-                --cuda->nWorkQueueBusy;
-                continue;
-                }
+	    assert(work->checkFcn != NULL); /* Only one cudaSuccess per customer! */
+            int rc = (*work->checkFcn)(work->ctx,work);
+	    assert(rc == 0);
+	    work->checkFcn = NULL; /* Make sure we don't do this multiple times! */
+            *last = work->next;
+            work->next = cuda->wqFree;
+            cuda->wqFree = work;
+            --cuda->nWorkQueueBusy;
+            continue;
             }
         else if (rc!=cudaErrorNotReady) {
             fprintf(stderr,"cudaEventQuery error %d: %s\n", rc, cudaGetErrorString(rc));
             exit(1);
             }
+	else if (work->startTime != 0) {
+	    time_t now;
+	    double seconds;
+	    time(&now);
+	    seconds = difftime(now,work->startTime);
+	    if (seconds>=30) {
+		char hostname[MAXHOSTNAMELEN];
+#if defined(MAXHOSTNAMELEN) && defined(HAVE_GETHOSTNAME)
+		if (gethostname(hostname,MAXHOSTNAMELEN))
+#endif
+		    strcpy(hostname,"unknown");
+		fprintf(stderr,"%s: cudaEventQuery has returned cudaErrorNotReady for %f seconds\n",hostname,seconds);
+		work->startTime = 0;
+		}
+	    }
         last = &work->next;
         }
     return cuda->wqCuda != NULL;
@@ -91,6 +112,7 @@ int CUDA_queue(void *vcuda, void *ctx,
     cuda->wqFree = work->next;
     ++cuda->nWorkQueueBusy;
     if ( (*initWork)(ctx,work) ) {
+	    time(&work->startTime);
 	    work->ctx = ctx;
 	    work->checkFcn = checkWork;
 	    work->next = cuda->wqCuda;
@@ -121,6 +143,7 @@ void CUDA_SetQueueSize(void *vcuda,int cudaSize, int inCudaBufSize, int outCudaB
         CUDA_CHECK(cudaStreamCreate,( &work->stream ));
         work->ctx = NULL;
         work->checkFcn = NULL;
+	work->startTime = 0;
         work->next = cuda->wqFree;
         cuda->wqFree = work;
         }
