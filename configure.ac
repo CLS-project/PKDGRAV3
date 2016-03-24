@@ -223,7 +223,7 @@ if test "x$USE_PNG" = "xyes" ; then
   AC_CHECK_LIB([gd],[gdImageCreateTrueColor],,[AC_MSG_ERROR([The gd library cannot be located])])
 fi
 
-# Python
+# CUDA
 AC_ARG_WITH(cuda,
   [  --with-cuda=PATH               enable cude acceleration],
   [CUDA_DIR="${withval}"],[CUDA_DIR=no])
@@ -232,7 +232,7 @@ if test "x$CUDA_DIR" != "xno" ; then
 AC_DEFINE([USE_CUDA],1,
   [Use CUDA to accelerate calculations])
 if test "x$CUDA_DIR" = "xyes" ; then
-  NVCC=nvcc
+  AC_PATH_PROG(NVCC, nvcc)
   CUDA_LIBS=""
 else
   NVCC=$CUDA_DIR/bin/nvcc
