@@ -1624,11 +1624,12 @@ void mdlLaunch(int argc,char **argv,void * (*fcnMaster)(MDL),void * (*fcnChild)(
     __itt_string_handle* shMPITask = __itt_string_handle_create("MPI");
     __itt_task_begin(domain, __itt_null, __itt_null, shMPITask);
 #endif
+    mpi->commMDL = MPI_COMM_WORLD;
     rc = MPI_Init_thread(&argc, &argv, MPI_THREAD_FUNNELED,&thread_support);
     if (rc!=MPI_SUCCESS) {
 	MPI_Error_string(rc, ach, &i);
 	perror(ach);
-	abort();
+	MPI_Abort(mpi->commMDL,rc);
 	}
 #ifdef MDL_FFTW
     if (mdlCores(mdl)>1) FFTW3(init_threads)();
@@ -1639,7 +1640,6 @@ void mdlLaunch(int argc,char **argv,void * (*fcnMaster)(MDL),void * (*fcnChild)(
 #ifdef USE_ITT
     __itt_task_end(domain);
 #endif
-    mpi->commMDL = MPI_COMM_WORLD;
     MPI_Comm_size(mpi->commMDL, &mdl->base.nProcs);
     MPI_Comm_rank(mpi->commMDL, &mdl->base.iProc);
 
