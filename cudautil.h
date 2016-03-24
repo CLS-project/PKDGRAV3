@@ -71,7 +71,7 @@ typedef struct cuda_wq_node {
     void *ctx;
     int (*initFcn)(void *,void *);
     int (*checkFcn)(void *,void *);
-    void *pHostBuf;
+    void *pHostBufToGPU, *pHostBufFromGPU;
     void *pCudaBufIn;
     void *pCudaBufOut;
     time_t startTime;
@@ -101,10 +101,11 @@ typedef struct cuda_ctx {
     CUDAwqNode *nodePC; // We are building a PC request
     int nWorkQueueSize, nWorkQueueBusy;
     int inCudaBufSize, outCudaBufSize;
+    int epoch;
 
     struct EwaldVariables *ewIn;
     EwaldTable *ewt;
-
+    char hostname[256];
     } *CUDACTX;
 
 

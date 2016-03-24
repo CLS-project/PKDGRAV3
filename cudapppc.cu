@@ -517,7 +517,7 @@ void pkdParticleWorkDone(workParticle *wp);
 template<int nIntPerWU>
 int CUDAcheckWorkInteraction( void *vpp, void *vwork ) {
     CUDAwqNode *work = reinterpret_cast<CUDAwqNode *>(vwork);
-    ppResult *pR       = reinterpret_cast<ppResult *>(work->pHostBuf);
+    ppResult *pR       = reinterpret_cast<ppResult *>(work->pHostBufFromGPU);
     int ib, iw, ip;
 
     for( ib=0; ib<work->ppnBuffered; ++ib) {
@@ -548,13 +548,11 @@ void CUDAsetupPP(void) {
 
 template<int nIntPerTB, int nIntPerWU, typename BLK>
 int initWork( void *ve, void *vwork ) {
-//    workEwald *e = reinterpret_cast<workEwald *>(ve);
     CUDAwqNode *work = reinterpret_cast<CUDAwqNode *>(vwork);
     const int nBlkPer = nIntPerWU / WIDTH;
     const int nWork = work->ppnBlocks/nBlkPer;
 
     // The interation blocks -- already copied to the host memory
-    BLK * __restrict__ blkHost = reinterpret_cast<BLK*>(work->pHostBuf);
     BLK * __restrict__ blkCuda = reinterpret_cast<BLK*>(work->pCudaBufIn);
 
     // The interaction block descriptors
@@ -565,7 +563,7 @@ int initWork( void *ve, void *vwork ) {
 
     ppResult *pCudaBufOut = reinterpret_cast<ppResult *>(work->pCudaBufOut);
 
-    CUDA_CHECK(cudaMemcpyAsync,(blkCuda, blkHost, work->pppc.nBufferIn, cudaMemcpyHostToDevice, work->stream));
+    CUDA_CHECK(cudaMemcpyAsync,(blkCuda, work->pHostBufToGPU, work->pppc.nBufferIn, cudaMemcpyHostToDevice, work->stream));
 
     dim3 dimBlock( WIDTH, nIntPerWU/WIDTH, nIntPerTB/nIntPerWU );
     dim3 dimGrid( work->pppc.nGrid, 1,1);
@@ -579,8 +577,8 @@ int initWork( void *ve, void *vwork ) {
             <<<dimGrid, dimBlock, 0, work->stream>>>
             (wuCuda,partCuda,blkCuda,pCudaBufOut );
         }
-
-    CUDA_CHECK(cudaMemcpyAsync,(blkHost, work->pCudaBufOut, work->pppc.nBufferOut, cudaMemcpyDeviceToHost, work->stream) );
+    CUDA_CHECK(cudaPeekAtLastError,());
+    CUDA_CHECK(cudaMemcpyAsync,(work->pHostBufFromGPU, work->pCudaBufOut, work->pppc.nBufferOut, cudaMemcpyDeviceToHost, work->stream) );
     CUDA_CHECK(cudaEventRecord,(work->event,work->stream));
 
     return 1;
@@ -596,7 +594,7 @@ void CUDA_sendWork(CUDACTX cuda,CUDAwqNode **head) {
         const int nWork = work->ppnBlocks/nBlkPer;
 
         // The interation blocks -- already copied to the host memory
-        BLK * __restrict__ blkHost = reinterpret_cast<BLK*>(work->pHostBuf);
+        BLK * __restrict__ blkHost = reinterpret_cast<BLK*>(work->pHostBufToGPU);
 
         // The interaction block descriptors
         ppWorkUnit * __restrict__ wuHost = reinterpret_cast<ppWorkUnit *>(blkHost + work->ppnBlocks);
@@ -655,9 +653,8 @@ void CUDA_sendWork(CUDACTX cuda,CUDAwqNode **head) {
 
         assert((iI & (nWUPerTB-1)) == 0);
         work->pppc.nGrid = iI/nWUPerTB;
-        work->pppc.nBufferIn = reinterpret_cast<char *>(partHost) - reinterpret_cast<char *>(work->pHostBuf);
+        work->pppc.nBufferIn = reinterpret_cast<char *>(partHost) - reinterpret_cast<char *>(work->pHostBufToGPU);
 
-//        initWork<nIntPerTB,nIntPerWU,BLK>(NULL,work);
         (*work->initFcn)(work->ctx,work);
 
         work->next = cuda->wqCuda;
@@ -726,7 +723,7 @@ int copyBLKs(ilcBlk<n> *out, ILC_BLK *in,int nIlp) {
 template<int nIntPerTB, int nIntPerWU, typename TILE,typename BLK>
 int CUDA_queue(CUDACTX cuda,CUDAwqNode **head,workParticle *wp, TILE tile, int bGravStep) {
     /* Refuse the work if it looks like we will overwhelm the GPU with nonsense */
-    assert(cuda->nWorkQueueSize > 0);
+    if (cuda->nWorkQueueSize == 0) return 0;
     assert(cuda->nWorkQueueBusy >=0 && cuda->nWorkQueueBusy <= cuda->nWorkQueueSize);
     if (cuda->nWorkQueueBusy > cuda->nWorkQueueSize/2 && wp->nP <= 2) return 0;
 
@@ -780,7 +777,7 @@ int CUDA_queue(CUDACTX cuda,CUDAwqNode **head,workParticle *wp, TILE tile, int b
 
     if (nBlocksAligned>0) {
         // Copy in the interactions. The ILP tiles can then be freed/reused.
-        BLK *blk = reinterpret_cast<BLK *>(work->pHostBuf);
+        BLK *blk = reinterpret_cast<BLK *>(work->pHostBufToGPU);
         //for(i=0; i<nBlocks; ++i) blk[work->ppnBlocks++] = tile->blk[i];
         copyBLKs(blk+work->ppnBlocks,tile->blk,nInteract);
         work->ppnBlocks += nBlocksAligned;
