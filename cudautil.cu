@@ -15,14 +15,17 @@
 #endif
 
 static void *CUDA_malloc(size_t nBytes) {
-    void *blk = valloc(nBytes);
-//    void *blk = NULL;
-//    cudaMallocHost( &blk, nBytes);
+#ifdef __linux__
+    uint64_t nPageSize = sysconf(_SC_PAGESIZE);
+#else
+    uint64_t nPageSize = 512;
+#endif
+    void *blk;
+    if (posix_memalign(&blk,nPageSize,nBytes)) blk = NULL;
     return blk;
     }
 
 static void CUDA_free(void *data) {
-//    cudaFreeHost(data);
     free(data);
     }
 
