@@ -499,11 +499,11 @@ void msrCheckpoint(MSR msr,int iStep,double dTime) {
     in.nProcessors = msr->param.bParaWrite==0?1:(msr->param.nParaWrite<=1 ? msr->nThreads:msr->param.nParaWrite);
     if (msr->param.csm->val.bComove) {
 	double dExp = csmTime2Exp(msr->param.csm,dTime);
-	msrprintf(msr,"Writing checkpoing for Step: %d Time:%g Redshift:%g\n",
+	msrprintf(msr,"Writing checkpoint for Step: %d Time:%g Redshift:%g\n",
 	    iStep,dTime,(1.0/dExp - 1.0));
 	}
     else
-	msrprintf(msr,"Writing checkpoing for Step: %d Time:%g\n",iStep,dTime);
+	msrprintf(msr,"Writing checkpoint for Step: %d Time:%g\n",iStep,dTime);
     sec = msrTime();
 
     writeParameters(msr,in.achOutFile,iStep,dTime);
