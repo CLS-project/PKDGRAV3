@@ -3127,7 +3127,7 @@ void mdlFFT( MDL mdl, MDLFFT fft, FFTW3(real) *data ) {
 	trans.kdata = (FFTW3(complex) *)data;
 	mdlSendToMPI(mdl,&trans,MDL_SE_FFT_DFT_R2C);
 	}
-    pthread_barrier_wait(&mdl->pmdl[0]->barrier);
+    if (mdl->base.nCores>1) pthread_barrier_wait(&mdl->pmdl[0]->barrier);
     mdlThreadBarrier(mdl);
     }
 void mdlIFFT( MDL mdl, MDLFFT fft, FFTW3(complex) *kdata ) {
@@ -3142,7 +3142,7 @@ void mdlIFFT( MDL mdl, MDLFFT fft, FFTW3(complex) *kdata ) {
 	trans.data = (FFTW3(real) *)kdata;
 	mdlSendToMPI(mdl,&trans,MDL_SE_FFT_DFT_C2R);
 	}
-    pthread_barrier_wait(&mdl->pmdl[0]->barrier);
+    if (mdl->base.nCores>1) pthread_barrier_wait(&mdl->pmdl[0]->barrier);
     mdlThreadBarrier(mdl);
     }
 #endif
