@@ -9,7 +9,7 @@ extern "C" {
 #ifdef USE_CUDA
     void CUDA_nvtxRangePush(char *name);
     void CUDA_nvtxRangePop();
-    void *CUDA_initialize(int iCore);
+    void *CUDA_initialize(int nCores, int iCore);
     void CUDA_finish(void *vctx);
     void CUDA_SetQueueSize(void *vcuda,int cudaSize, int inCudaBufSize, int outCudaBufSiz);
 
@@ -21,7 +21,7 @@ extern "C" {
     int CUDA_queuePP(void *cudaCtx,workParticle *wp, ILPTILE tile, int bGravStep);
     int CUDA_queuePC(void *cudaCtx,workParticle *wp, ILCTILE tile, int bGravStep);
     void CUDA_sendWork(void *cudaCtx);
-
+    void CUDA_checkForRecovery(void *vcuda);
 #else
 #include "simd.h"
 #define CUDA_malloc SIMD_malloc
@@ -63,6 +63,8 @@ __device__ void warpReduceAndStore(int tid,T t,T *result) {
 void CUDA_Abort(cudaError_t rc, const char *fname, const char *file, int line);
 
 #define CUDA_CHECK(f,a) {cudaError_t rc = (f)a; if (rc!=cudaSuccess) CUDA_Abort(rc,#f,__FILE__,__LINE__);}
+#define CUDA_RETURN(f,a) {cudaError_t rc = (f)a; if (rc!=cudaSuccess) return rc;}
+
 #define CUDA_PP_MAX_BUFFERED 128
 
 typedef struct cuda_wq_node {
@@ -102,13 +104,17 @@ typedef struct cuda_ctx {
     int nWorkQueueSize, nWorkQueueBusy;
     int inCudaBufSize, outCudaBufSize;
     int epoch;
+    int nCores, iCore;
 
     struct EwaldVariables *ewIn;
     EwaldTable *ewt;
+    cudaEvent_t eventEwald;       // Results have been copied back
+    cudaStream_t streamEwald;     // execution stream
+
     char hostname[256];
     } *CUDACTX;
 
-
+void CUDA_attempt_recovery(CUDACTX cuda,cudaError_t errorCode);
 
 #endif
 

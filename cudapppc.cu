@@ -74,10 +74,8 @@ int isWqEmpty(CUDACTX cuda) {
 CUDAwqNode *getNode(CUDACTX cuda) {
     CUDAwqNode *work;
     /* Bit of a hack here: keep a buffer around for Ewald */
-    if (cuda->wqFree == NULL || cuda->wqFree->next==NULL) {
-        CUDA_flushDone(cuda);
-        if (cuda->wqFree == NULL || cuda->wqFree->next==NULL) return NULL;
-        }
+    CUDA_flushDone(cuda);
+    if (cuda->wqFree == NULL || cuda->wqFree->next==NULL) return NULL;
     work = cuda->wqFree;
     cuda->wqFree = work->next;
     ++cuda->nWorkQueueBusy;
@@ -546,6 +544,7 @@ void CUDAsetupPP(void) {
     //cudaFuncSetCacheConfig(cudaPP,cudaFuncCachePreferL1);
     }
 
+/* If this returns an error, then the caller must attempt recovery or abort */
 template<int nIntPerTB, int nIntPerWU, typename BLK>
 int initWork( void *ve, void *vwork ) {
     CUDAwqNode *work = reinterpret_cast<CUDAwqNode *>(vwork);
@@ -563,7 +562,7 @@ int initWork( void *ve, void *vwork ) {
 
     ppResult *pCudaBufOut = reinterpret_cast<ppResult *>(work->pCudaBufOut);
 
-    CUDA_CHECK(cudaMemcpyAsync,(blkCuda, work->pHostBufToGPU, work->pppc.nBufferIn, cudaMemcpyHostToDevice, work->stream));
+    CUDA_RETURN(cudaMemcpyAsync,(blkCuda, work->pHostBufToGPU, work->pppc.nBufferIn, cudaMemcpyHostToDevice, work->stream));
 
     dim3 dimBlock( WIDTH, nIntPerWU/WIDTH, nIntPerTB/nIntPerWU );
     dim3 dimGrid( work->pppc.nGrid, 1,1);
@@ -577,11 +576,10 @@ int initWork( void *ve, void *vwork ) {
             <<<dimGrid, dimBlock, 0, work->stream>>>
             (wuCuda,partCuda,blkCuda,pCudaBufOut );
         }
-    CUDA_CHECK(cudaPeekAtLastError,());
-    CUDA_CHECK(cudaMemcpyAsync,(work->pHostBufFromGPU, work->pCudaBufOut, work->pppc.nBufferOut, cudaMemcpyDeviceToHost, work->stream) );
-    CUDA_CHECK(cudaEventRecord,(work->event,work->stream));
+    CUDA_RETURN(cudaMemcpyAsync,(work->pHostBufFromGPU, work->pCudaBufOut, work->pppc.nBufferOut, cudaMemcpyDeviceToHost, work->stream) );
+    CUDA_RETURN(cudaEventRecord,(work->event,work->stream));
 
-    return 1;
+    return cudaSuccess;
     }
 
 template<int nIntPerTB, int nIntPerWU, typename BLK>
@@ -655,10 +653,10 @@ void CUDA_sendWork(CUDACTX cuda,CUDAwqNode **head) {
         work->pppc.nGrid = iI/nWUPerTB;
         work->pppc.nBufferIn = reinterpret_cast<char *>(partHost) - reinterpret_cast<char *>(work->pHostBufToGPU);
 
-        (*work->initFcn)(work->ctx,work);
-
         work->next = cuda->wqCuda;
         cuda->wqCuda = work;
+        cudaError_t rc = static_cast<cudaError_t>((*work->initFcn)(work->ctx,work));
+        if ( rc != cudaSuccess) CUDA_attempt_recovery(cuda,rc);
 
         *head = NULL;
         }
@@ -725,7 +723,9 @@ int CUDA_queue(CUDACTX cuda,CUDAwqNode **head,workParticle *wp, TILE tile, int b
     /* Refuse the work if it looks like we will overwhelm the GPU with nonsense */
     if (cuda->nWorkQueueSize == 0) return 0;
     assert(cuda->nWorkQueueBusy >=0 && cuda->nWorkQueueBusy <= cuda->nWorkQueueSize);
-    if (cuda->nWorkQueueBusy > cuda->nWorkQueueSize/2 && wp->nP <= 2) return 0;
+
+    // If the work queue is half used, and there are fewer than 2 particles let the CPU handle it
+    if (cuda->nWorkQueueBusy > cuda->nWorkQueueSize-3 && wp->nP <= 2) return 0;
 
     CUDAwqNode *work = *head;
     /*const int nBlkPerTB = nIntPerTB / WIDTH;*/
@@ -734,7 +734,9 @@ int CUDA_queue(CUDACTX cuda,CUDAwqNode **head,workParticle *wp, TILE tile, int b
     const int nPaligned = (nP+NP_ALIGN_MASK) & ~NP_ALIGN_MASK;
     const int nBlocks = tile->lstTile.nBlocks + (tile->lstTile.nInLast?1:0);
     int nBlocksAligned,nInteract;
-    if (isWqEmpty(cuda)) {
+
+    // If there are too few free blocks then the CPU does the "hair"
+    if (cuda->nWorkQueueBusy > cuda->nWorkQueueSize-3) {
         nBlocksAligned = (tile->lstTile.nBlocks + (tile->lstTile.nInLast==32?1:0) ) & ~(nBlkPerWU - 1);
         nInteract = nBlocksAligned * ILP_PART_PER_BLK;
         }
@@ -790,6 +792,7 @@ int CUDA_queue(CUDACTX cuda,CUDAwqNode **head,workParticle *wp, TILE tile, int b
 
         if ( ++work->ppnBuffered == CUDA_PP_MAX_BUFFERED) CUDA_sendWork<nIntPerTB,nIntPerWU,BLK>(cuda,head);
         }
+    // Evaluate the "hair" on the CPU
     if (nBlocks > nBlocksAligned) {
         finishGravity(wp,tile->lstTile.nBlocks-nBlocksAligned,tile->lstTile.nInLast,tile->blk+nBlocksAligned);
         }

@@ -537,6 +537,11 @@ static void combine_all_incoming(MDL mdl) {
 	}
     }
 
+static void bookkeeping(MDL mdl) {
+    CUDA_checkForRecovery(mdl->cudaCtx);
+    combine_all_incoming(mdl);
+    }
+
 static void mpi_finish_local_flush(MDL mdl) {
     mdlContextMPI *mpi = mdl->mpi;
     MDLflushBuffer *flush;
@@ -562,7 +567,7 @@ static MDLflushBuffer *get_local_flush_buffer(MDL mdl) {
 	** We have no local flush buffers, but threads should wakeup soon and give them back.
 	** In the mean time we need to flush buffers ourselves (if we are not a dedicated MPI).
 	*/
-	combine_all_incoming(mdl);
+	bookkeeping(mdl);
 	}
     OPA_Queue_dequeue(&mpi->localFlushBuffers, flush, MDLflushBuffer, hdr.hdr);
     flush->nBytes = 0;
@@ -1223,7 +1228,7 @@ static void /*MDLserviceElement*/ *mdlWaitThreadQueue(MDL mdl,int iQueue) {
     MDLserviceElement *qhdr;
     while (OPA_Queue_is_empty(mdl->inQueue+iQueue)) {
 	if (mdl->base.iCore == mdl->iCoreMPI) checkMPI(mdl);
-	combine_all_incoming(mdl);
+	bookkeeping(mdl);
 	if (mdlDoSomeWork(mdl) == 0) {
 #ifdef _MSC_VER
 	    SwitchToThread();
@@ -1438,7 +1443,7 @@ void mdlInitCommon(MDL mdl0, int iMDL,int bDiag,int argc, char **argv,
 
 #ifdef USE_CUDA
     mdl->inCudaBufSize = mdl->outCudaBufSize = 0;
-    mdl->cudaCtx = CUDA_initialize(mdl->base.iCore);
+    mdl->cudaCtx = CUDA_initialize(mdl->base.nCores,mdl->base.iCore);
 #endif
 
     /*
@@ -2198,7 +2203,7 @@ void mdlSetCacheSize(MDL mdl,int cacheSize) {
 
 void mdlCacheCheck(MDL mdl) {
     if (mdl->base.iCore == mdl->iCoreMPI) checkMPI(mdl);
-    combine_all_incoming(mdl);
+    bookkeeping(mdl);
     }
 
 int mdlCacheStatus(MDL mdl,int cid) {
@@ -2331,7 +2336,7 @@ MDLflushBuffer *flush_core_buffer(MDL mdl) {
     if (pBuffer->nBytes) {
 	mdlSendToMPI(mdl,&pBuffer->hdr.svc,MDL_SE_CACHE_FLUSH);
 	while (OPA_Queue_is_empty(&mdl->coreFlushBuffers)) {
-	    combine_all_incoming(mdl);
+	    bookkeeping(mdl);
 	    if (mdl->base.iCore == mdl->iCoreMPI) checkMPI(mdl);
 	    }
 	OPA_Queue_dequeue(&mdl->coreFlushBuffers, pBuffer, MDLflushBuffer, hdr.hdr);
