@@ -2166,6 +2166,13 @@ static void makeName( char *achOutName, const char *inName, int iIndex,const cha
 	p = achOutName + strlen(achOutName);
 	sprintf(p,".%s%d", prefix, iIndex);
 	}
+    for(p=achOutName+1; *p; ++p) {
+	if ( *p == '/') {
+	    *p = 0;
+	    mkdir(achOutName,0755);
+	    *p = '/';
+	    }
+	}
     }
 
 void pstRestore(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
