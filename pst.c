@@ -22,6 +22,9 @@
 #ifdef __linux__
 #include <unistd.h>
 #endif
+#ifdef HAVE_SYS_STAT_H
+#include <sys/stat.h>
+#endif
 #ifdef USE_ITT
 #include "ittnotify.h"
 #endif
