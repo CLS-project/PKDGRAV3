@@ -3899,6 +3899,9 @@ int msrUpdateRung(MSR msr, uint8_t uRung) {
     uint64_t sum;
     char c;
 
+    /* If we are called, it is a mistake -- this happens in analysis mode */
+    if (msr->param.bMemUnordered) return 0;
+
     in.uRungLo = uRung;
     in.uRungHi = msrMaxRung(msr);
     in.uMinRung = uRung;
