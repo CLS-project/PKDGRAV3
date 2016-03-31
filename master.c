@@ -27,6 +27,9 @@
 #ifdef HAVE_SYS_TIME_H
 #include <sys/time.h>
 #endif
+#ifdef HAVE_SYS_STAT_H
+#include <sys/stat.h>
+#endif
 #include <math.h>
 #if defined(HAVE_WORDEXP) && defined(HAVE_WORDFREE)
 #include <wordexp.h>
@@ -139,6 +142,14 @@ char *_BuildName(MSR msr,char *achFile,int iStep,char *defaultPath) {
 	char achDigitMask[20];
 	sprintf(achDigitMask,"%%s.%%0%ii",msr->param.nDigits);
 	sprintf(achFile,achDigitMask,msrOutName(msr),iStep);
+	}
+
+    for(p=achFile+1; *p; ++p) {
+	if ( *p == '/') {
+	    *p = 0;
+	    mkdir(achFile,0755);
+	    *p = '/';
+	    }
 	}
     return achFile;
     }
