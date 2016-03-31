@@ -134,16 +134,14 @@ char *_BuildName(MSR msr,char *achFile,int iStep,char *defaultPath) {
     if ( p ) {
 	n = p - achOutPath;
 	strncpy( achFile, achOutPath, n );
-	achFile += n;
-	sprintf( achFile, "%05d", iStep );
-	strcat( achFile, p+2 );
+	sprintf( achFile+n, "%05d", iStep );
+	strcat( achFile+n, p+2 );
 	}
     else {
 	char achDigitMask[20];
 	sprintf(achDigitMask,"%%s.%%0%ii",msr->param.nDigits);
 	sprintf(achFile,achDigitMask,msrOutName(msr),iStep);
 	}
-
     for(p=achFile+1; *p; ++p) {
 	if ( *p == '/') {
 	    *p = 0;
@@ -3631,6 +3629,7 @@ char *msrBuildName(MSR msr,char *achFile,int iStep) {
     }
 
 char *msrBuildIoName(MSR msr,char *achFile,int iStep) {
+    printf("=== %s\n", msr->param.achIoPath);
     if ( msr->param.achIoPath[0] )
 	return _BuildName(msr,achFile,iStep, msr->param.achIoPath);
     else
