@@ -3629,7 +3629,6 @@ char *msrBuildName(MSR msr,char *achFile,int iStep) {
     }
 
 char *msrBuildIoName(MSR msr,char *achFile,int iStep) {
-    printf("=== %s\n", msr->param.achIoPath);
     if ( msr->param.achIoPath[0] )
 	return _BuildName(msr,achFile,iStep, msr->param.achIoPath);
     else
