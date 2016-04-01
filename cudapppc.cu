@@ -655,6 +655,7 @@ void CUDA_sendWork(CUDACTX cuda,CUDAwqNode **head) {
 
         work->next = cuda->wqCuda;
         cuda->wqCuda = work;
+        work->startTime = CUDA_getTime();
         cudaError_t rc = static_cast<cudaError_t>((*work->initFcn)(work->ctx,work));
         if ( rc != cudaSuccess) CUDA_attempt_recovery(cuda,rc);
 
@@ -765,7 +766,6 @@ int CUDA_queue(CUDACTX cuda,CUDAwqNode **head,workParticle *wp, TILE tile, int b
     if (work==NULL) {
         *head = work = getNode(cuda);
         if (work==NULL) return 0;
-        time(&work->startTime);
         work->ctx = NULL;
         work->checkFcn = CUDAcheckWorkInteraction<nIntPerWU>;
         work->initFcn = initWork<nIntPerTB,nIntPerWU,BLK>;

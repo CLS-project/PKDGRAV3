@@ -76,7 +76,7 @@ typedef struct cuda_wq_node {
     void *pHostBufToGPU, *pHostBufFromGPU;
     void *pCudaBufIn;
     void *pCudaBufOut;
-    time_t startTime;
+    double startTime;
     cudaEvent_t event;       // Results have been copied back
     cudaStream_t stream;     // execution stream
     workParticle *ppWP[CUDA_PP_MAX_BUFFERED];
@@ -115,10 +115,7 @@ typedef struct cuda_ctx {
     } *CUDACTX;
 
 void CUDA_attempt_recovery(CUDACTX cuda,cudaError_t errorCode);
-
+double CUDA_getTime();
 #endif
-
-
-
 
 #endif

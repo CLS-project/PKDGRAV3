@@ -13,6 +13,10 @@
 #ifdef HAVE_SYS_PARAM_H
 #include <sys/param.h> /* for MAXHOSTNAMELEN, if available */
 #endif
+#include <time.h>
+#ifdef HAVE_SYS_TIME_H
+#include <sys/time.h>
+#endif
 
 static void *CUDA_malloc(size_t nBytes) {
 #ifdef __linux__
@@ -43,6 +47,25 @@ void CUDA_Abort(cudaError_t rc, const char *fname, const char *file, int line) {
     fprintf(stderr,"%s error %d in %s(%d)\n%s\n", fname, rc, file, line, cudaGetErrorString(rc));
     exit(1);
     }
+
+#ifdef _MSC_VER
+double CUDA_getTime() {
+    FILETIME ft;
+    uint64_t clock;
+    GetSystemTimeAsFileTime(&ft);
+    clock = ft.dwHighDateTime;
+    clock <<= 32;
+    clock |= ft.dwLowDateTime;
+    /* clock is in 100 nano-second units */
+    return clock / 10000000.0;
+    }
+#else
+double CUDA_getTime() {
+    struct timeval tv;
+    gettimeofday(&tv,NULL);
+    return (tv.tv_sec+(tv.tv_usec*1e-6));
+    }
+#endif
 
 // This is cheeserific!
 static int recovery_epoch = 0;
@@ -93,7 +116,7 @@ static int setup_cuda(CUDACTX cuda) {
 
     for(work=cuda->wqCuda; work!=NULL; work=work->next) {
         (*work->initFcn)(work->ctx,work); // This restarts the work
-	    time(&work->startTime);
+	    work->startTime = CUDA_getTime();
         ++nQueued;
         }
 
@@ -148,7 +171,12 @@ void CUDA_attempt_recovery(CUDACTX cuda,cudaError_t errorCode) {
         sEquals[nEquals] = 0;
         while(nEquals) sEquals[--nEquals] = '=';
         printf("%s CUDA ERROR ON NODE %s %s\n", sEquals, cuda->hostname, sEquals);
-        printf("%d: cuda error %d: %s\n", cuda->iCore, errorCode, cudaGetErrorString(errorCode));
+        printf("%2d: cuda error %d: %s\n", cuda->iCore, errorCode, cudaGetErrorString(errorCode));
+        time_t now;
+        time(&now);
+        struct tm* tm_info = localtime(&now);
+        strftime(sEquals, 26, "%Y:%m:%d %H:%M:%S", tm_info);
+        puts(sEquals);
         ++recovery_epoch;
         }
     pthread_mutex_unlock(&recovery_mutex);
@@ -215,16 +243,11 @@ int CUDA_flushDone(void *vcuda) {
             continue;
             }
         else if (rc!=cudaErrorNotReady) {
-//            fprintf(stderr,"%s: cudaEventQuery error %d: %s\n", cuda->hostname, rc, cudaGetErrorString(rc));
-//            exit(1);
             CUDA_attempt_recovery(cuda,rc);
             }
         else if (work->startTime != 0) {
-            time_t now;
-            double seconds;
-            time(&now);
-            seconds = difftime(now,work->startTime);
-            if (seconds>=10) {
+            double seconds = CUDA_getTime() - work->startTime;
+            if (seconds>=1.0) {
                 fprintf(stderr,"%s: cudaEventQuery has returned cudaErrorNotReady for %f seconds\n",cuda->hostname,seconds);
                 work->startTime = 0;
                 CUDA_attempt_recovery(cuda,cudaErrorLaunchTimeout);
@@ -253,7 +276,7 @@ int CUDA_queue(void *vcuda, void *ctx,
     work->initFcn = initWork;
     work->next = cuda->wqCuda;
     cuda->wqCuda = work;
-    time(&work->startTime);
+    work->startTime = CUDA_getTime();
     cudaError_t rc = static_cast<cudaError_t>((*work->initFcn)(work->ctx,work));
     if ( rc != cudaSuccess) CUDA_attempt_recovery(cuda,rc);
     return 1;
