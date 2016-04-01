@@ -115,8 +115,6 @@ static inline int64_t d2u64(double d) {
 #define PKD_MODEL_NODE_BND     (1<<28) /* Include normal bounds in tree */
 #define PKD_MODEL_NODE_VBND    (1<<29) /* Include velocity bounds in tree for phase-space density*/
 
-#define EPHEMERAL_BYTES 8
-
 typedef struct {
     double rscale[3];
     double vscale[3];
@@ -763,6 +761,7 @@ typedef struct pkdContext {
 #ifdef COOLING
     COOL *Cool; /* Cooling Context */
 #endif
+    uint32_t nEphemeralBytes; /* per-particle */
     /*
     ** Advanced memory models
     */
@@ -1104,7 +1103,7 @@ static inline size_t pkdParticleSize( PKD pkd ) {
     return pkd->iParticleSize;
     }
 static inline size_t pkdParticleMemory(PKD pkd) {
-    return (pkd->iParticleSize + EPHEMERAL_BYTES) * (pkd->nStore+1);
+    return (pkd->iParticleSize + pkd->nEphemeralBytes) * (pkd->nStore+1);
     }
 static inline PARTICLE *pkdParticleGet( PKD pkd, void *pBase, int i ) {
     char *v = (char *)pBase;
@@ -1334,7 +1333,7 @@ void pkdClearTimer(PKD,int);
 void pkdStartTimer(PKD,int);
 void pkdStopTimer(PKD,int);
 void pkdInitialize(
-    PKD *ppkd,MDL mdl,int nStore,uint64_t nMinTotalStore,uint64_t nMinEphemeral,
+    PKD *ppkd,MDL mdl,int nStore,uint64_t nMinTotalStore,uint64_t nMinEphemeral,uint32_t nEphemeralBytes,
     int nTreeBitsLo, int nTreeBitsHi,
     int iCacheSize,int iWorkQueueSize,int iCUDAQueueSize,double *fPeriod,uint64_t nDark,uint64_t nGas,uint64_t nStar,
     uint64_t mMemoryModel, int bLightCone, int bLightConeParticles);

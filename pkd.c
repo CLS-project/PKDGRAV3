@@ -340,7 +340,7 @@ void initLightConeOffsets(PKD pkd) {
     }
 
 void pkdInitialize(
-    PKD *ppkd,MDL mdl,int nStore,uint64_t nMinTotalStore,uint64_t nMinEphemeral,
+    PKD *ppkd,MDL mdl,int nStore,uint64_t nMinTotalStore,uint64_t nMinEphemeral,uint32_t nEphemeralBytes,
     int nTreeBitsLo, int nTreeBitsHi,
     int iCacheSize,int iWorkQueueSize,int iCUDAQueueSize,double *fPeriod,uint64_t nDark,uint64_t nGas,uint64_t nStar,
     uint64_t mMemoryModel, int bLightCone, int bLightConeParticles) {
@@ -571,9 +571,10 @@ void pkdInitialize(
     ** IMPORTANT: There is a whole lot of pointer math here. If you mess with this
     **            you better be sure you get it right or really bad things will happen.
     */
+    pkd->nEphemeralBytes = nEphemeralBytes;
     uint64_t nBytesPerThread = ((nStore+1)*pkdParticleSize(pkd)+nPageMask) & ~nPageMask; // Constraint (d)
     uint64_t nBytesParticles = (uint64_t)mdlCores(pkd->mdl) * nBytesPerThread; // Constraint (a)
-    uint64_t nBytesEphemeral = (uint64_t)mdlCores(pkd->mdl) * (nStore+1)*EPHEMERAL_BYTES; // Constraint (a)
+    uint64_t nBytesEphemeral = (uint64_t)mdlCores(pkd->mdl) * (nStore+1)*1ul*pkd->nEphemeralBytes; // Constraint (a)
     uint64_t nBytesTreeNodes = 0;
     if (nBytesEphemeral < nMinEphemeral) nBytesEphemeral = nMinEphemeral; // Constraint (b)
     if (nBytesParticles + nBytesEphemeral < nMinTotalStore) // Constraint (c)

@@ -101,7 +101,7 @@ int smHopLink(SMX smx,SMF *smf) {
     uint32_t *pl;
 
     pkd->ga = ga = (struct smGroupArray *)(pkd->pLite);
-    pl = (uint32_t *)(((char *)pkd->pLite + pkd->nLocal*EPHEMERAL_BYTES) - (pkd->nLocal+1)*sizeof(uint32_t));
+    pl = (uint32_t *)(((char *)pkd->pLite + 1ul*pkd->nLocal*pkd->nEphemeralBytes) - (pkd->nLocal+1)*sizeof(uint32_t));
     assert((uint32_t *)ga < pl);
 
     ga[0].iGid = 0;

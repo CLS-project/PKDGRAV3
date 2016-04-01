@@ -371,7 +371,7 @@ void pkdCalculateGroupStats(PKD pkd,int bPeriodic,double *dPeriod,double rEnviro
     int *mrIndex,iRoot,*bRemoteDone;
     RootFindingTable *rootFindingTable;
 
-    assert(pkd->nGroups*(sizeof(*pkd->ga)+sizeof(*pkd->tinyGroupTable)+4*sizeof(double)) < EPHEMERAL_BYTES*pkd->nStore);
+    assert(pkd->nGroups*(sizeof(*pkd->ga)+sizeof(*pkd->tinyGroupTable)+4*sizeof(double)) < 1ul*pkd->nEphemeralBytes*pkd->nStore);
     pkd->tinyGroupTable = (TinyGroupTable *)(&pkd->ga[pkd->nGroups]);
     dAccumulate = (double *)(&pkd->tinyGroupTable[pkd->nGroups]);
     /*
