@@ -178,29 +178,10 @@ __global__ void cudaEwald(double *X,double *Y,double *Z,
     pdFlop[pidx] = dFlop;
     }
 
-#ifdef _MSC_VER
-static double systemTime() {
-    FILETIME ft;
-    uint64_t clock;
-    GetSystemTimeAsFileTime(&ft);
-    clock = ft.dwHighDateTime;
-    clock <<= 32;
-    clock |= ft.dwLowDateTime;
-    /* clock is in 100 nano-second units */
-    return clock / 10000000.0;
-    }
-#else
-static double systemTime() {
-    struct timeval tv;
-    gettimeofday(&tv,NULL);
-    return (tv.tv_sec+(tv.tv_usec*1e-6));
-    }
-#endif
-
 /* If this returns an error, then the caller must attempt recovery or abort */
 cudaError_t cuda_setup_ewald(CUDACTX cuda) {
     if (cuda->ewIn && cuda->ewt) {
-        double start = systemTime();
+        double start = CUDA_getTime();
         CUDA_RETURN(cudaMemcpyToSymbolAsync,(ew,cuda->ewIn,sizeof(ew),0,cudaMemcpyHostToDevice,cuda->streamEwald));
         CUDA_RETURN(cudaMemcpyToSymbolAsync,(hx,cuda->ewt->hx.f,sizeof(float)*cuda->ewIn->nEwhLoop,0,cudaMemcpyHostToDevice,cuda->streamEwald));
         CUDA_RETURN(cudaMemcpyToSymbolAsync,(hy,cuda->ewt->hy.f,sizeof(float)*cuda->ewIn->nEwhLoop,0,cudaMemcpyHostToDevice,cuda->streamEwald));
@@ -218,7 +199,7 @@ cudaError_t cuda_setup_ewald(CUDACTX cuda) {
             default:
                 return rc;
                 }
-            if (systemTime() - start > 5) {
+            if (CUDA_getTime() - start > 1.0) {
                 return cudaErrorLaunchTimeout;
                 }
             } while (rc!=cudaSuccess);
