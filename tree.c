@@ -502,7 +502,7 @@ void BuildFromTemplate(PKD pkd,int iNode,int M,int nGroup,int iTemplate) {
 	    assert(pRight->pLower <= pRight->pUpper);
 
 	    pNode->iLower = iLeft;
-	    pNode->bGroup = pNode->pUpper - pNode->pLower < nGroup;
+	    pNode->bGroup = (pNode->pUpper-pNode->pLower < nGroup) && pTemp->bGroup;
 
 	    iNode = -1;
 	    pNode = NULL;

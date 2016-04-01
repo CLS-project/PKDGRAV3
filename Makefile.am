@@ -140,7 +140,7 @@ endif
 pkdgrav3_mpi_LDADD += -littnotify
 endif
 if USE_CUDA
-pkdgrav3_mpi_LDADD += @CUDA_LIBS@ -lcudart -lnvToolsExt
+pkdgrav3_mpi_LDADD += @CUDA_LIBS@ -lcudart
 endif
 if USE_PYTHON
 if HAVE_RDYNAMIC
@@ -164,7 +164,7 @@ endif
 pkdgrav3_pthread_LDADD += -lefence
 endif
 if USE_CUDA
-pkdgrav3_pthread_LDADD += @CUDA_LIBS@ -lcudart -lnvToolsExt
+pkdgrav3_pthread_LDADD += @CUDA_LIBS@ -lcudart
 endif
 if USE_PYTHON
 if HAVE_RDYNAMIC

@@ -22,6 +22,9 @@
 #ifdef __linux__
 #include <unistd.h>
 #endif
+#ifdef HAVE_SYS_STAT_H
+#include <sys/stat.h>
+#endif
 #ifdef USE_ITT
 #include "ittnotify.h"
 #endif
@@ -544,7 +547,7 @@ void pstSetAdd(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 
 static void initializePStore(PKD *ppkd,MDL mdl,struct inInitializePStore *in) {
     pkdInitialize(
-	ppkd,mdl,in->nStore,in->nMinTotalStore,in->nMinEphemeral,
+	ppkd,mdl,in->nStore,in->nMinTotalStore,in->nMinEphemeral,in->nEphemeralBytes,
 	in->nTreeBitsLo,in->nTreeBitsHi,
 	in->iCacheSize,in->iWorkQueueSize,in->iCUDAQueueSize,in->fPeriod,
 	in->nSpecies[FIO_SPECIES_DARK],in->nSpecies[FIO_SPECIES_SPH],in->nSpecies[FIO_SPECIES_STAR],

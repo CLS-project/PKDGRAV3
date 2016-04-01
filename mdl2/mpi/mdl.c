@@ -537,6 +537,11 @@ static void combine_all_incoming(MDL mdl) {
 	}
     }
 
+static void bookkeeping(MDL mdl) {
+    CUDA_checkForRecovery(mdl->cudaCtx);
+    combine_all_incoming(mdl);
+    }
+
 static void mpi_finish_local_flush(MDL mdl) {
     mdlContextMPI *mpi = mdl->mpi;
     MDLflushBuffer *flush;
@@ -562,7 +567,7 @@ static MDLflushBuffer *get_local_flush_buffer(MDL mdl) {
 	** We have no local flush buffers, but threads should wakeup soon and give them back.
 	** In the mean time we need to flush buffers ourselves (if we are not a dedicated MPI).
 	*/
-	combine_all_incoming(mdl);
+	bookkeeping(mdl);
 	}
     OPA_Queue_dequeue(&mpi->localFlushBuffers, flush, MDLflushBuffer, hdr.hdr);
     flush->nBytes = 0;
@@ -1223,7 +1228,7 @@ static void /*MDLserviceElement*/ *mdlWaitThreadQueue(MDL mdl,int iQueue) {
     MDLserviceElement *qhdr;
     while (OPA_Queue_is_empty(mdl->inQueue+iQueue)) {
 	if (mdl->base.iCore == mdl->iCoreMPI) checkMPI(mdl);
-	combine_all_incoming(mdl);
+	bookkeeping(mdl);
 	if (mdlDoSomeWork(mdl) == 0) {
 #ifdef _MSC_VER
 	    SwitchToThread();
@@ -1438,7 +1443,7 @@ void mdlInitCommon(MDL mdl0, int iMDL,int bDiag,int argc, char **argv,
 
 #ifdef USE_CUDA
     mdl->inCudaBufSize = mdl->outCudaBufSize = 0;
-    mdl->cudaCtx = CUDA_initialize(mdl->base.iCore);
+    mdl->cudaCtx = CUDA_initialize(mdl->base.nCores,mdl->base.iCore);
 #endif
 
     /*
@@ -1624,11 +1629,12 @@ void mdlLaunch(int argc,char **argv,void * (*fcnMaster)(MDL),void * (*fcnChild)(
     __itt_string_handle* shMPITask = __itt_string_handle_create("MPI");
     __itt_task_begin(domain, __itt_null, __itt_null, shMPITask);
 #endif
+    mpi->commMDL = MPI_COMM_WORLD;
     rc = MPI_Init_thread(&argc, &argv, MPI_THREAD_FUNNELED,&thread_support);
     if (rc!=MPI_SUCCESS) {
 	MPI_Error_string(rc, ach, &i);
 	perror(ach);
-	abort();
+	MPI_Abort(mpi->commMDL,rc);
 	}
 #ifdef MDL_FFTW
     if (mdlCores(mdl)>1) FFTW3(init_threads)();
@@ -1639,7 +1645,6 @@ void mdlLaunch(int argc,char **argv,void * (*fcnMaster)(MDL),void * (*fcnChild)(
 #ifdef USE_ITT
     __itt_task_end(domain);
 #endif
-    mpi->commMDL = MPI_COMM_WORLD;
     MPI_Comm_size(mpi->commMDL, &mdl->base.nProcs);
     MPI_Comm_rank(mpi->commMDL, &mdl->base.iProc);
 
@@ -2198,7 +2203,7 @@ void mdlSetCacheSize(MDL mdl,int cacheSize) {
 
 void mdlCacheCheck(MDL mdl) {
     if (mdl->base.iCore == mdl->iCoreMPI) checkMPI(mdl);
-    combine_all_incoming(mdl);
+    bookkeeping(mdl);
     }
 
 int mdlCacheStatus(MDL mdl,int cid) {
@@ -2331,7 +2336,7 @@ MDLflushBuffer *flush_core_buffer(MDL mdl) {
     if (pBuffer->nBytes) {
 	mdlSendToMPI(mdl,&pBuffer->hdr.svc,MDL_SE_CACHE_FLUSH);
 	while (OPA_Queue_is_empty(&mdl->coreFlushBuffers)) {
-	    combine_all_incoming(mdl);
+	    bookkeeping(mdl);
 	    if (mdl->base.iCore == mdl->iCoreMPI) checkMPI(mdl);
 	    }
 	OPA_Queue_dequeue(&mdl->coreFlushBuffers, pBuffer, MDLflushBuffer, hdr.hdr);
@@ -3122,7 +3127,7 @@ void mdlFFT( MDL mdl, MDLFFT fft, FFTW3(real) *data ) {
 	trans.kdata = (FFTW3(complex) *)data;
 	mdlSendToMPI(mdl,&trans,MDL_SE_FFT_DFT_R2C);
 	}
-    pthread_barrier_wait(&mdl->pmdl[0]->barrier);
+    if (mdl->base.nCores>1) pthread_barrier_wait(&mdl->pmdl[0]->barrier);
     mdlThreadBarrier(mdl);
     }
 void mdlIFFT( MDL mdl, MDLFFT fft, FFTW3(complex) *kdata ) {
@@ -3137,7 +3142,7 @@ void mdlIFFT( MDL mdl, MDLFFT fft, FFTW3(complex) *kdata ) {
 	trans.data = (FFTW3(real) *)kdata;
 	mdlSendToMPI(mdl,&trans,MDL_SE_FFT_DFT_C2R);
 	}
-    pthread_barrier_wait(&mdl->pmdl[0]->barrier);
+    if (mdl->base.nCores>1) pthread_barrier_wait(&mdl->pmdl[0]->barrier);
     mdlThreadBarrier(mdl);
     }
 #endif

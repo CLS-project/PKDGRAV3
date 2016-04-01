@@ -74,12 +74,11 @@ int isWqEmpty(CUDACTX cuda) {
 CUDAwqNode *getNode(CUDACTX cuda) {
     CUDAwqNode *work;
     /* Bit of a hack here: keep a buffer around for Ewald */
-    if (cuda->wqFree == NULL || cuda->wqFree->next==NULL) {
-        CUDA_flushDone(cuda);
-        if (cuda->wqFree == NULL || cuda->wqFree->next==NULL) return NULL;
-        }
+    CUDA_flushDone(cuda);
+    if (cuda->wqFree == NULL || cuda->wqFree->next==NULL) return NULL;
     work = cuda->wqFree;
     cuda->wqFree = work->next;
+    ++cuda->nWorkQueueBusy;
     work->ctx = cuda;
     work->checkFcn = NULL;
     work->next = cuda->wqCuda;
@@ -516,7 +515,7 @@ void pkdParticleWorkDone(workParticle *wp);
 template<int nIntPerWU>
 int CUDAcheckWorkInteraction( void *vpp, void *vwork ) {
     CUDAwqNode *work = reinterpret_cast<CUDAwqNode *>(vwork);
-    ppResult *pR       = reinterpret_cast<ppResult *>(work->pHostBuf);
+    ppResult *pR       = reinterpret_cast<ppResult *>(work->pHostBufFromGPU);
     int ib, iw, ip;
 
     for( ib=0; ib<work->ppnBuffered; ++ib) {
@@ -545,28 +544,63 @@ void CUDAsetupPP(void) {
     //cudaFuncSetCacheConfig(cudaPP,cudaFuncCachePreferL1);
     }
 
+/* If this returns an error, then the caller must attempt recovery or abort */
+template<int nIntPerTB, int nIntPerWU, typename BLK>
+int initWork( void *ve, void *vwork ) {
+    CUDAwqNode *work = reinterpret_cast<CUDAwqNode *>(vwork);
+    const int nBlkPer = nIntPerWU / WIDTH;
+    const int nWork = work->ppnBlocks/nBlkPer;
+
+    // The interation blocks -- already copied to the host memory
+    BLK * __restrict__ blkCuda = reinterpret_cast<BLK*>(work->pCudaBufIn);
+
+    // The interaction block descriptors
+    ppWorkUnit * __restrict__ wuCuda = reinterpret_cast<ppWorkUnit *>(blkCuda + work->ppnBlocks);
+
+    // The particle information
+    ppInput * __restrict__ partCuda = reinterpret_cast<ppInput *>(wuCuda + ((nWork+7)&~7));
+
+    ppResult *pCudaBufOut = reinterpret_cast<ppResult *>(work->pCudaBufOut);
+
+    CUDA_RETURN(cudaMemcpyAsync,(blkCuda, work->pHostBufToGPU, work->pppc.nBufferIn, cudaMemcpyHostToDevice, work->stream));
+
+    dim3 dimBlock( WIDTH, nIntPerWU/WIDTH, nIntPerTB/nIntPerWU );
+    dim3 dimGrid( work->pppc.nGrid, 1,1);
+    if (work->bGravStep) {
+        cudaInteract<WARPS,nIntPerWU/32,SYNC_RATE*nIntPerWU/nIntPerTB,1>
+            <<<dimGrid, dimBlock, 0, work->stream>>>
+            (wuCuda,partCuda,blkCuda,pCudaBufOut );
+        }
+    else {
+        cudaInteract<WARPS,nIntPerWU/32,SYNC_RATE*nIntPerWU/nIntPerTB,0>
+            <<<dimGrid, dimBlock, 0, work->stream>>>
+            (wuCuda,partCuda,blkCuda,pCudaBufOut );
+        }
+    CUDA_RETURN(cudaMemcpyAsync,(work->pHostBufFromGPU, work->pCudaBufOut, work->pppc.nBufferOut, cudaMemcpyDeviceToHost, work->stream) );
+    CUDA_RETURN(cudaEventRecord,(work->event,work->stream));
+
+    return cudaSuccess;
+    }
+
 template<int nIntPerTB, int nIntPerWU, typename BLK>
 void CUDA_sendWork(CUDACTX cuda,CUDAwqNode **head) {
     CUDAwqNode *work = *head;
     if (work != NULL) {
         int i, j;
         int iI=0, iP=0, iO=0;
-        int nBufferOut = 0;
-        int nBlkPer = nIntPerWU / WIDTH;
-        int nWork = work->ppnBlocks/nBlkPer;
+        const int nBlkPer = nIntPerWU / WIDTH;
+        const int nWork = work->ppnBlocks/nBlkPer;
 
         // The interation blocks -- already copied to the host memory
-        BLK * __restrict__ blkHost = reinterpret_cast<BLK*>(work->pHostBuf);
-        BLK * __restrict__ blkCuda = reinterpret_cast<BLK*>(work->pCudaBufIn);
-        
+        BLK * __restrict__ blkHost = reinterpret_cast<BLK*>(work->pHostBufToGPU);
+
         // The interaction block descriptors
         ppWorkUnit * __restrict__ wuHost = reinterpret_cast<ppWorkUnit *>(blkHost + work->ppnBlocks);
-        ppWorkUnit * __restrict__ wuCuda = reinterpret_cast<ppWorkUnit *>(blkCuda + work->ppnBlocks);
 
         // The particle information
         ppInput * __restrict__ partHost = reinterpret_cast<ppInput *>(wuHost + ((nWork+7)&~7));
-        ppInput * __restrict__ partCuda = reinterpret_cast<ppInput *>(wuCuda + ((nWork+7)&~7));
 
+        work->pppc.nBufferOut = 0;
         for( i=0; i<work->ppnBuffered; ++i) {
             const int nP = work->ppWP[i]->nP;
             PINFOIN *pInfoIn = work->ppWP[i]->pInfoIn;
@@ -585,7 +619,7 @@ void CUDA_sendWork(CUDACTX cuda,CUDAwqNode **head) {
                 nInteract -= wuHost->nI;
                 ++wuHost;
                 ++iI;
-                nBufferOut += nP * sizeof(ppResult);
+                work->pppc.nBufferOut += nP * sizeof(ppResult);
                 }
             assert(nInteract==0);
 
@@ -605,7 +639,7 @@ void CUDA_sendWork(CUDACTX cuda,CUDAwqNode **head) {
             }
         assert(iI == work->ppnBlocks/nBlkPer);
         /* Pad the work out so all work units have valid data */
-        int nWUPerTB = nIntPerTB/nIntPerWU;
+        const int nWUPerTB = nIntPerTB/nIntPerWU;
         while((iI&(nWUPerTB-1)) != 0) {
             wuHost->nP = 0;
             wuHost->iP = 0;
@@ -615,32 +649,15 @@ void CUDA_sendWork(CUDACTX cuda,CUDAwqNode **head) {
             ++iI;
             }
 
-        ppResult *pCudaBufOut = reinterpret_cast<ppResult *>(work->pCudaBufOut);
-        size_t nBufferIn = reinterpret_cast<char *>(partHost) - reinterpret_cast<char *>(work->pHostBuf);
-        CUDA_CHECK(cudaMemcpyAsync,(blkCuda, blkHost, nBufferIn, cudaMemcpyHostToDevice, work->stream));
-
         assert((iI & (nWUPerTB-1)) == 0);
-        dim3 dimBlock( WIDTH, nIntPerWU/WIDTH, nIntPerTB/nIntPerWU );
-        dim3 dimGrid( iI/nWUPerTB, 1,1);
-//        printf("%d x %d x %d X %d x %d x %d\n",
-//            dimBlock.x, dimBlock.y, dimBlock.z,
-//            dimGrid.x, dimGrid.y, dimGrid.z);
-        if (work->bGravStep) {
-            cudaInteract<WARPS,nIntPerWU/32,SYNC_RATE*nIntPerWU/nIntPerTB,1>
-                <<<dimGrid, dimBlock, 0, work->stream>>>
-                (wuCuda,partCuda,blkCuda,pCudaBufOut );
-            }
-        else {
-            cudaInteract<WARPS,nIntPerWU/32,SYNC_RATE*nIntPerWU/nIntPerTB,0>
-                <<<dimGrid, dimBlock, 0, work->stream>>>
-                (wuCuda,partCuda,blkCuda,pCudaBufOut );
-            }
-        CUDA_CHECK(cudaMemcpyAsync,(blkHost, work->pCudaBufOut, nBufferOut, cudaMemcpyDeviceToHost, work->stream)
-);
-        CUDA_CHECK(cudaEventRecord,(work->event,work->stream));
+        work->pppc.nGrid = iI/nWUPerTB;
+        work->pppc.nBufferIn = reinterpret_cast<char *>(partHost) - reinterpret_cast<char *>(work->pHostBufToGPU);
 
         work->next = cuda->wqCuda;
         cuda->wqCuda = work;
+        work->startTime = CUDA_getTime();
+        cudaError_t rc = static_cast<cudaError_t>((*work->initFcn)(work->ctx,work));
+        if ( rc != cudaSuccess) CUDA_attempt_recovery(cuda,rc);
 
         *head = NULL;
         }
@@ -704,6 +721,13 @@ int copyBLKs(ilcBlk<n> *out, ILC_BLK *in,int nIlp) {
 // nIntPer: number of interactions handled per work unit: e.g., 128
 template<int nIntPerTB, int nIntPerWU, typename TILE,typename BLK>
 int CUDA_queue(CUDACTX cuda,CUDAwqNode **head,workParticle *wp, TILE tile, int bGravStep) {
+    /* Refuse the work if it looks like we will overwhelm the GPU with nonsense */
+    if (cuda->nWorkQueueSize == 0) return 0;
+    assert(cuda->nWorkQueueBusy >=0 && cuda->nWorkQueueBusy <= cuda->nWorkQueueSize);
+
+    // If the work queue is half used, and there are fewer than 2 particles let the CPU handle it
+    if (cuda->nWorkQueueBusy > cuda->nWorkQueueSize-3 && wp->nP <= 2) return 0;
+
     CUDAwqNode *work = *head;
     /*const int nBlkPerTB = nIntPerTB / WIDTH;*/
     const int nBlkPerWU = nIntPerWU / WIDTH;
@@ -711,7 +735,9 @@ int CUDA_queue(CUDACTX cuda,CUDAwqNode **head,workParticle *wp, TILE tile, int b
     const int nPaligned = (nP+NP_ALIGN_MASK) & ~NP_ALIGN_MASK;
     const int nBlocks = tile->lstTile.nBlocks + (tile->lstTile.nInLast?1:0);
     int nBlocksAligned,nInteract;
-    if (isWqEmpty(cuda)) {
+
+    // If there are too few free blocks then the CPU does the "hair"
+    if (cuda->nWorkQueueBusy > cuda->nWorkQueueSize-3) {
         nBlocksAligned = (tile->lstTile.nBlocks + (tile->lstTile.nInLast==32?1:0) ) & ~(nBlkPerWU - 1);
         nInteract = nBlocksAligned * ILP_PART_PER_BLK;
         }
@@ -740,7 +766,9 @@ int CUDA_queue(CUDACTX cuda,CUDAwqNode **head,workParticle *wp, TILE tile, int b
     if (work==NULL) {
         *head = work = getNode(cuda);
         if (work==NULL) return 0;
+        work->ctx = NULL;
         work->checkFcn = CUDAcheckWorkInteraction<nIntPerWU>;
+        work->initFcn = initWork<nIntPerTB,nIntPerWU,BLK>;
         work->ppSizeIn = 0;
         work->ppSizeOut = 0;
         work->ppnBuffered = 0;
@@ -751,7 +779,7 @@ int CUDA_queue(CUDACTX cuda,CUDAwqNode **head,workParticle *wp, TILE tile, int b
 
     if (nBlocksAligned>0) {
         // Copy in the interactions. The ILP tiles can then be freed/reused.
-        BLK *blk = reinterpret_cast<BLK *>(work->pHostBuf);
+        BLK *blk = reinterpret_cast<BLK *>(work->pHostBufToGPU);
         //for(i=0; i<nBlocks; ++i) blk[work->ppnBlocks++] = tile->blk[i];
         copyBLKs(blk+work->ppnBlocks,tile->blk,nInteract);
         work->ppnBlocks += nBlocksAligned;
@@ -764,6 +792,7 @@ int CUDA_queue(CUDACTX cuda,CUDAwqNode **head,workParticle *wp, TILE tile, int b
 
         if ( ++work->ppnBuffered == CUDA_PP_MAX_BUFFERED) CUDA_sendWork<nIntPerTB,nIntPerWU,BLK>(cuda,head);
         }
+    // Evaluate the "hair" on the CPU
     if (nBlocks > nBlocksAligned) {
         finishGravity(wp,tile->lstTile.nBlocks-nBlocksAligned,tile->lstTile.nInLast,tile->blk+nBlocksAligned);
         }

@@ -27,6 +27,9 @@
 #ifdef HAVE_SYS_TIME_H
 #include <sys/time.h>
 #endif
+#ifdef HAVE_SYS_STAT_H
+#include <sys/stat.h>
+#endif
 #include <math.h>
 #if defined(HAVE_WORDEXP) && defined(HAVE_WORDFREE)
 #include <wordexp.h>
@@ -131,14 +134,20 @@ char *_BuildName(MSR msr,char *achFile,int iStep,char *defaultPath) {
     if ( p ) {
 	n = p - achOutPath;
 	strncpy( achFile, achOutPath, n );
-	achFile += n;
-	sprintf( achFile, "%05d", iStep );
-	strcat( achFile, p+2 );
+	sprintf( achFile+n, "%05d", iStep );
+	strcat( achFile+n, p+2 );
 	}
     else {
 	char achDigitMask[20];
 	sprintf(achDigitMask,"%%s.%%0%ii",msr->param.nDigits);
 	sprintf(achFile,achDigitMask,msrOutName(msr),iStep);
+	}
+    for(p=achFile+1; *p; ++p) {
+	if ( *p == '/') {
+	    *p = 0;
+	    mkdir(achFile,0755);
+	    *p = '/';
+	    }
 	}
     return achFile;
     }
@@ -234,6 +243,15 @@ void msrInitializePStore(MSR msr, uint64_t *nSpecies) {
 #undef SHOW
     ps.nMinEphemeral = 0;
     ps.nMinTotalStore = 0;
+
+    /* Various features require more or less ephemeral storage */
+    ps.nEphemeralBytes = 0;
+    if (msr->param.iFofInterval   && ps.nEphemeralBytes < 4) ps.nEphemeralBytes = 4;
+    if (msr->param.bFindHopGroups && ps.nEphemeralBytes < 8) ps.nEphemeralBytes = 8;
+    if (msr->param.iPkInterval    && ps.nEphemeralBytes < 4) ps.nEphemeralBytes = 4;
+    if (msr->param.bGravStep      && ps.nEphemeralBytes < 8) ps.nEphemeralBytes = 8;
+    if (msr->param.bDoGas         && ps.nEphemeralBytes < 8) ps.nEphemeralBytes = 8;
+    if (msr->param.bDoDensity     && ps.nEphemeralBytes < 8) ps.nEphemeralBytes = 8;
 #ifdef MDL_FFTW
     if (msr->param.nGridPk>0) {
 	struct inGetFFTMaxSizes inFFTSizes;
@@ -253,6 +271,11 @@ void msrInitializePStore(MSR msr, uint64_t *nSpecies) {
 	}
 #endif
        pstInitializePStore(msr->pst,&ps,sizeof(ps),NULL,NULL);
+       PKD pkd = msr->pst->plcl->pkd;
+       printf("Allocated %lu MB for particle store on each processor.\n",
+	   pkdParticleMemory(pkd)/(1024*1024));
+       printf("Particles: %lu bytes (persistent) + %d bytes (ephemeral), Nodes: %lu bytes\n",
+	   pkdParticleSize(pkd),ps.nEphemeralBytes,pkdNodeSize(pkd));
     }
 
 static char *formatKey(char *buf,char *fmt,int i) {
@@ -395,10 +418,6 @@ double msrRestore(MSR msr) {
     PKD pkd = msr->pst->plcl->pkd;
     double dExp = csmTime2Exp(msr->param.csm,msr->dCheckpointTime);
     msrprintf(msr,"Checkpoint Restart Complete @ a=%g, Wallclock: %f secs\n\n",dExp,dsec);
-    printf("Allocated %lu MB for particle store on each processor.\n",
-	      pkdParticleMemory(pkd)/(1024*1024));
-    printf("Particles: %lu bytes (persistent) + %d bytes (ephemeral), Nodes: %lu bytes\n",
-	pkdParticleSize(pkd),EPHEMERAL_BYTES,pkdNodeSize(pkd));
 
     /* We can indicate that the DD was already done at rung 0 */
     msr->iLastRungRT = 0;
@@ -499,11 +518,11 @@ void msrCheckpoint(MSR msr,int iStep,double dTime) {
     in.nProcessors = msr->param.bParaWrite==0?1:(msr->param.nParaWrite<=1 ? msr->nThreads:msr->param.nParaWrite);
     if (msr->param.csm->val.bComove) {
 	double dExp = csmTime2Exp(msr->param.csm,dTime);
-	msrprintf(msr,"Writing checkpoing for Step: %d Time:%g Redshift:%g\n",
+	msrprintf(msr,"Writing checkpoint for Step: %d Time:%g Redshift:%g\n",
 	    iStep,dTime,(1.0/dExp - 1.0));
 	}
     else
-	msrprintf(msr,"Writing checkpoing for Step: %d Time:%g\n",iStep,dTime);
+	msrprintf(msr,"Writing checkpoint for Step: %d Time:%g\n",iStep,dTime);
     sec = msrTime();
 
     writeParameters(msr,in.achOutFile,iStep,dTime);
@@ -3899,6 +3918,9 @@ int msrUpdateRung(MSR msr, uint8_t uRung) {
     uint64_t sum;
     char c;
 
+    /* If we are called, it is a mistake -- this happens in analysis mode */
+    if (msr->param.bMemUnordered) return 0;
+
     in.uRungLo = uRung;
     in.uRungHi = msrMaxRung(msr);
     in.uMinRung = uRung;
@@ -5296,10 +5318,6 @@ double msrGenerateIC(MSR msr) {
     PKD pkd = msr->pst->plcl->pkd;
     msrprintf(msr,"IC Generation Complete @ a=%g, Wallclock: %f secs\n\n",out.dExpansion,dsec);
     msrprintf(msr,"Mean of noise same is %g, RMS %g.\n",mean,rms);
-    printf("Allocated %lu MB for particle store on each processor.\n",
-	      pkdParticleMemory(pkd)/(1024*1024));
-    printf("Particles: %lu bytes (persistent) + %d bytes (ephemeral), Nodes: %lu bytes\n",
-	pkdParticleSize(pkd),EPHEMERAL_BYTES,pkdNodeSize(pkd));
 
     return getTime(msr,out.dExpansion,&dvFac);
     }
@@ -5401,10 +5419,6 @@ double msrRead(MSR msr, const char *achInFile) {
     dsec = msrTime() - sec;
     msrSetClasses(msr);
     printf("Input file has been successfully read, Wallclock: %f secs.\n", dsec);
-    printf("Allocated %lu MB for particle store on each processor.\n",
-	      pkdParticleMemory(plcl->pkd)/(1024*1024));
-    printf("Particles: %lu bytes (persistent) + %d bytes (ephemeral), Nodes: %lu bytes\n",
-	pkdParticleSize(plcl->pkd),EPHEMERAL_BYTES,pkdNodeSize(plcl->pkd));
 
     free(read);
 

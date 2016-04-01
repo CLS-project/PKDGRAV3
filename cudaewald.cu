@@ -2,6 +2,10 @@
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
+#include <time.h>
+#ifdef HAVE_SYS_TIME_H
+#include <sys/time.h>
+#endif
 #include <stdio.h>
 #include "basetype.h"
 #include "moments.h"
@@ -174,32 +178,82 @@ __global__ void cudaEwald(double *X,double *Y,double *Z,
     pdFlop[pidx] = dFlop;
     }
 
-extern "C"
-void cudaEwaldInit(struct EwaldVariables *ewIn, EwaldTable *ewt ) {
-    CUDA_CHECK(cudaMemcpyToSymbol,(ew,ewIn,sizeof(ew),0,cudaMemcpyHostToDevice));
-    CUDA_CHECK(cudaMemcpyToSymbol,(hx,ewt->hx.f,sizeof(float)*ewIn->nEwhLoop,0,cudaMemcpyHostToDevice));
-    CUDA_CHECK(cudaMemcpyToSymbol,(hy,ewt->hy.f,sizeof(float)*ewIn->nEwhLoop,0,cudaMemcpyHostToDevice));
-    CUDA_CHECK(cudaMemcpyToSymbol,(hz,ewt->hz.f,sizeof(float)*ewIn->nEwhLoop,0,cudaMemcpyHostToDevice));
-    CUDA_CHECK(cudaMemcpyToSymbol,(hCfac,ewt->hCfac.f,sizeof(float)*ewIn->nEwhLoop,0,cudaMemcpyHostToDevice));
-    CUDA_CHECK(cudaMemcpyToSymbol,(hSfac,ewt->hSfac.f,sizeof(float)*ewIn->nEwhLoop,0,cudaMemcpyHostToDevice));
+#ifdef _MSC_VER
+static double systemTime() {
+    FILETIME ft;
+    uint64_t clock;
+    GetSystemTimeAsFileTime(&ft);
+    clock = ft.dwHighDateTime;
+    clock <<= 32;
+    clock |= ft.dwLowDateTime;
+    /* clock is in 100 nano-second units */
+    return clock / 10000000.0;
+    }
+#else
+static double systemTime() {
+    struct timeval tv;
+    gettimeofday(&tv,NULL);
+    return (tv.tv_sec+(tv.tv_usec*1e-6));
+    }
+#endif
+
+/* If this returns an error, then the caller must attempt recovery or abort */
+cudaError_t cuda_setup_ewald(CUDACTX cuda) {
+    if (cuda->ewIn && cuda->ewt) {
+        double start = systemTime();
+        CUDA_RETURN(cudaMemcpyToSymbolAsync,(ew,cuda->ewIn,sizeof(ew),0,cudaMemcpyHostToDevice,cuda->streamEwald));
+        CUDA_RETURN(cudaMemcpyToSymbolAsync,(hx,cuda->ewt->hx.f,sizeof(float)*cuda->ewIn->nEwhLoop,0,cudaMemcpyHostToDevice,cuda->streamEwald));
+        CUDA_RETURN(cudaMemcpyToSymbolAsync,(hy,cuda->ewt->hy.f,sizeof(float)*cuda->ewIn->nEwhLoop,0,cudaMemcpyHostToDevice,cuda->streamEwald));
+        CUDA_RETURN(cudaMemcpyToSymbolAsync,(hz,cuda->ewt->hz.f,sizeof(float)*cuda->ewIn->nEwhLoop,0,cudaMemcpyHostToDevice,cuda->streamEwald));
+        CUDA_RETURN(cudaMemcpyToSymbolAsync,(hCfac,cuda->ewt->hCfac.f,sizeof(float)*cuda->ewIn->nEwhLoop,0,cudaMemcpyHostToDevice,cuda->streamEwald));
+        CUDA_RETURN(cudaMemcpyToSymbolAsync,(hSfac,cuda->ewt->hSfac.f,sizeof(float)*cuda->ewIn->nEwhLoop,0,cudaMemcpyHostToDevice,cuda->streamEwald));
+        CUDA_RETURN(cudaEventRecord,(cuda->eventEwald,cuda->streamEwald));
+        cudaError_t rc;
+        do {
+            rc = cudaEventQuery(cuda->eventEwald);
+            switch(rc) {
+            case cudaSuccess:
+            case cudaErrorNotReady:
+                break;
+            default:
+                return rc;
+                }
+            if (systemTime() - start > 5) {
+                return cudaErrorLaunchTimeout;
+                }
+            } while (rc!=cudaSuccess);
+        }
+    return cudaSuccess;
     }
 
+extern "C"
+void cudaEwaldInit(void *cudaCtx, struct EwaldVariables *ewIn, EwaldTable *ewt ) {
+    CUDACTX cuda = reinterpret_cast<CUDACTX>(cudaCtx);
+    cuda->ewIn = ewIn;
+    cuda->ewt = ewt;
+    if (cuda->iCore==0) {
+        cudaError_t ec = cuda_setup_ewald(cuda);
+        if (ec != cudaSuccess) CUDA_attempt_recovery(cuda,ec);
+        }
+    }
+
+/* If this returns an error, then the caller must attempt recovery or abort */
 extern "C"
 int CUDAinitWorkEwald( void *ve, void *vwork ) {
     workEwald *e = reinterpret_cast<workEwald *>(ve);
     CUDAwqNode *work = reinterpret_cast<CUDAwqNode *>(vwork);
-    //CUDACTX ctx = reinterpret_cast<CUDACTX>(e->cudaCtx);
-    double *pHostBuf = reinterpret_cast<double *>(work->pHostBuf);
+    double *pHostBufFromGPU  = reinterpret_cast<double *>(work->pHostBufFromGPU);
+    double *pHostBufToGPU    = reinterpret_cast<double *>(work->pHostBufToGPU);
     double *pCudaBufIn = reinterpret_cast<double *>(work->pCudaBufIn);
-    double *pCudaBufOut = reinterpret_cast<double *>(work->pCudaBufIn);
+    double *pCudaBufOut = reinterpret_cast<double *>(work->pCudaBufOut);
     double *X, *Y, *Z;
     double *cudaX, *cudaY, *cudaZ, *cudaXout, *cudaYout, *cudaZout, *cudaPot, *cudaFlop;
     int align, i;
 
     align = (e->nP+31)&~31; /* Warp align the memory buffers */
-    X       = pHostBuf + 0*align;
-    Y       = pHostBuf + 1*align;
-    Z       = pHostBuf + 2*align;
+    X       = pHostBufToGPU + 0*align;
+    Y       = pHostBufToGPU + 1*align;
+    Z       = pHostBufToGPU + 2*align;
     cudaX   = pCudaBufIn + 0*align;
     cudaY   = pCudaBufIn + 1*align;
     cudaZ   = pCudaBufIn + 2*align;
@@ -211,25 +265,24 @@ int CUDAinitWorkEwald( void *ve, void *vwork ) {
 
     dim3 dimBlock( 32, 1 );
     dim3 dimGrid( align/32, 1,1 );
-
     for(i=0; i<e->nP; ++i) {
-        workParticle *wp = e->ppWorkPart[i];
-	int wi = e->piWorkPart[i];
-	PINFOIN *in = &wp->pInfoIn[wi];
+        const workParticle *wp = e->ppWorkPart[i];
+	const int wi = e->piWorkPart[i];
+	const PINFOIN *in = &wp->pInfoIn[wi];
 	X[i] = wp->c[0] + in->r[0];
 	Y[i] = wp->c[1] + in->r[1];
 	Z[i] = wp->c[2] + in->r[2];
 	}
 
     // copy data directly to device memory
-    CUDA_CHECK(cudaMemcpyAsync,(pCudaBufIn, pHostBuf, align*3*sizeof(double),
+    CUDA_RETURN(cudaMemcpyAsync,(pCudaBufIn, pHostBufToGPU, align*3*sizeof(double),
 	    cudaMemcpyHostToDevice, work->stream));
     cudaEwald<<<dimGrid, dimBlock, 0, work->stream>>>(cudaX,cudaY,cudaZ,cudaXout,cudaYout,cudaZout,cudaPot,cudaFlop);
-    CUDA_CHECK(cudaMemcpyAsync,(pHostBuf, pCudaBufIn, align*5*sizeof(double),
+    CUDA_RETURN(cudaMemcpyAsync,(pHostBufFromGPU, pCudaBufOut, align*5*sizeof(double),
             cudaMemcpyDeviceToHost, work->stream));
-    CUDA_CHECK(cudaEventRecord,(work->event,work->stream));
+    CUDA_RETURN(cudaEventRecord,(work->event,work->stream));
 
-    return 1;
+    return cudaSuccess;
     }
 
 extern "C"
@@ -240,7 +293,7 @@ extern "C"
 int CUDAcheckWorkEwald( void *ve, void *vwork ) {
     workEwald *e = reinterpret_cast<workEwald *>(ve);
     CUDAwqNode *work = reinterpret_cast<CUDAwqNode *>(vwork);
-    double *pHostBuf = reinterpret_cast<double *>(work->pHostBuf);
+    double *pHostBuf = reinterpret_cast<double *>(work->pHostBufFromGPU);
     double *X, *Y, *Z, *pPot, *pdFlop;
     int align;
 

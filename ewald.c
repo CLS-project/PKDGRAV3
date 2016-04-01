@@ -643,8 +643,8 @@ double pkdParticleEwald(PKD pkd,double *r, float *pa, float *pPot,double *pdFlop
     }
 
 void pkdEwaldInit(PKD pkd,int nReps,double fEwCut,double fhCut) {
-    struct EwaldVariables *ew = &pkd->ew;
-    EwaldTable *ewt = &pkd->ewt;
+    struct EwaldVariables * const ew = &pkd->ew;
+    EwaldTable * const ewt = &pkd->ewt;
     const MOMC * restrict mom = &ew->mom;
     int i,hReps,hx,hy,hz,h2;
     double k4,L;
@@ -821,9 +821,7 @@ void pkdEwaldInit(PKD pkd,int nReps,double fEwCut,double fhCut) {
 	++i;
 	}
 #ifdef USE_CUDA
-    if (mdlCore(pkd->mdl)==0) {
-	cudaEwaldInit(ew,ewt);
-	}
+    cudaEwaldInit(pkd->mdl->cudaCtx,ew,ewt);
     mdlThreadBarrier(pkd->mdl);
 #endif
 

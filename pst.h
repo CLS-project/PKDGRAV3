@@ -248,6 +248,7 @@ struct inInitializePStore {
     double fPeriod[3];
     uint64_t nMinEphemeral;
     uint64_t nMinTotalStore;
+    int nEphemeralBytes;
     int nTreeBitsLo;
     int nTreeBitsHi;
     int iCacheSize;

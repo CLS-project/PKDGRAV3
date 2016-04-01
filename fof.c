@@ -550,7 +550,7 @@ void pkdNewFof(PKD pkd,double dTau2,int nMinMembers) {
     /*
     ** The following *just* fits into ephemeral storage of 4 bytes/particle.
     */
-    assert(EPHEMERAL_BYTES >= 4);
+    assert(pkd->nEphemeralBytes >= 4);
     Fifo = (uint32_t *)(pkd->pLite);
     iGroup = 1;
     for (pn=0;pn<pkd->nLocal;++pn) {
@@ -613,8 +613,8 @@ void pkdNewFof(PKD pkd,double dTau2,int nMinMembers) {
     ** Create initial group table. The assert below is a very minimal requirement as it doesn't account for remote
     ** links (tmpFofRemote). However, we check this again everytime we add a new remote link.
     */
-    assert(sizeof(*pkd->ga)*pkd->nGroups+sizeof(*pkd->tmpFofRemote) <= EPHEMERAL_BYTES*pkd->nStore);
-    pkd->nMaxRemoteGroups = (EPHEMERAL_BYTES*pkd->nStore - sizeof(*pkd->ga)*pkd->nGroups) / sizeof(*pkd->tmpFofRemote);
+    assert(sizeof(*pkd->ga)*pkd->nGroups+sizeof(*pkd->tmpFofRemote) <= 1ul*pkd->nEphemeralBytes*pkd->nStore);
+    pkd->nMaxRemoteGroups = (1ul*pkd->nEphemeralBytes*pkd->nStore - sizeof(*pkd->ga)*pkd->nGroups) / sizeof(*pkd->tmpFofRemote);
     pkd->ga = (struct smGroupArray *)(pkd->pLite);
     pkd->tmpFofRemote = (FOFRemote *)&pkd->ga[pkd->nGroups];
     for(i=0;i<pkd->nGroups;++i) {
