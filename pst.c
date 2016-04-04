@@ -3861,6 +3861,7 @@ void pltMoveIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	icUp.fMass = in->fMass;
 	icUp.fSoft = in->fSoft;
 	icUp.nGrid = in->nGrid;
+	icUp.nInflateFactor = in->nInflateFactor;
 
 	int rID = mdlReqService(pst->mdl,pst->idUpper,PLT_MOVEIC,&icUp,nIn);
 	mdlGetReply(pst->mdl,rID,vout,pnOut);
@@ -3868,7 +3869,12 @@ void pltMoveIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	}
     else {
 	PKD pkd = plcl->pkd;
-	assert(in->nMove <= pkd->nStore);
+	assert(in->nInflateFactor>0);
+	if (in->nMove <= (pkd->nStore/in->nInflateFactor)) {}
+	else {
+	    printf("nMove=%llu nStore=%d nInflateFactor=%d\n", in->nMove, pkd->nStore, in->nInflateFactor);
+	}
+	assert(in->nMove <= (pkd->nStore/in->nInflateFactor));
 	double inGrid = 1.0 / in->nGrid;
 	for(i=in->nMove-1; i>=0; --i) {
 	    expandParticle *b = ((expandParticle *)in->pBase) + in->iStart + i;
@@ -3924,7 +3930,8 @@ void pstMoveIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	assert(pstAmNode(pst));
 	assert(fft != NULL);
 
-	uint64_t nPerNode = (uint64_t)mdlCores(pst->mdl) * pkd->nStore;
+	assert(in->nInflateFactor>0);
+	uint64_t nPerNode = (uint64_t)mdlCores(pst->mdl) * (pkd->nStore / in->nInflateFactor);
 	uint64_t nLocal = (int64_t)fft->rgrid->rn[myProc] * in->nGrid*in->nGrid;
 
 	/* Calculate how many slots are free (under) and how many need to be sent (over) before my rank */
@@ -4006,6 +4013,7 @@ void pstMoveIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	move.fMass = in->cosmo.dOmega0 / nTotal;
 	move.fSoft = 1.0 / (50.0*in->nGrid);
 	move.nGrid = in->nGrid;
+	move.nInflateFactor = in->nInflateFactor;
 	pltMoveIC(pst,&move,sizeof(move),NULL,0);
 	}
     }

@@ -188,6 +188,7 @@ void * master_ch(MDL mdl) {
 #else
 	int bDoPk = 0;
 #endif
+	msrInflate(msr,0);
 	if (msrDoGravity(msr) ||msrDoGas(msr) || bDoPk) {
 	    msrActiveRung(msr,0,1); /* Activate all particles */
 	    msrDomainDecomp(msr,0,0,0);

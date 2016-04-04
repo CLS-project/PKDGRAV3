@@ -5243,6 +5243,8 @@ double msrGenerateIC(MSR msr) {
     in.nGrid = msr->param.nGrid;
     in.b2LPT = msr->param.b2LPT;
     in.cosmo = msr->param.csm->val;
+    in.nInflateFactor = msr->param.nInflateReps + 1;
+    in.nInflateFactor *= in.nInflateFactor * in.nInflateFactor;
 
     nTotal  = in.nGrid; /* Careful: 32 bit integer cubed => 64 bit integer */
     nTotal *= in.nGrid;

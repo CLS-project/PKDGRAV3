@@ -1137,6 +1137,7 @@ struct inGenerateIC {
     int b2LPT;
     int bComove;
     int nTf;
+    int nInflateFactor;
     struct csmVariables cosmo;
     double k[MAX_TF];
     double tf[MAX_TF];
@@ -1163,6 +1164,7 @@ struct inMoveIC {
     float fMass;
     float fSoft;
     int nGrid;
+    int nInflateFactor;
     };
 void pltMoveIC(PST,void *,int,void *,int *);
 void pstMoveIC(PST,void *,int,void *,int *);
