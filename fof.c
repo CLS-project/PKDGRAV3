@@ -28,7 +28,7 @@ uint32_t pkdFofGatherLocal(PKD pkd,int *S,double fBall2,double r[3],uint32_t iGr
     KDN *kdn;
     PARTICLE *p;
     double p_r[3];
-    double min2,dx,dy,dz,fDist2;
+    double min2,max2,dx,dy,dz,fDist2;
     int sp = 0;
     int iCell,pj,pEnd,j;
     BND bnd;
@@ -49,33 +49,31 @@ uint32_t pkdFofGatherLocal(PKD pkd,int *S,double fBall2,double r[3],uint32_t iGr
 	    S[sp++] = iCell+1;
 	    continue;
 	    }
-	else {
-	    pEnd = kdn->pUpper;
-	    for (pj=kdn->pLower;pj<=pEnd;++pj) {
-		p = pkdParticle(pkd,pj);
-		iPartGroup = pkdGetGroup(pkd,p);
-		if (iPartGroup) continue;		    
-		pkdGetPos1(pkd,p,p_r);
-		dx = r[0] - p_r[0];
-		dy = r[1] - p_r[1];
-		dz = r[2] - p_r[2];
-		fDist2 = dx*dx + dy*dy + dz*dz;
-		if (fDist2 <= fBall2) {
-		    /*
-		    **  Mark particle and add it to the do-fifo
-		    */
-		    pkdSetGroup(pkd,p,iGroup);
-		    Fifo[iTail++] = pj;
-		    if (*pbCurrFofContained) {
-			for (j=0;j<3;++j) {
-			    if (p_r[j] < fMinFofContained[j]) {
-				*pbCurrFofContained = 0;
-				break;
-				}
-			    else if (p_r[j] > fMaxFofContained[j]) {
-				*pbCurrFofContained = 0;
-				break;
-				}
+	pEnd = kdn->pUpper;
+	for (pj=kdn->pLower;pj<=pEnd;++pj) {
+	    p = pkdParticle(pkd,pj);
+	    iPartGroup = pkdGetGroup(pkd,p);
+	    if (iPartGroup) continue;		    
+	    pkdGetPos1(pkd,p,p_r);
+	    dx = r[0] - p_r[0];
+	    dy = r[1] - p_r[1];
+	    dz = r[2] - p_r[2];
+	    fDist2 = dx*dx + dy*dy + dz*dz;
+	    if (fDist2 <= fBall2) {
+		/*
+		**  Mark particle and add it to the do-fifo
+		*/
+		pkdSetGroup(pkd,p,iGroup);
+		Fifo[iTail++] = pj;
+		if (*pbCurrFofContained) {
+		    for (j=0;j<3;++j) {
+			if (p_r[j] < fMinFofContained[j]) {
+			    *pbCurrFofContained = 0;
+			    break;
+			    }
+			else if (p_r[j] > fMaxFofContained[j]) {
+			    *pbCurrFofContained = 0;
+			    break;
 			    }
 			}
 		    }
