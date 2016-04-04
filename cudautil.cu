@@ -183,7 +183,11 @@ void CUDA_attempt_recovery(CUDACTX cuda,cudaError_t errorCode) {
 
     // One thread will perform the device reset
     rc = pthread_barrier_wait(&recovery_barrier);
-    if (rc==PTHREAD_BARRIER_SERIAL_THREAD) cudaDeviceReset();
+    if (rc==PTHREAD_BARRIER_SERIAL_THREAD) {
+        printf("%2d: calling cudaDeviceReset()\n", cuda->iCore);
+        cudaDeviceReset();
+        sleep(1);
+	    }
 
     cuda->epoch = recovery_epoch;
 
