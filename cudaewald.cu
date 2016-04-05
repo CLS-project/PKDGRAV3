@@ -188,10 +188,16 @@ cudaError_t cuda_setup_ewald(CUDACTX cuda) {
         CUDA_RETURN(cudaMemcpyToSymbolAsync,(hz,cuda->ewt->hz.f,sizeof(float)*cuda->ewIn->nEwhLoop,0,cudaMemcpyHostToDevice,cuda->streamEwald));
         CUDA_RETURN(cudaMemcpyToSymbolAsync,(hCfac,cuda->ewt->hCfac.f,sizeof(float)*cuda->ewIn->nEwhLoop,0,cudaMemcpyHostToDevice,cuda->streamEwald));
         CUDA_RETURN(cudaMemcpyToSymbolAsync,(hSfac,cuda->ewt->hSfac.f,sizeof(float)*cuda->ewIn->nEwhLoop,0,cudaMemcpyHostToDevice,cuda->streamEwald));
+#ifdef USE_CUDA_EVENTS
         CUDA_RETURN(cudaEventRecord,(cuda->eventEwald,cuda->streamEwald));
+#endif
         cudaError_t rc;
         do {
+#ifdef USE_CUDA_EVENTS
             rc = cudaEventQuery(cuda->eventEwald);
+#else
+            rc = cudaStreamQuery(cuda->streamEwald);
+#endif
             switch(rc) {
             case cudaSuccess:
             case cudaErrorNotReady:
@@ -261,7 +267,9 @@ int CUDAinitWorkEwald( void *ve, void *vwork ) {
     cudaEwald<<<dimGrid, dimBlock, 0, work->stream>>>(cudaX,cudaY,cudaZ,cudaXout,cudaYout,cudaZout,cudaPot,cudaFlop);
     CUDA_RETURN(cudaMemcpyAsync,(pHostBufFromGPU, pCudaBufOut, align*5*sizeof(double),
             cudaMemcpyDeviceToHost, work->stream));
+#ifdef USE_CUDA_EVENTS
     CUDA_RETURN(cudaEventRecord,(work->event,work->stream));
+#endif
 
     return cudaSuccess;
     }

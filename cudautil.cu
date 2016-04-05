@@ -84,11 +84,9 @@ static CUDAwqNode *setup_node(CUDACTX cuda,CUDAwqNode *work) {
     work->pCudaBufOut = CUDA_gpu_malloc(cuda->outCudaBufSize);
     assert(work->pCudaBufOut!=NULL);
     CUDA_CHECK(cudaStreamCreate,( &work->stream ));
+#ifdef USE_CUDA_EVENTS
     CUDA_CHECK(cudaEventCreateWithFlags,( &work->event, cudaEventDisableTiming ));
-    cudaEventQuery( work->event );
-    CUDA_CHECK(cudaEventQuery,( work->event ));
-    CUDA_CHECK(cudaGetLastError,());
-    CUDA_CHECK(cudaEventQuery,( work->event ));
+#endif
     return work;
     }
 
@@ -125,7 +123,9 @@ static int setup_cuda(CUDACTX cuda) {
 
 static void setup_ewald(CUDACTX cuda) {
     CUDA_CHECK(cudaStreamCreate,( &cuda->streamEwald ));
+#ifdef USE_CUDA_EVENTS
     CUDA_CHECK(cudaEventCreateWithFlags,( &cuda->eventEwald, cudaEventDisableTiming ));
+#endif
     }
 
 extern "C"
@@ -211,7 +211,6 @@ void CUDA_attempt_recovery(CUDACTX cuda,cudaError_t errorCode) {
             "========================================"
             "========================================\n");
         }
-//    sleep(2); // for testing (so the time() test below is triggered once)
     }
 
 extern "C"
@@ -231,10 +230,11 @@ int CUDA_flushDone(void *vcuda) {
         CUDA_attempt_recovery(cuda,cudaSuccess);
         }
     while( (work=*last) !=NULL ) {
+#ifdef USE_CUDA_EVENTS
         cudaError_t rc = cudaEventQuery(work->event);
-// To test the "reset"
-//        if (time(NULL)%5 == 1 ) { CUDA_attempt_recovery(cuda,cudaErrorLaunchTimeout); break; }
-//        else
+#else
+        cudaError_t rc = cudaStreamQuery(work->stream);
+#endif
         if (rc==cudaSuccess) {
             assert(work->checkFcn != NULL); /* Only one cudaSuccess per customer! */
             int rc = (*work->checkFcn)(work->ctx,work);
@@ -252,7 +252,7 @@ int CUDA_flushDone(void *vcuda) {
         else if (work->startTime != 0) {
             double seconds = CUDA_getTime() - work->startTime;
             if (seconds>=1.0) {
-                fprintf(stderr,"%s: cudaEventQuery has returned cudaErrorNotReady for %f seconds\n",cuda->hostname,seconds);
+                fprintf(stderr,"%s: cudaXxxxxQuery has returned cudaErrorNotReady for %f seconds\n",cuda->hostname,seconds);
                 work->startTime = 0;
                 CUDA_attempt_recovery(cuda,cudaErrorLaunchTimeout);
                 break;

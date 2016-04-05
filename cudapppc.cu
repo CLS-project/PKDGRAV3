@@ -577,7 +577,9 @@ int initWork( void *ve, void *vwork ) {
             (wuCuda,partCuda,blkCuda,pCudaBufOut );
         }
     CUDA_RETURN(cudaMemcpyAsync,(work->pHostBufFromGPU, work->pCudaBufOut, work->pppc.nBufferOut, cudaMemcpyDeviceToHost, work->stream) );
+#ifdef USE_CUDA_EVENTS
     CUDA_RETURN(cudaEventRecord,(work->event,work->stream));
+#endif
 
     return cudaSuccess;
     }

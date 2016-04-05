@@ -77,7 +77,9 @@ typedef struct cuda_wq_node {
     void *pCudaBufIn;
     void *pCudaBufOut;
     double startTime;
+#ifdef USE_CUDA_EVENTS
     cudaEvent_t event;       // Results have been copied back
+#endif
     cudaStream_t stream;     // execution stream
     workParticle *ppWP[CUDA_PP_MAX_BUFFERED];
     int ppNI[CUDA_PP_MAX_BUFFERED];
