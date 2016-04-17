@@ -59,7 +59,7 @@ static const struct CONSTS {
 #endif
 
 #if 1
-#ifdef __SSE2__
+#if defined(USE_SIMD) && defined(__SSE2__)
 /* Caution: This uses v/sqrt(v) so v cannot be zero! */
 static inline float asqrtf(float v) {
     __m128 r2 = _mm_set_ss(v);

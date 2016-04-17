@@ -874,7 +874,9 @@ typedef struct pkdContext {
     */
     struct EwaldVariables ew;
     EwaldTable ewt;
+#ifdef USE_SIMD_EWALD
     ewaldSIMD es;
+#endif
     workEwald *ewWork;
 
     /*
@@ -939,7 +941,7 @@ typedef struct pkdContext {
     } * PKD;
 
 
-#ifdef __SSE2__
+#if defined(USE_SIMD) && defined(__SSE2__)
 #define pkdMinMax(dVal,dMin,dMax) do {					\
     (dMin)[0] = _mm_cvtsd_f64(_mm_min_sd(_mm_set_sd((dMin)[0]),_mm_set_sd((dVal)[0]))); \
     (dMin)[1] = _mm_cvtsd_f64(_mm_min_sd(_mm_set_sd((dMin)[1]),_mm_set_sd((dVal)[1])));	\
@@ -1249,7 +1251,7 @@ static inline FIO_SPECIES pkdSpecies( PKD pkd, PARTICLE *p ) {
 #ifdef INTEGER_POSITION
 #define pkdPos(pkd,p,d) pkdPosToDbl(pkd,CAST(pos_t *,pkdField(p,pkd->oPosition))[d])
 #define pkdSetPos(pkd,p,d,v) (void)((CAST(pos_t *,pkdField(p,pkd->oPosition))[d]) = pkdDblToPos(pkd,v))
-#ifdef __AVX__
+#if defined(__AVX__) && defined(USE_SIMD)
 static inline void pkdSetPosRaw1xx(PKD pkd,PARTICLE *p,__m128i v) {
     pos_t *r = (pos_t *)pkdField(p,pkd->oPosition);
     r[0] = _mm_extract_epi32 (v,0);

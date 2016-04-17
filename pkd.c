@@ -1164,7 +1164,7 @@ void pkdEnforcePeriodic(PKD pkd,BND *pbnd) {
     PARTICLE *p;
     double r;
     int i,j;
-#if defined(__SSE2__) && defined(INTEGER_POSITION)
+#if defined(USE_SIMD) && defined(__SSE2__) && defined(INTEGER_POSITION)
     __m128i period = _mm_set1_epi32 (INTEGER_FACTOR);
     __m128i top = _mm_setr_epi32 ( (INTEGER_FACTOR/2)-1,(INTEGER_FACTOR/2)-1,(INTEGER_FACTOR/2)-1,0x7fffffff );
     __m128i bot = _mm_setr_epi32 (-(INTEGER_FACTOR/2),-(INTEGER_FACTOR/2),-(INTEGER_FACTOR/2),-0x80000000 );

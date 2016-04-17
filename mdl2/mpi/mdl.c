@@ -538,7 +538,9 @@ static void combine_all_incoming(MDL mdl) {
     }
 
 static void bookkeeping(MDL mdl) {
+#ifdef USE_CUDA
     CUDA_checkForRecovery(mdl->cudaCtx);
+#endif
     combine_all_incoming(mdl);
     }
 

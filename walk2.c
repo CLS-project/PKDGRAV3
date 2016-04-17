@@ -212,8 +212,10 @@ static void iOpenOutcomeCL(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin) {
     CL_BLK *blk;
     int n, nLeft;
     BND kbnd;
+    double k_r[3];
 
     kbnd = pkdNodeGetBnd(pkd,k);
+    pkdNodeGetPos(pkd,k,k_r);
 
     diCrit = 1.0f / dThetaMin;
     blk = tile->blk;
@@ -226,7 +228,7 @@ static void iOpenOutcomeCL(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin) {
 		xc = blk->x.f[i] + blk->xOffset.f[i];
 		yc = blk->y.f[i] + blk->yOffset.f[i];
 		zc = blk->z.f[i] + blk->zOffset.f[i];
-		d2 = pow(k->r[0]-xc,2) + pow(k->r[1]-yc,2) + pow(k->r[2]-zc,2);
+		d2 = pow(k_r[0]-xc,2) + pow(k_r[1]-yc,2) + pow(k_r[2]-zc,2);
 		kOpen = 1.5f * k->bMax * diCrit;
 		cOpen = blk->cOpen.f[i];
 		d2Open = pow(cOpen+kOpen,2);

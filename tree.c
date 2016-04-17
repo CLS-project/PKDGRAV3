@@ -621,7 +621,7 @@ void Create(PKD pkd,int iRoot) {
 	*/
 	pj = pkdn->pLower;
 	p = pkdParticle(pkd,pj);
-#if defined(__AVX__) && defined(INTEGER_POSITION)
+#if defined(__AVX__) && defined(INTEGER_POSITION) && defined(USE_SIMD)
 	__m256d vmin, vmax;
 #if defined(INTEGER_POSITION)
 	__m128i ivmin, ivmax;
@@ -746,7 +746,7 @@ void Create(PKD pkd,int iRoot) {
 	d2Max = 0.0;
 	for (pj=pkdn->pLower;pj<=pkdn->pUpper;++pj) {
 	    p = pkdParticle(pkd,pj);
-#if defined(__AVX__) && defined(INTEGER_POSITION)
+#if defined(__AVX__) && defined(INTEGER_POSITION) && defined(USE_SIMD)
 	    __m256d v = _mm256_sub_pd(pkdGetPos(pkd,p),_mm256_setr_pd(kdn_r[0],kdn_r[1],kdn_r[2],0.0));
 	    v = _mm256_mul_pd(v,v);
 	    __m128d t0 = _mm256_extractf128_pd(v,0);
@@ -866,7 +866,7 @@ void Create(PKD pkd,int iRoot) {
 		d2Max = 0;
 		for (;pj<=pkdn->pUpper;++pj) {
 		    p = pkdParticle(pkd,pj);
-#if defined(__AVX__) && defined(INTEGER_POSITION)
+#if defined(__AVX__) && defined(INTEGER_POSITION) && defined(USE_SIMD)
 		    __m256d v = _mm256_sub_pd(pkdGetPos(pkd,p),_mm256_setr_pd(kdn_r[0],kdn_r[1],kdn_r[2],0.0));
 		    v = _mm256_mul_pd(v,v);
 		    __m128d t0 = _mm256_extractf128_pd(v,0);
