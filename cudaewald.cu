@@ -260,6 +260,7 @@ int CUDAinitWorkEwald( void *ve, void *vwork ) {
 	Y[i] = wp->c[1] + in->r[1];
 	Z[i] = wp->c[2] + in->r[2];
 	}
+    for(;i<align;++i) X[i]=Y[i]=Z[i] = 100;
 
     // copy data directly to device memory
     CUDA_RETURN(cudaMemcpyAsync,(pCudaBufIn, pHostBufToGPU, align*3*sizeof(double),
