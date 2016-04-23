@@ -11,7 +11,7 @@
 #include "moments.h"
 #include "cudautil.h"
 
-#define ALIGN 32
+#define ALIGN 64
 #define MASK (ALIGN-1)
 
 #define MAX_TOTAL_REPLICAS (7*7*7)
@@ -24,13 +24,19 @@ __constant__ float hz[MAX_TOTAL_REPLICAS];
 __constant__ float hCfac[MAX_TOTAL_REPLICAS];
 __constant__ float hSfac[MAX_TOTAL_REPLICAS];
 
+__constant__ double Lx[MAX_TOTAL_REPLICAS];
+__constant__ double Ly[MAX_TOTAL_REPLICAS];
+__constant__ double Lz[MAX_TOTAL_REPLICAS];
+__constant__ int bHole[MAX_TOTAL_REPLICAS];
+
+
 /*
 ** nvcc -DHAVE_CONFIG_H --ptxas-options=-v -c  -I. -arch=sm_35 cudaewald.cu
-** ptxas info    : 0 bytes gmem, 7340 bytes cmem[3]
+** ptxas info    : 0 bytes gmem, 16948 bytes cmem[3]
 ** ptxas info    : Compiling entry function '_Z9cudaEwaldPdS_S_S_S_S_S_S_' for 'sm_35'
 ** ptxas info    : Function properties for _Z9cudaEwaldPdS_S_S_S_S_S_S_
 **    32 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
-** ptxas info    : Used 157 registers, 384 bytes cmem[0], 668 bytes cmem[2]
+** ptxas info    : Used 79 registers, 384 bytes cmem[0], 668 bytes cmem[2]
 */
 
 
@@ -50,20 +56,18 @@ __global__ void cudaEwald(double *X,double *Y,double *Z,
     double *Xout, double *Yout, double *Zout, double *pPot,double *pdFlop) {
     const double onethird = 1.0/3.0;
     double g0,g1,g2,g3,g4,g5,alphan;
-    int i, ix, iy, iz, bInHole;
+    int i, bInHole;
     int pidx = threadIdx.x + ALIGN*blockIdx.x;
     double tax = 0.0, tay = 0.0, taz = 0.0, dPot=0.0, dFlop=0.0;
 
     const double rx = X[pidx] - ew.r[0];
     const double ry = Y[pidx] - ew.r[1];
     const double rz = Z[pidx] - ew.r[2];
-    for(ix=-3; ix<=3; ++ix) {
-        for(iy=-3; iy<=3; ++iy) {
-            for(iz=-3; iz<=3; ++iz) {
-                bInHole = (abs(ix) <= ew.nReps && abs(iy) <= ew.nReps && abs(iz) <= ew.nReps);
-                const double x = rx + ew.Lbox * ix;
-                const double y = ry + ew.Lbox * iy;
-                const double z = rz + ew.Lbox * iz;
+    for(i=0; i<MAX_TOTAL_REPLICAS; ++i) {
+        bInHole = bHole[i];
+                const double x = rx + Lx[i];
+                const double y = ry + Ly[i];
+                const double z = rz + Lz[i];
                 double r2 = x*x + y*y + z*z;
                 if (r2 >= ew.fEwCut2 && !bInHole) continue;
                 if (r2 < ew.fInner2) { /* Once, at most per particle */
@@ -104,6 +108,8 @@ __global__ void cudaEwald(double *X,double *Y,double *Z,
                     g5 = 9*g4*dir2 + alphan*a;
                     }
 
+                dPot -= g0*ew.mom.m - g1*ew.Q2;
+
                 const  double xx = 0.5*x*x;
                 const  double xxx = onethird*xx*x;
                 const  double xxy = xx*y;
@@ -121,13 +127,17 @@ __global__ void cudaEwald(double *X,double *Y,double *Z,
                 const  double xz = x*z;
                 const  double yz = y*z;
 
-                const double Q2mirx = ew.mom.xx*x + ew.mom.xy*y + ew.mom.xz*z;
-                const double Q2miry = ew.mom.xy*x + ew.mom.yy*y + ew.mom.yz*z;
-                const double Q2mirz = ew.mom.xz*x + ew.mom.yz*y + ew.mom.zz*z;
-                const double Q2mir = 0.5*(Q2mirx*x + Q2miry*y + Q2mirz*z) - (ew.Q3x*x + ew.Q3y*y + ew.Q3z*z) + ew.Q4;
-                tax += g2*(Q2mirx - ew.Q3x);
-                tay += g2*(Q2miry - ew.Q3y);
-                taz += g2*(Q2mirz - ew.Q3z);
+                const double Q4mirx = ew.mom.xxxx*xxx + ew.mom.xxxy*xxy + ew.mom.xxxz*xxz + ew.mom.xxyy*xyy + ew.mom.xxyz*xyz +
+                    ew.mom.xxzz*xzz + ew.mom.xyyy*yyy + ew.mom.xyyz*yyz + ew.mom.xyzz*yzz + ew.mom.xzzz*zzz;
+                const double Q4miry = ew.mom.xxxy*xxx + ew.mom.xxyy*xxy + ew.mom.xxyz*xxz + ew.mom.xyyy*xyy + ew.mom.xyyz*xyz +
+                    ew.mom.xyzz*xzz + ew.mom.yyyy*yyy + ew.mom.yyyz*yyz + ew.mom.yyzz*yzz + ew.mom.yzzz*zzz;
+                const double Q4mirz = ew.mom.xxxz*xxx + ew.mom.xxyz*xxy + ew.mom.xxzz*xxz + ew.mom.xyyz*xyy + ew.mom.xyzz*xyz +
+                    ew.mom.xzzz*xzz + ew.mom.yyyz*yyy + ew.mom.yyzz*yyz + ew.mom.yzzz*yzz + ew.mom.zzzz*zzz;
+                const double Q4mir = 0.25*(Q4mirx*x + Q4miry*y + Q4mirz*z);
+                tax += g4*Q4mirx;
+                tay += g4*Q4miry;
+                taz += g4*Q4mirz;
+                dPot -= g4*Q4mir;
 
                 const double Q4x = ew.Q4xx*x + ew.Q4xy*y + ew.Q4xz*z;
                 const double Q4y = ew.Q4xy*x + ew.Q4yy*y + ew.Q4yz*z;
@@ -139,27 +149,24 @@ __global__ void cudaEwald(double *X,double *Y,double *Z,
                 tax += g3*(Q3mirx - Q4x);
                 tay += g3*(Q3miry - Q4y);
                 taz += g3*(Q3mirz - Q4z);
+                dPot -= g3*Q3mir;
 
-                const double Q4mirx = ew.mom.xxxx*xxx + ew.mom.xxxy*xxy + ew.mom.xxxz*xxz + ew.mom.xxyy*xyy + ew.mom.xxyz*xyz +
-                    ew.mom.xxzz*xzz + ew.mom.xyyy*yyy + ew.mom.xyyz*yyz + ew.mom.xyzz*yzz + ew.mom.xzzz*zzz;
-                const double Q4miry = ew.mom.xxxy*xxx + ew.mom.xxyy*xxy + ew.mom.xxyz*xxz + ew.mom.xyyy*xyy + ew.mom.xyyz*xyz +
-                    ew.mom.xyzz*xzz + ew.mom.yyyy*yyy + ew.mom.yyyz*yyz + ew.mom.yyzz*yzz + ew.mom.yzzz*zzz;
-                const double Q4mirz = ew.mom.xxxz*xxx + ew.mom.xxyz*xxy + ew.mom.xxzz*xxz + ew.mom.xyyz*xyy + ew.mom.xyzz*xyz +
-                    ew.mom.xzzz*xzz + ew.mom.yyyz*yyy + ew.mom.yyzz*yyz + ew.mom.yzzz*yzz + ew.mom.zzzz*zzz;
-                const double Q4mir = 0.25*(Q4mirx*x + Q4miry*y + Q4mirz*z);
-                tax += g4*Q4mirx;
-                tay += g4*Q4miry;
-                taz += g4*Q4mirz;
+                const double Q2mirx = ew.mom.xx*x + ew.mom.xy*y + ew.mom.xz*z;
+                const double Q2miry = ew.mom.xy*x + ew.mom.yy*y + ew.mom.yz*z;
+                const double Q2mirz = ew.mom.xz*x + ew.mom.yz*y + ew.mom.zz*z;
+                const double Q2mir = 0.5*(Q2mirx*x + Q2miry*y + Q2mirz*z) - (ew.Q3x*x + ew.Q3y*y + ew.Q3z*z) + ew.Q4;
+                tax += g2*(Q2mirx - ew.Q3x);
+                tay += g2*(Q2miry - ew.Q3y);
+                taz += g2*(Q2mirz - ew.Q3z);
+                dPot -= g2*Q2mir;
 
-                dPot -= g0*ew.mom.m - g1*ew.Q2 + g2*Q2mir + g3*Q3mir + g4*Q4mir;
-
+//                dPot -= g0*ew.mom.m - g1*ew.Q2 + g2*Q2mir + g3*Q3mir + g4*Q4mir;
                 const double Qta = g1*ew.mom.m - g2*ew.Q2 + g3*Q2mir + g4*Q3mir + g5*Q4mir;
+
                 tax -= x*Qta;
                 tay -= y*Qta;
                 taz -= z*Qta;
                 dFlop += COST_FLOP_EWALD;
-                }
-            }
 	}
 
     // the H-Loop
@@ -193,6 +200,30 @@ cudaError_t cuda_setup_ewald(CUDACTX cuda) {
         CUDA_RETURN(cudaMemcpyToSymbolAsync,(hz,cuda->ewt->hz.f,sizeof(float)*cuda->ewIn->nEwhLoop,0,cudaMemcpyHostToDevice,cuda->streamEwald));
         CUDA_RETURN(cudaMemcpyToSymbolAsync,(hCfac,cuda->ewt->hCfac.f,sizeof(float)*cuda->ewIn->nEwhLoop,0,cudaMemcpyHostToDevice,cuda->streamEwald));
         CUDA_RETURN(cudaMemcpyToSymbolAsync,(hSfac,cuda->ewt->hSfac.f,sizeof(float)*cuda->ewIn->nEwhLoop,0,cudaMemcpyHostToDevice,cuda->streamEwald));
+// Time(%)      Time     Calls       Avg       Min       Max  Name
+// 14.93%  1.47255s       413  3.5655ms  2.6458ms  3.9733ms  cudaEwald(double*, double*, double*, double*, double*, double*, double*, d
+        double dLx[MAX_TOTAL_REPLICAS];
+        double dLy[MAX_TOTAL_REPLICAS];
+        double dLz[MAX_TOTAL_REPLICAS];
+        int ibHole[MAX_TOTAL_REPLICAS];
+        int i=0, ix, iy, iz;
+        for(ix=-3; ix<=3; ++ix) {
+            for(iy=-3; iy<=3; ++iy) {
+                for(iz=-3; iz<=3; ++iz) {
+                    ibHole[i] = (abs(ix) <= cuda->ewIn->nReps && abs(iy) <= cuda->ewIn->nReps && abs(iz) <= cuda->ewIn->nReps);
+                    dLx[i] = cuda->ewIn->Lbox * ix;
+                    dLy[i] = cuda->ewIn->Lbox * iy;
+                    dLz[i] = cuda->ewIn->Lbox * iz;
+                    ++i;
+                    }
+                }
+            }
+        CUDA_RETURN(cudaMemcpyToSymbolAsync,(Lx,dLx,sizeof(Lx),0,cudaMemcpyHostToDevice,cuda->streamEwald));
+        CUDA_RETURN(cudaMemcpyToSymbolAsync,(Ly,dLy,sizeof(Ly),0,cudaMemcpyHostToDevice,cuda->streamEwald));
+        CUDA_RETURN(cudaMemcpyToSymbolAsync,(Lz,dLz,sizeof(Lz),0,cudaMemcpyHostToDevice,cuda->streamEwald));
+        CUDA_RETURN(cudaMemcpyToSymbolAsync,(bHole,ibHole,sizeof(bHole),0,cudaMemcpyHostToDevice,cuda->streamEwald));
+
+
 #ifdef USE_CUDA_EVENTS
         CUDA_RETURN(cudaEventRecord,(cuda->eventEwald,cuda->streamEwald));
 #endif
