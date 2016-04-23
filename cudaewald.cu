@@ -11,6 +11,8 @@
 #include "moments.h"
 #include "cudautil.h"
 
+#define ALIGN 32
+#define MASK (ALIGN-1)
 
 #define MAX_TOTAL_REPLICAS (7*7*7)
 #define SCAN_SIZE 512 // Must be larger than MAX_TOTAL_REPLICAS and a power of two.
@@ -24,13 +26,11 @@ __constant__ float hSfac[MAX_TOTAL_REPLICAS];
 
 /*
 ** nvcc -DHAVE_CONFIG_H --ptxas-options=-v -c  -I. -arch=sm_35 cudaewald.cu
-** ptxas info    : 0 bytes gmem, 7464 bytes cmem[3]
-** ptxas info    : Compiling entry function '_Z9cudaEwaldPdS_S_S_' for 'sm_35'
-** ptxas info    : Function properties for _Z9cudaEwaldPdS_S_S_
-**     8 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
-** ptxas info    : Used 82 registers, 2176 bytes smem, 352 bytes cmem[0], 716 bytes cmem[2]
-** ptxas info    : Function properties for __internal_trig_reduction_slowpathd
-**     40 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+** ptxas info    : 0 bytes gmem, 7340 bytes cmem[3]
+** ptxas info    : Compiling entry function '_Z9cudaEwaldPdS_S_S_S_S_S_S_' for 'sm_35'
+** ptxas info    : Function properties for _Z9cudaEwaldPdS_S_S_S_S_S_S_
+**     32 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+** ptxas info    : Used 167 registers, 384 bytes cmem[0], 668 bytes cmem[2]
 */
 
 
@@ -48,29 +48,24 @@ __constant__ float hSfac[MAX_TOTAL_REPLICAS];
 
 __global__ void cudaEwald(double *X,double *Y,double *Z,
     double *Xout, double *Yout, double *Zout, double *pPot,double *pdFlop) {
-    double x, y, z;
-    double r2,dir,dir2,a;
-    double rx, ry, rz;
     double g0,g1,g2,g3,g4,g5,alphan;
     int i, ix, iy, iz, bInHole;
-    int pidx = threadIdx.x + 32*blockIdx.x;
+    int pidx = threadIdx.x + ALIGN*blockIdx.x;
     double tax = 0.0, tay = 0.0, taz = 0.0, tpot=0.0, dFlop=0.0;
 
-    rx = X[pidx] - ew.r[0];
-    ry = Y[pidx] - ew.r[1];
-    rz = Z[pidx] - ew.r[2];
+    const double rx = X[pidx] - ew.r[0];
+    const double ry = Y[pidx] - ew.r[1];
+    const double rz = Z[pidx] - ew.r[2];
     for(ix=-3; ix<=3; ++ix) {
         for(iy=-3; iy<=3; ++iy) {
             for(iz=-3; iz<=3; ++iz) {
                 bInHole = (abs(ix) <= ew.nReps && abs(iy) <= ew.nReps && abs(iz) <= ew.nReps);
- 
-                x = rx + ew.Lbox * ix;
-                y = ry + ew.Lbox * iy;
-                z = rz + ew.Lbox * iz;
-                r2 = x*x + y*y + z*z;
+                const double x = rx + ew.Lbox * ix;
+                const double y = ry + ew.Lbox * iy;
+                const double z = rz + ew.Lbox * iz;
+                double r2 = x*x + y*y + z*z;
                 if (r2 >= ew.fEwCut2 && !bInHole) continue;
                 if (r2 < ew.fInner2) { /* Once, at most per particle */
-                    double alphan;
                     /*
                      * For small r, series expand about
                      * the origin to avoid errors caused
@@ -91,10 +86,9 @@ __global__ void cudaEwald(double *X,double *Y,double *Z,
                     g5 = alphan*((1.0/13.0)*r2 - (1.0/11.0));
                     }
                 else {
-                    dir = rsqrt(r2);
-                    dir2 = dir*dir;
-                    a = exp(-r2*ew.alpha2);
-                    a *= ew.ka*dir2;
+                    const double dir = rsqrt(r2);
+                    const double dir2 = dir*dir;
+                    const  double a = exp(-r2*ew.alpha2) * ew.ka*dir2;
                     if (bInHole) g0 = -erf(ew.alpha*r2*dir);
                     else         g0 = erfc(ew.alpha*r2*dir);
                     g0 *= dir;
@@ -108,27 +102,26 @@ __global__ void cudaEwald(double *X,double *Y,double *Z,
                     alphan *= 2*ew.alpha2;
                     g5 = 9*g4*dir2 + alphan*a;
                     }
-                double onethird = 1.0/3.0;
-                double xx,xxx,xxy,xxz,yy,yyy,yyz,xyy,zz,zzz,xzz,yzz,xy,xyz,xz,yz;
+                const double onethird = 1.0/3.0;
                 double Qta,Q4mirx,Q4miry,Q4mirz,Q4mir,Q4x,Q4y,Q4z;
                 double Q3mirx,Q3miry,Q3mirz,Q3mir,Q2mirx,Q2miry,Q2mirz,Q2mir;
 
-                xx = 0.5*x*x;
-                xxx = onethird*xx*x;
-                xxy = xx*y;
-                xxz = xx*z;
-                yy = 0.5*y*y;
-                yyy = onethird*yy*y;
-                xyy = yy*x;
-                yyz = yy*z;
-                zz = 0.5*z*z;
-                zzz = onethird*zz*z;
-                xzz = zz*x;
-                yzz = zz*y;
-                xy = x*y;
-                xyz = xy*z;
-                xz = x*z;
-                yz = y*z;
+                const  double xx = 0.5*x*x;
+                const  double xxx = onethird*xx*x;
+                const  double xxy = xx*y;
+                const  double xxz = xx*z;
+                const  double yy = 0.5*y*y;
+                const  double yyy = onethird*yy*y;
+                const  double xyy = yy*x;
+                const  double yyz = yy*z;
+                const  double zz = 0.5*z*z;
+                const  double zzz = onethird*zz*z;
+                const  double xzz = zz*x;
+                const  double yzz = zz*y;
+                const  double xy = x*y;
+                const  double xyz = xy*z;
+                const  double xz = x*z;
+                const  double yz = y*z;
                 Q2mirx = ew.mom.xx*x + ew.mom.xy*y + ew.mom.xz*z;
                 Q2miry = ew.mom.xy*x + ew.mom.yy*y + ew.mom.yz*z;
                 Q2mirz = ew.mom.xz*x + ew.mom.yz*y + ew.mom.zz*z;
@@ -159,12 +152,12 @@ __global__ void cudaEwald(double *X,double *Y,double *Z,
 
     // the H-Loop
     float fx=rx, fy=ry, fz=rz;
-    float fax=0, fay=0, faz=0;
+    float fax=0, fay=0, faz=0, fpot=0;
     for( i=0; i<ew.nEwhLoop; ++i) {
 	float hdotx,s,c,t;
 	hdotx = hx[i]*fx + hy[i]*fy + hz[i]*fz;
 	sincosf(hdotx,&s,&c);
-	tpot += hCfac[i]*c + hSfac[i]*s;
+	fpot += hCfac[i]*c + hSfac[i]*s;
 	t = hCfac[i]*s - hSfac[i]*c;
 	fax += hx[i]*t;
 	fay += hy[i]*t;
@@ -174,7 +167,7 @@ __global__ void cudaEwald(double *X,double *Y,double *Z,
     Xout[pidx] = tax + fax;
     Yout[pidx] = tay + fay;
     Zout[pidx] = taz + faz;
-    pPot[pidx] = tpot;
+    pPot[pidx] = tpot + fpot;
     pdFlop[pidx] = dFlop;
     }
 
@@ -237,7 +230,7 @@ int CUDAinitWorkEwald( void *ve, void *vwork ) {
     double *cudaX, *cudaY, *cudaZ, *cudaXout, *cudaYout, *cudaZout, *cudaPot, *cudaFlop;
     int align, i;
 
-    align = (e->nP+31)&~31; /* Warp align the memory buffers */
+    align = (e->nP+MASK)&~MASK; /* Warp align the memory buffers */
     X       = pHostBufToGPU + 0*align;
     Y       = pHostBufToGPU + 1*align;
     Z       = pHostBufToGPU + 2*align;
@@ -250,8 +243,8 @@ int CUDAinitWorkEwald( void *ve, void *vwork ) {
     cudaPot = pCudaBufOut + 3*align;
     cudaFlop= pCudaBufOut + 4*align;
 
-    dim3 dimBlock( 32, 1 );
-    dim3 dimGrid( align/32, 1,1 );
+    dim3 dimBlock( ALIGN, 1 );
+    dim3 dimGrid( align/ALIGN, 1,1 );
     for(i=0; i<e->nP; ++i) {
         const workParticle *wp = e->ppWorkPart[i];
 	const int wi = e->piWorkPart[i];
@@ -287,7 +280,7 @@ int CUDAcheckWorkEwald( void *ve, void *vwork ) {
     double *X, *Y, *Z, *pPot, *pdFlop;
     int align;
 
-    align = (e->nP+31)&~31; /* As above! Warp align the memory buffers */
+    align = (e->nP+MASK)&~MASK; /* As above! Warp align the memory buffers */
     X       = pHostBuf + 0*align;
     Y       = pHostBuf + 1*align;
     Z       = pHostBuf + 2*align;
