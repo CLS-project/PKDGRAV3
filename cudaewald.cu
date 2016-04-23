@@ -15,7 +15,6 @@
 #define MASK (ALIGN-1)
 
 #define MAX_TOTAL_REPLICAS (7*7*7)
-#define SCAN_SIZE 512 // Must be larger than MAX_TOTAL_REPLICAS and a power of two.
 
 __constant__ struct EwaldVariables ew;
 __constant__ float hx[MAX_TOTAL_REPLICAS];
@@ -65,108 +64,108 @@ __global__ void cudaEwald(double *X,double *Y,double *Z,
     const double rz = Z[pidx] - ew.r[2];
     for(i=0; i<MAX_TOTAL_REPLICAS; ++i) {
         bInHole = bHole[i];
-                const double x = rx + Lx[i];
-                const double y = ry + Ly[i];
-                const double z = rz + Lz[i];
-                double r2 = x*x + y*y + z*z;
-                if (r2 >= ew.fEwCut2 && !bInHole) continue;
-                if (r2 < ew.fInner2) { /* Once, at most per particle */
-                    /*
-                     * For small r, series expand about
-                     * the origin to avoid errors caused
-                     * by cancellation of large terms.
-                     */
-                    alphan = ew.ka;
-                    r2 *= ew.alpha2;
-                    g0 = alphan*((1.0/3.0)*r2 - 1.0);
-                    alphan *= 2*ew.alpha2;
-                    g1 = alphan*((1.0/5.0)*r2 - (1.0/3.0));
-                    alphan *= 2*ew.alpha2;
-                    g2 = alphan*((1.0/7.0)*r2 - (1.0/5.0));
-                    alphan *= 2*ew.alpha2;
-                    g3 = alphan*((1.0/9.0)*r2 - (1.0/7.0));
-                    alphan *= 2*ew.alpha2;
-                    g4 = alphan*((1.0/11.0)*r2 - (1.0/9.0));
-                    alphan *= 2*ew.alpha2;
-                    g5 = alphan*((1.0/13.0)*r2 - (1.0/11.0));
-                    }
-                else {
-                    const double dir = rsqrt(r2);
-                    const double dir2 = dir*dir;
-                    const double a = exp(-r2*ew.alpha2) * ew.ka*dir2;
-                    if (bInHole) g0 = -erf(ew.alpha*r2*dir);
-                    else         g0 = erfc(ew.alpha*r2*dir);
-                    g0 *= dir;
-                    g1 = g0*dir2 + a;
-                    alphan = 2*ew.alpha2;
-                    g2 = 3*g1*dir2 + alphan*a;
-                    alphan *= 2*ew.alpha2;
-                    g3 = 5*g2*dir2 + alphan*a;
-                    alphan *= 2*ew.alpha2;
-                    g4 = 7*g3*dir2 + alphan*a;
-                    alphan *= 2*ew.alpha2;
-                    g5 = 9*g4*dir2 + alphan*a;
-                    }
+        const double x = rx + Lx[i];
+        const double y = ry + Ly[i];
+        const double z = rz + Lz[i];
+        double r2 = x*x + y*y + z*z;
+        if (r2 >= ew.fEwCut2 && !bInHole) continue;
+        if (r2 < ew.fInner2) { /* Once, at most per particle */
+            /*
+             * For small r, series expand about
+             * the origin to avoid errors caused
+             * by cancellation of large terms.
+             */
+            alphan = ew.ka;
+            r2 *= ew.alpha2;
+            g0 = alphan*((1.0/3.0)*r2 - 1.0);
+            alphan *= 2*ew.alpha2;
+            g1 = alphan*((1.0/5.0)*r2 - (1.0/3.0));
+            alphan *= 2*ew.alpha2;
+            g2 = alphan*((1.0/7.0)*r2 - (1.0/5.0));
+            alphan *= 2*ew.alpha2;
+            g3 = alphan*((1.0/9.0)*r2 - (1.0/7.0));
+            alphan *= 2*ew.alpha2;
+            g4 = alphan*((1.0/11.0)*r2 - (1.0/9.0));
+            alphan *= 2*ew.alpha2;
+            g5 = alphan*((1.0/13.0)*r2 - (1.0/11.0));
+            }
+        else {
+            const double dir = rsqrt(r2);
+            const double dir2 = dir*dir;
+            const double a = exp(-r2*ew.alpha2) * ew.ka*dir2;
+            if (bInHole) g0 = -erf(ew.alpha*r2*dir);
+            else         g0 = erfc(ew.alpha*r2*dir);
+            g0 *= dir;
+            g1 = g0*dir2 + a;
+            alphan = 2*ew.alpha2;
+            g2 = 3*g1*dir2 + alphan*a;
+            alphan *= 2*ew.alpha2;
+            g3 = 5*g2*dir2 + alphan*a;
+            alphan *= 2*ew.alpha2;
+            g4 = 7*g3*dir2 + alphan*a;
+            alphan *= 2*ew.alpha2;
+            g5 = 9*g4*dir2 + alphan*a;
+            }
 
-                dPot -= g0*ew.mom.m - g1*ew.Q2;
+        dPot -= g0*ew.mom.m - g1*ew.Q2;
 
-                const  double xx = 0.5*x*x;
-                const  double xxx = onethird*xx*x;
-                const  double xxy = xx*y;
-                const  double xxz = xx*z;
-                const  double yy = 0.5*y*y;
-                const  double yyy = onethird*yy*y;
-                const  double xyy = yy*x;
-                const  double yyz = yy*z;
-                const  double zz = 0.5*z*z;
-                const  double zzz = onethird*zz*z;
-                const  double xzz = zz*x;
-                const  double yzz = zz*y;
-                const  double xy = x*y;
-                const  double xyz = xy*z;
-                const  double xz = x*z;
-                const  double yz = y*z;
+        const  double xx = 0.5*x*x;
+        const  double xxx = onethird*xx*x;
+        const  double xxy = xx*y;
+        const  double xxz = xx*z;
+        const  double yy = 0.5*y*y;
+        const  double yyy = onethird*yy*y;
+        const  double xyy = yy*x;
+        const  double yyz = yy*z;
+        const  double zz = 0.5*z*z;
+        const  double zzz = onethird*zz*z;
+        const  double xzz = zz*x;
+        const  double yzz = zz*y;
+        const  double xy = x*y;
+        const  double xyz = xy*z;
+        const  double xz = x*z;
+        const  double yz = y*z;
 
-                const double Q4mirx = ew.mom.xxxx*xxx + ew.mom.xxxy*xxy + ew.mom.xxxz*xxz + ew.mom.xxyy*xyy + ew.mom.xxyz*xyz +
-                    ew.mom.xxzz*xzz + ew.mom.xyyy*yyy + ew.mom.xyyz*yyz + ew.mom.xyzz*yzz + ew.mom.xzzz*zzz;
-                const double Q4miry = ew.mom.xxxy*xxx + ew.mom.xxyy*xxy + ew.mom.xxyz*xxz + ew.mom.xyyy*xyy + ew.mom.xyyz*xyz +
-                    ew.mom.xyzz*xzz + ew.mom.yyyy*yyy + ew.mom.yyyz*yyz + ew.mom.yyzz*yzz + ew.mom.yzzz*zzz;
-                const double Q4mirz = ew.mom.xxxz*xxx + ew.mom.xxyz*xxy + ew.mom.xxzz*xxz + ew.mom.xyyz*xyy + ew.mom.xyzz*xyz +
-                    ew.mom.xzzz*xzz + ew.mom.yyyz*yyy + ew.mom.yyzz*yyz + ew.mom.yzzz*yzz + ew.mom.zzzz*zzz;
-                const double Q4mir = 0.25*(Q4mirx*x + Q4miry*y + Q4mirz*z);
-                tax += g4*Q4mirx;
-                tay += g4*Q4miry;
-                taz += g4*Q4mirz;
-                dPot -= g4*Q4mir;
+        const double Q4mirx = ew.mom.xxxx*xxx + ew.mom.xxxy*xxy + ew.mom.xxxz*xxz + ew.mom.xxyy*xyy + ew.mom.xxyz*xyz +
+            ew.mom.xxzz*xzz + ew.mom.xyyy*yyy + ew.mom.xyyz*yyz + ew.mom.xyzz*yzz + ew.mom.xzzz*zzz;
+        const double Q4miry = ew.mom.xxxy*xxx + ew.mom.xxyy*xxy + ew.mom.xxyz*xxz + ew.mom.xyyy*xyy + ew.mom.xyyz*xyz +
+            ew.mom.xyzz*xzz + ew.mom.yyyy*yyy + ew.mom.yyyz*yyz + ew.mom.yyzz*yzz + ew.mom.yzzz*zzz;
+        const double Q4mirz = ew.mom.xxxz*xxx + ew.mom.xxyz*xxy + ew.mom.xxzz*xxz + ew.mom.xyyz*xyy + ew.mom.xyzz*xyz +
+            ew.mom.xzzz*xzz + ew.mom.yyyz*yyy + ew.mom.yyzz*yyz + ew.mom.yzzz*yzz + ew.mom.zzzz*zzz;
+        const double Q4mir = 0.25*(Q4mirx*x + Q4miry*y + Q4mirz*z);
+        dPot -= g4*Q4mir;
+        tax += g4*Q4mirx;
+        tay += g4*Q4miry;
+        taz += g4*Q4mirz;
 
-                const double Q4x = ew.Q4xx*x + ew.Q4xy*y + ew.Q4xz*z;
-                const double Q4y = ew.Q4xy*x + ew.Q4yy*y + ew.Q4yz*z;
-                const double Q4z = ew.Q4xz*x + ew.Q4yz*y + ew.Q4zz*z;
-                const double Q3mirx = ew.mom.xxx*xx + ew.mom.xxy*xy + ew.mom.xxz*xz + ew.mom.xyy*yy + ew.mom.xyz*yz + ew.mom.xzz*zz;
-                const double Q3miry = ew.mom.xxy*xx + ew.mom.xyy*xy + ew.mom.xyz*xz + ew.mom.yyy*yy + ew.mom.yyz*yz + ew.mom.yzz*zz;
-                const double Q3mirz = ew.mom.xxz*xx + ew.mom.xyz*xy + ew.mom.xzz*xz + ew.mom.yyz*yy + ew.mom.yzz*yz + ew.mom.zzz*zz;
-                const double Q3mir = onethird*(Q3mirx*x + Q3miry*y + Q3mirz*z) - 0.5*(Q4x*x + Q4y*y + Q4z*z);
-                tax += g3*(Q3mirx - Q4x);
-                tay += g3*(Q3miry - Q4y);
-                taz += g3*(Q3mirz - Q4z);
-                dPot -= g3*Q3mir;
+        const double Q3mirx = ew.mom.xxx*xx + ew.mom.xxy*xy + ew.mom.xxz*xz + ew.mom.xyy*yy + ew.mom.xyz*yz + ew.mom.xzz*zz;
+        const double Q3miry = ew.mom.xxy*xx + ew.mom.xyy*xy + ew.mom.xyz*xz + ew.mom.yyy*yy + ew.mom.yyz*yz + ew.mom.yzz*zz;
+        const double Q3mirz = ew.mom.xxz*xx + ew.mom.xyz*xy + ew.mom.xzz*xz + ew.mom.yyz*yy + ew.mom.yzz*yz + ew.mom.zzz*zz;
+        const double Q4x = ew.Q4xx*x + ew.Q4xy*y + ew.Q4xz*z;
+        const double Q4y = ew.Q4xy*x + ew.Q4yy*y + ew.Q4yz*z;
+        const double Q4z = ew.Q4xz*x + ew.Q4yz*y + ew.Q4zz*z;
+        const double Q3mir = onethird*(Q3mirx*x + Q3miry*y + Q3mirz*z) - 0.5*(Q4x*x + Q4y*y + Q4z*z);
+        dPot -= g3*Q3mir;
+        tax += g3*(Q3mirx - Q4x);
+        tay += g3*(Q3miry - Q4y);
+        taz += g3*(Q3mirz - Q4z);
 
-                const double Q2mirx = ew.mom.xx*x + ew.mom.xy*y + ew.mom.xz*z;
-                const double Q2miry = ew.mom.xy*x + ew.mom.yy*y + ew.mom.yz*z;
-                const double Q2mirz = ew.mom.xz*x + ew.mom.yz*y + ew.mom.zz*z;
-                const double Q2mir = 0.5*(Q2mirx*x + Q2miry*y + Q2mirz*z) - (ew.Q3x*x + ew.Q3y*y + ew.Q3z*z) + ew.Q4;
-                tax += g2*(Q2mirx - ew.Q3x);
-                tay += g2*(Q2miry - ew.Q3y);
-                taz += g2*(Q2mirz - ew.Q3z);
-                dPot -= g2*Q2mir;
+        const double Q2mirx = ew.mom.xx*x + ew.mom.xy*y + ew.mom.xz*z;
+        const double Q2miry = ew.mom.xy*x + ew.mom.yy*y + ew.mom.yz*z;
+        const double Q2mirz = ew.mom.xz*x + ew.mom.yz*y + ew.mom.zz*z;
+        const double Q2mir = 0.5*(Q2mirx*x + Q2miry*y + Q2mirz*z) - (ew.Q3x*x + ew.Q3y*y + ew.Q3z*z) + ew.Q4;
+        dPot -= g2*Q2mir;
+        tax += g2*(Q2mirx - ew.Q3x);
+        tay += g2*(Q2miry - ew.Q3y);
+        taz += g2*(Q2mirz - ew.Q3z);
 
 //                dPot -= g0*ew.mom.m - g1*ew.Q2 + g2*Q2mir + g3*Q3mir + g4*Q4mir;
-                const double Qta = g1*ew.mom.m - g2*ew.Q2 + g3*Q2mir + g4*Q3mir + g5*Q4mir;
 
-                tax -= x*Qta;
-                tay -= y*Qta;
-                taz -= z*Qta;
-                dFlop += COST_FLOP_EWALD;
+        const double Qta = g1*ew.mom.m - g2*ew.Q2 + g3*Q2mir + g4*Q3mir + g5*Q4mir;
+        tax -= x*Qta;
+        tay -= y*Qta;
+        taz -= z*Qta;
+        dFlop += COST_FLOP_EWALD;
 	}
 
     // the H-Loop
