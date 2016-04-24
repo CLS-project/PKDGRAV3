@@ -820,6 +820,10 @@ void pkdEwaldInit(PKD pkd,int nReps,double fEwCut,double fhCut) {
 	ewt->hSfac.f[i] = 0;
 	++i;
 	}
+#ifdef USE_CL
+    clEwaldInit(pkd->mdl->clCtx,ew,ewt);
+    mdlThreadBarrier(pkd->mdl);
+#endif
 #ifdef USE_CUDA
     cudaEwaldInit(pkd->mdl->cudaCtx,ew,ewt);
     mdlThreadBarrier(pkd->mdl);

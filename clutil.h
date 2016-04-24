@@ -43,7 +43,7 @@ typedef struct cl_wq_node {
 typedef struct clContext {
     cl_context clContext;
     cl_device_id clDeviceId;
-    cl_mem ewEwald, hxEwald, hyEwald, hzEwald, hCfac, hSfac;
+    cl_mem LxEwald,LyEwald,LzEwald,bhEwald, ewEwald, hxEwald, hyEwald, hzEwald, hCfac, hSfac;
     cl_program programEwald;
     } *CLCONTEXT;
 
@@ -64,6 +64,8 @@ typedef struct cl_ctx {
     cl_event eventEwald;
 
     } *CLCTX;
+
+cl_program CL_compile(CLCTX cl, const char *src);
 #else
 void *CL_create_context();
 void *CL_initialize(void *vctx,int nCores,int iCore);

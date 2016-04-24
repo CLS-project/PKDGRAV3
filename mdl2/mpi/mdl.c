@@ -32,6 +32,10 @@
 #ifdef USE_CUDA
 #include "cudautil.h"
 #endif
+#ifdef USE_CL
+#include <CL/cl.h>
+#include "clutil.h"
+#endif
 #ifdef USE_ITT
 #include "ittnotify.h"
 #endif
@@ -1188,9 +1192,6 @@ static int checkMPI(MDL mdl) {
 static int mdlDoSomeWork(MDL mdl) {
     MDLwqNode *work;
     int rc = 0;
-#ifdef NO_TOO_OFTEN_USE_CUDA
-    rc = CUDA_flushDone(mdl->cudaCtx);
-#endif
     mdlCacheCheck(mdl);
     if (!OPA_Queue_is_empty(&mdl->wq)) {
 	/* Grab a work package, and perform it */
@@ -1221,6 +1222,9 @@ void mdlCompleteAllWork(MDL mdl) {
     CUDA_sendWork(mdl->cudaCtx);
 #endif
     while(mdlDoSomeWork(mdl)) {}
+#ifdef USE_CL
+    while(CL_flushDone(mdl->clCtx)) {}
+#endif
 #ifdef USE_CUDA
     while(CUDA_flushDone(mdl->cudaCtx)) {}
 #endif
@@ -1408,6 +1412,9 @@ static int mdl_MPI_Barrier(MDL mdl) {
     }
 
 void mdlInitCommon(MDL mdl0, int iMDL,int bDiag,int argc, char **argv,
+#ifdef USE_CL
+    void *clContext,
+#endif
     void * (*fcnMaster)(MDL),void * (*fcnChild)(MDL)) {
     MDL mdl = mdl0->pmdl[iMDL];
     int i;
@@ -1446,6 +1453,9 @@ void mdlInitCommon(MDL mdl0, int iMDL,int bDiag,int argc, char **argv,
 #ifdef USE_CUDA
     mdl->inCudaBufSize = mdl->outCudaBufSize = 0;
     mdl->cudaCtx = CUDA_initialize(mdl->base.nCores,mdl->base.iCore);
+#endif
+#ifdef USE_CL
+    mdl->clCtx = CL_initialize(clContext,mdl->base.nCores,mdl->base.iCore);
 #endif
 
     /*
@@ -1508,6 +1518,8 @@ void mdlInitCommon(MDL mdl0, int iMDL,int bDiag,int argc, char **argv,
 	assert(mdl->base.fpDiag != NULL);
 	}
     }
+
+
 
 static void drainMPI(MDL mdl) {
     while(checkMPI(mdl)) {
@@ -1684,8 +1696,16 @@ void mdlLaunch(int argc,char **argv,void * (*fcnMaster)(MDL),void * (*fcnChild)(
 	mdl->pmdl[i] = malloc(sizeof(struct mdlContext));
 	assert(mdl->pmdl[i] != NULL);
 	}
+
+#ifdef USE_CL
+    void * clContext = CL_create_context();
+#endif
     for (i = mdl->iCoreMPI; i < mdl->base.nCores; ++i)
-	mdlInitCommon(mdl, i, bDiag, argc, argv, fcnMaster, fcnChild);
+	mdlInitCommon(mdl, i, bDiag, argc, argv,
+#ifdef USE_CL
+	    clContext,
+#endif
+	    fcnMaster, fcnChild);
 
 
     OPA_Queue_init(&mpi->queueMPI);
@@ -3175,6 +3195,9 @@ void mdlSetWorkQueueSize(MDL mdl,int wqMaxSize,int cudaSize) {
 
 #ifdef USE_CUDA
     CUDA_SetQueueSize(mdl->cudaCtx,cudaSize,mdl->inCudaBufSize,mdl->outCudaBufSize);
+#endif
+#ifdef USE_CL
+    CL_SetQueueSize(mdl->clCtx,cudaSize,mdl->inCudaBufSize,mdl->outCudaBufSize);
 #endif
     while (wqMaxSize > mdl->wqMaxSize) {
 	for(i=0; i<mdl->base.nCores; ++i) {

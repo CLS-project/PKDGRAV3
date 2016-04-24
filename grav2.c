@@ -895,7 +895,9 @@ void pkdGravStartEwald(PKD pkd) {
 void pkdGravFinishEwald(PKD pkd) {
     /* Finish any Ewald work */
     if (pkd->ewWork->nP) {
-#ifdef USE_CUDA
+#if defined(USE_CL)
+	CL_queue(pkd->mdl->clCtx,pkd->ewWork,CLinitWorkEwald,CLcheckWorkEwald,doneWorkEwald);
+#elif defined(USE_CUDA)
 	mdlAddWork(pkd->mdl,pkd->ewWork,CUDAinitWorkEwald,CUDAcheckWorkEwald,CPUdoWorkEwald,doneWorkEwald);
 #else
 	mdlAddWork(pkd->mdl,pkd->ewWork,NULL,NULL,CPUdoWorkEwald,doneWorkEwald);

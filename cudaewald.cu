@@ -43,25 +43,38 @@ __constant__ int bHole[MAX_TOTAL_REPLICAS];
 ** threadIdx.x: all work on the same particle -- this is the warp size, i.e., 32
 ** blockIdx.x:  different particles. If y=z=1, then x can be anything, otherwise
 **              the total number of particles is a block of x*y*z
-**
-** We are allowed 16 resident blocks so this corresponds to 512 threads per SM.
-** This is fine because we are actually close to shared memory limited:
-**   bValid[512] = 2052 bytes
-**   We have 48k per SM so around 23 active thread blocks (but we use only 16)
-**   compute 5.0: 32 thread blocks, but 64K shared gives us ~ 31 resident.
 */
 
 __global__ void cudaEwald(double *X,double *Y,double *Z,
     double *Xout, double *Yout, double *Zout, double *pPot,double *pdFlop) {
+    int pidx = threadIdx.x + ALIGN*blockIdx.x;
+
     const double onethird = 1.0/3.0;
     double g0,g1,g2,g3,g4,g5,alphan;
     int i, bInHole;
-    int pidx = threadIdx.x + ALIGN*blockIdx.x;
-    double tax = 0.0, tay = 0.0, taz = 0.0, dPot=0.0, dFlop=0.0;
-
+    double tax, tay, taz, dPot, dFlop=0.0;
     const double rx = X[pidx] - ew.r[0];
     const double ry = Y[pidx] - ew.r[1];
     const double rz = Z[pidx] - ew.r[2];
+
+    // the H-Loop
+    float fx=rx, fy=ry, fz=rz;
+    float fax=0, fay=0, faz=0, fPot=0;
+    for( i=0; i<ew.nEwhLoop; ++i) {
+	float hdotx,s,c,t;
+	hdotx = hx[i]*fx + hy[i]*fy + hz[i]*fz;
+	sincosf(hdotx,&s,&c);
+	fPot += hCfac[i]*c + hSfac[i]*s;
+	t = hCfac[i]*s - hSfac[i]*c;
+	fax += hx[i]*t;
+	fay += hy[i]*t;
+	faz += hz[i]*t;
+	}
+    tax = fax;
+    tay = fay;
+    taz = faz;
+    dPot = fPot;
+
     for(i=0; i<MAX_TOTAL_REPLICAS; ++i) {
         bInHole = bHole[i];
         const double x = rx + Lx[i];
@@ -109,38 +122,85 @@ __global__ void cudaEwald(double *X,double *Y,double *Z,
 
         dPot -= g0*ew.mom.m - g1*ew.Q2;
 
-        const  double xx = 0.5*x*x;
-        const  double xxx = onethird*xx*x;
-        const  double xxy = xx*y;
-        const  double xxz = xx*z;
-        const  double yy = 0.5*y*y;
-        const  double yyy = onethird*yy*y;
-        const  double xyy = yy*x;
-        const  double yyz = yy*z;
-        const  double zz = 0.5*z*z;
-        const  double zzz = onethird*zz*z;
-        const  double xzz = zz*x;
-        const  double yzz = zz*y;
-        const  double xy = x*y;
-        const  double xyz = xy*z;
-        const  double xz = x*z;
-        const  double yz = y*z;
+        double Q4mirx, Q4miry, Q4mirz;
+        double Q3mirx, Q3miry, Q3mirz;
 
-        const double Q4mirx = ew.mom.xxxx*xxx + ew.mom.xxxy*xxy + ew.mom.xxxz*xxz + ew.mom.xxyy*xyy + ew.mom.xxyz*xyz +
-            ew.mom.xxzz*xzz + ew.mom.xyyy*yyy + ew.mom.xyyz*yyz + ew.mom.xyzz*yzz + ew.mom.xzzz*zzz;
-        const double Q4miry = ew.mom.xxxy*xxx + ew.mom.xxyy*xxy + ew.mom.xxyz*xxz + ew.mom.xyyy*xyy + ew.mom.xyyz*xyz +
-            ew.mom.xyzz*xzz + ew.mom.yyyy*yyy + ew.mom.yyyz*yyz + ew.mom.yyzz*yzz + ew.mom.yzzz*zzz;
-        const double Q4mirz = ew.mom.xxxz*xxx + ew.mom.xxyz*xxy + ew.mom.xxzz*xxz + ew.mom.xyyz*xyy + ew.mom.xyzz*xyz +
-            ew.mom.xzzz*xzz + ew.mom.yyyz*yyy + ew.mom.yyzz*yyz + ew.mom.yzzz*yzz + ew.mom.zzzz*zzz;
-        const double Q4mir = 0.25*(Q4mirx*x + Q4miry*y + Q4mirz*z);
-        dPot -= g4*Q4mir;
+        const  double xx = 0.5*x*x;
+        Q3mirx = ew.mom.xxx*xx;
+        Q3miry = ew.mom.xxy*xx;
+        Q3mirz = ew.mom.xxz*xx;
+        const  double xxx = onethird*xx*x;
+        Q4mirx = ew.mom.xxxx*xxx;
+        Q4miry = ew.mom.xxxy*xxx;
+        Q4mirz = ew.mom.xxxz*xxx;
+        const  double xxy = xx*y;
+        Q4mirx += ew.mom.xxxy*xxy;
+        Q4miry += ew.mom.xxyy*xxy;
+        Q4mirz += ew.mom.xxyz*xxy;
+        const  double xxz = xx*z;
+        Q4mirx += ew.mom.xxxz*xxz;
+        Q4miry += ew.mom.xxyz*xxz;
+        Q4mirz += ew.mom.xxzz*xxz;
+
+        const  double yy = 0.5*y*y;
+        Q3mirx += ew.mom.xyy*yy;
+        Q3miry += ew.mom.yyy*yy;
+        Q3mirz += ew.mom.yyz*yy;
+        const  double xyy = yy*x;
+        Q4mirx += ew.mom.xxyy*xyy;
+        Q4miry += ew.mom.xyyy*xyy;
+        Q4mirz += ew.mom.xyyz*xyy;
+        const  double yyy = onethird*yy*y;
+        Q4mirx += ew.mom.xyyy*yyy;
+        Q4miry += ew.mom.yyyy*yyy;
+        Q4mirz += ew.mom.yyyz*yyy;
+        const  double yyz = yy*z;
+        Q4mirx += ew.mom.xyyz*yyz;
+        Q4miry += ew.mom.yyyz*yyz;
+        Q4mirz += ew.mom.yyzz*yyz;
+
+        const  double xy = x*y;
+        Q3mirx += ew.mom.xxy*xy;
+        Q3miry += ew.mom.xyy*xy;
+        Q3mirz += ew.mom.xyz*xy;
+        const  double xyz = xy*z;
+        Q4mirx += ew.mom.xxyz*xyz;
+        Q4miry += ew.mom.xyyz*xyz;
+        Q4mirz += ew.mom.xyzz*xyz;
+
+        const  double zz = 0.5*z*z;
+        Q3mirx += ew.mom.xzz*zz;
+        Q3miry += ew.mom.yzz*zz;
+        Q3mirz += ew.mom.zzz*zz;
+        const  double xzz = zz*x;
+        Q4mirx += ew.mom.xxzz*xzz;
+        Q4miry += ew.mom.xyzz*xzz;
+        Q4mirz += ew.mom.xzzz*xzz;
+        const  double yzz = zz*y;
+        Q4mirx += ew.mom.xyzz*yzz;
+        Q4miry += ew.mom.yyzz*yzz;
+        Q4mirz += ew.mom.yzzz*yzz;
+        const  double zzz = onethird*zz*z;
+        Q4mirx += ew.mom.xzzz*zzz;
+        Q4miry += ew.mom.yzzz*zzz;
+        Q4mirz += ew.mom.zzzz*zzz;
+
         tax += g4*Q4mirx;
         tay += g4*Q4miry;
         taz += g4*Q4mirz;
+        const double Q4mir = 0.25*(Q4mirx*x + Q4miry*y + Q4mirz*z);
+        dPot -= g4*Q4mir;
 
-        const double Q3mirx = ew.mom.xxx*xx + ew.mom.xxy*xy + ew.mom.xxz*xz + ew.mom.xyy*yy + ew.mom.xyz*yz + ew.mom.xzz*zz;
-        const double Q3miry = ew.mom.xxy*xx + ew.mom.xyy*xy + ew.mom.xyz*xz + ew.mom.yyy*yy + ew.mom.yyz*yz + ew.mom.yzz*zz;
-        const double Q3mirz = ew.mom.xxz*xx + ew.mom.xyz*xy + ew.mom.xzz*xz + ew.mom.yyz*yy + ew.mom.yzz*yz + ew.mom.zzz*zz;
+        const  double xz = x*z;
+        Q3mirx += ew.mom.xxz*xz;
+        Q3miry += ew.mom.xyz*xz;
+        Q3mirz += ew.mom.xzz*xz;
+
+        const  double yz = y*z;
+        Q3mirx += ew.mom.xyz*yz;
+        Q3miry += ew.mom.yyz*yz;
+        Q3mirz += ew.mom.yzz*yz;
+
         const double Q4x = ew.Q4xx*x + ew.Q4xy*y + ew.Q4xz*z;
         const double Q4y = ew.Q4xy*x + ew.Q4yy*y + ew.Q4yz*z;
         const double Q4z = ew.Q4xz*x + ew.Q4yz*y + ew.Q4zz*z;
@@ -159,8 +219,6 @@ __global__ void cudaEwald(double *X,double *Y,double *Z,
         tay += g2*(Q2miry - ew.Q3y);
         taz += g2*(Q2mirz - ew.Q3z);
 
-//                dPot -= g0*ew.mom.m - g1*ew.Q2 + g2*Q2mir + g3*Q3mir + g4*Q4mir;
-
         const double Qta = g1*ew.mom.m - g2*ew.Q2 + g3*Q2mir + g4*Q3mir + g5*Q4mir;
         tax -= x*Qta;
         tay -= y*Qta;
@@ -168,24 +226,11 @@ __global__ void cudaEwald(double *X,double *Y,double *Z,
         dFlop += COST_FLOP_EWALD;
 	}
 
-    // the H-Loop
-    float fx=rx, fy=ry, fz=rz;
-    float fax=0, fay=0, faz=0, fPot=0;
-    for( i=0; i<ew.nEwhLoop; ++i) {
-	float hdotx,s,c,t;
-	hdotx = hx[i]*fx + hy[i]*fy + hz[i]*fz;
-	sincosf(hdotx,&s,&c);
-	fPot += hCfac[i]*c + hSfac[i]*s;
-	t = hCfac[i]*s - hSfac[i]*c;
-	fax += hx[i]*t;
-	fay += hy[i]*t;
-	faz += hz[i]*t;
-	}
 /*    dFlop += COST_FLOP_HLOOP * ew.nEwhLoop;*/ /* Accounted for outside */
-    Xout[pidx] = tax + fax;
-    Yout[pidx] = tay + fay;
-    Zout[pidx] = taz + faz;
-    pPot[pidx] = dPot + fPot;
+    Xout[pidx] = tax;
+    Yout[pidx] = tay;
+    Zout[pidx] = taz;
+    pPot[pidx] = dPot;
     pdFlop[pidx] = dFlop;
     }
 

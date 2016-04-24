@@ -160,8 +160,6 @@ __global__ void cudaInteract(
         float   W[nWarps/nWarpsPerWU][nSyncRate*sizeof(ppInput)/sizeof(float)];
         } Particles;
 
-//    __shared__ float reduce[nWarps][32];
-
     __shared__ float wX[nSyncRate][nWarps];
     __shared__ float wY[nSyncRate][nWarps];
     __shared__ float wZ[nSyncRate][nWarps];

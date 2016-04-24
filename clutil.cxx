@@ -16,6 +16,10 @@ static void setup_ewald(CLCTX ctx) {
     assert(rc == CL_SUCCESS);
     ctx->eventEwald = clCreateUserEvent(ctx->context->clContext, &rc);
     assert(rc == CL_SUCCESS);
+    ctx->context->LxEwald = NULL;
+    ctx->context->LyEwald = NULL;
+    ctx->context->LxEwald = NULL;
+    ctx->context->bhEwald = NULL;
     ctx->context->ewEwald = NULL;
     ctx->context->hxEwald = NULL;
     ctx->context->hyEwald = NULL;
@@ -23,6 +27,49 @@ static void setup_ewald(CLCTX ctx) {
     ctx->context->hCfac = NULL;
     ctx->context->hSfac = NULL;
     }
+
+
+cl_program CL_compile(CLCTX cl, const char *src) {
+    cl_int rc;
+    cl_program program = clCreateProgramWithSource(cl->context->clContext, 1, &src, NULL, &rc);
+    assert(rc == CL_SUCCESS);
+    rc = clBuildProgram(program, 0, NULL,
+	"-cl-strict-aliasing -cl-mad-enable -cl-denorms-are-zero -cl-fast-relaxed-math", NULL, NULL);
+
+    if (rc != CL_SUCCESS) {
+	size_t logSize;
+	cl_build_status status;
+	clGetProgramBuildInfo(program, cl->context->clDeviceId,
+	    CL_PROGRAM_BUILD_STATUS, sizeof(cl_build_status), &status, NULL);
+        clGetProgramBuildInfo(program, cl->context->clDeviceId, 
+	    CL_PROGRAM_BUILD_LOG, 0, NULL, &logSize);
+        char *programLog = (char*) calloc (logSize+1, sizeof(char));
+        clGetProgramBuildInfo(program, cl->context->clDeviceId, 
+                CL_PROGRAM_BUILD_LOG, logSize+1, programLog, NULL);
+        printf("Build failed; error=%d, status=%d, programLog:nn%s", 
+                rc, status, programLog);
+        free(programLog);
+	}
+    assert(rc == CL_SUCCESS);
+
+#if 0
+    size_t bin_sz;
+    rc = clGetProgramInfo(cl->context->programEwald, CL_PROGRAM_BINARY_SIZES, sizeof(size_t), &bin_sz, NULL);
+ 
+    // Read binary (PTX file) to memory buffer
+    unsigned char *bin = (unsigned char *)malloc(bin_sz);
+    rc = clGetProgramInfo(cl->context->programEwald, CL_PROGRAM_BINARIES, sizeof(unsigned char *), &bin, NULL);
+ 
+    // Save PTX to add_vectors_ocl.ptx
+    FILE *fp = fopen("clewald.ptx", "wb");
+    fwrite(bin, sizeof(char), bin_sz, fp);
+    fclose(fp);
+    free(bin);
+ #endif
+
+    return program;
+    }
+
 
 extern "C"
 void *CL_create_context() {

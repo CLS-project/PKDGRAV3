@@ -286,6 +286,9 @@ typedef struct mdlContext {
     void *cudaCtx;
     int inCudaBufSize, outCudaBufSize;
 #endif
+#ifdef USE_CL
+    void *clCtx;
+#endif
     } * MDL;
 
 

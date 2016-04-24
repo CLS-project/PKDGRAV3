@@ -87,6 +87,10 @@ if USE_CUDA
 SOURCES += cudautil.cu cudapppc.cu cudaewald.cu
 noinst_HEADERS += cudautil.h
 endif
+if USE_CL
+SOURCES += clutil.cxx clewald.cxx clpp.cxx
+noinst_HEADERS += clutil.h
+endif
 
 pkdgrav3_null_SOURCES = $(SOURCES) $(MDL)/null/mdl.c
 noinst_HEADERS += $(MDL)/null/mdl.h
@@ -141,6 +145,11 @@ pkdgrav3_mpi_LDADD += -littnotify
 endif
 if USE_CUDA
 pkdgrav3_mpi_LDADD += @CUDA_LIBS@ -lcudart
+endif
+if USE_CL
+pkdgrav3_mpi_LDADD += @CL_LIBS@ -lOpenCL
+pkdgrav3_mpi_CXXFLAGS += @CL_INCLUDE@
+pkdgrav3_mpi_CFLAGS += @CL_INCLUDE@
 endif
 if USE_PYTHON
 if HAVE_RDYNAMIC

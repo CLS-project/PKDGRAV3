@@ -234,9 +234,11 @@ AC_DEFINE([USE_CUDA],1,
 if test "x$CUDA_DIR" = "xyes" ; then
   AC_PATH_PROG(NVCC, nvcc)
   CUDA_LIBS=""
+  CUDA_INCLUDE=""
 else
   NVCC=$CUDA_DIR/bin/nvcc
   CUDA_LIBS="-L$CUDA_DIR/lib64 -L$CUDA_DIR/lib"
+  CUDA_INCLUDE="-I$CUDA_DIR/include"
 fi
 if test -z "$NVCCFLAGS" ; then
   NVCCFLAGS="-arch compute_35"
@@ -244,7 +246,27 @@ fi
 AC_SUBST(NVCC)
 AC_SUBST(NVCCFLAGS)
 AC_SUBST(CUDA_LIBS)
+AC_SUBST(CUDA_INCLUDE)
 fi
+
+AC_ARG_WITH(opencl,
+  [  --with-opencl=PATH             enable OpenCL acceleration],
+  [CL_DIR="${withval}"],[CL_DIR=no])
+AM_CONDITIONAL(USE_CL, test "x$CL_DIR" != "xno")
+if test "x$CL_DIR" != "xno" ; then
+AC_DEFINE([USE_CL],1,
+  [Use OpenCL to accelerate calculations])
+if test "x$CL_DIR" = "xyes" ; then
+  CL_LIBS=""
+  CL_INCLUDE=""
+else
+  CL_LIBS="-L$CL_DIR/lib64 -L$CL_DIR/lib"
+  CL_INCLUDE="-I$CL_DIR/include"
+fi
+AC_SUBST(CL_INCLUDE)
+AC_SUBST(CL_LIBS)
+fi
+
 
 # Enable SIMD version (SSE,Altivec)
 AC_ARG_ENABLE(simd,
