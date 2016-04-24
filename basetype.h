@@ -165,7 +165,7 @@ typedef struct {
     } workPC;
 
 /* Careful! For compute <3.0, 65535 is the limit */
-#define MAX_EWALD_PARTICLES 16384
+#define MAX_EWALD_PARTICLES 65536
 typedef struct {
     workParticle **ppWorkPart;
     int *piWorkPart;
