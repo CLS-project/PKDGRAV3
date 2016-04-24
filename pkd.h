@@ -1587,10 +1587,11 @@ void pkdLightConeOpen(PKD pkd, const char *fname,int nSideHealpix);
 void pkdLightConeClose(PKD pkd, const char *healpixname);
 void pkdInflate(PKD pkd,int nInflateReps);
 
-#ifdef USE_CUDA
+
 #ifdef __cplusplus
 extern "C" {
 #endif
+#ifdef USE_CUDA
     extern int CUDAinitWorkPP( void *vpp, void *vwork );
     extern int CUDAcheckWorkPP( void *vpp, void *vwork );
     extern int CUDAinitWorkPC( void *vpp, void *vwork );
@@ -1598,12 +1599,14 @@ extern "C" {
     extern int CUDAinitWorkEwald( void *vpp, void *vwork );
     extern int CUDAcheckWorkEwald( void *vpp, void *vwork );
     extern void cudaEwaldInit(void *cudaCtx, struct EwaldVariables *ewIn, EwaldTable *ewt );
-
+#endif
+#ifdef USE_CL
     extern int CLinitWorkEwald( void *vcl, void *ve, void *vwork );
     int CLcheckWorkEwald( void *ve, void *vwork );
+    extern void clEwaldInit(void *cudaCtx, struct EwaldVariables *ewIn, EwaldTable *ewt );
+#endif
 #ifdef __cplusplus
 }
-#endif
 #endif
 
 #define vec_sub(r,a,b) do {\

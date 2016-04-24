@@ -70,5 +70,10 @@ cl_program CL_compile(CLCTX cl, const char *src);
 void *CL_create_context();
 void *CL_initialize(void *vctx,int nCores,int iCore);
 void CL_SetQueueSize(void *vcl,int clSize, int inClBufSize, int outClBufSiz);
+int CL_flushDone(void *vcl);
+int CL_queue(void *vcl, void *ctx,
+    int (*initWork)(void *vcl,void *ctx,void *work),
+    int (*checkWork)(void *ctx,void *work),
+    int (*doneWork)(void *ctx));
 #endif
 #endif

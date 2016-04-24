@@ -21,6 +21,7 @@
 #include "ewald.h"
 #include "grav.h"
 #include "cudautil.h"
+#include "clutil.h"
 
 #ifdef USE_SIMD
 static const struct CONSTS {
