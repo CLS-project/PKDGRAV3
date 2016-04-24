@@ -4,7 +4,6 @@
 #include <unistd.h>
 #include <cstdio>
 #include <iostream>
-#include <CL/cl.hpp>
 #include "clutil.h"
 
 void CLkernelEwald(CLCTX cl);
@@ -73,20 +72,23 @@ cl_program CL_compile(CLCTX cl, const char *src) {
 
 extern "C"
 void *CL_create_context() {
-    std::vector<cl::Platform> platforms;
-    cl::Platform::get(&platforms);
+    cl_platform_id platforms[10];
+    cl_int rc;
+    cl_uint n;
+
+    rc = clGetPlatformIDs(10,platforms,&n);
+
     CLCONTEXT context = reinterpret_cast<CLCONTEXT>(malloc(sizeof(struct clContext)));
     assert(context != NULL);
-
     context->clContext = NULL;
     context->clDeviceId = NULL;
 
-    if (platforms.size() > 0) {
+    if (n > 0) {
 	cl_int rc;
-	rc = clGetDeviceIDs(platforms[0](),CL_DEVICE_TYPE_GPU,1,&context->clDeviceId,NULL);
+	rc = clGetDeviceIDs(platforms[0],CL_DEVICE_TYPE_GPU,1,&context->clDeviceId,NULL);
 	assert(rc == CL_SUCCESS);
 	cl_context_properties properties[] = 
-	    { CL_CONTEXT_PLATFORM, (cl_context_properties)(platforms[0])(), 0};
+	    { CL_CONTEXT_PLATFORM, (cl_context_properties)(platforms[0]), 0};
 	context->clContext = clCreateContextFromType(properties, CL_DEVICE_TYPE_GPU, NULL, NULL, &rc);
 	assert(rc == CL_SUCCESS);
 	}
