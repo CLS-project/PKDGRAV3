@@ -9,6 +9,10 @@
 #ifdef HAVE_UNISTD_H
 #include <unistd.h> /* for unlink() */
 #endif
+#ifdef _MSC_VER
+#define mkdir _mkdir
+#define unlink _unlink
+#endif
 #include <stddef.h>
 #include <string.h>
 #include <ctype.h>
@@ -324,7 +328,7 @@ static int scanString(char *s, int size, FILE *fp, const char *match) {
 int readParameters(MSR msr,const char *fileName) {
     if (fileName == NULL) return 0;
     FILE *fp = fopen(fileName,"r");
-    PRM_NODE *pn;
+    PRM_NODE *pn = NULL;
     char achBuffer[500];
     char achFormat[50];
     char *pScan, *p;

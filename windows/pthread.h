@@ -36,7 +36,6 @@
 #ifndef WIN_PTHREADS
 #define WIN_PTHREADS
 
-
 #include <windows.h>
 #include <process.h>
 #include <setjmp.h>
@@ -94,7 +93,6 @@
 #define PTHREAD_PROCESS_PRIVATE 1
 
 #define PTHREAD_BARRIER_SERIAL_THREAD 1
-
 
 /* Windows doesn't have this, so declare it ourselves. */
 struct timespec

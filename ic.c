@@ -119,7 +119,7 @@ void pkdGenerateNoise(PKD pkd,unsigned long seed,MDLFFT fft,float complex *ic,do
 	    /* We need the sample for x==0 AND/OR x==iNyquist, usually both but at least one. */
 	    RngStream_ResetStartStream (g);
 	    if (kindex.z <= iNyquist && kindex.y <= iNyquist) { /* Positive zone */
-		RngStream_AdvanceState (g, 0, (1L<<40)*jj + (1L<<20)*kk );
+		RngStream_AdvanceState (g, 0, (1LL<<40)*jj + (1LL<<20)*kk );
 		v_ny = pairc(g);
 		v_wn = pairc(g);
 		if ( (kindex.z==0 || kindex.z==iNyquist)  && (kindex.y==0 || kindex.y==iNyquist) ) {
@@ -135,11 +135,11 @@ void pkdGenerateNoise(PKD pkd,unsigned long seed,MDLFFT fft,float complex *ic,do
 		int jjc = (nGrid-j) % nGrid * 2;
 		int kkc = (nGrid-k) % nGrid * 2;
 
-		RngStream_AdvanceState (g, 0, (1L<<40)*jjc + (1L<<20)*kkc );
+		RngStream_AdvanceState (g, 0, (1LL<<40)*jjc + (1LL<<20)*kkc );
 		v_ny = conj(pairc(g));
 		v_wn = conj(pairc(g));
 		RngStream_ResetStartStream (g);
-		RngStream_AdvanceState (g, 0, (1L<<40)*jj + (1L<<20)*kk );
+		RngStream_AdvanceState (g, 0, (1LL<<40)*jj + (1LL<<20)*kk );
 		pairc(g); pairc(g); /* Burn the two samples we didn't use. */
 		}
 	    if (kindex.z!=klast.z || kindex.y!=klast.y || klast.x>iNyquist) 

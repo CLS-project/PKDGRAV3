@@ -1130,9 +1130,9 @@ static inline void pkdTreeAllocRootNode(PKD pkd,int *iRoot) {
     }
 
 void *pkdTreeNodeGetElement(void *vData,int i,int iDataSize);
-static inline KDN *pkdTopNode(PKD pkd,int iNode) {
-    assert(0); // no top tree now
-    }
+//static inline KDN *pkdTopNode(PKD pkd,int iNode) {
+//    assert(0); // no top tree now
+//    }
 /*
 ** The size of a particle is variable based on the memory model.
 ** The following three routines must be used instead of accessing pStore

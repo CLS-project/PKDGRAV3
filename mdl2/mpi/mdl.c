@@ -324,7 +324,7 @@ ARC arcReinitialize(ARC arc,uint32_t nCache,uint32_t uDataSize,CACHE *c) {
 ** - total size of the buffer is "count" and must be at least as big as what we sent
 ** - free space immediately follows send data and there must be some free space.
 */
-static int mdl_swapall(MDL mdl,const void *buffer,int count,int datasize,/*const*/ int *counts) {
+static int mdl_swapall(MDL mdl,const char *buffer,int count,int datasize,/*const*/ int *counts) {
     mdlContextMPI *mpi = mdl->mpi;
     size_t size = datasize; /* NB!! must be a 64-bit type, hence size_t */
     char * const pBufferEnd = (char *)buffer + size*count;
@@ -3182,7 +3182,7 @@ void mdlAlltoallv(MDL mdl,int dataSize,void *sbuff,int *scount,int *sdisps,void 
     mdlSendToMPI(mdl,&a2a,MDL_SE_ALLTOALLV);
     mdlWaitThreadQueue(mdl,0);
     }
-#ifdef USE_CUDA
+#if defined(USE_CUDA) || defined(USE_CL)
 void mdlSetCudaBufferSize(MDL mdl,int inBufSize, int outBufSize) {
     if (mdl->inCudaBufSize < inBufSize) mdl->inCudaBufSize = inBufSize;
     if (mdl->outCudaBufSize < outBufSize) mdl->outCudaBufSize = outBufSize;

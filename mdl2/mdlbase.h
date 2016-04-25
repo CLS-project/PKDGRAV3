@@ -152,9 +152,9 @@ double mdlTimeWaiting(void *mdl);
 #define mdlTimeAddComputing(mdl)
 #define mdlTimeAddSynchronizing(mdl)
 #define mdlTimeAddWaiting(mdl)
-double mdlTimeComputing(mdl) 0.0
-double mdlTimeSynchronizing(mdl) 0.0
-double mdlTimeWaiting(mdl) 0.0
+#define mdlTimeComputing(mdl) 0.0
+#define mdlTimeSynchronizing(mdl) 0.0
+#define mdlTimeWaiting(mdl) 0.0
 #endif
 
 

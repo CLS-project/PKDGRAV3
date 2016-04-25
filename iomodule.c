@@ -15,6 +15,9 @@
 #ifdef _MSC_VER
 #define FILE_PROTECTION (_S_IREAD | _S_IWRITE)
 typedef int ssize_t;
+#define open _open
+#define write _write
+#define close _close
 #else
 #define FILE_PROTECTION (S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP)
 #endif

@@ -2,7 +2,7 @@
 /* config.h.in.  Generated from configure.ac by autoheader.  */
 #ifndef CONFIG_H
 #define CONFIG_H
-
+#define NOMINMAX
 #include <windows.h>
 #define _USE_MATH_DEFINES
 #define NO_XDR
@@ -246,7 +246,7 @@
 #define LSTAT_FOLLOWS_SLASHED_SYMLINK 1
 
 /* Include support for FFTW. */
-/* #undef MDL_FFTW */
+#define MDL_FFTW 1
 
 /* The maximum number of IO processors */
 /* #undef MDL_MAX_IO_PROCS */
@@ -314,7 +314,7 @@
 /* #undef USE_BT */
 
 /* Use CUDA to accelerate calculations */
-#define USE_CUDA 1
+#define USE_CL 1
 
 /* Define GRAFICIC IC should be available. */
 /* #undef USE_GRAFIC */
@@ -339,9 +339,13 @@
 
 /* Define if SIMD optimizations should be used. */
 /* Visual Studio definition */
-#if defined(_M_X64)
+#if defined(__AVX__)
+#define USE_SIMD 1
+#elif defined(_M_X64)
+
 #define __SSE__
 #define __SSE2__
+#define __AVX__
 #ifdef __AVX2__
 #define __FMA__
 #endif
@@ -374,6 +378,9 @@
 /* Define if SIMD optimizations should be used for PC interactions. */
 #define USE_SIMD_PC 1
 #endif
+
+/* Use single precision FFT. */
+#define USE_SINGLE 1
 
 /* Version number of package */
 #define VERSION "2.2.11"

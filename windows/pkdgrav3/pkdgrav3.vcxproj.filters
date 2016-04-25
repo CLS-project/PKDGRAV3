@@ -1,11 +1,6 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <CudaCompile Include="..\..\cudaewald.cu" />
-    <CudaCompile Include="..\..\cudapppc.cu" />
-    <CudaCompile Include="..\..\cudautil.cu" />
-  </ItemGroup>
-  <ItemGroup>
     <ClCompile Include="..\..\main.c" />
     <ClCompile Include="..\..\ilp.c" />
     <ClCompile Include="..\..\analysis.c" />
@@ -46,6 +41,61 @@
     <ClCompile Include="..\..\mdl2\mpi\mdl.c">
       <Filter>mdl</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\clewald.cxx" />
+    <ClCompile Include="..\..\clutil.cxx" />
+    <ClCompile Include="..\..\ic.c" />
+    <ClCompile Include="..\..\RngStream.c" />
+    <ClCompile Include="..\gsl-2.1\integration\qag.c">
+      <Filter>gsl\integration</Filter>
+    </ClCompile>
+    <ClCompile Include="..\gsl-2.1\integration\qk.c">
+      <Filter>gsl\integration</Filter>
+    </ClCompile>
+    <ClCompile Include="..\gsl-2.1\integration\qk15.c">
+      <Filter>gsl\integration</Filter>
+    </ClCompile>
+    <ClCompile Include="..\gsl-2.1\integration\qk21.c">
+      <Filter>gsl\integration</Filter>
+    </ClCompile>
+    <ClCompile Include="..\gsl-2.1\integration\qk31.c">
+      <Filter>gsl\integration</Filter>
+    </ClCompile>
+    <ClCompile Include="..\gsl-2.1\integration\qk41.c">
+      <Filter>gsl\integration</Filter>
+    </ClCompile>
+    <ClCompile Include="..\gsl-2.1\integration\qk51.c">
+      <Filter>gsl\integration</Filter>
+    </ClCompile>
+    <ClCompile Include="..\gsl-2.1\integration\qk61.c">
+      <Filter>gsl\integration</Filter>
+    </ClCompile>
+    <ClCompile Include="..\gsl-2.1\integration\workspace.c">
+      <Filter>gsl\integration</Filter>
+    </ClCompile>
+    <ClCompile Include="..\gsl-2.1\interpolation\spline.c">
+      <Filter>gsl\interpolation</Filter>
+    </ClCompile>
+    <ClCompile Include="..\gsl-2.1\interpolation\cspline.c">
+      <Filter>gsl\interpolation</Filter>
+    </ClCompile>
+    <ClCompile Include="..\gsl-2.1\interpolation\interp.c">
+      <Filter>gsl\interpolation</Filter>
+    </ClCompile>
+    <ClCompile Include="..\gsl-2.1\interpolation\accel.c">
+      <Filter>gsl\interpolation</Filter>
+    </ClCompile>
+    <ClCompile Include="..\gsl-2.1\linalg\tridiag.c">
+      <Filter>gsl\linalg</Filter>
+    </ClCompile>
+    <ClCompile Include="..\gsl-2.1\err\error.c">
+      <Filter>gsl\err</Filter>
+    </ClCompile>
+    <ClCompile Include="..\gsl-2.1\err\stream.c">
+      <Filter>gsl\err</Filter>
+    </ClCompile>
+    <ClCompile Include="..\gsl-2.1\vector\view.c">
+      <Filter>gsl\vector</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\cudautil.h" />
@@ -64,6 +114,24 @@
   <ItemGroup>
     <Filter Include="mdl">
       <UniqueIdentifier>{ce717cee-c603-44c5-8af4-c623dc971106}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="gsl">
+      <UniqueIdentifier>{1c7bfcfe-cdd8-4488-af29-f3afbf2b4d34}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="gsl\integration">
+      <UniqueIdentifier>{fa27cd25-458f-40d7-be58-31b9724fae82}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="gsl\interpolation">
+      <UniqueIdentifier>{b47ae140-fae8-49cd-9453-0944873f829c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="gsl\linalg">
+      <UniqueIdentifier>{dba5cb63-61dd-45c0-84fb-2001a25af5f9}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="gsl\vector">
+      <UniqueIdentifier>{36436171-69c8-4cd0-853d-56d16fd6c2c3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="gsl\err">
+      <UniqueIdentifier>{cfde7693-1274-4b54-bca0-0109cfd47ec3}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
 </Project>

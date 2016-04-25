@@ -40,7 +40,7 @@ typedef struct cl_wq_node {
 	};
     } CLwqNode;
 
-typedef struct clContext {
+typedef struct openclContext {
     cl_context clContext;
     cl_device_id clDeviceId;
     cl_mem LxEwald,LyEwald,LzEwald,bhEwald, ewEwald, hxEwald, hyEwald, hzEwald, hCfac, hSfac;

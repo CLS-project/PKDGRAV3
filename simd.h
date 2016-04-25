@@ -29,11 +29,6 @@
 #define ATTRIBUTE_ALIGNED_ALIGNOF(m)
 #endif
 
-#ifdef _MSC_VER
-#define __SSE__
-#define __SSE2__
-#endif
-
 #if defined(__SSE__)
 #include <xmmintrin.h>
 #ifdef __SSE2__
@@ -457,6 +452,7 @@ static inline v_df SIMD_DRE_EXACT(v_df a) {
 
 
 #ifdef __cplusplus
+
 /**********************************************************************\
 * SIMD Vector class template
 \**********************************************************************/
@@ -493,7 +489,6 @@ inline vec<__m256,float> operator-(vec<__m256,float> const &a) {
 
 inline vec<__m256,float> min(vec<__m256,float> const &a,vec<__m256,float> const &b) { return _mm256_min_ps(a,b); }
 inline vec<__m256,float> max(vec<__m256,float> const &a,vec<__m256,float> const &b) { return _mm256_max_ps(a,b); }
-inline vec<__m256,float> cmp(vec<__m256,float> const &a,vec<__m256,float> const &b, const int imm8) { return _mm256_cmp_ps(a,b,imm8); }
 inline vec<__m256,float> operator*(vec<__m256,float> const &a,vec<__m256,float> const &b) { return _mm256_mul_ps(a,b); }
 inline vec<__m256,float> operator/(vec<__m256,float> const &a,vec<__m256,float> const &b) { return _mm256_div_ps(a,b); }
 inline vec<__m256,float> operator+(vec<__m256,float> const &a,vec<__m256,float> const &b) { return _mm256_add_ps(a,b); }
@@ -534,7 +529,6 @@ inline vec<__m256d,double>  operator-(vec<__m256d,double> const &a) {
     }
 inline vec<__m256d,double> min(vec<__m256d,double> const &a,vec<__m256d,double> const &b) { return _mm256_min_pd(a,b); }
 inline vec<__m256d,double> max(vec<__m256d,double> const &a,vec<__m256d,double> const &b) { return _mm256_max_pd(a,b); }
-inline vec<__m256d,double> cmp(vec<__m256d,double> const &a,vec<__m256d,double> const &b, const int imm8) { return _mm256_cmp_pd(a,b,imm8); }
 inline vec<__m256d,double> operator*(vec<__m256d,double> const &a,vec<__m256d,double> const &b) { return _mm256_mul_pd(a,b); }
 inline vec<__m256d,double> operator/(vec<__m256d,double> const &a,vec<__m256d,double> const &b) { return _mm256_div_pd(a,b); }
 inline vec<__m256d,double> operator+(vec<__m256d,double> const &a,vec<__m256d,double> const &b) { return _mm256_add_pd(a,b); }

@@ -52,6 +52,10 @@
 #ifdef _MSC_VER
 #define FILE_PROTECTION (_S_IREAD | _S_IWRITE)
 typedef int ssize_t;
+#define open _open
+#define write _write
+#define read _read
+#define close _close
 #else
 #define FILE_PROTECTION (S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP)
 #endif
@@ -673,7 +677,7 @@ void pkdInitialize(
 #endif
     // This is cheeserific - chooses the largest specified
 
-#ifdef USE_CUDA
+#if defined(USE_CUDA) || defined(USE_CL)
     mdlSetCudaBufferSize(pkd->mdl,MAX_EWALD_PARTICLES*sizeof(double)*4,MAX_EWALD_PARTICLES*sizeof(double)*5);
     mdlSetCudaBufferSize(pkd->mdl,PP_CUDA_MEMORY_LIMIT,PP_CUDA_MEMORY_LIMIT);
 #endif
@@ -793,13 +797,13 @@ void pkdFinish(PKD pkd) {
     /*
     ** Free checklist.
     */
-    clFinish(pkd->cl);
-    clFinish(pkd->clNew);
+    clDestroy(pkd->cl);
+    clDestroy(pkd->clNew);
     /*
     ** Free Stack.
     */
     for (ism=0;ism<pkd->nMaxStack;++ism) {
-	clFinish(pkd->S[ism].cl);
+	clDestroy(pkd->S[ism].cl);
 	}
     free(pkd->S);
     if (pkd->ew.nMaxEwhLoop) {
@@ -826,9 +830,21 @@ void pkdFinish(PKD pkd) {
     }
     /* Only thread zero allocated this memory block  */
     mdlThreadBarrier(pkd->mdl);
-    if (mdlCore(pkd->mdl)==0) mdlFree(pkd->mdl,pkd->pStorePRIVATE);
+    if (mdlCore(pkd->mdl) == 0) {
+#ifdef _MSC_VER
+	_aligned_free(pkd->pStorePRIVATE);
+#else
+	mdlFree(pkd->mdl, pkd->pStorePRIVATE);
+#endif
+    }
     free(pkd->pTempPRIVATE);
-    if (pkd->pLightCone) free(pkd->pLightCone);
+    if (pkd->pLightCone) {
+#ifdef _MSC_VER
+	_aligned_free(pkd->pLightCone);
+#else
+	free(pkd->pLightCone);
+#endif
+        }
     if (pkd->pHealpixData) free(pkd->pHealpixData);
     io_free(&pkd->afiLightCone);
     csmFinish(pkd->param.csm);

@@ -1,7 +1,9 @@
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
+#ifdef HAVE_UNISTD_H
 #include <unistd.h>
+#endif
 #include <cstdio>
 #include <iostream>
 #include "clutil.h"
@@ -78,7 +80,7 @@ void *CL_create_context() {
 
     rc = clGetPlatformIDs(10,platforms,&n);
 
-    CLCONTEXT context = reinterpret_cast<CLCONTEXT>(malloc(sizeof(struct clContext)));
+    CLCONTEXT context = reinterpret_cast<CLCONTEXT>(malloc(sizeof(struct openclContext)));
     assert(context != NULL);
     context->clContext = NULL;
     context->clDeviceId = NULL;
@@ -99,7 +101,6 @@ void *CL_create_context() {
 extern "C"
 void *CL_initialize(void *vctx,int nCores,int iCore) {
     CLCONTEXT context = reinterpret_cast<CLCONTEXT>(vctx);
-    cl_int rc;
     CLCTX ctx = reinterpret_cast<CLCTX>(malloc(sizeof(struct cl_ctx)));
     assert(ctx!=NULL);
     ctx->nCores = nCores;

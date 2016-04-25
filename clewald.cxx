@@ -251,6 +251,7 @@ cl_int cl_setup_ewald(CLCTX cl) {
 	assert(rc == CL_SUCCESS);
 	rc = clEnqueueWriteBuffer(cl->queueEwald,cl->context->hSfac,CL_FALSE,0,sizeof(float)*cl->ewIn->nEwhLoop,cl->ewt->hSfac.f,0,NULL,&cl->eventEwald);
 	assert(rc == CL_SUCCESS);
+	clFinish(cl->queueEwald);
         do {
 	    rc = clGetEventInfo(cl->eventEwald,CL_EVENT_COMMAND_EXECUTION_STATUS,sizeof(status),&status,NULL);
 	    if (rc!=CL_SUCCESS) std::cout << rc << std::endl;
@@ -274,16 +275,7 @@ int CLcheckWorkEwald( void *ve, void *vwork ) {
     CLwqNode *work = reinterpret_cast<CLwqNode *>(vwork);
     double *pHostBuf = reinterpret_cast<double *>(work->pHostBufFromGPU);
     double *X, *Y, *Z, *pPot, *pdFlop;
-    int align;
-    cl_int rc;
-
-
-    align = (e->nP+MASK)&~MASK; /* As above! Warp align the memory buffers */
-
-//    double *pHostBuf = reinterpret_cast<double *>(clEnqueueMapBuffer(work->clQueue,work->memInCPU,CL_TRUE,CL_MAP_READ,0,align*5*sizeof(double),0,NULL,NULL,&rc));
-//    assert(rc == CL_SUCCESS);
-
-
+    int align = (e->nP+MASK)&~MASK; /* As above! Warp align the memory buffers */
 
     X       = pHostBuf + 0*align;
     Y       = pHostBuf + 1*align;
@@ -291,9 +283,6 @@ int CLcheckWorkEwald( void *ve, void *vwork ) {
     pPot    = pHostBuf + 3*align;
     pdFlop  = pHostBuf + 4*align;
     pkdAccumulateCUDA(e->pkd,e,X,Y,Z,pPot,pdFlop);
-
-//    clEnqueueUnmapMemObject(work->clQueue,work->memInCPU,pHostBuf,0,NULL,NULL);
-
 
     free(e->ppWorkPart);
     free(e->piWorkPart);
@@ -361,6 +350,7 @@ int CLinitWorkEwald( void *vcl, void *ve, void *vwork ) {
 
     rc = clEnqueueReadBuffer(work->clQueue,work->memOutGPU,CL_FALSE,0,align*5*sizeof(double),work->pHostBufFromGPU,0,NULL,&work->clEvent);
     assert(rc == CL_SUCCESS);
+    clFlush(work->clQueue);
 
     return CL_SUCCESS;
     }

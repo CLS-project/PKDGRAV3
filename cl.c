@@ -13,7 +13,7 @@ void clInitialize(CL *cl,LSTFREELIST *freeList) {
 	sizeof(CL_BLK),  SIMD_malloc,SIMD_free);
     }
 
-void clFinish(CL cl) {
+void clDestroy(CL cl) {
     lstFree(&cl->lst);
     free(cl);
     }
