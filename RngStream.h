@@ -14,6 +14,9 @@ struct RngStream_InfoState {
    char *name;
 };
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 int RngStream_SetPackageSeed (unsigned long seed[6]);
 
@@ -59,6 +62,9 @@ double RngStream_RandU01 (RngStream g);
 
 int RngStream_RandInt (RngStream g, int i, int j);
  
+#ifdef __cplusplus
+    }
+#endif
 
 #endif
  

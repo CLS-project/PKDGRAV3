@@ -6,7 +6,6 @@
 #include <gsl/gsl_integration.h>
 #endif
 
-typedef struct csmContext {
     struct csmVariables {
 	int bComove;
 	double dHubble0;
@@ -20,7 +19,11 @@ typedef struct csmContext {
 	double dSigma8;
 	double dNormalization;  /* either sigma8 or normalization must be non-zero */
 	double dSpectral;
-	} val;
+	};
+
+
+typedef struct csmContext {
+    struct csmVariables val;
 #ifdef USE_GSL_COSMO
     gsl_integration_workspace *W;
 #endif

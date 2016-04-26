@@ -9,6 +9,11 @@
 #include "ic.h"
 #include "RngStream.h"
 
+typedef union {
+    FFTW3(real) *r;
+    COMPLEX *k;
+    } gridptr;
+
 typedef struct {
     gsl_interp_accel *acc;
     gsl_spline *spline;
@@ -29,7 +34,7 @@ typedef struct {
     } varianceParameters;
 
 static double variance_integrand(double ak, void * params) {
-    varianceParameters *vprm = params;
+    varianceParameters *vprm = (varianceParameters *)params;
     double x, w;
     /* Window function for spherical tophat of given radius (e.g., 8 Mpc/h) */
     x = ak * vprm->r;
@@ -53,7 +58,7 @@ static double variance(powerParameters *P,double dRadius) {
     }
 
 /* Gaussian noise in k-space. Note correction sqrt(2) because of FFT normalization. */
-static float complex pairc( RngStream g ) {
+static COMPLEX pairc( RngStream g ) {
     double x1, x2, w;
     do {
 	x1 = 2.0 * RngStream_RandU01(g) - 1.0;
@@ -74,14 +79,14 @@ static int wrap(int v,int h,int m) {
 ** the normalization is such that that the inverse FFT needs to be normalized
 ** by sqrt(Ngrid^3) compared with Ngrid^3 with FFT followed by IFFT.
 */
-void pkdGenerateNoise(PKD pkd,unsigned long seed,MDLFFT fft,float complex *ic,double *mean,double *csq) {
+static void pkdGenerateNoise(PKD pkd,unsigned long seed,MDLFFT fft,COMPLEX *ic,double *mean,double *csq) {
     MDL mdl = pkd->mdl;
     const int nGrid = fft->kgrid->n3;
     const int iNyquist = nGrid / 2;
     RngStream g;
     unsigned long fullKey[6];
     int i,j,k,jj,kk;
-    float complex v_ny,v_wn;
+    COMPLEX v_ny,v_wn;
 
     mdlGridCoord kfirst, klast, kindex;
     mdlGridCoordFirstLast(mdl,fft->kgrid,&kfirst,&klast,0);
@@ -124,8 +129,8 @@ void pkdGenerateNoise(PKD pkd,unsigned long seed,MDLFFT fft,float complex *ic,do
 		v_wn = pairc(g);
 		if ( (kindex.z==0 || kindex.z==iNyquist)  && (kindex.y==0 || kindex.y==iNyquist) ) {
 		    /* These are real because they must be a complex conjugate of themselves. */
-		    v_ny = creal(v_ny);
-		    v_wn = creal(v_wn);
+		    v_ny = REAL(v_ny);
+		    v_wn = REAL(v_wn);
 		    /* DC mode is zero */
 		    if ( kindex.y==0 && kindex.z==0) v_wn = 0.0;
 		    }
@@ -152,12 +157,15 @@ void pkdGenerateNoise(PKD pkd,unsigned long seed,MDLFFT fft,float complex *ic,do
 	else if (kindex.x!=iNyquist) {
 	    ic[kindex.i] = pairc(g);
 	    }
-	*mean += creal(ic[kindex.i]) + cimag(ic[kindex.i]);
-	*csq += ic[kindex.i] * conj(ic[kindex.i]);
+	*mean += REAL(ic[kindex.i]) + IMAG(ic[kindex.i]);
+	*csq += REAL(ic[kindex.i] * conj(ic[kindex.i]));
 	}
     RngStream_DeleteStream(&g);
     }
 
+#ifdef __cplusplus
+extern "C"
+#endif
 int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int nGrid,int b2LPT,double dBoxSize,
     struct csmVariables *cosmo,double a,int nTf, double *tk, double *tf,
     double *noiseMean, double *noiseCSQ) {
@@ -231,20 +239,20 @@ int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int nGrid,int b2LPT,double dBoxSi
     ic[8].r = ic[7].r + fft->rgrid->nLocal;
     ic[9].r = ic[8].r + fft->rgrid->nLocal;
 
-    ic[0].r = mdlSetArray(pkd->mdl,rlast.i,sizeof(FFTW3(real)),ic[0].r);
-    ic[1].r = mdlSetArray(pkd->mdl,rlast.i,sizeof(FFTW3(real)),ic[1].r);
-    ic[2].r = mdlSetArray(pkd->mdl,rlast.i,sizeof(FFTW3(real)),ic[2].r);
-    ic[3].r = mdlSetArray(pkd->mdl,rlast.i,sizeof(FFTW3(real)),ic[3].r);
-    ic[4].r = mdlSetArray(pkd->mdl,rlast.i,sizeof(FFTW3(real)),ic[4].r);
-    ic[5].r = mdlSetArray(pkd->mdl,rlast.i,sizeof(FFTW3(real)),ic[5].r);
-    ic[6].r = mdlSetArray(pkd->mdl,rlast.i,sizeof(FFTW3(real)),ic[6].r);
-    ic[7].r = mdlSetArray(pkd->mdl,rlast.i,sizeof(FFTW3(real)),ic[7].r);
-    ic[8].r = mdlSetArray(pkd->mdl,rlast.i,sizeof(FFTW3(real)),ic[8].r);
-    ic[9].r = mdlSetArray(pkd->mdl,rlast.i,sizeof(FFTW3(real)),ic[9].r);
+    ic[0].r = (FFTW3(real) *)mdlSetArray(pkd->mdl,rlast.i,sizeof(FFTW3(real)),ic[0].r);
+    ic[1].r = (FFTW3(real) *)mdlSetArray(pkd->mdl,rlast.i,sizeof(FFTW3(real)),ic[1].r);
+    ic[2].r = (FFTW3(real) *)mdlSetArray(pkd->mdl,rlast.i,sizeof(FFTW3(real)),ic[2].r);
+    ic[3].r = (FFTW3(real) *)mdlSetArray(pkd->mdl,rlast.i,sizeof(FFTW3(real)),ic[3].r);
+    ic[4].r = (FFTW3(real) *)mdlSetArray(pkd->mdl,rlast.i,sizeof(FFTW3(real)),ic[4].r);
+    ic[5].r = (FFTW3(real) *)mdlSetArray(pkd->mdl,rlast.i,sizeof(FFTW3(real)),ic[5].r);
+    ic[6].r = (FFTW3(real) *)mdlSetArray(pkd->mdl,rlast.i,sizeof(FFTW3(real)),ic[6].r);
+    ic[7].r = (FFTW3(real) *)mdlSetArray(pkd->mdl,rlast.i,sizeof(FFTW3(real)),ic[7].r);
+    ic[8].r = (FFTW3(real) *)mdlSetArray(pkd->mdl,rlast.i,sizeof(FFTW3(real)),ic[8].r);
+    ic[9].r = (FFTW3(real) *)mdlSetArray(pkd->mdl,rlast.i,sizeof(FFTW3(real)),ic[9].r);
 
     /* Particles will overlap ic[0] through ic[5] eventually */
     nLocal = rlast.i / fft->rgrid->a1 * fft->rgrid->n1;
-    p = mdlSetArray(pkd->mdl,nLocal,sizeof(basicParticle),pkdParticleBase(pkd));
+    p = (basicParticle *)mdlSetArray(pkd->mdl,nLocal,sizeof(basicParticle),pkdParticleBase(pkd));
 
     /* Generate white noise realization -> ic[6] */
     if (mdlSelf(mdl)==0) {printf("Generating random noise\n"); fflush(stdout); }
