@@ -4,7 +4,7 @@ ACLOCAL_AMFLAGS  = -I m4
 SUFFIXES = .cu
 
 .cu.o:
-	$(NVCC) -I. -DHAVE_CONFIG_H -lineinfo -o $@ -c $< $(NVCCFLAGS) -Imdl2/mpi -Imdl2 -Iopenpa/src
+	$(NVCC) -I. -DHAVE_CONFIG_H -lineinfo -o $@ -c $< $(NVML_INCLUDE) $(NVCCFLAGS) -Imdl2/mpi -Imdl2 -Iopenpa/src
 
 
 #if USE_GRAFIC
@@ -145,6 +145,11 @@ pkdgrav3_mpi_LDADD += -littnotify
 endif
 if USE_CUDA
 pkdgrav3_mpi_LDADD += @CUDA_LIBS@ -lcudart
+endif
+if USE_NVML
+pkdgrav3_mpi_LDADD += @NVML_LIBS@ -lnvidia-ml
+pkdgrav3_mpi_CFLAGS += @NVML_INCLUDE@
+pkdgrav3_mpi_CXXFLAGS += @NVML_INCLUDE@
 endif
 if USE_CL
 pkdgrav3_mpi_LDADD += @CL_LIBS@ -lOpenCL

@@ -228,6 +228,10 @@ AC_ARG_WITH(cuda,
   [  --with-cuda=PATH               enable cude acceleration],
   [CUDA_DIR="${withval}"],[CUDA_DIR=no])
 AM_CONDITIONAL(USE_CUDA, test "x$CUDA_DIR" != "xno")
+AC_ARG_WITH(nvml,
+  [  --with-nvml=PATH               enable NVIDIA Management Library],
+  [NVML_DIR="${withval}"],[NVML_DIR=no])
+AM_CONDITIONAL(USE_NVML, test "x$NVML_DIR" != "xno")
 if test "x$CUDA_DIR" != "xno" ; then
 AC_DEFINE([USE_CUDA],1,
   [Use CUDA to accelerate calculations])
@@ -243,10 +247,24 @@ fi
 if test -z "$NVCCFLAGS" ; then
   NVCCFLAGS="-arch compute_35"
 fi
+if test "x$CUDA_DIR" != "xno" ; then
+AC_DEFINE([USE_NVML],1,
+  [Use NVML to report on GPU status])
+if test "x$NVML_DIR" = "xyes" ; then
+  NVML_LIBS=""
+  NVML_INCLUDE=""
+else
+  NVML_LIBS="-L$NVML_DIR/usr/src/gdk/nvml/lib"
+  NVML_INCLUDE="-I$NVML_DIR/usr/include/"
+  CUDA_INCLUDE="$CUDA_INCLUDE $NVML_INCLUDE"
+fi
 AC_SUBST(NVCC)
 AC_SUBST(NVCCFLAGS)
 AC_SUBST(CUDA_LIBS)
 AC_SUBST(CUDA_INCLUDE)
+AC_SUBST(NVML_LIBS)
+AC_SUBST(NVML_INCLUDE)
+fi
 fi
 
 AC_ARG_WITH(opencl,

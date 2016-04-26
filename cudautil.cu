@@ -3,6 +3,10 @@
 #include "config.h"
 #endif
 /*#include <nvToolsExt.h>*/
+#ifdef USE_NVML
+#include <nvidia/gdk/nvml.h>
+#endif
+#include <signal.h>
 
 #include "cudautil.h"
 
@@ -155,6 +159,13 @@ void *CUDA_initialize(int nCores,int iCore) {
         strcpy(ctx->hostname,"unknown");
     CUDA_CHECK(cudaGetDeviceProperties,(&ctx->prop,iCore % nDevices));
 
+#ifdef USE_NVML
+    nvmlReturn_t result;
+    result = nvmlInit();
+    if (result != NVML_SUCCESS) printf("Failed to initialize NVML: %s\n", nvmlErrorString(result));
+    assert(result == NVML_SUCCESS);
+#endif
+
     return ctx;
     }
 
@@ -180,7 +191,9 @@ void CUDA_attempt_recovery(CUDACTX cuda,cudaError_t errorCode) {
         ++recovery_epoch;
         }
     pthread_mutex_unlock(&recovery_mutex);
+    cuda->epoch = recovery_epoch;
 
+#ifdef ATTEMPT_RESET
     // One thread will perform the device reset
     rc = pthread_barrier_wait(&recovery_barrier);
     if (rc==PTHREAD_BARRIER_SERIAL_THREAD) {
@@ -189,7 +202,6 @@ void CUDA_attempt_recovery(CUDACTX cuda,cudaError_t errorCode) {
         sleep(1);
 	    }
 
-    cuda->epoch = recovery_epoch;
 
     pthread_barrier_wait(&recovery_barrier);
     setup_ewald(cuda); // Create the necessary event/stream for Ewald setup
@@ -204,7 +216,9 @@ void CUDA_attempt_recovery(CUDACTX cuda,cudaError_t errorCode) {
     pthread_mutex_lock(&recovery_mutex);
     printf("%2d: restarted %d request%c\n", cuda->iCore, nRestart, nRestart==1 ? ' ':'s');
     pthread_mutex_unlock(&recovery_mutex);
-
+#else
+    raise(SIGINT); /* If the debugger is running we might get a traceback. */
+#endif
     rc = pthread_barrier_wait(&recovery_barrier);
     if (rc==PTHREAD_BARRIER_SERIAL_THREAD) {
         printf(
