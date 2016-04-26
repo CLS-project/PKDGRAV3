@@ -9,6 +9,7 @@
 #define MASK (ALIGN-1)
 
 const char *ewald_kernel_src =
+    "#pragma OPENCL EXTENSION cl_khr_fp64 : enable\n"
     "typedef struct momComplete {\n"
     "    double m;\n"
     "    double xx,yy,xy,xz,yz;\n"
