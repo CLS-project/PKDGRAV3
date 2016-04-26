@@ -22,6 +22,8 @@ extern "C" {
     int CUDA_queuePC(void *cudaCtx,workParticle *wp, ILCTILE tile, int bGravStep);
     void CUDA_sendWork(void *cudaCtx);
     void CUDA_checkForRecovery(void *vcuda);
+    void pkdAccumulateCUDA(void *vpkd,workEwald *we,EwaldFloat *pax,EwaldFloat *pay,EwaldFloat *paz,EwaldFloat *pot,EwaldFloat *pdFlop);
+
 #else
 #include "simd.h"
 #define CUDA_malloc SIMD_malloc

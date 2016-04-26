@@ -81,7 +81,8 @@ static int evalEwald(struct EwaldVariables *ew,double *ax, double *ay, double *a
     }
 
 /* Once CUDA has completed, we need to acumulate */
-void pkdAccumulateCUDA(PKD pkd,workEwald *we,double *pax,double *pay,double *paz,double *pot,double *pdFlop) {
+void pkdAccumulateCUDA(void *vpkd,workEwald *we,EwaldFloat *pax,EwaldFloat *pay,EwaldFloat *paz,EwaldFloat *pot,EwaldFloat *pdFlop) {
+    PKD pkd = vpkd;
     int i;
 
     for(i=0; i<we->nP; ++i) {

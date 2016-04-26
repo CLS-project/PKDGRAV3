@@ -23,9 +23,9 @@ __constant__ float hz[MAX_TOTAL_REPLICAS];
 __constant__ float hCfac[MAX_TOTAL_REPLICAS];
 __constant__ float hSfac[MAX_TOTAL_REPLICAS];
 
-__constant__ double Lx[MAX_TOTAL_REPLICAS];
-__constant__ double Ly[MAX_TOTAL_REPLICAS];
-__constant__ double Lz[MAX_TOTAL_REPLICAS];
+__constant__ EwaldFloat Lx[MAX_TOTAL_REPLICAS];
+__constant__ EwaldFloat Ly[MAX_TOTAL_REPLICAS];
+__constant__ EwaldFloat Lz[MAX_TOTAL_REPLICAS];
 __constant__ int bHole[MAX_TOTAL_REPLICAS];
 
 
@@ -45,17 +45,17 @@ __constant__ int bHole[MAX_TOTAL_REPLICAS];
 **              the total number of particles is a block of x*y*z
 */
 
-__global__ void cudaEwald(double *X,double *Y,double *Z,
-    double *Xout, double *Yout, double *Zout, double *pPot,double *pdFlop) {
+__global__ void cudaEwald(EwaldFloat *X,EwaldFloat *Y,EwaldFloat *Z,
+    EwaldFloat *Xout, EwaldFloat *Yout, EwaldFloat *Zout, EwaldFloat *pPot,EwaldFloat *pdFlop) {
     int pidx = threadIdx.x + ALIGN*blockIdx.x;
 
-    const double onethird = 1.0/3.0;
-    double g0,g1,g2,g3,g4,g5,alphan;
+    const EwaldFloat onethird = 1.0/3.0;
+    EwaldFloat g0,g1,g2,g3,g4,g5,alphan;
     int i, bInHole;
-    double tax, tay, taz, dPot, dFlop=0.0;
-    const double rx = X[pidx] - ew.r[0];
-    const double ry = Y[pidx] - ew.r[1];
-    const double rz = Z[pidx] - ew.r[2];
+    EwaldFloat tax, tay, taz, dPot, dFlop=0.0;
+    const EwaldFloat rx = X[pidx] - ew.r[0];
+    const EwaldFloat ry = Y[pidx] - ew.r[1];
+    const EwaldFloat rz = Z[pidx] - ew.r[2];
 
     // the H-Loop
     float fx=rx, fy=ry, fz=rz;
@@ -77,10 +77,10 @@ __global__ void cudaEwald(double *X,double *Y,double *Z,
 
     for(i=0; i<MAX_TOTAL_REPLICAS; ++i) {
         bInHole = bHole[i];
-        const double x = rx + Lx[i];
-        const double y = ry + Ly[i];
-        const double z = rz + Lz[i];
-        double r2 = x*x + y*y + z*z;
+        const EwaldFloat x = rx + Lx[i];
+        const EwaldFloat y = ry + Ly[i];
+        const EwaldFloat z = rz + Lz[i];
+        EwaldFloat r2 = x*x + y*y + z*z;
         if (r2 >= ew.fEwCut2 && !bInHole) continue;
         if (r2 < ew.fInner2) { /* Once, at most per particle */
             /*
@@ -103,9 +103,9 @@ __global__ void cudaEwald(double *X,double *Y,double *Z,
             g5 = alphan*((1.0/13.0)*r2 - (1.0/11.0));
             }
         else {
-            const double dir = rsqrt(r2);
-            const double dir2 = dir*dir;
-            const double a = exp(-r2*ew.alpha2) * ew.ka*dir2;
+            const EwaldFloat dir = rsqrt(r2);
+            const EwaldFloat dir2 = dir*dir;
+            const EwaldFloat a = exp(-r2*ew.alpha2) * ew.ka*dir2;
             if (bInHole) g0 = -erf(ew.alpha*r2*dir);
             else         g0 = erfc(ew.alpha*r2*dir);
             g0 *= dir;
@@ -122,65 +122,65 @@ __global__ void cudaEwald(double *X,double *Y,double *Z,
 
         dPot -= g0*ew.mom.m - g1*ew.Q2;
 
-        double Q4mirx, Q4miry, Q4mirz;
-        double Q3mirx, Q3miry, Q3mirz;
+        EwaldFloat Q4mirx, Q4miry, Q4mirz;
+        EwaldFloat Q3mirx, Q3miry, Q3mirz;
 
-        const  double xx = 0.5*x*x;
+        const  EwaldFloat xx = 0.5*x*x;
         Q3mirx = ew.mom.xxx*xx;
         Q3miry = ew.mom.xxy*xx;
         Q3mirz = ew.mom.xxz*xx;
-        const  double xxx = onethird*xx*x;
+        const  EwaldFloat xxx = onethird*xx*x;
         Q4mirx = ew.mom.xxxx*xxx;
         Q4miry = ew.mom.xxxy*xxx;
         Q4mirz = ew.mom.xxxz*xxx;
-        const  double xxy = xx*y;
+        const  EwaldFloat xxy = xx*y;
         Q4mirx += ew.mom.xxxy*xxy;
         Q4miry += ew.mom.xxyy*xxy;
         Q4mirz += ew.mom.xxyz*xxy;
-        const  double xxz = xx*z;
+        const  EwaldFloat xxz = xx*z;
         Q4mirx += ew.mom.xxxz*xxz;
         Q4miry += ew.mom.xxyz*xxz;
         Q4mirz += ew.mom.xxzz*xxz;
 
-        const  double yy = 0.5*y*y;
+        const  EwaldFloat yy = 0.5*y*y;
         Q3mirx += ew.mom.xyy*yy;
         Q3miry += ew.mom.yyy*yy;
         Q3mirz += ew.mom.yyz*yy;
-        const  double xyy = yy*x;
+        const  EwaldFloat xyy = yy*x;
         Q4mirx += ew.mom.xxyy*xyy;
         Q4miry += ew.mom.xyyy*xyy;
         Q4mirz += ew.mom.xyyz*xyy;
-        const  double yyy = onethird*yy*y;
+        const  EwaldFloat yyy = onethird*yy*y;
         Q4mirx += ew.mom.xyyy*yyy;
         Q4miry += ew.mom.yyyy*yyy;
         Q4mirz += ew.mom.yyyz*yyy;
-        const  double yyz = yy*z;
+        const  EwaldFloat yyz = yy*z;
         Q4mirx += ew.mom.xyyz*yyz;
         Q4miry += ew.mom.yyyz*yyz;
         Q4mirz += ew.mom.yyzz*yyz;
 
-        const  double xy = x*y;
+        const  EwaldFloat xy = x*y;
         Q3mirx += ew.mom.xxy*xy;
         Q3miry += ew.mom.xyy*xy;
         Q3mirz += ew.mom.xyz*xy;
-        const  double xyz = xy*z;
+        const  EwaldFloat xyz = xy*z;
         Q4mirx += ew.mom.xxyz*xyz;
         Q4miry += ew.mom.xyyz*xyz;
         Q4mirz += ew.mom.xyzz*xyz;
 
-        const  double zz = 0.5*z*z;
+        const  EwaldFloat zz = 0.5*z*z;
         Q3mirx += ew.mom.xzz*zz;
         Q3miry += ew.mom.yzz*zz;
         Q3mirz += ew.mom.zzz*zz;
-        const  double xzz = zz*x;
+        const  EwaldFloat xzz = zz*x;
         Q4mirx += ew.mom.xxzz*xzz;
         Q4miry += ew.mom.xyzz*xzz;
         Q4mirz += ew.mom.xzzz*xzz;
-        const  double yzz = zz*y;
+        const  EwaldFloat yzz = zz*y;
         Q4mirx += ew.mom.xyzz*yzz;
         Q4miry += ew.mom.yyzz*yzz;
         Q4mirz += ew.mom.yzzz*yzz;
-        const  double zzz = onethird*zz*z;
+        const  EwaldFloat zzz = onethird*zz*z;
         Q4mirx += ew.mom.xzzz*zzz;
         Q4miry += ew.mom.yzzz*zzz;
         Q4mirz += ew.mom.zzzz*zzz;
@@ -188,38 +188,38 @@ __global__ void cudaEwald(double *X,double *Y,double *Z,
         tax += g4*Q4mirx;
         tay += g4*Q4miry;
         taz += g4*Q4mirz;
-        const double Q4mir = 0.25*(Q4mirx*x + Q4miry*y + Q4mirz*z);
+        const EwaldFloat Q4mir = 0.25*(Q4mirx*x + Q4miry*y + Q4mirz*z);
         dPot -= g4*Q4mir;
 
-        const  double xz = x*z;
+        const  EwaldFloat xz = x*z;
         Q3mirx += ew.mom.xxz*xz;
         Q3miry += ew.mom.xyz*xz;
         Q3mirz += ew.mom.xzz*xz;
 
-        const  double yz = y*z;
+        const  EwaldFloat yz = y*z;
         Q3mirx += ew.mom.xyz*yz;
         Q3miry += ew.mom.yyz*yz;
         Q3mirz += ew.mom.yzz*yz;
 
-        const double Q4x = ew.Q4xx*x + ew.Q4xy*y + ew.Q4xz*z;
-        const double Q4y = ew.Q4xy*x + ew.Q4yy*y + ew.Q4yz*z;
-        const double Q4z = ew.Q4xz*x + ew.Q4yz*y + ew.Q4zz*z;
-        const double Q3mir = onethird*(Q3mirx*x + Q3miry*y + Q3mirz*z) - 0.5*(Q4x*x + Q4y*y + Q4z*z);
+        const EwaldFloat Q4x = ew.Q4xx*x + ew.Q4xy*y + ew.Q4xz*z;
+        const EwaldFloat Q4y = ew.Q4xy*x + ew.Q4yy*y + ew.Q4yz*z;
+        const EwaldFloat Q4z = ew.Q4xz*x + ew.Q4yz*y + ew.Q4zz*z;
+        const EwaldFloat Q3mir = onethird*(Q3mirx*x + Q3miry*y + Q3mirz*z) - 0.5*(Q4x*x + Q4y*y + Q4z*z);
         dPot -= g3*Q3mir;
         tax += g3*(Q3mirx - Q4x);
         tay += g3*(Q3miry - Q4y);
         taz += g3*(Q3mirz - Q4z);
 
-        const double Q2mirx = ew.mom.xx*x + ew.mom.xy*y + ew.mom.xz*z;
-        const double Q2miry = ew.mom.xy*x + ew.mom.yy*y + ew.mom.yz*z;
-        const double Q2mirz = ew.mom.xz*x + ew.mom.yz*y + ew.mom.zz*z;
-        const double Q2mir = 0.5*(Q2mirx*x + Q2miry*y + Q2mirz*z) - (ew.Q3x*x + ew.Q3y*y + ew.Q3z*z) + ew.Q4;
+        const EwaldFloat Q2mirx = ew.mom.xx*x + ew.mom.xy*y + ew.mom.xz*z;
+        const EwaldFloat Q2miry = ew.mom.xy*x + ew.mom.yy*y + ew.mom.yz*z;
+        const EwaldFloat Q2mirz = ew.mom.xz*x + ew.mom.yz*y + ew.mom.zz*z;
+        const EwaldFloat Q2mir = 0.5*(Q2mirx*x + Q2miry*y + Q2mirz*z) - (ew.Q3x*x + ew.Q3y*y + ew.Q3z*z) + ew.Q4;
         dPot -= g2*Q2mir;
         tax += g2*(Q2mirx - ew.Q3x);
         tay += g2*(Q2miry - ew.Q3y);
         taz += g2*(Q2mirz - ew.Q3z);
 
-        const double Qta = g1*ew.mom.m - g2*ew.Q2 + g3*Q2mir + g4*Q3mir + g5*Q4mir;
+        const EwaldFloat Qta = g1*ew.mom.m - g2*ew.Q2 + g3*Q2mir + g4*Q3mir + g5*Q4mir;
         tax -= x*Qta;
         tay -= y*Qta;
         taz -= z*Qta;
@@ -246,9 +246,9 @@ cudaError_t cuda_setup_ewald(CUDACTX cuda) {
         CUDA_RETURN(cudaMemcpyToSymbolAsync,(hSfac,cuda->ewt->hSfac.f,sizeof(float)*cuda->ewIn->nEwhLoop,0,cudaMemcpyHostToDevice,cuda->streamEwald));
 // Time(%)      Time     Calls       Avg       Min       Max  Name
 // 14.93%  1.47255s       413  3.5655ms  2.6458ms  3.9733ms  cudaEwald(double*, double*, double*, double*, double*, double*, double*, d
-        double dLx[MAX_TOTAL_REPLICAS];
-        double dLy[MAX_TOTAL_REPLICAS];
-        double dLz[MAX_TOTAL_REPLICAS];
+        EwaldFloat dLx[MAX_TOTAL_REPLICAS];
+        EwaldFloat dLy[MAX_TOTAL_REPLICAS];
+        EwaldFloat dLz[MAX_TOTAL_REPLICAS];
         int ibHole[MAX_TOTAL_REPLICAS];
         int i=0, ix, iy, iz;
         for(ix=-3; ix<=3; ++ix) {
@@ -309,12 +309,12 @@ extern "C"
 int CUDAinitWorkEwald( void *ve, void *vwork ) {
     workEwald *e = reinterpret_cast<workEwald *>(ve);
     CUDAwqNode *work = reinterpret_cast<CUDAwqNode *>(vwork);
-    double *pHostBufFromGPU  = reinterpret_cast<double *>(work->pHostBufFromGPU);
-    double *pHostBufToGPU    = reinterpret_cast<double *>(work->pHostBufToGPU);
-    double *pCudaBufIn = reinterpret_cast<double *>(work->pCudaBufIn);
-    double *pCudaBufOut = reinterpret_cast<double *>(work->pCudaBufOut);
-    double *X, *Y, *Z;
-    double *cudaX, *cudaY, *cudaZ, *cudaXout, *cudaYout, *cudaZout, *cudaPot, *cudaFlop;
+    EwaldFloat *pHostBufFromGPU  = reinterpret_cast<EwaldFloat *>(work->pHostBufFromGPU);
+    EwaldFloat *pHostBufToGPU    = reinterpret_cast<EwaldFloat *>(work->pHostBufToGPU);
+    EwaldFloat *pCudaBufIn = reinterpret_cast<EwaldFloat *>(work->pCudaBufIn);
+    EwaldFloat *pCudaBufOut = reinterpret_cast<EwaldFloat *>(work->pCudaBufOut);
+    EwaldFloat *X, *Y, *Z;
+    EwaldFloat *cudaX, *cudaY, *cudaZ, *cudaXout, *cudaYout, *cudaZout, *cudaPot, *cudaFlop;
     int align, i;
 
     align = (e->nP+MASK)&~MASK; /* Warp align the memory buffers */
@@ -343,10 +343,10 @@ int CUDAinitWorkEwald( void *ve, void *vwork ) {
     for(;i<align;++i) X[i]=Y[i]=Z[i] = 100;
 
     // copy data directly to device memory
-    CUDA_RETURN(cudaMemcpyAsync,(pCudaBufIn, pHostBufToGPU, align*3*sizeof(double),
+    CUDA_RETURN(cudaMemcpyAsync,(pCudaBufIn, pHostBufToGPU, align*3*sizeof(EwaldFloat),
 	    cudaMemcpyHostToDevice, work->stream));
     cudaEwald<<<dimGrid, dimBlock, 0, work->stream>>>(cudaX,cudaY,cudaZ,cudaXout,cudaYout,cudaZout,cudaPot,cudaFlop);
-    CUDA_RETURN(cudaMemcpyAsync,(pHostBufFromGPU, pCudaBufOut, align*5*sizeof(double),
+    CUDA_RETURN(cudaMemcpyAsync,(pHostBufFromGPU, pCudaBufOut, align*5*sizeof(EwaldFloat),
             cudaMemcpyDeviceToHost, work->stream));
 #ifdef USE_CUDA_EVENTS
     CUDA_RETURN(cudaEventRecord,(work->event,work->stream));
@@ -356,15 +356,15 @@ int CUDAinitWorkEwald( void *ve, void *vwork ) {
     }
 
 extern "C"
-void pkdAccumulateCUDA(void * pkd,workEwald *we,double *pax,double *pay,double *paz,double *pot,double *pdFlop);
+void pkdAccumulateCUDA(void * pkd,workEwald *we,EwaldFloat *pax,EwaldFloat *pay,EwaldFloat *paz,EwaldFloat *pot,EwaldFloat *pdFlop);
 
 
 extern "C"
 int CUDAcheckWorkEwald( void *ve, void *vwork ) {
     workEwald *e = reinterpret_cast<workEwald *>(ve);
     CUDAwqNode *work = reinterpret_cast<CUDAwqNode *>(vwork);
-    double *pHostBuf = reinterpret_cast<double *>(work->pHostBufFromGPU);
-    double *X, *Y, *Z, *pPot, *pdFlop;
+    EwaldFloat *pHostBuf = reinterpret_cast<EwaldFloat *>(work->pHostBufFromGPU);
+    EwaldFloat *X, *Y, *Z, *pPot, *pdFlop;
     int align;
 
     align = (e->nP+MASK)&~MASK; /* As above! Warp align the memory buffers */
