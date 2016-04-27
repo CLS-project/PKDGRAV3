@@ -69,7 +69,7 @@
 #define PTHREAD_CANCELED ((void *) 0xDEADBEEF)
 
 #define PTHREAD_ONCE_INIT 0
-#define PTHREAD_MUTEX_INITIALIZER {(void*)-1,-1,0,0,0,0}
+#define PTHREAD_MUTEX_INITIALIZER {(PRTL_CRITICAL_SECTION_DEBUG)-1,-1,0,0,0,0}
 #define PTHREAD_RWLOCK_INITIALIZER {0}
 #define PTHREAD_COND_INITIALIZER {0}
 #define PTHREAD_BARRIER_INITIALIZER \
@@ -154,24 +154,24 @@ typedef int pthread_condattr_t;
 typedef CONDITION_VARIABLE pthread_cond_t;
 typedef int pthread_rwlockattr_t;
 
-volatile long _pthread_cancelling;
+extern volatile long _pthread_cancelling;
 
-int _pthread_concur;
+extern int _pthread_concur;
 
 /* Will default to zero as needed */
-pthread_once_t _pthread_tls_once;
-DWORD _pthread_tls;
+extern pthread_once_t _pthread_tls_once;
+extern DWORD _pthread_tls;
 
 /* Note initializer is zero, so this works */
-pthread_rwlock_t _pthread_key_lock;
-long _pthread_key_max;
-long _pthread_key_sch;
-void (**_pthread_key_dest)(void *);
+extern pthread_rwlock_t _pthread_key_lock;
+extern long _pthread_key_max;
+extern long _pthread_key_sch;
+extern void (**_pthread_key_dest)(void *);
 
 
 #define pthread_cleanup_push(F, A)\
 {\
-	const _pthread_cleanup _pthread_cup = {(F), (A), pthread_self()->clean};\
+	const _pthread_cleanup _pthread_cup = { (void (*)(void *))(F), (A), pthread_self()->clean};\
 	_ReadWriteBarrier();\
 	pthread_self()->clean = (_pthread_cleanup *) &_pthread_cup;\
 	_ReadWriteBarrier()
@@ -390,12 +390,12 @@ static pthread_t pthread_self(void)
 	
 	_pthread_once_raw(&_pthread_tls_once, pthread_tls_init);
 	
-	t = TlsGetValue(_pthread_tls);
+	t = (pthread_t)TlsGetValue(_pthread_tls);
 	
 	/* Main thread? */
 	if (!t)
 	{
-		t = malloc(sizeof(struct _pthread_v));
+	        t = (pthread_t)malloc(sizeof(struct _pthread_v));
 		
 		/* If cannot initialize main thread, then the only thing we can do is abort */
 		if (!t) abort();
@@ -434,7 +434,7 @@ static int pthread_rwlock_tryrdlock(pthread_rwlock_t *l)
 	if (!state)
 	{
 		/* Unlocked to locked */
-		if (!_InterlockedCompareExchangePointer((void *) l, (void *)0x11, NULL)) return 0;
+		if (!_InterlockedCompareExchangePointer((volatile PVOID *) l, (void *)0x11, NULL)) return 0;
 		return EBUSY;
 	}
 	
@@ -444,7 +444,7 @@ static int pthread_rwlock_tryrdlock(pthread_rwlock_t *l)
 	/* Multiple writers exist? */
 	if ((uintptr_t) state & 14) return EBUSY;
 	
-	if (_InterlockedCompareExchangePointer((void *) l, (void *) ((uintptr_t)state + 16), state) == state) return 0;
+	if (_InterlockedCompareExchangePointer((volatile PVOID *) l, (void *) ((uintptr_t)state + 16), state) == state) return 0;
 	
 	return EBUSY;
 }
@@ -452,7 +452,7 @@ static int pthread_rwlock_tryrdlock(pthread_rwlock_t *l)
 static int pthread_rwlock_trywrlock(pthread_rwlock_t *l)
 {
 	/* Try to grab lock if it has no users */
-	if (!_InterlockedCompareExchangePointer((void *) l, (void *)1, NULL)) return 0;
+        if (!_InterlockedCompareExchangePointer((volatile PVOID *)l, (void *)1, NULL)) return 0;
 	
 	return EBUSY;
 }
@@ -744,7 +744,7 @@ static int pthread_setcanceltype(int type, int *oldtype)
 
 static int __stdcall pthread_create_wrapper(void *args)
 {
-	struct _pthread_v *tv = args;
+	struct _pthread_v *tv = (struct _pthread_v *)args;
 	
 	_pthread_once_raw(&_pthread_tls_once, pthread_tls_init);
 	
@@ -774,7 +774,7 @@ static int __stdcall pthread_create_wrapper(void *args)
 
 static int pthread_create(pthread_t *th, pthread_attr_t *attr, void *(* func)(void *), void *arg)
 {
-	struct _pthread_v *tv = malloc(sizeof(struct _pthread_v));
+	struct _pthread_v *tv = (struct _pthread_v *)malloc(sizeof(struct _pthread_v));
 	unsigned ssize = 0;
 	
 	if (!tv) return 1;
@@ -800,7 +800,7 @@ static int pthread_create(pthread_t *th, pthread_attr_t *attr, void *(* func)(vo
 	/* Make sure tv->h has value of -1 */
 	_ReadWriteBarrier();
 
-	tv->h = (HANDLE) _beginthreadex(NULL, ssize, pthread_create_wrapper, tv, 0, NULL);
+	tv->h = (HANDLE) _beginthreadex(NULL, ssize, (unsigned int (__stdcall *)(void *))pthread_create_wrapper, tv, 0, NULL);
 	
 	/* Failed */
 	if (!tv->h) return 1;
@@ -1113,7 +1113,7 @@ static int pthread_key_create(pthread_key_t *key, void (* dest)(void *))
 	if (nmax > PTHREAD_KEYS_MAX) nmax = PTHREAD_KEYS_MAX;
 	
 	/* No spare room anywhere */
-	d = realloc(_pthread_key_dest, nmax * sizeof(*d));
+	d = (void(**)(void *))realloc(_pthread_key_dest, nmax * sizeof(*d));
 	if (!d)
 	{
 		pthread_rwlock_unlock(&_pthread_key_lock);
@@ -1177,7 +1177,7 @@ static int pthread_setspecific(pthread_key_t key, const void *value)
 	if (key > t->keymax)
 	{
 		int keymax = (key + 1) * 2;
-		void **kv = realloc(t->keyval, keymax * sizeof(void *));
+		void **kv = (void **)realloc(t->keyval, keymax * sizeof(void *));
 		
 		if (!kv) return ENOMEM;
 		
@@ -1324,6 +1324,7 @@ static int pthread_rwlockattr_destroy(pthread_rwlockattr_t *a)
 static int pthread_rwlockattr_init(pthread_rwlockattr_t *a)
 {
 	*a = 0;
+	return 0;
 }
 
 static int pthread_rwlockattr_getpshared(pthread_rwlockattr_t *a, int *s)

@@ -314,7 +314,9 @@
 /* #undef USE_BT */
 
 /* Use CUDA to accelerate calculations */
-#define USE_CL 1
+#define USE_CUDA 1
+/* Use CUDA to accelerate calculations */
+//#define USE_CL 1
 
 /* Define GRAFICIC IC should be available. */
 /* #undef USE_GRAFIC */
@@ -341,8 +343,16 @@
 /* Visual Studio definition */
 #if defined(__AVX__)
 #define USE_SIMD 1
+#ifndef __SSE__
+#define __SSE__
+#endif
+#ifndef __SSE2__
+#define __SSE2__
+#endif
+#ifdef __AVX2__
+#define __FMA__
+#endif
 #elif defined(_M_X64)
-
 #define __SSE__
 #define __SSE2__
 #define __AVX__

@@ -12,7 +12,9 @@
 
 #include <assert.h>
 #include <stdio.h>
+#ifdef HAVE_UNISTD_H
 #include <unistd.h>
+#endif
 #include <pthread.h>
 #ifdef HAVE_SYS_PARAM_H
 #include <sys/param.h> /* for MAXHOSTNAMELEN, if available */
@@ -29,7 +31,11 @@ static void *CUDA_malloc(size_t nBytes) {
     uint64_t nPageSize = 512;
 #endif
     void *blk;
-    if (posix_memalign(&blk,nPageSize,nBytes)) blk = NULL;
+#ifdef _MSC_VER
+    blk = _aligned_malloc(nBytes, nPageSize);
+#else
+    if (posix_memalign(&blk, nPageSize, nBytes)) blk = NULL;
+#endif
     return blk;
     }
 

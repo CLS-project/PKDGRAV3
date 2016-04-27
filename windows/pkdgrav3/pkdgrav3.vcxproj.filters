@@ -43,7 +43,6 @@
     </ClCompile>
     <ClCompile Include="..\..\clewald.cxx" />
     <ClCompile Include="..\..\clutil.cxx" />
-    <ClCompile Include="..\..\ic.c" />
     <ClCompile Include="..\..\RngStream.c" />
     <ClCompile Include="..\gsl-2.1\integration\qag.c">
       <Filter>gsl\integration</Filter>
@@ -96,9 +95,10 @@
     <ClCompile Include="..\gsl-2.1\vector\view.c">
       <Filter>gsl\vector</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\ic.cxx" />
+    <ClCompile Include="..\pthread.c" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\cudautil.h" />
     <ClInclude Include="..\config.h" />
     <ClInclude Include="..\..\ilc.h" />
     <ClInclude Include="..\..\ilp.h" />
@@ -109,6 +109,9 @@
     </ClInclude>
     <ClInclude Include="..\..\mdl2\mpi\mdl.h">
       <Filter>mdl</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\cudautil.h">
+      <Filter>cuda</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -133,5 +136,19 @@
     <Filter Include="gsl\err">
       <UniqueIdentifier>{cfde7693-1274-4b54-bca0-0109cfd47ec3}</UniqueIdentifier>
     </Filter>
+    <Filter Include="cuda">
+      <UniqueIdentifier>{e8485492-3692-4c2d-b846-e6f79e8b71b2}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <CudaCompile Include="..\..\cudautil.cu">
+      <Filter>cuda</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\..\cudaewald.cu">
+      <Filter>cuda</Filter>
+    </CudaCompile>
+    <CudaCompile Include="..\..\cudapppc.cu">
+      <Filter>cuda</Filter>
+    </CudaCompile>
   </ItemGroup>
 </Project>

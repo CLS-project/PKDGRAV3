@@ -72,7 +72,7 @@ static double variance(powerParameters *P,double dRadius) {
 
 /* Gaussian noise in k-space. Note correction sqrt(2) because of FFT normalization. */
 static COMPLEX pairc( RngStream g ) {
-    double x1, x2, w;
+    float x1, x2, w;
     do {
 	x1 = 2.0 * RngStream_RandU01(g) - 1.0;
 	x2 = 2.0 * RngStream_RandU01(g) - 1.0;
@@ -183,22 +183,22 @@ int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int nGrid,int b2LPT,double dBoxSi
     struct csmVariables *cosmo,double a,int nTf, double *tk, double *tf,
     double *noiseMean, double *noiseCSQ) {
     MDL mdl = pkd->mdl;
-    double twopi = 2.0 * 4.0 * atan(1.0);
-    double itwopi = 1.0 / twopi;
+    float twopi = 2.0 * 4.0 * atan(1.0);
+    float itwopi = 1.0 / twopi;
     float inGrid = 1.0 / nGrid;
     float fftNormalize = inGrid*inGrid*inGrid;
     int i,j,k,idx;
-    int ix, iy, iz;
+    float ix, iy, iz;
     int iNyquist = nGrid / 2;
-    double iLbox = twopi / dBoxSize;
-    double iLbox3 = pow(iLbox,3.0);
-    double ak, ak2, amp;
-    double dOmega, D0, Da;
-    double velFactor;
+    float iLbox = twopi / dBoxSize;
+    float iLbox3 = pow(iLbox,3.0);
+    float ak, ak2, amp;
+    float dOmega, D0, Da;
+    float velFactor;
     float f1, f2;
     basicParticle *p;
     int nLocal;
-    double dSigma8 = cosmo->dSigma8;
+    float dSigma8 = cosmo->dSigma8;
     CSM csm;
 
     csmInitialize(&csm);

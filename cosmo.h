@@ -28,19 +28,24 @@ typedef struct csmContext {
     gsl_integration_workspace *W;
 #endif
     } * CSM;
-
-void csmInitialize(CSM *pcsm);
-void csmFinish(CSM csm);
-double csmExp2Hub(CSM csm, double dExp);
-double csmTime2Hub(CSM csm,double dTime);
-double csmExp2Time(CSM csm,double dExp);
-double csmTime2Exp(CSM csm,double dTime);
-double csmComoveDriftInt(CSM csm, double dIExp);
-double csmComoveKickInt(CSM csm, double dIExp);
-double csmComoveDriftFac(CSM csm,double dTime,double dDelta);
-double csmComoveKickFac(CSM csm,double dTime,double dDelta);
-double csmComoveLookbackTime2Exp(CSM csm,double dComoveTime);
-double csmComoveGrowthFactor(CSM csm,double a);
+#ifdef __cplusplus
+extern "C" {
+#endif
+    void csmInitialize(CSM *pcsm);
+    void csmFinish(CSM csm);
+    double csmExp2Hub(CSM csm, double dExp);
+    double csmTime2Hub(CSM csm, double dTime);
+    double csmExp2Time(CSM csm, double dExp);
+    double csmTime2Exp(CSM csm, double dTime);
+    double csmComoveDriftInt(CSM csm, double dIExp);
+    double csmComoveKickInt(CSM csm, double dIExp);
+    double csmComoveDriftFac(CSM csm, double dTime, double dDelta);
+    double csmComoveKickFac(CSM csm, double dTime, double dDelta);
+    double csmComoveLookbackTime2Exp(CSM csm, double dComoveTime);
+    double csmComoveGrowthFactor(CSM csm, double a);
+#ifdef __cplusplus
+}
+#endif
 
 /*
  ** returns the speed of light in simulation units, given
