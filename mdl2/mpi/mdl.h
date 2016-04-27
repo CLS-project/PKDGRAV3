@@ -113,10 +113,6 @@ typedef struct mdl_wq_node {
     void *ctx;
     mdlWorkFunction doFcn;
     mdlWorkFunction doneFcn;
-#ifdef USE_CUDA
-    double *pHostBuf;
-    double *pCudaBuf;
-#endif
     } MDLwqNode;
 
 typedef struct cacheTag {
