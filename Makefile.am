@@ -121,7 +121,7 @@ noinst_HEADERS += $(MDL)/mpi/mdl.h
 pkdgrav3_mpi_CFLAGS = -I$(MDL)/mpi/ -I$(MDL) -Iopenpa/src $(AM_CFLAGS)
 pkdgrav3_mpi_CXXFLAGS = -I$(MDL)/mpi/ -I$(MDL) -Iopenpa/src $(AM_CXXFLAGS)
 if FFTW
-pkdgrav3_mpi_SOURCES += ic.c RngStream.c
+pkdgrav3_mpi_SOURCES += ic.cxx RngStream.c
 noinst_HEADERS += ic.h RngStream.h
 endif
 pkdgrav3_mpi_CFLAGS += $(GSL_CFLAGS)
