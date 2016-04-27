@@ -247,7 +247,7 @@ fi
 if test -z "$NVCCFLAGS" ; then
   NVCCFLAGS="-arch compute_35"
 fi
-if test "x$CUDA_DIR" != "xno" ; then
+if test "x$NVML_DIR" != "xno" ; then
 AC_DEFINE([USE_NVML],1,
   [Use NVML to report on GPU status])
 if test "x$NVML_DIR" = "xyes" ; then
