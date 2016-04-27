@@ -749,20 +749,6 @@ void pkdInitialize(
     pkd->Cool = CoolInit();
 #endif
     assert(pkdNodeSize(pkd) > 0);
-
-#ifdef xNOxUSE_CUDA
-	{
-	int sizeILP = sizeof(ILP_BLK)*pkd->ilp->lst.nBlocksPerTile;
-	int sizeILC = sizeof(ILC_BLK)*pkd->ilc->lst.nBlocksPerTile;
-	pkd->cudaCtx = CUDA_initialize(mdlCore(pkd->mdl),
-	    iCUDAQueueSize,
-	    sizeILP>sizeILC ? sizeILP : sizeILC,
-	    nGroup*sizeof(PINFOIN),
-	    nGroup*sizeof(PINFOOUT)
-	    * (pkd->ilp->lst.nBlocksPerTile>pkd->ilc->lst.nBlocksPerTile
-		? pkd->ilp->lst.nBlocksPerTile : pkd->ilc->lst.nBlocksPerTile) );
-	}
-#endif
     }
 
 
@@ -772,10 +758,6 @@ void pkdFinish(PKD pkd) {
     uint32_t pi;
     int ism;
     int i;
-
-#ifdef xNOxUSE_CUDA
-    CUDA_finish(pkd->cudaCtx);
-#endif
 
     if (pkd->kdNodeListPRIVATE) {
 	/*
