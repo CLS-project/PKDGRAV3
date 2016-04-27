@@ -9,6 +9,19 @@
 #include "ic.h"
 #include "RngStream.h"
 
+#ifdef __cplusplus
+#include <complex>
+typedef std::complex<float> COMPLEX;
+#define REAL(x) std::real(x)
+#define IMAG(x) std::imag(x)
+static const std::complex<float> I = {0,1};
+#else
+#include <complex.h>
+#define COMPLEX float complex
+#define REAL(x) creal(x)
+#define IMAG(x) cimag(x)
+#endif
+
 typedef union {
     FFTW3(real) *r;
     COMPLEX *k;
