@@ -15,14 +15,13 @@ extern "C" {
 
     int CUDA_queue(void *vcuda, void *ctx,
 	int (*initWork)(void *ctx,void *work),
-	int (*checkWork)(void *ctx,void *work),
-	int (*doneWork)(void *ctx));
+	int (*checkWork)(void *ctx,void *work));
     int CUDA_flushDone(void *vcuda);
     int CUDA_queuePP(void *cudaCtx,workParticle *wp, ILPTILE tile, int bGravStep);
     int CUDA_queuePC(void *cudaCtx,workParticle *wp, ILCTILE tile, int bGravStep);
     void CUDA_sendWork(void *cudaCtx);
     void CUDA_checkForRecovery(void *vcuda);
-    void pkdAccumulateCUDA(void *vpkd,workEwald *we,EwaldFloat *pax,EwaldFloat *pay,EwaldFloat *paz,EwaldFloat *pot,EwaldFloat *pdFlop);
+    void pkdAccumulateCUDA(void *vpkd,workEwald *we,momFloat *pax,momFloat *pay,momFloat *paz,momFloat *pot,momFloat *pdFlop);
 
 #else
 #include "simd.h"

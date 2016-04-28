@@ -251,9 +251,6 @@
 /* The maximum number of IO processors */
 /* #undef MDL_MAX_IO_PROCS */
 
-/* This defines the base floating point type for moments. */
-#define MOMFLOAT double
-
 /* Name of package */
 #define PACKAGE "pkdgrav2"
 

@@ -2,6 +2,8 @@
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
+#include <cuda.h>
+
 /*#include <nvToolsExt.h>*/
 #ifdef USE_NVML
 #include <nvidia/gdk/nvml.h>
@@ -286,8 +288,7 @@ int CUDA_flushDone(void *vcuda) {
 extern "C"
 int CUDA_queue(void *vcuda, void *ctx,
     int (*initWork)(void *ctx,void *work),
-    int (*checkWork)(void *ctx,void *work),
-    int (*doneWork)(void *ctx)) {
+    int (*checkWork)(void *ctx,void *work)) {
     CUDACTX cuda = reinterpret_cast<CUDACTX>(vcuda);
     CUDAwqNode *work;
     CUDA_flushDone(vcuda);

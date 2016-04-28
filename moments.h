@@ -5,7 +5,11 @@
 typedef long double momFloat;
 #define sqrt(x)	sqrtl(x)
 #else
+#ifdef _MSC_VER
+typedef float momFloat;
+#else
 typedef double momFloat;
+#endif
 #endif
 
 /*

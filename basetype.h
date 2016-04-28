@@ -27,7 +27,6 @@ typedef int32_t pos_t;
 #else
 typedef double pos_t;
 #endif
-typedef double EwaldFloat;
 
 /*
 ** Costs: ADD/SUB/MUL/AND/CMP 1 cycle
@@ -107,10 +106,10 @@ typedef struct {
     ewaldFloat hCfac,hSfac;
     } EwaldTable;
 struct EwaldVariables {
-    double r[3]; /* Center of mass of the box */
+    momFloat r[3]; /* Center of mass of the box */
     MOMC mom; /* moment of the box */
-    double fEwCut2,fInner2,alpha,ialpha,alpha2,k1,ka,Lbox;
-    double Q4xx,Q4xy,Q4xz,Q4yy,Q4yz,Q4zz,Q4,Q3x,Q3y,Q3z,Q2;
+    momFloat fEwCut2,fInner2,alpha,ialpha,alpha2,k1,ka,Lbox;
+    momFloat Q4xx,Q4xy,Q4xz,Q4yy,Q4yz,Q4zz,Q4,Q3x,Q3y,Q3z,Q2;
     int nMaxEwhLoop;
     int nEwLoopInner, nEwhLoop;
     int nReps,nEwReps;

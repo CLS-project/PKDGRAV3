@@ -27,8 +27,6 @@
     <ClCompile Include="..\..\tree.c" />
     <ClCompile Include="..\..\walk2.c" />
     <ClCompile Include="..\..\cosmo.c" />
-    <ClCompile Include="..\..\openpa\src\opa_primitives.c" />
-    <ClCompile Include="..\..\openpa\src\opa_queue.c" />
     <ClCompile Include="..\..\ilc.c" />
     <ClCompile Include="..\..\romberg.c" />
     <ClCompile Include="..\..\illinois.c" />
@@ -97,12 +95,17 @@
     </ClCompile>
     <ClCompile Include="..\..\ic.cxx" />
     <ClCompile Include="..\pthread.c" />
+    <ClCompile Include="..\..\openpa\src\opa_primitives.c">
+      <Filter>opa</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\openpa\src\opa_queue.c">
+      <Filter>opa</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\config.h" />
     <ClInclude Include="..\..\ilc.h" />
     <ClInclude Include="..\..\ilp.h" />
-    <ClInclude Include="..\opa_config.h" />
     <ClInclude Include="..\..\vqsort.h" />
     <ClInclude Include="..\..\mdl2\mdlbase.h">
       <Filter>mdl</Filter>
@@ -112,6 +115,9 @@
     </ClInclude>
     <ClInclude Include="..\..\cudautil.h">
       <Filter>cuda</Filter>
+    </ClInclude>
+    <ClInclude Include="..\opa_config.h">
+      <Filter>opa</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -138,6 +144,9 @@
     </Filter>
     <Filter Include="cuda">
       <UniqueIdentifier>{e8485492-3692-4c2d-b846-e6f79e8b71b2}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="opa">
+      <UniqueIdentifier>{5bc297d2-9d2a-4fb8-b451-e518d3fff2cb}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
