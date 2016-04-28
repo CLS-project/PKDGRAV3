@@ -94,19 +94,17 @@
       <Filter>gsl\vector</Filter>
     </ClCompile>
     <ClCompile Include="..\..\ic.cxx" />
-    <ClCompile Include="..\pthread.c" />
     <ClCompile Include="..\..\openpa\src\opa_primitives.c">
       <Filter>opa</Filter>
     </ClCompile>
     <ClCompile Include="..\..\openpa\src\opa_queue.c">
       <Filter>opa</Filter>
     </ClCompile>
+    <ClCompile Include="..\pthread.c">
+      <Filter>mdl</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\config.h" />
-    <ClInclude Include="..\..\ilc.h" />
-    <ClInclude Include="..\..\ilp.h" />
-    <ClInclude Include="..\..\vqsort.h" />
     <ClInclude Include="..\..\mdl2\mdlbase.h">
       <Filter>mdl</Filter>
     </ClInclude>
@@ -118,6 +116,144 @@
     </ClInclude>
     <ClInclude Include="..\opa_config.h">
       <Filter>opa</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\avx_mathfun.h">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\basetype.h">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\bt.h">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\clutil.h">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\config.h">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\cooling.h">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\cosmo.h">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\fof.h">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\grav.h">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\group.h">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\ilc.h">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\ilp.h">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\vqsort.h">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\cl.h">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\cycle.h">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\ewald.h">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\fio.h">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\groupstats.h">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\healpix.h">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\hop.h">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\ic.h">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\illinois.h">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\iomodule.h">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\listcomp.h">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\lst.h">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\master.h">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\meval.h">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\moments.h">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\output.h">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\outtype.h">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\param.h">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\parameters.h">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\pkd.h">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\pkdpython.h">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\pst.h">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\qeval.h">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\rbtree.h">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\RngStream.h">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\simd.h">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\smooth.h">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\smoothfcn.h">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\sse_mathfun.h">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\tipsydefs.h">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\vmoments.h">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\walk.h">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\pthread.h">
+      <Filter>mdl</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -147,6 +283,9 @@
     </Filter>
     <Filter Include="opa">
       <UniqueIdentifier>{5bc297d2-9d2a-4fb8-b451-e518d3fff2cb}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="headers">
+      <UniqueIdentifier>{944976bd-18d4-4670-a5a6-61f234214bae}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
