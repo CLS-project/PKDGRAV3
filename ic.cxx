@@ -14,7 +14,7 @@
 typedef std::complex<float> COMPLEX;
 #define REAL(x) std::real(x)
 #define IMAG(x) std::imag(x)
-static const std::complex<float> I = {0,1};
+static const std::complex<float> I(0,1);
 #else
 #include <complex.h>
 #define COMPLEX float complex
