@@ -21,7 +21,7 @@ extern "C" {
     int CUDA_queuePC(void *cudaCtx,workParticle *wp, ILCTILE tile, int bGravStep);
     void CUDA_sendWork(void *cudaCtx);
     void CUDA_checkForRecovery(void *vcuda);
-    void pkdAccumulateCUDA(void *vpkd,workEwald *we,momFloat *pax,momFloat *pay,momFloat *paz,momFloat *pot,momFloat *pdFlop);
+    void pkdAccumulateCUDA(void *vpkd,workEwald *we,gpuEwaldOutput *fromGPU);
 
 #else
 #include "simd.h"

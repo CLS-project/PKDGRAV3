@@ -114,6 +114,7 @@ struct EwaldVariables {
     int nEwLoopInner, nEwhLoop;
     int nReps,nEwReps;
     };
+
 /*
 ** Accumulates the work for a set of particles
 */
@@ -163,6 +164,22 @@ typedef struct {
     workParticle *work;
     int i;
     } workPC;
+
+#define EWALD_ALIGN 64
+#define EWALD_MASK (EWALD_ALIGN-1)
+typedef struct {
+    momFloat X[EWALD_ALIGN];
+    momFloat Y[EWALD_ALIGN];
+    momFloat Z[EWALD_ALIGN];
+    } gpuEwaldInput;
+
+typedef struct {
+    momFloat X[EWALD_ALIGN];
+    momFloat Y[EWALD_ALIGN];
+    momFloat Z[EWALD_ALIGN];
+    momFloat Pot[EWALD_ALIGN];
+    momFloat Flop[EWALD_ALIGN];
+    } gpuEwaldOutput;
 
 /* Careful! For compute <3.0, 65535 is the limit */
 #define MAX_EWALD_PARTICLES 65536

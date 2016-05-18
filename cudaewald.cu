@@ -11,9 +11,6 @@
 #include "moments.h"
 #include "cudautil.h"
 
-#define ALIGN 64
-#define MASK (ALIGN-1)
-
 #define MAX_TOTAL_REPLICAS (7*7*7)
 
 __constant__ struct EwaldVariables ew;
@@ -45,9 +42,7 @@ __constant__ int bHole[MAX_TOTAL_REPLICAS];
 **              the total number of particles is a block of x*y*z
 */
 
-__global__ void cudaEwald(momFloat *X,momFloat *Y,momFloat *Z,
-    momFloat *Xout, momFloat *Yout, momFloat *Zout, momFloat *pPot,momFloat *pdFlop) {
-    int pidx = threadIdx.x + ALIGN*blockIdx.x;
+__global__ void cudaEwald(gpuEwaldInput *onGPU,gpuEwaldOutput *outGPU) {
     const momFloat f_1_2 = 1.0 / 2.0;
     const momFloat f_1_3 = 1.0 / 3.0;
     const momFloat f_1_4 = 1.0 / 4.0;
@@ -59,9 +54,9 @@ __global__ void cudaEwald(momFloat *X,momFloat *Y,momFloat *Z,
     momFloat g0, g1, g2, g3, g4, g5, alphan;
     int i, bInHole;
     momFloat tax, tay, taz, dPot, dFlop=0.0;
-    const momFloat rx = X[pidx] - ew.r[0];
-    const momFloat ry = Y[pidx] - ew.r[1];
-    const momFloat rz = Z[pidx] - ew.r[2];
+    const momFloat rx = onGPU[blockIdx.x].X[threadIdx.x] - ew.r[0];
+    const momFloat ry = onGPU[blockIdx.x].Y[threadIdx.x] - ew.r[1];
+    const momFloat rz = onGPU[blockIdx.x].Z[threadIdx.x] - ew.r[2];
 
     // the H-Loop
     float fx=rx, fy=ry, fz=rz;
@@ -233,11 +228,11 @@ __global__ void cudaEwald(momFloat *X,momFloat *Y,momFloat *Z,
 	}
 
 /*    dFlop += COST_FLOP_HLOOP * ew.nEwhLoop;*/ /* Accounted for outside */
-    Xout[pidx] = tax;
-    Yout[pidx] = tay;
-    Zout[pidx] = taz;
-    pPot[pidx] = dPot;
-    pdFlop[pidx] = dFlop;
+    outGPU[blockIdx.x].X[threadIdx.x] = tax;
+    outGPU[blockIdx.x].Y[threadIdx.x] = tay;
+    outGPU[blockIdx.x].Z[threadIdx.x] = taz;
+    outGPU[blockIdx.x].Pot[threadIdx.x]  = dPot;
+    outGPU[blockIdx.x].Flop[threadIdx.x] = dFlop;
     }
 
 /* If this returns an error, then the caller must attempt recovery or abort */
@@ -319,40 +314,37 @@ int CUDAinitWorkEwald( void *ve, void *vwork ) {
     momFloat *pHostBufToGPU    = reinterpret_cast<momFloat *>(work->pHostBufToGPU);
     momFloat *pCudaBufIn = reinterpret_cast<momFloat *>(work->pCudaBufIn);
     momFloat *pCudaBufOut = reinterpret_cast<momFloat *>(work->pCudaBufOut);
-    momFloat *X, *Y, *Z;
-    momFloat *cudaX, *cudaY, *cudaZ, *cudaXout, *cudaYout, *cudaZout, *cudaPot, *cudaFlop;
-    int align, i;
+    gpuEwaldInput *toGPU = reinterpret_cast<gpuEwaldInput *>(work->pHostBufToGPU);
+    gpuEwaldInput *onGPU = reinterpret_cast<gpuEwaldInput *>(work->pCudaBufIn);
+    gpuEwaldOutput *outGPU = reinterpret_cast<gpuEwaldOutput *>(work->pCudaBufOut);
+    int i;
 
-    align = (e->nP+MASK)&~MASK; /* Warp align the memory buffers */
-    X       = pHostBufToGPU + 0*align;
-    Y       = pHostBufToGPU + 1*align;
-    Z       = pHostBufToGPU + 2*align;
-    cudaX   = pCudaBufIn + 0*align;
-    cudaY   = pCudaBufIn + 1*align;
-    cudaZ   = pCudaBufIn + 2*align;
-    cudaXout= pCudaBufOut + 0*align;
-    cudaYout= pCudaBufOut + 1*align;
-    cudaZout= pCudaBufOut + 2*align;
-    cudaPot = pCudaBufOut + 3*align;
-    cudaFlop= pCudaBufOut + 4*align;
+    int align = (e->nP+EWALD_MASK)&~EWALD_MASK; /* Warp align the memory buffers */
+    int ngrid = align/EWALD_ALIGN;
 
-    dim3 dimBlock( ALIGN, 1 );
-    dim3 dimGrid( align/ALIGN, 1,1 );
+    dim3 dimBlock( EWALD_ALIGN, 1 );
+    dim3 dimGrid( ngrid, 1,1 );
     for(i=0; i<e->nP; ++i) {
+        int ij = i / EWALD_ALIGN;
+        int ii = i % EWALD_ALIGN;
         const workParticle *wp = e->ppWorkPart[i];
 	const int wi = e->piWorkPart[i];
 	const PINFOIN *in = &wp->pInfoIn[wi];
-	X[i] = wp->c[0] + in->r[0];
-	Y[i] = wp->c[1] + in->r[1];
-	Z[i] = wp->c[2] + in->r[2];
+        toGPU[ij].X[ii] = wp->c[0] + in->r[0];
+	toGPU[ij].Y[ii] = wp->c[1] + in->r[1];
+	toGPU[ij].Z[ii] = wp->c[2] + in->r[2];
 	}
-    for(;i<align;++i) X[i]=Y[i]=Z[i] = 100;
+    for(;i<align;++i) {
+        int ij = i / EWALD_ALIGN;
+        int ii = i % EWALD_ALIGN;
+        toGPU[ij].X[ii] = toGPU[ij].Y[ii] = toGPU[ij].Z[ii] = 100;
+        }
 
     // copy data directly to device memory
-    CUDA_RETURN(cudaMemcpyAsync,(pCudaBufIn, pHostBufToGPU, align*3*sizeof(momFloat),
+    CUDA_RETURN(cudaMemcpyAsync,(pCudaBufIn, pHostBufToGPU, ngrid * sizeof(gpuEwaldInput),
 	    cudaMemcpyHostToDevice, work->stream));
-    cudaEwald<<<dimGrid, dimBlock, 0, work->stream>>>(cudaX,cudaY,cudaZ,cudaXout,cudaYout,cudaZout,cudaPot,cudaFlop);
-    CUDA_RETURN(cudaMemcpyAsync,(pHostBufFromGPU, pCudaBufOut, align*5*sizeof(momFloat),
+    cudaEwald<<<dimGrid, dimBlock, 0, work->stream>>>(onGPU,outGPU);
+    CUDA_RETURN(cudaMemcpyAsync,(pHostBufFromGPU, pCudaBufOut, ngrid * sizeof(gpuEwaldOutput),
             cudaMemcpyDeviceToHost, work->stream));
 #ifdef USE_CUDA_EVENTS
     CUDA_RETURN(cudaEventRecord,(work->event,work->stream));
@@ -362,24 +354,15 @@ int CUDAinitWorkEwald( void *ve, void *vwork ) {
     }
 
 extern "C"
-void pkdAccumulateCUDA(void * pkd,workEwald *we,momFloat *pax,momFloat *pay,momFloat *paz,momFloat *pot,momFloat *pdFlop);
+void pkdAccumulateCUDA(void * pkd,workEwald *we,gpuEwaldOutput *fromGPU);
 
 
 extern "C"
 int CUDAcheckWorkEwald( void *ve, void *vwork ) {
     workEwald *e = reinterpret_cast<workEwald *>(ve);
     CUDAwqNode *work = reinterpret_cast<CUDAwqNode *>(vwork);
-    momFloat *pHostBuf = reinterpret_cast<momFloat *>(work->pHostBufFromGPU);
-    momFloat *X, *Y, *Z, *pPot, *pdFlop;
-    int align;
-
-    align = (e->nP+MASK)&~MASK; /* As above! Warp align the memory buffers */
-    X       = pHostBuf + 0*align;
-    Y       = pHostBuf + 1*align;
-    Z       = pHostBuf + 2*align;
-    pPot    = pHostBuf + 3*align;
-    pdFlop  = pHostBuf + 4*align;
-    pkdAccumulateCUDA(e->pkd,e,X,Y,Z,pPot,pdFlop);
+    gpuEwaldOutput *fromGPU = reinterpret_cast<gpuEwaldOutput *>(work->pHostBufFromGPU);
+    pkdAccumulateCUDA(e->pkd,e,fromGPU);
     free(e->ppWorkPart);
     free(e->piWorkPart);
     free(e);
