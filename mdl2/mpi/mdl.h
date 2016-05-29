@@ -25,13 +25,6 @@ typedef float fftwf_real;
 typedef double fftw_real;
 #endif
 #endif
-#include "opa_queue.h"
-
-typedef struct {
-    OPA_Queue_element_hdr_t hdr;
-    uint32_t iServiceID;
-    uint32_t iCoreFrom;
-    } MDLserviceElement;
 
 typedef struct  {
     struct CacheDataBucket *next;      /* for doubly linked list */
@@ -205,7 +198,15 @@ typedef struct cacheSpace {
 
 typedef struct {
     MPI_Comm commMDL;             /* Current active communicator */
+#ifdef USE_CUDA
+    void *cudaCtx;
+    OPA_Queue_info_t queueCUDA;
+#endif
+#if defined(USE_CUDA) || defined(USE_CL)
+    int inCudaBufSize, outCudaBufSize;
+#endif
     OPA_Queue_info_t queueMPI;
+    OPA_Queue_info_t queueWORK;
     OPA_Queue_info_t localFlushBuffers;
     MDLflushBuffer **flushBuffersByRank;
     MDLflushBuffer **flushBuffersByCore;

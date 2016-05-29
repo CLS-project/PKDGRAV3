@@ -1,5 +1,6 @@
 #ifndef CUDAUTIL_H
 #define CUDAUTIL_H
+#include "opa_queue.h"
 #include "basetype.h"
 #include "ilp.h"
 
@@ -9,7 +10,7 @@ extern "C" {
 #ifdef USE_CUDA
     void CUDA_nvtxRangePush(char *name);
     void CUDA_nvtxRangePop();
-    void *CUDA_initialize(int nCores, int iCore);
+    void *CUDA_initialize(int nCores, int iCore,OPA_Queue_info_t *queueWORK);
     void CUDA_finish(void *vctx);
     void CUDA_SetQueueSize(void *vcuda,int cudaSize, int inCudaBufSize, int outCudaBufSiz);
 
@@ -20,9 +21,10 @@ extern "C" {
     int CUDA_queuePP(void *cudaCtx,workParticle *wp, ILPTILE tile, int bGravStep);
     int CUDA_queuePC(void *cudaCtx,workParticle *wp, ILCTILE tile, int bGravStep);
     void CUDA_sendWork(void *cudaCtx);
+    void CUDA_flushEwald(void *cudaCtx);
     void CUDA_checkForRecovery(void *vcuda);
+    void CUDA_startWork(void *vcuda,OPA_Queue_info_t *queueWORK);
     void pkdAccumulateCUDA(void *vpkd,workEwald *we,gpuEwaldOutput *fromGPU);
-
 #else
 #include "simd.h"
 #define CUDA_malloc SIMD_malloc
@@ -66,24 +68,28 @@ void CUDA_Abort(cudaError_t rc, const char *fname, const char *file, int line);
 #define CUDA_CHECK(f,a) {cudaError_t rc = (f)a; if (rc!=cudaSuccess) CUDA_Abort(rc,#f,__FILE__,__LINE__);}
 #define CUDA_RETURN(f,a) {cudaError_t rc = (f)a; if (rc!=cudaSuccess) return rc;}
 
-#define CUDA_PP_MAX_BUFFERED 128
+#define CUDA_WP_MAX_BUFFERED 128
 
 typedef struct cuda_wq_node {
+    union {
+	OPA_Queue_element_hdr_t hdr;
+	struct cuda_wq_node *next;
+	} q;
+    OPA_Queue_info_t *pwqDone; // Where to return this
     /* We can put this on different types of queues */
-    struct cuda_wq_node *next;
+//    struct cuda_wq_node *next;
     void *ctx;
-    int (*initFcn)(void *,void *);
-    int (*checkFcn)(void *,void *);
+    int (*initFcn)(void *ctx,void *work);
+    int (*doneFcn)(void *ctx,void *work);
     void *pHostBufToGPU, *pHostBufFromGPU;
-    void *pCudaBufIn;
-    void *pCudaBufOut;
+    void *pCudaBufIn, *pCudaBufOut;
     double startTime;
 #ifdef USE_CUDA_EVENTS
     cudaEvent_t event;       // Results have been copied back
 #endif
     cudaStream_t stream;     // execution stream
-    workParticle *ppWP[CUDA_PP_MAX_BUFFERED];
-    int ppNI[CUDA_PP_MAX_BUFFERED];
+    workParticle *ppWP[CUDA_WP_MAX_BUFFERED];
+    int ppNI[CUDA_WP_MAX_BUFFERED];
     int ppSizeIn; // Number of bytes consumed in the buffer
     int ppSizeOut; // Number of bytes consumed in the buffer
     int ppnBlocks;
@@ -95,15 +101,22 @@ typedef struct cuda_wq_node {
 	    size_t nBufferOut;
 	    int nGrid;
 	    } pppc;
+	struct {
+	    int nParticles;
+	    } ewald;
 	};
     } CUDAwqNode;
 
 typedef struct cuda_ctx {
     struct cudaDeviceProp prop;
-    CUDAwqNode *wqCuda;
-    CUDAwqNode *wqFree;
+    CUDAwqNode *wqCudaBusy;  // Private to this CUDACTX
+    OPA_Queue_info_t wqFree; // We can receive from another thread
+    OPA_Queue_info_t wqDone; // We can receive from another thread
+    OPA_Queue_info_t *queueWORK;
+
     CUDAwqNode *nodePP; // We are building a PP request
     CUDAwqNode *nodePC; // We are building a PC request
+    CUDAwqNode *nodeEwald; // We are building an Ewald request
     int nWorkQueueSize, nWorkQueueBusy;
     int inCudaBufSize, outCudaBufSize;
     int epoch;
@@ -119,6 +132,7 @@ typedef struct cuda_ctx {
 
 void CUDA_attempt_recovery(CUDACTX cuda,cudaError_t errorCode);
 double CUDA_getTime();
+CUDAwqNode *getNode(CUDACTX cuda);
 #endif
 
 #endif

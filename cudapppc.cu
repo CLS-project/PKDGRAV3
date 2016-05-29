@@ -67,28 +67,6 @@ struct __align__(32) ppResult {
     float normsum;
     };
 
-int isWqEmpty(CUDACTX cuda) {
-    return cuda->wqFree == NULL;
-    }
-
-CUDAwqNode *getNode(CUDACTX cuda) {
-    CUDAwqNode *work;
-    /* Bit of a hack here: keep a buffer around for Ewald */
-    CUDA_flushDone(cuda);
-    if (cuda->wqFree == NULL || cuda->wqFree->next==NULL) return NULL;
-    work = cuda->wqFree;
-    cuda->wqFree = work->next;
-    ++cuda->nWorkQueueBusy;
-    work->ctx = cuda;
-    work->checkFcn = NULL;
-    work->next = cuda->wqCuda;
-    work->ppSizeIn = 0;
-    work->ppSizeOut = 0;
-    work->ppnBuffered = 0;
-    work->ppnBlocks = 0;
-    return work;
-    }
-
 #define NP_ALIGN (128/sizeof(ppResult))
 #define NP_ALIGN_MASK (NP_ALIGN-1)
 
@@ -653,11 +631,12 @@ void CUDA_sendWork(CUDACTX cuda,CUDAwqNode **head) {
         work->pppc.nGrid = iI/nWUPerTB;
         work->pppc.nBufferIn = reinterpret_cast<char *>(partHost) - reinterpret_cast<char *>(work->pHostBufToGPU);
 
-        work->next = cuda->wqCuda;
-        cuda->wqCuda = work;
         work->startTime = CUDA_getTime();
-        cudaError_t rc = static_cast<cudaError_t>((*work->initFcn)(work->ctx,work));
-        if ( rc != cudaSuccess) CUDA_attempt_recovery(cuda,rc);
+        OPA_Queue_enqueue(cuda->queueWORK, work, CUDAwqNode, q.hdr);
+//        work->q.next = cuda->wqCudaBusy;
+//        cuda->wqCudaBusy = work;
+//        cudaError_t rc = static_cast<cudaError_t>((*work->initFcn)(work->ctx,work));
+//        if ( rc != cudaSuccess) CUDA_attempt_recovery(cuda,rc);
 
         *head = NULL;
         }
@@ -767,7 +746,7 @@ int CUDA_queue(CUDACTX cuda,CUDAwqNode **head,workParticle *wp, TILE tile, int b
         *head = work = getNode(cuda);
         if (work==NULL) return 0;
         work->ctx = NULL;
-        work->checkFcn = CUDAcheckWorkInteraction<nIntPerWU>;
+        work->doneFcn = CUDAcheckWorkInteraction<nIntPerWU>;
         work->initFcn = initWork<nIntPerTB,nIntPerWU,BLK>;
         work->ppSizeIn = 0;
         work->ppSizeOut = 0;
@@ -790,7 +769,7 @@ int CUDA_queue(CUDACTX cuda,CUDAwqNode **head,workParticle *wp, TILE tile, int b
         work->ppWP[work->ppnBuffered] = wp;
         ++wp->nRefs;
 
-        if ( ++work->ppnBuffered == CUDA_PP_MAX_BUFFERED) CUDA_sendWork<nIntPerTB,nIntPerWU,BLK>(cuda,head);
+        if ( ++work->ppnBuffered == CUDA_WP_MAX_BUFFERED) CUDA_sendWork<nIntPerTB,nIntPerWU,BLK>(cuda,head);
         }
     // Evaluate the "hair" on the CPU
     if (nBlocks > nBlocksAligned) {

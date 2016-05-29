@@ -96,8 +96,8 @@ static inline float rsqrtf(float v) {
 ** This is called after work has been done for this particle group.
 ** If everyone has finished, then the particle is updated.
 */
-void pkdParticleWorkDone(workParticle *work) {
-    PKD pkd = work->ctx;
+void pkdParticleWorkDone(workParticle *wp) {
+    PKD pkd = wp->ctx;
     int i;
     PARTICLE *p;
     double r[3];
@@ -107,39 +107,39 @@ void pkdParticleWorkDone(workParticle *work) {
     float maga, dT, dtGrav;
     unsigned char uNewRung;
 
-    if ( --work->nRefs == 0 ) {
+    if ( --wp->nRefs == 0 ) {
 	float fiDelta = 1.0/pkd->param.dDelta;
 	float fEta = pkd->param.dEta;
-	float fiAccFac = 1.0 / work->dAccFac;
-	pkd->dFlop += work->dFlop;
-	pkd->dFlopSingleCPU += work->dFlopSingleCPU;
-	pkd->dFlopDoubleCPU += work->dFlopDoubleCPU;
-	pkd->dFlopSingleGPU += work->dFlopSingleGPU;
-	pkd->dFlopDoubleGPU += work->dFlopDoubleGPU;
-	for( i=0; i<work->nP; i++ ) {
-	    p = work->pPart[i];
+	float fiAccFac = 1.0 / wp->dAccFac;
+	pkd->dFlop += wp->dFlop;
+	pkd->dFlopSingleCPU += wp->dFlopSingleCPU;
+	pkd->dFlopDoubleCPU += wp->dFlopDoubleCPU;
+	pkd->dFlopSingleGPU += wp->dFlopSingleGPU;
+	pkd->dFlopDoubleGPU += wp->dFlopDoubleGPU;
+	for( i=0; i<wp->nP; i++ ) {
+	    p = wp->pPart[i];
 	    pkdGetPos1(pkd,p,r);
 	    m = pkdMass(pkd,p);
 	    if (pkd->oAcceleration) {
 		a = pkdAccel(pkd,p);
-		a[0] = work->pInfoOut[i].a[0];
-		a[1] = work->pInfoOut[i].a[1];
-		a[2] = work->pInfoOut[i].a[2];
+		a[0] = wp->pInfoOut[i].a[0];
+		a[1] = wp->pInfoOut[i].a[1];
+		a[2] = wp->pInfoOut[i].a[2];
 		}
 	    if (pkd->oPotential) {
 		float *pPot = pkdPot(pkd,p);
-		*pPot = work->pInfoOut[i].fPot;
+		*pPot = wp->pInfoOut[i].fPot;
 		}
-	    a = work->pInfoOut[i].a;
-	    pkd->dEnergyU += 0.5 * m * work->pInfoOut[i].fPot;
+	    a = wp->pInfoOut[i].a;
+	    pkd->dEnergyU += 0.5 * m * wp->pInfoOut[i].fPot;
 	    pkd->dEnergyW += m*(r[0]*a[0] + r[1]*a[1] + r[2]*a[2]);
 	    pkd->dEnergyF[0] += m*a[0];
 	    pkd->dEnergyF[1] += m*a[1];
 	    pkd->dEnergyF[2] += m*a[2];
 
-	    if (work->bGravStep) {
-		float dirsum = work->pInfoOut[i].dirsum;
-		float normsum = work->pInfoOut[i].normsum;
+	    if (wp->bGravStep) {
+		float dirsum = wp->pInfoOut[i].dirsum;
+		float normsum = wp->pInfoOut[i].normsum;
 
 		/*
 		** If this is the first time through, the accelerations will have 
@@ -150,29 +150,29 @@ void pkdParticleWorkDone(workParticle *work) {
 		    /*
 		    ** Use new acceleration here!
 		    */
-		    fx = work->pInfoOut[i].a[0];
-		    fy = work->pInfoOut[i].a[1];
-		    fz = work->pInfoOut[i].a[2];
+		    fx = wp->pInfoOut[i].a[0];
+		    fy = wp->pInfoOut[i].a[1];
+		    fz = wp->pInfoOut[i].a[2];
 		    maga = fx*fx + fy*fy + fz*fz;
 		    if (maga>0.0f) maga = asqrtf(maga);
 		    dtGrav = maga*dirsum/normsum;
 		    }
 		else dtGrav = 0.0;
-		dtGrav += pkd->param.dPreFacRhoLoc*work->pInfoIn[i].fDensity;
-		dtGrav = (work->pInfoOut[i].rhopmax > dtGrav?work->pInfoOut[i].rhopmax:dtGrav);
+		dtGrav += pkd->param.dPreFacRhoLoc*wp->pInfoIn[i].fDensity;
+		dtGrav = (wp->pInfoOut[i].rhopmax > dtGrav?wp->pInfoOut[i].rhopmax:dtGrav);
 		if (dtGrav > 0.0) {
-		    dT = fEta * rsqrtf(dtGrav*work->dRhoFac);
+		    dT = fEta * rsqrtf(dtGrav*wp->dRhoFac);
 		    uNewRung = pkdDtToRungInverse(dT,fiDelta,pkd->param.iMaxRung-1);
 		    }
 		else uNewRung = 0; /* Assumes current uNewRung is outdated -- not ideal */
-		} /* end of work->bGravStep */
+		} /* end of wp->bGravStep */
 	    else {
 		/*
 		** We are doing eps/a timestepping.
 		*/
-		fx = work->pInfoOut[i].a[0];
-		fy = work->pInfoOut[i].a[1];
-		fz = work->pInfoOut[i].a[2];
+		fx = wp->pInfoOut[i].a[0];
+		fy = wp->pInfoOut[i].a[1];
+		fz = wp->pInfoOut[i].a[2];
 		maga = fx*fx + fy*fy + fz*fz;
 		if (maga > 0) {
 		    float imaga = rsqrtf(maga) * fiAccFac;
@@ -186,8 +186,8 @@ void pkdParticleWorkDone(workParticle *work) {
 	    ** timestep than the current active particles involved in the
 	    ** gravity calculation!
 	    */
-	    if (uNewRung < work->uRungLo) uNewRung = work->uRungLo;
-	    else if (uNewRung > work->uRungHi) uNewRung = work->uRungHi; 
+	    if (uNewRung < wp->uRungLo) uNewRung = wp->uRungLo;
+	    else if (uNewRung > wp->uRungHi) uNewRung = wp->uRungHi; 
 	    if (!pkd->bNoParticleOrder) p->uNewRung = uNewRung;
 	    /*
 	    ** Now we want to kick the particle velocities with a closing kick 
@@ -205,10 +205,10 @@ void pkdParticleWorkDone(workParticle *work) {
 	    */
 	    if (pkd->oVelocity) {
 		v = pkdVel(pkd,p);
-		if (work->bKickClose) {
-		    v[0] += work->dtClose[p->uRung]*work->pInfoOut[i].a[0];
-		    v[1] += work->dtClose[p->uRung]*work->pInfoOut[i].a[1];
-		    v[2] += work->dtClose[p->uRung]*work->pInfoOut[i].a[2];
+		if (wp->bKickClose) {
+		    v[0] += wp->dtClose[p->uRung]*wp->pInfoOut[i].a[0];
+		    v[1] += wp->dtClose[p->uRung]*wp->pInfoOut[i].a[1];
+		    v[2] += wp->dtClose[p->uRung]*wp->pInfoOut[i].a[2];
 		    }
 		v2 = v[0]*v[0] + v[1]*v[1] + v[2]*v[2];
 		/*
@@ -220,19 +220,19 @@ void pkdParticleWorkDone(workParticle *work) {
 		pkd->dEnergyL[1] += m*(r[2]*v[0] - r[0]*v[2]);
 		pkd->dEnergyL[2] += m*(r[0]*v[1] - r[1]*v[0]);
 
-		if (work->bKickOpen) {
+		if (wp->bKickOpen) {
 		    p->uRung = uNewRung;
 		    ++pkd->nRung[p->uRung];
-		    v[0] += work->dtOpen[p->uRung]*work->pInfoOut[i].a[0];
-		    v[1] += work->dtOpen[p->uRung]*work->pInfoOut[i].a[1];
-		    v[2] += work->dtOpen[p->uRung]*work->pInfoOut[i].a[2];		    
+		    v[0] += wp->dtOpen[p->uRung]*wp->pInfoOut[i].a[0];
+		    v[1] += wp->dtOpen[p->uRung]*wp->pInfoOut[i].a[1];
+		    v[2] += wp->dtOpen[p->uRung]*wp->pInfoOut[i].a[2];		    
 		    }
 		}
 	    }
-	free(work->pPart);
-	free(work->pInfoIn);
-	free(work->pInfoOut);
-	free(work);
+	free(wp->pPart);
+	free(wp->pInfoIn);
+	free(wp->pInfoOut);
+	free(wp);
 	}
     }
 
@@ -441,7 +441,7 @@ void pkdGravEvalPP(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  PINF
 
 int CPUdoWorkPP(void *vpp) {
     workPP *pp = vpp;
-    workParticle *work = pp->work;
+    workParticle *wp = pp->work;
     ILPTILE tile = pp->tile;
     ILP_BLK *blk = tile->blk;
     PINFOIN *pPart = &pp->work->pInfoIn[pp->i];
@@ -456,7 +456,7 @@ int CPUdoWorkPP(void *vpp) {
     pOut->dirsum = 0.0;
     pOut->normsum = 0.0;
     pkdGravEvalPP(pPart,nBlocks,nInLast,blk,pOut);
-    work->dFlopSingleCPU += COST_FLOP_PP*(tile->lstTile.nBlocks*ILP_PART_PER_BLK  + tile->lstTile.nInLast);
+    wp->dFlopSingleCPU += COST_FLOP_PP*(tile->lstTile.nBlocks*ILP_PART_PER_BLK  + tile->lstTile.nInLast);
     if ( ++pp->i == pp->work->nP ) return 0;
     else return 1;
     }
@@ -480,24 +480,24 @@ int doneWorkPP(void *vpp) {
     return 0;
     }
 
-static void queuePP( PKD pkd, workParticle *work, ILP ilp, int bGravStep ) {
+static void queuePP( PKD pkd, workParticle *wp, ILP ilp, int bGravStep ) {
     ILPTILE tile;
     workPP *pp;
 
     ILP_LOOP(ilp,tile) {
 #ifdef USE_CUDA
-	if (CUDA_queuePP(pkd->mdl->cudaCtx,work,tile,bGravStep)) continue;
+	if (CUDA_queuePP(pkd->mdl->cudaCtx,wp,tile,bGravStep)) continue;
 #endif
 	pp = malloc(sizeof(workPP));
 	assert(pp!=NULL);
-	pp->pInfoOut = malloc(sizeof(PINFOOUT) * work->nP);
+	pp->pInfoOut = malloc(sizeof(PINFOOUT) * wp->nP);
 	assert(pp->pInfoOut!=NULL);
-	pp->work = work;
+	pp->work = wp;
 	pp->ilp = ilp;
 	pp->tile = tile;
 	pp->i = 0;
 	tile->lstTile.nRefs++;
-	work->nRefs++;
+	wp->nRefs++;
 	mdlAddWork(pkd->mdl,pp,NULL,NULL,CPUdoWorkPP,doneWorkPP);
 	}
     }
@@ -792,7 +792,7 @@ void pkdGravEvalPC(PINFOIN *pPart, int nBlocks, int nInLast, ILC_BLK *blk,  PINF
 
 int CPUdoWorkPC(void *vpc) {
     workPC *pc = vpc;
-    workParticle *work = pc->work;
+    workParticle *wp = pc->work;
     ILCTILE tile = pc->tile;
     ILC_BLK *blk = tile->blk;
     PINFOIN *pPart = &pc->work->pInfoIn[pc->i];
@@ -807,7 +807,7 @@ int CPUdoWorkPC(void *vpc) {
     pOut->dirsum = 0.0;
     pOut->normsum = 0.0;
     pkdGravEvalPC(pPart,nBlocks,nInLast,blk,pOut);
-    work->dFlopSingleCPU += COST_FLOP_PC*(tile->lstTile.nBlocks*ILC_PART_PER_BLK  + tile->lstTile.nInLast);
+    wp->dFlopSingleCPU += COST_FLOP_PC*(tile->lstTile.nBlocks*ILC_PART_PER_BLK  + tile->lstTile.nInLast);
     if ( ++pc->i == pc->work->nP ) return 0;
     else return 1;
     }
@@ -832,28 +832,29 @@ int doneWorkPC(void *vpc) {
     return 0;
     }
 
-static void queuePC( PKD pkd,  workParticle *work, ILC ilc, int bGravStep ) {
+static void queuePC( PKD pkd,  workParticle *wp, ILC ilc, int bGravStep ) {
     ILCTILE tile;
     workPC *pc;
 
     ILC_LOOP(ilc,tile) {
 #ifdef USE_CUDA
-	if (CUDA_queuePC(pkd->mdl->cudaCtx,work,tile,bGravStep)) continue;
+	if (CUDA_queuePC(pkd->mdl->cudaCtx,wp,tile,bGravStep)) continue;
 #endif
 	pc = malloc(sizeof(workPC));
 	assert(pc!=NULL);
-	pc->pInfoOut = malloc(sizeof(PINFOOUT) * work->nP);
+	pc->pInfoOut = malloc(sizeof(PINFOOUT) * wp->nP);
 	assert(pc->pInfoOut!=NULL);
-	pc->work = work;
+	pc->work = wp;
 	pc->ilc = ilc;
 	pc->tile = tile;
 	pc->i = 0;
 	tile->lstTile.nRefs++;
-	work->nRefs++;
+	wp->nRefs++;
 	mdlAddWork(pkd->mdl,pc,NULL,NULL,CPUdoWorkPC,doneWorkPC);
 	}
     }
 
+#ifdef OLD_CUDA_EWALD
 int CPUdoWorkEwald(void *ve) {
     workEwald *ew = ve;
     PKD pkd = (PKD)ew->pkd;
@@ -882,6 +883,7 @@ int doneWorkEwald(void *ve) {
     return 0;
     }
 
+
 void pkdGravStartEwald(PKD pkd) {
     pkd->ewWork = malloc(sizeof(workEwald));
     assert(pkd->ewWork!=NULL);
@@ -893,7 +895,12 @@ void pkdGravStartEwald(PKD pkd) {
     assert(pkd->ewWork->piWorkPart!=NULL);
     }
 
+#define TEST_NEW
+
 void pkdGravFinishEwald(PKD pkd) {
+#ifdef TEST_NEW
+#else
+#endif
     /* Finish any Ewald work */
     if (pkd->ewWork->nP) {
 #if defined(USE_CL)
@@ -906,19 +913,35 @@ void pkdGravFinishEwald(PKD pkd) {
 	}
     pkd->ewWork = NULL;
     }
+#endif
 
-static void queueEwald( PKD pkd, workParticle *work ) {
+static void queueEwald( PKD pkd, workParticle *wp ) {
     int i;
-    for( i=0; i<work->nP; i++ ) {
+#ifndef OLD_CUDA_EWALD
+    int nQueued = CUDA_queueEwald(pkd->mdl->cudaCtx,wp);
+    ++wp->nRefs;
+    for( i=nQueued; i<wp->nP; ++i) {
+	PINFOIN *in = &wp->pInfoIn[i];
+	PINFOOUT *out = &wp->pInfoOut[i];
+	double r[3];
+	r[0] = wp->c[0] + in->r[0];
+	r[1] = wp->c[1] + in->r[1];
+	r[2] = wp->c[2] + in->r[2];
+	wp->dFlop += pkdParticleEwald(pkd,r,out->a,&out->fPot,&wp->dFlopSingleCPU,&wp->dFlopDoubleCPU);
+	}
+    pkdParticleWorkDone(wp);
+#else
+    for( i=0; i<wp->nP; i++ ) {
 	if (pkd->ewWork->nP == MAX_EWALD_PARTICLES) {
 	    pkdGravFinishEwald(pkd);
 	    pkdGravStartEwald(pkd);
 	    }
-	pkd->ewWork->ppWorkPart[pkd->ewWork->nP] = work;
+	pkd->ewWork->ppWorkPart[pkd->ewWork->nP] = wp;
 	pkd->ewWork->piWorkPart[pkd->ewWork->nP] = i;
 	++pkd->ewWork->nP;
-	++work->nRefs;
+	++wp->nRefs;
 	}
+#endif
     }
 
 /*
@@ -958,40 +981,40 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     nSoft = 0;
 
     /* Collect the bucket particle information */
-    workParticle *work = malloc(sizeof(workParticle));
-    assert(work!=NULL);
+    workParticle *wp = malloc(sizeof(workParticle));
+    assert(wp!=NULL);
     /* This is the maximum number of particles -- there may be fewer of course */
     nP = pkdn->pUpper - pkdn->pLower + 1;
-    work->pPart = malloc(sizeof(PARTICLE *) * nP); assert(work->pPart != NULL);
-    work->pInfoIn = malloc(sizeof(PINFOIN) * nP); assert(work->pInfoIn != NULL);
-    work->pInfoOut = malloc(sizeof(PINFOOUT) * nP); assert(work->pInfoOut != NULL);
-    work->c[0] = ilp->cx; assert(work->c[0] == ilc->cx);
-    work->c[1] = ilp->cy; assert(work->c[1] == ilc->cy);
-    work->c[2] = ilp->cz; assert(work->c[2] == ilc->cz);
+    wp->pPart = malloc(sizeof(PARTICLE *) * nP); assert(wp->pPart != NULL);
+    wp->pInfoIn = malloc(sizeof(PINFOIN) * nP); assert(wp->pInfoIn != NULL);
+    wp->pInfoOut = malloc(sizeof(PINFOOUT) * nP); assert(wp->pInfoOut != NULL);
+    wp->c[0] = ilp->cx; assert(wp->c[0] == ilc->cx);
+    wp->c[1] = ilp->cy; assert(wp->c[1] == ilc->cy);
+    wp->c[2] = ilp->cz; assert(wp->c[2] == ilc->cz);
 
-    work->nRefs = 1; /* I am using it currently */
-    work->dFlop = 0.0;
-    work->dFlopSingleCPU = work->dFlopSingleGPU = 0.0;
-    work->dFlopDoubleCPU = work->dFlopDoubleGPU = 0.0;
-    work->nP = 0;
-    work->dRhoFac = dRhoFac;
-    work->ctx = pkd;
-    work->bGravStep = bGravStep;
-    work->uRungLo = uRungLo;
-    work->uRungHi = uRungHi;
-    work->bKickClose = bKickClose;
-    work->bKickOpen = bKickOpen;
+    wp->nRefs = 1; /* I am using it currently */
+    wp->dFlop = 0.0;
+    wp->dFlopSingleCPU = wp->dFlopSingleGPU = 0.0;
+    wp->dFlopDoubleCPU = wp->dFlopDoubleGPU = 0.0;
+    wp->nP = 0;
+    wp->dRhoFac = dRhoFac;
+    wp->ctx = pkd;
+    wp->bGravStep = bGravStep;
+    wp->uRungLo = uRungLo;
+    wp->uRungHi = uRungHi;
+    wp->bKickClose = bKickClose;
+    wp->bKickOpen = bKickOpen;
     /*
     ** We copy the pointers here assuming that the storage for them lasts at least as long as
     ** the work structure. Depending on how this is called it could create problems if the 
     ** work is flushed out somewhere else, as is the case when using CUDA.
     */
-    work->dTime = dTime;  /* maybe we want the look-back factor. */
-    work->dtClose = dtClose;
-    work->dtOpen = dtOpen;
-    work->dAccFac = dAccFac;
+    wp->dTime = dTime;  /* maybe we want the look-back factor. */
+    wp->dtClose = dtClose;
+    wp->dtOpen = dtOpen;
+    wp->dAccFac = dAccFac;
 #ifdef USE_CUDA
-    work->cudaCtx = pkd->cudaCtx;
+    wp->cudaCtx = pkd->cudaCtx;
 #endif
 
     for (i=pkdn->pLower;i<=pkdn->pUpper;++i) {
@@ -1003,32 +1026,32 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
 	fSoft = pkdSoft(pkd,p);
 	v = pkdVel(pkd,p);
 
-	nP = work->nP++;
-	work->pPart[nP] = p;
+	nP = wp->nP++;
+	wp->pPart[nP] = p;
 
-	work->pInfoIn[nP].r[0]  = (float)(r[0] - ilp->cx);
-	work->pInfoIn[nP].r[1]  = (float)(r[1] - ilp->cy);
-	work->pInfoIn[nP].r[2]  = (float)(r[2] - ilp->cz);
+	wp->pInfoIn[nP].r[0]  = (float)(r[0] - ilp->cx);
+	wp->pInfoIn[nP].r[1]  = (float)(r[1] - ilp->cy);
+	wp->pInfoIn[nP].r[2]  = (float)(r[2] - ilp->cz);
 	if (pkd->oAcceleration) {
 	    ap = pkdAccel(pkd,p);
-	    work->pInfoIn[nP].a[0]  = ap[0];
-	    work->pInfoIn[nP].a[1]  = ap[1];
-	    work->pInfoIn[nP].a[2]  = ap[2];
+	    wp->pInfoIn[nP].a[0]  = ap[0];
+	    wp->pInfoIn[nP].a[1]  = ap[1];
+	    wp->pInfoIn[nP].a[2]  = ap[2];
 	    ap[0] = ap[1] = ap[2] = 0.0;
 	    }
 	else {
-	    work->pInfoIn[nP].a[0]  = 0;
-	    work->pInfoIn[nP].a[1]  = 0;
-	    work->pInfoIn[nP].a[2]  = 0;
+	    wp->pInfoIn[nP].a[0]  = 0;
+	    wp->pInfoIn[nP].a[1]  = 0;
+	    wp->pInfoIn[nP].a[2]  = 0;
 	    }
 
-	work->pInfoOut[nP].a[0] = 0.0f;
-	work->pInfoOut[nP].a[1] = 0.0f;
-	work->pInfoOut[nP].a[2] = 0.0f;
-	work->pInfoOut[nP].fPot = 0.0f;
-	work->pInfoOut[nP].dirsum = dirLsum;
-	work->pInfoOut[nP].normsum = normLsum;
-	work->pInfoOut[nP].rhopmax = 0.0f;
+	wp->pInfoOut[nP].a[0] = 0.0f;
+	wp->pInfoOut[nP].a[1] = 0.0f;
+	wp->pInfoOut[nP].a[2] = 0.0f;
+	wp->pInfoOut[nP].fPot = 0.0f;
+	wp->pInfoOut[nP].dirsum = dirLsum;
+	wp->pInfoOut[nP].normsum = normLsum;
+	wp->pInfoOut[nP].rhopmax = 0.0f;
 
 	/*
 	** Calculate local density and kernel smoothing length for dynamical time-stepping
@@ -1038,28 +1061,28 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
 	    ** Calculate local density using smooth; this is fast because the particles are
 	    ** likely to be cached already because they will be on the P-P list.
 	    */
-	    smf->pfDensity = &work->pInfoIn[nP].fDensity;
+	    smf->pfDensity = &wp->pInfoIn[nP].fDensity;
 	    fBall = smSmoothSingle(smx,smf,p,iRoot1,iRoot2);
-	    work->pInfoIn[nP].fSmooth2 = fBall * fBall;
+	    wp->pInfoIn[nP].fSmooth2 = fBall * fBall;
 	    }
 	else {
 	    /*
 	    ** We are not using GravStep!
 	    */
-	    work->pInfoIn[nP].fSmooth2 = 0.0;
+	    wp->pInfoIn[nP].fSmooth2 = 0.0;
 	    }
 	}
 
-    nActive += work->nP;
+    nActive += wp->nP;
 
     /*
     ** Evaluate the local expansion.
     */
     if (pLoc) {
-	for( i=0; i<work->nP; i++ ) {
-	    double *c = work->c;
-	    float *in = work->pInfoIn[i].r;
-	    //pkdGetPos1(work->pPart[i]->r,r);
+	for( i=0; i<wp->nP; i++ ) {
+	    double *c = wp->c;
+	    float *in = wp->pInfoIn[i].r;
+	    //pkdGetPos1(wp->pPart[i]->r,r);
 	    r[0] = c[0] + in[0];
 	    r[1] = c[1] + in[1];
 	    r[2] = c[2] + in[2];
@@ -1077,10 +1100,10 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
 
 	    momEvalLocr(pLoc,dx,dy,dz,&dPot,&ax,&ay,&az);
 
-	    work->pInfoOut[i].fPot += dPot;
-	    work->pInfoOut[i].a[0] += ax;
-	    work->pInfoOut[i].a[1] += ay;
-	    work->pInfoOut[i].a[2] += az;
+	    wp->pInfoOut[i].fPot += dPot;
+	    wp->pInfoOut[i].a[0] += ax;
+	    wp->pInfoOut[i].a[1] += ay;
+	    wp->pInfoOut[i].a[2] += az;
 	    }
 	}
 
@@ -1088,27 +1111,27 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     ** Evaluate the P-C interactions
     */
     assert(ilc->cx==ilp->cx && ilc->cy==ilp->cy && ilc->cz==ilp->cz );
-    queuePC( pkd,  work, ilc, bGravStep );
+    queuePC( pkd,  wp, ilc, bGravStep );
 
     /*
     ** Evaluate the P-P interactions
     */
-    queuePP( pkd, work, ilp, bGravStep );
+    queuePP( pkd, wp, ilp, bGravStep );
 
     /*
     ** Calculate the Ewald correction for this particle, if it is required.
     */
     if (bEwald) {
-	queueEwald( pkd,  work );
+	queueEwald( pkd,  wp );
 	}
 
-    for( i=0; i<work->nP; i++ ) {
-	double *c = work->c;
-	float *in = work->pInfoIn[i].r;
+    for( i=0; i<wp->nP; i++ ) {
+	double *c = wp->c;
+	float *in = wp->pInfoIn[i].r;
 	r[0] = c[0] + in[0];
 	r[1] = c[1] + in[1];
 	r[2] = c[2] + in[2];
-        //p = work->pPart[i];
+        //p = wp->pPart[i];
 	//pkdGetPos1(p->r,r);
         v = pkdVel(pkd,p);
         /*
@@ -1164,12 +1187,12 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
 			}
 		    }
 		}
-	    work->pInfoOut[i].rhopmax = rhopmax;
+	    wp->pInfoOut[i].rhopmax = rhopmax;
 	    }
 #endif
         } /* end of i-loop cells & particles */
 
-    pkdParticleWorkDone(work);
+    pkdParticleWorkDone(wp);
 
     *pdFlop += nActive*(ilpCount(pkd->ilp)*COST_FLOP_PP + ilcCount(pkd->ilc)*COST_FLOP_PC) + nSoft*15;
     return(nActive);

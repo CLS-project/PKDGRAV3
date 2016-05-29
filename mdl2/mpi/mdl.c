@@ -1139,6 +1139,13 @@ static int checkMPI(MDL mdl) {
 		}
 	    continue;
 	    }
+
+	/* Start any CUDA work packages */
+#ifdef USE_CUDA
+	CUDA_startWork(mpi->cudaCtx,&mpi->queueWORK);
+	CUDA_flushDone(mpi->cudaCtx);
+#endif
+
 	/* These are messages/completions from/to other MPI processes. */
 	if (mpi->nSendRecvReq) {
 	    MPI_Testany(mpi->nSendRecvReq,mpi->pSendRecvReq, &indx, &flag, &status);
@@ -1220,6 +1227,7 @@ static int mdlDoSomeWork(MDL mdl) {
 void mdlCompleteAllWork(MDL mdl) {
 #ifdef USE_CUDA
     CUDA_sendWork(mdl->cudaCtx);
+    CUDA_flushEwald(mdl->cudaCtx);
 #endif
     while(mdlDoSomeWork(mdl)) {}
 #ifdef USE_CL
@@ -1416,6 +1424,7 @@ void mdlInitCommon(MDL mdl0, int iMDL,int bDiag,int argc, char **argv,
     void *clContext,
 #endif
     void * (*fcnMaster)(MDL),void * (*fcnChild)(MDL)) {
+    mdlContextMPI *mpi = mdl0->mpi;
     MDL mdl = mdl0->pmdl[iMDL];
     int i;
 
@@ -1452,7 +1461,7 @@ void mdlInitCommon(MDL mdl0, int iMDL,int bDiag,int argc, char **argv,
 
 #ifdef USE_CUDA
     mdl->inCudaBufSize = mdl->outCudaBufSize = 0;
-    mdl->cudaCtx = CUDA_initialize(mdl->base.nCores,mdl->base.iCore);
+    mdl->cudaCtx = CUDA_initialize(mdl->base.nCores,mdl->base.iCore,&mpi->queueWORK);
 #endif
 #ifdef USE_CL
     mdl->clCtx = CL_initialize(clContext,mdl->base.nCores,mdl->base.iCore);
@@ -1697,6 +1706,12 @@ void mdlLaunch(int argc,char **argv,void * (*fcnMaster)(MDL),void * (*fcnChild)(
 	assert(mdl->pmdl[i] != NULL);
 	}
 
+/* All GPU work is funneled through the MPI thread */
+#ifdef USE_CUDA
+    mpi->inCudaBufSize = mpi->outCudaBufSize = 0;
+    mpi->cudaCtx = CUDA_initialize(0,-1,NULL);
+    OPA_Queue_init(&mpi->queueCUDA);
+#endif
 #ifdef USE_CL
     void * clContext = CL_create_context();
 #endif
@@ -1709,6 +1724,7 @@ void mdlLaunch(int argc,char **argv,void * (*fcnMaster)(MDL),void * (*fcnChild)(
 
 
     OPA_Queue_init(&mpi->queueMPI);
+    OPA_Queue_init(&mpi->queueWORK);
     OPA_Queue_header_init(&mdl->inMessage.hdr);
     OPA_Queue_header_init(&mdl->sendRequest.svc.hdr);
     OPA_Queue_header_init(&mdl->recvRequest.svc.hdr);
@@ -1883,6 +1899,9 @@ void mdlFinish(MDL mdl) {
 	}
     mpi->freeCacheReplies = NULL;
 
+#ifdef USE_CUDA
+    CUDA_finish(mdl->mpi->cudaCtx);
+#endif
     free(mdl->mpi->pReqRcv);
     free(mdl->base.iProcToThread);
     free(mpi->pSendRecvReq);

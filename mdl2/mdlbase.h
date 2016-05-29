@@ -5,6 +5,13 @@
 #endif
 #include <stdio.h>
 #include <stdint.h>
+#include "opa_queue.h"
+
+typedef struct {
+    OPA_Queue_element_hdr_t hdr;
+    uint32_t iServiceID;
+    uint32_t iCoreFrom;
+    } MDLserviceElement;
 
 /*
 ** A MDL Key must be large enough to hold the largest unique particle key.

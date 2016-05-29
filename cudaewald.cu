@@ -310,13 +310,10 @@ extern "C"
 int CUDAinitWorkEwald( void *ve, void *vwork ) {
     workEwald *e = reinterpret_cast<workEwald *>(ve);
     CUDAwqNode *work = reinterpret_cast<CUDAwqNode *>(vwork);
-    momFloat *pHostBufFromGPU  = reinterpret_cast<momFloat *>(work->pHostBufFromGPU);
-    momFloat *pHostBufToGPU    = reinterpret_cast<momFloat *>(work->pHostBufToGPU);
-    momFloat *pCudaBufIn = reinterpret_cast<momFloat *>(work->pCudaBufIn);
-    momFloat *pCudaBufOut = reinterpret_cast<momFloat *>(work->pCudaBufOut);
     gpuEwaldInput *toGPU = reinterpret_cast<gpuEwaldInput *>(work->pHostBufToGPU);
     gpuEwaldInput *onGPU = reinterpret_cast<gpuEwaldInput *>(work->pCudaBufIn);
     gpuEwaldOutput *outGPU = reinterpret_cast<gpuEwaldOutput *>(work->pCudaBufOut);
+    gpuEwaldOutput *fromGPU  = reinterpret_cast<gpuEwaldOutput *>(work->pHostBufFromGPU);
     int i;
 
     int align = (e->nP+EWALD_MASK)&~EWALD_MASK; /* Warp align the memory buffers */
@@ -341,10 +338,10 @@ int CUDAinitWorkEwald( void *ve, void *vwork ) {
         }
 
     // copy data directly to device memory
-    CUDA_RETURN(cudaMemcpyAsync,(pCudaBufIn, pHostBufToGPU, ngrid * sizeof(gpuEwaldInput),
+    CUDA_RETURN(cudaMemcpyAsync,(onGPU, toGPU, ngrid * sizeof(gpuEwaldInput),
 	    cudaMemcpyHostToDevice, work->stream));
     cudaEwald<<<dimGrid, dimBlock, 0, work->stream>>>(onGPU,outGPU);
-    CUDA_RETURN(cudaMemcpyAsync,(pHostBufFromGPU, pCudaBufOut, ngrid * sizeof(gpuEwaldOutput),
+    CUDA_RETURN(cudaMemcpyAsync,(fromGPU, outGPU, ngrid * sizeof(gpuEwaldOutput),
             cudaMemcpyDeviceToHost, work->stream));
 #ifdef USE_CUDA_EVENTS
     CUDA_RETURN(cudaEventRecord,(work->event,work->stream));
@@ -352,10 +349,6 @@ int CUDAinitWorkEwald( void *ve, void *vwork ) {
 
     return cudaSuccess;
     }
-
-extern "C"
-void pkdAccumulateCUDA(void * pkd,workEwald *we,gpuEwaldOutput *fromGPU);
-
 
 extern "C"
 int CUDAcheckWorkEwald( void *ve, void *vwork ) {
@@ -368,4 +361,107 @@ int CUDAcheckWorkEwald( void *ve, void *vwork ) {
     free(e);
     return 0;
 
+    }
+
+
+
+extern "C" void pkdParticleWorkDone(workParticle *work);
+
+extern "C"
+int CUDAdoneEwald( void *cudaCtx, void *vwork ) {
+    CUDACTX cuda = reinterpret_cast<CUDACTX>(cudaCtx);
+//    workEwald *e = reinterpret_cast<workEwald *>(ve);
+    CUDAwqNode *node = reinterpret_cast<CUDAwqNode *>(vwork);
+    gpuEwaldOutput *fromGPU = reinterpret_cast<gpuEwaldOutput *>(node->pHostBufFromGPU);
+    int iNode, i;
+    int iResult = 0;
+    for( iNode=0; iNode<node->ppnBuffered; ++iNode) {
+	workParticle *wp = node->ppWP[iNode];
+        for(i=0; i<wp->nP; ++i) {
+            int ij = iResult / EWALD_ALIGN;
+            int ii = iResult % EWALD_ALIGN;
+            ++iResult;
+            PINFOOUT *out = &wp->pInfoOut[i];
+            out->a[0] += fromGPU[ij].X[ii];
+            out->a[1] += fromGPU[ij].Y[ii];
+            out->a[2] += fromGPU[ij].Z[ii];
+            out->fPot += fromGPU[ij].Pot[ii];
+            wp->dFlopSingleGPU += COST_FLOP_HLOOP*cuda->ewIn->nEwhLoop;
+            wp->dFlopDoubleGPU += fromGPU[ij].Flop[ii];
+//            pkd->dFlop += fromGPU[ij].Flop[ii] + COST_FLOP_HLOOP*pkd->ew.nEwhLoop;
+            }
+        pkdParticleWorkDone(wp);
+        }
+    return 0;
+    }
+
+extern "C"
+int CUDAlaunchEwald( void *ve, void *vwork ) {
+//    workEwald *e = reinterpret_cast<workEwald *>(ve);
+    CUDAwqNode *node = reinterpret_cast<CUDAwqNode *>(vwork);
+
+    int align = (node->ewald.nParticles+EWALD_MASK)&~EWALD_MASK; /* Warp align the memory buffers */
+    int ngrid = align/EWALD_ALIGN;
+    dim3 dimBlock( EWALD_ALIGN, 1 );
+    dim3 dimGrid( ngrid, 1,1 );
+    gpuEwaldInput *toGPU = reinterpret_cast<gpuEwaldInput *>(node->pHostBufToGPU);
+    gpuEwaldInput *onGPU = reinterpret_cast<gpuEwaldInput *>(node->pCudaBufIn);
+    gpuEwaldOutput *outGPU = reinterpret_cast<gpuEwaldOutput *>(node->pCudaBufOut);
+    gpuEwaldOutput *fromGPU  = reinterpret_cast<gpuEwaldOutput *>(node->pHostBufFromGPU);
+    CUDA_RETURN(cudaMemcpyAsync,(onGPU, toGPU, ngrid * sizeof(gpuEwaldInput),
+            cudaMemcpyHostToDevice, node->stream));
+    cudaEwald<<<dimGrid, dimBlock, 0, node->stream>>>(onGPU,outGPU);
+    CUDA_RETURN(cudaMemcpyAsync,(fromGPU, outGPU, ngrid * sizeof(gpuEwaldOutput),
+            cudaMemcpyDeviceToHost, node->stream));
+    return cudaSuccess;
+    }
+
+extern "C"
+void CUDA_flushEwald(void *cudaCtx) {
+    CUDACTX cuda = reinterpret_cast<CUDACTX>(cudaCtx);
+    CUDAwqNode *node = cuda->nodeEwald;
+    if (node && node->ppnBuffered) {
+        node->startTime = CUDA_getTime();
+        OPA_Queue_enqueue(cuda->queueWORK, node, CUDAwqNode, q.hdr);
+//        node->q.next = cuda->wqCudaBusy;
+//        cuda->wqCudaBusy = node;
+//        cudaError_t rc = static_cast<cudaError_t>((*node->initFcn)(node->ctx,node));
+//        if ( rc != cudaSuccess) CUDA_attempt_recovery(cuda,rc);
+        cuda->nodeEwald = NULL;
+        }
+    }
+extern "C"
+int CUDA_queueEwald(void *cudaCtx,workParticle *work) {
+    CUDACTX cuda = reinterpret_cast<CUDACTX>(cudaCtx);
+    CUDAwqNode *node = cuda->nodeEwald;
+    int i;
+
+    if (node==NULL) {
+        cuda->nodeEwald = node = getNode(cuda);
+        if (node==NULL) return 0;
+        node->ewald.nParticles = 0;
+        node->ppnBuffered = 0;
+        node->ctx = cudaCtx;
+        node->doneFcn = CUDAdoneEwald;
+        node->initFcn = CUDAlaunchEwald;
+        }
+    gpuEwaldInput *toGPU = reinterpret_cast<gpuEwaldInput *>(node->pHostBufToGPU);
+    for( i=0; i<work->nP; i++ ) {
+	const PINFOIN *in = &work->pInfoIn[i];
+        int ij = node->ewald.nParticles / EWALD_ALIGN;
+        int ii = node->ewald.nParticles % EWALD_ALIGN;
+        toGPU[ij].X[ii] = work->c[0] + in->r[0];
+	toGPU[ij].Y[ii] = work->c[1] + in->r[1];
+	toGPU[ij].Z[ii] = work->c[2] + in->r[2];
+        ++node->ewald.nParticles;
+	}
+
+    node->ppNI[node->ppnBuffered] = 0; // Unused
+    node->ppWP[node->ppnBuffered] = work;
+    ++work->nRefs;
+    if ( ++node->ppnBuffered == CUDA_WP_MAX_BUFFERED) {
+        CUDA_flushEwald(cuda);
+        }
+
+    return work->nP; // Return the number of particles sucessfully queued
     }
