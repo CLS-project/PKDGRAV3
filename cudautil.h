@@ -20,6 +20,7 @@ extern "C" {
     int CUDA_flushDone(void *vcuda);
     int CUDA_queuePP(void *cudaCtx,workParticle *wp, ILPTILE tile, int bGravStep);
     int CUDA_queuePC(void *cudaCtx,workParticle *wp, ILCTILE tile, int bGravStep);
+    int CUDA_queueEwald(void *cudaCtx,workParticle *work);
     void CUDA_sendWork(void *cudaCtx);
     void CUDA_flushEwald(void *cudaCtx);
     void CUDA_checkForRecovery(void *vcuda);
