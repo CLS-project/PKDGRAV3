@@ -235,6 +235,40 @@ __global__ void cudaEwald(gpuEwaldInput *onGPU,gpuEwaldOutput *outGPU) {
     outGPU[blockIdx.x].Flop[threadIdx.x] = dFlop;
     }
 
+static int initEwaldFcn(void *ve, void *vwork) {
+    CUDAwqNode *work = reinterpret_cast<CUDAwqNode *>(vwork);
+    CUDA_RETURN(cudaMemcpyToSymbolAsync, (ew, work->initEwald.ewIn, sizeof(ew), 0, cudaMemcpyHostToDevice, work->stream));
+    CUDA_RETURN(cudaMemcpyToSymbolAsync, (hx, work->initEwald.ewt->hx.f, sizeof(float)*work->initEwald.ewIn->nEwhLoop, 0, cudaMemcpyHostToDevice, work->stream));
+    CUDA_RETURN(cudaMemcpyToSymbolAsync, (hy, work->initEwald.ewt->hy.f, sizeof(float)*work->initEwald.ewIn->nEwhLoop, 0, cudaMemcpyHostToDevice, work->stream));
+    CUDA_RETURN(cudaMemcpyToSymbolAsync, (hz, work->initEwald.ewt->hz.f, sizeof(float)*work->initEwald.ewIn->nEwhLoop, 0, cudaMemcpyHostToDevice, work->stream));
+    CUDA_RETURN(cudaMemcpyToSymbolAsync, (hCfac, work->initEwald.ewt->hCfac.f, sizeof(float)*work->initEwald.ewIn->nEwhLoop, 0, cudaMemcpyHostToDevice, work->stream));
+    CUDA_RETURN(cudaMemcpyToSymbolAsync, (hSfac, work->initEwald.ewt->hSfac.f, sizeof(float)*work->initEwald.ewIn->nEwhLoop, 0, cudaMemcpyHostToDevice, work->stream));
+    // Time(%)      Time     Calls       Avg       Min       Max  Name
+    // 14.93%  1.47255s       413  3.5655ms  2.6458ms  3.9733ms  cudaEwald(double*, double*, double*, double*, double*, double*, double*, d
+    momFloat dLx[MAX_TOTAL_REPLICAS];
+    momFloat dLy[MAX_TOTAL_REPLICAS];
+    momFloat dLz[MAX_TOTAL_REPLICAS];
+    int ibHole[MAX_TOTAL_REPLICAS];
+    int i = 0, ix, iy, iz;
+    for (ix = -3; ix <= 3; ++ix) {
+	for (iy = -3; iy <= 3; ++iy) {
+	    for (iz = -3; iz <= 3; ++iz) {
+		ibHole[i] = (abs(ix) <= work->initEwald.ewIn->nReps && abs(iy) <= work->initEwald.ewIn->nReps && abs(iz) <= work->initEwald.ewIn->nReps);
+		dLx[i] = work->initEwald.ewIn->Lbox * ix;
+		dLy[i] = work->initEwald.ewIn->Lbox * iy;
+		dLz[i] = work->initEwald.ewIn->Lbox * iz;
+		++i;
+	    }
+	}
+    }
+    CUDA_RETURN(cudaMemcpyToSymbolAsync, (Lx, dLx, sizeof(Lx), 0, cudaMemcpyHostToDevice, work->stream));
+    CUDA_RETURN(cudaMemcpyToSymbolAsync, (Ly, dLy, sizeof(Ly), 0, cudaMemcpyHostToDevice, work->stream));
+    CUDA_RETURN(cudaMemcpyToSymbolAsync, (Lz, dLz, sizeof(Lz), 0, cudaMemcpyHostToDevice, work->stream));
+    CUDA_RETURN(cudaMemcpyToSymbolAsync, (bHole, ibHole, sizeof(bHole), 0, cudaMemcpyHostToDevice, work->stream));
+    return cudaSuccess;
+    }
+
+#if 0
 /* If this returns an error, then the caller must attempt recovery or abort */
 cudaError_t cuda_setup_ewald(CUDACTX cuda) {
     if (cuda->ewIn && cuda->ewt) {
@@ -293,6 +327,7 @@ cudaError_t cuda_setup_ewald(CUDACTX cuda) {
         }
     return cudaSuccess;
     }
+#endif
 
 extern "C"
 void cudaEwaldInit(void *cudaCtx, struct EwaldVariables *ewIn, EwaldTable *ewt ) {
@@ -300,8 +335,19 @@ void cudaEwaldInit(void *cudaCtx, struct EwaldVariables *ewIn, EwaldTable *ewt )
     cuda->ewIn = ewIn;
     cuda->ewt = ewt;
     if (cuda->iCore==0) {
-        cudaError_t ec = cuda_setup_ewald(cuda);
-        if (ec != cudaSuccess) CUDA_attempt_recovery(cuda,ec);
+	assert(OPA_Queue_is_empty(&cuda->wqDone));
+	CUDAwqNode *node = getNode(cuda);
+	assert(node);
+	node->initEwald.ewIn = cuda->ewIn;
+	node->initEwald.ewt = cuda->ewt;
+	node->initFcn = initEwaldFcn;
+	OPA_Queue_enqueue(cuda->queueWORK, node, CUDAwqNode, q.hdr);
+	while (OPA_Queue_is_empty(&cuda->wqDone)) {}
+        OPA_Queue_dequeue(&cuda->wqDone, node, CUDAwqNode, q.hdr);
+	OPA_Queue_enqueue(&cuda->wqFree, node, CUDAwqNode, q.hdr);
+	--cuda->nWorkQueueBusy;
+//	cudaError_t ec = cuda_setup_ewald(cuda);
+//        if (ec != cudaSuccess) CUDA_attempt_recovery(cuda,ec);
         }
     }
 

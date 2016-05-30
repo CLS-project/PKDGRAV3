@@ -85,14 +85,9 @@ CUDAwqNode *getNode(CUDACTX cuda) {
     CUDAwqNode *work;
     CUDA_flushDone(cuda);
 
-//    /* Bit of a hack here: keep a buffer around for Ewald */
-//    if (cuda->wqFree == NULL || cuda->wqFree->next==NULL) return NULL;
-//    work = cuda->wqFree;
-//    cuda->wqFree = work->next;
-//    work->next = cuda->wqCuda;
-
     if (OPA_Queue_is_empty(&cuda->wqFree)) return NULL;
-	OPA_Queue_dequeue(&cuda->wqFree, work, CUDAwqNode, q.hdr);
+    OPA_Queue_dequeue(&cuda->wqFree, work, CUDAwqNode, q.hdr);
+    work->pwqDone = &cuda->wqDone;
 
     ++cuda->nWorkQueueBusy;
     work->ctx = cuda;
@@ -116,12 +111,12 @@ static pthread_barrier_t recovery_barrier;
 ** This function allocates buffers, and can restart outstanding requests after a device reset.
 */
 static CUDAwqNode *setup_node(CUDACTX cuda,CUDAwqNode *work) {
-    int hostBufSize = cuda->inCudaBufSize > cuda->outCudaBufSize ? cuda->inCudaBufSize : cuda->outCudaBufSize;
+    int hostBufSize = work->inBufferSize > work->outBufferSize ? work->inBufferSize : work->outBufferSize;
     CUDA_CHECK(cudaHostRegister,(work->pHostBufFromGPU, hostBufSize, cudaHostRegisterPortable));
     CUDA_CHECK(cudaHostRegister,(work->pHostBufToGPU,   hostBufSize, cudaHostRegisterPortable));
-    work->pCudaBufIn = CUDA_gpu_malloc(cuda->inCudaBufSize);
+    work->pCudaBufIn = CUDA_gpu_malloc(work->inBufferSize);
     assert(work->pCudaBufIn!=NULL);
-    work->pCudaBufOut = CUDA_gpu_malloc(cuda->outCudaBufSize);
+    work->pCudaBufOut = CUDA_gpu_malloc(work->outBufferSize);
     assert(work->pCudaBufOut!=NULL);
     CUDA_CHECK(cudaStreamCreate,( &work->stream ));
 #ifdef USE_CUDA_EVENTS
@@ -167,14 +162,14 @@ static int setup_cuda(CUDACTX cuda) {
     }
 
 static void setup_ewald(CUDACTX cuda) {
-    CUDA_CHECK(cudaStreamCreate,( &cuda->streamEwald ));
+//    CUDA_CHECK(cudaStreamCreate,( &cuda->streamEwald ));
 #ifdef USE_CUDA_EVENTS
     CUDA_CHECK(cudaEventCreateWithFlags,( &cuda->eventEwald, cudaEventDisableTiming ));
 #endif
     }
 
 extern "C"
-void *CUDA_initialize(int nCores,int iCore,OPA_Queue_info_t *queueWORK) {
+void *CUDA_initialize(int nCores, int iCore, OPA_Queue_info_t *queueWORK, OPA_Queue_info_t *queueREGISTER) {
     int nDevices;
 
     CUDA_CHECK(cudaGetDeviceCount,(&nDevices))
@@ -189,10 +184,10 @@ void *CUDA_initialize(int nCores,int iCore,OPA_Queue_info_t *queueWORK) {
     ctx->nWorkQueueBusy = 0;
 
     ctx->wqCudaBusy = NULL;
-    //OPA_Queue_init(&ctx->wqCuda);
     OPA_Queue_init(&ctx->wqFree);
     OPA_Queue_init(&ctx->wqDone);
     ctx->queueWORK = queueWORK;
+    ctx->queueREGISTER = queueREGISTER;
     ctx->nodePP = NULL;
     ctx->nodePC = NULL;
     ctx->nodeEwald = NULL;
@@ -292,16 +287,26 @@ static void CUDA_finishWork(CUDACTX cuda,CUDAwqNode *work) {
 
 extern "C" void CUDA_startWork(void *vcuda,OPA_Queue_info_t *queueWORK) {
     CUDACTX cuda = reinterpret_cast<CUDACTX>(vcuda);
-	while (!OPA_Queue_is_empty(queueWORK)) {
-	    CUDAwqNode *node;
-	    OPA_Queue_dequeue(queueWORK, node, CUDAwqNode, q.hdr);
-	    node->startTime = CUDA_getTime();
-	    node->q.next = cuda->wqCudaBusy;
-	    cuda->wqCudaBusy = node;
-	    cudaError_t rc = static_cast<cudaError_t>((*node->initFcn)(node->ctx,node));
-	    if ( rc != cudaSuccess) CUDA_attempt_recovery(cuda,rc);
-	    }
+    while (!OPA_Queue_is_empty(queueWORK)) {
+	CUDAwqNode *node;
+	OPA_Queue_dequeue(queueWORK, node, CUDAwqNode, q.hdr);
+	node->startTime = CUDA_getTime();
+        node->q.next = cuda->wqCudaBusy;
+        cuda->wqCudaBusy = node;
+        cudaError_t rc = static_cast<cudaError_t>((*node->initFcn)(node->ctx,node));
+        if ( rc != cudaSuccess) CUDA_attempt_recovery(cuda,rc);
+        }
     }
+
+extern "C" void CUDA_registerBuffers(void *vcuda, OPA_Queue_info_t *queueWORK) {
+    CUDACTX cuda = reinterpret_cast<CUDACTX>(vcuda);
+    while (!OPA_Queue_is_empty(queueWORK)) {
+	CUDAwqNode *node;
+	OPA_Queue_dequeue(queueWORK, node, CUDAwqNode, q.hdr);
+	setup_node(cuda, node);
+	OPA_Queue_enqueue(node->pwqDone, node, CUDAwqNode, q.hdr);
+    }
+}
 
 extern "C"
 int CUDA_flushDone(void *vcuda) {
@@ -322,7 +327,6 @@ int CUDA_flushDone(void *vcuda) {
             assert(work->doneFcn != NULL); /* Only one cudaSuccess per customer! */
             *last = work->q.next;
             OPA_Queue_enqueue(work->pwqDone, work, CUDAwqNode, q.hdr);
-//            CUDA_finishWork(cuda,work);
             continue;
             }
         else if (rc!=cudaErrorNotReady) {
@@ -344,8 +348,6 @@ int CUDA_flushDone(void *vcuda) {
 	    OPA_Queue_dequeue(&cuda->wqDone, work, CUDAwqNode, q.hdr);
         CUDA_finishWork(cuda,work);
         }
-//    assert(cuda->wqCudaBusy!=NULL || cuda->nWorkQueueBusy==0);
-//    return cuda->wqCudaBusy != NULL;
     return cuda->nWorkQueueBusy > 0;
     }
 
@@ -357,9 +359,6 @@ int CUDA_queue(void *vcuda, void *ctx,
     CUDAwqNode *work;
     CUDA_flushDone(vcuda);
 
-//    if (cuda->wqFree == NULL || initWork==NULL) return 0;
-//    work = cuda->wqFree;
-//    cuda->wqFree = work->next;
     if (OPA_Queue_is_empty(&cuda->wqFree) || initWork==NULL) return 0;
 	OPA_Queue_dequeue(&cuda->wqFree, work, CUDAwqNode, q.hdr);
 
@@ -386,7 +385,9 @@ void CUDA_SetQueueSize(void *vcuda,int cudaSize, int inCudaBufSize, int outCudaB
     int hostBufSize = cuda->inCudaBufSize > cuda->outCudaBufSize ? cuda->inCudaBufSize : cuda->outCudaBufSize;
     while(cudaSize--) {
         work = reinterpret_cast<CUDAwqNode *>(malloc(sizeof(CUDAwqNode)));
-        work->pwqDone = &cuda->wqDone;
+	work->inBufferSize = cuda->inCudaBufSize;
+	work->outBufferSize = cuda->outCudaBufSize;
+	work->pwqDone = &cuda->wqDone;
         work->pHostBufFromGPU = CUDA_malloc(hostBufSize);
         assert(work->pHostBufFromGPU!=NULL);
         work->pHostBufToGPU = CUDA_malloc(hostBufSize);
@@ -395,12 +396,12 @@ void CUDA_SetQueueSize(void *vcuda,int cudaSize, int inCudaBufSize, int outCudaB
         work->initFcn = NULL;
         work->doneFcn = NULL;
         work->startTime = 0;
-        OPA_Queue_enqueue(&cuda->wqFree, work, CUDAwqNode, q.hdr);
-//        work->next = cuda->wqFree;
-//        cuda->wqFree = work;
+//        OPA_Queue_enqueue(&cuda->wqFree, work, CUDAwqNode, q.hdr);
+	work->pwqDone = &cuda->wqFree;
+	OPA_Queue_enqueue(cuda->queueREGISTER, work, CUDAwqNode, q.hdr);
         }
     cuda->nWorkQueueBusy = 0;
-    setup_cuda(cuda);
+//    setup_cuda(cuda);
     setup_ewald(cuda);
     }
 

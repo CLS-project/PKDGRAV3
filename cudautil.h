@@ -10,7 +10,7 @@ extern "C" {
 #ifdef USE_CUDA
     void CUDA_nvtxRangePush(char *name);
     void CUDA_nvtxRangePop();
-    void *CUDA_initialize(int nCores, int iCore,OPA_Queue_info_t *queueWORK);
+    void *CUDA_initialize(int nCores, int iCore, OPA_Queue_info_t *queueWORK, OPA_Queue_info_t *queueREGISTER);
     void CUDA_finish(void *vctx);
     void CUDA_SetQueueSize(void *vcuda,int cudaSize, int inCudaBufSize, int outCudaBufSiz);
 
@@ -25,6 +25,7 @@ extern "C" {
     void CUDA_flushEwald(void *cudaCtx);
     void CUDA_checkForRecovery(void *vcuda);
     void CUDA_startWork(void *vcuda,OPA_Queue_info_t *queueWORK);
+    void CUDA_registerBuffers(void *vcuda, OPA_Queue_info_t *queueWORK);
     void pkdAccumulateCUDA(void *vpkd,workEwald *we,gpuEwaldOutput *fromGPU);
 #else
 #include "simd.h"
@@ -83,6 +84,7 @@ typedef struct cuda_wq_node {
     int (*initFcn)(void *ctx,void *work);
     int (*doneFcn)(void *ctx,void *work);
     const char *kernelName;
+    int inBufferSize, outBufferSize;
     void *pHostBufToGPU, *pHostBufFromGPU;
     void *pCudaBufIn, *pCudaBufOut;
     double startTime;
@@ -106,7 +108,11 @@ typedef struct cuda_wq_node {
 	struct {
 	    int nParticles;
 	    } ewald;
-	};
+	struct {
+	    struct EwaldVariables *ewIn;
+	    EwaldTable *ewt;
+	    } initEwald;
+        };
     } CUDAwqNode;
 
 typedef struct cuda_ctx {
@@ -115,6 +121,7 @@ typedef struct cuda_ctx {
     OPA_Queue_info_t wqFree; // We can receive from another thread
     OPA_Queue_info_t wqDone; // We can receive from another thread
     OPA_Queue_info_t *queueWORK;
+    OPA_Queue_info_t *queueREGISTER;
 
     CUDAwqNode *nodePP; // We are building a PP request
     CUDAwqNode *nodePC; // We are building a PC request
@@ -126,8 +133,8 @@ typedef struct cuda_ctx {
 
     struct EwaldVariables *ewIn;
     EwaldTable *ewt;
-    cudaEvent_t eventEwald;       // Results have been copied back
-    cudaStream_t streamEwald;     // execution stream
+//    cudaEvent_t eventEwald;       // Results have been copied back
+//    cudaStream_t streamEwald;     // execution stream
 
     char hostname[256];
     } *CUDACTX;

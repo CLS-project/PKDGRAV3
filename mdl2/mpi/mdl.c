@@ -1142,7 +1142,8 @@ static int checkMPI(MDL mdl) {
 
 	/* Start any CUDA work packages */
 #ifdef USE_CUDA
-	CUDA_startWork(mpi->cudaCtx,&mpi->queueWORK);
+	CUDA_registerBuffers(mpi->cudaCtx, &mpi->queueREGISTER);
+        CUDA_startWork(mpi->cudaCtx, &mpi->queueWORK);
 	CUDA_flushDone(mpi->cudaCtx);
 #endif
 
@@ -1461,7 +1462,7 @@ void mdlInitCommon(MDL mdl0, int iMDL,int bDiag,int argc, char **argv,
 
 #ifdef USE_CUDA
     mdl->inCudaBufSize = mdl->outCudaBufSize = 0;
-    mdl->cudaCtx = CUDA_initialize(mdl->base.nCores,mdl->base.iCore,&mpi->queueWORK);
+    mdl->cudaCtx = CUDA_initialize(mdl->base.nCores, mdl->base.iCore, &mpi->queueWORK, &mpi->queueREGISTER);
 #endif
 #ifdef USE_CL
     mdl->clCtx = CL_initialize(clContext,mdl->base.nCores,mdl->base.iCore);
@@ -1709,7 +1710,7 @@ void mdlLaunch(int argc,char **argv,void * (*fcnMaster)(MDL),void * (*fcnChild)(
 /* All GPU work is funneled through the MPI thread */
 #ifdef USE_CUDA
     mpi->inCudaBufSize = mpi->outCudaBufSize = 0;
-    mpi->cudaCtx = CUDA_initialize(0,-1,NULL);
+    mpi->cudaCtx = CUDA_initialize(0,-1,NULL,NULL);
     OPA_Queue_init(&mpi->queueCUDA);
 #endif
 #ifdef USE_CL
@@ -1724,6 +1725,7 @@ void mdlLaunch(int argc,char **argv,void * (*fcnMaster)(MDL),void * (*fcnChild)(
 
 
     OPA_Queue_init(&mpi->queueMPI);
+    OPA_Queue_init(&mpi->queueREGISTER);
     OPA_Queue_init(&mpi->queueWORK);
     OPA_Queue_header_init(&mdl->inMessage.hdr);
     OPA_Queue_header_init(&mdl->sendRequest.svc.hdr);

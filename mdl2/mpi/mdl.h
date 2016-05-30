@@ -207,6 +207,7 @@ typedef struct {
 #endif
     OPA_Queue_info_t queueMPI;
     OPA_Queue_info_t queueWORK;
+    OPA_Queue_info_t queueREGISTER;
     OPA_Queue_info_t localFlushBuffers;
     MDLflushBuffer **flushBuffersByRank;
     MDLflushBuffer **flushBuffersByCore;
