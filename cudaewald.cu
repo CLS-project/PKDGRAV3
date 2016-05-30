@@ -235,6 +235,10 @@ __global__ void cudaEwald(gpuEwaldInput *onGPU,gpuEwaldOutput *outGPU) {
     outGPU[blockIdx.x].Flop[threadIdx.x] = dFlop;
     }
 
+static int doneEwaldFcn( void *vpp, void *vwork ) {
+    return 0;
+    }
+
 static int initEwaldFcn(void *ve, void *vwork) {
     CUDAwqNode *work = reinterpret_cast<CUDAwqNode *>(vwork);
     CUDA_RETURN(cudaMemcpyToSymbolAsync, (ew, work->initEwald.ewIn, sizeof(ew), 0, cudaMemcpyHostToDevice, work->stream));
@@ -341,6 +345,7 @@ void cudaEwaldInit(void *cudaCtx, struct EwaldVariables *ewIn, EwaldTable *ewt )
 	node->initEwald.ewIn = cuda->ewIn;
 	node->initEwald.ewt = cuda->ewt;
 	node->initFcn = initEwaldFcn;
+	node->doneFcn = doneEwaldFcn;
 	OPA_Queue_enqueue(cuda->queueWORK, node, CUDAwqNode, q.hdr);
 	while (OPA_Queue_is_empty(&cuda->wqDone)) {}
         OPA_Queue_dequeue(&cuda->wqDone, node, CUDAwqNode, q.hdr);
