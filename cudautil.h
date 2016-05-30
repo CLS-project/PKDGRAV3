@@ -81,6 +81,7 @@ typedef struct cuda_wq_node {
     void *ctx;
     int (*initFcn)(void *ctx,void *work);
     int (*doneFcn)(void *ctx,void *work);
+    const char *kernelName;
     void *pHostBufToGPU, *pHostBufFromGPU;
     void *pCudaBufIn, *pCudaBufOut;
     double startTime;

@@ -98,6 +98,7 @@ CUDAwqNode *getNode(CUDACTX cuda) {
     work->ctx = cuda;
     work->initFcn = NULL;
     work->doneFcn = NULL;
+    work->kernelName = "unknown";
 
     work->ppSizeIn = 0;
     work->ppSizeOut = 0;
@@ -329,8 +330,9 @@ int CUDA_flushDone(void *vcuda) {
             }
         else if (work->startTime != 0) {
             double seconds = CUDA_getTime() - work->startTime;
-            if (seconds>=1.0) {
-                fprintf(stderr,"%s: cudaStreamQuery has returned cudaErrorNotReady for %f seconds\n",cuda->hostname,seconds);
+            if (seconds>=2.0) {
+                fprintf(stderr,"%s: cudaStreamQuery for kernel %s has returned cudaErrorNotReady for %f seconds\n",
+                    cuda->hostname, work->kernelName, seconds);
                 work->startTime = 0;
                 CUDA_attempt_recovery(cuda,cudaErrorLaunchTimeout);
                 break;

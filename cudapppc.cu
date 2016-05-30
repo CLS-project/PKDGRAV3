@@ -699,7 +699,7 @@ int copyBLKs(ilcBlk<n> *out, ILC_BLK *in,int nIlp) {
 
 // nIntPer: number of interactions handled per work unit: e.g., 128
 template<int nIntPerTB, int nIntPerWU, typename TILE,typename BLK>
-int CUDA_queue(CUDACTX cuda,CUDAwqNode **head,workParticle *wp, TILE tile, int bGravStep) {
+int CUDA_queue(CUDACTX cuda,CUDAwqNode **head,workParticle *wp, TILE tile, int bGravStep, const char *kernelName) {
     /* Refuse the work if it looks like we will overwhelm the GPU with nonsense */
     if (cuda->nWorkQueueSize == 0) return 0;
     assert(cuda->nWorkQueueBusy >=0 && cuda->nWorkQueueBusy <= cuda->nWorkQueueSize);
@@ -748,6 +748,7 @@ int CUDA_queue(CUDACTX cuda,CUDAwqNode **head,workParticle *wp, TILE tile, int b
         work->ctx = NULL;
         work->doneFcn = CUDAcheckWorkInteraction<nIntPerWU>;
         work->initFcn = initWork<nIntPerTB,nIntPerWU,BLK>;
+        work->kernelName = kernelName;
         work->ppSizeIn = 0;
         work->ppSizeOut = 0;
         work->ppnBuffered = 0;
@@ -781,7 +782,7 @@ int CUDA_queue(CUDACTX cuda,CUDAwqNode **head,workParticle *wp, TILE tile, int b
 extern "C"
 int CUDA_queuePP(void *cudaCtx,workParticle *wp, ILPTILE tile, int bGravStep) {
     CUDACTX cuda = reinterpret_cast<CUDACTX>(cudaCtx);
-    if(CUDA_queue< TB_THREADS, PP_WU, ILPTILE,ilpBlk<WIDTH> >(cuda,&cuda->nodePP,wp,tile,bGravStep)) {
+    if(CUDA_queue< TB_THREADS, PP_WU, ILPTILE,ilpBlk<WIDTH> >(cuda,&cuda->nodePP,wp,tile,bGravStep,"PP")) {
         wp->dFlopSingleGPU += COST_FLOP_PP*wp->nP*(tile->lstTile.nBlocks*ILP_PART_PER_BLK  + tile->lstTile.nInLast);
         return 1;
         }
@@ -791,7 +792,7 @@ int CUDA_queuePP(void *cudaCtx,workParticle *wp, ILPTILE tile, int bGravStep) {
 extern "C"
 int CUDA_queuePC(void *cudaCtx,workParticle *wp, ILCTILE tile, int bGravStep) {
     CUDACTX cuda = reinterpret_cast<CUDACTX>(cudaCtx);
-    if (CUDA_queue< TB_THREADS, PC_WU, ILCTILE,ilcBlk<WIDTH> >(cuda,&cuda->nodePC,wp,tile,bGravStep)) {
+    if (CUDA_queue< TB_THREADS, PC_WU, ILCTILE,ilcBlk<WIDTH> >(cuda,&cuda->nodePC,wp,tile,bGravStep,"PC")) {
         wp->dFlopSingleGPU += COST_FLOP_PC*wp->nP*(tile->lstTile.nBlocks*ILC_PART_PER_BLK  + tile->lstTile.nInLast);
         return 1;
         }

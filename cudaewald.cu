@@ -444,6 +444,7 @@ int CUDA_queueEwald(void *cudaCtx,workParticle *work) {
         node->ctx = cudaCtx;
         node->doneFcn = CUDAdoneEwald;
         node->initFcn = CUDAlaunchEwald;
+        node->kernelName = "Ewald";
         }
     gpuEwaldInput *toGPU = reinterpret_cast<gpuEwaldInput *>(node->pHostBufToGPU);
     for( i=0; i<work->nP; i++ ) {
