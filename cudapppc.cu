@@ -705,7 +705,7 @@ int CUDA_queue(CUDACTX cuda,CUDAwqNode **head,workParticle *wp, TILE tile, int b
     assert(cuda->nWorkQueueBusy >=0 && cuda->nWorkQueueBusy <= cuda->nWorkQueueSize);
 
     // If the work queue is half used, and there are fewer than 2 particles let the CPU handle it
-    if (cuda->nWorkQueueBusy > cuda->nWorkQueueSize-3 && wp->nP <= 2) return 0;
+//    if (cuda->nWorkQueueBusy > cuda->nWorkQueueSize-3 && wp->nP <= 2) return 0;
 
     CUDAwqNode *work = *head;
     /*const int nBlkPerTB = nIntPerTB / WIDTH;*/
@@ -716,14 +716,14 @@ int CUDA_queue(CUDACTX cuda,CUDAwqNode **head,workParticle *wp, TILE tile, int b
     int nBlocksAligned,nInteract;
 
     // If there are too few free blocks then the CPU does the "hair"
-    if (cuda->nWorkQueueBusy > cuda->nWorkQueueSize-3) {
-        nBlocksAligned = (tile->lstTile.nBlocks + (tile->lstTile.nInLast==32?1:0) ) & ~(nBlkPerWU - 1);
-        nInteract = nBlocksAligned * ILP_PART_PER_BLK;
-        }
-    else {
+//    if (cuda->nWorkQueueBusy > cuda->nWorkQueueSize-3) {
+//        nBlocksAligned = (tile->lstTile.nBlocks + (tile->lstTile.nInLast==32?1:0) ) & ~(nBlkPerWU - 1);
+//        nInteract = nBlocksAligned * ILP_PART_PER_BLK;
+//        }
+//    else {
         nBlocksAligned = (nBlocks + nBlkPerWU - 1) & ~(nBlkPerWU - 1);
         nInteract = tile->lstTile.nBlocks*ILP_PART_PER_BLK + tile->lstTile.nInLast;
-        }
+//        }
     const int nWork = nBlocksAligned / nBlkPerWU;
     const int nBytesIn = nPaligned * sizeof(ppInput) + nBlocksAligned*sizeof(BLK) + nWork*sizeof(ppWorkUnit);
     const int nBytesOut = nP * sizeof(ppResult) * nWork;
