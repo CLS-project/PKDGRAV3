@@ -40,6 +40,10 @@ static void *CUDA_malloc(size_t nBytes) {
 #else
     if (posix_memalign(&blk, nPageSize, nBytes)) blk = NULL;
 #endif
+    char *p = reinterpret_cast<char *>(blk);
+    char *e = p + nBytes;
+    for(; p<e; p+= nPageSize) *p = 0;
+
     return blk;
     }
 
