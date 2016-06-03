@@ -539,6 +539,7 @@ int initWork( void *ve, void *vwork ) {
     ppResult *pCudaBufOut = reinterpret_cast<ppResult *>(work->pCudaBufOut);
 
     CUDA_RETURN(cudaMemcpyAsync,(blkCuda, work->pHostBufToGPU, work->pppc.nBufferIn, cudaMemcpyHostToDevice, work->stream));
+    CUDA_RETURN(cudaEventRecord,(work->eventCopyDone,work->stream));
 
     dim3 dimBlock( WIDTH, nIntPerWU/WIDTH, nIntPerTB/nIntPerWU );
     dim3 dimGrid( work->pppc.nGrid, 1,1);
@@ -552,6 +553,7 @@ int initWork( void *ve, void *vwork ) {
             <<<dimGrid, dimBlock, 0, work->stream>>>
             (wuCuda,partCuda,blkCuda,pCudaBufOut );
         }
+    CUDA_RETURN(cudaEventRecord,(work->eventKernelDone,work->stream));
     CUDA_RETURN(cudaMemcpyAsync,(work->pHostBufFromGPU, work->pCudaBufOut, work->pppc.nBufferOut, cudaMemcpyDeviceToHost, work->stream) );
 #ifdef USE_CUDA_EVENTS
     CUDA_RETURN(cudaEventRecord,(work->event,work->stream));

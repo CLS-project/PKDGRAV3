@@ -91,6 +91,8 @@ typedef struct cuda_wq_node {
 #ifdef USE_CUDA_EVENTS
     cudaEvent_t event;       // Results have been copied back
 #endif
+    cudaEvent_t eventCopyDone;
+    cudaEvent_t eventKernelDone;
     cudaStream_t stream;     // execution stream
     workParticle *ppWP[CUDA_WP_MAX_BUFFERED];
     int ppNI[CUDA_WP_MAX_BUFFERED];

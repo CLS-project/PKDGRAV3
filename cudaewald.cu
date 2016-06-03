@@ -391,7 +391,9 @@ int CUDAinitWorkEwald( void *ve, void *vwork ) {
     // copy data directly to device memory
     CUDA_RETURN(cudaMemcpyAsync,(onGPU, toGPU, ngrid * sizeof(gpuEwaldInput),
 	    cudaMemcpyHostToDevice, work->stream));
+    CUDA_RETURN(cudaEventRecord,(work->eventCopyDone,work->stream));
     cudaEwald<<<dimGrid, dimBlock, 0, work->stream>>>(onGPU,outGPU);
+    CUDA_RETURN(cudaEventRecord,(work->eventKernelDone,work->stream));
     CUDA_RETURN(cudaMemcpyAsync,(fromGPU, outGPU, ngrid * sizeof(gpuEwaldOutput),
             cudaMemcpyDeviceToHost, work->stream));
 #ifdef USE_CUDA_EVENTS

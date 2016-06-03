@@ -126,6 +126,8 @@ static CUDAwqNode *setup_node(CUDACTX cuda,CUDAwqNode *work) {
 #ifdef USE_CUDA_EVENTS
     CUDA_CHECK(cudaEventCreateWithFlags,( &work->event, cudaEventDisableTiming ));
 #endif
+    CUDA_CHECK(cudaEventCreateWithFlags,( &work->eventCopyDone, cudaEventDisableTiming ));
+    CUDA_CHECK(cudaEventCreateWithFlags,( &work->eventKernelDone, cudaEventDisableTiming ));
     return work;
     }
 
@@ -339,8 +341,12 @@ int CUDA_flushDone(void *vcuda) {
         else if (work->startTime != 0) {
             double seconds = CUDA_getTime() - work->startTime;
             if (seconds>=2.0) {
-                fprintf(stderr,"%s: cudaStreamQuery for kernel %s has returned cudaErrorNotReady for %f seconds\n",
-                    cuda->hostname, work->kernelName, seconds);
+                rc = cudaEventQuery(work->eventCopyDone);
+                const char *done1 = (rc==cudaSuccess?"yes":"no");
+                rc = cudaEventQuery(work->eventKernelDone);
+                const char *done2 = (rc==cudaSuccess?"yes":"no");
+                fprintf(stderr,"%s: cudaStreamQuery for kernel %s has returned cudaErrorNotReady for %f seconds, Copy=%s Kernel=%s Copy=no\n",
+                    cuda->hostname, work->kernelName, seconds, done1, done2);
                 work->startTime = 0;
                 CUDA_attempt_recovery(cuda,cudaErrorLaunchTimeout);
                 break;
