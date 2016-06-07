@@ -217,6 +217,7 @@ static int pkdParticleAddStruct(PKD pkd,int n) {
     int iOffset = pkd->iParticleSize;
     mdlassert( pkd->mdl, pkd->pStorePRIVATE == NULL );
     mdlassert( pkd->mdl, (iOffset & (sizeof(double)-1)) == 0 );
+    if (pkd->nParticleAlign < sizeof(double)) pkd->nParticleAlign = sizeof(double);
     pkd->iParticleSize += n;
     return iOffset;
     }
@@ -226,6 +227,7 @@ static int pkdParticleAddDouble(PKD pkd,int n) {
     int iOffset = pkd->iParticleSize;
     mdlassert( pkd->mdl, pkd->pStorePRIVATE == NULL );
     mdlassert( pkd->mdl, (iOffset & (sizeof(double)-1)) == 0 );
+    if (pkd->nParticleAlign < sizeof(double)) pkd->nParticleAlign = sizeof(double);
     pkd->iParticleSize += sizeof(double) * n;
     return iOffset;
     }
@@ -244,6 +246,7 @@ static int pkdParticleAddInt64(PKD pkd,int n) {
     int iOffset = pkd->iParticleSize;
     mdlassert( pkd->mdl, pkd->pStorePRIVATE == NULL );
     mdlassert( pkd->mdl, (iOffset & (sizeof(int64_t)-1)) == 0 );
+    if (pkd->nParticleAlign < sizeof(int64_t)) pkd->nParticleAlign = sizeof(int64_t);
     pkd->iParticleSize += sizeof(int64_t) * n;
     return iOffset;
     }
@@ -399,6 +402,7 @@ void pkdInitialize(
     ** descending size (i.e., doubles & int64 and then float & int32)
     */
     pkd->iParticleSize = sizeof(PARTICLE);
+    pkd->nParticleAlign = sizeof(float);
     pkd->iTreeNodeSize = sizeof(KDN);
 
 #ifndef INTEGER_POSITION
@@ -538,7 +542,7 @@ void pkdInitialize(
     assert(pkdNodeSize(pkd)<=pkdMaxNodeSize());
 
     /* Align the particle size and the tree node, and store the tree node parameters */
-    pkd->iParticleSize = (pkd->iParticleSize + sizeof(double) - 1 ) & ~(sizeof(double)-1);
+    pkd->iParticleSize = (pkd->iParticleSize + pkd->nParticleAlign - 1 ) & ~(pkd->nParticleAlign-1);
     pkd->iTreeNodeSize = (pkd->iTreeNodeSize + sizeof(double) - 1 ) & ~(sizeof(double)-1);
     pkd->nTreeBitsLo = nTreeBitsLo;
     pkd->nTreeBitsHi = nTreeBitsHi;
