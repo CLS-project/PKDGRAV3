@@ -918,7 +918,11 @@ void pkdGravFinishEwald(PKD pkd) {
 static void queueEwald( PKD pkd, workParticle *wp ) {
     int i;
 #ifndef OLD_CUDA_EWALD
+#ifdef USE_CUDA
     int nQueued = CUDA_queueEwald(pkd->mdl->cudaCtx,wp);
+#else
+    int nQueued = 0;
+#endif
     ++wp->nRefs;
     for( i=nQueued; i<wp->nP; ++i) {
 	PINFOIN *in = &wp->pInfoIn[i];
