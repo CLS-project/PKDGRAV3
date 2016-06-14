@@ -967,7 +967,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     float d2,dir,dir2;
     float fMass,fSoft;
     float fx,fy,fz;
-    double dx,dy,dz,dPot,ax,ay,az;
+    double dx,dy,dz;
     float rhopmax,rhopmaxlocal;
     float summ;
     float fBall;
@@ -1084,6 +1084,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     */
     if (pLoc) {
 	for( i=0; i<wp->nP; i++ ) {
+	    momFloat ax,ay,az, dPot;
 	    double *c = wp->c;
 	    float *in = wp->pInfoIn[i].r;
 	    //pkdGetPos1(wp->pPart[i]->r,r);
