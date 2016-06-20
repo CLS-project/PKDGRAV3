@@ -878,7 +878,6 @@ typedef struct pkdContext {
 #ifdef USE_SIMD_EWALD
     ewaldSIMD es;
 #endif
-    workEwald *ewWork;
 
     /*
     ** Timers stuff.

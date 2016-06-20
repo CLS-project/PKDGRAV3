@@ -70,6 +70,17 @@ struct __align__(32) ppResult {
 #define NP_ALIGN (128/sizeof(ppResult))
 #define NP_ALIGN_MASK (NP_ALIGN-1)
 
+template<typename BLK>
+static void dumpWork(struct cuda_wq_node *work) {
+    BLK * __restrict__ blkHost = reinterpret_cast<BLK*>(work->pHostBufToGPU);
+    ppWorkUnit * __restrict__ wuHost = reinterpret_cast<ppWorkUnit *>(blkHost + work->ppnBlocks);
+    int i;
+    fprintf(stderr,"kernel %s has %d work units\n", work->kernelName,work->pppc.nGrid);
+    for( i=0; i<work->pppc.nGrid; ++i) {
+        fprintf(stderr,"%4d %5d %5d %5d %5d\n", i, wuHost[i].nP, wuHost[i].nI, wuHost[i].iP, wuHost[i].iB);
+        }
+
+    }
 
 /*
 ** Occupancy (theoretical):
@@ -98,6 +109,127 @@ struct __align__(32) ppResult {
 **
 */
 
+#if 1
+// Simplified version of the PP kernel
+template <int nWarps,int nWarpsPerWU,int nSyncRate,int bGravStep>
+__global__ void cudaInteract(
+    const ppWorkUnit * __restrict__ work,
+    const ppInput * __restrict__ pPart,
+    const ilpBlk<WIDTH> * __restrict__ blk,
+    ppResult *out) {
+    int i, iSync;
+
+    assert(nWarps==4);
+    assert(nWarpsPerWU==4);
+    assert(nSyncRate==SYNC_RATE);
+    assert(bGravStep==0);
+    assert(threadIdx.z==0);
+
+    int iWork = blockIdx.x; // Index of work and blk
+    int iI    = threadIdx.y*blockDim.x + threadIdx.x; // Index of interaction
+    int iWarp = threadIdx.y;
+    int iTinW = iI % 32;
+
+    uint32_t nP = work[iWork].nP; // Number of particles
+    pPart += work[iWork].iP; // First particle
+    uint32_t nI = work[iWork].nI; // Number of interactions
+    blk += work[iWork].iB*blockDim.y + threadIdx.y; // blk[threadIdx.x] is our interaction
+    out += work[iWork].iO;   // Result for each particle
+
+    __shared__ union {
+        ppInput P[nSyncRate];
+        float   W[nSyncRate*sizeof(ppInput)/sizeof(float)];
+        } Particles;
+
+    __shared__ float wX[nSyncRate][nWarps];
+    __shared__ float wY[nSyncRate][nWarps];
+    __shared__ float wZ[nSyncRate][nWarps];
+    __shared__ float wPot[nSyncRate][nWarps];
+
+    // Load the interaction. It is blocked for performance.
+    float iX,iY,iZ,iM,ifourh2;
+    if (iI < nI) {
+        iX = blk->dx[threadIdx.x];
+        iY = blk->dy[threadIdx.x];
+        iZ = blk->dz[threadIdx.x];
+        iM = blk->m[threadIdx.x];
+        ifourh2 = blk->fourh2[threadIdx.x];
+        }
+
+    // Apply the particles, nSyncRate at a time
+    // If nP was too large for some reason then the kernel would "hang"
+    assert(nP<=256); // The group size
+    for(iSync=0; iSync<nP; iSync += nSyncRate) {
+        int iEnd = nP - iSync;
+        if (iEnd > nSyncRate) iEnd=nSyncRate;
+        // Preload the bucket of particles - this is a memcpy
+        if (iI < iEnd*sizeof(ppInput) / sizeof(float)) {
+            Particles.W[iI] = (reinterpret_cast<const float *>(pPart+iSync))[iI];
+            }
+        __syncthreads();
+
+        assert(iEnd > 0);
+        assert(iEnd <= 16); // SYNC_RATE
+        for( i=0; i<iEnd; ++i) {
+            float ax=0.0f, ay=0.0f, az=0.0f, fPot=0.0f;
+            if (iI < nI) {
+                float fourh2,dir,dir2,dir3;
+                float dx = iX + Particles.P[i].dx;
+                float dy = iY + Particles.P[i].dy;
+                float dz = iZ + Particles.P[i].dz;
+                float d2 = dx*dx + dy*dy + dz*dz;
+                if (d2 != 0.0f ) { /* Ignore self interactions */
+                    fourh2 = ifourh2;
+                    if (d2 > fourh2) fourh2 = d2;
+                    dir = rsqrtf(fourh2);
+                    dir2 = dir*dir;
+                    dir3 = dir2*dir;
+                    if (d2 < fourh2) {
+                        /*
+                        ** This uses the Dehnen K1 kernel function now, it's fast!
+                        */
+                        dir2 *= d2;
+                        dir2 = 1.0f - dir2;
+                        dir *= 1.0f + dir2*(0.5f + dir2*(3.0f/8.0f + dir2*(45.0f/32.0f)));
+                        dir3 *= 1.0f + dir2*(1.5f + dir2*(135.0f/16.0f));
+                        }
+                    dir3 *= -iM;
+                    ax = dx * dir3;
+                    ay = dy * dir3;
+                    az = dz * dir3;
+                    fPot = -iM*dir;
+                    }
+                }
+            // Horizontal add within each warp -- no sychronization required
+            warpReduceAndStore<float,32>(iTinW,ax,           &wX[i][iWarp]);
+            warpReduceAndStore<float,32>(iTinW,ay,           &wY[i][iWarp]);
+            warpReduceAndStore<float,32>(iTinW,az,           &wZ[i][iWarp]);
+            warpReduceAndStore<float,32>(iTinW,fPot,       &wPot[i][iWarp]);
+            }
+
+        __syncthreads();
+        // Assuming four warps & SYNC of 8, the cache looks like this:
+        //                0     1     2     3       4
+        // Cache: 1x4x8   P0    P0    P0    P0      P1 P1 P1 P1 P2 ... P6 P7 P7 P7 P7
+        // Cache: 4x1x8   P0,I0 P0,I1 P0,I2 P0,I3   P1,I0 ... 
+        // Cache: 2x2x8   P0,I0 P0,I0 P0,I1 P0,I1   P1,I0
+        // every set of 4 threads does another reduce. As long as the
+        // number of warps is a power of 2 <= the warp size (32), we
+        // can do this step without any further synchronization.
+        int nOut = iEnd * nWarpsPerWU; // Normally 64
+        if (iI<nOut) {
+            int iP    = (iI & ~(nWarpsPerWU-1)) * nWarps/nWarpsPerWU; // 0,4,8,...
+            int iWarp = iI &  (nWarpsPerWU-1); // 0 .. 3
+            int iOut  = iI / nWarpsPerWU + iSync;
+         
+            warpReduceAndStore<float,nWarpsPerWU>(      &wX[0][0]+iP,iWarp,&out[iOut].ax);
+            warpReduceAndStore<float,nWarpsPerWU>(      &wY[0][0]+iP,iWarp,&out[iOut].ay);
+            warpReduceAndStore<float,nWarpsPerWU>(      &wZ[0][0]+iP,iWarp,&out[iOut].az);
+            warpReduceAndStore<float,nWarpsPerWU>(    &wPot[0][0]+iP,iWarp,&out[iOut].fPot);
+            }
+        }
+    }
+#else
 // A good number for nWarps is 4 giving 128 threads per thread block, nSyncRate=8
 // Each thread block outputs ay,ay,az,fPot,dirsum,normsum for each particle
 template <int nWarps,int nWarpsPerWU,int nSyncRate,int bGravStep>
@@ -255,6 +387,7 @@ __global__ void cudaInteract(
             }
         }
     }
+#endif
 
 template <int nWarps,int nWarpsPerWU,int nSyncRate,int bGravStep>
 __global__ void cudaInteract(
@@ -543,6 +676,8 @@ int initWork( void *ve, void *vwork ) {
 
     dim3 dimBlock( WIDTH, nIntPerWU/WIDTH, nIntPerTB/nIntPerWU );
     dim3 dimGrid( work->pppc.nGrid, 1,1);
+    work->dimBlock = dimBlock;
+    work->dimGrid = dimGrid;
     if (work->bGravStep) {
         cudaInteract<WARPS,nIntPerWU/32,SYNC_RATE*nIntPerWU/nIntPerTB,1>
             <<<dimGrid, dimBlock, 0, work->stream>>>
@@ -750,6 +885,7 @@ int CUDA_queue(CUDACTX cuda,CUDAwqNode **head,workParticle *wp, TILE tile, int b
         work->ctx = NULL;
         work->doneFcn = CUDAcheckWorkInteraction<nIntPerWU>;
         work->initFcn = initWork<nIntPerTB,nIntPerWU,BLK>;
+        work->dumpFcn = dumpWork<BLK>;
         work->kernelName = kernelName;
         work->ppSizeIn = 0;
         work->ppSizeOut = 0;

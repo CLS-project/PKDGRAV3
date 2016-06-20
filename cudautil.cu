@@ -131,6 +131,7 @@ static CUDAwqNode *setup_node(CUDACTX cuda,CUDAwqNode *work) {
     return work;
     }
 
+#if 0
 static void setup_list(CUDACTX cuda,OPA_Queue_info_t *q) {
     CUDAwqNode *work;
     OPA_Queue_info_t t;
@@ -166,6 +167,7 @@ static int setup_cuda(CUDACTX cuda) {
         }
     return nQueued;
     }
+#endif
 
 static void setup_ewald(CUDACTX cuda) {
 //    CUDA_CHECK(cudaStreamCreate,( &cuda->streamEwald ));
@@ -336,6 +338,8 @@ int CUDA_flushDone(void *vcuda) {
             continue;
             }
         else if (rc!=cudaErrorNotReady) {
+            fprintf(stderr,"%s: dimBlock=%d,%d,%d  dimGrid=%d,%d,%d\n",
+                cuda->hostname, work->dimBlock.x,work->dimBlock.y,work->dimBlock.z,work->dimGrid.x,work->dimGrid.y,work->dimGrid.z);
             CUDA_attempt_recovery(cuda,rc);
             }
         else if (work->startTime != 0) {
@@ -347,6 +351,9 @@ int CUDA_flushDone(void *vcuda) {
                 const char *done2 = (rc==cudaSuccess?"yes":"no");
                 fprintf(stderr,"%s: cudaStreamQuery for kernel %s has returned cudaErrorNotReady for %f seconds, Copy=%s Kernel=%s Copy=no\n",
                     cuda->hostname, work->kernelName, seconds, done1, done2);
+                fprintf(stderr,"%s: dimBlock=%d,%d,%d  dimGrid=%d,%d,%d\n",
+                    cuda->hostname, work->dimBlock.x,work->dimBlock.y,work->dimBlock.z,work->dimGrid.x,work->dimGrid.y,work->dimGrid.z);
+                if (work->dumpFcn) (*work->dumpFcn)(work);
                 work->startTime = 0;
                 CUDA_attempt_recovery(cuda,cudaErrorLaunchTimeout);
                 break;
@@ -376,6 +383,7 @@ int CUDA_queue(void *vcuda, void *ctx,
     work->ctx = ctx;
     work->doneFcn = checkWork;
     work->initFcn = initWork;
+    work->dumpFcn = NULL;
     work->startTime = CUDA_getTime();
     work->q.next = cuda->wqCudaBusy;
     cuda->wqCudaBusy = work;
@@ -395,9 +403,9 @@ void CUDA_SetQueueSize(void *vcuda,int cudaSize, int inCudaBufSize, int outCudaB
     int hostBufSize = cuda->inCudaBufSize > cuda->outCudaBufSize ? cuda->inCudaBufSize : cuda->outCudaBufSize;
     while(cudaSize--) {
         work = reinterpret_cast<CUDAwqNode *>(malloc(sizeof(CUDAwqNode)));
-	work->inBufferSize = cuda->inCudaBufSize;
-	work->outBufferSize = cuda->outCudaBufSize;
-	work->pwqDone = &cuda->wqDone;
+        work->inBufferSize = cuda->inCudaBufSize;
+        work->outBufferSize = cuda->outCudaBufSize;
+        work->pwqDone = &cuda->wqDone;
         work->pHostBufFromGPU = CUDA_malloc(hostBufSize);
         assert(work->pHostBufFromGPU!=NULL);
         work->pHostBufToGPU = CUDA_malloc(hostBufSize);
@@ -407,8 +415,8 @@ void CUDA_SetQueueSize(void *vcuda,int cudaSize, int inCudaBufSize, int outCudaB
         work->doneFcn = NULL;
         work->startTime = 0;
 //        OPA_Queue_enqueue(&cuda->wqFree, work, CUDAwqNode, q.hdr);
-	work->pwqDone = &cuda->wqFree;
-	OPA_Queue_enqueue(cuda->queueREGISTER, work, CUDAwqNode, q.hdr);
+        work->pwqDone = &cuda->wqFree;
+        OPA_Queue_enqueue(cuda->queueREGISTER, work, CUDAwqNode, q.hdr);
         }
     cuda->nWorkQueueBusy = 0;
 //    setup_cuda(cuda);

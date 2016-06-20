@@ -26,7 +26,6 @@ extern "C" {
     void CUDA_checkForRecovery(void *vcuda);
     void CUDA_startWork(void *vcuda,OPA_Queue_info_t *queueWORK);
     void CUDA_registerBuffers(void *vcuda, OPA_Queue_info_t *queueWORK);
-    void pkdAccumulateCUDA(void *vpkd,workEwald *we,gpuEwaldOutput *fromGPU);
 #else
 #include "simd.h"
 #define CUDA_malloc SIMD_malloc
@@ -83,6 +82,7 @@ typedef struct cuda_wq_node {
     void *ctx;
     int (*initFcn)(void *ctx,void *work);
     int (*doneFcn)(void *ctx,void *work);
+    void (*dumpFcn)(struct cuda_wq_node *work);
     const char *kernelName;
     int inBufferSize, outBufferSize;
     void *pHostBufToGPU, *pHostBufFromGPU;
@@ -94,6 +94,7 @@ typedef struct cuda_wq_node {
     cudaEvent_t eventCopyDone;
     cudaEvent_t eventKernelDone;
     cudaStream_t stream;     // execution stream
+    dim3 dimBlock, dimGrid;
     workParticle *ppWP[CUDA_WP_MAX_BUFFERED];
     int ppNI[CUDA_WP_MAX_BUFFERED];
     int ppSizeIn; // Number of bytes consumed in the buffer

@@ -345,6 +345,7 @@ void cudaEwaldInit(void *cudaCtx, struct EwaldVariables *ewIn, EwaldTable *ewt )
 	node->initEwald.ewIn = cuda->ewIn;
 	node->initEwald.ewt = cuda->ewt;
 	node->initFcn = initEwaldFcn;
+	node->dumpFcn = NULL;
 	node->doneFcn = doneEwaldFcn;
 	OPA_Queue_enqueue(cuda->queueWORK, node, CUDAwqNode, q.hdr);
 	while (OPA_Queue_is_empty(&cuda->wqDone)) {}
@@ -356,74 +357,11 @@ void cudaEwaldInit(void *cudaCtx, struct EwaldVariables *ewIn, EwaldTable *ewt )
         }
     }
 
-/* If this returns an error, then the caller must attempt recovery or abort */
-extern "C"
-int CUDAinitWorkEwald( void *ve, void *vwork ) {
-    workEwald *e = reinterpret_cast<workEwald *>(ve);
-    CUDAwqNode *work = reinterpret_cast<CUDAwqNode *>(vwork);
-    gpuEwaldInput *toGPU = reinterpret_cast<gpuEwaldInput *>(work->pHostBufToGPU);
-    gpuEwaldInput *onGPU = reinterpret_cast<gpuEwaldInput *>(work->pCudaBufIn);
-    gpuEwaldOutput *outGPU = reinterpret_cast<gpuEwaldOutput *>(work->pCudaBufOut);
-    gpuEwaldOutput *fromGPU  = reinterpret_cast<gpuEwaldOutput *>(work->pHostBufFromGPU);
-    int i;
-
-    int align = (e->nP+EWALD_MASK)&~EWALD_MASK; /* Warp align the memory buffers */
-    int ngrid = align/EWALD_ALIGN;
-
-    dim3 dimBlock( EWALD_ALIGN, 1 );
-    dim3 dimGrid( ngrid, 1,1 );
-    for(i=0; i<e->nP; ++i) {
-        int ij = i / EWALD_ALIGN;
-        int ii = i % EWALD_ALIGN;
-        const workParticle *wp = e->ppWorkPart[i];
-	const int wi = e->piWorkPart[i];
-	const PINFOIN *in = &wp->pInfoIn[wi];
-        toGPU[ij].X[ii] = wp->c[0] + in->r[0];
-	toGPU[ij].Y[ii] = wp->c[1] + in->r[1];
-	toGPU[ij].Z[ii] = wp->c[2] + in->r[2];
-	}
-    for(;i<align;++i) {
-        int ij = i / EWALD_ALIGN;
-        int ii = i % EWALD_ALIGN;
-        toGPU[ij].X[ii] = toGPU[ij].Y[ii] = toGPU[ij].Z[ii] = 100;
-        }
-
-    // copy data directly to device memory
-    CUDA_RETURN(cudaMemcpyAsync,(onGPU, toGPU, ngrid * sizeof(gpuEwaldInput),
-	    cudaMemcpyHostToDevice, work->stream));
-    CUDA_RETURN(cudaEventRecord,(work->eventCopyDone,work->stream));
-    cudaEwald<<<dimGrid, dimBlock, 0, work->stream>>>(onGPU,outGPU);
-    CUDA_RETURN(cudaEventRecord,(work->eventKernelDone,work->stream));
-    CUDA_RETURN(cudaMemcpyAsync,(fromGPU, outGPU, ngrid * sizeof(gpuEwaldOutput),
-            cudaMemcpyDeviceToHost, work->stream));
-#ifdef USE_CUDA_EVENTS
-    CUDA_RETURN(cudaEventRecord,(work->event,work->stream));
-#endif
-
-    return cudaSuccess;
-    }
-
-extern "C"
-int CUDAcheckWorkEwald( void *ve, void *vwork ) {
-    workEwald *e = reinterpret_cast<workEwald *>(ve);
-    CUDAwqNode *work = reinterpret_cast<CUDAwqNode *>(vwork);
-    gpuEwaldOutput *fromGPU = reinterpret_cast<gpuEwaldOutput *>(work->pHostBufFromGPU);
-    pkdAccumulateCUDA(e->pkd,e,fromGPU);
-    free(e->ppWorkPart);
-    free(e->piWorkPart);
-    free(e);
-    return 0;
-
-    }
-
-
-
 extern "C" void pkdParticleWorkDone(workParticle *work);
 
 extern "C"
 int CUDAdoneEwald( void *cudaCtx, void *vwork ) {
     CUDACTX cuda = reinterpret_cast<CUDACTX>(cudaCtx);
-//    workEwald *e = reinterpret_cast<workEwald *>(ve);
     CUDAwqNode *node = reinterpret_cast<CUDAwqNode *>(vwork);
     gpuEwaldOutput *fromGPU = reinterpret_cast<gpuEwaldOutput *>(node->pHostBufFromGPU);
     int iNode, i;
@@ -441,16 +379,15 @@ int CUDAdoneEwald( void *cudaCtx, void *vwork ) {
             out->fPot += fromGPU[ij].Pot[ii];
             wp->dFlopSingleGPU += COST_FLOP_HLOOP*cuda->ewIn->nEwhLoop;
             wp->dFlopDoubleGPU += fromGPU[ij].Flop[ii];
-//            pkd->dFlop += fromGPU[ij].Flop[ii] + COST_FLOP_HLOOP*pkd->ew.nEwhLoop;
             }
         pkdParticleWorkDone(wp);
         }
+    assert(iResult == node->ewald.nParticles);
     return 0;
     }
 
 extern "C"
 int CUDAlaunchEwald( void *ve, void *vwork ) {
-//    workEwald *e = reinterpret_cast<workEwald *>(ve);
     CUDAwqNode *node = reinterpret_cast<CUDAwqNode *>(vwork);
 
     int align = (node->ewald.nParticles+EWALD_MASK)&~EWALD_MASK; /* Warp align the memory buffers */
@@ -475,11 +412,16 @@ void CUDA_flushEwald(void *cudaCtx) {
     CUDAwqNode *node = cuda->nodeEwald;
     if (node && node->ppnBuffered) {
         node->startTime = CUDA_getTime();
+        int ij = node->ewald.nParticles / EWALD_ALIGN;
+        int ii = node->ewald.nParticles % EWALD_ALIGN;
+        gpuEwaldInput *toGPU = reinterpret_cast<gpuEwaldInput *>(node->pHostBufToGPU);
+        while(ii & EWALD_MASK) {
+            toGPU[ij].X[ii] = toGPU[ij].X[0];
+            toGPU[ij].Y[ii] = toGPU[ij].Y[0];
+            toGPU[ij].Z[ii] = toGPU[ij].Z[0];
+            ++ii;
+            }
         OPA_Queue_enqueue(cuda->queueWORK, node, CUDAwqNode, q.hdr);
-//        node->q.next = cuda->wqCudaBusy;
-//        cuda->wqCudaBusy = node;
-//        cudaError_t rc = static_cast<cudaError_t>((*node->initFcn)(node->ctx,node));
-//        if ( rc != cudaSuccess) CUDA_attempt_recovery(cuda,rc);
         cuda->nodeEwald = NULL;
         }
     }
@@ -489,9 +431,21 @@ int CUDA_queueEwald(void *cudaCtx,workParticle *work) {
     CUDAwqNode *node = cuda->nodeEwald;
     int i;
 
+    // Make sure that there is enough buffer memory for this set of particles
+    if (node!=NULL) {
+        int nNewTotal = node->ewald.nParticles + work->nP;
+        int align = (nNewTotal+EWALD_MASK)&~EWALD_MASK; /* Warp align the memory buffers */
+        int nTiles = align / EWALD_ALIGN;
+        if (nTiles*sizeof(gpuEwaldInput) > cuda->inCudaBufSize 
+            || nTiles*sizeof(gpuEwaldOutput) > cuda->outCudaBufSize ) {
+            CUDA_flushEwald(cuda);
+            node = cuda->nodeEwald; // Should be NULL at this point
+            }
+        }
+
     if (node==NULL) {
         cuda->nodeEwald = node = getNode(cuda);
-        if (node==NULL) return 0;
+        if (node==NULL) return 0; // The CPU will handle this set of particles
         node->ewald.nParticles = 0;
         node->ppnBuffered = 0;
         node->ctx = cudaCtx;

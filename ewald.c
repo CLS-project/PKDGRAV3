@@ -80,29 +80,6 @@ static int evalEwald(struct EwaldVariables *ew,double *ax, double *ay, double *a
     return COST_FLOP_EWALD;
     }
 
-/* Once CUDA has completed, we need to acumulate */
-void pkdAccumulateCUDA(void *vpkd,workEwald *we,gpuEwaldOutput *fromGPU) {
-    PKD pkd = vpkd;
-    int i;
-
-    for(i=0; i<we->nP; ++i) {
-        int ij = i / EWALD_ALIGN;
-        int ii = i % EWALD_ALIGN;
-	workParticle *wp = we->ppWorkPart[i];
-	int pi = we->piWorkPart[i];
-	PINFOOUT *out = &wp->pInfoOut[pi];
-	out->a[0] += fromGPU[ij].X[ii];
-	out->a[1] += fromGPU[ij].Y[ii];
-	out->a[2] += fromGPU[ij].Z[ii];
-	out->fPot += fromGPU[ij].Pot[ii];
-	wp->dFlopSingleGPU += COST_FLOP_HLOOP*pkd->ew.nEwhLoop;
-	wp->dFlopDoubleGPU += fromGPU[ij].Flop[ii];
-	pkd->dFlop += fromGPU[ij].Flop[ii] + COST_FLOP_HLOOP*pkd->ew.nEwhLoop;
-	pkdParticleWorkDone(wp);
-	}
-   }
-
-
 #if defined(USE_SIMD_EWALD) && defined(__SSE2__)
 static const struct CONSTS {
     vdouble onequarter,onethird,half,one,two,three,five,seven,nine;
