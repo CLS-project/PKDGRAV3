@@ -133,6 +133,7 @@ typedef struct cuda_ctx {
     int inCudaBufSize, outCudaBufSize;
     int epoch;
     int nCores, iCore;
+    uint64_t nKernelLaunches;
 
     struct EwaldVariables *ewIn;
     EwaldTable *ewt;

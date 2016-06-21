@@ -190,6 +190,7 @@ void *CUDA_initialize(int nCores, int iCore, OPA_Queue_info_t *queueWORK, OPA_Qu
     ctx->epoch = 0;
     ctx->nWorkQueueSize = 0;
     ctx->nWorkQueueBusy = 0;
+    ctx->nKernelLaunches = 0;
 
     ctx->wqCudaBusy = NULL;
     OPA_Queue_init(&ctx->wqFree);
@@ -296,12 +297,13 @@ static void CUDA_finishWork(CUDACTX cuda,CUDAwqNode *work) {
 extern "C" void CUDA_startWork(void *vcuda,OPA_Queue_info_t *queueWORK) {
     CUDACTX cuda = reinterpret_cast<CUDACTX>(vcuda);
     while (!OPA_Queue_is_empty(queueWORK)) {
-	CUDAwqNode *node;
-	OPA_Queue_dequeue(queueWORK, node, CUDAwqNode, q.hdr);
-	node->startTime = CUDA_getTime();
+        CUDAwqNode *node;
+        OPA_Queue_dequeue(queueWORK, node, CUDAwqNode, q.hdr);
+        node->startTime = CUDA_getTime();
         node->q.next = cuda->wqCudaBusy;
         cuda->wqCudaBusy = node;
         cudaError_t rc = static_cast<cudaError_t>((*node->initFcn)(node->ctx,node));
+        ++cuda->nKernelLaunches;
         if ( rc != cudaSuccess) CUDA_attempt_recovery(cuda,rc);
         }
     }
@@ -351,8 +353,9 @@ int CUDA_flushDone(void *vcuda) {
                 const char *done2 = (rc==cudaSuccess?"yes":"no");
                 fprintf(stderr,"%s: cudaStreamQuery for kernel %s has returned cudaErrorNotReady for %f seconds, Copy=%s Kernel=%s Copy=no\n",
                     cuda->hostname, work->kernelName, seconds, done1, done2);
-                fprintf(stderr,"%s: dimBlock=%d,%d,%d  dimGrid=%d,%d,%d\n",
-                    cuda->hostname, work->dimBlock.x,work->dimBlock.y,work->dimBlock.z,work->dimGrid.x,work->dimGrid.y,work->dimGrid.z);
+                fprintf(stderr,"%s: dimBlock=%d,%d,%d  dimGrid=%d,%d,%d Launches=%llu\n",
+                    cuda->hostname, work->dimBlock.x,work->dimBlock.y,work->dimBlock.z,
+                    work->dimGrid.x,work->dimGrid.y,work->dimGrid.z,cuda->nKernelLaunches);
                 if (work->dumpFcn) (*work->dumpFcn)(work);
                 work->startTime = 0;
                 CUDA_attempt_recovery(cuda,cudaErrorLaunchTimeout);
