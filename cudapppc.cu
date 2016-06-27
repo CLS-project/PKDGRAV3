@@ -42,10 +42,10 @@ struct ilcBlk {
 
 // One of these entries for each interaction block
 struct ppWorkUnit {
-    uint16_t nP;   // Number of particles
-    uint16_t nI;   // Number of interactions in the block
+    uint32_t nP;   // Number of particles
+    uint32_t nI;   // Number of interactions in the block
     uint32_t iP;   // Index of first particle
-    uint32_t iB;   // Index of the interaction block
+//    uint32_t iB;   // Index of the interaction block
     uint32_t iO;   // Index of the output block
     };
 
@@ -77,7 +77,7 @@ static void dumpWork(struct cuda_wq_node *work) {
     int i;
     fprintf(stderr,"kernel %s has %d work units\n", work->kernelName,work->pppc.nGrid);
     for( i=0; i<work->pppc.nGrid; ++i) {
-        fprintf(stderr,"%4d %5d %5d %5d %5d\n", i, wuHost[i].nP, wuHost[i].nI, wuHost[i].iP, wuHost[i].iB);
+        fprintf(stderr,"%4d %5d %5d %5d\n", i, wuHost[i].nP, wuHost[i].nI, wuHost[i].iP/*, wuHost[i].iB*/);
         }
 
     }
@@ -133,7 +133,8 @@ __global__ void cudaInteract(
     uint32_t nP = work[iWork].nP; // Number of particles
     pPart += work[iWork].iP; // First particle
     uint32_t nI = work[iWork].nI; // Number of interactions
-    blk += work[iWork].iB*blockDim.y + threadIdx.y; // blk[threadIdx.x] is our interaction
+//    blk += work[iWork].iB*blockDim.y + threadIdx.y; // blk[threadIdx.x] is our interaction
+    blk += iWork*blockDim.y + threadIdx.y; // blk[threadIdx.x] is our interaction
     out += work[iWork].iO;   // Result for each particle
 
     __shared__ union {
@@ -262,7 +263,8 @@ __global__ void cudaInteract(
     uint32_t nP = work[iWork].nP; // Number of particles
     pPart += work[iWork].iP; // First particle
     uint32_t nI = work[iWork].nI; // Number of interactions
-    blk += work[iWork].iB*blockDim.y + threadIdx.y; // blk[threadIdx.x] is our interaction
+//    blk += work[iWork].iB*blockDim.y + threadIdx.y; // blk[threadIdx.x] is our interaction
+    blk += iWork*blockDim.y + threadIdx.y; // blk[threadIdx.x] is our interaction
     out += work[iWork].iO;   // Result for each particle
 
     __shared__ union {
@@ -420,7 +422,8 @@ __global__ void cudaInteract(
     int nP = work[iWork].nP; // Number of particles
     pPart += work[iWork].iP; // First particle
     int nI = work[iWork].nI; // Number of interactions
-    blk += work[iWork].iB*blockDim.y + threadIdx.y; // blk[threadIdx.x] is our interaction
+//    blk += work[iWork].iB*blockDim.y + threadIdx.y; // blk[threadIdx.x] is our interaction
+    blk += iWork*blockDim.y + threadIdx.y; // blk[threadIdx.x] is our interaction
     out += work[iWork].iO;   // Result for each particle
 
     __shared__ union {
@@ -729,7 +732,7 @@ void CUDA_sendWork(CUDACTX cuda,CUDAwqNode **head) {
                 wuHost->iP = iP;
                 wuHost->nI = nInteract > nIntPerWU ? nIntPerWU : nInteract;
                 wuHost->iO = iO;
-                wuHost->iB = iI;
+//                wuHost->iB = iI;
                 iO += nP;
                 nInteract -= wuHost->nI;
                 ++wuHost;
