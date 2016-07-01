@@ -71,7 +71,7 @@ typedef struct uparticle {
     uint32_t  iGroup     :  IGROUPBITS;
     } UPARTICLE;
 
-#define PP_CUDA_MEMORY_LIMIT (1024*1024)
+#define PP_CUDA_MEMORY_LIMIT (2*1024*1024)
 
 typedef struct {
     float r[3];
