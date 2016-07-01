@@ -401,8 +401,9 @@ void pkdInitialize(
     ** by the current memory model.  Fields need to be added in order of
     ** descending size (i.e., doubles & int64 and then float & int32)
     */
+    pkd->bNoParticleOrder = (mMemoryModel&PKD_MODEL_UNORDERED) ? 1 : 0;
 
-    if ( !(mMemoryModel & PKD_MODEL_POTENTIAL) && (mMemoryModel&PKD_MODEL_UNORDERED) )
+    if ( pkd->bNoParticleOrder )
 	pkd->iParticleSize = sizeof(UPARTICLE);
     else
 	pkd->iParticleSize = sizeof(PARTICLE);
@@ -472,16 +473,14 @@ void pkdInitialize(
 	pkd->oDensity = pkdParticleAddFloat(pkd,1);
     else pkd->oDensity = 0;
 
-    pkd->bNoParticleOrder = 0;
     pkd->oGroup = 0;
-    if ( mMemoryModel & PKD_MODEL_GROUPS ) {
-	if (mMemoryModel&PKD_MODEL_UNORDERED) pkd->bNoParticleOrder = 1;
-	else pkd->oGroup = pkdParticleAddInt32(pkd,1);
+    if ( (mMemoryModel & PKD_MODEL_GROUPS) && !pkd->bNoParticleOrder) {
+	pkd->oGroup = pkdParticleAddInt32(pkd,1);
 	}
+    else pkd->oGroup = 0;
 
     if ( mMemoryModel & PKD_MODEL_POTENTIAL ) {
-	if (mMemoryModel&PKD_MODEL_UNORDERED) pkd->oPotential = 4;
-	else pkd->oPotential = pkdParticleAddFloat(pkd,1);
+	pkd->oPotential = pkdParticleAddFloat(pkd,1);
 	}
     else pkd->oPotential = 0;
 
@@ -891,7 +890,6 @@ void pkdSetClass( PKD pkd, float fMass, float fSoft, FIO_SPECIES eSpecies, PARTI
     for ( i=0; i<pkd->nClasses; i++ )
 	if ( pkd->pClass[i].fMass == fMass && pkd->pClass[i].fSoft == fSoft && pkd->pClass[i].eSpecies==eSpecies )
 	    break;
-
     if ( i == pkd->nClasses ) {
 	assert( pkd->nClasses < PKD_MAX_CLASSES );
 	i = pkd->nClasses++;
