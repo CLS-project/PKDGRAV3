@@ -5539,7 +5539,8 @@ void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint) {
 #endif
     int bSymmetric;
     int nFOFsDone;
-    int i;
+    int i,iSec=0;
+    uint64_t nActive;
 
     printf( "Writing output for step %d\n", iStep );
     msrBuildIoName(msr,achFile,iStep);
@@ -5590,6 +5591,11 @@ void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint) {
 	msrDomainDecomp(msr,-1,0,0);
 	msrBuildTree(msr,dTime,0);
 	msrNewFof(msr,csmTime2Exp(msr->param.csm,dTime));
+
+	msrGravity(msr,0,MAX_RUNG,ROOT,0,dTime,iStep,0,0,
+	    msr->param.bEwald,msr->param.nGroup,&iSec,&nActive);
+
+	msrGroupStats(msr);
 
 /*	msrGroupMerge(msr,csmTime2Exp(msr->param.csm,dTime));
 	if (msr->param.nBins > 0) msrGroupProfiles(msr,csmTime2Exp(msr->param.csm,dTime));
