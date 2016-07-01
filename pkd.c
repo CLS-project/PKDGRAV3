@@ -401,7 +401,11 @@ void pkdInitialize(
     ** by the current memory model.  Fields need to be added in order of
     ** descending size (i.e., doubles & int64 and then float & int32)
     */
-    pkd->iParticleSize = sizeof(PARTICLE);
+
+    if ( !(mMemoryModel & PKD_MODEL_POTENTIAL) && (mMemoryModel&PKD_MODEL_UNORDERED) )
+	pkd->iParticleSize = sizeof(UPARTICLE);
+    else
+	pkd->iParticleSize = sizeof(PARTICLE);
     pkd->nParticleAlign = sizeof(float);
     pkd->iTreeNodeSize = sizeof(KDN);
 
@@ -475,9 +479,10 @@ void pkdInitialize(
 	else pkd->oGroup = pkdParticleAddInt32(pkd,1);
 	}
 
-    if (mMemoryModel&PKD_MODEL_UNORDERED) pkd->oPotential = 4;
-    else if ( mMemoryModel & PKD_MODEL_POTENTIAL )
-	pkd->oPotential = pkdParticleAddFloat(pkd,1);
+    if ( mMemoryModel & PKD_MODEL_POTENTIAL ) {
+	if (mMemoryModel&PKD_MODEL_UNORDERED) pkd->oPotential = 4;
+	else pkd->oPotential = pkdParticleAddFloat(pkd,1);
+	}
     else pkd->oPotential = 0;
 
     /*
