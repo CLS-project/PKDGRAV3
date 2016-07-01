@@ -26,8 +26,6 @@
 #include <sys/time.h>
 #endif
 
-#include "mdl2/mdlbase.h"
-
 static void *CUDA_malloc(size_t nBytes) {
 #ifdef __linux__
     uint64_t nPageSize = sysconf(_SC_PAGESIZE);
@@ -122,12 +120,18 @@ static CUDAwqNode *setup_node(CUDACTX cuda,CUDAwqNode *work) {
     assert(work->pCudaBufIn!=NULL);
     work->pCudaBufOut = CUDA_gpu_malloc(work->outBufferSize);
     assert(work->pCudaBufOut!=NULL);
+#ifdef USE_SINGLE_STREAM
+    work->stream = cuda->stream;
+    work->eventCopyDone = cuda->eventCopyDone;
+    work->eventKernelDone = cuda->eventKernelDone;
+#else
     CUDA_CHECK(cudaStreamCreate,( &work->stream ));
 #ifdef USE_CUDA_EVENTS
     CUDA_CHECK(cudaEventCreateWithFlags,( &work->event, cudaEventDisableTiming ));
 #endif
     CUDA_CHECK(cudaEventCreateWithFlags,( &work->eventCopyDone, cudaEventDisableTiming ));
     CUDA_CHECK(cudaEventCreateWithFlags,( &work->eventKernelDone, cudaEventDisableTiming ));
+#endif
     return work;
     }
 
@@ -192,7 +196,13 @@ void *CUDA_initialize(int nCores, int iCore, OPA_Queue_info_t *queueWORK, OPA_Qu
     ctx->nWorkQueueBusy = 0;
     ctx->nKernelLaunches = 0;
 
+#ifdef USE_SINGLE_STREAM
+    CUDA_CHECK(cudaStreamCreate,( &ctx->stream ));
+    CUDA_CHECK(cudaEventCreateWithFlags,( &ctx->eventCopyDone, cudaEventDisableTiming ));
+    CUDA_CHECK(cudaEventCreateWithFlags,( &ctx->eventKernelDone, cudaEventDisableTiming ));
+#endif
     ctx->wqCudaBusy = NULL;
+    ctx->nwqCudaBusy = 0;
     OPA_Queue_init(&ctx->wqFree);
     OPA_Queue_init(&ctx->wqDone);
     ctx->queueWORK = queueWORK;
@@ -296,12 +306,14 @@ static void CUDA_finishWork(CUDACTX cuda,CUDAwqNode *work) {
 
 extern "C" void CUDA_startWork(void *vcuda,OPA_Queue_info_t *queueWORK) {
     CUDACTX cuda = reinterpret_cast<CUDACTX>(vcuda);
-    while (!OPA_Queue_is_empty(queueWORK)) {
+    assert( cuda->nwqCudaBusy==0 || cuda->wqCudaBusy!=NULL);
+    while (cuda->nwqCudaBusy < 3 && !OPA_Queue_is_empty(queueWORK)) {
         CUDAwqNode *node;
         OPA_Queue_dequeue(queueWORK, node, CUDAwqNode, q.hdr);
         node->startTime = CUDA_getTime();
         node->q.next = cuda->wqCudaBusy;
         cuda->wqCudaBusy = node;
+        ++cuda->nwqCudaBusy;
         cudaError_t rc = static_cast<cudaError_t>((*node->initFcn)(node->ctx,node));
         ++cuda->nKernelLaunches;
         if ( rc != cudaSuccess) CUDA_attempt_recovery(cuda,rc);
@@ -336,6 +348,7 @@ int CUDA_flushDone(void *vcuda) {
         if (rc==cudaSuccess) {
             assert(work->doneFcn != NULL); /* Only one cudaSuccess per customer! */
             *last = work->q.next;
+            --cuda->nwqCudaBusy;
             OPA_Queue_enqueue(work->pwqDone, work, CUDAwqNode, q.hdr);
             continue;
             }
@@ -390,6 +403,7 @@ int CUDA_queue(void *vcuda, void *ctx,
     work->startTime = CUDA_getTime();
     work->q.next = cuda->wqCudaBusy;
     cuda->wqCudaBusy = work;
+    ++cuda->nwqCudaBusy;
 
     cudaError_t rc = static_cast<cudaError_t>((*work->initFcn)(work->ctx,work));
     if ( rc != cudaSuccess) CUDA_attempt_recovery(cuda,rc);

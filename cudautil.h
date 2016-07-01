@@ -4,6 +4,8 @@
 #include "basetype.h"
 #include "ilp.h"
 
+#define USE_SINGLE_STREAM
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -27,9 +29,11 @@ extern "C" {
     void CUDA_startWork(void *vcuda,OPA_Queue_info_t *queueWORK);
     void CUDA_registerBuffers(void *vcuda, OPA_Queue_info_t *queueWORK);
 #else
+#if !defined(__CUDACC__)
 #include "simd.h"
 #define CUDA_malloc SIMD_malloc
 #define CUDA_free SIMD_free
+#endif
 #endif
 #ifdef __cplusplus
     }
@@ -125,10 +129,15 @@ typedef struct cuda_ctx {
     OPA_Queue_info_t wqDone; // We can receive from another thread
     OPA_Queue_info_t *queueWORK;
     OPA_Queue_info_t *queueREGISTER;
-
+#ifdef USE_SINGLE_STREAM
+    cudaEvent_t eventCopyDone;
+    cudaEvent_t eventKernelDone;
+    cudaStream_t stream;     // execution stream
+#endif
     CUDAwqNode *nodePP; // We are building a PP request
     CUDAwqNode *nodePC; // We are building a PC request
     CUDAwqNode *nodeEwald; // We are building an Ewald request
+    int nwqCudaBusy;
     int nWorkQueueSize, nWorkQueueBusy;
     int inCudaBufSize, outCudaBufSize;
     int epoch;
