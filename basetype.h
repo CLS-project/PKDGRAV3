@@ -120,6 +120,7 @@ struct EwaldVariables {
 */
 typedef struct {
     PARTICLE **pPart;
+    uint32_t *iPart;
     PINFOIN *pInfoIn;
     PINFOOUT *pInfoOut;
     double dFlop;

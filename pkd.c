@@ -737,6 +737,8 @@ void pkdInitialize(
     for (ism=0;ism<pkd->nMaxStack;++ism) {
 	clInitialize(&pkd->S[ism].cl,&pkd->clFreeList);
 	}
+    pkd->ga = NULL;
+
     pkd->profileBins = NULL;
     pkd->groupBin = NULL;
 
@@ -1044,6 +1046,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
 	    }
 	if ( pkd->oPotential) pPot = pkdPot(pkd,p);
 	else pPot = &dummypot;
+        pkdSetGroup(pkd,p,0);
 
 	/* Initialize SPH fields if present */
 	if (pkd->oSph) {

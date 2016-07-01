@@ -622,6 +622,8 @@ void pkdNewFof(PKD pkd,double dTau2,int nMinMembers) {
 	pkd->ga[i].id.iPid = pkd->idSelf;
 	pkd->ga[i].iGid = i;
 	pkd->ga[i].iLink = 0;   /* this is a linked list of remote groups linked to this local group */
+	pkd->ga[i].minPot = FLOAT_MAXVAL;
+	pkd->ga[i].iMinPart = 0xffffffff;  /* should never be used */
 	}
     pkd->iRemoteGroup = 1;  /* The first entry is a dummy one for a null index */
     /*

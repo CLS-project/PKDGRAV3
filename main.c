@@ -349,12 +349,6 @@ void * master_ch(MDL mdl) {
 		msrOutputPk(msr,iStep,dTime);
 		}
 #endif
-	    if (msr->param.iFofInterval<0 || (msr->param.iFofInterval>0 && (iStep%msr->param.iFofInterval==0))) {
-		msrNewFof(msr,dTime);
-		msrBuildName(msr,achFile,(msr->param.iFofInterval<0)?(iStep<<(-msr->param.iFofInterval)):iStep);
-		strncat(achFile,".fofstats",256);
-		msrHopWrite(msr,achFile);
-		}
 	    /*
 	    ** Output a log file line if requested.
 	    ** Note: no extra gravity calculation required.

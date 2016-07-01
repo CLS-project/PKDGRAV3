@@ -4136,6 +4136,7 @@ int msrNewTopStepKDK(MSR msr,
     uint32_t uRoot2=0;
     int iRungDT = msr->iRungDT;
     char achFile[256];
+    int iStep = (int)(*pdStep) + 1;  /* temporary code */
 
     if (uRung == iRungDT+1) {
 	if ( msr->param.bDualTree && uRung < *puRungMax) {
@@ -4185,16 +4186,27 @@ int msrNewTopStepKDK(MSR msr,
     // We need to make sure we descend all the way to the bucket with the
     // active tree, or we can get HUGE group cells, and hence too much P-P/P-C
     int nGroup = (bDualTree && uRung > iRungDT) ? 1 : msr->param.nGroup;
+
+    
+    if (!uRung) {
+	msrNewFof(msr,*pdTime);
+	}
+
     *puRungMax = msrGravity(msr,uRung,msrMaxRung(msr),ROOT,uRoot2,*pdTime,
 	*pdStep,1,1,msr->param.bEwald,nGroup,piSec,&nActive);
-    msrLightCone(msr,*pdTime,uRung,msrMaxRung(msr));
 
-    if (uRung && uRung == -msr->param.iFofInterval) {
-	msrNewFof(msr,*pdTime);
-	msrBuildName(msr,achFile,(*pdStep)*pow(2.0,-msr->param.iFofInterval));
+    if (!uRung) {
+	msrGroupStats(msr);
+	msrBuildName(msr,achFile,iStep);
 	strncat(achFile,".fofstats",256);
 	msrHopWrite(msr,achFile);
 	}
+
+    /*
+    ** This will really become part of the gravity calculation so that 
+    ** we can make a potential healpix map.
+    */
+    if (uRung || iStep<100) msrLightCone(msr,*pdTime,uRung,msrMaxRung(msr));  /* temporary test!!! */
 
     if (uRung && uRung < *puRungMax) bDualTree = msrNewTopStepKDK(msr,bDualTree,uRung+1,pdStep,pdTime,puRungMax,piSec);
     if (bDualTree && uRung==iRungDT+1) {
@@ -4952,7 +4964,6 @@ void msrNewFof(MSR msr, double dTime) {
     struct inFofFinishUp inFinish;
     struct outGroupCountGID outCount;
     struct inGroupAssignGID inAssign;
-    struct inGroupStats inGroupStats;
     int i;
     uint64_t nGroups;
     double sec,dsec,ssec;
@@ -4996,11 +5007,14 @@ void msrNewFof(MSR msr, double dTime) {
     dsec = msrTime() - ssec;
     if (msr->param.bVStep)
 	printf("FoF complete, Wallclock: %f secs\n",dsec);
+    }
+
+
+void msrGroupStats(MSR msr) {
+    struct inGroupStats inGroupStats;
+    double sec,dsec,ssec;
 
     sec = msrTime();
-    /*
-    ** This should be done as a separate msr function.
-    */
     inGroupStats.bPeriodic = msr->param.bPeriodic;
     inGroupStats.dPeriod[0] = msr->param.dxPeriod;
     inGroupStats.dPeriod[1] = msr->param.dyPeriod;

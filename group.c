@@ -199,8 +199,6 @@ int pkdGroupRelocate(PKD pkd,int nGroups,struct smGroupArray *ga) {
     /*
     ** Get local groups back at the begining of the table.
     */
-
-
     nGroups = pkdGroupCombineDuplicateIds(pkd,nGroups,ga,1);
     return(nGroups);
     }

@@ -380,7 +380,20 @@ void pkdCalculateGroupStats(PKD pkd,int bPeriodic,double *dPeriod,double rEnviro
     nLocalGroups = 0;
     for (gid=0;gid<pkd->nGroups;++gid) {
 	if (pkd->ga[gid].id.iPid == pkd->idSelf && gid) ++nLocalGroups;
-	pkd->tinyGroupTable[gid].minPot = FLOAT_MAXVAL;
+	/*
+	** Here we assume that the ga table was setup prior to calling
+	** gravity so that we have filled in the minimum potential particle
+	** for each group.
+	*/
+	pkd->tinyGroupTable[gid].minPot = pkd->ga[gid].minPot;
+	if (gid) {
+	    assert(pkd->ga[gid].minPot < FLOAT_MAXVAL);
+	    assert(pkd->ga[gid].iMinPart < pkd->nLocal);
+	    p = pkdParticle(pkd,pkd->ga[gid].iMinPart);
+	    for (j=0;j<3;++j) {
+		pkd->tinyGroupTable[gid].rPot[j] = pkdPosRaw(pkd,p,j);
+		}
+	    }
 	pkd->tinyGroupTable[gid].rMax = 0;
 	dAccumulate[4*gid] = 0;
 	dAccumulate[4*gid+1] = 0;
@@ -397,7 +410,6 @@ void pkdCalculateGroupStats(PKD pkd,int bPeriodic,double *dPeriod,double rEnviro
 	gid = pkdGetGroup(pkd,p);
 	fMass = pkdMass(pkd,p);
 	if (!gid) continue;
-	fPot = *pkdPot(pkd,p);
 	v = pkdVel(pkd,p);
 	v2 = 0;
 	for (j=0;j<3;++j) {
@@ -405,12 +417,7 @@ void pkdCalculateGroupStats(PKD pkd,int bPeriodic,double *dPeriod,double rEnviro
 	    v2 += v[j]*v[j];
 	    }
 	dAccumulate[4*gid+3] += fMass*v2;
-	if (fPot < pkd->tinyGroupTable[gid].minPot) {
-	    pkd->tinyGroupTable[gid].minPot = fPot;
-	    for (j=0;j<3;++j) {
-		pkd->tinyGroupTable[gid].rPot[j] = pkdPosRaw(pkd,p,j);
-		}
-	    }
+
 	}
     for (gid=1;gid<pkd->nGroups;++gid) {
 	for (j=0;j<3;++j) {
@@ -863,4 +870,9 @@ void pkdCalculateGroupStats(PKD pkd,int bPeriodic,double *dPeriod,double rEnviro
     ** Important to really make sure pkd->nLocalGroups is set correctly before output!
     */
     pkd->nLocalGroups = nLocalGroups;
+    /*
+    ** Clear pkd->ga so that later gravity calculations don't set the minimum potential again.
+    ** This means we cannot directly output ga and could use this space for something else.
+    */
+    pkd->ga = NULL;
     }

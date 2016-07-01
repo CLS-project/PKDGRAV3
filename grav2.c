@@ -98,7 +98,7 @@ static inline float rsqrtf(float v) {
 */
 void pkdParticleWorkDone(workParticle *wp) {
     PKD pkd = wp->ctx;
-    int i;
+    int i,gid;
     PARTICLE *p;
     double r[3];
     vel_t *v,v2;
@@ -129,6 +129,13 @@ void pkdParticleWorkDone(workParticle *wp) {
 	    if (pkd->oPotential) {
 		float *pPot = pkdPot(pkd,p);
 		*pPot = wp->pInfoOut[i].fPot;
+		}
+	    if (pkd->ga != NULL) {
+		gid = pkdGetGroup(pkd,p);
+		if (gid && wp->pInfoOut[i].fPot < pkd->ga[gid].minPot) {
+		    pkd->ga[gid].minPot = wp->pInfoOut[i].fPot;
+		    pkd->ga[gid].iMinPart = wp->iPart[i];
+		    }
 		}
 	    a = wp->pInfoOut[i].a;
 	    pkd->dEnergyU += 0.5 * m * wp->pInfoOut[i].fPot;
@@ -916,6 +923,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     /* This is the maximum number of particles -- there may be fewer of course */
     nP = pkdn->pUpper - pkdn->pLower + 1;
     wp->pPart = malloc(sizeof(PARTICLE *) * nP); assert(wp->pPart != NULL);
+    wp->iPart = malloc(sizeof(uint32_t) * nP); assert(wp->iPart != NULL);
     wp->pInfoIn = malloc(sizeof(PINFOIN) * nP); assert(wp->pInfoIn != NULL);
     wp->pInfoOut = malloc(sizeof(PINFOOUT) * nP); assert(wp->pInfoOut != NULL);
     wp->c[0] = ilp->cx; assert(wp->c[0] == ilc->cx);
@@ -958,7 +966,7 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
 
 	nP = wp->nP++;
 	wp->pPart[nP] = p;
-
+	wp->iPart[nP] = i;
 	wp->pInfoIn[nP].r[0]  = (float)(r[0] - ilp->cx);
 	wp->pInfoIn[nP].r[1]  = (float)(r[1] - ilp->cy);
 	wp->pInfoIn[nP].r[2]  = (float)(r[2] - ilp->cz);
