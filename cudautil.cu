@@ -197,9 +197,16 @@ void *CUDA_initialize(int nCores, int iCore, OPA_Queue_info_t *queueWORK, OPA_Qu
     ctx->nKernelLaunches = 0;
 
 #ifdef USE_SINGLE_STREAM
-    CUDA_CHECK(cudaStreamCreate,( &ctx->stream ));
-    CUDA_CHECK(cudaEventCreateWithFlags,( &ctx->eventCopyDone, cudaEventDisableTiming ));
-    CUDA_CHECK(cudaEventCreateWithFlags,( &ctx->eventKernelDone, cudaEventDisableTiming ));
+    if (iCore < 0) {
+	CUDA_CHECK(cudaStreamCreate, (&ctx->stream));
+	CUDA_CHECK(cudaEventCreateWithFlags, (&ctx->eventCopyDone, cudaEventDisableTiming));
+	CUDA_CHECK(cudaEventCreateWithFlags, (&ctx->eventKernelDone, cudaEventDisableTiming));
+    }
+    else {
+	ctx->stream = NULL;
+	ctx->eventCopyDone = NULL;
+	ctx->eventKernelDone = NULL;
+    }
 #endif
     ctx->wqCudaBusy = NULL;
     ctx->nwqCudaBusy = 0;
