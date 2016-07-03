@@ -344,10 +344,6 @@ int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int nGrid,int b2LPT,double dBoxSi
 	p[idx].dr[0] = x;
 	p[idx].dr[1] = y;
 	p[idx].dr[2] = z;
-
-	if (fabs(x) > 0.1) printf("x=%g\n",x);
-	assert(fabs(x) < 0.1 );
-
 	p[idx].v[0] = f1 * x * velFactor;
 	p[idx].v[1] = f1 * y * velFactor;
 	p[idx].v[2] = f1 * z * velFactor;
@@ -387,8 +383,6 @@ int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int nGrid,int b2LPT,double dBoxSi
 	    float z = ic[9].r[rindex.i] * fftNormalize;
 
 	    p[idx].dr[0] += x;
-//	    if (fabs(x) > 0.1) printf("x=%g\n",x);
-//	    assert(fabs(x) < 0.1 );
 	    p[idx].dr[1] += y;
 	    p[idx].dr[2] += z;
 	    p[idx].v[0] += f2 * x * velFactor;
@@ -396,14 +390,6 @@ int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int nGrid,int b2LPT,double dBoxSi
 	    p[idx].v[2] += f2 * z * velFactor;
 	    ++idx;
 	    }
-	printf("%d idx:%d rfirst.i=%d\n",mdlSelf(mdl),idx,rfirst.i);
-	while(idx--) {
-	    assert(p[idx].dr[0] !=0);
-//	    assert(p[idx].dr[1] !=0);
-//	    assert(p[idx].dr[2] !=0);
-	    }
-
-
 	}
     gsl_spline_free(P.spline);
     gsl_interp_accel_free(P.acc);
