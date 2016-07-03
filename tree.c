@@ -182,6 +182,7 @@ static int PartPart(PKD pkd,int pLower,int pUpper,int d,pos_t Split) {
 */
 #define TEMP_S_INCREASE 100
 void BuildTemp(PKD pkd,int iNode,int M,int nGroup,double dMaxMax) {
+    PARTICLE *pi, *pj;
     KDN *pNode = pkdTreeNode(pkd,iNode);
     BND bnd,lbnd,rbnd;
     KDN *pLeft, *pRight;
@@ -200,9 +201,8 @@ void BuildTemp(PKD pkd,int iNode,int M,int nGroup,double dMaxMax) {
     pNode->iSplitDim = 3;
 
     // Single bucket? We are done.
-    if (pNode->pUpper - pNode->pLower + 1 <= M) {
-	return;
-	}
+    if (pNode->pUpper - pNode->pLower + 1 <= M) return;
+
     /*
     ** Allocate stack!
     */
@@ -242,9 +242,6 @@ void BuildTemp(PKD pkd,int iNode,int M,int nGroup,double dMaxMax) {
 	    ** allocated enough storage.
 	    */
 	    pkdTreeAllocNodePair(pkd,&iLeft,&iRight);
-
-	    if (iLeft == 1776210) printf("%d iLeft==%d\n",pkd->idSelf,iLeft);
-
 	    pLeft = pkdTreeNode(pkd,iLeft);
 	    pLeft->bTopTree = 0;
 	    pLeft->bRemote = 0;
@@ -330,16 +327,6 @@ void BuildTemp(PKD pkd,int iNode,int M,int nGroup,double dMaxMax) {
 		++nBucket;
 		}
 	    else {
-		if (pkd->idSelf==7 && iLeft==1776210) {
-		    int i;
-		    for (i=pNode->pLower;i<=pNode->pUpper;++i) {
-			PARTICLE *pi = pkdParticle(pkd,i);
-			double r[3];
-			pkdGetPos1(pkd,pi,r);
-			printf("%g %g %g\n",r[0],r[1],r[2]);
-			}
-		    }
-
 		/*
 		** Both are buckets (we need to pop from the stack to get the next subfile.
 		*/
@@ -634,7 +621,7 @@ void Create(PKD pkd,int iRoot) {
 	*/
 	pj = pkdn->pLower;
 	p = pkdParticle(pkd,pj);
-#if defined(__AVX__) && defined(INTEGER_POSITION) && defined(USE_SIMD) && defined(BLAHBLAH)
+#if defined(__AVX__) && defined(INTEGER_POSITION) && defined(USE_SIMD)
 	__m256d vmin, vmax;
 #if defined(INTEGER_POSITION)
 	__m128i ivmin, ivmax;
@@ -779,9 +766,6 @@ void Create(PKD pkd,int iRoot) {
 	    */
 	    d2Max = (d2 > d2Max)?d2:d2Max;
 #endif
- 		    if (d2Max == 0 && pkdn->pUpper > pkdn->pLower ) {
-			printf("%d bucket:%d pj:%d x:%.14g y:%.14g z:%.14g rx:%.14g ry:%.14g rz:%.14g\n",pkd->idSelf,iNode,pj,x,y,z,kdn_r[0],kdn_r[1],kdn_r[2]);
-			}
 	    }
 #ifdef USE_MAXSIDE
         MAXSIDE(bnd.fMax,b);
@@ -882,7 +866,7 @@ void Create(PKD pkd,int iRoot) {
 		d2Max = 0;
 		for (;pj<=pkdn->pUpper;++pj) {
 		    p = pkdParticle(pkd,pj);
-#if defined(__AVX__) && defined(INTEGER_POSITION) && defined(USE_SIMD) && defined(BLAHBLAH)
+#if defined(__AVX__) && defined(INTEGER_POSITION) && defined(USE_SIMD)
 		    __m256d v = _mm256_sub_pd(pkdGetPos(pkd,p),_mm256_setr_pd(kdn_r[0],kdn_r[1],kdn_r[2],0.0));
 		    v = _mm256_mul_pd(v,v);
 		    __m128d t0 = _mm256_extractf128_pd(v,0);
@@ -898,13 +882,9 @@ void Create(PKD pkd,int iRoot) {
 		    z -= kdn_r[2];
 		    d2 = x*x + y*y + z*z;
 		    d2Max = (d2 > d2Max)?d2:d2Max;
- 		    if (d2Max == 0) {
-			printf("cell:%d pj:%d x:%.14g y:%.14g z:%.14g rx:%.14g ry:%.14g rz:%.14g\n",pkd->idSelf,pj,x,y,z,kdn_r[0],kdn_r[1],kdn_r[2]);
-			}
 #endif
 		    }
-		assert(d2Max >= 0);
-		assert(d2Max > 0);
+		assert(d2Max>0);
 		/*
 		** Now determine the opening radius for gravity.
 		*/
