@@ -237,6 +237,7 @@ void pkdParticleWorkDone(workParticle *wp) {
 		}
 	    }
 	free(wp->pPart);
+	free(wp->iPart);
 	free(wp->pInfoIn);
 	free(wp->pInfoOut);
 	free(wp);
