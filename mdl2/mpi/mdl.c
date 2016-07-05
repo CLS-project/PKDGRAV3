@@ -3254,7 +3254,8 @@ void mdlAddWork(MDL mdl, void *ctx,
 
     /* We prefer to let CUDA do the work */
 #ifdef USE_CUDA
-    if (CUDA_queue(mdl->cudaCtx,ctx,initWork,checkWork)) return;
+    assert(initWork==NULL && checkWork==NULL); // obsolete
+//    if (CUDA_queue(mdl->cudaCtx,ctx,initWork,checkWork)) return;
 #endif
     /* Obviously, we can only queue work if we have a free queue element */
     if (!OPA_Queue_is_empty(&mdl->wqFree)) {

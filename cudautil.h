@@ -122,18 +122,22 @@ typedef struct cuda_wq_node {
         };
     } CUDAwqNode;
 
+typedef struct cuda_stream {
+    struct cuda_stream *next;
+    cudaEvent_t eventCopyDone;
+    cudaEvent_t eventKernelDone;
+    cudaStream_t stream;     // execution stream
+    CUDAwqNode *node;
+    } cudaStream;
+
 typedef struct cuda_ctx {
     struct cudaDeviceProp prop;
-    CUDAwqNode *wqCudaBusy;  // Private to this CUDACTX
+    cudaStream *wqCudaFree;  // Private to this CUDACTX
+    cudaStream *wqCudaBusy;  // Private to this CUDACTX
     OPA_Queue_info_t wqFree; // We can receive from another thread
     OPA_Queue_info_t wqDone; // We can receive from another thread
     OPA_Queue_info_t *queueWORK;
     OPA_Queue_info_t *queueREGISTER;
-#ifdef USE_SINGLE_STREAM
-    cudaEvent_t eventCopyDone;
-    cudaEvent_t eventKernelDone;
-    cudaStream_t stream;     // execution stream
-#endif
     CUDAwqNode *nodePP; // We are building a PP request
     CUDAwqNode *nodePC; // We are building a PC request
     CUDAwqNode *nodeEwald; // We are building an Ewald request
