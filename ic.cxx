@@ -98,7 +98,7 @@ static void pkdGenerateNoise(PKD pkd,unsigned long seed,MDLFFT fft,COMPLEX *ic,d
     const int iNyquist = nGrid / 2;
     RngStream g;
     unsigned long fullKey[6];
-    int i,j,k,jj,kk;
+    int i,j,k;
     COMPLEX v_ny,v_wn;
 
     mdlGridCoord kfirst, klast, kindex;
@@ -131,15 +131,16 @@ static void pkdGenerateNoise(PKD pkd,unsigned long seed,MDLFFT fft,COMPLEX *ic,d
 	    j = kindex.z; /* Remember: z and y indexes are permuted in k-space */
 	    k = kindex.y;
 
-	    jj = j<=iNyquist ? j*2 : (nGrid-j)*2 + 1;
-	    kk = k<=iNyquist ? k*2 : (nGrid-k)*2 + 1;
+	    int jj = j<=iNyquist ? j*2 : (nGrid-j)*2 % nGrid + 1;
+	    int kk = k<=iNyquist ? k*2 : (nGrid-k)*2 % nGrid + 1;
 
 	    /* We need the sample for x==0 AND/OR x==iNyquist, usually both but at least one. */
 	    RngStream_ResetStartStream (g);
-	    if (kindex.z <= iNyquist && kindex.y <= iNyquist) { /* Positive zone */
+	    if ( kindex.y <= iNyquist && (kindex.y%iNyquist!=0||kindex.z<=iNyquist) ) { /* Positive zone */
 		RngStream_AdvanceState (g, 0, (1LL<<40)*jj + (1LL<<20)*kk );
 		v_ny = pairc(g);
 		v_wn = pairc(g);
+
 		if ( (kindex.z==0 || kindex.z==iNyquist)  && (kindex.y==0 || kindex.y==iNyquist) ) {
 		    /* These are real because they must be a complex conjugate of themselves. */
 		    v_ny = REAL(v_ny);
@@ -150,9 +151,10 @@ static void pkdGenerateNoise(PKD pkd,unsigned long seed,MDLFFT fft,COMPLEX *ic,d
 		}
 	    /* We need to generate the correct complex conjugates */
 	    else {
-		int jjc = (nGrid-j) % nGrid * 2;
-		int kkc = (nGrid-k) % nGrid * 2;
-
+		int jjc = j<=iNyquist ? j*2 + 1 : (nGrid-j) % nGrid * 2;
+		int kkc = k<=iNyquist ? k*2 + 1 : (nGrid-k) % nGrid * 2;
+		if (k%iNyquist == 0) { kkc = kk; }
+		if (j%iNyquist == 0) { jjc = jj; }
 		RngStream_AdvanceState (g, 0, (1LL<<40)*jjc + (1LL<<20)*kkc );
 		v_ny = conj(pairc(g));
 		v_wn = conj(pairc(g));
@@ -270,6 +272,78 @@ int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int nGrid,int b2LPT,double dBoxSi
     /* Generate white noise realization -> ic[6] */
     if (mdlSelf(mdl)==0) {printf("Generating random noise\n"); fflush(stdout); }
     pkdGenerateNoise(pkd,iSeed,fft,ic[6].k,noiseMean,noiseCSQ);
+#if 0
+    if (mdlSelf(mdl)==0) {printf("Writing noise\n"); fflush(stdout); }
+    float csq = 0.0;
+    for( kindex=kfirst; !mdlGridCoordCompare(&kindex,&klast); mdlGridCoordIncrement(&kindex) ) {
+	idx = kindex.i;
+	ic[7].k[idx] = ic[6].k[idx];
+	csq += REAL(ic[7].k[idx] * conj(ic[7].k[idx]));
+	}
+    mdlIFFT(mdl, fft, (FFTW3(complex)*)ic[7].k );
+
+#if 0
+    // Copy it back, normalize and take the FFT -- should give the same result
+    for( rindex=rfirst; !mdlGridCoordCompare(&rindex,&rlast); mdlGridCoordIncrement(&rindex) ) {
+	int i = rindex.i;
+	ic[7].r[i] *= 1.0/nGrid/nGrid/nGrid;
+	}
+    mdlFFT(mdl, fft, ic[7].r );
+
+    for( kindex=kfirst; !mdlGridCoordCompare(&kindex,&klast); mdlGridCoordIncrement(&kindex) ) {
+	idx = kindex.i;
+	float a = REAL(ic[7].k[idx]-ic[6].k[idx]);
+	float b = IMAG(ic[7].k[idx]-ic[6].k[idx]);
+	if ( fabs(a) > 1e-6 || fabs(b) > 1e-6)
+	    printf("%3d.%3d.%3d: %+6f + %+6f i   %+6f + %+6f i   %+6f + %+6f i  !\n",
+		kindex.x,kindex.y,kindex.z,
+		a,b,
+		REAL(ic[6].k[idx]),IMAG(ic[6].k[idx]),
+		REAL(ic[7].k[idx]),IMAG(ic[7].k[idx]));
+	assert ( fabs(a) < 1e-6 && fabs(b) < 1e-6);
+//	else
+//	    printf("%3d.%3d.%3d:                           %+6f + %+6f i   %+6f + %+6f i\n",
+//		kindqex.x,kindex.y,kindex.z,
+//		REAL(ic[6].k[idx]),IMAG(ic[6].k[idx]),
+//		REAL(ic[7].k[idx]),IMAG(ic[7].k[idx]));
+	}
+#endif
+
+    if (mdlSelf(mdl)==0) {
+	FILE *fp = fopen("wn.dat","wb");
+	assert(fp);
+	uint32_t w;
+
+	w = 16;
+	fwrite(&w,sizeof(w),1,fp);
+	fwrite(&nGrid,sizeof(nGrid),1,fp);
+	fwrite(&nGrid,sizeof(nGrid),1,fp);
+	fwrite(&nGrid,sizeof(nGrid),1,fp);
+	fwrite(&nGrid,sizeof(nGrid),1,fp);
+	fwrite(&w,sizeof(w),1,fp);
+
+	w = nGrid * nGrid * sizeof(float);
+	double sum = 0.0;
+	double sum2 = 0.0;
+	for(k=0; k<nGrid; ++k) {
+	    fwrite(&w,sizeof(w),1,fp);
+	    for(j=0; j<nGrid; ++j) {
+		int ii = fft->rgrid->a1*(j + k*nGrid);
+		for(i=0; i<nGrid; ++i) {
+		    float v = ic[7].r[i + ii] *= sqrt(1.0/nGrid/nGrid/nGrid);
+		    sum += v;
+		    sum2 += v*v;
+		    }
+		fwrite(&(ic[7].r[ii]),sizeof(float),nGrid,fp);
+		}
+	    fwrite(&w,sizeof(w),1,fp);
+	    }
+	fclose(fp);
+	sum /= nGrid*nGrid*nGrid;
+	printf("mean=%g sum2=%g var=%g\n", sum, sum2, sum2/(nGrid*nGrid*nGrid) );
+	}
+    mdlThreadBarrier(pkd->mdl);
+#endif
 
     if (mdlSelf(mdl)==0) {printf("Imprinting power\n"); fflush(stdout); }
     for( kindex=kfirst; !mdlGridCoordCompare(&kindex,&klast); mdlGridCoordIncrement(&kindex) ) {
@@ -278,22 +352,15 @@ int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int nGrid,int b2LPT,double dBoxSi
 	iz = wrap(kindex.y,iNyquist,fft->rgrid->n2);
 	ix = wrap(kindex.x,iNyquist,fft->rgrid->n1);
 	idx = kindex.i;
-
-	/* Preserve complex conjugates in the Nyquist planes */
-	if (kindex.x==0 || kindex.x==iNyquist) {
-	    ix = abs(ix);
-	    iy = abs(iy);
-	    iz = abs(iz);
-	    }
 	ak2 = ix*ix + iy*iy + iz*iz;
 	if (ak2>0) {
 	    ak = sqrt(ak2) * iLbox;
 	    amp = sqrt(power(&P,ak) * iLbox3) * itwopi / ak2;
 	    }
 	else amp = 0.0;
-	ic[7].k[idx] = ic[6].k[idx] * amp * ix;
-	ic[8].k[idx] = ic[6].k[idx] * amp * iy;
-	ic[9].k[idx] = ic[6].k[idx] * amp * iz;
+	ic[7].k[idx] = ic[6].k[idx] * amp * ix * -I;
+	ic[8].k[idx] = ic[6].k[idx] * amp * iy * -I;
+	ic[9].k[idx] = ic[6].k[idx] * amp * iz * -I;
 	if (b2LPT) {
 	    ic[0].k[idx] = ic[7].k[idx] * twopi * ix * -I; /* xx */
 	    ic[1].k[idx] = ic[8].k[idx] * twopi * iy * -I; /* yy */
