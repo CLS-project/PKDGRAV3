@@ -5304,6 +5304,7 @@ double msrGenerateIC(MSR msr) {
 	    assert(in.nTf < MAX_TF);
 	    if (sscanf(buffer," %lg %lg\n",&in.k[in.nTf],&in.tf[in.nTf])==2) {
 		in.k[in.nTf] = log(in.k[in.nTf]);
+		in.tf[in.nTf] = log(in.tf[in.nTf]);
 		++in.nTf;
 		}
 	    }

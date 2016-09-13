@@ -34,10 +34,20 @@ typedef struct {
     double spectral;
     double normalization;
     int nTf;
+    double rise0, rise1;
     } powerParameters;
 
 static double power(powerParameters *P,double k) {
-    double T = gsl_spline_eval(P->spline,log(k),P->acc);
+    double lk = log(k);
+    double T;
+
+    if (lk > P->tk[P->nTf-1]) /* Extrapolate beyond kmax */
+	T =  P->tf[P->nTf-1] + (lk - P->tk[P->nTf-1]) * P->rise1;
+    else if (lk < P->tk[0]) /* Extrapolate beyond kmin */
+	T =  P->tf[0] + (lk - P->tk[0]) * P->rise0;
+    else
+	T = gsl_spline_eval(P->spline,lk,P->acc);
+    T = exp(T);
     return pow(k,P->spectral) * P->normalization * T * T;
     }
 
@@ -221,6 +231,8 @@ int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int nGrid,int b2LPT,double dBoxSi
     P.nTf = nTf;
     P.tk = tk;
     P.tf = tf;
+    P.rise0 = (P.tf[0] - P.tf[1]) / (P.tk[0] - P.tk[1]);
+    P.rise1 = (P.tf[P.nTf-1] - P.tf[P.nTf-2]) / (P.tk[P.nTf-1] - P.tk[P.nTf-2]);
     P.acc = gsl_interp_accel_alloc();
     P.spline = gsl_spline_alloc (gsl_interp_cspline, nTf);
     gsl_spline_init(P.spline, P.tk, P.tf, P.nTf);
