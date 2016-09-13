@@ -341,6 +341,7 @@ void cudaEwaldInit(void *cudaCtx, struct EwaldVariables *ewIn, EwaldTable *ewt )
     if (cuda->iCore==0) {
 	assert(OPA_Queue_is_empty(&cuda->wqDone));
 	CUDAwqNode *node = getNode(cuda);
+        if (node==NULL) return;
 	assert(node);
 	node->initEwald.ewIn = cuda->ewIn;
 	node->initEwald.ewt = cuda->ewt;
