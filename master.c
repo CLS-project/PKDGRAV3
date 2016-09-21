@@ -985,7 +985,7 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.dDelta = 0.0;
     prmAddParam(msr->prm,"dDelta",2,&msr->param.dDelta,sizeof(double),"dt",
 		"<time step>");
-    msr->param.dEta = 0.1;
+    msr->param.dEta = 0.2;
     prmAddParam(msr->prm,"dEta",2,&msr->param.dEta,sizeof(double),"eta",
 		"<time step criterion> = 0.1");
     msr->param.bGravStep = 0;
@@ -1040,7 +1040,7 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.dEwhCut = 2.8;
     prmAddParam(msr->prm,"dEwhCut",2,&msr->param.dEwhCut,sizeof(double),"ewh",
 		"<dEwhCut> = 2.8");
-    msr->param.dTheta = 0.8;
+    msr->param.dTheta = 0.7;
     msr->param.dTheta2 = msr->param.dTheta;
     msr->param.dTheta20 = msr->param.dTheta;
     prmAddParam(msr->prm,"dTheta",2,&msr->param.dTheta,sizeof(double),"theta",
@@ -1145,7 +1145,7 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.nSmooth = 64;
     prmAddParam(msr->prm,"nSmooth",1,&msr->param.nSmooth,sizeof(int),"s",
 		"<number of particles to smooth over> = 64");
-    msr->param.bStandard = 0;
+    msr->param.bStandard = 1;
     prmAddParam(msr->prm,"bStandard",0,&msr->param.bStandard,sizeof(int),"std",
 		"output in standard TIPSY binary format = -std");
     msr->param.iCompress = 0;
@@ -1191,7 +1191,7 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.dGrowEndT = 1.0;
     prmAddParam(msr->prm,"dGrowEndT",2,&msr->param.dGrowEndT,
 		sizeof(double),"gmet","<End time for growing mass> = 1.0");
-    msr->param.dFracDualTree = 0.00;
+    msr->param.dFracDualTree = 0.05;
     prmAddParam(msr->prm,"dFracDualTree",2,&msr->param.dFracDualTree,
 		sizeof(double),"fndt",
 		"<Fraction of Active Particles for to use a dual tree> = dFracNoDomainDecomp ");
