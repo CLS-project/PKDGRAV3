@@ -16,23 +16,38 @@ AM_PROG_CC_C_O
 
 AC_LANG_PUSH(C)
 oldCC="$CC"
-for CC in cc mpicc $oldCC ; do
+for CC in $oldCC cc mpicc ; do
   test -n "$MPICC" && break
   AC_TRY_COMPILE([#include "mpi.h"],[MPI_Init(0,0)],[MPICC="$CC"],[])
 done
 CC="$oldCC"
 AC_LANG_POP(C)
 AC_SUBST(MPICC)
-
+# Check if mpi is available
+if test -n "$MPICC" ; then
+  CC="$MPICC"
+  HAVE_MPI=yes
+else
+  AC_MSG_ERROR([Cannot compile MPI programs])
+fi
+AM_CONDITIONAL(HAVE_MPI,test "x$HAVE_MPI" = "xyes")
+if test "x$HAVE_MPI" = "xyes" ; then
+  AC_DEFINE([HAVE_MPI], 1, [Set to 1 if MPI is available.])
+fi
 AC_LANG_PUSH(C++)
 oldCXX="$CXX"
-for CXX in CC mpicxx $oldCC ; do
+for CXX in $oldCXX CC mpicxx ; do
   test -n "$MPICXX" && break
   AC_TRY_COMPILE([#include "mpi.h"],[MPI_Init(0,0)],[MPICXX="$CXX"],[])
 done
 CXX="$oldCXX"
 AC_LANG_POP(C++)
 AC_SUBST(MPICXX)
+if test -n "$MPICXX" ; then
+  CXX="$MPICXX"
+else
+  AC_MSG_ERROR([Cannot compile C++ MPI programs])
+fi
 
 AC_DEFINE([HAVE_ROMBERG], 1, [Use the pkdgrav3 Romberg integrator.])
 AC_DEFINE([NAIVE_DOMAIN_DECOMP], 1, [Use a simplified domain decomposition.])
@@ -400,14 +415,6 @@ AC_ARG_ENABLE(soft-square,
  	[Define if SOFTSQUARE should be used.])])
 AM_CONDITIONAL(SOFTSQUARE, test "x$SOFTSQUARE" = "xyes")
 
-# Check if mpi is available
-if test -n "$MPICC" ; then
-  HAVE_MPI=yes
-fi
-AM_CONDITIONAL(HAVE_MPI,test "x$HAVE_MPI" = "xyes")
-if test "x$HAVE_MPI" = "xyes" ; then
-  AC_DEFINE([HAVE_MPI], 1, [Set to 1 if MPI is available.])
-fi
 AC_CHECK_LIB([m], [fabs])
 # FIXME: Replace `main' with a function in `-lrt':
 #AC_CHECK_LIB([rt], [main])
@@ -617,13 +624,10 @@ fi
 AC_CHECK_FUNCS([wordexp wordfree glob globfree gethostname getpagesize mkdir strverscmp])
 AC_CHECK_FUNCS([floor gettimeofday pow sqrt strchr strdup strrchr strstr],,[AC_MSG_ERROR([not found])])
 AX_PTHREAD
-AM_CONDITIONAL(HAVE_PTHREAD,test "x$ax_pthread_ok" = "xyes")
-AM_CONDITIONAL(HAVE_MPIPT,false)
+#AM_CONDITIONAL(HAVE_PTHREAD,test "x$ax_pthread_ok" = "xyes")
+AM_CONDITIONAL(HAVE_PTHREAD,false)
 
 AC_CONFIG_FILES([Makefile])
 AC_CONFIG_SUBDIRS([openpa])
-#if test "x$USE_GRAFIC" != "xno" ; then
-#  AC_CONFIG_SUBDIRS([grafic])
-#fi
 
 AC_OUTPUT
