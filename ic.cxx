@@ -244,6 +244,10 @@ int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int nGrid,int b2LPT,double dBoxSi
 	P.normalization = cosmo->dNormalization * Da/D0;
 	dSigma8 = sqrt(variance(&P,8.0));
 	}
+    if (mdlSelf(mdl)==0) {
+	printf("sigma8=%.15g\n",dSigma8); 
+	fflush(stdout);
+	}
     f1 = pow(dOmega,5.0/9.0);
     f2 = 2.0 * pow(dOmega,6.0/11.0);
 
