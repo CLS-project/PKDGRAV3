@@ -1,0 +1,50 @@
+achOutName	= "example"
+
+# Memory and performance
+bMemUnordered	= 1	# iOrder replaced by potential and group id
+bNewKDK         = 1	# No accelerations in the particle, dual tree possible
+bDualTree	= 1	# Use two trees
+
+# Initial Condition
+dBoxSize        = 2000       # Mpc/h
+nGrid           = 128        # Simulation has nGrid^3 particles
+b2LPT           = 1          # second order IC
+iSeed           = 314159265  # Random seed
+dRedFrom        = 49         # Starting redshift
+
+# Cosmology
+achTfFile       = "euclid_z0_transfer_combined.dat"
+h               = 0.67
+dOmega0         = 0.32
+dLambda         = 0.68
+dSigma8         = 0.83
+dSpectral       = 0.96
+
+iStartStep	= 0
+nSteps		= 100
+dRedTo		= 0
+
+# Logging/Output
+iLogInterval    = 1
+iOutInterval	= 10
+#iCheckInterval	= 10
+bDoDensity	= 0
+bVDetails	= 1
+dHubble0        = 2.894405              # sqrt(pi*8/3)
+
+bOverwrite	= 1
+bParaRead       = 1	# Read in parallel
+bParaWrite      = 0	# Write in parallel (does not work on all file systems)
+#nParaRead	= 8	# Limit number of simultaneous readers to this
+#nParaWrite	= 8	# Limit number of simultaneous writers to this
+
+# Cosmological Simulation
+bComove         = 1     # Use comoving coordinates
+bPeriodic       = 1     # with a periodic box
+bEwald 		= 1     # enable Ewald periodic boundaries
+
+# Accuracy Parameters
+bEpsAccStep	= 1     # Choose eps/a timestep criteria
+dTheta  	= 0.40	# accuracy of forces for z > 20
+dTheta20  	= 0.55	# accuracy of forces for z > 2
+dTheta2         = 0.70	# accuracy of forces for z <= 2

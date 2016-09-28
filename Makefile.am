@@ -6,7 +6,7 @@ SUFFIXES = .cu
 .cu.o:
 	$(NVCC) -I. -DHAVE_CONFIG_H -lineinfo -o $@ -c $< $(NVML_INCLUDE) $(NVCCFLAGS) -Imdl2/mpi -Imdl2 -Iopenpa/src
 
-EXTRA_DIST = server.py
+EXTRA_DIST = server.py examples/cosmology.par examples/euclid_z0_transfer_combined.dat
 #EXTRA_PROGRAMS = pkdgrav3_null
 #TARGETS = null
 EXTRA_PROGRAMS = 
