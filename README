@@ -1,5 +1,6 @@
 			       pkdgrav3
-			    June 12, 2015
+			 September 28, 2016
+		      http://www.pkdgrav.org/
 
 		 Doug Potter <dpotter@physik.uzh.ch>
 		Joachim Stadel <stadel@physik.uzh.ch>
@@ -38,6 +39,13 @@ FFTW - Fast Fourier Transform Library (optional)
     If is is not available on your system it can be obtained from:
 
         http://www.fftw.org/
+
+CUDA
+
+    If your system has a CUDA capable GPU then pkdgrav3 can use it.
+    The necessary toolkits can be downloaded from nVidia.
+
+	https://developer.nvidia.com/cuda-downloads
 
 Configuration
 -------------
@@ -118,15 +126,6 @@ a 16 core machine, the build process can be sped up with:
 
 Running
 -------
-
-    pkdgrav3_pthread
-    -----------------
-    This version has an optional flag "-sz" which specifies the number of
-    processors to use.  If not specified, it defaults to the number of
-    CPUs for Linux systems, or one CPU otherwise.  Normally this flag is
-    specified, as in:
-
-	./pkdgrav3_pthread -sz 4 simfile.par
 
     pkdgrav3_mpi
     -------------
