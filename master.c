@@ -4188,14 +4188,14 @@ int msrNewTopStepKDK(MSR msr,
     int nGroup = (bDualTree && uRung > iRungDT) ? 1 : msr->param.nGroup;
 
     
-    if (!uRung) {
+    if (!uRung && msr->param.bFindGroups) {
 	msrNewFof(msr,*pdTime);
 	}
 
     *puRungMax = msrGravity(msr,uRung,msrMaxRung(msr),ROOT,uRoot2,*pdTime,
 	*pdStep,1,1,msr->param.bEwald,nGroup,piSec,&nActive);
 
-    if (!uRung) {
+    if (!uRung && msr->param.bFindGroups) {
 	msrGroupStats(msr);
 	msrBuildName(msr,achFile,iStep);
 	strncat(achFile,".fofstats",256);
