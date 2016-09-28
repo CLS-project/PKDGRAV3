@@ -1,4 +1,4 @@
-#SUBDIRS=openpa
+SUBDIRS=openpa
 ACLOCAL_AMFLAGS  = -I m4
 
 SUFFIXES = .cu
