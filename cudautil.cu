@@ -356,13 +356,13 @@ int CUDA_flushDone(void *vcuda) {
         }
     last = &cuda->wqCudaBusy;
     while( (stm = *last) != NULL) {
+        work = stm->node;
 #ifdef USE_CUDA_EVENTS
         cudaError_t rc = cudaEventQuery(stm->event);
 #else
         cudaError_t rc = cudaStreamQuery(stm->stream);
 #endif
         if (rc==cudaSuccess) {
-            work = stm->node;
             assert(work->doneFcn != NULL); /* Only one cudaSuccess per customer! */
             *last = stm->next;
             stm->next = cuda->wqCudaFree;
