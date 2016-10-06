@@ -74,7 +74,7 @@ __global__ void cudaEwald(gpuEwaldInput *onGPU,gpuEwaldOutput *outGPU) {
     tax = fax;
     tay = fay;
     taz = faz;
-    dPot = fPot;
+    dPot = fPot + ew.mom.m*ew.k1;
 
     for(i=0; i<MAX_TOTAL_REPLICAS; ++i) {
         bInHole = bHole[i];
