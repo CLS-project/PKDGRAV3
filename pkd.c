@@ -2183,6 +2183,7 @@ void pkdPhysicalSoft(PKD pkd,double dSoftMax,double dFac,int bSoftMaxMul) {
 void
 pkdGravAll(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     int bKickClose,int bKickOpen,vel_t *dtClose,vel_t *dtOpen,
+    double *dtLCDrift,double *dtLCKick,double dLookbackFac,double dLookbackFacLCP,
     double dAccFac,double dTime,int nReps,int bPeriodic,
     int bEwald,int nGroup,int iRoot1, int iRoot2,
     double fEwCut,double fEwhCut,double dThetaMin,
@@ -2233,6 +2234,7 @@ pkdGravAll(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     pkd->dFlopSingleCPU = pkd->dFlopDoubleCPU = 0.0;
     pkd->dFlopSingleGPU = pkd->dFlopDoubleGPU = 0.0;
     *pnActive = pkdGravWalk(pkd,uRungLo,uRungHi,bKickClose,bKickOpen,dtClose,dtOpen,
+	dtLCDrift,dtLCKick,dLookbackFac,dLookbackFacLCP,
 	dAccFac,dTime,nReps,bPeriodic && bEwald,nGroup,
 	iRoot1,iRoot2,0,dThetaMin,pdFlop,&dPartSum,&dCellSum);
     pkdStopTimer(pkd,1);
@@ -2387,7 +2389,7 @@ void pkdLightConeOpen(PKD pkd,const char *fname,int nSideHealpix) {
 	}
     }
 
-void addToLightCone(PKD pkd,double *r,PARTICLE *p,int bParticleOutput) {
+void addToLightCone(PKD pkd,double *r,float fPot,PARTICLE *p,int bParticleOutput) {
     vel_t *v = pkdVel(pkd,p);
     if (pkd->afiLightCone.fd>0 && bParticleOutput) {
 	LIGHTCONEP *pLC = pkd->pLightCone;
@@ -2413,14 +2415,13 @@ void addToLightCone(PKD pkd,double *r,PARTICLE *p,int bParticleOutput) {
 	else {
 	    if (m->nUngrouped < 0xffffffffu) ++m->nUngrouped; /* Increment with saturate */
 	    }
-	float *pPot = pkdPot(pkd,p);
-	if (pPot) m->fPotential += *pPot;
+	m->fPotential += fPot;
 	}
     }
 
 #ifndef USE_SIMD_LC
 #define NBOX 184
-void pkdProcessLightCone(PKD pkd,PARTICLE *p,double dLookbackFac,double dLookbackFacLCP,double dDriftDelta,double dKickDelta) {
+void pkdProcessLightCone(PKD pkd,PARTICLE *p,float fPot,double dLookbackFac,double dLookbackFacLCP,double dDriftDelta,double dKickDelta) {
     const double dLightSpeed = dLightSpeedSim(pkd->param.dBoxSize);
     const double mrLCP = dLightSpeed*dLookbackFacLCP;
     double vrx0[NBOX],vry0[NBOX],vrz0[NBOX];
@@ -2538,7 +2539,7 @@ void pkdProcessLightCone(PKD pkd,PARTICLE *p,double dLookbackFac,double dLookbac
 		r[1] = (1-x[iOct])*vry0[iOct] + x[iOct]*vry1[iOct];
 		r[2] = (1-x[iOct])*vrz0[iOct] + x[iOct]*vrz1[iOct];
 		mr = sqrt(r[0]*r[0] + r[1]*r[1] + r[2]*r[2]);
-		addToLightCone(pkd,r,p,pkd->param.bLightConeParticles && (mr <= mrLCP));
+		addToLightCone(pkd,r,fPot,p,pkd->param.bLightConeParticles && (mr <= mrLCP));
 		}
 	    }
 	if (isect[k].jPlane == 3) break;
@@ -2555,6 +2556,7 @@ void pkdProcessLightCone(PKD pkd,PARTICLE *p,double dLookbackFac,double dLookbac
 void pkdLightCone(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dLookbackFac,double dLookbackFacLCP,
     double *dtLCDrift,double *dtLCKick) {
     PARTICLE *p;
+    float fPot,*pfPot;
     int i;
 
     KDN *kdn = pkdTreeNode(pkd,ROOT);
@@ -2563,9 +2565,11 @@ void pkdLightCone(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dLookbackFac,do
 	if ( !pkdIsDstActive(p,uRungLo,uRungHi) ) continue;
 	/*
 	** Now check the particle against the passing light surface.
-	** We should now be able to just pass the particle pointer.
 	*/
-	pkdProcessLightCone(pkd,p,dLookbackFac,dLookbackFacLCP,dtLCDrift[p->uRung],dtLCKick[p->uRung]);
+	pfPot = pkdPot(pkd,p);
+	if (pfPot) fPot = *pfPot;
+	else fPot = 0.0;
+	pkdProcessLightCone(pkd,p,fPot,dLookbackFac,dLookbackFacLCP,dtLCDrift[p->uRung],dtLCKick[p->uRung]);
 	}
     }
 
@@ -2656,7 +2660,7 @@ void pkdGravityVeryActive(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dTime,i
     dFlop = 0.0;
     dPartSum = 0.0;
     dCellSum = 0.0;
-    nActive = pkdGravWalk(pkd,uRungLo,uRungHi,0,0,NULL,NULL,1.0,dTime,nReps,bEwald,nGroup,
+    nActive = pkdGravWalk(pkd,uRungLo,uRungHi,0,0,NULL,NULL,NULL,NULL,0.0,0.0,1.0,dTime,nReps,bEwald,nGroup,
 	ROOT,0,VAROOT,dTheta,&dFlop,&dPartSum,&dCellSum);
     }
 

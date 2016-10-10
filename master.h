@@ -2,6 +2,8 @@
 #define MASTER_HINCLUDED
 
 #include <stdint.h>
+#include <signal.h>
+#include <time.h>
 
 #include "param.h"
 #include "pst.h"
@@ -13,6 +15,21 @@
 
 #define MSR_INIT_E		1
 #define MSR_STEP_E		0
+
+static time_t timeGlobalSignalTime = 0;
+static int bGlobalOutput = 0;
+
+#ifndef _MSC_VER
+static void USR1_handler(int signo) {
+    signal(SIGUSR1,USR1_handler);
+    timeGlobalSignalTime = time(0);
+    }
+
+static void USR2_handler(int signo) {
+    signal(SIGUSR2,USR2_handler);
+    bGlobalOutput = 1;
+    }
+#endif
 
 typedef struct msrContext {
     PRM prm;
@@ -71,6 +88,9 @@ typedef struct msrContext {
 
     int bSavePending;
 
+    long lStart; /* starting time of job */
+
+
     /* Values for a restore from checkpoint */
     double dCheckpointTime;
     int iCheckpointStep;
@@ -121,13 +141,13 @@ double msrReadCheck(MSR,int *);
 void msrWriteCheck(MSR,double,int);
 int msrOutTime(MSR,double);
 void msrReadOuts(MSR,double);
+void msrCheckForOutput(MSR msr,int iStep,double dTime,int *pbDoCheckpoint,int *pbDoOutput);
 int msrNewTopStepKDK(MSR msr,
     int bDualTree,      /* Should be zero at rung 0! */
     uint8_t uRung,	/* Rung level */
     double *pdStep,	/* Current step */
     double *pdTime,	/* Current time */
-    uint8_t *puRungMax,
-    int *piSec);
+    uint8_t *puRungMax,int *piSec,int *pbDoCheckpoint,int *pbDoOutput);
 void msrTopStepKDK(MSR msr,
 		   double dStep,	/* Current step */
 		   double dTime,	/* Current time */

@@ -1441,6 +1441,7 @@ void pkdWriteFromNode(PKD pkd,int iNode, FIO fio,double dvFac,BND *bnd);
 void pkdWriteViaNode(PKD pkd, int iNode);
 void pkdGravAll(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     int bKickClose,int bKickOpen,vel_t *dtClose,vel_t *dtOpen,
+    double *dtLCDrift,double *dtLCKick,double dLookbackFac,double dLookbackFacLCP,
     double dAccFac,double dTime,int nReps,int bPeriodic,
     int bEwald,int nGroup,int iRoot1, int iRoot2,
     double fEwCut,double fEwhCut,double dThetaMin,
@@ -1452,7 +1453,7 @@ void pkdCalcEandL(PKD pkd,double *T,double *U,double *Eth,double *L,double *F,do
 #ifdef __cplusplus
 extern "C"
 #endif
-void pkdProcessLightCone(PKD pkd,PARTICLE *p,double dLookbackFac,double dLookbackFacLCP,double dDriftDelta,double dKickDelta);
+void pkdProcessLightCone(PKD pkd,PARTICLE *p,float fPot,double dLookbackFac,double dLookbackFacLCP,double dDriftDelta,double dKickDelta);
 void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double,double);
 void pkdScaleVel(PKD pkd,double dvFac);
 void pkdStepVeryActiveKDK(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dStep, double dTime, double dDelta,
@@ -1581,8 +1582,6 @@ void pkdMeasurePk(PKD pkd, double dCenter[3], double dRadius, double dTotalMass,
 #endif
 void pkdOutPsGroup(PKD pkd,char *pszFileName,int iType);
 
-void pkdLightCone(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dLookbackFac,double dLookbackFacLCP,
-    double *dtLCDrift,double *dtLCKick);
 void pkdLightConeOpen(PKD pkd, const char *fname,int nSideHealpix);
 void pkdLightConeClose(PKD pkd, const char *healpixname);
 void pkdInflate(PKD pkd,int nInflateReps);

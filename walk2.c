@@ -302,8 +302,9 @@ static void addChild(PKD pkd, int iCache, CL cl, int iChild, int id, float *fOff
 ** Returns total number of active particles for which gravity was calculated.
 */
 static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2, uint8_t uRungLo,uint8_t uRungHi, 
-    int bKickClose,int bKickOpen,vel_t *dtClose,vel_t *dtOpen,double dAccFac,double dTime,
-    double dRhoFac, int bEwald,
+    int bKickClose,int bKickOpen,vel_t *dtClose,vel_t *dtOpen,
+    double *dtLCDrift,double *dtLCKick,double dLookbackFac,double dLookbackFacLCP,
+    double dAccFac,double dTime,double dRhoFac, int bEwald,
     double dThetaMin, int bGravStep, double *pdFlop, double *pdPartSum,double *pdCellSum) {
     KDN *k,*c,*kFind;
     int id,idUpper,iCell,iSib,iLower,iUpper,iCheckCell,iCheckLower,iCellDescend;
@@ -814,8 +815,9 @@ static int processCheckList(PKD pkd, SMX smx, SMF smf, int iRoot, int iRoot2, ui
 	** Bucket!
 	*/
 	if (!pkd->param.bNoGrav) {
-	    nActive = pkdGravInteract(pkd,uRungLo,uRungHi,bKickClose,bKickOpen,dTime,dtClose,dtOpen,dAccFac,
-		k,&L,pkd->ilp,pkd->ilc,dirLsum,normLsum,bEwald,bGravStep,pdFlop,dRhoFac,
+	    nActive = pkdGravInteract(pkd,uRungLo,uRungHi,bKickClose,bKickOpen,dtClose,dtOpen,
+		dtLCDrift,dtLCKick,dLookbackFac,dLookbackFacLCP,
+		dAccFac,k,&L,pkd->ilp,pkd->ilc,dirLsum,normLsum,bEwald,bGravStep,pdFlop,dRhoFac,
 		smx, &smf, iRoot, iRoot2);
 	    }
 	else nActive = 0;
@@ -948,7 +950,7 @@ int pkdGravWalkHop(PKD pkd,double dTime,int nGroup, double dThetaMin,double *pdF
 	    }
 	assert(pkd->hopRoots[iRootSelf].iPid==pkd->idSelf);
 	nActive += processCheckList(pkd, smx, smf, pkd->hopRoots[iRootSelf].iIndex, 0, 0, MAX_RUNG,
-	    0,0,NULL,NULL,1.0,dTime,
+	    0,0,NULL,NULL,NULL,NULL,0.0,0.0,1.0,dTime,
 	    dRhoFac, 0, dThetaMin, 0, pdFlop, pdPartSum, pdCellSum);
 	}
     doneGravWalk(pkd,smx,&smf);
@@ -961,7 +963,8 @@ int pkdGravWalkHop(PKD pkd,double dTime,int nGroup, double dThetaMin,double *pdF
 ** Returns total number of active particles for which gravity was calculated.
 */
 int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,int bKickClose,int bKickOpen,
-    vel_t *dtClose,vel_t *dtOpen,double dAccFac,double dTime,int nReps,int bEwald,int nGroup,
+    vel_t *dtClose,vel_t *dtOpen,double *dtLCDrift,double *dtLCKick,double dLookbackFac,double dLookbackFacLCP, 
+    double dAccFac,double dTime,int nReps,int bEwald,int nGroup,
     int iLocalRoot1, int iLocalRoot2,int iVARoot,
     double dThetaMin,double *pdFlop,double *pdPartSum,double *pdCellSum) {
     int id;
@@ -1015,8 +1018,8 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,int bKickClose,int bKick
 		}
 	    }
 	nActive += processCheckList(pkd, smx, smf, iLocalRoot1, iLocalRoot2, uRungLo, uRungHi,
-	    bKickClose,bKickOpen,dtClose,dtOpen,dAccFac,dTime,
-	    dRhoFac, bEwald, dThetaMin, pkd->param.bGravStep, pdFlop, pdPartSum, pdCellSum);
+	    bKickClose,bKickOpen,dtClose,dtOpen,dtLCDrift,dtLCKick,dLookbackFac,dLookbackFacLCP,
+	    dAccFac,dTime,dRhoFac, bEwald, dThetaMin, pkd->param.bGravStep, pdFlop, pdPartSum, pdCellSum);
 	}
 #if 0
     /*
@@ -1044,8 +1047,8 @@ int pkdGravWalk(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,int bKickClose,int bKick
 		}
 	    }
 	nActive += processCheckList(pkd, smx, smf, iLocalRoot2, iLocalRoot1, uRungLo, uRungHi,
-	    bKickClose,bKickOpen,dtClose,dtOpen,dAccFac,dTime,
-	    dRhoFac, 0, dThetaMin, pkd->param.bGravStep, pdFlop, pdPartSum, pdCellSum);
+	    bKickClose,bKickOpen,dtClose,dtOpen,dtLCDrift,dtLCKick,dLookbackFac,dLookbackFacLCP,
+	    dAccFac,dTime,dRhoFac, 0, dThetaMin, pkd->param.bGravStep, pdFlop, pdPartSum, pdCellSum);
 	}
 #endif
     doneGravWalk(pkd,smx,&smf);
@@ -1091,7 +1094,7 @@ int pkdGravWalkGroups(PKD pkd,double dTime,int nGroup, double dThetaMin,double *
         }
 #endif
 	nActive += processCheckList(pkd, smx, smf, gd[i].treeRoots[0].iLocalRootId, 0, 0, MAX_RUNG,
-	    0,0,NULL,NULL,1.0,dTime,
+	    0,0,NULL,NULL,NULL,NULL,0.0,0.0,1.0,dTime,
 	    dRhoFac, 0, dThetaMin, 0, pdFlop, pdPartSum, pdCellSum);
     }
     doneGravWalk(pkd,smx,&smf);

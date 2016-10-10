@@ -1,7 +1,7 @@
 #ifndef COSMO_HINCLUDED
 #define COSMO_HINCLUDED
 
-#define USE_GSL_COSMO
+//#define USE_GSL_COSMO
 #ifdef USE_GSL_COSMO
 #include <gsl/gsl_integration.h>
 #endif

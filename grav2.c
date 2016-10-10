@@ -233,6 +233,14 @@ void pkdParticleWorkDone(workParticle *wp) {
 		    v[0] += wp->dtOpen[p->uRung]*wp->pInfoOut[i].a[0];
 		    v[1] += wp->dtOpen[p->uRung]*wp->pInfoOut[i].a[1];
 		    v[2] += wp->dtOpen[p->uRung]*wp->pInfoOut[i].a[2];		    
+		    /*
+		    ** On KickOpen we also always check for intersection with the lightcone
+		    ** surface over the entire next timestep of the particle (not a half
+		    ** timestep as is usual for kicking (we are drifting afterall).
+		    */
+		    if (wp->dLookbackFac > 0) {
+			pkdProcessLightCone(pkd,p,wp->pInfoOut[i].fPot,wp->dLookbackFac,wp->dLookbackFacLCP,wp->dtLCDrift[p->uRung],wp->dtLCKick[p->uRung]);
+			}
 		    }
 		}
 	    }
@@ -888,7 +896,9 @@ static void queueEwald( PKD pkd, workParticle *wp ) {
 ** Returns nActive.
 */
 int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
-    int bKickClose,int bKickOpen,double dTime,vel_t *dtClose,vel_t *dtOpen,double dAccFac,
+    int bKickClose,int bKickOpen,vel_t *dtClose,vel_t *dtOpen,
+    double *dtLCDrift,double *dtLCKick,double dLookbackFac,double dLookbackFacLCP,
+    double dAccFac,
     KDN *pBucket,LOCR *pLoc,ILP ilp,ILC ilc,
     float dirLsum,float normLsum,int bEwald,int bGravStep,double *pdFlop,
     double dRhoFac,SMX smx,SMF *smf,int iRoot1,int iRoot2) {
@@ -946,11 +956,14 @@ int pkdGravInteract(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     /*
     ** We copy the pointers here assuming that the storage for them lasts at least as long as
     ** the work structure. Depending on how this is called it could create problems if the 
-    ** work is flushed out somewhere else, as is the case when using CUDA.
+    ** work is flushed out somewhere else, as might be the case when using CUDA.
     */
-    wp->dTime = dTime;  /* maybe we want the look-back factor. */
     wp->dtClose = dtClose;
     wp->dtOpen = dtOpen;
+    wp->dtLCDrift = dtLCDrift;
+    wp->dtLCKick = dtLCKick;
+    wp->dLookbackFac = dLookbackFac;
+    wp->dLookbackFacLCP = dLookbackFacLCP;    
     wp->dAccFac = dAccFac;
 #ifdef USE_CUDA
     wp->cudaCtx = pkd->cudaCtx;

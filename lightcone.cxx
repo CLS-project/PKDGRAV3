@@ -7,12 +7,12 @@
 #include "pkd.h"
 #include "simd.h"
 
-extern "C" void addToLightCone(PKD pkd,double *r,PARTICLE *p,int bParticleOutput);
+extern "C" void addToLightCone(PKD pkd,double *r,float fPot,PARTICLE *p,int bParticleOutput);
 
 #define NBOX 184
 
 extern "C"
-void pkdProcessLightCone(PKD pkd,PARTICLE *p,double dLookbackFac,double dLookbackFacLCP,double dDriftDelta,double dKickDelta) {
+void pkdProcessLightCone(PKD pkd,PARTICLE *p,float fPot,double dLookbackFac,double dLookbackFacLCP,double dDriftDelta,double dKickDelta) {
     const double dLightSpeed = dLightSpeedSim(pkd->param.dBoxSize);
     const double mrLCP = dLightSpeed*dLookbackFacLCP;
 
@@ -36,7 +36,8 @@ void pkdProcessLightCone(PKD pkd,PARTICLE *p,double dLookbackFac,double dLookbac
 		** Check only 8!
 		*/
 		nBox = 8;
-		dxStart = 0;
+		if (dLookbackFac >= 0) dxStart = 0;
+		else return;   /* Nothing to check */
 		}
 	    }
 	}
@@ -149,7 +150,7 @@ void pkdProcessLightCone(PKD pkd,PARTICLE *p,double dLookbackFac,double dLookbac
 			    ** Create a new light cone particle.
 			    */
 			    double mr = sqrt(r[0]*r[0] + r[1]*r[1] + r[2]*r[2]);
-			    addToLightCone(pkd,r,p,pkd->param.bLightConeParticles && (mr <= mrLCP));
+			    addToLightCone(pkd,r,fPot,p,pkd->param.bLightConeParticles && (mr <= mrLCP));
 			    }
 			}
 		    }

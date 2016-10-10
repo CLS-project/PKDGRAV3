@@ -23,22 +23,6 @@
 #ifdef USE_PYTHON
 #include "pkdpython.h"
 #endif
-#include <signal.h>
-
-static time_t timeGlobalSignalTime = 0;
-static int bGlobalOutput = 0;
-
-#ifndef _MSC_VER
-static void USR1_handler(int signo) {
-    signal(SIGUSR1,USR1_handler);
-    timeGlobalSignalTime = time(0);
-    }
-
-static void USR2_handler(int signo) {
-    signal(SIGUSR2,USR2_handler);
-    bGlobalOutput = 1;
-    }
-#endif
 
 void * main_ch(MDL mdl) {
     PST pst;
@@ -79,17 +63,20 @@ void * master_ch(MDL mdl) {
     double dTime;
     double E=0,T=0,U=0,Eth=0,L[3]={0,0,0},F[3]={0,0,0},W=0;
     double dMultiEff=0;
-    long lSec=0,lStart;
+    long lSec=0;
     int i,iStep,iStartStep,iSec=0,iStop=0;
     uint64_t nActive;
-    int bKickOpen = 0;
+    int bKickOpen=0;
+    int bDoOpeningKick=0;
+    int bDoCheckpoint=0;
+    int bDoOutput=0;
     int64_t nRungs[MAX_RUNG+1];
     uint8_t uRungMax;
     double diStep;
     double ddTime;
     int bRestore;
 
-    lStart=time(0);
+    msr->lStart=time(0);
 
     printf("%s\n", PACKAGE_STRING );
 
@@ -105,7 +92,7 @@ void * master_ch(MDL mdl) {
 
     /* a USR1 signal indicates that the queue wants us to exit */
 #ifndef _MSC_VER
-	timeGlobalSignalTime = 0;
+    timeGlobalSignalTime = 0;
     signal(SIGUSR1,NULL);
     signal(SIGUSR1,USR1_handler);
 
@@ -254,8 +241,6 @@ void * master_ch(MDL mdl) {
 	    msrLogParams(msr,fpLog);
 	    }
 
-	if (bRestore) goto test_continue;
-
 	if (msr->param.bLightCone && msrComove(msr)) {
 	    printf("LightCone output will begin at z=%.10g\n",
 		1.0/csmComoveLookbackTime2Exp(msr->param.csm,1.0 / dLightSpeedSim(msr->param.dBoxSize)) - 1.0 );;
@@ -275,7 +260,10 @@ void * master_ch(MDL mdl) {
 	    }
 #endif
 	if (msrDoGravity(msr) && !msr->param.bHSDKD) {
-	    if (msr->param.bNewKDK) bKickOpen = 1;
+	    if (msr->param.bNewKDK) {
+		msrLightConeOpen(msr,iStartStep + 1);
+		bKickOpen = 1;
+		}
 	    else bKickOpen = 0;
 	    uRungMax = msrGravity(msr,0,MAX_RUNG,ROOT,0,dTime,iStartStep,0,bKickOpen,msr->param.bEwald,msr->param.nGroup,&iSec,&nActive);
 	    msrMemStatus(msr);
@@ -308,13 +296,12 @@ void * master_ch(MDL mdl) {
 	if ( msr->param.bTraceRelaxation) {
 	    msrInitRelaxation(msr);
 	    }
-    test_continue:
 
+	bDoOpeningKick = 0;
 	for (iStep=iStartStep+1;iStep<=msrSteps(msr)&&!iStop;++iStep) {
 	    if (msrComove(msr)) msrSwitchTheta(msr,dTime);
 	    dMultiEff = 0.0;
 	    lSec = time(0);
-	    msrLightConeOpen(msr,iStep);
 	    if (msr->param.bHSDKD) {
 		/* Perform select */
 		msrActiveRung(msr,0,1); /* Activate all particles */
@@ -331,7 +318,12 @@ void * master_ch(MDL mdl) {
 	    else if (msr->param.bNewKDK) {
 		diStep = (double)(iStep-1);
 		ddTime = dTime;
-		msrNewTopStepKDK(msr,0,0,&diStep,&ddTime,&uRungMax,&iSec);
+		if (bDoOpeningKick) {
+		    bDoOpeningKick = 0; /* clear the opening kicking flag */
+		    uRungMax = msrGravity(msr,0,MAX_RUNG,ROOT,0,ddTime,diStep,0,1,msr->param.bEwald,msr->param.nGroup,&iSec,&nActive);
+		    }
+		msrNewTopStepKDK(msr,0,0,&diStep,&ddTime,&uRungMax,&iSec,&bDoCheckpoint,&bDoOutput);
+		bDoOpeningKick = bDoCheckpoint || bDoOutput;
 		}
 	    else {
 		msrTopStepKDK(msr,iStep-1,dTime,
@@ -341,8 +333,6 @@ void * master_ch(MDL mdl) {
 	    dTime += msrDelta(msr);
 	    lSec = time(0) - lSec;
 	    msrMemStatus(msr);
-
-	    msrLightConeClose(msr,iStep);
 
 #ifdef MDL_FFTW
 	    if (msr->param.iPkInterval && iStep%msr->param.iPkInterval == 0) {
@@ -366,54 +356,16 @@ void * master_ch(MDL mdl) {
 		msrBuildTree(msr,dTime,0);
 		msrRelaxation(msr,dTime,msrDelta(msr),SMX_RELAXATION,0);
 		}
-	    /*
-	    ** Check for user interrupt.
-	    */
-	    iStop = msrCheckForStop(msr);
-
-	    /*
-	    ** Check to see if the runtime has been exceeded.
-	    */
-	    if (!iStop && msr->param.iWallRunTime > 0) {
-		if (msr->param.iWallRunTime*60 - (time(0)-lStart) < ((int) (lSec*1.5)) ) {
-		    printf("RunTime limit exceeded.  Writing checkpoint and exiting.\n");
-		    printf("    iWallRunTime(sec): %d   Time running: %ld   Last step: %ld\n",
-			   msr->param.iWallRunTime*60,time(0)-lStart,lSec);
-		    iStop = 1;
-		    }
+	    if (!msr->param.bNewKDK) {
+		msrCheckForOutput(msr,iStep,dTime,&bDoCheckpoint,&bDoOutput);
 		}
-
-	    /* Check to see if there should be an output */
-	    if (!iStop && timeGlobalSignalTime>0) { /* USR1 received */
-		if ( (time(0)+(lSec*1.5)) > timeGlobalSignalTime+msr->param.iSignalSeconds) {
-		    printf("RunTime limit exceeded.  Writing checkpoint and exiting.\n");
-		    printf("    iSignalSeconds: %d   Time running: %ld   Last step: %ld\n",
-			msr->param.iSignalSeconds,time(0)-lStart,lSec);
-		    iStop = 1;
-		    }
-		}
-
-	    /*
-	    ** Output if 1) we've hit an output time
-	    **           2) We are stopping
-	    **           3) we're at an output interval
-	    */
-	    if (msrCheckInterval(msr)>0 &&
-		(bGlobalOutput
-		|| iStop
-		|| (iStep%msrCheckInterval(msr) == 0) ) ) {
-		bGlobalOutput = 0;
+	    if (bDoCheckpoint) {
 		msrCheckpoint(msr,iStep,dTime);
+		bDoCheckpoint = 0;
 		}
-
-	    if (msrOutTime(msr,dTime) 
-		|| (msrOutInterval(msr) > 0 &&
-			(bGlobalOutput
-			|| iStop
-			|| iStep == msrSteps(msr)
-			    || (iStep%msrOutInterval(msr) == 0))) ) {
-		bGlobalOutput = 0;
-		msrOutput(msr,iStep,dTime, 0);
+	    if (bDoOutput) {
+		msrOutput(msr,iStep,dTime,0);
+		bDoOutput = 0;
 		}
 	    }
 	if (msrLogInterval(msr)) (void) fclose(fpLog);

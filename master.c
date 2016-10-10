@@ -3118,7 +3118,7 @@ void msrPrintStat(STAT *ps,char *pszPrefix,int p) {
 void msrLightCone(MSR msr,double dTime,uint8_t uRungLo,uint8_t uRungHi) {
     struct inLightCone in;
     double sec,dsec,dt;
-    double dTimeLCP,dLookbackFacLCP;
+    double dTimeLCP;
     int i;
 
     if (!msr->param.bLightCone) return;
@@ -3162,6 +3162,7 @@ uint8_t msrGravity(MSR msr,uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot
     uint64_t nRungSum[IRUNGMAX+1];
     int i,id,iDum;
     double sec,dsec,dTotFlop,dt,a;
+    double dTimeLCP;
     uint8_t uRungMax=0;
     char c;
 
@@ -3178,7 +3179,16 @@ uint8_t msrGravity(MSR msr,uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot
     in.dThetaMin = msr->dThetaMin;
     in.iRoot1 = iRoot1;
     in.iRoot2 = iRoot2;
-
+    if (msr->param.bLightCone) {
+	in.dLookbackFac = csmComoveKickFac(msr->param.csm,dTime,(csmExp2Time(msr->param.csm,1.0) - dTime));
+	dTimeLCP = csmExp2Time(msr->param.csm,1.0/(1.0+msr->param.dRedshiftLCP));
+	in.dLookbackFacLCP = csmComoveKickFac(msr->param.csm,dTimeLCP,(csmExp2Time(msr->param.csm,1.0) - dTimeLCP));
+	assert(in.dLookbackFac >= in.dLookbackFacLCP);
+	}
+    else {
+	in.dLookbackFac = 0.0;
+	in.dLookbackFacLCP = 0.0;
+	}
     /*
     ** Now calculate the timestepping factors for kick close and open if the
     ** gravity should kick the particles. If the code uses bKickClose and 
@@ -3208,6 +3218,23 @@ uint8_t msrGravity(MSR msr,uint8_t uRungLo, uint8_t uRungHi,int iRoot1,int iRoot
 	    else {
 		if (bKickClose) in.dtClose[i] = dt;
 		if (bKickOpen) in.dtOpen[i] = dt;
+		}
+	    }
+	}
+    /*
+    ** Note that in this loop we initialize dt with the full step, not a half step!
+    */
+    for (i=0,dt=msr->param.dDelta;i<=msr->param.iMaxRung;++i,dt*=0.5) {
+	in.dtLCDrift[i] = 0.0;
+	in.dtLCKick[i] = 0.0;
+	if (i>=uRungLo) {
+	    if (msr->param.csm->val.bComove) {
+		in.dtLCDrift[i] = csmComoveDriftFac(msr->param.csm,dTime,dt);
+		in.dtLCKick[i] = csmComoveKickFac(msr->param.csm,dTime,dt);
+		}
+	    else {
+	        in.dtLCDrift[i] = dt;
+	        in.dtLCKick[i] = dt;
 		}
 	    }
 	}
@@ -4124,19 +4151,80 @@ void msrLightConeClose(MSR msr,int iStep) {
     }
 
 
+void msrCheckForOutput(MSR msr,int iStep,double dTime,int *pbDoCheckpoint,int *pbDoOutput) {
+    int iStop;
+    long lSec;
+
+    /*
+    ** Check for user interrupt.
+    */
+    iStop = msrCheckForStop(msr);
+
+    /*
+    ** Check to see if the runtime has been exceeded.
+    */
+    if (!iStop && msr->param.iWallRunTime > 0) {
+	if (msr->param.iWallRunTime*60 - (time(0)-msr->lStart) < ((int) (lSec*1.5)) ) {
+	    printf("RunTime limit exceeded.  Writing checkpoint and exiting.\n");
+	    printf("    iWallRunTime(sec): %d   Time running: %ld   Last step: %ld\n",
+		msr->param.iWallRunTime*60,time(0)-msr->lStart,lSec);
+	    iStop = 1;
+	    }
+	}
+
+    /* Check to see if there should be an output */
+    if (!iStop && timeGlobalSignalTime>0) { /* USR1 received */
+	if ( (time(0)+(lSec*1.5)) > timeGlobalSignalTime+msr->param.iSignalSeconds) {
+	    printf("RunTime limit exceeded.  Writing checkpoint and exiting.\n");
+	    printf("    iSignalSeconds: %d   Time running: %ld   Last step: %ld\n",
+		msr->param.iSignalSeconds,time(0)-msr->lStart,lSec);
+	    iStop = 1;
+	    }
+	}
+
+    /*
+    ** Output if 1) we've hit an output time
+    **           2) We are stopping
+    **           3) we're at an output interval
+    */
+    if (msrCheckInterval(msr)>0 &&
+	    (bGlobalOutput
+	    || iStop
+	    || (iStep%msrCheckInterval(msr) == 0) ) ) {
+	bGlobalOutput = 0;
+	*pbDoCheckpoint = 1;
+	}
+
+    if (msrOutTime(msr,dTime) 
+	|| (msrOutInterval(msr) > 0 &&
+		(bGlobalOutput
+		|| iStop
+		|| iStep == msrSteps(msr)
+		|| (iStep%msrOutInterval(msr) == 0))) ) {
+	bGlobalOutput = 0;
+	*pbDoOutput = 1;
+	}
+    }
+
+
 int msrNewTopStepKDK(MSR msr,
     int bDualTree,      /* Should be zero at rung 0! */
     uint8_t uRung,	/* Rung level */
     double *pdStep,	/* Current step */
     double *pdTime,	/* Current time */
     uint8_t *puRungMax,
-    int *piSec) {
+    int *piSec,int *pbDoCheckpoint,int *pbDoOutput) {
     uint64_t nActive;
     double dDelta,dTimeFixed;
     uint32_t uRoot2=0;
     int iRungDT = msr->iRungDT;
     char achFile[256];
-    int iStep = (int)(*pdStep) + 1;  /* temporary code */
+    int bKickOpen;
+    /*
+    ** The iStep variable serves only to give a number to the lightcone and group output files.
+    ** We define this to be the output number of the final radius of the lightcone surface.
+    */
+    int iStep = (int)(*pdStep) + 1;
 
     if (uRung == iRungDT+1) {
 	if ( msr->param.bDualTree && uRung < *puRungMax) {
@@ -4154,7 +4242,7 @@ int msrNewTopStepKDK(MSR msr,
 	else bDualTree = 0;
 	}
     if (uRung < *puRungMax) {
-	bDualTree = msrNewTopStepKDK(msr,bDualTree,uRung+1,pdStep,pdTime,puRungMax,piSec);
+	bDualTree = msrNewTopStepKDK(msr,bDualTree,uRung+1,pdStep,pdTime,puRungMax,piSec,pbDoCheckpoint,pbDoOutput);
 	}
 
     /* Drift the "ROOT" (active) tree or all particle */
@@ -4191,10 +4279,25 @@ int msrNewTopStepKDK(MSR msr,
     if (!uRung && msr->param.bFindGroups) {
 	msrNewFof(msr,*pdTime);
 	}
+    /*
+    ** We need to write all light cone files (healpix and LCP) at this point before the last
+    ** gravity is called since it will advance the particles in the light cone as part of the
+    ** opening kick!
+    */
+    if (!uRung) {
+	msrLightConeClose(msr,iStep);
+	}
 
+    if (!uRung) {
+	msrCheckForOutput(msr,iStep,*pdTime,pbDoCheckpoint,pbDoOutput);	
+	if (*pbDoCheckpoint || *pbDoOutput) bKickOpen = 0;
+	else bKickOpen = 1;
+	}
+    else bKickOpen = 1;
+    
     *puRungMax = msrGravity(msr,uRung,msrMaxRung(msr),ROOT,uRoot2,*pdTime,
-	*pdStep,1,1,msr->param.bEwald,nGroup,piSec,&nActive);
-
+	*pdStep,1,bKickOpen,msr->param.bEwald,nGroup,piSec,&nActive);
+	
     if (!uRung && msr->param.bFindGroups) {
 	msrGroupStats(msr);
 	msrBuildName(msr,achFile,iStep);
@@ -4202,13 +4305,7 @@ int msrNewTopStepKDK(MSR msr,
 	msrHopWrite(msr,achFile);
 	}
 
-    /*
-    ** This will really become part of the gravity calculation so that 
-    ** we can make a potential healpix map.
-    */
-    if (uRung || iStep<100) msrLightCone(msr,*pdTime,uRung,msrMaxRung(msr));  /* temporary test!!! */
-
-    if (uRung && uRung < *puRungMax) bDualTree = msrNewTopStepKDK(msr,bDualTree,uRung+1,pdStep,pdTime,puRungMax,piSec);
+    if (uRung && uRung < *puRungMax) bDualTree = msrNewTopStepKDK(msr,bDualTree,uRung+1,pdStep,pdTime,puRungMax,piSec,pbDoCheckpoint,pbDoOutput);
     if (bDualTree && uRung==iRungDT+1) {
 	msrprintf(msr,"Half Drift, uRung: %d\n",iRungDT);
 	dDelta = msr->param.dDelta/(1 << iRungDT);

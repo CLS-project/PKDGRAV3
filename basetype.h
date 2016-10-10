@@ -136,6 +136,10 @@ typedef struct {
     int bKickOpen;
     vel_t *dtClose;
     vel_t *dtOpen;
+    double *dtLCDrift;
+    double *dtLCKick;
+    double dLookbackFac;
+    double dLookbackFacLCP;
     double dTime;
     double dAccFac;
 #ifdef USE_CUDA

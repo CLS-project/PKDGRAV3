@@ -621,6 +621,10 @@ struct inGravity {
     double dAccFac;
     vel_t dtClose[IRUNGMAX+1];
     vel_t dtOpen[IRUNGMAX+1];
+    double dtLCDrift[IRUNGMAX+1];
+    double dtLCKick[IRUNGMAX+1];
+    double dLookbackFac;
+    double dLookbackFacLCP;
     };
 
 
