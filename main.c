@@ -76,11 +76,10 @@ void * master_ch(MDL mdl) {
     double ddTime;
     int bRestore;
 
-    msr->lStart=time(0);
-
     printf("%s\n", PACKAGE_STRING );
 
     bRestore = msrInitialize(&msr,mdl,argc,argv);
+    msr->lStart=time(0);
 
     /*
     ** Establish safety lock.
