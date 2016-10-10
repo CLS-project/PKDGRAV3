@@ -319,6 +319,7 @@ void * master_ch(MDL mdl) {
 		ddTime = dTime;
 		if (bDoOpeningKick) {
 		    bDoOpeningKick = 0; /* clear the opening kicking flag */
+		    msrLightConeOpen(msr,iStep);  /* open the lightcone */
 		    uRungMax = msrGravity(msr,0,MAX_RUNG,ROOT,0,ddTime,diStep,0,1,msr->param.bEwald,msr->param.nGroup,&iSec,&nActive);
 		    }
 		msrNewTopStepKDK(msr,0,0,&diStep,&ddTime,&uRungMax,&iSec,&bDoCheckpoint,&bDoOutput);

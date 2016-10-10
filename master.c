@@ -4279,14 +4279,6 @@ int msrNewTopStepKDK(MSR msr,
     if (!uRung && msr->param.bFindGroups) {
 	msrNewFof(msr,*pdTime);
 	}
-    /*
-    ** We need to write all light cone files (healpix and LCP) at this point before the last
-    ** gravity is called since it will advance the particles in the light cone as part of the
-    ** opening kick!
-    */
-    if (!uRung) {
-	msrLightConeClose(msr,iStep);
-	}
 
     if (!uRung) {
 	msrCheckForOutput(msr,iStep,*pdTime,pbDoCheckpoint,pbDoOutput);	
@@ -4295,6 +4287,16 @@ int msrNewTopStepKDK(MSR msr,
 	}
     else bKickOpen = 1;
     
+    /*
+    ** We need to write all light cone files (healpix and LCP) at this point before the last
+    ** gravity is called since it will advance the particles in the light cone as part of the
+    ** opening kick! We also need to open
+    */
+    if (!uRung) {
+	msrLightConeClose(msr,iStep);
+	if (bKickOpen) msrLightConeOpen(msr,iStep+1);
+	}
+
     *puRungMax = msrGravity(msr,uRung,msrMaxRung(msr),ROOT,uRoot2,*pdTime,
 	*pdStep,1,bKickOpen,msr->param.bEwald,nGroup,piSec,&nActive);
 	
