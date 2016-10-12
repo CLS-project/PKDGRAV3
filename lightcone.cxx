@@ -56,29 +56,48 @@ void pkdProcessLightCone(PKD pkd,PARTICLE *p,float fPot,double dLookbackFac,doub
 	double fOffset;
 	int jPlane;
 	} isect[4], temp;
-
+    /*
+    ** Figure out at what delta t the particle would cross each of the 
+    ** walls of the unit cell. Usually this delta t will be larger than
+    ** the actual drift, but if not we need to treat each segment of the
+    ** drift that is created by crossing a wall (there can be at most 4 
+    ** segments in 3-D).
+    */
     for (j=0;j<3;++j) {
-	isect[j].dt = (0.5 - r0[j])/v[j];
-	if (isect[j].dt > 0.0) {
+	if (v[j] > 0) {
 	    /*
 	    ** Particle crosses the upper j-coordinate boundary of the unit cell at isect[j].dt.
 	    */
+	    isect[j].dt = (0.5 - r0[j])/v[j];
 	    isect[j].fOffset = -1.0;
 	    }
-	else {
+	else if (v[j] < 0) {
 	    /*
 	    ** Particle crosses the lower j-coordinate boundary of the unit cell at isect[j].dt.
 	    */
 	    isect[j].dt = (-0.5 - r0[j])/v[j];
 	    isect[j].fOffset = 1.0;
 	    }
+	else {
+	    /*
+	    ** Particle is not moving in this dimension!
+	    */
+	    isect[j].dt = 2*dDriftDelta; /* this will be ignored after the sort */
+	    isect[j].fOffset = 0.0;
+	    }
+	assert(isect[j].dt >= 0);
 	isect[j].jPlane = j;
 	}
+    /*
+    ** Last option is that the particle does not cross any wall so we make an
+    ** entry which contains just the drift of the particle.
+    */
     isect[3].dt = dDriftDelta;
     isect[3].fOffset = 0.0;
     isect[3].jPlane = 3;
     /*
-    ** Sort them!
+    ** Sort them by drift time, we will deal with each segment of the drift in this 
+    ** order.
     */
     if (isect[0].dt>isect[1].dt) { temp = isect[0]; isect[0] = isect[1]; isect[1] = temp; }
     if (isect[2].dt>isect[3].dt) { temp = isect[2]; isect[2] = isect[3]; isect[3] = temp; }
@@ -89,7 +108,6 @@ void pkdProcessLightCone(PKD pkd,PARTICLE *p,float fPot,double dLookbackFac,doub
 
 
     dvec xStart = dxStart;
-
 
     nBox /= 4; // SIMD width
     int k;
@@ -111,7 +129,10 @@ void pkdProcessLightCone(PKD pkd,PARTICLE *p,float fPot,double dLookbackFac,doub
 	    */
 	    dt = isect[k].dt - isect[k-1].dt;
 	    dtApprox = dt/dDriftDelta*dKickDelta;
-	    dlbt = dLookbackFac - dtApprox;
+	    /*
+	    ** continue the light surface from the end of the previous segment
+	    */
+	    dlbt = dLookbackFac - isect[k-1].dt/dDriftDelta*dKickDelta;
 	    }
 	dvec t0 = dlbt*dlbt*dLightSpeed*dLightSpeed;
 	dvec t1 = (dlbt - dtApprox)*(dlbt - dtApprox)*dLightSpeed*dLightSpeed;
@@ -137,9 +158,9 @@ void pkdProcessLightCone(PKD pkd,PARTICLE *p,float fPot,double dLookbackFac,doub
 		msk = movemask(vx >= xStart & vx < 1.0);
 		if (msk) {
 		    dvec vr[3];
-		    vr[0] = (1-vx)*vrx0 + vx*vrx1;
-		    vr[1] = (1-vx)*vry0 + vx*vry1;
-		    vr[2] = (1-vx)*vrz0 + vx*vrz1;
+		    vr[0] = (1.0-vx)*vrx0 + vx*vrx1;
+		    vr[1] = (1.0-vx)*vry0 + vx*vry1;
+		    vr[2] = (1.0-vx)*vrz0 + vx*vrz1;
 		    for(int j=0; j<4; ++j) {
 			if (msk & (1<<j)) {
 			    double r[3];
