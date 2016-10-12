@@ -104,7 +104,7 @@ int msrInitialize(MSR *,MDL,int,char **);
 void msrLogParams(MSR msr, FILE *fp);
 void msrprintf(MSR msr, const char *Format, ... );
 int msrGetLock(MSR msr);
-int msrCheckForStop(MSR msr);
+int msrCheckForStop(MSR msr, const char *achStopFile);
 void msrFinish(MSR);
 void msrInitializePStore(MSR msr, uint64_t *nSpecies);
 double msrGenerateIC(MSR);

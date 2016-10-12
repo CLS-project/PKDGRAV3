@@ -55,7 +55,7 @@
 
 #define LOCKFILE ".lockfile"	/* for safety lock */
 #define STOPFILE "STOP"			/* for user interrupt */
-
+#define CHECKFILE "CHECKPOINT"		/* for user interrupt */
 
 void msrprintf(MSR msr, const char *Format, ... ) {
     va_list ap;
@@ -1869,23 +1869,15 @@ msrGetLock(MSR msr) {
     return 1;
     }
 
-int
-msrCheckForStop(MSR msr) {
+int msrCheckForStop(MSR msr,const char *achStopFile) {
     /*
     ** Checks for existence of STOPFILE in run directory. If found, the file
     ** is removed and the return status is set to 1, otherwise 0.
     */
 
-    static char achFile[256];
-    static int first_call = 1;
-
+    char achFile[256];
     FILE *fp = NULL;
-
-    if (first_call) {
-	char achTmp[256];
-	_msrMakePath(msr->param.achDataSubPath,STOPFILE,achFile);
-	first_call = 0;
-	}
+    _msrMakePath(msr->param.achDataSubPath,achStopFile,achFile);
     if ((fp = fopen(achFile,"r"))) {
 	(void) printf("User interrupt detected.\n");
 	(void) fclose(fp);
@@ -4151,13 +4143,14 @@ void msrLightConeClose(MSR msr,int iStep) {
 
 
 void msrCheckForOutput(MSR msr,int iStep,double dTime,int *pbDoCheckpoint,int *pbDoOutput) {
-    int iStop;
+    int iStop, iCheck;
     long lSec;
 
     /*
     ** Check for user interrupt.
     */
-    iStop = msrCheckForStop(msr);
+    iStop = msrCheckForStop(msr,STOPFILE);
+    iCheck = msrCheckForStop(msr,CHECKFILE);
 
     /*
     ** Check to see if the runtime has been exceeded.
@@ -4186,10 +4179,10 @@ void msrCheckForOutput(MSR msr,int iStep,double dTime,int *pbDoCheckpoint,int *p
     **           2) We are stopping
     **           3) we're at an output interval
     */
-    if (msrCheckInterval(msr)>0 &&
-	    (bGlobalOutput
-	    || iStop
-	    || (iStep%msrCheckInterval(msr) == 0) ) ) {
+    if (iCheck || (msrCheckInterval(msr)>0 &&
+		    (bGlobalOutput
+		    || iStop
+			|| (iStep%msrCheckInterval(msr) == 0) )) ) {
 	bGlobalOutput = 0;
 	*pbDoCheckpoint = 1;
 	}
