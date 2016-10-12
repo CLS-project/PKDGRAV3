@@ -1584,6 +1584,9 @@ void pkdOutPsGroup(PKD pkd,char *pszFileName,int iType);
 
 void pkdLightConeOpen(PKD pkd, const char *fname,int nSideHealpix);
 void pkdLightConeClose(PKD pkd, const char *healpixname);
+void pkdLightCone(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
+    double dLookbackFac,double dLookbackFacLCP,
+    double *dtLCDrift,double *dtLCKick);
 void pkdInflate(PKD pkd,int nInflateReps);
 
 
