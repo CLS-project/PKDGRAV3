@@ -109,12 +109,13 @@ void pkdProcessLightCone(PKD pkd,PARTICLE *p,float fPot,double dLookbackFac,doub
 
     dvec xStart = dxStart;
 
-    nBox /= 4; // SIMD width
+    assert(nBox%dvec::width() == 0);
+    nBox /= dvec::width();
     int k;
     for (k=0;k<4;++k) {
 	double dtApprox, dt;
 	dvec dlbt;
-
+	assert(isect[k].dt <= dDriftDelta);
 	if (k==0) {
 	    /*
 	    ** Check lightcone from 0 <= dt < isect[k].dt
@@ -161,7 +162,7 @@ void pkdProcessLightCone(PKD pkd,PARTICLE *p,float fPot,double dLookbackFac,doub
 		    vr[0] = (1.0-vx)*vrx0 + vx*vrx1;
 		    vr[1] = (1.0-vx)*vry0 + vx*vry1;
 		    vr[2] = (1.0-vx)*vrz0 + vx*vrz1;
-		    for(int j=0; j<4; ++j) {
+		    for(int j=0; j<dvec::width(); ++j) {
 			if (msk & (1<<j)) {
 			    double r[3];
 			    r[0] = vr[0][j];
