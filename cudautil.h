@@ -5,6 +5,7 @@
 #include "ilp.h"
 
 #define USE_SINGLE_STREAM
+#define CUDA_STREAMS 16
 
 #ifdef __cplusplus
 extern "C" {
@@ -95,9 +96,11 @@ typedef struct cuda_wq_node {
 #ifdef USE_CUDA_EVENTS
     cudaEvent_t event;       // Results have been copied back
 #endif
+#ifndef USE_SINGLE_STREAM
     cudaEvent_t eventCopyDone;
     cudaEvent_t eventKernelDone;
     cudaStream_t stream;     // execution stream
+#endif
     dim3 dimBlock, dimGrid;
     workParticle *ppWP[CUDA_WP_MAX_BUFFERED];
     int ppNI[CUDA_WP_MAX_BUFFERED];

@@ -197,7 +197,7 @@ void *CUDA_initialize(int nCores, int iCore, OPA_Queue_info_t *queueWORK, OPA_Qu
     ctx->wqCudaFree = NULL;
     if (iCore < 0) {
         int i;
-        for(i=0; i<4; ++i) {
+        for(i=0; i<CUDA_STREAMS; ++i) {
             cudaStream *stm = reinterpret_cast<cudaStream *>(malloc(sizeof(cudaStream)));
             assert(stm!=NULL);
             CUDA_CHECK(cudaStreamCreate, (&stm->stream));
