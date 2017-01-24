@@ -98,10 +98,10 @@ if test "x$BT" = "xyes" ; then
 fi
 AM_CONDITIONAL(USE_BT, test "x$USE_BT" = "xyes")
 
-# This adds FFTW analysis - default disabled
+# This adds FFTW analysis - default enabled
 AC_ARG_WITH(fftw,
   [  --with-fftw                    Enable FFT support modules],
-  [FFTW="$enableval"],[FFTW="no"])
+  [FFTW="$enableval"])
 if test "x$FFTW" != "xno" ; then
   AC_DEFINE([USE_SINGLE], 1,
         [Use single precision FFT.])
