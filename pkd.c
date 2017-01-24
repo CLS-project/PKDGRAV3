@@ -1780,10 +1780,10 @@ void pkdLocalOrder(PKD pkd,uint64_t iMinOrder, uint64_t iMaxOrder) {
 **      resident size: max=  27.921 @17709 avg=  27.870 of 34300 std-dev=   0.013
 */
 
-#if defined(HAVE_LIBAIO_H) || defined(HAVE_AIO_H)
+#if defined(HAVE_LIBAIO) || defined(HAVE_AIO_H)
 
 typedef struct {
-#ifdef HAVE_LIBAIO_H
+#ifdef HAVE_LIBAIO
     struct iocb cb[ASYNC_COUNT];
     struct io_event events[ASYNC_COUNT];
     io_context_t ctx;
@@ -1806,7 +1806,7 @@ static void queue_dio(asyncInfo *info,int i,int bWrite) {
 
     /* Align buffer size for direct I/O. File will be truncated before closing if writing */
     nBytes = (nBytes+info->nPageSize-1) & ~(info->nPageSize-1);
-#ifdef HAVE_LIBAIO_H
+#ifdef HAVE_LIBAIO
     struct iocb *pcb = &info->cb[i];
     if (bWrite) io_prep_pwrite(info->cb+i,info->fd,info->pSource,nBytes,info->iFilePosition);
     else        io_prep_pread(info->cb+i,info->fd,info->pSource,nBytes,info->iFilePosition);
@@ -1862,7 +1862,7 @@ static void asyncCheckpoint(PKD pkd,const char *fname,int bWrite) {
     info.nBuffers = nFileSize / info.nBufferSize + 1;
     if (info.nBuffers > ASYNC_COUNT) info.nBuffers = ASYNC_COUNT;
 
-#ifdef HAVE_LIBAIO_H
+#ifdef HAVE_LIBAIO
     info.ctx = 0;
     rc = io_setup(info.nBuffers, &info.ctx);
     if (rc<0) { perror("io_setup"); abort(); }
@@ -1885,7 +1885,7 @@ static void asyncCheckpoint(PKD pkd,const char *fname,int bWrite) {
     for(i=0; i<info.nBuffers && info.nBytes; ++i) queue_dio(&info,i,bWrite);
     info.nBuffers = i;
 
-#ifdef HAVE_LIBAIO_H
+#ifdef HAVE_LIBAIO
     /* Main loop. Keep going until nothing left to do */
     int nInFlight = i;
     while (nInFlight) {
@@ -1970,7 +1970,7 @@ static void simpleCheckpoint(PKD pkd,const char *fname) {
     }
 
 void pkdCheckpoint(PKD pkd,const char *fname) {
-#if defined(HAVE_LIBAIO_H) || defined(HAVE_AIO_H)
+#if defined(HAVE_LIBAIO) || defined(HAVE_AIO_H)
     asyncCheckpoint(pkd,fname,1);
 #else
     simpleCheckpoint(pkd,fname);
@@ -2006,7 +2006,7 @@ static void simpleRestore(PKD pkd,const char *fname) {
     }
 
 void pkdRestore(PKD pkd,const char *fname) {
-#if defined(HAVE_LIBAIO_H) || defined(HAVE_LIBAIO_H)
+#if defined(HAVE_LIBAIO) || defined(HAVE_AIO_H)
     asyncCheckpoint(pkd,fname,0);
 #else
     simpleRestore(pkd,fname);

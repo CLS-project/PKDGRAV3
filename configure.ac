@@ -141,8 +141,11 @@ AC_DEFINE([USE_ITT],1,
 fi
 
 AC_CHECK_HEADERS([libaio.h],[USE_LIBAIO=yes],[USE_LIBAIO=no])
-AC_CHECK_HEADERS([aio.h],[USE_AIO=yes],[USE_AIO=no])
+if test "$USE_LIBAIO" != "no" ; then
+  AC_CHECK_LIB([aio],[io_setup],,[USE_LIBAIO=no])
+fi
 AM_CONDITIONAL(USE_LIBAIO, test "$USE_LIBAIO" != "no")
+AC_CHECK_HEADERS([aio.h],[USE_AIO=yes],[USE_AIO=no])
 AM_CONDITIONAL(USE_AIO, test "$USE_AIO" != "no")
 
 # Python

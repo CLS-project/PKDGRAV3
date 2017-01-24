@@ -3,14 +3,14 @@
 
 #include <sys/types.h>
 
-#if defined(HAVE_LIBAIO_H)
+#if defined(HAVE_LIBAIO)
 #include <libaio.h>
 #elif defined(HAVE_AIO_H)
 #include <aio.h>
 #endif
 #define IO_MAX_ASYNC_COUNT 8
 typedef struct {
-#if defined(HAVE_LIBAIO_H)
+#if defined(HAVE_LIBAIO)
     struct iocb cb[IO_MAX_ASYNC_COUNT];
     struct io_event events[IO_MAX_ASYNC_COUNT];
     io_context_t ctx;
