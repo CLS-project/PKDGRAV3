@@ -98,10 +98,10 @@ if test "x$BT" = "xyes" ; then
 fi
 AM_CONDITIONAL(USE_BT, test "x$USE_BT" = "xyes")
 
-# This adds FFTW analysis - default disabled
+# This adds FFTW analysis - default enabled
 AC_ARG_WITH(fftw,
   [  --with-fftw                    Enable FFT support modules],
-  [FFTW="$enableval"],[FFTW="no"])
+  [FFTW="$enableval"])
 if test "x$FFTW" != "xno" ; then
   AC_DEFINE([USE_SINGLE], 1,
         [Use single precision FFT.])
@@ -141,8 +141,11 @@ AC_DEFINE([USE_ITT],1,
 fi
 
 AC_CHECK_HEADERS([libaio.h],[USE_LIBAIO=yes],[USE_LIBAIO=no])
-AC_CHECK_HEADERS([aio.h],[USE_AIO=yes],[USE_AIO=no])
+if test "$USE_LIBAIO" != "no" ; then
+  AC_CHECK_LIB([aio],[io_setup],,[USE_LIBAIO=no])
+fi
 AM_CONDITIONAL(USE_LIBAIO, test "$USE_LIBAIO" != "no")
+AC_CHECK_HEADERS([aio.h],[USE_AIO=yes],[USE_AIO=no])
 AM_CONDITIONAL(USE_AIO, test "$USE_AIO" != "no")
 
 # Python

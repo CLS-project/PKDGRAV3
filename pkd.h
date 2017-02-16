@@ -24,7 +24,7 @@
 #include "basetype.h"
 #include "iomodule.h"
 
-#if defined(HAVE_LIBAIO_H)
+#if defined(HAVE_LIBAIO)
 #include <libaio.h>
 #elif defined(HAVE_AIO_H)
 #include <aio.h>

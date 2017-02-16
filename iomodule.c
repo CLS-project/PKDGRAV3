@@ -23,7 +23,7 @@ typedef int ssize_t;
 #endif
 
 void io_init(asyncFileInfo *info, size_t nBuffers,size_t nBufferSize) {
-#if defined(HAVE_LIBAIO_H) || defined(HAVE_AIO_H)
+#if defined(HAVE_LIBAIO) || defined(HAVE_AIO_H)
     int i, rc;
 #ifdef HAVE_UNISTD_H
     info->nPageSize = sysconf(_SC_PAGESIZE);
@@ -36,7 +36,7 @@ void io_init(asyncFileInfo *info, size_t nBuffers,size_t nBufferSize) {
     info->iBuffer = 0;
     info->nPending = 0;
 
-#ifdef HAVE_LIBAIO_H
+#ifdef HAVE_LIBAIO
     info->ctx = 0;
     rc = io_setup(info->nBuffers, &info->ctx);
     if (rc<0) { perror("io_setup"); abort(); }
@@ -62,7 +62,7 @@ void io_init(asyncFileInfo *info, size_t nBuffers,size_t nBufferSize) {
     }
 
 void io_free(asyncFileInfo *info) {
-#if defined(HAVE_LIBAIO_H) || defined(HAVE_AIO_H)
+#if defined(HAVE_LIBAIO) || defined(HAVE_AIO_H)
     int i;
     for(i=0; i<info->nBuffers; ++i) {
 	free(info->pBuffer[i]);
@@ -72,7 +72,7 @@ void io_free(asyncFileInfo *info) {
 
 
 int io_create(asyncFileInfo *info, const char *pathname) {
-#if defined(HAVE_LIBAIO_H) || defined(HAVE_AIO_H)
+#if defined(HAVE_LIBAIO) || defined(HAVE_AIO_H)
     info->fd = open(pathname,O_DIRECT|O_CREAT|O_WRONLY|O_TRUNC,FILE_PROTECTION);
     info->iBuffer = 0; // Start in buffer zero
     info->iByte = 0; // Nothing in the buffer
@@ -83,7 +83,7 @@ int io_create(asyncFileInfo *info, const char *pathname) {
     return info->fd;
     }
 
-#if defined(HAVE_LIBAIO_H) || defined(HAVE_AIO_H)
+#if defined(HAVE_LIBAIO) || defined(HAVE_AIO_H)
 static void queue_dio(asyncFileInfo *info,int i,int bWrite) {
     size_t nBytes = info->iByte > info->nBufferSize ? info->nBufferSize : info->iByte;
     size_t nWrite;
@@ -94,7 +94,7 @@ static void queue_dio(asyncFileInfo *info,int i,int bWrite) {
 
     /* Align buffer size for direct I/O. File will be truncated before closing if writing */
     nWrite = (nBytes+info->nPageSize-1) & ~(info->nPageSize-1);
-#ifdef HAVE_LIBAIO_H
+#ifdef HAVE_LIBAIO
     struct iocb *pcb = &info->cb[i];
     if (bWrite) io_prep_pwrite(info->cb+i,info->fd,info->pBuffer[i],nWrite,info->iFilePosition);
     else        io_prep_pread(info->cb+i,info->fd,info->pBuffer[i],nWrite,info->iFilePosition);
@@ -114,7 +114,7 @@ static void queue_dio(asyncFileInfo *info,int i,int bWrite) {
     }
 
 static int wait_complete(asyncFileInfo *info, int nWait) {
-#ifdef HAVE_LIBAIO_H
+#ifdef HAVE_LIBAIO
     int nEvent = io_getevents(info->ctx,nWait,nWait,info->events,NULL);
     if (nEvent!=nWait) { perror("aio_getevents"); abort(); }
     info->nPending -= nWait;
@@ -156,7 +156,7 @@ static int wait_complete(asyncFileInfo *info, int nWait) {
 #endif
 
 void io_write(asyncFileInfo *info, void *buf, size_t count) {
-#if defined(HAVE_LIBAIO_H) || defined(HAVE_AIO_H)
+#if defined(HAVE_LIBAIO) || defined(HAVE_AIO_H)
     char *pBuf = buf;
     while(count) {
 	size_t nBytes = info->nBufferSize - info->iByte;
@@ -179,7 +179,7 @@ void io_write(asyncFileInfo *info, void *buf, size_t count) {
     }
 
 void io_close(asyncFileInfo *info) {
-#if defined(HAVE_LIBAIO_H) || defined(HAVE_AIO_H)
+#if defined(HAVE_LIBAIO) || defined(HAVE_AIO_H)
     if (info->iByte) queue_dio(info,info->iBuffer,1);
     if (info->nPending) wait_complete(info,info->nPending);
     assert(info->nPending==0);
