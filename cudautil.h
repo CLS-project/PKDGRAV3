@@ -4,7 +4,6 @@
 #include "basetype.h"
 #include "ilp.h"
 
-#define USE_SINGLE_STREAM
 #define CUDA_STREAMS 16
 
 #ifdef __cplusplus
@@ -96,11 +95,9 @@ typedef struct cuda_wq_node {
 #ifdef USE_CUDA_EVENTS
     cudaEvent_t event;       // Results have been copied back
 #endif
-#ifndef USE_SINGLE_STREAM
     cudaEvent_t eventCopyDone;
     cudaEvent_t eventKernelDone;
     cudaStream_t stream;     // execution stream
-#endif
     dim3 dimBlock, dimGrid;
     workParticle *ppWP[CUDA_WP_MAX_BUFFERED];
     int ppNI[CUDA_WP_MAX_BUFFERED];
@@ -125,6 +122,7 @@ typedef struct cuda_wq_node {
         };
     } CUDAwqNode;
 
+#ifdef CUDA_STREAMS
 typedef struct cuda_stream {
     struct cuda_stream *next;
     cudaEvent_t eventCopyDone;
@@ -132,11 +130,17 @@ typedef struct cuda_stream {
     cudaStream_t stream;     // execution stream
     CUDAwqNode *node;
     } cudaStream;
+#endif
 
 typedef struct cuda_ctx {
     struct cudaDeviceProp prop;
+#ifdef CUDA_STREAMS
     cudaStream *wqCudaFree;  // Private to this CUDACTX
     cudaStream *wqCudaBusy;  // Private to this CUDACTX
+#else
+    CUDAwqNode *wqCudaFree;  // Private to this CUDACTX
+    CUDAwqNode *wqCudaBusy;  // Private to this CUDACTX
+#endif
     OPA_Queue_info_t wqFree; // We can receive from another thread
     OPA_Queue_info_t wqDone; // We can receive from another thread
     OPA_Queue_info_t *queueWORK;

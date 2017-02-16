@@ -120,7 +120,7 @@ static CUDAwqNode *setup_node(CUDACTX cuda,CUDAwqNode *work) {
     assert(work->pCudaBufIn!=NULL);
     work->pCudaBufOut = CUDA_gpu_malloc(work->outBufferSize);
     assert(work->pCudaBufOut!=NULL);
-#ifndef USE_SINGLE_STREAM
+#ifndef CUDA_STREAMS
     CUDA_CHECK(cudaStreamCreate,( &work->stream ));
 #ifdef USE_CUDA_EVENTS
     CUDA_CHECK(cudaEventCreateWithFlags,( &work->event, cudaEventDisableTiming ));
@@ -193,7 +193,7 @@ void *CUDA_initialize(int nCores, int iCore, OPA_Queue_info_t *queueWORK, OPA_Qu
     ctx->nWorkQueueBusy = 0;
     ctx->nKernelLaunches = 0;
 
-#ifdef USE_SINGLE_STREAM
+#ifdef CUDA_STREAMS
     ctx->wqCudaFree = NULL;
     if (iCore < 0) {
         int i;

@@ -772,12 +772,14 @@ void CUDA_sendWork(CUDACTX cuda,CUDAwqNode **head) {
         work->pppc.nBufferIn = reinterpret_cast<char *>(partHost) - reinterpret_cast<char *>(work->pHostBufToGPU);
 
         work->startTime = CUDA_getTime();
+#ifdef CUDA_STREAMS
         OPA_Queue_enqueue(cuda->queueWORK, work, CUDAwqNode, q.hdr);
-//        work->q.next = cuda->wqCudaBusy;
-//        cuda->wqCudaBusy = work;
-//        cudaError_t rc = static_cast<cudaError_t>((*work->initFcn)(work->ctx,work));
-//        if ( rc != cudaSuccess) CUDA_attempt_recovery(cuda,rc);
-
+#else
+        work->q.next = cuda->wqCudaBusy;
+        cuda->wqCudaBusy = work;
+        cudaError_t rc = static_cast<cudaError_t>((*work->initFcn)(work->ctx,work));
+        if ( rc != cudaSuccess) CUDA_attempt_recovery(cuda,rc);
+#endif
         *head = NULL;
         }
     }
