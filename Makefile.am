@@ -126,7 +126,7 @@ pkdgrav3_mpi_CFLAGS += $(GSL_CFLAGS)
 pkdgrav3_mpi_CXXFLAGS += $(GSL_CFLAGS)
 pkdgrav3_mpi_LDADD += $(GSL_LIBS)
 if USE_LIBAIO
-pkdgrav3_mpi_LDADD += -laio
+pkdgrav3_mpi_LDADD += -laio -lrt
 endif
 if USE_EFENCE
 if HAVE_EFENCE_PATH
