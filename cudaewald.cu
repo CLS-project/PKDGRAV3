@@ -235,6 +235,7 @@ __global__ void cudaEwald(gpuEwaldInput *onGPU,gpuEwaldOutput *outGPU) {
     outGPU[blockIdx.x].Flop[threadIdx.x] = dFlop;
     }
 
+#ifdef CUDA_STREAMS
 static int doneEwaldFcn( void *vpp, void *vwork ) {
     return 0;
     }
@@ -272,7 +273,7 @@ static int initEwaldFcn(void *ve, void *vwork) {
     return cudaSuccess;
     }
 
-#if 0
+#else
 /* If this returns an error, then the caller must attempt recovery or abort */
 cudaError_t cuda_setup_ewald(CUDACTX cuda) {
     if (cuda->ewIn && cuda->ewt) {
@@ -340,6 +341,7 @@ void cudaEwaldInit(void *cudaCtx, struct EwaldVariables *ewIn, EwaldTable *ewt )
     cuda->ewt = ewt;
     if (cuda->iCore==0) {
 	assert(OPA_Queue_is_empty(&cuda->wqDone));
+#ifdef CUDA_STREAMS
 	CUDAwqNode *node = getNode(cuda);
         if (node==NULL) return;
 	assert(node);
@@ -353,8 +355,10 @@ void cudaEwaldInit(void *cudaCtx, struct EwaldVariables *ewIn, EwaldTable *ewt )
         OPA_Queue_dequeue(&cuda->wqDone, node, CUDAwqNode, q.hdr);
 	OPA_Queue_enqueue(&cuda->wqFree, node, CUDAwqNode, q.hdr);
 	--cuda->nWorkQueueBusy;
-//	cudaError_t ec = cuda_setup_ewald(cuda);
-//        if (ec != cudaSuccess) CUDA_attempt_recovery(cuda,ec);
+#else
+	cudaError_t ec = cuda_setup_ewald(cuda);
+        if (ec != cudaSuccess) CUDA_attempt_recovery(cuda,ec);
+#endif
         }
     }
 
@@ -422,7 +426,15 @@ void CUDA_flushEwald(void *cudaCtx) {
             toGPU[ij].Z[ii] = toGPU[ij].Z[0];
             ++ii;
             }
+
+#ifdef CUDA_STREAMS
         OPA_Queue_enqueue(cuda->queueWORK, node, CUDAwqNode, q.hdr);
+#else
+        node->q.next = cuda->wqCudaBusy;
+        cuda->wqCudaBusy = node;
+        cudaError_t rc = static_cast<cudaError_t>((*node->initFcn)(node->ctx,node));
+        if ( rc != cudaSuccess) CUDA_attempt_recovery(cuda,rc);
+#endif
         cuda->nodeEwald = NULL;
         }
     }

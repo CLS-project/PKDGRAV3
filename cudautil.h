@@ -4,7 +4,7 @@
 #include "basetype.h"
 #include "ilp.h"
 
-#define CUDA_STREAMS 16
+//#define CUDA_STREAMS 16
 
 #ifdef __cplusplus
 extern "C" {
@@ -124,7 +124,9 @@ typedef struct cuda_wq_node {
 
 #ifdef CUDA_STREAMS
 typedef struct cuda_stream {
-    struct cuda_stream *next;
+    union {
+	struct cuda_stream *next;
+	} q;
     cudaEvent_t eventCopyDone;
     cudaEvent_t eventKernelDone;
     cudaStream_t stream;     // execution stream
@@ -157,9 +159,10 @@ typedef struct cuda_ctx {
 
     struct EwaldVariables *ewIn;
     EwaldTable *ewt;
-//    cudaEvent_t eventEwald;       // Results have been copied back
-//    cudaStream_t streamEwald;     // execution stream
-
+#ifndef CUDA_STREAMS
+    cudaEvent_t eventEwald;       // Results have been copied back
+    cudaStream_t streamEwald;     // execution stream
+#endif
     char hostname[256];
     } *CUDACTX;
 

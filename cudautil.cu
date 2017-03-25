@@ -131,7 +131,7 @@ static CUDAwqNode *setup_node(CUDACTX cuda,CUDAwqNode *work) {
     return work;
     }
 
-#if 0
+#ifndef CUDA_STREAMS
 static void setup_list(CUDACTX cuda,OPA_Queue_info_t *q) {
     CUDAwqNode *work;
     OPA_Queue_info_t t;
@@ -159,7 +159,7 @@ static int setup_cuda(CUDACTX cuda) {
     // At normal startup this work queue will be empty.
     assert(cuda->wqCudaBusy==NULL);
 //    CUDAwqNode *work;
-//    int nQueued = 0;
+    int nQueued = 0;
 //    for(work=cuda->wqCudaBusy; work!=NULL; work=work->q.next) {
 //        setup_node(cuda,work);
 //        (*work->initFcn)(work->ctx,work); // This restarts the work
@@ -203,7 +203,7 @@ void *CUDA_initialize(int nCores, int iCore, OPA_Queue_info_t *queueWORK, OPA_Qu
             CUDA_CHECK(cudaStreamCreate, (&stm->stream));
             CUDA_CHECK(cudaEventCreateWithFlags, (&stm->eventCopyDone, cudaEventDisableTiming));
             CUDA_CHECK(cudaEventCreateWithFlags, (&stm->eventKernelDone, cudaEventDisableTiming));
-            stm->next = ctx->wqCudaFree;
+            stm->q.next = ctx->wqCudaFree;
             ctx->wqCudaFree = stm;
             }
         }
@@ -318,16 +318,19 @@ extern "C" void CUDA_startWork(void *vcuda,OPA_Queue_info_t *queueWORK) {
         CUDAwqNode *node;
         OPA_Queue_dequeue(queueWORK, node, CUDAwqNode, q.hdr);
         node->startTime = CUDA_getTime();
+#ifdef CUDA_STREAMS
         cudaStream *stm = cuda->wqCudaFree;
-        cuda->wqCudaFree = stm->next;
+        cuda->wqCudaFree = stm->q.next;
         stm->node = node;
         node->eventCopyDone = stm->eventCopyDone;
         node->eventKernelDone = stm->eventKernelDone;
         node->stream = stm->stream;
-//        node->q.next = cuda->wqCudaBusy;
-//        cuda->wqCudaBusy = node;
-        stm->next = cuda->wqCudaBusy;
+        stm->q.next = cuda->wqCudaBusy;
         cuda->wqCudaBusy = stm;
+#else
+        node->q.next = cuda->wqCudaBusy;
+        cuda->wqCudaBusy = node;
+#endif
         ++cuda->nwqCudaBusy;
         cudaError_t rc = static_cast<cudaError_t>((*node->initFcn)(node->ctx,node));
         ++cuda->nKernelLaunches;
@@ -348,7 +351,11 @@ extern "C" void CUDA_registerBuffers(void *vcuda, OPA_Queue_info_t *queueWORK) {
 extern "C"
 int CUDA_flushDone(void *vcuda) {
     CUDACTX cuda = reinterpret_cast<CUDACTX>(vcuda);
+#ifdef CUDA_STREAMS
     cudaStream *stm, **last;
+#else
+    CUDAwqNode *stm, **last;
+#endif
 	CUDAwqNode *work;
     // Someone else has started the recovery process -- we just participate
     if (cuda->epoch != recovery_epoch) {
@@ -356,7 +363,11 @@ int CUDA_flushDone(void *vcuda) {
         }
     last = &cuda->wqCudaBusy;
     while( (stm = *last) != NULL) {
+#ifdef CUDA_STREAMS
         work = stm->node;
+#else
+        work = stm;
+#endif
 #ifdef USE_CUDA_EVENTS
         cudaError_t rc = cudaEventQuery(stm->event);
 #else
@@ -364,8 +375,8 @@ int CUDA_flushDone(void *vcuda) {
 #endif
         if (rc==cudaSuccess) {
             assert(work->doneFcn != NULL); /* Only one cudaSuccess per customer! */
-            *last = stm->next;
-            stm->next = cuda->wqCudaFree;
+            *last = stm->q.next;
+            stm->q.next = cuda->wqCudaFree;
             cuda->wqCudaFree = stm;
             --cuda->nwqCudaBusy;
             OPA_Queue_enqueue(work->pwqDone, work, CUDAwqNode, q.hdr);
@@ -394,7 +405,7 @@ int CUDA_flushDone(void *vcuda) {
                 break;
                 }
             }
-        last = &stm->next;
+        last = &stm->q.next;
         }
 	while (!OPA_Queue_is_empty(&cuda->wqDone)) {
 	    OPA_Queue_dequeue(&cuda->wqDone, work, CUDAwqNode, q.hdr);
@@ -452,12 +463,17 @@ void CUDA_SetQueueSize(void *vcuda,int cudaSize, int inCudaBufSize, int outCudaB
         work->initFcn = NULL;
         work->doneFcn = NULL;
         work->startTime = 0;
-//        OPA_Queue_enqueue(&cuda->wqFree, work, CUDAwqNode, q.hdr);
+#ifdef CUDA_STREAMS
         work->pwqDone = &cuda->wqFree;
         OPA_Queue_enqueue(cuda->queueREGISTER, work, CUDAwqNode, q.hdr);
+#else
+        OPA_Queue_enqueue(&cuda->wqFree, work, CUDAwqNode, q.hdr);
+#endif
         }
     cuda->nWorkQueueBusy = 0;
-//    setup_cuda(cuda);
+#ifndef CUDA_STREAMS
+    setup_cuda(cuda);
+#endif
     setup_ewald(cuda);
     }
 
