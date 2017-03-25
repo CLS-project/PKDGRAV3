@@ -255,7 +255,7 @@ void msrInitializePStore(MSR msr, uint64_t *nSpecies) {
     if (msr->param.iPkInterval    && ps.nEphemeralBytes < 4) ps.nEphemeralBytes = 4;
     if (msr->param.bGravStep      && ps.nEphemeralBytes < 8) ps.nEphemeralBytes = 8;
     if (msr->param.bDoGas         && ps.nEphemeralBytes < 8) ps.nEphemeralBytes = 8;
-    if (msr->param.bDoDensity     && ps.nEphemeralBytes < 8) ps.nEphemeralBytes = 8;
+    if (msr->param.bDoDensity     && ps.nEphemeralBytes < 12) ps.nEphemeralBytes = 12;
 #ifdef MDL_FFTW
     if (msr->param.nGridPk>0) {
 	struct inGetFFTMaxSizes inFFTSizes;
