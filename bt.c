@@ -14,12 +14,14 @@
 
 #include "bt.h"
 
+#define STACK_DEPTH 50
+
 static void print_traceback(FILE *fp) {
-    void *stack[20];
+    void *stack[STACK_DEPTH];
     char **functions;
     int count, i;
 
-    count = backtrace(stack, 20);
+    count = backtrace(stack, STACK_DEPTH);
     functions = backtrace_symbols(stack, count);
     for (i=0; i < count; i++) {
         fprintf(fp,"Frame %2d: %s\n", i, functions[i]);
