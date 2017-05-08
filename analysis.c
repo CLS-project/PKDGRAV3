@@ -783,132 +783,80 @@ static void ngp_assign(PKD pkd, MDLFFT fft, int nGrid,
     cell_accumulate(pkd,fft,ix,iy,iz,mass);
     }
 #elif defined(USE_CIC)
+
+static void cic_weights(int ii[3][2],float H[3][2],const double r[3], int nGrid) {
+    int d;
+    float rr, h;
+    for(d=0; d<3; ++d) {
+	rr = r[d] * (float)(nGrid);                 /* coordinates in subcube units [0,NGRID] */
+	ii[d][0]  = (int)(rr);                      /* index of nearest grid point [0,NGRID] */
+	if (ii[d][0]==nGrid) ii[d][0] = nGrid-1;    /* If very close to 1.0, it could round up, so correct */
+	h = rr - (float)ii[d][0];             /* distance to nearest grid point */
+	ii[d][1]=wrap(ii[d][0]+1,nGrid);            /* keep track of periodic boundaries */
+	H[d][0] = 1.0 - h;              /* calculate CIC weights */
+	H[d][1] = h;
+	}
+    }
+
 static void cic_assign(PKD pkd, MDLFFT fft, int nGrid,
 		       double x, double y, double z, float mass) {
+    double r[] = {x,y,z};
+    int    ii[3][2];
+    float  H[3][2];
+    int i,j,k;
+
     int           ix, iy, iz, ixp1, iyp1, izp1;
     float         rrx, rry, rrz;
     float         hx, hy, hz;
     float         hx0, hy0, hz0, hxp1, hyp1, hzp1;
+
+    cic_weights(ii,H,r,nGrid);
    
-    /* coordinates in subcube units [0,NGRID] */
-    rrx = x * (float)(nGrid);
-    rry = y * (float)(nGrid);
-    rrz = z * (float)(nGrid);
-               
-    /* index of nearest grid point [0,NGRID] */
-    ix  = (int)(rrx);
-    iy  = (int)(rry);
-    iz  = (int)(rrz);
-
-    /* If very close to 1.0, it could round up, so correct */
-    if (ix==nGrid) ix = nGrid-1;
-    if (iy==nGrid) iy = nGrid-1;
-    if (iz==nGrid) iz = nGrid-1;
-               
-    /* distance to nearest grid point */
-    hx  = rrx - (float)ix;
-    hy  = rry - (float)iy;
-    hz  = rrz - (float)iz;
-
-    /* calculate TSC weights */
-    hx0 = 1.0 - hx;
-    hxp1= hx;
-    hy0 = 1.0 - hy;
-    hyp1= hy;
-    hz0 = 1.0 - hz;
-    hzp1= hz;
-
-    /* keep track of periodic boundaries */
-    ixp1=wrap(ix+1,fft->rgrid->n1);
-    iyp1=wrap(iy+1,fft->rgrid->n2);
-    izp1=wrap(iz+1,fft->rgrid->n3);
-
     /* assign particle according to weights to 8 neighboring nodes */
-    cell_accumulate(pkd,fft,  ix,  iy,  iz,hx0 *hy0  *hz0  * mass);
-    cell_accumulate(pkd,fft,ixp1,  iy,  iz,hxp1*hy0  *hz0  * mass);
-    cell_accumulate(pkd,fft,  ix,iyp1,  iz,hx0 *hyp1 *hz0  * mass);
-    cell_accumulate(pkd,fft,ixp1,iyp1,  iz,hxp1*hyp1 *hz0  * mass);
-    cell_accumulate(pkd,fft,  ix,  iy,izp1,hx0 *hy0  *hzp1 * mass);
-    cell_accumulate(pkd,fft,ixp1,  iy,izp1,hxp1*hy0  *hzp1 * mass);
-    cell_accumulate(pkd,fft,  ix,iyp1,izp1,hx0 *hyp1 *hzp1 * mass);
-    cell_accumulate(pkd,fft,ixp1,iyp1,izp1,hxp1*hyp1 *hzp1 * mass);
+    for(i=0; i<2; ++i) {
+	for(j=0; j<2; ++j) {
+	    for(k=0; k<2; ++k) {
+		cell_accumulate(pkd,fft,ii[0][i],ii[1][j],ii[2][k],H[0][i]*H[1][j]*H[2][k] * mass);
+		}
+	    }
+	}
 }
 #else
+
+static void tsc_weights(int ii[3][3],float H[3][3],const double r[3], int nGrid) {
+    int d;
+    float rr, h;
+    for(d=0; d<3; ++d) {
+	rr = r[d] * (float)(nGrid);                 /* coordinates in subcube units [0,NGRID] */
+	ii[d][1]  = (int)(rr);                      /* index of nearest grid point [0,NGRID] */
+	if (ii[d][1]==nGrid) ii[d][1] = nGrid-1;    /* If very close to 1.0, it could round up, so correct */
+	h = (rr-0.5) - (float)ii[d][1];             /* distance to nearest grid point */
+	ii[d][2]=wrap(ii[d][1]+1,nGrid);            /* keep track of periodic boundaries */
+	ii[d][0]=wrap(ii[d][1]-1,nGrid);
+	H[d][0] = 0.5 * pow2(0.5 - h);              /* calculate TSC weights */
+	H[d][1] = 0.75 - pow2(h);
+	H[d][2] = 0.5 * pow2(0.5 + h);
+	}
+    }
+
 static void tsc_assign(PKD pkd, MDLFFT fft, int nGrid,
 		       double x, double y, double z, float mass) {
-    int           ix, iy, iz, ixp1, iyp1, izp1, ixm1, iym1, izm1;
-    float         rrx, rry, rrz;
-    float         hx, hy, hz;
-    float         hx0, hy0, hz0, hxp1, hyp1, hzp1, hxm1, hym1, hzm1;
-   
-    /* coordinates in subcube units [0,NGRID] */
-    rrx = x * (float)(nGrid);
-    rry = y * (float)(nGrid);
-    rrz = z * (float)(nGrid);
-               
-    /* index of nearest grid point [0,NGRID] */
-    ix  = (int)(rrx);
-    iy  = (int)(rry);
-    iz  = (int)(rrz);
+    double r[] = {x,y,z};
+    int    ii[3][3];
+    float  H[3][3];
+    int    i,j,k;
 
-    /* If very close to 1.0, it could round up, so correct */
-    if (ix==nGrid) ix = nGrid-1;
-    if (iy==nGrid) iy = nGrid-1;
-    if (iz==nGrid) iz = nGrid-1;
-               
-    /* distance to nearest grid point */
-    hx  = (rrx-0.5) - (float)ix;
-    hy  = (rry-0.5) - (float)iy;
-    hz  = (rrz-0.5) - (float)iz;
-
-    /* calculate TSC weights */
-    hx0=0.75 - hx*hx;
-    hxp1=0.5* pow2(0.5 + hx);
-    hxm1=0.5* pow2(0.5 - hx);
-    hy0=0.75 - hy*hy;
-    hyp1=0.5* pow2(0.5 + hy);
-    hym1=0.5* pow2(0.5 - hy);
-    hz0= 0.75 - hz*hz;
-    hzp1=0.5* pow2(0.5 + hz);
-    hzm1=0.5* pow2(0.5 - hz);
-
-    /* keep track of periodic boundaries */
-    ixp1=wrap(ix+1,fft->rgrid->n1);
-    iyp1=wrap(iy+1,fft->rgrid->n2);
-    izp1=wrap(iz+1,fft->rgrid->n3);
-    ixm1=wrap(ix-1,fft->rgrid->n1);
-    iym1=wrap(iy-1,fft->rgrid->n2);
-    izm1=wrap(iz-1,fft->rgrid->n3);
+    tsc_weights(ii,H,r,nGrid);
 
     /* assign particle according to weights to 27 neighboring nodes */
-    cell_accumulate(pkd,fft,ixm1,iym1,izm1,hxm1*hym1 *hzm1 * mass);
-    cell_accumulate(pkd,fft,ix,  iym1,izm1,hx0 *hym1 *hzm1 * mass);
-    cell_accumulate(pkd,fft,ixp1,iym1,izm1,hxp1*hym1 *hzm1 * mass);
-    cell_accumulate(pkd,fft,ixm1,  iy,izm1,hxm1*hy0  *hzm1 * mass);
-    cell_accumulate(pkd,fft,  ix,  iy,izm1,hx0 *hy0  *hzm1 * mass);
-    cell_accumulate(pkd,fft,ixp1,  iy,izm1,hxp1*hy0  *hzm1 * mass);
-    cell_accumulate(pkd,fft,ixm1,iyp1,izm1,hxm1*hyp1 *hzm1 * mass);
-    cell_accumulate(pkd,fft,  ix,iyp1,izm1,hx0 *hyp1 *hzm1 * mass);
-    cell_accumulate(pkd,fft,ixp1,iyp1,izm1,hxp1*hyp1 *hzm1 * mass);
-    cell_accumulate(pkd,fft,ixm1,iym1,  iz,hxm1*hym1 *hz0  * mass);
-    cell_accumulate(pkd,fft,  ix,iym1,  iz,hx0 *hym1 *hz0  * mass);
-    cell_accumulate(pkd,fft,ixp1,iym1,  iz,hxp1*hym1 *hz0  * mass);
-    cell_accumulate(pkd,fft,ixm1,  iy,  iz,hxm1*hy0  *hz0  * mass);
-    cell_accumulate(pkd,fft,  ix,  iy,  iz,hx0 *hy0  *hz0  * mass);
-    cell_accumulate(pkd,fft,ixp1,  iy,  iz,hxp1*hy0  *hz0  * mass);
-    cell_accumulate(pkd,fft,ixm1,iyp1,  iz,hxm1*hyp1 *hz0  * mass);
-    cell_accumulate(pkd,fft,  ix,iyp1,  iz,hx0 *hyp1 *hz0  * mass);
-    cell_accumulate(pkd,fft,ixp1,iyp1,  iz,hxp1*hyp1 *hz0  * mass);
-    cell_accumulate(pkd,fft,ixm1,iym1,izp1,hxm1*hym1 *hzp1 * mass);
-    cell_accumulate(pkd,fft,  ix,iym1,izp1,hx0 *hym1 *hzp1 * mass);
-    cell_accumulate(pkd,fft,ixp1,iym1,izp1,hxp1*hym1 *hzp1 * mass);
-    cell_accumulate(pkd,fft,ixm1,  iy,izp1,hxm1*hy0  *hzp1 * mass);
-    cell_accumulate(pkd,fft,  ix,  iy,izp1,hx0 *hy0  *hzp1 * mass);
-    cell_accumulate(pkd,fft,ixp1,  iy,izp1,hxp1*hy0  *hzp1 * mass);
-    cell_accumulate(pkd,fft,ixm1,iyp1,izp1,hxm1*hyp1 *hzp1 * mass);
-    cell_accumulate(pkd,fft,  ix,iyp1,izp1,hx0 *hyp1 *hzp1 * mass);
-    cell_accumulate(pkd,fft,ixp1,iyp1,izp1,hxp1*hyp1 *hzp1 * mass);
-}
+    for(i=0; i<3; ++i) {
+	for(j=0; j<3; ++j) {
+	    for(k=0; k<3; ++k) {
+		cell_accumulate(pkd,fft,ii[0][i],ii[1][j],ii[2][k],H[0][i]*H[1][j]*H[2][k] * mass);
+		}
+	    }
+	}
+    }
 #endif
 
 static double deconvolveWindow(int i,int nGrid) {
