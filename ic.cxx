@@ -244,12 +244,15 @@ int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int nGrid,int b2LPT,double dBoxSi
 	P.normalization = cosmo->dNormalization * Da/D0;
 	dSigma8 = sqrt(variance(&P,8.0));
 	}
+    f1 = csmComoveGrowthRate(csm,a);
+    f2 = 2.0 * pow(dOmega,6.0/11.0);
     if (mdlSelf(mdl)==0) {
 	printf("sigma8=%.15g\n",dSigma8); 
+	printf("f1=%.12g (exact) or %.12g (approx)\n", f1, pow(dOmega,5.0/9.0));
+//	printf("f2=%.12g (exact) or %.12g (approx)\n", -6.0/7.0 * f1, f2);
+	printf("f2=%.12g (exact) or %.12g (approx)\n", 2.0 * f1, f2);
 	fflush(stdout);
 	}
-    f1 = pow(dOmega,5.0/9.0);
-    f2 = 2.0 * pow(dOmega,6.0/11.0);
 
     velFactor = csmExp2Hub(csm,a);
     velFactor *= a*a; /* Comoving */
@@ -442,10 +445,10 @@ int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int nGrid,int b2LPT,double dBoxSi
 	    idx = kindex.i;
 	    ak2 = ix*ix + iy*iy + iz*iz;
 	    if (ak2>0.0) {
-		float f = (-3.0/7.0) / (ak2 * twopi);
-		ic[7].k[idx] = f * ic[6].k[idx] * ix * -I;
-		ic[8].k[idx] = f * ic[6].k[idx] * iy * -I;
-		ic[9].k[idx] = f * ic[6].k[idx] * iz * -I;
+		float D2 = (-3.0/7.0) / (ak2 * twopi);
+		ic[7].k[idx] = D2 * ic[6].k[idx] * ix * -I;
+		ic[8].k[idx] = D2 * ic[6].k[idx] * iy * -I;
+		ic[9].k[idx] = D2 * ic[6].k[idx] * iz * -I;
 		}
 	    else ic[7].k[idx] = ic[8].k[idx] = ic[9].k[idx] = 0.0;
 	    }

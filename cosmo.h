@@ -1,7 +1,7 @@
 #ifndef COSMO_HINCLUDED
 #define COSMO_HINCLUDED
 
-//#define USE_GSL_COSMO
+#define USE_GSL_COSMO
 #ifdef USE_GSL_COSMO
 #include <gsl/gsl_integration.h>
 #endif
@@ -43,6 +43,7 @@ extern "C" {
     double csmComoveKickFac(CSM csm, double dTime, double dDelta);
     double csmComoveLookbackTime2Exp(CSM csm, double dComoveTime);
     double csmComoveGrowthFactor(CSM csm, double a);
+    double csmComoveGrowthRate(CSM csm, double a);
 #ifdef __cplusplus
 }
 #endif

@@ -75,6 +75,16 @@ double csmExp2Hub(CSM csm, double dExp) {
 		 + csm->val.dLambda*dExp*dExp*dExp*dExp)/(dExp*dExp);
     }
 
+double csmExp2HubRate(CSM csm, double dExp) {
+    double dOmegaCurve = 1.0 - csm->val.dOmega0 -
+			 csm->val.dLambda - csm->val.dOmegaDE - csm->val.dOmegaRad;
+    assert(dExp > 0.0);
+    double ia = 1.0 / dExp;
+    assert( csm->val.dOmegaDE == 0.0); // WARNING: no dark energy in this equation
+    return ( -1.5 * csm->val.dOmega0 * ia*ia*ia - dOmegaCurve * ia*ia - 2.0*csm->val.dOmegaRad * ia*ia*ia*ia )
+	 / (        csm->val.dOmega0 * ia*ia*ia + dOmegaCurve * ia*ia +     csm->val.dOmegaRad * ia*ia*ia*ia );
+    }
+
 
 double csmTime2Hub(CSM csm,double dTime) {
     double a = csmTime2Exp(csm,dTime);
@@ -444,14 +454,14 @@ double csmComoveGrowthInt(CSM csm, double a) {
     if (a==0.0) return 0;
     else return pow(a*csmExp2Hub(csm,a),-3.0);
     }
+
 static double ComoveGrowth_integrand(double a, void * params) {
     return csmComoveGrowthInt(params,a);
     }
 
-double csmComoveGrowthFactor(CSM csm,double a) {
-    double eta = csmExp2Hub(csm, a);
+static double ComoveGrowthFactorIntegral(CSM csm,double a) {
     double result;
-#ifdef USE_GSL_COSMO
+#if defined(USE_GSL_COSMO)
     gsl_function F;
     F.function = &ComoveGrowth_integrand;
     F.params = csm;
@@ -463,5 +473,16 @@ double csmComoveGrowthFactor(CSM csm,double a) {
 	(double (*)(void *, double)) csmComoveGrowthInt,
 	0, a, 1e-12);
 #endif
-    return csm->val.dHubble0*csm->val.dHubble0*2.5*csm->val.dOmega0*eta*result;
+    return result;
+    }
+
+double csmComoveGrowthFactor(CSM csm,double a) {
+    double a_equ = csm->val.dOmegaRad/csm->val.dOmega0; /* added by MK: computing the scale factor at radiation/matter equivalence */
+    double eta = csmExp2Hub(csm, a);
+    double result = ComoveGrowthFactorIntegral(csm,a);
+    return csm->val.dHubble0*csm->val.dHubble0*2.5*csm->val.dOmega0*eta*result + 2.0/3.0*a_equ;
+    }
+
+double csmComoveGrowthRate(CSM csm,double a) {
+    return csmExp2HubRate(csm,a) + a * csmComoveGrowthInt(csm,a) / ComoveGrowthFactorIntegral(csm,a);
     }
