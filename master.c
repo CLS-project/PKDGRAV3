@@ -342,10 +342,10 @@ int readParameters(MSR msr,const char *fileName) {
     else if (fscanf(fp,"dEcosmo=%lg\n",&msr->dEcosmo)!=1) bError=1;
     else if (fscanf(fp,"dTimeOld=%lg\n",&msr->dTimeOld)!=1) bError=1;
     else if (fscanf(fp,"dUOld=%lg\n",&msr->dUOld)!=1) bError=1;
-    else if (fscanf(fp,"nSpecies0=%llu\n",&msr->N)!=1) bError=1;
-    else if (fscanf(fp,"nSpecies1=%llu\n",&msr->nDark)!=1) bError=1;
-    else if (fscanf(fp,"nSpecies2=%llu\n",&msr->nGas)!=1) bError=1;
-    else if (fscanf(fp,"nSpecies3=%llu\n",&msr->nStar)!=1) bError=1;
+    else if (fscanf(fp,"nSpecies0=%"PRIu64"\n",&msr->N)!=1) bError=1;
+    else if (fscanf(fp,"nSpecies1=%"PRIu64"\n",&msr->nDark)!=1) bError=1;
+    else if (fscanf(fp,"nSpecies2=%"PRIu64"\n",&msr->nGas)!=1) bError=1;
+    else if (fscanf(fp,"nSpecies3=%"PRIu64"\n",&msr->nStar)!=1) bError=1;
     else if (readParametersClasses(msr,fp)) bError=1;
     else if (fscanf(fp,"nCheckpointFiles=%d\n",&msr->nCheckpointThreads)!=1) bError=1;
     else if (scanString(msr->achCheckpointName,sizeof(msr->achCheckpointName),fp,"achCheckpointName")==0) bError = 1;
@@ -470,7 +470,7 @@ static void writeParameters(MSR msr,const char *baseName,int iStep,double dTime)
     fprintf(fp,"dTimeOld=%.17g\n",msr->dTimeOld);
     fprintf(fp,"dUOld=%.17g\n",msr->dUOld);
     for(i=0; i<FIO_SPECIES_LAST; ++i)
-	fprintf(fp,"nSpecies%d=%llu\n",i,nSpecies[i]);
+	fprintf(fp,"nSpecies%d=%"PRIu64"\n",i,nSpecies[i]);
     fprintf(fp,"nClasses=%d\n",msr->nCheckpointClasses);
     for(i=0; i<msr->nCheckpointClasses; ++i) {
 	fprintf(fp,"fMass%d=%.17g\n",i,msr->aCheckpointClasses[i].fMass);
@@ -500,11 +500,11 @@ static void writeParameters(MSR msr,const char *baseName,int iStep,double dTime)
 	    break;
 	case 3:
 	    fprintf(fp,"%s%s=\"%s\"\n",pn->bArg|pn->bFile?"":"#",
-		pn->pszName,pn->pValue);
+		pn->pszName,(char *)pn->pValue);
 	    break;
 	case 4:
 	    assert(pn->iSize == sizeof(uint64_t));
-	    fprintf(fp,"%s%s=%llu\n",pn->bArg|pn->bFile?"":"#",
+	    fprintf(fp,"%s%s=%"PRIu64"\n",pn->bArg|pn->bFile?"":"#",
 		pn->pszName,*(uint64_t *)pn->pValue);
 	    break;
 	    }
@@ -1864,7 +1864,7 @@ msrGetLock(MSR msr) {
 	    return 0;
 	    }
 	}
-    (void) fprintf(fp,msr->param.achOutName);
+    (void) fprintf(fp,"%s",msr->param.achOutName);
     (void) fclose(fp);
     return 1;
     }
