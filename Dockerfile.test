@@ -1,0 +1,6 @@
+#FROM ubuntu:latest
+FROM atlassian/default-image:latest
+MAINTAINER Douglas Potter "douglas.potter@uzh.ch"
+
+RUN apt-get update
+RUN apt-get install -y libopenmpi-dev libgsl0-dev autoconf libfftw3-dev libfftw3-mpi-dev
