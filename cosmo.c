@@ -58,6 +58,13 @@ double dRombergO(void *CTX, double (*func)(void *, double), double a,
 #endif
 
 /*
+ * ** by MK: Computes the scale factor a at radiation-matter equivalence.
+ * */
+double csmRadMatEquivalence(CSM csm){
+    return csm->val.dOmegaRad/csm->val.dOmega0;
+}
+
+/*
  ** The cosmological equation of state is entirely determined here.  We
  ** will derive all other quantities from this function.
  */
@@ -75,6 +82,9 @@ double csmExp2Hub(CSM csm, double dExp) {
 		 + csm->val.dLambda*dExp*dExp*dExp*dExp)/(dExp*dExp);
     }
 
+/*
+ * ** This is a/H(a)*dH(a)/da
+ * */
 double csmExp2HubRate(CSM csm, double dExp) {
     double dOmegaCurve = 1.0 - csm->val.dOmega0 -
 			 csm->val.dLambda - csm->val.dOmegaDE - csm->val.dOmegaRad;
@@ -82,7 +92,7 @@ double csmExp2HubRate(CSM csm, double dExp) {
     double ia = 1.0 / dExp;
     assert( csm->val.dOmegaDE == 0.0); // WARNING: no dark energy in this equation
     return ( -1.5 * csm->val.dOmega0 * ia*ia*ia - dOmegaCurve * ia*ia - 2.0*csm->val.dOmegaRad * ia*ia*ia*ia )
-	 / (        csm->val.dOmega0 * ia*ia*ia + dOmegaCurve * ia*ia +     csm->val.dOmegaRad * ia*ia*ia*ia );
+	 / (        csm->val.dOmega0 * ia*ia*ia + dOmegaCurve * ia*ia +     csm->val.dOmegaRad * ia*ia*ia*ia + csm->val.dLambda );
     }
 
 
@@ -477,12 +487,15 @@ static double ComoveGrowthFactorIntegral(CSM csm,double a) {
     }
 
 double csmComoveGrowthFactor(CSM csm,double a) {
-    double a_equ = csm->val.dOmegaRad/csm->val.dOmega0; /* added by MK: computing the scale factor at radiation/matter equivalence */
+    // double a_equ = csm->val.dOmegaRad/csm->val.dOmega0; /* added by MK: computing the scale factor at radiation/matter equivalence */
     double eta = csmExp2Hub(csm, a);
     double result = ComoveGrowthFactorIntegral(csm,a);
-    return csm->val.dHubble0*csm->val.dHubble0*2.5*csm->val.dOmega0*eta*result + 2.0/3.0*a_equ;
+    return csm->val.dHubble0*csm->val.dHubble0*2.5*csm->val.dOmega0*eta*result + 2.0/3.0*csmRadMatEquivalence(csm);
     }
 
 double csmComoveGrowthRate(CSM csm,double a) {
-    return csmExp2HubRate(csm,a) + a * csmComoveGrowthInt(csm,a) / ComoveGrowthFactorIntegral(csm,a);
+    return (1 - 2.0/3.0*csmRadMatEquivalence(csm)/csmComoveGrowthFactor(csm,a))*(csmExp2HubRate(csm,a) + 
+                                                            a*csmComoveGrowthInt(csm,a)/ComoveGrowthFactorIntegral(csm,a));
     }
+
+
