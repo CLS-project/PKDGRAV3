@@ -445,7 +445,10 @@ int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int nGrid,int b2LPT,double dBoxSi
 	    idx = kindex.i;
 	    ak2 = ix*ix + iy*iy + iz*iz;
 	    if (ak2>0.0) {
-		float D2 = (-3.0/7.0) / (ak2 * twopi);
+		
+		float aeq = csmRadMatEquivalence(csm);
+		float aeqDratio = aeq/csmComoveGrowthFactor(csm, a); 
+		float D2 = (-3.0/7.0 + 4.0/7.0 * aeqDratio - 2.0/3.0 * aeqDratio * aeqDratio * (+2.0/7.0 + a/aeq)) / (ak2 * twopi);
 		ic[7].k[idx] = D2 * ic[6].k[idx] * ix * -I;
 		ic[8].k[idx] = D2 * ic[6].k[idx] * iy * -I;
 		ic[9].k[idx] = D2 * ic[6].k[idx] * iz * -I;
