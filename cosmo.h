@@ -33,6 +33,7 @@ extern "C" {
 #endif
     void csmInitialize(CSM *pcsm);
     void csmFinish(CSM csm);
+    double csmRadMatEquivalence(CSM csm);
     double csmExp2Hub(CSM csm, double dExp);
     double csmTime2Hub(CSM csm, double dTime);
     double csmExp2Time(CSM csm, double dExp);
