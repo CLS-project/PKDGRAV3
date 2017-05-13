@@ -226,6 +226,11 @@ static int pkdParticleAddStruct(PKD pkd,int n) {
 static int pkdParticleAddDouble(PKD pkd,int n) {
     int iOffset = pkd->iParticleSize;
     mdlassert( pkd->mdl, pkd->pStorePRIVATE == NULL );
+    if( (iOffset & (sizeof(int64_t)-1)) != 0 ) {
+	mdlassert( pkd->mdl, pkd->iParticle32==0 );
+	pkd->iParticle32 = pkd->iParticleSize;
+	iOffset = pkd->iParticleSize += sizeof(float);
+	}
     mdlassert( pkd->mdl, (iOffset & (sizeof(double)-1)) == 0 );
     if (pkd->nParticleAlign < sizeof(double)) pkd->nParticleAlign = sizeof(double);
     pkd->iParticleSize += sizeof(double) * n;
@@ -236,8 +241,14 @@ static int pkdParticleAddDouble(PKD pkd,int n) {
 static int pkdParticleAddFloat(PKD pkd,int n) {
     int iOffset = pkd->iParticleSize;
     mdlassert( pkd->mdl, pkd->pStorePRIVATE == NULL );
-    mdlassert( pkd->mdl, (iOffset & (sizeof(float)-1)) == 0 );
-    pkd->iParticleSize += sizeof(float) * n;
+    if ( n==1 && pkd->iParticle32) {
+    	iOffset = pkd->iParticle32;
+    	pkd->iParticle32 = 0;
+    	}
+    else {
+	mdlassert( pkd->mdl, (iOffset & (sizeof(float)-1)) == 0 );
+	pkd->iParticleSize += sizeof(float) * n;
+	}
     return iOffset;
     }
 
@@ -245,6 +256,11 @@ static int pkdParticleAddFloat(PKD pkd,int n) {
 static int pkdParticleAddInt64(PKD pkd,int n) {
     int iOffset = pkd->iParticleSize;
     mdlassert( pkd->mdl, pkd->pStorePRIVATE == NULL );
+    if( (iOffset & (sizeof(int64_t)-1)) != 0 ) {
+	mdlassert( pkd->mdl, pkd->iParticle32==0 );
+	pkd->iParticle32 = pkd->iParticleSize;
+	iOffset = pkd->iParticleSize += sizeof(float);
+	}
     mdlassert( pkd->mdl, (iOffset & (sizeof(int64_t)-1)) == 0 );
     if (pkd->nParticleAlign < sizeof(int64_t)) pkd->nParticleAlign = sizeof(int64_t);
     pkd->iParticleSize += sizeof(int64_t) * n;
@@ -255,8 +271,14 @@ static int pkdParticleAddInt64(PKD pkd,int n) {
 static int pkdParticleAddInt32(PKD pkd,int n) {
     int iOffset = pkd->iParticleSize;
     mdlassert( pkd->mdl, pkd->pStorePRIVATE == NULL );
-    mdlassert( pkd->mdl, (iOffset & (sizeof(int32_t)-1)) == 0 );
-    pkd->iParticleSize += sizeof(int32_t) * n;
+    if ( n==1 && pkd->iParticle32) {
+    	iOffset = pkd->iParticle32;
+    	pkd->iParticle32 = 0;
+    	}
+    else {
+	mdlassert( pkd->mdl, (iOffset & (sizeof(int32_t)-1)) == 0 );
+	pkd->iParticleSize += sizeof(int32_t) * n;
+	}
     return iOffset;
     }
 
@@ -407,6 +429,7 @@ void pkdInitialize(
 	pkd->iParticleSize = sizeof(UPARTICLE);
     else
 	pkd->iParticleSize = sizeof(PARTICLE);
+    pkd->iParticle32 = 0;
     pkd->nParticleAlign = sizeof(float);
     pkd->iTreeNodeSize = sizeof(KDN);
 

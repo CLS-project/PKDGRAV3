@@ -778,7 +778,7 @@ typedef struct pkdContext {
     BND bnd;
     BND vbnd;
     size_t iTreeNodeSize;
-    size_t iParticleSize;
+    size_t iParticleSize, iParticle32;
     size_t nParticleAlign;
     PARTICLE *pStorePRIVATE;
     PARTICLE *pTempPRIVATE;
