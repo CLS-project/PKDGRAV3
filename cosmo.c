@@ -517,11 +517,10 @@ double csmComoveGrowthRate(CSM csm,double a) {
     /* START */ /* In this section we compute f1_LCDM and hence intentionally set dOmegaRad = 0 because f1_LCDM by definition has no radiation. */
     csm->val.dOmegaRad = 0;
     GrowthRateLCDM = csmExp2HubRate(csm,a) + a*csmComoveGrowthInt(csm,a)/ComoveGrowthFactorIntegral(csm,a);
-    D1 = csmComoveGrowthFactor(csm,a);
     /* END */
 
     csm->val.dOmegaRad = dOmegaRad;
-    RadiativeCorrection = 2.0/3.0*csmRadMatEquivalence(csm)/D1;
+    RadiativeCorrection = 2.0/3.0*csmRadMatEquivalence(csm)/csmComoveGrowthFactor(csm,a);
     
     return (1 - RadiativeCorrection) * GrowthRateLCDM; 
     }
