@@ -488,20 +488,42 @@ static double ComoveGrowthFactorIntegral(CSM csm,double a) {
 
 double csmComoveGrowthFactor(CSM csm,double a) {
     // double a_equ = csm->val.dOmegaRad/csm->val.dOmega0; /* added by MK: computing the scale factor at radiation/matter equivalence */
+    double dOmegaRad = csm->val.dOmegaRad;
+    double GrowthFactorLCDM;
+    double RadiativeCorrection;
+    
+    /* START */ /* In this section we compute D_LCDM and hence intentionally set dOmegaRad = 0 because D_LCDM by definition has no radiation. */
+    csm->val.dOmegaRad = 0;
+
     double eta = csmExp2Hub(csm, a);
     double result = ComoveGrowthFactorIntegral(csm,a);
-    return csm->val.dHubble0*csm->val.dHubble0*2.5*csm->val.dOmega0*eta*result + 2.0/3.0*csmRadMatEquivalence(csm);
+    
+    GrowthFactorLCDM = csm->val.dHubble0*csm->val.dHubble0*2.5*csm->val.dOmega0*eta*result;
+    /* END */
+    /* For the radiative correction term we set dOmegaRad back to its original value */
+
+    csm->val.dOmegaRad = dOmegaRad;
+    RadiativeCorrection = 2.0/3.0*csmRadMatEquivalence(csm);    
+
+    return GrowthFactorLCDM + RadiativeCorrection;
     }
 
 double csmComoveGrowthRate(CSM csm,double a) {
     double dOmegaRad = csm->val.dOmegaRad;
-    double t;
+    double D1;
+    double GrowthRateLCDM;
+    double RadiativeCorrection;
 
-    csm->val.dOmegaRad = 0; 
-    t = (1 - 2.0/3.0*csmRadMatEquivalence(csm)/csmComoveGrowthFactor(csm,a))*(csmExp2HubRate(csm,a) + 
-                                                            a*csmComoveGrowthInt(csm,a)/ComoveGrowthFactorIntegral(csm,a));
+    /* START */ /* In this section we compute f1_LCDM and hence intentionally set dOmegaRad = 0 because f1_LCDM by definition has no radiation. */
+    csm->val.dOmegaRad = 0;
+    GrowthRateLCDM = csmExp2HubRate(csm,a) + a*csmComoveGrowthInt(csm,a)/ComoveGrowthFactorIntegral(csm,a);
+    D1 = csmComoveGrowthFactor(csm,a);
+    /* END */
+
     csm->val.dOmegaRad = dOmegaRad;
-    return t;
+    RadiativeCorrection = 2.0/3.0*csmRadMatEquivalence(csm)/D1;
+    
+    return (1 - RadiativeCorrection) * GrowthRateLCDM; 
     }
 
 
