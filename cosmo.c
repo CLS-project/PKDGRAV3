@@ -494,8 +494,14 @@ double csmComoveGrowthFactor(CSM csm,double a) {
     }
 
 double csmComoveGrowthRate(CSM csm,double a) {
-    return (1 - 2.0/3.0*csmRadMatEquivalence(csm)/csmComoveGrowthFactor(csm,a))*(csmExp2HubRate(csm,a) + 
+    double dOmegaRad = csm->val.dOmegaRad;
+    double t;
+
+    csm->val.dOmegaRad = 0; 
+    t = (1 - 2.0/3.0*csmRadMatEquivalence(csm)/csmComoveGrowthFactor(csm,a))*(csmExp2HubRate(csm,a) + 
                                                             a*csmComoveGrowthInt(csm,a)/ComoveGrowthFactorIntegral(csm,a));
+    csm->val.dOmegaRad = dOmegaRad;
+    return t;
     }
 
 
