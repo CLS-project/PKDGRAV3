@@ -3,7 +3,6 @@
 #endif
 #include "iomodule.h"
 #include <assert.h>
-#include <fcntl.h>
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>
 #endif

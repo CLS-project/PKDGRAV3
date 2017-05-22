@@ -4,6 +4,7 @@
 #define _GNU_SOURCE
 #endif
 
+#include <fcntl.h>
 #include <sys/types.h>
 
 #if defined(HAVE_LIBAIO)

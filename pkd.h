@@ -24,12 +24,6 @@
 #include "basetype.h"
 #include "iomodule.h"
 
-#if defined(HAVE_LIBAIO)
-#include <libaio.h>
-#elif defined(HAVE_AIO_H)
-#include <aio.h>
-#endif
-
 #ifdef __cplusplus
 #define CAST(T,V) reinterpret_cast<T>(V)
 #else
