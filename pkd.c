@@ -4,6 +4,8 @@
 
 #define _LARGEFILE_SOURCE
 #define _FILE_OFFSET_BITS 64
+
+#include "iomodule.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <stddef.h>
@@ -27,9 +29,6 @@
 #ifdef HAVE_SYS_STAT_H
 #include <sys/stat.h>
 #endif
-#ifdef HAVE_FCNTL_H
-#include <fcntl.h>
-#endif
 #ifdef __linux__
 #include <sys/resource.h>
 #endif
@@ -46,7 +45,6 @@
 #include "outtype.h"
 #include "parameters.h"
 #include "cosmo.h"
-#include "iomodule.h"
 #include "healpix.h"
 
 #ifdef _MSC_VER
