@@ -33,7 +33,7 @@ typedef struct {
 #ifdef __cplusplus
 extern "C"
 #endif
-int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int nGrid,int b2LPT,double dBoxSize,
+int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int bFixed,float fPhase,int nGrid,int b2LPT,double dBoxSize,
     struct csmVariables *cosmo,double a,int nTf, double *tk, double *tf,
     double *noiseMean, double *noiseCSQ);
 #endif

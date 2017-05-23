@@ -81,15 +81,22 @@ static double variance(powerParameters *P,double dRadius) {
     }
 
 /* Gaussian noise in k-space. Note correction sqrt(2) because of FFT normalization. */
-static COMPLEX pairc( RngStream g ) {
+static COMPLEX pairc( RngStream g, int bFixed, float fPhase ) {
     float x1, x2, w;
     do {
 	x1 = 2.0 * RngStream_RandU01(g) - 1.0;
 	x2 = 2.0 * RngStream_RandU01(g) - 1.0;
 	w = x1 * x1 + x2 * x2;
         } while ( w >= 1.0 || w == 0.0 ); /* Loop ~ 21.5% of the time */
-    w = sqrt(-log(w)/w);
-    return w * (x1 + I * x2);
+    if (!bFixed) {
+	/* Proper Gaussian Deviate */
+	w = sqrt(-log(w)/w);
+	return w * (x1 + I * x2);
+	}
+    else {
+	float theta = atan2f(x2,x1) + fPhase;
+	return cosf(theta) + I * sinf(theta);
+	}
     }
 
 static int wrap(int v,int h,int m) {
@@ -102,7 +109,7 @@ static int wrap(int v,int h,int m) {
 ** the normalization is such that that the inverse FFT needs to be normalized
 ** by sqrt(Ngrid^3) compared with Ngrid^3 with FFT followed by IFFT.
 */
-static void pkdGenerateNoise(PKD pkd,unsigned long seed,MDLFFT fft,COMPLEX *ic,double *mean,double *csq) {
+static void pkdGenerateNoise(PKD pkd,unsigned long seed,int bFixed, float fPhase,MDLFFT fft,COMPLEX *ic,double *mean,double *csq) {
     MDL mdl = pkd->mdl;
     const int nGrid = fft->kgrid->n3;
     const int iNyquist = nGrid / 2;
@@ -148,8 +155,8 @@ static void pkdGenerateNoise(PKD pkd,unsigned long seed,MDLFFT fft,COMPLEX *ic,d
 	    RngStream_ResetStartStream (g);
 	    if ( kindex.y <= iNyquist && (kindex.y%iNyquist!=0||kindex.z<=iNyquist) ) { /* Positive zone */
 		RngStream_AdvanceState (g, 0, (1LL<<40)*jj + (1LL<<20)*kk );
-		v_ny = pairc(g);
-		v_wn = pairc(g);
+		v_ny = pairc(g,bFixed,fPhase);
+		v_wn = pairc(g,bFixed,fPhase);
 
 		if ( (kindex.z==0 || kindex.z==iNyquist)  && (kindex.y==0 || kindex.y==iNyquist) ) {
 		    /* These are real because they must be a complex conjugate of themselves. */
@@ -166,21 +173,21 @@ static void pkdGenerateNoise(PKD pkd,unsigned long seed,MDLFFT fft,COMPLEX *ic,d
 		if (k%iNyquist == 0) { kkc = kk; }
 		if (j%iNyquist == 0) { jjc = jj; }
 		RngStream_AdvanceState (g, 0, (1LL<<40)*jjc + (1LL<<20)*kkc );
-		v_ny = conj(pairc(g));
-		v_wn = conj(pairc(g));
+		v_ny = conj(pairc(g,bFixed,fPhase));
+		v_wn = conj(pairc(g,bFixed,fPhase));
 		RngStream_ResetStartStream (g);
 		RngStream_AdvanceState (g, 0, (1LL<<40)*jj + (1LL<<20)*kk );
-		pairc(g); pairc(g); /* Burn the two samples we didn't use. */
+		pairc(g,bFixed,fPhase); pairc(g,bFixed,fPhase); /* Burn the two samples we didn't use. */
 		}
 	    if (kindex.z!=klast.z || kindex.y!=klast.y || klast.x>iNyquist) 
 		ic[kindex.i-kindex.x+iNyquist] = v_ny;
 	    if (kindex.x < iNyquist) {
-		for(i=0; i<kindex.x; ++i) v_wn = pairc(g); /* (optional) advance to this sample */
+		for(i=0; i<kindex.x; ++i) v_wn = pairc(g,bFixed,fPhase); /* (optional) advance to this sample */
 		ic[kindex.i] = v_wn;
 		}
 	    }
 	else if (kindex.x!=iNyquist) {
-	    ic[kindex.i] = pairc(g);
+	    ic[kindex.i] = pairc(g,bFixed,fPhase);
 	    }
 	*mean += REAL(ic[kindex.i]) + IMAG(ic[kindex.i]);
 	*csq += REAL(ic[kindex.i] * conj(ic[kindex.i]));
@@ -191,7 +198,7 @@ static void pkdGenerateNoise(PKD pkd,unsigned long seed,MDLFFT fft,COMPLEX *ic,d
 #ifdef __cplusplus
 extern "C"
 #endif
-int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int nGrid,int b2LPT,double dBoxSize,
+int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int bFixed,float fPhase,int nGrid,int b2LPT,double dBoxSize,
     struct csmVariables *cosmo,double a,int nTf, double *tk, double *tf,
     double *noiseMean, double *noiseCSQ) {
     MDL mdl = pkd->mdl;
@@ -290,7 +297,7 @@ int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int nGrid,int b2LPT,double dBoxSi
 
     /* Generate white noise realization -> ic[6] */
     if (mdlSelf(mdl)==0) {printf("Generating random noise\n"); fflush(stdout); }
-    pkdGenerateNoise(pkd,iSeed,fft,ic[6].k,noiseMean,noiseCSQ);
+    pkdGenerateNoise(pkd,iSeed,bFixed,fPhase,fft,ic[6].k,noiseMean,noiseCSQ);
 #if 0
     if (mdlSelf(mdl)==0) {printf("Writing noise\n"); fflush(stdout); }
     float csq = 0.0;

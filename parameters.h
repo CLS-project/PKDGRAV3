@@ -208,6 +208,8 @@ struct parameters {
     double dBoxSize;
     int nGrid;
     int iSeed;
+    int bFixedAmpIC;
+    double dFixedAmpPhasePI;
     int b2LPT;
 
 #ifdef MDL_FFTW

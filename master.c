@@ -1274,6 +1274,12 @@ int msrInitialize(MSR *pmsr,MDL mdl,int argc,char **argv) {
     msr->param.nGridPk = 0;
     prmAddParam(msr->prm,"nGridPk",1,&msr->param.nGridPk,
 		sizeof(int),"pk","<Grid size for measure P(k) 0=disabled> = 0");
+    msr->param.bFixedAmpIC = 0;
+    prmAddParam(msr->prm,"bFixedAmpIC",0,&msr->param.bFixedAmpIC,
+		sizeof(int),"fixedamp","<Use fixed amplitude of 1 for ICs> = -fixedamp");
+    msr->param.dFixedAmpPhasePI = 0.0;
+    prmAddParam(msr->prm,"dFixedAmpPhasePI",2,&msr->param.dFixedAmpPhasePI,
+		sizeof(double),"fixedphase","<Phase shift for fixed amplitude in units of PI> = 0.0");
 #endif
 
     msr->param.iInflateStep = 0;
@@ -5349,6 +5355,8 @@ double msrGenerateIC(MSR msr) {
 
     in.dBoxSize = msr->param.dBoxSize;
     in.iSeed = msr->param.iSeed;
+    in.bFixed = msr->param.bFixedAmpIC;
+    in.fPhase = msr->param.dFixedAmpPhasePI * M_PI;
     in.nGrid = msr->param.nGrid;
     in.b2LPT = msr->param.b2LPT;
     in.cosmo = msr->param.csm->val;
