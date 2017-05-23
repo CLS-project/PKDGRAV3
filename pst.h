@@ -1137,6 +1137,8 @@ struct inGenerateIC {
 //    double spectral;
     double dExpansion;
     int iSeed;
+    int bFixed;
+    float fPhase;
     int nGrid;
     int b2LPT;
     int bComove;

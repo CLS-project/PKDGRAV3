@@ -451,7 +451,7 @@ static inline v_df SIMD_DRE_EXACT(v_df a) {
 #endif
 
 
-#ifdef __cplusplus
+#if defined(__cplusplus) && defined(USE_SIMD)
 
 /**********************************************************************\
 * SIMD Vector class template

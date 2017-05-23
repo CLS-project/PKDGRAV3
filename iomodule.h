@@ -1,6 +1,10 @@
 #ifndef IOMODULE_H
 #define IOMODULE_H
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
 
+#include <fcntl.h>
 #include <sys/types.h>
 
 #if defined(HAVE_LIBAIO)
