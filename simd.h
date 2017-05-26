@@ -6,7 +6,7 @@
 #endif
 
 #ifdef USE_SIMD
-#ifndef STDINT_H
+#if !defined(_STDINT_H) && !defined(_STDINT_H_) && !defined(_STDINT_H_INCLUDED) && !defined(_STDINT) && !defined(__STDINT_H_)
 #include <stdint.h>
 #endif
 
