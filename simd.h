@@ -349,6 +349,7 @@ static inline v_sf SIMD_RSQRT_EXACT(v_sf B) {
     return r;
     }
 
+#ifndef __AVX512F__
 #ifdef __SSE__
 /**
  * latencies and throughputs:
@@ -388,6 +389,7 @@ static inline float SIMD_HADD(v_sf p) {
     for(i=1; i<SIMD_WIDTH; i++) f += r.f[i];
     return f;
     }
+#endif
 #endif
 
 /* With SSE2 and beyond we have double support */
