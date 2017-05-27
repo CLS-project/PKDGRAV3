@@ -106,9 +106,9 @@ void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin ) {
 	iEnd = (iEnd+SIMD_MASK) >> SIMD_BITS;
 	for(i=0; i<iEnd; ++i) {
 	    fourh2 = blk->fourh2.p[i];
-	    xc = blk->x.p[i] + blk->xOffset.p[i];
-	    yc = blk->y.p[i] + blk->yOffset.p[i];
-	    zc = blk->z.p[i] + blk->zOffset.p[i];
+	    xc = fvec(blk->x.p[i]) + blk->xOffset.p[i];
+	    yc = fvec(blk->y.p[i]) + blk->yOffset.p[i];
+	    zc = fvec(blk->z.p[i]) + blk->zOffset.p[i];
 	    dx = k_x-xc;
 	    dy = k_y-yc;
 	    dz = k_z-zc;
@@ -130,17 +130,17 @@ void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin ) {
 
 	    dx = k_xMinBnd - blk->xCenter.p[i] - blk->xOffset.p[i] - blk->xMax.p[i];
 	    minbnd2 += maskz_mov(dx>0,dx*dx);
-	    dx = blk->xCenter.p[i] + blk->xOffset.p[i] - blk->xMax.p[i] - k_xMaxBnd;
+	    dx = fvec(blk->xCenter.p[i]) + blk->xOffset.p[i] - blk->xMax.p[i] - k_xMaxBnd;
 	    minbnd2 += maskz_mov(dx>0,dx*dx);
 
 	    dx = k_yMinBnd - blk->yCenter.p[i] - blk->yOffset.p[i] - blk->yMax.p[i];
 	    minbnd2 += maskz_mov(dx>0,dx*dx);
-	    dx = blk->yCenter.p[i] + blk->yOffset.p[i] - blk->yMax.p[i] - k_yMaxBnd;
+	    dx = fvec(blk->yCenter.p[i]) + blk->yOffset.p[i] - blk->yMax.p[i] - k_yMaxBnd;
 	    minbnd2 += maskz_mov(dx>0,dx*dx);
 
 	    dx = k_zMinBnd - blk->zCenter.p[i] - blk->zOffset.p[i] - blk->zMax.p[i];
 	    minbnd2 += maskz_mov(dx>0,dx*dx);
-	    dx = blk->zCenter.p[i] + blk->zOffset.p[i] - blk->zMax.p[i] - k_zMaxBnd;
+	    dx = fvec(blk->zCenter.p[i]) + blk->zOffset.p[i] - blk->zMax.p[i] - k_zMaxBnd;
 	    minbnd2 += maskz_mov(dx>0,dx*dx);
 
 	    T0 = fvec(blk->m.p[i]) > consts.zero.p;

@@ -113,7 +113,7 @@ endif
 #endif
 
 if HAVE_MPI
-pkdgrav3_mpi_LDADD = -lpthread -lm
+pkdgrav3_mpi_LDADD = -lpthread
 pkdgrav3_mpi_SOURCES = $(SOURCES) $(MDL)/mpi/mdl.c openpa/src/opa_primitives.c openpa/src/opa_queue.c
 noinst_HEADERS += $(MDL)/mpi/mdl.h
 pkdgrav3_mpi_CFLAGS = -I$(MDL)/mpi/ -I$(MDL) -Iopenpa/src $(AM_CFLAGS)
@@ -200,6 +200,6 @@ hpb2fits_SOURCES = hpb2fits.c
 lcp2tip_SOURCES = lcp2tip.c
 
 if HAVE_CFITSIO_PATH
-hpb2fits_LDADD = -L@CFITSIO_PATH@/lib -lcfitsio -lm
+hpb2fits_LDADD = -L@CFITSIO_PATH@/lib -lcfitsio
 hpb2fits_CFLAGS = -I @CFITSIO_PATH@/include
 endif

@@ -82,17 +82,17 @@ void pkdGravEvalPC(PINFOIN *pPart, int nBlocks, int nInLast, ILC_BLK *blk,  PINF
 	    /*
 	    ** Now calculate the interaction up to Hexadecapole order.
 	    */
-	    tx = g4*(blk->xxxx.p[j]*xxx + blk->xyyy.p[j]*yyy + blk->xxxy.p[j]*xxy + blk->xxxz.p[j]*xxz + blk->xxyy.p[j]*xyy + blk->xxyz.p[j]*xyz + blk->xyyz.p[j]*yyz);
+	    tx = g4*(blk->xxxx.p[j]*xxx + blk->xyyy.p[j]*yyy + fvec(blk->xxxy.p[j]*xxy) + blk->xxxz.p[j]*xxz + blk->xxyy.p[j]*xyy + blk->xxyz.p[j]*xyz + blk->xyyz.p[j]*yyz);
 	    ty = g4*(blk->xyyy.p[j]*xyy + blk->xxxy.p[j]*xxx + blk->yyyy.p[j]*yyy + blk->yyyz.p[j]*yyz + blk->xxyy.p[j]*xxy + blk->xxyz.p[j]*xxz + blk->xyyz.p[j]*xyz);
-	    tz = g4*(-blk->xxxx.p[j]*xxz - (blk->xyyy.p[j] + blk->xxxy.p[j])*xyz - blk->yyyy.p[j]*yyz + blk->xxxz.p[j]*xxx + blk->yyyz.p[j]*yyy - blk->xxyy.p[j]*(xxz + yyz) + blk->xxyz.p[j]*xxy + blk->xyyz.p[j]*xyy);
+	    tz = g4*(-fvec(blk->xxxx.p[j])*xxz - (fvec(blk->xyyy.p[j]) + blk->xxxy.p[j])*xyz - blk->yyyy.p[j]*yyz + blk->xxxz.p[j]*xxx + blk->yyyz.p[j]*yyy - blk->xxyy.p[j]*(xxz + yyz) + blk->xxyz.p[j]*xxy + blk->xyyz.p[j]*xyy);
 	    g4 = 0.25*(tx*x + ty*y + tz*z);
 	    xxx = g3*(blk->xxx.p[j]*xx + blk->xyy.p[j]*yy + blk->xxy.p[j]*xy + blk->xxz.p[j]*xz + blk->xyz.p[j]*yz);
 	    xxy = g3*(blk->xyy.p[j]*xy + blk->xxy.p[j]*xx + blk->yyy.p[j]*yy + blk->yyz.p[j]*yz + blk->xyz.p[j]*xz);
-	    xxz = g3*(-(blk->xxx.p[j] + blk->xyy.p[j])*xz - (blk->xxy.p[j] + blk->yyy.p[j])*yz + blk->xxz.p[j]*xx + blk->yyz.p[j]*yy + blk->xyz.p[j]*xy);
+	    xxz = g3*(-(fvec(blk->xxx.p[j]) + blk->xyy.p[j])*xz - (fvec(blk->xxy.p[j]) + blk->yyy.p[j])*yz + blk->xxz.p[j]*xx + blk->yyz.p[j]*yy + blk->xyz.p[j]*xy);
 	    g3 = onethird*(xxx*x + xxy*y + xxz*z);
 	    xx = g2*(blk->xx.p[j]*x + blk->xy.p[j]*y + blk->xz.p[j]*z);
 	    xy = g2*(blk->yy.p[j]*y + blk->xy.p[j]*x + blk->yz.p[j]*z);
-	    xz = g2*(-(blk->xx.p[j] + blk->yy.p[j])*z + blk->xz.p[j]*x + blk->yz.p[j]*y);
+	    xz = g2*(-(fvec(blk->xx.p[j]) + blk->yy.p[j])*z + blk->xz.p[j]*x + blk->yz.p[j]*y);
 	    g2 = 0.5*(xx*x + xy*y + xz*z);
 	    g0 *= fvec(blk->m.p[j]);
 	    fPot -= g0 + g2 + g3 + g4;

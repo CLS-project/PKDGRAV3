@@ -80,7 +80,7 @@ void pkdGravEvalPP(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  PINF
 	    pdz = blk->dz.p[j] + pfz;
 	    pd2 = pdz*pdz + pdy*pdy + pdx*pdx;
 
-	    pfourh2 = max(blk->fourh2.p[j],minSoftening); /* There is always a self interaction */
+	    pfourh2 = max(fvec(blk->fourh2.p[j]),minSoftening); /* There is always a self interaction */
 	    vcmp = pd2 < pfourh2;
 	    td2 = max(pd2,pfourh2);
 
