@@ -6,7 +6,9 @@
 #endif
 
 #ifdef USE_SIMD
+#if !defined(_STDINT_H) && !defined(_STDINT_H_) && !defined(_STDINT_H_INCLUDED) && !defined(_STDINT) && !defined(__STDINT_H_)
 #include <stdint.h>
+#endif
 
 #if defined(__AVX512F__)
 #define SIMD_BITS 4
@@ -347,18 +349,35 @@ static inline v_sf SIMD_RSQRT_EXACT(v_sf B) {
     return r;
     }
 
-#ifndef __AVX512F__
-#ifdef __SSE3__
+#ifdef __SSE__
+/**
+ * latencies and throughputs:
+ * _extractf128_ps : latency: 3, throughput: 1
+ * _castps256_ps128: no latency or throughput
+ * all other instructions have latency and throughput of 1
+ */
 static inline float SIMD_HADD(v_sf p) {
-    vfloat r;
-    r.p = p;
-    r.p = MM_FCN(hadd,ps)(r.p,r.p);
-    r.p = MM_FCN(hadd,ps)(r.p,r.p);
-#ifdef __AVX__
-    r.f[0] += r.f[4];
-#endif
-    return r.f[0];
-    }
+    __m128 sum;
+    #ifdef __AVX__
+    __m128 upper = _mm256_extractf128_ps(p, 1);
+    __m128 lower = _mm256_castps256_ps128(p);
+    sum = _mm_add_ps(lower,upper);
+    #else
+    sum = p;
+    #endif
+
+    #ifdef __SSE3__
+    __m128 shuf = _mm_movehdup_ps(sum);
+    sum = _mm_add_ps(sum, shuf);
+    shuf = _mm_movehl_ps(sum, sum);
+    #else
+    __m128 shuf = _mm_shuffle_ps(sum, sum, _MM_SHUFFLE(0,1,2,3));
+    sum = _mm_add_ps(sum, shuf);
+    shuf = _mm_shuffle_ps(sum, sum, _MM_SHUFFLE(2,3,0,1));
+    #endif
+    sum = _mm_add_ps(sum, shuf);
+    return _mm_cvtss_f32(sum);
+}
 #else
 static inline float SIMD_HADD(v_sf p) {
     vfloat r;
@@ -369,7 +388,6 @@ static inline float SIMD_HADD(v_sf p) {
     for(i=1; i<SIMD_WIDTH; i++) f += r.f[i];
     return f;
     }
-#endif
 #endif
 
 /* With SSE2 and beyond we have double support */
@@ -640,11 +658,16 @@ inline vec<__m512,float> operator^(vec<__m512,float> const &a,vec<__m512,float> 
 template<> inline vec<__m512,float> vec<__m512,float>::operator-() {return ymm ^ sign_mask(); }
 inline vec<__m512,float> operator~(vec<__m512,float> const &a)
     { return _mm512_castsi512_ps(_mm512_xor_epi32( _mm512_castps_si512(a),_mm512_set1_epi32(0xffffffff))); }
-inline float hadd(__m256 a) {
-    __m256 t1 = _mm256_hadd_ps(a,a);
-    __m256 t2 = _mm256_hadd_ps(t1,t1);
-    __m128 t3 = _mm256_extractf128_ps(t2,1);
-    return _mm_cvtss_f32(_mm_add_ss(_mm256_castps256_ps128(t2),t3));
+inline float hadd(__m256 p) {
+    __m128 sum;
+    __m128 upper = _mm256_extractf128_ps(p, 1);
+    __m128 lower = _mm256_castps256_ps128(p);
+    sum = _mm_add_ps(lower,upper);
+    __m128 shuf = _mm_movehdup_ps(sum);
+    sum = _mm_add_ps(sum, shuf);
+    shuf = _mm_movehl_ps(sum, sum);
+    sum = _mm_add_ps(sum, shuf);
+    return _mm_cvtss_f32(sum);
     }
 inline float hadd(vec<__m512,float> const &a) {
     __m256 low  = _mm512_castps512_ps256(a);
@@ -832,19 +855,22 @@ inline vec<__m256,float> operator&(vec<__m256,float> const &a,vec<__m256,float> 
 inline vec<__m256,float> operator|(vec<__m256,float> const &a,vec<__m256,float> const &b) { return _mm256_or_ps(a,b); }
 inline vec<__m256,float> operator^(vec<__m256,float> const &a,vec<__m256,float> const &b) { return _mm256_xor_ps(a,b); }
 inline vec<__m256,float> operator~(vec<__m256,float> const &a) { return _mm256_xor_ps(a,_mm256_castsi256_ps(_mm256_set1_epi32(0xffffffff))); }
-inline float hadd(vec<__m256,float> const &a) {
-    __m256 t1 = _mm256_hadd_ps(a,a);
-    __m256 t2 = _mm256_hadd_ps(t1,t1);
-    __m128 t3 = _mm256_extractf128_ps(t2,1);
-    return _mm_cvtss_f32(_mm_add_ss(_mm256_castps256_ps128(t2),t3));
+inline float hadd(vec<__m256,float> const &p) {
+    __m128 sum;
+    __m128 upper = _mm256_extractf128_ps(p, 1);
+    __m128 lower = _mm256_castps256_ps128(p);
+    sum = _mm_add_ps(lower,upper);
+    __m128 shuf = _mm_movehdup_ps(sum);
+    sum = _mm_add_ps(sum, shuf);
+    shuf = _mm_movehl_ps(sum, sum);
+    sum = _mm_add_ps(sum, shuf);
+    return _mm_cvtss_f32(sum);
     }
 inline vec<__m256,float> blend(vec<__m256,float> const &a,vec<__m256,float> const &b,vec<__m256,float> const &p) { return _mm256_blendv_ps(a,b,p); }
 inline vec<__m256,float> mask_mov(vec<__m256,float> const &src,vec<__m256,float> const &p,vec<__m256,float> const &a)
     { return _mm256_blendv_ps(src,a,p); }
 inline vec<__m256,float> maskz_mov(vec<__m256,float> const &p,vec<__m256,float> const &a) { return a & p; }
 inline int testz(vec<__m256,float> const &a) { return !_mm256_movemask_ps(a); }
-
-
 
 /**********************************************************************\
 * AVX 32-bit integer
@@ -954,17 +980,19 @@ inline vec<__m128,float> operator&(vec<__m128,float> const &a,vec<__m128,float> 
 inline vec<__m128,float> operator|(vec<__m128,float> const &a,vec<__m128,float> const &b) { return _mm_or_ps(a,b); }
 inline vec<__m128,float> operator^(vec<__m128,float> const &a,vec<__m128,float> const &b) { return _mm_xor_ps(a,b); }
 inline vec<__m128,float> operator~(vec<__m128,float> const &a) { return _mm_xor_ps(a,_mm_castsi128_ps(_mm_set1_epi32(0xffffffff))); }
-inline float hadd(vec<__m128,float> const &a) {
-#if defined(__SSE3__)
-    __m128 t1 = _mm_hadd_ps(a,a);
-    __m128 t2 = _mm_hadd_ps(t1,t1);
-    return _mm_cvtss_f32(t2);
-#else
-    int i;
-    float f = a[0];
-    for(i=1; i<SIMD_WIDTH; i++) f += a[i];
-    return f;
-#endif
+inline float hadd(vec<__m128,float> const &p) {
+    __m128 sum = p;
+    #ifdef __SSE3__
+    __m128 shuf = _mm_movehdup_ps(sum);
+    sum = _mm_add_ps(sum, shuf);
+    shuf = _mm_movehl_ps(sum, sum);
+    #else
+    __m128 shuf = _mm_shuffle_ps(sum, sum, _MM_SHUFFLE(0,1,2,3));
+    sum = _mm_add_ps(sum, shuf);
+    shuf = _mm_shuffle_ps(sum, sum, _MM_SHUFFLE(2,3,0,1));
+    #endif
+    sum = _mm_add_ps(sum, shuf);
+    return _mm_cvtss_f32(sum);
     }
 inline int movemask(vec<__m128,float> const &r2) { return _mm_movemask_ps(r2); }
 inline vec<__m128,float> sqrt(vec<__m128,float> const &r2) { return _mm_sqrt_ps(r2); }
