@@ -2,7 +2,7 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.59)
-AC_INIT(pkdgrav3, 0.9.32, bugs@pkdgrav.org)
+AC_INIT(pkdgrav3, 0.9.33, bugs@pkdgrav.org)
 AM_INIT_AUTOMAKE
 AM_MAINTAINER_MODE([disable])
 AC_CONFIG_SRCDIR([main.c])
@@ -48,6 +48,7 @@ if test -n "$MPICXX" ; then
 else
   AC_MSG_ERROR([Cannot compile C++ MPI programs])
 fi
+LDFLAGS="$LDFLAGS -lm"
 
 AC_DEFINE([HAVE_ROMBERG], 1, [Use the pkdgrav3 Romberg integrator.])
 AC_DEFINE([NAIVE_DOMAIN_DECOMP], 1, [Use a simplified domain decomposition.])
@@ -419,6 +420,9 @@ AC_ARG_ENABLE(soft-square,
 AM_CONDITIONAL(SOFTSQUARE, test "x$SOFTSQUARE" = "xyes")
 
 AC_CHECK_LIB([m], [fabs])
+AC_CHECK_LIB([memkind], [hbw_posix_memalign])
+AM_CONDITIONAL(HAVE_MEMKIND, test "$ac_cv_lib_memkind_hbw_posix_memalign" == "yes")
+
 # FIXME: Replace `main' with a function in `-lrt':
 #AC_CHECK_LIB([rt], [main])
 

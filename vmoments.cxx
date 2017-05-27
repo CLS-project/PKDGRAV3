@@ -174,7 +174,8 @@ double momFlocrSetVFmomr5cm(FLOCR *l,float v1,ILC ill,const float *a,float *pfdi
 		vaz = dir*(T0*z + 0.2f*R2z + R3z + R4z);
 
 		fvec adotai = a[0]*vax + a[1]*vay + a[2]*vaz;
-		adotai &= adotai > 0.0f;
+		adotai = maskz_mov(adotai > 0.0f,adotai);
+//		adotai &= adotai > 0.0f;
 		adotai *= vimaga;
 		fvec vd2 = adotai * adotai;
 		vdirLsum += sdir * vd2;

@@ -38,6 +38,9 @@ static inline int getCell(PKD pkd,int iCache,int iCell,int id,float *pcOpen,KDN 
 
 
 #ifdef USE_SIMD_OPEN
+#if 1
+void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin );
+#else
 static const struct CONSTS {
     vfloat zero;
     vfloat one;
@@ -80,6 +83,8 @@ static union {
     uint32_t u[SIMD_WIDTH];
     v_sf p;
     } const_fabs = {SIMD_CONST(0x7fffffff)};
+
+
 
 /*
 ** This implements the original pkdgrav2m opening criterion, which has been
@@ -196,6 +201,7 @@ static void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin ) 
     pkd->dFlop += dFlop;
     pkd->dFlopSingleCPU += dFlop;
     }
+#endif
 #else
 /*
 ** This implements the original pkdgrav2m opening criterion, which has been

@@ -643,7 +643,10 @@ void Create(PKD pkd,int iRoot) {
 	    vmax = _mm256_max_pd(vmin,v);
 	    }
 #endif
-	vdouble dout;
+	union {
+	    double d[4];
+	    __m256d p;
+    	    } dout;
 	dout.p = _mm256_mul_pd(_mm256_set1_pd(0.5),_mm256_add_pd(vmax,vmin));
 	bnd.fCenter[0] = dout.d[0];
 	bnd.fCenter[1] = dout.d[1];

@@ -190,6 +190,15 @@ static inline CDB * remove_from_hash(ARC arc,CDB *p) {
     abort();  /* should never get here, the element should always be found in the hash */
     }
 
+#ifdef HAVE_MEMKIND
+#include <hbwmalloc.h>
+#define ARC_malloc hbw_malloc
+#define ARC_free hbw_free
+#else
+#define ARC_malloc malloc
+#define ARC_free free
+#endif
+
 ARC arcInitialize(uint32_t nCache,uint32_t uDataSize,CACHE *c) {
     ARC arc;
     uint32_t i;
@@ -197,11 +206,11 @@ ARC arcInitialize(uint32_t nCache,uint32_t uDataSize,CACHE *c) {
     /*
     ** Allocate stuff.
     */
-    arc = malloc(sizeof(struct ArcContext));
+    arc = ARC_malloc(sizeof(struct ArcContext));
     assert(arc != NULL);
     arc->cache = c;
     arc->nCache = nCache;
-    arc->cdbBase = malloc(2*nCache*sizeof(CDB));
+    arc->cdbBase = ARC_malloc(2*nCache*sizeof(CDB));
     assert(arc->cdbBase != NULL);
     /*
     ** Make sure we have sufficient alignment of data.
@@ -210,7 +219,7 @@ ARC arcInitialize(uint32_t nCache,uint32_t uDataSize,CACHE *c) {
     ** magic number and lock count.
     */
     arc->uDataSize = (uDataSize+7)>>3;
-    arc->dataBase = malloc(nCache*sizeof(uint64_t)*(arc->uDataSize+1));
+    arc->dataBase = ARC_malloc(nCache*sizeof(uint64_t)*(arc->uDataSize+1));
     assert(arc->dataBase != NULL);
     arc->dataLast = arc->dataBase + nCache*(arc->uDataSize+1);
     /*
@@ -218,7 +227,7 @@ ARC arcInitialize(uint32_t nCache,uint32_t uDataSize,CACHE *c) {
     */
     arc->uHashMask = swar32(3*nCache-1);
     arc->nHash = arc->uHashMask+1; 
-    arc->Hash = malloc(arc->nHash*sizeof(CDB *));
+    arc->Hash = ARC_malloc(arc->nHash*sizeof(CDB *));
     assert(arc->Hash != NULL);
     for (i=0;i<arc->nHash;++i) {
 	arc->Hash[i] = NULL;
@@ -228,31 +237,31 @@ ARC arcInitialize(uint32_t nCache,uint32_t uDataSize,CACHE *c) {
     ** CDB at the head/tail of the list.
     ** Initialize the lengths of the various lists.
     */
-    arc->T1 = malloc(sizeof(CDB));
+    arc->T1 = ARC_malloc(sizeof(CDB));
     assert(arc->T1 != NULL);
     arc->T1->hdr.links.next = arc->T1;
     arc->T1->hdr.links.prev = arc->T1;
     arc->T1->uId = 0xdeadbeef;
     arc->T1Length = 0;
-    arc->B1 = malloc(sizeof(CDB));
+    arc->B1 = ARC_malloc(sizeof(CDB));
     assert(arc->B1 != NULL);
     arc->B1->hdr.links.next = arc->B1;
     arc->B1->hdr.links.prev = arc->B1;
     arc->B1->uId = 0xdeadbeef;
     arc->B1Length = 0;
-    arc->T2 = malloc(sizeof(CDB));
+    arc->T2 = ARC_malloc(sizeof(CDB));
     assert(arc->T2 != NULL);
     arc->T2->hdr.links.next = arc->T2;
     arc->T2->hdr.links.prev = arc->T2;
     arc->T2->uId = 0xdeadbeef;
     arc->T2Length = 0;
-    arc->B2 = malloc(sizeof(CDB));
+    arc->B2 = ARC_malloc(sizeof(CDB));
     assert(arc->B2 != NULL);
     arc->B2->hdr.links.next = arc->B2;
     arc->B2->hdr.links.prev = arc->B2;
     arc->B2->uId = 0xdeadbeef;
     arc->B2Length = 0;
-    arc->Free = malloc(sizeof(CDB));
+    arc->Free = ARC_malloc(sizeof(CDB));
     assert(arc->Free != NULL);
     arc->Free->hdr.links.next = arc->Free;
     arc->Free->hdr.links.prev = arc->Free;
@@ -285,27 +294,27 @@ void arcFinish(ARC arc) {
     /*
     ** Free the sentinels.
     */
-    free(arc->Free);
-    free(arc->B2);
-    free(arc->T2);
-    free(arc->B1);
-    free(arc->T1);
+    ARC_free(arc->Free);
+    ARC_free(arc->B2);
+    ARC_free(arc->T2);
+    ARC_free(arc->B1);
+    ARC_free(arc->T1);
     /*
     ** Free the hash table.
     */
-    free(arc->Hash);
+    ARC_free(arc->Hash);
     /*
     ** Free the data pages.
     */
-    free(arc->dataBase);
+    ARC_free(arc->dataBase);
     /*
     ** Free the CDBs.
     */
-    free(arc->cdbBase);
+    ARC_free(arc->cdbBase);
     /*
     ** Free context.
     */
-    free(arc);
+    ARC_free(arc);
 }
 
 ARC arcReinitialize(ARC arc,uint32_t nCache,uint32_t uDataSize,CACHE *c) {

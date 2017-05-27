@@ -252,6 +252,8 @@ void pkdParticleWorkDone(workParticle *wp) {
 	}
     }
 
+void pkdGravEvalPP(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  PINFOOUT *pOut );
+#if 0
 void pkdGravEvalPP(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  PINFOOUT *pOut ) {
     int nLeft;
     int j;
@@ -453,7 +455,7 @@ void pkdGravEvalPP(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  PINF
     pOut->dirsum += dirsum;
     pOut->normsum += normsum;
     }
-
+#endif
 
 int CPUdoWorkPP(void *vpp) {
     workPP *pp = vpp;
@@ -518,6 +520,8 @@ static void queuePP( PKD pkd, workParticle *wp, ILP ilp, int bGravStep ) {
 	}
     }
 
+void pkdGravEvalPC(PINFOIN *pPart, int nBlocks, int nInLast, ILC_BLK *blk,  PINFOOUT *pOut );
+#if 0
 void pkdGravEvalPC(PINFOIN *pPart, int nBlocks, int nInLast, ILC_BLK *blk,  PINFOOUT *pOut ) {
 
 #if defined(USE_SIMD_PC)
@@ -805,6 +809,7 @@ void pkdGravEvalPC(PINFOIN *pPart, int nBlocks, int nInLast, ILC_BLK *blk,  PINF
     pOut->dirsum += dirsum;
     pOut->normsum += normsum;
     }
+#endif
 
 int CPUdoWorkPC(void *vpc) {
     workPC *pc = vpc;

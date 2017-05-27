@@ -38,7 +38,7 @@ clean-local:
 
 SOURCES = main.c tree.c analysis.c romberg.c bt.c
 noinst_HEADERS = bt.h parameters.h grav.h walk.h cycle.h tipsydefs.h basetype.h vqsort.h
-SOURCES        += cosmo.c master.c param.c pst.c smooth.c ewald.c
+SOURCES        += cosmo.c master.c param.c pst.c smooth.c ewald.cxx opening.cxx pp.cxx pc.cxx
 noinst_HEADERS += cosmo.h master.h param.h pst.h smooth.h ewald.h meval.h qeval.h
 SOURCES        += moments.c intype.c outtype.c pkd.c smoothfcn.c rbtree.c fio.c listcomp.c illinois.c iomodule.c output.c
 noinst_HEADERS += moments.h intype.h outtype.h pkd.h smoothfcn.h rbtree.h fio.h listcomp.h illinois.h iomodule.h output.h
@@ -70,7 +70,7 @@ noinst_HEADERS += lightcone.h
 endif
 AM_CFLAGS = @SIMD_CFLAGS@
 AM_CXXFLAGS = @SIMD_CFLAGS@
-noinst_HEADERS += simd.h sse_mathfun.h avx_mathfun.h
+noinst_HEADERS += simd.h vmath.h
 endif
 MDL=@MDL_PATH@
 if USE_PNG
@@ -113,7 +113,7 @@ endif
 #endif
 
 if HAVE_MPI
-pkdgrav3_mpi_LDADD = -lpthread
+pkdgrav3_mpi_LDADD = -lpthread -lm
 pkdgrav3_mpi_SOURCES = $(SOURCES) $(MDL)/mpi/mdl.c openpa/src/opa_primitives.c openpa/src/opa_queue.c
 noinst_HEADERS += $(MDL)/mpi/mdl.h
 pkdgrav3_mpi_CFLAGS = -I$(MDL)/mpi/ -I$(MDL) -Iopenpa/src $(AM_CFLAGS)
@@ -131,6 +131,9 @@ else
 if USE_AIO
 pkdgrav3_mpi_LDADD += -lrt
 endif
+endif
+if HAVE_MEMKIND
+pkdgrav3_mpi_LDADD += -lmemkind
 endif
 if USE_EFENCE
 if HAVE_EFENCE_PATH
