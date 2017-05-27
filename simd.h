@@ -6,7 +6,9 @@
 #endif
 
 #ifdef USE_SIMD
+#if !defined(_STDINT_H) && !defined(_STDINT_H_) && !defined(_STDINT_H_INCLUDED) && !defined(_STDINT) && !defined(__STDINT_H_)
 #include <stdint.h>
+#endif
 
 #if defined(__AVX__)
 #define SIMD_BITS 3
@@ -317,17 +319,35 @@ static inline v_sf SIMD_RSQRT_EXACT(v_sf B) {
     return r;
     }
 
-#ifdef __SSE3__
+#ifdef __SSE__
+/**
+ * latencies and throughputs:
+ * _extractf128_ps : latency: 3, throughput: 1
+ * _castps256_ps128: no latency or throughput
+ * all other instructions have latency and throughput of 1
+ */
 static inline float SIMD_HADD(v_sf p) {
-    vfloat r;
-    r.p = p;
-    r.p = MM_FCN(hadd,ps)(r.p,r.p);
-    r.p = MM_FCN(hadd,ps)(r.p,r.p);
-#ifdef __AVX__
-    r.f[0] += r.f[4];
-#endif
-    return r.f[0];
-    }
+    __m128 sum;
+    #ifdef __AVX__
+    __m128 upper = _mm256_extractf128_ps(p, 1);
+    __m128 lower = _mm256_castps256_ps128(p);
+    sum = _mm_add_ps(lower,upper);
+    #else
+    sum = p;
+    #endif
+
+    #ifdef __SSE3__
+    __m128 shuf = _mm_movehdup_ps(sum);
+    sum = _mm_add_ps(sum, shuf);
+    shuf = _mm_movehl_ps(sum, sum);
+    #else
+    __m128 shuf = _mm_shuffle_ps(sum, sum, _MM_SHUFFLE(0,1,2,3));
+    sum = _mm_add_ps(sum, shuf);
+    shuf = _mm_shuffle_ps(sum, sum, _MM_SHUFFLE(2,3,0,1));
+    #endif
+    sum = _mm_add_ps(sum, shuf);
+    return _mm_cvtss_f32(sum);
+}
 #else
 static inline float SIMD_HADD(v_sf p) {
     vfloat r;
