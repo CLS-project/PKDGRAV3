@@ -1,6 +1,7 @@
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
+#ifdef USE_SIMD_PC
 #define MPICH_SKIP_MPICXX
 #include "simd.h"
 #include "pkd.h"
@@ -136,3 +137,4 @@ void pkdGravEvalPC(PINFOIN *pPart, int nBlocks, int nInLast, ILC_BLK *blk,  PINF
     pOut->dirsum += hadd(dirsum);
     pOut->normsum += hadd(normsum);
     }
+#endif/*USE_SIMD_PC*/

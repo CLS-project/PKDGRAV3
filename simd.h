@@ -6,33 +6,6 @@
 #endif
 
 #ifdef USE_SIMD
-#if !defined(_STDINT_H) && !defined(_STDINT_H_) && !defined(_STDINT_H_INCLUDED) && !defined(_STDINT) && !defined(__STDINT_H_)
-#include <stdint.h>
-#endif
-
-#if defined(__AVX512F__)
-#define SIMD_BITS 4
-#elif defined(__AVX__)
-#define SIMD_BITS 3
-#elif defined(__SSE__) || defined(__ALTIVEC__)
-#define SIMD_BITS 2
-#else
-#define SIMD_BITS 0
-#endif
-#define SIMD_DBITS (SIMD_BITS-1)
-
-
-#define SIMD_WIDTH (1<<SIMD_BITS)
-#define SIMD_DWIDTH (1<<SIMD_DBITS)
-#define SIMD_MASK (SIMD_WIDTH-1)
-#define SIMD_DMASK (SIMD_DWIDTH-1)
-
-#ifdef HAVE_ANSIDECL_H
-#include <ansidecl.h>
-#else
-#define ATTRIBUTE_ALIGNED_ALIGNOF(m)
-#endif
-
 #if defined(__SSE__)
 #include <xmmintrin.h>
 #ifdef __SSE2__
@@ -50,13 +23,38 @@
 #ifdef __FMA4__
 #include <x86intrin.h>
 #endif
-
-#elif defined(__ALTIVEC__)
+#elif defined(__ALTIVEC__)/*not defined(__SSE__)*/
 #include <altivec.h>
 #include <math.h> /* for sqrtf() */
-#else
-/*#error 'SIMD selected, but no known SIMD supported'*/
+#endif/*USE_SIMD*/
+
+#ifdef USE_SIMD
+
+#if !defined(_STDINT_H) && !defined(_STDINT_H_) && !defined(_STDINT_H_INCLUDED) && !defined(_STDINT) && !defined(__STDINT_H_)
+#include <stdint.h>
 #endif
+
+#if defined(__AVX512F__)
+#define SIMD_BITS 4
+#elif defined(__AVX__)
+#define SIMD_BITS 3
+#elif defined(__SSE__) || defined(__ALTIVEC__)
+#define SIMD_BITS 2
+#else
+#define SIMD_BITS 0
+#endif
+#define SIMD_DBITS (SIMD_BITS-1)
+
+#define SIMD_WIDTH (1<<SIMD_BITS)
+#define SIMD_DWIDTH (1<<SIMD_DBITS)
+#define SIMD_MASK (SIMD_WIDTH-1)
+#define SIMD_DMASK (SIMD_DWIDTH-1)
+
+#ifdef HAVE_ANSIDECL_H
+#include <ansidecl.h>
+#else/*!HAVE_ANSIDECL_H*/
+#define ATTRIBUTE_ALIGNED_ALIGNOF(m)
+#endif/*HAVE_ANSIDECL_H*/
 
 #if defined(HAVE_POSIX_MEMALIGN) || defined(HAVE_MEMALIGN)
 #include <stdlib.h>
@@ -77,20 +75,20 @@ typedef ATTRIBUTE_ALIGNED_ALIGNOF(__m256) __m256  v_bool;
 typedef ATTRIBUTE_ALIGNED_ALIGNOF(__m256) __m256i v_i;
 #define MM_FCN(f,p) _mm256_##f##_##p
 #define MM_CMP(F,f,p,a,b) _mm256_cmp_##p(a,b,_CMP_##F##_OQ)
-#else
+#else/*must be __SSE__*/
 typedef ATTRIBUTE_ALIGNED_ALIGNOF(__m128) __m128  v_sf;
 typedef ATTRIBUTE_ALIGNED_ALIGNOF(__m128) __m128d v_df;
 typedef ATTRIBUTE_ALIGNED_ALIGNOF(__m128) __m128  v_bool;
 typedef ATTRIBUTE_ALIGNED_ALIGNOF(__m128) __m128i v_i;
 #define MM_FCN(f,p) _mm_##f##_##p
 #define MM_CMP(F,f,p,a,b) _mm_cmp##f##_##p(a,b)
-#endif
+#endif/*__AVX512F*/
 typedef ATTRIBUTE_ALIGNED_ALIGNOF(__m128) __m128i v_i4;
-#else
+#else/*__SSE__*/
 typedef vector float v_sf;
 typedef vector bool int v_bool;
 typedef vector bool int v_i;
-#endif
+#endif/*__SSE__*/
 
 #if SIMD_WIDTH==4
 #define SIMD_CONST(c) {c,c,c,c}
@@ -161,11 +159,11 @@ static inline void SIMD_free(void *p) {
     }
 #else
 static inline void * SIMD_malloc(size_t newSize) {
-	return _mm_malloc(newSize, 2*sizeof(vfloat));
+    return _mm_malloc(newSize, 2*sizeof(vfloat));
 }
 
 static inline void SIMD_free(void *p) {
-	_mm_free(p);
+    _mm_free(p);
 }
 #endif
 
@@ -232,7 +230,7 @@ static const vfloat   simd_minus1  = {SIMD_CONST(-1.0)};
 #define SIMD_MSUB(a,b,c) MM_FCN(sub,ps)(MM_FCN(mul,ps)(a,b),c)
 #define SIMD_NMADD(a,b,c) MM_FCN(sub,ps)(c,MM_FCN(mul,ps)(a,b))
 #define SIMD_NMSUB(a,b,c) MM_FCN(mul,ps)(MM_FCN(add,ps)(c,MM_FCN(mul,ps)(a,b)),simd_minus1)
-#endif
+#endif/*defined(__FMA4__)*/
 #define SIMD_DIV(a,b) MM_FCN(div,ps)(a,b)
 #define SIMD_SQRT(a) MM_FCN(sqrt,ps)(a)
 #ifdef __AVX512F__
@@ -266,7 +264,7 @@ static inline v_sf SIMD_RE_EXACT(v_sf a) {
 #ifdef __AVX2__
 #define SIMD_CMP_EQ_EPI32(a,b) MM_FCN(cmpeq,epi32)(a,b)
 #define SIMD_CMP_GT_EPI32(a,b) MM_FCN(cmpgt,epi32)(a,b)
-#else
+#else/*__AVX2__*/
 typedef union {
     ATTRIBUTE_ALIGNED_ALIGNOF(__m256) __m256i p8;
     ATTRIBUTE_ALIGNED_ALIGNOF(__m256) __m128i p4[2];
@@ -292,7 +290,7 @@ static inline v_i SIMD_CMP_GT_EPI32(v_i a,v_i b) {
     return x.p8;
     }
 #endif
-#else
+#else/*__AVX__*/
 #define SIMD_I2F(a) MM_FCN(castsi128,ps)(a)
 #define SIMD_F2I(a) MM_FCN(castps,si128)(a)
 #define SIMD_CMP_EQ_EPI32(a,b) MM_FCN(cmpeq,epi32)(a,b)
@@ -301,7 +299,7 @@ static inline v_i SIMD_CMP_GT_EPI32(v_i a,v_i b) {
 #define SIMD_ANDNOT_EPI32(a,b) MM_FCN(andnot,si128)(a,b)
 #define SIMD_OR_EPI32(a,b) MM_FCN(or,si128)(a,b)
 #endif
-#else
+#else/*__SSE__*/
 static const v_sf   simd_zero    = {SIMD_CONST(0)};
 static const v_sf   simd_minus1  = {SIMD_CONST(-1)};
 static const v_bool simd_false   = {SIMD_CONST(0)};
@@ -335,7 +333,7 @@ static inline v_sf SIMD_RE_EXACT( v_sf a) {
 #define SIMD_F_TO_I(a) (a)
 #define SIMD_CMP_EQ_EPI32(a,b) vec_cmpeq(a,b)
 #define SIMD_CMP_GT_EPI32(a,b) vec_cmpgt(a,b)
-#endif
+#endif/*__SSE__*/
 
 static inline v_sf SIMD_RSQRT_EXACT(v_sf B) {
     static const vfloat threehalves = {SIMD_CONST(1.5)};
@@ -379,7 +377,7 @@ static inline float SIMD_HADD(v_sf p) {
     sum = _mm_add_ps(sum, shuf);
     return _mm_cvtss_f32(sum);
 }
-#else
+#else/*__SSE__*/
 static inline float SIMD_HADD(v_sf p) {
     vfloat r;
     float f;
@@ -389,11 +387,12 @@ static inline float SIMD_HADD(v_sf p) {
     for(i=1; i<SIMD_WIDTH; i++) f += r.f[i];
     return f;
     }
-#endif
-#endif
+#endif/*__SSE__*/
+#endif/*__AVX512F__*/
 
 /* With SSE2 and beyond we have double support */
 #ifdef __SSE2__
+
 static inline v_df SIMD_DSPLAT(double f) {
     return MM_FCN(set1,pd)(f);
     }
@@ -463,6 +462,7 @@ static inline v_df SIMD_DLOADS(double f) {
 #define SIMD_D2I(a) MM_FCN(castpd,si128)(a)
 #define SIMD_D2F(a) MM_FCN(cvtpd,ps)(a)
 #endif
+
 #if !defined(__AVX512F__)
 static inline v_df SIMD_DRSQRT(v_df B) {
     static const vdouble half = {SIMD_DCONST(0.5)};
@@ -497,19 +497,18 @@ static inline v_df SIMD_DRE_EXACT(v_df a) {
     r = SIMD_DSUB(SIMD_DADD(r,r),SIMD_DMUL(SIMD_DMUL(a,r),r));
     return r;
     }
-#endif
-#endif
+#endif/*__AVX512F__*/
 
-
-#else
+#endif/*__SSE2*/
+#endif/*NO_C_MACROS*/
+#endif/*???*/
+#else/*USE_SIMD*/
 #define SIMD_malloc malloc
 #define SIMD_free free
-#endif
+#endif/*USE_SIMD*/
 
+#if defined(__cplusplus)
 
-#endif/*NO_C_MACROS*/
-
-#if defined(__cplusplus) && defined(USE_SIMD)
 #if __GNUC__ > 4
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wignored-attributes"
@@ -523,7 +522,9 @@ class vec {
     vtype ymm;
 public:
     vec() {}
-    vec(const ftype &d);
+#ifdef USE_SIMD
+    vec(ftype const &d);
+#endif
     vec(vtype const &d) { ymm = d; }
     operator vtype() const { return ymm; }
     ftype operator [] (uint32_t idx) const;
@@ -546,7 +547,7 @@ public:
     operator vtype() const { return ymm; }
     };
 
-#if defined(__AVX512F__)
+#if defined(__AVX512F__) && defined(USE_SIMD)
 typedef vec<__m512i,int32_t> i32v;
 typedef vec<__m512,float> fvec;
 typedef mmask<__mmask16> fmask;
@@ -557,7 +558,7 @@ inline i32v cvt_i32v(const fvec &a) { return i32v(_mm512_cvtps_epi32(a)); }
 //inline i64v cvt_i64v(const fvec &a) { return i64v(_mm512_cvtps_epi64(a)); }
 inline fvec cvt_fvec(const i32v &a) { return fvec(_mm512_cvtepi32_ps(a)); }
 //inline fvec cvt_fvec(const i64v &a) { return fvec(_mm512_cvtepi64_ps(a)); }
-#elif defined(__AVX__)
+#elif defined(__AVX__) && defined(USE_SIMD)
 typedef vec<__m256i,int32_t> i32v;
 typedef vec<__m256,float> fvec;
 typedef vec<__m256,float> fmask;
@@ -566,7 +567,7 @@ typedef vec<__m256d,double> dvec;
 typedef vec<__m256d,double> dmask;
 inline i32v cvt_i32v(const fvec &a) { return i32v(_mm256_cvtps_epi32(a)); }
 inline fvec cvt_fvec(const i32v &a) { return fvec(_mm256_cvtepi32_ps(a)); }
-#elif defined(__SSE__)
+#elif defined(__SSE__) && defined(USE_SIMD)
 typedef vec<__m128i,int32_t> i32v;
 typedef vec<__m128,float> fvec;
 typedef vec<__m128,float> fmask;
@@ -576,11 +577,11 @@ typedef vec<__m128d,double> dvec;
 typedef vec<__m128d,double> dmask;
 inline i32v cvt_i32v(const fvec &a) { return i32v(_mm_cvtps_epi32(a)); }
 inline fvec cvt_fvec(const i32v &a) { return fvec(_mm_cvtepi32_ps(a)); }
-#endif
-#else
+#endif/*__SSE2__*/
+#else/*__AVX512F__,__AVX__,__SSE2__*/
 typedef vec<float,float> fvec;
 typedef vec<double,double> dvec;
-#endif
+#endif/*__AVX512F__,__AVX__,__SSE2__*/
 
 /**********************************************************************\
 * Generic Operators
@@ -611,7 +612,7 @@ template<typename v> inline mmask<v> & operator|=(mmask<v> &a,mmask<v> const &b)
 template<typename v> inline mmask<v> & operator^=(mmask<v> &a,mmask<v> const &b) { return a = a ^ b; }
 
 
-#if defined(__AVX512F__)
+#if defined(__AVX512F__) && defined(USE_SIMD)
 
 /**********************************************************************\
 * AVX512 single precision
@@ -677,8 +678,6 @@ inline float hadd(vec<__m512,float> const &a) {
     return hadd(low) + hadd(high);
     }
 
-//inline float hadd(vec<__m512,float> const &a) { return _mm512_reduce_add_ps(a); }
-//inline vec<__m512,float> blend(vec<__m512,float> const &a,vec<__m512,float> const &b,vec<__m512,float> const &p) { return _mm512_blendv_ps(a,b,p); }
 inline vec<__m512,float> mask_xor(mmask<__mmask16> const &k,vec<__m512,float> const &a,vec<__m512,float> const &b)
     { return _mm512_castsi512_ps(_mm512_mask_xor_epi32( _mm512_castps_si512(a),k,_mm512_castps_si512(a),_mm512_castps_si512(b))); }
 inline vec<__m512,float> mask_sub(mmask<__mmask16> const &k,vec<__m512,float> const &a,vec<__m512,float> const &b)
@@ -753,9 +752,6 @@ inline vec<__m512d,double> operator*(vec<__m512d,double> const &a,vec<__m512d,do
 inline vec<__m512d,double> operator/(vec<__m512d,double> const &a,vec<__m512d,double> const &b) { return _mm512_div_pd(a,b); }
 inline vec<__m512d,double> operator+(vec<__m512d,double> const &a,vec<__m512d,double> const &b) { return _mm512_add_pd(a,b); }
 inline vec<__m512d,double> operator-(vec<__m512d,double> const &a,vec<__m512d,double> const &b) { return _mm512_sub_pd(a,b); }
-
-
-
 #if defined(__AVX512ER__)
 inline vec<__m512d,double> rsqrt(vec<__m512d,double> const &a2) {
     vec<__m512d,double> ia = _mm512_rsqrt28_pd(a2); // ia = (approx) 1.0 / sqrt(a2)
@@ -803,10 +799,10 @@ inline mmask<__mmask8> operator&(mmask<__mmask8> const &a,mmask<__mmask8> const 
 inline mmask<__mmask8> operator|(mmask<__mmask8> const &a,mmask<__mmask8> const &b) { return _mm512_kor(a,b); }
 inline mmask<__mmask8> operator^(mmask<__mmask8> const &a,mmask<__mmask8> const &b) { return _mm512_kxor(a,b); }
 inline int testz(mmask<__mmask8> const &a) { return _mm512_kortestz(a,a); }
-//inline int movemask(mmask<__mmask8> const &k) { return _mm512_mask2int(k); }
 inline int movemask(mmask<__mmask8> const &k) { return (int)(k); }
 
-#else
+#else/*__AVX512F__*/
+
 /**********************************************************************\
 * Mask Operators
 \**********************************************************************/
@@ -823,7 +819,7 @@ template<typename v,typename ftype,typename mtype> inline
  { return a - (b&k); }
 
 
-#if defined(__AVX__)
+#if defined(__AVX__) && defined(USE_SIMD)
 /**********************************************************************\
 * AVX single precision
 \**********************************************************************/
@@ -948,7 +944,7 @@ inline vec<__m256d,double> mask_mov(vec<__m256d,double> const &src,vec<__m256d,d
     { return _mm256_blendv_pd(src,a,k); }
 inline int testz(vec<__m256d,double> const &a) { return !_mm256_movemask_pd(a); }
 
-#elif defined(__SSE__)
+#elif defined(__SSE__) && defined(USE_SIMD)
 
 /**********************************************************************\
 * SSE single precision
@@ -1093,9 +1089,7 @@ inline vec<__m128d,double> mask_mov(vec<__m128d,double> const &src,vec<__m128d,d
 #endif
     }
 
-
-
-#else/*#elif defined(__SSE__)*/
+#else/*#elif defined(__SSE__) && defined(USE_SIMD)*/
 /**********************************************************************\
 * single precision
 \**********************************************************************/
@@ -1106,9 +1100,9 @@ template<> inline vec<float,float> & vec<float,float>::load1(float f) { ymm = f;
 template<> inline vec<float,float> & vec<float,float>::load(float *pf) { ymm = *pf; return *this; }
 template<> inline const vec<float,float> & vec<float,float>::store(float *pf) const { *pf = ymm; return *this; }
 template<> inline const vec<float,float> vec<float,float>::sign_mask() { return 0x80000000; }
-template<> inline vec<float,float> vec<float,float>::operator-() { return _mm_xor_ps(ymm,sign_mask()); }
-inline vec<float,float> min(vec<float,float> const &a,vec<float,float> const &b) { return _mm_min_ps(a,b); }
-inline vec<float,float> max(vec<float,float> const &a,vec<float,float> const &b) { return _mm_max_ps(a,b); }
+template<> inline vec<float,float> vec<float,float>::operator-() { return -ymm; }
+inline vec<float,float> min(vec<float,float> const &a,vec<float,float> const &b) { return a<b?a:b; }
+inline vec<float,float> max(vec<float,float> const &a,vec<float,float> const &b) { return a>b?a:b; }
 inline vec<float,float> operator*(vec<float,float> const &a,vec<float,float> const &b) { return a*b; }
 inline vec<float,float> operator/(vec<float,float> const &a,vec<float,float> const &b) { return a/b; }
 inline vec<float,float> operator+(vec<float,float> const &a,vec<float,float> const &b) { return a+b; }
@@ -1129,17 +1123,19 @@ inline vec<float,float> operator<=(vec<float,float> const &a,vec<float,float> co
 //inline vec<float,float> blend(vec<float,float> const &a,vec<float,float> const &b,vec<float,float> const &p) {
 //    return p ? b : a;
 //    }
-inline vec<float,float> maskz_mov(vec<float,float> const &p,vec<float,float> const &a) { return p ? a : 0; }
-inline vec<float,float> mask_mov(vec<float,float> const &src,vec<float,float> const &p,vec<float,float> const &a) {
+inline vec<float,float> maskz_mov(mmask<int> const &p,vec<float,float> const &a) {
+    return p ? a : vec<float,float>(0.0f); 
+    }
+inline vec<float,float> mask_mov(vec<float,float> const &src,mmask<int> const &p,vec<float,float> const &a) {
 	return p ? a : src;
     }
 #endif/*#elif defined(__SSE__)*/
-
-#endif
-
+#endif /*__AVX512F__*/
 #if __GNUC__ > 4
 #pragma GCC diagnostic pop
 #endif
 
-#endif/*USE_SIMD*/
+#endif/*defined(__cplusplus)*/
+
+
 #endif/*SIMD_H*/

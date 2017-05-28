@@ -14,7 +14,9 @@
 #include "qeval.h"
 #include "moments.h"
 #include "grav.h"
+#ifdef USE_SIMD_EWALD
 #include "vmath.h"
+#endif/*USE_SIMD_EWALD*/
 
 static int evalEwald(struct EwaldVariables *ew,double *ax, double *ay, double *az, double *fPot,
     double x, double y, double z,
@@ -623,15 +625,15 @@ void pkdEwaldInit(PKD pkd,int nReps,double fEwCut,double fhCut) {
 #endif
     if ( i>ew->nMaxEwhLoop ) {
 	ew->nMaxEwhLoop = i;
-	ewt->hx.f = (float *)SIMD_malloc(ew->nMaxEwhLoop*sizeof(ewt->hx.f));
+	ewt->hx.f = (ewaldFloatType *)SIMD_malloc(ew->nMaxEwhLoop*sizeof(ewt->hx.f));
 	assert(ewt->hx.f != NULL);
-	ewt->hy.f = (float *)SIMD_malloc(ew->nMaxEwhLoop*sizeof(ewt->hy.f));
+	ewt->hy.f = (ewaldFloatType *)SIMD_malloc(ew->nMaxEwhLoop*sizeof(ewt->hy.f));
 	assert(ewt->hy.f != NULL);
-	ewt->hz.f = (float *)SIMD_malloc(ew->nMaxEwhLoop*sizeof(ewt->hz.f));
+	ewt->hz.f = (ewaldFloatType *)SIMD_malloc(ew->nMaxEwhLoop*sizeof(ewt->hz.f));
 	assert(ewt->hz.f != NULL);
-	ewt->hCfac.f = (float *)SIMD_malloc(ew->nMaxEwhLoop*sizeof(ewt->hCfac.f));
+	ewt->hCfac.f = (ewaldFloatType *)SIMD_malloc(ew->nMaxEwhLoop*sizeof(ewt->hCfac.f));
 	assert(ewt->hCfac.f != NULL);
-	ewt->hSfac.f = (float *)SIMD_malloc(ew->nMaxEwhLoop*sizeof(ewt->hSfac.f));
+	ewt->hSfac.f = (ewaldFloatType *)SIMD_malloc(ew->nMaxEwhLoop*sizeof(ewt->hSfac.f));
 	assert(ewt->hSfac.f != NULL);
 	}
     ew->nEwhLoop = i;
@@ -701,6 +703,4 @@ void pkdEwaldInit(PKD pkd,int nReps,double fEwCut,double fhCut) {
     cudaEwaldInit(pkd->mdl->cudaCtx,ew,ewt);
     mdlThreadBarrier(pkd->mdl);
 #endif
-
-
     }

@@ -1,6 +1,7 @@
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
+#ifdef USE_SIMD_OPEN
 #define MPICH_SKIP_MPICXX
 #include "simd.h"
 #include "pkd.h"
@@ -166,3 +167,4 @@ void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin ) {
     pkd->dFlop += dFlop;
     pkd->dFlopSingleCPU += dFlop;
     }
+#endif/*USE_SIMD_OPEN*/

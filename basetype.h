@@ -90,14 +90,16 @@ typedef struct {
     float rhopmax;
     } PINFOOUT;
 
-typedef union {
+
 #if defined(USE_SIMD)
-    float *f;
-#ifndef __CUDACC__
-    v_sf *p;
-#endif
+typedef float ewaldFloatType;
 #else
-    double *f;
+typedef double ewaldFloatType;
+#endif
+typedef union {
+    ewaldFloatType *f;
+#if defined(USE_SIMD) && !defined(__CUDACC__)
+    v_sf *p;
 #endif
     } ewaldFloat;
 
