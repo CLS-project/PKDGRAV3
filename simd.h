@@ -4,8 +4,32 @@
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
+#if !defined(_STDINT_H) && !defined(_STDINT_H_) && !defined(_STDINT_H_INCLUDED) && !defined(_STDINT) && !defined(__STDINT_H_)
+#include <stdint.h>
+#endif
 
 #ifdef USE_SIMD
+#if defined(__AVX512F__)
+#define SIMD_BITS 4
+#elif defined(__AVX__)
+#define SIMD_BITS 3
+#elif defined(__SSE__) || defined(__ALTIVEC__)
+#define SIMD_BITS 2
+#endif
+#endif
+#ifdef SIMD_BITS
+#define SIMD_DBITS (SIMD_BITS-1)
+#else
+#define SIMD_BITS 0
+#define SIMD_DBITS 0
+#endif
+#define SIMD_WIDTH (1<<SIMD_BITS)
+#define SIMD_DWIDTH (1<<SIMD_DBITS)
+#define SIMD_MASK (SIMD_WIDTH-1)
+#define SIMD_DMASK (SIMD_DWIDTH-1)
+
+#ifdef USE_SIMD
+
 #if defined(__SSE__)
 #include <xmmintrin.h>
 #ifdef __SSE2__
@@ -26,29 +50,7 @@
 #elif defined(__ALTIVEC__)/*not defined(__SSE__)*/
 #include <altivec.h>
 #include <math.h> /* for sqrtf() */
-#endif/*USE_SIMD*/
-
-#ifdef USE_SIMD
-
-#if !defined(_STDINT_H) && !defined(_STDINT_H_) && !defined(_STDINT_H_INCLUDED) && !defined(_STDINT) && !defined(__STDINT_H_)
-#include <stdint.h>
-#endif
-
-#if defined(__AVX512F__)
-#define SIMD_BITS 4
-#elif defined(__AVX__)
-#define SIMD_BITS 3
-#elif defined(__SSE__) || defined(__ALTIVEC__)
-#define SIMD_BITS 2
-#else
-#define SIMD_BITS 0
-#endif
-#define SIMD_DBITS (SIMD_BITS-1)
-
-#define SIMD_WIDTH (1<<SIMD_BITS)
-#define SIMD_DWIDTH (1<<SIMD_DBITS)
-#define SIMD_MASK (SIMD_WIDTH-1)
-#define SIMD_DMASK (SIMD_DWIDTH-1)
+#endif/*__SSE__,__ALTIVEC__*/
 
 #ifdef HAVE_ANSIDECL_H
 #include <ansidecl.h>
@@ -501,7 +503,6 @@ static inline v_df SIMD_DRE_EXACT(v_df a) {
 
 #endif/*__SSE2*/
 #endif/*NO_C_MACROS*/
-#endif/*???*/
 #else/*USE_SIMD*/
 #define SIMD_malloc malloc
 #define SIMD_free free
