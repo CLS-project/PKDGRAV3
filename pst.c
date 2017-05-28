@@ -3992,6 +3992,12 @@ void pstMoveIC(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 		}
 	    assert(nLocal <= nPerNode);
 	    }
+	else {
+	    for(iProc=0; iProc<mdlProcs(pst->mdl); ++iProc) {
+		rcount[iProc] = rdisps[iProc] = 0; // We cannot receive anything
+		scount[iProc] = sdisps[iProc] = 0; // We have nothing to send
+		}
+	    }
 	mdlAlltoallv(pst->mdl, sizeof(expandParticle),
 	    pBase + nPerNode, scount, sdisps,
 	    pRecv,            rcount, rdisps);
