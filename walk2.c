@@ -202,7 +202,8 @@ static void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin ) 
     pkd->dFlopSingleCPU += dFlop;
     }
 #endif
-#else
+#endif/*these two were else */
+#if 1
 /*
 ** This implements the original pkdgrav2m opening criterion, which has been
 ** well tested, gives good force accuracy, but may not be the most efficient

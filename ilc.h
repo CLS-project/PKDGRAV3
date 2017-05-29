@@ -22,7 +22,7 @@
 */
 typedef union {
     float f[ILC_PART_PER_BLK];
-#if defined(USE_SIMD_PC) && !defined(__CUDACC__)
+#if !defined(__CUDACC__)
     v_sf p[ILC_PART_PER_BLK / SIMD_WIDTH];
 #endif
     } ilcFloat;

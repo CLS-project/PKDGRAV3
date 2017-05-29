@@ -7,6 +7,8 @@
 #if !defined(_STDINT_H) && !defined(_STDINT_H_) && !defined(_STDINT_H_INCLUDED) && !defined(_STDINT) && !defined(__STDINT_H_)
 #include <stdint.h>
 #endif
+#include <math.h>
+
 
 #ifdef USE_SIMD
 #if defined(__AVX512F__)
@@ -28,8 +30,23 @@
 #define SIMD_MASK (SIMD_WIDTH-1)
 #define SIMD_DMASK (SIMD_DWIDTH-1)
 
-#ifdef USE_SIMD
+#if SIMD_WIDTH==1
+#define SIMD_CONST(c) {c}
+#define SIMD_DCONST(c) {c}
+#elif SIMD_WIDTH==4
+#define SIMD_CONST(c) {c,c,c,c}
+#define SIMD_DCONST(c) {c,c}
+#elif SIMD_WIDTH==8
+#define SIMD_CONST(c) {c,c,c,c,c,c,c,c}
+#define SIMD_DCONST(c) {c,c,c,c}
+#elif SIMD_WIDTH==16
+#define SIMD_CONST(c) {c,c,c,c,c,c,c,c,c,c,c,c,c,c,c,c}
+#define SIMD_DCONST(c) {c,c,c,c,c,c,c,c}
+#else
+#error Invalid SIMD_WIDTH
+#endif
 
+#ifdef USE_SIMD
 #if defined(__SSE__)
 #include <xmmintrin.h>
 #ifdef __SSE2__
@@ -51,17 +68,14 @@
 #include <altivec.h>
 #include <math.h> /* for sqrtf() */
 #endif/*__SSE__,__ALTIVEC__*/
+#endif/*USE_SIMD*/
 
+#ifdef USE_SIMD
 #ifdef HAVE_ANSIDECL_H
 #include <ansidecl.h>
 #else/*!HAVE_ANSIDECL_H*/
 #define ATTRIBUTE_ALIGNED_ALIGNOF(m)
 #endif/*HAVE_ANSIDECL_H*/
-
-#if defined(HAVE_POSIX_MEMALIGN) || defined(HAVE_MEMALIGN)
-#include <stdlib.h>
-#endif
-
 #if defined(__SSE__)
 #if defined(__AVX512F__)
 typedef ATTRIBUTE_ALIGNED_ALIGNOF(__m512) __m512  v_sf;
@@ -85,25 +99,16 @@ typedef ATTRIBUTE_ALIGNED_ALIGNOF(__m128) __m128i v_i;
 #define MM_FCN(f,p) _mm_##f##_##p
 #define MM_CMP(F,f,p,a,b) _mm_cmp##f##_##p(a,b)
 #endif/*__AVX512F*/
-typedef ATTRIBUTE_ALIGNED_ALIGNOF(__m128) __m128i v_i4;
-#else/*__SSE__*/
+#else/*__SSE__ must be altivec */
 typedef vector float v_sf;
 typedef vector bool int v_bool;
 typedef vector bool int v_i;
 #endif/*__SSE__*/
-
-#if SIMD_WIDTH==4
-#define SIMD_CONST(c) {c,c,c,c}
-#define SIMD_DCONST(c) {c,c}
-#elif SIMD_WIDTH==8
-#define SIMD_CONST(c) {c,c,c,c,c,c,c,c}
-#define SIMD_DCONST(c) {c,c,c,c}
-#elif SIMD_WIDTH==16
-#define SIMD_CONST(c) {c,c,c,c,c,c,c,c,c,c,c,c,c,c,c,c}
-#define SIMD_DCONST(c) {c,c,c,c,c,c,c,c}
-#else
-#error Invalid SIMD_WIDTH
-#endif
+#else/*USE_SIMD*/
+typedef float v_sf;
+typedef double v_df;
+typedef int32_t v_i;
+#endif/*USE_SIMD*/
 
 typedef union {
     float f[SIMD_WIDTH];
@@ -121,7 +126,6 @@ typedef union {
     int32_t  i[SIMD_WIDTH];
     uint32_t u[SIMD_WIDTH];
     v_i      p;
-    v_i4     ph;
     v_sf     pf;
     v_df     pd;
     } vint;
@@ -132,6 +136,11 @@ typedef union {
     v_df     pd;
     } vint64;
 
+#ifdef USE_SIMD
+
+#if defined(HAVE_POSIX_MEMALIGN) || defined(HAVE_MEMALIGN)
+#include <stdlib.h>
+#endif
 #ifdef HAVE_LIBMEMKIND
 #include <hbwmalloc.h>
 static inline void * SIMD_malloc( size_t newSize ) {
@@ -519,7 +528,7 @@ static inline v_df SIMD_DRE_EXACT(v_df a) {
 * SIMD Vector class template
 \**********************************************************************/
 template<typename vtype,typename ftype>
-class vec {
+struct vec {
     vtype ymm;
 public:
     vec() {}
@@ -580,8 +589,13 @@ inline i32v cvt_i32v(const fvec &a) { return i32v(_mm_cvtps_epi32(a)); }
 inline fvec cvt_fvec(const i32v &a) { return fvec(_mm_cvtepi32_ps(a)); }
 #endif/*__SSE2__*/
 #else/*__AVX512F__,__AVX__,__SSE2__*/
+typedef vec<int32_t,int32_t> i32v;
 typedef vec<float,float> fvec;
 typedef vec<double,double> dvec;
+typedef mmask<bool> fmask;
+typedef mmask<bool> dmask;
+inline i32v cvt_i32v(const fvec &a) { return i32v((int32_t)a); }
+inline fvec cvt_fvec(const i32v &a) { return fvec((float)a); }
 #endif/*__AVX512F__,__AVX__,__SSE2__*/
 
 /**********************************************************************\
@@ -1095,7 +1109,7 @@ inline vec<__m128d,double> mask_mov(vec<__m128d,double> const &src,vec<__m128d,d
 * single precision
 \**********************************************************************/
 
-template<> inline vec<float,float>::vec(const float &d) { ymm = d; }
+//template<> inline vec<float,float>::vec(const float &d) { ymm = d; }
 template<> inline vec<float,float> & vec<float,float>::zero() { ymm = 0; return *this; }
 template<> inline vec<float,float> & vec<float,float>::load1(float f) { ymm = f; return *this; }
 template<> inline vec<float,float> & vec<float,float>::load(float *pf) { ymm = *pf; return *this; }
@@ -1104,32 +1118,54 @@ template<> inline const vec<float,float> vec<float,float>::sign_mask() { return 
 template<> inline vec<float,float> vec<float,float>::operator-() { return -ymm; }
 inline vec<float,float> min(vec<float,float> const &a,vec<float,float> const &b) { return a<b?a:b; }
 inline vec<float,float> max(vec<float,float> const &a,vec<float,float> const &b) { return a>b?a:b; }
-inline vec<float,float> operator*(vec<float,float> const &a,vec<float,float> const &b) { return a*b; }
-inline vec<float,float> operator/(vec<float,float> const &a,vec<float,float> const &b) { return a/b; }
-inline vec<float,float> operator+(vec<float,float> const &a,vec<float,float> const &b) { return a+b; }
-inline vec<float,float> operator-(vec<float,float> const &a,vec<float,float> const &b) { return a-b; }
-inline vec<float,float> operator==(vec<float,float> const &a,vec<float,float> const &b) { return a==b; }
-inline vec<float,float> operator!=(vec<float,float> const &a,vec<float,float> const &b) { return a!=b; }
-inline vec<float,float> operator>(vec<float,float> const &a,vec<float,float> const &b) { return a>b; }
-inline vec<float,float> operator<(vec<float,float> const &a,vec<float,float> const &b) { return a<b; }
-inline vec<float,float> operator>=(vec<float,float> const &a,vec<float,float> const &b) { return a>=b; }
-inline vec<float,float> operator<=(vec<float,float> const &a,vec<float,float> const &b) { return a<=b; }
+//inline vec<float,float> operator*(vec<float,float> const &a,vec<float,float> const &b) { return a*b; }
+//inline vec<float,float> operator/(vec<float,float> const &a,vec<float,float> const &b) { return a/b; }
+//inline vec<float,float> operator+(vec<float,float> const &a,vec<float,float> const &b) { return a+b; }
+//inline vec<float,float> operator-(vec<float,float> const &a,vec<float,float> const &b) { return a-b; }
+
+//LET FLOAT DO THE JOB
+//inline mmask<bool> operator==(vec<float,float> const &a,vec<float,float> const &b) { return a==b; }
+//inline mmask<bool> operator!=(vec<float,float> const &a,vec<float,float> const &b) { return a!=b; }
+//inline mmask<bool> operator>(vec<float,float> const &a,vec<float,float> const &b) { return a>b; }
+//inline mmask<bool> operator<(vec<float,float> const &a,vec<float,float> const &b) { return a<b; }
+//inline mmask<bool> operator>=(vec<float,float> const &a,vec<float,float> const &b) { return a>=b; }
+//inline mmask<bool> operator<=(vec<float,float> const &a,vec<float,float> const &b) { return a<=b; }
 //inline vec<float,float> operator&(vec<float,float> const &a,vec<float,float> const &b) { return a&b; }
 //inline vec<float,float> operator|(vec<float,float> const &a,vec<float,float> const &b) { return a|b; }
 //inline vec<float,float> operator^(vec<float,float> const &a,vec<float,float> const &b) { return a^b; }
 //inline vec<float,float> operator~(vec<float,float> const &a) { return _mm_xor_ps(a,_mm_castsi128_ps(_mm_set1_epi32(0xffffffff))); }
-//inline float hadd(vec<float,float> const &a) { return a; }
-//inline vec<float,float> sqrt(vec<float,float> const &r2) { return sqrtf(r2); }
-//inline vec<float,float> rsqrt(vec<float,float> const &r2) { return 1.0f / sqrt(r2); }
-//inline vec<float,float> blend(vec<float,float> const &a,vec<float,float> const &b,vec<float,float> const &p) {
-//    return p ? b : a;
-//    }
-inline vec<float,float> maskz_mov(mmask<int> const &p,vec<float,float> const &a) {
+inline float hadd(vec<float,float> const &a) { return a; }
+inline vec<float,float> sqrt(vec<float,float> const &r2) { return sqrtf(r2); }
+inline vec<float,float> rsqrt(vec<float,float> const &r2) { return 1.0f / sqrtf(r2); }
+inline int testz(mmask<bool> const &a) { return a==0; }
+inline vec<float,float> maskz_mov(mmask<bool> const &p,vec<float,float> const &a) {
     return p ? a : vec<float,float>(0.0f); 
     }
-inline vec<float,float> mask_mov(vec<float,float> const &src,mmask<int> const &p,vec<float,float> const &a) {
+inline vec<float,float> maskz_mov(bool const &p,vec<float,float> const &a) {
+    return p ? a : vec<float,float>(0.0f); 
+    }
+inline vec<float,float> mask_mov(vec<float,float> const &src,mmask<bool> const &p,vec<float,float> const &a) {
 	return p ? a : src;
     }
+inline vec<float,float> mask_mov(vec<float,float> const &src,bool const &p,vec<float,float> const &a) {
+	return p ? a : src;
+    }
+
+/**********************************************************************\
+* 32-bit integer
+\**********************************************************************/
+//template<> inline vec<int32_t,int32_t>::vec(const int32_t &d) { ymm = d; }
+template<> inline vec<int32_t,int32_t> & vec<int32_t,int32_t>::zero() { ymm = 0; return *this; }
+template<> inline vec<int32_t,int32_t> & vec<int32_t,int32_t>::load1(int32_t f) { ymm = f; return *this; }
+template<> inline vec<int32_t,int32_t> & vec<int32_t,int32_t>::load(int32_t *pf) { ymm = *pf; return *this; }
+template<> inline const vec<int32_t,int32_t> & vec<int32_t,int32_t>::store(int32_t *pf) const { *pf = ymm; return *this; }
+inline vec<int32_t,int32_t> maskz_mov(mmask<bool> const &p,vec<int32_t,int32_t> const &a) {
+    return p ? a : vec<int32_t,int32_t>(0); 
+    }
+inline vec<int32_t,int32_t> mask_mov(vec<int32_t,int32_t> const &src,mmask<bool> const &p,vec<int32_t,int32_t> const &a) {
+	return p ? a : src;
+    }
+
 #endif/*#elif defined(__SSE__)*/
 #endif /*__AVX512F__*/
 #if __GNUC__ > 4
