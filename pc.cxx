@@ -22,7 +22,7 @@ void pkdGravEvalPC(PINFOIN *pPart, int nBlocks, int nInLast, ILC_BLK *blk,  PINF
     fvec fx = pPart->r[0];
     fvec fy = pPart->r[1];
     fvec fz = pPart->r[2];
-
+    fvec pSmooth2 = pPart->fSmooth2;
     fvec Pax = pPart->a[0];
     fvec Pay = pPart->a[1];
     fvec Paz = pPart->a[2];
@@ -81,9 +81,9 @@ void pkdGravEvalPC(PINFOIN *pPart, int nBlocks, int nInLast, ILC_BLK *blk,  PINF
             fvec Im = blk->m.p[j];
             fvec Iu = blk->u.p[j];
 
-	    EvalPP<fvec,fmask,true>(
-		fx, fy, fz,
-		Im, Iu, Idx, Idy, Idz,
+	    EvalPC<fvec,fmask,true>(
+		fx, fy, fz, pSmooth2,
+		Idx, Idy, Idz, Im, Iu,
 		Ixxxx, Ixxxy, Ixxxz, Ixxyz, Ixxyy, Iyyyz, Ixyyz, Ixyyy, Iyyyy,
 		Ixxx, Ixyy, Ixxy, Iyyy, Ixxz, Iyyz, Ixyz, Ixx, Ixy, Ixz, Iyy, Iyz,
 		tax, tay, taz, tpot,

@@ -1,10 +1,16 @@
+#ifndef CUDA_DEVICE
+#define CUDA_DEVICE
+#endif
 template<class F,class M,bool bGravStep>
-void EvalPP(
-	F dx, F dy, F dz,F fourh2, F m,F smooth2,
-	F &ax, F &ay, F &az, F &pot,
-	F iax, F iay, F iaz,F imaga,
-	F &ir, F &norm) {
+CUDA_DEVICE void EvalPP(
+	F Pdx, F Pdy, F Pdz, F smooth2,      // Particle
+	F Idx, F Idy, F Idz, F fourh2, F Im, // Interaction(s)
+	F &ax, F &ay, F &az, F &pot,         // results
+	F iax, F iay, F iaz,F imaga, F &ir, F &norm) {
     static const float minSoftening = 1e-18f;
+    F dx = Idx + Pdx;
+    F dy = Idy + Pdy;
+    F dz = Idz + Pdz;
     F d2 = dx*dx + dy*dy + dz*dz;
     M vcmp = d2 < fourh2;
     F td2 = max(minSoftening,max(d2,fourh2));
@@ -21,11 +27,11 @@ void EvalPP(
 	pir *= 1.0f + td2*(0.5f + td2*(3.0f/8.0f + td2*(45.0f/32.0f)));
 	pir2 *= 1.0f + td2*(1.5f + td2*(135.0f/16.0f));
 	}
-    pir2 *= -m;
+    pir2 *= -Im;
     ax = dx * pir2;
     ay = dy * pir2;
     az = dz * pir2;
-    pot = -m*pir;
+    pot = -Im*pir;
     if (bGravStep) {
 	/* Time stepping criteria stuff */
 	F padotai = iax*ax + iay*ay + iaz*az;

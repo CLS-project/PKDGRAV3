@@ -9,7 +9,6 @@
 
 extern "C"
 void pkdGravEvalPP(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  PINFOOUT *pOut ) {
-//    static const float minSoftening = 1e-18f;
     fvec t1, t2, t3, pot;
     fvec pax, pay, paz, pfx, pfy, pfz;
     fvec piax, piay, piaz;
@@ -47,7 +46,6 @@ void pkdGravEvalPP(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  PINF
 	blk[nBlocks].fourh2.f[j] = 1e-18f;
 	}
 
-
     piax    = a[0];
     piay    = a[1];
     piaz    = a[2];
@@ -63,17 +61,21 @@ void pkdGravEvalPP(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  PINF
     for( nLeft=nBlocks; nLeft >= 0; --nLeft,++blk ) {
 	int n = ((nLeft ? ILP_PART_PER_BLK : nInLast) + fvec::mask()) >> SIMD_BITS;
 	for (j=0; j<n; ++j) {
-	    fvec dx = blk->dx.p[j] + pfx;
-	    fvec dy = blk->dy.p[j] + pfy;
-	    fvec dz = blk->dz.p[j] + pfz;
-	    fvec m = blk->m.p[j];
+	    fvec Idx = blk->dx.p[j];
+	    fvec Idy = blk->dy.p[j];
+	    fvec Idz = blk->dz.p[j];
+	    fvec Im = blk->m.p[j];
 //Needed?   fvec fourh2 = max(fvec(blk->fourh2.p[j]),minSoftening); /* There is always a self interaction */
 	    fvec fourh2 = blk->fourh2.p[j];
 	    fvec pir,norm;
 #if 1
-	    EvalPP<fvec,fmask,true>(dx,dy,dz,fourh2,m,psmooth2,t1,t2,t3,pot,
+	    EvalPP<fvec,fmask,true>(pfx,pfy,pfz,psmooth2,Idx,Idy,Idz,fourh2,Im,t1,t2,t3,pot,
 	    	piax,piay,piaz,pimaga,pir,norm);
 #else
+	    static const float minSoftening = 1e-18f;
+	    fvec dx = Idx + pfx;
+	    fvec dy = Idy + pfy;
+	    fvec dz = Idz + pfz;
 	    fvec d2 = dx*dx + dy*dy + dz*dz;
 	    fmask vcmp = d2 < fourh2;
 	    fvec td2 = max(minSoftening,max(d2,fourh2));
@@ -90,11 +92,11 @@ void pkdGravEvalPP(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  PINF
 		pir *= 1.0f + td2*(0.5f + td2*(3.0f/8.0f + td2*(45.0f/32.0f)));
 		pir2 *= 1.0f + td2*(1.5f + td2*(135.0f/16.0f));
 		}
-	    pir2 *= -m;
+	    pir2 *= -Im;
 	    t1 = dx * pir2;
 	    t2 = dy * pir2;
 	    t3 = dz * pir2;
-	    pot = -m*pir;
+	    pot = -Im*pir;
 
 	    /* Time stepping criteria stuff */
 	    fvec padotai = piaz*t3 + piay*t2 + piax*t1;

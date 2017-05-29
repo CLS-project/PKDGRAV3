@@ -1,14 +1,15 @@
+#ifndef CUDA_DEVICE
+#define CUDA_DEVICE
+#endif
 template<class F,class M,bool bGravStep>
-void EvalPP(
-	F Pdx, F Pdy, F Pdz,
-	F Im, F Iu,
-	F Idx, F Idy, F Idz,
+CUDA_DEVICE void EvalPC(
+	F Pdx, F Pdy, F Pdz, F Psmooth2, // Particle
+	F Idx, F Idy, F Idz, F Im, F Iu, // Interaction(s)
 	F Ixxxx,F Ixxxy,F Ixxxz,F Ixxyz,F Ixxyy,F Iyyyz,F Ixyyz,F Ixyyy,F Iyyyy,
 	F Ixxx,F Ixyy,F Ixxy,F Iyyy,F Ixxz,F Iyyz,F Ixyz,
 	F Ixx,F Ixy,F Ixz,F Iyy,F Iyz,
-	F &ax, F &ay, F &az, F &pot,
-	F Pax, F Pay, F Paz,F imaga,
-	F &ir, F &norm) {
+	F &ax, F &ay, F &az, F &pot,     // Results
+	F Pax, F Pay, F Paz,F imaga,F &ir, F &norm) {
     const F onethird = 1.0f/3.0f;
     F dx = Idx + Pdx;
     F dy = Idy + Pdy;
@@ -81,7 +82,7 @@ void EvalPP(
     */
     if (bGravStep) {
         F adotai = Pax*ax + Pay*ay + Paz*az;
-	adotai = maskz_mov(adotai > 0.0f,adotai);
+	adotai = maskz_mov(adotai > 0.0f & d2>Psmooth2,adotai);
 	adotai *= imaga;
 	ir = dir*adotai*adotai;
 	norm = adotai*adotai;
