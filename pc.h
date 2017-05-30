@@ -77,14 +77,11 @@ CUDA_DEVICE void EvalPC(
     ay = dir*(yz + xy + xxy + ty - y*g0);
     az = dir*(zz + xz + xxz + tz - z*g0);
 
-    /*
-    ** Calculations for determining the timestep.
-    */
+    /* Calculations for determining the timestep. */
     if (bGravStep) {
         F adotai = Pax*ax + Pay*ay + Paz*az;
-	adotai = maskz_mov(adotai > 0.0f & d2>Psmooth2,adotai);
-	adotai *= imaga;
-	ir = dir*adotai*adotai;
-	norm = adotai*adotai;
+	adotai = maskz_mov(adotai>0.0f & d2>Psmooth2,adotai) * imaga;
+	norm = adotai * adotai;
+	ir = dir * norm;
 	}
     }
