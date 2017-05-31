@@ -111,128 +111,6 @@ static void dumpWork(struct cuda_wq_node *work) {
 **
 */
 
-#if 0
-// Simplified version of the PP kernel
-template <int nWarps,int nWarpsPerWU,int nSyncRate,int bGravStep>
-__global__ void cudaInteract(
-    const ppWorkUnit * __restrict__ work,
-    const ppInput * __restrict__ pPart,
-    const ilpBlk<WIDTH> * __restrict__ blk,
-    ppResult *out) {
-    int i, iSync;
-
-    assert(nWarps==4);
-    assert(nWarpsPerWU==4);
-    assert(nSyncRate==SYNC_RATE);
-    assert(bGravStep==0);
-    assert(threadIdx.z==0);
-
-    int iWork = blockIdx.x; // Index of work and blk
-    int iI    = threadIdx.y*blockDim.x + threadIdx.x; // Index of interaction
-    int iWarp = threadIdx.y;
-    int iTinW = iI % 32;
-
-    uint32_t nP = work[iWork].nP; // Number of particles
-    pPart += work[iWork].iP; // First particle
-    uint32_t nI = work[iWork].nI; // Number of interactions
-//    blk += work[iWork].iB*blockDim.y + threadIdx.y; // blk[threadIdx.x] is our interaction
-    blk += iWork*blockDim.y + threadIdx.y; // blk[threadIdx.x] is our interaction
-    out += work[iWork].iO;   // Result for each particle
-
-    __shared__ union {
-        ppInput P[nSyncRate];
-        float   W[nSyncRate*sizeof(ppInput)/sizeof(float)];
-        } Particles;
-
-    __shared__ float wX[nSyncRate][nWarps];
-    __shared__ float wY[nSyncRate][nWarps];
-    __shared__ float wZ[nSyncRate][nWarps];
-    __shared__ float wPot[nSyncRate][nWarps];
-
-    // Load the interaction. It is blocked for performance.
-    float iX,iY,iZ,iM,ifourh2;
-    if (iI < nI) {
-        iX = blk->dx[threadIdx.x];
-        iY = blk->dy[threadIdx.x];
-        iZ = blk->dz[threadIdx.x];
-        iM = blk->m[threadIdx.x];
-        ifourh2 = blk->fourh2[threadIdx.x];
-        }
-
-    // Apply the particles, nSyncRate at a time
-    // If nP was too large for some reason then the kernel would "hang"
-    assert(nP<=256); // The group size
-    for(iSync=0; iSync<nP; iSync += nSyncRate) {
-        int iEnd = nP - iSync;
-        if (iEnd > nSyncRate) iEnd=nSyncRate;
-        // Preload the bucket of particles - this is a memcpy
-        if (iI < iEnd*sizeof(ppInput) / sizeof(float)) {
-            Particles.W[iI] = (reinterpret_cast<const float *>(pPart+iSync))[iI];
-            }
-        __syncthreads();
-
-        assert(iEnd > 0);
-        assert(iEnd <= 16); // SYNC_RATE
-        for( i=0; i<iEnd; ++i) {
-            float ax=0.0f, ay=0.0f, az=0.0f, fPot=0.0f;
-            if (iI < nI) {
-                float fourh2,dir,dir2,dir3;
-                float dx = iX + Particles.P[i].dx;
-                float dy = iY + Particles.P[i].dy;
-                float dz = iZ + Particles.P[i].dz;
-                float d2 = dx*dx + dy*dy + dz*dz;
-                if (d2 != 0.0f ) { /* Ignore self interactions */
-                    fourh2 = ifourh2;
-                    if (d2 > fourh2) fourh2 = d2;
-                    dir = rsqrtf(fourh2);
-                    dir2 = dir*dir;
-                    dir3 = dir2*dir;
-                    if (d2 < fourh2) {
-                        /*
-                        ** This uses the Dehnen K1 kernel function now, it's fast!
-                        */
-                        dir2 *= d2;
-                        dir2 = 1.0f - dir2;
-                        dir *= 1.0f + dir2*(0.5f + dir2*(3.0f/8.0f + dir2*(45.0f/32.0f)));
-                        dir3 *= 1.0f + dir2*(1.5f + dir2*(135.0f/16.0f));
-                        }
-                    dir3 *= -iM;
-                    ax = dx * dir3;
-                    ay = dy * dir3;
-                    az = dz * dir3;
-                    fPot = -iM*dir;
-                    }
-                }
-            // Horizontal add within each warp -- no sychronization required
-            warpReduceAndStore<float,32>(iTinW,ax,           &wX[i][iWarp]);
-            warpReduceAndStore<float,32>(iTinW,ay,           &wY[i][iWarp]);
-            warpReduceAndStore<float,32>(iTinW,az,           &wZ[i][iWarp]);
-            warpReduceAndStore<float,32>(iTinW,fPot,       &wPot[i][iWarp]);
-            }
-
-        __syncthreads();
-        // Assuming four warps & SYNC of 8, the cache looks like this:
-        //                0     1     2     3       4
-        // Cache: 1x4x8   P0    P0    P0    P0      P1 P1 P1 P1 P2 ... P6 P7 P7 P7 P7
-        // Cache: 4x1x8   P0,I0 P0,I1 P0,I2 P0,I3   P1,I0 ... 
-        // Cache: 2x2x8   P0,I0 P0,I0 P0,I1 P0,I1   P1,I0
-        // every set of 4 threads does another reduce. As long as the
-        // number of warps is a power of 2 <= the warp size (32), we
-        // can do this step without any further synchronization.
-        int nOut = iEnd * nWarpsPerWU; // Normally 64
-        if (iI<nOut) {
-            int iP    = (iI & ~(nWarpsPerWU-1)) * nWarps/nWarpsPerWU; // 0,4,8,...
-            int iWarp = iI &  (nWarpsPerWU-1); // 0 .. 3
-            int iOut  = iI / nWarpsPerWU + iSync;
-         
-            warpReduceAndStore<float,nWarpsPerWU>(      &wX[0][0]+iP,iWarp,&out[iOut].ax);
-            warpReduceAndStore<float,nWarpsPerWU>(      &wY[0][0]+iP,iWarp,&out[iOut].ay);
-            warpReduceAndStore<float,nWarpsPerWU>(      &wZ[0][0]+iP,iWarp,&out[iOut].az);
-            warpReduceAndStore<float,nWarpsPerWU>(    &wPot[0][0]+iP,iWarp,&out[iOut].fPot);
-            }
-        }
-    }
-#else
 // A good number for nWarps is 4 giving 128 threads per thread block, nSyncRate=8
 // Each thread block outputs ay,ay,az,fPot,dirsum,normsum for each particle
 template <int nWarps,int nWarpsPerWU,int nSyncRate,int bGravStep>
@@ -323,53 +201,12 @@ __global__ void cudaInteract(
 		float iay = Particles.P[threadIdx.z][i].ay;
 		float iaz = Particles.P[threadIdx.z][i].az;
 		float imaga = Particles.P[threadIdx.z][i].dImaga;
-#if 1
-#warning 'This needs to be tested'
 		EvalPP<float,bool,true>(
 		    Px, Py, Pz, fSoft2, 
 		    iX, iY, iZ, ifourh2, iM,
 		    ax, ay, az, fPot,
 		    iax, iay, iaz, imaga,
 		    dir, norm);
-#else
-                float dx = iX + Px;
-                float dy = iY + Py;
-                float dz = iZ + Pz;
-                float d2 = dx*dx + dy*dy + dz*dz;
-                if (d2 != 0.0f ) { /* Ignore self interactions */
-                    float fourh2 = ifourh2;
-                    if (d2 > fourh2) fourh2 = d2;
-                    float dir = rsqrtf(fourh2);
-                    float dir2 = dir*dir;
-                    float dir3 = dir2*dir;
-                    if (d2 < fourh2) {
-                        /*
-                        ** This uses the Dehnen K1 kernel function now, it's fast!
-                        */
-                        dir2 *= d2;
-                        dir2 = 1.0f - dir2;
-                        dir *= 1.0f + dir2*(0.5f + dir2*(3.0f/8.0f + dir2*(45.0f/32.0f)));
-                        dir3 *= 1.0f + dir2*(1.5f + dir2*(135.0f/16.0f));
-                        }
-                    dir3 *= -iM;
-                    ax = dx * dir3;
-                    ay = dy * dir3;
-                    az = dz * dir3;
-                    fPot = -iM*dir;
-                    /*
-                    ** Calculations for determining the timestep.
-                    */
-                    if (bGravStep) {
-                        float adotai;
-                        adotai = iax*ax + iay*ay + iaz*az;
-                        if (adotai > 0.0f && d2 >= fSoft2 ) {
-                            adotai *= imaga;
-                            norm = adotai*adotai;
-                            dir *= norm;
-                            }
-                        }
-                    }
-#endif
                 }
             // Horizontal add within each warp -- no sychronization required
             warpReduceAndStore<float,32>(iTinW,ax,       &wX[i][iWarp]);
@@ -408,7 +245,6 @@ __global__ void cudaInteract(
             }
         }
     }
-#endif
 
 template <int nWarps,int nWarpsPerWU,int nSyncRate,int bGravStep>
 __global__ void cudaInteract(
@@ -530,96 +366,14 @@ __global__ void cudaInteract(
 		float Paz = Particles.P[threadIdx.z][i].az;
 		float fSoft2 = Particles.P[threadIdx.z][i].fSoft2;
 		float Pimaga = Particles.P[threadIdx.z][i].dImaga;
-#if 1
-#warning 'This needs to be tested'
-	    EvalPC<float,bool,true>(
-		Pdx, Pdy, Pdz,fSoft2,
-		Idx, Idy, Idz, Im, Iu,
-		Ixxxx, Ixxxy, Ixxxz, Ixxyz, Ixxyy, Iyyyz, Ixyyz, Ixyyy, Iyyyy,
-		Ixxx, Ixyy, Ixxy, Iyyy, Ixxz, Iyyz, Ixyz, Ixx, Ixy, Ixz, Iyy, Iyz,
-		ax, ay, az, fPot,
-		Pax, Pay, Paz, Pimaga,
-		dirsum, norm);
-#else
-		const float onethird = 1.0f/3.0f;
-                float dx = Idx + Pdx;
-                float dy = Idy + Pdy;
-                float dz = Idz + Pdz;
-		float d2 = dx*dx + dy*dy + dz*dz;
-		float dir = rsqrtf(d2);
-		float u = Iu*dir;
-		float g1 = dir*u;
-		float g2 = 3.0f*g1*u;
-		float g3 = 5.0f*g2*u;
-		float g4 = 7.0f*g3*u;
-		/*
-		** Calculate the funky distance terms.
-		*/
-		float x = dx*dir;
-		float y = dy*dir;
-		float z = dz*dir;
-		float xx = 0.5f*x*x;
-		float xy = x*y;
-		float xz = x*z;
-		float yy = 0.5f*y*y;
-		float yz = y*z;
-		float zz = 0.5f*z*z;
-		float xxx = x*(onethird*xx - zz);
-		float xxz = z*(xx - onethird*zz);
-		float yyy = y*(onethird*yy - zz);
-		float yyz = z*(yy - onethird*zz);
-		xx -= zz;
-		yy -= zz;
-		float xxy = y*xx;
-		float xyy = x*yy;
-		float xyz = xy*z;
-
-	    /*
-	    ** Now calculate the interaction up to Hexadecapole order.
-	    */
-		float tx = g4*(Ixxxx*xxx + Ixyyy*yyy + Ixxxy*xxy + Ixxxz*xxz + Ixxyy*xyy + Ixxyz*xyz + Ixyyz*yyz);
-		float ty = g4*(Ixyyy*xyy + Ixxxy*xxx + Iyyyy*yyy + Iyyyz*yyz + Ixxyy*xxy + Ixxyz*xxz + Ixyyz*xyz);
-		float tz = g4*(-Ixxxx*xxz - (Ixyyy + Ixxxy)*xyz - Iyyyy*yyz + Ixxxz*xxx + Iyyyz*yyy - Ixxyy*(xxz + yyz) + Ixxyz*xxy + Ixyyz*xyy);
-		g4 = 0.25f*(tx*x + ty*y + tz*z);
-		xxx = g3*(Ixxx*xx + Ixyy*yy + Ixxy*xy + Ixxz*xz + Ixyz*yz);
-		xxy = g3*(Ixyy*xy + Ixxy*xx + Iyyy*yy + Iyyz*yz + Ixyz*xz);
-		xxz = g3*(-(Ixxx + Ixyy)*xz - (Ixxy + Iyyy)*yz + Ixxz*xx + Iyyz*yy + Ixyz*xy);
-		g3 = onethird*(xxx*x + xxy*y + xxz*z);
-		xx = g2*(Ixx*x + Ixy*y + Ixz*z);
-		xy = g2*(Iyy*y + Ixy*x + Iyz*z);
-		xz = g2*(-(Ixx + Iyy)*z + Ixz*x + Iyz*y);
-		g2 = 0.5f*(xx*x + xy*y + xz*z);
-		float g0 = dir * Im;
-		fPot = -(g0 + g2 + g3 + g4);
-		g0 += 5.0f*g2 + 7.0f*g3 + 9.0f*g4;
-#ifdef USE_DIAPOLE
-		yy = g1*Ix;
-		yz = g1*Iy;
-		zz = g1*Iz;
-		g1 = yy*x + yz*y + zz*z;
-		fPot -= g1;
-		g0 += 3.0f*g1; 
-#else
-		yy = 0.0f;
-		yz = 0.0f;
-		zz = 0.0f;
-#endif
-		ax = dir*(yy + xx + xxx + tx - x*g0);
-		ay = dir*(yz + xy + xxy + ty - y*g0);
-		az = dir*(zz + xz + xxz + tz - z*g0);
-                /*
-                ** Calculations for determining the timestep.
-                */
-                if (bGravStep) {
-                    float adotai;
-                    adotai = Pax*ax + Pay*ay + Paz*az;
-                    if (adotai > 0.0f && d2 >= fSoft2 ) {
-                        adotai *= Pimaga;
-                        norm = adotai*adotai;
-                        dirsum = dir*norm;
-                        }
-                    }
-#endif
+		EvalPC<float,bool,true>(
+		    Pdx, Pdy, Pdz,fSoft2,
+		    Idx, Idy, Idz, Im, Iu,
+		    Ixxxx, Ixxxy, Ixxxz, Ixxyz, Ixxyy, Iyyyz, Ixyyz, Ixyyy, Iyyyy,
+		    Ixxx, Ixyy, Ixxy, Iyyy, Ixxz, Iyyz, Ixyz, Ixx, Ixy, Ixz, Iyy, Iyz,
+		    ax, ay, az, fPot,
+		    Pax, Pay, Paz, Pimaga,
+		    dirsum, norm);
                 }
             // Horizontal add within each warp -- no sychronization required
             warpReduceAndStore<float,32>(iTinW,ax,     &wX[i][iWarp]);

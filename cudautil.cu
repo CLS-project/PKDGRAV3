@@ -448,7 +448,7 @@ void CUDA_SetQueueSize(void *vcuda,int cudaSize, int inCudaBufSize, int outCudaB
     CUDAwqNode *work;
     cuda->inCudaBufSize = inCudaBufSize;
     cuda->outCudaBufSize = outCudaBufSize;
-    cuda->nWorkQueueSize = cudaSize < 6 ? 6 : cudaSize;
+    cuda->nWorkQueueSize = cudaSize = cudaSize && cudaSize < 6 ? 6 : cudaSize;
     int hostBufSize = cuda->inCudaBufSize > cuda->outCudaBufSize ? cuda->inCudaBufSize : cuda->outCudaBufSize;
     while(cudaSize--) {
         work = reinterpret_cast<CUDAwqNode *>(malloc(sizeof(CUDAwqNode)));

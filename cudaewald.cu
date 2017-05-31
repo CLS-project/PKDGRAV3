@@ -339,7 +339,7 @@ void cudaEwaldInit(void *cudaCtx, struct EwaldVariables *ewIn, EwaldTable *ewt )
     CUDACTX cuda = reinterpret_cast<CUDACTX>(cudaCtx);
     cuda->ewIn = ewIn;
     cuda->ewt = ewt;
-    if (cuda->iCore==0) {
+    if (cuda->nWorkQueueSize > 0 && cuda->iCore==0) {
 	assert(OPA_Queue_is_empty(&cuda->wqDone));
 #ifdef CUDA_STREAMS
 	CUDAwqNode *node = getNode(cuda);
