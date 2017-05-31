@@ -371,6 +371,9 @@ __global__ void cudaInteract(
 		    Idx, Idy, Idz, Im, Iu,
 		    Ixxxx, Ixxxy, Ixxxz, Ixxyz, Ixxyy, Iyyyz, Ixyyz, Ixyyy, Iyyyy,
 		    Ixxx, Ixyy, Ixxy, Iyyy, Ixxz, Iyyz, Ixyz, Ixx, Ixy, Ixz, Iyy, Iyz,
+#ifdef USE_DIAPOLE
+		    Ix, Iy, Iz,
+#endif
 		    ax, ay, az, fPot,
 		    Pax, Pay, Paz, Pimaga,
 		    dirsum, norm);
