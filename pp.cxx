@@ -59,7 +59,7 @@ void pkdGravEvalPP(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  PINF
     nSoft = 0;
     nIntr = nBlocks * ILP_PART_PER_BLK + nInLast;
     for( nLeft=nBlocks; nLeft >= 0; --nLeft,++blk ) {
-	int n = ((nLeft ? ILP_PART_PER_BLK : nInLast) + fvec::mask()) >> SIMD_BITS;
+	int n = (nLeft ? ILP_PART_PER_BLK : nInLast+fvec::mask()) >> SIMD_BITS;
 	for (j=0; j<n; ++j) {
 	    fvec Idx = blk->dx.p[j];
 	    fvec Idy = blk->dy.p[j];
