@@ -86,6 +86,9 @@ void pkdGravEvalPC(PINFOIN *pPart, int nBlocks, int nInLast, ILC_BLK *blk,  PINF
 		Idx, Idy, Idz, Im, Iu,
 		Ixxxx, Ixxxy, Ixxxz, Ixxyz, Ixxyy, Iyyyz, Ixyyz, Ixyyy, Iyyyy,
 		Ixxx, Ixyy, Ixxy, Iyyy, Ixxz, Iyyz, Ixyz, Ixx, Ixy, Ixz, Iyy, Iyz,
+#ifdef USE_DIAPOLE
+		Ix, Iy, Iz,
+#endif
 		tax, tay, taz, tpot,
 		Pax, Pay, Paz,imaga,
 		ir, norm);

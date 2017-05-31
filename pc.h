@@ -8,6 +8,9 @@ CUDA_DEVICE void EvalPC(
 	F Ixxxx,F Ixxxy,F Ixxxz,F Ixxyz,F Ixxyy,F Iyyyz,F Ixyyz,F Ixyyy,F Iyyyy,
 	F Ixxx,F Ixyy,F Ixxy,F Iyyy,F Ixxz,F Iyyz,F Ixyz,
 	F Ixx,F Ixy,F Ixz,F Iyy,F Iyz,
+#ifdef USE_DIAPOLE
+	F Ix, F Iy, F Iz,
+#endif
 	F &ax, F &ay, F &az, F &pot,     // Results
 	F Pax, F Pay, F Paz,F imaga,F &ir, F &norm) {
     const F onethird = 1.0f/3.0f;
