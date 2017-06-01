@@ -3,9 +3,9 @@
 #include <math.h>
 #include "simd.h"
 
-static const float vmath_DP1 = 2*0.78515625;
-static const float vmath_DP2 = 2*2.4187564849853515625e-4;
-static const float vmath_DP3 = 2*3.77489497744594108e-8;
+const float vmath_DP1 = 2*0.78515625;
+const float vmath_DP2 = 2*2.4187564849853515625e-4;
+const float vmath_DP3 = 2*3.77489497744594108e-8;
 
 static inline
 fvec sinf(const fvec &xx) {
@@ -100,16 +100,16 @@ static inline
 dvec exp(dvec x) {
     dvec d,xx,pow2n,Pexp,Qexp;
 
-    static const dvec C1 = 6.93145751953125E-1;
-    static const dvec C2 = 1.42860682030941723212E-6;
+    const dvec C1 = 6.93145751953125E-1;
+    const dvec C2 = 1.42860682030941723212E-6;
     /* exp polynomial table */
-    static const dvec p0 = 1.26177193074810590878E-4;
-    static const dvec p1 = 3.02994407707441961300E-2;
-    static const dvec p2 = 9.99999999999999999910E-1;
-    static const dvec q0 = 3.00198505138664455042E-6;
-    static const dvec q1= 2.52448340349684104192E-3;
-    static const dvec q2 = 2.27265548208155028766E-1;
-    static const dvec q3 = 2.00000000000000000009E0;
+    const dvec p0 = 1.26177193074810590878E-4;
+    const dvec p1 = 3.02994407707441961300E-2;
+    const dvec p2 = 9.99999999999999999910E-1;
+    const dvec q0 = 3.00198505138664455042E-6;
+    const dvec q1= 2.52448340349684104192E-3;
+    const dvec q2 = 2.27265548208155028766E-1;
+    const dvec q3 = 2.00000000000000000009E0;
 
     d = M_LOG2E * x;
 #if defined(__AVX512F__)
@@ -160,9 +160,9 @@ static inline
 dvec verf(dvec v,dvec iv,dvec ex2,dvec &r_erf,dvec &r_erfc) {
     dvec Perf,Qerf,v2;
     dvec t,nt;
-    static const dvec threshold0 = 0.65;
-    static const dvec threshold1 = 2.2;
-    static const dvec threshold2 = 6.0;
+    const dvec threshold0 = 0.65;
+    const dvec threshold1 = 2.2;
+    const dvec threshold2 = 6.0;
 
     dmask pred0 = v >= threshold0;
     dmask pred1 = v >= threshold1;
