@@ -512,28 +512,20 @@ typedef struct RhoLocalArray {
     double m;
     } RHOLOCAL;
 
-typedef union {
-    double *d;
-#if defined(USE_SIMD) && !defined(__CUDACC__)
-    v_df *p;
-#endif
-    uint64_t *i;
-    } ewaldDouble;
-
 #if defined(USE_SIMD) && !defined(__CUDACC__)
 typedef struct {
-    struct {
-	vdouble m;
-	vdouble xx,yy,xy,xz,yz;
-	vdouble xxx,xyy,xxy,yyy,xxz,yyz,xyz;
-	vdouble xxxx,xyyy,xxxy,yyyy,xxxz,yyyz,xxyy,xxyz,xyyz;
-	vdouble zz;
-	vdouble xzz,yzz,zzz;
-	vdouble xxzz,xyzz,xzzz,yyzz,yzzz,zzzz;
+    struct PMOMC {
+	v_df m;
+	v_df xx,yy,xy,xz,yz;
+	v_df xxx,xyy,xxy,yyy,xxz,yyz,xyz;
+	v_df xxxx,xyyy,xxxy,yyyy,xxxz,yyyz,xxyy,xxyz,xyyz;
+	v_df zz;
+	v_df xzz,yzz,zzz;
+	v_df xxzz,xyzz,xzzz,yyzz,yzzz,zzzz;
 	} ewm;
-    struct {
-	vdouble fEwCut2,fInner2,alpha,alpha2,ialpha,k1,ka;
-	vdouble Q4xx,Q4xy,Q4xz,Q4yy,Q4yz,Q4zz,Q4,Q3x,Q3y,Q3z,Q2;
+    struct PEWALDVARS {
+	v_df fEwCut2,fInner2,alpha,alpha2,ialpha,k1,ka;
+	v_df Q4xx,Q4xy,Q4xz,Q4yy,Q4yz,Q4zz,Q4,Q3x,Q3y,Q3z,Q2;
 	} ewp;
     } ewaldSIMD;
 #endif

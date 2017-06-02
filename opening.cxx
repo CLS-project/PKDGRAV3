@@ -85,7 +85,7 @@ void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin ) {
     k_z = k_r[2];
     k_bMax = k->bMax;
 //    k_notgrp = SIMD_I2F(SIMD_SPLATI32(k->bGroup?0:0xffffffff));
-    k_notgrp = cvt_fvec(k->bGroup) == 0.0;
+    k_notgrp = cvt_fvec(i32v(k->bGroup)) == 0.0;
     k_Open = 1.5f*k_bMax*diCrit;
 
     blk = tile->blk;

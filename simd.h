@@ -567,6 +567,9 @@ typedef mmask<__mmask8> dmask;
 inline i32v cvt_i32v(const fvec &a) { return i32v(_mm512_cvtps_epi32(a)); }
 //inline i64v cvt_i64v(const fvec &a) { return i64v(_mm512_cvtps_epi64(a)); }
 inline fvec cvt_fvec(const i32v &a) { return fvec(_mm512_cvtepi32_ps(a)); }
+inline fvec cvt_fvec(const dvec &a) { return fvec(_mm512_castps256_ps512(_mm512_cvtpd_ps(a))); }
+//#define SIMD_D2F(a) MM_FCN(castps256,ps512)(MM_FCN(cvtpd,ps)(a))
+
 //inline fvec cvt_fvec(const i64v &a) { return fvec(_mm512_cvtepi64_ps(a)); }
 #elif defined(__AVX__) && defined(USE_SIMD)
 typedef vec<__m256i,int32_t> i32v;
@@ -577,6 +580,7 @@ typedef vec<__m256d,double> dvec;
 typedef vec<__m256d,double> dmask;
 inline i32v cvt_i32v(const fvec &a) { return i32v(_mm256_cvtps_epi32(a)); }
 inline fvec cvt_fvec(const i32v &a) { return fvec(_mm256_cvtepi32_ps(a)); }
+inline fvec cvt_fvec(const dvec &a) { return fvec(_mm256_castps128_ps256(_mm256_cvtpd_ps(a))); }
 #elif defined(__SSE__) && defined(USE_SIMD)
 typedef vec<__m128i,int32_t> i32v;
 typedef vec<__m128,float> fvec;
@@ -587,6 +591,7 @@ typedef vec<__m128d,double> dvec;
 typedef vec<__m128d,double> dmask;
 inline i32v cvt_i32v(const fvec &a) { return i32v(_mm_cvtps_epi32(a)); }
 inline fvec cvt_fvec(const i32v &a) { return fvec(_mm_cvtepi32_ps(a)); }
+inline fvec cvt_fvec(const dvec &a) { return fvec(_mm_cvtpd_ps(a)); }
 #endif/*__SSE2__*/
 #else/*__AVX512F__,__AVX__,__SSE2__*/
 typedef vec<int32_t,int32_t> i32v;
@@ -596,6 +601,7 @@ typedef mmask<bool> fmask;
 typedef mmask<bool> dmask;
 inline i32v cvt_i32v(const fvec &a) { return i32v((int32_t)a); }
 inline fvec cvt_fvec(const i32v &a) { return fvec((float)a); }
+inline fvec cvt_fvec(const dvec &a) { return fvec((float)a); }
 #endif/*__AVX512F__,__AVX__,__SSE2__*/
 
 /**********************************************************************\
