@@ -133,8 +133,8 @@ void iOpenOutcomeSIMD(PKD pkd,KDN *k,CL cl,CLTILE tile,float dThetaMin ) {
 
 	    T0 = fvec(blk->m.p[i]) > fvec(0.0f);
 	    T1 = (d2>d2Open) & (minbnd2>fourh2);
-	    T2 = cvt_fvec(blk->iLower.p[i]) == 0.0;
-	    T3 = (walk_min_multipole > cvt_fvec(blk->nc.p[i])) | (mink2<=cOpen2);
+	    T2 = cvt_fvec(i32v(blk->iLower.p[i])) == 0.0;
+	    T3 = (walk_min_multipole > cvt_fvec(i32v(blk->nc.p[i]))) | (mink2<=cOpen2);
 	    T4 = minbnd2 > fourh2;
 	    T6 = cOpen > k_Open;
 	    T7 = k_notgrp;
