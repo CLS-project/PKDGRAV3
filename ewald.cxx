@@ -79,7 +79,6 @@ double evalEwaldSIMD( PKD pkd,ewaldSIMD *ews,
     dvec Q3mirx,Q3miry,Q3mirz,Q3mir,Q2mirx,Q2miry,Q2mirz,Q2mir;
     dvec rerf,rerfc,ex2,t,tx,ty,tz,tpot;
     dvec alpha2x2 = 2.0 * dvec(ews->ewp.alpha2);
-    const double onethird = 1.0 / 3.0;
     dvec x=Ix, y=Iy, z=Iz, r2=Ir2;
 
     dir = rsqrt(r2);
