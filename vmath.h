@@ -168,7 +168,7 @@ dvec verf(dvec v,dvec iv,dvec ex2,dvec &r_erf,dvec &r_erfc) {
     dmask pred1 = v >= threshold1;
     dmask pred2 = v >= threshold2;
 
-static const struct CONSTS {
+const struct CONSTS {
 #if defined(__AVX512F__)
     vdouble p0,p1,p2,p3,p4,p5,q0,q1,q2,q3,q4,q5;
     vint64 one,two;
@@ -222,7 +222,7 @@ static const struct CONSTS {
 #elif defined(__AVX__)
 #define SET_PREFACTOR(q) dvec q = _mm256_blendv_pd(_mm256_permutevar_pd(consts.q##ab.p,SIMD_D2I(pred0)),_mm256_permutevar_pd(consts.q##cd.p,SIMD_D2I(pred2)),pred1)
 #else
-#define SET_PREFACTOR(q) dvec q = SIMD_DADD(SIMD_DADD(consts.q##a.p,SIMD_DAND(pred0,consts.q##b.p)),SIMD_DADD(SIMD_DAND(pred1,consts.q##c.p),SIMD_DAND(pred2,consts.q##d.p)))
+#define SET_PREFACTOR(q) dvec q = consts.q##a.p + (pred0&consts.q##b.p) + (pred1&consts.q##c.p) + (pred2&consts.q##d.p)
 #endif
 
 #if defined(__AVX512F__)
