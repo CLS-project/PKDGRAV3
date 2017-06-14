@@ -9,6 +9,7 @@
 #include "pkd.h"
 
 #define SHAPES
+#define USE_PCS /* USE_PCS USE_TSC USE_CIC USE_NGP */
 
 static void transpose(double mat[3][3],double trans_mat[3][3]) {
     int i,j ;
@@ -753,19 +754,18 @@ static inline float pow2(float x) {
 ** this cell can be found and accumulate mass into it.
 */
 static void cell_accumulate(PKD pkd, MDLFFT fft,int x,int y,int z, float m) {
-    FFTW3(real) *p;
-    int id, idx;
-
-    //assert ( x>=0 && y>=0 && z>=0 && x<fft->rgrid->n1 && y<fft->rgrid->n2 && z<fft->rgrid->n3 );
-
-    /* Map coordinate to processor/index */
-    id = mdlFFTrId(pkd->mdl,fft,x,y,z);
-    idx = mdlFFTrIdx(pkd->mdl,fft,x,y,z);
-    p = mdlVirtualFetch(pkd->mdl,CID_PK,idx,id);
-    *p += m;
+    if (m>0.0f) {
+	FFTW3(real) *p;
+	int id, idx;
+	/* Map coordinate to processor/index */
+	id = mdlFFTrId(pkd->mdl,fft,x,y,z);
+	idx = mdlFFTrIdx(pkd->mdl,fft,x,y,z);
+	p = mdlVirtualFetch(pkd->mdl,CID_PK,idx,id);
+	*p += m;
+	}
     }
 
-#if defined(DO_NOT_USE_NGP)
+#if defined(USE_NGP)
 static void ngp_assign(PKD pkd, MDLFFT fft, int nGrid,
                        double x, double y, double z, float mass) {
     int           ix, iy, iz;
@@ -779,7 +779,6 @@ static void ngp_assign(PKD pkd, MDLFFT fft, int nGrid,
     if (ix==nGrid) ix = nGrid-1;
     if (iy==nGrid) iy = nGrid-1;
     if (iz==nGrid) iz = nGrid-1;
-
     cell_accumulate(pkd,fft,ix,iy,iz,mass);
     }
 #elif defined(USE_CIC)
@@ -821,7 +820,7 @@ static void cic_assign(PKD pkd, MDLFFT fft, int nGrid,
 	    }
 	}
 }
-#else
+#elif defined(USE_CIC)
 
 static void tsc_weights(int ii[3][3],float H[3][3],const double r[3], int nGrid) {
     int d;
@@ -857,18 +856,66 @@ static void tsc_assign(PKD pkd, MDLFFT fft, int nGrid,
 	    }
 	}
     }
+
+#else
+
+static inline float pow3(float x) {
+    return x*x*x;
+    }
+
+static void pcs_weights(int ii[5][5],float H[5][5],const double r[3], int nGrid) {
+    int d,i;
+    float rr, h;
+    for(d=0; d<3; ++d) {
+	rr = r[d] * (float)(nGrid);                 /* coordinates in subcube units [0,NGRID] */
+	int g = (int)(rr);                          /* index of nearest grid point [0,NGRID] */
+	if (g==nGrid) g = nGrid-1;                  /* If very close to 1.0, it could round up, so correct */
+	h = (rr-0.5) - (float)g;                    /* distance to nearest grid point */
+	for(i=0; i<5; ++i) {			    /* Note: either [0] or [4] (or both) will have weight of zero */
+	    float s = fabs(h + i - 2);
+	    ii[d][i] = wrap(g + i - 2,nGrid);         /* keep track of periodic boundaries */
+	    if ( s < 1.0f ) H[d][i] = 1.0f/6.0f * ( 4.0f - 6.0f*s*s + 3.0f*s*s*s);
+	    else if ( s < 2.0f ) H[d][i] = 1.0f/6.0f * pow3(2.0f - s);
+	    else H[d][i] = 0.0f;
+	    }
+	}
+    }
+
+static void pcs_assign(PKD pkd, MDLFFT fft, int nGrid,
+		       double x, double y, double z, float mass) {
+    double r[] = {x,y,z};
+    int    ii[3][5];
+    float  H[3][5];
+    int    i,j,k;
+
+    pcs_weights(ii,H,r,nGrid);
+
+    /* assign particle according to weights to 27 neighboring nodes */
+    for(i=0; i<5; ++i) {
+	for(j=0; j<5; ++j) {
+	    for(k=0; k<5; ++k) {
+		cell_accumulate(pkd,fft,ii[0][i],ii[1][j],ii[2][k],H[0][i]*H[1][j]*H[2][k] * mass);
+		}
+	    }
+	}
+    }
+
+
+
 #endif
 
 static double deconvolveWindow(int i,int nGrid) {
     double win = M_PI * i / nGrid;
     if(win>0.1) win = sin(win)/win;
     else win=1.0-win*win/6.0*(1.0-win*win/20.0*(1.0-win*win/76.0));
-#if defined(DO_NOT_USE_NGP)
+#if defined(USE_NGP)
     return win;
 #elif defined(USE_CIC)
     return win*win;
-#else
+#elif defined(USE_TSC)
     return win*win*win;
+#else
+    return win*win*win*win;
 #endif
     }
 
@@ -940,12 +987,14 @@ void pkdMeasurePk(PKD pkd, double dCenter[3], double dRadius, double dTotalMass,
 	** then this particle is outside of the given box and should be ignored.
 	*/
 	assert( r[0]>=0.0 && r[0]<1.0 && r[1]>=0.0 && r[1]<1.0 && r[2]>=0.0 && r[2]<1.0 );
-#if defined(DO_NOT_USE_NGP)
+#if defined(USE_NGP)
 	ngp_assign(pkd, fft, nGrid, r[0], r[1], r[2], pkdMass(pkd,p));
 #elif defined(USE_CIC)
 	cic_assign(pkd, fft, nGrid, r[0], r[1], r[2], pkdMass(pkd,p));
-#else
+#elif defined(USE_TSC)
 	tsc_assign(pkd, fft, nGrid, r[0], r[1], r[2], pkdMass(pkd,p));
+#else
+	pcs_assign(pkd, fft, nGrid, r[0], r[1], r[2], pkdMass(pkd,p));
 #endif
 	}
     mdlFinishCache(pkd->mdl,CID_PK);
