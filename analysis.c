@@ -820,7 +820,7 @@ static void cic_assign(PKD pkd, MDLFFT fft, int nGrid,
 	    }
 	}
 }
-#elif defined(USE_CIC)
+#elif defined(USE_TSC)
 
 static void tsc_weights(int ii[3][3],float H[3][3],const double r[3], int nGrid) {
     int d;
