@@ -366,6 +366,10 @@ void * master_ch(MDL mdl) {
 	    if (bDoOutput) {
 		msrOutput(msr,iStep,dTime,0);
 		bDoOutput = 0;
+		if (msr->param.bNewKDK) {
+		    msrDomainDecomp(msr,0,0,0);
+		    msrBuildTree(msr,dTime,msr->param.bEwald);
+		    }
 		}
 	    }
 	if (msrLogInterval(msr)) (void) fclose(fpLog);

@@ -512,28 +512,20 @@ typedef struct RhoLocalArray {
     double m;
     } RHOLOCAL;
 
-typedef union {
-    double *d;
-#if defined(USE_SIMD) && !defined(__CUDACC__)
-    v_df *p;
-#endif
-    uint64_t *i;
-    } ewaldDouble;
-
 #if defined(USE_SIMD) && !defined(__CUDACC__)
 typedef struct {
-    struct {
-	vdouble m;
-	vdouble xx,yy,xy,xz,yz;
-	vdouble xxx,xyy,xxy,yyy,xxz,yyz,xyz;
-	vdouble xxxx,xyyy,xxxy,yyyy,xxxz,yyyz,xxyy,xxyz,xyyz;
-	vdouble zz;
-	vdouble xzz,yzz,zzz;
-	vdouble xxzz,xyzz,xzzz,yyzz,yzzz,zzzz;
+    struct PMOMC {
+	v_df m;
+	v_df xx,yy,xy,xz,yz;
+	v_df xxx,xyy,xxy,yyy,xxz,yyz,xyz;
+	v_df xxxx,xyyy,xxxy,yyyy,xxxz,yyyz,xxyy,xxyz,xyyz;
+	v_df zz;
+	v_df xzz,yzz,zzz;
+	v_df xxzz,xyzz,xzzz,yyzz,yzzz,zzzz;
 	} ewm;
-    struct {
-	vdouble fEwCut2,fInner2,alpha,alpha2,ialpha,k1,ka;
-	vdouble Q4xx,Q4xy,Q4xz,Q4yy,Q4yz,Q4zz,Q4,Q3x,Q3y,Q3z,Q2;
+    struct PEWALDVARS {
+	v_df fEwCut2,fInner2,alpha,alpha2,ialpha,k1,ka;
+	v_df Q4xx,Q4xy,Q4xz,Q4yy,Q4yz,Q4zz,Q4,Q3x,Q3y,Q3z,Q2;
 	} ewp;
     } ewaldSIMD;
 #endif
@@ -1445,9 +1437,14 @@ void pkdGravAll(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,
     double *pdFlop,uint64_t *pnRung);
 void pkdCalcEandL(PKD pkd,double *T,double *U,double *Eth,double *L,double *F,double *W);
 #ifdef __cplusplus
-extern "C"
+extern "C" {
 #endif
 void pkdProcessLightCone(PKD pkd,PARTICLE *p,float fPot,double dLookbackFac,double dLookbackFacLCP,double dDriftDelta,double dKickDelta);
+void pkdGravEvalPP(PINFOIN *pPart, int nBlocks, int nInLast, ILP_BLK *blk,  PINFOOUT *pOut );
+void pkdGravEvalPC(PINFOIN *pPart, int nBlocks, int nInLast, ILC_BLK *blk,  PINFOOUT *pOut );
+#ifdef __cplusplus
+}
+#endif
 void pkdDrift(PKD pkd,int iRoot,double dTime,double dDelta,double,double);
 void pkdScaleVel(PKD pkd,double dvFac);
 void pkdStepVeryActiveKDK(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dStep, double dTime, double dDelta,
@@ -1571,7 +1568,7 @@ void pkdCalcCOM(PKD pkd, double *dCenter, double dRadius,
 void pkdGridInitialize(PKD pkd, int n1, int n2, int n3, int a1, int s, int n);
 void pkdGridProject(PKD pkd);
 #ifdef MDL_FFTW
-void pkdMeasurePk(PKD pkd, double dCenter[3], double dRadius, double dTotalMass,
+void pkdMeasurePk(PKD pkd, double dTotalMass,
     int nGrid, int nBins, double *fK, double *fPower, uint64_t *nPower);
 #endif
 void pkdOutPsGroup(PKD pkd,char *pszFileName,int iType);

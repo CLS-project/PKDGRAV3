@@ -1383,8 +1383,6 @@ void pstGridProject(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 #define PST_MAX_K_BINS 1024
 /* PST_MEASUREPK */
 struct inMeasurePk {
-    double dCenter[3];
-    double dRadius;
     double dTotalMass;
     int nGrid;
     int nBins;

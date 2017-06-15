@@ -263,7 +263,8 @@ void msrInitializePStore(MSR msr, uint64_t *nSpecies) {
 	int n;
 	inFFTSizes.nx = inFFTSizes.ny = inFFTSizes.nz = msr->param.nGridPk;
 	pstGetFFTMaxSizes(msr->pst,&inFFTSizes,sizeof(inFFTSizes),&outFFTSizes,&n);
-	ps.nMinEphemeral = outFFTSizes.nMaxLocal*sizeof(FFTW3(real));
+	/* The new MeasurePk requires two FFTs to eliminate aliasing */
+	ps.nMinEphemeral = 2*outFFTSizes.nMaxLocal*sizeof(FFTW3(real));
 	}
     if (msr->param.nGrid>0) {
 	struct inGetFFTMaxSizes inFFTSizes;
@@ -5585,7 +5586,6 @@ void msrOutputPk(MSR msr,int iStep,double dTime) {
 #else
     char achFile[PATH_MAX];
 #endif
-    double dCenter[3] = {0.0,0.0,0.0};
     float *fK, *fPk;
     double a, vfact, kfact;
     FILE *fp;
@@ -5598,7 +5598,7 @@ void msrOutputPk(MSR msr,int iStep,double dTime) {
     fPk = malloc(sizeof(float)*(msr->param.nBinsPk));
     assert(fPk != NULL);
 
-    msrMeasurePk(msr,dCenter,0.5,msr->param.nGridPk,msr->param.nBinsPk,fK,fPk);
+    msrMeasurePk(msr,msr->param.nGridPk,msr->param.nBinsPk,fK,fPk);
 
     msrBuildName(msr,achFile,iStep);
     strncat(achFile,".pk",256);
@@ -6315,7 +6315,7 @@ void msrGridProject(MSR msr,double x,double y,double z) {
     }
 
 #ifdef MDL_FFTW
-void msrMeasurePk(MSR msr,double *dCenter,double dRadius,int nGrid,int nBins,float *fK,float *fPk) {
+void msrMeasurePk(MSR msr,int nGrid,int nBins,float *fK,float *fPk) {
     struct inMeasurePk in;
     struct outMeasurePk *out;
     int nOut;
@@ -6334,10 +6334,6 @@ void msrMeasurePk(MSR msr,double *dCenter,double dRadius,int nGrid,int nBins,flo
     /* NOTE: reordering the particles by their z coordinate would be good here */
     in.nGrid = nGrid;
     in.nBins = nBins ;
-    in.dCenter[0] = dCenter[0];
-    in.dCenter[1] = dCenter[1];
-    in.dCenter[2] = dCenter[2];
-    in.dRadius = dRadius;
     in.dTotalMass = msrTotalMass(msr);
 
     out = malloc(sizeof(struct outMeasurePk));

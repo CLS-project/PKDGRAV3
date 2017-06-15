@@ -38,8 +38,8 @@ clean-local:
 
 SOURCES = main.c tree.c analysis.c romberg.c bt.c
 noinst_HEADERS = bt.h parameters.h grav.h walk.h cycle.h tipsydefs.h basetype.h vqsort.h
-SOURCES        += cosmo.c master.c param.c pst.c smooth.c ewald.c
-noinst_HEADERS += cosmo.h master.h param.h pst.h smooth.h ewald.h meval.h qeval.h
+SOURCES        += cosmo.c master.c param.c pst.c smooth.c ewald.cxx opening.cxx pp.cxx pc.cxx
+noinst_HEADERS += cosmo.h master.h param.h pst.h smooth.h ewald.h pp.h pc.h meval.h qeval.h
 SOURCES        += moments.c intype.c outtype.c pkd.c smoothfcn.c rbtree.c fio.c listcomp.c illinois.c iomodule.c output.c
 noinst_HEADERS += moments.h intype.h outtype.h pkd.h smoothfcn.h rbtree.h fio.h listcomp.h illinois.h iomodule.h output.h
 if COOLING
@@ -70,7 +70,7 @@ noinst_HEADERS += lightcone.h
 endif
 AM_CFLAGS = @SIMD_CFLAGS@
 AM_CXXFLAGS = @SIMD_CFLAGS@
-noinst_HEADERS += simd.h sse_mathfun.h avx_mathfun.h
+noinst_HEADERS += simd.h vmath.h
 endif
 MDL=@MDL_PATH@
 if USE_PNG
@@ -131,6 +131,9 @@ else
 if USE_AIO
 pkdgrav3_mpi_LDADD += -lrt
 endif
+endif
+if HAVE_MEMKIND
+pkdgrav3_mpi_LDADD += -lmemkind
 endif
 if USE_EFENCE
 if HAVE_EFENCE_PATH
@@ -197,6 +200,6 @@ hpb2fits_SOURCES = hpb2fits.c
 lcp2tip_SOURCES = lcp2tip.c
 
 if HAVE_CFITSIO_PATH
-hpb2fits_LDADD = -L@CFITSIO_PATH@/lib -lcfitsio -lm
+hpb2fits_LDADD = -L@CFITSIO_PATH@/lib -lcfitsio
 hpb2fits_CFLAGS = -I @CFITSIO_PATH@/include
 endif

@@ -151,19 +151,20 @@ void pkdProcessLightCone(PKD pkd,PARTICLE *p,float fPot,double dLookbackFac,doub
 	    dvec vrz1 = off2 + r1[2];
 	    dvec mr0 = vrx0*vrx0 + vry0*vry0 + vrz0*vrz0;
 	    dvec mr1 = vrx1*vrx1 + vry1*vry1 + vrz1*vrz1;
-	    int msk = movemask((t1 <= max(mr0,mr1)) & (t0 >= min(mr0,mr1)));
-	    if (msk) {
+	    dmask msk = (t1 <= max(mr0,mr1)) & (t0 >= min(mr0,mr1));
+	    if (!testz(msk)) {
 		mr0 = sqrt(mr0);
 		mr1 = sqrt(mr1);
 		dvec vx = (dLightSpeed*dlbt - mr0)/(dLightSpeed*dtApprox - mr0 + mr1);
-		msk = movemask(vx >= xStart & vx < 1.0);
-		if (msk) {
+		msk = (vx >= xStart & vx < 1.0);
+		if (!testz(msk)) {
 		    dvec vr[3];
 		    vr[0] = (1.0-vx)*vrx0 + vx*vrx1;
 		    vr[1] = (1.0-vx)*vry0 + vx*vry1;
 		    vr[2] = (1.0-vx)*vrz0 + vx*vrz1;
+		    int m = movemask(msk);
 		    for(int j=0; j<dvec::width(); ++j) {
-			if (msk & (1<<j)) {
+			if (m & (1<<j)) {
 			    double r[3];
 			    r[0] = vr[0][j];
 			    r[1] = vr[1][j];

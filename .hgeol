@@ -1,9 +1,0 @@
-[patterns]
-windows/** = CRLF
-**.c = native
-**.h = native
-**.py = native
-AUTHORS = LF
-ChangeLog = LF
-NEWS = LF
-README = LF

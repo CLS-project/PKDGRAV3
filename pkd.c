@@ -2716,11 +2716,8 @@ void pkdStepVeryActiveKDK(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dStep, 
 	    }
 
 	}
-    if (iRung > iRungVeryActive) {	/* skip this if we are
-					   entering for the first
-					   time: Kick is taken care of
-					   in master().
-					*/
+    /* skip this if we are entering for the first time: Kick is taken care of in master(). */
+    if (iRung > iRungVeryActive) {
 	if (pkd->param.bVDetails) {
 	    printf("%*cVeryActive pkdKickOpen  at iRung: %d, 0.5*dDelta: %g\n",
 		   2*iRung+2,' ',iRung,0.5*dDelta);
@@ -2765,12 +2762,8 @@ void pkdStepVeryActiveKDK(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dStep, 
 	dTime += dDelta;
 	dStep += 1.0/(1 << iRung);
 
-	if (iKickRung > iRungVeryActive) {	/* skip this if we are
-						   entering for the first
-						   time: Kick is taken care of
-						   in master().
-						*/
-
+	/* skip this if we are entering for the first time: Kick is taken care of in master(). */
+	if (iKickRung > iRungVeryActive) {
 	    if (pkd->param.bVDetails) {
 		printf("%*cGravityVA: iRung %d Gravity for rungs %d to %d ... ",
 		       2*iRung+2,' ',iRung,iKickRung,*pnMaxRung);
@@ -2788,11 +2781,8 @@ void pkdStepVeryActiveKDK(PKD pkd,uint8_t uRungLo,uint8_t uRungHi,double dStep, 
 	 */
 	dTime -= 0.5*dDelta;
 	}
-    if (iKickRung > iRungVeryActive) {	/* skip this if we are
-						   entering for the first
-						   time: Kick is taken care of
-						   in master().
-						*/
+    /* skip this if we are entering for the first time: Kick is taken care of in master(). */
+    if (iKickRung > iRungVeryActive) {
 	if (pkd->param.bVDetails) {
 	    printf("%*cVeryActive pkdKickClose at iRung: %d, 0.5*dDelta: %g\n",
 		   2*iRung+2,' ',iRung,0.5*dDelta);

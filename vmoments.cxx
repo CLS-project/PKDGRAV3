@@ -145,7 +145,7 @@ double momFlocrSetVFmomr5cm(FLOCR *l,float v1,ILC ill,const float *a,float *pfdi
 
 		R4x = u4*(blk->xxxx.p[j]*xxx + blk->xyyy.p[j]*yyy + blk->xxxy.p[j]*xxy + blk->xxxz.p[j]*xxz + blk->xxyy.p[j]*xyy + blk->xxyz.p[j]*xyz + blk->xyyz.p[j]*yyz);
 		R4y = u4*(blk->xyyy.p[j]*xyy + blk->xxxy.p[j]*xxx + blk->yyyy.p[j]*yyy + blk->yyyz.p[j]*yyz + blk->xxyy.p[j]*xxy + blk->xxyz.p[j]*xxz + blk->xyyz.p[j]*xyz);
-		R4z = u4*(-blk->xxxx.p[j]*xxz - (fvec(blk->xyyy.p[j]) + blk->xxxy.p[j])*xyz - blk->yyyy.p[j]*yyz + blk->xxxz.p[j]*xxx + blk->yyyz.p[j]*yyy - blk->xxyy.p[j]*(xxz + yyz) + blk->xxyz.p[j]*xxy + blk->xyyz.p[j]*xyy);
+		R4z = u4*(-fvec(blk->xxxx.p[j])*xxz - (fvec(blk->xyyy.p[j]) + blk->xxxy.p[j])*xyz - blk->yyyy.p[j]*yyz + blk->xxxz.p[j]*xxx + blk->yyyz.p[j]*yyy - blk->xxyy.p[j]*(xxz + yyz) + blk->xxyz.p[j]*xxy + blk->xyyz.p[j]*xyy);
 
 
 		R3x = 0.5f*(x*R3xx + y*R3xy + z*R3xz);
@@ -174,7 +174,8 @@ double momFlocrSetVFmomr5cm(FLOCR *l,float v1,ILC ill,const float *a,float *pfdi
 		vaz = dir*(T0*z + 0.2f*R2z + R3z + R4z);
 
 		fvec adotai = a[0]*vax + a[1]*vay + a[2]*vaz;
-		adotai &= adotai > 0.0f;
+		adotai = maskz_mov(adotai > 0.0f,adotai);
+//		adotai &= adotai > 0.0f;
 		adotai *= vimaga;
 		fvec vd2 = adotai * adotai;
 		vdirLsum += sdir * vd2;

@@ -1,22 +1,21 @@
 #!/bin/bash
 # This script will reformat all of the source files in the current
 # directory with Artistic Style, a C/C++ code formatter.
+# This conformes to the pkdgrav3 style.
 #
 # http://astyle.sourceforge.net/
-ASTYLE=~/code/astyle/bin/astyle
+ASTYLE=~/code/astyle/build/gcc/bin/astyle
+OPTION="--style=banner --keep-one-line-blocks --keep-one-line-statements --attach-closing-while --lineend=linux --indent=force-tab-x=8"
 if [ ! -x $ASTYLE ] ; then
     echo "Invalid image: $ASTYLE"
     exit 1
-fi 
-
-for F in *.[ch] *.[ch]pp ; do
-    if [ ! -e ${F}.orig ] ; then
-	echo Beautifying $F
-	mv ${F} ${F}.orig &&
-	$ASTYLE --style=ansi -BLaoy <${F}.orig | unexpand >${F}.new &&
-	mv ${F}.new ${F} ||
-	echo ERROR: Could not beautify $F
-    else
-	echo "Skipping $F (remove ${F}.orig)"
-    fi
-done
+fi
+FILES=$(git ls-files | egrep '^[a-zA-Z0-9]+\.(c|h|cxx)$')
+if git diff-index --quiet HEAD $FILES ; then
+  $ASTYLE $OPTION $FILES
+  git diff --color -w $FILES
+else
+  echo "error: Your local changes to the following files would be overwritten by beautify:"
+  git status $FILES
+  echo "Please, commit your changes or stash them before you can beautify."
+fi
