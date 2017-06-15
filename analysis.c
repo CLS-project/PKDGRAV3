@@ -863,7 +863,7 @@ static inline float pow3(float x) {
     return x*x*x;
     }
 
-static void pcs_weights(int ii[3][4],float H[3][4],const double r[3], int nGrid) {
+static void pcs_weights(int ii[3][5],float H[3][5],const double r[3], int nGrid) {
     int d,i;
     float rr, h;
     for(d=0; d<3; ++d) {
@@ -871,10 +871,9 @@ static void pcs_weights(int ii[3][4],float H[3][4],const double r[3], int nGrid)
 	int g = (int)(rr);                          /* index of nearest grid point [0,NGRID] */
 	if (g==nGrid) g = nGrid-1;                  /* If very close to 1.0, it could round up, so correct */
 	h = (rr-0.5) - (float)g;                    /* distance to nearest grid point */
-	int b = (h>=0.0?0:1) - 2;
-	for(i=0; i<4; ++i) {
-	    float s = fabs(h + i + b);
-	    ii[d][i] = wrap(g + i + b,nGrid);       /* keep track of periodic boundaries */
+	for(i=0; i<5; ++i) {
+	    float s = fabs(i - 2 - h );
+	    ii[d][i] = wrap(i - 2 + g,nGrid);       /* keep track of periodic boundaries */
 	    if ( s < 1.0f ) H[d][i] = 1.0f/6.0f * ( 4.0f - 6.0f*s*s + 3.0f*s*s*s);
 	    else if ( s < 2.0f ) H[d][i] = 1.0f/6.0f * pow3(2.0f - s);
 	    else H[d][i] = 0.0f;
@@ -885,16 +884,16 @@ static void pcs_weights(int ii[3][4],float H[3][4],const double r[3], int nGrid)
 static void pcs_assign(PKD pkd, MDLFFT fft, int nGrid,
 		       double x, double y, double z, float mass) {
     double r[] = {x,y,z};
-    int    ii[3][4];
-    float  H[3][4];
+    int    ii[3][5];
+    float  H[3][5];
     int    i,j,k;
 
     pcs_weights(ii,H,r,nGrid);
 
     /* assign particle according to weights to 27 neighboring nodes */
-    for(i=0; i<4; ++i) {
-	for(j=0; j<4; ++j) {
-	    for(k=0; k<4; ++k) {
+    for(i=0; i<5; ++i) {
+	for(j=0; j<5; ++j) {
+	    for(k=0; k<5; ++k) {
 		cell_accumulate(pkd,fft,ii[0][i],ii[1][j],ii[2][k],H[0][i]*H[1][j]*H[2][k] * mass);
 		}
 	    }
@@ -919,7 +918,7 @@ static double deconvolveWindow(int i,int nGrid) {
     return win*win*win*win;
 #endif
     }
-
+#if 0
 static inline int pkd_grid_order(PKD pkd,void *a,void *b,int nGrid) {
     PARTICLE *pa = a;
     PARTICLE *pb = b;
@@ -935,53 +934,27 @@ static inline int pkd_grid_order(PKD pkd,void *a,void *b,int nGrid) {
     i2 = nGrid * (pkdPos(pkd,pb,1) + 0.5);
     return i1 < i2;
     }
-
 #define qsort_lt(a,b) pkd_grid_order(pkd,a,b,nGrid)
+#endif
 
-void pkdMeasurePk(PKD pkd, double dCenter[3], double dRadius, double dTotalMass,
-    int nGrid, int nBins, double *fK, double *fPower, uint64_t *nPower) {
-    PARTICLE *p;
-    MDLFFT fft;
-    mdlGridCoord first, last, index;
-    FFTW3(real) *fftData;
-    FFTW3(complex) *fftDataK;
-    double dRhoMean, diRhoMean;
-    double fftNormalize;
-    double rms;
+static void assign_mass(PKD pkd, double dTotalMass, double dDelta, MDLFFT fft, FFTW3(real) *fftData) {
+//    double dScale = 0.5 / dRadius; /* Box scaling factor */
+    int nGrid = fft->rgrid->n1;
+    double fftNormalize = 1.0 / (1.0*nGrid*nGrid*nGrid);
+    mdlGridCoord first, last;
+    int i, j;
     double r[3];
-    double dScale,ak;
-    int i,j,k, sy, ey, idx, ks;
-    int iNyquist;
-    int nGridFFT;
-    int bPeriodic = 1;
 
-    /* Sort the particles into optimal "cell" order */
-    /* Use tree order: QSORT(pkdParticleSize(pkd),pkdParticle(pkd,0),pkd->nLocal,qsort_lt); */
-
-    iNyquist = nGrid / 2;
-    nGridFFT = bPeriodic ? nGrid : nGrid*2;
-
-    /* Box scaling factor */
-    dScale = 0.5 / dRadius;
-
-    fftNormalize = 1.0 / (1.0*nGrid*nGrid*nGrid);
-    fft = mdlFFTInitialize(pkd->mdl,nGridFFT,nGridFFT,nGridFFT,0,0);
     mdlGridCoordFirstLast(pkd->mdl,fft->rgrid,&first,&last,1);
-    fftData = mdlSetArray(pkd->mdl,last.i,sizeof(FFTW3(real)),pkd->pLite);
-    fftDataK = (FFTW3(complex) *)fftData;
     for( i=first.i; i<last.i; ++i ) fftData[i] = 0.0;
     mdlCOcache(pkd->mdl,CID_PK,NULL,fftData,sizeof(FFTW3(real)),last.i,pkd,initPk,combPk);
     for (i=0;i<pkd->nLocal;++i) {
-	p = pkdParticle(pkd,i);
+	PARTICLE *p = pkdParticle(pkd,i);
 	if ( !pkdIsSrcActive(p,0,MAX_RUNG) ) continue;
 	/* Recenter, apply periodic boundary and scale to the correct size */
 	for(j=0;j<3;j++) {
-	    r[j] = pkdPos(pkd,p,j) - dCenter[j] + dRadius;
-	    if ( pkd->param.bPeriodic ) {
-		if ( r[j] >= pkd->fPeriod[j] ) r[j] -= pkd->fPeriod[j];
-		else if ( r[j] < 0.0 ) r[j] += pkd->fPeriod[j];
-		}
-	    r[j] *= dScale;
+	    r[j] = pkdPos(pkd,p,j) + 0.5 + dDelta;
+	    if (r[j]>=pkd->fPeriod[j]) r[j] -= pkd->fPeriod[j];
 	    }
 	/* 
 	** The position has been rescaled to [0,1).  If it is not in that range,
@@ -999,11 +972,12 @@ void pkdMeasurePk(PKD pkd, double dCenter[3], double dRadius, double dTotalMass,
 #endif
 	}
     mdlFinishCache(pkd->mdl,CID_PK);
+
     for( i=first.i; i<last.i; ++i ) {
 	assert(fftData[i] >= 0.0);
 	}
-    dRhoMean = dTotalMass * fftNormalize;
-    diRhoMean = 1.0 / dRhoMean;
+    double dRhoMean = dTotalMass * fftNormalize;
+    double diRhoMean = 1.0 / dRhoMean;
 
     /*printf( "Calculating density contrast\n" );*/
     for( i=first.i; i<last.i; ++i ) {
@@ -1011,10 +985,36 @@ void pkdMeasurePk(PKD pkd, double dCenter[3], double dRadius, double dTotalMass,
 	}
 
     mdlFFT(pkd->mdl,fft,fftData);
+    }
+
+void pkdMeasurePk(PKD pkd, double dTotalMass,
+    int nGrid, int nBins, double *fK, double *fPower, uint64_t *nPower) {
+    MDLFFT fft;
+    mdlGridCoord first, last, index;
+    FFTW3(real) *fftData, *fftData2;
+    FFTW3(complex) *fftDataK, *fftDataK2;
+    double ak;
+    int i,j,k, idx, ks;
+    int iNyquist;
+
+    /* Sort the particles into optimal "cell" order */
+    /* Use tree order: QSORT(pkdParticleSize(pkd),pkdParticle(pkd,0),pkd->nLocal,qsort_lt); */
+
+    iNyquist = nGrid / 2;
+
+    fft = mdlFFTInitialize(pkd->mdl,nGrid,nGrid,nGrid,0,0);
+
+    mdlGridCoordFirstLast(pkd->mdl,fft->rgrid,&first,&last,1);
+    fftData = mdlSetArray(pkd->mdl,last.i,sizeof(FFTW3(real)),pkd->pLite);
+    assign_mass(pkd,dTotalMass,0.0,fft,fftData);
+
+    fftData2 = mdlSetArray(pkd->mdl,last.i,sizeof(FFTW3(real)),fftData + fft->rgrid->nLocal);
+    assign_mass(pkd,dTotalMass,0.5/nGrid,fft,fftData2);
 
     /* Remember, the grid is now transposed to x,z,y (from x,y,z) */
     mdlGridCoordFirstLast(pkd->mdl,fft->kgrid,&first,&last,0);
-    fftDataK = mdlSetArray(pkd->mdl,last.i,sizeof(FFTW3(complex)),pkd->pLite);
+    fftDataK = mdlSetArray(pkd->mdl,last.i,sizeof(FFTW3(complex)),fftData);
+    fftDataK2 = mdlSetArray(pkd->mdl,last.i,sizeof(FFTW3(complex)),fftData2);
 
     for( i=0; i<nBins; i++ ) {
 	fK[i] = 0.0;
@@ -1027,47 +1027,42 @@ void pkdMeasurePk(PKD pkd, double dCenter[3], double dRadius, double dTotalMass,
     ** there may be nothing to process here, in which case ey will
     ** be less than sy.  This is fine.
     */
-    if ( bPeriodic ) {
-	double win_j, win_k;
+    double win_j, win_k;
 #ifdef LINEAR_PK
-	double scale = nBins * 1.0 / iNyquist;
+    double scale = nBins * 1.0 / iNyquist;
 #else
-	double scale = nBins * 1.0 / log(iNyquist+1);
+    double scale = nBins * 1.0 / log(iNyquist+1);
 #endif
-	int jj, kk;
-	i = j = k = -1;
-	for( index=first; !mdlGridCoordCompare(&index,&last); mdlGridCoordIncrement(&index) ) {
-	    if ( j != index.z ) {
-		j = index.z;
-		jj = j>iNyquist ? nGrid - j : j;
-		win_j = deconvolveWindow(jj,nGrid);
-		}
-	    if ( k != index.y ) {
-		k = index.y;
-		kk = k>iNyquist ? nGrid - k : k;
-                win_k = deconvolveWindow(kk,nGrid);
-		}
-	    i = index.x;
-	    double win = deconvolveWindow(i,nGrid) * win_k * win_j;
-	    ak = sqrt(i*i + jj*jj + kk*kk);
-	    ks = ak;
-	    if ( ks >= 1 && ks <= iNyquist ) {
-#ifdef LINEAR_PK
-		ks = floor((ks-1.0) * scale);
-#else
-		ks = floor(log(ks) * scale);
-#endif
-		assert(ks>=0 && ks <nBins);
-		idx = index.i;
-		double delta2 = (pow2(fftDataK[idx][0]) + pow2(fftDataK[idx][1]))/(win*win);
-		fK[ks] += ak;
-		fPower[ks] += delta2;
-		nPower[ks] += 1;
-		}
+    int jj, kk;
+    i = j = k = -1;
+    for( index=first; !mdlGridCoordCompare(&index,&last); mdlGridCoordIncrement(&index) ) {
+	if ( j != index.z ) {
+	    j = index.z;
+	    jj = j>iNyquist ? nGrid - j : j;
+	    win_j = deconvolveWindow(jj,nGrid);
 	    }
-	}
-    else {
-	assert(0);
+	if ( k != index.y ) {
+	    k = index.y;
+	    kk = k>iNyquist ? nGrid - k : k;
+            win_k = deconvolveWindow(kk,nGrid);
+	    }
+	i = index.x;
+	double win = deconvolveWindow(i,nGrid) * win_k * win_j;
+	ak = sqrt(i*i + jj*jj + kk*kk);
+	ks = ak;
+	if ( ks >= 1 && ks <= iNyquist ) {
+#ifdef LINEAR_PK
+	    ks = floor((ks-1.0) * scale);
+#else
+	    ks = floor(log(ks) * scale);
+#endif
+	    assert(ks>=0 && ks <nBins);
+	    idx = index.i;
+	    double delta2 = (pow2(fftDataK[idx][0]) + pow2(fftDataK[idx][1]) + pow2(fftDataK2[idx][0]) + pow2(fftDataK2[idx][1]) )/(2.0*win*win);
+	    fK[ks] += ak;
+	    fPower[ks] += delta2;
+	    nPower[ks] += 1;
+	    }
 	}
     mdlFFTFinish(pkd->mdl,fft);
     }
