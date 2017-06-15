@@ -10,6 +10,7 @@
 
 #define SHAPES
 #define USE_PCS /* USE_PCS USE_TSC USE_CIC USE_NGP */
+#define INTERLEAVE /* Use with PSC */
 
 static void transpose(double mat[3][3],double trans_mat[3][3]) {
     int i,j ;
@@ -1008,8 +1009,10 @@ void pkdMeasurePk(PKD pkd, double dTotalMass,
     fftData = mdlSetArray(pkd->mdl,last.i,sizeof(FFTW3(real)),pkd->pLite);
     assign_mass(pkd,dTotalMass,0.0,fft,fftData);
 
+#ifdef INTERLEAVE
     fftData2 = mdlSetArray(pkd->mdl,last.i,sizeof(FFTW3(real)),fftData + fft->rgrid->nLocal);
     assign_mass(pkd,dTotalMass,0.5/nGrid,fft,fftData2);
+#endif
 
     /* Remember, the grid is now transposed to x,z,y (from x,y,z) */
     mdlGridCoordFirstLast(pkd->mdl,fft->kgrid,&first,&last,0);
@@ -1058,7 +1061,11 @@ void pkdMeasurePk(PKD pkd, double dTotalMass,
 #endif
 	    assert(ks>=0 && ks <nBins);
 	    idx = index.i;
+#ifdef INTERLEAVE
 	    double delta2 = (pow2(fftDataK[idx][0]) + pow2(fftDataK[idx][1]) + pow2(fftDataK2[idx][0]) + pow2(fftDataK2[idx][1]) )/(2.0*win*win);
+#else
+	    double delta2 = (pow2(fftDataK[idx][0]) + pow2(fftDataK[idx][1]))/(win*win);
+#endif
 	    fK[ks] += ak;
 	    fPower[ks] += delta2;
 	    nPower[ks] += 1;

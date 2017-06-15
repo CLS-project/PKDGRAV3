@@ -670,7 +670,7 @@ ppy_msr_MeasurePk(PyObject *self, PyObject *args, PyObject *kwobj) {
 
     fPk = malloc(sizeof(float)*(iNyquist+1));
     fK = malloc(sizeof(float)*(iNyquist+1));
-    msrMeasurePk(ppy_msr,dCenter,dRadius,nGrid,nGrid/2,fK,fPk);
+    msrMeasurePk(ppy_msr,dCenter,dRadius,nGrid,nGrid/2,NULL,fK,fPk);
 
     List = PyList_New( iNyquist+1 );
     assert( List !=NULL );
