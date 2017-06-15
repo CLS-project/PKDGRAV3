@@ -863,7 +863,7 @@ static inline float pow3(float x) {
     return x*x*x;
     }
 
-static void pcs_weights(int ii[5][5],float H[5][5],const double r[3], int nGrid) {
+static void pcs_weights(int ii[3][4],float H[3][4],const double r[3], int nGrid) {
     int d,i;
     float rr, h;
     for(d=0; d<3; ++d) {
@@ -871,9 +871,10 @@ static void pcs_weights(int ii[5][5],float H[5][5],const double r[3], int nGrid)
 	int g = (int)(rr);                          /* index of nearest grid point [0,NGRID] */
 	if (g==nGrid) g = nGrid-1;                  /* If very close to 1.0, it could round up, so correct */
 	h = (rr-0.5) - (float)g;                    /* distance to nearest grid point */
-	for(i=0; i<5; ++i) {			    /* Note: either [0] or [4] (or both) will have weight of zero */
-	    float s = fabs(h + i - 2);
-	    ii[d][i] = wrap(g + i - 2,nGrid);         /* keep track of periodic boundaries */
+	int b = (h>=0.0?0:1) - 2;
+	for(i=0; i<4; ++i) {
+	    float s = fabs(h + i + b);
+	    ii[d][i] = wrap(g + i + b,nGrid);       /* keep track of periodic boundaries */
 	    if ( s < 1.0f ) H[d][i] = 1.0f/6.0f * ( 4.0f - 6.0f*s*s + 3.0f*s*s*s);
 	    else if ( s < 2.0f ) H[d][i] = 1.0f/6.0f * pow3(2.0f - s);
 	    else H[d][i] = 0.0f;
@@ -884,16 +885,16 @@ static void pcs_weights(int ii[5][5],float H[5][5],const double r[3], int nGrid)
 static void pcs_assign(PKD pkd, MDLFFT fft, int nGrid,
 		       double x, double y, double z, float mass) {
     double r[] = {x,y,z};
-    int    ii[3][5];
-    float  H[3][5];
+    int    ii[3][4];
+    float  H[3][4];
     int    i,j,k;
 
     pcs_weights(ii,H,r,nGrid);
 
     /* assign particle according to weights to 27 neighboring nodes */
-    for(i=0; i<5; ++i) {
-	for(j=0; j<5; ++j) {
-	    for(k=0; k<5; ++k) {
+    for(i=0; i<4; ++i) {
+	for(j=0; j<4; ++j) {
+	    for(k=0; k<4; ++k) {
 		cell_accumulate(pkd,fft,ii[0][i],ii[1][j],ii[2][k],H[0][i]*H[1][j]*H[2][k] * mass);
 		}
 	    }
