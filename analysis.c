@@ -7,6 +7,9 @@
 #include <math.h>
 #include "vqsort.h"
 #include "pkd.h"
+#ifdef USE_ITT
+#include "ittnotify.h"
+#endif
 
 #define SHAPES
 #define USE_PCS /* USE_PCS USE_TSC USE_CIC USE_NGP */
@@ -864,7 +867,7 @@ static inline float pow3(float x) {
     return x*x*x;
     }
 
-static void pcs_weights(int ii[3][5],float H[3][5],const double r[3], int nGrid) {
+static void pcs_weights(int ii[3][4],float H[3][4],const double r[3], int nGrid) {
     int d,i;
     float rr, h;
     for(d=0; d<3; ++d) {
@@ -872,9 +875,10 @@ static void pcs_weights(int ii[3][5],float H[3][5],const double r[3], int nGrid)
 	int g = (int)(rr);                          /* index of nearest grid point [0,NGRID] */
 	if (g==nGrid) g = nGrid-1;                  /* If very close to 1.0, it could round up, so correct */
 	h = (rr-0.5) - (float)g;                    /* distance to nearest grid point */
-	for(i=0; i<5; ++i) {
-	    float s = fabs(i - 2 - h );
-	    ii[d][i] = wrap(i - 2 + g,nGrid);       /* keep track of periodic boundaries */
+	int b = h > 0.0 ? -1 : -2;                  /* the kernel is 4x4x4, so choose the correct start cell */
+	for(i=0; i<4; ++i) {
+	    float s = fabs(i + b - h );
+	    ii[d][i] = wrap(i + b + g,nGrid);       /* keep track of periodic boundaries */
 	    if ( s < 1.0f ) H[d][i] = 1.0f/6.0f * ( 4.0f - 6.0f*s*s + 3.0f*s*s*s);
 	    else if ( s < 2.0f ) H[d][i] = 1.0f/6.0f * pow3(2.0f - s);
 	    else H[d][i] = 0.0f;
@@ -885,16 +889,16 @@ static void pcs_weights(int ii[3][5],float H[3][5],const double r[3], int nGrid)
 static void pcs_assign(PKD pkd, MDLFFT fft, int nGrid,
 		       double x, double y, double z, float mass) {
     double r[] = {x,y,z};
-    int    ii[3][5];
-    float  H[3][5];
+    int    ii[3][4];
+    float  H[3][4];
     int    i,j,k;
 
     pcs_weights(ii,H,r,nGrid);
 
-    /* assign particle according to weights to 27 neighboring nodes */
-    for(i=0; i<5; ++i) {
-	for(j=0; j<5; ++j) {
-	    for(k=0; k<5; ++k) {
+    /* assign particle according to weights to 64 neighboring nodes */
+    for(i=0; i<4; ++i) {
+	for(j=0; j<4; ++j) {
+	    for(k=0; k<4; ++k) {
 		cell_accumulate(pkd,fft,ii[0][i],ii[1][j],ii[2][k],H[0][i]*H[1][j]*H[2][k] * mass);
 		}
 	    }
@@ -997,6 +1001,13 @@ void pkdMeasurePk(PKD pkd, double dTotalMass,
     double ak;
     int i,j,k, idx, ks;
     int iNyquist;
+#ifdef USE_ITT
+    __itt_domain* domain = __itt_domain_create("MyTraces.MyDomain");
+    __itt_string_handle* shMyTask = __itt_string_handle_create("MeasurePk");
+    __itt_task_begin(domain, __itt_null, __itt_null, shMyTask);
+    mdlThreadBarrier(pkd->mdl);
+    __itt_resume();
+#endif
 
     /* Sort the particles into optimal "cell" order */
     /* Use tree order: QSORT(pkdParticleSize(pkd),pkdParticle(pkd,0),pkd->nLocal,qsort_lt); */
@@ -1072,5 +1083,11 @@ void pkdMeasurePk(PKD pkd, double dTotalMass,
 	    }
 	}
     mdlFFTFinish(pkd->mdl,fft);
+#ifdef USE_ITT
+    mdlThreadBarrier(pkd->mdl);
+    __itt_pause();
+    __itt_task_end(domain);
+    mdlThreadBarrier(pkd->mdl);
+#endif
     }
 #endif
