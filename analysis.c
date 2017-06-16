@@ -911,8 +911,8 @@ static void pcs_assign(PKD pkd, MDLFFT fft, int nGrid,
 
 static double deconvolveWindow(int i,int nGrid) {
     double win = M_PI * i / nGrid;
-    if(win>0.1) win = sin(win)/win;
-    else win=1.0-win*win/6.0*(1.0-win*win/20.0*(1.0-win*win/76.0));
+    if(win>0.1) win = win / sin(win);
+    else win=1.0 / (1.0-win*win/6.0*(1.0-win*win/20.0*(1.0-win*win/76.0)));
 #if defined(USE_NGP)
     return win;
 #elif defined(USE_CIC)
@@ -1073,9 +1073,9 @@ void pkdMeasurePk(PKD pkd, double dTotalMass,
 	    assert(ks>=0 && ks <nBins);
 	    idx = index.i;
 #ifdef INTERLEAVE
-	    double delta2 = (pow2(fftDataK[idx][0]) + pow2(fftDataK[idx][1]) + pow2(fftDataK2[idx][0]) + pow2(fftDataK2[idx][1]) )/(2.0*win*win);
+	    double delta2 = win*win*0.5*(pow2(fftDataK[idx][0]) + pow2(fftDataK[idx][1]) + pow2(fftDataK2[idx][0]) + pow2(fftDataK2[idx][1]));
 #else
-	    double delta2 = (pow2(fftDataK[idx][0]) + pow2(fftDataK[idx][1]))/(win*win);
+	    double delta2 = win*win*(pow2(fftDataK[idx][0]) + pow2(fftDataK[idx][1]));
 #endif
 	    fK[ks] += ak;
 	    fPower[ks] += delta2;
