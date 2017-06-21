@@ -146,7 +146,7 @@ if HAVE_ITT_PATH
 pkdgrav3_mpi_LDADD += -L @ITT_PATH@/lib64
 pkdgrav3_mpi_CFLAGS += -I @ITT_PATH@/include
 endif
-pkdgrav3_mpi_LDADD += -littnotify
+pkdgrav3_mpi_LDADD += -littnotify -ldl
 endif
 if USE_CUDA
 pkdgrav3_mpi_LDADD += @CUDA_LIBS@ -lcudart

@@ -5587,6 +5587,7 @@ void msrOutputPk(MSR msr,int iStep,double dTime) {
     char achFile[PATH_MAX];
 #endif
     float *fK, *fPk;
+    uint64_t *nPk;
     double a, vfact, kfact;
     FILE *fp;
     int i;
@@ -5597,8 +5598,10 @@ void msrOutputPk(MSR msr,int iStep,double dTime) {
     assert(fK != NULL);
     fPk = malloc(sizeof(float)*(msr->param.nBinsPk));
     assert(fPk != NULL);
+    nPk = malloc(sizeof(uint64_t)*(msr->param.nBinsPk));
+    assert(nPk != NULL);
 
-    msrMeasurePk(msr,msr->param.nGridPk,msr->param.nBinsPk,fK,fPk);
+    msrMeasurePk(msr,msr->param.nGridPk,msr->param.nBinsPk,nPk,fK,fPk);
 
     msrBuildName(msr,achFile,iStep);
     strncat(achFile,".pk",256);
@@ -5618,12 +5621,13 @@ void msrOutputPk(MSR msr,int iStep,double dTime) {
 	_msrExit(msr,1);
 	}
     for(i=0; i<msr->param.nBinsPk; ++i) {
-	if (fPk[i] > 0.0) fprintf(fp,"%g %g\n",
- 	    kfact * fK[i] * 2.0 * M_PI,vfact * fPk[i]);
+	if (fPk[i] > 0.0) fprintf(fp,"%g %g %" PRIu64 "\n",
+ 	    kfact * fK[i] * 2.0 * M_PI,vfact * fPk[i], nPk[i]);
 	}
     fclose(fp);
     free(fK);
     free(fPk);
+    free(nPk);
     }
 #endif
 
@@ -6315,7 +6319,7 @@ void msrGridProject(MSR msr,double x,double y,double z) {
     }
 
 #ifdef MDL_FFTW
-void msrMeasurePk(MSR msr,int nGrid,int nBins,float *fK,float *fPk) {
+void msrMeasurePk(MSR msr,int nGrid,int nBins,uint64_t *nPk,float *fK,float *fPk) {
     struct inMeasurePk in;
     struct outMeasurePk *out;
     int nOut;
@@ -6345,6 +6349,7 @@ void msrMeasurePk(MSR msr,int nGrid,int nBins,float *fK,float *fPk) {
     for( i=0; i<nBins; i++ ) {
 	if ( out->nPower[i] == 0 ) fK[i] = fPk[i] = 0;
 	else {
+	    if (nPk) nPk[i] = out->nPower[i];
 	    fK[i] = out->fK[i]/out->nPower[i];
 	    fPk[i] = out->fPower[i]/out->nPower[i]*fftNormalize;
 	    }

@@ -48,7 +48,7 @@ if test -n "$MPICXX" ; then
 else
   AC_MSG_ERROR([Cannot compile C++ MPI programs])
 fi
-LDFLAGS="$LDFLAGS -lm"
+AC_CHECK_LIB([m], [cos])
 
 AC_DEFINE([HAVE_ROMBERG], 1, [Use the pkdgrav3 Romberg integrator.])
 AC_DEFINE([NAIVE_DOMAIN_DECOMP], 1, [Use a simplified domain decomposition.])
@@ -101,9 +101,14 @@ AM_CONDITIONAL(USE_BT, test "x$USE_BT" = "xyes")
 
 # This adds FFTW analysis - default enabled
 AC_ARG_WITH(fftw,
-  [  --with-fftw                    Enable FFT support modules],
-  [FFTW="$enableval"])
-if test "x$FFTW" != "xno" ; then
+  [  --with-fftw                    Enable FFT support modules])
+if test "$with_fftw" != "no" ; then
+  if test "$with_fftw" != "yes" ; then
+   CFLAGS="-I${with_fftw}/include $CFLAGS"
+   CXXFLAGS="-I${with_fftw}/include $CXXFLAGS"
+   LDFLAGS="-L${with_fftw}/lib $LDFLAGS"
+  fi
+   
   AC_DEFINE([USE_SINGLE], 1,
         [Use single precision FFT.])
   AC_CHECK_LIB([fftw3f], [fftwf_execute], [],[AC_MSG_ERROR([Cannot find FFTW3])])
@@ -111,7 +116,7 @@ if test "x$FFTW" != "xno" ; then
   AC_CHECK_LIB([fftw3f_threads], [fftwf_init_threads],[],[AC_MSG_ERROR([Cannot find FFTW3])])
   AC_DEFINE([MDL_FFTW], 1, [Include support for FFTW.])
 fi
-AM_CONDITIONAL(FFTW, test "x$FFTW" != "xno")
+AM_CONDITIONAL(FFTW, test "$with_fftw" != "no")
 AM_PATH_GSL(1.8,[],[AC_MSG_ERROR([Unable to locate GNU Scientific Library (gsl)])])
 
 # Electric fence
