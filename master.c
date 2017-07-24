@@ -264,7 +264,11 @@ void msrInitializePStore(MSR msr, uint64_t *nSpecies) {
 	inFFTSizes.nx = inFFTSizes.ny = inFFTSizes.nz = msr->param.nGridPk;
 	pstGetFFTMaxSizes(msr->pst,&inFFTSizes,sizeof(inFFTSizes),&outFFTSizes,&n);
 	/* The new MeasurePk requires two FFTs to eliminate aliasing */
+#ifdef INTERLEAVE
 	ps.nMinEphemeral = 2*outFFTSizes.nMaxLocal*sizeof(FFTW3(real));
+#else
+	ps.nMinEphemeral = outFFTSizes.nMaxLocal*sizeof(FFTW3(real));
+#endif
 	}
     if (msr->param.nGrid>0) {
 	struct inGetFFTMaxSizes inFFTSizes;
