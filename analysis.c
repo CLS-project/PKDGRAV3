@@ -13,7 +13,6 @@
 
 #define SHAPES
 #define USE_PCS /* USE_PCS USE_TSC USE_CIC USE_NGP */
-#define INTERLEAVE /* Use with PSC */
 
 static void transpose(double mat[3][3],double trans_mat[3][3]) {
     int i,j ;
