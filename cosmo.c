@@ -90,7 +90,7 @@ double csmExp2HubRate(CSM csm, double dExp) {
 			 csm->val.dLambda - csm->val.dOmegaDE - csm->val.dOmegaRad;
     assert(dExp > 0.0);
     double ia = 1.0 / dExp;
-    assert( csm->val.dOmegaDE == 0.0); // WARNING: no dark energy in this equation
+    //assert( csm->val.dOmegaDE == 0.0); // WARNING: no dark energy in this equation
     return ( -1.5 * csm->val.dOmega0 * ia*ia*ia - dOmegaCurve * ia*ia - 2.0*csm->val.dOmegaRad * ia*ia*ia*ia )
 	 / (        csm->val.dOmega0 * ia*ia*ia + dOmegaCurve * ia*ia +     csm->val.dOmegaRad * ia*ia*ia*ia + csm->val.dLambda );
     }
