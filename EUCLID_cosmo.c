@@ -564,7 +564,7 @@ int main(int argc, char **argv) {
 
 	   case OPT_rad:
 		assert( optarg != 0);
-		bRadFlag = 0;
+		bRadFlag = atoi(optarg);
 		break;
 
 	   case '?':
@@ -589,9 +589,9 @@ int main(int argc, char **argv) {
     csm->val.dOmega0 = 0.319;
     csm->val.dLambda = 0.681;
     csm->val.dHubble0 = sqrt(8.0/3.0*M_PI);
-    csm->val.dOmegaRad = 9.29215556107e-05;
+    csm->val.dOmegaRad = 9.46026e-5; //9.29215556107e-05;
 
-    if (!bRadFlag)
+    if (bRadFlag==0)
         csm->val.dOmegaRad = 0.0;
        
     D = csmComoveGrowthFactor(csm, 1/(1.+z));
