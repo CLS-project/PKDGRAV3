@@ -4,19 +4,29 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <math.h>
+#include <errno.h>
+#include <ctype.h>
+#include <getopt.h>
 #include <assert.h>
+//#include <gsl_odeiv.h>
+//#include <gsl_sf_hyperg.h>
 
 #ifdef CRAY_T3D
 #include "hyperlib.h"
 #endif
-
 #include "cosmo.h"
 
 #ifdef USE_GSL_COSMO
 #define LIMIT 1000
 #endif
 
+#define OPT_z   'z'
+#define OPT_rad 'r'
+#define OPT_Om0 'm'
+#define OPT_w0 'w'
+//#define OPT_wa 'wa'
 /*
  * Cosmological module for PKDGRAV.
  * N.B.  This code is being shared with skid and the I.C. generator.
@@ -486,27 +496,188 @@ static double ComoveGrowthFactorIntegral(CSM csm,double a) {
     return result;
     }
 
+double RK4_f(CSM csm, double lna, double G){
+    double a = exp(lna);
+    return G/csmExp2Hub(csm, a);
+}
+
+double RK4_g(CSM csm, double lna, double D, double G){
+    double a = exp(lna);
+    double inva = 1./a;
+    return -2.0 * G + 1.5 * csm->val.dOmega0 * csm->val.dHubble0*csm->val.dHubble0 * inva*inva*inva * D/csmExp2Hub(csm, a);
+}
+
+/* THIS PART REQUIRES AN UPDATE OF THE GSL LIBRARY
+ 
+int gsl_func(double a, const double y[], double f[], CSM csm){
+    double inva = 1./a;
+    double H = csmExp2Hub(csm,a);
+    double invH = 1./H;
+    f[0] = y[1]*invH;
+    f[1] = -2 * y[1] + 1.5 * csm->val.dOmega0 * csm->val.dHubble0*csm->val.dHubble0 * inva*inva*inva * invH * y[0];
+    return GSL_SUCCESS;
+}
+
+int gsl_jacobian(double a, const double y[], double *dfdy, double dfdt[], CSM csm){
+    double H = csmExp2Hub(csm,a);
+    double invH = 1./H;
+    gsl_matrix_view dfdy_mat = gsl_matrix_view_array(dfdy, 2, 2);
+    gsl_matrix * m = &dfdy_mat.matrix;
+    gsl_matrix_set (m, 0, 0, 0.0);
+    gsl_matrix_set (m, 0, 1, invH);
+    gsl_matrix_set (m, 1, 0, 1.5 * csm->val.dOmega0 * csm->val.dHubble0*csm->val.dHubble0 * inva*inva*inva * invH);
+    gsl_matrix_set (m, 1, 1, 2.0);
+
+    dfdt[0] = 0.0;
+    dfdt[1] = 0.0;
+
+   return GSL_SUCCESS;
+}
+*/
+
+void MyRK4(CSM csm, double a, float *D1, float *f1){
+   
+    printf("Cosmology: Omega0 = %.3f, OmegaRad = %.5g, OmegaDE = %.3f, w0 = %.3f, wa = %.3f\n", csm->val.dOmega0, csm->val.dOmegaRad,csm->val.dOmegaDE,csm->val.w0,csm->val.wa);
+
+    /*
+    ** Variable declarations & initializations
+    */
+    double a_init, lna_init = log(1e-12); // ln(a)=-12 ==> a = e^(-12) ~ 0 
+
+    int nSteps = 1000;
+    double stepwidth = (log(a)- lna_init)/nSteps;
+
+    // NOTICE: Storing the following quantities into data structures is by far not optimal (we actually never need the old values after the update).
+    double ln_timesteps[nSteps+1];
+    float D[nSteps+1]; // Growth factor D(a)
+    float G[nSteps+1]; // G(a) = dD(a)/dln(a) *H  ==>  Growth rate: f(a) = G/(H*D) 
+
+    /* 
+    ** Set boundary conditions
+    */
+    a_init = exp(lna_init);
+    D[0] = a_init;
+    G[0] = csmExp2Hub(csm, a_init)*a_init;
+
+    //Classical RK4 Solver - This is the best of all solvers available in this code!
+	printf("\nSolving ODE using RK4...\n");
+
+	double k0, k1, k2, k3;
+        double l0, l1, l2, l3;
+
+        FILE *f = fopen("GrowthFactors_RK4.txt", "w");
+
+        if (f==NULL) {
+	    printf("Error opening growth factor data file!\n");
+            exit(1);
+        }
+
+        fprintf(f, "#a, z,D(z)\n");
+         
+        int i; // running loop variable
+        for(i=0;i<=nSteps;i++){
+	    ln_timesteps[i] = lna_init + i*stepwidth;
+        fprintf(f, "%.15f, %.5f,%.20f\n", exp(ln_timesteps[i]),1.0/exp(ln_timesteps[i])-1.0, D[i]);
+ 
+        //RK4 step 1
+       	k0 = stepwidth * RK4_f(csm, ln_timesteps[i], G[i]);
+ 	    l0 = stepwidth * RK4_g(csm, ln_timesteps[i], D[i], G[i]);
+
+	    //RK4 step 2
+	    k1 = stepwidth * RK4_f(csm, ln_timesteps[i] + stepwidth/2.0, G[i] + l0/2.0); 
+	    l1 = stepwidth * RK4_g(csm, ln_timesteps[i] + stepwidth/2.0, D[i] + k0/2.0, G[i] + l0/2.0);
+    
+       	//RK4 step 3
+	    k2 = stepwidth * RK4_f(csm, ln_timesteps[i] + stepwidth/2.0, G[i] + l1/2.0);
+	    l2 = stepwidth * RK4_g(csm, ln_timesteps[i] + stepwidth/2.0, D[i] + k1/2.0, G[i] + l1/2.0);
+
+	    //RK4 step 4
+	    k3 = stepwidth * RK4_f(csm, ln_timesteps[i] + stepwidth, G[i] + l2);
+	    l3 = stepwidth * RK4_g(csm, ln_timesteps[i] + stepwidth, D[i] + k2, G[i] + l2);
+
+	    //Update
+	    D[i+1] = D[i] + (k0 + 2*k1 + 2*k2 + k3)/6.0;
+	    G[i+1] = G[i] + (l0 + 2*l1 + 2*l2 + l3)/6.0; 
+        }
+        
+        fclose(f);
+
+	*D1 = D[nSteps];
+        *f1 = G[nSteps]/(csmExp2Hub(csm,a) * *D1); 
+
+    return;
+
+}
+
+void csmComoveGrowth(CSM csm, double a, float *GrowthFactor, float *GrowthRate) {
+    double dOmegaRad = csm->val.dOmegaRad;
+    float GrowthFactorLCDM;
+    double RadiativeCorrection_D;
+    double RadiativeCorrection_f;
+
+    /* 
+    ** START: In this section we compute D_LCDM and hence intentionally set dOmegaRad = 0 because D_LCDM by definition has no radiation.
+    */
+    csm->val.dOmegaRad = 0;
+    
+    double eta = csmExp2Hub(csm, a);
+    double result = ComoveGrowthFactorIntegral(csm,a);
+ 
+    MyRK4(csm, a, &GrowthFactorLCDM, GrowthRate);
+    
+    printf("\nFrom new RK4 solver:\n===================\nGrowthFactor_LCDM = %.15f\n", GrowthFactorLCDM);
+
+    /*
+    ** END
+    */
+
+    /* 
+    ** For the computation of radiative correction term we set dOmegaRad back to its original value.
+    */
+    csm->val.dOmegaRad = dOmegaRad;
+    RadiativeCorrection_D = 2.0/3.0*csmRadMatEquivalence(csm);
+    printf("Radiative Correction = %.10f\n", RadiativeCorrection_D);
+ 
+    *GrowthFactor = GrowthFactorLCDM + RadiativeCorrection_D;
+
+    RadiativeCorrection_f = 2.0/3.0*csmRadMatEquivalence(csm)/ *GrowthFactor; 
+
+    *GrowthRate = *GrowthRate + RadiativeCorrection_f;   
+
+    return;
+    }
+
 double csmComoveGrowthFactor(CSM csm,double a) {
-    // double a_equ = csm->val.dOmegaRad/csm->val.dOmega0; /* added by MK: computing the scale factor at radiation/matter equivalence */
     double dOmegaRad = csm->val.dOmegaRad;
     double GrowthFactorLCDM;
     double RadiativeCorrection;
     
-    /* START */ /* In this section we compute D_LCDM and hence intentionally set dOmegaRad = 0 because D_LCDM by definition has no radiation. */
+    /*
+    ** START: In this section we compute D_LCDM and hence intentionally set dOmegaRad = 0 because D_LCDM by definition has no radiation.
+    */
     csm->val.dOmegaRad = 0;
-
+    
     double eta = csmExp2Hub(csm, a);
     double result = ComoveGrowthFactorIntegral(csm,a);
     
     GrowthFactorLCDM = csm->val.dHubble0*csm->val.dHubble0*2.5*csm->val.dOmega0*eta*result;
-    /* END */
-    /* For the radiative correction term we set dOmegaRad back to its original value */
+    
+    printf("\nFrom old PKDRGAV:\n=================\nGrowthFactor_LCDM = %.15f\n", GrowthFactorLCDM);
 
+    /*
+    ** END
+    */
+    
+    /*
+    ** For the computation of radiative correction term we set dOmegaRad back to its original value.
+    */
     csm->val.dOmegaRad = dOmegaRad;
-    RadiativeCorrection = 2.0/3.0*csmRadMatEquivalence(csm);    
+    RadiativeCorrection = 2.0/3.0*csmRadMatEquivalence(csm);
+    
+    printf("Radiative Correction = %.10f\n", RadiativeCorrection);
 
     return GrowthFactorLCDM + RadiativeCorrection;
-    }
+}
 
 double csmComoveGrowthRate(CSM csm,double a) {
     double dOmegaRad = csm->val.dOmegaRad;
@@ -514,15 +685,46 @@ double csmComoveGrowthRate(CSM csm,double a) {
     double GrowthRateLCDM;
     double RadiativeCorrection;
 
-    /* START */ /* In this section we compute f1_LCDM and hence intentionally set dOmegaRad = 0 because f1_LCDM by definition has no radiation. */
+    /*
+    ** START: In this section we compute D_LCDM and hence intentionally set dOmegaRad = 0 because D_LCDM by definition has no radiation.
+    */
     csm->val.dOmegaRad = 0;
     GrowthRateLCDM = csmExp2HubRate(csm,a) + a*csmComoveGrowthInt(csm,a)/ComoveGrowthFactorIntegral(csm,a);
-    /* END */
-
+    /*
+    ** END
+    */
+    
+    /*
+    ** For the computation of radiative correction term we set dOmegaRad back to its original value.
+    */
     csm->val.dOmegaRad = dOmegaRad;
     RadiativeCorrection = 2.0/3.0*csmRadMatEquivalence(csm)/csmComoveGrowthFactor(csm,a);
-    
-    return (1 - RadiativeCorrection) * GrowthRateLCDM; 
+    return (1 - RadiativeCorrection) * GrowthRateLCDM;
     }
 
+void WriteGF(CSM csm, double a) {
 
+    double a_init = 1e-12;
+    int nSteps = 1000;
+    double stepwidth = (a-a_init)/nSteps;
+    
+    FILE *f = fopen("GrowthFactors_PKDGRAV.txt", "w");
+
+    if (f==NULL) {
+       printf("Error opening growth factor data file!\n");
+       exit(1);
+    }
+
+    fprintf(f, "#a,z,D(z)\n");
+
+    int counter;
+    double a_step;
+    for (counter = 0; counter <= nSteps; counter++){
+        a_step = a_init + counter*stepwidth;
+	fprintf(f, "%.15f, %.5f, %.20f\n", a_step, 1.0/a_step -1.0, csmComoveGrowthFactor(csm, a_step));	
+    }
+
+    fclose(f);
+
+    return; 
+}

@@ -24,6 +24,7 @@
 
 typedef struct csmContext {
     struct csmVariables val;
+
 #ifdef USE_GSL_COSMO
     gsl_integration_workspace *W;
 #endif
@@ -45,6 +46,9 @@ extern "C" {
     double csmComoveLookbackTime2Exp(CSM csm, double dComoveTime);
     double csmComoveGrowthFactor(CSM csm, double a);
     double csmComoveGrowthRate(CSM csm, double a);
+    void MyRK4(CSM csm, double a, float *D1, float *f1);
+    //void csmComoveGrowth(CSM csm, double a, float *GrowthFactor, float *GrowthRate, double , int order);
+    //void csmComoveGrowth(CSM csm, double a, float* GrowthFactor, float* GrowthRate, char* RadHandling);
 #ifdef __cplusplus
 }
 #endif
