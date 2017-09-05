@@ -214,7 +214,7 @@ int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int bFixed,float fPhase,int nGrid
     float ak, ak2, amp;
     float dOmega, D0, Da;
     float velFactor;
-    float f1, f2;
+    float dummyf, f1, f2;
     basicParticle *p;
     int nLocal;
     float dSigma8 = cosmo->dSigma8;
@@ -229,8 +229,10 @@ int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int bFixed,float fPhase,int nGrid
 
     powerParameters P;
 
-    D0 = csmComoveGrowthFactor(csm,1.0);
-    Da = csmComoveGrowthFactor(csm,a);
+    //D0 = csmComoveGrowthFactor(csm,1.0);
+    MyRK4(csm, 1.0, &D0, &dummyf);
+    //Da = csmComoveGrowthFactor(csm,a);
+    MyRK4(csm, a, &Da, &f1);
     dOmega = cosmo->dOmega0 / (a*a*a*pow(csmExp2Hub(csm, a)/cosmo->dHubble0,2.0));
 
     P.normalization = 1.0;
@@ -251,7 +253,7 @@ int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int bFixed,float fPhase,int nGrid
 	P.normalization = cosmo->dNormalization * Da/D0;
 	dSigma8 = sqrt(variance(&P,8.0));
 	}
-    f1 = csmComoveGrowthRate(csm,a);
+    //f1 = csmComoveGrowthRate(csm,a);
     f2 = 2.0 * pow(dOmega,6.0/11.0);
     if (mdlSelf(mdl)==0) {
 	printf("sigma8=%.15g\n",dSigma8); 
@@ -454,7 +456,7 @@ int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int bFixed,float fPhase,int nGrid
 	    if (ak2>0.0) {
 		
 		float aeq = csmRadMatEquivalence(csm);
-		float aeqDratio = aeq/csmComoveGrowthFactor(csm, a); 
+		float aeqDratio = aeq/Da; 
 		float D2;
 		if (aeq>0.0f) D2 = (-3.0/7.0 + 4.0/7.0 * aeqDratio - 2.0/3.0 * aeqDratio * aeqDratio * (+2.0/7.0 + a/aeq)) / (ak2 * twopi);
 		else D2 = (-3.0/7.0) / (ak2 * twopi);
