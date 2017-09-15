@@ -24,6 +24,7 @@
 
 typedef struct csmContext {
     struct csmVariables val;
+
 #ifdef USE_GSL_COSMO
     gsl_integration_workspace *W;
 #endif
@@ -34,7 +35,41 @@ extern "C" {
     void csmInitialize(CSM *pcsm);
     void csmFinish(CSM csm);
     double csmRadMatEquivalence(CSM csm);
-    double csmExp2Hub(CSM csm, double dExp);
+
+/*
+This is my version of csmExp2Hub. Here, there is no dLambda as I consider Lambda as a specific form of DE (so dLambda = dOmegaDE). The different behaviour
+is all stored in the value of the equation of state parameter.
+
+double MK_csmExp2Hub(CSM csm, double dExp) {
+    //ATTENTION: In my version dLambda does no longer exist ==> the only thing distinguishing between
+    // different forms of DE is the value of the EoS parameter w = (w0,wa)
+    double dOmegaCurve = 1.0 - csm->val.dOmega0 - csm->val.dOmegaDE - csm->val.dOmegaRad;
+
+    assert(dExp > 0.0);
+    return csm->val.dHubble0
+           *sqrt(csm->val.dOmega0*dExp
+                 + dOmegaCurve*dExp*dExp
+                 + csm->val.dOmegaRad
+                 + csm->val.dOmegaDE*pow(dExp,1.0 - 3.0*(csm->val.w0 + csm->val.wa))*exp(-3.0*csm->val.wa*(1.0 - dExp)))/(dExp*dExp);
+    }
+*/
+
+    /*
+    ** The cosmological equation of state is entirely determined here.  We
+    ** will derive all other quantities from this function.
+    */
+    static inline double csmExp2Hub(CSM csm, double dExp) {
+        double dOmegaCurve = 1.0 - csm->val.dOmega0 - csm->val.dLambda - csm->val.dOmegaDE - csm->val.dOmegaRad;
+
+        assert(dExp > 0.0);
+        return csm->val.dHubble0
+               *sqrt(csm->val.dOmega0*dExp
+                     + dOmegaCurve*dExp*dExp
+                     + csm->val.dOmegaRad
+                     + csm->val.dOmegaDE*pow(dExp,1.0 - 3.0*(csm->val.w0 + csm->val.wa))*exp(-3.0*csm->val.wa*(1.0 - dExp))
+                     + csm->val.dLambda*dExp*dExp*dExp*dExp)/(dExp*dExp);
+        }
+
     double csmTime2Hub(CSM csm, double dTime);
     double csmExp2Time(CSM csm, double dExp);
     double csmTime2Exp(CSM csm, double dTime);
@@ -45,6 +80,9 @@ extern "C" {
     double csmComoveLookbackTime2Exp(CSM csm, double dComoveTime);
     double csmComoveGrowthFactor(CSM csm, double a);
     double csmComoveGrowthRate(CSM csm, double a);
+    void MyRK4(CSM csm, double a, float *D1, float *f1);
+    //void csmComoveGrowth(CSM csm, double a, float *GrowthFactor, float *GrowthRate, double , int order);
+    //void csmComoveGrowth(CSM csm, double a, float* GrowthFactor, float* GrowthRate, char* RadHandling);
 #ifdef __cplusplus
 }
 #endif
