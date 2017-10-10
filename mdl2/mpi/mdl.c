@@ -4,6 +4,14 @@
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
+
+#ifdef USE_AFFINITY
+#include <sched.h>
+#include <stdio.h>
+#include <unistd.h>
+#include <ctype.h>
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stddef.h>
@@ -1589,12 +1597,43 @@ static void SIGRTMAX0_handler(int signo) {
     }
 #endif
 
+#ifdef USE_AFFINITY
+static void cpu_get_siblings(int cpu,cpu_set_t *sib) {
+    char ach[256];
+    int n, o, i;
+    uint32_t v;
+    sprintf(ach,"/sys/devices/system/cpu/cpu%d/topology/thread_siblings",cpu);
+    FILE *fp = fopen(ach,"r");
+    assert(fp!=NULL);
+    if (fgets(ach,sizeof(ach),fp)==NULL) assert(0);
+    ach[sizeof(ach)-1] = 0;
+    n = strlen(ach);
+    while(n>0 && isspace(ach[n-1])) ach[--n] = 0;
+
+    CPU_ZERO(sib);
+    o = 0;
+    while( (n = strlen(ach)) > 8 ) {
+	assert(ach[n-9] == ',');
+	ach[n-9] = 0;
+	uint32_t v;
+	sscanf(ach+n-8,"%x",&v);
+	for(i=0; i<32; ++i) if (v & (1<<i)) CPU_SET(o+i,sib);
+	o += 32;
+	}
+    sscanf(ach,"%x",&v);
+    for(i=0; i<32; ++i) if (v & (1<<i)) CPU_SET(o+i,sib);
+    }
+#endif
 
 void mdlLaunch(int argc,char **argv,void * (*fcnMaster)(MDL),void * (*fcnChild)(MDL)) {
     MDL mdl;
     int i,n,bDiag,bThreads,bDedicated,thread_support,rc,flag,*piTagUB;
     char *p, ach[256];
     mdlContextMPI *mpi;
+#ifdef USE_AFFINITY
+    cpu_set_t set;
+    int cpu;
+#endif
 
 #if defined(SIGRTMAX) && defined(HAVE_MALLOC_STATS)
     signal(SIGRTMAX-1,SIGRTMAX0_handler);
@@ -1690,6 +1729,29 @@ void mdlLaunch(int argc,char **argv,void * (*fcnMaster)(MDL),void * (*fcnChild)(
 	/*if (mdl->base.nCores==1 || mdl->base.nProcs==1) bDedicated=0;
 	  else*/ --mdl->base.nCores;
 	}
+
+#ifdef USE_AFFINITY
+    if (bDedicated) {
+	cpu_set_t sib;
+	int icpu;
+
+	/* Remove siblings of the MPI core */
+	sched_getaffinity(0, sizeof(cpu_set_t), &set);
+	for (cpu = 0; cpu < CPU_SETSIZE; cpu++)
+	    if (CPU_ISSET(cpu, &set)) break;
+	assert(cpu<CPU_SETSIZE);
+	cpu_get_siblings(cpu, &sib);
+	assert(CPU_ISSET(cpu,&sib));
+	CPU_CLR(cpu,&set);
+	for (icpu = 0; icpu < CPU_SETSIZE; icpu++) {
+	    if (cpu != icpu && CPU_ISSET(icpu, &sib)) {
+		assert(CPU_ISSET(icpu,&set));
+		CPU_CLR(icpu,&set);
+		--mdl->base.nCores;
+	        }
+	    }
+	}
+#endif
 
     /* Construct the thread/processor map */
     mdl->base.iProcToThread = malloc((mdl->base.nProcs + 1) * sizeof(int));
@@ -1837,16 +1899,33 @@ void mdlLaunch(int argc,char **argv,void * (*fcnMaster)(MDL),void * (*fcnChild)(
 #endif
     mpi->nActiveCores = 0;
     if (mdl->base.nCores > 1 || bDedicated) {
+#ifdef USE_AFFINITY
+	int icpu = cpu;
+	cpu_set_t cpus;
+#endif
 	pthread_attr_t attr;
 	pthread_attr_init(&attr);
 	pthread_barrier_init(&mdl->pmdl[0]->barrier,NULL,mdlCores(mdl)+(bDedicated?1:0));
 	for (i = mdl->iCoreMPI+1; i < mdl->base.nCores; ++i) {
+#ifdef USE_AFFINITY
+	    ++icpu;
+	    while(!CPU_ISSET(icpu,&set) && icpu < CPU_SETSIZE ) ++icpu;
+	    assert(icpu<CPU_SETSIZE);
+	    CPU_ZERO(&cpus);
+	    CPU_SET(icpu, &cpus);
+	    pthread_attr_setaffinity_np(&attr, sizeof(cpu_set_t), &cpus);
+#endif
 	    pthread_create(&mdl->threadid[i], &attr,
 		mdlWorkerThread,
 		mdl->pmdl[i]);
 	    ++mpi->nActiveCores;
 	    }
 	pthread_attr_destroy(&attr);
+#ifdef notwithfftwUSE_AFFINITY
+	CPU_ZERO(&cpus);
+	CPU_SET(cpu, &cpus);
+	sched_setaffinity(0, sizeof(cpu_set_t), &cpus);
+#endif
 	}
 #ifdef USE_ITT
     __itt_task_end(domain);
