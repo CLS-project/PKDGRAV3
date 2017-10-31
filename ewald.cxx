@@ -42,29 +42,29 @@ static int evalEwald(
     F xyz = xy*z;
     F xz = x*z;
     F yz = y*z;
-    F Q2mirx = mom.xx*x + mom.xy*y + mom.xz*z;
-    F Q2miry = mom.xy*x + mom.yy*y + mom.yz*z;
-    F Q2mirz = mom.xz*x + mom.yz*y + mom.zz*z;
-    F Q3mirx = mom.xxx*xx + mom.xxy*xy + mom.xxz*xz + mom.xyy*yy + mom.xyz*yz + mom.xzz*zz;
-    F Q3miry = mom.xxy*xx + mom.xyy*xy + mom.xyz*xz + mom.yyy*yy + mom.yyz*yz + mom.yzz*zz;
-    F Q3mirz = mom.xxz*xx + mom.xyz*xy + mom.xzz*xz + mom.yyz*yy + mom.yzz*yz + mom.zzz*zz;
-    F Q4mirx = mom.xxxx*xxx + mom.xxxy*xxy + mom.xxxz*xxz + mom.xxyy*xyy + mom.xxyz*xyz +
-	mom.xxzz*xzz + mom.xyyy*yyy + mom.xyyz*yyz + mom.xyzz*yzz + mom.xzzz*zzz;
-    F Q4miry = mom.xxxy*xxx + mom.xxyy*xxy + mom.xxyz*xxz + mom.xyyy*xyy + mom.xyyz*xyz +
-	mom.xyzz*xzz + mom.yyyy*yyy + mom.yyyz*yyz + mom.yyzz*yzz + mom.yzzz*zzz;
-    F Q4mirz = mom.xxxz*xxx + mom.xxyz*xxy + mom.xxzz*xxz + mom.xyyz*xyy + mom.xyzz*xyz +
-	mom.xzzz*xzz + mom.yyyz*yyy + mom.yyzz*yyz + mom.yzzz*yzz + mom.zzzz*zzz;
-    F Q4x = ew.Q4xx*x + ew.Q4xy*y + ew.Q4xz*z;
-    F Q4y = ew.Q4xy*x + ew.Q4yy*y + ew.Q4yz*z;
-    F Q4z = ew.Q4xz*x + ew.Q4yz*y + ew.Q4zz*z;
-    F Q2mir = 0.5*(Q2mirx*x + Q2miry*y + Q2mirz*z) - (ew.Q3x*x + ew.Q3y*y + ew.Q3z*z) + ew.Q4;
+    F Q2mirx = F(mom.xx)*x + F(mom.xy)*y + F(mom.xz)*z;
+    F Q2miry = F(mom.xy)*x + F(mom.yy)*y + F(mom.yz)*z;
+    F Q2mirz = F(mom.xz)*x + F(mom.yz)*y + F(mom.zz)*z;
+    F Q3mirx = F(mom.xxx)*xx + F(mom.xxy)*xy + F(mom.xxz)*xz + F(mom.xyy)*yy + F(mom.xyz)*yz + F(mom.xzz)*zz;
+    F Q3miry = F(mom.xxy)*xx + F(mom.xyy)*xy + F(mom.xyz)*xz + F(mom.yyy)*yy + F(mom.yyz)*yz + F(mom.yzz)*zz;
+    F Q3mirz = F(mom.xxz)*xx + F(mom.xyz)*xy + F(mom.xzz)*xz + F(mom.yyz)*yy + F(mom.yzz)*yz + F(mom.zzz)*zz;
+    F Q4mirx = F(mom.xxxx)*xxx + F(mom.xxxy)*xxy + F(mom.xxxz)*xxz + F(mom.xxyy)*xyy + F(mom.xxyz)*xyz +
+      F(mom.xxzz)*xzz + F(mom.xyyy)*yyy + F(mom.xyyz)*yyz + F(mom.xyzz)*yzz + F(mom.xzzz)*zzz;
+    F Q4miry = F(mom.xxxy)*xxx + F(mom.xxyy)*xxy + F(mom.xxyz)*xxz + F(mom.xyyy)*xyy + F(mom.xyyz)*xyz +
+      F(mom.xyzz)*xzz + F(mom.yyyy)*yyy + F(mom.yyyz)*yyz + F(mom.yyzz)*yzz + F(mom.yzzz)*zzz;
+    F Q4mirz = F(mom.xxxz)*xxx + F(mom.xxyz)*xxy + F(mom.xxzz)*xxz + F(mom.xyyz)*xyy + F(mom.xyzz)*xyz +
+      F(mom.xzzz)*xzz + F(mom.yyyz)*yyy + F(mom.yyzz)*yyz + F(mom.yzzz)*yzz + F(mom.zzzz)*zzz;
+    F Q4x = F(ew.Q4xx)*x + F(ew.Q4xy)*y + F(ew.Q4xz)*z;
+    F Q4y = F(ew.Q4xy)*x + F(ew.Q4yy)*y + F(ew.Q4yz)*z;
+    F Q4z = F(ew.Q4xz)*x + F(ew.Q4yz)*y + F(ew.Q4zz)*z;
+    F Q2mir = 0.5*(Q2mirx*x + Q2miry*y + Q2mirz*z) - (F(ew.Q3x)*x + F(ew.Q3y)*y + F(ew.Q3z)*z) + F(ew.Q4);
     F Q3mir = onethird*(Q3mirx*x + Q3miry*y + Q3mirz*z) - 0.5*(Q4x*x + Q4y*y + Q4z*z);
     F Q4mir = 0.25*(Q4mirx*x + Q4miry*y + Q4mirz*z);
-    F Qta = g1*mom.m - g2*ew.Q2 + g3*Q2mir + g4*Q3mir + g5*Q4mir;
-    fPot -= g0*mom.m - g1*ew.Q2 + g2*Q2mir + g3*Q3mir + g4*Q4mir;
-    ax += g2*(Q2mirx - ew.Q3x) + g3*(Q3mirx - Q4x) + g4*Q4mirx - x*Qta;
-    ay += g2*(Q2miry - ew.Q3y) + g3*(Q3miry - Q4y) + g4*Q4miry - y*Qta;
-    az += g2*(Q2mirz - ew.Q3z) + g3*(Q3mirz - Q4z) + g4*Q4mirz - z*Qta;
+    F Qta = g1*F(mom.m) - g2*F(ew.Q2) + g3*Q2mir + g4*Q3mir + g5*Q4mir;
+    fPot -= g0*F(mom.m) - g1*F(ew.Q2) + g2*Q2mir + g3*Q3mir + g4*Q4mir;
+    ax += g2*(Q2mirx - F(ew.Q3x)) + g3*(Q3mirx - Q4x) + g4*Q4mirx - x*Qta;
+    ay += g2*(Q2miry - F(ew.Q3y)) + g3*(Q3miry - Q4y) + g4*Q4miry - y*Qta;
+    az += g2*(Q2mirz - F(ew.Q3z)) + g3*(Q3mirz - Q4z) + g4*Q4mirz - z*Qta;
 
     return COST_FLOP_EWALD;
     }
@@ -83,10 +83,10 @@ double evalEwaldSIMD( PKD pkd,ewaldSIMD *ews,
 
     dir = rsqrt(r2);
     dir2 = dir*dir;
-    ex2 = exp(-r2*ews->ewp.alpha2);
-    a = ex2 * ews->ewp.ka * dir2;
+    ex2 = exp(-r2*dvec(ews->ewp.alpha2));
+    a = ex2 * dvec(ews->ewp.ka) * dir2;
 
-    verf(ews->ewp.alpha*r2*dir,ews->ewp.ialpha*dir,ex2,rerf,rerfc);
+    verf(dvec(ews->ewp.alpha)*r2*dir,dvec(ews->ewp.ialpha)*dir,ex2,rerf,rerfc);
 
     g0 = dir * mask_mov(-rerf,doerfc,rerfc);
     g1 = g0*dir2 + a;
@@ -259,19 +259,19 @@ double pkdParticleEwald(PKD pkd,double *r, float *pa, float *pPot,double *pdFlop
     i = 0;
     do {
 	fvec hdotx,s,c,t;
-	hdotx = ewt->hx.p[i]*fx + ewt->hy.p[i]*fy + ewt->hz.p[i]*fz;
+	hdotx = fvec(ewt->hx.p[i])*fx + fvec(ewt->hy.p[i])*fy + fvec(ewt->hz.p[i])*fz;
 	fvec svec,cvec;
 
 	sincosf(fvec(hdotx),svec,cvec);
 	s = svec; c = cvec;
 
-	fPot += ewt->hSfac.p[i]*s + ewt->hCfac.p[i]*c;
+	fPot += fvec(ewt->hSfac.p[i])*s + fvec(ewt->hCfac.p[i])*c;
 	s *= fvec(ewt->hCfac.p[i]);
 	c *= fvec(ewt->hSfac.p[i]);
 	t = s - c;
-	fax += ewt->hx.p[i]*t;
-	fay += ewt->hy.p[i]*t;
-	faz += ewt->hz.p[i]*t;
+	fax += fvec(ewt->hx.p[i])*t;
+	fay += fvec(ewt->hy.p[i])*t;
+	faz += fvec(ewt->hz.p[i])*t;
 	} while(++i < nLoop);
     dFlopSingle += ew.nEwhLoop*COST_FLOP_HLOOP;
 

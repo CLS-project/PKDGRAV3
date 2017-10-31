@@ -23,7 +23,7 @@ typedef struct lcodeContext {
 ** the following variables are used for creating the encoded list
 */
     uint32_t uIndex;
-    char uMask;
+    unsigned char uMask;
     uint32_t nCode;
     char *aCode;
     char *inCode; /* we set this pointer to the input string to decode */

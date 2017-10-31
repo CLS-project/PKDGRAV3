@@ -86,11 +86,11 @@ double momFlocrSetVFmomr5cm(FLOCR *l,float v1,ILC ill,const float *a,float *pfdi
 	    int n = ((nLeft ? ILC_PART_PER_BLK : nInLast) + fvec::mask()) / fvec::width();
 	    for (j=0; j<n; ++j) {
 		fvec
-		    x = blk->dx.p[j],
-		    y = blk->dy.p[j],
-		    z = blk->dz.p[j],
-		    u = blk->u.p[j],
-		    m = blk->m.p[j];
+		  x = fvec(blk->dx.p[j]),
+		  y = fvec(blk->dy.p[j]),
+		  z = fvec(blk->dz.p[j]),
+		  u = fvec(blk->u.p[j]),
+		  m = fvec(blk->m.p[j]);
 		fvec v=v1;
 		fvec dir = rsqrt(x*x + y*y + z*z);
 		fvec sdir = dir;
@@ -125,11 +125,11 @@ double momFlocrSetVFmomr5cm(FLOCR *l,float v1,ILC ill,const float *a,float *pfdi
 
 		u3 = u2*u;  /* becomes 5.0f*u3! */
 
-		R2xx = u2*blk->xx.p[j];
-		R2xy = u2*blk->xy.p[j];
-		R2xz = u2*blk->xz.p[j];
-		R2yy = u2*blk->yy.p[j];
-		R2yz = u2*blk->yz.p[j];
+		R2xx = u2*fvec(blk->xx.p[j]);
+		R2xy = u2*fvec(blk->xy.p[j]);
+		R2xz = u2*fvec(blk->xz.p[j]);
+		R2yy = u2*fvec(blk->yy.p[j]);
+		R2yz = u2*fvec(blk->yz.p[j]);
 
 		u4 = 7.0f*u3*u;  /* becomes 7.0f*5.0f*u4! */
 
@@ -137,15 +137,15 @@ double momFlocrSetVFmomr5cm(FLOCR *l,float v1,ILC ill,const float *a,float *pfdi
 		R2y = x*R2xy + y*R2yy + z*R2yz;
 		R2z = x*R2xz + y*R2yz - z*(R2xx + R2yy);
 
-		R3xx = u3*(x*blk->xxx.p[j] + y*blk->xxy.p[j] + z*blk->xxz.p[j]);
-		R3xy = u3*(x*blk->xxy.p[j] + y*blk->xyy.p[j] + z*blk->xyz.p[j]);
-		R3yy = u3*(x*blk->xyy.p[j] + y*blk->yyy.p[j] + z*blk->yyz.p[j]);
-		R3xz = u3*(x*blk->xxz.p[j] + y*blk->xyz.p[j] - z*(fvec(blk->xxx.p[j]) + blk->xyy.p[j]));
-		R3yz = u3*(x*blk->xyz.p[j] + y*blk->yyz.p[j] - z*(fvec(blk->xxy.p[j]) + blk->yyy.p[j]));
+		R3xx = u3*(x*fvec(blk->xxx.p[j]) + y*fvec(blk->xxy.p[j]) + z*fvec(blk->xxz.p[j]));
+		R3xy = u3*(x*fvec(blk->xxy.p[j]) + y*fvec(blk->xyy.p[j]) + z*fvec(blk->xyz.p[j]));
+		R3yy = u3*(x*fvec(blk->xyy.p[j]) + y*fvec(blk->yyy.p[j]) + z*fvec(blk->yyz.p[j]));
+		R3xz = u3*(x*fvec(blk->xxz.p[j]) + y*fvec(blk->xyz.p[j]) - z*(fvec(blk->xxx.p[j]) + fvec(blk->xyy.p[j])));
+		R3yz = u3*(x*fvec(blk->xyz.p[j]) + y*fvec(blk->yyz.p[j]) - z*(fvec(blk->xxy.p[j]) + fvec(blk->yyy.p[j])));
 
-		R4x = u4*(blk->xxxx.p[j]*xxx + blk->xyyy.p[j]*yyy + blk->xxxy.p[j]*xxy + blk->xxxz.p[j]*xxz + blk->xxyy.p[j]*xyy + blk->xxyz.p[j]*xyz + blk->xyyz.p[j]*yyz);
-		R4y = u4*(blk->xyyy.p[j]*xyy + blk->xxxy.p[j]*xxx + blk->yyyy.p[j]*yyy + blk->yyyz.p[j]*yyz + blk->xxyy.p[j]*xxy + blk->xxyz.p[j]*xxz + blk->xyyz.p[j]*xyz);
-		R4z = u4*(-fvec(blk->xxxx.p[j])*xxz - (fvec(blk->xyyy.p[j]) + blk->xxxy.p[j])*xyz - blk->yyyy.p[j]*yyz + blk->xxxz.p[j]*xxx + blk->yyyz.p[j]*yyy - blk->xxyy.p[j]*(xxz + yyz) + blk->xxyz.p[j]*xxy + blk->xyyz.p[j]*xyy);
+		R4x = u4*(fvec(blk->xxxx.p[j])*xxx + fvec(blk->xyyy.p[j])*yyy + fvec(blk->xxxy.p[j])*xxy + fvec(blk->xxxz.p[j])*xxz + fvec(blk->xxyy.p[j])*xyy + fvec(blk->xxyz.p[j])*xyz + fvec(blk->xyyz.p[j])*yyz);
+		R4y = u4*(fvec(blk->xyyy.p[j])*xyy + fvec(blk->xxxy.p[j])*xxx + fvec(blk->yyyy.p[j])*yyy + fvec(blk->yyyz.p[j])*yyz + fvec(blk->xxyy.p[j])*xxy + fvec(blk->xxyz.p[j])*xxz + fvec(blk->xyyz.p[j])*xyz);
+		R4z = u4*(-fvec(blk->xxxx.p[j])*xxz - (fvec(blk->xyyy.p[j]) + fvec(blk->xxxy.p[j]))*xyz - fvec(blk->yyyy.p[j])*yyz + fvec(blk->xxxz.p[j])*xxx + fvec(blk->yyyz.p[j])*yyy - fvec(blk->xxyy.p[j])*(xxz + yyz) + fvec(blk->xxyz.p[j])*xxy + fvec(blk->xyyz.p[j])*xyy);
 
 
 		R3x = 0.5f*(x*R3xx + y*R3xy + z*R3xz);
