@@ -7,6 +7,9 @@
 #include "cycle.h"
 #endif
 #include <pthread.h>
+#ifdef __APPLE__
+#include "pthread_barrier.h"
+#endif
 #include "mdlbase.h"
 #include <stdio.h>
 #include <assert.h>

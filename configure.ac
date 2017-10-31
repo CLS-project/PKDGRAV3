@@ -3,16 +3,19 @@
 
 AC_PREREQ(2.59)
 AC_INIT(pkdgrav3, 0.9.33, bugs@pkdgrav.org)
+AC_CANONICAL_TARGET
 AM_INIT_AUTOMAKE
 AM_MAINTAINER_MODE([disable])
 AC_CONFIG_SRCDIR([main.c])
 AC_CONFIG_HEADER([config.h])
+
 
 # Checks for programs.
 AC_PROG_CC
 AC_PROG_CXX
 AC_PROG_MAKE_SET
 AM_PROG_CC_C_O
+
 
 AC_LANG_PUSH(C)
 oldCC="$CC"
@@ -48,6 +51,7 @@ if test -n "$MPICXX" ; then
 else
   AC_MSG_ERROR([Cannot compile C++ MPI programs])
 fi
+AM_CONDITIONAL(HAVE_DARWIN,[test "${target_os}x" != "${target_os##darwin}x"])
 AC_CHECK_LIB([m], [cos])
 
 AC_DEFINE([HAVE_ROMBERG], 1, [Use the pkdgrav3 Romberg integrator.])
@@ -103,7 +107,7 @@ AM_CONDITIONAL(USE_BT, test "x$USE_BT" = "xyes")
 AC_ARG_WITH(fftw,
   [  --with-fftw                    Enable FFT support modules])
 if test "$with_fftw" != "no" ; then
-  if test "$with_fftw" != "yes" ; then
+  if test "${with_fftw:-yes}" != "yes" ; then
    CFLAGS="-I${with_fftw}/include $CFLAGS"
    CXXFLAGS="-I${with_fftw}/include $CXXFLAGS"
    LDFLAGS="-L${with_fftw}/lib $LDFLAGS"

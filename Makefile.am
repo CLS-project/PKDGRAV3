@@ -126,10 +126,15 @@ pkdgrav3_mpi_CFLAGS += $(GSL_CFLAGS)
 pkdgrav3_mpi_CXXFLAGS += $(GSL_CFLAGS)
 pkdgrav3_mpi_LDADD += $(GSL_LIBS)
 if USE_LIBAIO
-pkdgrav3_mpi_LDADD += -laio -lrt
+pkdgrav3_mpi_LDADD += -laio
+if !HAVE_DARWIN
+pkdgrav3_mpi_LDADD += -lrt
+endif
 else
 if USE_AIO
+if !HAVE_DARWIN
 pkdgrav3_mpi_LDADD += -lrt
+endif
 endif
 endif
 if HAVE_MEMKIND
@@ -167,6 +172,11 @@ pkdgrav3_mpi_LDFLAGS = -Xlinker -rdynamic
 endif
 pkdgrav3_mpi_LDADD += -L$(PYTHON_LIB) -lpython$(PYTHON_VER) -ldl -lutil
 pkdgrav3_mpi_CFLAGS += -I$(PYTHON_INC)
+endif
+if HAVE_DARWIN
+pkdgrav3_mpi_SOURCES += mac/pthread_barrier.c
+pkdgrav3_mpi_CFLAGS += -Imac/
+pkdgrav3_mpi_CXXFLAGS += -Imac/
 endif
 endif
 

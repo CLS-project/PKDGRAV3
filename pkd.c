@@ -18,7 +18,11 @@
 #include <limits.h>
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>
+#ifdef __linux__
 #include <linux/fs.h>
+#else
+#define O_DIRECT 0
+#endif
 #endif
 #ifdef HAVE_SYS_TIME_H
 #include <sys/time.h>
@@ -562,7 +566,8 @@ void pkdInitialize(
     */
     assert(pkdNodeSize(pkd) > 0);
     if (pkdNodeSize(pkd) > pkdMaxNodeSize()) {
-	fprintf(stderr, "Node size is too large. Node size=%llu, max node size=%llu\n", pkdNodeSize(pkd), pkdMaxNodeSize());
+	fprintf(stderr, "Node size is too large. Node size=%"PRIu64", max node size=%"PRIu64"\n",
+                    (uint64_t)pkdNodeSize(pkd), (uint64_t)pkdMaxNodeSize());
 	}
     assert(pkdNodeSize(pkd)<=pkdMaxNodeSize());
 
@@ -1946,8 +1951,8 @@ static void asyncCheckpoint(PKD pkd,const char *fname,int bWrite) {
 		ssize_t nWritten = aio_return(&info.cb[i]);
 		if (nWritten != info.cb[i].aio_nbytes) {
 		    char szError[100];
-		    sprintf(szError,"errno=%d nBytes=%llu nBytesWritten=%llu\n",
-			errno,info.cb[i].aio_nbytes,nWritten);
+		    sprintf(szError,"errno=%d nBytes=%"PRIu64" nBytesWritten=%"PRIi64"\n",
+			errno,(uint64_t)info.cb[i].aio_nbytes,(int64_t)nWritten);
 		    perror(szError);
 		    abort();
 		    }
@@ -1979,8 +1984,8 @@ static void simpleCheckpoint(PKD pkd,const char *fname) {
 	nBytesWritten = write(fd,pBuffer,nWrite);
 	if (nBytesWritten != nWrite) {
 	    char szError[100];
-	    sprintf(szError,"errno=%d nBytes=%llu nWrite=%llu\n",
-		errno,nBytesWritten,nWrite);
+	    sprintf(szError,"errno=%d nBytes=%"PRIi64" nWrite=%"PRIu64"\n",
+		errno,(int64_t)nBytesWritten,(uint64_t)nWrite);
 	    perror(szError);
 	    abort();
 	    }
@@ -2015,8 +2020,8 @@ static void simpleRestore(PKD pkd,const char *fname) {
 	nBytesRead = read(fd,pBuffer,nRead);
 	if (nBytesRead != nRead) {
 	    char szError[100];
-	    sprintf(szError,"errno=%d nBytes=%llu nRead=%llu\n",
-		errno,nBytesRead,nRead);
+	    sprintf(szError,"errno=%d nBytes=%"PRIi64" nRead=%"PRIu64"\n",
+		errno,(int64_t)nBytesRead,(uint64_t)nRead);
 	    perror(szError);
 	    abort();
 	    }
@@ -3093,7 +3098,8 @@ void pkdStarForm(PKD pkd, double dRateCoeff, double dTMax, double dDenMin,
 	      and he has one cell that may contain many times m_particle */
 	    if (pkd->param.bGasCooling) {
 		if (fabs(pkdStar(pkd,p)->totaltime-dTime) > 1e-3*dt) {
-		    printf("total time error: %lu,  %g %g %g\n",p->iOrder,pkdStar(pkd,p)->totaltime,dTime,dt);
+		    printf("total time error: %"PRIu64",  %g %g %g\n",
+                p->iOrder,pkdStar(pkd,p)->totaltime,dTime,dt);
 		    assert(0);
 		    }
 		}
