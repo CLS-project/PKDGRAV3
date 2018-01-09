@@ -89,7 +89,7 @@ static double Exp2TimeIntegrate(CSM csm,double dExp) {
     double result,error;
     gsl_integration_qag(&F, 0.0, pow(dExp, 1.5),
 	0.0, EPSCOSMO, LIMIT, GSL_INTEG_GAUSS61, csm->W, &result, &error);
-    printf("a=%g,\t result of Exp2TimeIntegrate = %g\n", dExp, result);
+    //printf("a=%g,\t result of Exp2TimeIntegrate = %g\n", dExp, result);
     return result;
     }
 
@@ -147,9 +147,9 @@ double csmExp2Time(CSM csm,double dExp) {
 	    }
 	}
     else {
-	printf("Enter GSL integration...\n");
+	//printf("Enter GSL integration...\n");
 	double r = Exp2TimeIntegrate(csm,dExp);
-	printf("The result of csmExp2Time is: %g\n",r);
+	//printf("The result of csmExp2Time is: %g\n",r);
 	return r;
 	}
     }
