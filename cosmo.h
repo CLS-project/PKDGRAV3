@@ -80,7 +80,8 @@ double MK_csmExp2Hub(CSM csm, double dExp) {
     double csmComoveLookbackTime2Exp(CSM csm, double dComoveTime);
     double csmComoveGrowthFactor(CSM csm, double a);
     double csmComoveGrowthRate(CSM csm, double a);
-    void MyRK4(CSM csm, double a, float *D1, float *f1);
+    void MyD_RK4(CSM csm, double a, float *D1LPT, float *D2LPT, float *f1LPT, float *f2LPT);
+    //void MyD_RK4(CSM csm, double a, double *D1LPT, double *D2LPT, double *f1LPT, double *f2LPT);
     //void csmComoveGrowth(CSM csm, double a, float *GrowthFactor, float *GrowthRate, double , int order);
     //void csmComoveGrowth(CSM csm, double a, float* GrowthFactor, float* GrowthRate, char* RadHandling);
 #ifdef __cplusplus

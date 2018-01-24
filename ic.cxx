@@ -8,7 +8,6 @@
 #include "pkd.h"
 #include "ic.h"
 #include "RngStream.h"
-
 #ifdef __cplusplus
 #include <complex>
 typedef std::complex<float> COMPLEX;
@@ -212,9 +211,10 @@ int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int bFixed,float fPhase,int nGrid
     float iLbox = twopi / dBoxSize;
     float iLbox3 = pow(iLbox,3.0);
     float ak, ak2, amp;
-    float dOmega, D0, Da;
-    float velFactor;
-    float dummyf, f1, f2;
+    float dOmega;
+    float D1_0, D2_0, D1_a, D2_a;
+    float f1_0, f2_0, f1_a, f2_a;
+    float velFactor; 
     basicParticle *p;
     int nLocal;
     float dSigma8 = cosmo->dSigma8;
@@ -229,10 +229,12 @@ int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int bFixed,float fPhase,int nGrid
 
     powerParameters P;
 
-    //D0 = csmComoveGrowthFactor(csm,1.0);
-    MyRK4(csm, 1.0, &D0, &dummyf);
-    //Da = csmComoveGrowthFactor(csm,a);
-    MyRK4(csm, a, &Da, &f1);
+    double D0 = csmComoveGrowthFactor(csm,1.0);
+    MyD_RK4(csm, 1.0, &D1_0, &D2_0, &f1_0, &f2_0);
+    double Da = csmComoveGrowthFactor(csm,a);
+    if (mdlSelf(mdl)==0) printf("D1 (approx) = %.20g\n", Da);
+    MyD_RK4(csm, a, &D1_a, &D2_a, &f1_a, &f2_a);
+    if (mdlSelf(mdl)==0) printf("D1 (exact) = %.20g\n", D1_a);
     dOmega = cosmo->dOmega0 / (a*a*a*pow(csmExp2Hub(csm, a)/cosmo->dHubble0,2.0));
 
     P.normalization = 1.0;
@@ -246,20 +248,19 @@ int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int bFixed,float fPhase,int nGrid
     P.spline = gsl_spline_alloc (gsl_interp_cspline, nTf);
     gsl_spline_init(P.spline, P.tk, P.tf, P.nTf);
     if (dSigma8 > 0) {
-	dSigma8 *= Da/D0;
+	dSigma8 *= D1_a/D1_0;
 	P.normalization *= dSigma8*dSigma8 / variance(&P,8.0);
 	}
     else if (cosmo->dNormalization > 0) {
-	P.normalization = cosmo->dNormalization * Da/D0;
+	P.normalization = cosmo->dNormalization * D1_a/D1_0;
 	dSigma8 = sqrt(variance(&P,8.0));
 	}
-    //f1 = csmComoveGrowthRate(csm,a);
-    f2 = 2.0 * pow(dOmega,6.0/11.0);
+    double f1 = pow(dOmega,5.0/9.0);//csmComoveGrowthRate(csm,a);
+    double f2 = 2.0 * pow(dOmega,6.0/11.0);
     if (mdlSelf(mdl)==0) {
 	printf("sigma8=%.15g\n",dSigma8); 
-	printf("f1=%.12g (exact) or %.12g (approx)\n", f1, pow(dOmega,5.0/9.0));
-//	printf("f2=%.12g (exact) or %.12g (approx)\n", -6.0/7.0 * f1, f2);
-	printf("f2=%.12g (exact) or %.12g (approx)\n", 2.0 * f1, f2);
+	printf("f1=%.12g (exact) or %.12g (approx)\n", f1_a, f1);
+	printf("f2=%.12g (exact) or %.12g (approx)\n", f2_a, f2);//2.0 * f1_a, f2_a);
 	fflush(stdout);
 	}
 
@@ -439,14 +440,23 @@ int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int bFixed,float fPhase,int nGrid
 	p[idx].dr[0] = x;
 	p[idx].dr[1] = y;
 	p[idx].dr[2] = z;
-	p[idx].v[0] = f1 * x * velFactor;
-	p[idx].v[1] = f1 * y * velFactor;
-	p[idx].v[2] = f1 * z * velFactor;
+	p[idx].v[0] = f1_a * x * velFactor;
+	p[idx].v[1] = f1_a * y * velFactor;
+	p[idx].v[2] = f1_a * z * velFactor;
 	++idx;
 	}
     assert(idx == nLocal);
 
     if (b2LPT) {
+        float aeq = csmRadMatEquivalence(csm);
+        float aeqDratio = aeq/D1_a;
+	float D2;
+	if (aeq>0.0f) D2 = (-3.0/7.0 + 4.0/7.0 * aeqDratio - 2.0/3.0 * aeqDratio * aeqDratio * (+2.0/7.0 + a/aeq));
+        else D2 = (-3.0/7.0);
+	if (mdlSelf(mdl)==0) printf("D2 (approx) = %.20g\n", D2);
+        D2 = D2_a/pow(D1_a,2);
+	if (mdlSelf(mdl)==0) printf("D2 (exact)  = %.20g\n", D2);
+
 	for(kindex=kfirst; !mdlGridCoordCompare(&kindex,&klast); mdlGridCoordIncrement(&kindex)) {
 	    iy = wrap(kindex.z,iNyquist,fft->rgrid->n3);
 	    iz = wrap(kindex.y,iNyquist,fft->rgrid->n2);
@@ -455,11 +465,14 @@ int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int bFixed,float fPhase,int nGrid
 	    ak2 = ix*ix + iy*iy + iz*iz;
 	    if (ak2>0.0) {
 		
-		float aeq = csmRadMatEquivalence(csm);
-		float aeqDratio = aeq/Da; 
-		float D2;
+		//float aeq = csmRadMatEquivalence(csm);
+		//float aeqDratio = aeq/D1_a; 
+		//float D2;
 		if (aeq>0.0f) D2 = (-3.0/7.0 + 4.0/7.0 * aeqDratio - 2.0/3.0 * aeqDratio * aeqDratio * (+2.0/7.0 + a/aeq)) / (ak2 * twopi);
 		else D2 = (-3.0/7.0) / (ak2 * twopi);
+		//if (mdlSelf(mdl)==0) printf("approx D2 = %.20g\n", D2);
+      		D2 = D2_a/pow(D1_a,2)/(ak2 * twopi);  // The source term contains phi^2 which in turn contains D1, we need to divide by D1^2 (cf Scoccimarro Transients paper, appendix D). Here we use normalized D1 values in contrast to there.
+                //if (mdlSelf(mdl)==0) printf("exact  D2 = %.20g\n", D2);
 		ic[7].k[idx] = D2 * ic[6].k[idx] * ix * -I;
 		ic[8].k[idx] = D2 * ic[6].k[idx] * iy * -I;
 		ic[9].k[idx] = D2 * ic[6].k[idx] * iz * -I;
@@ -485,9 +498,9 @@ int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int bFixed,float fPhase,int nGrid
 	    p[idx].dr[0] += x;
 	    p[idx].dr[1] += y;
 	    p[idx].dr[2] += z;
-	    p[idx].v[0] += f2 * x * velFactor;
-	    p[idx].v[1] += f2 * y * velFactor;
-	    p[idx].v[2] += f2 * z * velFactor;
+	    p[idx].v[0] += f2_a * x * velFactor;
+	    p[idx].v[1] += f2_a * y * velFactor;
+	    p[idx].v[2] += f2_a * z * velFactor;
 	    ++idx;
 	    }
 	}
