@@ -1744,8 +1744,7 @@ void mdlLaunch(int argc,char **argv,void * (*fcnMaster)(MDL),void * (*fcnChild)(
 	assert(CPU_ISSET(cpu,&sib));
 	CPU_CLR(cpu,&set);
 	for (icpu = 0; icpu < CPU_SETSIZE; icpu++) {
-	    if (cpu != icpu && CPU_ISSET(icpu, &sib)) {
-		assert(CPU_ISSET(icpu,&set));
+	    if (cpu != icpu && CPU_ISSET(icpu, &sib) && CPU_ISSET(icpu,&set) ) {
 		CPU_CLR(icpu,&set);
 		--mdl->base.nCores;
 	        }

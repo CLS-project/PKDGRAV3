@@ -6,6 +6,10 @@
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>
 #endif
+#include <stdint.h>
+#ifdef HAVE_INTTYPES_H
+#include <inttypes.h>
+#endif
 #include <sys/stat.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -19,6 +23,9 @@ typedef int ssize_t;
 #define close _close
 #else
 #define FILE_PROTECTION (S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP)
+#endif
+#ifndef __linux__
+#define O_DIRECT 0
 #endif
 
 void io_init(asyncFileInfo *info, size_t nBuffers,size_t nBufferSize) {
@@ -133,8 +140,8 @@ static int wait_complete(asyncFileInfo *info, int nWait) {
 		info->pcb[i] = NULL;
 		ssize_t nWritten = aio_return(&info->cb[i]);
 		if (nWritten != info->cb[i].aio_nbytes) {
-		    sprintf(szError,"errno=%d nBytes=%llu nBytesWritten=%llu\n",
-			errno,info->cb[i].aio_nbytes,nWritten);
+		    sprintf(szError,"errno=%d nBytes=%"PRIu64" nBytesWritten=%"PRIi64"\n",
+			errno,(uint64_t)info->cb[i].aio_nbytes,(int64_t)nWritten);
 		    perror(szError);
 		    abort();
 		    }
