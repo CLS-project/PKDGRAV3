@@ -690,7 +690,7 @@ void pkdCalculateGroupStats(PKD pkd,int bPeriodic,double *dPeriod,double rEnviro
 	    mrFree[n].dr = sqrtf(r2);
 	    }
 	QSORT(sizeof(MassRadius),mrFree,n,mrLessThan);
-	fMass = mrFree[i].fMass;
+	fMass = mrFree[0].fMass;
 	for (i=1;i<n;++i) {
 	    fMass += mrFree[i].fMass;
 	    mrFree[i].fMass = fMass;
