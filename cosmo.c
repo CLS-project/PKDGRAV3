@@ -8,7 +8,6 @@
 #include <math.h>
 #include <errno.h>
 #include <ctype.h>
-#include <getopt.h>
 #include <assert.h>
 
 #ifdef CRAY_T3D
@@ -23,11 +22,6 @@
 #define LIMIT 1000
 #endif
 
-#define OPT_z   'z'
-#define OPT_rad 'r'
-#define OPT_Om0 'm'
-#define OPT_w0 'w'
-//#define OPT_wa 'wa'
 /*
  * Cosmological module for PKDGRAV.
  * N.B.  This code is being shared with skid and the I.C. generator.
