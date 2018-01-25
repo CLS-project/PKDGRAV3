@@ -55,8 +55,7 @@ static hpint64 imodulo64 (hpint64 v1, hpint64 v2)
 hpint64 nside2npix64(hpint64 nside)
   { return 12*nside*nside; }
 
-static hpint64 ang2pix_ring_z_phi64 (hpint64 nside_, double z, double s,
-  double phi)
+hpint64 ang2pix_ring_z_phi64(hpint64 nside_,double z,double s,double phi)
   {
   double za = fabs(z);
   double tt = fmodulo(phi,twopi) * inv_halfpi; /* in [0,4) */
