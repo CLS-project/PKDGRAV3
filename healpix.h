@@ -35,6 +35,7 @@
 typedef int64_t hpint64;
 
 hpint64 nside2npix64(hpint64 nside);
+hpint64 ang2pix_ring_z_phi64(hpint64 nside_,double z,double s,double phi);
 int64_t vec2pix_ring64(hpint64 nside, const double *vec);
 
 #endif
