@@ -230,12 +230,8 @@ int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int bFixed,float fPhase,int nGrid
 
     powerParameters P;
 
-    double D0 = csmComoveGrowthFactor(csm,1.0);
-    MyD_RK4(csm, 1.0, &D1_0, &D2_0, &f1_0, &f2_0);
-    double Da = csmComoveGrowthFactor(csm,a);
-    if (mdlSelf(mdl)==0) printf("D1 (approx) = %.20g\n", Da);
-    MyD_RK4(csm, a, &D1_a, &D2_a, &f1_a, &f2_a);
-    if (mdlSelf(mdl)==0) printf("D1 (exact) = %.20g\n", D1_a);
+    csmComoveGrowth(csm, 1.0, &D1_0, &D2_0, &f1_0, &f2_0); 
+    csmComoveGrowth(csm, a, &D1_a, &D2_a, &f1_a, &f2_a);
     dOmega = cosmo->dOmega0 / (a*a*a*pow(csmExp2Hub(csm, a)/cosmo->dHubble0,2.0));
 
     P.normalization = 1.0;
@@ -256,7 +252,7 @@ int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int bFixed,float fPhase,int nGrid
 	P.normalization = cosmo->dNormalization * D1_a/D1_0;
 	dSigma8 = sqrt(variance(&P,8.0));
 	}
-    double f1 = pow(dOmega,5.0/9.0);//csmComoveGrowthRate(csm,a);
+    double f1 = pow(dOmega,5.0/9.0);
     double f2 = 2.0 * pow(dOmega,6.0/11.0);
     if (mdlSelf(mdl)==0) {
 	printf("sigma8=%.15g\n",dSigma8); 

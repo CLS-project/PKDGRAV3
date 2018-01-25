@@ -423,7 +423,7 @@ static double RK4_g2(CSM csm, double lna, double D1, double D2, double G){
 }
 
 
-void MyD_RK4(CSM csm, double a, double *D1LPT, double *D2LPT, double *f1LPT, double *f2LPT){
+void csmComoveGrowth(CSM csm, double a, double *D1LPT, double *D2LPT, double *f1LPT, double *f2LPT){
     /*
     ** Variable declarations & initializations
     */
@@ -545,11 +545,4 @@ static double ComoveGrowthFactorIntegral(CSM csm,double a) {
 	0, a, 1e-12);
 #endif
     return result;
-    }
-
-double csmComoveGrowthFactor(CSM csm,double a) {
-    //double a_equ = csm->val.dOmegaRad/csm->val.dOmega0; /* added by MK: computing the scale factor at radiation/matter equivalence */
-    double eta = csmExp2Hub(csm, a);
-    double result = ComoveGrowthFactorIntegral(csm,a);
-    return csm->val.dHubble0*csm->val.dHubble0*2.5*csm->val.dOmega0*eta*result + 2.0/3.0*csmRadMatEquivalence(csm);
     }
