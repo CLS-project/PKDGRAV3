@@ -516,33 +516,3 @@ void csmComoveGrowth(CSM csm, double a, double *D1LPT, double *D2LPT, double *f1
     return;
 }
 
-/*
- *   COMPARISON CODE - meant to be removed again
- *   by M.K., Jan 11 2018, 11am
- */
-
-double csmComoveGrowthInt(CSM csm, double a) {
-    if (a==0.0) return 0;
-    else return pow(a*csmExp2Hub(csm,a),-3.0);
-    }
-
-static double ComoveGrowth_integrand(double a, void * params) {
-    return csmComoveGrowthInt(params,a);
-    }
-
-static double ComoveGrowthFactorIntegral(CSM csm,double a) {
-    double result;
-#if defined(USE_GSL_COSMO)
-    gsl_function F;
-    F.function = &ComoveGrowth_integrand;
-    F.params = csm;
-    double error;
-    gsl_integration_qag(&F, 
-	0, a,0.0, 1e-12, LIMIT, GSL_INTEG_GAUSS61, csm->W, &result, &error);
-#else
-    result = dRombergO(csm,
-	(double (*)(void *, double)) csmComoveGrowthInt,
-	0, a, 1e-12);
-#endif
-    return result;
-    }
