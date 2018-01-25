@@ -1380,7 +1380,7 @@ struct inGridProject {
 void pstGridProject(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 
 #ifdef MDL_FFTW
-#define PST_MAX_K_BINS 1024
+#define PST_MAX_K_BINS 2500
 /* PST_MEASUREPK */
 struct inMeasurePk {
     double dTotalMass;

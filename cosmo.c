@@ -4,16 +4,21 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <math.h>
+#include <errno.h>
+#include <ctype.h>
 #include <assert.h>
 
 #ifdef CRAY_T3D
 #include "hyperlib.h"
 #endif
-
 #include "cosmo.h"
 
-#ifdef USE_GSL_COSMO
+//This version of the code requires GSL
+#ifndef USE_GSL_COSMO
+#error USE_GSL_COSMO must be defined!
+#else
 #define LIMIT 1000
 #endif
 
@@ -37,25 +42,16 @@ void csmInitialize(CSM *pcsm) {
     csm->val.dOmegaRad = 0.0;
     csm->val.dOmegab = 0.0;
     csm->val.bComove = 0;
-#ifdef USE_GSL_COSMO
     csm->W = gsl_integration_workspace_alloc(LIMIT);
-#endif
     *pcsm = csm;
     }
 
 void csmFinish(CSM csm) {
-#ifdef USE_GSL_COSMO
     gsl_integration_workspace_free(csm->W);
-#endif
     free(csm);
     }
 
 #define EPSCOSMO 1e-7
-
-#ifndef USE_GSL_COSMO
-double dRombergO(void *CTX, double (*func)(void *, double), double a,
-		 double b, double eps);
-#endif
 
 /*
  * ** by MK: Computes the scale factor a at radiation-matter equivalence.
@@ -64,38 +60,6 @@ double csmRadMatEquivalence(CSM csm){
     return csm->val.dOmegaRad/csm->val.dOmega0;
 }
 
-/*
- ** The cosmological equation of state is entirely determined here.  We
- ** will derive all other quantities from this function.
- */
-
-double csmExp2Hub(CSM csm, double dExp) {
-    double dOmegaCurve = 1.0 - csm->val.dOmega0 -
-			 csm->val.dLambda - csm->val.dOmegaDE - csm->val.dOmegaRad;
-
-    assert(dExp > 0.0);
-    return csm->val.dHubble0
-	   *sqrt(csm->val.dOmega0*dExp
-		 + dOmegaCurve*dExp*dExp
-		 + csm->val.dOmegaRad
-		 + csm->val.dOmegaDE*pow(dExp,1.0 - 3.0*(csm->val.w0 + csm->val.wa))*exp(-3.0*csm->val.wa*(1.0 - dExp))
-		 + csm->val.dLambda*dExp*dExp*dExp*dExp)/(dExp*dExp);
-    }
-
-/*
- * ** This is a/H(a)*dH(a)/da
- * */
-double csmExp2HubRate(CSM csm, double dExp) {
-    double dOmegaCurve = 1.0 - csm->val.dOmega0 -
-			 csm->val.dLambda - csm->val.dOmegaDE - csm->val.dOmegaRad;
-    assert(dExp > 0.0);
-    double ia = 1.0 / dExp;
-    assert( csm->val.dOmegaDE == 0.0); // WARNING: no dark energy in this equation
-    return ( -1.5 * csm->val.dOmega0 * ia*ia*ia - dOmegaCurve * ia*ia - 2.0*csm->val.dOmegaRad * ia*ia*ia*ia )
-	 / (        csm->val.dOmega0 * ia*ia*ia + dOmegaCurve * ia*ia +     csm->val.dOmegaRad * ia*ia*ia*ia + csm->val.dLambda );
-    }
-
-
 double csmTime2Hub(CSM csm,double dTime) {
     double a = csmTime2Exp(csm,dTime);
 
@@ -103,17 +67,15 @@ double csmTime2Hub(CSM csm,double dTime) {
     return csmExp2Hub(csm, a);
     }
 
-double csmCosmoTint(CSM csm, double dY) {
-    double dExp = pow(dY, 2.0/3.0);
-
-    assert(dExp > 0.0);
-    return 2.0/(3.0*dY*csmExp2Hub(csm, dExp));
-    }
-
-#ifdef USE_GSL_COSMO
 static double Exp2Time_integrand(double ak, void * params) {
-    return csmCosmoTint(params,ak);
+    CSM csm = (CSM)params;
+
+    double dExp = pow(ak,2.0/3.0);
+    assert (dExp > 0.0);
+
+    return 2.0/(3.0*ak*csmExp2Hub(csm,dExp));
     }
+
 static double Exp2TimeIntegrate(CSM csm,double dExp) {
     gsl_function F;
     F.function = &Exp2Time_integrand;
@@ -121,9 +83,9 @@ static double Exp2TimeIntegrate(CSM csm,double dExp) {
     double result,error;
     gsl_integration_qag(&F, 0.0, pow(dExp, 1.5),
 	0.0, EPSCOSMO, LIMIT, GSL_INTEG_GAUSS61, csm->W, &result, &error);
+    //printf("a=%g,\t result of Exp2TimeIntegrate = %g\n", dExp, result);
     return result;
     }
-#endif
 
 double csmExp2Time(CSM csm,double dExp) {
     double dOmega0 = csm->val.dOmega0;
@@ -136,7 +98,8 @@ double csmExp2Time(CSM csm,double dExp) {
 	 */
 	assert(0);
 	}
-    if (csm->val.dLambda == 0.0 && csm->val.dOmegaRad == 0.0) {
+    
+    if (csm->val.dLambda == 0.0 && csm->val.dOmegaDE == 0.0 && csm->val.dOmegaRad == 0.0) {
 	if (dOmega0 == 1.0) {
 	    assert(dHubble0 > 0.0);
 	    if (dExp == 0.0) return(0.0);
@@ -179,12 +142,7 @@ double csmExp2Time(CSM csm,double dExp) {
 	    }
 	}
     else {
-#ifdef USE_GSL_COSMO
 	return Exp2TimeIntegrate(csm,dExp);
-#else
-	return dRombergO(csm, (double (*)(void *, double)) csmCosmoTint,
-			 0.0, pow(dExp, 1.5), EPSCOSMO);
-#endif
 	}
     }
 
@@ -211,11 +169,8 @@ double csmTime2Exp(CSM csm,double dTime) {
 	a = 0.5*(al+ah);
 	ho = ah-al;
 	h = ho;
-#ifdef USE_GSL_COSMO
+
 	f = dTime - Exp2TimeIntegrate(csm,a);
-#else
-	f = dTime - dRombergO(csm, (double (*)(void *, double)) csmCosmoTint,0.0,pow(a,1.5),EPSCOSMO);
-#endif
 	f1 = 1/(a*csmExp2Hub(csm,a));
 	for (j=0;j<MAX_ITER;++j) {
 	    if (a+f/f1 < al || a+f/f1 > ah || fabs(2*f) > fabs(ho*f1)) {
@@ -251,11 +206,8 @@ double csmTime2Exp(CSM csm,double dTime) {
 		*/
 		return a;
 		}
-#ifdef USE_GSL_COSMO
+
 	    f = dTime - Exp2TimeIntegrate(csm,a);
-#else
-	    f = dTime - dRombergO(csm, (double (*)(void *, double)) csmCosmoTint,0.0,pow(a,1.5),EPSCOSMO*1e-1);
-#endif
 	    f1 = 1/(a*csmExp2Hub(csm,a));
 	    if (f < 0) ah = a;
 	    else al = a;
@@ -293,7 +245,8 @@ double csmComoveDriftFac(CSM csm,double dTime,double dDelta) {
     double a0,A,B,a1,a2,eta1,eta2;
 
     if (!csm->val.bComove) return(dDelta);
-    else if (csm->val.dLambda == 0.0 && csm->val.dOmegaRad == 0.0) {
+ 
+    else if (csm->val.dLambda == 0.0 && csm->val.dOmegaDE == 0.0 && csm->val.dOmegaRad == 0.0) {
 	a1 = csmTime2Exp(csm,dTime);
 	a2 = csmTime2Exp(csm,dTime+dDelta);
 	if (dOmega0 == 1.0) {
@@ -339,7 +292,6 @@ double csmComoveDriftFac(CSM csm,double dTime,double dDelta) {
 	    }
 	}
     else {
-#ifdef USE_GSL_COSMO
 	gsl_function F;
 	F.function = &ComoveDrift_integrand;
 	F.params = csm;
@@ -348,12 +300,6 @@ double csmComoveDriftFac(CSM csm,double dTime,double dDelta) {
 	    1.0/csmTime2Exp(csm, dTime), 1.0/csmTime2Exp(csm, dTime + dDelta),
 	    0.0, EPSCOSMO, LIMIT, GSL_INTEG_GAUSS61, csm->W, &result, &error);
 	return result;
-#else
-	return dRombergO(csm,
-			 (double (*)(void *, double)) csmComoveDriftInt,
-			 1.0/csmTime2Exp(csm, dTime),
-			 1.0/csmTime2Exp(csm, dTime + dDelta), EPSCOSMO);
-#endif
 	}
     }
 
@@ -367,7 +313,7 @@ double csmComoveKickFac(CSM csm,double dTime,double dDelta) {
     double a0,A,B,a1,a2,eta1,eta2;
 
     if (!csm->val.bComove) return(dDelta);
-    else if (csm->val.dLambda == 0.0 && csm->val.dOmegaRad == 0.0) {
+    else if (csm->val.dLambda == 0.0 && csm->val.dOmegaDE == 0.0 && csm->val.dOmegaRad == 0.0) {
 	a1 = csmTime2Exp(csm,dTime);
 	a2 = csmTime2Exp(csm,dTime+dDelta);
 	if (dOmega0 == 1.0) {
@@ -413,7 +359,6 @@ double csmComoveKickFac(CSM csm,double dTime,double dDelta) {
 	    }
 	}
     else {
-#ifdef USE_GSL_COSMO
 	gsl_function F;
 	F.function = &ComoveKick_integrand;
 	F.params = csm;
@@ -422,12 +367,6 @@ double csmComoveKickFac(CSM csm,double dTime,double dDelta) {
 	    1.0/csmTime2Exp(csm, dTime), 1.0/csmTime2Exp(csm, dTime + dDelta),
 	    0.0, EPSCOSMO, LIMIT, GSL_INTEG_GAUSS61, csm->W, &result, &error);
 	return result;
-#else
-	return dRombergO(csm,
-			 (double (*)(void *, double)) csmComoveKickInt,
-			 1.0/csmTime2Exp(csm, dTime),
-			 1.0/csmTime2Exp(csm, dTime + dDelta), EPSCOSMO);
-#endif
 	}
     }
 
@@ -460,42 +399,120 @@ double csmComoveLookbackTime2Exp(CSM csm,double dComoveTime) {
 	}
     }
 
-double csmComoveGrowthInt(CSM csm, double a) {
-    if (a==0.0) return 0;
-    else return pow(a*csmExp2Hub(csm,a),-3.0);
-    }
+static double RK4_f1(CSM csm, double lna, double G){
+    double a = exp(lna);
+    return G/csmExp2Hub(csm, a);
+}
 
-static double ComoveGrowth_integrand(double a, void * params) {
-    return csmComoveGrowthInt(params,a);
-    }
+static double RK4_g1(CSM csm, double lna, double D, double G){
+    double a = exp(lna);
+    double inva = 1./a;
+    return -2.0 * G + 1.5 * csm->val.dOmega0 * csm->val.dHubble0*csm->val.dHubble0 * inva*inva*inva * D/csmExp2Hub(csm, a);
+}
 
-static double ComoveGrowthFactorIntegral(CSM csm,double a) {
-    double result;
-#if defined(USE_GSL_COSMO)
-    gsl_function F;
-    F.function = &ComoveGrowth_integrand;
-    F.params = csm;
-    double error;
-    gsl_integration_qag(&F, 
-	0, a,0.0, 1e-12, LIMIT, GSL_INTEG_GAUSS61, csm->W, &result, &error);
-#else
-    result = dRombergO(csm,
-	(double (*)(void *, double)) csmComoveGrowthInt,
-	0, a, 1e-12);
-#endif
-    return result;
-    }
+// This function is in principle redundant as it is exactly the same as RK4_f1
+static double RK4_f2(CSM csm, double lna, double G){
+    double a = exp(lna);
+    return G/csmExp2Hub(csm, a);
+}
 
-double csmComoveGrowthFactor(CSM csm,double a) {
-    // double a_equ = csm->val.dOmegaRad/csm->val.dOmega0; /* added by MK: computing the scale factor at radiation/matter equivalence */
-    double eta = csmExp2Hub(csm, a);
-    double result = ComoveGrowthFactorIntegral(csm,a);
-    return csm->val.dHubble0*csm->val.dHubble0*2.5*csm->val.dOmega0*eta*result + 2.0/3.0*csmRadMatEquivalence(csm);
-    }
+static double RK4_g2(CSM csm, double lna, double D1, double D2, double G){
+    double a = exp(lna);
+    double inva = 1./a;
+    return -2.0 * G + 1.5 * csm->val.dOmega0 * csm->val.dHubble0*csm->val.dHubble0 * inva*inva*inva * (D2 - D1*D1)/csmExp2Hub(csm, a);
+}
 
-double csmComoveGrowthRate(CSM csm,double a) {
-    return (1 - 2.0/3.0*csmRadMatEquivalence(csm)/csmComoveGrowthFactor(csm,a))*(csmExp2HubRate(csm,a) + 
-                                                            a*csmComoveGrowthInt(csm,a)/ComoveGrowthFactorIntegral(csm,a));
-    }
 
+void csmComoveGrowth(CSM csm, double a, double *D1LPT, double *D2LPT, double *f1LPT, double *f2LPT){
+    /*
+    ** Variable declarations & initializations
+    */
+    int nSteps=1000;
+    double a_init, lna_init = log(1e-12); // ln(a)=-12 ==> a = e^(-12) ~ 0 
+    double stepwidth = (log(a)- lna_init)/nSteps;
+
+    // NOTICE: Storing the following quantities into data structures is by far not optimal (we actually never need the old values after the update).
+    double ln_timesteps[nSteps+1];
+    // -- 1LPT 
+    double D1[nSteps+1]; // 1LPT Growth factor D1(a)
+    double G1[nSteps+1]; // G1(a) = dD1(a)/dln(a) *H  ==>  Growth rate: f1(a) = G1/(H*D1) 
+    // -- 2LPT
+    double D2[nSteps+1]; // 2LPT Growth factor D2(a)
+    double G2[nSteps+1]; // G2(a) = dD2(a)/dln(a) *H  ==>  Growth rate: f2(a) = G1/(H*D1) 
+
+    /* 
+    ** Set boundary conditions
+    */
+    a_init = exp(lna_init);
+    D1[0] = a_init + 2.0/3.0*csmRadMatEquivalence(csm); 
+    G1[0] = csmExp2Hub(csm, a_init)*a_init;
+
+    // This is the analytical approximation
+    //double AnApprox = -3. * D1[0]*D1[0]/(7. * pow(csm->val.dOmega0,1./143.));
+
+    D2[0] = -2.0/3.0*csmRadMatEquivalence(csm)*a_init;
+    G2[0] = -2.0/3.0*csmRadMatEquivalence(csm)*a_init*csmExp2Hub(csm, a_init);
+
+
+    //Classical RK4 Solver
+    double k0, k1, k2, k3;
+    double l0, l1, l2, l3;
+    double m0, m1, m2, m3;
+    double n0, n1, n2, n3;
+
+    //FILE *fp;
+    //fp = fopen("GrowthFactorTable.NewBC.dat","a");
+
+    int i; // running loop variable
+    for(i=0;i<=nSteps;i++){
+        ln_timesteps[i] = lna_init + i*stepwidth;
+        //fprintf(file, "%.15f, %.5f,%.20f\n", exp(ln_timesteps[i]),1.0/exp(ln_timesteps[i])-1.0, D[i]+ 0.0001977011);
+ 
+        //RK4 step 1
+        k0 = stepwidth * RK4_f1(csm, ln_timesteps[i], G1[i]);
+        l0 = stepwidth * RK4_g1(csm, ln_timesteps[i], D1[i], G1[i]);
+
+	m0 = stepwidth * RK4_f2(csm, ln_timesteps[i], G2[i]);
+        n0 = stepwidth * RK4_g2(csm, ln_timesteps[i], D1[i], D2[i], G2[i]);
+
+	//RK4 step 2
+	k1 = stepwidth * RK4_f1(csm, ln_timesteps[i] + stepwidth/2.0, G1[i] + l0/2.0); 
+	l1 = stepwidth * RK4_g1(csm, ln_timesteps[i] + stepwidth/2.0, D1[i] + k0/2.0, G1[i] + l0/2.0);
+    
+	m1 = stepwidth * RK4_f2(csm, ln_timesteps[i] + stepwidth/2.0, G2[i] + n0/2.0);
+        n1 = stepwidth * RK4_g2(csm, ln_timesteps[i] + stepwidth/2.0, D1[i] + k0/2.0, D2[i] + m0/2.0, G2[i] + n0/2.0);
+
+      	//RK4 step 3
+	k2 = stepwidth * RK4_f1(csm, ln_timesteps[i] + stepwidth/2.0, G1[i] + l1/2.0);
+  	l2 = stepwidth * RK4_g1(csm, ln_timesteps[i] + stepwidth/2.0, D1[i] + k1/2.0, G1[i] + l1/2.0);
+
+	m2 = stepwidth * RK4_f2(csm, ln_timesteps[i] + stepwidth/2.0, G2[i] + n1/2.0);
+        n2 = stepwidth * RK4_g2(csm, ln_timesteps[i] + stepwidth/2.0, D1[i] + k1/2.0, D2[i] + m1/2.0, G2[i] + n1/2.0);
+
+	//RK4 step 4
+	k3 = stepwidth * RK4_f1(csm, ln_timesteps[i] + stepwidth, G1[i] + l2);
+	l3 = stepwidth * RK4_g1(csm, ln_timesteps[i] + stepwidth, D1[i] + k2, G1[i] + l2);
+
+	m3 = stepwidth * RK4_f2(csm, ln_timesteps[i] + stepwidth, G2[i] + n2);
+        n3 = stepwidth * RK4_g2(csm, ln_timesteps[i] + stepwidth, D1[i] + k2, D2[i] + m2, G2[i] + n2);
+
+	//Update
+	D1[i+1] = D1[i] + (k0 + 2*k1 + 2*k2 + k3)/6.0;
+	G1[i+1] = G1[i] + (l0 + 2*l1 + 2*l2 + l3)/6.0; 
+
+        D2[i+1] = D2[i] + (m0 + 2*m1 + 2*m2 + m3)/6.0;
+        G2[i+1] = G2[i] + (n0 + 2*n1 + 2*n2 + n3)/6.0; 
+
+	//fprintf(fp, "%.20g, %.20g, %.20g\n", exp(lna_init + i*stepwidth), D1[i], D2[i]);
+    }
+       
+    //fclose(fp);
+
+    *D1LPT = D1[nSteps];
+    *f1LPT = G1[nSteps]/(csmExp2Hub(csm,a) * *D1LPT);
+
+    *D2LPT = D2[nSteps];
+    *f2LPT = G2[nSteps]/(csmExp2Hub(csm,a) * *D2LPT);
+    return;
+}
 
