@@ -399,24 +399,24 @@ double csmComoveLookbackTime2Exp(CSM csm,double dComoveTime) {
 	}
     }
 
-double RK4_f1(CSM csm, double lna, double G){
+static double RK4_f1(CSM csm, double lna, double G){
     double a = exp(lna);
     return G/csmExp2Hub(csm, a);
 }
 
-double RK4_g1(CSM csm, double lna, double D, double G){
+static double RK4_g1(CSM csm, double lna, double D, double G){
     double a = exp(lna);
     double inva = 1./a;
     return -2.0 * G + 1.5 * csm->val.dOmega0 * csm->val.dHubble0*csm->val.dHubble0 * inva*inva*inva * D/csmExp2Hub(csm, a);
 }
 
 // This function is in principle redundant as it is exactly the same as RK4_f1
-double RK4_f2(CSM csm, double lna, double G){
+static double RK4_f2(CSM csm, double lna, double G){
     double a = exp(lna);
     return G/csmExp2Hub(csm, a);
 }
 
-double RK4_g2(CSM csm, double lna, double D1, double D2, double G){
+static double RK4_g2(CSM csm, double lna, double D1, double D2, double G){
     double a = exp(lna);
     double inva = 1./a;
     return -2.0 * G + 1.5 * csm->val.dOmega0 * csm->val.dHubble0*csm->val.dHubble0 * inva*inva*inva * (D2 - D1*D1)/csmExp2Hub(csm, a);
