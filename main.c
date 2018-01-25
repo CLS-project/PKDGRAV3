@@ -175,7 +175,7 @@ void * master_ch(MDL mdl) {
 	int bDoPk = 0;
 #endif
 	msrInflate(msr,0);
-	if (msrDoGravity(msr) ||msrDoGas(msr) || bDoPk) {
+	if (msrDoGravity(msr) ||msrDoGas(msr) || bDoPk || msr->param.bFindGroups) {
 	    msrActiveRung(msr,0,1); /* Activate all particles */
 	    msrDomainDecomp(msr,0,0,0);
 	    msrUpdateSoft(msr,dTime);
@@ -185,7 +185,10 @@ void * master_ch(MDL mdl) {
 		msrOutputPk(msr,iStartStep,dTime);
 		}
 #endif
-	    if (msrDoGravity(msr)) {
+	    if (msr->param.bFindGroups) {
+		msrNewFof(msr,csmTime2Exp(msr->param.csm,dTime));
+		}
+	    if (msrDoGravity(msr) || msr->param.bFindGroups) {
 		msrGravity(msr,0,MAX_RUNG,ROOT,0,dTime,iStartStep,0,0,
 		    msr->param.bEwald,msr->param.nGroup,&iSec,&nActive);
 		msrMemStatus(msr);
@@ -195,6 +198,9 @@ void * master_ch(MDL mdl) {
 			msr->param.bEwald,msr->param.nGroup,&iSec,&nActive);
 		    msrMemStatus(msr);
 		    }
+		}
+	    if (msr->param.bFindGroups) {
+		msrGroupStats(msr);
 		}
 		
 	    if (msrDoGas(msr)) {
