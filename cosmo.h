@@ -36,28 +36,6 @@ extern "C" {
     void csmFinish(CSM csm);
     double csmRadMatEquivalence(CSM csm);
 
-/*
-This is my version of csmExp2Hub. Here, there is no dLambda as I consider Lambda as a specific form of DE (so dLambda = dOmegaDE). The different behaviour
-is all stored in the value of the equation of state parameter.
-
-double MK_csmExp2Hub(CSM csm, double dExp) {
-    //ATTENTION: In my version dLambda does no longer exist ==> the only thing distinguishing between
-    // different forms of DE is the value of the EoS parameter w = (w0,wa)
-    double dOmegaCurve = 1.0 - csm->val.dOmega0 - csm->val.dOmegaDE - csm->val.dOmegaRad;
-
-    assert(dExp > 0.0);
-    return csm->val.dHubble0
-           *sqrt(csm->val.dOmega0*dExp
-                 + dOmegaCurve*dExp*dExp
-                 + csm->val.dOmegaRad
-                 + csm->val.dOmegaDE*pow(dExp,1.0 - 3.0*(csm->val.w0 + csm->val.wa))*exp(-3.0*csm->val.wa*(1.0 - dExp)))/(dExp*dExp);
-    }
-*/
-
-    /*
-    ** The cosmological equation of state is entirely determined here.  We
-    ** will derive all other quantities from this function.
-    */
     static inline double csmExp2Hub(CSM csm, double dExp) {
         double dOmegaCurve = 1.0 - csm->val.dOmega0 - csm->val.dLambda - csm->val.dOmegaDE - csm->val.dOmegaRad;
 
