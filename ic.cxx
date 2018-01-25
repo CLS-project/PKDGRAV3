@@ -212,8 +212,9 @@ int pkdGenerateIC(PKD pkd,MDLFFT fft,int iSeed,int bFixed,float fPhase,int nGrid
     float iLbox3 = pow(iLbox,3.0);
     float ak, ak2, amp;
     float dOmega;
-    float D1_0, D2_0, D1_a, D2_a;
-    float f1_0, f2_0, f1_a, f2_a;
+    double D1_0, D2_0, D1_a, D2_a; 
+    double f1_0, f2_0, f1_a, f2_a;
+    
     float velFactor; 
     basicParticle *p;
     int nLocal;

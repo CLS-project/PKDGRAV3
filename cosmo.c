@@ -423,8 +423,7 @@ static double RK4_g2(CSM csm, double lna, double D1, double D2, double G){
 }
 
 
-//void MyD_RK4(CSM csm, double a, double *D1LPT, double *D2LPT, double *f1LPT, double *f2LPT){
-void MyD_RK4(CSM csm, double a, float *D1LPT, float *D2LPT, float *f1LPT, float *f2LPT){
+void MyD_RK4(CSM csm, double a, double *D1LPT, double *D2LPT, double *f1LPT, double *f2LPT){
     /*
     ** Variable declarations & initializations
     */
