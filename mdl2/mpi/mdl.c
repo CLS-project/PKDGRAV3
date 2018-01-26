@@ -41,7 +41,6 @@
 #include "cudautil.h"
 #endif
 #ifdef USE_CL
-#include <CL/cl.h>
 #include "clutil.h"
 #endif
 #ifdef USE_ITT
