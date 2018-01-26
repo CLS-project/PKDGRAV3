@@ -20,12 +20,12 @@ static time_t timeGlobalSignalTime = 0;
 static int bGlobalOutput = 0;
 
 #ifndef _MSC_VER
-static void USR1_handler(int signo) {
+static inline void USR1_handler(int signo) {
     signal(SIGUSR1,USR1_handler);
     timeGlobalSignalTime = time(0);
     }
 
-static void USR2_handler(int signo) {
+static inline void USR2_handler(int signo) {
     signal(SIGUSR2,USR2_handler);
     bGlobalOutput = 1;
     }
