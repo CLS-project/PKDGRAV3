@@ -369,15 +369,6 @@ ppy_msr_SelSrc(PyObject *self, PyObject *args) {
 #endif
 
 static PyObject *
-ppy_msr_DeepestPotential(PyObject *self, PyObject *args) {
-    double r[3];
-    float fPot;
-    ppy2prm();
-    msrDeepestPot(ppy_msr,r,&fPot);
-    return Py_BuildValue("((ddd)f)", r[0], r[1], r[2], fPot);
-}
-
-static PyObject *
 ppy_msr_TotalMass(PyObject *self, PyObject *args) {
     double dMass;
     ppy2prm();
@@ -945,8 +936,6 @@ static PyMethodDef msr_methods[] = {
      "Selects source particles inside a given cylinder."},
     {"SelDstCylinder", ppy_msr_SelDstCylinder, METH_VARARGS,
      "Selects destination particles inside a given cylinder."},
-    {"DeepestPotential", ppy_msr_DeepestPotential, METH_NOARGS,
-     "Finds the most bound particle (deepest potential)"},
     {"TotalMass", ppy_msr_TotalMass, METH_NOARGS,
      "Returns the total mass of the selected particles"},
     {"Profile", ppy_msr_Profile, METH_VARARGS,

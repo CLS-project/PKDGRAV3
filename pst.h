@@ -212,7 +212,6 @@ enum pst_service {
     PST_SELSRCCYLINDER,
     PST_SELDSTCYLINDER,
 
-    PST_DEEPESTPOT,
     PST_PROFILE,
     PST_CALCDISTANCE,
     PST_CALCCOM,
@@ -1308,18 +1307,6 @@ void pstSelDstCylinder(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 /* PST_SECSRCGROUP */
 void pstSelSrcGroup(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 void pstSelDstGroup(PST pst,void *vin,int nIn,void *vout,int *pnOut);
-
-/* PST_DEEPESTPOT - Input inDeepestPot - Output outDeepestPot */
-struct inDeepestPot {
-    uint8_t uRungLo;
-    uint8_t uRungHi;
-    };
-struct outDeepestPot {
-    double   r[3];
-    uint64_t nChecked;
-    float    fPot;
-    };
-void pstDeepestPot(PST pst,void *vin,int nIn,void *vout,int *pnOut);
 
 /* PST_PROFILE */
 #define PST_MAX_PROFILE_BINS 1000000

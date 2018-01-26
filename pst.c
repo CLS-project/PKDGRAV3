@@ -436,9 +436,6 @@ void pstAddServices(PST pst,MDL mdl) {
     mdlAddService(mdl,PST_SELDSTGROUP,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstSelDstGroup,
 		  sizeof(int), 0);
-    mdlAddService(mdl,PST_DEEPESTPOT,pst,
-		  (void (*)(void *,void *,int,void *,int *)) pstDeepestPot,
-		  sizeof(struct inDeepestPot), sizeof(struct outDeepestPot));
     mdlAddService(mdl,PST_PROFILE,pst,
 		  (void (*)(void *,void *,int,void *,int *)) pstProfile,
 		  sizeof(struct inProfile), 0); 
@@ -4668,34 +4665,6 @@ void pstSelDstGroup(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
 	pkdSelDstGroup(plcl->pkd, *in);
 	}
     if (pnOut) *pnOut = 0;
-    }
-
-void pstDeepestPot(PST pst,void *vin,int nIn,void *vout,int *pnOut) {
-    LCL *plcl = pst->plcl;
-    struct inDeepestPot *in = vin;
-    struct outDeepestPot *out = vout;
-    struct outDeepestPot outUpper;
-    int nOut;
-
-    assert( nIn==sizeof(struct inDeepestPot) );
-    if (pst->nLeaves > 1) {
-	int rID = mdlReqService(pst->mdl,pst->idUpper,PST_DEEPESTPOT,vin,nIn);
-	pstDeepestPot(pst->pstLower,vin,nIn,vout,pnOut);
-	mdlGetReply(pst->mdl,rID,&outUpper,&nOut);
-	assert(nOut == sizeof(struct outDeepestPot));
-	if ( out->nChecked==0 || (outUpper.nChecked && outUpper.fPot < out->fPot) ) {
-	    out->r[0] = outUpper.r[0];
-	    out->r[1] = outUpper.r[1];
-	    out->r[2] = outUpper.r[2];
-	    out->fPot = outUpper.fPot;
-	    out->nChecked += outUpper.nChecked;
-	    }
-	}
-    else {
-	out->nChecked = pkdDeepestPot(plcl->pkd,in->uRungLo,in->uRungHi,
-	    out->r,&out->fPot);
-	}
-    if (pnOut) *pnOut = sizeof(struct outDeepestPot);
     }
 
 void pstProfile(PST pst,void *vin,int nIn,void *vout,int *pnOut) {

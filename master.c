@@ -5855,19 +5855,6 @@ uint64_t msrSelDstCylinder(MSR msr,double *dP1, double *dP2, double dRadius,
     return out.nSelected;
     }
 
-void msrDeepestPot(MSR msr,double *r, float *fPot) {
-    struct inDeepestPot in;
-    struct outDeepestPot out;
-    int nOut;
-    int d;
-
-    in.uRungLo = 0;
-    in.uRungHi = msrMaxRung(msr)-1;
-    pstDeepestPot(msr->pst, &in, sizeof(in), &out, &nOut);
-    for(d=0; d<3; d++ ) r[d] = out.r[d];
-    if ( fPot ) *fPot = out.fPot;
-    }
-
 double msrTotalMass(MSR msr) {
     struct outTotalMass out;
     int nOut;

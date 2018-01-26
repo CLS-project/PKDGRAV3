@@ -3997,39 +3997,6 @@ int pkdSelDstGroup(PKD pkd, int iGroup) {
     return n;
     }
 
-/*
-**  Find the source particle with the deepest potential
-*/
-int pkdDeepestPot(PKD pkd, uint8_t uRungLo, uint8_t uRungHi,
-    double *r, float *fPot) {
-    int i,n,nChecked;
-    PARTICLE *p, *pLocal;
-    float *pPot, *pPotLocal;
-
-    assert(pkd->oPotential);
-
-    n = pkdLocal(pkd);
-    pLocal = pkdParticle(pkd,0);
-    pPotLocal = pkdPot(pkd,pLocal);
-    nChecked = 0;
-    for (i=0;i<n;++i) {
-	p = pkdParticle(pkd,i);
-	if (pkdIsSrcActive(p,uRungLo,uRungHi)) {
-	    nChecked++;
-	    pPot = pkdPot(pkd,p);
-	    if ( *pPot < *pPotLocal ) {
-		pLocal = p;
-		pPotLocal = pkdPot(pkd,pLocal);
-		}
-	    }
-	}
-    r[0] = pkdPos(pkd,pLocal,0);
-    r[1] = pkdPos(pkd,pLocal,1);
-    r[2] = pkdPos(pkd,pLocal,2);
-    *fPot= *pPotLocal;
-    return nChecked;
-    }
-
 void pkdOutPsGroup(PKD pkd,char *pszFileName,int iType)
 {
     FILE *fp;
