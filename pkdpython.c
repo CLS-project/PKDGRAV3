@@ -91,20 +91,32 @@ static void ppy2prm(void) {
 	    case 0:
 	    case 1:
 		assert(pn->iSize == sizeof(int));
+#if PY_MAJOR_VERSION >= 3
+		*(int *)pn->pValue = PyLong_AsLong(v);
+#else
 		*(int *)pn->pValue = PyInt_AsLong(v);
+#endif		
 		break;
 	    case 2:
 		assert(pn->iSize == sizeof(double));
 		*(double *)pn->pValue = PyFloat_AsDouble(v);
 		break;
 	    case 3:
+#if PY_MAJOR_VERSION >= 3
+		s = PyBytes_AsString(v);
+#else
 		s = PyString_AsString(v);
+#endif
 		assert(pn->iSize > strlen(s));
 		strcpy((char *)pn->pValue,s);
 		break;
 	    case 4:
 		assert(pn->iSize == sizeof(uint64_t));
+#if PY_MAJOR_VERSION >= 3
+		*(uint64_t *)pn->pValue = PyLong_AsLong(v);
+#else
 		*(uint64_t *)pn->pValue = PyInt_AsLong(v);
+#endif
 		break;
 		}
 	    }
@@ -670,7 +682,7 @@ ppy_msr_MeasurePk(PyObject *self, PyObject *args, PyObject *kwobj) {
 
     fPk = malloc(sizeof(float)*(iNyquist+1));
     fK = malloc(sizeof(float)*(iNyquist+1));
-    msrMeasurePk(ppy_msr,dCenter,dRadius,nGrid,nGrid/2,NULL,fK,fPk);
+    msrMeasurePk(ppy_msr,nGrid,nGrid/2,NULL,fK,fPk);
 
     List = PyList_New( iNyquist+1 );
     assert( List !=NULL );
