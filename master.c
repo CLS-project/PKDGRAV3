@@ -5689,49 +5689,14 @@ void msrOutput(MSR msr, int iStep, double dTime, int bCheckpoint) {
 	msrSmooth(msr,dTime,SMX_DENSITY,bSymmetric,msr->param.nSmooth);
 #endif
 	}
-#ifdef FOF_TESTING
     if ( msr->param.bFindGroups ) {
-	/*
-	** Build tree, activating all particles first (just in case).
-	*/
-	nFOFsDone = 0;
-	msrActiveRung(msr,0,1); /* Activate all particles */
-	msrDomainDecomp(msr,-1,0,0);
-	msrBuildTree(msr,dTime,0);
-	msrNewFof(msr,csmTime2Exp(msr->param.csm,dTime));
-
-	msrGravity(msr,0,MAX_RUNG,ROOT,0,dTime,iStep,0,0,
-	    msr->param.bEwald,msr->param.nGroup,&iSec,&nActive);
-
-	msrGroupStats(msr);
-
-/*	msrGroupMerge(msr,csmTime2Exp(msr->param.csm,dTime));
-	if (msr->param.nBins > 0) msrGroupProfiles(msr,csmTime2Exp(msr->param.csm,dTime));
-*/
 	msrReorder(msr);
 	sprintf(achFile,"%s.fof",msrOutName(msr));
 	msrOutArray(msr,achFile,OUT_GROUP_ARRAY);
-/*
-	msrBuildName(msr,achFile,iStep);
-	strncat(achFile,".stats",256);
-	msrOutGroups(msr,achFile,OUT_GROUP_STATS,dTime);
-	if ( msr->nBins > 0) {
-	    msrBuildName(msr,achFile,iStep);
-	    for (i=0;i<=nFOFsDone;++i)strncat(achFile,".pros",256);
-	    msrOutGroups(msr,achFile,OUT_GROUP_PROFILES,dTime);
-	    }
-	msrBuildName(msr,achFile,iStep);
-	for (i=0;i<=nFOFsDone;++i)strncat(achFile,".grps",256);
-	if (	msr->param.bStandard) msrOutGroups(msr,achFile,OUT_GROUP_TIPSY_STD,dTime);
-	else msrOutGroups(msr,achFile,OUT_GROUP_TIPSY_NAT,dTime);
-	nFOFsDone++;
-	if ( nFOFsDone )msrDeleteGroups(msr);
-*/
 	msrBuildName(msr,achFile,iStep);
 	strncat(achFile,".fofstats",256);
 	msrHopWrite(msr,achFile);
 	}
-#endif
     if ( msr->param.bFindHopGroups ) {
 	msrActiveRung(msr,0,1); /* Activate all particles */
 	msrDomainDecomp(msr,-1,0,0);

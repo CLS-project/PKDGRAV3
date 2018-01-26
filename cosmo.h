@@ -24,6 +24,7 @@
 
 typedef struct csmContext {
     struct csmVariables val;
+
 #ifdef USE_GSL_COSMO
     gsl_integration_workspace *W;
 #endif
@@ -34,7 +35,19 @@ extern "C" {
     void csmInitialize(CSM *pcsm);
     void csmFinish(CSM csm);
     double csmRadMatEquivalence(CSM csm);
-    double csmExp2Hub(CSM csm, double dExp);
+
+    static inline double csmExp2Hub(CSM csm, double dExp) {
+        double dOmegaCurve = 1.0 - csm->val.dOmega0 - csm->val.dLambda - csm->val.dOmegaDE - csm->val.dOmegaRad;
+
+        assert(dExp > 0.0);
+        return csm->val.dHubble0
+               *sqrt(csm->val.dOmega0*dExp
+                     + dOmegaCurve*dExp*dExp
+                     + csm->val.dOmegaRad
+                     + csm->val.dOmegaDE*pow(dExp,1.0 - 3.0*(csm->val.w0 + csm->val.wa))*exp(-3.0*csm->val.wa*(1.0 - dExp))
+                     + csm->val.dLambda*dExp*dExp*dExp*dExp)/(dExp*dExp);
+        }
+
     double csmTime2Hub(CSM csm, double dTime);
     double csmExp2Time(CSM csm, double dExp);
     double csmTime2Exp(CSM csm, double dTime);
@@ -42,9 +55,8 @@ extern "C" {
     double csmComoveKickInt(CSM csm, double dIExp);
     double csmComoveDriftFac(CSM csm, double dTime, double dDelta);
     double csmComoveKickFac(CSM csm, double dTime, double dDelta);
-    double csmComoveLookbackTime2Exp(CSM csm, double dComoveTime);
-    double csmComoveGrowthFactor(CSM csm, double a);
-    double csmComoveGrowthRate(CSM csm, double a);
+    double csmComoveLookbackTime2Exp(CSM csm, double dComoveTime);  
+    void csmComoveGrowth(CSM csm, double a, double *D1LPT, double *D2LPT, double *f1LPT, double *f2LPT);
 #ifdef __cplusplus
 }
 #endif

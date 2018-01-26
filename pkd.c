@@ -1037,7 +1037,7 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
     float *pPot, dummypot;
     double r[3];
     double vel[3];
-    float fMass, fSoft,fDensity;
+    float fMass, fSoft,fDensity,fMetals,fTimer;
     FIO_SPECIES eSpecies;
     uint64_t iParticleID;
 
@@ -1113,13 +1113,15 @@ void pkdReadFIO(PKD pkd,FIO fio,uint64_t iFirst,int nLocal,double dvFac, double 
 	    pkdSetDensity(pkd,p,fDensity);
 	    break;
 	case FIO_SPECIES_STAR:
-	    assert(pStar && pSph);
+//	    assert(pStar && pSph);
+//	    fioReadStar(fio,&iParticleID,r,vel,&fMass,&fSoft,pPot,&fDensity,
+//			      &pSph->fMetals,&pStar->fTimer);
 	    fioReadStar(fio,&iParticleID,r,vel,&fMass,&fSoft,pPot,&fDensity,
-			      &pSph->fMetals,&pStar->fTimer);
-	    pkdSetDensity(pkd,p,fDensity);
-	    pSph->vPred[0] = vel[0]*dvFac;
-	    pSph->vPred[1] = vel[1]*dvFac;
-	    pSph->vPred[2] = vel[2]*dvFac;
+			      &fMetals,&fTimer);
+//	    pkdSetDensity(pkd,p,fDensity);
+//	    pSph->vPred[0] = vel[0]*dvFac;
+//	    pSph->vPred[1] = vel[1]*dvFac;
+//	    pSph->vPred[2] = vel[2]*dvFac;
 	    break;
 	default:
 	    fprintf(stderr,"Unsupported particle type: %d\n",eSpecies);
@@ -2044,7 +2046,7 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,BND *bnd,PARTICLE *p) {
     SPHFIELDS *pSph;
     float *pPot, dummypot;
     double v[3],r[3];
-    float fMass, fSoft, fDensity;
+    float fMass, fSoft, fDensity, fMetals, fTimer;
     uint64_t iParticleID;
     int j;
 
@@ -2115,9 +2117,11 @@ static void writeParticle(PKD pkd,FIO fio,double dvFac,BND *bnd,PARTICLE *p) {
 	fioWriteDark(fio,iParticleID,r,v,fMass,fSoft,*pPot,fDensity);
 	break;
     case FIO_SPECIES_STAR:
-	assert(pStar && pSph);
+//	assert(pStar && pSph);
+	fMetals = 0;
+	fTimer = 0;
 	fioWriteStar(fio,iParticleID,r,v,fMass,fSoft,*pPot,fDensity,
-	    pSph->fMetals,pStar->fTimer);
+	    fMetals,fTimer);
 	break;
     default:
 	fprintf(stderr,"Unsupported particle type: %d\n",pkdSpecies(pkd,p));
