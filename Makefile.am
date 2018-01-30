@@ -36,7 +36,7 @@ all-local: $(TARGETS)
 clean-local:
 	rm -f $(EXTRA_PROGRAMS)
 
-SOURCES = main.c tree.c analysis.c romberg.c bt.c
+SOURCES = main.c tree.c analysis.c bt.c
 noinst_HEADERS = bt.h parameters.h grav.h walk.h cycle.h tipsydefs.h basetype.h vqsort.h
 SOURCES        += cosmo.c master.c param.c pst.c smooth.c ewald.cxx opening.cxx pp.cxx pc.cxx
 noinst_HEADERS += cosmo.h master.h param.h pst.h smooth.h ewald.h pp.h pc.h meval.h qeval.h
@@ -204,8 +204,8 @@ pkdgrav3_pthread_CFLAGS += -I$(PYTHON_INC)
 endif
 endif
 
-tostd_SOURCES = tostd.c fio.c romberg.c
-tdiff_SOURCES = tdiff.c fio.c romberg.c
+tostd_SOURCES = tostd.c fio.c
+tdiff_SOURCES = tdiff.c fio.c
 hpb2fits_SOURCES = hpb2fits.c
 lcp2tip_SOURCES = lcp2tip.c
 
